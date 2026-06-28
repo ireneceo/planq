@@ -10,7 +10,8 @@ import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import TasksTab from './TasksTab';
 import DocsTab from './DocsTab';
-import ProjectPostsTab from './ProjectPostsTab';
+// #96 — 프로젝트 '문서' 탭은 Q docs PostsPage 를 project scope 로 재사용 (문서·표·첨부 전 기능 동일).
+import PostsPage from '../../components/Docs/PostsPage';
 import TransactionsTab from './TransactionsTab';
 import ProjectReportTab from './ProjectReportTab';
 import ProjectCanvas from './canvas/ProjectCanvas';
@@ -684,7 +685,11 @@ const QProjectDetailPage: React.FC = () => {
         </InfoBody>
       )}
       {tab === 'files' && <DocsTab projectId={projectId} businessId={project.business_id} />}
-      {tab === 'docs' && <ProjectPostsTab businessId={project.business_id} projectId={projectId} />}
+      {tab === 'docs' && (
+        <ProjectDocsWrap>
+          <PostsPage scope={{ type: 'project', businessId: project.business_id, projectId }} />
+        </ProjectDocsWrap>
+      )}
       {tab === 'clients' && (
         <ClientsBody>
           <Card>
@@ -803,10 +808,10 @@ const QProjectDetailPage: React.FC = () => {
         <PinnedDocBody
           postId={Number(tab.replace('doc-', ''))}
           onEdit={(pid) => {
-            // 문서 탭으로 이동 + ?editPost=N 쿼리 → ProjectPostsTab 가 자동 편집 모드 진입
+            // #96 — 문서 탭(PostsPage)으로 이동 + ?post=N 쿼리 → 해당 문서 열림
             const sp = new URLSearchParams(searchParams);
             sp.set('tab', 'docs');
-            sp.set('editPost', String(pid));
+            sp.set('post', String(pid));
             setTabState('docs');
             setSearchParams(sp, { replace: true });
           }}
@@ -967,6 +972,14 @@ const Tab = styled.button<{$active:boolean}>`
   &:hover{color:#0F766E;}
 `;
 const InfoBody = styled.div`display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:16px;@media (max-width:900px){grid-template-columns:1fr;}`;
+// #96 — PostsPage(Layout height:100%) 를 프로젝트 탭에 임베드. 경계 높이 부여 → 내부 사이드바·그리드 자체 스크롤.
+//   상단 네비(64)+PageShell 헤더(60)+Body padding+TabBar 보정. Body padding(20) 상쇄 위해 음수 마진.
+const ProjectDocsWrap = styled.div`
+  height: calc(100vh - 210px);
+  min-height: 460px;
+  margin: -20px;
+  @media (max-width: 768px) { height: calc(100vh - 180px); margin: -16px; }
+`;
 const EditGrid = styled.div`display:grid;grid-template-columns:1fr 1fr;gap:12px;`;
 const EditField = styled.div`display:flex;flex-direction:column;gap:4px;`;
 const EditLabel = styled.span`font-size:11px;color:#64748B;font-weight:700;`;

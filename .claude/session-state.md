@@ -39,7 +39,12 @@ Irene 선택 "#90 진행 — 자동추출 개선". 근본원인 3개 수정:
 - **검증 통과:** 헬스 29/29 · 빌드 EXIT0/TS0 · 담당자 E2E 9/9 · source_ref HTTP 5/5 · cross-tenant 403 3/3 · i18n 819/819 · aiTaskPlanner #90 실증 4/4.
 - **#90 진실 규명:** 운영 원문(#90)은 채팅추출이 아니라 **`aiTaskPlanner`(Cue AI 업무 추가)** 경로. 커밋 `e6e9e7a`(6/22)로 **이미 수정·운영 배포됨**(닉네임 담당자 matchMemberByName + 링크 보존 프롬프트). dev 실증: "아이린"→user3 배정 + URL 보존 4/4 PASS. **#90 = 사실상 해결**(사용자가 배포 전 테스트). 이번 세션 task_extractor 작업은 **형제 기능 보강**(채팅/메일 추출의 standalone·표시명·원본링크 — aiTaskPlanner엔 없던 구멍).
 - **#95 (프로젝트 채팅방, 신규 6/26) — 부분 수정·미배포:** 확정버그 = **QTalkPage `handleCreateProject` 가 `channels` 누락**(QProjectPage 는 전달) → Q Talk 경로에서 채널 토글 완전 무시(항상 0개). `CreateProjectInput.channels` 추가 + 전달로 수정(빌드 EXIT0). **잔여 의문**: "해지했는데 생성됨" 증상은 프로젝트 생성 코드(양 경로 모두 channels.length>0 가드)로 재현 불가 → **고객 초대 시 자동 환영 대화방**(`clientOnboarding.ensureWelcomeConversation`, project_id=null, invite 수락 시) 가능성 높음. **Irene 재현경로 확인 필요**(어디서 생성·고객 추가 여부).
-- **신규 미착수:** #96(문서 테이블 다중버그·큼) · #89(랜딩 푸터 카피·소).
+- **#96 (문서 테이블, 신규 6/27) — 진행 중·미배포.** 실제 기능 = **Q docs 표 kind 문서**(`PostsPage` + `PostTableGrid`), records 메뉴는 폐지(흡수). Explore 초기 매핑은 폐지된 `QRecordDetailPage` 오진 → 바로잡음. 5개 서브버그:
+  - **② 기본테이블 없음 → ✅수정·검증** `routes/posts.js` kind=table 생성 시 빈 q_record(columns:0)였던 것을 **기본 컬럼 3개(제목 text/상태 select+옵션3/메모 longtext) + 빈 행 1개** 시드(언어별 ko/en). API E2E 6/6.
+  - **① 생성 후 나가버림 → ✅수정** `PostAiModal.submitTable` navigate 에 `&new_table=1` + `PostsPage` 로드 effect 가 표면 edit 모드 진입(플래그 1회 소비). 빌드 EXIT0.
+  - **③④ [첨부] 적용안됨/에러 → ⏳미착수** `PostTableGrid` attach 는 구현돼 있음 → 진짜 버그는 **컬럼 추가 시 type='attach' 1차 적용 실패 + cell attach 런타임 에러**. 브라우저 재현 필요.
+  - **⑤ 프로젝트>문서 표 없음 → ⏳미착수(설계확정)** 프로젝트 'docs' 탭 = `ProjectPostsTab`(PostsPage 일부만 재사용, 표 미지원). **Irene 결정: PostsPage(scope=project) 로 교체.** PostsPage 는 이미 scope.type='project' 데이터 지원하나 **전체 2컬럼(사이드바+콘텐츠) 레이아웃**이라 탭 임베드 시 레이아웃 검증 필수. submitTable navigate 도 scope-aware(/docs 하드코딩 → onTableCreated 콜백) 필요.
+- **#89(랜딩 푸터 카피·소) 미착수.**
 
 ### 다음 할 일
 1. **§6-C 델타(carry-in 분리)** — 차트 SVG 라인 계산. 단일엔티티 스코핑으로 차트는 이미 현실값이라 **선택적 폴리시**. Playwright 시각검증 권장.

@@ -352,10 +352,7 @@ const PostTableGrid: React.FC<Props> = ({ recordId, businessId, readOnly = false
         <ColumnSettingsPopover
           column={settingsCol}
           onClose={() => setSettingsForId(null)}
-          onRename={(name) => updateColumn(settingsCol.id, { name })}
-          onTypeChange={(type) => updateColumn(settingsCol.id, { type })}
-          onOptionsChange={(options) => updateColumn(settingsCol.id, { options })}
-          onAggregateChange={(aggregate) => updateColumn(settingsCol.id, { aggregate })}
+          onCommit={(patch) => updateColumn(settingsCol.id, patch)}
           onDelete={() => deleteColumn(settingsCol.id)}
         />
       )}
@@ -538,12 +535,11 @@ const CellEditor: React.FC<{
 const ColumnSettingsPopover: React.FC<{
   column: QRecordColumn;
   onClose: () => void;
-  onRename: (name: string) => void;
-  onTypeChange: (type: QRecordColumnType) => void;
-  onOptionsChange: (options: string[]) => void;
-  onAggregateChange: (agg: QRecordAggregate) => void;
+  // #96 — 이름·타입·옵션·집계를 한 번에 commit. 옛: 4개 콜백 각각 updateColumn 호출 → 같은 stale 스냅샷으로
+  //   동시 저장돼 race(마지막만 반영). "타입을 첨부로 바꿔도 적용 안 됨, 다시 설정하면 됨" 회귀의 근본.
+  onCommit: (patch: Partial<QRecordColumn>) => void;
   onDelete: () => void;
-}> = ({ column, onClose, onRename, onTypeChange, onOptionsChange, onAggregateChange, onDelete }) => {
+}> = ({ column, onClose, onCommit, onDelete }) => {
   const { t } = useTranslation('qrecord');
   const [name, setName] = useState(column.name);
   const [type, setType] = useState<QRecordColumnType>(column.type);
@@ -566,14 +562,17 @@ const ColumnSettingsPopover: React.FC<{
   }, [onClose]);
 
   const commit = () => {
-    if (name.trim() && name.trim() !== column.name) onRename(name.trim());
-    if (type !== column.type) onTypeChange(type);
+    // #96 — 변경된 필드를 하나의 patch 로 합쳐 단일 저장 (race 차단).
+    const patch: Partial<QRecordColumn> = {};
+    if (name.trim() && name.trim() !== column.name) patch.name = name.trim();
+    if (type !== column.type) patch.type = type;
     if (type === 'select' || type === 'multi_select') {
       const next = optionsText.split('\n').map(s => s.trim()).filter(Boolean);
       const prev = column.options || [];
-      if (JSON.stringify(next) !== JSON.stringify(prev)) onOptionsChange(next);
+      if (JSON.stringify(next) !== JSON.stringify(prev)) patch.options = next;
     }
-    if (aggregate !== (column.aggregate || 'none')) onAggregateChange(aggregate);
+    if (aggregate !== (column.aggregate || 'none')) patch.aggregate = aggregate;
+    if (Object.keys(patch).length > 0) onCommit(patch);
     onClose();
   };
 
