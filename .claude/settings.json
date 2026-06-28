@@ -1,5 +1,4 @@
 {
-  "worktree": { "bgIsolation": "none", "baseRef": "head" },
   "hooks": {
     "Stop": [
       {
