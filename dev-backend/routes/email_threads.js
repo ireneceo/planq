@@ -22,6 +22,19 @@ const { requireMenu } = require('../middleware/menu_permission');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { applyMemberDisplayName } = require('../services/displayName');
 const { sendMail } = require('../services/emailSend');
+const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
+
+// 발송 rate-limit (CLAUDE.md 운영안정성 #1 — 외부발송=quota/비용 = per-user 제한).
+// 답장·새메일·전달 공용. user.id 기준(IP NAT 우회), 10분 30건.
+const emailSendLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id ? `qmailsend-u${req.user.id}` : `qmailsend-ip${ipKeyGenerator(req)}`,
+  message: { success: false, message: 'rate_limited_email_send' },
+});
 
 // HTML → 미리보기 텍스트 (480자) — 스레드 last_message_preview / body_text 용
 function htmlToPreview(html) {
@@ -377,7 +390,7 @@ router.post('/:businessId/email-threads/:id/mark-not-spam',
 //   to 미지정 시 마지막 inbound 발신자에게 자동 답장
 // ─────────────────────────────────────────────
 router.post('/:businessId/email-threads/:id/messages',
-  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'), emailSendLimiter,
   async (req, res, next) => {
     try {
       const businessId = Number(req.params.businessId);
@@ -500,7 +513,7 @@ router.post('/:businessId/email-threads/:id/messages',
 // POST /:biz/email-compose  body: { account_id, to[], cc?, bcc?, subject, body_html, attachment_file_ids? }
 // ─────────────────────────────────────────────
 router.post('/:businessId/email-compose',
-  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'), emailSendLimiter,
   async (req, res, next) => {
     try {
       const businessId = Number(req.params.businessId);

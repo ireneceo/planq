@@ -963,4 +963,5 @@ module.exports = {
   sendSignupVerifyEmail,
   getPlanqBankInfo,
   invalidatePlatformCache,  // admin 라우트가 PUT 후 호출
+  emailBlockReason,         // Q Mail 발송(emailSend) 수신자 검증 재사용
 };
