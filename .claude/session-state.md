@@ -66,6 +66,13 @@ Irene 선택 "#90 진행 — 자동추출 개선". 근본원인 3개 수정:
 - **설계:** docs/DATA_EXPORT_PHASE3_DESIGN.md.
 - **배포 주의:** export_jobs sync 자동생성 · planq-prod-qnote 재시작 필요(qnote endpoint) · INTERNAL_API_KEY 운영 일치 확인됨.
 
+
+### U4 + Phase3 cron 검증 (2026-06-28 추가, 미배포)
+- **U4 (`1a4b563`)** — 주간 진척 그래프 되돌림(▽ 주황) 마커. computedBurndown 에 reverted 플래그(progress 하락 감지), SVG 상단 ▽ + 조건부 범례 + i18n chart.reverted/revertedTip ko/en. 빌드 EXIT0·TS0·qtask 821/821.
+- **Phase 3 cron 실경로 검증** — export-job queued → 30초 cron 자동 드레인 → done (직접 drainOnce 아닌 운영 코드 경로). 2/2.
+- **§6-C 델타(carry-in 차트 분리)** — 의도적 보류. 무엇을 보여줄지가 차트 디자인 판단(이월 progress baseline 시각화는 부하구성 패널과 중복·clutter 위험)이라 Irene 시각방향 확정 후 진행 권장.
+- **미배포 누적:** #63 Phase 3(`91e7962`) + U4(`1a4b563`). /배포 시 함께 반영(export_jobs sync + qnote 재시작).
+
 ### 다음 할 일
 1. **§6-C 델타(carry-in 분리)** — 차트 SVG 라인 계산. 단일엔티티 스코핑으로 차트는 이미 현실값이라 **선택적 폴리시**. Playwright 시각검증 권장.
 2. **U4 단조완화(되돌림 ↓마커)** — 차트 SVG, 되돌림 희귀라 저우선.
