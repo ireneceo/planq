@@ -8,6 +8,7 @@ import {
 } from 'recharts';
 import styled from 'styled-components';
 import { fetchTasksTab, type TasksTabData, type TaskTableRow, type RangePreset } from '../../../services/insights';
+import PlanQSelect from '../../../components/Common/PlanQSelect';
 import {
   InsightRow, InsightCard, InsightStripe, InsightBody, InsightTitle, InsightValue, InsightHint, InsightAction,
   KpiGrid, KpiCard, KpiLabel, KpiValueBig, KpiHint,
@@ -24,20 +25,51 @@ const TasksTab: React.FC<{ businessId: number; range: RangePreset }> = ({ busine
   const [data, setData] = useState<TasksTabData | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  // 고급 필터 (백엔드 assignee_id/category/source 지원). 옵션은 필터 무관 안정 유지 위해 unfiltered 시점에 박제.
+  const [fAssignee, setFAssignee] = useState<number | null>(null);
+  const [fCategory, setFCategory] = useState<string | null>(null);
+  const [fSource, setFSource] = useState<string | null>(null);
+  const [optAssignees, setOptAssignees] = useState<{ id: number; name: string }[]>([]);
+  const [optCategories, setOptCategories] = useState<string[]>([]);
 
   useEffect(() => {
     setLoading(true);
-    fetchTasksTab(businessId, range, true)
-      .then((d) => { setData(d); setErr(null); })
+    fetchTasksTab(businessId, range, true, { assignee_id: fAssignee, category: fCategory, source: fSource })
+      .then((d) => {
+        setData(d); setErr(null);
+        // 필터 없을 때만 옵션 박제 (필터로 데이터가 좁아져도 드롭다운 옵션 유지)
+        if (!fAssignee && !fCategory && !fSource) {
+          const am = new Map<number, string>();
+          (d.scatter || []).forEach((p) => { if (p.assignee_id) am.set(p.assignee_id, p.assignee_name || `#${p.assignee_id}`); });
+          setOptAssignees([...am.entries()].map(([id, name]) => ({ id, name })));
+          setOptCategories((d.categories_pareto || []).map((c) => c.category));
+        }
+      })
       .catch((e) => setErr(e?.message || 'failed'))
       .finally(() => setLoading(false));
-  }, [businessId, range]);
+  }, [businessId, range, fAssignee, fCategory, fSource]);
 
-  if (err) return <ErrorBanner>{t('error.summary')} — {err}</ErrorBanner>;
-  if (loading || !data) return <SkeletonGrid>{[0,1,2,3,4,5].map((i) => <SkeletonCard key={i} />)}</SkeletonGrid>;
+  if (err && !data) return <ErrorBanner>{t('error.summary')} — {err}</ErrorBanner>;
+  if (!data) return <SkeletonGrid>{[0,1,2,3,4,5].map((i) => <SkeletonCard key={i} />)}</SkeletonGrid>;
 
+  const srcKeys = ['manual', 'internal_request', 'qtalk_extract'];
   return (
     <>
+      <FilterBar>
+        <PlanQSelect size="sm" isClearable placeholder={t('filter.assignee', { defaultValue: '담당자 전체' }) as string}
+          value={fAssignee == null ? null : { value: String(fAssignee), label: optAssignees.find(a => a.id === fAssignee)?.name || String(fAssignee) }}
+          onChange={(v) => setFAssignee((v as { value?: string })?.value ? Number((v as { value: string }).value) : null)}
+          options={optAssignees.map(a => ({ value: String(a.id), label: a.name }))} />
+        <PlanQSelect size="sm" isClearable placeholder={t('filter.category', { defaultValue: '카테고리 전체' }) as string}
+          value={fCategory == null ? null : { value: fCategory, label: fCategory }}
+          onChange={(v) => setFCategory((v as { value?: string })?.value || null)}
+          options={optCategories.map(c => ({ value: c, label: c }))} />
+        <PlanQSelect size="sm" isClearable placeholder={t('filter.source', { defaultValue: '출처 전체' }) as string}
+          value={fSource == null ? null : { value: fSource, label: t(`filter.src.${fSource}`, { defaultValue: fSource }) as string }}
+          onChange={(v) => setFSource((v as { value?: string })?.value || null)}
+          options={srcKeys.map(s => ({ value: s, label: t(`filter.src.${s}`, { defaultValue: s }) as string }))} />
+        {loading && <FilterLoading>{t('filter.loading', { defaultValue: '불러오는 중…' }) as string}</FilterLoading>}
+      </FilterBar>
       <InsightRow>
         {data.insights.map((ins, i) => (
           <InsightCard key={i} $severity={ins.severity} $clickable={!!ins.action_link}
@@ -213,3 +245,9 @@ const TooltipBox = styled.div`
   background: #0F172A; color: #FFFFFF; padding: 10px 12px; border-radius: 8px;
   font-size: 11px; line-height: 1.6; & strong { color: #5EEAD4; }
 `;
+
+const FilterBar = styled.div`
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 16px;
+  & > * { min-width: 160px; }
+`;
+const FilterLoading = styled.span`font-size: 12px; color: #94A3B8; min-width: auto;`;

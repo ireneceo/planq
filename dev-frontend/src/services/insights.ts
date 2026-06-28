@@ -70,10 +70,14 @@ export interface TasksTabData {
   insights: InsightCard[];
 }
 
-export async function fetchTasksTab(businessId: number, range: RangePreset = '30d', compare = true): Promise<TasksTabData> {
+export interface TasksFilter { assignee_id?: number | null; category?: string | null; source?: string | null }
+export async function fetchTasksTab(businessId: number, range: RangePreset = '30d', compare = true, filter?: TasksFilter): Promise<TasksTabData> {
   const sp = new URLSearchParams();
   sp.set('range', range);
   if (compare) sp.set('compare', 'prev');
+  if (filter?.assignee_id) sp.set('assignee_id', String(filter.assignee_id));
+  if (filter?.category) sp.set('category', filter.category);
+  if (filter?.source) sp.set('source', filter.source);
   const r = await apiFetch(`/api/stats/${businessId}/tasks?${sp.toString()}`);
   const j = await r.json();
   if (!j.success) throw new Error(j.message || 'fetch failed');
