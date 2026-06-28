@@ -321,6 +321,34 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ─── 상태 변경 이력 (기본 히스토리 — active/paused/closed 전이 타임라인) ───
+router.get('/:id/status-history', authenticateToken, async (req, res, next) => {
+  try {
+    const { project, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    const { ProjectStatusHistory, User } = require('../models');
+    const { applyMemberDisplayName } = require('../services/displayName');
+    const rows = await ProjectStatusHistory.findAll({
+      where: { project_id: project.id },
+      include: [{ model: User, as: 'changer', attributes: ['id', 'name', 'name_localized'] }],
+      order: [['created_at', 'ASC']],
+    });
+    const data = rows.map((r) => ({
+      id: r.id,
+      from_status: r.from_status,
+      to_status: r.to_status,
+      note: r.note || null,
+      created_at: r.createdAt, // underscored 모델 — 인스턴스 접근자는 createdAt
+      changer: r.changer ? { id: r.changer.id, name: r.changer.name, name_localized: r.changer.name_localized } : null,
+    }));
+    await applyMemberDisplayName(data, project.business_id, ['changer']);
+    return successResponse(res, data.map((d) => ({
+      id: d.id, from_status: d.from_status, to_status: d.to_status, note: d.note,
+      created_at: d.created_at, changed_by_name: d.changer ? (d.changer.name || null) : null,
+    })));
+  } catch (err) { next(err); }
+});
+
 // ============================================
 // PUT /api/projects/:id — 수정
 // ============================================

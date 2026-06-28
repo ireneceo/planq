@@ -125,6 +125,7 @@ const QProjectDetailPage: React.FC = () => {
   const periodAnchorRef = useRef<HTMLButtonElement>(null);
   const [periodPickerOpen, setPeriodPickerOpen] = useState(false);
   const [project, setProject] = useState<ProjectDetail | null>(null);
+  const [statusHistory, setStatusHistory] = useState<{ id: number; from_status: string | null; to_status: string; note: string | null; created_at: string; changed_by_name: string | null }[]>([]);
   const [convs, setConvs] = useState<Conv[]>([]);
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [bizMembers, setBizMembers] = useState<BizMember[]>([]);
@@ -132,6 +133,23 @@ const QProjectDetailPage: React.FC = () => {
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [closeModalOpen, setCloseModalOpen] = useState(false);
   const [clientsToRemove, setClientsToRemove] = useState<Set<number>>(new Set());
+
+  // 상태 변경 이력 (기본 히스토리) — details 탭 진입 시 + 상태 변경 후 자동 로드
+  const projStatusLabel = (s: string) =>
+    s === 'active' ? t('edit.statusActive', '진행 중')
+      : s === 'paused' ? t('edit.statusPaused', '일시 중지')
+        : s === 'closed' ? t('edit.statusClosed', '완료') : s;
+  const loadStatusHistory = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      const r = await apiFetch(`/api/projects/${projectId}/status-history`);
+      const j = await r.json();
+      if (j?.success) setStatusHistory(Array.isArray(j.data) ? j.data : []);
+    } catch { /* best-effort */ }
+  }, [projectId]);
+  useEffect(() => {
+    if (tab === 'details') loadStatusHistory();
+  }, [tab, project?.status, loadStatusHistory]);
   const [resendingIds, setResendingIds] = useState<Set<number>>(new Set());
   const [resentIds, setResentIds] = useState<Set<number>>(new Set());
 
@@ -682,6 +700,38 @@ const QProjectDetailPage: React.FC = () => {
                 }} />
             </AddIssueRow>
           </Card>
+
+          {/* 상태 변경 이력 (기본 히스토리) */}
+          <Card>
+            <CardTitle>{t('section.statusHistory', '상태 이력')}</CardTitle>
+            {statusHistory.length === 0 ? (
+              <ProjHistEmpty>{t('section.statusHistoryEmpty', '상태 변경 이력이 없습니다')}</ProjHistEmpty>
+            ) : (
+              <ProjHistList>
+                {statusHistory.map(ev => (
+                  <ProjHistRow key={ev.id}>
+                    <ProjHistDot />
+                    <ProjHistBody>
+                      <ProjHistMain>
+                        {ev.from_status && (
+                          <>
+                            <ProjHistChip>{projStatusLabel(ev.from_status)}</ProjHistChip>
+                            <ProjHistArrow>→</ProjHistArrow>
+                          </>
+                        )}
+                        <ProjHistChip $to>{projStatusLabel(ev.to_status)}</ProjHistChip>
+                      </ProjHistMain>
+                      <ProjHistMeta>
+                        {formatDateTime(ev.created_at)}
+                        {ev.changed_by_name && ` · ${ev.changed_by_name}`}
+                        {ev.note && ` · ${ev.note}`}
+                      </ProjHistMeta>
+                    </ProjHistBody>
+                  </ProjHistRow>
+                ))}
+              </ProjHistList>
+            )}
+          </Card>
         </InfoBody>
       )}
       {tab === 'files' && <DocsTab projectId={projectId} businessId={project.business_id} />}
@@ -1005,6 +1055,17 @@ const HexInput = styled.input`
 const ClientsBody = styled.div``;
 const Card = styled.div`background:#FFF;border:1px solid #E2E8F0;border-radius:10px;padding:16px;`;
 const CardTitle = styled.h3`margin:0 0 12px;font-size:14px;font-weight:700;color:#0F172A;display:flex;align-items:center;gap:8px;small{font-size:11px;font-weight:600;color:#64748B;}`;
+
+// 상태 변경 이력 타임라인 (기본 히스토리)
+const ProjHistEmpty = styled.div`font-size:12px;color:#94A3B8;`;
+const ProjHistList = styled.div`display:flex;flex-direction:column;gap:12px;`;
+const ProjHistRow = styled.div`display:flex;gap:10px;align-items:flex-start;`;
+const ProjHistDot = styled.div`width:8px;height:8px;border-radius:999px;background:#14B8A6;margin-top:5px;flex-shrink:0;`;
+const ProjHistBody = styled.div`display:flex;flex-direction:column;gap:2px;min-width:0;`;
+const ProjHistMain = styled.div`display:flex;align-items:center;gap:6px;flex-wrap:wrap;`;
+const ProjHistChip = styled.span<{ $to?: boolean }>`font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;background:${p => (p.$to ? '#F0FDFA' : '#F1F5F9')};color:${p => (p.$to ? '#0F766E' : '#64748B')};`;
+const ProjHistArrow = styled.span`font-size:12px;color:#94A3B8;`;
+const ProjHistMeta = styled.div`font-size:11px;color:#94A3B8;`;
 
 
 const ConvList = styled.div`display:flex;flex-direction:column;gap:6px;`;
