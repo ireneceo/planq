@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, LineChart, Line, Legend, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { fetchTab, type RangePreset } from '../../../services/insights';
 import {
   InsightRow, InsightCard, InsightStripe, InsightBody, InsightTitle, InsightValue, InsightHint, InsightAction,
@@ -16,6 +16,7 @@ import { downloadRowsAsCsv } from '../csvUtils';
 interface Data {
   period: { from: string; to: string; label: string };
   kpis: Record<string, { value: number | null }>;
+  cost_trend?: { month: string; revenue: number; cost: number; profit: number }[];
   expenses_by_category: { category: string; amount: number }[];
   insights: { severity: string; title: string; value: string; hint?: string; action_label?: string; action_link?: string }[];
 }
@@ -64,7 +65,27 @@ const FinanceTab: React.FC<{ businessId: number; range: RangePreset }> = ({ busi
         <KpiCard><KpiLabel>{t('finance.kpi.overhead', '고정비')}</KpiLabel><KpiValueBig>{fmtKRW(data.kpis.overhead.value)}</KpiValueBig></KpiCard>
       </KpiGrid>
 
-      <SectionLabel>{t('finance.chart.expenses.title', '카테고리별 지출')}</SectionLabel>
+      <SectionLabel>{t('finance.chart.trend.title', '12개월 매출·비용·이익 추이')}</SectionLabel>
+      <ChartCard>
+        {!data.cost_trend || data.cost_trend.every((m) => m.revenue === 0 && m.cost === 0) ? (
+          <ChartEmpty>{t('finance.chart.trend.empty', '결제·비용 데이터가 누적되면 표시됩니다')}</ChartEmpty>
+        ) : (
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={data.cost_trend} margin={{ top: 16, right: 24, bottom: 8, left: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#64748B' }} tickFormatter={(v) => String(v).slice(2)} />
+              <YAxis tick={{ fontSize: 11, fill: '#64748B' }} tickFormatter={(v) => fmtKRW(v)} />
+              <Tooltip formatter={(v) => fmtKRW(typeof v === 'number' ? v : Number(v))} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Line type="monotone" dataKey="revenue" name={t('finance.chart.trend.revenue', '매출') as string} stroke="#14B8A6" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="cost" name={t('finance.chart.trend.cost', '비용') as string} stroke="#F43F5E" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="profit" name={t('finance.chart.trend.profit', '이익') as string} stroke="#0F172A" strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+      </ChartCard>
+
+      <SectionLabel style={{ marginTop: 24 }}>{t('finance.chart.expenses.title', '카테고리별 지출')}</SectionLabel>
       <ChartCard>
         {data.expenses_by_category.length === 0 ? (
           <ChartEmpty>{t('finance.chart.expenses.empty', '비용·고정비를 등록하면 표시됩니다')}</ChartEmpty>
