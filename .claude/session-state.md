@@ -96,7 +96,8 @@ Irene 선택 "#90 진행 — 자동추출 개선". 근본원인 3개 수정:
 - ✅ **발송 안전 보강** (`5e0eab3`) — 라이브 발송에 운영 안전 갭 2건: ① 수신자 검증(emailSend 가 가짜/예약TLD/형식불량 미검증→바운스위험. emailService.emailBlockReason export 재사용, sendMail 차단 throw) ② 발송 rate-limit(compose/reply per-user 10분30건, user.id 기준 IPv6안전). E2E 3/3(blockReason 로직·sendMail 가짜주소 throw·31회째 429). 헬스 29/29.
 - ✅ **전달(Forward)** (`c5bf6f3`, 미배포) — POST /:biz/email-threads/:id/forward (원본 첨부 서버해석 file_id·sendMail·새스레드+outbound, emailSendLimiter+수신자게이트 자동) + MailPage 메시지별 '전달' 버튼→compose forward모드(Fwd:·인용·원본첨부N 힌트). E2E 5/5(검증·접근403·원본404·가짜수신자 502차단). 빌드 EXIT0/TS0. **함정: MailPage 활성스레드=`activeId`(active 아님), 메시지타입=`Message`.**
 - ✅ **stale "준비 중" 섹션 제거** (`c5bf6f3`) — EmailSettings 오안내 → "이미 제공 중(작성·답장·전달)" 안내로 교체 + 미사용 styled 정리.
-- 📌 **미배포(배포 20260628_195500 이후):** `c5bf6f3`(Q Mail 전달). 안전보강 `5e0eab3`은 이번 배포에 이미 포함됨.
+- ✅ **rate-limit IPv6 안전 표준화** (`d14d2ee`, 미배포) — 전 limiter keyGenerator 전수 감사. task_templates 추천 limiter 의 raw `req.ip`(ERR_ERL_KEY_GEN_IPV6 경고·IPv6 우회) 수정 + push/reports/focus/invoices/email_threads 의 `ipKeyGenerator(req)`(객체) → `ipKeyGenerator(req.ip)`(문자열) 정규화. 재시작 후 경고 0줄 확인(20:28→해소). CLAUDE.md 운영안정성 #1.
+- 📌 **미배포(배포 20260628_195500 이후):** `c5bf6f3`(Q Mail 전달) + `d14d2ee`(rate-limit IPv6). 안전보강 `5e0eab3`은 이번 배포에 이미 포함됨.
 - 📌 **기존 경고 발견(별건):** `routes/task_templates.js:31` rate-limit 가 default keyGenerator(IPv6 bypass 경고 ERR_ERL_KEY_GEN_IPV6) — 재시작마다 로깅. 내 email limiter 와 무관, 향후 ipKeyGenerator 적용 정리 권장.
 
 ### 완성도 발굴 로드맵 (2026-06-28, Irene "빠진/부실 페이지 다 찾아 하나씩, 기본 히스토리·통계 제대로")
