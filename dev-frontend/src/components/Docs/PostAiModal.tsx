@@ -238,7 +238,8 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
       const j = await r.json();
       if (!j.success) throw new Error(j.message || 'failed');
       onClose();
-      navigate(`/docs?post=${j.data.id}`);
+      // #96 — 생성 직후 바로 편집 화면으로 (기본 컬럼 3개 + 빈 행 1개가 시드됨). new_table 플래그로 PostsPage 가 edit 모드 진입.
+      navigate(`/docs?post=${j.data.id}&new_table=1`);
     } catch (e: unknown) {
       setError((e as Error).message || (t('ai.failed', '생성 실패') as string));
     } finally {

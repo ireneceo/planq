@@ -334,7 +334,14 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       const d = await fetchPost(activeId);
       if (!cancelled) {
         setDetail(d);
-        setMode('view');
+        // #96 — 방금 만든 표(?new_table=1)는 바로 편집 화면으로. 그 외는 view.
+        const isNewTable = searchParams.get('new_table') === '1' && d?.kind === 'table';
+        setMode(isNewTable ? 'edit' : 'view');
+        if (isNewTable) {
+          const np = new URLSearchParams(searchParams);
+          np.delete('new_table');
+          setSearchParams(np, { replace: true });
+        }
         if (d) {
           setTitleDraft(d.title);
           setContentDraft(d.content_json);
@@ -343,7 +350,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       }
     })();
     return () => { cancelled = true; };
-  }, [activeId]);
+  }, [activeId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const startNew = () => {
     setActiveId(null);

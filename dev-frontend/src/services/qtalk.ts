@@ -74,6 +74,8 @@ export interface CreateProjectInput {
   color?: string;
   members: Array<{ user_id: number; role: string; is_default: boolean }>;
   clients: Array<{ name: string; email?: string }>;
+  // #95 — 채널 토글 결과. 비어있으면 백엔드가 대화방을 만들지 않음 (Q Talk·Q Project 경로 일관).
+  channels?: Array<{ channel_type: 'customer' | 'internal'; name: string; participant_user_ids: number[] }>;
 }
 
 export async function createProject(input: CreateProjectInput): Promise<ApiProject> {

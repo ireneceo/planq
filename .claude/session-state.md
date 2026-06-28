@@ -35,6 +35,12 @@ Irene 선택 "#90 진행 — 자동추출 개선". 근본원인 3개 수정:
 - **운영 워프로랩 실데이터 체크:** 잔여29.2h·이월7.2+신규22·활용률97%·왜곡제거·#94캡 라이브 확인.
 - **테스트 잔존물 정리(dev) + 운영 피드백 17건 트리아지.**
 
+### 이번 세션 추가 — 검증 + 신규 피드백 트리아지 (2026-06-28)
+- **검증 통과:** 헬스 29/29 · 빌드 EXIT0/TS0 · 담당자 E2E 9/9 · source_ref HTTP 5/5 · cross-tenant 403 3/3 · i18n 819/819 · aiTaskPlanner #90 실증 4/4.
+- **#90 진실 규명:** 운영 원문(#90)은 채팅추출이 아니라 **`aiTaskPlanner`(Cue AI 업무 추가)** 경로. 커밋 `e6e9e7a`(6/22)로 **이미 수정·운영 배포됨**(닉네임 담당자 matchMemberByName + 링크 보존 프롬프트). dev 실증: "아이린"→user3 배정 + URL 보존 4/4 PASS. **#90 = 사실상 해결**(사용자가 배포 전 테스트). 이번 세션 task_extractor 작업은 **형제 기능 보강**(채팅/메일 추출의 standalone·표시명·원본링크 — aiTaskPlanner엔 없던 구멍).
+- **#95 (프로젝트 채팅방, 신규 6/26) — 부분 수정·미배포:** 확정버그 = **QTalkPage `handleCreateProject` 가 `channels` 누락**(QProjectPage 는 전달) → Q Talk 경로에서 채널 토글 완전 무시(항상 0개). `CreateProjectInput.channels` 추가 + 전달로 수정(빌드 EXIT0). **잔여 의문**: "해지했는데 생성됨" 증상은 프로젝트 생성 코드(양 경로 모두 channels.length>0 가드)로 재현 불가 → **고객 초대 시 자동 환영 대화방**(`clientOnboarding.ensureWelcomeConversation`, project_id=null, invite 수락 시) 가능성 높음. **Irene 재현경로 확인 필요**(어디서 생성·고객 추가 여부).
+- **신규 미착수:** #96(문서 테이블 다중버그·큼) · #89(랜딩 푸터 카피·소).
+
 ### 다음 할 일
 1. **§6-C 델타(carry-in 분리)** — 차트 SVG 라인 계산. 단일엔티티 스코핑으로 차트는 이미 현실값이라 **선택적 폴리시**. Playwright 시각검증 권장.
 2. **U4 단조완화(되돌림 ↓마커)** — 차트 SVG, 되돌림 희귀라 저우선.
