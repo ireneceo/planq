@@ -14,6 +14,7 @@ const Task = require('../models/Task');
 const User = require('../models/User');
 const Project = require('../models/Project');
 const { recordUsage, checkUsageLimit, PRICING } = require('./cue_orchestrator');
+const { getMemberNameMap } = require('./displayName');
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const MODEL = 'gpt-4o-mini';
@@ -149,35 +150,73 @@ Write title and description in ${lang}. Be conservative — empty result is bett
 ${messagesText}`;
 }
 
+// ─── 담당자 후보 풀 빌드 (#90: 프로젝트 멤버 ∪ 대화 참여자, 워크스페이스 표시명 포함) ───
+// 30년차 시각: standalone 대화(project_id 없음)도 1:1 상대·@멘션 담당자를 잡아야 함.
+// 옛 버그: resolveAssignees 가 project_id 있을 때만 돌아 standalone 은 담당자 항상 null.
+// pool: Map<user_id, { user_id, role, accountName, displayName }>.
+//   displayName = BusinessMember.name(워크스페이스 닉네임) → fallback 계정명. 채팅에서 부르는 이름과 정합.
+async function buildAssigneePool({ businessId, projectId, conversationId }) {
+  const pool = new Map();
+  if (projectId) {
+    const members = await ProjectMember.findAll({
+      where: { project_id: projectId },
+      include: [{ model: User, attributes: ['id', 'name'] }],
+    });
+    for (const m of members) {
+      if (!m.user_id) continue;
+      pool.set(m.user_id, { user_id: m.user_id, role: m.role || null, accountName: m.User?.name || null, isParticipant: false });
+    }
+  }
+  if (conversationId) {
+    const ConversationParticipant = require('../models/ConversationParticipant');
+    const parts = await ConversationParticipant.findAll({
+      where: { conversation_id: conversationId },
+      include: [{ model: User, attributes: ['id', 'name'] }],
+    });
+    for (const p of parts) {
+      if (!p.user_id) continue;
+      const existing = pool.get(p.user_id);
+      if (existing) { existing.isParticipant = true; continue; }
+      pool.set(p.user_id, { user_id: p.user_id, role: p.role || null, accountName: p.User?.name || null, isParticipant: true });
+    }
+  }
+  // 워크스페이스 표시명 덮어쓰기
+  const nameMap = businessId ? await getMemberNameMap(businessId, [...pool.keys()]) : new Map();
+  for (const [uid, v] of pool) {
+    const dn = nameMap.get(uid);
+    v.displayName = dn?.name || dn?.name_localized || v.accountName || null;
+  }
+  return pool;
+}
+
 // ─── 이름/역할 → 멤버 매칭 (LLM 출력의 guessed_assignee_name / guessed_role 우선순위) ───
 // 30년차 시각: LLM 이 빈 후보를 채우려고 default_assignee 강제 부여하면 사용자에게 잘못된 추측을 강요.
 // 보수적: 이름·역할 매칭 실패하면 null 반환 (사용자가 우측 패널에서 직접 지정).
-async function resolveAssignees(candidates, projectId) {
-  const members = await ProjectMember.findAll({
-    where: { project_id: projectId },
-    include: [{ model: User, attributes: ['id', 'name'] }],
-  });
-
+// pool 은 buildAssigneePool 결과(Map). 표시명 → 계정명 → role 순 매칭.
+function resolveAssignees(candidates, pool) {
+  const members = [...(pool?.values?.() || [])];
   return candidates.map((c) => {
     let assigneeId = null;
 
-    // 1차: 이름 직접 매칭 (LLM 이 "한수정" 같은 이름 명시)
+    // 1차: 이름 직접 매칭 — 표시명(닉네임) 우선, 계정명 보조
     if (c.guessed_assignee_name) {
       const nameNorm = String(c.guessed_assignee_name).trim();
-      const byName = members.find((m) => m.User?.name && String(m.User.name).trim() === nameNorm);
-      if (byName) assigneeId = byName.user_id;
+      const byDisplay = members.find((m) => m.displayName && String(m.displayName).trim() === nameNorm);
+      const byAccount = byDisplay ? null : members.find((m) => m.accountName && String(m.accountName).trim() === nameNorm);
+      const hit = byDisplay || byAccount;
+      if (hit) assigneeId = hit.user_id;
     }
 
     // 2차: role 매칭
     if (!assigneeId && c.guessed_role) {
       const roleLower = String(c.guessed_role).toLowerCase().trim();
-      const exact = members.find((m) => String(m.role).toLowerCase().trim() === roleLower);
+      const exact = members.find((m) => m.role && String(m.role).toLowerCase().trim() === roleLower);
       if (exact) {
         assigneeId = exact.user_id;
       } else {
         const partial = members.find((m) => {
-          const mr = String(m.role).toLowerCase().trim();
-          return mr.includes(roleLower) || roleLower.includes(mr);
+          const mr = m.role ? String(m.role).toLowerCase().trim() : '';
+          return mr && (mr.includes(roleLower) || roleLower.includes(mr));
         });
         if (partial) assigneeId = partial.user_id;
       }
@@ -265,34 +304,39 @@ async function extractTaskCandidates({ conversationId, userId, businessId }) {
       return { candidates: [], message_count: 0, skipped: true, reason: 'no_new_messages' };
     }
 
-    // 메시지 텍스트 구성
+    // ─── #90: 담당자 후보 풀 (프로젝트 멤버 ∪ 대화 참여자) + 워크스페이스 표시명 ───
+    // standalone 대화도 담당자 추론하도록 pool 을 항상 빌드 (옛 버그: project_id 있을 때만 해석).
+    const assigneePool = await buildAssigneePool({
+      businessId,
+      projectId: conversation.project_id,
+      conversationId,
+    });
+
+    // 발신자 표시명 — 채팅에 보이는 이름과 정합 (LLM 추론·이름 매칭 일관)
+    const senderIds = [...new Set(msgs.map((m) => m.sender_id).filter(Boolean))];
+    const senderNameMap = await getMemberNameMap(businessId, senderIds);
+    const nameOf = (uid, fallback) =>
+      senderNameMap.get(uid)?.name || senderNameMap.get(uid)?.name_localized || assigneePool.get(uid)?.displayName || fallback;
+
+    // 메시지 텍스트 구성 (표시명 사용)
     const messagesText = msgs.map((m) => {
-      const name = m.sender?.name || `user_${m.sender_id}`;
+      const name = nameOf(m.sender_id, m.sender?.name || `user_${m.sender_id}`);
       return `[msg_id:${m.id}] ${name}: ${m.content}`;
     }).join('\n');
 
-    // 프로젝트 멤버 이름+역할 목록 (standalone 은 빈 문자열)
-    let memberNames = '';
-    if (conversation.project_id) {
-      const members = await ProjectMember.findAll({
-        where: { project_id: conversation.project_id },
-        include: [{ model: User, attributes: ['id', 'name'] }],
-      });
-      memberNames = members.map((m) => `- ${m.User?.name || 'unknown'} (role: ${m.role})`).join('\n');
-    }
+    // 담당자 후보 목록 (표시명 + role) — LLM role/이름 매칭용 (standalone 도 참여자로 채워짐)
+    const memberNames = [...assigneePool.values()]
+      .map((m) => `- ${m.displayName || 'unknown'}${m.role ? ` (role: ${m.role})` : ''}`)
+      .join('\n');
 
     // 대화 참여자 목록 (담당자 추론 룰: 1:1 채팅에서 상대 자동 지정용)
-    let conversationParticipantNames = '';
-    try {
-      const ConversationParticipant = require('../models/ConversationParticipant');
-      const parts = await ConversationParticipant.findAll({
-        where: { conversation_id: conversationId },
-        include: [{ model: User, attributes: ['id', 'name'] }],
-      });
-      const participantsList = parts.filter(p => p.User).map(p => `- ${p.User.name} (user_id: ${p.User.id})`).join('\n');
-      const totalCount = parts.length;
-      conversationParticipantNames = `Total participants: ${totalCount}\n${participantsList}\nNote: ${totalCount === 2 ? 'This is a 1-on-1 chat — when sender asks the other person to do X, that person is the assignee.' : 'Group chat — only assign when explicitly named.'}`;
-    } catch { /* fallback empty */ }
+    const participants = [...assigneePool.values()].filter((m) => m.isParticipant);
+    const participantCount = participants.length;
+    const participantsList = participants
+      .map((m) => `- ${m.displayName || 'unknown'} (user_id: ${m.user_id})`).join('\n');
+    const conversationParticipantNames = participantCount
+      ? `Total participants: ${participantCount}\n${participantsList}\nNote: ${participantCount === 2 ? 'This is a 1-on-1 chat — when sender asks the other person to do X, that person is the assignee.' : 'Group chat — only assign when explicitly named.'}`
+      : '';
 
     // 언어 감지 (간이: 한글 포함 여부)
     const hasKorean = /[가-힣]/.test(messagesText);
@@ -372,11 +416,11 @@ async function extractTaskCandidates({ conversationId, userId, businessId }) {
       return !ids.every((id) => blockedIds.has(id)); // 모든 source 가 blocked 면 폐기
     });
 
-    // 역할 → 담당자 매칭 / 유사 업무 탐색 — standalone 이면 프로젝트 컨텍스트 없으므로 스킵
-    let withSimilar = extracted;
+    // 역할/이름 → 담당자 매칭 (#90: standalone 포함 — pool 에 대화 참여자가 있어 1:1 상대·@멘션 해석 가능).
+    // 유사 업무 탐색은 프로젝트 컨텍스트 필요하므로 project_id 있을 때만.
+    let withSimilar = resolveAssignees(extracted, assigneePool);
     if (conversation.project_id) {
-      const withAssignees = await resolveAssignees(extracted, conversation.project_id);
-      withSimilar = await findSimilarTasks(withAssignees, conversation.project_id);
+      withSimilar = await findSimilarTasks(withSimilar, conversation.project_id);
     }
 
     // DB 저장 (트랜잭션)
@@ -513,10 +557,11 @@ async function extractEmailTaskCandidates({ emailThreadId, userId, businessId })
   for (const t of tasksWithSrc) blocked.add(Number(t.source_email_message_id));
   extracted = extracted.filter((t) => { const ids = (t.source_email_message_ids || []).map(Number); if (!ids.length) return true; return !ids.every((id) => blocked.has(id)); });
 
-  // assignee + 유사업무 (프로젝트 연결 시만)
+  // assignee (#90: 프로젝트 멤버 풀 + 표시명 매칭) + 유사업무 (프로젝트 연결 시만)
   let withSimilar = extracted;
   if (thread.project_id) {
-    const wa = await resolveAssignees(extracted, thread.project_id);
+    const emailPool = await buildAssigneePool({ businessId, projectId: thread.project_id, conversationId: null });
+    const wa = resolveAssignees(extracted, emailPool);
     withSimilar = await findSimilarTasks(wa, thread.project_id);
   }
 
@@ -770,4 +815,6 @@ module.exports = {
   mergeCandidate,
   rejectCandidate,
   buildExtractionPrompt,  // 디버그·테스트용 노출
+  buildAssigneePool,      // #90 디버그·테스트용 노출
+  resolveAssignees,       // #90 디버그·테스트용 노출
 };

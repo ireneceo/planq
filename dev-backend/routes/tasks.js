@@ -1471,6 +1471,13 @@ router.get('/:id/detail', authenticateToken, async (req, res, next) => {
       json.cue_meta = await buildCueMeta(task);
     }
 
+    // ─── #90 — 자동추출 업무의 원본(출처) 링크 resolve (대화/메일) ───
+    // 채팅·메일에서 자동추출된 업무가 어디서 왔는지 돌아갈 수 있게 라벨+라우트 제공.
+    // 고객에게는 내부 라우트 노출 안 함 (serializeTaskForClient 이전이지만 isClient 가드).
+    if (!scope.isClient) {
+      json.source_ref = await buildSourceRef(task);
+    }
+
     // §8.5 — 고객에겐 내부 운영 데이터(공수 시간·예측 출처·일별 스냅샷·Cue 메타) 제거 + shared 댓글만
     if (scope.isClient) json = serializeTaskForClient(json);
 
@@ -1546,6 +1553,32 @@ async function buildCueMeta(task) {
       detail: lastLog.new_value || null,
     } : null,
   };
+}
+
+// ─── 헬퍼: #90 원본 출처 링크 빌드 (대화/메일/노트) ───
+//  자동추출 업무가 어느 대화·메일에서 왔는지 라벨+상대경로 라우트로 반환.
+//  business 격리 — 다른 워크스페이스 자원이면 null.
+async function buildSourceRef(task) {
+  try {
+    const { Conversation, EmailThread } = require('../models');
+    if (task.email_thread_id) {
+      const th = await EmailThread.findByPk(task.email_thread_id, { attributes: ['id', 'subject', 'business_id'] }).catch(() => null);
+      if (th && th.business_id === task.business_id) {
+        return { type: 'email', id: th.id, label: th.subject || `mail ${th.id}`, route: `/mail?thread=${th.id}` };
+      }
+    }
+    if (task.conversation_id) {
+      const conv = await Conversation.findByPk(task.conversation_id, { attributes: ['id', 'title', 'business_id'] }).catch(() => null);
+      if (conv && conv.business_id === task.business_id) {
+        return { type: 'conversation', id: conv.id, label: conv.title || `chat ${conv.id}`, route: `/talk/${conv.id}` };
+      }
+    }
+    if (task.qnote_session_id) {
+      // Q Note 는 별도 서비스 — id 만 노출 (라우트 없음, 라벨만)
+      return { type: 'meeting', id: task.qnote_session_id, label: `Q Note #${task.qnote_session_id}`, route: null };
+    }
+  } catch { /* best-effort — 실패해도 상세는 정상 */ }
+  return null;
 }
 
 // ============================================

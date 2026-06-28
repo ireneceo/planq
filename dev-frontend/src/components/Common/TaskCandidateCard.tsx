@@ -47,8 +47,14 @@ const TaskCandidateCard: React.FC<Props> = ({ candidate, members, myUserId, onRe
   const assigneeOptions = useMemo(() => {
     const opts: { value: number; label: string }[] = [{ value: NO_ASSIGNEE, label: t('candidate.noAssignee', { defaultValue: '담당 미정' }) as string }];
     members.forEach((m) => opts.push({ value: m.user_id, label: m.name }));
+    // #90 — standalone 대화는 members 가 비어있어도 자동추출이 담당자를 해석할 수 있음.
+    //   guessed_assignee 가 members 에 없으면 옵션에 보강해 화면 표시·등록 가능하게.
+    const ga = candidate.guessed_assignee;
+    if (ga && ga.user_id && !opts.some((o) => o.value === ga.user_id)) {
+      opts.push({ value: ga.user_id, label: ga.name });
+    }
     return opts;
-  }, [members, t]);
+  }, [members, t, candidate.guessed_assignee]);
   const selectedAssignee = useMemo(
     () => assigneeOptions.find((o) => o.value === (assigneeId ?? NO_ASSIGNEE)) || assigneeOptions[0],
     [assigneeOptions, assigneeId],
