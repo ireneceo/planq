@@ -1,6 +1,12 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-06-25 (마라톤 세션) — **#93·#94 운영 배포 + Q Task 주간 진척/가용시간 통계 재설계(§6) 6청크 운영 라이브 (배포 7회).** 핵심:
+> **최종 업데이트:** 2026-06-28 — **v1.46.0 운영 배포 (deploy `20260628_090725` · commit `6b40ffe` · 145초 · planq.kr 헬스 200 · PM2 prod online).** 운영 피드백 #90·#95·#96 해소.
+> - **#96 Q docs 표(table) 기능 완성** — ① 표 생성 후 바로 편집모드 진입(`new_table` in-place), ② 기본 테이블 시드(제목 text/상태 select+옵션3/메모 longtext 컬럼 3개 + 빈 행 1개, 옛: 빈 표), ③④ 컬럼 설정 race 수정(`ColumnSettingsPopover` 이름·타입·옵션을 단일 patch `onCommit` 으로 — "type=attach 적용 안 되던" 버그 근본. attach 셀은 Array.isArray 가드라 크래시 아님), ⑤ **프로젝트>문서 탭 = `PostsPage`(scope=project) 재사용**(옛 `ProjectPostsTab` 은 표 미지원 → 교체, `ProjectDocsWrap` 경계높이, 핀문서 편집 `?post`). API E2E 기본테이블 6/6 + attach 5/5.
+> - **#90 Cue 자동추출 보강** — 진짜 경로(`aiTaskPlanner`, Cue AI 업무추가)는 `e6e9e7a`(6/22) 로 이미 배포(닉네임 담당자+링크 보존, dev 실증 4/4). 형제 기능(채팅/메일 추출 `task_extractor`)에 같은 약점 보강: standalone 대화 담당자 해석(프로젝트멤버∪참여자 풀)+워크스페이스 표시명 매칭, 업무 상세 `source_ref`(원본 대화/메일 링크)+TaskDetailDrawer "원본 보기". 담당자 9/9·source_ref 5/5·cross-tenant 403.
+> - **#95 프로젝트 채팅방** — Q Talk 경로 `handleCreateProject` 가 채널 토글(`channels`)을 누락하던 버그 수정(Q Project 경로와 일관). "해지했는데 생성"=고객 추가 시 환영 대화방(`clientOnboarding`, 별개) 원인 규명.
+> - **검증:** 헬스 29/29 · 빌드 EXIT0/TS0 · i18n ko/en 819/819 · 운영 코드 smoke(posts.js 기본테이블 + PostsPage onTableCreated) 라이브 확인. (deploy exit1=박제 부수신호, ERROR 0)
+>
+> **이전:** 2026-06-25 (마라톤 세션) — **#93·#94 운영 배포 + Q Task 주간 진척/가용시간 통계 재설계(§6) 6청크 운영 라이브 (배포 7회).** 핵심:
 > - **#93-ⓐ/ⓑ** Q helper 팝아웃 재로그인 방지 + 업무 우측패널 워크플로 전수 깜빡임 제거(`callAction` 전체 refetch→인플레이스, status/리뷰어/댓글만 보강·body/description prev 유지로 RichEditor 리렌더 차단). deploy `20260625_184251`·`cfaf5c3`.
 > - **#94** 주간 진척 그래프 실제선 비현실값(187h) 차단 — **포커스 방치 세션이 8일(190h)을 한 세션에 누적**하던 근본 버그. `FocusSession.computeActualSeconds` 가 heartbeat 끊긴 `last_activity_at + grace5분` 까지만 계상(하드캡 12h). 운영 read-only 검증 **481.7h→8h**(Irene 세션 6=190.7→0.6 등). 배포 후 백필(`scripts/backfill-focus-actual-hours.js`)로 부풀린 task.actual_hours 교정(task69 44.3→0.4h 등). deploy `403509d`.
 > - **실작업률(%) 입력 UI** — 백엔드 `participation_rate`(컬럼·계산식·API) 완비돼 있었으나 입력칸이 없어 100% 고정이던 것을 가용 패널에 연결(`가용=하루×(영업일−휴일)×실작업률`). 회의 많은 사용자 가용시간 계통적 과대평가 차단. `583f6bb`.
