@@ -641,14 +641,16 @@ router.post('/:businessId/addons/apply', authenticateToken, checkBusinessAccess,
     await biz.update({ [field]: next });
     planEngine.invalidateBusinessCache(businessId);
 
-    const { BillEvent } = require('../models');
-    await BillEvent.create({
-      entity_type: 'addon_apply',
-      entity_id: businessId,
-      actor_user_id: req.user.id,
-      kind: 'addon_applied',
-      payload_json: { field, delta: d, new_value: next },
-    }).catch(() => null);
+    // 애드온 적용 audit — 옛 코드는 BillEvent.create 로 잘못된 스키마(entity_type='addon_apply',
+    // kind/payload_json = 미존재 필드)를 호출해 .catch 로 silent 실패했음(bill_events ENUM=quote|invoice).
+    // addon-apply 는 bill_events 대상이 아니므로 AuditLog 로 기록 (addon.cancel 과 동일 패턴).
+    require('../services/auditService').logAudit(req, {
+      action: 'addon.apply',
+      targetType: 'business',
+      targetId: businessId,
+      businessId,
+      newValue: { field, delta: d, new_value: next },
+    });
 
     return successResponse(res, { field, new_value: next });
   } catch (err) { next(err); }
