@@ -125,7 +125,37 @@ const TasksTab: React.FC<{ businessId: number; range: RangePreset }> = ({ busine
         </KpiCard>
       </KpiGrid>
 
-      <SectionLabel>{t('chart.scatter.title', '예측 vs 실제 (담당자별)')}</SectionLabel>
+      {(data.in_progress_watch?.length ?? 0) > 0 && (
+        <>
+          <SectionLabel>{t('watch.title', '진행중 예산초과 경고')}</SectionLabel>
+          <TableWrap>
+            <Table>
+              <thead>
+                <Tr>
+                  <Th>{t('watch.col.task', '업무')}</Th>
+                  <Th>{t('watch.col.assignee', '담당')}</Th>
+                  <Th $num>{t('watch.col.estimated', '예측(h)')}</Th>
+                  <Th $num>{t('watch.col.actual', '실제(h)')}</Th>
+                  <Th $num>{t('watch.col.over', '초과')}</Th>
+                </Tr>
+              </thead>
+              <tbody>
+                {data.in_progress_watch!.map((w) => (
+                  <Tr key={w.task_id}>
+                    <Td>{w.title}</Td>
+                    <Td>{w.assignee_name || '—'}</Td>
+                    <Td $num>{fmtNum(w.estimated)}</Td>
+                    <Td $num>{fmtNum(w.actual)}</Td>
+                    <Td $num><OverPct>+{w.over_pct}%</OverPct></Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          </TableWrap>
+        </>
+      )}
+
+      <SectionLabel style={{ marginTop: 24 }}>{t('chart.scatter.title', '예측 vs 실제 (담당자별)')}</SectionLabel>
       <ChartCard>
         {data.scatter.length === 0 ? (
           <ChartEmpty>{t('chart.scatter.empty', '완료된 업무 + 예측·실제 시간 데이터가 누적되면 표시됩니다')}</ChartEmpty>
@@ -251,3 +281,5 @@ const FilterBar = styled.div`
   & > * { min-width: 160px; }
 `;
 const FilterLoading = styled.span`font-size: 12px; color: #94A3B8; min-width: auto;`;
+
+const OverPct = styled.span`color: #EF4444; font-weight: 700;`;

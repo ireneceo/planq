@@ -62,6 +62,10 @@
       "leadtime": "리드타임"
     }
   },
+  "watch": {
+    "title": "진행중 예산초과 경고",
+    "col": { "task": "업무", "assignee": "담당", "estimated": "예측(h)", "actual": "실제(h)", "over": "초과" }
+  },
   "filter": {
     "assignee": "담당자 전체",
     "category": "카테고리 전체",

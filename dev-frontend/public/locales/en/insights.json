@@ -62,6 +62,10 @@
       "leadtime": "Lead time"
     }
   },
+  "watch": {
+    "title": "In-progress over-budget alerts",
+    "col": { "task": "Task", "assignee": "Assignee", "estimated": "Est (h)", "actual": "Actual (h)", "over": "Over" }
+  },
   "filter": {
     "assignee": "All assignees",
     "category": "All categories",
