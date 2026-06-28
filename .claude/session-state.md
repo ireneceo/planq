@@ -74,6 +74,13 @@ Irene 선택 "#90 진행 — 자동추출 개선". 근본원인 3개 수정:
 - **job 삭제 (`f46091a`)** — DELETE /:biz/me/jobs/:id (본인·running제외·zip정리) + UI 삭제버튼. DELETE E2E 5/5. 미배포.
 - **미배포 누적:** #63 Phase 3(`91e7962`) + U4(`1a4b563`) + job삭제(`f46091a`). /배포 시 함께 반영(export_jobs sync + qnote 재시작).
 
+
+### Phase3 운영배포 후속 (2026-06-28, /배포 이후 계속개발)
+- **운영 배포 완료** deploy `20260628_111031` — #63 Phase3 + U4 + job삭제. export_jobs 18컬럼 운영 생성, prod-backend+qnote online, 헬스 200.
+- **★ 운영 qnote 포트 fix (LIVE):** 운영 qnote=**8001**(dev=8000), worker 폴백 8000 하드코딩 → 운영 include_qnote silent 0세션. 운영+dev `.env` 에 `QNOTE_INTERNAL_URL` 명시(운영 8001/dev 8000)+재시작. worker→qnote fetch 200 확인. 박제 [[feedback_qnote_internal_url_prod_port]].
+- **★ 쿼터 버그 fix (`b97db0d`, 미배포):** move 시 출발 워크스페이스 BusinessStorageUsage 차감 누락 → 용량 부풀려짐. softDeleteSourceFile 을 files.js 정식 정책과 정합. E2E 4/4. **운영 Phase3 에 이 버그 존재 → 다음 /배포 필요(경미: 이동 시 출발지 용량 카운터만).**
+- **미배포:** `b97db0d` 쿼터 fix 1건.
+
 ### 다음 할 일
 1. **§6-C 델타(carry-in 분리)** — 차트 SVG 라인 계산. 단일엔티티 스코핑으로 차트는 이미 현실값이라 **선택적 폴리시**. Playwright 시각검증 권장.
 2. **U4 단조완화(되돌림 ↓마커)** — 차트 SVG, 되돌림 희귀라 저우선.
