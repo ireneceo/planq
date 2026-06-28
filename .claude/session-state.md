@@ -1,5 +1,10 @@
 # PlanQ 세션 상태
 
+### ★ 운영 배포 완료 (2026-06-28, deploy 20260628_195500)
+이번 세션 16커밋 운영 라이브 — commit `090f6fa`, 152s, ERROR 0, 운영 내부(3004)+외부(planq.kr) health 200, prod-backend(1.46.0)+qnote online, POS 무영향. DB sync 멱등(스키마 변경 없음). 신규 라우트 라이브 확인(admin/overview·status-history 401=존재). 백업 /opt/planq/backups/20260628_195500.
+포함: transfer 쿼터/유실 fix · #90계열 notify 공백 보강 · 기본 히스토리(Invoice/Project 상태이력 API+UI) · 통계 ReportsTab 대화형 · P1 완성도(관리자 대시보드·받은서명 메뉴·QTask원복·DocsTab·PM배지) · Q Mail 발송 안전보강(수신자검증·rate-limit).
+
+
 ## 현재 작업 상태
 **마지막 업데이트:** 2026-06-28 (/개발시작 세션)
 **작업 상태:** **#63 Phase3+U4+job삭제 운영 배포 완료** (deploy `20260628_111031` · v1.46.0 · planq.kr 헬스200 · prod-backend+qnote online · export_jobs 18컬럼 생성 · **운영 qnote 포트 8001 QNOTE_INTERNAL_URL fix**). 이전: #90·#95·#96 배포완료 (deploy `20260628_090725` · commit `6b40ffe` · 145s · planq.kr 헬스 200 · PM2 prod online · exit1 부수신호). #96 표 기능 5/5 서브버그 전부 해결.
