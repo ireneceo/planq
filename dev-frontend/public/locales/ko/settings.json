@@ -109,11 +109,9 @@
       "replyTo": "회신 주소 (선택)",
       "replyToHint": "고객이 답장하면 이 주소로 회신이 옵니다. 비워두면 답장 불가."
     },
-    "future": {
+    "send": {
       "title": "본인 메일 직접 발송",
-      "desc": "Gmail / 회사 SMTP 로 직접 발송하는 기능",
-      "preparingTitle": "준비 중",
-      "preparingDesc": "본인 Gmail 또는 회사 SMTP 계정 연결로 직접 발송하는 기능은 곧 추가됩니다."
+      "desc": "Gmail / 회사 SMTP 계정을 연결하면 Q Mail에서 직접 작성·답장·전달할 수 있습니다."
     }
   },
   "notifications": {
