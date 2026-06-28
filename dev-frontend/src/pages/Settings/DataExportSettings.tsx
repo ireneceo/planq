@@ -10,7 +10,7 @@ import {
   fetchMyExportPreview, fetchWorkspaceExportPreview,
   exportMyData, exportWorkspaceData,
   fetchTransferTargets, type ExportPreview, type TransferTarget,
-  createTransferJob, createExportJob, fetchExportJobs, downloadExportJob, type ExportJob,
+  createTransferJob, createExportJob, fetchExportJobs, downloadExportJob, deleteExportJob, type ExportJob,
 } from '../../services/export';
 
 interface Props {
@@ -122,6 +122,11 @@ const DataExportSettings: React.FC<Props> = ({ businessId, isOwner }) => {
   const doDownloadJob = async (job: ExportJob) => {
     if (!job.download_token) { await loadJobs(); return; }
     await downloadExportJob(businessId, job.id, job.download_token);
+  };
+
+  const doDeleteJob = async (job: ExportJob) => {
+    setJobs(prev => prev.filter(j => j.id !== job.id)); // 낙관적 제거
+    try { await deleteExportJob(businessId, job.id); } catch { await loadJobs(); }
   };
 
   const errMessage = (code?: string) => {
@@ -328,6 +333,11 @@ const DataExportSettings: React.FC<Props> = ({ businessId, isOwner }) => {
                         {tr('dataExport.jobDownload', '다운로드')}
                       </ActionButton>
                     )}
+                    {j.status !== 'running' && (
+                      <JobDelBtn type="button" onClick={() => doDeleteJob(j)} title={tr('dataExport.jobDelete', '내역에서 삭제') as string} aria-label={tr('dataExport.jobDelete', '내역에서 삭제') as string}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      </JobDelBtn>
+                    )}
                   </JobRight>
                 </JobRow>
               ))}
@@ -396,5 +406,6 @@ const JobStatus = styled.span<{ $s: string }>`
   font-size:12px;font-weight:600;
   color:${p => p.$s === 'done' ? '#0F766E' : p.$s === 'failed' ? '#EF4444' : '#64748B'};
 `;
+const JobDelBtn = styled.button`width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:#94A3B8;border-radius:6px;cursor:pointer;flex-shrink:0;transition:all 0.15s;&:hover{background:#FEF2F2;color:#EF4444;}`;
 const SkRow = styled.div`display:flex;gap:12px;`;
 const Sk = styled.div`flex:1;height:62px;border-radius:10px;background:linear-gradient(90deg,#F1F5F9 0px,#E2E8F0 40px,#F1F5F9 80px);background-size:200px 100%;animation:dxsk 1.2s linear infinite;@keyframes dxsk{0%{background-position:-200px 0}100%{background-position:200px 0}}`;

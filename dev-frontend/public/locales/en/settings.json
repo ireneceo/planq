@@ -67,7 +67,8 @@
     "stFailed": "Failed",
     "jobDownload": "Download",
     "moveConfirmTitle": "Move to workspace",
-    "moveConfirmMsg": "Move your personal data to the selected workspace and clean up the originals here (files deleted, documents archived). Continue?"
+    "moveConfirmMsg": "Move your personal data to the selected workspace and clean up the originals here (files deleted, documents archived). Continue?",
+    "jobDelete": "Remove from list"
   },
   "workManagement": {
     "autoFinalize": {

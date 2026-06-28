@@ -118,6 +118,12 @@ export async function downloadExportJob(businessId: number, jobId: number, token
   return downloadZipGet(`/api/export/${businessId}/me/jobs/${jobId}/download?token=${encodeURIComponent(token)}`, `planq-export-${jobId}.zip`);
 }
 
+export async function deleteExportJob(businessId: number, jobId: number): Promise<void> {
+  const r = await apiFetch(`/api/export/${businessId}/me/jobs/${jobId}`, { method: 'DELETE' });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'failed');
+}
+
 async function downloadZipGet(path: string, fileName: string): Promise<{ ok: boolean; message?: string }> {
   const r = await apiFetch(path);
   if (!r.ok) { const j = await r.json().catch(() => ({})); return { ok: false, message: j.message || `http_${r.status}` }; }
