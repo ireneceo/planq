@@ -38,13 +38,15 @@ interface Props {
   // N+42 — Q Note 정리하기 → 정식 문서 승격 진입 시 brief 모드 prefill
   initialBriefTitle?: string;
   initialBriefText?: string;
+  // #96 — 표 생성 후 처리. 주어지면 navigate('/docs') 대신 in-place 처리(프로젝트 scope 정합).
+  onTableCreated?: (postId: number) => void;
 }
 
 const KIND_OPTION_VALUES: DocKind[] = ['proposal', 'quote', 'invoice', 'contract', 'sow', 'nda', 'meeting_note', 'custom'];
 
 type Mode = 'blank' | 'new' | 'brief' | 'table';
 
-const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pageProjectId, clientId: pageClientId, onGenerate, onBlank, intent = 'manual', defaultMode: defaultModeProp, initialBriefTitle, initialBriefText }) => {
+const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pageProjectId, clientId: pageClientId, onGenerate, onBlank, intent = 'manual', defaultMode: defaultModeProp, initialBriefTitle, initialBriefText, onTableCreated }) => {
   const { t } = useTranslation('qdocs');
   const KIND_OPTIONS: PlanQSelectOption[] = useMemo(
     () => KIND_OPTION_VALUES.map(v => ({ value: v, label: t(KIND_LABEL_KEYS[v], { defaultValue: KIND_LABELS_KO[v] }) as string })),
@@ -238,8 +240,10 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
       const j = await r.json();
       if (!j.success) throw new Error(j.message || 'failed');
       onClose();
-      // #96 — 생성 직후 바로 편집 화면으로 (기본 컬럼 3개 + 빈 행 1개가 시드됨). new_table 플래그로 PostsPage 가 edit 모드 진입.
-      navigate(`/docs?post=${j.data.id}&new_table=1`);
+      // #96 — 생성 직후 바로 편집 화면으로 (기본 컬럼 3개 + 빈 행 1개가 시드됨).
+      //   onTableCreated 있으면 in-place 처리(워크스페이스·프로젝트 scope 공통). 없으면 /docs 로 이동.
+      if (onTableCreated) onTableCreated(j.data.id);
+      else navigate(`/docs?post=${j.data.id}&new_table=1`);
     } catch (e: unknown) {
       setError((e as Error).message || (t('ai.failed', '생성 실패') as string));
     } finally {

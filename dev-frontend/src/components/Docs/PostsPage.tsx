@@ -1284,6 +1284,17 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           defaultMode={aiDefaultMode}
           initialBriefText={aiInitialBriefText}
           initialBriefTitle={aiInitialBriefTitle}
+          onTableCreated={(id) => {
+            // #96 — 표 생성 후 in-place 진입 (프로젝트 scope 에서도 페이지 이탈 없이). new_table=1 로 edit 모드.
+            setActiveId(id);
+            setSearchParams(prev => {
+              const sp = new URLSearchParams(prev);
+              sp.set('post', String(id));
+              sp.set('new_table', '1');
+              return sp;
+            }, { replace: true });
+            load();
+          }}
         />
       )}
 
