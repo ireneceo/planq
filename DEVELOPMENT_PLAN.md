@@ -1,6 +1,15 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-06-28 — **v1.46.0 운영 배포 (deploy `20260628_090725` · commit `6b40ffe` · 145초 · planq.kr 헬스 200 · PM2 prod online).** 운영 피드백 #90·#95·#96 해소.
+> **최종 업데이트:** 2026-06-28 — **완성도·안전 스윕 세션 (운영 배포 4배치, 미배포 0건).** 프론트 전수 감사로 발굴한 갭을 검증 기반으로 하나씩 해소·배포. 모든 변경 E2E·빌드 EXIT0/TS0·헬스 29/29, 멀티테넌트/IDOR·pagination 심층감사 통과.
+> - **기본 히스토리** — 청구서/프로젝트 상태이력(저장은 되나 API·UI 없던 "숨은 이력") API+UI. 깨진 BillEvent writer→AuditLog fix.
+> - **#90 계열 notify 공백** — Cue 후보승격·AI 일괄생성·정기업무·일정 수정 담당자 알림 누락 전수 보강.
+> - **통계 "제대로 구성"** — ReportsTab 대화형 통합보고서(파일→화면)·Finance 12개월 추이·Tasks 고급필터·Tasks 진행중 예산초과 경고. **확정 IA(7탭) 무변경, 내용 충실화.**
+> - **P1 완성도** — 관리자 대시보드(stub→실)·받은서명 메뉴·QTask 원복·PM배지 정식화·DocsTab 주석.
+> - **Q Mail 발송 완성** — 전달(Forward)+발송 안전보강(수신자검증·rate-limit)+임시저장(Draft)+stale섹션 정리.
+> - **운영 안전** — transfer 쿼터 우회차단·유실 방지·rate-limit IPv6 표준화.
+> - **배포:** `20260628_195500`(16) · `_204552`(전달·IPv6) · `_215148`(임시저장·Finance·필터) · `_223156`(진행중경고). 전부 planq.kr 헬스200·prod online·POS 무영향.
+>
+> **이전:** 2026-06-28 — **v1.46.0 운영 배포 (deploy `20260628_090725` · commit `6b40ffe` · 145초 · planq.kr 헬스 200 · PM2 prod online).** 운영 피드백 #90·#95·#96 해소.
 > - **#96 Q docs 표(table) 기능 완성** — ① 표 생성 후 바로 편집모드 진입(`new_table` in-place), ② 기본 테이블 시드(제목 text/상태 select+옵션3/메모 longtext 컬럼 3개 + 빈 행 1개, 옛: 빈 표), ③④ 컬럼 설정 race 수정(`ColumnSettingsPopover` 이름·타입·옵션을 단일 patch `onCommit` 으로 — "type=attach 적용 안 되던" 버그 근본. attach 셀은 Array.isArray 가드라 크래시 아님), ⑤ **프로젝트>문서 탭 = `PostsPage`(scope=project) 재사용**(옛 `ProjectPostsTab` 은 표 미지원 → 교체, `ProjectDocsWrap` 경계높이, 핀문서 편집 `?post`). API E2E 기본테이블 6/6 + attach 5/5.
 > - **#90 Cue 자동추출 보강** — 진짜 경로(`aiTaskPlanner`, Cue AI 업무추가)는 `e6e9e7a`(6/22) 로 이미 배포(닉네임 담당자+링크 보존, dev 실증 4/4). 형제 기능(채팅/메일 추출 `task_extractor`)에 같은 약점 보강: standalone 대화 담당자 해석(프로젝트멤버∪참여자 풀)+워크스페이스 표시명 매칭, 업무 상세 `source_ref`(원본 대화/메일 링크)+TaskDetailDrawer "원본 보기". 담당자 9/9·source_ref 5/5·cross-tenant 403.
 > - **#95 프로젝트 채팅방** — Q Talk 경로 `handleCreateProject` 가 채널 토글(`channels`)을 누락하던 버그 수정(Q Project 경로와 일관). "해지했는데 생성"=고객 추가 시 환영 대화방(`clientOnboarding`, 별개) 원인 규명.
@@ -157,6 +166,41 @@
 > **이전 라이브:** v1.16.1 (commit `8947504`) — N+31 사이클 (Q Talk 모바일 viewport 회귀 fix)
 >
 > **이전 라이브:** v1.16.0 (commit `ab113a6`) — N+26~N+27 사이클 (업무 흐름 Focus MVP + 인박스 inline 모달 + Cue 주고받음)
+
+---
+
+## ✅ 완료: 완성도·안전 스윕 + 통계 충실화 + Q Mail 발송 완성 (2026-06-28)
+
+프론트 전수 감사로 발굴한 갭을 검증 기반으로 하나씩 해소, 운영 4배치 배포. 미배포 0건.
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 기본 히스토리 | 청구서/프로젝트 상태이력 API+UI (저장만 되던 "숨은 이력") | ✅ |
+| BillEvent writer fix | 깨진 silent-fail writer → AuditLog (addon.apply) | ✅ |
+| #90 계열 notify | Cue 승격·AI 일괄·정기업무·일정수정 담당자 알림 누락 보강 | ✅ |
+| 통계 ReportsTab 대화형 | PDF 다운로드 → 통합보고서 화면(KPI/롤업/narrative) | ✅ |
+| 통계 Finance 추이 | 12개월 매출·비용·이익 LineChart | ✅ |
+| 통계 Tasks 고급필터 | 담당자/카테고리/출처 필터(안정 옵션·reload 유지) | ✅ |
+| 통계 Tasks 진행중 경고 | actual≥estimated 예산초과 조기경고(#94 캡 후 신뢰) | ✅ |
+| 관리자 대시보드 | /admin/dashboard stub → 실 대시보드(/admin/overview) | ✅ |
+| 받은서명 메뉴 | 고아 라우트 진입로(개인 섹션) | ✅ |
+| QTask 원복·PM배지·DocsTab | 담당자변경 실패 원복·PM배지 정식화·옛 주석 제거 | ✅ |
+| Q Mail 전달(Forward) | 원본 첨부 서버해석 + 새스레드 outbound | ✅ |
+| Q Mail 발송 안전보강 | 수신자 검증 게이트 + per-user rate-limit | ✅ |
+| Q Mail 임시저장(Draft) | 작성중 자동저장·복원(compose/reply, forward 제외) | ✅ |
+| transfer 쿼터·유실 | 자료이전 타겟 쿼터 우회차단·move 유실 방지·file_count | ✅ |
+| rate-limit IPv6 표준화 | 전 limiter ipKeyGenerator(req.ip) (ERR_ERL_KEY_GEN_IPV6) | ✅ |
+| 심층 안전감사 | 멀티테넌트/IDOR 0건·list pagination unbounded 0건 (안전 확인) | ✅ |
+
+### 함정 박제
+- underscored 모델 인스턴스 timestamp 접근자는 `r.createdAt`(r.created_at=undefined)
+- express-rate-limit `ipKeyGenerator(req.ip)`(문자열) — req(객체) 전달은 비정규
+- stats GET /:biz/:id 류는 `members` 아닌 `projectMembers`(raw) 반환
+
+### 배포
+- `20260628_195500`(16커밋) · `_204552`(전달·IPv6) · `_215148`(임시저장·Finance·필터) · `_223156`(진행중경고). 전부 planq.kr 헬스200·prod online·POS 무영향.
 
 ---
 
