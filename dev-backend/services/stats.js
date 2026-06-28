@@ -232,6 +232,17 @@ function buildTasksTab({ tasks, aiByTask, period, prevAgg }) {
   // ── 인사이트 박스 (3건, 룰 기반) ────────────
   const insights = buildTaskInsights({ kpis, scatter, aiTrend, sources });
 
+  // 진행중 업무 예산초과 조기경고 — 완료 전 이미 추정시간 초과(actual>=estimated).
+  //   actual_hours 는 #94 방치세션 캡 적용 후라 신뢰. ratio>=1.0 명확신호만(오탐 방지).
+  const inProgressWatch = all
+    .filter((t) => t.status === 'in_progress' && Number(t.estimated_hours) > 0 && Number(t.actual_hours) >= Number(t.estimated_hours))
+    .map((t) => {
+      const est = Number(t.estimated_hours), act = Number(t.actual_hours);
+      return { task_id: t.id, title: t.title, assignee_name: t.assignee?.name || null, estimated: est, actual: act, over_pct: Math.round((act / est - 1) * 100) };
+    })
+    .sort((a, b) => b.over_pct - a.over_pct)
+    .slice(0, 15);
+
   return {
     period: { from: period.from, to: period.to, label: period.label },
     kpis,
@@ -240,6 +251,7 @@ function buildTasksTab({ tasks, aiByTask, period, prevAgg }) {
     funnel,
     sources,
     categories_pareto: categoriesPareto,
+    in_progress_watch: inProgressWatch,
     table,
     insights,
   };

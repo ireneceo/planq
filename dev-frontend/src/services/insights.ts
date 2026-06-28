@@ -66,6 +66,7 @@ export interface TasksTabData {
   funnel: { not_started: number; in_progress: number; reviewing: number; completed: number; canceled: number };
   sources: { manual: number; internal_request: number; qtalk_extract: number };
   categories_pareto: { category: string; count: number; pct: number; cumulative_pct: number }[];
+  in_progress_watch?: { task_id: number; title: string; assignee_name: string | null; estimated: number; actual: number; over_pct: number }[];
   table: TaskTableRow[];
   insights: InsightCard[];
 }
