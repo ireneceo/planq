@@ -62,6 +62,17 @@
       "leadtime": "Lead time"
     }
   },
+  "filter": {
+    "assignee": "All assignees",
+    "category": "All categories",
+    "source": "All sources",
+    "loading": "Loading…",
+    "src": {
+      "manual": "Manual",
+      "internal_request": "Internal request",
+      "qtalk_extract": "Chat extract"
+    }
+  },
   "error": {
     "summary": "Failed to aggregate stats"
   },
