@@ -2,7 +2,7 @@
 
 ## 현재 작업 상태
 **마지막 업데이트:** 2026-06-28 (/개발시작 세션)
-**작업 상태:** **#90·#95·#96 운영 배포 완료** (deploy `20260628_090725` · commit `6b40ffe` · 145s · planq.kr 헬스 200 · PM2 prod online · exit1 부수신호). #96 표 기능 5/5 서브버그 전부 해결.
+**작업 상태:** **#63 Phase3+U4+job삭제 운영 배포 완료** (deploy `20260628_111031` · v1.46.0 · planq.kr 헬스200 · prod-backend+qnote online · export_jobs 18컬럼 생성 · **운영 qnote 포트 8001 QNOTE_INTERNAL_URL fix**). 이전: #90·#95·#96 배포완료 (deploy `20260628_090725` · commit `6b40ffe` · 145s · planq.kr 헬스 200 · PM2 prod online · exit1 부수신호). #96 표 기능 5/5 서브버그 전부 해결.
 
 ### 진행 중인 작업
 - 없음 (#90·#95·#96 운영 라이브)
