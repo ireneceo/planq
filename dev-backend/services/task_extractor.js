@@ -748,6 +748,31 @@ async function registerCandidate(candidateId, userId, overrides = {}) {
 
     await t.commit();
 
+    // #90 — 후보 → 업무 승격 시 담당자 알림 (수동 생성 라우트 tasks.js 와 동일 정책).
+    //  담당자 ≠ 등록자 일 때만 (본인이 본인에게 등록한 업무는 noise). 알림/링크 누락 회귀 차단.
+    //  중첩 try/catch — 알림 실패가 이미 commit 된 등록 결과에 영향 주지 않도록.
+    if (finalAssignee && finalAssignee !== userId) {
+      try {
+        const { notify } = require('../routes/notifications');
+        const Business = require('../models/Business');
+        const biz = await Business.findByPk(businessId, { attributes: ['name', 'brand_name'] });
+        notify({
+          userId: finalAssignee,
+          businessId,
+          eventKind: 'task',
+          title: '새 업무가 배정되었습니다',
+          body: `"${finalTitle}"${finalDue ? ` · 마감 ${String(finalDue).slice(0, 10)}` : ''}`,
+          link: `${process.env.APP_URL || 'https://dev.planq.kr'}/tasks?task=${task.id}`,
+          ctaLabel: '업무 보기',
+          workspaceName: biz?.brand_name || biz?.name || null,
+          actorUserId: userId,
+          entityType: 'task',
+          entityId: task.id,
+          ioApp: global.__io || null,
+        }).catch((e) => console.warn('[notify cue task assigned]', e.message));
+      } catch (e) { console.warn('[notify cue task assigned outer]', e.message); }
+    }
+
     return { candidate: candidate.toJSON(), task: task.toJSON() };
   } catch (err) {
     await t.rollback();
