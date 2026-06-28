@@ -84,13 +84,13 @@ Irene 선택 "#90 진행 — 자동추출 개선". 근본원인 3개 수정:
 - **★ #90 Cue 알림 누락 fix (`b65e5a4`, 미배포):** `registerCandidate`(후보→업무 승격, chat/email/qnote 공용)가 Task.create 후 **notify 미호출** → Cue 추출 업무 등록 시 담당자가 인박스/푸시/링크 알림 0. 수동 생성 라우트(tasks.js)와 동일하게 notify 추가 — 담당자≠등록자일 때만(self noise 방지), link `/tasks?task=:id`+entityType/entityId+ioApp, 중첩 try/catch(트랜잭션 무영향). E2E 7/7(타인배정→인박스알림·link·entity·actor / self→무알림). 담당자는 fallback(userId)로 항상 배정되므로 "미배정"의 실체는 알림부재였음.
 - **★ #90 계열 notify 공백 보강 (`6a3ea26`, 미배포):** #90 수정 후 task 배정 notify 전수 감사 → 공백 2건 추가 수정. ① **AI 일괄 생성**(POST /api/tasks/ai-create/confirm) — 여러 task 일괄 생성 시 담당자(≠생성자) notify 미호출(broadcast만). ② **정기업무 자동생성**(recurringTaskGenerator cron) — 새 회차 인스턴스 담당자 notify 미호출. 둘 다 수동/재배정 라우트와 동일 패턴(link/entity/ioApp) 추가. E2E 8/8(recurring 직접호출 + ai-create 실 HTTP 200 — 인스턴스/task 생성·담당자 인박스알림·link 검증). **감사로 확인된 이미-정상:** 재배정 PUT(tasks.js:1223)·후보등록(registerCandidate)·task_workflow 8라우트 ✅. **보류(noise 우려, 재량):** task_workflow 컨펌자제거(DELETE)·정책변경(PATCH) notify — Irene 판단 필요.
 - **★ 일정 수정 참석자 알림 fix (`112ae15`, 미배포):** notify 감사 확장 — 일정 생성(POST)은 참석자 초대 알림 보내나 수정(PUT)으로 참석자 추가 시 미발송(생성/수정 비대칭). destroy 전 기존 멤버 참석자 캡처 → commit 후 신규 추가분(이전없음·본인제외)만 초대 알림. E2E 6/6(실 HTTP — 신규 참석자 알림·link `/calendar?event=:id` / 동일 참석자 재수정 무알림). 리스케줄 기존참석자 알림은 noise 우려 보류. **감사로 확인된 이미-정상:** task 댓글 notify(assignee+creator+requester+reviewer+멘션·visibility게이팅)·일정 생성/참석응답·invoice notify-paid. notify link 는 normalizeLink 가 절대URL→상대경로 변환(notification_link.js:60)이라 `/tasks·/calendar` 라우트 정상 resolve(App.tsx 실재).
-- **미배포:** `b97db0d`+`f7d3cbb`+`f667308`(transfer) + `b65e5a4`+`6a3ea26`(#90 task 배정 알림) + `112ae15`(일정 수정 알림) + `3703ad7`+`da69a27`(Invoice 상태이력) **8건**. 다음 /배포 시 함께 반영.
+- **미배포:** `b97db0d`+`f7d3cbb`+`f667308`(transfer) + `b65e5a4`+`6a3ea26`(#90 task 배정 알림) + `112ae15`(일정 수정 알림) + `3703ad7`+`da69a27`(Invoice 상태이력) + `9920d9d`(Project 상태이력) **9건**. 다음 /배포 시 함께 반영.
 
 ### 완성도 발굴 로드맵 (2026-06-28, Irene "빠진/부실 페이지 다 찾아 하나씩, 기본 히스토리·통계 제대로")
 4축 병렬 감사(라우트·완성도·히스토리·통계)로 갭 도출. **하나씩 구현 진행 중.**
 - **P0 기본 히스토리** (저장O·API/UI 없는 "숨은 이력"):
   - ✅ **#1 Invoice 상태 이력** (`3703ad7`+`da69a27`) — GET `/api/invoices/:biz/:id/status-history` + 드로어 "상태 이력" 타임라인. E2E 7/7(owner/admin/비멤버403/404·created_at·표시명). 빌드 EXIT0/TS0. **함정 박제: invoice_status_history 는 underscored 모델 → 인스턴스 created_at 접근자는 `r.createdAt`(r.created_at=undefined).**
-  - ⬜ **#2 Project 상태 이력** — `ProjectStatusHistory` 저장O/API✗/UI✗. 다음.
+  - ✅ **#2 Project 상태 이력** (`9920d9d`) — GET `/api/projects/:id/status-history` (loadProjectOrForbidden) + 상세정보(details)탭 "상태 이력" 카드(active/paused/closed 전이, status 변경 시 effect 자동갱신). E2E 6/6(멤버200/비멤버403/404·created_at·표시명"아이린"). 빌드 EXIT0/TS0.
   - ⬜ **#3 Bill 이벤트 타임라인** — `BillEvent`(고객 열람/승인/결제) 저장O/API✗/UI✗.
 - **P0 통계 제대로 구성** ("파일로 말고"):
   - ⬜ **#4 ReportsTab PDF다운로드→대화형 통합보고서** (`/api/reports/:biz/integrated` API 존재, UI만). 
