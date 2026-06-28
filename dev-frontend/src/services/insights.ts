@@ -90,6 +90,49 @@ export async function fetchTab<T = unknown>(businessId: number, tab: 'overview'|
   return j.data as T;
 }
 
+// ── 통합 보고서 (대화형) — /api/reports/* (owner/admin 전용) ──
+export interface ReportPeriod {
+  period_type: 'weekly' | 'monthly';
+  period_start: string;
+  status: string;
+  confirmed_at: string | null;
+  finalized_by: number | null;
+}
+export interface ReportPeriodsData { weekly: ReportPeriod[]; monthly: ReportPeriod[] }
+
+export interface RollupKpi { [k: string]: number }
+export interface RollupView {
+  ref_id: number; name: string; department?: string | null; confirmed: boolean;
+  snap?: { kpi?: RollupKpi };
+}
+export interface IntegratedRollup {
+  period: { type: string; start: string };
+  summary: {
+    projects_total: number; projects_confirmed: number;
+    members_total: number; members_confirmed: number;
+    completed_in_period: number; in_progress: number; open_issues: number;
+    overdue: number; deliverables: number; all_confirmed: boolean;
+  };
+  projects: RollupView[];
+  members: RollupView[];
+  integrated: { id: number | null; status: string; confirmed_at: string | null };
+  executive_summary: string;
+}
+
+export async function getReportPeriods(businessId: number): Promise<ReportPeriodsData> {
+  const r = await apiFetch(`/api/reports/${businessId}/integrated/periods`);
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || String(r.status));
+  return j.data as ReportPeriodsData;
+}
+export async function getIntegratedReport(businessId: number, periodType: string, periodStart: string): Promise<IntegratedRollup> {
+  const sp = new URLSearchParams({ period_type: periodType, period_start: periodStart });
+  const r = await apiFetch(`/api/reports/${businessId}/integrated?${sp.toString()}`);
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || String(r.status));
+  return j.data as IntegratedRollup;
+}
+
 // 보고서 즉시 생성 — kind: monthly/quarterly/yearly/adhoc
 export async function generateReport(
   businessId: number,

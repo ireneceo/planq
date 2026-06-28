@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
-import { fetchTab, generateReport, type RangePreset } from '../../../services/insights';
-import { ErrorBanner, SkeletonGrid, SkeletonCard } from '../components';
+import { fetchTab, generateReport, getReportPeriods, getIntegratedReport, type RangePreset, type ReportPeriod, type IntegratedRollup } from '../../../services/insights';
+import { ErrorBanner, SkeletonGrid, SkeletonCard, KpiGrid, KpiCard, KpiLabel, KpiValueBig, SectionLabel, TableWrap, Table, Tr, Th, Td, fmtNum } from '../components';
+import { useTimeFormat } from '../../../hooks/useTimeFormat';
 import { mapApiError } from '../../../utils/apiError';
 
 interface Report {
@@ -27,6 +28,42 @@ const ReportsTab: React.FC<{ businessId: number; range: RangePreset }> = ({ busi
   const [generating, setGenerating] = useState<Kind | null>(null);
   const [genErr, setGenErr] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+
+  // 대화형 통합보고서 (owner/admin 전용 — 접근 불가 시 숨김)
+  const { formatDate } = useTimeFormat();
+  const [hasIntegrated, setHasIntegrated] = useState(false);
+  const [periodType, setPeriodType] = useState<'weekly' | 'monthly'>('weekly');
+  const [periods, setPeriods] = useState<ReportPeriod[]>([]);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [rollup, setRollup] = useState<IntegratedRollup | null>(null);
+  const [rollupLoading, setRollupLoading] = useState(false);
+
+  // 기간 목록 로드 (best-effort — 403 이면 대화형 섹션 숨김)
+  useEffect(() => {
+    let alive = true;
+    getReportPeriods(businessId)
+      .then((d) => {
+        if (!alive) return;
+        setHasIntegrated(true);
+        const list = periodType === 'weekly' ? d.weekly : d.monthly;
+        setPeriods(list);
+        setSelected(list[0]?.period_start || null);
+      })
+      .catch(() => { if (alive) setHasIntegrated(false); });
+    return () => { alive = false; };
+  }, [businessId, periodType]);
+
+  // 선택 기간의 통합 롤업 로드
+  useEffect(() => {
+    if (!hasIntegrated || !selected) { setRollup(null); return; }
+    let alive = true;
+    setRollupLoading(true);
+    getIntegratedReport(businessId, periodType, selected)
+      .then((r) => { if (alive) setRollup(r); })
+      .catch(() => { if (alive) setRollup(null); })
+      .finally(() => { if (alive) setRollupLoading(false); });
+    return () => { alive = false; };
+  }, [businessId, periodType, selected, hasIntegrated]);
 
   const reload = () => {
     setLoading(true);
@@ -70,6 +107,89 @@ const ReportsTab: React.FC<{ businessId: number; range: RangePreset }> = ({ busi
 
   return (
     <>
+      {hasIntegrated && (
+        <IntegratedSection>
+          <SectionLabel>{t('reports.integrated.title', '통합 보고서')}</SectionLabel>
+          <PeriodTypeRow>
+            <PeriodTypeBtn $active={periodType === 'weekly'} type="button" onClick={() => setPeriodType('weekly')}>{t('reports.integrated.weekly', '주간')}</PeriodTypeBtn>
+            <PeriodTypeBtn $active={periodType === 'monthly'} type="button" onClick={() => setPeriodType('monthly')}>{t('reports.integrated.monthly', '월간')}</PeriodTypeBtn>
+          </PeriodTypeRow>
+          <PeriodChips>
+            {periods.map((p) => (
+              <PeriodChip key={p.period_start} $active={selected === p.period_start} type="button" onClick={() => setSelected(p.period_start)}>
+                {formatDate(p.period_start)}
+                {p.status === 'confirmed' && <ConfirmDot title={t('reports.integrated.confirmed', '확정됨') as string} />}
+              </PeriodChip>
+            ))}
+          </PeriodChips>
+          {rollupLoading ? (
+            <SkeletonGrid>{[0, 1, 2, 3].map((i) => <SkeletonCard key={i} />)}</SkeletonGrid>
+          ) : rollup ? (
+            <>
+              <KpiGrid $cols={4}>
+                <KpiCard><KpiLabel>{t('reports.integrated.completed', '완료 업무')}</KpiLabel><KpiValueBig>{fmtNum(rollup.summary.completed_in_period)}</KpiValueBig></KpiCard>
+                <KpiCard><KpiLabel>{t('reports.integrated.inProgress', '진행 중')}</KpiLabel><KpiValueBig>{fmtNum(rollup.summary.in_progress)}</KpiValueBig></KpiCard>
+                <KpiCard><KpiLabel>{t('reports.integrated.overdue', '지연')}</KpiLabel><KpiValueBig>{fmtNum(rollup.summary.overdue)}</KpiValueBig></KpiCard>
+                <KpiCard><KpiLabel>{t('reports.integrated.openIssues', '미해결 이슈')}</KpiLabel><KpiValueBig>{fmtNum(rollup.summary.open_issues)}</KpiValueBig></KpiCard>
+                <KpiCard><KpiLabel>{t('reports.integrated.deliverables', '산출물')}</KpiLabel><KpiValueBig>{fmtNum(rollup.summary.deliverables)}</KpiValueBig></KpiCard>
+                <KpiCard><KpiLabel>{t('reports.integrated.projectsConfirmed', '프로젝트 확정')}</KpiLabel><KpiValueBig>{rollup.summary.projects_confirmed}/{rollup.summary.projects_total}</KpiValueBig></KpiCard>
+                <KpiCard><KpiLabel>{t('reports.integrated.membersConfirmed', '멤버 확정')}</KpiLabel><KpiValueBig>{rollup.summary.members_confirmed}/{rollup.summary.members_total}</KpiValueBig></KpiCard>
+              </KpiGrid>
+              {rollup.executive_summary && (
+                <NarrativeBox>
+                  <NarrativeLabel>{t('reports.integrated.summary', '경영 요약')}</NarrativeLabel>
+                  <NarrativeText>{rollup.executive_summary}</NarrativeText>
+                </NarrativeBox>
+              )}
+              {rollup.projects.length > 0 && (
+                <RollupBlock>
+                  <RollupTitle>{t('reports.integrated.byProject', '프로젝트별')}</RollupTitle>
+                  <TableWrap>
+                    <Table>
+                      <thead><Tr><Th>{t('reports.integrated.name', '이름')}</Th><Th $num>{t('reports.integrated.completed', '완료')}</Th><Th $num>{t('reports.integrated.inProgress', '진행')}</Th><Th $num>{t('reports.integrated.overdue', '지연')}</Th><Th>{t('reports.integrated.status', '상태')}</Th></Tr></thead>
+                      <tbody>
+                        {rollup.projects.map((p) => (
+                          <Tr key={p.ref_id}>
+                            <Td>{p.name}</Td>
+                            <Td $num>{fmtNum(p.snap?.kpi?.completed_in_period || 0)}</Td>
+                            <Td $num>{fmtNum(p.snap?.kpi?.in_progress_count || 0)}</Td>
+                            <Td $num>{fmtNum(p.snap?.kpi?.overdue_count || 0)}</Td>
+                            <Td>{p.confirmed ? t('reports.integrated.confirmed', '확정됨') : t('reports.integrated.draft', '작성중')}</Td>
+                          </Tr>
+                        ))}
+                      </tbody>
+                    </Table>
+                  </TableWrap>
+                </RollupBlock>
+              )}
+              {rollup.members.length > 0 && (
+                <RollupBlock>
+                  <RollupTitle>{t('reports.integrated.byMember', '멤버별')}</RollupTitle>
+                  <TableWrap>
+                    <Table>
+                      <thead><Tr><Th>{t('reports.integrated.name', '이름')}</Th><Th>{t('reports.integrated.dept', '부서')}</Th><Th $num>{t('reports.integrated.completed', '완료')}</Th><Th $num>{t('reports.integrated.inProgress', '진행')}</Th><Th>{t('reports.integrated.status', '상태')}</Th></Tr></thead>
+                      <tbody>
+                        {rollup.members.map((m) => (
+                          <Tr key={m.ref_id}>
+                            <Td>{m.name}</Td>
+                            <Td>{m.department || '—'}</Td>
+                            <Td $num>{fmtNum(m.snap?.kpi?.completed_in_period || 0)}</Td>
+                            <Td $num>{fmtNum(m.snap?.kpi?.in_progress_count || 0)}</Td>
+                            <Td>{m.confirmed ? t('reports.integrated.confirmed', '확정됨') : t('reports.integrated.draft', '작성중')}</Td>
+                          </Tr>
+                        ))}
+                      </tbody>
+                    </Table>
+                  </TableWrap>
+                </RollupBlock>
+              )}
+            </>
+          ) : (
+            <RollupEmpty>{t('reports.integrated.empty', '선택한 기간의 데이터가 없습니다')}</RollupEmpty>
+          )}
+        </IntegratedSection>
+      )}
+
       <NextAutoBox>
         <NextAutoLabel>{t('reports.nextAuto')}</NextAutoLabel>
         <NextAutoDate>{data.next_auto_at}</NextAutoDate>
@@ -186,3 +306,40 @@ const CardStatus = styled.div<{ $failed?: boolean }>`
   margin-top: 10px; padding-top: 8px; border-top: 1px solid #F1F5F9;
   font-size: 11px; font-weight: 500; color: ${(p) => (p.$failed ? '#B91C1C' : '#94A3B8')};
 `;
+
+// ── 대화형 통합 보고서 ──
+const IntegratedSection = styled.div`
+  background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px;
+  padding: 20px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 12px;
+`;
+const PeriodTypeRow = styled.div`display: flex; gap: 6px;`;
+const PeriodTypeBtn = styled.button<{ $active?: boolean }>`
+  padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
+  border: 1px solid ${(p) => (p.$active ? '#14B8A6' : '#E2E8F0')};
+  background: ${(p) => (p.$active ? '#F0FDFA' : '#FFFFFF')};
+  color: ${(p) => (p.$active ? '#0F766E' : '#64748B')};
+  transition: background 0.15s, border-color 0.15s;
+  &:hover { border-color: #CBD5E1; }
+`;
+const PeriodChips = styled.div`display: flex; gap: 6px; flex-wrap: wrap;`;
+const PeriodChip = styled.button<{ $active?: boolean }>`
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; cursor: pointer;
+  border: 1px solid ${(p) => (p.$active ? '#14B8A6' : '#E2E8F0')};
+  background: ${(p) => (p.$active ? '#14B8A6' : '#FFFFFF')};
+  color: ${(p) => (p.$active ? '#FFFFFF' : '#475569')};
+  transition: background 0.15s, border-color 0.15s;
+  &:hover:not(:disabled) { border-color: #CBD5E1; }
+`;
+const ConfirmDot = styled.span`
+  width: 6px; height: 6px; border-radius: 999px; background: #22C55E; display: inline-block;
+`;
+const NarrativeBox = styled.div`
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 6px;
+`;
+const NarrativeLabel = styled.div`font-size: 11px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px;`;
+const NarrativeText = styled.div`font-size: 13px; color: #334155; line-height: 1.6; white-space: pre-wrap;`;
+const RollupBlock = styled.div`display: flex; flex-direction: column; gap: 8px;`;
+const RollupTitle = styled.div`font-size: 12px; font-weight: 700; color: #475569;`;
+const RollupEmpty = styled.div`font-size: 12px; color: #94A3B8; padding: 20px; text-align: center;`;

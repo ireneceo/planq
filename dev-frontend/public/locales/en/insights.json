@@ -175,6 +175,27 @@
     "col": { "category": "Category", "amount": "Amount" }
   },
   "reports": {
+    "integrated": {
+      "title": "Integrated report",
+      "weekly": "Weekly",
+      "monthly": "Monthly",
+      "confirmed": "Confirmed",
+      "draft": "Draft",
+      "completed": "Completed",
+      "inProgress": "In progress",
+      "overdue": "Overdue",
+      "openIssues": "Open issues",
+      "deliverables": "Deliverables",
+      "projectsConfirmed": "Projects confirmed",
+      "membersConfirmed": "Members confirmed",
+      "summary": "Executive summary",
+      "byProject": "By project",
+      "byMember": "By member",
+      "name": "Name",
+      "dept": "Dept",
+      "status": "Status",
+      "empty": "No data for the selected period"
+    },
     "nextAuto": "Next auto-generated report",
     "nextAutoHint": "Monthly reports are auto-generated on the 1st of each month.",
     "recent": "Recent reports",
