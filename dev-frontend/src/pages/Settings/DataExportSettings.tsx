@@ -9,7 +9,8 @@ import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import {
   fetchMyExportPreview, fetchWorkspaceExportPreview,
   exportMyData, exportWorkspaceData,
-  fetchTransferTargets, transferMyData, type ExportPreview, type TransferTarget,
+  fetchTransferTargets, type ExportPreview, type TransferTarget,
+  createTransferJob, createExportJob, fetchExportJobs, downloadExportJob, type ExportJob,
 } from '../../services/export';
 
 interface Props {
@@ -27,6 +28,11 @@ const IconShield = () => (
     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
   </svg>
 );
+const IconClock = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 14" />
+  </svg>
+);
 
 const DataExportSettings: React.FC<Props> = ({ businessId, isOwner }) => {
   const { t } = useTranslation('settings');
@@ -39,12 +45,18 @@ const DataExportSettings: React.FC<Props> = ({ businessId, isOwner }) => {
   const [busyWs, setBusyWs] = useState(false);
   const [errMe, setErrMe] = useState('');
   const [errWs, setErrWs] = useState('');
-  // Phase 2 — 워크스페이스 간 이전
+  // Phase 2/3 — 워크스페이스 간 이전 (job 기반: 복사/이동 + Q Note + 비동기)
   const [targets, setTargets] = useState<TransferTarget[]>([]);
   const [targetId, setTargetId] = useState<number | null>(null);
+  const [trMode, setTrMode] = useState<'copy' | 'move'>('copy');
+  const [trQnote, setTrQnote] = useState(false);
   const [busyTr, setBusyTr] = useState(false);
   const [trMsg, setTrMsg] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
   const [trConfirm, setTrConfirm] = useState(false);
+  // Phase 3 — 비동기 작업 내역
+  const [jobs, setJobs] = useState<ExportJob[]>([]);
+  const [busyExportJob, setBusyExportJob] = useState(false);
+  const [exportQnote, setExportQnote] = useState(false);
 
   const load = useCallback(async () => {
     if (!businessId) return;
@@ -63,23 +75,53 @@ const DataExportSettings: React.FC<Props> = ({ businessId, isOwner }) => {
 
   useEffect(() => { load(); }, [load]);
 
+  const loadJobs = useCallback(async () => {
+    if (!businessId) return;
+    fetchExportJobs(businessId).then(setJobs).catch(() => { /* keep */ });
+  }, [businessId]);
+
   useEffect(() => {
     if (!businessId) return;
     fetchTransferTargets(businessId).then(setTargets).catch(() => setTargets([]));
-  }, [businessId]);
+    loadJobs();
+  }, [businessId, loadJobs]);
+
+  // 진행 중(queued/running) job 있으면 3초 폴링 — 완료/다운로드 자동 반영 (서버 알림과 별개 안전망)
+  useEffect(() => {
+    const active = jobs.some((j) => j.status === 'queued' || j.status === 'running');
+    if (!active) return;
+    const t = setInterval(loadJobs, 3000);
+    return () => clearInterval(t);
+  }, [jobs, loadJobs]);
 
   const doTransfer = async () => {
     if (!targetId || busyTr) return;
     setBusyTr(true); setTrMsg(null);
     try {
-      const res = await transferMyData(businessId, targetId);
-      const name = targets.find((x) => x.id === targetId)?.name || '';
-      setTrMsg({ tone: 'ok', text: tr('dataExport.trDone', '{{name}}(으)로 복사했습니다. 파일 {{f}}건, 문서 {{d}}건.').replace('{{name}}', name).replace('{{f}}', String(res.files_copied)).replace('{{d}}', String(res.documents_copied)) });
+      await createTransferJob(businessId, { target_business_id: targetId, mode: trMode, include_qnote: trQnote });
+      setTrMsg({ tone: 'ok', text: tr('dataExport.trQueued', '백그라운드에서 처리 중입니다. 완료되면 알림과 아래 작업 내역에 표시됩니다.') });
+      loadJobs();
     } catch {
       setTrMsg({ tone: 'err', text: tr('dataExport.trErr', '이전 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.') });
     } finally {
       setBusyTr(false);
     }
+  };
+
+  const doExportJob = async () => {
+    if (busyExportJob) return;
+    setBusyExportJob(true);
+    try {
+      await createExportJob(businessId, exportQnote);
+      loadJobs();
+    } finally {
+      setBusyExportJob(false);
+    }
+  };
+
+  const doDownloadJob = async (job: ExportJob) => {
+    if (!job.download_token) { await loadJobs(); return; }
+    await downloadExportJob(businessId, job.id, job.download_token);
   };
 
   const errMessage = (code?: string) => {
@@ -139,16 +181,30 @@ const DataExportSettings: React.FC<Props> = ({ businessId, isOwner }) => {
             </StatRow>
           )}
           {errMe && <ErrText role="alert">{errMe}</ErrText>}
+          <ToggleRow type="button" role="switch" aria-checked={exportQnote} onClick={() => setExportQnote(v => !v)}>
+            <Switch $on={exportQnote}><SwitchKnob $on={exportQnote} /></Switch>
+            <ToggleText>{tr('dataExport.includeQnote', 'Q Note 세션 포함 (요약·전사를 문서로 변환)')}</ToggleText>
+          </ToggleRow>
         </CardBody>
         <CardActions>
-          <ActionButton
-            tone="primary" size="md" loading={busyMe}
-            onClick={onExportMe}
-            disabled={loading || ((myPreview?.files ?? 0) === 0 && (myPreview?.documents ?? 0) === 0)}
-            icon={<IconDownload />}
-          >
-            {tr('dataExport.download', 'ZIP 다운로드')}
-          </ActionButton>
+          {exportQnote ? (
+            <ActionButton
+              tone="primary" size="md" loading={busyExportJob}
+              onClick={doExportJob}
+              icon={<IconClock />}
+            >
+              {tr('dataExport.bgExport', '백그라운드 내보내기')}
+            </ActionButton>
+          ) : (
+            <ActionButton
+              tone="primary" size="md" loading={busyMe}
+              onClick={onExportMe}
+              disabled={loading || ((myPreview?.files ?? 0) === 0 && (myPreview?.documents ?? 0) === 0)}
+              icon={<IconDownload />}
+            >
+              {tr('dataExport.download', 'ZIP 다운로드')}
+            </ActionButton>
+          )}
         </CardActions>
       </Card>
 
@@ -200,7 +256,7 @@ const DataExportSettings: React.FC<Props> = ({ businessId, isOwner }) => {
             <CardIcon $bg="#F0FDFA" $fg="#0F766E"><IconDownload /></CardIcon>
             <CardTitleWrap>
               <CardTitle>{tr('dataExport.trTitle', '다른 워크스페이스로 이전')}</CardTitle>
-              <CardSub>{tr('dataExport.trDesc', '내 개인(나만 보기) 자료를 내가 속한 다른 워크스페이스로 복사합니다. 원본은 그대로 유지됩니다.')}</CardSub>
+              <CardSub>{tr('dataExport.trDesc2', '내 개인(나만 보기) 자료를 내가 속한 다른 워크스페이스로 옮깁니다. 복사(원본 유지) 또는 이동(원본 정리)을 선택하세요. 백그라운드로 처리됩니다.')}</CardSub>
             </CardTitleWrap>
           </CardHead>
           <CardBody>
@@ -213,26 +269,80 @@ const DataExportSettings: React.FC<Props> = ({ businessId, isOwner }) => {
                 options={targets.map((x) => ({ value: String(x.id), label: x.name }))}
               />
             </TrRow>
+            <ModeRow role="radiogroup" aria-label={tr('dataExport.trModeLabel', '이전 방식')}>
+              <ModeOpt type="button" role="radio" aria-checked={trMode === 'copy'} $active={trMode === 'copy'} onClick={() => setTrMode('copy')}>
+                <ModeTitle>{tr('dataExport.modeCopy', '복사')}</ModeTitle>
+                <ModeDesc>{tr('dataExport.modeCopyDesc', '원본을 그대로 두고 복제')}</ModeDesc>
+              </ModeOpt>
+              <ModeOpt type="button" role="radio" aria-checked={trMode === 'move'} $active={trMode === 'move'} onClick={() => setTrMode('move')}>
+                <ModeTitle>{tr('dataExport.modeMove', '이동')}</ModeTitle>
+                <ModeDesc>{tr('dataExport.modeMoveDesc', '옮긴 뒤 원본을 정리')}</ModeDesc>
+              </ModeOpt>
+            </ModeRow>
+            <ToggleRow type="button" role="switch" aria-checked={trQnote} onClick={() => setTrQnote(v => !v)}>
+              <Switch $on={trQnote}><SwitchKnob $on={trQnote} /></Switch>
+              <ToggleText>{tr('dataExport.includeQnote', 'Q Note 세션 포함 (요약·전사를 문서로 변환)')}</ToggleText>
+            </ToggleRow>
             {trMsg && <TrNote $tone={trMsg.tone} role="alert">{trMsg.text}</TrNote>}
           </CardBody>
           <CardActions>
             <ActionButton
-              tone="secondary" size="md" loading={busyTr}
+              tone={trMode === 'move' ? 'danger' : 'secondary'} size="md" loading={busyTr}
               onClick={() => setTrConfirm(true)}
               disabled={!targetId || busyTr}
               icon={<IconDownload />}
             >
-              {tr('dataExport.trAction', '복사하기')}
+              {trMode === 'move' ? tr('dataExport.trActionMove', '이동하기') : tr('dataExport.trActionCopy', '복사하기')}
             </ActionButton>
           </CardActions>
         </Card>
       )}
 
+      {/* ── 작업 내역 (비동기 이전/내보내기) ── */}
+      {jobs.length > 0 && (
+        <Card>
+          <CardHead>
+            <CardIcon $bg="#EEF2F7" $fg="#475569"><IconClock /></CardIcon>
+            <CardTitleWrap>
+              <CardTitle>{tr('dataExport.jobsTitle', '내보내기·이전 작업')}</CardTitle>
+              <CardSub>{tr('dataExport.jobsDesc', '백그라운드로 처리되는 작업입니다. 내보내기 결과는 30일간 다운로드할 수 있어요.')}</CardSub>
+            </CardTitleWrap>
+          </CardHead>
+          <CardBody>
+            <JobList>
+              {jobs.map((j) => (
+                <JobRow key={j.id}>
+                  <JobMain>
+                    <JobKind>{j.kind === 'transfer' ? (j.mode === 'move' ? tr('dataExport.jobMove', '이동') : tr('dataExport.jobCopy', '복사')) : tr('dataExport.jobExport', '내보내기')}{j.include_qnote ? tr('dataExport.jobQnoteTag', ' · Q Note 포함') : ''}</JobKind>
+                    <JobMeta>{new Date(j.created_at).toLocaleString()}</JobMeta>
+                  </JobMain>
+                  <JobRight>
+                    <JobStatus $s={j.status}>
+                      {j.status === 'queued' ? tr('dataExport.stQueued', '대기 중')
+                        : j.status === 'running' ? tr('dataExport.stRunning', '처리 중')
+                        : j.status === 'done' ? tr('dataExport.stDone', '완료')
+                        : tr('dataExport.stFailed', '실패')}
+                    </JobStatus>
+                    {j.kind === 'export' && j.has_download && (
+                      <ActionButton tone="primary" size="sm" onClick={() => doDownloadJob(j)} icon={<IconDownload />}>
+                        {tr('dataExport.jobDownload', '다운로드')}
+                      </ActionButton>
+                    )}
+                  </JobRight>
+                </JobRow>
+              ))}
+            </JobList>
+          </CardBody>
+        </Card>
+      )}
+
       <ConfirmDialog
         isOpen={trConfirm}
-        title={tr('dataExport.trConfirmTitle', '워크스페이스로 복사')}
-        message={tr('dataExport.trConfirmMsg', '선택한 워크스페이스로 내 개인 자료를 복사합니다. 원본은 그대로 유지됩니다. 계속할까요?')}
-        confirmText={tr('dataExport.trAction', '복사하기')}
+        title={trMode === 'move' ? tr('dataExport.moveConfirmTitle', '워크스페이스로 이동') : tr('dataExport.trConfirmTitle', '워크스페이스로 복사')}
+        message={trMode === 'move'
+          ? tr('dataExport.moveConfirmMsg', '선택한 워크스페이스로 내 개인 자료를 옮기고 이 워크스페이스의 원본은 정리됩니다(파일 삭제·문서 보관처리). 계속할까요?')
+          : tr('dataExport.trConfirmMsg', '선택한 워크스페이스로 내 개인 자료를 복사합니다. 원본은 그대로 유지됩니다. 계속할까요?')}
+        confirmText={trMode === 'move' ? tr('dataExport.trActionMove', '이동하기') : tr('dataExport.trActionCopy', '복사하기')}
         onConfirm={() => { setTrConfirm(false); doTransfer(); }}
         onClose={() => setTrConfirm(false)}
       />
@@ -262,5 +372,29 @@ const NoticeText = styled.div`font-size:12px;color:#92400E;line-height:1.5;`;
 const ErrText = styled.div`font-size:12px;color:#EF4444;margin-top:10px;`;
 const TrRow = styled.div`max-width:360px;`;
 const TrNote = styled.div<{ $tone: 'ok' | 'err' }>`font-size:12px;margin-top:10px;color:${p => p.$tone === 'ok' ? '#0F766E' : '#EF4444'};`;
+// #63 Phase 3 — 이동 방식 라디오 + Q Note 토글 + 작업 내역
+const ModeRow = styled.div`display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;`;
+const ModeOpt = styled.button<{ $active?: boolean }>`
+  flex:1;min-width:140px;text-align:left;padding:10px 14px;border-radius:10px;cursor:pointer;
+  background:${p => p.$active ? '#F0FDFA' : '#FFFFFF'};
+  border:1px solid ${p => p.$active ? '#14B8A6' : '#E2E8F0'};
+  transition:all 0.15s;&:hover{border-color:#14B8A6;}
+`;
+const ModeTitle = styled.div`font-size:13px;font-weight:700;color:#0F172A;`;
+const ModeDesc = styled.div`font-size:11px;color:#94A3B8;margin-top:2px;`;
+const ToggleRow = styled.button`display:flex;align-items:center;gap:10px;margin-top:12px;background:none;border:none;padding:0;cursor:pointer;text-align:left;`;
+const Switch = styled.span<{ $on?: boolean }>`width:38px;height:22px;border-radius:999px;flex-shrink:0;position:relative;transition:background 0.15s;background:${p => p.$on ? '#14B8A6' : '#CBD5E1'};`;
+const SwitchKnob = styled.span<{ $on?: boolean }>`position:absolute;top:2px;left:${p => p.$on ? '18px' : '2px'};width:18px;height:18px;border-radius:50%;background:#fff;transition:left 0.15s;box-shadow:0 1px 2px rgba(0,0,0,0.15);`;
+const ToggleText = styled.span`font-size:13px;color:#334155;`;
+const JobList = styled.div`display:flex;flex-direction:column;gap:8px;`;
+const JobRow = styled.div`display:flex;align-items:center;gap:12px;padding:10px 12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;`;
+const JobMain = styled.div`flex:1;min-width:0;`;
+const JobKind = styled.div`font-size:13px;font-weight:600;color:#0F172A;`;
+const JobMeta = styled.div`font-size:11px;color:#94A3B8;margin-top:2px;`;
+const JobRight = styled.div`display:flex;align-items:center;gap:10px;flex-shrink:0;`;
+const JobStatus = styled.span<{ $s: string }>`
+  font-size:12px;font-weight:600;
+  color:${p => p.$s === 'done' ? '#0F766E' : p.$s === 'failed' ? '#EF4444' : '#64748B'};
+`;
 const SkRow = styled.div`display:flex;gap:12px;`;
 const Sk = styled.div`flex:1;height:62px;border-radius:10px;background:linear-gradient(90deg,#F1F5F9 0px,#E2E8F0 40px,#F1F5F9 80px);background-size:200px 100%;animation:dxsk 1.2s linear infinite;@keyframes dxsk{0%{background-position:-200px 0}100%{background-position:200px 0}}`;

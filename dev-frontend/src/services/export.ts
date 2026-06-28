@@ -69,3 +69,63 @@ export async function transferMyData(businessId: number, targetBusinessId: numbe
   if (!j.success) throw new Error(j.message || 'failed');
   return j.data;
 }
+
+// ─── Phase 3 (#63) — 비동기 job: 이동/복사(+Q Note) · 대용량 export ───
+export interface ExportJob {
+  id: number;
+  kind: 'transfer' | 'export';
+  mode: 'copy' | 'move' | null;
+  status: 'queued' | 'running' | 'done' | 'failed';
+  target_business_id: number | null;
+  include_qnote: boolean;
+  result: { files_copied?: number; documents_copied?: number; qnote_copied?: number; files_removed?: number; documents_removed?: number; skipped?: number; bytes?: number } | null;
+  error: string | null;
+  has_download: boolean;
+  download_token?: string | null;
+  created_at: string;
+  done_at: string | null;
+}
+
+export async function createTransferJob(
+  businessId: number,
+  opts: { target_business_id: number; mode: 'copy' | 'move'; include_qnote: boolean },
+): Promise<{ job_id: number; status: string }> {
+  const r = await apiFetch(`/api/export/${businessId}/me/transfer-job`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(opts),
+  });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'failed');
+  return j.data;
+}
+
+export async function createExportJob(businessId: number, includeQnote: boolean): Promise<{ job_id: number; status: string }> {
+  const r = await apiFetch(`/api/export/${businessId}/me/export-job`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ include_qnote: includeQnote }),
+  });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'failed');
+  return j.data;
+}
+
+export async function fetchExportJobs(businessId: number): Promise<ExportJob[]> {
+  const r = await apiFetch(`/api/export/${businessId}/me/jobs`);
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'failed');
+  return j.data as ExportJob[];
+}
+
+export async function downloadExportJob(businessId: number, jobId: number, token: string): Promise<{ ok: boolean; message?: string }> {
+  return downloadZipGet(`/api/export/${businessId}/me/jobs/${jobId}/download?token=${encodeURIComponent(token)}`, `planq-export-${jobId}.zip`);
+}
+
+async function downloadZipGet(path: string, fileName: string): Promise<{ ok: boolean; message?: string }> {
+  const r = await apiFetch(path);
+  if (!r.ok) { const j = await r.json().catch(() => ({})); return { ok: false, message: j.message || `http_${r.status}` }; }
+  const blob = await r.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = fileName;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 100);
+  return { ok: true };
+}

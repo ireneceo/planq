@@ -43,7 +43,31 @@
     "trConfirmTitle": "Copy to workspace",
     "trConfirmMsg": "Copy your personal data to the selected workspace. The original stays intact. Continue?",
     "trDone": "Copied to {{name}}. {{f}} file(s), {{d}} document(s).",
-    "trErr": "Something went wrong during transfer. Please try again shortly."
+    "trErr": "Something went wrong during transfer. Please try again shortly.",
+    "trDesc2": "Move your personal (private) data to another workspace you belong to. Choose copy (keep original) or move (clean up original). Processed in the background.",
+    "trModeLabel": "Transfer mode",
+    "modeCopy": "Copy",
+    "modeCopyDesc": "Duplicate, keep the original",
+    "modeMove": "Move",
+    "modeMoveDesc": "Transfer then clean up the original",
+    "includeQnote": "Include Q Note sessions (summary & transcript as documents)",
+    "trActionCopy": "Copy",
+    "trActionMove": "Move",
+    "trQueued": "Processing in the background. You'll be notified and see it in the activity list below when done.",
+    "bgExport": "Background export",
+    "jobsTitle": "Export & transfer activity",
+    "jobsDesc": "Tasks processed in the background. Export results are downloadable for 30 days.",
+    "jobMove": "Move",
+    "jobCopy": "Copy",
+    "jobExport": "Export",
+    "jobQnoteTag": " · with Q Note",
+    "stQueued": "Queued",
+    "stRunning": "Processing",
+    "stDone": "Done",
+    "stFailed": "Failed",
+    "jobDownload": "Download",
+    "moveConfirmTitle": "Move to workspace",
+    "moveConfirmMsg": "Move your personal data to the selected workspace and clean up the originals here (files deleted, documents archived). Continue?"
   },
   "workManagement": {
     "autoFinalize": {
@@ -58,8 +82,13 @@
       "nextLabel": "Next auto-finalize"
     },
     "dow": {
-      "sun": "Sunday", "mon": "Monday", "tue": "Tuesday", "wed": "Wednesday",
-      "thu": "Thursday", "fri": "Friday", "sat": "Saturday"
+      "sun": "Sunday",
+      "mon": "Monday",
+      "tue": "Tuesday",
+      "wed": "Wednesday",
+      "thu": "Thursday",
+      "fri": "Friday",
+      "sat": "Saturday"
     },
     "readOnly": "Only workspace admins can change these settings."
   },
@@ -313,8 +342,7 @@
     "roleAdmin": "Admin",
     "roleMember": "Member",
     "roleAi": "Cue",
-    "invite": "Invite Member",
-    "invitePlaceholder": "Email to invite"
+    "invite": "Invite Member"
   },
   "cue": {
     "sectionTitle": "Cue Settings",
@@ -426,7 +454,10 @@
     "desc": "Adjust read/write per menu per member. Default is full write — restrict only if needed. Owners and admins always have full access.",
     "loading": "Loading...",
     "ownerOnlyHint": "Only owners and admins can change permissions.",
-    "col": { "member": "Member", "role": "Role" },
+    "col": {
+      "member": "Member",
+      "role": "Role"
+    },
     "writableCount": "Writable members",
     "warnNoQbillWrite": "⚠ No member has Q Bill write access — invoices cannot be issued. At least 1 recommended."
   },

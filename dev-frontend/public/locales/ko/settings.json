@@ -43,7 +43,31 @@
     "trConfirmTitle": "워크스페이스로 복사",
     "trConfirmMsg": "선택한 워크스페이스로 내 개인 자료를 복사합니다. 원본은 그대로 유지됩니다. 계속할까요?",
     "trDone": "{{name}}(으)로 복사했습니다. 파일 {{f}}건, 문서 {{d}}건.",
-    "trErr": "이전 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요."
+    "trErr": "이전 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.",
+    "trDesc2": "내 개인(나만 보기) 자료를 내가 속한 다른 워크스페이스로 옮깁니다. 복사(원본 유지) 또는 이동(원본 정리)을 선택하세요. 백그라운드로 처리됩니다.",
+    "trModeLabel": "이전 방식",
+    "modeCopy": "복사",
+    "modeCopyDesc": "원본을 그대로 두고 복제",
+    "modeMove": "이동",
+    "modeMoveDesc": "옮긴 뒤 원본을 정리",
+    "includeQnote": "Q Note 세션 포함 (요약·전사를 문서로 변환)",
+    "trActionCopy": "복사하기",
+    "trActionMove": "이동하기",
+    "trQueued": "백그라운드에서 처리 중입니다. 완료되면 알림과 아래 작업 내역에 표시됩니다.",
+    "bgExport": "백그라운드 내보내기",
+    "jobsTitle": "내보내기·이전 작업",
+    "jobsDesc": "백그라운드로 처리되는 작업입니다. 내보내기 결과는 30일간 다운로드할 수 있어요.",
+    "jobMove": "이동",
+    "jobCopy": "복사",
+    "jobExport": "내보내기",
+    "jobQnoteTag": " · Q Note 포함",
+    "stQueued": "대기 중",
+    "stRunning": "처리 중",
+    "stDone": "완료",
+    "stFailed": "실패",
+    "jobDownload": "다운로드",
+    "moveConfirmTitle": "워크스페이스로 이동",
+    "moveConfirmMsg": "선택한 워크스페이스로 내 개인 자료를 옮기고 이 워크스페이스의 원본은 정리됩니다(파일 삭제·문서 보관처리). 계속할까요?"
   },
   "workManagement": {
     "autoFinalize": {
@@ -58,8 +82,13 @@
       "nextLabel": "다음 자동 확정"
     },
     "dow": {
-      "sun": "일요일", "mon": "월요일", "tue": "화요일", "wed": "수요일",
-      "thu": "목요일", "fri": "금요일", "sat": "토요일"
+      "sun": "일요일",
+      "mon": "월요일",
+      "tue": "화요일",
+      "wed": "수요일",
+      "thu": "목요일",
+      "fri": "금요일",
+      "sat": "토요일"
     },
     "readOnly": "워크스페이스 관리자만 변경할 수 있습니다."
   },
@@ -313,8 +342,7 @@
     "roleAdmin": "관리자",
     "roleMember": "멤버",
     "roleAi": "Cue",
-    "invite": "멤버 초대",
-    "invitePlaceholder": "초대할 이메일"
+    "invite": "멤버 초대"
   },
   "cue": {
     "sectionTitle": "Cue 설정",
@@ -426,7 +454,10 @@
     "desc": "메뉴별 보기/읽기/쓰기를 멤버 단위로 조정합니다. 기본값은 전권(쓰기)이며, 필요한 경우만 제한하세요. 오너와 관리자는 항상 전권입니다.",
     "loading": "불러오는 중...",
     "ownerOnlyHint": "오너와 관리자만 권한을 변경할 수 있습니다.",
-    "col": { "member": "멤버", "role": "역할" },
+    "col": {
+      "member": "멤버",
+      "role": "역할"
+    },
     "writableCount": "쓰기 가능 인원",
     "warnNoQbillWrite": "⚠ Q Bill 쓰기 권한자가 없습니다. 청구서 발행이 불가합니다 — 최소 1명 권장."
   },
