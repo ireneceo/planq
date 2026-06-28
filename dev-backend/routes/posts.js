@@ -337,19 +337,31 @@ router.post('/', authenticateToken, async (req, res, next) => {
       const parent = await Post.findOne({ where: { id: parent_post_id, business_id } });
       if (!parent) return errorResponse(res, 'invalid parent_post_id', 400);
     }
-    // kind='table' 이면 빈 q_record 자동 생성 — 컬럼 0, 행 0. 사용자가 직접 컬럼 추가.
+    // kind='table' 이면 q_record 자동 생성 — #96: 빈 표가 아니라 기본 컬럼 3개 + 빈 행 1개 시드
+    //   (옛: columns 0·rows 0 → 처음부터 설정해야 했음. Irene 결정: 즉시 쓸 수 있는 기본 테이블).
     let qRecordId = null;
     if (kind === 'table') {
-      const { QRecord } = require('../models');
+      const { QRecord, QRecordRow } = require('../models');
+      const lang = req.user.language === 'en' ? 'en' : 'ko';
+      const L = (ko, en) => (lang === 'en' ? en : ko);
+      const colId = () => 'c_' + Math.random().toString(36).slice(2, 10);
+      const defaultCols = [
+        { id: colId(), name: L('제목', 'Title'), type: 'text', order: 0 },
+        { id: colId(), name: L('상태', 'Status'), type: 'select', order: 1,
+          options: [L('시작 전', 'Not started'), L('진행 중', 'In progress'), L('완료', 'Done')] },
+        { id: colId(), name: L('메모', 'Notes'), type: 'longtext', order: 2 },
+      ];
       const qrec = await QRecord.create({
         business_id,
         project_id: project_id || null,
         name: String(title).slice(0, 200),
         category,
-        columns: [],
+        columns: defaultCols,
         read_policy: 'all',
         created_by: req.user.id,
       });
+      // 빈 행 1개 — 사용자가 바로 입력 시작 (#96 "기본 테이블이 나와야")
+      await QRecordRow.create({ q_record_id: qrec.id, values: {}, position: 0, created_by: req.user.id });
       qRecordId = qrec.id;
     }
     const post = await Post.create({
