@@ -81,13 +81,14 @@ Irene 선택 "#90 진행 — 자동추출 개선". 근본원인 3개 수정:
 - **★ 쿼터 버그 fix (`b97db0d`, 미배포):** move 시 출발 워크스페이스 BusinessStorageUsage 차감 누락 → 용량 부풀려짐. softDeleteSourceFile 을 files.js 정식 정책과 정합. E2E 4/4. **운영 Phase3 에 이 버그 존재 → 다음 /배포 필요(경미: 이동 시 출발지 용량 카운터만).**
 - **★ 타겟 쿼터 우회 fix (`f7d3cbb`, 미배포):** transfer copy/move 시 신규 물리 복사가 **타겟 워크스페이스** 스토리지 쿼터를 우회하던 문제 수정(b97db0d 는 출발지, 이건 도착지). exportJobWorker 가 plan.js 업로드 정책과 동일하게 타겟 effective limit-bytes_used 예산 검사 → 초과 시 skip(reason='quota'), result.skipped_quota 카운트. dedup-share(0바이트) 무영향, move 라도 쿼터부족 시 원본 보존(유실 방지). E2E 11/11(drainOnce 실경로 — 거부/통과 양쪽 + 소스무손상·완전원복).
 - **★ 품질점검 fix (`f667308`, 미배포):** 전체 실검증 중 transfer 워커 2건 결함 발견·수정. ① **[데이터 유실, move]** copyFileToTarget skip 이 no_hash·no_file(타겟에 사본 없음)인데도 move 시 원본 soft-delete → 유실. skip reason(no_hash/exists/no_file) 명시 후 move 원본 제거를 reason==='exists'(타겟에 본인 사본 존재)일 때만. ② **[file_count]** 타겟 usage 갱신 가드 bytesAdded>0 → dedup-share 만 복사 시 file_count 미증가, filesCopied>0 으로 수정.
-- **미배포:** `b97db0d`(출발지 쿼터 반환) + `f7d3cbb`(타겟 쿼터 우회 차단) + `f667308`(move 유실 방지·file_count) 3건. 다음 /배포 시 함께 반영.
+- **★ #90 Cue 알림 누락 fix (`b65e5a4`, 미배포):** `registerCandidate`(후보→업무 승격, chat/email/qnote 공용)가 Task.create 후 **notify 미호출** → Cue 추출 업무 등록 시 담당자가 인박스/푸시/링크 알림 0. 수동 생성 라우트(tasks.js)와 동일하게 notify 추가 — 담당자≠등록자일 때만(self noise 방지), link `/tasks?task=:id`+entityType/entityId+ioApp, 중첩 try/catch(트랜잭션 무영향). E2E 7/7(타인배정→인박스알림·link·entity·actor / self→무알림). 담당자는 fallback(userId)로 항상 배정되므로 "미배정"의 실체는 알림부재였음.
+- **미배포:** `b97db0d`(출발지 쿼터 반환) + `f7d3cbb`(타겟 쿼터 우회 차단) + `f667308`(move 유실 방지·file_count) + `b65e5a4`(#90 Cue 알림) 4건. 다음 /배포 시 함께 반영.
 - **전체 실검증 (2026-06-28):** transfer 워커 실 E2E **39/39** — copy 11(타겟쿼터 거부/통과) + move 16(출발지쿼터 반환·소프트삭제·물리unlink + 타겟풀 유실방지) + 품질 12(no_hash/no_file 원본보존·exists 제거·dedup file_count). drainOnce 실 코드경로, 테스트워크스페이스(88→6)만 사용해 실 사용자 데이터(file78) 무손상·완전원복. 헬스 29/29.
 
 ### 다음 할 일
 1. **§6-C 델타(carry-in 분리)** — 차트 SVG 라인 계산. 단일엔티티 스코핑으로 차트는 이미 현실값이라 **선택적 폴리시**. Playwright 시각검증 권장.
 2. **U4 단조완화(되돌림 ↓마커)** — 차트 SVG, 되돌림 희귀라 저우선.
-3. **운영 미해결 피드백:** #90 Cue 인식 품질(담당자 미배정·링크 누락) · 운영 feedback_items done 위생 마킹(처리된 #71·#79·#86·#87·#92·#93 등, Irene 확인 후).
+3. **운영 미해결 피드백:** ~~#90 Cue 인식 품질(담당자 미배정·링크 누락)~~ → **dev 수정 완료 `b65e5a4`(미배포)**. 운영 feedback_items done 위생 마킹(처리된 #71·#79·#86·#87·#90·#92·#93 등, Irene 확인 후).
 4. **[검토 예정]** 피드백/문의 자동 트리아지·응답 시스템(자동회신=가능, 자동코드수정=제안까지만). 정식 /기능설계 필요.
 5. **별개 후속:** status_history in_progress live inflation(task 수주 방치 시 1152h) — 작업시간 정의 product 결정 필요.
 
