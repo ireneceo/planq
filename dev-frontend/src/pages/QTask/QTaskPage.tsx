@@ -1305,13 +1305,20 @@ const QTaskPage:React.FC=()=>{
       return{label:d.label,date:d.date,isFuture,est:Math.round(estV*10)/10,act:Math.round(actV*10)/10};
     });
     // 누적(단조증가) 강제 — 진척·실제는 줄지 않음. 미래는 null (라인 잘림).
+    // WORK_FLOW §6 (U4) — 단조완화: 진척이 되돌려진 날(완료→재오픈 등 progress 하락)을 ↓마커로 표면화.
+    //   라인 자체는 피크 유지(가독성)하되, 그 날 되돌림이 있었음을 사용자에게 알림.
     let mE=0,mA=0;
     return raw.map(p=>{
-      if(!p.isFuture){ if(p.est>0)mE=Math.max(mE,p.est); if(p.act>0)mA=Math.max(mA,p.act); }
+      let estReverted=false, actReverted=false;
+      if(!p.isFuture){
+        if(p.est>0){ if(p.est<mE-0.05)estReverted=true; mE=Math.max(mE,p.est); }
+        if(p.act>0){ if(p.act<mA-0.05)actReverted=true; mA=Math.max(mA,p.act); }
+      }
       return{
         label:p.label, date:p.date, isFuture:p.isFuture,
         estimated_cumulative: p.isFuture ? null : (p.est>0?mE:0),
         actual_cumulative: p.isFuture ? null : (p.act>0?mA:0),
+        reverted: estReverted||actReverted,
       };
     });
   },[filtered,myId,periodFrom,periodTo,dailyProgress,todayStr]);
@@ -2488,6 +2495,13 @@ const QTaskPage:React.FC=()=>{
                             {p.v>0&&<text x={p.x} y={p.y+12} fontSize="8" fill="#9F1239" textAnchor="middle" fontWeight="700">{p.v}</text>}
                           </React.Fragment>
                         ))}
+                        {/* WORK_FLOW §6 (U4) — 되돌림(progress 하락) 마커: 해당 날 상단에 ▽ 표시 */}
+                        {computedBurndown.map((p,i)=>(p.reverted?(
+                          <g key={'rv'+i}>
+                            <title>{t('chart.revertedTip','이 날 진척이 일부 되돌려졌어요 (완료 취소·진행률 하향). 그래프 선은 최고치를 유지합니다.') as string}</title>
+                            <path d={`M${xPos(i)-4},${PT+2} L${xPos(i)+4},${PT+2} L${xPos(i)},${PT+9} Z`} fill="#F59E0B"/>
+                          </g>
+                        ):null))}
                         {/* 요일 라벨 — 전체 (미래 포함, 주 구조 표시) */}
                         {computedBurndown.map((p,i)=>(
                           <text key={'d'+i} x={xPos(i)} y={H-6} fontSize="10" fill={p.isFuture?'#CBD5E1':'#64748B'} textAnchor="middle" fontWeight="600">{p.label}</text>
@@ -2500,6 +2514,9 @@ const QTaskPage:React.FC=()=>{
                     <LI><Dot $c="#F43F5E"/>{t('chart.act','Actual')}</LI>
                     <LI><DashDot $c="#94A3B8"/>{t('chart.ideal','Target')}</LI>
                     <LI><DashDot $c="#F59E0B"/>{t('chart.capacity','가용시간')}</LI>
+                    {computedBurndown.some(p=>p.reverted)&&(
+                      <LI><RevertTri/>{t('chart.reverted','되돌림')}</LI>
+                    )}
                   </Legend>
                   {computedBurndown.every(p=>p.estimated_cumulative===0&&p.actual_cumulative===0)&&<EmptyChart>{t('chart.noData','No data in this period')}</EmptyChart>}
                 </RSection>
@@ -3313,6 +3330,8 @@ const Legend=styled.div`display:flex;gap:12px;margin-top:6px;`;
 const LI=styled.div`display:flex;align-items:center;gap:3px;font-size:10px;color:#64748B;font-weight:600;`;
 const Dot=styled.span<{$c:string}>`width:7px;height:7px;border-radius:50%;background:${p=>p.$c};`;
 const DashDot=styled.span<{$c:string}>`width:14px;height:0;border-top:2px dashed ${p=>p.$c};flex-shrink:0;`;
+// WORK_FLOW §6 (U4) — 되돌림 마커 범례 (▽ 주황)
+const RevertTri=styled.span`width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:6px solid #F59E0B;flex-shrink:0;`;
 const PPRow=styled.div`display:flex;align-items:center;gap:8px;& + &{margin-top:6px;}`;
 const PPName=styled.span`font-size:11px;color:#0F172A;font-weight:500;min-width:60px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
 const PPTrack=styled.div`flex:1;height:5px;background:#F1F5F9;border-radius:3px;overflow:hidden;`;

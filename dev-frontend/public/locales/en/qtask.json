@@ -291,11 +291,25 @@
     "capacity": "Capacity",
     "capacityLine": "Cap {{h}}h",
     "verdict": {
-      "onTrack": { "label": "On track", "detail": "Going as planned (earned {{ev}}h · spent {{ac}}h)" },
-      "ahead": { "label": "Ahead of plan", "detail": "Faster than this week's target (earned {{ev}}h · spent {{ac}}h)" },
-      "overBudget": { "label": "Progress lagging time spent", "detail": "Spent {{ac}}h for {{ev}}h of progress — taking longer than expected" },
-      "behind": { "label": "Behind target", "detail": "Below where you should be this week (earned {{ev}}h · spent {{ac}}h)" }
-    }
+      "onTrack": {
+        "label": "On track",
+        "detail": "Going as planned (earned {{ev}}h · spent {{ac}}h)"
+      },
+      "ahead": {
+        "label": "Ahead of plan",
+        "detail": "Faster than this week's target (earned {{ev}}h · spent {{ac}}h)"
+      },
+      "overBudget": {
+        "label": "Progress lagging time spent",
+        "detail": "Spent {{ac}}h for {{ev}}h of progress — taking longer than expected"
+      },
+      "behind": {
+        "label": "Behind target",
+        "detail": "Below where you should be this week (earned {{ev}}h · spent {{ac}}h)"
+      }
+    },
+    "reverted": "Reverted",
+    "revertedTip": "Progress was partly reverted on this day (un-completed or progress lowered). The line keeps the peak value."
   },
   "projects": {
     "title": "Project Progress"
