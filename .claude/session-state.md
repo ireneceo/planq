@@ -79,7 +79,8 @@ Irene 선택 "#90 진행 — 자동추출 개선". 근본원인 3개 수정:
 - **운영 배포 완료** deploy `20260628_111031` — #63 Phase3 + U4 + job삭제. export_jobs 18컬럼 운영 생성, prod-backend+qnote online, 헬스 200.
 - **★ 운영 qnote 포트 fix (LIVE):** 운영 qnote=**8001**(dev=8000), worker 폴백 8000 하드코딩 → 운영 include_qnote silent 0세션. 운영+dev `.env` 에 `QNOTE_INTERNAL_URL` 명시(운영 8001/dev 8000)+재시작. worker→qnote fetch 200 확인. 박제 [[feedback_qnote_internal_url_prod_port]].
 - **★ 쿼터 버그 fix (`b97db0d`, 미배포):** move 시 출발 워크스페이스 BusinessStorageUsage 차감 누락 → 용량 부풀려짐. softDeleteSourceFile 을 files.js 정식 정책과 정합. E2E 4/4. **운영 Phase3 에 이 버그 존재 → 다음 /배포 필요(경미: 이동 시 출발지 용량 카운터만).**
-- **미배포:** `b97db0d` 쿼터 fix 1건.
+- **★ 타겟 쿼터 우회 fix (`f7d3cbb`, 미배포):** transfer copy/move 시 신규 물리 복사가 **타겟 워크스페이스** 스토리지 쿼터를 우회하던 문제 수정(b97db0d 는 출발지, 이건 도착지). exportJobWorker 가 plan.js 업로드 정책과 동일하게 타겟 effective limit-bytes_used 예산 검사 → 초과 시 skip(reason='quota'), result.skipped_quota 카운트. dedup-share(0바이트) 무영향, move 라도 쿼터부족 시 원본 보존(유실 방지). E2E 11/11(drainOnce 실경로 — 거부/통과 양쪽 + 소스무손상·완전원복).
+- **미배포:** `b97db0d`(출발지 쿼터 반환) + `f7d3cbb`(타겟 쿼터 우회 차단) 2건. 다음 /배포 시 함께 반영.
 
 ### 다음 할 일
 1. **§6-C 델타(carry-in 분리)** — 차트 SVG 라인 계산. 단일엔티티 스코핑으로 차트는 이미 현실값이라 **선택적 폴리시**. Playwright 시각검증 권장.
