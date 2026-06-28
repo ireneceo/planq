@@ -211,6 +211,27 @@
     }
   },
   "reports": {
+    "integrated": {
+      "title": "통합 보고서",
+      "weekly": "주간",
+      "monthly": "월간",
+      "confirmed": "확정됨",
+      "draft": "작성중",
+      "completed": "완료 업무",
+      "inProgress": "진행 중",
+      "overdue": "지연",
+      "openIssues": "미해결 이슈",
+      "deliverables": "산출물",
+      "projectsConfirmed": "프로젝트 확정",
+      "membersConfirmed": "멤버 확정",
+      "summary": "경영 요약",
+      "byProject": "프로젝트별",
+      "byMember": "멤버별",
+      "name": "이름",
+      "dept": "부서",
+      "status": "상태",
+      "empty": "선택한 기간의 데이터가 없습니다"
+    },
     "nextAuto": "다음 자동 생성 보고서",
     "nextAutoHint": "매월 1일 새벽에 월간 보고서가 자동 생성됩니다.",
     "recent": "최근 생성된 보고서",
