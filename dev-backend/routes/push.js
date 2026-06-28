@@ -79,7 +79,7 @@ function isAllowedEndpoint(rawUrl) {
 const testPushLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 5,
-  keyGenerator: (req) => req.user?.id ? `push-test-u${req.user.id}` : `push-test-ip${ipKeyGenerator(req)}`,
+  keyGenerator: (req) => req.user?.id ? `push-test-u${req.user.id}` : `push-test-ip${ipKeyGenerator(req.ip)}`,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'push test 너무 자주 호출했습니다. 1분 후 다시 시도하세요.' },

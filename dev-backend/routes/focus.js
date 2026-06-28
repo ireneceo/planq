@@ -24,13 +24,13 @@ const { recomputeActualHoursFromHistory } = require('../services/taskActualHours
 // ─── 헬퍼 ────────────────────────────────────────────────────────
 const startStopLimiter = rateLimit({
   windowMs: 60 * 1000, max: 10,
-  keyGenerator: (req) => req.user?.id ? `focus-ss-u${req.user.id}` : `focus-ss-ip${ipKeyGenerator(req)}`,
+  keyGenerator: (req) => req.user?.id ? `focus-ss-u${req.user.id}` : `focus-ss-ip${ipKeyGenerator(req.ip)}`,
   standardHeaders: true, legacyHeaders: false,
   message: { success: false, message: '포커스 시작·종료를 너무 자주 호출했습니다. 잠시 후 다시 시도하세요.' },
 });
 const heartbeatLimiter = rateLimit({
   windowMs: 60 * 1000, max: 120,  // 30s 간격 + 여유
-  keyGenerator: (req) => req.user?.id ? `focus-hb-u${req.user.id}` : `focus-hb-ip${ipKeyGenerator(req)}`,
+  keyGenerator: (req) => req.user?.id ? `focus-hb-u${req.user.id}` : `focus-hb-ip${ipKeyGenerator(req.ip)}`,
   standardHeaders: true, legacyHeaders: false,
   message: { success: false, message: 'heartbeat rate exceeded' },
 });

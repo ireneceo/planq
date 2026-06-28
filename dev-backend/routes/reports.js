@@ -27,7 +27,7 @@ const { mondayOfDateStr, addDaysStr, todayInTz } = require('../utils/datetime');
 // #85 — AI SCR 요약 생성은 외부 비용(LLM) → per-user rate-limit
 const narrativeLimiter = rateLimit({
   windowMs: 60 * 1000, max: 8,
-  keyGenerator: (req) => req.user?.id ? `rpt-narr-u${req.user.id}` : `rpt-narr-ip${ipKeyGenerator(req)}`,
+  keyGenerator: (req) => req.user?.id ? `rpt-narr-u${req.user.id}` : `rpt-narr-ip${ipKeyGenerator(req.ip)}`,
   standardHeaders: true, legacyHeaders: false,
   message: { success: false, message: 'AI 요약 생성을 너무 자주 호출했습니다. 잠시 후 다시 시도하세요.' },
 });
