@@ -34,7 +34,7 @@ const reminderLimiter = rateLimit({
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => (req.user?.id ? `invoice-remind-u${req.user.id}` : `invoice-remind-ip${ipKeyGenerator(req)}`),
+  keyGenerator: (req) => (req.user?.id ? `invoice-remind-u${req.user.id}` : `invoice-remind-ip${ipKeyGenerator(req.ip)}`),
   message: { success: false, message: 'too_many_reminders' },
 });
 const REMINDER_COOLDOWN_MS = 6 * 60 * 60 * 1000; // 같은 청구서 6시간 쿨다운

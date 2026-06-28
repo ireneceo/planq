@@ -32,7 +32,7 @@ const emailSendLimiter = rateLimit({
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.user?.id ? `qmailsend-u${req.user.id}` : `qmailsend-ip${ipKeyGenerator(req)}`,
+  keyGenerator: (req) => req.user?.id ? `qmailsend-u${req.user.id}` : `qmailsend-ip${ipKeyGenerator(req.ip)}`,
   message: { success: false, message: 'rate_limited_email_send' },
 });
 

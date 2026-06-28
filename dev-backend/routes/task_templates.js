@@ -9,6 +9,7 @@ const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
 const { TaskTemplate, TaskTemplateItem, BusinessMember } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
@@ -33,7 +34,7 @@ const recommendLimiter = rateLimit({
   max: 120,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => 'tpl-recommend-' + (req.user?.id || req.ip),
+  keyGenerator: (req) => req.user?.id ? `tpl-recommend-u${req.user.id}` : `tpl-recommend-ip${ipKeyGenerator(req.ip)}`,
   handler: (req, res) => errorResponse(res, 'rate_limited', 429),
 });
 
