@@ -1706,13 +1706,20 @@ const QTaskPage:React.FC=()=>{
                             onChange={(v)=>{
                               const uid = (v as {value?:string})?.value ? Number((v as {value:string}).value) : null;
                               const m = members.find(mm=>mm.user_id===uid);
+                              // 낙관적 업데이트 — 실패 시 이전 담당자로 원복
+                              const prevAssigneeId = task.assignee_id;
+                              const prevAssignee = task.assignee;
                               setAllTasks(prev => prev.map(tt => tt.id===task.id
                                 ? { ...tt, assignee_id: uid, assignee: uid != null ? { id: uid, name: m?.name || tt.assignee?.name || '-' } : null }
                                 : tt));
                               apiFetch(`/api/tasks/by-business/${bizId}/${task.id}`, {
                                 method: 'PUT', headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ assignee_id: uid }),
-                              }).catch(()=>{ /* TODO: 실패 시 원복 */ });
+                              }).catch(()=>{
+                                setAllTasks(prev => prev.map(tt => tt.id===task.id
+                                  ? { ...tt, assignee_id: prevAssigneeId, assignee: prevAssignee }
+                                  : tt));
+                              });
                             }}
                             options={members.map(m=>({value:String(m.user_id),label:m.name+(m.user_id===myId?t('detail.meSuffix',' (나)'):'')}))} />
                         </div>

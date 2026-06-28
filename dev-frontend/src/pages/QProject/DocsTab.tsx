@@ -1,5 +1,4 @@
-// 프로젝트 문서 허브 — 직접 업로드 + Q Talk / Q Task / Q Note 자동 집계
-// Phase 1 UI Mock (services/files.ts 의 MOCK_PROJECT_FILES 사용)
+// 프로젝트 문서 허브 — 직접 업로드 + Q Talk / Q Task / Q Note 자동 집계 (실 API: services/files.ts)
 // 기능: 좌측 폴더 트리 · 대량 선택/삭제/이동 · 그리드/리스트 · 드로어 미리보기
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
