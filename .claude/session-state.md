@@ -55,6 +55,17 @@ Irene 선택 "#90 진행 — 자동추출 개선". 근본원인 3개 수정:
   - **#63 Phase 3** 자료 이동(이동방식)·Qnote 포함·비동기 (대규모 → /기능설계 필요)
   - **#96-⑤ 레이아웃** 프로젝트>문서 PostsPage 임베드 — Irene dev 육안 확인 권장(헤드리스 픽셀 검증 불가)
 
+
+### #63 Phase 3 — 자료 이동 & 비동기 내보내기 (2026-06-28, dev 완료·검증·미배포)
+/기능설계 6단계 완료. 결정: 자가이동(본인 L1+원본정리)·Q Note 본인세션→문서·DB job+cron.
+- **DB:** `export_jobs` 테이블(models/ExportJob.js). dev sync 완료.
+- **API:** routes/export.js +5 (transfer-job/export-job/jobs/jobs:id/download) + qnote `/api/sessions/internal/export`(x-internal-api-key).
+- **워커:** services/exportJobWorker.js (cron 30s 드레인, copy/move+Q Note→문서, export zip 토큰 30일, notify, 재시도3·만료cleanup). server.js 등록.
+- **UI:** DataExportSettings 이전카드(복사/이동 라디오+Q Note 토글, move=danger+확인)·내데이터(Q Note 백그라운드)·작업내역(상태+다운로드, 3s 폴링). export.ts +5 fn. i18n ko/en 45키.
+- **검증:** 백엔드 E2E 17/17(copy·move soft delete/archived·export+download·qnote 56세션·권한) · 빌드EXIT0/TS0 · 헬스29/29 · i18n403/403 · **운영 INTERNAL_API_KEY 패리티 확인(배포 준비완료)**.
+- **설계:** docs/DATA_EXPORT_PHASE3_DESIGN.md.
+- **배포 주의:** export_jobs sync 자동생성 · planq-prod-qnote 재시작 필요(qnote endpoint) · INTERNAL_API_KEY 운영 일치 확인됨.
+
 ### 다음 할 일
 1. **§6-C 델타(carry-in 분리)** — 차트 SVG 라인 계산. 단일엔티티 스코핑으로 차트는 이미 현실값이라 **선택적 폴리시**. Playwright 시각검증 권장.
 2. **U4 단조완화(되돌림 ↓마커)** — 차트 SVG, 되돌림 희귀라 저우선.
