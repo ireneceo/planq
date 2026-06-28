@@ -80,7 +80,9 @@ Irene 선택 "#90 진행 — 자동추출 개선". 근본원인 3개 수정:
 - **★ 운영 qnote 포트 fix (LIVE):** 운영 qnote=**8001**(dev=8000), worker 폴백 8000 하드코딩 → 운영 include_qnote silent 0세션. 운영+dev `.env` 에 `QNOTE_INTERNAL_URL` 명시(운영 8001/dev 8000)+재시작. worker→qnote fetch 200 확인. 박제 [[feedback_qnote_internal_url_prod_port]].
 - **★ 쿼터 버그 fix (`b97db0d`, 미배포):** move 시 출발 워크스페이스 BusinessStorageUsage 차감 누락 → 용량 부풀려짐. softDeleteSourceFile 을 files.js 정식 정책과 정합. E2E 4/4. **운영 Phase3 에 이 버그 존재 → 다음 /배포 필요(경미: 이동 시 출발지 용량 카운터만).**
 - **★ 타겟 쿼터 우회 fix (`f7d3cbb`, 미배포):** transfer copy/move 시 신규 물리 복사가 **타겟 워크스페이스** 스토리지 쿼터를 우회하던 문제 수정(b97db0d 는 출발지, 이건 도착지). exportJobWorker 가 plan.js 업로드 정책과 동일하게 타겟 effective limit-bytes_used 예산 검사 → 초과 시 skip(reason='quota'), result.skipped_quota 카운트. dedup-share(0바이트) 무영향, move 라도 쿼터부족 시 원본 보존(유실 방지). E2E 11/11(drainOnce 실경로 — 거부/통과 양쪽 + 소스무손상·완전원복).
-- **미배포:** `b97db0d`(출발지 쿼터 반환) + `f7d3cbb`(타겟 쿼터 우회 차단) 2건. 다음 /배포 시 함께 반영.
+- **★ 품질점검 fix (`f667308`, 미배포):** 전체 실검증 중 transfer 워커 2건 결함 발견·수정. ① **[데이터 유실, move]** copyFileToTarget skip 이 no_hash·no_file(타겟에 사본 없음)인데도 move 시 원본 soft-delete → 유실. skip reason(no_hash/exists/no_file) 명시 후 move 원본 제거를 reason==='exists'(타겟에 본인 사본 존재)일 때만. ② **[file_count]** 타겟 usage 갱신 가드 bytesAdded>0 → dedup-share 만 복사 시 file_count 미증가, filesCopied>0 으로 수정.
+- **미배포:** `b97db0d`(출발지 쿼터 반환) + `f7d3cbb`(타겟 쿼터 우회 차단) + `f667308`(move 유실 방지·file_count) 3건. 다음 /배포 시 함께 반영.
+- **전체 실검증 (2026-06-28):** transfer 워커 실 E2E **39/39** — copy 11(타겟쿼터 거부/통과) + move 16(출발지쿼터 반환·소프트삭제·물리unlink + 타겟풀 유실방지) + 품질 12(no_hash/no_file 원본보존·exists 제거·dedup file_count). drainOnce 실 코드경로, 테스트워크스페이스(88→6)만 사용해 실 사용자 데이터(file78) 무손상·완전원복. 헬스 29/29.
 
 ### 다음 할 일
 1. **§6-C 델타(carry-in 분리)** — 차트 SVG 라인 계산. 단일엔티티 스코핑으로 차트는 이미 현실값이라 **선택적 폴리시**. Playwright 시각검증 권장.
