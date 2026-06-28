@@ -13,10 +13,11 @@ import {
   markInstallmentTaxInvoice, cancelInstallment, updateInvoiceStatus,
   markInvoiceTaxInvoice, markInvoiceCashReceipt,
   findConversationForClient, deleteInvoice, sendInvoiceReminder, downloadInvoicePdf,
-  listInvoiceCorrections,
-  type ApiInvoice, type ApiInstallment, type ApiReceiptCorrection,
+  listInvoiceCorrections, getInvoiceStatusHistory,
+  type ApiInvoice, type ApiInstallment, type ApiReceiptCorrection, type ApiInvoiceStatusEvent,
 } from '../../services/invoices';
 import RecurringBillingNote from '../../components/QBill/RecurringBillingNote';
+import { useTimeFormat } from '../../hooks/useTimeFormat';
 
 interface ConfirmState {
   open: boolean;
@@ -49,6 +50,8 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
   const [copiedMemo, setCopiedMemo] = useState(false);
   const [chatConvId, setChatConvId] = useState<number | null>(null);
   const [corrections, setCorrections] = useState<ApiReceiptCorrection[]>([]);
+  const [statusHistory, setStatusHistory] = useState<ApiInvoiceStatusEvent[]>([]);
+  const { formatDateTime } = useTimeFormat();
   const [invoice, setInvoice] = useState<ApiInvoice | null>(initialInvoice);
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
@@ -101,6 +104,7 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
     setInvoice(initialInvoice);
     setChatConvId(null);
     setCorrections([]);
+    setStatusHistory([]);
     if (initialInvoice) {
       // 상세 fetch (include 풀세트)
       getInvoice(initialInvoice.business_id, initialInvoice.id)
@@ -110,6 +114,10 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
       listInvoiceCorrections(initialInvoice.business_id, initialInvoice.id)
         .then(setCorrections)
         .catch(() => setCorrections([]));
+      // 상태 변경 이력 (기본 히스토리) — best-effort
+      getInvoiceStatusHistory(initialInvoice.business_id, initialInvoice.id)
+        .then(setStatusHistory)
+        .catch(() => setStatusHistory([]));
       // 발송된 청구서면 연결된 채팅방 자동 검색 (best-effort)
       if (initialInvoice.client_id && (initialInvoice.status === 'sent' || initialInvoice.status === 'partially_paid' || initialInvoice.status === 'paid' || initialInvoice.status === 'overdue')) {
         findConversationForClient(initialInvoice.business_id, initialInvoice.client_id, initialInvoice.project_id || undefined)
@@ -614,6 +622,36 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
             </Section>
           );
         })()}
+
+        {/* 상태 변경 이력 (기본 히스토리) */}
+        {statusHistory.length > 0 && (
+          <Section>
+            <SectionTitle>{t('detail.statusHistory.title', { defaultValue: '상태 이력' })}</SectionTitle>
+            <StatusHistList>
+              {statusHistory.map(ev => (
+                <StatusHistRow key={ev.id}>
+                  <StatusHistDot />
+                  <StatusHistBody>
+                    <StatusHistMain>
+                      {ev.from_status && (
+                        <>
+                          <StatusHistChip>{t(`status.${ev.from_status}`, { defaultValue: ev.from_status })}</StatusHistChip>
+                          <StatusHistArrow>→</StatusHistArrow>
+                        </>
+                      )}
+                      <StatusHistChip $to>{t(`status.${ev.to_status}`, { defaultValue: ev.to_status })}</StatusHistChip>
+                    </StatusHistMain>
+                    <StatusHistMeta>
+                      {formatDateTime(ev.created_at)}
+                      {ev.changed_by_name && ` · ${ev.changed_by_name}`}
+                      {ev.note && ` · ${ev.note}`}
+                    </StatusHistMeta>
+                  </StatusHistBody>
+                </StatusHistRow>
+              ))}
+            </StatusHistList>
+          </Section>
+        )}
       </Body>
       {confirm?.open && (
         <ConfirmDialog
@@ -1154,6 +1192,22 @@ const CorrTop = styled.div`display: flex; justify-content: space-between; align-
 const CorrReason = styled.span`font-size: 12px; font-weight: 600; color: #0F172A;`;
 const CorrNo = styled.span`font-size: 12px; font-weight: 700; color: #991B1B; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;`;
 const CorrMeta = styled.div`font-size: 11px; color: #B91C1C;`;
+
+// 상태 변경 이력 타임라인 (기본 히스토리)
+const StatusHistList = styled.div`display: flex; flex-direction: column; gap: 12px;`;
+const StatusHistRow = styled.div`display: flex; gap: 10px; align-items: flex-start;`;
+const StatusHistDot = styled.div`
+  width: 8px; height: 8px; border-radius: 999px; background: #14B8A6; margin-top: 5px; flex-shrink: 0;
+`;
+const StatusHistBody = styled.div`display: flex; flex-direction: column; gap: 2px; min-width: 0;`;
+const StatusHistMain = styled.div`display: flex; align-items: center; gap: 6px; flex-wrap: wrap;`;
+const StatusHistChip = styled.span<{ $to?: boolean }>`
+  font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+  background: ${p => (p.$to ? '#F0FDFA' : '#F1F5F9')};
+  color: ${p => (p.$to ? '#0F766E' : '#64748B')};
+`;
+const StatusHistArrow = styled.span`font-size: 12px; color: #94A3B8;`;
+const StatusHistMeta = styled.div`font-size: 11px; color: #94A3B8;`;
 const PayerHint = styled.div`
   margin-top: 8px; padding: 10px 12px;
   background: #FEF3C7; border-radius: 8px;

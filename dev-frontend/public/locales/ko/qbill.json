@@ -119,6 +119,9 @@
     "externalHint": "내부 고객과 연동되지 않은 외부 청구"
   },
   "detail": {
+    "statusHistory": {
+      "title": "상태 이력"
+    },
     "header": {
       "actions": {
         "share": "공유",
