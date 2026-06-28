@@ -737,7 +737,12 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
     );
 
     // attendees 교체
+    let priorAttendeeIds = new Set(); // 수정 전 멤버 참석자 — 신규 추가분만 초대 알림 보내려 캡처
     if (Array.isArray(attendees)) {
+      priorAttendeeIds = new Set(
+        (await CalendarEventAttendee.findAll({ where: { event_id: event.id }, attributes: ['user_id'], transaction: t }))
+          .map((x) => x.user_id).filter(Boolean)
+      );
       await CalendarEventAttendee.destroy({ where: { event_id: event.id }, transaction: t });
 
       const validUserIds = new Set(
@@ -803,6 +808,31 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
     }
 
     const full = await CalendarEvent.findByPk(event.id, { include: INCLUDE_DETAIL });
+
+    // 일정 수정 — 새로 추가된 멤버 참석자에게 초대 알림 (생성 시 초대 알림과 동일 정책).
+    //  기존 참석자(priorAttendeeIds)·본인은 제외 → 리스케줄 noise 없이 신규 초대만.
+    try {
+      if (Array.isArray(attendees)) {
+        const newMemberIds = (full.attendees || [])
+          .filter((a) => a.user_id && a.user_id !== req.user.id && !priorAttendeeIds.has(a.user_id))
+          .map((a) => a.user_id);
+        if (newMemberIds.length > 0) {
+          const { notifyMany } = require('./notifications');
+          const Business = require('../models').Business;
+          const biz = await Business.findByPk(businessId, { attributes: ['name', 'brand_name'] });
+          const wsName = biz?.brand_name || biz?.name || null;
+          const startStr = event.start_at ? new Date(event.start_at).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' }) : '';
+          notifyMany({
+            userIds: newMemberIds, businessId, eventKind: 'event',
+            title: '일정 초대', body: `"${event.title}"${startStr ? ` · ${startStr}` : ''}`,
+            link: `${process.env.APP_URL || 'https://dev.planq.kr'}/calendar?event=${event.id}`,
+            ctaLabel: '일정 보기', workspaceName: wsName,
+            actorUserId: req.user.id, entityType: 'calendar_event', entityId: event.id, ioApp: req.app,
+          }).catch((e) => console.warn('[notify event invite-edit]', e.message));
+        }
+      }
+    } catch (e) { console.warn('[notify event invite-edit outer]', e.message); }
+
     broadcastEvent(req, full, 'event:updated');
     return successResponse(res, full.toJSON());
   } catch (err) {
