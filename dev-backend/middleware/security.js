@@ -6,6 +6,8 @@
 const helmet = require('helmet');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
+const jwt = require('jsonwebtoken');
 
 // ============================================
 // SSRF 방어
@@ -219,9 +221,24 @@ const setupSecurity = (app) => {
   }));
 
   // Rate Limiting — 전체 API
+  //   인증 사용자는 user 별 버킷(사무실 공용 IP NAT 충돌 방지 — 옛 IP 키는 한 팀이 한 버킷을
+  //   공유해 정상 사용 중에도 막히던 회귀), 미인증은 IP 별. 캡은 인증 SPA(대시보드·실시간·폴링·
+  //   멀티탭)가 정상 사용 중 막히지 않도록 600/분 으로 상향(옛 100/분 은 정상 트래픽도 차단).
   const apiLimiter = rateLimit({
     windowMs: 1 * 60 * 1000, // 1분
-    max: 100,
+    max: 600,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => {
+      const auth = req.headers.authorization;
+      if (auth && auth.startsWith('Bearer ')) {
+        try {
+          const p = jwt.verify(auth.slice(7), process.env.JWT_SECRET);
+          if (p && p.id) return `u${p.id}`;
+        } catch { /* 만료/위조 → IP fallback */ }
+      }
+      return ipKeyGenerator(req.ip);
+    },
     message: { success: false, message: 'Too many requests, please try again later' }
   });
   app.use('/api/', apiLimiter);
@@ -238,7 +255,11 @@ const setupSecurity = (app) => {
   ]);
   const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15분
-    max: 5,
+    max: 8,
+    standardHeaders: true,
+    legacyHeaders: false,
+    // 성공한 로그인은 카운트 제외 — 정상 로그인/다기기 재로그인으로 잠기지 않게. 실패(브루트포스)만 집계.
+    skipSuccessfulRequests: true,
     message: { success: false, message: 'Too many login attempts, please try again later' },
     skip: (req) => {
       const email = req.body?.email;
