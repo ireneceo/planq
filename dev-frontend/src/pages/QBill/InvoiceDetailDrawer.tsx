@@ -13,8 +13,8 @@ import {
   markInstallmentTaxInvoice, cancelInstallment, updateInvoiceStatus,
   markInvoiceTaxInvoice, markInvoiceCashReceipt,
   findConversationForClient, deleteInvoice, sendInvoiceReminder, downloadInvoicePdf,
-  listInvoiceCorrections, getInvoiceStatusHistory,
-  type ApiInvoice, type ApiInstallment, type ApiReceiptCorrection, type ApiInvoiceStatusEvent,
+  listInvoiceCorrections, getInvoiceStatusHistory, getInvoiceTimeline,
+  type ApiInvoice, type ApiInstallment, type ApiReceiptCorrection, type ApiInvoiceStatusEvent, type ApiBillEvent,
 } from '../../services/invoices';
 import RecurringBillingNote from '../../components/QBill/RecurringBillingNote';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
@@ -40,6 +40,30 @@ function daysSinceIso(iso: string): number {
   return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000));
 }
 
+// Q Bill 타임라인 이벤트 → i18n 키·기본문구·점 색상. 색상은 COLOR_GUIDE 토큰만 사용.
+function billEventMeta(type: ApiBillEvent['event_type'], detail: Record<string, unknown> | null): { key: string; fallback: string; color: string } {
+  const kind = detail && typeof detail.kind === 'string' ? detail.kind : null;
+  switch (type) {
+    case 'created': return { key: 'created', fallback: '청구서 생성', color: '#94A3B8' };
+    case 'sent': return { key: 'sent', fallback: '발행', color: '#14B8A6' };
+    case 'viewed': return { key: 'viewed', fallback: '공개 링크 열람', color: '#0369A1' };
+    case 'paid_partial': return { key: 'paid_partial', fallback: '일부 결제 완료', color: '#22C55E' };
+    case 'paid_full': return { key: 'paid_full', fallback: '결제 완료', color: '#22C55E' };
+    case 'overdue': return { key: 'overdue', fallback: '결제 기한 경과', color: '#DC2626' };
+    case 'canceled': return { key: 'canceled', fallback: '취소', color: '#DC2626' };
+    case 'refunded': return { key: 'refunded', fallback: '환불', color: '#DC2626' };
+    case 'tax_issued':
+      return kind === 'cash'
+        ? { key: 'cash_issued', fallback: '현금영수증 발행', color: '#6B21A8' }
+        : { key: 'tax_issued', fallback: '세금계산서 발행', color: '#6B21A8' };
+    case 'commented':
+      if (kind === 'payment_notified') return { key: 'payment_alert', fallback: '송금 완료 알림', color: '#F59E0B' };
+      if (kind === 'correction') return { key: 'correction', fallback: '증빙 정정', color: '#DC2626' };
+      return { key: 'commented', fallback: '코멘트', color: '#94A3B8' };
+    default: return { key: type, fallback: type, color: '#94A3B8' };
+  }
+}
+
 export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, onChanged, onEdit }: Props) {
   const { t } = useTranslation('qbill');
   const { user } = useAuth();
@@ -51,6 +75,7 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
   const [chatConvId, setChatConvId] = useState<number | null>(null);
   const [corrections, setCorrections] = useState<ApiReceiptCorrection[]>([]);
   const [statusHistory, setStatusHistory] = useState<ApiInvoiceStatusEvent[]>([]);
+  const [timeline, setTimeline] = useState<ApiBillEvent[]>([]);
   const { formatDateTime } = useTimeFormat();
   const [invoice, setInvoice] = useState<ApiInvoice | null>(initialInvoice);
   const [busy, setBusy] = useState(false);
@@ -105,6 +130,7 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
     setChatConvId(null);
     setCorrections([]);
     setStatusHistory([]);
+    setTimeline([]);
     if (initialInvoice) {
       // 상세 fetch (include 풀세트)
       getInvoice(initialInvoice.business_id, initialInvoice.id)
@@ -118,6 +144,10 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
       getInvoiceStatusHistory(initialInvoice.business_id, initialInvoice.id)
         .then(setStatusHistory)
         .catch(() => setStatusHistory([]));
+      // Q Bill 이벤트 타임라인 (생애주기) — best-effort
+      getInvoiceTimeline(initialInvoice.business_id, initialInvoice.id)
+        .then(setTimeline)
+        .catch(() => setTimeline([]));
       // 발송된 청구서면 연결된 채팅방 자동 검색 (best-effort)
       if (initialInvoice.client_id && (initialInvoice.status === 'sent' || initialInvoice.status === 'partially_paid' || initialInvoice.status === 'paid' || initialInvoice.status === 'overdue')) {
         findConversationForClient(initialInvoice.business_id, initialInvoice.client_id, initialInvoice.project_id || undefined)
@@ -147,6 +177,10 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
       const fresh = await getInvoice(invoice.business_id, invoice.id);
       setInvoice(fresh);
       onChanged?.();
+      // 드로어 내 액션(발송·결제·증빙 등) 후 타임라인·정정·상태이력 즉시 갱신
+      getInvoiceTimeline(invoice.business_id, invoice.id).then(setTimeline).catch(() => {/* keep */});
+      getInvoiceStatusHistory(invoice.business_id, invoice.id).then(setStatusHistory).catch(() => {/* keep */});
+      listInvoiceCorrections(invoice.business_id, invoice.id).then(setCorrections).catch(() => {/* keep */});
     } catch {/* noop */}
   };
 
@@ -650,6 +684,40 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
                 </StatusHistRow>
               ))}
             </StatusHistList>
+          </Section>
+        )}
+
+        {/* Q Bill 이벤트 타임라인 (생애주기: 생성→발행→고객열람→(부분)결제→증빙→정정) */}
+        {timeline.length > 0 && (
+          <Section>
+            <SectionTitle>{t('detail.events.title', { defaultValue: '활동' })}</SectionTitle>
+            <TlList>
+              {timeline.map(ev => {
+                const meta = billEventMeta(ev.event_type, ev.detail);
+                const actorName = ev.actor?.name || t('detail.events.customer', { defaultValue: '고객' });
+                const d = (ev.detail || {}) as Record<string, unknown>;
+                const suffixParts: string[] = [];
+                if (typeof d.label === 'string' && d.label) suffixParts.push(d.label);
+                if (typeof d.amount === 'number') suffixParts.push(formatMoney(d.amount, invoice.currency));
+                if (typeof d.no === 'string' && d.no) suffixParts.push(d.no);
+                if (typeof d.payer_name === 'string' && d.payer_name) suffixParts.push(d.payer_name);
+                const suffix = suffixParts.join(' · ');
+                return (
+                  <TlRow key={ev.id}>
+                    <TlDot $c={meta.color} />
+                    <TlBody>
+                      <TlMain>
+                        <TlLabel>{t(`detail.events.types.${meta.key}`, { defaultValue: meta.fallback })}</TlLabel>
+                        {suffix && <TlSuffix>{suffix}</TlSuffix>}
+                      </TlMain>
+                      <TlMeta>
+                        {formatDateTime(ev.created_at)} · {actorName}
+                      </TlMeta>
+                    </TlBody>
+                  </TlRow>
+                );
+              })}
+            </TlList>
           </Section>
         )}
       </Body>
@@ -1208,6 +1276,22 @@ const StatusHistChip = styled.span<{ $to?: boolean }>`
 `;
 const StatusHistArrow = styled.span`font-size: 12px; color: #94A3B8;`;
 const StatusHistMeta = styled.div`font-size: 11px; color: #94A3B8;`;
+
+// Q Bill 이벤트 타임라인 (생애주기) — 좌측 점 + 세로 연결선
+const TlList = styled.div`display: flex; flex-direction: column;`;
+const TlRow = styled.div`
+  display: flex; gap: 10px; align-items: flex-start; position: relative; padding-bottom: 12px;
+  &:not(:last-child)::before { content: ''; position: absolute; left: 3.5px; top: 12px; bottom: 0; width: 1px; background: #E2E8F0; }
+  &:last-child { padding-bottom: 0; }
+`;
+const TlDot = styled.div<{ $c: string }>`
+  width: 8px; height: 8px; border-radius: 999px; background: ${p => p.$c}; margin-top: 4px; flex-shrink: 0; z-index: 1;
+`;
+const TlBody = styled.div`display: flex; flex-direction: column; gap: 2px; min-width: 0;`;
+const TlMain = styled.div`display: flex; align-items: center; gap: 6px; flex-wrap: wrap;`;
+const TlLabel = styled.span`font-size: 13px; font-weight: 600; color: #0F172A;`;
+const TlSuffix = styled.span`font-size: 12px; color: #64748B;`;
+const TlMeta = styled.div`font-size: 11px; color: #94A3B8;`;
 const PayerHint = styled.div`
   margin-top: 8px; padding: 10px 12px;
   background: #FEF3C7; border-radius: 8px;

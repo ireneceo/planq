@@ -267,9 +267,13 @@
         "reminded": "Reminder sent",
         "commented": "Comment",
         "payment_request_sent": "Payment request sent",
-        "payment_alert": "Payment alert"
+        "payment_alert": "Payment alert",
+        "refunded": "Refunded",
+        "cash_issued": "Cash receipt issued",
+        "correction": "Receipt correction"
       },
       "by": "by {{actor}}",
+      "customer": "Customer",
       "empty": "No activity"
     },
     "reminder": {
