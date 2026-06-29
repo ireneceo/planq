@@ -23,6 +23,7 @@
 - feedback_api_ratelimit_authed_spa — 전역 리미터 user별 버킷+상향, login skipSuccessful
 
 ### 다음 할 일 (이번 세션 미완·확인/결정 대기)
+- **★ Gmail 연결 UX 정리 (검증 전까지 앱비번 기본화)** — Q Mail "Gmail 로 연결"(OAuth)이 Google 앱 **검증 미제출**로 일반 사용자 차단("확인되지 않은 앱"). 코드 버그 아님. 버튼 삭제 X. `EmailAccountSettings.tsx`: ① 작동하는 **앱 비밀번호 경로를 기본/권장으로 상단 배치** ② "Gmail 로 연결(OAuth)"엔 "구글 검증 진행 중 — 곧 지원" 안내 붙여 보조로 ③ 오해 hint(line 195 "OAuth 가장 간편·앱비번 불필요") 수정 ④ 로그인 Google 버튼도 동일 "검증 중" 처리(로그인은 이메일/비번 기본이라 영향 작음). **근본 해결 = Irene GCP 콘솔 OAuth 검증 제출(외부의존, [[project_google_oauth_verification_pending]])** — 그때 OAuth 다시 전면.
 - **★ 프로젝트 문서 탭 카드형** — Irene 확정: **파일 탭 구조 그대로**(좌측 220px 카테고리 패널 + 상단 필터/검색 + 카드 그리드). 현재는 풀폭 행 리스트 + 📌 고정(중간상태). DocsTab(Split 220px+FilesArea+Grid) 베껴서 PostsPage project 스코프 browse 레이아웃 재구성. 카드 클릭→풀폭 보기/편집+"←목록". 표 기능 유지. (PostsPage.tsx browse 분기 추가)
 - **캔버스 일정 기본세팅** — 날짜 없으면 D+9130 대신 안내(빈상태) + 막대 진행 마커 + 시작/마감일: **자동추론 vs 입력유도 결정 필요(Irene)**
 - **출처 표시 UX 2차** — 보고서 KPI("이 기간")·Insights("지난 30일") ⓘ 확장 + AI 생성 배지(executive_summary·dashboard insights — 생성출처 플래그 백엔드 추가 필요)
