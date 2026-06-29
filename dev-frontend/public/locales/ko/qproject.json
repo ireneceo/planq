@@ -564,6 +564,8 @@
     "tl": {
       "title": "일정 진행 타임라인",
       "progress": "진행률",
+      "progressHint": "완료한 업무 ÷ 전체 업무로 자동 계산됩니다.",
+      "ddayHint": "프로젝트 마감일까지 남은 일수입니다 (마감일을 설정해야 정확합니다).",
       "monthSuffix": "월",
       "now": "지금",
       "jumpToday": "오늘로",
