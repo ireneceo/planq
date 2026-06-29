@@ -287,7 +287,12 @@
     "weekly": "Weekly Progress",
     "est": "Estimated",
     "act": "Actual",
-    "ideal": "Target",
+    "remainingWork": "Work left",
+    "remainingTime": "Time left",
+    "weekStart": "Start",
+    "over": "Over +{{h}}h",
+    "overTip": "Spent {{h}}h more than the {{base}}h estimate. The time-left line stops at 0.",
+    "ideal": "Baseline",
     "capacity": "Capacity",
     "capacityLine": "Cap {{h}}h",
     "verdict": {
