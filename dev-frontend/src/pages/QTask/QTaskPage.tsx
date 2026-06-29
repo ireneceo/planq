@@ -1202,9 +1202,12 @@ const QTaskPage:React.FC=()=>{
         review++; reviewList.push(t);
       }
       // 내가 요청자(requester)이고 status=reviewing — 내가 의뢰한 것의 컨펌 진행
+      // 단, 내가 그 업무의 pending 컨펌자이면 '확인 요청 받음'(review)이 내 실제 액션 버킷이므로
+      // '보낸 업무요청'(sent)에 중복 표시하지 않는다 (한 업무 = 한 버킷). 컨펌자가 아니거나
+      // 이미 내 컨펌을 끝낸(approved/revision) 경우에만 내가 의뢰한 것을 watching 으로 표시.
       const isRequester=(t.request_by_user_id===myId)||(t.created_by===myId&&t.assignee_id!=null&&t.assignee_id!==myId);
       if(isRequester&&t.status==='reviewing'){
-        if(!myRev||myRev.state==='pending'){sent++;sentList.push(t);}
+        if(!myRev||myRev.state!=='pending'){sent++;sentList.push(t);}
       }
     }
     return{received,sent,review,receivedList,sentList,reviewList};
