@@ -703,16 +703,38 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     });
   }, [COLLAPSE_KEY]);
 
+  // ── 프로젝트 스코프 풀레이아웃 + 상단 메뉴 고정(pin) ──
+  //   프로젝트 탭은 다른 탭처럼 단일 풀폭 레이아웃. 문서를 "상단 메뉴에 추가"하면 프로젝트 탭바에
+  //   doc-탭으로 등장(QProjectDetailPage 가 localStorage 를 읽어 렌더). 옛 ProjectPostsTab 기능 복원.
+  const isProject = scope.type === 'project';
+  const projId = scope.type === 'project' ? scope.projectId : null;
+  const PIN_KEY = projId ? `qproject_pinned_docs_${projId}` : null;
+  const [pinnedIds, setPinnedIds] = useState<number[]>(() => {
+    if (!PIN_KEY) return [];
+    try { const r = JSON.parse(localStorage.getItem(PIN_KEY) || '[]'); return Array.isArray(r) ? r.filter((x) => typeof x === 'number') : []; } catch { return []; }
+  });
+  const togglePin = useCallback((id: number) => {
+    if (!PIN_KEY) return;
+    setPinnedIds(prev => {
+      const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
+      try {
+        localStorage.setItem(PIN_KEY, JSON.stringify(next));
+        window.dispatchEvent(new CustomEvent('qproject-pinned-changed', { detail: { projectId: projId } }));
+      } catch { /* ignore */ }
+      return next;
+    });
+  }, [PIN_KEY, projId]);
+
   return (
-    <Layout $collapsed={sidebarCollapsed}>
-      {sidebarCollapsed ? (
+    <Layout $collapsed={sidebarCollapsed} $projectFull={isProject}>
+      {(!isProject && sidebarCollapsed) ? (
         <CollapsedStrip>
           <EdgeHandle type="button" onClick={toggleSidebar} aria-label={t('sidebar.expand', '리스트 열기') as string} title={t('sidebar.expand', '리스트 열기') as string}>
             <EdgeChevron><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg></EdgeChevron>
           </EdgeHandle>
         </CollapsedStrip>
       ) : (
-      <Sidebar $hasDetail={!!detail || isEditing}>
+      <Sidebar $hasDetail={!!detail || isEditing} $projectFull={isProject}>
         <PanelHeader>
           <TitleGroup>
             <PanelTitle>{scope.type === 'workspace' ? t('page.title', 'Q docs') : t('tab.title', '문서')}</PanelTitle>
@@ -860,8 +882,18 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               <RowItem
                 key={r.id}
                 $active={activeId === r.id}
+                $project={isProject}
                 onClick={() => setActiveId(activeId === r.id ? null : r.id)}
               >
+                {isProject && (
+                  <RowPinBtn
+                    type="button"
+                    $on={pinnedIds.includes(r.id)}
+                    onClick={(e) => { e.stopPropagation(); togglePin(r.id); }}
+                    aria-label={(pinnedIds.includes(r.id) ? t('project.docs.removeFromMenu', '상단 메뉴에서 제거') : t('project.docs.addToMenu', '상단 메뉴에 추가')) as string}
+                    title={(pinnedIds.includes(r.id) ? t('project.docs.removeFromMenu', '상단 메뉴에서 제거') : t('project.docs.addToMenu', '상단 메뉴에 추가')) as string}
+                  >📌</RowPinBtn>
+                )}
                 <RowTitle>
                   {r.is_pinned && <PinTag>📌</PinTag>}
                   {r.title}
@@ -887,18 +919,20 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             ))
           )}
         </RowList>
-        <EdgeHandle type="button" onClick={toggleSidebar} aria-label={t('sidebar.collapse', '리스트 접기') as string} title={t('sidebar.collapse', '리스트 접기') as string}>
-          <EdgeChevron><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg></EdgeChevron>
-        </EdgeHandle>
+        {!isProject && (
+          <EdgeHandle type="button" onClick={toggleSidebar} aria-label={t('sidebar.collapse', '리스트 접기') as string} title={t('sidebar.collapse', '리스트 접기') as string}>
+            <EdgeChevron><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg></EdgeChevron>
+          </EdgeHandle>
+        )}
       </Sidebar>
       )}
 
-      <Content $hasDetail={!!detail || isEditing}>
+      <Content $hasDetail={!!detail || isEditing} $projectFull={isProject}>
         {isEditing ? (
           <>
             <PanelHeader>
               <TitleRow>
-                <MobileBackBtn type="button" onClick={cancelEdit} aria-label={t('back', '뒤로') as string}>
+                <MobileBackBtn $always={isProject} type="button" onClick={cancelEdit} aria-label={t('back', '뒤로') as string}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
                 </MobileBackBtn>
                 <TitleInput
@@ -1022,7 +1056,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           <>
             <PanelHeader>
               <TitleRow>
-                <MobileBackBtn type="button" onClick={() => setDetail(null)} aria-label={t('back', '뒤로') as string}>
+                <MobileBackBtn $always={isProject} type="button" onClick={() => setDetail(null)} aria-label={t('back', '뒤로') as string}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
                 </MobileBackBtn>
                 <PanelSubTitle>
@@ -1421,10 +1455,11 @@ const PrintOnlyTitle = styled.h1`
     font-size: 24px; font-weight: 700; color: #0F172A; margin: 0 0 16px 0;
   }
 `;
-const Layout = styled.div<{ $collapsed?: boolean }>`
+const Layout = styled.div<{ $collapsed?: boolean; $projectFull?: boolean }>`
   display: grid;
   /* 좌측 리스트 폭 — Q note 와 동일 (300px). 좌측 리스트 패턴 통일 */
-  grid-template-columns: ${p => p.$collapsed ? '0 1fr' : '300px 1fr'};
+  /* 프로젝트 스코프: 단일 풀폭(다른 프로젝트 탭과 통일) — 목록↔상세 마스터-디테일 */
+  grid-template-columns: ${p => p.$projectFull ? '1fr' : (p.$collapsed ? '0 1fr' : '300px 1fr')};
   height: 100%; min-height: 0;
   background: #F8FAFC;
   overflow: hidden;
@@ -1433,10 +1468,15 @@ const Layout = styled.div<{ $collapsed?: boolean }>`
 `;
 
 // 좌측 사이드바 (리스트)
-const Sidebar = styled.aside<{ $hasDetail?: boolean }>`
+const Sidebar = styled.aside<{ $hasDetail?: boolean; $projectFull?: boolean }>`
   display: flex; flex-direction: column; position: relative;
   background: #fff; border-right: 1px solid #E2E8F0;
   min-height: 0;
+  /* 프로젝트 풀폭: 문서 열면 목록 숨기고 본문 풀폭 (마스터-디테일 단일 컬럼) */
+  ${p => p.$projectFull ? `
+    border-right: none;
+    display: ${p.$hasDetail ? 'none' : 'flex'};
+  ` : ''}
   @media (max-width: 900px) {
     border-right: none; border-bottom: 1px solid #E2E8F0;
     /* 모바일에서 문서 선택 시 리스트 숨기고 상세만 표시 */
@@ -1676,13 +1716,26 @@ const RowList = styled.div`
   display: flex; flex-direction: column;
   overflow-y: auto;
 `;
-const RowItem = styled.button<{ $active: boolean }>`
-  all: unset; cursor: pointer;
+const RowItem = styled.button<{ $active: boolean; $project?: boolean }>`
+  all: unset; cursor: pointer; position: relative; display: block; width: 100%; box-sizing: border-box;
   padding: 12px 16px;
+  padding-right: ${p => p.$project ? '44px' : '16px'};
   border-bottom: 1px solid #F1F5F9;
   background: ${p => p.$active ? '#F0FDFA' : 'transparent'};
   &:hover { background: ${p => p.$active ? '#F0FDFA' : '#F8FAFC'}; }
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: -2px; }
+`;
+// 행에서 '상단 메뉴에 추가(고정)' 토글 — 우측 상단 코너. 켜짐=teal, 꺼짐=흐린 회색(hover 시 진해짐).
+const RowPinBtn = styled.button<{ $on: boolean }>`
+  position: absolute; top: 8px; right: 8px;
+  width: 28px; height: 28px; padding: 0; border: none; border-radius: 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 13px; line-height: 1;
+  background: ${p => p.$on ? '#F0FDFA' : 'transparent'};
+  filter: ${p => p.$on ? 'none' : 'grayscale(1) opacity(0.4)'};
+  transition: filter 0.15s ease, background 0.15s ease;
+  &:hover { background: #F0FDFA; filter: none; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
 `;
 const RowTitle = styled.div`
   font-size: 13px; font-weight: 700; color: #0F172A;
@@ -1751,10 +1804,12 @@ const RowMeta = styled.div`
 `;
 const Dim = styled.div`padding: 24px 16px; color: #94A3B8; font-size: 12px; text-align: center;`;
 
-const Content = styled.section<{ $hasDetail?: boolean }>`
+const Content = styled.section<{ $hasDetail?: boolean; $projectFull?: boolean }>`
   display: flex; flex-direction: column;
   min-height: 0; overflow: hidden;
   background: #fff;
+  /* 프로젝트 풀폭: 문서 미선택 시 Content 숨기고 목록만(단일 컬럼 마스터-디테일) */
+  ${p => p.$projectFull && !p.$hasDetail ? 'display: none;' : ''}
   /* 모바일에서 문서 미선택 시 Content 숨기고 리스트만 표시 */
   @media (max-width: 900px) {
     display: ${p => p.$hasDetail ? 'flex' : 'none'};
@@ -1936,14 +1991,15 @@ const TitleRow = styled.div`
   flex: 1;
 `;
 // 모바일 뒤로가기 버튼 — 데스크톱에서는 숨김, 제목과 인라인
-const MobileBackBtn = styled.button`
-  display: none;
+const MobileBackBtn = styled.button<{ $always?: boolean }>`
+  display: ${p => p.$always ? 'flex' : 'none'};
+  align-items: center; justify-content: center;
+  width: 28px; height: 28px; flex-shrink: 0; margin-right: 4px;
+  background: transparent; border: none; color: #64748B; cursor: pointer;
+  border-radius: 6px;
+  &:hover { background: #F1F5F9; color: #0F172A; }
   @media (max-width: 900px) {
-    display: flex; align-items: center; justify-content: center;
-    width: 28px; height: 28px; flex-shrink: 0; margin-right: 4px;
-    background: transparent; border: none; color: #64748B; cursor: pointer;
-    border-radius: 6px;
-    &:hover { background: #F1F5F9; color: #0F172A; }
+    display: flex;
   }
 `;
 const KnowledgeToast = styled.div`

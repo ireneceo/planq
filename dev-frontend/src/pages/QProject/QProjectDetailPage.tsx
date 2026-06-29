@@ -26,7 +26,7 @@ import ConfirmDialog from '../../components/Common/ConfirmDialog';
 const PROJECT_COLORS = PROJECT_COLOR_PALETTE.map(p => p.value);
 
 // process 탭 폐지 — Q docs 의 표(table) kind 로 흡수. 이전 url ?tab=process 는 docs 로 fallback.
-// 'doc-:id' 형태는 사용자가 메뉴에 추가한 특정 문서 탭 (ProjectPostsTab 의 메뉴 추가 버튼).
+// 'doc-:id' 형태는 사용자가 메뉴에 추가한 특정 문서 탭 (문서 탭 PostsPage 의 📌 메뉴 추가 버튼).
 // 사이클 N+14 — 'info' 의미 분리:
 //   'details' = 프로젝트 메타데이터 편집 (옛 'info' 폼). 라벨 "상세정보".
 //   'info'    = Q info (KbDocument scope='project'). 라벨 "정보". 문서 다음 위치.
@@ -83,7 +83,7 @@ const QProjectDetailPage: React.FC = () => {
     : 'dashboard');
   const [tab, setTabState] = useState<TabKey>(initialTab);
 
-  // 메뉴에 추가한 문서 (ProjectPostsTab 의 토글) — TabBar 에 추가 탭으로 등장
+  // 메뉴에 추가한 문서 (문서 탭 PostsPage 의 📌 토글) — TabBar 에 추가 탭으로 등장
   const PIN_KEY = `qproject_pinned_docs_${projectId}`;
   const readPinnedIds = (): number[] => {
     try { const raw = localStorage.getItem(PIN_KEY); if (raw) return JSON.parse(raw); } catch { /* ignore */ }

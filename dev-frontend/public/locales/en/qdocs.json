@@ -215,7 +215,9 @@
       "emptyDesc": "Create meeting notes, proposals, NDAs, and more for this project.",
       "pinned": "Pinned",
       "allDocs": "Documents",
-      "back": "Back"
+      "back": "Back",
+      "addToMenu": "Add to top menu",
+      "removeFromMenu": "Remove from top menu"
     }
   },
   "sidebar": {
