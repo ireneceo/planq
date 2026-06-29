@@ -281,6 +281,12 @@ export default function InvoicesTab() {
                   <StatusDot $color={sc.dot} />
                   {t(`invoices.status.${inv.status}`)}
                 </StatusBadge>
+                {['sent', 'partially_paid', 'overdue'].includes(inv.status) && (
+                  <ViewedTag $seen={!!inv.viewed_at} title={inv.viewed_at ? inv.viewed_at.split('T')[0] : undefined}>
+                    <ViewedDot $seen={!!inv.viewed_at} />
+                    {inv.viewed_at ? t('invoices.viewed', { defaultValue: '열람' }) : t('invoices.notViewed', { defaultValue: '미열람' })}
+                  </ViewedTag>
+                )}
               </ColStatus>
               <ColDue>
                 <DueDate>{inv.due_date ? inv.due_date.split('T')[0] : '—'}</DueDate>
@@ -453,7 +459,18 @@ const ColMode = styled.div`
   display: flex; flex-direction: column; gap: 6px; align-items: flex-start;
 `;
 const ColStatus = styled.div`
-  display: flex; align-items: center;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+`;
+// 고객 열람 여부 — 발행된 청구서에서 "고객이 봤나?" 한눈에 (viewed_at 기반)
+const ViewedTag = styled.span<{ $seen: boolean }>`
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px;
+  background: ${p => (p.$seen ? '#E0F2FE' : '#FEF3C7')};
+  color: ${p => (p.$seen ? '#0369A1' : '#B45309')};
+`;
+const ViewedDot = styled.span<{ $seen: boolean }>`
+  width: 5px; height: 5px; border-radius: 999px;
+  background: ${p => (p.$seen ? '#0369A1' : '#F59E0B')};
 `;
 const ColDue = styled.div`
   display: flex; flex-direction: column; gap: 2px; align-items: flex-end;

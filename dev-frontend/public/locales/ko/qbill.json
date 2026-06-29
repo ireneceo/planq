@@ -116,7 +116,9 @@
       "overdueDays": "{{days}}일 경과"
     },
     "external": "외부",
-    "externalHint": "내부 고객과 연동되지 않은 외부 청구"
+    "externalHint": "내부 고객과 연동되지 않은 외부 청구",
+    "viewed": "열람",
+    "notViewed": "미열람"
   },
   "detail": {
     "statusHistory": {

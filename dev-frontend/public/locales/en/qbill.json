@@ -116,7 +116,9 @@
       "overdueDays": "{{days}}d overdue"
     },
     "external": "External",
-    "externalHint": "External invoice not linked to an internal client"
+    "externalHint": "External invoice not linked to an internal client",
+    "viewed": "Viewed",
+    "notViewed": "Not viewed"
   },
   "detail": {
     "statusHistory": {
