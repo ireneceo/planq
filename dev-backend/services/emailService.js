@@ -216,9 +216,28 @@ function emailFooter(options = {}) {
     </td></tr>`;
 }
 
+// 받은편지함 미리보기(프리헤더) 텍스트 정제 — HTML 제거·공백 정리·길이 컷.
+//   알림 메일은 '실제 내용'을 미리보기에 노출해야 "딱 확인할 것"이 바로 보인다 (슬로건 X).
+function plainPreheader(text, max = 140) {
+  const s = String(text || '')
+    .replace(/<[^>]+>/g, ' ')        // 태그 제거
+    .replace(/&[a-z#0-9]+;/gi, ' ')  // 엔티티 제거
+    .replace(/\s+/g, ' ')            // 공백 정리
+    .trim();
+  if (!s) return '';
+  return s.length > max ? s.slice(0, max - 1) + '…' : s;
+}
+
 // ─── 공통 layout — 헤더 + body + 푸터 ───
 //   width 는 모든 템플릿 동일 520 으로 통일.
-function emailWrap({ title, body, width = 520, footerOptions = {} }) {
+//   preheader: 받은편지함 미리보기 줄. 전달되면 '실제 내용', 없으면 슬로건 fallback.
+function emailWrap({ title, body, width = 520, footerOptions = {}, preheader }) {
+  // 미리보기: 명시 preheader > body 의 실제 텍스트 > 슬로건(최종 fallback).
+  //   슬로건 고정이던 옛 동작 → 모든 메일이 '실제 내용'을 미리보기로 노출.
+  const previewText = (preheader && String(preheader).trim()) || plainPreheader(body) || PLATFORM.tagline;
+  // 미리보기 패딩 — preheader 뒤에 보이지 않는 공백을 채워, 메일 클라이언트가 본문 앞부분(인사말 등)을
+  //   미리보기로 끌어오지 못하게 한다 (zero-width + nbsp 반복).
+  const previewPad = '&#847;&zwnj;&nbsp;'.repeat(60);
   return `<!DOCTYPE html>
 <html lang="ko"><head>
   <meta charset="utf-8">
@@ -227,7 +246,8 @@ function emailWrap({ title, body, width = 520, footerOptions = {} }) {
   <title>${escapeHtml(title || PLATFORM.brand)}</title>
 </head>
 <body style="margin:0;padding:0;background:#F1F5F9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Apple SD Gothic Neo','Noto Sans KR',sans-serif;color:#0F172A;-webkit-text-size-adjust:none;">
-  <div style="display:none;max-height:0;overflow:hidden;color:#F1F5F9;">${escapeHtml(PLATFORM.tagline)}</div>
+  <div style="display:none;max-height:0;overflow:hidden;color:#F1F5F9;">${escapeHtml(previewText)}</div>
+  <div style="display:none;max-height:0;overflow:hidden;color:#F1F5F9;">${previewPad}</div>
   <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#F1F5F9;padding:32px 16px;">
     <tr><td align="center">
       <table width="${width}" cellpadding="0" cellspacing="0" role="presentation" style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:14px;max-width:${width}px;width:100%;overflow:hidden;">
@@ -840,7 +860,9 @@ function notificationEmailHtml({ title, body, link, ctaLabel, workspaceName }) {
     <div style="font-size:18px;font-weight:700;color:#0F172A;line-height:1.4;">${escapeHtml(title)}</div>
     ${body ? `<div style="margin-top:12px;font-size:14px;color:#475569;line-height:1.7;white-space:pre-wrap;">${escapeHtml(body)}</div>` : ''}
     ${link ? `<div style="margin-top:20px;text-align:center;">${ctaButton(link, ctaLabel || '바로 가기')}</div>` : ''}`;
-  return emailWrap({ title, body: inner, footerOptions: { notificationSettings: true, workspaceName } });
+  // 미리보기 = 실제 알림 내용(body) 우선, 없으면 제목. 슬로건 대신 "딱 확인할 것"이 바로 보이게.
+  const preheader = plainPreheader(body || title);
+  return emailWrap({ title, body: inner, preheader, footerOptions: { notificationSettings: true, workspaceName } });
 }
 
 async function sendNotificationEmail({ to, title, body, link, ctaLabel, workspaceName, businessId, eventKind, recipientUserId, relatedEntityId }) {
