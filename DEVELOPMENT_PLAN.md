@@ -1,6 +1,19 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-06-28 — **완성도·안전 스윕 세션 (운영 배포 4배치, 미배포 0건).** 프론트 전수 감사로 발굴한 갭을 검증 기반으로 하나씩 해소·배포. 모든 변경 E2E·빌드 EXIT0/TS0·헬스 29/29, 멀티테넌트/IDOR·pagination 심층감사 통과.
+> **최종 업데이트:** 2026-06-29 — **실시간 운영 피드백 마라톤 (운영 배포 7배치, 미배포 0건).** Irene 라이브 사용 중 발견 이슈를 즉시 진단·수정·배포. 매 배치 헬스 29/29 · 빌드 EXIT0/TS0.
+> - **QTask 이번주 패널 중복카운트 fix** — sent 버킷이 pending 컨펌자=요청자 업무를 '확인요청받음'+'보낸요청' 양쪽 카운트(QTaskPage:1207 조건 반전). 운영 #109 검증 패널 4→3=리스트.
+> - **주간 진척 그래프 = 번업 확정** — 잔여번다운으로 바꿨다 Irene 되돌림 → 0→상승+월요일앞 시작앵커+실제>가용 시 빨강·초과마커. 박제 [[feedback_weekly_progress_graph_burnup]].
+> - **Q Bill 이벤트 타임라인 (신규)** — bill_events 활용. services/billEvents.js + invoices.js 9 라우트 계측(created/sent/viewed[60m dedupe]/payment_notified/paid_partial·full/tax_issued/canceled/overdue/correction) + GET /timeline(멤버+) + InvoiceDetailDrawer 활동 타임라인. **고객열람·부분결제 계측 신규.** E2E 15/16.
+> - **청구서 목록 열람/미열람 뱃지** — viewed_at 기반.
+> - **🔴 채팅 과거 사라짐 fix** — 초기 히스토리 로드 실패 사이 socket 1건이 messages[conv]=[1건] 만들어 lazy-load 가드가 '로드완료' 오판 → 전체 히스토리 영영 미로드. historyLoaded 플래그로 분리 + conversations.js GET 'ASC limit 200'(오래된 200)→'DESC 200+reverse'(최신). 박제 [[feedback_chat_history_socket_blocks_load]].
+> - **🔴 로그인 차단 fix** — 일반 API 리미터 100/분·IP키가 인증 SPA 정상사용/사무실 공용IP 에서 초과 → 로그인까지 차단. 600/분 + 인증사용자 user별 버킷 + login skipSuccessfulRequests.
+> - **메일 미리보기 content-first** — emailWrap 프리헤더가 슬로건 고정 → 실제 알림 내용. plainPreheader + 16개 템플릿 일괄.
+> - **캔버스 정리 + 데이터 출처 표시(신규 SourceHint)** — ProjectCanvas 풀폭 / '주요만 보기' keyOnly 렌더 반영 / 토글 pill 제거 / 진행률·D-day ⓘ 계산근거 툴팁. **캔버스·보고서·대시보드·Insights 가짜데이터 전수감사 0건 확인.**
+> - **프로젝트 문서 탭** — 풀레이아웃 + 📌 상단메뉴 고정 복원, ProjectPostsTab 죽은코드 제거.
+> - **배포:** `20260629_043957`·`_051607`·(d2f085f)·`f89696b`·`58ad3ee`·`0bb3c76`·`520b2e9` 전부 planq.kr 헬스200.
+> - **다음(미완·확인대기):** 문서 탭 카드형(좌측 카테고리+상단필터+카드그리드 — 파일탭 구조) · 캔버스 일정 기본세팅(날짜 자동추론 vs 입력유도) · 출처 ⓘ 보고서·Insights 확장+AI배지 · 탭 이름 캔버스→개요 · 메일 푸시/인앱 content-first 2차.
+
+> **이전:** 2026-06-28 — **완성도·안전 스윕 세션 (운영 배포 4배치, 미배포 0건).** 프론트 전수 감사로 발굴한 갭을 검증 기반으로 하나씩 해소·배포. 모든 변경 E2E·빌드 EXIT0/TS0·헬스 29/29, 멀티테넌트/IDOR·pagination 심층감사 통과.
 > - **기본 히스토리** — 청구서/프로젝트 상태이력(저장은 되나 API·UI 없던 "숨은 이력") API+UI. 깨진 BillEvent writer→AuditLog fix.
 > - **#90 계열 notify 공백** — Cue 후보승격·AI 일괄생성·정기업무·일정 수정 담당자 알림 누락 전수 보강.
 > - **통계 "제대로 구성"** — ReportsTab 대화형 통합보고서(파일→화면)·Finance 12개월 추이·Tasks 고급필터·Tasks 진행중 예산초과 경고. **확정 IA(7탭) 무변경, 내용 충실화.**
