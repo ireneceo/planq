@@ -215,7 +215,9 @@
       "emptyDesc": "이 프로젝트에 회의록·제안서·NDA 등 문서를 작성해 보세요.",
       "pinned": "고정됨",
       "allDocs": "문서",
-      "back": "목록"
+      "back": "목록",
+      "addToMenu": "상단 메뉴에 추가",
+      "removeFromMenu": "상단 메뉴에서 제거"
     }
   },
   "sidebar": {
