@@ -1,11 +1,17 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-06-28 (완성도·안전 스윕 세션 — /개발완료)
-**작업 상태:** 완료 · **미배포 0건** (운영 4배치 전부 배포 완료)
+**마지막 업데이트:** 2026-06-29 (QTask 그래프·패널 fix + Q Bill 이벤트 타임라인 세션)
+**작업 상태:** 완료 · **미배포 0건** (운영 3배치 전부 배포 완료)
 
 ### 진행 중인 작업
 - 없음
+
+### 완료된 작업 (2026-06-29 세션) — 전부 운영 라이브
+- **이번주 업무 패널 중복카운트 fix** — sent 버킷이 pending 컨펌자=요청자 업무를 '확인요청받음'+'보낸요청' 양쪽 카운트하던 버그(QTaskPage.tsx:1207 조건 반전). 운영 #109 검증 패널 4→3=리스트. deploy `20260629_043957`
+- **주간 진척 그래프 = 번업 확정** — 잔여번다운으로 바꿨다가 Irene 되돌림 → 0에서 위로 상승+월요일앞 시작앵커+실제>가용 시 빨강·초과마커. 박제 `feedback_weekly_progress_graph_burnup`. deploy `20260629_051607`
+- **Q Bill 이벤트 타임라인 (신규 기능)** — `bill_events` 테이블 활용. services/billEvents.js(writer/reader). invoices.js 9개 라우트 계측(created/sent/viewed[60m dedupe]/payment_notified/paid_partial·full/tax_issued[tax·cash]/canceled/overdue/correction). GET /:biz/:id/timeline(멤버+, client차단). InvoiceDetailDrawer 활동 타임라인 섹션. **고객열람·부분결제 계측이 신규.** E2E 15/16. deploy `20260629_051607`
+- **청구서 목록 열람/미열람 뱃지** — viewed_at 기반, sent/부분결제/연체 행에 "고객이 봤나?" 표시. deploy `20260629_(d2f085f)`
 
 ### 완료된 작업 (이번 세션) — 전부 운영 라이브
 - **기본 히스토리:** 청구서/프로젝트 상태이력 API+UI (저장만 되던 "숨은 이력") · 깨진 BillEvent writer→AuditLog fix
