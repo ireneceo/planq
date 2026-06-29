@@ -574,7 +574,9 @@ router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async 
             { model: User, as: 'sender', attributes: ['id', 'name', 'name_localized', 'avatar_url', 'is_ai'] },
             { model: require('../models').MessageAttachment, as: 'attachments', required: false },
           ],
-          order: [['created_at', 'ASC']],
+          // 최신 200개를 가져온다 (DESC). 옛 'ASC limit 200' 은 200+ 대화에서 '가장 오래된 200개' 만
+          // 반환해 최근 메시지가 사라지던 버그. 표시용 ASC 정렬은 아래에서 복원.
+          order: [['created_at', 'DESC']],
           limit: 200
         }
       ]
@@ -587,7 +589,8 @@ router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async 
     }
 
     // Client 역할은 is_internal + 미승인 Draft 필터링 (PERMISSION_MATRIX §7)
-    let messages = conversation.messages || [];
+    // DESC 로 가져온 최신 200개를 화면 표시용 시간순(ASC)으로 복원
+    let messages = (conversation.messages || []).slice().reverse();
     if (req.scope?.isClient) {
       messages = messages.filter(m =>
         !m.is_internal &&

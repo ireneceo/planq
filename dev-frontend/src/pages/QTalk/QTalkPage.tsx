@@ -257,6 +257,9 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
   const [projects, setProjects] = useState<MockProject[]>(initialCache?.projects || []);
   const [conversations, setConversations] = useState<MockConversation[]>(initialCache?.conversations || []);
   const [messages, setMessages] = useState<Record<number, MockMessage[]>>({});
+  // 히스토리 로드 완료 여부 — '메시지 배열 존재'와 분리 추적. socket message:new 가 미로드 대화에
+  // 1건짜리 배열을 만들어도(=배열은 존재하나 히스토리는 미로드) 전체 히스토리 로드를 막지 않도록 하는 안전핀.
+  const [historyLoaded, setHistoryLoaded] = useState<Record<number, boolean>>({});
   const [tasks, setTasks] = useState<MockTask[]>([]);
   const [notes, setNotes] = useState<MockNote[]>([]);
   const [issues, setIssues] = useState<MockIssue[]>([]);
@@ -701,6 +704,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
     if (activeConversationId) {
       qtalkApi.listConversationMessages(activeConversationId).then(msgs => {
         setMessages(prev => ({ ...prev, [activeConversationId]: msgs.map(apiMessageToMock) }));
+        setHistoryLoaded(prev => ({ ...prev, [activeConversationId]: true }));
       }).catch(() => null);
     }
     if (businessId) {
@@ -723,14 +727,26 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
   // 그래도 실패면 messages[id] 를 undefined 로 두어 사용자가 conv 재클릭 시 재시도되게 함.
   useEffect(() => {
     if (!activeConversationId) return;
-    if (messages[activeConversationId] !== undefined) return; // 이미 로드됨
+    // ★ '메시지 배열 존재'가 아니라 '히스토리 로드 완료' 로 판정 — socket 으로 1건만 들어와 배열이
+    //   생긴 경우에도 전체 히스토리를 반드시 로드 (운영 회귀: 초기 로드 실패 + 라이브 메시지 1건 →
+    //   히스토리 영영 미로드로 "과거 채팅 사라짐").
+    if (historyLoaded[activeConversationId]) return;
     let cancelled = false;
     let retryTimer: number | null = null;
     const load = async (attempt: number) => {
       try {
         const msgs = await qtalkApi.listConversationMessages(activeConversationId);
         if (cancelled) return;
-        setMessages((prev) => ({ ...prev, [activeConversationId]: msgs.map(apiMessageToMock) }));
+        const loaded = msgs.map(apiMessageToMock);
+        const loadedIds = new Set(loaded.map((m) => m.id));
+        setMessages((prev) => {
+          // server fresh(최신 페이지) + 쿼리~응답 사이 socket 으로 먼저 들어온 더 최신 메시지 머지(유실 방지)
+          const existing = prev[activeConversationId] || [];
+          const extra = existing.filter((m) => !loadedIds.has(m.id));
+          const merged = extra.length ? [...loaded, ...extra].sort((a, b) => a.id - b.id) : loaded;
+          return { ...prev, [activeConversationId]: merged };
+        });
+        setHistoryLoaded((prev) => ({ ...prev, [activeConversationId]: true }));
       } catch (err) {
         if (cancelled) return;
         if (attempt === 0) {
@@ -918,15 +934,21 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         })();
         for (const c of mappedConvs) {
           if (c.id === targetActiveId) continue; // active 는 별도 effect 가 처리
-          // 캐시 hit 이면 skip — 다시 fetch 하지 않음
-          if (messages[c.id] !== undefined) continue;
+          // 히스토리 로드 완료된 대화는 skip — 다시 fetch 하지 않음 (1건 socket 배열만 있는 건 로드 필요)
+          if (historyLoaded[c.id]) continue;
           (async () => {
             try {
               const msgs = await qtalkApi.listConversationMessages(c.id);
               if (cancelled) return;
-              setMessages((prev) => prev[c.id] === undefined
-                ? { ...prev, [c.id]: msgs.map(apiMessageToMock) }
-                : prev);
+              const loaded = msgs.map(apiMessageToMock);
+              const loadedIds = new Set(loaded.map((m) => m.id));
+              setMessages((prev) => {
+                const existing = prev[c.id] || [];
+                const extra = existing.filter((m) => !loadedIds.has(m.id));
+                const merged = extra.length ? [...loaded, ...extra].sort((a, b) => a.id - b.id) : loaded;
+                return { ...prev, [c.id]: merged };
+              });
+              setHistoryLoaded((prev) => ({ ...prev, [c.id]: true }));
             } catch { /* silent — 채널 전환 시 lazy-load 가 재시도 */ }
           })();
         }
