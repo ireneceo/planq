@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { Invoice, InvoiceItem, InvoiceInstallment, Client, User, Business, Post, Conversation, Message, ReceiptCorrection } = require('../models');
 const { resolveRecurringInfo } = require('../services/invoiceRecurring');
+const { logBillEvent, listBillEvents } = require('../services/billEvents');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { requireMenu } = require('../middleware/menu_permission');
 
@@ -178,9 +179,12 @@ router.get('/public/:token', async (req, res, next) => {
       });
     }
     // 첫 열람 기록
-    if (!invoice.viewed_at) {
+    const isFirstView = !invoice.viewed_at;
+    if (isFirstView) {
       try { await invoice.update({ viewed_at: new Date() }); } catch {}
     }
+    // Q Bill 타임라인 — 고객 열람(actor=null). 60분 dedupe 로 새로고침 도배 collapse.
+    await logBillEvent('invoice', invoice.id, 'viewed', { detail: { first: isFirstView }, dedupeWindowMs: 60 * 60 * 1000 });
     // 발신자 워크스페이스 (공개 페이지 용 최소 정보)
     const business = await Business.findByPk(invoice.business_id, {
       attributes: ['id', 'name', 'brand_name', 'legal_name', 'legal_name_en', 'representative', 'bank_name', 'bank_account_number', 'bank_account_name', 'swift_code', 'bank_name_en', 'bank_account_name_en'],
@@ -392,7 +396,11 @@ router.post('/public/:token/notify-paid', async (req, res, next) => {
       const io = req.app.get('io');
       if (io) io.to(`business:${invoice.business_id}`).emit('inbox:refresh', { reason: 'invoice_notify_paid', invoice_id: invoice.id, installment_id: inst.id });
       // 발행자 알림 — 중복 클릭 spam 방지: 신규 알림일 때만 (recentMs 가드 안)
-      if (isFresh) await notifyOwnerPaymentNotified(invoice, { label: inst.label, payerName, ioApp: req.app });
+      if (isFresh) {
+        await notifyOwnerPaymentNotified(invoice, { label: inst.label, payerName, ioApp: req.app });
+        // Q Bill 타임라인 — 고객 입금 통보(미확정. owner mark-paid 시 paid_partial/full). actor=null(고객).
+        await logBillEvent('invoice', invoice.id, 'commented', { detail: { kind: 'payment_notified', installment_no: inst.installment_no, label: inst.label, payer_name: payerName, amount: inst.amount } });
+      }
       return successResponse(res, { notified: true, installment_id: inst.id }, 'Notified');
     }
 
@@ -413,7 +421,11 @@ router.post('/public/:token/notify-paid', async (req, res, next) => {
     const io = req.app.get('io');
     if (io) io.to(`business:${invoice.business_id}`).emit('inbox:refresh', { reason: 'invoice_notify_paid', invoice_id: invoice.id });
     // 발행자 알림 — 중복 클릭 spam 방지: 신규 알림일 때만
-    if (isFresh) await notifyOwnerPaymentNotified(invoice, { label: null, payerName, ioApp: req.app });
+    if (isFresh) {
+      await notifyOwnerPaymentNotified(invoice, { label: null, payerName, ioApp: req.app });
+      // Q Bill 타임라인 — 고객 입금 통보(미확정). actor=null(고객).
+      await logBillEvent('invoice', invoice.id, 'commented', { detail: { kind: 'payment_notified', payer_name: payerName, amount: invoice.grand_total } });
+    }
     return successResponse(res, { notified: true }, 'Notified');
   } catch (error) { next(error); }
 });
@@ -767,6 +779,8 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
         source_post_id: result.source_post_id,
       },
     });
+    // Q Bill 타임라인 — 청구서 생성(draft)
+    await logBillEvent('invoice', result.id, 'created', { actorUserId: req.user?.id, detail: { invoice_number: result.invoice_number, grand_total: result.grand_total, currency: result.currency } });
     successResponse(res, result, 'Invoice created', 201);
   } catch (error) {
     await t.rollback();
@@ -925,6 +939,19 @@ router.get('/:businessId/:id/status-history', authenticateToken, attachWorkspace
       id: d.id, from_status: d.from_status, to_status: d.to_status, note: d.note,
       created_at: d.created_at, changed_by_name: d.changer ? (d.changer.name || null) : null,
     })));
+  } catch (err) { next(err); }
+});
+
+// ─── Q Bill 이벤트 타임라인 (생애주기: 생성→발행→고객열람→(부분)결제→증빙→정정/취소) ───
+//   재무 가시성 자원 → 멤버 이상만(client 차단). status-history 와 별개(고객 행위·결제까지 포함).
+router.get('/:businessId/:id/timeline', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const inv = await Invoice.findOne({ where: { id: req.params.id, business_id: businessId }, attributes: ['id'] });
+    if (!inv) return errorResponse(res, 'not_found', 404);
+    if (!isMemberOrAbove(req.scope)) return errorResponse(res, 'forbidden', 403);
+    const events = await listBillEvents('invoice', inv.id, businessId);
+    return successResponse(res, events);
   } catch (err) { next(err); }
 });
 
@@ -1284,6 +1311,8 @@ router.post('/:businessId/:id/send', authenticateToken, checkBusinessAccess, req
         share_expires_at: invoice.share_expires_at,
       },
     });
+    // Q Bill 타임라인 — 발행(draft → sent) + 발송 채널
+    await logBillEvent('invoice', invoice.id, 'sent', { actorUserId: req.user?.id, detail: { chat: !!(deliver.chat && !deliver.chat.error), email: !!(deliver.email && !deliver.email.error) } });
     successResponse(res, { invoice: refreshed, deliver }, 'Invoice sent');
   } catch (error) { try { await t.rollback(); } catch {} next(error); }
 });
@@ -1425,6 +1454,11 @@ router.post('/:businessId/:id/installments/:installId/mark-paid', authenticateTo
       targetId: inst.id,
       newValue: { invoice_id: invoice.id, installment_no: inst.installment_no, paid_at: paidAt, payer_memo: memo, invoice_status: newStatus },
     });
+    // Q Bill 타임라인 — 회차 결제 확정. 전액 완납이면 paid_full, 아니면 paid_partial.
+    await logBillEvent('invoice', invoice.id, newStatus === 'paid' ? 'paid_full' : 'paid_partial', {
+      actorUserId: req.user?.id,
+      detail: { installment_no: inst.installment_no, label: inst.label, amount: inst.amount, paid_sum: paidSum, total: totalSum },
+    });
     successResponse(res, refreshed, 'Installment paid');
   } catch (error) { try { await t.rollback(); } catch {} next(error); }
 });
@@ -1531,6 +1565,8 @@ router.post('/:businessId/:id/installments/:installId/mark-tax-invoice', authent
     } catch (e) { console.warn('[tax_invoice notify outer]', e.message); }
 
     await notifyCustomerReceiptIssued(req, invoice, 'tax', no, at);
+    // Q Bill 타임라인 — 세금계산서 발행(회차)
+    await logBillEvent('invoice', invoice.id, 'tax_issued', { actorUserId: req.user?.id, detail: { kind: 'tax', installment_no: inst.installment_no, label: inst.label, no } });
     successResponse(res, inst, 'Tax invoice marked');
   } catch (error) { next(error); }
 });
@@ -1580,6 +1616,8 @@ router.post('/:businessId/:id/installments/:installId/mark-cash-receipt', authen
     } catch (e) { console.warn('[cash_receipt notify outer]', e.message); }
 
     await notifyCustomerReceiptIssued(req, invoice, 'cash', no, at);
+    // Q Bill 타임라인 — 현금영수증 발행(회차)
+    await logBillEvent('invoice', invoice.id, 'tax_issued', { actorUserId: req.user?.id, detail: { kind: 'cash', installment_no: inst.installment_no, label: inst.label, no } });
     successResponse(res, inst, 'Cash receipt marked');
   } catch (error) { next(error); }
 });
@@ -1698,6 +1736,8 @@ router.post('/:businessId/:id/mark-tax-invoice', authenticateToken, checkBusines
     if (invoice?.project_id) require('../services/projectStageEngine').onInvoiceChanged(invoice.id).catch(() => null);
     await notifyReceiptIssued(req, invoice, '세금계산서', no);
     await notifyCustomerReceiptIssued(req, invoice, 'tax', no, at);
+    // Q Bill 타임라인 — 세금계산서 발행(단건)
+    await logBillEvent('invoice', invoice.id, 'tax_issued', { actorUserId: req.user?.id, detail: { kind: 'tax', no } });
     successResponse(res, invoice, 'Tax invoice marked');
   } catch (error) { next(error); }
 });
@@ -1720,6 +1760,8 @@ router.post('/:businessId/:id/mark-cash-receipt', authenticateToken, checkBusine
     if (io) io.to(`business:${invoice.business_id}`).emit('inbox:refresh', { reason: 'cash_receipt_issued', invoice_id: invoice.id });
     await notifyReceiptIssued(req, invoice, '현금영수증', no);
     await notifyCustomerReceiptIssued(req, invoice, 'cash', no, at);
+    // Q Bill 타임라인 — 현금영수증 발행(단건)
+    await logBillEvent('invoice', invoice.id, 'tax_issued', { actorUserId: req.user?.id, detail: { kind: 'cash', no } });
     successResponse(res, invoice, 'Cash receipt marked');
   } catch (error) { next(error); }
 });
@@ -1828,6 +1870,8 @@ async function recordCorrection(req, res, { installmentId }) {
   if (io) io.to(`business:${invoice.business_id}`).emit('inbox:refresh', { reason: 'receipt_corrected', invoice_id: invoice.id });
   await notifyMembersReceiptCorrected(req, invoice, corr);
   await notifyCustomerReceiptCorrected(req, invoice, corr);
+  // Q Bill 타임라인 — 증빙 정정/취소 (수정세금계산서·현금영수증 취소)
+  await logBillEvent('invoice', invoice.id, 'commented', { actorUserId: req.user?.id, detail: { kind: 'correction', correction_kind: kind, reason, corrected_no: correctedNo, installment_no: inst ? inst.installment_no : null } });
   return successResponse(res, corr, 'Correction recorded');
 }
 
@@ -1975,6 +2019,17 @@ router.patch('/:businessId/:id/status', authenticateToken, checkBusinessAccess, 
     }
     if (status === 'canceled' && prevStatus !== 'canceled') {
       await notifyReceiptCorrectionNeeded(req, invoice);
+    }
+
+    // Q Bill 타임라인 — 단일 청구서 상태 전이 (paid_full/canceled/overdue)
+    if (prevStatus !== status) {
+      const evMap = { paid: 'paid_full', canceled: 'canceled', overdue: 'overdue' };
+      if (evMap[status]) {
+        await logBillEvent('invoice', invoice.id, evMap[status], {
+          actorUserId: req.user?.id,
+          detail: { from: prevStatus, amount: invoice.grand_total },
+        });
+      }
     }
 
     successResponse(res, invoice);

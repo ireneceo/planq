@@ -267,9 +267,13 @@
         "reminded": "독촉 메일 발송",
         "commented": "코멘트",
         "payment_request_sent": "채팅 결제 요청",
-        "payment_alert": "송금 완료 알림"
+        "payment_alert": "송금 완료 알림",
+        "refunded": "환불",
+        "cash_issued": "현금영수증 발행",
+        "correction": "증빙 정정"
       },
       "by": "{{actor}}",
+      "customer": "고객",
       "empty": "활동이 없습니다"
     },
     "reminder": {

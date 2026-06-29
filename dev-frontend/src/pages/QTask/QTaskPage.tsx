@@ -1276,11 +1276,10 @@ const QTaskPage:React.FC=()=>{
     }catch{}
   };
 
-  // 주간 진척 그래프 — 잔여 번다운 (Irene 스펙 2026-06-29):
-  //  렌더는 아래 누적값을 base(weekTotalEst)에서 빼서 "꼭대기 → 0 으로 내려가는" 번다운으로 그린다.
-  //  - estimated_cumulative = Σ(예측시간 × 진행률) 누적 → 남은 업무량 = base − 이 값. 0 도달 = 업무 완료.
-  //  - actual_cumulative   = Σ(실제 입력시간) 누적 → 남은 시간 = base − 이 값. 초과 시 0 에서 멈춤 + 초과 마커.
-  //  (EVM 판정칩은 이 누적값을 EV/AC 로 그대로 사용 — 번다운 변환은 렌더 단계에서만.)
+  // 주간 진척 그래프 — 번업(0 → 위로 누적 상승, Irene 스펙 2026-06-29):
+  //  - estimated_cumulative = Σ(예측시간 × 진행률) 누적 → 예측 진척 라인 (0→base 로 상승, 100% 시 base 도달).
+  //  - actual_cumulative   = Σ(실제 입력시간) 누적 → 실제 투입 라인. 가용시간(가로선) 넘으면 그 위로 솟아 초과 시각화.
+  //  렌더는 월요일 앞 '시작' 앵커(0h)를 prepend 해 라인이 바닥에서 출발. (EVM 판정칩은 누적값 EV/AC 그대로 사용.)
   //  데이터: /daily-progress 의 est_used(=Σ예측×진행률)·act_used(=Σ실제) 일별 스냅샷 사용, 오늘은 라이브.
   const computedBurndown=useMemo(()=>{
     const days:{label:string;date:string}[]=[];
@@ -2450,33 +2449,34 @@ const QTaskPage:React.FC=()=>{
                   {(()=>{
                     const W=290,H=160,PL=28,PR=8,PT=12,PB=24;
                     const cw=W-PL-PR, ch=H-PT-PB;
-                    // 번다운: base(이번 주 예측 총합)에서 0 으로 내려감. i=0 = 시작 앵커(월요일 앞, 전부 남음), i=1.. = 영업일.
+                    // 번업(Irene 스펙 2026-06-29): 0 에서 위로 누적 상승. i=0 = 시작 앵커(월요일 앞, 0h), i=1.. = 영업일.
+                    //   실제 투입이 가용시간(가로선)을 넘으면 라인이 그 위로 솟구쳐 시각적으로 초과를 알린다.
                     const base=weekTotalEst||0;
                     const days=computedBurndown;
                     const N=days.length+1;
                     const step=N>1?cw/(N-1):0;
-                    // yMax 에 base + 가용시간(effectiveCapacity)도 포함해 모두 그래프 안에 표시
-                    const yMaxBase=Math.max(base, effectiveCapacity||0);
+                    // 실제 투입이 가용/예측을 넘으면 그 위로 솟구쳐야 보이므로 maxY 에 실제·예측 누적 최댓값도 포함.
+                    const maxAct=Math.max(0,...days.map(p=>p.actual_cumulative==null?0:p.actual_cumulative));
+                    const maxEst=Math.max(0,...days.map(p=>p.estimated_cumulative==null?0:p.estimated_cumulative));
+                    const yMaxBase=Math.max(base, effectiveCapacity||0, maxAct, maxEst, 1);
                     const yMax=Math.ceil(yMaxBase/5)*5||5;
                     const yTicks=[0,yMax/2,yMax];
                     const xPos=(i:number)=>PL+i*step;
                     const yPos=(v:number)=>PT+ch-(v/yMax)*ch;
                     type Pt={x:number;y:number;v:number};
-                    // 남은 업무량 = base − Σ예측×진행률(done). 진행률 100% 초과 불가 → 음수 없음. 오늘까지만(미래 잘림).
-                    const remWork=[{x:xPos(0),y:yPos(base),v:base} as Pt, ...days.map((p,di)=>{
-                      if(p.isFuture||p.estimated_cumulative==null) return null;
-                      const r=Math.max(0, base-p.estimated_cumulative);
-                      return {x:xPos(di+1),y:yPos(r),v:Math.round(r*10)/10} as Pt;
-                    })].filter((p):p is Pt=>!!p);
-                    // 남은 시간 = base − Σ실제투입. 초과(실제>예측) 시 0 에서 멈추고 초과량 마커로 알림.
-                    let overBy=0;
-                    const remTime=[{x:xPos(0),y:yPos(base),v:base} as Pt, ...days.map((p,di)=>{
-                      if(p.isFuture||p.actual_cumulative==null) return null;
-                      const raw=base-p.actual_cumulative;
-                      if(raw<-0.05) overBy=Math.max(overBy, Math.round(-raw*10)/10);
-                      const r=Math.max(0, raw);
-                      return {x:xPos(di+1),y:yPos(r),v:Math.round(r*10)/10} as Pt;
-                    })].filter((p):p is Pt=>!!p);
+                    // 예측 누적 = Σ예측×진행률. 시작 앵커(0) + 영업일(오늘까지, 미래 잘림). 100% 완료 시 base 도달.
+                    const estPts=[{x:xPos(0),y:yPos(0),v:0} as Pt, ...days.map((p,di)=>(
+                      p.isFuture||p.estimated_cumulative==null ? null
+                        : ({x:xPos(di+1),y:yPos(p.estimated_cumulative),v:Math.round(p.estimated_cumulative*10)/10} as Pt)
+                    ))].filter((p):p is Pt=>!!p);
+                    // 실제 누적 = Σ실제투입. 가용시간 넘으면 가로선 위로 상승.
+                    const actPts=[{x:xPos(0),y:yPos(0),v:0} as Pt, ...days.map((p,di)=>(
+                      p.isFuture||p.actual_cumulative==null ? null
+                        : ({x:xPos(di+1),y:yPos(p.actual_cumulative),v:Math.round(p.actual_cumulative*10)/10} as Pt)
+                    ))].filter((p):p is Pt=>!!p);
+                    // 가용시간 초과량 (실제 누적 최댓값 − 가용)
+                    const overCap = effectiveCapacity>0 && maxAct>effectiveCapacity ? Math.round((maxAct-effectiveCapacity)*10)/10 : 0;
+                    const actOver = overCap>0;
                     return(
                       <ChartSVG viewBox={`0 0 ${W} ${H}`}>
                         {yTicks.map((v,i)=>(
@@ -2495,35 +2495,35 @@ const QTaskPage:React.FC=()=>{
                             </text>
                           </>
                         )}
-                        {/* 기준선(이상 잔여) — 시작 base → 마지막 0 으로 내려가는 대각선 (전체 폭) */}
+                        {/* 기준선(이상 진척) — 시작 0 → 마지막 = 예측 총합(base) 까지 올라가는 대각선 (전체 폭) */}
                         {base>0 && N>1 && (
-                          <line x1={xPos(0)} y1={yPos(base)} x2={xPos(N-1)} y2={yPos(0)}
+                          <line x1={xPos(0)} y1={yPos(0)} x2={xPos(N-1)} y2={yPos(base)}
                             stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="4,4" />
                         )}
-                        {/* 남은 업무량 라인 (오늘까지) */}
-                        {remWork.length>1 && <polyline fill="none" stroke="#14B8A6" strokeWidth="2" points={remWork.map(p=>`${p.x},${p.y}`).join(' ')}/>}
-                        {/* 남은 시간 라인 (오늘까지) */}
-                        {remTime.length>1 && <polyline fill="none" stroke="#F43F5E" strokeWidth="2" strokeDasharray="4,3" points={remTime.map(p=>`${p.x},${p.y}`).join(' ')}/>}
-                        {/* 남은 업무량 점·값 */}
-                        {remWork.map((p,i)=>(
-                          <React.Fragment key={'w'+i}>
+                        {/* 예측 진척 라인 (오늘까지) */}
+                        {estPts.length>1 && <polyline fill="none" stroke="#14B8A6" strokeWidth="2" points={estPts.map(p=>`${p.x},${p.y}`).join(' ')}/>}
+                        {/* 실제 투입 라인 (오늘까지) — 가용 초과 시 빨강 강조 */}
+                        {actPts.length>1 && <polyline fill="none" stroke={actOver?'#DC2626':'#F43F5E'} strokeWidth="2" strokeDasharray="4,3" points={actPts.map(p=>`${p.x},${p.y}`).join(' ')}/>}
+                        {/* 예측 점·값 */}
+                        {estPts.map((p,i)=>(
+                          <React.Fragment key={'e'+i}>
                             <circle cx={p.x} cy={p.y} r="3" fill="#14B8A6"/>
-                            <text x={p.x} y={p.y-6} fontSize="8" fill="#0F766E" textAnchor="middle" fontWeight="700">{p.v}</text>
+                            {p.v>0&&<text x={p.x} y={p.y-6} fontSize="8" fill="#0F766E" textAnchor="middle" fontWeight="700">{p.v}</text>}
                           </React.Fragment>
                         ))}
-                        {/* 남은 시간 점·값 */}
-                        {remTime.map((p,i)=>(
-                          <React.Fragment key={'t'+i}>
-                            <circle cx={p.x} cy={p.y} r="3" fill="#F43F5E"/>
-                            <text x={p.x} y={p.y+12} fontSize="8" fill="#9F1239" textAnchor="middle" fontWeight="700">{p.v}</text>
+                        {/* 실제 점·값 */}
+                        {actPts.map((p,i)=>(
+                          <React.Fragment key={'a'+i}>
+                            <circle cx={p.x} cy={p.y} r="3" fill={actOver?'#DC2626':'#F43F5E'}/>
+                            {p.v>0&&<text x={p.x} y={p.y+12} fontSize="8" fill={actOver?'#DC2626':'#9F1239'} textAnchor="middle" fontWeight="700">{p.v}</text>}
                           </React.Fragment>
                         ))}
-                        {/* 시간 초과 마커 — 실제투입이 예측 총합을 넘으면 (남은 시간 선은 0 에서 멈춤) */}
-                        {overBy>0 && (
+                        {/* 가용시간 초과 마커 — 실제 투입이 가용을 넘으면 (라인이 가로선 위로 솟음) */}
+                        {overCap>0 && (
                           <g>
-                            <title>{t('chart.overTip',{ h: overBy, base, defaultValue: `예측시간(${base}h)보다 ${overBy}h 더 썼어요. 남은 시간 선은 0에서 멈춥니다.` }) as string}</title>
-                            <text x={W-PR} y={yPos(0)-4} fontSize="9" fill="#DC2626" textAnchor="end" fontWeight="800">
-                              {t('chart.over',{ h: overBy, defaultValue: `초과 +${overBy}h` }) as string}
+                            <title>{t('chart.overTip',{ h: overCap, base: effectiveCapacity, defaultValue: `이번 주 실제 투입이 가용시간(${effectiveCapacity}h)을 ${overCap}h 넘었어요.` }) as string}</title>
+                            <text x={W-PR} y={PT+8} fontSize="9" fill="#DC2626" textAnchor="end" fontWeight="800">
+                              {t('chart.over',{ h: overCap, defaultValue: `가용 초과 +${overCap}h` }) as string}
                             </text>
                           </g>
                         )}
@@ -2543,8 +2543,8 @@ const QTaskPage:React.FC=()=>{
                     );
                   })()}
                   <Legend>
-                    <LI><Dot $c="#14B8A6"/>{t('chart.remainingWork','남은 업무량')}</LI>
-                    <LI><Dot $c="#F43F5E"/>{t('chart.remainingTime','남은 시간')}</LI>
+                    <LI><Dot $c="#14B8A6"/>{t('chart.est','예측')}</LI>
+                    <LI><Dot $c="#F43F5E"/>{t('chart.act','실제')}</LI>
                     <LI><DashDot $c="#94A3B8"/>{t('chart.ideal','기준선')}</LI>
                     <LI><DashDot $c="#F59E0B"/>{t('chart.capacity','가용시간')}</LI>
                     {computedBurndown.some(p=>p.reverted)&&(

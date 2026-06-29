@@ -377,6 +377,23 @@ export async function getInvoiceStatusHistory(businessId: number, invoiceId: num
   return expectOk<ApiInvoiceStatusEvent[]>(r);
 }
 
+// Q Bill 이벤트 타임라인 — 생애주기(생성→발행→고객열람→(부분)결제→증빙→정정/취소)
+export type BillEventType =
+  | 'created' | 'sent' | 'viewed' | 'accepted' | 'rejected' | 'converted'
+  | 'paid_partial' | 'paid_full' | 'overdue' | 'canceled' | 'refunded'
+  | 'tax_issued' | 'tax_failed' | 'commented';
+export interface ApiBillEvent {
+  id: number;
+  event_type: BillEventType;
+  actor: { id: number; name: string | null } | null;   // null = 고객·시스템 행위
+  detail: Record<string, unknown> | null;
+  created_at: string;
+}
+export async function getInvoiceTimeline(businessId: number, invoiceId: number): Promise<ApiBillEvent[]> {
+  const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}/timeline`);
+  return expectOk<ApiBillEvent[]>(r);
+}
+
 // 증빙 수정·취소 마킹 (수정세금계산서 발행 / 현금영수증 취소)
 export async function markReceiptCorrection(
   businessId: number, invoiceId: number, installmentId: number | null, payload: CorrectionPayload,
