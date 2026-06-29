@@ -248,7 +248,7 @@ function WeekCol({ title, tasks, emptyText, onOpen }: { title: string; tasks: Ca
 }
 
 // ───────── styles ─────────
-const Wrap = styled.div`display:flex;flex-direction:column;gap:14px;max-width:1100px;`;
+const Wrap = styled.div`display:flex;flex-direction:column;gap:14px;width:100%;`;
 const LayerLabel = styled.div<{ $tone: 'blue' | 'green' | 'orange' }>`
   display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;letter-spacing:.02em;
   margin-top:14px;padding:4px 12px;border-radius:999px;align-self:flex-start;

@@ -564,6 +564,8 @@
     "tl": {
       "title": "Schedule Timeline",
       "progress": "Progress",
+      "progressHint": "Auto-calculated: completed tasks ÷ all tasks.",
+      "ddayHint": "Days left until the project due date (set a due date for this to be accurate).",
       "monthSuffix": "",
       "now": "Now",
       "jumpToday": "Today",

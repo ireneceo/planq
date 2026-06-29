@@ -5,6 +5,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { WORKSTREAM_PALETTE } from '../../services/projectCanvas';
 import type { TimelineData } from '../../services/projectTimeline';
+import { SourceHint } from './SourceHint';
 
 interface Props {
   data: TimelineData;
@@ -58,7 +59,8 @@ export default function ScheduleTimeline({ data, keyOnly, onToggleKeyOnly, onTas
 
   const dated = data.tasks.filter((tk) => tk.due_date || tk.start_date);
   const milestones = dated.filter((tk) => tk.is_milestone);
-  const regular = dated.filter((tk) => !tk.is_milestone);
+  // '주요만 보기' ON → 일반(비마일스톤) 업무 숨김. 받은 keyOnly 를 렌더에 반영(옛: prop 무시로 토글 무반응).
+  const regular = keyOnly ? [] : dated.filter((tk) => !tk.is_milestone);
   const undatedCount = data.tasks.length - dated.length;
   const todayPos = pos(data.today);
 
@@ -96,12 +98,16 @@ export default function ScheduleTimeline({ data, keyOnly, onToggleKeyOnly, onTas
     <Card>
       {/* 진행 요약 */}
       <SummaryRow>
-        <Big><BigVal>{data.progress.percent}</BigVal><Pct>%</Pct><BigLbl>{t('canvas.tl.progress', { defaultValue: '진행률' })}</BigLbl></Big>
+        <Big><BigVal>{data.progress.percent}</BigVal><Pct>%</Pct><BigLbl>{t('canvas.tl.progress', { defaultValue: '진행률' })}</BigLbl>
+          <SourceHint text={t('canvas.tl.progressHint', { defaultValue: '완료한 업무 ÷ 전체 업무로 자동 계산됩니다.' }) as string} />
+        </Big>
         {sc && <SchedBadge style={{ background: scMeta.bg, color: scMeta.fg }}>
           {t(`canvas.tl.sched.${scMeta.key}`, { defaultValue: scMeta.key })}
           {data.progress.expected_percent != null && <SchedSub>{t('canvas.tl.expected', { defaultValue: '기대 {{n}}%', n: data.progress.expected_percent })}</SchedSub>}
         </SchedBadge>}
-        {data.progress.d_day != null && <Chip>{data.progress.d_day >= 0 ? `D-${data.progress.d_day}` : `D+${-data.progress.d_day}`}</Chip>}
+        {data.progress.d_day != null && <Chip>{data.progress.d_day >= 0 ? `D-${data.progress.d_day}` : `D+${-data.progress.d_day}`}
+          <SourceHint text={t('canvas.tl.ddayHint', { defaultValue: '프로젝트 마감일까지 남은 일수입니다 (마감일을 설정해야 정확합니다).' }) as string} />
+        </Chip>}
         {milestones.length > 0 && <Chip>{t('canvas.tl.milestonesN', { defaultValue: '주요 {{n}}', n: milestones.length })}</Chip>}
         <Spacer />
         {scrollable && todayPos != null && (
@@ -176,11 +182,11 @@ const Big = styled.div`display:flex;align-items:baseline;gap:4px;`;
 const BigVal = styled.span`font-size:28px;font-weight:700;color:#0F172A;font-variant-numeric:tabular-nums;`;
 const Pct = styled.span`font-size:14px;font-weight:700;color:#64748B;`;
 const BigLbl = styled.span`font-size:12px;color:#94A3B8;margin-left:6px;align-self:center;`;
-const Chip = styled.span`font-size:12px;font-weight:700;color:#475569;background:#F1F5F9;border-radius:999px;padding:4px 11px;`;
+const Chip = styled.span`display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;color:#475569;background:#F1F5F9;border-radius:999px;padding:4px 11px;`;
 const SchedBadge = styled.span`display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;border-radius:999px;padding:4px 12px;`;
 const SchedSub = styled.span`font-weight:500;opacity:.8;`;
 const Spacer = styled.div`flex:1;`;
-const Toggle = styled.button<{ $on: boolean }>`display:inline-flex;align-items:center;gap:8px;border:1px solid ${(p) => (p.$on ? '#14B8A6' : '#E2E8F0')};background:${(p) => (p.$on ? '#F0FDFA' : '#fff')};border-radius:999px;padding:5px 12px 5px 6px;cursor:pointer;`;
+const Toggle = styled.button<{ $on: boolean }>`display:inline-flex;align-items:center;gap:8px;border:none;background:none;padding:4px 2px;cursor:pointer;&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;border-radius:6px;}`;
 const Knob = styled.span<{ $on: boolean }>`width:30px;height:18px;border-radius:999px;background:${(p) => (p.$on ? '#14B8A6' : '#CBD5E1')};position:relative;transition:background .15s;&::after{content:'';position:absolute;top:2px;left:${(p) => (p.$on ? '14px' : '2px')};width:14px;height:14px;border-radius:50%;background:#fff;transition:left .15s;}`;
 const ToggleLbl = styled.span`font-size:12px;font-weight:600;color:#475569;`;
 // 가로 스크롤 래퍼 — overflow-x:auto. 음수 top 라벨('지금'·마일스톤) 클리핑 방지 위해 상하 패딩 확보.
