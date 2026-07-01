@@ -727,7 +727,38 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   }, [PIN_KEY, projId]);
 
   return (
-    <Layout $collapsed={sidebarCollapsed} $projectFull={isProject}>
+    <Layout $collapsed={sidebarCollapsed} $projectFull={isProject} $hasDetail={!!detail || isEditing}>
+      {isProject && !detail && !isEditing && (
+        <ProjTop>
+          <SearchBox width={280} value={query} onChange={setQuery} placeholder={t('search.placeholder', '문서 검색') as string} />
+          <PlanQSelect
+            size="sm"
+            value={{ value: projSort, label: (projSort === 'name' ? t('sort.name', '이름 순') : t('sort.recent', '최근 순')) as string }}
+            onChange={(v) => { const nv = (v as { value?: string } | null)?.value; if (nv === 'name' || nv === 'recent') setProjSort(nv); }}
+            options={[{ value: 'recent', label: t('sort.recent', '최근 순') as string }, { value: 'name', label: t('sort.name', '이름 순') as string }]}
+          />
+          <ProjTopSpacer />
+          <AiActionButton onClick={() => { setAiIntent('ai'); setAiOpen(true); }} label={t('ai.btn', 'AI')} title={t('ai.openHint', 'AI 가 문서 본문을 자동 작성') as string} />
+          <TemplateBtn type="button" onClick={openTemplateModal} title={t('templates.openHint', '템플릿에서 시작') as string}>{t('templates.btn', '템플릿')}</TemplateBtn>
+          <NewBtnWrap>
+            <NewBtn type="button" onClick={() => setNewDropdownOpen(v => !v)} title={t('btn.new') as string} aria-label={t('btn.new') as string} aria-expanded={newDropdownOpen}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </NewBtn>
+            {newDropdownOpen && (
+              <NewDropdown onMouseLeave={() => setNewDropdownOpen(false)}>
+                <NewItem type="button" onClick={() => { setNewDropdownOpen(false); startNew(); }}>
+                  <NewItemTitle>{t('newDropdown.blankLabel', { defaultValue: '빈 문서' }) as string}</NewItemTitle>
+                  <NewItemDesc>{t('newDropdown.blankDesc', { defaultValue: '빈 본문으로 즉시 시작' }) as string}</NewItemDesc>
+                </NewItem>
+                <NewItem type="button" onClick={() => { setNewDropdownOpen(false); setAiIntent('manual'); setAiDefaultMode('table'); setAiOpen(true); }}>
+                  <NewItemTitle>{t('newDropdown.tableLabel', { defaultValue: '표' }) as string}</NewItemTitle>
+                  <NewItemDesc>{t('newDropdown.tableDesc', { defaultValue: '계정·자산 등 행/열 데이터' }) as string}</NewItemDesc>
+                </NewItem>
+              </NewDropdown>
+            )}
+          </NewBtnWrap>
+        </ProjTop>
+      )}
       {(!isProject && sidebarCollapsed) ? (
         <CollapsedStrip>
           <EdgeHandle type="button" onClick={toggleSidebar} aria-label={t('sidebar.expand', '리스트 열기') as string} title={t('sidebar.expand', '리스트 열기') as string}>
@@ -738,15 +769,6 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       <Sidebar $hasDetail={!!detail || isEditing} $projectFull={isProject}>
         {isProject ? (
           <CatPanel>
-            <CatSearch>
-              <SearchBox width="100%" value={query} onChange={setQuery} placeholder={t('search.placeholder', '문서 검색') as string} />
-              <PlanQSelect
-                size="sm"
-                value={{ value: projSort, label: (projSort === 'name' ? t('sort.name', '이름 순') : t('sort.recent', '최근 순')) as string }}
-                onChange={(v) => { const nv = (v as { value?: string } | null)?.value; if (nv === 'name' || nv === 'recent') setProjSort(nv); }}
-                options={[{ value: 'recent', label: t('sort.recent', '최근 순') as string }, { value: 'name', label: t('sort.name', '이름 순') as string }]}
-              />
-            </CatSearch>
             <CatHead>{t('filter.byCategory', '카테고리') as string}</CatHead>
             <CatRow type="button" $active={filter.kind === 'all'} onClick={() => setFilter({ kind: 'all' })}>
               <CatName>{t('filter.all', '전체') as string}</CatName><CatCount>{meta.total}</CatCount>
@@ -1256,29 +1278,6 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           </>
         ) : isProject ? (
           <ProjBrowseWrap>
-            <ProjToolbar>
-              <ProjToolbarBtns>
-                <AiActionButton onClick={() => { setAiIntent('ai'); setAiOpen(true); }} label={t('ai.btn', 'AI')} title={t('ai.openHint', 'AI 가 문서 본문을 자동 작성') as string} />
-                <TemplateBtn type="button" onClick={openTemplateModal} title={t('templates.openHint', '템플릿에서 시작') as string}>{t('templates.btn', '템플릿')}</TemplateBtn>
-                <NewBtnWrap>
-                  <NewBtn type="button" onClick={() => setNewDropdownOpen(v => !v)} title={t('btn.new') as string} aria-label={t('btn.new') as string} aria-expanded={newDropdownOpen}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                  </NewBtn>
-                  {newDropdownOpen && (
-                    <NewDropdown onMouseLeave={() => setNewDropdownOpen(false)}>
-                      <NewItem type="button" onClick={() => { setNewDropdownOpen(false); startNew(); }}>
-                        <NewItemTitle>{t('newDropdown.blankLabel', { defaultValue: '빈 문서' }) as string}</NewItemTitle>
-                        <NewItemDesc>{t('newDropdown.blankDesc', { defaultValue: '빈 본문으로 즉시 시작' }) as string}</NewItemDesc>
-                      </NewItem>
-                      <NewItem type="button" onClick={() => { setNewDropdownOpen(false); setAiIntent('manual'); setAiDefaultMode('table'); setAiOpen(true); }}>
-                        <NewItemTitle>{t('newDropdown.tableLabel', { defaultValue: '표' }) as string}</NewItemTitle>
-                        <NewItemDesc>{t('newDropdown.tableDesc', { defaultValue: '계정·자산 등 행/열 데이터' }) as string}</NewItemDesc>
-                      </NewItem>
-                    </NewDropdown>
-                  )}
-                </NewBtnWrap>
-              </ProjToolbarBtns>
-            </ProjToolbar>
             {loading ? (
               <Dim>{t('loading', '로딩 중…') as string}</Dim>
             ) : filtered.length === 0 ? (
@@ -1538,11 +1537,13 @@ const PrintOnlyTitle = styled.h1`
     font-size: 24px; font-weight: 700; color: #0F172A; margin: 0 0 16px 0;
   }
 `;
-const Layout = styled.div<{ $collapsed?: boolean; $projectFull?: boolean }>`
+const Layout = styled.div<{ $collapsed?: boolean; $projectFull?: boolean; $hasDetail?: boolean }>`
   display: grid;
   /* 좌측 리스트 폭 — Q note 와 동일 (300px). 좌측 리스트 패턴 통일 */
-  /* 프로젝트 스코프: 파일 탭과 동일 — 좌측 카테고리 패널(220) 지속 + 우측(카드 그리드↔상세) */
-  grid-template-columns: ${p => p.$projectFull ? '220px 1fr' : (p.$collapsed ? '0 1fr' : '300px 1fr')};
+  /* 프로젝트 스코프: 파일 탭과 동일 — 상단 툴바(전체폭) + 좌측 카테고리 패널(220) + 우측 카드 그리드.
+     문서를 열면(상세/편집) 상단·좌측 숨기고 상세를 풀폭으로. */
+  grid-template-columns: ${p => p.$projectFull ? (p.$hasDetail ? '1fr' : '220px 1fr') : (p.$collapsed ? '0 1fr' : '300px 1fr')};
+  ${p => p.$projectFull ? `grid-template-rows: ${p.$hasDetail ? '1fr' : 'auto 1fr'};` : ''}
   height: 100%; min-height: 0;
   background: #F8FAFC;
   overflow: hidden;
@@ -1555,7 +1556,8 @@ const Sidebar = styled.aside<{ $hasDetail?: boolean; $projectFull?: boolean }>`
   display: flex; flex-direction: column; position: relative;
   background: #fff; border-right: 1px solid #E2E8F0;
   min-height: 0;
-  /* 프로젝트: 좌측 카테고리 패널로 항상 표시(상세 열려도 유지 — 풀스크린 takeover 아님) */
+  /* 프로젝트: 카테고리 패널(좌). 단 문서를 열면(상세/편집) 숨겨 상세를 풀폭으로. */
+  ${p => (p.$projectFull && p.$hasDetail) ? 'display: none;' : ''}
   @media (max-width: 900px) {
     border-right: none; border-bottom: 1px solid #E2E8F0;
     /* 모바일에서 문서 선택 시 리스트 숨기고 상세만 표시 */
@@ -1800,10 +1802,6 @@ const CatPanel = styled.div`
   display: flex; flex-direction: column; gap: 1px;
   padding: 8px; overflow-y: auto; min-height: 0;
 `;
-const CatSearch = styled.div`
-  display: flex; flex-direction: column; gap: 6px;
-  padding: 2px 2px 10px; margin-bottom: 4px; border-bottom: 1px solid #F1F5F9;
-`;
 const CatHead = styled.div`
   font-size: 11px; font-weight: 700; color: #94A3B8; text-transform: uppercase;
   letter-spacing: 0.4px; padding: 6px 8px 8px;
@@ -1829,13 +1827,13 @@ const CatCount = styled.span`
 const ProjBrowseWrap = styled.div`
   display: flex; flex-direction: column; min-height: 0; height: 100%;
 `;
-const ProjToolbar = styled.div`
-  display: flex; align-items: center; justify-content: flex-end; gap: 10px;
-  padding: 12px 16px; border-bottom: 1px solid #F1F5F9; flex-shrink: 0;
+// 상단 전체폭 툴바 (파일 탭 Toolbar 위치) — 검색 + 정렬 + 생성. 그리드 두 컬럼 span.
+const ProjTop = styled.div`
+  grid-column: 1 / -1;
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px; border-bottom: 1px solid #E2E8F0; background: #fff; flex-wrap: wrap;
 `;
-const ProjToolbarBtns = styled.div`
-  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
-`;
+const ProjTopSpacer = styled.div`flex: 1;`;
 const ProjEmpty = styled.div`
   padding: 40px 24px; text-align: center; font-size: 13px; color: #94A3B8; line-height: 1.6;
 `;

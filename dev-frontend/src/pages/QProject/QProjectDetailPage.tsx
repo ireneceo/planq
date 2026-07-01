@@ -114,6 +114,8 @@ const QProjectDetailPage: React.FC = () => {
     setTabState(k);
     const sp = new URLSearchParams(searchParams);
     if (k === 'dashboard') sp.delete('tab'); else sp.set('tab', k);
+    // 탭 전환 시 문서 상세(?post) 초기화 — stale ?post 로 문서 탭이 목록 대신 상세로 바로 열리던 문제 방지
+    sp.delete('post');
     setSearchParams(sp, { replace: true });
   };
   const [newClientName, setNewClientName] = useState('');
