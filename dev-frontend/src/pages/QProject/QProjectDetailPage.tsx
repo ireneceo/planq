@@ -19,6 +19,7 @@ const TransactionsTab = React.lazy(() => import('./TransactionsTab'));
 const ProjectReportTab = React.lazy(() => import('./ProjectReportTab'));
 const ProjectKnowledgeTab = React.lazy(() => import('./ProjectKnowledgeTab'));
 const PostEditor = React.lazy(() => import('../../components/Docs/PostEditor'));
+const PostTableGrid = React.lazy(() => import('../../components/Docs/PostTableGrid')); // 표 문서 뷰(추가탭에서도 문서탭과 동일 렌더)
 import { fetchPost, type PostDetail } from '../../services/posts';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import CalendarPicker from '../../components/Common/CalendarPicker';
@@ -862,6 +863,7 @@ const QProjectDetailPage: React.FC = () => {
       {isDocTabKey(tab) && (
         <PinnedDocBody
           postId={Number(tab.replace('doc-', ''))}
+          businessId={project.business_id}
           onEdit={(pid) => {
             // #96 — 문서 탭(PostsPage)으로 이동 + ?post=N 쿼리 → 해당 문서 열림
             const sp = new URLSearchParams(searchParams);
@@ -944,7 +946,7 @@ const QProjectDetailPage: React.FC = () => {
 export default QProjectDetailPage;
 
 // ───────── 메뉴에 추가된 문서 탭 본문 (PostEditor read-only + 편집 액션) ─────────
-const PinnedDocBody: React.FC<{ postId: number; onEdit: (id: number) => void }> = ({ postId, onEdit }) => {
+const PinnedDocBody: React.FC<{ postId: number; businessId: number; onEdit: (id: number) => void }> = ({ postId, businessId, onEdit }) => {
   const { t } = useTranslation('qproject');
   const [detail, setDetail] = useState<PostDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -977,7 +979,20 @@ const PinnedDocBody: React.FC<{ postId: number; onEdit: (id: number) => void }> 
           </PinnedDocBtn>
         </PinnedDocActions>
       </PinnedDocHeader>
-      <PostEditor value={detail.content_json} onChange={() => {}} editable={false} />
+      {detail.kind === 'table' ? (
+        detail.q_record_id ? (
+          <PostTableGrid recordId={detail.q_record_id} businessId={businessId} readOnly />
+        ) : (
+          <PinnedDocInfo>
+            <div>{t('pinnedDoc.tableHint', '표 문서는 여기서 미리보기를 지원하지 않아요.')}</div>
+            <PinnedDocBtn type="button" onClick={() => onEdit(postId)}>
+              {t('pinnedDoc.openInDocs', '문서 탭에서 열기')}
+            </PinnedDocBtn>
+          </PinnedDocInfo>
+        )
+      ) : (
+        <PostEditor value={detail.content_json} onChange={() => {}} editable={false} />
+      )}
     </PinnedDocCard>
   );
 };
@@ -1015,6 +1030,12 @@ const PinnedDocLoading = styled.div`
 const PinnedDocEmpty = styled.div`
   text-align: center; padding: 40px; color: #DC2626; font-size: 13px;
   background: #FEF2F2; border: 1px solid #FECACA; border-radius: 12px;
+`;
+// 중립 안내(표 문서 등) — 에러 아님. 세로 정렬 + 버튼.
+const PinnedDocInfo = styled.div`
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  text-align: center; padding: 40px; color: #64748B; font-size: 13px;
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px;
 `;
 
 // ───────── Dashboard Timeline (공용 GanttTrack) ─────────

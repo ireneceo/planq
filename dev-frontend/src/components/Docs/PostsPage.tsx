@@ -129,6 +129,14 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     }, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
+  // URL(?post) → activeId 역방향 동기화. 탭 전환 등으로 외부에서 ?post 가 제거/변경되면 활성 문서도 따라감.
+  //   (옛: 최초 1회만 읽어서, 문서 탭 클릭으로 ?post 지워도 상세에 남던 버그)
+  useEffect(() => {
+    const v = Number(searchParams.get('post'));
+    const urlId = Number.isFinite(v) && v > 0 ? v : null;
+    setActiveId(prev => (prev === urlId ? prev : urlId));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
   const [detail, setDetail] = useState<PostDetail | null>(null);
   // N+67 — visibility 변경 모달 + fetch context
   const [visModalOpen, setVisModalOpen] = useState(false);
@@ -813,7 +821,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               ) : (
                 <AtGrid>
                   {[...filtered].sort((a, b) => projSort === 'name' ? a.title.localeCompare(b.title) : 0).map(r => (
-                    <AtCard key={r.id} $selected={activeId === r.id} onClick={() => setActiveId(activeId === r.id ? null : r.id)}>
+                    <AtCard key={r.id} $selected={activeId === r.id} onClick={() => setActiveId(r.id)}>
                       <RowPinBtn type="button" $on={pinnedIds.includes(r.id)} onClick={(e) => { e.stopPropagation(); togglePin(r.id); }}
                         aria-label={(pinnedIds.includes(r.id) ? t('project.docs.removeFromMenu', '상단 메뉴에서 제거') : t('project.docs.addToMenu', '상단 메뉴에 추가')) as string}
                         title={(pinnedIds.includes(r.id) ? t('project.docs.removeFromMenu', '상단 메뉴에서 제거') : t('project.docs.addToMenu', '상단 메뉴에 추가')) as string}>📌</RowPinBtn>
