@@ -496,6 +496,10 @@
       "deleteEmpty": "이 폴더는 비어있습니다"
     }
   },
+  "pinnedDoc": {
+    "tableHint": "표 문서는 여기서 미리보기를 지원하지 않아요.",
+    "openInDocs": "문서 탭에서 열기"
+  },
   "canvas": {
     "tabLabel": "캔버스",
     "intro": "전략 → 실행 → 산출물을 한 화면에",

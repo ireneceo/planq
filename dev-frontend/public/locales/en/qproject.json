@@ -496,6 +496,10 @@
       "deleteEmpty": "This folder is empty"
     }
   },
+  "pinnedDoc": {
+    "tableHint": "Table documents can't be previewed here.",
+    "openInDocs": "Open in Documents tab"
+  },
   "canvas": {
     "tabLabel": "Canvas",
     "intro": "Strategy → Execution → Deliverables, at a glance",
