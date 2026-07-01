@@ -54,7 +54,8 @@ export const Card = styled.div<{ $selected?: boolean }>`
   display:flex;flex-direction:column;transition:border-color .15s, box-shadow .15s;
   &:hover{border-color:#14B8A6;box-shadow:0 2px 8px rgba(20,184,166,.08);}
 `;
-export const CardName = styled.div`padding:8px 10px 2px;font-size:13px;font-weight:600;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
+// 문서 탭 카드는 우상단 핀 버튼(28px)을 얹으므로 오른쪽 여백만 확보 (파일 탭은 이 모듈을 쓰지 않아 영향 없음).
+export const CardName = styled.div`padding:8px 34px 2px 10px;font-size:13px;font-weight:600;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
 export const CardMeta = styled.div`padding:0 10px;font-size:11px;color:#64748B;display:flex;gap:4px;
   &:last-child{padding-bottom:10px;margin-top:2px;}
 `;
