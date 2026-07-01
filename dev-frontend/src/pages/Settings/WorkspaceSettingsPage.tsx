@@ -500,7 +500,7 @@ export default function WorkspaceSettingsPage() {
   // /business/settings/{language|timezone|storage|plan|cue} → 해당 섹션
   const isMembersMode = location.pathname.includes('/business/members');
   const visibleTabs = useMemo<TabKey[]>(() => (
-    isMembersMode ? ['members'] : ['brand', 'legal', 'language', 'permissions', 'plan', 'billing', 'mail-accounts', 'email', 'storage', 'cue', 'notifications', 'data-export']
+    isMembersMode ? ['members'] : ['brand', 'legal', 'language', 'permissions', 'plan', 'billing', 'mail-accounts', 'email', 'storage', 'cue', 'work-flow', 'notifications', 'data-export']
   ), [isMembersMode]);
 
   const tabFromUrl = useMemo<TabKey>(() => {

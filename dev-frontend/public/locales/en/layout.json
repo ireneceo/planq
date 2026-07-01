@@ -77,7 +77,13 @@
     "personalSettings": "Personal",
     "workspaceGroup": "Workspace",
     "myWorkSettings": "My Work Settings",
-    "myIntegrations": "My integrations"
+    "myIntegrations": "My integrations",
+    "subBasic": "Basics",
+    "subMembers": "Members & Access",
+    "subBilling": "Subscription & Billing",
+    "subIntegration": "Integrations & Storage",
+    "subOps": "Operations",
+    "subData": "Data"
   },
   "user": {
     "profile": "My Profile",
