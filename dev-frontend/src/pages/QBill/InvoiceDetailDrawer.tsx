@@ -12,7 +12,7 @@ import {
   getInvoice, markInstallmentPaid, unmarkInstallmentPaid,
   markInstallmentTaxInvoice, cancelInstallment, updateInvoiceStatus,
   markInvoiceTaxInvoice, markInvoiceCashReceipt,
-  findConversationForClient, deleteInvoice, sendInvoiceReminder, downloadInvoicePdf,
+  findConversationForClient, deleteInvoice, sendInvoiceReminder, sendInvoicePreview, downloadInvoicePdf,
   listInvoiceCorrections, getInvoiceStatusHistory, getInvoiceTimeline,
   type ApiInvoice, type ApiInstallment, type ApiReceiptCorrection, type ApiInvoiceStatusEvent, type ApiBillEvent,
 } from '../../services/invoices';
@@ -109,6 +109,8 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
   const [taxFile, setTaxFile] = useState<File | null>(null); // #77 — 발행 파일 첨부
   const [remindBusy, setRemindBusy] = useState(false);
   const [remindNote, setRemindNote] = useState<{ tone: 'ok' | 'warn'; text: string } | null>(null);
+  const [previewBusy, setPreviewBusy] = useState(false);
+  const [previewNote, setPreviewNote] = useState<{ tone: 'ok' | 'warn'; text: string } | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
 
   const onDownloadPdf = async () => {
@@ -275,6 +277,25 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
       onConfirm: () => { setConfirm(null); doMarkInvoicePaid(); },
     });
   };
+  const handleSendPreview = async () => {
+    if (!invoice || previewBusy) return;
+    setPreviewBusy(true);
+    setPreviewNote(null);
+    try {
+      const r = await sendInvoicePreview(invoice.business_id, invoice.id);
+      setPreviewNote({ tone: 'ok', text: t('detail.preview.sent', { defaultValue: '내 이메일({{to}})로 미리보기를 보냈어요', to: r.to }) as string });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '';
+      setPreviewNote({
+        tone: 'warn',
+        text: msg.includes('no_email')
+          ? (t('detail.preview.noEmail', { defaultValue: '내 계정 이메일이 없어 보낼 수 없어요' }) as string)
+          : (t('detail.preview.failed', { defaultValue: '미리보기 발송에 실패했어요. 잠시 후 다시 시도해 주세요' }) as string),
+      });
+    } finally {
+      setPreviewBusy(false);
+    }
+  };
   const handleSendReminder = async () => {
     if (!invoice || remindBusy) return;
     setRemindBusy(true);
@@ -344,6 +365,14 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
                 : t('detail.header.actions.edit', { defaultValue: '편집' }) as string}
             </ActionBtn>
           )}
+          {isOwner && invoice.status === 'draft' && (
+            <ActionBtn onClick={handleSendPreview} disabled={previewBusy} title={t('detail.preview.hint', { defaultValue: '고객에게 보내기 전 내 이메일로 미리보기 발송' }) as string}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+              {previewBusy
+                ? t('detail.preview.busy', { defaultValue: '보내는 중…' }) as string
+                : t('detail.preview.btn', { defaultValue: '나에게 미리보기' }) as string}
+            </ActionBtn>
+          )}
           {(invoice.status === 'draft' || invoice.status === 'canceled') && (
             <ActionBtn onClick={handleDelete} style={{ color: '#DC2626', borderColor: '#FECACA' }}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
@@ -395,6 +424,7 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
           )}
         </ActionRow>
         {remindNote && <RemindNote $tone={remindNote.tone}>{remindNote.text}</RemindNote>}
+        {previewNote && <RemindNote $tone={previewNote.tone}>{previewNote.text}</RemindNote>}
       </DrawerHeader>
 
       {/* ─── 본문 (스크롤) ─── */}

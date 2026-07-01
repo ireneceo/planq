@@ -464,6 +464,14 @@ export async function sendInvoiceReminder(
   return expectOk<SendReminderResult>(r);
 }
 
+/** 고객 발송 전, 발행자 본인 이메일로 청구서 PDF 미리보기 발송 (draft 유지). */
+export async function sendInvoicePreview(
+  businessId: number, invoiceId: number
+): Promise<{ sent: boolean; to: string }> {
+  const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}/send-preview`, { method: 'POST' });
+  return expectOk<{ sent: boolean; to: string }>(r);
+}
+
 export async function listSourceCandidates(
   businessId: number, opts: { category?: string; client_id?: number } = {}
 ): Promise<ApiSourcePost[]> {

@@ -278,6 +278,14 @@
       "customer": "Customer",
       "empty": "No activity"
     },
+    "preview": {
+      "btn": "Preview to me",
+      "busy": "Sending…",
+      "hint": "Send a preview to my email before sending to the client",
+      "sent": "Preview sent to your email ({{to}})",
+      "noEmail": "No email on your account, can't send",
+      "failed": "Failed to send preview. Please try again shortly"
+    },
     "reminder": {
       "action": "Send payment reminder",
       "sending": "Sending…",
