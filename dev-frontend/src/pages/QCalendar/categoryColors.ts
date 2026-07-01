@@ -2,7 +2,7 @@ import type { EventCategory, CalendarEvent } from './types';
 
 // 카테고리별 기본 팔레트 (파스텔 bg + 진한 fg) — 간트·상태 pill 과 톤 통일
 export const CATEGORY_PALETTE: Record<EventCategory, { bg: string; fg: string; border: string }> = {
-  personal: { bg: '#F5F3FF', fg: '#6D28D9', border: '#C4B5FD' },
+  personal: { bg: '#F0FDFA', fg: '#0F766E', border: '#5EEAD4' },
   work:     { bg: '#ECFDF5', fg: '#0F766E', border: '#5EEAD4' },
   meeting:  { bg: '#EFF6FF', fg: '#1D4ED8', border: '#93C5FD' },
   deadline: { bg: '#FFF1F2', fg: '#BE123C', border: '#FDA4AF' },

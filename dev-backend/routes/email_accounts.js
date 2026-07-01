@@ -136,6 +136,17 @@ router.put('/:businessId/email-accounts/:id', authenticateToken, checkBusinessAc
     if (!canManageAccount(req, acc)) return errorResponse(res, 'forbidden', 403);
     const b = req.body || {};
     const patch = {};
+    // #109 — 개인 ↔ 회사공용(scope) 전환. 옛 버그: PUT 에 scope 변경이 없어 "회사공용에 실수로 추가했는데 개인으로 못 바꿈".
+    //   회사공용→개인: 본인 소유로 이전(팀 계정 관리 권한은 canManageAccount 가 이미 admin 으로 게이트).
+    //   개인→회사공용: 공용화라 admin 만.
+    if (b.scope !== undefined) {
+      if (b.scope === 'personal') {
+        patch.owner_user_id = req.user.id;
+      } else {
+        if (!isAdmin(req)) return errorResponse(res, 'admin_required', 403);
+        patch.owner_user_id = null;
+      }
+    }
     if (b.display_name !== undefined) patch.display_name = b.display_name || null;
     if (b.imap_host !== undefined) patch.imap_host = b.imap_host;
     if (b.imap_port !== undefined) patch.imap_port = Number(b.imap_port) || 993;

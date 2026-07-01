@@ -19,7 +19,7 @@ import {
   getVideoStatus, createMeetingRoom, listTasksForCalendar,
 } from '../../services/calendar';
 import { listProjects } from '../../services/qtalk';
-import { taskToEvent, isTaskEvent, isPersonalEvent, personalToEvent } from './taskToEvent';
+import { taskToEvent, isTaskEvent, isPersonalEvent, personalToEvent, TASK_EVENT_ID_OFFSET } from './taskToEvent';
 import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
 import { apiFetch } from '../../contexts/AuthContext';
 import { todayInTz, detectBrowserTz } from '../../utils/timezones';
@@ -314,12 +314,15 @@ const QCalendarPage: React.FC = () => {
       if (p?.html_link) window.open(p.html_link, '_blank', 'noopener');
       return;
     }
-    // Task 이벤트는 같은 페이지에 TaskDetailDrawer 오버레이로 오픈 (재클릭 토글)
-    const asTask = taskEvents.find((e) => isTaskEvent(e) && e.id === id);
-    if (asTask && isTaskEvent(asTask)) {
-      setSelectedTaskId((cur) => (cur === asTask._task_id ? null : asTask._task_id));
+    // #104 — task 파생 이벤트(id ≥ OFFSET) 는 TaskDetailDrawer 오버레이. 캘린더 이벤트 id 와 겹침 없음.
+    if (id >= TASK_EVENT_ID_OFFSET) {
+      const asTask = taskEvents.find((e) => e.id === id);
+      if (asTask && isTaskEvent(asTask)) {
+        setSelectedTaskId((cur) => (cur === asTask._task_id ? null : asTask._task_id));
+      }
       return;
     }
+    // 숫자 id = 캘린더 이벤트
     setSelectedEventId((cur) => (cur === id ? null : id));
     setSelectedInstanceDate(instanceDate || null);
   }, [taskEvents, personalEvents]);

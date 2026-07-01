@@ -104,6 +104,6 @@ export async function reorderWorkstreams(projectId: number, orderedIds: number[]
 }
 
 // 캔버스 그룹 색 팔레트 (color 미지정 워크스트림에 index 기준 자동 배정)
-export const WORKSTREAM_PALETTE = ['#14B8A6', '#6366F1', '#F59E0B', '#EC4899', '#0EA5E9', '#84CC16', '#F43F5E', '#8B5CF6'];
+export const WORKSTREAM_PALETTE = ['#14B8A6', '#6366F1', '#F59E0B', '#EC4899', '#0EA5E9', '#84CC16', '#F43F5E', '#14B8A6'];
 export const wsColor = (ws: { color: string | null; order_index: number }, idx: number): string =>
   ws.color || WORKSTREAM_PALETTE[(ws.order_index ?? idx) % WORKSTREAM_PALETTE.length];

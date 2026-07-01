@@ -7,7 +7,7 @@ export const PROJECT_COLOR_PALETTE: { value: string; label: string }[] = [
   { value: '#3B82F6', label: 'Blue' },
   { value: '#F59E0B', label: 'Amber' },
   { value: '#22C55E', label: 'Green' },
-  { value: '#8B5CF6', label: 'Violet' },
+  { value: '#14B8A6', label: 'Violet' },
   { value: '#EC4899', label: 'Pink' },
   { value: '#6366F1', label: 'Indigo' },
   { value: '#F97316', label: 'Orange' },
