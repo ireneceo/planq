@@ -741,8 +741,8 @@ export default function WorkspaceSettingsPage() {
       case 'permissions': return t('tabs.permissions') as string;
       case 'cue':         return t('tabs.cue') as string;
       case 'billing':     return t('tabs.billing', '청구 설정') as string;
-      case 'email':       return t('tabs.email', '이메일') as string;
-      case 'mail-accounts': return t('tabs.mailAccounts', 'Q Mail 계정') as string;
+      case 'email':       return t('tabs.email', '발신 이메일') as string;
+      case 'mail-accounts': return t('tabs.mailAccounts', '메일 계정 연결') as string;
       case 'notifications': return t('tabs.notificationSettings', '알림 설정') as string;
       case 'work-flow':   return t('tabs.workFlow', '업무 관리') as string;
       case 'data-export': return t('tabs.dataExport', '데이터 내보내기') as string;
