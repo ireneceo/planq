@@ -70,11 +70,11 @@
     "cue": "Cue",
     "language": "언어·타임존",
     "billing": "청구 설정",
-    "email": "이메일",
+    "email": "발신 이메일",
     "notifications": "알림",
     "workFlow": "업무 관리",
     "integrations": "외부 연동",
-    "mailAccounts": "Q Mail 계정",
+    "mailAccounts": "메일 계정 연결",
     "personalSettings": "개인 설정",
     "workspaceGroup": "워크스페이스 설정",
     "myIntegrations": "내 외부 연동"
