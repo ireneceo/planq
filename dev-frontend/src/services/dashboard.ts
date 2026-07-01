@@ -11,6 +11,7 @@ export type TodoType =
   | 'task' | 'event' | 'invite' | 'mention' | 'email'
   | 'task_candidate' | 'invoice'
   | 'signature' | 'payment_notify' | 'tax_invoice'
+  | 'invoice_draft'  // 발행 대기 정기 청구서 초안 (owner/admin)
   | 'planq_subscription';  // PlanQ 플랫폼 → 워크스페이스 구독 청구 (owner 만)
 
 export type TodoVerb =
@@ -28,6 +29,7 @@ export type TodoVerb =
   | 'sign'
   | 'mark_paid'
   | 'issue_tax'
+  | 'issue'
   | 'candidate_other'
   | 'sign_rejected';
 

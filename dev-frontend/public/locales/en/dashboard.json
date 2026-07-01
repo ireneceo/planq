@@ -100,7 +100,8 @@
       "read": "New mention",
       "sign": "Sign",
       "mark_paid": "Mark paid",
-      "issue_tax": "Issue tax invoice"
+      "issue_tax": "Issue tax invoice",
+      "issue": "Issue"
     },
     "relTime": {
       "now": "Just now",
