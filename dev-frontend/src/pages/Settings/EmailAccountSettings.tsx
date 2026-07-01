@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
@@ -19,8 +20,13 @@ const EmailAccountSettings: React.FC = () => {
   const { user } = useAuth();
   const businessId = user?.business_id ? Number(user.business_id) : null;
   const isAdmin = user?.business_role === 'owner' || user?.business_role === 'admin' || user?.platform_role === 'platform_admin';
-  // 추가할 계정의 범위: 회사 공용(team, admin 만) | 개인(personal). 멤버 기본 = 개인.
-  const [addScope, setAddScope] = useState<'team' | 'personal'>(isAdmin ? 'team' : 'personal');
+  // 스코프 뷰 — ?scope=personal (내 메일 계정) vs 회사 공용(회사 메일). 메뉴 진입로가 범위를 결정.
+  const [searchParams] = useSearchParams();
+  const personalView = searchParams.get('scope') === 'personal';
+  // 추가할 계정의 범위: 개인 뷰 → 개인 고정, 회사 뷰 → 회사 공용(admin) / 개인(멤버) 기본.
+  const [addScope, setAddScope] = useState<'team' | 'personal'>(
+    personalView ? 'personal' : (isAdmin ? 'team' : 'personal')
+  );
 
   const [accounts, setAccounts] = useState<EmailAccountRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -175,24 +181,28 @@ const EmailAccountSettings: React.FC = () => {
 
   const teamAccounts = accounts.filter(a => !a.is_personal);
   const personalAccounts = accounts.filter(a => a.is_personal);
+  // 스코프 뷰에 따라 노출 계정 필터 — 개인 뷰=개인만, 회사 뷰=회사 공용만
+  const visibleAccounts = personalView ? personalAccounts : teamAccounts;
 
   return (
     <Wrap>
       <Toolbar>
-        <ScopeToggle role="group" aria-label={t('settings.scopeToggleLabel', '추가할 계정 범위') as string}>
-          <ScopeOption
-            type="button"
-            $active={addScope === 'team'}
-            disabled={!isAdmin}
-            title={!isAdmin ? (t('settings.teamAdminOnly', '회사 공용 메일은 관리자만 추가할 수 있어요') as string) : undefined}
-            onClick={() => setAddScope('team')}
-          >
-            {t('settings.scopeTeam', '회사 공용') as string}
-          </ScopeOption>
-          <ScopeOption type="button" $active={addScope === 'personal'} onClick={() => setAddScope('personal')}>
-            {t('settings.scopePersonal', '개인') as string}
-          </ScopeOption>
-        </ScopeToggle>
+        {!personalView && (
+          <ScopeToggle role="group" aria-label={t('settings.scopeToggleLabel', '추가할 계정 범위') as string}>
+            <ScopeOption
+              type="button"
+              $active={addScope === 'team'}
+              disabled={!isAdmin}
+              title={!isAdmin ? (t('settings.teamAdminOnly', '회사 공용 메일은 관리자만 추가할 수 있어요') as string) : undefined}
+              onClick={() => setAddScope('team')}
+            >
+              {t('settings.scopeTeam', '회사 공용') as string}
+            </ScopeOption>
+            <ScopeOption type="button" $active={addScope === 'personal'} onClick={() => setAddScope('personal')}>
+              {t('settings.scopePersonal', '개인') as string}
+            </ScopeOption>
+          </ScopeToggle>
+        )}
         <ActionsRow>
           <GoogleConnectBtn type="button" onClick={connectGmail}>
             <GoogleIcon viewBox="0 0 24 24">
@@ -213,7 +223,7 @@ const EmailAccountSettings: React.FC = () => {
 
       {loading ? (
         <Loading>{t('settings.loading', '로드 중...') as string}</Loading>
-      ) : accounts.length === 0 ? (
+      ) : visibleAccounts.length === 0 ? (
         <EmptyCard>
           <EmptyIcon>📬</EmptyIcon>
           <EmptyTitle>{t('settings.emptyTitle', '등록된 메일 계정이 없어요') as string}</EmptyTitle>
@@ -221,20 +231,14 @@ const EmailAccountSettings: React.FC = () => {
           <PrimaryBtn type="button" onClick={() => setEditing('new')}>{t('settings.addFirst', '첫 계정 등록') as string}</PrimaryBtn>
         </EmptyCard>
       ) : (
-        <>
-          {teamAccounts.length > 0 && (
-            <Group>
-              <GroupTitle>{t('settings.groupTeam', '회사 공용 메일') as string}</GroupTitle>
-              <AccountList>{teamAccounts.map(renderCard)}</AccountList>
-            </Group>
-          )}
-          {personalAccounts.length > 0 && (
-            <Group>
-              <GroupTitle>{t('settings.groupPersonal', '내 개인 메일') as string}</GroupTitle>
-              <AccountList>{personalAccounts.map(renderCard)}</AccountList>
-            </Group>
-          )}
-        </>
+        <Group>
+          <GroupTitle>
+            {personalView
+              ? t('settings.groupPersonal', '내 개인 메일') as string
+              : t('settings.groupTeam', '회사 공용 메일') as string}
+          </GroupTitle>
+          <AccountList>{visibleAccounts.map(renderCard)}</AccountList>
+        </Group>
       )}
 
       {/* 등록/편집 모달 */}
