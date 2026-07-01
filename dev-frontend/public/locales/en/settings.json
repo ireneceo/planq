@@ -213,6 +213,14 @@
       "title": "Google Drive",
       "desc": "App-scoped folder (drive.file) — PlanQ only accesses files it creates",
       "notConfigured": "Server OAuth is not configured (check .env)"
+    },
+    "gdriveTeam": {
+      "title": "Company Shared Google Drive",
+      "desc": "Workspace shared, stores project files · app-scoped folder (drive.file)"
+    },
+    "gdrivePersonal": {
+      "title": "My Personal Google Drive",
+      "desc": "My personal Drive, separate from the company · only I use it"
     }
   },
   "brand": {
