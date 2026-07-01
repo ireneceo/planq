@@ -13,16 +13,6 @@ interface ProviderState {
   connected_at?: string;
 }
 
-// 개인 외부 연동 (owner_scope='user') — ProfileIntegrationsPage 와 동일 구조 재사용
-interface ExternalConnection {
-  id: number | string;
-  owner_scope: 'workspace' | 'user';
-  provider: string;
-  account_email: string;
-  account_name: string | null;
-  is_active: boolean;
-}
-
 interface Props {
   businessId: number;
 }
@@ -39,9 +29,6 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState<'gdrive' | 'gcal' | null>(null);
   const [disconnectTarget, setDisconnectTarget] = useState<'gdrive' | 'gcal' | null>(null);
-  // 개인 Google Drive (owner_scope='user') — 회사 공용과 같은 페이지에서 통합 관리
-  const [personalDrive, setPersonalDrive] = useState<ExternalConnection[]>([]);
-  const [personalConnecting, setPersonalConnecting] = useState(false);
   // 독립 서버(S3 호환) — 운영 #29
   const [defaultProvider, setDefaultProvider] = useState<'planq' | 'gdrive' | 's3'>('planq');
   const [s3, setS3] = useState<{ endpoint?: string; region?: string; bucket?: string; path_prefix?: string; public_base_url?: string; is_active?: boolean; verified_at?: string | null; has_credentials?: boolean } | null>(null);
@@ -53,12 +40,11 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [pv, st, usage, stg, personal] = await Promise.all([
+      const [pv, st, usage, stg] = await Promise.all([
         apiFetch('/api/cloud/providers').then(r => r.json()).catch(() => null),
         apiFetch(`/api/cloud/status/${businessId}`).then(r => r.json()).catch(() => null),
         fetchStorageStatus(businessId),
         apiFetch(`/api/businesses/${businessId}/storage`).then(r => r.json()).catch(() => null),
-        apiFetch(`/api/me/external-connections?business_id=${businessId}`).then(r => r.json()).catch(() => null),
       ]);
       const next = {
         gdrive: { configured: !!pv?.data?.gdrive?.configured, connected: !!st?.data?.gdrive, ...st?.data?.gdrive },
@@ -66,9 +52,6 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
       };
       setProviders(next);
       setPlanqStatus(usage);
-      if (personal?.success && Array.isArray(personal.data)) {
-        setPersonalDrive(personal.data.filter((c: ExternalConnection) => c.provider === 'google_drive'));
-      }
       if (stg?.success) {
         setDefaultProvider(stg.data?.default_storage_provider || 'planq');
         setS3(stg.data?.s3 || null);
@@ -113,58 +96,16 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
 
   useEffect(() => { load(); }, [load]);
 
-  // OAuth 팝업 수신 (회사 공용 gdrive/gcal + 개인 personal)
+  // OAuth 팝업 수신 (회사 공용 gdrive/gcal)
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
       if ((e.data?.type === 'gdrive:connected' || e.data?.type === 'gcal:connected') && e.data.ok) {
         setConnecting(null);
         load();
       }
-      if (e.data?.type === 'personal:connected') {
-        setPersonalConnecting(false);
-        if (e.data.ok) load();
-      }
     };
     window.addEventListener('message', onMsg);
     return () => window.removeEventListener('message', onMsg);
-  }, [load]);
-
-  // 개인 Google Drive 연결 (ProfileIntegrationsPage connectPersonal 로직 이식)
-  const connectPersonalDrive = useCallback(async () => {
-    if (personalConnecting) return;
-    setPersonalConnecting(true);
-    try {
-      const r = await apiFetch('/api/me/oauth/google/initiate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider: 'google_drive', business_id: businessId }),
-      });
-      const j = await r.json();
-      if (!j.success || !j.data?.auth_url) {
-        setPersonalConnecting(false);
-        return;
-      }
-      const popup = window.open(j.data.auth_url, 'planq-personal-oauth', 'width=520,height=660');
-      if (!popup) {
-        setPersonalConnecting(false);
-        return;
-      }
-      // postMessage 미도착 채로 사용자가 닫는 케이스 — closed 폴링 안전망
-      const timer = window.setInterval(() => {
-        if (popup.closed) {
-          window.clearInterval(timer);
-          window.setTimeout(() => { setPersonalConnecting(false); load(); }, 200);
-        }
-      }, 800);
-    } catch {
-      setPersonalConnecting(false);
-    }
-  }, [businessId, personalConnecting, load]);
-
-  const disconnectPersonalDrive = useCallback(async (id: number | string) => {
-    if (typeof id === 'string') return;
-    await apiFetch(`/api/me/external-connections/${id}`, { method: 'DELETE' });
-    await load();
   }, [load]);
 
   const handleConnect = async (provider: 'gdrive' | 'gcal') => {
@@ -298,40 +239,6 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
           ) : (
             <PrimaryBtn type="button" disabled={!!connecting} onClick={() => handleConnect('gdrive')}>
               {connecting === 'gdrive' ? tr('storage.connecting', '연결 중…') : tr('storage.connect', '연결하기')}
-            </PrimaryBtn>
-          )}
-        </CardActions>
-      </ProviderCard>
-
-      {/* 내 개인 Google Drive (owner_scope='user') — 권한 게이트 없이 모든 멤버 노출 (개인 자산) */}
-      <ProviderCard $active={personalDrive.length > 0}>
-        <CardHead>
-          <CardIcon $bg="#EDE9FE" $fg="#7C3AED">
-            <svg width="22" height="22" viewBox="0 0 48 48">
-              <path fill="#FFC107" d="M17 6l-11 19 5 8 11-19z"/>
-              <path fill="#1E88E5" d="M17 6l11 19h11L28 6z"/>
-              <path fill="#4CAF50" d="M11 33l5 8h22l-5-8z"/>
-              <path fill="#E53935" d="M28 25l11 8h-22z" opacity="0.7"/>
-            </svg>
-          </CardIcon>
-          <CardTitleWrap>
-            <CardTitle>{tr('storage.gdrivePersonal.title', '내 개인 Google Drive')}</CardTitle>
-            <CardSub>
-              {personalDrive.length > 0
-                ? `${tr('storage.connected', '연결됨')} · ${personalDrive[0].account_email || ''}`
-                : tr('storage.gdrivePersonal.desc', '내 개인 Drive, 회사와 분리 · 나만 사용')}
-            </CardSub>
-          </CardTitleWrap>
-          {personalDrive.length > 0 && <StatusBadge $kind="active">{tr('storage.active', '사용 중')}</StatusBadge>}
-        </CardHead>
-        <CardActions>
-          {personalDrive.length > 0 ? (
-            <DangerBtn type="button" onClick={() => disconnectPersonalDrive(personalDrive[0].id)}>
-              {tr('storage.disconnect', '연결 해제')}
-            </DangerBtn>
-          ) : (
-            <PrimaryBtn type="button" disabled={personalConnecting} onClick={connectPersonalDrive}>
-              {personalConnecting ? tr('storage.connecting', '연결 중…') : tr('storage.connect', '연결하기')}
             </PrimaryBtn>
           )}
         </CardActions>

@@ -77,7 +77,13 @@
     "mailAccounts": "메일 계정 연결",
     "personalSettings": "개인 설정",
     "workspaceGroup": "워크스페이스 설정",
-    "myIntegrations": "내 외부 연동"
+    "myIntegrations": "내 외부 연동",
+    "subBasic": "기본",
+    "subMembers": "구성원·접근",
+    "subBilling": "구독·청구",
+    "subIntegration": "연동·저장",
+    "subOps": "운영",
+    "subData": "데이터"
   },
   "user": {
     "profile": "내 프로필",
