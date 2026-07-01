@@ -106,11 +106,11 @@ const SearchInput = styled.input`
   flex: 1; min-width: 200px; height: 36px;
   padding: 0 12px; border: 1px solid #E2E8F0; border-radius: 8px;
   font-size: 13px; color: #0F172A;
-  &:focus { outline: none; border-color: #8B5CF6; box-shadow: 0 0 0 3px rgba(139,92,246,0.12); }
+  &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(139,92,246,0.12); }
 `;
 const AccountTag = styled.span`
-  font-size: 12px; color: #6D28D9; background: #F5F3FF;
-  border: 1px solid #C4B5FD; border-radius: 999px; padding: 4px 10px; white-space: nowrap;
+  font-size: 12px; color: #0F766E; background: #F0FDFA;
+  border: 1px solid #5EEAD4; border-radius: 999px; padding: 4px 10px; white-space: nowrap;
 `;
 const List = styled.div`display: flex; flex-direction: column; gap: 6px;`;
 const Row = styled.a<{ $clickable: boolean }>`
@@ -137,8 +137,8 @@ const Notice = styled.div`
 const NoticeText = styled.div`font-size: 13px; color: #475569; line-height: 1.6;`;
 const NoticeBtn = styled.button`
   height: 36px; padding: 0 16px;
-  background: #8B5CF6; color: #fff; border: none; border-radius: 8px;
+  background: #14B8A6; color: #fff; border: none; border-radius: 8px;
   font-size: 13px; font-weight: 600; cursor: pointer;
-  &:hover { background: #7C3AED; }
-  &:focus-visible { outline: 2px solid #C4B5FD; outline-offset: 2px; }
+  &:hover { background: #0F766E; }
+  &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
 `;

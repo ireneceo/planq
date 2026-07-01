@@ -31,7 +31,7 @@ const PLAN_COLOR: Record<PlanCode, { bg: string; fg: string }> = {
   starter:    { bg: '#FEF3C7', fg: '#92400E' },
   basic:      { bg: '#DBEAFE', fg: '#1D4ED8' },
   pro:        { bg: '#F0FDFA', fg: '#0F766E' },
-  enterprise: { bg: '#F3E8FF', fg: '#7C3AED' },
+  enterprise: { bg: '#F0FDFA', fg: '#0F766E' },
 };
 
 function fmtBytes(b: number): string {

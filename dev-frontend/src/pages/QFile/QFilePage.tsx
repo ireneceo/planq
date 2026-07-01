@@ -59,5 +59,5 @@ const Tab = styled.button<{ $active: boolean }>`
   box-shadow: ${(p) => (p.$active ? '0 1px 2px rgba(15,23,42,0.08)' : 'none')};
   transition: background 0.12s, color 0.12s;
   &:hover { color: #0F172A; }
-  &:focus-visible { outline: 2px solid #8B5CF6; outline-offset: 2px; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
 `;

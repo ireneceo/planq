@@ -17,7 +17,7 @@ import {
   type OrgDepartment,
 } from '../../services/org';
 
-const DEPT_COLORS = ['#14B8A6', '#F43F5E', '#6366F1', '#F59E0B', '#22C55E', '#0EA5E9', '#A855F7', '#64748B'];
+const DEPT_COLORS = ['#14B8A6', '#F43F5E', '#6366F1', '#F59E0B', '#22C55E', '#0EA5E9', '#14B8A6', '#64748B'];
 
 const OrgPage = () => {
   const { t } = useTranslation('org');

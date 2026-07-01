@@ -61,7 +61,7 @@ const Tip = styled.span<{ $placement: 'top' | 'bottom' }>`
 `;
 const GenBadge = styled.span`
   display:inline-flex;align-items:center;gap:3px;
-  font-size:10px;font-weight:700;color:#7C3AED;background:#F5F3FF;
+  font-size:10px;font-weight:700;color:#0F766E;background:#F0FDFA;
   border-radius:999px;padding:2px 8px;white-space:nowrap;
 `;
 

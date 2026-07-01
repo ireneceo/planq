@@ -1219,7 +1219,7 @@ function srcStyle(s: FileSource): string {
   switch (s) {
     case 'chat':    return 'background:#E0F2FE;color:#075985;';
     case 'task':    return 'background:#FEF3C7;color:#92400E;';
-    case 'meeting': return 'background:#F3E8FF;color:#6B21A8;';
+    case 'meeting': return 'background:#F0FDFA;color:#6B21A8;';
     default:        return 'background:#F0FDFA;color:#0F766E;';
   }
 }
@@ -1295,7 +1295,7 @@ function extPalette(ext: string): ExtPalette {
   if (['doc', 'docx'].includes(e)) return { bg: '#DBEAFE', fg: '#1D4ED8' };
   if (['xls', 'xlsx', 'csv'].includes(e)) return { bg: '#D1FAE5', fg: '#047857' };
   if (['ppt', 'pptx'].includes(e)) return { bg: '#FED7AA', fg: '#C2410C' };
-  if (['zip', 'rar', '7z', 'tar', 'gz'].includes(e)) return { bg: '#E9D5FF', fg: '#6D28D9' };
+  if (['zip', 'rar', '7z', 'tar', 'gz'].includes(e)) return { bg: '#F0FDFA', fg: '#0F766E' };
   if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(e)) return { bg: '#FCE7F3', fg: '#BE185D' };
   if (['mp3', 'wav', 'm4a'].includes(e)) return { bg: '#FEF9C3', fg: '#854D0E' };
   if (['mp4', 'mov', 'webm'].includes(e)) return { bg: '#E0E7FF', fg: '#4338CA' };
@@ -1413,7 +1413,7 @@ const FolderIconWrap = styled.div<{ $selected?: boolean; $sys?: FileSource }>`
   color:${p => {
     if (p.$sys === 'chat') return '#0EA5E9';
     if (p.$sys === 'task') return '#F59E0B';
-    if (p.$sys === 'meeting') return '#A855F7';
+    if (p.$sys === 'meeting') return '#14B8A6';
     return p.$selected ? '#0D9488' : '#64748B';
   }};
 `;

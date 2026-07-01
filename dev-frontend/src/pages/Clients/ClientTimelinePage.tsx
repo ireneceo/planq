@@ -180,7 +180,7 @@ const typeColor: Record<Channel, { bg: string; fg: string }> = {
   chat: { bg: '#F0FDFA', fg: '#0F766E' },
   email: { bg: '#EFF6FF', fg: '#1D4ED8' },
   task: { bg: '#FEF3C7', fg: '#92400E' },
-  invoice: { bg: '#F5F3FF', fg: '#6D28D9' },
+  invoice: { bg: '#F0FDFA', fg: '#0F766E' },
 };
 const TypeBadge = styled.span<{ $type: Channel }>`
   display: inline-flex; align-items: center; justify-content: center;

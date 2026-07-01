@@ -840,7 +840,7 @@ const RecurrenceBadge = styled.span`
   display: inline-flex; align-items: center; gap: 4px;
   padding: 3px 8px; border-radius: 999px;
   font-size: 11px; font-weight: 600;
-  background: #F5F3FF; color: #6D28D9;
+  background: #F0FDFA; color: #0F766E;
 `;
 const ReadOnlyHint = styled.span`
   font-size: 11px; font-weight: 500;

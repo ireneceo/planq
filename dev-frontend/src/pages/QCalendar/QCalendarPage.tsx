@@ -599,16 +599,16 @@ const PersonalToggle = styled.button<{ $on: boolean }>`
   font-size: 12px; font-weight: 600;
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s, opacity 0.12s;
-  border: 1px solid ${(p) => (p.$on ? '#C4B5FD' : '#E2E8F0')};
-  background: ${(p) => (p.$on ? '#F5F3FF' : '#FFFFFF')};
-  color: ${(p) => (p.$on ? '#6D28D9' : '#94A3B8')};
+  border: 1px solid ${(p) => (p.$on ? '#5EEAD4' : '#E2E8F0')};
+  background: ${(p) => (p.$on ? '#F0FDFA' : '#FFFFFF')};
+  color: ${(p) => (p.$on ? '#0F766E' : '#94A3B8')};
   opacity: ${(p) => (p.$on ? 1 : 0.7)};
-  &:hover { border-color: #C4B5FD; }
-  &:focus-visible { outline: 2px solid #8B5CF6; outline-offset: 2px; }
+  &:hover { border-color: #5EEAD4; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
 `;
 const PersonalDot = styled.span`
   width: 8px; height: 8px; border-radius: 50%;
-  background: #8B5CF6; flex-shrink: 0;
+  background: #14B8A6; flex-shrink: 0;
 `;
 const TodayBtn = styled.button`
   padding: 6px 12px; border: 1px solid #CBD5E1; border-radius: 6px;

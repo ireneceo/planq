@@ -45,7 +45,7 @@ const CAT_LABEL_KO: Record<Category, string> = {
 
 const CAT_BADGE_COLOR: Record<Category, string> = {
   tasks: '#0EA5E9', posts: '#F43F5E', records: '#14B8A6',
-  files: '#64748B', conversations: '#8B5CF6', knowledge: '#0D9488', clients: '#F59E0B', projects: '#10B981',
+  files: '#64748B', conversations: '#14B8A6', knowledge: '#0D9488', clients: '#F59E0B', projects: '#10B981',
 };
 
 const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId }) => {

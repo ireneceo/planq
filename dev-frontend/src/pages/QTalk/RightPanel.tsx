@@ -1014,7 +1014,7 @@ const TaskDue = styled.span`
 
 const RecurIcon = styled.span`
   font-size: 11px;
-  color: #7C3AED;
+  color: #0F766E;
 `;
 
 const QTaskLink = styled.button`
