@@ -1234,7 +1234,8 @@ router.get('/:id/canvas', authenticateToken, async (req, res, next) => {
       const bm = bmByUser.get(pm.user_id);
       return {
         user_id: pm.user_id,
-        name: pm.User?.name_localized?.ko || pm.User?.name || `user ${pm.user_id}`,
+        // #87 — 워크스페이스 표시명(BusinessMember.name) 우선. 없을 때만 계정명 fallback.
+        name: bm?.name_localized?.ko || bm?.name || pm.User?.name_localized?.ko || pm.User?.name || `user ${pm.user_id}`,
         role: pm.role,
         is_pm: !!pm.is_pm, // PM 배지 — 정식 project_members.is_pm (옛 default_assignee 임시 프록시 대체)
         dept: bm?.department?.name || null,
@@ -1476,11 +1477,12 @@ router.get('/:id/report', authenticateToken, async (req, res, next) => {
       include: [{ model: Department, as: 'department', attributes: ['name'], required: false }],
     }) : [];
     const deptByUser = new Map(bms.map((b) => [b.user_id, b.department?.name || null]));
+    const nameByUser = new Map(bms.map((b) => [b.user_id, b.name_localized?.ko || b.name || null]));  // #87 워크스페이스 표시명
     const team = pms.map((pm) => {
       const mine = tp.filter((t) => t.assignee_id === pm.user_id && t.status !== 'canceled');
       return {
         user_id: pm.user_id,
-        name: pm.User?.name_localized?.ko || pm.User?.name || `user ${pm.user_id}`,
+        name: nameByUser.get(pm.user_id) || pm.User?.name_localized?.ko || pm.User?.name || `user ${pm.user_id}`,
         dept: deptByUser.get(pm.user_id) || null,
         active: mine.filter((t) => t.status !== 'completed').length,
         completed: mine.filter((t) => t.status === 'completed').length,
@@ -1887,10 +1889,12 @@ router.get('/conversations/:convId/notes', authenticateToken, async (req, res, n
           { visibility: 'personal', author_user_id: req.user.id },
         ],
       },
-      include: [{ model: User, as: 'author', attributes: ['id', 'name'] }],
+      include: [{ model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] }],
       order: [['created_at', 'DESC']],
     });
-    return successResponse(res, notes.map((n) => n.toJSON()));
+    const notesJson = notes.map((n) => n.toJSON());
+    await applyMemberDisplayName(notesJson, conversation.business_id, ['author']);  // #87 표시명
+    return successResponse(res, notesJson);
   } catch (err) { next(err); }
 });
 
@@ -1911,14 +1915,16 @@ router.post('/conversations/:convId/notes', authenticateToken, async (req, res, 
       body: String(body).trim(),
     });
     const full = await ProjectNote.findByPk(note.id, {
-      include: [{ model: User, as: 'author', attributes: ['id', 'name'] }],
+      include: [{ model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] }],
     });
+    const noteJson = full.toJSON();
+    await applyMemberDisplayNameOne(noteJson, conversation.business_id, ['author']);  // #87 표시명
     // N+38 — business room broadcast (CLAUDE.md 16번 박제)
     const io = req.app.get('io');
     if (io && conversation.business_id) {
-      io.to(`business:${conversation.business_id}`).emit('note:new', full.toJSON());
+      io.to(`business:${conversation.business_id}`).emit('note:new', noteJson);
     }
-    return successResponse(res, full.toJSON());
+    return successResponse(res, noteJson);
   } catch (err) { next(err); }
 });
 
@@ -1930,10 +1936,12 @@ router.get('/conversations/:convId/issues', authenticateToken, async (req, res, 
     if (error) return errorResponse(res, error.message, error.code);
     const issues = await ProjectIssue.findAll({
       where: { conversation_id: conversation.id },
-      include: [{ model: User, as: 'author', attributes: ['id', 'name'] }],
+      include: [{ model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] }],
       order: [['created_at', 'DESC']],
     });
-    return successResponse(res, issues.map((i) => i.toJSON()));
+    const issuesJson = issues.map((i) => i.toJSON());
+    await applyMemberDisplayName(issuesJson, conversation.business_id, ['author']);  // #87 표시명
+    return successResponse(res, issuesJson);
   } catch (err) { next(err); }
 });
 
@@ -2031,10 +2039,12 @@ router.get('/:id/notes', authenticateToken, async (req, res, next) => {
     }
     const notes = await ProjectNote.findAll({
       where,
-      include: [{ model: User, as: 'author', attributes: ['id', 'name'] }],
+      include: [{ model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] }],
       order: [['created_at', 'DESC']],
     });
-    return successResponse(res, notes.map((n) => n.toJSON()));
+    const notesJson = notes.map((n) => n.toJSON());
+    await applyMemberDisplayName(notesJson, project.business_id, ['author']);  // #87 표시명
+    return successResponse(res, notesJson);
   } catch (err) { next(err); }
 });
 
@@ -2047,10 +2057,12 @@ router.get('/:id/issues', authenticateToken, async (req, res, next) => {
     if (error) return errorResponse(res, error.message, error.code);
     const issues = await ProjectIssue.findAll({
       where: { project_id: project.id },
-      include: [{ model: User, as: 'author', attributes: ['id', 'name'] }],
+      include: [{ model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] }],
       order: [['created_at', 'DESC']],
     });
-    return successResponse(res, issues.map((i) => i.toJSON()));
+    const issuesJson = issues.map((i) => i.toJSON());
+    await applyMemberDisplayName(issuesJson, project.business_id, ['author']);  // #87 표시명
+    return successResponse(res, issuesJson);
   } catch (err) { next(err); }
 });
 
@@ -2703,6 +2715,9 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
       || await BusinessMember.findOne({ where: { business_id: bizId, user_id: req.user.id } })
       || await Business.findOne({ where: { id: bizId, owner_id: req.user.id } });
     if (!isMember) return errorResponse(res, 'Access denied', 403);
+    // #106 fix — visibility(L1~L4) 필터 필수. 옛 버그: 필터 없어 L1(나만보기) 파일이 전 멤버에게 노출.
+    const { getUserScope, fileListWhereByLevel } = require('../middleware/access_scope');
+    const fileScope = await getUserScope(req.user.id, bizId, req.user.platform_role);
 
     // 사이클 N+50 — UNION-style 집계 (direct + chat + task + post). 정식 pagination 은 SQL UNION refactor 필요.
     // 임시: 각 source 최대 2000 cap + 최종 merge 결과 limit/offset 인메모리 슬라이스.
@@ -2723,12 +2738,14 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
     // 1) direct 파일 — 프로젝트 소속 + "내 파일"(project_id NULL) 둘 다 포함
     const directFiles = await File.findAll({
       where: {
-        business_id: bizId,
-        deleted_at: null,
-        [Op.or]: [
-          { project_id: { [Op.in]: projIds } },
-          { project_id: null }
-        ]
+        [Op.and]: [
+          fileListWhereByLevel(fileScope),   // #106 — L1 개인파일은 소유자만, L2 프로젝트/지정멤버, L3/L4 전체
+          { deleted_at: null },
+          { [Op.or]: [
+            { project_id: { [Op.in]: projIds } },
+            { project_id: null }
+          ] },
+        ],
       },
       include: [
         { model: User, as: 'uploader', attributes: ['id', 'name'] },

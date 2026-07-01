@@ -1976,14 +1976,20 @@ router.get('/daily-progress', authenticateToken, async (req, res, next) => {
       byDate.get(wd).focus_hours += sec / 3600;
     }
 
-    // ── 3) 누적 포커스 → act_used 와 max 병합 (정렬된 날짜 순) ──
+    // ── 3) actual 라인 계산 (정렬된 날짜 순) ──
+    //   actual_hours 는 누적 running total(스냅샷이 매일 같은 누적값) + 포커스에서 자동 누적됨 → 스냅샷이 진실값(리스트와 동일).
+    //   옛 버그 #101/#103: 주간 포커스 누적(focusCum)을 max 로 덮어써 리스트값(예: 4h)을 10.5h로 부풀리고,
+    //   과거일에도 포커스 누적이 섞여 월/화가 같게 보임. → 스냅샷 누적을 단조 보정해 쓰고, 오늘만 아침 이후 라이브 포커스 가산.
+    const todayStr = dateStrInTz(new Date(), tz);
     const sorted = Array.from(byDate.values()).sort((a, b) => (a.date < b.date ? -1 : 1));
     let focusCum = 0;
+    let actMax = 0;
     for (const b of sorted) {
       focusCum += b.focus_hours;
-      b.focus_cumulative = Math.round(focusCum * 10) / 10;
-      // actual 라인 = max(스냅샷 누적 actual, 포커스 누적). 포커스 미사용자는 스냅샷, 포커스 사용자는 실측.
-      b.act_used = Math.round(Math.max(b.act_used, focusCum) * 10) / 10;
+      actMax = Math.max(actMax, b.act_used);  // 스냅샷 누적 actual — 결측/감소 보정(단조 증가)
+      const liveFocus = (b.date === todayStr) ? b.focus_hours : 0;  // 오늘만: 아침 스냅샷 이후 측정한 포커스 가산
+      b.act_used = Math.round((actMax + liveFocus) * 10) / 10;
+      b.focus_cumulative = Math.round(focusCum * 10) / 10;  // 참고용 유지(프론트 호환)
       b.est_used = Math.round(b.est_used * 10) / 10;
       delete b.focus_hours;
     }
