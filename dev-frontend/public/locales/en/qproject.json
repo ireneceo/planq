@@ -284,7 +284,22 @@
       "last": "Last billed",
       "none": "None",
       "won": "KRW",
-      "setupHint": "Recurring billing not set up — enable monthly amount, billing day, and auto-issue in project settings to bill automatically each month."
+      "setupHint": "Recurring billing not set up — enable monthly amount, billing day, and auto-issue in project settings to bill automatically each month.",
+      "setupHintOwner": "Recurring billing isn't set up yet. Use \"Settings\" to set the monthly amount, billing day, and issue mode to bill automatically each month.",
+      "modeAuto": "Auto-send monthly",
+      "modeReview": "Review before issuing",
+      "edit": {
+        "btn": "Settings",
+        "enable": "Auto recurring billing",
+        "mode": "Issue mode",
+        "dayHint": "Bill on this day each month (1–28)",
+        "autoDesc": "On the billing day each month, the invoice is created and sent to the client automatically.",
+        "reviewDesc": "On the billing day each month, a draft is created and appears in \"To review\". You review it, then issue manually.",
+        "feeInvalid": "Please enter a valid monthly amount",
+        "dayInvalid": "Billing day must be between 1 and 28",
+        "ownerOnly": "Only the workspace owner can change recurring billing settings",
+        "failed": "Failed to save. Please try again shortly"
+      }
     }
   },
   "section": {

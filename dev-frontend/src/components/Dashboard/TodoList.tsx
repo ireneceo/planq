@@ -39,6 +39,7 @@ function TypeIcon({ type }: { type: TodoItem['type'] }) {
   if (type === 'email') return <IconEmail />;
   if (type === 'task_candidate') return <IconSpark />;
   if (type === 'invoice') return <IconBill />;
+  if (type === 'invoice_draft') return <IconBill />;  // 발행 대기 정기 청구서 초안
   if (type === 'signature') return <IconSign />;
   if (type === 'payment_notify') return <IconCash />;
   if (type === 'tax_invoice') return <IconReceipt />;

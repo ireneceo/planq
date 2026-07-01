@@ -380,6 +380,19 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     if (project_type !== undefined && ['fixed', 'ongoing'].includes(project_type)) patch.project_type = project_type;
     if (process_tab_label !== undefined) patch.process_tab_label = String(process_tab_label).trim().slice(0, 80) || '테이블';
 
+    // ─── 정기청구 설정 (재무) — owner/platform_admin 만. 자동발행 여부는 고객에게 자동 발송을 좌우하므로 invoice 정책과 동일하게 owner 전용. ───
+    const { billing_type, monthly_fee, invoice_billing_day, auto_invoice_enabled, auto_invoice_mode } = req.body || {};
+    const billingTouched = [billing_type, monthly_fee, invoice_billing_day, auto_invoice_enabled, auto_invoice_mode].some(v => v !== undefined);
+    if (billingTouched) {
+      const isPlatformAdmin = req.user.platform_role === 'platform_admin';
+      if (!isPlatformAdmin && role !== 'owner') return errorResponse(res, 'owner_only — billing settings require workspace owner', 403);
+      if (billing_type !== undefined && ['fixed', 'hourly', 'subscription', 'milestone', 'internal'].includes(billing_type)) patch.billing_type = billing_type;
+      if (monthly_fee !== undefined) { const f = Number(monthly_fee); if (Number.isFinite(f) && f >= 0) patch.monthly_fee = f; }
+      if (invoice_billing_day !== undefined) { const d = parseInt(invoice_billing_day, 10); if (d >= 1 && d <= 31) patch.invoice_billing_day = d; }
+      if (auto_invoice_enabled !== undefined) patch.auto_invoice_enabled = !!auto_invoice_enabled;
+      if (auto_invoice_mode !== undefined && ['auto', 'draft_review'].includes(auto_invoice_mode)) patch.auto_invoice_mode = auto_invoice_mode;
+    }
+
     const prevStatus = project.status;
     const prevName = project.name;
     await project.update(patch);
@@ -1747,15 +1760,26 @@ router.get('/:id/transactions', authenticateToken, async (req, res, next) => {
         monthly_fee: Number(project.monthly_fee || 0),
         billing_day: day,
         auto_enabled: !!project.auto_invoice_enabled,
+        mode: project.auto_invoice_mode,  // 'auto'=자동 발행+발송 / 'draft_review'=초안+검토 후 수동 발행
         last_billed_at: project.last_auto_invoice_at || null,
         next_due_at: nextDue,
         currency,
       };
     }
+    // 정기청구 설정 편집용 현재값 — billing_type 무관하게 항상 반환 (구독 ON/OFF 토글 포함).
+    const billingConfig = {
+      billing_type: project.billing_type,
+      monthly_fee: Number(project.monthly_fee || 0),
+      billing_day: project.invoice_billing_day || 1,
+      auto_enabled: !!project.auto_invoice_enabled,
+      mode: project.auto_invoice_mode || 'draft_review',
+      currency,
+    };
 
     return successResponse(res, {
       project: { id: project.id, name: project.name, status: project.status },
       subscription,
+      billingConfig,
       stages: stages.map(s => ({
         id: s.id, order: s.order_index, kind: s.kind, label: s.label, status: s.status,
         linked_entity_type: s.linked_entity_type, linked_entity_id: s.linked_entity_id,

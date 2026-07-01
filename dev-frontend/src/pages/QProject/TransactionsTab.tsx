@@ -59,13 +59,23 @@ interface SubscriptionInfo {
   monthly_fee: number;
   billing_day: number | null;
   auto_enabled: boolean;
+  mode?: 'auto' | 'draft_review';
   last_billed_at: string | null;
   next_due_at: string | null;
+  currency: string;
+}
+interface BillingConfig {
+  billing_type: string;
+  monthly_fee: number;
+  billing_day: number;
+  auto_enabled: boolean;
+  mode: 'auto' | 'draft_review';
   currency: string;
 }
 interface TransactionsResponse {
   project: { id: number; name: string; status: string };
   subscription?: SubscriptionInfo | null;
+  billingConfig?: BillingConfig | null;
   stages: Stage[];
   next_action: NextAction | null;
   summary: {
@@ -100,6 +110,7 @@ const TransactionsTab: React.FC<Props> = ({ projectId }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isClient = user?.business_role === 'client';
+  const isOwner = user?.business_role === 'owner' || user?.platform_role === 'platform_admin';
   const [data, setData] = useState<TransactionsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -111,6 +122,43 @@ const TransactionsTab: React.FC<Props> = ({ projectId }) => {
   const [addingNew, setAddingNew] = useState(false);
   const [newLabel, setNewLabel] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<Stage | null>(null);
+
+  // 정기청구 설정 편집 (owner 전용)
+  const [billOpen, setBillOpen] = useState(false);
+  const [billSaving, setBillSaving] = useState(false);
+  const [billNote, setBillNote] = useState<{ tone: 'ok' | 'warn'; text: string } | null>(null);
+  const [billDraft, setBillDraft] = useState<{ enabled: boolean; fee: string; day: string; mode: 'auto' | 'draft_review' }>({ enabled: false, fee: '', day: '1', mode: 'draft_review' });
+  const openBillEdit = (cfg: BillingConfig) => {
+    setBillDraft({ enabled: cfg.auto_enabled, fee: String(cfg.monthly_fee || ''), day: String(cfg.billing_day || 1), mode: cfg.mode || 'draft_review' });
+    setBillNote(null);
+    setBillOpen(true);
+  };
+  const saveBilling = async () => {
+    if (billSaving) return;
+    const feeNum = Number(billDraft.fee);
+    const dayNum = parseInt(billDraft.day, 10);
+    if (billDraft.enabled && (!Number.isFinite(feeNum) || feeNum <= 0)) { setBillNote({ tone: 'warn', text: t('tx.sub.edit.feeInvalid', { defaultValue: '월 청구액을 올바르게 입력하세요' }) as string }); return; }
+    if (billDraft.enabled && (!(dayNum >= 1 && dayNum <= 28))) { setBillNote({ tone: 'warn', text: t('tx.sub.edit.dayInvalid', { defaultValue: '청구일은 1~28 사이로 입력하세요' }) as string }); return; }
+    setBillSaving(true); setBillNote(null);
+    try {
+      const body: Record<string, unknown> = {
+        auto_invoice_enabled: billDraft.enabled,
+        auto_invoice_mode: billDraft.mode,
+      };
+      if (billDraft.enabled) { body.billing_type = 'subscription'; body.monthly_fee = feeNum; body.invoice_billing_day = dayNum; }
+      const r = await apiFetch(`/api/projects/${projectId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error(String(r.status));
+      await reloadStages();
+      setBillOpen(false);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '';
+      setBillNote({ tone: 'warn', text: msg.includes('403') ? (t('tx.sub.edit.ownerOnly', { defaultValue: '정기청구 설정은 워크스페이스 소유자만 변경할 수 있어요' }) as string) : (t('tx.sub.edit.failed', { defaultValue: '저장에 실패했어요. 잠시 후 다시 시도해 주세요' }) as string) });
+    } finally {
+      setBillSaving(false);
+    }
+  };
 
   const reloadStages = async () => {
     const r = await apiFetch(`/api/projects/${projectId}/transactions`);
@@ -275,7 +323,7 @@ const TransactionsTab: React.FC<Props> = ({ projectId }) => {
   if (err) return <ErrorBanner>{err}</ErrorBanner>;
   if (!data) return <Loading>{t('common.loading', '불러오는 중...')}</Loading>;
 
-  const { summary, posts, invoices, stages, next_action, subscription } = data;
+  const { summary, posts, invoices, stages, next_action, subscription, billingConfig } = data;
   const currencyDisp = summary.currency;
   const fmtMoney = (n: number) => currencyDisp === 'KRW' ? `${n.toLocaleString()}${t('tx.sub.won', '원')}` : `${currencyDisp} ${n.toLocaleString()}`;
 
@@ -326,16 +374,71 @@ const TransactionsTab: React.FC<Props> = ({ projectId }) => {
         </NextActionCard>
       )}
 
-      {/* ② 구독형 — 정기 청구 현황 (월 금액·다음 청구 예정·자동발행) */}
-      {subscription && (
-        <SubCard $active={subscription.auto_enabled && subscription.monthly_fee > 0}>
+      {/* ② 구독형 — 정기 청구 현황 + 설정 (월 금액·청구일·자동발행·발행 방식) */}
+      {(subscription || (isOwner && billingConfig)) && (
+        <SubCard $active={!!subscription && subscription.auto_enabled && subscription.monthly_fee > 0}>
           <SubHead>
             <SubBadge>{t('tx.sub.badge', '구독 정기청구')}</SubBadge>
-            {subscription.auto_enabled && subscription.monthly_fee > 0
+            {subscription && subscription.auto_enabled && subscription.monthly_fee > 0
               ? <SubAuto $on>{t('tx.sub.autoOn', '자동 발행 켜짐')}</SubAuto>
               : <SubAuto>{t('tx.sub.autoOff', '자동 발행 꺼짐')}</SubAuto>}
+            {subscription && subscription.auto_enabled && (
+              <SubMode>{subscription.mode === 'auto' ? t('tx.sub.modeAuto', '매월 자동 발송') : t('tx.sub.modeReview', '검토 후 발행')}</SubMode>
+            )}
+            {isOwner && billingConfig && !billOpen && (
+              <SubEditBtn type="button" onClick={() => openBillEdit(billingConfig)}>{t('tx.sub.edit.btn', '설정')}</SubEditBtn>
+            )}
           </SubHead>
-          {subscription.monthly_fee > 0 ? (
+
+          {billOpen ? (
+            <BillForm>
+              <BillRow>
+                <BillLabel htmlFor="bill-enabled">{t('tx.sub.edit.enable', '자동 정기청구')}</BillLabel>
+                <Toggle
+                  id="bill-enabled" type="button" role="switch" aria-checked={billDraft.enabled} $on={billDraft.enabled}
+                  onClick={() => setBillDraft(d => ({ ...d, enabled: !d.enabled }))}
+                ><ToggleKnob $on={billDraft.enabled} /></Toggle>
+              </BillRow>
+              {billDraft.enabled && (
+                <>
+                  <BillRow>
+                    <BillLabel htmlFor="bill-fee">{t('tx.sub.monthly', '월 청구액')}</BillLabel>
+                    <BillInput id="bill-fee" type="number" inputMode="numeric" min={0} value={billDraft.fee}
+                      onChange={(e) => setBillDraft(d => ({ ...d, fee: e.target.value }))} placeholder="0" />
+                  </BillRow>
+                  <BillRow>
+                    <BillLabel htmlFor="bill-day">{t('tx.sub.day', '청구일')}</BillLabel>
+                    <BillDayWrap>
+                      <BillInput id="bill-day" type="number" inputMode="numeric" min={1} max={28} value={billDraft.day}
+                        onChange={(e) => setBillDraft(d => ({ ...d, day: e.target.value }))} />
+                      <BillHint>{t('tx.sub.edit.dayHint', '매월 이 날짜에 청구 (1~28)')}</BillHint>
+                    </BillDayWrap>
+                  </BillRow>
+                  <BillRow>
+                    <BillLabel>{t('tx.sub.edit.mode', '발행 방식')}</BillLabel>
+                    <BillModeWrap>
+                      <BillSeg type="button" $on={billDraft.mode === 'draft_review'} onClick={() => setBillDraft(d => ({ ...d, mode: 'draft_review' }))}>
+                        {t('tx.sub.modeReview', '검토 후 발행')}
+                      </BillSeg>
+                      <BillSeg type="button" $on={billDraft.mode === 'auto'} onClick={() => setBillDraft(d => ({ ...d, mode: 'auto' }))}>
+                        {t('tx.sub.modeAuto', '매월 자동 발송')}
+                      </BillSeg>
+                    </BillModeWrap>
+                  </BillRow>
+                  <BillModeDesc>
+                    {billDraft.mode === 'auto'
+                      ? t('tx.sub.edit.autoDesc', '매월 청구일에 청구서가 자동 생성되어 고객에게 바로 발송됩니다.')
+                      : t('tx.sub.edit.reviewDesc', '매월 청구일에 초안이 생성되고 "확인요청"에 뜹니다. 내용을 검토한 뒤 직접 발행합니다.')}
+                  </BillModeDesc>
+                </>
+              )}
+              {billNote && <BillNote $tone={billNote.tone}>{billNote.text}</BillNote>}
+              <BillActions>
+                <BillCancel type="button" onClick={() => { setBillOpen(false); setBillNote(null); }} disabled={billSaving}>{t('common.cancel', '취소')}</BillCancel>
+                <BillSave type="button" onClick={saveBilling} disabled={billSaving}>{billSaving ? t('common.saving', '저장 중…') : t('common.save', '저장')}</BillSave>
+              </BillActions>
+            </BillForm>
+          ) : subscription && subscription.monthly_fee > 0 ? (
             <SubGrid>
               <SubItem><SubK>{t('tx.sub.monthly', '월 청구액')}</SubK><SubV>{fmtMoney(subscription.monthly_fee)}</SubV></SubItem>
               <SubItem><SubK>{t('tx.sub.day', '청구일')}</SubK><SubV>{subscription.billing_day ? t('tx.sub.dayVal', { defaultValue: '매월 {{d}}일', d: subscription.billing_day }) : '—'}</SubV></SubItem>
@@ -343,7 +446,9 @@ const TransactionsTab: React.FC<Props> = ({ projectId }) => {
               <SubItem><SubK>{t('tx.sub.last', '최근 청구')}</SubK><SubV>{subscription.last_billed_at ? formatDate(subscription.last_billed_at) : t('tx.sub.none', '없음')}</SubV></SubItem>
             </SubGrid>
           ) : (
-            <SubSetup>{t('tx.sub.setupHint', '구독 정기청구가 설정되지 않았습니다 — 프로젝트 설정에서 월 금액·청구일·자동 발행을 켜면 매월 자동 청구됩니다.')}</SubSetup>
+            <SubSetup>{isOwner
+              ? t('tx.sub.setupHintOwner', '아직 정기청구가 설정되지 않았습니다. "설정"에서 월 금액·청구일·발행 방식을 지정하면 매월 자동 청구됩니다.')
+              : t('tx.sub.setupHint', '구독 정기청구가 설정되지 않았습니다 — 프로젝트 설정에서 월 금액·청구일·자동 발행을 켜면 매월 자동 청구됩니다.')}</SubSetup>
           )}
         </SubCard>
       )}
@@ -659,7 +764,7 @@ const SubCard = styled.section<{ $active: boolean }>`
   background: ${p => p.$active ? '#F0FDFA' : '#F8FAFC'};
   border-radius: 12px; padding: 14px 16px; margin-bottom: 16px;
 `;
-const SubHead = styled.div`display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;`;
+const SubHead = styled.div`display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;`;
 const SubBadge = styled.span`font-size:12px;font-weight:700;color:#0F766E;`;
 const SubAuto = styled.span<{ $on?: boolean }>`
   font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;
@@ -670,6 +775,51 @@ const SubItem = styled.div`display:flex;flex-direction:column;gap:3px;`;
 const SubK = styled.span`font-size:11px;color:#64748B;font-weight:500;`;
 const SubV = styled.span`font-size:14px;color:#0F172A;font-weight:700;`;
 const SubSetup = styled.p`margin:0;font-size:12px;color:#64748B;line-height:1.5;`;
+const SubMode = styled.span`
+  font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;color:#0369A1;background:#E0F2FE;
+`;
+const SubEditBtn = styled.button`
+  margin-left:auto;font-size:12px;font-weight:600;color:#0F766E;background:#fff;
+  border:1px solid #99F6E4;border-radius:8px;padding:5px 12px;cursor:pointer;transition:background .15s;
+  &:hover{background:#F0FDFA;}
+`;
+// ─ 정기청구 설정 편집 폼 ─
+const BillForm = styled.div`display:flex;flex-direction:column;gap:12px;`;
+const BillRow = styled.div`display:flex;align-items:center;gap:12px;`;
+const BillLabel = styled.label`font-size:13px;font-weight:600;color:#334155;min-width:88px;`;
+const Toggle = styled.button<{ $on?: boolean }>`
+  position:relative;width:44px;height:24px;border-radius:999px;border:none;cursor:pointer;flex-shrink:0;
+  background:${p => p.$on ? '#14B8A6' : '#CBD5E1'};transition:background .15s;
+`;
+const ToggleKnob = styled.span<{ $on?: boolean }>`
+  position:absolute;top:2px;left:${p => p.$on ? '22px' : '2px'};width:20px;height:20px;border-radius:50%;
+  background:#fff;transition:left .15s;box-shadow:0 1px 2px rgba(0,0,0,.15);
+`;
+const BillInput = styled.input`
+  width:140px;height:36px;padding:0 12px;font-size:14px;color:#0F172A;
+  border:1px solid #E2E8F0;border-radius:8px;background:#fff;
+  &:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,.2);}
+`;
+const BillDayWrap = styled.div`display:flex;align-items:center;gap:10px;flex-wrap:wrap;`;
+const BillHint = styled.span`font-size:11px;color:#94A3B8;`;
+const BillModeWrap = styled.div`display:inline-flex;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:8px;padding:2px;gap:2px;`;
+const BillSeg = styled.button<{ $on?: boolean }>`
+  font-size:12px;font-weight:600;padding:6px 12px;border-radius:6px;cursor:pointer;border:none;transition:all .15s;
+  color:${p => p.$on ? '#fff' : '#64748B'};background:${p => p.$on ? '#14B8A6' : 'transparent'};
+`;
+const BillModeDesc = styled.p`margin:0;font-size:12px;color:#64748B;line-height:1.5;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px 12px;`;
+const BillNote = styled.p<{ $tone: 'ok' | 'warn' }>`
+  margin:0;font-size:12px;font-weight:500;color:${p => p.$tone === 'ok' ? '#15803D' : '#DC2626'};
+`;
+const BillActions = styled.div`display:flex;justify-content:flex-end;gap:8px;`;
+const BillCancel = styled.button`
+  font-size:13px;font-weight:600;color:#64748B;background:#fff;border:1px solid #E2E8F0;border-radius:8px;padding:8px 16px;cursor:pointer;
+  &:disabled{opacity:.5;cursor:default;}
+`;
+const BillSave = styled.button`
+  font-size:13px;font-weight:600;color:#fff;background:#14B8A6;border:none;border-radius:8px;padding:8px 16px;cursor:pointer;transition:background .15s;
+  &:hover{background:#0D9488;}&:disabled{opacity:.5;cursor:default;}
+`;
 const NextActionCard = styled.div<{ $kind: string }>`
   display: flex; align-items: center; gap: 16px;
   padding: 20px 22px;

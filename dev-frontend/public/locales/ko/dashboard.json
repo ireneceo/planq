@@ -100,7 +100,8 @@
       "read": "새 멘션",
       "sign": "서명",
       "mark_paid": "입금 확인",
-      "issue_tax": "세금계산서 발행"
+      "issue_tax": "세금계산서 발행",
+      "issue": "발행하기"
     },
     "relTime": {
       "now": "방금",
