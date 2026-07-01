@@ -1190,15 +1190,20 @@ router.post('/:businessId/:id/send', authenticateToken, checkBusinessAccess, req
     const deliver = { chat: null, email: null };
 
     // ① 채팅방 카드 메시지 (자동 검색 — 새 방 생성 X)
-    if (send_chat && invoice.client_id) {
+    if (send_chat && (invoice.project_id || invoice.client_id)) {
       try {
-        // project_id 우선, 없으면 client_id 단독
-        const where = { business_id: req.params.businessId, client_id: invoice.client_id };
         let conv = null;
+        // 프로젝트 청구 → 그 프로젝트의 '고객' 대화방(channel_type='customer').
+        //   프로젝트 대화방은 client_id=null 로 project_id 로 묶이므로 client_id 로 찾으면 못 찾던 버그 fix.
         if (invoice.project_id) {
-          conv = await Conversation.findOne({ where: { ...where, project_id: invoice.project_id }, order: [['last_message_at', 'DESC']] });
+          conv = await Conversation.findOne({ where: { business_id: req.params.businessId, project_id: invoice.project_id, channel_type: 'customer' }, order: [['last_message_at', 'DESC']] });
+          // 고객방이 없으면 그 프로젝트의 아무 대화방 (fallback)
+          if (!conv) conv = await Conversation.findOne({ where: { business_id: req.params.businessId, project_id: invoice.project_id }, order: [['last_message_at', 'DESC']] });
         }
-        if (!conv) conv = await Conversation.findOne({ where, order: [['last_message_at', 'DESC']] });
+        // standalone 고객 청구(프로젝트 없음) → client_id 로
+        if (!conv && invoice.client_id) {
+          conv = await Conversation.findOne({ where: { business_id: req.params.businessId, client_id: invoice.client_id }, order: [['last_message_at', 'DESC']] });
+        }
 
         if (conv) {
           const userMessage = String(message || '').slice(0, 1000);
@@ -1228,9 +1233,37 @@ router.post('/:businessId/:id/send', authenticateToken, checkBusinessAccess, req
             },
           });
           await conv.update({ last_message_at: new Date() });
+          // Socket.IO broadcast — conv + business room (CLAUDE.md §16). 누락 시 카드가 실시간으로 안 뜸.
+          try {
+            const full = await Message.findByPk(msg.id, { include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] }] });
+            const fullJson = full.toJSON();
+            try { const { applyMemberDisplayNameOne } = require('../services/displayName'); await applyMemberDisplayNameOne(fullJson, conv.business_id, ['sender']); } catch { /* display name best-effort */ }
+            const io = req.app.get('io');
+            if (io) {
+              io.to(`conv:${conv.id}`).emit('message:new', fullJson);
+              io.to(`business:${conv.business_id}`).emit('message:new', fullJson);
+            }
+          } catch (bErr) { console.warn('[invoice send chat broadcast]', bErr.message); }
+          // 알림 fan-out — 대화 참여자(발신자 제외)에게 새 메시지 알림 (CLAUDE.md §13)
+          try {
+            const { ConversationParticipant } = require('../models');
+            const parts = await ConversationParticipant.findAll({ where: { conversation_id: conv.id }, attributes: ['user_id'] });
+            const targetIds = parts.map(p => p.user_id).filter(uid => uid && uid !== req.user.id);
+            if (targetIds.length) {
+              const { notifyMany } = require('./notifications');
+              await notifyMany({
+                userIds: targetIds,
+                businessId: conv.business_id,
+                eventKind: 'message',
+                title: `[청구서] ${invoice.invoice_number}`,
+                body: `${invoice.title || ''} 청구서가 도착했습니다.`,
+                link: `/talk/${conv.id}`,
+              });
+            }
+          } catch (nErr) { console.warn('[invoice send chat notify]', nErr.message); }
           deliver.chat = { conversation_id: conv.id, message_id: msg.id };
         } else {
-          deliver.chat = { error: 'no_conversation_for_client' };
+          deliver.chat = { error: 'no_conversation' };
         }
       } catch (err) {
         deliver.chat = { error: err.message };

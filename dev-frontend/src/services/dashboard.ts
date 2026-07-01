@@ -65,6 +65,7 @@ export interface TodoResponse {
   items: TodoItem[];
   counts: Record<TodoPriority, number>;
   total: number;
+  billCount?: number;  // Q Bill 메뉴 뱃지 — 청구 관련 액션 대기 건수
   workspaces?: TodoWorkspace[];
 }
 

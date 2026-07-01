@@ -6,20 +6,21 @@ import { io, type Socket } from 'socket.io-client';
 import { fetchTodo } from '../services/dashboard';
 import { useAuth, getAccessToken } from '../contexts/AuthContext';
 
-export function useInboxCount(businessId: number | null | undefined): number {
-  const [count, setCount] = useState(0);
+export interface InboxCounts { total: number; bill: number }
+export function useInboxCount(businessId: number | null | undefined): InboxCounts {
+  const [count, setCount] = useState<InboxCounts>({ total: 0, bill: 0 });
   const socketRef = useRef<Socket | null>(null);
   const localCleanupRef = useRef<(() => void) | null>(null);
   const { user } = useAuth();
 
   useEffect(() => {
-    if (!businessId || !user) { setCount(0); return; }
+    if (!businessId || !user) { setCount({ total: 0, bill: 0 }); return; }
     let cancelled = false;
 
     const refresh = async () => {
       try {
         const r = await fetchTodo(businessId);
-        if (!cancelled) setCount(r.total || 0);
+        if (!cancelled) setCount({ total: r.total || 0, bill: r.billCount || 0 });
       } catch { /* silent */ }
     };
 

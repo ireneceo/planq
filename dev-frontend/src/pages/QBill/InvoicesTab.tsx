@@ -10,6 +10,7 @@ import {
 } from '../../services/invoices';
 import InvoiceDetailDrawer from './InvoiceDetailDrawer';
 import NewInvoiceModal from './NewInvoiceModal';
+import { ChipBar, Chip, ChipCount } from '../../components/QBill/FilterChips';
 
 type Filter = InvoiceStatus | 'all';
 
@@ -380,25 +381,6 @@ const NewBtn = styled.button`
   transition: background 0.15s;
   & > svg { display: block; flex-shrink: 0; }
   &:hover { background: #0D9488; }
-`;
-const ChipBar = styled.div`
-  display: flex; gap: 6px; flex-wrap: wrap;
-`;
-const Chip = styled.button<{ $active: boolean }>`
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 6px 12px; font-size: 12px; font-weight: 600;
-  background: ${p => p.$active ? '#0F172A' : '#fff'};
-  color: ${p => p.$active ? '#fff' : '#475569'};
-  border: 1px solid ${p => p.$active ? '#0F172A' : '#E2E8F0'};
-  border-radius: 999px; cursor: pointer;
-  transition: all 0.15s;
-  &:hover { border-color: ${p => p.$active ? '#0F172A' : '#CBD5E1'}; color: ${p => p.$active ? '#fff' : '#0F172A'}; }
-`;
-const ChipCount = styled.span<{ $active: boolean }>`
-  font-size: 11px; font-weight: 700;
-  padding: 1px 6px; border-radius: 999px;
-  background: ${p => p.$active ? 'rgba(255,255,255,0.2)' : '#F1F5F9'};
-  color: ${p => p.$active ? '#fff' : '#475569'};
 `;
 const Empty = styled.div`
   display: flex; flex-direction: column; align-items: center; justify-content: center;

@@ -14,6 +14,7 @@ import {
 } from '../../services/invoices';
 import SingleDateField from '../../components/Common/SingleDateField';
 import PlanQSelect from '../../components/Common/PlanQSelect';
+import { ChipBar, Chip, ChipCount } from '../../components/QBill/FilterChips';
 
 type Tab = 'pending' | 'issued' | 'all';
 
@@ -99,17 +100,17 @@ export default function TaxInvoicesTab() {
         </OverdueBanner>
       )}
 
-      <TabBar role="tablist">
-        {(['pending', 'issued', 'all'] as Tab[]).map(k => {
+      <ChipBar role="tablist">
+        {(['all', 'pending', 'issued'] as Tab[]).map(k => {
           const cnt = k === 'all' ? rows.length : (k === 'pending' ? pendingCount : rows.filter(r => r.status === k).length);
           return (
-            <TabBtn key={k} role="tab" aria-selected={tab === k} $active={tab === k} onClick={() => setTab(k)}>
+            <Chip key={k} role="tab" aria-selected={tab === k} $active={tab === k} onClick={() => setTab(k)}>
               <span>{t(`taxInvoices.tabs.${k}`)}</span>
-              {cnt > 0 && <TabCount $active={tab === k}>{cnt}</TabCount>}
-            </TabBtn>
+              {cnt > 0 && <ChipCount $active={tab === k}>{cnt}</ChipCount>}
+            </Chip>
           );
         })}
-      </TabBar>
+      </ChipBar>
 
       {loading ? (
         <Empty>{t('common.loading')}</Empty>
@@ -480,18 +481,6 @@ const InfoDesc = styled.div`font-size: 11px; color: #1E40AF; line-height: 1.5; m
 const OverdueBanner = styled.div`
   font-size: 12px; font-weight: 600; color: #991B1B;
   background: #FEF2F2; border: 1px solid #FECACA; border-radius: 10px; padding: 10px 14px;
-`;
-const TabBar = styled.div`display: flex; gap: 4px; border-bottom: 1px solid #E2E8F0; padding: 0 4px;`;
-const TabBtn = styled.button<{ $active: boolean }>`
-  display: inline-flex; align-items: center; gap: 6px; padding: 9px 14px; margin-bottom: -1px;
-  font-size: 13px; font-weight: 600; background: transparent; border: none; cursor: pointer;
-  color: ${p => p.$active ? '#0F172A' : '#64748B'};
-  border-bottom: 2px solid ${p => p.$active ? '#0D9488' : 'transparent'};
-`;
-const TabCount = styled.span<{ $active: boolean }>`
-  font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 999px;
-  background: ${p => p.$active ? '#CCFBF1' : '#F1F5F9'};
-  color: ${p => p.$active ? '#0F766E' : '#64748B'};
 `;
 const Empty = styled.div`
   text-align: center; padding: 60px 20px; color: #94A3B8; font-size: 13px;

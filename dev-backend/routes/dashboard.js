@@ -894,7 +894,11 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
     const counts = { urgent: 0, today: 0, waiting: 0, week: 0 };
     all.forEach(it => { counts[it.priority] += 1; });
 
-    return successResponse(res, { items: all, counts, total: all.length, workspaces });
+    // Q Bill 메뉴 뱃지용 — 청구 관련 액션 대기 건수 (발행 대기 정기 draft·증빙 발행·입금알림·결제 대기)
+    const BILL_TYPES = new Set(['invoice', 'invoice_draft', 'tax_invoice', 'payment_notify']);
+    const billCount = all.filter(it => BILL_TYPES.has(it.type)).length;
+
+    return successResponse(res, { items: all, counts, total: all.length, billCount, workspaces });
   } catch (err) {
     return next(err);
   }

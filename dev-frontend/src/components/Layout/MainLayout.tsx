@@ -727,7 +727,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
   const isAdminMode = location.pathname.startsWith('/admin');
-  const inboxCount = useInboxCount(user?.business_id ? Number(user.business_id) : null);
+  const inboxCounts = useInboxCount(user?.business_id ? Number(user.business_id) : null);
+  const inboxCount = inboxCounts.total;
+  const billMenuCount = inboxCounts.bill;  // Q Bill 메뉴 뱃지 — 청구 액션 대기 건수
   // N+63 — platform_admin 좌측 inbox badge (feedback + inquiries)
   const adminCounts = useAdminInboxCounts();
   // N+63 — 알림 feed (Activity Feed) 미읽음 카운트. 확인필요 (Action Queue) 와 분리.
@@ -1069,9 +1071,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   )}
                   <NavItem to="/bills" $isCollapsed={isCollapsed}
                     $active={isActive('/bills') || isActive('/billing')}
-                    title={isCollapsed ? t('nav.qbill', 'Q Bill') : undefined}>
+                    title={isCollapsed ? `${t('nav.qbill', 'Q Bill')}${billMenuCount > 0 ? ` (${billMenuCount})` : ''}` : undefined}>
                     <NavIcon $isCollapsed={isCollapsed}><IconBill /></NavIcon>
                     <NavLabel $isCollapsed={isCollapsed}>{t('nav.qbill', 'Q Bill')}</NavLabel>
+                    {billMenuCount > 0 && (
+                      <InboxBadge $collapsed={isCollapsed} aria-label={`${t('nav.qbill', 'Q Bill')} ${billMenuCount}`}>
+                        {billMenuCount > 99 ? '99+' : billMenuCount}
+                      </InboxBadge>
+                    )}
                   </NavItem>
                 </NavSection>
               )}
