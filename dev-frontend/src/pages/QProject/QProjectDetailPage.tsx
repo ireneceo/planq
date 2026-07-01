@@ -1,5 +1,5 @@
 // /projects/p/:id — 프로젝트 허브 (대시보드/업무/문서/고객/프로세스 파트 5탭)
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -8,15 +8,17 @@ import PageShell from '../../components/Layout/PageShell';
 import AutoSaveField from '../../components/Common/AutoSaveField';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
-import TasksTab from './TasksTab';
-import DocsTab from './DocsTab';
+import ProjectCanvas from './canvas/ProjectCanvas'; // 기본 탭 — 즉시 로드(로딩 플래시 없음)
+// 나머지 탭은 지연 로드(lazy) — 프로젝트 열 때 모든 탭 코드(+무거운 에디터 tiptap)를 한꺼번에
+// 받던 것을 탭 클릭 시점 로드로 분리. 초기 페이지 로드 대폭 경량화.
+const TasksTab = React.lazy(() => import('./TasksTab'));
+const DocsTab = React.lazy(() => import('./DocsTab'));
 // #96 — 프로젝트 '문서' 탭은 Q docs PostsPage 를 project scope 로 재사용 (문서·표·첨부 전 기능 동일).
-import PostsPage from '../../components/Docs/PostsPage';
-import TransactionsTab from './TransactionsTab';
-import ProjectReportTab from './ProjectReportTab';
-import ProjectCanvas from './canvas/ProjectCanvas';
-import ProjectKnowledgeTab from './ProjectKnowledgeTab';
-import PostEditor from '../../components/Docs/PostEditor';
+const PostsPage = React.lazy(() => import('../../components/Docs/PostsPage'));
+const TransactionsTab = React.lazy(() => import('./TransactionsTab'));
+const ProjectReportTab = React.lazy(() => import('./ProjectReportTab'));
+const ProjectKnowledgeTab = React.lazy(() => import('./ProjectKnowledgeTab'));
+const PostEditor = React.lazy(() => import('../../components/Docs/PostEditor'));
 import { fetchPost, type PostDetail } from '../../services/posts';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import CalendarPicker from '../../components/Common/CalendarPicker';
@@ -385,6 +387,7 @@ const QProjectDetailPage: React.FC = () => {
         })}
       </TabBar>
 
+      <Suspense fallback={<TabFallback>{t('common.loading', '불러오는 중…')}</TabFallback>}>
       {tab === 'dashboard' && (
         <ProjectCanvas projectId={projectId} businessId={project.business_id} />
       )}
@@ -867,6 +870,7 @@ const QProjectDetailPage: React.FC = () => {
           }}
         />
       )}
+      </Suspense>
 
       {closeModalOpen && (
         <CloseBackdrop onMouseDown={(e) => { if (e.target === e.currentTarget) setCloseModalOpen(false); }}>
@@ -1015,6 +1019,7 @@ const PinnedDocEmpty = styled.div`
 // ───────── styled ─────────
 const BackBtn = styled.button`padding:6px 12px;background:#FFF;color:#334155;border:1px solid #CBD5E1;border-radius:8px;font-size:12px;cursor:pointer;&:hover{background:#F8FAFC;border-color:#94A3B8;}`;
 const TabBar = styled.div`display:flex;gap:4px;border-bottom:1px solid #E2E8F0;background:#FFF;padding:0 20px;margin:-20px -20px 20px;`;
+const TabFallback = styled.div`padding:40px 24px;text-align:center;font-size:13px;color:#94A3B8;`;
 const Tab = styled.button<{$active:boolean}>`
   padding:12px 14px;background:transparent;border:none;color:${p=>p.$active?'#0F766E':'#64748B'};
   font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid ${p=>p.$active?'#14B8A6':'transparent'};

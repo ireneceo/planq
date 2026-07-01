@@ -708,6 +708,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   //   doc-탭으로 등장(QProjectDetailPage 가 localStorage 를 읽어 렌더). 옛 ProjectPostsTab 기능 복원.
   const isProject = scope.type === 'project';
   const projId = scope.type === 'project' ? scope.projectId : null;
+  const [projSort, setProjSort] = useState<'recent' | 'name'>('recent');
   const PIN_KEY = projId ? `qproject_pinned_docs_${projId}` : null;
   const [pinnedIds, setPinnedIds] = useState<number[]>(() => {
     if (!PIN_KEY) return [];
@@ -735,6 +736,39 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         </CollapsedStrip>
       ) : (
       <Sidebar $hasDetail={!!detail || isEditing} $projectFull={isProject}>
+        {isProject ? (
+          <CatPanel>
+            <CatSearch>
+              <SearchBox width="100%" value={query} onChange={setQuery} placeholder={t('search.placeholder', '문서 검색') as string} />
+              <PlanQSelect
+                size="sm"
+                value={{ value: projSort, label: (projSort === 'name' ? t('sort.name', '이름 순') : t('sort.recent', '최근 순')) as string }}
+                onChange={(v) => { const nv = (v as { value?: string } | null)?.value; if (nv === 'name' || nv === 'recent') setProjSort(nv); }}
+                options={[{ value: 'recent', label: t('sort.recent', '최근 순') as string }, { value: 'name', label: t('sort.name', '이름 순') as string }]}
+              />
+            </CatSearch>
+            <CatHead>{t('filter.byCategory', '카테고리') as string}</CatHead>
+            <CatRow type="button" $active={filter.kind === 'all'} onClick={() => setFilter({ kind: 'all' })}>
+              <CatName>{t('filter.all', '전체') as string}</CatName><CatCount>{meta.total}</CatCount>
+            </CatRow>
+            {meta.categories.map(c => (
+              <CatRow key={c.name} type="button" $active={filter.kind === 'category' && filter.name === c.name}
+                onClick={() => { if (filter.kind === 'category' && filter.name === c.name) setFilter({ kind: 'all' }); else setFilter({ kind: 'category', name: c.name }); }}>
+                <CatName>#{c.name}</CatName><CatCount>{c.count}</CatCount>
+              </CatRow>
+            ))}
+            {newCatOpen ? (
+              <NewCatInput autoFocus value={newCatDraft} onChange={e => setNewCatDraft(e.target.value)}
+                onBlur={async () => { const v = newCatDraft.trim(); setNewCatOpen(false); setNewCatDraft(''); if (!v) return; try { await createCategory(scope.businessId, v, scopeProjectId ?? null); await loadMeta(); setFilter({ kind: 'category', name: v }); } catch { /* silent */ } }}
+                onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') { setNewCatOpen(false); setNewCatDraft(''); } }}
+                placeholder={t('filter.newCategoryPlaceholder', '카테고리 이름 (Enter)') as string} maxLength={40} />
+            ) : (
+              <AddCatBtn type="button" onClick={() => setNewCatOpen(true)} title={t('filter.addCategory', '카테고리 추가') as string}>
+                + {t('filter.addCategory', '카테고리 추가')}
+              </AddCatBtn>
+            )}
+          </CatPanel>
+        ) : (<>
         <PanelHeader>
           <TitleGroup>
             <PanelTitle>{scope.type === 'workspace' ? t('page.title', 'Q docs') : t('tab.title', '문서')}</PanelTitle>
@@ -919,6 +953,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             ))
           )}
         </RowList>
+        </>)}
         {!isProject && (
           <EdgeHandle type="button" onClick={toggleSidebar} aria-label={t('sidebar.collapse', '리스트 접기') as string} title={t('sidebar.collapse', '리스트 접기') as string}>
             <EdgeChevron><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg></EdgeChevron>
@@ -1219,6 +1254,54 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               )}
             </Body>
           </>
+        ) : isProject ? (
+          <ProjBrowseWrap>
+            <ProjToolbar>
+              <ProjToolbarBtns>
+                <AiActionButton onClick={() => { setAiIntent('ai'); setAiOpen(true); }} label={t('ai.btn', 'AI')} title={t('ai.openHint', 'AI 가 문서 본문을 자동 작성') as string} />
+                <TemplateBtn type="button" onClick={openTemplateModal} title={t('templates.openHint', '템플릿에서 시작') as string}>{t('templates.btn', '템플릿')}</TemplateBtn>
+                <NewBtnWrap>
+                  <NewBtn type="button" onClick={() => setNewDropdownOpen(v => !v)} title={t('btn.new') as string} aria-label={t('btn.new') as string} aria-expanded={newDropdownOpen}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  </NewBtn>
+                  {newDropdownOpen && (
+                    <NewDropdown onMouseLeave={() => setNewDropdownOpen(false)}>
+                      <NewItem type="button" onClick={() => { setNewDropdownOpen(false); startNew(); }}>
+                        <NewItemTitle>{t('newDropdown.blankLabel', { defaultValue: '빈 문서' }) as string}</NewItemTitle>
+                        <NewItemDesc>{t('newDropdown.blankDesc', { defaultValue: '빈 본문으로 즉시 시작' }) as string}</NewItemDesc>
+                      </NewItem>
+                      <NewItem type="button" onClick={() => { setNewDropdownOpen(false); setAiIntent('manual'); setAiDefaultMode('table'); setAiOpen(true); }}>
+                        <NewItemTitle>{t('newDropdown.tableLabel', { defaultValue: '표' }) as string}</NewItemTitle>
+                        <NewItemDesc>{t('newDropdown.tableDesc', { defaultValue: '계정·자산 등 행/열 데이터' }) as string}</NewItemDesc>
+                      </NewItem>
+                    </NewDropdown>
+                  )}
+                </NewBtnWrap>
+              </ProjToolbarBtns>
+            </ProjToolbar>
+            {loading ? (
+              <Dim>{t('loading', '로딩 중…') as string}</Dim>
+            ) : filtered.length === 0 ? (
+              <ProjEmpty>{t('empty.line1', '매뉴얼 · 가이드 · 공지 · 회의록 — 팀이 함께 읽는 문서를 만들어 보세요.') as string}</ProjEmpty>
+            ) : (
+              <DocGrid>
+                {[...filtered].sort((a, b) => projSort === 'name' ? a.title.localeCompare(b.title) : 0).map(r => (
+                  <DocCard key={r.id} type="button" $active={activeId === r.id} onClick={() => setActiveId(activeId === r.id ? null : r.id)}>
+                    <DocCardPin type="button" $on={pinnedIds.includes(r.id)} onClick={(e) => { e.stopPropagation(); togglePin(r.id); }}
+                      aria-label={(pinnedIds.includes(r.id) ? t('project.docs.removeFromMenu', '상단 메뉴에서 제거') : t('project.docs.addToMenu', '상단 메뉴에 추가')) as string}
+                      title={(pinnedIds.includes(r.id) ? t('project.docs.removeFromMenu', '상단 메뉴에서 제거') : t('project.docs.addToMenu', '상단 메뉴에 추가')) as string}>📌</DocCardPin>
+                    <DocCardName>{r.title}</DocCardName>
+                    {r.content_preview && <DocCardPreview>{r.content_preview}</DocCardPreview>}
+                    <DocCardMeta>
+                      <span>{formatDate(r.updated_at)}</span>
+                      {r.category && <CategoryMini>#{r.category}</CategoryMini>}
+                      <RowVisChip $level={(r.vlevel as string) || 'L3'}>{visLabel(r.vlevel)}</RowVisChip>
+                    </DocCardMeta>
+                  </DocCard>
+                ))}
+              </DocGrid>
+            )}
+          </ProjBrowseWrap>
         ) : (
           <EmptyState
             icon={(
@@ -1458,8 +1541,8 @@ const PrintOnlyTitle = styled.h1`
 const Layout = styled.div<{ $collapsed?: boolean; $projectFull?: boolean }>`
   display: grid;
   /* 좌측 리스트 폭 — Q note 와 동일 (300px). 좌측 리스트 패턴 통일 */
-  /* 프로젝트 스코프: 단일 풀폭(다른 프로젝트 탭과 통일) — 목록↔상세 마스터-디테일 */
-  grid-template-columns: ${p => p.$projectFull ? '1fr' : (p.$collapsed ? '0 1fr' : '300px 1fr')};
+  /* 프로젝트 스코프: 파일 탭과 동일 — 좌측 카테고리 패널(220) 지속 + 우측(카드 그리드↔상세) */
+  grid-template-columns: ${p => p.$projectFull ? '220px 1fr' : (p.$collapsed ? '0 1fr' : '300px 1fr')};
   height: 100%; min-height: 0;
   background: #F8FAFC;
   overflow: hidden;
@@ -1472,11 +1555,7 @@ const Sidebar = styled.aside<{ $hasDetail?: boolean; $projectFull?: boolean }>`
   display: flex; flex-direction: column; position: relative;
   background: #fff; border-right: 1px solid #E2E8F0;
   min-height: 0;
-  /* 프로젝트 풀폭: 문서 열면 목록 숨기고 본문 풀폭 (마스터-디테일 단일 컬럼) */
-  ${p => p.$projectFull ? `
-    border-right: none;
-    display: ${p.$hasDetail ? 'none' : 'flex'};
-  ` : ''}
+  /* 프로젝트: 좌측 카테고리 패널로 항상 표시(상세 열려도 유지 — 풀스크린 takeover 아님) */
   @media (max-width: 900px) {
     border-right: none; border-bottom: 1px solid #E2E8F0;
     /* 모바일에서 문서 선택 시 리스트 숨기고 상세만 표시 */
@@ -1716,6 +1795,86 @@ const RowList = styled.div`
   display: flex; flex-direction: column;
   overflow-y: auto;
 `;
+// 프로젝트 문서 탭 — 파일 탭(DocsTab) 시각 그대로: 좌측 카테고리 패널 + 우측 카드 그리드.
+const CatPanel = styled.div`
+  display: flex; flex-direction: column; gap: 1px;
+  padding: 8px; overflow-y: auto; min-height: 0;
+`;
+const CatSearch = styled.div`
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 2px 2px 10px; margin-bottom: 4px; border-bottom: 1px solid #F1F5F9;
+`;
+const CatHead = styled.div`
+  font-size: 11px; font-weight: 700; color: #94A3B8; text-transform: uppercase;
+  letter-spacing: 0.4px; padding: 6px 8px 8px;
+`;
+const CatRow = styled.button<{ $active?: boolean }>`
+  all: unset; box-sizing: border-box; cursor: pointer;
+  display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 8px;
+  padding: 7px 10px; border-radius: 8px; min-height: 32px;
+  background: ${p => p.$active ? '#F0FDFA' : 'transparent'};
+  color: ${p => p.$active ? '#0F766E' : '#0F172A'};
+  &:hover { background: ${p => p.$active ? '#F0FDFA' : '#F8FAFC'}; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: -2px; }
+`;
+const CatName = styled.span`
+  min-width: 0; font-size: 13px; font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+`;
+const CatCount = styled.span`
+  font-size: 10px; color: #94A3B8; font-weight: 700;
+  min-width: 22px; padding: 1px 6px; background: #F1F5F9; border-radius: 999px;
+  text-align: center; justify-self: end;
+`;
+const ProjBrowseWrap = styled.div`
+  display: flex; flex-direction: column; min-height: 0; height: 100%;
+`;
+const ProjToolbar = styled.div`
+  display: flex; align-items: center; justify-content: flex-end; gap: 10px;
+  padding: 12px 16px; border-bottom: 1px solid #F1F5F9; flex-shrink: 0;
+`;
+const ProjToolbarBtns = styled.div`
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+`;
+const ProjEmpty = styled.div`
+  padding: 40px 24px; text-align: center; font-size: 13px; color: #94A3B8; line-height: 1.6;
+`;
+const DocGrid = styled.div`
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px; align-content: start;
+  padding: 16px; overflow-y: auto; min-height: 0;
+`;
+const DocCard = styled.button<{ $active?: boolean }>`
+  all: unset; box-sizing: border-box; cursor: pointer; position: relative;
+  display: flex; flex-direction: column; gap: 4px;
+  background: #fff; border: 2px solid ${p => p.$active ? '#14B8A6' : '#E2E8F0'};
+  border-radius: 10px; padding: 14px; min-height: 104px;
+  transition: border-color .15s, box-shadow .15s;
+  &:hover { border-color: #14B8A6; box-shadow: 0 2px 8px rgba(20,184,166,.08); }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+`;
+const DocCardPin = styled.button<{ $on: boolean }>`
+  position: absolute; top: 8px; right: 8px;
+  width: 26px; height: 26px; padding: 0; border: none; border-radius: 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 13px; line-height: 1;
+  background: ${p => p.$on ? '#F0FDFA' : 'transparent'};
+  filter: ${p => p.$on ? 'none' : 'grayscale(1) opacity(0.4)'};
+  &:hover { background: #F0FDFA; filter: none; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 1px; }
+`;
+const DocCardName = styled.div`
+  font-size: 13px; font-weight: 700; color: #0F172A; padding-right: 26px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+`;
+const DocCardPreview = styled.div`
+  font-size: 12px; color: #64748B; line-height: 1.5;
+  overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+`;
+const DocCardMeta = styled.div`
+  margin-top: auto; display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+  font-size: 11px; color: #94A3B8;
+`;
 const RowItem = styled.button<{ $active: boolean; $project?: boolean }>`
   all: unset; cursor: pointer; position: relative; display: block; width: 100%; box-sizing: border-box;
   padding: 12px 16px;
@@ -1808,8 +1967,7 @@ const Content = styled.section<{ $hasDetail?: boolean; $projectFull?: boolean }>
   display: flex; flex-direction: column;
   min-height: 0; overflow: hidden;
   background: #fff;
-  /* 프로젝트 풀폭: 문서 미선택 시 Content 숨기고 목록만(단일 컬럼 마스터-디테일) */
-  ${p => p.$projectFull && !p.$hasDetail ? 'display: none;' : ''}
+  /* 프로젝트: 우측 영역 — 문서 미선택 시 카드 그리드(browse), 선택 시 상세/편집 */
   /* 모바일에서 문서 미선택 시 Content 숨기고 리스트만 표시 */
   @media (max-width: 900px) {
     display: ${p => p.$hasDetail ? 'flex' : 'none'};
