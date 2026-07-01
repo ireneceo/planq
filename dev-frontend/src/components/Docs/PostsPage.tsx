@@ -777,7 +777,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           <SearchBox width="100%" value={query} onChange={setQuery} placeholder={t('search.placeholder', '제목·내용·프로젝트 검색') as string} />
         </SearchWrap>
 
-        <FilterSection>
+        <BrowseBody $split={isProject}>
+        <FilterSection $panel={isProject}>
           {/* 카테고리 — 전체 포함 */}
           <FilterGroupLabel>{t('filter.byCategory', '카테고리') as string}</FilterGroupLabel>
           <Chip type="button" $active={filter.kind === 'all'} onClick={() => setFilter({ kind: 'all' })}>
@@ -852,7 +853,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           )}
         </FilterSection>
 
-        <RowList>
+        <RowList $project={isProject}>
           {loading ? (
             <Dim>{t('loading', '로딩 중…')}</Dim>
           ) : filtered.length === 0 ? (
@@ -878,7 +879,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               onSecondaryCta={() => { setAiIntent('manual'); setAiDefaultMode('table'); setAiOpen(true); }}
             />
           ) : (
-            filtered.map(r => (
+            (() => { const _items = filtered.map(r => (
               <RowItem
                 key={r.id}
                 $active={activeId === r.id}
@@ -916,9 +917,10 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   <SecurityLevelBadge level={r.security_level} />
                 </RowMeta>
               </RowItem>
-            ))
+            )); return isProject ? <CardGrid>{_items}</CardGrid> : _items; })()
           )}
         </RowList>
+        </BrowseBody>
         {!isProject && (
           <EdgeHandle type="button" onClick={toggleSidebar} aria-label={t('sidebar.collapse', '리스트 접기') as string} title={t('sidebar.collapse', '리스트 접기') as string}>
             <EdgeChevron><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg></EdgeChevron>
@@ -1662,10 +1664,26 @@ const Empty = styled.div`grid-column:1/-1;padding:32px;text-align:center;color:#
 const SearchWrap = styled.div`
   padding: 12px 16px 8px; border-bottom: 1px solid #F1F5F9;
 `;
-const FilterSection = styled.div`
+const FilterSection = styled.div<{ $panel?: boolean }>`
   padding: 10px 16px; border-bottom: 1px solid #F1F5F9;
   display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
   max-height: 160px; overflow-y: auto;
+  ${p => p.$panel ? `
+    flex-direction: column; flex-wrap: nowrap; align-items: stretch;
+    max-height: none; height: 100%; overflow-y: auto;
+    border-bottom: none; border-right: 1px solid #E2E8F0;
+  ` : ''}
+`;
+// 프로젝트 문서 탭 — 파일 탭 구조(좌측 카테고리 패널 + 카드 그리드). 워크스페이스는 display:contents 로 무변경.
+const BrowseBody = styled.div<{ $split?: boolean }>`
+  ${p => p.$split ? `
+    display: grid; grid-template-columns: 200px 1fr;
+    flex: 1; min-height: 0; overflow: hidden;
+  ` : 'display: contents;'}
+`;
+const CardGrid = styled.div`
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px; align-content: start;
 `;
 const FilterGroupLabel = styled.div`
   width: 100%; font-size: 10px; font-weight: 700; color: #94A3B8;
@@ -1711,18 +1729,26 @@ const NewCatInput = styled.input`
 `;
 
 // 리스트 (세로 무제한 스크롤)
-const RowList = styled.div`
+const RowList = styled.div<{ $project?: boolean }>`
   flex: 1; min-height: 0;
   display: flex; flex-direction: column;
   overflow-y: auto;
+  ${p => p.$project ? 'padding: 14px;' : ''}
 `;
 const RowItem = styled.button<{ $active: boolean; $project?: boolean }>`
   all: unset; cursor: pointer; position: relative; display: block; width: 100%; box-sizing: border-box;
   padding: 12px 16px;
-  padding-right: ${p => p.$project ? '44px' : '16px'};
-  border-bottom: 1px solid #F1F5F9;
-  background: ${p => p.$active ? '#F0FDFA' : 'transparent'};
-  &:hover { background: ${p => p.$active ? '#F0FDFA' : '#F8FAFC'}; }
+  padding-right: ${p => p.$project ? '40px' : '16px'};
+  ${p => p.$project ? `
+    border: 1px solid ${p.$active ? '#14B8A6' : '#E2E8F0'};
+    border-radius: 10px; background: #fff; min-height: 92px;
+    box-shadow: ${p.$active ? '0 0 0 1px #14B8A6 inset' : '0 1px 2px rgba(15,23,42,0.04)'};
+    &:hover { border-color: #14B8A6; box-shadow: 0 4px 12px rgba(15,23,42,0.07); }
+  ` : `
+    border-bottom: 1px solid #F1F5F9;
+    background: ${p.$active ? '#F0FDFA' : 'transparent'};
+    &:hover { background: ${p.$active ? '#F0FDFA' : '#F8FAFC'}; }
+  `}
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: -2px; }
 `;
 // 행에서 '상단 메뉴에 추가(고정)' 토글 — 우측 상단 코너. 켜짐=teal, 꺼짐=흐린 회색(hover 시 진해짐).
