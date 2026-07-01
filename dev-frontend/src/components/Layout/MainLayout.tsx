@@ -329,12 +329,6 @@ const SecondaryGroupLabel = styled.div`
   &:not(:first-child) { margin-top: 8px; border-top: 1px solid #F1F5F9; padding-top: 14px; }
 `;
 
-// SecondaryPanel 소그룹 sub-header — GroupLabel 보다 작고 은은. 논리 소구획 구분.
-const SecondarySubLabel = styled.div`
-  padding: 12px 20px 4px 20px;
-  font-size: 11px; font-weight: 600; letter-spacing: 0.2px;
-  color: #94A3B8;
-`;
 
 const SecondaryNavItem = styled(Link)<{ $active?: boolean; $collapsed?: boolean }>`
   display: flex; align-items: center; gap: 10px;
@@ -622,12 +616,6 @@ const AccordionGroupLabel = styled.div`
   }
 `;
 
-// 아코디언 소그룹 sub-header — GroupLabel 보다 작고 은은. 논리 소구획 구분.
-const AccordionSubLabel = styled.div`
-  padding: 12px 16px 4px 48px;
-  font-size: 11px; font-weight: 600; letter-spacing: 0.2px;
-  color: #94A3B8;
-`;
 
 // ─────────────────────────────────────────────────────────────
 // Icon set
@@ -675,7 +663,7 @@ const IconClose = () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentCol
 
 interface MainLayoutProps { children: React.ReactNode; }
 
-type SecondarySection = 'reports' | 'settings' | null;
+type SecondarySection = 'reports' | 'settings' | 'account' | null;
 
 const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const { t } = useTranslation('layout');
@@ -779,12 +767,21 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   };
 
   // 현재 경로가 어느 Secondary 섹션에 속하는가
-  // 설정 Secondary 에 속하는 모든 경로: 워크스페이스/멤버/고객/프로필
+  // - reports: /stats/*
+  // - account (내 계정): /profile*, /me/work-settings*, 그리고 개인 스코프로 접근한 알림·메일계정·데이터
+  // - settings (워크스페이스): 그 외 /business·/settings
+  const accountScope = new URLSearchParams(location.search).get('scope') === 'personal';
+  const isAccountPath =
+    location.pathname.startsWith('/profile')
+    || location.pathname.startsWith('/me/work-settings')
+    || location.pathname === '/business/settings/notifications'
+    || (location.pathname === '/business/settings/data-export' && accountScope)
+    || (location.pathname === '/business/settings/mail-accounts' && accountScope);
   const currentSecondary: SecondarySection =
     location.pathname.startsWith('/stats') ? 'reports' :
+    isAccountPath ? 'account' :
     (location.pathname.startsWith('/business')
-      || location.pathname.startsWith('/settings')
-      || location.pathname.startsWith('/profile')) ? 'settings' :
+      || location.pathname.startsWith('/settings')) ? 'settings' :
     null;
 
   const sidebarW = isCollapsed ? SIDEBAR_W_COLLAPSED : SIDEBAR_W_OPEN;
@@ -1171,33 +1168,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     to="/business/settings"
                     onClick={handleSecondaryNavClick('settings')}
                     $isCollapsed={isCollapsed}
-                    $active={
-                      location.pathname.startsWith('/business/settings') ||
-                      location.pathname.startsWith('/settings') ||
-                      location.pathname.startsWith('/profile') ||
-                      location.pathname.startsWith('/me/work-settings')
-                    }
+                    $active={currentSecondary === 'settings'}
                     title={isCollapsed ? t('nav.settings') : undefined}
                   >
                     <NavIcon $isCollapsed={isCollapsed}><IconGear /></NavIcon>
                     <NavLabel $isCollapsed={isCollapsed}>{t('nav.settings')}</NavLabel>
                   </NavItem>
-                  {(location.pathname.startsWith('/business/settings')
-                    || location.pathname.startsWith('/settings')
-                    || location.pathname.startsWith('/profile')
-                    || location.pathname.startsWith('/me/work-settings')
-                    || isActive('/business/clients')
-                    || isActive('/business/members')
-                    || mobileExpandedSection === 'settings') && (
+                  {(currentSecondary === 'settings' || mobileExpandedSection === 'settings') && (
                     <AccordionWrap>
-                      {hasBiz('owner', 'member') && (
-                        <AccordionGroupLabel>{t('nav.workspaceGroup', '워크스페이스 설정')}</AccordionGroupLabel>
-                      )}
-
-                      {/* 기본 */}
-                      {hasBiz('owner', 'member') && (
-                        <AccordionSubLabel>{t('nav.subBasic', '기본')}</AccordionSubLabel>
-                      )}
                       {hasBiz('owner', 'member') && (
                         <AccordionItem
                           to="/business/settings"
@@ -1211,13 +1189,26 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                           <IconBuilding /> {t('nav.workspaceSettings', '워크스페이스')}
                         </AccordionItem>
                       )}
+                      {hasBiz('owner') && (
+                        <AccordionItem
+                          to="/business/settings/plan"
+                          $active={location.pathname.includes('/plan')}
+                        >
+                          <IconCreditCard /> {t('nav.plan', '구독 플랜')}
+                        </AccordionItem>
+                      )}
                       {hasBiz('owner', 'member') && (
                         <AccordionItem
-                          to="/business/settings/language"
-                          $active={location.pathname.includes('/language') || location.pathname.includes('/timezone')}
+                          to="/business/settings/work-env"
+                          $active={location.pathname.includes('/work-env') || location.pathname.includes('/language') || location.pathname.includes('/timezone') || location.pathname.includes('/work-flow')}
                         >
-                          <IconCalendar /> {t('nav.language', '언어·타임존')}
+                          <IconSliders /> {t('nav.workEnv', '업무 환경')}
                         </AccordionItem>
+                      )}
+
+                      {/* 〈구성원〉 */}
+                      {hasBiz('owner', 'member') && (
+                        <AccordionGroupLabel>{t('nav.subMembers', '구성원')}</AccordionGroupLabel>
                       )}
                       {hasBiz('owner') && (
                         <AccordionItem
@@ -1226,11 +1217,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                         >
                           <IconMembers /> {t('nav.org', '조직')}
                         </AccordionItem>
-                      )}
-
-                      {/* 구성원·접근 */}
-                      {hasBiz('owner', 'member') && (
-                        <AccordionSubLabel>{t('nav.subMembers', '구성원·접근')}</AccordionSubLabel>
                       )}
                       {hasBiz('owner') && (
                         <AccordionItem
@@ -1257,37 +1243,25 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                         </AccordionItem>
                       )}
 
-                      {/* 구독·청구 */}
-                      {hasBiz('owner') && (
-                        <AccordionSubLabel>{t('nav.subBilling', '구독·청구')}</AccordionSubLabel>
-                      )}
-                      {hasBiz('owner') && (
-                        <AccordionItem
-                          to="/business/settings/plan"
-                          $active={location.pathname.includes('/plan')}
-                        >
-                          <IconCreditCard /> {t('nav.plan', '구독 플랜')}
-                        </AccordionItem>
-                      )}
                       {hasBiz('owner') && (
                         <AccordionItem
                           to="/business/settings/billing"
                           $active={location.pathname.includes('/billing')}
                         >
-                          <IconReceipt /> {t('nav.billing', '청구 설정')}
+                          <IconReceipt /> {t('nav.billing', '청구')}
                         </AccordionItem>
                       )}
 
-                      {/* 연동·저장 */}
+                      {/* 〈연동〉 */}
                       {hasBiz('owner', 'member') && (
-                        <AccordionSubLabel>{t('nav.subIntegration', '연동·저장')}</AccordionSubLabel>
+                        <AccordionGroupLabel>{t('nav.subIntegration', '연동')}</AccordionGroupLabel>
                       )}
                       {hasBiz('owner', 'member') && (
                         <AccordionItem
                           to="/business/settings/mail-accounts"
                           $active={location.pathname.includes('/mail-accounts')}
                         >
-                          <IconInbox /> {t('nav.mailAccounts', '메일 계정 연결')}
+                          <IconInbox /> {t('nav.companyMail', '회사 메일')}
                         </AccordionItem>
                       )}
                       {hasBiz('owner') && (
@@ -1307,10 +1281,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                         </AccordionItem>
                       )}
 
-                      {/* 운영 */}
-                      {hasBiz('owner', 'member') && (
-                        <AccordionSubLabel>{t('nav.subOps', '운영')}</AccordionSubLabel>
-                      )}
                       {hasBiz('owner') && (
                         <AccordionItem
                           to="/business/settings/cue"
@@ -1319,45 +1289,65 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                           <IconInsights /> {t('nav.cue', 'Cue')}
                         </AccordionItem>
                       )}
-                      {hasBiz('owner', 'member') && (
-                        <AccordionItem
-                          to="/business/settings/work-flow"
-                          $active={location.pathname.includes('/work-flow')}
-                        >
-                          <IconTodo /> {t('nav.workFlow', '업무 관리')}
-                        </AccordionItem>
-                      )}
-                      {hasBiz('owner', 'member') && (
-                        <AccordionItem
-                          to="/business/settings/notifications"
-                          $active={location.pathname.includes('/notifications')}
-                        >
-                          <IconBell /> {t('nav.notifications', '알림')}
-                        </AccordionItem>
-                      )}
-
-                      {/* 데이터 */}
-                      {hasBiz('owner', 'member') && (
-                        <AccordionSubLabel>{t('nav.subData', '데이터')}</AccordionSubLabel>
-                      )}
-                      {hasBiz('owner', 'member') && (
+                      {hasBiz('owner') && (
                         <AccordionItem
                           to="/business/settings/data-export"
                           $active={location.pathname.includes('/data-export')}
                         >
-                          <IconDownload /> {t('nav.dataExport', '데이터 내보내기')}
+                          <IconDownload /> {t('nav.wsBackup', '워크스페이스 백업')}
                         </AccordionItem>
                       )}
-                      <AccordionGroupLabel>{t('nav.personalSettings', '개인 설정')}</AccordionGroupLabel>
+                    </AccordionWrap>
+                  )}
+
+                  {/* 내 계정 — 개인 2뎁스 */}
+                  <NavItem
+                    to="/profile"
+                    onClick={handleSecondaryNavClick('account')}
+                    $isCollapsed={isCollapsed}
+                    $active={currentSecondary === 'account'}
+                    title={isCollapsed ? t('nav.myAccount', '내 계정') : undefined}
+                  >
+                    <NavIcon $isCollapsed={isCollapsed}><IconUsers /></NavIcon>
+                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.myAccount', '내 계정')}</NavLabel>
+                  </NavItem>
+                  {(currentSecondary === 'account' || mobileExpandedSection === 'account') && (
+                    <AccordionWrap>
                       <AccordionItem to="/profile" $active={location.pathname === '/profile'}>
                         <IconUsers /> {t('user.profile')}
                       </AccordionItem>
-                      <AccordionItem to="/profile/integrations" $active={location.pathname.startsWith('/profile/integrations')}>
-                        <IconPlug /> {t('nav.myIntegrations', '내 외부 연동')}
+                      {hasBiz('owner', 'member') && (
+                        <AccordionItem to="/profile/integrations" $active={location.pathname.startsWith('/profile/integrations')}>
+                          <IconPlug /> {t('nav.myIntegrations', '내 외부 연동')}
+                        </AccordionItem>
+                      )}
+                      {hasBiz('owner', 'member') && (
+                        <AccordionItem
+                          to="/business/settings/mail-accounts?scope=personal"
+                          $active={location.pathname.includes('/mail-accounts') && accountScope}
+                        >
+                          <IconInbox /> {t('nav.myMailAccount', '내 메일 계정')}
+                        </AccordionItem>
+                      )}
+                      {hasBiz('owner', 'member') && (
+                        <AccordionItem to="/me/work-settings" $active={location.pathname.startsWith('/me/work-settings')}>
+                          <IconSliders /> {t('nav.myWorkEnv', '내 업무 환경')}
+                        </AccordionItem>
+                      )}
+                      <AccordionItem
+                        to="/business/settings/notifications"
+                        $active={location.pathname.includes('/notifications')}
+                      >
+                        <IconBell /> {t('nav.myNotifications', '내 알림')}
                       </AccordionItem>
-                      <AccordionItem to="/me/work-settings" $active={location.pathname.startsWith('/me/work-settings')}>
-                        <IconSliders /> {t('nav.myWorkSettings', '내 업무 설정')}
-                      </AccordionItem>
+                      {hasBiz('owner', 'member') && (
+                        <AccordionItem
+                          to="/business/settings/data-export?scope=personal"
+                          $active={location.pathname.includes('/data-export') && accountScope}
+                        >
+                          <IconDownload /> {t('nav.myData', '내 데이터')}
+                        </AccordionItem>
+                      )}
                     </AccordionWrap>
                   )}
                 </NavSection>
@@ -1525,14 +1515,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             </SecondaryCloseButton>
           </PanelHeader>
           <SecondaryBody>
-            {!secondaryCollapsed && hasBiz('owner', 'member') && (
-              <SecondaryGroupLabel>{t('nav.workspaceGroup', '워크스페이스 설정')}</SecondaryGroupLabel>
-            )}
-
-            {/* 기본 */}
-            {!secondaryCollapsed && hasBiz('owner', 'member') && (
-              <SecondarySubLabel>{t('nav.subBasic', '기본')}</SecondarySubLabel>
-            )}
             {hasBiz('owner', 'member') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/settings"
@@ -1547,13 +1529,26 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 <IconBuilding /> {t('nav.workspaceSettings', '워크스페이스')}
               </SecondaryNavItem>
             )}
+            {hasBiz('owner') && (
+              <SecondaryNavItem $collapsed={secondaryCollapsed}
+                to="/business/settings/plan"
+                $active={location.pathname.includes('/plan')}
+              >
+                <IconCreditCard /> {t('nav.plan', '구독 플랜')}
+              </SecondaryNavItem>
+            )}
             {hasBiz('owner', 'member') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed}
-                to="/business/settings/language"
-                $active={location.pathname.includes('/language') || location.pathname.includes('/timezone')}
+                to="/business/settings/work-env"
+                $active={location.pathname.includes('/work-env') || location.pathname.includes('/language') || location.pathname.includes('/timezone') || location.pathname.includes('/work-flow')}
               >
-                <IconCalendar /> {t('nav.language', '언어·타임존')}
+                <IconSliders /> {t('nav.workEnv', '업무 환경')}
               </SecondaryNavItem>
+            )}
+
+            {/* 〈구성원〉 */}
+            {!secondaryCollapsed && hasBiz('owner', 'member') && (
+              <SecondaryGroupLabel>{t('nav.subMembers', '구성원')}</SecondaryGroupLabel>
             )}
             {hasBiz('owner') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed}
@@ -1562,11 +1557,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               >
                 <IconMembers /> {t('nav.org', '조직')}
               </SecondaryNavItem>
-            )}
-
-            {/* 구성원·접근 */}
-            {!secondaryCollapsed && hasBiz('owner', 'member') && (
-              <SecondarySubLabel>{t('nav.subMembers', '구성원·접근')}</SecondarySubLabel>
             )}
             {hasBiz('owner') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed}
@@ -1594,37 +1584,25 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               </SecondaryNavItem>
             )}
 
-            {/* 구독·청구 */}
-            {!secondaryCollapsed && hasBiz('owner') && (
-              <SecondarySubLabel>{t('nav.subBilling', '구독·청구')}</SecondarySubLabel>
-            )}
-            {hasBiz('owner') && (
-              <SecondaryNavItem $collapsed={secondaryCollapsed}
-                to="/business/settings/plan"
-                $active={location.pathname.includes('/plan')}
-              >
-                <IconCreditCard /> {t('nav.plan', '구독 플랜')}
-              </SecondaryNavItem>
-            )}
             {hasBiz('owner') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/settings/billing"
                 $active={location.pathname.includes('/billing')}
               >
-                <IconReceipt /> {t('nav.billing', '청구 설정')}
+                <IconReceipt /> {t('nav.billing', '청구')}
               </SecondaryNavItem>
             )}
 
-            {/* 연동·저장 */}
+            {/* 〈연동〉 */}
             {!secondaryCollapsed && hasBiz('owner', 'member') && (
-              <SecondarySubLabel>{t('nav.subIntegration', '연동·저장')}</SecondarySubLabel>
+              <SecondaryGroupLabel>{t('nav.subIntegration', '연동')}</SecondaryGroupLabel>
             )}
             {hasBiz('owner', 'member') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/settings/mail-accounts"
                 $active={location.pathname.includes('/mail-accounts')}
               >
-                <IconInbox /> {t('nav.mailAccounts', '메일 계정 연결')}
+                <IconInbox /> {t('nav.companyMail', '회사 메일')}
               </SecondaryNavItem>
             )}
             {hasBiz('owner') && (
@@ -1644,10 +1622,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               </SecondaryNavItem>
             )}
 
-            {/* 운영 */}
-            {!secondaryCollapsed && hasBiz('owner', 'member') && (
-              <SecondarySubLabel>{t('nav.subOps', '운영')}</SecondarySubLabel>
-            )}
             {hasBiz('owner') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/settings/cue"
@@ -1656,49 +1630,70 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 <IconInsights /> {t('nav.cue', 'Cue')}
               </SecondaryNavItem>
             )}
-            {hasBiz('owner', 'member') && (
-              <SecondaryNavItem $collapsed={secondaryCollapsed}
-                to="/business/settings/work-flow"
-                $active={location.pathname.includes('/work-flow')}
-              >
-                <IconTodo /> {t('nav.workFlow', '업무 관리')}
-              </SecondaryNavItem>
-            )}
-            {hasBiz('owner', 'member') && (
-              <SecondaryNavItem $collapsed={secondaryCollapsed}
-                to="/business/settings/notifications"
-                $active={location.pathname.includes('/notifications')}
-              >
-                <IconBell /> {t('nav.notifications', '알림')}
-              </SecondaryNavItem>
-            )}
-
-            {/* 데이터 */}
-            {!secondaryCollapsed && hasBiz('owner', 'member') && (
-              <SecondarySubLabel>{t('nav.subData', '데이터')}</SecondarySubLabel>
-            )}
-            {hasBiz('owner', 'member') && (
+            {hasBiz('owner') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/settings/data-export"
                 $active={location.pathname.includes('/data-export')}
               >
-                <IconDownload /> {t('nav.dataExport', '데이터 내보내기')}
+                <IconDownload /> {t('nav.wsBackup', '워크스페이스 백업')}
               </SecondaryNavItem>
             )}
-            {!secondaryCollapsed && (
-              <SecondaryGroupLabel>{t('nav.personalSettings', '개인 설정')}</SecondaryGroupLabel>
-            )}
-            <SecondaryNavItem $collapsed={secondaryCollapsed} to="/profile" $active={isActive('/profile')}>
+          </SecondaryBody>
+        </SecondaryPanel>
+      )}
+
+      {/* 내 계정 — 개인 2뎁스 SecondaryPanel */}
+      {currentSecondary === 'account' && (
+        <SecondaryPanel $sidebarW={sidebarW} $collapsed={secondaryCollapsed} aria-label={t('nav.myAccount', '내 계정')}>
+          <PanelHeader>
+            {!secondaryCollapsed && <PanelTitle>{t('nav.myAccount', '내 계정')}</PanelTitle>}
+            <SecondaryCloseButton
+              type="button"
+              onClick={toggleSecondary}
+              aria-label={secondaryCollapsed ? t('nav.expandSecondary', '메뉴 펼치기') : t('nav.collapseSecondary', '메뉴 접기')}
+              title={secondaryCollapsed ? t('nav.expandSecondary', '메뉴 펼치기') : t('nav.collapseSecondary', '메뉴 접기')}
+            >
+              {secondaryCollapsed ? <IconChevronRight /> : <IconChevronLeft />}
+            </SecondaryCloseButton>
+          </PanelHeader>
+          <SecondaryBody>
+            <SecondaryNavItem $collapsed={secondaryCollapsed} to="/profile" $active={location.pathname === '/profile'}>
               <IconUsers /> {t('user.profile')}
             </SecondaryNavItem>
             {/* 개인 외부 연동 — 내 Google Drive/Calendar (워크스페이스 파일·외부연동과 별개) */}
-            <SecondaryNavItem $collapsed={secondaryCollapsed} to="/profile/integrations" $active={location.pathname.startsWith('/profile/integrations')}>
-              <IconPlug /> {t('nav.myIntegrations', '내 외부 연동')}
+            {hasBiz('owner', 'member') && (
+              <SecondaryNavItem $collapsed={secondaryCollapsed} to="/profile/integrations" $active={location.pathname.startsWith('/profile/integrations')}>
+                <IconPlug /> {t('nav.myIntegrations', '내 외부 연동')}
+              </SecondaryNavItem>
+            )}
+            {hasBiz('owner', 'member') && (
+              <SecondaryNavItem $collapsed={secondaryCollapsed}
+                to="/business/settings/mail-accounts?scope=personal"
+                $active={location.pathname.includes('/mail-accounts') && accountScope}
+              >
+                <IconInbox /> {t('nav.myMailAccount', '내 메일 계정')}
+              </SecondaryNavItem>
+            )}
+            {/* N+32 — 내 업무 환경 (타임존 + 업무 흐름). ProfilePage 와 분리. */}
+            {hasBiz('owner', 'member') && (
+              <SecondaryNavItem $collapsed={secondaryCollapsed} to="/me/work-settings" $active={isActive('/me/work-settings')}>
+                <IconSliders /> {t('nav.myWorkEnv', '내 업무 환경')}
+              </SecondaryNavItem>
+            )}
+            <SecondaryNavItem $collapsed={secondaryCollapsed}
+              to="/business/settings/notifications"
+              $active={location.pathname.includes('/notifications')}
+            >
+              <IconBell /> {t('nav.myNotifications', '내 알림')}
             </SecondaryNavItem>
-            {/* N+32 — 내 업무 설정 (타임존 + 업무 흐름). ProfilePage 와 분리. */}
-            <SecondaryNavItem $collapsed={secondaryCollapsed} to="/me/work-settings" $active={isActive('/me/work-settings')}>
-              <IconCalendar /> {t('nav.myWorkSettings', '내 업무 설정')}
-            </SecondaryNavItem>
+            {hasBiz('owner', 'member') && (
+              <SecondaryNavItem $collapsed={secondaryCollapsed}
+                to="/business/settings/data-export?scope=personal"
+                $active={location.pathname.includes('/data-export') && accountScope}
+              >
+                <IconDownload /> {t('nav.myData', '내 데이터')}
+              </SecondaryNavItem>
+            )}
           </SecondaryBody>
         </SecondaryPanel>
       )}
