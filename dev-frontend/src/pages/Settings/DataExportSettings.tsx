@@ -2,6 +2,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 import ActionButton from '../../components/Common/ActionButton';
 import { formatBytes } from '../../services/files';
 import PlanQSelect from '../../components/Common/PlanQSelect';
@@ -37,6 +38,9 @@ const IconClock = () => (
 const DataExportSettings: React.FC<Props> = ({ businessId, isOwner }) => {
   const { t } = useTranslation('settings');
   const tr = (k: string, fb?: string) => t(k, (fb ?? '') as string) as unknown as string;
+  // 스코프 뷰 — ?scope=personal (내 데이터) vs 워크스페이스 백업
+  const [searchParams] = useSearchParams();
+  const personalView = searchParams.get('scope') === 'personal';
 
   const [myPreview, setMyPreview] = useState<ExportPreview | null>(null);
   const [wsPreview, setWsPreview] = useState<ExportPreview | null>(null);
@@ -166,7 +170,8 @@ const DataExportSettings: React.FC<Props> = ({ businessId, isOwner }) => {
     <Wrap>
       <SectionDesc>{tr('dataExport.intro', '내 개인 자료 또는 워크스페이스 자료를 ZIP 파일로 내보냅니다. 파일은 원본 그대로, 문서는 HTML로 저장됩니다.')}</SectionDesc>
 
-      {/* ── 내 데이터 내보내기 (모든 멤버) ── */}
+      {/* ── 내 데이터 내보내기 (모든 멤버) — 개인 뷰 ── */}
+      {personalView && (
       <Card>
         <CardHead>
           <CardIcon $bg="#F0FDFA" $fg="#0F766E"><IconDownload /></CardIcon>
@@ -212,9 +217,10 @@ const DataExportSettings: React.FC<Props> = ({ businessId, isOwner }) => {
           )}
         </CardActions>
       </Card>
+      )}
 
-      {/* ── 워크스페이스 백업 (관리자만) ── */}
-      {isOwner && (
+      {/* ── 워크스페이스 백업 (관리자만) — 회사 뷰 ── */}
+      {!personalView && isOwner && (
         <Card>
           <CardHead>
             <CardIcon $bg="#FEF3C7" $fg="#92400E"><IconShield /></CardIcon>
@@ -254,8 +260,8 @@ const DataExportSettings: React.FC<Props> = ({ businessId, isOwner }) => {
         </Card>
       )}
 
-      {/* ── 워크스페이스 간 이전 (복사, 원본 유지) ── */}
-      {targets.length > 0 && (
+      {/* ── 워크스페이스 간 이전 (복사, 원본 유지) — 개인 뷰 ── */}
+      {personalView && targets.length > 0 && (
         <Card>
           <CardHead>
             <CardIcon $bg="#F0FDFA" $fg="#0F766E"><IconDownload /></CardIcon>

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { useLocation, useParams } from 'react-router-dom';
+import { useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import AutoSaveField from '../../components/Common/AutoSaveField';
 import PlanQSelect from '../../components/Common/PlanQSelect';
@@ -35,7 +35,7 @@ import {
   type CueInfo,
 } from '../../services/workspace';
 
-type TabKey = 'brand' | 'legal' | 'language' | 'storage' | 'plan' | 'permissions' | 'members' | 'cue' | 'billing' | 'email' | 'mail-accounts' | 'notifications' | 'work-flow' | 'data-export';
+type TabKey = 'brand' | 'legal' | 'language' | 'work-env' | 'storage' | 'plan' | 'permissions' | 'members' | 'cue' | 'billing' | 'email' | 'mail-accounts' | 'notifications' | 'work-flow' | 'data-export';
 
 // ─────────────────────────────────────────────
 // Styled
@@ -493,6 +493,7 @@ export default function WorkspaceSettingsPage() {
 
   const location = useLocation();
   const params = useParams<{ tab?: string }>();
+  const [searchParams] = useSearchParams();
 
   // URL 기반 섹션 결정. 사이드바 Secondary 에서 직접 접근하므로 내부 탭 UI 없음.
   // /business/members → members 섹션
@@ -500,7 +501,7 @@ export default function WorkspaceSettingsPage() {
   // /business/settings/{language|timezone|storage|plan|cue} → 해당 섹션
   const isMembersMode = location.pathname.includes('/business/members');
   const visibleTabs = useMemo<TabKey[]>(() => (
-    isMembersMode ? ['members'] : ['brand', 'legal', 'language', 'permissions', 'plan', 'billing', 'mail-accounts', 'email', 'storage', 'cue', 'work-flow', 'notifications', 'data-export']
+    isMembersMode ? ['members'] : ['brand', 'legal', 'work-env', 'plan', 'permissions', 'billing', 'mail-accounts', 'email', 'storage', 'cue', 'notifications', 'data-export']
   ), [isMembersMode]);
 
   const tabFromUrl = useMemo<TabKey>(() => {
@@ -511,8 +512,8 @@ export default function WorkspaceSettingsPage() {
       const segs = location.pathname.split('/').filter(Boolean);
       fromParam = (segs[segs.length - 1] || '').toLowerCase();
     }
-    // 언어 · 타임존 통합 — 기존 /timezone URL 은 언어 탭으로 흡수 (backward compat)
-    if (fromParam === 'timezone') fromParam = 'language';
+    // 업무 환경 통합 — 언어·타임존(옛 language/timezone)과 업무 관리(옛 work-flow)를 하나로 흡수 (backward compat)
+    if (fromParam === 'timezone' || fromParam === 'language' || fromParam === 'work-flow') fromParam = 'work-env';
     if (visibleTabs.includes(fromParam as TabKey)) return fromParam as TabKey;
     return visibleTabs[0];
   }, [params.tab, location.pathname, visibleTabs]);
@@ -732,25 +733,31 @@ export default function WorkspaceSettingsPage() {
   }, [cue]);
 
   // URL 기반 페이지 타이틀 — Secondary 메뉴 항목과 1:1 매칭
+  const isPersonalScope = searchParams.get('scope') === 'personal';
   const pageTitle = useMemo<string>(() => {
     if (isMembersMode) return t('membersPage.title') as string;
     switch (tab) {
-      case 'language':    return t('tabs.language') as string;
+      case 'work-env':    return t('tabs.workEnv', '업무 환경') as string;
       case 'storage':     return t('tabs.storage') as string;
       case 'plan':        return t('tabs.plan') as string;
       case 'permissions': return t('tabs.permissions') as string;
       case 'cue':         return t('tabs.cue') as string;
-      case 'billing':     return t('tabs.billing', '청구 설정') as string;
+      case 'billing':     return t('tabs.billing', '청구') as string;
       case 'email':       return t('tabs.email', '발신 이메일') as string;
-      case 'mail-accounts': return t('tabs.mailAccounts', '메일 계정 연결') as string;
-      case 'notifications': return t('tabs.notificationSettings', '알림 설정') as string;
-      case 'work-flow':   return t('tabs.workFlow', '업무 관리') as string;
-      case 'data-export': return t('tabs.dataExport', '데이터 내보내기') as string;
+      case 'mail-accounts': return isPersonalScope
+        ? t('tabs.myMailAccount', '내 메일 계정') as string
+        : t('tabs.mailAccounts', '메일 계정') as string;
+      case 'notifications': return isPersonalScope
+        ? t('tabs.myNotifications', '내 알림') as string
+        : t('tabs.notificationSettings', '알림 설정') as string;
+      case 'data-export': return isPersonalScope
+        ? t('tabs.myData', '내 데이터') as string
+        : t('tabs.wsBackup', '워크스페이스 백업') as string;
       case 'brand':
       case 'legal':
       default:          return t('page.title') as string;  // brand/legal = "워크스페이스"
     }
-  }, [isMembersMode, tab, t]);
+  }, [isMembersMode, tab, t, isPersonalScope]);
 
   if (loading) {
     return (
@@ -1082,8 +1089,8 @@ export default function WorkspaceSettingsPage() {
         </Card>
       )}
 
-      {/* ─── LANGUAGE ─── */}
-      {tab === 'language' && (
+      {/* ─── WORK ENV: 언어·타임존 + 업무 관리 통합 ─── */}
+      {tab === 'work-env' && (
         <Card>
           <SectionTitle>{t('language.sectionTitle')}</SectionTitle>
           <SectionDesc>{t('language.sectionDesc')}</SectionDesc>
@@ -1123,8 +1130,8 @@ export default function WorkspaceSettingsPage() {
         </Card>
       )}
 
-      {/* 타임존은 language 탭 내부에서 함께 렌더링 */}
-      {tab === 'language' && (
+      {/* 타임존은 업무 환경 탭 내부에서 함께 렌더링 */}
+      {tab === 'work-env' && (
         <WorkspaceTimezoneSection
           businessId={businessId}
           isAdmin={isAdmin}
@@ -1132,6 +1139,11 @@ export default function WorkspaceSettingsPage() {
           setTimezone={setTimezone}
           saveSettings={saveSettings}
         />
+      )}
+
+      {/* 업무 관리 (주간 자동 확정 등) — 업무 환경 탭에 함께 통합 */}
+      {tab === 'work-env' && businessId && (
+        <WorkManagementSettings businessId={businessId} isAdmin={isAdmin} />
       )}
 
       {/* ─── STORAGE (외부 클라우드 연동) ─── */}
@@ -1172,11 +1184,6 @@ export default function WorkspaceSettingsPage() {
       {/* ─── NOTIFICATIONS (Phase E placeholder) ─── */}
       {tab === 'notifications' && businessId && (
         <NotificationSettings businessId={businessId} isOwner={isAdmin} />
-      )}
-
-      {/* ─── WORK FLOW (사이클 N+26) — 주간 자동 확정 + 향후 업무 정책 ─── */}
-      {tab === 'work-flow' && businessId && (
-        <WorkManagementSettings businessId={businessId} isAdmin={isAdmin} />
       )}
 
       {/* ─── MEMBERS ─── */}
