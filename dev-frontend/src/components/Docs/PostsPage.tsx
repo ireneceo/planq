@@ -42,6 +42,8 @@ import AiRegenerateBar from '../Common/AiRegenerateBar';
 import KindIcon from './KindIcon';
 import PostShareModal from './PostShareModal';
 import PostAiModal from './PostAiModal';
+// 프로젝트 문서 탭 — 파일 탭과 동일한 공용 레이아웃 (단일 원천). 파일탭·문서탭 디자인 통일.
+import { Split as AtSplit, FolderTreePanel as AtPanel, FilesArea as AtArea, TreeRoot as AtTree, FolderRow as AtRow, FolderName as AtName, FolderCount as AtCount, Grid as AtGrid, Card as AtCard, CardName as AtCardName, CardMeta as AtCardMeta } from './assetTabLayout';
 import PostSignatureModal from './PostSignatureModal';
 import SignatureProgressSection from './SignatureProgressSection';
 import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
