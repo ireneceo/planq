@@ -1,5 +1,13 @@
 {
   "nav": {
+    "myAccount": "My Account",
+    "workEnv": "Work Environment",
+    "companyMail": "Company mail",
+    "myMailAccount": "My mail account",
+    "myWorkEnv": "My work environment",
+    "myNotifications": "My notifications",
+    "myData": "My data",
+    "wsBackup": "Workspace backup",
     "sectionMain": "Main",
     "sectionBusiness": "Workspace",
     "sectionFeatures": "Collaboration",
@@ -79,9 +87,9 @@
     "myWorkSettings": "My Work Settings",
     "myIntegrations": "My integrations",
     "subBasic": "Basics",
-    "subMembers": "Members & Access",
+    "subMembers": "Members",
     "subBilling": "Subscription & Billing",
-    "subIntegration": "Integrations & Storage",
+    "subIntegration": "Integrations",
     "subOps": "Operations",
     "subData": "Data"
   },
