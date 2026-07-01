@@ -1319,8 +1319,8 @@ const QTaskPage:React.FC=()=>{
       }
       return{
         label:p.label, date:p.date, isFuture:p.isFuture,
-        estimated_cumulative: p.isFuture ? null : (p.est>0?mE:0),
-        actual_cumulative: p.isFuture ? null : (p.act>0?mA:0),
+        estimated_cumulative: p.isFuture ? null : mE,
+        actual_cumulative: p.isFuture ? null : mA,
         reverted: estReverted||actReverted,
       };
     });
