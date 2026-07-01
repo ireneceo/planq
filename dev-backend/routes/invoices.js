@@ -1319,6 +1319,46 @@ router.post('/:businessId/:id/send', authenticateToken, checkBusinessAccess, req
 
 // (이동됨: source-candidates / find-conversation 은 라우트 매칭 순서를 위해 위(GET /:businessId 다음)로 이동)
 
+// ─── 나에게 미리보기 발송 — 고객에게 보내기 전, 발행자 본인 이메일로 청구서 PDF 미리보기 ───
+//   status/공유토큰/sent_at 무변경(draft 유지). 구독·정기 청구서 검토 흐름용 (사용자 요청).
+router.post('/:businessId/:id/send-preview', authenticateToken, checkBusinessAccess, requireMenu('qbill', 'write'), async (req, res, next) => {
+  if (!assertInvoiceMutationOwner(req, res)) return;
+  try {
+    const invoice = await Invoice.findOne({ where: { id: req.params.id, business_id: req.params.businessId } });
+    if (!invoice) return errorResponse(res, 'not_found', 404);
+    const me = await User.findByPk(req.user.id, { attributes: ['email', 'name'] });
+    if (!me?.email) return errorResponse(res, 'no_email — 본인 이메일이 없어 미리보기를 보낼 수 없습니다', 400);
+    const business = await Business.findByPk(req.params.businessId, { attributes: ['name', 'brand_name', 'mail_from_name', 'mail_reply_to'] });
+    // PDF 첨부 (draft 도 렌더 가능) — best-effort
+    let attachments = null;
+    try {
+      const { pdf } = await buildInvoicePdf(invoice.id);
+      attachments = [{ filename: `${invoice.invoice_number || 'invoice'}-preview.pdf`, content: pdf, contentType: 'application/pdf' }];
+    } catch (pdfErr) { console.warn('[invoice send-preview] PDF attach failed:', pdfErr.message); }
+    const { sendInvoiceEmail } = require('../services/emailService');
+    const ok = await sendInvoiceEmail({
+      to: me.email,
+      invoiceNumber: invoice.invoice_number,
+      title: `[미리보기] ${invoice.title || ''}`,
+      total: Number(invoice.grand_total || 0),
+      currency: invoice.currency,
+      dueDate: invoice.due_date,
+      senderName: me.name || '',
+      workspaceName: business?.brand_name || business?.name || '',
+      message: '고객에게 발송하기 전 미리보기입니다. 첨부 PDF 로 내용을 확인한 뒤, 이상 없으면 "발송"으로 고객에게 보내세요.',
+      shareUrl: null,
+      attachments,
+      fromName: business?.mail_from_name || business?.brand_name || business?.name || null,
+      replyTo: business?.mail_reply_to || null,
+    });
+    require('../services/auditService').logAudit(req, {
+      action: 'invoice.send_preview', targetType: 'invoice', targetId: invoice.id,
+      newValue: { to: me.email, invoice_number: invoice.invoice_number },
+    });
+    return successResponse(res, { sent: ok, to: me.email }, ok ? '미리보기를 보냈습니다' : 'sent');
+  } catch (err) { next(err); }
+});
+
 // ─── 결제 독촉(리마인더) 수동 발송 — 미결제 청구서에 운영자가 직접 발송 ───
 // overdue_handler 자동 단계 발송과 별개. qbill write 권한자(owner/admin/member) 사용.
 router.post('/:businessId/:id/send-reminder', authenticateToken, reminderLimiter, checkBusinessAccess, requireMenu('qbill', 'write'), async (req, res, next) => {

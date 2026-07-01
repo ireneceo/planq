@@ -704,6 +704,45 @@ async function collectTaxInvoices(businessId, userRole) {
 }
 
 /* ─────────────────────────────────────────────
+   발행 대기 중인 정기 청구서 초안 — 정기청구 cron(services/recurring_invoice.js)이 billing_day 에
+   draft_review 모드로 만든 초안(meta.recurring). owner/admin 인박스에 "발행하기"로 노출.
+   (버그 #108: bell 알림만 가고 Q Bill 뱃지·확인요청엔 안 잡혀 owner 가 발행해야 하는지 몰랐음.)
+   ──────────────────────────────────────────── */
+async function collectRecurringDrafts(businessId, userRole) {
+  if (!businessId) return [];
+  if (userRole !== 'owner' && userRole !== 'admin') return [];
+  const drafts = await Invoice.findAll({
+    where: { business_id: businessId, status: 'draft', meta: { [Op.ne]: null } },
+    attributes: ['id', 'invoice_number', 'title', 'grand_total', 'currency', 'meta', 'createdAt'],
+    order: [['created_at', 'ASC']],
+    limit: 20,
+  });
+  const items = [];
+  const now = Date.now();
+  for (const inv of drafts) {
+    const rec = inv.meta && inv.meta.recurring;
+    if (!rec) continue; // 정기청구 cron 이 만든 초안만 (수동 draft 는 제외)
+    const total = Number(inv.grand_total || 0);
+    const ageDays = inv.createdAt ? Math.floor((now - new Date(inv.createdAt).getTime()) / 86400000) : 0;
+    const amtText = inv.currency === 'USD' ? '$' + total.toLocaleString('ko-KR') : total.toLocaleString('ko-KR') + '원';
+    items.push({
+      id: `recurring-draft-${inv.id}`,
+      type: 'invoice_draft',
+      priority: ageDays >= 1 ? 'urgent' : 'today',
+      verb: 'issue',
+      subject: `정기 청구서 발행 대기 — ${inv.title || inv.invoice_number} · ${amtText}`,
+      context: ageDays >= 1 ? `${ageDays}일째 미발행 · 검토 후 발행하세요` : '오늘 생성된 정기 청구서 초안 · 검토 후 발행하세요',
+      dueAt: null,
+      createdAt: safeToIso(inv.createdAt),
+      amount: total,
+      currency: inv.currency || 'KRW',
+      link: `/bills?tab=invoices&invoice=${inv.id}`,
+    });
+  }
+  return items;
+}
+
+/* ─────────────────────────────────────────────
    PlanQ 구독 청구 (플랫폼 → 워크스페이스) — 워크스페이스 owner 의 인박스에 표시.
    상태별:
      pending  : "PlanQ Pro 월 5만원 결제 대기" (waiting priority — 결제 요청 받은 상태)
@@ -817,7 +856,7 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
     // 각 워크스페이스에서 collector 돌리고 항목마다 workspace 라벨 부착
     const allBuckets = await Promise.all(workspaces.map(async (w) => {
       const userRole = w.role === 'admin' ? 'admin' : w.role;
-      const [tasks, events, candidates, invoices, signatures, paymentNotifies, taxInvoices, planqSubs] = await Promise.all([
+      const [tasks, events, candidates, invoices, signatures, paymentNotifies, taxInvoices, planqSubs, recurringDrafts] = await Promise.all([
         collectTasks(w.business_id, userId),
         collectEvents(w.business_id, userId),
         // N+30 — 사용자 정책: task_candidate 는 채팅 옆 (RightPanel) + 본인 전체 업무 옆 (QTaskPage 인박스) 만 노출.
@@ -829,8 +868,9 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
         collectPaymentNotifies(w.business_id, userRole),
         collectTaxInvoices(w.business_id, userRole),
         collectPlanqSubscription(w.business_id, userRole),
+        collectRecurringDrafts(w.business_id, userRole),
       ]);
-      const items = [...tasks, ...events, ...candidates, ...invoices, ...signatures, ...paymentNotifies, ...taxInvoices, ...planqSubs];
+      const items = [...tasks, ...events, ...candidates, ...invoices, ...signatures, ...paymentNotifies, ...taxInvoices, ...planqSubs, ...recurringDrafts];
       // 워크스페이스 라벨 부착
       for (const it of items) it.workspace = { business_id: w.business_id, brand_name: w.brand_name, role: w.role };
       return items;
