@@ -1,6 +1,20 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-06-29 — **실시간 운영 피드백 마라톤 (운영 배포 7배치, 미배포 0건).** Irene 라이브 사용 중 발견 이슈를 즉시 진단·수정·배포. 매 배치 헬스 29/29 · 빌드 EXIT0/TS0.
+> **최종 업데이트:** 2026-07-01 — **운영 피드백 마라톤 + 설정 IA 전면 재설계 (운영 배포 5배치, 설정 최종분 dev 대기).** 헬스 29/29 · 빌드 EXIT0/TS0.
+> - **프로젝트 문서 탭 = 파일 탭 통일** — 공용 `components/Docs/assetTabLayout.ts`(파일탭 styled 단일원천) 추출, PostsPage 프로젝트 browse 동일 레이아웃. URL 버그(탭 전환 시 stale ?post 제거) + 프로젝트 탭 지연로드(React.lazy 175→80KB) + 추가탭 표 상세(PostTableGrid 재사용).
+> - **🔴 #106 개인파일(L1) 유출 fix (보안)** — `/workspace/:bizId/all-files` visibility 필터 없이 전 파일 반환 → `fileListWhereByLevel(scope)` 적용(L1=소유자만). 배포됨.
+> - **#101/#103 주간 그래프 실제시간** — focus 주간누적이 actual_hours(리스트값) 덮어써 10.5h 표시 → 스냅샷 누적(리스트와 동일)+오늘만 라이브포커스+프론트 캐리포워드. (actual_hours=누적 running total 확인.)
+> - **#87/#98 표시명** — 캔버스·리포트·메모·이슈 목록 6곳 applyMemberDisplayName(한수정→루아).
+> - **청구서**: 정기 draft 인박스 노출(collectRecurringDrafts) + **나에게 미리보기**(send-preview, draft 무변경 owner-only) + **정기청구 자동/수동 설정**(거래 탭 auto_invoice_mode) + **발송→채팅 전달 fix**(client_id 대신 프로젝트 고객방 channel_type='customer' + broadcast + notify) + Q Bill 메뉴 뱃지(billCount).
+> - **디자인 토큰 전수 통일** — active 검정→teal, #EEF2F6→border, #0369A1→Info, radius 7/9→8, violet 제거(60+파일). 증빙탭=청구서탭 공용 FilterChips.
+> - **#95 채팅방 토글 리셋 · #104 캘린더 일정↔업무 id 충돌(오프셋) · #109 메일 개인↔회사 전환** + **Drive 개인/팀 분리**.
+> - **★ 설정 IA 전면 재설계** — 회사="설정"/개인="내 계정"(둘 다 2뎁스 패널). 설정=워크스페이스만(워크스페이스·구독 플랜·업무 환경[언어타임존+업무관리 병합]·권한·청구·〈구성원〉조직·멤버·고객·Cue·〈연동〉회사메일·발신이메일·파일외부연동·워크스페이스 백업). 내 계정=프로필·내 외부 연동(로그인·캘린더·메일·Drive)·내 업무 환경·내 알림·내 데이터. 메일/데이터 ?scope=personal|team 분리. 항목명 "설정" 제거. **이 최종분은 dev 반영·운영 미배포(Irene 확인 대기).**
+> - **CLAUDE.md: Fable 검증 게이트 블록 추가** (고위험 변경 전용).
+> - **Google 콘솔(Irene)**: Gmail OAuth redirect URI 8개 등록. Gmail(restricted)=검증/테스트유저 필요→당장 앱 비밀번호. Drive/Calendar redirect 등록됨.
+> - **배포:** 문서탭·속도 · 청구서fix(cd3cf30) · 배치2(80bb3e3) · 디자인통일(6d2e604) · 설정IA1차(ed78472) planq.kr 헬스200. **설정 IA 최종분(account 패널·권한청구·Cue·내메일중복제거)은 dev만.**
+> - **남은 피드백:** #99·#96·#90·#97·#105·#86·#85·#89·#63·#60 / 신규: 새 탭 열기·브레드크럼·뒤로가기 캐시 / tail: 뱃지 padding·EmptyState 공용화. 박제 [[feedback_filter_all_option_mandatory]].
+
+> **이전:** 2026-06-29 — **실시간 운영 피드백 마라톤 (운영 배포 7배치, 미배포 0건).** Irene 라이브 사용 중 발견 이슈를 즉시 진단·수정·배포. 매 배치 헬스 29/29 · 빌드 EXIT0/TS0.
 > - **QTask 이번주 패널 중복카운트 fix** — sent 버킷이 pending 컨펌자=요청자 업무를 '확인요청받음'+'보낸요청' 양쪽 카운트(QTaskPage:1207 조건 반전). 운영 #109 검증 패널 4→3=리스트.
 > - **주간 진척 그래프 = 번업 확정** — 잔여번다운으로 바꿨다 Irene 되돌림 → 0→상승+월요일앞 시작앵커+실제>가용 시 빨강·초과마커. 박제 [[feedback_weekly_progress_graph_burnup]].
 > - **Q Bill 이벤트 타임라인 (신규)** — bill_events 활용. services/billEvents.js + invoices.js 9 라우트 계측(created/sent/viewed[60m dedupe]/payment_notified/paid_partial·full/tax_issued/canceled/overdue/correction) + GET /timeline(멤버+) + InvoiceDetailDrawer 활동 타임라인. **고객열람·부분결제 계측 신규.** E2E 15/16.

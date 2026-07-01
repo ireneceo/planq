@@ -91,6 +91,28 @@ rm test-xxx.js      # 반드시 삭제
 
 ---
 
+## Fable 검증 게이트 (고위험 변경 전용)
+
+### Fable 검증 대상 기준 (하나라도 해당하면)
+1. **보호 영역 접촉** — 생명선 코드(결제/증빙 발행 로직, receiptsDue 단일원천, task_workflow status 전이 등). diff가 사전 승인된 절단면 범위인지 대조 필수
+2. **돈·주문 무결성** — 결제/환불, 청구서 생성·발송·분할·금액 공식, 정기청구 엔진, 멀티테넌트 격리(business_id)
+3. **운영 DB 마이그레이션 포함 배포** — 스키마/ENUM/백필 (sync-database 한계·수동 ALTER 포함)
+4. **신규 시스템·아키텍처 변경** — 새 플랫폼 도입, 구조적 결정이 담긴 개발
+5. **보안 경계 변경** — 인증/권한 미들웨어(authenticateToken·checkBusinessAccess·requireMenu·access_scope), 라우터 마운트 순서, 공개 라우트 추가
+
+### Fable이 검증하는 내용
+① **diff 범위 대조** (설계 외 변경 0)
+② **가드 스크립트** — 프로젝트 안전망 실행: `node scripts/health-check.js` (29+ 항목), `npm run build` (tsc -b EXIT 0 + error TS 0), i18n 하드코딩 grep, 멀티테넌트 `business_id` WHERE 점검, PlanQSelect/raw select 린트 등
+③ **실호출·회귀** — 코드 리뷰가 아닌 실제 HTTP 호출로 증명 (login → CUD → 재조회 값 일치, 권한별 403, 운영 옛 데이터 sample 1건)
+④ **배포 안전성** — 마이그레이션 절차(운영 ALTER 가이드·백필 idempotent) / 프론트 청크 해시 갱신 / 롤백 경로(backups/{TIMESTAMP})
+
+### 남발 금지
+단일 페이지 UI, 텍스트 변경, 소규모 버그픽스, 디자인 토큰 정리 등 일상 작업은 기존 검증 절차(`/검증`)로 충분. 위 기준에 안 걸리면 Fable 게이트를 요구하지 않는다.
+
+> 개발=Opus / 게이트=Fable(별도 검증) 분리 모델. ②의 가드 스크립트 이름은 프로젝트별로 교체 (PlanQ = 위 목록).
+
+---
+
 ## 개발 환경
 
 ### 경로
