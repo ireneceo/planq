@@ -227,7 +227,7 @@ const ErrorTitle = styled.div`font-size: 18px; font-weight: 700; color: #0F172A;
 const Center = styled.div`min-height:60vh;display:flex;align-items:center;justify-content:center;color:#64748B;font-size:14px;`;
 // 사용자 정의 항목 (label + value/link) — 반응형: 넓으면 label|value 2열, 좁으면 세로 스택
 const CustomSection = styled.div`
-  margin-top: 24px; padding-top: 20px; border-top: 1px solid #EEF2F6;
+  margin-top: 24px; padding-top: 20px; border-top: 1px solid #E2E8F0;
   display: flex; flex-direction: column; gap: 12px;
 `;
 const CustomRow = styled.div`

@@ -360,7 +360,7 @@ const InboxLabel = styled.div`
 `;
 const InboxCount = styled.div<{ $highlight: boolean }>`
   font-size: 32px; font-weight: 700; line-height: 1;
-  color: ${(p) => (p.$highlight ? '#0F172A' : '#94A3B8')};
+  color: ${(p) => (p.$highlight ? '#0F766E' : '#94A3B8')};
 `;
 const InboxBreakdown = styled.div`display: flex; gap: 6px; flex-wrap: wrap; min-height: 22px; align-items: center;`;
 const Pill = styled.span<{ $kind: 'urgent' | 'today' }>`

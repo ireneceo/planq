@@ -165,7 +165,7 @@ const DocFrame = styled.article`
 const DocTitle = styled.h1`font-size:24px;font-weight:700;color:#0F172A;margin:0 0 6px 0;`;
 const DocMeta = styled.div`font-size:12px;color:#64748B;margin:0 0 24px 0;`;
 const AttachSection = styled.section`
-  margin-top: 24px; padding-top: 16px; border-top: 1px solid #EEF2F6;
+  margin-top: 24px; padding-top: 16px; border-top: 1px solid #E2E8F0;
   display: flex; flex-direction: column; gap: 8px;
 `;
 const AttachTitle = styled.h3`font-size:13px;font-weight:700;color:#334155;margin:0;`;

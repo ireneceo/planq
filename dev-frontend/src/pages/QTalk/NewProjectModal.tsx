@@ -831,7 +831,7 @@ const Swatch = styled.button<{ $color: string; $active: boolean }>`
   height: 24px;
   border-radius: 50%;
   background: ${(p) => p.$color};
-  border: 2px solid ${(p) => (p.$active ? '#0F172A' : 'transparent')};
+  border: 2px solid ${(p) => (p.$active ? '#14B8A6' : 'transparent')};
   box-shadow: ${(p) => (p.$active ? `0 0 0 3px ${p.$color}40` : 'inset 0 0 0 1px rgba(15, 23, 42, 0.08)')};
   cursor: pointer;
   padding: 0;

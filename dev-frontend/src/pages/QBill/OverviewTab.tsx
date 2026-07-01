@@ -480,7 +480,7 @@ const PeriodToggle = styled.div`
 const PeriodBtn = styled.button<{ $active: boolean }>`
   padding: 6px 12px; font-size: 12px; font-weight: 600;
   background: ${p => p.$active ? '#fff' : 'transparent'};
-  color: ${p => p.$active ? '#0F172A' : '#64748B'};
+  color: ${p => p.$active ? '#0F766E' : '#64748B'};
   border: none; border-radius: 6px; cursor: pointer;
   box-shadow: ${p => p.$active ? '0 1px 2px rgba(15,23,42,0.06)' : 'none'};
   transition: all 0.15s;

@@ -298,7 +298,7 @@ const TabBtn = styled.button<{ $active: boolean }>`
   display: inline-flex; align-items: center; gap: 6px;
   padding: 10px 14px; background: transparent; border: none;
   border-bottom: 2px solid ${p => p.$active ? '#14B8A6' : 'transparent'};
-  color: ${p => p.$active ? '#0F172A' : '#64748B'};
+  color: ${p => p.$active ? '#0F766E' : '#64748B'};
   font-size: 13px; font-weight: ${p => p.$active ? 700 : 500};
   cursor: pointer; white-space: nowrap;
   &:hover { color: #0F172A; }

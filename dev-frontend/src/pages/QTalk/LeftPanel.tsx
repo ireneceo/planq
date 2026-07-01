@@ -640,7 +640,7 @@ const Unread = styled.div`
   padding: 0 6px;
   background: #F43F5E;
   color: #FFFFFF;
-  border-radius: 9px;
+  border-radius: 8px;
   font-size: 10px;
   font-weight: 700;
   display: flex;
@@ -701,7 +701,7 @@ const MenuBtn = styled.button<{ $open: boolean }>`
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  color: ${(p) => (p.$open ? '#0F172A' : '#CBD5E1')};
+  color: ${(p) => (p.$open ? '#14B8A6' : '#CBD5E1')};
   transition: background 0.15s, color 0.15s;
   &:hover { background: #F1F5F9; color: #0F172A; }
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 1px; }

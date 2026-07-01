@@ -76,11 +76,11 @@ export default NotificationsPage;
 const Actions = styled.div` display: flex; align-items: center; gap: 8px; `;
 const FilterBtn = styled.button<{ $active: boolean }>`
   padding: 6px 12px; border-radius: 999px;
-  background: ${p => p.$active ? '#0F172A' : '#F1F5F9'};
+  background: ${p => p.$active ? '#14B8A6' : '#F1F5F9'};
   color: ${p => p.$active ? '#fff' : '#475569'};
   border: none; cursor: pointer;
   font-size: 12px; font-weight: 500;
-  &:hover { background: ${p => p.$active ? '#0F172A' : '#E2E8F0'}; }
+  &:hover { background: ${p => p.$active ? '#0D9488' : '#E2E8F0'}; }
 `;
 const ReadAllBtn = styled.button`
   padding: 6px 12px; border-radius: 6px;

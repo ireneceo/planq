@@ -1141,7 +1141,7 @@ const FaqSuggestHead = styled.div`
 const FaqSparkle = styled.span`font-size: 13px;`;
 const FaqCount = styled.span`
   margin-left: auto; min-width: 18px; height: 18px; padding: 0 6px;
-  border-radius: 9px; background: rgba(244, 63, 94, 0.15); color: #F43F5E;
+  border-radius: 8px; background: rgba(244, 63, 94, 0.15); color: #F43F5E;
   font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;
 `;
 const FaqItem = styled.div`

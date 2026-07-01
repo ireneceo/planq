@@ -287,9 +287,9 @@ const SearchInput = styled.input`
 `;
 const FilterRow = styled.div`display: flex; gap: 6px; flex-wrap: wrap;`;
 const FilterChip = styled.button<{ $active: boolean }>`
-  padding: 6px 14px; background: ${p => p.$active ? '#0F172A' : '#FFFFFF'};
+  padding: 6px 14px; background: ${p => p.$active ? '#14B8A6' : '#FFFFFF'};
   color: ${p => p.$active ? '#FFFFFF' : '#475569'};
-  border: 1px solid ${p => p.$active ? '#0F172A' : '#E2E8F0'};
+  border: 1px solid ${p => p.$active ? '#0D9488' : '#E2E8F0'};
   border-radius: 999px; font-size: 12px; font-weight: 600; cursor: pointer;
   &:hover { border-color: #94A3B8; }
 `;

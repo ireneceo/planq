@@ -776,7 +776,7 @@ const SubK = styled.span`font-size:11px;color:#64748B;font-weight:500;`;
 const SubV = styled.span`font-size:14px;color:#0F172A;font-weight:700;`;
 const SubSetup = styled.p`margin:0;font-size:12px;color:#64748B;line-height:1.5;`;
 const SubMode = styled.span`
-  font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;color:#0369A1;background:#E0F2FE;
+  font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;color:#0284C7;background:#E0F2FE;
 `;
 const SubEditBtn = styled.button`
   margin-left:auto;font-size:12px;font-weight:600;color:#0F766E;background:#fff;

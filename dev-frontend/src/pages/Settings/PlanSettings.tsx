@@ -753,7 +753,7 @@ const SegBtn = styled.button<{ $active: boolean }>`
   height:28px;padding:0 12px;font-size:12px;font-weight:600;border:none;border-radius:6px;cursor:pointer;
   display:inline-flex;align-items:center;gap:6px;
   background:${p => p.$active ? '#fff' : 'transparent'};
-  color:${p => p.$active ? '#0F172A' : '#64748B'};
+  color:${p => p.$active ? '#0F766E' : '#64748B'};
   box-shadow:${p => p.$active ? '0 1px 2px rgba(15,23,42,0.06)' : 'none'};
   &:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}
 `;
@@ -878,7 +878,7 @@ const Dialog = styled.div`
 `;
 const DTitle = styled.div`padding:20px 22px 12px;font-size:16px;font-weight:700;color:#0F172A;`;
 const DBody = styled.div`padding:0 22px 16px;font-size:13px;color:#475569;line-height:1.6;p{margin:4px 0;}`;
-const DFooter = styled.div`padding:12px 22px;border-top:1px solid #EEF2F6;display:flex;gap:8px;justify-content:flex-end;`;
+const DFooter = styled.div`padding:12px 22px;border-top:1px solid #E2E8F0;display:flex;gap:8px;justify-content:flex-end;`;
 const WarnBox = styled.div`margin-top:12px;padding:10px 12px;background:#FEF3C7;border:1px solid #F59E0B;border-radius:8px;`;
 const WarnTitle = styled.div`font-size:12px;font-weight:700;color:#92400E;margin-bottom:4px;`;
 const WarnList = styled.ul`margin:0;padding-left:18px;font-size:12px;color:#92400E;`;

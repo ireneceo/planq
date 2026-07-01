@@ -1057,7 +1057,7 @@ const Dialog = styled.div`
 `;
 const Head = styled.div`
   display: flex; align-items: center; padding: 14px 18px;
-  border-bottom: 1px solid #EEF2F6; flex-shrink: 0;
+  border-bottom: 1px solid #E2E8F0; flex-shrink: 0;
 `;
 const Title = styled.h2`
   flex: 1; font-size: 15px; font-weight: 700; color: #0F172A; letter-spacing: -0.1px; margin: 0;
@@ -1169,7 +1169,7 @@ const RecipientModeBtn = styled.button<{ $active: boolean }>`
   padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer;
   font-size: 12px; font-weight: 600;
   background: ${p => p.$active ? '#FFFFFF' : 'transparent'};
-  color: ${p => p.$active ? '#0F172A' : '#64748B'};
+  color: ${p => p.$active ? '#0F766E' : '#64748B'};
   box-shadow: ${p => p.$active ? '0 1px 2px rgba(0,0,0,0.06)' : 'none'};
   transition: all 0.15s;
 `;
@@ -1358,7 +1358,7 @@ const SourceKindBadge = styled.span<{ $kind: string }>`
     '#FEE2E2'};
   color: ${p =>
     p.$kind === 'contract' ? '#92400E' :
-    p.$kind === 'quote' ? '#0369A1' :
+    p.$kind === 'quote' ? '#0284C7' :
     p.$kind === 'sow' ? '#6B21A8' :
     '#991B1B'};
 `;

@@ -366,7 +366,7 @@ const Tr = styled.div<{ $rejected?: boolean; $signed?: boolean }>`
   display: flex; align-items: flex-start; padding: 12px;
   font-size: 13px; color: #0F172A;
   background: ${p => p.$rejected ? '#FEF2F2' : p.$signed ? '#F0FDFA' : '#fff'};
-  & + & { border-top: 1px solid #EEF2F6; }
+  & + & { border-top: 1px solid #E2E8F0; }
   transition: background 0.15s;
   &:hover { background: ${p => p.$rejected ? '#FEE2E2' : p.$signed ? '#CCFBF1' : '#F8FAFC'}; }
 `;

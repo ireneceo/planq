@@ -1313,7 +1313,7 @@ const FileExtIcon: React.FC<{ ext: string; size?: number; large?: boolean }> = (
 };
 const FileExtBox = styled.div`
   display:flex;align-items:center;justify-content:center;
-  border-radius:7px;font-weight:800;letter-spacing:.3px;flex-shrink:0;
+  border-radius:8px;font-weight:800;letter-spacing:.3px;flex-shrink:0;
 `;
 
 // ─── styled ───
@@ -1368,7 +1368,7 @@ const ViewToggle = styled.div`display:inline-flex;background:#F1F5F9;border:1px 
 const VT = styled.button<{ $active: boolean }>`
   width:30px;height:26px;display:flex;align-items:center;justify-content:center;
   background:${p => p.$active ? '#fff' : 'transparent'};
-  color:${p => p.$active ? '#0F172A' : '#94A3B8'};
+  color:${p => p.$active ? '#0F766E' : '#94A3B8'};
   border:none;border-radius:6px;cursor:pointer;
   box-shadow:${p => p.$active ? '0 1px 2px rgba(15,23,42,.06)' : 'none'};
   &:hover{color:#0F172A;}
@@ -1376,9 +1376,9 @@ const VT = styled.button<{ $active: boolean }>`
 `;
 const SelectToggle = styled.button<{ $on: boolean }>`
   height:30px;padding:0 14px;
-  background:${p => p.$on ? '#0F172A' : '#fff'};
+  background:${p => p.$on ? '#14B8A6' : '#fff'};
   color:${p => p.$on ? '#fff' : '#0F172A'};
-  border:1px solid ${p => p.$on ? '#0F172A' : '#CBD5E1'};
+  border:1px solid ${p => p.$on ? '#14B8A6' : '#CBD5E1'};
   border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;
   &:hover{border-color:${p => p.$on ? '#1E293B' : '#94A3B8'};}
   &:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}
@@ -1466,7 +1466,7 @@ const SkeletonRow = styled.div`
   &:last-child{border-bottom:none;}
 `;
 const SkIcon = styled.div`
-  width:32px;height:32px;border-radius:7px;flex-shrink:0;
+  width:32px;height:32px;border-radius:8px;flex-shrink:0;
   background:linear-gradient(90deg, #F1F5F9 0px, #E2E8F0 40px, #F1F5F9 80px);
   background-size:200px 100%;animation:sk-shimmer 1.2s linear infinite;
 `;
@@ -1664,7 +1664,7 @@ const DBody = styled.div`
   strong{color:#0F172A;}
   p{margin:4px 0;}
 `;
-const DFooter = styled.div`padding:12px 20px;border-top:1px solid #EEF2F6;display:flex;gap:8px;justify-content:flex-end;`;
+const DFooter = styled.div`padding:12px 20px;border-top:1px solid #E2E8F0;display:flex;gap:8px;justify-content:flex-end;`;
 
 const BulkFileList = styled.ul`list-style:none;padding:0;margin:8px 0 12px;display:flex;flex-direction:column;gap:4px;`;
 const BulkFileItem = styled.li`font-size:12px;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;

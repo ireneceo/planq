@@ -448,11 +448,11 @@ const ViewedTag = styled.span<{ $seen: boolean }>`
   display: inline-flex; align-items: center; gap: 4px;
   font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px;
   background: ${p => (p.$seen ? '#E0F2FE' : '#FEF3C7')};
-  color: ${p => (p.$seen ? '#0369A1' : '#B45309')};
+  color: ${p => (p.$seen ? '#0284C7' : '#B45309')};
 `;
 const ViewedDot = styled.span<{ $seen: boolean }>`
   width: 5px; height: 5px; border-radius: 999px;
-  background: ${p => (p.$seen ? '#0369A1' : '#F59E0B')};
+  background: ${p => (p.$seen ? '#0284C7' : '#F59E0B')};
 `;
 const ColDue = styled.div`
   display: flex; flex-direction: column; gap: 2px; align-items: flex-end;

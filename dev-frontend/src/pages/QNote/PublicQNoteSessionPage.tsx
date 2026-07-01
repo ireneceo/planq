@@ -217,7 +217,7 @@ const ParticipantPill = styled.span`
   background: #F1F5F9; border-radius: 999px;
 `;
 const ParticipantRole = styled.span`margin-left: 6px; color: #64748B; font-weight: 400;`;
-const Section = styled.section`margin-top: 28px; padding-top: 16px; border-top: 1px solid #EEF2F6;`;
+const Section = styled.section`margin-top: 28px; padding-top: 16px; border-top: 1px solid #E2E8F0;`;
 const SectionTitle = styled.h2`font-size: 14px; font-weight: 700; color: #0F172A; margin: 0 0 10px 0;`;
 const SectionBody = styled.div`font-size: 13px; color: #334155; line-height: 1.7;`;
 const SummaryLine = styled.div`margin-bottom: 4px; &::before { content: '· '; color: #94A3B8; }`;

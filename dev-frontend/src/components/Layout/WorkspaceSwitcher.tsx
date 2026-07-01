@@ -547,7 +547,7 @@ const Spinner = styled.div`
 
 // 새 워크스페이스 만들기 — 메뉴 + 모달
 const PlusBadge = styled.span`
-  width: 24px; height: 24px; border-radius: 7px; flex-shrink: 0;
+  width: 24px; height: 24px; border-radius: 8px; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;
   background: rgba(94,234,212,0.16); color: #5EEAD4;
 `;

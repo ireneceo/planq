@@ -255,7 +255,7 @@ const NextBadge = styled.span`font-size:11px;color:#0F766E;background:#F0FDFA;bo
 const PausedBadge = styled.span`font-size:11px;color:#92400E;background:#FEF3C7;border-radius:999px;padding:1px 8px;`;
 const OccBadge = styled.span`font-size:11px;color:#475569;background:#F1F5F9;border-radius:999px;padding:1px 8px;`;
 const CardActions = styled.div`display:flex;align-items:center;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;`;
-const MiniBtn = styled.button<{ $danger?: boolean }>`height:30px;padding:0 10px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;
+const MiniBtn = styled.button<{ $danger?: boolean }>`height:30px;padding:0 10px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;
   background:#fff;border:1px solid ${(p) => (p.$danger ? '#FCA5A5' : '#CBD5E1')};color:${(p) => (p.$danger ? '#DC2626' : '#334155')};
   &:hover:not(:disabled){background:${(p) => (p.$danger ? '#FEF2F2' : '#F1F5F9')};}
   &:disabled{opacity:0.5;cursor:default;}`;

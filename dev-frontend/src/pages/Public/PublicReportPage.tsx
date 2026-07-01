@@ -128,8 +128,8 @@ const Title = styled.h1`font-size: 22px; font-weight: 800; color: #0F172A; margi
 const Period = styled.div`font-size: 13px; color: #64748B; margin-bottom: 20px;`;
 const Hint = styled.div`font-size: 14px; color: #94A3B8; padding: 32px 8px; text-align: center;`;
 const ExecRead = styled.p`font-size: 14px; line-height: 1.75; color: #334155; white-space: pre-wrap; margin: 0;`;
-const ViewToggle = styled.div`display: inline-flex; background: #F1F5F9; padding: 3px; border-radius: 9px; gap: 2px; margin: 20px 0 16px;`;
-const ViewTab = styled.button<{ $on: boolean }>`display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; border: none; background: ${(p) => (p.$on ? '#fff' : 'transparent')}; color: ${(p) => (p.$on ? '#0F766E' : '#64748B')}; border-radius: 7px; font-size: 13px; font-weight: 700; cursor: pointer; box-shadow: ${(p) => (p.$on ? '0 1px 2px rgba(0,0,0,.06)' : 'none')};`;
+const ViewToggle = styled.div`display: inline-flex; background: #F1F5F9; padding: 3px; border-radius: 8px; gap: 2px; margin: 20px 0 16px;`;
+const ViewTab = styled.button<{ $on: boolean }>`display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; border: none; background: ${(p) => (p.$on ? '#fff' : 'transparent')}; color: ${(p) => (p.$on ? '#0F766E' : '#64748B')}; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; box-shadow: ${(p) => (p.$on ? '0 1px 2px rgba(0,0,0,.06)' : 'none')};`;
 const ViewN = styled.span`font-size: 10px; font-weight: 700; color: #94A3B8;`;
 const UnitCard = styled.div`border: 1px solid #E2E8F0; border-radius: 14px; padding: 20px 22px; margin-bottom: 16px; @media (max-width: 768px) { padding: 16px; }`;
 const UnitHead = styled.div`display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 14px;`;
