@@ -535,7 +535,7 @@ const ProjectChip = styled.div`
 `;
 const DocBody = styled.div`
   margin-top: 12px; padding-top: 16px;
-  border-top: 1px solid #EEF2F6;
+  border-top: 1px solid #E2E8F0;
 `;
 
 // OTP

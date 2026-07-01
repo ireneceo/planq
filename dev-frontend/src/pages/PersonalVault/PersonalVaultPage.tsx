@@ -305,11 +305,11 @@ const TabRow = styled.div`
 const TabBtn = styled.button<{ $active: boolean }>`
   padding: 10px 16px; background: transparent; border: none; cursor: pointer;
   font-size: 13px; font-weight: 600;
-  color: ${p => p.$active ? '#0F172A' : '#64748B'};
+  color: ${p => p.$active ? '#0F766E' : '#64748B'};
   border-bottom: 2px solid ${p => p.$active ? '#14B8A6' : 'transparent'};
   margin-bottom: -1px;
   white-space: nowrap;
-  &:hover { color: ${p => p.$active ? '#0F172A' : '#334155'}; }
+  &:hover { color: ${p => p.$active ? '#0F766E' : '#334155'}; }
 `;
 
 const DashboardGrid = styled.div`

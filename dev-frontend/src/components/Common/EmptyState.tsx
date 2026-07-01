@@ -76,7 +76,7 @@ const IconCircle = styled.div`
 const Title = styled.h2<{ $size: 'sm' | 'md' }>`
   font-size: ${p => p.$size === 'md' ? '22px' : '13px'};
   font-weight: ${p => p.$size === 'md' ? '700' : '600'};
-  color: ${p => p.$size === 'md' ? '#0F172A' : '#64748B'};
+  color: ${p => p.$size === 'md' ? '#0F766E' : '#64748B'};
   margin: 0 0 ${p => p.$size === 'md' ? '8px' : '4px'};
 `;
 const Desc = styled.p<{ $size: 'sm' | 'md' }>`

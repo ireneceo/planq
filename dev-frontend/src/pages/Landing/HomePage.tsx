@@ -505,7 +505,7 @@ const CompareRow = styled.div<{ $head?: boolean }>`
 `;
 const CompareCell = styled.div<{ $accent?: boolean }>`
   padding: 18px 24px; font-size: 14px; font-weight: 300;
-  color: ${p => p.$accent ? '#0F172A' : '#64748B'};
+  color: ${p => p.$accent ? '#0F766E' : '#64748B'};
   ${p => p.$accent && css`font-weight: 500; color: #0F172A;`}
   &:first-child { font-weight: 500; color: #0F172A; background: #FAFBFC; }
   @media (max-width: 768px) {

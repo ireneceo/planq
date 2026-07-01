@@ -396,7 +396,7 @@ const Modal = styled.div`
 `;
 const Header = styled.div`
   display: flex; align-items: center; padding: 14px 18px;
-  border-bottom: 1px solid #EEF2F6;
+  border-bottom: 1px solid #E2E8F0;
   flex-shrink: 0;
 `;
 const HeaderTitle = styled.div`
@@ -433,7 +433,7 @@ const TzHint = styled.div`
 `;
 const DateTrigger = styled.button`
   display: inline-flex; align-items: center; gap: 8px;
-  padding: 9px 12px; border: 1px solid #CBD5E1; border-radius: 7px;
+  padding: 9px 12px; border: 1px solid #CBD5E1; border-radius: 8px;
   background: #fff; color: #0F172A; font-size: 13px; font-weight: 500; cursor: pointer;
   svg { color: #64748B; flex-shrink: 0; }
   &:hover { border-color: #14B8A6; }
@@ -456,13 +456,13 @@ const CategoryRow = styled.div` display: flex; flex-wrap: wrap; gap: 6px; `;
 const CategoryBtn = styled.button<{ $active: boolean }>`
   padding: 6px 12px; border-radius: 999px;
   font-size: 12px; font-weight: 500;
-  background: ${({ $active }) => $active ? '#0F172A' : '#F1F5F9'};
+  background: ${({ $active }) => $active ? '#14B8A6' : '#F1F5F9'};
   color: ${({ $active }) => $active ? '#fff' : '#475569'};
   border: none; cursor: pointer;
-  &:hover { background: ${({ $active }) => $active ? '#0F172A' : '#E2E8F0'}; }
+  &:hover { background: ${({ $active }) => $active ? '#0D9488' : '#E2E8F0'}; }
 `;
 const Input = styled.input`
-  padding: 9px 11px; border: 1px solid #CBD5E1; border-radius: 7px;
+  padding: 9px 11px; border: 1px solid #CBD5E1; border-radius: 8px;
   font-size: 13px; color: #0F172A; outline: none; background: #fff;
   &:focus { border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.12); }
   &:disabled { background: #F8FAFC; color: #94A3B8; cursor: not-allowed; }
@@ -477,23 +477,23 @@ const AutoMeetingText = styled.div`
   small { font-size: 11.5px; color: #64748B; }
 `;
 const Textarea = styled.textarea`
-  padding: 9px 11px; border: 1px solid #CBD5E1; border-radius: 7px;
+  padding: 9px 11px; border: 1px solid #CBD5E1; border-radius: 8px;
   font-size: 13px; color: #0F172A; outline: none; resize: vertical;
   font-family: inherit;
   &:focus { border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.12); }
 `;
 const Footer = styled.div`
-  padding: 12px 18px; border-top: 1px solid #EEF2F6;
+  padding: 12px 18px; border-top: 1px solid #E2E8F0;
   display: flex; justify-content: flex-end; gap: 8px;
   flex-shrink: 0;
 `;
 const SecondaryBtn = styled.button`
-  padding: 8px 14px; border-radius: 7px; font-size: 13px; font-weight: 500;
+  padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 500;
   background: transparent; color: #475569; border: 1px solid #CBD5E1; cursor: pointer;
   &:hover { background: #F8FAFC; color: #0F172A; }
 `;
 const PrimaryBtn = styled.button`
-  padding: 8px 16px; border-radius: 7px; font-size: 13px; font-weight: 600;
+  padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600;
   background: #14B8A6; color: #fff; border: none; cursor: pointer;
   transition: background 0.15s ease;
   &:hover:not(:disabled) { background: #0F766E; }

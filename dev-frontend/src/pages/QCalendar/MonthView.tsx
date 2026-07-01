@@ -205,7 +205,7 @@ const Grid = styled.div`
   flex: 1; min-height: 0; overflow-y: auto;
 `;
 const Cell = styled.div<{ $outMonth: boolean; $today: boolean }>`
-  position: relative; border-right: 1px solid #EEF2F6; border-bottom: 1px solid #EEF2F6;
+  position: relative; border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0;
   padding: 6px 6px 4px; cursor: pointer;
   background: ${({ $today }) => $today ? '#F0FDFA' : '#fff'};
   color: ${({ $outMonth }) => $outMonth ? '#94A3B8' : '#0F172A'};
@@ -280,7 +280,7 @@ const PopoverCard = styled.div`
 `;
 const PopoverHeader = styled.div`
   display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 16px; border-bottom: 1px solid #EEF2F6;
+  padding: 12px 16px; border-bottom: 1px solid #E2E8F0;
 `;
 const PopoverTitle = styled.div`
   font-size: 14px; font-weight: 700; color: #0F172A;

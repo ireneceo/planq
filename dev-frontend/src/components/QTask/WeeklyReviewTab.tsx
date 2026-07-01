@@ -52,5 +52,5 @@ export default WeeklyReviewTab;
 const Container = styled.div`padding:20px;height:100%;overflow-y:auto;display:flex;flex-direction:column;gap:16px;`;
 const WsTabs = styled.div`display:flex;gap:4px;border-bottom:1px solid #E2E8F0;`;
 const WsBtn = styled.button<{ $on: boolean }>`padding:9px 16px;background:transparent;border:none;cursor:pointer;font-size:14px;font-weight:${(p) => (p.$on ? 700 : 500)};color:${(p) => (p.$on ? '#0F766E' : '#64748B')};border-bottom:2px solid ${(p) => (p.$on ? '#14B8A6' : 'transparent')};margin-bottom:-1px;&:hover{color:#0F766E;}`;
-const PeriodToggle = styled.div`display:inline-flex;background:#F1F5F9;padding:3px;border-radius:9px;gap:2px;align-self:flex-start;`;
-const PBtn = styled.button<{ $on: boolean }>`padding:8px 18px;border:none;background:${(p) => (p.$on ? '#fff' : 'transparent')};color:${(p) => (p.$on ? '#0F766E' : '#64748B')};border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:${(p) => (p.$on ? '0 1px 2px rgba(0,0,0,.06)' : 'none')};`;
+const PeriodToggle = styled.div`display:inline-flex;background:#F1F5F9;padding:3px;border-radius:8px;gap:2px;align-self:flex-start;`;
+const PBtn = styled.button<{ $on: boolean }>`padding:8px 18px;border:none;background:${(p) => (p.$on ? '#fff' : 'transparent')};color:${(p) => (p.$on ? '#0F766E' : '#64748B')};border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:${(p) => (p.$on ? '0 1px 2px rgba(0,0,0,.06)' : 'none')};`;

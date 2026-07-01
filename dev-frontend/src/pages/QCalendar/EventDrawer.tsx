@@ -875,7 +875,7 @@ const ScheduleEditor = styled.div` display: flex; flex-direction: column; gap: 8
 const DateRow = styled.div` display: flex; align-items: center; gap: 8px; flex-wrap: wrap; `;
 const DateTrigger = styled.button`
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 7px 10px; border: 1px solid #CBD5E1; border-radius: 7px;
+  padding: 7px 10px; border: 1px solid #CBD5E1; border-radius: 8px;
   background: #fff; color: #0F172A; font-size: 12.5px; font-weight: 500; cursor: pointer;
   svg { color: #64748B; flex-shrink: 0; }
   &:hover { border-color: #14B8A6; }
@@ -901,21 +901,21 @@ const FieldLabel = styled.label`
 const CategoryRow = styled.div` display: flex; flex-wrap: wrap; gap: 5px; `;
 const CategoryBtn = styled.button<{ $active: boolean }>`
   padding: 5px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 500;
-  background: ${({ $active }) => $active ? '#0F172A' : '#F1F5F9'};
+  background: ${({ $active }) => $active ? '#14B8A6' : '#F1F5F9'};
   color: ${({ $active }) => $active ? '#fff' : '#475569'};
   border: none; cursor: pointer;
-  &:hover:not(:disabled) { background: ${({ $active }) => $active ? '#0F172A' : '#E2E8F0'}; }
+  &:hover:not(:disabled) { background: ${({ $active }) => $active ? '#0D9488' : '#E2E8F0'}; }
   &:disabled { cursor: default; opacity: 0.6; }
 `;
 
 // input/textarea
 const Input = styled.input`
-  padding: 8px 11px; border: 1px solid #CBD5E1; border-radius: 7px;
+  padding: 8px 11px; border: 1px solid #CBD5E1; border-radius: 8px;
   font-size: 13px; color: #0F172A; outline: none; background: #fff;
   &:focus { border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.12); }
 `;
 const Textarea = styled.textarea`
-  padding: 8px 11px; border: 1px solid #CBD5E1; border-radius: 7px;
+  padding: 8px 11px; border: 1px solid #CBD5E1; border-radius: 8px;
   font-size: 13px; color: #0F172A; outline: none; resize: vertical;
   font-family: inherit; line-height: 1.5;
   &:focus { border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.12); }
@@ -947,7 +947,7 @@ const MeetingHint = styled.div`
 `;
 const CreateRoomBtn = styled.button`
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 8px 14px; border-radius: 7px; font-size: 12.5px; font-weight: 600;
+  padding: 8px 14px; border-radius: 8px; font-size: 12.5px; font-weight: 600;
   background: #14B8A6; color: #fff; border: none; cursor: pointer;
   &:hover:not(:disabled) { background: #0F766E; }
   &:disabled { background: #CBD5E1; cursor: not-allowed; }

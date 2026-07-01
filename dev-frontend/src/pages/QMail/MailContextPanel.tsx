@@ -396,11 +396,11 @@ const VisTag = styled.span`margin-left:6px; font-size:10px; font-weight:600; col
 const DelBtn = styled.button`flex-shrink:0; width:20px; height:20px; border:none; background:none; cursor:pointer; color:#94A3B8; font-size:12px; border-radius:4px; &:hover{ background:#FEF2F2; color:#DC2626; }`;
 const AddRow = styled.div`display:flex; gap:6px; margin-top:4px;`;
 const AddInput = styled.input`
-  flex:1; min-width:0; height:32px; padding:0 8px; border:1px solid #CBD5E1; border-radius:7px; font-size:12px; color:#0F172A;
+  flex:1; min-width:0; height:32px; padding:0 8px; border:1px solid #CBD5E1; border-radius:8px; font-size:12px; color:#0F172A;
   &:focus{ outline:none; border-color:#14B8A6; box-shadow:0 0 0 3px rgba(20,184,166,0.15); }
 `;
 const AddBtn = styled.button`
-  flex-shrink:0; height:32px; padding:0 12px; border-radius:7px; cursor:pointer; font-size:12px; font-weight:600;
+  flex-shrink:0; height:32px; padding:0 12px; border-radius:8px; cursor:pointer; font-size:12px; font-weight:600;
   color:#0F766E; background:#F0FDFA; border:1px solid #99F6E4;
   &:hover:not(:disabled){ background:#CCFBF1; } &:disabled{ opacity:0.5; cursor:default; }
 `;

@@ -593,7 +593,7 @@ const DrawerTitle = styled.div`font-size: 16px; font-weight: 700; color: #0F172A
 const DrawerSub = styled.div`font-size: 12px; color: #94A3B8; margin-top: 2px;`;
 
 const Section = styled.section`
-  padding: 16px 20px; border-bottom: 1px solid #EEF2F6;
+  padding: 16px 20px; border-bottom: 1px solid #E2E8F0;
   &:last-child { border-bottom: none; }
 `;
 const SectionHead = styled.div`
@@ -664,7 +664,7 @@ const DTitle = styled.div`padding: 18px 20px 8px; font-size: 15px; font-weight: 
 const DBody = styled.div`padding: 0 20px 16px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto;`;
 const DDesc = styled.p`font-size: 13px; color: #475569; line-height: 1.5; margin: 0;`;
 const DFooter = styled.div`
-  padding: 12px 20px; border-top: 1px solid #EEF2F6;
+  padding: 12px 20px; border-top: 1px solid #E2E8F0;
   display: flex; gap: 8px; justify-content: flex-end; align-items: center;
 `;
 const DError = styled.div`font-size: 12px; color: #DC2626; background: #FEF2F2; padding: 8px 10px; border-radius: 6px;`;

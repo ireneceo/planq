@@ -1929,9 +1929,9 @@ const ToolbarSort = styled.div`width: 130px;`;
 // 선택 모드 토글 — Toolbar 표준 (36px, Q task 동일)
 const SelectToggle = styled.button<{ $on: boolean }>`
   height: 36px; padding: 0 14px;
-  background: ${p => p.$on ? '#0F172A' : '#fff'};
+  background: ${p => p.$on ? '#14B8A6' : '#fff'};
   color: ${p => p.$on ? '#fff' : '#0F172A'};
-  border: 1px solid ${p => p.$on ? '#0F172A' : '#CBD5E1'};
+  border: 1px solid ${p => p.$on ? '#14B8A6' : '#CBD5E1'};
   border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
   &:hover { border-color: ${p => p.$on ? '#1E293B' : '#94A3B8'}; }
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
@@ -2230,7 +2230,7 @@ const Modal = styled.div`
 `;
 const ModalHeader = styled.div`
   display: flex; align-items: center; padding: 14px 18px;
-  border-bottom: 1px solid #EEF2F6; flex-shrink: 0;
+  border-bottom: 1px solid #E2E8F0; flex-shrink: 0;
 `;
 const ModalTitle = styled.div`flex: 1; font-size: 15px; font-weight: 700; color: #0F172A; letter-spacing: -0.1px;`;
 const ModalCloseBtn = styled.button`
@@ -2239,7 +2239,7 @@ const ModalCloseBtn = styled.button`
   &:hover { background: #F1F5F9; color: #0F172A; }
 `;
 const ModalBody = styled.div`padding: 16px 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; flex: 1; min-height: 0;`;
-const ModalFooter = styled.div`padding: 14px 18px; border-top: 1px solid #EEF2F6; display: flex; justify-content: flex-end; gap: 8px;`;
+const ModalFooter = styled.div`padding: 14px 18px; border-top: 1px solid #E2E8F0; display: flex; justify-content: flex-end; gap: 8px;`;
 const Field = styled.div`display: flex; flex-direction: column; gap: 6px; flex: 1;`;
 const Label = styled.label`font-size: 13px; font-weight: 600; color: #0F172A;`;
 const ErrorBox = styled.div`

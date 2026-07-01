@@ -90,7 +90,7 @@ const Body = styled.div`
 `;
 
 const Footer = styled.div`
-  padding: 12px 18px; border-top: 1px solid #EEF2F6;
+  padding: 12px 18px; border-top: 1px solid #E2E8F0;
   display: flex; justify-content: flex-end; gap: 8px; align-items: center;
   padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
 `;
@@ -143,7 +143,7 @@ const Panel = styled.aside<{ $width: number }>`
 const HeaderWrap = styled.div`
   display: flex; align-items: flex-start; gap: 10px;
   padding: 16px 18px 14px;
-  border-bottom: 1px solid #EEF2F6;
+  border-bottom: 1px solid #E2E8F0;
   flex-shrink: 0;
   /* iOS safe-area 상단 여유 — 상태바 영역 */
   padding-top: calc(16px + env(safe-area-inset-top, 0px));

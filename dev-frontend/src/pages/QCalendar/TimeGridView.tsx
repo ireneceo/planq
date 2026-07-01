@@ -189,7 +189,7 @@ const HeaderRow = styled.div`
 `;
 const CornerCell = styled.div`
   width: ${TIME_COL_WIDTH}px; flex-shrink: 0;
-  border-right: 1px solid #EEF2F6;
+  border-right: 1px solid #E2E8F0;
 `;
 const DayHeaders = styled.div<{ $cols: number }>`
   display: grid; flex: 1;
@@ -197,7 +197,7 @@ const DayHeaders = styled.div<{ $cols: number }>`
 `;
 const DayHeaderCell = styled.div<{ $today: boolean; $isSaturday: boolean; $isSunday: boolean }>`
   padding: 10px 8px; text-align: center; cursor: pointer;
-  border-right: 1px solid #EEF2F6;
+  border-right: 1px solid #E2E8F0;
   &:last-child { border-right: none; }
   &:hover { background: #F8FAFC; }
 `;
@@ -219,7 +219,7 @@ const AllDayRow = styled.div`
   min-height: 34px;
 `;
 const AllDayLabel = styled.div`
-  width: ${TIME_COL_WIDTH}px; flex-shrink: 0; border-right: 1px solid #EEF2F6;
+  width: ${TIME_COL_WIDTH}px; flex-shrink: 0; border-right: 1px solid #E2E8F0;
   font-size: 10px; font-weight: 500; color: #94A3B8; letter-spacing: 0.3px;
   display: flex; align-items: center; justify-content: center;
   text-transform: uppercase;
@@ -230,7 +230,7 @@ const AllDayCells = styled.div<{ $cols: number }>`
 `;
 const AllDayCell = styled.div`
   padding: 4px 4px; display: flex; flex-direction: column; gap: 2px;
-  border-right: 1px solid #EEF2F6; min-height: 30px;
+  border-right: 1px solid #E2E8F0; min-height: 30px;
   &:last-child { border-right: none; }
 `;
 const AllDayChip = styled.div<{ $bg: string; $fg: string; $border: string }>`
@@ -249,7 +249,7 @@ const GridBody = styled.div`
 `;
 const TimeColumn = styled.div`
   width: ${TIME_COL_WIDTH}px; flex-shrink: 0;
-  border-right: 1px solid #EEF2F6; background: #fff;
+  border-right: 1px solid #E2E8F0; background: #fff;
 `;
 const TimeSlot = styled.div`
   height: ${HOUR_HEIGHT}px; position: relative;
@@ -264,7 +264,7 @@ const DayColumns = styled.div<{ $cols: number }>`
   grid-template-columns: repeat(${({ $cols }) => $cols}, 1fr);
 `;
 const DayColumn = styled.div`
-  position: relative; border-right: 1px solid #EEF2F6;
+  position: relative; border-right: 1px solid #E2E8F0;
   &:last-child { border-right: none; }
 `;
 const HourLine = styled.div<{ $hour: number }>`

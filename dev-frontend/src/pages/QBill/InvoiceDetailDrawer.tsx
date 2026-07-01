@@ -46,7 +46,7 @@ function billEventMeta(type: ApiBillEvent['event_type'], detail: Record<string, 
   switch (type) {
     case 'created': return { key: 'created', fallback: '청구서 생성', color: '#94A3B8' };
     case 'sent': return { key: 'sent', fallback: '발행', color: '#14B8A6' };
-    case 'viewed': return { key: 'viewed', fallback: '공개 링크 열람', color: '#0369A1' };
+    case 'viewed': return { key: 'viewed', fallback: '공개 링크 열람', color: '#0284C7' };
     case 'paid_partial': return { key: 'paid_partial', fallback: '일부 결제 완료', color: '#22C55E' };
     case 'paid_full': return { key: 'paid_full', fallback: '결제 완료', color: '#22C55E' };
     case 'overdue': return { key: 'overdue', fallback: '결제 기한 경과', color: '#DC2626' };
@@ -1066,7 +1066,7 @@ const StepNode = styled.div<{ $active: boolean; $reached: boolean }>`
 `;
 const StepLabel = styled.span<{ $active: boolean; $reached: boolean }>`
   font-size: 12px; font-weight: ${p => p.$active ? 700 : 500};
-  color: ${p => p.$reached ? '#0F172A' : '#94A3B8'};
+  color: ${p => p.$reached ? '#0F766E' : '#94A3B8'};
   margin-left: 8px;
 `;
 const StepLine = styled.div<{ $reached: boolean }>`
@@ -1378,7 +1378,7 @@ const SourceKindBadge = styled.span<{ $kind: string }>`
     '#FEE2E2'};
   color: ${p =>
     p.$kind === 'contract' ? '#92400E' :
-    p.$kind === 'quote' ? '#0369A1' :
+    p.$kind === 'quote' ? '#0284C7' :
     p.$kind === 'sow' ? '#6B21A8' :
     '#991B1B'};
 `;

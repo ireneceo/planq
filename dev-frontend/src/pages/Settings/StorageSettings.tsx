@@ -466,4 +466,4 @@ const Dialog = styled.div`
 `;
 const DTitle = styled.div`padding:18px 20px 10px;font-size:15px;font-weight:700;color:#0F172A;`;
 const DBody = styled.div`padding:0 20px 16px;font-size:13px;color:#475569;line-height:1.5;strong{color:#0F172A;}p{margin:4px 0;}`;
-const DFooter = styled.div`padding:12px 20px;border-top:1px solid #EEF2F6;display:flex;gap:8px;justify-content:flex-end;`;
+const DFooter = styled.div`padding:12px 20px;border-top:1px solid #E2E8F0;display:flex;gap:8px;justify-content:flex-end;`;

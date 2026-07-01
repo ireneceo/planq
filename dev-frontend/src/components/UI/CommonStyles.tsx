@@ -244,7 +244,7 @@ export const AlertMessage = styled.div<{
       case 'warning':
         return css`background: #FEF3C7; color: #D97706; border: 1px solid #FDE68A;`;
       case 'info':
-        return css`background: #E0F2FE; color: #0369A1; border: 1px solid #BAE6FD;`;
+        return css`background: #E0F2FE; color: #0284C7; border: 1px solid #BAE6FD;`;
       default:
         return css`background: #ECFDF5; color: #059669; border: 1px solid #A7F3D0;`;
     }

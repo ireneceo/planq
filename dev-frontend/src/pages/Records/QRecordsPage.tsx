@@ -318,7 +318,7 @@ const VT = styled.button<{ $active: boolean }>`
   width: 30px; height: 26px;
   display: flex; align-items: center; justify-content: center;
   background: ${p => p.$active ? '#fff' : 'transparent'};
-  color: ${p => p.$active ? '#0F172A' : '#94A3B8'};
+  color: ${p => p.$active ? '#0F766E' : '#94A3B8'};
   border: none; border-radius: 6px; cursor: pointer;
   box-shadow: ${p => p.$active ? '0 1px 2px rgba(15,23,42,.06)' : 'none'};
   &:hover { color: #0F172A; }

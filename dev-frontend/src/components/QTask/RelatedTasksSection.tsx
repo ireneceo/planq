@@ -202,7 +202,7 @@ export default RelatedTasksSection;
 // ─── Styled ───
 const Wrap = styled.div`margin-top:16px;`;
 const Title = styled.h4`display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:13px;font-weight:600;color:#475569;`;
-const Count = styled.span`display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:18px;padding:0 6px;border-radius:9px;background:#F1F5F9;color:#475569;font-size:11px;font-weight:700;`;
+const Count = styled.span`display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:18px;padding:0 6px;border-radius:8px;background:#F1F5F9;color:#475569;font-size:11px;font-weight:700;`;
 const Empty = styled.div`padding:8px 0;font-size:12px;color:#94A3B8;`;
 const ChipList = styled.div`display:flex;flex-wrap:wrap;gap:6px;`;
 const Chip = styled.button<{$closed?: boolean}>`

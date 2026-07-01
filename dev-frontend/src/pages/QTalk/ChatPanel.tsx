@@ -2342,7 +2342,7 @@ const QuickBadge = styled.span`
   padding: 0 4px;
   background: #F43F5E;
   color: #FFFFFF;
-  border-radius: 7px;
+  border-radius: 8px;
   font-size: 9px;
   font-weight: 700;
   display: flex;

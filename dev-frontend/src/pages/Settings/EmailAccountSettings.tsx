@@ -563,7 +563,7 @@ const ScopeOption = styled.button<{ $active: boolean }>`
   border: none; border-radius: 6px;
   font-size: 13px; font-weight: 600; cursor: pointer;
   background: ${p => p.$active ? '#FFFFFF' : 'transparent'};
-  color: ${p => p.$active ? '#0F172A' : '#64748B'};
+  color: ${p => p.$active ? '#0F766E' : '#64748B'};
   box-shadow: ${p => p.$active ? '0 1px 2px rgba(0,0,0,0.05)' : 'none'};
   transition: all 0.15s;
   &:hover:not(:disabled):not([data-active="true"]) { color: #0F172A; }

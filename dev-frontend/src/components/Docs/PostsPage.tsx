@@ -1710,7 +1710,7 @@ const ModalDialog = styled.div`
 `;
 const ModalHead = styled.div`
   display:flex;justify-content:space-between;align-items:center;
-  padding: 14px 18px; border-bottom: 1px solid #EEF2F6; flex-shrink: 0;
+  padding: 14px 18px; border-bottom: 1px solid #E2E8F0; flex-shrink: 0;
 `;
 const ModalTitle = styled.h2`font-size:15px;font-weight:700;color:#0F172A;margin:0;letter-spacing:-0.1px;`;
 const ModalClose = styled.button`
@@ -1764,7 +1764,7 @@ const SaveTplField = styled.div`display:flex;flex-direction:column;gap:6px;margi
 const SaveTplLabel = styled.label`font-size:12px;font-weight:600;color:#0F172A;`;
 const SaveTplError = styled.div`font-size:12px;color:#DC2626;background:#FEF2F2;padding:8px 10px;border-radius:6px;margin-bottom:8px;`;
 const ModalFooter = styled.div`
-  padding: 12px 18px; border-top: 1px solid #EEF2F6;
+  padding: 12px 18px; border-top: 1px solid #E2E8F0;
   display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0;
 `;
 const TplCardBody = styled.div`flex:1;min-width:0;`;
@@ -2020,13 +2020,13 @@ const CategoryMini = styled.span`
 const AttachSection = styled.section`
   margin-top: 12px;
   padding-top: 16px;
-  border-top: 1px solid #EEF2F6;
+  border-top: 1px solid #E2E8F0;
   display: flex; flex-direction: column; gap: 12px;
 `;
 const AttachTitle = styled.div`font-size: 13px; font-weight: 700; color: #334155;`;
 const AttachList = styled.div`
   display: flex; flex-direction: column;
-  background: #fff; border: 1px solid #EEF2F6; border-radius: 8px; overflow: hidden;
+  background: #fff; border: 1px solid #E2E8F0; border-radius: 8px; overflow: hidden;
 `;
 const AttachRow = styled.div`
   display: flex; align-items: center; gap: 10px; padding: 10px 12px;

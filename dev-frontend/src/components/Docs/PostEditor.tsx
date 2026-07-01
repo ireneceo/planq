@@ -330,7 +330,7 @@ const ToolBtn = styled.button<{ $active?: boolean; $compact?: boolean }>`
   background: ${p => p.$active ? '#F0FDFA' : 'transparent'};
   border-radius: 6px;
   flex-shrink: 0;
-  &:hover { background: ${p => p.$active ? '#CCFBF1' : '#EEF2F6'}; color: #0F172A; }
+  &:hover { background: ${p => p.$active ? '#CCFBF1' : '#E2E8F0'}; color: #0F172A; }
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
 `;
 // 이미지 사이즈 BubbleMenu (편집 시 image 선택하면 노출)

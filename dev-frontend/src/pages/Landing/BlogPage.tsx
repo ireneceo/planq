@@ -138,13 +138,13 @@ const FilterRow = styled.div`
 `;
 const FilterChip = styled.button<{ $active: boolean }>`
   height: 36px; padding: 0 16px;
-  background: ${p => p.$active ? '#0F172A' : '#FFFFFF'};
+  background: ${p => p.$active ? '#14B8A6' : '#FFFFFF'};
   color: ${p => p.$active ? '#FFFFFF' : '#475569'};
-  border: 1px solid ${p => p.$active ? '#0F172A' : '#E2E8F0'};
+  border: 1px solid ${p => p.$active ? '#0D9488' : '#E2E8F0'};
   border-radius: 999px;
   font-size: 13px; font-weight: 500; cursor: pointer;
   transition: all 0.15s;
-  &:hover { border-color: ${p => p.$active ? '#0F172A' : '#CBD5E1'}; }
+  &:hover { border-color: ${p => p.$active ? '#14B8A6' : '#CBD5E1'}; }
 `;
 
 const ContentSection = styled.section`

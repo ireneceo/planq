@@ -1073,7 +1073,7 @@ const NoteItem = styled.div`
 const NoteVis = styled.span<{ $internal: boolean }>`
   padding: 1px 6px;
   background: ${(p) => (p.$internal ? '#E0F2FE' : '#F1F5F9')};
-  color: ${(p) => (p.$internal ? '#0369A1' : '#475569')};
+  color: ${(p) => (p.$internal ? '#0284C7' : '#475569')};
   font-size: 9px;
   font-weight: 700;
   border-radius: 8px;
