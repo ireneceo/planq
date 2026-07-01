@@ -21,7 +21,7 @@ const planTone = (code: PlanCode, inTrial: boolean, inGrace: boolean): { bg: str
   if (inTrial) return { bg: '#FFFBEB', fg: '#B45309', bd: '#FDE68A' };
   switch (code) {
     case 'free':       return { bg: '#F1F5F9', fg: '#475569', bd: '#E2E8F0' };
-    case 'enterprise': return { bg: '#F5F3FF', fg: '#6D28D9', bd: '#DDD6FE' };
+    case 'enterprise': return { bg: '#F0FDFA', fg: '#0F766E', bd: '#F0FDFA' };
     default:           return { bg: '#F0FDFA', fg: '#0F766E', bd: '#CCFBF1' };
   }
 };

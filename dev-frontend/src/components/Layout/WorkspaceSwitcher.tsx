@@ -36,7 +36,7 @@ const ROLE_DOT: Record<WorkspaceMembership['role'], string> = {
   owner: '#FB7185',  // 코랄 (관리자 = 주인 강조)
   member: '#5EEAD4', // 민트 (사이드바 accent 일치)
   client: '#FCD34D', // 황금 (고객 = 외부)
-  ai: '#C084FC',     // 라벤더
+  ai: '#5EEAD4',     // 라벤더
 };
 
 interface Props {

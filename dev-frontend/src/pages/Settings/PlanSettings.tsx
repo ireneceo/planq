@@ -938,7 +938,7 @@ function planBadge(code: PlanCode): string {
     case 'free':       return 'background:#F1F5F9;color:#64748B;';
     case 'starter':    return 'background:#DBEAFE;color:#1D4ED8;';
     case 'basic':      return 'background:#F0FDFA;color:#0F766E;';
-    case 'pro':        return 'background:#F3E8FF;color:#6B21A8;';
+    case 'pro':        return 'background:#F0FDFA;color:#6B21A8;';
     case 'enterprise': return 'background:#FEF3C7;color:#92400E;';
   }
 }

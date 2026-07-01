@@ -2332,7 +2332,7 @@ const QuickSwitchBtn = styled.button`
 const QuickHash = styled.span<{ $type: 'customer' | 'internal' | 'group' }>`
   color: ${(p) =>
     p.$type === 'customer' ? '#F59E0B' :
-    p.$type === 'internal' ? '#94A3B8' : '#7C3AED'};
+    p.$type === 'internal' ? '#94A3B8' : '#0F766E'};
   font-weight: 700;
 `;
 
@@ -3068,7 +3068,7 @@ const SHARED_TONE: Record<string, { bg: string; fg: string; border: string }> = 
   task:     { bg: '#DBEAFE', fg: '#1E40AF', border: '#93C5FD' },
   file:     { bg: '#FEF3C7', fg: '#92400E', border: '#FCD34D' },
   kb:       { bg: '#F0FDFA', fg: '#0F766E', border: '#99F6E4' },
-  calendar: { bg: '#F3E8FF', fg: '#6B21A8', border: '#D8B4FE' },
+  calendar: { bg: '#F0FDFA', fg: '#6B21A8', border: '#D8B4FE' },
 };
 const SharedCardIcon = styled.span<{ $tone: keyof typeof SHARED_TONE }>`
   width: 36px; height: 36px; flex-shrink: 0;

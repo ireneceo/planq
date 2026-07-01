@@ -247,7 +247,7 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
       {/* 독립 서버 (S3 호환) — 운영 #29 */}
       <ProviderCard $active={defaultProvider === 's3'}>
         <CardHead>
-          <CardIcon $bg="#EDE9FE" $fg="#6D28D9">
+          <CardIcon $bg="#F0FDFA" $fg="#0F766E">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/>
             </svg>

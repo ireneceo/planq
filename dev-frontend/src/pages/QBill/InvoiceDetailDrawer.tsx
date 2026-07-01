@@ -1374,7 +1374,7 @@ const SourceKindBadge = styled.span<{ $kind: string }>`
   background: ${p =>
     p.$kind === 'contract' ? '#FEF3C7' :
     p.$kind === 'quote' ? '#E0F2FE' :
-    p.$kind === 'sow' ? '#F3E8FF' :
+    p.$kind === 'sow' ? '#F0FDFA' :
     '#FEE2E2'};
   color: ${p =>
     p.$kind === 'contract' ? '#92400E' :

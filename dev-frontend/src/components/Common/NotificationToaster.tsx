@@ -561,7 +561,7 @@ const ToastCard = styled.div<{ $type: string }>`
     p.$type === 'message' ? '#14B8A6' :
     p.$type === 'task' ? '#0D9488' :
     p.$type === 'invoice' ? '#F59E0B' :
-    p.$type === 'signature' ? '#8B5CF6' :
+    p.$type === 'signature' ? '#14B8A6' :
     '#64748B'};
   border-radius: 10px;
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
@@ -585,13 +585,13 @@ const ToastIcon = styled.div<{ $type: string }>`
     p.$type === 'message' ? '#F0FDFA' :
     p.$type === 'task' ? '#F0FDFA' :
     p.$type === 'invoice' ? '#FEF3C7' :
-    p.$type === 'signature' ? '#F3E8FF' :
+    p.$type === 'signature' ? '#F0FDFA' :
     '#F1F5F9'};
   color: ${p =>
     p.$type === 'message' ? '#0D9488' :
     p.$type === 'task' ? '#0D9488' :
     p.$type === 'invoice' ? '#92400E' :
-    p.$type === 'signature' ? '#6D28D9' :
+    p.$type === 'signature' ? '#0F766E' :
     '#475569'};
   border-radius: 8px;
   font-size: 14px;

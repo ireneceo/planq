@@ -213,7 +213,7 @@ export default function OverviewTab() {
           <KpiSub>{formatMoney(stats.draftAmount, 'KRW')}</KpiSub>
         </KpiCard>
 
-        <KpiCard $accent="#A855F7">
+        <KpiCard $accent="#14B8A6">
           <KpiHead>
             <KpiLabel>{t('overview.kpi.pendingTax')}</KpiLabel>
             <KpiHelp>{t('overview.kpi.pendingTaxHelp')}</KpiHelp>
