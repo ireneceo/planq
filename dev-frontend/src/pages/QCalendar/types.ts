@@ -75,7 +75,7 @@ export interface PersonalCalendarEvent {
   start_at: string;
   end_at: string;
   all_day: boolean;
-  color: string;         // violet #8B5CF6 (회사 일정과 색 분리)
+  color: string;         // violet #14B8A6 (회사 일정과 색 분리)
   html_link: string | null;
   account_email: string | null;
   read_only: true;

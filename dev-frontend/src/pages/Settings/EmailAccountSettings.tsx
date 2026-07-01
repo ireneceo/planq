@@ -72,6 +72,14 @@ const EmailAccountSettings: React.FC = () => {
     } catch (_) { /* skip */ }
   };
 
+  // #109 — 개인 ↔ 회사 공용 전환 (실수로 반대로 추가한 경우 되돌리기). admin 만 노출.
+  const handleChangeScope = async (acc: EmailAccountRow) => {
+    try {
+      await updateEmailAccount(businessId, acc.id, { scope: acc.is_personal ? 'team' : 'personal' });
+      await load();
+    } catch (_) { /* skip */ }
+  };
+
   const handleDelete = async (id: number) => {
     try {
       await deleteEmailAccount(businessId, id);
@@ -149,6 +157,14 @@ const EmailAccountSettings: React.FC = () => {
           <ActionBtn type="button" onClick={() => setEditing(acc)}>
             {t('settings.edit', '편집') as string}
           </ActionBtn>
+          {isAdmin && (
+            <ActionBtn type="button" onClick={() => handleChangeScope(acc)}
+              title={t('settings.changeScopeHint', '이 계정을 개인/회사 공용으로 전환') as string}>
+              {acc.is_personal
+                ? t('settings.toTeam', '회사 공용으로') as string
+                : t('settings.toPersonal', '개인으로 전환') as string}
+            </ActionBtn>
+          )}
           <DangerActionBtn type="button" onClick={() => setDeletingId(acc.id)}>
             {t('settings.deactivate', '비활성화') as string}
           </DangerActionBtn>

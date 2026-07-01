@@ -116,6 +116,8 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
       setNewClientName(''); setNewClientEmail('');
       setCustomerChatName(''); setInternalChatName('');
       setCustomerParticipants(new Set()); setInternalParticipants(new Set());
+      // #95 — 채팅방 생성 토글도 기본값 복원. 옛 버그: 이전에 끈 상태가 남아 다음 생성 때 의도와 다르게 동작.
+      setCreateCustomerChannel(true); setCreateInternalChannel(true);
       setSubmitting(false);
     }
   }, [open]);
