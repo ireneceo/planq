@@ -250,7 +250,13 @@ router.get('/me/oauth/google/callback', async (req, res) => {
     body: `<h2>연동 실패</h2><p>${msg}</p>`,
   }));
 
-  if (oauthError) return fail(`Google 에서 거부됨: ${oauthError}`);
+  if (oauthError) {
+    // 심사(검증) 전 거부/사용자 취소를 구분해 안내 — "고장"으로 오해하지 않게
+    const friendly = String(oauthError) === 'access_denied'
+      ? 'Google 연결이 완료되지 않았습니다. 권한 요청을 취소했거나, PlanQ 의 Google 앱 심사가 끝나기 전이라 이 계정은 아직 원클릭 연동이 제한될 수 있습니다. 메일은 설정의 "계정 추가"에서 앱 비밀번호 방식으로 연결할 수 있습니다.'
+      : `Google 에서 거부됨: ${oauthError}`;
+    return fail(friendly);
+  }
   if (!code || !state) return fail('잘못된 요청');
   const parsed = personalOauth.parseState(state);
   if (!parsed) return fail('보안 검증 실패 (state 만료/위조)');

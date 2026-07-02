@@ -21,8 +21,15 @@ const EmailAccountSettings: React.FC = () => {
   const businessId = user?.business_id ? Number(user.business_id) : null;
   const isAdmin = user?.business_role === 'owner' || user?.business_role === 'admin' || user?.platform_role === 'platform_admin';
   // 스코프 뷰 — ?scope=personal (내 메일 계정) vs 회사 공용(회사 메일). 메뉴 진입로가 범위를 결정.
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const personalView = searchParams.get('scope') === 'personal';
+  // Gmail OAuth 콜백 실패 (?gmail_error=) — 심사 전 거부를 사용자가 인지하게 배너 표시
+  const gmailError = searchParams.get('gmail_error');
+  const dismissGmailError = () => setSearchParams((prev) => {
+    const n = new URLSearchParams(prev);
+    n.delete('gmail_error');
+    return n;
+  }, { replace: true });
   // 추가할 계정의 범위: 개인 뷰 → 개인 고정, 회사 뷰 → 회사 공용(admin) / 개인(멤버) 기본.
   const [addScope, setAddScope] = useState<'team' | 'personal'>(
     personalView ? 'personal' : (isAdmin ? 'team' : 'personal')
@@ -228,6 +235,14 @@ const EmailAccountSettings: React.FC = () => {
       <Hint>{t('settings.hintOauth', 'Gmail 은 "Gmail 로 연결"(원클릭) 또는 앱 비밀번호로 연결할 수 있어요. 원클릭 연결이 안 되면 계정 추가에서 앱 비밀번호 방식을 사용하세요.') as string}</Hint>
       <Hint>{t('settings.hintNewMailOnly', '연결한 시점 이후에 도착한 새 메일부터 수신됩니다. 과거 메일은 가져오지 않아요.') as string}</Hint>
       {connErr && <ConnErr>{connErr}</ConnErr>}
+      {gmailError && (
+        <ConnErr>
+          {gmailError === 'access_denied'
+            ? t('settings.gmailOauthDenied', 'Google 연결이 완료되지 않았습니다 — 권한 요청을 취소했거나, PlanQ 의 Google 앱 심사가 끝나기 전이라 이 계정은 아직 원클릭 연결이 제한될 수 있어요. 아래 "계정 추가"에서 앱 비밀번호 방식으로 연결해 주세요.') as string
+            : t('settings.gmailOauthFailed', 'Gmail 연결 실패: {{code}} — 잠시 후 다시 시도하거나 앱 비밀번호 방식을 사용해 주세요.', { code: gmailError }) as string}
+          <DismissBtn type="button" onClick={dismissGmailError} aria-label={t('settings.dismiss', '닫기') as string}>×</DismissBtn>
+        </ConnErr>
+      )}
 
       {loading ? (
         <Loading>{t('settings.loading', '로드 중...') as string}</Loading>
@@ -693,6 +708,7 @@ const ScopeNote = styled.div<{ $personal: boolean }>`
 `;
 const Hint = styled.p`font-size: 13px; color: #64748B; margin: 0 0 20px; line-height: 1.6;`;
 const ConnErr = styled.p`font-size: 13px; color: #B91C1C; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 10px 12px; margin: 0 0 16px; line-height: 1.5;`;
+const DismissBtn = styled.button`all: unset; cursor: pointer; float: right; font-size: 15px; line-height: 1; color: #B91C1C; padding: 0 2px; &:hover { opacity: 0.7; }`;
 const Loading = styled.div`padding: 40px; text-align: center; color: #94A3B8;`;
 const EmptyCard = styled.div`
   padding: 40px 24px; text-align: center;

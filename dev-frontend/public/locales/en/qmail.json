@@ -125,7 +125,10 @@
       "hostNotFound": "IMAP server address not found. Please check the server address.",
       "connectFailed": "Could not reach the mail server. Check the server address and port.",
       "duplicate": "This email is already registered."
-    }
+    },
+    "gmailOauthDenied": "Google connection was not completed — you may have cancelled, or one-click connection is limited for this account until PlanQ finishes Google app review. Use the app-password method in \"Add account\" below.",
+    "gmailOauthFailed": "Gmail connection failed: {{code}} — try again later or use the app-password method.",
+    "dismiss": "Dismiss"
   },
   "folders": {
     "title": "Mailboxes",

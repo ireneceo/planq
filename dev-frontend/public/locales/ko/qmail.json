@@ -125,7 +125,10 @@
       "hostNotFound": "IMAP 서버 주소를 찾을 수 없습니다. 서버 주소를 확인해 주세요.",
       "connectFailed": "메일 서버에 연결하지 못했습니다. 서버 주소와 포트를 확인해 주세요.",
       "duplicate": "이미 등록된 이메일입니다."
-    }
+    },
+    "gmailOauthDenied": "Google 연결이 완료되지 않았습니다 — 권한 요청을 취소했거나, PlanQ 의 Google 앱 심사가 끝나기 전이라 이 계정은 아직 원클릭 연결이 제한될 수 있어요. 아래 \"계정 추가\"에서 앱 비밀번호 방식으로 연결해 주세요.",
+    "gmailOauthFailed": "Gmail 연결 실패: {{code}} — 잠시 후 다시 시도하거나 앱 비밀번호 방식을 사용해 주세요.",
+    "dismiss": "닫기"
   },
   "folders": {
     "title": "메일함",
