@@ -108,7 +108,8 @@ Client.init({
   tax_invoice_email: { type: DataTypes.STRING(200), allowNull: true, comment: '세금계산서 수취 이메일' },
   billing_contact_name: { type: DataTypes.STRING(100), allowNull: true },
   billing_contact_email: { type: DataTypes.STRING(200), allowNull: true },
-  billing_contact_phone: { type: DataTypes.STRING(40), allowNull: true, comment: '세금계산서 담당자 연락처' }
+  billing_contact_phone: { type: DataTypes.STRING(40), allowNull: true, comment: '세금계산서 담당자 연락처' },
+  email_aliases: { type: DataTypes.JSON, allowNull: true, comment: '추가 이메일 별칭 배열 — 메일 수신 시 client 자동 매칭용' }
 }, {
   sequelize,
   tableName: 'clients',

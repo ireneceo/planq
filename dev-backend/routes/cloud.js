@@ -86,7 +86,10 @@ router.get('/status/:businessId', authenticateToken, checkBusinessAccess, async 
         account_email: t.account_email,
         root_folder_id: t.root_folder_id,
         connected_at: t.connectedAt || t.connected_at,
-        connected_by: t.connector ? t.connector.name : null
+        connected_by: t.connector ? t.connector.name : null,
+        last_error: t.last_error || null,
+        last_error_at: t.last_error_at || null,
+        needs_reconnect: /invalid_grant|unauthorized|invalid_credentials/i.test(t.last_error || '')
       };
     }
     successResponse(res, statusMap);

@@ -126,9 +126,11 @@ router.post('/:taskId/attachments',
             finalFilePath = driveFile.id;
             finalStoredName = driveFile.id;
             fs.unlinkSync(req.file.path);
+            gdrive.clearTokenError(cloudToken);
           }
         } catch (e) {
           console.error('[task_attachments] external upload failed:', e.message);
+          gdrive.recordTokenError(cloudToken, e);
           // 실패 시 로컬 유지
         }
       }

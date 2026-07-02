@@ -106,13 +106,18 @@ async function matchClient(businessId, fromEmail) {
     attributes: ['id'],
   });
   if (exact) return exact.id;
-  // aliases — JSON_CONTAINS
-  const { sequelize } = require('../config/database');
-  const [rows] = await sequelize.query(
-    `SELECT id FROM clients WHERE business_id = ? AND JSON_SEARCH(email_aliases, 'one', ?) IS NOT NULL LIMIT 1`,
-    { replacements: [businessId, fromEmail] }
-  );
-  return rows[0] ? rows[0].id : null;
+  // aliases — JSON_SEARCH. client 매칭은 부가 정보 — 어떤 실패도 메시지 저장을 막으면 안 됨
+  try {
+    const { sequelize } = require('../config/database');
+    const [rows] = await sequelize.query(
+      `SELECT id FROM clients WHERE business_id = ? AND JSON_SEARCH(email_aliases, 'one', ?) IS NOT NULL LIMIT 1`,
+      { replacements: [businessId, fromEmail] }
+    );
+    return rows[0] ? rows[0].id : null;
+  } catch (e) {
+    console.warn('[emailImapCron] client alias match skipped:', e.message);
+    return null;
+  }
 }
 
 // attachment File 자동 저장 (visibility=L3, folder 'Email Attachments')

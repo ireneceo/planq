@@ -22,7 +22,7 @@ async function runShareTokenCleanup() {
   const targets = [
     { model: Post, key: 'posts', hasSharedAt: true },
     { model: Document, key: 'documents', hasSharedAt: true },
-    { model: Invoice, key: 'invoices', hasSharedAt: true },
+    { model: Invoice, key: 'invoices', hasSharedAt: false }, // invoices 는 shared_at 없음 (share_token + share_expires_at 만) — updated_at 기준
     // N+74-B 신규 3 자산. shared_at 컬럼 없으면 share_expires_at 또는 updated_at 기준 (없으면 skip).
     { model: File, key: 'files', hasSharedAt: false },
     { model: KbDocument, key: 'kb_documents', hasSharedAt: false },

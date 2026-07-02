@@ -463,9 +463,11 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, upload.singl
         fs.unlinkSync(tempPath);
         tempPath = null;
         broadcastFile(req, file, 'file:new');
+        gdrive.clearTokenError(cloudToken);
         return successResponse(res, file, 'File uploaded to Drive', 201);
       } catch (e) {
         console.error('[files] gdrive upload failed:', e.message);
+        gdrive.recordTokenError(cloudToken, e);
         if (tempPath && fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
         return errorResponse(res, 'Google Drive upload failed: ' + e.message, 502);
       }
@@ -827,6 +829,12 @@ async function softDeleteFile(file, transaction) {
           await gdrive.deleteFile(drive, file.external_id);
         }
       } catch (e) { console.error('[files] gdrive delete failed:', e.message); }
+    } else if (file.storage_provider === 's3' && file.external_id) {
+      try {
+        const { WorkspaceStorageConfig } = require('../models');
+        const cfg = await WorkspaceStorageConfig.findOne({ where: { business_id: file.business_id }, transaction });
+        if (cfg) await require('../services/s3Storage').deleteObject(cfg, file.external_id);
+      } catch (e) { console.error('[files] s3 delete failed:', e.message); }
     }
   }
   // 쿼터 반환 (자체 스토리지만 쿼터 사용)
