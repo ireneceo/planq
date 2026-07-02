@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useAuth } from '../../contexts/AuthContext';
+import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import {
   listInvoices, formatMoney, invoiceStatusColor, countByStatus,
@@ -88,26 +89,15 @@ export default function InvoicesTab() {
       if (pending) return;
       pending = window.setTimeout(() => { pending = null; reload(); }, 250);
     };
-    let socket: { disconnect: () => void } | null = null;
-    import('socket.io-client').then(({ io }) => {
-      import('../../contexts/AuthContext').then(({ getAccessToken }) => {
-        if (!getAccessToken()) return;
-        const s = io({
-          auth: (cb) => cb({ token: getAccessToken() }),
-          transports: ['websocket', 'polling'],
-          reconnection: true,
-        });
-        socket = s;
-        s.on('connect', () => { s.emit('join:business', businessId); });
-        s.on('invoice:new', debouncedReload);
-        s.on('invoice:updated', debouncedReload);
-        s.on('invoice:deleted', debouncedReload);
-        s.on('inbox:refresh', debouncedReload);  // 기존 invoice 의 6 라우트 inbox:refresh 도 catch
-      });
-    });
+    joinRoom(`business:${businessId}`);
+    const offNew = onSocket('invoice:new', debouncedReload);
+    const offUpdated = onSocket('invoice:updated', debouncedReload);
+    const offDeleted = onSocket('invoice:deleted', debouncedReload);
+    const offInbox = onSocket('inbox:refresh', debouncedReload);  // 기존 invoice 의 6 라우트 inbox:refresh 도 catch
     return () => {
       if (pending) window.clearTimeout(pending);
-      if (socket) socket.disconnect();
+      leaveRoom(`business:${businessId}`);
+      offNew(); offUpdated(); offDeleted(); offInbox();
     };
   }, [businessId, reload]);
 

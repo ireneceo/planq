@@ -109,31 +109,38 @@ export const useReallyVisible = () => {
 
 ```
 <AuthProvider>
-  { loggedIn && isDesktop
-    ? <TabWorkspace/>                              // ← BrowserRouter 조상 없음
-    : <BrowserRouter><ShellRoutes/></BrowserRouter> // 로그인·공개·마케팅·모바일
+  { !loggedIn || !isDesktop
+    ? <BrowserRouter><ShellRoutes/></BrowserRouter>   // 로그인·공개·마케팅·모바일 (단일탭 현행)
+    : <TabAppShell>                                    // ← BrowserRouter 조상 없음
+        {/* chrome 과 탭 pane 들은 서로 형제. 어느 것도 다른 것의 조상이 아니다. */}
+        <ChromeZone>                                   // router-less. TabStore 로 네비/활성표시
+          <Sidebar/><TabStrip/><RightDock/><Toaster/><BuildGuard/>
+        </ChromeZone>
+        <TabPanes>
+          {tabs.filter(t=>t.alive).map(t =>
+            <TabPane key={t.id} hidden={t.id!==activeId}>
+              <MemoryRouter initialEntries={[t.path]}>  // ← 탭마다 독립. 형제(중첩 아님) → invariant 통과
+                <UrlMirror active={t.id===activeId} onNav={p=>store.setTabPath(t.id,p)}/>
+                <PageRoutesForTab kind={t.kind}/>       // useNavigate/useParams/useSearchParams/Link = 이 탭 전용
+              </MemoryRouter>
+            </TabPane>
+          )}
+        </TabPanes>
+      </TabAppShell>
   }
 </AuthProvider>
-
-// TabWorkspace (Router 조상 없음)
-<Sidebar/><TabStrip/>
-{tabs.map(t =>
-  <TabPane key={t.id} hidden={t.id!==activeId}>
-    <MemoryRouter initialEntries={[t.path]}>       // ← 탭마다 독립. 서로 형제(중첩 아님) → invariant 통과
-      <PageRoutesForTab kind={t.kind}/>            // 그 안의 useNavigate/useParams/useSearchParams/Link = 이 탭 전용
-    </MemoryRouter>
-  </TabPane>
-)}
 ```
 
-- **왜 이게 크래시 안 나나:** `TabWorkspace` 에 Router 조상이 없으므로 각 `<MemoryRouter>` 는 자기 subtree 의 **최상위 Router** = 형제 관계. `useInRouterContext()===false` 통과. (P1 진입 전 §13 PoC 로 실증 — RR 7.14 + React 19.2 + StrictMode.)
-- **★ 52파일 shim 불필요:** 페이지 내부의 `useNavigate/useParams/useSearchParams/Link/useLocation` 이 **무수정으로** 각 탭의 MemoryRouter 에 자동 바인딩. (v1 대비 최대 이점 — Fable Q1(b) 우려한 shim 호환성 문제 원천 제거.)
-- **비-탭 페이지(설정·admin·프로필):** TabWorkspace 안에서 "단일 인스턴스 replace 탭"으로 열되 역시 MemoryRouter pane. 공개/로그인/모바일은 ShellRouter(BrowserRouter) 담당.
-- **브라우저 주소창 미러:** 각 MemoryRouter 안에 얇은 `<UrlMirror/>` — 자기 탭이 활성일 때만 `useLocation()` → `window.history.replaceState`(주소창=활성 탭 path). `popstate`(브라우저 back/forward) → 활성 탭 MemoryRouter 의 `navigate(-1/+1)`.
-- **딥링크 진입**(부팅 시 `/tasks?task=42` 직접 URL): `window.location` 읽어 첫 탭 seed. 이후 §8 규칙.
-- **URL 상태 격리 근본 해결:** 탭마다 MemoryRouter 라 `?task=`·`?post=` 오염(Explore §5-E) 원천 차단.
+- **왜 크래시 안 나나:** `TabAppShell` 에 Router 조상이 없으므로 각 `<MemoryRouter>` 는 자기 subtree 의 **최상위 Router** = 형제. `useInRouterContext()===false` 통과 (SSR PoC 실증 §13-3).
+- **★ 52파일 shim 불필요:** 페이지 내부 `useNavigate/useParams/useSearchParams/Link/useLocation` 이 **무수정** 각 탭 MemoryRouter 바인딩.
+- **🔴 chrome 은 react-router 를 쓰지 않는다 (Fable Part2-① 반영 — v1의 치명 함정):** `MainLayout`(사이드바 active·nav `useLocation`/`useNavigate` 20+곳), `NotificationToaster`(activePathRef `useLocation`), `RightDock`, `CueHelpDrawer`, `BuildVersionGuard` 는 router-less zone 에 놓이므로 **이들의 RR 훅 호출은 `throw "useLocation() may be used only in the context of a <Router>"`** (Fable TEST2 실측). → **chrome 을 TabStore 기반으로 리팩터**: 사이드바 active = `store.activeTab.kind`(경로 아님), 사이드바 클릭 = `store.openOrFocus(kind)`(navigate 아님), Toaster 링크매칭 = `store.activeTab.path` + 열린 conv 맵. 이 chrome 리팩터 비용은 **P1 필수 선행**(§13-P1-a에 포함). 페이지(52파일)엔 shim 불필요하나 **chrome(5개)은 RR 탈피 필요** — 이게 v1→v2에서 이동한 진짜 비용.
+- **비-탭 페이지(설정·admin·프로필):** TabAppShell 안 "단일 인스턴스 replace 탭"(역시 MemoryRouter pane).
+- **브라우저 주소창 + back/forward (Fable Part2-③ 정정):** UrlMirror 는 활성 탭 내부 네비 시 `window.history.pushState`(replaceState 아님 — pushState 라야 back 엔트리 생성), 탭 전환 시엔 `replaceState`(탭 전환은 브라우저 히스토리에 안 쌓음). `popstate` → 현재 window path 를 활성 탭의 MemoryRouter 로 `navigate(path)`. **단일 브라우저 히스토리에 여러 탭 네비가 interleave → back 이 탭 경계를 넘을 수 있음**: 수용 정책 = "브라우저 back = 활성 탭의 직전 path 로만, 탭 경계 넘으면 그 path 소유 탭으로 자동 전환"(§8 재타겟 규칙 재사용). 인브라우저 SPIKE 필수 검증(§13-3).
+- **딥링크 진입 (Fable Part2-⑤ 정정):** 미인증 딥링크는 `ProtectedRoute` 가 `/login?next=<path>` 로 보존(shell 라우터). 로그인 성공 → `loggedIn` flip 직전, AuthContext 가 `next` 를 sessionStorage(`planq_boot_deeplink`)에 적재 → TabAppShell 마운트 시 그 값으로 첫 탭 seed(없으면 `/dashboard`). auth flip 과 seed 순서를 sessionStorage 로 디커플 — 트리 스왑으로 shell navigate 가 유실돼도 딥링크 보존.
+- **isDesktop 런타임 전환 (Fable Part2-④ 정정):** 창 리사이즈로 1024px 경계 넘을 때 `TabAppShell↔ShellRouter` 트리 스왑 = 전체 remount(탭 소멸). 방지 = **`isDesktop` 는 마운트 시 1회 확정(초기값 고정), 리사이즈로 재평가 안 함.** 데스크탑에서 진입하면 세션 동안 탭 모드 유지(폰 폭으로 줄여도 탭 유지, 단 탭 스트립은 반응형 축소 §5). 진짜 기기 전환은 새로고침으로만.
+- **URL 상태 격리 근본 해결:** 탭마다 MemoryRouter → `?task=`·`?post=` 오염(Explore §5-E) 원천 차단.
 
-**수용 한계(명시):** MemoryRouter 내부 back-stack 은 직렬화 불가 → 새로고침 후 복원되는 것은 **각 탭의 현재 path 1개**뿐(§7). 탭 내부 "뒤로가기 히스토리"는 리로드 후 초기화(핵심 목표 아님, Fable ③ 수용).
+**수용 한계(명시):** MemoryRouter 내부 back-stack 직렬화 불가 → 새로고침 후 복원은 **각 탭 현재 path 1개**뿐(§7). 탭 내부 뒤로가기 히스토리는 리로드 후 초기화(핵심 목표 아님, Fable ③ 수용).
 
 ---
 
@@ -145,12 +152,13 @@ interface Tab {
   kind: TabKind;              // 'talk'|'task'|'note'|'docs'|'calendar'|'bill'|'project'|'projectDetail'|'files'|'clients'|'dashboard'|'inbox'
   title: string;             // 동적 (대화명·프로젝트명…)
   icon: string;              // Q 시리즈 아이콘 키
-  history: MemoryHistory;    // §3
+  path: string;              // 이 탭의 현재 location path (단일 원천). UrlMirror 가 내부 네비 시 store.setTabPath 로 갱신
   alive: boolean;            // true=마운트 유지, false=suspend(스냅샷만)
   lastActiveAt: number;      // LRU
   snapshot?: TabSnapshot;    // suspend/복원용 (scroll·열린 드로어·선택항목)
 }
 ```
+> **Fable Part2-② 정정:** `MemoryRouter` 는 내부에서 자기 history 를 생성하고 외부 `MemoryHistory` 객체를 주입받지 않는다 → 옛 `history: MemoryHistory` 필드 폐기. TabStore 는 **`path` 문자열만** 소유(직렬화 가능·§7 복원 정합). MemoryRouter 는 `initialEntries={[tab.path]}` 로 seed 되고, 탭 내부 네비는 `<UrlMirror onNav>` 가 `store.setTabPath(id, path)` 로 역보고 → suspend/새로고침 시 그 path 로 재seed.
 - Context + `useSyncExternalStore` (전역 상태 라이브러리 미도입 원칙 유지 — AuthContext/Pwa 2개뿐).
 - **탭 identity 규칙:** kind 기준 1개 원칙(예: Talk 탭은 세션당 1개, 대화 전환은 그 탭 안에서). 단 **Project 상세**·**docs 상세**는 id별 복수 허용(`projectDetail:123`).
 - **LRU:** alive 탭 > 4 되면 `lastActiveAt` 최오래 비활성 탭 → `alive=false`(언마운트, 스냅샷 저장). 재클릭 시 재마운트+복원(빠름).
@@ -279,9 +287,10 @@ interface Tab {
 1. **P0-A** 공유 소켓 서비스(`services/socket.ts` — 작성됨) + 24곳 마이그레이션 + connect_error 이관 (독립 검증·게이트)
 2. **P0-B** 앱탭 활성 컨텍스트 + document(34)/hook(16) 마이그레이션 (독립 검증, 단일탭 무회귀). **※ `useReallyVisible` hook 버그 수정본(§2.2)으로 착수.**
 3. **🚪 SPIKE (P1 진입 게이트, Fable 필수):** §3 v2 형제 MemoryRouter PoC.
-   - ✅ **SSR 레벨 실증 완료 (6/0 PASS):** RR 7.14 + React 19.2 에서 (a) 형제 MemoryRouter 2개 invariant 미발생, (b) 각 탭이 자기 URL(task=42 vs post=7) 독립 read = 오염 0, (c) useNavigate/useSearchParams/Link 무수정 바인딩, (d) 반증대조 — 중첩은 예상대로 throw. → **크래시 본체 클리어.**
-   - ⬜ **잔여 (P1-a 실착수 시 인브라우저):** StrictMode 이중마운트 하 MemoryRouter 인스턴스 안정성, UrlMirror `replaceState` 주소창 동기화 + `popstate` back/forward, 딥링크 부팅 seed. **이 브라우저 PoC 통과 전 P1-a 본구현 금지.**
-4. **P1-a** TabStore + 형제 MemoryRouter TabPane + UrlMirror 브릿지 (탭 코어, 데스크탑)
+   - ✅ **SSR 레벨 실증 (6/0 PASS, Fable 독립 재현):** 형제 MemoryRouter 2개 invariant 미발생 / 각 탭 자기 URL 독립 read / RR 훅 무수정 바인딩 / 반증대조 중첩 throw. **단 이건 "격리된 형제 pane"만 커버 — 아래가 진짜 게이트.**
+   - ⬜ **🔴 SPIKE 통과 기준 상향 (Fable 필수):** 실앱 골격 = **chrome(TabStore 기반 사이드바+Toaster) + 형제 tab pane 2개를 router-less zone 에서 동시 렌더 무crash.** (현 6/0 은 chrome 이 없어 Part2-① router-less crash 를 못 봄. chrome 포함해야 게이트 의미.)
+   - ⬜ **인브라우저:** StrictMode 이중마운트 MemoryRouter 안정성, UrlMirror `pushState`(back 엔트리) + `popstate` 탭경계 back/forward, 딥링크 seed(sessionStorage). **이 통과 전 P1-a 본구현 금지 — 통과해도 chrome 미포함이면 첫 렌더 crash.**
+4. **P1-a** TabStore + 형제 MemoryRouter TabPane + UrlMirror(pushState/popstate) 브릿지 + **🔴 chrome RR 탈피 리팩터**(MainLayout 사이드바 active/nav 20+곳 + Toaster activePathRef + RightDock + CueHelpDrawer + BuildVersionGuard → TabStore 소비. Fable Part2-① — v1→v2 이동 비용, P1-a 필수 선행). 딥링크 seed + isDesktop 마운트1회 확정.
 5. **P1-b** TabHost/TabStrip keep-alive 렌더 + 전역 리소스 격리(§6, Esc/scrolllock/keydown/focustrap 탭 스코프 + suspend cleanup 유령 엔트리 방지)
 6. **P1-c** 링크 진입 규칙(§8) + 영속·복원(§7, path 1개/탭 + 데이터 로드 후 scroll 복원 훅 12페이지 배선) + LRU suspend
 7. **P1-d** 숨은 탭 정책(§11 merge/refetch 분류) + Toaster TabStore 소스 + 검증 E2E 전수(§12)

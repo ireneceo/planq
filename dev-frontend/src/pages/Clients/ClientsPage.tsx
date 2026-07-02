@@ -10,6 +10,7 @@ import type { TFunction } from 'i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import SearchBox from '../../components/Common/SearchBox';
@@ -134,25 +135,14 @@ export default function ClientsPage() {
       if (pending) return;
       pending = window.setTimeout(() => { pending = null; void load(); }, 250);
     };
-    let socket: { disconnect: () => void } | null = null;
-    import('socket.io-client').then(({ io }) => {
-      import('../../contexts/AuthContext').then(({ getAccessToken }) => {
-        if (!getAccessToken()) return;
-        const s = io({
-          auth: (cb) => cb({ token: getAccessToken() }),
-          transports: ['websocket', 'polling'],
-          reconnection: true,
-        });
-        socket = s;
-        s.on('connect', () => { s.emit('join:business', Number(businessId)); });
-        s.on('client:new', debouncedReload);
-        s.on('client:updated', debouncedReload);
-        s.on('client:deleted', debouncedReload);
-      });
-    });
+    joinRoom(`business:${Number(businessId)}`);
+    const offNew = onSocket('client:new', debouncedReload);
+    const offUpdated = onSocket('client:updated', debouncedReload);
+    const offDeleted = onSocket('client:deleted', debouncedReload);
     return () => {
       if (pending) window.clearTimeout(pending);
-      if (socket) socket.disconnect();
+      leaveRoom(`business:${Number(businessId)}`);
+      offNew(); offUpdated(); offDeleted();
     };
   }, [businessId, load]);
 

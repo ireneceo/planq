@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { io, type Socket } from 'socket.io-client';
 import styled from 'styled-components';
 import PageShell from '../../components/Layout/PageShell';
 import HelpDot from '../../components/Common/HelpDot';
@@ -16,8 +15,9 @@ import { fetchTodo } from '../../services/dashboard';
 import type { TodoItem, TodoResponse } from '../../services/dashboard';
 import type { CalendarEvent } from '../../pages/QCalendar/types';
 import { updateEvent, deleteEvent, createMeetingRoom } from '../../services/calendar';
-import { useAuth, apiFetch, getAccessToken } from '../../contexts/AuthContext';
+import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { joinRoom, leaveRoom, onSocket, getSocket } from '../../services/socket';
 
 interface MemberOpt { user_id: number; name: string; }
 
@@ -91,48 +91,29 @@ const TodoPage: React.FC = () => {
   // 사용자: "확인필요도 반영되는 족족 실시간으로 변경되어야 해"
   // **cross-workspace** — 인박스는 사용자가 속한 모든 워크스페이스의 알림을 통합. 따라서
   // socket join 도 default bizId 한 곳이 아니라 data.workspaces 의 모든 business room 에 join.
-  const socketRef = useRef<Socket | null>(null);
   const joinedRoomsRef = useRef<Set<number>>(new Set());
   useEffect(() => {
     if (!user) return;
-    if (!getAccessToken()) return;
-    const s = io({
-      auth: (cb) => cb({ token: getAccessToken() }),
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionDelay: 1500,
-      reconnectionDelayMax: 8000,
-      reconnectionAttempts: Infinity,
-    });
-    s.on('connect_error', async (err) => {
-      const msg = String((err as Error)?.message || '');
-      if (/auth|token|jwt|unauthorized/i.test(msg)) {
-        const { apiFetch } = await import('../../contexts/AuthContext');
-        await apiFetch('/api/auth/me').catch(() => null);
-      }
-    });
-    socketRef.current = s;
     let pending: number | null = null;
     const debouncedReload = () => {
       if (pending) return;
       pending = window.setTimeout(() => { pending = null; silentLoad(); }, 250);
     };
-    // 재연결 시 그동안 joinedRoomsRef 에 쌓인 모든 room 재조인
-    s.on('connect', () => {
-      for (const id of joinedRoomsRef.current) s.emit('join:business', id);
-    });
-    s.on('task:new', debouncedReload);
-    s.on('task:updated', debouncedReload);
-    s.on('task:deleted', debouncedReload);
-    s.on('candidate:new', debouncedReload);
-    s.on('candidate:updated', debouncedReload);
-    s.on('invoice:new', debouncedReload);
-    s.on('invoice:updated', debouncedReload);
-    s.on('event:created', debouncedReload);
-    s.on('event:updated', debouncedReload);
-    s.on('event:deleted', debouncedReload);
-    // Phase D — 서명/결제알림/세금계산서/PATCH 통합 신호
-    s.on('inbox:refresh', debouncedReload);
+    // 재연결 시 활성 room 재조인은 공유 소켓(services/socket) connect 핸들러가 담당.
+    const offs = [
+      onSocket('task:new', debouncedReload),
+      onSocket('task:updated', debouncedReload),
+      onSocket('task:deleted', debouncedReload),
+      onSocket('candidate:new', debouncedReload),
+      onSocket('candidate:updated', debouncedReload),
+      onSocket('invoice:new', debouncedReload),
+      onSocket('invoice:updated', debouncedReload),
+      onSocket('event:created', debouncedReload),
+      onSocket('event:updated', debouncedReload),
+      onSocket('event:deleted', debouncedReload),
+      // Phase D — 서명/결제알림/세금계산서/PATCH 통합 신호
+      onSocket('inbox:refresh', debouncedReload),
+    ];
     // N+35 — 같은 탭 안 안전망 (socket 지연/끊김 시 즉시 sync).
     // TaskDetailDrawer 의 workflow 액션 성공 시 즉시 dispatch.
     const onLocalRefresh = () => debouncedReload();
@@ -141,32 +122,29 @@ const TodoPage: React.FC = () => {
       if (pending) window.clearTimeout(pending);
       window.removeEventListener('inbox:refresh', onLocalRefresh);
       // 모든 joined room leave
-      for (const id of joinedRoomsRef.current) s.emit('leave:business', id);
+      for (const id of joinedRoomsRef.current) leaveRoom(`business:${id}`);
       joinedRoomsRef.current.clear();
-      s.disconnect();
-      socketRef.current = null;
+      offs.forEach((off) => off());
     };
   }, [silentLoad, user?.id]);
 
   // 모바일 PWA background 복귀 시 missed events 회복
   useVisibilityRefresh(useCallback(() => {
     silentLoad();
-    const s = socketRef.current;
+    const s = getSocket();
     if (s && !s.connected) s.connect();
   }, [silentLoad]));
 
-  // workspaces 변경 시 join/leave 동기화 — diff 만 emit.
+  // workspaces 변경 시 join/leave 동기화 — diff 만 joinRoom/leaveRoom.
   useEffect(() => {
-    const s = socketRef.current;
-    if (!s) return;
     const wanted = new Set<number>((data?.workspaces || []).map(w => w.business_id));
     // default bizId 도 항상 포함 (workspaces 가 비어 있어도)
     if (bizId) wanted.add(bizId);
     const joined = joinedRoomsRef.current;
     // 새로 join 할 room
-    for (const id of wanted) if (!joined.has(id)) { s.emit('join:business', id); joined.add(id); }
+    for (const id of wanted) if (!joined.has(id)) { joinRoom(`business:${id}`); joined.add(id); }
     // 더 이상 없는 room 은 leave
-    for (const id of Array.from(joined)) if (!wanted.has(id)) { s.emit('leave:business', id); joined.delete(id); }
+    for (const id of Array.from(joined)) if (!wanted.has(id)) { leaveRoom(`business:${id}`); joined.delete(id); }
   }, [data?.workspaces, bizId]);
 
   // 드로어에 필요한 멤버 목록 로드

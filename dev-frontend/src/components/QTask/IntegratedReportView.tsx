@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import ActionButton from '../Common/ActionButton';
 import AutoSaveField from '../Common/AutoSaveField';
 import ReportContent from './report/ReportContent';
+import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import {
   KpiGrid, KpiCard, KpiLabel, KpiValueBig, KpiHint,
   SectionLabel, ChartCard,
@@ -44,14 +45,11 @@ const IntegratedReportView: React.FC<Props> = ({ businessId, canManage, periodTy
 
   const loadRef = useRef(load); loadRef.current = load;
   useEffect(() => {
-    let socket: { disconnect: () => void } | null = null; let pend: ReturnType<typeof setTimeout> | null = null;
+    let pend: ReturnType<typeof setTimeout> | null = null;
     const onEvt = () => { if (pend) clearTimeout(pend); pend = setTimeout(() => loadRef.current(true), 300); };
-    import('socket.io-client').then(({ io }) => import('../../contexts/AuthContext').then(({ getAccessToken }) => {
-      if (!getAccessToken()) return;
-      const s = io({ auth: (cb: (d: { token: string | null }) => void) => cb({ token: getAccessToken() }), transports: ['websocket', 'polling'], reconnection: true });
-      socket = s; s.on('connect', () => s.emit('join:business', Number(businessId))); s.on('report:updated', onEvt);
-    }));
-    return () => { if (pend) clearTimeout(pend); if (socket) socket.disconnect(); };
+    joinRoom(`business:${Number(businessId)}`);
+    const offReport = onSocket('report:updated', onEvt);
+    return () => { if (pend) clearTimeout(pend); leaveRoom(`business:${Number(businessId)}`); offReport(); };
   }, [businessId]);
 
   const setSetting = async (key: 'report_integrated_confirm' | 'monthly_finalize_enabled', next: boolean) => {

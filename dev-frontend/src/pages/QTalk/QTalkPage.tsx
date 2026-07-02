@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { io, type Socket } from 'socket.io-client';
+import { joinRoom, leaveRoom, onSocket, getSocket } from '../../services/socket';
 import LeftPanel from './LeftPanel';
 import ArchivedChatsModal from './ArchivedChatsModal';
 import ChatPanel from './ChatPanel';
@@ -19,7 +19,7 @@ import {
   type MockConversation, type MockTask, type MockNote, type MockIssue,
   type TaskStatus,
 } from './types';
-import { useAuth, getAccessToken, apiFetch } from '../../contexts/AuthContext';
+import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import * as qtalkApi from '../../services/qtalk';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { mapApiError } from '../../utils/apiError';
@@ -378,7 +378,6 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
   }, []);
 
   // ── Socket.IO 실시간 ──
-  const socketRef = useRef<Socket | null>(null);
   // socket handler closure 안에서 stale 안 되도록 ref mirror
   const activeConversationIdRef = useRef<number | null>(null);
   useEffect(() => { activeConversationIdRef.current = activeConversationId; }, [activeConversationId]);
@@ -387,41 +386,16 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
 
   useEffect(() => {
     if (!user) return; // 로그인 후에만 연결
-    if (!getAccessToken()) return;
 
-    // auth 를 함수로 — 매 재연결마다 최신 토큰 사용 (refresh 후 자동 적용).
-    const socket = io(window.location.origin, {
-      auth: (cb) => cb({ token: getAccessToken() }),
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionDelay: 1500,
-      reconnectionDelayMax: 8000,
-      reconnectionAttempts: Infinity,
-    });
-
-    // 토큰 만료로 인한 connect_error 면 access token 갱신 후 자동 재시도.
-    //   apiFetch('/api/auth/me') 가 401 받으면 AuthContext 가 refresh + getAccessToken 갱신.
-    //   이후 socket reconnect attempt 가 새 토큰으로 handshake.
-    socket.on('connect_error', async (err) => {
-      const msg = String((err as Error)?.message || '');
-      if (/auth|token|jwt|unauthorized/i.test(msg)) {
-        const { apiFetch } = await import('../../contexts/AuthContext');
-        await apiFetch('/api/auth/me').catch(() => null);
-      }
-    });
-
-    socketRef.current = socket;
-
-    // N+71 fix — business room join (활성 conv 아닌 다른 conv 메시지도 받아야 리스트 unread 실시간 갱신)
-    // backend 가 message:new 를 conv:${id} + business:${bizId} 둘 다 emit. activeConv 들어가면 conv:${id} 추가 join (중복 메시지는 setMessages dedup 으로 차단).
-    const joinBusinessRoom = () => {
-      if (businessId) socket.emit('join:business', businessId);
-    };
-    socket.on('connect', joinBusinessRoom);
-    joinBusinessRoom();  // 첫 connect 시점 즉시
+    // 공유 소켓 (services/socket). business room join → 활성 conv 아닌 다른 conv 메시지도
+    // 리스트 unread 실시간 갱신 (backend 가 conv:${id} + business:${bizId} 둘 다 emit).
+    // connect/재연결 시 활성 room 재join 은 공유 소켓이 roomRefs 로 자동 처리.
+    if (businessId) joinRoom(`business:${businessId}`);
+    const offs: Array<() => void> = [];
+    const on = <T,>(evt: string, cb: (data: T) => void) => { offs.push(onSocket(evt, cb)); };
 
     // 메시지 수신
-    socket.on('message:new', (msg: qtalkApi.ApiMessage) => {
+    on('message:new', (msg: qtalkApi.ApiMessage) => {
       const mapped = apiMessageToMock(msg);
       setMessages((prev) => {
         const arr = prev[mapped.conversation_id] || [];
@@ -466,7 +440,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
     });
 
     // 후보 생성 — POST 응답과 socket broadcast 가 둘 다 들어오므로 id 기준 dedup 필수
-    socket.on('candidates:created', (data: { project_id: number; candidates: qtalkApi.ApiTaskCandidate[] }) => {
+    on('candidates:created', (data: { project_id: number; candidates: qtalkApi.ApiTaskCandidate[] }) => {
       const mapped = data.candidates.map(apiCandidateToMock);
       setCandidates((prev) => {
         const existing = new Set(prev.map((c) => c.id));
@@ -476,7 +450,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
     });
 
     // 이슈 생성
-    socket.on('issue:new', (issue: qtalkApi.ApiIssue) => {
+    on('issue:new', (issue: qtalkApi.ApiIssue) => {
       const mapped = apiIssueToMock(issue);
       setIssues((prev) => {
         if (prev.some((i) => i.id === mapped.id)) return prev;
@@ -485,7 +459,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
     });
 
     // 메시지 업데이트 (Draft 승인/거절 + 사이클 N+16-E 수정)
-    socket.on('message:updated', (msg: qtalkApi.ApiMessage) => {
+    on('message:updated', (msg: qtalkApi.ApiMessage) => {
       const mapped = apiMessageToMock(msg);
       setMessages((prev) => {
         const arr = prev[mapped.conversation_id] || [];
@@ -494,21 +468,21 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
     });
 
     // 사이클 N+16-E — 메시지 삭제 (soft) / 핀 / 언핀 실시간.
-    socket.on('message:deleted', (data: { id: number; conversation_id: number }) => {
+    on('message:deleted', (data: { id: number; conversation_id: number }) => {
       setMessages((prev) => {
         const arr = prev[data.conversation_id];
         if (!arr) return prev;
         return { ...prev, [data.conversation_id]: arr.map((m) => m.id === data.id ? { ...m, is_deleted: true } : m) };
       });
     });
-    socket.on('message:pinned', (data: { id: number; conversation_id: number; pinned_at: string }) => {
+    on('message:pinned', (data: { id: number; conversation_id: number; pinned_at: string }) => {
       setMessages((prev) => {
         const arr = prev[data.conversation_id];
         if (!arr) return prev;
         return { ...prev, [data.conversation_id]: arr.map((m) => m.id === data.id ? { ...m, pinned_at: data.pinned_at } : m) };
       });
     });
-    socket.on('message:unpinned', (data: { id: number; conversation_id: number }) => {
+    on('message:unpinned', (data: { id: number; conversation_id: number }) => {
       setMessages((prev) => {
         const arr = prev[data.conversation_id];
         if (!arr) return prev;
@@ -518,7 +492,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
 
     // 메시지 첨부 추가 (메시지 생성 직후 link-existing / 업로드 직후 emit)
     //   message:new 가 첨부 비어있는 상태로 먼저 도착하므로, 이 이벤트로 attachments 배열에 append.
-    socket.on('message:attachment', (data: { message_id: number; attachment: { id: number; file_name: string; file_size: number; mime_type?: string | null; file_id?: number } }) => {
+    on('message:attachment', (data: { message_id: number; attachment: { id: number; file_name: string; file_size: number; mime_type?: string | null; file_id?: number } }) => {
       setMessages((prev) => {
         const next: typeof prev = {};
         let touched = false;
@@ -548,7 +522,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
 
     // 사이클 N+15-C — 다른 참여자가 대화방을 읽음 → 내 메시지의 read_by_count 실시간 갱신.
     // 같은 conv room 의 모든 socket 으로 broadcast 됨 (자기 자신 포함될 수 있어 sender_id 분기).
-    socket.on('conversation:read', (data: { conversation_id: number; user_id: number; last_read_at: string }) => {
+    on('conversation:read', (data: { conversation_id: number; user_id: number; last_read_at: string }) => {
       const readerMs = new Date(data.last_read_at).getTime();
       setMessages((prev) => {
         const arr = prev[data.conversation_id];
@@ -571,7 +545,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
     });
 
     // 메시지 번역 완료 (비동기 LLM 결과 — 메시지 자체는 이미 발송됨)
-    socket.on('message:translated', (data: { id: number; conversation_id: number; translations: Record<string, string>; detected_language: string }) => {
+    on('message:translated', (data: { id: number; conversation_id: number; translations: Record<string, string>; detected_language: string }) => {
       setMessages((prev) => {
         const arr = prev[data.conversation_id] || [];
         return { ...prev, [data.conversation_id]: arr.map((m) =>
@@ -583,14 +557,14 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
     });
 
     // 다중 디바이스 동기화 — 같은 user 의 다른 디바이스에서 핀 토글 시 즉시 반영
-    socket.on('conversation:pin', (data: { conversation_id: number; pinned_at: string | null }) => {
+    on('conversation:pin', (data: { conversation_id: number; pinned_at: string | null }) => {
       setConversations(prev => prev.map(c =>
         c.id === data.conversation_id ? { ...c, my_pinned_at: data.pinned_at } : c
       ));
     });
 
     // 메모 생성
-    socket.on('note:new', (note: qtalkApi.ApiNote) => {
+    on('note:new', (note: qtalkApi.ApiNote) => {
       const mapped = apiNoteToMock(note);
       setNotes((prev) => {
         if (prev.some((n) => n.id === mapped.id)) return prev;
@@ -599,25 +573,16 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
     });
 
     return () => {
-      socket.disconnect();
-      socketRef.current = null;
+      if (businessId) leaveRoom(`business:${businessId}`);
+      offs.forEach((f) => f());
     };
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 대화방 변경 시 room join/leave + 읽음 처리
   useEffect(() => {
-    const socket = socketRef.current;
-    if (!socket) return;
-
-    if (activeConversationId) {
-      socket.emit('join:conversation', activeConversationId);
-    }
-
-    return () => {
-      if (activeConversationId) {
-        socket.emit('leave:conversation', activeConversationId);
-      }
-    };
+    if (!activeConversationId) return;
+    joinRoom(`conversation:${activeConversationId}`);
+    return () => { leaveRoom(`conversation:${activeConversationId}`); };
   }, [activeConversationId]);
 
   // 사이클 N+24 — 채팅 실시간 회복 가드:
@@ -626,17 +591,10 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
   //   ("알림은 오는데 채팅창 새 메시지 안 올라옴") 차단.
   useEffect(() => {
     const tryRecover = () => {
-      const s = socketRef.current;
-      if (!s) return;
-      if (!s.connected) {
+      // 공유 소켓 재연결 — connect 시 활성 room(business/conversation/project) 자동 재join(roomRefs).
+      const s = getSocket();
+      if (s && !s.connected) {
         try { s.connect(); } catch { /* noop */ }
-      }
-      // join 재시도 (서버가 disconnect 동안 leave 처리했을 수 있음)
-      if (activeConversationIdRef.current) {
-        s.emit('join:conversation', activeConversationIdRef.current);
-      }
-      if (activeProjectIdRef.current) {
-        s.emit('join:project', activeProjectIdRef.current);
       }
     };
     const onVisible = () => { if (document.visibilityState === 'visible') tryRecover(); };
@@ -699,7 +657,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
   //      뿐이라 재실행 안 되어 빈 상태로 멈춤 (회귀 fix)
   //   3) 대화 목록 merge refresh — 새로 생성된 conv 누락 보정
   useVisibilityRefresh(useCallback(() => {
-    const s = socketRef.current;
+    const s = getSocket();
     if (s && !s.connected) s.connect();
     if (activeConversationId) {
       qtalkApi.listConversationMessages(activeConversationId).then(msgs => {
@@ -802,14 +760,9 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
 
   // 프로젝트 변경 시 room join/leave — 독립 대화(-1/null)는 스킵
   useEffect(() => {
-    const socket = socketRef.current;
-    if (!socket || !activeProjectId || activeProjectId <= 0) return;
-
-    socket.emit('join:project', activeProjectId);
-
-    return () => {
-      socket.emit('leave:project', activeProjectId);
-    };
+    if (!activeProjectId || activeProjectId <= 0) return;
+    joinRoom(`project:${activeProjectId}`);
+    return () => { leaveRoom(`project:${activeProjectId}`); };
   }, [activeProjectId]);
 
   // ── path-param 진입 시 conv 의 project_id 자동 매핑 ──

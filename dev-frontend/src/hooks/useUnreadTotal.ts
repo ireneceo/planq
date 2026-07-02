@@ -17,8 +17,8 @@
 //
 // businessId 인자는 호환성 유지용 (옛 호출처) — 실제 fetch 는 전 워크스페이스.
 import { useEffect, useState, useRef } from 'react';
-import { io, type Socket } from 'socket.io-client';
-import { useAuth, getAccessToken, apiFetch } from '../contexts/AuthContext';
+import { useAuth, apiFetch } from '../contexts/AuthContext';
+import { joinRoom, leaveRoom, onSocket } from '../services/socket';
 
 export type UnreadByBusiness = Record<number, number>;
 type AllResponse = { total: number; by_business: UnreadByBusiness };
@@ -29,7 +29,9 @@ type AllResponse = { total: number; by_business: UnreadByBusiness };
 type Listener = (s: AllResponse) => void;
 const listeners = new Set<Listener>();
 let currentState: AllResponse = { total: 0, by_business: {} };
-let socket: Socket | null = null;
+let offMessage: (() => void) | null = null;   // 공유 소켓 message:new 구독 해제
+let offInbox: (() => void) | null = null;      // 공유 소켓 inbox:refresh 구독 해제
+const joinedRooms = new Set<string>();         // joinRoom 중복 호출 방지 (refCount 누수 차단)
 let refCount = 0;
 let pendingTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -51,9 +53,9 @@ function broadcast(state: AllResponse) {
 //   서버가 connection 시 자동 join 하지만(근본 fix), 세션 중 새 워크스페이스가 추가되거나
 //   서버 auto-join 이 누락돼도 message:new 를 받도록 이중 보장. join:business 는 멱등.
 function joinKnownBusinesses() {
-  if (!socket) return;
   Object.keys(currentState.by_business).forEach((bizId) => {
-    socket!.emit('join:business', Number(bizId));
+    const room = `business:${bizId}`;
+    if (!joinedRooms.has(room)) { joinRoom(room); joinedRooms.add(room); }
   });
 }
 
@@ -68,20 +70,10 @@ function scheduleRefresh() {
   pendingTimer = setTimeout(() => { refreshAll(); }, 50);
 }
 
+// 공유 소켓(services/socket) 구독. 재연결 시 room 재join 은 공유 소켓이 자동 처리.
 function ensureSocket(userId: string | number) {
-  if (socket || !getAccessToken()) return;
-  const s = io(window.location.origin, {
-    auth: (cb) => cb({ token: getAccessToken() }),
-    transports: ['websocket', 'polling'],
-    reconnection: true,
-    reconnectionDelay: 1500,
-    reconnectionDelayMax: 8000,
-    reconnectionAttempts: Infinity,
-  });
-  s.on('connect_error', () => { /* silent reconnect */ });
-  // 재연결 포함 — connect 마다 알려진 워크스페이스 room 재join (서버 auto-join 과 이중 보장).
-  s.on('connect', joinKnownBusinesses);
-  s.on('message:new', (msg: { sender_id?: number }) => {
+  if (offMessage) return; // 이미 구독됨
+  offMessage = onSocket('message:new', (msg: { sender_id?: number }) => {
     // 옵티미스틱 +1 — 본인 발신 제외 (backend SQL 도 본인 제외)
     if (msg?.sender_id && Number(msg.sender_id) !== Number(userId)) {
       const next = { ...currentState, total: currentState.total + 1 };
@@ -89,15 +81,14 @@ function ensureSocket(userId: string | number) {
     }
     scheduleRefresh();
   });
-  s.on('inbox:refresh', scheduleRefresh);
-  socket = s;
+  offInbox = onSocket('inbox:refresh', scheduleRefresh);
 }
 
 function teardownSocket() {
-  if (socket) {
-    socket.disconnect();
-    socket = null;
-  }
+  if (offMessage) { offMessage(); offMessage = null; }
+  if (offInbox) { offInbox(); offInbox = null; }
+  joinedRooms.forEach((r) => leaveRoom(r));
+  joinedRooms.clear();
   if (pendingTimer) {
     clearTimeout(pendingTimer);
     pendingTimer = null;
