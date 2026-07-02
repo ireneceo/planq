@@ -9,7 +9,6 @@ import ChatPanel from './ChatPanel';
 import RightPanel from './RightPanel';
 import NewProjectModal, { type ProjectFormData } from './NewProjectModal';
 import NewChatModal, { type NewChatFormData } from './NewChatModal';
-import FirstVisitTour from '../../components/Common/FirstVisitTour';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import { PanelLayout } from '../../components/Layout/PanelLayout';
 import ChatSettingsModal from './ChatSettingsModal';
@@ -1561,12 +1560,6 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
           {notice}
         </Toast>
       )}
-      <FirstVisitTour
-        pageKey="qtalk"
-        steps={[
-          { targetSelector: 'aside', title: t('tour.step1.title','Q talk') as string, body: t('tour.step1.body','왼쪽 패널에서 프로젝트·고객·일반 대화를 만들 수 있어요. 헤더 옆 ⓘ 클릭하면 자동 추출, 번역 등 자세한 작동을 볼 수 있어요.') as string, placement: 'auto' },
-        ]}
-      />
 
       {/* 채팅방 보관 — soft delete. archived_at NOT NULL → 목록 제외, 메시지·파일·할일은 보존. */}
       <ConfirmDialog
