@@ -512,5 +512,29 @@
   },
   "common": {
     "saved": "저장됨"
+  },
+  "cueKnowledge": {
+    "title": "워크스페이스 지식",
+    "desc": "Cue 가 답변할 때 우선 반영하는, 이 워크스페이스에서 확정된 사실입니다. 자동 제안은 수락해야 반영됩니다.",
+    "add": "지식 추가",
+    "addConfirm": "추가",
+    "addRequired": "제목과 내용을 입력해 주세요",
+    "titlePh": "예: 로고 시안 작업 기준",
+    "bodyPh": "예: 로고 시안은 항상 3안 제시, 1차 시안까지 평균 3일 소요",
+    "pendingGroup": "자동 제안 — 검토 필요",
+    "activeGroup": "반영 중",
+    "accept": "수락",
+    "reject": "거절",
+    "remove": "삭제",
+    "autoBadge": "자동 제안됨",
+    "loading": "불러오는 중…",
+    "empty": "아직 등록된 지식이 없습니다. 완료 업무가 쌓이면 자동 제안이 생성됩니다.",
+    "kind": {
+      "work_pattern": "업무 패턴",
+      "client_trait": "고객 특성",
+      "terminology": "용어",
+      "decision": "결정 사항",
+      "custom": "기타"
+    }
   }
 }

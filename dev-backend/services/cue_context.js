@@ -142,7 +142,9 @@ async function getClientSnapshot(clientId, businessId) {
   if (!clientId) return null;
   const client = await Client.findOne({
     where: { id: clientId, business_id: businessId },
-    attributes: ['id', 'display_name', 'biz_name', 'company_name', 'is_business', 'country', 'memo'],
+    // KNOWLEDGE_LOOP 축1 — 옛 'memo' 는 존재하지 않는 컬럼 (clients 는 notes) → clientId 있을 때
+    // Promise.all 전체가 죽던 실버그 fix. summary(Cue 생성 고객요약) 재사용 루프도 여기서 연결.
+    attributes: ['id', 'display_name', 'biz_name', 'company_name', 'is_business', 'country', 'notes', 'summary'],
   });
   if (!client) return null;
 
@@ -389,7 +391,8 @@ function composeMarkdown({ history, project, client, kb, userSnap, matches, over
     parts.push('\n## 고객 정보');
     const name = client.client.biz_name || client.client.company_name || client.client.display_name || `Client #${client.client.id}`;
     parts.push(`- ${name}${client.client.is_business ? ' (사업자)' : ''}${client.client.country ? ` · ${client.client.country}` : ''}`);
-    if (client.client.memo) parts.push(`- 메모: ${snip(client.client.memo, 200)}`);
+    if (client.client.notes) parts.push(`- 메모: ${snip(client.client.notes, 200)}`);
+    if (client.client.summary) parts.push(`- 고객 요약(Cue 생성): ${snip(client.client.summary, 400)}`);
     if (client.recentInvoices.length) {
       parts.push(`- 최근 청구서 ${client.recentInvoices.length}건 / 발행 ${client.totalSent.toLocaleString()} / 수금 ${client.totalPaid.toLocaleString()}`);
     }
@@ -444,14 +447,15 @@ function composeMarkdown({ history, project, client, kb, userSnap, matches, over
 
 // ── 메인 빌더
 async function buildCueContext({ businessId, conversationId, projectId, clientId, userId, query, businessTimezone, scope }) {
+  // 개별 스냅샷 실패가 컨텍스트 전체를 죽이면 안 됨 (memo 컬럼 실사고 재발 방지) — 모두 개별 .catch
   // 1. 대화 히스토리
-  const historyP = getConversationHistory(conversationId);
+  const historyP = getConversationHistory(conversationId).catch(() => []);
   // 2. 프로젝트 스냅샷
-  const projectP = projectId ? getProjectSnapshot(projectId, businessId) : Promise.resolve(null);
+  const projectP = projectId ? getProjectSnapshot(projectId, businessId).catch(() => null) : Promise.resolve(null);
   // 3. 고객 스냅샷
-  const clientP = clientId ? getClientSnapshot(clientId, businessId) : Promise.resolve(null);
+  const clientP = clientId ? getClientSnapshot(clientId, businessId).catch(() => null) : Promise.resolve(null);
   // 4. 사용자 본인 스냅샷 (도움말 챗 / userId 명시 시)
-  const userP = userId ? getUserSnapshot(userId, businessId, businessTimezone) : Promise.resolve(null);
+  const userP = userId ? getUserSnapshot(userId, businessId, businessTimezone).catch(() => null) : Promise.resolve(null);
   // 5. KB 검색 (사이클 G 의 ctx 우선순위 활용)
   const kbP = query
     ? kbService.hybridSearch(businessId, query, { limit: 5, project_id: projectId, client_id: clientId })
@@ -465,8 +469,12 @@ async function buildCueContext({ businessId, conversationId, projectId, clientId
     ? getWorkspaceOverview({ businessId, scope, businessTimezone }).catch(() => null)
     : Promise.resolve(null);
 
-  const [history, project, client, userSnap, kb, matches, overview] = await Promise.all([historyP, projectP, clientP, userP, kbP, matchesP, overviewP]);
-  const markdown = composeMarkdown({ history, project, client, kb, userSnap, matches, overview, businessTimezone });
+  // 8. KNOWLEDGE_LOOP 축1 — 팀이 확정한 워크스페이스 지식 카드 (active 만)
+  const knowledgeP = require('./cueKnowledge').buildKnowledgeBlock(businessId).catch(() => '');
+
+  const [history, project, client, userSnap, kb, matches, overview, knowledgeBlock] = await Promise.all([historyP, projectP, clientP, userP, kbP, matchesP, overviewP, knowledgeP]);
+  let markdown = composeMarkdown({ history, project, client, kb, userSnap, matches, overview, businessTimezone });
+  if (knowledgeBlock) markdown = `${knowledgeBlock}\n\n${markdown}`;
   return { markdown, kb, history, project, client, userSnap, matches, overview };
 }
 

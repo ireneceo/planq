@@ -512,5 +512,29 @@
   },
   "common": {
     "saved": "Saved"
+  },
+  "cueKnowledge": {
+    "title": "Workspace knowledge",
+    "desc": "Confirmed facts about this workspace that Cue applies first when answering. Auto suggestions take effect only after you accept them.",
+    "add": "Add knowledge",
+    "addConfirm": "Add",
+    "addRequired": "Enter a title and content",
+    "titlePh": "e.g. Logo draft standards",
+    "bodyPh": "e.g. Logo drafts always come in 3 options; first draft takes ~3 days",
+    "pendingGroup": "Auto suggestions — review needed",
+    "activeGroup": "Active",
+    "accept": "Accept",
+    "reject": "Reject",
+    "remove": "Delete",
+    "autoBadge": "Auto-suggested",
+    "loading": "Loading…",
+    "empty": "No knowledge yet. Suggestions appear as completed tasks accumulate.",
+    "kind": {
+      "work_pattern": "Work pattern",
+      "client_trait": "Client trait",
+      "terminology": "Terminology",
+      "decision": "Decision",
+      "custom": "Other"
+    }
   }
 }

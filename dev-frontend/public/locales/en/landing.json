@@ -26,10 +26,22 @@
     "desc1": "More tools means slower work.",
     "desc2": "Searching for where to check what becomes the work itself.",
     "items": [
-      { "label": "Chat",     "tool": "KakaoTalk · Slack" },
-      { "label": "Tasks",    "tool": "Notion · Spreadsheets" },
-      { "label": "Files",    "tool": "Drive · Email" },
-      { "label": "Meetings", "tool": "Docs · Notes" }
+      {
+        "label": "Chat",
+        "tool": "KakaoTalk · Slack"
+      },
+      {
+        "label": "Tasks",
+        "tool": "Notion · Spreadsheets"
+      },
+      {
+        "label": "Files",
+        "tool": "Drive · Email"
+      },
+      {
+        "label": "Meetings",
+        "tool": "Docs · Notes"
+      }
     ],
     "arrow1": "4 tools, 4 context switches, 4× wasted time.",
     "arrow2": "Work becomes a job."
@@ -39,9 +51,18 @@
     "title1": "PlanQ runs your entire workflow",
     "title2": "in one place.",
     "cards": {
-      "1": { "title": "Conversation becomes execution", "desc": "Turn a customer message into a task with one click. Who asked, when, and what — the original is always linked." },
-      "2": { "title": "Scattered work, gathered", "desc": "Chat, tasks, files, meetings, invoices. What used to live separately now moves in one flow. The time you spent jumping tools disappears." },
-      "3": { "title": "Every agreement is recorded", "desc": "There's always an answer to \"but you said earlier…\". Conversations, change history, and agreements are all preserved — disputes are prevented." }
+      "1": {
+        "title": "Conversation becomes execution",
+        "desc": "Turn a customer message into a task with one click. Who asked, when, and what — the original is always linked."
+      },
+      "2": {
+        "title": "Scattered work, gathered",
+        "desc": "Chat, tasks, files, meetings, invoices. What used to live separately now moves in one flow. The time you spent jumping tools disappears."
+      },
+      "3": {
+        "title": "Every agreement is recorded",
+        "desc": "There's always an answer to \"but you said earlier…\". Conversations, change history, and agreements are all preserved — disputes are prevented."
+      }
     }
   },
   "features": {
@@ -49,15 +70,42 @@
     "title": "Everything you need, right here.",
     "desc": "Each Q is its own thing — and connects into one flow.",
     "q": {
-      "talk": { "name": "Q Talk", "desc": "Customer-focused chat. Turn messages into tasks, share files, record agreements. As easy as Kakao, structured for work." },
-      "task": { "name": "Q Task", "desc": "Tasks from chat or made by hand — all in one place. Due dates, assignees, priorities, statuses. Today's work and overdue items at a glance." },
-      "note": { "name": "Q Note", "desc": "Live transcript and translation during meetings. Auto-detect key questions, suggest answers from materials you uploaded. Auto summary after." },
-      "mail": { "name": "Q Mail", "desc": "Customer email, brought into your workflow. Receive scattered mail in one workspace and see it alongside chats and client info — no more bouncing between inbox and work." },
-      "docs": { "name": "Q docs", "desc": "Create contracts, quotes, and proposals, then collect signatures with a single link. Customers open and sign without logging in, and every step is recorded automatically." },
-      "calendar": { "name": "Q Calendar", "desc": "Workspace and personal schedules at a glance. Task deadlines appear automatically, and booking a meeting creates a Google Meet link right with it." },
-      "file": { "name": "Q File", "desc": "Files organized per project. \"Where is that file?\" goes away." },
-      "project": { "name": "Q Project", "desc": "Bring conversations, tasks, documents, and files into one workbench per project. Progress is calculated automatically, and deals flow from quote to invoice." },
-      "bill": { "name": "Q Bill", "desc": "Create and email invoices. Send, payment confirmation, overdue management — all in one place." }
+      "talk": {
+        "name": "Q Talk",
+        "desc": "Customer-focused chat. Turn messages into tasks, share files, record agreements. As easy as Kakao, structured for work."
+      },
+      "task": {
+        "name": "Q Task",
+        "desc": "Tasks from chat or made by hand — all in one place. Due dates, assignees, priorities, statuses. Today's work and overdue items at a glance."
+      },
+      "note": {
+        "name": "Q Note",
+        "desc": "Live transcript and translation during meetings. Auto-detect key questions, suggest answers from materials you uploaded. Auto summary after."
+      },
+      "mail": {
+        "name": "Q Mail",
+        "desc": "Customer email, brought into your workflow. Receive scattered mail in one workspace and see it alongside chats and client info — no more bouncing between inbox and work."
+      },
+      "docs": {
+        "name": "Q docs",
+        "desc": "Create contracts, quotes, and proposals, then collect signatures with a single link. Customers open and sign without logging in, and every step is recorded automatically."
+      },
+      "calendar": {
+        "name": "Q Calendar",
+        "desc": "Workspace and personal schedules at a glance. Task deadlines appear automatically, and booking a meeting creates a Google Meet link right with it."
+      },
+      "file": {
+        "name": "Q File",
+        "desc": "Files organized per project. \"Where is that file?\" goes away."
+      },
+      "project": {
+        "name": "Q Project",
+        "desc": "Bring conversations, tasks, documents, and files into one workbench per project. Progress is calculated automatically, and deals flow from quote to invoice."
+      },
+      "bill": {
+        "name": "Q Bill",
+        "desc": "Create and email invoices. Send, payment confirmation, overdue management — all in one place."
+      }
     }
   },
   "engine": {
@@ -92,13 +140,41 @@
     "headOld": "Before",
     "headPlanq": "PlanQ",
     "rows": {
-      "request":       { "label": "Customer requests",  "old": "Kakao → copy into Notion",       "planq": "Convert to tasks straight from chat" },
-      "task":          { "label": "Task management",    "old": "Spreadsheets, separate apps",     "planq": "Live task panel next to the chat" },
-      "file":          { "label": "Sharing files",       "old": "Pass around Drive links",         "planq": "Per-project file libraries" },
-      "agreement":     { "label": "Recording agreements","old": "Kakao screenshots, email saves", "planq": "Auto-record + audit log" },
-      "meeting":       { "label": "Meeting notes",       "old": "Manual notes, separate recording","planq": "Live transcript + AI summary" },
-      "invoice":       { "label": "Invoicing",           "old": "Excel → email",                   "planq": "One click to send invoice" },
-      "profitability": { "label": "Profitability",       "old": "Separate accounting work",        "planq": "Auto-linked from work data" }
+      "request": {
+        "label": "Customer requests",
+        "old": "Kakao → copy into Notion",
+        "planq": "Convert to tasks straight from chat"
+      },
+      "task": {
+        "label": "Task management",
+        "old": "Spreadsheets, separate apps",
+        "planq": "Live task panel next to the chat"
+      },
+      "file": {
+        "label": "Sharing files",
+        "old": "Pass around Drive links",
+        "planq": "Per-project file libraries"
+      },
+      "agreement": {
+        "label": "Recording agreements",
+        "old": "Kakao screenshots, email saves",
+        "planq": "Auto-record + audit log"
+      },
+      "meeting": {
+        "label": "Meeting notes",
+        "old": "Manual notes, separate recording",
+        "planq": "Live transcript + AI summary"
+      },
+      "invoice": {
+        "label": "Invoicing",
+        "old": "Excel → email",
+        "planq": "One click to send invoice"
+      },
+      "profitability": {
+        "label": "Profitability",
+        "old": "Separate accounting work",
+        "planq": "Auto-linked from work data"
+      }
     }
   },
   "trust": {
@@ -135,7 +211,6 @@
     "terms": "Terms",
     "allRights": "All rights reserved."
   },
-
   "featuresPage": {
     "eyebrow": "FEATURES",
     "title": "Everything you need, right here.",
@@ -320,7 +395,6 @@
       "btn": "Start free"
     }
   },
-
   "blogPage": {
     "eyebrow": "INSIGHTS",
     "title": "How PlanQ works",
@@ -343,21 +417,45 @@
       "tag": "Coming up",
       "title": "What's on the way",
       "items": [
-        { "category": "Guide video",       "title": "Q Talk in 5 minutes",                       "desc": "For first-time users — workspace setup and inviting your first customer." },
-        { "category": "How-to",            "title": "7 message patterns for AI task extraction", "desc": "Real examples of message patterns where AI extraction works best." },
-        { "category": "Automation insights","title": "Scattered KakaoTalk · Notion vs PlanQ — measured time","desc": "From 27 minutes to 8 per customer interaction. Actual measurement data." },
-        { "category": "Brand video",       "title": "PlanQ in 30 seconds — Work, just work",     "desc": "30-second brand video. See how the workflow simplifies at a glance." },
-        { "category": "Customer case",     "title": "A design studio using Q Project",           "desc": "Per-project workbench through to billing — a real operations interview." },
-        { "category": "How-to",            "title": "Q Note answer generation — preparing materials","desc": "Tips for uploading and tagging materials to improve RAG answer accuracy." }
+        {
+          "category": "Guide video",
+          "title": "Q Talk in 5 minutes",
+          "desc": "For first-time users — workspace setup and inviting your first customer."
+        },
+        {
+          "category": "How-to",
+          "title": "7 message patterns for AI task extraction",
+          "desc": "Real examples of message patterns where AI extraction works best."
+        },
+        {
+          "category": "Automation insights",
+          "title": "Scattered KakaoTalk · Notion vs PlanQ — measured time",
+          "desc": "From 27 minutes to 8 per customer interaction. Actual measurement data."
+        },
+        {
+          "category": "Brand video",
+          "title": "PlanQ in 30 seconds — Work, just work",
+          "desc": "30-second brand video. See how the workflow simplifies at a glance."
+        },
+        {
+          "category": "Customer case",
+          "title": "A design studio using Q Project",
+          "desc": "Per-project workbench through to billing — a real operations interview."
+        },
+        {
+          "category": "How-to",
+          "title": "Q Note answer generation — preparing materials",
+          "desc": "Tips for uploading and tagging materials to improve RAG answer accuracy."
+        }
       ]
     },
     "cta": {
       "title": "Try it before reading about it",
       "sub": "14 days free. No credit card required.",
       "btn": "Start free"
-    }
+    },
+    "readMinutes": "{{n}} min"
   },
-
   "pricingPage": {
     "eyebrow": "PRICING",
     "title": "Start free, scale as needed",
@@ -411,9 +509,21 @@
       "eyebrow": "ADDONS",
       "title": "Add what you need",
       "items": [
-        { "name": "Extra members",  "price": "₩5,000/seat/mo", "desc": "When you exceed Basic's 5-seat limit. Add per-seat as needed." },
-        { "name": "Extra storage",  "price": "₩3,000/10GB/mo", "desc": "Expand Q File capacity in 10GB blocks." },
-        { "name": "More Cue actions","price": "₩10,000/100 actions","desc": "When you go past your monthly AI extraction / summary / answer limit." }
+        {
+          "name": "Extra members",
+          "price": "₩5,000/seat/mo",
+          "desc": "When you exceed Basic's 5-seat limit. Add per-seat as needed."
+        },
+        {
+          "name": "Extra storage",
+          "price": "₩3,000/10GB/mo",
+          "desc": "Expand Q File capacity in 10GB blocks."
+        },
+        {
+          "name": "More Cue actions",
+          "price": "₩10,000/100 actions",
+          "desc": "When you go past your monthly AI extraction / summary / answer limit."
+        }
       ]
     },
     "faq": {
@@ -448,7 +558,6 @@
       "btn": "Start free"
     }
   },
-
   "aboutPage": {
     "eyebrow": "OUR STORY",
     "title1": "Built from 15 years",
@@ -465,19 +574,44 @@
       "eyebrow": "VALUES",
       "title": "Three things we believe",
       "items": {
-        "simplicity": { "name": "Simplicity",     "desc": "We don't pile on features — we organize the flow of work. We know that removing things from a screen is harder than adding them." },
-        "execution":  { "name": "Execution-first","desc": "Plenty of tools just plan. PlanQ is for actually making conversations, tasks, and invoices happen." },
-        "evidence":   { "name": "Evidence-based", "desc": "Every agreement leaves a trail. There's an answer when disputes come up, and data when the next decision needs to be made." }
+        "simplicity": {
+          "name": "Simplicity",
+          "desc": "We don't pile on features — we organize the flow of work. We know that removing things from a screen is harder than adding them."
+        },
+        "execution": {
+          "name": "Execution-first",
+          "desc": "Plenty of tools just plan. PlanQ is for actually making conversations, tasks, and invoices happen."
+        },
+        "evidence": {
+          "name": "Evidence-based",
+          "desc": "Every agreement leaves a trail. There's an answer when disputes come up, and data when the next decision needs to be made."
+        }
       }
     },
     "timeline": {
       "eyebrow": "TIMELINE",
       "title": "How we got here",
       "items": [
-        { "year": "2010", "label": "Remote collaboration begins", "desc": "Working with global clients on Slack, Notion, and Asana — and starting to feel where each tool falls short." },
-        { "year": "2023", "label": "PlanQ takes shape",           "desc": "Defined PlanQ's information architecture to fix the inefficiency of scattered tools. Set the principle: \"each customer's scattered context, gathered.\"" },
-        { "year": "2025", "label": "Beta release",                "desc": "Beta of 5 modules — Q Talk · Q Task · Q Note · Q File · Q Bill. Korean and English supported." },
-        { "year": "2026", "label": "General availability",        "desc": "Profitability Engine officially introduced. PortOne native billing, installments, multi-currency, and unified notification matrix shipped." }
+        {
+          "year": "2010",
+          "label": "Remote collaboration begins",
+          "desc": "Working with global clients on Slack, Notion, and Asana — and starting to feel where each tool falls short."
+        },
+        {
+          "year": "2023",
+          "label": "PlanQ takes shape",
+          "desc": "Defined PlanQ's information architecture to fix the inefficiency of scattered tools. Set the principle: \"each customer's scattered context, gathered.\""
+        },
+        {
+          "year": "2025",
+          "label": "Beta release",
+          "desc": "Beta of 5 modules — Q Talk · Q Task · Q Note · Q File · Q Bill. Korean and English supported."
+        },
+        {
+          "year": "2026",
+          "label": "General availability",
+          "desc": "Profitability Engine officially introduced. PortOne native billing, installments, multi-currency, and unified notification matrix shipped."
+        }
       ]
     },
     "cta": {
@@ -487,7 +621,6 @@
       "secondary": "Contact us"
     }
   },
-
   "contactPage": {
     "eyebrow": "CONTACT",
     "title": "Get in touch",
@@ -516,5 +649,11 @@
       "ok": "Got it. We'll be in touch shortly.",
       "errRequired": "Please fill in name, email, and message."
     }
+  },
+  "blogPost": {
+    "back": "Back to insights",
+    "loading": "Loading…",
+    "notFound": "Post not found.",
+    "ctaTitle": "Trying it beats reading about it"
   }
 }

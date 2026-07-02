@@ -12,6 +12,7 @@ import BillingSettings from './BillingSettings';
 import EmailSettings from './EmailSettings';
 import EmailAccountSettings from './EmailAccountSettings';
 import DataExportSettings from './DataExportSettings';
+import CueKnowledgeSection from './CueKnowledgeSection';
 import NotificationSettings from './NotificationSettings';
 import WorkManagementSettings from '../../components/Settings/WorkManagementSettings';
 import { mapApiError } from '../../utils/apiError';
@@ -1586,6 +1587,13 @@ export default function WorkspaceSettingsPage() {
               </ByTypeList>
             </div>
           </Card>
+
+          {/* KNOWLEDGE_LOOP 축1 — 워크스페이스 지식 카드 */}
+          {businessId && (
+            <Card>
+              <CueKnowledgeSection businessId={businessId} isAdmin={isAdmin} />
+            </Card>
+          )}
         </>
       )}
     </PageShell>

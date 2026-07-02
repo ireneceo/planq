@@ -112,6 +112,18 @@ function guestQuestionHash(q) {
   return crypto.createHash('sha256').update(String(q).trim().toLowerCase()).digest('hex').slice(0, 32);
 }
 
+// KNOWLEDGE_LOOP 축2 — Q helper 질문 로그. 실패해도 응답 흐름은 막지 않는다.
+async function logHelpQuestion(fields) {
+  try {
+    const { HelpQuestionLog } = require('../models');
+    const row = await HelpQuestionLog.create(fields);
+    return row.id;
+  } catch (e) {
+    console.warn('[cue] question log failed:', e.message);
+    return null;
+  }
+}
+
 router.post('/help-public', async (req, res, next) => {
   try {
     const { question } = req.body || {};
@@ -134,7 +146,8 @@ router.post('/help-public', async (req, res, next) => {
     const hash = guestQuestionHash(q);
     const cached = guestCache.get(hash);
     if (cached && cached.expiresAt > Date.now()) {
-      return successResponse(res, { answer: cached.answer, cached: true });
+      const logId = await logHelpQuestion({ mode: 'public', question: q, answered: true, lang: 'ko' });
+      return successResponse(res, { answer: cached.answer, cached: true, log_id: logId });
     }
 
     if (!OPENAI_API_KEY) {
@@ -171,7 +184,8 @@ router.post('/help-public', async (req, res, next) => {
     if (answer) {
       guestCache.set(hash, { answer, expiresAt: Date.now() + GUEST_CACHE_TTL_MS });
     }
-    return successResponse(res, { answer, cached: false });
+    const logId = await logHelpQuestion({ mode: 'public', question: q, answered: !!answer, lang: 'ko' });
+    return successResponse(res, { answer, cached: false, log_id: logId });
   } catch (e) { next(e); }
 });
 
@@ -253,6 +267,7 @@ router.post('/help', authenticateToken, async (req, res, next) => {
     // qhelper 모드 — Q위키 article retrieval (FULLTEXT + 임베딩) → 근거 기반 RAG.
     // 응답에 sources[] 반환. (Q_WIKI_DESIGN §3, B5)
     let wikiSources = [];
+    let wikiTopArticleId = null;
     if (finalMode === 'qhelper') {
       try {
         const { searchArticleIds, blocksToText } = require('../services/wikiSearch');
@@ -262,6 +277,7 @@ router.post('/help', authenticateToken, async (req, res, next) => {
           const arts = await HelpArticle.findAll({ where: { id: ids, is_published: true } });
           const orderMap = new Map(ids.map((id, i) => [id, i]));
           arts.sort((a, b) => (orderMap.get(a.id) ?? 9) - (orderMap.get(b.id) ?? 9));
+          wikiTopArticleId = arts[0]?.id || null;
           const docBlocks = [];
           for (const a of arts.slice(0, 3)) {
             const title = a.title_ko || a.title_en || '';
@@ -305,7 +321,38 @@ router.post('/help', authenticateToken, async (req, res, next) => {
     }
     const j = await r.json();
     const answer = (j.choices?.[0]?.message?.content || '').trim();
-    return successResponse(res, { answer, mode: finalMode, sources: wikiSources });
+    // KNOWLEDGE_LOOP 축2 — qhelper 질문 로그 (workspace 모드는 위키 개선 대상 아님)
+    let logId = null;
+    if (finalMode === 'qhelper') {
+      logId = await logHelpQuestion({
+        user_id: req.user.id,
+        business_id: req.user.active_business_id || null,
+        mode: 'qhelper',
+        question: q,
+        lang: String(req.body.lang || 'ko').slice(0, 5),
+        answered: wikiSources.length > 0,
+        top_article_id: wikiTopArticleId,
+      });
+    }
+    return successResponse(res, { answer, mode: finalMode, sources: wikiSources, log_id: logId });
+  } catch (e) { next(e); }
+});
+
+// KNOWLEDGE_LOOP 축2 — 답변 피드백 (도움됐어요/아니요). 공개 위키챗도 허용 — guest rate 재사용.
+router.post('/help-feedback', async (req, res, next) => {
+  try {
+    const { log_id, feedback } = req.body || {};
+    if (!Number.isInteger(log_id) || !['helpful', 'not_helpful'].includes(feedback)) {
+      return errorResponse(res, 'invalid_request', 400);
+    }
+    const rate = checkGuestRate(getClientIp(req));
+    if (!rate.ok) return errorResponse(res, 'rate_limit', 429);
+    const { HelpQuestionLog } = require('../models');
+    const row = await HelpQuestionLog.findByPk(log_id);
+    if (!row) return errorResponse(res, 'not_found', 404);
+    if (row.feedback) return errorResponse(res, 'already_submitted', 409);
+    await row.update({ feedback, feedback_at: new Date() });
+    return successResponse(res, { ok: true });
   } catch (e) { next(e); }
 });
 

@@ -49,6 +49,8 @@ async function callAiEstimate(title, description, businessId = null) {
       patterns.map(p => `- "${p.title.slice(0, 60)}" → ${p.hours}h`).join('\n') +
       `\n위 사례 패턴을 우선 고려해서 일관성 있게 추정.`;
   }
+  // KNOWLEDGE_LOOP 축1 — 카테고리별 실측(actual) 소요시간 통계 (확정 추정과 별개의 실측 근거)
+  try { sys += await require('../services/cueKnowledge').getWorkPatternPromptBlock(businessId); } catch { /* noop */ }
   const user = `제목: ${title}${description ? `\n설명: ${description.slice(0, 600)}` : ''}`;
   try {
     const r = await fetch('https://api.openai.com/v1/chat/completions', {

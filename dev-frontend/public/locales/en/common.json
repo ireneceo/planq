@@ -197,7 +197,10 @@
     "myHistoryBack": "Back to inquiry",
     "myHistoryEmpty": "No inquiries or feedback yet.",
     "myHistoryLoading": "Loading…",
-    "myHistoryReply": "Team reply"
+    "myHistoryReply": "Team reply",
+    "feedbackHelpful": "Helpful",
+    "feedbackNotHelpful": "Not really",
+    "feedbackThanks": "Thanks for the feedback"
   },
   "cue": {
     "title": "Cue Help",
@@ -680,7 +683,17 @@
     "reembedStarted": "Re-embedding all articles.",
     "catNotEmpty": "Categories with articles can't be deleted.",
     "confirmDeleteCat": "Delete this category?",
-    "addCategory": "Add category"
+    "addCategory": "Add category",
+    "blogToggle": "Publish to landing blog (/blog)",
+    "blogHint": "Public + published articles only · appears on planq.kr/blog immediately",
+    "blogRequiresPublic": "Only \"public + published\" articles can go to the blog. Save those settings first.",
+    "blogCat": {
+      "guide-video": "Guide videos",
+      "brand-video": "Brand videos",
+      "how-to": "How-to guides",
+      "insights": "Automation insights",
+      "cases": "Customer stories"
+    }
   },
   "aiRegen": {
     "btn": "Regenerate",

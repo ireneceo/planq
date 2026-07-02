@@ -100,6 +100,7 @@ const LandingPricing = lazy(() => import('./pages/Landing/PricingPage'));
 const LandingAbout = lazy(() => import('./pages/Landing/AboutPage'));
 const LandingContact = lazy(() => import('./pages/Landing/ContactPage'));
 const LandingBlog = lazy(() => import('./pages/Landing/BlogPage'));
+const LandingBlogPost = lazy(() => import('./pages/Landing/BlogPostPage'));
 const RootRoute = lazy(() => import('./pages/Landing/RootRoute'));
 const DashboardPage = lazy(() => import('./pages/Dashboard/DashboardPage'));
 const TodoPage = lazy(() => import('./pages/Todo/TodoPage'));
@@ -508,6 +509,7 @@ function App() {
         <Route path="/features" element={<LandingFeatures />} />
         <Route path="/pricing" element={<LandingPricing />} />
         <Route path="/blog" element={<LandingBlog />} />
+        <Route path="/blog/:slug" element={<LandingBlogPost />} />
         <Route path="/about" element={<LandingAbout />} />
         <Route path="/contact" element={<LandingContact />} />
 
