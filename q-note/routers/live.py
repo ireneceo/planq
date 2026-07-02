@@ -408,6 +408,14 @@ def _resolve_deepgram_language(meeting_languages_json: str | None) -> str:
   return 'multi'
 
 
+# 비용폭탄 C1 — 실시간 STT 남용 방어 (인메모리, 단일 uvicorn 프로세스 가정).
+#   per-user 동시 스트림 상한 + 세션 최장시간 캡. 무제한 병렬 Deepgram 스트림·무한 스트리밍 과금 차단.
+#   (전체 분(minute) quota 게이트/과금 기록은 별도 사이클 — DB 마이그레이션 + Fable 재게이트 대상.)
+MAX_LIVE_STREAMS_PER_USER = 2       # 재연결 race 허용 버퍼 포함. 인간은 회의 1개.
+MAX_LIVE_SESSION_SECONDS = 4 * 60 * 60  # 4시간 — 최장 워크샵 커버, 방치 무한 스트리밍 차단.
+_active_live_streams: dict[int, int] = {}
+
+
 @router.websocket('/ws/live')
 async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
   """
@@ -478,6 +486,11 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
       if session['user_id'] != user['user_id']:
         await websocket.send_json({'type': 'error', 'message': 'Forbidden'})
         await websocket.close(code=4003)
+        return
+      # 비용폭탄 C1 — per-user 동시 STT 스트림 상한 초과 시 조기 거부 (한 계정 무제한 병렬 스트림 차단).
+      if _active_live_streams.get(user['user_id'], 0) >= MAX_LIVE_STREAMS_PER_USER:
+        await websocket.send_json({'type': 'error', 'message': 'too_many_active_recordings'})
+        await websocket.close(code=4029)
         return
       dg_language = _resolve_deepgram_language(session['meeting_languages'])
       capture_mode = session['capture_mode'] or 'microphone'
@@ -821,6 +834,10 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
   bytes_received = 0
   chunks_received = 0
   last_log_time = asyncio.get_event_loop().time()
+  # 비용폭탄 C1 — 스트림 등록(동시성 카운트) + 세션 시작시각(최장시간 캡). finally 에서 해제.
+  stream_start = last_log_time
+  _uid_for_stream = user['user_id']
+  _active_live_streams[_uid_for_stream] = _active_live_streams.get(_uid_for_stream, 0) + 1
   try:
     while True:
       message = await websocket.receive()
@@ -834,6 +851,13 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
         chunks_received += 1
         # 5초마다 오디오 유입량 로깅 (디버깅용, 매 청크 로깅하면 시끄러움)
         now = asyncio.get_event_loop().time()
+        # 비용폭탄 C1 — 세션 최장시간 캡. 초과 시 경고 후 종료(무한 스트리밍 과금 차단).
+        if now - stream_start > MAX_LIVE_SESSION_SECONDS:
+          try:
+            await websocket.send_json({'type': 'error', 'message': 'session_time_limit'})
+          except Exception:
+            pass
+          break
         if now - last_log_time >= 5.0:
           logger.info(
             f'session={session_id} audio: chunks={chunks_received} '
@@ -854,6 +878,13 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
   except Exception as e:
     logger.error(f'WS error: {e}')
   finally:
+    # 비용폭탄 C1 — 동시성 카운트 해제.
+    try:
+      _active_live_streams[_uid_for_stream] = max(0, _active_live_streams.get(_uid_for_stream, 1) - 1)
+      if _active_live_streams.get(_uid_for_stream, 0) == 0:
+        _active_live_streams.pop(_uid_for_stream, None)
+    except Exception:
+      pass
     # WS 종료 시 모든 채널 버퍼 강제 flush — 사용자가 문장 중간에 일시중지/종료한 경우 drop 방지
     for ch_key in list(pending_buffers.keys()):
       try:

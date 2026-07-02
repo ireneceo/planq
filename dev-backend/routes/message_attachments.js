@@ -17,6 +17,11 @@ const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { canAccessConversation } = require('../middleware/access_scope');
 const { decodeOriginalName } = require('../services/filename');
+const { perUserLimiter } = require('../middleware/costGuard');
+
+// 비용폭탄 H3 — 업로드 per-user rate-limit (라우트 내부 적용. security.js 의 경로 패턴 방식은
+//   실제 마운트 경로 불일치로 죽어 있었음 → 여기서 직접 건다). 분당 10회.
+const attachUploadLimiter = perUserLimiter('msg-attach', { windowMs: 60 * 1000, max: 10, message: '파일 업로드가 너무 잦습니다. 잠시 후 다시 시도하세요.' });
 
 const UPLOAD_ROOT = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(UPLOAD_ROOT)) fs.mkdirSync(UPLOAD_ROOT, { recursive: true });
@@ -68,6 +73,7 @@ async function loadConversationAndGuard(req, res) {
 // ─── POST upload ───
 router.post('/:conversationId/:messageId',
   authenticateToken,
+  attachUploadLimiter,
   async (req, res, next) => {
     try { if (!(await loadConversationAndGuard(req, res))) return; next(); }
     catch (err) { next(err); }
@@ -97,27 +103,25 @@ router.post('/:conversationId/:messageId',
       if (!msg) return errorResponse(res, 'message_not_found', 404);
       if (msg.sender_id !== req.user.id) return errorResponse(res, 'forbidden', 403);
 
-      // 플랜별 업로드 크기 한도 — 단, Google Drive 연동되어 있으면 5GB 까지 허용 (자체 스토리지 안 사용)
-      try {
-        const plan = require('../services/plan');
-        const { BusinessCloudToken } = require('../models');
-        const cloudToken = await BusinessCloudToken.findOne({
-          where: { business_id: req._conversation.business_id, provider: 'gdrive' }
-        });
-        const driveConnected = !!cloudToken && !!cloudToken.root_folder_id;
-        if (!driveConnected) {
-          const limit = await plan.fileSizeLimit(req._conversation.business_id);
-          if (limit && req.file.size > limit) {
-            fs.unlink(req.file.path, () => {});
-            const limitMB = Math.round(limit / 1024 / 1024);
-            return errorResponse(
-              res,
-              `파일이 너무 큽니다. 현재 플랜에서 ${limitMB}MB 까지 가능 — 영상 같은 큰 파일은 Google Drive 를 연결해 주세요.`,
-              413
-            );
-          }
+      // 비용폭탄 H3 — Drive 미연동 시 자체 스토리지. 플랜 크기한도 + 총 쿼터 강제.
+      //   옛 plan.fileSizeLimit 는 존재하지 않는 유령함수 → try/catch 에 먹혀 크기검사 자체가 죽어
+      //   무제한 업로드(쿼터 미집계)되던 구멍. files.js 정석 패턴(plan.can('upload_file'))으로 복구.
+      const plan = require('../services/plan');
+      const { BusinessCloudToken, BusinessStorageUsage } = require('../models');
+      const attachBizId = req._conversation.business_id;
+      const cloudToken = await BusinessCloudToken.findOne({
+        where: { business_id: attachBizId, provider: 'gdrive' },
+      });
+      const driveConnected = !!cloudToken && !!cloudToken.root_folder_id;
+      const canUp = await plan.can(attachBizId, 'upload_file', { size: req.file.size, external: driveConnected });
+      if (!canUp.ok) {
+        fs.unlink(req.file.path, () => {});
+        if (canUp.reason === 'file_size_exceeded') {
+          const limitMB = Math.round((canUp.limit || 0) / 1024 / 1024);
+          return errorResponse(res, `파일이 너무 큽니다. 현재 플랜에서 ${limitMB}MB 까지 가능 — 큰 파일은 Google Drive 를 연결해 주세요.`, 413);
         }
-      } catch { /* plan 조회 실패 시 관대 통과 */ }
+        return errorResponse(res, '워크스페이스 저장 용량을 초과했어요. 파일을 정리하거나 플랜을 올려주세요.', 413);
+      }
 
       const created = await MessageAttachment.create({
         message_id: msg.id,
@@ -127,6 +131,17 @@ router.post('/:conversationId/:messageId',
         mime_type: req.file.mimetype || null,
         storage_provider: 'planq',
       });
+
+      // 비용폭탄 H3 — 자체 스토리지 사용 시 워크스페이스 총 사용량 집계 (Drive 는 외부라 skip).
+      if (!driveConnected) {
+        try {
+          await BusinessStorageUsage.findOrCreate({
+            where: { business_id: attachBizId },
+            defaults: { business_id: attachBizId, bytes_used: 0, file_count: 0, storage_provider: 'planq' },
+          });
+          await BusinessStorageUsage.increment({ bytes_used: req.file.size, file_count: 1 }, { where: { business_id: attachBizId } });
+        } catch (e) { console.warn('[msg-attach] usage increment failed', e.message); }
+      }
 
       // Socket.IO broadcast: 같은 대화방에 첨부 알림
       const io = req.app.get('io');

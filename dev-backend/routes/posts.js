@@ -1035,11 +1035,15 @@ router.put('/:id/security-level', authenticateToken, async (req, res, next) => {
 
 // ─── 공유: 이메일 발송 ───
 // POST /api/posts/:id/share/email  body: { to, message? }
-router.post('/:id/share/email', authenticateToken, async (req, res, next) => {
+// 비용폭탄 H2 — 문서 공유 메일 발송 per-user rate-limit.
+const postShareEmailLimiter = require('../middleware/costGuard').perUserDaily('post-share-email', { perMin: 10, perDay: 100, message: '공유 메일 발송이 너무 잦습니다. 잠시 후 다시 시도하세요.' });
+router.post('/:id/share/email', authenticateToken, ...postShareEmailLimiter, async (req, res, next) => {
   try {
     const { to, message } = req.body || {};
     const recipients = Array.isArray(to) ? to : (typeof to === 'string' ? to.split(',').map(s => s.trim()).filter(Boolean) : []);
     if (recipients.length === 0) return errorResponse(res, 'to required', 400);
+    // 비용폭탄 H2 — 요청당 수신자 수 캡.
+    if (recipients.length > 20) return errorResponse(res, 'too_many_recipients', 400);
     const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     for (const e of recipients) {
       if (!emailRe.test(e)) return errorResponse(res, `invalid email: ${e}`, 400);

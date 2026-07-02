@@ -32,6 +32,8 @@ async function translateForBilingual(text, languages, businessId = null) {
   if (!text || !text.trim()) {
     return { detected_language: null, translations: null, fallback: true, reason: 'empty_text' };
   }
+  // 비용폭탄 M-a — 초대형 메시지 번역 시 입력 토큰 폭발 방지. 8,000자로 슬라이스(max_tokens 산식과 정합).
+  if (text.length > 8000) text = text.slice(0, 8000);
   // 워크스페이스 월 Cue 한도 검사 — 초과 시 번역 skip (메시지는 원문만, 번역 자동 시도 안 함)
   if (businessId) {
     try {

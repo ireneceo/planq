@@ -624,7 +624,7 @@ import DetailDrawer from 'components/Common/DetailDrawer';
 
 외부 점검에서 도출된 7가지 — 신규 코드 작성 시 처음부터 적용. 같은 계열 회귀 차단.
 
-1. **Rate-limit (외부 quota·비용 라우트)** — push/email/sms/llm 처럼 외부 quota 또는 비용을 발생시키는 라우트는 **per-user rate-limit 필수**. `keyGenerator: req => 'name-' + req.user.id` 로 IP NAT 우회. 예: `/api/push/test` 분당 5회. 정책 누락 시 사용자 1명이 quota 폭주 가능.
+1. **Rate-limit (외부 quota·비용 라우트)** — push/email/sms/llm 처럼 외부 quota 또는 비용을 발생시키는 라우트는 **per-user rate-limit 필수**. `keyGenerator: req => 'name-' + req.user.id` 로 IP NAT 우회. 예: `/api/push/test` 분당 5회. 정책 누락 시 사용자 1명이 quota 폭주 가능. **공유 헬퍼 `middleware/costGuard.js`** 사용 강제: `perUserLimiter`/`perUserDaily`(분+일 이중 윈도우)/`dailyCircuitBreaker`(공개 무인증 라우트 전역 합산 상한, IP 로테이션 봇넷 방어)/`capText`(입력 크기 캡). LLM 라우트는 rate-limit + `plan.can('use_cue')` 게이트 + 입력 캡 3종 세트. **함정: `plan.fileSizeLimit`은 존재하지 않는 유령함수** — 파일 업로드는 `plan.can('upload_file', {size, external})` + `BusinessStorageUsage` 집계(files.js 패턴). 신규 첨부/업로드 경로는 쿼터 집계 누락 금지(2026-07-02 비용폭탄 총점검 박제).
 
 2. **PWA 자동 reload 안전** — `version.json` 또는 socket `server:build` 신호로 사용자 모르게 reload 시 **입력 도중 데이터 손실 위험**. `main.tsx` 의 `isReloadSafe()` 가드: input/textarea/contentEditable focus + `body.dataset.formDirty='1'` + `[data-form-dirty="1"]` 모두 체크 후 idle 일 때만 reload. 아니면 `<UpdateBanner>` 토스트 → 사용자 명시 클릭. 자동 reload 가 다시 들어가는 신규 코드는 같은 가드 재사용.
 
