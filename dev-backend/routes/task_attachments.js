@@ -316,6 +316,7 @@ router.get('/public/attach/:storedName', async (req, res, next) => {
     }
     const abs = path.join(__dirname, '..', att.file_path);
     if (!fs.existsSync(abs)) return errorResponse(res, 'missing', 410);
+    if (await require('../services/imageResize').maybeServeResized(req, res, abs, att.mime_type)) return; // #97 ?w= 리사이즈
     res.setHeader('Content-Type', att.mime_type);
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Disposition', 'inline');

@@ -185,6 +185,7 @@ router.get('/public-image/:storedName', async (req, res, next) => {
     }
     const abs = path.isAbsolute(file.file_path) ? file.file_path : path.join(__dirname, '..', file.file_path);
     if (!fs.existsSync(abs)) return errorResponse(res, 'file_missing', 410);
+    if (await require('../services/imageResize').maybeServeResized(req, res, abs, file.mime_type)) return; // #97 ?w= 리사이즈
     res.setHeader('Content-Type', file.mime_type);
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Disposition', 'inline');

@@ -1615,7 +1615,7 @@ const ChatPanel: React.FC<Props> = ({
                     // 사이클 N+23: HEIC/HEIF/TIFF 같이 브라우저 미지원 포맷은 isRenderableImage=false
                     //   → 파일 카드. 깨진 이미지 아이콘 노출 차단. <img onError> 도 같은 fallback.
                     const isImg = isRenderableImage(a.mime_type || '', a.file_name);
-                    const imgSrc = `/api/message-attachments/${a.id}/raw`;
+                    const imgSrc = `/api/message-attachments/${a.id}/raw?w=800`; // #97 — 채팅 표시는 리사이즈본, 라이트박스는 원본
                     return isImg ? (
                       <AttachImageBtn
                         key={a.id}

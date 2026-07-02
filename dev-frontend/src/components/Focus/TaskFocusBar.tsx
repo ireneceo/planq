@@ -107,7 +107,11 @@ const TaskFocusBar: React.FC<Props> = ({ taskId, businessId, assigneeId, status 
     try {
       const r = await apiFetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const j = await r.json();
-      if (j.success) setSession(j.data || null);
+      if (j.success) {
+        setSession(j.data || null);
+        // #105 — pause 시 backend 가 task.actual_hours 를 재계산하므로 드로어/위젯이 즉시 반영하게 알림
+        try { window.dispatchEvent(new CustomEvent('focus:refresh')); } catch { /* noop */ }
+      }
     } finally { setSubmitting(false); }
   }, [submitting]);
 

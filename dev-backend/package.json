@@ -33,6 +33,7 @@
     "puppeteer": "^24.42.0",
     "rrule": "^2.8.1",
     "sequelize": "^6.37.7",
+    "sharp": "^0.35.3",
     "socket.io": "^4.8.1",
     "uuid": "^11.1.0",
     "web-push": "^3.6.7"

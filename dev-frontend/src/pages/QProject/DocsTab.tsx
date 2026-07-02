@@ -29,6 +29,10 @@ export type DocScope =
   | { type: 'workspace'; businessId: number }
   | { type: 'personal'; businessId: number };  // N+30 — 개인 보관함 (본인 + L1 + project_id=null)
 
+// #97 — 이미지 preview_url 에 리사이즈 폭 부여 (그리드 썸네일/미리보기용, 원본은 파라미터 없이)
+const withW = (u: string | undefined | null, w: number): string | undefined =>
+  u && u !== '#' ? `${u}${u.includes('?') ? '&' : '?'}w=${w}` : undefined;
+
 type SortKey = 'recent' | 'name' | 'size';
 type ViewMode = 'grid' | 'list';
 // 폴더 선택 상태: 'all' = 전체 | 'direct' = 직접 업로드 루트 | `src:chat` etc | number = 사용자 폴더 id
@@ -634,7 +638,7 @@ const DocsTab: React.FC<Props> = (props) => {
                       const img = isImage(f.mime_type, f.file_name);
                       const valid = !!f.preview_url && f.preview_url !== '#';
                       return (
-                        <Thumb $src={img && valid ? f.preview_url : undefined}>
+                        <Thumb $src={img && valid ? withW(f.preview_url, 400) : undefined}>
                           {!(img && valid) && <FileExtIcon ext={extOf(f.file_name)} size={56} large />}
                           <SourceTag $src={f.source}>{sourceShortLabel(f.source, tr)}</SourceTag>
                         </Thumb>
@@ -1180,7 +1184,7 @@ const PreviewArea: React.FC<{ file: ProjectFile }> = ({ file }) => {
   const { t } = useTranslation('qproject');
   const hasValidUrl = (u?: string) => !!u && u !== '#' && u.trim().length > 0;
   if (isImage(file.mime_type, file.file_name) && hasValidUrl(file.preview_url)) {
-    return <PreviewImage src={file.preview_url!} alt={file.file_name} />;
+    return <PreviewImage src={withW(file.preview_url, 1024)!} alt={file.file_name} />;
   }
   if ((file.mime_type === 'application/pdf' || extOf(file.file_name) === 'pdf') && hasValidUrl(file.download_url)) {
     return <PreviewIframe src={file.download_url} title={file.file_name} />;
