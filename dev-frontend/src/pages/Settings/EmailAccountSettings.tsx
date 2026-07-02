@@ -140,6 +140,13 @@ const EmailAccountSettings: React.FC = () => {
             {acc.fail_count > 0 && <ErrorBadge>{t('settings.failCount', '{{n}}회 실패', { n: acc.fail_count }) as string}</ErrorBadge>}
           </MetaRow>
           {acc.last_sync_error && <ErrorMsg>⚠️ {acc.last_sync_error}</ErrorMsg>}
+          {acc.last_sync_error && /invalid credentials|authenticat|login fail/i.test(acc.last_sync_error) && (
+            <FixHint>
+              {(acc.imap_host || '').includes('gmail')
+                ? t('settings.fixAuthGmail', 'Gmail 은 앱 비밀번호가 필요합니다 — "편집"에서 앱 비밀번호로 다시 입력해 주세요.') as string
+                : t('settings.fixAuthGeneric', '"편집"에서 아이디와 비밀번호를 다시 입력해 주세요.') as string}
+            </FixHint>
+          )}
           {testResult[acc.id] && (
             testResult[acc.id].ok ? (
               <TestSuccess>✓ {t('settings.testOk', '연결 성공') as string}</TestSuccess>
@@ -218,7 +225,8 @@ const EmailAccountSettings: React.FC = () => {
       </Toolbar>
 
       <Hint>{t('settings.hintScope', '회사 공용 메일은 모든 팀원이 인박스에서 함께 보고, 개인 메일은 본인에게만 보입니다. (5분마다 자동 동기화)') as string}</Hint>
-      <Hint>{t('settings.hintOauth', '💡 Gmail 사용자라면 \"Gmail 로 연결\" 버튼이 가장 간편해요 — 앱 비밀번호 발급 불필요') as string}</Hint>
+      <Hint>{t('settings.hintOauth', 'Gmail 은 "Gmail 로 연결"(원클릭) 또는 앱 비밀번호로 연결할 수 있어요. 원클릭 연결이 안 되면 계정 추가에서 앱 비밀번호 방식을 사용하세요.') as string}</Hint>
+      <Hint>{t('settings.hintNewMailOnly', '연결한 시점 이후에 도착한 새 메일부터 수신됩니다. 과거 메일은 가져오지 않아요.') as string}</Hint>
       {connErr && <ConnErr>{connErr}</ConnErr>}
 
       {loading ? (
@@ -310,7 +318,68 @@ const APP_PASSWORD_GUIDES: Record<string, GuideDef> = {
     ],
     link: { url: 'https://account.apple.com', labelKey: 'settings.guide.icloud.link', labelDefault: 'Apple ID 앱 암호 →' },
   },
+  outlook: {
+    titleKey: 'settings.guide.outlook.title', titleDefault: 'Outlook / Microsoft 365 연결하기',
+    steps: [
+      { key: 'settings.guide.outlook.s1', default: 'Microsoft 계정에 2단계 인증을 켜주세요.' },
+      { key: 'settings.guide.outlook.s2', default: '보안 설정에서 "앱 비밀번호"를 생성하세요. (일반 비밀번호로는 연결되지 않습니다)' },
+      { key: 'settings.guide.outlook.s3', default: '생성된 앱 비밀번호를 아래 "비밀번호" 칸에 입력하고 저장하세요.' },
+    ],
+    link: { url: 'https://account.microsoft.com/security', labelKey: 'settings.guide.outlook.link', labelDefault: 'Microsoft 보안 설정 →' },
+  },
+  kakao: {
+    titleKey: 'settings.guide.kakao.title', titleDefault: 'Kakao 메일 연결하기',
+    steps: [
+      { key: 'settings.guide.kakao.s1', default: '카카오메일 → 설정 → IMAP/POP3 에서 "IMAP 사용"을 켜주세요.' },
+      { key: 'settings.guide.kakao.s2', default: '카카오 계정 비밀번호(2단계 인증 시 앱 비밀번호)를 아래 "비밀번호" 칸에 입력하고 저장하세요.' },
+    ],
+    link: { url: 'https://mail.kakao.com', labelKey: 'settings.guide.kakao.link', labelDefault: '카카오메일 설정 열기 →' },
+  },
+  daum: {
+    titleKey: 'settings.guide.daum.title', titleDefault: 'Daum 메일 연결하기',
+    steps: [
+      { key: 'settings.guide.daum.s1', default: 'Daum 메일 → 환경설정 → IMAP/POP3 에서 "IMAP 사용"을 켜주세요.' },
+      { key: 'settings.guide.daum.s2', default: 'Daum 계정 비밀번호를 아래 "비밀번호" 칸에 입력하고 저장하세요.' },
+    ],
+    link: { url: 'https://mail.daum.net', labelKey: 'settings.guide.daum.link', labelDefault: 'Daum 메일 설정 열기 →' },
+  },
 };
+
+// 백엔드 검증 에러 코드 → 사용자 안내 (저장 전 IMAP 실검증 실패 시)
+const IMAP_ERROR_GUIDE: Record<string, { key: string; def: string; preset?: string }> = {
+  gmail_app_password_required: { key: 'settings.err.gmailAppPassword', def: 'Gmail 은 일반 비밀번호로 연결할 수 없습니다. 위 안내대로 앱 비밀번호를 발급해 입력해 주세요.', preset: 'gmail' },
+  naver_app_password_required: { key: 'settings.err.naverAppPassword', def: '네이버 인증에 실패했습니다. IMAP 사용 설정과 (2단계 인증 시) 애플리케이션 비밀번호를 확인해 주세요.', preset: 'naver' },
+  ms_app_password_required: { key: 'settings.err.msAppPassword', def: 'Microsoft 계정 인증에 실패했습니다. 앱 비밀번호를 발급해 입력해 주세요.', preset: 'outlook' },
+  imap_auth_failed: { key: 'settings.err.authFailed', def: '아이디 또는 비밀번호가 올바르지 않아 연결하지 못했습니다.' },
+  imap_host_not_found: { key: 'settings.err.hostNotFound', def: 'IMAP 서버 주소를 찾을 수 없습니다. 서버 주소를 확인해 주세요.' },
+  imap_connect_failed: { key: 'settings.err.connectFailed', def: '메일 서버에 연결하지 못했습니다. 서버 주소와 포트를 확인해 주세요.' },
+  duplicate_email: { key: 'settings.err.duplicate', def: '이미 등록된 이메일입니다.' },
+};
+
+// IMAP host → 안내 가이드 key (편집 모드에서도 provider 안내 표시)
+function hostToGuideKey(host?: string | null): string | null {
+  const h = (host || '').toLowerCase();
+  if (h.includes('gmail') || h.includes('googlemail')) return 'gmail';
+  if (h.includes('naver')) return 'naver';
+  if (h.includes('office365') || h.includes('outlook')) return 'outlook';
+  if (h.includes('kakao')) return 'kakao';
+  if (h.includes('daum')) return 'daum';
+  if (h.includes('me.com') || h.includes('icloud')) return 'icloud';
+  return null;
+}
+
+// 이메일 도메인 → preset 자동 감지 (입력만 하면 서버 정보 자동 완성)
+function detectPresetByEmail(email: string): string | null {
+  const dom = (email.split('@')[1] || '').toLowerCase();
+  if (!dom) return null;
+  if (/(^|\.)gmail\.com$|(^|\.)googlemail\.com$/.test(dom)) return 'gmail';
+  if (/(^|\.)naver\.com$/.test(dom)) return 'naver';
+  if (/(^|\.)daum\.net$|(^|\.)hanmail\.net$/.test(dom)) return 'daum';
+  if (/(^|\.)kakao\.com$/.test(dom)) return 'kakao';
+  if (/(^|\.)outlook\.|(^|\.)hotmail\.|(^|\.)live\./.test(dom)) return 'outlook';
+  if (/(^|\.)icloud\.com$|(^|\.)me\.com$|(^|\.)mac\.com$/.test(dom)) return 'icloud';
+  return null;
+}
 
 const ConnectGuide: React.FC<{ guide: GuideDef }> = ({ guide }) => {
   const { t } = useTranslation('qmail');
@@ -421,7 +490,10 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, onSa
       }
       await onSaved();
     } catch (e) {
-      setError((e as Error).message);
+      const code = (e as Error).message;
+      const guide = IMAP_ERROR_GUIDE[code];
+      if (guide?.preset && guide.preset !== preset) setPreset(guide.preset); // 해당 provider 안내 박스 표시
+      setError(guide ? (t(guide.key, guide.def) as string) : code);
     } finally {
       setSubmitting(false);
     }
@@ -457,12 +529,21 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, onSa
               )}
             </Field>
           )}
+          {isEdit && hostToGuideKey(form.imap_host) && APP_PASSWORD_GUIDES[hostToGuideKey(form.imap_host)!] && (
+            <ConnectGuide guide={APP_PASSWORD_GUIDES[hostToGuideKey(form.imap_host)!]} />
+          )}
 
           <Field>
             <Label>{t('settings.fieldEmail', '이메일') as string} <Required>*</Required></Label>
             <Input
               type="email" value={form.email}
-              onChange={e => setForm({ ...form, email: e.target.value, imap_username: form.imap_username || e.target.value, smtp_username: form.smtp_username || e.target.value })}
+              onChange={e => {
+                const email = e.target.value;
+                setForm({ ...form, email, imap_username: form.imap_username || email, smtp_username: form.smtp_username || email });
+                // 도메인 자동 감지 → 서버 정보 자동 완성 + provider 안내 표시
+                const auto = detectPresetByEmail(email);
+                if (!isEdit && auto && auto !== preset) onPresetChange(auto);
+              }}
               placeholder={t('settings.emailPh', 'contact@회사.com') as string}
               disabled={isEdit}
             />
@@ -669,6 +750,7 @@ const ErrorBadge = styled.span`
   background: #FEF3C7; color: #92400E; border-radius: 10px;
 `;
 const ErrorMsg = styled.div`font-size: 12px; color: #B91C1C; margin-top: 6px; line-height: 1.4;`;
+const FixHint = styled.div`font-size: 12px; color: #B45309; margin-top: 4px; line-height: 1.4; padding: 6px 10px; background: #FFFBEB; border-radius: 6px;`;
 const TestSuccess = styled.div`font-size: 12px; color: #0F766E; font-weight: 600; margin-top: 6px;`;
 const TestError = styled.div`font-size: 12px; color: #B91C1C; font-weight: 600; margin-top: 6px;`;
 const CardActions = styled.div`display: flex; gap: 6px; flex-wrap: wrap; align-items: flex-start;`;

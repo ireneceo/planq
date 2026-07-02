@@ -115,6 +115,7 @@ export const MAIL_PRESETS: MailPreset[] = [
   { key: 'outlook', label: 'Outlook 365', imap_host: 'outlook.office365.com', imap_port: 993, smtp_host: 'smtp.office365.com', smtp_port: 587 },
   { key: 'naver', label: 'Naver Mail', imap_host: 'imap.naver.com', imap_port: 993, smtp_host: 'smtp.naver.com', smtp_port: 465 },
   { key: 'daum', label: 'Daum Mail', imap_host: 'imap.daum.net', imap_port: 993, smtp_host: 'smtp.daum.net', smtp_port: 465 },
+  { key: 'kakao', label: 'Kakao Mail', imap_host: 'imap.kakao.com', imap_port: 993, smtp_host: 'smtp.kakao.com', smtp_port: 465 },
   { key: 'icloud', label: 'iCloud', imap_host: 'imap.mail.me.com', imap_port: 993, smtp_host: 'smtp.mail.me.com', smtp_port: 587, hint: 'icloudHint' },
   { key: 'custom', label: 'Custom (직접 입력)', imap_host: '', imap_port: 993, smtp_host: '', smtp_port: 587 },
 ];
