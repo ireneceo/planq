@@ -55,7 +55,9 @@ const ENTITY_CONFIG = {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-router.post('/email', authenticateToken, async (req, res, next) => {
+// 비용폭탄 H2 — 공유 메일 발송 per-user rate-limit (수신자 캡과 함께 무제한 발송 루프 차단).
+const shareEmailLimiter = require('../middleware/costGuard').perUserDaily('share-email', { perMin: 10, perDay: 100, message: '공유 메일 발송이 너무 잦습니다. 잠시 후 다시 시도하세요.' });
+router.post('/email', authenticateToken, ...shareEmailLimiter, async (req, res, next) => {
   try {
     const { entity_type, entity_id, to, message } = req.body || {};
     const cfg = ENTITY_CONFIG[entity_type];
@@ -66,6 +68,8 @@ router.post('/email', authenticateToken, async (req, res, next) => {
       ? to
       : (typeof to === 'string' ? to.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean) : []);
     if (recipients.length === 0) return errorResponse(res, 'to_required', 400);
+    // 비용폭탄 H2 — 요청당 수신자 수 캡 (단일 요청이 수천 통 발송하는 루프 차단).
+    if (recipients.length > 20) return errorResponse(res, 'too_many_recipients', 400);
     for (const e of recipients) {
       if (!EMAIL_RE.test(e)) return errorResponse(res, `invalid_email:${e}`, 400);
     }

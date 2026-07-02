@@ -603,15 +603,25 @@ router.post('/', authenticateToken, async (req, res, next) => {
 // body: { business_id, project_id?, prompt, target_date?, language? }
 // response: { candidates: [...], reasoning, today, fallback }
 // ============================================
-router.post('/ai-create', authenticateToken, async (req, res, next) => {
+// 비용폭탄 H-b — AI 업무분해는 외부 LLM 비용(max 2000 tok). per-user 6/분 + 60/일 (재생성 포함 UX 여유).
+const aiCreateLimiter = require('../middleware/costGuard').perUserDaily('ai-create', { perMin: 6, perDay: 60, message: 'AI 업무 추가를 너무 자주 호출했습니다. 잠시 후 다시 시도하세요.' });
+router.post('/ai-create', authenticateToken, ...aiCreateLimiter, async (req, res, next) => {
   try {
     const { business_id, project_id, prompt, target_date, language, mode, instruction } = req.body;
     if (!business_id) return errorResponse(res, 'business_id required', 400);
     if (!prompt || !String(prompt).trim()) return errorResponse(res, 'prompt required', 400);
+    if (String(prompt).length > 4000) return errorResponse(res, 'prompt_too_long', 400);
 
     const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id } });
     if (!bm && req.user.platform_role !== 'platform_admin') {
       return errorResponse(res, 'forbidden — members only', 403);
+    }
+
+    // 비용폭탄 H-b — Cue 월간 액션 플랜 게이트 (aiTaskPlanner 는 recordUsage 만 하고 차단 안 하던 구멍).
+    {
+      const planEngine = require('../services/plan');
+      const planCan = await planEngine.can(business_id, 'use_cue', { actions: 1 });
+      if (!planCan.ok) return res.status(422).json(planEngine.buildQuotaError(planCan, business_id));
     }
 
     const memberRows = await BusinessMember.findAll({

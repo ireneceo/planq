@@ -11,6 +11,10 @@ const { successResponse, errorResponse } = require('../middleware/errorHandler')
 const { applyMemberDisplayName } = require('../services/displayName');
 const gdrive = require('../services/gdrive');
 const { decodeOriginalName, buildContentDisposition } = require('../services/filename');
+const { perUserLimiter } = require('../middleware/costGuard');
+
+// 비용폭탄 H4 — 업무 첨부 업로드 per-user rate-limit (분당 10회, 라우트 내부 적용).
+const taskAttachUploadLimiter = perUserLimiter('task-attach', { windowMs: 60 * 1000, max: 10, message: '파일 업로드가 너무 잦습니다. 잠시 후 다시 시도하세요.' });
 
 const UPLOAD_ROOT = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(UPLOAD_ROOT)) fs.mkdirSync(UPLOAD_ROOT, { recursive: true });
@@ -72,6 +76,7 @@ async function canEditDescriptionAttach(task, userId, platformRole) {
 // ============================================
 router.post('/:taskId/attachments',
   authenticateToken,
+  taskAttachUploadLimiter,
   async (req, res, next) => {
     try { if (!(await loadTaskAndGuard(req, res))) return; next(); }
     catch (err) { next(err); }
@@ -97,6 +102,23 @@ router.post('/:taskId/attachments',
           // 업로드된 임시 파일 정리
           try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
           return errorResponse(res, 'only_creator_or_owner_can_attach_description', 403);
+        }
+      }
+
+      // 비용폭탄 H4 — 자체 스토리지(planq) 시 플랜 크기한도 + 총 쿼터 강제 (기존엔 검사 전무 = 무한 업로드).
+      //   Drive 로 라우팅될 파일은 external 로 5GB 상한만.
+      {
+        const planEngine = require('../services/plan');
+        const attachCloud = await BusinessCloudToken.findOne({ where: { business_id: req._task.business_id, provider: 'gdrive' } });
+        const willUseDrive = !!(attachCloud && attachCloud.root_folder_id && req._task.project_id);
+        const canUp = await planEngine.can(req._task.business_id, 'upload_file', { size: req.file.size, external: willUseDrive });
+        if (!canUp.ok) {
+          try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
+          if (canUp.reason === 'file_size_exceeded') {
+            const limitMB = Math.round((canUp.limit || 0) / 1024 / 1024);
+            return errorResponse(res, `파일이 너무 큽니다. 현재 플랜에서 ${limitMB}MB 까지 가능 — 큰 파일은 Google Drive 를 연결해 주세요.`, 413);
+          }
+          return errorResponse(res, '워크스페이스 저장 용량을 초과했어요. 파일을 정리하거나 플랜을 올려주세요.', 413);
         }
       }
 
@@ -150,6 +172,19 @@ router.post('/:taskId/attachments',
         external_id: externalId,
         external_url: externalUrl,
       });
+
+      // 비용폭탄 H4 — 자체 스토리지 저장분만 워크스페이스 총 사용량 집계 (Drive 는 외부라 skip).
+      if (att.storage_provider === 'planq') {
+        try {
+          const { BusinessStorageUsage } = require('../models');
+          await BusinessStorageUsage.findOrCreate({
+            where: { business_id: req._task.business_id },
+            defaults: { business_id: req._task.business_id, bytes_used: 0, file_count: 0, storage_provider: 'planq' },
+          });
+          await BusinessStorageUsage.increment({ bytes_used: req.file.size, file_count: 1 }, { where: { business_id: req._task.business_id } });
+        } catch (e) { console.warn('[task-attach] usage increment failed', e.message); }
+      }
+
       return successResponse(res, {
         id: att.id,
         context: att.context,

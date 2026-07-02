@@ -88,10 +88,24 @@ const guestRate = new Map();    // ip -> { minute: [ts...], day: count, dayKey }
 const guestCache = new Map();   // hash(question) -> { answer, expiresAt }
 const GUEST_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
+// 비용폭탄 H-a — trust proxy=1 이므로 req.ip 가 신뢰된 프록시가 보고한 실 클라이언트 IP.
+//   클라이언트가 위조한 x-forwarded-for 를 먼저 신뢰하면 게스트 rate-limit 이 스푸핑으로 무력화됨.
 function getClientIp(req) {
-  const xf = (req.headers['x-forwarded-for'] || '').split(',')[0].trim();
-  return xf || req.ip || req.connection?.remoteAddress || 'unknown';
+  return req.ip || req.connection?.remoteAddress || 'unknown';
 }
+
+// 전역 일일 서킷브레이커 — IP 로테이션 봇넷이 게스트 IP캡을 우회해도 공개 LLM 호출 합산 상한(2000/일).
+const { perUserDaily } = require('../middleware/costGuard');
+let publicLlmDay = { key: '', count: 0 };
+function publicLlmBudgetOk() {
+  const dayKey = new Date().toISOString().slice(0, 10);
+  if (publicLlmDay.key !== dayKey) publicLlmDay = { key: dayKey, count: 0 };
+  if (publicLlmDay.count >= 2000) return false;
+  publicLlmDay.count += 1;
+  return true;
+}
+// qhelper/도움말 챗 per-user rate-limit — 플랜게이트는 걸지 않음(qhelper free 는 P7 제품 결정). 10/분 + 150/일.
+const helpLimiter = perUserDaily('cue-help', { perMin: 10, perDay: 150, message: '도움말 요청이 너무 잦습니다. 잠시 후 다시 시도하세요.' });
 
 function checkGuestRate(ip) {
   const now = Date.now();
@@ -157,6 +171,14 @@ router.post('/help-public', async (req, res, next) => {
       });
     }
 
+    // 비용폭탄 H-a — 전역 일일 상한 초과 시 LLM 호출 없이 fallback (봇넷 IP 로테이션 방어).
+    if (!publicLlmBudgetOk()) {
+      return successResponse(res, {
+        answer: 'PlanQ 안내 챗봇이 잠시 혼잡합니다. 문의 남기기 탭으로 알려주시면 바로 답변드립니다.',
+        fallback: true,
+      });
+    }
+
     const r = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -189,7 +211,7 @@ router.post('/help-public', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.post('/help', authenticateToken, async (req, res, next) => {
+router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) => {
   try {
     const { question, page_context, mode } = req.body || {};
     if (!question || typeof question !== 'string' || !question.trim()) {

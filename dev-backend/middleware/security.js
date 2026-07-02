@@ -291,7 +291,9 @@ const setupSecurity = (app) => {
     message: { success: false, message: 'Too many upload requests' }
   });
   app.use('/api/files', uploadLimiter);
-  app.use('/api/messages/*/attachments', uploadLimiter);
+  // message/task 첨부 업로드 rate-limit 은 각 라우트 파일 내부에서 per-user 로 적용한다.
+  //   (옛 '/api/messages/*/attachments' 경로 패턴은 실제 마운트('/api/message-attachments')와 불일치해
+  //    어떤 요청과도 매칭 안 되는 죽은 코드였음 — 비용폭탄 H3/H4에서 라우트 내부 limiter 로 대체.)
 
   // SSRF 방어
   app.use(ssrfProtection);

@@ -90,6 +90,8 @@ router.get('/by-business/:businessId', authenticateToken, attachWorkspaceScope()
     const end = parseDate(req.query.end);
     if (!start || !end) return errorResponse(res, 'start and end are required (ISO8601)', 400);
     if (end < start) return errorResponse(res, 'end must be after start', 400);
+    // 비용폭탄 L3 — 조회 기간 폭 캡(최대 400일). RRULE 반복 이벤트 무제한 확장으로 인한 메모리·CPU 폭발 방지.
+    if (end - start > 400 * 24 * 60 * 60 * 1000) return errorResponse(res, 'range_too_wide (max 400 days)', 400);
 
     // 비반복 이벤트: 일반 overlap. 반복 이벤트: DTSTART <= rangeEnd 만 필터하고 RRULE 로 확장.
     const baseWhere = {

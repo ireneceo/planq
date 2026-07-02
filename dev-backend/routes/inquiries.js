@@ -3,11 +3,19 @@
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
+const { Op } = require('sequelize');
 const { ContactInquiry, User, Business } = require('../models');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { perUserLimiter } = require('../middleware/costGuard');
 
 const VALID_KINDS = ['enterprise', 'general', 'landing'];
+
+// 비용폭탄 C3 — 공개 문의폼이 임의 from_email 로 Irene SMTP 자동회신을 발송 → 스팸 릴레이·발신평판 파괴.
+//   전역 600/분(IP) 위에 전용 엄격 limiter: IP당 3/시간 + 10/일. 익명 접수는 유지.
+const INQUIRY_MSG = '문의가 너무 자주 접수되었습니다. 잠시 후 다시 시도해주세요.';
+const inquiryHourLimiter = perUserLimiter('inquiry-h', { windowMs: 60 * 60 * 1000, max: 3, message: INQUIRY_MSG });
+const inquiryDayLimiter = perUserLimiter('inquiry-d', { windowMs: 24 * 60 * 60 * 1000, max: 10, message: INQUIRY_MSG });
 
 function isValidEmail(s) {
   return typeof s === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s.trim());
@@ -17,7 +25,7 @@ function isValidEmail(s) {
 // 인증 토큰 있으면 사용자/워크스페이스 자동 연결, 없어도 접수 가능 (랜딩 페이지 용).
 // rate-limit 은 server.js 에서 setupSecurity 로 전역 /api 100/분 적용되며,
 // 이 엔드포인트 전용 추가 제한은 middleware/security.js 에서 확장 가능.
-router.post('/', async (req, res, next) => {
+router.post('/', inquiryHourLimiter, inquiryDayLimiter, async (req, res, next) => {
   try {
     const { kind, source, from_name, from_email, from_company, from_phone, message } = req.body || {};
 
@@ -85,13 +93,20 @@ async function sendInquiryNotifications(inquiry) {
   const emailService = require('../services/emailService');
   const { notifyPlatformAdmins, APP_URL } = require('../services/platformNotify');
 
-  // 1) 문의자 자동 회신
-  await emailService.sendInquiryReceivedEmail({
-    to: inquiry.from_email,
-    name: inquiry.from_name,
-    message: inquiry.message,
-    inquiryId: inquiry.id,
-  }).catch(() => null);
+  // 1) 문의자 자동 회신 — 같은 from_email 로 최근 24h 내 접수 이력 있으면 skip (접수·admin 알림은 유지).
+  //    비용폭탄 C3: 임의 주소 반복 접수로 Irene 발신주소가 백스캐터 스팸 릴레이가 되는 것 차단.
+  const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const priorSameEmail = await ContactInquiry.count({
+    where: { from_email: inquiry.from_email, id: { [Op.ne]: inquiry.id }, created_at: { [Op.gte]: since24h } },
+  }).catch(() => 0);
+  if (priorSameEmail === 0) {
+    await emailService.sendInquiryReceivedEmail({
+      to: inquiry.from_email,
+      name: inquiry.from_name,
+      message: inquiry.message,
+      inquiryId: inquiry.id,
+    }).catch(() => null);
+  }
 
   // 2) platform_admin 알림 — 표준 헬퍼 경유 (relatedEntityId 추적·EmailLog 일관성)
   await notifyPlatformAdmins({

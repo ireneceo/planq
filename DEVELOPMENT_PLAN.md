@@ -1,5 +1,11 @@
 # PlanQ - 개발 진행 현황
 
+> **최종 업데이트:** 2026-07-02 (Opus) — **멀티탭 설계(Fable 2R)+P0-A 소켓 통합 · 죽은투어 제거 · 🔴비용폭탄 총점검+수정.** 헬스 29/29 · 빌드 EXIT0/TS0.
+> - **★ 비용폭탄 총점검(신규):** "고객 대량사용 → Irene 외부비용 폭발 구멍" 3축 감사(AI/LLM·STT/임베딩·메일/푸시/저장소) + Fable 계획검수 → 수정. **신규 `dev-backend/middleware/costGuard.js`**(per-user rate-limit+서킷브레이커+입력캡). 닫은 구멍: **C2** estimate-preview 멤버십게이트(cross-tenant few-shot 유출 차단)+rate-limit · **C3** 공개 문의폼 SMTP 스팸릴레이(limiter+24h 자동회신 dedup) · **H-a** cue help-public 스푸핑차단(req.ip)+2000/일 서킷브레이커 · **H-b** ai-create can('use_cue')게이트+prompt캡 · **H-c** qhelper rate-limit(플랜게이트X=제품결정) · **H-d** 이메일공유 수신자≤20캡+발송limiter · **H-e** 채팅/업무 첨부 `plan.fileSizeLimit` 유령함수 복구→`can('upload_file')`+BusinessStorageUsage 집계(무제한 업로드 차단) · **M-a** 번역입력 8000자캡 · **L3** calendar 기간 400일캡 · **C1(부분)** q-note STT per-user 동시 스트림 2+세션 4h캡(카타스트로피 차단). **⬜ Fable 구현 diff 게이트 실행 중(다음 섹션 재확인)·pm2 미재시작·미커밋→/개발완료에서 커밋.** 남은 비용: C1 전체 분quota 과금기록(마이그레이션+Fable 재게이트), q-note 문서수캡, OTP limiter.
+> - **앱 내 멀티탭(노션 keep-alive) 설계+P0-A:** `docs/MULTITAB_DESIGN.md` (Fable 2회 게이트 — nested Router crash·chrome router-less crash 사전 차단). 결정=진짜 keep-alive/데스크탑전용/LRU4/형제 MemoryRouter(SSR PoC 6/0). **P0-A 공유소켓 `services/socket.ts` + io() 24곳→22파일 이관 완료(빌드 EXIT0).** ⬜ P0-B·인브라우저 SPIKE(chrome+탭)·P1(chrome RR탈피 리팩터+탭코어) 미착수. ⬜ P0-A 브라우저 런타임 검증(라이브·WS=1) 대기.
+> - **죽은 투어 제거:** FirstVisitTour(forceShow 트리거 없어 영영 안 뜨던 죽은코드) 컴포넌트+3페이지 사용+HelpDot tourPageKey 죽은링크 제거.
+> - **박제:** [[feedback_orthodox_over_prod_stability]](유료고객0=정석우선), [[feedback_no_options_just_fix]] 재강조(질문 반복 금지). **미배포**(Irene /배포 대기, 이전 세션분도 미푸시).
+>
 > **최종 업데이트:** 2026-07-01 — **운영 피드백 마라톤 + 설정 IA 전면 재설계 (운영 배포 5배치, 설정 최종분 dev 대기).** 헬스 29/29 · 빌드 EXIT0/TS0.
 > - **프로젝트 문서 탭 = 파일 탭 통일** — 공용 `components/Docs/assetTabLayout.ts`(파일탭 styled 단일원천) 추출, PostsPage 프로젝트 browse 동일 레이아웃. URL 버그(탭 전환 시 stale ?post 제거) + 프로젝트 탭 지연로드(React.lazy 175→80KB) + 추가탭 표 상세(PostTableGrid 재사용).
 > - **🔴 #106 개인파일(L1) 유출 fix (보안)** — `/workspace/:bizId/all-files` visibility 필터 없이 전 파일 반환 → `fileListWhereByLevel(scope)` 적용(L1=소유자만). 배포됨.

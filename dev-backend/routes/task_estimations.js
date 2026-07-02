@@ -3,12 +3,26 @@
 // GET /api/tasks/:taskId/estimations — 이력 (AI / user 둘 다)
 const express = require('express');
 const router = express.Router();
-const { Task, TaskEstimation, Project } = require('../models');
+const { Task, TaskEstimation, Project, Business, BusinessMember } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { perUserDaily } = require('../middleware/costGuard');
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const AI_MODEL = 'gpt-4o-mini';
+
+// 비용폭탄 C2 — AI 추정은 외부 LLM 비용. per-user 10/분 + 100/일 (업무폼 버튼 1회/task, 인간 상한 여유).
+const aiEstimateLimiter = perUserDaily('ai-est', { perMin: 10, perDay: 100, message: 'AI 추정을 너무 자주 호출했습니다. 잠시 후 다시 시도하세요.' });
+
+// business_id 소속(owner/member) 검증 — 클라이언트가 넘긴 business_id 신뢰 금지.
+async function assertMembership(userId, businessId) {
+  if (!businessId) return false;
+  const [owner, member] = await Promise.all([
+    Business.count({ where: { id: businessId, owner_id: userId } }),
+    BusinessMember.count({ where: { business_id: businessId, user_id: userId } }),
+  ]);
+  return owner > 0 || member > 0;
+}
 
 // 워크스페이스 패턴 few-shot — 같은 workspace 의 최근 사용자 확정 추정을 prompt 에 포함.
 // 사이클 N+20 — 워크스페이스별 업무 패턴 정확도 향상 (옷가게 vs 개발사 vs 컨설팅 — 같은 단어라도 추정 다름).
@@ -85,26 +99,30 @@ async function callAiEstimate(title, description, businessId = null) {
 // POST /api/tasks/estimate-preview — 작성 중인 task (id 없음) 의 AI 추정.
 //   바디: { title, description? } — 캐시 없음, 단순 LLM 호출.
 //   업무 추가 폼에서 "AI 추천" 버튼용.
-router.post('/estimate-preview', authenticateToken, async (req, res, next) => {
+router.post('/estimate-preview', authenticateToken, ...aiEstimateLimiter, async (req, res, next) => {
   try {
     const { title, description, business_id } = req.body || {};
     if (!title || !String(title).trim()) {
       return errorResponse(res, 'title_required', 400);
     }
-    // business_id 전달 시 워크스페이스 패턴 few-shot 학습 활성
-    const ai = await callAiEstimate(String(title).trim(), String(description || ''), business_id || null);
+    // 비용폭탄 C2 — 클라이언트 business_id 무검증 시 타 워크스페이스 최근 task 제목이 few-shot 프롬프트로
+    //   유출(cross-tenant). 멤버 검증 통과한 경우만 패턴 학습 활성, 아니면 null(추정은 하되 few-shot 없음).
+    const effectiveBiz = business_id && await assertMembership(req.user.id, Number(business_id)) ? Number(business_id) : null;
+    const ai = await callAiEstimate(String(title).trim().slice(0, 300), String(description || ''), effectiveBiz);
     if (!ai) return errorResponse(res, 'ai_unavailable', 503);
     return successResponse(res, { value: ai.hours, reason: ai.reason, model: AI_MODEL });
   } catch (e) { next(e); }
 });
 
 // POST /api/tasks/:taskId/estimate/ai
-router.post('/:taskId/estimate/ai', authenticateToken, async (req, res, next) => {
+router.post('/:taskId/estimate/ai', authenticateToken, ...aiEstimateLimiter, async (req, res, next) => {
   try {
     const taskId = parseInt(req.params.taskId, 10);
     if (!taskId) return errorResponse(res, 'invalid_task', 400);
     const task = await Task.findByPk(taskId, { attributes: ['id', 'title', 'description', 'business_id'] });
     if (!task) return errorResponse(res, 'not_found', 404);
+    // 비용폭탄 C2 — 임의 task id 로 남의 업무 AI 추정 트리거(비용+제목/설명 유출) 차단. 소속 멤버만.
+    if (!(await assertMembership(req.user.id, task.business_id))) return errorResponse(res, 'forbidden', 403);
 
     // 캐시: 같은 task 의 ai 추천이 1시간 이내 있으면 재사용 (LLM 비용 절감)
     const recent = await TaskEstimation.findOne({
