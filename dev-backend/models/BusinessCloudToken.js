@@ -78,6 +78,15 @@ BusinessCloudToken.init({
   watch_page_token: {
     type: DataTypes.STRING(128),
     allowNull: true
+  },
+  last_error: {
+    type: DataTypes.STRING(300),
+    allowNull: true,
+    comment: '마지막 API 오류 (invalid_grant 등) — 성공 시 NULL 복원'
+  },
+  last_error_at: {
+    type: DataTypes.DATE,
+    allowNull: true
   }
 }, {
   sequelize,

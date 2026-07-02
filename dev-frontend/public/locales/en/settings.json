@@ -221,7 +221,10 @@
     "gdrivePersonal": {
       "title": "My Personal Google Drive",
       "desc": "My personal Drive, separate from the company · only I use it"
-    }
+    },
+    "reconnectNeeded": "Reconnect needed",
+    "tokenError": "Google authorization expired — please reconnect",
+    "reconnect": "Reconnect"
   },
   "brand": {
     "sectionTitle": "Brand",

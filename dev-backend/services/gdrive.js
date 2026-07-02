@@ -317,9 +317,28 @@ async function listChanges(drive, pageToken) {
   return res.data;
 }
 
+/**
+ * 토큰 오류 박제 / 해제 — invalid_grant(재동의 필요) 감지·표시용.
+ * 기록 실패가 본 흐름을 막으면 안 되므로 자체 try/catch.
+ */
+async function recordTokenError(token, err) {
+  try {
+    const msg = String((err && err.message) || err || 'unknown').slice(0, 300);
+    await token.update({ last_error: msg, last_error_at: new Date() });
+  } catch (_) { /* ignore */ }
+}
+
+async function clearTokenError(token) {
+  try {
+    if (token.last_error) await token.update({ last_error: null, last_error_at: null });
+  } catch (_) { /* ignore */ }
+}
+
 module.exports = {
   isConfigured,
   SCOPES,
+  recordTokenError,
+  clearTokenError,
   buildAuthUrl,
   parseState,
   exchangeCodeForTokens,

@@ -11,6 +11,8 @@ interface ProviderState {
   account_email?: string;
   root_folder_id?: string;
   connected_at?: string;
+  last_error?: string | null;
+  needs_reconnect?: boolean;
 }
 
 interface Props {
@@ -222,8 +224,18 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
                 : tr('storage.gdriveTeam.desc', '워크스페이스 공용, 프로젝트 자료 저장 · 앱 전용 폴더(drive.file)')}
             </CardSub>
           </CardTitleWrap>
-          {gdriveConnected && <StatusBadge $kind="active">{tr('storage.active', '사용 중')}</StatusBadge>}
+          {gdriveConnected && (providers.gdrive.needs_reconnect
+            ? <StatusBadge $kind="inactive">{tr('storage.reconnectNeeded', '재연결 필요')}</StatusBadge>
+            : <StatusBadge $kind="active">{tr('storage.active', '사용 중')}</StatusBadge>)}
         </CardHead>
+        {gdriveConnected && providers.gdrive.needs_reconnect && (
+          <CardActions>
+            <S3Msg $tone="err">{tr('storage.tokenError', 'Google 인증이 만료되었습니다 — 다시 연결해 주세요')}</S3Msg>
+            <PrimaryBtn type="button" disabled={!!connecting} onClick={() => handleConnect('gdrive')}>
+              {connecting === 'gdrive' ? tr('storage.connecting', '연결 중…') : tr('storage.reconnect', '다시 연결')}
+            </PrimaryBtn>
+          </CardActions>
+        )}
         <CardActions>
           {!providers.gdrive.configured ? (
             <InlineHint>{tr('storage.gdrive.notConfigured', '서버에 OAuth 가 설정되지 않았습니다 (.env 확인 필요)')}</InlineHint>
