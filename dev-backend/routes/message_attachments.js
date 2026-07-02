@@ -279,7 +279,8 @@ router.get('/:id/raw', async (req, res, next) => {
     }
 
     const stored = path.basename(att.file_path);
-    return res.redirect(302, `/api/message-attachments/public/${stored}`);
+    const w = parseInt(req.query.w, 10); // #97 — 리사이즈 파라미터 redirect 에 보존
+    return res.redirect(302, `/api/message-attachments/public/${stored}${w > 0 ? `?w=${w}` : ''}`);
   } catch (err) { next(err); }
 });
 
@@ -301,6 +302,7 @@ router.get('/public/:storedName', async (req, res, next) => {
     }
     const abs = path.isAbsolute(att.file_path) ? att.file_path : path.join(__dirname, '..', att.file_path);
     if (!fs.existsSync(abs)) return errorResponse(res, 'file_missing', 410);
+    if (await require('../services/imageResize').maybeServeResized(req, res, abs, att.mime_type)) return; // #97 ?w= 리사이즈
     res.setHeader('Content-Type', att.mime_type);
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Disposition', 'inline');

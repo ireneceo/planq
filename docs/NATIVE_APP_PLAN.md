@@ -2,7 +2,8 @@
 
 > 작성: 2026-07-02 (Fable 검수 세션). **Opus 실행용 작업 지시서.**
 > 결정 박제: 기존 React 코드 100% 재사용 + Capacitor 컨테이너 + APNs/FCM 네이티브 푸시.
-> 순서: **iOS 먼저 (TestFlight 팀 배포) → Android**. 공개 스토어 등록은 마지막.
+> 순서: **iOS 먼저 (TestFlight 팀 검증 → App Store 공개) → Android (Play Store)**.
+> 2026-07-02 Irene 결정: **App Store 공개는 선택이 아니라 정식 목표** — 고객(Client)도 앱으로 접속해야 하므로. iOS 는 스토어 밖 배포(사이드로딩)가 불가능해 일반 사용자 배포 = App Store 유일.
 > 배경: iOS PWA 푸시가 기기 상태에 따라 표시가 불안정한 문제의 근본 해결 (memory: project_native_app_capacitor_plan).
 
 ---
@@ -52,8 +53,8 @@ export const nativePlatform = () => Capacitor.getPlatform(); // 'ios' | 'android
 
 | 항목 | 담당 | 내용 |
 |------|------|------|
-| Apple Developer Program | **Irene** | $99/년. 개인 가입이 빠름(즉시). 법인(워프로랩)은 DUNS 번호 필요해 1~2주 소요 — 스토어 공개 전까지 개인으로 시작해도 됨 (나중에 양도 가능하나 번거로움 — 처음부터 법인 권장하면 일정 지연과 트레이드) |
-| **macOS + Xcode** | 확인 필요 | **iOS 빌드는 Mac 이 물리적으로 필요.** Mac 없으면: Codemagic(월 무료 500분, Mac mini CI) 또는 Ionic Appflow 로 클라우드 빌드. **Opus 는 이 서버(Linux)에서 Xcode 빌드 불가 — Capacitor 프로젝트 생성·웹 측 코드·백엔드까지만 하고, Xcode 빌드/서명/TestFlight 업로드는 Mac 또는 CI 에서** |
+| Apple Developer Program | **Irene (미가입 — 최우선 액션)** | $99/년, developer.apple.com/programs 에서 가입. 개인 가입이 빠름(당일~2일). 법인(워프로랩)은 DUNS 번호 필요해 1~2주 소요 — 개인으로 시작 권장. **가입 전에도 시뮬레이터/실기기 개발 테스트(무료 계정, 7일 프로비저닝)는 가능하지만, 푸시(APNs)와 TestFlight 는 유료 가입 필수** — Phase 2 전까지는 가입돼 있어야 함 |
+| **macOS + Xcode** | ✅ Irene Mac 보유 | Mac App Store 에서 Xcode 설치 (용량 큼, 미리 받아두기). **Opus 는 이 서버(Linux)에서 Xcode 빌드 불가 — Capacitor 프로젝트 생성·웹 측 코드·백엔드까지 하고, ios/ 디렉토리를 git 으로 받아 Irene Mac 의 Xcode 에서 빌드/서명/TestFlight 업로드** (절차는 Phase 1 완료 시 단계별 안내) |
 | APNs 인증 키 (.p8) | Irene (개발자 계정 생성 후) | Apple Developer → Keys → APNs key 생성. Key ID + Team ID + .p8 파일 → 서버 .env 로 |
 | Android (나중) | Irene | Google Play Console $25 (1회). FCM 은 Firebase 프로젝트 필요 |
 
@@ -135,9 +136,9 @@ ALTER TABLE push_subscriptions
 2. Android 특이사항: 알림 채널 생성 (importance high), 배터리 최적화 화이트리스트 안내, back 버튼 → SPA history back 브리지 (`App.addListener('backButton')`)
 3. 검증: Phase 3.4 시나리오 Android 반복
 
-## 6. Phase 5 — 스토어 공개 (팀 사용 안정화 후)
+## 6. Phase 5 — 스토어 공개 (정식 목표 — 팀 TestFlight 검증 후 바로 진행)
 
-- **TestFlight**: 내부 테스터(팀)는 심사 없음 — 팀 사용은 여기까지로 충분. 외부 테스터 초대 시 간이 심사
+- **TestFlight**: 내부 테스터(팀 100명)는 심사 없음, 빌드 90일 유효 — 검증 단계로만 사용. 외부 테스터 초대 시 간이 심사
 - App Store 공개 심사 대비: 4.2 minimum functionality (네이티브 푸시·배지·공유·딥링크 명시), 심사용 데모 계정 제공 (test 계정 재사용 금지 — 심사 전용 워크스페이스 신설), 개인정보처리방침 URL (planq.kr/privacy), 계정 삭제 기능 노출 필수(iOS 규정 — 기존 GDPR export/삭제 흐름 연결)
 - Google Play: 데이터 안전 섹션 작성, 타겟 API 레벨 최신 유지
 
@@ -155,9 +156,11 @@ ALTER TABLE push_subscriptions
 
 **웹 회귀 0 원칙: 모든 커밋에서 웹(planq.kr) 동작 무변경. native 분기 누락으로 웹 push 가 깨지는 것이 최대 리스크.**
 
-## 8. Irene 결정/액션 대기 목록
+## 8. Irene 결정/액션 대기 목록 (2026-07-02 확인: Mac 있음 / 개발자 계정 없음)
 
-1. Apple Developer Program 가입 (개인 vs 법인 — 개인 권장, 즉시 시작 가능)
-2. Mac 보유 여부 → 없으면 Codemagic 계정 (무료 시작)
-3. APNs .p8 키 발급 (가입 후 5분 작업, 절차 안내 가능)
+1. **Apple Developer Program 가입** (개인, $99/년) — 푸시·TestFlight 의 선행 조건. 가입 승인까지 1~2일 걸릴 수 있으니 개발 시작과 동시에 진행 권장
+2. Mac 에 Xcode 설치 (App Store, 수 GB — 미리)
+3. 가입 완료 후 APNs .p8 키 발급 (5분 작업, 절차는 그때 단계별 안내)
 4. 앱 이름/아이콘 확정 ("PlanQ", 기존 PWA 아이콘 그대로 시작 권장)
+
+> 개발 병행 전략: 가입 승인을 기다리는 동안 Opus 가 Phase 1(Capacitor 셋업)과 Phase 3 의 웹 측 분기(OAuth Browser 분기·PWA 잔재 숨김 등)를 먼저 진행할 수 있음. Phase 2(푸시)만 가입 완료에 종속.

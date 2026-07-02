@@ -1034,7 +1034,8 @@
       "meta": "{{n}} tasks",
       "use": "Use this template",
       "dismiss": "Dismiss"
-    }
+    },
+    "assigneeUnmatched": "Could not find \"{{name}}\" among members — please pick an assignee. If confirmed as-is, it becomes your own task."
   },
   "bar": {
     "resumeTitle": "In progress",

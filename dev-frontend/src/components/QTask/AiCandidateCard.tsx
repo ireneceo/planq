@@ -15,6 +15,7 @@ export interface AiCandidate {
   due_offset_days: number;
   priority: string;
   assignee_hint: string | null;
+  assignee_name?: string | null; // #90 — LLM 이 추출한 이름 (매칭 실패 시 경고 표시용)
   assignee_user_id: number | null;
   depends_on_index: number | null;
   vague: boolean;
@@ -77,6 +78,11 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
           />
         </AssigneeInline>
       </CardHeader>
+      {!c.assignee_user_id && c.assignee_name && (
+        <UnmatchedWarn>
+          {t('ai.assigneeUnmatched', '"{{name}}" 을(를) 멤버에서 찾지 못했어요 — 담당자를 직접 선택해 주세요. 그대로 확정하면 내 업무로 만들어집니다.', { name: c.assignee_name }) as string}
+        </UnmatchedWarn>
+      )}
       <CardMetaRow>
         <MetaItem>
           <MetaIcon><CalendarIcon size={13} /></MetaIcon>
@@ -122,6 +128,7 @@ const TitleInput = styled.input<{ $vague: boolean }>`
   &:focus { outline: none; border-color: #14B8A6; background: #FFFFFF; }
 `;
 const VagueBadge = styled.span`flex-shrink: 0; font-size: 14px; color: #B45309; cursor: help;`;
+const UnmatchedWarn = styled.div`font-size: 12px; color: #B45309; background: #FFFBEB; border-radius: 6px; padding: 6px 10px; margin: 6px 0 0; line-height: 1.4;`;
 const AssigneeInline = styled.div`
   flex-shrink: 0; min-width: 110px; max-width: 150px;
   margin-left: auto;

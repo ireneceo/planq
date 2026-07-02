@@ -873,7 +873,8 @@ router.post('/editor-image', authenticateToken, (req, res, next) => {
       if (err) return errorResponse(res, err.message || 'upload_failed', 400);
       if (!req.file) return errorResponse(res, 'file_required', 400);
 
-      const url = `/api/posts/editor-image/${req.file.filename}`;
+      // #97 — 본문 표시용은 리사이즈본 (?w=1600). 원본은 파라미터 없이 접근 가능.
+      const url = `/api/posts/editor-image/${req.file.filename}?w=1600`;
       const businessId = Number(req.body?.business_id || req.query?.business_id || 0);
       if (!businessId) {
         // legacy fallback — business_id 없으면 DB 등록 X (옛 호출자 호환)
@@ -905,7 +906,7 @@ router.post('/editor-image', authenticateToken, (req, res, next) => {
 });
 
 // GET /api/posts/editor-image/:filename — UUID 로 추측 불가, 인증 생략 (img 태그 직접 로드 용)
-router.get('/editor-image/:filename', (req, res) => {
+router.get('/editor-image/:filename', async (req, res) => {
   const filename = String(req.params.filename || '');
   // path traversal 방어
   if (!/^[0-9a-f-]+\.(png|jpe?g|gif|webp|svg)$/i.test(filename)) {
@@ -913,6 +914,9 @@ router.get('/editor-image/:filename', (req, res) => {
   }
   const fp = path.join(EDITOR_IMG_DIR, filename);
   if (!fs.existsSync(fp)) return errorResponse(res, 'not_found', 404);
+  const ext = filename.split('.').pop().toLowerCase();
+  const mime = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', svg: 'image/svg+xml' }[ext];
+  if (await require('../services/imageResize').maybeServeResized(req, res, fp, mime)) return; // #97 ?w= 리사이즈
   res.sendFile(fp);
 });
 

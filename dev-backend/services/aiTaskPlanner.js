@@ -291,6 +291,26 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
     }
   }
 
+  // #90 후속 — 담당자 안전망 (URL net 과 같은 원리): LLM 이 assignee_name 을 놓쳐도
+  //   프롬프트에 워크스페이스 멤버 이름이 직접 언급돼 있으면 배정 복구.
+  //   정확히 1명으로 특정될 때만 적용 — 여러 이름이면 모호하므로 건드리지 않는다.
+  const unassigned = candidates.filter((c) => !c.assignee_user_id);
+  if (unassigned.length && members.length) {
+    const promptText = String(prompt);
+    const mentioned = new Map();
+    for (const m of members) {
+      const names = [m.name, m.account_name].filter((n) => n && String(n).trim().length >= 2);
+      if (names.some((n) => promptText.includes(String(n).trim()))) mentioned.set(m.user_id, m);
+    }
+    if (mentioned.size === 1) {
+      const m = [...mentioned.values()][0];
+      for (const c of unassigned) {
+        c.assignee_user_id = m.user_id;
+        if (!c.assignee_name) c.assignee_name = m.name || m.account_name || null;
+      }
+    }
+  }
+
   // recordUsage — cue_usage 카운터에 'ai_task_create' 액션으로 기록
   if (!result.fallback && businessId) {
     try {
