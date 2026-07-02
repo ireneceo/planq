@@ -43,6 +43,8 @@ interface Turn {
   loading?: boolean;
   error?: string;
   sources?: Array<{ slug: string; title: string }>;  // Q위키 RAG 근거 article
+  logId?: number | null;                              // KNOWLEDGE_LOOP 축2 — 피드백 대상 로그
+  feedback?: 'helpful' | 'not_helpful';               // 제출된 피드백 (재클릭 차단)
 }
 
 // N+93 — standalone: /help-popout 분리 창에서 풀윈도우로 마운트 (FAB/백드롭 없음, 항상 open, 닫기=window.close).
@@ -233,7 +235,7 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
         throw new Error(msg as string);
       }
       const srcs = Array.isArray(j.data?.sources) ? j.data.sources : [];
-      setTurns(prev => prev.map((tn, i) => i === prev.length - 1 ? { ...tn, a: j.data.answer || '', loading: false, sources: srcs } : tn));
+      setTurns(prev => prev.map((tn, i) => i === prev.length - 1 ? { ...tn, a: j.data.answer || '', loading: false, sources: srcs, logId: j.data.log_id ?? null } : tn));
     } catch (e) {
       setTurns(prev => prev.map((tn, i) => i === prev.length - 1
         ? { ...tn, error: mapApiError(e, tErr), loading: false }
@@ -242,6 +244,21 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
       setSubmitting(false);
     }
   }, [input, submitting, location, isGuest, mode, t]);
+
+  // KNOWLEDGE_LOOP 축2 — 답변 피드백 (낙관적 표시, 실패 무해)
+  const sendAnswerFeedback = useCallback(async (turnIdx: number, feedback: 'helpful' | 'not_helpful') => {
+    const turn = turns[turnIdx];
+    if (!turn || turn.logId == null || turn.feedback) return;
+    setTurns(prev => prev.map((tn, i) => i === turnIdx ? { ...tn, feedback } : tn));
+    try {
+      const fetcher = isGuest ? fetch : apiFetch;
+      await fetcher('/api/cue/help-feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ log_id: turn.logId, feedback }),
+      });
+    } catch { /* 피드백 실패는 조용히 무시 */ }
+  }, [turns, isGuest]);
 
   // 게스트 문의 제출 — 랜딩 /contact 와 동일 백엔드 (POST /api/inquiries)
   const submitInquiry = useCallback(async () => {
@@ -529,6 +546,23 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
                           </SourceLink>
                         ))}
                       </Sources>
+                    )}
+                    {/* KNOWLEDGE_LOOP 축2 — 답변 피드백. 미답변·불만족이 위키 초안 제안으로 되먹임 */}
+                    {!tn.loading && !tn.error && tn.a && tn.logId != null && (
+                      <FeedbackRow>
+                        {tn.feedback ? (
+                          <FeedbackDone>{t('qhelper.feedbackThanks', '피드백 감사합니다')}</FeedbackDone>
+                        ) : (
+                          <>
+                            <FeedbackBtn type="button" onClick={() => sendAnswerFeedback(i, 'helpful')}>
+                              {t('qhelper.feedbackHelpful', '도움됐어요')}
+                            </FeedbackBtn>
+                            <FeedbackBtn type="button" onClick={() => sendAnswerFeedback(i, 'not_helpful')}>
+                              {t('qhelper.feedbackNotHelpful', '아니요')}
+                            </FeedbackBtn>
+                          </>
+                        )}
+                      </FeedbackRow>
                     )}
                   </A>
                 </TurnRow>
@@ -995,6 +1029,20 @@ const SourceLink = styled.button`
   background: #FFFFFF; border: 1px solid #5EEAD4;
   font-size: 11px; font-weight: 600; color: #0F766E;
   &:hover { background: #F0FDFA; }
+`;
+// KNOWLEDGE_LOOP 축2 — 답변 피드백 2버튼
+const FeedbackRow = styled.div`
+  margin-top: 8px; display: flex; align-items: center; gap: 6px;
+`;
+const FeedbackBtn = styled.button`
+  all: unset; cursor: pointer;
+  padding: 3px 10px; border-radius: 999px;
+  background: #FFFFFF; border: 1px solid #E2E8F0;
+  font-size: 11px; font-weight: 600; color: #64748B;
+  &:hover { background: #F8FAFC; border-color: #CBD5E1; }
+`;
+const FeedbackDone = styled.span`
+  font-size: 11px; color: #94A3B8;
 `;
 const FeedbackPitch = styled.div`
   flex-shrink: 0;

@@ -98,6 +98,8 @@ const WorkspaceStorageConfig = require('./WorkspaceStorageConfig');
 // ─── Q위키 (Q Wiki) — 제품 도움말 ───
 const HelpCategory = require('./HelpCategory');
 const HelpArticle = require('./HelpArticle');
+const HelpQuestionLog = require('./HelpQuestionLog');
+const CueKnowledge = require('./CueKnowledge');
 // ─── Q Mail (Phase 9 — M1) ───
 const EmailAccount = require('./EmailAccount');
 const EmailThread = require('./EmailThread');
@@ -520,6 +522,8 @@ module.exports = {
   // Q위키 (Q Wiki)
   HelpCategory,
   HelpArticle,
+  HelpQuestionLog,
+  CueKnowledge,
   // Q Mail (Phase 9 M1)
   EmailAccount,
   EmailThread,

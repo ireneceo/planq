@@ -234,7 +234,9 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
   if (!prompt || !String(prompt).trim()) {
     return { candidates: [], reasoning: '', fallback: true, error: 'empty_prompt' };
   }
-  const systemPrompt = buildSystemPrompt(language, members, projectContext, targetDate, todayLocal, mode);
+  let systemPrompt = buildSystemPrompt(language, members, projectContext, targetDate, todayLocal, mode);
+  // KNOWLEDGE_LOOP 축1 — 워크스페이스 카테고리별 실측 소요시간 통계 주입 (estimated_hours 정확도 ↑)
+  try { systemPrompt += await require('./cueKnowledge').getWorkPatternPromptBlock(businessId); } catch { /* noop */ }
   // 운영 — 재생성/재수정 지시 (AI 재생성 UX 통일). 사용자가 결과를 보고 "이렇게 고쳐줘" 한 것.
   let userPrompt = String(prompt).trim();
   if (instruction && String(instruction).trim()) {

@@ -581,7 +581,11 @@
     "revert": {
       "label": "되돌리기",
       "tip": "직전 단계로 되돌리기"
-    }
+    },
+    "kbSave": "KB에 저장",
+    "kbSaving": "저장 중…",
+    "kbSaved": "KB 저장됨 ✓",
+    "kbSaveHint": "이 결과물을 워크스페이스 지식 베이스(KB)에 저장 — Cue 가 답변에 활용"
   },
   "weeklyReview": {
     "finalize": "이번 주 마무리",

@@ -581,7 +581,11 @@
     "revert": {
       "label": "Revert",
       "tip": "Revert to previous status"
-    }
+    },
+    "kbSave": "Save to KB",
+    "kbSaving": "Saving…",
+    "kbSaved": "Saved to KB ✓",
+    "kbSaveHint": "Save this deliverable to the workspace knowledge base — Cue uses it when answering"
   },
   "weeklyReview": {
     "finalize": "Wrap Up Week",

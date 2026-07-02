@@ -181,6 +181,9 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
 
   const [detailTask, setDetailTask] = useState<TaskDetail | null>(null);
   const [weekFocusH, setWeekFocusH] = useState(0);  // WORK_FLOW §6-B — 이번 주 포커스 시간(이월 배너)
+  // KNOWLEDGE_LOOP 축1 — 결과물 KB 저장 (Cue 리서치 결과 등 되먹임, 사람 게이트)
+  const [kbSaving, setKbSaving] = useState(false);
+  const [kbSaved, setKbSaved] = useState(false);
   const [reviewers, setReviewers] = useState<ReviewerRow[]>([]);
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [reviewPolicy, setReviewPolicy] = useState<'all'|'any'>('all');
@@ -391,6 +394,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     setAddReviewerOpen(false); setPendingReviewerAdd(null);
     setDeleteConfirmOpen(false); setDeleting(false);
     setWeekFocusH(0);
+    setKbSaving(false); setKbSaved(false);
     loadDetail(taskId);
     // WORK_FLOW §6-B — 이번 주 포커스 시간(이월 배너용). 본인 세션만 집계.
     (async () => {
@@ -400,6 +404,25 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       } catch { /* ignore */ }
     })();
   }, [taskId, loadDetail]);
+
+  // KNOWLEDGE_LOOP 축1 — 결과물(body)을 워크스페이스 KB 로 저장 (HTML → 텍스트 변환)
+  const saveBodyToKb = useCallback(async () => {
+    if (!detailTask || kbSaving || kbSaved) return;
+    const tmp = document.createElement('div');
+    tmp.innerHTML = detailTask.body || '';
+    const text = (tmp.textContent || '').trim();
+    if (!text) return;
+    setKbSaving(true);
+    try {
+      const r = await apiFetch(`/api/businesses/${bizId}/kb/documents`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: detailTask.title, body: text.slice(0, 20000), categories: ['업무 결과물'] }),
+      });
+      const j = await r.json();
+      if (r.ok && j.success) setKbSaved(true);
+    } catch { /* ignore */ } finally { setKbSaving(false); }
+  }, [detailTask, bizId, kbSaving, kbSaved]);
 
   // #105 — 포커스 일시정지/재개 시 "실제" 시간 즉시 반영.
   //   backend 는 pause 시점에 recomputeActualHoursFromHistory + broadcast 까지 하지만
@@ -1606,6 +1629,12 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               <SectionTitle>
                 {t('detail.body', '결과물')}
                 {!canEditBody && <ReadOnlyHint>{t('detail.readOnly', '읽기 전용')}</ReadOnlyHint>}
+                {myWsRole !== 'client' && !!detailTask.body && (
+                  <KbSaveBtn type="button" disabled={kbSaving || kbSaved} onClick={saveBodyToKb}
+                    title={t('detail.kbSaveHint', '이 결과물을 워크스페이스 지식 베이스(KB)에 저장 — Cue 가 답변에 활용') as string}>
+                    {kbSaved ? t('detail.kbSaved', 'KB 저장됨 ✓') : kbSaving ? t('detail.kbSaving', '저장 중…') : t('detail.kbSave', 'KB에 저장')}
+                  </KbSaveBtn>
+                )}
               </SectionTitle>
               <RichEditor value={detailTask.body || ''}
                 onChange={(html) => debouncedSave('body', html, 2000)}
@@ -1861,6 +1890,12 @@ const Scroll = styled.div`flex:1;overflow-y:auto;overflow-x:hidden;min-width:0;&
 const Section = styled.div`border-bottom:1px solid #F1F5F9;padding:12px 14px;`;
 const SectionTitle = styled.h4`font-size:12px;font-weight:700;color:#0F172A;margin:0 0 8px;display:flex;align-items:center;gap:8px;`;
 const ReadOnlyHint = styled.span`font-size:11px;font-weight:500;color:#94A3B8;background:#F1F5F9;border-radius:10px;padding:2px 8px;`;
+const KbSaveBtn = styled.button`
+  all:unset;cursor:pointer;margin-left:auto;
+  font-size:11px;font-weight:600;color:#0F766E;background:#F0FDFA;border:1px solid #99F6E4;border-radius:10px;padding:2px 10px;
+  &:hover{background:#CCFBF1;}
+  &:disabled{cursor:default;color:#94A3B8;background:#F8FAFC;border-color:#E2E8F0;}
+`;
 const Title = styled.h3`font-size:19px;font-weight:700;color:#0F172A;margin:0 0 8px;line-height:1.35;cursor:pointer;border-radius:6px;padding:4px 6px;margin-left:-6px;transition:background 0.12s;display:flex;align-items:center;gap:8px;&:hover{background:#F1F5F9;}&:hover > span:last-child{opacity:1;}&:focus{outline:none;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}`;
 const TitleText = styled.span`flex:1;min-width:0;`;
 const TitleEditIcon = styled.span`display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;color:#94A3B8;opacity:0;transition:opacity 0.15s, background 0.12s;flex-shrink:0;`;

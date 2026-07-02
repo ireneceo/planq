@@ -84,6 +84,28 @@ HelpArticle.init({
     allowNull: false,
     defaultValue: 0,
   },
+  // KNOWLEDGE_LOOP 축3 — 랜딩 블로그 발행 (public + published 글만 허용)
+  blog_published_at: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    comment: 'NULL = 블로그 미발행. 발행 시점 = 블로그 표기 날짜',
+  },
+  blog_category: {
+    type: DataTypes.STRING(40),
+    allowNull: true,
+    comment: '랜딩 블로그 카테고리 (guide-video/brand-video/how-to/insights/cases)',
+  },
+  // KNOWLEDGE_LOOP 축2 — 자동 클러스터 제안 초안 구분
+  origin: {
+    type: DataTypes.ENUM('manual', 'auto_cluster'),
+    allowNull: false,
+    defaultValue: 'manual',
+  },
+  origin_meta: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    comment: '자동 제안 근거 — 질문 샘플·건수·log_ids',
+  },
 }, {
   sequelize,
   tableName: 'help_articles',

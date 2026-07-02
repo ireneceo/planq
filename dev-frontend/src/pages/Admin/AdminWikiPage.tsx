@@ -13,6 +13,7 @@ import ActionButton from '../../components/Common/ActionButton';
 import StandardModal from '../../components/Common/StandardModal';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import { mapApiError } from '../../utils/apiError';
+import { apiFetch } from '../../contexts/AuthContext';
 import {
   listWikiCategories, createWikiCategory, updateWikiCategory, deleteWikiCategory,
   listWikiArticles, getWikiArticle, createWikiArticle, updateWikiArticle, deleteWikiArticle,
@@ -60,6 +61,9 @@ const AdminWikiPage = () => {
   const [err, setErr] = useState<string | null>(null);
   const [catModal, setCatModal] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // KNOWLEDGE_LOOP 축3 — 랜딩 블로그 발행 상태 (form 저장과 별개 즉시 API)
+  const [blog, setBlog] = useState<{ published: boolean; category: string }>({ published: false, category: 'insights' });
+  const [blogBusy, setBlogBusy] = useState(false);
 
   const loadCats = useCallback(() => { listWikiCategories().then(setCats).catch(() => {}); }, []);
   const loadArticles = useCallback(() => {
@@ -74,6 +78,7 @@ const AdminWikiPage = () => {
   // 선택 변경 → 편집기 로드
   useEffect(() => {
     setMsg(null); setErr(null);
+    setBlog({ published: false, category: 'insights' });
     if (isNew) {
       setForm(emptyForm(catFilter !== 'all' ? Number(catFilter) : (cats[0]?.id ?? null)));
       setBlocks([]);
@@ -81,6 +86,8 @@ const AdminWikiPage = () => {
     }
     if (!selectedId) { setForm(emptyForm(null)); setBlocks([]); return; }
     getWikiArticle(selectedId).then((a) => {
+      const ax = a as WikiArticleAdmin & { blog_published_at?: string | null; blog_category?: string | null };
+      setBlog({ published: !!ax.blog_published_at, category: ax.blog_category || 'insights' });
       setForm({
         id: a.id, category_id: a.category_id,
         title_ko: a.title_ko || '', title_en: a.title_en || '', slug: a.slug || '',
@@ -93,6 +100,26 @@ const AdminWikiPage = () => {
     }).catch((e) => setErr(mapApiError(e, tErr)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, isNew]);
+
+  // KNOWLEDGE_LOOP 축3 — 블로그 발행/해제 (public+발행 글만 백엔드에서 허용)
+  const setBlogState = async (published: boolean, category: string) => {
+    if (!form.id || blogBusy) return;
+    setBlogBusy(true); setErr(null);
+    try {
+      const r = await apiFetch(`/api/admin/wiki/articles/${form.id}/blog`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ published, category }),
+      });
+      const j = await r.json();
+      if (!r.ok || !j.success) {
+        setErr(j.message === 'blog_requires_public_published'
+          ? (t('adminWiki.blogRequiresPublic', '블로그 발행은 "공개(public) + 발행됨" 글만 가능합니다. 위 설정을 먼저 저장하세요.') as string)
+          : (j.message || 'failed'));
+        return;
+      }
+      setBlog({ published: !!j.data.blog_published_at, category: j.data.blog_category || category });
+    } finally { setBlogBusy(false); }
+  };
 
   const openArticle = (id: number | 'new') => {
     setParams(prev => {
@@ -281,6 +308,30 @@ const AdminWikiPage = () => {
                     <ToggleHint>{t('adminWiki.publishHint') as string}</ToggleHint>
                   </div>
                 </ToggleRow>
+
+                {/* KNOWLEDGE_LOOP 축3 — 랜딩 블로그 발행 (저장된 글만, 즉시 반영) */}
+                {form.id && (
+                  <ToggleRow>
+                    <Toggle type="button" role="switch" aria-checked={blog.published} $on={blog.published}
+                      onClick={() => setBlogState(!blog.published, blog.category)}>
+                      <Knob $on={blog.published} />
+                    </Toggle>
+                    <div>
+                      <ToggleLabel>{t('adminWiki.blogToggle', '랜딩 블로그(/blog)에 발행') as string}</ToggleLabel>
+                      <ToggleHint>{t('adminWiki.blogHint', '공개(public) + 발행됨 글만 가능 · 발행 시 planq.kr/blog 에 즉시 노출') as string}</ToggleHint>
+                    </div>
+                    <SelWrapSm>
+                      <PlanQSelect size="sm" isClearable={false} isSearchable={false}
+                        value={{ value: blog.category, label: t(`adminWiki.blogCat.${blog.category}`, blog.category) as string }}
+                        options={['guide-video', 'brand-video', 'how-to', 'insights', 'cases'].map((c) => ({ value: c, label: t(`adminWiki.blogCat.${c}`, c) as string }))}
+                        onChange={(o) => {
+                          const cat = ((o as PlanQSelectOption)?.value as string) || 'insights';
+                          if (blog.published) setBlogState(true, cat);
+                          else setBlog((b) => ({ ...b, category: cat }));
+                        }} />
+                    </SelWrapSm>
+                  </ToggleRow>
+                )}
 
                 {/* 본문 블록 에디터 */}
                 <BlockSection>

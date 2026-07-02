@@ -1,7 +1,7 @@
 // 인사이트 (블로그) 페이지 — SEO/AEO + 가이드/홍보 영상.
+// KNOWLEDGE_LOOP 축3 — 콘텐츠 소스는 Q위키(help_articles 의 블로그 발행분). 별도 CMS 없음.
 // 카테고리 5종: 가이드 영상 / 홍보 영상 / 사용 가이드 / 자동화 인사이트 / 고객 사례.
-// 컨텐츠는 사용자가 영상·글 줄 때 본격 채움. 지금은 카테고리 + "곧 시작합니다" 빈 상태.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -11,6 +11,15 @@ import { useReveal } from '../../hooks/useReveal';
 const CATEGORIES = ['all', 'guide-video', 'brand-video', 'how-to', 'insights', 'cases'] as const;
 type Category = typeof CATEGORIES[number];
 
+export interface BlogPostCard {
+  slug: string;
+  title_ko: string; title_en: string;
+  summary_ko?: string | null; summary_en?: string | null;
+  blog_category?: string | null;
+  published_at: string;
+  est_minutes?: number | null;
+}
+
 const Reveal: React.FC<{ children: React.ReactNode; as?: React.ElementType }> = ({ children, as = 'div' }) => {
   const ref = useReveal<HTMLElement>();
   const Tag = as as 'div';
@@ -18,8 +27,22 @@ const Reveal: React.FC<{ children: React.ReactNode; as?: React.ElementType }> = 
 };
 
 const BlogPage: React.FC = () => {
-  const { t } = useTranslation('landing');
+  const { t, i18n } = useTranslation('landing');
   const [active, setActive] = useState<Category>('all');
+  const [posts, setPosts] = useState<BlogPostCard[] | null>(null);
+
+  useEffect(() => {
+    fetch('/api/blog/posts')
+      .then((r) => r.json())
+      .then((j) => setPosts(j.success ? (j.data || []) : []))
+      .catch(() => setPosts([]));
+  }, []);
+
+  const lang = (i18n.language || 'ko').slice(0, 2) === 'en' ? 'en' : 'ko';
+  const pick = (p: BlogPostCard, k: 'title' | 'summary') =>
+    (lang === 'en' ? p[`${k}_en` as const] : p[`${k}_ko` as const]) || p[`${k}_ko` as const] || p[`${k}_en` as const] || '';
+  const filtered = (posts || []).filter((p) => active === 'all' || p.blog_category === active);
+  const hasAnyPosts = (posts || []).length > 0;
 
   return (
     <LandingLayout transparentTop={false}>
@@ -51,44 +74,64 @@ const BlogPage: React.FC = () => {
 
       <ContentSection>
         <Container>
-          <Reveal>
-            <EmptyState>
-              <EmptyIcon>
-                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="23 7 16 12 23 17 23 7" />
-                  <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-                </svg>
-              </EmptyIcon>
-              <EmptyTitle>{t('blogPage.empty.title', '곧 시작합니다')}</EmptyTitle>
-              <EmptyDesc>
-                {t('blogPage.empty.desc1', 'PlanQ 사용 가이드 영상, 업무 자동화 인사이트, 고객 사례를 정기 발행할 예정입니다.')}<br />
-                {t('blogPage.empty.desc2', '먼저 받아보고 싶다면 무료 체험으로 시작하세요.')}
-              </EmptyDesc>
-              <EmptyCta to="/register">{t('blogPage.empty.cta', '무료로 시작하기')}</EmptyCta>
-            </EmptyState>
-          </Reveal>
-
-          {/* 향후 컨텐츠가 들어가면 PostGrid 가 표시됨. 현재는 placeholder cards 노출 안 함. */}
+          {posts === null ? null : filtered.length > 0 ? (
+            <Reveal>
+              <PreviewGrid>
+                {filtered.map((p) => (
+                  <PostCardLink key={p.slug} to={`/blog/${p.slug}`}>
+                    <PreviewCard as="div">
+                      <PreviewBadge>{t(`blogPage.categories.${p.blog_category || 'insights'}`, p.blog_category || '')}</PreviewBadge>
+                      <PreviewItemTitle>{pick(p, 'title')}</PreviewItemTitle>
+                      {pick(p, 'summary') && <PreviewItemDesc>{pick(p, 'summary')}</PreviewItemDesc>}
+                      <PostMeta>
+                        <span>{new Date(p.published_at).toLocaleDateString(lang === 'en' ? 'en-US' : 'ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                        {p.est_minutes ? <span>· {t('blogPage.readMinutes', '{{n}}분', { n: p.est_minutes })}</span> : null}
+                      </PostMeta>
+                    </PreviewCard>
+                  </PostCardLink>
+                ))}
+              </PreviewGrid>
+            </Reveal>
+          ) : (
+            <Reveal>
+              <EmptyState>
+                <EmptyIcon>
+                  <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="23 7 16 12 23 17 23 7" />
+                    <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                  </svg>
+                </EmptyIcon>
+                <EmptyTitle>{t('blogPage.empty.title', '곧 시작합니다')}</EmptyTitle>
+                <EmptyDesc>
+                  {t('blogPage.empty.desc1', 'PlanQ 사용 가이드 영상, 업무 자동화 인사이트, 고객 사례를 정기 발행할 예정입니다.')}<br />
+                  {t('blogPage.empty.desc2', '먼저 받아보고 싶다면 무료 체험으로 시작하세요.')}
+                </EmptyDesc>
+                <EmptyCta to="/register">{t('blogPage.empty.cta', '무료로 시작하기')}</EmptyCta>
+              </EmptyState>
+            </Reveal>
+          )}
         </Container>
       </ContentSection>
 
-      <PreviewSection>
-        <Container>
-          <Reveal as="div"><PreviewTag>{t('blogPage.preview.tag', '발행 예정')}</PreviewTag></Reveal>
-          <Reveal as="h2"><PreviewTitle>{t('blogPage.preview.title', '곧 만나볼 콘텐츠')}</PreviewTitle></Reveal>
-          <Reveal>
-            <PreviewGrid>
-              {[0, 1, 2, 3, 4, 5].map(i => (
-                <PreviewCard key={i}>
-                  <PreviewBadge>{t(`blogPage.preview.items.${i}.category`)}</PreviewBadge>
-                  <PreviewItemTitle>{t(`blogPage.preview.items.${i}.title`)}</PreviewItemTitle>
-                  <PreviewItemDesc>{t(`blogPage.preview.items.${i}.desc`)}</PreviewItemDesc>
-                </PreviewCard>
-              ))}
-            </PreviewGrid>
-          </Reveal>
-        </Container>
-      </PreviewSection>
+      {!hasAnyPosts && (
+        <PreviewSection>
+          <Container>
+            <Reveal as="div"><PreviewTag>{t('blogPage.preview.tag', '발행 예정')}</PreviewTag></Reveal>
+            <Reveal as="h2"><PreviewTitle>{t('blogPage.preview.title', '곧 만나볼 콘텐츠')}</PreviewTitle></Reveal>
+            <Reveal>
+              <PreviewGrid>
+                {[0, 1, 2, 3, 4, 5].map(i => (
+                  <PreviewCard key={i}>
+                    <PreviewBadge>{t(`blogPage.preview.items.${i}.category`)}</PreviewBadge>
+                    <PreviewItemTitle>{t(`blogPage.preview.items.${i}.title`)}</PreviewItemTitle>
+                    <PreviewItemDesc>{t(`blogPage.preview.items.${i}.desc`)}</PreviewItemDesc>
+                  </PreviewCard>
+                ))}
+              </PreviewGrid>
+            </Reveal>
+          </Container>
+        </PreviewSection>
+      )}
 
       <CtaBand>
         <Container>
@@ -226,6 +269,13 @@ const PreviewItemTitle = styled.h3`
 const PreviewItemDesc = styled.p`
   font-size: 13px; color: #64748B; line-height: 1.7;
   margin: 0; word-break: keep-all;
+`;
+const PostCardLink = styled(Link)`
+  text-decoration: none; display: block;
+`;
+const PostMeta = styled.div`
+  margin-top: auto; padding-top: 10px;
+  display: flex; gap: 4px; font-size: 12px; color: #94A3B8;
 `;
 
 const CtaBand = styled.section`

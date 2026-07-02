@@ -188,4 +188,70 @@ router.post('/reembed', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ─── KNOWLEDGE_LOOP 축3 — 블로그 발행 토글 ───
+// PUT /api/admin/wiki/articles/:id/blog  body: { published: boolean, category?: string }
+router.put('/articles/:id/blog', async (req, res, next) => {
+  try {
+    const article = await HelpArticle.findByPk(req.params.id);
+    if (!article) return errorResponse(res, 'not_found', 404);
+    const b = req.body || {};
+    if (b.published) {
+      // 내부용 글이 마케팅 페이지로 새는 것 방지 — public + 발행 글만 블로그 허용
+      if (!article.is_published || article.visibility !== 'public') {
+        return errorResponse(res, 'blog_requires_public_published', 400);
+      }
+      await article.update({
+        blog_published_at: article.blog_published_at || new Date(),
+        blog_category: b.category ? String(b.category).slice(0, 40) : (article.blog_category || 'insights'),
+      });
+    } else {
+      await article.update({ blog_published_at: null });
+    }
+    return successResponse(res, {
+      id: article.id,
+      blog_published_at: article.blog_published_at,
+      blog_category: article.blog_category,
+    });
+  } catch (err) { next(err); }
+});
+
+// ─── KNOWLEDGE_LOOP 축2 — 질문 로그 대시보드 ───
+// GET /api/admin/wiki/question-logs?filter=unanswered|not_helpful|all&days=30
+router.get('/question-logs', async (req, res, next) => {
+  try {
+    const HelpQuestionLog = require('../models/HelpQuestionLog');
+    const days = Math.min(Number(req.query.days) || 30, 180);
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const filter = String(req.query.filter || 'all');
+    const where = { created_at: { [Op.gte]: since } };
+    if (filter === 'unanswered') where.answered = false;
+    if (filter === 'not_helpful') where.feedback = 'not_helpful';
+    const { limit, page, offset } = parsePagination(req, { defaultLimit: 100, maxLimit: 500 });
+    const { rows, count } = await HelpQuestionLog.findAndCountAll({
+      where, order: [['created_at', 'DESC']], limit, offset,
+    });
+    // 요약 통계 (같은 기간)
+    const [total, unanswered, notHelpful] = await Promise.all([
+      HelpQuestionLog.count({ where: { created_at: { [Op.gte]: since } } }),
+      HelpQuestionLog.count({ where: { created_at: { [Op.gte]: since }, answered: false } }),
+      HelpQuestionLog.count({ where: { created_at: { [Op.gte]: since }, feedback: 'not_helpful' } }),
+    ]);
+    return res.json({
+      success: true,
+      data: rows,
+      pagination: { total: count, limit, page, offset, has_more: offset + rows.length < count },
+      stats: { total, unanswered, not_helpful: notHelpful },
+    });
+  } catch (err) { next(err); }
+});
+
+// 수동 트리거 — 클러스터링 즉시 실행 (검증·운영 편의)
+router.post('/question-cluster/run', async (req, res, next) => {
+  try {
+    const { runWikiQuestionClustering } = require('../services/wikiQuestionCluster');
+    const result = await runWikiQuestionClustering();
+    return successResponse(res, result);
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

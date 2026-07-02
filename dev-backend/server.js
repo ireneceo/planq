@@ -326,6 +326,8 @@ app.use('/api/projects', require('./routes/projects'));
 app.use('/api/projects', require('./routes/project_process'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/businesses', require('./routes/businesses'));
+// KNOWLEDGE_LOOP 축1 — Cue 워크스페이스 지식 카드
+app.use('/api/businesses', require('./routes/cue_knowledge'));
 // Q Mail (Phase 9 — M1)
 app.use('/api/businesses', require('./routes/email_accounts'));
 // N+75-D — Q Mail M2 인박스 read-only API (email_threads list/detail/mark-read/mark-spam)
@@ -341,6 +343,8 @@ app.use('/api/feedback', require('./routes/feedback'));
 app.use('/api/cue', require('./routes/cue'));
 app.use('/api/wiki', require('./routes/wiki'));
 app.use('/api/admin/wiki', require('./routes/admin_wiki'));
+// KNOWLEDGE_LOOP 축3 — 랜딩 블로그 (Q위키 발행분 public 조회)
+app.use('/api/blog', require('./routes/blog'));
 app.use('/api/org', require('./routes/org'));
 app.use('/api/insights', require('./routes/insights'));
 app.use('/api/stats', require('./routes/stats'));
@@ -505,6 +509,12 @@ emailImapCron.init();
 // N+80 Q Mail M4 — FAQ 자동 클러스터링 cron (매일 04:10 KST)
 const { initEmailFaqCron } = require('./services/emailFaqCluster');
 initEmailFaqCron();
+// KNOWLEDGE_LOOP 축2 — Q위키 미답변 질문 클러스터링 → 초안 제안 cron (월 05:00 KST)
+const { initWikiQuestionCron } = require('./services/wikiQuestionCluster');
+initWikiQuestionCron();
+// KNOWLEDGE_LOOP 축1 — Cue 지식 채굴 cron (월 05:20 KST)
+const { initCueKnowledgeCron } = require('./services/cueKnowledge');
+initCueKnowledgeCron();
 // N+36 옵션 D — 업무 후보 만료 cron (30일 hide / 90일 rejected delete / 60일 hidden delete)
 const { initCandidateCleanupCron } = require('./services/candidateCleanup');
 initCandidateCleanupCron();

@@ -197,7 +197,10 @@
     "myHistoryBack": "문의 남기기로",
     "myHistoryEmpty": "아직 남긴 문의·피드백이 없어요.",
     "myHistoryLoading": "불러오는 중…",
-    "myHistoryReply": "운영팀 답변"
+    "myHistoryReply": "운영팀 답변",
+    "feedbackHelpful": "도움됐어요",
+    "feedbackNotHelpful": "아니요",
+    "feedbackThanks": "피드백 감사합니다"
   },
   "cue": {
     "title": "Cue 도움말",
@@ -680,7 +683,17 @@
     "reembedStarted": "전체 재임베딩을 시작했어요.",
     "catNotEmpty": "글이 있는 카테고리는 삭제할 수 없어요.",
     "confirmDeleteCat": "이 카테고리를 삭제할까요?",
-    "addCategory": "카테고리 추가"
+    "addCategory": "카테고리 추가",
+    "blogToggle": "랜딩 블로그(/blog)에 발행",
+    "blogHint": "공개(public) + 발행됨 글만 가능 · 발행 시 planq.kr/blog 에 즉시 노출",
+    "blogRequiresPublic": "블로그 발행은 \"공개(public) + 발행됨\" 글만 가능합니다. 위 설정을 먼저 저장하세요.",
+    "blogCat": {
+      "guide-video": "가이드 영상",
+      "brand-video": "홍보 영상",
+      "how-to": "사용 가이드",
+      "insights": "자동화 인사이트",
+      "cases": "고객 사례"
+    }
   },
   "aiRegen": {
     "btn": "다시 만들기",
