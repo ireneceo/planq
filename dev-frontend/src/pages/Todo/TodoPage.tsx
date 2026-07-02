@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import PageShell from '../../components/Layout/PageShell';
 import HelpDot from '../../components/Common/HelpDot';
-import FirstVisitTour from '../../components/Common/FirstVisitTour';
 import InsightCards from '../../components/Common/InsightCards';
 import TodoList from '../../components/Dashboard/TodoList';
 import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
@@ -252,7 +251,7 @@ const TodoPage: React.FC = () => {
       title={t('todo.title')}
       count={data?.total}
       helpDot={
-        <HelpDot askCue={t('todo.help.cuePrefill') as string} topic="todo" tourPageKey="inbox">
+        <HelpDot askCue={t('todo.help.cuePrefill') as string} topic="todo">
           {t('todo.help.body')}
         </HelpDot>
       }
@@ -330,12 +329,6 @@ const TodoPage: React.FC = () => {
           gcalConnected={false}
         />
       )}
-      <FirstVisitTour
-        pageKey="inbox"
-        steps={[
-          { targetSelector: 'header', title: t('todo.tour.step1.title','확인 필요 (인박스)') as string, body: t('todo.tour.step1.body','내가 직접 행동해야 할 일이 모입니다 — 받은 업무·컨펌 대기·결제·서명·후보(본인 담당). 다른 사람 담당 항목은 그 사람 인박스에 가요.') as string, placement: 'bottom' },
-        ]}
-      />
       {/* 업무 흐름 — 오늘 시작 안내 모달 (focus_enabled + daily_prompt true 일 때만) */}
       <DailyStartModal />
 

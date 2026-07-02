@@ -31,7 +31,6 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
 import { formatHours, utilizationPercent, utilizationStatus, UTIL_COLOR } from '../../utils/hours';
 import HelpDot from '../../components/Common/HelpDot';
-import FirstVisitTour from '../../components/Common/FirstVisitTour';
 import { displayName } from '../../utils/displayName';
 import { friendlyDeleteError } from '../../utils/taskDeleteError';
 import TaskCandidateCard from '../../components/Common/TaskCandidateCard';
@@ -1374,7 +1373,7 @@ const QTaskPage:React.FC=()=>{
         {/* Header — 제목 + 스코프 세그먼트 토글 */}
         <Header data-tour="qtask-header">
           <PageTitle>Q task</PageTitle>
-          <HelpDot askCue={t('help.cuePrefill','Q task 페이지의 우선순위, 가용시간, 그래프가 어떻게 작동하는지 알려줘') as string} topic="qtask" tourPageKey="qtask">
+          <HelpDot askCue={t('help.cuePrefill','Q task 페이지의 우선순위, 가용시간, 그래프가 어떻게 작동하는지 알려줘') as string} topic="qtask">
             {t('help.body','이번 주 본인이 행동할 업무, 우선순위 클릭 순서대로 매김(필터 안에서만 1,2,3..). 가용시간 = 일×영업일×효율, 그래프 baseline = 헤더의 내 업무 시간. 마감 지나면 지연 뱃지 클릭으로 마감 갱신.')}
           </HelpDot>
           {scope==='mine'&&tab==='week'&&(
@@ -2883,13 +2882,6 @@ const QTaskPage:React.FC=()=>{
           }}
         />
       )}
-      <FirstVisitTour
-        pageKey="qtask"
-        steps={[
-          { targetSelector: '[data-tour="qtask-header"]', title: t('tour.step1.title','Q task 페이지') as string, body: t('tour.step1.body','이번 주 본인이 행동해야 할 업무가 모입니다. 헤더 옆 ⓘ 클릭하면 화면 작동 원리를 자세히 볼 수 있어요.') as string, placement: 'bottom' },
-          { targetSelector: '[data-tour="qtask-priority"]', title: t('tour.step2.title','우선순위 매기기') as string, body: t('tour.step2.body','# 셀을 클릭하면 클릭 순서대로 1, 2, 3...이 자동 매겨집니다. 갭이 생기면 자동으로 정리됩니다.') as string, placement: 'bottom' },
-        ]}
-      />
       {bizId && (
         <AiTaskCreateModal
           open={aiOpen}

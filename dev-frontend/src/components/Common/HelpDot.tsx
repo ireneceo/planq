@@ -24,10 +24,8 @@ export interface HelpDotProps {
   askTab?: 'wiki' | 'cue';
   /** 작은 화면 자동 정렬 — 'top'|'bottom' 강제 시 하단 잘림 방지 */
   placement?: 'top' | 'bottom' | 'auto';
-  /** 호출 위치 식별 — 추후 분석/투어 연결 */
+  /** 호출 위치 식별 — 추후 분석 연결 */
   topic?: string;
-  /** topic 과 일치하는 FirstVisitTour 가 있을 때 "투어 다시 보기" 링크 */
-  tourPageKey?: string;
   className?: string;
 }
 
@@ -35,7 +33,7 @@ const POPOVER_WIDTH = 280;
 const POPOVER_GAP = 8;
 const VIEWPORT_PAD = 12;
 
-const HelpDot: React.FC<HelpDotProps> = ({ children, askCue, askTab = 'wiki', placement = 'auto', tourPageKey, className }) => {
+const HelpDot: React.FC<HelpDotProps> = ({ children, askCue, askTab = 'wiki', placement = 'auto', className }) => {
   const { t } = useTranslation('common');
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number; placeAbove: boolean } | null>(null);
@@ -124,14 +122,6 @@ const HelpDot: React.FC<HelpDotProps> = ({ children, askCue, askTab = 'wiki', pl
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
             </AskCueLink>
           )}
-          {tourPageKey && (
-            <ReplayTourLink type="button" onClick={() => {
-              try { localStorage.removeItem(`planq_tour_${tourPageKey}`); } catch { /* */ }
-              window.location.reload();
-            }}>
-              {t('tour.replay', '투어 다시 보기')}
-            </ReplayTourLink>
-          )}
         </Popover>,
         document.body
       )}
@@ -193,13 +183,4 @@ const AskCueLink = styled.button`
   color: #0D9488;
   cursor: pointer;
   &:hover { color: #0F766E; text-decoration: underline; }
-`;
-const ReplayTourLink = styled.button`
-  display: block;
-  margin-top: 6px; padding: 0;
-  background: transparent; border: none;
-  font-size: 11px; font-weight: 500;
-  color: #94A3B8;
-  cursor: pointer;
-  &:hover { color: #475569; text-decoration: underline; }
 `;
