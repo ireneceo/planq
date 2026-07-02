@@ -10,15 +10,15 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import styled from 'styled-components';
-import { io, type Socket } from 'socket.io-client';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import PageShell from '../../components/Layout/PageShell';
 import PanelHeader, { PanelTitle, PanelSubTitle, PanelMetaTitle } from '../../components/Layout/PanelHeader';
 import { PanelLayout, Panel } from '../../components/Layout/PanelLayout';
-import { useAuth, apiFetch, getAccessToken } from '../../contexts/AuthContext';
+import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { joinRoom, leaveRoom, onSocket, getSocket } from '../../services/socket';
 import RichEditor from '../../components/Common/RichEditor';
 import AttachmentField from '../../components/Common/AttachmentField';
 import ActionButton from '../../components/Common/ActionButton';
@@ -445,38 +445,30 @@ const MailPage: React.FC = () => {
   const silentReloadRef = useRef(silentReload);
   useEffect(() => { silentReloadRef.current = silentReload; }, [silentReload]);
 
-  const socketRef = useRef<Socket | null>(null);
   useEffect(() => {
-    if (!user || !businessId || !getAccessToken()) return;
-    const s = io({
-      auth: (cb) => cb({ token: getAccessToken() }),
-      transports: ['websocket', 'polling'],
-      reconnection: true, reconnectionDelay: 1500, reconnectionDelayMax: 8000, reconnectionAttempts: Infinity,
-    });
-    socketRef.current = s;
+    if (!user || !businessId) return;
     let pending: number | null = null;
     const debounced = () => {
       if (pending) return;
       pending = window.setTimeout(() => { pending = null; silentReloadRef.current(); }, 250);
     };
-    s.on('connect', () => { s.emit('join:business', businessId); });
-    s.on('mail:new', debounced);
-    s.on('mail:updated', debounced);
+    joinRoom(`business:${businessId}`);
+    const offNew = onSocket('mail:new', debounced);
+    const offUpdated = onSocket('mail:updated', debounced);
     const onLocal = () => debounced();
     window.addEventListener('mail:refresh', onLocal);
     return () => {
       if (pending) window.clearTimeout(pending);
       window.removeEventListener('mail:refresh', onLocal);
-      s.emit('leave:business', businessId);
-      s.disconnect();
-      socketRef.current = null;
+      leaveRoom(`business:${businessId}`);
+      offNew(); offUpdated();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, businessId]);
 
   useVisibilityRefresh(useCallback(() => {
     silentReloadRef.current();
-    const s = socketRef.current;
+    const s = getSocket();
     if (s && !s.connected) s.connect();
   }, []));
 

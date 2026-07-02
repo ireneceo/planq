@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
+import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import {
   listReceiptsDue, formatMoney,
@@ -51,24 +52,13 @@ export default function TaxInvoicesTab() {
       if (pending) return;
       pending = window.setTimeout(() => { pending = null; reload(); }, 250);
     };
-    let socket: { disconnect: () => void } | null = null;
-    import('socket.io-client').then(({ io }) => {
-      import('../../contexts/AuthContext').then(({ getAccessToken }) => {
-        if (!getAccessToken()) return;
-        const s = io({
-          auth: (cb: (a: { token: string | null }) => void) => cb({ token: getAccessToken() }),
-          transports: ['websocket', 'polling'],
-          reconnection: true,
-        });
-        socket = s;
-        s.on('connect', () => { s.emit('join:business', businessId); });
-        s.on('invoice:updated', debouncedReload);
-        s.on('inbox:refresh', debouncedReload);
-      });
-    });
+    joinRoom(`business:${businessId}`);
+    const offUpdated = onSocket('invoice:updated', debouncedReload);
+    const offInbox = onSocket('inbox:refresh', debouncedReload);
     return () => {
       if (pending) window.clearTimeout(pending);
-      if (socket) socket.disconnect();
+      leaveRoom(`business:${businessId}`);
+      offUpdated(); offInbox();
     };
   }, [businessId, reload]);
 

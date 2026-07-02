@@ -12,6 +12,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import PageShell from '../../components/Layout/PageShell';
 import HelpDot from '../../components/Common/HelpDot';
 import EmptyState from '../../components/Common/EmptyState';
@@ -273,33 +274,24 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
       if (pending) return;
       pending = window.setTimeout(() => { pending = null; void load(); }, 250);
     };
-    let socket: { disconnect: () => void } | null = null;
-    import('socket.io-client').then(({ io }) => {
-      import('../../contexts/AuthContext').then(({ getAccessToken }) => {
-        if (!getAccessToken()) return;
-        const s = io({
-          auth: (cb) => cb({ token: getAccessToken() }),
-          transports: ['websocket', 'polling'],
-          reconnection: true,
-        });
-        socket = s;
-        s.on('connect', () => { s.emit('join:business', businessId); });
-        s.on('kb:new', debouncedReload);
-        s.on('kb:updated', debouncedReload);
-        s.on('kb:deleted', debouncedReload);
-        // N+65 — KbCategory CRUD 다른 탭/디바이스 즉시 반영
-        const debouncedReloadCats = () => {
-          if (pending) return;
-          pending = window.setTimeout(() => { pending = null; void reloadCategories(); }, 250);
-        };
-        s.on('kb:cat:new', debouncedReloadCats);
-        s.on('kb:cat:updated', debouncedReloadCats);
-        s.on('kb:cat:deleted', debouncedReloadCats);
-      });
-    });
+    // N+65 — KbCategory CRUD 다른 탭/디바이스 즉시 반영
+    const debouncedReloadCats = () => {
+      if (pending) return;
+      pending = window.setTimeout(() => { pending = null; void reloadCategories(); }, 250);
+    };
+    joinRoom(`business:${businessId}`);
+    const offs = [
+      onSocket('kb:new', debouncedReload),
+      onSocket('kb:updated', debouncedReload),
+      onSocket('kb:deleted', debouncedReload),
+      onSocket('kb:cat:new', debouncedReloadCats),
+      onSocket('kb:cat:updated', debouncedReloadCats),
+      onSocket('kb:cat:deleted', debouncedReloadCats),
+    ];
     return () => {
       if (pending) window.clearTimeout(pending);
-      if (socket) socket.disconnect();
+      leaveRoom(`business:${businessId}`);
+      offs.forEach((off) => off());
     };
   }, [businessId, load, reloadCategories]);
 

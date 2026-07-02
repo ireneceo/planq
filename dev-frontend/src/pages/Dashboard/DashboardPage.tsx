@@ -15,6 +15,7 @@ import TrialStatusBanner from '../../components/Common/TrialStatusBanner';
 import UsageWarningCard from '../../components/Common/UsageWarningCard';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { fetchTodo, type TodoResponse, type TodoItem } from '../../services/dashboard';
 import { useNotifications } from '../../hooks/useNotifications';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
@@ -70,23 +71,13 @@ const DashboardPage: React.FC = () => {
       if (pending) return;
       pending = window.setTimeout(() => { pending = null; reloadTodo(); }, 250);
     };
-    let socket: { disconnect: () => void } | null = null;
-    import('socket.io-client').then(({ io }) => {
-      import('../../contexts/AuthContext').then(({ getAccessToken }) => {
-        if (!getAccessToken()) return;
-        const s = io({
-          auth: (cb) => cb({ token: getAccessToken() }),
-          transports: ['websocket', 'polling'],
-          reconnection: true,
-        });
-        socket = s;
-        s.on('connect', () => { s.emit('join:business', Number(bizId)); });
-        s.on('task:new', debouncedReload); s.on('task:updated', debouncedReload); s.on('task:deleted', debouncedReload);
-        s.on('event:created', debouncedReload); s.on('event:updated', debouncedReload); s.on('event:deleted', debouncedReload);
-        s.on('inbox:refresh', debouncedReload);
-      });
-    });
-    return () => { if (pending) window.clearTimeout(pending); if (socket) socket.disconnect(); };
+    joinRoom(`business:${Number(bizId)}`);
+    const offs = [
+      onSocket('task:new', debouncedReload), onSocket('task:updated', debouncedReload), onSocket('task:deleted', debouncedReload),
+      onSocket('event:created', debouncedReload), onSocket('event:updated', debouncedReload), onSocket('event:deleted', debouncedReload),
+      onSocket('inbox:refresh', debouncedReload),
+    ];
+    return () => { if (pending) window.clearTimeout(pending); leaveRoom(`business:${Number(bizId)}`); offs.forEach((off) => off()); };
   }, [bizId, reloadTodo]);
 
   useEffect(() => {

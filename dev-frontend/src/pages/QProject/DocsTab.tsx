@@ -23,6 +23,7 @@ import {
 import VisibilityField, { serializeVisibility, parseVisibility, type VisibilityValue } from '../../components/Common/VisibilityField';
 import { listProjects, listWorkspaceClients, type ApiProject, type WorkspaceClientRow } from '../../services/qtalk';
 import { apiFetch } from '../../contexts/AuthContext';
+import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 
 export type DocScope =
   | { type: 'project'; projectId: number; businessId: number }
@@ -166,25 +167,14 @@ const DocsTab: React.FC<Props> = (props) => {
         }
       }, 250);
     };
-    let socket: { disconnect: () => void } | null = null;
-    import('socket.io-client').then(({ io }) => {
-      import('../../contexts/AuthContext').then(({ getAccessToken }) => {
-        if (!getAccessToken()) return;
-        const s = io({
-          auth: (cb) => cb({ token: getAccessToken() }),
-          transports: ['websocket', 'polling'],
-          reconnection: true,
-        });
-        socket = s;
-        s.on('connect', () => { s.emit('join:business', businessId); });
-        s.on('file:new', triggerReload);
-        s.on('file:updated', triggerReload);
-        s.on('file:deleted', triggerReload);
-      });
-    });
+    joinRoom(`business:${businessId}`);
+    const offNew = onSocket('file:new', triggerReload);
+    const offUpdated = onSocket('file:updated', triggerReload);
+    const offDeleted = onSocket('file:deleted', triggerReload);
     return () => {
       if (pending) window.clearTimeout(pending);
-      if (socket) socket.disconnect();
+      leaveRoom(`business:${businessId}`);
+      offNew(); offUpdated(); offDeleted();
     };
   }, [businessId, projectId, isWorkspace, isPersonal]);
 

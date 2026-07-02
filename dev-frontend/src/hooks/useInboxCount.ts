@@ -2,14 +2,13 @@
 // 정책: TodoPage 와 동일하게 fetchTodo + Socket.IO 'inbox:refresh' 이벤트 구독.
 // MainLayout 이 모든 페이지 공통이라 불필요한 호출을 피하기 위해 마운트 시 1회 + 이벤트 기반 갱신.
 import { useEffect, useState, useRef } from 'react';
-import { io, type Socket } from 'socket.io-client';
 import { fetchTodo } from '../services/dashboard';
-import { useAuth, getAccessToken } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
+import { joinRoom, leaveRoom, onSocket } from '../services/socket';
 
 export interface InboxCounts { total: number; bill: number }
 export function useInboxCount(businessId: number | null | undefined): InboxCounts {
   const [count, setCount] = useState<InboxCounts>({ total: 0, bill: 0 });
-  const socketRef = useRef<Socket | null>(null);
   const localCleanupRef = useRef<(() => void) | null>(null);
   const { user } = useAuth();
 
@@ -47,38 +46,16 @@ export function useInboxCount(businessId: number | null | undefined): InboxCount
       window.removeEventListener('focus', refresh);
     };
 
-    // Socket.IO 'inbox:refresh' 구독 — backend 가 task workflow 라우트에서 emit
-    if (getAccessToken()) {
-      const socket = io(window.location.origin, {
-        auth: (cb) => cb({ token: getAccessToken() }),
-        transports: ['websocket', 'polling'],
-        reconnection: true,
-        reconnectionDelay: 1500,
-        reconnectionDelayMax: 8000,
-        reconnectionAttempts: Infinity,
-      });
-      socket.on('connect_error', async (err) => {
-        const msg = String((err as Error)?.message || '');
-        if (/auth|token|jwt|unauthorized/i.test(msg)) {
-          const { apiFetch } = await import('../contexts/AuthContext');
-          await apiFetch('/api/auth/me').catch(() => null);
-        }
-      });
-      socketRef.current = socket;
-      socket.on('inbox:refresh', debounced);
-      // N+63 — workspace room join → backend 가 io.to('business:N').emit('inbox:refresh') 받음.
-      // socket connect 후 register (이미 user 인증 + bizId 있으니 즉시).
-      socket.emit('join:business', businessId);
-      socket.on('connect', () => socket.emit('join:business', businessId));
-    }
+    // Socket.IO 'inbox:refresh' 구독 (공유 소켓 services/socket) — backend 가 task workflow 라우트에서 emit.
+    // N+63 — workspace room join → backend 가 io.to('business:N').emit('inbox:refresh') 받음. join 은 멱등.
+    joinRoom(`business:${businessId}`);
+    const offInbox = onSocket('inbox:refresh', debounced);
 
     return () => {
       cancelled = true;
       if (localCleanupRef.current) { localCleanupRef.current(); localCleanupRef.current = null; }
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
+      leaveRoom(`business:${businessId}`);
+      offInbox();
     };
   }, [businessId, user?.id]);
 

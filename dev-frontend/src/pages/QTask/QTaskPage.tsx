@@ -2,8 +2,8 @@ import React, { Fragment, useState, useEffect, useCallback, useMemo, useRef } fr
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { io, type Socket } from 'socket.io-client';
-import { useAuth, getAccessToken } from '../../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { joinRoom, leaveRoom, onSocket, getSocket } from '../../services/socket';
 import { apiFetch } from '../../contexts/AuthContext';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import SingleDateField from '../../components/Common/SingleDateField';
@@ -553,47 +553,27 @@ const QTaskPage:React.FC=()=>{
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[tab,bizId,allTasks.length,scope]);
 
-  // Socket.IO — 워크스페이스 room 에서 task:new 수신 (Q Talk 에서 후보 등록 시 즉시 반영)
-  const socketRef = useRef<Socket | null>(null);
+  // Socket.IO (공유 소켓 services/socket) — 워크스페이스 room 에서 task:* 수신 (Q Talk 후보 등록 즉시 반영)
   useEffect(() => {
     if (!bizId || !user) return;
-    if (!getAccessToken()) return;
-    const s = io({
-      auth: (cb) => cb({ token: getAccessToken() }),
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionDelay: 1500,
-      reconnectionDelayMax: 8000,
-      reconnectionAttempts: Infinity,
-    });
-    s.on('connect_error', async (err) => {
-      const msg = String((err as Error)?.message || '');
-      if (/auth|token|jwt|unauthorized/i.test(msg)) {
-        const { apiFetch } = await import('../../contexts/AuthContext');
-        await apiFetch('/api/auth/me').catch(() => null);
-      }
-    });
-    socketRef.current = s;
-    s.on('connect', () => { s.emit('join:business', bizId); });
-    s.on('task:new', (task: TaskRow) => {
+    joinRoom(`business:${bizId}`);
+    const offNew = onSocket('task:new', (task: TaskRow) => {
       setAllTasks((prev) => {
         if (prev.some((t) => t.id === task.id)) return prev;
         return [task, ...prev];
       });
     });
-    s.on('task:updated', (task: TaskRow) => {
+    const offUpd = onSocket('task:updated', (task: TaskRow) => {
       setAllTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, ...task } : t)));
     });
-    s.on('task:deleted', (meta: { id: number }) => {
+    const offDel = onSocket('task:deleted', (meta: { id: number }) => {
       setAllTasks((prev) => prev.filter((t) => t.id !== meta.id));
     });
-    // N+93 — 프로젝트명 변경 실시간 반영 (#11). 프로젝트는 task 에 live-join 이라 task:updated 가
-    // 안 뜨므로 별도 project:updated 수신 시 전체 reload (프로젝트명 갱신).
-    s.on('project:updated', () => { load(); });
+    // N+93 — 프로젝트명 변경 실시간 반영 (#11). project:updated 수신 시 전체 reload (프로젝트명 갱신).
+    const offProj = onSocket('project:updated', () => { load(); });
     return () => {
-      s.emit('leave:business', bizId);
-      s.disconnect();
-      socketRef.current = null;
+      leaveRoom(`business:${bizId}`);
+      offNew(); offUpd(); offDel(); offProj();
     };
   }, [bizId, user?.id]);
 
@@ -601,7 +581,7 @@ const QTaskPage:React.FC=()=>{
   // task:new/updated/deleted 는 영구 손실되므로 load() 로 보정
   useVisibilityRefresh(useCallback(() => {
     load();
-    const s = socketRef.current;
+    const s = getSocket();
     if (s && !s.connected) s.connect();
   }, [load]));
 

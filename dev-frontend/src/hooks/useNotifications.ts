@@ -12,9 +12,9 @@
 //   - socket 'notification:read' / 'notification:read-all' → multi-device 동기화
 //   - visibility/focus refresh 안전망
 
-import { useEffect, useState, useCallback, useRef } from 'react';
-import { io, type Socket } from 'socket.io-client';
-import { apiFetch, useAuth, getAccessToken } from '../contexts/AuthContext';
+import { useEffect, useState, useCallback } from 'react';
+import { apiFetch, useAuth } from '../contexts/AuthContext';
+import { onSocket } from '../services/socket';
 
 export interface NotificationItem {
   id: number;
@@ -37,7 +37,6 @@ export interface NotificationItem {
 export function useNotificationCount(): number {
   const { user } = useAuth();
   const [count, setCount] = useState(0);
-  const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
     if (!user) { setCount(0); return; }
@@ -60,25 +59,17 @@ export function useNotificationCount(): number {
     const onLocal = () => refresh();
     window.addEventListener('notification:refresh', onLocal);
 
-    // socket — multi-device 동기화
-    if (getAccessToken()) {
-      const socket = io(window.location.origin, {
-        auth: (cb) => cb({ token: getAccessToken() }),
-        transports: ['websocket', 'polling'],
-        reconnection: true, reconnectionAttempts: Infinity,
-      });
-      socket.on('notification:new', () => refresh());
-      socket.on('notification:read', () => refresh());
-      socket.on('notification:read-all', () => setCount(0));
-      socketRef.current = socket;
-    }
+    // 공유 소켓 (services/socket) — multi-device 동기화. notification:* 는 user room 자동 join.
+    const offNew = onSocket('notification:new', () => refresh());
+    const offRead = onSocket('notification:read', () => refresh());
+    const offReadAll = onSocket('notification:read-all', () => setCount(0));
 
     return () => {
       cancelled = true;
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('focus', refresh);
       window.removeEventListener('notification:refresh', onLocal);
-      if (socketRef.current) { socketRef.current.disconnect(); socketRef.current = null; }
+      offNew(); offRead(); offReadAll();
     };
   }, [user?.id]);
 
@@ -96,7 +87,6 @@ export function useNotifications(opts: UseNotificationsOptions = {}) {
   const { user } = useAuth();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const socketRef = useRef<Socket | null>(null);
 
   const refresh = useCallback(async () => {
     if (!user) return;
@@ -119,21 +109,14 @@ export function useNotifications(opts: UseNotificationsOptions = {}) {
     const onLocal = () => refresh();
     window.addEventListener('notification:refresh', onLocal);
 
-    if (getAccessToken()) {
-      const socket = io(window.location.origin, {
-        auth: (cb) => cb({ token: getAccessToken() }),
-        transports: ['websocket', 'polling'],
-        reconnection: true, reconnectionAttempts: Infinity,
-      });
-      socket.on('notification:new', () => refresh());
-      socket.on('notification:read', () => refresh());
-      socket.on('notification:read-all', () => setItems(prev => prev.map(it => ({ ...it, read_at: it.read_at || new Date().toISOString() }))));
-      socketRef.current = socket;
-    }
+    // 공유 소켓 (services/socket) — notification:* 는 user room 자동 join.
+    const offNew = onSocket('notification:new', () => refresh());
+    const offRead = onSocket('notification:read', () => refresh());
+    const offReadAll = onSocket('notification:read-all', () => setItems(prev => prev.map(it => ({ ...it, read_at: it.read_at || new Date().toISOString() }))));
 
     return () => {
       window.removeEventListener('notification:refresh', onLocal);
-      if (socketRef.current) { socketRef.current.disconnect(); socketRef.current = null; }
+      offNew(); offRead(); offReadAll();
     };
   }, [user?.id, autoRefresh, refresh]);
 

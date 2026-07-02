@@ -10,11 +10,11 @@
 //   - 백엔드의 task:new, task:updated, inbox:refresh, message:new 모두 listen
 //   - 'chat' (인앱) channel ON 일 때만 표시 (notification_prefs 매트릭스)
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { io, type Socket } from 'socket.io-client';
+import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { useNavigate, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { useAuth, getAccessToken, apiFetch } from '../../contexts/AuthContext';
+import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { notificationRowToToastLink, type NotificationFullRow } from '../../utils/notificationLink';
 
 interface Toast {
@@ -166,7 +166,6 @@ export default function NotificationToaster() {
   const navigate = useNavigate();
   const location = useLocation();
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const socketRef = useRef<Socket | null>(null);
   // message:new 가 conv room + business room 양쪽으로 도착해 같은 메시지가 중복 토스트 되는 것 차단 (운영 #25)
   const seenMsgRef = useRef<Map<number, number>>(new Map());
   const activeConvIdRef = useRef<number | null>(null);
@@ -278,30 +277,20 @@ export default function NotificationToaster() {
     if (!user) return;
     const bizId = user.business_id ? Number(user.business_id) : null;
     if (!bizId) return;
-    if (!getAccessToken()) return;
-
-    const s = io({
-      auth: (cb) => cb({ token: getAccessToken() }),
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionDelay: 1500,
-      reconnectionDelayMax: 8000,
-      reconnectionAttempts: Infinity,
-    });
-    socketRef.current = s;
-
-    s.on('connect', () => {
-      // 워크스페이스 룸 — task:new / task:updated / inbox:refresh 받음
-      s.emit('join:business', bizId);
-      // 사용자가 참여한 모든 conversation 룸 — message:new 받기 위해
-      apiFetch(`/api/conversations/${bizId}`).then(r => r.json()).then(j => {
-        if (j.success && Array.isArray(j.data)) {
-          j.data.forEach((c: { id: number }) => {
-            s.emit('join:conversation', c.id);
-          });
-        }
-      }).catch(() => {});
-    });
+    // 공유 소켓 (services/socket). 워크스페이스 룸 + 참여 conversation 룸 join.
+    //   join 은 공유 소켓이 reconnect 시 roomRefs 로 자동 재join.
+    const joinedConvRooms: string[] = [];
+    joinRoom(`business:${bizId}`);
+    // 사용자가 참여한 모든 conversation 룸 — message:new 받기 위해
+    apiFetch(`/api/conversations/${bizId}`).then(r => r.json()).then(j => {
+      if (j.success && Array.isArray(j.data)) {
+        j.data.forEach((c: { id: number }) => {
+          const room = `conversation:${c.id}`;
+          joinRoom(room);
+          joinedConvRooms.push(room);
+        });
+      }
+    }).catch(() => {});
 
     // (제거) server:build → UpdateBanner forwarding — 사이클 N+3 회귀로 시스템 제거됨
 
@@ -309,7 +298,7 @@ export default function NotificationToaster() {
     //   옛 raw event (message:new / task:new / ...) 와 같이 listen → 같은 알림이 둘 다 도착 가능.
     //   → contextKey 또는 notificationId 로 dedup. notificationId 우선.
     //   장점: notification_id 가 있으면 닫기 시 mark-read 호출 가능 → 좌측 BellDropdown 즉시 동기화.
-    s.on('notification:new', (row: NotificationFullRow) => {
+    const offNotif = onSocket('notification:new', (row: NotificationFullRow) => {
       // 배너 2번 방지: 채팅류(message/mention)는 message:new(socket) 가 토스트 담당.
       //   notification:new 까지 토스트하면 같은 채팅이 2번 뜸 → 여기선 채팅류 skip (비채팅만 토스트).
       if (row.event_kind === 'message' || row.event_kind === 'mention' || row.event_kind === 'comment_mention') return;
@@ -358,15 +347,8 @@ export default function NotificationToaster() {
       }
     });
 
-    s.on('connect_error', async (err) => {
-      const msg = String((err as Error)?.message || '');
-      if (/auth|token|jwt|unauthorized/i.test(msg)) {
-        await apiFetch('/api/auth/me').catch(() => null);
-      }
-    });
-
     // 채팅 메시지 — 본인이 보낸 건 제외 (sender_id !== userId)
-    s.on('message:new', (msg: { id: number; conversation_id: number; sender_id: number; content?: string; sender?: { name?: string; display_name?: string | null } }) => {
+    const offMsg = onSocket('message:new', (msg: { id: number; conversation_id: number; sender_id: number; content?: string; sender?: { name?: string; display_name?: string | null } }) => {
       if (msg.sender_id === Number(user.id)) return;
       // 중복 차단 — 같은 메시지가 conv room + business room 양쪽으로 도착 (백엔드 2회 emit). msg.id 로 1회만 처리.
       if (msg.id) {
@@ -388,7 +370,7 @@ export default function NotificationToaster() {
     });
 
     // 새 업무 — 본인이 만든/액션한 건 skip
-    s.on('task:new', (task: { id: number; title: string; assignee_id?: number; created_by?: number; project_id?: number | null; actor_user_id?: number }) => {
+    const offTaskNew = onSocket('task:new', (task: { id: number; title: string; assignee_id?: number; created_by?: number; project_id?: number | null; actor_user_id?: number }) => {
       const me = Number(user.id);
       // 본인 액션 (방금 자기가 만든 건) skip — actor 또는 created_by
       if (task.actor_user_id === me || task.created_by === me) return;
@@ -409,7 +391,7 @@ export default function NotificationToaster() {
     // 핵심 룰:
     //   1. actor === me → skip (본인이 누른 액션을 본인 토스터에 띄우지 않음)
     //   2. 받는 사람이 어떤 역할인지에 따라 메시지 차별화 (요청자 vs 검토자 vs 담당자)
-    s.on('task:updated', (task: {
+    const offTaskUpd = onSocket('task:updated', (task: {
       id: number; title: string; status?: string;
       assignee_id?: number; created_by?: number;
       reviewer_user_ids?: number[]; actor_user_id?: number;
@@ -464,7 +446,7 @@ export default function NotificationToaster() {
     });
 
     // 인박스 새로고침 (인보이스/서명 등)
-    s.on('inbox:refresh', (data: { reason?: string }) => {
+    const offInbox = onSocket('inbox:refresh', (data: { reason?: string }) => {
       // reason 별로 분기 가능 — 일단 단순 알림
       if (!data?.reason) return;
       const labels: Record<string, string> = {
@@ -483,8 +465,9 @@ export default function NotificationToaster() {
     });
 
     return () => {
-      s.disconnect();
-      socketRef.current = null;
+      leaveRoom(`business:${bizId}`);
+      joinedConvRooms.forEach((r) => leaveRoom(r));
+      offNotif(); offMsg(); offTaskNew(); offTaskUpd(); offInbox();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, user?.business_id, i18n.language]);

@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
+import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import PageShell from '../../components/Layout/PageShell';
 import AutoSaveField from '../../components/Common/AutoSaveField';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
@@ -257,39 +258,40 @@ const QProjectDetailPage: React.FC = () => {
       if (pending) return;
       pending = window.setTimeout(() => { pending = null; void load(); }, 250);
     };
-    let socket: { disconnect: () => void } | null = null;
-    import('socket.io-client').then(({ io }) => {
-      import('../../contexts/AuthContext').then(({ getAccessToken }) => {
-        if (!getAccessToken()) return;
-        const s = io({
-          auth: (cb) => cb({ token: getAccessToken() }),
-          transports: ['websocket', 'polling'],
-          reconnection: true,
-        });
-        socket = s;
-        s.on('connect', () => { s.emit('join:business', Number(projectBizId)); s.emit('join:project', Number(projectId)); });
-        // 운영 #48 — task 변경은 전체 reload(=리프레시·위치 점프) 대신 in-place merge (§16(c) 작은 list).
-        //   project_id 가 이 프로젝트면 upsert, 다른 프로젝트로 이관됐으면 이 리스트에서 제거(#42 실시간 반영).
-        const upsertTask = (task: TaskRow) => {
-          if (!task || task.id == null) return;
-          if (task.project_id != null && Number(task.project_id) !== Number(projectId)) {
-            setTasks((prev) => prev.filter((t) => t.id !== task.id));
-            return;
-          }
-          setTasks((prev) => (prev.some((t) => t.id === task.id)
-            ? prev.map((t) => (t.id === task.id ? { ...t, ...task } : t))
-            : [task, ...prev]));
-        };
-        s.on('task:new', upsertTask);
-        s.on('task:updated', upsertTask);
-        s.on('task:deleted', (meta: { id: number }) => setTasks((prev) => prev.filter((t) => t.id !== meta?.id)));
-        s.on('note:new', debouncedReload); s.on('issue:new', debouncedReload);
-        s.on('post:new', debouncedReload); s.on('post:updated', debouncedReload); s.on('post:deleted', debouncedReload);
-        // 고객 초대 수락/변경 실시간 반영 (참여 고객 리스트 즉시 갱신)
-        s.on('client:updated', debouncedReload); s.on('project_client:updated', debouncedReload);
-      });
-    });
-    return () => { if (pending) window.clearTimeout(pending); if (socket) socket.disconnect(); };
+    // 운영 #48 — task 변경은 전체 reload(=리프레시·위치 점프) 대신 in-place merge (§16(c) 작은 list).
+    //   project_id 가 이 프로젝트면 upsert, 다른 프로젝트로 이관됐으면 이 리스트에서 제거(#42 실시간 반영).
+    const upsertTask = (task: TaskRow) => {
+      if (!task || task.id == null) return;
+      if (task.project_id != null && Number(task.project_id) !== Number(projectId)) {
+        setTasks((prev) => prev.filter((t) => t.id !== task.id));
+        return;
+      }
+      setTasks((prev) => (prev.some((t) => t.id === task.id)
+        ? prev.map((t) => (t.id === task.id ? { ...t, ...task } : t))
+        : [task, ...prev]));
+    };
+    joinRoom(`business:${Number(projectBizId)}`);
+    joinRoom(`project:${Number(projectId)}`);
+    const offTaskNew = onSocket('task:new', upsertTask);
+    const offTaskUpd = onSocket('task:updated', upsertTask);
+    const offTaskDel = onSocket('task:deleted', (meta: { id: number }) => setTasks((prev) => prev.filter((t) => t.id !== meta?.id)));
+    const offNoteNew = onSocket('note:new', debouncedReload);
+    const offIssueNew = onSocket('issue:new', debouncedReload);
+    const offPostNew = onSocket('post:new', debouncedReload);
+    const offPostUpd = onSocket('post:updated', debouncedReload);
+    const offPostDel = onSocket('post:deleted', debouncedReload);
+    // 고객 초대 수락/변경 실시간 반영 (참여 고객 리스트 즉시 갱신)
+    const offClientUpd = onSocket('client:updated', debouncedReload);
+    const offProjClientUpd = onSocket('project_client:updated', debouncedReload);
+    return () => {
+      if (pending) window.clearTimeout(pending);
+      leaveRoom(`business:${Number(projectBizId)}`);
+      leaveRoom(`project:${Number(projectId)}`);
+      offTaskNew(); offTaskUpd(); offTaskDel();
+      offNoteNew(); offIssueNew();
+      offPostNew(); offPostUpd(); offPostDel();
+      offClientUpd(); offProjClientUpd();
+    };
   }, [projectBizId, projectId, load]);
 
 

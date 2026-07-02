@@ -22,6 +22,7 @@ import { listProjects } from '../../services/qtalk';
 import { taskToEvent, isTaskEvent, isPersonalEvent, personalToEvent, TASK_EVENT_ID_OFFSET } from './taskToEvent';
 import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
 import { apiFetch } from '../../contexts/AuthContext';
+import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { todayInTz, detectBrowserTz } from '../../utils/timezones';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { mapApiError } from '../../utils/apiError';
@@ -193,25 +194,14 @@ const QCalendarPage: React.FC = () => {
       if (pending) return;
       pending = window.setTimeout(() => { pending = null; void fetchRange(); }, 250);
     };
-    let socket: { disconnect: () => void } | null = null;
-    import('socket.io-client').then(({ io }) => {
-      import('../../contexts/AuthContext').then(({ getAccessToken }) => {
-        if (!getAccessToken()) return;
-        const s = io({
-          auth: (cb) => cb({ token: getAccessToken() }),
-          transports: ['websocket', 'polling'],
-          reconnection: true,
-        });
-        socket = s;
-        s.on('connect', () => { s.emit('join:business', bizId); });
-        s.on('event:created', debouncedReload);
-        s.on('event:updated', debouncedReload);
-        s.on('event:deleted', debouncedReload);
-      });
-    });
+    joinRoom(`business:${bizId}`);
+    const offCreated = onSocket('event:created', debouncedReload);
+    const offUpdated = onSocket('event:updated', debouncedReload);
+    const offDeleted = onSocket('event:deleted', debouncedReload);
     return () => {
       if (pending) window.clearTimeout(pending);
-      if (socket) socket.disconnect();
+      leaveRoom(`business:${bizId}`);
+      offCreated(); offUpdated(); offDeleted();
     };
   }, [bizId, fetchRange]);
 

@@ -5,6 +5,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
+import { joinRoom, leaveRoom, onSocket } from '../../../services/socket';
 import { useVisibilityRefresh } from '../../../hooks/useVisibilityRefresh';
 import AutoSaveField from '../../../components/Common/AutoSaveField';
 import PartnerKindBadge from '../../../components/Common/PartnerKindBadge';
@@ -71,24 +72,24 @@ export default function ProjectCanvas({ projectId, businessId }: Props) {
   const reloadRef = useRef(silentLoad);
   reloadRef.current = silentLoad;
   useEffect(() => {
-    let socket: { disconnect: () => void } | null = null;
     let pending: ReturnType<typeof setTimeout> | null = null;
     const debounced = (meta?: { actor_user_id?: number }) => {
       if (meta && myId != null && Number(meta.actor_user_id) === Number(myId)) return;
       if (pending) clearTimeout(pending);
       pending = setTimeout(() => reloadRef.current(), 250);
     };
-    import('socket.io-client').then(({ io }) => {
-      import('../../../contexts/AuthContext').then(({ getAccessToken }) => {
-        if (!getAccessToken()) return;
-        const s = io({ auth: (cb: (d: { token: string | null }) => void) => cb({ token: getAccessToken() }), transports: ['websocket', 'polling'], reconnection: true });
-        socket = s;
-        s.on('connect', () => { s.emit('join:business', Number(businessId)); s.emit('join:project', Number(projectId)); });
-        s.on('project:updated', debounced);
-        s.on('task:new', debounced); s.on('task:updated', debounced); s.on('task:deleted', () => debounced());
-      });
-    });
-    return () => { if (pending) clearTimeout(pending); if (socket) socket.disconnect(); };
+    joinRoom(`business:${Number(businessId)}`);
+    joinRoom(`project:${Number(projectId)}`);
+    const offProjUpd = onSocket('project:updated', debounced);
+    const offTaskNew = onSocket('task:new', debounced);
+    const offTaskUpd = onSocket('task:updated', debounced);
+    const offTaskDel = onSocket('task:deleted', () => debounced());
+    return () => {
+      if (pending) clearTimeout(pending);
+      leaveRoom(`business:${Number(businessId)}`);
+      leaveRoom(`project:${Number(projectId)}`);
+      offProjUpd(); offTaskNew(); offTaskUpd(); offTaskDel();
+    };
   }, [businessId, projectId, myId]);
 
   const saveStrategy = useCallback((key: StrategyKey, value: string) => async () => {

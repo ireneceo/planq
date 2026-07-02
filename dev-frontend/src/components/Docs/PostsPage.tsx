@@ -2,6 +2,7 @@
 // 레이아웃 패턴: Q Note 와 동일 (Sidebar + Content 2컬럼 + PanelHeader)
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import HelpDot from '../Common/HelpDot';
@@ -286,9 +287,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
 
   // N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
   // 다른 사용자가 문서 추가/수정/삭제 시 본인이 페이지 열고 있으면 즉시 보임.
-  // backend posts.js 가 'business:${bizId}' room 으로 broadcast — TodoPage 의 socket
-  // 연결과 같은 글로벌 socket 사용. 여기는 listener 만 추가하면 됨 (글로벌 socket
-  // 없는 경우는 자체 io({...}) 연결 + business room join 추가 필요).
+  // backend posts.js 가 'business:${bizId}' room 으로 broadcast — 공유 소켓(services/socket)
+  // 에 joinRoom + listener 만 추가.
   useEffect(() => {
     if (!scope.businessId) return;
     let pending: number | null = null;
@@ -305,30 +305,21 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         }
       } catch (_) { /* skip */ }
     };
-    // 페이지 mount 시 자체 socket 연결 + business room join + listener 3종
-    import('socket.io-client').then(({ io }) => {
-      import('../../contexts/AuthContext').then(({ getAccessToken }) => {
-        if (!getAccessToken()) return;
-        const s = io({
-          auth: (cb) => cb({ token: getAccessToken() }),
-          transports: ['websocket', 'polling'],
-          reconnection: true,
-        });
-        s.on('connect', () => { s.emit('join:business', scope.businessId); });
-        s.on('post:new', debouncedReload);
-        s.on('post:updated', (payload: { id: number } | number) => {
-          debouncedReload();
-          const id = typeof payload === 'number' ? payload : payload?.id;
-          if (id) void refetchOpenDetail(id);
-        });
-        s.on('post:deleted', debouncedReload);
-        (window as unknown as { __planq_postsSocket?: { disconnect: () => void } }).__planq_postsSocket = s;
-      });
+    // 페이지 mount 시 공유 소켓 (services/socket) business room join + listener 3종.
+    //   §10-D: 옛 window.__planq_postsSocket 전역 싱글턴 제거 (멀티탭에서 두 인스턴스가 서로
+    //   소켓 참조를 덮어써 끊던 코드). 공유 소켓 + refCount 로 근본 해결.
+    joinRoom(`business:${scope.businessId}`);
+    const offNew = onSocket('post:new', debouncedReload);
+    const offUpd = onSocket('post:updated', (payload: { id: number } | number) => {
+      debouncedReload();
+      const id = typeof payload === 'number' ? payload : payload?.id;
+      if (id) void refetchOpenDetail(id);
     });
+    const offDel = onSocket('post:deleted', debouncedReload);
     return () => {
       if (pending) window.clearTimeout(pending);
-      const s = (window as unknown as { __planq_postsSocket?: { disconnect: () => void } }).__planq_postsSocket;
-      if (s) { s.disconnect(); delete (window as unknown as { __planq_postsSocket?: unknown }).__planq_postsSocket; }
+      leaveRoom(`business:${scope.businessId}`);
+      offNew(); offUpd(); offDel();
     };
   }, [scope.businessId, load, loadMeta, activeId]);
 
