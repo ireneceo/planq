@@ -1,7 +1,7 @@
 // routes/email_accounts.js — EmailAccount CRUD (Q Mail M1)
 // admin only (workspace owner/admin) — requireMenu('qmail', 'admin') 정합.
 // 비밀번호는 services/encryption.js (AES-256-GCM).
-// POST 시 자동 IMAP test 시도 — 실패해도 등록은 진행 (사용자가 정보 수정 가능).
+// POST/PUT 시 IMAP 실연결 검증 강제 — 잘못된 자격이 조용히 등록되어 5분마다 실패하는 사고 차단.
 const express = require('express');
 const router = express.Router();
 const { EmailAccount, Business } = require('../models');
@@ -30,6 +30,30 @@ function accessibleWhere(req) {
 function canManageAccount(req, acc) {
   if (acc.owner_user_id == null) return isAdmin(req);
   return acc.owner_user_id === req.user.id;
+}
+
+// IMAP 자격 실검증 — 등록/수정 전 강제. 실패 원인을 provider 별 안내 코드로 분류.
+async function verifyImapCredentials({ host, port, tls, username, password, folder }) {
+  try {
+    const imaps = require('imap-simple');
+    const conn = await imaps.connect({
+      imap: { user: username, password, host, port, tls, authTimeout: 10000, tlsOptions: { rejectUnauthorized: false } },
+    });
+    await conn.openBox(folder || 'INBOX');
+    await conn.end();
+    return { ok: true };
+  } catch (e) {
+    const msg = String((e && e.message) || e);
+    const h = String(host || '').toLowerCase();
+    if (/invalid credentials|authenticat|login fail|auth/i.test(msg)) {
+      if (h.includes('gmail') || h.includes('googlemail')) return { ok: false, code: 'gmail_app_password_required', detail: msg };
+      if (h.includes('naver')) return { ok: false, code: 'naver_app_password_required', detail: msg };
+      if (h.includes('office365') || h.includes('outlook')) return { ok: false, code: 'ms_app_password_required', detail: msg };
+      return { ok: false, code: 'imap_auth_failed', detail: msg };
+    }
+    if (/enotfound|getaddrinfo/i.test(msg)) return { ok: false, code: 'imap_host_not_found', detail: msg };
+    return { ok: false, code: 'imap_connect_failed', detail: msg };
+  }
 }
 
 // 응답 시 비밀번호 hash 제외 (frontend 노출 X)
@@ -95,6 +119,12 @@ router.post('/:businessId/email-accounts', authenticateToken, checkBusinessAcces
     // 중복 (워크스페이스 내 같은 email 1개만)
     const dup = await EmailAccount.findOne({ where: { business_id: businessId, email } });
     if (dup) return errorResponse(res, 'duplicate_email', 409);
+    // 저장 전 실연결 검증 — 실패 시 등록 자체를 거부 + 원인별 안내 코드
+    const verify = await verifyImapCredentials({
+      host: b.imap_host, port: Number(b.imap_port) || 993, tls: b.imap_tls !== false,
+      username: b.imap_username, password: b.imap_password, folder: b.imap_folder || 'INBOX',
+    });
+    if (!verify.ok) return res.status(400).json({ success: false, message: verify.code, detail: verify.detail });
     // 첫 공용 계정이면 is_default 자동 (개인 계정은 공용 default 후보 아님)
     const teamCount = await EmailAccount.count({ where: { business_id: businessId, owner_user_id: null } });
     const acc = await EmailAccount.create({
@@ -160,6 +190,23 @@ router.put('/:businessId/email-accounts/:id', authenticateToken, checkBusinessAc
     if (b.smtp_password !== undefined && b.smtp_password) patch.smtp_password_encrypted = encrypt(b.smtp_password);
     if (b.smtp_tls !== undefined) patch.smtp_tls = !!b.smtp_tls;
     if (b.is_active !== undefined) patch.is_active = !!b.is_active;
+    // IMAP 자격이 바뀌면 저장 전 실연결 검증 (비밀번호 재입력으로 계정 살리는 경로 포함)
+    const imapTouched = ['imap_host', 'imap_port', 'imap_username', 'imap_password'].some((k) => b[k] !== undefined && b[k]);
+    if (imapTouched) {
+      const password = (b.imap_password && String(b.imap_password)) || decrypt(acc.imap_password_encrypted);
+      const verify = await verifyImapCredentials({
+        host: b.imap_host !== undefined ? b.imap_host : acc.imap_host,
+        port: Number(b.imap_port !== undefined ? b.imap_port : acc.imap_port) || 993,
+        tls: b.imap_tls !== undefined ? !!b.imap_tls : acc.imap_tls,
+        username: b.imap_username !== undefined ? b.imap_username : acc.imap_username,
+        password,
+        folder: b.imap_folder !== undefined ? (b.imap_folder || 'INBOX') : acc.imap_folder,
+      });
+      if (!verify.ok) return res.status(400).json({ success: false, message: verify.code, detail: verify.detail });
+      // 검증 통과 → 실패 이력 리셋
+      patch.last_sync_error = null;
+      patch.fail_count = 0;
+    }
     await acc.update(patch);
     await createAuditLog({
       userId: req.user.id, businessId: req.params.businessId,

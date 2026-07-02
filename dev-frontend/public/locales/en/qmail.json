@@ -67,6 +67,25 @@
         "s2": "Generate a new app password under \"Create app password\" (Sign-In and Security → App-Specific Passwords).",
         "s3": "Paste the generated app password into the \"Password\" field below and save.",
         "link": "Apple ID app passwords →"
+      },
+      "outlook": {
+        "title": "Connect Outlook / Microsoft 365",
+        "s1": "Turn on 2-step verification for your Microsoft account.",
+        "s2": "Create an \"app password\" in security settings. (Regular passwords will not work)",
+        "s3": "Paste the app password into the \"Password\" field below and save.",
+        "link": "Microsoft security settings →"
+      },
+      "kakao": {
+        "title": "Connect Kakao Mail",
+        "s1": "In Kakao Mail → Settings → IMAP/POP3, turn on \"Use IMAP\".",
+        "s2": "Enter your Kakao account password (app password if 2-step verification is on) in the \"Password\" field and save.",
+        "link": "Open Kakao Mail settings →"
+      },
+      "daum": {
+        "title": "Connect Daum Mail",
+        "s1": "In Daum Mail → Preferences → IMAP/POP3, turn on \"Use IMAP\".",
+        "s2": "Enter your Daum account password in the \"Password\" field and save.",
+        "link": "Open Daum Mail settings →"
       }
     },
     "fieldEmail": "Email",
@@ -93,7 +112,20 @@
     "hintScope": "Team mailboxes are shared in the inbox by all members; personal mailboxes are visible only to you. (Auto-sync every 5 minutes)",
     "scopeNoteTeam": "Team mailbox — shared with all members in the inbox.",
     "scopeNotePersonal": "Personal mailbox — visible only to you.",
-    "connectFailed": "Could not start Gmail connection. Please try again shortly."
+    "connectFailed": "Could not start Gmail connection. Please try again shortly.",
+    "hintOauth": "For Gmail, use \"Connect with Gmail\" (one click) or an app password. If one-click does not work, add the account with an app password.",
+    "hintNewMailOnly": "Only new mail received after connecting will appear. Past mail is not imported.",
+    "fixAuthGmail": "Gmail requires an app password — open \"Edit\" and re-enter an app password.",
+    "fixAuthGeneric": "Open \"Edit\" and re-enter the username and password.",
+    "err": {
+      "gmailAppPassword": "Gmail cannot be connected with a regular password. Create an app password as guided above and enter it.",
+      "naverAppPassword": "Naver authentication failed. Check that IMAP is enabled and use an application password if 2-step verification is on.",
+      "msAppPassword": "Microsoft authentication failed. Create an app password and enter it.",
+      "authFailed": "Could not connect — the username or password is incorrect.",
+      "hostNotFound": "IMAP server address not found. Please check the server address.",
+      "connectFailed": "Could not reach the mail server. Check the server address and port.",
+      "duplicate": "This email is already registered."
+    }
   },
   "folders": {
     "title": "Mailboxes",
