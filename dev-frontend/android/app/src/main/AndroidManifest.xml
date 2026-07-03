@@ -22,6 +22,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- App Links (딥링크) — planq.kr / dev.planq.kr 링크를 앱으로. autoVerify 는 assetlinks.json 필요(Phase 6). -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="planq.kr" />
+                <data android:scheme="https" android:host="dev.planq.kr" />
+            </intent-filter>
+
         </activity>
 
         <provider
@@ -38,4 +47,9 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Android 13+ 푸시 알림 권한 (M-6) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Q Note 마이크 녹음 (Phase 4 대비 — §8.1) -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 </manifest>

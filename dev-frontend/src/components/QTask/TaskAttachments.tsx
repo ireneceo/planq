@@ -1,4 +1,5 @@
 // Task 첨부파일 UI — 드래그앤드롭 + 업로드 + 리스트 + 다운로드 + 삭제 + 기존 파일/문서 선택 (모두 인라인)
+import { downloadBlob } from '../../utils/download';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
@@ -113,11 +114,7 @@ export default function TaskAttachments({ taskId, onChangeCount }: Props) {
     try {
       const r = await apiFetch(row.download_url);
       const blob = await r.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = row.original_name;
-      document.body.appendChild(a); a.click(); a.remove();
-      URL.revokeObjectURL(url);
+      await downloadBlob(blob, row.original_name);
     } catch { /* silent */ }
   };
 

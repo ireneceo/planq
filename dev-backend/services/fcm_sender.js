@@ -110,8 +110,10 @@ async function sendFcm(deviceToken, payload, _retried = false) {
     const err = await res.json();
     const status = err?.error?.status || '';
     const detailCode = (err?.error?.details || []).map((d) => d.errorCode).find(Boolean) || '';
-    // 죽은 토큰 시그널: 404 NOT_FOUND / UNREGISTERED / INVALID_ARGUMENT(토큰형식)
-    if (res.status === 404 || status === 'NOT_FOUND' || detailCode === 'UNREGISTERED') {
+    // 죽은/무효 토큰 시그널 → row 정리. 404 NOT_FOUND/UNREGISTERED(등록해제) +
+    //   400 INVALID_ARGUMENT(토큰 형식 무효 — 좀비 영구 잔존 방지, M-7).
+    if (res.status === 404 || status === 'NOT_FOUND' || detailCode === 'UNREGISTERED'
+        || detailCode === 'INVALID_ARGUMENT' || (res.status === 400 && status === 'INVALID_ARGUMENT')) {
       return { ok: false, status: 404, reason: 'unregistered' };
     }
     reason = detailCode || status || reason;

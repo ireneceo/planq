@@ -5,7 +5,11 @@ import { apiFetch, getAccessToken } from '../contexts/AuthContext';
 import { nativePlatform } from './native';
 
 let bound = false;
-let lastToken: string | null = null;
+// device token 을 localStorage 에 영속 — 세션 재시작 후에도 unregisterNative(알림 끄기) 가능.
+const TOKEN_KEY = 'planq:native:pushToken';
+function setLastToken(t: string) { try { localStorage.setItem(TOKEN_KEY, t); } catch { /* ignore */ } }
+function getLastToken(): string | null { try { return localStorage.getItem(TOKEN_KEY); } catch { return null; } }
+function clearLastToken() { try { localStorage.removeItem(TOKEN_KEY); } catch { /* ignore */ } }
 
 const kindOf = (): 'apns' | 'fcm' => (nativePlatform() === 'ios' ? 'apns' : 'fcm');
 
@@ -31,7 +35,7 @@ export async function registerNative(): Promise<{ ok: boolean; reason?: string }
     bound = true;
     // 토큰 수신 → backend 등록 (토큰 변동 시 재발화 → upsert).
     await PushNotifications.addListener('registration', async (token) => {
-      lastToken = token.value;
+      setLastToken(token.value);
       try {
         const { Device } = await import('@capacitor/device');
         const info = await Device.getInfo().catch(() => null);
@@ -61,19 +65,46 @@ export async function registerNative(): Promise<{ ok: boolean; reason?: string }
     });
   }
 
+  // Android: FCM notification 이 지정하는 채널(fcm_sender.js channel_id 'planq_default')을 생성.
+  //   채널 미존재 시 Android 8+ 에서 알림이 표시되지 않음 (M-6). iOS 는 no-op.
+  if (nativePlatform() === 'android') {
+    try {
+      await PushNotifications.createChannel({
+        id: 'planq_default',
+        name: 'PlanQ',
+        description: 'PlanQ 알림',
+        importance: 5, // HIGH — heads-up
+        visibility: 1,
+      });
+    } catch { /* iOS/미지원 무시 */ }
+  }
+
   await PushNotifications.register(); // → registration 이벤트로 토큰 수신
   return { ok: true };
 }
 
 // 구독 해지 — 저장된 토큰으로 backend DELETE (앱에서 알림 끄기).
 export async function unregisterNative(): Promise<{ ok: boolean }> {
-  if (!lastToken) return { ok: true };
+  const token = getLastToken();
+  if (!token) return { ok: true };
   try {
     await apiFetch('/api/push/subscribe', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ kind: kindOf(), device_token: lastToken }),
+      body: JSON.stringify({ kind: kindOf(), device_token: token }),
     });
   } catch { /* ignore */ }
+  clearLastToken();
   return { ok: true };
+}
+
+// 네이티브 푸시 권한/등록 상태 (NotificationSettings 용).
+export async function nativePushStatus(): Promise<'granted' | 'denied' | 'prompt' | 'unknown'> {
+  try {
+    const { PushNotifications } = await import('@capacitor/push-notifications');
+    const p = await PushNotifications.checkPermissions();
+    if (p.receive === 'granted') return 'granted';
+    if (p.receive === 'denied') return 'denied';
+    return 'prompt';
+  } catch { return 'unknown'; }
 }

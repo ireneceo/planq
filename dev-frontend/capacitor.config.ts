@@ -17,10 +17,16 @@ const config: CapacitorConfig = {
   server: {
     url: serverUrl,
     cleartext: false,
+    // 첫 로드 실패(비행기모드 등) 시 노출할 오프라인 fallback (www-placeholder/index.html). §6.7
+    errorPath: 'index.html',
   },
   ios: {
     // 세이프에어리어/상태바 자동 인셋. 기존 env(safe-area-inset-*) CSS 와 병행.
     contentInset: 'automatic',
+  },
+  plugins: {
+    // 포그라운드 도착 시 OS 배너 억제 — 인앱 토스터(socket)가 담당해 중복 표시 방지. §5.4
+    PushNotifications: { presentationOptions: [] },
   },
   // 주의: Keyboard(resize) 플러그인은 Phase 0 에서 의도적으로 미주입.
   //   기존 main.tsx visualViewport 보정(feedback_mobile_chat_input_offsettop)을 먼저 실기기 검증 후

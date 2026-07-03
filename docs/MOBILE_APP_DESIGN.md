@@ -3,6 +3,10 @@
 > 작성: 2026-07-03 (Fable 기획설계). **Opus 실행용 상세 설계 — 코드 착수 전 필독.**
 > 상위 계획: `docs/NATIVE_APP_PLAN.md` (2026-07-02 Fable 검수, Irene 결정 박제) — 본 문서는 그 계획을 실제 코드 근거(파일:라인) 위에서 상세화한 실행 설계. 두 문서가 충돌하면 본 문서가 우선.
 > 배경: iOS 26/WebKit PWA web push 가 "APNs 201 + apns-id 수신인데 기기가 화면에 안 그림" — 설정·구독·코드 전부 정상인데 표시만 불안정 (2026-06 종일 진단, memory: `feedback_ios_push_presentation_device_state`). 근본 해결 = 네이티브 APNs.
+>
+> **번들 ID 확정 = `app.planq` (Irene 결정 2026-07-03).** 문서 본문의 `kr.planq.app` 표기는 초안 — 실제 구현·APNs topic·AASA·assetlinks 는 전부 `app.planq` 로 통일한다.
+>
+> **Fable 검증 게이트 후속(2026-07-03):** blocker 3건(H-1 AppDelegate APNs 훅·H-2 네이티브 Google 로그인·H-3 운영 마이그레이션 순서) + 중간 다수 수정 완료. 상세는 세션 로그/커밋 참조.
 
 ---
 

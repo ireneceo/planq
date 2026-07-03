@@ -46,4 +46,15 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
     }
 
+    // ── APNs 등록 콜백 (MOBILE_APP_DESIGN — @capacitor/push-notifications 필수) ──
+    // 이 두 메서드가 없으면 device token 이 플러그인(JS)으로 전달되지 않아 registration 이벤트가
+    // 영영 발화하지 않는다 → subscribe-native 미호출 → iOS 푸시 전면 무동작.
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        NotificationCenter.default.post(name: .capacitorDidRegisterForRemoteNotifications, object: deviceToken)
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications, object: error)
+    }
+
 }

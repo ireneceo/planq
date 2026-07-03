@@ -1,5 +1,6 @@
 // 알림 설정 매트릭스 (Phase E4)
 // 이벤트 × 채널 × On/Off — 사용자 본인 (워크스페이스 컨텍스트)
+import { isNativeApp } from '../../services/native';
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation, Trans } from 'react-i18next';
@@ -198,6 +199,14 @@ const PushSection: React.FC<{ businessId: number | null }> = () => {
 
   React.useEffect(() => {
     (async () => {
+      // 네이티브 앱: SW 기반 isPushSupported 는 false 라 native 권한 상태로 판정 (알림 켜기/끄기 UI 유지).
+      if (isNativeApp()) {
+        const { nativePushStatus } = await import('../../services/nativePush');
+        const st = await nativePushStatus();
+        setPermission(st === 'prompt' ? 'default' : st === 'unknown' ? 'unsupported' : st);
+        setSubscribed(st === 'granted');
+        return;
+      }
       const { isPushSupported, isSubscribed } = await import('../../services/push');
       const supported = await isPushSupported();
       if (!supported) { setPermission('unsupported'); return; }
@@ -206,12 +215,23 @@ const PushSection: React.FC<{ businessId: number | null }> = () => {
     })();
   }, []);
 
+  // 웹은 Notification.permission, 네이티브는 nativePushStatus 로 권한 재조회 (구독/해지 후 반영).
+  const refreshPermission = async () => {
+    if (isNativeApp()) {
+      const { nativePushStatus } = await import('../../services/nativePush');
+      const st = await nativePushStatus();
+      setPermission(st === 'prompt' ? 'default' : st === 'unknown' ? 'unsupported' : st);
+    } else {
+      setPermission(Notification.permission);
+    }
+  };
+
   const handleSubscribe = async () => {
     setBusy(true); setMsg(null);
     const { subscribe } = await import('../../services/push');
     const r = await subscribe();
     setMsg(r.ok ? t('push.subscribedMsg', '디바이스에 알림이 켜졌습니다') as string : t('push.errMsg', '알림 켜기 실패: {{r}}', { r: r.reason || '' }) as string);
-    setPermission(Notification.permission);
+    await refreshPermission();
     setSubscribed(r.ok);
     setBusy(false);
   };
