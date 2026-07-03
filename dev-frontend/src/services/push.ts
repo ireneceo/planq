@@ -6,6 +6,8 @@
 //   4) PushManager.subscribe({ applicationServerKey })
 //   5) POST /api/push/subscribe (endpoint, keys, user_agent)
 import { apiFetch, getAccessToken } from '../contexts/AuthContext';
+import { isNativeApp } from './native';
+import { registerNative, unregisterNative } from './nativePush';
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -83,6 +85,8 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
 export async function subscribe(): Promise<{ ok: boolean; reason?: string }> {
   // 사이클 N+17 — logout 상태면 즉시 return. 로그인 페이지에서 401 무한 retry 회귀 차단.
   if (!getAccessToken()) return { ok: false, reason: 'not_authenticated' };
+  // 네이티브 앱: 웹 push(SW/VAPID) 대신 APNs/FCM 등록. isPushSupported()는 SW 부재로 false 라 그 앞에 분기.
+  if (isNativeApp()) return registerNative();
   if (!await isPushSupported()) return { ok: false, reason: 'unsupported' };
 
   const perm = await Notification.requestPermission();
@@ -149,6 +153,7 @@ export async function subscribe(): Promise<{ ok: boolean; reason?: string }> {
 }
 
 export async function unsubscribe(): Promise<{ ok: boolean; reason?: string }> {
+  if (isNativeApp()) return unregisterNative();
   if (!('serviceWorker' in navigator)) return { ok: true }; // already not supported
   const reg = await navigator.serviceWorker.getRegistration();
   if (!reg) return { ok: true };
@@ -209,6 +214,8 @@ const PROMPT_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000; // 7일
 export async function autoSubscribeIfPossible(): Promise<{ ok: boolean; reason?: string }> {
   // 사이클 N+17 — logout 상태 즉시 return (401 무한 retry 차단)
   if (!getAccessToken()) return { ok: false, reason: 'not_authenticated' };
+  // 네이티브 앱: APNs/FCM 등록으로 위임 (아래 웹 SW/VAPID 경로 skip).
+  if (isNativeApp()) return registerNative();
   if (!(await isPushSupported())) return { ok: false, reason: 'unsupported' };
 
   const perm = Notification.permission;
