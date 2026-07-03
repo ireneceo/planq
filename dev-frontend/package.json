@@ -7,9 +7,17 @@
     "dev": "vite",
     "build": "NODE_OPTIONS='--max-old-space-size=8192' tsc -b && NODE_OPTIONS='--max-old-space-size=8192' vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "cap:sync:dev": "CAP_SERVER_URL=https://dev.planq.kr npx cap sync",
+    "cap:sync:prod": "CAP_SERVER_URL=https://planq.kr npx cap sync",
+    "cap:open:ios": "npx cap open ios",
+    "cap:open:android": "npx cap open android"
   },
   "dependencies": {
+    "@capacitor/android": "^7.6.7",
+    "@capacitor/core": "^7.6.7",
+    "@capacitor/ios": "^7.6.7",
+    "@capacitor/status-bar": "^7.0.6",
     "@tiptap/extension-bubble-menu": "^3.22.4",
     "@tiptap/extension-code-block-lowlight": "^3.22.4",
     "@tiptap/extension-floating-menu": "^3.22.4",
@@ -44,6 +52,7 @@
     "tippy.js": "^6.3.7"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.6.7",
     "@eslint/js": "^9.39.4",
     "@types/node": "^24.12.2",
     "@types/react": "^19.2.14",

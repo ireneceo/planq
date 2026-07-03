@@ -22,6 +22,7 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { mediaTablet } from '../../theme/breakpoints';
 import InstallPromptBanner from '../Common/InstallPromptBanner';
 import PushPromptBanner from '../Common/PushPromptBanner';
+import { isNativeApp } from '../../services/native';
 import i18n from '../../i18n';
 
 // ─────────────────────────────────────────────────────────────
@@ -1685,7 +1686,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       <MainContent $marginLeft={mainMarginLeft}>
         <WorkspaceBillingBanner />
         {/* N+72-6 — 알림 안내 모든 페이지 mount (옛: TodoPage 만). granted-off 자동 silent re-subscribe + iOS 비-PWA 안내 */}
-        {user && (
+        {!isNativeApp() && user && (
           <PushPromptWrap>
             <PushPromptBanner />
           </PushPromptWrap>
@@ -1694,7 +1695,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           <MobileContentPadding>{children}</MobileContentPadding>
         </PageScroll>
       </MainContent>
-      <InstallPromptBanner />
+      {!isNativeApp() && <InstallPromptBanner />}
       {user?.business_id && (
         <GlobalSearchModal
           open={searchOpen}

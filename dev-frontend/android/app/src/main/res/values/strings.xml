@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">PlanQ</string>
+    <string name="title_activity_main">PlanQ</string>
+    <string name="package_name">app.planq</string>
+    <string name="custom_url_scheme">app.planq</string>
+</resources>
