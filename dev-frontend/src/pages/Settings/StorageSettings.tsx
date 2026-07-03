@@ -1,5 +1,7 @@
 // 파일 저장소 연동 설정 — Google Drive / PlanQ 자체
 import React, { useEffect, useState, useCallback } from 'react';
+import { startAuthPopup } from '../../services/oauth';
+import { isNativeApp } from '../../services/native';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
@@ -98,7 +100,7 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
 
   useEffect(() => { load(); }, [load]);
 
-  // OAuth 팝업 수신 (회사 공용 gdrive/gcal)
+  // OAuth 팝업 수신 (회사 공용 gdrive/gcal) — 웹 postMessage + 네이티브 planq:oauth-connected
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
       if ((e.data?.type === 'gdrive:connected' || e.data?.type === 'gcal:connected') && e.data.ok) {
@@ -106,8 +108,11 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
         load();
       }
     };
+    // 네이티브: 시스템 브라우저 OAuth 완료 후 앱 복귀(App.tsx appUrlOpen) 시 발행.
+    const onNativeDone = () => { setConnecting(null); load(); };
     window.addEventListener('message', onMsg);
-    return () => window.removeEventListener('message', onMsg);
+    window.addEventListener('planq:oauth-connected', onNativeDone);
+    return () => { window.removeEventListener('planq:oauth-connected', onNativeDone); window.removeEventListener('message', onMsg); };
   }, [load]);
 
   const handleConnect = async (provider: 'gdrive' | 'gcal') => {
@@ -124,7 +129,9 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
       const top = (window.screen.height - h) / 2;
       // 직접 popup 참조 보관 — 이름으로 다시 찾는 window.open('', 'name') 패턴은
       // 명명창이 사라진 후 빈 새 창을 만들어내므로 절대 사용하지 않는다.
-      const popup = window.open(j.data.auth_url, `planq-oauth-${provider}`, `width=${w},height=${h},left=${left},top=${top}`);
+      // 웹: 팝업 + closed 폴링. 네이티브: 시스템 브라우저 → 완료는 planq:oauth-connected 이벤트로(§6.8).
+      const popup = await startAuthPopup(j.data.auth_url, `planq-oauth-${provider}`, `width=${w},height=${h},left=${left},top=${top}`);
+      if (isNativeApp()) return;  // 네이티브: 앱 복귀 이벤트가 load() 담당 (아래 useEffect)
       if (!popup) {
         // 팝업 차단됨
         setConnecting(null);

@@ -2,6 +2,7 @@
 // 워크스페이스 설정 → 메일 계정. admin 전용.
 // PageShell + 계정 목록 + 등록/수정 모달 (DetailDrawer) + 서비스 preset + 연결 테스트.
 import React, { useState, useEffect, useCallback } from 'react';
+import { startAuthRedirect } from '../../services/oauth';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
@@ -121,7 +122,7 @@ const EmailAccountSettings: React.FC = () => {
       const r = await apiFetch(`/api/businesses/${businessId}/email-accounts/oauth/gmail/initiate?return_to=${ret}&scope=${addScope}`);
       const j = await r.json();
       if (!j.success || !j.data?.auth_url) throw new Error(j.message || 'init_failed');
-      window.location.href = j.data.auth_url;
+      startAuthRedirect(j.data.auth_url);
     } catch (e) {
       setConnErr((e as Error).message || (t('settings.connectFailed', { defaultValue: 'Gmail 연결을 시작하지 못했어요. 잠시 후 다시 시도해주세요.' }) as string));
     }

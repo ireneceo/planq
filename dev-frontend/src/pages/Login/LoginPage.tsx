@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { startAuthRedirect } from '../../services/oauth';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { mapApiError } from '../../utils/apiError';
@@ -542,7 +543,7 @@ const LoginPage: React.FC = () => {
           <OAuthDivider><span>{t('login.or', '또는') as string}</span></OAuthDivider>
           <GoogleBtn
             type="button"
-            onClick={() => { window.location.href = '/api/auth/google/initiate'; }}
+            onClick={() => { startAuthRedirect('/api/auth/google/initiate'); }}
             disabled={isLoading}
             aria-label={t('login.continueWithGoogle', 'Google 로 계속') as string}
           >
