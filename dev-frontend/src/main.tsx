@@ -5,11 +5,15 @@ import './i18n'
 import './index.css'
 import App from './App.tsx'
 import { bindPermissionSync } from './services/push.ts'
+import { isNativeApp } from './services/native'
 
 // Service Worker 등록 — Push 알림 + Share Target POST + PWA install 모두 SW 필요.
 // updateViaCache:'none' — 브라우저가 sw.js 자체를 캐시하지 않게 강제 (옛 SW 잔류 방지).
 // 새 SW 가 install 되면 activate 단계에서 모든 client 자동 navigate (옛 chunk 잔재 정리).
-if ('serviceWorker' in navigator) {
+// 네이티브 앱(Capacitor)에서는 SW 를 등록하지 않는다: iOS WKWebView 는 SW 미지원이라 자연 skip
+// 되지만 Android WebView 는 SW 를 지원하므로 명시 가드 필요(MOBILE_APP_DESIGN §6.6). 네이티브는
+// 웹 푸시 대신 APNs/FCM(Phase 2) 을 쓰고, 빌드 갱신은 remote URL 로 자동 반영된다.
+if (!isNativeApp() && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then((reg) => {
       // 30분 주기 update 체크 — 새 SW 발견 시 install→activate 자동 진행
@@ -18,8 +22,18 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// 알림 권한 동기화 — focus 복귀 시 OS 권한 OFF 면 backend 의 좀비 endpoint 자동 정리
-bindPermissionSync();
+// 알림 권한 동기화 — focus 복귀 시 OS 권한 OFF 면 backend 의 좀비 endpoint 자동 정리.
+// 웹 푸시 전용 로직이라 네이티브 앱에서는 skip (네이티브 푸시는 Phase 2 nativePush 가 담당).
+if (!isNativeApp()) {
+  bindPermissionSync();
+}
+
+// 네이티브 앱 부트스트랩 — 상태바 스타일(흰 배경 + 어두운 글자). 웹/PWA 에는 영향 0.
+if (isNativeApp()) {
+  import('@capacitor/status-bar').then(({ StatusBar, Style }) => {
+    StatusBar.setStyle({ style: Style.Light }).catch(() => {});
+  }).catch(() => {});
+}
 
 // N+31 — 글로벌 viewport sync. visualViewport.height 를 --vvh CSS var 로 즉시 sync.
 // 옛 코드는 ChatPanel useEffect 안에서만 sync 했음 → 첫 paint race + 다른 페이지에서 --vvh 부재.

@@ -6,6 +6,7 @@ import { PwaInstallProvider } from './contexts/PwaInstallContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/Common/ErrorBoundary';
 import { isPopoutWindow } from './utils/popout';
+import { isNativeApp } from './services/native';
 import { installRoutePrefetch } from './lib/routePrefetch';
 import MainLayout from './components/Layout/MainLayout';
 
@@ -527,8 +528,9 @@ function App() {
         {!hideAppChrome && <MemoFab />}
         {!hideAppChrome && <RightDock />}
         {!hideAppChrome && <NotificationToaster />}
-        <PwaInstallBanner />
-        <OpenInAppBanner />
+        {/* PWA/웹 전용 안내 배너 — 네이티브 앱에서는 숨김 (MOBILE_APP_DESIGN §6.6) */}
+        {!isNativeApp() && <PwaInstallBanner />}
+        {!isNativeApp() && <OpenInAppBanner />}
         <BuildVersionGuard />
         <LimitReachedDialog />
         {/* #71 — 공지 배너는 워크스페이스 작업 화면에서만. 랜딩·미리보기·팝아웃 제외 */}
