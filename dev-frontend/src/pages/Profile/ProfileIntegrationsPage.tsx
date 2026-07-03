@@ -192,11 +192,15 @@ const ProfileIntegrationsPage: React.FC = () => {
     };
     // 네이티브: 시스템 브라우저 OAuth 완료 후 앱 복귀(App.tsx appUrlOpen) 시 발행되는 이벤트.
     const onNativeDone = () => { setConnProvider(null); load(); };
+    // 시스템 브라우저가 닫힘(성공/취소 공통) — 연결 중 스피너 해제 (L-4).
+    const onDismiss = () => setConnProvider(null);
     window.addEventListener('message', onMsg);
     window.addEventListener('planq:oauth-connected', onNativeDone);
+    window.addEventListener('planq:oauth-dismissed', onDismiss);
     return () => {
       window.removeEventListener('message', onMsg);
       window.removeEventListener('planq:oauth-connected', onNativeDone);
+      window.removeEventListener('planq:oauth-dismissed', onDismiss);
     };
   }, [load, t]);
 

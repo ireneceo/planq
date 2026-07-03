@@ -8,7 +8,7 @@
 // 웹에서는 native 리스너를 달지 않으므로 회귀 0 (planq:navigate 리스너만, 웹에선 아무도 발행 안 함).
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { isNativeApp } from '../services/native';
+import { isNativeApp, nativePlatform } from '../services/native';
 
 export default function NativeBridge() {
   const navigate = useNavigate();
@@ -39,26 +39,52 @@ export default function NativeBridge() {
             import('@capacitor/app'),
             import('@capacitor/browser'),
           ]);
-          const urlHandle = await App.addListener('appUrlOpen', ({ url }) => {
+          const urlHandle = await App.addListener('appUrlOpen', async ({ url }) => {
             // OAuth 등으로 열려있던 시스템 브라우저 닫기 (열려있지 않으면 no-op).
             Browser.close().catch(() => {});
+            let u: URL;
+            try { u = new URL(url); } catch { return; }
+
+            // ── 네이티브 Google 로그인 code 교환 (H-2) ──
+            //   딥링크로 받은 일회용 code 를 앱 WebView 컨텍스트에서 세션으로 교환 → refresh cookie 심김
+            //   → /inbox 리로드 시 AuthContext bootstrap 이 자동 로그인.
+            if (u.pathname === '/oauth/native-return') {
+              const code = u.searchParams.get('code');
+              if (code) {
+                try {
+                  const r = await fetch('/api/auth/google/native-exchange', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ code, client_kind: nativePlatform() }),
+                  });
+                  if (r.ok) { window.location.href = '/inbox'; return; }
+                } catch { /* fall through */ }
+                window.location.href = '/login?oauth_error=native_exchange';
+              }
+              return;
+            }
+
             // 연동 페이지가 상태를 다시 불러오도록 (idempotent — refetch 만).
             window.dispatchEvent(new CustomEvent('planq:oauth-connected'));
             // 딥링크 경로가 앱 라우트면 이동.
-            try {
-              const u = new URL(url);
-              const path = u.pathname + u.search + u.hash;
-              if (path && !path.startsWith('/api/')) {
-                window.dispatchEvent(new CustomEvent('planq:navigate', { detail: { path } }));
-              }
-            } catch { /* 커스텀 스킴 등 파싱 불가 — 무시 */ }
+            const path = u.pathname + u.search + u.hash;
+            if (path && !path.startsWith('/api/')) {
+              window.dispatchEvent(new CustomEvent('planq:navigate', { detail: { path } }));
+            }
           });
-          // Android 하드웨어 뒤로가기 → SPA 뒤로가기. 히스토리 루트면 앱 종료 (iOS 는 미발화).
-          const backHandle = await App.addListener('backButton', () => {
-            if (window.history.length > 1) window.history.back();
+          // Android 하드웨어 뒤로가기 → WebView 히스토리 있으면 뒤로, 없으면 앱 종료 (iOS 는 미발화).
+          //   canGoBack 은 Capacitor 가 추적하는 WebView 실제 히스토리 (history.length 휴리스틱보다 정확).
+          const backHandle = await App.addListener('backButton', ({ canGoBack }) => {
+            if (canGoBack) window.history.back();
             else App.exitApp();
           });
-          cleanupNative = () => { urlHandle.remove(); backHandle.remove(); };
+          // 시스템 브라우저(OAuth)가 닫히면 — 성공(딥링크 복귀)이든 사용자 취소든 — 연동 페이지의
+          //   "연결 중" 스피너가 영구 잔존하지 않도록 dismiss 이벤트 발행 (L-4).
+          const browserHandle = await Browser.addListener('browserFinished', () => {
+            window.dispatchEvent(new CustomEvent('planq:oauth-dismissed'));
+          });
+          cleanupNative = () => { urlHandle.remove(); backHandle.remove(); browserHandle.remove(); };
         } catch { /* 플러그인 미가용 — 무시 */ }
       })();
     }

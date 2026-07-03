@@ -541,14 +541,12 @@ const LoginPage: React.FC = () => {
           </Form>
 
           {/* OAuth 로그인 (Google) — N+70.
-              네이티브 앱에서는 숨김(H-2): 시스템 브라우저(SFSafariViewController)에서 로그인해도
-              세션 쿠키가 앱 WebView 로 전달되지 않아 "로그인해도 로그인 안 됨". 네이티브 Google 로그인은
-              일회용 code-exchange 흐름 구현(Phase 4+, device-gated) 후 활성화. 그 전엔 이메일 로그인 사용. */}
-          {!isNativeApp() && (<>
+              네이티브 앱: initiate 에 ?client=native → callback 이 일회용 code-exchange 딥링크로 분기(H-2).
+              시스템 브라우저(SFSafariViewController)로 로그인 후 앱 복귀 시 세션이 WebView 에 심긴다. */}
           <OAuthDivider><span>{t('login.or', '또는') as string}</span></OAuthDivider>
           <GoogleBtn
             type="button"
-            onClick={() => { startAuthRedirect('/api/auth/google/initiate'); }}
+            onClick={() => { startAuthRedirect(isNativeApp() ? '/api/auth/google/initiate?client=native' : '/api/auth/google/initiate'); }}
             disabled={isLoading}
             aria-label={t('login.continueWithGoogle', 'Google 로 계속') as string}
           >
@@ -560,7 +558,6 @@ const LoginPage: React.FC = () => {
             </GoogleIcon>
             {t('login.continueWithGoogle', 'Google 로 계속') as string}
           </GoogleBtn>
-          </>)}
 
           {isDev && (
             <DevPanel>

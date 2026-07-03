@@ -10,6 +10,7 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const { User, Business, BusinessMember, OauthConnection, sequelize } = require('../models');
 const googleOauthLogin = require('../services/google_oauth_login');
 // 옛 /login 의 refresh_token cookie 패턴 재사용 (다중 디바이스 + sliding renewal 정합)
@@ -18,11 +19,28 @@ const { createRefreshTokenRow, generateAccessToken, generateRefreshToken, resolv
 
 // connect-confirm token 임시 저장 (5분 만료, in-memory)
 const confirmStash = new Map();
+// 네이티브 OAuth 일회용 code 사용 이력 (jti → exp). 재사용(replay) 차단. 2분 후 정리.
+const usedNativeCodes = new Map();
 setInterval(() => {
+  const now = Date.now();
   for (const [k, v] of confirmStash.entries()) {
-    if (v.exp < Date.now()) confirmStash.delete(k);
+    if (v.exp < now) confirmStash.delete(k);
+  }
+  for (const [k, exp] of usedNativeCodes.entries()) {
+    if (exp < now) usedNativeCodes.delete(k);
   }
 }, 30000);
+
+// 네이티브 앱 OAuth: 시스템 브라우저 세션에 로그인해도 세션 쿠키가 앱 WebView 로 전달되지 않음.
+//   → callback 에서 일회용 code(2분, jti 단일사용) 발급 → 딥링크로 앱 복귀 → 앱이 WebView 컨텍스트에서
+//     /native-exchange 호출 → 그 응답이 refresh cookie 를 앱 WebView 에 심음. (H-2)
+function isNativeOAuth(req) {
+  return req.cookies && req.cookies.oauth_native === '1';
+}
+function issueNativeOAuthCode(user) {
+  const jti = `${user.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return jwt.sign({ uid: user.id, purpose: 'native_oauth', jti }, process.env.JWT_SECRET, { expiresIn: '2m' });
+}
 
 // slug 생성 (옛 /register 패턴)
 function generateSlug(name) {
@@ -120,6 +138,14 @@ router.get('/google/initiate', (req, res) => {
   try {
     if (!process.env.GOOGLE_CLIENT_ID) {
       return res.redirect(302, buildRedirectTarget({ ok: false, error: 'GOOGLE_CLIENT_ID 미설정' }));
+    }
+    // 네이티브 앱에서 시작 시 표시 — callback 이 code-exchange 딥링크로 분기 (H-2). 시스템 브라우저
+    //   세션에 단기 쿠키(같은 브라우저 내 initiate→callback 유지). httpOnly, path=/api/auth.
+    if (req.query.client === 'native') {
+      res.cookie('oauth_native', '1', {
+        httpOnly: true, secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax', path: '/api/auth', maxAge: 10 * 60 * 1000,
+      });
     }
     const { url } = googleOauthLogin.buildAuthUrl();
     return res.redirect(302, url);
@@ -241,12 +267,56 @@ router.get('/google/callback', async (req, res) => {
       return res.redirect(302, buildRedirectTarget({ ok: false, error: 'account_suspended' }));
     }
 
+    // 네이티브 앱: 시스템 브라우저에 쿠키를 심지 말고, 일회용 code 를 딥링크로 앱에 전달 (H-2).
+    if (isNativeOAuth(req)) {
+      res.clearCookie('oauth_native', { path: '/api/auth' });
+      const code = issueNativeOAuthCode(user);
+      return res.redirect(302, `/oauth/native-return?code=${encodeURIComponent(code)}&new=${isNewUser ? '1' : '0'}`);
+    }
+
     // refresh_token cookie 발급 (옛 /login 패턴 정합) — AuthContext 가 mount 시 자동 refresh
     await issueSessionCookie(req, res, user);
     return res.redirect(302, buildRedirectTarget({ ok: true, isNewUser }));
   } catch (e) {
     console.error('[auth_oauth/google/callback]', e);
     return res.redirect(302, buildRedirectTarget({ ok: false, error: e.message || 'oauth_failed' }));
+  }
+});
+
+// 네이티브 앱 OAuth code 교환 (H-2) — 앱 WebView 가 딥링크로 받은 code 를 세션으로 교환.
+//   이 요청은 앱 WebView 에서 오므로 issueSessionCookie 의 refresh cookie 가 WebView 에 심긴다.
+//   응답 후 앱은 window.location='/inbox' 로 리로드 → AuthContext bootstrap 이 cookie 로 자동 로그인.
+// POST /api/auth/google/native-exchange  { code, client_kind? }
+router.post('/google/native-exchange', async (req, res) => {
+  try {
+    const { code, client_kind } = req.body || {};
+    if (!code) return res.status(400).json({ success: false, message: 'code_required' });
+    let payload;
+    try {
+      payload = jwt.verify(String(code), process.env.JWT_SECRET);
+    } catch {
+      return res.status(401).json({ success: false, message: 'invalid_or_expired_code' });
+    }
+    if (!payload || payload.purpose !== 'native_oauth' || !payload.uid || !payload.jti) {
+      return res.status(401).json({ success: false, message: 'invalid_code' });
+    }
+    // 단일 사용 — replay 차단.
+    if (usedNativeCodes.has(payload.jti)) {
+      return res.status(401).json({ success: false, message: 'code_already_used' });
+    }
+    usedNativeCodes.set(payload.jti, (payload.exp || Math.floor(Date.now() / 1000) + 120) * 1000);
+
+    const user = await User.findByPk(payload.uid);
+    if (!user || user.status !== 'active') {
+      return res.status(403).json({ success: false, message: 'account_unavailable' });
+    }
+    // client_kind 를 body 로 전달받아 issueSessionCookie(resolveClientKind) 가 ios/android 365일 세션 발급.
+    if (client_kind) req.body.client_kind = client_kind;
+    await issueSessionCookie(req, res, user);
+    return res.json({ success: true, data: { new_user: false } });
+  } catch (e) {
+    console.error('[auth_oauth/native-exchange]', e);
+    return res.status(500).json({ success: false, message: 'exchange_failed' });
   }
 });
 
