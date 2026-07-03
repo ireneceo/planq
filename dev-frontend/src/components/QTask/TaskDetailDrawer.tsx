@@ -1,6 +1,7 @@
 // 업무 상세 드로어 — 오버레이(position:fixed) 패널.
 // QTaskPage / QProjectDetailPage 양쪽에서 공용. 단일 taskId 를 받아 상세 + 워크플로우
 // (리뷰어/히스토리/댓글/첨부/리치 본문) 를 자체 로드·편집.
+import { downloadBlob } from '../../utils/download';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
@@ -1502,12 +1503,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                             const r = await apiFetch(dl);
                             if (!r.ok) return;
                             const blob = await r.blob();
-                            const url = URL.createObjectURL(blob);
-                            const link = document.createElement('a');
-                            link.href = url; link.download = a.original_name;
-                            document.body.appendChild(link); link.click();
-                            document.body.removeChild(link);
-                            setTimeout(() => URL.revokeObjectURL(url), 1000);
+                            await downloadBlob(blob, a.original_name);
                           } catch { /* silent */ }
                         }}>
                           <CmtAttIcon>{a.original_name.split('.').pop()?.slice(0, 3).toUpperCase() || 'FILE'}</CmtAttIcon>

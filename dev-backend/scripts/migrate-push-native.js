@@ -63,6 +63,17 @@ async function run() {
     console.log('[push-native] INDEX (kind,user_id) 이미 존재 — skip');
   }
 
+  // refresh_tokens.client_kind ENUM 에 ios/android 추가 (네이티브 앱 365일 세션). 멱등.
+  //   누락 시 네이티브 login/refresh 가 client_kind='ios' 저장에서 ENUM 위반 500 (H-3).
+  const [rk] = await sequelize.query("SHOW COLUMNS FROM refresh_tokens LIKE 'client_kind'");
+  const rkType = (rk[0] && rk[0].Type) || '';
+  if (rkType.includes('ios') && rkType.includes('android')) {
+    console.log('[push-native] refresh_tokens.client_kind 이미 확장 — skip');
+  } else {
+    await sequelize.query("ALTER TABLE refresh_tokens MODIFY client_kind ENUM('pwa','web','ios','android') NOT NULL DEFAULT 'web'");
+    console.log('[push-native] refresh_tokens.client_kind → ios/android 확장');
+  }
+
   console.log('[push-native] 완료');
 }
 

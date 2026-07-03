@@ -16,10 +16,17 @@ export default function NativeBridge() {
   useEffect(() => {
     // 공용 — 알림 탭/딥링크가 발행하는 앱 내부 네비게이션 이벤트.
     const onNavigate = (e: Event) => {
-      const path = (e as CustomEvent).detail?.path;
-      if (typeof path === 'string' && path.startsWith('/') && !path.startsWith('/api/')) {
-        navigate(path);
+      let path = (e as CustomEvent).detail?.path;
+      if (typeof path !== 'string') return;
+      // 옛 데이터가 절대 URL 일 수 있음(feedback_legacy_data_sample_verify) — same-origin 이면 path 추출.
+      if (/^https?:\/\//i.test(path)) {
+        try {
+          const u = new URL(path);
+          if (u.origin !== window.location.origin) return;
+          path = u.pathname + u.search + u.hash;
+        } catch { return; }
       }
+      if (path.startsWith('/') && !path.startsWith('/api/')) navigate(path);
     };
     window.addEventListener('planq:navigate', onNavigate);
 

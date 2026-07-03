@@ -6,6 +6,7 @@
 // context='description_attach'. 결과물 영역 첨부와 완전 분리.
 // 권한: description 편집 권한 (작성자/owner/admin) — 사이클 N+5 책임선 일치.
 
+import { downloadBlob } from '../../utils/download';
 import React, { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
@@ -109,12 +110,7 @@ const DescriptionAttachments: React.FC<Props> = ({ taskId, businessId, canEdit, 
       const r = await apiFetch(att.download_url);
       if (!r.ok) return;
       const blob = await r.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url; link.download = att.original_name;
-      document.body.appendChild(link); link.click();
-      document.body.removeChild(link);
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      await downloadBlob(blob, att.original_name);
     } catch { /* silent */ }
   };
 
