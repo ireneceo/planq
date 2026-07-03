@@ -1,17 +1,19 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-07-03
-**작업 상태:** 부분 완료 (트랙 B 코드완료+검증 / 트랙 A·live E2E 다음 섹션) · **운영 미배포**
+**마지막 업데이트:** 2026-07-03 (2차)
+**작업 상태:** 트랙 B(과금) + 트랙 A(보안 하드닝) 코드완료+검증 · live WS E2E(mock)만 남음 · **운영 미배포**
+
+### ✅ 완료 (2026-07-03 2차 세션) — C1 트랙 A 보안 하드닝
+실측 노출 재확인: 외부IP `:3003`→200 · `:8000`→404 (둘 다 인터넷 직접 도달). 3중 방어 적용·검증:
+- **Node** `server.js` → `server.listen(PORT, BIND_HOST, ...)` (`BIND_HOST` env 기본 `127.0.0.1`). pm2 restart.
+- **uvicorn** `--host 127.0.0.1` + `planq-qnote`를 `ecosystem.config.js`에 정식 등록(interpreter=venv python, cwd=/opt/planq/q-note, .env는 main.py load_dotenv 자체 로드). `pm2 delete` 후 ecosystem 재기동 + `pm2 save`.
+- **nginx** `location /api/internal { deny all; }` — **서빙 파일은 `/etc/nginx/sites-enabled/dev.planq.kr`(심링크 아닌 별도 복사본!)** + repo `scripts/nginx-planq.kr.conf`(운영용). ⚠️ 함정: nginx backup 파일을 sites-enabled/ 안에 두면 `include sites-enabled/*`가 중복 로드 → "duplicate listen" emerg. backup은 `/etc/nginx/backups/`로 이동함.
+- **검증 전부 PASS:** 외부IP :3003/:8000 직결 → 000(refused) · nginx health 200 / internal 403(nginx HTML deny, valid key여도 차단) / qnote health 200 · localhost 3003/8000 내부호출 200(q-note→Node key 통과 200) · health-check 29/29 · PM2 둘 다 online.
+- ⚠️ **운영 배포 체크:** 운영 nginx는 3002/8001. q-note `.env` `PLANQ_NODE_BASE_URL`이 운영에선 :3002여야 함. ecosystem `planq-qnote` port는 운영 8001로 조정 필요(현 dev 8000).
 
 ### 진행 중인 작업 (다음 섹션 이어서)
-- **C1 트랙 A — 보안 하드닝** (미착수):
-  - Node `server.js` → `server.listen(PORT, '127.0.0.1', ...)`
-  - uvicorn `--host 127.0.0.1` (ecosystem.config.js에 planq-qnote 앱 정식 등록)
-  - nginx `location /api/internal { deny all; }` — dev site + `scripts/nginx-planq.kr.conf`
-  - 검증: 외부IP `:3003`/`:8000` 직결 실패 + nginx/내부호출 정상 재확인
-  - 실측 근거: ufw inactive, Node/uvicorn 0.0.0.0 바인드 → 외부 도달됨(공유시크릿만 방어)
-- **C1 live WS E2E** — mock WebSocket: 진입 hard-block(quota 4030 / non-member 4031), 5분 flush 롤포워드, 재연결 stream_id 합산. (실 STT 분은 운영 배포 후 샘플)
+- **C1 live WS E2E** — mock WebSocket: 진입 hard-block(quota 4030 / non-member 4031), 5분 flush 롤포워드, 재연결 stream_id 합산. (실 STT 분은 운영 배포 후 샘플. dev는 Deepgram 키 유효 확인됨 → 실녹음도 가능)
 
 ### 완료된 작업 (이번 세션 — 2026-07-03)
 - C1 q-note STT 실분 과금 **트랙 B 코드 전부** (커밋 989b359):
@@ -25,10 +27,10 @@
 - **검증:** usage 멱등/원자/재연결 6/6 PASS · 헬스 29/29(q-note 재시작 후 재검) · 프론트 빌드 EXIT0/TS0 · q-note 재시작 후 세션 CRUD 정상(멤버십 검증 라이브)
 
 ### 다음 할 일
-1. C1 트랙 A 보안 하드닝 (위 상세)
+1. ~~C1 트랙 A 보안 하드닝~~ ✅ 완료 (2026-07-03 2차)
 2. C1 live WS E2E (mock)
 3. cost-guard 남은 것: H-f 잔여 q-note generate-keywords LLM rate-limit + create_session rate-limit (q-note에 slowapi 없음 → 신규 패턴 설계 승인 후)
-4. **운영 배포는 Irene의 명시적 `/배포` 명령 필요** (미푸시분 다수 누적: 이전 세션 cost-guard 3커밋 + 이번 C1)
+4. **운영 배포는 Irene의 명시적 `/배포` 명령 필요** (미푸시분 다수 누적: 이전 세션 cost-guard 3커밋 + C1 트랙B/트랙A)
 
 ---
 
