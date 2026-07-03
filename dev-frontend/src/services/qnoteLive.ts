@@ -69,7 +69,7 @@ export type LiveEvent =
   | LiveReadyEvent
   | LiveErrorEvent
   | { type: 'utterance_end' }
-  | { type: 'closed' };
+  | { type: 'closed'; code?: number };
 
 export interface LiveSessionOptions {
   sessionId: number;
@@ -120,8 +120,9 @@ export class LiveSession {
       } catch { /* ignore malformed */ }
     };
 
-    this.ws.onclose = () => {
-      if (!this.stopped) this.opts.onEvent({ type: 'closed' });
+    this.ws.onclose = (ev) => {
+      // 비용폭탄 C1 — close code 전달 (4030 한도초과 / 4031 비멤버 / 4029 동시녹음 등 UI 안내용).
+      if (!this.stopped) this.opts.onEvent({ type: 'closed', code: ev.code });
     };
 
     this.pcm = new PCMStreamer();

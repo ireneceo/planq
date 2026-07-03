@@ -2,11 +2,15 @@ import asyncio
 import json
 import logging
 import re
+import uuid
 import numpy as np
 import aiosqlite
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from middleware.auth import ws_authenticate
 from services.deepgram_service import DeepgramSession
+from services.billing_client import (
+    check_membership, check_quota, record_usage, alert_flush_failure, billed_seconds,
+)
 from services.database import DB_PATH, connect as db_connect
 from services.llm_service import translate_and_detect_question, detect_question_fast
 from services.answer_service import find_answer as _find_answer, translate_answer_text
@@ -470,6 +474,7 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
   meeting_context: dict | None = None
   allowed_languages: list[str] | None = None
   capture_mode: str = 'microphone'
+  session_business_id: int | None = None  # 비용폭탄 C1 — 과금·멤버십 검증용
   try:
     async with db_connect() as db:
       db.row_factory = aiosqlite.Row
@@ -494,6 +499,7 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
         return
       dg_language = _resolve_deepgram_language(session['meeting_languages'])
       capture_mode = session['capture_mode'] or 'microphone'
+      session_business_id = session['business_id']
 
       # 세션의 allowed languages 파싱 (언어 필터용)
       allowed_languages: list[str] | None = None
@@ -538,6 +544,36 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
   if is_multichannel:
     pending_buffers[1] = _make_pending()
     pending_buffers[1]['channel_index'] = 1
+
+  # 비용폭탄 C1 — Q Note 월 한도 hard-block + 멤버십 재검증 (Deepgram 연결 前 = STT 비용 0 차단).
+  #   membership False = 옛 무검증 세션이 남 business_id 로 녹음(Fable BLOCK2) → 4031.
+  #   quota ok:false = 월 분 한도 초과 → 4030. Node 미도달/시크릿 미설정(None) → fail-open(로그).
+  if session_business_id is not None:
+    _member = await check_membership(user['user_id'], session_business_id)
+    if _member is False:
+      try:
+        await websocket.send_json({'type': 'error', 'message': 'not_workspace_member'})
+      except Exception:
+        pass
+      try:
+        await websocket.close(code=4031)
+      except Exception:
+        pass
+      return
+    _quota = await check_quota(session_business_id, seconds=1)
+    if _quota is not None and _quota.get('ok') is False:
+      try:
+        await websocket.send_json({
+          'type': 'error', 'message': 'qnote_quota_exceeded',
+          'reason': _quota.get('reason'), 'limit': _quota.get('limit'), 'current': _quota.get('current'),
+        })
+      except Exception:
+        pass
+      try:
+        await websocket.close(code=4030)
+      except Exception:
+        pass
+      return
 
   # 회의 컨텍스트 기반 Deepgram keyword boosting.
   # 사용자가 검토한 session.keywords 를 우선 + _extract_keywords(브리프 고유명사) 로 보강.
@@ -820,6 +856,33 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
   chunks_received = 0
   last_log_time = asyncio.get_event_loop().time()
   stream_start = last_log_time
+  # 비용폭탄 C1 — 과금 flush 상태. stream_id 는 연결마다 UUID(재연결 시 새 키 → 유실·이중집계 0).
+  stream_id = str(uuid.uuid4())
+  segment_seq = 0
+  flushed_bytes = 0
+  last_flush_time = last_log_time
+  flush_fail_streak = 0
+  should_stop = False
+  FLUSH_INTERVAL_SEC = 300.0  # 5분
+
+  async def _do_flush(seq: int, delta_bytes: int, secs: int):
+    """usage 세그먼트 기록(비차단). 성공 시에만 flushed_bytes/seq 전진 → 실패 시 다음 flush 가
+       같은 seq 로 더 큰 delta 재전송(멱등키가 중복 흡수, 유실 0). 성공 후 한도 재검사 graceful stop."""
+    nonlocal flushed_bytes, segment_seq, flush_fail_streak, should_stop
+    okf = await record_usage(stream_id, seq, session_id, session_business_id, user['user_id'], secs, is_multichannel)
+    if okf:
+      flushed_bytes += delta_bytes
+      segment_seq = seq + 1
+      flush_fail_streak = 0
+      q = await check_quota(session_business_id, seconds=1)
+      if q is not None and q.get('ok') is False:
+        should_stop = True
+    else:
+      flush_fail_streak += 1
+      logger.error(f'[billing] usage flush failed session={session_id} seq={seq} streak={flush_fail_streak}')
+      if flush_fail_streak >= 3:
+        asyncio.create_task(alert_flush_failure(
+          user['user_id'], session_business_id, f'session {session_id} flush x{flush_fail_streak}'))
   # 비용폭탄 C1 재게이트(2026-07-03) — 예약 증가 + Deepgram 연결 + 오디오 루프를 하나의 try 로 감싼다.
   #   위 >=MAX 체크와 아래 첫 증가(atomic increment) 사이엔 await 없음. 이 try 의 finally 가
   #   return·Exception·BaseException(CancelledError) 어디로 빠지든 예약분을 정확히 1회 해제 →
@@ -861,6 +924,14 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
     # 'ready' 는 예약·연결 확정 후 최초 신호 — 이 try 안이라 전송 중 클라이언트 이탈도 finally 가 커버.
     await websocket.send_json({'type': 'ready', 'language': dg_language})
     while True:
+      # 비용폭탄 C1 — 세션 도중 월 한도 초과(flush 재검사에서 감지) 시 graceful stop.
+      if should_stop:
+        try:
+          await websocket.send_json({'type': 'error', 'message': 'qnote_quota_exceeded'})
+        except Exception:
+          pass
+        break
+
       message = await websocket.receive()
 
       if message.get('type') == 'websocket.disconnect':
@@ -885,6 +956,13 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
             f'bytes={bytes_received} (~{bytes_received / 32000:.1f}s mono16k)'
           )
           last_log_time = now
+        # 비용폭탄 C1 — 5분마다 usage flush (비차단 create_task, 오디오 파이프 정지 방지).
+        if now - last_flush_time >= FLUSH_INTERVAL_SEC:
+          _delta = bytes_received - flushed_bytes
+          if _delta > 0:
+            _secs = int(round(billed_seconds(_delta, is_multichannel)))
+            asyncio.create_task(_do_flush(segment_seq, _delta, _secs))
+          last_flush_time = now
         audio_buf.append(chunk)
         await dg.send_audio(chunk)
       elif 'text' in message and message['text'] is not None:
@@ -907,6 +985,19 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
           _active_live_streams.pop(_uid_for_stream, None)
       except Exception:
         pass
+    # 비용폭탄 C1 — 종료 시 잔여 사용량 최종 flush (await, 유실 방지). 예약된 스트림만.
+    if stream_reserved and session_business_id is not None:
+      try:
+        _remaining = bytes_received - flushed_bytes
+        if _remaining > 0:
+          _fsecs = int(round(billed_seconds(_remaining, is_multichannel)))
+          _okf = await record_usage(
+            stream_id, segment_seq, session_id, session_business_id,
+            user['user_id'], _fsecs, is_multichannel)
+          if not _okf:
+            logger.error(f'[billing] FINAL flush failed session={session_id} seq={segment_seq} bytes={_remaining}')
+      except Exception as _e:
+        logger.error(f'[billing] final flush error: {_e}')
     # WS 종료 시 모든 채널 버퍼 강제 flush — 사용자가 문장 중간에 일시중지/종료한 경우 drop 방지
     for ch_key in list(pending_buffers.keys()):
       try:

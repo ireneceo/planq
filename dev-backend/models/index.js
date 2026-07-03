@@ -50,6 +50,7 @@ const BusinessStorageUsage = require('./BusinessStorageUsage');
 const OpsCapacityLog = require('./OpsCapacityLog');
 const BusinessCloudToken = require('./BusinessCloudToken');
 const QnoteUsage = require('./QnoteUsage');
+const QnoteUsageEvent = require('./QnoteUsageEvent');
 const BusinessPlanHistory = require('./BusinessPlanHistory');
 const Post = require('./Post');
 const PostAttachment = require('./PostAttachment');
@@ -244,6 +245,10 @@ Business.hasMany(BusinessCloudToken, { as: 'cloudTokens', foreignKey: 'business_
 // QnoteUsage
 QnoteUsage.belongsTo(Business, { foreignKey: 'business_id' });
 Business.hasMany(QnoteUsage, { as: 'qnoteUsage', foreignKey: 'business_id' });
+
+// QnoteUsageEvent (STT 과금 멱등 원장)
+QnoteUsageEvent.belongsTo(Business, { foreignKey: 'business_id' });
+Business.hasMany(QnoteUsageEvent, { as: 'qnoteUsageEvents', foreignKey: 'business_id' });
 
 // BusinessPlanHistory
 BusinessPlanHistory.belongsTo(Business, { foreignKey: 'business_id' });
@@ -492,6 +497,7 @@ module.exports = {
   OpsCapacityLog,
   BusinessCloudToken,
   QnoteUsage,
+  QnoteUsageEvent,
   BusinessPlanHistory,
   Post,
   PostAttachment,

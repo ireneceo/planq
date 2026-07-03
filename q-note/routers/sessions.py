@@ -23,6 +23,7 @@ from services.voice_fingerprint import (
 )
 from services.answer_service import find_answer, translate_answer_text
 from services.llm_service import generate_vocabulary_list
+from services.billing_client import check_membership
 from services.qa_generator import generate_qa_for_session, generate_qa_for_document, log_task_exception as qa_log_task_exception
 
 router = APIRouter(prefix='/api/sessions', tags=['sessions'])
@@ -670,6 +671,12 @@ async def create_session(body: CreateSessionRequest, user: dict = Depends(get_cu
   _validate_capture_mode(body.capture_mode)
   _validate_input_type(body.input_type)
   _validate_body(body.body)
+
+  # 비용폭탄 C1 — business_id 소유권 검증. 무검증 저장 시 남 워크스페이스로 과금·오염(Fable BLOCK2).
+  #   Node 미도달/시크릿 미설정(None) → fail-open. 정의적 non-member 만 403.
+  _member = await check_membership(user['user_id'], body.business_id)
+  if _member is False:
+    raise HTTPException(status_code=403, detail='not a member of this workspace')
 
   input_type = body.input_type or 'voice'
   is_text = input_type == 'text'

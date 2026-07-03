@@ -758,6 +758,17 @@ const QNotePage = () => {
     }
   };
 
+  // 비용폭탄 C1 — 서버 error 코드 → 사용자 안내(i18n). 미매핑 코드는 원문 유지.
+  const liveErrorText = useCallback((msg: string): string => {
+    const map: Record<string, string> = {
+      qnote_quota_exceeded: 'page.errors.quotaExceeded',
+      not_workspace_member: 'page.errors.notMember',
+      too_many_active_recordings: 'page.errors.tooManyRecordings',
+      session_time_limit: 'page.errors.sessionTimeLimit',
+    };
+    return map[msg] ? (t(map[msg]) as string) : msg;
+  }, [t]);
+
   // ── WebSocket 이벤트 핸들러 ───────────────────────────
   const handleLiveEvent = useCallback((ev: LiveEvent) => {
     if (ev.type === 'transcript') {
@@ -891,15 +902,22 @@ const QNotePage = () => {
     }
 
     if (ev.type === 'error') {
-      setLiveError(ev.message);
+      setLiveError(liveErrorText(ev.message));
       return;
     }
 
     if (ev.type === 'closed') {
+      // 비용폭탄 C1 — 서버가 error JSON 을 close 전에 flush 못한 경우 대비, close code 로도 안내.
+      const codeKey: Record<number, string> = {
+        4030: 'page.errors.quotaExceeded',
+        4031: 'page.errors.notMember',
+        4029: 'page.errors.tooManyRecordings',
+      };
+      if (ev.code && codeKey[ev.code]) setLiveError(t(codeKey[ev.code]) as string);
       setPhase((p) => (p === 'recording' ? 'paused' : p));
       return;
     }
-  }, [commitPendingAsBlock]);
+  }, [commitPendingAsBlock, liveErrorText, t]);
 
   // ── 녹음 시작 ──────────────────────────────────────────
   const startRecording = async () => {

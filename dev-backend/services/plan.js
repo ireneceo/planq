@@ -182,21 +182,27 @@ async function getCueActionsByTypeThisMonth(businessId) {
   }
 }
 
-async function getQnoteMinutesThisMonth(businessId) {
-  // QnoteUsage 월 집계 테이블 조회.
-  // Python Q Note 서비스가 세션 종료 시 POST /api/qnote/usage 로 누적 기록 (TODO 연동)
+async function getQnoteSecondsThisMonth(businessId) {
+  // QnoteUsage.seconds_used 가 source of truth (초 단위 — 분 반올림 유실 차단).
+  // q-note live.py 가 5분마다 POST /api/internal/qnote/usage 로 누적 (C1, 2026-07-03).
   const now = new Date();
   const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   try {
     const row = await QnoteUsage.findOne({
       where: { business_id: businessId, year_month: ym },
-      attributes: ['minutes_used']
+      attributes: ['seconds_used']
     });
-    return row ? row.minutes_used : 0;
+    return row ? Number(row.seconds_used || 0) : 0;
   } catch (e) {
-    console.error('[plan] getQnoteMinutesThisMonth failed:', e.message);
+    console.error('[plan] getQnoteSecondsThisMonth failed:', e.message);
     return 0;
   }
+}
+
+async function getQnoteMinutesThisMonth(businessId) {
+  // 표시용 — seconds_used 에서 파생(floor). getUsage() 요약 등에서 사용.
+  const seconds = await getQnoteSecondsThisMonth(businessId);
+  return Math.floor(seconds / 60);
 }
 
 /**
@@ -274,10 +280,13 @@ async function can(businessId, action, ctx = {}) {
       return { ok: true };
     }
     case 'use_qnote': {
-      const minutes = Number(ctx.minutes || 1);
-      const cur = await getQnoteMinutesThisMonth(businessId);
-      if (cur + minutes > limits.qnote_minutes_monthly) {
-        return { ok: false, reason: 'qnote_quota_exceeded', limit: limits.qnote_minutes_monthly, current: cur };
+      // ctx.seconds 우선(정밀). 없으면 ctx.minutes(기본 1) → 초 환산. 한도는 분 단위라 *60 비교.
+      const neededSeconds = ctx.seconds != null ? Number(ctx.seconds) : Number(ctx.minutes || 1) * 60;
+      const curSeconds = await getQnoteSecondsThisMonth(businessId);
+      const limitMinutes = limits.qnote_minutes_monthly;
+      const limitSeconds = limitMinutes === Infinity ? Infinity : limitMinutes * 60;
+      if (curSeconds + neededSeconds > limitSeconds) {
+        return { ok: false, reason: 'qnote_quota_exceeded', limit: limitMinutes, current: Math.floor(curSeconds / 60) };
       }
       return { ok: true };
     }
