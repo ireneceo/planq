@@ -330,7 +330,9 @@ restart_server() {
       if pm2 describe $PM2_QNOTE > /dev/null 2>&1; then
         pm2 reload $PM2_QNOTE
       else
-        pm2 start $PROD_QNOTE/venv/bin/uvicorn --name $PM2_QNOTE --interpreter $PROD_QNOTE/venv/bin/python -- main:app --host 0.0.0.0 --port 8001 --app-dir $PROD_QNOTE
+        # 보안 하드닝(C1 트랙A): 127.0.0.1 바인드 — q-note 를 인터넷에 직접 노출하지 않음.
+        # nginx(/qnote/→localhost:8001)·Node(→localhost:8001) 내부통신 무해. 최초 기동 시 적용.
+        pm2 start $PROD_QNOTE/venv/bin/uvicorn --name $PM2_QNOTE --interpreter $PROD_QNOTE/venv/bin/python -- main:app --host 127.0.0.1 --port 8001 --app-dir $PROD_QNOTE
       fi
     fi
     pm2 save
