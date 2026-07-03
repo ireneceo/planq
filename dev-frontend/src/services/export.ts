@@ -1,6 +1,7 @@
 // #63 데이터 내보내기 — 본인 L1 자료 / 워크스페이스 백업 zip.
 // blob 다운로드는 files.ts bulkDownloadZip 패턴 재사용.
 import { apiFetch } from '../contexts/AuthContext';
+import { downloadBlob } from '../utils/download';
 
 export interface ExportPreview {
   files: number;
@@ -30,13 +31,7 @@ async function downloadZip(path: string, fileName: string): Promise<{ ok: boolea
     return { ok: false, message: j.message || `http_${r.status}` };
   }
   const blob = await r.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 100);
+  await downloadBlob(blob, fileName);
   return { ok: true };
 }
 
@@ -128,10 +123,6 @@ async function downloadZipGet(path: string, fileName: string): Promise<{ ok: boo
   const r = await apiFetch(path);
   if (!r.ok) { const j = await r.json().catch(() => ({})); return { ok: false, message: j.message || `http_${r.status}` }; }
   const blob = await r.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = fileName;
-  document.body.appendChild(a); a.click();
-  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 100);
+  await downloadBlob(blob, fileName);
   return { ok: true };
 }

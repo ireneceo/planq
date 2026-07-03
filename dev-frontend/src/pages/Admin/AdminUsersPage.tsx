@@ -1,6 +1,7 @@
 // platform_admin 사용자 관리 — 검색·사칭·데이터 export
 // 라우트: /admin/users
 import { useEffect, useState, useCallback } from 'react';
+import { downloadBlob } from '../../utils/download';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import PageShell from '../../components/Layout/PageShell';
@@ -66,12 +67,7 @@ const AdminUsersPage = () => {
       if (!j.success) throw new Error(j.message || 'failed');
       // JSON 다운로드
       const blob = new Blob([JSON.stringify(j.data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `planq-user-${target.id}-data-${new Date().toISOString().slice(0,10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
+      await downloadBlob(blob, `planq-user-${target.id}-data-${new Date().toISOString().slice(0,10)}.json`);
     } catch (e) {
       console.warn('export failed', e);
     }

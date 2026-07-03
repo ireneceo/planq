@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
+import { downloadBlob } from '../../utils/download';
 import { createPortal } from 'react-dom';
 import styled, { css } from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -705,12 +706,7 @@ const ChatPanel: React.FC<Props> = ({
       const res = await apiFetch(`/api/message-attachments/${attId}/download`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = filename;
-      document.body.appendChild(a); a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      await downloadBlob(blob, filename);
     } catch (e) {
       console.error('[downloadAttachment]', e);
     }

@@ -1,5 +1,6 @@
 // Q Bill 청구서 API 클라이언트
 import { apiFetch } from '../contexts/AuthContext';
+import { downloadBlob } from '../utils/download';
 
 // ─── 타입 ───
 export type InvoiceStatus = 'draft' | 'sent' | 'partially_paid' | 'paid' | 'overdue' | 'canceled';
@@ -417,14 +418,7 @@ export async function downloadInvoicePdf(businessId: number, invoiceId: number, 
     throw new Error(msg);
   }
   const blob = await r.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${filename || 'invoice'}.pdf`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  await downloadBlob(blob, `${filename || 'invoice'}.pdf`);
 }
 
 export async function cancelInstallment(

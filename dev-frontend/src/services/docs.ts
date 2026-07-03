@@ -1,6 +1,7 @@
 // Q docs 서비스 — 문서·템플릿 통합 시스템
 // 백엔드: /api/docs/templates · /api/docs/documents
 import { apiFetch } from '../contexts/AuthContext';
+import { downloadBlob } from '../utils/download';
 
 export type DocKind =
   | 'quote' | 'invoice' | 'tax_invoice' | 'contract' | 'nda'
@@ -104,14 +105,7 @@ export async function downloadDocumentPdf(id: number, title: string): Promise<vo
     throw new Error(msg);
   }
   const blob = await r.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${title || 'document'}.pdf`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  await downloadBlob(blob, `${title || 'document'}.pdf`);
 }
 
 export async function createDocument(payload: {
