@@ -10,7 +10,9 @@ QnoteUsage.init({
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   business_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'businesses', key: 'id' } },
   year_month: { type: DataTypes.STRING(7), allowNull: false },  // 'YYYY-MM'
-  minutes_used: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+  // seconds_used 가 source of truth — 초 단위로 누적해 분 반올림 유실(0.4분 조각 유실) 차단.
+  seconds_used: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+  minutes_used: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },  // FLOOR(seconds/60) 표시용(하위호환)
   session_count: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
   cost_usd: { type: DataTypes.DECIMAL(10, 4), allowNull: false, defaultValue: 0 },
 }, {
