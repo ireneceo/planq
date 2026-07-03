@@ -105,12 +105,14 @@ router.post('/:taskId/attachments',
         }
       }
 
-      // 비용폭탄 H4 — 자체 스토리지(planq) 시 플랜 크기한도 + 총 쿼터 강제 (기존엔 검사 전무 = 무한 업로드).
-      //   Drive 로 라우팅될 파일은 external 로 5GB 상한만.
+      // 비용폭탄 재게이트(2026-07-03) — 자체(planq) 저장분은 플랜 크기한도 + 총 쿼터를 강제.
+      //   Drive 로 라우팅될 파일은 external(5GB 단일 상한)만. 단, Drive 업로드가 실패해 로컬로
+      //   폴백하면 반드시 planq 기준으로 재검증한다(폴백분이 크기·쿼터를 우회하던 구멍 차단).
+      const planEngine = require('../services/plan');
+      const { reservePlanqUpload, releasePlanqUpload } = require('../services/storageUsage');
+      const attachCloud = await BusinessCloudToken.findOne({ where: { business_id: req._task.business_id, provider: 'gdrive' } });
+      const willUseDrive = !!(attachCloud && attachCloud.root_folder_id && req._task.project_id);
       {
-        const planEngine = require('../services/plan');
-        const attachCloud = await BusinessCloudToken.findOne({ where: { business_id: req._task.business_id, provider: 'gdrive' } });
-        const willUseDrive = !!(attachCloud && attachCloud.root_folder_id && req._task.project_id);
         const canUp = await planEngine.can(req._task.business_id, 'upload_file', { size: req.file.size, external: willUseDrive });
         if (!canUp.ok) {
           try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
@@ -129,15 +131,12 @@ router.post('/:taskId/attachments',
       let finalFilePath = path.relative(path.join(__dirname, '..'), req.file.path).replace(/\\/g, '/');
       let finalStoredName = path.basename(req.file.path);
 
-      const cloudToken = await BusinessCloudToken.findOne({
-        where: { business_id: req._task.business_id, provider: 'gdrive' }
-      });
-      if (cloudToken && cloudToken.root_folder_id && req._task.project_id) {
+      if (willUseDrive) {
         try {
           const project = await Project.findByPk(req._task.project_id);
           if (project) {
-            const drive = await gdrive.getDriveClient(cloudToken);
-            const projectFolderId = await gdrive.ensureProjectFolder(drive, cloudToken, project);
+            const drive = await gdrive.getDriveClient(attachCloud);
+            const projectFolderId = await gdrive.ensureProjectFolder(drive, attachCloud, project);
             const driveFile = await gdrive.uploadFile(drive, {
               name: decodeOriginalName(req.file.originalname), mimeType: req.file.mimetype,
               body: fs.createReadStream(req.file.path), parentId: projectFolderId
@@ -148,41 +147,68 @@ router.post('/:taskId/attachments',
             finalFilePath = driveFile.id;
             finalStoredName = driveFile.id;
             fs.unlinkSync(req.file.path);
-            gdrive.clearTokenError(cloudToken);
+            gdrive.clearTokenError(attachCloud);
           }
         } catch (e) {
           console.error('[task_attachments] external upload failed:', e.message);
-          gdrive.recordTokenError(cloudToken, e);
-          // 실패 시 로컬 유지
+          gdrive.recordTokenError(attachCloud, e);
+          // 실패 시 로컬 유지 — 아래에서 planq 기준으로 재검증.
         }
       }
 
-      const att = await TaskAttachment.create({
-        business_id: req._task.business_id,
-        task_id: req._task.id,
-        comment_id: commentId,
-        context,
-        original_name: decodeOriginalName(req.file.originalname),
-        stored_name: finalStoredName,
-        file_path: finalFilePath,
-        file_size: req.file.size,
-        mime_type: req.file.mimetype,
-        uploaded_by: req.user.id,
-        storage_provider: storageProvider,
-        external_id: externalId,
-        external_url: externalUrl,
-      });
-
-      // 비용폭탄 H4 — 자체 스토리지 저장분만 워크스페이스 총 사용량 집계 (Drive 는 외부라 skip).
-      if (att.storage_provider === 'planq') {
+      // 자체 저장(planq)으로 확정된 경우(비-Drive 이거나 Drive 폴백) — 크기 재검증 + race-safe 쿼터 예약.
+      if (storageProvider === 'planq') {
+        if (willUseDrive) {
+          // 위 early check 는 external:true(5GB 상한)로 통과 → 플랜 파일크기 한도가 미검증 상태.
+          //   Drive 폴백분은 로컬에 남으므로 planq 기준으로 다시 막는다(finding 3).
+          const localCheck = await planEngine.can(req._task.business_id, 'upload_file', { size: req.file.size, external: false });
+          if (!localCheck.ok) {
+            try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
+            if (localCheck.reason === 'file_size_exceeded') {
+              const limitMB = Math.round((localCheck.limit || 0) / 1024 / 1024);
+              return errorResponse(res, `파일이 너무 큽니다. 현재 플랜에서 ${limitMB}MB 까지 가능해요 (Google Drive 업로드 실패로 로컬 저장).`, 413);
+            }
+            return errorResponse(res, '워크스페이스 저장 용량을 초과했어요. 파일을 정리하거나 플랜을 올려주세요.', 413);
+          }
+        }
+        let reserved;
         try {
-          const { BusinessStorageUsage } = require('../models');
-          await BusinessStorageUsage.findOrCreate({
-            where: { business_id: req._task.business_id },
-            defaults: { business_id: req._task.business_id, bytes_used: 0, file_count: 0, storage_provider: 'planq' },
-          });
-          await BusinessStorageUsage.increment({ bytes_used: req.file.size, file_count: 1 }, { where: { business_id: req._task.business_id } });
-        } catch (e) { console.warn('[task-attach] usage increment failed', e.message); }
+          reserved = await reservePlanqUpload(req._task.business_id, req.file.size);
+        } catch (e) {
+          // 예약 자체가 실패(락 경합 재시도 소진 등) → 임시파일 정리 후 재던짐(집계 오염 없음).
+          try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
+          throw e;
+        }
+        if (!reserved.ok) {
+          try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
+          return errorResponse(res, '워크스페이스 저장 용량을 초과했어요. 파일을 정리하거나 플랜을 올려주세요.', 413);
+        }
+      }
+
+      let att;
+      try {
+        att = await TaskAttachment.create({
+          business_id: req._task.business_id,
+          task_id: req._task.id,
+          comment_id: commentId,
+          context,
+          original_name: decodeOriginalName(req.file.originalname),
+          stored_name: finalStoredName,
+          file_path: finalFilePath,
+          file_size: req.file.size,
+          mime_type: req.file.mimetype,
+          uploaded_by: req.user.id,
+          storage_provider: storageProvider,
+          external_id: externalId,
+          external_url: externalUrl,
+        });
+      } catch (e) {
+        // 레코드 생성 실패 → planq 예약분 반환(집계 정합). Drive 저장분은 외부라 반환 대상 아님.
+        if (storageProvider === 'planq') {
+          await releasePlanqUpload(req._task.business_id, req.file.size).catch(() => {});
+          try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
+        }
+        throw e;
       }
 
       return successResponse(res, {
@@ -379,7 +405,7 @@ router.delete('/attachments/:id', authenticateToken, async (req, res, next) => {
     }
 
     if (att.storage_provider === 'gdrive' && att.external_id) {
-      // Drive 파일 삭제 (실패해도 DB 는 제거)
+      // Drive 파일 삭제 (실패해도 DB 는 제거). 외부 저장이라 planq 쿼터 미차감.
       try {
         const cloudToken = await BusinessCloudToken.findOne({ where: { business_id: att.business_id, provider: 'gdrive' } });
         if (cloudToken) {
@@ -388,8 +414,24 @@ router.delete('/attachments/:id', authenticateToken, async (req, res, next) => {
         }
       } catch (e) { console.error('[task_attachments] gdrive delete failed:', e.message); }
     } else {
-      const abs = path.join(__dirname, '..', att.file_path);
-      try { if (fs.existsSync(abs)) fs.unlinkSync(abs); } catch (_) { /* ignore */ }
+      // 비용폭탄 재게이트(2026-07-03) — 자체(planq) 저장분. 같은 물리 파일을 참조하는 다른 행이
+      //   없을 때만(단독 소유) 물리 삭제 + 쿼터 반환한다. files.js 의 siblings 정책과 동일.
+      //   · Q File 링크 첨부(/attachments/link)는 File 행이 물리파일·쿼터를 소유 → 여기서 차감하면
+      //     double-decrement. 반대로 업로드가 증가만 하고 삭제가 반환 안 하면 단조증가 → 업로드 잠금(BLOCKER).
+      const { Op } = require('sequelize');
+      const { releasePlanqUpload } = require('../services/storageUsage');
+      const [fileRefs, attRefs] = await Promise.all([
+        File.count({ where: { file_path: att.file_path, deleted_at: null } }),
+        TaskAttachment.count({ where: { file_path: att.file_path, id: { [Op.ne]: att.id } } }),
+      ]);
+      const soleOwner = (fileRefs === 0 && attRefs === 0);
+      if (soleOwner) {
+        const abs = path.join(__dirname, '..', att.file_path);
+        try { if (fs.existsSync(abs)) fs.unlinkSync(abs); } catch (_) { /* ignore */ }
+        await releasePlanqUpload(att.business_id, att.file_size).catch((e) => {
+          console.warn('[task-attach] usage release failed', e.message);
+        });
+      }
     }
     await att.destroy();
     return successResponse(res, { id: Number(req.params.id), deleted: true });

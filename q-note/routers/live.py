@@ -798,47 +798,68 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
 
     # 그 외 이벤트 (interim transcript, metadata 등) 는 위에서 프론트로 전달만 하고 종료.
 
-  # Connect to Deepgram with keyword boosting → 실패 시 키워드 없이 재시도
-  dg = DeepgramSession(
-    language=dg_language, on_transcript=on_transcript,
-    keywords=dg_keywords, multichannel=is_multichannel,
-  )
-  logger.info(f'WS live: connecting Deepgram lang={dg_language} multichannel={is_multichannel} keywords={len(dg_keywords)}')
-  try:
-    await dg.connect()
-    logger.info(f'WS live: Deepgram connected OK session={session_id}')
-  except Exception as e:
-    logger.warning(f'Deepgram connect failed with keywords ({len(dg_keywords)}), retrying without: {e}')
-    dg = DeepgramSession(
-      language=dg_language, on_transcript=on_transcript,
-      keywords=[], multichannel=is_multichannel,
-    )
+  # 비용폭탄 C1 재게이트(2026-07-03) — per-user 동시 STT 스트림 원자적 예약을 Deepgram 연결 "전"에 둔다.
+  #   (직전 버전은 491 에서 비권위적 체크만 하고 dg.connect 이후 증가 → N개 동시 연결이 모두 체크를
+  #    통과해 Deepgram 스트림을 N개 열고 나서야 거부됐음. 이제 연결 전에 상한을 확정한다.)
+  #   체크와 증가 사이 await 없음 → race-safe. main try/finally 가 stream_reserved flag 로 해제.
+  _uid_for_stream = user['user_id']
+  stream_reserved = False
+  if _active_live_streams.get(_uid_for_stream, 0) >= MAX_LIVE_STREAMS_PER_USER:
     try:
-      await dg.connect()
-      logger.info(f'WS live: Deepgram connected OK session={session_id} (retry without keywords)')
-    except Exception as e2:
-      logger.error(f'Failed to connect to Deepgram (retry without keywords): {e2}')
-      try:
-        await websocket.send_json({'type': 'error', 'message': f'STT connection failed: {str(e2)}'})
-      except Exception:
-        pass
-      try:
-        await websocket.close(code=1011)
-      except Exception:
-        pass
-      return
-
-  await websocket.send_json({'type': 'ready', 'language': dg_language})
-
+      await websocket.send_json({'type': 'error', 'message': 'too_many_active_recordings'})
+    except Exception:
+      pass
+    try:
+      await websocket.close(code=4029)
+    except Exception:
+      pass
+    return
   # Pipe audio from client to Deepgram
+  dg = None  # 연결 전 None → finally 의 dg.close 가드용(연결 실패 시에도 안전)
   bytes_received = 0
   chunks_received = 0
   last_log_time = asyncio.get_event_loop().time()
-  # 비용폭탄 C1 — 스트림 등록(동시성 카운트) + 세션 시작시각(최장시간 캡). finally 에서 해제.
   stream_start = last_log_time
-  _uid_for_stream = user['user_id']
-  _active_live_streams[_uid_for_stream] = _active_live_streams.get(_uid_for_stream, 0) + 1
+  # 비용폭탄 C1 재게이트(2026-07-03) — 예약 증가 + Deepgram 연결 + 오디오 루프를 하나의 try 로 감싼다.
+  #   위 >=MAX 체크와 아래 첫 증가(atomic increment) 사이엔 await 없음. 이 try 의 finally 가
+  #   return·Exception·BaseException(CancelledError) 어디로 빠지든 예약분을 정확히 1회 해제 →
+  #   연결(await dg.connect()) 도중 취소돼도 카운터 누수(영구 too_many_active_recordings 잠금) 없음.
   try:
+    _active_live_streams[_uid_for_stream] = _active_live_streams.get(_uid_for_stream, 0) + 1
+    stream_reserved = True
+
+    # Connect to Deepgram with keyword boosting → 실패 시 키워드 없이 재시도
+    dg = DeepgramSession(
+      language=dg_language, on_transcript=on_transcript,
+      keywords=dg_keywords, multichannel=is_multichannel,
+    )
+    logger.info(f'WS live: connecting Deepgram lang={dg_language} multichannel={is_multichannel} keywords={len(dg_keywords)}')
+    try:
+      await dg.connect()
+      logger.info(f'WS live: Deepgram connected OK session={session_id}')
+    except Exception as e:
+      logger.warning(f'Deepgram connect failed with keywords ({len(dg_keywords)}), retrying without: {e}')
+      dg = DeepgramSession(
+        language=dg_language, on_transcript=on_transcript,
+        keywords=[], multichannel=is_multichannel,
+      )
+      try:
+        await dg.connect()
+        logger.info(f'WS live: Deepgram connected OK session={session_id} (retry without keywords)')
+      except Exception as e2:
+        logger.error(f'Failed to connect to Deepgram (retry without keywords): {e2}')
+        try:
+          await websocket.send_json({'type': 'error', 'message': f'STT connection failed: {str(e2)}'})
+        except Exception:
+          pass
+        try:
+          await websocket.close(code=1011)
+        except Exception:
+          pass
+        return  # finally 가 예약분 해제 + dg.close 가드 수행 (별도 인라인 해제 불필요)
+
+    # 'ready' 는 예약·연결 확정 후 최초 신호 — 이 try 안이라 전송 중 클라이언트 이탈도 finally 가 커버.
+    await websocket.send_json({'type': 'ready', 'language': dg_language})
     while True:
       message = await websocket.receive()
 
@@ -878,13 +899,14 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
   except Exception as e:
     logger.error(f'WS error: {e}')
   finally:
-    # 비용폭탄 C1 — 동시성 카운트 해제.
-    try:
-      _active_live_streams[_uid_for_stream] = max(0, _active_live_streams.get(_uid_for_stream, 1) - 1)
-      if _active_live_streams.get(_uid_for_stream, 0) == 0:
-        _active_live_streams.pop(_uid_for_stream, None)
-    except Exception:
-      pass
+    # 비용폭탄 C1 — 예약한 경우에만 동시성 카운트 해제(예약 실패/거부 시 오차감·음수 방지).
+    if stream_reserved:
+      try:
+        _active_live_streams[_uid_for_stream] = max(0, _active_live_streams.get(_uid_for_stream, 1) - 1)
+        if _active_live_streams.get(_uid_for_stream, 0) == 0:
+          _active_live_streams.pop(_uid_for_stream, None)
+      except Exception:
+        pass
     # WS 종료 시 모든 채널 버퍼 강제 flush — 사용자가 문장 중간에 일시중지/종료한 경우 drop 방지
     for ch_key in list(pending_buffers.keys()):
       try:
@@ -892,7 +914,12 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
       except Exception as e:
         logger.warning(f'final flush ch={ch_key} failed: {e}')
 
-    await dg.close()
+    # dg 는 연결 실패 시 연결 안 된 채로, 혹은 예약 직후 연결 전 취소 시 None 일 수 있음 → 가드.
+    if dg is not None:
+      try:
+        await dg.close()
+      except Exception:
+        pass
     # WS 종료 시 상태 전이: recording → paused (pause/중단/탭닫힘 어떤 경우든 재개 가능 상태로).
     # completed 는 명시적 PUT status='completed' 로만 전이 → 여기서 건드리지 않음.
     # 이로써 사용자가 녹음 중 브라우저를 닫거나 네트워크가 끊겨도 다음 접속 시 올바른 상태 복원.
