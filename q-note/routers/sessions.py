@@ -82,6 +82,7 @@ UPLOADS_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB per file
 MAX_URL_LIST = 20
 MAX_PARTICIPANTS = 50
+MAX_DOCS_PER_SESSION = 20  # 세션당 자료 상한 — KB 임베딩/RAG 비용 폭탄 방지 (H-f)
 MAX_BRIEF_LEN = 5000
 MAX_PASTED_CONTEXT_LEN = 100_000
 
@@ -1162,6 +1163,12 @@ async def upload_document(
     session = await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
     business_id = session['business_id']
 
+    # 세션당 자료 상한 — 파일 읽기 전에 검사해 낭비 차단 (H-f, KB 비용 폭탄 방지)
+    cur = await db.execute('SELECT COUNT(*) FROM documents WHERE session_id = ?', (session_id,))
+    doc_count = (await cur.fetchone())[0]
+    if doc_count >= MAX_DOCS_PER_SESSION:
+      raise HTTPException(status_code=400, detail=f'too many documents (max {MAX_DOCS_PER_SESSION})')
+
     original_name = file.filename or 'unnamed'
     ext = _validate_extension(original_name)
 
@@ -1391,6 +1398,11 @@ async def add_url(
     db.row_factory = aiosqlite.Row
     session = await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
     business_id = session['business_id']
+
+    # 세션당 전체 자료 상한 (file+url 합산) — KB 임베딩/RAG 비용 총량 제한 (H-f)
+    cursor = await db.execute('SELECT COUNT(*) AS cnt FROM documents WHERE session_id = ?', (session_id,))
+    if (await cursor.fetchone())['cnt'] >= MAX_DOCS_PER_SESSION:
+      raise HTTPException(status_code=400, detail=f'too many documents (max {MAX_DOCS_PER_SESSION})')
 
     # 세션당 URL 개수 제한 (documents 에서 source_type='url' 카운트)
     cursor = await db.execute(
