@@ -13,6 +13,7 @@
 const webpush = require('web-push');
 const { Op } = require('sequelize');
 const { PushSubscription, PushLog } = require('../models');
+const { sendApns } = require('./apns_sender');
 
 const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY || '';
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || '';
@@ -89,14 +90,12 @@ async function maybeAlertOnFailure(userId) {
   }
 }
 
-// payload 형식: { title, body, link?, tag?, icon? }
+// payload 형식: { title, body, link?, tag?, icon?, badge? }
 // opts: { category?: string }
+// 한 user 의 web push + 네이티브(APNs/FCM) 구독 모두에게 kind 별 발송 (fan-out).
+//   notify()/트리거/prefs/badge 계산은 무변경 — 이 함수의 말단만 kind 별로 갈라짐.
 async function sendPushToUser(userId, payload, opts = {}) {
   const category = opts.category || null;
-  if (!ensureInit()) {
-    await logPush({ user_id: userId, status: 'skipped', error_message: 'no_vapid', category, payload_title: payload.title });
-    return { sent: 0, skipped: 'no_vapid' };
-  }
   const subs = await PushSubscription.findAll({
     where: { user_id: userId, expired_at: null },
   });
@@ -110,12 +109,41 @@ async function sendPushToUser(userId, payload, opts = {}) {
   //   검증된 classic 형식({title,body,link,tag,icon,badge})으로 복귀. sw.js 는 raw 직접 읽음.
   const json = JSON.stringify(payload);
   // RFC 8030 옵션 — 모바일 도착률 안정성 (사이클 N+13)
-  // TTL: 1일. urgency: 'high' — push service 가 즉시 전달 시도.
-  // topic 은 의도적으로 비활성 — 짧은 시간 다건 메시지가 collapse 되지 않게.
   const sendOpts = { TTL: DEFAULT_TTL_SECONDS, urgency: DEFAULT_URGENCY };
   let sent = 0;
   for (const s of subs) {
     try {
+      // ── 네이티브 APNs (iOS) ──
+      if (s.kind === 'apns') {
+        const r = await sendApns(s.device_token, payload);
+        if (r.reason === 'no_apns_key') {
+          // APNs 키 미설정 — web push 의 no_vapid 와 동일 패턴. 실패로 카운트하지 않음.
+          await logPush({ user_id: userId, subscription_id: s.id, endpoint_host: 'apns', status: 'skipped', error_message: 'no_apns_key', category, payload_title: payload.title });
+        } else if (r.status === 410) {
+          // Unregistered — 죽은 토큰 즉시 삭제 (web push 410 정리와 동일)
+          await logPush({ user_id: userId, subscription_id: s.id, endpoint_host: 'apns', status: 'expired', status_code: 410, category, payload_title: payload.title });
+          await s.destroy();
+        } else if (r.ok) {
+          await s.update({ last_used_at: new Date() });
+          sent++;
+          await logPush({ user_id: userId, subscription_id: s.id, endpoint_host: 'apns', status: 'sent', status_code: 200, category, payload_title: payload.title });
+        } else {
+          await logPush({ user_id: userId, subscription_id: s.id, endpoint_host: 'apns', status: 'failed', status_code: r.status || null, error_message: String(r.reason || '').slice(0, 500), category, payload_title: payload.title });
+          maybeAlertOnFailure(userId).catch(() => null);
+        }
+        continue;
+      }
+      // ── 네이티브 FCM (Android — Phase 5 구현) ──
+      if (s.kind === 'fcm') {
+        await logPush({ user_id: userId, subscription_id: s.id, endpoint_host: 'fcm', status: 'skipped', error_message: 'fcm_not_impl', category, payload_title: payload.title });
+        continue;
+      }
+      // ── Web Push (브라우저/PWA — 기존 로직 무변경) ──
+      // VAPID 게이트는 여기(webpush 분기)로 이동 — VAPID 미설정이어도 APNs 발송은 가능해야 함.
+      if (!ensureInit()) {
+        await logPush({ user_id: userId, subscription_id: s.id, endpoint_host: endpointHost(s.endpoint), status: 'skipped', error_message: 'no_vapid', category, payload_title: payload.title });
+        continue;
+      }
       await webpush.sendNotification({
         endpoint: s.endpoint,
         keys: { p256dh: s.p256dh, auth: s.auth },

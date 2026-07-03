@@ -52,6 +52,26 @@ async function expireSameHostZombies(userId, newEndpoint, keepId) {
   return n;
 }
 
+// 네이티브(APNs/FCM) 좀비 정리 — 같은 user × 같은 kind × 같은 device_name 의 다른 active row 만료.
+//   iOS 재설치 시 새 device token 발급 → 옛 토큰 row 는 APNs 410 이 1차 정리하지만 발송 전 선제 정리.
+//   device_name 없으면 skip (다기기 사용자 보호 — iPhone + iPad 동시 active 허용).
+//   web push 의 expireSameHostZombies(host 기준)와 분리 — 네이티브는 host 개념이 없음.
+async function expireNativeSiblings(userId, kind, deviceName, keepId) {
+  if (!deviceName) return 0;
+  const peers = await PushSubscription.findAll({
+    where: {
+      user_id: userId, kind, device_name: deviceName, expired_at: null,
+      ...(keepId ? { id: { [Op.ne]: keepId } } : {}),
+    },
+  });
+  let n = 0;
+  for (const p of peers) {
+    await p.update({ endpoint: `expired:${p.id}:${p.endpoint}`.slice(0, 500), expired_at: new Date() });
+    n++;
+  }
+  return n;
+}
+
 // 외부 점검 반영 — 알려진 push service 도메인 화이트리스트
 // (Chromium / FCM / Mozilla / Apple / Microsoft Edge)
 const ALLOWED_PUSH_HOSTS = [
@@ -151,6 +171,54 @@ router.post('/subscribe', authenticateToken, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// 네이티브 구독 등록 (APNs/FCM) — Capacitor 앱이 device token 획득 후 호출.
+//   endpoint 규약 `kind:device_token` 으로 저장(unique 재활용, §5.1). web push 좀비 로직(host 기준)은
+//   비-URL endpoint 를 null 로 파싱해 자연 격리 → 네이티브 row 를 건드리지 않음.
+router.post('/subscribe-native', authenticateToken, async (req, res, next) => {
+  try {
+    const { kind, device_token, device_name } = req.body || {};
+    if (!['apns', 'fcm'].includes(kind)) return errorResponse(res, 'invalid_kind', 400);
+    // 토큰 형식 검증 (운영 안정성 규칙 8) — 깨진 토큰 저장 시 발송 시점 silent fail.
+    const tok = String(device_token || '');
+    if (kind === 'apns' && !/^[0-9a-fA-F]{64,200}$/.test(tok)) {
+      return errorResponse(res, 'invalid_device_token', 400);
+    }
+    if (kind === 'fcm' && tok.length < 100) {
+      return errorResponse(res, 'invalid_device_token', 400);
+    }
+    const endpoint = `${kind}:${tok}`;
+    const dname = (device_name || '').slice(0, 100) || null;
+
+    const existing = await PushSubscription.findOne({ where: { endpoint } });
+    if (existing) {
+      if (existing.user_id === req.user.id) {
+        await existing.update({
+          business_id: req.user.active_business_id || existing.business_id || null,
+          kind, device_token: tok, device_name: dname || existing.device_name,
+          user_agent: (req.headers['user-agent'] || '').slice(0, 500) || existing.user_agent,
+          expired_at: null, last_used_at: new Date(),
+        });
+        const zombies = await expireNativeSiblings(req.user.id, kind, dname || existing.device_name, existing.id);
+        return successResponse(res, { id: existing.id, updated: true, zombies_expired: zombies });
+      }
+      // 다른 user(기기 양도) — 옛 row expired 마크 (unique 해소 위해 endpoint prefix 변경).
+      await existing.update({
+        endpoint: `expired:${existing.id}:${existing.endpoint}`.slice(0, 500),
+        expired_at: new Date(),
+      });
+    }
+    const row = await PushSubscription.create({
+      user_id: req.user.id,
+      business_id: req.user.active_business_id || null,
+      kind, endpoint, device_token: tok, device_name: dname,
+      user_agent: (req.headers['user-agent'] || '').slice(0, 500) || null,
+      last_used_at: new Date(),
+    });
+    const zombies = await expireNativeSiblings(req.user.id, kind, dname, row.id);
+    return successResponse(res, { id: row.id, created: true, zombies_expired: zombies }, 'subscribed', 201);
+  } catch (e) { next(e); }
+});
+
 // 본인 디바이스 subscription 상태 — frontend 가 browser sub.endpoint 와 비교해 desync 감지용.
 // (사이클 N+12 박제) browser 에는 sub 가 있는데 backend 에 active row 가 없는 desync 시나리오
 // (좀비 자동 expire, 디바이스 양도, DB reset 등) 에서 frontend 가 자동 재구독 트리거할 수 있게.
@@ -171,12 +239,14 @@ router.get('/me', authenticateToken, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// 구독 해지 — endpoint 기준 (현재 디바이스만)
+// 구독 해지 — endpoint 기준 (web) 또는 kind+device_token (네이티브). 현재 디바이스만.
 router.delete('/subscribe', authenticateToken, async (req, res, next) => {
   try {
-    const { endpoint } = req.body || {};
-    if (!endpoint) return errorResponse(res, 'endpoint_required', 400);
-    const row = await PushSubscription.findOne({ where: { endpoint, user_id: req.user.id } });
+    const { endpoint, kind, device_token } = req.body || {};
+    // 네이티브: kind+device_token 으로 endpoint 규약 재구성.
+    const target = endpoint || (['apns', 'fcm'].includes(kind) && device_token ? `${kind}:${device_token}` : null);
+    if (!target) return errorResponse(res, 'endpoint_required', 400);
+    const row = await PushSubscription.findOne({ where: { endpoint: target, user_id: req.user.id } });
     if (!row) return errorResponse(res, 'not_found', 404);
     await row.destroy();
     return successResponse(res, { deleted: true });

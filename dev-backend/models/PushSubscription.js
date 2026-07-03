@@ -15,11 +15,21 @@ PushSubscription.init({
     type: DataTypes.INTEGER, allowNull: true,
     references: { model: 'businesses', key: 'id' },
   },
+  // 구독 종류 — 'webpush'(브라우저/PWA), 'apns'(iOS 네이티브), 'fcm'(Android 네이티브).
+  //   네이티브 row 의 endpoint 규약: `apns:<device_token>` / `fcm:<device_token>` (unique 재활용, §5.1).
+  kind: {
+    type: DataTypes.ENUM('webpush', 'apns', 'fcm'), allowNull: false, defaultValue: 'webpush',
+  },
   endpoint: {
     type: DataTypes.STRING(500), allowNull: false,
   },
-  p256dh: { type: DataTypes.STRING(200), allowNull: false },
-  auth: { type: DataTypes.STRING(100), allowNull: false },
+  // web push 키 — 네이티브(apns/fcm) 는 NULL. 대신 device_token 사용.
+  p256dh: { type: DataTypes.STRING(200), allowNull: true },
+  auth: { type: DataTypes.STRING(100), allowNull: true },
+  // 네이티브 기기 토큰 (APNs/FCM). webpush 는 NULL.
+  device_token: { type: DataTypes.STRING(255), allowNull: true },
+  // 기기 표시명 (예: "Apple iPhone15,2") — 사용자가 "이 기기 알림 끄기" 식별.
+  device_name: { type: DataTypes.STRING(100), allowNull: true },
   // UA 메타 — 디바이스 식별 (사용자가 "이 기기에서 알림 끄기" 가능하게)
   user_agent: { type: DataTypes.STRING(500), allowNull: true },
   last_used_at: { type: DataTypes.DATE, allowNull: true },
