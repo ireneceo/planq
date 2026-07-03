@@ -418,6 +418,8 @@ router.put('/platform-settings', async (req, res, next) => {
       ...setStr('seo_description', 500),
       ...setStr('seo_keywords', 500),
       ...setStr('og_image_url', 500),
+      ...setStr('app_ios_url', 500),
+      ...setStr('app_android_url', 500),
       updated_by_user_id: req.user.id,
     };
     // VAT rate 0~1 검증

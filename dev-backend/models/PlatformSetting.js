@@ -69,6 +69,10 @@ PlatformSetting.init({
   seo_description: { type: DataTypes.STRING(500), allowNull: true },
   seo_keywords: { type: DataTypes.STRING(500), allowNull: true },
   og_image_url: { type: DataTypes.STRING(500), allowNull: true },
+  // 모바일 앱 다운로드 URL — /app 다운로드 페이지가 환경별로 노출. 앱 출시 시 관리자가 채움.
+  //   iOS: App Store 또는 TestFlight 초대 링크 / Android: Play Store 또는 직접 APK URL.
+  app_ios_url: { type: DataTypes.STRING(500), allowNull: true },
+  app_android_url: { type: DataTypes.STRING(500), allowNull: true },
   updated_by_user_id: {
     type: DataTypes.INTEGER,
     allowNull: true,

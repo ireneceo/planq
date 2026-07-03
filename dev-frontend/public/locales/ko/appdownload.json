@@ -1,0 +1,23 @@
+{
+  "title": "PlanQ 앱 다운로드",
+  "subtitle": "업무 알림을 놓치지 마세요. 모바일 앱으로 실시간 알림을 받습니다.",
+  "ios": {
+    "label": "iPhone · iPad",
+    "cta": "App Store에서 받기"
+  },
+  "android": {
+    "label": "Android",
+    "cta": "Android 앱 받기"
+  },
+  "comingSoon": "출시 준비 중이에요 · 곧 제공됩니다",
+  "desktop": {
+    "hint": "휴대폰에서 아래 주소로 접속해 설치하세요",
+    "or": "설치할 플랫폼을 선택하세요"
+  },
+  "inApp": {
+    "title": "이미 PlanQ 앱에서 실행 중이에요",
+    "cta": "홈으로 이동"
+  },
+  "webContinue": "웹으로 계속하기",
+  "notifyNote": "앱은 iOS·Android 실시간 푸시 알림을 지원합니다."
+}

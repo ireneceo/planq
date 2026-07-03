@@ -30,6 +30,8 @@ interface PlatformSettings {
   seo_description: string | null;
   seo_keywords: string | null;
   og_image_url: string | null;
+  app_ios_url: string | null;
+  app_android_url: string | null;
 }
 
 const EMPTY: PlatformSettings = {
@@ -38,6 +40,7 @@ const EMPTY: PlatformSettings = {
   maintenance_mode: false, maintenance_message: '',
   announcement_text: '', announcement_dismissible: true, announcement_severity: 'info',
   seo_title: '', seo_description: '', seo_keywords: '', og_image_url: '',
+  app_ios_url: '', app_android_url: '',
 };
 
 const AdminPlatformSettingsPage = () => {
@@ -69,6 +72,8 @@ const AdminPlatformSettingsPage = () => {
           seo_description: r.data.seo_description || '',
           seo_keywords: r.data.seo_keywords || '',
           og_image_url: r.data.og_image_url || '',
+          app_ios_url: r.data.app_ios_url || '',
+          app_android_url: r.data.app_android_url || '',
         });
       }
     } finally { setLoading(false); }
@@ -319,6 +324,31 @@ const AdminPlatformSettingsPage = () => {
               {t('platform.og_image_hint', '비우면 기본 썸네일(og-default.png — 슬로건 + 로고)을 사용합니다. SNS 표준 1200×630 권장.')}
             </OgHint>
           </OgPreviewRow>
+        </Field>
+
+        <Field>
+          <Label>{t('platform.app_ios_url', '앱 다운로드 — iOS (App Store / TestFlight URL)')}</Label>
+          <AutoSaveField type="input" onSave={async () => save({ app_ios_url: data.app_ios_url })}>
+            <Input
+              value={data.app_ios_url || ''}
+              onChange={(e) => set('app_ios_url', e.target.value)}
+              placeholder="https://apps.apple.com/app/... 또는 TestFlight 링크"
+              maxLength={500}
+            />
+          </AutoSaveField>
+        </Field>
+
+        <Field>
+          <Label>{t('platform.app_android_url', '앱 다운로드 — Android (Play Store / APK URL)')}</Label>
+          <AutoSaveField type="input" onSave={async () => save({ app_android_url: data.app_android_url })}>
+            <Input
+              value={data.app_android_url || ''}
+              onChange={(e) => set('app_android_url', e.target.value)}
+              placeholder="https://play.google.com/... 또는 APK 다운로드 URL"
+              maxLength={500}
+            />
+          </AutoSaveField>
+          <OgHint>{t('platform.app_url_hint', '/app 다운로드 페이지가 방문자 환경(iOS/Android)에 맞춰 이 링크로 안내합니다. 비우면 "출시 준비 중"으로 표시됩니다.')}</OgHint>
         </Field>
       </Card>
     </PageShell>

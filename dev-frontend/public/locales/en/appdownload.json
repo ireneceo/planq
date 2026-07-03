@@ -1,0 +1,23 @@
+{
+  "title": "Download the PlanQ app",
+  "subtitle": "Never miss a work notification. Get real-time alerts with the mobile app.",
+  "ios": {
+    "label": "iPhone · iPad",
+    "cta": "Get it on the App Store"
+  },
+  "android": {
+    "label": "Android",
+    "cta": "Get the Android app"
+  },
+  "comingSoon": "Coming soon",
+  "desktop": {
+    "hint": "Open this address on your phone to install",
+    "or": "Choose your platform to install"
+  },
+  "inApp": {
+    "title": "You're already in the PlanQ app",
+    "cta": "Go home"
+  },
+  "webContinue": "Continue on the web",
+  "notifyNote": "The app supports real-time push notifications on iOS and Android."
+}
