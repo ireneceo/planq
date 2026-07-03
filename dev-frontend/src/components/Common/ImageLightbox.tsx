@@ -17,6 +17,7 @@
 // 키보드: Esc 닫기. ← / → 갤러리 이동 (다중 이미지일 때).
 // 백드롭 클릭 / 닫기 버튼 / 모바일 1-finger swipe-down 으로 닫기.
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { downloadBlob } from '../../utils/download';
 import styled from 'styled-components';
 import { createPortal } from 'react-dom';
 
@@ -178,14 +179,7 @@ const ImageLightbox: React.FC<Props> = ({ items, initialIndex = 0, src, alt, onC
       const r = await fetch(current.src, { credentials: 'include' });
       if (!r.ok) throw new Error(`download failed ${r.status}`);
       const blob = await r.blob();
-      const objUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = objUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(objUrl), 100);
+      await downloadBlob(blob, filename);
     } catch {
       // 실패 fallback — direct anchor (브라우저가 view 처리할 수 있음)
       const a = document.createElement('a');

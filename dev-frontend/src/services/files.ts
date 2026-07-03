@@ -2,6 +2,7 @@
 // Phase 2 — 실 API 연결 완료
 
 import { apiFetch } from '../contexts/AuthContext';
+import { downloadBlob } from '../utils/download';
 
 export type FileSource = 'direct' | 'chat' | 'task' | 'meeting' | 'post';
 export type StorageProvider = 'planq' | 'gdrive';
@@ -366,13 +367,7 @@ export async function bulkDownloadZip(businessId: number, fileIds: string[]): Pr
   }
   const blob = await r.blob();
   const today = new Date().toISOString().slice(0, 10);
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `planq-files-${today}.zip`;
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 100);
+  await downloadBlob(blob, `planq-files-${today}.zip`);
   return { ok: true, skipped };
 }
 

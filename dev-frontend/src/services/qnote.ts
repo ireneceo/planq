@@ -1,4 +1,5 @@
 import { apiFetch, getAccessToken } from '../contexts/AuthContext';
+import { downloadBlob } from '../utils/download';
 
 const BASE = '/qnote/api';
 
@@ -656,17 +657,7 @@ export async function downloadPriorityQATemplate(): Promise<void> {
   const res = await apiFetch(`${BASE}/sessions/templates/priority-qa-csv`);
   if (!res.ok) throw new Error(`템플릿 다운로드 실패: HTTP ${res.status}`);
   const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  try {
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'priority_qa_template.csv';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  } finally {
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
+  await downloadBlob(blob, 'priority_qa_template.csv');
 }
 
 export async function findAnswer(sessionId: number, questionText: string, utteranceId?: number) {

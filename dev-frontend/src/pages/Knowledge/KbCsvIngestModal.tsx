@@ -2,6 +2,7 @@
 // 샘플 다운로드 → 채워서 붙여넣기 (또는 파일 업로드) → 미리보기 → 일괄 저장
 // 설계: docs/KB_AI_INGEST_DESIGN.md
 import React, { useState, useCallback } from 'react';
+import { downloadBlob } from '../../utils/download';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
@@ -45,10 +46,7 @@ const KbCsvIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved }) => 
 
   const downloadSample = () => {
     const blob = new Blob([SAMPLE_CSV], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'planq-kb-sample.csv'; a.click();
-    URL.revokeObjectURL(url);
+    void downloadBlob(blob, 'planq-kb-sample.csv');
   };
 
   const parse = useCallback(async () => {

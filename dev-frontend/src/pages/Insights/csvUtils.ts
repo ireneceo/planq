@@ -1,5 +1,6 @@
 // 통계 페이지 CSV 다운로드 utility.
 // 데이터(rows) + 컬럼 정의 → CSV 문자열 → Blob 다운로드.
+import { downloadBlob } from '../../utils/download';
 
 export interface CsvColumn<T> {
   key: keyof T | string;
@@ -29,14 +30,8 @@ export function rowsToCsv<T>(rows: T[], columns: CsvColumn<T>[]): string {
 export function downloadCsv(filename: string, csv: string) {
   // BOM 추가 — Excel 한글 깨짐 방지
   const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 0);
+  // 웹은 동기 실행, 네이티브는 비동기 저장/공유 (fire-and-forget — 동기 시그니처 유지).
+  void downloadBlob(blob, filename);
 }
 
 export function downloadRowsAsCsv<T>(filename: string, rows: T[], columns: CsvColumn<T>[]) {

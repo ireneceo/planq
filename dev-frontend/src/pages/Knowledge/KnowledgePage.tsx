@@ -7,6 +7,7 @@
 //   - 진짜 1줄 리스트 + 우측 DetailDrawer
 //   - 카운트 0 카테고리 자동 숨김
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { downloadBlob } from '../../utils/download';
 import { useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -493,11 +494,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
     ]);
     const csv = [header.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `knowledge-${new Date().toISOString().slice(0,10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    void downloadBlob(blob, `knowledge-${new Date().toISOString().slice(0,10)}.csv`);
   };
 
   if (!businessId) return null;
