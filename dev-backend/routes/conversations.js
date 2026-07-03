@@ -1212,6 +1212,26 @@ router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, async 
     // messages 참조 FK 중 NO ACTION 인 것: message_attachments.
     // 순서: message_attachments → messages → conversation_participants → task_candidates → conversation
     const convId = conv.id;
+
+    // 비용폭탄 재게이트(2026-07-03) — 하드삭제 시 자체(planq) 신규업로드 첨부의 물리파일 제거 +
+    //   워크스페이스 쿼터 반환. (직전엔 row 만 DELETE 하고 물리파일·bytes_used 는 안 건드려,
+    //   채팅 첨부 업로드→대화삭제 반복 시 usage 가 단조증가해 워크스페이스 전체 업로드가 잠기던 구멍.)
+    //   link-existing(file_id 有)은 File 이 쿼터/물리파일을 소유 → 제외(double-decrement 방지).
+    //   신규업로드는 uuid 파일명이라 물리파일 단독 소유 → 안전하게 unlink+감소.
+    const fsMod = require('fs');
+    const pathMod = require('path');
+    const MessageAttachmentModel = require('../models').MessageAttachment;
+    const _msgRows = await Message.findAll({ attributes: ['id'], where: { conversation_id: convId }, raw: true });
+    const _msgIds = _msgRows.map((m) => m.id);
+    let planqAttachments = [];
+    if (_msgIds.length) {
+      planqAttachments = await MessageAttachmentModel.findAll({
+        attributes: ['file_path', 'file_size'],
+        where: { message_id: _msgIds, storage_provider: 'planq', file_id: null },
+        raw: true,
+      });
+    }
+
     const t = await sequelize.transaction();
     try {
       const MessageAttachment = require('../models').MessageAttachment;
@@ -1235,6 +1255,21 @@ router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, async 
     } catch (e) {
       await t.rollback();
       throw e;
+    }
+
+    // 물리 파일 제거 + 쿼터 반환 — 반드시 트랜잭션 commit "후"에 실행.
+    //   releasePlanqUpload 는 자체 트랜잭션(BusinessStorageUsage FOR UPDATE)을 열어 self-deadlock 회피.
+    if (planqAttachments.length) {
+      let releasedBytes = 0;
+      for (const a of planqAttachments) {
+        if (!a.file_path) continue;
+        const abs = pathMod.isAbsolute(a.file_path) ? a.file_path : pathMod.join(__dirname, '..', a.file_path);
+        try { if (fsMod.existsSync(abs)) fsMod.unlinkSync(abs); } catch (_) { /* ignore */ }
+        releasedBytes += Number(a.file_size || 0);
+      }
+      await require('../services/storageUsage')
+        .releasePlanqUpload(businessId, releasedBytes, planqAttachments.length)
+        .catch((e) => console.warn('[conversations] usage release failed', e.message));
     }
 
     require('../services/auditService').logAudit(req, {

@@ -19,7 +19,7 @@ async function assertMembership(userId, businessId) {
   if (!businessId) return false;
   const [owner, member] = await Promise.all([
     Business.count({ where: { id: businessId, owner_id: userId } }),
-    BusinessMember.count({ where: { business_id: businessId, user_id: userId } }),
+    BusinessMember.count({ where: { business_id: businessId, user_id: userId, removed_at: null } }),
   ]);
   return owner > 0 || member > 0;
 }

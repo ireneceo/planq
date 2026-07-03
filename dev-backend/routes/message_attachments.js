@@ -103,44 +103,54 @@ router.post('/:conversationId/:messageId',
       if (!msg) return errorResponse(res, 'message_not_found', 404);
       if (msg.sender_id !== req.user.id) return errorResponse(res, 'forbidden', 403);
 
-      // 비용폭탄 H3 — Drive 미연동 시 자체 스토리지. 플랜 크기한도 + 총 쿼터 강제.
-      //   옛 plan.fileSizeLimit 는 존재하지 않는 유령함수 → try/catch 에 먹혀 크기검사 자체가 죽어
-      //   무제한 업로드(쿼터 미집계)되던 구멍. files.js 정석 패턴(plan.can('upload_file'))으로 복구.
+      // 비용폭탄 재게이트(2026-07-03) — 메시지 첨부는 항상 자체(planq) 로컬 저장(이 라우트엔 Drive
+      //   업로드 경로가 없다 — storage_provider 는 아래에서 'planq' 하드코딩). 따라서 external:false 로
+      //   플랜 파일크기 한도 + 총 쿼터를 반드시 강제한다.
+      //   (직전 버전이 external:driveConnected 를 넘겨, Drive 연동 워크스페이스는 크기·쿼터 검사를
+      //    통째로 건너뛰고 로컬 디스크에 무제한 저장·미집계되던 H-e 구멍을 재개봉했었음.)
       const plan = require('../services/plan');
-      const { BusinessCloudToken, BusinessStorageUsage } = require('../models');
+      const { reservePlanqUpload, releasePlanqUpload } = require('../services/storageUsage');
       const attachBizId = req._conversation.business_id;
-      const cloudToken = await BusinessCloudToken.findOne({
-        where: { business_id: attachBizId, provider: 'gdrive' },
-      });
-      const driveConnected = !!cloudToken && !!cloudToken.root_folder_id;
-      const canUp = await plan.can(attachBizId, 'upload_file', { size: req.file.size, external: driveConnected });
+      const canUp = await plan.can(attachBizId, 'upload_file', { size: req.file.size, external: false });
       if (!canUp.ok) {
         fs.unlink(req.file.path, () => {});
         if (canUp.reason === 'file_size_exceeded') {
           const limitMB = Math.round((canUp.limit || 0) / 1024 / 1024);
-          return errorResponse(res, `파일이 너무 큽니다. 현재 플랜에서 ${limitMB}MB 까지 가능 — 큰 파일은 Google Drive 를 연결해 주세요.`, 413);
+          return errorResponse(res, `파일이 너무 큽니다. 현재 플랜에서 ${limitMB}MB 까지 가능해요.`, 413);
         }
         return errorResponse(res, '워크스페이스 저장 용량을 초과했어요. 파일을 정리하거나 플랜을 올려주세요.', 413);
       }
 
-      const created = await MessageAttachment.create({
-        message_id: msg.id,
-        file_name: decodeOriginalName(req.file.originalname),
-        file_path: path.relative(path.join(__dirname, '..'), req.file.path),
-        file_size: req.file.size,
-        mime_type: req.file.mimetype || null,
-        storage_provider: 'planq',
-      });
+      // race-safe 쿼터 예약(FOR UPDATE 재검증) — 30s getUsage 캐시 + 10/분 리미터 창에서
+      //   동시 업로드가 쿼터를 초과 집계하는 것을 방지. files.js 와 동일 패턴.
+      let reserved;
+      try {
+        reserved = await reservePlanqUpload(attachBizId, req.file.size);
+      } catch (e) {
+        // 예약 자체가 실패(락 경합 재시도 소진 등) → 임시파일 정리 후 재던짐(집계 오염 없음).
+        fs.unlink(req.file.path, () => {});
+        throw e;
+      }
+      if (!reserved.ok) {
+        fs.unlink(req.file.path, () => {});
+        return errorResponse(res, '워크스페이스 저장 용량을 초과했어요. 파일을 정리하거나 플랜을 올려주세요.', 413);
+      }
 
-      // 비용폭탄 H3 — 자체 스토리지 사용 시 워크스페이스 총 사용량 집계 (Drive 는 외부라 skip).
-      if (!driveConnected) {
-        try {
-          await BusinessStorageUsage.findOrCreate({
-            where: { business_id: attachBizId },
-            defaults: { business_id: attachBizId, bytes_used: 0, file_count: 0, storage_provider: 'planq' },
-          });
-          await BusinessStorageUsage.increment({ bytes_used: req.file.size, file_count: 1 }, { where: { business_id: attachBizId } });
-        } catch (e) { console.warn('[msg-attach] usage increment failed', e.message); }
+      let created;
+      try {
+        created = await MessageAttachment.create({
+          message_id: msg.id,
+          file_name: decodeOriginalName(req.file.originalname),
+          file_path: path.relative(path.join(__dirname, '..'), req.file.path),
+          file_size: req.file.size,
+          mime_type: req.file.mimetype || null,
+          storage_provider: 'planq',
+        });
+      } catch (e) {
+        // 레코드 생성 실패 → 예약분 반환 + 임시파일 정리(집계 정합 유지).
+        await releasePlanqUpload(attachBizId, req.file.size).catch(() => {});
+        fs.unlink(req.file.path, () => {});
+        throw e;
       }
 
       // Socket.IO broadcast: 같은 대화방에 첨부 알림

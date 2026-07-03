@@ -612,7 +612,7 @@ router.post('/ai-create', authenticateToken, ...aiCreateLimiter, async (req, res
     if (!prompt || !String(prompt).trim()) return errorResponse(res, 'prompt required', 400);
     if (String(prompt).length > 4000) return errorResponse(res, 'prompt_too_long', 400);
 
-    const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id } });
+    const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id, removed_at: null } });
     if (!bm && req.user.platform_role !== 'platform_admin') {
       return errorResponse(res, 'forbidden — members only', 403);
     }
@@ -682,7 +682,7 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
       return errorResponse(res, 'candidates array required', 400);
     }
 
-    const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id } });
+    const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id, removed_at: null } });
     if (!bm && req.user.platform_role !== 'platform_admin') {
       return errorResponse(res, 'forbidden — members only', 403);
     }
