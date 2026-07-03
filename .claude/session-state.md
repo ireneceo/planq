@@ -12,8 +12,11 @@
 - **검증 전부 PASS:** 외부IP :3003/:8000 직결 → 000(refused) · nginx health 200 / internal 403(nginx HTML deny, valid key여도 차단) / qnote health 200 · localhost 3003/8000 내부호출 200(q-note→Node key 통과 200) · health-check 29/29 · PM2 둘 다 online.
 - ⚠️ **운영 배포 체크:** 운영 nginx는 3002/8001. q-note `.env` `PLANQ_NODE_BASE_URL`이 운영에선 :3002여야 함. ecosystem `planq-qnote` port는 운영 8001로 조정 필요(현 dev 8000).
 
-### 진행 중인 작업 (다음 섹션 이어서)
-- **C1 live WS E2E** — mock WebSocket: 진입 hard-block(quota 4030 / non-member 4031), 5분 flush 롤포워드, 재연결 stream_id 합산. (실 STT 분은 운영 배포 후 샘플. dev는 Deepgram 키 유효 확인됨 → 실녹음도 가능)
+### ✅ 완료 (2026-07-03 2차 세션) — C1 live WS E2E (mock)
+mock WS 클라이언트로 `/ws/live` 진입 hard-block 전 구간을 실 q-note WS → Node internal API 배선으로 검증(5/5 PASS):
+- **A** 세션없음 → 4004 · **B** 소유자불일치 → 4003 · **C** 비멤버(biz1, user3) → 4031(check_membership→internal) · **D** 정상(biz3 멤버·인쿼터) → 게이트 통과 `ready`(Deepgram 연결, no-audio 0비용) · **E** 한도초과(biz3 seconds_used 초과 세팅) → 4030(check_quota→internal→plan.can).
+- 테스트 데이터 전량 원복 확인(잔여 e2e 세션 0, biz3 qnote_usage 원상). 스크립트 삭제.
+- **5분 flush 롤포워드 + 재연결 stream_id 합산**은 지난 세션 internal-API 멱등 테스트(6/6 PASS)로 커버. **실녹음 STT 분은 운영 배포 후 샘플 1건**(설계 §5, dev Deepgram 키 유효 확인됨).
 
 ### 완료된 작업 (이번 세션 — 2026-07-03)
 - C1 q-note STT 실분 과금 **트랙 B 코드 전부** (커밋 989b359):
@@ -28,9 +31,12 @@
 
 ### 다음 할 일
 1. ~~C1 트랙 A 보안 하드닝~~ ✅ 완료 (2026-07-03 2차)
-2. C1 live WS E2E (mock)
+2. ~~C1 live WS E2E (mock)~~ ✅ 완료 (2026-07-03 2차, 5/5 PASS)
 3. cost-guard 남은 것: H-f 잔여 q-note generate-keywords LLM rate-limit + create_session rate-limit (q-note에 slowapi 없음 → 신규 패턴 설계 승인 후)
-4. **운영 배포는 Irene의 명시적 `/배포` 명령 필요** (미푸시분 다수 누적: 이전 세션 cost-guard 3커밋 + C1 트랙B/트랙A)
+4. C1 운영 배포 후 실녹음 STT 분 샘플 1건 확인
+5. **운영 배포는 Irene의 명시적 `/배포` 명령 필요** (미푸시분 다수 누적: 이전 세션 cost-guard 3커밋 + C1 트랙B/트랙A)
+
+> **C1 STT 실분 과금 — 트랙B(과금)+트랙A(보안)+live WS E2E 전부 완료.** 남은 것: cost-guard H-f 잔여(별도) · 운영 배포 후 실녹음 샘플.
 
 ---
 
