@@ -24,6 +24,7 @@ from services.voice_fingerprint import (
 from services.answer_service import find_answer, translate_answer_text
 from services.llm_service import generate_vocabulary_list
 from services.billing_client import check_membership
+from services.rate_limit import rate_limit
 from services.qa_generator import generate_qa_for_session, generate_qa_for_document, log_task_exception as qa_log_task_exception
 
 router = APIRouter(prefix='/api/sessions', tags=['sessions'])
@@ -629,7 +630,12 @@ class GenerateKeywordsRequest(BaseModel):
   include_user_profile: Optional[bool] = True
 
 
-@router.post('/generate-keywords')
+@router.post(
+  '/generate-keywords',
+  # 비용폭탄 H-f — LLM(generate_vocabulary_list) per-user rate-limit. 입력 캡은 스키마 max_length +
+  # generate_vocabulary_list 내부 truncate(brief[:3000]/pasted[:6000])로 이미 방어됨.
+  dependencies=[Depends(rate_limit('qnote-genkeywords', per_min=10, per_day=100))],
+)
 async def generate_keywords(
   body: GenerateKeywordsRequest,
   user: dict = Depends(get_current_user),
@@ -663,7 +669,12 @@ async def generate_keywords(
   return success({'keywords': vocab})
 
 
-@router.post('')
+@router.post(
+  '',
+  # 비용폭탄 H-f — 세션 생성 per-user rate-limit. voice 세션은 내부에서 generate_vocabulary_list(LLM)
+  # 도 호출하므로 이 게이트가 세션 스팸 + LLM 남용을 함께 차단.
+  dependencies=[Depends(rate_limit('qnote-create-session', per_min=20, per_day=200))],
+)
 async def create_session(body: CreateSessionRequest, user: dict = Depends(get_current_user)):
   _validate_brief(body.brief)
   _validate_pasted_context(body.pasted_context)
