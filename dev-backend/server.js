@@ -392,9 +392,12 @@ app.use('/api/internal', require('./routes/internal'));
 app.use(errorHandler);
 
 // Start server
+// 보안 하드닝(C1 트랙A): 127.0.0.1 바인드 — internal API 포트를 인터넷에 노출하지 않는다.
+// nginx(localhost:3003 프록시)·q-note(localhost:3003 호출) 내부통신은 무해. 외부IP 직결만 차단.
 const PORT = process.env.PORT || 3003;
-server.listen(PORT, () => {
-  console.log(`PlanQ server running on port ${PORT} (${process.env.NODE_ENV})`);
+const BIND_HOST = process.env.BIND_HOST || '127.0.0.1';
+server.listen(PORT, BIND_HOST, () => {
+  console.log(`PlanQ server running on ${BIND_HOST}:${PORT} (${process.env.NODE_ENV})`);
 });
 
 // 매일 00시(서버 로컬) — 업무 스냅샷 + 자체결제 cron (active→past_due→grace→demoted) + 매월 1일 보고서 + 정기청구 + 연체 정지
