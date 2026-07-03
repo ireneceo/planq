@@ -37,6 +37,7 @@ const ForgotPasswordPage = lazy(() => import('./pages/Login/ForgotPasswordPage')
 const ResetPasswordPage = lazy(() => import('./pages/Login/ResetPasswordPage'));
 const VerifyEmailPage = lazy(() => import('./pages/Login/VerifyEmailPage'));
 const OAuthCallbackPage = lazy(() => import('./pages/Login/OAuthCallbackPage'));
+const DownloadAppPage = lazy(() => import('./pages/DownloadApp/DownloadAppPage'));
 const OauthConnectConfirmPage = lazy(() => import('./pages/Login/OauthConnectConfirmPage'));
 const QNotePage = lazy(() => import('./pages/QNote/QNotePage'));
 // 사이클 N+17 hotfix — 메모 분리 창 전용 minimal page (MainLayout 우회)
@@ -152,6 +153,7 @@ function App() {
       <Routes>
         {/* Public routes */}
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/app" element={<DownloadAppPage />} />
         <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
         <Route path="/oauth/connect-confirm" element={<OauthConnectConfirmPage />} />
         <Route path="/register" element={<RegisterPage />} />
