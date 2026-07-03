@@ -148,7 +148,9 @@ show_changes() {
     echo "  Last deployed: ${LAST_REMOTE:0:7}"
     CHANGED=$(git diff --name-only "$LAST_REMOTE" HEAD 2>/dev/null | wc -l || echo "?")
     echo "  Changed files: $CHANGED"
-    git diff --name-only "$LAST_REMOTE" HEAD 2>/dev/null | grep -E '^(dev-(backend|frontend)|q-note)' | head -10 | sed 's/^/    /'
+    # head -10 이 파이프를 조기에 닫아 git diff/grep 이 SIGPIPE(141) → set -euo pipefail 이 배포 전체를
+    # 중단시키던 버그(변경파일 >10 인 모든 증분 배포). || true 로 흡수.
+    (git diff --name-only "$LAST_REMOTE" HEAD 2>/dev/null | grep -E '^(dev-(backend|frontend)|q-note)' | head -10 | sed 's/^/    /') || true
   else
     echo "  Last deployed: (first deploy)"
   fi
