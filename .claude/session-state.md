@@ -32,11 +32,18 @@ mock WS 클라이언트로 `/ws/live` 진입 hard-block 전 구간을 실 q-note
 ### 다음 할 일
 1. ~~C1 트랙 A 보안 하드닝~~ ✅ 완료 (2026-07-03 2차)
 2. ~~C1 live WS E2E (mock)~~ ✅ 완료 (2026-07-03 2차, 5/5 PASS)
-3. cost-guard 남은 것: H-f 잔여 q-note generate-keywords LLM rate-limit + create_session rate-limit (q-note에 slowapi 없음 → 신규 패턴 설계 승인 후)
+3. ~~cost-guard H-f 잔여 (q-note generate-keywords + create_session rate-limit)~~ ✅ 완료 (2026-07-03 2차, 4/4 PASS)
 4. C1 운영 배포 후 실녹음 STT 분 샘플 1건 확인
-5. **운영 배포는 Irene의 명시적 `/배포` 명령 필요** (미푸시분 다수 누적: 이전 세션 cost-guard 3커밋 + C1 트랙B/트랙A)
+5. **운영 배포는 Irene의 명시적 `/배포` 명령 필요** (미푸시분 다수 누적: 이전 세션 cost-guard 3커밋 + C1 트랙B/트랙A/E2E + H-f rate-limit)
 
-> **C1 STT 실분 과금 — 트랙B(과금)+트랙A(보안)+live WS E2E 전부 완료.** 남은 것: cost-guard H-f 잔여(별도) · 운영 배포 후 실녹음 샘플.
+### ✅ 완료 (2026-07-03 2차 세션) — cost-guard H-f 잔여 (q-note rate-limit)
+q-note엔 rate-limit 인프라 없어(slowapi X) 신규 경량 인메모리 패턴 도입:
+- **신규 `q-note/services/rate_limit.py`** — Node `costGuard.perUserDaily` 미러(per-user 분+일 이중 고정윈도우, 단일 uvicorn 전제, `_PRUNE_THRESHOLD=2000` 누수가드). `rate_limit(name, per_min, per_day)` FastAPI 의존성 → 429.
+- `POST /api/sessions/generate-keywords` (10/분·100/일) + `POST /api/sessions` create (20/분·200/일)에 `dependencies=[Depends(rate_limit(...))]`.
+- 입력캡은 이미 방어(스키마 `max_length` + `generate_vocabulary_list` 내부 truncate) → rate-limit만 추가.
+- **검증 4/4 PASS:** genkeywords 10×200→429(빈본문=LLM 0비용) · user 버킷격리(user9 200) · create 20×403(비멤버=행0)→429 · 미인증 401. health-check 29/29. 테스트 부작용 0.
+
+> **C1 STT 실분 과금 — 트랙B(과금)+트랙A(보안)+live WS E2E + H-f rate-limit 전부 완료.** 남은 것: 운영 배포 후 실녹음 샘플.
 
 ---
 
