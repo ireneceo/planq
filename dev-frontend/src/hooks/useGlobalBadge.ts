@@ -15,6 +15,7 @@
 //   해결: 1) SW 가 visible client 있으면 setAppBadge skip (sw.js).
 //        2) 본 hook 이 visibility / focus 변경 시 latest total 로 setAppBadge 강제 재호출.
 //        3) skip 로직 제거 — 변화 없어도 visibilitychange 시 한 번 더 호출해 SW stale 덮어쓰기.
+import { isNativeApp } from '../services/native';
 import { useEffect, useRef } from 'react';
 
 interface NavigatorBadge {
@@ -22,8 +23,16 @@ interface NavigatorBadge {
   clearAppBadge?: () => Promise<void>;
 }
 
-function applyBadge(count: number) {
+async function applyBadge(count: number) {
   try {
+    // 네이티브 앱: WebView 는 navigator.setAppBadge 미지원 → Badge 플러그인으로 아이콘 배지 제어(M-2).
+    //   다 읽으면 count=0 → Badge.clear() 로 배지 즉시 감소/해제 (APNs aps.badge 만으론 stale 잔존).
+    if (isNativeApp()) {
+      const { Badge } = await import('@capawesome/capacitor-badge');
+      if (count > 0) await Badge.set({ count });
+      else await Badge.clear();
+      return;
+    }
     const nav = navigator as Navigator & NavigatorBadge;
     if (count > 0 && typeof nav.setAppBadge === 'function') {
       nav.setAppBadge(count).catch(() => null);

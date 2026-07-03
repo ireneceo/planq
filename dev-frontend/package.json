@@ -24,6 +24,7 @@
     "@capacitor/push-notifications": "^7.0.7",
     "@capacitor/share": "^7.0.4",
     "@capacitor/status-bar": "^7.0.6",
+    "@capawesome/capacitor-badge": "^7.0.1",
     "@tiptap/extension-bubble-menu": "^3.22.4",
     "@tiptap/extension-code-block-lowlight": "^3.22.4",
     "@tiptap/extension-floating-menu": "^3.22.4",
