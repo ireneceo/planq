@@ -40,13 +40,13 @@ export default function DownloadAppPage() {
   // 이미 네이티브 앱 안 — 다운로드 불필요.
   if (inApp) {
     return (
-      <Page>
+      <Screen>
         <Card>
           <Brand>PlanQ</Brand>
           <InAppTitle>{t('inApp.title')}</InAppTitle>
           <PrimaryBtn as="button" type="button" onClick={() => navigate('/')}>{t('inApp.cta')}</PrimaryBtn>
         </Card>
-      </Page>
+      </Screen>
     );
   }
 
@@ -66,7 +66,7 @@ export default function DownloadAppPage() {
   );
 
   return (
-    <Page>
+    <Screen>
       <Card>
         <Brand>PlanQ</Brand>
         <Title>{t('title')}</Title>
@@ -93,7 +93,7 @@ export default function DownloadAppPage() {
         <NotifyNote>{t('notifyNote')}</NotifyNote>
         <WebLink href="/">{t('webContinue')}</WebLink>
       </Card>
-    </Page>
+    </Screen>
   );
 }
 
@@ -109,7 +109,7 @@ const AndroidGlyph = () => (
   </svg>
 );
 
-const Page = styled.div`
+const Screen = styled.div`
   min-height: 100vh; min-height: 100dvh;
   display: flex; align-items: center; justify-content: center;
   background: #F8FAFC; padding: 24px;
