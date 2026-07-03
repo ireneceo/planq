@@ -6,6 +6,8 @@
 // Phase 1 — read/list + 옛 OAuth 연결 (Google 로그인) display.
 // Phase 2~: 개인 Google Calendar / Gmail / Drive 직접 등록 (옛 OAuth 인프라 재사용 + owner_scope='user')
 import React, { useEffect, useState, useCallback } from 'react';
+import { startAuthRedirect, startAuthPopup } from '../../services/oauth';
+import { isNativeApp } from '../../services/native';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import PageShell from '../../components/Layout/PageShell';
@@ -141,8 +143,8 @@ const ProfileIntegrationsPage: React.FC = () => {
         setConnectBusy(false);
         return;
       }
-      // Google OAuth redirect — 같은 탭. callback 완료 시 자동으로 PlanQ 로 복귀.
-      window.location.href = j.data.auth_url;
+      // Google OAuth redirect — 웹은 같은 탭, 네이티브는 시스템 브라우저(§6.8). callback 완료 시 복귀.
+      startAuthRedirect(j.data.auth_url);
     } catch (e) {
       setErrorMsg((e as Error).message);
       setConnectBusy(false);
@@ -167,8 +169,9 @@ const ProfileIntegrationsPage: React.FC = () => {
         setConnProvider(null);
         return;
       }
-      const popup = window.open(j.data.auth_url, 'planq-personal-oauth', 'width=520,height=660');
-      if (!popup) {
+      // 웹: 팝업 + postMessage. 네이티브: 시스템 브라우저 → 완료는 planq:oauth-connected 이벤트로(§6.8).
+      const popup = await startAuthPopup(j.data.auth_url, 'planq-personal-oauth', 'width=520,height=660');
+      if (!isNativeApp() && !popup) {
         setErrorMsg(t('integrations.popupBlocked', { defaultValue: '팝업이 차단되었어요. 브라우저에서 팝업을 허용해 주세요.' }) as string);
         setConnProvider(null);
       }
@@ -178,7 +181,7 @@ const ProfileIntegrationsPage: React.FC = () => {
     }
   }, [businessId, connProvider, t]);
 
-  // popup 콜백 완료 → postMessage 수신 시 목록 갱신
+  // popup 콜백 완료 → postMessage(웹) 또는 planq:oauth-connected(네이티브 딥링크 복귀) 수신 시 목록 갱신
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
       if (e.data && e.data.type === 'personal:connected') {
@@ -187,8 +190,14 @@ const ProfileIntegrationsPage: React.FC = () => {
         else setErrorMsg(t('integrations.connectFailed2', { defaultValue: '연결에 실패했어요. 다시 시도해 주세요.' }) as string);
       }
     };
+    // 네이티브: 시스템 브라우저 OAuth 완료 후 앱 복귀(App.tsx appUrlOpen) 시 발행되는 이벤트.
+    const onNativeDone = () => { setConnProvider(null); load(); };
     window.addEventListener('message', onMsg);
-    return () => window.removeEventListener('message', onMsg);
+    window.addEventListener('planq:oauth-connected', onNativeDone);
+    return () => {
+      window.removeEventListener('message', onMsg);
+      window.removeEventListener('planq:oauth-connected', onNativeDone);
+    };
   }, [load, t]);
 
   const onDisconnectPersonal = async (id: number | string) => {

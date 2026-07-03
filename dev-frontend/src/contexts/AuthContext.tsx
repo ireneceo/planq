@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import i18n from '../i18n';
+import { isNativeApp, nativePlatform } from '../services/native';
 
 export type UserRole = 'platform_admin' | 'business_owner' | 'business_member' | 'client';
 
@@ -101,12 +102,17 @@ export const useAuth = () => {
 // Access token은 메모리에만 저장 (XSS 안전)
 let accessToken: string | null = null;
 
-// 클라이언트 종류 감지 — PWA standalone 이면 'pwa' (모바일 앱), 아니면 'web' (브라우저).
-// 백엔드에 전달되어 refresh_token TTL 결정 (pwa=365일 / web=30일 sliding renewal).
+// 클라이언트 종류 감지 — 네이티브 앱이면 'ios'/'android', PWA standalone 이면 'pwa', 아니면 'web'.
+// 백엔드에 전달되어 refresh_token TTL 결정 (pwa/ios/android=365일 / web=30일 sliding renewal).
 // SSR 환경 안전성 — window 미존재 시 'web' 기본.
-const detectClientKind = (): 'pwa' | 'web' => {
+const detectClientKind = (): 'pwa' | 'web' | 'ios' | 'android' => {
   if (typeof window === 'undefined') return 'web';
   try {
+    // Capacitor 네이티브 앱 우선 판정 (WebView 안에서도 display-mode 가 standalone 일 수 있어 먼저 검사).
+    if (isNativeApp()) {
+      const p = nativePlatform();
+      if (p === 'ios' || p === 'android') return p;
+    }
     const standalone =
       window.matchMedia?.('(display-mode: standalone)').matches ||
       (window.navigator as Navigator & { standalone?: boolean }).standalone === true;

@@ -21,21 +21,28 @@ const hashRefreshToken = (raw) => crypto.createHash('sha256').update(raw).digest
 //   pwa (모바일 PWA standalone) — 365일. 모바일 앱은 push 수신을 위해 사실상 무한 세션 유지.
 //                                  refresh 호출 시마다 sliding renewal 로 365일 재설정.
 //   web (데스크탑 브라우저)      — 30일. 활동 시 sliding renewal.
+//   ios / android (Capacitor 네이티브 앱) — 365일. 푸시(APNs/FCM) 수신 위해 상시 세션 (pwa 정책과 동일).
 // 결정 우선순위: req.body.client_kind > req.headers['x-client-kind'] > 옛 row.client_kind > 'web'.
+const DAY_MS = 24 * 60 * 60 * 1000;
 const TTL_MS_BY_KIND = {
-  pwa: 365 * 24 * 60 * 60 * 1000,
-  web: 30 * 24 * 60 * 60 * 1000,
+  pwa: 365 * DAY_MS,
+  ios: 365 * DAY_MS,
+  android: 365 * DAY_MS,
+  web: 30 * DAY_MS,
 };
+// 장기 세션(365일) client_kind 집합 — pwa + 네이티브 앱.
+const LONG_KINDS = new Set(['pwa', 'ios', 'android']);
+const VALID_KINDS = new Set(['pwa', 'ios', 'android', 'web']);
 function resolveClientKind(req, fallback) {
   const body = (req?.body?.client_kind || '').toString().toLowerCase();
-  if (body === 'pwa' || body === 'web') return body;
+  if (VALID_KINDS.has(body)) return body;
   const hdr = (req?.headers?.['x-client-kind'] || '').toString().toLowerCase();
-  if (hdr === 'pwa' || hdr === 'web') return hdr;
-  if (fallback === 'pwa' || fallback === 'web') return fallback;
+  if (VALID_KINDS.has(hdr)) return hdr;
+  if (VALID_KINDS.has(fallback)) return fallback;
   return 'web';
 }
 function jwtExpiresInForKind(kind) {
-  return kind === 'pwa' ? '365d' : '30d';
+  return LONG_KINDS.has(kind) ? '365d' : '30d';
 }
 
 async function createRefreshTokenRow(user, rawToken, req, transaction = null, opts = {}) {

@@ -7,6 +7,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/Common/ErrorBoundary';
 import { isPopoutWindow } from './utils/popout';
 import { isNativeApp } from './services/native';
+import NativeBridge from './components/NativeBridge';
 import { installRoutePrefetch } from './lib/routePrefetch';
 import MainLayout from './components/Layout/MainLayout';
 
@@ -528,6 +529,8 @@ function App() {
         {!hideAppChrome && <MemoFab />}
         {!hideAppChrome && <RightDock />}
         {!hideAppChrome && <NotificationToaster />}
+        {/* 딥링크/알림탭/OAuth 복귀 브리지 (웹/네이티브 공용, MOBILE_APP_DESIGN §5.4·§7.2) */}
+        <NativeBridge />
         {/* PWA/웹 전용 안내 배너 — 네이티브 앱에서는 숨김 (MOBILE_APP_DESIGN §6.6) */}
         {!isNativeApp() && <PwaInstallBanner />}
         {!isNativeApp() && <OpenInAppBanner />}

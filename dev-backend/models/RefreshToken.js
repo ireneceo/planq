@@ -31,10 +31,10 @@ RefreshToken.init({
   // 디바이스 식별 — 사용자에게 "이 디바이스" 표시 + 도난 추적
   user_agent: { type: DataTypes.STRING(500), allowNull: true },
   ip_address: { type: DataTypes.STRING(64), allowNull: true },
-  // 클라이언트 종류 — pwa(모바일 앱)는 365일 long-lived, web(브라우저)는 30일.
+  // 클라이언트 종류 — pwa/ios/android(모바일 앱)는 365일 long-lived, web(브라우저)는 30일.
   // refresh 시 옛 row 의 값 그대로 따라가 같은 정책으로 갱신 (sliding renewal).
   client_kind: {
-    type: DataTypes.ENUM('pwa', 'web'),
+    type: DataTypes.ENUM('pwa', 'web', 'ios', 'android'),
     allowNull: false, defaultValue: 'web',
   },
   // 만료 시각 (login 시점 + TTL by client_kind). 검사 시 NOW() 와 비교.
