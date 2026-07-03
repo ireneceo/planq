@@ -5,6 +5,7 @@ const { User } = require('../models');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { sendVerificationCodeEmail } = require('../services/emailService');
+const { perUserDaily } = require('../middleware/costGuard');
 
 // 응답에서 절대 노출 금지인 민감 필드
 // password_hash · refresh_token · reset_token · reset_token_expires · email_change_otp_hash
@@ -384,7 +385,7 @@ router.post('/:id/email-change-verify', authenticateToken, async (req, res, next
 // 현재 primary 이메일이 미인증 상태일 때 — 그 이메일로 OTP 발송 (변경 없음, 인증만)
 // email_change_otp_* 필드 재활용. pending_email 은 user.email 로 둠.
 // ============================================
-router.post('/:id/email-verify-request', authenticateToken, async (req, res, next) => {
+router.post('/:id/email-verify-request', authenticateToken, ...perUserDaily('otp-email', { perMin: 3, perDay: 20, message: '인증 메일 요청이 너무 잦습니다. 잠시 후 다시 시도하세요.' }), async (req, res, next) => {
   try {
     if (req.user.id !== parseInt(req.params.id, 10)) {
       return errorResponse(res, 'only_self', 403);
@@ -487,7 +488,7 @@ router.post('/:id/email-verify-confirm', authenticateToken, async (req, res, nex
 // POST /api/users/:id/secondary-email-verify-request
 // 현재 secondary 이메일이 미인증 상태일 때 — 그 이메일로 OTP 발송
 // ============================================
-router.post('/:id/secondary-email-verify-request', authenticateToken, async (req, res, next) => {
+router.post('/:id/secondary-email-verify-request', authenticateToken, ...perUserDaily('otp-email', { perMin: 3, perDay: 20, message: '인증 메일 요청이 너무 잦습니다. 잠시 후 다시 시도하세요.' }), async (req, res, next) => {
   try {
     if (req.user.id !== parseInt(req.params.id, 10)) {
       return errorResponse(res, 'only_self', 403);
@@ -590,7 +591,7 @@ router.post('/:id/secondary-email-verify-confirm', authenticateToken, async (req
 // 보조 이메일 추가/변경. 새 이메일에 6자리 OTP 발송. verify 시 secondary_email 로 교체.
 // body: { new_email }
 // ============================================
-router.post('/:id/secondary-email-change-request', authenticateToken, async (req, res, next) => {
+router.post('/:id/secondary-email-change-request', authenticateToken, ...perUserDaily('otp-email', { perMin: 3, perDay: 20, message: '인증 메일 요청이 너무 잦습니다. 잠시 후 다시 시도하세요.' }), async (req, res, next) => {
   try {
     if (req.user.id !== parseInt(req.params.id, 10)) {
       return errorResponse(res, 'only_self', 403);

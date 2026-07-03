@@ -8,6 +8,7 @@ const { Business, BusinessMember, User, CueUsage, Client, Department, Team } = r
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../middleware/audit');
+const { perUserDaily } = require('../middleware/costGuard');
 
 // 워크스페이스 심볼 (brand symbol) 업로드 디렉토리 — 공개 서빙용
 const SYMBOL_DIR = path.join(__dirname, '..', 'uploads', 'business-symbols');
@@ -662,7 +663,7 @@ router.put('/:businessId/report-settings', authenticateToken, checkBusinessAcces
 
 // ─── 멤버 초대 (이메일 기반) ───
 // owner 만 초대 가능. 초대 토큰 발급 + 이메일 발송. accept 시 user_id/joined_at 채움.
-router.post('/:businessId/members/invite', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.post('/:businessId/members/invite', authenticateToken, checkBusinessAccess, ...perUserDaily('invite-email', { perMin: 20, perDay: 200, message: '초대 발송이 너무 잦습니다. 잠시 후 다시 시도하세요.' }), async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
     const myMember = await BusinessMember.findOne({ where: { business_id: businessId, user_id: req.user.id } });

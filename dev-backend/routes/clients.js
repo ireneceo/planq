@@ -4,6 +4,7 @@ const { Client, User, Business } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../middleware/audit');
+const { perUserDaily } = require('../middleware/costGuard');
 
 // N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
 function broadcastClient(req, client, event = 'client:updated') {
@@ -243,7 +244,7 @@ router.get('/:businessId/:id/history', authenticateToken, checkBusinessAccess, a
 
 // Invite (이메일 기반) — User 없어도 Client(invited) 생성 + 초대 토큰 발급 + 이메일 발송
 // accept 시 User 생성·연결
-router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, ...perUserDaily('invite-email', { perMin: 20, perDay: 200, message: '초대 발송이 너무 잦습니다. 잠시 후 다시 시도하세요.' }), async (req, res, next) => {
   try {
     const { name, email, company_name, notes, kind } = req.body || {};
     if (!name?.trim() || !email?.trim()) return errorResponse(res, 'name and email are required', 400);
