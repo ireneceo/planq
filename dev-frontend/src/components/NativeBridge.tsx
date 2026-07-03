@@ -32,7 +32,7 @@ export default function NativeBridge() {
             import('@capacitor/app'),
             import('@capacitor/browser'),
           ]);
-          const handle = await App.addListener('appUrlOpen', ({ url }) => {
+          const urlHandle = await App.addListener('appUrlOpen', ({ url }) => {
             // OAuth 등으로 열려있던 시스템 브라우저 닫기 (열려있지 않으면 no-op).
             Browser.close().catch(() => {});
             // 연동 페이지가 상태를 다시 불러오도록 (idempotent — refetch 만).
@@ -46,7 +46,12 @@ export default function NativeBridge() {
               }
             } catch { /* 커스텀 스킴 등 파싱 불가 — 무시 */ }
           });
-          cleanupNative = () => { handle.remove(); };
+          // Android 하드웨어 뒤로가기 → SPA 뒤로가기. 히스토리 루트면 앱 종료 (iOS 는 미발화).
+          const backHandle = await App.addListener('backButton', () => {
+            if (window.history.length > 1) window.history.back();
+            else App.exitApp();
+          });
+          cleanupNative = () => { urlHandle.remove(); backHandle.remove(); };
         } catch { /* 플러그인 미가용 — 무시 */ }
       })();
     }

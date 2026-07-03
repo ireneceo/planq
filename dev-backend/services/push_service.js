@@ -14,6 +14,7 @@ const webpush = require('web-push');
 const { Op } = require('sequelize');
 const { PushSubscription, PushLog } = require('../models');
 const { sendApns } = require('./apns_sender');
+const { sendFcm } = require('./fcm_sender');
 
 const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY || '';
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || '';
@@ -133,9 +134,22 @@ async function sendPushToUser(userId, payload, opts = {}) {
         }
         continue;
       }
-      // ── 네이티브 FCM (Android — Phase 5 구현) ──
+      // ── 네이티브 FCM (Android) ──
       if (s.kind === 'fcm') {
-        await logPush({ user_id: userId, subscription_id: s.id, endpoint_host: 'fcm', status: 'skipped', error_message: 'fcm_not_impl', category, payload_title: payload.title });
+        const r = await sendFcm(s.device_token, payload);
+        if (r.reason === 'no_fcm_key') {
+          await logPush({ user_id: userId, subscription_id: s.id, endpoint_host: 'fcm', status: 'skipped', error_message: 'no_fcm_key', category, payload_title: payload.title });
+        } else if (r.status === 404 || r.reason === 'unregistered') {
+          await logPush({ user_id: userId, subscription_id: s.id, endpoint_host: 'fcm', status: 'expired', status_code: 404, category, payload_title: payload.title });
+          await s.destroy();
+        } else if (r.ok) {
+          await s.update({ last_used_at: new Date() });
+          sent++;
+          await logPush({ user_id: userId, subscription_id: s.id, endpoint_host: 'fcm', status: 'sent', status_code: 200, category, payload_title: payload.title });
+        } else {
+          await logPush({ user_id: userId, subscription_id: s.id, endpoint_host: 'fcm', status: 'failed', status_code: r.status || null, error_message: String(r.reason || '').slice(0, 500), category, payload_title: payload.title });
+          maybeAlertOnFailure(userId).catch(() => null);
+        }
         continue;
       }
       // ── Web Push (브라우저/PWA — 기존 로직 무변경) ──
