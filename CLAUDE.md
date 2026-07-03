@@ -360,6 +360,8 @@ router.get('/', authenticateToken, async (req, res, next) => {
 
 **기타 (2):** kb_chunks, kb_documents, kb_pinned_faqs, cue_usage
 
+**Q Note STT 과금 (2026-07-03 신규):** `qnote_usage` (월 rollup — `seconds_used` source of truth, `minutes_used`=FLOOR(초/60) 표시용), **`qnote_usage_events`** (멱등 원장 — UNIQUE(stream_id, segment_seq). stream_id=WS 연결마다 UUID → 재연결 quota 우회 차단. session_id는 q-note SQLite 소재라 FK 없음). q-note `live.py`가 5분마다 `POST /api/internal/qnote/usage`로 billed 초(stereo ×2) 기록, 트랜잭션 멱등 insert + `FOR UPDATE` rollup(정확히 한 번). 진입 hard-block: `/ws/live` accept 후 Deepgram 연결 前 internal `qnote/can`(4030) + `business-membership`(4031). 설계 docs/QNOTE_STT_BILLING_DESIGN.md
+
 **Q위키 (2):** **help_categories**, **help_articles** (2026-06-18 신규 — PlanQ 제품 사용법 도움말. 플랫폼 공통 콘텐츠(business_id 없음), 격리 축은 article.visibility('public'/'authenticated')만. help_articles FULLTEXT(ngram) 한글검색 + body ko/en JSON 블록. 본문 임베딩은 **kb_chunks 재사용**(source_type ENUM 'kb'/'wiki' 추가 + source_id + business_id/kb_document_id nullable — wiki chunk는 플랫폼 공통이라 NULL, 워크스페이스 KB 검색 비오염). 스크린샷은 File 재사용(image 블록 file_id). 운영 적용 시 `dev-backend/setup-wiki-schema.js`(FULLTEXT+ALTER 멱등) + `seed-wiki-content.js`(콘텐츠) 실행. 설계 docs/Q_WIKI_DESIGN.md)
 
 > **Q Task 상태 ENUM:** `not_started`, `waiting`, `in_progress`, `reviewing`, `revision_requested`, `completed`, `canceled`. (2026-04-25: `done_feedback` 폐지 — 컨펌 정책 충족 시 `recalcStatusFromReviewers` 가 자동 `completed` 전환). 관점별 UI 라벨은 `dev-frontend/src/utils/taskLabel.ts` 참조 (i18n `status.{code}.{role}` 4차원 구조).
