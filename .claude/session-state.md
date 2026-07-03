@@ -1,8 +1,17 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-07-03 (2차)
-**작업 상태:** 트랙 B(과금) + 트랙 A(보안 하드닝) 코드완료+검증 · live WS E2E(mock)만 남음 · **운영 미배포**
+**마지막 업데이트:** 2026-07-03 (3차)
+**작업 상태:** C1 STT과금+보안+H-f 운영배포 완료 · **모바일 네이티브앱 Phase 0~5 코드완료(dev, 미배포)**
+
+### 📱 모바일 네이티브 앱 (Capacitor) — Phase 0~5 코드 완료 (2026-07-03 3차, 미배포)
+Fable 설계(`docs/MOBILE_APP_DESIGN.md`) → Opus 개발. **Remote URL 방식**(planq.kr 직접 로드, 웹코드 0변경) + 네이티브 푸시(APNs/FCM). **번들 ID `app.planq`, Capacitor 7.6.7(Node20 호환).** 전 Phase 웹 회귀 0·빌드 EXIT0/TS0·health 29/29.
+- 커밋: 661bc8a(P0 Capacitor통합)·bcc1141(P1 푸시백엔드)·c6287fe(P2 푸시프론트)·6739643(P3 인증/OAuth우회/딥링크)·5526e56(P5 FCM)·b855426(P3e 다운로드헬퍼).
+- dev 마이그레이션 적용됨: push_subscriptions(kind/device_token/device_name) + refresh_tokens(client_kind ios/android). .env에 APNS_*/FCM_* 자리.
+- **남은 것 전부 Apple/기기 게이트:** ①Irene Mac Phase0 device 검증(`npm run cap:sync:dev`→`cap:open:ios`) ②Apple $99→.p8→iOS푸시(+Firebase→FCM) ③Phase4 Q Note 마이크 실기기 ④Phase6 AASA/Universal Links+TestFlight+운영배포. 상세 [[project_native_app_capacitor_plan]].
+
+---
+**작업 상태(C1):** 트랙 B(과금) + 트랙 A(보안 하드닝) 코드완료+검증 · live WS E2E(mock)만 남음 · **운영 미배포**
 
 ### ✅ 완료 (2026-07-03 2차 세션) — C1 트랙 A 보안 하드닝
 실측 노출 재확인: 외부IP `:3003`→200 · `:8000`→404 (둘 다 인터넷 직접 도달). 3중 방어 적용·검증:
