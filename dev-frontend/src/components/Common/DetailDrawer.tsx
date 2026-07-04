@@ -127,8 +127,12 @@ const Backdrop = styled.div`
 `;
 
 // 공통 드로어 폭 규칙 — 항상 왼쪽 56px strip 남겨 햄버거 패턴처럼 바깥 탭 = 닫기
+// 모바일 키보드 대응(#79): 높이를 bottom:0(레이아웃 뷰포트) 대신 --vvh(visual viewport)에 바운드.
+//   키보드가 올라오면 --vvh 가 줄어 Panel 이 같이 줄고 → Body(flex:1) 스크롤 + Footer(액션바)가
+//   항상 키보드 위에 유지된다. 데스크탑은 --vvh = 전체 높이라 무변경.
 const Panel = styled.aside<{ $width: number }>`
-  position: fixed; top: 0; right: 0; bottom: 0;
+  position: fixed; top: 0; right: 0;
+  height: var(--vvh, 100dvh);
   z-index: 50;
   background: #fff;
   display: flex; flex-direction: column;
@@ -136,7 +140,6 @@ const Panel = styled.aside<{ $width: number }>`
   box-shadow: -16px 0 40px rgba(15, 23, 42, 0.14);
   animation: ${slideInRight} 0.28s cubic-bezier(0.22, 1, 0.36, 1);
   width: min(${({ $width }) => $width}px, calc(100vw - 56px));
-  padding-bottom: env(safe-area-inset-bottom, 0px);
   @media (prefers-reduced-motion: reduce) { animation: none; }
 `;
 

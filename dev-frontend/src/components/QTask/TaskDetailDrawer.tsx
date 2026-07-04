@@ -1837,16 +1837,18 @@ const Backdrop = styled.div`
   @keyframes pqFadeIn{from{opacity:0;}to{opacity:1;}}
   @media (prefers-reduced-motion: reduce){animation:none;}
 `;
+// 모바일 키보드 대응(#79): 높이를 --vvh 바운드 → 키보드 up 시 드로어가 줄고 하단 액션바/댓글
+//   입력이 항상 키보드 위. (bottom:0 은 레이아웃 뷰포트라 키보드 뒤로 감.)
 const Drawer = styled.aside<{ $w: number }>`
-  position:fixed;top:0;right:0;bottom:0;
+  position:fixed;top:0;right:0;
+  height:var(--vvh, 100dvh);
   width:min(${p => p.$w}px, calc(100vw - 56px));
   background:#FFF;border-left:1px solid #E2E8F0;
   box-shadow:-16px 0 40px rgba(15,23,42,0.14);display:flex;flex-direction:column;overflow:hidden;z-index:40;
   animation:pqSlideIn 0.28s cubic-bezier(0.22,1,0.36,1);
   @keyframes pqSlideIn{from{transform:translateX(100%);}to{transform:translateX(0);}}
-  padding-bottom:env(safe-area-inset-bottom,0px);
   @media (prefers-reduced-motion: reduce){animation:none;}
-  @media (max-width: 1024px){ top:56px; }
+  @media (max-width: 1024px){ top:56px; height:calc(var(--vvh, 100dvh) - 56px); }
 `;
 const ResizeHandle = styled.div`
   position:absolute;top:0;left:-4px;width:8px;height:100%;cursor:col-resize;z-index:45;

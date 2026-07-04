@@ -944,8 +944,13 @@ const ChatPanel: React.FC<Props> = ({
       if (e.key === 'Escape') { e.preventDefault(); closeMention(); return; }
     }
     if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
+      // #110 — 모바일/터치에서는 Enter = 줄바꿈(기본 동작 유지), 전송은 Send 버튼만.
+      //   데스크탑(마우스)에서만 Enter 전송. 오발송 + 줄바꿈 불가 문제 해소.
+      const enterSends = !window.matchMedia('(hover: none), (max-width: 640px)').matches;
+      if (enterSends) {
+        e.preventDefault();
+        handleSend();
+      }
     }
   };
   const handleCompositionStart = () => { composingRef.current = true; };

@@ -98,10 +98,11 @@ const Container = styled.div<{ $x: number; $y: number; $w: number; $h: number; $
   animation: ${fadeIn} 0.16s ease;
   ${(p) => p.$dragging && !p.$standalone && css`user-select: none; cursor: grabbing;`}
 
-  /* 모바일 — 풀스크린 (standalone 도 동일) */
+  /* 모바일 — 풀스크린 (standalone 도 동일). 키보드 대응(#113): height 를 --vvh 바운드 →
+     키보드 up 시 팝업이 줄고 내부 Body 스크롤 + 입력(에디터 캐럿)이 키보드 위에 유지. */
   @media (max-width: 640px) {
     left: 0 !important; top: 0 !important;
-    width: 100vw !important; height: 100vh !important;
+    width: 100vw !important; height: var(--vvh, 100dvh) !important;
     border-radius: 0;
     padding-bottom: env(safe-area-inset-bottom, 0);
   }
@@ -337,7 +338,10 @@ const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSession
 
   sessionIdRef.current = sessionId;
 
-  useEscapeStack(open && !searchOpen, onClose);
+  // #113 — Esc 닫기도 pending 저장 flush 경유 (handleClose). handleClose 는 아래에서 정의되므로
+  //   최신 클로저를 ref 로 참조 (미저장 마지막 입력 유실 방지).
+  const closeRef = useRef<() => void>(() => onClose());
+  useEscapeStack(open && !searchOpen, useCallback(() => closeRef.current(), []));
 
   // ─── layout persist ───
   useEffect(() => { saveLayout(layout); }, [layout]);
@@ -573,6 +577,7 @@ const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSession
       onClose();
     }
   };
+  closeRef.current = handleClose;  // #113 — Esc 핸들러가 항상 최신 flush 로직 참조
 
   // 사이클 N+17 — 메모 분리 창. 우선순위:
   //  1. Document Picture-in-Picture API (Chrome 116+ 데스크탑) — 진짜 브라우저 밖 floating, always-on-top

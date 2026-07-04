@@ -174,10 +174,12 @@ const Backdrop = styled.div`
   position: fixed; inset: 0; background: rgba(15,23,42,0.4);
   display: flex; align-items: center; justify-content: center; z-index: 1100;
   padding: 20px;
-  /* 모바일: bottom sheet 패턴 — 화면 아래쪽에 붙어서 슬라이드업 */
+  /* 모바일: bottom sheet 패턴 — 화면 아래쪽에 붙어서 슬라이드업.
+     키보드 대응(#79): 높이를 --vvh 바운드 → flex-end 가 visual viewport 하단(키보드 위)에 앵커. */
   @media (max-width: 640px) {
     align-items: flex-end; justify-content: stretch;
     padding: 0;
+    bottom: auto; height: var(--vvh, 100dvh);
   }
 `;
 const Dialog = styled.div`
@@ -187,7 +189,7 @@ const Dialog = styled.div`
   box-shadow: 0 24px 48px rgba(15,23,42,0.18);
   /* 모바일: bottom sheet — 풀스크린 X, 화면 75vh 까지만. 위쪽 둥근 모서리, 아래쪽 safe-area 보정. */
   @media (max-width: 640px) {
-    max-height: 75vh; height: auto;
+    max-height: calc(var(--vvh, 100dvh) * 0.75); height: auto;
     border-radius: 16px 16px 0 0;
     padding-bottom: env(safe-area-inset-bottom);
     animation: pq-sheet-up 0.22s ease-out;
