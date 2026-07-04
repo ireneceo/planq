@@ -52,6 +52,8 @@ if (typeof window !== 'undefined' && window.visualViewport) {
     if (isUp) document.body.setAttribute('data-keyboard-up', '1');
     else document.body.removeAttribute('data-keyboard-up');
     document.documentElement.style.setProperty('--vvh', `${vv.height}px`);
+    // 키보드 높이 — fixed 바닥바/FAB 가 필요 시 이만큼 리프트하는 데 사용.
+    document.documentElement.style.setProperty('--keyboard-height', `${Math.max(0, fullH - vv.height)}px`);
     // iOS PWA standalone phantom scroll 차단 (근본 fix). 입력란 focus 시 iOS 가
     // document 를 키보드 높이만큼 스크롤 (실측 VVDIAG: 깨진 focus 는 window.scrollY/
     // visualViewport.offsetTop=376, 정상 focus 는 0). position:fixed body 가 이를
@@ -70,6 +72,19 @@ if (typeof window !== 'undefined' && window.visualViewport) {
   //   가운데로 올린다. 모달은 대부분 --vvh 로 바운드돼 있어(StandardModal/NewEventModal 등) scrollIntoView
   //   가 window 가 아닌 그 컨테이너를 스크롤 → 입력이 키보드 위 가시영역으로. 키보드 애니메이션(~320ms)
   //   + --vvh 갱신 후 실행. 편집 가능한 필드만, 모바일만 (데스크탑 불필요 스크롤 방지).
+  // #79/#111 — focus 된 입력(또는 contentEditable 캐럿)이 키보드에 "가려졌을 때만" 최소 스크롤.
+  //   옛 코드는 focus 마다 scrollIntoView({block:'center'}) 로 화면을 홱 당겨(#111 "문서편집이 자꾸
+  //   아래로 내려감", 표 열추가 시 점프) UX 를 해쳤다. 이제 (a) 가시영역(vv.height) 밖일 때만,
+  //   (b) contentEditable 은 요소가 아닌 캐럿(selection) rect 기준, (c) 넘친 만큼만 스크롤한다.
+  const findScrollParent = (node: HTMLElement | null): HTMLElement | null => {
+    let el = node?.parentElement || null;
+    while (el) {
+      const oy = getComputedStyle(el).overflowY;
+      if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight) return el;
+      el = el.parentElement;
+    }
+    return null;
+  };
   const ensureFocusedVisible = () => {
     if (!mq.matches) return;
     const el = document.activeElement as HTMLElement | null;
@@ -79,9 +94,26 @@ if (typeof window !== 'undefined' && window.visualViewport) {
     if (!editable) return;
     setTimeout(() => {
       try {
-        if (document.activeElement === el && typeof el.scrollIntoView === 'function') {
-          el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        if (document.activeElement !== el) return;
+        // 기준 rect: contentEditable 은 캐럿, 그 외는 요소.
+        let rect = el.getBoundingClientRect();
+        if (el.isContentEditable) {
+          const sel = window.getSelection();
+          if (sel && sel.rangeCount > 0) {
+            const rects = sel.getRangeAt(0).getClientRects();
+            if (rects.length) rect = rects[rects.length - 1];
+          }
         }
+        const margin = 24;
+        const visibleBottom = vv.height;               // offsetTop 0 강제라 상단=0, 하단=vv.height
+        if (rect.bottom > visibleBottom - margin) {
+          // 키보드에 가려짐 — 넘친 만큼만 스크롤 컨테이너를 내린다(과도한 center 점프 방지).
+          const delta = rect.bottom - (visibleBottom - margin);
+          const scroller = findScrollParent(el);
+          if (scroller) scroller.scrollTop += delta;
+          else if (typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'nearest' });
+        }
+        // 이미 보이면 아무것도 안 함 (#111 자동 스크롤 방지).
       } catch { /* noop */ }
     }, 320);
   };

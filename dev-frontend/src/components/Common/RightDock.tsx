@@ -163,6 +163,8 @@ const FabWrap = styled.div`
   /* iPhone 홈 인디케이터 회피 (#86) */
   @media (max-width: 640px) { right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
   body[data-overlay-open="true"] & { opacity: 0; pointer-events: none; visibility: hidden; }
+  /* #86 — 키보드 올라온 동안엔 FAB 숨김 (입력 중 키보드 위에 어정쩡하게 떠 가리는 것 방지) */
+  body[data-keyboard-up="1"] & { opacity: 0; pointer-events: none; visibility: hidden; }
 `;
 
 const Fab = styled.button<{ $expanded: boolean }>`
@@ -183,8 +185,8 @@ const Menu = styled.div`
   /* N+93 — 버튼 가로폭 동일 + 아이콘 좌측 정렬: 고정폭 컬럼에 stretch */
   display: flex; flex-direction: column; align-items: stretch; gap: 8px;
   width: 188px;
-  /* #86 — 짧은 화면(키보드/가로모드)에서 위로 넘쳐 상단바 뒤로 잘리지 않게: 뷰포트 안에 가두고 스크롤 */
-  max-height: calc(100dvh - 96px);
+  /* #86 — 짧은 화면(키보드/가로모드)에서 위로 넘쳐 상단바 뒤로 잘리지 않게: visual viewport 안에 가두고 스크롤 */
+  max-height: calc(var(--vvh, 100dvh) - 96px);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: 2px;            /* 스크롤 시 버튼 그림자 잘림 방지 */
