@@ -151,7 +151,7 @@ async function billOneProject(project, today = new Date()) {
           console.warn('[recurring_invoice email] proj', project.id, 'no recipient');
           return;
         }
-        const shareUrl = `${process.env.APP_URL || 'https://dev.planq.kr'}/invoice/${shareToken}`;
+        const shareUrl = `${process.env.APP_URL || 'https://dev.planq.kr'}/public/invoices/${shareToken}`;
         let attachments = null;
         try {
           const { buildInvoicePdf } = require('./pdfBuilder');

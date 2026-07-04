@@ -175,7 +175,7 @@ async function billOneSubscription(sub, today = new Date()) {
         const { sendInvoiceEmail } = require('./emailService');
         const recipient = client.tax_invoice_email || client.billing_contact_email || client.invite_email;
         if (!recipient) { console.warn('[clientSub email] sub', sub.id, 'no recipient'); return; }
-        const shareUrl = `${process.env.APP_URL || 'https://dev.planq.kr'}/invoice/${shareToken}`;
+        const shareUrl = `${process.env.APP_URL || 'https://dev.planq.kr'}/public/invoices/${shareToken}`;
         let attachments = null;
         try {
           const { buildInvoicePdf } = require('./pdfBuilder');

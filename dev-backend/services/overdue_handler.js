@@ -67,7 +67,7 @@ async function handleOverdueInvoice(invoice, today = new Date()) {
     const recipient = client.tax_invoice_email || client.billing_contact_email || client.invite_email;
     if (!recipient) return;
     const { sendEmail } = require('./emailService');
-    const shareUrl = `${process.env.APP_URL || 'https://dev.planq.kr'}/invoice/${invoice.share_token}`;
+    const shareUrl = `${process.env.APP_URL || 'https://dev.planq.kr'}/public/invoices/${invoice.share_token}`;
     const totalStr = `${invoice.currency || 'KRW'} ${Number(invoice.grand_total || 0).toLocaleString()}`;
     const html = `
 <!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"></head>
