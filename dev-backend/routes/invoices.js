@@ -1429,7 +1429,7 @@ router.post('/:businessId/:id/send-reminder', authenticateToken, reminderLimiter
     const daysOverdue = invoice.due_date
       ? Math.max(0, Math.floor((Date.now() - new Date(invoice.due_date).getTime()) / 86400000))
       : 0;
-    const shareUrl = `${process.env.APP_URL || 'https://dev.planq.kr'}/invoice/${shareToken}`;
+    const shareUrl = `${process.env.APP_URL || 'https://dev.planq.kr'}/public/invoices/${shareToken}`;
     const customMsg = req.body?.message ? String(req.body.message).slice(0, 1000) : '';
 
     const { sendPaymentReminderEmail } = require('../services/emailService');
