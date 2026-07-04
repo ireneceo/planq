@@ -175,7 +175,9 @@
       "country": "Country",
       "external": "External",
       "externalHint": "External invoice not linked to an internal client",
-      "email": "Email"
+      "email": "Email",
+      "sendEmail": "Sent to",
+      "noEmail": "No email · cannot send"
     },
     "items": {
       "title": "Line items",

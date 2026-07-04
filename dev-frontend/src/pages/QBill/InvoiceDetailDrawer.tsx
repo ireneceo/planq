@@ -161,6 +161,13 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
 
   if (!invoice) return null;
   const client = invoice.Client || invoice.client;
+  // 실제 발송 대상 이메일 — 백엔드 발송 우선순위와 동일
+  // (invoice.recipient_email → client.tax_invoice_email → billing_contact_email → invite_email)
+  const sendEmail = invoice.recipient_email
+    || client?.tax_invoice_email
+    || client?.billing_contact_email
+    || (client as { invite_email?: string } | null)?.invite_email
+    || null;
   const sc = invoiceStatusColor(invoice.status);
   const grandTotal = Number(invoice.grand_total || 0);
   const paidAmount = Number(invoice.paid_amount || 0);
@@ -471,9 +478,10 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
             </PartyLabel>
             <PartyName>{client?.biz_name || client?.display_name || client?.company_name || invoice.recipient_business_name || '—'}</PartyName>
             <PartyMeta>
-              {!client && invoice.recipient_email && (
-                <MetaRow><MetaKey>{t('detail.parties.email', { defaultValue: '이메일' }) as string}</MetaKey><MetaVal>{invoice.recipient_email}</MetaVal></MetaRow>
-              )}
+              <MetaRow>
+                <MetaKey>{t('detail.parties.sendEmail', { defaultValue: '발송 이메일' }) as string}</MetaKey>
+                <MetaVal>{sendEmail || <Missing>{t('detail.parties.noEmail', { defaultValue: '이메일 없음 · 발송 불가' })}</Missing>}</MetaVal>
+              </MetaRow>
               {client?.is_business ? (
                 <>
                   <MetaRow>

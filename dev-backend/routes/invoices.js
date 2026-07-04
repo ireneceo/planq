@@ -3,7 +3,7 @@ const router = express.Router();
 const { Invoice, InvoiceItem, InvoiceInstallment, Client, User, Business, Post, Conversation, Message, ReceiptCorrection } = require('../models');
 const { resolveRecurringInfo } = require('../services/invoiceRecurring');
 const { logBillEvent, listBillEvents } = require('../services/billEvents');
-const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
+const { authenticateToken, optionalAuth, checkBusinessAccess } = require('../middleware/auth');
 const { requireMenu } = require('../middleware/menu_permission');
 
 // 사이클 N+21 — Invoice 상태 전이 history 박제 헬퍼
@@ -155,7 +155,7 @@ const generateInvoiceNumber = async () => {
 // /:businessId 매칭보다 먼저 와야 함
 
 // GET /api/invoices/public/:token — 익명 청구서 조회 (계좌 + 분할 + 발신/고객 + 알림 상태)
-router.get('/public/:token', async (req, res, next) => {
+router.get('/public/:token', optionalAuth, async (req, res, next) => {
   try {
     const invoice = await Invoice.findOne({
       where: { share_token: req.params.token },
@@ -178,13 +178,28 @@ router.get('/public/:token', async (req, res, next) => {
         expired_at: invoice.share_expires_at,
       });
     }
-    // 첫 열람 기록
+    // 내부(발신 측) 조회는 '열람'으로 기록하지 않음 — 발신자 본인/멤버가 링크를 열어도
+    // 고객 열람으로 오인되던 문제 방지. optionalAuth 로 토큰이 있으면 req.user 세팅됨.
+    let isInternalViewer = false;
+    if (req.user) {
+      if (req.user.platform_role === 'platform_admin') {
+        isInternalViewer = true;
+      } else {
+        const bm = await require('../models').BusinessMember.findOne({
+          where: { user_id: req.user.id, business_id: invoice.business_id },
+        });
+        if (bm) isInternalViewer = true;
+      }
+    }
+    // 첫 열람 기록 — 외부(고객) 조회만
     const isFirstView = !invoice.viewed_at;
-    if (isFirstView) {
+    if (isFirstView && !isInternalViewer) {
       try { await invoice.update({ viewed_at: new Date() }); } catch {}
     }
-    // Q Bill 타임라인 — 고객 열람(actor=null). 60분 dedupe 로 새로고침 도배 collapse.
-    await logBillEvent('invoice', invoice.id, 'viewed', { detail: { first: isFirstView }, dedupeWindowMs: 60 * 60 * 1000 });
+    // Q Bill 타임라인 — 고객 열람만. 60분 dedupe 로 새로고침 도배 collapse.
+    if (!isInternalViewer) {
+      await logBillEvent('invoice', invoice.id, 'viewed', { detail: { first: isFirstView }, dedupeWindowMs: 60 * 60 * 1000 });
+    }
     // 발신자 워크스페이스 (공개 페이지 용 최소 정보)
     const business = await Business.findByPk(invoice.business_id, {
       attributes: ['id', 'name', 'brand_name', 'legal_name', 'legal_name_en', 'representative', 'bank_name', 'bank_account_number', 'bank_account_name', 'swift_code', 'bank_name_en', 'bank_account_name_en'],
