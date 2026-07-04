@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { startAuthRedirect } from '../../services/oauth';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
@@ -31,10 +31,9 @@ const EmailAccountSettings: React.FC = () => {
     n.delete('gmail_error');
     return n;
   }, { replace: true });
-  // 추가할 계정의 범위: 개인 뷰 → 개인 고정, 회사 뷰 → 회사 공용(admin) / 개인(멤버) 기본.
-  const [addScope, setAddScope] = useState<'team' | 'personal'>(
-    personalView ? 'personal' : (isAdmin ? 'team' : 'personal')
-  );
+  // F-2 — 뷰가 범위를 결정. 개인 뷰=개인, 회사 뷰=회사 공용. (옛 ScopeToggle 은 회사 뷰에서 개인
+  //   계정을 추가하면 리스트에서 즉시 사라지는 유령계정 함정을 만들어 제거.)
+  const addScope: 'team' | 'personal' = personalView ? 'personal' : 'team';
 
   const [accounts, setAccounts] = useState<EmailAccountRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -117,7 +116,10 @@ const EmailAccountSettings: React.FC = () => {
     // #82/#72 — apiFetch(Bearer) 로 auth_url 받아 이동. 옛 window.location 직접진입은
     // 브라우저 네비게이션이 토큰 미전달 → 401 "Access token required".
     setConnErr(null);
-    const ret = encodeURIComponent('/business/settings/mail-accounts');
+    // F-3 — 개인 뷰면 ?scope=personal 로 복귀(콜백이 쿼리 보존하도록 백엔드 수정 동반).
+    const ret = encodeURIComponent(personalView
+      ? '/business/settings/mail-accounts?scope=personal'
+      : '/business/settings/mail-accounts');
     try {
       const r = await apiFetch(`/api/businesses/${businessId}/email-accounts/oauth/gmail/initiate?return_to=${ret}&scope=${addScope}`);
       const j = await r.json();
@@ -202,34 +204,29 @@ const EmailAccountSettings: React.FC = () => {
   return (
     <Wrap>
       <Toolbar>
-        {!personalView && (
-          <ScopeToggle role="group" aria-label={t('settings.scopeToggleLabel', '추가할 계정 범위') as string}>
-            <ScopeOption
-              type="button"
-              $active={addScope === 'team'}
-              disabled={!isAdmin}
-              title={!isAdmin ? (t('settings.teamAdminOnly', '회사 공용 메일은 관리자만 추가할 수 있어요') as string) : undefined}
-              onClick={() => setAddScope('team')}
-            >
-              {t('settings.scopeTeam', '회사 공용') as string}
-            </ScopeOption>
-            <ScopeOption type="button" $active={addScope === 'personal'} onClick={() => setAddScope('personal')}>
-              {t('settings.scopePersonal', '개인') as string}
-            </ScopeOption>
-          </ScopeToggle>
+        {(personalView || isAdmin) ? (
+          <ActionsRow>
+            <GoogleConnectBtn type="button" onClick={connectGmail}>
+              <GoogleIcon viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </GoogleIcon>
+              {t('settings.connectGmail', 'Gmail 로 연결') as string}
+            </GoogleConnectBtn>
+            <AddBtn type="button" onClick={() => setEditing('new')}>+ {t('settings.add', '계정 추가') as string}</AddBtn>
+          </ActionsRow>
+        ) : (
+          // 회사 뷰의 비관리자 — 회사 공용 추가 불가. 개인 메일은 내 계정으로 안내.
+          <MemberHint>
+            {t('settings.teamMemberHintHead', '회사 공용 메일은 관리자만 추가할 수 있어요. 개인 메일은 ') as string}
+            <MemberHintLink to="/business/settings/mail-accounts?scope=personal">
+              {t('nav.myMailAccounts', '내 메일 계정') as string}
+            </MemberHintLink>
+            {t('settings.teamMemberHintTail', ' 에서 연결하세요.') as string}
+          </MemberHint>
         )}
-        <ActionsRow>
-          <GoogleConnectBtn type="button" onClick={connectGmail}>
-            <GoogleIcon viewBox="0 0 24 24">
-              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-            </GoogleIcon>
-            {t('settings.connectGmail', 'Gmail 로 연결') as string}
-          </GoogleConnectBtn>
-          <AddBtn type="button" onClick={() => setEditing('new')}>+ {t('settings.add', '계정 추가') as string}</AddBtn>
-        </ActionsRow>
       </Toolbar>
 
       <Hint>{t('settings.hintScope', '회사 공용 메일은 모든 팀원이 인박스에서 함께 보고, 개인 메일은 본인에게만 보입니다. (5분마다 자동 동기화)') as string}</Hint>
@@ -671,21 +668,12 @@ const Toolbar = styled.div`
   display: flex; align-items: center; justify-content: space-between;
   gap: 12px; flex-wrap: wrap; margin-bottom: 16px;
 `;
-const ScopeToggle = styled.div`
-  display: inline-flex; padding: 3px;
-  background: #F1F5F9; border: 1px solid #E2E8F0; border-radius: 8px;
+const MemberHint = styled.div`
+  font-size: 13px; color: #64748B; line-height: 1.5;
 `;
-const ScopeOption = styled.button<{ $active: boolean }>`
-  height: 30px; padding: 0 14px;
-  border: none; border-radius: 6px;
-  font-size: 13px; font-weight: 600; cursor: pointer;
-  background: ${p => p.$active ? '#FFFFFF' : 'transparent'};
-  color: ${p => p.$active ? '#0F766E' : '#64748B'};
-  box-shadow: ${p => p.$active ? '0 1px 2px rgba(0,0,0,0.05)' : 'none'};
-  transition: all 0.15s;
-  &:hover:not(:disabled):not([data-active="true"]) { color: #0F172A; }
-  &:disabled { opacity: 0.45; cursor: not-allowed; }
-  &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
+const MemberHintLink = styled(Link)`
+  color: #0F766E; font-weight: 600; text-decoration: none;
+  &:hover { text-decoration: underline; }
 `;
 const Group = styled.div`margin-bottom: 24px;`;
 const GroupTitle = styled.div`

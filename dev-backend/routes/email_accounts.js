@@ -336,21 +336,28 @@ router.get('/:businessId/email-accounts/oauth/gmail/initiate', authenticateToken
 //   (note: 이 callback 은 business path 외부 — Google 가 등록한 redirect URI 그대로 사용)
 router.get('/email-accounts/oauth/gmail/callback', async (req, res) => {
   // CSP 정합 — inline script X. 성공 시 302 redirect, 실패 시 settings 페이지에 ?error= 쿼리.
-  const buildSuccessRedirect = (returnUrl, email) => {
-    const target = (returnUrl || '/business/settings/mail-accounts').replace(/[?#].*/, '');
-    return `${target}?gmail_connected=${encodeURIComponent(email)}`;
+  // open redirect 방어 — returnUrl 은 상대경로(/ 시작, // 아님)만 허용. 그 외 기본으로 강제.
+  const safeReturn = (returnUrl) => {
+    const u = String(returnUrl || '');
+    return (u.startsWith('/') && !u.startsWith('//')) ? u : '/business/settings/mail-accounts';
   };
-  const buildErrorRedirect = (returnUrl, error) => {
-    const target = (returnUrl || '/business/settings/mail-accounts').replace(/[?#].*/, '');
-    return `${target}?gmail_error=${encodeURIComponent(error)}`;
+  // 기존 쿼리(?scope=personal 등) 보존해 append — 개인 뷰 복귀 (F-3). hash 만 제거.
+  const appendQuery = (returnUrl, key, val) => {
+    const base = safeReturn(returnUrl).replace(/#.*$/, '');
+    const sep = base.includes('?') ? '&' : '?';
+    return `${base}${sep}${key}=${encodeURIComponent(val)}`;
   };
+  const buildSuccessRedirect = (returnUrl, email) => appendQuery(returnUrl, 'gmail_connected', email);
+  const buildErrorRedirect = (returnUrl, error) => appendQuery(returnUrl, 'gmail_error', error);
 
+  let returnUrl = null;   // catch 에서도 개인 뷰 복귀하도록 바깥 스코프.
   try {
     const { code, state, error: oauthError } = req.query;
     const gmailOauth = require('../services/gmail_oauth');
-    if (oauthError) return res.redirect(302, buildErrorRedirect(null, oauthError));
-    if (!code || !state) return res.redirect(302, buildErrorRedirect(null, 'invalid_request'));
-    const parsed = gmailOauth.decodeState(String(state));
+    const parsed = state ? gmailOauth.decodeState(String(state)) : null;
+    if (parsed) returnUrl = parsed.returnUrl;
+    if (oauthError) return res.redirect(302, buildErrorRedirect(returnUrl, oauthError));
+    if (!code || !state) return res.redirect(302, buildErrorRedirect(returnUrl, 'invalid_request'));
     if (!parsed) return res.redirect(302, buildErrorRedirect(null, 'invalid_state'));
 
     const tokens = await gmailOauth.exchangeCodeForTokens(String(code));
@@ -398,7 +405,7 @@ router.get('/email-accounts/oauth/gmail/callback', async (req, res) => {
     return res.redirect(302, buildSuccessRedirect(parsed.returnUrl, tokens.email));
   } catch (e) {
     console.error('[gmail-oauth/callback]', e);
-    return res.redirect(302, buildErrorRedirect(null, e.message));
+    return res.redirect(302, buildErrorRedirect(returnUrl, e.message));
   }
 });
 

@@ -91,7 +91,8 @@
     "subBilling": "구독·청구",
     "subIntegration": "연동",
     "subOps": "운영",
-    "subData": "데이터"
+    "subData": "데이터",
+    "myMailAccounts": "내 메일 계정"
   },
   "user": {
     "profile": "내 프로필",
