@@ -134,7 +134,9 @@ const PublicInvoicePage: React.FC = () => {
     if (!token) return;
     (async () => {
       try {
-        const r = await fetch(`/api/invoices/public/${token}`);
+        // apiFetch: 로그인 상태면 토큰 자동 첨부 → 백엔드가 내부(발신자) 조회로 인식해
+        // '고객 열람'으로 잘못 기록하지 않음. 게스트(고객)는 토큰 없이 그대로 통과.
+        const r = await apiFetch(`/api/invoices/public/${token}`);
         const j = await r.json().catch(() => ({}));
         if (r.status === 410 && j.code === 'share_expired') {
           setExpired({ at: j.expired_at || null });
