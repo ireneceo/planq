@@ -91,7 +91,8 @@
     "subBilling": "Subscription & Billing",
     "subIntegration": "Integrations",
     "subOps": "Operations",
-    "subData": "Data"
+    "subData": "Data",
+    "myMailAccounts": "My email accounts"
   },
   "user": {
     "profile": "My Profile",

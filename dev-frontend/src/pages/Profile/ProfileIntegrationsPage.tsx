@@ -9,6 +9,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { startAuthRedirect, startAuthPopup } from '../../services/oauth';
 import { isNativeApp } from '../../services/native';
 import styled from 'styled-components';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import PageShell from '../../components/Layout/PageShell';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
@@ -82,6 +83,7 @@ const GoogleIcon: React.FC = () => (
 
 const ProfileIntegrationsPage: React.FC = () => {
   const { t } = useTranslation('profile');
+  const navigate = useNavigate();
   const { formatDate, formatDateTime } = useTimeFormat();
   const { user } = useAuth();
   const businessId = user?.business_id ? Number(user.business_id) : null;
@@ -212,13 +214,8 @@ const ProfileIntegrationsPage: React.FC = () => {
     } catch (_) { /* skip */ }
   };
 
-  // 개인 메일 해제 (EmailAccount + 관련 스레드 정리는 백엔드)
-  const onDisconnectMail = async (id: number) => {
-    try {
-      await apiFetch(`/api/me/email-accounts/${id}`, { method: 'DELETE' });
-      await load();
-    } catch (_) { /* skip */ }
-  };
+  // 개인 메일 추가·재연결·해제는 "내 메일 계정"(EmailAccountSettings scope=personal) 단일 화면에서
+  //   처리 — 여기(내 외부 연동)는 읽기전용 요약 + 관리 링크만. (중복 관리 표면 제거)
 
   return (
     <PageShell title={t('integrations.title', '내 외부 연동') as string}>
@@ -317,19 +314,17 @@ const ProfileIntegrationsPage: React.FC = () => {
         )}
       </Section>
 
-      {/* ─── 개인 메일 ─── */}
+      {/* ─── 개인 메일 (읽기전용 요약 + 관리 링크. 추가/편집/해제는 "내 메일 계정" 화면에서 —
+             Gmail·네이버·다음·회사메일 등 아무 메일이나 앱 비밀번호로 연결 가능) ─── */}
       <Section>
         <SectionTitle>{t('integrations.mail', '메일 (개인)') as string}</SectionTitle>
-        <SectionSub>{t('integrations.mailSub', '개인 메일도 Q Mail 인박스에서 받을 수 있어요 (회사 공용과 분리 표시, 본인만 보임)') as string}</SectionSub>
+        <SectionSub>{t('integrations.mailSub2', { defaultValue: 'Gmail·네이버·다음·회사 메일 등 아무 메일이나 연결해 Q Mail 인박스에서 받을 수 있어요 (본인만 보임). 추가·재연결은 "내 메일 계정"에서 해요.' }) as string}</SectionSub>
         {personalMail.length === 0 ? (
           <Empty>
             <span>{t('integrations.mailEmpty', '연결된 개인 메일이 없어요') as string}</span>
-            <ConnectGoogleBtn type="button" onClick={() => connectPersonal('gmail')} disabled={connProvider === 'gmail'}>
-              <GoogleIcon />
-              {connProvider === 'gmail'
-                ? t('integrations.connecting', { defaultValue: '연결 중…' }) as string
-                : t('integrations.connectGmail', { defaultValue: 'Gmail 연결' }) as string}
-            </ConnectGoogleBtn>
+            <MailManageLink to="/business/settings/mail-accounts?scope=personal">
+              {t('integrations.manageMail', { defaultValue: '메일 계정 연결' }) as string} →
+            </MailManageLink>
           </Empty>
         ) : (
           <ConnList>
@@ -337,21 +332,17 @@ const ProfileIntegrationsPage: React.FC = () => {
               <ConnRow key={m.id}>
                 <ConnIcon>✉️</ConnIcon>
                 <ConnInfo>
-                  <ConnTitle>Gmail</ConnTitle>
+                  <ConnTitle>{m.auth_type === 'google_oauth' ? 'Gmail' : (m.email?.split('@')[1] || t('integrations.mailAccount', { defaultValue: '메일 계정' }) as string)}</ConnTitle>
                   <ConnSub>{m.email}</ConnSub>
                   {m.last_sync_error
                     ? <ConnMeta style={{ color: '#B91C1C' }}>{t('integrations.mailSyncError', { defaultValue: '동기화 오류 — 재연결이 필요할 수 있어요' }) as string}</ConnMeta>
                     : m.last_sync_at && <ConnMeta>{t('integrations.lastSync', { defaultValue: '최근 동기화: {{date}}', date: formatDateTime(m.last_sync_at) }) as string}</ConnMeta>}
                 </ConnInfo>
-                <DangerBtn type="button" onClick={() => onDisconnectMail(m.id)}>{t('integrations.disconnect', '해제') as string}</DangerBtn>
               </ConnRow>
             ))}
-            <ConnectGoogleBtn type="button" onClick={() => connectPersonal('gmail')} disabled={connProvider === 'gmail'}>
-              <GoogleIcon />
-              {connProvider === 'gmail'
-                ? t('integrations.connecting', { defaultValue: '연결 중…' }) as string
-                : t('integrations.connectGmailMore', { defaultValue: '메일 계정 더 연결' }) as string}
-            </ConnectGoogleBtn>
+            <MailManageLink to="/business/settings/mail-accounts?scope=personal">
+              {t('integrations.manageMailMore', { defaultValue: '메일 계정 관리 · 추가' }) as string} →
+            </MailManageLink>
           </ConnList>
         )}
       </Section>
@@ -388,7 +379,7 @@ const ProfileIntegrationsPage: React.FC = () => {
 
       <DividerBox>
         <DividerText>{t('integrations.workspaceLink', '회사 공용 외부 연동 (Google Drive · 회사 메일 등) 은 회사 설정에서 관리해요') as string}</DividerText>
-        <DividerBtn type="button" onClick={() => { window.location.href = '/business/settings/mail-accounts'; }}>
+        <DividerBtn type="button" onClick={() => navigate('/business/settings/mail-accounts')}>
           {t('integrations.gotoWorkspace', '회사 설정으로') as string} →
         </DividerBtn>
       </DividerBox>
@@ -485,6 +476,15 @@ const DividerBtn = styled.button`
   border: none; border-radius: 8px;
   font-size: 12px; font-weight: 600;
   cursor: pointer; white-space: nowrap;
+  &:hover { background: #0D9488; }
+  &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
+`;
+const MailManageLink = styled(Link)`
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 34px; padding: 0 14px;
+  background: #14B8A6; color: #FFFFFF;
+  border-radius: 8px; font-size: 13px; font-weight: 600;
+  text-decoration: none; white-space: nowrap; align-self: flex-start;
   &:hover { background: #0D9488; }
   &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
 `;

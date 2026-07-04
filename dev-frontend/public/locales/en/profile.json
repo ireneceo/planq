@@ -124,13 +124,13 @@
   },
   "languageLevel": {
     "scale": {
-      "unset": "—",
       "1": "1 Beginner",
       "2": "2 Elementary",
       "3": "3 Intermediate",
       "4": "4 Upper-Intermediate",
       "5": "5 Advanced",
-      "6": "6 Native"
+      "6": "6 Native",
+      "unset": "—"
     },
     "sectionTitle": "My Language Level (for answer difficulty)",
     "description": "Set your level for <1>reading · speaking · listening · writing</1> per language. When Q note generates answers, it adapts to your level — <2>avoiding overly difficult words and using easier-to-pronounce sentences</2>.<3></3>The <4>reading · speaking levels</4> matter most for languages you'll read aloud (e.g. English).",
@@ -227,6 +227,10 @@
   },
   "integrations": {
     "defPersonal": "What you connect here is your own personal account, visible only to you — not to your workspace teammates. (e.g., connecting your personal Gmail shows that mail only to you in Q Mail, separate from company mail.)",
-    "defTeam": "Shared company connections (company Google Drive, shared calendar, main mailbox) are shared by all members and managed in workspace settings below."
+    "defTeam": "Shared company connections (company Google Drive, shared calendar, main mailbox) are shared by all members and managed in workspace settings below.",
+    "mailSub2": "Connect any email — Gmail, Naver, Daum, your company mailbox — and receive it in your Q Mail inbox (visible only to you). Add or reconnect from \"My email accounts\".",
+    "manageMail": "Connect an email account",
+    "manageMailMore": "Manage · add email accounts",
+    "mailAccount": "Email account"
   }
 }

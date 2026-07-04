@@ -31,18 +31,31 @@ function newClient() {
   );
 }
 
+// state HMAC (CSRF 방어 + 10분 TTL) — personalOauth.js / gcal / gdrive 와 동일 패턴.
+//   서명 없는 옛 평문 base64url state 는 위조 가능(임의 businessId 에 계정 붙임)이라 폐기.
+const STATE_TTL_MS = 10 * 60 * 1000;
+function _hmac(payloadB64) {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error('JWT_SECRET not configured');
+  return crypto.createHmac('sha256', secret).update(payloadB64).digest('base64url');
+}
+
 function encodeState({ businessId, userId, returnUrl, scope }) {
   // scope: 'team'(회사 공용) | 'personal'(개인). 계정 소유 결정용.
-  const raw = JSON.stringify({ b: businessId, u: userId, r: returnUrl || null, s: scope || 'team', n: crypto.randomBytes(8).toString('hex'), t: Date.now() });
-  return Buffer.from(raw).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({
+    b: businessId, u: userId, r: returnUrl || null, s: scope || 'team',
+    n: crypto.randomBytes(8).toString('hex'), t: Date.now(),
+  })).toString('base64url');
+  return `${payload}.${_hmac(payload)}`;
 }
 
 function decodeState(state) {
   try {
-    const raw = Buffer.from(state, 'base64url').toString('utf8');
-    const parsed = JSON.parse(raw);
-    // 10분 만료
-    if (Date.now() - parsed.t > 10 * 60 * 1000) return null;
+    const [payloadB64, sig] = String(state || '').split('.');
+    if (!payloadB64 || !sig) return null;
+    if (_hmac(payloadB64) !== sig) return null;   // 위조 차단
+    const parsed = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
+    if (Date.now() - parsed.t > STATE_TTL_MS) return null;   // 만료
     return { businessId: parsed.b, userId: parsed.u, returnUrl: parsed.r, scope: parsed.s === 'personal' ? 'personal' : 'team' };
   } catch { return null; }
 }

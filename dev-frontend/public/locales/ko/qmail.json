@@ -128,7 +128,9 @@
     },
     "gmailOauthDenied": "Google 연결이 완료되지 않았습니다 — 권한 요청을 취소했거나, PlanQ 의 Google 앱 심사가 끝나기 전이라 이 계정은 아직 원클릭 연결이 제한될 수 있어요. 아래 \"계정 추가\"에서 앱 비밀번호 방식으로 연결해 주세요.",
     "gmailOauthFailed": "Gmail 연결 실패: {{code}} — 잠시 후 다시 시도하거나 앱 비밀번호 방식을 사용해 주세요.",
-    "dismiss": "닫기"
+    "dismiss": "닫기",
+    "teamMemberHintHead": "회사 공용 메일은 관리자만 추가할 수 있어요. 개인 메일은 ",
+    "teamMemberHintTail": " 에서 연결하세요."
   },
   "folders": {
     "title": "메일함",
@@ -235,5 +237,8 @@
     "title": "아직 연결된 메일 계정이 없어요",
     "desc": "Gmail 또는 IMAP 메일 계정을 연결하면 Q Mail에서 받은 메일을 함께 보고 답장할 수 있어요. 여러 계정을 연결하면 주소별로도 볼 수 있어요.",
     "cta": "메일 계정 연결하기"
+  },
+  "nav": {
+    "myMailAccounts": "내 메일 계정"
   }
 }

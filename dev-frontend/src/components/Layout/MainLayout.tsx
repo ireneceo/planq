@@ -1268,7 +1268,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                       {hasBiz('owner', 'member') && (
                         <AccordionItem
                           to="/business/settings/mail-accounts"
-                          $active={location.pathname.includes('/mail-accounts')}
+                          $active={location.pathname.includes('/mail-accounts') && !accountScope}
                         >
                           <IconInbox /> {t('nav.companyMail', '회사 메일')}
                         </AccordionItem>
@@ -1320,6 +1320,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                       {hasBiz('owner', 'member') && (
                         <AccordionItem to="/profile/integrations" $active={location.pathname.startsWith('/profile/integrations')}>
                           <IconPlug /> {t('nav.myIntegrations', '내 외부 연동')}
+                        </AccordionItem>
+                      )}
+                      {hasBiz('owner', 'member') && (
+                        <AccordionItem
+                          to="/business/settings/mail-accounts?scope=personal"
+                          $active={location.pathname.includes('/mail-accounts') && accountScope}
+                        >
+                          <IconMail /> {t('nav.myMailAccounts', '내 메일 계정')}
                         </AccordionItem>
                       )}
                       {hasBiz('owner', 'member') && (
@@ -1601,7 +1609,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             {hasBiz('owner', 'member') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/settings/mail-accounts"
-                $active={location.pathname.includes('/mail-accounts')}
+                $active={location.pathname.includes('/mail-accounts') && !accountScope}
               >
                 <IconInbox /> {t('nav.companyMail', '회사 메일')}
               </SecondaryNavItem>
@@ -1657,6 +1665,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             {hasBiz('owner', 'member') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed} to="/profile/integrations" $active={location.pathname.startsWith('/profile/integrations')}>
                 <IconPlug /> {t('nav.myIntegrations', '내 외부 연동')}
+              </SecondaryNavItem>
+            )}
+            {hasBiz('owner', 'member') && (
+              <SecondaryNavItem $collapsed={secondaryCollapsed}
+                to="/business/settings/mail-accounts?scope=personal"
+                $active={location.pathname.includes('/mail-accounts') && accountScope}
+              >
+                <IconMail /> {t('nav.myMailAccounts', '내 메일 계정')}
               </SecondaryNavItem>
             )}
             {/* N+32 — 내 업무 환경 (타임존 + 업무 흐름). ProfilePage 와 분리. */}
