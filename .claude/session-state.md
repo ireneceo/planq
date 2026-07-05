@@ -1,58 +1,50 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-07-05 11:30
-**작업 상태:** ✅ 증빙 확인-뷰 배포 완료 (planq.kr, deploy 20260705_120338, commit e2fa7b1)
+**마지막 업데이트:** 2026-07-05 (노트북 이관)
+**작업 상태:** ✅ 이번 세션 전부 배포 완료 · **다음 = 검사 하니스 구축** (설계 박제됨)
 
 ---
 
-## ⚡ 빠른 재개 (새 세션에서 이것만 붙여넣기)
-
+## ⚡ 빠른 재개 (노트북 새 세션)
 ```
-session-state.md 읽고 이어서 개발해.
+session-state.md 읽고 이어서 개발해. docs/qa/INSPECTION_PLAYBOOK.md 대로 검사 하니스부터 짓자.
 ```
 
 ---
 
-## 🔖 지금 중단 지점
+## 🔖 다음 할 일 (노트북) — 검사 하니스 구축
+**설계 완료 문서: `docs/qa/INSPECTION_PLAYBOOK.md` (Fable 게이트 설계).** 이 순서로 구축:
+1. **하니스 골격** `scripts/e2e/run.js` + `lib/`(login·route-inventory·cdp-keyboard) + `docs/qa/FEEDBACK_REGRESSIONS.md` 대장
+2. **모바일 키보드 스위트**(가장 아픈 모바일부터) — 7 시나리오(/inbox·/tasks·/talk·/docs·/notes·/calendar·/help-popout) RED 확인 → 페이지별 `--vvh`/스크롤부모 fix. 판정식: 캐럿 bottom ≤ vvh−8 · 가로스크롤0 · 자동점프<4px
+3. **카나리 크롤** — 표시명 6곳(businesses·dashboard·org·weekly_reviews·notifications·clients) + L1 자동검출·수정
+4. **42건 회귀 전환**(부류 대표: A7·B2·C2·D6)
+5. **/검증 개정** 11단계 추가 + CLAUDE.md 규칙 3줄
 
-**모두 완료·검증됨. 남은 것은 Irene 의 명시적 /배포 뿐.**
-
-**미배포 배치 (origin/main 대비 5 commits ahead, 미푸시):**
-1. `ff43ca8` **초대 고객 채팅+캔버스 근본수정** — 완료 (session-state 옛 최우선작업, 이미 커밋됨)
-2. `a17758b` **청구서 이메일 404 근본수정** — 완료 (dev 검증, 미배포)
-3. `4c90849` (wip auto-save) **QBill 증빙 발행 신청 "확인-only 뷰"** — 완료·검증됨. 프리필 충분(사업자 등록번호10+상호 / 개인 식별번호8+) 시 읽기전용 요약(confirm), "정보 수정" 토글로 전체 폼(edit). Fable 설계.
-   - **실 공개 API 검증:** INV-2026-0018(business) → confirm ✓ · INV-2026-0017(individual, 식별번호 null) → edit ✓. 빌드 EXIT0/TS0, i18n typeRow/editCancel ko/en.
-4. **`.env SMTP_FROM` 스팸 fix** (git-ignored, 미커밋) — dev 적용됨. **운영 배포 시 운영 .env 도 같이 변경해야 실제 반영.**
-
-**참고:** M-c + H-f(q-note rate-limit, commit 1bd9e3b) 배포 갈래는 **7/3 운영 배포 완료** (deploy 20260703_155328). 7/3 Mac 세션 SSH 끊김과 무관하게 서버에서 완주됨.
-
-**맥락 유지할 것:**
-- **스팸 fix 적용됨(dev, 미배포):** `dev-backend/.env` `SMTP_FROM` `help@planq.kr`→`help@irenewp.com` (인증계정과 정렬 → 사칭플래그 제거 → 스팸 회피). 백업 `.env.bak-smtp-*`. 표시명 "PlanQ" 유지. **운영 .env도 배포 시 같이 바꿔야 실제 반영**(prod는 아직 help@planq.kr = 여전히 스팸). **영구 브랜딩 유지 원하면 planq.kr DKIM(Irene 콘솔: Google관리자 Gmail 이메일인증 DKIM생성 → Cafe24 `google._domainkey.planq.kr` TXT) 켠 뒤 From을 help@planq.kr로 되돌림.** 실측: planq.kr·irenewp.com 둘 다 DKIM 미게시, SPF는 양쪽 있음.
-- **청구서 404 fix = a17758b (커밋·푸시됨, 미배포)** — 이메일 링크 `/invoice/{token}`→`/public/invoices/{token}` 7곳 전부 수정 확인. 검증: health29/29·빌드EXIT0·링크grep 7곳✓. 배포 후 INV-2026-0003 고객(jwchoi@kiyul.co.kr) 재발송.
-- 옵션 묻지 말고 직접 fix (feedback_no_options_just_fix). 초대고객 캔버스=A 확정.
+**배경:** 운영 피드백 42건이 기존 검증 다 통과했는데 유출. 특히 **모바일 심각**. "일일이 요청 말고 전수검사도 못 잡는다"의 구조적 해답 = 이 하니스.
 
 ---
 
-## 📦 최근 세션 작업 요약
+## ✅ 이번 세션 완료·배포 (전부 planq.kr 라이브, 미배포 0)
+| 항목 | 커밋 |
+|------|------|
+| 증빙(세금계산서/현금영수증) 신청 **확인-only 뷰** + 개인 프리필 저장 | e2fa7b1 |
+| 고객 **사업자·증빙 정보 편집 UI** (고객관리 드로어) | (wip a27c978 계열) |
+| **구글드라이브 미러** — 워크스페이스 파일 전체 Drive 사본(storage=planq 유지, 서빙 무영향). 운영 63건 백필. `scripts/backfill-gdrive-mirror.js`(매니페스트 롤백) | 3e99736 |
+| 청구서 **재발송 버튼** (원본+PDF, 독촉과 분리, 상태 무변경) | a27c978 |
+| 청구서 **열람(viewed) 신뢰성** — 봇/이메일스캐너/프리페치 제외(isBotOrScanner) | 088a6fd |
+| 🔴 **L1 개인파일 누출 보안 fix** — fileListWhereByLevel legacy visibility에 vlevel:null 게이트 (canary 검증) | c57d672 |
+| **INSPECTION_PLAYBOOK.md** — 검사 하니스 설계 박제 | (이번 커밋) |
 
-- 초대 고객 채팅+캔버스 근본수정 구현·커밋 (ff43ca8)
-- QBill 증빙 "확인-only 뷰" 구현·실 API 검증·커밋 (4c90849)
-- 스팸 From 정렬(dev .env) · 청구서 404 fix(a17758b)
+**HEAD = c57d672 배포 완료. 미커밋/미배포 0.**
 
-**미배포 배치:** ff43ca8 + a17758b + 4c90849 + .env SMTP_FROM (전부 dev 검증 완료)
+## 기율법률사무소 (INV-2026-0003) 상태
+- status=sent, 수신 jwchoi@kiyul.co.kr, **재발송 1회 완료** (원본+버튼 정상). 사업자정보(상호 "기율 법률사무소" 띄어쓰기·242-78-00597) 입력됨 → 증빙 신청 시 **확인 요약**으로 뜸.
+- viewed_at=NULL(미열람 정정 완료) → 고객이 실제 열면 그때 기록.
+
+## 미결정/후속
+- **카드결제**: A안(각 워크스페이스 자기 결제링크 붙여넣기, KRW부터, PlanQ 자금 무접촉) 확정 · B안(결제대행) **폐기**. 구현은 추후. Fable 검토 `docs`/대화 참조 — 인프라(businesses.portone_*·InvoicePayment) 이미 있음.
+- **표시명 6 라우트** 수정 = 하니스 3단계에서 카나리로.
 
 ---
-
-## 📂 다음 할 일 (우선순위)
-1. **(Irene) /배포** — 초대고객 + 청구서404 + 증빙 확인뷰 + 스팸From 일괄 (운영 .env SMTP_FROM 도 같이 변경)
-2. 배포 후 INV-2026-0003 재발송(jwchoi@kiyul.co.kr, 정상 버튼)
-3. (Irene) planq.kr DKIM 콘솔 설정 → 이후 From 을 help@planq.kr 로 복귀
-4. 운영 백로그: #108·#91·#92·#87·#98·#106(보안)·#97·#100~105 등
-
----
-
-## 복구 가이드
-새 세션: `session-state.md 읽고 이어서 개발해.`
-관련 메모리: `project_email_personal_unify`, `project_smtp_pending`(DKIM), `feedback_project_invite_creates_client`, `feedback_no_options_just_fix`.
-운영 백로그 전문: scratchpad/prod-backlog.txt
+관련 메모리: `feedback_no_options_just_fix`(옵션 말고 직접·판단해서), `project_visibility_unified_arch`(L1~L4), `feedback_mobile_keyboard_vvh_bound`, `feedback_member_display_name_on_lists`.
