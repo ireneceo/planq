@@ -259,6 +259,10 @@
     },
     "events": {
       "title": "활동",
+      "resendTag": "재발송",
+      "sentEmail": "📧 {{email}}",
+      "sentChat": "💬 {{name}}",
+      "sentChatGeneric": "💬 채팅방",
       "types": {
         "created": "발행",
         "sent": "발송",
