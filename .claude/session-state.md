@@ -1,50 +1,37 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-07-05 (노트북 이관)
-**작업 상태:** ✅ 이번 세션 전부 배포 완료 · **다음 = 검사 하니스 구축** (설계 박제됨)
+**마지막 업데이트:** 2026-07-05 (저녁, Opus)
+**작업 상태:** ✅ 이번 세션 전부 운영 배포 완료
+
+### 진행 중인 작업
+- 없음
+
+### 완료된 작업 (이번 세션 — 전부 운영 배포)
+- **검사 하니스 v1 구축** (`scripts/e2e/` — lib/browser.js·mobile-keyboard.js·run.js·visual-audit.js). puppeteer 로그인→모바일 키보드 시뮬(CDP viewport 축소)→가림/점프/가로스크롤 자동 판정. **캘리브레이션 함정: setDeviceMetricsOverride에 screenOrientation 넣으면 앱 orientationchange가 fullH 리셋→키보드 판정 깨짐(빼야 함).** (404040d)
+- **비주얼 감사** — 전 화면 스크린샷 전수. 결론: 완성도가 화면마다 들쭉날쭉(bill=목표수준 / calendar 월그리드·tasks 테이블=뒤처짐).
+- **알림 배너 디바이스 인지 + 모바일 컴팩트** — 네이티브앱에서 웹 push 문구 부정확 → nativePushStatus 분기. (4f1eff9)
+- **모바일 단축키 힌트 숨김(Ctrl+K·⌘K) + 설정 심볼 raw URL 제거** (P0)
+- **★ '이번 주 나의 업무'에 지연(마감 지난 미착수) 포함** — FE+BE `/my-week`+docs §5. (d57620e)
+- **★ 주간 진척 그래프 목표선·y축 = 가용시간 (Fable 검토)** — base=effectiveCapacity, 판정칩 SPI는 Σ예측 유지. docs §6.1. (468479b)
+
+### 다음 할 일 (다음 세션 우선순위)
+1. **MEMORY.md 압축** (현재 184줄, 200 한계 근접) — 신중히 병합/정리해 <140줄. 급하게 안 쳐내기(교훈 유실 방지).
+2. **비주얼 감사 P1 (실제 리팩터):**
+   - 캘린더 모바일 아젠다 뷰 (월 그리드 375px 안 맞음 → 일/리스트 뷰) — 최대 값어치
+   - 업무 리스트 모바일 카드화 (지금 가로스크롤 → 카드 레이아웃)
+   - 채팅 FAB 중복 정리 (경미)
+   - P2 화면별 폴리시 (나머지를 Q bill 수준 바까지)
+3. **하니스 보강:** 인터랙티브 요소에 data-testid 부여 → 모달 opener 안정화(bills·inbox 등 gated 입력) + 표시명/L1 카나리 크롤 스위트 구축.
+4. **표시명 6라우트 TODO** (businesses·dashboard·org·weekly_reviews·notifications·clients) — 카나리 크롤로 검증하며 수정.
 
 ---
 
-## ⚡ 빠른 재개 (노트북 새 세션)
+## 복구 가이드
+
+새 Claude 세션 시작 시 아래 내용을 붙여넣으세요:
+
 ```
-session-state.md 읽고 이어서 개발해. docs/qa/INSPECTION_PLAYBOOK.md 대로 검사 하니스부터 짓자.
+이전 세션 이어서 작업하고 싶어.
+/opt/planq/.claude/session-state.md 읽어줘.
 ```
-
----
-
-## 🔖 다음 할 일 (노트북) — 검사 하니스 구축
-**설계 완료 문서: `docs/qa/INSPECTION_PLAYBOOK.md` (Fable 게이트 설계).** 이 순서로 구축:
-1. **하니스 골격** `scripts/e2e/run.js` + `lib/`(login·route-inventory·cdp-keyboard) + `docs/qa/FEEDBACK_REGRESSIONS.md` 대장
-2. **모바일 키보드 스위트**(가장 아픈 모바일부터) — 7 시나리오(/inbox·/tasks·/talk·/docs·/notes·/calendar·/help-popout) RED 확인 → 페이지별 `--vvh`/스크롤부모 fix. 판정식: 캐럿 bottom ≤ vvh−8 · 가로스크롤0 · 자동점프<4px
-3. **카나리 크롤** — 표시명 6곳(businesses·dashboard·org·weekly_reviews·notifications·clients) + L1 자동검출·수정
-4. **42건 회귀 전환**(부류 대표: A7·B2·C2·D6)
-5. **/검증 개정** 11단계 추가 + CLAUDE.md 규칙 3줄
-
-**배경:** 운영 피드백 42건이 기존 검증 다 통과했는데 유출. 특히 **모바일 심각**. "일일이 요청 말고 전수검사도 못 잡는다"의 구조적 해답 = 이 하니스.
-
----
-
-## ✅ 이번 세션 완료·배포 (전부 planq.kr 라이브, 미배포 0)
-| 항목 | 커밋 |
-|------|------|
-| 증빙(세금계산서/현금영수증) 신청 **확인-only 뷰** + 개인 프리필 저장 | e2fa7b1 |
-| 고객 **사업자·증빙 정보 편집 UI** (고객관리 드로어) | (wip a27c978 계열) |
-| **구글드라이브 미러** — 워크스페이스 파일 전체 Drive 사본(storage=planq 유지, 서빙 무영향). 운영 63건 백필. `scripts/backfill-gdrive-mirror.js`(매니페스트 롤백) | 3e99736 |
-| 청구서 **재발송 버튼** (원본+PDF, 독촉과 분리, 상태 무변경) | a27c978 |
-| 청구서 **열람(viewed) 신뢰성** — 봇/이메일스캐너/프리페치 제외(isBotOrScanner) | 088a6fd |
-| 🔴 **L1 개인파일 누출 보안 fix** — fileListWhereByLevel legacy visibility에 vlevel:null 게이트 (canary 검증) | c57d672 |
-| **INSPECTION_PLAYBOOK.md** — 검사 하니스 설계 박제 | (이번 커밋) |
-
-**HEAD = c57d672 배포 완료. 미커밋/미배포 0.**
-
-## 기율법률사무소 (INV-2026-0003) 상태
-- status=sent, 수신 jwchoi@kiyul.co.kr, **재발송 1회 완료** (원본+버튼 정상). 사업자정보(상호 "기율 법률사무소" 띄어쓰기·242-78-00597) 입력됨 → 증빙 신청 시 **확인 요약**으로 뜸.
-- viewed_at=NULL(미열람 정정 완료) → 고객이 실제 열면 그때 기록.
-
-## 미결정/후속
-- **카드결제**: A안(각 워크스페이스 자기 결제링크 붙여넣기, KRW부터, PlanQ 자금 무접촉) 확정 · B안(결제대행) **폐기**. 구현은 추후. Fable 검토 `docs`/대화 참조 — 인프라(businesses.portone_*·InvoicePayment) 이미 있음.
-- **표시명 6 라우트** 수정 = 하니스 3단계에서 카나리로.
-
----
-관련 메모리: `feedback_no_options_just_fix`(옵션 말고 직접·판단해서), `project_visibility_unified_arch`(L1~L4), `feedback_mobile_keyboard_vvh_bound`, `feedback_member_display_name_on_lists`.
