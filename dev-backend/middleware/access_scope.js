@@ -381,18 +381,20 @@ function fileListWhereByLevel(scope) {
     // L3 / L4 / legacy null — 워크스페이스 멤버는 모두 OK
     conds.push({ vlevel: 'L3' });
     conds.push({ vlevel: 'L4' });
-    conds.push({ visibility: 'L3' });
-    conds.push({ visibility: 'L4' });
+    // ★ legacy visibility 는 vlevel 미마이그레이션(null)일 때만 권위 — vlevel 이 우선 컬럼.
+    //   (보안 fix: vlevel='L1' 개인파일인데 옛 visibility='L3' 이면 L3 조건에 걸려 전 멤버 노출되던 누출 차단)
+    conds.push({ vlevel: null, visibility: 'L3' });
+    conds.push({ vlevel: null, visibility: 'L4' });
     conds.push({ vlevel: null, visibility: null });
   }
   if (scope.isOwner) {
     conds.push({ vlevel: 'L2' });
-    conds.push({ visibility: 'L2' });
+    conds.push({ vlevel: null, visibility: 'L2' });
   } else {
     // L2 — project_id 매칭 OR target_member_ids 안 본인 포함
     if ((scope.projectMemberIds || []).length > 0) {
       conds.push({ vlevel: 'L2', project_id: { [Op.in]: scope.projectMemberIds } });
-      conds.push({ visibility: 'L2', project_id: { [Op.in]: scope.projectMemberIds } });
+      conds.push({ vlevel: null, visibility: 'L2', project_id: { [Op.in]: scope.projectMemberIds } });
     }
     // N+74 — L2-members (target_member_ids JSON contains userId). MySQL JSON_CONTAINS 사용.
     conds.push(sequelize.literal(`vlevel = 'L2' AND JSON_CONTAINS(target_member_ids, '${Number(scope.userId)}')`));
