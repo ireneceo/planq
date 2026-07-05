@@ -814,7 +814,9 @@
       "contactPhone": "Contact phone",
       "requestAmount": "Requested amount",
       "vatIncluded": "VAT included",
-      "download": "Download issued file"
+      "download": "Download issued file",
+      "registeredNotice": "This will be issued with your registered details below. Review and submit — edit if anything differs.",
+      "willSaveNotice": "Your details are saved to your customer profile and auto-filled next time."
     },
     "contact": "Contact us"
   },

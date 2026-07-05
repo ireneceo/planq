@@ -618,7 +618,12 @@ const PublicInvoicePage: React.FC = () => {
               <ModalClose type="button" onClick={() => setReceiptOpen(false)} aria-label={t('common.close', '닫기') as string}>×</ModalClose>
             </ModalHead>
             <ModalBody>
-              <ModalLine $muted>{t('public.receipt.modalDesc', '발행 유형을 선택하고 정보를 정확히 입력해주세요. 입력하신 정보 그대로 발행됩니다.')}</ModalLine>
+              {(invoice.receipt as { is_registered_client?: boolean } | undefined)?.is_registered_client
+                && (rcForm.biz_name || rcForm.biz_tax_id || rcForm.cr_identifier || rcForm.tax_email) ? (
+                <RcRegisteredBanner>{t('public.receipt.registeredNotice', '고객님 정보로 발행됩니다 — 아래는 고객정보에 등록된 내용이에요. 확인 후 신청하시면 되고, 다르면 수정할 수 있어요.')}</RcRegisteredBanner>
+              ) : (
+                <ModalLine $muted>{t('public.receipt.modalDesc', '발행 유형을 선택하고 정보를 정확히 입력해주세요. 입력하신 정보 그대로 발행됩니다.')}</ModalLine>
+              )}
               <RcAmountBox>
                 <span>{t('public.receipt.requestAmount', '신청 금액')}</span>
                 <strong>{formatMoney(invoice.grand_total, invoice.currency)} <em>({t('public.receipt.vatIncluded', 'VAT 포함')})</em></strong>
@@ -708,6 +713,7 @@ const PublicInvoicePage: React.FC = () => {
               </RcTwoCol>
 
               {rcErr && <RcErr>{rcErr}</RcErr>}
+              <RcSaveHint>{t('public.receipt.willSaveNotice', '입력하신 정보는 고객정보에 저장되어 다음 발행 때 자동으로 채워져요.')}</RcSaveHint>
             </ModalBody>
             <ModalFoot>
               <ModalCancelBtn type="button" onClick={() => setReceiptOpen(false)}>{t('common.cancel', '취소') as string}</ModalCancelBtn>
@@ -971,6 +977,14 @@ const RcAmountBox = styled.div`
   span { font-size: 13px; font-weight: 600; color: #0F766E; }
   strong { font-size: 16px; font-weight: 700; color: #0F172A; }
   em { font-size: 12px; font-weight: 500; color: #64748B; font-style: normal; }
+`;
+const RcRegisteredBanner = styled.div`
+  padding: 10px 14px; margin-bottom: 4px;
+  background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 10px;
+  font-size: 13px; font-weight: 500; line-height: 1.5; color: #0F766E;
+`;
+const RcSaveHint = styled.div`
+  font-size: 12px; color: #64748B; line-height: 1.5; margin-top: 8px; text-align: center;
 `;
 const RcToggleRow = styled.div`display: flex; gap: 8px; margin-bottom: 4px;`;
 const RcToggleBtn = styled.button<{ $active: boolean }>`

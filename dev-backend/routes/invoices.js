@@ -267,6 +267,8 @@ router.get('/public/:token', optionalAuth, async (req, res, next) => {
           tax_email: invoice.Client.tax_invoice_email || invoice.Client.billing_contact_email || null,
           requested_by_name: invoice.Client.billing_contact_name || null,
           contact_phone: invoice.Client.billing_contact_phone || null,
+          // 개인(현금영수증) 식별번호 — 지난 신청 시 저장한 연락처를 다음에도 자동 채움
+          cr_identifier: !invoice.Client.is_business ? (invoice.Client.billing_contact_phone || null) : null,
         } : (invoice.recipient_business_name || invoice.recipient_business_number ? {
           biz_type: 'business',
           biz_name: invoice.recipient_business_name || null,
@@ -508,22 +510,31 @@ router.post('/public/:token/receipt-request', async (req, res, next) => {
     });
 
     // 등록 고객이면 Client 레코드도 갱신 (다음 청구서 prefill) — 외부 고객은 invoice.receipt_profile 만.
-    if (invoice.client_id && bizType === 'business') {
+    //   구독(정기청구) 반복 시 매번 재입력하지 않도록 사업자·개인 둘 다 저장. (외부 고객은 Client 없음)
+    if (invoice.client_id) {
       try {
         const { Client } = require('../models');
-        await Client.update({
-          is_business: true,
-          biz_name: profile.biz_name,
-          biz_tax_id: profile.biz_tax_id,
-          biz_ceo: profile.biz_ceo,
-          biz_type: profile.biz_category,
-          biz_item: profile.biz_item,
-          biz_address: profile.biz_address,
-          tax_invoice_email: profile.tax_email,
-          // 담당자 정보도 저장 — 다음 청구서에서 prefill
-          ...(profile.requested_by_name ? { billing_contact_name: profile.requested_by_name } : {}),
-          ...(profile.contact_phone ? { billing_contact_phone: profile.contact_phone } : {}),
-        }, { where: { id: invoice.client_id } });
+        const patch = bizType === 'business'
+          ? {
+              is_business: true,
+              biz_name: profile.biz_name,
+              biz_tax_id: profile.biz_tax_id,
+              biz_ceo: profile.biz_ceo,
+              biz_type: profile.biz_category,
+              biz_item: profile.biz_item,
+              biz_address: profile.biz_address,
+              tax_invoice_email: profile.tax_email,
+              ...(profile.requested_by_name ? { billing_contact_name: profile.requested_by_name } : {}),
+              ...(profile.contact_phone ? { billing_contact_phone: profile.contact_phone } : {}),
+            }
+          : {
+              // 개인(현금영수증) — 연락처만 저장. 식별번호(휴대폰)는 billing_contact_phone 로 다음 prefill.
+              is_business: false,
+              ...(profile.requested_by_name ? { billing_contact_name: profile.requested_by_name } : {}),
+              ...(profile.contact_phone ? { billing_contact_phone: profile.contact_phone }
+                  : (profile.cr_identifier ? { billing_contact_phone: profile.cr_identifier } : {})),
+            };
+        await Client.update(patch, { where: { id: invoice.client_id } });
       } catch (e) { console.warn('[receipt-request] client update', e.message); }
     }
 
