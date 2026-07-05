@@ -35,6 +35,8 @@ const PROJECT_COLORS = PROJECT_COLOR_PALETTE.map(p => p.value);
 //   'details' = 프로젝트 메타데이터 편집 (옛 'info' 폼). 라벨 "상세정보".
 //   'info'    = Q info (KbDocument scope='project'). 라벨 "정보". 문서 다음 위치.
 type TabKey = 'dashboard' | 'tasks' | 'details' | 'info' | 'clients' | 'files' | 'docs' | 'transactions' | 'report' | `doc-${number}`;
+// 고객(client)에게 숨기는 탭 — 내부 캔버스(전략·403)·고객목록·거래(청구)·보고서·상세메타. 고객은 협업 탭(업무·파일·문서·정보)만.
+const CLIENT_HIDDEN_TABS: TabKey[] = ['dashboard', 'clients', 'transactions', 'report', 'details'];
 
 interface BizMember { id: number; user_id: number; user?: { id: number; name: string; email?: string; is_ai?: boolean } }
 
@@ -51,6 +53,7 @@ interface ProjectDetail {
   process_tab_label?: string;
   color?: string | null;
   owner_user_id: number;
+  my_role_in_project?: 'owner' | 'admin' | 'member' | 'client' | string;
   Business?: { id: number; name: string; brand_name?: string };
   projectMembers?: { user_id: number; role: string; is_pm?: boolean; User?: { id: number; name: string; display_name?: string | null }}[];
   projectClients?: { id: number; client_id?: number | null; contact_name: string; contact_email: string | null; contact_user_id?: number | null; invite_token?: string | null; invited_at?: string | null }[];
@@ -131,6 +134,12 @@ const QProjectDetailPage: React.FC = () => {
   const periodAnchorRef = useRef<HTMLButtonElement>(null);
   const [periodPickerOpen, setPeriodPickerOpen] = useState(false);
   const [project, setProject] = useState<ProjectDetail | null>(null);
+  const isClient = project?.my_role_in_project === 'client';
+  // 고객이 숨겨진 탭(캔버스 등)으로 진입하면 허용 탭(문서)으로 이동 — 빈/에러 화면 방지.
+  useEffect(() => {
+    if (isClient && CLIENT_HIDDEN_TABS.includes(tab)) setTab('docs');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isClient, tab]);
   const [statusHistory, setStatusHistory] = useState<{ id: number; from_status: string | null; to_status: string; note: string | null; created_at: string; changed_by_name: string | null }[]>([]);
   const [convs, setConvs] = useState<Conv[]>([]);
   const [tasks, setTasks] = useState<TaskRow[]>([]);
@@ -376,7 +385,10 @@ const QProjectDetailPage: React.FC = () => {
     >
       <TabBar>
         {/* 탭 순서 (사이클 N+14): 문서 다음에 정보(Q info), 상세정보(메타)는 마지막 */}
-        {([['dashboard', '캔버스'], ['tasks', '업무'], ['clients', '고객'], ['files', '파일'], ['docs', '문서'], ['info', '정보'], ['transactions', '거래'], ['report', '보고서'], ['details', '상세정보']] as [TabKey, string][]).map(([k, lbl]) => (
+        {/* 고객(client)은 협업 탭만 — 캔버스(내부 전략·403)·고객목록·거래·보고서·상세는 숨김 (권한 매트릭스 detail-only) */}
+        {([['dashboard', '캔버스'], ['tasks', '업무'], ['clients', '고객'], ['files', '파일'], ['docs', '문서'], ['info', '정보'], ['transactions', '거래'], ['report', '보고서'], ['details', '상세정보']] as [TabKey, string][])
+          .filter(([k]) => !(isClient && CLIENT_HIDDEN_TABS.includes(k)))
+          .map(([k, lbl]) => (
           <Tab key={k} $active={tab === k} onClick={() => setTab(k)}>
             {t(`tab.${k}`, lbl)}
           </Tab>
@@ -393,7 +405,7 @@ const QProjectDetailPage: React.FC = () => {
       </TabBar>
 
       <Suspense fallback={<TabFallback>{t('common.loading', '불러오는 중…')}</TabFallback>}>
-      {tab === 'dashboard' && (
+      {tab === 'dashboard' && !isClient && (
         <ProjectCanvas projectId={projectId} businessId={project.business_id} />
       )}
 
