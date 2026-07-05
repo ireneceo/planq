@@ -81,4 +81,6 @@ const ClearBtn = styled.button`
 const HintPill = styled.span`
   padding:2px 6px;background:#fff;border:1px solid #E2E8F0;border-radius:4px;
   font-size:10px;font-weight:600;color:#94A3B8;letter-spacing:.2px;flex-shrink:0;
+  /* 키보드 단축키 힌트 — 터치/모바일에선 무의미하므로 숨김 */
+  @media (hover: none), (max-width: 640px) { display: none; }
 `;

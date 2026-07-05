@@ -902,17 +902,7 @@ export default function WorkspaceSettingsPage() {
                   }}
                 />
               </LogoUploadRow>
-              <AutoSaveField
-                type="input"
-                onSave={async () => { await saveBrand({ brand_logo_url: brandLogoUrl || null }); }}
-              >
-                <TextInput
-                  value={brandLogoUrl}
-                  onChange={(e) => setBrandLogoUrl(e.target.value)}
-                  placeholder={t('brand.logoUrlPlaceholder') || ''}
-                  disabled={!isAdmin}
-                />
-              </AutoSaveField>
+              {/* raw URL 인풋 제거 — 업로드/변경/제거 버튼으로 충분, 내부 심볼 API 경로 노출 방지 (2026-07-05) */}
             </Field>
 
             <Field>
