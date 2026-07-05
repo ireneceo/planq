@@ -290,7 +290,7 @@
     "weekStart": "Start",
     "over": "Over cap +{{h}}h",
     "overTip": "Actual time this week is {{h}}h over the {{base}}h capacity.",
-    "ideal": "Baseline",
+    "ideal": "Capacity pace",
     "capacity": "Capacity",
     "capacityLine": "Cap {{h}}h",
     "verdict": {

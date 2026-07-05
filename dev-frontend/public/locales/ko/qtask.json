@@ -327,7 +327,7 @@
     "weekStart": "시작",
     "over": "가용 초과 +{{h}}h",
     "overTip": "이번 주 실제 투입이 가용시간({{base}}h)을 {{h}}h 넘었어요.",
-    "ideal": "기준선",
+    "ideal": "가용 페이스",
     "capacity": "가용시간",
     "capacityLine": "가용 {{h}}h",
     "verdict": {
