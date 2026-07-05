@@ -785,7 +785,7 @@
       "button": "세금계산서 · 현금영수증 신청",
       "requested": "증빙 발행 정보를 제출했습니다",
       "requestedSub": "발행자가 확인 후 발행합니다.",
-      "editInfo": "입력 정보 수정하기",
+      "editInfo": "정보 수정",
       "taxIssued": "세금계산서가 발행되었습니다",
       "cashIssued": "현금영수증이 발행되었습니다",
       "issuedSub": "등록하신 정보로 발행 완료되었습니다.",
@@ -816,7 +816,9 @@
       "vatIncluded": "VAT 포함",
       "download": "발행 파일 다운로드",
       "registeredNotice": "고객님 정보로 발행됩니다 — 아래는 고객정보에 등록된 내용이에요. 확인 후 신청하시면 되고, 다르면 수정할 수 있어요.",
-      "willSaveNotice": "입력하신 정보는 고객정보에 저장되어 다음 발행 때 자동으로 채워져요."
+      "willSaveNotice": "입력하신 정보는 고객정보에 저장되어 다음 발행 때 자동으로 채워져요.",
+      "typeRow": "발행 유형",
+      "editCancel": "← 확인 화면으로 돌아가기"
     },
     "contact": "문의하기"
   },

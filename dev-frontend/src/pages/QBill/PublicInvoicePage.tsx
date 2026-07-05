@@ -129,6 +129,9 @@ const PublicInvoicePage: React.FC = () => {
   });
   const [rcSubmitting, setRcSubmitting] = useState(false);
   const [rcErr, setRcErr] = useState<string | null>(null);
+  // 확인-only 뷰 (Fable 설계): 프리필이 충분하면 읽기전용 요약(confirm), 아니면 전체 폼(edit).
+  const [rcMode, setRcMode] = useState<'confirm' | 'edit'>('edit');
+  const [rcCanConfirm, setRcCanConfirm] = useState(false);
 
   useEffect(() => {
     if (!token) return;
@@ -167,18 +170,22 @@ const PublicInvoicePage: React.FC = () => {
       .catch(() => { /* silent */ });
   }, [token, invoice, navigate]);
 
-  // 모달 열림 동안 body scroll lock + Esc 닫기
+  // 모달 열림 동안 body scroll lock + Esc 닫기 (알림 모달 + 증빙 신청 모달 공용)
   useEffect(() => {
-    if (!notifyOpen) return;
+    if (!notifyOpen && !receiptOpen) return;
     const original = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setNotifyOpen(false); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (receiptOpen) setReceiptOpen(false);
+      else if (notifyOpen) setNotifyOpen(false);
+    };
     document.addEventListener('keydown', onKey);
     return () => {
       document.body.style.overflow = original;
       document.removeEventListener('keydown', onKey);
     };
-  }, [notifyOpen]);
+  }, [notifyOpen, receiptOpen]);
 
   const isSplit = invoice?.installment_mode === 'split';
   const targetable = useMemo(() => {
@@ -221,22 +228,33 @@ const PublicInvoicePage: React.FC = () => {
     setNotifyOpen(true);
   };
 
+  // 프리필이 "제출 검증 임계치"를 넘으면 확인-only 가능 (submitReceipt 와 동일 기준).
+  const rcPrefillSufficient = (f: typeof rcForm, type: 'business' | 'individual') =>
+    type === 'individual'
+      ? f.cr_identifier.replace(/[^0-9]/g, '').length >= 8
+      : f.biz_tax_id.replace(/[^0-9]/g, '').length === 10 && !!f.biz_name.trim();
+
   const openReceipt = () => {
     const p = invoice?.receipt?.profile;
-    setRcBizType(p?.biz_type === 'individual' ? 'individual' : 'business');
-    setRcForm({
-      biz_name: p?.biz_name || invoice?.receipt?.profile?.biz_name || '',
+    const type: 'business' | 'individual' = p?.biz_type === 'individual' ? 'individual' : 'business';
+    const nextForm = {
+      biz_name: p?.biz_name || '',
       biz_tax_id: p?.biz_tax_id || '',
       biz_ceo: p?.biz_ceo || '',
       biz_category: p?.biz_category || '',
       biz_item: p?.biz_item || '',
       biz_address: p?.biz_address || '',
       tax_email: p?.tax_email || '',
-      cr_purpose: p?.cr_purpose === 'expense_proof' ? 'expense_proof' : 'income_deduction',
+      cr_purpose: (p?.cr_purpose === 'expense_proof' ? 'expense_proof' : 'income_deduction') as 'income_deduction' | 'expense_proof',
       cr_identifier: p?.cr_identifier || '',
       requested_by_name: p?.requested_by_name || '',
       contact_phone: p?.contact_phone || '',
-    });
+    };
+    setRcBizType(type);
+    setRcForm(nextForm);
+    const sufficient = rcPrefillSufficient(nextForm, type);
+    setRcCanConfirm(sufficient);
+    setRcMode(sufficient ? 'confirm' : 'edit');   // 충분하면 요약(확인-only), 아니면 전체 폼
     setRcErr(null);
     setReceiptOpen(true);
   };
@@ -618,8 +636,7 @@ const PublicInvoicePage: React.FC = () => {
               <ModalClose type="button" onClick={() => setReceiptOpen(false)} aria-label={t('common.close', '닫기') as string}>×</ModalClose>
             </ModalHead>
             <ModalBody>
-              {(invoice.receipt as { is_registered_client?: boolean } | undefined)?.is_registered_client
-                && (rcForm.biz_name || rcForm.biz_tax_id || rcForm.cr_identifier || rcForm.tax_email) ? (
+              {rcMode === 'confirm' ? (
                 <RcRegisteredBanner>{t('public.receipt.registeredNotice', '고객님 정보로 발행됩니다 — 아래는 고객정보에 등록된 내용이에요. 확인 후 신청하시면 되고, 다르면 수정할 수 있어요.')}</RcRegisteredBanner>
               ) : (
                 <ModalLine $muted>{t('public.receipt.modalDesc', '발행 유형을 선택하고 정보를 정확히 입력해주세요. 입력하신 정보 그대로 발행됩니다.')}</ModalLine>
@@ -628,6 +645,35 @@ const PublicInvoicePage: React.FC = () => {
                 <span>{t('public.receipt.requestAmount', '신청 금액')}</span>
                 <strong>{formatMoney(invoice.grand_total, invoice.currency)} <em>({t('public.receipt.vatIncluded', 'VAT 포함')})</em></strong>
               </RcAmountBox>
+              {rcMode === 'confirm' ? (
+                <>
+                  <RcSummary>
+                    <RcSumRow><dt>{t('public.receipt.typeRow', '발행 유형')}</dt>
+                      <dd>{rcBizType === 'business' ? t('public.receipt.typeBusiness', '사업자 · 세금계산서') : t('public.receipt.typeIndividual', '개인 · 현금영수증')}</dd></RcSumRow>
+                    {rcBizType === 'business' ? (
+                      <>
+                        <RcSumRow><dt>{t('public.receipt.bizName', '상호 (사업자명)')}</dt><dd>{rcForm.biz_name || '—'}</dd></RcSumRow>
+                        <RcSumRow><dt>{t('public.receipt.bizTaxId', '사업자등록번호')}</dt><dd>{rcForm.biz_tax_id || '—'}</dd></RcSumRow>
+                        <RcSumRow><dt>{t('public.receipt.bizCeo', '대표자')}</dt><dd>{rcForm.biz_ceo || '—'}</dd></RcSumRow>
+                        <RcSumRow><dt>{t('public.receipt.bizCategory', '업태')} · {t('public.receipt.bizItem', '종목')}</dt><dd>{[rcForm.biz_category, rcForm.biz_item].filter(Boolean).join(' · ') || '—'}</dd></RcSumRow>
+                        <RcSumRow><dt>{t('public.receipt.bizAddress', '사업장 주소')}</dt><dd>{rcForm.biz_address || '—'}</dd></RcSumRow>
+                        <RcSumRow><dt>{t('public.receipt.taxEmail', '세금계산서 수취 이메일')}</dt><dd>{rcForm.tax_email || '—'}</dd></RcSumRow>
+                      </>
+                    ) : (
+                      <>
+                        <RcSumRow><dt>{t('public.receipt.crPurpose', '발급 용도')}</dt><dd>{rcForm.cr_purpose === 'expense_proof' ? t('public.receipt.crExpense', '지출증빙') : t('public.receipt.crIncome', '소득공제')}</dd></RcSumRow>
+                        <RcSumRow><dt>{rcForm.cr_purpose === 'expense_proof' ? t('public.receipt.crIdBiz', '사업자번호') : t('public.receipt.crIdPhone', '휴대폰번호')}</dt><dd>{rcForm.cr_identifier || '—'}</dd></RcSumRow>
+                      </>
+                    )}
+                    <RcSumRow><dt>{t('public.receipt.contactName', '담당자명')}</dt><dd>{[rcForm.requested_by_name, rcForm.contact_phone].filter(Boolean).join(' · ') || '—'}</dd></RcSumRow>
+                  </RcSummary>
+                  <RcEditToggle type="button" aria-expanded={false} onClick={() => setRcMode('edit')}>{t('public.receipt.editInfo', '정보 수정')}</RcEditToggle>
+                </>
+              ) : (
+              <>
+              {rcCanConfirm && (
+                <RcEditToggle type="button" onClick={openReceipt}>{t('public.receipt.editCancel', '← 확인 화면으로 돌아가기')}</RcEditToggle>
+              )}
               <RcToggleRow>
                 <RcToggleBtn type="button" $active={rcBizType === 'business'} onClick={() => setRcBizType('business')}>
                   {t('public.receipt.typeBusiness', '사업자 · 세금계산서')}
@@ -711,9 +757,11 @@ const PublicInvoicePage: React.FC = () => {
                     onChange={e => setRcForm(f => ({ ...f, contact_phone: e.target.value }))} placeholder="010-1234-5678" />
                 </FormField>
               </RcTwoCol>
+              <RcSaveHint>{t('public.receipt.willSaveNotice', '입력하신 정보는 고객정보에 저장되어 다음 발행 때 자동으로 채워져요.')}</RcSaveHint>
+              </>
+              )}
 
               {rcErr && <RcErr>{rcErr}</RcErr>}
-              <RcSaveHint>{t('public.receipt.willSaveNotice', '입력하신 정보는 고객정보에 저장되어 다음 발행 때 자동으로 채워져요.')}</RcSaveHint>
             </ModalBody>
             <ModalFoot>
               <ModalCancelBtn type="button" onClick={() => setReceiptOpen(false)}>{t('common.cancel', '취소') as string}</ModalCancelBtn>
@@ -985,6 +1033,23 @@ const RcRegisteredBanner = styled.div`
 `;
 const RcSaveHint = styled.div`
   font-size: 12px; color: #64748B; line-height: 1.5; margin-top: 8px; text-align: center;
+`;
+const RcSummary = styled.dl`
+  display: flex; flex-direction: column; gap: 0; margin: 0;
+  border: 1px solid #E2E8F0; border-radius: 12px; overflow: hidden; background: #FFFFFF;
+`;
+const RcSumRow = styled.div`
+  display: flex; gap: 12px; padding: 11px 14px;
+  &:not(:last-child) { border-bottom: 1px solid #F1F5F9; }
+  dt { flex: 0 0 104px; font-size: 13px; font-weight: 500; color: #64748B; margin: 0; }
+  dd { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; color: #0F172A; margin: 0; word-break: break-all; }
+`;
+const RcEditToggle = styled.button`
+  align-self: flex-start; margin-top: 2px;
+  background: transparent; border: none; padding: 6px 2px;
+  font-size: 13px; font-weight: 600; color: #0F766E; cursor: pointer;
+  &:hover { color: #0D9488; text-decoration: underline; }
+  &:focus-visible { outline: 2px solid rgba(15,118,110,0.35); outline-offset: 2px; border-radius: 4px; }
 `;
 const RcToggleRow = styled.div`display: flex; gap: 8px; margin-bottom: 4px;`;
 const RcToggleBtn = styled.button<{ $active: boolean }>`
