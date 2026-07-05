@@ -92,17 +92,22 @@ async function scrollTopOf(page) {
   });
 }
 
-// 현재 화면의 "실제로 보이는" 입력 요소만 (숨은 헬퍼 입력·0-height 오탐 제거)
+// 현재 화면의 "실제로 보이는" 입력만. ★ 모달/드로어(role=dialog)가 열려 있으면 그 안 입력만
+//   반환 (배경 페이지 입력 제외) — 모달 테스트 시 배경 노이즈 차단.
 async function visibleInputs(page) {
   const handles = await page.$$('input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=file]), textarea, [contenteditable="true"]');
+  const hasDialog = !!(await page.$('[role="dialog"], [aria-modal="true"]'));
   const out = [];
   for (const h of handles) {
-    const vis = await h.evaluate((el) => {
+    const ok = await h.evaluate((el, hasDialog) => {
       const r = el.getBoundingClientRect();
       const s = getComputedStyle(el);
-      return r.height > 10 && r.width > 10 && el.offsetParent !== null && s.visibility !== 'hidden' && s.opacity !== '0';
-    });
-    if (vis) out.push(h); else await h.dispose();
+      const visible = r.height > 10 && r.width > 10 && el.offsetParent !== null && s.visibility !== 'hidden' && s.opacity !== '0';
+      if (!visible) return false;
+      if (hasDialog) return !!el.closest('[role="dialog"], [aria-modal="true"]'); // 모달 열렸으면 모달 안만
+      return true;
+    }, hasDialog);
+    if (ok) out.push(h); else await h.dispose();
   }
   return out;
 }
