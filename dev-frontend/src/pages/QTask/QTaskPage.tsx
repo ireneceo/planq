@@ -1307,7 +1307,7 @@ const QTaskPage:React.FC=()=>{
     });
   },[filtered,myId,periodFrom,periodTo,dailyProgress,todayStr]);
 
-  // 이상선(기준점) 종점 = 이번 주 내 업무 예측시간 총합
+  // weekTotalEst = Σ예측 — chartVerdict(SPI 판정) 전용. 그래프 대각선은 effectiveCapacity(가용) 사용 (2026-07-05, Fable 검토)
   const weekTotalEst=useMemo(()=>{
     const ct=filtered.filter(t=>t.assignee_id===myId&&t.status!=='canceled');
     return Math.round(ct.reduce((s,t)=>s+(Number(t.estimated_hours)||0),0)*10)/10;
@@ -2432,14 +2432,18 @@ const QTaskPage:React.FC=()=>{
                     const cw=W-PL-PR, ch=H-PT-PB;
                     // 번업(Irene 스펙 2026-06-29): 0 에서 위로 누적 상승. i=0 = 시작 앵커(월요일 앞, 0h), i=1.. = 영업일.
                     //   실제 투입이 가용시간(가로선)을 넘으면 라인이 그 위로 솟구쳐 시각적으로 초과를 알린다.
-                    const base=weekTotalEst||0;
+                    // 목표 대각선 = 가용시간 페이스 (Irene 2026-07-05, Fable 검토). 종점이 가로 가용선과 만남.
+                    //   가용 미설정(휴일=영업일 등으로 0) 시 Σ예측 fallback — 대각선이 통째로 사라지는 회귀 방지.
+                    const base=effectiveCapacity>0?effectiveCapacity:(weekTotalEst||0);
                     const days=computedBurndown;
                     const N=days.length+1;
                     const step=N>1?cw/(N-1):0;
                     // 실제 투입이 가용/예측을 넘으면 그 위로 솟구쳐야 보이므로 maxY 에 실제·예측 누적 최댓값도 포함.
                     const maxAct=Math.max(0,...days.map(p=>p.actual_cumulative==null?0:p.actual_cumulative));
                     const maxEst=Math.max(0,...days.map(p=>p.estimated_cumulative==null?0:p.estimated_cumulative));
-                    const yMaxBase=Math.max(base, effectiveCapacity||0, maxAct, maxEst, 1);
+                    // base(=가용)로 y축 기준. Σ예측 선제 인플레 제거. 그려진 실데이터(maxAct/maxEst)는
+                    //   잘림 방지 위해 유지 — 가용 초과 시 그때만 y축 확장(초과 솟구침 의도 유지).
+                    const yMaxBase=Math.max(base, maxAct, maxEst, 1);
                     const yMax=Math.ceil(yMaxBase/5)*5||5;
                     const yTicks=[0,yMax/2,yMax];
                     const xPos=(i:number)=>PL+i*step;
@@ -2476,7 +2480,7 @@ const QTaskPage:React.FC=()=>{
                             </text>
                           </>
                         )}
-                        {/* 기준선(이상 진척) — 시작 0 → 마지막 = 예측 총합(base) 까지 올라가는 대각선 (전체 폭) */}
+                        {/* 기준선 — 시작 0 → 가용시간(base) 페이스 대각선. 종점이 가로 가용선과 만남 (Irene 2026-07-05) */}
                         {base>0 && N>1 && (
                           <line x1={xPos(0)} y1={yPos(0)} x2={xPos(N-1)} y2={yPos(base)}
                             stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="4,4" />
@@ -2526,7 +2530,7 @@ const QTaskPage:React.FC=()=>{
                   <Legend>
                     <LI><Dot $c="#14B8A6"/>{t('chart.est','예측')}</LI>
                     <LI><Dot $c="#F43F5E"/>{t('chart.act','실제')}</LI>
-                    <LI><DashDot $c="#94A3B8"/>{t('chart.ideal','기준선')}</LI>
+                    <LI><DashDot $c="#94A3B8"/>{t('chart.ideal','가용 페이스')}</LI>
                     <LI><DashDot $c="#F59E0B"/>{t('chart.capacity','가용시간')}</LI>
                     {computedBurndown.some(p=>p.reverted)&&(
                       <LI><RevertTri/>{t('chart.reverted','되돌림')}</LI>
