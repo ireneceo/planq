@@ -113,33 +113,68 @@ router.post('/:token/accept', authenticateToken, async (req, res, next) => {
       const pc = resolved.record;
       await pc.update({ contact_user_id: req.user.id, accepted_at: new Date() }, { transaction: t });
       // 프로젝트 고객은 그 프로젝트의 고객 채널에 당연히 참여 — 수락 시 자동 join + Client 활성화(user_id 연결).
+      // workspace_client 와 대칭: 참여할 대화방이 하나도 없으면 환영 대화방을 보장(커밋 후). 안 그러면
+      //   프로젝트 초대 고객이 /talk 착지 시 빈 채팅 → "채팅창에 못 들어감" (근본 버그).
+      let needWelcomeClientId = null;
       try {
         const prj = await Project.findByPk(pc.project_id, { attributes: ['id', 'business_id'], transaction: t });
         if (prj) {
-          // Client 레코드 user_id 연결 + 활성화 (청구·대화 client_id 정합). unique(biz,user) 충돌 시 무시.
-          if (pc.client_id) {
+          // Client 레코드 보장 + user_id 연결 + 활성화 (청구·대화 client_id 정합).
+          //   프로젝트-생성 경로는 client_id 없이 만들어질 수 있어(초대 경로만 Client 생성) findOrCreate 로 보강.
+          let clientId = pc.client_id;
+          if (clientId) {
             await Client.update(
               { user_id: req.user.id, status: 'active' },
-              { where: { id: pc.client_id, business_id: prj.business_id }, transaction: t }
+              { where: { id: clientId, business_id: prj.business_id }, transaction: t }
             ).catch(() => {});
+          } else {
+            const [cl] = await Client.findOrCreate({
+              where: { business_id: prj.business_id, user_id: req.user.id },
+              defaults: {
+                business_id: prj.business_id, user_id: req.user.id,
+                display_name: pc.contact_name || null, invite_email: pc.contact_email || null,
+                invited_by: pc.invited_by || null, status: 'active', accepted_at: new Date(),
+              },
+              transaction: t,
+            });
+            clientId = cl.id;
+            if (cl.status !== 'active' || !cl.user_id) {
+              await cl.update({ user_id: req.user.id, status: 'active' }, { transaction: t }).catch(() => {});
+            }
+            await pc.update({ client_id: clientId }, { transaction: t });
           }
-          // 프로젝트 고객 채널에 참여자 추가 (중복 방지)
+          // 프로젝트 고객 채널: client_id(비어있을 때만) + 참여자(role 'client') 등록. 중복 방지.
           const custConvs = await Conversation.findAll({
             where: { project_id: pc.project_id, business_id: prj.business_id, channel_type: 'customer' },
-            attributes: ['id'], transaction: t,
+            attributes: ['id', 'client_id'], transaction: t,
           });
           for (const cv of custConvs) {
+            if (!cv.client_id) {
+              await Conversation.update({ client_id: clientId }, { where: { id: cv.id }, transaction: t });
+            }
             const exists = await ConversationParticipant.findOne({
               where: { conversation_id: cv.id, user_id: req.user.id }, transaction: t,
             });
             if (!exists) {
               await ConversationParticipant.create(
-                { conversation_id: cv.id, user_id: req.user.id, role: 'member' }, { transaction: t });
+                { conversation_id: cv.id, user_id: req.user.id, role: 'client' }, { transaction: t });
             }
           }
+          // 프로젝트에 customer 대화방이 하나도 없으면 → 워크스페이스 환영 대화방 보장(커밋 후).
+          if (custConvs.length === 0) needWelcomeClientId = clientId;
         }
       } catch (e) { console.warn('[invite accept auto-join]', e.message); }
       await t.commit();
+      // 참여 대화방이 없던 경우 — 워크스페이스 고객 환영 대화방 생성(client 참여자+환영 메시지). best-effort.
+      if (needWelcomeClientId) {
+        try {
+          const cl = await Client.findByPk(needWelcomeClientId);
+          if (cl && cl.user_id) {
+            const { ensureWelcomeConversation } = require('../services/clientOnboarding');
+            await ensureWelcomeConversation(cl, { io: req.app.get('io') });
+          }
+        } catch (e) { console.warn('[invite project welcome]', e.message); }
+      }
       try { const prj = await Project.findByPk(pc.project_id, { attributes: ['business_id'] }); broadcastAccept(req, prj?.business_id, 'project_client:updated', { project_id: pc.project_id, id: pc.id }); } catch { /* noop */ }
       notifyInviterOnAccept(pc.invited_by, pc.project_id, 'project_client', req.user.id, null).catch((e) => console.warn('[notify invite project_client]', e.message));
       return successResponse(res, { type: 'project_client', project_id: pc.project_id, redirect: '/talk' });
