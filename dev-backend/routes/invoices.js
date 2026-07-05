@@ -86,6 +86,17 @@ async function resolveReceiptFileId(fileId, businessId) {
 }
 
 // PDF 다운로드 helper — 공통
+// 열람(viewed) 신뢰성 — 봇/이메일스캐너/프리페치가 공개 링크를 여는 걸 '고객 열람'으로 오인 방지.
+//   Gmail 이미지프록시·MS SafeLinks·기업 메일보안(Proofpoint/Mimecast 등)·크롤러·CLI 툴·헤드리스는 실 고객 아님.
+//   UA 없음/비정상도 제외 (실 브라우저는 항상 UA 를 보냄).
+const BOT_UA_RE = /bot|crawl|spider|slurp|preview|scan|fetch|monitor|validator|proxy|safelinks|proofpoint|mimecast|barracuda|symantec|forcepoint|headless|phantom|python-requests|curl|wget|go-http|okhttp|java\/|facebookexternalhit|whatsapp|telegram|slackbot|discord|twitterbot|linkedinbot|googleimageproxy|ggpht|feedfetcher|apache-httpclient|axios\//i;
+function isBotOrScanner(req) {
+  const ua = String(req.headers['user-agent'] || '').trim();
+  if (!ua || ua.length < 15) return true;           // UA 없음/비정상 = 실 브라우저 아님 (CLI·스캐너)
+  if (BOT_UA_RE.test(ua)) return true;              // 알려진 봇/스캐너/프리페치/메일보안
+  return false;
+}
+
 async function buildInvoicePdf(invoiceId) {
   const invoice = await Invoice.findByPk(invoiceId, {
     include: [
@@ -191,13 +202,15 @@ router.get('/public/:token', optionalAuth, async (req, res, next) => {
         if (bm) isInternalViewer = true;
       }
     }
-    // 첫 열람 기록 — 외부(고객) 조회만
+    // 첫 열람 기록 — 실제 외부(고객) 조회만. 내부 멤버 + 봇/이메일스캐너/프리페치 제외.
+    const isBot = isBotOrScanner(req);
+    const skipViewed = isInternalViewer || isBot;
     const isFirstView = !invoice.viewed_at;
-    if (isFirstView && !isInternalViewer) {
+    if (isFirstView && !skipViewed) {
       try { await invoice.update({ viewed_at: new Date() }); } catch {}
     }
     // Q Bill 타임라인 — 고객 열람만. 60분 dedupe 로 새로고침 도배 collapse.
-    if (!isInternalViewer) {
+    if (!skipViewed) {
       await logBillEvent('invoice', invoice.id, 'viewed', { detail: { first: isFirstView }, dedupeWindowMs: 60 * 60 * 1000 });
     }
     // 발신자 워크스페이스 (공개 페이지 용 최소 정보)
