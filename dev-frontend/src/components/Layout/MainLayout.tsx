@@ -214,6 +214,8 @@ const SearchKbd = styled.kbd`
   color: rgba(94,234,212,0.8);
   flex-shrink: 0;
   margin-left: 8px;
+  /* 키보드 단축키 힌트 — 터치/모바일에선 무의미하므로 숨김 */
+  @media (hover: none), (max-width: 640px) { display: none; }
 `;
 
 const NavSection = styled.div`margin-bottom: 0;`;
