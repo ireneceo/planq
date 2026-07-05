@@ -1,8 +1,8 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-07-05 04:35
-**작업 상태:** 중단 (이어서 재개 예정) · **미배포 3건 대기**
+**마지막 업데이트:** 2026-07-05 11:30
+**작업 상태:** dev 검증 완료 · **미배포 배치 대기 (Irene /배포 명령 대기)**
 
 ---
 
@@ -16,12 +16,16 @@ session-state.md 읽고 이어서 개발해.
 
 ## 🔖 지금 중단 지점
 
-**마지막 작업:** 초대 고객 캔버스/채팅 안 됨 버그 — **진단 완료, 코드는 아직 안 들어감**. 모델 필드 읽던 중 중단.
+**모두 완료·검증됨. 남은 것은 Irene 의 명시적 /배포 뿐.**
 
-**바로 다음 작업 (재개 시 첫 할 일):**
-1. **초대 고객 채팅 fix 구현** — `routes/invites.js` project_client accept 블록(112-145). 문제: workspace_client는 `ensureWelcomeConversation`(services/clientOnboarding.js) 호출해 대화방+참여자 보장하는데 **project_client는 안 함** → 프로젝트 초대 고객이 /talk 착지 시 빈 채팅. **수정:** commit 후 pc.client_id 있으면 `ensureWelcomeConversation(client)` 호출(workspace_client 패턴 대칭) + 기존 project customer 대화방에 client_id(null일때만)+participant(role 'client') 등록. pc.client_id null(프로젝트 생성경로)이면 contact_name/contact_email로 Client findOrCreate. **멀티테넌트: 반드시 그 프로젝트/비즈니스 대화방만.**
-2. **초대 고객 캔버스 fix (옵션 A 확정)** — 캔버스 API는 client role 403(`routes/projects.js:1174`, 정상 유지). 프론트 `QProject/QProjectDetailPage.tsx`(탭 기본 'dashboard'=캔버스, 87-88/379)에서 **client role이면 캔버스 탭 숨기고 허용 탭(문서/업무요청/채팅)으로 기본**. `my_role_in_project`(GET /:id 응답 320)로 게이트.
-3. **검증(/검증 진행 중이었음)** → **배포(/배포)**: 스팸From정렬 + 청구서404 + 초대고객 3건 한 번에.
+**미배포 배치 (origin/main 대비 5 commits ahead, 미푸시):**
+1. `ff43ca8` **초대 고객 채팅+캔버스 근본수정** — 완료 (session-state 옛 최우선작업, 이미 커밋됨)
+2. `a17758b` **청구서 이메일 404 근본수정** — 완료 (dev 검증, 미배포)
+3. `4c90849` (wip auto-save) **QBill 증빙 발행 신청 "확인-only 뷰"** — 완료·검증됨. 프리필 충분(사업자 등록번호10+상호 / 개인 식별번호8+) 시 읽기전용 요약(confirm), "정보 수정" 토글로 전체 폼(edit). Fable 설계.
+   - **실 공개 API 검증:** INV-2026-0018(business) → confirm ✓ · INV-2026-0017(individual, 식별번호 null) → edit ✓. 빌드 EXIT0/TS0, i18n typeRow/editCancel ko/en.
+4. **`.env SMTP_FROM` 스팸 fix** (git-ignored, 미커밋) — dev 적용됨. **운영 배포 시 운영 .env 도 같이 변경해야 실제 반영.**
+
+**참고:** M-c + H-f(q-note rate-limit, commit 1bd9e3b) 배포 갈래는 **7/3 운영 배포 완료** (deploy 20260703_155328). 7/3 Mac 세션 SSH 끊김과 무관하게 서버에서 완주됨.
 
 **맥락 유지할 것:**
 - **스팸 fix 적용됨(dev, 미배포):** `dev-backend/.env` `SMTP_FROM` `help@planq.kr`→`help@irenewp.com` (인증계정과 정렬 → 사칭플래그 제거 → 스팸 회피). 백업 `.env.bak-smtp-*`. 표시명 "PlanQ" 유지. **운영 .env도 배포 시 같이 바꿔야 실제 반영**(prod는 아직 help@planq.kr = 여전히 스팸). **영구 브랜딩 유지 원하면 planq.kr DKIM(Irene 콘솔: Google관리자 Gmail 이메일인증 DKIM생성 → Cafe24 `google._domainkey.planq.kr` TXT) 켠 뒤 From을 help@planq.kr로 되돌림.** 실측: planq.kr·irenewp.com 둘 다 DKIM 미게시, SPF는 양쪽 있음.
@@ -30,22 +34,21 @@ session-state.md 읽고 이어서 개발해.
 
 ---
 
-## 📦 이번 세션 작업 요약
+## 📦 최근 세션 작업 요약
 
-- 스팸 원인 진단 + dev 즉시처방(From 정렬) 적용
-- 초대 고객 캔버스/채팅 버그 근본원인 규명(Explore)
-- 청구서 404 fix 검증(3차 세션 커밋 a17758b)
+- 초대 고객 채팅+캔버스 근본수정 구현·커밋 (ff43ca8)
+- QBill 증빙 "확인-only 뷰" 구현·실 API 검증·커밋 (4c90849)
+- 스팸 From 정렬(dev .env) · 청구서 404 fix(a17758b)
 
-**커밋:** a17758b fix(qbill) 청구서 이메일 404 (미배포) · .env 변경은 git-ignored(미커밋)
+**미배포 배치:** ff43ca8 + a17758b + 4c90849 + .env SMTP_FROM (전부 dev 검증 완료)
 
 ---
 
 ## 📂 다음 할 일 (우선순위)
-1. 초대 고객 채팅+캔버스 fix 구현 → 검증
-2. 배포: 스팸From + 청구서404 + 초대고객 (운영 .env SMTP_FROM도 같이 변경)
-3. 배포 후 INV-2026-0003 재발송
-4. (Irene) planq.kr DKIM 콘솔 설정 → 이후 From을 help@planq.kr로 복귀
-5. 운영 백로그: #108·#91·#92·#87·#98·#106(보안)·#97·#100~105 등
+1. **(Irene) /배포** — 초대고객 + 청구서404 + 증빙 확인뷰 + 스팸From 일괄 (운영 .env SMTP_FROM 도 같이 변경)
+2. 배포 후 INV-2026-0003 재발송(jwchoi@kiyul.co.kr, 정상 버튼)
+3. (Irene) planq.kr DKIM 콘솔 설정 → 이후 From 을 help@planq.kr 로 복귀
+4. 운영 백로그: #108·#91·#92·#87·#98·#106(보안)·#97·#100~105 등
 
 ---
 
