@@ -103,7 +103,7 @@ export interface ApiInvoice {
   viewed_at: string | null;
   notify_paid_at: string | null;
   notify_payer_name: string | null;
-  meta: { last_reminder_at?: string; reminder_count?: number; last_overdue_notify_stage?: string } | null;
+  meta: { last_reminder_at?: string; reminder_count?: number; last_overdue_notify_stage?: string; last_resent_at?: string; resend_count?: number } | null;
   source_post_id: number | null;
   project_id: number | null;
   bank_snapshot: { bank_name?: string; account_number?: string; account_holder?: string } | null;
@@ -464,6 +464,18 @@ export async function sendInvoicePreview(
 ): Promise<{ sent: boolean; to: string }> {
   const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}/send-preview`, { method: 'POST' });
   return expectOk<{ sent: boolean; to: string }>(r);
+}
+
+/** 재발송 — 이미 보낸 청구서를 원본 그대로(PDF 포함, 독촉 톤 없음) 고객에게 다시. 상태 무변경. */
+export async function resendInvoice(
+  businessId: number, invoiceId: number, message?: string
+): Promise<{ sent: boolean; to: string; resend_count: number }> {
+  const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}/resend`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(message ? { message } : {}),
+  });
+  return expectOk<{ sent: boolean; to: string; resend_count: number }>(r);
 }
 
 export async function listSourceCandidates(
