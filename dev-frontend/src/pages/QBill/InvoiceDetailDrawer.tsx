@@ -775,7 +775,17 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
                 if (typeof d.amount === 'number') suffixParts.push(formatMoney(d.amount, invoice.currency));
                 if (typeof d.no === 'string' && d.no) suffixParts.push(d.no);
                 if (typeof d.payer_name === 'string' && d.payer_name) suffixParts.push(d.payer_name);
+                // 발송처 — 어느 이메일·어느 채팅방에 보냈는지 무조건 표시 (sent 이벤트)
+                const isResend = ev.event_type === 'sent' && d.resend === true;
+                if (isResend) suffixParts.unshift(t('detail.events.resendTag', { defaultValue: '재발송' }) as string);
                 const suffix = suffixParts.join(' · ');
+                const destParts: string[] = [];
+                if (ev.event_type === 'sent') {
+                  const emailTo = (typeof d.email_to === 'string' && d.email_to) ? d.email_to : (typeof d.to === 'string' ? d.to : '');
+                  if (emailTo) destParts.push(t('detail.events.sentEmail', { email: emailTo, defaultValue: `📧 ${emailTo}` }) as string);
+                  if (typeof d.chat_title === 'string' && d.chat_title) destParts.push(t('detail.events.sentChat', { name: d.chat_title, defaultValue: `💬 ${d.chat_title}` }) as string);
+                  else if (d.chat_conversation_id) destParts.push(t('detail.events.sentChatGeneric', { defaultValue: '💬 채팅방' }) as string);
+                }
                 return (
                   <TlRow key={ev.id}>
                     <TlDot $c={meta.color} />
@@ -784,6 +794,7 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
                         <TlLabel>{t(`detail.events.types.${meta.key}`, { defaultValue: meta.fallback })}</TlLabel>
                         {suffix && <TlSuffix>{suffix}</TlSuffix>}
                       </TlMain>
+                      {destParts.length > 0 && <TlDest>{destParts.join('  ·  ')}</TlDest>}
                       <TlMeta>
                         {formatDateTime(ev.created_at)} · {actorName}
                       </TlMeta>
@@ -1365,6 +1376,7 @@ const TlBody = styled.div`display: flex; flex-direction: column; gap: 2px; min-w
 const TlMain = styled.div`display: flex; align-items: center; gap: 6px; flex-wrap: wrap;`;
 const TlLabel = styled.span`font-size: 13px; font-weight: 600; color: #0F172A;`;
 const TlSuffix = styled.span`font-size: 12px; color: #64748B;`;
+const TlDest = styled.div`font-size: 12px; color: #0F766E; font-weight: 600; margin-top: 2px; word-break: break-all;`;
 const TlMeta = styled.div`font-size: 11px; color: #94A3B8;`;
 const PayerHint = styled.div`
   margin-top: 8px; padding: 10px 12px;

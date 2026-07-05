@@ -259,6 +259,10 @@
     },
     "events": {
       "title": "Activity",
+      "resendTag": "Resent",
+      "sentEmail": "📧 {{email}}",
+      "sentChat": "💬 {{name}}",
+      "sentChatGeneric": "💬 Chat",
       "types": {
         "created": "Created",
         "sent": "Sent",

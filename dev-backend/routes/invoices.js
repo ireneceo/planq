@@ -1300,7 +1300,7 @@ router.post('/:businessId/:id/send', authenticateToken, checkBusinessAccess, req
               });
             }
           } catch (nErr) { console.warn('[invoice send chat notify]', nErr.message); }
-          deliver.chat = { conversation_id: conv.id, message_id: msg.id };
+          deliver.chat = { conversation_id: conv.id, message_id: msg.id, title: conv.title || null };
         } else {
           deliver.chat = { error: 'no_conversation' };
         }
@@ -1384,7 +1384,13 @@ router.post('/:businessId/:id/send', authenticateToken, checkBusinessAccess, req
       },
     });
     // Q Bill 타임라인 — 발행(draft → sent) + 발송 채널
-    await logBillEvent('invoice', invoice.id, 'sent', { actorUserId: req.user?.id, detail: { chat: !!(deliver.chat && !deliver.chat.error), email: !!(deliver.email && !deliver.email.error) } });
+    await logBillEvent('invoice', invoice.id, 'sent', { actorUserId: req.user?.id, detail: {
+      chat: !!(deliver.chat && !deliver.chat.error), email: !!(deliver.email && !deliver.email.error),
+      // 어느 이메일·어느 채팅방에 보냈는지 이력에 무조건 남김 (사용자 요구)
+      email_to: (deliver.email && !deliver.email.error && deliver.email.to) || null,
+      chat_conversation_id: (deliver.chat && !deliver.chat.error && deliver.chat.conversation_id) || null,
+      chat_title: (deliver.chat && !deliver.chat.error && deliver.chat.title) || null,
+    } });
     successResponse(res, { invoice: refreshed, deliver }, 'Invoice sent');
   } catch (error) { try { await t.rollback(); } catch {} next(error); }
 });
@@ -1557,7 +1563,7 @@ router.post('/:businessId/:id/resend', authenticateToken, reminderLimiter, check
     meta.last_resent_at = new Date().toISOString();
     meta.resend_count = (Number(meta.resend_count) || 0) + 1;
     await invoice.update({ meta });
-    try { await logBillEvent('invoice', invoice.id, 'sent', { detail: { resend: true, to: recipient } }); } catch { /* best-effort */ }
+    try { await logBillEvent('invoice', invoice.id, 'sent', { detail: { resend: true, email_to: recipient } }); } catch { /* best-effort */ }
     require('../services/auditService').logAudit(req, {
       action: 'invoice.resend', targetType: 'invoice', targetId: invoice.id,
       newValue: { invoice_number: invoice.invoice_number, recipient, resend_count: meta.resend_count },
