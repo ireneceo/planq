@@ -207,6 +207,22 @@ router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, async (re
       patch.status = status; before.status = client.status;
     }
 
+    // 사업자·증빙 정보 (세금계산서/현금영수증 prefill 원천) — 빈 문자열은 null 로 저장
+    const BIZ_STR_FIELDS = [
+      'biz_name', 'biz_tax_id', 'biz_ceo', 'biz_address', 'biz_type', 'biz_item',
+      'tax_invoice_email', 'billing_contact_name', 'billing_contact_email', 'billing_contact_phone',
+    ];
+    for (const f of BIZ_STR_FIELDS) {
+      if (req.body[f] !== undefined) {
+        const nv = (req.body[f] === '' || req.body[f] === null) ? null : String(req.body[f]).trim();
+        if (nv !== client[f]) { patch[f] = nv; before[f] = client[f]; }
+      }
+    }
+    if (req.body.is_business !== undefined) {
+      const nv = !!req.body.is_business;
+      if (nv !== client.is_business) { patch.is_business = nv; before.is_business = client.is_business; }
+    }
+
     if (Object.keys(patch).length === 0) { broadcastClient(req, client, 'client:updated'); return successResponse(res, client); }
     await client.update(patch);
     await createAuditLog({

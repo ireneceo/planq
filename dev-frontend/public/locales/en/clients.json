@@ -65,7 +65,24 @@
     "historyToggleClose": "Close",
     "danger": "Danger Zone",
     "dangerDelete": "Delete Client Permanently",
-    "dangerHelper": "Permanently removes from this workspace. Disconnects from all linked projects."
+    "dangerHelper": "Permanently removes from this workspace. Disconnects from all linked projects.",
+    "billing": "Business · Receipt info"
+  },
+  "billing": {
+    "typeTip": "Business → tax invoice; individual → cash receipt.",
+    "business": "Business · Tax invoice",
+    "individual": "Individual · Cash receipt",
+    "bizName": "Company name",
+    "bizNamePh": "Registered company name",
+    "bizTaxId": "Business reg. number",
+    "bizCeo": "Representative",
+    "bizType": "Business type",
+    "bizItem": "Business item",
+    "bizAddress": "Business address",
+    "taxEmail": "Tax invoice email",
+    "crPhone": "Mobile (cash receipt)",
+    "contactEmail": "Email",
+    "helper": "Auto-fills tax invoice / cash receipt details when issuing invoices. Also saved here when the customer enters it on the invoice."
   },
   "projectStatus": {
     "active": "Active",

@@ -65,7 +65,24 @@
     "historyToggleClose": "닫기",
     "danger": "위험 영역",
     "dangerDelete": "고객 완전 삭제",
-    "dangerHelper": "이 워크스페이스에서 완전히 삭제합니다. 연결된 프로젝트에서도 해제됩니다."
+    "dangerHelper": "이 워크스페이스에서 완전히 삭제합니다. 연결된 프로젝트에서도 해제됩니다.",
+    "billing": "사업자·증빙 정보"
+  },
+  "billing": {
+    "typeTip": "사업자면 세금계산서, 개인이면 현금영수증 정보로 발행됩니다.",
+    "business": "사업자 · 세금계산서",
+    "individual": "개인 · 현금영수증",
+    "bizName": "상호",
+    "bizNamePh": "상호 (사업자등록증상)",
+    "bizTaxId": "사업자등록번호",
+    "bizCeo": "대표자",
+    "bizType": "업태",
+    "bizItem": "종목",
+    "bizAddress": "사업장 주소",
+    "taxEmail": "세금계산서 이메일",
+    "crPhone": "휴대폰번호 (현금영수증)",
+    "contactEmail": "이메일",
+    "helper": "청구서 발행 시 세금계산서·현금영수증 정보가 자동으로 채워집니다. 고객이 청구서에서 직접 입력해도 여기에 저장됩니다."
   },
   "projectStatus": {
     "active": "진행",
