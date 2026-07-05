@@ -67,6 +67,20 @@ File.init({
     type: DataTypes.STRING(500),
     allowNull: true
   },
+  // GDrive 미러 (storage_provider 는 그대로 'planq' 유지 — 서빙은 로컬, Drive 엔 사본만).
+  //   워크스페이스 파일 전체 Drive 가시성 목적. flip 아님 → 다운로드/이미지/ZIP 회귀 없음.
+  gdrive_mirror_id: {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+  },
+  gdrive_mirror_url: {
+    type: DataTypes.STRING(500),
+    allowNull: true,
+  },
+  gdrive_mirrored_at: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
   content_hash: {
     type: DataTypes.CHAR(64),
     allowNull: true

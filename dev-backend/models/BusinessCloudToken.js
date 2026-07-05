@@ -62,6 +62,11 @@ BusinessCloudToken.init({
     allowNull: true,
     comment: '채팅 첨부 공용 폴더 ID (root/Conversations)'
   },
+  workspace_folder_id: {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+    comment: '워크스페이스 파일 미러 공용 폴더 ID (root/Workspace Files)'
+  },
   // Drive changes.watch 상태
   watch_channel_id: {
     type: DataTypes.STRING(64),

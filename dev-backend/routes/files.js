@@ -566,6 +566,9 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, upload.singl
         ? `/api/files/public-image/${path.basename(file.file_path)}`
         : null;
       broadcastFile(req, file, 'file:new');
+      // GDrive 미러 — 워크스페이스 연결 시 로컬 저장 파일을 Drive 사본으로 (best-effort, 응답 블로킹 X).
+      //   storage_provider 는 planq 유지 → 서빙 무영향. 실패해도 파일은 로컬에 안전. L1 개인은 owner 본인만.
+      setImmediate(() => require('../services/gdriveMirror').mirrorOnUpload(file.id, businessId));
       // 사이클 N+51 — audit. 파일 업로드 (스토리지 mutation + visibility 결정)
       require('../services/auditService').logAudit(req, {
         action: 'file.upload',
