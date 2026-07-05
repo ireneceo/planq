@@ -3,7 +3,7 @@
 // 인라인 편집: 이름 / 회사 더블클릭. 활성 스위치는 드로어·리스트 양쪽.
 // 섹션: 헤더 / 연락처 / 메모 / 연결 프로젝트 / 연결 대화 / 히스토리
 // 삭제는 드로어 맨 아래 Danger 블록 (확인 모달).
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import styled from 'styled-components';
 import { useTranslation, Trans } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -33,6 +33,18 @@ interface ClientRow {
   notes: string | null;
   kind?: 'customer' | 'vendor' | 'freelancer' | 'other';
   status?: ClientStatus;
+  // 사업자·증빙 정보 (세금계산서/현금영수증 prefill 원천)
+  is_business?: boolean;
+  biz_name?: string | null;
+  biz_tax_id?: string | null;
+  biz_ceo?: string | null;
+  biz_address?: string | null;
+  biz_type?: string | null;
+  biz_item?: string | null;
+  tax_invoice_email?: string | null;
+  billing_contact_name?: string | null;
+  billing_contact_email?: string | null;
+  billing_contact_phone?: string | null;
   project_count?: number;
   active_project_count?: number;
   invited_at: string | null;
@@ -61,6 +73,34 @@ const STATUS_STYLE: Record<ClientStatus, { bg: string; fg: string }> = {
   archived: { bg: '#E2E8F0', fg: '#475569' },
   invited: { bg: '#FEF3C7', fg: '#92400E' },
 };
+
+// 사업자·증빙 정보 개별 필드 — 라벨 + 자동저장 입력 (module-level 로 정의해 재렌더 시 focus 유지)
+function BizField({ label, value, disabled, placeholder, inputMode, onSave }: {
+  label: string;
+  value?: string | null;
+  disabled?: boolean;
+  placeholder?: string;
+  inputMode?: 'text' | 'numeric' | 'email' | 'tel';
+  onSave: (val: string | null) => Promise<void>;
+}) {
+  const [v, setV] = useState(value ?? '');
+  useEffect(() => { setV(value ?? ''); }, [value]);
+  const vRef = useRef(v);
+  vRef.current = v;
+  return (
+    <BizRow>
+      <BizLabel>{label}</BizLabel>
+      {disabled ? (
+        <BizReadVal>{value || '—'}</BizReadVal>
+      ) : (
+        <AutoSaveField onSave={() => onSave(vRef.current.trim() || null)}>
+          <BizInput value={v} placeholder={placeholder} inputMode={inputMode}
+            onChange={(e) => setV(e.target.value)} />
+        </AutoSaveField>
+      )}
+    </BizRow>
+  );
+}
 
 export default function ClientsPage() {
   const { t } = useTranslation('clients');
@@ -203,7 +243,10 @@ export default function ClientsPage() {
   };
 
   // 공용 필드 업데이트 (디바운스 없음 — 인라인/드로어 blur 시 호출)
-  const patchClient = async (id: number, patch: Partial<Pick<ClientRow, 'display_name' | 'company_name' | 'notes' | 'kind'>>) => {
+  const patchClient = async (id: number, patch: Partial<Pick<ClientRow,
+    'display_name' | 'company_name' | 'notes' | 'kind'
+    | 'is_business' | 'biz_name' | 'biz_tax_id' | 'biz_ceo' | 'biz_address' | 'biz_type' | 'biz_item'
+    | 'tax_invoice_email' | 'billing_contact_name' | 'billing_contact_email' | 'billing_contact_phone'>>) => {
     const res = await apiFetch(`/api/clients/${businessId}/${id}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patch),
@@ -485,6 +528,38 @@ export default function ClientsPage() {
               <ContactRow><ContactLabel>{t('section.contactEmail')}</ContactLabel><ContactValue>{activeDetail.user?.email || '—'}</ContactValue></ContactRow>
               <ContactRow><ContactLabel>{t('section.contactPhone')}</ContactLabel><ContactValue>{activeDetail.user?.phone || '—'}</ContactValue></ContactRow>
               <Helper>{t('section.contactHelper')}</Helper>
+            </Section>
+
+            {/* 사업자·증빙 정보 — 세금계산서/현금영수증 발행 정보 원천 (owner/admin 편집, 미입력 시 고객이 청구서에서 직접 입력하면 저장됨) */}
+            <Section>
+              <SectionTitle>{t('section.billing', { defaultValue: '사업자·증빙 정보' }) as string}</SectionTitle>
+              <BizToggleRow>
+                <SwitchWrap title={t('billing.typeTip', { defaultValue: '사업자면 세금계산서, 개인이면 현금영수증 정보로 발행됩니다.' }) as string}>
+                  <SwitchInput type="checkbox" checked={!!activeDetail.is_business} disabled={!isAdmin}
+                    onChange={(e) => patchClient(activeDetail.id, { is_business: e.target.checked })} />
+                  <SwitchTrack />
+                  <SwitchLabel>{activeDetail.is_business ? t('billing.business', { defaultValue: '사업자 · 세금계산서' }) as string : t('billing.individual', { defaultValue: '개인 · 현금영수증' }) as string}</SwitchLabel>
+                </SwitchWrap>
+              </BizToggleRow>
+              {activeDetail.is_business ? (
+                <>
+                  <BizField label={t('billing.bizName', { defaultValue: '상호' }) as string} value={activeDetail.biz_name} disabled={!isAdmin} placeholder={t('billing.bizNamePh', { defaultValue: '상호 (사업자등록증상)' }) as string} onSave={(val) => patchClient(activeDetail.id, { biz_name: val })} />
+                  <BizField label={t('billing.bizTaxId', { defaultValue: '사업자등록번호' }) as string} value={activeDetail.biz_tax_id} disabled={!isAdmin} inputMode="numeric" placeholder="123-45-67890" onSave={(val) => patchClient(activeDetail.id, { biz_tax_id: val })} />
+                  <BizField label={t('billing.bizCeo', { defaultValue: '대표자' }) as string} value={activeDetail.biz_ceo} disabled={!isAdmin} onSave={(val) => patchClient(activeDetail.id, { biz_ceo: val })} />
+                  <BizTwoCol>
+                    <BizField label={t('billing.bizType', { defaultValue: '업태' }) as string} value={activeDetail.biz_type} disabled={!isAdmin} onSave={(val) => patchClient(activeDetail.id, { biz_type: val })} />
+                    <BizField label={t('billing.bizItem', { defaultValue: '종목' }) as string} value={activeDetail.biz_item} disabled={!isAdmin} onSave={(val) => patchClient(activeDetail.id, { biz_item: val })} />
+                  </BizTwoCol>
+                  <BizField label={t('billing.bizAddress', { defaultValue: '사업장 주소' }) as string} value={activeDetail.biz_address} disabled={!isAdmin} onSave={(val) => patchClient(activeDetail.id, { biz_address: val })} />
+                  <BizField label={t('billing.taxEmail', { defaultValue: '세금계산서 이메일' }) as string} value={activeDetail.tax_invoice_email} disabled={!isAdmin} inputMode="email" placeholder="tax@company.com" onSave={(val) => patchClient(activeDetail.id, { tax_invoice_email: val })} />
+                </>
+              ) : (
+                <>
+                  <BizField label={t('billing.crPhone', { defaultValue: '휴대폰번호 (현금영수증)' }) as string} value={activeDetail.billing_contact_phone} disabled={!isAdmin} inputMode="tel" placeholder="010-1234-5678" onSave={(val) => patchClient(activeDetail.id, { billing_contact_phone: val })} />
+                  <BizField label={t('billing.contactEmail', { defaultValue: '이메일' }) as string} value={activeDetail.billing_contact_email} disabled={!isAdmin} inputMode="email" onSave={(val) => patchClient(activeDetail.id, { billing_contact_email: val })} />
+                </>
+              )}
+              <Helper>{t('billing.helper', { defaultValue: '청구서 발행 시 세금계산서·현금영수증 정보가 자동으로 채워집니다. 고객이 청구서에서 직접 입력해도 여기에 저장됩니다.' }) as string}</Helper>
             </Section>
 
             {activeDetail.status === 'active' && businessId && (
@@ -795,6 +870,17 @@ const Helper = styled.div`font-size:11px;color:#94A3B8;line-height:1.5;`;
 const ContactRow = styled.div`display:flex;align-items:center;gap:8px;padding:6px 0;`;
 const ContactLabel = styled.span`font-size:11px;color:#94A3B8;font-weight:600;width:48px;flex-shrink:0;`;
 const ContactValue = styled.span`font-size:13px;color:#0F172A;`;
+const BizToggleRow = styled.div`padding:2px 0 6px;`;
+const BizRow = styled.div`display:flex;flex-direction:column;gap:4px;min-width:0;`;
+const BizLabel = styled.span`font-size:11px;color:#64748B;font-weight:600;`;
+const BizReadVal = styled.span`font-size:13px;color:#0F172A;word-break:break-all;`;
+const BizTwoCol = styled.div`display:grid;grid-template-columns:1fr 1fr;gap:10px;`;
+const BizInput = styled.input`
+  width:100%;box-sizing:border-box;padding:8px 28px 8px 10px;
+  border:1px solid #E2E8F0;border-radius:8px;font-size:13px;color:#0F172A;font-family:inherit;
+  &:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,0.15);}
+  &::placeholder{color:#CBD5E1;}
+`;
 const NoteArea = styled.textarea`
   width:100%;min-height:70px;max-height:180px;padding:8px 10px;
   border:1px solid #E2E8F0;border-radius:8px;font-size:13px;color:#0F172A;background:#FAFBFC;font-family:inherit;line-height:1.5;resize:vertical;
