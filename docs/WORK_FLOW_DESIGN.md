@@ -561,7 +561,7 @@ if (session.task_id) {
 | 상태 | 이번 주 표시 조건 | 근거 |
 |------|------------------|------|
 | **completed / canceled** | `completed_at` 이 이번 주 범위 안일 때만 | "완료시점이 이번 주"가 기준. 마감이 과거여도 이번 주에 끝냈으면 이번 주 성과. completed_at 없으면 제외(시점 불명) |
-| **not_started (미진행)** | 이번 주 계획(`planned_week_start`=이번주 월) **또는** 이번 주 마감(`due_date`가 이번 주) 일 때만 | 착수 안 한 backlog 가 무한정 쌓이지 않게. "이번 주 것"인 미진행만 노출 |
+| **not_started (미진행)** | 이번 주 계획(`planned_week_start`=이번주 월) **또는** 이번 주 마감 **또는 지연(`due_date` 가 이번 주 前 = 마감 지난 미착수)**. 마감 없는 것만 제외 | 지연(밀린 내 일)은 이번 주 책임선에 포함(Irene 2026-07-05). 마감 없는 backlog 만 flood 차단으로 제외 |
 | **in_progress / reviewing / revision_requested / waiting** | **날짜 무관 항상 표시** | 한 번 착수한 내 업무는 마감·날짜가 없어도 끝까지 이번 주 책임선. 요청받아 진행 중인 마감 없는 업무도 포함 |
 
 추가 규칙:

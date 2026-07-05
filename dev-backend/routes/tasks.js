@@ -81,7 +81,7 @@ router.get('/my-week', authenticateToken, async (req, res, next) => {
 
     // "이번 주 나의 업무" canonical 규칙 (docs/WORK_FLOW_DESIGN.md §5) — 프론트 week 필터와 동일.
     //  - completed/canceled: completed_at 이 이번 주 (완료시점 기준)
-    //  - not_started: 이번 주 계획(planned_week_start) 또는 이번 주 마감(due) 일 때만 (옛 backlog 제외)
+    //  - not_started: 이번 주 계획(planned_week_start) / 이번 주 마감 / 지연(마감 과거) 일 때. 마감 없는 backlog 만 제외
     //  - in_progress/reviewing/revision_requested/waiting: 날짜 무관 전부 (착수한 업무는 끝까지 책임)
     const tasks = await Task.findAll({
       where: {
@@ -97,6 +97,7 @@ router.get('/my-week', authenticateToken, async (req, res, next) => {
             [Op.or]: [
               { planned_week_start: monday },
               { due_date: { [Op.between]: [monday, sunday] } },
+              { due_date: { [Op.lt]: monday } },   // ★ 지연(마감 지난 미착수)도 포함 — Irene 2026-07-05. null 마감은 NULL 비교로 자동 제외(backlog flood 차단 유지)
             ],
           },
           { status: { [Op.in]: ['in_progress', 'reviewing', 'revision_requested', 'waiting'] } },

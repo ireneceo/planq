@@ -977,8 +977,10 @@ const QTaskPage:React.FC=()=>{
           const inPeriod=(()=>{
             if(isDone) return completedStr ? (completedStr>=periodFrom&&completedStr<=periodTo) : false;
             if(t.status==='not_started'){
-              if(plannedStr===periodFrom) return true;
-              return dueStr ? (dueStr>=periodFrom&&dueStr<=periodTo) : false;
+              if(plannedStr===periodFrom) return true;            // 이번 주 계획
+              if(!dueStr) return false;                            // 마감 없는 backlog 제외 (flood 차단)
+              if(dueStr<periodFrom) return true;                   // ★ 지연(마감 지난 미착수)도 이번 주 포함 — Irene 2026-07-05
+              return dueStr<=periodTo;                             // 이번 주 마감 (미래만 제외)
             }
             return true; // in_progress·reviewing·revision_requested·waiting
           })();
