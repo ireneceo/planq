@@ -298,6 +298,16 @@
       "lastSent": "Last sent · {{days}}d ago",
       "hint": "Send a payment reminder email to the customer"
     },
+    "resend": {
+      "action": "Resend",
+      "sending": "Sending…",
+      "sent": "Invoice resent ({{to}})",
+      "cooldown": "Sent recently. Please try again later",
+      "noRecipient": "No customer email on file — can't send",
+      "failed": "Failed to resend. Please try again later",
+      "lastSent": "Last resent · {{days}}d ago",
+      "hint": "Resend the original invoice email (with PDF) to the customer — not a reminder"
+    },
     "confirm": {
       "cancelInstallmentTitle": "Cancel installment",
       "cancelInstallmentMsg": "Cancel this installment? Paid installments cannot be canceled.",

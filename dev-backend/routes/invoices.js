@@ -1494,6 +1494,67 @@ router.post('/:businessId/:id/send-reminder', authenticateToken, reminderLimiter
   } catch (error) { next(error); }
 });
 
+// ─── 재발송 — 이미 보낸 청구서를 "원본 그대로"(PDF 첨부, 독촉 톤 없음) 고객에게 다시 발송 ───
+//   독촉(send-reminder)과 별개. 상태 무변경(draft→sent 전환 안 함). draft/canceled 제외.
+//   용도: 고객이 메일을 못 받았거나 분실한 경우 깔끔하게 원본만 다시.
+router.post('/:businessId/:id/resend', authenticateToken, reminderLimiter, checkBusinessAccess, requireMenu('qbill', 'write'), async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const invoice = await Invoice.findOne({ where: { id: req.params.id, business_id: businessId } });
+    if (!invoice) return errorResponse(res, 'Invoice not found', 404);
+    if (invoice.status === 'draft' || invoice.status === 'canceled') return errorResponse(res, 'not_resendable', 400);
+    // 수신자: recipient_email → client tax/billing/invite (발송 라우트와 동일 우선순위)
+    let recipient = invoice.recipient_email;
+    if (!recipient && invoice.client_id) {
+      const cl = await Client.findByPk(invoice.client_id, { attributes: ['tax_invoice_email', 'billing_contact_email', 'invite_email'] });
+      recipient = cl?.tax_invoice_email || cl?.billing_contact_email || cl?.invite_email || null;
+    }
+    if (!recipient) return errorResponse(res, 'no_recipient', 400);
+    // share_token 보장
+    let shareToken = invoice.share_token;
+    if (!shareToken) { shareToken = require('crypto').randomBytes(32).toString('hex'); await invoice.update({ share_token: shareToken }); }
+    const shareUrl = `${process.env.APP_URL || 'https://dev.planq.kr'}/public/invoices/${shareToken}`;
+    const business = await Business.findByPk(businessId, { attributes: ['name', 'brand_name', 'mail_from_name', 'mail_reply_to'] });
+    const sender = await User.findByPk(req.user.id, { attributes: ['name'] });
+    // PDF 첨부 (best-effort — 실패해도 메일은 진행)
+    let attachments = null;
+    try {
+      const { pdf } = await buildInvoicePdf(invoice.id);
+      attachments = [{ filename: `${invoice.invoice_number || 'invoice'}.pdf`, content: pdf, contentType: 'application/pdf' }];
+    } catch (pdfErr) { console.warn('[invoice resend] PDF attach failed:', pdfErr.message); }
+    const { sendInvoiceEmail } = require('../services/emailService');
+    const ok = await sendInvoiceEmail({
+      to: recipient,
+      invoiceNumber: invoice.invoice_number,
+      title: invoice.title,
+      total: Number(invoice.grand_total || 0),
+      currency: invoice.currency,
+      dueDate: invoice.due_date,
+      senderName: sender?.name || '',
+      workspaceName: business?.brand_name || business?.name || '',
+      message: req.body?.message ? String(req.body.message).slice(0, 1000) : null,
+      shareUrl,
+      attachments,
+      fromName: business?.mail_from_name || business?.brand_name || business?.name || null,
+      replyTo: business?.mail_reply_to || null,
+    });
+    if (!ok) return errorResponse(res, 'email_send_failed', 502);
+    // 추적 (상태 무변경)
+    const meta = (invoice.meta && typeof invoice.meta === 'object') ? { ...invoice.meta } : {};
+    meta.last_resent_at = new Date().toISOString();
+    meta.resend_count = (Number(meta.resend_count) || 0) + 1;
+    await invoice.update({ meta });
+    try { await logBillEvent('invoice', invoice.id, 'sent', { detail: { resend: true, to: recipient } }); } catch { /* best-effort */ }
+    require('../services/auditService').logAudit(req, {
+      action: 'invoice.resend', targetType: 'invoice', targetId: invoice.id,
+      newValue: { invoice_number: invoice.invoice_number, recipient, resend_count: meta.resend_count },
+    });
+    const io = req.app.get('io');
+    if (io) io.to(`business:${businessId}`).emit('invoice:updated', invoice.toJSON());
+    return successResponse(res, { sent: true, to: recipient, resend_count: meta.resend_count }, 'resent');
+  } catch (error) { next(error); }
+});
+
 // ─── Installment: 결제 완료 마킹 ───
 router.post('/:businessId/:id/installments/:installId/mark-paid', authenticateToken, checkBusinessAccess, requireMenu('qbill','write'), async (req, res, next) => {
   if (!assertInvoiceMutationOwner(req, res)) return;

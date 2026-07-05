@@ -12,7 +12,7 @@ import {
   getInvoice, markInstallmentPaid, unmarkInstallmentPaid,
   markInstallmentTaxInvoice, cancelInstallment, updateInvoiceStatus,
   markInvoiceTaxInvoice, markInvoiceCashReceipt,
-  findConversationForClient, deleteInvoice, sendInvoiceReminder, sendInvoicePreview, downloadInvoicePdf,
+  findConversationForClient, deleteInvoice, sendInvoiceReminder, sendInvoicePreview, resendInvoice, downloadInvoicePdf,
   listInvoiceCorrections, getInvoiceStatusHistory, getInvoiceTimeline,
   type ApiInvoice, type ApiInstallment, type ApiReceiptCorrection, type ApiInvoiceStatusEvent, type ApiBillEvent,
 } from '../../services/invoices';
@@ -111,6 +111,8 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
   const [remindNote, setRemindNote] = useState<{ tone: 'ok' | 'warn'; text: string } | null>(null);
   const [previewBusy, setPreviewBusy] = useState(false);
   const [previewNote, setPreviewNote] = useState<{ tone: 'ok' | 'warn'; text: string } | null>(null);
+  const [resendBusy, setResendBusy] = useState(false);
+  const [resendNote, setResendNote] = useState<{ tone: 'ok' | 'warn'; text: string } | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
 
   const onDownloadPdf = async () => {
@@ -324,6 +326,27 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
       setRemindBusy(false);
     }
   };
+  const handleResend = async () => {
+    if (!invoice || resendBusy) return;
+    setResendBusy(true);
+    setResendNote(null);
+    try {
+      const r = await resendInvoice(invoice.business_id, invoice.id);
+      setResendNote({ tone: 'ok', text: t('detail.resend.sent', { to: r.to, defaultValue: `청구서를 다시 보냈습니다 (${r.to})` }) as string });
+      await refresh();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '';
+      if (msg.includes('no_recipient')) {
+        setResendNote({ tone: 'warn', text: t('detail.resend.noRecipient', { defaultValue: '고객 이메일이 없어 보낼 수 없어요' }) as string });
+      } else if (msg.includes('cooldown') || msg.includes('rate')) {
+        setResendNote({ tone: 'warn', text: t('detail.resend.cooldown', { defaultValue: '최근에 보냈어요. 잠시 후 다시 시도해 주세요' }) as string });
+      } else {
+        setResendNote({ tone: 'warn', text: t('detail.resend.failed', { defaultValue: '재발송에 실패했어요. 잠시 후 다시 시도해 주세요' }) as string });
+      }
+    } finally {
+      setResendBusy(false);
+    }
+  };
 
   const APP_URL = window.location.origin;
   const shareUrl = invoice.share_token ? `${APP_URL}/public/invoices/${invoice.share_token}` : null;
@@ -411,6 +434,18 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
               {t('detail.markPaid.action', { defaultValue: '결제 완료' })}
             </ActionBtn>
           )}
+          {invoice.status !== 'draft' && invoice.status !== 'canceled' && (invoice.client_id || invoice.recipient_email) && (
+            <ActionBtn
+              onClick={handleResend}
+              disabled={resendBusy}
+              title={invoice.meta?.last_resent_at
+                ? t('detail.resend.lastSent', { days: daysSinceIso(invoice.meta.last_resent_at), defaultValue: '최근 재발송함' }) as string
+                : t('detail.resend.hint', { defaultValue: '원본 청구서 메일(PDF 포함)을 고객에게 다시 보냅니다 — 독촉 아님' }) as string}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/></svg>
+              {resendBusy ? t('detail.resend.sending', { defaultValue: '보내는 중…' }) : t('detail.resend.action', { defaultValue: '재발송' })}
+            </ActionBtn>
+          )}
           {(invoice.status === 'sent' || invoice.status === 'partially_paid' || invoice.status === 'overdue') && invoice.client_id && (
             <ActionBtn
               onClick={handleSendReminder}
@@ -431,6 +466,7 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
           )}
         </ActionRow>
         {remindNote && <RemindNote $tone={remindNote.tone}>{remindNote.text}</RemindNote>}
+        {resendNote && <RemindNote $tone={resendNote.tone}>{resendNote.text}</RemindNote>}
         {previewNote && <RemindNote $tone={previewNote.tone}>{previewNote.text}</RemindNote>}
       </DrawerHeader>
 

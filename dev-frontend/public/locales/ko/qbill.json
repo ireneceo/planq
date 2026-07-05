@@ -298,6 +298,16 @@
       "lastSent": "최근 발송 · {{days}}일 전",
       "hint": "고객에게 결제 안내 메일을 보냅니다"
     },
+    "resend": {
+      "action": "재발송",
+      "sending": "보내는 중…",
+      "sent": "청구서를 다시 보냈습니다 ({{to}})",
+      "cooldown": "최근에 보냈어요. 잠시 후 다시 시도해 주세요",
+      "noRecipient": "고객 이메일이 없어 보낼 수 없어요",
+      "failed": "재발송에 실패했어요. 잠시 후 다시 시도해 주세요",
+      "lastSent": "최근 재발송 · {{days}}일 전",
+      "hint": "원본 청구서 메일(PDF 포함)을 고객에게 다시 보냅니다 — 독촉 아님"
+    },
     "confirm": {
       "cancelInstallmentTitle": "회차 취소",
       "cancelInstallmentMsg": "이 회차를 취소하시겠습니까? 결제 완료된 회차는 취소할 수 없습니다.",
