@@ -8,6 +8,8 @@ import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { usePushStatus } from '../../hooks/usePushStatus';
+import { isNativeApp } from '../../services/native';
+import { nativePushStatus } from '../../services/nativePush';
 
 const SESSION_DISMISS_KEY = 'pq_push_prompt_dismiss_session';
 
@@ -30,6 +32,25 @@ export default function PushPromptBanner() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const iosNotPwa = isIosNotPwa();
+  // ★ 디바이스 인지: 네이티브앱(Capacitor)은 웹 push 상태(usePushStatus)가 부정확 → 네이티브 OS 권한 기준.
+  const native = isNativeApp();
+  const [nativeStatus, setNativeStatus] = useState<'loading' | 'granted' | 'denied' | 'prompt' | 'unknown'>('loading');
+  useEffect(() => {
+    if (!native) return;
+    let alive = true;
+    nativePushStatus().then((s) => { if (alive) setNativeStatus(s); }).catch(() => { if (alive) setNativeStatus('unknown'); });
+    return () => { alive = false; };
+  }, [native]);
+
+  const nativeEnable = async () => {
+    setBusy(true); setErr(null);
+    const { subscribe } = await import('../../services/push'); // 네이티브면 registerNative(APNs/FCM)
+    const r = await subscribe();
+    setBusy(false);
+    if (r.ok) { setNativeStatus('granted'); await refresh(); }
+    else setErr(t('pushPrompt.errMsg', '알림 켜기 실패: {{r}}', { r: r.reason || '' }) as string);
+  };
+  const nativeDismiss = () => { try { sessionStorage.setItem(SESSION_DISMISS_KEY, '1'); } catch { /* */ } setDismissed(true); };
 
   // N+72-6 — granted-off (OS 권한 OK + browser sub 없음) 자동 silent re-subscribe
   // 사용자가 명시 "지금 켜기" 누르지 않아도 자동 복구 (1회 시도)
@@ -43,6 +64,37 @@ export default function PushPromptBanner() {
   }, [status, refresh]);
 
   if (dismissed) return null;
+
+  // ★ 네이티브앱: OS 권한 기준으로 표시 (웹 문구/상태 사용 안 함).
+  if (native) {
+    if (nativeStatus === 'loading' || nativeStatus === 'granted') return null; // 허용됨/판정중 → 숨김
+    const denied = nativeStatus === 'denied';
+    return (
+      <Banner role="status">
+        <BellIcon>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+        </BellIcon>
+        <Body>
+          <Title>{denied
+            ? t('pushPrompt.nativeDeniedTitle', { defaultValue: '알림이 꺼져 있어요' }) as string
+            : t('pushPrompt.title', '디바이스 알림이 꺼져 있어요') as string}</Title>
+          <Desc>{denied
+            ? t('pushPrompt.nativeDeniedDesc', { defaultValue: '기기 설정 > PlanQ > 알림에서 허용해주세요.' }) as string
+            : t('pushPrompt.desc', 'PlanQ 를 안 보고 있을 때도 새 메시지·업무 알림을 받으려면 켜주세요.') as string}</Desc>
+          {err && <Err>{err}</Err>}
+        </Body>
+        {!denied && (
+          <CtaBtn type="button" onClick={nativeEnable} disabled={busy}>
+            {busy ? t('pushPrompt.enabling', '켜는 중…') as string : t('pushPrompt.enable', '지금 켜기') as string}
+          </CtaBtn>
+        )}
+        <CloseBtn type="button" onClick={nativeDismiss} aria-label={t('common.close', '닫기') as string}>×</CloseBtn>
+      </Banner>
+    );
+  }
+
   // iOS PWA 안 + push 안 됨 (default-off / granted-off) — 둘 다 banner 노출
   if (iosNotPwa && status !== 'denied') {
     // iOS Safari (PWA 아님) — "홈 화면에 추가" 유도 banner
@@ -130,11 +182,12 @@ const Banner = styled.div`
   position: relative;
   /* 데스크탑: 한 줄 (아이콘·본문·CTA·설정·닫기) */
   @media (min-width: 641px) { flex-wrap: nowrap; }
-  /* 모바일: 아이콘+본문 첫 줄, CTA·설정 버튼 다음 줄로 wrap. 닫기는 우상단 고정. */
+  /* 모바일: 컴팩트 — 아이콘+제목 한 줄, 설명 숨김, 버튼은 작게(full-width 강제 제거).
+     넛지 유지하되 콘텐츠 잠식 최소화 (~180px→~90px). */
   @media (max-width: 640px) {
-    padding: 12px;
-    padding-right: 40px;
-    & > a, & > button:not([aria-label]) { flex: 1 1 auto; justify-content: center; }
+    padding: 10px 40px 10px 12px;
+    margin-bottom: 12px;
+    gap: 8px;
   }
 `;
 const BellIcon = styled.div`
@@ -147,7 +200,6 @@ const BellIcon = styled.div`
 const Body = styled.div`
   min-width: 0; flex: 1 1 auto;
   display: flex; flex-direction: column; gap: 2px;
-  @media (max-width: 640px) { flex-basis: calc(100% - 46px); }
 `;
 const Title = styled.div`font-size: 13px; font-weight: 700; color: #9A3412; line-height: 1.3;`;
 const Desc = styled.div`font-size: 12px; color: #7C2D12; line-height: 1.4;`;

@@ -393,6 +393,8 @@
     "desc": "Turn them on to get new messages and task alerts even when you're not looking at PlanQ.",
     "deniedTitle": "Device notifications are blocked",
     "deniedDesc": "Open your browser's site permissions and allow notifications to receive them.",
+    "nativeDeniedTitle": "Notifications are off",
+    "nativeDeniedDesc": "Enable them in Settings > PlanQ > Notifications on your device.",
     "enable": "Turn on now",
     "enabling": "Enabling…",
     "errMsg": "Couldn't enable notifications: {{r}}",
