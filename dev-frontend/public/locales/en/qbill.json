@@ -785,7 +785,7 @@
       "button": "Request Tax Invoice / Cash Receipt",
       "requested": "Your receipt details have been submitted",
       "requestedSub": "The issuer will issue it after review.",
-      "editInfo": "Edit submitted info",
+      "editInfo": "Edit details",
       "taxIssued": "Tax invoice has been issued",
       "cashIssued": "Cash receipt has been issued",
       "issuedSub": "Issued with the details you provided.",
@@ -816,7 +816,9 @@
       "vatIncluded": "VAT included",
       "download": "Download issued file",
       "registeredNotice": "This will be issued with your registered details below. Review and submit — edit if anything differs.",
-      "willSaveNotice": "Your details are saved to your customer profile and auto-filled next time."
+      "willSaveNotice": "Your details are saved to your customer profile and auto-filled next time.",
+      "typeRow": "Receipt type",
+      "editCancel": "← Back to summary"
     },
     "contact": "Contact us"
   },
