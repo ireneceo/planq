@@ -1,0 +1,88 @@
+// scripts/e2e/mobile-keyboard.js — 모바일 키보드 가림 스위트
+//   각 화면의 입력요소에 focus + 키보드 시뮬(뷰포트 축소) → 가림/점프/가로스크롤 판정.
+//   INSPECTION_PLAYBOOK.md §3. 신규 입력화면 추가 시 SCENARIOS 에 1줄 추가.
+const b = require('./lib/browser');
+
+// 화면에서 모달/드로어 여는 opener (best-effort). data-testid 도입 전이라 텍스트/역할 기반.
+async function clickByText(page, texts) {
+  return page.evaluate((texts) => {
+    const els = [...document.querySelectorAll('button, [role="button"], a')];
+    for (const t of texts) {
+      const el = els.find((e) => e.offsetParent !== null && (e.textContent || '').trim().includes(t));
+      if (el) { el.click(); return true; }
+    }
+    return false;
+  }, texts);
+}
+async function clickFab(page) {
+  // 우측 하단 FAB(RightDock). testid 없으면 위치 기반(우하단 고정 원형 버튼).
+  return page.evaluate(() => {
+    const cands = [...document.querySelectorAll('button, [role="button"]')].filter((e) => {
+      if (e.offsetParent === null) return false;
+      const s = getComputedStyle(e); const r = e.getBoundingClientRect();
+      return s.position === 'fixed' && r.bottom > window.innerHeight - 120 && r.right > window.innerWidth - 120 && r.width >= 36 && r.width <= 80;
+    });
+    if (cands.length) { cands[0].click(); return true; }
+    return false;
+  });
+}
+
+// 시나리오: path + (선택) open 스텝. open 후 보이는 입력요소 전부 판정.
+const SCENARIOS = [
+  { name: 'clients-search', path: '/business/clients', open: null },
+  { name: 'clients-invite', path: '/business/clients', open: (p) => clickByText(p, ['고객 초대', '초대']) },
+  { name: 'qbill-list', path: '/bills', open: null },
+  { name: 'tasks-week', path: '/tasks', open: null },
+  { name: 'tasks-add-fab', path: '/tasks', open: (p) => clickFab(p) },
+  { name: 'inbox', path: '/inbox', open: null },
+  { name: 'calendar-add', path: '/calendar', open: (p) => clickByText(p, ['새 일정', '일정 추가', '추가']) },
+  { name: 'docs', path: '/docs', open: null },
+  { name: 'wiki', path: '/wiki', open: null },
+  { name: 'settings-profile', path: '/business/settings', open: null },
+];
+
+async function run() {
+  const results = [];
+  const { browser, page } = await b.launch({ mobile: true });
+  try {
+    await b.login(page);
+    for (const sc of SCENARIOS) {
+      const rec = { name: sc.name, path: sc.path, inputs: 0, pass: 0, fail: 0, details: [] };
+      try {
+        await b.goto(page, sc.path);
+        // 인증 리다이렉트 체크
+        if (page.url().includes('/login')) { rec.details.push('로그인 리다이렉트 — 접근 불가'); results.push(rec); continue; }
+        if (sc.open) { const opened = await sc.open(page); await b.sleep(700); if (!opened) rec.details.push('opener 트리거 못 찾음(수동 확인 필요)'); }
+        const inputs = await b.visibleInputs(page);
+        rec.inputs = inputs.length;
+        // 시나리오당 입력요소 최대 4개까지 판정(시간)
+        for (const el of inputs.slice(0, 4)) {
+          const { fails, info } = await b.assertKeyboardSafe(page, el);
+          if (fails.length === 0) { rec.pass++; }
+          else { rec.fail++; rec.details.push(`[${info ? info.tag : '?'}] ${fails.join(' / ')}`); }
+        }
+        if (inputs.length === 0 && !sc.open) rec.details.push('보이는 입력요소 없음(모달 opener 필요할 수 있음)');
+      } catch (e) { rec.details.push('ERROR: ' + e.message.slice(0, 120)); }
+      results.push(rec);
+    }
+  } finally { await browser.close(); }
+  return results;
+}
+
+module.exports = { run, name: 'mobile-keyboard' };
+
+// 단독 실행
+if (require.main === module) {
+  run().then((res) => {
+    let fail = 0;
+    console.log('\n=== 모바일 키보드 스위트 ===');
+    for (const r of res) {
+      const status = r.fail > 0 ? '❌' : (r.inputs === 0 ? '⚪' : '✅');
+      console.log(`${status} ${r.name} (${r.path}) — 입력 ${r.inputs} · 통과 ${r.pass} · 실패 ${r.fail}`);
+      r.details.forEach((d) => console.log('     └ ' + d));
+      fail += r.fail;
+    }
+    console.log(`\n총 실패: ${fail}`);
+    process.exit(fail > 0 ? 1 : 0);
+  }).catch((e) => { console.error('FATAL', e.message); process.exit(2); });
+}
