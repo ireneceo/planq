@@ -188,6 +188,8 @@
     "typeFixedDesc": "시작~종료일이 있는 계약/기간제",
     "typeOngoing": "지속 구독",
     "typeOngoingDesc": "월간/구독 등 지속 계약",
+    "internalLabel": "내부 프로젝트",
+    "internalDesc": "자체 투자(비청구) — 수익성 통계에서 제외되고 \"내부 투자\"로 별도 집계",
     "clientCompany": "고객사",
     "clientEmail": "고객사 이메일",
     "period": "기간",

@@ -153,12 +153,18 @@ router.get('/:businessId/tasks', authenticateToken, checkBusinessAccess, async (
   } catch (err) { next(err); }
 });
 
+// 세그먼트 파싱 — client(고객, 기본) | internal(내부 투자) | all(전체)
+function parseSegment(q) {
+  const s = String(q.segment || 'client');
+  return ['client', 'internal', 'all'].includes(s) ? s : 'client';
+}
+
 // ============================================
 // GET /api/stats/:businessId/overview
 router.get('/:businessId/overview', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const period = parsePeriod(req.query);
-    const data = await stats.buildOverviewTab(req.businessId, period);
+    const data = await stats.buildOverviewTab(req.businessId, period, parseSegment(req.query));
     return successResponse(res, data);
   } catch (err) { next(err); }
 });
@@ -167,7 +173,7 @@ router.get('/:businessId/overview', authenticateToken, checkBusinessAccess, asyn
 router.get('/:businessId/profit', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const period = parsePeriod(req.query);
-    const data = await stats.buildProfitTab(req.businessId, period);
+    const data = await stats.buildProfitTab(req.businessId, period, parseSegment(req.query));
     return successResponse(res, data);
   } catch (err) { next(err); }
 });
@@ -176,7 +182,7 @@ router.get('/:businessId/profit', authenticateToken, checkBusinessAccess, async 
 router.get('/:businessId/team', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const period = parsePeriod(req.query);
-    const data = await stats.buildTeamTab(req.businessId, period);
+    const data = await stats.buildTeamTab(req.businessId, period, parseSegment(req.query));
     return successResponse(res, data);
   } catch (err) { next(err); }
 });
@@ -185,7 +191,7 @@ router.get('/:businessId/team', authenticateToken, checkBusinessAccess, async (r
 router.get('/:businessId/finance', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const period = parsePeriod(req.query);
-    const data = await stats.buildFinanceTab(req.businessId, period);
+    const data = await stats.buildFinanceTab(req.businessId, period, parseSegment(req.query));
     return successResponse(res, data);
   } catch (err) { next(err); }
 });

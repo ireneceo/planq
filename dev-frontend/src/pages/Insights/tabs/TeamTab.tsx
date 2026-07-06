@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { fetchTab, type RangePreset } from '../../../services/insights';
+import { fetchTab, type RangePreset, type StatsSegment } from '../../../services/insights';
 import {
   InsightRow, InsightCard, InsightStripe, InsightBody, InsightTitle, InsightValue, InsightHint, InsightAction,
   KpiGrid, KpiCard, KpiLabel, KpiValueBig,
@@ -38,7 +38,7 @@ interface Data {
   insights: { severity: string; title: string; value: string; hint?: string; action_label?: string; action_link?: string }[];
 }
 
-const TeamTab: React.FC<{ businessId: number; range: RangePreset }> = ({ businessId, range }) => {
+const TeamTab: React.FC<{ businessId: number; range: RangePreset; segment?: StatsSegment }> = ({ businessId, range, segment = 'client' }) => {
   const { t } = useTranslation('insights');
   const navigate = useNavigate();
   const [data, setData] = useState<Data | null>(null);
@@ -48,11 +48,11 @@ const TeamTab: React.FC<{ businessId: number; range: RangePreset }> = ({ busines
 
   useEffect(() => {
     setLoading(true);
-    fetchTab<Data>(businessId, 'team', range)
+    fetchTab<Data>(businessId, 'team', range, segment)
       .then((d) => { setData(d); setErr(null); })
       .catch((e) => setErr(e?.message || 'failed'))
       .finally(() => setLoading(false));
-  }, [businessId, range]);
+  }, [businessId, range, segment]);
 
   if (err) return <ErrorBanner>{t('error.summary')} — {err}</ErrorBanner>;
   if (loading || !data) return <SkeletonGrid>{[0,1,2,3,4,5].map((i) => <SkeletonCard key={i} />)}</SkeletonGrid>;

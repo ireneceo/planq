@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { fetchTab, type RangePreset } from '../../../services/insights';
+import { fetchTab, type RangePreset, type StatsSegment } from '../../../services/insights';
 import {
   InsightRow, InsightCard, InsightStripe, InsightBody, InsightTitle, InsightValue, InsightHint, InsightAction,
   KpiGrid, KpiCard, KpiLabel, KpiValueBig,
@@ -18,15 +19,21 @@ interface Row {
   revenue: number; labor_cost: number; direct_cost: number; profit: number;
   margin_pct: number | null; hours: number; est_hours: number; profit_per_hour: number | null;
 }
+interface InternalRow {
+  project_id: number; name: string; status: string;
+  hours: number; est_hours: number; labor_cost: number; direct_cost: number; total_cost: number;
+}
 interface Data {
   period: { from: string; to: string; label: string };
+  segment?: StatsSegment;
   kpis: Record<string, { value: number | null }>;
-  bubble: { project_id: number; name: string; hours: number; revenue: number; profit: number; margin_pct: number | null }[];
-  table: Row[];
+  bubble?: { project_id: number; name: string; hours: number; revenue: number; profit: number; margin_pct: number | null }[];
+  table: Row[] | InternalRow[];
+  internal_investment?: { project_count: number; total_hours: number; total_cost: number };
   insights: { severity: string; title: string; value: string; hint?: string; action_label?: string; action_link?: string }[];
 }
 
-const ProfitTab: React.FC<{ businessId: number; range: RangePreset }> = ({ businessId, range }) => {
+const ProfitTab: React.FC<{ businessId: number; range: RangePreset; segment?: StatsSegment }> = ({ businessId, range, segment = 'client' }) => {
   const { t } = useTranslation('insights');
   const navigate = useNavigate();
   const [data, setData] = useState<Data | null>(null);
@@ -35,15 +42,74 @@ const ProfitTab: React.FC<{ businessId: number; range: RangePreset }> = ({ busin
 
   useEffect(() => {
     setLoading(true);
-    fetchTab<Data>(businessId, 'profit', range)
+    fetchTab<Data>(businessId, 'profit', range, segment)
       .then((d) => { setData(d); setErr(null); })
       .catch((e) => setErr(e?.message || 'failed'))
       .finally(() => setLoading(false));
-  }, [businessId, range]);
+  }, [businessId, range, segment]);
 
   if (err) return <ErrorBanner>{t('error.summary')} — {err}</ErrorBanner>;
   if (loading || !data) return <SkeletonGrid>{[0,1,2,3,4,5].map((i) => <SkeletonCard key={i} />)}</SkeletonGrid>;
 
+  // ── 내부 투자 뷰 (segment=internal) — 매출/마진 아닌 시간·원가 중심 ──
+  if (segment === 'internal') {
+    const rows = (data.table as InternalRow[]);
+    return (
+      <>
+        <InsightRow>
+          {data.insights.map((ins, i) => (
+            <InsightCard key={i} $severity={ins.severity} $clickable={false}>
+              <InsightStripe $severity={ins.severity} />
+              <InsightBody>
+                <InsightTitle>{ins.title}</InsightTitle>
+                <InsightValue>{ins.value}</InsightValue>
+                {ins.hint && <InsightHint>{ins.hint}</InsightHint>}
+              </InsightBody>
+            </InsightCard>
+          ))}
+        </InsightRow>
+        <KpiGrid>
+          <KpiCard><KpiLabel>{t('profit.kpi.internalProjects', '내부 프로젝트')}</KpiLabel><KpiValueBig>{fmtNum(data.kpis.internal_projects?.value ?? 0)}</KpiValueBig></KpiCard>
+          <KpiCard><KpiLabel>{t('profit.kpi.internalHours', '내부 투자 시간')}</KpiLabel><KpiValueBig>{fmtNum(data.kpis.internal_hours?.value ?? 0, 'h')}</KpiValueBig></KpiCard>
+          <KpiCard><KpiLabel>{t('profit.kpi.internalCost', '내부 투자 원가')}</KpiLabel><KpiValueBig>{fmtKRW(data.kpis.internal_cost?.value ?? 0)}</KpiValueBig></KpiCard>
+        </KpiGrid>
+        <SectionRow style={{ marginTop: 24 }}>
+          <SectionLabel>{t('profit.internal.tableTitle', '내부 프로젝트별 투자')}</SectionLabel>
+        </SectionRow>
+        {rows.length === 0 ? (
+          <ChartCard><ChartEmpty>{t('profit.internal.empty', '내부 프로젝트가 없습니다 — 프로젝트 설정에서 "내부 프로젝트"로 표시하세요')}</ChartEmpty></ChartCard>
+        ) : (
+          <TableWrap>
+            <Table>
+              <thead>
+                <Tr>
+                  <Th>{t('profit.col.name', '프로젝트')}</Th>
+                  <Th $num>{t('profit.col.hours', '시간')}</Th>
+                  <Th $num>{t('profit.col.laborCost', '노동비')}</Th>
+                  <Th $num>{t('profit.col.directCost', '직접비')}</Th>
+                  <Th $num>{t('profit.col.totalCost', '총 원가')}</Th>
+                </Tr>
+              </thead>
+              <tbody>
+                {rows.slice(0, 50).map((r) => (
+                  <Tr key={r.project_id} $clickable onClick={() => navigate(`/projects/p/${r.project_id}`)}>
+                    <Td>{r.name}</Td>
+                    <Td $num>{fmtNum(r.hours, 'h')}</Td>
+                    <Td $num>{fmtKRW(r.labor_cost)}</Td>
+                    <Td $num>{fmtKRW(r.direct_cost)}</Td>
+                    <Td $num>{fmtKRW(r.total_cost)}</Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          </TableWrap>
+        )}
+      </>
+    );
+  }
+
+  const bubble = data.bubble || [];
+  const pnlRows = (data.table as Row[]);
   return (
     <>
       <InsightRow>
@@ -70,9 +136,17 @@ const ProfitTab: React.FC<{ businessId: number; range: RangePreset }> = ({ busin
         <KpiCard><KpiLabel>{t('profit.kpi.totalHours', '총 투입 시간')}</KpiLabel><KpiValueBig>{fmtNum(data.kpis.total_hours.value, 'h')}</KpiValueBig></KpiCard>
       </KpiGrid>
 
+      {(data.internal_investment && data.internal_investment.project_count > 0) && (
+        <InternalNote>
+          {t('profit.internalNote', '내부 프로젝트 {{n}}개 · {{h}}h 는 수익성에서 제외됨 — "내부" 탭에서 확인', {
+            n: data.internal_investment.project_count, h: fmtNum(data.internal_investment.total_hours),
+          })}
+        </InternalNote>
+      )}
+
       <SectionLabel>{t('profit.chart.bubble.title', '프로젝트 손익 분포')}</SectionLabel>
       <ChartCard>
-        {data.bubble.length === 0 ? (
+        {bubble.length === 0 ? (
           <ChartEmpty>{t('profit.chart.bubble.empty', '프로젝트 시간·매출 데이터가 누적되면 표시됩니다')}</ChartEmpty>
         ) : (
           <ResponsiveContainer width="100%" height={320}>
@@ -100,7 +174,7 @@ const ProfitTab: React.FC<{ businessId: number; range: RangePreset }> = ({ busin
                   );
                 }}
               />
-              <Scatter data={data.bubble} fill="#14B8A6" />
+              <Scatter data={bubble} fill="#14B8A6" />
             </ScatterChart>
           </ResponsiveContainer>
         )}
@@ -108,8 +182,8 @@ const ProfitTab: React.FC<{ businessId: number; range: RangePreset }> = ({ busin
 
       <SectionRow style={{ marginTop: 24 }}>
         <SectionLabel>{t('profit.table.title', '프로젝트 손익 상세')}</SectionLabel>
-        <DownloadBtn type="button" disabled={data.table.length === 0}
-          onClick={() => downloadRowsAsCsv(`profit_${data.period.from}_${data.period.to}.csv`, data.table, [
+        <DownloadBtn type="button" disabled={pnlRows.length === 0}
+          onClick={() => downloadRowsAsCsv(`profit_${data.period.from}_${data.period.to}.csv`, pnlRows, [
             { key: 'project_id', header: 'ID' },
             { key: 'name', header: t('profit.col.name', '프로젝트') as string },
             { key: 'client', header: t('profit.col.client', '고객') as string },
@@ -124,7 +198,7 @@ const ProfitTab: React.FC<{ businessId: number; range: RangePreset }> = ({ busin
           <DownloadIcon /> {t('download.csv', 'CSV (Excel)')}
         </DownloadBtn>
       </SectionRow>
-      {data.table.length === 0 ? (
+      {pnlRows.length === 0 ? (
         <ChartCard><ChartEmpty>{t('profit.table.empty', '프로젝트가 없습니다')}</ChartEmpty></ChartCard>
       ) : (
         <TableWrap>
@@ -142,7 +216,7 @@ const ProfitTab: React.FC<{ businessId: number; range: RangePreset }> = ({ busin
               </Tr>
             </thead>
             <tbody>
-              {data.table.slice(0, 50).map((r) => (
+              {pnlRows.slice(0, 50).map((r) => (
                 <Tr key={r.project_id} $clickable onClick={() => navigate(`/projects/p/${r.project_id}`)}>
                   <Td>{r.name}</Td>
                   <Td>{r.client}</Td>
@@ -161,5 +235,10 @@ const ProfitTab: React.FC<{ businessId: number; range: RangePreset }> = ({ busin
     </>
   );
 };
+
+const InternalNote = styled.div`
+  margin: 4px 0 16px; padding: 8px 12px; font-size: 12px; color: #64748B;
+  background: #F8FAFC; border: 1px dashed #E2E8F0; border-radius: 8px;
+`;
 
 export default ProfitTab;

@@ -86,9 +86,11 @@ export async function fetchTasksTab(businessId: number, range: RangePreset = '30
 }
 
 // 다른 5 탭 — 응답이 작아서 임의 타입으로 받음 (탭별 컴포넌트가 필드 직접 참조)
-export async function fetchTab<T = unknown>(businessId: number, tab: 'overview'|'profit'|'team'|'finance'|'reports', range: RangePreset = '30d'): Promise<T> {
+export type StatsSegment = 'all' | 'client' | 'internal';
+export async function fetchTab<T = unknown>(businessId: number, tab: 'overview'|'profit'|'team'|'finance'|'reports', range: RangePreset = '30d', segment: StatsSegment = 'client'): Promise<T> {
   const sp = new URLSearchParams();
   sp.set('range', range);
+  sp.set('segment', segment);
   const r = await apiFetch(`/api/stats/${businessId}/${tab}?${sp.toString()}`);
   const j = await r.json();
   if (!j.success) throw new Error(j.message || 'fetch failed');

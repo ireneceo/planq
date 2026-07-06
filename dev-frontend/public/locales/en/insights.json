@@ -105,6 +105,12 @@
       }
     }
   },
+  "segment": {
+    "label": "Project category",
+    "client": "Client",
+    "internal": "Internal",
+    "all": "All"
+  },
   "profit": {
     "kpi": {
       "activeProjects": "Active projects",
@@ -112,7 +118,15 @@
       "avgPph": "Profit per Hour",
       "totalRevenue": "Total revenue",
       "totalProfit": "Total profit",
-      "totalHours": "Total hours"
+      "totalHours": "Total hours",
+      "internalProjects": "Internal projects",
+      "internalHours": "Internal hours",
+      "internalCost": "Internal cost"
+    },
+    "internalNote": "{{n}} internal project(s) · {{h}}h excluded from profitability — see the \"Internal\" tab",
+    "internal": {
+      "tableTitle": "Investment by internal project",
+      "empty": "No internal projects — mark a project as \"Internal\" in project settings"
     },
     "chart": {
       "bubble": {
@@ -125,6 +139,7 @@
     "table": { "title": "Project profitability detail", "empty": "No projects" },
     "col": {
       "name": "Project", "client": "Client", "revenue": "Revenue", "cost": "Cost",
+      "laborCost": "Labor", "directCost": "Direct", "totalCost": "Total cost",
       "profit": "Profit", "margin": "Margin", "hours": "Hours", "pph": "Profit/Hr"
     }
   },

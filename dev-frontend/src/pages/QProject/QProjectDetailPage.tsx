@@ -50,6 +50,7 @@ interface ProjectDetail {
   start_date: string | null;
   end_date: string | null;
   project_type?: 'fixed' | 'ongoing';
+  kind?: 'client' | 'internal';
   process_tab_label?: string;
   color?: string | null;
   owner_user_id: number;
@@ -460,6 +461,20 @@ const QProjectDetailPage: React.FC = () => {
                     setProject(prev => prev ? { ...prev, project_type: 'ongoing' } : prev);
                   }}>{t('edit.typeOngoing', '지속 구독')}</TypeBtn2>
                 </div>
+              </EditField>
+              <EditField>
+                <EditLabel>{t('edit.kind', '구분')}</EditLabel>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <TypeBtn2 $active={(project.kind ?? 'client') === 'client'} onClick={async () => {
+                    await apiFetch(`/api/projects/${projectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: 'client' }) });
+                    setProject(prev => prev ? { ...prev, kind: 'client' } : prev);
+                  }}>{t('edit.kindClient', '고객 프로젝트')}</TypeBtn2>
+                  <TypeBtn2 $active={project.kind === 'internal'} onClick={async () => {
+                    await apiFetch(`/api/projects/${projectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: 'internal' }) });
+                    setProject(prev => prev ? { ...prev, kind: 'internal' } : prev);
+                  }}>{t('edit.kindInternal', '내부 프로젝트')}</TypeBtn2>
+                </div>
+                <EditHint>{t('edit.kindHint', '내부 = 자체 투자(비청구). 수익성 통계에서 제외되고 "내부 투자"로 별도 집계됩니다.')}</EditHint>
               </EditField>
               <EditField>
                 <EditLabel>{t('edit.status', '상태')}</EditLabel>
@@ -1075,6 +1090,7 @@ const ProjectDocsWrap = styled.div`
 const EditGrid = styled.div`display:grid;grid-template-columns:1fr 1fr;gap:12px;`;
 const EditField = styled.div`display:flex;flex-direction:column;gap:4px;`;
 const EditLabel = styled.span`font-size:11px;color:#64748B;font-weight:700;`;
+const EditHint = styled.div`font-size:10px;color:#94A3B8;margin-top:4px;line-height:1.5;`;
 const EditInput = styled.input`height:34px;padding:0 10px;border:1px solid #E2E8F0;border-radius:6px;font-size:13px;font-family:inherit;&:focus{outline:none;border-color:#14B8A6;}`;
 const EditTextarea = styled.textarea`padding:8px 10px;border:1px solid #E2E8F0;border-radius:6px;font-size:13px;font-family:inherit;resize:vertical;&:focus{outline:none;border-color:#14B8A6;}`;
 const TypeBtn2 = styled.button<{$active?:boolean}>`flex:1;padding:8px 12px;border:1px solid ${p=>p.$active?'#14B8A6':'#E2E8F0'};background:${p=>p.$active?'#F0FDFA':'#FFF'};color:${p=>p.$active?'#0F766E':'#334155'};border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;&:hover{border-color:#14B8A6;}`;

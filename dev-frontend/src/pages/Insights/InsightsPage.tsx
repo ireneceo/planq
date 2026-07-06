@@ -8,7 +8,8 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import PageShell from '../../components/Layout/PageShell';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
 import { useAuth } from '../../contexts/AuthContext';
-import type { RangePreset } from '../../services/insights';
+import type { RangePreset, StatsSegment } from '../../services/insights';
+import styled from 'styled-components';
 import TasksTab from './tabs/TasksTab';
 import OverviewTab from './tabs/OverviewTab';
 import ProfitTab from './tabs/ProfitTab';
@@ -42,6 +43,10 @@ const InsightsPage: React.FC = () => {
   const { tab: tabParam } = useParams<{ tab?: string }>();
   const tab: TabKey = (ALL_TABS.includes(tabParam as TabKey) ? tabParam : 'overview') as TabKey;
   const range = (params.get('range') as RangePreset) || '30d';
+  const segment = (['all', 'client', 'internal'].includes(params.get('segment') || '') ? params.get('segment') : 'client') as StatsSegment;
+  // 내부/고객 세그먼트가 의미 있는 탭 (수익성·재무·팀·개요). tasks/weekly/reports 는 무관.
+  const segmentTabs: TabKey[] = ['overview', 'profit', 'team', 'finance'];
+  const showSegment = segmentTabs.includes(tab);
 
   // 잘못된 path → /stats/overview 로 정정
   useEffect(() => {
@@ -55,16 +60,32 @@ const InsightsPage: React.FC = () => {
     next.set('range', r);
     setParams(next, { replace: true });
   };
+  const setSegment = (s: StatsSegment) => {
+    const next = new URLSearchParams(params);
+    next.set('segment', s);
+    setParams(next, { replace: true });
+  };
 
   const headerActions = (
-    <PlanQSelect
-      size="sm"
-      isClearable={false}
-      isSearchable={false}
-      value={RANGE_OPTIONS.find((o) => o.value === range) || RANGE_OPTIONS[1]}
-      options={RANGE_OPTIONS}
-      onChange={(opt) => opt && setRange((opt as PlanQSelectOption).value as string)}
-    />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      {showSegment && (
+        <SegGroup role="group" aria-label={t('segment.label', '프로젝트 구분') as string}>
+          {(['client', 'internal', 'all'] as StatsSegment[]).map((s) => (
+            <SegBtn key={s} type="button" $active={segment === s} onClick={() => setSegment(s)}>
+              {t(`segment.${s}`, s === 'client' ? '고객' : s === 'internal' ? '내부' : '전체')}
+            </SegBtn>
+          ))}
+        </SegGroup>
+      )}
+      <PlanQSelect
+        size="sm"
+        isClearable={false}
+        isSearchable={false}
+        value={RANGE_OPTIONS.find((o) => o.value === range) || RANGE_OPTIONS[1]}
+        options={RANGE_OPTIONS}
+        onChange={(opt) => opt && setRange((opt as PlanQSelectOption).value as string)}
+      />
+    </div>
   );
 
   // 탭별 페이지 타이틀 — 사이드바 메뉴와 일관 (UserChip + 기간 셀렉터 우측에 자연스럽게)
@@ -91,15 +112,24 @@ const InsightsPage: React.FC = () => {
 
   return (
     <PageShell title={pageTitle} actions={headerActions}>
-      {tab === 'overview' && <OverviewTab businessId={bizId} range={range} />}
+      {tab === 'overview' && <OverviewTab businessId={bizId} range={range} segment={segment} />}
       {tab === 'tasks' && <TasksTab businessId={bizId} range={range} />}
       {tab === 'weekly' && <WeeklyTrendTab businessId={bizId} />}
-      {tab === 'profit' && <ProfitTab businessId={bizId} range={range} />}
-      {tab === 'team' && <TeamTab businessId={bizId} range={range} />}
-      {tab === 'finance' && <FinanceTab businessId={bizId} range={range} />}
+      {tab === 'profit' && <ProfitTab businessId={bizId} range={range} segment={segment} />}
+      {tab === 'team' && <TeamTab businessId={bizId} range={range} segment={segment} />}
+      {tab === 'finance' && <FinanceTab businessId={bizId} range={range} segment={segment} />}
       {tab === 'reports' && <ReportsTab businessId={bizId} range={range} />}
     </PageShell>
   );
 };
+
+const SegGroup = styled.div`display:inline-flex;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:8px;padding:2px;gap:2px;`;
+const SegBtn = styled.button<{ $active?: boolean }>`
+  padding:5px 12px;font-size:12px;font-weight:600;border:none;border-radius:6px;cursor:pointer;font-family:inherit;white-space:nowrap;
+  background:${p => p.$active ? '#FFFFFF' : 'transparent'};
+  color:${p => p.$active ? '#0F766E' : '#64748B'};
+  box-shadow:${p => p.$active ? '0 1px 2px rgba(0,0,0,0.06)' : 'none'};
+  &:hover{color:#0F766E;}
+`;
 
 export default InsightsPage;
