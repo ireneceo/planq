@@ -45,6 +45,8 @@ const RightDock: React.FC = () => {
   const pathHidden = FAB_HIDDEN_PREFIXES.some((p) => location.pathname === p || location.pathname.startsWith(`${p}/`))
     || (typeof document !== 'undefined' && document.body.dataset.popout === '1')
     || isPopoutWindow(); // #84 — 팝아웃 창 내부 이동에도 FAB 숨김 유지
+  // Q Talk (메인 채팅) — 모바일에선 채팅 입력바를 가리므로 FAB 숨김 (데스크탑·타 페이지는 유지)
+  const onTalk = location.pathname === '/talk' || location.pathname.startsWith('/talk/');
 
   // 펼침 메뉴 — 외부 클릭/Esc 닫기
   useEffect(() => {
@@ -89,7 +91,7 @@ const RightDock: React.FC = () => {
   };
 
   return (
-    <FabWrap ref={fabRef}>
+    <FabWrap ref={fabRef} $onTalk={onTalk}>
       {expanded && (
         <Menu role="menu" aria-label={t('dock.menuLabel', '바로 열기') as string}>
           {/* #80 — 빠른 만들기 그룹 (열기 도구와 구분) */}
@@ -155,7 +157,7 @@ const IconHelp = () => (
 );
 
 // ===== styled =====
-const FabWrap = styled.div`
+const FabWrap = styled.div<{ $onTalk?: boolean }>`
   position: fixed; right: 20px; bottom: 16px;
   /* 모바일 상단바(z-index 99)·사이드바(100) 위로 떠야 펼친 메뉴가 안 가림 (#86). 모달(1000+)보다는 아래. */
   z-index: 120;
@@ -165,6 +167,8 @@ const FabWrap = styled.div`
   body[data-overlay-open="true"] & { opacity: 0; pointer-events: none; visibility: hidden; }
   /* #86 — 키보드 올라온 동안엔 FAB 숨김 (입력 중 키보드 위에 어정쩡하게 떠 가리는 것 방지) */
   body[data-keyboard-up="1"] & { opacity: 0; pointer-events: none; visibility: hidden; }
+  /* Q Talk 모바일 — 채팅 입력바/전송버튼 침범 방지 (옛 MemoFab 정책 복원, N+93 통합 시 유실) */
+  ${p => p.$onTalk ? '@media (max-width: 640px) { display: none; }' : ''}
 `;
 
 const Fab = styled.button<{ $expanded: boolean }>`
