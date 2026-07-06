@@ -23,6 +23,13 @@
   - F 반복 회차수정 vlevel/target 미복사→L2/L4 확대 fix · G NewProjectModal isInternal 리셋
   - 리뷰 fix E2E 8/8 + Fix B 2/2. 운영 미노출 예방적.
 
+### ✅ 피드백 5종 처리 (2026-07-06, Irene 설명 후 — 운영 배포)
+- **#121 이미지**: 댓글 이미지 붙여넣기(Cmd/Ctrl+V) 추가(버그: onPaste 부재로 스크린샷 붙여넣기 무반응) + **이미지 클릭 확대(라이트박스)를 모든 곳으로** — DocsTab 파일 프리뷰·Wiki 스크린샷 추가(태스크/댓글/설명/채팅/포스트/RichEditor는 기존). 잔여: 공개 KB raw HTML.
+- **#119 캘린더**: 드로어 편집모드 기간표시를 [시작 날짜+시각]/[마감 날짜+시각] 두 줄로(시간을 날짜에 붙임).
+- **#99 프로젝트**: 정렬(최근/이름/진행률/마감) + 고객/내부 구분필터 + 그룹핑(구분/상태/고객사). **팀/부서 그룹은 프로젝트에 팀/부서 필드 부재 → 설계 결정 대기**(프로젝트↔팀/부서 연결 추가?).
+- **#117 Cue**: 재사용 CueTip('Cue?' 팝오버, 무엇하는지 3줄) → TaskDetailDrawer 배지·CueTaskBar 배치. 다른 접점(채팅) 확장 가능.
+- **#84 팝아웃**(미완): markPopoutWindow 등 팝아웃 영속은 기존 완료. **모바일 헤더 통일은 실기기 검증 필요** + 위키 랜딩 문서화 범위는 Irene 결정 대기.
+
 ### 남은 후속 (내부/고객 구분)
 - QTalk RightPanel 내부배지가 아직 client_company 휴리스틱(`RightPanel.tsx:533`) — `project.kind`로 교체 가능(선택)
 - NewProjectModal/QTalkPage `project_type`가 QTalk 생성경로에서 미전달(별개 잠재버그, kind는 전달됨)
