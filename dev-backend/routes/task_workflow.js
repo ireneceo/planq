@@ -387,11 +387,12 @@ router.post('/:id/reviewers/me/revision', authenticateToken, async (req, res, ne
     if (!reviewer) return errorResponse(res, 'not_a_reviewer', 403);
     if (task.status !== 'reviewing' && task.status !== 'revision_requested') return errorResponse(res, 'not_reviewing', 400);
 
+    let revisionComment = null;
     const t = await sequelize.transaction();
     try {
       await reviewer.update({ state: 'revision', action_at: new Date() }, { transaction: t });
-      // 수정요청은 댓글 필수 생성
-      await TaskComment.create({
+      // 수정요청은 댓글 필수 생성 (#112 — 이 댓글에 참고 파일 첨부 가능)
+      revisionComment = await TaskComment.create({
         task_id: task.id, user_id: req.user.id,
         content: note, visibility: reviewer.is_client ? 'shared' : 'internal',
         kind: 'system_revision',
@@ -432,7 +433,8 @@ router.post('/:id/reviewers/me/revision', authenticateToken, async (req, res, ne
       }
     } catch (e) { console.warn('[revision cue check]', e.message); }
 
-    return successResponse(res, task.toJSON());
+    // #112 — 프론트가 이 comment_id 로 참고 파일을 첨부(context='comment')
+    return successResponse(res, { ...task.toJSON(), revision_comment_id: revisionComment?.id || null });
   } catch (err) { next(err); }
 });
 

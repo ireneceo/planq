@@ -314,6 +314,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
 
   const [revisionOpen, setRevisionOpen] = useState(false);
   const [revisionNote, setRevisionNote] = useState('');
+  // #112 — 수정요청에 참고 파일 첨부 (일반 댓글 첨부와 동일 인프라: context='comment')
+  const [revisionFiles, setRevisionFiles] = useState<File[]>([]);
+  const [revisionPickerOpen, setRevisionPickerOpen] = useState(false);
+  const [revisionExistingFileIds, setRevisionExistingFileIds] = useState<number[]>([]);
   const [addReviewerOpen, setAddReviewerOpen] = useState(false);
   const [pendingReviewerAdd, setPendingReviewerAdd] = useState<number | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
@@ -640,10 +644,32 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     } finally { setActionBusy(false); }
   };
   const submitRevision = async () => {
+    if (!detailTask) return;
     const note = revisionNote.trim();
     if (!note) return;
+    const hasAttach = revisionFiles.length > 0 || revisionExistingFileIds.length > 0;
     const r = await callAction('/reviewers/me/revision', 'POST', { note });
-    if (r?.success) { setRevisionOpen(false); setRevisionNote(''); }
+    if (!r?.success) return;
+    // #112 — 참고 파일을 수정요청 댓글(context='comment')에 연결. addComment 와 동일 인프라.
+    const commentId = r.data?.revision_comment_id as number | undefined;
+    if (commentId && hasAttach) {
+      try {
+        for (const f of revisionFiles) {
+          const fd = new FormData();
+          fd.append('file', f, f.name);
+          await apiFetch(`/api/tasks/${detailTask.id}/attachments?context=comment&commentId=${commentId}`, { method: 'POST', body: fd });
+        }
+        if (revisionExistingFileIds.length > 0) {
+          await apiFetch(`/api/tasks/${detailTask.id}/attachments/link`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ file_ids: revisionExistingFileIds, context: 'comment', comment_id: commentId }),
+          });
+        }
+        await refreshAfterAction();  // 첨부 반영 위해 댓글 스레드 재조회
+      } catch { /* 첨부 실패해도 수정요청 전이 자체는 성립 */ }
+    }
+    setRevisionOpen(false); setRevisionNote('');
+    setRevisionFiles([]); setRevisionExistingFileIds([]); setRevisionPickerOpen(false);
   };
   const addReviewer = async (userId: number) => {
     const inActiveRound = detailTask && (detailTask.status === 'reviewing' || detailTask.status === 'revision_requested');
@@ -1378,8 +1404,33 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     <RevisionForm>
                       <RevisionInput placeholder={t('detail.actions.revisionPlaceholder', 'What needs to change? (required)')}
                         value={revisionNote} onChange={e => setRevisionNote(e.target.value)} autoFocus />
+                      {/* #112 — 참고 파일 첨부 (수정 방향을 파일로 전달). 인라인 picker, popup-on-popup 금지. */}
+                      {revisionPickerOpen && (
+                        <CmtPickerInline>
+                          <AttachmentField
+                            businessId={bizId}
+                            uploads={revisionFiles}
+                            onUploadsChange={setRevisionFiles}
+                            existingFileIds={revisionExistingFileIds}
+                            onExistingFileIdsChange={setRevisionExistingFileIds}
+                          />
+                        </CmtPickerInline>
+                      )}
+                      {!revisionPickerOpen && revisionFiles.length > 0 && <CmtStagedRow>
+                        {revisionFiles.map((f, i) => (
+                          <CmtStaged key={i}>
+                            {f.name}
+                            <CmtStagedX type="button" onClick={() => setRevisionFiles(prev => prev.filter((_, j) => j !== i))}>×</CmtStagedX>
+                          </CmtStaged>
+                        ))}
+                      </CmtStagedRow>}
                       <RevisionRow>
-                        <ActionSecondary onClick={() => { setRevisionOpen(false); setRevisionNote(''); }}>{t('common.cancel', 'Cancel')}</ActionSecondary>
+                        <CmtAttachBtn type="button" title={t('detail.attachFile', '파일·문서 첨부') as string}
+                          $active={revisionPickerOpen}
+                          onClick={() => setRevisionPickerOpen(v => !v)}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                        </CmtAttachBtn>
+                        <ActionSecondary onClick={() => { setRevisionOpen(false); setRevisionNote(''); setRevisionFiles([]); setRevisionExistingFileIds([]); setRevisionPickerOpen(false); }}>{t('common.cancel', 'Cancel')}</ActionSecondary>
                         <ActionDanger onClick={submitRevision} disabled={actionBusy || !revisionNote.trim()}>{t('detail.actions.submitRevision', 'Send revision')}</ActionDanger>
                       </RevisionRow>
                     </RevisionForm>
@@ -2086,7 +2137,7 @@ const ReviewProgressFill = styled.div<{ $w: number }>`height:100%;background:lin
 const ReviewProgressText = styled.div`font-size:11px;color:#475569;font-weight:600;`;
 const RevisionForm = styled.div`display:flex;flex-direction:column;gap:6px;padding:8px;background:#FFF;border:1px solid #F43F5E;border-radius:8px;`;
 const RevisionInput = styled.textarea`width:100%;min-height:60px;padding:6px 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;color:#0F172A;resize:vertical;font-family:inherit;&:focus{outline:none;border-color:#F43F5E;}`;
-const RevisionRow = styled.div`display:flex;gap:6px;justify-content:flex-end;`;
+const RevisionRow = styled.div`display:flex;gap:6px;align-items:center;justify-content:flex-end;& > button:first-child{margin-right:auto;}`;
 
 // Comments
 const CommentItem = styled.div`
