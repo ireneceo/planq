@@ -1526,7 +1526,7 @@ const QTaskPage:React.FC=()=>{
               label={t('ai.btnShort','AI')}
               title={t('ai.btnHint','자연어 한 줄로 여러 업무 자동 생성') as string}
             />
-            <HeaderAddBtn type="button" onClick={()=>{
+            <HeaderAddBtn type="button" data-testid="task-add-btn" onClick={()=>{
               setAddInline(false);                 // 우측 상단 = panel 모드
               setAddingTask(true);
               setNewAssignee(tab==='requested'?null:myId);
