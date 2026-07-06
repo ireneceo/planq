@@ -7,6 +7,12 @@
 ### ⚠️ 이관 시 주의 — 미배포/미완 항목
 - **#114 (업무 라벨) 수정 커밋됨(wip 3cce321)이나 미배포·미검증.** TaskDetailDrawer.tsx:1402 라벨을 "내가 적은 업무 메모"(작성자 관점 오표기)→"업무 설명", 요청받은 것만 "요청 내용". **다음: 빌드 확인(TS0 됨) → /검증 → /배포.**
 - **#115 (AI업무추가 "요청 내용" 라벨) 미착수.** `components/QTask/AiTaskCreateModal.tsx:220` `t('ai.promptLabel','요청 내용')` — 내 업무 추가가 대부분이라 헷갈림 → 중립 라벨("추가할 업무" 등) + 담당자 기본=나 표기 확인.
+- **랜딩 기능명 수정 커밋됨(자동저장), 미배포.** HomePage QName `text-transform:capitalize` 제거 + nowrap → "Q calendar" 1줄 + "Q + 소문자"(메뉴 규칙 일치). dev 반영됨, prod는 /배포 대기. (FeaturesPage `/features`도 같은 capitalize 있는지 확인 권장)
+
+### 🔎 다음 섹션 과제 — Fable 분석 (Irene 요청 2026-07-06, 저장만)
+**"내부 프로젝트 vs 고객 프로젝트" 구분이 통계·수치에서 제대로 되는지 철저히 검사 → Fable에게 분석결과 내라고.**
+- 문제의식(Irene): 우리 내부에서 시간 쓰는 일 vs 고객 대응 프로젝트를 구분해서, **프로젝트 수익성** 같은 통계에서 나눠 표시해야 하는 것 아닌가. 전체적으로 이 구분이 필요한 **영역·통계·수치**가 빠진 곳 없는지.
+- 실행: Fable에게 (a)프로젝트에 internal/client 구분 필드·개념이 있는지(project.kind 등 — memory `project_d_cluster_org_design` client.kind 참조) (b)통계/insights(/insights, project 수익성·시간·EVM)에서 그 구분이 반영되는지 (c)안 되는 영역 목록 + 설계안. `docs/`·Insights·프로젝트 모델·통계 라우트 훑어 분석결과 산출.
 
 ### 이번 세션 완료·배포 (Fable 계획)
 - **하니스 v1 + 카나리 크롤 + 비주얼 감사** (`scripts/e2e/`). SPA 네비로 전 라우트 크롤(auth rotation/rate-limit 회피). data-testid 시딩 시작(task-add-btn).
