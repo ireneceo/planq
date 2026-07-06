@@ -33,7 +33,18 @@ async function login(page, creds = CREDS) {
 
 async function goto(page, pathname) {
   await page.goto(BASE + pathname, { waitUntil: 'networkidle2' });
-  await sleep(400);
+  await sleep(500);
+}
+
+// SPA 클라이언트 네비게이션 — 앱 리부트 없이 이동 (전 화면 크롤 시 goto 반복 리부트→refresh rotation 레이스/
+//   rate-limit 회피). 최초 1회 full goto 로 앱 부팅·인증 후, 이후엔 이 함수로 이동. React Router(history) 가
+//   popstate 를 듣고 라우트 갱신. sessionStorage 플래그로 라우터 종류 무관 최대 호환.
+async function gotoSPA(page, pathname) {
+  await page.evaluate((p) => {
+    window.history.pushState({}, '', p);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }, pathname);
+  await sleep(1100);
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -112,4 +123,4 @@ async function visibleInputs(page) {
   return out;
 }
 
-module.exports = { launch, login, goto, sleep, assertKeyboardSafe, visibleInputs, BASE, CREDS, MOBILE_VP };
+module.exports = { launch, login, goto, gotoSPA, sleep, assertKeyboardSafe, visibleInputs, BASE, CREDS, MOBILE_VP };
