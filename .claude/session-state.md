@@ -28,7 +28,8 @@
 - **#119 캘린더**: 드로어 편집모드 기간표시를 [시작 날짜+시각]/[마감 날짜+시각] 두 줄로(시간을 날짜에 붙임).
 - **#99 프로젝트**: 정렬(최근/이름/진행률/마감) + 고객/내부 구분필터 + 그룹핑(구분/상태/고객사/**부서·팀[담당자 소속 기준, 스키마 변경 없이 owner_department/owner_team 반환]**). 전 그룹 옵션 배포 완료.
 - **#117 Cue**: 재사용 CueTip('Cue?' 팝오버, 무엇하는지 3줄) → TaskDetailDrawer 배지·CueTaskBar 배치. 다른 접점(채팅) 확장 가능.
-- **#84 팝아웃**(미완): markPopoutWindow 등 팝아웃 영속은 기존 완료. **모바일 헤더 통일은 실기기 검증 필요** + 위키 랜딩 문서화 범위는 Irene 결정 대기.
+- **#84 팝아웃/위키**: markPopoutWindow 팝아웃 영속 기존 완료. 모바일 헤더 통일은 실기기 검증 필요(잔여).
+  - **✅ Q위키 지속 업데이트 메커니즘 구축·배포** (Irene "fable급 설계+개발마다 추가"): 설계 `docs/Q_WIKI_MAINTENANCE.md`(커버리지 매트릭스+4축 업데이트). `scripts/wiki-coverage-check.js`(14 필수 카테고리 감사, exit1). `/개발완료` 3-1-W 위키 게이트. seed +6 카테고리(qcalendar/qmail/qproject/insights/cue/qinfo)+10 아티클. **개발마다: /개발완료 시 seed-wiki 갱신 → coverage-check 통과 → 배포 후 운영 `node seed-wiki-content.js`.** 커버리지 14/14·API 4/4 검증.
 
 ### 남은 후속 (내부/고객 구분)
 - QTalk RightPanel 내부배지가 아직 client_company 휴리스틱(`RightPanel.tsx:533`) — `project.kind`로 교체 가능(선택)

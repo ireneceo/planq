@@ -785,10 +785,12 @@ const Drawer = styled.div<{ $standalone?: boolean }>`
 `;
 const Header = styled.div`
   flex-shrink: 0;
-  height: 56px;
+  min-height: 56px; box-sizing: border-box;
   padding: 0 16px;
   display: flex; align-items: center; justify-content: space-between;
   border-bottom: 1px solid #E2E8F0;
+  /* #84 — 모바일(풀스크린) 노치/상태바 대응 (전 팝아웃 헤더 통일). */
+  @media (max-width: 640px) { padding-top: env(safe-area-inset-top, 0); }
 `;
 const HeaderTitle = styled.div`
   display: inline-flex; align-items: center; gap: 8px;

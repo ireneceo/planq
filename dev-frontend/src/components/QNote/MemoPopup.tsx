@@ -111,11 +111,13 @@ const Container = styled.div<{ $x: number; $y: number; $w: number; $h: number; $
 const Header = styled.div<{ $standalone?: boolean }>`
   display: flex; align-items: center; gap: 8px;
   padding: 10px 12px 8px;
+  min-height: 52px; box-sizing: border-box;
   cursor: ${(p) => p.$standalone ? 'default' : 'grab'};
   user-select: none;
   flex-shrink: 0;
 
-  @media (max-width: 640px) { cursor: default; }
+  /* #84 — 모바일(풀스크린) 노치/상태바 대응 (전 팝아웃 헤더 통일). */
+  @media (max-width: 640px) { cursor: default; padding-top: calc(10px + env(safe-area-inset-top, 0)); }
 `;
 
 const SearchWrap = styled.div`
