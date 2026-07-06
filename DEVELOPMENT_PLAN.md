@@ -1,6 +1,13 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-07-05 (Opus) — **Q Bill 증빙 확인뷰·고객 사업자정보 UI·재발송 버튼·열람 신뢰성 + 구글드라이브 미러 + L1 보안 fix + 검사 하니스 설계. 운영 배포 완료(미배포 0).** 헬스 29/29 · 빌드 EXIT0/TS0.
+> **최종 업데이트:** 2026-07-06 (Opus, 마라톤) — **내부/고객 프로젝트 구분 3-Layer + 피드백 5종 + Q위키 지속업데이트 시스템 + 팝아웃 헤더 통일. 전부 운영 배포(미배포 0).** 헬스 29/29 · 빌드 EXIT0/TS0.
+> - **내부 vs 고객 프로젝트 구분 (수익성 통계 분리)** — `Project.kind` ENUM + 멱등 백필. Insights 고객\|내부\|전체 세그먼트(profit 전용) + 내부 투자 뷰. stats.js 수익성·negative_margin·매출배분 kind='client'만, new_clients=customer만. 설계 `docs/INTERNAL_VS_CLIENT_PROJECT_ANALYSIS.md`. (0f8eb6c)
+> - **캘린더 #104 L1/L2 공개링크 누출 차단(Fable 게이트)** + #102 시간칸클릭 생성 + **세션 코드리뷰 버그 6건**(내부투자 항상표시·POST workstream 크로스테넌트·세그먼트 profit전용·L2 공개링크·반복 vlevel복사·NewProjectModal 리셋). (ecd888d·f7c6176)
+> - **피드백 5종**: #121 댓글 이미지 붙여넣기+라이트박스 워크스페이스 전영역(파일/위키/KB) · #119 캘린더 기간표시 시작/마감 시각 붙임 · #99 프로젝트 정렬/구분필터/그룹(구분·상태·고객사·부서·팀[담당자 소속]) · #117 CueTip 안내 · #84 모바일 팝아웃 헤더 통일(노치 safe-area).
+> - **Q위키 지속 업데이트 시스템** — 설계 `docs/Q_WIKI_MAINTENANCE.md`(커버리지 매트릭스+4축) · `scripts/wiki-coverage-check.js`(14 카테고리 감사) · `/개발완료` 3-1-W 게이트 · seed +6 카테고리/+10 아티클. 커버리지 14/14 통과.
+> - **다음 섹션 최우선: 구독결제 붙이기** — 은행송금+세금계산서(한국 법인, 프론트 UI 갭) + PortOne 카드(env게이트, Irene 키 선행). 인프라 매핑 완료(markPaymentPaid/ensureRenewalPayment 재사용). 로드맵 `docs/ROADMAP_NEXT.md`, 상세 session-state.md.
+
+> **이전 업데이트:** 2026-07-05 (Opus) — **Q Bill 증빙 확인뷰·고객 사업자정보 UI·재발송 버튼·열람 신뢰성 + 구글드라이브 미러 + L1 보안 fix + 검사 하니스 설계. 운영 배포 완료(미배포 0).** 헬스 29/29 · 빌드 EXIT0/TS0.
 > - **증빙(세금계산서/현금영수증) 신청 확인-only 뷰** — 고객정보 프리필 충분(사업자번호10+상호/식별번호8+) 시 읽기전용 요약(confirm), 부족 시 전체 폼(edit). 증빙 신청 정보 개인(현금영수증) 식별번호까지 Client 저장 → 정기 재발행 자동 프리필. (e2fa7b1)
 > - **고객 사업자·증빙 정보 편집 UI** — 고객관리 드로어에 사업자/개인 토글 + 사업자정보(상호·등록번호·대표자·업태·종목·주소·세금계산서이메일) 자동저장 편집. `routes/clients.js` PUT 확장. 고객이 공개 청구서에서 직접 입력해도 같은 곳 저장(양방향). (a27c978)
 > - **구글드라이브 미러 (Fable 게이트 — flip 아닌 미러 채택)** — 워크스페이스 파일 전체를 연결 Drive에 **사본**으로. `storage_provider='planq' 유지` → 서빙/다운로드/인라인이미지/ZIP 무영향(flip의 "멤버 다운로드 불능" 회귀 원천 차단). 업로드 시점 best-effort 미러(fire-and-forget) + `scripts/backfill-gdrive-mirror.js`(실측 프리플라이트·매니페스트 롤백·멱등·content_hash dedup). L1 개인은 owner 본인만, security!=general 제외. 운영 워프로랩 63건 백필 완료. `File.gdrive_mirror_id/_url/_at` + `BusinessCloudToken.workspace_folder_id` 컬럼. (3e99736)

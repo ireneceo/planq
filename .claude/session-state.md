@@ -31,6 +31,24 @@
 - **#84 팝아웃/위키**: markPopoutWindow 팝아웃 영속 기존 완료. **✅ 모바일 헤더 통일** — 감사로 3 팝아웃 헤더 제각각(Help 56/Memo 40/Talk 60px, 노치 대응 전무) 확인 → 상단 safe-area(env(safe-area-inset-top)) 3곳 통일 + 높이 정렬(56/52/60, 40 아웃라이어 제거). QTalk는 Shell, Memo/CueHelp는 헤더. 배포. **실기기 최종 확인만 Irene 몫.**
   - **✅ Q위키 지속 업데이트 메커니즘 구축·배포** (Irene "fable급 설계+개발마다 추가"): 설계 `docs/Q_WIKI_MAINTENANCE.md`(커버리지 매트릭스+4축 업데이트). `scripts/wiki-coverage-check.js`(14 필수 카테고리 감사, exit1). `/개발완료` 3-1-W 위키 게이트. seed +6 카테고리(qcalendar/qmail/qproject/insights/cue/qinfo)+10 아티클. **개발마다: /개발완료 시 seed-wiki 갱신 → coverage-check 통과 → 배포 후 운영 `node seed-wiki-content.js`.** 커버리지 14/14·API 4/4 검증.
 
+### 🔜 다음 섹션 최우선 — 구독결제(플랫폼 SaaS 과금) 붙이기 (착수, 매핑 완료·설계/구현 대기)
+**Irene 결정: 구독결제 붙이자. 방식은 (1) 은행송금+세금계산서[한국 법인 선호, 중요] (2) PortOne 카드 자동결제 둘 다.** 로드맵 `docs/ROADMAP_NEXT.md`.
+
+**기존 인프라 매핑 결과 (Explore 완료):**
+- 현재 전부 계좌이체(bank_transfer). 실제 활성화=사람이 admin `markPaymentPaid`(멱등). PortOne은 컬럼 스텁만(`Payment.portone_imp_uid/merchant_uid/status/meta`), 실코드 0.
+- 재사용 지점: `services/billing.js` `createPendingSubscription(:44)`·**`markPaymentPaid(:140, 멱등·period·plan동기화 다 함 → PortOne 성공시 이걸 호출)`**·`ensureRenewalPayment(:312, 정기 자동결제 붙을 곳)`·`runDailyBillingCron(:392)`. plan.js `checkout(:316)`·`notify-paid(:361, owner 자가활성화 차단)`·admin `mark-paid`·`issue-tax-invoice(admin.js:774)`. 플랜정의 `config/plans.js`.
+- **주의: `Business.portone_*`(190-195)는 Q Bill 워크스페이스→고객 PG용. SaaS와 무관.** SaaS PortOne 자리는 Payment 컬럼뿐.
+- 멱등 있음(markPaymentPaid·ensureRenewalPayment 가드2). 없음: `portone_merchant_uid` UNIQUE·결제 재시도·PortOne 실코드·billingKey 저장.
+
+**세금계산서 흐름:** 백엔드 준비됨 — checkout/notify-paid가 tax_invoice(biz_no/name/ceo/addr/email) 받아 'requested' 저장, admin `issue-tax-invoice`로 'issued' 마킹(PlanQ 홈택스/팝빌 자동발행 X, 마킹 추적). **갭=프론트: PlanSettings CheckoutModal에 세금계산서 발행요청(사업자정보) 입력 UI 없음.**
+
+**다음 섹션 할일 (순서):**
+1. **[키 불필요·바로] 은행송금+세금계산서 UI** — CheckoutModal/notify-paid에 "세금계산서 발행 요청"(사업자정보 입력) 추가 → 한국 법인 결제 완결. 배포 가능.
+2. **[env게이트] PortOne 기반** — billingKey 저장 컬럼(암호화)+UNIQUE(merchant_uid), `services/portone.js` 래퍼(키 없으면 안전 stub), `ensureRenewalPayment`/신규에 method='portone' 분기(성공시 markPaymentPaid 호출), webhook 라우트(서명검증·멱등). 재시도/dunning.
+3. **UI** 결제수단 등록/자동결제 토글. **Fable 게이트(돈 무결성)** 후 배포.
+- **Irene 선행:** PortOne 가맹점 가입+API키(.env). 키 없으면 1번+2번 스텁까지 가능.
+- 설계 문서 작성은 미완(task 11 in_progress) — 다음 섹션 `docs/SUBSCRIPTION_PAYMENT_DESIGN.md` 신설.
+
 ### 남은 후속 (내부/고객 구분)
 - QTalk RightPanel 내부배지가 아직 client_company 휴리스틱(`RightPanel.tsx:533`) — `project.kind`로 교체 가능(선택)
 - NewProjectModal/QTalkPage `project_type`가 QTalk 생성경로에서 미전달(별개 잠재버그, kind는 전달됨)
