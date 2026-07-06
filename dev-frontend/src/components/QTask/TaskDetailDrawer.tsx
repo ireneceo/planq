@@ -1397,11 +1397,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
 
             <Section>
               <SectionTitle>
-                {/* N+34 — description 라벨 동적: created_by === assignee_id 이면 "내가 적은 업무 메모"
-                    (자기 업무), 다르면 "요청 내용" (요청 받은 업무). 사용자 인지 부담 완화. */}
-                {detailTask.created_by === detailTask.assignee_id
-                  ? t('detail.descriptionSelf', '내가 적은 업무 메모')
-                  : detailTask.created_by !== myId && detailTask.assignee_id === myId
+                {/* #114 — 라벨은 "보는 사람" 관점. 내가 남의 요청을 받은 업무만 "요청 내용",
+                    그 외(내 업무·남의 자기업무 등)는 모두 "업무 설명" (옛 "내가 적은 업무 메모"는
+                    작성자 관점이라 다른 뷰어에게 오표기 + "메모"→"설명"). */}
+                {detailTask.created_by !== myId && detailTask.assignee_id === myId
                   ? t('detail.descriptionRequest', '요청 내용')
                   : t('detail.description', '업무 설명')}
                 {!canEditDescription && <ReadOnlyHint>{t('detail.readOnly', '읽기 전용')}</ReadOnlyHint>}
