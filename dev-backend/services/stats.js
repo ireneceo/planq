@@ -332,10 +332,8 @@ function buildTaskInsights({ kpis, scatter, aiTrend, sources }) {
 // Overview 탭 — 사업 전체 맥박
 //   매출(수금) / 영업이익 추정 / 가동률 / 실현율 / 활성 프로젝트 / 신규 고객
 // ──────────────────────────────────────────────
-async function buildOverviewTab(businessId, period, segment = 'client') {
+async function buildOverviewTab(businessId, period) {
   const { Invoice, InvoicePayment, Project, Client, OverheadItem } = require('../models');
-  const projKindWhere = segment === 'client' ? { kind: 'client' }
-    : segment === 'internal' ? { kind: 'internal' } : {};
 
   const fromDt = new Date(period.from + ' 00:00:00');
   const toDt = new Date(period.to + ' 23:59:59');
@@ -374,8 +372,8 @@ async function buildOverviewTab(businessId, period, segment = 'client') {
   // 영업이익 = 매출 − 고정비 (단순 모델, 노동비는 hourly_rate 미입력 시 0)
   const profit = revenue - overheadAlloc;
 
-  // 활성 프로젝트 (세그먼트 반영 — 기본 고객 프로젝트)
-  const activeProjects = await Project.count({ where: { business_id: businessId, status: 'active', ...projKindWhere } });
+  // 활성 프로젝트 — 전사 대시보드이므로 내부/고객 구분 없이 전체 (수익성 세그먼트는 profit 탭 전용).
+  const activeProjects = await Project.count({ where: { business_id: businessId, status: 'active' } });
 
   // 신규 고객 (기간 내 created) — kind='customer' 만 (vendor/freelancer/other 제외)
   const newClients = await Client.count({
@@ -470,11 +468,10 @@ async function buildProfitTab(businessId, period, segment = 'client') {
   const fromDt = new Date(period.from + ' 00:00:00');
   const toDt = new Date(period.to + ' 23:59:59');
 
-  // 내부/고객 세그먼트 필터 (kind). all 이면 전체.
-  const kindWhere = segment === 'client' ? { kind: 'client' }
-    : segment === 'internal' ? { kind: 'internal' } : {};
+  // 전체 프로젝트 조회 후 kind 로 분리 — internal_investment 요약이 client/기본 뷰에서도
+  //   항상 채워지도록(세그먼트로 pre-filter 하면 기본 뷰에서 내부 요약이 0 이 되는 버그).
   const projects = await Project.findAll({
-    where: { business_id: businessId, ...kindWhere },
+    where: { business_id: businessId },
     attributes: ['id', 'name', 'status', 'client_company', 'kind'],
   });
   if (projects.length === 0) return emptyProfitTab(period, segment);
