@@ -18,7 +18,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { createAuditLog } = require('../middleware/audit');
 const taskExtractor = require('../services/task_extractor');
 const cueOrchestrator = require('../services/cue_orchestrator');
-const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../services/displayName');
+const { applyMemberDisplayName, applyMemberDisplayNameOne, getMemberNameMap } = require('../services/displayName');
 const { todayInTz, mondayOfDateStr, addDaysStr } = require('../utils/datetime');
 const { fetchProjectStats } = require('../services/weeklyReviewSnapshot');
 
@@ -2915,6 +2915,9 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
     // 사이클 N+50 — merged results 인메모리 슬라이스 (pagination 응답 형식 정합)
     const total = results.length;
     const sliced = results.slice(offset, offset + limit);
+    // 업로더/발신자 이름 = 워크스페이스 표시명 (flat uploader_name 은 helper 대상 밖이라 계정명 누출 → 표시명 맵으로 후처리. 카나리 크롤 검출 2026-07-06)
+    const nameMap = await getMemberNameMap(bizId, sliced.map((r) => r.uploader_id));
+    for (const r of sliced) { const dn = r.uploader_id && nameMap.get(Number(r.uploader_id)); if (dn && dn.name) r.uploader_name = dn.name; }
     return paginatedResponse(res, sliced, total, { limit, page, offset });
   } catch (error) {
     next(error);
@@ -3036,6 +3039,9 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
     // 4) meeting (Q Note) 자료는 별도 스토리지 — 현재 연동 미구현, 빈 배열 (추후 확장)
 
     results.sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at));
+    // 업로더/발신자 이름 = 워크스페이스 표시명 (flat uploader_name 계정명 누출 fix, 2026-07-06)
+    const nameMap = await getMemberNameMap(bizId, results.map((r) => r.uploader_id));
+    for (const r of results) { const dn = r.uploader_id && nameMap.get(Number(r.uploader_id)); if (dn && dn.name) r.uploader_name = dn.name; }
     successResponse(res, results);
   } catch (error) {
     next(error);
