@@ -424,7 +424,9 @@ const QName = styled.div`
   font-family: 'Outfit', sans-serif;
   font-size: 22px; font-weight: 500; color: #2DD4BF;
   border-right: 1px solid rgba(255,255,255,0.05);
-  text-transform: capitalize;
+  /* Q 만 대문자, 뒷 단어는 소문자 (메뉴 규칙 'Q talk·Q calendar'와 일치). capitalize 제거 —
+     소스 텍스트 그대로 표시 + nowrap 으로 'Q calendar' 2줄 방지. */
+  white-space: nowrap;
   @media (max-width: 768px) {
     border-right: none;
     border-bottom: 1px solid rgba(255,255,255,0.05);
