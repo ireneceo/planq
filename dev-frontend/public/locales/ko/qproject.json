@@ -58,7 +58,8 @@
     "clientsCount": "명",
     "tasksUnit": "건",
     "lastActivity": "최근 활동",
-    "pmLabel": "프로젝트 매니저"
+    "pmLabel": "프로젝트 매니저",
+    "noClient": "고객사 미지정"
   },
   "common": {
     "cancel": "취소"

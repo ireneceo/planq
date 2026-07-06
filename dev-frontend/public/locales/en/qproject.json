@@ -58,7 +58,8 @@
     "clientsCount": "",
     "tasksUnit": "",
     "lastActivity": "Last activity",
-    "pmLabel": "Project manager"
+    "pmLabel": "Project manager",
+    "noClient": "No client"
   },
   "common": {
     "cancel": "Cancel"
