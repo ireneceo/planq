@@ -352,6 +352,10 @@ const GoogleBtn = styled.button`
 const GoogleIcon = styled.svg`
   width: 18px; height: 18px;
 `;
+const GoogleNotice = styled.p`
+  margin: 8px 0 0; text-align: center;
+  font-size: 12px; line-height: 1.4; color: #94A3B8;
+`;
 
 const BottomLinks = styled.div`
   text-align: center;
@@ -558,6 +562,10 @@ const LoginPage: React.FC = () => {
             </GoogleIcon>
             {t('login.continueWithGoogle', 'Google 로 계속') as string}
           </GoogleBtn>
+          {/* Google OAuth 검증 완료 전 — 일반 고객이 눌러 구글 "액세스 차단됨" 에러를 맞지 않게 예방 안내 */}
+          <GoogleNotice>
+            {t('login.googleReviewNotice', { defaultValue: 'Google 로그인은 현재 심사 중이에요 — 위 이메일로 가입·로그인해 주세요.' }) as string}
+          </GoogleNotice>
 
           {isDev && (
             <DevPanel>
