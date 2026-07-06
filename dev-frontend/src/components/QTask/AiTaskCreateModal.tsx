@@ -217,7 +217,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
                 </FieldRow>
               )}
               <FieldRow>
-                <FieldLabel>{t('ai.promptLabel', '요청 내용')}</FieldLabel>
+                <FieldLabel>{t('ai.promptLabel', '추가할 업무')}</FieldLabel>
                 <FieldTextarea
                   value={prompt}
                   onChange={e => setPrompt(e.target.value)}
@@ -225,6 +225,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
                   rows={5}
                   placeholder={t('ai.placeholder', '예: WordPress 블로그 사이트 한 달 안에 런칭. 디자인부터 컨텐츠 마이그레이션, SEO 까지.') as string}
                 />
+                <Hint>{t('ai.promptHint', '한 줄로 적으면 AI 가 여러 업무로 나눠 줘요.') as string}</Hint>
               </FieldRow>
               {recMatch && onUseTemplate && (
                 <RecBanner>

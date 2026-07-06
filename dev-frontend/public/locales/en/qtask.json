@@ -996,6 +996,8 @@
     "contextWorkspace": "Workspace members are auto-injected.",
     "todayLabel": "Today",
     "membersLabel": "Members",
+    "promptLabel": "Work to add",
+    "promptHint": "Write it in one line and AI will split it into tasks.",
     "placeholder": "e.g. Launch a WordPress blog site in a month — design, content migration, SEO.",
     "submitHint": "Create with AI",
     "loadingTitle": "AI is decomposing tasks",
