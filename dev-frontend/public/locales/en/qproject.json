@@ -40,6 +40,8 @@
     "kind": { "all": "All", "client": "Client", "internal": "Internal" },
     "sortLabel": "Sort",
     "sort": { "recent": "Recent", "name": "Name", "progress": "Progress", "deadline": "Deadline" },
+    "groupLabel": "Group",
+    "group": { "none": "No group", "kind": "Client/Internal", "status": "By status", "client": "By client" },
     "noResults": "No projects match the current filter",
     "clearFilters": "Clear filters"
   },

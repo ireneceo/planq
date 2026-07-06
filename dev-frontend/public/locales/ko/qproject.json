@@ -40,6 +40,8 @@
     "kind": { "all": "전체", "client": "고객", "internal": "내부" },
     "sortLabel": "정렬",
     "sort": { "recent": "최근순", "name": "이름순", "progress": "진행률순", "deadline": "마감임박순" },
+    "groupLabel": "그룹",
+    "group": { "none": "그룹 없음", "kind": "고객/내부", "status": "상태별", "client": "고객사별" },
     "noResults": "조건에 맞는 프로젝트가 없습니다",
     "clearFilters": "필터 초기화"
   },
