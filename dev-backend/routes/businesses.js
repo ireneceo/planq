@@ -750,7 +750,14 @@ router.get('/:businessId/members', authenticateToken, checkBusinessAccess, async
         ['created_at', 'ASC']
       ]
     });
-    successResponse(res, members);
+    // #98 — user 객체에 워크스페이스 표시명 채움(프로젝트 상세와 동일 패턴). 멤버 선택자·목록이
+    //   계정명(한수정) 대신 워크스페이스 표시명(루아)을 쓰도록. displayName() 헬퍼 자동 적용 대상.
+    const out = members.map((m) => {
+      const o = m.toJSON();
+      if (o.user) { o.user.display_name = m.name || null; o.user.display_name_localized = m.name_localized || null; }
+      return o;
+    });
+    successResponse(res, out);
   } catch (error) {
     next(error);
   }

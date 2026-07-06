@@ -38,7 +38,7 @@ type TabKey = 'dashboard' | 'tasks' | 'details' | 'info' | 'clients' | 'files' |
 // 고객(client)에게 숨기는 탭 — 내부 캔버스(전략·403)·고객목록·거래(청구)·보고서·상세메타. 고객은 협업 탭(업무·파일·문서·정보)만.
 const CLIENT_HIDDEN_TABS: TabKey[] = ['dashboard', 'clients', 'transactions', 'report', 'details'];
 
-interface BizMember { id: number; user_id: number; user?: { id: number; name: string; email?: string; is_ai?: boolean } }
+interface BizMember { id: number; user_id: number; user?: { id: number; name: string; email?: string; is_ai?: boolean; display_name?: string | null } }
 
 interface ProjectDetail {
   id: number;
@@ -322,7 +322,7 @@ const QProjectDetailPage: React.FC = () => {
     if (existing.some(m => m.user_id === userId)) return;
     const bm = bizMembers.find(b => b.user_id === userId);
     if (!bm?.user) return;
-    saveMembers([...existing, { user_id: userId, role: '팀원', is_pm: false, User: { id: bm.user.id, name: bm.user.name } }]);
+    saveMembers([...existing, { user_id: userId, role: '팀원', is_pm: false, User: { id: bm.user.id, name: bm.user.name, display_name: bm.user.display_name ?? null } }]);
     setAddMemberOpen(false);
   };
   const removeMember = (userId: number) => {
@@ -614,7 +614,7 @@ const QProjectDetailPage: React.FC = () => {
                   <MemberCandidateList>
                     {candidates.map(b => (
                       <MemberCandidateItem key={b.user_id} type="button" onClick={() => addMember(b.user_id)}>
-                        {b.user?.name || `user ${b.user_id}`}
+                        {b.user?.display_name || b.user?.name || `user ${b.user_id}`}
                         {b.user?.email && <MemberEmail>{b.user.email}</MemberEmail>}
                       </MemberCandidateItem>
                     ))}
