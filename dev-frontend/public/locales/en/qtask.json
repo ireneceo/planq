@@ -148,6 +148,8 @@
     "predictCapHint": "Sum of est-hours of tasks I'm assigned to / weekly capacity",
     "remainCap": "Left {{rem}}h / Cap {{cap}}h",
     "remainCapHint": "Remaining work (est × incomplete) of my active tasks / weekly capacity",
+    "remainCapOver": "Left {{rem}}h / Cap {{cap}}h · {{over}}h over",
+    "overCapHint": "Remaining estimate exceeds capacity by {{over}}h — consider adjusting deadlines, delegating, or rebalancing dates.",
     "workspacePredict": "Est {{est}}h",
     "actual": "Act {{act}}h"
   },
@@ -351,7 +353,10 @@
       "deleteHint": "Tasks in this group move to unassigned",
       "collapse": "Collapse",
       "expand": "Expand",
-      "empty": "No tasks in this group — drag or use Move to group"
+      "empty": "No tasks in this group — add below or drag one in",
+      "addTask": "Add task",
+      "addTaskPh": "Task title (Enter to add / Esc to cancel)",
+      "addTaskGo": "Add"
     }
   },
   "empty": {

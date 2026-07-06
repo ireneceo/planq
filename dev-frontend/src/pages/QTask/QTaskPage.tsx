@@ -1237,6 +1237,10 @@ const QTaskPage:React.FC=()=>{
     return { carried, fresh, total:Math.round((carried+fresh)*10)/10 };
   },[filtered,myId,taskRemaining,isCarried]);
   const remainingTotal=loadBreakdown.total;
+  // #100 — 남은 예측(Σ예측×미완료)이 가용시간을 넘으면 오버커밋 → 칩을 경고색+초과분 표시.
+  //   "가용시간 인지"(§6) 핵심: 계획이 캐파를 초과했음을 즉시 알려 마감 지연 예방.
+  const overCapHours=Math.round((remainingTotal-effectiveCapacity)*10)/10;
+  const isOverCap=scope!=='workspace'&&effectiveCapacity>0&&overCapHours>0;
 
   const saveCapacity=async(field:string,value:number)=>{
     if(!bizId)return;
@@ -1514,10 +1518,15 @@ const QTaskPage:React.FC=()=>{
             {tab==='week' && <HideCheck><input type="checkbox" checked={hideCompletedInWeek} onChange={e=>setHideCompletedInWeek(e.target.checked)} />{t('filter.hideCompleted','Hide completed')}</HideCheck>}
             <ChipRow>
               <Chip>{summary.count}{t('summary.unit','개')}</Chip>
-              <Chip $teal title={t('summary.remainCapHint','내가 담당자인 활성 업무의 남은 일(예측×미완료) / 주간 가용시간') as string}>
+              <Chip $teal={!isOverCap} $warn={isOverCap}
+                title={(isOverCap
+                  ? t('summary.overCapHint', { over: formatHours(overCapHours), defaultValue: '남은 예측이 가용시간을 {{over}}h 초과 — 마감 조정·위임·기간 재배분을 검토하세요.' })
+                  : t('summary.remainCapHint','내가 담당자인 활성 업무의 남은 일(예측×미완료) / 주간 가용시간')) as string}>
                 {scope==='workspace'
                   ? t('summary.workspacePredict', { est: formatHours(summary.myEst) })
-                  : t('summary.remainCap', { rem: formatHours(remainingTotal), cap: formatHours(effectiveCapacity), defaultValue: '남은 {{rem}}h / 가용 {{cap}}h' })}
+                  : isOverCap
+                    ? t('summary.remainCapOver', { rem: formatHours(remainingTotal), cap: formatHours(effectiveCapacity), over: formatHours(overCapHours), defaultValue: '남은 {{rem}}h / 가용 {{cap}}h · {{over}}h 초과' })
+                    : t('summary.remainCap', { rem: formatHours(remainingTotal), cap: formatHours(effectiveCapacity), defaultValue: '남은 {{rem}}h / 가용 {{cap}}h' })}
               </Chip>
               <Chip $coral>{t('summary.actual', { act: formatHours(summary.act) })}</Chip>
             </ChipRow>
@@ -2946,7 +2955,7 @@ const Header=styled.div`padding:14px 20px;height:60px;display:flex;align-items:c
 const PageTitle=styled.h1`font-size:18px;font-weight:700;color:#0F172A;margin:0;flex-shrink:0;letter-spacing:-0.2px;`;
 const HideCheck=styled.label`display:flex;align-items:center;gap:4px;font-size:12px;color:#64748B;cursor:pointer;white-space:nowrap;& input{accent-color:#0D9488;}`;
 const ChipRow=styled.div`display:flex;gap:4px;margin-left:auto;`;
-const Chip=styled.span<{$teal?:boolean;$coral?:boolean}>`padding:2px 8px;font-size:11px;font-weight:600;border-radius:6px;background:${p=>p.$teal?'#F0FDFA':p.$coral?'#FFF1F2':'#F1F5F9'};color:${p=>p.$teal?'#0F766E':p.$coral?'#9F1239':'#475569'};`;
+const Chip=styled.span<{$teal?:boolean;$coral?:boolean;$warn?:boolean}>`padding:2px 8px;font-size:11px;font-weight:600;border-radius:6px;background:${p=>p.$warn?'#FEF3C7':p.$teal?'#F0FDFA':p.$coral?'#FFF1F2':'#F1F5F9'};color:${p=>p.$warn?'#B45309':p.$teal?'#0F766E':p.$coral?'#9F1239':'#475569'};`;
 
 const TabBar=styled.div`display:flex;border-bottom:1px solid #E2E8F0;flex-shrink:0;@media(max-width:640px){overflow-x:auto;-webkit-overflow-scrolling:touch;&::-webkit-scrollbar{display:none;}}`;
 const TabBtn=styled.button<{$active?:boolean}>`flex:1;padding:10px 8px;font-size:13px;font-weight:600;border:none;cursor:pointer;background:transparent;color:${p=>p.$active?'#0F766E':'#94A3B8'};border-bottom:2px solid ${p=>p.$active?'#14B8A6':'transparent'};display:inline-flex;align-items:center;justify-content:center;gap:4px;white-space:nowrap;@media(max-width:640px){flex:none;padding:10px 12px;font-size:12px;}`;

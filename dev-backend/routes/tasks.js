@@ -398,7 +398,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
   try {
     const { business_id, project_id, title, description, assignee_id, due_date, priority,
       estimated_hours, category, source_message_id, conversation_id, planned_week_start, start_date,
-      cue_kind, cue_context_ref, recurrence_rule } = req.body;
+      cue_kind, cue_context_ref, recurrence_rule, workstream_id } = req.body;
     if (!business_id) return errorResponse(res, 'business_id required', 400);
     if (!title || !String(title).trim()) return errorResponse(res, 'title required', 400);
 
@@ -438,6 +438,17 @@ router.post('/', authenticateToken, async (req, res, next) => {
       console.warn('[tasks.POST] requester=' + req.user.id + ' assignee=' + finalAssignee + ' — estimated_hours/recurrence_rule sanitized (책임선 분리)');
     }
 
+    // #120 — 그룹(워크스트림) 배치. workstream_id 가 해당 project 소속인지 검증(멀티테넌트/오배치 차단).
+    //   PUT 라우트(:1019)와 동일 패턴. project_id 없으면 workstream 배치 불가.
+    let effectiveWorkstreamId = null;
+    if (workstream_id != null) {
+      if (!project_id) return errorResponse(res, 'invalid_workstream', 400);
+      const { ProjectWorkstream } = require('../models');
+      const ws = await ProjectWorkstream.findOne({ where: { id: workstream_id, project_id } });
+      if (!ws) return errorResponse(res, 'invalid_workstream', 400);
+      effectiveWorkstreamId = workstream_id;
+    }
+
     // 정기업무 — recurrence_rule 들어오면 due_date 필수, RRULE 검증, next_occurrence_at 계산
     let nextOccurrenceAt = null;
     if (effectiveRecurrenceRule) {
@@ -469,6 +480,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
       source_message_id: source_message_id || null,
       conversation_id: conversation_id || null,
       planned_week_start: planned_week_start || null,
+      workstream_id: effectiveWorkstreamId,
       created_by: req.user.id,
       source: isInternalRequest ? 'internal_request' : 'manual',
       request_by_user_id: isInternalRequest ? req.user.id : null,

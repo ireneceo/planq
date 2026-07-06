@@ -154,7 +154,10 @@
       "deleteHint": "소속 업무는 미분류로 이동됩니다",
       "collapse": "접기",
       "expand": "펼치기",
-      "empty": "이 그룹에 업무가 없습니다 — 드래그하거나 그룹 이동으로 추가"
+      "empty": "이 그룹에 업무가 없습니다 — 아래에서 추가하거나 드래그하세요",
+      "addTask": "업무 추가",
+      "addTaskPh": "업무 제목 입력 (Enter 추가 / Esc 취소)",
+      "addTaskGo": "추가"
     }
   },
   "empty": {
@@ -185,6 +188,8 @@
     "predictCapHint": "내가 담당자인 task 의 예측시간 합 / 주간 가용시간",
     "remainCap": "남은 {{rem}}h / 가용 {{cap}}h",
     "remainCapHint": "내가 담당자인 활성 업무의 남은 일(예측×미완료) / 주간 가용시간",
+    "remainCapOver": "남은 {{rem}}h / 가용 {{cap}}h · {{over}}h 초과",
+    "overCapHint": "남은 예측이 가용시간을 {{over}}h 초과 — 마감 조정·위임·기간 재배분을 검토하세요.",
     "workspacePredict": "예측 {{est}}h",
     "actual": "실제 {{act}}h"
   },
