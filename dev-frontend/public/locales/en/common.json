@@ -1,4 +1,13 @@
 {
+  "cueTip": {
+    "label": "Cue?",
+    "aria": "What is Cue?",
+    "title": "Cue — your workspace AI teammate",
+    "body": "Hand off a task and Cue handles it, replies to customer chats, and summarizes your material. Assign it like a teammate or bring it into a conversation.",
+    "point1": "Assign as task owner → auto-generates the deliverable",
+    "point2": "Auto-replies to customer chat (you review before sending)",
+    "point3": "Summarizes and organizes docs & meeting notes"
+  },
   "invite": {
     "loading": "Loading invite...",
     "invalid": "Invalid or expired invite link.",
