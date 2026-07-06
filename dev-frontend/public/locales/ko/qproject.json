@@ -41,7 +41,7 @@
     "sortLabel": "정렬",
     "sort": { "recent": "최근순", "name": "이름순", "progress": "진행률순", "deadline": "마감임박순" },
     "groupLabel": "그룹",
-    "group": { "none": "그룹 없음", "kind": "고객/내부", "status": "상태별", "client": "고객사별" },
+    "group": { "none": "그룹 없음", "kind": "고객/내부", "status": "상태별", "client": "고객사별", "department": "부서별(담당자)", "team": "팀별(담당자)" },
     "noResults": "조건에 맞는 프로젝트가 없습니다",
     "clearFilters": "필터 초기화"
   },
@@ -59,7 +59,9 @@
     "tasksUnit": "건",
     "lastActivity": "최근 활동",
     "pmLabel": "프로젝트 매니저",
-    "noClient": "고객사 미지정"
+    "noClient": "고객사 미지정",
+    "noDept": "부서 미지정",
+    "noTeam": "팀 미지정"
   },
   "common": {
     "cancel": "취소"
