@@ -738,6 +738,29 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     }
   };
 
+  // #121 — 댓글 박스에 이미지 붙여넣기(Cmd+V) 업로드. 스크린샷 붙여넣기 지원 (기존엔 picker 만).
+  const handleCommentPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const imgs: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      if (it.kind === 'file' && it.type.startsWith('image/')) {
+        const f = it.getAsFile();
+        if (f) {
+          const ext = it.type.split('/')[1] || 'png';
+          const named = (f.name && f.name !== 'image.png')
+            ? f : new File([f], `pasted-${Date.now()}.${ext}`, { type: it.type });
+          imgs.push(named);
+        }
+      }
+    }
+    if (imgs.length) {
+      e.preventDefault();  // data URI 텍스트 붙여넣기 방지
+      setCommentFiles(prev => [...prev, ...imgs]);
+    }
+  };
+
   const addComment = async () => {
     if (!detailTask || commentSending) return;
     const hasContent = newComment.trim().length > 0;
@@ -1567,8 +1590,9 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 </CommentItem>
               ))}
               <CommentComposer>
-                <CommentInput value={newComment} placeholder={t('detail.writeComment', 'Write a comment...')}
+                <CommentInput value={newComment} placeholder={t('detail.writeCommentPaste', '댓글 입력 · 이미지 붙여넣기(Cmd/Ctrl+V) 가능') as string}
                   onChange={e => setNewComment(e.target.value)}
+                  onPaste={handleCommentPaste}
                   onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); addComment(); } }} />
                 {/* 인라인 첨부 picker — popup-on-popup 금지. 같은 영역에서 펼침. */}
                 {commentPickerOpen && (

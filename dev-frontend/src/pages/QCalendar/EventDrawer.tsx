@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
@@ -136,14 +136,12 @@ const EventDrawer: React.FC<Props> = ({
     try { await navigator.clipboard.writeText(event.meeting_url); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch {}
   };
 
-  const dateLabel = useMemo(() => {
+  // #119 — 시작/마감 각 날짜를 단독 포맷 (시간과 같은 줄에 붙여 표시). 연도 생략(컴팩트).
+  const fmtDay = (dstr: string) => {
+    if (!dstr) return '';
     const locale = i18n.language === 'en' ? 'en-US' : 'ko-KR';
-    const s = new Date(`${startDate}T00:00:00`);
-    const e = new Date(`${endDate}T00:00:00`);
-    const fmt = new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', weekday: 'short', year: 'numeric' });
-    if (startDate === endDate) return fmt.format(s);
-    return `${fmt.format(s)} ~ ${fmt.format(e)}`;
-  }, [startDate, endDate, i18n.language]);
+    return new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', weekday: 'short' }).format(new Date(`${dstr}T00:00:00`));
+  };
 
   // 시간/날짜 저장 (4 필드 묶음) — debounce 300ms (select)
   // N+63 P2a — master event (rrule != null, recurrence_parent_id null) 의 instance-affecting 필드 변경 시 modal.
@@ -241,7 +239,9 @@ const EventDrawer: React.FC<Props> = ({
             <MutedSmall>{t('drawer.schedule', '일정')}</MutedSmall>
             {canEdit ? (
               <ScheduleEditor>
-                <DateRow>
+                {/* #119 — 시작/마감 각각 [날짜 + 시간] 한 줄로 묶어 표시 (시간이 자기 날짜에 붙음). */}
+                <DateTimeRow>
+                  <RowLabel>{t('drawer.startLabel', '시작')}</RowLabel>
                   <DateTrigger
                     ref={dateTriggerRef}
                     type="button"
@@ -253,40 +253,54 @@ const EventDrawer: React.FC<Props> = ({
                       <line x1="8" y1="2" x2="8" y2="6" />
                       <line x1="3" y1="10" x2="21" y2="10" />
                     </svg>
-                    <span>{dateLabel}</span>
+                    <span>{fmtDay(startDate)}</span>
                   </DateTrigger>
                   {!event.all_day && (
-                    <TimePair>
-                      <AutoSaveField type="select" onSave={async () => {
-                        await saveSchedule(startDate, endDate, startTime, endTime, false);
-                      }}>
-                        <TimeWrap>
-                          <PlanQSelect
-                            size="sm"
-                            density="compact"
-                            options={TIME_OPTIONS}
-                            value={{ value: startTime, label: startTime }}
-                            onChange={(opt) => opt && setStartTime((opt as { value: string }).value)}
-                          />
-                        </TimeWrap>
-                      </AutoSaveField>
-                      <Dash>–</Dash>
-                      <AutoSaveField type="select" onSave={async () => {
-                        await saveSchedule(startDate, endDate, startTime, endTime, false);
-                      }}>
-                        <TimeWrap>
-                          <PlanQSelect
-                            size="sm"
-                            density="compact"
-                            options={TIME_OPTIONS}
-                            value={{ value: endTime, label: endTime }}
-                            onChange={(opt) => opt && setEndTime((opt as { value: string }).value)}
-                          />
-                        </TimeWrap>
-                      </AutoSaveField>
-                    </TimePair>
+                    <AutoSaveField type="select" onSave={async () => {
+                      await saveSchedule(startDate, endDate, startTime, endTime, false);
+                    }}>
+                      <TimeWrap>
+                        <PlanQSelect
+                          size="sm"
+                          density="compact"
+                          options={TIME_OPTIONS}
+                          value={{ value: startTime, label: startTime }}
+                          onChange={(opt) => opt && setStartTime((opt as { value: string }).value)}
+                        />
+                      </TimeWrap>
+                    </AutoSaveField>
                   )}
-                </DateRow>
+                </DateTimeRow>
+                <DateTimeRow>
+                  <RowLabel>{t('drawer.endLabel', '마감')}</RowLabel>
+                  <DateTrigger
+                    type="button"
+                    onClick={() => setDatePickerOpen((x) => !x)}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="4" width="18" height="18" rx="2" />
+                      <line x1="16" y1="2" x2="16" y2="6" />
+                      <line x1="8" y1="2" x2="8" y2="6" />
+                      <line x1="3" y1="10" x2="21" y2="10" />
+                    </svg>
+                    <span>{fmtDay(endDate)}</span>
+                  </DateTrigger>
+                  {!event.all_day && (
+                    <AutoSaveField type="select" onSave={async () => {
+                      await saveSchedule(startDate, endDate, startTime, endTime, false);
+                    }}>
+                      <TimeWrap>
+                        <PlanQSelect
+                          size="sm"
+                          density="compact"
+                          options={TIME_OPTIONS}
+                          value={{ value: endTime, label: endTime }}
+                          onChange={(opt) => opt && setEndTime((opt as { value: string }).value)}
+                        />
+                      </TimeWrap>
+                    </AutoSaveField>
+                  )}
+                </DateTimeRow>
                 <CalendarPicker
                   isOpen={datePickerOpen}
                   startDate={startDate}
@@ -877,7 +891,8 @@ const Description = styled.div`
 
 // 시간 편집
 const ScheduleEditor = styled.div` display: flex; flex-direction: column; gap: 8px; position: relative; `;
-const DateRow = styled.div` display: flex; align-items: center; gap: 8px; flex-wrap: wrap; `;
+const DateTimeRow = styled.div` display: flex; align-items: center; gap: 8px; flex-wrap: wrap; `;
+const RowLabel = styled.span` font-size: 11px; font-weight: 700; color: #64748B; min-width: 30px; `;
 const DateTrigger = styled.button`
   display: inline-flex; align-items: center; gap: 6px;
   padding: 7px 10px; border: 1px solid #CBD5E1; border-radius: 8px;
@@ -886,9 +901,7 @@ const DateTrigger = styled.button`
   &:hover { border-color: #14B8A6; }
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.12); }
 `;
-const TimePair = styled.div` display: inline-flex; align-items: center; gap: 6px; `;
 const TimeWrap = styled.div` width: 100px; `;
-const Dash = styled.span` color: #94A3B8; font-size: 12px; `;
 const AllDayRow = styled.div` display: flex; `;
 const CheckboxLabel = styled.label`
   display: inline-flex; align-items: center; gap: 6px; cursor: pointer;

@@ -88,6 +88,8 @@
     "privateBlocked": "Private events can't be shared"
   },
   "drawer": {
+    "startLabel": "Start",
+    "endLabel": "End",
     "createdBy": "Created by",
     "attendees": "Attendees",
     "noAttendees": "No attendees",

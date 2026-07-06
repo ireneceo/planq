@@ -13,6 +13,16 @@
   - L3: `services/stats.js` 수익성·negative_margin·매출배분=kind='client'만, 내부는 internal_investment 별도, new_clients=Client.kind='customer'만, team revenue_share 분모 고객시간 한정
   - 검증: 세그먼트 E2E + 운영 실데이터 6/6(biz1 internal 6, 수익성 오탐 제거, internal_investment 166.8h/834만원)
 
+### ✅ B3 캘린더 + 세션 코드리뷰 (2026-07-06 후속, 운영 배포)
+- **#104 나만보기 공개링크 L1 누출 차단**(Fable 게이트) + **#102 시간칸 클릭 생성 prefill** 배포(ecd888d)
+- **#119 기간표시순서** — 드로어 기간 표시는 코드상 전부 start→end 올바름. Irene 화면 실문구 대기(미착수)
+- **세션 코드리뷰(3 finder×verify) 버그 6건 수정·배포(f7c6176):**
+  - A internal_investment client 뷰 0 → 전체조회 kind분리 · B POST workstream 크로스테넌트 → business 검증
+  - C/D 세그먼트 토글 profit 전용화(overview/team 혼합KPI 제거, overview active_projects 전사복원)
+  - **E 캘린더 L2(팀비공개) 옛 공개링크 노출 → 공유·공개GET·회수 L1+L2 확장**(중요 보안)
+  - F 반복 회차수정 vlevel/target 미복사→L2/L4 확대 fix · G NewProjectModal isInternal 리셋
+  - 리뷰 fix E2E 8/8 + Fix B 2/2. 운영 미노출 예방적.
+
 ### 남은 후속 (내부/고객 구분)
 - QTalk RightPanel 내부배지가 아직 client_company 휴리스틱(`RightPanel.tsx:533`) — `project.kind`로 교체 가능(선택)
 - NewProjectModal/QTalkPage `project_type`가 QTalk 생성경로에서 미전달(별개 잠재버그, kind는 전달됨)
@@ -33,7 +43,8 @@
 - **B2 모바일 완성도:** #79·#86·#116·#118(팝아웃/우측패널 업무추가 키보드)·#110·#113. **선행: 하니스 data-testid ~20개 시딩**(현재 task-add-btn 1개) + mobile-keyboard 스위트에 opener 연결.
 - **B3 캘린더:** #102 시간칸클릭 prefill·#119 기간표시순서·**#104 나만보기 일정 공개링크 L1 오염(Fable 게이트)**.
 - **~~B4 업무UX~~ ✅ 완료·배포** (#114·#115·#112·#100·#120 전부 라이브)
-- **B5 폴리시:** #71·#84·#89·#96. **B6 이미지:** #97·#121·#63(zip). **B7 프로젝트:** #95·#99. **B8 Cue:** #90·#117.
+- **B5 폴리시:** ~~#71(공지배너 랜딩/팝아웃 노출차단 — 5f8111c 이미 배포)~~·#84(Q위키 팝아웃 FAB 이미배포)·#89·#96. **B6 이미지:** #97·#121·#63(zip 이미 배포). **B7 프로젝트:** #95(채팅방토글 이미배포)·#99. **B8 Cue:** #90(notify 이미배포)·#117.
+  - ⚠ 다수가 이미 배포 완료 상태(리스트 정리 누락). 착수 전 `git log --all | grep #NN` 로 완료여부 먼저 확인. 남은 진짜 미해결: #89·#96·#99·#117(설명 필요) + #119(드로어 기간표시 실문구 필요)
 - **(c) 외부트랙 — Irene 몫:** **Google OAuth 4건(#72·#88·#107·#109) = Google Cloud Console 검증 제출** / #85 보고서 SCR 설계 승인 / #60 PushLog 확인 후 기기안내 / #81 Cue 실작업 스코프 결정.
 
 ### Fable UX-마찰 검출 판단 (구축 계획, 미착수)

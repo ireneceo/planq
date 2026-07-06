@@ -36,6 +36,10 @@
     "paused": "대기",
     "closed": "종료",
     "searchPlaceholder": "프로젝트 이름·고객사·설명 검색",
+    "kindLabel": "구분",
+    "kind": { "all": "전체", "client": "고객", "internal": "내부" },
+    "sortLabel": "정렬",
+    "sort": { "recent": "최근순", "name": "이름순", "progress": "진행률순", "deadline": "마감임박순" },
     "noResults": "조건에 맞는 프로젝트가 없습니다",
     "clearFilters": "필터 초기화"
   },
@@ -457,7 +461,8 @@
     "preview": {
       "aria": "파일 미리보기",
       "unsupported": "미리보기를 지원하지 않는 형식입니다. 다운로드하여 확인하세요.",
-      "fallbackHint": "미리보기는 다운로드 후 확인 가능합니다"
+      "fallbackHint": "미리보기는 다운로드 후 확인 가능합니다",
+      "zoom": "클릭하여 확대"
     },
     "wsUpload": {
       "title": "어느 프로젝트에 업로드할까요?",

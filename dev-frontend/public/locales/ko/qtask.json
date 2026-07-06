@@ -466,6 +466,7 @@
     "actUsed": "실제 사용",
     "comments": "댓글",
     "writeComment": "댓글 작성...",
+    "writeCommentPaste": "댓글 입력 · 이미지 붙여넣기(Cmd/Ctrl+V) 가능",
     "send": "전송",
     "open": "상세 열기",
     "actions": {

@@ -88,6 +88,8 @@
     "privateBlocked": "나만보기 일정은 공유할 수 없어요"
   },
   "drawer": {
+    "startLabel": "시작",
+    "endLabel": "마감",
     "createdBy": "작성자",
     "attendees": "참석자",
     "noAttendees": "참석자 없음",

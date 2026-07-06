@@ -36,6 +36,10 @@
     "paused": "Paused",
     "closed": "Closed",
     "searchPlaceholder": "Search by name, client, or description",
+    "kindLabel": "Type",
+    "kind": { "all": "All", "client": "Client", "internal": "Internal" },
+    "sortLabel": "Sort",
+    "sort": { "recent": "Recent", "name": "Name", "progress": "Progress", "deadline": "Deadline" },
     "noResults": "No projects match the current filter",
     "clearFilters": "Clear filters"
   },
@@ -457,7 +461,8 @@
     "preview": {
       "aria": "File preview",
       "unsupported": "Preview not supported for this format. Download to view.",
-      "fallbackHint": "Preview available after download"
+      "fallbackHint": "Preview available after download",
+      "zoom": "Click to zoom"
     },
     "wsUpload": {
       "title": "Which project should these go to?",

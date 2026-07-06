@@ -466,6 +466,7 @@
     "actUsed": "Act used",
     "comments": "Comments",
     "writeComment": "Write a comment...",
+    "writeCommentPaste": "Write a comment · paste an image (Cmd/Ctrl+V)",
     "send": "Send",
     "open": "Open detail",
     "actions": {
