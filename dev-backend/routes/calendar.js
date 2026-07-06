@@ -698,6 +698,18 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
       updates.target_client_ids = Array.isArray(req.body.target_client_ids)
         ? req.body.target_client_ids.map(Number).filter(Boolean) : null;
     }
+    // #104 — 나만보기(L1/personal)로 전환되면 기존 공개 링크 즉시 회수 (누출 차단, posts security_level 패턴).
+    {
+      const effVlevel = updates.vlevel !== undefined ? updates.vlevel : event.vlevel;
+      const effVis = updates.visibility !== undefined ? updates.visibility : event.visibility;
+      const becomingPrivate = effVlevel === 'L1' || effVis === 'personal';
+      if (becomingPrivate && event.share_token) {
+        updates.share_token = null;
+        updates.shared_at = null;
+        updates.share_password_hash = null;
+        updates.share_expires_at = null;
+      }
+    }
     if (project_id !== undefined) {
       if (project_id === null) {
         updates.project_id = null;
@@ -1102,6 +1114,11 @@ router.post('/:id/share', authenticateToken, async (req, res, next) => {
     if (!isMemberOrAbove(scope) && ev.created_by !== req.user.id) {
       return errorResponse(res, 'forbidden', 403);
     }
+    // #104 — 나만보기(L1) 일정은 공개 링크 발급 금지. share_token(공개링크)은 L4(외부) 전용.
+    //   L1=개인 자원이 공개 URL 로 title/description/location 노출되는 누출 차단.
+    if (ev.vlevel === 'L1' || ev.visibility === 'personal') {
+      return errorResponse(res, 'cannot_share_private_event', 403);
+    }
 
     const { applyShareUpdate } = require('../services/share_helper');
     const r = await applyShareUpdate(ev, req.body || {});
@@ -1146,9 +1163,11 @@ router.get('/public/by-token/:token', async (req, res, next) => {
       ],
       attributes: ['id', 'title', 'description', 'location', 'start_at', 'end_at',
         'all_day', 'category', 'meeting_url', 'shared_at', 'share_expires_at',
-        'share_password_hash', 'business_id', 'project_id'],
+        'share_password_hash', 'business_id', 'project_id', 'vlevel', 'visibility'],
     });
     if (!ev) return errorResponse(res, 'not_found', 404);
+    // #104 — 방어심층: 나만보기(L1)로 전환됐거나 레거시로 토큰이 남은 개인 일정은 공개 미제공.
+    if (ev.vlevel === 'L1' || ev.visibility === 'personal') return errorResponse(res, 'not_found', 404);
     const { verifySharePassword, checkShareExpiry } = require('../services/share_helper');
     if (checkShareExpiry(ev, res)) return;
     const v = await verifySharePassword(ev, req);

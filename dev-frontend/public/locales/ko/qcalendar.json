@@ -84,6 +84,9 @@
     "delete": "일정 삭제",
     "deleteConfirm": "이 일정을 삭제할까요?"
   },
+  "share": {
+    "privateBlocked": "나만보기 일정은 공유할 수 없어요"
+  },
   "drawer": {
     "createdBy": "작성자",
     "attendees": "참석자",

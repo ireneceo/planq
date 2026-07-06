@@ -14,13 +14,14 @@ interface Props {
   events: CalendarItem[];
   onSelectEvent: (id: number | string, instanceDate?: string) => void;
   onSelectDate: (date: Date) => void;
+  onCreateAt?: (date: Date) => void;  // #102 — 시간칸 클릭 시 그 시각으로 일정 생성 prefill
 }
 
 const HOUR_HEIGHT = 48; // 1 hour = 48px
 const TIME_COL_WIDTH = 56;
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
-const TimeGridView: React.FC<Props> = ({ today, days, events, onSelectEvent, onSelectDate }) => {
+const TimeGridView: React.FC<Props> = ({ today, days, events, onSelectEvent, onSelectDate, onCreateAt }) => {
   const { t } = useTranslation('qcalendar');
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -125,7 +126,18 @@ const TimeGridView: React.FC<Props> = ({ today, days, events, onSelectEvent, onS
             {dayBuckets.map(({ day, timed }) => {
               const isToday = isSameDay(day, today);
               return (
-                <DayColumn key={day.toISOString()}>
+                <DayColumn key={day.toISOString()}
+                  onClick={onCreateAt ? (e) => {
+                    // #102 — 빈 칸 클릭 위치의 y 오프셋 → 시각(30분 스냅) 계산 후 생성 prefill.
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const y = e.clientY - rect.top;
+                    const rawMin = (y / HOUR_HEIGHT) * 60;
+                    const snapped = Math.max(0, Math.min(23 * 60 + 30, Math.round(rawMin / 30) * 30));
+                    const d = startOfDay(day);
+                    d.setHours(Math.floor(snapped / 60), snapped % 60, 0, 0);
+                    onCreateAt(d);
+                  } : undefined}
+                  style={onCreateAt ? { cursor: 'pointer' } : undefined}>
                   {/* hour grid lines */}
                   {HOURS.map((h) => (
                     <HourLine key={h} $hour={h} />
@@ -154,7 +166,7 @@ const TimeGridView: React.FC<Props> = ({ today, days, events, onSelectEvent, onS
                         $bg={c.bg}
                         $fg={c.fg}
                         $border={c.border}
-                        onClick={() => onSelectEvent(e.id, e.start_at?.slice(0, 10))}
+                        onClick={(ev) => { ev.stopPropagation(); onSelectEvent(e.id, e.start_at?.slice(0, 10)); }}
                       >
                         <EventHeader>
                           <EventTitle>
