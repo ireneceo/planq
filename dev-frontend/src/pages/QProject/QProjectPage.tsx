@@ -10,6 +10,7 @@ import { todayInTz, addDaysStr, detectBrowserTz } from '../../utils/timezones';
 import { colorForProject, lightenColor } from '../../utils/projectColors';
 import NewProjectModal, { type ProjectFormData } from '../QTalk/NewProjectModal';
 import SearchBox from '../../components/Common/SearchBox';
+import PlanQSelect from '../../components/Common/PlanQSelect';
 
 // ─── Types ───
 type ViewMode = 'list' | 'timeline' | 'calendar';
@@ -282,24 +283,34 @@ const QProjectPage: React.FC = () => {
             ))}
           </FilterSeg>
           {/* #99 — 정렬 */}
-          <SortSelect value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-            aria-label={t('filter.sortLabel', '정렬') as string}>
-            <option value="recent">{t('filter.sort.recent', '최근순')}</option>
-            <option value="name">{t('filter.sort.name', '이름순')}</option>
-            <option value="progress">{t('filter.sort.progress', '진행률순')}</option>
-            <option value="deadline">{t('filter.sort.deadline', '마감임박순')}</option>
-          </SortSelect>
+          <SelectWrap>
+            <PlanQSelect size="sm" isClearable={false} isSearchable={false}
+              aria-label={t('filter.sortLabel', '정렬') as string}
+              value={{ value: sortBy, label: t(`filter.sort.${sortBy}`) }}
+              options={[
+                { value: 'recent', label: t('filter.sort.recent', '최근순') },
+                { value: 'name', label: t('filter.sort.name', '이름순') },
+                { value: 'progress', label: t('filter.sort.progress', '진행률순') },
+                { value: 'deadline', label: t('filter.sort.deadline', '마감임박순') },
+              ]}
+              onChange={(opt) => opt && setSortBy((opt as { value: string }).value as typeof sortBy)} />
+          </SelectWrap>
           {/* #99 — 그룹 (list 뷰) */}
           {view === 'list' && (
-            <SortSelect value={groupBy} onChange={(e) => setGroupBy(e.target.value as typeof groupBy)}
-              aria-label={t('filter.groupLabel', '그룹') as string}>
-              <option value="none">{t('filter.group.none', '그룹 없음')}</option>
-              <option value="kind">{t('filter.group.kind', '고객/내부')}</option>
-              <option value="status">{t('filter.group.status', '상태별')}</option>
-              <option value="client">{t('filter.group.client', '고객사별')}</option>
-              <option value="department">{t('filter.group.department', '부서별(담당자)')}</option>
-              <option value="team">{t('filter.group.team', '팀별(담당자)')}</option>
-            </SortSelect>
+            <SelectWrap>
+              <PlanQSelect size="sm" isClearable={false} isSearchable={false}
+                aria-label={t('filter.groupLabel', '그룹') as string}
+                value={{ value: groupBy, label: t(`filter.group.${groupBy}`) }}
+                options={[
+                  { value: 'none', label: t('filter.group.none', '그룹 없음') },
+                  { value: 'kind', label: t('filter.group.kind', '고객/내부') },
+                  { value: 'status', label: t('filter.group.status', '상태별') },
+                  { value: 'client', label: t('filter.group.client', '고객사별') },
+                  { value: 'department', label: t('filter.group.department', '부서별(담당자)') },
+                  { value: 'team', label: t('filter.group.team', '팀별(담당자)') },
+                ]}
+                onChange={(opt) => opt && setGroupBy((opt as { value: string }).value as typeof groupBy)} />
+            </SelectWrap>
           )}
           <NewProjectCta type="button" onClick={() => setNewProjectOpen(true)}>+ <span>{t('newProject', '새 프로젝트')}</span></NewProjectCta>
         </>
@@ -1057,16 +1068,8 @@ const ConfirmDanger = styled.button`
   &:hover{ background:#B91C1C; }
 `;
 
-// #99 — 정렬 셀렉트
-const SortSelect = styled.select`
-  height: 34px; padding: 0 28px 0 10px; border: 1px solid #E2E8F0; border-radius: 8px;
-  background: #FFFFFF; font-size: 12px; font-weight: 600; color: #334155; cursor: pointer;
-  font-family: inherit; appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: right 8px center;
-  &:hover { border-color: #CBD5E1; }
-  &:focus { outline: none; border-color: #14B8A6; }
-`;
+// #99 — 정렬/그룹 셀렉트 (PlanQSelect 폭 래퍼)
+const SelectWrap = styled.div` min-width: 130px; `;
 
 // 상태 필터 세그먼트 (ClientsPage 와 동일 디자인 패턴 — UI 일관성)
 const FilterSeg = styled.div`
