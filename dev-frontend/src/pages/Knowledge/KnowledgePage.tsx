@@ -24,6 +24,7 @@ import DetailDrawer from '../../components/Common/DetailDrawer';
 import ShareModal from '../../components/Common/ShareModal';
 import AttachmentField from '../../components/Common/AttachmentField';
 import RichEditor from '../../components/Common/RichEditor';
+import { useImageLightbox } from '../../components/Common/ImageLightbox';
 // 가로 Tabs 폐지 — 좌측 카테고리 트리로 변경 (Q file/Q record 패턴 통일)
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import KbAiIngestModal from './KbAiIngestModal';
@@ -1588,7 +1589,20 @@ const DrawerBodyEdit: React.FC<{
 }> = ({ docId, businessId, initialValue, onSaved, onError }) => {
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(initialValue || '');
+  const { open: openLightbox, lightbox } = useImageLightbox();
   React.useEffect(() => { if (!editing) setDraft(initialValue || ''); }, [initialValue, editing]);
+  // #121 — 읽기뷰 본문 이미지 클릭 시 확대(라이트박스). img 아니면 편집 진입.
+  const onBodyClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const tgt = e.target as HTMLElement;
+    if (tgt.tagName === 'IMG') {
+      e.stopPropagation();
+      const imgs = Array.from(e.currentTarget.querySelectorAll('img')).map((im) => ({ src: (im as HTMLImageElement).src, alt: (im as HTMLImageElement).alt }));
+      const idx = imgs.findIndex((x) => x.src === (tgt as HTMLImageElement).src);
+      openLightbox(imgs, Math.max(0, idx));
+      return;
+    }
+    setEditing(true);
+  };
   const commit = async () => {
     if (draft === (initialValue || '')) { setEditing(false); return; }
     // 옛 회귀: 실패를 silently 삼키고 editing 닫아 "수정 안 됨"으로 보였음. 실패 시 editing 유지 + 부모 배너 노출.
@@ -1607,7 +1621,7 @@ const DrawerBodyEdit: React.FC<{
     // 옛 plain text 안 깨지게 — HTML 형태 아니면 <p> wrap
     const isHtml = /<[a-z][\s\S]*>/i.test(v);
     const html = isHtml ? v : `<p>${v.replace(/\n/g, '<br/>')}</p>`;
-    return <BodyClickable onClick={() => setEditing(true)} dangerouslySetInnerHTML={{ __html: html }} />;
+    return <><BodyClickable onClick={onBodyClick} dangerouslySetInnerHTML={{ __html: html }} />{lightbox}</>;
   }
   return (
     <BodyEditWrap>
@@ -1629,6 +1643,7 @@ const BodyClickable = styled.div`
   cursor: text;
   &:hover { background: #F0FDFA; }
   & p { margin: 0 0 8px; }
+  & img { cursor: zoom-in; max-width: 100%; height: auto; border-radius: 6px; }
   & p:last-child { margin-bottom: 0; }
   & ul, & ol { padding-left: 20px; margin: 6px 0; }
   & img { max-width: 100%; height: auto; }
