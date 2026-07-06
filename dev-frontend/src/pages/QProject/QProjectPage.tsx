@@ -95,6 +95,7 @@ const QProjectPage: React.FC = () => {
   // #99 — 구분(고객/내부) 필터 + 정렬
   const [kindFilter, setKindFilter] = useState<'all' | 'client' | 'internal'>('all');
   const [sortBy, setSortBy] = useState<'recent' | 'name' | 'progress' | 'deadline'>('recent');
+  const [groupBy, setGroupBy] = useState<'none' | 'kind' | 'status' | 'client'>('none');
   const handleCreateProject = useCallback(async (data: ProjectFormData & { project_type?: 'fixed' | 'ongoing' }) => {
     if (!user?.business_id) return;
     const res = await apiFetch('/api/projects', {
@@ -286,6 +287,16 @@ const QProjectPage: React.FC = () => {
             <option value="progress">{t('filter.sort.progress', '진행률순')}</option>
             <option value="deadline">{t('filter.sort.deadline', '마감임박순')}</option>
           </SortSelect>
+          {/* #99 — 그룹 (list 뷰) */}
+          {view === 'list' && (
+            <SortSelect value={groupBy} onChange={(e) => setGroupBy(e.target.value as typeof groupBy)}
+              aria-label={t('filter.groupLabel', '그룹') as string}>
+              <option value="none">{t('filter.group.none', '그룹 없음')}</option>
+              <option value="kind">{t('filter.group.kind', '고객/내부')}</option>
+              <option value="status">{t('filter.group.status', '상태별')}</option>
+              <option value="client">{t('filter.group.client', '고객사별')}</option>
+            </SortSelect>
+          )}
           <NewProjectCta type="button" onClick={() => setNewProjectOpen(true)}>+ <span>{t('newProject', '새 프로젝트')}</span></NewProjectCta>
         </>
       }
@@ -323,7 +334,7 @@ const QProjectPage: React.FC = () => {
           )}
         </EmptyState>
       ) : view === 'list' ? (
-        <ListView projects={sortedProjects} formatDate={formatDate} t={t} onOpen={(id) => navigate(`/projects/p/${id}`)} onStatusChange={changeProjectStatus} />
+        <ListView projects={sortedProjects} groupBy={groupBy} formatDate={formatDate} t={t} onOpen={(id) => navigate(`/projects/p/${id}`)} onStatusChange={changeProjectStatus} />
       ) : view === 'timeline' ? (
         <TimelineView projects={sortedProjects} todayStr={todayStr} t={t} onOpen={(id) => navigate(`/projects/p/${id}`)} />
       ) : (
@@ -352,11 +363,12 @@ function formatRelativeTime(iso: string | Date, t: (k: string, o?: Record<string
 // ─── List View ───
 const ListView: React.FC<{
   projects: ProjectWithStats[];
+  groupBy?: 'none' | 'kind' | 'status' | 'client';
   formatDate: (iso: string | Date) => string;
   t: (k: string, o?: Record<string, unknown>) => string;
   onOpen: (projectId: number) => void;
   onStatusChange: (id: number, next: 'active' | 'paused' | 'closed') => Promise<void>;
-}> = ({ projects, formatDate, t, onOpen, onStatusChange }) => {
+}> = ({ projects, groupBy = 'none', formatDate, t, onOpen, onStatusChange }) => {
   const { t: tl, i18n } = useTranslation('qproject');
   const lang = i18n.language;
   const [menuOpen, setMenuOpen] = useState<number | null>(null);
@@ -373,9 +385,22 @@ const ListView: React.FC<{
     return () => { window.clearTimeout(id); window.removeEventListener('click', close); };
   }, [menuOpen]);
 
-  return (<>
-  <CardGrid>
-    {projects.map((p) => (
+  // #99 — 그룹핑 (구분/상태/고객사). 팀/부서는 프로젝트에 필드 부재로 제외.
+  const groups = ((): Array<{ key: string; label: string; items: ProjectWithStats[] }> => {
+    if (groupBy === 'none') return [{ key: '_all', label: '', items: projects }];
+    const map = new Map<string, { key: string; label: string; items: ProjectWithStats[] }>();
+    for (const p of projects) {
+      let key: string; let label: string;
+      if (groupBy === 'kind') { key = p.kind || 'client'; label = key === 'internal' ? tl('filter.kind.internal', '내부') : tl('filter.kind.client', '고객'); }
+      else if (groupBy === 'status') { key = p.status; label = t(`status.${p.status}`); }
+      else { key = p.client_company || '_none'; label = p.client_company || tl('card.noClient', '고객사 미지정'); }
+      if (!map.has(key)) map.set(key, { key, label, items: [] });
+      map.get(key)!.items.push(p);
+    }
+    return [...map.values()];
+  })();
+
+  const renderCard = (p: ProjectWithStats) => (
       <ProjectCard key={p.id} onClick={() => onOpen(p.id)} role="button" tabIndex={0}
         onKeyDown={(e) => { if (e.key === 'Enter') onOpen(p.id); }}
         style={{ borderLeft: `4px solid ${colorForProject(p)}` }}>
@@ -503,8 +528,17 @@ const ListView: React.FC<{
         )}
         </BottomStack>
       </ProjectCard>
-    ))}
-  </CardGrid>
+  );
+
+  return (<>
+  {groupBy === 'none'
+    ? <CardGrid>{projects.map(renderCard)}</CardGrid>
+    : groups.map((g) => (
+        <GroupSection key={g.key}>
+          <GroupHeader><GroupLabel>{g.label}</GroupLabel><GroupCount>{g.items.length}</GroupCount></GroupHeader>
+          <CardGrid>{g.items.map(renderCard)}</CardGrid>
+        </GroupSection>
+      ))}
   {confirmCloseId != null && (() => {
     const target = projects.find((p) => p.id === confirmCloseId);
     if (!target) return null;
@@ -842,6 +876,11 @@ const CardGrid = styled.div`
   gap: 16px;
   @media (max-width: 768px) { grid-template-columns: 1fr; gap: 12px; }
 `;
+// #99 — 그룹 섹션
+const GroupSection = styled.section` margin-bottom: 22px; `;
+const GroupHeader = styled.div` display: flex; align-items: center; gap: 8px; margin: 0 0 10px; `;
+const GroupLabel = styled.h3` margin: 0; font-size: 13px; font-weight: 700; color: #0F172A; letter-spacing: -0.2px; `;
+const GroupCount = styled.span` display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 18px; padding: 0 6px; background: #E2E8F0; color: #475569; border-radius: 999px; font-size: 10px; font-weight: 700; `;
 const ProjectCard = styled.div`
   background: #FFFFFF;
   border: 1px solid #E2E8F0;
