@@ -96,6 +96,29 @@ const ProjectTaskList: React.FC<Props> = ({
       onRefresh?.();
     } finally { setSubmittingBelow(false); }
   };
+  // #120 — 그룹(워크스트림)별 업무 직접 추가. 빈 그룹도 드래그 없이 바로 추가 가능.
+  const [addingInGroup, setAddingInGroup] = useState<number | 'none' | null>(null);
+  const [newGroupTaskTitle, setNewGroupTaskTitle] = useState('');
+  const [submittingGroupTask, setSubmittingGroupTask] = useState(false);
+  const submitGroupTask = async (gid: number | 'none') => {
+    if (!newGroupTaskTitle.trim() || submittingGroupTask) return;
+    setSubmittingGroupTask(true);
+    try {
+      await apiFetch('/api/tasks', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          business_id: businessId,
+          project_id: projectId,
+          title: newGroupTaskTitle.trim(),
+          assignee_id: myId,
+          workstream_id: gid === 'none' ? null : gid,  // 이 그룹에 배치
+        }),
+      });
+      setAddingInGroup(null);
+      setNewGroupTaskTitle('');
+      onRefresh?.();
+    } finally { setSubmittingGroupTask(false); }
+  };
   const [statusOpenId, setStatusOpenId] = useState<number | null>(null);
   const [dateOpenId, setDateOpenId] = useState<number | null>(null);
   const [assigneeOpenId, setAssigneeOpenId] = useState<number | null>(null);
@@ -591,8 +614,26 @@ const ProjectTaskList: React.FC<Props> = ({
                     setDragOverGroup(null); setDragTaskId(null);
                   }}>
                   {gTasks.length === 0
-                    ? <GroupEmpty>{t('list.group.empty', '이 그룹에 업무가 없습니다 — 드래그하거나 그룹 이동으로 추가')}</GroupEmpty>
+                    ? <GroupEmpty>{t('list.group.empty', '이 그룹에 업무가 없습니다 — 아래에서 추가하거나 드래그하세요')}</GroupEmpty>
                     : gTasks.map(renderTaskRow)}
+                  {/* #120 — 그룹별 업무 직접 추가 (빈 그룹 포함) */}
+                  {projectId != null && (addingInGroup === g.id ? (
+                    <AddTaskInGroupRow>
+                      <AddTaskInGroupInput autoFocus value={newGroupTaskTitle}
+                        placeholder={t('list.group.addTaskPh', '업무 제목 입력 (Enter 추가 / Esc 취소)') as string}
+                        onChange={e => setNewGroupTaskTitle(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') submitGroupTask(g.id); if (e.key === 'Escape') { setAddingInGroup(null); setNewGroupTaskTitle(''); } }}
+                        onBlur={() => { if (!newGroupTaskTitle.trim()) setAddingInGroup(null); }} />
+                      <AddTaskInGroupGo type="button" disabled={submittingGroupTask || !newGroupTaskTitle.trim()} onClick={() => submitGroupTask(g.id)}>
+                        {t('list.group.addTaskGo', '추가')}
+                      </AddTaskInGroupGo>
+                    </AddTaskInGroupRow>
+                  ) : (
+                    <AddTaskInGroupBtn type="button" onClick={() => { setNewGroupTaskTitle(''); setAddingInGroup(g.id); }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      {t('list.group.addTask', '업무 추가')}
+                    </AddTaskInGroupBtn>
+                  ))}
                 </GroupBody>
               )}
             </Fragment>
@@ -721,6 +762,11 @@ const GroupBody = styled.div<{$over?:boolean}>`${p=>p.$over&&'background:#F0FDFA
 const GroupEmpty = styled.div`padding:10px 16px 10px 40px;font-size:12px;color:#CBD5E1;min-width:520px;`;
 const AddGroupBtn = styled.button`display:inline-flex;align-items:center;gap:6px;margin:10px 0 4px 12px;padding:7px 12px;background:transparent;color:#0F766E;border:1px dashed #99F6E4;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;&:hover{background:#F0FDFA;border-color:#14B8A6;}`;
 const AddGroupRow = styled.div`display:flex;align-items:center;gap:8px;padding:8px 12px;min-width:520px;background:#F0FDFA;border-top:1px solid #99F6E4;`;
+// #120 — 그룹별 업무 추가
+const AddTaskInGroupBtn = styled.button`display:inline-flex;align-items:center;gap:5px;margin:4px 0 4px 40px;padding:5px 10px;background:transparent;color:#94A3B8;border:1px dashed #E2E8F0;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;&:hover{background:#F0FDFA;border-color:#99F6E4;color:#0F766E;}`;
+const AddTaskInGroupRow = styled.div`display:flex;align-items:center;gap:8px;padding:6px 12px 6px 40px;min-width:520px;`;
+const AddTaskInGroupInput = styled.input`flex:0 1 360px;font-size:13px;color:#0F172A;border:1px solid #14B8A6;background:#F0FDFA;padding:5px 10px;border-radius:6px;font-family:inherit;height:30px;box-sizing:border-box;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}&::placeholder{color:#94A3B8;}`;
+const AddTaskInGroupGo = styled.button`height:30px;padding:0 14px;background:#14B8A6;color:#FFF;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;&:hover:not(:disabled){background:#0D9488;}&:disabled{opacity:0.5;cursor:not-allowed;}`;
 const StatusPill = styled.span<{$bg:string;$fg:string;$clickable?:boolean}>`
   padding:2px 8px;background:${p=>p.$bg};color:${p=>p.$fg};font-size:10px;font-weight:600;
   border-radius:8px;white-space:nowrap;${p=>p.$clickable?'cursor:pointer;user-select:none;&:hover{filter:brightness(0.96);}':''}
