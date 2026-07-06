@@ -287,12 +287,25 @@ router.get('/', authenticateToken, async (req, res, next) => {
     // 응답의 User 객체에 display_name 과 display_name_localized 채워서 displayName() 헬퍼가 자동 적용.
     const bms = await BusinessMember.findAll({
       where: { business_id: businessId },
-      attributes: ['user_id', 'name', 'name_localized', 'role'],
+      attributes: ['user_id', 'name', 'name_localized', 'role', 'department_id', 'team_id'],
     });
-    const bmMap = new Map(bms.map(b => [b.user_id, { name: b.name, name_localized: b.name_localized, role: b.role }]));
+    const bmMap = new Map(bms.map(b => [b.user_id, { name: b.name, name_localized: b.name_localized, role: b.role, department_id: b.department_id, team_id: b.team_id }]));
+
+    // #99 — 그룹핑용: 담당자(owner) 소속 부서/팀 이름. 프로젝트에 팀/부서 필드가 없어 owner 기준.
+    const { Department, Team } = require('../models');
+    const [depts, teams] = await Promise.all([
+      Department.findAll({ where: { business_id: businessId }, attributes: ['id', 'name'] }),
+      Team.findAll({ where: { business_id: businessId }, attributes: ['id', 'name'] }),
+    ]);
+    const deptMap = new Map(depts.map(d => [d.id, d.name]));
+    const teamMap = new Map(teams.map(t => [t.id, t.name]));
 
     const result = projects.map(p => {
       const json = p.toJSON();
+      // owner 소속 부서/팀 (그룹핑용)
+      const ownerBm = bmMap.get(json.owner_user_id);
+      json.owner_department = ownerBm?.department_id ? (deptMap.get(ownerBm.department_id) || null) : null;
+      json.owner_team = ownerBm?.team_id ? (teamMap.get(ownerBm.team_id) || null) : null;
       if (Array.isArray(json.projectMembers)) {
         json.projectMembers = json.projectMembers.map(m => {
           const bm = bmMap.get(m.user_id);

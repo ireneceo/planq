@@ -41,6 +41,8 @@ interface ProjectRow {
   client_company: string | null;
   status: 'active' | 'paused' | 'closed';
   kind?: 'client' | 'internal';
+  owner_department?: string | null;
+  owner_team?: string | null;
   start_date: string | null;
   end_date: string | null;
   color?: string | null;
@@ -95,7 +97,7 @@ const QProjectPage: React.FC = () => {
   // #99 — 구분(고객/내부) 필터 + 정렬
   const [kindFilter, setKindFilter] = useState<'all' | 'client' | 'internal'>('all');
   const [sortBy, setSortBy] = useState<'recent' | 'name' | 'progress' | 'deadline'>('recent');
-  const [groupBy, setGroupBy] = useState<'none' | 'kind' | 'status' | 'client'>('none');
+  const [groupBy, setGroupBy] = useState<'none' | 'kind' | 'status' | 'client' | 'department' | 'team'>('none');
   const handleCreateProject = useCallback(async (data: ProjectFormData & { project_type?: 'fixed' | 'ongoing' }) => {
     if (!user?.business_id) return;
     const res = await apiFetch('/api/projects', {
@@ -295,6 +297,8 @@ const QProjectPage: React.FC = () => {
               <option value="kind">{t('filter.group.kind', '고객/내부')}</option>
               <option value="status">{t('filter.group.status', '상태별')}</option>
               <option value="client">{t('filter.group.client', '고객사별')}</option>
+              <option value="department">{t('filter.group.department', '부서별(담당자)')}</option>
+              <option value="team">{t('filter.group.team', '팀별(담당자)')}</option>
             </SortSelect>
           )}
           <NewProjectCta type="button" onClick={() => setNewProjectOpen(true)}>+ <span>{t('newProject', '새 프로젝트')}</span></NewProjectCta>
@@ -363,7 +367,7 @@ function formatRelativeTime(iso: string | Date, t: (k: string, o?: Record<string
 // ─── List View ───
 const ListView: React.FC<{
   projects: ProjectWithStats[];
-  groupBy?: 'none' | 'kind' | 'status' | 'client';
+  groupBy?: 'none' | 'kind' | 'status' | 'client' | 'department' | 'team';
   formatDate: (iso: string | Date) => string;
   t: (k: string, o?: Record<string, unknown>) => string;
   onOpen: (projectId: number) => void;
@@ -393,6 +397,8 @@ const ListView: React.FC<{
       let key: string; let label: string;
       if (groupBy === 'kind') { key = p.kind || 'client'; label = key === 'internal' ? tl('filter.kind.internal', '내부') : tl('filter.kind.client', '고객'); }
       else if (groupBy === 'status') { key = p.status; label = t(`status.${p.status}`); }
+      else if (groupBy === 'department') { key = p.owner_department || '_none'; label = p.owner_department || tl('card.noDept', '부서 미지정'); }
+      else if (groupBy === 'team') { key = p.owner_team || '_none'; label = p.owner_team || tl('card.noTeam', '팀 미지정'); }
       else { key = p.client_company || '_none'; label = p.client_company || tl('card.noClient', '고객사 미지정'); }
       if (!map.has(key)) map.set(key, { key, label, items: [] });
       map.get(key)!.items.push(p);

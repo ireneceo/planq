@@ -41,7 +41,7 @@
     "sortLabel": "Sort",
     "sort": { "recent": "Recent", "name": "Name", "progress": "Progress", "deadline": "Deadline" },
     "groupLabel": "Group",
-    "group": { "none": "No group", "kind": "Client/Internal", "status": "By status", "client": "By client" },
+    "group": { "none": "No group", "kind": "Client/Internal", "status": "By status", "client": "By client", "department": "By dept (owner)", "team": "By team (owner)" },
     "noResults": "No projects match the current filter",
     "clearFilters": "Clear filters"
   },
@@ -59,7 +59,9 @@
     "tasksUnit": "",
     "lastActivity": "Last activity",
     "pmLabel": "Project manager",
-    "noClient": "No client"
+    "noClient": "No client",
+    "noDept": "No department",
+    "noTeam": "No team"
   },
   "common": {
     "cancel": "Cancel"
