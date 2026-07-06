@@ -29,7 +29,19 @@ const CATEGORIES = [
     summary: t('견적·계약·제안서 작성과 외부 서명 받기', 'Create quotes, contracts, proposals and collect external signatures') },
   { slug: 'qfile', icon: 'folder', sort: 7, title: t('파일·자료', 'Files & Knowledge'),
     summary: t('파일 보관·공유, 대화 자료(지식) 관리', 'Store and share files, manage conversation knowledge') },
-  { slug: 'settings', icon: 'gear', sort: 8, title: t('설정·권한', 'Settings & Permissions'),
+  { slug: 'qcalendar', icon: 'calendar', sort: 5, title: t('Q Calendar (일정)', 'Q Calendar'),
+    summary: t('일정 만들기·구글 캘린더/Meet 연동·공유·나만보기', 'Create events, Google Calendar/Meet sync, sharing, private events') },
+  { slug: 'qmail', icon: 'mail', sort: 7, title: t('Q Mail (메일)', 'Q Mail'),
+    summary: t('메일 계정 연결·인박스·메일과 대화 통합', 'Connect mail accounts, inbox, unify mail with chat') },
+  { slug: 'qproject', icon: 'folder', sort: 8, title: t('Q Project (프로젝트)', 'Q Project'),
+    summary: t('프로젝트 만들기·정렬/그룹·거래 시퀀스·내부/고객 구분', 'Create projects, sort/group, deal sequence, client vs internal') },
+  { slug: 'insights', icon: 'chart', sort: 12, title: t('Insights (통계)', 'Insights'),
+    summary: t('업무·수익성·팀·재무 통계와 내부/고객 구분', 'Tasks, profitability, team, finance stats with client/internal split') },
+  { slug: 'cue', icon: 'star', sort: 13, title: t('Cue (AI 팀원)', 'Cue (AI teammate)'),
+    summary: t('Cue에게 업무 맡기기·채팅 자동응답·자료 요약', 'Hand off tasks to Cue, auto-reply in chat, summarize material') },
+  { slug: 'qinfo', icon: 'info', sort: 14, title: t('Q info (고객·멤버 정보)', 'Q info'),
+    summary: t('고객·멤버 360° 정보와 통합 타임라인', 'Client and member 360° profiles with a unified timeline') },
+  { slug: 'settings', icon: 'gear', sort: 15, title: t('설정·권한', 'Settings & Permissions'),
     summary: t('워크스페이스·멤버 권한·개인 연동 설정', 'Workspace, member permissions and personal integrations') },
 ];
 
@@ -245,6 +257,124 @@ const ARTICLES = [
       s('"계정 추가"에서 이메일 주소, IMAP 호스트·포트, 비밀번호(또는 앱 비밀번호)를 입력합니다.', 'In "Add account", enter your email address, IMAP host and port, and password (or app password).'),
       note('Gmail·네이버 등 2단계 인증을 쓰는 메일은 일반 비밀번호 대신 "앱 비밀번호"를 발급해 입력해야 합니다. Gmail 사용자는 "Gmail로 연결" 버튼이 가장 간편합니다.',
         'For mailboxes with 2-step verification (Gmail, Naver, etc.), generate and enter an "app password" instead of your normal password. Gmail users should prefer the "Connect with Gmail" button.'),
+    ] },
+
+  // ── Q Calendar ──
+  { cat: 'qcalendar', slug: 'create-event', visibility: 'authenticated', linked_route: '/calendar', est: 2,
+    title: t('일정 만들고 시간 지정하기', 'Create an event and set the time'),
+    summary: t('캘린더에서 일정을 만들고 시작·마감 시각을 지정', 'Create an event on the calendar and set start and end times'),
+    body: [
+      p('Q Calendar는 팀 일정과 업무 마감을 한 화면에서 봅니다. 주/일 뷰의 빈 시간칸을 클릭하면 그 시각으로 바로 일정이 만들어져요.',
+        'Q Calendar shows team schedules and task deadlines in one place. In week/day view, click an empty time slot to start a new event at that time.'),
+      s('주/일 뷰에서 원하는 시간칸을 클릭하거나 우측 상단 "일정 만들기"를 누릅니다.', 'Click a time slot in week/day view, or use "Create event" at the top right.'),
+      s('시작 날짜·시각과 마감 날짜·시각을 각각 지정합니다. 시간은 각 날짜 옆에 붙어 표시돼요.', 'Set the start date/time and end date/time — each time is shown next to its own date.'),
+      note('여러 날에 걸친 일정은 시작날짜의 시각과 마감날짜의 시각이 각각 표시됩니다.', 'For multi-day events, the start-date time and end-date time are shown separately.'),
+    ] },
+  { cat: 'qcalendar', slug: 'calendar-visibility-share', visibility: 'authenticated', linked_route: '/calendar', est: 2,
+    title: t('일정 공개 범위와 공유 링크', 'Event visibility and share links'),
+    summary: t('나만보기·팀·워크스페이스·외부 공개 범위와 공유 링크', 'Private, team, workspace, and external visibility with share links'),
+    body: [
+      p('일정마다 공개 범위를 정할 수 있어요. 나만보기·팀 비공개·워크스페이스 전체·외부 공유 4단계입니다.',
+        'Each event has a visibility level: private (only me), team-only, whole workspace, or external.'),
+      s('일정 상세에서 공개 범위를 선택합니다.', 'Pick the visibility level in the event detail.'),
+      s('워크스페이스·외부 일정은 "공유" 버튼으로 공개 링크를 만들 수 있습니다.', 'For workspace or external events you can create a public share link with the "Share" button.'),
+      note('나만보기·팀 비공개 일정은 공개 링크를 만들 수 없어요 — 개인·팀 정보가 외부로 새지 않도록 막혀 있습니다.', 'Private and team-only events cannot be shared via a public link — this prevents personal or team info from leaking externally.'),
+    ] },
+  { cat: 'qcalendar', slug: 'google-calendar-meet', visibility: 'authenticated', linked_route: '/settings/integrations', est: 2,
+    title: t('구글 캘린더·Meet 연동', 'Google Calendar & Meet sync'),
+    summary: t('구글 캘린더 동기화와 화상회의 링크 자동 발급', 'Sync Google Calendar and auto-create Meet video links'),
+    body: [
+      p('구글 캘린더를 연동하면 일정이 양방향 동기화되고, 회의에 구글 Meet 링크가 자동으로 붙습니다.',
+        'Connect Google Calendar for two-way sync, and meetings automatically get a Google Meet link.'),
+      s('내 계정 → 연동에서 구글 캘린더를 연결합니다.', 'Connect Google Calendar in My account → Integrations.'),
+      s('일정에 화상회의를 켜면 Meet 링크가 발급됩니다.', 'Turn on video meeting for an event to generate a Meet link.'),
+    ] },
+
+  // ── Q Mail ──
+  { cat: 'qmail', slug: 'qmail-inbox', visibility: 'authenticated', linked_route: '/mail', est: 2,
+    title: t('메일을 대화처럼 보기', 'Read mail like a conversation'),
+    summary: t('인박스에서 메일을 확인하고 고객 대화·업무와 함께 답장', 'Read mail in the inbox and reply alongside client chats and tasks'),
+    body: [
+      p('메일 계정을 연결하면(설정 → 메일 계정) 받은 메일이 Q Mail 인박스에 모입니다. 고객별로 메일·대화·업무가 한 타임라인에서 보여요.',
+        'Once you connect a mail account (Settings → Mail accounts), incoming mail collects in the Q Mail inbox. Mail, chat, and tasks appear on one timeline per client.'),
+      s('Q Mail 화면에서 메일 스레드를 엽니다.', 'Open a mail thread on the Q Mail screen.'),
+      s('답장·전달·임시저장이 대화처럼 동작합니다. 첨부는 Q File에 함께 보관됩니다.', 'Reply, forward, and save drafts like a chat. Attachments are also stored in Q File.'),
+      note('메일 계정 연결 방법은 "메일 계정 연결하기" 도움말을 참고하세요.', 'See "Connect a mail account" for how to link your mailbox.'),
+    ] },
+
+  // ── Q Project ──
+  { cat: 'qproject', slug: 'create-project', visibility: 'authenticated', linked_route: '/projects', est: 2,
+    title: t('프로젝트 만들고 정렬·그룹 보기', 'Create a project and sort/group the list'),
+    summary: t('프로젝트를 만들고 리스트를 정렬·그룹으로 편하게 보기', 'Create projects and organize the list with sort and grouping'),
+    body: [
+      p('프로젝트는 고객·대화·업무·거래를 묶는 단위입니다. 리스트는 정렬(최근·이름·진행률·마감)과 그룹(상태·고객사·부서·팀·고객/내부)으로 볼 수 있어요.',
+        'A project groups clients, chats, tasks, and deals. The list can be sorted (recent, name, progress, deadline) and grouped (status, client, department, team, client/internal).'),
+      s('상단 "새 프로젝트"로 프로젝트를 만들고 멤버·고객·채널을 설정합니다.', 'Create a project with "New project" at the top and set members, clients, and channels.'),
+      s('리스트 상단의 정렬·그룹 선택으로 원하는 방식으로 봅니다.', 'Use the sort and group selectors above the list to organize your view.'),
+      note('부서별·팀별 그룹은 프로젝트 담당자(owner)의 소속을 기준으로 묶습니다.', 'Department and team grouping is based on the project owner’s membership.'),
+    ] },
+  { cat: 'qproject', slug: 'project-group-tasks', visibility: 'authenticated', linked_route: '/projects', est: 2,
+    title: t('프로젝트 업무를 그룹(추진과제)으로', 'Organize project tasks into groups'),
+    summary: t('업무를 추진과제(워크스트림) 그룹으로 묶고 그룹별로 추가', 'Group tasks into workstreams and add tasks per group'),
+    body: [
+      p('프로젝트 업무는 추진과제(워크스트림) 그룹으로 묶어 관리할 수 있어요. 각 그룹에서 바로 업무를 추가합니다.',
+        'Project tasks can be organized into workstream groups. Add tasks directly within each group.'),
+      s('업무 리스트에서 "추진과제(그룹) 추가"로 그룹을 만듭니다.', 'Create a group with "Add workstream" in the task list.'),
+      s('각 그룹의 "업무 추가"로 그 그룹에 바로 업무를 넣습니다. 드래그로 그룹을 옮길 수도 있어요.', 'Use "Add task" in each group to place a task there; you can also drag tasks between groups.'),
+    ] },
+
+  // ── Insights ──
+  { cat: 'insights', slug: 'insights-overview', visibility: 'authenticated', linked_route: '/stats/overview', est: 2,
+    title: t('통계 한눈에 보기', 'Insights at a glance'),
+    summary: t('개요·수익성·팀·재무·업무 통계 탭 둘러보기', 'Tour the overview, profitability, team, finance, and task tabs'),
+    body: [
+      p('Insights는 워크스페이스의 매출·수익성·팀 생산성·업무 현황을 탭으로 보여줍니다. 기간을 바꿔 추이를 볼 수 있어요.',
+        'Insights shows revenue, profitability, team productivity, and task status across tabs. Change the range to see trends.'),
+      s('좌측 메뉴 Insights에서 개요·수익성·팀·재무·업무 탭을 엽니다.', 'Open the Overview, Profit, Team, Finance, and Tasks tabs under Insights.'),
+      s('우측 상단에서 기간(최근 30일·이번 달·분기 등)을 바꿉니다.', 'Change the period (last 30 days, this month, quarter) at the top right.'),
+    ] },
+  { cat: 'insights', slug: 'client-vs-internal', visibility: 'authenticated', linked_route: '/stats/profit', est: 3,
+    title: t('내부 프로젝트 vs 고객 프로젝트 수익성', 'Client vs internal project profitability'),
+    summary: t('자체 투자(내부)와 고객 프로젝트를 나눠 수익성 보기', 'Separate own-investment (internal) from client projects in profitability'),
+    body: [
+      p('프로젝트를 "고객"과 "내부(자체 투자·비청구)"로 구분하면, 수익성 통계에서 내부 프로젝트가 마진을 왜곡하지 않아요. 내부는 매출 없이 시간·원가만 별도로 봅니다.',
+        'Marking projects as "client" or "internal" (own investment, non-billable) keeps internal work from distorting margins. Internal work is tracked as time and cost, separately from revenue.'),
+      s('프로젝트 설정에서 "내부 프로젝트"로 표시하면 수익성에서 제외됩니다.', 'Mark a project as "Internal" in its settings to exclude it from profitability.'),
+      s('수익성(Profit) 탭 상단의 고객·내부·전체 토글로 나눠 봅니다. "내부" 탭은 내부 투자 시간·원가를 보여줍니다.', 'Use the Client / Internal / All toggle atop the Profit tab. The "Internal" view shows internal investment time and cost.'),
+      note('내부 프로젝트는 "마진 음수" 경고에서도 제외돼 오탐이 사라집니다.', 'Internal projects are also excluded from "negative margin" alerts, removing false warnings.'),
+    ] },
+
+  // ── Cue (AI 팀원) ──
+  { cat: 'cue', slug: 'what-is-cue', visibility: 'authenticated', linked_route: null, est: 2,
+    title: t('Cue란? — 워크스페이스 AI 팀원', 'What is Cue? — your AI teammate'),
+    summary: t('Cue가 무엇을 하는지와 사람 팀원처럼 쓰는 법', 'What Cue does and how to use it like a human teammate'),
+    body: [
+      p('Cue는 워크스페이스의 AI 팀원입니다. 사람 팀원처럼 업무 담당자로 지정하거나 대화에 부를 수 있어요.',
+        'Cue is your workspace AI teammate. Assign it as a task owner or bring it into a conversation, just like a person.'),
+      s('업무를 맡기면 결과물을 자동으로 만들어 줍니다.', 'Hand off a task and Cue generates the deliverable.'),
+      s('고객 채팅에 자동으로 답안을 제안합니다(내가 확인 후 발송).', 'Cue drafts replies to customer chat (you review before sending).'),
+      s('회의 내용·자료를 요약하고 정리합니다.', 'Cue summarizes and organizes meetings and material.'),
+      note('Cue는 전 플랜에서 같은 기능을 쓰고, 월 사용 한도(액션 수)만 플랜별로 다릅니다.', 'Cue works the same on every plan; only the monthly action limit differs by plan.'),
+    ] },
+  { cat: 'cue', slug: 'assign-task-to-cue', visibility: 'authenticated', linked_route: '/tasks', est: 2,
+    title: t('Cue에게 업무 맡기기', 'Hand off a task to Cue'),
+    summary: t('업무를 Cue에게 배정하고 결과를 받아 검토', 'Assign a task to Cue and review the result'),
+    body: [
+      p('업무 담당자를 Cue로 지정하거나, Q Task 상단 "Cue에게 말하기"에 한 줄 적으면 Cue가 업무로 정리해 처리합니다.',
+        'Assign Cue as the task owner, or type a line into "Talk to Cue" atop Q Task, and Cue turns it into tasks and handles them.'),
+      s('업무를 만들고 담당자를 Cue로 선택합니다.', 'Create a task and choose Cue as the owner.'),
+      s('Cue가 결과물을 만들면 확인 요청으로 받아 검토하고, 필요하면 코멘트로 수정 방향을 알려줍니다.', 'When Cue produces a result, review it via the confirmation flow and leave a comment to guide revisions.'),
+    ] },
+
+  // ── Q info ──
+  { cat: 'qinfo', slug: 'client-member-360', visibility: 'authenticated', linked_route: '/clients', est: 2,
+    title: t('고객·멤버 360° 정보', 'Client & member 360° profiles'),
+    summary: t('고객·멤버의 대화·업무·청구·파일을 한 곳에서', 'See a person’s chats, tasks, billing, and files in one place'),
+    body: [
+      p('고객이나 멤버를 열면 그 사람과 관련된 대화·업무·청구·파일이 하나의 타임라인으로 모입니다.',
+        'Open a client or member to see all related chats, tasks, billing, and files on a single timeline.'),
+      s('고객 관리에서 고객을 선택해 상세를 엽니다.', 'Select a client in Clients to open their detail.'),
+      s('사업자/개인 정보, 증빙 정보, 연결된 프로젝트를 확인·편집합니다.', 'Review and edit business/personal info, receipt details, and linked projects.'),
     ] },
 ];
 
