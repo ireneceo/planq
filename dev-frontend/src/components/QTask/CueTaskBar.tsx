@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled, { keyframes } from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import ModalActionButton from '../Common/ModalActionButton';
+import CueTip from '../Common/CueTip';
 import AiRegenerateBar from '../Common/AiRegenerateBar';
 import { apiFetch } from '../../contexts/AuthContext';
 import { mapApiError } from '../../utils/apiError';
@@ -155,6 +156,7 @@ export default function CueTaskBar({ businessId, members, projectId = null, onCr
         <Sparkle aria-hidden>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8 5.8 21.3l2.4-7.4L2 9.4h7.6L12 2z" /></svg>
         </Sparkle>
+        <CueTip compact />
         <Field
           ref={taRef}
           rows={1}
