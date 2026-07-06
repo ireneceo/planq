@@ -1,18 +1,22 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-07-06 (임시저장 — Irene 노트북으로 이관)
-**작업 상태:** 진행 중 (운영 피드백 처리 + Fable 8배치 계획 실행 중)
+**마지막 업데이트:** 2026-07-06 (Opus, 노트북 세션 — 배포 완료, 미배포 0)
+**작업 상태:** 이번 세션 큰 흐름 완료. B4 잔여 + 내부/고객 구분 3-Layer 운영 라이브.
 
-### ⚠️ 이관 시 주의 — 미배포/미완 항목
-- **#114 (업무 라벨) 수정 커밋됨(wip 3cce321)이나 미배포·미검증.** TaskDetailDrawer.tsx:1402 라벨을 "내가 적은 업무 메모"(작성자 관점 오표기)→"업무 설명", 요청받은 것만 "요청 내용". **다음: 빌드 확인(TS0 됨) → /검증 → /배포.**
-- **#115 (AI업무추가 "요청 내용" 라벨) 미착수.** `components/QTask/AiTaskCreateModal.tsx:220` `t('ai.promptLabel','요청 내용')` — 내 업무 추가가 대부분이라 헷갈림 → 중립 라벨("추가할 업무" 등) + 담당자 기본=나 표기 확인.
-- **랜딩 기능명 수정 커밋됨(자동저장), 미배포.** HomePage QName `text-transform:capitalize` 제거 + nowrap → "Q calendar" 1줄 + "Q + 소문자"(메뉴 규칙 일치). dev 반영됨, prod는 /배포 대기. (FeaturesPage `/features`도 같은 capitalize 있는지 확인 권장)
+### ✅ 이번 세션 완료·배포 (2026-07-06 노트북)
+- **배포1 (라이브):** #114 업무 라벨 뷰어관점 분기 · #115 AI업무추가 "요청 내용"→"추가할 업무"(promptLabel/Hint ko/en 신규) · 랜딩 기능명 capitalize 제거 · 로그인 구글버튼 '심사 중' 안내
+- **배포2 (라이브, B4):** **#112 수정요청 첨부**(revision 라우트 revision_comment_id 반환 + TaskDetailDrawer 첨부 피커, context='comment' 재사용, E2E 8/8) · **#100 오버커밋 경고**(남은예측>가용 시 칩 amber+초과분) · **#120 그룹별 업무추가**(ProjectTaskList 그룹 헤더 인라인 추가 + **백엔드 POST /api/tasks workstream_id 무시 잠재버그 수정**, E2E 4/4)
+- **배포3 (라이브): 내부 vs 고객 프로젝트 구분 3-Layer** (commit `0f8eb6c`, 운영 마이그레이션 선행) — 설계 `docs/INTERNAL_VS_CLIENT_PROJECT_ANALYSIS.md`
+  - L1: `Project.kind ENUM('client','internal')` + 멱등 백필(`scripts/migrate-project-kind.js`). 운영 internal 6/client 3
+  - L2: Insights `고객|내부|전체` 세그먼트 토글(overview/profit/team/finance) + ProfitTab 내부 투자 뷰 + 프로젝트 편집·생성 '내부 프로젝트' 토글
+  - L3: `services/stats.js` 수익성·negative_margin·매출배분=kind='client'만, 내부는 internal_investment 별도, new_clients=Client.kind='customer'만, team revenue_share 분모 고객시간 한정
+  - 검증: 세그먼트 E2E + 운영 실데이터 6/6(biz1 internal 6, 수익성 오탐 제거, internal_investment 166.8h/834만원)
 
-### 🔎 다음 섹션 과제 — Fable 분석 (Irene 요청 2026-07-06, 저장만)
-**"내부 프로젝트 vs 고객 프로젝트" 구분이 통계·수치에서 제대로 되는지 철저히 검사 → Fable에게 분석결과 내라고.**
-- 문제의식(Irene): 우리 내부에서 시간 쓰는 일 vs 고객 대응 프로젝트를 구분해서, **프로젝트 수익성** 같은 통계에서 나눠 표시해야 하는 것 아닌가. 전체적으로 이 구분이 필요한 **영역·통계·수치**가 빠진 곳 없는지.
-- 실행: Fable에게 (a)프로젝트에 internal/client 구분 필드·개념이 있는지(project.kind 등 — memory `project_d_cluster_org_design` client.kind 참조) (b)통계/insights(/insights, project 수익성·시간·EVM)에서 그 구분이 반영되는지 (c)안 되는 영역 목록 + 설계안. `docs/`·Insights·프로젝트 모델·통계 라우트 훑어 분석결과 산출.
+### 남은 후속 (내부/고객 구분)
+- QTalk RightPanel 내부배지가 아직 client_company 휴리스틱(`RightPanel.tsx:533`) — `project.kind`로 교체 가능(선택)
+- NewProjectModal/QTalkPage `project_type`가 QTalk 생성경로에서 미전달(별개 잠재버그, kind는 전달됨)
+- laborCost 시간당 50000원 하드코딩(`stats.js:523`) — hourly_rate 컬럼 추후
 
 ### 이번 세션 완료·배포 (Fable 계획)
 - **하니스 v1 + 카나리 크롤 + 비주얼 감사** (`scripts/e2e/`). SPA 네비로 전 라우트 크롤(auth rotation/rate-limit 회피). data-testid 시딩 시작(task-add-btn).
@@ -28,7 +32,7 @@
 ### 다음 할 일 (Fable 8배치 순서)
 - **B2 모바일 완성도:** #79·#86·#116·#118(팝아웃/우측패널 업무추가 키보드)·#110·#113. **선행: 하니스 data-testid ~20개 시딩**(현재 task-add-btn 1개) + mobile-keyboard 스위트에 opener 연결.
 - **B3 캘린더:** #102 시간칸클릭 prefill·#119 기간표시순서·**#104 나만보기 일정 공개링크 L1 오염(Fable 게이트)**.
-- **B4 업무UX:** #114(진행중)·#115·#112(수정요청 첨부)·#120(그룹 업무추가)·#100(예측합≠가용).
+- **~~B4 업무UX~~ ✅ 완료·배포** (#114·#115·#112·#100·#120 전부 라이브)
 - **B5 폴리시:** #71·#84·#89·#96. **B6 이미지:** #97·#121·#63(zip). **B7 프로젝트:** #95·#99. **B8 Cue:** #90·#117.
 - **(c) 외부트랙 — Irene 몫:** **Google OAuth 4건(#72·#88·#107·#109) = Google Cloud Console 검증 제출** / #85 보고서 SCR 설계 승인 / #60 PushLog 확인 후 기기안내 / #81 Cue 실작업 스코프 결정.
 

@@ -84,6 +84,9 @@
     "delete": "Delete event",
     "deleteConfirm": "Delete this event?"
   },
+  "share": {
+    "privateBlocked": "Private events can't be shared"
+  },
   "drawer": {
     "createdBy": "Created by",
     "attendees": "Attendees",

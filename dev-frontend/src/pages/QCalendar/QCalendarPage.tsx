@@ -336,6 +336,12 @@ const QCalendarPage: React.FC = () => {
     }
   }, [view]);
 
+  // #102 — 타임그리드 빈 시간칸 클릭 → 그 시각으로 새 일정 모달 오픈 (prefill)
+  const handleCreateAt = useCallback((d: Date) => {
+    setNewModalInitial(d);
+    setShowNewModal(true);
+  }, []);
+
   const handleOpenNew = useCallback(() => {
     const base = view === 'day' ? anchor : new Date();
     const d = new Date(base);
@@ -504,6 +510,7 @@ const QCalendarPage: React.FC = () => {
             events={filteredEvents}
             onSelectEvent={handleSelectEvent}
             onSelectDate={handleSelectDate}
+            onCreateAt={handleCreateAt}
           />
         )}
       </ViewWrap>

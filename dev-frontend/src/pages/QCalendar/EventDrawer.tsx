@@ -712,16 +712,21 @@ const EventDrawer: React.FC<Props> = ({
           </ConfirmGroup>
         ) : (
           <FooterRow>
-            <ShareBtn type="button" onClick={() => setShareOpen(true)} title={t('button.share', { defaultValue: '공유' }) as string}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="18" cy="5" r="3" />
-                <circle cx="6" cy="12" r="3" />
-                <circle cx="18" cy="19" r="3" />
-                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-              </svg>
-              {t('button.share', { defaultValue: '공유' }) as string}
-            </ShareBtn>
+            {/* #104 — 나만보기(L1) 일정은 공개 링크 발급 불가 (개인 자원 누출 차단) */}
+            {event.vlevel === 'L1' ? (
+              <PrivateShareNote>{t('share.privateBlocked', { defaultValue: '나만보기 일정은 공유할 수 없어요' }) as string}</PrivateShareNote>
+            ) : (
+              <ShareBtn type="button" onClick={() => setShareOpen(true)} title={t('button.share', { defaultValue: '공유' }) as string}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="18" cy="5" r="3" />
+                  <circle cx="6" cy="12" r="3" />
+                  <circle cx="18" cy="19" r="3" />
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                  <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                </svg>
+                {t('button.share', { defaultValue: '공유' }) as string}
+              </ShareBtn>
+            )}
             {canEdit && (
               <DangerBtn type="button" onClick={() => setConfirmDelete(true)}>
                 {t('button.delete')}
@@ -1012,6 +1017,7 @@ const ConfirmText = styled.div` font-size: 12px; color: #64748B; margin-right: 4
 const FooterRow = styled.div`
   display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%;
 `;
+const PrivateShareNote = styled.span`font-size: 11px; color: #94A3B8;`;
 const ShareBtn = styled.button`
   padding: 7px 12px; border-radius: 6px; font-size: 12px; font-weight: 500;
   background: transparent; color: #475569; border: 1px solid #CBD5E1; cursor: pointer;
