@@ -1014,6 +1014,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         start_date: data.start_date || undefined,
         end_date: data.end_date || undefined,
         color: data.color || undefined,
+        kind: data.kind,
         members: data.members.map((m) => ({ user_id: m.user_id, role: m.role, is_default: m.is_default })),
         clients: data.clients.map((c) => ({ name: c.name, email: c.email })),
         // #95 — 채널 토글 전달 (옛 버그: 누락돼 Q Talk 경로에서 토글 무시 + 항상 채널 0개). Q Project 경로와 일관.

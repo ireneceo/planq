@@ -332,8 +332,10 @@ function buildTaskInsights({ kpis, scatter, aiTrend, sources }) {
 // Overview 탭 — 사업 전체 맥박
 //   매출(수금) / 영업이익 추정 / 가동률 / 실현율 / 활성 프로젝트 / 신규 고객
 // ──────────────────────────────────────────────
-async function buildOverviewTab(businessId, period) {
+async function buildOverviewTab(businessId, period, segment = 'client') {
   const { Invoice, InvoicePayment, Project, Client, OverheadItem } = require('../models');
+  const projKindWhere = segment === 'client' ? { kind: 'client' }
+    : segment === 'internal' ? { kind: 'internal' } : {};
 
   const fromDt = new Date(period.from + ' 00:00:00');
   const toDt = new Date(period.to + ' 23:59:59');
@@ -372,12 +374,12 @@ async function buildOverviewTab(businessId, period) {
   // 영업이익 = 매출 − 고정비 (단순 모델, 노동비는 hourly_rate 미입력 시 0)
   const profit = revenue - overheadAlloc;
 
-  // 활성 프로젝트
-  const activeProjects = await Project.count({ where: { business_id: businessId, status: 'active' } });
+  // 활성 프로젝트 (세그먼트 반영 — 기본 고객 프로젝트)
+  const activeProjects = await Project.count({ where: { business_id: businessId, status: 'active', ...projKindWhere } });
 
-  // 신규 고객 (기간 내 created)
+  // 신규 고객 (기간 내 created) — kind='customer' 만 (vendor/freelancer/other 제외)
   const newClients = await Client.count({
-    where: { business_id: businessId, created_at: { [Op.between]: [fromDt, toDt] } },
+    where: { business_id: businessId, kind: 'customer', created_at: { [Op.between]: [fromDt, toDt] } },
   });
 
   // 가동률 / 실현율 — Tasks 데이터 재사용 (단순화: 모든 task 의 actual_hours 합계 / 가용시간 합계)
@@ -462,16 +464,20 @@ async function buildOverviewTab(businessId, period) {
 // ──────────────────────────────────────────────
 // Profit (Projects 수익성) 탭
 // ──────────────────────────────────────────────
-async function buildProfitTab(businessId, period) {
+// segment: 'client'(고객 프로젝트 P&L, 기본) | 'internal'(내부 투자 시간·원가 뷰) | 'all'(둘 다, 단 수익성 KPI 는 고객만)
+async function buildProfitTab(businessId, period, segment = 'client') {
   const { Project, Invoice, InvoicePayment, Task, ProjectExpense, OverheadItem } = require('../models');
   const fromDt = new Date(period.from + ' 00:00:00');
   const toDt = new Date(period.to + ' 23:59:59');
 
+  // 내부/고객 세그먼트 필터 (kind). all 이면 전체.
+  const kindWhere = segment === 'client' ? { kind: 'client' }
+    : segment === 'internal' ? { kind: 'internal' } : {};
   const projects = await Project.findAll({
-    where: { business_id: businessId },
-    attributes: ['id', 'name', 'status', 'client_company'],
+    where: { business_id: businessId, ...kindWhere },
+    attributes: ['id', 'name', 'status', 'client_company', 'kind'],
   });
-  if (projects.length === 0) return emptyProfitTab(period);
+  if (projects.length === 0) return emptyProfitTab(period, segment);
 
   const projectIds = projects.map((p) => p.id);
 
@@ -530,6 +536,7 @@ async function buildProfitTab(businessId, period) {
       project_id: p.id,
       name: p.name,
       client: p.client_company || '—',
+      kind: p.kind,
       status: p.status,
       revenue: Math.round(revenue),
       labor_cost: Math.round(laborCost),
@@ -542,13 +549,56 @@ async function buildProfitTab(businessId, period) {
     };
   });
 
-  const negativeMargin = rows.filter((r) => r.profit < 0).length;
-  const totalRevenue = rows.reduce((s, r) => s + r.revenue, 0);
-  const totalProfit = rows.reduce((s, r) => s + r.profit, 0);
-  const totalHours = rows.reduce((s, r) => s + r.hours, 0);
+  const clientRows = rows.filter((r) => r.kind === 'client');
+  const internalRows = rows.filter((r) => r.kind === 'internal');
+  // 수익성 KPI 는 고객 프로젝트만 대상 — 내부 프로젝트(매출0·노동비>0)의 마진음수 오탐 제거.
+  const negativeMargin = clientRows.filter((r) => r.profit < 0).length;
+  const totalRevenue = clientRows.reduce((s, r) => s + r.revenue, 0);
+  const totalProfit = clientRows.reduce((s, r) => s + r.profit, 0);
+  const totalHours = clientRows.reduce((s, r) => s + r.hours, 0);
   const avgProfitPerHour = totalHours > 0 ? totalProfit / totalHours : null;
+  // 내부 투자 요약 (별도 뷰·항상 계산) — 매출/마진 없이 시간·원가만.
+  const internalHours = internalRows.reduce((s, r) => s + r.hours, 0);
+  const internalCost = internalRows.reduce((s, r) => s + r.labor_cost + r.direct_cost, 0);
+  const internalInvestment = {
+    project_count: internalRows.length,
+    total_hours: Number(internalHours.toFixed(1)),
+    total_cost: Math.round(internalCost),
+  };
 
-  const overrunRows = rows.filter((r) => r.est_hours > 0 && r.hours > r.est_hours * 1.5);
+  // 내부 투자 뷰 — 매출/마진 아닌 시간·원가 중심 응답.
+  if (segment === 'internal') {
+    const invRows = internalRows.map((r) => ({
+      project_id: r.project_id, name: r.name, status: r.status,
+      hours: r.hours, est_hours: r.est_hours,
+      labor_cost: r.labor_cost, direct_cost: r.direct_cost,
+      total_cost: Math.round(r.labor_cost + r.direct_cost),
+    })).sort((a, b) => b.total_cost - a.total_cost);
+    const invInsights = [];
+    if (internalRows.length > 0) invInsights.push({
+      severity: 'info', title: '내부 투자 시간',
+      value: `${internalInvestment.total_hours}h`,
+      hint: `${internalInvestment.project_count}개 내부 프로젝트 · 원가 ${internalInvestment.total_cost.toLocaleString()}원`,
+    });
+    else invInsights.push({
+      severity: 'info', title: '내부 프로젝트 없음',
+      value: '자체 투자 업무를 내부 프로젝트로 표시', hint: '프로젝트 설정에서 "내부 프로젝트" 토글',
+    });
+    return {
+      period: { from: period.from, to: period.to, label: period.label },
+      segment,
+      kpis: {
+        internal_projects: { value: internalRows.length, prev: null, delta_pct: null },
+        internal_hours: { value: internalInvestment.total_hours, prev: null, delta_pct: null },
+        internal_cost: { value: internalInvestment.total_cost, prev: null, delta_pct: null },
+      },
+      table: invRows,
+      internal_investment: internalInvestment,
+      insights: invInsights,
+    };
+  }
+
+  const overrunRows = clientRows.filter((r) => r.est_hours > 0 && r.hours > r.est_hours * 1.5);
 
   const insights = [];
   if (negativeMargin > 0) insights.push({
@@ -574,27 +624,43 @@ async function buildProfitTab(businessId, period) {
     value: '프로젝트 수금·비용 기록 후 표시', hint: '청구서·비용 입력하시면 분석 시작',
   });
 
+  // 수익성 KPI·버블·표는 고객 프로젝트 기준(내부 제외). 'all' 이어도 수익성은 고객만 의미.
+  const pnlRows = clientRows;
   return {
     period: { from: period.from, to: period.to, label: period.label },
+    segment,
     kpis: {
-      active_projects: { value: projects.filter((p) => p.status === 'active').length, prev: null, delta_pct: null },
+      active_projects: { value: pnlRows.filter((r) => r.status === 'active').length, prev: null, delta_pct: null },
       negative_margin: { value: negativeMargin, prev: null, delta_pct: null },
       avg_profit_per_hour: { value: avgProfitPerHour == null ? null : Math.round(avgProfitPerHour), prev: null, delta_pct: null },
       total_revenue: { value: Math.round(totalRevenue), prev: null, delta_pct: null },
       total_profit: { value: Math.round(totalProfit), prev: null, delta_pct: null },
       total_hours: { value: Number(totalHours.toFixed(1)), prev: null, delta_pct: null },
     },
-    bubble: rows.filter((r) => r.hours > 0).map((r) => ({
+    bubble: pnlRows.filter((r) => r.hours > 0).map((r) => ({
       project_id: r.project_id, name: r.name,
       hours: r.hours, revenue: r.revenue, profit: r.profit, margin_pct: r.margin_pct,
     })),
-    table: rows.sort((a, b) => b.revenue - a.revenue),
+    table: pnlRows.sort((a, b) => b.revenue - a.revenue),
+    internal_investment: internalInvestment,
     insights: insights.slice(0, 3),
   };
 }
-function emptyProfitTab(period) {
+function emptyProfitTab(period, segment = 'client') {
+  const emptyInv = { project_count: 0, total_hours: 0, total_cost: 0 };
+  if (segment === 'internal') {
+    // 내부 뷰는 투자(시간·원가) shape 유지 — 프로젝트 0건이어도 client KPI 로 뒤바뀌지 않게.
+    return {
+      period, segment, internal_investment: emptyInv,
+      kpis: {
+        internal_projects: { value: 0 }, internal_hours: { value: 0 }, internal_cost: { value: 0 },
+      },
+      table: [],
+      insights: [{ severity: 'info', title: '내부 프로젝트 없음', value: '자체 투자 업무를 내부 프로젝트로 표시', hint: '프로젝트 설정에서 "내부 프로젝트" 토글' }],
+    };
+  }
   return {
-    period, kpis: {
+    period, segment, internal_investment: emptyInv, kpis: {
       active_projects: { value: 0 }, negative_margin: { value: 0 },
       avg_profit_per_hour: { value: null }, total_revenue: { value: 0 },
       total_profit: { value: 0 }, total_hours: { value: 0 },
@@ -607,10 +673,15 @@ function emptyProfitTab(period) {
 // ──────────────────────────────────────────────
 // Team (직원·생산성) 탭
 // ──────────────────────────────────────────────
-async function buildTeamTab(businessId, period) {
-  const { BusinessMember, User, Task, Invoice, InvoicePayment } = require('../models');
+async function buildTeamTab(businessId, period, segment = 'client') {
+  const { BusinessMember, User, Task, Invoice, InvoicePayment, Project } = require('../models');
   const fromDt = new Date(period.from + ' 00:00:00');
   const toDt = new Date(period.to + ' 23:59:59');
+
+  // 프로젝트 kind 맵 — 매출배분 분모를 고객 프로젝트 시간으로 한정하기 위함.
+  const projRows = await Project.findAll({ where: { business_id: businessId }, attributes: ['id', 'kind'] });
+  const projKind = new Map(projRows.map((p) => [p.id, p.kind]));
+  const isClientTask = (t) => t.project_id != null && projKind.get(t.project_id) === 'client';
 
   const members = await BusinessMember.findAll({
     where: { business_id: businessId, removed_at: null },
@@ -627,10 +698,10 @@ async function buildTeamTab(businessId, period) {
       completed_at: { [Op.between]: [fromDt, toDt] },
       status: 'completed',
     },
-    attributes: ['assignee_id', 'actual_hours', 'estimated_hours', 'completed_at', 'created_at', 'category'],
+    attributes: ['assignee_id', 'actual_hours', 'estimated_hours', 'completed_at', 'created_at', 'category', 'project_id'],
   });
 
-  // 매출 (수금) — 청구서가 task 와 직접 연결 안 되어 있어, 가용시간 비중으로 분배
+  // 매출 (수금) — 청구서가 task 와 직접 연결 안 되어 있어, 고객 프로젝트 시간 비중으로 분배
   const payments = await InvoicePayment.findAll({
     where: { paid_at: { [Op.between]: [fromDt, toDt] } },
     include: [{ model: Invoice, where: { business_id: businessId }, attributes: ['id', 'project_id'] }],
@@ -639,10 +710,13 @@ async function buildTeamTab(businessId, period) {
   const totalRevenue = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
 
   const totalActualHours = tasks.reduce((s, t) => s + Number(t.actual_hours || 0), 0);
+  // 매출배분 분모 = 고객 프로젝트 시간만 (내부업무 시간이 인당매출을 희석/오배분하던 것 차단)
+  const totalClientHours = tasks.filter(isClientTask).reduce((s, t) => s + Number(t.actual_hours || 0), 0);
 
   const rows = members.map((m) => {
     const memberTasks = tasks.filter((t) => t.assignee_id === m.user_id);
     const actualH = memberTasks.reduce((s, t) => s + Number(t.actual_hours || 0), 0);
+    const clientActualH = memberTasks.filter(isClientTask).reduce((s, t) => s + Number(t.actual_hours || 0), 0);
 
     const dh = Number(m.daily_work_hours || 8);
     const wd = Number(m.weekly_work_days || 5);
@@ -663,11 +737,11 @@ async function buildTeamTab(businessId, period) {
       .filter((t) => Number(t.estimated_hours) > 0 && Number(t.actual_hours) > 0)
       .map((t) => ({ actual: Number(t.actual_hours), est: Number(t.estimated_hours) })));
 
-    // 인당 매출 (시간 비중 가중)
-    const revenueShare = totalActualHours > 0 ? totalRevenue * (actualH / totalActualHours) : 0;
+    // 인당 매출 — 고객 프로젝트 시간 비중으로만 분배 (내부업무만 한 멤버는 매출배분 0)
+    const revenueShare = totalClientHours > 0 ? totalRevenue * (clientActualH / totalClientHours) : 0;
 
-    // Effective Rate (시간당 매출)
-    const effectiveRate = actualH > 0 ? revenueShare / actualH : null;
+    // Effective Rate (고객시간당 매출) — 내부 시간으로 나누면 왜곡되므로 고객 시간 기준
+    const effectiveRate = clientActualH > 0 ? revenueShare / clientActualH : null;
 
     // 평균 리드타임
     const leads = memberTasks
@@ -795,10 +869,13 @@ async function buildTeamTab(businessId, period) {
 // ──────────────────────────────────────────────
 // Finance (비용·재무) 탭
 // ──────────────────────────────────────────────
-async function buildFinanceTab(businessId, period) {
+async function buildFinanceTab(businessId, period, segment = 'client') {
   const { Invoice, InvoicePayment, OverheadItem, ProjectExpense } = require('../models');
   const fromDt = new Date(period.from + ' 00:00:00');
   const toDt = new Date(period.to + ' 23:59:59');
+  // 직접비 프로젝트 kind 필터 — 기본(client) 이면 내부 프로젝트 직접비 제외(매출0인데 원가만 잡혀 마진 왜곡 차단).
+  const expenseProjKind = segment === 'client' ? { kind: 'client' }
+    : segment === 'internal' ? { kind: 'internal' } : {};
 
   const payments = await InvoicePayment.findAll({
     where: { paid_at: { [Op.between]: [fromDt, toDt] } },
@@ -826,9 +903,9 @@ async function buildFinanceTab(businessId, period) {
     return s + (monthly / 30) * days;
   }, 0);
 
-  // 직접비
+  // 직접비 (프로젝트 kind 세그먼트 반영)
   const directs = await ProjectExpense.findAll({
-    include: [{ model: require('../models').Project, where: { business_id: businessId }, attributes: ['id'] }],
+    include: [{ model: require('../models').Project, where: { business_id: businessId, ...expenseProjKind }, attributes: ['id'] }],
     where: { incurred_at: { [Op.between]: [period.from, period.to] } },
     attributes: ['category', 'amount', 'incurred_at'],
   });

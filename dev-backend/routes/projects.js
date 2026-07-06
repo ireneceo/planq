@@ -82,6 +82,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
       end_date,
       color,
       project_type,
+      kind,              // 내부/고객 구분 (client|internal)
       stage_template,    // Phase D+1: 거래 시퀀스 템플릿 (fixed/subscription/consulting/custom)
       members = [],
       clients = [],
@@ -121,6 +122,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
       end_date: end_date || null,
       color: (color && HEX_RE.test(color)) ? color : null,
       project_type: project_type === 'ongoing' ? 'ongoing' : 'fixed',
+      kind: kind === 'internal' ? 'internal' : 'client',
       default_assignee_user_id: defaultAssignee,
       owner_user_id: req.user.id,
     }, { transaction: t });
@@ -358,7 +360,7 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     if (error) return errorResponse(res, error.message, error.code);
     if (role === 'client') return errorResponse(res, 'forbidden', 403);
 
-    const { name, description, client_company, start_date, end_date, status, default_assignee_user_id, color, project_type, process_tab_label } = req.body || {};
+    const { name, description, client_company, start_date, end_date, status, default_assignee_user_id, color, project_type, process_tab_label, kind } = req.body || {};
     // 프로젝트 종료/재개는 owner 또는 platform_admin 만
     if (status !== undefined && status !== project.status) {
       const isPlatformAdmin = req.user.platform_role === 'platform_admin';
@@ -379,6 +381,8 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     }
     if (project_type !== undefined && ['fixed', 'ongoing'].includes(project_type)) patch.project_type = project_type;
     if (process_tab_label !== undefined) patch.process_tab_label = String(process_tab_label).trim().slice(0, 80) || '테이블';
+    // 내부/고객 구분 (수익성 세그먼트 축) — 멤버 이상 편집 가능(재무 게이트 아님, 분류일 뿐)
+    if (kind !== undefined && ['client', 'internal'].includes(kind)) patch.kind = kind;
 
     // ─── 정기청구 설정 (재무) — owner/platform_admin 만. 자동발행 여부는 고객에게 자동 발송을 좌우하므로 invoice 정책과 동일하게 owner 전용. ───
     const { billing_type, monthly_fee, invoice_billing_day, auto_invoice_enabled, auto_invoice_mode } = req.body || {};

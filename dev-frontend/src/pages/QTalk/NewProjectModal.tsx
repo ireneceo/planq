@@ -24,6 +24,7 @@ export interface ProjectFormData {
   end_date: string;
   color: string;
   project_type: 'fixed' | 'ongoing';
+  kind?: 'client' | 'internal';
   members: MemberInput[];
   clients: ClientInput[];
   channels: ChannelInput[];
@@ -66,6 +67,7 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
   const [endDate, setEndDate] = useState('');
   const [color, setColor] = useState<string>(PROJECT_COLOR_PALETTE[0].value);
   const [projectType, setProjectType] = useState<'fixed' | 'ongoing'>('fixed');
+  const [isInternal, setIsInternal] = useState(false);  // 내부 프로젝트(비청구·수익성 제외)
   const [members, setMembers] = useState<MemberInput[]>([]);
   const [clients, setClients] = useState<ClientInput[]>([]);
   const [newClientName, setNewClientName] = useState('');
@@ -183,6 +185,7 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
         end_date: projectType === 'ongoing' ? '' : endDate,
         color,
         project_type: projectType,
+        kind: isInternal ? 'internal' : 'client',
         members,
         clients,
         channels: [
@@ -234,6 +237,16 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
                 <small>{t('modal.typeOngoingDesc', '월간/구독 등 지속 계약')}</small>
               </TypeBtn>
             </TypeRow>
+          </Field>
+
+          <Field>
+            <KindCheckRow>
+              <input type="checkbox" checked={isInternal} onChange={(e) => setIsInternal(e.target.checked)} id="np-internal" />
+              <label htmlFor="np-internal">
+                <strong>{t('modal.internalLabel', '내부 프로젝트')}</strong>
+                <small>{t('modal.internalDesc', '자체 투자(비청구) — 수익성 통계에서 제외되고 "내부 투자"로 별도 집계')}</small>
+              </label>
+            </KindCheckRow>
           </Field>
 
           <Row>
@@ -587,6 +600,13 @@ const Field = styled.div`
 `;
 
 const TypeRow = styled.div`display:flex;gap:8px;`;
+const KindCheckRow = styled.div`
+  display:flex;align-items:flex-start;gap:8px;padding:10px 12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;
+  input{margin-top:2px;width:16px;height:16px;cursor:pointer;flex-shrink:0;}
+  label{display:flex;flex-direction:column;gap:2px;cursor:pointer;}
+  strong{font-size:13px;color:#0F172A;font-weight:600;}
+  small{font-size:11px;color:#64748B;line-height:1.5;}
+`;
 const TypeBtn = styled.button<{$active?:boolean}>`
   flex:1;display:flex;flex-direction:column;align-items:flex-start;gap:4px;
   padding:10px 12px;border:1px solid ${p=>p.$active?'#14B8A6':'#E2E8F0'};

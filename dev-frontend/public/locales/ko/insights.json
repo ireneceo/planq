@@ -105,6 +105,12 @@
       }
     }
   },
+  "segment": {
+    "label": "프로젝트 구분",
+    "client": "고객",
+    "internal": "내부",
+    "all": "전체"
+  },
   "profit": {
     "kpi": {
       "activeProjects": "활성 프로젝트",
@@ -112,7 +118,15 @@
       "avgPph": "Profit per Hour",
       "totalRevenue": "매출 합계",
       "totalProfit": "이익 합계",
-      "totalHours": "총 투입 시간"
+      "totalHours": "총 투입 시간",
+      "internalProjects": "내부 프로젝트",
+      "internalHours": "내부 투자 시간",
+      "internalCost": "내부 투자 원가"
+    },
+    "internalNote": "내부 프로젝트 {{n}}개 · {{h}}h 는 수익성에서 제외됨 — \"내부\" 탭에서 확인",
+    "internal": {
+      "tableTitle": "내부 프로젝트별 투자",
+      "empty": "내부 프로젝트가 없습니다 — 프로젝트 설정에서 \"내부 프로젝트\"로 표시하세요"
     },
     "chart": {
       "bubble": {
@@ -139,6 +153,9 @@
       "client": "고객",
       "revenue": "매출",
       "cost": "비용",
+      "laborCost": "노동비",
+      "directCost": "직접비",
+      "totalCost": "총 원가",
       "profit": "이익",
       "margin": "마진",
       "hours": "시간",

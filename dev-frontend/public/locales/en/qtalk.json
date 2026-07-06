@@ -220,6 +220,8 @@
     "typeFixedDesc": "Contract with start/end date",
     "typeOngoing": "Ongoing subscription",
     "typeOngoingDesc": "Monthly or recurring engagement",
+    "internalLabel": "Internal project",
+    "internalDesc": "Own investment (non-billable) — excluded from profitability, tracked separately as \"Internal investment\"",
     "clientCompany": "Client company",
     "clientEmail": "Client email",
     "period": "Period",

@@ -21,6 +21,9 @@ Project.init({
   color: { type: DataTypes.STRING(20), allowNull: true },
   // 프로젝트 타입: fixed(기간 고정) / ongoing(구독·지속)
   project_type: { type: DataTypes.ENUM('fixed', 'ongoing'), allowNull: false, defaultValue: 'fixed' },
+  // 내부 vs 고객 구분 (수익성 통계 분리 축) — client=고객 대응(매출 발생), internal=자체 투자(제품/마케팅/운영·비청구)
+  //   billing_type='internal'(청구구조)과 별개 — kind 는 수익성 집계에서 고객/내부 세그먼트 분리에 사용.
+  kind: { type: DataTypes.ENUM('client', 'internal'), allowNull: false, defaultValue: 'client', comment: 'client=고객 프로젝트(매출), internal=내부 투자(비청구·수익성 제외)' },
   // 프로세스 파트 탭 커스텀 라벨 (프로젝트별) — 기본 '테이블'
   process_tab_label: { type: DataTypes.STRING(80), allowNull: false, defaultValue: '테이블' },
   // 외부 클라우드 폴더 매핑 (Phase 2B+) — 연동 시 루트 폴더 아래 자동 생성
