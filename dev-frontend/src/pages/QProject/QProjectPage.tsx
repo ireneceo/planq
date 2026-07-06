@@ -40,6 +40,7 @@ interface ProjectRow {
   description: string | null;
   client_company: string | null;
   status: 'active' | 'paused' | 'closed';
+  kind?: 'client' | 'internal';
   start_date: string | null;
   end_date: string | null;
   color?: string | null;
@@ -91,6 +92,9 @@ const QProjectPage: React.FC = () => {
   // 검색 + 상태 필터 (사이클 N+17). 기본은 'active' — 진행 중만 노출. 종료/대기는 명시 선택 시 표시.
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
+  // #99 — 구분(고객/내부) 필터 + 정렬
+  const [kindFilter, setKindFilter] = useState<'all' | 'client' | 'internal'>('all');
+  const [sortBy, setSortBy] = useState<'recent' | 'name' | 'progress' | 'deadline'>('recent');
   const handleCreateProject = useCallback(async (data: ProjectFormData & { project_type?: 'fixed' | 'ongoing' }) => {
     if (!user?.business_id) return;
     const res = await apiFetch('/api/projects', {
@@ -170,6 +174,7 @@ const QProjectPage: React.FC = () => {
     const q = query.trim().toLowerCase();
     return enriched.filter((p) => {
       if (statusFilter !== 'all' && p.status !== statusFilter) return false;
+      if (kindFilter !== 'all' && (p.kind || 'client') !== kindFilter) return false;
       if (!q) return true;
       if (p.name?.toLowerCase().includes(q)) return true;
       if (p.description?.toLowerCase().includes(q)) return true;
@@ -187,10 +192,31 @@ const QProjectPage: React.FC = () => {
       if (p.projectClients?.some((c) => c.contact_name?.toLowerCase().includes(q))) return true;
       return false;
     });
-  }, [enriched, statusFilter, query]);
+  }, [enriched, statusFilter, kindFilter, query]);
 
-  const filterActive = query.trim().length > 0 || statusFilter !== 'active';
-  const clearFilters = () => { setQuery(''); setStatusFilter('active'); };
+  // #99 — 정렬 (최근/이름/진행률/마감임박). 모든 뷰에 적용.
+  const sortedProjects = useMemo(() => {
+    const arr = [...visibleProjects];
+    arr.sort((a, b) => {
+      switch (sortBy) {
+        case 'name': return (a.name || '').localeCompare(b.name || '');
+        case 'progress': return (b.progressPercent || 0) - (a.progressPercent || 0);
+        case 'deadline': {
+          // 마감(end_date) 임박 오름차순, 없는 것은 맨 뒤
+          const ad = a.end_date || '9999-12-31'; const bd = b.end_date || '9999-12-31';
+          return ad.localeCompare(bd);
+        }
+        default: { // recent — 최근 수정(없으면 생성) 내림차순
+          const at = a.updatedAt || a.createdAt || ''; const bt = b.updatedAt || b.createdAt || '';
+          return bt.localeCompare(at);
+        }
+      }
+    });
+    return arr;
+  }, [visibleProjects, sortBy]);
+
+  const filterActive = query.trim().length > 0 || statusFilter !== 'active' || kindFilter !== 'all';
+  const clearFilters = () => { setQuery(''); setStatusFilter('active'); setKindFilter('all'); };
 
   const changeProjectStatus = useCallback(async (projectId: number, next: 'active' | 'paused' | 'closed') => {
     const r = await apiFetch(`/api/projects/${projectId}`, {
@@ -242,6 +268,24 @@ const QProjectPage: React.FC = () => {
               </FilterSegBtn>
             ))}
           </FilterSeg>
+          {/* #99 — 고객/내부 구분 필터 */}
+          <FilterSeg role="tablist" aria-label={t('filter.kindLabel', '구분') as string}>
+            {(['all', 'client', 'internal'] as const).map((k) => (
+              <FilterSegBtn key={k} type="button" $active={kindFilter === k}
+                role="tab" aria-selected={kindFilter === k}
+                onClick={() => setKindFilter(k)}>
+                {t(`filter.kind.${k}`, k === 'all' ? '전체' : k === 'client' ? '고객' : '내부')}
+              </FilterSegBtn>
+            ))}
+          </FilterSeg>
+          {/* #99 — 정렬 */}
+          <SortSelect value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+            aria-label={t('filter.sortLabel', '정렬') as string}>
+            <option value="recent">{t('filter.sort.recent', '최근순')}</option>
+            <option value="name">{t('filter.sort.name', '이름순')}</option>
+            <option value="progress">{t('filter.sort.progress', '진행률순')}</option>
+            <option value="deadline">{t('filter.sort.deadline', '마감임박순')}</option>
+          </SortSelect>
           <NewProjectCta type="button" onClick={() => setNewProjectOpen(true)}>+ <span>{t('newProject', '새 프로젝트')}</span></NewProjectCta>
         </>
       }
@@ -279,11 +323,11 @@ const QProjectPage: React.FC = () => {
           )}
         </EmptyState>
       ) : view === 'list' ? (
-        <ListView projects={visibleProjects} formatDate={formatDate} t={t} onOpen={(id) => navigate(`/projects/p/${id}`)} onStatusChange={changeProjectStatus} />
+        <ListView projects={sortedProjects} formatDate={formatDate} t={t} onOpen={(id) => navigate(`/projects/p/${id}`)} onStatusChange={changeProjectStatus} />
       ) : view === 'timeline' ? (
-        <TimelineView projects={visibleProjects} todayStr={todayStr} t={t} onOpen={(id) => navigate(`/projects/p/${id}`)} />
+        <TimelineView projects={sortedProjects} todayStr={todayStr} t={t} onOpen={(id) => navigate(`/projects/p/${id}`)} />
       ) : (
-        <CalendarView projects={visibleProjects} todayStr={todayStr} t={t} />
+        <CalendarView projects={sortedProjects} todayStr={todayStr} t={t} />
       )}
     </PageShell>
   );
@@ -966,6 +1010,17 @@ const ConfirmDanger = styled.button`
   padding:8px 14px; background:#DC2626; color:#FFFFFF; border:none; border-radius:8px;
   font-size:13px; font-weight:700; cursor:pointer;
   &:hover{ background:#B91C1C; }
+`;
+
+// #99 — 정렬 셀렉트
+const SortSelect = styled.select`
+  height: 34px; padding: 0 28px 0 10px; border: 1px solid #E2E8F0; border-radius: 8px;
+  background: #FFFFFF; font-size: 12px; font-weight: 600; color: #334155; cursor: pointer;
+  font-family: inherit; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 8px center;
+  &:hover { border-color: #CBD5E1; }
+  &:focus { outline: none; border-color: #14B8A6; }
 `;
 
 // 상태 필터 세그먼트 (ClientsPage 와 동일 디자인 패턴 — UI 일관성)

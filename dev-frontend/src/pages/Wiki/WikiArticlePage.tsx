@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import PageShell from '../../components/Layout/PageShell';
+import { useImageLightbox } from '../../components/Common/ImageLightbox';
 import { fetchWikiArticle, type WikiArticleDetail, type WikiBlock } from '../../services/wiki';
 import { mediaPhone } from '../../theme/breakpoints';
 
@@ -10,6 +11,7 @@ export default function WikiArticlePage() {
   const { slug = '' } = useParams();
   const navigate = useNavigate();
   const { t, i18n } = useTranslation('wiki');
+  const { open: openLightbox, lightbox } = useImageLightbox();
 
   const [article, setArticle] = useState<WikiArticleDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -52,22 +54,32 @@ export default function WikiArticlePage() {
           )}
 
           <Body>
-            {(article.body || []).map((b, i) => {
-              if (b.type === 'heading') return <H3 key={i}>{blockText(b)}</H3>;
-              if (b.type === 'callout') return <Callout key={i}>{blockText(b)}</Callout>;
-              if (b.type === 'step') return <Step key={i}><span>{i + 1}</span><p>{blockText(b)}</p></Step>;
-              if (b.type === 'image') {
-                const cap = blockCaption(b);
-                return b.file_id ? (
-                  <Figure key={i}>
-                    <img src={`/api/wiki/image/${b.file_id}`} alt={cap} loading="lazy" />
-                    {cap && <figcaption>{cap}</figcaption>}
-                  </Figure>
-                ) : null;
-              }
-              return <P key={i}>{blockText(b)}</P>;
-            })}
+            {(() => {
+              // 이미지 블록 클릭 시 확대 라이트박스 (전체 이미지 갤러리로 묶음)
+              const imgs = (article.body || []).filter(b => b.type === 'image' && b.file_id)
+                .map(b => ({ src: `/api/wiki/image/${b.file_id}`, alt: blockCaption(b) }));
+              return (article.body || []).map((b, i) => {
+                if (b.type === 'heading') return <H3 key={i}>{blockText(b)}</H3>;
+                if (b.type === 'callout') return <Callout key={i}>{blockText(b)}</Callout>;
+                if (b.type === 'step') return <Step key={i}><span>{i + 1}</span><p>{blockText(b)}</p></Step>;
+                if (b.type === 'image') {
+                  const cap = blockCaption(b);
+                  const src = `/api/wiki/image/${b.file_id}`;
+                  return b.file_id ? (
+                    <Figure key={i}>
+                      <ImgBtn type="button" onClick={() => openLightbox(imgs, Math.max(0, imgs.findIndex(x => x.src === src)))}
+                        title={t('article.zoom', { defaultValue: '클릭하여 확대' }) as string}>
+                        <img src={src} alt={cap} loading="lazy" />
+                      </ImgBtn>
+                      {cap && <figcaption>{cap}</figcaption>}
+                    </Figure>
+                  ) : null;
+                }
+                return <P key={i}>{blockText(b)}</P>;
+              });
+            })()}
           </Body>
+          {lightbox}
 
           {article.related && article.related.length > 0 && (
             <Related>
@@ -118,6 +130,7 @@ const Figure = styled.figure`
   img { display: block; width: 100%; height: auto; }
   figcaption { font-size: 12px; color: #94a3b8; padding: 8px 12px; }
 `;
+const ImgBtn = styled.button` display: block; width: 100%; padding: 0; border: none; background: none; cursor: zoom-in; `;
 const Related = styled.section` margin-top: 36px; border-top: 1px solid #e2e8f0; padding-top: 20px; `;
 const RelatedHead = styled.h4` font-size: 14px; font-weight: 700; color: #0f172a; margin: 0 0 12px; `;
 const RelatedList = styled.div`

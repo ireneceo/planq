@@ -16,6 +16,7 @@
   "article": {
     "back": "Back to Q Wiki",
     "openScreen": "Open this screen",
+    "zoom": "Click to zoom",
     "related": "Related articles",
     "notFound": "Article not found.",
     "loginRequired": "Please sign in to view this article.",

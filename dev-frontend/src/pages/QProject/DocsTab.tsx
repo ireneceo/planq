@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import DetailDrawer from '../../components/Common/DetailDrawer';
+import { useImageLightbox } from '../../components/Common/ImageLightbox';
 import ShareModal from '../../components/Common/ShareModal';
 import EmptyState from '../../components/Common/EmptyState';
 import PlanQSelect from '../../components/Common/PlanQSelect';
@@ -1172,9 +1173,20 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
 
 const PreviewArea: React.FC<{ file: ProjectFile }> = ({ file }) => {
   const { t } = useTranslation('qproject');
+  const { open: openLightbox, lightbox } = useImageLightbox();
   const hasValidUrl = (u?: string) => !!u && u !== '#' && u.trim().length > 0;
   if (isImage(file.mime_type, file.file_name) && hasValidUrl(file.preview_url)) {
-    return <PreviewImage src={withW(file.preview_url, 1024)!} alt={file.file_name} />;
+    // 클릭 시 원본(파라미터 없는 preview_url)으로 확대 라이트박스
+    const full = file.preview_url!;
+    return (
+      <>
+        <PreviewImageBtn type="button" onClick={() => openLightbox([{ src: full, alt: file.file_name }], 0)}
+          title={t('docs.preview.zoom', '클릭하여 확대') as string}>
+          <PreviewImage src={withW(file.preview_url, 1024)!} alt={file.file_name} />
+        </PreviewImageBtn>
+        {lightbox}
+      </>
+    );
   }
   if ((file.mime_type === 'application/pdf' || extOf(file.file_name) === 'pdf') && hasValidUrl(file.download_url)) {
     return <PreviewIframe src={file.download_url} title={file.file_name} />;
@@ -1598,6 +1610,7 @@ const HeaderIconBtn = styled.button<{ $danger?: boolean }>`
   }
   @media (max-width: 640px){ width:40px;height:40px; }
 `;
+const PreviewImageBtn = styled.button`display:block;width:100%;padding:0;border:none;background:none;cursor:zoom-in;`;
 const PreviewImage = styled.img`width:100%;max-height:420px;object-fit:contain;background:#F8FAFC;border-radius:10px;`;
 const PreviewIframe = styled.iframe`width:100%;height:420px;border:1px solid #E2E8F0;border-radius:10px;background:#F8FAFC;`;
 const PreviewFallback = styled.div`display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:40px 20px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;`;
