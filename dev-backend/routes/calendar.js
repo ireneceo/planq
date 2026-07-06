@@ -514,6 +514,11 @@ async function handleRecurrenceScopeUpdate({ req, res, event, scope, businessId 
         meeting_url: event.meeting_url,
         meeting_provider: event.meeting_provider,
         visibility: event.visibility,
+        // #104 후속 — vlevel·대상 제한을 복사해야 함. 누락 시 hook 이 visibility('business')→vlevel='L3' 로
+        //   재추론하여 L2(팀 비공개)·L4(외부 제한) 회차가 워크스페이스 전체(L3)로 확대됨.
+        vlevel: event.vlevel,
+        target_member_ids: event.target_member_ids,
+        target_client_ids: event.target_client_ids,
         created_by: req.user.id,
         recurrence_parent_id: event.id,
         recurrence_id: targetDateStr,
@@ -570,6 +575,10 @@ async function handleRecurrenceScopeUpdate({ req, res, event, scope, businessId 
       meeting_url: event.meeting_url,
       meeting_provider: event.meeting_provider,
       visibility: event.visibility,
+      // #104 후속 — vlevel·대상 제한 복사 (누락 시 L2/L4 → L3 확대). child exception 과 동일.
+      vlevel: event.vlevel,
+      target_member_ids: event.target_member_ids,
+      target_client_ids: event.target_client_ids,
       created_by: req.user.id,
       reminder_minutes: event.reminder_minutes,
     }, { transaction: t });
@@ -698,12 +707,17 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
       updates.target_client_ids = Array.isArray(req.body.target_client_ids)
         ? req.body.target_client_ids.map(Number).filter(Boolean) : null;
     }
-    // #104 — 나만보기(L1/personal)로 전환되면 기존 공개 링크 즉시 회수 (누출 차단, posts security_level 패턴).
+    // #104 — 개인(L1)·팀 비공개(L2)로 전환되면 기존 공개 링크 즉시 회수 (누출 차단, posts security_level 패턴).
+    //   effective vlevel 은 모델 hook 규칙과 동일하게 계산 (vlevel 우선; 없으면 visibility 로 추론).
+    //   → visibility='personal' 만 왔지만 event.vlevel 이 이미 L3 이면 hook 이 되돌리므로 회수하지 않음(오회수 방지).
     {
-      const effVlevel = updates.vlevel !== undefined ? updates.vlevel : event.vlevel;
-      const effVis = updates.visibility !== undefined ? updates.visibility : event.visibility;
-      const becomingPrivate = effVlevel === 'L1' || effVis === 'personal';
-      if (becomingPrivate && event.share_token) {
+      const effVlevel = updates.vlevel !== undefined ? updates.vlevel
+        : (event.vlevel != null ? event.vlevel
+          : (updates.visibility !== undefined
+            ? (updates.visibility === 'personal' ? 'L1' : 'L3')
+            : (event.visibility === 'personal' ? 'L1' : 'L3')));
+      const becomingRestricted = effVlevel === 'L1' || effVlevel === 'L2';
+      if (becomingRestricted && event.share_token) {
         updates.share_token = null;
         updates.shared_at = null;
         updates.share_password_hash = null;
@@ -1114,9 +1128,9 @@ router.post('/:id/share', authenticateToken, async (req, res, next) => {
     if (!isMemberOrAbove(scope) && ev.created_by !== req.user.id) {
       return errorResponse(res, 'forbidden', 403);
     }
-    // #104 — 나만보기(L1) 일정은 공개 링크 발급 금지. share_token(공개링크)은 L4(외부) 전용.
-    //   L1=개인 자원이 공개 URL 로 title/description/location 노출되는 누출 차단.
-    if (ev.vlevel === 'L1' || ev.visibility === 'personal') {
+    // #104 — 나만보기(L1)·팀 비공개(L2) 일정은 공개 링크 발급 금지.
+    //   공개 링크는 누구나 접근 → L1(개인)·L2(특정 멤버만) 의 제한과 모순. L3(워크스페이스)/L4(외부)만 공유 허용.
+    if (ev.vlevel === 'L1' || ev.vlevel === 'L2' || ev.visibility === 'personal') {
       return errorResponse(res, 'cannot_share_private_event', 403);
     }
 
@@ -1166,8 +1180,8 @@ router.get('/public/by-token/:token', async (req, res, next) => {
         'share_password_hash', 'business_id', 'project_id', 'vlevel', 'visibility'],
     });
     if (!ev) return errorResponse(res, 'not_found', 404);
-    // #104 — 방어심층: 나만보기(L1)로 전환됐거나 레거시로 토큰이 남은 개인 일정은 공개 미제공.
-    if (ev.vlevel === 'L1' || ev.visibility === 'personal') return errorResponse(res, 'not_found', 404);
+    // #104 — 방어심층: 개인(L1)·팀 비공개(L2)로 전환됐거나 레거시 토큰이 남은 제한 일정은 공개 미제공.
+    if (ev.vlevel === 'L1' || ev.vlevel === 'L2' || ev.visibility === 'personal') return errorResponse(res, 'not_found', 404);
     const { verifySharePassword, checkShareExpiry } = require('../services/share_helper');
     if (checkShareExpiry(ev, res)) return;
     const v = await verifySharePassword(ev, req);

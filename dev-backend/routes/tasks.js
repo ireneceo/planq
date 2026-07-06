@@ -444,6 +444,9 @@ router.post('/', authenticateToken, async (req, res, next) => {
     if (workstream_id != null) {
       if (!project_id) return errorResponse(res, 'invalid_workstream', 400);
       const { ProjectWorkstream } = require('../models');
+      // 멀티테넌트: project 가 이 워크스페이스 소속인지 먼저 확인(크로스테넌트 project_id/workstream 차단).
+      const prj = await Project.findOne({ where: { id: project_id, business_id } });
+      if (!prj) return errorResponse(res, 'invalid_workstream', 400);
       const ws = await ProjectWorkstream.findOne({ where: { id: workstream_id, project_id } });
       if (!ws) return errorResponse(res, 'invalid_workstream', 400);
       effectiveWorkstreamId = workstream_id;

@@ -44,8 +44,9 @@ const InsightsPage: React.FC = () => {
   const tab: TabKey = (ALL_TABS.includes(tabParam as TabKey) ? tabParam : 'overview') as TabKey;
   const range = (params.get('range') as RangePreset) || '30d';
   const segment = (['all', 'client', 'internal'].includes(params.get('segment') || '') ? params.get('segment') : 'client') as StatsSegment;
-  // 내부/고객 세그먼트가 의미 있는 탭 (수익성·재무·팀·개요). tasks/weekly/reports 는 무관.
-  const segmentTabs: TabKey[] = ['overview', 'profit', 'team', 'finance'];
+  // 세그먼트 토글은 수익성(profit) 탭에만 — 전용 '내부 투자' 뷰가 있는 유일한 탭.
+  //   overview/team/finance 는 매출/가동률이 본질적으로 고객 기반이라 항상 고객(internal 제외) 집계.
+  const segmentTabs: TabKey[] = ['profit'];
   const showSegment = segmentTabs.includes(tab);
 
   // 잘못된 path → /stats/overview 로 정정
@@ -112,12 +113,12 @@ const InsightsPage: React.FC = () => {
 
   return (
     <PageShell title={pageTitle} actions={headerActions}>
-      {tab === 'overview' && <OverviewTab businessId={bizId} range={range} segment={segment} />}
+      {tab === 'overview' && <OverviewTab businessId={bizId} range={range} />}
       {tab === 'tasks' && <TasksTab businessId={bizId} range={range} />}
       {tab === 'weekly' && <WeeklyTrendTab businessId={bizId} />}
       {tab === 'profit' && <ProfitTab businessId={bizId} range={range} segment={segment} />}
-      {tab === 'team' && <TeamTab businessId={bizId} range={range} segment={segment} />}
-      {tab === 'finance' && <FinanceTab businessId={bizId} range={range} segment={segment} />}
+      {tab === 'team' && <TeamTab businessId={bizId} range={range} />}
+      {tab === 'finance' && <FinanceTab businessId={bizId} range={range} />}
       {tab === 'reports' && <ReportsTab businessId={bizId} range={range} />}
     </PageShell>
   );
