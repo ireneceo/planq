@@ -23,7 +23,7 @@
 
 ## 1. 불변식 (Invariants) — 위반 = 돈 사고
 
-1. **SaaS 결제는 `invoices` 를 절대 쓰지 않는다.** `services/billing.js` 는 `Subscription`·`Payment` 만 생성. `payments.tax_invoice_*` 는 payments 컬럼이지 Invoice 아님. (검증: `grep -n "Invoice" services/billing.js` → Invoice 모델 참조 0)
+1. **SaaS 결제는 `invoices` 를 절대 쓰지 않는다.** `services/billing.js` 는 `Subscription`·`Payment` 만 생성. `payments.tax_invoice_*` 는 payments 컬럼이지 Invoice 아님. (검증: `grep -nE "\bInvoice[A-Za-z]*\b" services/billing.js` → Invoice 모델 식별자 0. 주의: `grep "Invoice"` 는 `tax_invoice_*` 컬럼명 7건에 오탐 — 그건 정상.)
 2. **Q Bill 은 `payments`/`subscriptions` 를 절대 읽지 않는다.** `routes/invoices.js` 는 `Invoice*` 만 조회 → SaaS 결제는 Q Bill 목록·합계·매출통계에 **안 뜬다.**
 3. **계좌 출처 교차 금지.** SaaS 체크아웃·이메일 = `getPlanqBankInfo()`(PlanQ) 만. Q Bill 공개 결제 = `Business.bank_*`(워크스페이스) 만. **한 화면이 반대쪽 계좌를 읽으면 = 버그.**
 4. **세금계산서 발행주체 분리.** SaaS = PlanQ 가 공급자(홈택스에서 PlanQ 사업자로 발행). Q Bill = 워크스페이스가 공급자. admin 화면·상태필드 교차 금지.
@@ -59,6 +59,8 @@
 - [ ] `CheckoutModal` 이 복사하는 계좌·금액이 SaaS Payment 값(PlanQ)인가?
 - [ ] `business_id` 조인이 두 테이블 군을 교차 조인하지 않는가?
 - [ ] 프론트 카피에 "청구서" 등 Q Bill 연상 용어로 SaaS 를 표기하지 않는가?
-- [ ] SaaS 매출이 Insights/통계(워크스페이스 매출)에 오염되지 않는가?
+- [ ] SaaS 매출이 Insights/통계(워크스페이스 매출)에 오염되지 않는가? → **경계 인접 파일 재점검 필수**: `services/stats.js`(워크스페이스 매출은 `InvoicePayment` 만 집계, SaaS `Payment`/`Subscription` 금지) · `routes/dashboard.js`(유일한 양세계 접점 — `collectPlanqSubscription` 은 Subscription 만, `collectPaymentNotifies` 는 Invoice 만, 금액 합산에 섞지 말 것).
+
+> **Fable 검토 결과 (2026-07-07): SEPARATION SOUND — 데이터 누수 0.** 7항목 전부 CONFIRMED-SEPARATE. LOW 3건(문구·주석: CheckoutModal 주석 "워크스페이스 계좌"→PlanQ, 이메일·payDue "관리자"→"PlanQ 운영팀", payDue.title "청구"→"구독")는 이 커밋에서 수정 완료.
 
 관련: `SUBSCRIPTION_PAYMENT_DESIGN.md`(PG 연동, 토스로 교체·보류), 메모리 `project_subscription_payment_plan`·`project_self_billing`·`project_bill_reporting_plan`.

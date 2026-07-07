@@ -4,12 +4,12 @@
     "desc": "Review your plan, usage, and upgrade options."
   },
   "payDue": {
-    "title": "Payment due",
-    "hint": "Pay by bank transfer, then click \"I have paid\". Your subscription activates once an admin confirms.",
+    "title": "Subscription payment due",
+    "hint": "Pay by bank transfer, then click \"I have paid\". Your subscription activates once the PlanQ team confirms.",
     "cta": "Proceed to payment",
     "waitingTitle": "Awaiting payment confirmation",
     "waitingBadge": "Pending",
-    "waitingHint": "Your payment notification was received. The subscription activates automatically once an admin confirms.",
+    "waitingHint": "Your payment notification was received. The subscription activates automatically once the PlanQ team confirms.",
     "ctaNotified": "Notify again"
   },
   "current": {
@@ -148,7 +148,7 @@
       "placeholder": "John Doe",
       "hint": "Helps us match the deposit faster if it differs from your account."
     },
-    "notice": "After transferring, click \"I have paid\" to notify us. Your subscription activates once an admin confirms the deposit. Auto-canceled if not paid within 24h.",
+    "notice": "After transferring to the PlanQ account, click \"I have paid\" to notify us. Your subscription activates once the PlanQ team confirms the deposit. Auto-canceled if not paid within 24h.",
     "processing": "Processing...",
     "cancel": "Cancel",
     "errors": {
@@ -159,7 +159,7 @@
     "notify": "I have paid",
     "notified": {
       "title": "Payment notification received",
-      "desc": "Your subscription will activate once an admin confirms the deposit. This may take a little while.",
+      "desc": "Your subscription will activate once the PlanQ team confirms the deposit. This may take a little while.",
       "ok": "OK"
     },
     "copy": "Copy",

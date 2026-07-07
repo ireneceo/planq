@@ -1,11 +1,12 @@
-// 결제 요청 모달 — P-2 자체 결제 흐름 (관리자 입금확인 방식, Irene 결정 2026-06-08)
+// 플랫폼 SaaS 구독 결제 요청 모달 — PlanQ → 워크스페이스 (Irene 결정 2026-06-08)
+// ⚠️ 여기 계좌는 PlanQ 결제 계좌(getPlanqBankInfo, /plan/bank-info)다. Q Bill 워크스페이스 계좌(Business.bank_*)가 아님.
+//    분리 canonical: docs/SAAS_BILLING_VS_QBILL_SEPARATION.md — bankInfo 출처를 Business.bank_* 로 바꾸지 말 것.
 //
-// step 1 (instructions): 입금 안내 (계좌·금액·결제 ID) + "입금했어요" 버튼 (owner)
-// 사용자가 워크스페이스 계좌로 송금 → owner 가 "입금했어요" 통보 → 상태 "입금 확인 대기중"
-// step 2 (notified): 통보 완료 안내. 실제 활성화는 플랫폼 관리자가 입금 확인 후.
+// step 1 (instructions): 입금 안내 (PlanQ 계좌·금액·결제 ID) + "입금했어요" 버튼 (owner)
+// 사용자가 PlanQ 계좌로 송금 → owner 가 "입금했어요" 통보 → 상태 "입금 확인 대기중"
+// step 2 (notified): 통보 완료 안내. 실제 활성화는 PlanQ 운영팀(platform_admin)이 입금 확인 후. (owner 자가 활성화 불가)
 //
-// 자체 결제 정책 (CLAUDE.md):
-//   1순위 자체 결제 (계좌이체 + 관리자 입금확인), 2순위 PortOne (P-7)
+// 결제 수단: 현재 송금(무통장입금) 단일. 카드 PG(토스페이먼츠)는 보류 — 정보 오면 얹기(SUBSCRIPTION_PAYMENT_DESIGN.md).
 
 import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
@@ -137,7 +138,7 @@ export default function CheckoutModal({
                   </svg>
                 </NotifiedIcon>
                 <NotifiedTitle>{t('checkout.notified.title', '입금 통보가 접수되었습니다')}</NotifiedTitle>
-                <NotifiedDesc>{t('checkout.notified.desc', '관리자가 입금을 확인하면 구독이 활성화됩니다. 확인까지 잠시 시간이 걸릴 수 있습니다.')}</NotifiedDesc>
+                <NotifiedDesc>{t('checkout.notified.desc', 'PlanQ 운영팀이 입금을 확인하면 구독이 활성화됩니다. 확인까지 잠시 시간이 걸릴 수 있습니다.')}</NotifiedDesc>
                 <NotifiedMeta>
                   <span>{plan.name_ko || plan.name} · {cycleLabel}</span>
                   <strong>{fmtAmount}</strong>
@@ -279,7 +280,7 @@ export default function CheckoutModal({
 
           {error && <ErrorBox>{error}</ErrorBox>}
 
-          <Notice>{t('checkout.notice', '계좌이체로 입금하신 뒤 "입금했어요" 를 눌러 통보해 주세요. 관리자가 입금을 확인하면 구독이 활성화됩니다. 24시간 내 미입금 시 자동 취소됩니다.')}</Notice>
+          <Notice>{t('checkout.notice', 'PlanQ 계좌로 입금하신 뒤 "입금했어요" 를 눌러 통보해 주세요. PlanQ 운영팀이 입금을 확인하면 구독이 활성화됩니다. 24시간 내 미입금 시 자동 취소됩니다.')}</Notice>
         </Body>
 
         <Footer>
