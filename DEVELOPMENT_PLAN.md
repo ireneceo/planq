@@ -1,6 +1,11 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-07-06 (Opus, 마라톤) — **내부/고객 프로젝트 구분 3-Layer + 피드백 5종 + Q위키 지속업데이트 시스템 + 팝아웃 헤더 통일. 전부 운영 배포(미배포 0).** 헬스 29/29 · 빌드 EXIT0/TS0.
+> **최종 업데이트:** 2026-07-07 (Opus) — **🔴 모바일 랜딩·회원가입 스크롤 불가 근본수정 + Cue 바운스 메일 차단. 운영 배포 완료(미배포 0).** 헬스 29/29 · 빌드 EXIT0/TS0.
+> - **모바일 스크롤 락 반전 (사용자 실사고: 랜딩 스크롤 안됨→회원가입 불가)** — `index.css` 가 모바일에서 `html/body/#root` 에 `position:fixed+overflow:hidden` 를 **전역** 적용 → 앱(패널 자체스크롤)엔 맞지만 랜딩·회원가입·로그인·공개위키/공유처럼 페이지 전체가 긴 화면의 스크롤을 죽임. **정석 반전:** 스크롤 가능이 기본, 앱 셸만 `useAppShellLock()`(→`html.pq-app-shell`)로 락 opt-in. 적용=MainLayout+팝아웃4(talk/note/help/memo), 해제=모든 공개/인증/초대 표면. `main.tsx` phantom `scrollTo(0,0)` 도 pq-app-shell 게이트. 실패모드 안전(락 누락 시 최악=정상스크롤+약한 바운스). RegisterPage 모바일 센터링 트랩 제거(flex-start)+상단 마케팅 축약(FeatureList 숨김). (806ca98)
+> - **Cue 바운스 메일 차단 (사용자: `cue+4@system.planq.kr` Address not found 반복)** — Cue AI 팀원은 워크스페이스 생성 시 `cue+{bizId}@system.planq.kr` 합성주소 User(`is_ai=true`)로 생성 → 태스크배정/채팅참여로 `notify()` 호출되면 email 채널이 가짜주소로 발송 → 바운스+발신평판. **근본:** `routes/notifications.js notify()` 진입부에서 `is_ai` 조회해 AI면 전 채널 skip(notifyMany 자동 커버). **방어:** `emailService.emailBlockReason` 에 `system.planq.kr`/`cue+숫자@` → `synthetic_internal`/`synthetic_cue` 차단. 이중 방어. 실호출 검증: 게이트 4/4 차단·notify(Cue) 전 채널 false·notify(사람) inbox:true 유지. 박제 [[feedback_email_send_gate]].
+> - **다음 섹션 최우선: 구독결제 붙이기** (변동없음) — 은행송금+세금계산서 UI는 이미 라이브(229b8a6). 남은 것=PortOne 카드(env게이트, Irene 키 선행). 로드맵 `docs/ROADMAP_NEXT.md`.
+
+> **이전 업데이트:** 2026-07-06 (Opus, 마라톤) — **내부/고객 프로젝트 구분 3-Layer + 피드백 5종 + Q위키 지속업데이트 시스템 + 팝아웃 헤더 통일. 전부 운영 배포(미배포 0).** 헬스 29/29 · 빌드 EXIT0/TS0.
 > - **내부 vs 고객 프로젝트 구분 (수익성 통계 분리)** — `Project.kind` ENUM + 멱등 백필. Insights 고객\|내부\|전체 세그먼트(profit 전용) + 내부 투자 뷰. stats.js 수익성·negative_margin·매출배분 kind='client'만, new_clients=customer만. 설계 `docs/INTERNAL_VS_CLIENT_PROJECT_ANALYSIS.md`. (0f8eb6c)
 > - **캘린더 #104 L1/L2 공개링크 누출 차단(Fable 게이트)** + #102 시간칸클릭 생성 + **세션 코드리뷰 버그 6건**(내부투자 항상표시·POST workstream 크로스테넌트·세그먼트 profit전용·L2 공개링크·반복 vlevel복사·NewProjectModal 리셋). (ecd888d·f7c6176)
 > - **피드백 5종**: #121 댓글 이미지 붙여넣기+라이트박스 워크스페이스 전영역(파일/위키/KB) · #119 캘린더 기간표시 시작/마감 시각 붙임 · #99 프로젝트 정렬/구분필터/그룹(구분·상태·고객사·부서·팀[담당자 소속]) · #117 CueTip 안내 · #84 모바일 팝아웃 헤더 통일(노치 safe-area).
