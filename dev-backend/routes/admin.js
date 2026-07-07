@@ -398,6 +398,7 @@ router.put('/platform-settings', async (req, res, next) => {
       ...setStr('mail_order_no', 60),
       ...setStr('representative_name', 80),
       ...setStr('company_phone', 40),
+      ...setStr('company_email', 200),
       ...setStr('company_address', 300),
       ...setStr('email_logo_url', 500),
       // 결제 설정

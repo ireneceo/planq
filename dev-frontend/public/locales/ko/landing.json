@@ -216,8 +216,9 @@
       "regNo": "사업자등록번호",
       "mailOrderNo": "통신판매업신고번호",
       "address": "주소",
-      "tel": "유선",
-      "email": "이메일"
+      "tel": "대표전화",
+      "email": "이메일",
+      "verify": "사업자정보확인"
     }
   },
   "featuresPage": {
