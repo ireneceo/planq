@@ -7,8 +7,10 @@ import { useTranslation } from 'react-i18next';
 import MemoPopup from '../../components/QNote/MemoPopup';
 import { useAuth } from '../../contexts/AuthContext';
 import { markPopoutWindow } from '../../utils/popout';
+import { useAppShellLock } from '../../hooks/useAppShellLock';
 
 const NoteCaptureStandalonePage: React.FC = () => {
+  useAppShellLock();
   const { t } = useTranslation('qnote');
   const { user } = useAuth();
   const businessId = user?.business_id ? Number(user.business_id) : 0;

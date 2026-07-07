@@ -19,6 +19,7 @@ import NotificationDropdown from '../Common/NotificationDropdown';
 import { useUnreadTotal } from '../../hooks/useUnreadTotal';
 import { useGlobalBadge } from '../../hooks/useGlobalBadge';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { useAppShellLock } from '../../hooks/useAppShellLock';
 import { mediaTablet } from '../../theme/breakpoints';
 import InstallPromptBanner from '../Common/InstallPromptBanner';
 import PushPromptBanner from '../Common/PushPromptBanner';
@@ -669,6 +670,7 @@ interface MainLayoutProps { children: React.ReactNode; }
 type SecondarySection = 'reports' | 'settings' | 'account' | null;
 
 const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
+  useAppShellLock();  // 모바일 뷰포트 고정 락 — 앱 셸에서만 (공개 페이지는 body 스크롤)
   const { t } = useTranslation('layout');
   const { user, logout, hasRole } = useAuth();
   const userDisplayName = displayName(user, i18n.language);

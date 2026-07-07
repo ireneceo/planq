@@ -9,8 +9,10 @@ import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import QTalkPage from './QTalkPage';
 import { markPopoutWindow } from '../../utils/popout';
+import { useAppShellLock } from '../../hooks/useAppShellLock';
 
 const QTalkStandalonePage: React.FC = () => {
+  useAppShellLock();
   const { t } = useTranslation('qtalk');
   const [params] = useSearchParams();
   const convId = Number(params.get('conv')) || null;

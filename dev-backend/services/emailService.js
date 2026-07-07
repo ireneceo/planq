@@ -308,6 +308,11 @@ function emailBlockReason(to) {
     const tld = domain.split('.').pop();
     if (['invalid', 'test', 'example', 'localhost', 'local'].includes(tld)) return 'reserved_tld';
     if (['example.com', 'example.org', 'example.net', 'test.com'].includes(domain)) return 'example_domain';
+    // 합성 내부 주소 — 실제 메일박스 없음. Cue AI 팀원(cue+{businessId}@system.planq.kr) 및
+    // system.planq.kr 서브도메인은 워크스페이스 생성 시 만들어지는 가짜 계정 주소라 절대 발송 금지.
+    // (2026-07-07 실바운스: cue+4@system.planq.kr "Address not found") 발신평판·바운스 보호.
+    if (domain === 'system.planq.kr' || domain.endsWith('.system.planq.kr')) return 'synthetic_internal';
+    if (/^cue\+\d+@/.test(addr)) return 'synthetic_cue';
   }
   return any ? null : 'empty';
 }

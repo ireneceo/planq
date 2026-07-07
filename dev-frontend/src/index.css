@@ -13,7 +13,21 @@ html, body {
 
 /* Mobile specific - prevent horizontal scroll and bounce */
 @media (max-width: 768px) {
-  html {
+  * {
+    max-width: 100vw;
+    box-sizing: border-box;
+  }
+
+  html, body {
+    touch-action: pan-y;
+  }
+
+  /* 뷰포트 고정 락은 앱 셸(MainLayout·팝아웃)에만 opt-in.
+     `pq-app-shell` 클래스는 useAppShellLock() 이 <html> 에 부여한다.
+     이 클래스가 없으면(랜딩/회원가입/로그인/공개 위키·공유 등) body 가 정상
+     스크롤 → 긴 페이지도 아래로 스크롤 가능. 앱은 각 패널이 자체 overflow-y 로
+     스크롤하므로 body/#root 를 vvh 로 고정해 iOS 바운스·키보드 점프를 차단. */
+  html.pq-app-shell {
     position: fixed;
     width: 100%;
     height: 100%;
@@ -21,7 +35,7 @@ html, body {
     overscroll-behavior: none;
   }
 
-  body {
+  html.pq-app-shell body {
     position: fixed;
     top: 0;
     left: 0;
@@ -41,22 +55,13 @@ html, body {
     touch-action: pan-y;
   }
 
-  #root {
+  html.pq-app-shell #root {
     width: 100%;
     max-width: 100vw;
     /* N+31 — #root 도 vvh. body 와 동일 단위로 layout viewport / visual viewport
        불일치 차단. PWA standalone 에서는 toolbar 없어 vvh 흔들림 0. */
     height: var(--vvh, 100dvh);
     overflow: hidden;
-  }
-
-  * {
-    max-width: 100vw;
-    box-sizing: border-box;
-  }
-
-  html, body {
-    touch-action: pan-y;
   }
 }
 

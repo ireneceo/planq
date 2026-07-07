@@ -13,6 +13,13 @@ const Container = styled.div`
   align-items: center;
   justify-content: center;
   padding: 20px;
+
+  /* 모바일: 내용이 뷰포트보다 크면 flex 중앙정렬은 상단이 잘려(스크롤로 위로 못 감)
+     회원가입 폼 상단이 사라진다. 상단정렬 + 상하 여백으로 폼 전체 도달 가능하게. */
+  @media (max-width: 768px) {
+    justify-content: flex-start;
+    padding: 16px 12px calc(24px + env(safe-area-inset-bottom));
+  }
 `;
 
 const RegisterBox = styled.div`
@@ -40,8 +47,10 @@ const LeftSection = styled.div`
   align-items: center;
   text-align: center;
 
+  /* 모바일: 폼이 먼저 보이도록 브랜드 헤더를 컴팩트하게. FeatureList 는 숨김
+     (회원가입 란이 위 마케팅에 밀려 안 보인다는 피드백). */
   @media (max-width: 768px) {
-    padding: 40px 30px;
+    padding: 24px 24px 20px;
   }
 `;
 
@@ -66,6 +75,8 @@ const BrandTagline = styled.p`
 `;
 
 const FeatureList = styled.ul`
+  /* 모바일에서는 상단 마케팅이 폼을 밀어내지 않도록 숨김 */
+  @media (max-width: 768px) { display: none; }
   list-style: none;
   padding: 0;
   margin: 32px 0 0 0;
@@ -94,7 +105,8 @@ const RightSection = styled.div`
   justify-content: center;
 
   @media (max-width: 768px) {
-    padding: 40px 30px;
+    padding: 28px 24px 32px;
+    justify-content: flex-start;
   }
 `;
 
