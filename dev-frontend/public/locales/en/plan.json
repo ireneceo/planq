@@ -139,7 +139,9 @@
       "title": "Bank Account",
       "holder": "Holder",
       "contactSupport": "PlanQ billing account is not yet configured. Please contact support@planq.kr.",
-      "memoHint": "Include Payment ID #{{paymentId}} or workspace name with your transfer."
+      "memoHint": "Include Payment ID #{{paymentId}} or workspace name with your transfer.",
+      "bankName": "Bank",
+      "account": "Account no."
     },
     "payerName": {
       "label": "Payer name (optional)",
@@ -159,7 +161,9 @@
       "title": "Payment notification received",
       "desc": "Your subscription will activate once an admin confirms the deposit. This may take a little while.",
       "ok": "OK"
-    }
+    },
+    "copy": "Copy",
+    "copied": "Copied"
   },
   "billing": {
     "history": {

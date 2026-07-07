@@ -32,7 +32,8 @@
   - **✅ Q위키 지속 업데이트 메커니즘 구축·배포** (Irene "fable급 설계+개발마다 추가"): 설계 `docs/Q_WIKI_MAINTENANCE.md`(커버리지 매트릭스+4축 업데이트). `scripts/wiki-coverage-check.js`(14 필수 카테고리 감사, exit1). `/개발완료` 3-1-W 위키 게이트. seed +6 카테고리(qcalendar/qmail/qproject/insights/cue/qinfo)+10 아티클. **개발마다: /개발완료 시 seed-wiki 갱신 → coverage-check 통과 → 배포 후 운영 `node seed-wiki-content.js`.** 커버리지 14/14·API 4/4 검증.
 
 ### 🔜 다음 섹션 최우선 — 구독결제(플랫폼 SaaS 과금) 붙이기 (착수, 매핑 완료·설계/구현 대기)
-**Irene 결정: 구독결제 붙이자. 방식은 (1) 은행송금+세금계산서[한국 법인 선호, 중요] (2) PortOne 카드 자동결제 둘 다.** 로드맵 `docs/ROADMAP_NEXT.md`.
+**Irene 결정: 구독결제 붙이자. 방식은 (1) 은행송금+세금계산서[한국 법인 선호, 중요] (2) 카드 자동결제 둘 다.** 로드맵 `docs/ROADMAP_NEXT.md`.
+**★ 2026-07-07 갱신: 카드 결제대행은 PortOne 폐기 → 토스페이먼츠(Toss Payments) 직접 연동. 중간 애그리게이터 경유 X. 아래 PortOne 표현은 전부 토스 기준으로 읽을 것.**
 
 **기존 인프라 매핑 결과 (Explore 완료):**
 - 현재 전부 계좌이체(bank_transfer). 실제 활성화=사람이 admin `markPaymentPaid`(멱등). PortOne은 컬럼 스텁만(`Payment.portone_imp_uid/merchant_uid/status/meta`), 실코드 0.
