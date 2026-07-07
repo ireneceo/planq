@@ -209,7 +209,16 @@
     "legal": "LEGAL",
     "privacy": "Privacy",
     "terms": "Terms",
-    "allRights": "All rights reserved."
+    "allRights": "All rights reserved.",
+    "biz": {
+      "company": "Company",
+      "ceo": "CEO",
+      "regNo": "Business Reg. No.",
+      "mailOrderNo": "Mail-order Sales No.",
+      "address": "Address",
+      "tel": "Tel",
+      "email": "Email"
+    }
   },
   "featuresPage": {
     "eyebrow": "FEATURES",

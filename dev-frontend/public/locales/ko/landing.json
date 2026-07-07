@@ -209,7 +209,16 @@
     "legal": "LEGAL",
     "privacy": "개인정보처리방침",
     "terms": "이용약관",
-    "allRights": "All rights reserved."
+    "allRights": "All rights reserved.",
+    "biz": {
+      "company": "상호",
+      "ceo": "대표",
+      "regNo": "사업자등록번호",
+      "mailOrderNo": "통신판매업신고번호",
+      "address": "주소",
+      "tel": "유선",
+      "email": "이메일"
+    }
   },
   "featuresPage": {
     "eyebrow": "FEATURES",
