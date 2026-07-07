@@ -8,8 +8,10 @@ const { decrypt } = require('./encryption');
 const PlatformSetting = require('../models/PlatformSetting');
 const Business = require('../models/Business');
 
+// merchant 는 항상 서버 상수('platform'|'workspace')로만 호출 — 절대 request 입력에서 받지 말 것(권한 pivot 방지, Fable F6).
+// 별칭 매핑 없음(platform_admin→platform 같은 alias 제거): 알 수 없는 값은 아래 switch default 에서 throw.
 function normalizeMerchant(m) {
-  return m === 'platform_admin' ? 'platform' : m;
+  return m;
 }
 
 // 복호화 안전 래퍼 — 잘못된 blob 이어도 throw 대신 null (설정 미완으로 취급)

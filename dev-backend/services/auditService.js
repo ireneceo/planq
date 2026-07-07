@@ -13,7 +13,9 @@
 // 호출처: invoices, signatures, posts, payments, tasks 의 CUD 라우트.
 // CLAUDE.md "모든 CUD 작업은 AuditLog 에 기록" 정책 enforce.
 
-const SENSITIVE_KEYS = /^(password|password_hash|token|secret|otp|otp_hash|jwt|refresh|api_key)$/i;
+// substring 매칭 — stripe_secret_enc / portone_webhook_secret / *_api_secret 등 접미·접두 붙은 키도 마스킹.
+// (앵커드 정규식이 stripe_secret_enc 를 놓쳐 audit_logs 에 암호문 저장되던 회귀 — Fable F2)
+const SENSITIVE_KEYS = /(password|token|secret|otp|jwt|refresh|api_key|billing_key|_enc)/i;
 
 function maskSensitive(obj) {
   if (!obj || typeof obj !== 'object') return obj;

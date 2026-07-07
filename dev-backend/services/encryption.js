@@ -12,15 +12,26 @@ const ALGO = 'aes-256-gcm';
 const IV_LEN = 12;
 const TAG_LEN = 16;
 
-function getKey() {
+let _fallbackWarned = false;
+
+// EMAIL_ENCRYPTION_KEY 미설정 여부 — 결제 시크릿은 fallback 키로 저장 금지(F3).
+function usingFallbackKey() {
   const hex = process.env.EMAIL_ENCRYPTION_KEY;
-  if (!hex || hex.length < 64) {
-    // 개발 fallback — process.env.JWT_SECRET 의 SHA-256 으로 derive
-    // 운영에서는 EMAIL_ENCRYPTION_KEY 명시 설정 필수
+  return !hex || hex.length < 64;
+}
+
+function getKey() {
+  if (usingFallbackKey()) {
+    // 개발 fallback — JWT_SECRET 의 SHA-256 derive. ⚠️ 운영은 EMAIL_ENCRYPTION_KEY 명시 필수.
+    // 위험: JWT_SECRET 유출=복호화 / JWT_SECRET 회전=기존 blob 전부 복호화 불가(무통보) → F3.
+    if (!_fallbackWarned) {
+      console.warn('[encryption] ⚠️ EMAIL_ENCRYPTION_KEY 미설정 — JWT_SECRET 파생 fallback 사용 중. 운영/결제 시크릿 저장 전 반드시 설정.');
+      _fallbackWarned = true;
+    }
     const seed = process.env.JWT_SECRET || 'planq-dev-fallback';
     return crypto.createHash('sha256').update(seed).digest();
   }
-  return Buffer.from(hex.slice(0, 64), 'hex');
+  return Buffer.from(process.env.EMAIL_ENCRYPTION_KEY.slice(0, 64), 'hex');
 }
 
 function encrypt(plain) {
@@ -53,4 +64,4 @@ function decrypt(blob) {
   }
 }
 
-module.exports = { encrypt, decrypt };
+module.exports = { encrypt, decrypt, usingFallbackKey };
