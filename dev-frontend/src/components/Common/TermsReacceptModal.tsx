@@ -8,7 +8,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 
 // 랜딩 페이지 경로 — 이 경로들에서는 약관 모달 표시 안 함
-const LANDING_PATHS = ['/', '/features', '/pricing', '/about', '/contact', '/blog', '/legal'];
+const LANDING_PATHS = ['/', '/features', '/pricing', '/about', '/contact', '/insights', '/blog', '/legal'];
 
 const TermsReacceptModal: React.FC = () => {
   const { t } = useTranslation('auth');

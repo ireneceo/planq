@@ -693,8 +693,8 @@
     "catNotEmpty": "글이 있는 카테고리는 삭제할 수 없어요.",
     "confirmDeleteCat": "이 카테고리를 삭제할까요?",
     "addCategory": "카테고리 추가",
-    "blogToggle": "랜딩 블로그(/blog)에 발행",
-    "blogHint": "공개(public) + 발행됨 글만 가능 · 발행 시 planq.kr/blog 에 즉시 노출",
+    "blogToggle": "랜딩 인사이트(/insights)에 발행",
+    "blogHint": "공개(public) + 발행됨 글만 가능 · 발행 시 planq.kr/insights 에 즉시 노출",
     "blogRequiresPublic": "블로그 발행은 \"공개(public) + 발행됨\" 글만 가능합니다. 위 설정을 먼저 저장하세요.",
     "blogCat": {
       "guide-video": "가이드 영상",

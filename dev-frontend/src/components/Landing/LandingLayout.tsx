@@ -22,7 +22,7 @@ interface CompanyInfo {
 const NAV_ITEMS: { to: string; key: string }[] = [
   { to: '/features', key: 'nav.features' },
   { to: '/pricing', key: 'nav.pricing' },
-  { to: '/blog', key: 'nav.blog' },
+  { to: '/insights', key: 'nav.blog' },
   { to: '/about', key: 'nav.about' },
   { to: '/contact', key: 'nav.contact' },
   { to: '/wiki', key: 'nav.help' },   // F7 — Q위키(도움말) 공개 진입
@@ -130,7 +130,7 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
               <FooterTitle>{t('footer.product', 'PRODUCT')}</FooterTitle>
               <FooterLink to="/features">{t('nav.features')}</FooterLink>
               <FooterLink to="/pricing">{t('nav.pricing')}</FooterLink>
-              <FooterLink to="/blog">{t('nav.blog')}</FooterLink>
+              <FooterLink to="/insights">{t('nav.blog')}</FooterLink>
               <FooterLink to="/wiki">{t('nav.help')}</FooterLink>{/* F7 — Q위키 도움말 */}
             </FooterCol>
             <FooterCol>

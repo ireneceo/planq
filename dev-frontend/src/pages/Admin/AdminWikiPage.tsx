@@ -317,8 +317,8 @@ const AdminWikiPage = () => {
                       <Knob $on={blog.published} />
                     </Toggle>
                     <div>
-                      <ToggleLabel>{t('adminWiki.blogToggle', '랜딩 블로그(/blog)에 발행') as string}</ToggleLabel>
-                      <ToggleHint>{t('adminWiki.blogHint', '공개(public) + 발행됨 글만 가능 · 발행 시 planq.kr/blog 에 즉시 노출') as string}</ToggleHint>
+                      <ToggleLabel>{t('adminWiki.blogToggle', '랜딩 인사이트(/insights)에 발행') as string}</ToggleLabel>
+                      <ToggleHint>{t('adminWiki.blogHint', '공개(public) + 발행됨 글만 가능 · 발행 시 planq.kr/insights 에 즉시 노출') as string}</ToggleHint>
                     </div>
                     <SelWrapSm>
                       <PlanQSelect size="sm" isClearable={false} isSearchable={false}

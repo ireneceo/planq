@@ -68,7 +68,7 @@ const BlogPostPage: React.FC = () => {
     <LandingLayout transparentTop={false}>
       <ArticleSection>
         <Container>
-          <Back type="button" onClick={() => navigate('/blog')}>← {t('blogPost.back', '인사이트 목록으로')}</Back>
+          <Back type="button" onClick={() => navigate('/insights')}>← {t('blogPost.back', '인사이트 목록으로')}</Back>
           {status === 'loading' ? (
             <Muted>{t('blogPost.loading', '불러오는 중…')}</Muted>
           ) : status === 'notfound' || !post ? (
