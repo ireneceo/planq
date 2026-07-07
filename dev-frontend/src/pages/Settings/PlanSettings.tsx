@@ -32,7 +32,7 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
   const [cancelScheduleOpen, setCancelScheduleOpen] = useState(false);
   // P-2: bank info — PlanQ SaaS 결제 계좌 (워크스페이스 계좌 아님!)
   // 워크스페이스 owner 가 PlanQ 구독료를 송금할 PlanQ 자체 계좌 정보
-  const [bankInfo, setBankInfo] = useState<{ name?: string; account?: string; holder?: string } | null>(null);
+  const [bankInfo, setBankInfo] = useState<{ name?: string; account?: string; holder?: string; name_en?: string | null; holder_en?: string | null; swift?: string | null } | null>(null);
   useEffect(() => {
     apiFetch(`/api/plan/bank-info`)
       .then(r => r.json())
@@ -42,6 +42,9 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
             name: j.data.name || undefined,
             account: j.data.account || undefined,
             holder: j.data.holder || undefined,
+            name_en: j.data.name_en || null,
+            holder_en: j.data.holder_en || null,
+            swift: j.data.swift || null,
           });
         } else {
           setBankInfo(null);

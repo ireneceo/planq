@@ -750,9 +750,17 @@ async function getPlanqBankInfo() {
   const account = row?.bank_account_number || process.env.PLANQ_BILLING_BANK_ACCOUNT || null;
   const holder = row?.bank_account_holder || process.env.PLANQ_BILLING_BANK_HOLDER || 'PlanQ';
   if (isPlaceholder(name) || isPlaceholder(account)) {
-    return { configured: false, name: null, account: null, holder: null };
+    return { configured: false, name: null, account: null, holder: null, name_en: null, holder_en: null, swift: null };
   }
-  return { configured: true, name, account, holder: isPlaceholder(holder) ? 'PlanQ' : holder };
+  // 영문 표기 (영어권 고객). 값 없으면 프론트/이메일에서 국문으로 fallback.
+  const nameEn = isPlaceholder(row?.bank_name_en) ? null : (row?.bank_name_en || null);
+  const holderEn = isPlaceholder(row?.bank_account_holder_en) ? null : (row?.bank_account_holder_en || null);
+  const swift = isPlaceholder(row?.swift_code) ? null : (row?.swift_code || null);
+  return {
+    configured: true, name, account,
+    holder: isPlaceholder(holder) ? 'PlanQ' : holder,
+    name_en: nameEn, holder_en: holderEn, swift,
+  };
 }
 
 function billingInstructionEmailHtml({ kind, workspaceName, itemName, cycle, quantity, daysRemain, amount, currency, paymentId, accountInfo, configured }) {

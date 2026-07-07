@@ -51,7 +51,16 @@ PlatformSetting.init({
   bank_name: { type: DataTypes.STRING(100), allowNull: true },
   bank_account_number: { type: DataTypes.STRING(50), allowNull: true },
   bank_account_holder: { type: DataTypes.STRING(100), allowNull: true },
-  // PortOne (2순위) — 채널키·스토어ID·웹훅시크릿. PortOne 비활성 시 빈 값 유지
+  // 영문 표기 (영어권 고객용) + 해외 송금. Q Bill Business.* 와 동일 패턴. 값은 워프로랩((주)아이린엔컴퍼니) 것과 동일.
+  bank_name_en: { type: DataTypes.STRING(200), allowNull: true, comment: '영문 은행명 (예: Kookmin Bank)' },
+  bank_account_holder_en: { type: DataTypes.STRING(200), allowNull: true, comment: '영문 예금주명 (법인 영문명)' },
+  swift_code: { type: DataTypes.STRING(20), allowNull: true, comment: 'SWIFT/BIC (해외 송금)' },
+  // Stripe (카드 PG) — platform=말레이시아 법인 Stripe(KRW). secret/webhook 은 AES-256-GCM 암호화 저장.
+  //   publishable 는 공개키라 평문. "설정하면 켜짐" — secret 있으면 활성. (UNIFIED_PAYMENT_ARCHITECTURE.md §2③)
+  stripe_publishable_key: { type: DataTypes.STRING(255), allowNull: true },
+  stripe_secret_enc: { type: DataTypes.TEXT, allowNull: true },
+  stripe_webhook_secret_enc: { type: DataTypes.TEXT, allowNull: true },
+  // PortOne (폐기 — Stripe 로 대체. 컬럼은 호환 유지)
   portone_store_id: { type: DataTypes.STRING(100), allowNull: true },
   portone_channel_key: { type: DataTypes.STRING(200), allowNull: true },
   portone_channel_key_billing: { type: DataTypes.STRING(200), allowNull: true },

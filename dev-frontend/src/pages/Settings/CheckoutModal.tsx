@@ -21,7 +21,7 @@ interface Props {
   businessId: number;
   plan: PlanDef;
   cycle: BillingCycle;
-  bankInfo?: { name?: string; account?: string; holder?: string } | null;
+  bankInfo?: { name?: string; account?: string; holder?: string; name_en?: string | null; holder_en?: string | null; swift?: string | null } | null;
   // 기존 pending payment 가 있으면 재사용 (또 만들지 않음)
   existingPaymentId?: number | null;
   existingAmount?: number | null;
@@ -34,7 +34,11 @@ type Step = 'instructions' | 'notified';
 export default function CheckoutModal({
   open, businessId, plan, cycle, bankInfo, existingPaymentId, existingAmount, onClose, onPaid,
 }: Props) {
-  const { t } = useTranslation('plan');
+  const { t, i18n } = useTranslation('plan');
+  // 영어권 고객이면 영문 은행 표기(값 있을 때만, 없으면 국문 fallback). 계좌번호는 언어 무관.
+  const isEn = (i18n.language || 'ko').slice(0, 2) === 'en';
+  const bankName = (isEn && bankInfo?.name_en) ? bankInfo.name_en : bankInfo?.name;
+  const bankHolder = (isEn && bankInfo?.holder_en) ? bankInfo.holder_en : bankInfo?.holder;
   const ref = useRef<HTMLDivElement>(null);
   useBodyScrollLock(open);
   useEscapeStack(open, onClose);
@@ -184,11 +188,11 @@ export default function CheckoutModal({
 
           <BankBox>
             <BankLabel>{t('checkout.bank.title')}</BankLabel>
-            {bankInfo?.name && bankInfo?.account ? (
+            {bankName && bankInfo?.account ? (
               <BankInfo>
                 <BankRow>
                   <BankRowLabel>{t('checkout.bank.bankName', '은행')}</BankRowLabel>
-                  <BankRowVal>{bankInfo.name}</BankRowVal>
+                  <BankRowVal>{bankName}</BankRowVal>
                 </BankRow>
                 <BankRow>
                   <BankRowLabel>{t('checkout.bank.account', '계좌번호')}</BankRowLabel>
@@ -205,10 +209,27 @@ export default function CheckoutModal({
                     {copyHit === 'acct' && <CopiedTag>{t('checkout.copied', '복사됨')}</CopiedTag>}
                   </BankRowVal>
                 </BankRow>
-                {bankInfo.holder && (
+                {bankHolder && (
                   <BankRow>
                     <BankRowLabel>{t('checkout.bank.holder')}</BankRowLabel>
-                    <BankRowVal>{bankInfo.holder}</BankRowVal>
+                    <BankRowVal>{bankHolder}</BankRowVal>
+                  </BankRow>
+                )}
+                {isEn && bankInfo?.swift && (
+                  <BankRow>
+                    <BankRowLabel>{t('checkout.bank.swift', 'SWIFT')}</BankRowLabel>
+                    <BankRowVal>
+                      <Mono>{bankInfo.swift}</Mono>
+                      <CopyIconBtn
+                        type="button"
+                        onClick={() => copy(bankInfo.swift || '', 'swift')}
+                        aria-label={t('checkout.copy', '복사') as string}
+                        title={t('checkout.copy', '복사') as string}
+                      >
+                        {copyHit === 'swift' ? <CheckIcon /> : <ClipIcon />}
+                      </CopyIconBtn>
+                      {copyHit === 'swift' && <CopiedTag>{t('checkout.copied', '복사됨')}</CopiedTag>}
+                    </BankRowVal>
                   </BankRow>
                 )}
               </BankInfo>

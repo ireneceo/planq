@@ -13,6 +13,9 @@ interface BillingSettings {
   bank_name: string | null;
   bank_account_number: string | null;
   bank_account_holder: string | null;
+  bank_name_en: string | null;
+  bank_account_holder_en: string | null;
+  swift_code: string | null;
   portone_store_id: string | null;
   portone_channel_key: string | null;
   portone_channel_key_billing: string | null;
@@ -23,6 +26,7 @@ interface BillingSettings {
 
 const EMPTY: BillingSettings = {
   bank_name: '', bank_account_number: '', bank_account_holder: '',
+  bank_name_en: '', bank_account_holder_en: '', swift_code: '',
   portone_store_id: '', portone_channel_key: '', portone_channel_key_billing: '', portone_webhook_secret: '',
   default_vat_rate: 0.1, default_due_days: 7,
 };
@@ -42,6 +46,9 @@ const AdminBillingSettingsPage = () => {
           bank_name: r.data.bank_name || '',
           bank_account_number: r.data.bank_account_number || '',
           bank_account_holder: r.data.bank_account_holder || '',
+          bank_name_en: r.data.bank_name_en || '',
+          bank_account_holder_en: r.data.bank_account_holder_en || '',
+          swift_code: r.data.swift_code || '',
           portone_store_id: r.data.portone_store_id || '',
           portone_channel_key: r.data.portone_channel_key || '',
           portone_channel_key_billing: r.data.portone_channel_key_billing || '',
@@ -67,6 +74,7 @@ const AdminBillingSettingsPage = () => {
       ...Object.fromEntries(
         Object.entries(r.data || {}).filter(([k]) =>
           ['bank_name', 'bank_account_number', 'bank_account_holder',
+           'bank_name_en', 'bank_account_holder_en', 'swift_code',
            'portone_store_id', 'portone_channel_key', 'portone_channel_key_billing', 'portone_webhook_secret',
            'default_vat_rate', 'default_due_days'].includes(k)
         )
@@ -110,6 +118,32 @@ const AdminBillingSettingsPage = () => {
             <AutoSaveField type="input" onSave={async () => save({ bank_account_holder: data.bank_account_holder })}>
               <Input value={data.bank_account_holder || ''} onChange={e => set('bank_account_holder', e.target.value)}
                 placeholder={t('billing.bankHolderPh', '워프로랩') as string} maxLength={100} />
+            </AutoSaveField>
+          </Field>
+
+          <Hint>{t('billing.bankEnHint', '영어권 고객·해외 송금용 (선택). 값이 있으면 영어 화면·메일에 자동 노출, 없으면 국문으로 표시됩니다.')}</Hint>
+
+          <Field>
+            <Label>{t('billing.bankNameEn', '영문 은행명')}</Label>
+            <AutoSaveField type="input" onSave={async () => save({ bank_name_en: data.bank_name_en })}>
+              <Input value={data.bank_name_en || ''} onChange={e => set('bank_name_en', e.target.value)}
+                placeholder="Kookmin Bank" maxLength={200} />
+            </AutoSaveField>
+          </Field>
+
+          <Field>
+            <Label>{t('billing.bankHolderEn', '영문 예금주 (법인 영문명)')}</Label>
+            <AutoSaveField type="input" onSave={async () => save({ bank_account_holder_en: data.bank_account_holder_en })}>
+              <Input value={data.bank_account_holder_en || ''} onChange={e => set('bank_account_holder_en', e.target.value)}
+                placeholder="Worpro Lab" maxLength={200} />
+            </AutoSaveField>
+          </Field>
+
+          <Field>
+            <Label>{t('billing.swift', 'SWIFT / BIC (해외 송금)')}</Label>
+            <AutoSaveField type="input" onSave={async () => save({ swift_code: data.swift_code })}>
+              <Input value={data.swift_code || ''} onChange={e => set('swift_code', e.target.value)}
+                placeholder="CZNBKRSEXXX" maxLength={20} />
             </AutoSaveField>
           </Field>
         </Card>
