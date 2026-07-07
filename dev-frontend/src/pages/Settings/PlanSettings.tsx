@@ -460,7 +460,7 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
             {status.recent_payments.map(p => (
               <PaymentRow key={p.id}>
                 <PaymentDate>{p.paid_at ? formatDate(p.paid_at) : '—'}</PaymentDate>
-                <PaymentAmount>{p.currency === 'KRW' ? `${Number(p.amount).toLocaleString()}원` : `${p.currency} ${Number(p.amount).toLocaleString()}`}</PaymentAmount>
+                <PaymentAmount>{p.currency === 'KRW' ? t('amountKrw', { amount: Number(p.amount).toLocaleString() }) : `${p.currency} ${Number(p.amount).toLocaleString()}`}</PaymentAmount>
                 <PaymentMeta>
                   {t(`billing.cycle.${p.cycle}`, p.cycle)}
                   {p.period_start && p.period_end && ` · ${formatDate(p.period_start)} ~ ${formatDate(p.period_end)}`}
