@@ -1,91 +1,66 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-07-06 (Opus, 노트북 세션 — 배포 완료, 미배포 0)
-**작업 상태:** 이번 세션 큰 흐름 완료. B4 잔여 + 내부/고객 구분 3-Layer 운영 라이브.
+**마지막 업데이트:** 2026-07-07 (Opus, 1M)
+**작업 상태:** 중단 (이어서 재개 예정 — 노트북 다음 섹션)
 
-### ✅ 이번 세션 완료·배포 (2026-07-06 노트북)
-- **배포1 (라이브):** #114 업무 라벨 뷰어관점 분기 · #115 AI업무추가 "요청 내용"→"추가할 업무"(promptLabel/Hint ko/en 신규) · 랜딩 기능명 capitalize 제거 · 로그인 구글버튼 '심사 중' 안내
-- **배포2 (라이브, B4):** **#112 수정요청 첨부**(revision 라우트 revision_comment_id 반환 + TaskDetailDrawer 첨부 피커, context='comment' 재사용, E2E 8/8) · **#100 오버커밋 경고**(남은예측>가용 시 칩 amber+초과분) · **#120 그룹별 업무추가**(ProjectTaskList 그룹 헤더 인라인 추가 + **백엔드 POST /api/tasks workstream_id 무시 잠재버그 수정**, E2E 4/4)
-- **배포3 (라이브): 내부 vs 고객 프로젝트 구분 3-Layer** (commit `0f8eb6c`, 운영 마이그레이션 선행) — 설계 `docs/INTERNAL_VS_CLIENT_PROJECT_ANALYSIS.md`
-  - L1: `Project.kind ENUM('client','internal')` + 멱등 백필(`scripts/migrate-project-kind.js`). 운영 internal 6/client 3
-  - L2: Insights `고객|내부|전체` 세그먼트 토글(overview/profit/team/finance) + ProfitTab 내부 투자 뷰 + 프로젝트 편집·생성 '내부 프로젝트' 토글
-  - L3: `services/stats.js` 수익성·negative_margin·매출배분=kind='client'만, 내부는 internal_investment 별도, new_clients=Client.kind='customer'만, team revenue_share 분모 고객시간 한정
-  - 검증: 세그먼트 E2E + 운영 실데이터 6/6(biz1 internal 6, 수익성 오탐 제거, internal_investment 166.8h/834만원)
+---
 
-### ✅ B3 캘린더 + 세션 코드리뷰 (2026-07-06 후속, 운영 배포)
-- **#104 나만보기 공개링크 L1 누출 차단**(Fable 게이트) + **#102 시간칸 클릭 생성 prefill** 배포(ecd888d)
-- **#119 기간표시순서** — 드로어 기간 표시는 코드상 전부 start→end 올바름. Irene 화면 실문구 대기(미착수)
-- **세션 코드리뷰(3 finder×verify) 버그 6건 수정·배포(f7c6176):**
-  - A internal_investment client 뷰 0 → 전체조회 kind분리 · B POST workstream 크로스테넌트 → business 검증
-  - C/D 세그먼트 토글 profit 전용화(overview/team 혼합KPI 제거, overview active_projects 전사복원)
-  - **E 캘린더 L2(팀비공개) 옛 공개링크 노출 → 공유·공개GET·회수 L1+L2 확장**(중요 보안)
-  - F 반복 회차수정 vlevel/target 미복사→L2/L4 확대 fix · G NewProjectModal isInternal 리셋
-  - 리뷰 fix E2E 8/8 + Fix B 2/2. 운영 미노출 예방적.
+## ⚡ 빠른 재개 (새 세션에서 이것만 붙여넣기)
 
-### ✅ 피드백 5종 처리 (2026-07-06, Irene 설명 후 — 운영 배포)
-- **#121 이미지**: 댓글 이미지 붙여넣기(Cmd/Ctrl+V) 추가(버그: onPaste 부재로 스크린샷 붙여넣기 무반응) + **이미지 클릭 확대(라이트박스)를 모든 곳으로** — DocsTab 파일 프리뷰·Wiki 스크린샷·**워크스페이스 KB 읽기뷰(raw HTML img 클릭 인터셉트)** 추가(태스크/댓글/설명/채팅/포스트/RichEditor는 기존). 워크스페이스 전 영역 완결. 잔여: 공개(외부) KB만.
-- **#119 캘린더**: 드로어 편집모드 기간표시를 [시작 날짜+시각]/[마감 날짜+시각] 두 줄로(시간을 날짜에 붙임).
-- **#99 프로젝트**: 정렬(최근/이름/진행률/마감) + 고객/내부 구분필터 + 그룹핑(구분/상태/고객사/**부서·팀[담당자 소속 기준, 스키마 변경 없이 owner_department/owner_team 반환]**). 전 그룹 옵션 배포 완료.
-- **#117 Cue**: 재사용 CueTip('Cue?' 팝오버, 무엇하는지 3줄) → TaskDetailDrawer 배지·CueTaskBar 배치. 다른 접점(채팅) 확장 가능.
-- **#84 팝아웃/위키**: markPopoutWindow 팝아웃 영속 기존 완료. **✅ 모바일 헤더 통일** — 감사로 3 팝아웃 헤더 제각각(Help 56/Memo 40/Talk 60px, 노치 대응 전무) 확인 → 상단 safe-area(env(safe-area-inset-top)) 3곳 통일 + 높이 정렬(56/52/60, 40 아웃라이어 제거). QTalk는 Shell, Memo/CueHelp는 헤더. 배포. **실기기 최종 확인만 Irene 몫.**
-  - **✅ Q위키 지속 업데이트 메커니즘 구축·배포** (Irene "fable급 설계+개발마다 추가"): 설계 `docs/Q_WIKI_MAINTENANCE.md`(커버리지 매트릭스+4축 업데이트). `scripts/wiki-coverage-check.js`(14 필수 카테고리 감사, exit1). `/개발완료` 3-1-W 위키 게이트. seed +6 카테고리(qcalendar/qmail/qproject/insights/cue/qinfo)+10 아티클. **개발마다: /개발완료 시 seed-wiki 갱신 → coverage-check 통과 → 배포 후 운영 `node seed-wiki-content.js`.** 커버리지 14/14·API 4/4 검증.
+```
+session-state.md 읽고 이어서 개발해.
+```
 
-### 🔜 다음 섹션 최우선 — 구독결제(플랫폼 SaaS 과금) 붙이기 (착수, 매핑 완료·설계/구현 대기)
-**Irene 결정: 구독결제 붙이자. 방식은 (1) 은행송금+세금계산서[한국 법인 선호, 중요] (2) 카드 자동결제 둘 다.** 로드맵 `docs/ROADMAP_NEXT.md`.
-**★ 2026-07-07 갱신: 카드 결제대행은 PortOne 폐기 → 토스페이먼츠(Toss Payments) 직접 연동. 중간 애그리게이터 경유 X. 아래 PortOne 표현은 전부 토스 기준으로 읽을 것.**
+---
 
-**기존 인프라 매핑 결과 (Explore 완료):**
-- 현재 전부 계좌이체(bank_transfer). 실제 활성화=사람이 admin `markPaymentPaid`(멱등). PortOne은 컬럼 스텁만(`Payment.portone_imp_uid/merchant_uid/status/meta`), 실코드 0.
-- 재사용 지점: `services/billing.js` `createPendingSubscription(:44)`·**`markPaymentPaid(:140, 멱등·period·plan동기화 다 함 → PortOne 성공시 이걸 호출)`**·`ensureRenewalPayment(:312, 정기 자동결제 붙을 곳)`·`runDailyBillingCron(:392)`. plan.js `checkout(:316)`·`notify-paid(:361, owner 자가활성화 차단)`·admin `mark-paid`·`issue-tax-invoice(admin.js:774)`. 플랜정의 `config/plans.js`.
-- **주의: `Business.portone_*`(190-195)는 Q Bill 워크스페이스→고객 PG용. SaaS와 무관.** SaaS PortOne 자리는 Payment 컬럼뿐.
-- 멱등 있음(markPaymentPaid·ensureRenewalPayment 가드2). 없음: `portone_merchant_uid` UNIQUE·결제 재시도·PortOne 실코드·billingKey 저장.
+## 🔖 지금 중단 지점
 
-**세금계산서 흐름:** 백엔드 준비됨 — checkout/notify-paid가 tax_invoice(biz_no/name/ceo/addr/email) 받아 'requested' 저장, admin `issue-tax-invoice`로 'issued' 마킹(PlanQ 홈택스/팝빌 자동발행 X, 마킹 추적). **갭=프론트: PlanSettings CheckoutModal에 세금계산서 발행요청(사업자정보) 입력 UI 없음.**
+**마지막 작업:** PlanQ 구독결제에 **Stripe(카드) 결제** 이식 중. POS(`/var/www/dev-backend`, Read 가능) 패턴 그대로 가져와 이식. Stripe 키 보안 Fable 검토 → F1(PUT 암호문 유출)·F2(audit 암호문 저장)·F3(암호화 키 fallback)·F6(merchant alias) **전부 수정·재검증 완료** (commit 1eb1c1e).
 
-**다음 섹션 할일 (순서):**
-1. **[키 불필요·바로] 은행송금+세금계산서 UI** — CheckoutModal/notify-paid에 "세금계산서 발행 요청"(사업자정보 입력) 추가 → 한국 법인 결제 완결. 배포 가능.
-2. **[env게이트] PortOne 기반** — billingKey 저장 컬럼(암호화)+UNIQUE(merchant_uid), `services/portone.js` 래퍼(키 없으면 안전 stub), `ensureRenewalPayment`/신규에 method='portone' 분기(성공시 markPaymentPaid 호출), webhook 라우트(서명검증·멱등). 재시도/dunning.
-3. **UI** 결제수단 등록/자동결제 토글. **Fable 게이트(돈 무결성)** 후 배포.
-- **Irene 선행:** PortOne 가맹점 가입+API키(.env). 키 없으면 1번+2번 스텁까지 가능.
-- 설계 문서 작성은 미완(task 11 in_progress) — 다음 섹션 `docs/SUBSCRIPTION_PAYMENT_DESIGN.md` 신설.
+**바로 다음 작업 (라이브 배선, Fable 게이트):**
+1. **F4: 관리자 결제설정에 Stripe 입력란** — `AdminBillingSettingsPage.tsx` 에 publishable/secret(write-only)/webhook 입력 추가 (백엔드 PUT/GET·암호화는 이미 완료, UI만 없음)
+2. **server.js webhook 마운트** — `app.use('/api/stripe/webhook', express.raw({type:'application/json'}), require('./routes/stripeWebhook'))` **json 파서 前에** (마운트 순서 주의 = Fable 게이트)
+3. **plan.js Stripe 체크아웃 엔드포인트** — pending Payment → `stripeCheckoutService.startPlatformSubscriptionCheckout` → session.url 반환
+4. **CheckoutModal "카드로 결제" 버튼** — 위 엔드포인트 호출 → Stripe 페이지 리다이렉트
+5. Stripe 대시보드 webhook 등록 + 관리자에 webhook secret 입력
+6. **운영 소액 실결제+환불** 스모크(Irene 결정: 결제 테스트는 운영에서)
 
-### 남은 후속 (내부/고객 구분)
-- QTalk RightPanel 내부배지가 아직 client_company 휴리스틱(`RightPanel.tsx:533`) — `project.kind`로 교체 가능(선택)
-- NewProjectModal/QTalkPage `project_type`가 QTalk 생성경로에서 미전달(별개 잠재버그, kind는 전달됨)
-- laborCost 시간당 50000원 하드코딩(`stats.js:523`) — hourly_rate 컬럼 추후
+**맥락 유지할 것 (중요 결정):**
+- **결제수단 3종 (순서 고정): 은행송금 → 별도 결제링크 → 스트라이프.** "설정하면 켜짐"(POS 방식). PlanQ 구독 ⊇ Q Bill 고객결제 = **같은 엔진, 발행자/수신자(merchant)만 스왑**. 돈·데이터는 분리 유지.
+- **merchant**: platform(PlanQ 구독, platform_settings, payments/subscriptions) vs workspace(Q Bill, businesses, invoices). `services/stripeService.js getStripeForMerchant`.
+- **카드 PG = Stripe** (토스 아님 — 토스 연동 가입비+연관리비 330k+심사 때문에 보류). Stripe = **말레이시아 법인**(KRW presentment, "해외 결제·세금계산서 미발행" 안내). 한국 송금·세금계산서 명의 = **워프로랩/(주)아이린엔컴퍼니**(같은 회사).
+- **⚠️ 운영 선결:** ① `EMAIL_ENCRYPTION_KEY` 설정(없으면 F3 가드가 결제시크릿 저장 차단) ② 노출된 `sk_live` **Roll**(채팅 노출) — 코드/git 저장 안 함. ③ Stripe secret 은 관리자 UI 입력 시 AES-256-GCM 암호화 저장.
+- **KRW 무소수점**: Stripe unit_amount 330000→330000 (POS MYR ×100과 다름). `stripeCheckoutService.toStripeAmount` 처리됨.
+- 설계: `docs/UNIFIED_PAYMENT_ARCHITECTURE.md`, `docs/SAAS_BILLING_VS_QBILL_SEPARATION.md`, `docs/SUBSCRIPTION_PAYMENT_DESIGN.md`.
 
-### 이번 세션 완료·배포 (Fable 계획)
-- **하니스 v1 + 카나리 크롤 + 비주얼 감사** (`scripts/e2e/`). SPA 네비로 전 라우트 크롤(auth rotation/rate-limit 회피). data-testid 시딩 시작(task-add-btn).
-- **B0 완료(검증):** #108 정기청구 검토요청 Q Bill 배지·확인필요 노출 + #92 정기발송 기준 표시 — 실데이터 검증(billCount·recurring). 이미 fix된 상태였음.
-- **#98 수정·배포(f8350e6):** 프로젝트 멤버 선택자 계정명→워크스페이스 표시명. `/api/businesses/:id/members`가 user.display_name 내려줌.
-- **/files 업로더 표시명 누출 수정(992d6b1)**, 배너/네이티브·지연업무·그래프 가용시간·단축키·FAB 등 앞서 배포.
+---
 
-### 운영 피드백 처리 누계: done 10 + reviewing 2 (전체 121 중 79 기존done)
-- **이번 세션 done:** #87 #91 #92 #98 #101 #103 #108 #111
-- **reviewing:** #79(모바일키보드) #106(L1완료·Drive/공유 진행)
-- **남은 ~32건 미해결.**
+## 📦 이번 세션 작업 요약
 
-### 다음 할 일 (Fable 8배치 순서)
-- **B2 모바일 완성도:** #79·#86·#116·#118(팝아웃/우측패널 업무추가 키보드)·#110·#113. **선행: 하니스 data-testid ~20개 시딩**(현재 task-add-btn 1개) + mobile-keyboard 스위트에 opener 연결.
-- **B3 캘린더:** #102 시간칸클릭 prefill·#119 기간표시순서·**#104 나만보기 일정 공개링크 L1 오염(Fable 게이트)**.
-- **~~B4 업무UX~~ ✅ 완료·배포** (#114·#115·#112·#100·#120 전부 라이브)
-- **B5 폴리시:** ~~#71(공지배너 랜딩/팝아웃 노출차단 — 5f8111c 이미 배포)~~·#84(Q위키 팝아웃 FAB 이미배포)·#89·#96. **B6 이미지:** #97·#121·#63(zip 이미 배포). **B7 프로젝트:** #95(채팅방토글 이미배포)·#99. **B8 Cue:** #90(notify 이미배포)·#117.
-  - ⚠ 다수가 이미 배포 완료 상태(리스트 정리 누락). 착수 전 `git log --all | grep #NN` 로 완료여부 먼저 확인. 남은 진짜 미해결: #89·#96·#99·#117(설명 필요) + #119(드로어 기간표시 실문구 필요)
-- **(c) 외부트랙 — Irene 몫:** **Google OAuth 4건(#72·#88·#107·#109) = Google Cloud Console 검증 제출** / #85 보고서 SCR 설계 승인 / #60 PushLog 확인 후 기기안내 / #81 Cue 실작업 스코프 결정.
+- **랜딩 인사이트**: `/blog`→`/insights` URL 이전(옛 URL 301 리다이렉트) + Q위키 14건 인사이트 발행(seed `BLOG_MAP`, 이중언어) + coverage-check 게이트 확장. (검증 완료)
+- **구독결제 Phase 0**: CheckoutModal 금액·계좌 복사버튼(Q Bill 패턴) + 영문 계좌표기(`platform_settings.bank_name_en/holder_en/swift` + 관리자 UI + `/plan/bank-info` EN). 안내 이메일 기존. (검증 11/11)
+- **SaaS↔Q Bill 분리 canonical** 문서 + Fable 검토 SEPARATION SOUND(문구 3건 수정).
+- **Stripe 토대(POS 이식)**: `npm i stripe@20`, `services/stripeService.js`(merchant 리졸버), `services/stripeCheckoutService.js`(SaaS Hosted Checkout, KRW정확, 이중결제 가드), `routes/stripeWebhook.js`(서명검증→markPaymentPaid 멱등, null-safe). `payments` 스키마 stripe method+컬럼. Fable 검토 F1~F6 수정.
 
-### Fable UX-마찰 검출 판단 (구축 계획, 미착수)
-- 부분 검출 가능: 셀 수 있는 마찰(터치타겟<44px·목표까지 클릭수·필수필드·빈상태 CTA·엔지니어링 용어)=자동 게이트, "많은가/헷갈리는가"=자동 갤러리+사람 5분 판정.
-- **설계:** visual-audit 확장(터치타겟·빈상태·용어 3지표, 반나절) + `friction-audit.js` 신규(골든플로우 4개: 고객초대·업무추가·일정추가·청구서발행, 클릭수·단계 회귀만 게이트). testid ~20개 선행.
-- window.confirm "4파일 잔존"은 **Fable 오탐**(실제 0건, 주석뿐) — 검증 완료, 조치 불필요.
+**커밋:** `1eb1c1e` chore: 세션 중간 저장 - Stripe 키 보안 Fable 수정. (그 앞은 idle auto-save wip 커밋들에 이미 포함)
+
+---
+
+## 🔑 환경변수 / 인증 현황
+- dev 백엔드 port 3003 (irene PM2 `planq-dev-backend`, online). q-note 8000.
+- `EMAIL_ENCRYPTION_KEY` **dev 미설정**(JWT_SECRET fallback 사용 중 — 기존 Q Mail creds 가 이 fallback 에 의존하므로 함부로 설정 시 브릭 주의). 운영은 명시 설정 필요.
+- Stripe 키: **아직 미저장**(관리자 UI 입력란 F4 미완). POS 는 `stripe ^20.3.1`.
+- 배포: `deploy-planq.sh` (운영 87.106.78.146, POS 공존 port 3004). "배포" 명령 시에만.
+
+---
+
+## 📂 주요 문서
+- 통합 결제: `docs/UNIFIED_PAYMENT_ARCHITECTURE.md` · 분리: `docs/SAAS_BILLING_VS_QBILL_SEPARATION.md` · PG: `docs/SUBSCRIPTION_PAYMENT_DESIGN.md`
+- 위키 유지: `docs/Q_WIKI_MAINTENANCE.md`
+- CLAUDE.md (규칙) · 메모리 `project_subscription_payment_plan` (이번 결정 전부 박제)
 
 ---
 
 ## 복구 가이드
-
-새 Claude 세션 시작 시 아래 내용을 붙여넣으세요:
-
-```
-이전 세션 이어서 작업하고 싶어.
-/opt/planq/.claude/session-state.md 읽어줘.
-```
+새 세션: `session-state.md 읽고 이어서 개발해.`
