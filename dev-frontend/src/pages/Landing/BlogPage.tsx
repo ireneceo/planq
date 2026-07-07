@@ -78,7 +78,7 @@ const BlogPage: React.FC = () => {
             <Reveal>
               <PreviewGrid>
                 {filtered.map((p) => (
-                  <PostCardLink key={p.slug} to={`/blog/${p.slug}`}>
+                  <PostCardLink key={p.slug} to={`/insights/${p.slug}`}>
                     <PreviewCard as="div">
                       <PreviewBadge>{t(`blogPage.categories.${p.blog_category || 'insights'}`, p.blog_category || '')}</PreviewBadge>
                       <PreviewItemTitle>{pick(p, 'title')}</PreviewItemTitle>

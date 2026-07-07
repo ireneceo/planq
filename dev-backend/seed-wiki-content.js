@@ -45,6 +45,34 @@ const CATEGORIES = [
     summary: t('워크스페이스·멤버 권한·개인 연동 설정', 'Workspace, member permissions and personal integrations') },
 ];
 
+// ───────────────────────────────────────────────────────────────
+// 랜딩 인사이트(/insights) 발행 매핑 — 단일 소스(Q위키)에서 공개 마케팅 피드로 동기화.
+//   여기에 slug → blog_category 만 추가하면 seed 가 해당 글을 자동으로:
+//     ① visibility='public' 강제 (blog.js WHERE 가 public 만 노출)
+//     ② blog_category 지정 (BlogPage 필터 탭: how-to / insights / cases / guide-video / brand-video)
+//     ③ blog_published_at 부여 (멱등 — 이미 있으면 보존, 없으면 결정적 날짜)
+//   개발마다 신규 how-to 를 여기 등록 → 배포 후 node seed-wiki-content.js → 인사이트에 즉시 반영.
+//   (ko/en 은 아티클 정의에 이미 양쪽 있으므로 인사이트도 자동 이중언어)
+const BLOG_MAP = {
+  'create-workspace': 'how-to',
+  'create-task': 'how-to',
+  'issue-invoice': 'how-to',
+  'record-meeting': 'how-to',
+  'create-document': 'how-to',
+  'collect-signature': 'how-to',
+  'upload-share-file': 'how-to',
+  'create-event': 'how-to',
+  'create-project': 'how-to',
+  'qmail-inbox': 'how-to',
+  'assign-task-to-cue': 'how-to',
+  'what-is-cue': 'insights',
+  'insights-overview': 'insights',
+  'client-vs-internal': 'insights',
+};
+// 발행일 결정적 기준 — 배포/재시드마다 동일 (clock 비의존). 리스트 순서대로 하루씩 과거로.
+const BLOG_BASE_TS = Date.parse('2026-07-07T00:00:00Z');
+const DAY_MS = 86400000;
+
 // article 정의 — visibility: 'public' 은 게스트/랜딩 노출, 'authenticated' 는 로그인 사용자만.
 const ARTICLES = [
   // ── 시작하기 ──
@@ -403,31 +431,44 @@ async function run() {
   console.log(`카테고리 ${CATEGORIES.length}건 업서트`);
 
   let count = 0;
+  let blogCount = 0;
+  let blogSeq = 0;
   const articleIds = [];
   for (let i = 0; i < ARTICLES.length; i++) {
     const a = ARTICLES[i];
     const categoryId = catBySlug[a.cat];
     if (!categoryId) { console.warn('카테고리 없음:', a.cat); continue; }
+    const blogCat = BLOG_MAP[a.slug] || null;
     const payload = {
       slug: a.slug, category_id: categoryId,
       title_ko: a.title.ko, title_en: a.title.en,
       summary_ko: a.summary.ko, summary_en: a.summary.en,
       body_ko: a.body.map((b) => ({ type: b.type, text_ko: b.text_ko })),
       body_en: a.body.map((b) => ({ type: b.type, text_en: b.text_en })),
-      visibility: a.visibility,
+      // 인사이트 발행분은 게스트에게도 보여야 하므로 public 강제 (그 외는 아티클 정의값 유지)
+      visibility: blogCat ? 'public' : a.visibility,
       linked_route: a.linked_route || null,
       est_minutes: a.est || null,
       sort_order: i,
       is_published: true,
     };
     const existing = await HelpArticle.findOne({ where: { slug: a.slug } });
+    if (blogCat) {
+      payload.blog_category = blogCat;
+      // 멱등: 기존 발행일(관리자 수동 발행 포함) 보존, 없으면 결정적 날짜 부여 → 배포마다 동일
+      payload.blog_published_at = (existing && existing.blog_published_at)
+        ? existing.blog_published_at
+        : new Date(BLOG_BASE_TS - (blogSeq * DAY_MS));
+      blogSeq += 1;
+      blogCount += 1;
+    }
     let row;
     if (existing) { row = await existing.update(payload); }
     else { row = await HelpArticle.create(payload); }
     articleIds.push(row.id);
     count++;
   }
-  console.log(`article ${count}건 업서트`);
+  console.log(`article ${count}건 업서트 (인사이트 발행 ${blogCount}건)`);
 
   // 임베딩 인덱싱 (OPENAI_API_KEY 있을 때만 임베딩, 없으면 청크만)
   console.log('임베딩 인덱싱 중...');

@@ -693,8 +693,8 @@
     "catNotEmpty": "Categories with articles can't be deleted.",
     "confirmDeleteCat": "Delete this category?",
     "addCategory": "Add category",
-    "blogToggle": "Publish to landing blog (/blog)",
-    "blogHint": "Public + published articles only · appears on planq.kr/blog immediately",
+    "blogToggle": "Publish to landing Insights (/insights)",
+    "blogHint": "Public + published articles only · appears on planq.kr/insights immediately",
     "blogRequiresPublic": "Only \"public + published\" articles can go to the blog. Save those settings first.",
     "blogCat": {
       "guide-video": "Guide videos",

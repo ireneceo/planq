@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { PwaInstallProvider } from './contexts/PwaInstallContext';
 // 첫 paint 에 반드시 필요한 eager — Auth/PWA context, Layout, ErrorBoundary, ProtectedRoute, prefetch
@@ -131,6 +131,12 @@ const PlaceholderPage = ({ title }: { title: string }) => (
   </div>
 );
 
+// 옛 /blog/:slug → /insights/:slug 파라미터 보존 리다이렉트 (SEO·외부 링크)
+function BlogSlugRedirect() {
+  const { slug } = useParams();
+  return <Navigate to={`/insights/${slug || ''}`} replace />;
+}
+
 function App() {
   // 라우트 청크 prefetch — idle 시점 핵심 페이지 + 전역 hover/focus delegation
   useEffect(() => installRoutePrefetch(), []);
@@ -142,7 +148,8 @@ function App() {
     || _loc.pathname.startsWith('/public/')
     || isPopoutWindow(); // #84 — 팝아웃 창 안에서 /wiki 등으로 이동해도 chrome 숨김 유지
   // #71 — 랜딩/마케팅 페이지(비로그인 외부 트래픽 영역). 로그인 상태로 방문해도 인앱 chrome 안 띄움.
-  const isMarketing = ['/', '/features', '/pricing', '/blog', '/about', '/contact'].includes(_loc.pathname)
+  const isMarketing = ['/', '/features', '/pricing', '/insights', '/blog', '/about', '/contact'].includes(_loc.pathname)
+    || _loc.pathname.startsWith('/insights/')
     || _loc.pathname.startsWith('/blog/');
   const hideAppChrome = isPopout || isMarketing;
   return (
@@ -194,8 +201,8 @@ function App() {
         } />
 
         {/* 통계·분석 redirect 만 (실제 라우트는 아래 /stats/:tab 단일 정의) */}
+        {/* NOTE: 공개 마케팅 /insights 는 아래 Landing 블록에서 렌더. 인앱 통계는 /stats/* 로만 진입. */}
         <Route path="/stats" element={<Navigate to="/stats/overview" replace />} />
-        <Route path="/insights" element={<Navigate to="/stats/overview" replace />} />
 
         {/* 알림 설정은 client 도 접근 가능 — :tab 보다 먼저 매칭 */}
         <Route path="/business/settings/notifications" element={
@@ -512,8 +519,11 @@ function App() {
         <Route path="/" element={<RootRoute />} />
         <Route path="/features" element={<LandingFeatures />} />
         <Route path="/pricing" element={<LandingPricing />} />
-        <Route path="/blog" element={<LandingBlog />} />
-        <Route path="/blog/:slug" element={<LandingBlogPost />} />
+        <Route path="/insights" element={<LandingBlog />} />
+        <Route path="/insights/:slug" element={<LandingBlogPost />} />
+        {/* 옛 /blog URL → /insights 영구 이전 (SEO·외부 링크 보존) */}
+        <Route path="/blog" element={<Navigate to="/insights" replace />} />
+        <Route path="/blog/:slug" element={<BlogSlugRedirect />} />
         <Route path="/about" element={<LandingAbout />} />
         <Route path="/contact" element={<LandingContact />} />
 

@@ -111,3 +111,27 @@ node dev-backend/scripts/wiki-coverage-check.js   # 갭 있으면 ⛔ + exit 1
 - `qcalendar`, `qmail`, `insights`, `qproject`, `cue`, `qinfo` 카테고리
 - 최근 개발분 문서화: **내부/고객 프로젝트 구분**(insights), 프로젝트 정렬/그룹(qproject), 일정 시간칸 클릭·나만보기 공유(qcalendar), Cue 업무 맡기기(cue), 이미지 붙여넣기/확대(qtalk·qfile 갱신)
 - `scripts/wiki-coverage-check.js` 신설 + `/개발완료` 게이트 추가
+
+---
+
+## 6. 랜딩 인사이트(/insights) 동기화 (2026-07-07)
+
+**단일 소스 = Q위키.** 별도 CMS·블로그 DB 없음. 공개 마케팅 피드 `/insights`(옛 `/blog`, 301 리다이렉트 유지)는 `help_articles` 의 발행 서브셋을 그대로 노출한다 (`routes/blog.js`: `blog_published_at IS NOT NULL AND is_published AND visibility='public'`).
+
+### 발행 방법 — `seed-wiki-content.js` 의 `BLOG_MAP`
+- `BLOG_MAP = { slug: blog_category }` 한 곳에 매핑만 추가하면 seed 가 자동으로:
+  1. `visibility='public'` 강제 (게스트 노출)
+  2. `blog_category` 지정 (BlogPage 탭: `how-to`/`insights`/`cases`/`guide-video`/`brand-video`)
+  3. `blog_published_at` 부여 — **멱등**(기존 발행일·관리자 수동 발행 보존, 없으면 `BLOG_BASE_TS` 기준 결정적 날짜 → 배포마다 동일, clock 비의존)
+- ko/en 은 아티클 정의에 이미 양쪽 있으므로 인사이트도 **자동 이중언어**.
+- 관리자 임시 발행/회수는 `/api/admin/wiki/articles/:id/blog` 토글로도 가능(seed 는 회수를 강제하지 않아 관리자 액션과 공존).
+
+### 게이트 — `wiki-coverage-check.js` 확장
+- `/insights` 발행 ≥ 6건 (public) 미만 → ⛔ exit 1
+- 발행분 영어 누락(`title_en`/`summary_en`/`body_en`) 1건이라도 → ⛔ exit 1 (영어 서비스 필수)
+
+### 개발마다 (§4 에 추가)
+- 신규 how-to 성격 문서를 만들면 `BLOG_MAP` 에 등록 여부 판단 → 등록 시 인사이트에 자동 편입.
+- `/개발완료` 시 coverage-check 통과(인사이트+이중언어 포함) → 배포 후 운영 `node seed-wiki-content.js` 1회.
+
+**이번 반영:** how-to 11 + insights 3 = 14건 발행(공개), 전량 ko/en. `/blog`→`/insights` URL 이전(GNB·푸터·상세·admin 힌트·redirect).
