@@ -53,7 +53,11 @@
     "policySection": "결제 정책",
     "policyHint": "청구서 발행 시 기본값. 워크스페이스별 별도 설정도 가능.",
     "vatRate": "VAT 비율",
-    "dueDays": "기본 결제 기한 (일)"
+    "dueDays": "기본 결제 기한 (일)",
+    "bankNameEn": "영문 은행명",
+    "bankHolderEn": "영문 예금주 (법인 영문명)",
+    "swift": "SWIFT / BIC (해외 송금)",
+    "bankEnHint": "영어권 고객·해외 송금용 (선택). 값이 있으면 영어 화면·메일에 자동 노출, 없으면 국문으로 표시됩니다."
   },
   "payments": {
     "title": "결제 이력",

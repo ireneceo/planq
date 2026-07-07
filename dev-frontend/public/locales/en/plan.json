@@ -141,7 +141,8 @@
       "contactSupport": "PlanQ billing account is not yet configured. Please contact support@planq.kr.",
       "memoHint": "Include Payment ID #{{paymentId}} or workspace name with your transfer.",
       "bankName": "Bank",
-      "account": "Account no."
+      "account": "Account no.",
+      "swift": "SWIFT"
     },
     "payerName": {
       "label": "Payer name (optional)",

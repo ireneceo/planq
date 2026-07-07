@@ -373,7 +373,14 @@ router.post('/email-logs/:id/retry', async (req, res, next) => {
 router.get('/platform-settings', async (req, res, next) => {
   try {
     const row = await PlatformSetting.findOne({ order: [['id', 'ASC']] });
-    return successResponse(res, row ? row.toJSON() : null);
+    if (!row) return successResponse(res, null);
+    const j = row.toJSON();
+    // Stripe secret/webhook 은 암호문조차 프론트로 보내지 않음 — 설정 여부 boolean 만.
+    const stripe_secret_set = !!j.stripe_secret_enc;
+    const stripe_webhook_secret_set = !!j.stripe_webhook_secret_enc;
+    delete j.stripe_secret_enc;
+    delete j.stripe_webhook_secret_enc;
+    return successResponse(res, { ...j, stripe_secret_set, stripe_webhook_secret_set });
   } catch (err) { next(err); }
 });
 
@@ -382,6 +389,7 @@ router.get('/platform-settings', async (req, res, next) => {
 router.put('/platform-settings', async (req, res, next) => {
   try {
     const b = req.body || {};
+    const { encrypt } = require('../services/encryption'); // Stripe secret AES-256-GCM 저장용
     if (b.brand !== undefined && (!String(b.brand).trim() || String(b.brand).length > 100)) {
       return errorResponse(res, 'brand_invalid', 400);
     }
@@ -405,6 +413,16 @@ router.put('/platform-settings', async (req, res, next) => {
       ...setStr('bank_name', 100),
       ...setStr('bank_account_number', 50),
       ...setStr('bank_account_holder', 100),
+      ...setStr('bank_name_en', 200),
+      ...setStr('bank_account_holder_en', 200),
+      ...setStr('swift_code', 20),
+      // Stripe — publishable 평문. secret/webhook 은 AES-256-GCM 암호화 후 저장.
+      //   값 있으면 암호화, 빈 문자열이면 해제(null), undefined(미전송)면 기존 보존.
+      ...setStr('stripe_publishable_key', 255),
+      ...(b.stripe_secret !== undefined
+        ? { stripe_secret_enc: b.stripe_secret ? encrypt(String(b.stripe_secret)) : null } : {}),
+      ...(b.stripe_webhook_secret !== undefined
+        ? { stripe_webhook_secret_enc: b.stripe_webhook_secret ? encrypt(String(b.stripe_webhook_secret)) : null } : {}),
       ...setStr('portone_store_id', 100),
       ...setStr('portone_channel_key', 200),
       ...setStr('portone_channel_key_billing', 200),

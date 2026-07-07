@@ -23,7 +23,10 @@ router.get('/bank-info', authenticateToken, async (req, res, next) => {
     const { getPlanqBankInfo } = require('../services/emailService');
     const bank = await getPlanqBankInfo();
     if (!bank.configured) return successResponse(res, null);
-    return successResponse(res, { name: bank.name, account: bank.account, holder: bank.holder });
+    return successResponse(res, {
+      name: bank.name, account: bank.account, holder: bank.holder,
+      name_en: bank.name_en, holder_en: bank.holder_en, swift: bank.swift,
+    });
   } catch (error) { next(error); }
 });
 

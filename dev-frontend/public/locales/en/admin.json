@@ -53,7 +53,11 @@
     "policySection": "Billing policy",
     "policyHint": "Defaults for invoice issuance. Per-workspace overrides allowed.",
     "vatRate": "VAT rate",
-    "dueDays": "Default due days"
+    "dueDays": "Default due days",
+    "bankNameEn": "Bank name (English)",
+    "bankHolderEn": "Account holder (English legal name)",
+    "swift": "SWIFT / BIC (overseas wire)",
+    "bankEnHint": "For English-speaking customers / overseas wires (optional). If set, shown automatically on English screens and emails; otherwise falls back to Korean."
   },
   "payments": {
     "title": "Payment history",
