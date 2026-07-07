@@ -59,7 +59,10 @@ if (typeof window !== 'undefined' && window.visualViewport) {
     // visualViewport.offsetTop=376, 정상 focus 는 0). position:fixed body 가 이를
     // 못 되돌려 콘텐츠가 위로 밀리고 아래 흰 여백 → 강제로 0 정렬해 고정 레이아웃을
     // visual viewport 에 맞춤. 모바일 고정 레이아웃에서만 (데스크탑 정상 스크롤 보호).
-    if (mq.matches && (window.scrollY !== 0 || vv.offsetTop !== 0)) {
+    // 단, 앱 셸(pq-app-shell)에서만 — 랜딩/회원가입/공개 페이지는 body 스크롤이
+    // 정상 동작이라 scrollTo(0,0) 가 사용자 스크롤을 위로 튕겨내면 안 됨.
+    if (mq.matches && document.documentElement.classList.contains('pq-app-shell')
+        && (window.scrollY !== 0 || vv.offsetTop !== 0)) {
       window.scrollTo(0, 0);
     }
   };

@@ -6,8 +6,10 @@ import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import CueHelpDrawer from '../../components/Common/CueHelpDrawer';
 import { markPopoutWindow } from '../../utils/popout';
+import { useAppShellLock } from '../../hooks/useAppShellLock';
 
 const HelpStandalonePage: React.FC = () => {
+  useAppShellLock();
   const { t } = useTranslation('common');
   useEffect(() => {
     document.title = t('qhelper.title', 'Q helper') as string;

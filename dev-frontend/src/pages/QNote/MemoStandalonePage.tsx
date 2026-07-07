@@ -11,8 +11,10 @@ import styled from 'styled-components';
 import MemoPopup from '../../components/QNote/MemoPopup';
 import { getSession } from '../../services/qnote';
 import { useAuth } from '../../contexts/AuthContext';
+import { useAppShellLock } from '../../hooks/useAppShellLock';
 
 const MemoStandalonePage: React.FC = () => {
+  useAppShellLock();
   const { t } = useTranslation('qnote');
   const { id: idParam } = useParams<{ id: string }>();
   const sessionId = idParam ? Number(idParam) : null;

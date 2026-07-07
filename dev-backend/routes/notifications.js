@@ -97,6 +97,15 @@ async function notify({ userId, businessId, eventKind, title, body, link, ctaLab
   if (!userId || !eventKind) return { inbox: false, email: false, push: false };
   const results = { inbox: false, email: false, push: false };
 
+  // Cue AI 팀원(is_ai)은 사람이 아니므로 어떤 채널도 알림 대상이 아니다.
+  // Cue 는 합성 주소(cue+{businessId}@system.planq.kr)라 email 발송 시 바운스
+  // ("Address not found") + 발신평판 훼손 → 태스크 배정·채팅 참여로 notify 가 호출돼도 skip.
+  try {
+    const { User } = require('../models');
+    const target = await User.findByPk(userId, { attributes: ['is_ai'] });
+    if (target?.is_ai) return results;
+  } catch { /* 조회 실패 시 정상 흐름 유지 (기존 채널 로직이 개별 가드) */ }
+
   // N+63 — inbox 채널 실 처리 (알림 feed, Activity Feed). 옛 hardcoded true → 실 Notification.create.
   // NotificationPref event_kind × channel='inbox' 토글로 사용자가 받을 종류 선택 (기본 ON).
   // socket emit 'notification:new' → 좌측 사이드바 종 모양 즉시 +1.
