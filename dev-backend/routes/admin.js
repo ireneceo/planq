@@ -370,17 +370,21 @@ router.post('/email-logs/:id/retry', async (req, res, next) => {
 // .env 의 PLATFORM_*, EMAIL_LOGO_URL 대체. emailService 가 5분 캐시로 조회.
 
 // GET /api/admin/platform-settings — 현재 row 조회 (없으면 빈 객체 반환, 클라가 PUT 으로 생성)
+// Stripe secret/webhook 은 암호문조차 프론트로 보내지 않음 — 설정 여부 boolean 만. GET·PUT 응답 공통.
+function serializePlatformSettings(row) {
+  const j = row.toJSON();
+  const stripe_secret_set = !!j.stripe_secret_enc;
+  const stripe_webhook_secret_set = !!j.stripe_webhook_secret_enc;
+  delete j.stripe_secret_enc;
+  delete j.stripe_webhook_secret_enc;
+  return { ...j, stripe_secret_set, stripe_webhook_secret_set };
+}
+
 router.get('/platform-settings', async (req, res, next) => {
   try {
     const row = await PlatformSetting.findOne({ order: [['id', 'ASC']] });
     if (!row) return successResponse(res, null);
-    const j = row.toJSON();
-    // Stripe secret/webhook 은 암호문조차 프론트로 보내지 않음 — 설정 여부 boolean 만.
-    const stripe_secret_set = !!j.stripe_secret_enc;
-    const stripe_webhook_secret_set = !!j.stripe_webhook_secret_enc;
-    delete j.stripe_secret_enc;
-    delete j.stripe_webhook_secret_enc;
-    return successResponse(res, { ...j, stripe_secret_set, stripe_webhook_secret_set });
+    return successResponse(res, serializePlatformSettings(row));
   } catch (err) { next(err); }
 });
 
@@ -389,7 +393,11 @@ router.get('/platform-settings', async (req, res, next) => {
 router.put('/platform-settings', async (req, res, next) => {
   try {
     const b = req.body || {};
-    const { encrypt } = require('../services/encryption'); // Stripe secret AES-256-GCM 저장용
+    const { encrypt, usingFallbackKey } = require('../services/encryption'); // Stripe secret AES-256-GCM 저장용
+    // F3: 운영에서 EMAIL_ENCRYPTION_KEY 없이(JWT 파생 fallback) 결제 시크릿 저장 금지 — 유출/회전 위험.
+    if ((b.stripe_secret || b.stripe_webhook_secret) && usingFallbackKey() && process.env.NODE_ENV === 'production') {
+      return errorResponse(res, 'encryption_key_required: EMAIL_ENCRYPTION_KEY 를 설정해야 결제 시크릿을 저장할 수 있습니다.', 400);
+    }
     if (b.brand !== undefined && (!String(b.brand).trim() || String(b.brand).length > 100)) {
       return errorResponse(res, 'brand_invalid', 400);
     }
@@ -470,7 +478,7 @@ router.put('/platform-settings', async (req, res, next) => {
       targetId: row.id,
       newValue: updates,
     });
-    return successResponse(res, row.toJSON(), 'updated');
+    return successResponse(res, serializePlatformSettings(row), 'updated'); // F1: PUT 도 암호문 redact
   } catch (err) { next(err); }
 });
 
