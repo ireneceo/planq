@@ -48,6 +48,15 @@ export default function CheckoutModal({
   const [payerName, setPayerName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 복사 피드백 — Q Bill PublicInvoicePage 패턴 재사용 (계좌·금액 클립보드 복사)
+  const [copyHit, setCopyHit] = useState<string | null>(null);
+  const copy = async (text: string, key: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyHit(key);
+      setTimeout(() => setCopyHit(null), 1500);
+    } catch { /* 클립보드 차단 환경 — 무시 */ }
+  };
   // 세금계산서 옵션 (한국 사업자) — 입력 시 mark-paid 와 함께 발행 신청
   const [taxOpen, setTaxOpen] = useState(false);
   const [tax, setTax] = useState<TaxInvoiceInput>({ biz_no: '', biz_name: '', ceo_name: '', address: '', biz_type: '', biz_item: '', email: '', contact_name: '', contact_phone: '' });
@@ -151,7 +160,18 @@ export default function CheckoutModal({
             </SummaryRow>
             <SummaryRow>
               <SummaryLabel>{t('checkout.summary.amount')}</SummaryLabel>
-              <SummaryAmount>{fmtAmount}</SummaryAmount>
+              <AmountWrap>
+                <SummaryAmount>{fmtAmount}</SummaryAmount>
+                <CopyIconBtn
+                  type="button"
+                  onClick={() => copy(String(amount || 0), 'amt')}
+                  aria-label={t('checkout.copy', '복사') as string}
+                  title={t('checkout.copy', '복사') as string}
+                >
+                  {copyHit === 'amt' ? <CheckIcon /> : <ClipIcon />}
+                </CopyIconBtn>
+                {copyHit === 'amt' && <CopiedTag>{t('checkout.copied', '복사됨')}</CopiedTag>}
+              </AmountWrap>
             </SummaryRow>
             {paymentId && (
               <SummaryRow>
@@ -165,8 +185,31 @@ export default function CheckoutModal({
             <BankLabel>{t('checkout.bank.title')}</BankLabel>
             {bankInfo?.name && bankInfo?.account ? (
               <BankInfo>
-                <BankLine><strong>{bankInfo.name}</strong> {bankInfo.account}</BankLine>
-                {bankInfo.holder && <BankLine>{t('checkout.bank.holder')}: {bankInfo.holder}</BankLine>}
+                <BankRow>
+                  <BankRowLabel>{t('checkout.bank.bankName', '은행')}</BankRowLabel>
+                  <BankRowVal>{bankInfo.name}</BankRowVal>
+                </BankRow>
+                <BankRow>
+                  <BankRowLabel>{t('checkout.bank.account', '계좌번호')}</BankRowLabel>
+                  <BankRowVal>
+                    <Mono>{bankInfo.account}</Mono>
+                    <CopyIconBtn
+                      type="button"
+                      onClick={() => copy(bankInfo.account || '', 'acct')}
+                      aria-label={t('checkout.copy', '복사') as string}
+                      title={t('checkout.copy', '복사') as string}
+                    >
+                      {copyHit === 'acct' ? <CheckIcon /> : <ClipIcon />}
+                    </CopyIconBtn>
+                    {copyHit === 'acct' && <CopiedTag>{t('checkout.copied', '복사됨')}</CopiedTag>}
+                  </BankRowVal>
+                </BankRow>
+                {bankInfo.holder && (
+                  <BankRow>
+                    <BankRowLabel>{t('checkout.bank.holder')}</BankRowLabel>
+                    <BankRowVal>{bankInfo.holder}</BankRowVal>
+                  </BankRow>
+                )}
               </BankInfo>
             ) : (
               <BankFallback>{t('checkout.bank.contactSupport')}</BankFallback>
@@ -331,7 +374,6 @@ const BankLabel = styled.div`
   text-transform: uppercase; letter-spacing: 0.5px;
 `;
 const BankInfo = styled.div`display: flex; flex-direction: column; gap: 4px;`;
-const BankLine = styled.div`font-size: 14px; color: #0F172A; line-height: 1.5;`;
 const BankFallback = styled.div`font-size: 13px; color: #64748B;`;
 const BankHint = styled.div`font-size: 11px; color: #64748B; line-height: 1.5;`;
 
@@ -369,3 +411,36 @@ const SecondaryBtn = styled.button`
   &:hover:not(:disabled) { background: #F8FAFC; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
+
+// ─── 복사 UI (금액·계좌) — Q Bill PublicInvoicePage 와 동일 상호작용, 아이콘 버튼 ───
+const AmountWrap = styled.div`display: flex; align-items: center; gap: 8px;`;
+const CopyIconBtn = styled.button`
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; flex-shrink: 0;
+  background: #FFFFFF; border: 1px solid #CBD5E1; border-radius: 7px;
+  color: #0F766E; cursor: pointer; padding: 0;
+  transition: background 120ms, border-color 120ms;
+  &:hover { background: #F0FDFA; border-color: #5EEAD4; }
+  svg { width: 15px; height: 15px; }
+`;
+const CopiedTag = styled.span`font-size: 11px; font-weight: 600; color: #0D9488;`;
+const BankRow = styled.div`display: flex; align-items: center; gap: 10px; min-height: 28px;`;
+const BankRowLabel = styled.div`font-size: 12px; color: #0F766E; font-weight: 600; width: 64px; flex-shrink: 0;`;
+const BankRowVal = styled.div`display: flex; align-items: center; gap: 8px; font-size: 14px; color: #0F172A; flex-wrap: wrap;`;
+const Mono = styled.span`font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; letter-spacing: 0.2px;`;
+
+function ClipIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  );
+}
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
