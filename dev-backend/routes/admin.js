@@ -393,6 +393,12 @@ router.put('/platform-settings', async (req, res, next) => {
       ...setStr('website', 300),
       ...setStr('support_email', 200),
       ...setStr('legal_entity', 100),
+      // 사업자 정보 (전자상거래법 표시의무 — 랜딩 푸터)
+      ...setStr('biz_registration_no', 20),
+      ...setStr('mail_order_no', 60),
+      ...setStr('representative_name', 80),
+      ...setStr('company_phone', 40),
+      ...setStr('company_address', 300),
       ...setStr('email_logo_url', 500),
       // 결제 설정
       ...setStr('bank_name', 100),

@@ -8,6 +8,16 @@ import { useAuth } from '../../contexts/AuthContext';
 
 interface Props { children: React.ReactNode; transparentTop?: boolean; }
 
+interface CompanyInfo {
+  legal_entity: string | null;
+  representative_name: string | null;
+  biz_registration_no: string | null;
+  mail_order_no: string | null;
+  company_address: string | null;
+  company_phone: string | null;
+  support_email: string | null;
+}
+
 const NAV_ITEMS: { to: string; key: string }[] = [
   { to: '/features', key: 'nav.features' },
   { to: '/pricing', key: 'nav.pricing' },
@@ -23,8 +33,19 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [company, setCompany] = useState<CompanyInfo | null>(null);
 
   useEffect(() => { setMobileOpen(false); }, [location.pathname]);
+
+  // 사업자 정보 (전자상거래법 표시의무) — 공개 API 에서 로드
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/platform/info')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (alive && j?.success) setCompany(j.data); })
+      .catch(() => { /* 푸터 정보 실패는 조용히 무시 */ });
+    return () => { alive = false; };
+  }, []);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 60);
@@ -123,6 +144,21 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
             </FooterCol>
           </FooterCols>
           <FooterBottom>
+            {company && (company.legal_entity || company.biz_registration_no) && (
+              <FooterBiz>
+                <FooterBizRow>
+                  {company.legal_entity && <span>{t('footer.biz.company', '상호')}: {company.legal_entity}</span>}
+                  {company.representative_name && <span>{t('footer.biz.ceo', '대표')}: {company.representative_name}</span>}
+                  {company.biz_registration_no && <span>{t('footer.biz.regNo', '사업자등록번호')}: {company.biz_registration_no}</span>}
+                  {company.mail_order_no && <span>{t('footer.biz.mailOrderNo', '통신판매업신고번호')}: {company.mail_order_no}</span>}
+                </FooterBizRow>
+                <FooterBizRow>
+                  {company.company_address && <span>{t('footer.biz.address', '주소')}: {company.company_address}</span>}
+                  {company.company_phone && <span>{t('footer.biz.tel', '유선')}: {company.company_phone}</span>}
+                  {company.support_email && <span>{t('footer.biz.email', '이메일')}: {company.support_email}</span>}
+                </FooterBizRow>
+              </FooterBiz>
+            )}
             <FooterCopy>© {new Date().getFullYear()} PlanQ. {t('footer.allRights', 'All rights reserved.')}</FooterCopy>
           </FooterBottom>
         </FooterInner>
@@ -298,5 +334,20 @@ const FooterBottom = styled.div`
   border-top: 1px solid rgba(255,255,255,0.06);
   display: flex; justify-content: space-between; align-items: center;
   @media (max-width: 640px) { flex-direction: column; gap: 8px; align-items: flex-start; }
+`;
+const FooterBiz = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+`;
+const FooterBizRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  font-size: 12px;
+  color: #94A3B8;
+  font-weight: 300;
+  line-height: 1.6;
 `;
 const FooterCopy = styled.div`font-size: 12px; color: #64748B; font-weight: 300;`;

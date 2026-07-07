@@ -323,6 +323,7 @@ require('./models');
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/app-download', require('./routes/app_download')); // 공개 — 모바일 앱 다운로드 링크
+app.use('/api/platform', require('./routes/platform_public')); // 공개 — 랜딩 푸터 사업자 정보 (전자상거래법 표시의무)
 app.use('/api/projects', require('./routes/projects'));
 app.use('/api/projects', require('./routes/project_process'));
 app.use('/api/users', require('./routes/users'));
