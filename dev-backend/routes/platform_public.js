@@ -12,25 +12,22 @@ router.get('/info', async (req, res, next) => {
     const row = await PlatformSetting.findOne({
       order: [['id', 'ASC']],
       attributes: [
-        'brand', 'legal_entity', 'website', 'support_email',
+        'brand', 'legal_entity', 'website',
         'biz_registration_no', 'mail_order_no', 'representative_name',
-        'company_phone', 'company_address',
-        'bank_name', 'bank_account_number', 'bank_account_holder',
+        'company_phone', 'company_email', 'company_address', 'support_email',
       ],
     });
+    // 전자상거래법 표시의무 항목만 노출 (계좌 등 비표시 필드는 제외 — 최소 노출)
     return successResponse(res, {
       brand: row?.brand || 'PlanQ',
       legal_entity: row?.legal_entity || null,
       website: row?.website || null,
-      support_email: row?.support_email || null,
       biz_registration_no: row?.biz_registration_no || null,
       mail_order_no: row?.mail_order_no || null,
       representative_name: row?.representative_name || null,
       company_phone: row?.company_phone || null,
+      company_email: row?.company_email || row?.support_email || null,
       company_address: row?.company_address || null,
-      bank_name: row?.bank_name || null,
-      bank_account_number: row?.bank_account_number || null,
-      bank_account_holder: row?.bank_account_holder || null,
     });
   } catch (err) { next(err); }
 });

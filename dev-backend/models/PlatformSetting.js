@@ -40,6 +40,7 @@ PlatformSetting.init({
   mail_order_no: { type: DataTypes.STRING(60), allowNull: true },          // 통신판매업 신고번호 (있으면)
   representative_name: { type: DataTypes.STRING(80), allowNull: true },    // 대표자명
   company_phone: { type: DataTypes.STRING(40), allowNull: true },          // 유선(고객센터) 번호
+  company_email: { type: DataTypes.STRING(200), allowNull: true },         // 전자상거래 표시용 이메일 (전송용 support_email 과 별개)
   company_address: { type: DataTypes.STRING(300), allowNull: true },       // 사업장 주소
   email_logo_url: {
     type: DataTypes.STRING(500),

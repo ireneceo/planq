@@ -216,8 +216,9 @@
       "regNo": "Business Reg. No.",
       "mailOrderNo": "Mail-order Sales No.",
       "address": "Address",
-      "tel": "Tel",
-      "email": "Email"
+      "tel": "Phone",
+      "email": "Email",
+      "verify": "Verify business"
     }
   },
   "featuresPage": {

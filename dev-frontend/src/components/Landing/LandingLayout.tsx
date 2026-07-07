@@ -15,6 +15,7 @@ interface CompanyInfo {
   mail_order_no: string | null;
   company_address: string | null;
   company_phone: string | null;
+  company_email: string | null;
   support_email: string | null;
 }
 
@@ -150,12 +151,28 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
                   {company.legal_entity && <span>{t('footer.biz.company', '상호')}: {company.legal_entity}</span>}
                   {company.representative_name && <span>{t('footer.biz.ceo', '대표')}: {company.representative_name}</span>}
                   {company.biz_registration_no && <span>{t('footer.biz.regNo', '사업자등록번호')}: {company.biz_registration_no}</span>}
-                  {company.mail_order_no && <span>{t('footer.biz.mailOrderNo', '통신판매업신고번호')}: {company.mail_order_no}</span>}
+                  {company.mail_order_no && (
+                    <span>
+                      {t('footer.biz.mailOrderNo', '통신판매업신고번호')}: {company.mail_order_no}
+                      {company.biz_registration_no && (
+                        <>
+                          {' '}
+                          <FooterBizLink
+                            href={`https://www.ftc.go.kr/bizCommPop.do?wrkr_no=${company.biz_registration_no.replace(/[^0-9]/g, '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            {t('footer.biz.verify', '사업자정보확인')}
+                          </FooterBizLink>
+                        </>
+                      )}
+                    </span>
+                  )}
                 </FooterBizRow>
                 <FooterBizRow>
                   {company.company_address && <span>{t('footer.biz.address', '주소')}: {company.company_address}</span>}
-                  {company.company_phone && <span>{t('footer.biz.tel', '유선')}: {company.company_phone}</span>}
-                  {company.support_email && <span>{t('footer.biz.email', '이메일')}: {company.support_email}</span>}
+                  {company.company_phone && <span>{t('footer.biz.tel', '대표전화')}: {company.company_phone}</span>}
+                  {company.company_email && <span>{t('footer.biz.email', '이메일')}: {company.company_email}</span>}
                 </FooterBizRow>
               </FooterBiz>
             )}
@@ -349,5 +366,11 @@ const FooterBizRow = styled.div`
   color: #94A3B8;
   font-weight: 300;
   line-height: 1.6;
+`;
+const FooterBizLink = styled.a`
+  color: #94A3B8;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  &:hover { color: #CBD5E1; }
 `;
 const FooterCopy = styled.div`font-size: 12px; color: #64748B; font-weight: 300;`;
