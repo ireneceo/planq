@@ -37,7 +37,7 @@ Payment.init({
 
   // 결제 방식: bank_transfer (계좌이체), card (카드), portone (외부 PG)
   method: {
-    type: DataTypes.ENUM('bank_transfer', 'card', 'portone', 'manual_adjust'),
+    type: DataTypes.ENUM('bank_transfer', 'card', 'portone', 'stripe', 'manual_adjust'),
     allowNull: false,
   },
   status: {
@@ -72,6 +72,10 @@ Payment.init({
   portone_merchant_uid: { type: DataTypes.STRING(64), allowNull: true },
   portone_status: { type: DataTypes.STRING(32), allowNull: true },
   portone_meta: { type: DataTypes.JSON, allowNull: true },
+  // Stripe (카드 PG) — Hosted Checkout 세션·결제·고객 id. webhook 이 진실원천.
+  stripe_session_id: { type: DataTypes.STRING(255), allowNull: true },
+  stripe_payment_intent: { type: DataTypes.STRING(255), allowNull: true },
+  stripe_customer_id: { type: DataTypes.STRING(255), allowNull: true },
 
   paid_at: { type: DataTypes.DATE, allowNull: true },
   refunded_at: { type: DataTypes.DATE, allowNull: true },

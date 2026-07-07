@@ -243,5 +243,6 @@
     "successDesc": "We'll contact you at {{email}} within 1–2 business days.",
     "close": "Close",
     "error": "Failed to send — please try again"
-  }
+  },
+  "amountKrw": "₩{{amount}}"
 }

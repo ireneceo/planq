@@ -120,7 +120,7 @@ export default function CheckoutModal({
     setStep('notified');
   };
 
-  const fmtAmount = `${Number(amount || 0).toLocaleString()}원`;
+  const fmtAmount = t('amountKrw', { amount: Number(amount || 0).toLocaleString() });
   const cycleLabel = cycle === 'monthly' ? t('checkout.cycle.monthly') : t('checkout.cycle.yearly');
 
   return (

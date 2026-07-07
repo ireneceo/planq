@@ -243,5 +243,6 @@
     "successDesc": "담당자가 1~2영업일 내에 {{email}} 로 연락드립니다.",
     "close": "닫기",
     "error": "전송 실패 — 잠시 후 다시 시도해주세요"
-  }
+  },
+  "amountKrw": "{{amount}}원"
 }
