@@ -768,7 +768,7 @@ function billingInstructionEmailHtml({ kind, workspaceName, itemName, cycle, qua
     : `${escapeHtml(workspaceName || '')} 워크스페이스의 ${escapeHtml(itemName)}${cycleLabel ? ` ${cycleLabel}` : ''} 결제 안내입니다.`;
   const noticeLine = kind === 'addon'
     ? '입금이 7일 안에 확인되지 않으면 추가된 한도가 회수됩니다.'
-    : '입금 후, PlanQ 워크스페이스 관리자가 결제 확인을 처리하면 즉시 활성화됩니다. 24시간 내 미입금 시 자동 취소됩니다.';
+    : '입금 후, PlanQ 운영팀이 입금을 확인하면 즉시 활성화됩니다. 24시간 내 미입금 시 자동 취소됩니다.';
   const accountBlock = configured ? `
     <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;margin-top:14px;">
       <tr><td style="padding:14px 16px;">
