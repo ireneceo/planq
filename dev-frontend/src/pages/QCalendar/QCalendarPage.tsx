@@ -5,6 +5,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import PageShell from '../../components/Layout/PageShell';
 import MonthView from './MonthView';
+import AgendaView from './AgendaView';
 import TimeGridView from './TimeGridView';
 import EventDrawer from './EventDrawer';
 import { responsiveDrawerWidth } from '../../utils/responsiveDrawer';
@@ -28,9 +29,13 @@ import PlanQSelect from '../../components/Common/PlanQSelect';
 import { mapApiError } from '../../utils/apiError';
 
 // ─── URL 싱크 ───
+// #133 — 폰(≤640)에서 무파라미터 진입 시 기본 뷰를 agenda(리스트)로. 명시 ?view= 있으면 항상 존중.
+const defaultView = (): CalendarViewMode =>
+  (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 640px)').matches) ? 'agenda' : 'month';
+
 const readUrl = (search: string) => {
   const p = new URLSearchParams(search);
-  const view = (p.get('view') || 'month') as CalendarViewMode;
+  const view = (p.get('view') || defaultView()) as CalendarViewMode;
   const dateStr = p.get('date');
   const eventId = p.get('event') ? Number(p.get('event')) : null;
   const scope = (p.get('scope') || 'all') as CalendarScope;
@@ -139,7 +144,11 @@ const QCalendarPage: React.FC = () => {
     setLoading(true); setErrorMsg(null);
     try {
       let rangeStart: Date; let rangeEnd: Date;
-      if (view === 'month') {
+      if (view === 'agenda') {
+        // #133 아젠다: anchor 월 1일~말일
+        rangeStart = startOfMonth(anchor);
+        rangeEnd = startOfMonth(addMonths(anchor, 1));
+      } else if (view === 'month') {
         // 월 뷰: 앞뒤 여유 포함 (6주 그리드)
         const firstOfMonth = startOfMonth(anchor);
         rangeStart = startOfWeek(firstOfMonth, 0);
@@ -263,7 +272,7 @@ const QCalendarPage: React.FC = () => {
   // 헤더 타이틀
   const headerTitle = useMemo(() => {
     const locale = i18n.language === 'en' ? 'en-US' : 'ko-KR';
-    if (view === 'month') {
+    if (view === 'month' || view === 'agenda') {
       return new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'long' }).format(anchor);
     }
     if (view === 'week') {
@@ -284,13 +293,13 @@ const QCalendarPage: React.FC = () => {
   }, [anchor, view, i18n.language]);
 
   const goPrev = useCallback(() => {
-    if (view === 'month') setAnchor((d) => startOfMonth(addMonths(d, -1)));
+    if (view === 'month' || view === 'agenda') setAnchor((d) => startOfMonth(addMonths(d, -1)));
     else if (view === 'week') setAnchor((d) => addDays(d, -7));
     else setAnchor((d) => addDays(d, -1));
   }, [view]);
 
   const goNext = useCallback(() => {
-    if (view === 'month') setAnchor((d) => startOfMonth(addMonths(d, 1)));
+    if (view === 'month' || view === 'agenda') setAnchor((d) => startOfMonth(addMonths(d, 1)));
     else if (view === 'week') setAnchor((d) => addDays(d, 7));
     else setAnchor((d) => addDays(d, 1));
   }, [view]);
@@ -328,7 +337,7 @@ const QCalendarPage: React.FC = () => {
   }, [bizId]);
 
   const handleSelectDate = useCallback((d: Date) => {
-    if (view === 'month') {
+    if (view === 'month' || view === 'agenda') {
       setAnchor(startOfDay(d));
       setView('day');
     } else {
@@ -426,6 +435,7 @@ const QCalendarPage: React.FC = () => {
   const days = view === 'week' ? getWeekDays(anchor, 0) : view === 'day' ? [anchor] : [];
 
   const viewOptions = useMemo(() => [
+    { value: 'agenda', label: t('view.agenda', '아젠다') },
     { value: 'month', label: t('view.month') },
     { value: 'week', label: t('view.week') },
     { value: 'day', label: t('view.day') },
@@ -500,7 +510,18 @@ const QCalendarPage: React.FC = () => {
         )}
       </Toolbar>
 
-      <ViewWrap>
+      <ViewWrap $agenda={view === 'agenda'}>
+        {view === 'agenda' && (
+          <AgendaView
+            anchor={anchor}
+            today={today}
+            events={filteredEvents}
+            onSelectEvent={handleSelectEvent}
+            onSelectDate={handleSelectDate}
+            onCreateAt={handleCreateAt}
+            loading={loading}
+          />
+        )}
         {view === 'month' && (
           <MonthView
             anchor={anchor}
@@ -633,9 +654,13 @@ const HeaderTitle = styled.h2`
   margin: 0 10px 0 10px; font-size: 18px; font-weight: 700; color: #0F172A; letter-spacing: -0.3px;
   @media (max-width: 640px) { font-size: 16px; margin: 0 6px; }
 `;
-const ViewWrap = styled.div`
+const ViewWrap = styled.div<{ $agenda?: boolean }>`
   height: calc(100vh - 60px - 56px - 40px); min-height: 520px;
   display: flex;
+  /* #133 아젠다: 고정 높이 대신 문서 흐름으로(PageShell Body 가 스크롤). 그리드 뷰만 고정 높이 유지. */
+  ${({ $agenda }) => $agenda && `
+    height: auto; min-height: 0; display: block;
+  `}
 `;
 const ErrorToast = styled.div`
   position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);

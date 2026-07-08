@@ -6,7 +6,8 @@
   "view": {
     "month": "Month",
     "week": "Week",
-    "day": "Day"
+    "day": "Day",
+    "agenda": "Agenda"
   },
   "new": "New event",
   "filter": {
@@ -142,5 +143,12 @@
     "workspaceBasis": "{{tz}} · workspace time",
     "yourTime": "Your time",
     "inputBasis": "In {{tz}} (workspace time zone)"
+  },
+  "agenda": {
+    "empty": "No events this month",
+    "emptyHint": "Add one with the New event button",
+    "todayDivider": "Today",
+    "addOnDay": "Add event on this day",
+    "noneToday": "No events"
   }
 }
