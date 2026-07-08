@@ -543,7 +543,46 @@ router.put('/:businessId/billing', authenticateToken, checkBusinessAccess, async
       updates.overdue_grace_days = g;
     }
 
+    // ─── Stripe (Q Bill 워크스페이스 카드결제 merchant) ───
+    //   시크릿은 재무 설정 → owner/admin 만. write-only: 값 있으면 암호화, 빈문자열=해제, 미전송=보존.
+    //   응답은 전역 toJSON 이 stripe_*_enc → stripe_*_set boolean 으로 redact.
+    const { stripe_publishable_key, stripe_secret, stripe_webhook_secret } = req.body;
+    const stripeTouched = [stripe_publishable_key, stripe_secret, stripe_webhook_secret].some(v => v !== undefined);
+    if (stripeTouched) {
+      if (req.businessRole !== 'owner' && req.businessRole !== 'admin' && req.user.platform_role !== 'platform_admin') {
+        return errorResponse(res, 'owner_or_admin_only', 403);
+      }
+      const { encrypt, usingFallbackKey } = require('../services/encryption');
+      // F3: 운영에서 EMAIL_ENCRYPTION_KEY 없이(JWT 파생 fallback) 결제 시크릿 저장 금지.
+      if ((stripe_secret || stripe_webhook_secret) && usingFallbackKey() && process.env.NODE_ENV === 'production') {
+        return errorResponse(res, 'encryption_key_required: EMAIL_ENCRYPTION_KEY 를 설정해야 결제 시크릿을 저장할 수 있습니다.', 400);
+      }
+      if (stripe_publishable_key !== undefined) {
+        updates.stripe_publishable_key = stripe_publishable_key ? String(stripe_publishable_key).slice(0, 255) : null;
+      }
+      if (stripe_secret !== undefined) {
+        updates.stripe_secret_enc = stripe_secret ? encrypt(String(stripe_secret)) : null;
+      }
+      if (stripe_webhook_secret !== undefined) {
+        updates.stripe_webhook_secret_enc = stripe_webhook_secret ? encrypt(String(stripe_webhook_secret)) : null;
+      }
+    }
+
     await business.update(updates);
+    // Stripe 설정 변경은 감사(재무 설정). 시크릿 원문은 auditService 가 *_enc 마스킹 → 암호문도 저장 안 됨.
+    if (stripeTouched) {
+      require('../services/auditService').logAudit(req, {
+        action: 'business.stripe_settings.update',
+        targetType: 'business',
+        targetId: business.id,
+        businessId: business.id,
+        newValue: {
+          stripe_publishable_key: updates.stripe_publishable_key,
+          stripe_secret_enc: updates.stripe_secret_enc,
+          stripe_webhook_secret_enc: updates.stripe_webhook_secret_enc,
+        },
+      });
+    }
     successResponse(res, business);
   } catch (error) { next(error); }
 });

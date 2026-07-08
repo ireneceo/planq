@@ -25,6 +25,17 @@ session-state.md 읽고 이어서 개발해.
 4. ✅ **CheckoutModal "카드로 결제" 버튼** — `services/plan.ts startStripeCheckout` + stripeEnabled 시에만 노출, session.url 리다이렉트. PlanSettings 가 bank-info.stripe_enabled 전달.
 5. ✅ i18n ko/en (admin.billing.stripe*, plan.checkout.stripe.*) + 빌드 EXIT0(error TS 0) + health-check 29/29.
 
+**2026-07-08 후속 — Q Bill 워크스페이스 카드결제 구현(대-규모, Fable 게이트):**
+같은 엔진 merchant='workspace' 스왑. 완료:
+- 마이그레이션 7컬럼: businesses(stripe_publishable_key/stripe_secret_enc/stripe_webhook_secret_enc), invoices·invoice_installments(stripe_session_id/stripe_payment_intent). 인덱스 여유(64 한도 안전).
+- **전역 toJSON `*_enc → *_set` redaction**(models/index.js) — 모든 모델 암호화 시크릿 API 응답 영구 차단.
+- `services/invoicePayments.js` 신규 — **markInstallmentPaid/markInvoicePaid 단일 착지점**(구독 markPaymentPaid 대칭). 기존 invoice mark-paid 라우트를 이 코어로 위임 리팩터(recordInvoiceStatusChange·updateInvoiceChatCards 서비스 이관). 멱등.
+- `startWorkspaceInvoiceCheckout`(stripeCheckoutService) + 공개 `POST /api/invoices/public/:token/stripe-checkout`(비인증 share_token, IP rate-limit, 회차/단일 분기, 금액 서버값).
+- `routes/stripeWorkspaceWebhook.js` + server.js `/api/stripe/webhook/ws/:businessId` 마운트(json 前). business webhook secret 서명검증 → markInstallmentPaid/markInvoicePaid 멱등 착지. metaBiz===businessId 격리.
+- 프론트: SettingsTab Stripe 섹션(write-only+set 배지+webhook URL) + PublicInvoicePage 카드 버튼(분할 회차/단일) + i18n ko/en.
+- 검증: 실호출 31/31 + F-1/D8 재검증 6/6 + health 29/29 + build EXIT0. **Fable 게이트: F-1(전역 toJSON 이 admin serializePlatformSettings 깨뜨림) 발견→수정→재검증.**
+- 운영 배포 시: 각 워크스페이스가 자기 Stripe 대시보드에 `https://planq.kr/api/stripe/webhook/ws/{businessId}` 등록.
+
 **바로 다음 작업 (운영 — Irene 몫):**
 1. **노출된 `sk_live` Roll** (채팅 노출분 — 반드시 폐기·재발급)
 2. **운영 `EMAIL_ENCRYPTION_KEY` 설정** (없으면 F3 가드가 결제 시크릿 저장 차단, 운영 NODE_ENV=production)

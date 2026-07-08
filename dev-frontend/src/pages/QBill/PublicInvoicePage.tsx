@@ -38,6 +38,7 @@ interface PublicInvoice {
   notes: string | null;
   payment_terms: string | null;
   recurring?: InvoiceRecurring | null;
+  stripe_enabled?: boolean;   // 워크스페이스가 Stripe 키 설정 시 "카드로 결제" 노출
   notify_paid_at: string | null;
   notify_payer_name: string | null;
   items: Array<{ id: number; description: string; detail?: string | null; quantity: number; unit_price: number; amount: number }>;
@@ -118,6 +119,7 @@ const PublicInvoicePage: React.FC = () => {
   const [payerName, setPayerName] = useState('');
   const [payerMemo, setPayerMemo] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [cardLoading, setCardLoading] = useState<number | 'single' | null>(null); // 카드결제 진행 중(회차 id 또는 'single')
   const [copyHit, setCopyHit] = useState<string | null>(null);
 
   // 증빙(세금계산서/현금영수증) 신청 모달
@@ -316,6 +318,29 @@ const PublicInvoicePage: React.FC = () => {
     }
   };
 
+  // 카드결제 — 분할=회차 / 단일=invoice(installmentId=null). Stripe Checkout 리다이렉트(성공은 webhook 착지).
+  const payByCard = async (installmentId: number | null) => {
+    if (!token || cardLoading) return;
+    setCardLoading(installmentId ?? 'single');
+    setErr(null);
+    try {
+      const r = await fetch(`/api/invoices/public/${token}/stripe-checkout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ installment_id: installmentId }),
+      });
+      const j = await r.json();
+      if (j.success && j.data?.url) { window.location.href = j.data.url; return; } // 리다이렉트 중 로딩 유지
+      setErr(j.message === 'stripe_not_configured'
+        ? t('public.card.notConfigured', '카드 결제가 아직 준비되지 않았습니다. 계좌이체를 이용해 주세요.')
+        : t('public.card.failed', '카드 결제를 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.'));
+      setCardLoading(null);
+    } catch (e) {
+      setErr((e as Error).message);
+      setCardLoading(null);
+    }
+  };
+
   if (loading) return <Center>{t('public.loading', '청구서 로드 중...')}</Center>;
   if (expired) return <ExpiredShareLink expiredAt={expired.at} />;
   if (err || !invoice) return <Center>{err || t('public.notFound', '공개되지 않았거나 만료된 링크입니다')}</Center>;
@@ -377,13 +402,24 @@ const PublicInvoicePage: React.FC = () => {
                         {!paid && !canceled && !notified && t('public.statusPending', '결제 대기')}
                       </InstallStatus>
                       {!paid && !canceled && (
-                        <NotifyBtnSm
-                          type="button"
-                          disabled={isFullyPaid || isCanceled}
-                          onClick={() => openNotify(inst)}
-                        >
-                          {t('public.notifyForThis', '이 회차 입금 알림')}
-                        </NotifyBtnSm>
+                        <BtnRow>
+                          {invoice.stripe_enabled && (
+                            <CardPayBtnSm
+                              type="button"
+                              disabled={isFullyPaid || isCanceled || cardLoading === inst.id}
+                              onClick={() => payByCard(inst.id)}
+                            >
+                              {cardLoading === inst.id ? t('public.card.starting', '이동 중…') : t('public.card.payThis', '이 회차 카드결제')}
+                            </CardPayBtnSm>
+                          )}
+                          <NotifyBtnSm
+                            type="button"
+                            disabled={isFullyPaid || isCanceled}
+                            onClick={() => openNotify(inst)}
+                          >
+                            {t('public.notifyForThis', '이 회차 입금 알림')}
+                          </NotifyBtnSm>
+                        </BtnRow>
                       )}
                     </InstallRight>
                   </InstallRow>
@@ -468,6 +504,16 @@ const PublicInvoicePage: React.FC = () => {
             <SectionTitle>{t('public.note', '메모')}</SectionTitle>
             <Memo>{invoice.notes}</Memo>
           </Section>
+        )}
+
+        {/* 단일 발행 카드결제 (Stripe) — 활성 시. 즉시 확정(webhook). */}
+        {!isSplit && !isFullyPaid && !isCanceled && invoice.stripe_enabled && (
+          <NotifyArea>
+            <CardPayBtn type="button" disabled={cardLoading === 'single'} onClick={() => payByCard(null)}>
+              {cardLoading === 'single' ? t('public.card.starting', '이동 중…') : t('public.card.pay', '카드로 결제')}
+            </CardPayBtn>
+            <NotifyHint>{t('public.card.hint', 'Stripe 보안 결제 페이지로 이동하며, 결제 완료 시 즉시 확정됩니다.')}</NotifyHint>
+          </NotifyArea>
         )}
 
         {/* 송금 완료 알림 (단일 발행 또는 분할 일괄) */}
@@ -871,6 +917,22 @@ const NotifyBtnSm = styled.button`
   background: #fff; border: 1px solid #E2E8F0; border-radius: 6px; color: #0F766E; cursor: pointer;
   &:hover:not(:disabled) { background: #F0FDFA; border-color: #14B8A6; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
+// 카드결제 버튼 — Stripe 브랜드 보라(#635BFF)
+const BtnRow = styled.div`display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end;`;
+const CardPayBtnSm = styled.button`
+  display: inline-flex; align-items: center; min-height: 36px;
+  padding: 6px 12px; font-size: 11px; font-weight: 700;
+  background: #635BFF; border: none; border-radius: 6px; color: #fff; cursor: pointer;
+  &:hover:not(:disabled) { background: #524DE0; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
+const CardPayBtn = styled.button`
+  display: inline-flex; align-items: center; justify-content: center; min-height: 46px;
+  padding: 0 20px; font-size: 14px; font-weight: 700;
+  background: #635BFF; border: none; border-radius: 10px; color: #fff; cursor: pointer; width: 100%;
+  &:hover:not(:disabled) { background: #524DE0; }
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
 `;
 const Section = styled.section`
   background: #FFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 18px 20px;

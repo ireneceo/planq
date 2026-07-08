@@ -56,6 +56,11 @@ export default function SettingsTab({ inWorkspaceSettings = false }: SettingsTab
   const [autoMode, setAutoMode] = useState<'auto' | 'draft_review'>('draft_review');
   const [billingDay, setBillingDay] = useState<number>(1);
   const [graceDays, setGraceDays] = useState<number>(7);
+  // Stripe (카드결제) — publishable 평문 + secret/webhook write-only(로컬 입력, 설정여부는 info.*_set 배지)
+  const [stripePub, setStripePub] = useState('');
+  const [stripeSecretInput, setStripeSecretInput] = useState('');
+  const [stripeWebhookInput, setStripeWebhookInput] = useState('');
+  const [reveal, setReveal] = useState<Record<string, boolean>>({});
 
   const hydrated = useRef(false);
 
@@ -79,6 +84,7 @@ export default function SettingsTab({ inWorkspaceSettings = false }: SettingsTab
         setAutoMode((d.auto_invoice_default_mode as 'auto' | 'draft_review') || 'draft_review');
         setBillingDay(d.auto_invoice_default_billing_day ?? 1);
         setGraceDays(d.overdue_grace_days ?? 7);
+        setStripePub(d.stripe_publishable_key || '');
         hydrated.current = true;
       })
       .catch(err => { if (!cancelled) setError(err.message || 'load failed'); })
@@ -209,6 +215,67 @@ export default function SettingsTab({ inWorkspaceSettings = false }: SettingsTab
               <EditInput type="text" value={acctHolderEn} onChange={e => setAcctHolderEn(e.target.value)} placeholder="WORPRORAB CO., LTD." />
             </AutoSaveField>
             <FieldHint>{t('settings.bank.holderEnHint', '사업자등록증의 영문 상호 — 외화 청구서에 표시됩니다')}</FieldHint>
+          </EditField>
+        </EditGrid>
+      </Section>
+
+      {/* 카드결제 (Stripe) — 워크스페이스 자체 Stripe 계정 */}
+      <Section>
+        <SectionHead>
+          <div>
+            <SectionTitle>{t('settings.stripe.title', '카드 결제 (Stripe)')}</SectionTitle>
+            <SectionDesc>{t('settings.stripe.desc', '세 가지 키를 모두 입력하면 청구서 공개 결제 페이지에 "카드로 결제" 버튼이 켜집니다. Secret Key·Webhook Secret 은 암호화되어 저장되며 화면에 다시 표시되지 않습니다. 카드 결제 시 회차가 즉시 확정됩니다.')}</SectionDesc>
+          </div>
+        </SectionHead>
+        <EditGrid>
+          <EditField $span={2}>
+            <EditLabel>{t('settings.stripe.publishable', 'Publishable Key')}</EditLabel>
+            <AutoSaveField type="input" onSave={async () => save({ stripe_publishable_key: stripePub.trim() || null })}>
+              <EditInput type="text" value={stripePub} onChange={e => setStripePub(e.target.value)} placeholder="pk_live_..." />
+            </AutoSaveField>
+          </EditField>
+          <EditField $span={2}>
+            <EditLabel>
+              {t('settings.stripe.secret', 'Secret Key')}
+              {info.stripe_secret_set
+                ? <SetBadge>{t('settings.stripe.set', '설정됨')}</SetBadge>
+                : <UnsetBadge>{t('settings.stripe.unset', '미설정')}</UnsetBadge>}
+            </EditLabel>
+            <SecretRow>
+              <AutoSaveField type="input" onSave={async () => { const v = stripeSecretInput.trim(); if (v) { await save({ stripe_secret: v }); setStripeSecretInput(''); } }}>
+                <EditInput type={reveal.ss ? 'text' : 'password'} value={stripeSecretInput} autoComplete="off"
+                  onChange={e => setStripeSecretInput(e.target.value)}
+                  placeholder={info.stripe_secret_set ? (t('settings.stripe.keepPh', '변경하려면 새 값 입력 (비우면 유지)') as string) : 'sk_live_...'} />
+              </AutoSaveField>
+              <RevealBtn type="button" onClick={() => setReveal(r => ({ ...r, ss: !r.ss }))}>
+                {reveal.ss ? t('settings.stripe.hide', '숨기기') : t('settings.stripe.show', '보기')}
+              </RevealBtn>
+            </SecretRow>
+            {info.stripe_secret_set && (
+              <ClearBtn type="button" onClick={() => save({ stripe_secret: '' })}>{t('settings.stripe.clear', '삭제 (카드 결제 비활성화)')}</ClearBtn>
+            )}
+          </EditField>
+          <EditField $span={2}>
+            <EditLabel>
+              {t('settings.stripe.webhook', 'Webhook Secret')}
+              {info.stripe_webhook_secret_set
+                ? <SetBadge>{t('settings.stripe.set', '설정됨')}</SetBadge>
+                : <UnsetBadge>{t('settings.stripe.unset', '미설정')}</UnsetBadge>}
+            </EditLabel>
+            <SecretRow>
+              <AutoSaveField type="input" onSave={async () => { const v = stripeWebhookInput.trim(); if (v) { await save({ stripe_webhook_secret: v }); setStripeWebhookInput(''); } }}>
+                <EditInput type={reveal.sw ? 'text' : 'password'} value={stripeWebhookInput} autoComplete="off"
+                  onChange={e => setStripeWebhookInput(e.target.value)}
+                  placeholder={info.stripe_webhook_secret_set ? (t('settings.stripe.keepPh', '변경하려면 새 값 입력 (비우면 유지)') as string) : 'whsec_...'} />
+              </AutoSaveField>
+              <RevealBtn type="button" onClick={() => setReveal(r => ({ ...r, sw: !r.sw }))}>
+                {reveal.sw ? t('settings.stripe.hide', '숨기기') : t('settings.stripe.show', '보기')}
+              </RevealBtn>
+            </SecretRow>
+            <FieldHint>{t('settings.stripe.webhookHint', 'Stripe 대시보드 → Developers → Webhooks 에서 아래 엔드포인트를 추가한 뒤(checkout.session.completed, payment_intent.succeeded) Signing secret 을 입력하세요.')}</FieldHint>
+            {businessId && (
+              <WebhookUrl>{`https://planq.kr/api/stripe/webhook/ws/${businessId}`}</WebhookUrl>
+            )}
           </EditField>
         </EditGrid>
       </Section>
@@ -394,4 +461,33 @@ const SecondaryBtn = styled.button`
   line-height: 1; white-space: nowrap;
   & > svg { display: block; flex-shrink: 0; }
   &:hover { background: #F8FAFC; border-color: #CBD5E1; }
+`;
+// Stripe 시크릿 UI (write-only)
+const SecretRow = styled.div`
+  display: flex; gap: 8px; align-items: stretch;
+  > div:first-child { flex: 1; }
+`;
+const RevealBtn = styled.button`
+  padding: 0 12px; font-size: 12px; font-weight: 600; color: #64748B;
+  background: #fff; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer;
+  flex-shrink: 0; white-space: nowrap;
+  &:hover { color: #0F172A; background: #F8FAFC; }
+`;
+const SetBadge = styled.span`
+  display: inline-block; margin-left: 6px; font-size: 10px; font-weight: 700; color: #0F766E;
+  background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 5px; padding: 1px 6px; letter-spacing: 0;
+`;
+const UnsetBadge = styled.span`
+  display: inline-block; margin-left: 6px; font-size: 10px; font-weight: 700; color: #94A3B8;
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 5px; padding: 1px 6px; letter-spacing: 0;
+`;
+const ClearBtn = styled.button`
+  align-self: flex-start; font-size: 12px; font-weight: 600; color: #B91C1C;
+  background: transparent; border: none; padding: 2px 0; cursor: pointer;
+  &:hover { text-decoration: underline; }
+`;
+const WebhookUrl = styled.code`
+  display: block; font-size: 12px; color: #0F172A; word-break: break-all;
+  background: #F1F5F9; border: 1px solid #E2E8F0; border-radius: 6px; padding: 6px 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 `;

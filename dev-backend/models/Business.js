@@ -183,6 +183,13 @@ Business.init({
   bank_name_en: { type: DataTypes.STRING(200), allowNull: true, comment: '영문 은행명 (해외 송금)' },
   bank_account_name_en: { type: DataTypes.STRING(200), allowNull: true, comment: '영문 예금주명 (해외 송금)' },
 
+  // Q Bill 워크스페이스 카드결제 (Stripe workspace merchant) — 각 워크스페이스가 자기 Stripe 계정 키 보유.
+  //   publishable 평문 / secret·webhook 은 AES-256-GCM 암호화. platform_settings 의 stripe_* 미러(merchant='workspace').
+  //   분리 canonical: docs/SAAS_BILLING_VS_QBILL_SEPARATION.md — 여기 키는 Q Bill 고객결제 수취용(구독료 platform 과 별개).
+  stripe_publishable_key: { type: DataTypes.STRING(255), allowNull: true, comment: 'Stripe Publishable Key (평문)' },
+  stripe_secret_enc: { type: DataTypes.TEXT, allowNull: true, comment: 'Stripe Secret Key (AES-256-GCM 암호화)' },
+  stripe_webhook_secret_enc: { type: DataTypes.TEXT, allowNull: true, comment: 'Stripe Webhook Signing Secret (AES-256-GCM 암호화)' },
+
   // 메일 발송 설정 (Phase E2/E3) — 사용자에게 보낼 이메일의 발신 표시이름과 회신 주소
   mail_from_name: { type: DataTypes.STRING(100), allowNull: true, comment: '메일 발신 표시이름 (예: "워프로랩 청구팀")' },
   mail_reply_to: { type: DataTypes.STRING(200), allowNull: true, comment: '회신 주소 (Reply-To 헤더, 비우면 발신 주소 사용)' },

@@ -141,6 +141,16 @@ Sequelize.Model.prototype.toJSON = function () {
     obj.updated_at = obj.updatedAt;
     delete obj.updatedAt;
   }
+  // 보안: 암호화 시크릿 컬럼(*_enc)은 API 응답(JSON)에 절대 노출하지 않는다.
+  //   대신 설정 여부만 boolean(*_set)으로 노출. 서버 내부의 복호화는 instance 속성 직접 접근이라 영향 없음.
+  //   (stripe_secret_enc / stripe_webhook_secret_enc / access_key_enc / secret_key_enc …)
+  //   auditService 의 SENSITIVE_KEYS `_enc` 마스킹과 동일 철학 — 단일 지점에서 전 모델 일괄 차단.
+  for (const k of Object.keys(obj)) {
+    if (k.endsWith('_enc')) {
+      obj[k.slice(0, -4) + '_set'] = !!obj[k];
+      delete obj[k];
+    }
+  }
   return obj;
 };
 

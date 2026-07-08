@@ -69,6 +69,10 @@ InvoiceInstallment.init({
   // Phase C — 공개 결제 페이지 송금 완료 알림 (분할 회차용)
   notify_paid_at: { type: DataTypes.DATE, allowNull: true, comment: '고객이 송금 완료 알림 누른 시각' },
   notify_payer_name: { type: DataTypes.STRING(80), allowNull: true, comment: '입금자명 (고객 자기보고)' },
+
+  // Q Bill 워크스페이스 카드결제 (Stripe) — 회차별 Checkout 세션. 이중결제 가드: 열린 세션 재사용.
+  stripe_session_id: { type: DataTypes.STRING(255), allowNull: true, comment: 'Stripe Checkout 세션 id (열린 세션 재사용)' },
+  stripe_payment_intent: { type: DataTypes.STRING(255), allowNull: true, comment: 'Stripe PaymentIntent id (webhook 착지 기록)' },
 }, {
   sequelize, tableName: 'invoice_installments', timestamps: true, underscored: true,
   indexes: [

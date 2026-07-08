@@ -1,0 +1,157 @@
+// services/invoicePayments.js — Q Bill 회차 결제 확정 단일 착지점.
+//   수동 mark-paid(routes/invoices.js) + Stripe 카드결제 webhook(routes/stripeWorkspaceWebhook.js) 공용.
+//   구독측 billing.markPaymentPaid 와 대칭 — 멱등(재전송/재클릭 안전) + 부작용 일괄.
+//   분리: SAAS_BILLING_VS_QBILL_SEPARATION.md (invoices/installments = Business 수취, payments 무관).
+const { Op } = require('sequelize');
+const { sequelize } = require('../config/database');
+const { Invoice, InvoiceInstallment, InvoiceStatusHistory, Message } = require('../models');
+const { logBillEvent } = require('./billEvents');
+
+// 사이클 N+21 — Invoice 상태 전이 history 박제. (routes/invoices.js 에서 이관 — 라우트는 여기서 import)
+async function recordInvoiceStatusChange(invoice, fromStatus, toStatus, userId, note = null) {
+  if (!toStatus || fromStatus === toStatus) return;
+  try {
+    await InvoiceStatusHistory.create({
+      invoice_id: invoice.id,
+      business_id: invoice.business_id,
+      from_status: fromStatus,
+      to_status: toStatus,
+      changed_by: userId,
+      note,
+    });
+  } catch (e) { console.warn('[InvoiceStatusHistory create]', e.message); }
+}
+
+// 채팅 결제 카드 메타 동기 (best-effort). (routes/invoices.js 에서 이관)
+async function updateInvoiceChatCards(invoiceId, patches, transaction = null) {
+  try {
+    const id = parseInt(invoiceId, 10);
+    if (!Number.isInteger(id) || id <= 0) return 0;
+    const messages = await Message.findAll({
+      where: {
+        kind: 'card',
+        [Op.and]: [
+          sequelize.where(sequelize.fn('JSON_EXTRACT', sequelize.col('meta'), '$.card_type'), 'invoice'),
+          sequelize.where(sequelize.fn('JSON_EXTRACT', sequelize.col('meta'), '$.invoice_id'), id),
+        ],
+      },
+      transaction,
+    });
+    for (const m of messages) {
+      const meta = { ...(m.meta || {}), ...patches };
+      await m.update({ meta }, { transaction });
+    }
+    return messages.length;
+  } catch (err) {
+    console.error('[updateInvoiceChatCards]', err.message);
+    return 0;
+  }
+}
+
+/**
+ * 회차(installment) 결제 확정 — 단일 착지점.
+ *   멱등: 이미 paid 면 { alreadyPaid:true } 반환 (webhook 재전송·중복 클릭 안전).
+ *   커밋 후 부작용(status history, 채팅 카드, socket, stage engine, overdue, bill event) 일괄.
+ *   audit / owner 알림은 호출자 맥락(요청 vs 시스템)이 달라 호출자가 수행.
+ * @param {number} businessId  멀티테넌트 격리 — invoice.business_id 강제 대조
+ * @param {number} markedByUserId  수동=요청자 / 카드결제(webhook)=null(system)
+ * @param {'bank_transfer'|'stripe'} method
+ * @param {string|null} pgTransactionId  Stripe PaymentIntent id (installment 에 기록)
+ * @param {object|null} io  socket.io 인스턴스 (business room broadcast)
+ */
+async function markInstallmentPaid({ businessId, invoiceId, installmentId, paidAt, payerMemo, markedByUserId = null, method = 'bank_transfer', pgTransactionId = null, io = null }) {
+  const t = await sequelize.transaction();
+  let invoice, inst, prevStatus, newStatus, paidSum, totalSum;
+  try {
+    invoice = await Invoice.findOne({ where: { id: invoiceId, business_id: businessId }, transaction: t });
+    if (!invoice) { await t.rollback(); const e = new Error('invoice_not_found'); e.code = 'NOT_FOUND'; throw e; }
+    inst = await InvoiceInstallment.findOne({ where: { id: installmentId, invoice_id: invoice.id }, transaction: t });
+    if (!inst) { await t.rollback(); const e = new Error('installment_not_found'); e.code = 'NOT_FOUND'; throw e; }
+    if (inst.status === 'canceled') { await t.rollback(); const e = new Error('installment_canceled'); e.code = 'INVALID_STATE'; throw e; }
+    if (inst.status === 'paid') {
+      // 멱등 — webhook 재전송/중복 결제 세션. 아무 것도 바꾸지 않고 반환.
+      await t.rollback();
+      return { alreadyPaid: true, invoice, installment: inst };
+    }
+
+    await inst.update({
+      status: 'paid',
+      paid_at: paidAt || new Date(),
+      payer_memo: payerMemo || inst.payer_memo,
+      marked_by_user_id: markedByUserId,
+      marked_at: new Date(),
+      ...(pgTransactionId ? { stripe_payment_intent: pgTransactionId } : {}),
+    }, { transaction: t });
+
+    // Invoice paid_amount + status 자동 갱신 (route 1578 와 동일 공식)
+    const all = await InvoiceInstallment.findAll({ where: { invoice_id: invoice.id }, transaction: t });
+    paidSum = all.filter(i => i.status === 'paid').reduce((s, i) => s + Number(i.amount), 0);
+    totalSum = all.reduce((s, i) => s + Number(i.amount), 0);
+    prevStatus = invoice.status;
+    newStatus = paidSum >= totalSum ? 'paid' : (paidSum > 0 ? 'partially_paid' : invoice.status);
+    await invoice.update({
+      paid_amount: paidSum,
+      status: newStatus,
+      paid_at: newStatus === 'paid' ? new Date() : invoice.paid_at,
+    }, { transaction: t });
+
+    await t.commit();
+  } catch (e) { try { await t.rollback(); } catch { /* */ } throw e; }
+
+  // ── 커밋 후 부작용 (route 1578 와 동일 순서·내용) ──
+  const noteLabel = method === 'stripe' ? 'stripe card payment' : 'mark-paid';
+  setImmediate(() => recordInvoiceStatusChange(invoice, prevStatus, newStatus, markedByUserId, noteLabel));
+  const refreshed = await Invoice.findByPk(invoice.id, {
+    include: [{ model: InvoiceInstallment, as: 'installments', separate: true, order: [['installment_no', 'ASC']] }],
+  });
+  await updateInvoiceChatCards(invoice.id, {
+    status: refreshed.status,
+    paid_at: refreshed.paid_at ? new Date(refreshed.paid_at).toISOString() : null,
+    paid_amount: Number(refreshed.paid_amount || 0),
+  });
+  if (io) io.to(`business:${invoice.business_id}`).emit('inbox:refresh', { reason: 'installment_paid', invoice_id: invoice.id });
+  if (refreshed?.project_id) require('./projectStageEngine').onInvoiceChanged(refreshed.id).catch(() => null);
+  if (newStatus === 'paid') require('./overdue_handler').unpauseProjectIfApplicable(refreshed).catch(() => null);
+  await logBillEvent('invoice', invoice.id, newStatus === 'paid' ? 'paid_full' : 'paid_partial', {
+    actorUserId: markedByUserId,
+    detail: { installment_no: inst.installment_no, label: inst.label, amount: inst.amount, paid_sum: paidSum, total: totalSum, method },
+  });
+
+  return { alreadyPaid: false, invoice: refreshed, installment: inst, prevStatus, newStatus, paidSum, totalSum };
+}
+
+/**
+ * 단일 발행(installment 없음) invoice 결제 확정 — invoice-level.
+ *   분할은 markInstallmentPaid, 단일은 이 함수. 멱등(이미 paid 면 alreadyPaid).
+ *   부작용은 PATCH /:id/status(paid) 라우트와 동일.
+ */
+async function markInvoicePaid({ businessId, invoiceId, paidAt, markedByUserId = null, method = 'bank_transfer', pgTransactionId = null, io = null }) {
+  const invoice = await Invoice.findOne({ where: { id: invoiceId, business_id: businessId } });
+  if (!invoice) { const e = new Error('invoice_not_found'); e.code = 'NOT_FOUND'; throw e; }
+  if (invoice.status === 'canceled' || invoice.status === 'draft') { const e = new Error('invoice_not_payable'); e.code = 'INVALID_STATE'; throw e; }
+  if (invoice.status === 'paid') return { alreadyPaid: true, invoice }; // 멱등
+
+  const prevStatus = invoice.status;
+  await invoice.update({
+    status: 'paid',
+    paid_at: paidAt || new Date(),
+    paid_amount: invoice.grand_total,
+    ...(pgTransactionId ? { stripe_payment_intent: pgTransactionId } : {}),
+  });
+
+  const noteLabel = method === 'stripe' ? 'stripe card payment' : 'mark-paid';
+  setImmediate(() => recordInvoiceStatusChange(invoice, prevStatus, 'paid', markedByUserId, noteLabel));
+  await updateInvoiceChatCards(invoice.id, {
+    status: invoice.status,
+    paid_at: invoice.paid_at ? new Date(invoice.paid_at).toISOString() : null,
+    paid_amount: Number(invoice.paid_amount || 0),
+  });
+  if (io) io.to(`business:${invoice.business_id}`).emit('inbox:refresh', { reason: 'invoice_status', invoice_id: invoice.id, status: 'paid' });
+  if (invoice.project_id) require('./projectStageEngine').onInvoiceChanged(invoice.id).catch(() => null);
+  require('./overdue_handler').unpauseProjectIfApplicable(invoice).catch(() => null);
+  await logBillEvent('invoice', invoice.id, 'paid_full', { actorUserId: markedByUserId, detail: { amount: invoice.grand_total, from: prevStatus, method } });
+
+  return { alreadyPaid: false, invoice, prevStatus };
+}
+
+module.exports = { markInstallmentPaid, markInvoicePaid, recordInvoiceStatusChange, updateInvoiceChatCards };
