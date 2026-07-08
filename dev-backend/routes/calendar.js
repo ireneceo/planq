@@ -437,9 +437,28 @@ router.get('/by-business/:businessId/:id', authenticateToken, attachWorkspaceSco
     });
     if (!event) return errorResponse(res, 'event_not_found', 404);
 
-    // personal 은 본인만
-    if (event.visibility === 'personal' && event.created_by !== req.user.id) {
-      return errorResponse(res, 'forbidden', 403);
+    // vlevel 기반 접근검사 — 목록 라우트(N+67)와 동일 규칙 적용.
+    //   (이전엔 visibility==='personal' 만 검사 → L2(프로젝트/지정멤버 한정) 이벤트를 id 만 알면
+    //    아무 멤버나 단일 GET 으로 조회 가능하던 라이브 누출. Fable #104 인접 발견.)
+    //   member: L1(본인) / L2(참여 프로젝트 OR target_member_ids) / L3·L4(멤버) / legacy(visibility)
+    const isEventAdmin = req.businessRole === 'owner' || req.businessRole === 'admin' || req.user?.platform_role === 'platform_admin';
+    if (!isEventAdmin && !req.scope?.isClient) {
+      const uid = parseInt(req.user.id, 10);
+      let allowed = false;
+      if (event.created_by === uid) allowed = true;                       // 본인 생성은 무조건
+      else if (event.vlevel === 'L3' || event.vlevel === 'L4') allowed = true;
+      else if (event.vlevel === 'L2') {
+        const inProject = event.project_id
+          ? !!(await ProjectMember.findOne({ where: { user_id: uid, project_id: event.project_id }, attributes: ['id'] }))
+          : false;
+        const targets = Array.isArray(event.target_member_ids) ? event.target_member_ids.map(Number) : [];
+        if (inProject || targets.includes(uid)) allowed = true;
+      } else if (!event.vlevel) {                                          // legacy (vlevel 미마이그레이션)
+        if (event.visibility === 'business') allowed = true;
+        else if (event.visibility === 'personal' && event.created_by === uid) allowed = true;
+      }
+      // vlevel==='L1' 은 위 created_by 검사에서만 통과 (본인 아니면 차단)
+      if (!allowed) return errorResponse(res, 'forbidden', 403);
     }
 
     // Client: attendee 인 event 만
