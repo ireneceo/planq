@@ -221,7 +221,16 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
                       density="compact"
                       options={TIME_OPTIONS}
                       value={{ value: startTime, label: startTime }}
-                      onChange={(opt) => opt && setStartTime((opt as { value: string }).value)}
+                      onChange={(opt) => {
+                        if (!opt) return;
+                        const v = (opt as { value: string }).value;
+                        // #123 — 시작시간 변경 시 종료시간이 기존 기간을 유지하며 따라옴(구글 캘린더 방식).
+                        const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+                        const dur = toMin(endTime) - toMin(startTime);
+                        const newEnd = Math.min(toMin(v) + (dur > 0 ? dur : 60), 23 * 60 + 30);
+                        setStartTime(v);
+                        setEndTime(`${String(Math.floor(newEnd / 60)).padStart(2, '0')}:${String(newEnd % 60).padStart(2, '0')}`);
+                      }}
                     />
                   </TimeWrap>
                   <Dash>–</Dash>

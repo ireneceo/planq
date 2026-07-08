@@ -126,7 +126,8 @@
     "scopeFuture": "This and following events",
     "scopeFutureHint": "Change this and all future occurrences",
     "scopeAll": "All events",
-    "scopeAllHint": "Change all past and future occurrences"
+    "scopeAllHint": "Change all past and future occurrences",
+    "deleteScopeTitle": "Which occurrences to delete?"
   },
   "empty": {
     "month": "No events this month",

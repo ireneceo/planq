@@ -49,7 +49,7 @@ interface Props {
   onClose: () => void;
   // N+63 P2a — options 로 scope/recurrence_id 전달. 정기 master 시 modal 거치고 parent 가 services 호출
   onUpdate: (patch: Partial<CalendarEvent>, options?: { scope?: 'single' | 'future' | 'all'; recurrence_id?: string }) => Promise<void> | void;
-  onDelete: () => void;
+  onDelete: (options?: { scope?: 'single' | 'future' | 'all'; recurrence_id?: string }) => void;
   onCreateMeetingRoom?: () => Promise<void>;
   // 사이클 N+13: Daily.co → Google Meet 교체. 워크스페이스의 Google Calendar 연동 여부
   gcalConnected?: boolean;
@@ -265,7 +265,16 @@ const EventDrawer: React.FC<Props> = ({
                           density="compact"
                           options={TIME_OPTIONS}
                           value={{ value: startTime, label: startTime }}
-                          onChange={(opt) => opt && setStartTime((opt as { value: string }).value)}
+                          onChange={(opt) => {
+                            if (!opt) return;
+                            const v = (opt as { value: string }).value;
+                            // #123 — 시작시간 변경 시 종료시간이 기존 기간 유지하며 따라옴.
+                            const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+                            const dur = toMin(endTime) - toMin(startTime);
+                            const newEnd = Math.min(toMin(v) + (dur > 0 ? dur : 60), 23 * 60 + 30);
+                            setStartTime(v);
+                            setEndTime(`${String(Math.floor(newEnd / 60)).padStart(2, '0')}:${String(newEnd % 60).padStart(2, '0')}`);
+                          }}
                         />
                       </TimeWrap>
                     </AutoSaveField>
@@ -717,6 +726,22 @@ const EventDrawer: React.FC<Props> = ({
 
       <DetailDrawer.Footer>
         {confirmDelete ? (
+          // #122 — 정기일정이면 삭제 범위(이 일정만/이후/모두) 선택. 단발이면 단순 확인.
+          (isMaster || !!event.recurrence_parent_id) ? (
+            <ScopeDeleteGroup>
+              <ConfirmText>{t('drawer.deleteScopeTitle', '어느 회차를 삭제할까요?')}</ConfirmText>
+              <ScopeDeleteBtn type="button" onClick={() => { onDelete({ scope: 'single', recurrence_id: instanceDate || toDateKey(new Date(event.start_at)) }); setConfirmDelete(false); }}>
+                {t('drawer.scopeSingle', '이 일정만')}
+              </ScopeDeleteBtn>
+              <ScopeDeleteBtn type="button" onClick={() => { onDelete({ scope: 'future', recurrence_id: instanceDate || toDateKey(new Date(event.start_at)) }); setConfirmDelete(false); }}>
+                {t('drawer.scopeFuture', '이 일정 이후 모두')}
+              </ScopeDeleteBtn>
+              <ScopeDeleteBtn type="button" $danger onClick={() => { onDelete({ scope: 'all' }); setConfirmDelete(false); }}>
+                {t('drawer.scopeAll', '모든 일정')}
+              </ScopeDeleteBtn>
+              <SecondaryBtn type="button" onClick={() => setConfirmDelete(false)}>{t('button.cancel')}</SecondaryBtn>
+            </ScopeDeleteGroup>
+          ) : (
           <ConfirmGroup>
             <ConfirmText>{t('button.deleteConfirm')}</ConfirmText>
             <SecondaryBtn type="button" onClick={() => setConfirmDelete(false)}>{t('button.cancel')}</SecondaryBtn>
@@ -724,6 +749,7 @@ const EventDrawer: React.FC<Props> = ({
               {t('button.delete')}
             </DangerBtn>
           </ConfirmGroup>
+          )
         ) : (
           <FooterRow>
             {/* #104 — 나만보기(L1) 일정은 공개 링크 발급 불가 (개인 자원 누출 차단) */}
@@ -1027,6 +1053,17 @@ const SecondaryBtn = styled.button`
 `;
 const ConfirmGroup = styled.div` display: flex; align-items: center; gap: 8px; `;
 const ConfirmText = styled.div` font-size: 12px; color: #64748B; margin-right: 4px; `;
+// #122 — 정기일정 삭제 범위 선택 (footer 안, 세로 배치)
+const ScopeDeleteGroup = styled.div`
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+`;
+const ScopeDeleteBtn = styled.button<{ $danger?: boolean }>`
+  padding: 7px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;
+  background: transparent;
+  color: ${p => p.$danger ? '#B91C1C' : '#334155'};
+  border: 1px solid ${p => p.$danger ? '#FECACA' : '#CBD5E1'};
+  &:hover { background: ${p => p.$danger ? '#FEF2F2' : '#F8FAFC'}; }
+`;
 const FooterRow = styled.div`
   display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%;
 `;
