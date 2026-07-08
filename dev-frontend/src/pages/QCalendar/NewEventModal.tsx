@@ -80,9 +80,10 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
       if (j?.success && Array.isArray(j.data)) {
         setMembers(j.data
           .filter((m: { user?: { is_ai?: boolean }; role?: string }) => !m.user?.is_ai && m.role !== 'ai')
-          .map((m: { user_id?: number; id?: number; user?: { id?: number; name?: string }; name?: string; role?: string }) => ({
+          .map((m: { user_id?: number; id?: number; user?: { id?: number; name?: string; display_name?: string | null }; name?: string; role?: string }) => ({
             user_id: m.user_id || m.id || m.user?.id || 0,
-            name: m.user?.name || m.name || '—',
+            // 워크스페이스 표시명 우선 — 계정명 노출 방지
+            name: m.user?.display_name || m.name || m.user?.name || '—',
             role: m.role || 'member',
           })).filter((m: { user_id: number }) => m.user_id > 0));
       }
