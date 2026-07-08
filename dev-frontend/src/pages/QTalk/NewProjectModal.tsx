@@ -98,7 +98,7 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
         if (members.length === 0 && user) {
           const me = humans.find((m) => m.user_id === Number(user.id));
           if (me) {
-            setMembers([{ user_id: me.user_id, name: me.user?.name || user.name, role: '기획', is_default: true }]);
+            setMembers([{ user_id: me.user_id, name: me.name || me.user?.name || user.name, role: '기획', is_default: true }]);
           }
         }
       } catch (err) {
@@ -147,7 +147,7 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
   const addMember = (userId: number) => {
     const m = availableMembers.find((x) => x.user_id === userId);
     if (!m || members.find((x) => x.user_id === userId)) return;
-    setMembers([...members, { user_id: m.user_id, name: m.user?.name || `user ${m.user_id}`, role: '기타', is_default: false }]);
+    setMembers([...members, { user_id: m.user_id, name: m.name || m.user?.name || `user ${m.user_id}`, role: '기타', is_default: false }]);
   };
 
   const removeMember = (userId: number) => {
@@ -387,7 +387,7 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
                 <AddMemberRow>
                   <AddMemberLabel>+ {t('modal.addMember', '멤버 추가')}</AddMemberLabel>
                   {availableToAdd.map((m) => {
-                    const nm = m.user?.name || `user ${m.user_id}`;
+                    const nm = m.name || m.user?.name || `user ${m.user_id}`;
                     return (
                       <AddMemberChip key={m.user_id} onClick={() => addMember(m.user_id)}>
                         <LetterAvatar name={nm} size={18} />

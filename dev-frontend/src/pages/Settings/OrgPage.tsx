@@ -5,6 +5,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import { listMembers, type WorkspaceMember } from '../../services/workspace';
+import { displayName } from '../../utils/displayName';
 import PageShell from '../../components/Layout/PageShell';
 import ActionButton from '../../components/Common/ActionButton';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
@@ -20,7 +21,7 @@ import {
 const DEPT_COLORS = ['#14B8A6', '#F43F5E', '#6366F1', '#F59E0B', '#22C55E', '#0EA5E9', '#14B8A6', '#64748B'];
 
 const OrgPage = () => {
-  const { t } = useTranslation('org');
+  const { t, i18n } = useTranslation('org');
   const { t: tErr } = useTranslation('errors');
   const { user } = useAuth();
   const bizId = (user as { business_id?: number } | null)?.business_id || 0;
@@ -119,7 +120,7 @@ const OrgPage = () => {
   };
   const leadOptionsFor = (): PlanQSelectOption[] => [
     { value: '', label: t('noLead') as string },
-    ...members.map((m) => ({ value: String(m.user_id), label: m.user?.name || `#${m.user_id}` })),
+    ...members.map((m) => ({ value: String(m.user_id), label: displayName(m.user, i18n.language) || `#${m.user_id}` })),
   ];
 
   const cur = (userId: number) => assign[userId] || { department_id: null, team_id: null, job_title: null };
@@ -208,7 +209,7 @@ const OrgPage = () => {
                 return (
                   <AssignRow key={m.user_id}>
                     <MemberName>
-                      {m.user?.name || `#${m.user_id}`}
+                      {displayName(m.user, i18n.language) || `#${m.user_id}`}
                       {savedRows[m.user_id!] && <SavedBadge aria-live="polite">✓</SavedBadge>}
                     </MemberName>
                     <PlanQSelect size="sm" isClearable={false} isSearchable={false}

@@ -50,6 +50,9 @@ export interface WorkspaceMember {
   user?: {
     id: number;
     name: string;
+    // 워크스페이스 표시명 (BusinessMember.name) — 백엔드 members 라우트가 채움. 계정명(name) 대신 이걸 우선 표시.
+    display_name?: string | null;
+    display_name_localized?: Record<string, string> | null;
     email: string | null;
     avatar_url: string | null;
     is_ai: boolean | number;
