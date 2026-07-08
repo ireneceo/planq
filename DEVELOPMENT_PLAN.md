@@ -1,6 +1,14 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-07-07 (Opus) — **🔴 모바일 랜딩·회원가입 스크롤 불가 근본수정 + Cue 바운스 메일 차단. 운영 배포 완료(미배포 0).** 헬스 29/29 · 빌드 EXIT0/TS0.
+> **최종 업데이트:** 2026-07-08 (Opus, 1M) — **💳 Stripe 카드결제 전체 구현·운영 배포 (구독 platform + Q Bill workspace). Fable 게이트 2회 총 48검증 PASS·0 FAIL.** 헬스 29/29 · 빌드 EXIT0/TS0 · 위키 게이트 exit0.
+> - **구독 카드결제 (platform merchant)** — server.js webhook 마운트(json前 raw), plan.js `/payments/:id/stripe-checkout`, F4 관리자 Stripe 입력란(publishable 평문/secret·webhook write-only), CheckoutModal "카드로 결제" 버튼. Fable 17/17. (e40d406)
+> - **Q Bill 워크스페이스 카드결제 (workspace merchant)** — businesses/invoices/invoice_installments stripe 컬럼(7 마이그레이션, 운영 반영), `services/invoicePayments.js` **단일 착지점**(markInstallmentPaid/markInvoicePaid — 수동 mark-paid + 카드 webhook 공유, 멱등), 워크스페이스별 `/api/stripe/webhook/ws/:businessId`(자기 secret 서명검증 + metaBiz 격리), 공개 `/public/:token/stripe-checkout`(비인증 share_token, IP rate-limit, 금액 서버값), SettingsTab Stripe 설정 UI + PublicInvoicePage 카드 버튼(분할 회차/단일). (e40d406)
+> - **전역 toJSON `*_enc → *_set` redaction** (models/index.js) — 모든 모델 암호화 시크릿 API 응답 영구 차단(instance 복호화 무관). **Fable 이 이 변경으로 인한 회귀 F-1(admin serializePlatformSettings 항상 false) 발견 → `return row.toJSON()` 로 수정 + D8(canceled webhook 무한재시도) 200 ack.**
+> - **카드결제 발행자 알림 (대칭 완성)** — 고객 카드결제 시 발행자(owner/admin/청구담당) 알림 `notifyOwnerCardPaid`(method='stripe'만, 수동 제외, 멱등). 구독측은 markPaymentPaid 가 기존 notifyPlatformAdmins. (c334685)
+> - 위키 게이트 3-1-W: 아티클 2건(qbill `card-payment` · settings `pay-subscription`) + coverage exit0. 운영 배포 2회(e40d406·c334685). **운영 Stripe 활성=Irene 몫**(sk_live roll · 운영 EMAIL_ENCRYPTION_KEY · 관리자/워크스페이스 키 입력 · Stripe 대시보드 webhook 등록 · 소액 실결제/환불 스모크). 박제 [[project_qbill_workspace_stripe]] [[project_subscription_payment_plan]].
+> - **다음 섹션:** 운영 Stripe 키 입력 후 실결제 스모크. (그 외 신규 개발은 Irene 지시 대기)
+
+> **이전 업데이트:** 2026-07-07 (Opus) — **🔴 모바일 랜딩·회원가입 스크롤 불가 근본수정 + Cue 바운스 메일 차단. 운영 배포 완료(미배포 0).** 헬스 29/29 · 빌드 EXIT0/TS0.
 > - **모바일 스크롤 락 반전 (사용자 실사고: 랜딩 스크롤 안됨→회원가입 불가)** — `index.css` 가 모바일에서 `html/body/#root` 에 `position:fixed+overflow:hidden` 를 **전역** 적용 → 앱(패널 자체스크롤)엔 맞지만 랜딩·회원가입·로그인·공개위키/공유처럼 페이지 전체가 긴 화면의 스크롤을 죽임. **정석 반전:** 스크롤 가능이 기본, 앱 셸만 `useAppShellLock()`(→`html.pq-app-shell`)로 락 opt-in. 적용=MainLayout+팝아웃4(talk/note/help/memo), 해제=모든 공개/인증/초대 표면. `main.tsx` phantom `scrollTo(0,0)` 도 pq-app-shell 게이트. 실패모드 안전(락 누락 시 최악=정상스크롤+약한 바운스). RegisterPage 모바일 센터링 트랩 제거(flex-start)+상단 마케팅 축약(FeatureList 숨김). (806ca98)
 > - **Cue 바운스 메일 차단 (사용자: `cue+4@system.planq.kr` Address not found 반복)** — Cue AI 팀원은 워크스페이스 생성 시 `cue+{bizId}@system.planq.kr` 합성주소 User(`is_ai=true`)로 생성 → 태스크배정/채팅참여로 `notify()` 호출되면 email 채널이 가짜주소로 발송 → 바운스+발신평판. **근본:** `routes/notifications.js notify()` 진입부에서 `is_ai` 조회해 AI면 전 채널 skip(notifyMany 자동 커버). **방어:** `emailService.emailBlockReason` 에 `system.planq.kr`/`cue+숫자@` → `synthetic_internal`/`synthetic_cue` 차단. 이중 방어. 실호출 검증: 게이트 4/4 차단·notify(Cue) 전 채널 false·notify(사람) inbox:true 유지. 박제 [[feedback_email_send_gate]].
 > - **다음 섹션 최우선: 구독결제 붙이기** (변동없음) — 은행송금+세금계산서 UI는 이미 라이브(229b8a6). 남은 것=PortOne 카드(env게이트, Irene 키 선행). 로드맵 `docs/ROADMAP_NEXT.md`.
