@@ -48,6 +48,37 @@ async function updateInvoiceChatCards(invoiceId, patches, transaction = null) {
   }
 }
 
+// 카드 결제 확정 시 발행자(owner/admin/청구담당) 알림 — 고객 주도 결제라 owner 가 즉시 알아야 함.
+//   수동 mark-paid(owner 본인 액션)는 호출 안 함. notifyOwnerPaymentNotified(bank notified) 와 대칭.
+//   서버 생성 알림 문구는 기존 관례대로 한국어(Notification row 텍스트 — 프론트 t() 대상 아님).
+async function notifyOwnerCardPaid({ invoice, label, amount, io }) {
+  try {
+    const { Op } = require('sequelize');
+    const { BusinessMember, Business } = require('../models');
+    const { notifyMany } = require('../routes/notifications');
+    const biz = await Business.findByPk(invoice.business_id, { attributes: ['name', 'brand_name', 'default_billing_owner_id'] });
+    const members = await BusinessMember.findAll({
+      where: { business_id: invoice.business_id, removed_at: null, role: { [Op.in]: ['owner', 'admin'] } },
+      attributes: ['user_id'],
+    });
+    const ids = new Set(members.map((m) => m.user_id));
+    if (invoice.owner_user_id) ids.add(invoice.owner_user_id);
+    if (biz?.default_billing_owner_id) ids.add(biz.default_billing_owner_id);
+    if (ids.size === 0) return;
+    const amtStr = `${Number(amount || 0).toLocaleString()}${invoice.currency || 'KRW'}`;
+    await notifyMany({
+      userIds: [...ids],
+      businessId: invoice.business_id, eventKind: 'payment',
+      title: '카드 결제 완료',
+      body: `${invoice.invoice_number}${label ? ` ${label}` : ''} — 고객이 카드로 ${amtStr} 결제했습니다.`,
+      link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?tab=invoices&invoice=${invoice.id}`,
+      ctaLabel: '청구서 보기',
+      workspaceName: biz?.brand_name || biz?.name || null,
+      entityType: 'invoice', entityId: invoice.id, ioApp: io,
+    });
+  } catch (e) { console.warn('[card-paid owner notify]', e.message); }
+}
+
 /**
  * 회차(installment) 결제 확정 — 단일 착지점.
  *   멱등: 이미 paid 면 { alreadyPaid:true } 반환 (webhook 재전송·중복 클릭 안전).
@@ -116,6 +147,8 @@ async function markInstallmentPaid({ businessId, invoiceId, installmentId, paidA
     actorUserId: markedByUserId,
     detail: { installment_no: inst.installment_no, label: inst.label, amount: inst.amount, paid_sum: paidSum, total: totalSum, method },
   });
+  // 카드 결제(고객 주도)만 owner 알림 — 수동 mark-paid 는 owner 본인 액션이라 제외.
+  if (method === 'stripe') await notifyOwnerCardPaid({ invoice: refreshed, label: inst.label, amount: inst.amount, io });
 
   return { alreadyPaid: false, invoice: refreshed, installment: inst, prevStatus, newStatus, paidSum, totalSum };
 }
@@ -150,6 +183,7 @@ async function markInvoicePaid({ businessId, invoiceId, paidAt, markedByUserId =
   if (invoice.project_id) require('./projectStageEngine').onInvoiceChanged(invoice.id).catch(() => null);
   require('./overdue_handler').unpauseProjectIfApplicable(invoice).catch(() => null);
   await logBillEvent('invoice', invoice.id, 'paid_full', { actorUserId: markedByUserId, detail: { amount: invoice.grand_total, from: prevStatus, method } });
+  if (method === 'stripe') await notifyOwnerCardPaid({ invoice, label: null, amount: invoice.grand_total, io });
 
   return { alreadyPaid: false, invoice, prevStatus };
 }
