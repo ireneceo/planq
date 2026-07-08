@@ -164,7 +164,14 @@
       "ok": "OK"
     },
     "copy": "Copy",
-    "copied": "Copied"
+    "copied": "Copied",
+    "or": "or",
+    "stripe": {
+      "payWithCard": "Pay by card",
+      "hint": "Paying by card takes you to Stripe's secure checkout, and your subscription activates instantly once payment completes.",
+      "notConfigured": "Card payment isn't available yet. Please use bank transfer.",
+      "failed": "Couldn't start the card payment. Please try again in a moment."
+    }
   },
   "billing": {
     "history": {
