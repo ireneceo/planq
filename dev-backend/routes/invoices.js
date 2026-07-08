@@ -1363,6 +1363,8 @@ router.post('/:businessId/:id/send', authenticateToken, checkBusinessAccess, req
             attributes: ['name', 'brand_name', 'mail_from_name', 'mail_reply_to'],
           });
           const sender = await User.findByPk(req.user.id, { attributes: ['name'] });
+          const { getMemberDisplayName } = require('../services/displayName');
+          const senderDisp = await getMemberDisplayName(invoice.business_id, req.user.id, sender?.name);
 
           // PDF 첨부 — 발송 실패해도 메일 자체는 진행 (best-effort)
           let attachments = null;
@@ -1384,7 +1386,7 @@ router.post('/:businessId/:id/send', authenticateToken, checkBusinessAccess, req
             total: Number(invoice.grand_total || 0),
             currency: invoice.currency,
             dueDate: invoice.due_date,
-            senderName: sender?.name || '',
+            senderName: senderDisp.name || '',
             workspaceName: business?.brand_name || business?.name || '',
             message: String(message || '').slice(0, 1000) || null,
             shareUrl,
@@ -1443,6 +1445,8 @@ router.post('/:businessId/:id/send-preview', authenticateToken, checkBusinessAcc
     if (!invoice) return errorResponse(res, 'not_found', 404);
     const me = await User.findByPk(req.user.id, { attributes: ['email', 'name'] });
     if (!me?.email) return errorResponse(res, 'no_email — 본인 이메일이 없어 미리보기를 보낼 수 없습니다', 400);
+    const { getMemberDisplayName: getMemberDispName } = require('../services/displayName');
+    const meDisp = await getMemberDispName(Number(req.params.businessId), req.user.id, me.name);
     const business = await Business.findByPk(req.params.businessId, { attributes: ['name', 'brand_name', 'mail_from_name', 'mail_reply_to'] });
     // PDF 첨부 (draft 도 렌더 가능) — best-effort
     let attachments = null;
@@ -1458,7 +1462,7 @@ router.post('/:businessId/:id/send-preview', authenticateToken, checkBusinessAcc
       total: Number(invoice.grand_total || 0),
       currency: invoice.currency,
       dueDate: invoice.due_date,
-      senderName: me.name || '',
+      senderName: meDisp.name || '',
       workspaceName: business?.brand_name || business?.name || '',
       message: '고객에게 발송하기 전 미리보기입니다. 첨부 PDF 로 내용을 확인한 뒤, 이상 없으면 "발송"으로 고객에게 보내세요.',
       shareUrl: null,

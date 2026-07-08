@@ -694,8 +694,11 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
       const wsName = biz?.brand_name || biz?.name || null;
       const previewBody = cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned;
       const link = `${process.env.APP_URL || 'https://dev.planq.kr'}/talk?conv=${conv.id}`;
+      // #132 — 알림 표시명은 워크스페이스 표시명 우선(계정명 노출 금지).
       const senderUser = await User.findByPk(req.user.id, { attributes: ['name'] });
-      const senderName = senderUser?.name || 'PlanQ';
+      const { getMemberDisplayName } = require('../services/displayName');
+      const senderDisp = await getMemberDisplayName(conv.business_id, req.user.id, senderUser?.name);
+      const senderName = senderDisp.name || 'PlanQ';
       const convTitle = conv.title || conv.display_name || '대화';
 
       const mentioned = cleaned ? await resolveMentions(cleaned, conv.business_id, req.user.id) : [];
