@@ -898,7 +898,7 @@ router.delete('/by-business/:businessId/:id', authenticateToken, checkBusinessAc
     const bm = await requireMember(req.user.id, businessId);
     if (!bm || bm.role === 'ai') return errorResponse(res, 'forbidden', 403);
 
-    const event = await CalendarEvent.findOne({ where: { id: req.params.id, business_id: businessId } });
+    let event = await CalendarEvent.findOne({ where: { id: req.params.id, business_id: businessId } });
     if (!event) return errorResponse(res, 'event_not_found', 404);
     if (event.created_by !== req.user.id && bm.role !== 'owner' && bm.role !== 'admin') {
       return errorResponse(res, 'only_creator_or_owner', 403);
@@ -906,12 +906,27 @@ router.delete('/by-business/:businessId/:id', authenticateToken, checkBusinessAc
 
     // N+63 P2a — scope 분기. master event 일 때만 적용.
     //   single: master.exception_dates += [recurrence_id] (이 회차만 skip, master/children 유지)
-    //   future: master.rrule += UNTIL=recurrence_id-1 (이 날짜 이후 회차 모두 skip)
+    //   future: master.rrule += UNTIL=recurrence_id-1초 (이 날짜 이후 회차 모두 skip)
     //   all   : master + 모든 child exception 까지 cascade 삭제 (default 변경 — 옛은 master 만)
     const delScope = String(req.query.scope || 'all').toLowerCase();
+    // Fable B-1 — exception child(recurrence_parent_id)에서 all/future 는 "시리즈 전체" 의도이므로
+    //   master 로 resolve 후 적용. (single 은 그 회차 child 만 지우는 게 맞아 그대로.)
+    let futureFromDate = String(req.query.recurrence_id || '').slice(0, 10);
+    if (event.recurrence_parent_id && (delScope === 'all' || delScope === 'future')) {
+      const master = await CalendarEvent.findOne({ where: { id: event.recurrence_parent_id, business_id: businessId } });
+      if (master) {
+        // future 기준일: 쿼리값(프론트 instanceDate) 우선. 없으면 child 회차일. recurrence_id 는 DATEONLY 라
+        //   Date 객체일 수 있어 String().slice 로 요일문자열 되는 것 방지(YYYY-MM-DD 로 정규화).
+        if (delScope === 'future' && !futureFromDate && event.recurrence_id) {
+          const rid = event.recurrence_id;
+          futureFromDate = rid instanceof Date ? rid.toISOString().slice(0, 10) : String(rid).slice(0, 10);
+        }
+        event = master;
+      }
+    }
     const isMasterDel = !!event.rrule && !event.recurrence_parent_id;
     if (isMasterDel && (delScope === 'single' || delScope === 'future')) {
-      const targetDateStr = String(req.query.recurrence_id || '').slice(0, 10);
+      const targetDateStr = futureFromDate;
       if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDateStr)) {
         return errorResponse(res, 'recurrence_id (YYYY-MM-DD) required for scope=single|future', 400);
       }
@@ -923,9 +938,10 @@ router.delete('/by-business/:businessId/:id', authenticateToken, checkBusinessAc
         // 같은 회차의 child exception 도 cascade 삭제
         await CalendarEvent.destroy({ where: { recurrence_parent_id: event.id, recurrence_id: targetDateStr } });
       } else {
-        // future
+        // future — UNTIL 은 target 직전 순간(전날 23:59:59Z). 전날 회차는 보존, target 이후만 제거.
+        //   (Fable B-2 — 옛 코드는 전날 00:00:00Z 라 시각이 그보다 늦은 전날 회차까지 잘려 데이터 손실.)
         const dayBefore = new Date(`${targetDateStr}T00:00:00Z`);
-        dayBefore.setUTCDate(dayBefore.getUTCDate() - 1);
+        dayBefore.setUTCSeconds(dayBefore.getUTCSeconds() - 1);
         const untilStr = formatRRuleUntil(dayBefore);
         const ruleSrc = event.rrule.startsWith('RRULE:') ? event.rrule : `RRULE:${event.rrule}`;
         const oldRule = rrulestr(ruleSrc, { dtstart: new Date(event.start_at) });

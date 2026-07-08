@@ -234,7 +234,9 @@ const QCalendarPage: React.FC = () => {
   // URL 싱크 반영
   useEffect(() => {
     const p = new URLSearchParams();
-    if (view !== 'month') p.set('view', view);
+    // Fable A-4 — view 를 항상 기록. 폰 기본값(agenda)이라 month 선택 시 옛 코드는 안 써서 새로고침하면
+    //   agenda 로 되돌아가던 문제. 디바이스 기본값은 무파라미터 최초 방문에만 적용(readUrl defaultView).
+    p.set('view', view);
     p.set('date', toDateKey(anchor));
     if (scope !== 'all') p.set('scope', scope);
     if (selectedEventId != null) p.set('event', String(selectedEventId));

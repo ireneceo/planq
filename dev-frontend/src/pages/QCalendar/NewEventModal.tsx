@@ -224,12 +224,15 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
                       onChange={(opt) => {
                         if (!opt) return;
                         const v = (opt as { value: string }).value;
-                        // #123 — 시작시간 변경 시 종료시간이 기존 기간을 유지하며 따라옴(구글 캘린더 방식).
-                        const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
-                        const dur = toMin(endTime) - toMin(startTime);
-                        const newEnd = Math.min(toMin(v) + (dur > 0 ? dur : 60), 23 * 60 + 30);
                         setStartTime(v);
-                        setEndTime(`${String(Math.floor(newEnd / 60)).padStart(2, '0')}:${String(newEnd % 60).padStart(2, '0')}`);
+                        // #123 — 시작시간 변경 시 종료시간이 기존 기간 유지하며 follow (구글 방식).
+                        //   Fable D-1 — 같은 날짜일 때만. 멀티데이(startDate≠endDate)는 시각만으로 dur 계산 시 왜곡되므로 종료 시각 건드리지 않음.
+                        if (startDate === endDate) {
+                          const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+                          const dur = toMin(endTime) - toMin(startTime);
+                          const newEnd = Math.min(toMin(v) + (dur > 0 ? dur : 60), 23 * 60 + 30);
+                          setEndTime(`${String(Math.floor(newEnd / 60)).padStart(2, '0')}:${String(newEnd % 60).padStart(2, '0')}`);
+                        }
                       }}
                     />
                   </TimeWrap>

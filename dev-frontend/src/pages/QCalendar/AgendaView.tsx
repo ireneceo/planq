@@ -28,8 +28,13 @@ const indexByDayKey = (events: CalendarItem[]): Record<string, CalendarItem[]> =
   events.forEach((e) => {
     const s = new Date(e.start_at);
     const en = new Date(e.end_at);
+    // Fable A-3 — 종료가 정확히 자정(다음날 00:00)이면 그 다음날엔 표시 안 함(exclusive end).
+    //   KST 22:00→익일 00:00 같은 이벤트가 다음날 유령 노출되던 것 차단. 멀티데이 종일도 정확.
+    const endExclusive = (en.getHours() === 0 && en.getMinutes() === 0 && en.getSeconds() === 0 && en > s)
+      ? new Date(en.getTime() - 1) : en;
+    const last = new Date(endExclusive.getFullYear(), endExclusive.getMonth(), endExclusive.getDate());
     const cur = new Date(s.getFullYear(), s.getMonth(), s.getDate());
-    while (cur <= en) {
+    while (cur <= last) {
       const key = toDateKey(cur);
       (map[key] || (map[key] = [])).push(e);
       cur.setDate(cur.getDate() + 1);
@@ -77,11 +82,14 @@ const AgendaView: React.FC<Props> = ({ anchor, today, events, onSelectEvent, onS
   const monthKey = toDateKey(startOfMonth(anchor));
   const scrolledFor = useRef<string>('');
   useLayoutEffect(() => {
+    // Fable A-1 — fetch 완료(loading=false) 후에만 스크롤/마킹. 로딩 중 빈-오늘 그룹에서 미리 마킹하면
+    //   이후 과거 날짜 그룹이 위에 삽입돼도 재스크롤 안 돼 오늘이 화면 밖으로 밀림(폰 기본 진입 경로).
+    if (loading) return;
     if (groups.length === 0) return;
     if (scrolledFor.current === monthKey) return;
     scrolledFor.current = monthKey;
     todayRef.current?.scrollIntoView({ block: 'start' });
-  }, [monthKey, groups.length]);
+  }, [monthKey, groups.length, loading]);
 
   if (!loading && groups.length === 0) {
     return (
@@ -132,7 +140,7 @@ const AgendaView: React.FC<Props> = ({ anchor, today, events, onSelectEvent, onS
               : `${fmtTime(e.start_at)} – ${fmtTime(e.end_at)}`;
             return (
               <Card
-                key={`${task ? 't' : personal ? 'p' : 'e'}-${e.id}-${g.key}`}
+                key={`${task ? 't' : personal ? 'p' : 'e'}-${(e as { _instance_key?: string })._instance_key || e.id}-${g.key}`}
                 $border={c.border}
                 onClick={() => onSelectEvent(e.id, e.start_at?.slice(0, 10))}
               >

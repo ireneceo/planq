@@ -268,12 +268,14 @@ const EventDrawer: React.FC<Props> = ({
                           onChange={(opt) => {
                             if (!opt) return;
                             const v = (opt as { value: string }).value;
-                            // #123 — 시작시간 변경 시 종료시간이 기존 기간 유지하며 따라옴.
-                            const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
-                            const dur = toMin(endTime) - toMin(startTime);
-                            const newEnd = Math.min(toMin(v) + (dur > 0 ? dur : 60), 23 * 60 + 30);
                             setStartTime(v);
-                            setEndTime(`${String(Math.floor(newEnd / 60)).padStart(2, '0')}:${String(newEnd % 60).padStart(2, '0')}`);
+                            // #123 — 종료시간 follow. Fable D-1 — 같은 날짜일 때만(멀티데이는 시각-only dur 왜곡).
+                            if (startDate === endDate) {
+                              const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+                              const dur = toMin(endTime) - toMin(startTime);
+                              const newEnd = Math.min(toMin(v) + (dur > 0 ? dur : 60), 23 * 60 + 30);
+                              setEndTime(`${String(Math.floor(newEnd / 60)).padStart(2, '0')}:${String(newEnd % 60).padStart(2, '0')}`);
+                            }
                           }}
                         />
                       </TimeWrap>
