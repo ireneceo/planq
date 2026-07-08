@@ -30,7 +30,17 @@ session-state.md 읽고 이어서 개발해.
 6. **멤버 표시명 누출 수정** (aa5baab) — OrgPage·멤버피커 4종·NewProjectModal 이 계정명 노출하던 것 → `displayName()`/`m.name`/`user.display_name` 표시명 우선. 박제 [[feedback_member_display_name_on_lists]].
 7. **Stripe 결제 네이티브 대응** (fdc773f) — `services/native.ts openExternalUrl` — 네이티브는 인앱 브라우저(Browser.open)+닫힘시 reload, 웹은 리다이렉트. CheckoutModal+PublicInvoicePage. **네이티브 실기기 검증은 앱 배포 후(Irene Mac).**
 
-**네이티브 완성도 스윕 결론:** 웹측 분기(safe-area 19파일·딥링크/백버튼 NativeBridge·nativePush·PWA↔native 문구) 이미 성숙. 유일 갭이던 Stripe 리다이렉트 수정 완료. 테스트 가능한 Opus 작업 소진 — 남은 건 전부 Irene 선행(키·google-services.json·Apple Dev·OAuth검증·DKIM) 또는 실기기 필요.
+**네이티브 완성도 스윕 결론:** 웹측 분기(safe-area 19파일·딥링크/백버튼 NativeBridge·nativePush·PWA↔native 문구) 이미 성숙. 유일 갭이던 Stripe 리다이렉트 수정 완료.
+
+## 🔥 운영 피드백 처리 (2026-07-08, Fable 3-에이전트 검증)
+운영 feedback_items 미처리 46건(pending 41+reviewing 5) 전수 확인. Fable 병렬 검증으로 이미수정/열림/규모 분류.
+- **#132** 알림 계정명 노출 → 수정·배포(5b50e9b): 메시지 알림·공유메일 senderName getMemberDisplayName
+- **#104 인접 보안 누출(Fable 실재현 발견)** → 수정·배포(783a627): `calendar.js:430` 단일 이벤트 GET 이 vlevel 미검사 → L2 이벤트 id만 알면 누출. 목록 라우트와 동일 vlevel 접근검사 적용. #106(Q file L1)·#104(캘린더 L1)은 CONFIRMED-FIXED
+- **#121·124·123·122** 캘린더 퀵픽스 배치 → 배포(f357c92): 썸네일 contain / 등록후 드로어 자동오픈 제거 / 시작→종료시간 follow / 반복삭제 scope UI(백엔드는 이미 완비)
+- **#133 모바일 아젠다 뷰** (Fable 설계→구현) → 배포(9d994d1): AgendaView.tsx, 폰 기본 agenda. 임팩트1위. **Irene 폰 시각확인 필요**
+- **이미 수정됨(큐 stale)**: #71·95·96·97·120·119·102·118·113·110·86·79 등 12+건 (Fable 확인) → Irene 이 큐에서 done 처리 권장
+- **#126 구글 양방향 = IRENE-BLOCKED**: calendar.events write scope + 구글 OAuth 검증 대기. 콘솔 제출 시 calendar.events justification 함께 포함 권장
+- **남은 큰 것**: 없음(대부분 이미수정 or Irene선행). Q Mail #130·109·107, Cue #81·90 등 중간건 잔존
 
 ---
 
