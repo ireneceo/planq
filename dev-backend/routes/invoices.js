@@ -3,24 +3,13 @@ const router = express.Router();
 const { Invoice, InvoiceItem, InvoiceInstallment, Client, User, Business, Post, Conversation, Message, ReceiptCorrection } = require('../models');
 const { resolveRecurringInfo } = require('../services/invoiceRecurring');
 const { logBillEvent, listBillEvents } = require('../services/billEvents');
+const { isStripeEnabled } = require('../services/stripeService'); // Q Bill 워크스페이스 카드결제 활성 판정
 const { authenticateToken, optionalAuth, checkBusinessAccess } = require('../middleware/auth');
 const { requireMenu } = require('../middleware/menu_permission');
 
-// 사이클 N+21 — Invoice 상태 전이 history 박제 헬퍼
-async function recordInvoiceStatusChange(invoice, fromStatus, toStatus, userId, note = null) {
-  if (!toStatus || fromStatus === toStatus) return;
-  try {
-    const { InvoiceStatusHistory } = require('../models');
-    await InvoiceStatusHistory.create({
-      invoice_id: invoice.id,
-      business_id: invoice.business_id,
-      from_status: fromStatus,
-      to_status: toStatus,
-      changed_by: userId,
-      note,
-    });
-  } catch (e) { console.warn('[InvoiceStatusHistory create]', e.message); }
-}
+// 회차 결제 확정(단일 착지점) + 상태 전이 history + 채팅 카드 동기 — 서비스로 이관(Stripe webhook 공용).
+//   호출부는 아래 이름 그대로 사용(무변경). 정의는 services/invoicePayments.js.
+const { markInstallmentPaid, recordInvoiceStatusChange, updateInvoiceChatCards } = require('../services/invoicePayments');
 const { attachWorkspaceScope, invoiceListWhere, canAccessInvoice, isMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { sequelize } = require('../config/database');
@@ -117,32 +106,7 @@ async function buildInvoicePdf(invoiceId) {
 
 // 공개 결제 카드 (kind='card', meta.card_type='invoice', meta.invoice_id=:id) 메타 갱신
 // invoice 상태가 바뀔 때 채팅방의 카드도 함께 갱신해서 새로고침 / Socket.IO 동기.
-async function updateInvoiceChatCards(invoiceId, patches, transaction = null) {
-  try {
-    const id = parseInt(invoiceId, 10);
-    if (!Number.isInteger(id) || id <= 0) return 0;
-    // parameterized JSON_EXTRACT — sequelize.literal string interpolation 회피
-    const messages = await Message.findAll({
-      where: {
-        kind: 'card',
-        [Op.and]: [
-          sequelize.where(sequelize.fn('JSON_EXTRACT', sequelize.col('meta'), '$.card_type'), 'invoice'),
-          sequelize.where(sequelize.fn('JSON_EXTRACT', sequelize.col('meta'), '$.invoice_id'), id),
-        ],
-      },
-      transaction,
-    });
-    for (const m of messages) {
-      const meta = { ...(m.meta || {}), ...patches };
-      await m.update({ meta }, { transaction });
-    }
-    return messages.length;
-  } catch (err) {
-    // 카드 갱신 실패는 invoice 액션 자체를 막지 않음 (best-effort)
-    console.error('[updateInvoiceChatCards]', err.message);
-    return 0;
-  }
-}
+// (updateInvoiceChatCards 는 services/invoicePayments.js 로 이관 — 상단에서 import)
 
 // Generate invoice number
 // 운영 — robust: INV-YYYY- prefix 전체에서 실제 최대 순번 스캔 (깨진 번호 skip).
@@ -239,6 +203,8 @@ router.get('/public/:token', optionalAuth, async (req, res, next) => {
       notes: invoice.notes,
       payment_terms: invoice.payment_terms,
       recurring: await resolveRecurringInfo(invoice),   // #92 — 정기 발송 기준(구독)
+      // 카드결제(Stripe) 활성 여부 — 워크스페이스가 Stripe 키를 설정했을 때만 "카드로 결제" 노출.
+      stripe_enabled: await isStripeEnabled('workspace', invoice.business_id),
       notify_paid_at: invoice.notify_paid_at,
       notify_payer_name: invoice.notify_payer_name,
       items: (invoice.items || []).map(it => ({
@@ -457,6 +423,77 @@ router.post('/public/:token/notify-paid', async (req, res, next) => {
       await logBillEvent('invoice', invoice.id, 'commented', { detail: { kind: 'payment_notified', payer_name: payerName, amount: invoice.grand_total } });
     }
     return successResponse(res, { notified: true }, 'Notified');
+  } catch (error) { next(error); }
+});
+
+// ─── 공개 카드결제 (Stripe Hosted Checkout) — 워크스페이스 merchant ───
+// POST /api/invoices/public/:token/stripe-checkout  body: { installment_id }
+//   비인증(share_token). 회차 단위 결제. 성공은 워크스페이스 webhook 이 markInstallmentPaid 로 착지(진실원천).
+//   외부 Stripe API 호출(세션 생성) → 남용 방지 per-IP rate-limit (운영 안정성 1번).
+const publicStripeLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1시간
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `pub-stripe-${ipKeyGenerator(req.ip)}`,
+  message: { success: false, message: 'too_many_requests' },
+});
+router.post('/public/:token/stripe-checkout', publicStripeLimiter, async (req, res, next) => {
+  try {
+    const invoice = await Invoice.findOne({ where: { share_token: req.params.token } });
+    if (!invoice) return errorResponse(res, 'not_found', 404);
+    if (invoice.status === 'draft' || invoice.status === 'canceled' || invoice.status === 'paid') {
+      return errorResponse(res, 'not_available', 400);
+    }
+    if (invoice.share_expires_at && new Date(invoice.share_expires_at) < new Date()) {
+      return res.status(410).json({ success: false, code: 'share_expired', message: 'This share link has expired.' });
+    }
+    // 분할이면 회차(installment) 단위, 단일 발행이면 invoice 단위. 회차/invoice 에 세션 저장(이중결제 재사용 가드).
+    const isSplit = invoice.installment_mode === 'split';
+    let inst = null, amount, productName, existingSessionId;
+    if (isSplit) {
+      const installmentId = req.body?.installment_id ? Number(req.body.installment_id) : null;
+      if (!installmentId) return errorResponse(res, 'installment_id_required', 400);
+      inst = await InvoiceInstallment.findOne({ where: { id: installmentId, invoice_id: invoice.id } });
+      if (!inst) return errorResponse(res, 'installment_not_found', 404);
+      if (inst.status === 'paid' || inst.status === 'canceled') return errorResponse(res, 'installment_not_available', 400);
+      amount = Number(inst.amount);
+      productName = `${invoice.invoice_number || 'Invoice'} · ${inst.label}`;
+      existingSessionId = inst.stripe_session_id;
+    } else {
+      amount = Number(invoice.grand_total);
+      productName = `${invoice.invoice_number || 'Invoice'}`;
+      existingSessionId = invoice.stripe_session_id;
+    }
+
+    const { startWorkspaceInvoiceCheckout } = require('../services/stripeCheckoutService');
+    const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
+    const back = `${APP_URL}/public/invoices/${invoice.share_token}`;
+    try {
+      const { url, session_id } = await startWorkspaceInvoiceCheckout({
+        businessId: invoice.business_id,
+        invoiceId: invoice.id,
+        installmentId: inst ? inst.id : null,
+        amount,
+        currency: invoice.currency || 'KRW',
+        productName,
+        existingSessionId,
+        successUrl: `${back}?stripe=success`,
+        cancelUrl: `${back}?stripe=cancel`,
+      });
+      // 세션 id 저장 — 분할=회차, 단일=invoice
+      if (inst) await inst.update({ stripe_session_id: session_id });
+      else await invoice.update({ stripe_session_id: session_id });
+      // 타임라인 — 카드결제 세션 시작(고객). actor=null. 확정은 webhook 의 paid_full/partial.
+      await logBillEvent('invoice', invoice.id, 'commented', {
+        detail: { kind: 'stripe_checkout_started', installment_no: inst ? inst.installment_no : null, label: inst ? inst.label : null, amount },
+      });
+      return successResponse(res, { url, session_id });
+    } catch (e) {
+      if (e.code === 'STRIPE_NOT_CONFIGURED') return errorResponse(res, 'stripe_not_configured', 400);
+      if (e.code === 'INVALID_AMOUNT') return errorResponse(res, 'invalid_amount', 400);
+      throw e;
+    }
   } catch (error) { next(error); }
 });
 
@@ -1577,69 +1614,37 @@ router.post('/:businessId/:id/resend', authenticateToken, reminderLimiter, check
 // ─── Installment: 결제 완료 마킹 ───
 router.post('/:businessId/:id/installments/:installId/mark-paid', authenticateToken, checkBusinessAccess, requireMenu('qbill','write'), async (req, res, next) => {
   if (!assertInvoiceMutationOwner(req, res)) return;
-  const t = await sequelize.transaction();
   try {
-    const invoice = await Invoice.findOne({
-      where: { id: req.params.id, business_id: req.params.businessId }, transaction: t,
-    });
-    if (!invoice) { await t.rollback(); return errorResponse(res, 'Invoice not found', 404); }
-    const inst = await InvoiceInstallment.findOne({
-      where: { id: req.params.installId, invoice_id: invoice.id }, transaction: t,
-    });
-    if (!inst) { await t.rollback(); return errorResponse(res, 'Installment not found', 404); }
-    if (inst.status === 'paid' || inst.status === 'canceled') {
-      await t.rollback(); return errorResponse(res, 'invalid_state', 400);
-    }
     const paidAt = req.body?.paid_at ? new Date(req.body.paid_at) : new Date();
     const memo = req.body?.payer_memo ? String(req.body.payer_memo).slice(0, 200) : null;
-    await inst.update({
-      status: 'paid', paid_at: paidAt, payer_memo: memo,
-      marked_by_user_id: req.user.id, marked_at: new Date(),
-    }, { transaction: t });
-
-    // Invoice paid_amount + status 자동 갱신
-    const all = await InvoiceInstallment.findAll({ where: { invoice_id: invoice.id }, transaction: t });
-    const paidSum = all.filter(i => i.status === 'paid').reduce((s, i) => s + Number(i.amount), 0);
-    const totalSum = all.reduce((s, i) => s + Number(i.amount), 0);
-    const prevInvoiceStatus = invoice.status;
-    const newStatus = paidSum >= totalSum ? 'paid' : (paidSum > 0 ? 'partially_paid' : invoice.status);
-    await invoice.update({
-      paid_amount: paidSum,
-      status: newStatus,
-      paid_at: newStatus === 'paid' ? new Date() : invoice.paid_at,
-    }, { transaction: t });
-
-    await t.commit();
-    // 사이클 N+21 — status history (installment mark-paid 로 인한 자동 전이)
-    setImmediate(() => recordInvoiceStatusChange(invoice, prevInvoiceStatus, newStatus, req.user.id, 'installment mark-paid'));
-    const refreshed = await Invoice.findByPk(invoice.id, {
-      include: [{ model: InvoiceInstallment, as: 'installments', separate: true, order: [['installment_no', 'ASC']] }],
-    });
-    // 채팅 카드 동기 (best-effort)
-    await updateInvoiceChatCards(invoice.id, {
-      status: refreshed.status,
-      paid_at: refreshed.paid_at ? new Date(refreshed.paid_at).toISOString() : null,
-      paid_amount: Number(refreshed.paid_amount || 0),
-    });
-    const io = req.app.get('io');
-    if (io) io.to(`business:${invoice.business_id}`).emit('inbox:refresh', { reason: 'installment_paid', invoice_id: invoice.id });
-    if (refreshed?.project_id) require('../services/projectStageEngine').onInvoiceChanged(refreshed.id).catch(() => null);
-    if (newStatus === 'paid') {
-      require('../services/overdue_handler').unpauseProjectIfApplicable(refreshed).catch(() => null);
+    // 단일 착지점(services/invoicePayments.markInstallmentPaid) 위임 — Stripe webhook 과 동일 코어.
+    //   부작용(status history·채팅 카드·socket·stage·overdue·bill event)은 서비스가 수행.
+    let result;
+    try {
+      result = await markInstallmentPaid({
+        businessId: Number(req.params.businessId),
+        invoiceId: Number(req.params.id),
+        installmentId: Number(req.params.installId),
+        paidAt, payerMemo: memo,
+        markedByUserId: req.user.id,
+        method: 'bank_transfer',
+        io: req.app.get('io'),
+      });
+    } catch (e) {
+      if (e.code === 'NOT_FOUND') return errorResponse(res, e.message === 'invoice_not_found' ? 'Invoice not found' : 'Installment not found', 404);
+      if (e.code === 'INVALID_STATE') return errorResponse(res, 'invalid_state', 400);
+      throw e;
     }
+    if (result.alreadyPaid) return errorResponse(res, 'invalid_state', 400);
+    const { invoice: refreshed, installment: inst, newStatus } = result;
     require('../services/auditService').logAudit(req, {
       action: 'invoice.installment.mark_paid',
       targetType: 'invoice_installment',
       targetId: inst.id,
-      newValue: { invoice_id: invoice.id, installment_no: inst.installment_no, paid_at: paidAt, payer_memo: memo, invoice_status: newStatus },
-    });
-    // Q Bill 타임라인 — 회차 결제 확정. 전액 완납이면 paid_full, 아니면 paid_partial.
-    await logBillEvent('invoice', invoice.id, newStatus === 'paid' ? 'paid_full' : 'paid_partial', {
-      actorUserId: req.user?.id,
-      detail: { installment_no: inst.installment_no, label: inst.label, amount: inst.amount, paid_sum: paidSum, total: totalSum },
+      newValue: { invoice_id: refreshed.id, installment_no: inst.installment_no, paid_at: paidAt, payer_memo: memo, invoice_status: newStatus },
     });
     successResponse(res, refreshed, 'Installment paid');
-  } catch (error) { try { await t.rollback(); } catch {} next(error); }
+  } catch (error) { next(error); }
 });
 
 // ─── Installment: 결제 완료 마킹 취소 ───

@@ -370,14 +370,12 @@ router.post('/email-logs/:id/retry', async (req, res, next) => {
 // .env 의 PLATFORM_*, EMAIL_LOGO_URL 대체. emailService 가 5분 캐시로 조회.
 
 // GET /api/admin/platform-settings — 현재 row 조회 (없으면 빈 객체 반환, 클라가 PUT 으로 생성)
-// Stripe secret/webhook 은 암호문조차 프론트로 보내지 않음 — 설정 여부 boolean 만. GET·PUT 응답 공통.
+// Stripe secret/webhook 은 암호문조차 프론트로 보내지 않음 — 설정 여부 boolean 만.
+//   전역 toJSON(models/index.js)이 이미 *_enc → *_set redaction 을 수행하므로 그대로 반환.
+//   (이전엔 여기서 j.stripe_secret_enc 로 _set 를 재계산했으나, 전역 toJSON 이 _enc 를 먼저 지워
+//    항상 false 가 되던 회귀 — Fable F-1. instance 가 아닌 toJSON 결과를 다시 읽지 말 것.)
 function serializePlatformSettings(row) {
-  const j = row.toJSON();
-  const stripe_secret_set = !!j.stripe_secret_enc;
-  const stripe_webhook_secret_set = !!j.stripe_webhook_secret_enc;
-  delete j.stripe_secret_enc;
-  delete j.stripe_webhook_secret_enc;
-  return { ...j, stripe_secret_set, stripe_webhook_secret_set };
+  return row.toJSON();
 }
 
 router.get('/platform-settings', async (req, res, next) => {

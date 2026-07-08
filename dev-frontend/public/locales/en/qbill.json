@@ -738,6 +738,20 @@
     },
     "misc": {
       "bankPlaceholder": "e.g. Woori Bank"
+    },
+    "stripe": {
+      "title": "Card Payment (Stripe)",
+      "desc": "Enter all three keys to enable the \"Pay by card\" button on the invoice's public payment page. Secret Key and Webhook Secret are stored encrypted and never shown again. Card payments confirm the installment instantly.",
+      "publishable": "Publishable Key",
+      "secret": "Secret Key",
+      "webhook": "Webhook Secret",
+      "webhookHint": "In the Stripe Dashboard → Developers → Webhooks, add the endpoint below (checkout.session.completed, payment_intent.succeeded), then paste its Signing secret.",
+      "set": "Set",
+      "unset": "Not set",
+      "keepPh": "Enter a new value to change (leave blank to keep)",
+      "clear": "Remove (disable card payment)",
+      "show": "Show",
+      "hide": "Hide"
     }
   },
   "common": {
@@ -834,7 +848,15 @@
       "typeRow": "Receipt type",
       "editCancel": "← Back to summary"
     },
-    "contact": "Contact us"
+    "contact": "Contact us",
+    "card": {
+      "pay": "Pay by card",
+      "payThis": "Pay this by card",
+      "starting": "Redirecting…",
+      "hint": "You'll be taken to Stripe's secure checkout, and payment confirms instantly on completion.",
+      "notConfigured": "Card payment isn't available yet. Please use bank transfer.",
+      "failed": "Couldn't start the card payment. Please try again in a moment."
+    }
   },
   "kind": {
     "contract": "Contract",

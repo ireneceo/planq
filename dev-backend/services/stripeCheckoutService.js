@@ -55,4 +55,39 @@ async function startPlatformSubscriptionCheckout({ paymentId, successUrl, cancel
   return { url: session.url, session_id: session.id };
 }
 
-module.exports = { startPlatformSubscriptionCheckout, toStripeAmount, ZERO_DECIMAL };
+// Q Bill 워크스페이스 인보이스 카드결제 — merchant='workspace'(Business.stripe_*). 회차(installment) 단위.
+//   성공은 워크스페이스 webhook 이 markInstallmentPaid 로 반영(멱등 착지). 이중결제 가드: 열린 세션 재사용.
+//   분리: SAAS_BILLING_VS_QBILL_SEPARATION.md — 여기 수취처는 Business(고객결제), payments/subscriptions 무관.
+async function startWorkspaceInvoiceCheckout({ businessId, invoiceId, installmentId, amount, currency, productName, existingSessionId, successUrl, cancelUrl }) {
+  const stripe = await getStripeForMerchant('workspace', businessId); // secret 없으면 STRIPE_NOT_CONFIGURED
+
+  // 이중결제 가드 — 이 회차에 아직 열린 세션 있으면 재사용(두 세션 각각 결제되면 이중청구)
+  if (existingSessionId) {
+    try {
+      const ex = await stripe.checkout.sessions.retrieve(existingSessionId);
+      if (ex && ex.status === 'open' && ex.url) return { url: ex.url, session_id: ex.id, reused: true };
+    } catch { /* 만료/무효 세션 → 새로 생성 */ }
+  }
+
+  const cur = String(currency || 'KRW').toLowerCase();
+  const unit = toStripeAmount(amount, currency);
+  if (unit <= 0) { const e = new Error('amount_must_be_positive'); e.code = 'INVALID_AMOUNT'; throw e; }
+
+  // installment_id 는 분할 회차 결제에만. 단일 발행(installment 없음)은 invoice_id 만 → webhook 이 invoice-level 착지.
+  const meta = { kind: 'qbill_invoice', business_id: String(businessId), invoice_id: String(invoiceId) };
+  if (installmentId) meta.installment_id = String(installmentId);
+  const session = await stripe.checkout.sessions.create({
+    mode: 'payment',
+    line_items: [{
+      price_data: { currency: cur, product_data: { name: productName || `Invoice #${invoiceId}` }, unit_amount: unit },
+      quantity: 1,
+    }],
+    success_url: successUrl,
+    cancel_url: cancelUrl,
+    payment_intent_data: { metadata: meta }, // payment_intent.succeeded 대비 동일 메타
+    metadata: meta,
+  });
+  return { url: session.url, session_id: session.id };
+}
+
+module.exports = { startPlatformSubscriptionCheckout, startWorkspaceInvoiceCheckout, toStripeAmount, ZERO_DECIMAL };

@@ -254,6 +254,8 @@ global.__planqIo = io;
 // Stripe webhook — ⚠️ express.json() 前에 마운트해야 함. 서명 검증에 raw body(Buffer) 필요.
 //   json 파서가 먼저 삼키면 req.body 가 객체가 되어 constructEvent 서명 검증 실패. (마운트 순서 = Fable 게이트)
 //   이 경로만 raw, 나머지 라우트는 아래 express.json 그대로. 분리: SAAS_BILLING_VS_QBILL_SEPARATION.md (payments 만)
+// 워크스페이스별(Q Bill) webhook 먼저 — 더 구체적 경로. business webhook secret 으로 서명검증.
+app.use('/api/stripe/webhook/ws/:businessId', express.raw({ type: 'application/json' }), require('./routes/stripeWorkspaceWebhook'));
 app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }), require('./routes/stripeWebhook'));
 
 // Body parser + Cookie parser — rate limiter skip 함수가 req.body 에 접근하므로 security 보다 먼저 파싱되어야 함

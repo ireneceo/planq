@@ -738,6 +738,20 @@
     },
     "misc": {
       "bankPlaceholder": "우리은행"
+    },
+    "stripe": {
+      "title": "카드 결제 (Stripe)",
+      "desc": "세 가지 키를 모두 입력하면 청구서 공개 결제 페이지에 \"카드로 결제\" 버튼이 켜집니다. Secret Key·Webhook Secret 은 암호화되어 저장되며 화면에 다시 표시되지 않습니다. 카드 결제 시 회차가 즉시 확정됩니다.",
+      "publishable": "Publishable Key",
+      "secret": "Secret Key",
+      "webhook": "Webhook Secret",
+      "webhookHint": "Stripe 대시보드 → Developers → Webhooks 에서 아래 엔드포인트를 추가한 뒤(checkout.session.completed, payment_intent.succeeded) Signing secret 을 입력하세요.",
+      "set": "설정됨",
+      "unset": "미설정",
+      "keepPh": "변경하려면 새 값 입력 (비우면 유지)",
+      "clear": "삭제 (카드 결제 비활성화)",
+      "show": "보기",
+      "hide": "숨기기"
     }
   },
   "common": {
@@ -834,7 +848,15 @@
       "typeRow": "발행 유형",
       "editCancel": "← 확인 화면으로 돌아가기"
     },
-    "contact": "문의하기"
+    "contact": "문의하기",
+    "card": {
+      "pay": "카드로 결제",
+      "payThis": "이 회차 카드결제",
+      "starting": "이동 중…",
+      "hint": "Stripe 보안 결제 페이지로 이동하며, 결제 완료 시 즉시 확정됩니다.",
+      "notConfigured": "카드 결제가 아직 준비되지 않았습니다. 계좌이체를 이용해 주세요.",
+      "failed": "카드 결제를 시작하지 못했습니다. 잠시 후 다시 시도해 주세요."
+    }
   },
   "kind": {
     "contract": "계약서",

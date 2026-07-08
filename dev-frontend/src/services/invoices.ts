@@ -537,6 +537,10 @@ export interface ApiBusinessInfo {
   auto_invoice_default_mode?: 'auto' | 'draft_review' | null;
   auto_invoice_default_billing_day?: number | null;
   overdue_grace_days?: number | null;
+  // Stripe (카드결제) — publishable 평문, secret/webhook 은 설정여부 boolean 만(write-only)
+  stripe_publishable_key?: string | null;
+  stripe_secret_set?: boolean;
+  stripe_webhook_secret_set?: boolean;
 }
 
 export async function getBusinessInfo(businessId: number): Promise<ApiBusinessInfo> {
@@ -559,6 +563,10 @@ export interface BillingPatch {
   auto_invoice_default_mode?: 'auto' | 'draft_review';
   auto_invoice_default_billing_day?: number;
   overdue_grace_days?: number;
+  // Stripe write-only — 값 있으면 저장, 빈문자열=해제, 미전송=보존
+  stripe_publishable_key?: string | null;
+  stripe_secret?: string;
+  stripe_webhook_secret?: string;
 }
 
 export async function updateBusinessBilling(businessId: number, patch: BillingPatch): Promise<ApiBusinessInfo> {
