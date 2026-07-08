@@ -6,7 +6,8 @@
   "view": {
     "month": "월",
     "week": "주",
-    "day": "일"
+    "day": "일",
+    "agenda": "아젠다"
   },
   "new": "새 일정",
   "filter": {
@@ -142,5 +143,12 @@
     "workspaceBasis": "{{tz}} · 워크스페이스 기준",
     "yourTime": "내 시간대",
     "inputBasis": "{{tz}} (워크스페이스 시간대) 기준"
+  },
+  "agenda": {
+    "empty": "이 달에는 일정이 없습니다",
+    "emptyHint": "새 일정 버튼으로 일정을 추가해 보세요",
+    "todayDivider": "오늘",
+    "addOnDay": "이 날짜에 일정 추가",
+    "noneToday": "일정 없음"
   }
 }
