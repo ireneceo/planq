@@ -197,6 +197,22 @@ export async function checkout(
   return j.success ? j.data : null;
 }
 
+// 카드 결제 (Stripe Hosted Checkout) — 기존 pending Payment 를 Stripe 결제 세션으로 전환.
+//   반환된 url 로 리다이렉트 → Stripe 페이지에서 카드 결제 → webhook 이 활성화(진실원천).
+//   Stripe 미설정(관리자 키 없음)이면 code='stripe_not_configured' — 호출부가 계좌이체 안내 유지.
+export async function startStripeCheckout(
+  businessId: number,
+  paymentId: number
+): Promise<{ ok: true; url: string } | { ok: false; code: string }> {
+  const r = await apiFetch(`/api/plan/${businessId}/payments/${paymentId}/stripe-checkout`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  const j = await r.json();
+  if (j.success && j.data?.url) return { ok: true, url: j.data.url };
+  return { ok: false, code: j.message || 'checkout_failed' };
+}
+
 // 입금 통보 (owner) — 자체 결제 트랙. owner 는 통보만, 실제 활성화는 platform_admin.
 // 사업자 정보 입력 시 세금계산서 발행 정보를 함께 stash (관리자 확인 시 발행).
 export interface TaxInvoiceInput {

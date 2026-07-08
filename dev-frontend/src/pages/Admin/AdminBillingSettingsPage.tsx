@@ -16,6 +16,10 @@ interface BillingSettings {
   bank_name_en: string | null;
   bank_account_holder_en: string | null;
   swift_code: string | null;
+  // Stripe (카드 PG). publishable 은 평문, secret/webhook 은 write-only → GET 은 설정여부 boolean 만.
+  stripe_publishable_key: string | null;
+  stripe_secret_set: boolean;
+  stripe_webhook_secret_set: boolean;
   portone_store_id: string | null;
   portone_channel_key: string | null;
   portone_channel_key_billing: string | null;
@@ -27,6 +31,7 @@ interface BillingSettings {
 const EMPTY: BillingSettings = {
   bank_name: '', bank_account_number: '', bank_account_holder: '',
   bank_name_en: '', bank_account_holder_en: '', swift_code: '',
+  stripe_publishable_key: '', stripe_secret_set: false, stripe_webhook_secret_set: false,
   portone_store_id: '', portone_channel_key: '', portone_channel_key_billing: '', portone_webhook_secret: '',
   default_vat_rate: 0.1, default_due_days: 7,
 };
@@ -36,6 +41,9 @@ const AdminBillingSettingsPage = () => {
   const [data, setData] = useState<BillingSettings>(EMPTY);
   const [loading, setLoading] = useState(true);
   const [reveal, setReveal] = useState<Record<string, boolean>>({});
+  // Stripe write-only 시크릿 — data 에 안 담고 로컬 입력만. 저장 후 비움(값은 서버에만).
+  const [stripeSecretInput, setStripeSecretInput] = useState('');
+  const [stripeWebhookInput, setStripeWebhookInput] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -49,6 +57,9 @@ const AdminBillingSettingsPage = () => {
           bank_name_en: r.data.bank_name_en || '',
           bank_account_holder_en: r.data.bank_account_holder_en || '',
           swift_code: r.data.swift_code || '',
+          stripe_publishable_key: r.data.stripe_publishable_key || '',
+          stripe_secret_set: !!r.data.stripe_secret_set,
+          stripe_webhook_secret_set: !!r.data.stripe_webhook_secret_set,
           portone_store_id: r.data.portone_store_id || '',
           portone_channel_key: r.data.portone_channel_key || '',
           portone_channel_key_billing: r.data.portone_channel_key_billing || '',
@@ -75,6 +86,7 @@ const AdminBillingSettingsPage = () => {
         Object.entries(r.data || {}).filter(([k]) =>
           ['bank_name', 'bank_account_number', 'bank_account_holder',
            'bank_name_en', 'bank_account_holder_en', 'swift_code',
+           'stripe_publishable_key', 'stripe_secret_set', 'stripe_webhook_secret_set',
            'portone_store_id', 'portone_channel_key', 'portone_channel_key_billing', 'portone_webhook_secret',
            'default_vat_rate', 'default_due_days'].includes(k)
         )
@@ -84,6 +96,19 @@ const AdminBillingSettingsPage = () => {
 
   const set = <K extends keyof BillingSettings>(key: K, value: BillingSettings[K]) =>
     setData((prev) => ({ ...prev, [key]: value }));
+
+  // write-only 시크릿 저장 — 비어있으면 유지(실수 삭제 방지), 값 있으면 암호화 저장 후 입력 비움.
+  // 저장 응답의 stripe_*_set boolean 은 save() 가 자동 병합 → 상태 배지 갱신.
+  const saveStripeSecret = async (field: 'stripe_secret' | 'stripe_webhook_secret', value: string, clear: () => void) => {
+    const v = value.trim();
+    if (!v) return;
+    await save({ [field]: v } as unknown as Partial<BillingSettings>);
+    clear();
+  };
+  // 시크릿 삭제(비활성화) — 빈 문자열 전송 → 서버 null 처리 → _set=false 병합.
+  const clearStripeSecret = async (field: 'stripe_secret' | 'stripe_webhook_secret') => {
+    await save({ [field]: '' } as unknown as Partial<BillingSettings>);
+  };
 
   if (loading) {
     return <PageShell title={t('billing.title', '결제 설정')}><Card><Skel /></Card></PageShell>;
@@ -148,7 +173,67 @@ const AdminBillingSettingsPage = () => {
           </Field>
         </Card>
 
-        {/* PortOne (2순위) */}
+        {/* Stripe (카드 PG — 활성) */}
+        <Card>
+          <SectionTitle>{t('billing.stripeSection', 'Stripe (카드 결제)')}</SectionTitle>
+          <Hint>{t('billing.stripeHint', '세 가지 키를 모두 입력하면 구독 결제 화면에 "카드로 결제" 버튼이 자동으로 켜집니다. Secret Key·Webhook Secret 은 암호화되어 저장되며 화면에 다시 표시되지 않습니다. 카드 결제는 결제 완료 시 구독이 즉시 활성화됩니다(계좌이체는 관리자 확인 필요).')}</Hint>
+
+          <Field>
+            <Label>{t('billing.stripePublishable', 'Publishable Key')}</Label>
+            <AutoSaveField type="input" onSave={async () => save({ stripe_publishable_key: data.stripe_publishable_key })}>
+              <Input value={data.stripe_publishable_key || ''} onChange={e => set('stripe_publishable_key', e.target.value)}
+                placeholder="pk_live_..." maxLength={255} />
+            </AutoSaveField>
+          </Field>
+
+          <Field>
+            <LabelRow>
+              <Label>{t('billing.stripeSecret', 'Secret Key')}</Label>
+              {data.stripe_secret_set
+                ? <SetBadge>{t('billing.secretSet', '설정됨')}</SetBadge>
+                : <UnsetBadge>{t('billing.secretUnset', '미설정')}</UnsetBadge>}
+            </LabelRow>
+            <SecretRow>
+              <AutoSaveField type="input" onSave={async () => saveStripeSecret('stripe_secret', stripeSecretInput, () => setStripeSecretInput(''))}>
+                <Input type={reveal.ss ? 'text' : 'password'}
+                  value={stripeSecretInput} onChange={e => setStripeSecretInput(e.target.value)}
+                  placeholder={data.stripe_secret_set ? (t('billing.secretKeepPh', '변경하려면 새 값 입력 (비우면 유지)') as string) : 'sk_live_...'}
+                  maxLength={255} autoComplete="off" />
+              </AutoSaveField>
+              <RevealBtn type="button" onClick={() => setReveal((r) => ({ ...r, ss: !r.ss }))}>
+                {reveal.ss ? t('billing.hide', '숨기기') : t('billing.show', '보기')}
+              </RevealBtn>
+            </SecretRow>
+            {data.stripe_secret_set && (
+              <ClearBtn type="button" onClick={() => clearStripeSecret('stripe_secret')}>
+                {t('billing.secretClear', '삭제 (카드 결제 비활성화)')}
+              </ClearBtn>
+            )}
+          </Field>
+
+          <Field>
+            <LabelRow>
+              <Label>{t('billing.stripeWebhook', 'Webhook Secret')}</Label>
+              {data.stripe_webhook_secret_set
+                ? <SetBadge>{t('billing.secretSet', '설정됨')}</SetBadge>
+                : <UnsetBadge>{t('billing.secretUnset', '미설정')}</UnsetBadge>}
+            </LabelRow>
+            <SecretRow>
+              <AutoSaveField type="input" onSave={async () => saveStripeSecret('stripe_webhook_secret', stripeWebhookInput, () => setStripeWebhookInput(''))}>
+                <Input type={reveal.sw ? 'text' : 'password'}
+                  value={stripeWebhookInput} onChange={e => setStripeWebhookInput(e.target.value)}
+                  placeholder={data.stripe_webhook_secret_set ? (t('billing.secretKeepPh', '변경하려면 새 값 입력 (비우면 유지)') as string) : 'whsec_...'}
+                  maxLength={255} autoComplete="off" />
+              </AutoSaveField>
+              <RevealBtn type="button" onClick={() => setReveal((r) => ({ ...r, sw: !r.sw }))}>
+                {reveal.sw ? t('billing.hide', '숨기기') : t('billing.show', '보기')}
+              </RevealBtn>
+            </SecretRow>
+            <Hint>{t('billing.stripeWebhookHint', 'Stripe 대시보드 → Developers → Webhooks 에서 엔드포인트 https://planq.kr/api/stripe/webhook (checkout.session.completed, payment_intent.succeeded) 를 추가한 뒤 Signing secret 을 여기에 입력하세요.')}</Hint>
+          </Field>
+        </Card>
+
+        {/* PortOne (레거시 — 미사용) */}
         <Card>
           <SectionTitle>{t('billing.portoneSection', 'PortOne (카드 결제 게이트웨이)')}</SectionTitle>
           <Hint>{t('billing.portoneHint', '비워두면 PortOne 비활성. 자체 결제(계좌이체)만 사용. 키는 화면에 마스킹되며 "보기" 버튼으로 확인 가능.')}</Hint>
@@ -258,6 +343,21 @@ const Hint = styled.p`
 `;
 const Field = styled.div`display: flex; flex-direction: column; gap: 6px;`;
 const Label = styled.label`font-size: 13px; font-weight: 600; color: #334155;`;
+const LabelRow = styled.div`display: flex; align-items: center; gap: 8px;`;
+const SetBadge = styled.span`
+  font-size: 11px; font-weight: 700; color: #0F766E;
+  background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 6px; padding: 2px 8px;
+`;
+const UnsetBadge = styled.span`
+  font-size: 11px; font-weight: 700; color: #94A3B8;
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; padding: 2px 8px;
+`;
+const ClearBtn = styled.button`
+  align-self: flex-start; margin-top: 2px;
+  font-size: 12px; font-weight: 600; color: #B91C1C;
+  background: transparent; border: none; padding: 2px 0; cursor: pointer;
+  &:hover { text-decoration: underline; }
+`;
 const Input = styled.input`
   height: 38px; padding: 0 12px;
   font-size: 14px; color: #0F172A;

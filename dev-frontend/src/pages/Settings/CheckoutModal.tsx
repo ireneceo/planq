@@ -11,7 +11,7 @@
 import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { checkout, notifyPaymentPaid, type PlanCode, type BillingCycle, type PlanDef, type TaxInvoiceInput } from '../../services/plan';
+import { checkout, notifyPaymentPaid, startStripeCheckout, type PlanCode, type BillingCycle, type PlanDef, type TaxInvoiceInput } from '../../services/plan';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
@@ -22,6 +22,8 @@ interface Props {
   plan: PlanDef;
   cycle: BillingCycle;
   bankInfo?: { name?: string; account?: string; holder?: string; name_en?: string | null; holder_en?: string | null; swift?: string | null } | null;
+  // 카드 결제(Stripe) 활성 시에만 "카드로 결제" 버튼 노출 ("설정하면 켜짐")
+  stripeEnabled?: boolean;
   // 기존 pending payment 가 있으면 재사용 (또 만들지 않음)
   existingPaymentId?: number | null;
   existingAmount?: number | null;
@@ -32,7 +34,7 @@ interface Props {
 type Step = 'instructions' | 'notified';
 
 export default function CheckoutModal({
-  open, businessId, plan, cycle, bankInfo, existingPaymentId, existingAmount, onClose, onPaid,
+  open, businessId, plan, cycle, bankInfo, stripeEnabled, existingPaymentId, existingAmount, onClose, onPaid,
 }: Props) {
   const { t, i18n } = useTranslation('plan');
   // 영어권 고객이면 영문 은행 표기(값 있을 때만, 없으면 국문 fallback). 계좌번호는 언어 무관.
@@ -118,6 +120,22 @@ export default function CheckoutModal({
     }
     // 통보 완료 — 상태 "입금 확인 대기중". 확인 패널 표시 (확인 누르면 부모 status 갱신 + 닫기).
     setStep('notified');
+  };
+
+  // 카드 결제 — Stripe Hosted Checkout 로 리다이렉트. 성공은 webhook 이 활성화(진실원천).
+  const handleStripe = async () => {
+    if (!paymentId || submitting) return;
+    setSubmitting(true);
+    setError(null);
+    const res = await startStripeCheckout(businessId, paymentId);
+    if (res.ok) {
+      window.location.href = res.url; // 리다이렉트 진행 — submitting 유지(버튼 잠금)
+      return;
+    }
+    setSubmitting(false);
+    setError(res.code === 'stripe_not_configured'
+      ? t('checkout.stripe.notConfigured', '카드 결제가 아직 준비되지 않았습니다. 계좌이체를 이용해 주세요.')
+      : t('checkout.stripe.failed', '카드 결제를 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.'));
   };
 
   const fmtAmount = t('amountKrw', { amount: Number(amount || 0).toLocaleString() });
@@ -238,6 +256,22 @@ export default function CheckoutModal({
             )}
             <BankHint>{t('checkout.bank.memoHint', { paymentId: paymentId || '—' })}</BankHint>
           </BankBox>
+
+          {/* 카드 결제 (Stripe) — 활성 시에만. 즉시 활성화(webhook). 은행송금과 택일. */}
+          {stripeEnabled && paymentId && (
+            <StripeBlock>
+              <OrDivider><span>{t('checkout.or', '또는')}</span></OrDivider>
+              <CardPayBtn type="button" onClick={handleStripe} disabled={submitting}>
+                <CardIcon aria-hidden>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="1" y="4" width="22" height="16" rx="2" ry="2" /><line x1="1" y1="10" x2="23" y2="10" />
+                  </svg>
+                </CardIcon>
+                {t('checkout.stripe.payWithCard', '카드로 결제')}
+              </CardPayBtn>
+              <StripeHint>{t('checkout.stripe.hint', '카드로 결제하면 Stripe 보안 결제 페이지로 이동하며, 결제 완료 시 구독이 즉시 활성화됩니다.')}</StripeHint>
+            </StripeBlock>
+          )}
 
           <Field>
             <FieldLabel>{t('checkout.payerName.label')}</FieldLabel>
@@ -398,6 +432,26 @@ const BankLabel = styled.div`
 const BankInfo = styled.div`display: flex; flex-direction: column; gap: 4px;`;
 const BankFallback = styled.div`font-size: 13px; color: #64748B;`;
 const BankHint = styled.div`font-size: 11px; color: #64748B; line-height: 1.5;`;
+
+// ─── 카드 결제 (Stripe) 블록 — 은행송금과 택일. "또는" 구분선 + 카드 버튼 ───
+const StripeBlock = styled.div`display: flex; flex-direction: column; gap: 10px;`;
+const OrDivider = styled.div`
+  display: flex; align-items: center; gap: 12px;
+  color: #94A3B8; font-size: 12px; font-weight: 600;
+  &::before, &::after { content: ''; flex: 1; height: 1px; background: #E2E8F0; }
+  span { flex-shrink: 0; }
+`;
+const CardPayBtn = styled.button`
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; min-height: 44px; padding: 0 16px;
+  background: #635BFF; color: #FFFFFF;
+  border: none; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer;
+  transition: background 120ms;
+  &:hover:not(:disabled) { background: #524DE0; }
+  &:disabled { background: #A5A1F0; cursor: not-allowed; }
+`;
+const CardIcon = styled.span`display: inline-flex; svg { width: 18px; height: 18px; }`;
+const StripeHint = styled.div`font-size: 11px; color: #94A3B8; line-height: 1.5; text-align: center;`;
 
 const Field = styled.div`display: flex; flex-direction: column; gap: 6px;`;
 const FieldLabel = styled.div`font-size: 12px; font-weight: 600; color: #475569;`;

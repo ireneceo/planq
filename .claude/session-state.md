@@ -16,15 +16,22 @@ session-state.md 읽고 이어서 개발해.
 
 ## 🔖 지금 중단 지점
 
-**마지막 작업:** PlanQ 구독결제에 **Stripe(카드) 결제** 이식 중. POS(`/var/www/dev-backend`, Read 가능) 패턴 그대로 가져와 이식. Stripe 키 보안 Fable 검토 → F1(PUT 암호문 유출)·F2(audit 암호문 저장)·F3(암호화 키 fallback)·F6(merchant alias) **전부 수정·재검증 완료** (commit 1eb1c1e).
+**마지막 작업:** PlanQ 구독결제 **Stripe(카드) 결제 라이브 배선 완료** (2026-07-08). 토대(services/stripeService·stripeCheckoutService·routes/stripeWebhook) + 키 보안 Fable F1~F6 은 이전 세션(1eb1c1e). 이번 세션에 **F4·webhook 마운트·plan.js 엔드포인트·CheckoutModal 버튼 4종 배선 + 검증 17/17 통과**.
 
-**바로 다음 작업 (라이브 배선, Fable 게이트):**
-1. **F4: 관리자 결제설정에 Stripe 입력란** — `AdminBillingSettingsPage.tsx` 에 publishable/secret(write-only)/webhook 입력 추가 (백엔드 PUT/GET·암호화는 이미 완료, UI만 없음)
-2. **server.js webhook 마운트** — `app.use('/api/stripe/webhook', express.raw({type:'application/json'}), require('./routes/stripeWebhook'))` **json 파서 前에** (마운트 순서 주의 = Fable 게이트)
-3. **plan.js Stripe 체크아웃 엔드포인트** — pending Payment → `stripeCheckoutService.startPlatformSubscriptionCheckout` → session.url 반환
-4. **CheckoutModal "카드로 결제" 버튼** — 위 엔드포인트 호출 → Stripe 페이지 리다이렉트
-5. Stripe 대시보드 webhook 등록 + 관리자에 webhook secret 입력
-6. **운영 소액 실결제+환불** 스모크(Irene 결정: 결제 테스트는 운영에서)
+**이번 세션 완료 (dev, 미커밋 — 검증까지 끝난 상태):**
+1. ✅ **server.js webhook 마운트** — `app.use('/api/stripe/webhook', express.raw(...), require('./routes/stripeWebhook'))` 을 `express.json` **前(257행, json 260행)** 에 마운트. 순서 검증.
+2. ✅ **plan.js 엔드포인트** — `POST /:businessId/payments/:paymentId/stripe-checkout` (owner_only, business 스코프 소유권, pending 검증, success/cancel=APP_URL 서버상수, `stripe_not_configured`→400). + `GET /plan/bank-info` 응답에 `stripe_enabled` 추가(설정하면 켜짐).
+3. ✅ **F4 관리자 Stripe 입력란** — `AdminBillingSettingsPage.tsx` Stripe 카드(publishable 평문 / secret·webhook write-only + 설정됨·미설정 배지 + 삭제 버튼). 백엔드 PUT/GET 암호화는 기존.
+4. ✅ **CheckoutModal "카드로 결제" 버튼** — `services/plan.ts startStripeCheckout` + stripeEnabled 시에만 노출, session.url 리다이렉트. PlanSettings 가 bank-info.stripe_enabled 전달.
+5. ✅ i18n ko/en (admin.billing.stripe*, plan.checkout.stripe.*) + 빌드 EXIT0(error TS 0) + health-check 29/29.
+
+**바로 다음 작업 (운영 — Irene 몫):**
+1. **노출된 `sk_live` Roll** (채팅 노출분 — 반드시 폐기·재발급)
+2. **운영 `EMAIL_ENCRYPTION_KEY` 설정** (없으면 F3 가드가 결제 시크릿 저장 차단, 운영 NODE_ENV=production)
+3. **관리자 UI에 Stripe 키 3종 입력** (`/admin/billing-settings` → Stripe 섹션): publishable/secret/webhook
+4. **Stripe 대시보드 webhook 등록** — 엔드포인트 `https://planq.kr/api/stripe/webhook`, 이벤트 `checkout.session.completed`·`payment_intent.succeeded` → Signing secret 을 3번 UI에 입력
+5. **운영 소액 실결제+환불** 스모크(Irene 결정: 결제 테스트는 운영에서)
+6. (후속) Q Bill workspace merchant — Business stripe_* 컬럼 추가 후 활성
 
 **맥락 유지할 것 (중요 결정):**
 - **결제수단 3종 (순서 고정): 은행송금 → 별도 결제링크 → 스트라이프.** "설정하면 켜짐"(POS 방식). PlanQ 구독 ⊇ Q Bill 고객결제 = **같은 엔진, 발행자/수신자(merchant)만 스왑**. 돈·데이터는 분리 유지.

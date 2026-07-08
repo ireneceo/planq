@@ -21,11 +21,15 @@ router.get('/catalog', authenticateToken, async (req, res, next) => {
 router.get('/bank-info', authenticateToken, async (req, res, next) => {
   try {
     const { getPlanqBankInfo } = require('../services/emailService');
+    const { isStripeEnabled } = require('../services/stripeService');
     const bank = await getPlanqBankInfo();
-    if (!bank.configured) return successResponse(res, null);
+    // 카드 결제(Stripe) 활성 여부 — "설정하면 켜짐". 프론트 CheckoutModal 이 카드 버튼 노출 판단에 사용.
+    const stripe_enabled = await isStripeEnabled('platform');
+    if (!bank.configured) return successResponse(res, stripe_enabled ? { stripe_enabled } : null);
     return successResponse(res, {
       name: bank.name, account: bank.account, holder: bank.holder,
       name_en: bank.name_en, holder_en: bank.holder_en, swift: bank.swift,
+      stripe_enabled,
     });
   } catch (error) { next(error); }
 });
@@ -353,6 +357,48 @@ router.post('/:businessId/checkout', authenticateToken, checkBusinessAccess, asy
       currency: result.payment.currency,
       status: result.payment.status,
     });
+  } catch (err) { next(err); }
+});
+
+// ─── 카드 결제 (Stripe Hosted Checkout) — 기존 pending Payment 를 Stripe 결제로 진행 ───
+// body: (없음) — 기존 pending Payment(id)를 Stripe Checkout 세션으로 전환. 성공은 webhook 이 진실원천.
+//   결제수단 순서: 은행송금 → 별도 결제링크 → 스트라이프. "설정하면 켜짐"(관리자 UI 에 Stripe 키 입력 시 활성).
+//   success/cancel URL 은 서버 상수(APP_URL) 기반 — 클라 입력 open-redirect 방지.
+router.post('/:businessId/payments/:paymentId/stripe-checkout', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') {
+      return errorResponse(res, 'owner_only', 403);
+    }
+    const businessId = Number(req.params.businessId);
+    const paymentId = Number(req.params.paymentId);
+    // 소유권 확인 — 다른 워크스페이스의 Payment 로 결제 세션 열지 못하도록 business 스코프 강제.
+    const pay = await Payment.findOne({ where: { id: paymentId, business_id: businessId } });
+    if (!pay) return errorResponse(res, 'payment_not_found', 404);
+    if (pay.status === 'paid') return errorResponse(res, 'already_paid', 400);
+    if (pay.status !== 'pending') return errorResponse(res, 'invalid_state', 400);
+
+    const { APP_URL } = require('../services/platformNotify');
+    const stripeCheckout = require('../services/stripeCheckoutService');
+    try {
+      const { url, session_id, reused } = await stripeCheckout.startPlatformSubscriptionCheckout({
+        paymentId: pay.id,
+        successUrl: `${APP_URL}/business/settings/plan?stripe=success&payment_id=${pay.id}`,
+        cancelUrl: `${APP_URL}/business/settings/plan?stripe=cancel&payment_id=${pay.id}`,
+      });
+      require('../services/auditService').logAudit(req, {
+        action: 'subscription.stripe_checkout',
+        targetType: 'payment',
+        targetId: pay.id,
+        businessId,
+        newValue: { session_id, amount: pay.amount, currency: pay.currency, reused: !!reused },
+      });
+      return successResponse(res, { url, session_id });
+    } catch (e) {
+      // 관리자가 아직 Stripe 키를 저장 안 함 → "설정하면 켜짐" 안내 (계좌이체는 계속 사용 가능).
+      if (e.code === 'STRIPE_NOT_CONFIGURED') return errorResponse(res, 'stripe_not_configured', 400);
+      if (e.code === 'INVALID_AMOUNT') return errorResponse(res, 'invalid_amount', 400);
+      throw e;
+    }
   } catch (err) { next(err); }
 });
 

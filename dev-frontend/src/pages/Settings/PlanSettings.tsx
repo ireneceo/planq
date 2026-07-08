@@ -33,11 +33,13 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
   // P-2: bank info — PlanQ SaaS 결제 계좌 (워크스페이스 계좌 아님!)
   // 워크스페이스 owner 가 PlanQ 구독료를 송금할 PlanQ 자체 계좌 정보
   const [bankInfo, setBankInfo] = useState<{ name?: string; account?: string; holder?: string; name_en?: string | null; holder_en?: string | null; swift?: string | null } | null>(null);
+  const [stripeEnabled, setStripeEnabled] = useState(false);
   useEffect(() => {
     apiFetch(`/api/plan/bank-info`)
       .then(r => r.json())
       .then(j => {
         if (j.success && j.data) {
+          setStripeEnabled(!!j.data.stripe_enabled);
           setBankInfo({
             name: j.data.name || undefined,
             account: j.data.account || undefined,
@@ -48,9 +50,10 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
           });
         } else {
           setBankInfo(null);
+          setStripeEnabled(false);
         }
       })
-      .catch(() => { setBankInfo(null); });
+      .catch(() => { setBankInfo(null); setStripeEnabled(false); });
   }, []);
 
   // ─── Enterprise 문의 ───
@@ -511,6 +514,7 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
             plan={targetPlan}
             cycle={cycle}
             bankInfo={bankInfo}
+            stripeEnabled={stripeEnabled}
             existingPaymentId={status.pending_payment?.id || null}
             existingAmount={status.pending_payment ? Number(status.pending_payment.amount) : null}
             onClose={() => { setPaymentOpen(false); setActionPlan(null); }}
