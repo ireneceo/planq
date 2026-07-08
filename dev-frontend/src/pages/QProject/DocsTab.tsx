@@ -1539,7 +1539,8 @@ const CardCheck = styled.div`
 `;
 const Thumb = styled.div<{ $src?: string }>`
   position:relative;aspect-ratio:16/10;
-  background:${p => p.$src ? `center/cover no-repeat url(${p.$src}), #F8FAFC` : '#F8FAFC'};
+  /* #121 — 썸네일은 이미지 전체가 보이게(contain). cover 는 높이기준으로 잘려서 사용자 호소. 여백은 배경색으로. */
+  background:${p => p.$src ? `center/contain no-repeat url(${p.$src}), #F8FAFC` : '#F8FAFC'};
   display:flex;align-items:center;justify-content:center;
 `;
 const SourceTag = styled.div<{ $src: FileSource }>`

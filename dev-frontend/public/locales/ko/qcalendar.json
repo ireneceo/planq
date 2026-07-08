@@ -126,7 +126,8 @@
     "scopeFuture": "이 일정 이후 모두",
     "scopeFutureHint": "이 회차부터 미래 회차까지 변경. 과거 회차는 그대로",
     "scopeAll": "모든 일정",
-    "scopeAllHint": "과거·미래 모든 회차 변경"
+    "scopeAllHint": "과거·미래 모든 회차 변경",
+    "deleteScopeTitle": "어느 회차를 삭제할까요?"
   },
   "empty": {
     "month": "이번 달엔 예정된 일정이 없습니다",

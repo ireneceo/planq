@@ -359,7 +359,7 @@ const QCalendarPage: React.FC = () => {
       const created = await createEvent(bizId, payload as Parameters<typeof createEvent>[1]);
       setEvents((prev) => [...prev, created]);
       setShowNewModal(false);
-      setSelectedEventId(created.id);
+      // #124 — 등록 후 우측 상세 드로어 자동 오픈 안 함(사용자 요청). 생성만 하고 목록에 반영.
     } catch (e) {
       setErrorMsg(mapApiError(e, tErr));
     }
@@ -404,16 +404,24 @@ const QCalendarPage: React.FC = () => {
     }
   }, [selectedEventId, bizId]);
 
-  const handleDelete = useCallback(async () => {
+  // #122 — 정기일정 삭제 scope(single/future/all). 백엔드·서비스는 이미 지원, UI 배선.
+  const handleDelete = useCallback(async (options?: { scope?: 'single' | 'future' | 'all'; recurrence_id?: string }) => {
     if (selectedEventId == null || !bizId) return;
+    const delScope = options?.scope || 'all';
     try {
-      await deleteEvent(bizId, selectedEventId);
-      setEvents((prev) => prev.filter((e) => e.id !== selectedEventId));
+      await deleteEvent(bizId, selectedEventId, delScope, options?.recurrence_id);
+      if (delScope === 'all') {
+        // 시리즈 전체 삭제 — 낙관적 제거
+        setEvents((prev) => prev.filter((e) => e.id !== selectedEventId));
+      } else {
+        // single/future — 서버가 시리즈를 수정(자름/예외)하므로 재조회로 정합
+        await fetchRange();
+      }
       setSelectedEventId(null);
     } catch (e) {
       setErrorMsg(mapApiError(e, tErr));
     }
-  }, [selectedEventId, bizId]);
+  }, [selectedEventId, bizId, fetchRange]);
 
   const days = view === 'week' ? getWeekDays(anchor, 0) : view === 'day' ? [anchor] : [];
 
