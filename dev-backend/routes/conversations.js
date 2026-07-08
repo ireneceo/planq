@@ -682,8 +682,11 @@ router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope
       const wsName = biz?.brand_name || biz?.name || null;
       const previewBody = String(content).length > 140 ? String(content).slice(0, 140) + '…' : String(content);
       const link = `${process.env.APP_URL || 'https://dev.planq.kr'}/talk?conv=${conversation.id}`;
+      // #132 — 알림 표시명은 워크스페이스 표시명(BusinessMember.name) 우선. 계정명(User.name) 노출 금지.
       const sender = await User.findByPk(req.user.id, { attributes: ['name'] });
-      const senderName = sender?.name || 'PlanQ';
+      const { getMemberDisplayName } = require('../services/displayName');
+      const senderDisp = await getMemberDisplayName(Number(req.params.businessId), req.user.id, sender?.name);
+      const senderName = senderDisp.name || 'PlanQ';
       const convTitle = conversation.title || '대화';
 
       const mentioned = await resolveMentions(content, req.params.businessId, req.user.id);

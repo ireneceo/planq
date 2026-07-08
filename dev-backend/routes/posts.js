@@ -1066,13 +1066,15 @@ router.post('/:id/share/email', authenticateToken, ...postShareEmailLimiter, asy
     }
     const shareUrl = `${APP_URL}/public/posts/${post.share_token}`;
     const sender = await User.findByPk(req.user.id, { attributes: ['name'] });
+    const { getMemberDisplayName } = require('../services/displayName');
+    const senderDisp = await getMemberDisplayName(post.business_id, req.user.id, sender?.name);
 
     const results = [];
     for (const email of recipients) {
       const ok = await sendPostShareEmail({
         to: email,
         docTitle: post.title,
-        senderName: sender?.name || '',
+        senderName: senderDisp.name || '',
         workspaceName: post.Business?.name || '',
         message: message ? String(message).slice(0, 1000) : null,
         shareUrl,

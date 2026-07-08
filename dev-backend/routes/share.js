@@ -94,6 +94,9 @@ router.post('/email', authenticateToken, ...shareEmailLimiter, async (req, res, 
     const r = await applyShareUpdate(entity, {});
     const shareUrl = `${APP_URL}/public/${cfg.publicPath}/${r.token}`;
     const sender = await User.findByPk(req.user.id, { attributes: ['name'] });
+    // 공유 이메일 발신자명 = 워크스페이스 표시명 우선(계정명 노출 금지, #132 계열)
+    const { getMemberDisplayName } = require('../services/displayName');
+    const senderDisp = await getMemberDisplayName(entity.business_id, req.user.id, sender?.name);
     const workspace = entity.Business;
     const workspaceName = workspace ? (workspace.brand_name || workspace.name || '') : '';
     const entityTitle = String(entity[cfg.titleField] || '');
@@ -104,7 +107,7 @@ router.post('/email', authenticateToken, ...shareEmailLimiter, async (req, res, 
         to: email,
         entityType: entity_type,
         entityTitle,
-        senderName: sender?.name || '',
+        senderName: senderDisp.name || '',
         workspaceName,
         message: message ? String(message).slice(0, 1000) : null,
         shareUrl,
