@@ -9,6 +9,7 @@ import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
 import RecurringBillingNote from '../../components/QBill/RecurringBillingNote';
 import type { InvoiceRecurring } from '../../services/invoices';
 import { apiFetch, getAccessToken } from '../../contexts/AuthContext';
+import { openExternalUrl } from '../../services/native';
 
 interface Installment {
   id: number;
@@ -330,7 +331,7 @@ const PublicInvoicePage: React.FC = () => {
         body: JSON.stringify({ installment_id: installmentId }),
       });
       const j = await r.json();
-      if (j.success && j.data?.url) { window.location.href = j.data.url; return; } // 리다이렉트 중 로딩 유지
+      if (j.success && j.data?.url) { await openExternalUrl(j.data.url); return; } // 웹=리다이렉트/네이티브=인앱 브라우저
       setErr(j.message === 'stripe_not_configured'
         ? t('public.card.notConfigured', '카드 결제가 아직 준비되지 않았습니다. 계좌이체를 이용해 주세요.')
         : t('public.card.failed', '카드 결제를 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.'));

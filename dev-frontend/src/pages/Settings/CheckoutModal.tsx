@@ -15,6 +15,7 @@ import { checkout, notifyPaymentPaid, startStripeCheckout, type PlanCode, type B
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { openExternalUrl } from '../../services/native';
 
 interface Props {
   open: boolean;
@@ -129,7 +130,7 @@ export default function CheckoutModal({
     setError(null);
     const res = await startStripeCheckout(businessId, paymentId);
     if (res.ok) {
-      window.location.href = res.url; // 리다이렉트 진행 — submitting 유지(버튼 잠금)
+      await openExternalUrl(res.url); // 웹=리다이렉트 / 네이티브=인앱 브라우저. submitting 유지(버튼 잠금)
       return;
     }
     setSubmitting(false);
