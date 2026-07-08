@@ -1,6 +1,14 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-07-08 (Opus, 1M) — **💳 Stripe 카드결제 전체 구현·운영 배포 (구독 platform + Q Bill workspace). Fable 게이트 2회 총 48검증 PASS·0 FAIL.** 헬스 29/29 · 빌드 EXIT0/TS0 · 위키 게이트 exit0.
+> **최종 업데이트:** 2026-07-08 (Opus, 1M, 이어서) — **📅 캘린더 Fable 검증 결함 7건 운영 배포 완료 (끊긴 세션 마무리). origin push 미완분 9커밋 반영.** 헬스 29/29 · 빌드 EXIT0/TS0 · 위키 게이트 exit0 · 운영 landing 3점(prod health200·프론트200·PM2 uptime 재시작).
+> - 직전 세션이 **커밋(732a386)만 되고 배포·push 중 SSH 끊김**. 이번 세션에서 검증→재배포→push로 마무리.
+> - **B-1(상) 데이터손실** — 반복 exception child(recurrence_parent_id)에서 '모든일정/이후' 삭제 시 master 미resolve 로 시리즈 생존 → master 로 resolve 후 cascade/truncate. 실증: all=시리즈전멸·future=master truncate.
+> - **B-2(중) 데이터손실** — future 삭제 UNTIL off-by-one(전날 00:00:00Z)로 시각 늦은 전날 회차까지 잘림 → target 직전순간(전날 23:59:59Z)으로 보존.
+> - **A-1(중)** #133 폰 기본 agenda 오늘 자동스크롤이 loading 무시로 첫 진입 미동작 → `loading` 가드. **A-2** 반복 멀티데이 React key 중복 → `_instance_key`. **A-3** 자정 정각 종료 이벤트 다음날 유령노출 → exclusive end. **A-4** 폰 month 선택 새로고침 시 agenda 복귀 → view URL 항상 기록. **D-1** 멀티데이 시작시간 변경 시 종료 무단변형 → 같은 날짜만 follow(EventDrawer+NewEventModal).
+> - 검증: backend 실 API B-1·B-2 재현 4/4 + 단발삭제 회귀 · build EXIT0/TS0 · health 29/29. 파일: `routes/calendar.js`, `QCalendar/{AgendaView,EventDrawer,NewEventModal,QCalendarPage,types}.tsx`. (732a386)
+> - **다음 섹션:** 운영 Stripe 키 입력 후 실결제 스모크(Irene 몫). 그 외 신규 개발 Irene 지시 대기. #133 폰 시각확인·#126 구글 양방향 OAuth 검증(Irene 선행) 잔존.
+
+> **이전 업데이트:** 2026-07-08 (Opus, 1M) — **💳 Stripe 카드결제 전체 구현·운영 배포 (구독 platform + Q Bill workspace). Fable 게이트 2회 총 48검증 PASS·0 FAIL.** 헬스 29/29 · 빌드 EXIT0/TS0 · 위키 게이트 exit0.
 > - **구독 카드결제 (platform merchant)** — server.js webhook 마운트(json前 raw), plan.js `/payments/:id/stripe-checkout`, F4 관리자 Stripe 입력란(publishable 평문/secret·webhook write-only), CheckoutModal "카드로 결제" 버튼. Fable 17/17. (e40d406)
 > - **Q Bill 워크스페이스 카드결제 (workspace merchant)** — businesses/invoices/invoice_installments stripe 컬럼(7 마이그레이션, 운영 반영), `services/invoicePayments.js` **단일 착지점**(markInstallmentPaid/markInvoicePaid — 수동 mark-paid + 카드 webhook 공유, 멱등), 워크스페이스별 `/api/stripe/webhook/ws/:businessId`(자기 secret 서명검증 + metaBiz 격리), 공개 `/public/:token/stripe-checkout`(비인증 share_token, IP rate-limit, 금액 서버값), SettingsTab Stripe 설정 UI + PublicInvoicePage 카드 버튼(분할 회차/단일). (e40d406)
 > - **전역 toJSON `*_enc → *_set` redaction** (models/index.js) — 모든 모델 암호화 시크릿 API 응답 영구 차단(instance 복호화 무관). **Fable 이 이 변경으로 인한 회귀 F-1(admin serializePlatformSettings 항상 false) 발견 → `return row.toJSON()` 로 수정 + D8(canceled webhook 무한재시도) 200 ack.**

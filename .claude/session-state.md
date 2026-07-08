@@ -1,8 +1,8 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-07-08 (Opus, 1M)
-**작업 상태:** 완료 (Stripe 카드결제 에픽 전체 구현·운영 배포)
+**마지막 업데이트:** 2026-07-08 (Opus, 1M) — 캘린더 Fable 결함 7건 운영 배포 + origin push 완료
+**작업 상태:** 완료 (끊긴 세션 마무리 — 미배포/미push 0)
 
 ---
 
@@ -14,33 +14,40 @@ session-state.md 읽고 이어서 개발해.
 
 ---
 
-## ✅ 이번 세션 완료 (2026-07-08)
+## ✅ 이번 세션 완료 (2026-07-08, 이어서)
 
-**Stripe 카드결제 전체 — 구독(platform) + Q Bill(workspace) — 운영 배포 완료.**
+**끊긴 세션 마무리 — 캘린더 Fable 검증 결함 7건 운영 배포 + GitHub push.**
 
-1. **구독 카드결제** — server.js webhook 마운트(json前), plan.js stripe-checkout, F4 관리자 Stripe 입력란, CheckoutModal 카드 버튼. Fable 17/17.
-2. **Q Bill 워크스페이스 카드결제** — 마이그레이션 7컬럼(businesses/invoices/invoice_installments), `services/invoicePayments.js` 단일 착지점(markInstallmentPaid/markInvoicePaid, 수동+webhook 공유, 멱등), 워크스페이스별 webhook `/api/stripe/webhook/ws/:businessId`, 공개 checkout(비인증 share_token·IP rate-limit·서버금액), SettingsTab Stripe UI + PublicInvoicePage 카드 버튼. Fable 48검증.
-3. **전역 toJSON `*_enc→*_set` redaction** — 모든 모델 암호화 시크릿 응답 차단. (Fable F-1 회귀 발견→수정, D8 webhook ack)
-4. **카드결제 발행자 알림** — notifyOwnerCardPaid(method='stripe'만, 멱등). 구독측은 기존 notifyPlatformAdmins.
-5. 위키 아티클 2건(qbill card-payment·settings pay-subscription) + coverage exit0. 운영 배포 2회(e40d406·c334685, DB 7컬럼 반영).
+직전 세션이 **커밋(732a386)만 되고 배포·push 중 SSH 끊김**. 이번 세션에서 검증→재배포→push 로 마무리.
 
-**검증:** Fable 게이트 2회 총 48 PASS·0 FAIL · 실호출 31/31+17/17+7/7+6/6 · health 29/29 · build EXIT0 · 위키 게이트 exit0.
+- 검증: health 29/29 · build EXIT0/TS0 · 위키 게이트 exit0.
+- 배포: `./scripts/deploy-planq.sh --auto` (157s) → **landing 3점 검증** prod health 200(node_env=production)·프론트 HTTP200·PM2 planq-prod-backend uptime 재시작 확인.
+- push: origin 미반영 9커밋(5b038fa..732a386) GitHub 반영, 미push 0.
 
-**후속 증분 (전부 운영 배포):**
-6. **멤버 표시명 누출 수정** (aa5baab) — OrgPage·멤버피커 4종·NewProjectModal 이 계정명 노출하던 것 → `displayName()`/`m.name`/`user.display_name` 표시명 우선. 박제 [[feedback_member_display_name_on_lists]].
-7. **Stripe 결제 네이티브 대응** (fdc773f) — `services/native.ts openExternalUrl` — 네이티브는 인앱 브라우저(Browser.open)+닫힘시 reload, 웹은 리다이렉트. CheckoutModal+PublicInvoicePage. **네이티브 실기기 검증은 앱 배포 후(Irene Mac).**
+**732a386 내용 (Fable 재검증 FAIL 실증 결함 7건):**
+- **B-1(상, 데이터손실)** 반복 exception child 에서 '모든일정/이후' 삭제 시 master 미resolve → 시리즈 생존. child→master resolve 후 cascade/truncate.
+- **B-2(중, 데이터손실)** future 삭제 UNTIL off-by-one(전날 00:00:00Z→시각 늦은 전날 회차 잘림) → target 직전순간(전날 23:59:59Z) 보존.
+- **A-1(중)** 폰 기본 agenda 오늘 자동스크롤 loading 가드. **A-2** React key 중복 `_instance_key`. **A-3** 자정 종료 이벤트 다음날 유령노출 exclusive end. **A-4** 폰 month 새로고침 시 agenda 복귀 → view URL 항상 기록. **D-1** 멀티데이 시작시간 변경 시 종료 무단변형 → 같은 날짜만 follow.
+- 파일: `routes/calendar.js`, `QCalendar/{AgendaView,EventDrawer,NewEventModal,QCalendarPage,types}.tsx`.
 
-**네이티브 완성도 스윕 결론:** 웹측 분기(safe-area 19파일·딥링크/백버튼 NativeBridge·nativePush·PWA↔native 문구) 이미 성숙. 유일 갭이던 Stripe 리다이렉트 수정 완료.
+---
+
+## ✅ 직전 세션 완료 (2026-07-08) — Stripe 카드결제 에픽
+
+**Stripe 카드결제 전체 — 구독(platform) + Q Bill(workspace) — 운영 배포 완료.** (e40d406·c334685)
+1. 구독 카드결제(platform merchant) — webhook 마운트(json前), plan.js stripe-checkout, F4 관리자 Stripe 입력란, CheckoutModal 카드 버튼. Fable 17/17.
+2. Q Bill 워크스페이스 카드결제(workspace merchant) — 마이그레이션 7컬럼, `services/invoicePayments.js` 단일 착지점(markInstallmentPaid/markInvoicePaid, 수동+webhook 공유, 멱등), 워크스페이스별 `/api/stripe/webhook/ws/:businessId`, 공개 checkout(비인증 share_token·IP rate-limit·서버금액). Fable 48검증.
+3. 전역 toJSON `*_enc→*_set` redaction — 시크릿 응답 차단(F-1 회귀 발견→수정).
+4. 카드결제 발행자 알림 notifyOwnerCardPaid(stripe만, 멱등).
+- 후속 증분(배포됨): 멤버 표시명 누출 수정(aa5baab), Stripe 네이티브 대응(fdc773f) [[feedback_member_display_name_on_lists]].
 
 ## 🔥 운영 피드백 처리 (2026-07-08, Fable 3-에이전트 검증)
-운영 feedback_items 미처리 46건(pending 41+reviewing 5) 전수 확인. Fable 병렬 검증으로 이미수정/열림/규모 분류.
-- **#132** 알림 계정명 노출 → 수정·배포(5b50e9b): 메시지 알림·공유메일 senderName getMemberDisplayName
-- **#104 인접 보안 누출(Fable 실재현 발견)** → 수정·배포(783a627): `calendar.js:430` 단일 이벤트 GET 이 vlevel 미검사 → L2 이벤트 id만 알면 누출. 목록 라우트와 동일 vlevel 접근검사 적용. #106(Q file L1)·#104(캘린더 L1)은 CONFIRMED-FIXED
-- **#121·124·123·122** 캘린더 퀵픽스 배치 → 배포(f357c92): 썸네일 contain / 등록후 드로어 자동오픈 제거 / 시작→종료시간 follow / 반복삭제 scope UI(백엔드는 이미 완비)
-- **#133 모바일 아젠다 뷰** (Fable 설계→구현) → 배포(9d994d1): AgendaView.tsx, 폰 기본 agenda. 임팩트1위. **Irene 폰 시각확인 필요**
-- **이미 수정됨(큐 stale)**: #71·95·96·97·120·119·102·118·113·110·86·79 등 12+건 (Fable 확인) → Irene 이 큐에서 done 처리 권장
-- **#126 구글 양방향 = IRENE-BLOCKED**: calendar.events write scope + 구글 OAuth 검증 대기. 콘솔 제출 시 calendar.events justification 함께 포함 권장
-- **남은 큰 것**: 없음(대부분 이미수정 or Irene선행). Q Mail #130·109·107, Cue #81·90 등 중간건 잔존
+- **#132** 알림 계정명 노출 → 배포(5b50e9b). **#104 캘린더 단일 GET vlevel 누출** → 배포(783a627).
+- **#121·124·123·122** 캘린더 퀵픽스 → 배포(f357c92). **#133 모바일 아젠다 뷰** → 배포(9d994d1, **Irene 폰 시각확인 필요**).
+- **#122·#133 후속 Fable 결함 7건** → 배포(732a386, 이번 세션 마무리).
+- 이미 수정됨(큐 stale): #71·95·96·97·120·119·102·118·113·110·86·79 등 12+건 → Irene 큐 done 처리 권장.
+- **#126 구글 양방향 = IRENE-BLOCKED**: calendar.events write scope + 구글 OAuth 검증 대기.
+- 남은 중간건: Q Mail #130·109·107, Cue #81·90.
 
 ---
 
@@ -50,11 +57,15 @@ session-state.md 읽고 이어서 개발해.
 1. 채팅 노출됐던 `sk_live` **Roll**(폐기·재발급)
 2. 운영 `EMAIL_ENCRYPTION_KEY` 설정 (없으면 F3 가드가 시크릿 저장 차단)
 3. 관리자 `/admin/billing-settings` Stripe 섹션에 구독용 키 3종 입력
-4. 워크스페이스별: Q Bill 설정 → Stripe 섹션 키 3종 + 각자 Stripe 대시보드에 `https://planq.kr/api/stripe/webhook/ws/{businessId}` 등록
+4. 워크스페이스별: Q Bill 설정 → Stripe 섹션 키 3종 + Stripe 대시보드에 `https://planq.kr/api/stripe/webhook/ws/{businessId}` 등록
 5. 구독용 Stripe 대시보드 webhook: `https://planq.kr/api/stripe/webhook`
-6. **운영 소액 실결제 + 환불 스모크** (Irene 결정: 결제 테스트는 운영에서)
+6. 운영 소액 실결제 + 환불 스모크 (Irene 결정: 결제 테스트는 운영에서)
 
-**그 외 신규 개발:** Irene 지시 대기 (Stripe 에픽 완결, 별도 큐 없음).
+**Irene 확인 대기:**
+- #133 모바일 아젠다 뷰 폰 시각확인
+- #126 구글 캘린더 양방향 = 구글 OAuth 검증(콘솔 제출 시 calendar.events justification 포함)
+
+**그 외 신규 개발:** Irene 지시 대기.
 
 ---
 
