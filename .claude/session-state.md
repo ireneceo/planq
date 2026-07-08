@@ -26,6 +26,12 @@ session-state.md 읽고 이어서 개발해.
 
 **검증:** Fable 게이트 2회 총 48 PASS·0 FAIL · 실호출 31/31+17/17+7/7+6/6 · health 29/29 · build EXIT0 · 위키 게이트 exit0.
 
+**후속 증분 (전부 운영 배포):**
+6. **멤버 표시명 누출 수정** (aa5baab) — OrgPage·멤버피커 4종·NewProjectModal 이 계정명 노출하던 것 → `displayName()`/`m.name`/`user.display_name` 표시명 우선. 박제 [[feedback_member_display_name_on_lists]].
+7. **Stripe 결제 네이티브 대응** (fdc773f) — `services/native.ts openExternalUrl` — 네이티브는 인앱 브라우저(Browser.open)+닫힘시 reload, 웹은 리다이렉트. CheckoutModal+PublicInvoicePage. **네이티브 실기기 검증은 앱 배포 후(Irene Mac).**
+
+**네이티브 완성도 스윕 결론:** 웹측 분기(safe-area 19파일·딥링크/백버튼 NativeBridge·nativePush·PWA↔native 문구) 이미 성숙. 유일 갭이던 Stripe 리다이렉트 수정 완료. 테스트 가능한 Opus 작업 소진 — 남은 건 전부 Irene 선행(키·google-services.json·Apple Dev·OAuth검증·DKIM) 또는 실기기 필요.
+
 ---
 
 ## 🔖 다음 할 일
