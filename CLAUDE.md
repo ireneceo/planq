@@ -695,6 +695,12 @@ import DetailDrawer from 'components/Common/DetailDrawer';
 
     **박제: 신규 모든 페이지/라우트 작성 시 이 16번 항목을 체크리스트로 사용. 누락 시 사용자 호소 회귀 반복.**
 
+17. **검사 하니스 자동화 요건 (사이클 N+? 박제, 2026-07-09)** — 운영 피드백 42건이 기존 검증 다 통과했는데 유출(특히 모바일 키보드 가림) → `scripts/e2e/` Puppeteer 하니스(health-check 동급 게이트, `node scripts/e2e/run.js --suite mobile,crosscut,l1`)로 자동 검출. 신규 코드는 처음부터 아래 준수:
+    - **인터랙티브 요소에 `data-testid` 부여 필수** — 모달/드로어 오프너·FAB·폼 제출 버튼. 네이밍 `{화면}-{동작}`(예: `bill-new-invoice`, `dock-create-task`, `clients-invite-open`). selector 취약성(텍스트/위치 휴리스틱) 제거 → 하니스 opener 안정.
+    - **모달/드로어 루트에 `aria-modal="true"`** — 하니스가 `[aria-modal="true"]` 로만 모달 스코핑(배경 입력 노이즈 차단). 비모달 배너에 `role="dialog"` 금지(→ `complementary`) — 스코핑 오염.
+    - **모바일 키보드 가림 회귀 방지** — 키보드 업 시 인플로우 배너(push/install prompt 등)가 세로공간을 잠식하면 `overflow:hidden` 고정크롬(패널 하단 입력줄)이 뷰포트 밖으로 침몰, `ensureFocusedVisible` 이 구제 불가. `body[data-keyboard-up='1']` 계약으로 `@media(max-width:768px)` 게이트하에 억제. (max-width:768px 게이트 필수 — flag 는 세로축소만으로도 켜져 데스크탑 회귀).
+    - **하니스 시뮬 함정 2가지** — ①CDP `setDeviceMetricsOverride` 에 `screenOrientation` 넣지 말 것 ②판정 후 `clearDeviceMetricsOverride` 쓰지 말 것(puppeteer viewport 까지 제거 → 데스크탑 환경 오탐). 상세·오탐 사례: `docs/qa/FEEDBACK_REGRESSIONS.md`, 설계 `docs/qa/INSPECTION_PLAYBOOK.md`.
+
 ---
 
 ## 검증 시나리오 — 채팅·알림 (사이클 N+12 박제)

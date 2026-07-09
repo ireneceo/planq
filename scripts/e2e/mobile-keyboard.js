@@ -3,7 +3,9 @@
 //   INSPECTION_PLAYBOOK.md §3. 신규 입력화면 추가 시 SCENARIOS 에 1줄 추가.
 const b = require('./lib/browser');
 
-// 화면에서 모달/드로어 여는 opener (best-effort). data-testid 도입 전이라 텍스트/역할 기반.
+// 화면에서 모달 여는 opener. ★ 우선순위: data-testid 클릭 > URL 파라미터(deterministic) > 텍스트(폴백).
+//   구 clickFab(위치 휴리스틱)은 불안정(tasks FAB opener 실패)해 제거 — 대신 create 모달은 URL 파라미터로 연다
+//   (RightDock handleCreate 가 실제로 /tasks?create=1 등으로 네비게이션하므로 사용자 경로와 동일).
 async function clickByText(page, texts) {
   return page.evaluate((texts) => {
     const els = [...document.querySelectorAll('button, [role="button"], a')];
@@ -14,28 +16,25 @@ async function clickByText(page, texts) {
     return false;
   }, texts);
 }
-async function clickFab(page) {
-  // 우측 하단 FAB(RightDock). testid 없으면 위치 기반(우하단 고정 원형 버튼).
-  return page.evaluate(() => {
-    const cands = [...document.querySelectorAll('button, [role="button"]')].filter((e) => {
-      if (e.offsetParent === null) return false;
-      const s = getComputedStyle(e); const r = e.getBoundingClientRect();
-      return s.position === 'fixed' && r.bottom > window.innerHeight - 120 && r.right > window.innerWidth - 120 && r.width >= 36 && r.width <= 80;
-    });
-    if (cands.length) { cands[0].click(); return true; }
+async function clickTestId(page, id) {
+  return page.evaluate((id) => {
+    const el = document.querySelector(`[data-testid="${id}"]`);
+    if (el && el.offsetParent !== null) { el.click(); return true; }
     return false;
-  });
+  }, id);
 }
 
 // 시나리오: path + (선택) open 스텝. open 후 보이는 입력요소 전부 판정.
+//   create 모달은 URL 파라미터(?create=1 · ?new=1)로 결정론적 오픈 — path 에 쿼리를 넣으면 goto 시 자동 오픈.
 const SCENARIOS = [
   { name: 'clients-search', path: '/business/clients', open: null },
-  { name: 'clients-invite', path: '/business/clients', open: (p) => clickByText(p, ['고객 초대', '초대']) },
+  { name: 'clients-invite', path: '/business/clients', open: (p) => clickTestId(p, 'clients-invite-open').then((ok) => ok || clickByText(p, ['고객 초대', '초대'])) },
   { name: 'qbill-list', path: '/bills', open: null },
+  { name: 'bill-new', path: '/bills?tab=invoices&new=1', open: null },  // 청구서 발행 모달(invoices 서브탭 활성 후 URL 자동 오픈)
   { name: 'tasks-week', path: '/tasks', open: null },
-  { name: 'tasks-add-fab', path: '/tasks', open: (p) => clickFab(p) },
+  { name: 'tasks-create', path: '/tasks?create=1', open: null },        // 업무 생성 모달(RightDock create 경로와 동일)
   { name: 'inbox', path: '/inbox', open: null },
-  { name: 'calendar-add', path: '/calendar', open: (p) => clickByText(p, ['새 일정', '일정 추가', '추가']) },
+  { name: 'calendar-add', path: '/calendar?create=1', open: null },     // 새 일정 모달(URL 자동 오픈)
   { name: 'docs', path: '/docs', open: null },
   { name: 'wiki', path: '/wiki', open: null },
   { name: 'settings-profile', path: '/business/settings', open: null },

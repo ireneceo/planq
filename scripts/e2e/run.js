@@ -6,7 +6,8 @@
 //   INSPECTION_PLAYBOOK.md 참조. 신규 스위트는 SUITES 에 등록.
 const SUITES = {
   mobile: () => require('./mobile-keyboard'),
-  // crosscut: () => require('./canary-crawl'),   // 다음 단계
+  crosscut: () => require('./canary-crawl'),   // 표시명(계정명) 누출 카나리 크롤
+  l1: () => require('./canary-l1'),             // L1 개인자원 누출 카나리 (백엔드 API 크롤)
   // chrome: () => require('./chrome-suppression'),
 };
 
@@ -14,14 +15,15 @@ function printSuite(name, results) {
   let fail = 0, fatal = 0;
   console.log(`\n=== ${name} ===`);
   for (const r of results) {
-    const status = (r.fatal > 0) ? '🔥' : (r.fail > 0 ? '❌' : (r.leaked ? '❌' : (r.inputs === 0 && !r.hasCanary ? '⚪' : '✅')));
+    const bad = (r.fail || 0) + (r.leaked ? 1 : 0) + (r.overblock ? 1 : 0) + (r.error ? 1 : 0);
+    const status = (r.fatal > 0) ? '🔥' : (bad > 0 ? '❌' : (r.inputs === 0 && !r.hasCanary && r.route === undefined ? '⚪' : '✅'));
     const metric = (r.path !== undefined)
       ? `(${r.path}) — 입력 ${r.inputs} · 통과 ${r.pass} · 실패 ${r.fail}${r.fatal ? ' · FATAL ' + r.fatal : ''}`
-      : (r.route !== undefined ? `(${r.route})${r.leaked ? ' — 누출' : ''}` : '');
+      : (r.route !== undefined ? (r.detail || (r.leaked ? '— 누출' : '')) : '');
     console.log(`${status} ${r.name || r.route} ${metric}`);
     (r.details || []).forEach((d) => console.log('     └ ' + d));
     if (r.snippet && r.leaked) console.log('     └ ' + r.snippet);
-    fail += (r.fail || 0) + (r.leaked ? 1 : 0); fatal += (r.fatal || 0);
+    fail += bad; fatal += (r.fatal || 0);
   }
   return fail + fatal;  // FATAL(하니스 환경 오염)도 게이트 실패로 취급 — 판정 자체를 신뢰 못 함
 }

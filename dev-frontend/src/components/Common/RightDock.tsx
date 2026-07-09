@@ -96,13 +96,13 @@ const RightDock: React.FC = () => {
         <Menu role="menu" aria-label={t('dock.menuLabel', '바로 열기') as string}>
           {/* #80 — 빠른 만들기 그룹 (열기 도구와 구분) */}
           <GroupLabel>{t('dock.createLabel', '빠른 만들기') as string}</GroupLabel>
-          <MenuItem $create role="menuitem" type="button" onClick={() => handleCreate('task')}>
+          <MenuItem data-testid="dock-create-task" $create role="menuitem" type="button" onClick={() => handleCreate('task')}>
             <PlusIcon /><span>{t('dock.newTask', '업무')}</span>
           </MenuItem>
-          <MenuItem $create role="menuitem" type="button" onClick={() => handleCreate('mail')}>
+          <MenuItem data-testid="dock-create-mail" $create role="menuitem" type="button" onClick={() => handleCreate('mail')}>
             <PlusIcon /><span>{t('dock.newMail', '메일')}</span>
           </MenuItem>
-          <MenuItem $create role="menuitem" type="button" onClick={() => handleCreate('event')}>
+          <MenuItem data-testid="dock-create-event" $create role="menuitem" type="button" onClick={() => handleCreate('event')}>
             <PlusIcon /><span>{t('dock.newEvent', '일정')}</span>
           </MenuItem>
           <MenuDivider />
@@ -122,6 +122,7 @@ const RightDock: React.FC = () => {
         </Menu>
       )}
       <Fab
+        data-testid="right-dock-fab"
         type="button"
         $expanded={expanded}
         aria-expanded={expanded}
