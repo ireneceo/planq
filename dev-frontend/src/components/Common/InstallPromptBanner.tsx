@@ -152,7 +152,7 @@ const InstallPromptBanner: React.FC = () => {
         : t('installPrompt.showSteps', '방법 보기');
 
     return (
-      <Banner role="dialog" aria-label={t('installPrompt.title', 'PlanQ 를 앱처럼 사용하기') as string}>
+      <Banner role="complementary" aria-label={t('installPrompt.title', 'PlanQ 를 앱처럼 사용하기') as string}>
         <BannerRow>
           <BannerIcon><img src="/favicon.svg" alt="PlanQ" width={36} height={36} /></BannerIcon>
           <BannerBody>
@@ -194,7 +194,7 @@ const InstallPromptBanner: React.FC = () => {
 
   // mode === 'notify'
   return (
-    <Banner role="dialog" aria-label={t('notifPrompt.title', '알림 받기') as string}>
+    <Banner role="complementary" aria-label={t('notifPrompt.title', '알림 받기') as string}>
       <BannerRow>
         <BannerIcon $bell>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -238,6 +238,9 @@ const Banner = styled.div`
   animation: bannerSlide 0.32s cubic-bezier(0.22,1,0.36,1);
   @keyframes bannerSlide { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
   @media (min-width: 769px) { display: none; }
+  /* 모바일 키보드 업 시 억제 — bottom:80px 고정이라 키보드가 올라오면 화면 중앙을 덮어 입력을 가린다.
+     main.tsx body[data-keyboard-up='1'] 계약 재사용. (이미 >=769px 은 display:none 이라 데스크탑 오작동 없음) */
+  body[data-keyboard-up='1'] & { display: none; }
 `;
 const BannerRow = styled.div`
   display: flex; align-items: center; gap: 12px;

@@ -177,7 +177,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
   return (
     <>
       <Backdrop onClick={onClose} />
-      <Modal role="dialog" aria-label={t('new')}>
+      <Modal role="dialog" aria-modal="true" aria-label={t('new')}>
         <Header>
           <HeaderTitle>{t('new')}</HeaderTitle>
           <CloseBtn onClick={onClose}>

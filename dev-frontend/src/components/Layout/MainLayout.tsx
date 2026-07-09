@@ -573,6 +573,15 @@ const PushPromptWrap = styled.div`
   /* 내부 PushPromptBanner 가 null 일 때(이미 구독 등) 빈 div 가 12px 공백을 만들어
      콘텐츠 헤더가 밀려 헤더 밑줄(회색 라인)이 사이드 패널과 안 맞던 회귀 → 비면 숨김. */
   &:empty { display: none; padding: 0; }
+  /* 모바일 키보드 업 시 억제 — 키보드가 vvh 를 337px 로 줄인 상태에서 이 배너(~138px)가 세로공간을 잠식하면
+     /tasks 같은 고정크롬(overflow:hidden) 패널의 하단 입력줄(CueTaskBar)이 뷰포트 밖으로 밀려 가려진다.
+     ensureFocusedVisible 이 스크롤로 구제할 수 없는 구조적 가림. 키보드가 올라온 순간 이 배너는 UX상으로도
+     죽은 공간이므로 숨긴다. main.tsx 가 세팅하는 body[data-keyboard-up='1'] 계약 재사용.
+     ★ (max-width:768px) 게이트 필수 — main.tsx:51 의 flag 는 width 게이트 없이 세로축소만으로도 켜지므로,
+        데스크탑 창 세로축소 시 배너가 사라지는 회귀를 이 미디어쿼리로 차단(main.tsx ensureFocusedVisible 가드와 동일 범위). */
+  @media (max-width: 768px) {
+    body[data-keyboard-up='1'] & { display: none; padding: 0; }
+  }
 `;
 
 // 모바일 인라인 아코디언 — Stats / Settings 서브 메뉴
