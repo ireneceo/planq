@@ -11,15 +11,19 @@ const SUITES = {
 };
 
 function printSuite(name, results) {
-  let fail = 0;
+  let fail = 0, fatal = 0;
   console.log(`\n=== ${name} ===`);
   for (const r of results) {
-    const status = r.fail > 0 ? '❌' : (r.inputs === 0 ? '⚪' : '✅');
-    console.log(`${status} ${r.name} (${r.path}) — 입력 ${r.inputs} · 통과 ${r.pass} · 실패 ${r.fail}`);
+    const status = (r.fatal > 0) ? '🔥' : (r.fail > 0 ? '❌' : (r.leaked ? '❌' : (r.inputs === 0 && !r.hasCanary ? '⚪' : '✅')));
+    const metric = (r.path !== undefined)
+      ? `(${r.path}) — 입력 ${r.inputs} · 통과 ${r.pass} · 실패 ${r.fail}${r.fatal ? ' · FATAL ' + r.fatal : ''}`
+      : (r.route !== undefined ? `(${r.route})${r.leaked ? ' — 누출' : ''}` : '');
+    console.log(`${status} ${r.name || r.route} ${metric}`);
     (r.details || []).forEach((d) => console.log('     └ ' + d));
-    fail += r.fail;
+    if (r.snippet && r.leaked) console.log('     └ ' + r.snippet);
+    fail += (r.fail || 0) + (r.leaked ? 1 : 0); fatal += (r.fatal || 0);
   }
-  return fail;
+  return fail + fatal;  // FATAL(하니스 환경 오염)도 게이트 실패로 취급 — 판정 자체를 신뢰 못 함
 }
 
 async function main() {

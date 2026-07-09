@@ -76,6 +76,7 @@ async function assertKeyboardSafe(page, elHandle) {
     return {
       bottom: Math.round(rect.bottom), top: Math.round(rect.top), height: Math.round(rect.height),
       vvh: Math.round((window.visualViewport && window.visualViewport.height) || window.innerHeight),
+      innerW: window.innerWidth,
       kbFlag: document.body.getAttribute('data-keyboard-up'),
       hScroll: document.documentElement.scrollWidth - window.innerWidth,
       scrollTop: scroller ? Math.round(scroller.scrollTop) : 0,
@@ -84,9 +85,20 @@ async function assertKeyboardSafe(page, elHandle) {
   });
   await sleep(600);
   const after = await scrollTopOf(page);
-  await cdp.send('Emulation.clearDeviceMetricsOverride');
+  // ★ 판정 종료 후 복원: clearDeviceMetricsOverride 를 쓰면 안 된다.
+  //   clear 는 puppeteer 의 setViewport(375×667) 오버라이드까지 제거 → 브라우저 원시 창(실측 780×493, mq=false
+  //   데스크탑 환경)으로 되돌아간다. 그러면 "페이지당 첫 입력만 모바일 환경에서 판정"되고 두 번째 입력부터는
+  //   focus 시점 innerWidth=780 → main.tsx 의 (max-width:768px) 가드가 걸려 ensureFocusedVisible 이 즉시 return
+  //   → 가림 오탐(settings·calendar 3입력 FAIL 의 정체). 반드시 모바일 뷰포트로 재-override 후 세션 detach.
+  await cdp.send('Emulation.setDeviceMetricsOverride', {
+    width: MOBILE_VP.width, height: MOBILE_VP.height, mobile: true, deviceScaleFactor: 2,
+  });
+  await cdp.detach().catch(() => {});
   const fails = [];
   if (!r) return { fails: ['no active element'], info: null };
+  // ★ 자가 진단: 판정 시점 innerWidth 는 반드시 375(모바일). 아니면 위 오염이 재발한 것 —
+  //   가림 FAIL(앱 탓)이 아니라 하니스 환경 오염(FATAL)으로 구분해 오탐을 실버그로 착각하지 않게 한다.
+  if (r.innerW !== MOBILE_VP.width) return { fails: [], info: r, fatal: `하니스 환경 오염: 판정 innerWidth ${r.innerW} ≠ ${MOBILE_VP.width} (뷰포트 복원 실패)` };
   if (r.height <= 0) fails.push('요소 렌더 안됨(rect height 0)');
   if (r.bottom > r.vvh - 8) fails.push(`가림: 요소 bottom ${r.bottom} > 뷰포트 ${r.vvh}-8`);
   if (r.top < 0) fails.push(`위로 밀림: top ${r.top} < 0`);
@@ -96,6 +108,17 @@ async function assertKeyboardSafe(page, elHandle) {
   return { fails, info: r };
 }
 
+// 입력요소가 실제 렌더될 때까지 대기 (SPA 지연 렌더 플레이크 방지). 없어도 조용히 통과(입력 없는 화면 정상).
+async function waitForInputs(page, timeout = 3000) {
+  try {
+    await page.waitForFunction(() => {
+      const els = document.querySelectorAll('input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=file]), textarea, [contenteditable="true"]');
+      for (const el of els) { const r = el.getBoundingClientRect(); if (r.height > 10 && r.width > 10 && el.offsetParent !== null) return true; }
+      return false;
+    }, { timeout });
+  } catch { /* 입력 없는 화면(목록 등) — 정상 */ }
+}
+
 async function scrollTopOf(page) {
   return page.evaluate(() => {
     const s = document.querySelector('main, [data-scroll-root]') || document.scrollingElement;
@@ -103,11 +126,13 @@ async function scrollTopOf(page) {
   });
 }
 
-// 현재 화면의 "실제로 보이는" 입력만. ★ 모달/드로어(role=dialog)가 열려 있으면 그 안 입력만
+// 현재 화면의 "실제로 보이는" 입력만. ★ 진짜 모달/드로어(aria-modal="true")가 열려 있으면 그 안 입력만
 //   반환 (배경 페이지 입력 제외) — 모달 테스트 시 배경 노이즈 차단.
+//   ★ role="dialog" 는 스코핑 기준에서 제외: InstallPromptBanner 같은 비모달 배너가 role="dialog" 를 달면
+//     "모달 열림"으로 오판해 배경 페이지 입력 0개 반환(settings 0-input 플레이크의 정체). aria-modal 만 신뢰.
 async function visibleInputs(page) {
   const handles = await page.$$('input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=file]), textarea, [contenteditable="true"]');
-  const hasDialog = !!(await page.$('[role="dialog"], [aria-modal="true"]'));
+  const hasDialog = !!(await page.$('[aria-modal="true"]'));
   const out = [];
   for (const h of handles) {
     const ok = await h.evaluate((el, hasDialog) => {
@@ -115,7 +140,7 @@ async function visibleInputs(page) {
       const s = getComputedStyle(el);
       const visible = r.height > 10 && r.width > 10 && el.offsetParent !== null && s.visibility !== 'hidden' && s.opacity !== '0';
       if (!visible) return false;
-      if (hasDialog) return !!el.closest('[role="dialog"], [aria-modal="true"]'); // 모달 열렸으면 모달 안만
+      if (hasDialog) return !!el.closest('[aria-modal="true"]'); // 모달 열렸으면 모달 안만
       return true;
     }, hasDialog);
     if (ok) out.push(h); else await h.dispose();
@@ -123,4 +148,4 @@ async function visibleInputs(page) {
   return out;
 }
 
-module.exports = { launch, login, goto, gotoSPA, sleep, assertKeyboardSafe, visibleInputs, BASE, CREDS, MOBILE_VP };
+module.exports = { launch, login, goto, gotoSPA, sleep, assertKeyboardSafe, visibleInputs, waitForInputs, BASE, CREDS, MOBILE_VP };
