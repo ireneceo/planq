@@ -47,18 +47,21 @@ async function run() {
   try {
     await b.login(page);
     for (const sc of SCENARIOS) {
-      const rec = { name: sc.name, path: sc.path, inputs: 0, pass: 0, fail: 0, details: [] };
+      const rec = { name: sc.name, path: sc.path, inputs: 0, pass: 0, fail: 0, fatal: 0, details: [] };
       try {
         await b.goto(page, sc.path);
         // 인증 리다이렉트 체크
         if (page.url().includes('/login')) { rec.details.push('로그인 리다이렉트 — 접근 불가'); results.push(rec); continue; }
         if (sc.open) { const opened = await sc.open(page); await b.sleep(700); if (!opened) rec.details.push('opener 트리거 못 찾음(수동 확인 필요)'); }
+        // 고정 sleep 만으로는 SPA 지연 렌더 시 입력 0개 플레이크 → 입력 출현을 명시 대기(최대 3s).
+        await b.waitForInputs(page, 3000);
         const inputs = await b.visibleInputs(page);
         rec.inputs = inputs.length;
         // 시나리오당 입력요소 최대 4개까지 판정(시간)
         for (const el of inputs.slice(0, 4)) {
-          const { fails, info } = await b.assertKeyboardSafe(page, el);
-          if (fails.length === 0) { rec.pass++; }
+          const { fails, info, fatal } = await b.assertKeyboardSafe(page, el);
+          if (fatal) { rec.fatal++; rec.details.push(`⚠️ FATAL ${fatal}`); }
+          else if (fails.length === 0) { rec.pass++; }
           else { rec.fail++; rec.details.push(`[${info ? info.tag : '?'}] ${fails.join(' / ')}`); }
         }
         if (inputs.length === 0 && !sc.open) rec.details.push('보이는 입력요소 없음(모달 opener 필요할 수 있음)');
@@ -74,15 +77,15 @@ module.exports = { run, name: 'mobile-keyboard' };
 // 단독 실행
 if (require.main === module) {
   run().then((res) => {
-    let fail = 0;
+    let fail = 0, fatal = 0;
     console.log('\n=== 모바일 키보드 스위트 ===');
     for (const r of res) {
-      const status = r.fail > 0 ? '❌' : (r.inputs === 0 ? '⚪' : '✅');
-      console.log(`${status} ${r.name} (${r.path}) — 입력 ${r.inputs} · 통과 ${r.pass} · 실패 ${r.fail}`);
+      const status = (r.fatal > 0) ? '🔥' : (r.fail > 0 ? '❌' : (r.inputs === 0 ? '⚪' : '✅'));
+      console.log(`${status} ${r.name} (${r.path}) — 입력 ${r.inputs} · 통과 ${r.pass} · 실패 ${r.fail}${r.fatal ? ' · FATAL ' + r.fatal : ''}`);
       r.details.forEach((d) => console.log('     └ ' + d));
-      fail += r.fail;
+      fail += r.fail; fatal += (r.fatal || 0);
     }
-    console.log(`\n총 실패: ${fail}`);
-    process.exit(fail > 0 ? 1 : 0);
+    console.log(`\n총 실패: ${fail}${fatal ? ' · FATAL(하니스 환경): ' + fatal : ''}`);
+    process.exit(fatal > 0 ? 2 : (fail > 0 ? 1 : 0));
   }).catch((e) => { console.error('FATAL', e.message); process.exit(2); });
 }
