@@ -1,8 +1,8 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-07-08 (Opus, 1M) — 캘린더 Fable 결함 7건 운영 배포 + origin push 완료
-**작업 상태:** 완료 (끊긴 세션 마무리 — 미배포/미push 0)
+**마지막 업데이트:** 2026-07-09 (Opus, 1M) — 검사 하니스 v2 + /tasks 모바일 키보드 실버그 수정, 운영 배포+push 완료
+**작업 상태:** 완료 (미배포·미push 0)
 
 ---
 
@@ -14,56 +14,34 @@ session-state.md 읽고 이어서 개발해.
 
 ---
 
-## ✅ 이번 세션 완료 (2026-07-08, 이어서)
+## ✅ 이번 세션 완료 (2026-07-09) — 검사 하니스 v2 (Fable 분석·검증 게이트)
 
-**끊긴 세션 마무리 — 캘린더 Fable 검증 결함 7건 운영 배포 + GitHub push.**
+**"다해" + "Fable에게 무조건 분석·검증 시켜" 지시로 검사 하니스 보강 + 하니스가 잡은 모바일 키보드 실버그 수정.**
 
-직전 세션이 **커밋(732a386)만 되고 배포·push 중 SSH 끊김**. 이번 세션에서 검증→재배포→push 로 마무리.
+배포: `1fc57b8` (deploy 166s) → landing 3점 검증 prod health200(node_env=production)·프론트200·PM2 planq-prod-backend uptime 재시작. origin push 완료(b9954b9..1fc57b8).
 
-- 검증: health 29/29 · build EXIT0/TS0 · 위키 게이트 exit0.
-- 배포: `./scripts/deploy-planq.sh --auto` (157s) → **landing 3점 검증** prod health 200(node_env=production)·프론트 HTTP200·PM2 planq-prod-backend uptime 재시작 확인.
-- push: origin 미반영 9커밋(5b038fa..732a386) GitHub 반영, 미push 0.
+**핵심 반전 (Fable 분석):** 하니스 v1 이 "확정 실버그"로 보고한 3화면 중 **settings·calendar 2건은 하니스 자체 오탐**, **/tasks 1건만 진짜 버그**.
 
-**732a386 내용 (Fable 재검증 FAIL 실증 결함 7건):**
-- **B-1(상, 데이터손실)** 반복 exception child 에서 '모든일정/이후' 삭제 시 master 미resolve → 시리즈 생존. child→master resolve 후 cascade/truncate.
-- **B-2(중, 데이터손실)** future 삭제 UNTIL off-by-one(전날 00:00:00Z→시각 늦은 전날 회차 잘림) → target 직전순간(전날 23:59:59Z) 보존.
-- **A-1(중)** 폰 기본 agenda 오늘 자동스크롤 loading 가드. **A-2** React key 중복 `_instance_key`. **A-3** 자정 종료 이벤트 다음날 유령노출 exclusive end. **A-4** 폰 month 새로고침 시 agenda 복귀 → view URL 항상 기록. **D-1** 멀티데이 시작시간 변경 시 종료 무단변형 → 같은 날짜만 follow.
-- 파일: `routes/calendar.js`, `QCalendar/{AgendaView,EventDrawer,NewEventModal,QCalendarPage,types}.tsx`.
+- **Phase 0 판정엔진 교정** — `assertKeyboardSafe` 가 판정 후 `clearDeviceMetricsOverride` 호출 → puppeteer setViewport(375×667)까지 제거 → 원시창(780×493 데스크탑) 복귀 → 페이지당 첫 입력만 모바일 판정, 2번째부터 데스크탑 환경 오탐. 모바일 뷰포트 재-override+detach, `innerWidth===375` self-assert(오염 재발=FATAL exit2), `visibleInputs` 스코핑 `[role=dialog]`→`[aria-modal]`, `waitForInputs` 추가. (`scripts/e2e/lib/browser.js`·`mobile-keyboard.js`·`run.js`)
+- **Phase 1 /tasks 진짜 버그** — 키보드 업(vvh337) 시 프로모배너(~138px) 세로공간 잠식 → Panel(overflow:hidden) 고정크롬 149>PageScroll 143 → CueTaskBar 침몰(스크롤부모 없어 ensureFocusedVisible 구제불가). `PushPromptWrap`+`Banner` 에 `@media(max-width:768px){ body[data-keyboard-up='1'] & {display:none} }`. 배너 role dialog→complementary(×2). NewEventModal aria-modal. **bottom 335→197 GREEN**, Fable 반증실험(억제 무력화 시 465 RED)으로 인과 증명. (`MainLayout.tsx`·`InstallPromptBanner.tsx`·`NewEventModal.tsx`)
+- **Phase 2 스위트 확장** — `run.js` 에 crosscut(표시명)·l1(L1누출) 등록. `canary-l1.js` 신규(fileListWhereByLevel 를 실 scope+DB 쿼리로 검증, 트랩=vlevel L1+legacy visibility L3=c57d672 회귀지점). **표시명 누출 0·L1 누출 0**. data-testid 4곳 + URL-파라미터 opener(bills·tasks·calendar 모달 커버, bill-new 6입력 판정). `CLAUDE.md` 17번 + `FEEDBACK_REGRESSIONS.md` v2 박제.
 
----
-
-## ✅ 직전 세션 완료 (2026-07-08) — Stripe 카드결제 에픽
-
-**Stripe 카드결제 전체 — 구독(platform) + Q Bill(workspace) — 운영 배포 완료.** (e40d406·c334685)
-1. 구독 카드결제(platform merchant) — webhook 마운트(json前), plan.js stripe-checkout, F4 관리자 Stripe 입력란, CheckoutModal 카드 버튼. Fable 17/17.
-2. Q Bill 워크스페이스 카드결제(workspace merchant) — 마이그레이션 7컬럼, `services/invoicePayments.js` 단일 착지점(markInstallmentPaid/markInvoicePaid, 수동+webhook 공유, 멱등), 워크스페이스별 `/api/stripe/webhook/ws/:businessId`, 공개 checkout(비인증 share_token·IP rate-limit·서버금액). Fable 48검증.
-3. 전역 toJSON `*_enc→*_set` redaction — 시크릿 응답 차단(F-1 회귀 발견→수정).
-4. 카드결제 발행자 알림 notifyOwnerCardPaid(stripe만, 멱등).
-- 후속 증분(배포됨): 멤버 표시명 누출 수정(aa5baab), Stripe 네이티브 대응(fdc773f) [[feedback_member_display_name_on_lists]].
-
-## 🔥 운영 피드백 처리 (2026-07-08, Fable 3-에이전트 검증)
-- **#132** 알림 계정명 노출 → 배포(5b50e9b). **#104 캘린더 단일 GET vlevel 누출** → 배포(783a627).
-- **#121·124·123·122** 캘린더 퀵픽스 → 배포(f357c92). **#133 모바일 아젠다 뷰** → 배포(9d994d1, **Irene 폰 시각확인 필요**).
-- **#122·#133 후속 Fable 결함 7건** → 배포(732a386, 이번 세션 마무리).
-- 이미 수정됨(큐 stale): #71·95·96·97·120·119·102·118·113·110·86·79 등 12+건 → Irene 큐 done 처리 권장.
-- **#126 구글 양방향 = IRENE-BLOCKED**: calendar.events write scope + 구글 OAuth 검증 대기.
-- 남은 중간건: Q Mail #130·109·107, Cue #81·90.
+**검증:** health 29/29 · tsc error 0 · `node scripts/e2e/run.js --suite mobile,crosscut,l1` exit 0(mobile 실패0·표시명0·L1 누출0) · **Fable /검증 PASS**(가드 전항목 실측 + 반증실험으로 하니스 교정=은폐 아닌 오탐제거 증명).
 
 ---
 
 ## 🔖 다음 할 일
 
-**운영 Stripe 활성화 (Irene 몫 — 코드는 라이브, 기능 휴면):**
-1. 채팅 노출됐던 `sk_live` **Roll**(폐기·재발급)
-2. 운영 `EMAIL_ENCRYPTION_KEY` 설정 (없으면 F3 가드가 시크릿 저장 차단)
-3. 관리자 `/admin/billing-settings` Stripe 섹션에 구독용 키 3종 입력
-4. 워크스페이스별: Q Bill 설정 → Stripe 섹션 키 3종 + Stripe 대시보드에 `https://planq.kr/api/stripe/webhook/ws/{businessId}` 등록
-5. 구독용 Stripe 대시보드 webhook: `https://planq.kr/api/stripe/webhook`
-6. 운영 소액 실결제 + 환불 스모크 (Irene 결정: 결제 테스트는 운영에서)
+**검사 하니스 다음 보강 (코드 — 바로 가능):**
+- **chrome-suppression 스위트** — FAB/배너가 팝아웃·마케팅 라우트에서 억제되는지 전 라우트 전수(INSPECTION_PLAYBOOK §5). data-testid 셀렉터 기반.
+- **canary-crawl 라우트 자동 인벤토리** — App.tsx `<Route>` 정적 파싱(신규 라우트 drift 차단).
+- **기능완결성 스위트** — 상태머신 dead-end(버튼 부재 등) 검출.
+- Fable 검증 발견(경미): `useListKeyboardNav.ts:25` role=dialog 의존(배너 complementary 파급, 실사용 극저) · 하니스 배너 렌더 비결정성(강제렌더 스텝 권장) · 시나리오 min-inputs 도입 권장.
 
-**Irene 확인 대기:**
-- #133 모바일 아젠다 뷰 폰 시각확인
-- #126 구글 캘린더 양방향 = 구글 OAuth 검증(콘솔 제출 시 calendar.events justification 포함)
+**운영 Stripe 활성화 (Irene 몫 — 코드 라이브·기능 휴면):**
+1. 채팅 노출됐던 `sk_live` Roll · 2. 운영 `EMAIL_ENCRYPTION_KEY` 설정 · 3. 관리자 `/admin/billing-settings` Stripe 키 3종 · 4. 워크스페이스별 Q Bill Stripe 키 + `https://planq.kr/api/stripe/webhook/ws/{businessId}` 등록 · 5. 구독 webhook `https://planq.kr/api/stripe/webhook` · 6. 소액 실결제/환불 스모크.
+
+**Irene 확인 대기:** #133 모바일 아젠다 뷰 폰 확인 · #126 구글 캘린더 양방향 OAuth 검증.
 
 **그 외 신규 개발:** Irene 지시 대기.
 
@@ -72,15 +50,15 @@ session-state.md 읽고 이어서 개발해.
 ## 🔑 환경/인증 현황
 - dev 백엔드 port 3003 (irene PM2 planq-dev-backend). q-note 8000/운영 8001.
 - 운영: 87.106.78.146 port 3004 (planq-prod-backend/planq-prod-qnote). POS 공존(건드리지 말 것).
-- `EMAIL_ENCRYPTION_KEY` dev 미설정(JWT fallback). 운영 명시 설정 필요.
-- Stripe 키: dev·운영 모두 미저장(휴면). 관리자/워크스페이스 UI 입력 시 AES-256-GCM 암호화 저장.
+- 검사 하니스: `node scripts/e2e/run.js --suite mobile,crosscut,l1` (health-check 동급 게이트). puppeteer=dev-backend/node_modules.
+- Stripe 키: dev·운영 모두 미저장(휴면). `EMAIL_ENCRYPTION_KEY` dev 미설정(JWT fallback).
 
 ---
 
 ## 📂 주요 문서
-- 통합 결제: `docs/UNIFIED_PAYMENT_ARCHITECTURE.md` · 분리 canonical: `docs/SAAS_BILLING_VS_QBILL_SEPARATION.md` · PG: `docs/SUBSCRIPTION_PAYMENT_DESIGN.md`
-- 메모리: `project_qbill_workspace_stripe` · `project_subscription_payment_plan`
-- 위키 유지: `docs/Q_WIKI_MAINTENANCE.md`
+- 검사 하니스: `docs/qa/INSPECTION_PLAYBOOK.md` · `docs/qa/FEEDBACK_REGRESSIONS.md`(v2 대장) · `scripts/e2e/`
+- 통합 결제: `docs/UNIFIED_PAYMENT_ARCHITECTURE.md` · 분리: `docs/SAAS_BILLING_VS_QBILL_SEPARATION.md`
+- 메모리: `project_inspection_harness_plan` · `feedback_frontend_verify_real_build` · `project_qbill_workspace_stripe`
 
 ---
 

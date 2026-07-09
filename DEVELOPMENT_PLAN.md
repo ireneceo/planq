@@ -1,6 +1,13 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-07-08 (Opus, 1M, 이어서) — **📅 캘린더 Fable 검증 결함 7건 운영 배포 완료 (끊긴 세션 마무리). origin push 미완분 9커밋 반영.** 헬스 29/29 · 빌드 EXIT0/TS0 · 위키 게이트 exit0 · 운영 landing 3점(prod health200·프론트200·PM2 uptime 재시작).
+> **최종 업데이트:** 2026-07-09 (Opus, 1M) — **🔬 검사 하니스 v2 + /tasks 모바일 키보드 실버그 수정 (Fable 분석·검증 게이트). 운영 배포 완료(1fc57b8, 166s, landing 3점).** 헬스 29/29 · tsc error 0 · 하니스 `--suite mobile,crosscut,l1` exit 0 · Fable /검증 PASS.
+> - **핵심 반전 (Fable 분석):** 하니스 v1 이 "확정 실버그"로 보고한 3화면 중 **settings·calendar 2건은 하니스 자체 오탐**, **/tasks 1건만 진짜 버그**. 오탐 원인 규명·교정 + 실버그 정석 수정.
+> - **Phase 0 판정엔진 교정 (`scripts/e2e/lib/browser.js`·`mobile-keyboard.js`·`run.js`):** `assertKeyboardSafe` 가 판정 후 `clearDeviceMetricsOverride` 호출 → puppeteer 의 setViewport(375×667)까지 제거 → 원시창(780×493, mq=false 데스크탑) 복귀 → **페이지당 첫 입력만 모바일 판정, 2번째부터 데스크탑 환경 → 가림 오탐**. 모바일 뷰포트 재-override+detach 로 교정. 판정 직전 `innerWidth===375` self-assert → 오염 재발 시 FATAL. `visibleInputs` 모달 스코핑 `[role=dialog]`→`[aria-modal]`(비모달 배너 role=dialog 오염 차단). `waitForInputs` 추가.
+> - **Phase 1 /tasks 진짜 버그 (`MainLayout.tsx`·`InstallPromptBanner.tsx`·`NewEventModal.tsx`):** 키보드 업(vvh 337) 시 인플로우 프로모배너(~138px) 세로공간 잠식 → Panel(overflow:hidden) 고정크롬 149px > PageScroll 143px → CueTaskBar textarea 하단 침몰, ensureFocusedVisible 구제불가(스크롤부모 없음). **정석 fix:** `PushPromptWrap`+`Banner` 에 `@media(max-width:768px){ body[data-keyboard-up='1'] & { display:none } }`(키보드 업 시 죽은공간 배너 억제, main.tsx 계약 재사용). 배너 role dialog→complementary(×2). NewEventModal aria-modal. **검증: bottom 335→197 GREEN**, Fable 반증실험(억제 무력화 시 465 RED)으로 인과 증명.
+> - **Phase 2 스위트 확장:** `run.js` SUITES 에 **crosscut(표시명 카나리)·l1(L1 파일누출 카나리) 등록**. `canary-l1.js` 신규 — `fileListWhereByLevel` 를 실 scope+DB 쿼리로 직접 검증(트랩=vlevel L1+legacy visibility L3, c57d672 회귀지점). **표시명 누출 0·L1 누출 0**. data-testid(right-dock-fab·dock-create-*·bill-new-invoice·clients-invite-open) + URL-파라미터 opener(bills·tasks·calendar 모달 커버). `CLAUDE.md` 17번 + `FEEDBACK_REGRESSIONS.md` v2 박제.
+> - **다음 섹션:** chrome-suppression 스위트(FAB/배너 라우트 전수) · canary-crawl 라우트 자동 인벤토리 · 기능완결성 스위트. 그 외 신규 개발 Irene 지시 대기. 운영 Stripe 키 입력(Irene 몫)·#133 폰 확인·#126 구글 OAuth 잔존.
+>
+> **이전 업데이트:** 2026-07-08 (Opus, 1M, 이어서) — **📅 캘린더 Fable 검증 결함 7건 운영 배포 완료 (끊긴 세션 마무리). origin push 미완분 9커밋 반영.** 헬스 29/29 · 빌드 EXIT0/TS0 · 위키 게이트 exit0 · 운영 landing 3점(prod health200·프론트200·PM2 uptime 재시작).
 > - 직전 세션이 **커밋(732a386)만 되고 배포·push 중 SSH 끊김**. 이번 세션에서 검증→재배포→push로 마무리.
 > - **B-1(상) 데이터손실** — 반복 exception child(recurrence_parent_id)에서 '모든일정/이후' 삭제 시 master 미resolve 로 시리즈 생존 → master 로 resolve 후 cascade/truncate. 실증: all=시리즈전멸·future=master truncate.
 > - **B-2(중) 데이터손실** — future 삭제 UNTIL off-by-one(전날 00:00:00Z)로 시각 늦은 전날 회차까지 잘림 → target 직전순간(전날 23:59:59Z)으로 보존.
