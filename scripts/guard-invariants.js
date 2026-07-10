@@ -1,0 +1,403 @@
+#!/usr/bin/env node
+/**
+ * PlanQ — 불변식 정적 가드 (guard-invariants)
+ *
+ * CLAUDE.md 에 글로만 박제돼 "사람이 기억해야 지켜지던" 불변식을 자동 검출로 전환.
+ * health-check.js(런타임) · scripts/e2e(브라우저/카나리)와 3축을 이루는 정적 게이트.
+ *
+ * 사용법:
+ *   node scripts/guard-invariants.js                    # 전체 검사 (exit 0=통과, 1=위반, 2=자체오류)
+ *   node scripts/guard-invariants.js --category=mock    # 특정 카테고리만
+ *   node scripts/guard-invariants.js --update-baseline  # 래칫 베이스라인 재기록 (위반 정리 후에만!)
+ *   node scripts/guard-invariants.js --verbose          # 위반 상세 전체 출력
+ *
+ * 게이트 방식 2종:
+ *   [LOCK]    회귀 잠금 — 존재해야 하는 것이 사라지면 실패 (notify/broadcast/costGuard/owner 가드)
+ *   [RATCHET] 래칫 — 기존 부채는 베이스라인으로 동결, "증가"만 실패 (i18n/tenant/pagination/godfile)
+ *             부채를 줄였으면 --update-baseline 으로 조여서 되돌아가지 못하게 박제.
+ *
+ * 카테고리:
+ *   mock        — mock/dummy 데이터 잔재 0건 (CLAUDE.md 최상위 원칙, 하드 게이트)
+ *   i18n        — 한국어 하드코딩 래칫 (t() 폴백·주석 제외)
+ *   tenant      — routes/ findAll·findAndCountAll 중 business_id/scope 마커 없는 호출 래칫
+ *   pagination  — GET list 라우트 파일 중 parsePagination/limit 없는 파일 래칫
+ *   notify      — 메시지·status 전이 라우트 파일의 notify 호출 잠금 (CLAUDE.md §13)
+ *   broadcast   — 데이터 변경 라우트 파일의 socket broadcast 잠금 (CLAUDE.md §16-b)
+ *   finance     — invoices.js assertInvoiceMutationOwner 잠금 (PERMISSION_MATRIX §5.10)
+ *   costguard   — 외부비용 라우트의 costGuard 잠금 (운영 안정성 §1)
+ *   godfile     — 신규 god-file 차단 래칫 (라우트 500줄 / 컴포넌트 800줄, 기존은 동결)
+ *   docfresh    — 핵심 문서 신선도 (경고만, 실패 아님)
+ *
+ * 커버리지 메모 (다른 축이 담당하는 불변식 — 여기 없다고 미커버 아님):
+ *   raw <select>/PlanQSelect·POS색·네이티브팝업 → health-check.js frontend 카테고리
+ *   표시명 applyMemberDisplayName 누락           → scripts/e2e/canary-crawl.js (런타임 카나리)
+ *   L1 파일 스코프                               → scripts/e2e/canary-l1.js
+ *   멀티테넌트 런타임 403                        → scripts/e2e/canary-tenant.js
+ */
+
+const fs = require('fs');
+const path = require('path');
+
+const ROOT = '/opt/planq';
+const BASELINE_PATH = path.join(ROOT, 'scripts/guards-baseline.json');
+
+// ── CLI ──────────────────────────────────────────
+const args = process.argv.slice(2);
+const opts = {
+  category: null,
+  update: args.includes('--update-baseline'),
+  verbose: args.includes('--verbose'),
+};
+for (const a of args) if (a.startsWith('--category=')) opts.category = a.split('=')[1];
+
+const c = {
+  red: (s) => `\x1b[31m${s}\x1b[0m`,
+  green: (s) => `\x1b[32m${s}\x1b[0m`,
+  yellow: (s) => `\x1b[33m${s}\x1b[0m`,
+  cyan: (s) => `\x1b[36m${s}\x1b[0m`,
+  gray: (s) => `\x1b[90m${s}\x1b[0m`,
+  bold: (s) => `\x1b[1m${s}\x1b[0m`,
+};
+
+// ── 파일 유틸 ─────────────────────────────────────
+function walk(dir, exts, out = []) {
+  if (!fs.existsSync(dir)) return out;
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, e.name);
+    if (e.isDirectory()) {
+      if (e.name === 'node_modules' || e.name.startsWith('.') || e.name === '__tests__') continue;
+      walk(full, exts, out);
+    } else if (exts.some((x) => e.name.endsWith(x))) out.push(full);
+  }
+  return out;
+}
+const rel = (f) => f.replace(ROOT + '/', '');
+const read = (f) => fs.readFileSync(f, 'utf-8');
+
+// ── 베이스라인 ───────────────────────────────────
+let baseline = {};
+try { baseline = JSON.parse(fs.readFileSync(BASELINE_PATH, 'utf-8')); } catch { baseline = {}; }
+const newBaseline = { _comment: '래칫 베이스라인 — guard-invariants.js --update-baseline 으로만 갱신. 수동 편집 금지.', _updated: new Date().toISOString().slice(0, 10) };
+
+/**
+ * 래칫 판정 공통기: current = { 파일: 위반수 }, key = 베이스라인 키.
+ * 실패 = 파일별 위반수가 베이스라인 초과 또는 베이스라인에 없는 파일에서 신규 발생.
+ */
+function ratchet(key, current, sampleLines) {
+  newBaseline[key] = current;
+  const base = baseline[key] || {};
+  const fails = [];
+  let improved = 0;
+  for (const [f, n] of Object.entries(current)) {
+    const b = base[f] ?? 0;
+    if (n > b) fails.push(`${f}: ${b} → ${n} (+${n - b})`);
+    else if (n < b) improved++;
+  }
+  const curTotal = Object.values(current).reduce((a, b) => a + b, 0);
+  const baseTotal = Object.values(base).filter((v) => typeof v === 'number').reduce((a, b) => a + b, 0);
+  return { fails, curTotal, baseTotal, improved, sampleLines };
+}
+
+// ── 결과 수집 ─────────────────────────────────────
+const results = []; // { category, name, ok, warnOnly, detail: [] }
+function report(category, name, ok, detail = [], warnOnly = false) {
+  results.push({ category, name, ok, detail, warnOnly });
+}
+
+// ═══════════════════════════════════════════════
+// 1. mock — 하드 게이트 0건 (CLAUDE.md 🚫 mock 데이터 절대 금지)
+// ═══════════════════════════════════════════════
+function checkMock() {
+  const targets = [
+    ...walk(`${ROOT}/dev-frontend/src`, ['.ts', '.tsx']),
+    ...walk(`${ROOT}/dev-backend/routes`, ['.js']),
+    ...walk(`${ROOT}/dev-backend/services`, ['.js']),
+    ...walk(`${ROOT}/dev-backend/models`, ['.js']),
+    ...walk(`${ROOT}/dev-backend/middleware`, ['.js']),
+  ];
+  const re = /\bmock[A-Z_]\w*|\bdummyData\b|\bDUMMY_DATA\b|\bMOCK_[A-Z]/;
+  const hits = [];
+  for (const f of targets) {
+    read(f).split('\n').forEach((l, i) => {
+      const t = l.trim();
+      if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*')) return;
+      if (re.test(l)) hits.push(`${rel(f)}:${i + 1}: ${t.slice(0, 90)}`);
+    });
+  }
+  report('mock', 'mock/dummy 데이터 잔재 0건 (하드 게이트)', hits.length === 0, hits);
+}
+
+// ═══════════════════════════════════════════════
+// 2. i18n — 한국어 하드코딩 래칫
+//    memory feedback_i18n_tdefault_not_hardcoding: t() 폴백은 하드코딩 아님 → 제외.
+// ═══════════════════════════════════════════════
+function checkI18n() {
+  const files = walk(`${ROOT}/dev-frontend/src`, ['.ts', '.tsx']);
+  const re = /(['"`])[^'"`]*[가-힣][^'"`]*\1/;
+  const current = {};
+  const samples = [];
+  for (const f of files) {
+    let n = 0;
+    read(f).split('\n').forEach((l, i) => {
+      const t = l.trim();
+      if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*')) return;
+      if (!re.test(l)) return;
+      // t() 폴백·i18n 키·콘솔로그·주석성 라벨 제외
+      if (/\bt\(|i18nKey|defaultValue|console\.(log|warn|error|info)/.test(l)) return;
+      n++;
+      if (samples.length < 8) samples.push(`${rel(f)}:${i + 1}: ${t.slice(0, 80)}`);
+    });
+    if (n > 0) current[rel(f)] = n;
+  }
+  const r = ratchet('i18n', current);
+  const detail = r.fails.length ? [...r.fails, ...(opts.verbose ? samples : [])] : [];
+  report('i18n', `한국어 하드코딩 래칫 (현재 ${r.curTotal} / 베이스 ${r.baseTotal})`, r.fails.length === 0, detail);
+  if (r.improved > 0 && r.fails.length === 0) {
+    report('i18n', `부채 ${r.improved}개 파일 감소 — --update-baseline 으로 조이기 권장`, true, [], true);
+  }
+}
+
+// ═══════════════════════════════════════════════
+// 3. tenant — routes/ 의 list 쿼리 business_id/scope 마커 래칫
+//    Sequelize WHERE 수동 강제 환경 — 신규 무마커 쿼리 유입만 차단 (기존은 베이스라인 동결).
+// ═══════════════════════════════════════════════
+const NON_TENANT_MODELS = new Set([
+  'User', 'RefreshToken', 'PlatformSetting', 'PlatformSettings',
+  'HelpArticle', 'HelpCategory', 'PushLog', 'EmailLog', 'ContactInquiry',
+  'Plan', 'DocumentTemplate', 'Payment',
+]);
+// 호출 스니펫 안에서 "테넌트 스코프 처리됨" 으로 인정하는 마커
+const TENANT_MARKERS = /business_id|businessId|listWhere|Where\(scope|scope\)|attachWorkspaceScope|canAccess|req\.workspace|findByPk/;
+
+function extractCallSnippet(src, idx) {
+  // idx = '(' 위치. 괄호 균형으로 호출 인자 스니펫 추출 (최대 2500자)
+  let depth = 0;
+  for (let i = idx; i < Math.min(src.length, idx + 2500); i++) {
+    if (src[i] === '(') depth++;
+    else if (src[i] === ')') { depth--; if (depth === 0) return src.slice(idx, i + 1); }
+  }
+  return src.slice(idx, idx + 2500);
+}
+
+function checkTenant() {
+  const files = walk(`${ROOT}/dev-backend/routes`, ['.js']);
+  const current = {};
+  const samples = [];
+  for (const f of files) {
+    const src = read(f);
+    const re = /\b([A-Z]\w+)\.(findAll|findAndCountAll)\s*\(/g;
+    let m; let n = 0;
+    while ((m = re.exec(src)) !== null) {
+      const model = m[1];
+      if (NON_TENANT_MODELS.has(model)) continue;
+      if (model === 'Promise' || model === 'Op') continue;
+      const snippet = extractCallSnippet(src, re.lastIndex - 1);
+      // 스니펫 자체 또는 직전 30줄 컨텍스트에 스코프 마커가 있으면 통과
+      const before = src.slice(Math.max(0, m.index - 1800), m.index);
+      if (TENANT_MARKERS.test(snippet) || TENANT_MARKERS.test(before)) continue;
+      n++;
+      const line = src.slice(0, m.index).split('\n').length;
+      if (samples.length < 10) samples.push(`${rel(f)}:${line}: ${model}.${m[2]}(...) — business_id/scope 마커 없음`);
+    }
+    if (n > 0) current[rel(f)] = n;
+  }
+  const r = ratchet('tenant', current);
+  const detail = r.fails.length ? [...r.fails, ...samples] : (opts.verbose ? samples : []);
+  report('tenant', `무스코프 list 쿼리 래칫 (현재 ${r.curTotal} / 베이스 ${r.baseTotal})`, r.fails.length === 0, detail);
+}
+
+// ═══════════════════════════════════════════════
+// 4. pagination — GET list 파일 단위 래칫 (CLAUDE.md List 라우트 pagination 표준)
+// ═══════════════════════════════════════════════
+function checkPagination() {
+  const files = walk(`${ROOT}/dev-backend/routes`, ['.js']);
+  const current = {};
+  for (const f of files) {
+    const src = read(f);
+    const hasGetList = /router\.get\([^)]*\)/.test(src) && /\.findAll\s*\(/.test(src);
+    if (!hasGetList) continue;
+    const hasPagination = /parsePagination|paginatedResponse/.test(src);
+    const hasLimit = /\blimit\s*[:,]/.test(src);
+    if (!hasPagination && !hasLimit) current[rel(f)] = 1;
+  }
+  const r = ratchet('pagination', current);
+  report('pagination',
+    `pagination/limit 없는 GET list 파일 래칫 (현재 ${Object.keys(current).length}개 / 베이스 ${Object.keys(baseline.pagination || {}).length}개)`,
+    r.fails.length === 0, r.fails.map((x) => x + ' — parsePagination+paginatedResponse 적용 필요'));
+}
+
+// ═══════════════════════════════════════════════
+// 5. notify — 잠금 (CLAUDE.md 운영 안정성 §13: 메시지/status 전이 라우트는 notify 강제)
+//    사이클 N+13 실회귀: projects.js 메시지 라우트 + task_workflow.js 7 라우트 notify 누락 → OS push 0.
+// ═══════════════════════════════════════════════
+const NOTIFY_LOCKED = [
+  'dev-backend/routes/conversations.js',
+  'dev-backend/routes/projects.js',
+  'dev-backend/routes/task_workflow.js',
+  'dev-backend/routes/tasks.js',
+  'dev-backend/routes/invoices.js',
+  'dev-backend/routes/signatures.js',
+  'dev-backend/routes/calendar.js',
+];
+function checkNotify() {
+  const missing = [];
+  for (const f of NOTIFY_LOCKED) {
+    const full = path.join(ROOT, f);
+    if (!fs.existsSync(full)) { missing.push(`${f}: 파일 없음 (이동했으면 guard-invariants.js NOTIFY_LOCKED 갱신)`); continue; }
+    if (!/\bnotify(Many)?\s*\(/.test(read(full))) missing.push(`${f}: notify()/notifyMany() 호출 소멸 — §13 회귀 (push 0건 위험)`);
+  }
+  report('notify', `메시지·전이 라우트 notify 잠금 (${NOTIFY_LOCKED.length}개 파일)`, missing.length === 0, missing);
+}
+
+// ═══════════════════════════════════════════════
+// 6. broadcast — 잠금 (CLAUDE.md 운영 안정성 §16-b: 변경 라우트 socket broadcast 강제)
+// ═══════════════════════════════════════════════
+const BROADCAST_LOCKED = [
+  'dev-backend/routes/tasks.js',
+  'dev-backend/routes/task_workflow.js',
+  'dev-backend/routes/conversations.js',
+  'dev-backend/routes/posts.js',
+  'dev-backend/routes/files.js',
+  'dev-backend/routes/invoices.js',
+  'dev-backend/routes/calendar.js',
+  'dev-backend/routes/projects.js',
+];
+function checkBroadcast() {
+  const missing = [];
+  for (const f of BROADCAST_LOCKED) {
+    const full = path.join(ROOT, f);
+    if (!fs.existsSync(full)) { missing.push(`${f}: 파일 없음 (이동했으면 BROADCAST_LOCKED 갱신)`); continue; }
+    if (!/io\.to\(|broadcast/.test(read(full))) missing.push(`${f}: io.to()/broadcast 소멸 — §16 회귀 ("리프레시해야 보임" 호소 재발)`);
+  }
+  report('broadcast', `변경 라우트 socket broadcast 잠금 (${BROADCAST_LOCKED.length}개 파일)`, missing.length === 0, missing);
+}
+
+// ═══════════════════════════════════════════════
+// 7. finance — invoices.js owner_only 가드 잠금 (PERMISSION_MATRIX §5.10)
+//    send / mark-paid / unmark-paid / mark-tax-invoice / delete 5개 라우트 보호.
+// ═══════════════════════════════════════════════
+function checkFinance() {
+  const f = path.join(ROOT, 'dev-backend/routes/invoices.js');
+  const detail = [];
+  if (!fs.existsSync(f)) detail.push('routes/invoices.js 없음');
+  else {
+    const n = (read(f).match(/assertInvoiceMutationOwner/g) || []).length;
+    if (n < 5) detail.push(`assertInvoiceMutationOwner 등장 ${n}회 (< 5) — 재무 mutation owner 가드 소실 의심`);
+  }
+  report('finance', 'Invoice 재무 owner_only 가드 잠금 (≥5 호출)', detail.length === 0, detail);
+}
+
+// ═══════════════════════════════════════════════
+// 8. costguard — 외부비용 라우트 잠금 (운영 안정성 §1)
+// ═══════════════════════════════════════════════
+const COSTGUARD_LOCKED = [
+  'dev-backend/routes/cue.js',
+  'dev-backend/routes/tasks.js',
+  'dev-backend/routes/posts.js',
+  'dev-backend/routes/share.js',
+  'dev-backend/routes/users.js',
+  'dev-backend/routes/clients.js',
+  'dev-backend/routes/businesses.js',
+  'dev-backend/routes/inquiries.js',
+  'dev-backend/routes/message_attachments.js',
+  'dev-backend/routes/task_attachments.js',
+  'dev-backend/routes/task_estimations.js',
+];
+function checkCostGuard() {
+  const missing = [];
+  for (const f of COSTGUARD_LOCKED) {
+    const full = path.join(ROOT, f);
+    if (!fs.existsSync(full)) { missing.push(`${f}: 파일 없음 (이동했으면 COSTGUARD_LOCKED 갱신)`); continue; }
+    if (!/costGuard/.test(read(full))) missing.push(`${f}: costGuard 참조 소멸 — LLM/발송 quota 폭주 위험`);
+  }
+  report('costguard', `외부비용 라우트 costGuard 잠금 (${COSTGUARD_LOCKED.length}개 파일)`, missing.length === 0, missing);
+}
+
+// ═══════════════════════════════════════════════
+// 9. godfile — 신규 god-file 차단 래칫 (기존 초과분은 동결, 15% 이상 추가 성장도 실패)
+// ═══════════════════════════════════════════════
+function checkGodfile() {
+  const current = {};
+  for (const f of walk(`${ROOT}/dev-backend/routes`, ['.js'])) {
+    const n = read(f).split('\n').length;
+    if (n > 500) current[rel(f)] = n;
+  }
+  for (const f of [...walk(`${ROOT}/dev-frontend/src/components`, ['.tsx']), ...walk(`${ROOT}/dev-frontend/src/pages`, ['.tsx'])]) {
+    const n = read(f).split('\n').length;
+    if (n > 800) current[rel(f)] = n;
+  }
+  newBaseline.godfile = current;
+  const base = baseline.godfile || {};
+  const fails = [];
+  for (const [f, n] of Object.entries(current)) {
+    const b = base[f];
+    if (b === undefined) fails.push(`${f}: ${n}줄 — 신규 god-file (라우트>500/컴포넌트>800). 분리 설계 필요`);
+    else if (n > b * 1.15) fails.push(`${f}: ${b} → ${n}줄 (+${Math.round((n / b - 1) * 100)}%) — 동결 초과 성장`);
+  }
+  report('godfile', `god-file 래칫 (동결 ${Object.keys(base).length}개 / 현재 ${Object.keys(current).length}개)`, fails.length === 0, fails);
+}
+
+// ═══════════════════════════════════════════════
+// 10. docfresh — 핵심 문서 신선도 (경고만 — 게이트 실패 아님)
+// ═══════════════════════════════════════════════
+function checkDocFresh() {
+  const DOCS = ['docs/SYSTEM_ARCHITECTURE.md', 'docs/DATABASE_ERD.md', 'docs/ONBOARDING.md', 'docs/PERMISSION_MATRIX.md'];
+  const stale = [];
+  for (const d of DOCS) {
+    const full = path.join(ROOT, d);
+    if (!fs.existsSync(full)) { stale.push(`${d}: 없음`); continue; }
+    const days = (Date.now() - fs.statSync(full).mtimeMs) / 86400000;
+    if (days > 60) stale.push(`${d}: ${Math.round(days)}일 미갱신`);
+  }
+  report('docfresh', '핵심 문서 신선도 60일 (경고만)', stale.length === 0, stale, true);
+}
+
+// ── 메인 ─────────────────────────────────────────
+const CATEGORIES = {
+  mock: checkMock,
+  i18n: checkI18n,
+  tenant: checkTenant,
+  pagination: checkPagination,
+  notify: checkNotify,
+  broadcast: checkBroadcast,
+  finance: checkFinance,
+  costguard: checkCostGuard,
+  godfile: checkGodfile,
+  docfresh: checkDocFresh,
+};
+
+try {
+  console.log(`\n${c.bold(c.cyan('═══ PlanQ 불변식 가드 (guard-invariants) ═══'))}`);
+  const run = opts.category ? { [opts.category]: CATEGORIES[opts.category] } : CATEGORIES;
+  if (opts.category && !CATEGORIES[opts.category]) {
+    console.error(c.red(`알 수 없는 카테고리: ${opts.category} (가능: ${Object.keys(CATEGORIES).join(', ')})`));
+    process.exit(2);
+  }
+  for (const fn of Object.values(run)) fn();
+
+  let fail = 0;
+  let lastCat = '';
+  for (const r of results) {
+    if (r.category !== lastCat) { console.log(`\n${c.cyan(c.bold('▶ ' + r.category.toUpperCase()))}`); lastCat = r.category; }
+    const mark = r.ok ? c.green('✓') : (r.warnOnly ? c.yellow('⚠') : c.red('✗'));
+    console.log(`  ${mark} ${r.name}`);
+    const show = opts.verbose ? r.detail : r.detail.slice(0, 8);
+    show.forEach((d) => console.log(`      ${r.ok || r.warnOnly ? c.gray(d) : c.red(d)}`));
+    if (!opts.verbose && r.detail.length > 8) console.log(c.gray(`      ... 외 ${r.detail.length - 8}건 (--verbose)`));
+    if (!r.ok && !r.warnOnly) fail++;
+  }
+
+  if (opts.update) {
+    fs.writeFileSync(BASELINE_PATH, JSON.stringify(newBaseline, null, 2) + '\n');
+    console.log(`\n${c.yellow('베이스라인 갱신됨: ' + rel(BASELINE_PATH))}`);
+  }
+
+  console.log('\n' + c.bold('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
+  if (fail === 0) console.log(c.green(c.bold(`✓ 불변식 가드 통과 (${results.filter((r) => r.ok).length}/${results.length})`)));
+  else console.log(c.red(c.bold(`✗ ${fail}개 카테고리 실패 — 신규 위반을 정리하거나, 의도된 부채 감소면 --update-baseline`)));
+  process.exit(fail === 0 ? 0 : 1);
+} catch (e) {
+  console.error(c.red('guard-invariants 자체 오류: ' + e.message));
+  console.error(c.gray(e.stack));
+  process.exit(2);
+}
