@@ -961,13 +961,20 @@ function unreadNotificationEmailHtml({ name, items, count }) {
       ${it.body ? `<div style="margin-top:4px;font-size:13px;color:#475569;line-height:1.6;">${escapeHtml(String(it.body).slice(0, 160))}</div>` : ''}
     </div>`).join('');
   const more = Math.max(0, (count || 0) - (items || []).length);
+  // 본문은 '실제 알림 내용'을 최상단에 — 안내 보일러플레이트는 하단 작은 글씨로 강등
+  //   (모바일에서 긴 안내문이 실내용을 밀어내던 문제 fix)
   const body = `
     <div style="font-size:18px;font-weight:700;color:#0F172A;line-height:1.4;">${escapeHtml(name || '안녕하세요')}님, 확인하지 않은 알림이 ${count}건 있습니다</div>
-    <div style="margin-top:8px;font-size:13px;color:#64748B;line-height:1.7;">앱 알림을 못 받으셨을 수 있어 메일로도 알려드립니다.</div>
     <div style="margin-top:16px;">${rows}</div>
     ${more > 0 ? `<div style="font-size:13px;color:#64748B;">외 ${more}건</div>` : ''}
-    <div style="margin-top:20px;text-align:center;">${ctaButton(`${APP_URL}/talk`, 'PlanQ에서 확인')}</div>`;
-  return emailWrap({ title: '확인하지 않은 알림', body });
+    <div style="margin-top:20px;text-align:center;">${ctaButton(`${APP_URL}/talk`, 'PlanQ에서 확인')}</div>
+    <div style="margin-top:18px;font-size:12px;color:#94A3B8;line-height:1.6;">앱 알림을 못 받으셨을 수 있어 메일로도 보내드렸어요.</div>`;
+  // 미리보기(preheader) = 실제 첫 알림 제목 우선 — 안내 보일러플레이트가 미리보기줄을 잠식하지 않게
+  const firstTitle = (items && items[0] && items[0].title) ? String(items[0].title).trim() : '';
+  const preheader = firstTitle
+    ? (count > 1 ? `${firstTitle} 외 ${count - 1}건` : firstTitle)
+    : `확인하지 않은 알림 ${count}건`;
+  return emailWrap({ title: '확인하지 않은 알림', body, preheader });
 }
 
 async function sendUnreadNotificationEmail({ to, name, items, count }) {
