@@ -38,7 +38,7 @@ Fable 반전: 죽은 스캐폴드 아니라 **N+21 배포기능의 DB 결손 사
 - **잠복 버그 2건 동시수정 (E2E 가 잡음):** ①`access_scope.js attachWorkspaceScope` `allowed` 세트 `isAdmin` 누락 → admin 전 라우트 403 잠김 ②File·Kb 가시성 헬퍼 4개 admin 누락 → L3/L4 워크스페이스 파일·KB 못 봄. 둘 다 fullView 패턴 정렬.
 - **실 HTTP 검증:** 승격 200(500 해소)·DB admin·admin 게이트 통과·파일목록 200·**admin invoice 403 owner_only(재무 불변식)**·강등 복원 + 가시성 canAccess 시맨틱 통과. 가드 3축 green(health 30/30·guard 13/13·tenant 0).
 - **문서·memory 정정:** PERMISSION_MATRIX·DATABASE_ERD "스캐폴드/부재" → "활성", memory `project_workspace_admin_role` ✅.
-- **⚠️ 운영 미배포** — 운영 반영 시 운영 DB 에 `ALTER TABLE business_members MODIFY COLUMN role ENUM('owner','member','ai','admin') NULL DEFAULT 'member'` **수동 선행** 필수(ENUM append=INSTANT, sync 의존 금지).
+- **🚀 운영 배포 완료 (2026-07-10, commit `dbd0b02`, deploy 20260710_193746, 170s):** 운영 DB ENUM ALTER **수동 선행**(→`enum('owner','member','ai','admin')`) 후 `deploy-planq.sh --auto`. 배포 후 검증: planq.kr health200·프론트200·PM2 재시작(uptime 28s)·**운영 ENUM 배포후 생존**(sync_database 안 벗김 — 모델=SSOT 근본fix 운영 실증). backup /opt/planq/backups/20260710_193746.
 
 ## 🔴 Irene 판단 대기 (거버넌스 SSOT — Claude 임의수정 불가)
 
