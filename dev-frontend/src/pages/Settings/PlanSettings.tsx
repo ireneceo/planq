@@ -357,7 +357,7 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
           </Controls>
         </SectionHeadRow>
 
-        <PlanGrid>
+        <PlanGrid $count={comparisonPlans.length}>
           {comparisonPlans.map(p => {
             const isCurrent = p.code === currentPlan.code;
             const price = cycle === 'yearly' ? p.price_yearly[currency] : p.price_monthly[currency];
@@ -789,9 +789,9 @@ const UsageWarn = styled.div<{ $color: 'ok' | 'warn' | 'crit' }>`
 `;
 
 /* 비교표 */
-const PlanGrid = styled.div`
-  display:grid;grid-template-columns:repeat(4, 1fr);gap:14px;
-  @media (max-width: 1180px){ grid-template-columns:repeat(2, 1fr); }
+const PlanGrid = styled.div<{ $count?: number }>`
+  display:grid;grid-template-columns:repeat(${p => p.$count || 4}, minmax(0, 1fr));gap:14px;
+  @media (max-width: 1180px){ grid-template-columns:repeat(2, minmax(0, 1fr)); }
   @media (max-width: 640px){ grid-template-columns:1fr; }
 `;
 const PlanCol = styled.div<{ $current: boolean }>`

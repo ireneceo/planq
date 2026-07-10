@@ -308,7 +308,9 @@ export async function fetchAddons(businessId: number): Promise<AddonStatus> {
 }
 
 export async function requestAddon(businessId: number, addonCode: string, quantity: number): Promise<{
-  received: boolean; addon_code: string; quantity: number; total_units: number; total_krw: number; next_step: string;
+  received: boolean; addon_code: string; quantity: number;
+  prorated_amount_krw: number; full_amount_krw: number;
+  days_remaining: number; next_billing_at: string | null; payment_id: number; next_step: string;
 }> {
   const r = await apiFetch(`/api/plan/${businessId}/addons/request`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
