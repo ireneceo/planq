@@ -8,6 +8,7 @@ const SUITES = {
   mobile: () => require('./mobile-keyboard'),
   crosscut: () => require('./canary-crawl'),   // 표시명(계정명) 누출 카나리 크롤
   l1: () => require('./canary-l1'),             // L1 개인자원 누출 카나리 (백엔드 API 크롤)
+  tenant: () => require('./canary-tenant'),     // 멀티테넌트 격리 카나리 (비멤버 biz 403 실증)
   // chrome: () => require('./chrome-suppression'),
 };
 

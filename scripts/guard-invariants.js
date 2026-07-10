@@ -158,6 +158,59 @@ function checkI18n() {
 }
 
 // ═══════════════════════════════════════════════
+// 2b. parity — locales ko/en 키 패리티 래칫 + i18n.ts ns 등록 하드 게이트
+//     "기획 단계부터 ko/en 동시 작성" (CLAUDE.md 다국어 필수) 자동 검출.
+// ═══════════════════════════════════════════════
+function flattenKeys(obj, prefix = '', out = []) {
+  for (const k of Object.keys(obj)) {
+    const v = obj[k];
+    if (v && typeof v === 'object') flattenKeys(v, prefix + k + '.', out);
+    else out.push(prefix + k);
+  }
+  return out;
+}
+function checkParity() {
+  const koDir = `${ROOT}/dev-frontend/public/locales/ko`;
+  const enDir = `${ROOT}/dev-frontend/public/locales/en`;
+  const koFiles = fs.readdirSync(koDir).filter((f) => f.endsWith('.json')).sort();
+  const enFiles = fs.readdirSync(enDir).filter((f) => f.endsWith('.json')).sort();
+
+  // (1) 파일 목록 일치 — 하드 게이트
+  const onlyKo = koFiles.filter((f) => !enFiles.includes(f));
+  const onlyEn = enFiles.filter((f) => !koFiles.includes(f));
+  report('parity', 'locales ko/en 네임스페이스 파일 일치 (하드 게이트)', onlyKo.length + onlyEn.length === 0,
+    [...onlyKo.map((f) => `ko에만 존재: ${f}`), ...onlyEn.map((f) => `en에만 존재: ${f}`)]);
+
+  // (2) i18n.ts ns 배열 등록 — 하드 게이트 (JSON 있는데 미등록 = silent 미번역)
+  const i18nSrc = read(`${ROOT}/dev-frontend/src/i18n.ts`);
+  const unregistered = koFiles.map((f) => f.replace('.json', '')).filter((ns) => !new RegExp(`['"]${ns}['"]`).test(i18nSrc));
+  report('parity', 'i18n.ts ns 배열 등록 (하드 게이트)', unregistered.length === 0,
+    unregistered.map((ns) => `locales/${ns}.json 존재하나 i18n.ts ns 배열에 미등록`));
+
+  // (3) 키 패리티 — 래칫 (기존 누락은 동결, 신규 누락만 실패)
+  const current = {};
+  const samples = [];
+  for (const f of koFiles) {
+    if (!enFiles.includes(f)) continue;
+    try {
+      const ko = new Set(flattenKeys(JSON.parse(read(path.join(koDir, f)))));
+      const en = new Set(flattenKeys(JSON.parse(read(path.join(enDir, f)))));
+      const missEn = [...ko].filter((k) => !en.has(k));
+      const missKo = [...en].filter((k) => !ko.has(k));
+      const n = missEn.length + missKo.length;
+      if (n > 0) {
+        current[f] = n;
+        missEn.slice(0, 3).forEach((k) => samples.push(`${f}: en 누락 키 "${k}"`));
+        missKo.slice(0, 3).forEach((k) => samples.push(`${f}: ko 누락 키 "${k}"`));
+      }
+    } catch (e) { current[f] = 9999; samples.push(`${f}: JSON parse 실패 — ${e.message}`); }
+  }
+  const r = ratchet('parity_keys', current);
+  const detail = r.fails.length ? [...r.fails, ...samples] : (opts.verbose ? samples : []);
+  report('parity', `ko/en 키 패리티 래칫 (불일치 ${r.curTotal}키 / 베이스 ${r.baseTotal}키)`, r.fails.length === 0, detail);
+}
+
+// ═══════════════════════════════════════════════
 // 3. tenant — routes/ 의 list 쿼리 business_id/scope 마커 래칫
 //    Sequelize WHERE 수동 강제 환경 — 신규 무마커 쿼리 유입만 차단 (기존은 베이스라인 동결).
 // ═══════════════════════════════════════════════
@@ -356,6 +409,7 @@ function checkDocFresh() {
 const CATEGORIES = {
   mock: checkMock,
   i18n: checkI18n,
+  parity: checkParity,
   tenant: checkTenant,
   pagination: checkPagination,
   notify: checkNotify,
