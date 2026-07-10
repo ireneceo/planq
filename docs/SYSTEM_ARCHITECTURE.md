@@ -1,40 +1,49 @@
 # 04. 시스템 아키텍처
 
+> 최종 갱신: 2026-07-10 (코드 실측 대조) · 이전 2026-04-14
+>
+> **Changelog (2026-07-10):**
+> - 운영 서버 추가 (87.106.78.146 · backend 3004 · q-note 8001 · PM2 `planq-prod-*`) — §2.6, §6
+> - Q Note 실측 정정: STT=Deepgram(실시간 WS), LLM=OpenAI(gpt-4.1-nano/gpt-4o-mini), 자체 SQLite + Node internal API 종량과금 — §2.3, §3.3 (기존 "Whisper / MySQL 직결" 표기는 오기)
+> - 보안 계층을 server.js 실제 미들웨어 순서로 갱신 (Stripe raw webhook 선마운트, maintenance, requireMenu, costGuard, rate-limit 현행값) — §4
+> - 신규 섹션: 실시간 소켓 아키텍처(§12) · Stripe 결제 분리(§13) · 모바일 클라이언트 PWA+Capacitor(§14) · 검사 하니스·가드 스크립트(§15)
+> - 오기 정정: nginx 설정 경로(`sites-enabled/dev.planq.kr`), 인증 흐름(refresh_tokens client_kind별 TTL), 백엔드 127.0.0.1 바인드
+
 ---
 
 ## 1. 전체 시스템 구성도
 
 ```
-                    ┌──────────────┐
-                    │   Client     │
-                    │  (Browser)   │
-                    └──────┬───────┘
-                           │ HTTPS
-                    ┌──────▼───────┐
-                    │    Nginx     │
-                    │  (Reverse    │
-                    │   Proxy)     │
-                    └──┬───┬───┬──┘
-                       │   │   │
-            ┌──────────┘   │   └──────────┐
-            ▼              ▼              ▼
-   ┌────────────┐  ┌─────────────┐  ┌──────────┐
-   │  Frontend  │  │   Backend   │  │ Q Note   │
-   │  (React)   │  │  (Express)  │  │ (FastAPI) │
-   │            │  │             │  │          │
-   │  Vite      │  │  Port 3003  │  │ Port 8000│
-   │  Static    │  │             │  │          │
-   └────────────┘  └──────┬──────┘  └────┬─────┘
-                          │              │
-                    ┌─────▼─────┐        │
-                    │  Socket.IO │        │
-                    │ (실시간)    │        │
-                    └─────┬─────┘        │
-                          │              │
-                    ┌─────▼──────────────▼──┐
-                    │      MySQL 8.0         │
-                    │    planq_dev_db         │
-                    └────────────────────────┘
+              ┌────────────────────────────────┐
+              │            Client              │
+              │ Browser · PWA(sw.js) ·         │
+              │ Capacitor iOS 네이티브앱        │
+              └───────────────┬────────────────┘
+                              │ HTTPS
+                       ┌──────▼───────┐
+                       │    Nginx     │
+                       │  (Reverse    │
+                       │   Proxy)     │
+                       └──┬───┬───┬──┘
+                          │   │   │
+               ┌──────────┘   │   └──────────┐
+               ▼              ▼              ▼
+      ┌────────────┐  ┌─────────────┐  ┌────────────┐
+      │  Frontend  │  │   Backend   │  │  Q Note    │
+      │  (React)   │  │  (Express)  │  │ (FastAPI)  │
+      │            │  │  Port 3003  │◄─┤ Port 8000  │
+      │  Vite      │  │ (운영 3004)  │  │ (운영 8001) │
+      │  Static    │  │  Socket.IO  │  │ SQLite     │
+      └────────────┘  └──────┬──────┘  └────────────┘
+                             │        internal API
+                       ┌─────▼──────┐ (X-Internal-Api-Key,
+                       │  MySQL 8.0 │  localhost 전용)
+                       │planq_dev_db│
+                       └────────────┘
+
+  ※ Backend·Q Note 는 둘 다 127.0.0.1 바인드 — nginx 프록시로만 외부 노출
+  외부 서비스: Stripe(webhook 수신) · Deepgram(STT) · OpenAI(LLM/임베딩)
+             · APNs/FCM/Web Push · SMTP(Nodemailer) · Google API(OAuth/Calendar/Drive)
 ```
 
 ---
@@ -53,48 +62,69 @@
 | HTTP 통신 | Axios |
 | 실시간 | socket.io-client |
 | 스타일링 | styled-components |
+| i18n | react-i18next (ko/en, `public/locales/{ko,en}/*.json`) |
+| PWA | sw.js (Web Push·Share Target·자가 update) + version.json 폴링 + `server:build` socket 신호 |
+| 네이티브앱 | Capacitor iOS (`dev-frontend/ios/`, `capacitor.config.ts` appId `app.planq`) — React 번들 재사용, §14 참조 |
 
 ### 2.2 Backend (Node.js + Express)
 | 항목 | 값 |
 |------|-----|
 | 위치 | /opt/planq/dev-backend |
-| 포트 | 3003 |
-| Entry Point | server.js |
-| 프레임워크 | Express |
-| ORM | Sequelize |
-| 인증 | JWT (Access + Refresh Token) |
-| 실시간 | Socket.IO |
+| 포트 | 3003 (운영 3004) — `BIND_HOST` 기본 **127.0.0.1** (nginx 프록시로만 노출) |
+| Entry Point | server.js (PM2 필수 — pm_id 없으면 즉시 exit, root 실행 금지) |
+| 프레임워크 | Express (`trust proxy: 1` — nginx 1-hop) |
+| ORM | Sequelize (MySQL 8.0) |
+| 인증 | JWT (Access + Refresh Token, §3.1) |
+| 실시간 | Socket.IO (handshake JWT 인증, §12) |
 | 파일 업로드 | Multer |
 | 이메일 | Nodemailer |
-| 프로세스 관리 | PM2 (planq-dev-backend) |
+| 프로세스 관리 | PM2 (dev: planq-dev-backend / 운영: planq-prod-backend) |
+
+**백그라운드 배치 (server.js 내장 — 별도 crontab 아님):**
+- 자정 setTimeout 체인: task 스냅샷 → SaaS 청구 cron(billing) → trial → 매월 1일 보고서 → 정기청구(recurring_invoice) → 고객 구독청구 → 정기업무 생성 → 업로드 정리 → 연체(overdue) → share token 정리 → share 만료 임박 알림
+- 매시: weekly review 박제, 단위보고서 경계 확정 / 5분: 일정 임박 알림, Q Mail IMAP fetch / 30초: export job worker
+- 일·월 단위: FAQ 클러스터링(04:10), 위키 질문 클러스터(월 05:00), Cue 지식 채굴(월 05:20), 업무 후보 만료 정리
 
 ### 2.3 Q Note (Python + FastAPI)
 | 항목 | 값 |
 |------|-----|
 | 위치 | /opt/planq/q-note |
-| 포트 | 8000 |
-| 프레임워크 | FastAPI |
-| STT | OpenAI Whisper |
-| LLM | Claude API / OpenAI API |
-| 프로세스 관리 | PM2 (planq-qnote) |
+| 포트 | 8000 (운영 8001) — uvicorn `--host 127.0.0.1` (venv, nginx 프록시 전용) |
+| 프레임워크 | FastAPI (라우터: live / llm / sessions / voice) |
+| 자체 DB | **SQLite** (`data/qnote.db`, aiosqlite) — MySQL 미사용. 세션 데이터는 q-note 소재 |
+| STT | **Deepgram** (실시간 WebSocket `/ws/live`, keyword boosting) |
+| LLM | OpenAI — `gpt-4.1-nano`(실시간 정제) / `gpt-4o-mini`(답변 생성), env로 교체 가능 |
+| Node 연동 | `POST/GET /api/internal/qnote/*` (X-Internal-Api-Key 공유 시크릿, localhost) — STT 종량과금·quota·멤버십 검사 (§3.3) |
+| 접근 통제 | 전 라우트 본인 세션만 (`_load_session_or_403`) — owner/admin 백도어 없음 |
+| 프로세스 관리 | PM2 (dev: planq-qnote / 운영: planq-prod-qnote) |
 
 ### 2.4 MySQL
 | 항목 | 값 |
 |------|-----|
-| DB명 | planq_dev_db |
+| DB명 | planq_dev_db (운영 별도 인스턴스) |
 | 유저 | planq_admin |
-| 포트 | 3306 |
+| 포트 | 3306 (로컬 접속만) |
 | 버전 | MySQL 8.0 |
+| 비고 | Q Note 는 MySQL 에 직접 접속하지 않음 (internal API 경유) |
 
 ### 2.5 Nginx
 | 항목 | 값 |
 |------|-----|
-| 설정 파일 | /etc/nginx/sites-available/planq-dev |
-| 도메인 | dev.planq.kr |
-| / | → /opt/planq/dev-frontend-build |
+| 설정 파일 | `/etc/nginx/sites-enabled/dev.planq.kr` (⚠️ dev 는 sites-enabled 가 실파일/복사본 — sites-available 편집은 무효, `nginx -T` 로 확인) |
+| 도메인 | dev.planq.kr (운영 planq.kr) |
+| / | → /opt/planq/dev-frontend-build (HTML 은 no-cache, 해시 자산은 immutable) |
 | /api | → http://localhost:3003 |
 | /socket.io | → http://localhost:3003 (WebSocket) |
-| /qnote | → http://localhost:8000 |
+| /qnote | → http://localhost:8000 (운영 8001) |
+
+### 2.6 운영 서버 (Production)
+| 항목 | 값 |
+|------|-----|
+| 서버 | 87.106.78.146 (POS 와 공존 — POS 자원 절대 접촉 금지) |
+| Backend | port **3004**, PM2 `planq-prod-backend` |
+| Q Note | port **8001**, PM2 `planq-prod-qnote` |
+| 배포 | `/opt/planq/scripts/deploy-planq.sh` (dev → 운영 rsync + 스냅샷 백업, Irene "배포" 명령 시에만) |
+| 원칙 | 운영 = dev 정확 복사. 환경차는 .env 시크릿과 platform_settings(DB)로만 |
 
 ---
 
@@ -103,14 +133,18 @@
 ### 3.1 인증 흐름
 ```
 Client → POST /api/auth/login
-       → Backend: 이메일/비밀번호 검증
-       → JWT Access Token (15분) + Refresh Token (7일) 발급
+       → Backend: 이메일/비밀번호 검증 (또는 Google/Microsoft OAuth — routes/auth_oauth.js)
+       → JWT Access Token (15분) + Refresh Token (HttpOnly Cookie) 발급
+       → Refresh TTL 은 client_kind 별: pwa/ios/android = 365일, web = 30일 (sliding)
        → Client: Access Token을 Authorization 헤더에 포함
 
 Client → 모든 API 요청 시 Authorization: Bearer {token}
        → Backend: middleware/auth.js에서 검증
-       → 만료 시 → POST /api/auth/refresh → 새 토큰 발급
+       → 만료 시 → POST /api/auth/refresh → rotation (새 row + 옛 row revoke)
 ```
+
+- **다중 디바이스 세션**: `refresh_tokens` 테이블에 디바이스별 row. `client_kind` ENUM(`'pwa','web','ios','android'`) — 결정 우선순위 `req.body.client_kind` > `X-Client-Kind` 헤더 > 옛 row > `'web'`
+- **reuse 방어**: rotation 사슬(`replaced_by_id`) 재사용 감지 시 해당 chain 만 일괄 revoke (rotation grace 5분 — 모바일 PWA wake-up 대응)
 
 ### 3.2 메시지 → 할일 전환 흐름
 ```
@@ -122,52 +156,86 @@ Client → Q Talk에서 메시지 전송
        → Socket.IO로 할일 패널 실시간 업데이트
 ```
 
-### 3.3 Q Note 처리 흐름
+### 3.3 Q Note 처리 흐름 (실시간 회의 + STT 종량과금)
 ```
-사용자 → 음성 파일 업로드
-       → Q Note API (FastAPI): 파일 저장
-       → Whisper: 음성 → 텍스트
-       → LLM: 텍스트 → 요약 + 질문 추출
-       → (선택) 업로드된 문서 검색 → 답변 생성
-       → 결과 반환
+사용자 → WebSocket /ws/live 연결 (JWT)
+       → Q Note: accept 후 Deepgram 연결 前 진입 hard-block —
+         Node internal API 검사: qnote/can (quota, 4030) + business-membership (4031)
+       → Deepgram 실시간 STT (keyword boosting — 브리프·참여자·자료에서 추출)
+       → LLM (gpt-4.1-nano): 실시간 정제 / 질문 감지
+       → 답변 생성 (gpt-4o-mini): 우선순위 priority > custom > reuse > generated > RAG > general
+       → 5분마다 POST /api/internal/qnote/usage 로 billed 초 기록
+         (stream_id = WS 연결마다 UUID, UNIQUE(stream_id, segment_seq) 멱등 원장
+          → qnote_usage 월 rollup, FOR UPDATE 정확히 한 번)
 ```
+- 세션 본문은 q-note **SQLite**(`data/qnote.db`)에, 과금 원장(`qnote_usage_events`)은 Node MySQL 에 저장
+- 설계: `docs/QNOTE_STT_BILLING_DESIGN.md`
 
 ### 3.4 청구서 발송 흐름
 ```
 사업자 → Q Bill에서 청구서 작성
        → Backend: Invoice + InvoiceItem 저장 (status: draft)
        → "발송" 클릭
-       → Nodemailer: 이메일 발송 (HTML 템플릿)
+       → Nodemailer: 이메일 발송 (HTML 템플릿, 공개 결제 페이지 share_token 링크)
        → Invoice.status → sent, sent_at 기록
-       → 입금 확인 (수동) → status → paid, paid_at 기록
+       → 결제: 계좌이체 입금 확인(수동 마킹) 또는 Stripe 카드결제(workspace merchant, §13)
+       → 어느 경로든 markInvoicePaid / markInstallmentPaid 단일착지 → status paid, paid_at
+       → paid 후 증빙(세금계산서/현금영수증) 발행 큐 = receiptsDue 단일원천, 정정은 receipt_corrections
 ```
 
 ---
 
-## 4. 보안 계층
+## 4. 보안 계층 (server.js 실제 미들웨어 순서)
 
 ```
-┌─────────────────────────────────┐
-│ 1. Nginx (HTTPS, rate-limit)    │
-├─────────────────────────────────┤
-│ 2. Express Middleware            │
-│    ├── Helmet (보안 헤더)         │
-│    ├── CORS (허용 도메인만)       │
-│    ├── rate-limit (요청 제한)     │
-│    └── express-validator (입력)   │
-├─────────────────────────────────┤
-│ 3. Auth Middleware               │
-│    ├── JWT 검증                  │
-│    ├── requireRole (역할 확인)    │
-│    └── checkBusinessAccess       │
-│        (테넌트 격리)              │
-├─────────────────────────────────┤
-│ 4. Audit Middleware              │
-│    └── 모든 CUD 작업 기록         │
-├─────────────────────────────────┤
-│ 5. Sequelize (SQL Injection 방지)│
-└─────────────────────────────────┘
+┌──────────────────────────────────────────────────┐
+│ 0. Nginx (HTTPS 종단, 리버스 프록시)               │
+├──────────────────────────────────────────────────┤
+│ 1. Stripe webhook raw 마운트 — express.json 前    │
+│    /api/stripe/webhook/ws/:businessId (Q Bill)   │
+│    /api/stripe/webhook (구독) — 서명검증에 raw     │
+│    body 필요. 마운트 순서 자체가 Fable 게이트       │
+├──────────────────────────────────────────────────┤
+│ 2. express.json/urlencoded (10mb) + cookieParser │
+│ 3. requestIdMiddleware (X-Request-Id — 신고↔로그) │
+│ 4. maintenanceMiddleware (점검모드 503,           │
+│    platform_admin·ALLOW_PATHS 통과)              │
+│ 5. ogMetaMiddleware (SNS 공유봇 OG meta)          │
+├──────────────────────────────────────────────────┤
+│ 6. setupSecurity (middleware/security.js)        │
+│    ├── Helmet + 추가 보안헤더 + CSP               │
+│    ├── CORS (ALLOWED_ORIGINS env, 허용 헤더:      │
+│    │    X-Client-Kind, X-Internal-Api-Key)       │
+│    ├── rate-limit: 전역 600/분 (인증자 user 버킷, │
+│    │    미인증 IP), login 8회/15분(성공 제외),     │
+│    │    register 3회/1h, forgot-password 3회/1h, │
+│    │    /api/files 10회/분                        │
+│    ├── SSRF 방어 (url·redirect 등 파라미터 검사)   │
+│    └── SQL Injection 고신뢰 시그니처 감지          │
+│        (부가 방어층 — 본방어는 Sequelize)          │
+├──────────────────────────────────────────────────┤
+│ 7. 라우트별 인증/인가 미들웨어                      │
+│    ├── authenticateToken (JWT 검증)              │
+│    ├── requireRole (플랫폼 역할)                  │
+│    ├── checkBusinessAccess (테넌트 격리)          │
+│    ├── requireMenu(menu, level) — 멤버 메뉴권한   │
+│    │    11메뉴+weekly_team × none/read/write     │
+│    │    (middleware/menu_permission.js, Layer 3) │
+│    ├── costGuard — 외부비용(LLM·STT·메일) 라우트   │
+│    │    perUserLimiter/perUserDaily/capText      │
+│    └── internal API 키 — /api/internal/*         │
+│        (X-Internal-Api-Key, Q Note→Node 전용)    │
+├──────────────────────────────────────────────────┤
+│ 8. Audit — 모든 CUD 작업 audit_logs 기록          │
+│ 9. Sequelize parameterized query (SQLi 본방어)    │
+│ 10. errorHandler (공통 에러 + request_id)         │
+└──────────────────────────────────────────────────┘
 ```
+
+추가 하드닝:
+- Backend·Q Note 모두 **127.0.0.1 바인드** — 포트 직결 차단, nginx 경유만
+- PM2 강제 (pm_id 검사) + root 실행 방지 + JWT_SECRET 필수 체크 (server.js 상단)
+- Socket.IO 도 handshake JWT 인증 + room join 시 소유권 재검증 (§12)
 
 ---
 
@@ -176,43 +244,47 @@ Client → Q Talk에서 메시지 전송
 ```
 /opt/planq/
 ├── dev-backend/
-│   ├── server.js
-│   ├── app.js
-│   ├── .env
-│   ├── ecosystem.config.js
+│   ├── server.js            (PM2 엔트리 유일)
+│   ├── .env                 (권한 640, planq 그룹)
+│   ├── ecosystem.config.js  (planq-dev-backend + planq-qnote)
 │   ├── package.json
 │   ├── models/
-│   ├── routes/
-│   ├── middleware/         (auth, security, audit)
-│   ├── services/          (emailService)
-│   ├── templates/         (invoiceEmail.html)
-│   ├── uploads/
+│   ├── routes/              (50+ 라우터 — server.js 마운트 순서 참조)
+│   ├── middleware/          (auth, security, errorHandler, costGuard,
+│   │                         menu_permission, maintenance, ogMeta, audit)
+│   ├── services/            (billing, recurring_invoice, push_service,
+│   │                         apns_sender, emailService, cron 서비스 다수)
+│   ├── templates/
+│   ├── uploads/             ({business_id}/{yyyy-mm}/, SHA-256 dedup)
 │   └── sync-database.js
 │
 ├── dev-frontend/
 │   ├── src/
-│   │   ├── App.tsx
-│   │   ├── main.tsx
-│   │   ├── contexts/
-│   │   ├── pages/
-│   │   ├── components/
-│   │   └── utils/
+│   │   ├── App.tsx / main.tsx
+│   │   ├── contexts/ · pages/ · components/ · hooks/ · utils/
+│   │   └── i18n.ts
+│   ├── public/locales/{ko,en}/   (i18n JSON)
+│   ├── ios/                 (Capacitor iOS 네이티브앱)
+│   ├── capacitor.config.ts
 │   ├── vite.config.ts
 │   └── package.json
 │
-├── dev-frontend-build/    (Vite 빌드 결과)
+├── dev-frontend-build/      (Vite 빌드 결과 — nginx 서빙)
 │
 ├── q-note/
 │   ├── main.py
 │   ├── .env
-│   ├── requirements.txt
-│   ├── routers/
-│   ├── services/
+│   ├── venv/                (uvicorn 실행 주체)
+│   ├── data/qnote.db        (자체 SQLite)
+│   ├── routers/             (live, llm, sessions, voice)
+│   ├── services/            (deepgram_service, llm_service, billing_client,
+│   │                         embedding_service, speaker_clustering 등)
 │   └── uploads/
 │
-├── docs/
+├── scripts/                 (health-check.js, e2e/ 검사 하니스,
+│                             deploy-planq.sh, backup-*.sh, ops-capacity-check.js)
+├── docs/                    (설계 문서 + qa/ 검사 플레이북)
 ├── CLAUDE.md
-├── DEVELOPMENT_PLAN.md
 └── .claude/
 ```
 
@@ -220,14 +292,20 @@ Client → Q Talk에서 메시지 전송
 
 ## 6. 포트 맵
 
+### 개발 서버 (87.106.11.184 · dev.planq.kr)
 | 포트 | 서비스 | 비고 |
 |------|--------|------|
-| 80 | Nginx | dev.planq.kr |
-| 443 | Nginx (HTTPS) | SSL 적용 시 |
-| 3001 | POS Backend | 기존, 건드리지 않음 |
-| 3003 | PlanQ Backend | Express |
+| 80/443 | Nginx | dev.planq.kr (HTTPS) |
+| 3001 | POS Backend | 타 서비스 — 절대 건드리지 않음 |
+| 3003 | PlanQ Backend | Express, 127.0.0.1 바인드 |
 | 3306 | MySQL | 로컬 접속만 |
-| 8000 | Q Note | FastAPI |
+| 8000 | Q Note | FastAPI, 127.0.0.1 바인드 |
+
+### 운영 서버 (87.106.78.146 · planq.kr)
+| 포트 | 서비스 | 비고 |
+|------|--------|------|
+| 3004 | PlanQ Backend | PM2 planq-prod-backend (POS 공존으로 3003 대신 3004) |
+| 8001 | Q Note | PM2 planq-prod-qnote, 127.0.0.1 바인드 |
 
 ---
 
@@ -248,6 +326,9 @@ BusinessMember / Client 테이블에서 소속 business_id 확인
 
 테넌트 격리는 **middleware/auth.js의 checkBusinessAccess** 함수가 담당.
 모든 쿼리에 `WHERE business_id = ?`가 반드시 포함되어야 함.
+
+- 신규 라우트는 권한 헬퍼 단일 모듈 **`middleware/access_scope.js`** (`attachWorkspaceScope` + `listWhere/canAccess`) 사용 — client 격리 포함
+- 격리 회귀는 검사 하니스 카나리 **`scripts/e2e/canary-tenant.js`** (비멤버 workspace 403 실증)가 상시 감시 (§15)
 
 ---
 
@@ -477,4 +558,89 @@ SELECT SUM(action_count) FROM cue_usage
 - 액션 종류별 분포
 - 일별 추이 그래프
 - 한도 임박 시 알림 (80%, 95%, 100%)
+
+---
+
+## 12. 실시간 소켓 아키텍처 (Socket.IO)
+
+*(2026-07-10 추가 — server.js 실측)*
+
+### 12.1 인증과 room 자동 join
+
+```
+socket 연결 (io({ auth: { token } }))
+    ↓ io.use — JWT 검증 실패 시 연결 거부
+connection 직후 서버가 자동 join:
+    ├── user:{userId}          — 같은 user 의 모든 디바이스 동기화 (읽음/핀/알림)
+    ├── business:{bizId} 전부   — 멤버인 모든 워크스페이스 (autoJoinUserBusinesses)
+    └── conv:{convId}          — 비멤버(고객) 참여 대화만 (남의 대화 노출 차단)
+```
+
+클라이언트가 join 을 "잊어버려도" 서버가 connection 시점에 보장 — unread 뱃지 실시간 회귀 근본 차단. 명시적 `join:conversation` / `join:project` / `join:business` 이벤트는 **소유권 재검증 후** join (인증만으로는 부족).
+
+### 12.2 broadcast 규약 (CLAUDE.md 운영안정성 16번)
+
+- 데이터 변경 라우트는 `io.to('business:${bizId}').emit('<entity>:<event>')` 호출 강제 — `task:new/updated/deleted`, `message:new`, `candidate:new/updated` 등
+- 프론트: socket listener + debounce silentLoad(200~250ms) + `useVisibilityRefresh` 안전망(server fresh 덮어쓰기)
+- cron 등 req context 없는 곳은 `global.__planqIo` 참조
+- `server:build` 이벤트: 배포 후 build_id broadcast → 클라이언트 업데이트 배너 (`isReloadSafe()` 가드 — 입력 중 자동 reload 금지)
+- `debug:rooms` ack: health-check 'realtime' 카테고리가 room auto-join 회귀 자동 검출
+
+---
+
+## 13. 결제 아키텍처 (Stripe — 구독 vs Q Bill 절대 분리)
+
+*(2026-07-10 추가 — 상세: `docs/SAAS_BILLING_VS_QBILL_SEPARATION.md`)*
+
+두 결제 축은 merchant·테이블·webhook 이 완전히 분리된다 (혼동 금지 5불변식):
+
+| 축 | Merchant | 테이블 | 착지 함수 | Webhook |
+|---|---|---|---|---|
+| **SaaS 구독** (워크스페이스가 PlanQ 에 지불) | Platform (PlanQ Stripe 계정) | `payments` | `markPaymentPaid` 단일착지 | `/api/stripe/webhook` |
+| **Q Bill** (고객이 워크스페이스에 지불) | Workspace (워크스페이스별 Stripe 계정) | `invoices` / `invoice_installments` | `markInvoicePaid` / `markInstallmentPaid` (수동 마킹과 webhook 이 공유) | `/api/stripe/webhook/ws/:businessId` (business별 webhook secret 서명검증) |
+
+- 두 webhook 모두 **express.json() 前에 `express.raw()` 로 마운트** (서명 검증에 raw body 필요) — server.js 최상단, 마운트 순서 = Fable 게이트
+- 계좌이체(송금)가 여전히 1순위 결제수단 — Stripe 는 카드 결제 추가 축
+- Stripe 키는 암호화 저장(`*_enc`), 전역 toJSON 이 `*_enc → *_set` boolean 으로 redact (응답에 시크릿 미노출)
+
+---
+
+## 14. 모바일 클라이언트 (PWA + Capacitor iOS)
+
+*(2026-07-10 추가)*
+
+### 14.1 PWA
+- `sw.js` — Web Push(VAPID) 수신, Share Target, push/notificationclick 시점 자가 update (`self.registration.update()`)
+- 새 빌드 감지: version.json 5분 폴링 + `server:build` socket 신호 → `isReloadSafe()` 통과 시에만 silent reload, 아니면 UpdateBanner
+- standalone 감지(`display-mode: standalone`) → `client_kind='pwa'` (refresh TTL 365일)
+
+### 14.2 Capacitor iOS 네이티브앱
+- `dev-frontend/ios/` + `capacitor.config.ts` (appId `app.planq`) — React 번들 그대로 재사용
+- push: APNs (`services/apns_sender.js`), 배포는 TestFlight
+
+### 14.3 Push 발송 fan-out (`services/push_service.js`)
+- `push_subscriptions.kind` 분기: web(VAPID) / **apns**(iOS 네이티브) / fcm — 한 user 의 전 구독에 kind 별 발송, 결과는 PushLog 기록
+- 같은 push service host 좀비 자동 만료 (한 user × 한 host = active 1개)
+- web push 옵션: `urgency: 'high'` + `TTL: 86400`
+
+---
+
+## 15. 검사·가드 인프라 (검증 게이트)
+
+*(2026-07-10 추가)*
+
+| 도구 | 경로 | 역할 |
+|---|---|---|
+| 헬스체크 | `/opt/planq/scripts/health-check.js` | 29+ 항목 프로젝트 안전망 (realtime room join 회귀 포함) |
+| 검사 하니스 v2 | `/opt/planq/scripts/e2e/run.js --suite mobile,crosscut,l1,tenant` | Puppeteer, health-check 동급 게이트 (exit 0/1) |
+| ├ mobile | `mobile-keyboard.js` | 모바일 키보드 가림 회귀 검출 |
+| ├ crosscut | `canary-crawl.js` | 표시명(계정명) 누출 카나리 크롤 |
+| ├ l1 | `canary-l1.js` | L1 개인자원 누출 카나리 (백엔드 API 크롤) |
+| └ tenant | `canary-tenant.js` | 멀티테넌트 격리 카나리 (비멤버 biz 403 실증) |
+| 런타임 모니터링 | `GET /api/health` | DB pool 사용률 + env 시그널 (deepgram/openai/smtp/vapid 설정 여부) |
+| 빌드 감지 | `GET /api/build-version` | 프론트 폴링용 빌드 버전 |
+| OPS 용량 | `scripts/ops-capacity-check.js` | 주 1회 가입자·용량 집계, Stage 전환 감지 |
+
+- **Fable 검증 게이트**: 고위험 변경(생명선 코드·돈·마이그레이션·보안 경계·신규 아키텍처) 전용 별도 검증 — 기준·내용은 `CLAUDE.md` "Fable 검증 게이트" 절
+- 하니스 설계: `docs/qa/INSPECTION_PLAYBOOK.md`, 오탐·회귀 사례: `docs/qa/FEEDBACK_REGRESSIONS.md`
 
