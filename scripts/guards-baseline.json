@@ -84,9 +84,7 @@
     "dev-frontend/src/utils/dateFormat.ts": 4,
     "dev-frontend/src/utils/qnoteSummaryDoc.ts": 1
   },
-  "parity_keys": {
-    "qdocs.json": 1
-  },
+  "parity_keys": {},
   "tenant": {
     "dev-backend/routes/admin.js": 5,
     "dev-backend/routes/businesses.js": 2,

@@ -368,6 +368,7 @@
     "modeTable": "Table",
     "modeTableHint": "Rows × columns — accounts · assets · …",
     "tableDesc": "Enter a title and an empty table is created. Add/rename/retype columns inline within the table.",
+    "tableDesc2": "Enter a title and an empty table is created. Add/rename/retype columns inline within the table.",
     "tableTitleLabel": "Table title",
     "tableTitlePh": "e.g. Accounts / Assets / Contacts",
     "tableCreate": "Create table",
