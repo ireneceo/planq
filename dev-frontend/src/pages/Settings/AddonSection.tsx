@@ -42,9 +42,8 @@ const AddonSection: React.FC<Props> = ({ businessId, isOwner }) => {
     setResultMsg(null);
     try {
       const r = await requestAddon(businessId, item.code, quantity);
-      setResultMsg(t('addon.requestOk', '신청 접수 — 입금 안내 메일이 발송됩니다 ({{krw}}원, {{units}})', {
-        krw: r.total_krw.toLocaleString('ko-KR'),
-        units: r.total_units.toLocaleString('ko-KR'),
+      setResultMsg(t('addon.requestOk', '신청 접수 — {{krw}}원 청구서가 발행되고 입금 안내 메일이 발송됩니다. 한도는 신청 즉시 적용됐습니다.', {
+        krw: Number(r.prorated_amount_krw ?? 0).toLocaleString('ko-KR'),
       }) as string);
       await reload();
     } catch (e) {
