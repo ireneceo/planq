@@ -6,7 +6,7 @@
 > - **§7 신규** — 전체 테이블 카탈로그 108개 실측 박제. 기존 문서(§2·§6)의 23개 외 **신규 85개 테이블**을 카테고리별 추가 (Q Task 확장 11 · Q Bill 9 · Q Mail 8 · Q docs/서명 8 · 프로젝트 확장 8 · 보고서 6 · 파일/스토리지 6 등).
 > - **정정: tasks** — status ENUM 실측 8값 (`not_started/waiting/in_progress/reviewing/revision_requested/done_feedback(폐지·미사용)/completed/canceled`). §2.9·§6.2의 옛 ENUM 폐기. `priority` 컬럼 없음(`priority_order`로 대체).
 > - **정정: projects** — `client_id` FK 없음. 실측은 `client_company` VARCHAR + `project_clients` 조인 테이블. `messages` 본문 컬럼은 `content` (§6.2의 `body` 표기는 오기).
-> - **정정: businesses** — plan ENUM 실측 5값(`free/starter/basic/pro/enterprise`). 스토리지 쿼터 현행: Free 1GB / Basic 50GB / Pro 500GB (운영 기준). `business_members.role`은 dev DB 실측 `ENUM('owner','member','ai')` (admin 값 없음 — 메뉴 권한은 `business_member_permissions` 별도 테이블).
+> - **정정: businesses** — plan ENUM 실측 5값(`free/starter/basic/pro/enterprise`). 스토리지 쿼터 현행: Free 1GB / Basic 50GB / Pro 500GB (운영 기준). `business_members.role`은 dev DB 실측 `ENUM('owner','member','ai','admin')` (2026-07-10 admin append 활성화 — 메뉴 권한은 `business_member_permissions` 별도 테이블).
 > - §2·§6은 설계 당시(2026-04) 원문 보존 — 이후 확장 컬럼은 §7.1, 신규 테이블은 §7.2가 실측 기준.
 
 ---
@@ -160,7 +160,7 @@ CREATE TABLE business_members (
   id          INT AUTO_INCREMENT PRIMARY KEY,
   business_id INT NOT NULL,
   user_id     INT NOT NULL,
-  role        ENUM('owner', 'member', 'ai') DEFAULT 'member',  -- 'ai' = Cue
+  role        ENUM('owner', 'member', 'ai', 'admin') DEFAULT 'member',  -- 'ai' = Cue, 'admin' = 관리자급 직원(2026-07-10)
   invited_by  INT,
   joined_at   DATETIME,
   created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -176,7 +176,7 @@ CREATE TABLE business_members (
 - `role='member'`: 사용자 표기 "멤버 / Member"
 - `role='ai'`: Cue 전용, 워크스페이스당 1개 강제
 
-> **2026-07-10 실측:** role ENUM은 dev DB에서도 `('owner','member','ai')` 그대로 (admin ENUM 값 없음 — 멤버별 메뉴 권한은 §7.2 `business_member_permissions`가 담당). 이후 확장: 초대 흐름(`invite_token`·`invite_email`·`invited_at`·`removed_at`·`removed_by`), 워크스페이스별 표시명(`name`·`name_localized`), 근무 설정(`daily_work_hours`·`weekly_work_days`·`participation_rate`·`weekly_holidays`·`hourly_rate`·`monthly_salary`), 조직(`department_id`·`team_id`), Q Note 답변 프로필 8필드(`bio`~`answer_length_default`), `default_role`.
+> **2026-07-10 실측/갱신:** role ENUM은 `('owner','member','ai','admin')` (admin append 활성화 — 승격 라우트·설정 UI·access_scope·health-check ENUM감시 완비, 실 HTTP 7/7. 멤버별 메뉴 권한은 §7.2 `business_member_permissions`가 별도로 담당). 이후 확장: 초대 흐름(`invite_token`·`invite_email`·`invited_at`·`removed_at`·`removed_by`), 워크스페이스별 표시명(`name`·`name_localized`), 근무 설정(`daily_work_hours`·`weekly_work_days`·`participation_rate`·`weekly_holidays`·`hourly_rate`·`monthly_salary`), 조직(`department_id`·`team_id`), Q Note 답변 프로필 8필드(`bio`~`answer_length_default`), `default_role`.
 
 ### 2.4 Client (고객)
 ```sql
@@ -650,9 +650,9 @@ UPDATE businesses SET brand_name = name WHERE brand_name IS NULL;
 -- 그 후 name 컬럼 drop:
 ALTER TABLE businesses DROP COLUMN name;
 
--- business_members: role ENUM 확장
+-- business_members: role ENUM 확장 (admin append — 2026-07-10 활성화)
 ALTER TABLE business_members
-  MODIFY role ENUM('owner','member','ai') DEFAULT 'member';
+  MODIFY COLUMN role ENUM('owner','member','ai','admin') NULL DEFAULT 'member';
 
 -- conversations
 ALTER TABLE conversations

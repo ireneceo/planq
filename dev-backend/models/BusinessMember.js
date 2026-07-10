@@ -41,9 +41,10 @@ BusinessMember.init({
     allowNull: true,
     references: { model: 'users', key: 'id' },
   },
-  // 'owner' = 관리자 (사용자 표기), 'member' = 멤버, 'ai' = Cue 전용
+  // 'owner' = 사업자 대표, 'admin' = 관리자급 직원 (owner급 위임 — 타인 자원 관리·멤버 권한 관리, 재무 owner_only 제외), 'member' = 멤버, 'ai' = Cue 전용
+  // ENUM 순서는 모델·dev DB·운영 DB 3곳 동일해야 sync-database 가 재-ALTER 를 반복하지 않음 (admin 은 append)
   role: {
-    type: DataTypes.ENUM('owner', 'member', 'ai'),
+    type: DataTypes.ENUM('owner', 'member', 'ai', 'admin'),
     defaultValue: 'member'
   },
   // 워크스페이스별 이름 (null 이면 User.name 사용). 한 사용자가 여러 워크스페이스에서 다른 표시 이름을 가질 수 있음.

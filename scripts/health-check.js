@@ -526,6 +526,28 @@ function defineExternalTests() {
     }
     return true;
   });
+
+  // business_members.role ENUM 에 'admin' 유지 검사 — sync-database 가 모델보다 뒤처지면
+  // admin 이 다시 벗겨져 "관리자로" 승격 라우트가 500 나던 회귀(2026-07-10 근본수정) 재발 감시.
+  test('external', "business_members.role ENUM 에 'admin' 유지", async () => {
+    const { spawnSync } = require('child_process');
+    const r = spawnSync('node', ['-e', `
+      const { sequelize } = require('./config/database');
+      (async () => {
+        const [rows] = await sequelize.query("SHOW COLUMNS FROM business_members LIKE 'role'");
+        process.stdout.write(JSON.stringify({ type: rows[0] ? rows[0].Type : '' }));
+        process.exit(0);
+      })().catch(e => { process.stderr.write(e.message); process.exit(1); });
+    `], { cwd: '/opt/planq/dev-backend', encoding: 'utf-8', timeout: 10000 });
+    if (r.status !== 0) throw new Error('child process failed: ' + (r.stderr || 'unknown'));
+    const match = String(r.stdout || '').match(/\{[^{}]*"type"[^{}]*\}/);
+    if (!match) throw new Error('parse failed: ' + (r.stdout || '').slice(0, 100));
+    const { type } = JSON.parse(match[0]);
+    if (!/'admin'/.test(type)) {
+      throw new Error(`role ENUM 에 'admin' 없음 (${type}) — sync-database 가 벗김. 모델 ENUM 순서·수동 ALTER 점검`);
+    }
+    return true;
+  });
 }
 
 // ============================================

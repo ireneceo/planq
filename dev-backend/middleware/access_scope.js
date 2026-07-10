@@ -355,29 +355,32 @@ async function canAccessFileByLevel(userId, file, scope) {
   // N+74 — vlevel 신컬럼 우선, legacy visibility fallback
   const v = file.vlevel || file.visibility;
   if (v === 'L1') return false;
+  // admin(N+21) 은 owner 급 전권 — 모든 분기에서 owner 와 동일 취급 (Post 헬퍼 동일 패턴)
+  const fullView = scope.isOwner || scope.isAdmin;
   // L4 도 워크스페이스 멤버는 보여야 (N+72 fix)
-  if (v === 'L4') return scope.isOwner || scope.isMember;
-  if (v === 'L3') return scope.isOwner || scope.isMember;
+  if (v === 'L4') return fullView || scope.isMember;
+  if (v === 'L3') return fullView || scope.isMember;
   if (v === 'L2') {
     if (file.project_id) {
-      return (scope.projectMemberIds || []).includes(file.project_id) || scope.isOwner;
+      return (scope.projectMemberIds || []).includes(file.project_id) || fullView;
     }
     // N+74 — L2-members 분기 (target_member_ids)
     const targetIds = Array.isArray(file.target_member_ids) ? file.target_member_ids : [];
     if (targetIds.length > 0) {
-      return targetIds.includes(userId) || scope.isOwner;
+      return targetIds.includes(userId) || fullView;
     }
-    return scope.isOwner || scope.isMember;
+    return fullView || scope.isMember;
   }
-  return scope.isOwner || scope.isMember;
+  return fullView || scope.isMember;
 }
 
 function fileListWhereByLevel(scope) {
   if (scope.isPlatformAdmin) return { business_id: scope.businessId };
+  const fullView = scope.isOwner || scope.isAdmin;  // admin(N+21) = owner 급 가시성
   const conds = [];
   // L1 — 본인 업로드 (vlevel 또는 legacy visibility)
   conds.push({ [Op.or]: [{ vlevel: 'L1' }, { visibility: 'L1' }], uploader_id: scope.userId });
-  if (scope.isOwner || scope.isMember) {
+  if (fullView || scope.isMember) {
     // L3 / L4 / legacy null — 워크스페이스 멤버는 모두 OK
     conds.push({ vlevel: 'L3' });
     conds.push({ vlevel: 'L4' });
@@ -387,7 +390,7 @@ function fileListWhereByLevel(scope) {
     conds.push({ vlevel: null, visibility: 'L4' });
     conds.push({ vlevel: null, visibility: null });
   }
-  if (scope.isOwner) {
+  if (fullView) {
     conds.push({ vlevel: 'L2' });
     conds.push({ vlevel: null, visibility: 'L2' });
   } else {
@@ -470,39 +473,42 @@ async function canAccessKbDocumentByLevel(userId, doc, scope) {
   if (scope.isPlatformAdmin) return true;
   // 본인 업로드 무조건 OK
   if (doc.uploaded_by === userId) return true;
+  // admin(N+21) 은 owner 급 전권 (Post/File 헬퍼 동일 패턴)
+  const fullView = scope.isOwner || scope.isAdmin;
   // N+72 — vlevel L2-members 분기 우선 (KbDocument 도 target_member_ids 있음)
   if (doc.vlevel === 'L2' && doc.scope !== 'project') {
     const targetIds = Array.isArray(doc.target_member_ids) ? doc.target_member_ids : [];
     if (targetIds.length > 0) {
-      return targetIds.includes(userId) || scope.isOwner;
+      return targetIds.includes(userId) || fullView;
     }
   }
   const s = doc.scope;
   if (s === 'private') return false;  // 본인 외 차단 (위에서 본인 통과)
-  if (s === 'workspace') return scope.isOwner || scope.isMember;
+  if (s === 'workspace') return fullView || scope.isMember;
   if (s === 'project') {
     if (doc.project_id) {
-      return (scope.projectMemberIds || []).includes(doc.project_id) || scope.isOwner;
+      return (scope.projectMemberIds || []).includes(doc.project_id) || fullView;
     }
-    return scope.isOwner || scope.isMember;
+    return fullView || scope.isMember;
   }
   if (s === 'client') {
-    if (scope.isOwner) return true;
+    if (fullView) return true;
     if (scope.isClient && scope.clientIds.includes(doc.client_id)) return true;
     return scope.isMember;
   }
-  return scope.isOwner || scope.isMember;
+  return fullView || scope.isMember;
 }
 
 function kbDocumentsListWhereByLevel(scope) {
   if (scope.isPlatformAdmin) return { business_id: scope.businessId };
+  const fullView = scope.isOwner || scope.isAdmin;  // admin(N+21) = owner 급 가시성
   const conds = [];
   conds.push({ scope: 'private', uploaded_by: scope.userId });
-  if (scope.isOwner || scope.isMember) {
+  if (fullView || scope.isMember) {
     conds.push({ scope: 'workspace' });
     conds.push({ scope: 'client' }); // 멤버는 client KB 도 접근 (열린 문화)
   }
-  if (scope.isOwner) {
+  if (fullView) {
     conds.push({ scope: 'project' });
   } else if ((scope.projectMemberIds || []).length > 0) {
     conds.push({ scope: 'project', project_id: { [Op.in]: scope.projectMemberIds } });
@@ -549,6 +555,7 @@ function attachWorkspaceScope(opts = {}) {
       const allowed =
         scope.isPlatformAdmin ||
         scope.isOwner ||
+        scope.isAdmin ||        // N+21 admin — owner 급 워크스페이스 접근 (재무 owner_only 는 라우트별 assertInvoiceMutationOwner 로 별도 차단)
         scope.isMember ||
         (allowClient && scope.isClient);
       if (!allowed) {
@@ -557,7 +564,7 @@ function attachWorkspaceScope(opts = {}) {
       req.scope = scope;
       req.businessId = businessId;  // 옛 checkBusinessAccess 호환
       req.businessRole = scope.businessRole;
-      if (scope.isOwner || scope.isMember) {
+      if (scope.isOwner || scope.isMember || scope.isAdmin) {
         req.businessMember = { role: scope.businessRole, business_id: businessId, user_id: req.user.id };
       } else {
         req.businessMember = null;
