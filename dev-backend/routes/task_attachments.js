@@ -12,6 +12,8 @@ const { applyMemberDisplayName } = require('../services/displayName');
 const gdrive = require('../services/gdrive');
 const { decodeOriginalName, buildContentDisposition } = require('../services/filename');
 const { perUserLimiter } = require('../middleware/costGuard');
+// 첨부 실체 읽기(로컬/Drive/S3) 단일 원천 — #134 provider 무인지 근본fix
+const { readAttachmentBody } = require('../services/attachmentStorage');
 
 // 비용폭탄 H4 — 업무 첨부 업로드 per-user rate-limit (분당 10회, 라우트 내부 적용).
 const taskAttachUploadLimiter = perUserLimiter('task-attach', { windowMs: 60 * 1000, max: 10, message: '파일 업로드가 너무 잦습니다. 잠시 후 다시 시도하세요.' });
@@ -337,15 +339,21 @@ async function serveAttachment(req, res, next, asDownload) {
     if (!(await canAccessTask(req.user.id, task, scope))) {
       return errorResponse(res, 'forbidden', 403);
     }
-    const abs = path.join(__dirname, '..', att.file_path);
-    if (!fs.existsSync(abs)) return errorResponse(res, 'file_missing', 410);
+    const body = await readAttachmentBody(att);
+    if (!body.ok) return errorResponse(res, body.msg, body.code);
+    if (body.redirect) return res.redirect(body.redirect);
+
     if (asDownload) {
       res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(att.original_name)}`);
     } else {
       res.setHeader('Cache-Control', 'private, max-age=3600');
     }
     if (att.mime_type) res.setHeader('Content-Type', att.mime_type);
-    fs.createReadStream(abs).pipe(res);
+    body.stream.on('error', (e) => {
+      console.error('[task_attachments] stream error:', e.message);
+      if (!res.headersSent) errorResponse(res, 'stream_failed', 502);
+    });
+    body.stream.pipe(res);
   } catch (err) { next(err); }
 }
 // 레거시 URL 호환 — 과거 본문(body)에 저장된 `/raw` URL 은 `<img>` 에서 Authorization 헤더를 보낼 수 없어 401.
@@ -375,14 +383,23 @@ router.get('/public/attach/:storedName', async (req, res, next) => {
     if (!att.mime_type || !att.mime_type.startsWith('image/')) {
       return errorResponse(res, 'not_public_image', 403);
     }
-    const abs = path.join(__dirname, '..', att.file_path);
-    if (!fs.existsSync(abs)) return errorResponse(res, 'missing', 410);
-    if (await require('../services/imageResize').maybeServeResized(req, res, abs, att.mime_type)) return; // #97 ?w= 리사이즈
+    // #134 — 여기가 <img> 가 실제로 부르는 경로. Drive 저장분은 로컬 파일이 없어 410 이었다.
+    const body = await readAttachmentBody(att);
+    if (!body.ok) return errorResponse(res, body.msg, body.code);
+    if (body.redirect) return res.redirect(body.redirect);
+
+    // ?w= 리사이즈는 로컬 파일일 때만 (Drive 스트림은 원본 그대로)
+    if (body.abs && await require('../services/imageResize').maybeServeResized(req, res, body.abs, att.mime_type)) return;
+
     res.setHeader('Content-Type', att.mime_type);
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Disposition', 'inline');
     res.setHeader('Cache-Control', 'private, max-age=3600');
-    fs.createReadStream(abs).pipe(res);
+    body.stream.on('error', (e) => {
+      console.error('[task_attachments] public image stream error:', e.message);
+      if (!res.headersSent) errorResponse(res, 'stream_failed', 502);
+    });
+    body.stream.pipe(res);
   } catch (err) { next(err); }
 });
 
