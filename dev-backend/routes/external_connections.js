@@ -259,7 +259,15 @@ router.get('/me/oauth/google/callback', async (req, res) => {
   const { code, state, error: oauthError } = req.query;
   // #125a — state 안의 native 플래그를 알게 된 뒤부터는 실패도 앱 딥링크로 복귀시킨다
   //   (네이티브에서 HTML 을 띄우면 창이 그대로 멈춘다). parseState 전 실패는 HTML 유지.
+  // ★ state 는 Google 이 에러 응답(access_denied 등)에도 동봉한다 → 에러 분기보다 먼저 파싱해
+  //   네이티브 여부를 확정해야 한다. 안 그러면 '취소' 같은 흔한 경로에서 HTML 이 떠 창이 멈춘다
+  //   (= #125a 가 고치려던 바로 그 증상. Fable BLOCK 3).
   let isNativeFlow = false;
+  try {
+    const pre = personalOauth.parseState(req.query.state);
+    isNativeFlow = !!(pre && pre.native);
+  } catch { /* 파싱 실패 → 웹으로 취급 */ }
+
   const fail = (msg) => {
     if (isNativeFlow) return nativeReturnRedirect(res, { ok: false, provider: null, error: msg });
     return res.status(400).send(personalCallbackHtml({
@@ -365,6 +373,8 @@ router.get('/me/oauth/google/callback', async (req, res) => {
     }));
   } catch (e) {
     console.error('[me/oauth callback]', e);
+    // 네이티브는 HTML 을 띄우면 창이 멈춘다 → 실패도 앱 딥링크로 복귀 (Fable BLOCK 3)
+    if (isNativeFlow) return nativeReturnRedirect(res, { ok: false, provider: parsed.provider, error: 'connect_failed' });
     return res.status(500).send(personalCallbackHtml({
       ok: false, provider: parsed.provider, title: '연동 실패',
       body: `<h2>연동 실패</h2><p>${e.message || '서버 오류'}</p>`,

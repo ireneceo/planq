@@ -1248,6 +1248,14 @@ router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, async 
          WHERE m.conversation_id = :cid`,
         { replacements: { cid: convId }, transaction: t }
       );
+      // 1-b. message_reactions (#138) — FK CASCADE 가 있어도 명시 삭제 (FK 없이 만들어진 환경 대비 이중 방어).
+      //   여기 빠지면 대화를 지울 때마다 삭제된 메시지를 가리키는 고아 리액션이 영구 누적된다.
+      await sequelize.query(
+        `DELETE mr FROM message_reactions mr
+         INNER JOIN messages m ON mr.message_id = m.id
+         WHERE m.conversation_id = :cid`,
+        { replacements: { cid: convId }, transaction: t }
+      );
       // 2. messages
       await Message.destroy({ where: { conversation_id: convId }, transaction: t });
       // 3. conversation_participants
