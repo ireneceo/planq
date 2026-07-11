@@ -13,6 +13,7 @@ import {
   markInstallmentTaxInvoice, cancelInstallment, updateInvoiceStatus,
   markInvoiceTaxInvoice, markInvoiceCashReceipt,
   findConversationForClient, deleteInvoice, sendInvoiceReminder, sendInvoicePreview, resendInvoice, downloadInvoicePdf,
+  setInvoiceOverdueNotify,
   listInvoiceCorrections, getInvoiceStatusHistory, getInvoiceTimeline,
   type ApiInvoice, type ApiInstallment, type ApiReceiptCorrection, type ApiInvoiceStatusEvent, type ApiBillEvent,
 } from '../../services/invoices';
@@ -114,6 +115,7 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
   const [resendBusy, setResendBusy] = useState(false);
   const [resendNote, setResendNote] = useState<{ tone: 'ok' | 'warn'; text: string } | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [overdueNotifyBusy, setOverdueNotifyBusy] = useState(false);
 
   const onDownloadPdf = async () => {
     if (!invoice || pdfBusy) return;
@@ -326,6 +328,18 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
       setRemindBusy(false);
     }
   };
+  const handleToggleOverdueNotify = async () => {
+    if (!invoice || overdueNotifyBusy) return;
+    setOverdueNotifyBusy(true);
+    try {
+      await setInvoiceOverdueNotify(invoice.business_id, invoice.id, Boolean(invoice.meta?.overdue_notify_off));
+      await refresh();
+    } catch {
+      setRemindNote({ tone: 'warn', text: t('detail.overdueNotify.failed', { defaultValue: '알림 설정을 바꾸지 못했어요. 잠시 후 다시 시도해 주세요' }) as string });
+    } finally {
+      setOverdueNotifyBusy(false);
+    }
+  };
   const handleResend = async () => {
     if (!invoice || resendBusy) return;
     setResendBusy(true);
@@ -468,6 +482,20 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
         {remindNote && <RemindNote $tone={remindNote.tone}>{remindNote.text}</RemindNote>}
         {resendNote && <RemindNote $tone={resendNote.tone}>{resendNote.text}</RemindNote>}
         {previewNote && <RemindNote $tone={previewNote.tone}>{previewNote.text}</RemindNote>}
+        {(invoice.status === 'sent' || invoice.status === 'partially_paid' || invoice.status === 'overdue') && (
+          <OverdueNotifyRow>
+            <span>
+              {invoice.meta?.overdue_notify_off
+                ? t('detail.overdueNotify.offHint', { defaultValue: '마감이 지나도 알리지 않습니다. 독촉 메일은 위 버튼으로만 나갑니다.' })
+                : t('detail.overdueNotify.onHint', { defaultValue: '마감이 지나면 독촉 메일을 보낼지 알림으로 물어봅니다. 자동 발송은 하지 않습니다.' })}
+            </span>
+            <LinkBtn type="button" onClick={handleToggleOverdueNotify} disabled={overdueNotifyBusy}>
+              {invoice.meta?.overdue_notify_off
+                ? t('detail.overdueNotify.turnOn', { defaultValue: '알림 다시 받기' })
+                : t('detail.overdueNotify.turnOff', { defaultValue: '알림 끄기' })}
+            </LinkBtn>
+          </OverdueNotifyRow>
+        )}
       </DrawerHeader>
 
       {/* ─── 본문 (스크롤) ─── */}
@@ -1095,6 +1123,17 @@ const ActionBtn = styled.button<{ $primary?: boolean }>`
 const RemindNote = styled.div<{ $tone: 'ok' | 'warn' }>`
   margin-top: 8px; font-size: 12px; font-weight: 600;
   color: ${p => p.$tone === 'ok' ? '#0F766E' : '#B45309'};
+`;
+const OverdueNotifyRow = styled.div`
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-top: 10px; font-size: 12px; line-height: 1.5; color: #64748B;
+`;
+const LinkBtn = styled.button`
+  background: none; border: none; padding: 0;
+  font-size: 12px; font-weight: 600; color: #475569;
+  text-decoration: underline; cursor: pointer;
+  &:hover:not(:disabled) { color: #0F766E; }
+  &:disabled { opacity: 0.5; cursor: default; }
 `;
 const Body = styled.div`
   flex: 1; overflow-y: auto; padding: 18px 22px 32px;
