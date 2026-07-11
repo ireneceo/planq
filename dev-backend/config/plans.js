@@ -75,8 +75,12 @@ const PLANS = {
     code: 'basic',
     name: 'Basic',
     name_ko: '베이직',
-    price_monthly: { KRW: 29_000,  USD: 29 },
-    price_yearly:  { KRW: 290_000, USD: 290 },
+    // 2026-07-11 인상 (29,000 → 39,000). 근거: 한도를 다 쓰는 베이직 고객의 외부 원가(Q Note STT
+    //   스테레오 2배 과금 15h + Cue 1,500 액션)가 29,000원의 절반에 육박 → 원가율 50%. 39,000원이면 40% 아래.
+    //   인당으로는 5명 기준 7,800원 (잔디·Slack·Notion 대비 여전히 저렴, AI 포함).
+    //   프로(79,000)와 정확히 2배 간격 → 업그레이드 설득선 정리.
+    price_monthly: { KRW: 39_000,  USD: 39 },
+    price_yearly:  { KRW: 390_000, USD: 390 },  // 2달 무료
     target: '소상공인·팀 (1~5명)',
     target_ko: '소상공인·팀 (1~5명)',
     limits: {
