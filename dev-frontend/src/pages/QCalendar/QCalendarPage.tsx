@@ -531,6 +531,7 @@ const QCalendarPage: React.FC = () => {
             events={filteredEvents}
             onSelectEvent={handleSelectEvent}
             onSelectDate={handleSelectDate}
+            onCreateAt={handleCreateAt}
           />
         )}
         {(view === 'week' || view === 'day') && (

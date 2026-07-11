@@ -150,5 +150,8 @@
     "todayDivider": "오늘",
     "addOnDay": "이 날짜에 일정 추가",
     "noneToday": "일정 없음"
+  },
+  "month": {
+    "createOn": "이 날짜에 일정 추가"
   }
 }

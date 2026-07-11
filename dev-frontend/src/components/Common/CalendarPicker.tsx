@@ -82,6 +82,15 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({
     if (isOpen) setStep('start');
   }, [isOpen]);
 
+  // #126c — 선택된 날짜가 있으면 그 달로 열린다. (여태 항상 오늘 달로 열려서, 3개월 전 일정을 고르려면
+  // 매번 화살표를 3번 눌러야 했다. setViewMonth 호출처가 prev/next 뿐이었던 게 원인.)
+  useEffect(() => {
+    if (!isOpen) return;
+    const base = parseDate(startDate || '') || new Date();
+    setViewMonth(base.getMonth());
+    setViewYear(base.getFullYear());
+  }, [isOpen, startDate]);
+
   useEffect(() => {
     if (!isOpen) return;
     // 열린 후 다음 틱에 리스너 등록 (현재 클릭 이벤트로 즉시 닫히지 않게)
