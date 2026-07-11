@@ -23,6 +23,13 @@ async function recordInvoiceStatusChange(invoice, fromStatus, toStatus, userId, 
 }
 
 // 채팅 결제 카드 메타 동기 (best-effort). (routes/invoices.js 에서 이관)
+//
+// ★ sequelize.fn('JSON_EXTRACT', col, '$.card_type') 는 쓰면 안 된다 —
+//   Sequelize 가 '$' 를 bind 파라미터 접두사로 보고 '$$' 로 이스케이프해서
+//   `JSON_EXTRACT(meta, '$$.card_type')` 이 나가고 MySQL 이 "Invalid JSON path" 로 항상 실패한다.
+//   그래서 이 함수는 여태 한 번도 성공한 적이 없고(catch 가 삼킴), 결제/상태가 바뀌어도
+//   채팅방의 청구서 카드는 옛 상태 그대로 남아 있었다 (고객이 보는 화면).
+//   literal 로 경로를 직접 쓴다. id 는 위에서 정수 검증됨.
 async function updateInvoiceChatCards(invoiceId, patches, transaction = null) {
   try {
     const id = parseInt(invoiceId, 10);
@@ -31,8 +38,8 @@ async function updateInvoiceChatCards(invoiceId, patches, transaction = null) {
       where: {
         kind: 'card',
         [Op.and]: [
-          sequelize.where(sequelize.fn('JSON_EXTRACT', sequelize.col('meta'), '$.card_type'), 'invoice'),
-          sequelize.where(sequelize.fn('JSON_EXTRACT', sequelize.col('meta'), '$.invoice_id'), id),
+          sequelize.literal("JSON_UNQUOTE(JSON_EXTRACT(`meta`, '$.card_type')) = 'invoice'"),
+          sequelize.literal(`JSON_EXTRACT(\`meta\`, '$.invoice_id') = ${id}`),
         ],
       },
       transaction,
