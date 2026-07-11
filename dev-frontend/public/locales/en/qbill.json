@@ -748,7 +748,7 @@
     },
     "stripe": {
       "title": "Card Payment (Stripe)",
-      "desc": "Enter all three keys to enable the \"Pay by card\" button on the invoice's public payment page. Secret Key and Webhook Secret are stored encrypted and never shown again. Card payments confirm the installment instantly.",
+      "desc": "The \"Pay by card\" button turns on only when both the Secret Key and the Webhook Secret are set — without the webhook, a customer could pay and the invoice would never be marked paid. The Secret Key and Webhook Secret are stored encrypted and never shown again. Card payments confirm the installment instantly.",
       "publishable": "Publishable Key",
       "secret": "Secret Key",
       "webhook": "Webhook Secret",

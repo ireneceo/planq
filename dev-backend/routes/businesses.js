@@ -539,7 +539,7 @@ router.put('/:businessId/billing', authenticateToken, checkBusinessAccess, async
     }
     if (overdue_grace_days !== undefined) {
       const g = Number(overdue_grace_days);
-      if (!Number.isFinite(g) || g < 1 || g > 60) return errorResponse(res, '연체 정지 기간은 1~60일', 400);
+      if (!Number.isFinite(g) || g < 1 || g > 60) return errorResponse(res, '장기 연체 기준은 1~60일', 400);
       updates.overdue_grace_days = g;
     }
 
