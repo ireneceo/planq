@@ -100,6 +100,10 @@ export async function getIntegrated(businessId: number, periodType: ReportPeriod
 export async function shareIntegrated(businessId: number, periodType: ReportPeriodType, periodStart: string, dim: 'project' | 'member'): Promise<{ token: string; share_url: string }> {
   return jsonOf(await apiFetch(`/api/reports/${businessId}/integrated/share`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ period_type: periodType, period_start: periodStart, dim }) }));
 }
+/** 통합보고서 draft unit 확보(없으면 생성). 확정 전 전사요약 저장·SCR 생성의 선행. */
+export async function ensureIntegratedDraft(businessId: number, periodType: ReportPeriodType, periodStart: string): Promise<{ id: number; status: ReportStatus; narrative: string }> {
+  return jsonOf(await apiFetch(`/api/reports/${businessId}/integrated/draft`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ period_type: periodType, period_start: periodStart }) }));
+}
 export async function confirmIntegrated(businessId: number, periodType: ReportPeriodType, periodStart: string, executiveSummary?: string): Promise<{ id: number; status: ReportStatus }> {
   return jsonOf(await apiFetch(`/api/reports/${businessId}/integrated/confirm`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ period_type: periodType, period_start: periodStart, executive_summary: executiveSummary }) }));
 }
