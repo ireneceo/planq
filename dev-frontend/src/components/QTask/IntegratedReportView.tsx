@@ -13,8 +13,8 @@ import {
   SectionLabel, ChartCard,
 } from '../../pages/Insights/components';
 import {
-  getIntegrated, confirmIntegrated, reopenIntegrated, updateReportSettings, patchReportUnit, shareIntegrated,
-  periodStartOf, shiftPeriod,
+  getIntegrated, confirmIntegrated, reopenIntegrated, updateReportSettings, patchReportUnit, shareIntegrated, ensureIntegratedDraft,
+  generateReportNarrative, periodStartOf, shiftPeriod,
   type ReportPeriodType, type IntegratedRollup, type IntegratedUnitView,
 } from '../../services/reportUnit';
 
@@ -56,10 +56,41 @@ const IntegratedReportView: React.FC<Props> = ({ businessId, canManage, periodTy
     if (!data) return; setData({ ...data, settings: { ...data.settings, [key === 'report_integrated_confirm' ? 'integrated_confirm' : 'monthly_finalize']: next } });
     try { await updateReportSettings(businessId, { [key]: next }); } catch { load(true); }
   };
+  // 통합 unit 은 '확정' 시점에만 생성됐어서 확정 전 id 가 null → 전사요약 자동저장이 조용히 유실됐다.
+  // 저장/생성 직전에 draft unit 을 확보한다.
+  const ensureUnitId = useCallback(async (): Promise<number | null> => {
+    if (data?.integrated.id) return data.integrated.id;
+    try {
+      const u = await ensureIntegratedDraft(businessId, periodType, periodStart);
+      setData((prev) => (prev ? { ...prev, integrated: { ...prev.integrated, id: u.id, status: u.status } } : prev));
+      return u.id;
+    } catch { return null; }
+  }, [businessId, periodType, periodStart, data]);
+
   const saveExec = useCallback(async () => {
-    if (!data?.integrated.id) return;
-    try { await patchReportUnit(businessId, data.integrated.id, { narrative: execRef.current }); } catch { /* */ }
-  }, [businessId, data]);
+    const id = await ensureUnitId();
+    if (!id) return;
+    try { await patchReportUnit(businessId, id, { narrative: execRef.current }); } catch { /* */ }
+  }, [businessId, ensureUnitId]);
+  // #85 — 전사 요약도 SCR(상황·문제·해결) AI 초안 생성. 개인·프로젝트 보고서(ReportUnitView)와 같은 라우트·같은 흐름.
+  const [genBusy, setGenBusy] = useState(false);
+  const [execKey, setExecKey] = useState(0);
+  const doGenerate = async () => {
+    if (genBusy) return;
+    setGenBusy(true);
+    try {
+      const id = await ensureUnitId();
+      if (!id) return;
+      const lang = (typeof navigator !== 'undefined' && navigator.language || '').startsWith('en') ? 'en' : 'ko';
+      const out = await generateReportNarrative(businessId, id, lang);
+      if (out?.narrative) {
+        execRef.current = out.narrative;
+        await patchReportUnit(businessId, id, { narrative: out.narrative });
+        setExecKey((k) => k + 1);
+        await load(true);
+      }
+    } catch { /* 실패 시 기존 요약 유지 */ } finally { setGenBusy(false); }
+  };
   const doConfirm = async () => { if (busy) return; setBusy(true); try { await confirmIntegrated(businessId, periodType, periodStart, execRef.current); await load(true); } catch { /* */ } finally { setBusy(false); } };
   const doReopen = async () => { if (busy) return; setBusy(true); try { await reopenIntegrated(businessId, periodType, periodStart); await load(true); } catch { /* */ } finally { setBusy(false); } };
   const doPrint = () => window.print();
@@ -120,11 +151,25 @@ const IntegratedReportView: React.FC<Props> = ({ businessId, canManage, periodTy
       </KpiGrid>
 
       {/* 전사 요약 */}
-      <SectionLabel>{t('weeklyReview.integrated.execSummary', { defaultValue: '전사 요약' })}</SectionLabel>
+      <SecRow>
+        <SectionLabel>{t('weeklyReview.integrated.execSummary', { defaultValue: '전사 요약' })}</SectionLabel>
+        {canManage && !igConfirmed && (
+          <GenBtn
+            type="button"
+            onClick={doGenerate}
+            disabled={genBusy}
+            title={t('weeklyReview.unit.genScrTitle', { defaultValue: '보고 데이터로 상황·문제·해결(SCR) 구조 요약을 자동 작성합니다' }) as string}
+          >
+            {genBusy
+              ? t('weeklyReview.unit.genScrLoading', { defaultValue: 'AI 작성 중…' })
+              : t('weeklyReview.unit.genScr', { defaultValue: '✨ AI 요약 생성 (SCR)' })}
+          </GenBtn>
+        )}
+      </SecRow>
       <ChartCard>
         {canManage && !igConfirmed ? (
           <AutoSaveField onSave={saveExec} type="input">
-            <ExecArea defaultValue={data.executive_summary} placeholder={t('weeklyReview.integrated.execPh', { defaultValue: '이번 기간 전사 차원의 판단·성과·리스크를 요약해 주세요 (자동 저장)' }) as string} onChange={(e) => { execRef.current = e.target.value; }} />
+            <ExecArea key={execKey} defaultValue={data.executive_summary} placeholder={t('weeklyReview.integrated.execPh', { defaultValue: '이번 기간 전사 차원의 판단·성과·리스크를 요약해 주세요 (자동 저장)' }) as string} onChange={(e) => { execRef.current = e.target.value; }} />
           </AutoSaveField>
         ) : (data.executive_summary ? <ExecRead>{data.executive_summary}</ExecRead> : <ExecMuted>{t('weeklyReview.integrated.execEmpty', { defaultValue: '작성된 전사 요약이 없습니다.' })}</ExecMuted>)}
       </ChartCard>
@@ -188,6 +233,8 @@ const DoneChip = styled.span`font-size:12px;font-weight:700;color:#15803D;backgr
 const ShareMsg = styled.span`font-size:12px;font-weight:700;color:#0F766E;background:#F0FDFA;border-radius:999px;padding:4px 12px;`;
 const PendChip = styled.span`font-size:12px;font-weight:700;color:#A16207;background:#FEF9C3;border-radius:999px;padding:4px 12px;`;
 
+const SecRow = styled.div`display:flex;align-items:center;gap:8px;margin-bottom:8px;h2{margin:0;}`;
+const GenBtn = styled.button`margin-left:auto;font-size:12px;font-weight:600;color:#0F766E;background:#F0FDFA;border:1px solid #99F6E4;border-radius:8px;padding:5px 10px;cursor:pointer;transition:background .15s,border-color .15s;&:hover:not(:disabled){background:#CCFBF1;border-color:#5EEAD4;}&:disabled{opacity:.6;cursor:default;}`;
 const ExecArea = styled.textarea`width:100%;min-height:84px;resize:vertical;border:1px solid #E2E8F0;border-radius:10px;padding:12px 14px;font-size:14px;line-height:1.7;color:#334155;font-family:inherit;&:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,.15);}&::placeholder{color:#94A3B8;}`;
 const ExecRead = styled.p`font-size:14px;line-height:1.75;color:#334155;white-space:pre-wrap;margin:0;`;
 const ExecMuted = styled.p`font-size:13px;color:#94A3B8;margin:0;`;

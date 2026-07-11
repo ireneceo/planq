@@ -398,6 +398,31 @@ router.get('/:biz/integrated/share', authenticateToken, async (req, res, next) =
   } catch (err) { next(err); }
 });
 
+// POST /:biz/integrated/draft — 통합보고서 draft unit 확보 (없으면 생성).
+//   통합 unit 은 여태 '확정' 시점에만 생성됐다 → 확정 전엔 id 가 null 이라 전사요약 자동저장이
+//   조용히 유실되고(확정 눌러야만 저장) SCR 생성도 걸 곳이 없었다. 확정 전에도 draft 를 잡아준다.
+//   생성만 하고 상태는 draft — 확정과 무관.
+router.post('/:biz/integrated/draft', authenticateToken, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.biz);
+    const { member, ownerOrAdmin } = await loadScope(req, businessId);
+    if (!member) return errorResponse(res, 'member_only', 403);
+    if (!ownerOrAdmin) return errorResponse(res, 'owner_or_admin_only', 403);
+    const periodType = String(req.body?.period_type || 'weekly');
+    const periodStartRaw = String(req.body?.period_start || '');
+    if (!VALID_PERIOD.includes(periodType)) return errorResponse(res, 'invalid_period_type', 400);
+    if (!DATE_RE.test(periodStartRaw)) return errorResponse(res, 'invalid_period_start', 400);
+    const periodStart = normalizePeriodStart(periodType, periodStartRaw);
+
+    const rollup = await buildIntegratedRollup(businessId, periodType, periodStart);
+    const [unit] = await ReportUnit.findOrCreate({
+      where: { business_id: businessId, scope: 'workspace', scope_ref_id: 0, period_type: periodType, period_start: periodStart },
+      defaults: { status: 'draft', auto_snapshot: rollup },
+    });
+    return successResponse(res, { id: unit.id, status: unit.status, narrative: unit.narrative || '' });
+  } catch (err) { next(err); }
+});
+
 // POST /:biz/integrated/confirm — 통합 확정 (owner/admin, report_integrated_confirm ON 일 때만)
 router.post('/:biz/integrated/confirm', authenticateToken, async (req, res, next) => {
   try {
