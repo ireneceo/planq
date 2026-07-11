@@ -173,6 +173,17 @@ Invoice.init({
   stripe_payment_intent: { type: DataTypes.STRING(255), allowNull: true, comment: 'Stripe PaymentIntent id (webhook 착지 기록, 단일 발행)' },
   // 연체 알림 단계 등 보조 정보
   meta: { type: DataTypes.JSON, allowNull: true, comment: 'last_overdue_notify_stage / paused_due_to_invoice 등 보조 정보' },
+
+  // 정기청구 멱등키 — "이 구독/프로젝트의 이 회차는 청구서 한 장" 을 DB 가 보장한다.
+  //   sub:{subscription_id}:{period}  (고객 구독 정기청구)
+  //   proj:{project_id}:{period}      (프로젝트 월정액 정기청구)
+  // 여태 유일한 방어가 invoice_number UNIQUE 였는데, 충돌 시 번호를 새로 뽑아 재시도하는 코드가
+  // 그 방어를 무력화해서 동시 실행 시 청구서가 2장 발행됐다(실증). 수동 발행 청구서는 NULL.
+  idempotency_key: {
+    type: DataTypes.STRING(100),
+    allowNull: true,
+    unique: true,
+  },
 }, {
   sequelize,
   tableName: 'invoices',
