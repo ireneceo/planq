@@ -181,14 +181,23 @@ async function respondToMessage({ message, conversation, business, client }) {
   }
 
   // 4. 전방위 컨텍스트 빌드 (사이클 G+) — KB 만이 아닌 프로젝트·대화 흐름·일정·고객 360°
+  //   ★ scope 필수 — Cue 의 답변은 고객이 있는 대화방으로 나간다. 여태 scope 를 안 넘겨서
+  //     스냅샷들이 business_id 만으로 긁혔고(남의 개인 일정·내부 업무·청구 내역), 그게 그대로
+  //     LLM 프롬프트에 들어가 고객 답변 재료가 됐다. 질문한 사람(= 발화자)의 권한으로 격리한다.
   const { buildCueContext } = require('./cue_context');
+  const { getUserScope } = require('../middleware/access_scope');
+  const askerScope = message.sender_id
+    ? await getUserScope(message.sender_id, business.id).catch(() => null)
+    : null;
   const ctx = await buildCueContext({
     businessId: business.id,
     conversationId: conversation.id,
     projectId: conversation.project_id || null,
     clientId: conversation.client_id || (client?.id || null),
+    userId: message.sender_id || null,
     query: message.content,
     businessTimezone: business.timezone,
+    scope: askerScope,
   });
   const searchResults = ctx.kb || { has_results: false };
 
