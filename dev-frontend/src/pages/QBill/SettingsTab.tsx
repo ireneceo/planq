@@ -225,6 +225,7 @@ export default function SettingsTab({ inWorkspaceSettings = false }: SettingsTab
           <div>
             <SectionTitle>{t('settings.stripe.title', '카드 결제 (Stripe)')}</SectionTitle>
             <SectionDesc>{t('settings.stripe.desc', '세 가지 키를 모두 입력하면 청구서 공개 결제 페이지에 "카드로 결제" 버튼이 켜집니다. Secret Key·Webhook Secret 은 암호화되어 저장되며 화면에 다시 표시되지 않습니다. 카드 결제 시 회차가 즉시 확정됩니다.')}</SectionDesc>
+            <SectionDesc>{t('settings.stripe.whose', '여기 넣는 Stripe 계정은 이 워크스페이스의 것입니다. 고객이 카드로 결제하면 그 돈은 PlanQ 를 거치지 않고 이 계정으로 바로 들어옵니다. Stripe 계정은 도메인과 무관하므로 이미 쓰는 계정이 있으면 그대로 쓰면 되고, Webhook 만 이 화면에 표시된 주소로 하나 더 등록해 그 Signing secret 을 넣으세요.')}</SectionDesc>
           </div>
         </SectionHead>
         <EditGrid>
@@ -369,19 +370,21 @@ export default function SettingsTab({ inWorkspaceSettings = false }: SettingsTab
       <Section>
         <SectionHead>
           <div>
-            <SectionTitle>{t('settings.overdue.title', '연체 정책')}</SectionTitle>
-            <SectionDesc>{t('settings.overdue.desc', '결제 기한 초과 시 알림 진행과 자동 정지 기준입니다.')}</SectionDesc>
+            <SectionTitle>{t('settings.overdue.title', '연체 알림')}</SectionTitle>
+            <SectionDesc>
+              {t('settings.overdue.desc', '결제 기한이 지나면 청구 담당자에게 "독촉 메일을 보낼까요?" 하고 물어봅니다. 고객에게는 담당자가 직접 보낼 때만 나갑니다. 모든 청구서에 적용됩니다(프로젝트 청구·단독 청구 구분 없음).')}
+            </SectionDesc>
           </div>
         </SectionHead>
         <EditGrid>
           <EditField>
-            <EditLabel>{t('settings.overdue.graceDays', '자동 정지까지 허용 일수')}</EditLabel>
+            <EditLabel>{t('settings.overdue.graceDays', '장기 연체로 보는 기준 일수')}</EditLabel>
             <AutoSaveField type="input" onSave={async () => save({ overdue_grace_days: graceDays })}>
               <EditInput type="number" min={1} max={60} value={graceDays}
                 onChange={e => setGraceDays(Math.max(1, Math.min(60, Number(e.target.value) || 1)))} />
             </AutoSaveField>
             <FieldHint>
-              {t('settings.overdue.graceDaysHint', '진행: 1일차 1차 알림 → 약 절반(또는 7일) 임박 알림 → 도달 시 프로젝트 자동 정지. 결제 마킹하면 즉시 재개됩니다.')}
+              {t('settings.overdue.graceDaysHint', '기한이 지난 다음 날 한 번 묻고, 그 뒤로는 7일 간격으로 다시 묻습니다. 이 일수를 넘기면 "장기 연체"로 강조해서 알립니다. 독촉을 보내면 7일간 다시 묻지 않고, 청구서별로 알림을 끌 수도 있습니다.')}
             </FieldHint>
           </EditField>
         </EditGrid>

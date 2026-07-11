@@ -219,6 +219,8 @@ const ARTICLES = [
         'Clients click "Pay by card" on the invoice link and pay on Stripe\'s secure page. Split invoices are paid per installment.'),
       note('Secret Key·Webhook Secret 은 암호화되어 저장되며 화면에 다시 표시되지 않습니다. Stripe 설정은 소유자·관리자만 변경할 수 있습니다.',
         'Secret Key and Webhook Secret are stored encrypted and never shown again. Only owners and admins can change Stripe settings.'),
+      note('여기 넣는 계정은 이 워크스페이스의 것입니다 — 고객 결제금은 PlanQ 를 거치지 않고 이 계정으로 바로 들어옵니다. Stripe 계정은 도메인과 무관하므로 이미 쓰는 계정을 그대로 써도 됩니다. 다만 Webhook 은 이 화면에 표시된 주소로 하나 더 등록하고 그 Signing secret 을 넣어야 합니다(엔드포인트마다 secret 이 다릅니다).',
+        "The account you enter here is this workspace's own — customer payments land in it directly, never passing through PlanQ. Stripe accounts aren't tied to a domain, so you can reuse an existing one. You do need to add one more webhook endpoint (the URL shown on the screen) and paste its signing secret, since each endpoint has its own."),
     ] },
   { cat: 'qbill', slug: 'tax-cash-receipt', visibility: 'authenticated', linked_route: '/qbill', est: 3,
     title: t('세금계산서·현금영수증', 'Tax invoices & cash receipts'),
