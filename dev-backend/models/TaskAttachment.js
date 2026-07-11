@@ -20,7 +20,9 @@ TaskAttachment.init({
   file_size: { type: DataTypes.BIGINT, allowNull: false },
   mime_type: { type: DataTypes.STRING(100), allowNull: true },
   uploaded_by: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'users', key: 'id' } },
-  storage_provider: { type: DataTypes.ENUM('planq', 'gdrive'), allowNull: false, defaultValue: 'planq' },
+  // 's3' 누락 잠복버그 — link 라우트가 File.storage_provider 를 그대로 복사하는데 File 은 s3 를 쓸 수 있다.
+  // ENUM 에 없으면 S3 파일을 업무에 연결하는 순간 저장이 깨진다. (모델=SSOT, sync 가 다시 벗기지 않게 append)
+  storage_provider: { type: DataTypes.ENUM('planq', 'gdrive', 's3'), allowNull: false, defaultValue: 'planq' },
   external_id: { type: DataTypes.STRING(255), allowNull: true },
   external_url: { type: DataTypes.STRING(500), allowNull: true },
 }, {
