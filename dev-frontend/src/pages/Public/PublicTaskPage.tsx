@@ -12,6 +12,16 @@ import { useTranslation } from 'react-i18next';
 import { getAccessToken } from '../../contexts/AuthContext';
 import SharePasswordPrompt from './SharePasswordPrompt';
 import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
+import { sanitizeRichText } from '../../utils/sanitizeHtml';
+
+// #99b — 공개 페이지 날짜는 보는 사람 로케일로. (여태 '2026-07-11' 원본 문자열이 그대로 노출)
+function fmtDate(v?: string | null): string {
+  if (!v) return '—';
+  const d = new Date(`${String(v).slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return String(v);
+  const locale = typeof navigator !== 'undefined' && navigator.language.startsWith('en') ? 'en-US' : 'ko-KR';
+  return new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric' }).format(d);
+}
 
 interface TaskPreview {
   id: number;
@@ -117,7 +127,7 @@ const PublicTaskPage = () => {
         {task.description && (
           <Section>
             <SectionLabel>{t('public.task.description', { defaultValue: '설명' }) as string}</SectionLabel>
-            <DescBox>{task.description}</DescBox>
+            <DescBox dangerouslySetInnerHTML={{ __html: sanitizeRichText(task.description) }} />
           </Section>
         )}
 
@@ -137,13 +147,13 @@ const PublicTaskPage = () => {
           {task.start_date && (
             <KV>
               <K>{t('public.task.start', { defaultValue: '시작일' }) as string}</K>
-              <V>{task.start_date}</V>
+              <V>{fmtDate(task.start_date)}</V>
             </KV>
           )}
           {task.due_date && (
             <KV>
               <K>{t('public.task.due', { defaultValue: '마감일' }) as string}</K>
-              <V>{task.due_date}</V>
+              <V>{fmtDate(task.due_date)}</V>
             </KV>
           )}
           <KV>
@@ -197,7 +207,12 @@ const StatusPill = styled.span`display: inline-flex; padding: 3px 10px; font-siz
 const MetaItem = styled.span`font-size: 12px; color: #64748B;`;
 const Section = styled.section`margin: 16px 0;`;
 const SectionLabel = styled.div`font-size: 11px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;`;
-const DescBox = styled.div`font-size: 13px; color: #334155; line-height: 1.6; padding: 12px 14px; background: #F8FAFC; border-radius: 8px; white-space: pre-wrap;`;
+const DescBox = styled.div`font-size: 13px; color: #334155; line-height: 1.6; padding: 12px 14px; background: #F8FAFC; border-radius: 8px;
+  p { margin: 0 0 8px; } p:last-child { margin-bottom: 0; }
+  ul, ol { margin: 0 0 8px; padding-left: 20px; }
+  img { max-width: 100%; height: auto; border-radius: 6px; }
+  a { color: #0F766E; text-decoration: underline; }
+`;
 const Grid = styled.div`display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 20px 0;
   @media (max-width: 480px) { grid-template-columns: 1fr; }`;
 const KV = styled.div`display: flex; flex-direction: column; gap: 4px;`;

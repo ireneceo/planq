@@ -714,7 +714,8 @@
       "intlAccount": "국제 계좌번호 (IBAN)",
       "addAccount": "계좌 추가",
       "primary": "기본",
-      "setPrimary": "기본으로 설정"
+      "setPrimary": "기본으로 설정",
+      "ownerOnly": "입금 계좌는 소유자·관리자만 변경할 수 있습니다. 고객 송금이 들어오는 계좌라 읽기 전용으로 표시됩니다."
     },
     "defaults": {
       "title": "청구서 기본값",

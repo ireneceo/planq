@@ -5,6 +5,7 @@ import styled from 'styled-components';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
+import { sanitizeRichText } from '../../utils/sanitizeHtml';
 
 interface BundleDoc {
   id: number;
@@ -24,9 +25,9 @@ interface BundleData {
   documents: BundleDoc[];
 }
 
+// 공개 페이지 — 사용자 작성 HTML 은 반드시 정화 후 렌더 (여태 원문 그대로 넣어 script/onerror 가 실행 가능했다)
 function toHtml(v: string): string {
-  const isHtml = /<[a-z][\s\S]*>/i.test(v);
-  return isHtml ? v : `<p>${v.replace(/\n/g, '<br/>')}</p>`;
+  return sanitizeRichText(v);
 }
 function toSnippet(v: string | null): string {
   if (!v) return '';

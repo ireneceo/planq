@@ -36,6 +36,9 @@ export default function SettingsTab({ inWorkspaceSettings = false }: SettingsTab
   const navigate = useNavigate();
   const { user } = useAuth();
   const businessId = user?.business_id ? Number(user.business_id) : null;
+  // 입금 계좌·Stripe 키 = 돈이 들어오는 경로. owner/admin 만 편집 가능 (백엔드 게이트와 동일).
+  const canManageMoney = user?.business_role === 'owner' || user?.business_role === 'admin'
+    || user?.platform_role === 'platform_admin';
 
   const [info, setInfo] = useState<ApiBusinessInfo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -167,26 +170,29 @@ export default function SettingsTab({ inWorkspaceSettings = false }: SettingsTab
           <div>
             <SectionTitle>{t('settings.bank.title')}</SectionTitle>
             <SectionDesc>{t('settings.bank.desc')}</SectionDesc>
+            {!canManageMoney && (
+              <SectionDesc>{t('settings.bank.ownerOnly', '입금 계좌는 소유자·관리자만 변경할 수 있습니다. 고객 송금이 들어오는 계좌라 읽기 전용으로 표시됩니다.')}</SectionDesc>
+            )}
           </div>
         </SectionHead>
         <EditGrid>
           <EditField>
             <EditLabel>{t('settings.bank.bank')}</EditLabel>
             <AutoSaveField type="input" onSave={async () => save({ bank_name: bankName.trim() || null })}>
-              <EditInput type="text" value={bankName} onChange={e => setBankName(e.target.value)} placeholder={t('settings.misc.bankPlaceholder', { defaultValue: '우리은행' }) as string} />
+              <EditInput type="text" value={bankName} onChange={e => setBankName(e.target.value)} disabled={!canManageMoney} placeholder={t('settings.misc.bankPlaceholder', { defaultValue: '우리은행' }) as string} />
             </AutoSaveField>
           </EditField>
           <EditField>
             <EditLabel>{t('settings.bank.account')}</EditLabel>
             <AutoSaveField type="input" onSave={async () => save({ bank_account_number: acctNumber.trim() || null })}>
-              <EditInput type="text" value={acctNumber} onChange={e => setAcctNumber(e.target.value)} placeholder="000-000-000000"
+              <EditInput type="text" value={acctNumber} onChange={e => setAcctNumber(e.target.value)} disabled={!canManageMoney} placeholder="000-000-000000"
                 style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }} />
             </AutoSaveField>
           </EditField>
           <EditField>
             <EditLabel>{t('settings.bank.holder')}</EditLabel>
             <AutoSaveField type="input" onSave={async () => save({ bank_account_name: acctHolder.trim() || null })}>
-              <EditInput type="text" value={acctHolder} onChange={e => setAcctHolder(e.target.value)} placeholder={info.legal_name || info.name || ''} />
+              <EditInput type="text" value={acctHolder} onChange={e => setAcctHolder(e.target.value)} disabled={!canManageMoney} placeholder={info.legal_name || info.name || ''} />
             </AutoSaveField>
           </EditField>
           <EditField>
@@ -206,13 +212,13 @@ export default function SettingsTab({ inWorkspaceSettings = false }: SettingsTab
           <EditField>
             <EditLabel>{t('settings.bank.bankNameEn', '영문 은행명')}</EditLabel>
             <AutoSaveField type="input" onSave={async () => save({ bank_name_en: bankNameEn.trim() || null })}>
-              <EditInput type="text" value={bankNameEn} onChange={e => setBankNameEn(e.target.value)} placeholder="Woori Bank" />
+              <EditInput type="text" value={bankNameEn} onChange={e => setBankNameEn(e.target.value)} disabled={!canManageMoney} placeholder="Woori Bank" />
             </AutoSaveField>
           </EditField>
           <EditField $span={2}>
             <EditLabel>{t('settings.bank.holderEn', '영문 예금주')}</EditLabel>
             <AutoSaveField type="input" onSave={async () => save({ bank_account_name_en: acctHolderEn.trim() || null })}>
-              <EditInput type="text" value={acctHolderEn} onChange={e => setAcctHolderEn(e.target.value)} placeholder="WORPRORAB CO., LTD." />
+              <EditInput type="text" value={acctHolderEn} onChange={e => setAcctHolderEn(e.target.value)} disabled={!canManageMoney} placeholder="WORPRORAB CO., LTD." />
             </AutoSaveField>
             <FieldHint>{t('settings.bank.holderEnHint', '사업자등록증의 영문 상호 — 외화 청구서에 표시됩니다')}</FieldHint>
           </EditField>
@@ -232,7 +238,7 @@ export default function SettingsTab({ inWorkspaceSettings = false }: SettingsTab
           <EditField $span={2}>
             <EditLabel>{t('settings.stripe.publishable', 'Publishable Key')}</EditLabel>
             <AutoSaveField type="input" onSave={async () => save({ stripe_publishable_key: stripePub.trim() || null })}>
-              <EditInput type="text" value={stripePub} onChange={e => setStripePub(e.target.value)} placeholder="pk_live_..." />
+              <EditInput type="text" value={stripePub} onChange={e => setStripePub(e.target.value)} disabled={!canManageMoney} placeholder="pk_live_..." />
             </AutoSaveField>
           </EditField>
           <EditField $span={2}>
@@ -245,7 +251,7 @@ export default function SettingsTab({ inWorkspaceSettings = false }: SettingsTab
             <SecretRow>
               <AutoSaveField type="input" onSave={async () => { const v = stripeSecretInput.trim(); if (v) { await save({ stripe_secret: v }); setStripeSecretInput(''); } }}>
                 <EditInput type={reveal.ss ? 'text' : 'password'} value={stripeSecretInput} autoComplete="off"
-                  onChange={e => setStripeSecretInput(e.target.value)}
+                  onChange={e => setStripeSecretInput(e.target.value)} disabled={!canManageMoney}
                   placeholder={info.stripe_secret_set ? (t('settings.stripe.keepPh', '변경하려면 새 값 입력 (비우면 유지)') as string) : 'sk_live_...'} />
               </AutoSaveField>
               <RevealBtn type="button" onClick={() => setReveal(r => ({ ...r, ss: !r.ss }))}>
@@ -266,7 +272,7 @@ export default function SettingsTab({ inWorkspaceSettings = false }: SettingsTab
             <SecretRow>
               <AutoSaveField type="input" onSave={async () => { const v = stripeWebhookInput.trim(); if (v) { await save({ stripe_webhook_secret: v }); setStripeWebhookInput(''); } }}>
                 <EditInput type={reveal.sw ? 'text' : 'password'} value={stripeWebhookInput} autoComplete="off"
-                  onChange={e => setStripeWebhookInput(e.target.value)}
+                  onChange={e => setStripeWebhookInput(e.target.value)} disabled={!canManageMoney}
                   placeholder={info.stripe_webhook_secret_set ? (t('settings.stripe.keepPh', '변경하려면 새 값 입력 (비우면 유지)') as string) : 'whsec_...'} />
               </AutoSaveField>
               <RevealBtn type="button" onClick={() => setReveal(r => ({ ...r, sw: !r.sw }))}>
