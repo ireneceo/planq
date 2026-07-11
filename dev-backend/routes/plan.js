@@ -239,7 +239,17 @@ router.post('/:businessId/change', authenticateToken, checkBusinessAccess, async
       }, `${scheduledAt.toISOString().slice(0, 10)} 에 ${to_plan} 로 전환 예약됨`);
     }
 
-    // 업그레이드는 즉시 적용 (결제 완료 가정)
+    // ★ 업그레이드를 여기서 즉시 적용하면 안 된다 (Fable 게이트 경고 1 — 실증됨).
+    //   "결제 완료 가정" 이라고 적혀 있었지만 이 라우트는 결제를 확인하지 않는다 → owner 가 API 를
+    //   직접 호출하면 돈 한 푼 안 내고 pro 로 올라간다(가격 정책 자체가 무력화).
+    //   플랜 활성화의 단일 착지점은 결제 확정(billing.markPaymentPaid)이다 — 계좌이체 확인이든
+    //   Stripe webhook 이든 거기서만 Business.plan 이 올라간다.
+    //   → 업그레이드 요청은 결제 생성 안내로 돌려보낸다. platform_admin 은 운영 보정을 위해 허용.
+    const isPlatformAdmin = req.user.platform_role === 'platform_admin';
+    if (!isPlatformAdmin) {
+      return errorResponse(res, 'upgrade_requires_payment', 402);
+    }
+
     const days = billing_cycle === 'yearly' ? 365 : 30;
     const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
     await planEngine.changePlan(businessId, {
