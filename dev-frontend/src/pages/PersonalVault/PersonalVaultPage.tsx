@@ -18,6 +18,8 @@ import EmptyState from '../../components/Common/EmptyState';
 import DocsTab from '../QProject/DocsTab';  // N+30 — 개인 보관함 files 탭 풀세트 재사용
 import PostsPage from '../../components/Docs/PostsPage';  // N+30 phase2 — posts 탭 풀세트 재사용
 import KnowledgePage from '../Knowledge/KnowledgePage';  // N+30 phase3 — kb 탭 풀세트 재사용
+// #128 — 대시보드를 프로젝트·보고서와 같은 디자인 언어로 (자체 Stat/List 대신 공용 KPI 카드)
+import { KpiGrid, KpiCard, KpiLabel, KpiValueBig, SectionLabel, ChartCard } from '../Insights/components';
 
 // 사이클 N+14 — Q note (notes) 탭 추가
 type Tab = 'dashboard' | 'posts' | 'files' | 'kb' | 'notes';
@@ -154,22 +156,24 @@ const PersonalVaultPage: React.FC = () => {
 
       {tab === 'dashboard' && summary && (
         <DashboardGrid>
-          <Stat>
-            <StatLabel>{t('common:vault.tab.posts', { defaultValue: '문서' }) as string}</StatLabel>
-            <StatValue>{summary.counts.posts}</StatValue>
-          </Stat>
-          <Stat>
-            <StatLabel>{t('common:vault.tab.files', { defaultValue: '파일' }) as string}</StatLabel>
-            <StatValue>{summary.counts.files}</StatValue>
-          </Stat>
-          <Stat>
-            <StatLabel>{t('common:vault.tab.kb', { defaultValue: '정보' }) as string}</StatLabel>
-            <StatValue>{summary.counts.kb_documents}</StatValue>
-          </Stat>
+          <KpiGrid>
+            <KpiCard>
+              <KpiLabel>{t('common:vault.tab.posts', { defaultValue: '문서' }) as string}</KpiLabel>
+              <KpiValueBig>{summary.counts.posts}</KpiValueBig>
+            </KpiCard>
+            <KpiCard>
+              <KpiLabel>{t('common:vault.tab.files', { defaultValue: '파일' }) as string}</KpiLabel>
+              <KpiValueBig>{summary.counts.files}</KpiValueBig>
+            </KpiCard>
+            <KpiCard>
+              <KpiLabel>{t('common:vault.tab.kb', { defaultValue: '정보' }) as string}</KpiLabel>
+              <KpiValueBig>{summary.counts.kb_documents}</KpiValueBig>
+            </KpiCard>
+          </KpiGrid>
           {summary.recent.posts.length > 0 && (
             <Section>
-              <SectionTitle>{t('common:vault.recent.posts', '최근 문서') as string}</SectionTitle>
-              <List>
+              <SectionLabel>{t('common:vault.recent.posts', '최근 문서') as string}</SectionLabel>
+              <List as={ChartCard}>
                 {summary.recent.posts.map(p => (
                   <Row key={p.id} onClick={() => navigate(`/docs?post=${p.id}`)}>
                     <RowMain>{p.title}</RowMain>
@@ -181,8 +185,8 @@ const PersonalVaultPage: React.FC = () => {
           )}
           {summary.recent.files.length > 0 && (
             <Section>
-              <SectionTitle>{t('common:vault.recent.files', '최근 파일') as string}</SectionTitle>
-              <List>
+              <SectionLabel>{t('common:vault.recent.files', '최근 파일') as string}</SectionLabel>
+              <List as={ChartCard}>
                 {summary.recent.files.map(f => (
                   <Row key={f.id} onClick={() => navigate(`/files?file=${f.id}`)}>
                     <RowMain>{f.file_name}</RowMain>
@@ -194,8 +198,8 @@ const PersonalVaultPage: React.FC = () => {
           )}
           {summary.recent.kb_documents.length > 0 && (
             <Section>
-              <SectionTitle>{t('common:vault.recent.kb', '최근 정보') as string}</SectionTitle>
-              <List>
+              <SectionLabel>{t('common:vault.recent.kb', '최근 정보') as string}</SectionLabel>
+              <List as={ChartCard}>
                 {summary.recent.kb_documents.map(k => (
                   <Row key={k.id} onClick={() => navigate(`/info?doc=${k.id}`)}>
                     <RowMain>{k.title}</RowMain>
@@ -315,15 +319,8 @@ const TabBtn = styled.button<{ $active: boolean }>`
 const DashboardGrid = styled.div`
   display: flex; flex-direction: column; gap: 24px;
 `;
-const Stat = styled.div`
-  display: inline-flex; gap: 12px; align-items: baseline;
-  padding: 12px 16px; background: #F8FAFC; border-radius: 10px;
-`;
-const StatLabel = styled.div` font-size: 12px; color: #64748B; font-weight: 600; `;
-const StatValue = styled.div` font-size: 20px; color: #0F172A; font-weight: 700; `;
 
 const Section = styled.section``;
-const SectionTitle = styled.h3` font-size: 13px; font-weight: 700; color: #0F172A; margin: 0 0 8px; `;
 const List = styled.ul` list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; `;
 const Row = styled.li`
   display: flex; align-items: baseline; gap: 12px;

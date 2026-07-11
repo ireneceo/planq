@@ -37,11 +37,27 @@
     "closed": "Closed",
     "searchPlaceholder": "Search by name, client, or description",
     "kindLabel": "Type",
-    "kind": { "all": "All", "client": "Client", "internal": "Internal" },
+    "kind": {
+      "all": "All",
+      "client": "Client",
+      "internal": "Internal"
+    },
     "sortLabel": "Sort",
-    "sort": { "recent": "Recent", "name": "Name", "progress": "Progress", "deadline": "Deadline" },
+    "sort": {
+      "recent": "Recent",
+      "name": "Name",
+      "progress": "Progress",
+      "deadline": "Deadline"
+    },
     "groupLabel": "Group",
-    "group": { "none": "No group", "kind": "Client/Internal", "status": "By status", "client": "By client", "department": "By dept (owner)", "team": "By team (owner)" },
+    "group": {
+      "none": "No group",
+      "kind": "Client/Internal",
+      "status": "By status",
+      "client": "By client",
+      "department": "By dept (owner)",
+      "team": "By team (owner)"
+    },
     "noResults": "No projects match the current filter",
     "clearFilters": "Clear filters"
   },
@@ -171,7 +187,8 @@
     "defaultProcess": "Table",
     "processEditHint": "Double-click to rename",
     "renameHint": "Rename",
-    "details": "Details"
+    "details": "Details",
+    "settings": "Settings"
   },
   "tx": {
     "summary": {
