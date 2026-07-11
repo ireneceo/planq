@@ -487,7 +487,7 @@ function scheduleNextMidnight() {
       console.log('[upload-cleanup]', r);
     } catch (e) { console.warn('[upload-cleanup] failed', e.message); }
     try {
-      const r = await overdueHandler.runDailyOverdueCron();
+      const r = await overdueHandler.runDailyOverdueCron(new Date(), io);
       console.log('[overdue]', r);
     } catch (e) { console.warn('[overdue] failed', e.message); }
     try {

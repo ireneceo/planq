@@ -103,7 +103,12 @@ export interface ApiInvoice {
   viewed_at: string | null;
   notify_paid_at: string | null;
   notify_payer_name: string | null;
-  meta: { last_reminder_at?: string; reminder_count?: number; last_overdue_notify_stage?: string; last_resent_at?: string; resend_count?: number } | null;
+  meta: {
+    last_reminder_at?: string; reminder_count?: number;
+    last_overdue_notify_stage?: string; last_overdue_notify_at?: string; overdue_notify_count?: number;
+    overdue_notify_off?: boolean;
+    last_resent_at?: string; resend_count?: number;
+  } | null;
   source_post_id: number | null;
   project_id: number | null;
   bank_snapshot: { bank_name?: string; account_number?: string; account_holder?: string } | null;
@@ -456,6 +461,18 @@ export async function sendInvoiceReminder(
     body: JSON.stringify(message ? { message } : {}),
   });
   return expectOk<SendReminderResult>(r);
+}
+
+/** 연체 알림(담당자에게 "독촉 보낼까요?") 끄기/켜기. 고객 발송과 무관 — 내부 알림만. */
+export async function setInvoiceOverdueNotify(
+  businessId: number, invoiceId: number, enabled: boolean
+): Promise<{ enabled: boolean }> {
+  const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}/overdue-notify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled }),
+  });
+  return expectOk<{ enabled: boolean }>(r);
 }
 
 /** 고객 발송 전, 발행자 본인 이메일로 청구서 PDF 미리보기 발송 (draft 유지). */

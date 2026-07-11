@@ -322,28 +322,20 @@ router.get('/public/:token/receipt-file', async (req, res, next) => {
 // feedback_notify_trigger_required — 옛 notify-paid 는 inbox:refresh socket 만 보내 알림이 영영 0 이던 회귀.
 async function notifyOwnerPaymentNotified(invoice, { label, payerName, ioApp }) {
   try {
-    const { Op } = require('sequelize');
-    const { BusinessMember, Business } = require('../models');
     const { notifyMany } = require('./notifications');
-    const biz = await Business.findByPk(invoice.business_id, { attributes: ['name', 'brand_name', 'default_billing_owner_id'] });
+    const { resolveBillingRecipients } = require('../services/billingRecipients');
     // 수신자: owner/admin 멤버 + 청구 담당자(owner_user_id) + 워크스페이스 기본 청구담당자
-    const members = await BusinessMember.findAll({
-      where: { business_id: invoice.business_id, removed_at: null, role: { [Op.in]: ['owner', 'admin'] } },
-      attributes: ['user_id'],
-    });
-    const ids = new Set(members.map((m) => m.user_id));
-    if (invoice.owner_user_id) ids.add(invoice.owner_user_id);
-    if (biz?.default_billing_owner_id) ids.add(biz.default_billing_owner_id);
-    if (ids.size === 0) return;
+    const { userIds, workspaceName } = await resolveBillingRecipients(invoice);
+    if (userIds.length === 0) return;
     const who = payerName ? `${payerName} 님이` : '고객이';
     await notifyMany({
-      userIds: [...ids],
+      userIds,
       businessId: invoice.business_id, eventKind: 'payment',
       title: '송금 완료 알림 도착',
       body: `${invoice.invoice_number}${label ? ` ${label}` : ''} — ${who} 송금 완료를 알렸습니다. 입금 확인 후 처리해주세요.`,
       link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?tab=invoices&invoice=${invoice.id}`,
       ctaLabel: '청구서 보기',
-      workspaceName: biz?.brand_name || biz?.name || null,
+      workspaceName,
       entityType: 'invoice', entityId: invoice.id, ioApp,
     });
   } catch (e) { console.warn('[notify-paid owner notify]', e.message); }
@@ -1551,6 +1543,38 @@ router.post('/:businessId/:id/send-reminder', authenticateToken, reminderLimiter
     if (io) io.to(`business:${businessId}`).emit('invoice:updated', invoice.toJSON());
 
     return successResponse(res, { sent: true, last_reminder_at: meta.last_reminder_at, reminder_count: meta.reminder_count }, 'reminder_sent');
+  } catch (error) { next(error); }
+});
+
+// ─── 연체 알림 끄기/켜기 — cron 이 "독촉 보낼까요?" 를 이 청구서로 더 묻지 않게 ───
+//   고객에게 나가는 것이 아니라, 내부 담당자 알림만 끈다. 연체 상태 기록은 그대로 유지.
+router.post('/:businessId/:id/overdue-notify', authenticateToken, checkBusinessAccess, requireMenu('qbill', 'write'), async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const invoice = await Invoice.findOne({ where: { id: req.params.id, business_id: businessId } });
+    if (!invoice) return errorResponse(res, 'Invoice not found', 404);
+
+    const enabled = req.body?.enabled !== false;
+    const meta = (invoice.meta && typeof invoice.meta === 'object') ? { ...invoice.meta } : {};
+    if (enabled) {
+      delete meta.overdue_notify_off;
+      // 다시 켜면 즉시 물어볼 수 있게 최근 알림 시각도 비운다.
+      delete meta.last_overdue_notify_at;
+    } else {
+      meta.overdue_notify_off = true;
+    }
+    await invoice.update({ meta });
+
+    require('../services/auditService').logAudit(req, {
+      action: 'invoice.overdue_notify',
+      targetType: 'invoice',
+      targetId: invoice.id,
+      newValue: { invoice_number: invoice.invoice_number, enabled },
+    });
+    const io = req.app.get('io');
+    if (io) io.to(`business:${businessId}`).emit('invoice:updated', invoice.toJSON());
+
+    return successResponse(res, { enabled }, 'overdue_notify_updated');
   } catch (error) { next(error); }
 });
 

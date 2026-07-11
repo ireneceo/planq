@@ -1,21 +1,40 @@
-// 연체 처리 cron — 정기 프로젝트의 연체 invoice 단계별 처리
+// 연체 처리 cron — 마감일이 지난 미결제 청구서를 "청구 담당자에게 물어보는" 단계까지만 자동화.
+//
+// 정책 (2026-07-11, Irene 확정):
+//   결제 마킹이 수동이라 "고객은 입금했는데 아직 마킹 안 된" 상태가 정상적으로 존재한다.
+//   그 상태에서 시스템이 스스로 독촉 메일을 보내면 이미 낸 고객을 재촉하는 사고가 난다.
+//   → 고객에게 나가는 것(독촉 메일)은 전부 사람이 청구서에서 "결제 독촉 보내기"를 눌렀을 때만.
+//   → cron 은 담당자에게 "마감 지났습니다. 독촉 보낼까요?" 알림만 보낸다.
+//   (옛 동작: 마감 다음날 자동 독촉 메일 + 유예 도달 시 project.paused_at 자동 설정 + "정지되었습니다"
+//    고객 메일. 정지는 실제로 아무 기능도 멈추지 않는 write-only 필드였다 — 고객만 놀라는 허위 통보라
+//    같이 제거. 옛 paused_at 은 결제 마킹 시 unpauseProjectIfApplicable 가 정리한다.)
 //
 // 흐름 (daily):
-//   - due_date 초과 + status != 'paid' + business_id 의 정기 프로젝트 invoice 검색
-//   - 연체 일수 = today - due_date
-//   - 1일 차: 1차 알림 (client + 워크스페이스 멤버)
-//   - 7일 (또는 grace_days/2) 차: 2차 알림 (워크스페이스 + "곧 정지" 경고)
-//   - grace_days 도달: project.paused_at = NOW + 워크스페이스 + client 에 정지 통보
+//   - due_date 초과 + status not in (paid, draft, canceled) 인 invoice 검색
+//   - status = 'overdue' 로 마킹 (사실 기록 — 외부로 나가지 않음)
+//   - 청구 담당자(owner/admin + 청구서 담당자 + 워크스페이스 기본 청구담당)에게 알림
+//   - 유예기간(overdue_grace_days) 초과분은 "장기 연체" 톤으로 강조
 //
-// 멱등성:
-//   - Invoice.meta JSON 에 last_overdue_notify_stage = 1|2|paused 저장
-//   - 같은 stage 는 중복 발송 안 됨
+// 재알림/도배 방지:
+//   - meta.last_overdue_notify_at (마지막 제안 알림) / meta.last_reminder_at (마지막 실제 독촉 발송)
+//     둘 중 최근 시각으로부터 REASK_DAYS(7일) 지나야 다시 묻는다.
+//     → 담당자가 독촉을 보내면 그 자체가 7일 스누즈로 동작한다.
+//   - meta.overdue_notify_off = true 면 이 청구서는 더 묻지 않는다 (청구서 상세에서 끄기).
 
 const { Op } = require('sequelize');
-const { Project, Business, Invoice, Client, BusinessMember, sequelize } = require('../models');
+const { Project, Invoice } = require('../models');
+const { resolveBillingRecipients } = require('./billingRecipients');
+
+// 같은 청구서를 다시 묻기까지의 최소 간격
+const REASK_DAYS = 7;
+const REASK_MS = REASK_DAYS * 86400000;
+
+function appUrl() {
+  return process.env.APP_URL || 'https://dev.planq.kr';
+}
 
 // 단일 invoice 처리
-async function handleOverdueInvoice(invoice, today = new Date()) {
+async function handleOverdueInvoice(invoice, today = new Date(), ioApp = null) {
   if (!invoice.due_date) return { invoice_id: invoice.id, skipped: 'no_due_date' };
   if (invoice.status === 'paid') return { invoice_id: invoice.id, skipped: 'paid' };
 
@@ -23,158 +42,100 @@ async function handleOverdueInvoice(invoice, today = new Date()) {
   const daysOverdue = Math.floor((today - dueDate) / 86400000);
   if (daysOverdue < 1) return { invoice_id: invoice.id, skipped: 'not_overdue_yet' };
 
-  const business = await Business.findByPk(invoice.business_id, {
-    attributes: ['id', 'name', 'brand_name', 'overdue_grace_days'],
-  });
+  const meta = (invoice.meta && typeof invoice.meta === 'object') ? { ...invoice.meta } : {};
+
+  // 연체 사실 기록 — 외부 발송 아님. 상태만 갱신하고 알림 판단으로 넘어간다.
+  if (invoice.status !== 'overdue') {
+    await invoice.update({ status: 'overdue' });
+  }
+
+  if (meta.overdue_notify_off) {
+    return { invoice_id: invoice.id, skipped: 'notify_off', days_overdue: daysOverdue };
+  }
+
+  // 최근에 물었거나(제안 알림) 최근에 실제 독촉을 보냈으면 조용히 넘어간다.
+  const touchedAt = [meta.last_overdue_notify_at, meta.last_reminder_at]
+    .filter(Boolean)
+    .map((v) => new Date(v).getTime())
+    .filter((n) => Number.isFinite(n))
+    .sort((a, b) => b - a)[0] || null;
+  if (touchedAt && (today.getTime() - touchedAt) < REASK_MS) {
+    return { invoice_id: invoice.id, skipped: 'recently_asked', days_overdue: daysOverdue };
+  }
+
+  const { userIds, business, workspaceName } = await resolveBillingRecipients(invoice);
   if (!business) return { invoice_id: invoice.id, skipped: 'business_not_found' };
+  if (userIds.length === 0) return { invoice_id: invoice.id, skipped: 'no_recipient' };
 
   const graceDays = Number(business.overdue_grace_days || 7);
-  const project = invoice.project_id ? await Project.findByPk(invoice.project_id) : null;
+  const isLongOverdue = daysOverdue >= graceDays;
+  const remindable = Boolean(invoice.client_id);
+  const totalStr = `${Number(invoice.grand_total || 0).toLocaleString()} ${invoice.currency || 'KRW'}`;
+  const project = invoice.project_id ? await Project.findByPk(invoice.project_id, { attributes: ['id', 'name'] }) : null;
 
-  // meta JSON 에 stage 저장 (DB column 추가 없이 멱등성 확보)
-  const meta = (invoice.meta && typeof invoice.meta === 'object') ? { ...invoice.meta } : {};
-  const lastStage = meta.last_overdue_notify_stage || null;
+  const title = isLongOverdue
+    ? `장기 연체 ${daysOverdue}일 — ${invoice.invoice_number}`
+    : `결제 기한 ${daysOverdue}일 지남 — ${invoice.invoice_number}`;
 
-  const wsName = business.brand_name || business.name || null;
-  const invLink = `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?tab=invoices&invoice=${invoice.id}`;
+  const askLine = remindable
+    ? '독촉 메일을 보낼지 확인해주세요. 이미 입금된 건이면 결제 완료로 표시하면 됩니다.'
+    : '고객 이메일이 없어 독촉 메일을 보낼 수 없습니다. 청구서에서 수신 이메일을 확인해주세요.';
 
-  // 워크스페이스 멤버 알림 — fan-out 은 setImmediate fire-and-forget.
-  // overdue cron 메인 흐름이 한 invoice 의 알림 처리 시간만큼 막히지 않게.
-  const notifyMembers = (eventKind, title, body, link, ctaLabel) => {
-    setImmediate(async () => {
-      try {
-        const members = await BusinessMember.findAll({
-          where: { business_id: invoice.business_id, removed_at: null, role: { [Op.in]: ['owner', 'admin', 'member'] } },
-          attributes: ['user_id'],
-        });
-        const userIds = members.map((m) => m.user_id);
-        const { notifyMany } = require('../routes/notifications');
-        await notifyMany({
-          userIds, businessId: invoice.business_id, eventKind,
-          title, body, link, ctaLabel, workspaceName: wsName,
-        });
-      } catch (e) {
-        console.warn('[overdue notifyMembers async] invoice', invoice.id, e.message);
-      }
-    });
+  const bodyParts = [
+    `${invoice.title || invoice.invoice_number} · ${totalStr}`,
+    project ? `프로젝트 "${project.name}"` : null,
+    `결제 기한 ${String(invoice.due_date).slice(0, 10)}`,
+    askLine,
+  ].filter(Boolean);
+
+  const { notifyMany } = require('../routes/notifications');
+  await notifyMany({
+    userIds,
+    businessId: invoice.business_id,
+    eventKind: 'invoice',
+    title,
+    body: bodyParts.join(' · '),
+    link: `${appUrl()}/bills?tab=invoices&invoice=${invoice.id}`,
+    ctaLabel: remindable ? '독촉 보낼지 확인' : '청구서 보기',
+    workspaceName,
+    entityType: 'invoice',
+    entityId: invoice.id,
+    ioApp,
+  });
+
+  meta.last_overdue_notify_at = today.toISOString();
+  meta.overdue_notify_count = (Number(meta.overdue_notify_count) || 0) + 1;
+  await invoice.update({ meta });
+
+  return {
+    invoice_id: invoice.id,
+    project_id: invoice.project_id,
+    action: 'asked',
+    long_overdue: isLongOverdue,
+    days_overdue: daysOverdue,
+    notified: userIds.length,
   };
-
-  // 클라이언트 메일 helper (외부 — 매트릭스 무관)
-  const emailClient = async (subject, body) => {
-    if (!invoice.client_id) return;
-    const client = await Client.findByPk(invoice.client_id);
-    if (!client) return;
-    const recipient = client.tax_invoice_email || client.billing_contact_email || client.invite_email;
-    if (!recipient) return;
-    const { sendEmail } = require('./emailService');
-    const shareUrl = `${process.env.APP_URL || 'https://dev.planq.kr'}/public/invoices/${invoice.share_token}`;
-    const totalStr = `${invoice.currency || 'KRW'} ${Number(invoice.grand_total || 0).toLocaleString()}`;
-    const html = `
-<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"></head>
-<body style="margin:0;padding:0;background:#F8FAFC;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#0F172A;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 20px;"><tr><td align="center">
-    <table width="480" cellpadding="0" cellspacing="0" style="background:#FFFFFF;border-radius:14px;padding:28px;max-width:480px;">
-      <tr><td><div style="font-size:18px;font-weight:700;color:#B91C1C;margin-bottom:8px;">${subject}</div></td></tr>
-      <tr><td style="padding:8px 0 16px;"><div style="font-size:14px;color:#475569;line-height:1.6;">${body}</div></td></tr>
-      <tr><td style="background:#FEF2F2;padding:14px;border-radius:8px;margin:8px 0;">
-        <div style="font-size:12px;color:#7F1D1D;">청구서 ${invoice.invoice_number} · ${invoice.title || ''}</div>
-        <div style="font-size:18px;font-weight:700;color:#B91C1C;margin-top:4px;">${totalStr}</div>
-        <div style="font-size:12px;color:#7F1D1D;margin-top:2px;">결제 기한 ${String(invoice.due_date).slice(0,10)} · ${daysOverdue}일 연체</div>
-      </td></tr>
-      <tr><td align="center" style="padding:18px 0;">
-        <a href="${shareUrl}" style="display:inline-block;padding:12px 24px;background:#B91C1C;color:#FFFFFF;text-decoration:none;border-radius:8px;font-size:13px;font-weight:700;">청구서 확인 · 결제</a>
-      </td></tr>
-    </table>
-  </td></tr></table>
-</body></html>`;
-    await sendEmail({
-      to: recipient, subject: `[${wsName || 'PlanQ'}] ${subject}`, html,
-      businessId: invoice.business_id, template: 'overdue_notice',
-      relatedEntityType: 'invoice', relatedEntityId: invoice.id,
-    });
-  };
-
-  let actionTaken = null;
-
-  // Stage 3 — paused (grace 도달) — invoice 가 정기 프로젝트 소속일 때만 정지
-  if (daysOverdue >= graceDays && lastStage !== 'paused' && project && project.billing_type === 'subscription' && !project.paused_at) {
-    await project.update({ paused_at: new Date() });
-    actionTaken = 'paused';
-    meta.last_overdue_notify_stage = 'paused';
-    meta.paused_due_to_invoice = invoice.id;
-    await invoice.update({ meta, status: 'overdue' });
-    notifyMembers(
-      'invoice',
-      '프로젝트 자동 정지',
-      `"${project.name}" 프로젝트가 ${daysOverdue}일 연체로 자동 정지되었습니다. 결제 마킹 시 즉시 재개됩니다.`,
-      `${process.env.APP_URL || 'https://dev.planq.kr'}/q-project/${project.id}`,
-      '프로젝트 보기',
-    );
-    await emailClient(
-      `프로젝트가 정지되었습니다 — ${daysOverdue}일 연체`,
-      `장기 미결제로 프로젝트가 일시 정지되었습니다. 결제 후 즉시 정상 재개됩니다.`,
-    );
-  }
-  // Stage 2 — 임박 (grace_days 절반 또는 7일 도달)
-  else if (daysOverdue >= Math.max(3, Math.floor(graceDays / 2)) && lastStage !== 'stage2' && lastStage !== 'paused') {
-    actionTaken = 'stage2';
-    meta.last_overdue_notify_stage = 'stage2';
-    await invoice.update({ meta, status: 'overdue' });
-    const remaining = Math.max(0, graceDays - daysOverdue);
-    notifyMembers(
-      'invoice',
-      `청구서 연체 ${daysOverdue}일 — 정지까지 ${remaining}일`,
-      `${invoice.invoice_number} 결제가 ${daysOverdue}일 늦어지고 있습니다. ${remaining}일 후 자동 정지됩니다.`,
-      invLink,
-      '결제 확인',
-    );
-    await emailClient(
-      `결제 기한이 ${daysOverdue}일 지났습니다`,
-      `${remaining}일 내로 결제 안 되면 프로젝트가 자동 정지됩니다.`,
-    );
-  }
-  // Stage 1 — 첫 연체 (1일 이상)
-  else if (daysOverdue >= 1 && !lastStage) {
-    actionTaken = 'stage1';
-    meta.last_overdue_notify_stage = 'stage1';
-    await invoice.update({ meta, status: 'overdue' });
-    notifyMembers(
-      'invoice',
-      '청구서 연체 시작',
-      `${invoice.invoice_number} 결제 기한 ${String(invoice.due_date).slice(0,10)} 이 지났습니다.`,
-      invLink,
-      '청구서 보기',
-    );
-    await emailClient(
-      `결제 기한이 ${daysOverdue}일 지났습니다`,
-      `${invoice.invoice_number} 결제를 부탁드립니다.`,
-    );
-  } else {
-    return { invoice_id: invoice.id, skipped: 'no_action', last_stage: lastStage };
-  }
-
-  return { invoice_id: invoice.id, project_id: invoice.project_id, action: actionTaken, days_overdue: daysOverdue };
 }
 
 // Cron 진입 — 모든 미결제 연체 invoice 처리
-async function runDailyOverdueCron(today = new Date()) {
+async function runDailyOverdueCron(today = new Date(), ioApp = null) {
   const todayStr = today.toISOString().slice(0, 10);
   const invoices = await Invoice.findAll({
     where: {
       status: { [Op.notIn]: ['paid', 'draft', 'canceled'] },
       due_date: { [Op.lt]: todayStr },
     },
-    attributes: ['id', 'business_id', 'project_id', 'client_id', 'invoice_number', 'title', 'due_date', 'grand_total', 'currency', 'share_token', 'status', 'meta'],
+    attributes: ['id', 'business_id', 'project_id', 'client_id', 'owner_user_id', 'invoice_number', 'title', 'due_date', 'grand_total', 'currency', 'share_token', 'status', 'meta'],
   });
 
-  const out = { stage1: 0, stage2: 0, paused: 0, skip: 0, fail: 0, total: invoices.length };
+  const out = { asked: 0, long_overdue: 0, skip: 0, fail: 0, total: invoices.length };
   for (const inv of invoices) {
     try {
-      const r = await handleOverdueInvoice(inv, today);
-      if (r.action === 'stage1') out.stage1 += 1;
-      else if (r.action === 'stage2') out.stage2 += 1;
-      else if (r.action === 'paused') out.paused += 1;
-      else out.skip += 1;
+      const r = await handleOverdueInvoice(inv, today, ioApp);
+      if (r.action === 'asked') {
+        out.asked += 1;
+        if (r.long_overdue) out.long_overdue += 1;
+      } else out.skip += 1;
     } catch (e) {
       console.warn('[overdue] invoice', inv.id, 'crash', e.message);
       out.fail += 1;
@@ -183,7 +144,8 @@ async function runDailyOverdueCron(today = new Date()) {
   return out;
 }
 
-// 결제 마킹 시 호출 — paused_at 자동 해제
+// 결제 마킹 시 호출 — 옛 자동정지(paused_at)가 남아 있으면 정리.
+// 자동 정지는 폐지됐지만, 폐지 전에 정지된 프로젝트가 결제 후에도 묶여 있으면 안 되므로 유지.
 async function unpauseProjectIfApplicable(invoice) {
   if (!invoice?.project_id) return null;
   const project = await Project.findByPk(invoice.project_id);
@@ -204,4 +166,5 @@ module.exports = {
   runDailyOverdueCron,
   handleOverdueInvoice,
   unpauseProjectIfApplicable,
+  REASK_DAYS,
 };
