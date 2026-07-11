@@ -16,6 +16,7 @@ const { sequelize } = require('../config/database');
 const {
   BusinessMember, Client, ProjectClient, ConversationParticipant,
   Conversation, Project, ProjectMember, TaskReviewer, Business,
+  CalendarEventAttendee,
 } = require('../models');
 
 // ─────────────────────────────────────────────
@@ -305,6 +306,60 @@ async function invoiceListWhere(userId, businessId, scope) {
   return { business_id: businessId, client_id: { [Op.in]: scope.clientIds } };
 }
 
+// ─────────────────────────────────────────────
+// CalendarEvent — 가시성 where 단일 원천
+//
+// 여태 이 규칙은 routes/calendar.js 안에만 인라인으로 있었다. 그래서 Cue 컨텍스트 빌더가
+// 캘린더를 business_id 만으로 긁으면서 남의 개인(L1) 일정까지 LLM 프롬프트에 넣고 있었다.
+// 사람 라우트와 AI 가 같은 규칙을 쓰도록 추출한다.
+//
+//   client        — 본인이 attendee 인 business event 만 (PERMISSION_MATRIX §7)
+//   owner/admin   — 전체
+//   member        — 본인 생성 / L3 / L4 / L2(참여 프로젝트 또는 target_member_ids) / legacy
+//   scope 없음    — fail-closed: L3·L4 (워크스페이스 공개분) 만
+//
+// 반환: where 조각 (business_id 포함). null = 볼 수 있는 것 없음.
+// ─────────────────────────────────────────────
+async function calendarListWhere(userId, businessId, scope) {
+  if (!scope) scope = await getUserScope(userId, businessId);
+  const uid = parseInt(userId, 10);
+
+  if (scope?.isClient) {
+    const rows = await CalendarEventAttendee.findAll({ where: { user_id: uid }, attributes: ['event_id'] });
+    const ids = rows.map((a) => a.event_id);
+    if (ids.length === 0) return null;
+    return { business_id: businessId, id: { [Op.in]: ids }, visibility: 'business' };
+  }
+
+  const isAdmin = scope?.isOwner || scope?.isAdmin || scope?.isPlatformAdmin;
+  if (isAdmin) return { business_id: businessId };
+
+  if (!scope || !isMemberOrAbove(scope)) {
+    // 스코프를 모르면 개인·팀 일정은 절대 흘리지 않는다 (fail-closed)
+    return { business_id: businessId, vlevel: { [Op.in]: ['L3', 'L4'] } };
+  }
+
+  const myProjectIds = (await ProjectMember.findAll({
+    where: { user_id: uid }, attributes: ['project_id'],
+  })).map((r) => r.project_id);
+
+  return {
+    business_id: businessId,
+    [Op.and]: [{
+      [Op.or]: [
+        { created_by: uid },
+        { vlevel: 'L3' },
+        { vlevel: 'L4' },
+        { vlevel: 'L2', project_id: { [Op.in]: myProjectIds.length > 0 ? myProjectIds : [0] } },
+        sequelize.literal(`vlevel='L2' AND JSON_CONTAINS(target_member_ids, '${uid}')`),
+        // legacy fallback (vlevel NULL) — 옛 visibility 기반
+        { vlevel: null, visibility: 'business' },
+        { vlevel: null, visibility: 'personal', created_by: uid },
+      ],
+    }],
+  };
+}
+
 async function canAccessInvoice(userId, invoice, scope) {
   if (!invoice) return false;
   if (!scope) scope = await getUserScope(userId, invoice.business_id);
@@ -590,6 +645,7 @@ module.exports = {
   canAccessProject,
   fileListWhere,
   invoiceListWhere,
+  calendarListWhere,
   canAccessInvoice,
   postListWhere,
   canAccessPost,

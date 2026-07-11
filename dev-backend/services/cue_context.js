@@ -24,7 +24,7 @@ const {
   SignatureRequest,
 } = require('../models');
 const kbService = require('./kb_service');
-const { taskListWhere, invoiceListWhere, isMemberOrAbove } = require('../middleware/access_scope');
+const { taskListWhere, invoiceListWhere, calendarListWhere, isMemberOrAbove } = require('../middleware/access_scope');
 
 // 토큰 예산 — 대략 chars/4 ≈ tokens. 안전 margin.
 const HISTORY_TURN_LIMIT = 10;
@@ -51,7 +51,9 @@ async function getConversationHistory(conversationId, limit = HISTORY_TURN_LIMIT
 }
 
 // ── 프로젝트 현황: active stage, 진행 task, 다가오는 일정
-async function getProjectSnapshot(projectId, businessId) {
+//    ★ 질문자 권한 scope 관통 필수 — Cue 답변은 고객이 있는 대화방으로도 나간다.
+//      scope 없이 business_id 만으로 긁으면 남의 개인(L1) 일정·내부 업무가 고객에게 흘러간다.
+async function getProjectSnapshot(projectId, businessId, scope) {
   if (!projectId) return null;
   const project = await Project.findOne({
     where: { id: projectId, business_id: businessId },
@@ -67,37 +69,38 @@ async function getProjectSnapshot(projectId, businessId) {
   const active = stages.find(s => s.status === 'active');
   const completed = stages.filter(s => s.status === 'completed').length;
 
-  const tasks = await Task.findAll({
+  // 업무 — 질문자가 볼 수 있는 것만 (client 면 관여분만)
+  const taskBase = await taskListWhere(scope?.userId, businessId, scope);
+  const tasks = taskBase ? await Task.findAll({
     where: {
-      business_id: businessId,
-      project_id: projectId,
-      status: { [Op.in]: ['in_progress', 'reviewing', 'revision_requested', 'task_requested'] },
+      [Op.and]: [
+        taskBase,
+        { project_id: projectId, status: { [Op.in]: ['in_progress', 'reviewing', 'revision_requested', 'task_requested'] } },
+      ],
     },
     attributes: ['id', 'title', 'status', 'due_date', 'progress_percent', 'assignee_id'],
     include: [{ model: User, as: 'assignee', attributes: ['id', 'name'], required: false }],
     order: [['due_date', 'ASC']],
     limit: TASK_LIMIT,
-  });
+  }) : [];
 
   const now = new Date();
   const weekAhead = new Date(now.getTime() + 7 * 86400 * 1000);
-  const events = await CalendarEvent.findAll({
-    where: {
-      business_id: businessId,
-      project_id: projectId,
-      start_at: { [Op.between]: [now, weekAhead] },
-    },
+  // 일정 — 캘린더 가시성 규칙(access_scope 단일 원천) 통과분만
+  const calBase = await calendarListWhere(scope?.userId, businessId, scope);
+  const events = calBase ? await CalendarEvent.findAll({
+    where: { [Op.and]: [calBase, { project_id: projectId, start_at: { [Op.between]: [now, weekAhead] } }] },
     attributes: ['id', 'title', 'start_at', 'location'],
     order: [['start_at', 'ASC']],
     limit: EVENT_LIMIT,
-  });
+  }) : [];
 
   return { project, active, totalStages: stages.length, completed, tasks, events };
 }
 
 // ── 사용자 본인 스냅샷 — 도움말 챗 (/api/cue/help) 에서 활용
 //    본인의 이번 주 task, 다가오는 일정, 받은 업무 요청
-async function getUserSnapshot(userId, businessId, businessTimezone) {
+async function getUserSnapshot(userId, businessId, businessTimezone, scope) {
   if (!userId || !businessId) return null;
   // 이번 주 본인 담당 task
   const myTasks = await Task.findAll({
@@ -113,13 +116,15 @@ async function getUserSnapshot(userId, businessId, businessTimezone) {
 
   const now = new Date();
   const weekAhead = new Date(now.getTime() + 7 * 86400 * 1000);
-  // 본인 참석 일정
-  const events = await CalendarEvent.findAll({
-    where: { business_id: businessId, start_at: { [Op.between]: [now, weekAhead] } },
+  // 다가오는 일정 — "본인 참석 일정" 이라는 주석과 달리 여태 워크스페이스 전체를 필터 없이 긁어
+  // 남의 개인(L1) 일정까지 프롬프트에 들어갔다. 캘린더 가시성 규칙 통과분만.
+  const calBase = await calendarListWhere(userId, businessId, scope);
+  const events = calBase ? await CalendarEvent.findAll({
+    where: { [Op.and]: [calBase, { start_at: { [Op.between]: [now, weekAhead] } }] },
     attributes: ['id', 'title', 'start_at', 'location'],
     order: [['start_at', 'ASC']],
     limit: EVENT_LIMIT,
-  });
+  }) : [];
 
   // 받은 업무 요청 (ack 전)
   const inboxTasks = await Task.findAll({
@@ -138,7 +143,7 @@ async function getUserSnapshot(userId, businessId, businessTimezone) {
 }
 
 // ── 고객 360° 요약 — 이전 결제·서명·기본 정보
-async function getClientSnapshot(clientId, businessId) {
+async function getClientSnapshot(clientId, businessId, scope) {
   if (!clientId) return null;
   const client = await Client.findOne({
     where: { id: clientId, business_id: businessId },
@@ -148,18 +153,24 @@ async function getClientSnapshot(clientId, businessId) {
   });
   if (!client) return null;
 
-  const recentInvoices = await Invoice.findAll({
-    where: { business_id: businessId, client_id: clientId },
+  // 재무(청구) 는 볼 권한이 있는 사람에게만. 여태 scope 무관하게 프롬프트에 들어갔다.
+  //   - 워크스페이스 재무 권한자(owner/admin/platform_admin) → 그 고객 청구 내역
+  //   - 그 고객 본인(client 계정) → 자기 청구 내역 (invoiceListWhere 가 clientIds 로 격리)
+  //   - 그 외(일반 멤버·스코프 없음) → 재무 데이터 없음 (fail-closed)
+  const invBase = scope ? await invoiceListWhere(scope.userId, businessId, scope) : null;
+  const canFinance = Boolean(invBase) && (scope.isOwner || scope.isAdmin || scope.isPlatformAdmin || scope.isClient);
+  const recentInvoices = canFinance ? await Invoice.findAll({
+    where: { [Op.and]: [invBase, { client_id: clientId }] },
     attributes: ['id', 'invoice_number', 'grand_total', 'paid_amount', 'status', 'currency', 'sent_at'],
     order: [['created_at', 'DESC']],
     limit: 5,
-  });
+  }) : [];
   const totalSent = recentInvoices.reduce((s, i) => s + Number(i.grand_total || 0), 0);
   const totalPaid = recentInvoices.reduce((s, i) => s + Number(i.paid_amount || 0), 0);
 
-  const recentSigs = await SignatureRequest.count({
+  const recentSigs = canFinance ? await SignatureRequest.count({
     where: { business_id: businessId, status: { [Op.in]: ['signed', 'sent', 'viewed'] } },
-  });
+  }) : 0;
 
   return { client, recentInvoices, totalSent, totalPaid, totalSigs: recentSigs };
 }
@@ -450,12 +461,12 @@ async function buildCueContext({ businessId, conversationId, projectId, clientId
   // 개별 스냅샷 실패가 컨텍스트 전체를 죽이면 안 됨 (memo 컬럼 실사고 재발 방지) — 모두 개별 .catch
   // 1. 대화 히스토리
   const historyP = getConversationHistory(conversationId).catch(() => []);
-  // 2. 프로젝트 스냅샷
-  const projectP = projectId ? getProjectSnapshot(projectId, businessId).catch(() => null) : Promise.resolve(null);
-  // 3. 고객 스냅샷
-  const clientP = clientId ? getClientSnapshot(clientId, businessId).catch(() => null) : Promise.resolve(null);
+  // 2. 프로젝트 스냅샷 — 질문자 권한 scope 관통 (없으면 fail-closed)
+  const projectP = projectId ? getProjectSnapshot(projectId, businessId, scope).catch(() => null) : Promise.resolve(null);
+  // 3. 고객 스냅샷 — 재무는 권한자에게만
+  const clientP = clientId ? getClientSnapshot(clientId, businessId, scope).catch(() => null) : Promise.resolve(null);
   // 4. 사용자 본인 스냅샷 (도움말 챗 / userId 명시 시)
-  const userP = userId ? getUserSnapshot(userId, businessId, businessTimezone).catch(() => null) : Promise.resolve(null);
+  const userP = userId ? getUserSnapshot(userId, businessId, businessTimezone, scope).catch(() => null) : Promise.resolve(null);
   // 5. KB 검색 (사이클 G 의 ctx 우선순위 활용)
   const kbP = query
     ? kbService.hybridSearch(businessId, query, { limit: 5, project_id: projectId, client_id: clientId })

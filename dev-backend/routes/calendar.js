@@ -34,7 +34,7 @@ function broadcastEvent(req, event, eventName = 'event:updated') {
 }
 
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
-const { attachWorkspaceScope, isMemberOrAbove, getUserScope } = require('../middleware/access_scope');
+const { attachWorkspaceScope, isMemberOrAbove, getUserScope, calendarListWhere } = require('../middleware/access_scope');
 const { createAuditLog } = require('../middleware/audit');
 const { RRule, rrulestr } = require('rrule');
 // 사이클 N+13: Daily.co 완전 교체 → Google Calendar API (Meet 자동 생성)
@@ -113,41 +113,13 @@ router.get('/by-business/:businessId', authenticateToken, attachWorkspaceScope()
     if (req.query.project_id) baseWhere.project_id = Number(req.query.project_id);
 
     // N+67 — 권한 query refactor. vlevel 우선 + legacy visibility fallback.
-    //   client — 본인이 attendee 인 business event 만 (PERMISSION_MATRIX §7)
-    //   owner/admin — 모든 event
-    //   member  — L1 (본인) / L2 (참여 프로젝트 또는 target_member_ids) / L3 / L4
-    if (req.scope?.isClient) {
-      const myAttendees = await CalendarEventAttendee.findAll({
-        where: { user_id: req.user.id },
-        attributes: ['event_id'],
-      });
-      const ids = myAttendees.map((a) => a.event_id);
-      if (ids.length === 0) return successResponse(res, []);
-      baseWhere.id = { [Op.in]: ids };
-      baseWhere[Op.and] = [{ visibility: 'business' }];
-    } else {
-      const isAdmin = req.businessRole === 'owner' || req.businessRole === 'admin' || req.user?.platform_role === 'platform_admin';
-      if (!isAdmin) {
-        const userId = parseInt(req.user.id, 10);
-        const myProjectIds = (await ProjectMember.findAll({
-          where: { user_id: userId },
-          attributes: ['project_id'],
-        })).map(r => r.project_id);
-        baseWhere[Op.and] = [{
-          [Op.or]: [
-            { created_by: userId },  // 본인 생성은 무조건 노출
-            { vlevel: 'L3' },
-            { vlevel: 'L4' },
-            { vlevel: 'L2', project_id: { [Op.in]: myProjectIds.length > 0 ? myProjectIds : [0] } },
-            sequelize.literal(`vlevel='L2' AND JSON_CONTAINS(target_member_ids, '${userId}')`),
-            // legacy fallback (vlevel NULL) — 옛 visibility 기반
-            { vlevel: null, visibility: 'business' },
-            { vlevel: null, visibility: 'personal', created_by: userId },
-          ],
-        }];
-      }
-      // admin 은 baseWhere 추가 필터 없음 — 모든 event
-    }
+    // 규칙 본체는 access_scope.calendarListWhere 로 추출 (사람 라우트와 Cue 컨텍스트가 같은 규칙을 쓰도록).
+    //   client — 본인이 attendee 인 business event 만 / owner·admin — 전체 / member — 본인·L2·L3·L4
+    const visWhere = await calendarListWhere(req.user.id, businessId, req.scope);
+    if (!visWhere) return successResponse(res, []);   // 볼 수 있는 일정 없음 (attendee 0 인 client)
+    const { business_id: _bid, [Op.and]: visAnd, ...visRest } = visWhere;
+    Object.assign(baseWhere, visRest);
+    if (visAnd) baseWhere[Op.and] = visAnd;
 
     const rawEvents = await CalendarEvent.findAll({
       where: baseWhere,
