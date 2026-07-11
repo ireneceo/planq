@@ -71,6 +71,9 @@ router.post('/:businessId/:messageId/reactions', authenticateToken, attachWorksp
     const businessId = Number(req.params.businessId);
     const { message } = loaded;
 
+    // 삭제된 메시지("삭제된 메시지" 로 마스킹된 것)에는 반응을 달 수 없다 (Fable 경고 1).
+    if (message.is_deleted) return errorResponse(res, 'message_deleted', 400);
+
     const existing = await MessageReaction.findOne({
       where: { message_id: message.id, user_id: req.user.id, emoji, business_id: businessId },
     });
