@@ -6,8 +6,11 @@
 //   → 고객에게 나가는 것(독촉 메일)은 전부 사람이 청구서에서 "결제 독촉 보내기"를 눌렀을 때만.
 //   → cron 은 담당자에게 "마감 지났습니다. 독촉 보낼까요?" 알림만 보낸다.
 //   (옛 동작: 마감 다음날 자동 독촉 메일 + 유예 도달 시 project.paused_at 자동 설정 + "정지되었습니다"
-//    고객 메일. 정지는 실제로 아무 기능도 멈추지 않는 write-only 필드였다 — 고객만 놀라는 허위 통보라
-//    같이 제거. 옛 paused_at 은 결제 마킹 시 unpauseProjectIfApplicable 가 정리한다.)
+//    고객 메일. 자동 정지도 제거 — 결제 마킹이 수동이라 "입금했는데 마킹 전" 고객의 프로젝트를
+//    시스템이 멋대로 멈출 수 있었다. 정지 여부는 사람이 판단한다.
+//    ★ paused_at 은 죽은 필드가 아니다 — recurring_invoice.js 가 `paused_at: null` 로 필터해
+//    정기 자동청구를 실제로 멈춘다. 다만 화면에서 수동으로 정지하는 경로는 아직 없다(설계 부채).
+//    옛 paused_at 은 결제 마킹 시 unpauseProjectIfApplicable 가 정리한다.)
 //
 // 흐름 (daily):
 //   - due_date 초과 + status not in (paid, draft, canceled) 인 invoice 검색

@@ -211,8 +211,8 @@ const ARTICLES = [
     body: [
       p('워크스페이스에 Stripe 계정을 연결하면 청구서 공개 결제 페이지에 "카드로 결제" 버튼이 켜집니다. 계좌이체와 함께 제공되며, 카드 결제는 결제 즉시 확정됩니다.',
         'Connect a Stripe account to your workspace to turn on a "Pay by card" button on the invoice payment page. It works alongside bank transfer, and card payments confirm instantly.'),
-      s('Q Bill 설정 → "카드 결제 (Stripe)" 에서 Publishable Key·Secret Key·Webhook Secret 세 가지를 입력합니다.',
-        'In Q Bill settings → "Card Payment (Stripe)", enter the Publishable Key, Secret Key, and Webhook Secret.'),
+      s('Q Bill 설정 → "카드 결제 (Stripe)" 에서 Secret Key 와 Webhook Secret 을 입력합니다(둘 다 있어야 결제 버튼이 켜집니다 — Webhook 이 없으면 고객이 결제해도 청구서가 자동 확정되지 않기 때문입니다). Publishable Key 는 선택입니다.',
+        'In Q Bill settings → "Card Payment (Stripe)", enter the Secret Key and the Webhook Secret. Both are required to turn the button on — without the webhook, a customer could pay and the invoice would never be marked paid. The Publishable Key is optional.'),
       s('Stripe 대시보드 → Developers → Webhooks 에 화면에 표시된 엔드포인트 URL 을 등록하고(checkout.session.completed, payment_intent.succeeded) Signing secret 을 입력합니다.',
         'In the Stripe Dashboard → Developers → Webhooks, register the endpoint URL shown on screen (checkout.session.completed, payment_intent.succeeded) and paste the Signing secret.'),
       s('고객은 청구서 링크에서 "카드로 결제"를 눌러 Stripe 보안 페이지에서 결제합니다. 분할 청구는 회차별로 결제합니다.',

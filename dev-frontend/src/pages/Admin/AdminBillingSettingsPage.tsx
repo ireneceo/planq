@@ -176,7 +176,7 @@ const AdminBillingSettingsPage = () => {
         {/* Stripe (카드 PG — 활성) */}
         <Card>
           <SectionTitle>{t('billing.stripeSection', 'Stripe (카드 결제)')}</SectionTitle>
-          <Hint>{t('billing.stripeHint', '세 가지 키를 모두 입력하면 구독 결제 화면에 "카드로 결제" 버튼이 자동으로 켜집니다. Secret Key·Webhook Secret 은 암호화되어 저장되며 화면에 다시 표시되지 않습니다. 카드 결제는 결제 완료 시 구독이 즉시 활성화됩니다(계좌이체는 관리자 확인 필요).')}</Hint>
+          <Hint>{t('billing.stripeHint', 'Secret Key 와 Webhook Secret 을 모두 입력해야 구독 결제 화면에 "카드로 결제" 버튼이 켜집니다. Webhook 이 없으면 고객이 결제해도 구독이 자동 활성화되지 않기 때문입니다. Secret Key·Webhook Secret 은 암호화되어 저장되며 화면에 다시 표시되지 않습니다. 카드 결제는 결제 완료 시 구독이 즉시 활성화됩니다(계좌이체는 관리자 확인 필요).')}</Hint>
 
           <Field>
             <Label>{t('billing.stripePublishable', 'Publishable Key')}</Label>

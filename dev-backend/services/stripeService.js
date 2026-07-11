@@ -57,11 +57,16 @@ async function getStripeForMerchant(merchant, merchantId) {
   return new Stripe(secret);
 }
 
-// "설정하면 켜짐" 판정 — secret 존재 여부만
+// "카드 결제 켜짐" 판정 — secret + webhook secret 둘 다 있어야 한다.
+//
+// 여태 secret 만 검사했다. 그래서 Secret Key 만 넣고 Webhook Secret 을 안 넣으면
+// 결제 버튼은 켜지는데 웹훅 엔드포인트가 503 → 고객이 카드로 결제해서 돈은 Stripe 로 들어오는데
+// 청구서는 영영 '결제 완료'로 확정되지 않는다 (돈은 받았는데 미수금으로 남음).
+// 결제 확정 경로가 없는 결제 버튼은 켜면 안 된다.
 async function isStripeEnabled(merchant, merchantId) {
   try {
-    const { secret } = await getStripeKeysForMerchant(merchant, merchantId);
-    return !!secret;
+    const { secret, webhookSecret } = await getStripeKeysForMerchant(merchant, merchantId);
+    return !!secret && !!webhookSecret;
   } catch { return false; }
 }
 
