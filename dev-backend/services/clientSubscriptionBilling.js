@@ -71,6 +71,17 @@ async function resolveCreator(sub, business) {
 }
 
 // 단일 구독 1회 발행
+// 멱등키의 기간 문자열 — 반드시 YYYY-MM-DD.
+//   next_billing_at 은 DATEONLY 라 문자열일 때도, 코드가 advanceDate 로 밀어 Date 객체일 때도 있다.
+//   String(Date) 는 "Tue Aug 11 2026 …" 라서 앞 10자를 자르면 "Tue Aug 11" 같은 쓰레기 키가 되고,
+//   훗날 엉뚱하게 충돌해 정상 청구를 막을 수 있다. (DATEONLY 함정)
+function toPeriodStr(v) {
+  if (!v) return null;
+  if (typeof v === 'string') return /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+}
+
 async function billOneSubscription(sub, today = new Date()) {
   const client = await Client.findByPk(sub.client_id);
   if (!client) return { subscription_id: sub.id, skipped: 'client_not_found' };
@@ -106,11 +117,23 @@ async function billOneSubscription(sub, today = new Date()) {
     account_holder: business.bank_account_name || business.brand_name || business.name || null,
   };
 
+  // 멱등키 — 이 구독의 이 회차는 청구서 한 장 (period = next_billing_at 기준일).
+  //   여태 유일한 방어가 invoice_number UNIQUE 였는데, 아래 재시도 루프가 충돌 시 번호를 새로 뽑아
+  //   다시 INSERT 해서 그 방어를 무력화했다 → 동시 실행 시 청구서 2장 발행(실증). DB UNIQUE 로 못 박는다.
+  const period = toPeriodStr(sub.next_billing_at);
+  if (!period) return { subscription_id: sub.id, skipped: 'invalid_next_billing_at' };
+  const idemKey = `sub:${sub.id}:${period}`;
+  const already = await Invoice.findOne({ where: { idempotency_key: idemKey }, attributes: ['id'] });
+  if (already) {
+    return { subscription_id: sub.id, skipped: 'already_billed', invoice_id: already.id };
+  }
+
   const invoicePayload = () => ({
     business_id: sub.business_id,
     project_id: null,
     client_id: client.id,
     invoice_number: invoiceNumber,
+    idempotency_key: idemKey,
     title,
     due_date: dueDate.toISOString().slice(0, 10),
     notes: '정기 구독 자동 청구',
@@ -129,13 +152,19 @@ async function billOneSubscription(sub, today = new Date()) {
     status: isAuto ? 'sent' : 'draft',
     sent_at: isAuto ? new Date() : null,
   });
-  // 운영 — invoice_number unique 충돌 시 번호 재생성 후 재시도 (다건/동시성 안전망).
-  let invoice;
-  for (let attempt = 0; attempt < 5; attempt++) {
-    try { invoice = await Invoice.create(invoicePayload()); break; }
-    catch (e) {
-      if (e?.name === 'SequelizeUniqueConstraintError' && attempt < 4) { invoiceNumber = await nextInvoiceNumber(); continue; }
-      throw e;
+  // unique 충돌 분기 (재시도 대상은 '번호' 뿐 — 멱등키 충돌은 재시도하면 안 된다):
+  //   - idempotency_key 충돌 → 다른 실행이 이 회차를 이미 발행 → 조용히 종료
+  //   - invoice_number 충돌 → 번호만 재생성해 재시도
+  let invoice = null;
+  for (let attempt = 0; attempt < 5 && !invoice; attempt += 1) {
+    try {
+      invoice = await Invoice.create(invoicePayload());
+    } catch (e) {
+      if (e?.name !== 'SequelizeUniqueConstraintError') throw e;
+      const dup = await Invoice.findOne({ where: { idempotency_key: idemKey }, attributes: ['id'] });
+      if (dup) return { subscription_id: sub.id, skipped: 'already_billed', invoice_id: dup.id };
+      if (attempt >= 4) throw e;
+      invoiceNumber = await nextInvoiceNumber();
     }
   }
   await InvoiceItem.create({

@@ -90,7 +90,7 @@ async function billOneProject(project, today = new Date()) {
 
   const isAuto = project.auto_invoice_mode === 'auto';
 
-  const invoiceNumber = await nextInvoiceNumber();
+  let invoiceNumber = await nextInvoiceNumber();
   const subtotal = fee;
   const vatRate = Number(business.default_vat_rate || 0.1);
   const taxAmount = Math.round(subtotal * vatRate);
@@ -104,11 +104,19 @@ async function billOneProject(project, today = new Date()) {
     account_holder: business.bank_account_name || business.brand_name || business.name || null,
   };
 
-  const invoice = await Invoice.create({
+  // 멱등키 — 이 프로젝트의 이 달은 청구서 한 장. 동시 실행이 겹쳐도 DB UNIQUE 가 두 번째를 거부한다.
+  const idemKey = `proj:${project.id}:${ym}`;
+  const existing = await Invoice.findOne({ where: { idempotency_key: idemKey }, attributes: ['id', 'invoice_number'] });
+  if (existing) {
+    return { project_id: project.id, skipped: 'already_billed', invoice_id: existing.id };
+  }
+
+  const payload = () => ({
     business_id: project.business_id,
     project_id: project.id,
     client_id: client.id,
     invoice_number: invoiceNumber,
+    idempotency_key: idemKey,
     title: `${project.name} ${ym} 월 사용료`,
     due_date: dueDate.toISOString().slice(0, 10),
     notes: '정기 자동 청구 (월정액)',
@@ -128,6 +136,22 @@ async function billOneProject(project, today = new Date()) {
     status: isAuto ? 'sent' : 'draft',
     sent_at: isAuto ? new Date() : null,
   });
+
+  // 위 findOne 은 경합을 못 막는다(둘 다 "없음"을 볼 수 있음). 실제 방어는 DB UNIQUE.
+  //   - idempotency_key 충돌 → 다른 실행이 이미 발행함 → 조용히 종료 (에러 아님)
+  //   - invoice_number 충돌 → 번호만 재생성해 재시도 (번호 경합은 정상 상황)
+  let invoice = null;
+  for (let attempt = 0; attempt < 5 && !invoice; attempt += 1) {
+    try {
+      invoice = await Invoice.create(payload());
+    } catch (e) {
+      if (e?.name !== 'SequelizeUniqueConstraintError') throw e;
+      const dup = await Invoice.findOne({ where: { idempotency_key: idemKey }, attributes: ['id'] });
+      if (dup) return { project_id: project.id, skipped: 'already_billed', invoice_id: dup.id };
+      if (attempt >= 4) throw e;
+      invoiceNumber = await nextInvoiceNumber();
+    }
+  }
 
   await InvoiceItem.create({
     invoice_id: invoice.id,
