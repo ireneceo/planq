@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import PageShell from '../../components/Layout/PageShell';
 import PanelHeader, { PanelTitle, PanelSubTitle, PanelMetaTitle } from '../../components/Layout/PanelHeader';
-import { PanelLayout, Panel } from '../../components/Layout/PanelLayout';
+import { PanelGridLayout, CollapsibleSidebar, SidebarBackdrop, Panel } from '../../components/Layout/PanelLayout';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
@@ -592,6 +592,21 @@ const MailPage: React.FC = () => {
   };
 
   // ── 새 메일 작성 (compose) ──
+  // #130 — 좌측 리스트를 Q Note·Q docs 와 같은 표준으로: 300px 그리드 + 접기(태블릿/모바일 오버레이).
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => (
+    typeof window !== 'undefined' ? window.innerWidth < 900 : false
+  ));
+  const [viewportNarrow, setViewportNarrow] = useState<boolean>(() => (
+    typeof window !== 'undefined' ? window.innerWidth <= 1024 : false
+  ));
+  useEffect(() => {
+    const mql = window.matchMedia('(max-width: 1024px)');
+    const handler = (e: MediaQueryListEvent | MediaQueryList) => setViewportNarrow('matches' in e ? e.matches : false);
+    handler(mql);
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
+  }, []);
+
   const [composeOpen, setComposeOpen] = useState(false);
   const [cAccountId, setCAccountId] = useState<number | null>(null);
   const [cTo, setCTo] = useState('');
@@ -711,11 +726,20 @@ const MailPage: React.FC = () => {
   if (!businessId) return <PageShell title="Q Mail"><Empty>{t('selectWorkspace', { defaultValue: '워크스페이스를 선택해 주세요.' }) as string}</Empty></PageShell>;
 
   return (
-    <PanelLayout>
-      {/* 좌: 메일 리스트 (폴더 = 상단 탭) — 2-pane, Q Talk LeftPanel 패턴 */}
-      <Panel $width={340}>
+    <PanelGridLayout $cols={sidebarCollapsed ? '0px 1fr' : '300px 1fr'}>
+      {/* #130 — 좌측 리스트: 300px 접이식 (여태 340px 고정·접기 없음이라 Q Mail 만 다른 화면처럼 보였다) */}
+      {!sidebarCollapsed && viewportNarrow && <SidebarBackdrop onClick={() => setSidebarCollapsed(true)} />}
+      <CollapsibleSidebar $collapsed={sidebarCollapsed}>
         <PanelHeader>
           <PanelTitle>Q Mail</PanelTitle>
+          <CollapseBtn
+            type="button"
+            onClick={() => setSidebarCollapsed(true)}
+            title={t('sidebar.collapse', { defaultValue: '목록 접기' }) as string}
+            aria-label={t('sidebar.collapse', { defaultValue: '목록 접기' }) as string}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M15 18l-6-6 6-6" /></svg>
+          </CollapseBtn>
           <ComposeBtn type="button" onClick={() => setComposeOpen(true)} title={t('compose.new', { defaultValue: '새 메일' }) as string} aria-label={t('compose.new', { defaultValue: '새 메일' }) as string}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
@@ -866,10 +890,21 @@ const MailPage: React.FC = () => {
               {loadingMore && <ListMoreRow><Spinner /></ListMoreRow>}
             </ThreadList>
           )}
-        </Panel>
+        </CollapsibleSidebar>
 
         {/* 우: 상세 */}
         <Panel $grow $hideTablet $last={!detail}>
+          {/* #130 — 접힌 목록 다시 펼치기 (Q Note 와 동일) */}
+          {sidebarCollapsed && (
+            <ExpandBtn
+              type="button"
+              onClick={() => setSidebarCollapsed(false)}
+              title={t('sidebar.expand', { defaultValue: '목록 펼치기' }) as string}
+              aria-label={t('sidebar.expand', { defaultValue: '목록 펼치기' }) as string}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 18l6-6-6-6" /></svg>
+            </ExpandBtn>
+          )}
           {detailLoading && !detail ? (
             <Loading><Spinner /></Loading>
           ) : !detail ? (
@@ -1110,7 +1145,7 @@ const MailPage: React.FC = () => {
           </ComposeModal>
         </ComposeOverlay>
       )}
-    </PanelLayout>
+    </PanelGridLayout>
   );
 };
 
@@ -1261,6 +1296,20 @@ const NoAcctBtn = styled.button`
 `;
 
 // 새 메일 작성 버튼 — Q Talk NewChatBtn 과 동일값
+const ExpandBtn = styled.button`
+  position: absolute; top: 16px; left: 12px; z-index: 5;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; padding: 0; border-radius: 8px;
+  border: 1px solid #E2E8F0; background: #fff; color: #64748B; cursor: pointer;
+  box-shadow: 0 1px 2px rgba(15,23,42,.05);
+  &:hover { background: #F8FAFC; color: #0F172A; }
+`;
+const CollapseBtn = styled.button`
+  margin-left: auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; padding: 0; border-radius: 8px;
+  border: 1px solid #E2E8F0; background: #fff; color: #64748B; cursor: pointer;
+  &:hover { background: #F8FAFC; color: #0F172A; }
+`;
 const ComposeBtn = styled.button`
   width: 32px; height: 32px;
   display: inline-flex; align-items: center; justify-content: center;

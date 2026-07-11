@@ -358,14 +358,14 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
 
       <Body>
         <Suspense fallback={<EditorLoading>{t('memoPopup.searchLoading') as string}</EditorLoading>}>
-          {/* 사이클 N+17 hotfix — Q docs PostsPage 와 동일한 카드 스타일 (borderless 제거).
-              회색 페이지 bg + 흰 카드 (PostEditor Wrap 의 default border + border-radius:12). */}
+          {/* #127 — 풀블리드: 외곽 박스 제거하고 편집기가 영역 전체를 차지 */}
           <PostEditor
             value={doc}
             onChange={(next) => { dirtyRef.current = true; setDoc(next); }}
             placeholder={t('memoPopup.bodyPlaceholder') as string}
             editable
             businessId={businessId}
+            borderless
           />
         </Suspense>
       </Body>
@@ -553,12 +553,11 @@ const IconBtn = styled.button`
 const Body = styled.div`
   flex: 1; min-height: 0;
   display: flex; flex-direction: column;
-  /* 사이클 N+17 — Q docs PostsPage Body 와 spacing 동기 (좌우 들러붙음 fix) */
-  padding: 24px 28px;
-  background: #F8FAFC;
-  gap: 16px;
+  /* #127 — 메모 편집은 풀블리드. 회색 페이지 위 흰 카드(패딩 24/28 + 외곽선)가 좁은 메모 화면에서
+     쓰기 영역을 잡아먹고 문서 편집기처럼 무거워 보였다 → 편집기가 화면을 그대로 채운다. */
+  padding: 0;
+  background: #fff;
   overflow-y: auto;
-  @media (max-width: 768px) { padding: 16px 18px; }
 `;
 const EditorLoading = styled.div`
   display: flex; align-items: center; justify-content: center;

@@ -240,5 +240,9 @@
   },
   "nav": {
     "myMailAccounts": "내 메일 계정"
+  },
+  "sidebar": {
+    "collapse": "목록 접기",
+    "expand": "목록 펼치기"
   }
 }

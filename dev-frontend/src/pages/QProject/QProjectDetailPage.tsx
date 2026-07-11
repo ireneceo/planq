@@ -34,9 +34,9 @@ const PROJECT_COLORS = PROJECT_COLOR_PALETTE.map(p => p.value);
 // 사이클 N+14 — 'info' 의미 분리:
 //   'details' = 프로젝트 메타데이터 편집 (옛 'info' 폼). 라벨 "상세정보".
 //   'info'    = Q info (KbDocument scope='project'). 라벨 "정보". 문서 다음 위치.
-type TabKey = 'dashboard' | 'tasks' | 'details' | 'info' | 'clients' | 'files' | 'docs' | 'transactions' | 'report' | `doc-${number}`;
+type TabKey = 'dashboard' | 'tasks' | 'details' | 'settings' | 'info' | 'clients' | 'files' | 'docs' | 'transactions' | 'report' | `doc-${number}`;
 // 고객(client)에게 숨기는 탭 — 내부 캔버스(전략·403)·고객목록·거래(청구)·보고서·상세메타. 고객은 협업 탭(업무·파일·문서·정보)만.
-const CLIENT_HIDDEN_TABS: TabKey[] = ['dashboard', 'clients', 'transactions', 'report', 'details'];
+const CLIENT_HIDDEN_TABS: TabKey[] = ['dashboard', 'clients', 'transactions', 'report', 'details', 'settings'];
 
 interface BizMember { id: number; user_id: number; user?: { id: number; name: string; email?: string; is_ai?: boolean; display_name?: string | null } }
 
@@ -387,11 +387,11 @@ const QProjectDetailPage: React.FC = () => {
       <TabBar>
         {/* 탭 순서 (사이클 N+14): 문서 다음에 정보(Q info), 상세정보(메타)는 마지막 */}
         {/* 고객(client)은 협업 탭만 — 캔버스(내부 전략·403)·고객목록·거래·보고서·상세는 숨김 (권한 매트릭스 detail-only) */}
-        {([['dashboard', '캔버스'], ['tasks', '업무'], ['clients', '고객'], ['files', '파일'], ['docs', '문서'], ['info', '정보'], ['transactions', '거래'], ['report', '보고서'], ['details', '상세정보']] as [TabKey, string][])
-          .filter(([k]) => !(isClient && CLIENT_HIDDEN_TABS.includes(k)))
-          .map(([k, lbl]) => (
+        {(['dashboard', 'tasks', 'clients', 'files', 'docs', 'info', 'transactions', 'report', 'details', 'settings'] as TabKey[])
+          .filter((k) => !(isClient && CLIENT_HIDDEN_TABS.includes(k)))
+          .map((k) => (
           <Tab key={k} $active={tab === k} onClick={() => setTab(k)}>
-            {t(`tab.${k}`, lbl)}
+            {t(`tab.${k}`)}
           </Tab>
         ))}
         {pinnedDocIds.map(id => {
@@ -424,7 +424,7 @@ const QProjectDetailPage: React.FC = () => {
         <ProjectKnowledgeTab businessId={project.business_id} projectId={projectId} />
       )}
 
-      {tab === 'details' && (
+      {tab === 'settings' && (
         <InfoBody>
           <Card>
             <CardTitle>{t('section.editInfo', '기본 정보')}</CardTitle>
@@ -671,6 +671,13 @@ const QProjectDetailPage: React.FC = () => {
               </ConvList>
             )}
           </Card>
+        </InfoBody>
+      )}
+
+      {/* #136 — 정보성(이슈·메모·이력·참여고객)과 설정성(기본정보 편집·멤버·채팅 연결)을 탭으로 분리.
+          한 화면에 섞여 있어 정보를 보러 왔는데 편집폼이 먼저 나오는 혼란이 있었다. */}
+      {tab === 'details' && (
+        <InfoBody>
 
           <Card>
             <CardTitle>{t('section.issues', '주요 이슈')} <small>{issues.length}</small></CardTitle>

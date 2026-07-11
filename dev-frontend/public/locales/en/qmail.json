@@ -240,5 +240,9 @@
   },
   "nav": {
     "myMailAccounts": "My email accounts"
+  },
+  "sidebar": {
+    "collapse": "Collapse list",
+    "expand": "Expand list"
   }
 }
