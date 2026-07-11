@@ -82,6 +82,37 @@ function toPeriodStr(v) {
   return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
 }
 
+// 청구서는 만들어졌는데 next_billing_at 을 밀기 전에 프로세스가 죽으면(배포 중 재시작 등),
+// 이후 모든 cron 이 같은 회차를 due 로 보고 → 멱등키에 막혀 skip → 그 구독은 영원히 청구가 멈춘다.
+// 중복 청구는 눈에 보이지만 이건 조용한 매출 손실이라 더 위험하다.
+// → skip 경로에서도 "청구서는 이미 있는데 아직 안 밀린" 상태면 전진을 마저 수행한다 (자가 치유).
+//   fresh 로 다시 읽어 이미 밀렸으면 아무 것도 하지 않는다 (동시 실행의 loser 가 이중 증가시키지 않게).
+async function ensureAdvancedAfterBilling(subId, billedPeriod, today) {
+  const { ClientSubscription } = require('../models');
+  const fresh = await ClientSubscription.findByPk(subId);
+  if (!fresh) return false;
+  if (toPeriodStr(fresh.next_billing_at) !== billedPeriod) return false;   // 이미 전진 완료
+
+  let next = advanceDate(fresh.next_billing_at, fresh.interval);
+  const t = todayStr(today);
+  let guard = 0;
+  while (next <= t && guard < 120) { next = advanceDate(next, fresh.interval); guard += 1; }
+
+  const occ = Number(fresh.occurrences_count || 0) + 1;
+  let ended = false;
+  if (fresh.end_mode === 'after_count' && fresh.max_occurrences && occ >= Number(fresh.max_occurrences)) ended = true;
+  else if (fresh.end_mode === 'until_date' && fresh.end_date && next > toDateStr(fresh.end_date)) ended = true;
+
+  await fresh.update({
+    next_billing_at: next,
+    last_invoiced_at: fresh.last_invoiced_at || new Date(),
+    occurrences_count: occ,
+    ...(ended ? { status: 'completed', canceled_at: new Date() } : {}),
+  });
+  console.warn('[clientSub] 전진 자가치유 — sub', subId, 'period', billedPeriod, '→', next);
+  return true;
+}
+
 async function billOneSubscription(sub, today = new Date()) {
   const client = await Client.findByPk(sub.client_id);
   if (!client) return { subscription_id: sub.id, skipped: 'client_not_found' };
@@ -125,7 +156,9 @@ async function billOneSubscription(sub, today = new Date()) {
   const idemKey = `sub:${sub.id}:${period}`;
   const already = await Invoice.findOne({ where: { idempotency_key: idemKey }, attributes: ['id'] });
   if (already) {
-    return { subscription_id: sub.id, skipped: 'already_billed', invoice_id: already.id };
+    // 크래시로 전진이 누락된 상태면 여기서 마저 민다 (안 그러면 이 구독은 영원히 청구 정지)
+    const healed = await ensureAdvancedAfterBilling(sub.id, period, today);
+    return { subscription_id: sub.id, skipped: 'already_billed', invoice_id: already.id, healed };
   }
 
   const invoicePayload = () => ({
@@ -162,7 +195,10 @@ async function billOneSubscription(sub, today = new Date()) {
     } catch (e) {
       if (e?.name !== 'SequelizeUniqueConstraintError') throw e;
       const dup = await Invoice.findOne({ where: { idempotency_key: idemKey }, attributes: ['id'] });
-      if (dup) return { subscription_id: sub.id, skipped: 'already_billed', invoice_id: dup.id };
+      if (dup) {
+        const healed = await ensureAdvancedAfterBilling(sub.id, period, today);
+        return { subscription_id: sub.id, skipped: 'already_billed', invoice_id: dup.id, healed };
+      }
       if (attempt >= 4) throw e;
       invoiceNumber = await nextInvoiceNumber();
     }
@@ -256,9 +292,12 @@ async function runClientSubscriptionBilling(today = new Date()) {
     try { results.push(await billOneSubscription(sub, today)); }
     catch (e) { console.warn('[clientSubscriptionBilling] sub', sub.id, e.message); results.push({ subscription_id: sub.id, error: e.message }); }
   }
-  const billed = results.filter((r) => r.invoice_id).length;
-  if (due.length) console.log(`[clientSubscriptionBilling] ${due.length} due, ${billed} invoiced`);
-  return { due: due.length, billed, results };
+  // skip 결과도 invoice_id 를 담으므로 그것만 세면 "이미 발행됨" 을 신규 발행으로 오집계한다.
+  // 로그가 거짓말하면 다음 사고를 못 본다 → 신규 발행만 billed 로 센다.
+  const billed = results.filter((r) => r.invoice_id && !r.skipped).length;
+  const skipped = results.filter((r) => r.skipped).length;
+  if (due.length) console.log(`[clientSubscriptionBilling] ${due.length} due, ${billed} invoiced, ${skipped} skipped`);
+  return { due: due.length, billed, skipped, results };
 }
 
 module.exports = { runClientSubscriptionBilling, billOneSubscription, advanceDate };

@@ -179,10 +179,13 @@ Invoice.init({
   //   proj:{project_id}:{period}      (프로젝트 월정액 정기청구)
   // 여태 유일한 방어가 invoice_number UNIQUE 였는데, 충돌 시 번호를 새로 뽑아 재시도하는 코드가
   // 그 방어를 무력화해서 동시 실행 시 청구서가 2장 발행됐다(실증). 수동 발행 청구서는 NULL.
+  //   ★ 컬럼 레벨 `unique: true` 를 쓰면 안 된다 — sync-database 가 실행할 때마다 UNIQUE 인덱스를
+  //     새로 만들어 쌓는다(idempotency_key, _2, _3 …). 배포 스크립트가 운영에서도 sync 를 돌리므로
+  //     매 배포마다 인덱스 +1 → MySQL 64키 한도에 닿는 순간 배포가 "Too many keys" 로 사망한다.
+  //     (Business.slug 실사고와 같은 계열) → 아래 indexes 배열에 이름을 박아 선언한다.
   idempotency_key: {
     type: DataTypes.STRING(100),
     allowNull: true,
-    unique: true,
   },
 }, {
   sequelize,
@@ -192,6 +195,8 @@ Invoice.init({
   indexes: [
     { unique: true, fields: ['invoice_number'], name: 'invoices_invoice_number_unique' },
     { unique: true, fields: ['share_token'], name: 'invoices_share_token_unique' },
+    // 마이그레이션(add-invoice-idempotency.js)이 만드는 인덱스명과 동일해야 sync 가 중복 생성하지 않는다.
+    { unique: true, fields: ['idempotency_key'], name: 'invoices_idempotency_key' },
   ],
 });
 
