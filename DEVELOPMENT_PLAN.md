@@ -1,6 +1,26 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-07-10 (Opus, 1M) — **👑 워크스페이스 admin role 정식 활성화 (Fable 판정 A "정석") + 잠복버그 2건 fix. 🚀 운영 배포 완료 (v1.46.1, commit dbd0b02, deploy 20260710_193746, 170s).** 헬스 30/30 · guard-invariants 13/13 · e2e l1·crosscut·tenant 0실패 · tsc error 0.
+> **최종 업데이트:** 2026-07-11 (Opus, 1M) — **💰🔒 돈·보안 사고 6건 근본수정 + 운영 피드백 백로그 전건 소진(19→0, 운영 done 135) + AI-네이티브 전략 확정(Fable 3인 감사). 전부 운영 배포.** 헬스 30/30 · guard-invariants 14/14 · e2e tenant 0 · 빌드 EXIT0/TS0.
+>
+> **★ 돈·보안 사고 6건 (전부 "완료로 기록됐지만 실제로는 위험하거나 죽어 있던" 것들)**
+> 1. **연체 독촉 자동발송 폐지 (Irene 지시)** — 결제 마킹이 수동인데 cron 이 고객에게 독촉 메일을 자동 발송하고 프로젝트를 자동 정지시켰다(입금했는데 마킹 전인 고객을 재촉하는 사고). → `overdue_handler.js` 재작성: 담당자에게 "독촉 보낼까요?" 알림만, 발송은 사람이 누를 때만. 7일 간격 재질의(독촉=자연 스누즈), 청구서별 알림 끄기(`meta.overdue_notify_off`). 수신자를 실제로 누를 수 있는 사람(owner/admin/청구담당)으로 좁힘 — 옛 코드는 일반 멤버에게도 보내 눌러도 403 인 막다른 알림이었다. 신규 `services/billingRecipients.js` 단일 원천. **검증 22/22.**
+> 2. **정기청구 중복 발행 (Fable 실증)** — 동시 실행 시 청구서 **2장 발행**. `invoice_number` UNIQUE 가 유일 방어였는데 충돌 시 번호를 새로 뽑아 재INSERT 하는 재시도 루프가 그 방어를 스스로 무력화. → `invoices.idempotency_key` UNIQUE(`sub:{id}:{YYYY-MM-DD}` / `proj:{id}:{YYYY-MM}`). 충돌 구분(멱등키=이미 발행 skip / 번호=재시도). **Fable BLOCK 3건 수정**: 모델 컬럼 `unique:true` 가 sync 마다 인덱스 누적(배포 사망 위험) → indexes 배열 / 크래시로 전진 누락 시 그 구독 **영구 청구 정지**(조용한 매출 손실) → `ensureAdvancedAfterBilling` 자가치유 / DATEONLY 함정("Tue Aug 11" 쓰레기 키) → `toPeriodStr`.
+> 3. **Cue 정보 유출 (보안)** — Cue 는 고객 채팅방에서 답하는데 `cue_orchestrator` 가 scope 를 안 넘겨, 스냅샷 3종이 `business_id` 만으로 데이터를 긁어 **남의 개인(L1) 일정·내부 업무·고객 청구내역**을 LLM 프롬프트에 넣었다. → `access_scope.calendarListWhere()` 신설(캘린더 가시성 규칙을 라우트 밖으로 추출 = 사람과 AI 가 같은 문을 지남), cue_context 스냅샷 3종 scope 관통, 재무는 권한자에게만, scope 없으면 fail-closed. 실측: owner 8건 / member·Cue 7건(남의 L1 제외).
+> 4. **Webhook 없이 카드결제 버튼 켜짐 (Fable BLOCK)** — `isStripeEnabled` 가 Secret Key 존재만 검사 → Secret 만 넣으면 버튼은 켜지는데 웹훅이 503 → **고객이 결제하면 돈은 Stripe 로 들어오는데 청구서/구독이 영영 미확정**. → `secret && webhookSecret` 로 강화(문구를 코드에 맞추는 대신 코드를 안전하게).
+> 5. **입금 계좌를 일반 멤버가 변경 가능** — 청구서 발행·결제마킹은 owner 전용인데 계좌번호는 `checkBusinessAccess`(멤버 통과)만. 멤버가 계좌를 바꿔치기하면 고객 송금이 그리로 간다. → owner/admin 게이트 + 프론트 잠금.
+> 6. **공개 페이지 XSS** — `PublicKbDocumentPage`/`PublicKbBundlePage` 가 사용자 HTML 을 정화 없이 `dangerouslySetInnerHTML`(script/onerror 실행 가능, 로그인 없이 열리는 링크). → 신규 `utils/sanitizeHtml.ts`(DOMPurify allowlist) 단일 원천, 공개 3페이지 적용. 검증 5/5.
+>
+> **★ 조용히 죽어 있던 기능 3건** — 채팅방 청구서 카드가 **한 번도 갱신된 적 없음**(Sequelize 가 JSON path `$` 를 `$$` 로 이스케이프 → 쿼리 항상 실패, catch 가 삼킴 → 고객이 보는 카드가 영원히 옛 상태) · 통합보고서 전사요약 자동저장 유실(unit row 가 '확정' 시점에만 생성) · 업무 첨부 이미지 410(#134).
+>
+> **★ 운영 피드백 백로그 전건 소진 (19 → 0, 운영 DB done 135건)** — #134(첨부 provider 무인지: Drive 저장분을 로컬에서 찾아 410 → `services/attachmentStorage.js` 신설, 서버가 Drive 에서 받아 스트리밍) · #85(통합보고서 SCR) · #112c(승인 코멘트) · #131(월간뷰 일정추가) · #135(회의링크 복사) · #126c(날짜피커) · #99b(공개 업무 페이지) · #125a(네이티브 OAuth 복귀 — 취소 경로 포함) · **#138 이모지 리액션(신규: MessageReaction, utf8mb4_bin collation, FK CASCADE, socket 실시간)** · #127·#130·#136·#128(레이아웃 통일 4건) · #137(가격). **남은 2건**: #81(Cue 실행 — 행동 계층 선행) · #126(캘린더 양방향 — Google OAuth 검증 제출 선행, Irene 몫).
+>
+> **★ 베이직 가격 29,000 → 39,000원** — 한도 최대 사용 시 외부 원가(Q Note STT 스테레오 2배 + Cue 1,500 액션)가 29,000의 절반에 육박 → 원가율 50%. 39,000이면 40% 아래. 인당 7,800원(5명)으로 여전히 저렴, 프로(79,000)와 정확히 2배. **외부 유료고객 0 = 인상 저항 0**(활성 구독 2건 모두 워프로랩 내부). 기존 구독은 `sub.price` 로 자동 유예. ⚠️ Fable 구독 전과정 게이트 진행 중 — 통과 후 배포.
+>
+> **★ AI-네이티브 전략 확정 (Fable 3인 감사 → 통합 설계)** — `docs/PLANQ_AI_READINESS_AUDIT.md`(13축 **4.9/10**) · `docs/AI_NATIVE_TRENDS_2026.md` · `docs/AI_NATIVE_IMPLEMENTATION_PLAN.md` · `docs/FEEDBACK_BACKLOG_PLAN.md`. 실측: **KB 총량 527 bytes**(임베딩·하이브리드 검색 = 순수 과잉) · MCP/API key/webhook/function-calling **전부 0** · LLM raw fetch 13파일·gpt-4o-mini 27곳 하드코딩 · 감사 6테이블 UNION. **Irene 확정 3건**: ①Cue 재무 행동 **영구 봉쇄** ②MCP 외부 개방 **보류** ③#81 툴 호출은 게이트웨이·행동 계층 뒤에. 박제 [[project_ai_native_strategy]].
+>
+> **다음 섹션:** P0 **에이전트 권한 모델**(Cue 의 *쓰기*가 여전히 권한 계층 우회 — reviewer 가드까지 우회. 재무 봉쇄를 guard-invariants 불변식으로 박제 + on-behalf-of 감사) → P1 LLM 게이트웨이 → 행동 계층 → #81 → KB 과잉 제거. Irene 몫은 운영 워프로랩 업무 **#142(Stripe 활성화)·#143(DKIM)·#144(APNs)** 로 생성 완료.
+
+> **이전 업데이트:** 2026-07-10 (Opus, 1M) — **👑 워크스페이스 admin role 정식 활성화 (Fable 판정 A "정석") + 잠복버그 2건 fix. 🚀 운영 배포 완료 (v1.46.1, commit dbd0b02, deploy 20260710_193746, 170s).** 헬스 30/30 · guard-invariants 13/13 · e2e l1·crosscut·tenant 0실패 · tsc error 0.
 > - **Irene "fable에게 물어봐, 정석 개발로" → Fable 반전 판정:** admin 은 죽은 스캐폴드가 아니라 **N+21 배포기능의 DB 결손 사고** — 설정 "관리자로" 승격 버튼(owner 노출)·전이 라우트·17파일 admin 분기 완비인데 `BusinessMember.role` ENUM 결손으로 owner 가 승격 누르면 **라이브 500**. 정석 = (A) 활성화(승인된 설계 복원), (B) 절단 아님. 근본원인: 6-09 수동 ALTER 가 모델 미갱신 → `sync-database` 가 모델(SSOT) 기준으로 admin 을 다시 벗김.
 > - **근본 fix:** `models/BusinessMember.js` ENUM 에 admin **append**(모델=SSOT → sync 재-strip 구조적 차단) + dev/운영 DB 수동 ALTER + `scripts/health-check.js` ENUM 유지 감시 항목(29→30).
 > - **★ 잠복버그 2건 동시 발견·수정 (E2E 가 잡음, 코드리뷰로는 못 잡음):** ① `access_scope.js attachWorkspaceScope` 의 `allowed` 세트에 `scope.isAdmin` 누락 → admin 이 `checkBusinessAccess` 붙은 **전 라우트 403 잠김** ② File·Kb 가시성 헬퍼 4개(`canAccessFileByLevel`·`fileListWhereByLevel`·`canAccessKbDocumentByLevel`·`kbDocumentsListWhereByLevel`)가 Post 헬퍼와 달리 admin 미반영 → admin 이 **L3/L4 워크스페이스 파일·KB 를 아예 못 봄**. 둘 다 owner 급 `fullView` 패턴으로 정렬.

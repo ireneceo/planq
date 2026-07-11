@@ -1,8 +1,8 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-07-10 (Opus, 1M) — 아키텍처 탈속인화(Fable 감사) + 이메일 알림 모바일 실버그 fix + 설계문서 3종 코드 실측 갱신
-**작업 상태:** 완료 (dev 검증만 — **미배포**)
+**마지막 업데이트:** 2026-07-11 (Opus, 1M) — 운영 피드백 백로그 전건 소진 + 돈·보안 사고 6건 근본수정 + AI-네이티브 전략 확정
+**작업 상태:** 완료 (운영 배포 완료). 남은 것 = 아래 "다음 섹션" 개발 리스트.
 
 ---
 
@@ -14,73 +14,81 @@ session-state.md 읽고 이어서 개발해.
 
 ---
 
-## ✅ 이번 세션 완료 (2026-07-10)
+## ✅ 이번 세션 완료 (2026-07-11)
 
-Irene "Claude 없어도 안전하게 확장하게 구조·아키텍처·스킬 보완해" 지시 → Fable 감사·구현. 헬스 29/29 · guard-invariants 13/13 · e2e tenant 0실패 · tsc error 0 · 위키 게이트 exit0.
+### 돈·보안 사고 6건 (전부 운영 배포)
+1. **연체 독촉 자동발송 폐지** — 결제 마킹이 수동인데 cron 이 고객에게 독촉 메일을 자동 발송하고 프로젝트를 자동 정지시켰다. 입금했는데 마킹 전인 고객을 재촉하는 사고. → 담당자에게 "독촉 보낼까요?" 알림만, 발송은 사람이. 7일 간격 재질의, 청구서별 알림 끄기. (`overdue_handler.js` 재작성)
+2. **정기청구 중복 발행** — 동시 실행 시 청구서 2장 발행(실증). invoice_number UNIQUE 가 유일 방어였는데 재시도 루프가 그걸 무력화. → `invoices.idempotency_key` UNIQUE (sub:{id}:{date} / proj:{id}:{YYYY-MM}). 크래시 후 청구 영구정지 자가치유 포함.
+3. **Cue 정보 유출** — Cue 가 고객 채팅방에서 답할 때 남의 개인(L1) 일정·내부 업무·청구 내역을 권한 필터 없이 LLM 프롬프트에 넣었다. → `access_scope.calendarListWhere` 신설(사람 라우트와 AI 가 같은 규칙), cue_context 스냅샷 3종에 scope 관통, orchestrator 가 발화자 scope 전달.
+4. **Webhook 없이 카드결제 버튼 켜짐** — Secret Key 만 넣어도 버튼이 켜져, 고객이 결제하면 돈은 들어오는데 청구서가 영영 미확정. → `isStripeEnabled = secret && webhookSecret`.
+5. **입금 계좌를 일반 멤버가 변경 가능** — 청구서 발행은 owner 전용인데 계좌는 아니었다. → owner/admin 게이트 + 프론트 잠금.
+6. **공개 페이지 XSS** — PublicKbDocument/Bundle 이 사용자 HTML 을 정화 없이 렌더(script/onerror 실행 가능). → `utils/sanitizeHtml.ts`(DOMPurify) 단일 원천, 공개 3페이지 적용.
 
-1. **🏛️ 아키텍처 탈속인화** — CLAUDE.md 불변식 13종을 *문서→자동 게이트*로 전환.
-   - 신규 `scripts/guard-invariants.js`(mock/i18n·ko-en 패리티/무스코프/pagination/notify·broadcast·costGuard·재무owner/god-file 래칫 — 하드·잠금·래칫 3방식) + `guards-baseline.json`
-   - 신규 `scripts/e2e/canary-tenant.js`(멀티테넌트 403 실증, 대조군200 공허방지) + run.js `tenant` 스위트
-   - `docs/ONBOARDING.md`(memory 없이 진입) + `/온보딩`·`/아키감사` 스킬
-   - `/검증`·`/개발완료` 0단계에 가드 3축 편입 완료
-   - 박제 [[project_guard_invariants_depersonalization]]
+### 조용히 죽어 있던 기능 3건
+- 채팅방 청구서 카드가 **한 번도 갱신된 적 없음** (Sequelize 가 JSON path `$` 를 `$$` 로 이스케이프 → 쿼리 항상 실패, catch 가 삼킴)
+- 통합보고서 전사 요약 자동저장 유실 (unit row 가 '확정' 시점에만 생성)
+- 업무 첨부 이미지 410 (#134 — Drive 저장분을 로컬에서 찾음)
 
-2. **📧 이메일 알림 모바일 문구 fix (Irene 실사용 호소)** — 미읽음 알림 에스컬레이션 메일(`emailService.js unreadNotificationEmailHtml`)이 회색 보일러플레이트("앱 알림 못 받으셨을 수 있어…")로 실내용 밀어냄 + preheader 부재로 모바일 미리보기줄 잠식. 보일러플레이트 하단 강등 + 실내용 최상단 + preheader=첫 알림제목 명시. 렌더 실측 검증 완료.
+### 운영 피드백 19건 전건 소진 → **운영 DB done 135건, 남은 2건**(#81·#126, 아래 리스트)
+#134(첨부 provider) · #85(통합보고서 SCR) · #112(승인 코멘트) · #131(월간뷰 일정추가) · #135(회의링크 복사) · #126c(날짜피커) · #99b(공개 업무 페이지) · #125a(네이티브 OAuth 복귀) · #138(이모지 리액션 신규) · #127(메모 풀블리드) · #130(Q Mail 사이드바 통일) · #136(프로젝트 설정탭 분리) · #128(보관함 대시보드) · #137(가격 39,000)
 
-3. **📚 설계문서 3종 코드 실측 갱신 (docfresh 12/13→13/13)** — SYSTEM_ARCHITECTURE(480→646, 오기7 정정) · DATABASE_ERD(923→1162, 신규 테이블 85개, 108모델 커버리지 100%) · PERMISSION_MATRIX(526→607, 메뉴권한L3·워크플로우 권한열·owner_only 5→11 정정).
+### 가격 인상
+베이직 29,000 → **39,000원** (연 390,000). 근거: 한도 최대 사용 시 외부 원가(Q Note STT 스테레오 2배 + Cue 1,500)가 29,000의 절반 → 원가율 50%. 인당 7,800원(5명)으로 여전히 저렴. 프로(79,000)와 정확히 2배. 외부 유료고객 0 = 인상 저항 0. **기존 구독은 sub.price 로 자동 유예**(워프로랩 29,000 유지). ⚠️ Fable 구독 전과정 게이트 결과 확인 필요(미완이면 재실행).
+
+### AI-네이티브 전략 확정 (Fable 3인 감사 + 통합 설계)
+- `docs/FEEDBACK_BACKLOG_PLAN.md` · `docs/PLANQ_AI_READINESS_AUDIT.md`(13축 4.9/10) · `docs/AI_NATIVE_TRENDS_2026.md` · `docs/AI_NATIVE_IMPLEMENTATION_PLAN.md`
+- **Irene 확정 결정 3건** (memory `project_ai_native_strategy`): ①Cue 재무 행동 **영구 봉쇄** ②MCP 외부 개방 **보류**(내부 정비 후) ③#81 Cue 툴 호출은 **게이트웨이·행동 계층 뒤에**
+- 실측: 청구 동시실행 2장 · Cue 권한 우회 · **KB 총량 527 bytes**(임베딩 과잉) · MCP/API key/webhook/function-calling 전부 0 · 감사 6테이블 UNION
 
 ---
 
-## ✅ admin role 해결 완료 (2026-07-10, Irene "fable에게 물어봐, 정석 개발로" → Fable 판정 A → 구현·검증, dev만)
+## 🔖 다음 섹션 — 개발 리스트 (우선순위 순)
 
-Fable 반전: 죽은 스캐폴드 아니라 **N+21 배포기능의 DB 결손 사고**(설정 "관리자로" 버튼 owner 노출·승격 라우트·17파일 admin 분기 완비인데 ENUM 결손으로 owner 가 승격 누르면 **라이브 500**). 정석 = (A) 활성화.
-- **근본 fix:** `BusinessMember.js:46` ENUM 에 admin **append**(모델=SSOT → sync 재-strip 차단) + dev DB ALTER + `health-check.js` ENUM 유지 감시(30/30).
-- **잠복 버그 2건 동시수정 (E2E 가 잡음):** ①`access_scope.js attachWorkspaceScope` `allowed` 세트 `isAdmin` 누락 → admin 전 라우트 403 잠김 ②File·Kb 가시성 헬퍼 4개 admin 누락 → L3/L4 워크스페이스 파일·KB 못 봄. 둘 다 fullView 패턴 정렬.
-- **실 HTTP 검증:** 승격 200(500 해소)·DB admin·admin 게이트 통과·파일목록 200·**admin invoice 403 owner_only(재무 불변식)**·강등 복원 + 가시성 canAccess 시맨틱 통과. 가드 3축 green(health 30/30·guard 13/13·tenant 0).
-- **문서·memory 정정:** PERMISSION_MATRIX·DATABASE_ERD "스캐폴드/부재" → "활성", memory `project_workspace_admin_role` ✅.
-- **🚀 운영 배포 완료 (2026-07-10, commit `dbd0b02`, deploy 20260710_193746, 170s):** 운영 DB ENUM ALTER **수동 선행**(→`enum('owner','member','ai','admin')`) 후 `deploy-planq.sh --auto`. 배포 후 검증: planq.kr health200·프론트200·PM2 재시작(uptime 28s)·**운영 ENUM 배포후 생존**(sync_database 안 벗김 — 모델=SSOT 근본fix 운영 실증). backup /opt/planq/backups/20260710_193746.
+### P0 — 보안·돈
+1. **에이전트 권한 모델** (2~3일, Fable 게이트)
+   - Cue 의 **쓰기**가 여전히 권한 계층 우회 (`cue_task_executor.js`·`cue_orchestrator.js` 에 access_scope/requireMenu 0건). 오늘 막은 건 읽기(컨텍스트)뿐.
+   - 사람에게 걸린 reviewer 가드(`tasks.js:1084`)를 Cue 가 우회 (`cue_task_executor.js:212-216`)
+   - **Cue 재무 행동 영구 봉쇄를 guard-invariants 에 불변식으로 박제** (Irene 확정)
+   - on-behalf-of 위임: "누구 권한으로 행동하는가" 를 감사에 기록 (현재 audit_logs 로 재구성 불가 — acting_for 컬럼 부재)
+   - Linear 식 delegate vs assignee 판정 (Cue 가 tasks.assignee_id 에 들어감 = 책임 주체가 AI)
 
-## 🔴 Irene 판단 대기 (거버넌스 SSOT — Claude 임의수정 불가)
+### P1 — AI-네이티브 전환 (docs/AI_NATIVE_IMPLEMENTATION_PLAN.md D절)
+2. **LLM 게이트웨이 단일화** (2~3일, Fable 게이트) — raw fetch 13파일 · gpt-4o-mini 하드코딩 27곳 → 단일 모듈(모델 추상화·프롬프트 레지스트리·툴 호출·재시도·비용계량·평가훅). costGuard·cue_usage 흡수하되 파괴 금지.
+3. **행동 계층(Action Layer) 추출** (3일, 되돌리기 어려움 — 절단면 정교하게) — 상태 전이가 12개 라우트에 인라인. 이게 있어야 (a)Cue 툴 호출 (b)MCP 노출 (c)권한 검사 단일화.
+4. **#81 Cue 대화형 실행** (2일) — 위 2·3 선행 필수. 지금 급조하면 14번째 raw 호출 + 권한 우회 쓰기 추가.
+5. **KB 과잉 제거** (1일) — 운영 KB 총 527 bytes 인데 임베딩·청킹·하이브리드 검색 완비. 롱컨텍스트+프롬프트 캐싱으로 단순화 = **코드 삭제**. (`kb_service.js` 200청크 윈도우도 같이)
+6. **#126 캘린더 양방향 동기화** — Google OAuth 검증 제출(Irene, 운영 task #142 아님 — 별도) 선행. 현재 개인 연동 scope=readonly.
 
-1. **CLAUDE.md Fable 게이트 ② 목록에 guard-invariants 1줄 등재** — Fable 이 "CLAUDE.md=거버넌스 SSOT라 에이전트 승인 불가"로 의도적 보류. 실효는 스킬 편입으로 달성. Irene 직접 스탬프 사안.
-2. 부수: refresh_tokens.client_kind CLAUDE.md 2값 → 실제 4값(ios/android).
+### P2 — 부채·정비
+7. god-file 분리 — `projects.js` 3,071 · `invoices.js` 2,229(생명선) · `QNotePage.tsx` 4,464
+8. 죽은 컬럼·코드 제거 119건 (PortOne/Popbill 잔재, `Project.paused_at` 은 **죽지 않았음** — recurring_invoice 가 실제로 읽음. 단 수동 정지 UI 부재 = 설계 부채)
+9. 이벤트 스트림 통합 — "30일간 모든 일" = 6테이블 UNION (actor 컬럼명 3종 이질)
+10. durable execution 최소안 — 크래시 시 진행 중 AI 작업 유실. Temporal/BullMQ 전면 도입은 **과잉으로 배제**.
+11. 검사 하니스 보강 — chrome-suppression 스위트 · canary-crawl 라우트 자동 인벤토리
+
+### ⏸ Irene 몫 (운영 워프로랩에 업무 생성 완료 — 2026-07-11)
+- **운영 task #142** Stripe 라이브 결제 활성화 (키·웹훅·소액 스모크)
+- **운영 task #143** 이메일 DKIM 설정 (스팸 격리 위험)
+- **운영 task #144** 네이티브 앱 APNs 키
+- (업무 아님) Google OAuth 검증 제출 — #126 선행 조건
 
 ---
 
 ## 🚀 배포 상태
-
-**이번 세션 전부 미배포.** 운영 반영하려면 명시적 `/배포`. 자동저장 크론이 wip 커밋만 함(origin push 안 됨 — 이 개발완료 커밋이 push까지).
-
-이메일 fix 는 운영 반영 가치 있음(실사용 호소). /배포 시 backend(emailService.js) 반영.
-
----
-
-## 🔖 다음 할 일
-
-1. **Irene: admin role 판단** (활성화 vs 제거) — 위 판단대기 #1.
-2. **이번 세션 운영 배포** (/배포 대기, 특히 이메일 fix).
-3. **운영 Stripe 활성화** (Irene 몫 — sk_live roll·관리자/워크스페이스 키·webhook·소액 스모크).
-4. **검사 하니스 다음 보강** — chrome-suppression 스위트(FAB/배너 라우트 전수) · canary-crawl 라우트 자동 인벤토리(App.tsx Route 정적파싱) · 기능완결성 스위트. (INSPECTION_PLAYBOOK §5)
-5. **P1 부채** — god-file 분리(`projects.js` 3071·`invoices.js` 2229[생명선]·`QNotePage.tsx` 4464), QTalk `Mock*` 이름부채·`RightPanel.tsx:196` 하드코딩 id.
-6. Irene 확인대기: #133 폰 아젠다 · #126 구글캘린더 양방향 OAuth.
+이번 세션 전부 운영 배포 완료 (마지막 `c5e32e9`). **가격 변경(39,000)은 미배포** — Fable 구독 게이트 통과 후 배포.
 
 ---
 
 ## 🔑 환경/인증 현황
 - dev 백엔드 port 3003 (irene PM2 planq-dev-backend). q-note 8000/운영 8001.
-- 운영: 87.106.78.146 port 3004 (planq-prod-backend/planq-prod-qnote). POS 공존(건드리지 말 것).
-- 가드 3축: `node scripts/health-check.js` + `node scripts/guard-invariants.js` + `node scripts/e2e/run.js --suite tenant`. 큰 사이클엔 `--suite mobile,crosscut,l1,tenant`.
-- Stripe 키: dev·운영 모두 미저장(휴면). EMAIL_ENCRYPTION_KEY dev 미설정.
-
----
+- 운영: 87.106.78.146 port 3004. POS 공존(건드리지 말 것).
+- 가드 3축: `node scripts/health-check.js`(30) + `node scripts/guard-invariants.js`(14) + `node scripts/e2e/run.js --suite tenant`
+- 운영 DB 선행 마이그레이션 적용분: `invoices.idempotency_key` · `task_attachments.storage_provider` ENUM s3 · `message_reactions`(FK+utf8mb4_bin)
+- Stripe 키: dev·운영 모두 미저장(휴면 — 운영 task #142)
 
 ## 📂 주요 문서
-- 온보딩(신규): `docs/ONBOARDING.md` — 새 실행자 첫 진입
-- 가드: `scripts/guard-invariants.js` · `scripts/e2e/` · `docs/qa/INSPECTION_PLAYBOOK.md`
-- 설계(2026-07-10 갱신): `docs/SYSTEM_ARCHITECTURE.md` · `docs/DATABASE_ERD.md` · `docs/PERMISSION_MATRIX.md`
-- 메모리: `project_guard_invariants_depersonalization` · `project_workspace_admin_role`(🔴admin 부재) · `project_inspection_harness_plan`
-
----
+- 전략/설계: `docs/AI_NATIVE_IMPLEMENTATION_PLAN.md` · `docs/PLANQ_AI_READINESS_AUDIT.md` · `docs/AI_NATIVE_TRENDS_2026.md` · `docs/FEEDBACK_BACKLOG_PLAN.md`
+- 메모리: `project_ai_native_strategy`(Irene 결정 3건) · `project_guard_invariants_depersonalization` · `project_cost_guard_audit`
 
 ## 복구 가이드
 새 세션: `session-state.md 읽고 이어서 개발해.`
