@@ -117,7 +117,7 @@ Enterprise 문의는 Phase 1.3 에서 구축. Platform Billing 은 별도 DB 불
 |---|---:|:---:|---:|:---:|---:|---:|---:|
 | Free | ₩0 | 1 | 불가 | 3 | 30 | 1h | 200MB |
 | Starter | ₩9,900 | 1 | **불가** | 20 | 300 | 5h | 1GB |
-| Basic | ₩29,000 | 5 | +₩9,000 | 50 | 1,500 | 25h | 5GB |
+| Basic | ₩39,000 | 5 | +₩9,000 | 50 | 1,500 | 25h | 5GB |
 | Pro | ₩79,000 | 15 | +₩12,000 | 200 | 7,500 | 150h | 20GB |
 | Enterprise | 문의 | 맞춤 | 맞춤 | 무제한 | 맞춤 | 맞춤 | 맞춤 |
 
@@ -136,8 +136,10 @@ total_amount = subtotal + vat_amount
 
 ### 3.3 업/다운그레이드 prorate
 
-- **업그레이드**: 즉시 적용. **차액만** 일할 계산하여 즉시 과금.
-  - 예: Basic(₩29,000) 사용 중 10일째 Pro(₩79,000) 업 → 차액 ₩50,000 × (남은 일수 ÷ 한 달) 즉시 과금.
+- **업그레이드**: ⚠️ 이 문서의 옛 서술(차액 일할 과금)은 **코드에 구현돼 있지 않다**(Fable 실측). 실제 동작:
+  - 플랜 활성화의 단일 착지점은 **결제 확정**(`billing.markPaymentPaid` — 계좌이체 확인 또는 Stripe webhook). 결제 없이 플랜이 올라가는 경로는 없다.
+  - `POST /api/plan/:id/change` 는 **다운그레이드 예약 전용**. 업그레이드 요청은 402 `upgrade_requires_payment` (여기서 즉시 적용하면 무결제 업그레이드 구멍 — 2026-07-11 차단).
+  - 잔여기간 크레딧(proration)은 미구현. 신규 구독 전액 청구.
 - **다운그레이드**: 현 결제 주기 종료까지 현 플랜 유지. 다음 주기부터 새 플랜 (Irene 결정 #11).
 
 ### 3.4 일할 (prorate) 공식
@@ -266,7 +268,7 @@ Stripe 계정은 **PlanQ 자체 Stripe**. 워크스페이스 Stripe 와 별개.
   POST   /api/platform-billing/:businessId/retry           수동 재시도 (결제 실패 시 owner 가 카드 교체 후)
 
 플랜 변경 (기존 plan.js 확장)
-  POST   /api/plan/:businessId/change                      body: { plan_code, cycle }  — prorate 자동 계산 후 즉시 과금 차액
+  POST   /api/plan/:businessId/change                      body: { to_plan, billing_cycle }  — 다운그레이드 예약 전용 (업그레이드는 402, 결제 확정으로만 적용)
   POST   /api/plan/:businessId/schedule-downgrade          body: { plan_code }  — 다음 주기 적용 예약
 
 Webhook (포트원/Stripe)
@@ -326,7 +328,7 @@ Cron 수동 트리거 (dev/검증)
 │ 추가 seat: 1명 × ₩9,000 × 남은 18일 = ₩5,400 │
 │                                             │
 │ ✓ 즉시 카드로 ₩5,400 결제                   │
-│ ✓ 다음 달부터 월 ₩56,000 (기본 ₩29,000 +    │
+│ ✓ 다음 달부터 월 ₩66,000 (기본 ₩39,000 +    │
 │   6 seat × ₩9,000)                          │
 │                                             │
 │ ℹ️ 팁: 12 seat 이상 쓰실 예정이면            │
