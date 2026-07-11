@@ -482,5 +482,9 @@
   },
   "popout": {
     "title": "PlanQ 채팅"
+  },
+  "reaction": {
+    "add": "반응 남기기",
+    "close": "닫기"
   }
 }

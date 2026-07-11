@@ -48,9 +48,12 @@ function _hmac(payloadB64) {
   if (!secret) throw new Error('JWT_SECRET not configured');
   return crypto.createHmac('sha256', secret).update(payloadB64).digest('base64url');
 }
-function buildState({ userId, businessId, provider }) {
+// native: 네이티브 앱(시스템 브라우저)에서 시작했는가. 콜백이 "자동으로 닫힙니다" HTML 대신
+//   앱 딥링크로 복귀해야 하는지 판단하는 값 — HMAC 서명 안에 넣어 위조 불가.
+function buildState({ userId, businessId, provider, native }) {
   const payload = Buffer.from(JSON.stringify({
     u: userId, b: businessId, p: provider,
+    nv: native ? 1 : 0,
     n: crypto.randomBytes(8).toString('hex'), t: Date.now(),
   })).toString('base64url');
   return `${payload}.${_hmac(payload)}`;
@@ -63,11 +66,11 @@ function parseState(state) {
     const p = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
     if (!p || Date.now() - p.t > STATE_TTL_MS) return null;  // 만료
     if (!PROVIDER_SCOPES[p.p]) return null;
-    return { userId: p.u, businessId: p.b, provider: p.p };
+    return { userId: p.u, businessId: p.b, provider: p.p, native: p.nv === 1 };
   } catch { return null; }
 }
 
-function buildAuthUrl({ userId, businessId, provider }) {
+function buildAuthUrl({ userId, businessId, provider, native }) {
   if (!PROVIDER_SCOPES[provider]) throw new Error('unsupported_provider');
   const client = newClient();
   return client.generateAuthUrl({
@@ -75,7 +78,7 @@ function buildAuthUrl({ userId, businessId, provider }) {
     prompt: 'consent',               // 항상 refresh_token 받게
     include_granted_scopes: true,
     scope: PROVIDER_SCOPES[provider],
-    state: buildState({ userId, businessId, provider }),
+    state: buildState({ userId, businessId, provider, native }),
   });
 }
 

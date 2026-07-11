@@ -19,6 +19,7 @@ import { fetchWorkspaceFiles, uploadMyFile, isImage as isRenderableImage } from 
 import { mediaTablet } from '../../theme/breakpoints';
 import { mapApiError } from '../../utils/apiError';
 import { useImageLightbox } from '../../components/Common/ImageLightbox';
+import MessageReactions from './MessageReactions';   // #138 이모지 리액션
 
 interface Props {
   project: MockProject | null;
@@ -1794,6 +1795,15 @@ const ChatPanel: React.FC<Props> = ({
                 return <ReadMark $read={false}>{t('chat.read.sent', '전송됨')}</ReadMark>;
               })()}
             </MessageBody>
+            {/* #138 — 이모지 리액션 (삭제된 메시지 제외) */}
+            {!isDeleted && user && (
+              <MessageReactions
+                businessId={Number(businessId)}
+                messageId={m.id}
+                reactions={m.reactions}
+                myUserId={Number(user.id)}
+              />
+            )}
             {/* 사이클 N+16-E — hover toolbar (Slack 패턴). 데스크탑 hover / 모바일 long-press 패턴은 추후 추가.
                 선택 모드 / 편집 모드 / 삭제된 메시지 / Cue 메시지는 toolbar 숨김. */}
             {!selectionMode && !isEditing && !isDeleted && m.sender_role !== 'cue' && (

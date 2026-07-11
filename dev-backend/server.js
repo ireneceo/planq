@@ -366,6 +366,7 @@ app.use('/api/clients', require('./routes/clients'));
 app.use('/api/invites', require('./routes/invites'));
 app.use('/api/conversations', require('./routes/conversations'));
 app.use('/api/message-attachments', require('./routes/message_attachments'));
+app.use('/api/messages', require('./routes/message_reactions'));   // #138 이모지 리액션
 app.use('/api/tasks', require('./routes/tasks'));
 app.use('/api/tasks', require('./routes/task_workflow'));
 app.use('/api/tasks', require('./routes/task_attachments'));

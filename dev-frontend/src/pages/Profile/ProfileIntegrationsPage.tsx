@@ -163,7 +163,8 @@ const ProfileIntegrationsPage: React.FC = () => {
       const r = await apiFetch('/api/me/oauth/google/initiate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider, business_id: businessId }),
+        // #125a — 네이티브면 콜백이 HTML(창 멈춤) 대신 앱 딥링크로 복귀하도록 서버에 알린다
+        body: JSON.stringify({ provider, business_id: businessId, client: isNativeApp() ? 'native' : 'web' }),
       });
       const j = await r.json();
       if (!j.success || !j.data?.auth_url) {
