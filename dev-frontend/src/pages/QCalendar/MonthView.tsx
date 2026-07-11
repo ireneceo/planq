@@ -30,11 +30,13 @@ interface Props {
   events: CalendarItem[];
   onSelectEvent: (id: number | string, instanceDate?: string) => void;
   onSelectDate: (date: Date) => void;
+  /** #131 — 날짜 칸의 + 버튼으로 그 날짜 일정 생성 (칸 클릭 자체는 기존대로 그 날짜 상세 이동) */
+  onCreateAt?: (date: Date) => void;
 }
 
 const MAX_VISIBLE = 3;
 
-const MonthView: React.FC<Props> = ({ anchor, today, events, onSelectEvent, onSelectDate }) => {
+const MonthView: React.FC<Props> = ({ anchor, today, events, onSelectEvent, onSelectDate, onCreateAt }) => {
   const { t, i18n } = useTranslation('qcalendar');
   const days = useMemo(() => getMonthGridDays(anchor, 0), [anchor]);
   const eventMap = useMemo(() => indexByDayKey(events), [events]);
@@ -74,9 +76,26 @@ const MonthView: React.FC<Props> = ({ anchor, today, events, onSelectEvent, onSe
               $today={isToday}
               onClick={() => onSelectDate(day)}
             >
-              <DateBadge $today={isToday} $isSaturday={day.getDay() === 6} $isSunday={day.getDay() === 0}>
-                {day.getDate()}
-              </DateBadge>
+              <CellHead>
+                <DateBadge $today={isToday} $isSaturday={day.getDay() === 6} $isSunday={day.getDay() === 0}>
+                  {day.getDate()}
+                </DateBadge>
+                {onCreateAt && (
+                  <AddBtn
+                    type="button"
+                    aria-label={t('month.createOn', { defaultValue: '이 날짜에 일정 추가' }) as string}
+                    title={t('month.createOn', { defaultValue: '이 날짜에 일정 추가' }) as string}
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      const d = new Date(day);
+                      d.setHours(9, 0, 0, 0);
+                      onCreateAt(d);
+                    }}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                  </AddBtn>
+                )}
+              </CellHead>
               <EventList>
                 {visible.map((e) => {
                   const c = getEventColors(e as CalendarEvent);
@@ -213,6 +232,20 @@ const Cell = styled.div<{ $outMonth: boolean; $today: boolean }>`
   display: flex; flex-direction: column;
   &:nth-child(7n) { border-right: none; }
   &:hover { background: ${({ $today }) => $today ? '#ECFDF5' : '#F8FAFC'}; }
+`;
+const CellHead = styled.div`
+  display: flex; align-items: center; gap: 4px;
+`;
+// 데스크탑은 hover 시 노출, 터치 기기는 hover 가 없으므로 상시 노출 (CLAUDE.md 반응형 원칙)
+const AddBtn = styled.button`
+  margin-left: auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; padding: 0; border-radius: 6px;
+  border: 1px solid #E2E8F0; background: #fff; color: #0F766E; cursor: pointer;
+  opacity: 0; transition: opacity .12s, background .12s;
+  ${Cell}:hover & { opacity: 1; }
+  &:hover { background: #F0FDFA; border-color: #99F6E4; }
+  &:focus-visible { opacity: 1; outline: 2px solid #14B8A6; outline-offset: 1px; }
+  @media (hover: none), (max-width: 1024px) { opacity: 1; }
 `;
 const DateBadge = styled.div<{ $today: boolean; $isSaturday: boolean; $isSunday: boolean }>`
   display: inline-flex; align-items: center; justify-content: center;

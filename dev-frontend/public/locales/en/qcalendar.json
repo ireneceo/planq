@@ -150,5 +150,8 @@
     "todayDivider": "Today",
     "addOnDay": "Add event on this day",
     "noneToday": "No events"
+  },
+  "month": {
+    "createOn": "Add an event on this day"
   }
 }

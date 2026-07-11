@@ -490,7 +490,8 @@
       "revert": "Undo my decision",
       "revertUsed": "You already used revert this round.",
       "revertDisabled": "Revert used",
-      "approvedOf": "{{n}} of {{total}} approved"
+      "approvedOf": "{{n}} of {{total}} approved",
+      "approvePlaceholder": "Any comment for the assignee? (optional)"
     },
     "delete": {
       "button": "Delete task",

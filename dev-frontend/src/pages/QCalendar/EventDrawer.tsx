@@ -131,9 +131,21 @@ const EventDrawer: React.FC<Props> = ({
   const start = new Date(event.start_at);
   const end = new Date(event.end_at);
 
+  // #135 — 링크만 복사하면 붙여넣은 쪽에서 무슨 회의인지 알 수 없다. 제목 · 일시 · 링크를 함께 복사.
   const copyMeetingLink = async () => {
     if (!event.meeting_url) return;
-    try { await navigator.clipboard.writeText(event.meeting_url); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch {}
+    const locale = i18n.language === 'en' ? 'en-US' : 'ko-KR';
+    const dayFmt = new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric', weekday: 'short' });
+    const timeFmt = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' });
+    const when = event.all_day
+      ? dayFmt.format(start)
+      : `${dayFmt.format(start)} ${timeFmt.format(start)}–${timeFmt.format(end)}`;
+    const text = [event.title, when, event.meeting_url].filter(Boolean).join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* 클립보드 거부 — 링크는 화면에 그대로 노출돼 있어 수동 복사 가능 */ }
   };
 
   // #119 — 시작/마감 각 날짜를 단독 포맷 (시간과 같은 줄에 붙여 표시). 연도 생략(컴팩트).

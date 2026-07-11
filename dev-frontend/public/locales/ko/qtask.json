@@ -490,7 +490,8 @@
       "revert": "내 결정 취소",
       "revertUsed": "이번 라운드에서 이미 한 번 취소했습니다.",
       "revertDisabled": "취소 사용함",
-      "approvedOf": "{{total}}명 중 {{n}}명 승인"
+      "approvedOf": "{{total}}명 중 {{n}}명 승인",
+      "approvePlaceholder": "담당자에게 남길 코멘트가 있나요? (선택)"
     },
     "delete": {
       "button": "업무 삭제",

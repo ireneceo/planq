@@ -315,6 +315,8 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
 
   const [revisionOpen, setRevisionOpen] = useState(false);
   const [revisionNote, setRevisionNote] = useState('');
+  const [approveOpen, setApproveOpen] = useState(false);   // #112c — 승인 코멘트 인라인 폼
+  const [approveNote, setApproveNote] = useState('');
   // #112 — 수정요청에 참고 파일 첨부 (일반 댓글 첨부와 동일 인프라: context='comment')
   const [revisionFiles, setRevisionFiles] = useState<File[]>([]);
   const [revisionPickerOpen, setRevisionPickerOpen] = useState(false);
@@ -622,7 +624,13 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const actSubmitReview = () => callAction('/submit-review');
   const actCancelReview = () => callAction('/cancel-review');
   const actComplete = () => callAction('/complete');
-  const actApprove = () => callAction('/reviewers/me/approve');
+  // #112c — 승인에도 코멘트를 남길 수 있다 (백엔드는 이미 note 를 받아 system_approve 댓글을 만든다).
+  //   코멘트는 선택 — 빈 채로 승인해도 그대로 통과. 반려 폼과 같은 인라인 확장 패턴.
+  const submitApprove = async () => {
+    const note = approveNote.trim();
+    const r = await callAction('/reviewers/me/approve', 'POST', note ? { note } : undefined);
+    if (r?.success) { setApproveOpen(false); setApproveNote(''); }
+  };
   const actRevert = () => callAction('/reviewers/me/revert');
   const actStart = async () => {
     if (!detailTask || actionBusy) return;
@@ -1423,7 +1431,22 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               {reviewerCanAct && <ActionCard>
                 <ActionCardTitle>{t('detail.actions.reviewerTitle', 'My actions (reviewer)')}</ActionCardTitle>
                 {myReviewer?.state === 'pending' && <>
-                  <ActionPrimary onClick={actApprove} disabled={actionBusy}>{t('detail.actions.approve', 'Approve')}</ActionPrimary>
+                  {approveOpen ? (
+                    <RevisionForm>
+                      <RevisionInput
+                        placeholder={t('detail.actions.approvePlaceholder', 'Any comment for the assignee? (optional)') as string}
+                        value={approveNote}
+                        onChange={e => setApproveNote(e.target.value)}
+                        autoFocus
+                      />
+                      <RevisionRow>
+                        <ActionSecondary onClick={() => { setApproveOpen(false); setApproveNote(''); }}>{t('common.cancel', 'Cancel')}</ActionSecondary>
+                        <ActionPrimary onClick={submitApprove} disabled={actionBusy}>{t('detail.actions.approve', 'Approve')}</ActionPrimary>
+                      </RevisionRow>
+                    </RevisionForm>
+                  ) : (
+                    <ActionPrimary onClick={() => setApproveOpen(true)} disabled={actionBusy}>{t('detail.actions.approve', 'Approve')}</ActionPrimary>
+                  )}
                   {revisionOpen ? (
                     <RevisionForm>
                       <RevisionInput placeholder={t('detail.actions.revisionPlaceholder', 'What needs to change? (required)')}
