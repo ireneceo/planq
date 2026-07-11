@@ -505,6 +505,18 @@ router.put('/:businessId/billing', authenticateToken, checkBusinessAccess, async
             default_due_days, default_vat_rate, default_currency,
             auto_invoice_default_mode, auto_invoice_default_billing_day, overdue_grace_days } = req.body;
     const updates = {};
+
+    // 입금 계좌 = 돈이 실제로 들어오는 곳. 청구서 발행·결제 마킹이 owner 전용인데 계좌번호가
+    // 일반 멤버도 바꿀 수 있으면 앞뒤가 안 맞는다(멤버가 계좌를 바꿔치기하면 고객 송금이 그리로 간다).
+    // Stripe 키와 같은 게이트를 건다.
+    const bankTouched = [bank_name, bank_account_name, bank_account_number,
+      swift_code, bank_name_en, bank_account_name_en].some((v) => v !== undefined);
+    if (bankTouched
+      && req.businessRole !== 'owner' && req.businessRole !== 'admin'
+      && req.user.platform_role !== 'platform_admin') {
+      return errorResponse(res, 'owner_or_admin_only', 403);
+    }
+
     if (bank_name !== undefined) updates.bank_name = bank_name ? String(bank_name).trim().slice(0, 100) : null;
     if (bank_account_name !== undefined) updates.bank_account_name = bank_account_name ? String(bank_account_name).trim().slice(0, 100) : null;
     if (bank_account_number !== undefined) updates.bank_account_number = bank_account_number ? String(bank_account_number).trim().slice(0, 50) : null;

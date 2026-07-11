@@ -714,7 +714,8 @@
       "intlAccount": "IBAN",
       "addAccount": "Add account",
       "primary": "Primary",
-      "setPrimary": "Set primary"
+      "setPrimary": "Set primary",
+      "ownerOnly": "Only owners and admins can change the bank account. Customer transfers land here, so it is read-only for you."
     },
     "defaults": {
       "title": "Invoice defaults",
