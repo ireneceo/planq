@@ -252,7 +252,26 @@ export interface ApiMessage {
   // other_count: 메시지를 받을 다른 참여자 총수 (1:1 vs 그룹 판별용).
   read_by_count?: number;
   other_count?: number;
+  // #138 — 이모지 리액션 (백엔드가 메시지에 동봉)
+  reactions?: { id: number; user_id: number; emoji: string }[];
 }
+
+/** #138 — 리액션 토글. 같은 이모지를 다시 누르면 취소. */
+export async function toggleMessageReaction(
+  businessId: number, messageId: number, emoji: string,
+): Promise<{ toggled: 'added' | 'removed'; reactions: { emoji: string; count: number; mine: boolean }[] }> {
+  const r = await apiFetch(`/api/messages/${businessId}/${messageId}/reactions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ emoji }),
+  });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'reaction_failed');
+  return j.data;
+}
+
+/** 채팅 리액션 이모지 (백엔드 허용 목록과 동일해야 함 — routes/message_reactions.js) */
+export const REACTION_EMOJIS = ['👍', '❤️', '😂', '🎉', '👀', '🙏', '✅', '🔥'];
 
 export type ApiMessageMeta =
   | { card_type: 'post'; post_id: number; share_token: string; share_url: string; title: string; note: string | null }

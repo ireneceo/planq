@@ -49,6 +49,18 @@ export default function NativeBridge() {
             //   딥링크로 받은 일회용 code 를 앱 WebView 컨텍스트에서 세션으로 교환 → refresh cookie 심김
             //   → /inbox 리로드 시 AuthContext bootstrap 이 자동 로그인.
             if (u.pathname === '/oauth/native-return') {
+              // #125a — 개인 연동(구글 캘린더·드라이브·Gmail) 복귀. 로그인과 달리 교환할 code 가 없다.
+              //   여기서 걸러내지 않으면 아래 code 분기에서 조용히 무시돼 "연동 완료 창이 멈춘" 것처럼 보인다.
+              if (u.searchParams.get('kind') === 'connect') {
+                window.dispatchEvent(new CustomEvent('planq:oauth-connected', {
+                  detail: {
+                    provider: u.searchParams.get('provider') || null,
+                    ok: u.searchParams.get('ok') === '1',
+                    error: u.searchParams.get('error') || null,
+                  },
+                }));
+                return;
+              }
               const code = u.searchParams.get('code');
               if (code) {
                 try {

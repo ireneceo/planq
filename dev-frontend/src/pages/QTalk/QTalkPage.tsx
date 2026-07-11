@@ -153,6 +153,7 @@ function apiMessageToMock(m: qtalkApi.ApiMessage): MockMessage {
       processing_by: null,
     } : undefined,
     attachments: (m.attachments || []).map(a => ({
+    reactions: m.reactions || [],   // #138
       id: a.id,
       file_name: a.file_name,
       file_size: a.file_size,
@@ -392,6 +393,20 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
     if (businessId) joinRoom(`business:${businessId}`);
     const offs: Array<() => void> = [];
     const on = <T,>(evt: string, cb: (data: T) => void) => { offs.push(onSocket(evt, cb)); };
+
+    // #138 — 리액션 실시간 (다른 사람이 누른 것도 즉시 보임). 서버가 conv/business room 양쪽으로 emit.
+    on('message:reaction', (p: { message_id: number; conversation_id: number; reactions: { emoji: string; count: number; users: { id: number }[] }[] }) => {
+      setMessages((prev) => {
+        const arr = prev[p.conversation_id];
+        if (!arr) return prev;
+        // 서버는 이모지별 집계로 보낸다 → 화면이 쓰는 원시 형태(user_id + emoji)로 되돌린다
+        const flat = p.reactions.flatMap((g) => g.users.map((u, i) => ({ id: -(i + 1), user_id: u.id, emoji: g.emoji })));
+        return {
+          ...prev,
+          [p.conversation_id]: arr.map((m) => (m.id === p.message_id ? { ...m, reactions: flat } : m)),
+        };
+      });
+    });
 
     // 메시지 수신
     on('message:new', (msg: qtalkApi.ApiMessage) => {

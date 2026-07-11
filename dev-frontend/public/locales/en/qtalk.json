@@ -482,5 +482,9 @@
   },
   "popout": {
     "title": "PlanQ Chat"
+  },
+  "reaction": {
+    "add": "Add reaction",
+    "close": "Close"
   }
 }

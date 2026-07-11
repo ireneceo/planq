@@ -6,6 +6,7 @@ const Conversation = require('./Conversation');
 const ConversationParticipant = require('./ConversationParticipant');
 const Message = require('./Message');
 const MessageAttachment = require('./MessageAttachment');
+const MessageReaction = require('./MessageReaction');
 const Task = require('./Task');
 const File = require('./File');
 const Invoice = require('./Invoice');
@@ -210,6 +211,11 @@ Message.belongsTo(User, { as: 'sender', foreignKey: 'sender_id' });
 Message.belongsTo(Task, { foreignKey: 'task_id' });
 Conversation.hasMany(Message, { as: 'messages', foreignKey: 'conversation_id' });
 User.hasMany(Message, { as: 'messages', foreignKey: 'sender_id' });
+
+// MessageReaction (#138) — 메시지 이모지 리액션
+MessageReaction.belongsTo(Message, { foreignKey: 'message_id', onDelete: 'CASCADE' });
+Message.hasMany(MessageReaction, { as: 'reactions', foreignKey: 'message_id', onDelete: 'CASCADE' });
+MessageReaction.belongsTo(User, { as: 'user', foreignKey: 'user_id', onDelete: 'CASCADE' });
 
 // MessageAttachment
 MessageAttachment.belongsTo(Message, { foreignKey: 'message_id' });
@@ -454,6 +460,7 @@ ExportJob.belongsTo(Business, { as: 'business', foreignKey: 'business_id' });
 ExportJob.belongsTo(Business, { as: 'targetBusiness', foreignKey: 'target_business_id' });
 
 module.exports = {
+  MessageReaction,
   User,
   Business,
   BusinessMember,

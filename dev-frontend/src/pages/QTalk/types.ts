@@ -132,6 +132,8 @@ export interface MockMessage {
   is_ai?: boolean;
   cue_rating?: 1 | -1 | null;
   attachments?: { id: number; file_name: string; file_size: number; mime_type?: string | null }[];
+  // #138 — 이모지 리액션 (백엔드가 메시지에 동봉)
+  reactions?: { id: number; user_id: number; emoji: string }[];
   card?: PostCardMeta | SignatureCardMeta | InvoiceCardMeta | TaskCardMeta | FileCardMeta | KbDocCardMeta | CalendarEventCardMeta | null;
   translations?: Partial<Record<'ko'|'en'|'ja'|'zh'|'es', string>> | null;
   detected_language?: 'ko'|'en'|'ja'|'zh'|'es' | null;

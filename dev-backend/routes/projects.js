@@ -962,6 +962,8 @@ router.get('/conversations/:id/messages', authenticateToken, async (req, res, ne
           // 첨부 — 페이지 새로고침/재진입 시 채팅 이미지·파일이 사라지지 않도록 필수.
           // association alias 'attachments' (models/index.js:119)
           { model: MessageAttachment, as: 'attachments', attributes: ['id', 'file_name', 'file_size', 'mime_type', 'file_id'], required: false },
+          // #138 — 리액션 동봉 (conversations.js 와 동일)
+          { model: require('../models').MessageReaction, as: 'reactions', attributes: ['id', 'user_id', 'emoji'], required: false },
         ],
         order: [['id', 'DESC']],   // 최신 우선
         limit: limit + 1,          // +1 로 has_more 판별

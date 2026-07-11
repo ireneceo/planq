@@ -32,6 +32,15 @@ async function assertBusinessMember(req, bizId) {
 const PERSONAL_PROVIDERS = ['google_calendar', 'google_drive', 'gmail'];
 
 // OAuth 콜백 창 HTML — 부모창 postMessage 후 자동 닫기 (cloud.js 패턴 정합, COOP fallback 포함)
+// #125a — 네이티브 복귀 딥링크. planq.kr 경로(Universal Link/App Link)로 302 → OS 가 앱을 깨우고
+//   NativeBridge 의 appUrlOpen 이 시스템 브라우저를 닫은 뒤 'planq:oauth-connected' 를 발행한다.
+//   (로그인 OAuth 가 /oauth/native-return 으로 쓰는 것과 같은 통로)
+function nativeReturnRedirect(res, { ok, provider, error }) {
+  const qs = new URLSearchParams({ provider: provider || '', ok: ok ? '1' : '0' });
+  if (error) qs.set('error', String(error).slice(0, 120));
+  return res.redirect(302, `/oauth/native-return?kind=connect&${qs.toString()}`);
+}
+
 function personalCallbackHtml({ ok, provider, title, body }) {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>
 <style>
@@ -237,7 +246,10 @@ router.post('/me/oauth/google/initiate', authenticateToken, async (req, res, nex
     if (!PERSONAL_PROVIDERS.includes(provider)) return errorResponse(res, 'unsupported_provider', 400);
     if (!bizId) return errorResponse(res, 'business_id_required', 400);
     if (!(await assertBusinessMember(req, bizId))) return errorResponse(res, 'no_business_access', 403);
-    const auth_url = personalOauth.buildAuthUrl({ userId: req.user.id, businessId: bizId, provider });
+    // #125a — 네이티브 앱에서 시작하면 콜백이 "자동으로 닫힙니다" HTML 대신 앱 딥링크로 복귀해야 한다.
+    //   (Capacitor 시스템 브라우저에서는 window.close() 가 no-op 이라 창이 그대로 멈춘다)
+    const native = (req.body || {}).client === 'native';
+    const auth_url = personalOauth.buildAuthUrl({ userId: req.user.id, businessId: bizId, provider, native });
     successResponse(res, { auth_url });
   } catch (err) { next(err); }
 });
@@ -245,10 +257,16 @@ router.post('/me/oauth/google/initiate', authenticateToken, async (req, res, nex
 // GET /api/me/oauth/google/callback?code=&state=  (Google redirect — 비인증, state 로 사용자 복원)
 router.get('/me/oauth/google/callback', async (req, res) => {
   const { code, state, error: oauthError } = req.query;
-  const fail = (msg) => res.status(400).send(personalCallbackHtml({
-    ok: false, provider: null, title: '연동 실패',
-    body: `<h2>연동 실패</h2><p>${msg}</p>`,
-  }));
+  // #125a — state 안의 native 플래그를 알게 된 뒤부터는 실패도 앱 딥링크로 복귀시킨다
+  //   (네이티브에서 HTML 을 띄우면 창이 그대로 멈춘다). parseState 전 실패는 HTML 유지.
+  let isNativeFlow = false;
+  const fail = (msg) => {
+    if (isNativeFlow) return nativeReturnRedirect(res, { ok: false, provider: null, error: msg });
+    return res.status(400).send(personalCallbackHtml({
+      ok: false, provider: null, title: '연동 실패',
+      body: `<h2>연동 실패</h2><p>${msg}</p>`,
+    }));
+  };
 
   if (oauthError) {
     // 심사(검증) 전 거부/사용자 취소를 구분해 안내 — "고장"으로 오해하지 않게
@@ -260,6 +278,7 @@ router.get('/me/oauth/google/callback', async (req, res) => {
   if (!code || !state) return fail('잘못된 요청');
   const parsed = personalOauth.parseState(state);
   if (!parsed) return fail('보안 검증 실패 (state 만료/위조)');
+  isNativeFlow = !!parsed.native;
 
   try {
     // 멤버십 재검증 (state 의 user 가 여전히 그 워크스페이스 멤버인지)
@@ -338,6 +357,8 @@ router.get('/me/oauth/google/callback', async (req, res) => {
     if (!created) await conn.update(baseFields);
 
     const labelMap = { google_calendar: 'Google Calendar', google_drive: 'Google Drive', gmail: 'Gmail' };
+    // #125a — 네이티브면 앱으로 복귀 (시스템 브라우저는 window.close() 가 안 먹혀 창이 멈춘다)
+    if (isNativeFlow) return nativeReturnRedirect(res, { ok: true, provider: parsed.provider });
     return res.send(personalCallbackHtml({
       ok: true, provider: parsed.provider, title: '연동 완료',
       body: `<h2>${labelMap[parsed.provider]} 연동 완료</h2><p>계정: <strong>${email}</strong></p>`,

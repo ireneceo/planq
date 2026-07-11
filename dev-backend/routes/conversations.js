@@ -573,6 +573,8 @@ router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async 
           include: [
             { model: User, as: 'sender', attributes: ['id', 'name', 'name_localized', 'avatar_url', 'is_ai'] },
             { model: require('../models').MessageAttachment, as: 'attachments', required: false },
+            // #138 — 리액션 동봉 (메시지당 별도 호출하면 N+1)
+            { model: require('../models').MessageReaction, as: 'reactions', required: false, attributes: ['id', 'user_id', 'emoji'] },
           ],
           // 최신 200개를 가져온다 (DESC). 옛 'ASC limit 200' 은 200+ 대화에서 '가장 오래된 200개' 만
           // 반환해 최근 메시지가 사라지던 버그. 표시용 ASC 정렬은 아래에서 복원.
