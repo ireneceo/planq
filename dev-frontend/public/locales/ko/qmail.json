@@ -187,7 +187,9 @@
     "emptyBody": "내용을 입력해 주세요",
     "uploadFailed": "첨부 업로드 실패",
     "sendFailed": "발송 실패",
-    "aiDraft": "✨ Cue 답변 초안"
+    "aiDraft": "✨ Cue 답변 초안",
+    "dismiss": "답변 완료",
+    "waitingDays": "{{n}}일 경과"
   },
   "errors": {
     "loadList": "인박스 로딩 실패"

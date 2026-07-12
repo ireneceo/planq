@@ -80,7 +80,22 @@ async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, 
     throw e;
   }
   const transport = await buildTransport(account);
-  const fromName = account.display_name || '';
+
+  // 발신 이름 — 원래 기준은 워크스페이스 메일 설정(businesses.mail_from_name, /business/settings/email).
+  //   Q Mail 계정이 그걸 안 보고 자기 display_name(Gmail 연결 시 박힌 구글 프로필 이름)만 쓰는 바람에
+  //   회사 대표 메일 답장이 "IRENE WP" 로 나갔다. 설정을 단일 원천으로 되돌린다.
+  //   우선순위: 계정별 발신 이름(명시 override) → 워크스페이스 발신 이름 → 브랜드명 → 워크스페이스명.
+  //   개인 계정(owner_user_id)은 본인 이름이 기본이므로 계정 값을 그대로 쓴다.
+  let fromName = account.display_name || '';
+  if (!fromName && account.business_id) {
+    try {
+      const { Business } = require('../models');
+      const biz = await Business.findByPk(account.business_id, {
+        attributes: ['mail_from_name', 'brand_name', 'name'],
+      });
+      fromName = biz?.mail_from_name || biz?.brand_name || biz?.name || '';
+    } catch (e) { console.warn('[emailSend] from name fallback', e.message); }
+  }
   const from = fromName
     ? `"${String(fromName).replace(/"/g, '')}" <${account.email}>`
     : account.email;

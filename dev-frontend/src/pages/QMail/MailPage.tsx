@@ -39,6 +39,13 @@ interface MailAccount {
   unread: number;
 }
 
+// 답변 대기 일수 — 3일 넘으면 목록에서 강조 (고객 문의를 묵히지 않게)
+function waitingDays(iso?: string | null): number {
+  if (!iso) return 0;
+  const ms = Date.now() - new Date(iso).getTime();
+  return ms > 0 ? Math.floor(ms / 86400000) : 0;
+}
+
 interface Thread {
   id: number;
   subject: string | null;
@@ -46,11 +53,14 @@ interface Thread {
   last_message_at: string;
   status: string;
   reply_needed: boolean;
+  reply_needed_at?: string | null;
   is_starred: boolean;
   unread_count: number;
   message_count: number;
   labels: string[];
   account: { id: number; email: string; display_name?: string | null } | null;
+  // 상대방(발신자) — 목록의 "보낸 사람" 자리. 내 메일함 이름(account.display_name)이 아니다.
+  counterpart?: { name: string | null; email: string | null } | null;
   client: { id: number; display_name?: string; company_name?: string } | null;
   project?: { id: number; name?: string; color?: string } | null;
   uncertain_reason?: string | null;
@@ -315,6 +325,22 @@ const MailPage: React.FC = () => {
     e.stopPropagation();
     patchThread(th.id, { is_starred: !th.is_starred });
   }, [patchThread]);
+
+  // 답변 필요 해제 — 밖(Gmail·맥 메일)에서 이미 답장했거나 답장이 불필요한 메일
+  const [dismissingId, setDismissingId] = useState<number | null>(null);
+  const dismissReply = useCallback(async (e: React.MouseEvent, threadId: number) => {
+    e.stopPropagation();
+    if (!businessId) return;
+    setDismissingId(threadId);
+    try {
+      const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${threadId}/dismiss-reply`, { method: 'POST' });
+      if (!r.ok) throw new Error('dismiss_failed');
+      setThreads(prev => prev.filter(x => x.id !== threadId));   // 답변 필요 폴더에서 즉시 제거
+      loadCounts();
+      window.dispatchEvent(new CustomEvent('inbox:refresh'));    // 사이드바 Q Mail 뱃지 즉시 갱신
+    } catch { /* 실패 시 목록 유지 — 다음 로드에서 복원 */ }
+    finally { setDismissingId(null); }
+  }, [businessId, loadCounts]);
 
   // 라벨 토글 (상세) — 현재 라벨 배열에 추가/제거
   const toggleLabel = useCallback((name: string) => {
@@ -871,7 +897,11 @@ const MailPage: React.FC = () => {
                 >
                   <ThreadRow1>
                     <ThreadSender>
-                      {mt.client?.display_name || mt.client?.company_name || mt.account?.display_name || mt.account?.email || '(unknown)'}
+                      {/* 보낸 사람 = 실제 발신자(메일 헤더의 이름). 여태 내 메일함 이름
+                          (account.display_name)을 그려서 PlanQ 알림이 내 계정명으로 보였다.
+                          연결된 고객 이름도 발신자를 가리면 안 된다 — 고객 연결은 별도 칩으로 표시된다. */}
+                      {mt.counterpart?.name || mt.client?.display_name || mt.client?.company_name
+                        || mt.counterpart?.email || mt.account?.email || '(unknown)'}
                     </ThreadSender>
                     <ThreadRow1Right>
                       <StarSpan
@@ -894,6 +924,27 @@ const MailPage: React.FC = () => {
                     <UncertainBadge>
                       ⚠ {t(`uncertain.${mt.uncertain_reason || 'review'}`, { defaultValue: t('uncertain.review', { defaultValue: '검토 권장' }) }) as string}
                     </UncertainBadge>
+                  )}
+                  {/* 답변 필요 폴더 — 오래 방치된 문의를 눈에 띄게 하고, 밖(Gmail 등)에서 이미 답장한
+                      메일을 사람이 직접 끌 수 있게 한다. 안 그러면 플래그가 영영 안 꺼져 지표가 죽는다. */}
+                  {folder === 'reply_needed' && (
+                    <ReplyRow>
+                      {waitingDays(mt.reply_needed_at) >= 3 && (
+                        <OverdueChip>
+                          {t('reply.waitingDays', {
+                            defaultValue: '{{n}}일 경과',
+                            n: waitingDays(mt.reply_needed_at),
+                          }) as string}
+                        </OverdueChip>
+                      )}
+                      <DismissBtn
+                        type="button"
+                        disabled={dismissingId === mt.id}
+                        onClick={(e) => dismissReply(e, mt.id)}
+                      >
+                        {t('reply.dismiss', { defaultValue: '답변 완료' }) as string}
+                      </DismissBtn>
+                    </ReplyRow>
                   )}
                   {mt.labels && mt.labels.length > 0 && (
                     <RowLabels>
@@ -1483,6 +1534,21 @@ const RowLabels = styled.div`
   display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;
 `;
 // M5 — Uncertain(확인 권장) 사유 배지 (Warning amber)
+const ReplyRow = styled.div`
+  display: flex; align-items: center; gap: 6px; margin-top: 6px;
+`;
+const OverdueChip = styled.span`
+  font-size: 10px; font-weight: 700; color: #B91C1C; background: #FEF2F2;
+  border: 1px solid #FECACA; border-radius: 999px; padding: 1px 7px;
+`;
+const DismissBtn = styled.button`
+  margin-left: auto;
+  font-size: 10px; font-weight: 600; color: #64748B;
+  background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 6px;
+  padding: 2px 8px; cursor: pointer;
+  &:hover:not(:disabled) { border-color: #14B8A6; color: #0F766E; background: #F0FDFA; }
+  &:disabled { opacity: 0.5; cursor: wait; }
+`;
 const UncertainBadge = styled.span`
   display: inline-flex; align-items: center; gap: 3px; align-self: flex-start;
   margin-top: 4px; padding: 2px 8px; border-radius: 999px;

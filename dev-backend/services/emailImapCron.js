@@ -195,6 +195,11 @@ async function syncOne(account) {
 
   const conn = await imaps.connect({ imap: imapConfig });
 
+  // "우리 주소" 집합 — 우리가 보낸 메일(플랫폼 알림·워크스페이스 발송)이 되돌아온 것은
+  // 사람 문의가 아니다. 이게 없어서 운영 "답변 필요" 116건 중 93건이 자기 알림이었다.
+  const { buildOwnEmailSet } = require('./emailTriage');
+  const ownEmails = await buildOwnEmailSet(account.business_id);
+
   let newCount = 0;
   try {
     const box = await conn.openBox(account.imap_folder);
@@ -313,7 +318,7 @@ async function syncOne(account) {
         let triageFields = {};
         try {
           const { triageInbound } = require('./emailTriage');
-          const tr = triageInbound({ subject: parsed.subject, bodyText: parsed.text, fromEmail, headers: parsed.headers });
+          const tr = triageInbound({ subject: parsed.subject, bodyText: parsed.text, fromEmail, headers: parsed.headers, ownEmails });
           if (isNew) {
             triageFields = {
               status: tr.status,

@@ -746,6 +746,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const inboxCounts = useInboxCount(user?.business_id ? Number(user.business_id) : null);
   const inboxCount = inboxCounts.total;
   const billMenuCount = inboxCounts.bill;  // Q Bill 메뉴 뱃지 — 청구 액션 대기 건수
+  // Q Mail 메뉴 뱃지 — 답변 필요 메일. "확인 필요"(total) 에는 합산하지 않는다:
+  //   확인 필요는 '나에게 귀속된, 내가 완료할 수 있는 액션' 만 담는 신뢰 자산이고,
+  //   회사 공용 메일함은 담당자 미지정이 기본이라 멤버 전원 뱃지가 같은 메일로 동시에 오른다.
+  const mailMenuCount = inboxCounts.mail;
   // N+63 — platform_admin 좌측 inbox badge (feedback + inquiries)
   const adminCounts = useAdminInboxCounts();
   // N+63 — 알림 feed (Activity Feed) 미읽음 카운트. 확인필요 (Action Queue) 와 분리.
@@ -1044,9 +1048,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   {hasBiz('owner', 'member') && (
                     <NavItem to="/mail" $isCollapsed={isCollapsed}
                       $active={isActive('/mail')}
-                      title={isCollapsed ? t('nav.qmail', 'Q Mail') : undefined}>
+                      title={isCollapsed ? `${t('nav.qmail', 'Q Mail')}${mailMenuCount > 0 ? ` (${mailMenuCount})` : ''}` : undefined}>
                       <NavIcon $isCollapsed={isCollapsed}><IconMail /></NavIcon>
                       <NavLabel $isCollapsed={isCollapsed}>{t('nav.qmail', 'Q Mail')}</NavLabel>
+                      {mailMenuCount > 0 && (
+                        <InboxBadge $collapsed={isCollapsed} aria-label={`${t('nav.qmail', 'Q Mail')} ${mailMenuCount}`}>
+                          {mailMenuCount > 99 ? '99+' : mailMenuCount}
+                        </InboxBadge>
+                      )}
                     </NavItem>
                   )}
                   <NavItem to="/tasks" $isCollapsed={isCollapsed} $active={isActive('/tasks')}

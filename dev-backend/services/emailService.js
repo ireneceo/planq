@@ -369,6 +369,14 @@ const sendEmail = async ({
       to,
       subject,
       html,
+      // 자동발송 표식 (RFC 3834) — 이 메일들은 사람이 답장할 대상이 아니다.
+      //   여태 헤더가 없어서, PlanQ 가 보낸 알림 메일이 Q Mail 로 다시 수집될 때 "사람이 보낸 메일"로
+      //   분류됐다(triage='human' → reply_needed 자동 ON). 운영 "답변 필요" 116건 중 93건이
+      //   PlanQ 자기 알림이었던 자가 오염의 근원. 수신 측 isAutomated() 는 이미 이 헤더를 본다.
+      headers: {
+        'Auto-Submitted': 'auto-generated',
+        'X-Auto-Response-Suppress': 'All',
+      },
       ...(allAtt.length > 0 ? { attachments: allAtt } : {}),
       ...(replyTo ? { replyTo } : {}),
     });

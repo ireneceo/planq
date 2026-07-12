@@ -6,20 +6,20 @@ import { fetchTodo } from '../services/dashboard';
 import { useAuth } from '../contexts/AuthContext';
 import { joinRoom, leaveRoom, onSocket } from '../services/socket';
 
-export interface InboxCounts { total: number; bill: number }
+export interface InboxCounts { total: number; bill: number; mail: number }
 export function useInboxCount(businessId: number | null | undefined): InboxCounts {
-  const [count, setCount] = useState<InboxCounts>({ total: 0, bill: 0 });
+  const [count, setCount] = useState<InboxCounts>({ total: 0, bill: 0, mail: 0 });
   const localCleanupRef = useRef<(() => void) | null>(null);
   const { user } = useAuth();
 
   useEffect(() => {
-    if (!businessId || !user) { setCount({ total: 0, bill: 0 }); return; }
+    if (!businessId || !user) { setCount({ total: 0, bill: 0, mail: 0 }); return; }
     let cancelled = false;
 
     const refresh = async () => {
       try {
         const r = await fetchTodo(businessId);
-        if (!cancelled) setCount({ total: r.total || 0, bill: r.billCount || 0 });
+        if (!cancelled) setCount({ total: r.total || 0, bill: r.billCount || 0, mail: r.mailReplyCount || 0 });
       } catch { /* silent */ }
     };
 
