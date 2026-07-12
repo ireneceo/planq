@@ -81,6 +81,8 @@ function folderWhere(folder, userId) {
     case 'archived': return { status: 'archived' };
     // N+83 — 자동·마케팅 폴더 (noreply 알림 + 뉴스레터 벌크). 인박스 노이즈 분리.
     case 'marketing': return { status: 'open', triage: { [Op.in]: ['automated', 'marketing'] } };
+    // 전체 — 스팸·보관 뺀 모든 메일 (자동·마케팅 포함). "다 어디 갔지" 를 없애는 안전망.
+    case 'all': return { status: { [Op.notIn]: ['spam', 'archived'] } };
     case 'inbox':
     default:
       // 인박스 = 사람이 보낸 열린 메일 중 **답변이 끝난 것** (답변했거나 "답변 완료" 로 넘긴 것).
@@ -110,7 +112,7 @@ router.get('/:businessId/email-threads',
   async (req, res, next) => {
     try {
       const businessId = Number(req.params.businessId);
-      const { folder, account_id, client_id, project_id, unread, starred, q } = req.query;
+      const { folder, account_id, client_id, project_id, label, unread, starred, q } = req.query;
       const { limit, page, offset } = parsePagination(req, { defaultLimit: 50, maxLimit: 200 });
 
       const where = {
@@ -137,6 +139,14 @@ router.get('/:businessId/email-threads',
       }
       if (client_id) where.client_id = Number(client_id);
       if (project_id) where.project_id = Number(project_id);
+      // 라벨(태그) 필터 — labels 는 JSON 배열. 사용자 입력이라 이스케이프 후 JSON_CONTAINS.
+      if (label && String(label).trim()) {
+        const lb = String(label).trim().slice(0, 50);
+        where[Op.and] = [
+          ...(where[Op.and] || []),
+          sequelize.literal(`JSON_CONTAINS(\`labels\`, ${sequelize.escape(JSON.stringify(lb))})`),
+        ];
+      }
       if (String(unread) === 'true') where.unread_count = { [Op.gt]: 0 };
       if (String(starred) === 'true') where.is_starred = true;
       // 풀텍스트 — subject + last_message_preview + 메시지 본문(body_text)

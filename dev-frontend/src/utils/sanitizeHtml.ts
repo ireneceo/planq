@@ -28,3 +28,28 @@ export function sanitizeRichText(value: string | null | undefined): string {
     ALLOWED_URI_REGEXP: /^(?:https?:|mailto:|tel:|\/|#|data:image\/)/i,
   });
 }
+
+// 받은 메일 본문 정화 — 뉴스레터/서명은 리치텍스트보다 태그·속성이 넓다(table 레이아웃, 인라인 style).
+// script·on* 핸들러·iframe·form 은 DOMPurify 가 제거한다. 정화한 뒤 sandbox iframe 안에 넣으므로
+// (allow-scripts 만, same-origin 없음) 스타일이 살아 있어도 우리 화면을 건드리지 못한다.
+const MAIL_TAGS = [
+  ...ALLOWED_TAGS,
+  'div', 'center', 'font', 'small', 'big', 'sub', 'sup', 'dl', 'dt', 'dd', 'caption',
+  'col', 'colgroup', 'tfoot', 'figure', 'figcaption', 'address', 'h5', 'h6',
+];
+const MAIL_ATTR = [
+  ...ALLOWED_ATTR,
+  'style', 'width', 'height', 'align', 'valign', 'bgcolor', 'color', 'border',
+  'cellpadding', 'cellspacing', 'size', 'face', 'srcset', 'id',
+];
+
+/** 받은 메일 본문(HTML) 정화. sandbox iframe 안에서 표시하는 것을 전제로 한다. */
+export function sanitizeMailHtml(value: string | null | undefined): string {
+  if (!value) return '';
+  return DOMPurify.sanitize(value, {
+    ALLOWED_TAGS: MAIL_TAGS,
+    ALLOWED_ATTR: MAIL_ATTR,
+    FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input', 'button', 'link', 'meta', 'base'],
+    ALLOWED_URI_REGEXP: /^(?:https?:|mailto:|tel:|cid:|\/|#|data:image\/)/i,
+  });
+}

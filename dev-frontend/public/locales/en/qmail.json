@@ -147,7 +147,8 @@
     "spam": "Spam",
     "archived": "Archived",
     "assigned": "Assigned to me",
-    "following": "Following"
+    "following": "Following",
+    "all": "All mail"
   },
   "uncertain": {
     "billing": "Billing/payment",
@@ -176,8 +177,8 @@
   "reply": {
     "faqUsed": "Based on a saved FAQ",
     "aiGated": "AI replies aren't suggested for automated · marketing mail",
-    "aiThinking": "Cue is writing…",
-    "aiSuggest": "Cue draft reply",
+    "aiThinking": "AI writing…",
+    "aiSuggest": "AI draft reply",
     "button": "Reply",
     "to": "To",
     "placeholder": "Write your reply…",
@@ -187,9 +188,11 @@
     "emptyBody": "Please enter a message",
     "uploadFailed": "Attachment upload failed",
     "sendFailed": "Send failed",
-    "aiDraft": "Cue draft reply",
+    "aiDraft": "AI draft reply",
     "dismiss": "Mark replied",
-    "waitingDays": "{{n}} days waiting"
+    "waitingDays": "{{n}} days waiting",
+    "aiRegenerate": "Regenerate AI draft",
+    "aiLimitExceeded": "You've used all AI actions this month."
   },
   "errors": {
     "loadList": "Failed to load inbox"
@@ -293,5 +296,9 @@
     },
     "applied": "Sorted by a rule",
     "appliedHint": "You can review and delete this rule in Settings → Mail accounts → Mail sorting rules"
+  },
+  "filters": {
+    "allLabels": "All tags",
+    "allProjects": "All projects"
   }
 }
