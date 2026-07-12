@@ -898,7 +898,38 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
     const BILL_TYPES = new Set(['invoice', 'invoice_draft', 'tax_invoice', 'payment_notify']);
     const billCount = all.filter(it => BILL_TYPES.has(it.type)).length;
 
-    return successResponse(res, { items: all, counts, total: all.length, billCount, workspaces });
+    // Q Mail 메뉴 뱃지용 — 답변 필요 메일 건수. Q Bill 과 같은 문법(메뉴 옆 뱃지).
+    //   ⚠️ total 에 합산하지 않는다 — "확인 필요" 는 '나에게 귀속된, 내가 완료할 수 있는 액션' 만 담는
+    //   신뢰 자산이다. 회사 공용 메일함은 담당자 미지정이 기본이라 멤버 전원 뱃지가 같은 메일로
+    //   동시에 오르고, 한 명이 답장해도 나머지는 계속 노이즈를 본다 (공유 큐 ≠ 개인 처리함).
+    //   담당자 지정(is_assigned)이 실사용되면 "내 담당 + 3일 경과" 부분집합만 확인 필요로 승격.
+    let mailReplyCount = 0;
+    try {
+      const { EmailThread, EmailAccount } = require('../models');
+      const bizIds = workspaces.map((w) => w.business_id);
+      if (bizIds.length > 0) {
+        // 접근 가능한 계정만 (회사 공용 + 본인 개인) — 남의 개인 메일함은 세지 않는다
+        const accs = await EmailAccount.findAll({
+          where: {
+            business_id: { [Op.in]: bizIds },
+            is_active: true,
+            [Op.or]: [{ owner_user_id: null }, { owner_user_id: userId }],
+          },
+          attributes: ['id'],
+        });
+        if (accs.length > 0) {
+          mailReplyCount = await EmailThread.count({
+            where: {
+              account_id: { [Op.in]: accs.map((a) => a.id) },
+              reply_needed: true,
+              status: { [Op.in]: ['open', 'uncertain'] },
+            },
+          });
+        }
+      }
+    } catch (e) { console.warn('[todo] mailReplyCount', e.message); }
+
+    return successResponse(res, { items: all, counts, total: all.length, billCount, mailReplyCount, workspaces });
   } catch (err) {
     return next(err);
   }

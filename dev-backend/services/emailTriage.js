@@ -35,20 +35,47 @@ function isMarketing(headers) {
   return false;
 }
 
+// 뉴스레터·캠페인 발신자 — List-* 헤더가 없는 옛 메일/일부 발송기 커버
+const NEWSLETTER_SENDER = /(^|[._-])(news(letter)?s?|campaign|marketing|promo(tions?)?|digest|updates?|mailing)([._-]|@)/i;
+
 // 자동발송(트랜잭션/알림) 시그널 — Auto-Submitted + 발신자 패턴
-function isAutomated(headers, fromEmail) {
+//   ownEmails: 이 워크스페이스가 소유한 메일 주소들 + 플랫폼 발신 주소.
+//   우리가 보낸 메일이 우리 인박스로 되돌아오는 경우(시스템 알림·자기 참조)는 사람 문의가 아니다.
+//   실측: 운영 "답변 필요" 116건 중 93건이 PlanQ 가 자기 자신에게 보낸 알림이었다.
+function isAutomated(headers, fromEmail, ownEmails) {
   const auto = (hget(headers, 'auto-submitted') || '').toLowerCase();
   if (auto && auto !== 'no') return true;            // auto-generated / auto-replied
   if (hget(headers, 'x-auto-response-suppress')) return true;
-  const f = String(fromEmail || '');
+  const f = String(fromEmail || '').toLowerCase().trim();
+  if (ownEmails && ownEmails.size > 0 && ownEmails.has(f)) return true;   // 우리가 보낸 것
   if (AUTOMATED_SENDER.test(f)) return true;
+  if (NEWSLETTER_SENDER.test(f)) return true;
   if (SOCIAL_DOMAIN.test(f)) return true;
   return false;
 }
 
+// 이 워크스페이스가 "우리 주소" 로 인정할 집합 — 연결된 메일 계정 + 플랫폼 발신 주소
+async function buildOwnEmailSet(businessId) {
+  const set = new Set();
+  const platformFrom = (process.env.SMTP_FROM || '').toLowerCase().trim();
+  if (platformFrom) set.add(platformFrom);
+  try {
+    const { EmailAccount } = require('../models');
+    const accs = await EmailAccount.findAll({
+      where: { business_id: businessId },
+      attributes: ['email'],
+    });
+    for (const a of accs) {
+      const e = String(a.email || '').toLowerCase().trim();
+      if (e) set.add(e);
+    }
+  } catch (e) { console.warn('[emailTriage] buildOwnEmailSet', e.message); }
+  return set;
+}
+
 // 메인 — { triage, reply_needed, spam_score, status, uncertain_reason }
 //   status/spam_score/uncertain_reason 은 classify 결과 그대로 통과 (호환 유지).
-function triageInbound({ subject, bodyText, fromEmail, headers }) {
+function triageInbound({ subject, bodyText, fromEmail, headers, ownEmails }) {
   const c = classify({ subject, bodyText, fromEmail, headers });
 
   let triage;
@@ -56,7 +83,7 @@ function triageInbound({ subject, bodyText, fromEmail, headers }) {
     triage = 'spam';
   } else if (isMarketing(headers)) {
     triage = 'marketing';
-  } else if (isAutomated(headers, fromEmail)) {
+  } else if (isAutomated(headers, fromEmail, ownEmails)) {
     triage = 'automated';
   } else {
     triage = 'human';
@@ -77,13 +104,14 @@ function triageInbound({ subject, bodyText, fromEmail, headers }) {
 
 // 백필용 — 헤더 없는 기존 메일을 발신자 패턴만으로 재분류 (보수적: 확실한 것만 이동)
 //   헤더가 없으므로 marketing 은 거의 못 잡고 automated(noreply·소셜)만 신뢰성 있게 분류.
-function triageBySenderOnly({ subject, bodyText, fromEmail }) {
+function triageBySenderOnly({ subject, bodyText, fromEmail, ownEmails }) {
   const c = classify({ subject, bodyText, fromEmail, headers: null });
   let triage;
   if (c.status === 'spam') triage = 'spam';
-  else if (isAutomated(null, fromEmail)) triage = 'automated';
+  else if (isAutomated(null, fromEmail, ownEmails)) triage = 'automated';
   else triage = 'human';
   return { triage, reply_needed: triage === 'human' && c.status === 'open', spam_score: c.spam_score, status: c.status, uncertain_reason: c.uncertain_reason };
 }
 
-module.exports = { triageInbound, triageBySenderOnly, isMarketing, isAutomated };
+module.exports = {
+  buildOwnEmailSet, triageInbound, triageBySenderOnly, isMarketing, isAutomated };

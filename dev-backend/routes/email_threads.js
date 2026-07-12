@@ -166,21 +166,50 @@ router.get('/:businessId/email-threads',
         distinct: true,
       });
 
+      // 상대방(발신자) — 목록의 "보낸 사람" 자리.
+      //   여태 이 값을 안 내려줘서 프론트가 내 메일함 이름(account.display_name)을 발신자로 그렸다
+      //   → PlanQ 가 보낸 알림이 Q Mail 안에서만 "IRENE WP"(내 계정명)로 보였다.
+      //   발신자가 헤더에 넣은 이름은 email_messages.from_name 에 그대로 있다. 그걸 쓴다.
+      //   (participants JSON 은 옛 row 에 이름이 비어 있어 신뢰할 수 없다 — fallback 으로만.)
+      const threadIds = rows.map(r => r.id);
+      const senderByThread = new Map();
+      if (threadIds.length > 0) {
+        const lastInbound = await sequelize.query(
+          `SELECT em.thread_id, em.from_name, em.from_email
+             FROM email_messages em
+             JOIN (SELECT thread_id, MAX(id) AS mid
+                     FROM email_messages
+                    WHERE thread_id IN (:ids) AND direction = 'inbound'
+                 GROUP BY thread_id) last ON last.mid = em.id`,
+          { replacements: { ids: threadIds }, type: sequelize.QueryTypes.SELECT }
+        );
+        for (const m of lastInbound) {
+          senderByThread.set(m.thread_id, { name: m.from_name || null, email: m.from_email || null });
+        }
+      }
+
       const data = rows.map(t => {
         const obj = t.toJSON();
+        const myAddr = String(obj.EmailAccount?.email || '').toLowerCase();
+        const parts = Array.isArray(obj.participants) ? obj.participants : [];
+        const fromParts = parts.find(p => p?.email && String(p.email).toLowerCase() !== myAddr) || parts[0] || null;
+        const other = senderByThread.get(obj.id) || (fromParts ? { name: fromParts.name || null, email: fromParts.email || null } : null);
         return {
           id: obj.id,
           subject: obj.subject,
           last_message_preview: obj.last_message_preview,
           last_message_at: obj.last_message_at,
+          last_message_direction: obj.last_message_direction,
           status: obj.status,
           reply_needed: obj.reply_needed,
+          reply_needed_at: obj.reply_needed_at,
           reply_needed_reason: obj.reply_needed_reason,
           is_starred: obj.is_starred,
           unread_count: obj.unread_count || 0,
           message_count: obj.message_count || 0,
           labels: obj.labels || [],
           account: obj.EmailAccount,
+          counterpart: other ? { name: other.name || null, email: other.email || null } : null,
           client: obj.Client,
           project: obj.Project,
           uncertain_reason: obj.uncertain_reason,
@@ -380,6 +409,32 @@ router.post('/:businessId/email-threads/:id/mark-not-spam',
       if (thread.status !== 'spam') return errorResponse(res, 'not_spam', 400);
       await thread.update({ status: 'open' });
       return successResponse(res, { id: thread.id, status: 'open' });
+    } catch (err) { next(err); }
+  }
+);
+
+// ─────────────────────────────────────────────
+// POST dismiss-reply — "답변 필요" 해제 (답장 완료 / 답장 불필요)
+//   Q Mail 밖(Gmail·맥 메일 등)에서 답장하면 플래그가 영영 안 꺼져 "답변 필요" 가 죽은 지표가 된다.
+//   IMAP 수집기는 inbound 만 보므로 우리가 밖에서 보낸 답장을 알 수 없다 → 사람이 끄는 문을 연다.
+// ─────────────────────────────────────────────
+router.post('/:businessId/email-threads/:id/dismiss-reply',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const acctIds = await accessibleAccountIds(businessId, req.user.id);
+      const thread = await EmailThread.findOne({
+        where: { id: req.params.id, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } },
+      });
+      if (!thread) return errorResponse(res, 'thread_not_found', 404);
+      await thread.update({
+        reply_needed: false,
+        reply_needed_at: null,
+        reply_needed_reason: 'dismissed',
+      });
+      broadcastMail(req, businessId, 'mail:updated', { id: thread.id, reply_needed: false });
+      return successResponse(res, { id: thread.id, reply_needed: false });
     } catch (err) { next(err); }
   }
 );
