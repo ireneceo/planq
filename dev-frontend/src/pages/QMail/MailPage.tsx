@@ -25,6 +25,8 @@ import ActionButton from '../../components/Common/ActionButton';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { uploadMyFile } from '../../services/files';
 import MailContextPanel from './MailContextPanel';
+import PanelEdgeHandle from '../../components/Layout/PanelEdgeHandle';
+import EmptyState from '../../components/Common/EmptyState';
 
 type Folder = 'reply_needed' | 'inbox' | 'marketing' | 'uncertain' | 'assigned' | 'following' | 'spam' | 'archived';
 
@@ -239,19 +241,22 @@ const MailPage: React.FC = () => {
   }, [businessId]);
 
   // 폴더 카운트 fetch (병렬)
+  //   계정 필터를 같이 태운다 — 안 그러면 특정 주소를 골라도 탭 숫자는 전 계정 합계라
+  //   "회사 메일만 보는데 개인 메일까지 센 숫자" 가 뜬다 (리스트와 숫자 불일치).
   const loadCounts = useCallback(async () => {
     if (!businessId) return;
+    const acctQs = accountFilter ? `&account_id=${accountFilter}` : '';
     const results = await Promise.all(
       FOLDERS.map(async ({ key }) => {
         try {
-          const r = await apiFetch(`/api/businesses/${businessId}/email-threads?folder=${key}&limit=1`);
+          const r = await apiFetch(`/api/businesses/${businessId}/email-threads?folder=${key}&limit=1${acctQs}`);
           const j = await r.json();
           return [key, j.pagination?.total || 0] as [Folder, number];
         } catch { return [key, 0] as [Folder, number]; }
       })
     );
     setFolderCounts(Object.fromEntries(results) as Record<Folder, number>);
-  }, [businessId]);
+  }, [businessId, accountFilter]);
 
   // 라벨 마스터 + 멤버 (M3-B 라벨/할당용)
   const loadLabels = useCallback(async () => {
@@ -729,17 +734,19 @@ const MailPage: React.FC = () => {
     <PanelGridLayout $cols={sidebarCollapsed ? '0px 1fr' : '300px 1fr'}>
       {/* #130 — 좌측 리스트: 300px 접이식 (여태 340px 고정·접기 없음이라 Q Mail 만 다른 화면처럼 보였다) */}
       {!sidebarCollapsed && viewportNarrow && <SidebarBackdrop onClick={() => setSidebarCollapsed(true)} />}
+      {/* 좌측 리스트 접기 — Q Talk·Q docs·Q Task 와 같은 경계선 중앙 화살표 핸들 (공통 컴포넌트).
+          여태 Q Mail 만 헤더 안 박스 버튼이라 다른 화면과 어긋나 있었다. */}
+      <PanelEdgeHandle
+        side="left"
+        collapsed={sidebarCollapsed}
+        onToggle={() => setSidebarCollapsed((v) => !v)}
+        offset={sidebarCollapsed ? 0 : 300}
+        labelCollapse={t('sidebar.collapse', { defaultValue: '목록 접기' }) as string}
+        labelExpand={t('sidebar.expand', { defaultValue: '목록 열기' }) as string}
+      />
       <CollapsibleSidebar $collapsed={sidebarCollapsed}>
         <PanelHeader>
           <PanelTitle>Q Mail</PanelTitle>
-          <CollapseBtn
-            type="button"
-            onClick={() => setSidebarCollapsed(true)}
-            title={t('sidebar.collapse', { defaultValue: '목록 접기' }) as string}
-            aria-label={t('sidebar.collapse', { defaultValue: '목록 접기' }) as string}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M15 18l-6-6 6-6" /></svg>
-          </CollapseBtn>
           <ComposeBtn type="button" onClick={() => setComposeOpen(true)} title={t('compose.new', { defaultValue: '새 메일' }) as string} aria-label={t('compose.new', { defaultValue: '새 메일' }) as string}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
@@ -777,9 +784,17 @@ const MailPage: React.FC = () => {
                 {t('accounts.all', { defaultValue: '전체' }) as string}
               </AcctChip>
             )}
+            {/* 주소별 보기 — 표시명만으로는 어느 메일함인지 알 수 없다. 주소를 직접 보여주고
+                회사 공용 / 개인 을 배지로 구분한다 (같은 인박스에 두 성격이 섞여 있으므로). */}
             {accounts.map((a) => (
               <AcctChip key={a.id} type="button" $active={accountFilter === a.id} onClick={() => setAccount(a.id)} title={a.email}>
-                {a.display_name || a.email}{a.unread > 0 ? ` ${a.unread}` : ''}
+                <AcctKind $personal={a.is_personal}>
+                  {a.is_personal
+                    ? (t('accounts.personal', { defaultValue: '개인' }) as string)
+                    : (t('accounts.team', { defaultValue: '회사' }) as string)}
+                </AcctKind>
+                <AcctAddr>{a.email}</AcctAddr>
+                {a.unread > 0 && <AcctUnread $active={accountFilter === a.id}>{a.unread}</AcctUnread>}
               </AcctChip>
             ))}
             <AcctManageChip type="button" onClick={() => navigate('/business/settings/mail-accounts')}
@@ -894,13 +909,14 @@ const MailPage: React.FC = () => {
 
         {/* 우: 상세 */}
         <Panel $grow $hideTablet $last={!detail}>
-          {/* #130 — 접힌 목록 다시 펼치기 (Q Note 와 동일) */}
+          {/* 태블릿 이하 전용 — 그 폭에서는 사이드바가 오버레이 드로어라 경계선 핸들이 없다.
+              데스크탑 접기/펼치기는 PanelEdgeHandle 이 담당. */}
           {sidebarCollapsed && (
             <ExpandBtn
               type="button"
               onClick={() => setSidebarCollapsed(false)}
-              title={t('sidebar.expand', { defaultValue: '목록 펼치기' }) as string}
-              aria-label={t('sidebar.expand', { defaultValue: '목록 펼치기' }) as string}
+              title={t('sidebar.expand', { defaultValue: '목록 열기' }) as string}
+              aria-label={t('sidebar.expand', { defaultValue: '목록 열기' }) as string}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 18l6-6-6-6" /></svg>
             </ExpandBtn>
@@ -908,12 +924,18 @@ const MailPage: React.FC = () => {
           {detailLoading && !detail ? (
             <Loading><Spinner /></Loading>
           ) : !detail ? (
-            <EmptyDetail>
-              <EmptyIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M22 6l-10 7L2 6" /><rect x="2" y="4" width="20" height="16" rx="2" />
-              </EmptyIcon>
-              <EmptyText>{t('selectThread', { defaultValue: '스레드를 선택해 주세요' }) as string}</EmptyText>
-            </EmptyDetail>
+            /* 빈 상태 — Q docs·Q Note·Q Talk 와 같은 공통 EmptyState (여태 Q Mail 만 13px 회색 한 줄) */
+            <EmptyState
+              icon={(
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="4" width="20" height="16" rx="2" /><path d="M22 6l-10 7L2 6" />
+                </svg>
+              )}
+              title={t('empty.title', { defaultValue: '메일에서 시작해 보세요' }) as string}
+              description={`${t('empty.line1', { defaultValue: '고객 문의 · 견적 요청 · 계약 회신 — 대화의 절반은 메일에서 옵니다.' }) as string}\n${t('empty.line2', { defaultValue: '왼쪽 목록에서 메일을 선택하거나, 새 메일을 보내보세요.' }) as string}`}
+              ctaLabel={accounts.length > 0 ? (t('compose.new', { defaultValue: '새 메일' }) as string) : undefined}
+              onCta={accounts.length > 0 ? () => setComposeOpen(true) : undefined}
+            />
           ) : (
             <>
               <PanelHeader>
@@ -1020,6 +1042,15 @@ const MailPage: React.FC = () => {
                     <ActionButton tone="primary" size="md" onClick={() => setReplyOpen(true)}>
                       {t('reply.button', { defaultValue: '답장' }) as string}
                     </ActionButton>
+                    {/* Cue 답변 초안 — 여태 답장 버튼을 눌러 작성창을 연 뒤에야 보여서 기능이 있는 줄도 몰랐다.
+                        여기서 바로 부르면 작성창이 초안이 채워진 채로 열린다. 자동·마케팅 메일에는 숨김(기존 정책). */}
+                    {(!detail?.triage || detail.triage === 'human' || detail.triage === 'unknown') && (
+                      <AiSuggestBtn type="button" disabled={aiBusy} onClick={() => { setReplyOpen(true); aiSuggest(); }}>
+                        {aiBusy
+                          ? (t('reply.aiThinking', { defaultValue: 'Cue 작성 중…' }) as string)
+                          : (t('reply.aiDraft', { defaultValue: '✨ Cue 답변 초안' }) as string)}
+                      </AiSuggestBtn>
+                    )}
                   </ReplyBar>
                 ) : (
                   <Composer onKeyDown={onComposerKeyDown}>
@@ -1074,27 +1105,24 @@ const MailPage: React.FC = () => {
           )}
         </Panel>
 
+        {/* 우측 맥락 패널 — Q Talk RightPanel 과 같은 경계선 핸들로 접기/펼치기 (⌘/ · Ctrl+\) */}
+        {detail && businessId && (
+          <PanelEdgeHandle
+            side="right"
+            collapsed={rightCollapsed}
+            onToggle={toggleRightCollapsed}
+            offset={rightCollapsed ? 0 : rightWidth}
+            labelCollapse={`${t('context.collapse', { defaultValue: '맥락 패널 접기' }) as string} (⌘/)`}
+            labelExpand={`${t('context.expand', { defaultValue: '맥락 패널 펼치기' }) as string} (⌘/)`}
+          />
+        )}
         {detail && businessId && !rightCollapsed && (
           <Panel $width={rightWidth} $last $hideTablet $relative>
             <CtxResizeHandle onMouseDown={startRightResize} />
             <PanelHeader>
               <PanelMetaTitle>{t('context.panelTitle', { defaultValue: '맥락' }) as string}</PanelMetaTitle>
-              <CtxCollapseBtn type="button" onClick={toggleRightCollapsed}
-                aria-label={t('context.collapse', { defaultValue: '패널 접기' }) as string}
-                title={`${t('context.collapse', { defaultValue: '패널 접기' }) as string} (⌘/)`}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6" /></svg>
-              </CtxCollapseBtn>
             </PanelHeader>
             <MailContextPanel businessId={businessId} thread={detail} members={members} onLinked={() => loadDetail(detail.id)} />
-          </Panel>
-        )}
-        {detail && businessId && rightCollapsed && (
-          <Panel $width={16} $last $hideTablet $relative>
-            <CtxReopen type="button" onClick={toggleRightCollapsed}
-              aria-label={t('context.expand', { defaultValue: '맥락 패널 펼치기' }) as string}
-              title={`${t('context.expand', { defaultValue: '맥락 패널 펼치기' }) as string} (⌘/)`}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6" /></svg>
-            </CtxReopen>
           </Panel>
         )}
 
@@ -1266,14 +1294,33 @@ const AcctFilterRow = styled.div`
   flex-shrink: 0;
 `;
 const AcctChip = styled.button<{ $active: boolean }>`
+  display: inline-flex; align-items: center; gap: 5px;
   padding: 3px 10px; border-radius: 999px;
   font-size: 11px; font-weight: 600;
   cursor: pointer;
   border: 1px solid ${p => p.$active ? '#5EEAD4' : '#E2E8F0'};
   background: ${p => p.$active ? '#F0FDFA' : '#FFFFFF'};
   color: ${p => p.$active ? '#0F766E' : '#64748B'};
-  max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: 230px; overflow: hidden; white-space: nowrap;
   &:hover { border-color: #5EEAD4; }
+`;
+// 회사 공용 / 개인 구분 배지 — 한 인박스에 두 성격이 섞이므로 칩에서 바로 구분되어야 한다
+const AcctKind = styled.span<{ $personal: boolean }>`
+  flex-shrink: 0;
+  padding: 1px 5px; border-radius: 4px;
+  font-size: 10px; font-weight: 700; line-height: 1.4;
+  background: ${p => (p.$personal ? '#EEF2FF' : '#F1F5F9')};
+  color: ${p => (p.$personal ? '#4F46E5' : '#475569')};
+`;
+const AcctAddr = styled.span`
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+`;
+const AcctUnread = styled.span<{ $active: boolean }>`
+  flex-shrink: 0;
+  min-width: 16px; padding: 0 4px; border-radius: 999px;
+  font-size: 10px; font-weight: 700; text-align: center;
+  background: ${p => (p.$active ? '#0D9488' : '#E2E8F0')};
+  color: ${p => (p.$active ? '#FFFFFF' : '#475569')};
 `;
 // 운영 #55 — 계정 관리(설정) 진입 칩 (dashed, 보조 액션)
 const AcctManageChip = styled.button`
@@ -1303,12 +1350,7 @@ const ExpandBtn = styled.button`
   border: 1px solid #E2E8F0; background: #fff; color: #64748B; cursor: pointer;
   box-shadow: 0 1px 2px rgba(15,23,42,.05);
   &:hover { background: #F8FAFC; color: #0F172A; }
-`;
-const CollapseBtn = styled.button`
-  margin-left: auto; display: inline-flex; align-items: center; justify-content: center;
-  width: 28px; height: 28px; padding: 0; border-radius: 8px;
-  border: 1px solid #E2E8F0; background: #fff; color: #64748B; cursor: pointer;
-  &:hover { background: #F8FAFC; color: #0F172A; }
+  @media (min-width: 1025px) { display: none; }
 `;
 const ComposeBtn = styled.button`
   width: 32px; height: 32px;
@@ -1469,19 +1511,6 @@ const CtxResizeHandle = styled.div`
   &:hover { background: rgba(20,184,166,0.2); }
   &:active { background: rgba(20,184,166,0.4); }
   @media (max-width: 1024px) { display: none; }
-`;
-// 맥락 패널 접기 버튼 (헤더 우측)
-const CtxCollapseBtn = styled.button`
-  margin-left: auto; flex-shrink: 0;
-  width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
-  background: transparent; border: none; border-radius: 6px; color: #64748B; cursor: pointer;
-  &:hover { background: #F1F5F9; color: #0F172A; }
-`;
-// 접힌 상태 재오픈 레일 (얇은 컬럼 전체가 버튼)
-const CtxReopen = styled.button`
-  width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
-  background: #fff; border: none; cursor: pointer; color: #94A3B8;
-  &:hover { background: #F8FAFC; color: #0F766E; }
 `;
 // 상세 부가 툴바 (컨트롤·라벨) — PanelHeader 아래 별도 줄
 const DetailToolbar = styled.div`
@@ -1675,9 +1704,6 @@ const ErrorBar = styled.div`
 const EmptyList = styled.div`
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   flex: 1; padding: 48px 24px; gap: 12px;
-`;
-const EmptyDetail = styled(EmptyList)`
-  flex: 1;
 `;
 const EmptyIcon = styled.svg`
   width: 48px; height: 48px;
