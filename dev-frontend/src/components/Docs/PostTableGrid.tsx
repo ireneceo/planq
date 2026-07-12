@@ -18,6 +18,7 @@ import { uploadMyFile, fetchWorkspaceFiles, type ProjectFile } from '../../servi
 import { fetchPosts, type PostRow } from '../../services/posts';
 import { apiFetch } from '../../contexts/AuthContext';
 import PostAiModal from './PostAiModal';
+import AiActionButton from '../Common/AiActionButton';
 
 const TYPES: { value: QRecordColumnType; tk: string; ko: string }[] = [
   { value: 'text',         tk: 'colType.text',        ko: '텍스트' },
@@ -830,9 +831,12 @@ const AttachPickerModal: React.FC<{
             <NewDocBtn type="button" onClick={handleBlankNew} disabled={busy}>
               {t('attach.newBlank', { defaultValue: '빈 문서로 시작' }) as string}
             </NewDocBtn>
-            <NewDocBtn type="button" $accent onClick={() => setAiOpen(true)} disabled={busy}>
-              {t('attach.newAi', { defaultValue: 'AI 자동 작성' }) as string}
-            </NewDocBtn>
+            <AiActionButton
+              onClick={() => setAiOpen(true)}
+              disabled={busy}
+              label={t('attach.newAi', { defaultValue: 'AI 자동 작성' }) as string}
+              title={t('attach.newAiHint', { defaultValue: 'AI 가 문서 본문을 자동 작성합니다' }) as string}
+            />
           </NewDocActions>
         </PopoverBody>
         <PopoverFooter>

@@ -1528,15 +1528,19 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
       />
       {/* 우측 작업대 접기/펼치기 — 공통 PanelEdgeHandle 을 레이아웃 레벨에 그린다.
           여태 RightPanel 안의 CollapsedStrip(width:0, ≤1200px 에서 display:none)에 그려서
-          옆 패널에 가리거나 아예 사라졌다. Q Mail 만 정상이던 이유. */}
-      <PanelEdgeHandle
-        side="right"
-        collapsed={rightCollapsed}
-        onToggle={toggleRight}
-        offset={rightCollapsed ? 0 : rightWidth}
-        labelCollapse={`${t('right.collapse', { defaultValue: '작업대 접기' }) as string} (⌘/)`}
-        labelExpand={`${t('right.expand', { defaultValue: '작업대 열기' }) as string} (⌘/)`}
-      />
+          옆 패널에 가리거나 아예 사라졌다. Q Mail 만 정상이던 이유.
+          대화를 안 고르면 RightPanel 자체가 없다(RightPanel.tsx: !project && !conversation → null).
+          그때 핸들만 남으면 존재하지 않는 패널의 접기 버튼이 떠 있게 된다 → 패널이 있을 때만 그린다. */}
+      {(activeProject || activeConversationId) && (
+        <PanelEdgeHandle
+          side="right"
+          collapsed={rightCollapsed}
+          onToggle={toggleRight}
+          offset={rightCollapsed ? 0 : rightWidth}
+          labelCollapse={`${t('right.collapse', { defaultValue: '작업대 접기' }) as string} (⌘/)`}
+          labelExpand={`${t('right.expand', { defaultValue: '작업대 열기' }) as string} (⌘/)`}
+        />
+      )}
       <RightPanel
         project={activeProject}
         activeConversationId={activeConversationId}

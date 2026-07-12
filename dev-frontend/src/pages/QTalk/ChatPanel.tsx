@@ -19,6 +19,7 @@ import { fetchWorkspaceFiles, uploadMyFile, isImage as isRenderableImage } from 
 import { mediaTablet } from '../../theme/breakpoints';
 import { mapApiError } from '../../utils/apiError';
 import { useImageLightbox } from '../../components/Common/ImageLightbox';
+import AiActionButton from '../../components/Common/AiActionButton';
 import MessageReactions from './MessageReactions';   // #138 이모지 리액션
 
 interface Props {
@@ -1902,17 +1903,13 @@ const ChatPanel: React.FC<Props> = ({
               <ToggleSlider $on={activeConv.auto_extract_enabled} />
               <ToggleText>{t('chat.input.autoExtract', '자동 업무 추출')}</ToggleText>
             </ToggleLabel>
-            <ExtractBtn onClick={onOpenExtract} disabled={extracting}>
-              {extracting ? (
-                <ExtractSpinner />
-              ) : (
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path d="M9 11l3 3L22 4" />
-                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-                </svg>
-              )}
-              {extracting ? t('chat.input.extracting', '추출 중...') : t('chat.input.extractNow', '업무 추출')}
-            </ExtractBtn>
+            {/* AI 가 대화에서 할 일을 뽑는 기능 → PlanQ 표준 AI 버튼(별 + Coral) */}
+            <AiActionButton
+              onClick={onOpenExtract}
+              loading={extracting}
+              label={extracting ? t('chat.input.extracting', '추출 중...') as string : t('chat.input.extractNow', '업무 추출') as string}
+              title={t('chat.input.extractHint', 'AI 가 이 대화에서 할 일 후보를 뽑아냅니다') as string}
+            />
             {cueDraftCount > 0 && (
               <CueBadgeInline
                 type="button"
@@ -3427,31 +3424,7 @@ const ToggleText = styled.span`
   font-weight: 500;
 `;
 
-const ExtractBtn = styled.button`
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 10px;
-  background: #F0FDFA;
-  color: #0F766E;
-  border: 1px solid #99F6E4;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  &:hover:not(:disabled) { background: #CCFBF1; }
-  &:disabled { opacity: 0.6; cursor: not-allowed; }
-`;
 
-const ExtractSpinner = styled.span`
-  width: 12px;
-  height: 12px;
-  border: 2px solid #99F6E4;
-  border-top-color: #0F766E;
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite;
-  @keyframes spin { to { transform: rotate(360deg); } }
-`;
 
 const CueBadgeInline = styled.button`
   margin-left: auto;

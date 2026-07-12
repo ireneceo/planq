@@ -21,7 +21,8 @@
     "allProjects": "All projects",
     "allClients": "All clients",
     "tagFilter": "Tag",
-    "clearTag": "Clear tag filter"
+    "clearTag": "Clear tag filter",
+    "aiIngestHint": "AI organizes knowledge from documents and links for you"
   },
   "help": {
     "body": "Company knowledge DB referenced by Cue, AI writing, and Q note answer-finding.\n\n• Categories: Policy / Manual / Incident / FAQ / About / Pricing\n• Scope: Workspace / Project / Client\n• Narrower scope = higher answer precision",

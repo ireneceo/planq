@@ -589,19 +589,11 @@ const RightPanel: React.FC<Props> = ({
     );
   }
 
-  // N+93 — 열림 상태에도 divider(좌측 엣지) 중앙에 접기 핸들 노출 (Q Task / Q docs 표준 통일).
-  //   리사이즈 핸들(전체 높이 strip)과 공존 — EdgeHandle(중앙 chevron)이 위에 떠 접기 담당. 헤더 접기 버튼과 병행.
+  // 접기 핸들은 페이지(QTalkPage)가 공통 PanelEdgeHandle 로 레이아웃 레벨에 그린다.
+  // 패널 안에도 하나 더 그리면 같은 자리에 핸들이 겹쳐 두 개가 된다 (열림/접힘 상태별로 다른 핸들).
   return (
     <Container $w={width}>
       {onResizeStart && <TalkResizeHandle onMouseDown={onResizeStart} />}
-      <RightEdgeHandle
-        type="button"
-        onClick={onToggleCollapsed}
-        aria-label={t('right.collapse', '접기') as string}
-        title={`${t('right.collapse', '접기') as string} (⌘/)`}
-      >
-        <EdgeChevron><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg></EdgeChevron>
-      </RightEdgeHandle>
       {panelBody}
     </Container>
   );
@@ -643,45 +635,6 @@ const TalkResizeHandle = styled.div`
 `;
 
 /* N+63 — 시인성·세련도 강화. 평소 12×72 진한 색, hover 18×84 teal + nudge animation. */
-const RightEdgeHandle = styled.button`
-  position: absolute;
-  top: 50%;
-  left: 0;
-  transform: translate(-50%, -50%);
-  width: 12px; height: 72px;
-  padding: 0; border: none;
-  background: linear-gradient(180deg, #94A3B8 0%, #64748B 100%);
-  border-radius: 6px;
-  cursor: pointer;
-  z-index: 10;
-  box-shadow: 0 2px 6px rgba(15,23,42,0.15), 0 0 0 1px rgba(255,255,255,0.4) inset;
-  transition: width 0.2s ease, height 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
-  display: flex; align-items: center; justify-content: center;
-  &::before { content: ''; position: absolute; top: -10px; bottom: -10px; left: -12px; right: -12px; }
-  &:hover {
-    width: 18px; height: 84px;
-    background: linear-gradient(180deg, #14B8A6 0%, #0F766E 100%);
-    box-shadow: 0 4px 12px rgba(20,184,166,0.35), 0 0 0 1px rgba(255,255,255,0.6) inset;
-  }
-  &:hover svg { animation: chevronNudgePanelR 0.7s ease infinite; }
-  &:active { transform: translate(-50%, -50%) scale(0.95); }
-  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 3px; }
-  @keyframes chevronNudgePanelR {
-    0%, 100% { transform: translateX(0); }
-    50% { transform: translateX(2px); }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    transition: none;
-    &:hover { width: 12px; height: 72px; }
-    &:hover svg { animation: none; }
-    &:active { transform: translate(-50%, -50%); }
-  }
-`;
-const EdgeChevron = styled.span`
-  display: flex; align-items: center; justify-content: center;
-  color: #FFFFFF;
-  svg { width: 14px; height: 14px; transition: transform 0.18s ease; }
-`;
 
 const OverlayBackdrop = styled.div`
   position: fixed; inset: 0;
