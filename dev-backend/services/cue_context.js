@@ -468,8 +468,19 @@ async function buildCueContext({ businessId, conversationId, projectId, clientId
   // 4. 사용자 본인 스냅샷 (도움말 챗 / userId 명시 시)
   const userP = userId ? getUserSnapshot(userId, businessId, businessTimezone, scope).catch(() => null) : Promise.resolve(null);
   // 5. KB 검색 (사이클 G 의 ctx 우선순위 활용)
+  //    P0 — 질문자가 내부 사람(멤버/owner/admin)이면 그 사람 권한 안에서만 검색한다.
+  //    (여태 business_id 로 전체를 긁어, 참여하지 않은 프로젝트의 KB 가 답변 재료로 들어갔다.)
+  //    ⚠️ 외부 고객이 질문자인 경우는 의도적으로 필터하지 않는다 — 고객 문의에 워크스페이스 KB 로
+  //    답하는 것이 Cue 자동응답의 존재 이유. "어떤 KB 를 고객에게 인용해도 되는가" 는 별도 제품 정책
+  //    (KB 문서에 고객 공개 플래그) 이며 이번 절단면 밖.
+  const internalAsker = !!(scope && (scope.isMember || scope.isOwner || scope.isAdmin || scope.isPlatformAdmin));
+  const kbDocWhere = internalAsker
+    ? require('../middleware/access_scope').kbDocumentsListWhereByLevel(scope)
+    : null;
   const kbP = query
-    ? kbService.hybridSearch(businessId, query, { limit: 5, project_id: projectId, client_id: clientId })
+    ? kbService.hybridSearch(businessId, query, {
+        limit: 5, project_id: projectId, client_id: clientId, docWhere: kbDocWhere,
+      })
     : Promise.resolve({ has_results: false });
   // 6. #61 — 질문 기반 워크스페이스 전방위 검색 (권한 scope 있을 때만)
   const matchesP = (query && scope)

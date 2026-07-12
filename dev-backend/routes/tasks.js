@@ -514,7 +514,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
       const biz = await Business.findByPk(business_id, { attributes: ['cue_user_id'] });
       if (biz?.cue_user_id && finalAssignee === biz.cue_user_id) {
         const { executeForTask } = require('../services/cue_task_executor');
-        executeForTask(task.id).then(r => {
+        executeForTask(task.id, { triggeredBy: req.user.id }).then(r => {
           console.log('[cue_task_executor]', task.id, r.ok ? 'ok' : `skip: ${r.reason}`);
         }).catch(e => console.error('[cue_task_executor] crash', e.message));
       }
@@ -1076,13 +1076,12 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     }
 
     // Reviewer 가드 (사이클 N+6) — reviewer 0명이면 reviewing/revision_requested 단계 진입 금지.
-    // submit-review 라우트는 이미 가드 (no_reviewers_add_first), recalcStatusFromReviewers 도 reviewer 0명이면 변경 안 함.
-    // 이 PUT 라우트가 status 직접 변경 경로라 같은 가드 필요 — 일관성 회복.
-    if (status === 'reviewing' || status === 'revision_requested') {
-      const revCount = await TaskReviewer.count({ where: { task_id: task.id } });
-      if (revCount === 0) {
-        return errorResponse(res, 'no_reviewers_assigned', 400);
-      }
+    // 규칙 자체는 services/taskTransition.canEnterStatus 단일 원천 (P0 — Cue(AI)가 이 가드를
+    // 우회해 직접 status 를 쓰던 구멍을 막으면서, 사람 경로도 같은 함수를 지나게 정렬).
+    if (status !== undefined) {
+      const { canEnterStatus } = require('../services/taskTransition');
+      const gate = await canEnterStatus(task.id, status);
+      if (!gate.ok) return errorResponse(res, gate.reason, 400);
     }
 
     // 완료 해제 시 progress 자동 조정 (사이클 N+6, 단일 진실 원천):
@@ -1225,7 +1224,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
         const cueBiz = await Business.findByPk(businessId, { attributes: ['cue_user_id'] });
         if (cueBiz?.cue_user_id && updates.assignee_id === cueBiz.cue_user_id) {
           const { executeForTask } = require('../services/cue_task_executor');
-          executeForTask(task.id)
+          executeForTask(task.id, { triggeredBy: req.user.id })
             .then((r) => console.log('[cue_task_executor] PUT', task.id, r.ok ? 'ok' : `skip: ${r.reason}`))
             .catch((e) => console.error('[cue_task_executor] PUT crash', e.message));
         }
@@ -1639,7 +1638,7 @@ router.post('/:id/cue/rerun', authenticateToken, async (req, res, next) => {
     }
 
     const { executeForTask } = require('../services/cue_task_executor');
-    const result = await executeForTask(task.id);
+    const result = await executeForTask(task.id, { triggeredBy: req.user.id });
     if (!result.ok) {
       return errorResponse(res, result.reason || 'cue_execution_failed', 422);
     }
@@ -1744,7 +1743,7 @@ router.post('/:id/comments', authenticateToken, async (req, res, next) => {
         setImmediate(async () => {
           try {
             const { executeForTask } = require('../services/cue_task_executor');
-            const r = await executeForTask(task.id, { commentNote: comment.content });
+            const r = await executeForTask(task.id, { commentNote: comment.content, triggeredBy: comment.user_id });
             if (r.ok) {
               // Cue 답글 댓글 추가 (사용자에게 "반영했어요" 알림)
               const replyComment = await TaskComment.create({

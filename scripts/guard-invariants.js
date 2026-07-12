@@ -341,6 +341,76 @@ function checkFinance() {
 }
 
 // ═══════════════════════════════════════════════
+// 7-b. cuefinance — Cue(AI) 재무 행동 영구 봉쇄 (Irene 확정, 되돌리지 말 것)
+//   Cue 는 청구서·결제·구독을 절대 생성/수정/삭제하지 않는다. 사람이 누른 것만 돈이 움직인다.
+//   읽기(컨텍스트용 조회)는 허용 — 권한자에게만 보이도록 cue_context 가 이미 scope 를 건다.
+//   여기서 막는 건 '쓰기' 와 '결제 확정 서비스 호출'. 신규 Cue 코드가 이 선을 넘으면 exit 1.
+// ═══════════════════════════════════════════════
+const CUE_FILES = [
+  'dev-backend/services/cue_task_executor.js',
+  'dev-backend/services/cue_orchestrator.js',
+  'dev-backend/services/cue_context.js',
+  'dev-backend/services/cueKnowledge.js',
+  'dev-backend/routes/cue.js',
+  'dev-backend/routes/cue_knowledge.js',
+];
+const FIN_MODELS = ['Invoice', 'InvoiceItem', 'InvoiceInstallment', 'InvoicePayment', 'Payment', 'ClientSubscription', 'BillEvent'];
+const FIN_SERVICES = /require\([^)]*(invoicePayments|billing|clientSubscriptionBilling|recurring_invoice|overdue_handler|stripe)[^)]*\)/i;
+const FIN_WRITE = new RegExp(`\\b(${FIN_MODELS.join('|')})\\s*\\.\\s*(create|update|destroy|upsert|increment|decrement|bulkCreate)\\s*\\(`);
+const FIN_PAY_FN = /\b(markInvoicePaid|markInstallmentPaid|markPaymentPaid|ensureRenewalPayment|createInvoice)\s*\(/;
+
+// 주석(줄 //, 블록 /* */)을 공백으로 치환 — 주석 안 예시 코드가 오탐되지 않게, 그러면서
+// 멀티라인 코드는 그대로 남겨 줄바꿈 우회를 막는다.
+function stripComments(src) {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
+    .replace(/^[ \t]*\/\/.*$/gm, (m) => ' '.repeat(m.length))
+    .replace(/([^:])\/\/.*$/gm, (m, p1) => p1 + ' '.repeat(m.length - 1));
+}
+
+function checkCueFinance() {
+  const viol = [];
+  const at = (src, idx) => src.slice(0, idx).split('\n').length;
+  for (const f of CUE_FILES) {
+    const full = path.join(ROOT, f);
+    if (!fs.existsSync(full)) continue;   // 파일 이동/삭제는 다른 가드가 잡음
+    const src = read(full);
+    const code = stripComments(src);
+    for (const m of code.matchAll(new RegExp(FIN_WRITE.source, 'g'))) viol.push(`${f}:${at(src, m.index)} 재무 모델 쓰기 — ${m[0]}`);
+    for (const m of code.matchAll(new RegExp(FIN_PAY_FN.source, 'g'))) viol.push(`${f}:${at(src, m.index)} 결제 확정 함수 호출 — ${m[0]}`);
+    for (const m of code.matchAll(new RegExp(FIN_SERVICES.source, 'gi'))) viol.push(`${f}:${at(src, m.index)} 재무 서비스 require — ${m[0].slice(0, 60)}`);
+  }
+  report('cuefinance', `Cue 재무 행동 영구 봉쇄 (${CUE_FILES.length}개 파일, 쓰기·결제확정·재무서비스 0건)`, viol.length === 0, viol);
+}
+
+// ═══════════════════════════════════════════════
+// 7-c. cueauth — Cue(AI) 권한 우회 차단
+//   Cue 는 위임자(업무 요청자)의 권한으로만 행동한다. 실행기가 access_scope 게이트를 잃거나,
+//   taskTransition 단일 착지점을 우회해 status 를 직접 쓰면 사람 가드(reviewer 등)가 무력화된다.
+// ═══════════════════════════════════════════════
+function checkCueAuth() {
+  const f = 'dev-backend/services/cue_task_executor.js';
+  const full = path.join(ROOT, f);
+  const detail = [];
+  if (!fs.existsSync(full)) {
+    detail.push(`${f} 없음 (이동했으면 이 가드 갱신)`);
+  } else {
+    const src = read(full);
+    if (!/access_scope/.test(src)) detail.push(`${f}: access_scope 참조 소멸 — Cue 가 권한 게이트 없이 데이터를 읽는다`);
+    if (!/canAccessConversation/.test(src)) detail.push(`${f}: canAccessConversation 소멸 — 대화방 IDOR 재개방`);
+    if (!/resolvePrincipal|acting_for/.test(src)) detail.push(`${f}: 위임 주체(principal) 해석 소멸 — 권한 원소유자 불명`);
+    if (!/submitForReview/.test(src)) detail.push(`${f}: taskTransition 우회 — 상태 전이가 사람 가드를 통과하지 않는다`);
+    // status 직접 쓰기 금지 (taskTransition 경유만). 멀티라인 표기도 잡는다 —
+    //   .update({\n  status: 'reviewing',\n }) 처럼 줄바꿈하면 라인 단위 검사는 못 본다 (Fable 지적).
+    for (const m of stripComments(src).matchAll(/\.update\(\s*\{[\s\S]{0,200}?status\s*:/g)) {
+      const line = src.slice(0, m.index).split('\n').length;
+      detail.push(`${f}:~${line} status 직접 쓰기 — taskTransition 경유 필수`);
+    }
+  }
+  report('cueauth', 'Cue 권한 모델 잠금 (위임자 scope · 읽기 게이트 · 전이 단일착지점)', detail.length === 0, detail);
+}
+
+// ═══════════════════════════════════════════════
 // 8. costguard — 외부비용 라우트 잠금 (운영 안정성 §1)
 // ═══════════════════════════════════════════════
 const COSTGUARD_LOCKED = [
@@ -415,6 +485,8 @@ const CATEGORIES = {
   notify: checkNotify,
   broadcast: checkBroadcast,
   finance: checkFinance,
+  cuefinance: checkCueFinance,
+  cueauth: checkCueAuth,
   costguard: checkCostGuard,
   godfile: checkGodfile,
   docfresh: checkDocFresh,
