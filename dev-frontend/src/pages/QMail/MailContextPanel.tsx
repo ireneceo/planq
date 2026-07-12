@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import TaskCandidateCard, { type RegisterOverrides } from '../../components/Common/TaskCandidateCard';
-import AiActionButton from '../../components/Common/AiActionButton';
+import AiAssistButton from '../../components/Common/AiAssistButton';
 
 interface ThreadLite {
   id: number;
@@ -230,9 +230,14 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, onLink
       <Section>
         <SecHead>
           <SecTitle>{t('context.summaryTitle', { defaultValue: '요약' }) as string}</SecTitle>
-          <AiActionButton
+          <AiAssistButton
             onClick={summarize}
             loading={sumBusy}
+            icon={(
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                <line x1="4" y1="6" x2="20" y2="6" /><line x1="4" y1="12" x2="16" y2="12" /><line x1="4" y1="18" x2="11" y2="18" />
+              </svg>
+            )}
             label={sumBusy ? t('context.summarizing', { defaultValue: '요약 중…' }) as string
               : aiSummary ? t('context.resummarize', { defaultValue: '다시 요약' }) as string
               : t('context.summarize', { defaultValue: '요약 생성' }) as string}
@@ -267,7 +272,7 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, onLink
           {canExtract && (
             /* 업무 추출도 AI 가 하는 일 → PlanQ 표준 AI 버튼(별 + Coral). Q Talk 도 같다.
                같은 일을 하는 버튼이 화면마다 다른 색이면 AI 여부를 매번 다시 배워야 한다. */
-            <AiActionButton
+            <AiAssistButton
               onClick={extract}
               loading={extractBusy}
               label={extractBusy
