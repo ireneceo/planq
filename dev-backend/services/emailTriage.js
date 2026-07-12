@@ -98,6 +98,42 @@ function hasWorkSignal(subject, bodyText) {
   return WORK_SIGNAL.test(head) || hasQuestion(head);
 }
 
+// ── 확실한 요청 (Irene 정책: 답변 필요는 "확실히 답해야 하는 것" 만, 애매하면 전부 확인 권장)
+//   위 WORK_SIGNAL 은 물음표·'확인'·'진행' 같은 약한 신호까지 잡아서 뉴스레터도 통과했다
+//   ("Your Weekly WP Mail SMTP ... ?"). 여기선 상대가 우리에게 무언가를 해달라고 한 문장만 본다.
+const STRONG_REQUEST = new RegExp([
+  '문의(드|합|가|를|사항)', '요청(드|합|이|을|사항)', '부탁\\s*(드|합)', '의뢰',
+  '회신\\s*(부탁|주|바랍)', '답변\\s*(부탁|주|바랍)', '검토\\s*(부탁|요청|해\\s*주)',
+  // '확인 바랍니다' 는 고지서·통지문의 상투구다 → 강한 요청으로 보지 않는다 (아는 상대면 어차피 답변 필요)
+  '확인\\s*부탁', '보내\\s*주(세요|시)', '알려\\s*주(세요|시)', '주실\\s*수\\s*있',
+  '견적', '계약서', '청구서', '세금계산서', '입금\\s*(확인|예정|완료)',
+  '(미팅|회의|일정)\\s*(잡|조율|가능|어떠)', '가능(할까요|한가요|하신가요|하실까요)',
+  '\\bcould you\\b', '\\bcan you\\b', '\\bwould you\\b', '\\bplease (send|share|review|confirm|advise|let us know)\\b',
+  '\\brequest for\\b', '\\bquotation?\\b', '\\binquiry\\b', '\\bproposal\\b',
+  '\\blooking forward to your (reply|response)\\b', '\\bawaiting your\\b',
+].join('|'), 'i');
+
+function hasStrongRequest(subject, bodyText) {
+  const head = `${subject || ''}\n${String(bodyText || '').slice(0, 2000)}`;
+  return STRONG_REQUEST.test(head);
+}
+
+// 우리 주소가 To 에 직접 있는가 (참조·숨은참조·대량발송 목록이 아니라)
+function isAddressedToUs(headers, ownEmails) {
+  const own = new Set((ownEmails || []).map((e) => String(e).toLowerCase()));
+  if (own.size === 0) return false;
+  const to = String((headers && (headers.to || headers.To)) || '').toLowerCase();
+  if (!to) return false;
+  for (const e of own) { if (to.includes(e)) return true; }
+  return false;
+}
+
+// 우리 대화에 대한 회신인가 (기존 일과 연결 — 가장 확실한 신호 중 하나)
+function isThreadReply(headers) {
+  if (!headers) return false;
+  return !!(headers['in-reply-to'] || headers['In-Reply-To'] || headers.references || headers.References);
+}
+
 // 메인 — { triage, reply_needed, spam_score, status, uncertain_reason }
 //   status/spam_score/uncertain_reason 은 classify 결과 그대로 통과 (호환 유지).
 function triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, isKnownContact = false }) {
@@ -119,12 +155,17 @@ function triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, isKno
   let reply_needed = false;
 
   if (triage === 'human' && c.status === 'open') {
-    // 아는 상대(고객·멤버·이전에 우리가 답장한 상대) → 내용 불문 답변 필요.
-    //   관계가 가장 강한 신호다. 이름이 언급됐다는 이유로 따로 빼지 않는다(내 담당 탭 폐지).
-    if (isKnownContact || hasWorkSignal(subject, bodyText)) {
+    // Irene 정책: "확인 권장을 많이 쓰고, 답변 필요는 확실히 답해야 하는 것만."
+    //   답변 필요 = ① 아는 상대(고객·멤버·전에 우리가 답장한 상대) — 관계가 가장 확실한 신호
+    //              ② 우리 대화에 대한 회신 (기존 일과 연결)
+    //              ③ 우리 주소로 직접 온 메일 + 명확한 요청 문장 (문의·견적·회신 부탁…)
+    //   그 외는 스팸·광고가 아니어도 확인 권장 — 사람이 한 번 보고 판단한다.
+    const sure = isKnownContact
+      || isThreadReply(headers)
+      || (isAddressedToUs(headers, ownEmails) && hasStrongRequest(subject, bodyText));
+    if (sure) {
       reply_needed = true;
     } else {
-      // 스팸·광고는 아닌데 업무인지 확실치 않다 → 확인 권장 (사람이 직접 판단)
       status = 'uncertain';
       uncertain_reason = 'unclear_intent';
       reply_needed = false;
@@ -153,4 +194,7 @@ function triageBySenderOnly({ subject, bodyText, fromEmail, ownEmails }) {
 
 module.exports = {
   hasWorkSignal,
+  hasStrongRequest,
+  isAddressedToUs,
+  isThreadReply,
   buildOwnEmailSet, triageInbound, triageBySenderOnly, isMarketing, isAutomated };

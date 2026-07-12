@@ -505,4 +505,4 @@ function init() {
   console.log('[emailImapCron] initialized — runs every 5 minutes');
 }
 
-module.exports = { init, tick, syncOne };
+module.exports = { init, tick, syncOne, isKnownContact };
