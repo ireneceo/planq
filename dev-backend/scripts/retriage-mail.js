@@ -13,6 +13,7 @@ const { sequelize } = require('../config/database');
 const { EmailThread, EmailMessage, EmailAccount, EmailThreadParticipant } = require('../models');
 const { triageInbound } = require('../services/emailTriage');
 const { applyRules } = require('../services/mailSenderRules');
+const { isKnownContact } = require('../services/emailImapCron');
 
 const APPLY = process.argv.includes('--apply');
 
@@ -56,13 +57,21 @@ const APPLY = process.argv.includes('--apply');
     });
     if (!msg) { skipped++; continue; }
     const fromEmail = msg.from_email || '';
+    // 헤더 원문은 저장하지 않지만, 판정에 필요한 두 신호는 컬럼으로 남아 있다:
+    //   in_reply_to/references_chain (우리 대화에 대한 회신) · to_emails (우리 주소로 직접 왔는가)
+    const headers = {
+      to: Array.isArray(msg.to_emails) ? msg.to_emails.join(', ') : String(msg.to_emails || ''),
+      ...(msg.in_reply_to ? { 'in-reply-to': msg.in_reply_to } : {}),
+      ...(msg.references_chain ? { references: msg.references_chain } : {}),
+    };
+    const known = await isKnownContact(acc.business_id, fromEmail);
     const base = triageInbound({
       subject: msg.subject || th.subject,
       bodyText: msg.body_text || '',
       fromEmail,
-      headers: msg.headers || {},
+      headers,
       ownEmails: ownEmailsByBiz.get(acc.business_id) || [],
-      isKnownContact: false,   // 보수적으로: 아는 상대 판정은 동기화 시점 정보라 재계산하지 않는다
+      isKnownContact: known,
     });
     const tr = await applyRules(acc.business_id, fromEmail, base);
     if (tr.reply_needed) { kept++; continue; }
