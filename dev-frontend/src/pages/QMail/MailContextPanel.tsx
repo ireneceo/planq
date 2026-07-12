@@ -1,5 +1,5 @@
 // Q Mail 우측 컨텍스트 패널 (사이클 N+87 Phase A) — Q Talk 우측 패널 패턴 이식.
-//   연결: 프로젝트·고객 picker (EmailThread.client_id/project_id) + "이 고객" cross-channel(channel-summary).
+//   프로젝트·고객 picker (EmailThread.client_id/project_id) + 고객 cross-channel(channel-summary).
 //   ★ 요약/업무후보/이슈/노트는 Phase B/C — 여기선 연결 + cross-channel 만 (mock 금지: 실 데이터만).
 //   설계: docs/QMAIL_CONTEXT_DESIGN.md §5, §7.1
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -248,7 +248,7 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, onLink
           : <Dim>{t('context.summaryHint', { defaultValue: '긴 스레드를 AI가 핵심만 요약해요.' }) as string}</Dim>}
       </Section>
 
-      {/* '연결' 이라는 항목명은 필요 없다 — 프로젝트/고객이 곧 항목이고, 셀렉트가 곧 연결이다. */}
+      {/* 연결이라는 항목명은 필요 없다 — 프로젝트·고객이 곧 항목이고, 셀렉트가 곧 연결이다. */}
       <Section>
         <SecTitle>{t('context.project', { defaultValue: '프로젝트' }) as string}</SecTitle>
         <PlanQSelect size="sm" isSearchable isDisabled={busy}
@@ -330,8 +330,8 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, onLink
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addNote(); } }} />
           <AddBtn type="button" onClick={addNote} disabled={iaBusy || !newNote.trim()}>{t('context.add', { defaultValue: '추가' }) as string}</AddBtn>
         </AddRow>
-        {/* 이 토글은 '메일을 팀에 공유' 가 아니라 '지금 쓰는 노트를 누가 보는가' 다.
-            여태 라벨이 "팀 공유" 라 메일 공유 버튼처럼 읽혔다 → 무엇에 대한 설정인지 문장으로 밝힌다. */}
+        {/* 이 토글은 메일을 팀에 공유하는 게 아니라, 지금 쓰는 노트를 누가 보는지의 설정이다.
+            여태 라벨이 팀 공유라서 메일 공유 버튼처럼 읽혔다 → 무엇에 대한 설정인지 문장으로 밝힌다. */}
         <VisRow>
           <VisLbl>{t('context.noteVisLabel', { defaultValue: '새 노트를 볼 사람' }) as string}</VisLbl>
           <VisToggle type="button" $on={notePersonal} role="switch" aria-checked={notePersonal} onClick={() => setNotePersonal(v => !v)}>

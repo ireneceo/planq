@@ -1285,7 +1285,9 @@ const MailPage: React.FC = () => {
                       ) : (
                         <AiGatedHint>{t('reply.aiGated', { defaultValue: '자동·마케팅 메일에는 AI 답변을 제안하지 않아요' }) as string}</AiGatedHint>
                       )}
-
+                      <ActionButton tone="secondary" size="md" onClick={() => setReplyOpen(false)} disabled={sending}>
+                        {t('reply.cancel', { defaultValue: '취소' }) as string}
+                      </ActionButton>
                     </ComposerActions>
                     <ComposerHint>{t('reply.shortcut', { defaultValue: '⌘/Ctrl + Enter 로 보내기' }) as string}</ComposerHint>
                   </Composer>
