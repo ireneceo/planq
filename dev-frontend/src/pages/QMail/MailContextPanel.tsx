@@ -261,8 +261,20 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, onLink
         <SecHead>
           <SecTitle>{t('context.tasksTitle', { defaultValue: '업무 후보' }) as string}{candidates.length > 0 && <CountBadge>{candidates.length}</CountBadge>}</SecTitle>
           {canExtract && (
+            /* Q Talk ChatPanel 의 업무 추출 버튼과 동일 (teal 계열 + 체크박스 아이콘).
+               Q Mail 만 rose 계열 + ✨ 이모지라 같은 기능이 화면마다 달라 보였다. */
             <ExtractBtn type="button" onClick={extract} disabled={extractBusy}>
-              {extractBusy ? t('context.extracting', { defaultValue: '추출 중…' }) as string : t('context.extract', { defaultValue: '✨ 업무 추출' }) as string}
+              {extractBusy ? (
+                <ExtractSpinner />
+              ) : (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M9 11l3 3L22 4" />
+                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                </svg>
+              )}
+              {extractBusy
+                ? (t('context.extracting', { defaultValue: '추출 중…' }) as string)
+                : (t('context.extract', { defaultValue: '업무 추출' }) as string)}
             </ExtractBtn>
           )}
         </SecHead>
@@ -383,10 +395,31 @@ const Lbl = styled.label`font-size:12px; font-weight:600; color:#64748B;`;
 const Dim = styled.div`font-size:12px; color:#94A3B8; line-height:1.5;`;
 const SecHead = styled.div`display:flex; align-items:center; justify-content:space-between; gap:8px;`;
 const CountBadge = styled.span`margin-left:6px; font-size:11px; font-weight:700; color:#0F766E; background:#F0FDFA; border-radius:999px; padding:1px 7px;`;
+// Q Talk ChatPanel:3430 과 동일 — 같은 기능은 어느 화면에서든 같은 모양 (teal + 체크박스 아이콘)
 const ExtractBtn = styled.button`
-  height:28px; padding:0 10px; border-radius:8px; cursor:pointer; flex-shrink:0;
-  font-size:12px; font-weight:600; color:#F43F5E; background:#FFF1F2; border:1px solid #FECDD3;
-  &:hover:not(:disabled){ background:#FFE4E6; } &:disabled{ opacity:0.6; cursor:wait; }
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  background: #F0FDFA;
+  color: #0F766E;
+  border: 1px solid #99F6E4;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  &:hover:not(:disabled) { background: #CCFBF1; }
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
+`;
+const ExtractSpinner = styled.span`
+  width: 12px;
+  height: 12px;
+  border: 2px solid #99F6E4;
+  border-top-color: #0F766E;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  @keyframes spin { to { transform: rotate(360deg); } }
 `;
 const CandList = styled.div`display:flex; flex-direction:column; gap:8px;`;
 const SummaryBox = styled.div`font-size:12px; color:#334155; line-height:1.6; white-space:pre-wrap; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; padding:10px 12px;`;

@@ -186,7 +186,47 @@ async function buildAssigneePool({ businessId, projectId, conversationId }) {
     const dn = nameMap.get(uid);
     v.displayName = dn?.name || dn?.name_localized || v.accountName || null;
   }
+
+  // 🔒 외부인(고객) · AI 표시 — 담당자가 될 수 없는 사람을 구분한다.
+  //   대화 참여자를 그대로 풀에 넣다 보니 고객 user 가 후보에 섞였고, 1:1 고객 대화에서
+  //   "김수진님, 로고 보내주세요" → 담당자 = 고객 으로 배정됐다(실증). 업무 담당자는 우리 팀이다.
+  //   메일 경로 프롬프트에는 "never the customer" 가드가 있는데 채팅 경로만 없었다.
+  if (businessId && pool.size > 0) {
+    const BusinessMember = require('../models/BusinessMember');
+    const ids = [...pool.keys()];
+    const bms = await BusinessMember.findAll({
+      where: { business_id: businessId, user_id: ids, removed_at: null },
+      attributes: ['user_id', 'role'],
+    });
+    const memberRole = new Map(bms.map((m) => [m.user_id, m.role]));
+    for (const [uid, v] of pool) {
+      v.isExternal = !memberRole.has(uid);           // BusinessMember row 없음 = 외부 고객
+      v.isAi = memberRole.get(uid) === 'ai';         // Cue — 책임 주체가 될 수 없다
+    }
+  }
   return pool;
+}
+
+// 담당자가 될 수 있는 사람인가 — 외부 고객·AI 제외 (사람 라우트의 assertAssignable 과 같은 취지)
+function isAssignablePoolMember(m) {
+  return !!m && !m.isExternal && !m.isAi;
+}
+
+// 업무명 정규화 — 결과물 기반 규칙을 코드로 보장한다.
+//   프롬프트가 "NEVER append 완료/완성/마무리" 라고 못박아도 LLM 은 어긴다(운영 실데이터 2건 확인:
+//   "패키지 컨셉 보드 3안 제작 완료"). status 필드가 상태를 다루므로 제목의 완료 접미사는 항상 잘라낸다.
+//   프롬프트는 확률, 코드는 보장.
+const TITLE_DONE_SUFFIX = /[\s·,]*(완료|완성|마무리|끝냄|done|finished|completed)\s*$/i;
+function sanitizeTitle(raw) {
+  let s = String(raw || '').trim();
+  // 접미사가 연달아 붙는 경우("… 제작 완료 완료")도 흡수
+  for (let i = 0; i < 3 && TITLE_DONE_SUFFIX.test(s); i++) s = s.replace(TITLE_DONE_SUFFIX, '').trim();
+  return s.slice(0, 300);
+}
+
+// 제목 정규화 키 — pending 후보 중복 차단용 (공백·문장부호·조사 흔들림 흡수)
+function titleKey(raw) {
+  return String(raw || '').toLowerCase().replace(/[\s\W_]+/g, '');
 }
 
 // ─── 이름/역할 → 멤버 매칭 (LLM 출력의 guessed_assignee_name / guessed_role 우선순위) ───
@@ -194,7 +234,9 @@ async function buildAssigneePool({ businessId, projectId, conversationId }) {
 // 보수적: 이름·역할 매칭 실패하면 null 반환 (사용자가 우측 패널에서 직접 지정).
 // pool 은 buildAssigneePool 결과(Map). 표시명 → 계정명 → role 순 매칭.
 function resolveAssignees(candidates, pool) {
-  const members = [...(pool?.values?.() || [])];
+  // 외부 고객·AI 는 매칭 대상에서 제외 — LLM 이 이름을 맞게 뽑았더라도 담당자가 될 수 없다.
+  // (프롬프트는 확률, 코드는 보장. 메일 프롬프트의 "never the customer" 를 코드로 강제한다.)
+  const members = [...(pool?.values?.() || [])].filter(isAssignablePoolMember);
   return candidates.map((c) => {
     let assigneeId = null;
 
@@ -333,9 +375,17 @@ async function extractTaskCandidates({ conversationId, userId, businessId }) {
     const participants = [...assigneePool.values()].filter((m) => m.isParticipant);
     const participantCount = participants.length;
     const participantsList = participants
-      .map((m) => `- ${m.displayName || 'unknown'} (user_id: ${m.user_id})`).join('\n');
+      .map((m) => {
+        const tag = m.isExternal ? ' — EXTERNAL CUSTOMER, never the assignee'
+          : m.isAi ? ' — AI teammate, never the assignee'
+            : '';
+        return `- ${m.displayName || 'unknown'} (user_id: ${m.user_id})${tag}`;
+      }).join('\n');
     const conversationParticipantNames = participantCount
-      ? `Total participants: ${participantCount}\n${participantsList}\nNote: ${participantCount === 2 ? 'This is a 1-on-1 chat — when sender asks the other person to do X, that person is the assignee.' : 'Group chat — only assign when explicitly named.'}`
+      ? `Total participants: ${participantCount}\n${participantsList}\n`
+        + `Note: ${participantCount === 2 ? 'This is a 1-on-1 chat — when the sender asks the other person to do X, that person is the assignee.' : 'Group chat — only assign when explicitly named.'}\n`
+        // 메일 경로와 같은 가드 — 고객이 무언가를 요청하면 담당자는 우리 팀원이다 (고객이 아니라).
+        + 'CRITICAL: the assignee is always one of OUR team members. When an EXTERNAL CUSTOMER asks for a deliverable, the assignee is our team member (never the customer). If no internal person is clearly named, leave the assignee null.'
       : '';
 
     // 언어 감지 (간이: 한글 포함 여부)
@@ -416,6 +466,22 @@ async function extractTaskCandidates({ conversationId, userId, businessId }) {
       return !ids.every((id) => blockedIds.has(id)); // 모든 source 가 blocked 면 폐기
     });
 
+    // ─── 아직 처리 안 된(pending) 후보와 같은 업무는 다시 만들지 않는다 ───
+    // "배너 3종 제작해 주세요" → 후보 생성. 나중에 "배너 3종 제작 잊지 마세요" → 같은 후보가 또 생김(실증).
+    // blockedIds 는 registered/merged/rejected 만 봐서 pending 이 빠져 있었다.
+    // Q Note 경로는 이미 title 기반 dedup 을 한다 — 채팅·메일만 없던 비대칭.
+    const pendingCands = await TaskCandidate.findAll({
+      where: { conversation_id: conversationId, status: 'pending' },
+      attributes: ['title'],
+    });
+    const pendingKeys = new Set(pendingCands.map((c) => titleKey(c.title)));
+    if (pendingKeys.size > 0) {
+      extracted = extracted.filter((t) => {
+        const k = titleKey(sanitizeTitle(t.title));
+        return !(k && pendingKeys.has(k));
+      });
+    }
+
     // 역할/이름 → 담당자 매칭 (#90: standalone 포함 — pool 에 대화 참여자가 있어 1:1 상대·@멘션 해석 가능).
     // 유사 업무 탐색은 프로젝트 컨텍스트 필요하므로 project_id 있을 때만.
     let withSimilar = resolveAssignees(extracted, assigneePool);
@@ -446,7 +512,7 @@ async function extractTaskCandidates({ conversationId, userId, businessId }) {
           extracted_at: new Date(),
           extracted_by_user_id: userId,
           source_message_ids: c.source_message_ids || [],
-          title: String(c.title || '').slice(0, 300),
+          title: sanitizeTitle(c.title),
           description: c.description ? String(c.description).slice(0, 2000) : null,
           guessed_role: c.guessed_role ? String(c.guessed_role).slice(0, 50) : null,
           guessed_assignee_user_id: c.guessed_assignee_user_id || null,
@@ -581,7 +647,7 @@ async function extractEmailTaskCandidates({ emailThreadId, userId, businessId })
         extracted_by_user_id: userId,
         source_message_ids: null,
         source_email_message_ids: c.source_email_message_ids || [],
-        title: String(c.title || '').slice(0, 300),
+        title: sanitizeTitle(c.title),
         description: c.description ? String(c.description).slice(0, 2000) : null,
         guessed_role: c.guessed_role ? String(c.guessed_role).slice(0, 50) : null,
         guessed_assignee_user_id: c.guessed_assignee_user_id || null,
@@ -646,7 +712,7 @@ async function extractNoteTaskCandidates({ text, title, qnoteSessionId, userId, 
         qnote_session_id: qnoteSessionId, business_id: businessId,
         extracted_at: new Date(), extracted_by_user_id: userId,
         source_message_ids: null, source_email_message_ids: null,
-        title: String(c.title || '').slice(0, 300),
+        title: sanitizeTitle(c.title),
         description: c.description ? String(c.description).slice(0, 2000) : null,
         guessed_role: c.guessed_role ? String(c.guessed_role).slice(0, 50) : null,
         guessed_assignee_user_id: null,
@@ -705,6 +771,32 @@ async function registerCandidate(candidateId, userId, overrides = {}) {
       finalAssignee = overrides.assignee_id;
     } else {
       finalAssignee = candidate.guessed_assignee_user_id || userId;
+    }
+
+    // 🔒 담당자 배정 게이트 (D2-b #66) — 여태 tasks.js POST/PUT 에만 걸려 있고 이 승격 경로는
+    //   통째로 우회했다. 실증: POST /api/tasks 로는 타 워크스페이스 사용자 배정이 403 인데,
+    //   후보 등록으로는 200 → 외부 고객/타 워크스페이스 사람이 담당자가 되고(그 업무를 볼 수 있게 되고)
+    //   알림까지 발송됐다(크로스테넌트 유출). 사람이 쓰는 문과 같은 문을 지나게 한다.
+    if (finalAssignee && finalAssignee !== userId) {
+      const { assertAssignable } = require('../middleware/access_scope');
+      const chk = await assertAssignable(finalAssignee, businessId, candidate.project_id);
+      if (!chk.ok) {
+        // rollback 은 바깥 catch 가 한다 (여기서 또 부르면 이중 롤백 → 500)
+        const err = new Error(`cannot_assign:${chk.reason}`);
+        err.code = 'cannot_assign';
+        throw err;
+      }
+    }
+
+    // 🔒 Cue(AI)를 담당자로 승격 금지 — 등록 경로에는 executeForTask 트리거가 없어 아무도 실행하지
+    //   않는 좀비 업무가 되고, 봇 계정에 알림이 나간다. 책임 주체는 사람 (project_ai_native_strategy).
+    //   Cue 에게 맡기려면 업무를 만든 뒤 담당자를 Cue 로 지정한다 (그 경로엔 실행 트리거가 있다).
+    if (finalAssignee) {
+      const BusinessM = require('../models/Business');
+      const bizRow = await BusinessM.findByPk(businessId, { attributes: ['cue_user_id'], transaction: t });
+      if (bizRow?.cue_user_id && bizRow.cue_user_id === finalAssignee) {
+        finalAssignee = userId;   // 등록한 사람이 책임 주체
+      }
     }
     // 기간 (start_date / due_date) — 명시 override → 그 값 (null 허용) / 미전달 → guessed
     const finalStart = Object.prototype.hasOwnProperty.call(overrides, 'start_date')

@@ -405,11 +405,34 @@ router.get('/email-accounts/oauth/gmail/callback', async (req, res) => {
     });
     const teamCount = await EmailAccount.count({ where: { business_id: parsed.businessId, owner_user_id: null } });
     const isFirstTeam = parsed.scope !== 'personal' && teamCount === 0;
+
+    // 발신 이름(display_name) — 이 값이 그대로 고객 메일함에 뜬다 (emailSend.js: `"이름" <주소>`).
+    //   여태 구글 프로필 이름을 그대로 박아, 회사 대표 메일로 답장해도 개인 구글 계정명이 찍혔다
+    //   (실사례: 회사 메일이 "IRENE WP" 로 발신 — 브랜드가 아니라 구글이 정한 이름).
+    //   회사 공용 = 워크스페이스 브랜드 / 개인 = 그 사람의 워크스페이스 표시명. 둘 다 나중에 수정 가능.
+    let defaultFromName = tokens.name || null;
+    try {
+      if (ownerUserId === null) {
+        const { Business } = require('../models');
+        const biz = await Business.findByPk(parsed.businessId, {
+          attributes: ['mail_from_name', 'brand_name', 'name'],
+        });
+        defaultFromName = biz?.mail_from_name || biz?.brand_name || biz?.name || defaultFromName;
+      } else {
+        const { getMemberNameMap } = require('../services/displayName');
+        const nameMap = await getMemberNameMap(parsed.businessId, [ownerUserId]);
+        const dn = nameMap.get(ownerUserId);
+        defaultFromName = dn?.name || dn?.name_localized || defaultFromName;
+      }
+    } catch (e) { console.warn('[gmail oauth] default from name', e.message); }
+    // 재연결(토큰 갱신)이면 사용자가 정해둔 이름을 덮어쓰지 않는다
+    const finalFromName = acc?.display_name || defaultFromName;
+
     const payload = {
       business_id: parsed.businessId,
       owner_user_id: ownerUserId,
       email: tokens.email,
-      display_name: tokens.name || null,
+      display_name: finalFromName,
       auth_type: 'google_oauth',
       oauth_access_token_encrypted: encrypt(tokens.access_token),
       oauth_refresh_token_encrypted: tokens.refresh_token ? encrypt(tokens.refresh_token) : (acc?.oauth_refresh_token_encrypted || null),

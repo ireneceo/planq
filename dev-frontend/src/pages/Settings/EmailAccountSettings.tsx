@@ -573,12 +573,15 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, onSa
           </Field>
 
           <Field>
-            <Label>{t('settings.fieldDisplayName', '표시 이름') as string}</Label>
+            {/* 이 값이 그대로 고객 메일함의 발신자 이름이 된다 — 항목명을 표시 이름이라고만 두니
+                구글이 정한 계정명(예: IRENE WP)이 브랜드 대신 나가는 사고가 났다. */}
+            <Label>{t('settings.fieldFromName', '발신 이름') as string}</Label>
             <Input
               type="text" value={form.display_name || ''}
               onChange={e => setForm({ ...form, display_name: e.target.value })}
-              placeholder={t('settings.displayNamePh', '예: 회사 고객지원') as string}
+              placeholder={t('settings.fromNamePh', '예: PlanQ · 회사 고객지원') as string}
             />
+            <FieldHint>{t('settings.fromNameHint', '받는 사람 메일함에 이 이름으로 표시돼요. 비우면 메일 주소만 보입니다.') as string}</FieldHint>
           </Field>
 
           <SectionTitle>{t('settings.imapSection', '받기 (IMAP)') as string}</SectionTitle>
@@ -793,6 +796,7 @@ const DrawerTitle = styled.div`font-size: 16px; font-weight: 700; color: #0F172A
 const Form = styled.div`display: flex; flex-direction: column; gap: 14px;`;
 const Field = styled.div`display: flex; flex-direction: column; gap: 5px;`;
 const Label = styled.label`font-size: 12px; font-weight: 600; color: #475569; display: flex; align-items: center; gap: 4px;`;
+const FieldHint = styled.span`font-size: 11px; font-weight: 500; color: #94A3B8; line-height: 1.5;`;
 const Required = styled.span`color: #EF4444;`;
 const PasswordHint = styled.span`font-size: 11px; color: #94A3B8; font-weight: 500; margin-left: 4px;`;
 const Optional = styled.span`font-size: 11px; color: #94A3B8; font-weight: 500; margin-left: 4px;`;
