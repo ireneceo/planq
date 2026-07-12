@@ -1,6 +1,32 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-07-11 (Opus, 1M) — **💰🔒 돈·보안 사고 6건 근본수정 + 운영 피드백 백로그 전건 소진(19→0, 운영 done 135) + AI-네이티브 전략 확정(Fable 3인 감사). 전부 운영 배포.** 헬스 30/30 · guard-invariants 14/14 · e2e tenant 0 · 빌드 EXIT0/TS0.
+> **최종 업데이트:** 2026-07-12 (Opus, 1M) — **🔒 P0 에이전트 권한 모델 + 업무추출 보안 3건(Fable BLOCK 해제) + Q Mail 발신자 표시·답변필요 자가오염. 운영 배포 3회 완료.** 헬스 30/30 · guard-invariants 16/16(14→16) · e2e tenant 0 · 빌드 EXIT0/TS0 · 위키 게이트 exit0.
+>
+> **★ P0 에이전트 권한 모델 (Fable 게이트 CONDITIONAL → 권고 3건 반영)** — Cue 는 담당자로 지정되면 자동 실행되는데 권한 계층을 통째로 우회했다. 지난 사이클에 막은 건 읽기(채팅 컨텍스트)뿐이고 업무 실행 경로는 그대로였다.
+> - **위임 주체(principal)** — Cue 는 업무 요청자의 권한으로만 행동. `resolvePrincipal()` fail-closed(위임자가 AI 면 거부 = 권한 세탁 차단, platform_admin 은 platform_role 전달로 인정). 트리거한 사람이 아니라 **위임자 기준** — 트리거로 권한이 커지는 escalation 차단.
+> - **읽기 게이트(IDOR)** — `execDraftReply` 가 business_id 만 비교해, 참여하지도 않은 대화방을 Cue 가 요약해 task.body 에 적어줬다 → `canAccessConversation` 필수. KB 검색도 위임자 권한(`kbDocumentsListWhereByLevel`)으로. **단 고객 문의 자동응답의 워크스페이스 KB 는 의도적 비필터**(그게 기능의 존재 이유).
+> - **쓰기 게이트 — 신규 `services/taskTransition.js`(상태 전이 단일 착지점)** — 옛 코드는 `task.update({status:'reviewing'})` 로 직접 써서 reviewer 가드·TaskStatusHistory·notify·socket broadcast·focusSync 를 전부 건너뛰었다(= Cue 가 일해도 아무도 모르고 화면도 안 갱신). 이제 Cue 도 사람 라우트(submit-review·cancel-review)도 같은 함수를 지난다. 컨펌자 0명이면 위임자를 자동 등록(전이와 같은 트랜잭션) — 옛 코드는 컨펌자 없이 reviewing 으로 밀어넣어 **approve 가 403 나는 죽은 업무**를 만들었다(실제 사망 지점).
+> - **guard-invariants 2종 신설(14→16)** — `cuefinance`(Cue 재무 쓰기·결제확정·재무서비스 require 0건 = Irene 확정 "재무 영구 봉쇄" 를 문서가 아닌 게이트로), `cueauth`(access_scope/canAccessConversation/principal/submitForReview 소실 또는 status 직접 쓰기 시 exit 1. 멀티라인 우회도 검출). 반증실험 3건으로 유효성 증명.
+> - **on-behalf-of 감사** — `audit_logs.acting_for_user_id`(운영 ALTER 선행 후 배포 — 모델 선언만 올리면 운영 감사 INSERT 전부 실패했을 상황).
+>
+> **★ 업무 자동추출 — Fable BLOCK(보안 2건 실호출 재현) 해제** (Irene: "담당자·업무명 규칙 재검증 정말 중요")
+> - **F1(Critical)** 외부 고객이 `GET /api/tasks/extracted-candidates` 로 **내부 논의 후보 7건**(제목·설명·담당자 실명, description 은 원문 verbatim)을 받아갔다. 형제 라우트는 client 403 인데 이 라우트만 누락 → `isMemberOrAbove` 강제.
+> - **F2(High)** 후보→업무 승격이 `assertAssignable` 을 통째로 우회. `POST /api/tasks` 로는 타 워크스페이스 사용자 배정이 403 인데 후보 등록으로는 200 → 외부인이 담당자가 되고(그 업무 열람 가능) **타 워크스페이스 사람에게 업무 알림 발송**(크로스테넌트 유출) → `registerCandidate` 안에 게이트(라우트 3곳 403 매핑).
+> - **F3(High)** 채팅 추출이 **고객을 담당자로 지정**(1:1 고객 대화 "김수진님, 로고 보내주세요" → assignee=고객). 메일 프롬프트엔 "never the customer" 가드가 있는데 채팅에만 없었다 → `buildAssigneePool` 이 isExternal/isAi 판정 + `resolveAssignees` 코드 배제 + 프롬프트 명시. **프롬프트는 확률, 코드는 보장.**
+> - **F4** 업무명 "…제작 완료" 접미사 통과(LLM 이 NEVER 지시 위반, 실데이터 2건) → `sanitizeTitle()` 3경로. **F5** Cue 담당 후보 등록 = 실행 트리거 없는 좀비 업무 → 승격 시 등록자로 대체(책임 주체는 사람). **F6** pending 후보 중복 → 제목 dedup.
+> - 담당자 결정 **설계 자체는 옳았다** — LLM 은 이름만 제안하고 코드가 참여자 풀에서 표시명→계정명→역할 순 확정. 문제는 풀에 고객이 섞인 것.
+>
+> **★ Q Mail — 발신자 표시 오류 + "답변 필요" 자가 오염** (사용자 실사용 보고 + Fable 설계 검토)
+> - **발신자 표시** — `MailPage.tsx` 가 발신자 자리에 **내 메일함 이름(account.display_name)** 을 그렸다. PlanQ 알림이 Q Mail 안에서만 "IRENE WP"(구글 프로필명)로 보이고 맥 메일에선 정상. **데이터는 멀쩡, 화면이 틀렸다** → 목록 직렬화에 `counterpart`(마지막 inbound 의 from_name) 추가, 프론트는 발신자 우선. 운영 실측: PlanQ / WOR-PRO Lab / Purple Here 정상 표시.
+> - **발신 이름 원래 기준 복원** — Gmail 연결 시 `display_name = tokens.name`(구글 프로필명)을 박아 회사 대표 메일 답장이 "IRENE WP" 로 나갔다. 원래 기준은 `/business/settings/email` 의 `mail_from_name` → OAuth 기본값(회사=워크스페이스 발신명 / 개인=본인 표시명, 재연결 시 사용자값 보존) + `emailSend` 폴백 + 항목명 "표시 이름"→"발신 이름". 운영 데이터 교정. **플랫폼 발송(PlanQ)은 원래 정상**(수신 헤더 실측).
+> - **"답변 필요" 자가 오염(Fable 실측 오탐 93%)** — PlanQ 알림 메일이 `Auto-Submitted` 헤더 없이 대표 주소로 나가 재수집 시 triage='human' → reply_needed 자동 ON. **운영 116건 중 93건이 자기 알림.** → 발송에 RFC 3834 헤더 + 수신에 `buildOwnEmailSet`(연결 계정 + 플랫폼 주소) + 뉴스레터 패턴 + **백필**(`backfill-mail-selfnotify.js`, 멱등·이미 답장한 스레드 보존). 운영 **95건 재분류 → 답변 필요 116→20**. 밖에서 답장한 메일용 **`POST /dismiss-reply`("답변 완료")** + 3일 경과 칩(운영 83%가 3일+ 방치였다).
+> - **확인 필요 불침범(Fable C안)** — 메일은 확인 필요(total)에 **합산하지 않는다**. Q Bill 과 같은 **Q Mail 메뉴 자체 배지**(`mailReplyCount`). 근거: 확인 필요는 '나에게 귀속된 완료 가능 액션' 신뢰 자산인데, 회사 공용 메일함은 담당자 미지정이 기본이라 멤버 전원 배지에 같은 메일이 동시에 오른다(공유 큐 ≠ 개인 처리함). 채팅발 업무 후보도 같은 이유로 N+30 에 빠졌다 — 같은 원칙의 반복.
+> - **UI 표준 정렬** — 접기 버튼이 Q Mail 만 헤더 박스 버튼 → **경계선 중앙 화살표(신규 공통 `components/Layout/PanelEdgeHandle.tsx`)**. 빈 상태 → 공통 `EmptyState`(Q docs·Q Note 동일). 업무 추출 버튼 → Q Talk 과 동일(teal + 체크박스). 계정 칩에 회사/개인 배지 + 주소. **탭 카운트가 계정 필터를 무시하던 버그**(개인만 골라도 전체 합계). `내 담당`·`팔로우` 탭 i18n 키 부재(영어 사용자도 한국어) → ko/en 채움.
+> - **메일 계정 관리자 교정 경로 복구** — 회사 대표 메일이 한 멤버의 **개인 메일**로 등록돼 회사 메일 191건이 그 사람에게만 보였다. 프론트엔 admin 전용 "개인↔회사 공용 전환" 버튼이 있는데 `accessibleWhere` 가 남의 개인 계정을 조회에서 걸러 **404 → 릴리즈 이후 한 번도 동작한 적 없는 죽은 기능**. → 최소 권한 교정 경로(공용 전환·비활성화만, 자격증명 편집/가로채기 불가, 목록 미노출) + 감사 action 분리.
+>
+> **다음 섹션:** ① **메일 분류 규칙 학습**(Irene 승인 — "답변 완료"·스팸 클릭을 발신자 규칙으로 학습: `mail_sender_rules`, 2회 dismiss → no_reply 자동 규칙 + 기존 건 일괄 정리, 답장하면 규칙 해제, 도메인 승격, 설정에 규칙 목록·근거·삭제. LLM 0) ② LLM 게이트웨이 단일화 ③ 행동 계층 추출(taskTransition 이 첫 절단면) ④ #81 Cue 대화형 실행 ⑤ KB 과잉 제거.
+>
+> **이전 업데이트:** 2026-07-11 (Opus, 1M) — **💰🔒 돈·보안 사고 6건 근본수정 + 운영 피드백 백로그 전건 소진(19→0, 운영 done 135) + AI-네이티브 전략 확정(Fable 3인 감사). 전부 운영 배포.** 헬스 30/30 · guard-invariants 14/14 · e2e tenant 0 · 빌드 EXIT0/TS0.
 >
 > **★ 돈·보안 사고 6건 (전부 "완료로 기록됐지만 실제로는 위험하거나 죽어 있던" 것들)**
 > 1. **연체 독촉 자동발송 폐지 (Irene 지시)** — 결제 마킹이 수동인데 cron 이 고객에게 독촉 메일을 자동 발송하고 프로젝트를 자동 정지시켰다(입금했는데 마킹 전인 고객을 재촉하는 사고). → `overdue_handler.js` 재작성: 담당자에게 "독촉 보낼까요?" 알림만, 발송은 사람이 누를 때만. 7일 간격 재질의(독촉=자연 스누즈), 청구서별 알림 끄기(`meta.overdue_notify_off`). 수신자를 실제로 누를 수 있는 사람(owner/admin/청구담당)으로 좁힘 — 옛 코드는 일반 멤버에게도 보내 눌러도 403 인 막다른 알림이었다. 신규 `services/billingRecipients.js` 단일 원천. **검증 22/22.**

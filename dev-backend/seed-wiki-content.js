@@ -64,6 +64,9 @@ const BLOG_MAP = {
   'create-event': 'how-to',
   'create-project': 'how-to',
   'qmail-inbox': 'how-to',
+  'qmail-reply-needed': 'how-to',
+  'qmail-accounts-view': 'how-to',
+  'qmail-cue-draft': 'how-to',
   'assign-task-to-cue': 'how-to',
   'what-is-cue': 'insights',
   'insights-overview': 'insights',
@@ -385,6 +388,41 @@ const ARTICLES = [
       s('Q Mail 화면에서 메일 스레드를 엽니다.', 'Open a mail thread on the Q Mail screen.'),
       s('답장·전달·임시저장이 대화처럼 동작합니다. 첨부는 Q File에 함께 보관됩니다.', 'Reply, forward, and save drafts like a chat. Attachments are also stored in Q File.'),
       note('메일 계정 연결 방법은 "메일 계정 연결하기" 도움말을 참고하세요.', 'See "Connect a mail account" for how to link your mailbox.'),
+    ] },
+
+  { cat: 'qmail', slug: 'qmail-reply-needed', visibility: 'authenticated', linked_route: '/mail', est: 2,
+    title: t('답변 필요 메일만 골라 보기', 'See only the mail that needs a reply'),
+    summary: t('사람이 보낸 메일만 답변 필요로 모으고, 처리한 메일은 목록에서 내리기', 'Collect only human mail as needs-reply and clear the ones you have handled'),
+    body: [
+      p('"답변 필요" 폴더에는 사람이 보낸 메일만 모입니다. 광고·뉴스레터·시스템 자동 알림은 자동으로 제외돼요. 사이드바 Q Mail 옆 숫자가 답변 필요 건수입니다.',
+        'The "Needs reply" folder collects only mail sent by a person. Ads, newsletters, and automated system notifications are filtered out. The number next to Q Mail in the sidebar is the needs-reply count.'),
+      s('Q Mail 좌측에서 "답변 필요" 탭을 엽니다.', 'Open the "Needs reply" tab on the left of Q Mail.'),
+      s('3일 넘게 답장하지 않은 메일에는 "N일 경과" 표시가 붙습니다.', 'Mail waiting more than three days is marked with "N days waiting".'),
+      s('이미 다른 메일 앱에서 답장했거나 답장이 필요 없으면 "답변 완료"를 누릅니다. 목록에서 바로 내려갑니다.', 'If you already replied elsewhere or no reply is needed, press "Mark replied" and it leaves the list.'),
+      note('메일에 답장하면 답변 필요는 자동으로 해제됩니다.', 'Replying from Q Mail clears the needs-reply flag automatically.'),
+    ] },
+
+  { cat: 'qmail', slug: 'qmail-accounts-view', visibility: 'authenticated', linked_route: '/mail', est: 2,
+    title: t('회사 메일과 내 메일 나눠 보기', 'View company mail and personal mail separately'),
+    summary: t('주소별로 인박스를 나눠 보고, 발신 이름을 정하기', 'Filter the inbox by address and set the name recipients see'),
+    body: [
+      p('한 인박스에 회사 공용 메일과 내 개인 메일이 함께 모입니다. 목록 위의 계정 칩으로 주소별로 나눠 볼 수 있어요. 개인 메일은 나에게만 보입니다.',
+        'One inbox holds both the shared company mailbox and your personal mail. Use the account chips above the list to view them by address. Personal mail is visible only to you.'),
+      s('목록 위 칩에서 "전체" 또는 특정 주소를 선택합니다. 상단 폴더 숫자도 선택한 주소 기준으로 바뀝니다.',
+        'Pick "All" or a specific address from the chips above the list. The folder counts follow your selection.'),
+      s('발신 이름(받는 사람에게 보이는 이름)은 설정 → 메일 계정에서 바꿉니다.', 'Change the sender name recipients see in Settings → Mail accounts.'),
+      note('회사 공용 계정의 기본 발신 이름은 워크스페이스 메일 설정을 따릅니다.', 'The shared account uses the workspace mail settings as its default sender name.'),
+    ] },
+
+  { cat: 'qmail', slug: 'qmail-cue-draft', visibility: 'authenticated', linked_route: '/mail', est: 1,
+    title: t('Cue에게 답장 초안 맡기기', 'Let Cue draft the reply'),
+    summary: t('메일 답장 초안을 Cue가 먼저 써주고 사람이 다듬어 보내기', 'Cue writes a first draft and you polish it before sending'),
+    body: [
+      p('메일을 열면 "답장" 옆에 "Cue 답변 초안" 버튼이 있습니다. 누르면 Cue가 지난 대화와 등록된 FAQ를 참고해 초안을 씁니다.',
+        'Open a mail and you will see "Cue draft reply" next to "Reply". Cue writes a draft using the thread history and your registered FAQs.'),
+      s('메일 상세 하단에서 "Cue 답변 초안"을 누릅니다.', 'Press "Cue draft reply" at the bottom of the mail detail.'),
+      s('초안이 채워진 작성창이 열립니다. 내용을 확인·수정한 뒤 보냅니다.', 'The composer opens with the draft filled in. Review, edit, and send.'),
+      note('광고·자동 발송 메일에는 초안을 제안하지 않습니다. 보내기는 항상 사람이 누릅니다.', 'No draft is offered for ads or automated mail. A person always presses send.'),
     ] },
 
   // ── Q Project ──

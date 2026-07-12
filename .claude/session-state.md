@@ -1,8 +1,8 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-07-11 (Opus, 1M) — 운영 피드백 백로그 전건 소진 + 돈·보안 사고 6건 근본수정 + AI-네이티브 전략 확정
-**작업 상태:** 완료 (운영 배포 완료). 남은 것 = 아래 "다음 섹션" 개발 리스트.
+**마지막 업데이트:** 2026-07-12 (Opus, 1M) — P0 에이전트 권한 모델 + 업무추출 보안 3건 + Q Mail 발신자·답변필요
+**작업 상태:** 완료 (운영 배포 3회 완료). 다음 = 아래 "다음 섹션".
 
 ---
 
@@ -14,81 +14,76 @@ session-state.md 읽고 이어서 개발해.
 
 ---
 
-## ✅ 이번 세션 완료 (2026-07-11)
+## ✅ 이번 세션 완료 (2026-07-12) — 전부 운영 배포
 
-### 돈·보안 사고 6건 (전부 운영 배포)
-1. **연체 독촉 자동발송 폐지** — 결제 마킹이 수동인데 cron 이 고객에게 독촉 메일을 자동 발송하고 프로젝트를 자동 정지시켰다. 입금했는데 마킹 전인 고객을 재촉하는 사고. → 담당자에게 "독촉 보낼까요?" 알림만, 발송은 사람이. 7일 간격 재질의, 청구서별 알림 끄기. (`overdue_handler.js` 재작성)
-2. **정기청구 중복 발행** — 동시 실행 시 청구서 2장 발행(실증). invoice_number UNIQUE 가 유일 방어였는데 재시도 루프가 그걸 무력화. → `invoices.idempotency_key` UNIQUE (sub:{id}:{date} / proj:{id}:{YYYY-MM}). 크래시 후 청구 영구정지 자가치유 포함.
-3. **Cue 정보 유출** — Cue 가 고객 채팅방에서 답할 때 남의 개인(L1) 일정·내부 업무·청구 내역을 권한 필터 없이 LLM 프롬프트에 넣었다. → `access_scope.calendarListWhere` 신설(사람 라우트와 AI 가 같은 규칙), cue_context 스냅샷 3종에 scope 관통, orchestrator 가 발화자 scope 전달.
-4. **Webhook 없이 카드결제 버튼 켜짐** — Secret Key 만 넣어도 버튼이 켜져, 고객이 결제하면 돈은 들어오는데 청구서가 영영 미확정. → `isStripeEnabled = secret && webhookSecret`.
-5. **입금 계좌를 일반 멤버가 변경 가능** — 청구서 발행은 owner 전용인데 계좌는 아니었다. → owner/admin 게이트 + 프론트 잠금.
-6. **공개 페이지 XSS** — PublicKbDocument/Bundle 이 사용자 HTML 을 정화 없이 렌더(script/onerror 실행 가능). → `utils/sanitizeHtml.ts`(DOMPurify) 단일 원천, 공개 3페이지 적용.
+### P0 에이전트 권한 모델 (Fable 게이트 CONDITIONAL → 권고 3건 반영)
+Cue 가 담당자로 지정되면 자동 실행되는데 **권한 계층을 통째로 우회**하고 있었다.
+- **위임 주체(principal)** — Cue 는 업무 요청자의 권한으로만 행동. fail-closed. 위임자가 AI 면 거부(권한 세탁 차단). 트리거한 사람이 아니라 위임자 기준(escalation 차단).
+- **읽기 IDOR** — `execDraftReply` 가 business_id 만 비교 → 참여하지도 않은 대화방을 Cue 가 요약해 적어줬다. `canAccessConversation` 필수.
+- **쓰기** — 신규 `services/taskTransition.js` 상태 전이 **단일 착지점**. 옛 코드는 status 직접 써서 reviewer 가드·이력·notify·broadcast·focus 전부 건너뜀. 컨펌자 0명이면 위임자 자동 등록(옛 코드는 approve 403 나는 **죽은 업무** 생성).
+- **guard-invariants 14→16** — `cuefinance`(Cue 재무 영구 봉쇄를 게이트로 박제) + `cueauth`. 반증실험으로 유효성 증명.
+- **감사** — `audit_logs.acting_for_user_id` (운영 ALTER **선행** 후 배포).
 
-### 조용히 죽어 있던 기능 3건
-- 채팅방 청구서 카드가 **한 번도 갱신된 적 없음** (Sequelize 가 JSON path `$` 를 `$$` 로 이스케이프 → 쿼리 항상 실패, catch 가 삼킴)
-- 통합보고서 전사 요약 자동저장 유실 (unit row 가 '확정' 시점에만 생성)
-- 업무 첨부 이미지 410 (#134 — Drive 저장분을 로컬에서 찾음)
+### 업무 자동추출 — Fable BLOCK 해제 (Irene: "이거 정말 중요")
+- **F1** 외부 고객이 내부 업무후보 7건 조회(내부 대화 원문 포함) → 멤버 이상 강제
+- **F2** 후보→업무 승격이 `assertAssignable` 우회 → 외부인 담당자화 + 타 워크스페이스 알림 발송(크로스테넌트 유출) → 게이트 추가
+- **F3** 채팅 추출이 **고객을 담당자로 지정** → 담당자 풀에서 외부인·AI 코드 배제 + 프롬프트 가드(메일 경로와 동일)
+- **F4** 업무명 "완료" 접미사 → `sanitizeTitle()`  **F5** Cue 담당 = 좀비 업무 → 등록자로 대체  **F6** pending 후보 중복 → 제목 dedup
+- 담당자 결정 **설계는 옳았다** (LLM 은 이름만 제안, 코드가 확정). 풀에 고객이 섞인 게 문제였음.
 
-### 운영 피드백 19건 전건 소진 → **운영 DB done 135건, 남은 2건**(#81·#126, 아래 리스트)
-#134(첨부 provider) · #85(통합보고서 SCR) · #112(승인 코멘트) · #131(월간뷰 일정추가) · #135(회의링크 복사) · #126c(날짜피커) · #99b(공개 업무 페이지) · #125a(네이티브 OAuth 복귀) · #138(이모지 리액션 신규) · #127(메모 풀블리드) · #130(Q Mail 사이드바 통일) · #136(프로젝트 설정탭 분리) · #128(보관함 대시보드) · #137(가격 39,000)
-
-### 가격 인상
-베이직 29,000 → **39,000원** (연 390,000). 근거: 한도 최대 사용 시 외부 원가(Q Note STT 스테레오 2배 + Cue 1,500)가 29,000의 절반 → 원가율 50%. 인당 7,800원(5명)으로 여전히 저렴. 프로(79,000)와 정확히 2배. 외부 유료고객 0 = 인상 저항 0. **기존 구독은 sub.price 로 자동 유예**(워프로랩 29,000 유지). ⚠️ Fable 구독 전과정 게이트 결과 확인 필요(미완이면 재실행).
-
-### AI-네이티브 전략 확정 (Fable 3인 감사 + 통합 설계)
-- `docs/FEEDBACK_BACKLOG_PLAN.md` · `docs/PLANQ_AI_READINESS_AUDIT.md`(13축 4.9/10) · `docs/AI_NATIVE_TRENDS_2026.md` · `docs/AI_NATIVE_IMPLEMENTATION_PLAN.md`
-- **Irene 확정 결정 3건** (memory `project_ai_native_strategy`): ①Cue 재무 행동 **영구 봉쇄** ②MCP 외부 개방 **보류**(내부 정비 후) ③#81 Cue 툴 호출은 **게이트웨이·행동 계층 뒤에**
-- 실측: 청구 동시실행 2장 · Cue 권한 우회 · **KB 총량 527 bytes**(임베딩 과잉) · MCP/API key/webhook/function-calling 전부 0 · 감사 6테이블 UNION
+### Q Mail
+- **발신자 표시 오류** — 화면이 발신자 자리에 **내 메일함 이름**을 그렸다(PlanQ 알림이 "IRENE WP"로 보임). 데이터는 멀쩡, 화면이 틀림 → `counterpart`(마지막 inbound from_name) 추가. 운영 정상 확인.
+- **발신 이름 원래 기준** — Gmail 연결 시 구글 프로필명이 박혔다 → `businesses.mail_from_name` 이 단일 원천. 운영 데이터 교정("워프로랩").
+- **"답변 필요" 자가 오염** — PlanQ 알림이 Auto-Submitted 헤더 없이 나가 자기 알림을 "답장할 메일"로 분류. 오탐 93%. → RFC 3834 헤더 + `buildOwnEmailSet` + 백필. **운영 116 → 20건**. "답변 완료" 버튼 + 3일 경과 칩.
+- **확인 필요 불침범(Fable C안)** — 메일은 확인 필요 total 에 미합산. Q Bill 과 같은 **Q Mail 메뉴 자체 배지**.
+- **UI 표준** — 경계선 화살표 핸들(공통 `PanelEdgeHandle.tsx` 신규 추출), 공통 `EmptyState`, 업무 추출 버튼 Q Talk 통일, 계정 칩(회사/개인 + 주소), 탭 카운트 계정 필터 버그 fix, i18n 누락 채움.
+- **메일 계정 관리자 교정 경로 복구** — 회사 대표 메일이 한 멤버 개인 메일로 등록(회사 메일 191건이 그 사람만 봄). admin 전환 버튼이 백엔드 404 로 **한 번도 동작한 적 없던 죽은 기능** → 최소 권한 교정 경로 신설.
 
 ---
 
-## 🔖 다음 섹션 — 개발 리스트 (우선순위 순)
+## 🔖 다음 섹션 (우선순위)
 
-### P0 — 보안·돈
-1. **에이전트 권한 모델** (2~3일, Fable 게이트)
-   - Cue 의 **쓰기**가 여전히 권한 계층 우회 (`cue_task_executor.js`·`cue_orchestrator.js` 에 access_scope/requireMenu 0건). 오늘 막은 건 읽기(컨텍스트)뿐.
-   - 사람에게 걸린 reviewer 가드(`tasks.js:1084`)를 Cue 가 우회 (`cue_task_executor.js:212-216`)
-   - **Cue 재무 행동 영구 봉쇄를 guard-invariants 에 불변식으로 박제** (Irene 확정)
-   - on-behalf-of 위임: "누구 권한으로 행동하는가" 를 감사에 기록 (현재 audit_logs 로 재구성 불가 — acting_for 컬럼 부재)
-   - Linear 식 delegate vs assignee 판정 (Cue 가 tasks.assignee_id 에 들어감 = 책임 주체가 AI)
+### 1. 메일 분류 규칙 학습 (Irene 승인 완료 — 최우선)
+운영하면서 클릭으로 학습해 조건을 구체화한다. **LLM 0.**
+- 신규 `mail_sender_rules` (business_id · pattern(주소|도메인) · verdict(no_reply/always_reply/marketing/spam) · source(learned/manual) · hit_count · evidence)
+- 학습: 같은 발신자 **2회 "답변 완료"** → `no_reply` 규칙 자동 생성 + **그 발신자의 기존 미처리 건 일괄 정리** + 앞으로 애초에 안 들어옴
+- 반대 신호: 그 발신자에게 **답장하면 규칙 즉시 해제**(사람이 대응한다는 강한 신호 우선)
+- 스팸 2회 → 도메인 단위 spam 규칙. 같은 도메인 주소 3개가 no_reply → **도메인 승격**
+- **투명성 필수**: 설정에 "메일 분류 규칙" 화면(학습된 규칙·근거·삭제). 사용자 모르게 메일이 사라지면 안 됨. 규칙 적용 스레드에 "규칙으로 자동 분류됨" 표시
+- 워크스페이스별 격리 (한 고객사가 배운 규칙이 다른 곳에 새지 않음)
+- 규모 중 (테이블 1 + 라우트 3 + 설정 화면 1). 되돌리기 쉬움(규칙 삭제 = 원상복구, 원본 메일 무손상)
 
-### P1 — AI-네이티브 전환 (docs/AI_NATIVE_IMPLEMENTATION_PLAN.md D절)
-2. **LLM 게이트웨이 단일화** (2~3일, Fable 게이트) — raw fetch 13파일 · gpt-4o-mini 하드코딩 27곳 → 단일 모듈(모델 추상화·프롬프트 레지스트리·툴 호출·재시도·비용계량·평가훅). costGuard·cue_usage 흡수하되 파괴 금지.
-3. **행동 계층(Action Layer) 추출** (3일, 되돌리기 어려움 — 절단면 정교하게) — 상태 전이가 12개 라우트에 인라인. 이게 있어야 (a)Cue 툴 호출 (b)MCP 노출 (c)권한 검사 단일화.
-4. **#81 Cue 대화형 실행** (2일) — 위 2·3 선행 필수. 지금 급조하면 14번째 raw 호출 + 권한 우회 쓰기 추가.
-5. **KB 과잉 제거** (1일) — 운영 KB 총 527 bytes 인데 임베딩·청킹·하이브리드 검색 완비. 롱컨텍스트+프롬프트 캐싱으로 단순화 = **코드 삭제**. (`kb_service.js` 200청크 윈도우도 같이)
-6. **#126 캘린더 양방향 동기화** — Google OAuth 검증 제출(Irene, 운영 task #142 아님 — 별도) 선행. 현재 개인 연동 scope=readonly.
+### 2. LLM 게이트웨이 단일화 (2~3일, Fable 게이트)
+raw fetch 13파일 · gpt-4o-mini 하드코딩 27곳 → 단일 모듈(모델 추상화·프롬프트 레지스트리·툴 호출·재시도·비용계량). costGuard·cue_usage 흡수하되 파괴 금지.
 
-### P2 — 부채·정비
-7. god-file 분리 — `projects.js` 3,071 · `invoices.js` 2,229(생명선) · `QNotePage.tsx` 4,464
-8. 죽은 컬럼·코드 제거 119건 (PortOne/Popbill 잔재, `Project.paused_at` 은 **죽지 않았음** — recurring_invoice 가 실제로 읽음. 단 수동 정지 UI 부재 = 설계 부채)
-9. 이벤트 스트림 통합 — "30일간 모든 일" = 6테이블 UNION (actor 컬럼명 3종 이질)
-10. durable execution 최소안 — 크래시 시 진행 중 AI 작업 유실. Temporal/BullMQ 전면 도입은 **과잉으로 배제**.
-11. 검사 하니스 보강 — chrome-suppression 스위트 · canary-crawl 라우트 자동 인벤토리
+### 3. 행동 계층(Action Layer) 추출 (3일)
+상태 전이가 12개 라우트에 인라인. **`services/taskTransition.js` 가 첫 절단면** — 나머지 전이(approve/revision/complete/recalc)를 여기로 모은다. 이게 있어야 (a)Cue 툴 호출 (b)MCP 노출 (c)권한 검사 단일화.
 
-### ⏸ Irene 몫 (운영 워프로랩에 업무 생성 완료 — 2026-07-11)
-- **운영 task #142** Stripe 라이브 결제 활성화 (키·웹훅·소액 스모크)
-- **운영 task #143** 이메일 DKIM 설정 (스팸 격리 위험)
-- **운영 task #144** 네이티브 앱 APNs 키
-- (업무 아님) Google OAuth 검증 제출 — #126 선행 조건
+### 4. #81 Cue 대화형 실행 (2일) — 2·3 선행 필수
+### 5. KB 과잉 제거 (1일) — 운영 KB 총 527 bytes 인데 임베딩·청킹·하이브리드 완비. 롱컨텍스트+캐싱으로 단순화 = 코드 삭제
+### 6. 잔여 부채 — god-file 분리(projects.js 3,071 · invoices.js 2,229 · QNotePage.tsx 4,464) · 이벤트 스트림 통합(6테이블 UNION) · 검사 하니스 보강(chrome-suppression · canary-crawl)
+
+### ⏸ Irene 몫
+- 운영 task **#142 Stripe 활성화** · **#143 이메일 DKIM** · **#144 APNs 키**
+- Google OAuth 검증 제출 (#126 캘린더 양방향 선행 조건)
+- 안 쓴 앱 비밀번호(`johq…`) 구글에서 취소 — 저장하지 않았음
 
 ---
 
 ## 🚀 배포 상태
-이번 세션 전부 운영 배포 완료 (마지막 `c5e32e9`). **가격 변경(39,000)은 미배포** — Fable 구독 게이트 통과 후 배포.
+이번 세션 **전부 운영 배포 완료**. 마지막 커밋 `1e194b2` · deploy 20260712_101401.
+운영 백필 실행 완료: `backfill-mail-selfnotify.js --apply` (95건 재분류).
+운영 DB 선행 ALTER 적용: `audit_logs.acting_for_user_id`.
 
----
-
-## 🔑 환경/인증 현황
-- dev 백엔드 port 3003 (irene PM2 planq-dev-backend). q-note 8000/운영 8001.
-- 운영: 87.106.78.146 port 3004. POS 공존(건드리지 말 것).
-- 가드 3축: `node scripts/health-check.js`(30) + `node scripts/guard-invariants.js`(14) + `node scripts/e2e/run.js --suite tenant`
-- 운영 DB 선행 마이그레이션 적용분: `invoices.idempotency_key` · `task_attachments.storage_provider` ENUM s3 · `message_reactions`(FK+utf8mb4_bin)
-- Stripe 키: dev·운영 모두 미저장(휴면 — 운영 task #142)
+## 🔑 환경/인증
+- dev 백엔드 3003 · q-note 8000 / 운영 3004 · 8001 (POS 공존 — 절대 건드리지 말 것)
+- 가드 3축: `node scripts/health-check.js`(30) + `node scripts/guard-invariants.js`(16) + `node scripts/e2e/run.js --suite tenant`
+- 위키 게이트: `node dev-backend/seed-wiki-content.js` + `node dev-backend/scripts/wiki-coverage-check.js`
+- 운영 메일 계정: help@irenewp.com(회사 공용, 발신명 "워프로랩") · irene@irenewp.com(Irene 개인)
 
 ## 📂 주요 문서
-- 전략/설계: `docs/AI_NATIVE_IMPLEMENTATION_PLAN.md` · `docs/PLANQ_AI_READINESS_AUDIT.md` · `docs/AI_NATIVE_TRENDS_2026.md` · `docs/FEEDBACK_BACKLOG_PLAN.md`
-- 메모리: `project_ai_native_strategy`(Irene 결정 3건) · `project_guard_invariants_depersonalization` · `project_cost_guard_audit`
+- `docs/AI_NATIVE_IMPLEMENTATION_PLAN.md` · `docs/PLANQ_AI_READINESS_AUDIT.md` · `docs/FEEDBACK_BACKLOG_PLAN.md`
+- 메모리: `project_ai_native_strategy` · `project_guard_invariants_depersonalization` · `project_cost_guard_audit`
 
 ## 복구 가이드
 새 세션: `session-state.md 읽고 이어서 개발해.`
