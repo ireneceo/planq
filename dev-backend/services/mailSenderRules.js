@@ -66,7 +66,16 @@ async function recordHit(rule) {
  * @returns {Promise<object>} { ...triaged, rule_applied?: {id, pattern, verdict} }
  */
 async function applyRules(businessId, fromEmail, triaged) {
-  const rule = await findRuleFor(businessId, fromEmail);
+  // 규칙 조회가 실패해도 기본 분류(휴리스틱)는 살려야 한다 — 규칙만 skip (fail-open).
+  //   옛 구조는 여기서 throw 하면 cron 의 catch 가 triage 결과를 통째로 버려, 규칙 DB 오류 하나가
+  //   메일 분류 전체를 무효화했다 (Fable 경고 4).
+  let rule = null;
+  try {
+    rule = await findRuleFor(businessId, fromEmail);
+  } catch (e) {
+    console.warn('[mailSenderRules] 규칙 조회 실패 — 기본 분류 유지:', e.message);
+    return triaged;
+  }
   if (!rule) return triaged;
 
   const out = { ...triaged, rule_applied: { id: rule.id, pattern: rule.pattern, verdict: rule.verdict } };
@@ -154,8 +163,11 @@ async function onDismissReply({ businessId, fromEmail, threadId, subject, userId
   });
 
   // 그 발신자의 남은 "답변 필요" 일괄 정리 (원본은 그대로 — 분류만 해제)
+  //   ★ rule_id 를 반드시 함께 찍는다 — 이게 없으면 (a) "규칙으로 자동 분류됨" 뱃지가 안 붙어
+  //     사용자는 자기가 챙기던 문의가 이유 없이 사라진 것으로 보이고, (b) 규칙 삭제 시 복구
+  //     대상으로 찾을 수조차 없다 (Fable BLOCK 1·2).
   const [cleaned] = await EmailThread.update(
-    { reply_needed: false, reply_needed_at: null, reply_needed_reason: 'rule' },
+    { reply_needed: false, reply_needed_at: null, reply_needed_reason: 'rule', rule_id: rule.id },
     { where: { business_id: businessId, id: { [Op.in]: senderThreadIds }, reply_needed: true } }
   );
 
@@ -200,6 +212,49 @@ async function maybePromoteDomain(businessId, addr, userId) {
   });
 }
 
+
+/**
+ * 규칙 해제 시 원상복구 — 이 규칙 때문에 분류가 바뀐 스레드를 되돌린다.
+ *
+ * "규칙을 지우면 원래대로 돌아갑니다" 는 사용자에게 한 약속이다. rule_id 만 지우면
+ * reply_needed=false 가 그대로 남아 그 메일들은 영영 "답변 필요" 로 안 돌아온다 (Fable BLOCK 2·3).
+ * 삭제 경로(DELETE 라우트)와 답장 경로(onReplySent) 가 반드시 이 함수를 공유해야 한다.
+ *
+ * @returns {Promise<number>} 복구된 스레드 수
+ */
+async function restoreThreadsForRule(businessId, ruleId, verdict) {
+  if (!businessId || !ruleId) return 0;
+
+  // 규칙이 "답장 불필요/마케팅" 으로 내렸던 판정 → 다시 답변 필요로 되돌린다
+  const [restored] = await EmailThread.update(
+    { reply_needed: true, reply_needed_reason: 'rule_removed', rule_id: null },
+    {
+      where: {
+        business_id: businessId,
+        rule_id: ruleId,
+        reply_needed_reason: 'rule',
+        status: { [Op.notIn]: ['spam', 'archived'] },
+      },
+    }
+  );
+
+  // 스팸 규칙이 스팸함으로 보낸 것 → 인박스로 되돌린다
+  if (verdict === 'spam') {
+    await EmailThread.update(
+      { status: 'open', rule_id: null },
+      { where: { business_id: businessId, rule_id: ruleId, status: 'spam' } }
+    );
+  }
+
+  // 남은 표시(뱃지)는 전부 정리 — 없는 규칙을 가리키는 뱃지가 남으면 안 된다
+  await EmailThread.update(
+    { rule_id: null },
+    { where: { business_id: businessId, rule_id: ruleId } }
+  );
+
+  return restored || 0;
+}
+
 /** 학습 신호 — "스팸으로" 2회 → 도메인 spam 규칙 */
 async function onMarkSpam({ businessId, fromEmail, userId }) {
   const addr = normalizeEmail(fromEmail);
@@ -242,10 +297,10 @@ async function onMarkSpam({ businessId, fromEmail, userId }) {
 async function onReplySent({ businessId, toEmails }) {
   const addrs = (Array.isArray(toEmails) ? toEmails : [toEmails])
     .map(normalizeEmail).filter(Boolean);
-  if (!businessId || addrs.length === 0) return { removed: 0 };
+  if (!businessId || addrs.length === 0) return { removed: 0, restored: 0 };
   const doms = [...new Set(addrs.map(domainOf).filter(Boolean))];
 
-  const removed = await MailSenderRule.destroy({
+  const targets = await MailSenderRule.findAll({
     where: {
       business_id: businessId,
       verdict: { [Op.in]: ['no_reply', 'marketing', 'spam'] },
@@ -255,11 +310,20 @@ async function onReplySent({ businessId, toEmails }) {
       ],
     },
   });
-  return { removed };
+  if (targets.length === 0) return { removed: 0, restored: 0 };
+
+  // 삭제 경로와 같은 복구를 거친다 — 뱃지 고아·영구 숨김 방지 (Fable BLOCK 3)
+  let restored = 0;
+  for (const r of targets) {
+    restored += await restoreThreadsForRule(businessId, r.id, r.verdict);
+  }
+  const removed = await MailSenderRule.destroy({ where: { id: targets.map((r) => r.id) } });
+  return { removed, restored };
 }
 
 module.exports = {
   findRuleFor,
+  restoreThreadsForRule,
   applyRules,
   onDismissReply,
   onMarkSpam,
