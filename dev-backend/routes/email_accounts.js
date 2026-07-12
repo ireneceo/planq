@@ -32,6 +32,39 @@ function canManageAccount(req, acc) {
   return acc.owner_user_id === req.user.id;
 }
 
+// 관리자 교정(remediation) — 남의 개인 계정으로 "잘못 등록된" 워크스페이스 자산을 바로잡는 경로.
+//   실사례: 회사 대표 메일(help@)이 한 멤버의 개인 메일로 등록돼 회사 메일이 그 사람에게만 보였다.
+//   프론트엔 admin 전용 "개인 ↔ 회사 공용 전환" 버튼이 있었지만, accessibleWhere 가 남의 개인 계정을
+//   조회 단계에서 걸러 404 → 그 기능은 한 번도 동작한 적이 없다 (죽은 기능).
+//   열어주는 범위는 최소 — 공용 전환(scope='team') 과 비활성화(is_active=false) 뿐:
+//     · 자격증명(비밀번호·호스트·사용자명) 편집 불가 — 관리자가 남의 사서함을 가로챌 수 없다
+//     · 남의 개인 계정을 자기 개인(scope='personal')으로 가져오는 것도 불가
+//     · GET 목록은 그대로 — 누가 어떤 개인 메일을 연결했는지 노출하지 않는다
+const ADMIN_REMEDIATION_FIELDS = ['scope', 'is_active'];
+
+function isAdminRemediation(req, acc) {
+  if (!acc || acc.owner_user_id == null) return false;   // 공용 계정은 기존 경로
+  if (acc.owner_user_id === req.user.id) return false;   // 본인 것은 기존 경로
+  if (!isAdmin(req)) return false;
+  const keys = Object.keys(req.body || {});
+  if (keys.length === 0) return false;
+  if (!keys.every((k) => ADMIN_REMEDIATION_FIELDS.includes(k))) return false;
+  if (req.body.scope !== undefined && req.body.scope !== 'team') return false;
+  if (req.body.is_active !== undefined && req.body.is_active !== false) return false;
+  return true;
+}
+
+// PUT/DELETE 공통 조회 — 기본은 본인 것 + 공용. 관리자 교정 요청이면 워크스페이스 전체에서 찾는다.
+async function findAccountForMutation(req, { allowRemediation = true } = {}) {
+  const base = { id: req.params.id, business_id: req.params.businessId };
+  const own = await EmailAccount.findOne({ where: { ...base, ...accessibleWhere(req) } });
+  if (own) return { acc: own, remediation: false };
+  if (!allowRemediation) return { acc: null, remediation: false };
+  const any = await EmailAccount.findOne({ where: base });
+  if (!any || !isAdminRemediation(req, any)) return { acc: null, remediation: false };
+  return { acc: any, remediation: true };
+}
+
 // IMAP 자격 실검증 — 등록/수정 전 강제. 실패 원인을 provider 별 안내 코드로 분류.
 async function verifyImapCredentials({ host, port, tls, username, password, folder }) {
   try {
@@ -159,11 +192,9 @@ router.post('/:businessId/email-accounts', authenticateToken, checkBusinessAcces
 // PUT — 수정 (비밀번호 변경 가능)
 router.put('/:businessId/email-accounts/:id', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
-    const acc = await EmailAccount.findOne({
-      where: { id: req.params.id, business_id: req.params.businessId, ...accessibleWhere(req) },
-    });
+    const { acc, remediation } = await findAccountForMutation(req);
     if (!acc) return errorResponse(res, 'not_found', 404);
-    if (!canManageAccount(req, acc)) return errorResponse(res, 'forbidden', 403);
+    if (!remediation && !canManageAccount(req, acc)) return errorResponse(res, 'forbidden', 403);
     const b = req.body || {};
     const patch = {};
     // #109 — 개인 ↔ 회사공용(scope) 전환. 옛 버그: PUT 에 scope 변경이 없어 "회사공용에 실수로 추가했는데 개인으로 못 바꿈".
@@ -207,12 +238,15 @@ router.put('/:businessId/email-accounts/:id', authenticateToken, checkBusinessAc
       patch.last_sync_error = null;
       patch.fail_count = 0;
     }
+    const prevOwner = acc.owner_user_id;
     await acc.update(patch);
     await createAuditLog({
       userId: req.user.id, businessId: req.params.businessId,
-      action: 'email_account.update',
+      // 관리자가 남의 개인 계정을 교정한 경우는 별도 action — 감사에서 구분되어야 한다
+      action: remediation ? 'email_account.admin_remediate' : 'email_account.update',
       targetType: 'EmailAccount', targetId: acc.id,
-      newValue: { fields: Object.keys(patch) },
+      oldValue: remediation ? { owner_user_id: prevOwner } : undefined,
+      newValue: { fields: Object.keys(patch), ...(remediation ? { owner_user_id: acc.owner_user_id } : {}) },
     });
     successResponse(res, serializeAccount(acc));
   } catch (err) { next(err); }
@@ -221,15 +255,15 @@ router.put('/:businessId/email-accounts/:id', authenticateToken, checkBusinessAc
 // DELETE — soft (is_active=false, data 보존)
 router.delete('/:businessId/email-accounts/:id', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
-    const acc = await EmailAccount.findOne({
-      where: { id: req.params.id, business_id: req.params.businessId, ...accessibleWhere(req) },
-    });
+    // 관리자 교정 — DELETE 는 body 가 없으므로 비활성화 의사로 간주 (교정 허용 필드와 동일)
+    if (!req.body || Object.keys(req.body).length === 0) req.body = { is_active: false };
+    const { acc, remediation } = await findAccountForMutation(req);
     if (!acc) return errorResponse(res, 'not_found', 404);
-    if (!canManageAccount(req, acc)) return errorResponse(res, 'forbidden', 403);
+    if (!remediation && !canManageAccount(req, acc)) return errorResponse(res, 'forbidden', 403);
     await acc.update({ is_active: false });
     await createAuditLog({
       userId: req.user.id, businessId: req.params.businessId,
-      action: 'email_account.deactivate',
+      action: remediation ? 'email_account.admin_deactivate' : 'email_account.deactivate',
       targetType: 'EmailAccount', targetId: acc.id,
     });
     successResponse(res, null, 'deactivated');
