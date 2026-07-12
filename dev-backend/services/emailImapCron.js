@@ -128,6 +128,44 @@ async function matchClient(businessId, fromEmail) {
 }
 
 // attachment File 자동 저장 (visibility=L3, folder 'Email Attachments')
+
+// "아는 상대" 판정 — 답변 필요의 가장 강한 신호 (Irene: "고객이 보낸 거, 기존 일과 연결되는 내용").
+//   ① 고객(Client) 이메일  ② 워크스페이스 멤버  ③ 우리가 전에 답장을 보낸 적 있는 주소
+//   LLM 0 — 관계 데이터만 본다.
+async function isKnownContact(businessId, fromEmail) {
+  const addr = String(fromEmail || '').toLowerCase().trim();
+  if (!businessId || !addr) return false;
+  try {
+    const client = await matchClient(businessId, addr);
+    if (client) return true;
+
+    const { User, BusinessMember } = require('../models');
+    const { sequelize } = require('../config/database');
+    const member = await BusinessMember.findOne({
+      where: { business_id: businessId, removed_at: null },
+      include: [{ model: User, as: 'user', attributes: ['id'], where: { email: addr }, required: true }],
+      attributes: ['id'],
+    });
+    if (member) return true;
+
+    // 우리가 전에 이 주소로 답장을 보낸 적 있는가 (= 이미 진행 중인 대화)
+    //   to_emails 는 JSON 컬럼 — Sequelize fn('JSON_SEARCH', ...) 은 '$' 를 '$$' 로 이스케이프해
+    //   쿼리가 항상 실패한다(청구서 카드 실사고와 같은 함정) → literal 로 직접 작성. addr 은 이스케이프.
+    const safe = addr.replace(/'/g, "''");
+    const [rows] = await sequelize.query(
+      `SELECT id FROM email_messages
+        WHERE business_id = :biz AND direction = 'outbound'
+          AND JSON_SEARCH(to_emails, 'one', '${safe}') IS NOT NULL
+        LIMIT 1`,
+      { replacements: { biz: businessId } }
+    );
+    return rows.length > 0;
+  } catch (e) {
+    console.warn('[isKnownContact]', e.message);
+    return false;   // 판정 실패 시 보수적으로 '모르는 상대' — 확인 권장으로 가지 답변 필요로 오분류하지 않는다
+  }
+}
+
 async function saveAttachmentAsFile({ businessId, fromEmail, att, accountUserId }) {
   try {
     const ym = new Date().toISOString().slice(0, 7);
@@ -334,7 +372,8 @@ async function syncOne(account, opts = {}) {
         try {
           const { triageInbound } = require('./emailTriage');
           const { applyRules } = require('./mailSenderRules');
-          const base = triageInbound({ subject: parsed.subject, bodyText: parsed.text, fromEmail, headers: parsed.headers, ownEmails });
+          const known = await isKnownContact(account.business_id, fromEmail);
+          const base = triageInbound({ subject: parsed.subject, bodyText: parsed.text, fromEmail, headers: parsed.headers, ownEmails, isKnownContact: known });
           // 학습된 발신자 규칙이 휴리스틱보다 우선한다 (사용자가 직접 알려준 정답).
           //   규칙은 분류만 바꾼다 — 원본 메일은 그대로라 규칙 삭제 시 즉시 원상복구.
           const tr = await applyRules(account.business_id, fromEmail, base);

@@ -27,8 +27,9 @@ import { uploadMyFile } from '../../services/files';
 import MailContextPanel from './MailContextPanel';
 import PanelEdgeHandle from '../../components/Layout/PanelEdgeHandle';
 import EmptyState from '../../components/Common/EmptyState';
+import { sanitizeMailHtml } from '../../utils/sanitizeHtml';
 
-type Folder = 'reply_needed' | 'inbox' | 'marketing' | 'uncertain' | 'following' | 'spam' | 'archived';
+type Folder = 'reply_needed' | 'uncertain' | 'inbox' | 'all' | 'marketing' | 'following' | 'spam' | 'archived';
 
 // 메일 계정 (회사 공용 / 개인) — 폴더트리 그룹 (외부 연동 Phase 3)
 interface MailAccount {
@@ -98,6 +99,7 @@ const FOLDERS: Array<{ key: Folder; defaultLabel: string }> = [
   { key: 'reply_needed', defaultLabel: '답변 필요' },
   { key: 'uncertain', defaultLabel: '확인 권장' },
   { key: 'inbox', defaultLabel: '처리 완료' },   // 답변 필요와 상호 배타 — 답변했거나 "답변 완료" 로 넘긴 사람 메일
+  { key: 'all', defaultLabel: '전체' },          // 스팸·보관 뺀 모든 메일 (자동·마케팅 포함)
   { key: 'marketing', defaultLabel: '자동·마케팅' },
   { key: 'following', defaultLabel: '팔로우' },
   { key: 'spam', defaultLabel: '스팸' },
@@ -163,10 +165,16 @@ const MailPage: React.FC = () => {
     return () => window.removeEventListener('keydown', onKey);
   }, [toggleRightCollapsed]);
   const [folderCounts, setFolderCounts] = useState<Record<Folder, number>>({
-    reply_needed: 0, inbox: 0, marketing: 0, uncertain: 0, following: 0, spam: 0, archived: 0,
+    reply_needed: 0, uncertain: 0, inbox: 0, all: 0, marketing: 0, following: 0, spam: 0, archived: 0,
   });
   const [accounts, setAccounts] = useState<MailAccount[]>([]);
   const [labelMaster, setLabelMaster] = useState<MailLabel[]>([]);
+  // 라벨(태그)·프로젝트 필터 — 태그는 스레드에 붙는 진짜 태그이고, 여기서 리스트 필터로도 쓴다.
+  // 프로젝트/채팅방 연결은 우측 맥락 패널에서 걸고, 이 셀렉트로 "그 프로젝트 메일만" 볼 수 있다.
+  const [labelFilter, setLabelFilter] = useState<string>('');
+  const [projectFilter, setProjectFilter] = useState<number>(0);
+  const [projectOpts, setProjectOpts] = useState<Array<{ id: number; name: string }>>([]);
+  const [frameH, setFrameH] = useState<Record<number, number>>({});
   const [members, setMembers] = useState<MailMember[]>([]);
   // 메일 검색 (제목·미리보기·본문) — 300ms 디바운스
   const [searchQ, setSearchQ] = useState('');
@@ -200,8 +208,14 @@ const MailPage: React.FC = () => {
     setSp(nsp, { replace: true });
   };
 
-  // 폴더 list fetch (계정 필터 반영) — page 1 (replace). 무한스크롤은 loadMore 가 append.
+  // 폴더 list fetch (계정·라벨·프로젝트 필터 반영) — page 1 (replace). 무한스크롤은 loadMore 가 append.
   const PAGE_SIZE = 30;
+  const filterQuery = useCallback(() => {
+    let s2 = '';
+    if (labelFilter) s2 += `&label=${encodeURIComponent(labelFilter)}`;
+    if (projectFilter) s2 += `&project_id=${projectFilter}`;
+    return s2;
+  }, [labelFilter, projectFilter]);
   const loadList = useCallback(async () => {
     if (!businessId) return;
     setListLoading(true);
@@ -209,7 +223,8 @@ const MailPage: React.FC = () => {
     try {
       const acctQ = accountFilter ? `&account_id=${accountFilter}` : '';
       const qP = qDebounced ? `&q=${encodeURIComponent(qDebounced)}` : '';
-      const r = await apiFetch(`/api/businesses/${businessId}/email-threads?folder=${folder}&limit=${PAGE_SIZE}&page=1${acctQ}${qP}`);
+      const fP = filterQuery();
+      const r = await apiFetch(`/api/businesses/${businessId}/email-threads?folder=${folder}&limit=${PAGE_SIZE}&page=1${acctQ}${qP}${fP}`);
       const j = await r.json();
       if (j.success) { setThreads(j.data || []); pageRef.current = 1; setHasMore(!!j.pagination?.has_more); }
       else setErrorMsg(j.message || (t('errors.loadList', { defaultValue: '인박스 로딩 실패' }) as string));
@@ -218,7 +233,7 @@ const MailPage: React.FC = () => {
     } finally {
       setListLoading(false);
     }
-  }, [businessId, folder, accountFilter, qDebounced, t]);
+  }, [businessId, folder, accountFilter, qDebounced, filterQuery, t]);
 
   // 무한스크롤 — 다음 페이지 append
   const loadMore = useCallback(async () => {
@@ -228,7 +243,7 @@ const MailPage: React.FC = () => {
       const next = pageRef.current + 1;
       const acctQ = accountFilter ? `&account_id=${accountFilter}` : '';
       const qP = qDebounced ? `&q=${encodeURIComponent(qDebounced)}` : '';
-      const r = await apiFetch(`/api/businesses/${businessId}/email-threads?folder=${folder}&limit=${PAGE_SIZE}&page=${next}${acctQ}${qP}`);
+      const r = await apiFetch(`/api/businesses/${businessId}/email-threads?folder=${folder}&limit=${PAGE_SIZE}&page=${next}${acctQ}${qP}${filterQuery()}`);
       const j = await r.json();
       if (j.success) {
         const fresh: Thread[] = j.data || [];
@@ -240,7 +255,7 @@ const MailPage: React.FC = () => {
         setHasMore(!!j.pagination?.has_more);
       }
     } catch { /* silent — 다음 스크롤에 재시도 */ } finally { setLoadingMore(false); }
-  }, [businessId, folder, accountFilter, qDebounced, loadingMore, hasMore]);
+  }, [businessId, folder, accountFilter, qDebounced, filterQuery, loadingMore, hasMore]);
 
   // 메일 계정 목록 (회사/개인 그룹 + unread)
   const loadAccounts = useCallback(async () => {
@@ -445,6 +460,32 @@ const MailPage: React.FC = () => {
   useEffect(() => { loadCounts(); }, [loadCounts]);
   useEffect(() => { loadAccounts(); }, [loadAccounts]);
   useEffect(() => { loadLabels(); }, [loadLabels]);
+  useEffect(() => {
+    if (!businessId) return;
+    let alive = true;
+    (async () => {
+      try {
+        const r = await apiFetch(`/api/projects/?business_id=${businessId}&status=active`);
+        const j = await r.json();
+        if (!alive || !j.success) return;
+        setProjectOpts((j.data || []).map((p: { id: number; name: string }) => ({ id: p.id, name: p.name })));
+      } catch { /* 필터는 부가 기능 — 실패해도 리스트는 뜬다 */ }
+    })();
+    return () => { alive = false; };
+  }, [businessId]);
+  // 메일 본문(iframe)은 내용만큼 커져야 한다 — 고정 높이면 긴 메일이 잘려 보인다.
+  // sandbox 안(스크립트 격리)에서 높이만 postMessage 로 알려준다. 본문은 DOMPurify 로 정제된 것.
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      const d = e.data as { planqMailFrame?: number; h?: number } | null;
+      if (!d || typeof d.planqMailFrame !== 'number' || typeof d.h !== 'number') return;
+      const id = d.planqMailFrame;
+      const h = Math.min(Math.max(d.h, 80), 6000);
+      setFrameH(prev => (prev[id] === h ? prev : { ...prev, [id]: h }));
+    };
+    window.addEventListener('message', onMsg);
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
   useEffect(() => { loadMembers(); }, [loadMembers]);
   useEffect(() => { loadFaqSuggestions(); }, [loadFaqSuggestions]);
   useEffect(() => {
@@ -541,9 +582,9 @@ const MailPage: React.FC = () => {
     } finally { setAiBusy(false); }
   }, [detail, businessId, aiBusy, t]);
 
-  // 스레드 전환 시 컴포저 초기화
+  // 스레드 전환 시 컴포저 초기화 — 답장창은 기본으로 열어 둔다 (메일함의 기본 동작은 '답장')
   useEffect(() => {
-    setReplyOpen(false); setReplyHtml(''); setReplyUploads([]); setReplyFileIds([]); setReplyError(null); setAiFaqSources([]);
+    setReplyOpen(true); setReplyHtml(''); setReplyUploads([]); setReplyFileIds([]); setReplyError(null); setAiFaqSources([]);
   }, [activeId]);
 
   // 임시저장(reply) — 답장 컴포저 열 때 해당 스레드 초안 복원 + 1.5s 디바운스 자동저장. 발송 시 삭제.
@@ -758,8 +799,17 @@ const MailPage: React.FC = () => {
 
   if (!businessId) return <PageShell title="Q Mail"><Empty>{t('selectWorkspace', { defaultValue: '워크스페이스를 선택해 주세요.' }) as string}</Empty></PageShell>;
 
+  // 3단 그리드 — 목록 | 상세 | 맥락.
+  // 2열로 두면 맥락 패널이 갈 자리가 없어 상세를 덮고, 우측엔 화살표만 남는다
+  // (#130 사이드바 통일 때 만든 회귀). 맥락은 스레드를 열었고 접지 않았을 때만 폭을 가진다.
   return (
-    <PanelGridLayout $cols={sidebarCollapsed ? '0px 1fr' : '300px 1fr'}>
+    <PanelGridLayout
+      $cols={[
+        sidebarCollapsed ? '0px' : '300px',
+        '1fr',
+        (detail && businessId && !rightCollapsed) ? `${rightWidth}px` : '0px',
+      ].join(' ')}
+    >
       {/* #130 — 좌측 리스트: 300px 접이식 (여태 340px 고정·접기 없음이라 Q Mail 만 다른 화면처럼 보였다) */}
       {!sidebarCollapsed && viewportNarrow && <SidebarBackdrop onClick={() => setSidebarCollapsed(true)} />}
       {/* 좌측 리스트 접기 — Q Talk·Q docs·Q Task 와 같은 경계선 중앙 화살표 핸들 (공통 컴포넌트).
@@ -803,32 +853,84 @@ const MailPage: React.FC = () => {
             <SearchClear type="button" onClick={() => setSearchQ('')} aria-label={t('search.clear', { defaultValue: '검색 지우기' }) as string}>×</SearchClear>
           )}
         </SearchRow>
-        {/* 운영 #55 — 계정이 1개 이상이면 All/주소별 선택 칩 노출 (여러 주소 가져오기 시 주소별 보기).
-            "전체"는 계정이 2개 이상일 때만 (1개면 굳이 불필요). 항상 "메일 계정 관리" 진입로 노출 → "어디서 설정". */}
+        {/* 계정 선택 — 태그 나열 대신 셀렉트 (주소가 늘어나면 태그 줄이 길어져 검색줄을 밀어낸다).
+            옆에 "계정 관리" 진입로. 선택은 저장돼 다시 들어와도 그대로 열린다. */}
         {accounts.length >= 1 && (
           <AcctFilterRow>
-            {accounts.length > 1 && (
-              <AcctChip type="button" $active={accountFilter === null} onClick={() => setAccount(null)}>
-                {t('accounts.all', { defaultValue: '전체' }) as string}
-              </AcctChip>
-            )}
-            {/* 주소별 보기 — 표시명만으로는 어느 메일함인지 알 수 없다. 주소를 직접 보여주고
-                회사 공용 / 개인 을 배지로 구분한다 (같은 인박스에 두 성격이 섞여 있으므로). */}
-            {accounts.map((a) => (
-              <AcctChip key={a.id} type="button" $active={accountFilter === a.id} onClick={() => setAccount(a.id)} title={a.email}>
-                <AcctKind $personal={a.is_personal}>
-                  {a.is_personal
-                    ? (t('accounts.personal', { defaultValue: '개인' }) as string)
-                    : (t('accounts.team', { defaultValue: '회사' }) as string)}
-                </AcctKind>
-                <AcctAddr>{a.email}</AcctAddr>
-                {a.unread > 0 && <AcctUnread $active={accountFilter === a.id}>{a.unread}</AcctUnread>}
-              </AcctChip>
-            ))}
-            <AcctManageChip type="button" onClick={() => navigate('/business/settings/mail-accounts')}
-              title={t('accounts.manageTitle', { defaultValue: '메일 계정 추가·설정' }) as string}>
+            <AcctSelectWrap>
+              <PlanQSelect
+                size="sm"
+                isSearchable={accounts.length > 5}
+                value={
+                  accountFilter
+                    ? (() => {
+                        const a = accounts.find((x) => x.id === accountFilter);
+                        return a
+                          ? { value: a.id, label: `${a.is_personal ? (t('accounts.personal', { defaultValue: '개인' }) as string) : (t('accounts.team', { defaultValue: '회사' }) as string)} · ${a.email}` }
+                          : null;
+                      })()
+                    : { value: 0, label: t('accounts.all', { defaultValue: '전체 메일함' }) as string }
+                }
+                onChange={(opt) => {
+                  const v = Number((opt as { value?: number } | null)?.value || 0);
+                  setAccount(v > 0 ? v : null);
+                }}
+                options={[
+                  { value: 0, label: t('accounts.all', { defaultValue: '전체 메일함' }) as string },
+                  ...accounts.map((a) => ({
+                    value: a.id,
+                    label: `${a.is_personal ? (t('accounts.personal', { defaultValue: '개인' }) as string) : (t('accounts.team', { defaultValue: '회사' }) as string)} · ${a.email}${a.unread > 0 ? ` (${a.unread})` : ''}`,
+                  })),
+                ]}
+              />
+            </AcctSelectWrap>
+            <AcctManageChip
+              type="button"
+              onClick={() => navigate('/business/settings/mail-accounts')}
+              title={t('accounts.manageTitle', { defaultValue: '메일 계정 추가·설정' }) as string}
+            >
               {t('accounts.manage', { defaultValue: '계정 관리' }) as string}
             </AcctManageChip>
+          </AcctFilterRow>
+        )}
+        {/* 태그(라벨)·프로젝트 필터 — 태그는 상세에서 붙이고 여기서 걸러 본다. 항상 "전체" 포함. */}
+        {(labelMaster.length > 0 || projectOpts.length > 0) && (
+          <AcctFilterRow>
+            {labelMaster.length > 0 && (
+              <AcctSelectWrap>
+                <PlanQSelect
+                  size="sm"
+                  isSearchable={labelMaster.length > 5}
+                  value={{
+                    value: labelFilter,
+                    label: labelFilter || (t('filters.allLabels', { defaultValue: '태그 전체' }) as string),
+                  }}
+                  onChange={(opt) => setLabelFilter(String((opt as { value?: string } | null)?.value || ''))}
+                  options={[
+                    { value: '', label: t('filters.allLabels', { defaultValue: '태그 전체' }) as string },
+                    ...labelMaster.map((l) => ({ value: l.name, label: l.name })),
+                  ]}
+                />
+              </AcctSelectWrap>
+            )}
+            {projectOpts.length > 0 && (
+              <AcctSelectWrap>
+                <PlanQSelect
+                  size="sm"
+                  isSearchable={projectOpts.length > 5}
+                  value={{
+                    value: projectFilter,
+                    label: projectOpts.find((p) => p.id === projectFilter)?.name
+                      || (t('filters.allProjects', { defaultValue: '프로젝트 전체' }) as string),
+                  }}
+                  onChange={(opt) => setProjectFilter(Number((opt as { value?: number } | null)?.value || 0))}
+                  options={[
+                    { value: 0, label: t('filters.allProjects', { defaultValue: '프로젝트 전체' }) as string },
+                    ...projectOpts.map((p) => ({ value: p.id, label: p.name })),
+                  ]}
+                />
+              </AcctSelectWrap>
+            )}
           </AcctFilterRow>
         )}
           {faqSuggestions.length > 0 && (
@@ -1073,11 +1175,14 @@ const MailPage: React.FC = () => {
                         </MsgForwardBtn>
                       </MsgHeaderRight>
                     </MessageHeader>
-                    {/* iframe sandbox — body_html 의 script/style 차단, 외부 리소스 only */}
+                    {/* 본문은 DOMPurify 로 정제(script/on* 제거) 후 sandbox iframe 에 넣는다.
+                        iframe 은 allow-scripts 만 (allow-same-origin 없음 → 불투명 origin, 부모 DOM·쿠키 접근 불가).
+                        안에서 도는 스크립트는 우리가 넣은 높이 보고용 한 줄뿐 — 메일이 잘리지 않고 끝까지 보이게 한다. */}
                     {m.body_html ? (
                       <MessageBodyFrame
-                        sandbox=""
-                        srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:-apple-system,sans-serif;font-size:14px;color:#0F172A;margin:0;padding:12px;line-height:1.6;}img{max-width:100%;height:auto;}a{color:#0D9488;}</style></head><body>${m.body_html}</body></html>`}
+                        sandbox="allow-scripts"
+                        style={{ height: `${frameH[m.id] || 240}px` }}
+                        srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:-apple-system,sans-serif;font-size:14px;color:#0F172A;margin:0;padding:12px;line-height:1.6;}img{max-width:100%;height:auto;}a{color:#0D9488;}table{max-width:100%;}</style></head><body>${sanitizeMailHtml(m.body_html)}<script>(function(){var send=function(){parent.postMessage({planqMailFrame:${m.id},h:document.documentElement.scrollHeight},'*');};send();window.addEventListener('load',send);if(window.ResizeObserver)new ResizeObserver(send).observe(document.body);setTimeout(send,300);setTimeout(send,1200);})();<\/script></body></html>`}
                         title={`message-${m.id}`}
                       />
                     ) : (
@@ -1101,8 +1206,8 @@ const MailPage: React.FC = () => {
                     <ActionButton tone="primary" size="md" onClick={() => setReplyOpen(true)}>
                       {t('reply.button', { defaultValue: '답장' }) as string}
                     </ActionButton>
-                    {/* Cue 답변 초안 — 여태 답장 버튼을 눌러 작성창을 연 뒤에야 보여서 기능이 있는 줄도 몰랐다.
-                        여기서 바로 부르면 작성창이 초안이 채워진 채로 열린다. 자동·마케팅 메일에는 숨김(기존 정책). */}
+                    {/* AI 답변 초안 — 플랫폼 기능은 'AI' 로 통일한다 (Cue 는 팀원으로 존재할 때만 Cue).
+                        여기서 바로 부르면 작성창이 초안이 채워진 채로 열린다. 자동·마케팅 메일에는 숨김. */}
                     {(!detail?.triage || detail.triage === 'human' || detail.triage === 'unknown') && (
                       <ActionButton
                         tone="secondary"
@@ -1111,8 +1216,8 @@ const MailPage: React.FC = () => {
                         onClick={() => { setReplyOpen(true); aiSuggest(); }}
                       >
                         {aiBusy
-                          ? (t('reply.aiThinking', { defaultValue: 'Cue 작성 중…' }) as string)
-                          : (t('reply.aiDraft', { defaultValue: 'Cue 답변 초안' }) as string)}
+                          ? (t('reply.aiThinking', { defaultValue: 'AI 작성 중…' }) as string)
+                          : (t('reply.aiDraft', { defaultValue: 'AI 답변 초안' }) as string)}
                       </ActionButton>
                     )}
                   </ReplyBar>
@@ -1146,8 +1251,10 @@ const MailPage: React.FC = () => {
                       {(!detail?.triage || detail.triage === 'human' || detail.triage === 'unknown') ? (
                         <ActionButton tone="secondary" size="sm" loading={aiBusy} disabled={sending} onClick={aiSuggest}>
                           {aiBusy
-                            ? t('reply.aiThinking', { defaultValue: 'Cue 작성 중…' }) as string
-                            : t('reply.aiSuggest', { defaultValue: 'Cue 답변 초안' }) as string}
+                            ? t('reply.aiThinking', { defaultValue: 'AI 작성 중…' }) as string
+                            : (replyHtml.trim()
+                                ? t('reply.aiRegenerate', { defaultValue: 'AI 초안 다시 생성' }) as string
+                                : t('reply.aiSuggest', { defaultValue: 'AI 답변 초안' }) as string)}
                         </ActionButton>
                       ) : (
                         <AiGatedHint>{t('reply.aiGated', { defaultValue: '자동·마케팅 메일에는 AI 답변을 제안하지 않아요' }) as string}</AiGatedHint>
@@ -1351,40 +1458,11 @@ const SearchClear = styled.button`
   &:hover { color: #0F172A; }
 `;
 const AcctFilterRow = styled.div`
-  display: flex; gap: 6px; flex-wrap: wrap;
-  padding: 8px 10px;
-  border-bottom: 1px solid #F1F5F9;
-  flex-shrink: 0;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 14px 10px;
 `;
-const AcctChip = styled.button<{ $active: boolean }>`
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 3px 10px; border-radius: 999px;
-  font-size: 11px; font-weight: 600;
-  cursor: pointer;
-  border: 1px solid ${p => p.$active ? '#5EEAD4' : '#E2E8F0'};
-  background: ${p => p.$active ? '#F0FDFA' : '#FFFFFF'};
-  color: ${p => p.$active ? '#0F766E' : '#64748B'};
-  max-width: 230px; overflow: hidden; white-space: nowrap;
-  &:hover { border-color: #5EEAD4; }
-`;
+const AcctSelectWrap = styled.div`flex: 1; min-width: 0;`;
 // 회사 공용 / 개인 구분 배지 — 한 인박스에 두 성격이 섞이므로 칩에서 바로 구분되어야 한다
-const AcctKind = styled.span<{ $personal: boolean }>`
-  flex-shrink: 0;
-  padding: 1px 5px; border-radius: 4px;
-  font-size: 10px; font-weight: 700; line-height: 1.4;
-  background: ${p => (p.$personal ? '#EEF2FF' : '#F1F5F9')};
-  color: ${p => (p.$personal ? '#4F46E5' : '#475569')};
-`;
-const AcctAddr = styled.span`
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-`;
-const AcctUnread = styled.span<{ $active: boolean }>`
-  flex-shrink: 0;
-  min-width: 16px; padding: 0 4px; border-radius: 999px;
-  font-size: 10px; font-weight: 700; text-align: center;
-  background: ${p => (p.$active ? '#0D9488' : '#E2E8F0')};
-  color: ${p => (p.$active ? '#FFFFFF' : '#475569')};
-`;
 // 운영 #55 — 계정 관리(설정) 진입 칩 (dashed, 보조 액션)
 const AcctManageChip = styled.button`
   padding: 3px 10px; border-radius: 999px;

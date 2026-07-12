@@ -73,9 +73,34 @@ async function buildOwnEmailSet(businessId) {
   return set;
 }
 
+
+// ── 업무 신호 (LLM 0) — Irene 정의:
+//     답변 필요 = 업무 처리가 필요한 것 · 문의 · 기존 일과 연결되는 것 · 고객이 보낸 것
+//     확인 권장 = 스팸·광고는 아닌데 업무인지 애매한 것
+//
+//   신호는 "사람이 우리에게 뭔가를 요구/문의했는가" 를 본다. 아는 상대(고객·멤버·기존 대화 상대)면
+//   내용과 무관하게 답변 필요 — 관계 자체가 가장 강한 신호다.
+const WORK_SIGNAL = new RegExp([
+  '문의', '요청', '부탁', '확인\\s*부탁', '회신', '답변', '검토', '견적', '계약', '청구', '입금', '세금계산서',
+  '일정', '미팅', '회의', '가능(할까요|한가요|하신가요)', '언제', '어떻게', '알려\\s*주', '보내\\s*주', '주실',
+  '요약', '진행', '완료', '수정', '피드백', '승인', '결재',
+  '\\bplease\\b', '\\bcould you\\b', '\\bcan you\\b', '\\bwould you\\b', '\\brequest\\b', '\\bquote\\b',
+  '\\binquiry\\b', '\\bquestion\\b', '\\bfollow[- ]?up\\b', '\\blet me know\\b', '\\bfeedback\\b',
+].join('|'), 'i');
+
+// 질문 부호 — 한 줄이라도 물음표가 있으면 사람이 뭔가 묻고 있다
+function hasQuestion(text) {
+  return /[?？]/.test(String(text || '').slice(0, 4000));
+}
+
+function hasWorkSignal(subject, bodyText) {
+  const head = `${subject || ''}\n${String(bodyText || '').slice(0, 2000)}`;
+  return WORK_SIGNAL.test(head) || hasQuestion(head);
+}
+
 // 메인 — { triage, reply_needed, spam_score, status, uncertain_reason }
 //   status/spam_score/uncertain_reason 은 classify 결과 그대로 통과 (호환 유지).
-function triageInbound({ subject, bodyText, fromEmail, headers, ownEmails }) {
+function triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, isKnownContact = false }) {
   const c = classify({ subject, bodyText, fromEmail, headers });
 
   let triage;
@@ -89,16 +114,29 @@ function triageInbound({ subject, bodyText, fromEmail, headers, ownEmails }) {
     triage = 'human';
   }
 
-  // 답장 필요 = 사람이 보낸 직접 메일 + 정상(open) 상태만.
-  //   자동/마케팅/스팸 제외. uncertain(확인권장)은 사용자가 수동 검토 → 자동 플래그 X.
-  const reply_needed = triage === 'human' && c.status === 'open';
+  let status = c.status;
+  let uncertain_reason = c.uncertain_reason;
+  let reply_needed = false;
+
+  if (triage === 'human' && c.status === 'open') {
+    // 아는 상대(고객·멤버·이전에 우리가 답장한 상대) → 내용 불문 답변 필요.
+    //   관계가 가장 강한 신호다. 이름이 언급됐다는 이유로 따로 빼지 않는다(내 담당 탭 폐지).
+    if (isKnownContact || hasWorkSignal(subject, bodyText)) {
+      reply_needed = true;
+    } else {
+      // 스팸·광고는 아닌데 업무인지 확실치 않다 → 확인 권장 (사람이 직접 판단)
+      status = 'uncertain';
+      uncertain_reason = 'unclear_intent';
+      reply_needed = false;
+    }
+  }
 
   return {
     triage,
     reply_needed,
     spam_score: c.spam_score,
-    status: c.status,
-    uncertain_reason: c.uncertain_reason,
+    status,
+    uncertain_reason,
   };
 }
 
@@ -114,4 +152,5 @@ function triageBySenderOnly({ subject, bodyText, fromEmail, ownEmails }) {
 }
 
 module.exports = {
+  hasWorkSignal,
   buildOwnEmailSet, triageInbound, triageBySenderOnly, isMarketing, isAutomated };
