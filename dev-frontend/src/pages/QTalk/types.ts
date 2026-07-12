@@ -170,6 +170,8 @@ export interface MockConversation {
   // 사용자 본인의 핀(즐겨찾기) 시각. null/undefined = 핀 안 됨.
   my_pinned_at?: string | null;
   my_last_read_at?: string | null;
+  // 연결된 고객 (고객 대화방) — 이름 클릭 시 통합 타임라인으로 이동
+  client?: { id: number; name: string } | null;
 }
 
 export interface MockTaskCandidate {

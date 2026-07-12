@@ -168,6 +168,10 @@ export interface ApiConversation {
   id: number;
   business_id: number;
   project_id: number | null;
+  client_id?: number | null;
+  // 고객 대화방이면 백엔드가 Client 를 include 해 내려준다 (routes/conversations.js) —
+  // 채팅 헤더에서 고객 이름을 눌러 통합 타임라인으로 갈 수 있게 쓴다.
+  Client?: { id: number; display_name?: string | null; company_name?: string | null } | null;
   channel_type: 'customer' | 'internal' | 'group';
   display_name: string | null;
   title: string | null;

@@ -20,6 +20,7 @@ import { mediaTablet } from '../../theme/breakpoints';
 import { mapApiError } from '../../utils/apiError';
 import { useImageLightbox } from '../../components/Common/ImageLightbox';
 import AiAssistButton from '../../components/Common/AiAssistButton';
+import { useNavigate } from 'react-router-dom';
 import MessageReactions from './MessageReactions';   // #138 이모지 리액션
 
 interface Props {
@@ -75,6 +76,7 @@ const ChatPanel: React.FC<Props> = ({
   onLoadOlder, hasMoreOlder = false, loadingOlder = false, embedded = false,
 }) => {
   const { t } = useTranslation('qtalk');
+  const navigate = useNavigate();
   const { t: tErr } = useTranslation('errors');
   const { user } = useAuth();
   const { formatTime } = useTimeFormat();
@@ -1134,8 +1136,22 @@ const ChatPanel: React.FC<Props> = ({
                 >
                   {channelLabel(activeConv.name, project?.name)}
                 </ChatName>
-                {/* '내부' 는 default 라 라벨 X — '고객' 만 강조 (B2B 시각 패턴) */}
-                {activeConv.channel_type === 'customer' && <CustomerTag>{t('channelBadge.customer', '고객')}</CustomerTag>}
+                {/* '내부' 는 default 라 라벨 X — '고객' 만 강조 (B2B 시각 패턴).
+                    고객이 연결돼 있으면 이름을 눌러 그 고객의 통합 타임라인(채팅·메일·업무·청구)으로 간다. */}
+                {activeConv.channel_type === 'customer' && (
+                  activeConv.client ? (
+                    <CustomerLink
+                      type="button"
+                      onClick={() => navigate(`/business/clients/${activeConv.client!.id}/timeline`)}
+                      title={t('chat.openClientTimeline', '{{name}} 의 통합 타임라인 열기', { name: activeConv.client.name }) as string}
+                    >
+                      {activeConv.client.name}
+                      <span aria-hidden>›</span>
+                    </CustomerLink>
+                  ) : (
+                    <CustomerTag>{t('channelBadge.customer', '고객')}</CustomerTag>
+                  )
+                )}
               </ChatNameRow>
             )}
             {project && (
@@ -2244,6 +2260,15 @@ const ChatNameInput = styled.input`
 `;
 
 // '내부' 는 default 라 라벨 제거. '고객' 만 PlanQ 포인트 컬러 (coral) 로 강조.
+const CustomerLink = styled.button`
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 8px; border-radius: 999px; cursor: pointer;
+  font-size: 11px; font-weight: 700;
+  color: #0F766E; background: #F0FDFA; border: 1px solid #99F6E4;
+  &:hover { background: #CCFBF1; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+  span { font-size: 13px; line-height: 1; }
+`;
 const CustomerTag = styled.span`
   padding: 1px 7px;
   background: rgba(244, 63, 94, 0.10);

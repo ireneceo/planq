@@ -378,7 +378,8 @@
       "fri": "Fri",
       "sat": "Sat"
     },
-    "popout": "Open in new window"
+    "popout": "Open in new window",
+    "openClientTimeline": "Open {{name}}'s unified timeline"
   },
   "page": {
     "title": "Q talk",

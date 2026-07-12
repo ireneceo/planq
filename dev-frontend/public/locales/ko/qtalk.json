@@ -346,7 +346,8 @@
       "fri": "금",
       "sat": "토"
     },
-    "popout": "새 창으로 분리"
+    "popout": "새 창으로 분리",
+    "openClientTimeline": "{{name}} 의 통합 타임라인 열기"
   },
   "page": {
     "title": "Q talk",
