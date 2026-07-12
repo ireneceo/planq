@@ -19,7 +19,7 @@ import { fetchWorkspaceFiles, uploadMyFile, isImage as isRenderableImage } from 
 import { mediaTablet } from '../../theme/breakpoints';
 import { mapApiError } from '../../utils/apiError';
 import { useImageLightbox } from '../../components/Common/ImageLightbox';
-import AiActionButton from '../../components/Common/AiActionButton';
+import AiAssistButton from '../../components/Common/AiAssistButton';
 import MessageReactions from './MessageReactions';   // #138 이모지 리액션
 
 interface Props {
@@ -1903,8 +1903,8 @@ const ChatPanel: React.FC<Props> = ({
               <ToggleSlider $on={activeConv.auto_extract_enabled} />
               <ToggleText>{t('chat.input.autoExtract', '자동 업무 추출')}</ToggleText>
             </ToggleLabel>
-            {/* AI 가 대화에서 할 일을 뽑는 기능 → PlanQ 표준 AI 버튼(별 + Coral) */}
-            <AiActionButton
+            {/* 보조 AI 액션 → 파스텔 민트 (주 AI 액션은 별 + Coral). 공통 AiAssistButton 단일 소스 */}
+            <AiAssistButton
               onClick={onOpenExtract}
               loading={extracting}
               label={extracting ? t('chat.input.extracting', '추출 중...') as string : t('chat.input.extractNow', '업무 추출') as string}

@@ -599,9 +599,9 @@ const MailPage: React.FC = () => {
     } finally { setAiBusy(false); }
   }, [detail, businessId, aiBusy, t]);
 
-  // 스레드 전환 시 컴포저 초기화 — 답장창은 기본으로 열어 둔다 (메일함의 기본 동작은 '답장')
+  // 스레드 전환 시 컴포저 초기화 — 답장창은 닫힌 채로. 먼저 내용을 읽고, 답장하기를 누르면 열린다.
   useEffect(() => {
-    setReplyOpen(true); setReplyHtml(''); setReplyUploads([]); setReplyFileIds([]); setReplyError(null); setAiFaqSources([]);
+    setReplyOpen(false); setReplyHtml(''); setReplyUploads([]); setReplyFileIds([]); setReplyError(null); setAiFaqSources([]);
   }, [activeId]);
 
   // 임시저장(reply) — 답장 컴포저 열 때 해당 스레드 초안 복원 + 1.5s 디바운스 자동저장. 발송 시 삭제.
@@ -1199,7 +1199,7 @@ const MailPage: React.FC = () => {
                       <MessageBodyFrame
                         sandbox="allow-scripts"
                         style={{ height: `${frameH[m.id] || 240}px` }}
-                        srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:-apple-system,sans-serif;font-size:14px;color:#0F172A;margin:0;padding:12px;line-height:1.6;}img{max-width:100%;height:auto;}a{color:#0D9488;}table{max-width:100%;}</style></head><body>${sanitizeMailHtml(m.body_html)}<script>(function(){var send=function(){parent.postMessage({planqMailFrame:${m.id},h:document.documentElement.scrollHeight},'*');};send();window.addEventListener('load',send);if(window.ResizeObserver)new ResizeObserver(send).observe(document.body);setTimeout(send,300);setTimeout(send,1200);})();<\/script></body></html>`}
+                        srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:-apple-system,sans-serif;font-size:14px;color:#0F172A;margin:0;padding:0 0 4px;line-height:1.7;}img{max-width:100%;height:auto;}a{color:#0D9488;}table{max-width:100%;}</style></head><body>${sanitizeMailHtml(m.body_html)}<script>(function(){var send=function(){parent.postMessage({planqMailFrame:${m.id},h:document.documentElement.scrollHeight},'*');};send();window.addEventListener('load',send);if(window.ResizeObserver)new ResizeObserver(send).observe(document.body);setTimeout(send,300);setTimeout(send,1200);})();<\/script></body></html>`}
                         title={`message-${m.id}`}
                       />
                     ) : (
@@ -1221,7 +1221,7 @@ const MailPage: React.FC = () => {
                 {!replyOpen ? (
                   <ReplyBar>
                     <ActionButton tone="primary" size="md" onClick={() => setReplyOpen(true)}>
-                      {t('reply.button', { defaultValue: '답장' }) as string}
+                      {t('reply.button', { defaultValue: '답장하기' }) as string}
                     </ActionButton>
                     {/* AI 답변 초안 — 플랫폼 기능은 'AI' 로 통일한다 (Cue 는 팀원으로 존재할 때만 Cue).
                         여기서 바로 부르면 작성창이 초안이 채워진 채로 열린다. 자동·마케팅 메일에는 숨김. */}
@@ -1757,22 +1757,27 @@ const DangerBtn = styled.button`
   &:hover { background: #FEF2F2; border-color: #FCA5A5; color: #991B1B; }
 `;
 
+// 메일 본문은 상세 패널(이미 카드) 안에서 또 카드로 감싸지 않는다 — 읽는 화면은 넓고 평평해야 한다.
+// 메시지끼리는 구분선으로만 나누고, 내가 보낸 메일은 좌측 민트 라인 + 옅은 배경으로만 구분한다.
+// 본문 iframe 은 내용 높이만큼 늘어나고, 길어지면 이 스크롤러가 끝까지 스크롤한다.
 const MessagesScroll = styled.div`
-  flex: 1; overflow-y: auto;
-  padding: 16px 24px;
-  display: flex; flex-direction: column; gap: 16px;
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding: 0 24px 24px;
+  background: #FFFFFF;
+  @media (max-width: 640px) { padding: 0 16px 16px; }
 `;
 const MessageCard = styled.div<{ $outbound: boolean }>`
-  background: ${p => p.$outbound ? '#F0FDFA' : '#FFFFFF'};
-  border: 1px solid ${p => p.$outbound ? '#5EEAD4' : '#E2E8F0'};
-  border-radius: 10px;
-  overflow: hidden;
+  background: ${p => p.$outbound ? '#F8FDFC' : 'transparent'};
+  border-left: ${p => p.$outbound ? '3px solid #5EEAD4' : 'none'};
+  padding-left: ${p => p.$outbound ? '13px' : '0'};
+  border-bottom: 1px solid #E2E8F0;
+  padding-bottom: 12px;
+  &:last-child { border-bottom: none; padding-bottom: 0; }
 `;
 const MessageHeader = styled.div`
-  display: flex; justify-content: space-between; align-items: baseline;
-  padding: 12px 16px;
-  border-bottom: 1px solid #F1F5F9;
-  background: #F8FAFC;
+  display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  padding: 16px 0 8px;
+  background: transparent;
 `;
 const MsgHeaderRight = styled.div`display: flex; align-items: center; gap: 10px; flex-shrink: 0;`;
 const MsgForwardBtn = styled.button`
@@ -1789,19 +1794,20 @@ const MessageTime = styled.div`
 `;
 const MessageBodyFrame = styled.iframe`
   width: 100%;
-  min-height: 240px;
+  min-height: 120px;
   border: none;
   display: block;
+  background: transparent;
 `;
 const MessageBodyText = styled.div`
-  padding: 16px;
-  font-size: 13px; color: #334155;
+  padding: 4px 0 8px;
+  font-size: 14px; color: #334155;
   white-space: pre-wrap;
   font-family: -apple-system, sans-serif;
   line-height: 1.6;
 `;
 const Attachments = styled.div`
-  padding: 12px 16px;
+  padding: 10px 0 2px;
   border-top: 1px solid #F1F5F9;
   display: flex; flex-direction: column; gap: 4px;
 `;
