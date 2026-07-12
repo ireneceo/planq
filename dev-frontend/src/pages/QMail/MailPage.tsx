@@ -114,17 +114,32 @@ const MailPage: React.FC = () => {
   const businessId = user?.business_id ? Number(user.business_id) : null;
   const myUserId = user?.id ? Number(user.id) : null;
 
-  const folderParam = (sp.get('folder') as Folder) || 'inbox';
+  // 탭·계정 선택은 방문 간 유지된다 (URL 파라미터 > 지난번 선택 > 기본값 '답변 필요').
+  // 메일함의 첫 화면은 "인박스" 가 아니라 "내가 답해야 하는 메일" 이다.
+  const savedFolder = (() => {
+    try { const v = localStorage.getItem('qmail_folder') as Folder | null; return v && FOLDERS.some(f => f.key === v) ? v : null; } catch { return null; }
+  })();
+  const folderParam = (sp.get('folder') as Folder) || savedFolder || 'reply_needed';
   const folder: Folder = useMemo(
-    () => (FOLDERS.find(f => f.key === folderParam)?.key || 'inbox'),
+    () => (FOLDERS.find(f => f.key === folderParam)?.key || 'reply_needed'),
     [folderParam],
   );
   const threadIdParam = sp.get('thread');
   const activeId = threadIdParam ? Number(threadIdParam) : null;
   const navigate = useNavigate();
-  // 계정(회사/개인) 필터 — null = 전체 (외부 연동 Phase 3)
+  // 계정(회사/개인) 필터 — null = 전체
+  const savedAccount = (() => {
+    try { const v = localStorage.getItem('qmail_account'); return v ? Number(v) : null; } catch { return null; }
+  })();
   const accountParam = sp.get('account');
-  const accountFilter = accountParam ? Number(accountParam) : null;
+  const accountFilter = sp.has('account') ? (Number(accountParam) || null) : savedAccount;
+  useEffect(() => {
+    try {
+      localStorage.setItem('qmail_folder', folder);
+      if (accountFilter) localStorage.setItem('qmail_account', String(accountFilter));
+      else localStorage.removeItem('qmail_account');
+    } catch { /* 사파리 프라이빗 모드 등 — 저장 실패해도 화면은 정상 */ }
+  }, [folder, accountFilter]);
 
   const [threads, setThreads] = useState<Thread[]>([]);
   const [listLoading, setListLoading] = useState(false);
@@ -202,7 +217,8 @@ const MailPage: React.FC = () => {
   // 계정 필터 토글 (재클릭 해제 — 공통 UX 규칙)
   const setAccount = (id: number | null) => {
     const nsp = new URLSearchParams(sp);
-    if (id === null || accountFilter === id) nsp.delete('account');
+    // '전체'는 0 으로 명시한다 — 파라미터를 지우면 지난번 선택(localStorage)이 되살아나 되돌아간다.
+    if (id === null || accountFilter === id) nsp.set('account', '0');
     else nsp.set('account', String(id));
     nsp.delete('thread');
     setSp(nsp, { replace: true });
