@@ -1,6 +1,41 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-07-12 (Opus, 1M) — **🔒 P0 에이전트 권한 모델 + 업무추출 보안 3건(Fable BLOCK 해제) + Q Mail 발신자 표시·답변필요 자가오염. 운영 배포 3회 완료.** 헬스 30/30 · guard-invariants 16/16(14→16) · e2e tenant 0 · 빌드 EXIT0/TS0 · 위키 게이트 exit0.
+> **최종 업데이트:** 2026-07-12 (Opus, 1M) — **📬 Q Mail UX 정비(상세·분류·태그) + Cue 초안 회귀 + 안 읽음 숫자 정합 + 확인 필요 메일 탭. 운영 배포 완료(ac257f1).** 헬스 30/30 · guard-invariants 15/15 · e2e tenant 0 · 빌드 EXIT0/TS0.
+
+## ✅ 완료: Q Mail 상세·분류 정비 + 채팅 안 읽음/Cue 초안 회귀 (2026-07-12, 후반 사이클)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| Q Mail 상세 3단 레이아웃 복구 | #130 사이드바 통일 때 2열 그리드에 자식 3개를 그려 맥락 패널이 상세를 덮고 우측엔 화살표만 남았다 → 목록\|상세\|맥락 3열 (실측 300/672/320px) | ✅ |
+| 메일 본문 끝까지 + 평면화 | iframe 고정 240px → 내용 높이만큼 자동(실측 1128px), 스크롤러 611px/1228px. 카드-속-카드 제거(테두리·라운드 0). sanitizeMailHtml(DOMPurify) + sandbox allow-scripts(높이 보고만) | ✅ |
+| 답장은 클릭해서 열기 + 버튼 좌측 고정 | 답장하기/보내기 → AI → 취소 순, 첫 버튼 x좌표 동일. 푸터 흰 박스 겹침 제거 | ✅ |
+| AI 버튼 2단계 통일 | 주 액션 = AiActionButton(별+Coral: 답변 초안·문서 자동작성·지식 자동추가) / 보조 = AiAssistButton 신설(파스텔 민트: 요약 생성·업무 추출, Q Talk 옛 디자인 복원) | ✅ |
+| 우측 패널 항목 재정리 | '연결' 항목 해체 → 프로젝트/고객이 곧 항목. "팀 공유"(실은 노트 공개범위) → "새 노트를 볼 사람: 팀원 모두/나만 보기" | ✅ |
+| 태그·프로젝트 필터 | 상세 라벨(태그)을 목록 필터로 연결. GET ?label= (JSON_CONTAINS + escape) + 프로젝트 필터 | ✅ |
+| 탭·계정 유지 + 전체 탭 | 기본 '답변 필요'(여태 inbox라 첫 화면이 빈 목록), localStorage 유지, 계정은 셀렉트(account=0=전체), '전체' 폴더 추가 | ✅ |
+| **답변 필요 = 확실한 것만** | ①아는 상대 ②우리 대화 회신(in-reply-to) ③직접 수신 + 명확한 요청. 나머지는 전부 확인 권장. STRONG_REQUEST 신설(물음표·'확인 바랍니다' 제외). 규칙 케이스 7/7 | ✅ |
+| retriage-mail.js | 옛 규칙으로 켜진 스레드 재판정(멱등·원본 무손상). dev 112→28 · 운영 22→7 | ✅ |
+| Cue 답변 대기 회귀 | 카드 조건이 `is_question && cue_draft` — is_question은 사람 메시지에만 붙어 카드가 뜰 수 없었다 → 초안이 보낸 말풍선처럼 보임. 카드를 초안 메시지 자신에 붙이고 본문은 말풍선에서 숨김. isDraft = ai_mode_used='draft' && 미승인 | ✅ |
+| 안 읽음 숫자 정합 | ①LEFT JOIN → INNER JOIN(참여한 방만): 워크스페이스 6 기준 35→4 ②사이드바 배지를 현재 워크스페이스로 스코프(리스트와 같은 수) | ✅ |
+| 확인 필요 — 메일 탭 + 카테고리 | 중복 헤더 제거, 전체 탭은 업무/메일/서명/청구로 묶기. 메일 탭 신설(답변 필요 메일, 담당자 지정 시 그 사람만, 상한 30, 방치 7일↑만 긴급) | ✅ |
+| 패널 핸들 표준 | Q Talk 우측: 패널 없는데 핸들만 떠 있던 것 + RightPanel 내부 중복 핸들 제거. Q docs 자체 CollapsedStrip → 공통 PanelEdgeHandle. 4화면 가려짐 0 | ✅ |
+| 채팅 고객명 → 통합 타임라인 | 고객 대화방 헤더 뱃지를 이름 링크로 (/business/clients/:id/timeline) | ✅ |
+
+### 수정된 파일
+- `dev-backend/services/emailTriage.js` · `services/emailImapCron.js` · `services/mailSenderRules.js`
+- `dev-backend/routes/email_threads.js` · `routes/conversations.js` · `routes/dashboard.js`
+- `dev-backend/scripts/retriage-mail.js` (신규)
+- `dev-frontend/src/pages/QMail/MailPage.tsx` · `MailContextPanel.tsx`
+- `dev-frontend/src/pages/QTalk/ChatPanel.tsx` · `QTalkPage.tsx` · `RightPanel.tsx` · `types.ts`
+- `dev-frontend/src/components/Common/AiActionButton.tsx` · `AiAssistButton.tsx`(신규) · `Layout/PanelEdgeHandle.tsx`
+- `dev-frontend/src/components/Docs/PostsPage.tsx` · `PostTableGrid.tsx` · `Dashboard/TodoList.tsx`
+- `dev-frontend/src/pages/Todo/TodoPage.tsx` · `Knowledge/KnowledgePage.tsx` · `hooks/useUnreadTotal.ts` · `utils/sanitizeHtml.ts`
+
+---
+
+> **이전 사이클:** 2026-07-12 (Opus, 1M) — **🔒 P0 에이전트 권한 모델 + 업무추출 보안 3건(Fable BLOCK 해제) + Q Mail 발신자 표시·답변필요 자가오염. 운영 배포 3회 완료.** 헬스 30/30 · guard-invariants 16/16(14→16) · e2e tenant 0 · 빌드 EXIT0/TS0 · 위키 게이트 exit0.
 >
 > **★ P0 에이전트 권한 모델 (Fable 게이트 CONDITIONAL → 권고 3건 반영)** — Cue 는 담당자로 지정되면 자동 실행되는데 권한 계층을 통째로 우회했다. 지난 사이클에 막은 건 읽기(채팅 컨텍스트)뿐이고 업무 실행 경로는 그대로였다.
 > - **위임 주체(principal)** — Cue 는 업무 요청자의 권한으로만 행동. `resolvePrincipal()` fail-closed(위임자가 AI 면 거부 = 권한 세탁 차단, platform_admin 은 platform_role 전달로 인정). 트리거한 사람이 아니라 **위임자 기준** — 트리거로 권한이 커지는 escalation 차단.
