@@ -1263,7 +1263,12 @@ const MailPage: React.FC = () => {
                         {aiFaqSources[0] ? ` · ${aiFaqSources[0]}` : ''}
                       </FaqUsedBadge>
                     )}
+                    {/* 버튼 자리는 고정 — 좌측부터 [보내기] [AI] [취소]. 답장창을 열고 닫아도 좌우가 뒤바뀌지 않는다.
+                        (여태 AI 가 왼쪽, 보내기/취소가 오른쪽 끝이라 열 때마다 위치가 바뀌어 보였다) */}
                     <ComposerActions>
+                      <ActionButton tone="primary" size="md" loading={sending} onClick={sendReply}>
+                        {t('reply.send', { defaultValue: '보내기' }) as string}
+                      </ActionButton>
                       {(!detail?.triage || detail.triage === 'human' || detail.triage === 'unknown') ? (
                         <AiActionButton
                           size="md"
@@ -1280,14 +1285,7 @@ const MailPage: React.FC = () => {
                       ) : (
                         <AiGatedHint>{t('reply.aiGated', { defaultValue: '자동·마케팅 메일에는 AI 답변을 제안하지 않아요' }) as string}</AiGatedHint>
                       )}
-                      <ComposerBtns>
-                        <ActionButton tone="secondary" size="md" onClick={() => setReplyOpen(false)} disabled={sending}>
-                          {t('reply.cancel', { defaultValue: '취소' }) as string}
-                        </ActionButton>
-                        <ActionButton tone="primary" size="md" loading={sending} onClick={sendReply}>
-                          {t('reply.send', { defaultValue: '보내기' }) as string}
-                        </ActionButton>
-                      </ComposerBtns>
+
                     </ComposerActions>
                     <ComposerHint>{t('reply.shortcut', { defaultValue: '⌘/Ctrl + Enter 로 보내기' }) as string}</ComposerHint>
                   </Composer>
@@ -1814,16 +1812,17 @@ const Attachments = styled.div`
 const Attachment = styled.div`
   font-size: 12px; color: #475569;
 `;
+// 하단 액션 영역 — 본문과 같은 흰 바탕. 회색/흰 박스를 겹쳐 띄우지 않는다(박스 속 박스 금지).
 const DetailFooter = styled.div`
   padding: 14px 24px;
   border-top: 1px solid #E2E8F0;
-  background: #F8FAFC;
+  background: #FFFFFF;
   max-height: 55vh;
   overflow-y: auto;
 `;
 const ReplyBar = styled.div`
-  display: flex; align-items: center; gap: 8px;
-  padding: 12px 20px; border-top: 1px solid #E2E8F0; background: #fff;
+  display: flex; align-items: center; justify-content: flex-start; gap: 8px;
+  padding: 0; border: none; background: transparent;
 `;
 const Composer = styled.div`
   display: flex; flex-direction: column; gap: 10px;
@@ -1838,16 +1837,13 @@ const ComposerError = styled.div`
   border: 1px solid #FECACA; border-radius: 8px;
   font-size: 12px;
 `;
+// 좌측 정렬 고정 — [보내기] [AI] [취소]. 버튼이 좌우로 튀지 않게 space-between 을 쓰지 않는다.
 const ComposerActions = styled.div`
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  display: flex; align-items: center; justify-content: flex-start; gap: 8px;
   flex-wrap: wrap;
 `;
 const ComposerHint = styled.div`
   font-size: 11px; color: #94A3B8;
-`;
-const ComposerBtns = styled.div`
-  display: flex; align-items: center; gap: 8px;
-  margin-left: auto;
 `;
 // AI 답변 제안 — Coral 강조 (AI 감지/액션 컬러)
 // 자동·마케팅 메일 — AI 답변 비노출 안내 (게이트)
