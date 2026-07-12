@@ -238,11 +238,12 @@
     "add": "추가",
     "delete": "삭제",
     "visPersonal": "나만",
-    "noteVisMe": "🔒 나만 보임",
-    "noteVisTeam": "👥 팀 공유",
+    "noteVisMe": "나만 보기",
+    "noteVisTeam": "팀원 모두",
     "collapse": "맥락 패널 접기",
     "expand": "맥락 패널 펼치기",
-    "extractHint": "AI 가 이 메일에서 할 일 후보를 뽑아냅니다"
+    "extractHint": "AI 가 이 메일에서 할 일 후보를 뽑아냅니다",
+    "noteVisLabel": "새 노트를 볼 사람"
   },
   "accounts": {
     "all": "전체",

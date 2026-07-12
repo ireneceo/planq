@@ -248,22 +248,13 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, onLink
           : <Dim>{t('context.summaryHint', { defaultValue: '긴 스레드를 AI가 핵심만 요약해요.' }) as string}</Dim>}
       </Section>
 
+      {/* '연결' 이라는 항목명은 필요 없다 — 프로젝트/고객이 곧 항목이고, 셀렉트가 곧 연결이다. */}
       <Section>
-        <SecTitle>{t('context.linkTitle', { defaultValue: '연결' }) as string}</SecTitle>
-        <Field>
-          <Lbl>{t('context.client', { defaultValue: '고객' }) as string}</Lbl>
-          <PlanQSelect size="sm" isSearchable isDisabled={busy}
-            value={clientOptions.find(o => o.value === (clientId || 0))}
-            onChange={(opt: unknown) => { const v = (opt as { value?: number } | null)?.value || 0; link({ client_id: v > 0 ? v : null }); }}
-            options={clientOptions} menuPlacement="bottom" />
-        </Field>
-        <Field>
-          <Lbl>{t('context.project', { defaultValue: '프로젝트' }) as string}</Lbl>
-          <PlanQSelect size="sm" isSearchable isDisabled={busy}
-            value={projectOptions.find(o => o.value === (projectId || 0))}
-            onChange={(opt: unknown) => { const v = (opt as { value?: number } | null)?.value || 0; link({ project_id: v > 0 ? v : null }); }}
-            options={projectOptions} menuPlacement="bottom" />
-        </Field>
+        <SecTitle>{t('context.project', { defaultValue: '프로젝트' }) as string}</SecTitle>
+        <PlanQSelect size="sm" isSearchable isDisabled={busy}
+          value={projectOptions.find(o => o.value === (projectId || 0))}
+          onChange={(opt: unknown) => { const v = (opt as { value?: number } | null)?.value || 0; link({ project_id: v > 0 ? v : null }); }}
+          options={projectOptions} menuPlacement="bottom" />
       </Section>
 
       <Section>
@@ -339,16 +330,27 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, onLink
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addNote(); } }} />
           <AddBtn type="button" onClick={addNote} disabled={iaBusy || !newNote.trim()}>{t('context.add', { defaultValue: '추가' }) as string}</AddBtn>
         </AddRow>
-        <VisToggle type="button" $on={notePersonal} role="switch" aria-checked={notePersonal} onClick={() => setNotePersonal(v => !v)}>
-          <VisDot $on={notePersonal} />
-          {notePersonal ? t('context.noteVisMe', { defaultValue: '🔒 나만 보임' }) as string : t('context.noteVisTeam', { defaultValue: '👥 팀 공유' }) as string}
-        </VisToggle>
+        {/* 이 토글은 '메일을 팀에 공유' 가 아니라 '지금 쓰는 노트를 누가 보는가' 다.
+            여태 라벨이 "팀 공유" 라 메일 공유 버튼처럼 읽혔다 → 무엇에 대한 설정인지 문장으로 밝힌다. */}
+        <VisRow>
+          <VisLbl>{t('context.noteVisLabel', { defaultValue: '새 노트를 볼 사람' }) as string}</VisLbl>
+          <VisToggle type="button" $on={notePersonal} role="switch" aria-checked={notePersonal} onClick={() => setNotePersonal(v => !v)}>
+            <VisDot $on={notePersonal} />
+            {notePersonal
+              ? t('context.noteVisMe', { defaultValue: '나만 보기' }) as string
+              : t('context.noteVisTeam', { defaultValue: '팀원 모두' }) as string}
+          </VisToggle>
+        </VisRow>
       </Section>
 
-      {clientId ? (
-        <Section>
-          <SecTitle>{t('context.customerTitle', { defaultValue: '이 고객' }) as string}</SecTitle>
-          {sumLoading ? (
+      <Section>
+        <SecTitle>{t('context.client', { defaultValue: '고객' }) as string}</SecTitle>
+        <PlanQSelect size="sm" isSearchable isDisabled={busy}
+          value={clientOptions.find(o => o.value === (clientId || 0))}
+          onChange={(opt: unknown) => { const v = (opt as { value?: number } | null)?.value || 0; link({ client_id: v > 0 ? v : null }); }}
+          options={clientOptions} menuPlacement="top" />
+        {clientId && (
+          sumLoading ? (
             <Dim>{t('context.loading', { defaultValue: '불러오는 중…' }) as string}</Dim>
           ) : summary ? (
             <>
@@ -377,14 +379,9 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, onLink
             </>
           ) : (
             <Dim>{t('context.noActivity', { defaultValue: '아직 다른 채널 활동이 없어요.' }) as string}</Dim>
-          )}
-        </Section>
-      ) : (
-        <Section>
-          <SecTitle>{t('context.customerTitle', { defaultValue: '이 고객' }) as string}</SecTitle>
-          <Dim>{t('context.linkClientHint', { defaultValue: '고객을 연결하면 그 고객의 채팅·업무·청구를 여기서 함께 봅니다.' }) as string}</Dim>
-        </Section>
-      )}
+          )
+        )}
+      </Section>
     </Wrap>
   );
 };
@@ -394,8 +391,6 @@ export default MailContextPanel;
 const Wrap = styled.div`display:flex; flex-direction:column; gap:16px; padding:16px 14px; overflow-y:auto;`;
 const Section = styled.section`display:flex; flex-direction:column; gap:10px;`;
 const SecTitle = styled.div`font-size:12px; font-weight:700; color:#0F172A; letter-spacing:-0.2px;`;
-const Field = styled.div`display:flex; flex-direction:column; gap:5px;`;
-const Lbl = styled.label`font-size:12px; font-weight:600; color:#64748B;`;
 const Dim = styled.div`font-size:12px; color:#94A3B8; line-height:1.5;`;
 const SecHead = styled.div`display:flex; align-items:center; justify-content:space-between; gap:8px;`;
 const CountBadge = styled.span`margin-left:6px; font-size:11px; font-weight:700; color:#0F766E; background:#F0FDFA; border-radius:999px; padding:1px 7px;`;
@@ -416,8 +411,10 @@ const AddBtn = styled.button`
   color:#0F766E; background:#F0FDFA; border:1px solid #99F6E4;
   &:hover:not(:disabled){ background:#CCFBF1; } &:disabled{ opacity:0.5; cursor:default; }
 `;
+const VisRow = styled.div`display:flex; align-items:center; gap:8px; margin-top:2px;`;
+const VisLbl = styled.span`font-size:11px; color:#94A3B8;`;
 const VisToggle = styled.button<{ $on?: boolean }>`
-  display:inline-flex; align-items:center; gap:6px; align-self:flex-start; margin-top:2px;
+  display:inline-flex; align-items:center; gap:6px;
   padding:3px 8px; border-radius:999px; cursor:pointer; font-size:11px; font-weight:600;
   color:${p => p.$on ? '#92400E' : '#0F766E'}; background:${p => p.$on ? '#FEF3C7' : '#F0FDFA'};
   border:1px solid ${p => p.$on ? '#FDE68A' : '#99F6E4'};

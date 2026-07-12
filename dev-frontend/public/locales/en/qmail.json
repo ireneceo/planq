@@ -201,7 +201,7 @@
   "context": {
     "panelTitle": "Context",
     "linkTitle": "Links",
-    "client": "Customer",
+    "client": "Client",
     "project": "Project",
     "noClient": "None",
     "noProject": "None",
@@ -238,11 +238,12 @@
     "add": "Add",
     "delete": "Delete",
     "visPersonal": "Private",
-    "noteVisMe": "🔒 Only me",
-    "noteVisTeam": "👥 Team",
+    "noteVisMe": "Only me",
+    "noteVisTeam": "Whole team",
     "collapse": "Collapse context panel",
     "expand": "Expand context panel",
-    "extractHint": "AI extracts task candidates from this email"
+    "extractHint": "AI extracts task candidates from this email",
+    "noteVisLabel": "Who can see new notes"
   },
   "accounts": {
     "all": "All",
