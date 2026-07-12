@@ -318,7 +318,12 @@ async function syncOne(account) {
         let triageFields = {};
         try {
           const { triageInbound } = require('./emailTriage');
-          const tr = triageInbound({ subject: parsed.subject, bodyText: parsed.text, fromEmail, headers: parsed.headers, ownEmails });
+          const { applyRules } = require('./mailSenderRules');
+          const base = triageInbound({ subject: parsed.subject, bodyText: parsed.text, fromEmail, headers: parsed.headers, ownEmails });
+          // 학습된 발신자 규칙이 휴리스틱보다 우선한다 (사용자가 직접 알려준 정답).
+          //   규칙은 분류만 바꾼다 — 원본 메일은 그대로라 규칙 삭제 시 즉시 원상복구.
+          const tr = await applyRules(account.business_id, fromEmail, base);
+          const ruleReason = tr.rule_applied ? 'rule' : 'inbound';
           if (isNew) {
             triageFields = {
               status: tr.status,
@@ -326,10 +331,14 @@ async function syncOne(account) {
               uncertain_reason: tr.uncertain_reason,
               triage: tr.triage,
               reply_needed: tr.reply_needed,
-              ...(tr.reply_needed ? { reply_needed_at: parsed.date || new Date(), reply_needed_reason: 'inbound' } : {}),
+              rule_id: tr.rule_applied?.id || null,   // 투명성 — 화면에 "규칙으로 자동 분류됨" 표시
+              ...(tr.reply_needed ? { reply_needed_at: parsed.date || new Date(), reply_needed_reason: ruleReason } : {}),
             };
           } else if (tr.reply_needed && thread.status !== 'spam' && thread.status !== 'archived') {
-            triageFields = { reply_needed: true, reply_needed_at: parsed.date || new Date(), reply_needed_reason: 'inbound' };
+            triageFields = { reply_needed: true, reply_needed_at: parsed.date || new Date(), reply_needed_reason: ruleReason, rule_id: tr.rule_applied?.id || null };
+          } else if (tr.rule_applied && !tr.reply_needed) {
+            // 규칙이 "답장 불필요" 로 판정 → 기존 스레드의 답변 필요도 해제
+            triageFields = { reply_needed: false, reply_needed_at: null, reply_needed_reason: 'rule', rule_id: tr.rule_applied.id };
           }
         } catch (e) { console.warn('[emailTriage]', e.message); }
         await thread.update({

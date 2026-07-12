@@ -22,6 +22,8 @@ EmailThread.init({
   reply_needed: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   reply_needed_reason: { type: DataTypes.STRING(200), allowNull: true },
   reply_needed_at: { type: DataTypes.DATE, allowNull: true },
+  // 학습된 발신자 규칙으로 분류된 경우 그 규칙 id (투명성 — 화면에 "규칙으로 자동 분류됨" + 근거 표시)
+  rule_id: { type: DataTypes.BIGINT, allowNull: true },
   // Uncertain (★ 사용자 호소 #6)
   uncertain_reason: { type: DataTypes.STRING(200), allowNull: true },
   spam_score: { type: DataTypes.FLOAT, allowNull: true },
