@@ -83,20 +83,19 @@ router.delete('/:businessId/mail-rules/:ruleId',
   async (req, res, next) => {
     try {
       const businessId = Number(req.params.businessId);
-      const { MailSenderRule, EmailThread } = require('../models');
+      const { MailSenderRule } = require('../models');
       const rule = await MailSenderRule.findOne({
         where: { id: req.params.ruleId, business_id: businessId },
       });
       if (!rule) return errorResponse(res, 'rule_not_found', 404);
 
-      // 이 규칙으로 분류됐던 스레드의 표시를 원복 (원본 메일은 애초에 건드리지 않았다)
-      const [restored] = await EmailThread.update(
-        { rule_id: null },
-        { where: { business_id: businessId, rule_id: rule.id } }
-      );
+      // 이 규칙 때문에 바뀐 분류를 실제로 되돌린다 (뱃지만 지우면 그 메일들은 영영
+      //   "답변 필요" 로 안 돌아온다 — Fable BLOCK 2). 답장 경로와 같은 함수를 공유한다.
+      const { restoreThreadsForRule } = require('../services/mailSenderRules');
+      const restored = await restoreThreadsForRule(businessId, rule.id, rule.verdict);
       await rule.destroy();
       broadcastMail(req, businessId, 'mail:updated', { rule_deleted: Number(req.params.ruleId) });
-      return successResponse(res, { deleted: true, restored: restored || 0 }, '규칙을 삭제했습니다');
+      return successResponse(res, { deleted: true, restored }, restored > 0 ? `규칙을 삭제하고 메일 ${restored}건을 답변 필요로 되돌렸습니다` : '규칙을 삭제했습니다');
     } catch (err) { next(err); }
   }
 );
