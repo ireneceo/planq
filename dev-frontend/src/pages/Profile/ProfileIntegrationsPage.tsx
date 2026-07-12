@@ -318,7 +318,7 @@ const ProfileIntegrationsPage: React.FC = () => {
       {/* ─── 개인 메일 (읽기전용 요약 + 관리 링크. 추가/편집/해제는 "내 메일 계정" 화면에서 —
              Gmail·네이버·다음·회사메일 등 아무 메일이나 앱 비밀번호로 연결 가능) ─── */}
       <Section>
-        <SectionTitle>{t('integrations.mail', '메일 (개인)') as string}</SectionTitle>
+        <SectionTitle>{t('integrations.mail', '메일') as string}</SectionTitle>
         <SectionSub>{t('integrations.mailSub2', { defaultValue: 'Gmail·네이버·다음·회사 메일 등 아무 메일이나 연결해 Q Mail 인박스에서 받을 수 있어요 (본인만 보임). 추가·재연결은 "내 메일 계정"에서 해요.' }) as string}</SectionSub>
         {personalMail.length === 0 ? (
           <Empty>
@@ -350,7 +350,7 @@ const ProfileIntegrationsPage: React.FC = () => {
 
       {/* ─── 개인 Drive (옵션) ─── */}
       <Section>
-        <SectionTitle>{t('integrations.drive', '파일 (개인)') as string}</SectionTitle>
+        <SectionTitle>{t('integrations.drive', '파일') as string}</SectionTitle>
         <SectionSub>{t('integrations.driveSub', 'PlanQ 파일을 내 개인 Google Drive 에 저장하고 여기서 함께 봐요 (회사 Drive 와 분리)') as string}</SectionSub>
         {personalConns.filter(c => c.provider === 'google_drive').length === 0 ? (
           <Empty>

@@ -231,6 +231,8 @@
     "mailSub2": "Connect any email — Gmail, Naver, Daum, your company mailbox — and receive it in your Q Mail inbox (visible only to you). Add or reconnect from \"My email accounts\".",
     "manageMail": "Connect an email account",
     "manageMailMore": "Manage · add email accounts",
-    "mailAccount": "Email account"
+    "mailAccount": "Email account",
+    "mail": "Email",
+    "drive": "Files"
   }
 }

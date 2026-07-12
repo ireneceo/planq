@@ -309,7 +309,7 @@ const APP_PASSWORD_GUIDES: Record<string, GuideDef> = {
     steps: [
       { key: 'settings.guide.gmail.s1', default: '구글 계정에 2단계 인증(2-Step Verification)을 먼저 켜주세요. (앱 비밀번호는 2단계 인증이 켜져 있어야 발급됩니다)' },
       { key: 'settings.guide.gmail.s2', default: '아래 "앱 비밀번호 만들기"를 눌러 새 비밀번호를 생성하세요. 앱 이름은 "PlanQ"로 입력하면 됩니다.' },
-      { key: 'settings.guide.gmail.s3', default: '생성된 16자리 비밀번호(공백 제외)를 아래 "비밀번호" 칸에 붙여넣고 저장하세요. 서버 정보는 자동 입력되어 있습니다.' },
+      { key: 'settings.guide.gmail.s3', default: '생성된 16자리 비밀번호(공백 제외)를 아래 "앱 비밀번호" 칸에 붙여넣고 저장하세요. 서버 정보는 자동 입력되어 있습니다.' },
     ],
     link: { url: 'https://myaccount.google.com/apppasswords', labelKey: 'settings.guide.gmail.link', labelDefault: '앱 비밀번호 만들기 →' },
   },
@@ -318,7 +318,7 @@ const APP_PASSWORD_GUIDES: Record<string, GuideDef> = {
     steps: [
       { key: 'settings.guide.naver.s1', default: '네이버 메일 → 환경설정 → POP3/IMAP 설정에서 "IMAP/SMTP 사용"을 ON으로 바꿔주세요.' },
       { key: 'settings.guide.naver.s2', default: '네이버 2단계 인증을 사용 중이면 "애플리케이션 비밀번호"를 발급하세요. (내정보 → 보안설정)' },
-      { key: 'settings.guide.naver.s3', default: '발급된 비밀번호(2단계 인증 미사용 시 네이버 로그인 비밀번호)를 아래 "비밀번호" 칸에 입력하고 저장하세요.' },
+      { key: 'settings.guide.naver.s3', default: '발급된 비밀번호(2단계 인증 미사용 시 네이버 로그인 비밀번호)를 아래 "앱 비밀번호" 칸에 입력하고 저장하세요.' },
     ],
     link: { url: 'https://mail.naver.com', labelKey: 'settings.guide.naver.link', labelDefault: '네이버 메일 설정 열기 →' },
   },
@@ -327,7 +327,7 @@ const APP_PASSWORD_GUIDES: Record<string, GuideDef> = {
     steps: [
       { key: 'settings.guide.icloud.s1', default: 'Apple ID에 2단계 인증이 켜져 있어야 합니다.' },
       { key: 'settings.guide.icloud.s2', default: '아래 "앱 암호 만들기"에서 새 앱 암호를 생성하세요. (로그인 및 보안 → 앱 암호)' },
-      { key: 'settings.guide.icloud.s3', default: '생성된 앱 암호를 아래 "비밀번호" 칸에 붙여넣고 저장하세요.' },
+      { key: 'settings.guide.icloud.s3', default: '생성된 앱 암호를 아래 "앱 비밀번호" 칸에 붙여넣고 저장하세요.' },
     ],
     link: { url: 'https://account.apple.com', labelKey: 'settings.guide.icloud.link', labelDefault: 'Apple ID 앱 암호 →' },
   },
@@ -336,7 +336,7 @@ const APP_PASSWORD_GUIDES: Record<string, GuideDef> = {
     steps: [
       { key: 'settings.guide.outlook.s1', default: 'Microsoft 계정에 2단계 인증을 켜주세요.' },
       { key: 'settings.guide.outlook.s2', default: '보안 설정에서 "앱 비밀번호"를 생성하세요. (일반 비밀번호로는 연결되지 않습니다)' },
-      { key: 'settings.guide.outlook.s3', default: '생성된 앱 비밀번호를 아래 "비밀번호" 칸에 입력하고 저장하세요.' },
+      { key: 'settings.guide.outlook.s3', default: '생성된 앱 비밀번호를 아래 "앱 비밀번호" 칸에 입력하고 저장하세요.' },
     ],
     link: { url: 'https://account.microsoft.com/security', labelKey: 'settings.guide.outlook.link', labelDefault: 'Microsoft 보안 설정 →' },
   },
@@ -462,6 +462,14 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, onSa
     }
   };
 
+  // Gmail·Naver·Outlook·iCloud 는 계정 비밀번호로 IMAP 연결이 안 되고 앱 비밀번호를 발급해야 한다.
+  // 항목명을 "비밀번호" 로만 두면 계정 비밀번호를 넣고 실패하는 사고가 반복 → 항목명 자체를 바꾼다.
+  const appPwHost = hostToGuideKey(form.imap_host);
+  const usesAppPassword = appPwHost === 'gmail' || appPwHost === 'naver' || appPwHost === 'outlook' || appPwHost === 'icloud';
+  const passwordLabel = usesAppPassword
+    ? (t('settings.fieldAppPassword', '앱 비밀번호') as string)
+    : (t('settings.fieldPassword', '비밀번호') as string);
+
   const onSubmit = async () => {
     setError(null);
     if (!form.email || !form.email.includes('@')) {
@@ -473,7 +481,9 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, onSa
       return;
     }
     if (!isEdit && !form.imap_password) {
-      setError(t('settings.passwordRequired', '비밀번호를 입력하세요') as string);
+      setError(usesAppPassword
+        ? (t('settings.appPasswordRequired', '앱 비밀번호를 입력하세요') as string)
+        : (t('settings.passwordRequired', '비밀번호를 입력하세요') as string));
       return;
     }
     setSubmitting(true);
@@ -599,7 +609,7 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, onSa
           </Field>
           <Field>
             <Label>
-              {t('settings.fieldPassword', '비밀번호') as string}
+              {passwordLabel}
               {!isEdit && <Required>*</Required>}
               {isEdit && <PasswordHint>{t('settings.passwordEditHint', '(비워두면 기존 유지)') as string}</PasswordHint>}
             </Label>
@@ -607,6 +617,7 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, onSa
               type="password" value={form.imap_password}
               onChange={e => setForm({ ...form, imap_password: e.target.value })}
               autoComplete="new-password"
+              placeholder={usesAppPassword ? (t('settings.appPasswordPh', '계정 비밀번호가 아닌, 발급받은 앱 비밀번호') as string) : undefined}
             />
           </Field>
 
@@ -637,7 +648,7 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, onSa
             />
           </Field>
           <Field>
-            <Label>{t('settings.fieldPassword', '비밀번호') as string} {isEdit && <PasswordHint>{t('settings.passwordEditHint', '(비워두면 기존 유지)') as string}</PasswordHint>}</Label>
+            <Label>{passwordLabel} {isEdit && <PasswordHint>{t('settings.passwordEditHint', '(비워두면 기존 유지)') as string}</PasswordHint>}</Label>
             <Input
               type="password" value={form.smtp_password}
               onChange={e => setForm({ ...form, smtp_password: e.target.value })}

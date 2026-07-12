@@ -130,7 +130,10 @@
     "gmailOauthFailed": "Gmail 연결 실패: {{code}} — 잠시 후 다시 시도하거나 앱 비밀번호 방식을 사용해 주세요.",
     "dismiss": "닫기",
     "teamMemberHintHead": "회사 공용 메일은 관리자만 추가할 수 있어요. 개인 메일은 ",
-    "teamMemberHintTail": " 에서 연결하세요."
+    "teamMemberHintTail": " 에서 연결하세요.",
+    "fieldAppPassword": "앱 비밀번호",
+    "appPasswordRequired": "앱 비밀번호를 입력하세요",
+    "appPasswordPh": "계정 비밀번호가 아닌, 발급받은 앱 비밀번호"
   },
   "folders": {
     "title": "메일함",

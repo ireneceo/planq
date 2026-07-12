@@ -130,7 +130,10 @@
     "gmailOauthFailed": "Gmail connection failed: {{code}} — try again later or use the app-password method.",
     "dismiss": "Dismiss",
     "teamMemberHintHead": "Only admins can add shared company mailboxes. For personal email, connect it from ",
-    "teamMemberHintTail": "."
+    "teamMemberHintTail": ".",
+    "fieldAppPassword": "App password",
+    "appPasswordRequired": "Enter the app password",
+    "appPasswordPh": "Not your account password — the generated app password"
   },
   "folders": {
     "title": "Mailboxes",
