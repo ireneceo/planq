@@ -15,6 +15,7 @@ import {
   MAIL_PRESETS,
   type EmailAccountRow, type EmailAccountInput,
 } from '../../services/mail';
+import MailRulesSection from './MailRulesSection';
 
 const EmailAccountSettings: React.FC = () => {
   const { t } = useTranslation('qmail');
@@ -293,6 +294,9 @@ const EmailAccountSettings: React.FC = () => {
           </ConfirmCard>
         </ConfirmBackdrop>
       )}
+
+      {/* 메일 분류 규칙 (학습형) — 워크스페이스 단위. 투명성 화면. */}
+      {!personalView && <MailRulesSection businessId={businessId} />}
     </Wrap>
   );
 };
