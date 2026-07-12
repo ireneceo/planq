@@ -165,20 +165,9 @@ const RightPanel: React.FC<Props> = ({
   // project 도 activeConversationId 도 없으면 패널 렌더 스킵
   if (!project && !activeConversationId) return null;
 
-  if (!isNarrow && collapsed) {
-    return (
-      <CollapsedStrip>
-        <RightEdgeHandle
-          type="button"
-          onClick={onToggleCollapsed}
-          aria-label={t('right.expand', '작업대 열기') as string}
-          title={t('right.expand', '작업대 열기') as string}
-        >
-          <EdgeChevron><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg></EdgeChevron>
-        </RightEdgeHandle>
-      </CollapsedStrip>
-    );
-  }
+  // 접힘 상태의 핸들은 페이지(QTalkPage)가 공통 PanelEdgeHandle 로 그린다 —
+  //   패널 안에 그리면 옆 패널에 가리거나(overflow) 좁은 화면에서 사라졌다.
+  if (!isNarrow && collapsed) return null;
 
   // scope 결정: 프로젝트가 있으면 project_id 기준, 없으면 conversation_id 기준 (독립 대화)
   const matchScope = <T extends { project_id: number | null; conversation_id?: number | null }>(item: T): boolean => {
@@ -705,16 +694,6 @@ const OverlayBackdrop = styled.div`
 `;
 
 /* 접힘 상태: 0 폭 컨테이너 + 내부 RightEdgeHandle 만 경계에 노출 */
-const CollapsedStrip = styled.aside`
-  width: 0;
-  flex-shrink: 0;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 12px 0;
-  @media (max-width: 1200px) { display: none; }
-`;
 
 const HeaderBar = styled.div`
   min-height: 60px;

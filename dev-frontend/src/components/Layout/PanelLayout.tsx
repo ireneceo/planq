@@ -36,6 +36,10 @@ export const panelShellHeight = css`
 
 export const PanelLayout = styled.div<{ $embedded?: boolean }>`
   display: flex;
+  /* 경계선 핸들(PanelEdgeHandle)이 이 컨테이너 기준으로 absolute 배치된다.
+     relative 가 없으면 핸들이 엉뚱한 조상 기준으로 잡혀 옆 패널 뒤로 숨거나 잘렸다
+     (Q Mail 만 PanelGridLayout=relative 라 정상이었고 나머지 페이지가 전부 깨져 있었다). */
+  position: relative;
   /* N+93 — embedded(팝아웃/분리 창): MainLayout 헤더가 없으므로 viewport 수학(-56px) 대신 부모 100% 채움.
      팝아웃 좁은 폭이 ≤1024 분기를 타 56px 여백이 생기던 회귀 차단. */
   ${(p) => (p.$embedded ? css`height: 100%; min-height: 0;` : panelShellHeight)}

@@ -22,6 +22,7 @@ import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import * as qtalkApi from '../../services/qtalk';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { mapApiError } from '../../utils/apiError';
+import PanelEdgeHandle from '../../components/Layout/PanelEdgeHandle';
 
 /**
  * QTalkPage — 실데이터 기반 (시드 데이터 로드)
@@ -1514,6 +1515,17 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
             }
           }, 150);
         }}
+      />
+      {/* 우측 작업대 접기/펼치기 — 공통 PanelEdgeHandle 을 레이아웃 레벨에 그린다.
+          여태 RightPanel 안의 CollapsedStrip(width:0, ≤1200px 에서 display:none)에 그려서
+          옆 패널에 가리거나 아예 사라졌다. Q Mail 만 정상이던 이유. */}
+      <PanelEdgeHandle
+        side="right"
+        collapsed={rightCollapsed}
+        onToggle={toggleRight}
+        offset={rightCollapsed ? 0 : rightWidth}
+        labelCollapse={`${t('right.collapse', { defaultValue: '작업대 접기' }) as string} (⌘/)`}
+        labelExpand={`${t('right.expand', { defaultValue: '작업대 열기' }) as string} (⌘/)`}
       />
       <RightPanel
         project={activeProject}
