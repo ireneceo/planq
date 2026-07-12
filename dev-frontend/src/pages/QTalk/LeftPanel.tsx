@@ -44,7 +44,7 @@ interface ChatEntry {
 const LeftPanel: React.FC<Props> = ({
   projects, conversations, activeConversationId,
   loading = false,
-  onSelectConversation, onOpenNewChat, collapsed, onToggleCollapsed,
+  onSelectConversation, onOpenNewChat, collapsed,
   onTogglePin, canManage, onArchive, onUnlink, onOpenArchive, mobileHidden = false,
 }) => {
   const { t } = useTranslation('qtalk');
@@ -130,21 +130,9 @@ const LeftPanel: React.FC<Props> = ({
     itemSelector: (id) => `[data-qtalk-chat="${id}"]`,
   });
 
-  if (collapsed) {
-    // 접힘 상태: 프로젝트 일부만 보여주면 혼동(Irene 지적: "6개 중 3개만" 보임). 완전 접고 엣지 바만.
-    return (
-      <CollapsedStrip>
-        <EdgeHandle
-          type="button"
-          onClick={onToggleCollapsed}
-          aria-label={t('left.expand', '리스트 열기') as string}
-          title={t('left.expand', '리스트 열기') as string}
-        >
-          <EdgeChevron><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg></EdgeChevron>
-        </EdgeHandle>
-      </CollapsedStrip>
-    );
-  }
+  // 접힘 상태의 핸들은 페이지(QTalkPage)가 공통 PanelEdgeHandle 로 그린다 —
+  //   패널 안에 그리면 옆 패널에 가려 클릭이 안 먹었다.
+  if (collapsed) return null;
 
   return (
     <Container $mobileHidden={mobileHidden}>
@@ -168,15 +156,6 @@ const LeftPanel: React.FC<Props> = ({
           </HeaderActions>
         </HeaderTop>
       </Header>
-      {/* 패널 우측 엣지 접기 핸들 — 헤더 '<' IconBtn 은 제거하고 이 바로 통일 */}
-      <EdgeHandle
-        type="button"
-        onClick={onToggleCollapsed}
-        aria-label={t('left.collapse', '접기') as string}
-        title={t('left.collapse', '접기') as string}
-      >
-        <EdgeChevron><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg></EdgeChevron>
-      </EdgeHandle>
 
       <SearchSection>
         <SearchBoxCommon
@@ -347,56 +326,8 @@ const Container = styled.aside<{ $mobileHidden?: boolean }>`
 `;
 
 /* 접힘 상태: 0 폭 컨테이너 + 내부 EdgeHandle 만 경계에 노출. Q Note 와 동일한 "완전 접힘" UX */
-const CollapsedStrip = styled.aside`
-  width: 0;
-  flex-shrink: 0;
-  position: relative;
-  ${mediaTablet} { display: none; }
-`;
 
 /* N+63 — 시인성·세련도 강화. 평소 12×72 진한 색 + chevron 14×14, hover 18×84 teal + nudge animation. */
-const EdgeHandle = styled.button`
-  position: absolute;
-  top: 50%;
-  right: 0;
-  transform: translate(50%, -50%);
-  width: 12px; height: 72px;
-  padding: 0; border: none;
-  background: linear-gradient(180deg, #94A3B8 0%, #64748B 100%);
-  border-radius: 6px;
-  cursor: pointer;
-  z-index: 10;
-  box-shadow: 0 2px 6px rgba(15,23,42,0.15), 0 0 0 1px rgba(255,255,255,0.4) inset;
-  transition: width 0.2s ease, height 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
-  display: flex; align-items: center; justify-content: center;
-  &::before {
-    content: ''; position: absolute;
-    top: -10px; bottom: -10px; left: -12px; right: -12px;
-  }
-  &:hover {
-    width: 18px; height: 84px;
-    background: linear-gradient(180deg, #14B8A6 0%, #0F766E 100%);
-    box-shadow: 0 4px 12px rgba(20,184,166,0.35), 0 0 0 1px rgba(255,255,255,0.6) inset;
-  }
-  &:hover svg { animation: chevronNudgePanelL 0.7s ease infinite; }
-  &:active { transform: translate(50%, -50%) scale(0.95); }
-  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 3px; }
-  @keyframes chevronNudgePanelL {
-    0%, 100% { transform: translateX(0); }
-    50% { transform: translateX(-2px); }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    transition: none;
-    &:hover { width: 12px; height: 72px; }
-    &:hover svg { animation: none; }
-    &:active { transform: translate(50%, -50%); }
-  }
-`;
-const EdgeChevron = styled.span`
-  display: flex; align-items: center; justify-content: center;
-  color: #FFFFFF;
-  svg { width: 14px; height: 14px; transition: transform 0.18s ease; }
-`;
 
 const Header = styled.div`
   padding: 14px 20px;
