@@ -225,40 +225,16 @@ router.post('/:id/submit-review', authenticateToken, async (req, res, next) => {
     const reviewers = await TaskReviewer.findAll({ where: { task_id: task.id } });
     if (reviewers.length === 0) return errorResponse(res, 'no_reviewers_add_first', 400);
 
-    const prevStatusSR = task.status;
-    const t = await sequelize.transaction();
-    try {
-      // 모든 리뷰어 state 리셋 (새 라운드)
-      await TaskReviewer.update(
-        { state: 'pending', reverted_once: false, action_at: null },
-        { where: { task_id: task.id }, transaction: t }
-      );
-      const newRound = (task.review_round || 0) + 1;
-      const fromStatus = task.status;
-      await task.update({ status: 'reviewing', review_round: newRound }, { transaction: t });
-      await logHistory({
-        taskId: task.id, eventType: 'review_submit',
-        fromStatus, toStatus: 'reviewing',
-        actorUserId: req.user.id, actorRole: 'assignee',
-        round: newRound, note: req.body?.note || null, transaction: t,
-      });
-      await t.commit();
-    } catch (e) { await t.rollback(); throw e; }
-
-    // in_progress → reviewing: 담당자 Focus 세션 정리 (좌측 배너 잔존 차단)
-    await syncFocusOnTaskStatus(task, prevStatusSR, task.status);
-
-    broadcast(req, task);
-
-    // reviewers 전체에게 검토 요청 알림
-    const wsName = await workspaceName(task.business_id);
-    notifyTaskMany({
-      userIds: reviewers.map((r) => r.user_id),
-      task, wsName, excludeUserId: req.user.id,
-      title: '업무 검토 요청',
-      body: `"${task.title}" 검토를 요청받았습니다`,
-      ctaLabel: '검토하기',
+    // 상태 전이는 단일 착지점(services/taskTransition.js) 경유 — Cue(AI)도 같은 함수를 지난다.
+    // 라운드 리셋·이력·Focus 정리·broadcast·컨펌자 알림이 전부 그 안에서 일어난다.
+    const { submitForReview } = require('../services/taskTransition');
+    const result = await submitForReview({
+      task,
+      actorUserId: req.user.id,
+      actorRole: 'assignee',
+      note: req.body?.note || null,
     });
+    if (!result.ok) return errorResponse(res, result.reason, 400);
 
     return successResponse(res, task.toJSON());
   } catch (err) { next(err); }
@@ -272,40 +248,10 @@ router.post('/:id/cancel-review', authenticateToken, async (req, res, next) => {
     const task = await loadTaskOrFail(req.params.id, res);
     if (!task) return;
     if (!(await isAssignee(task, req.user.id))) return errorResponse(res, 'only_assignee', 403);
-    if (task.status !== 'reviewing') return errorResponse(res, 'not_in_review', 400);
-
-    const reviewersBeforeCancel = await TaskReviewer.findAll({
-      where: { task_id: task.id }, attributes: ['user_id'],
-    });
-
-    const t = await sequelize.transaction();
-    try {
-      await task.update({ status: 'in_progress' }, { transaction: t });
-      await TaskReviewer.update(
-        { state: 'pending', action_at: null },
-        { where: { task_id: task.id }, transaction: t }
-      );
-      await logHistory({
-        taskId: task.id, eventType: 'review_cancel',
-        fromStatus: 'reviewing', toStatus: 'in_progress',
-        actorUserId: req.user.id, actorRole: 'assignee', transaction: t,
-      });
-      await t.commit();
-    } catch (e) { await t.rollback(); throw e; }
-
-    // reviewing → in_progress: 담당자 Focus 세션 재시작 (focus_enabled 시)
-    await syncFocusOnTaskStatus(task, 'reviewing', task.status);
-
-    broadcast(req, task);
-
-    // reviewers 에게 취소 알림 (이미 검토 화면 열어둔 사람 위해)
-    const wsName = await workspaceName(task.business_id);
-    notifyTaskMany({
-      userIds: reviewersBeforeCancel.map((r) => r.user_id),
-      task, wsName, excludeUserId: req.user.id,
-      title: '검토 요청이 취소되었습니다',
-      ctaLabel: '업무 보기',
-    });
+    // 전이는 단일 착지점(services/taskTransition.js) 경유 — 이력·Focus·broadcast·알림 포함
+    const { cancelReview } = require('../services/taskTransition');
+    const result = await cancelReview({ task, actorUserId: req.user.id });
+    if (!result.ok) return errorResponse(res, result.reason, 400);
 
     return successResponse(res, task.toJSON());
   } catch (err) { next(err); }
@@ -420,13 +366,15 @@ router.post('/:id/reviewers/me/revision', authenticateToken, async (req, res, ne
     });
 
     // 사이클 N+27 — Cue 가 assignee 이고 cue_kind 있으면 revision_note 포함 자동 재실행
+    //   triggeredBy = 수정을 요청한 컨펌자 (감사 기록용). Cue 의 실행 권한은 여전히 업무 위임자 기준.
+    const reviewerUserId = req.user.id;
     try {
       const { Business } = require('../models');
       const biz = await Business.findByPk(task.business_id, { attributes: ['cue_user_id'] });
       if (biz?.cue_user_id && biz.cue_user_id === task.assignee_id && task.cue_kind) {
         const { executeForTask } = require('../services/cue_task_executor');
         setImmediate(() => {
-          executeForTask(task.id, { revisionNote: note }).then(r => {
+          executeForTask(task.id, { revisionNote: note, triggeredBy: reviewerUserId }).then(r => {
             console.log('[cue_task_executor revision]', task.id, r.ok ? 'ok' : `skip: ${r.reason}`);
           }).catch(e => console.error('[cue_task_executor revision crash]', e.message));
         });
@@ -493,10 +441,10 @@ router.post('/:id/revert-status', authenticateToken, async (req, res, next) => {
     }
     const prevStatus = task.status;
     const target = last.from_status;
-    if (['reviewing', 'revision_requested'].includes(target)) {
-      const revCount = await TaskReviewer.count({ where: { task_id: task.id } });
-      if (revCount === 0) return errorResponse(res, 'no_reviewers_assigned', 400);
-    }
+    // 검토 단계 진입 가드 — 규칙은 services/taskTransition.canEnterStatus 단일 원천 (사람·AI 공통)
+    const { canEnterStatus } = require('../services/taskTransition');
+    const gate = await canEnterStatus(task.id, target);
+    if (!gate.ok) return errorResponse(res, gate.reason, 400);
 
     const t = await sequelize.transaction();
     try {

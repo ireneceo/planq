@@ -173,6 +173,10 @@ async function hybridSearch(businessId, query, opts = {}) {
   const ctxProjectId = opts.project_id || null;
   const ctxClientId = opts.client_id || null;
   const ctxCategory = opts.category || null;
+  // 권한 필터 (P0 에이전트 권한 모델) — 호출자가 access_scope.kbDocumentsListWhereByLevel(scope) 를
+  //   넘기면 "그 사람이 볼 수 있는 KbDocument" 로만 검색을 좁힌다. 아래 scope 가중(OR)과 AND 로 결합.
+  //   Cue 처럼 사람 대신 검색하는 경로가 워크스페이스 전체를 긁는 것을 차단.
+  const permDocWhere = opts.docWhere || null;
   const queryEmbedding = await embedText(query);
 
   // ─── Pinned FAQ ───
@@ -221,6 +225,9 @@ async function hybridSearch(businessId, query, opts = {}) {
   if (ctxClientId) scopeOr.push({ scope: 'client', client_id: ctxClientId });
   docWhere[Op.or] = scopeOr;
 
+  // 권한 필터가 있으면 AND 결합 (두 개의 Op.or 이 한 객체에서 충돌하지 않게 감싼다)
+  const effectiveDocWhere = permDocWhere ? { [Op.and]: [docWhere, permDocWhere] } : docWhere;
+
   const chunks = await KbChunk.findAll({
     where: chunkWhere,
     limit: 200,
@@ -228,7 +235,7 @@ async function hybridSearch(businessId, query, opts = {}) {
     include: [{
       model: KbDocument,
       attributes: ['title', 'id', 'category', 'scope', 'project_id', 'client_id'],
-      where: docWhere,
+      where: effectiveDocWhere,
       required: true,
     }]
   });
