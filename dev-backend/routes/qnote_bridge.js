@@ -86,6 +86,8 @@ router.post('/:businessId/qnote-sessions/:sid/task-candidates/:cid/register',
       broadcast(req, businessId, 'inbox:refresh', { reason: 'qnote_bridge', task_id: out.task.id });
       return successResponse(res, out, 'registered', 201);
     } catch (err) {
+      // 담당자 배정 게이트 (D2-b #66) — 사람이 쓰는 POST /api/tasks 와 같은 403 코드
+      if (/^cannot_assign:/.test(err.message)) return errorResponse(res, err.message, 403);
       if (/candidate_(not_found|already_resolved|business_unresolved)/.test(err.message)) return errorResponse(res, err.message, 400);
       next(err);
     }

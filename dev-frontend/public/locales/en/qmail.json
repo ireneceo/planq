@@ -133,7 +133,10 @@
     "teamMemberHintTail": ".",
     "fieldAppPassword": "App password",
     "appPasswordRequired": "Enter the app password",
-    "appPasswordPh": "Not your account password — the generated app password"
+    "appPasswordPh": "Not your account password — the generated app password",
+    "fieldFromName": "Sender name",
+    "fromNamePh": "e.g. PlanQ · Customer Support",
+    "fromNameHint": "This is the name recipients see in their inbox. Leave empty to show the address only."
   },
   "folders": {
     "title": "Mailboxes",
@@ -208,7 +211,7 @@
       "invoice": "Invoice"
     },
     "tasksTitle": "Task candidates",
-    "extract": "✨ Extract tasks",
+    "extract": "Extract tasks",
     "extracting": "Extracting…",
     "tasksHint": "Automatically pull action items from the email into Q Task.",
     "tasksGated": "Tasks aren't extracted from automated · marketing mail.",

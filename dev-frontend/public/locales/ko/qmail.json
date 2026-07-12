@@ -133,7 +133,10 @@
     "teamMemberHintTail": " 에서 연결하세요.",
     "fieldAppPassword": "앱 비밀번호",
     "appPasswordRequired": "앱 비밀번호를 입력하세요",
-    "appPasswordPh": "계정 비밀번호가 아닌, 발급받은 앱 비밀번호"
+    "appPasswordPh": "계정 비밀번호가 아닌, 발급받은 앱 비밀번호",
+    "fieldFromName": "발신 이름",
+    "fromNamePh": "예: PlanQ · 회사 고객지원",
+    "fromNameHint": "받는 사람 메일함에 이 이름으로 표시돼요. 비우면 메일 주소만 보입니다."
   },
   "folders": {
     "title": "메일함",
@@ -208,7 +211,7 @@
       "invoice": "청구"
     },
     "tasksTitle": "업무 후보",
-    "extract": "✨ 업무 추출",
+    "extract": "업무 추출",
     "extracting": "추출 중…",
     "tasksHint": "메일 본문에서 할 일을 자동으로 뽑아 Q Task로 등록해요.",
     "tasksGated": "자동·마케팅 메일에서는 업무를 추출하지 않아요.",

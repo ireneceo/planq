@@ -1892,9 +1892,13 @@ router.get('/extracted-candidates', authenticateToken, async (req, res, next) =>
   try {
     const businessId = Number(req.query.business_id);
     if (!Number.isFinite(businessId)) return errorResponse(res, 'business_id required', 400);
-    if (!(await assertBusinessAccess(req.user.id, businessId, req.user.platform_role))) {
-      return errorResponse(res, 'forbidden', 403);
-    }
+    // 🔒 업무 후보는 내부 자산 — 외부 고객(client) 차단.
+    //   assertBusinessAccess 는 client 도 통과시키는데(자기 task 조회용) 이 라우트는 그 뒤로
+    //   클라이언트 스코핑이 전혀 없어, 고객이 참여하지도 않은 내부 대화의 후보(제목·설명·담당자 실명)를
+    //   그대로 받아갔다. 형제 라우트(projects.js:2098)는 이미 client 403 — 여기만 누락돼 있었다.
+    const { getUserScope: getScope, isMemberOrAbove } = require('../middleware/access_scope');
+    const candScope = await getScope(req.user.id, businessId, req.user.platform_role);
+    if (!isMemberOrAbove(candScope)) return errorResponse(res, 'forbidden', 403);
     const { TaskCandidate, Project: ProjectModel } = require('../models');
     const projs = await ProjectModel.findAll({ where: { business_id: businessId }, attributes: ['id', 'name'] });
     const projIds = projs.map(p => p.id);
