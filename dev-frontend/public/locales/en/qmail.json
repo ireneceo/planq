@@ -262,5 +262,36 @@
     "title": "Start from your inbox",
     "line1": "Enquiries, quote requests, contract replies — half of every conversation starts in email.",
     "line2": "Pick a message from the list on the left, or write a new one."
+  },
+  "rules": {
+    "title": "Mail sorting rules",
+    "desc": "When you mark the same sender \"Replied\" twice, PlanQ learns to keep them out of \"Needs reply\". Every learned rule is listed below with the reason, and you can delete any of them — deleting a rule restores the original behaviour. No email is ever deleted.",
+    "add": "Add rule",
+    "delete": "Delete",
+    "placeholder": "noreply@company.com or company.com",
+    "addFailed": "Check the address or domain format (e.g. noreply@company.com or company.com)",
+    "hits": "applied {{n}} times",
+    "verdict": {
+      "no_reply": "No reply needed",
+      "always_reply": "Always needs reply",
+      "marketing": "Marketing",
+      "spam": "Spam"
+    },
+    "kind": {
+      "address": "This address only",
+      "domain": "Whole domain"
+    },
+    "evidence": {
+      "manual": "Added manually",
+      "dismiss": "Learned after you marked it replied {{n}} times",
+      "spam": "Learned after you marked it spam {{n}} times",
+      "domain": "Promoted to the whole domain after several addresses were learned as no-reply"
+    },
+    "empty": {
+      "title": "No rules learned yet",
+      "body": "Mark the same sender \"Replied\" twice and a rule is created automatically. You can also add one yourself."
+    },
+    "applied": "Sorted by a rule",
+    "appliedHint": "You can review and delete this rule in Settings → Mail accounts → Mail sorting rules"
   }
 }

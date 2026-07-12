@@ -119,3 +119,43 @@ export const MAIL_PRESETS: MailPreset[] = [
   { key: 'icloud', label: 'iCloud', imap_host: 'imap.mail.me.com', imap_port: 993, smtp_host: 'smtp.mail.me.com', smtp_port: 587, hint: 'icloudHint' },
   { key: 'custom', label: 'Custom (직접 입력)', imap_host: '', imap_port: 993, smtp_host: '', smtp_port: 587 },
 ];
+
+// ─── 메일 발신자 분류 규칙 (학습형) ───
+//   투명성: 사용자가 학습된 규칙과 그 근거를 보고 지울 수 있어야 한다.
+export interface MailSenderRule {
+  id: number;
+  pattern: string;
+  pattern_type: 'address' | 'domain';
+  verdict: 'no_reply' | 'always_reply' | 'marketing' | 'spam';
+  source: 'learned' | 'manual';
+  evidence: { signal?: string; subjects?: string[]; addresses?: string[]; learned_at?: string } | null;
+  hit_count: number;
+  last_hit_at: string | null;
+  created_at: string;
+}
+
+export async function listMailRules(businessId: number): Promise<MailSenderRule[]> {
+  const r = await apiFetch(`/api/businesses/${businessId}/mail-rules`);
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'failed');
+  return j.data as MailSenderRule[];
+}
+
+export async function addMailRule(
+  businessId: number, pattern: string, verdict: MailSenderRule['verdict'],
+): Promise<MailSenderRule> {
+  const r = await apiFetch(`/api/businesses/${businessId}/mail-rules`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pattern, verdict }),
+  });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'failed');
+  return j.data as MailSenderRule;
+}
+
+export async function deleteMailRule(businessId: number, ruleId: number): Promise<void> {
+  const r = await apiFetch(`/api/businesses/${businessId}/mail-rules/${ruleId}`, { method: 'DELETE' });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'failed');
+}

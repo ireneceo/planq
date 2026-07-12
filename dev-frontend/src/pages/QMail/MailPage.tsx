@@ -54,6 +54,7 @@ interface Thread {
   status: string;
   reply_needed: boolean;
   reply_needed_at?: string | null;
+  rule_id?: number | null;        // 학습 규칙으로 분류된 스레드 (몰래 걸러지지 않도록 화면에 표시)
   is_starred: boolean;
   unread_count: number;
   message_count: number;
@@ -925,6 +926,13 @@ const MailPage: React.FC = () => {
                       ⚠ {t(`uncertain.${mt.uncertain_reason || 'review'}`, { defaultValue: t('uncertain.review', { defaultValue: '검토 권장' }) }) as string}
                     </UncertainBadge>
                   )}
+                  {/* 학습된 규칙으로 자동 분류된 메일임을 밝힌다 — 사용자 모르게 걸러지면 안 된다.
+                      규칙은 설정 > 메일 계정 > 메일 분류 규칙에서 확인·삭제할 수 있다. */}
+                  {mt.rule_id && (
+                    <RuleBadge title={t('rules.appliedHint', { defaultValue: '설정에서 이 규칙을 확인하고 지울 수 있습니다' }) as string}>
+                      {t('rules.applied', { defaultValue: '규칙으로 자동 분류됨' })}
+                    </RuleBadge>
+                  )}
                   {/* 답변 필요 폴더 — 오래 방치된 문의를 눈에 띄게 하고, 밖(Gmail 등)에서 이미 답장한
                       메일을 사람이 직접 끌 수 있게 한다. 안 그러면 플래그가 영영 안 꺼져 지표가 죽는다. */}
                   {folder === 'reply_needed' && (
@@ -1548,6 +1556,11 @@ const DismissBtn = styled.button`
   padding: 2px 8px; cursor: pointer;
   &:hover:not(:disabled) { border-color: #14B8A6; color: #0F766E; background: #F0FDFA; }
   &:disabled { opacity: 0.5; cursor: wait; }
+`;
+const RuleBadge = styled.span`
+  display: inline-flex; align-items: center; align-self: flex-start;
+  margin-top: 4px; padding: 2px 8px; border-radius: 999px;
+  background: #F1F5F9; color: #64748B; font-size: 11px; font-weight: 600;
 `;
 const UncertainBadge = styled.span`
   display: inline-flex; align-items: center; gap: 3px; align-self: flex-start;

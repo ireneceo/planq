@@ -204,6 +204,7 @@ router.get('/:businessId/email-threads',
           reply_needed: obj.reply_needed,
           reply_needed_at: obj.reply_needed_at,
           reply_needed_reason: obj.reply_needed_reason,
+          rule_id: obj.rule_id || null,        // 학습 규칙으로 분류된 건지 (화면 표시)
           is_starred: obj.is_starred,
           unread_count: obj.unread_count || 0,
           message_count: obj.message_count || 0,
@@ -308,6 +309,7 @@ router.get('/:businessId/email-threads/:id',
         status: tj.status,
         reply_needed: tj.reply_needed,
         reply_needed_reason: tj.reply_needed_reason,
+        rule_id: tj.rule_id || null,
         uncertain_reason: tj.uncertain_reason,
         spam_score: tj.spam_score,
         triage: tj.triage,
@@ -1264,91 +1266,6 @@ router.delete('/:businessId/email-threads/:id/notes/:noteId',
       if (note.author_user_id !== req.user.id) return errorResponse(res, 'only_author', 403);
       await note.destroy();
       return successResponse(res, { id: note.id, deleted: true });
-    } catch (err) { next(err); }
-  }
-);
-
-// ─────────────────────────────────────────────
-// 메일 발신자 분류 규칙 (학습형) — 투명성 화면용
-//
-//   GET    /:businessId/mail-rules          목록 (근거 포함)
-//   POST   /:businessId/mail-rules          수동 추가
-//   DELETE /:businessId/mail-rules/:ruleId  삭제 → 그 발신자 분류 즉시 원상복구
-//
-// 원칙: 사용자가 모르는 사이 메일이 사라지면 안 된다. 규칙은 항상 보이고 지울 수 있어야 한다.
-// ─────────────────────────────────────────────
-router.get('/:businessId/mail-rules',
-  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
-  async (req, res, next) => {
-    try {
-      const businessId = Number(req.params.businessId);
-      const { limit, page, offset } = parsePagination(req, { defaultLimit: 100, maxLimit: 300 });
-      const { MailSenderRule } = require('../models');
-      const { rows, count } = await MailSenderRule.findAndCountAll({
-        where: { business_id: businessId },
-        order: [['created_at', 'DESC']],
-        limit, offset,
-      });
-      return paginatedResponse(res, rows.map((r) => r.toJSON()), count, { limit, page, offset });
-    } catch (err) { next(err); }
-  }
-);
-
-router.post('/:businessId/mail-rules',
-  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
-  async (req, res, next) => {
-    try {
-      const businessId = Number(req.params.businessId);
-      const rules = require('../services/mailSenderRules');
-      const { MailSenderRule } = require('../models');
-
-      const raw = String(req.body?.pattern || '').trim().toLowerCase();
-      const verdict = String(req.body?.verdict || '');
-      if (!['no_reply', 'always_reply', 'marketing', 'spam'].includes(verdict)) {
-        return errorResponse(res, 'invalid_verdict', 400);
-      }
-      // 주소 또는 도메인
-      const addr = rules.normalizeEmail(raw);
-      const isDomain = !addr && /^[^@\s]+\.[^@\s]+$/.test(raw);
-      if (!addr && !isDomain) return errorResponse(res, 'invalid_pattern', 400);
-
-      const [rule, created] = await MailSenderRule.findOrCreate({
-        where: { business_id: businessId, pattern: addr || raw },
-        defaults: {
-          business_id: businessId,
-          pattern: addr || raw,
-          pattern_type: addr ? 'address' : 'domain',
-          verdict,
-          source: 'manual',
-          created_by: req.user.id,
-          evidence: { signal: 'manual', added_at: new Date().toISOString() },
-        },
-      });
-      if (!created && rule.verdict !== verdict) await rule.update({ verdict, source: 'manual' });
-      return successResponse(res, rule.toJSON(), created ? '규칙을 추가했습니다' : '규칙을 갱신했습니다');
-    } catch (err) { next(err); }
-  }
-);
-
-router.delete('/:businessId/mail-rules/:ruleId',
-  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
-  async (req, res, next) => {
-    try {
-      const businessId = Number(req.params.businessId);
-      const { MailSenderRule, EmailThread } = require('../models');
-      const rule = await MailSenderRule.findOne({
-        where: { id: req.params.ruleId, business_id: businessId },
-      });
-      if (!rule) return errorResponse(res, 'rule_not_found', 404);
-
-      // 이 규칙으로 분류됐던 스레드의 표시를 원복 (원본 메일은 애초에 건드리지 않았다)
-      const [restored] = await EmailThread.update(
-        { rule_id: null },
-        { where: { business_id: businessId, rule_id: rule.id } }
-      );
-      await rule.destroy();
-      broadcastMail(req, businessId, 'mail:updated', { rule_deleted: Number(req.params.ruleId) });
-      return successResponse(res, { deleted: true, restored: restored || 0 }, '규칙을 삭제했습니다');
     } catch (err) { next(err); }
   }
 );

@@ -341,6 +341,7 @@ app.use('/api/businesses', require('./routes/cue_knowledge'));
 app.use('/api/businesses', require('./routes/email_accounts'));
 // N+75-D — Q Mail M2 인박스 read-only API (email_threads list/detail/mark-read/mark-spam)
 app.use('/api/businesses', require('./routes/email_threads'));
+app.use('/api/businesses', require('./routes/mail_rules'));   // 메일 발신자 분류 규칙(학습형)
 // N+88 — Q Note ↔ Q Task 브릿지 (cross-DB 업무 추출/등록)
 app.use('/api/businesses', require('./routes/qnote_bridge'));
 // OAuth 로그인 (Google / Microsoft)
