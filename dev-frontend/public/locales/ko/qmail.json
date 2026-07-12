@@ -142,7 +142,9 @@
     "marketing": "자동·마케팅",
     "uncertain": "확인 권장",
     "spam": "스팸",
-    "archived": "보관"
+    "archived": "보관",
+    "assigned": "내 담당",
+    "following": "팔로우"
   },
   "uncertain": {
     "billing": "청구/결제 관련",
@@ -181,7 +183,8 @@
     "shortcut": "⌘/Ctrl + Enter 로 보내기",
     "emptyBody": "내용을 입력해 주세요",
     "uploadFailed": "첨부 업로드 실패",
-    "sendFailed": "발송 실패"
+    "sendFailed": "발송 실패",
+    "aiDraft": "✨ Cue 답변 초안"
   },
   "errors": {
     "loadList": "인박스 로딩 실패"
@@ -228,13 +231,15 @@
     "visPersonal": "나만",
     "noteVisMe": "🔒 나만 보임",
     "noteVisTeam": "👥 팀 공유",
-    "collapse": "패널 접기",
+    "collapse": "맥락 패널 접기",
     "expand": "맥락 패널 펼치기"
   },
   "accounts": {
     "all": "전체",
     "manage": "계정 관리",
-    "manageTitle": "메일 계정 추가·설정"
+    "manageTitle": "메일 계정 추가·설정",
+    "personal": "개인",
+    "team": "회사"
   },
   "noAccount": {
     "title": "아직 연결된 메일 계정이 없어요",
@@ -246,6 +251,11 @@
   },
   "sidebar": {
     "collapse": "목록 접기",
-    "expand": "목록 펼치기"
+    "expand": "목록 열기"
+  },
+  "empty": {
+    "title": "메일에서 시작해 보세요",
+    "line1": "고객 문의 · 견적 요청 · 계약 회신 — 대화의 절반은 메일에서 옵니다.",
+    "line2": "왼쪽 목록에서 메일을 선택하거나, 새 메일을 보내보세요."
   }
 }

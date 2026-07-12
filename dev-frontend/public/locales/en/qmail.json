@@ -142,7 +142,9 @@
     "marketing": "Automated · Marketing",
     "uncertain": "Review suggested",
     "spam": "Spam",
-    "archived": "Archived"
+    "archived": "Archived",
+    "assigned": "Assigned to me",
+    "following": "Following"
   },
   "uncertain": {
     "billing": "Billing/payment",
@@ -181,7 +183,8 @@
     "shortcut": "⌘/Ctrl + Enter to send",
     "emptyBody": "Please enter a message",
     "uploadFailed": "Attachment upload failed",
-    "sendFailed": "Send failed"
+    "sendFailed": "Send failed",
+    "aiDraft": "✨ Cue draft reply"
   },
   "errors": {
     "loadList": "Failed to load inbox"
@@ -228,13 +231,15 @@
     "visPersonal": "Private",
     "noteVisMe": "🔒 Only me",
     "noteVisTeam": "👥 Team",
-    "collapse": "Collapse panel",
+    "collapse": "Collapse context panel",
     "expand": "Expand context panel"
   },
   "accounts": {
     "all": "All",
     "manage": "Manage accounts",
-    "manageTitle": "Add / configure mail accounts"
+    "manageTitle": "Add / configure mail accounts",
+    "personal": "Personal",
+    "team": "Company"
   },
   "noAccount": {
     "title": "No mail account connected yet",
@@ -246,6 +251,11 @@
   },
   "sidebar": {
     "collapse": "Collapse list",
-    "expand": "Expand list"
+    "expand": "Open list"
+  },
+  "empty": {
+    "title": "Start from your inbox",
+    "line1": "Enquiries, quote requests, contract replies — half of every conversation starts in email.",
+    "line2": "Pick a message from the list on the left, or write a new one."
   }
 }
