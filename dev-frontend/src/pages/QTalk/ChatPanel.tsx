@@ -1597,7 +1597,9 @@ const ChatPanel: React.FC<Props> = ({
                   </DocCardArrow>
                 </DocCard>
               ) : (
-                m.body && m.body.trim() && (() => {
+                // 초안(cue_draft)은 말풍선 본문으로 보여주지 않는다 — 아직 고객에게 보내지 않았는데
+                // 보낸 것처럼 보이면 안 된다. 본문은 아래 승인 카드 안에서 보여준다.
+                m.body && m.body.trim() && !m.cue_draft && (() => {
                   // 번역 표시 — robust fallback:
                   // 1) detected_language 가 있으면 그것 외 키
                   // 2) 없으면 m.body 와 다른 첫 번째 번역
@@ -1696,8 +1698,8 @@ const ChatPanel: React.FC<Props> = ({
                 </SourceBox>
               )}
 
-              {/* Cue 답변 평가 — 사이클 N+27 Phase 5-4 */}
-              {!isDeleted && m.is_ai && (
+              {/* Cue 답변 평가 — 아직 보내지 않은 초안엔 평가할 게 없다 */}
+              {!isDeleted && m.is_ai && !m.cue_draft && (
                 <CueRatingRow>
                   <CueRatingLabel>{t('chat.cueRating.label', '이 답변 어땠나요?')}</CueRatingLabel>
                   <CueRatingBtn
@@ -1734,8 +1736,10 @@ const ChatPanel: React.FC<Props> = ({
                 </CueRatingRow>
               )}
 
-              {/* 질문 아래 Cue 답변 대기 카드 (담당자만) */}
-              {!isDeleted && m.is_question && m.cue_draft && !isClient && (
+              {/* Cue 답변 대기 카드 (담당자만) — 초안 메시지 자신에게 붙인다.
+                  여태 조건이 m.is_question && m.cue_draft 였는데, is_question 은 사람이 보낸 메시지에만
+                  붙는 값이라(!is_ai) 카드가 뜰 수 없었다 → 초안이 그냥 보낸 말풍선처럼 보였다. */}
+              {!isDeleted && m.cue_draft && !isClient && (
                 <CueDraftCard $locked={!!m.cue_draft.processing_by}>
                   <DraftHeader>
                     <DraftLabel>
