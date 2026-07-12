@@ -94,16 +94,31 @@ function formatRelativeTime(iso: string | null | undefined, t: ReturnType<typeof
 /* ─────────────────────────────────────────────
    Component
    ──────────────────────────────────────────── */
+// 카테고리 그룹 — "전체" 탭에서 무엇에 대한 일인지 먼저 보이게 한다 (업무·메일·서명·청구).
+const CATEGORY_OF: Record<string, string> = {
+  task: 'work', event: 'work', invite: 'work', mention: 'work', task_candidate: 'work',
+  email: 'mail',
+  signature: 'signature',
+  invoice: 'billing', invoice_draft: 'billing', payment_notify: 'billing',
+  tax_invoice: 'billing', planq_subscription: 'billing',
+};
+const CATEGORY_LIST = ['work', 'mail', 'signature', 'billing'] as const;
+const PRIORITY_RANK: Record<string, number> = { urgent: 0, today: 1, waiting: 2, week: 3 };
+
 interface Props {
   items: TodoItem[];
   loading?: boolean;
+  /** 'priority' = 긴급·오늘… (기본) · 'category' = 업무·메일·서명·청구 */
+  groupBy?: 'priority' | 'category';
+  /** 페이지가 이미 같은 제목을 달고 있으면 리스트 헤더는 중복 → 숨긴다 */
+  hideHeader?: boolean;
   onOpenDrawer?: (item: TodoItem) => void;
   onInviteAction?: (item: TodoItem, action: 'accept' | 'decline') => void;
   // 인박스 task_candidate 카드 클릭 시 inline 모달 (사이클 N+26)
   onOpenCandidate?: (item: TodoItem) => void;
 }
 
-const TodoList: React.FC<Props> = ({ items, loading, onOpenDrawer, onInviteAction, onOpenCandidate }) => {
+const TodoList: React.FC<Props> = ({ items, loading, groupBy = 'priority', hideHeader, onOpenDrawer, onInviteAction, onOpenCandidate }) => {
   const { t } = useTranslation('dashboard');
   const navigate = useNavigate();
   const fmt = useTimeFormat();
@@ -158,33 +173,55 @@ const TodoList: React.FC<Props> = ({ items, loading, onOpenDrawer, onInviteActio
     }
   };
 
+  // 섹션 = 우선순위(기본) 또는 카테고리(전체 탭). 카테고리 안에서는 긴급한 것부터.
+  const sections = groupBy === 'category'
+    ? CATEGORY_LIST.map((cat) => ({
+        key: cat,
+        label: t(`todo.tab.${cat}`, { work: '업무', mail: '메일', signature: '서명', billing: '청구' }[cat]) as string,
+        hint: '',
+        color: PRIORITY_COLOR.week,
+        list: items
+          .filter((it) => CATEGORY_OF[it.type] === cat)
+          .slice()
+          .sort((a, b) => (PRIORITY_RANK[a.priority] ?? 9) - (PRIORITY_RANK[b.priority] ?? 9)),
+      }))
+    : PRIORITY_LIST.map((pri) => ({
+        key: pri,
+        label: t(`todo.priority.${pri}`) as string,
+        hint: t(`todo.priorityHint.${pri}`) as string,
+        color: PRIORITY_COLOR[pri],
+        list: groups[pri],
+      }));
+
   return (
     <Shell>
-      <Header>
-        <Title>{t('todo.title')}</Title>
-        <Count>{t('todo.count', { count: items.length })}</Count>
-      </Header>
+      {!hideHeader && (
+        <Header>
+          <Title>{t('todo.title')}</Title>
+          <Count>{t('todo.count', { count: items.length })}</Count>
+        </Header>
+      )}
 
-      {PRIORITY_LIST.map(pri => {
-        const list = groups[pri];
+      {sections.map(sec => {
+        const list = sec.list;
         if (list.length === 0) return null;
-        const color = PRIORITY_COLOR[pri];
+        const color = sec.color;
         return (
-          <Section key={pri}>
+          <Section key={sec.key}>
             <SectionHead>
               <Dot style={{ background: color.dot }} />
               <SectionLabel style={{ color: color.label }}>
-                {t(`todo.priority.${pri}`)}
+                {sec.label}
               </SectionLabel>
               <SectionCount>{list.length}</SectionCount>
-              <SectionHint>{t(`todo.priorityHint.${pri}`)}</SectionHint>
+              {sec.hint && <SectionHint>{sec.hint}</SectionHint>}
             </SectionHead>
 
             <Cards>
               {list.map(it => (
                 <Card
                   key={it.id}
-                  $urgent={pri === 'urgent'}
+                  $urgent={it.priority === 'urgent'}
                   onClick={() => handleClick(it)}
                   role="button"
                   tabIndex={0}
@@ -199,7 +236,7 @@ const TodoList: React.FC<Props> = ({ items, loading, onOpenDrawer, onInviteActio
                       <Subject>{it.subject}</Subject>
                     </CardLine1>
                     <CardLine2>
-                      {it.dueAt && <DueBadge $priority={pri}>{formatDue(it, t, fmt)}</DueBadge>}
+                      {it.dueAt && <DueBadge $priority={it.priority}>{formatDue(it, t, fmt)}</DueBadge>}
                       {it.createdAt && <CreatedChip title={new Date(it.createdAt).toLocaleString()}>{formatRelativeTime(it.createdAt, t)}</CreatedChip>}
                       {it.context && <CtxText>{it.context}</CtxText>}
                       {it.workspace && <WsChip $role={it.workspace.role}>{it.workspace.brand_name}</WsChip>}

@@ -129,8 +129,10 @@ function apiConversationToMock(c: qtalkApi.ApiConversation): MockConversation {
 }
 
 function apiMessageToMock(m: qtalkApi.ApiMessage): MockMessage {
-  // Cue AI 메시지 + draft 미승인 → cue_draft 카드 표시
-  const isDraft = m.is_ai && m.ai_draft_approved === null;
+  // Cue AI 메시지 + draft 미승인 → cue_draft 카드 표시.
+  // 백엔드와 같은 정의를 쓴다 (routes/conversations.js: is_ai && ai_mode_used='draft' && approved!==true).
+  // auto 모드로 이미 발송된 Cue 답변은 approved=true 라 여기 걸리지 않는다.
+  const isDraft = m.is_ai && m.ai_mode_used === 'draft' && m.ai_draft_approved === null;
   const isRejectedDraft = m.is_ai && m.ai_draft_approved === false;
 
   // 다국어 이름 — viewer 의 i18n 언어 기준 (사이클 F)

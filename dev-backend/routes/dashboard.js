@@ -749,6 +749,69 @@ async function collectRecurringDrafts(businessId, userRole) {
      past_due : "PlanQ Pro 결제 기한 지남" (urgent — 즉시 액션)
      grace    : "PlanQ Pro 유예 기간 X일 남음" (urgent — 곧 강등)
    ──────────────────────────────────────────── */
+// 답변 필요 메일 — 확인 필요 인박스에 포함한다.
+//   채팅과 달리 메일은 "답장하면 끝" 인 1회성 액션이고, 누가 답장하거나 "답변 완료" 로 넘기면
+//   reply_needed 가 꺼져 모두의 목록에서 동시에 사라진다 (공유 큐지만 처리하면 정리되는 큐).
+//   담당자가 지정된 스레드는 그 사람 것만 — 나머지에게는 노이즈다.
+async function collectMails(businessId, userId) {
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  const { EmailThread, EmailAccount, EmailThreadParticipant } = require('../models');
+  const accs = await EmailAccount.findAll({
+    where: {
+      business_id: businessId,
+      is_active: true,
+      [Op.or]: [{ owner_user_id: null }, { owner_user_id: userId }],  // 남의 개인 메일함은 제외
+    },
+    attributes: ['id', 'email'],
+  });
+  if (!accs.length) return [];
+  const accMap = Object.fromEntries(accs.map(a => [a.id, a.email]));
+
+  const threads = await EmailThread.findAll({
+    where: {
+      account_id: { [Op.in]: accs.map(a => a.id) },
+      reply_needed: true,
+      status: { [Op.in]: ['open', 'uncertain'] },
+    },
+    order: [['reply_needed_at', 'ASC']],
+    limit: 30,   // 오래 기다린 것부터. 전부 쏟아내면 인박스가 메일로 덮인다
+  });
+  if (!threads.length) return [];
+
+  // 담당자 지정된 스레드는 담당자에게만 — 지정 안 된 건 접근 가능한 모두에게 (공유 큐)
+  const assigned = await EmailThreadParticipant.findAll({
+    where: { thread_id: { [Op.in]: threads.map(t => t.id) }, is_assigned: true },
+    attributes: ['thread_id', 'user_id'],
+  });
+  const assigneeMap = new Map();
+  assigned.forEach(a => { assigneeMap.set(a.thread_id, a.user_id); });
+
+  const now = new Date();
+  const out = [];
+  for (const th of threads) {
+    const owner = assigneeMap.get(th.id);
+    if (owner && Number(owner) !== Number(userId)) continue;   // 남이 맡은 메일은 내 확인 필요가 아니다
+    const since = th.reply_needed_at ? new Date(th.reply_needed_at) : new Date(th.last_message_at || th.created_at);
+    const days = Math.floor((now.getTime() - since.getTime()) / oneDayMs);
+    // 메일은 업무·청구와 달리 마감이 없다 — 방치 기간으로만 급함을 판단한다.
+    // 3일 만에 긴급으로 올리면 메일함이 통째로 긴급이 되어 '긴급' 이라는 말이 죽는다.
+    const priority = days >= 7 ? 'urgent' : (days >= 3 ? 'today' : 'week');
+    out.push({
+      id: `mail-${th.id}`,
+      type: 'email',
+      priority,
+      verb: 'reply',
+      subject: th.subject || '(제목 없음)',
+      context: accMap[th.account_id] || null,
+      dueAt: null,
+      createdAt: safeToIso(th.last_message_at || th.createdAt),
+      actor: { name: th.from_name || th.from_email || null },
+      link: `/mail?thread=${th.id}`,
+    });
+  }
+  return out;
+}
+
 async function collectPlanqSubscription(businessId, userRole) {
   if (userRole !== 'owner') return [];  // owner 만 결제 영역 알림
   const { Subscription } = require('../models');
@@ -856,7 +919,7 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
     // 각 워크스페이스에서 collector 돌리고 항목마다 workspace 라벨 부착
     const allBuckets = await Promise.all(workspaces.map(async (w) => {
       const userRole = w.role === 'admin' ? 'admin' : w.role;
-      const [tasks, events, candidates, invoices, signatures, paymentNotifies, taxInvoices, planqSubs, recurringDrafts] = await Promise.all([
+      const [tasks, events, candidates, invoices, signatures, paymentNotifies, taxInvoices, planqSubs, recurringDrafts, mails] = await Promise.all([
         collectTasks(w.business_id, userId),
         collectEvents(w.business_id, userId),
         // N+30 — 사용자 정책: task_candidate 는 채팅 옆 (RightPanel) + 본인 전체 업무 옆 (QTaskPage 인박스) 만 노출.
@@ -869,8 +932,9 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
         collectTaxInvoices(w.business_id, userRole),
         collectPlanqSubscription(w.business_id, userRole),
         collectRecurringDrafts(w.business_id, userRole),
+        collectMails(w.business_id, userId),
       ]);
-      const items = [...tasks, ...events, ...candidates, ...invoices, ...signatures, ...paymentNotifies, ...taxInvoices, ...planqSubs, ...recurringDrafts];
+      const items = [...tasks, ...events, ...candidates, ...invoices, ...signatures, ...paymentNotifies, ...taxInvoices, ...planqSubs, ...recurringDrafts, ...mails];
       // 워크스페이스 라벨 부착
       for (const it of items) it.workspace = { business_id: w.business_id, brand_name: w.brand_name, role: w.role };
       return items;

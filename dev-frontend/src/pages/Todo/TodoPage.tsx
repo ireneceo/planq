@@ -22,14 +22,17 @@ interface MemberOpt { user_id: number; name: string; }
 
 // 인박스 탭 분류 — Q knowledge 패턴 (전체 / 업무 / 서명 / 청구).
 // "전체" 가 default 로 priority 그룹 통합 뷰 유지. 카테고리 탭은 좁히기 용도.
-type InboxTab = 'all' | 'work' | 'signature' | 'billing';
+type InboxTab = 'all' | 'work' | 'mail' | 'signature' | 'billing';
 const TYPE_TO_TAB: Record<string, Exclude<InboxTab, 'all'>> = {
-  task: 'work', event: 'work', invite: 'work', mention: 'work', email: 'work', task_candidate: 'work',
+  task: 'work', event: 'work', invite: 'work', mention: 'work', task_candidate: 'work',
+  // 메일은 별도 탭 — 채팅과 달리 "답장하면 끝" 인 1회성 액션이라 확인 필요에 들어온다
+  email: 'mail',
   signature: 'signature',
   invoice: 'billing', payment_notify: 'billing', tax_invoice: 'billing',
+  invoice_draft: 'billing',
   planq_subscription: 'billing',  // PlanQ 구독 청구 (owner 가 받는 플랫폼 청구)
 };
-const TAB_LIST: InboxTab[] = ['all', 'work', 'signature', 'billing'];
+const TAB_LIST: InboxTab[] = ['all', 'work', 'mail', 'signature', 'billing'];
 
 const TodoPage: React.FC = () => {
   const { t } = useTranslation('dashboard');
@@ -259,7 +262,7 @@ const TodoPage: React.FC = () => {
       {/* 카테고리 탭 — 전체 default + 업무·서명·청구 카운트 분리 */}
       {(() => {
         const items = data?.items || [];
-        const counts: Record<InboxTab, number> = { all: items.length, work: 0, signature: 0, billing: 0 };
+        const counts: Record<InboxTab, number> = { all: items.length, work: 0, mail: 0, signature: 0, billing: 0 };
         items.forEach((it) => {
           const grp = TYPE_TO_TAB[it.type];
           if (grp) counts[grp] += 1;
@@ -274,7 +277,7 @@ const TodoPage: React.FC = () => {
                 <TabBtn key={tab} role="tab" type="button" aria-selected={activeTab === tab}
                   $active={activeTab === tab} onClick={() => setActiveTab(tab)}>
                   <span>{t(`todo.tab.${tab}`, {
-                    all: '전체', work: '업무', signature: '서명', billing: '청구',
+                    all: '전체', work: '업무', mail: '메일', signature: '서명', billing: '청구',
                   }[tab])}</span>
                   {counts[tab] > 0 && <Count $active={activeTab === tab}>{counts[tab]}</Count>}
                 </TabBtn>
@@ -295,6 +298,10 @@ const TodoPage: React.FC = () => {
               ? <div style={{ padding: 20, color: '#B91C1C' }}>{err}</div>
               : <TodoList
                   items={filtered}
+                  /* 전체 탭에서는 업무·메일·서명·청구로 묶어 보여준다 (무엇에 대한 일인지 먼저 보인다).
+                     한 카테고리만 보는 탭에서는 그 제목이 군더더기 → 우선순위(긴급·오늘…)로 묶는다. */
+                  groupBy={activeTab === 'all' ? 'category' : 'priority'}
+                  hideHeader
                   loading={loading}
                   onOpenDrawer={handleOpenDrawer}
                   onInviteAction={handleInviteAction}

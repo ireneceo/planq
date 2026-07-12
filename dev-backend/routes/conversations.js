@@ -56,10 +56,13 @@ router.get('/me/unread-total-all', authenticateToken, async (req, res, next) => 
       });
       const convIds = convs.map(c => c.id);
       if (convIds.length === 0) { byBiz[bizId] = 0; continue; }
+      // 안 읽음 = "내가 참여한 대화방의 새 메시지". 참여하지 않은 방(오너라서 보이기만 하는 방)까지
+      // LEFT JOIN 으로 세면 last_read_at 이 없어 그 방의 모든 과거 메시지가 안 읽음으로 잡힌다
+      // → 배지는 35 인데 채팅 리스트엔 표시가 없어 "어느 방을 봐야 하는지" 알 수 없었다. INNER JOIN 으로 고정.
       const [rows] = await sequelize.query(
         `SELECT COUNT(m.id) AS cnt
            FROM messages m
-           LEFT JOIN conversation_participants cp
+           INNER JOIN conversation_participants cp
              ON cp.conversation_id = m.conversation_id AND cp.user_id = :uid
           WHERE m.conversation_id IN (:cids)
             AND m.sender_id != :uid
@@ -117,7 +120,7 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
       const [rows] = await sequelize.query(
         `SELECT m.conversation_id AS cid, COUNT(m.id) AS cnt
            FROM messages m
-           LEFT JOIN conversation_participants cp
+           INNER JOIN conversation_participants cp
              ON cp.conversation_id = m.conversation_id AND cp.user_id = :uid
           WHERE m.conversation_id IN (:cids)
             AND m.sender_id != :uid

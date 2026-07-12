@@ -16,7 +16,7 @@
 //   - custom event 'planq:unread-changed' (legacy)
 //
 // businessId 인자는 호환성 유지용 (옛 호출처) — 실제 fetch 는 전 워크스페이스.
-import { useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { useAuth, apiFetch } from '../contexts/AuthContext';
 import { joinRoom, leaveRoom, onSocket } from '../services/socket';
 
@@ -134,20 +134,26 @@ function setupGlobalEvents(userId: string | number): () => void {
   };
 }
 
-// businessId 인자 — 옛 호출처 호환용 (실제 fetch 는 전 워크스페이스).
-//   active business 의 unread breakdown 이 필요하면 useUnreadByBusiness() 사용.
-export function useUnreadTotal(_businessId?: number | null): number {
-  const [count, setCount] = useState(currentState.total);
+// businessId 를 주면 그 워크스페이스의 안 읽음만, 안 주면 전 워크스페이스 합계.
+//   사이드바의 Q talk 배지는 반드시 businessId 를 준다 — 지금 보고 있는 워크스페이스의 채팅 리스트에
+//   표시가 하나도 없는데 배지만 39 이면 "어느 방을 봐야 하는지" 알 수 없다 (숫자와 화면이 어긋남).
+//   다른 워크스페이스의 안 읽음은 워크스페이스 전환 UI(useUnreadByBusiness)가 보여준다.
+export function useUnreadTotal(businessId?: number | null): number {
+  const pick = useCallback(
+    (s: AllResponse) => (businessId ? (s.by_business[businessId] ?? 0) : s.total),
+    [businessId],
+  );
+  const [count, setCount] = useState(() => pick(currentState));
   const { user } = useAuth();
   const cleanupRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!user) { setCount(0); return; }
-    const unsubscribe = subscribe(user.id, (s) => setCount(s.total));
+    const unsubscribe = subscribe(user.id, (s) => setCount(pick(s)));
     const cleanupEvents = setupGlobalEvents(user.id);
     cleanupRef.current = () => { unsubscribe(); cleanupEvents(); };
     return () => { cleanupRef.current?.(); cleanupRef.current = null; };
-  }, [user?.id]);
+  }, [user?.id, pick]);
 
   return count;
 }

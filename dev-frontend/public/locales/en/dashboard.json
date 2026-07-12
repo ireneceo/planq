@@ -42,7 +42,8 @@
       "all": "All",
       "work": "Work",
       "signature": "Signatures",
-      "billing": "Billing"
+      "billing": "Billing",
+      "mail": "Mail"
     },
     "emptyTitle": "Nothing to confirm",
     "emptySub": "See all tasks in Q Task",
