@@ -7,6 +7,7 @@ const ConversationParticipant = require('./ConversationParticipant');
 const Message = require('./Message');
 const MessageAttachment = require('./MessageAttachment');
 const MessageReaction = require('./MessageReaction');
+const MailSenderRule = require('./MailSenderRule');   // 메일 발신자 분류 규칙(학습)
 const Task = require('./Task');
 const File = require('./File');
 const Invoice = require('./Invoice');
@@ -211,6 +212,10 @@ Message.belongsTo(User, { as: 'sender', foreignKey: 'sender_id' });
 Message.belongsTo(Task, { foreignKey: 'task_id' });
 Conversation.hasMany(Message, { as: 'messages', foreignKey: 'conversation_id' });
 User.hasMany(Message, { as: 'messages', foreignKey: 'sender_id' });
+
+// MailSenderRule — 메일 발신자 분류 규칙 (워크스페이스 격리)
+MailSenderRule.belongsTo(Business, { foreignKey: 'business_id', onDelete: 'CASCADE' });
+Business.hasMany(MailSenderRule, { as: 'mailSenderRules', foreignKey: 'business_id' });
 
 // MessageReaction (#138) — 메시지 이모지 리액션
 MessageReaction.belongsTo(Message, { foreignKey: 'message_id', onDelete: 'CASCADE' });
@@ -461,6 +466,7 @@ ExportJob.belongsTo(Business, { as: 'targetBusiness', foreignKey: 'target_busine
 
 module.exports = {
   MessageReaction,
+  MailSenderRule,
   User,
   Business,
   BusinessMember,
