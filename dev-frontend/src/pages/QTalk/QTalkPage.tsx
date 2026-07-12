@@ -1439,7 +1439,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
   return (
     <PanelLayout $embedded={embedded}>
       {/* 좌측 리스트 접기/펼치기 — 우측과 동일하게 공통 핸들을 레이아웃 레벨에.
-          패널 안에 그리면 옆 패널(대화창)에 가려 클릭이 안 먹었다 (Irene 지적: "레이어가 가려버림"). */}
+          패널 안에 그리면 옆 패널(대화창)에 가려 클릭이 안 먹었다. */}
       <PanelEdgeHandle
         side="left"
         collapsed={leftCollapsed}

@@ -28,7 +28,7 @@ import MailContextPanel from './MailContextPanel';
 import PanelEdgeHandle from '../../components/Layout/PanelEdgeHandle';
 import EmptyState from '../../components/Common/EmptyState';
 
-type Folder = 'reply_needed' | 'inbox' | 'marketing' | 'uncertain' | 'assigned' | 'following' | 'spam' | 'archived';
+type Folder = 'reply_needed' | 'inbox' | 'marketing' | 'uncertain' | 'following' | 'spam' | 'archived';
 
 // 메일 계정 (회사 공용 / 개인) — 폴더트리 그룹 (외부 연동 Phase 3)
 interface MailAccount {
@@ -92,12 +92,13 @@ interface ThreadDetail extends Thread {
 interface MailLabel { name: string; color: string }
 interface MailMember { user_id: number; name: string }
 
+// 탭 순서 (Irene 확정 2026-07-12): 할 일 → 애매한 것 → 나머지.
+//   '내 담당' 제거 — 이름이 들어갔다는 이유로 따로 뺄 근거가 약하고, 그런 메일은 어차피 답변 필요다.
 const FOLDERS: Array<{ key: Folder; defaultLabel: string }> = [
   { key: 'reply_needed', defaultLabel: '답변 필요' },
-  { key: 'inbox', defaultLabel: '인박스' },
-  { key: 'marketing', defaultLabel: '자동·마케팅' },
   { key: 'uncertain', defaultLabel: '확인 권장' },
-  { key: 'assigned', defaultLabel: '내 담당' },
+  { key: 'inbox', defaultLabel: '처리 완료' },   // 답변 필요와 상호 배타 — 답변했거나 "답변 완료" 로 넘긴 사람 메일
+  { key: 'marketing', defaultLabel: '자동·마케팅' },
   { key: 'following', defaultLabel: '팔로우' },
   { key: 'spam', defaultLabel: '스팸' },
   { key: 'archived', defaultLabel: '보관' },
@@ -162,7 +163,7 @@ const MailPage: React.FC = () => {
     return () => window.removeEventListener('keydown', onKey);
   }, [toggleRightCollapsed]);
   const [folderCounts, setFolderCounts] = useState<Record<Folder, number>>({
-    reply_needed: 0, inbox: 0, marketing: 0, uncertain: 0, assigned: 0, following: 0, spam: 0, archived: 0,
+    reply_needed: 0, inbox: 0, marketing: 0, uncertain: 0, following: 0, spam: 0, archived: 0,
   });
   const [accounts, setAccounts] = useState<MailAccount[]>([]);
   const [labelMaster, setLabelMaster] = useState<MailLabel[]>([]);

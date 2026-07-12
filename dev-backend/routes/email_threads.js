@@ -83,8 +83,11 @@ function folderWhere(folder, userId) {
     case 'marketing': return { status: 'open', triage: { [Op.in]: ['automated', 'marketing'] } };
     case 'inbox':
     default:
-      // 인박스 = open 이면서 자동/마케팅 아닌 것 (human·unknown). uncertain·spam 은 별도 폴더.
-      return { status: 'open', triage: { [Op.notIn]: ['automated', 'marketing'] } };
+      // 인박스 = 사람이 보낸 열린 메일 중 **답변이 끝난 것** (답변했거나 "답변 완료" 로 넘긴 것).
+      //   여태는 reply_needed 조건이 없어서 '답변 필요' 와 완전히 같은 리스트가 나왔다
+      //   (사람 메일이 전부 미답변이면 두 탭 내용이 100% 겹침 — Irene 지적).
+      //   이제 두 탭은 상호 배타: 답변 필요(할 일) ↔ 인박스(처리 끝). uncertain·spam 은 별도 폴더.
+      return { status: 'open', reply_needed: false, triage: { [Op.notIn]: ['automated', 'marketing'] } };
   }
 }
 
