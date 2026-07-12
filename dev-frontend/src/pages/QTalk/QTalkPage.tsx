@@ -122,6 +122,9 @@ function apiConversationToMock(c: qtalkApi.ApiConversation): MockConversation {
     last_message_preview: preview,
     my_pinned_at: c.my_pinned_at || null,
     my_last_read_at: c.my_last_read_at || null,
+    client: c.Client
+      ? { id: c.Client.id, name: c.Client.display_name || c.Client.company_name || String(c.Client.id) }
+      : null,
   };
 }
 
