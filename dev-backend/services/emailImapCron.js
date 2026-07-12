@@ -241,7 +241,9 @@ async function syncOne(account, opts = {}) {
 
     for (const r of limited) {
       const uid = r.attributes.uid;
-      if (uid <= account.imap_last_uid) continue;
+      // 백필은 커서보다 오래된 메일을 일부러 가져오는 것 — 여기서 uid 로 걸러내면 전부 건너뛴다.
+      //   (첫 sync 가 커서를 UIDNEXT-1 로 세팅해 둔 상태라 과거 메일 uid 는 항상 커서보다 작다)
+      if (!isBackfill && uid <= account.imap_last_uid) continue;
       try {
         const fullBody = r.parts.find(p => p.which === '').body;
         const parsed = await simpleParser(fullBody);
