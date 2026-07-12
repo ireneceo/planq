@@ -29,7 +29,6 @@ import { useImageLightbox } from '../../components/Common/ImageLightbox';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import KbAiIngestModal from './KbAiIngestModal';
 import KbCsvIngestModal from './KbCsvIngestModal';
-import { SparkleIcon } from '../../components/Common/Icons';
 import {
   listKnowledge, fetchPersonalKb, createKnowledge, deleteKnowledge, updateKnowledge,
   uploadKnowledgeFile, updateKbSecurityLevel,
@@ -43,6 +42,7 @@ import { listProjects, listWorkspaceClients, type ApiProject, type WorkspaceClie
 import { fetchWorkspaceFiles, uploadMyFile, formatBytes, type ProjectFile } from '../../services/files';
 import { fetchPosts, type PostRow } from '../../services/posts';
 import VisibilityField, { serializeVisibility, parseVisibility, type VisibilityValue } from '../../components/Common/VisibilityField';
+import AiActionButton from '../../components/Common/AiActionButton';
 
 // N+64 — 옛 ENUM 6 (i18n cat.{key} 라벨 보유, fallback 표시용). 자유 카테고리는 string 그대로.
 const CATEGORIES: KbCategory[] = [...LEGACY_KB_CATEGORIES];
@@ -553,10 +553,11 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
             </svg>
             {t('page.exportCsv')}
           </CsvBtn>
-          <AiBtn type="button" onClick={() => setAiIngestOpen(true)} title={t('page.aiIngest') as string}>
-            <SparkleIcon size={14} />
-            {t('page.aiIngest')}
-          </AiBtn>
+          <AiActionButton
+            onClick={() => setAiIngestOpen(true)}
+            label={t('page.aiIngest') as string}
+            title={t('page.aiIngestHint', { defaultValue: 'AI 가 문서·링크에서 지식을 자동으로 정리해 추가합니다' }) as string}
+          />
           <NewBtn type="button" onClick={() => setModalOpen(true)}>{t('page.new')}</NewBtn>
         </>
       }
@@ -1840,18 +1841,6 @@ const CsvBtn = styled.button`
   @media (max-width: 640px) { height: 36px; font-size: 12px; padding: 0 10px; gap: 4px; }
 `;
 // AI 자동 추가 버튼 — 별 아이콘 + teal accent. Q docs NewDocumentModal "AI 로 시작" 패턴 카피.
-const AiBtn = styled.button`
-  display: inline-flex; align-items: center; gap: 6px;
-  height: 32px; padding: 0 12px;
-  background: #F0FDFA; color: #0F766E;
-  border: 1px solid #99F6E4; border-radius: 6px;
-  font-size: 13px; font-weight: 600; cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.15s;
-  svg { color: #14B8A6; }
-  &:hover { background: #CCFBF1; border-color: #14B8A6; }
-  @media (max-width: 640px) { height: 36px; font-size: 12px; padding: 0 10px; gap: 4px; }
-`;
 const CsvUploadBtn = styled.button`
   display: inline-flex; align-items: center; gap: 6px;
   height: 32px; padding: 0 12px;

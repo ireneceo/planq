@@ -28,6 +28,7 @@ import MailContextPanel from './MailContextPanel';
 import PanelEdgeHandle from '../../components/Layout/PanelEdgeHandle';
 import EmptyState from '../../components/Common/EmptyState';
 import { sanitizeMailHtml } from '../../utils/sanitizeHtml';
+import AiActionButton from '../../components/Common/AiActionButton';
 
 type Folder = 'reply_needed' | 'uncertain' | 'inbox' | 'all' | 'marketing' | 'following' | 'spam' | 'archived';
 
@@ -1208,7 +1209,7 @@ const MailPage: React.FC = () => {
                       <Attachments>
                         {m.attachments.map(a => (
                           <Attachment key={a.id}>
-                            📎 {a.file_name} ({Math.round(a.file_size / 1024)} KB)
+                            <ClipIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></ClipIcon> {a.file_name} ({Math.round(a.file_size / 1024)} KB)
                           </Attachment>
                         ))}
                       </Attachments>
@@ -1225,16 +1226,15 @@ const MailPage: React.FC = () => {
                     {/* AI 답변 초안 — 플랫폼 기능은 'AI' 로 통일한다 (Cue 는 팀원으로 존재할 때만 Cue).
                         여기서 바로 부르면 작성창이 초안이 채워진 채로 열린다. 자동·마케팅 메일에는 숨김. */}
                     {(!detail?.triage || detail.triage === 'human' || detail.triage === 'unknown') && (
-                      <ActionButton
-                        tone="secondary"
+                      <AiActionButton
                         size="md"
                         loading={aiBusy}
                         onClick={() => { setReplyOpen(true); aiSuggest(); }}
-                      >
-                        {aiBusy
+                        label={aiBusy
                           ? (t('reply.aiThinking', { defaultValue: 'AI 작성 중…' }) as string)
                           : (t('reply.aiDraft', { defaultValue: 'AI 답변 초안' }) as string)}
-                      </ActionButton>
+                        title={t('reply.aiHint', { defaultValue: 'AI 가 이 메일의 답장 초안을 써줍니다' }) as string}
+                      />
                     )}
                   </ReplyBar>
                 ) : (
@@ -1265,13 +1265,18 @@ const MailPage: React.FC = () => {
                     )}
                     <ComposerActions>
                       {(!detail?.triage || detail.triage === 'human' || detail.triage === 'unknown') ? (
-                        <ActionButton tone="secondary" size="sm" loading={aiBusy} disabled={sending} onClick={aiSuggest}>
-                          {aiBusy
+                        <AiActionButton
+                          size="md"
+                          loading={aiBusy}
+                          disabled={sending}
+                          onClick={aiSuggest}
+                          label={aiBusy
                             ? t('reply.aiThinking', { defaultValue: 'AI 작성 중…' }) as string
                             : (replyHtml.trim()
                                 ? t('reply.aiRegenerate', { defaultValue: 'AI 초안 다시 생성' }) as string
                                 : t('reply.aiSuggest', { defaultValue: 'AI 답변 초안' }) as string)}
-                        </ActionButton>
+                          title={t('reply.aiHint', { defaultValue: 'AI 가 이 메일의 답장 초안을 써줍니다' }) as string}
+                        />
                       ) : (
                         <AiGatedHint>{t('reply.aiGated', { defaultValue: '자동·마케팅 메일에는 AI 답변을 제안하지 않아요' }) as string}</AiGatedHint>
                       )}
@@ -1344,7 +1349,7 @@ const MailPage: React.FC = () => {
               </ComposeField>
               <RichEditor value={cBody} onChange={setCBody} placeholder={t('compose.bodyPh', { defaultValue: '메일 내용을 입력하세요…' }) as string} />
               {fwdFromMsgId && fwdAttachCount > 0 && (
-                <FwdAttachHint>📎 {t('forward.origAttach', { defaultValue: '원본 첨부 {{n}}개 포함', n: fwdAttachCount }) as string}</FwdAttachHint>
+                <FwdAttachHint><ClipIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></ClipIcon> {t('forward.origAttach', { defaultValue: '원본 첨부 {{n}}개 포함', n: fwdAttachCount }) as string}</FwdAttachHint>
               )}
               <AttachmentField businessId={businessId} uploads={cUploads} onUploadsChange={setCUploads} existingFileIds={cFileIds} onExistingFileIdsChange={setCFileIds} />
               {cError && <ComposerError>{cError}</ComposerError>}
@@ -1880,4 +1885,9 @@ const EmptyText = styled.div`
 const Empty = styled.div`
   padding: 60px 24px; text-align: center;
   font-size: 13px; color: #64748B;
+`;
+
+// 첨부 아이콘 — 이모지(📎) 대신 SVG (플랫폼 아이콘 통일, 폰트 의존 제거)
+const ClipIcon = styled.svg`
+  width: 13px; height: 13px; flex-shrink: 0; vertical-align: -2px; color: #64748B;
 `;

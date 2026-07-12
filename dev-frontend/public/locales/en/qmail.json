@@ -192,7 +192,8 @@
     "dismiss": "Mark replied",
     "waitingDays": "{{n}} days waiting",
     "aiRegenerate": "Regenerate AI draft",
-    "aiLimitExceeded": "You've used all AI actions this month."
+    "aiLimitExceeded": "You've used all AI actions this month.",
+    "aiHint": "AI writes a draft reply for this email"
   },
   "errors": {
     "loadList": "Failed to load inbox"
@@ -240,7 +241,8 @@
     "noteVisMe": "🔒 Only me",
     "noteVisTeam": "👥 Team",
     "collapse": "Collapse context panel",
-    "expand": "Expand context panel"
+    "expand": "Expand context panel",
+    "extractHint": "AI extracts task candidates from this email"
   },
   "accounts": {
     "all": "All",

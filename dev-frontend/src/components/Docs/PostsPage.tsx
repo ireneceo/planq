@@ -50,6 +50,7 @@ import SignatureProgressSection from './SignatureProgressSection';
 import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
 import SecurityLevelBadge, { useSecurityLevelLabel } from '../Common/SecurityLevelBadge';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
+import PanelEdgeHandle from '../Layout/PanelEdgeHandle';
 
 // 좌측 필터: 전체(기본) / 프로젝트 그룹 / 카테고리
 // '내 문서'·'기본' 섹션은 제거. 상단 통합검색이 프로젝트명·제목·본문·카테고리를 모두 커버.
@@ -831,13 +832,19 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           </AtSplit>
         </ProjBrowse>
       )}
-      {!isProject && (sidebarCollapsed ? (
-        <CollapsedStrip>
-          <EdgeHandle type="button" onClick={toggleSidebar} aria-label={t('sidebar.expand', '리스트 열기') as string} title={t('sidebar.expand', '리스트 열기') as string}>
-            <EdgeChevron><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg></EdgeChevron>
-          </EdgeHandle>
-        </CollapsedStrip>
-      ) : (
+      {/* 리스트 접기/펼치기 — 공통 PanelEdgeHandle 을 레이아웃 레벨에 그린다.
+          패널 안(CollapsedStrip)에 그리면 옆 컬럼에 가려 클릭이 안 먹었다 (Q Talk·Q Task 와 같은 회귀). */}
+      {!isProject && (
+        <PanelEdgeHandle
+          side="left"
+          collapsed={sidebarCollapsed}
+          onToggle={toggleSidebar}
+          offset={sidebarCollapsed ? 0 : 300}
+          labelCollapse={t('sidebar.collapse', '리스트 접기') as string}
+          labelExpand={t('sidebar.expand', '리스트 열기') as string}
+        />
+      )}
+      {!isProject && !sidebarCollapsed && (
       <Sidebar $hasDetail={!!detail || isEditing} $projectFull={false}>
         <>
         <PanelHeader>
@@ -1025,11 +1032,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           )}
         </RowList>
         </>
-        <EdgeHandle type="button" onClick={toggleSidebar} aria-label={t('sidebar.collapse', '리스트 접기') as string} title={t('sidebar.collapse', '리스트 접기') as string}>
-          <EdgeChevron><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg></EdgeChevron>
-        </EdgeHandle>
       </Sidebar>
-      ))}
+      )}
 
       {(!isProject || detail || isEditing) && (
       <Content $hasDetail={!!detail || isEditing} $projectFull={isProject}>
@@ -1568,6 +1572,8 @@ const Layout = styled.div<{ $collapsed?: boolean; $projectFull?: boolean; $hasDe
      문서를 열면(상세/편집) 같은 셀에 상세를 풀폭으로 렌더. */
   grid-template-columns: ${p => p.$projectFull ? '1fr' : (p.$collapsed ? '0 1fr' : '300px 1fr')};
   height: 100%; min-height: 0;
+  /* 경계선 핸들(PanelEdgeHandle)이 이 컨테이너 기준으로 absolute 배치된다 */
+  position: relative;
   background: #F8FAFC;
   overflow: hidden;
   transition: grid-template-columns 0.18s ease;
@@ -1586,50 +1592,6 @@ const Sidebar = styled.aside<{ $hasDetail?: boolean; $projectFull?: boolean }>`
     /* 모바일에서 문서 선택 시 리스트 숨기고 상세만 표시 */
     display: ${p => p.$hasDetail ? 'none' : 'flex'};
   }
-`;
-// 접힘 상태: 0 폭 + EdgeHandle 만 노출 (Q Talk LeftPanel 패턴 통일)
-const CollapsedStrip = styled.aside`
-  width: 0; flex-shrink: 0; position: relative;
-  @media (max-width: 900px) { display: none; }
-`;
-/* N+63 — 시인성·세련도 강화. QTask/QTalk EdgeHandle 일관 패턴. */
-const EdgeHandle = styled.button`
-  position: absolute; top: 50%; right: 0;
-  transform: translate(50%, -50%);
-  width: 12px; height: 72px;
-  padding: 0; border: none;
-  background: linear-gradient(180deg, #94A3B8 0%, #64748B 100%);
-  border-radius: 6px; cursor: pointer; z-index: 10;
-  box-shadow: 0 2px 6px rgba(15,23,42,0.15), 0 0 0 1px rgba(255,255,255,0.4) inset;
-  transition: width 0.2s ease, height 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
-  display: flex; align-items: center; justify-content: center;
-  &::before {
-    content: ''; position: absolute;
-    top: -10px; bottom: -10px; left: -12px; right: -12px;
-  }
-  &:hover {
-    width: 18px; height: 84px;
-    background: linear-gradient(180deg, #14B8A6 0%, #0F766E 100%);
-    box-shadow: 0 4px 12px rgba(20,184,166,0.35), 0 0 0 1px rgba(255,255,255,0.6) inset;
-  }
-  &:hover svg { animation: chevronNudgePanelD 0.7s ease infinite; }
-  &:active { transform: translate(50%, -50%) scale(0.95); }
-  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 3px; }
-  @keyframes chevronNudgePanelD {
-    0%, 100% { transform: translateX(0); }
-    50% { transform: translateX(-2px); }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    transition: none;
-    &:hover { width: 12px; height: 72px; }
-    &:hover svg { animation: none; }
-    &:active { transform: translate(50%, -50%); }
-  }
-`;
-const EdgeChevron = styled.span`
-  display: flex; align-items: center; justify-content: center;
-  color: #FFFFFF;
-  svg { width: 14px; height: 14px; transition: transform 0.18s ease; }
 `;
 // 우측 컨텐츠 — background 를 Content 에 직접 부여
 // 제목 + 헬프 아이콘 묶음 — Q note 와 동일 (제목 끝나면 바로 helpDot 붙임)

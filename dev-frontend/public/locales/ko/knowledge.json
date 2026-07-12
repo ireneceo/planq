@@ -21,7 +21,8 @@
     "allProjects": "전체 프로젝트",
     "allClients": "전체 고객",
     "tagFilter": "태그",
-    "clearTag": "태그 필터 해제"
+    "clearTag": "태그 필터 해제",
+    "aiIngestHint": "AI 가 문서·링크에서 지식을 자동으로 정리해 추가합니다"
   },
   "help": {
     "body": "Cue·AI 작성·Q note 답변 찾기가 참조하는 회사 정보 DB.\n\n• 카테고리: 정책 / 매뉴얼 / 사고·이슈 / FAQ / 소개 / 가격\n• 적용 범위: 워크스페이스 / 특정 프로젝트 / 특정 고객\n• 좁은 스코프일수록 답변 정확도 ↑",

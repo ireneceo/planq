@@ -365,7 +365,8 @@
       "attach": "Attach file",
       "attachExisting": "Existing file (no re-upload)",
       "placeholder": "Type a message",
-      "hint": "Enter to send · Shift+Enter for newline"
+      "hint": "Enter to send · Shift+Enter for newline",
+      "extractHint": "AI extracts task candidates from this conversation"
     },
     "yesterday": "Yesterday",
     "weekday": {

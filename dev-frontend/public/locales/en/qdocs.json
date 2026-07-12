@@ -1,5 +1,8 @@
 {
-  "sort": { "recent": "Recent", "name": "Name" },
+  "sort": {
+    "recent": "Recent",
+    "name": "Name"
+  },
   "page": {
     "title": "Q docs",
     "noWorkspace": "Please select a workspace first",
@@ -609,5 +612,8 @@
     "restored": "Restored your unsaved draft",
     "minutesAgo": " min ago",
     "dismiss": "Dismiss"
+  },
+  "attach": {
+    "newAiHint": "AI writes the document body for you"
   }
 }

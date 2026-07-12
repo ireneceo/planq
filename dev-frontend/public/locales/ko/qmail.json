@@ -192,7 +192,8 @@
     "dismiss": "답변 완료",
     "waitingDays": "{{n}}일 경과",
     "aiRegenerate": "AI 초안 다시 생성",
-    "aiLimitExceeded": "이번 달 AI 사용량을 모두 썼어요."
+    "aiLimitExceeded": "이번 달 AI 사용량을 모두 썼어요.",
+    "aiHint": "AI 가 이 메일의 답장 초안을 써줍니다"
   },
   "errors": {
     "loadList": "인박스 로딩 실패"
@@ -240,7 +241,8 @@
     "noteVisMe": "🔒 나만 보임",
     "noteVisTeam": "👥 팀 공유",
     "collapse": "맥락 패널 접기",
-    "expand": "맥락 패널 펼치기"
+    "expand": "맥락 패널 펼치기",
+    "extractHint": "AI 가 이 메일에서 할 일 후보를 뽑아냅니다"
   },
   "accounts": {
     "all": "전체",

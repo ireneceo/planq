@@ -1,5 +1,8 @@
 {
-  "sort": { "recent": "최근 순", "name": "이름 순" },
+  "sort": {
+    "recent": "최근 순",
+    "name": "이름 순"
+  },
   "page": {
     "title": "Q docs",
     "noWorkspace": "워크스페이스를 먼저 선택하세요",
@@ -609,5 +612,8 @@
     "restored": "작성 중이던 내용을 복원했어요",
     "minutesAgo": "분 전",
     "dismiss": "닫기"
+  },
+  "attach": {
+    "newAiHint": "AI 가 문서 본문을 자동 작성합니다"
   }
 }
