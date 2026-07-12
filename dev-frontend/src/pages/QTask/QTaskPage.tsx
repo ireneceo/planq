@@ -41,6 +41,7 @@ import {
 } from '../../utils/recurrence';
 import WeeklyReviewModal from '../../components/QTask/WeeklyReviewModal';
 import WeeklyReviewTab from '../../components/QTask/WeeklyReviewTab';
+import PanelEdgeHandle from '../../components/Layout/PanelEdgeHandle';
 
 // ─── Types ───
 type Scope = 'mine' | 'workspace';
@@ -2250,17 +2251,17 @@ const QTaskPage:React.FC=()=>{
 
       {/* ════ RIGHT ════ */}
       {/* CollapsedStrip — 0폭 anchor + EdgeHandle (Q Talk / Q docs 표준 통일) */}
-      {!isNarrow && rightCollapsed && (
-        <CollapsedStrip>
-          <EdgeHandle
-            type="button"
-            onClick={()=>setRightCollapsed(false)}
-            aria-label={t('right.expand','패널 열기') as string}
-            title={`${t('right.expand','패널 열기')} (⌘/)`}
-          >
-            <EdgeChevron><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg></EdgeChevron>
-          </EdgeHandle>
-        </CollapsedStrip>
+      {/* 우측 패널 접기/펼치기 — 공통 PanelEdgeHandle 을 레이아웃 레벨에 (패널 안에 그리면 가려진다).
+          Q Mail 과 동일 패턴. */}
+      {!isNarrow && (!isClient || !!detailTaskId) && (
+        <PanelEdgeHandle
+          side="right"
+          collapsed={rightCollapsed}
+          onToggle={()=>setRightCollapsed(v=>!v)}
+          offset={rightCollapsed ? 0 : rightWidth}
+          labelCollapse={`${t('right.collapse','패널 접기') as string} (⌘/)`}
+          labelExpand={`${t('right.expand','패널 열기') as string} (⌘/)`}
+        />
       )}
       {/* TaskDetailDrawer 는 position:fixed 오버레이 — rightCollapsed 와 무관하게 detailTaskId 만 보고 렌더. */}
       {detailTaskId && bizId && (
@@ -2292,18 +2293,6 @@ const QTaskPage:React.FC=()=>{
       {(((!isNarrow && !rightCollapsed) || (isNarrow && rightOverlayOpen)) && (!isClient || !!detailTaskId))&&(
         <RightPanel $w={rightWidth} $overlay={isNarrow}>
           {!isNarrow && !detailTaskId&&<ResizeHandle onMouseDown={startResize} />}
-          {/* 열림 상태에서도 EdgeHandle 로 닫기 — Q Talk / Q docs 표준 통일 */}
-          {!isNarrow && (
-            <EdgeHandle
-              type="button"
-              onClick={()=>setRightCollapsed(true)}
-              aria-label={t('right.collapse','패널 접기') as string}
-              title={`${t('right.collapse','패널 접기')} (⌘/)`}
-              $onPanel
-            >
-              <EdgeChevron><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg></EdgeChevron>
-            </EdgeHandle>
-          )}
           <RightHeader>
             <RightTitle>
               {scope==='workspace'
@@ -3248,43 +3237,8 @@ const NameChip=styled.span<{$type:'from'|'to'|'observer'}>`
 
 // Right panel — Q Talk / Q docs 표준 EdgeHandle 패턴 (2026-05-18 통일)
 // CollapsedStrip 은 0 폭 anchor — EdgeHandle 만 LeftPanel·RightPanel 경계에 노출.
-const CollapsedStrip=styled.aside`width:0;flex-shrink:0;position:relative;@media(max-width:1200px){display:none;}`;
 // N+63 — 시인성·세련도 강화. 옛 8×60 회색 → 12×72 + 진한 색 + chevron 14×14 + hover 시 18×84 teal + nudge animation.
 // 평소도 명확히 보이게, hover 시 확실한 affordance, focus ring 강화.
-const EdgeHandle=styled.button<{$onPanel?:boolean}>`
-  position:absolute;top:50%;left:0;transform:translate(-50%,-50%);
-  width:12px;height:72px;
-  padding:0;border:none;
-  background:linear-gradient(180deg, #94A3B8 0%, #64748B 100%);
-  border-radius:6px;cursor:pointer;z-index:10;
-  box-shadow:0 2px 6px rgba(15,23,42,0.15), 0 0 0 1px rgba(255,255,255,0.4) inset;
-  transition:width 0.2s ease, height 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
-  display:flex;align-items:center;justify-content:center;
-  &::before{content:'';position:absolute;top:-10px;bottom:-10px;left:-12px;right:-12px;}
-  &:hover{
-    width:18px;height:84px;
-    background:linear-gradient(180deg, #14B8A6 0%, #0F766E 100%);
-    box-shadow:0 4px 12px rgba(20,184,166,0.35), 0 0 0 1px rgba(255,255,255,0.6) inset;
-  }
-  &:hover svg{ animation: chevronNudgePanel 0.7s ease infinite; }
-  &:active{transform:translate(-50%,-50%) scale(0.95);}
-  &:focus-visible{outline:2px solid #14B8A6;outline-offset:3px;}
-  @keyframes chevronNudgePanel {
-    0%, 100% { transform: translateX(0); }
-    50% { transform: translateX(2px); }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    transition: none;
-    &:hover { width: 12px; height: 72px; }
-    &:hover svg { animation: none; }
-    &:active { transform: translate(-50%,-50%); }
-  }
-`;
-const EdgeChevron=styled.span`
-  display:flex;align-items:center;justify-content:center;
-  color:#FFFFFF;
-  svg{width:14px;height:14px;transition:transform 0.18s ease;}
-`;
 // CollapseBtn — 입력 폼 닫기 버튼 (line 2401) 에서 계속 사용 — 우측 패널 토글에서만 EdgeHandle 로 대체
 const CollapseBtn=styled.button`width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#64748B;cursor:pointer;&:hover{background:#F1F5F9;color:#0F172A;}`;
 const RightPanel=styled.aside<{$w?:number;$overlay?:boolean}>`background:#FFF;border-left:1px solid #E2E8F0;display:flex;flex-direction:column;overflow:hidden;

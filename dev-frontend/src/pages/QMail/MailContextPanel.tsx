@@ -232,7 +232,7 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, onLink
           <ExtractBtn type="button" onClick={summarize} disabled={sumBusy}>
             {sumBusy ? t('context.summarizing', { defaultValue: '요약 중…' }) as string
               : aiSummary ? t('context.resummarize', { defaultValue: '다시 요약' }) as string
-              : t('context.summarize', { defaultValue: '✨ 요약 생성' }) as string}
+              : t('context.summarize', { defaultValue: '요약 생성' }) as string}
           </ExtractBtn>
         </SecHead>
         {aiSummary ? <SummaryBox>{aiSummary}</SummaryBox>

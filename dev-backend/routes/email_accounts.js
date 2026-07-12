@@ -339,6 +339,28 @@ router.post('/:businessId/email-accounts/:id/sync-now', authenticateToken, check
   } catch (err) { next(err); }
 });
 
+// POST /backfill — 최근 N일 과거 메일 가져오기 (기본 30일)
+//   계정을 연결하면 그 뒤로 오는 메일만 담기던 옛 동작 때문에, 방금 연결한 사용자는 빈 화면을 봤다.
+//   신규 연결은 이제 자동 백필되지만, 이미 연결된 계정은 이 버튼으로 과거분을 채운다.
+//   과거 메일은 읽기만 — "답변 필요" 로 올리지 않는다 (이미 다른 데서 처리했을 가능성).
+router.post('/:businessId/email-accounts/:id/backfill', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const acc = await EmailAccount.findOne({
+      where: { id: req.params.id, business_id: req.params.businessId, ...accessibleWhere(req) },
+    });
+    if (!acc) return errorResponse(res, 'not_found', 404);
+    if (!canManageAccount(req, acc)) return errorResponse(res, 'forbidden', 403);
+
+    const days = Math.min(Math.max(Number(req.body?.days) || 30, 1), 90);
+    const emailImapCron = require('../services/emailImapCron');
+    // 백그라운드 — 수백 통이면 시간이 걸린다. 완료는 socket(mail:updated)으로 화면에 반영.
+    emailImapCron.syncOne(acc, { backfill: true, days })
+      .then((n) => console.log(`[backfill] account #${acc.id} — ${n} 건 가져옴`))
+      .catch((e) => console.error('[backfill]', e.message));
+    successResponse(res, { triggered: true, account_id: acc.id, days }, `최근 ${days}일 메일을 가져오는 중입니다`);
+  } catch (err) { next(err); }
+});
+
 // ─── Gmail OAuth (N+70 Task C) — 앱 비밀번호 대체 ───────────────────
 // GET /api/businesses/:businessId/email-accounts/oauth/gmail/initiate?return_to=...
 //   → Google OAuth URL 302 redirect (scope: https://mail.google.com/ + email + profile)

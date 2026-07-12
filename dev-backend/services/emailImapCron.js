@@ -24,6 +24,13 @@ const {
 } = require('../models');
 
 const FETCH_LIMIT_PER_ACCOUNT = 50;
+// 계정을 처음 연결하면 최근 N일 메일을 가져온다 (Irene 결정 2026-07-12).
+//   여태는 "연결 이후 새로 오는 메일만" 가져와서, 방금 연결한 사용자는 빈 화면을 봤다.
+//   "연결됐습니다" 라고 해놓고 아무것도 안 보이면 고장난 것으로 보인다.
+//   과거 메일은 읽기만 — 다른 데서 이미 처리했을 가능성이 높아 "답변 필요" 로 올리지 않는다
+//   (수백 건이 한꺼번에 답변 필요로 들어오면 그 폴더가 무용지물이 된다).
+const BACKFILL_DAYS = 30;
+const BACKFILL_LIMIT = 300;   // 첫 동기화가 몇 분씩 걸리지 않게 상한
 const FAIL_ALERT_THRESHOLD = 3;
 const UPLOAD_ROOT = path.join(__dirname, '..', 'uploads');
 
@@ -150,7 +157,7 @@ async function saveAttachmentAsFile({ businessId, fromEmail, att, accountUserId 
 }
 
 // account 1개 sync — N+70 auth_type 분기 (password / google_oauth)
-async function syncOne(account) {
+async function syncOne(account, opts = {}) {
   let imapConfig;
   if (account.auth_type === 'google_oauth') {
     // OAuth — access_token 으로 XOAUTH2 SASL 인증
@@ -203,19 +210,25 @@ async function syncOne(account) {
   let newCount = 0;
   try {
     const box = await conn.openBox(account.imap_folder);
-    // 첫 sync (imap_last_uid=0) — UIDNEXT-1 로 init (앞으로 도착하는 메일만)
-    // 옛 메일 backfill 은 별도 API (account.backfill_days 옵션 추후)
-    if (account.imap_last_uid === 0 && box.uidnext) {
-      const initUid = box.uidnext - 1;
-      await account.update({ imap_last_uid: initUid, last_sync_at: new Date(), last_sync_error: null });
-      console.log(`[emailImapCron] account #${account.id} (${account.email}) first sync init — last_uid=${initUid} (INBOX has ${box.messages?.total || '?'} messages, only new mail will be fetched)`);
-      try { await conn.end(); } catch (_) { /* ignore */ }
-      return 0;
+
+    // 첫 동기화(또는 명시적 백필 요청) — 최근 BACKFILL_DAYS 일 메일을 가져온다.
+    //   isBackfill 인 동안 받은 메일은 reply_needed 를 켜지 않는다(과거분은 읽기만).
+    const isBackfill = opts.backfill === true || account.imap_last_uid === 0;
+    let searchCriteria;
+    let fetchCap;
+    if (isBackfill) {
+      const since = new Date(Date.now() - (opts.days || BACKFILL_DAYS) * 86400000);
+      // IMAP SINCE 는 날짜 단위 (DD-Mon-YYYY)
+      searchCriteria = [['SINCE', since]];
+      fetchCap = BACKFILL_LIMIT;
+      console.log(`[emailImapCron] account #${account.id} (${account.email}) 초기 백필 — 최근 ${opts.days || BACKFILL_DAYS}일`);
+    } else {
+      searchCriteria = [['UID', `${account.imap_last_uid + 1}:*`]];
+      fetchCap = FETCH_LIMIT_PER_ACCOUNT;
     }
-    const searchCriteria = [['UID', `${account.imap_last_uid + 1}:*`]];
     const fetchOptions = { bodies: [''], markSeen: false, struct: true };
     const results = await conn.search(searchCriteria, fetchOptions);
-    const limited = results.slice(0, FETCH_LIMIT_PER_ACCOUNT);
+    const limited = results.slice(-fetchCap);   // 백필은 최신 것 우선
 
     let maxUid = account.imap_last_uid;
 
@@ -324,17 +337,21 @@ async function syncOne(account) {
           //   규칙은 분류만 바꾼다 — 원본 메일은 그대로라 규칙 삭제 시 즉시 원상복구.
           const tr = await applyRules(account.business_id, fromEmail, base);
           const ruleReason = tr.rule_applied ? 'rule' : 'inbound';
+          // 백필(과거 메일)은 읽기만 — 이미 다른 데서 처리했을 가능성이 높다. 수백 건이 한꺼번에
+          //   "답변 필요" 로 들어오면 그 폴더가 무용지물이 된다 (Irene 결정).
+          const replyNeeded = isBackfill ? false : tr.reply_needed;
           if (isNew) {
             triageFields = {
               status: tr.status,
               spam_score: tr.spam_score,
               uncertain_reason: tr.uncertain_reason,
               triage: tr.triage,
-              reply_needed: tr.reply_needed,
+              reply_needed: replyNeeded,
               rule_id: tr.rule_applied?.id || null,   // 투명성 — 화면에 "규칙으로 자동 분류됨" 표시
-              ...(tr.reply_needed ? { reply_needed_at: parsed.date || new Date(), reply_needed_reason: ruleReason } : {}),
+              ...(replyNeeded ? { reply_needed_at: parsed.date || new Date(), reply_needed_reason: ruleReason } : {}),
+              ...(isBackfill ? { reply_needed_reason: 'backfill' } : {}),
             };
-          } else if (tr.reply_needed && thread.status !== 'spam' && thread.status !== 'archived') {
+          } else if (replyNeeded && thread.status !== 'spam' && thread.status !== 'archived') {
             triageFields = { reply_needed: true, reply_needed_at: parsed.date || new Date(), reply_needed_reason: ruleReason, rule_id: tr.rule_applied?.id || null };
           } else if (tr.rule_applied && !tr.reply_needed) {
             // 규칙이 "답장 불필요" 로 판정 → 기존 스레드의 답변 필요도 해제

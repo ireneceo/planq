@@ -833,7 +833,6 @@ const MailPage: React.FC = () => {
           {faqSuggestions.length > 0 && (
             <FaqSuggestBox>
               <FaqSuggestHead>
-                <FaqSparkle>✨</FaqSparkle>
                 {t('faq.title', { defaultValue: 'FAQ 후보' }) as string}
                 <FaqCount>{faqSuggestions.length}</FaqCount>
               </FaqSuggestHead>
@@ -1104,11 +1103,16 @@ const MailPage: React.FC = () => {
                     {/* Cue 답변 초안 — 여태 답장 버튼을 눌러 작성창을 연 뒤에야 보여서 기능이 있는 줄도 몰랐다.
                         여기서 바로 부르면 작성창이 초안이 채워진 채로 열린다. 자동·마케팅 메일에는 숨김(기존 정책). */}
                     {(!detail?.triage || detail.triage === 'human' || detail.triage === 'unknown') && (
-                      <AiSuggestBtn type="button" disabled={aiBusy} onClick={() => { setReplyOpen(true); aiSuggest(); }}>
+                      <ActionButton
+                        tone="secondary"
+                        size="md"
+                        loading={aiBusy}
+                        onClick={() => { setReplyOpen(true); aiSuggest(); }}
+                      >
                         {aiBusy
                           ? (t('reply.aiThinking', { defaultValue: 'Cue 작성 중…' }) as string)
-                          : (t('reply.aiDraft', { defaultValue: '✨ Cue 답변 초안' }) as string)}
-                      </AiSuggestBtn>
+                          : (t('reply.aiDraft', { defaultValue: 'Cue 답변 초안' }) as string)}
+                      </ActionButton>
                     )}
                   </ReplyBar>
                 ) : (
@@ -1133,17 +1137,17 @@ const MailPage: React.FC = () => {
                     {replyError && <ComposerError>{replyError}</ComposerError>}
                     {aiFaqSources.length > 0 && (
                       <FaqUsedBadge title={aiFaqSources.join(', ')}>
-                        ✨ {t('reply.faqUsed', { defaultValue: '등록된 FAQ 기반 답변' }) as string}
+                        {t('reply.faqUsed', { defaultValue: '등록된 FAQ 기반 답변' }) as string}
                         {aiFaqSources[0] ? ` · ${aiFaqSources[0]}` : ''}
                       </FaqUsedBadge>
                     )}
                     <ComposerActions>
                       {(!detail?.triage || detail.triage === 'human' || detail.triage === 'unknown') ? (
-                        <AiSuggestBtn type="button" onClick={aiSuggest} disabled={aiBusy || sending}>
+                        <ActionButton tone="secondary" size="sm" loading={aiBusy} disabled={sending} onClick={aiSuggest}>
                           {aiBusy
                             ? t('reply.aiThinking', { defaultValue: 'Cue 작성 중…' }) as string
-                            : t('reply.aiSuggest', { defaultValue: '✨ AI 답변 제안' }) as string}
-                        </AiSuggestBtn>
+                            : t('reply.aiSuggest', { defaultValue: 'Cue 답변 초안' }) as string}
+                        </ActionButton>
                       ) : (
                         <AiGatedHint>{t('reply.aiGated', { defaultValue: '자동·마케팅 메일에는 AI 답변을 제안하지 않아요' }) as string}</AiGatedHint>
                       )}
@@ -1252,7 +1256,6 @@ const FaqSuggestHead = styled.div`
   display: flex; align-items: center; gap: 6px;
   font-size: 12px; font-weight: 700; color: #F43F5E;
 `;
-const FaqSparkle = styled.span`font-size: 13px;`;
 const FaqCount = styled.span`
   margin-left: auto; min-width: 18px; height: 18px; padding: 0 6px;
   border-radius: 8px; background: rgba(244, 63, 94, 0.15); color: #F43F5E;
@@ -1713,7 +1716,8 @@ const DetailFooter = styled.div`
   overflow-y: auto;
 `;
 const ReplyBar = styled.div`
-  display: flex;
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 20px; border-top: 1px solid #E2E8F0; background: #fff;
 `;
 const Composer = styled.div`
   display: flex; flex-direction: column; gap: 10px;
@@ -1740,19 +1744,6 @@ const ComposerBtns = styled.div`
   margin-left: auto;
 `;
 // AI 답변 제안 — Coral 강조 (AI 감지/액션 컬러)
-const AiSuggestBtn = styled.button`
-  height: 36px; padding: 0 14px;
-  border-radius: 8px;
-  font-size: 13px; font-weight: 600;
-  cursor: pointer;
-  color: #F43F5E;
-  background: #FFF1F2;
-  border: 1px solid #FECDD3;
-  transition: background 0.12s, border-color 0.12s;
-  &:hover:not(:disabled) { background: #FFE4E6; border-color: #FDA4AF; }
-  &:disabled { opacity: 0.6; cursor: wait; }
-  &:focus-visible { outline: 2px solid #F43F5E; outline-offset: 2px; }
-`;
 // 자동·마케팅 메일 — AI 답변 비노출 안내 (게이트)
 const AiGatedHint = styled.span`
   font-size: 12px; color: #94A3B8;
