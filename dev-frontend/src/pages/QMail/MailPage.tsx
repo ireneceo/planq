@@ -9,7 +9,6 @@
 // 가능: 폴더 전환, 스레드 조회, 읽음 처리 (open 시 자동), 스팸 마킹
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import PageShell from '../../components/Layout/PageShell';
@@ -32,6 +31,109 @@ import { sanitizeMailHtml } from '../../utils/sanitizeHtml';
 import AiActionButton from '../../components/Common/AiActionButton';
 import FloatingPanelToggle from '../../components/Common/FloatingPanelToggle';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import {
+  AcctFilterRow,
+  AcctManageChip,
+  AcctSelectWrap,
+  AddLabelChip,
+  AiGatedHint,
+  AssignWrap,
+  Attachment,
+  Attachments,
+  ClipIcon,
+  CloseBtn,
+  ComposeBody,
+  ComposeBtn,
+  ComposeField,
+  ComposeFoot,
+  ComposeHead,
+  ComposeInput,
+  ComposeLabel,
+  ComposeModal,
+  ComposeOverlay,
+  ComposeTitle,
+  Composer,
+  ComposerActions,
+  ComposerError,
+  ComposerFrom,
+  ComposerHint,
+  ComposerTo,
+  CtrlBtn,
+  CtxBackdrop,
+  CtxResizeHandle,
+  DangerBtn,
+  DetailControls,
+  DetailFooter,
+  DetailHeaderRight,
+  DetailLabels,
+  DetailToolbar,
+  Empty,
+  EmptyIcon,
+  EmptyList,
+  EmptyText,
+  ErrorBar,
+  ExpandBtn,
+  FaqActions,
+  FaqAnswer,
+  FaqCount,
+  FaqDismissBtn,
+  FaqItem,
+  FaqOcc,
+  FaqQ,
+  FaqQText,
+  FaqRegisterBtn,
+  FaqSuggestBox,
+  FaqSuggestHead,
+  FaqUsedBadge,
+  FolderTab,
+  FolderTabs,
+  FromLbl,
+  FromManage,
+  FromSelect,
+  FwdAttachHint,
+  HandledBadge,
+  LabelChip,
+  ListMoreRow,
+  Loading,
+  MessageBodyFrame,
+  MessageBodyText,
+  MessageCard,
+  MessageFrom,
+  MessageHeader,
+  MessageTime,
+  MessageTo,
+  MessagesScroll,
+  MetaChip,
+  MsgForwardBtn,
+  MsgHeaderRight,
+  NewLabelInput,
+  NoAcctBtn,
+  NoAcctHint,
+  OverdueChip,
+  ReplyBar,
+  ReplyRow,
+  RowBtn,
+  RowLabels,
+  RuleBadge,
+  SearchClear,
+  SearchIcon,
+  SearchInput,
+  SearchRow,
+  Spinner,
+  StarSpan,
+  TabCount,
+  ThreadItem,
+  ThreadList,
+  ThreadPreview,
+  ThreadRow1,
+  ThreadRow1Right,
+  ThreadSender,
+  ThreadSubject,
+  ThreadTime,
+  UncertainBadge,
+  UncertainInline,
+  UnreadDot,
+} from './MailPage.styles';
 
 type Folder = 'reply_needed' | 'uncertain' | 'all' | 'marketing' | 'following' | 'spam' | 'archived';
 
@@ -78,7 +180,7 @@ interface Message {
   direction: 'inbound' | 'outbound';
   from_email: string | null;
   from_name: string | null;
-  to_emails: string[];
+  to_emails: Array<string | { name?: string; email: string }>;   // 백엔드는 [{name,email}] 로 준다
   subject: string | null;
   body_html: string | null;
   body_text: string | null;
@@ -115,6 +217,12 @@ const FOLDERS: Array<{ key: Folder; defaultLabel: string }> = [
 // 메일 본문 문서 만들기 — 정화된 원본 문서에 높이 보고 스크립트만 덧붙인다.
 //   원본에 <html>/<body> 가 있으면 그대로 쓰고(배경·정렬·템플릿 CSS 보존), 조각 HTML 이면 최소 골격만 씌운다.
 //   우리 폰트·여백을 강제하지 않는다 — 강제하면 발신자가 만든 레이아웃이 깨진다.
+// 수신 주소 정규화 — 백엔드는 [{name, email}] 로 준다. 문자열로 다루면 "[object Object]" 가 된다.
+function toAddrList(list: Array<string | { name?: string; email: string }> | undefined | null): string[] {
+  if (!Array.isArray(list)) return [];
+  return list.map((x) => (typeof x === 'string' ? x : x?.email)).filter(Boolean) as string[];
+}
+
 function buildMailSrcDoc(id: number, html: string): string {
   const safe = sanitizeMailHtml(html);
   // 높이는 **본문(body) 실제 높이**로 잰다. documentElement.scrollHeight 는 iframe 높이보다 작아질 수
@@ -758,11 +866,38 @@ const MailPage: React.FC = () => {
     return () => { alive = false; };
   }, [businessId, detail?.account?.id]);
 
+  // 이 메일이 도착한 주소 — 답장은 여기로 보내야 한다 (도메인이 여러 개인 메일함)
+  const receivedAt = useMemo(() => {
+    if (!detail) return '';
+    const lastInbound = [...detail.messages].reverse().find(m => m.direction === 'inbound');
+    return (toAddrList(lastInbound?.to_emails)[0] || '').toLowerCase();
+  }, [detail]);
+  // 받은 주소가 계정 주소도, 등록된 별칭도 아니면 → 한 번에 등록해서 그 주소로 보낼 수 있게
+  const unknownReceived = !!receivedAt
+    && receivedAt !== String(detail?.account?.email || '').toLowerCase()
+    && !aliases.some(a => a.email.toLowerCase() === receivedAt);
+
+  const addReceivedAsAlias = useCallback(async () => {
+    const accId = detail?.account?.id;
+    if (!businessId || !accId || !receivedAt) return;
+    try {
+      const r = await apiFetch(`/api/businesses/${businessId}/email-accounts/${accId}/aliases`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: receivedAt }),
+      });
+      const j = await r.json();
+      if (j.success && j.data?.id) {
+        setAliases(prev => [...prev, j.data]);
+        setFromAliasId(j.data.id);
+      }
+    } catch { /* 실패해도 계정 주소로는 보낼 수 있다 */ }
+  }, [businessId, detail?.account?.id, receivedAt]);
+
   // 답장 기본 발신 주소 = 이 메일이 온 주소 (백엔드도 같은 규칙 — 여기선 화면 표시용)
   useEffect(() => {
     if (!detail) { setFromAliasId(0); return; }
     const lastInbound = [...detail.messages].reverse().find(m => m.direction === 'inbound');
-    const to = (lastInbound?.to_emails || []).map((x) => String(x).toLowerCase());
+    const to = toAddrList(lastInbound?.to_emails).map((x) => x.toLowerCase());
     const hit = aliases.find(a => to.includes(a.email.toLowerCase()));
     setFromAliasId(hit ? hit.id : 0);
   }, [detail, aliases]);
@@ -868,7 +1003,7 @@ const MailPage: React.FC = () => {
     apiFetch(`/api/businesses/${businessId}/email-drafts`).then(r => r.json()).then(j => {
       const d = j?.data;
       if (d) {
-        if (Array.isArray(d.to_emails) && d.to_emails.length) setCTo(d.to_emails.join(', '));
+        if (Array.isArray(d.to_emails) && d.to_emails.length) setCTo(toAddrList(d.to_emails).join(', '));
         if (d.subject) setCSubject(d.subject);
         if (d.body_html) setCBody(d.body_html);
         if (Array.isArray(d.attachment_file_ids) && d.attachment_file_ids.length) setCFileIds(d.attachment_file_ids);
@@ -1365,6 +1500,12 @@ const MailPage: React.FC = () => {
                         {m.direction === 'outbound'
                           ? `${t('me', { defaultValue: '나' }) as string} <${detail.account?.email || ''}>`
                           : `${m.from_name || ''} <${m.from_email || ''}>`}
+                        {/* 어느 주소로 온 메일인지 — 여러 도메인을 한 메일함으로 받으면 이게 없으면 답장 주소를 알 수 없다 */}
+                        {toAddrList(m.to_emails).length > 0 && (
+                          <MessageTo>
+                            {t('detail.toAddr', { defaultValue: '받은 주소' }) as string}: {toAddrList(m.to_emails).join(', ')}
+                          </MessageTo>
+                        )}
                       </MessageFrom>
                       <MsgHeaderRight>
                         <MessageTime>{formatTimeAgo(m.sent_at)}</MessageTime>
@@ -1423,7 +1564,7 @@ const MailPage: React.FC = () => {
                   </ReplyBar>
                 ) : (
                   <Composer onKeyDown={onComposerKeyDown}>
-                    {aliases.length > 0 && (
+                    {(
                       <ComposerFrom>
                         <FromLbl>{t('reply.from', { defaultValue: '보내는 사람' }) as string}</FromLbl>
                         <FromSelect>
@@ -1444,6 +1585,15 @@ const MailPage: React.FC = () => {
                             menuPlacement="top"
                           />
                         </FromSelect>
+                        {unknownReceived ? (
+                          <FromManage type="button" onClick={addReceivedAsAlias}>
+                            {t('reply.useReceived', { defaultValue: '{{addr}} 로 보내기 (등록)', addr: receivedAt }) as string}
+                          </FromManage>
+                        ) : aliases.length === 0 ? (
+                          <FromManage type="button" onClick={() => navigate('/business/settings/mail-accounts')}>
+                            {t('reply.addAlias', { defaultValue: '보내는 주소 추가' }) as string}
+                          </FromManage>
+                        ) : null}
                       </ComposerFrom>
                     )}
                     {replyToHint && (
@@ -1589,566 +1739,14 @@ const MailPage: React.FC = () => {
 
 export default MailPage;
 
-// ─────────────────────────────────────────────
-// styles
-// ─────────────────────────────────────────────
-// Q Talk 의 Layout 과 동일 — flex row, full-bleed (PageShell·카드 X)
-// 컨테이너·패널은 공통 components/Layout/PanelLayout 의 PanelLayout/Panel 사용 (통일)
-// M4 — FAQ 자동 클러스터링 제안 (좌측 패널, 폴더 아래)
-const FaqSuggestBox = styled.div`
-  border-bottom: 1px solid #E2E8F0; background: rgba(244, 63, 94, 0.04);
-  padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px;
-`;
-const FaqSuggestHead = styled.div`
-  display: flex; align-items: center; gap: 6px;
-  font-size: 12px; font-weight: 700; color: #F43F5E;
-`;
-const FaqCount = styled.span`
-  margin-left: auto; min-width: 18px; height: 18px; padding: 0 6px;
-  border-radius: 8px; background: rgba(244, 63, 94, 0.15); color: #F43F5E;
-  font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;
-`;
-const FaqItem = styled.div`
-  background: #FFFFFF; border: 1px solid rgba(244, 63, 94, 0.22); border-radius: 10px;
-  padding: 8px 10px; display: flex; flex-direction: column; gap: 6px;
-`;
-const FaqQ = styled.button`
-  all: unset; cursor: pointer; display: flex; align-items: flex-start; gap: 6px;
-`;
-const FaqQText = styled.span`
-  flex: 1; min-width: 0; font-size: 12px; font-weight: 600; color: #0F172A;
-  line-height: 1.4; overflow: hidden; text-overflow: ellipsis; display: -webkit-box;
-  -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-`;
-const FaqOcc = styled.span`flex-shrink: 0; font-size: 11px; font-weight: 700; color: #F43F5E;`;
-const FaqAnswer = styled.div`
-  font-size: 12px; color: #475569; line-height: 1.5; white-space: pre-wrap;
-  overflow-wrap: anywhere; background: #F8FAFC; border-radius: 6px; padding: 8px 10px;
-  max-height: 160px; overflow-y: auto;
-`;
-const FaqActions = styled.div`display: flex; gap: 6px;`;
-const FaqRegisterBtn = styled.button`
-  flex: 1; height: 30px; border-radius: 6px; border: none; cursor: pointer;
-  background: #0D9488; color: #FFFFFF; font-size: 12px; font-weight: 600;
-  &:hover:not(:disabled) { background: #0F766E; }
-  &:disabled { opacity: 0.5; cursor: not-allowed; }
-`;
-const FaqDismissBtn = styled.button`
-  flex: 1; height: 30px; border-radius: 6px; cursor: pointer;
-  background: #FFFFFF; color: #64748B; border: 1px solid #E2E8F0; font-size: 12px; font-weight: 600;
-  &:hover:not(:disabled) { background: #F1F5F9; color: #0F172A; }
-  &:disabled { opacity: 0.5; cursor: not-allowed; }
-`;
-// M4 — AI 답변이 등록 FAQ 를 활용했을 때 배지 (컴포저)
-const FaqUsedBadge = styled.div`
-  display: inline-flex; align-items: center; gap: 4px; align-self: flex-start;
-  margin: 0 0 8px; padding: 4px 10px; border-radius: 999px;
-  background: rgba(244, 63, 94, 0.08); color: #F43F5E;
-  font-size: 11px; font-weight: 700; max-width: 100%;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-`;
-// 폴더 탭 (답변필요/인박스/내담당/팔로우/스팸/보관) — 좌측 상단 가로 탭
-const FolderTabs = styled.div`
-  display: flex; gap: 2px;
-  padding: 4px 8px 0;
-  border-bottom: 1px solid #E2E8F0;
-  overflow-x: auto;
-  flex-shrink: 0;
-  scrollbar-width: none;
-  &::-webkit-scrollbar { display: none; }
-`;
-const FolderTab = styled.button<{ $active: boolean }>`
-  display: inline-flex; align-items: center; gap: 5px;
-  flex-shrink: 0;
-  padding: 8px 10px 9px;
-  border: none; background: transparent;
-  font-size: 13px; font-weight: ${p => p.$active ? 700 : 500};
-  color: ${p => p.$active ? '#0F766E' : '#64748B'};
-  border-bottom: 2px solid ${p => p.$active ? '#14B8A6' : 'transparent'};
-  cursor: pointer; white-space: nowrap;
-  transition: color 0.12s;
-  &:hover { color: #0F766E; }
-`;
-const TabCount = styled.span<{ $active: boolean }>`
-  min-width: 16px; padding: 0 5px;
-  background: ${p => p.$active ? '#14B8A6' : '#E2E8F0'};
-  color: ${p => p.$active ? '#FFFFFF' : '#64748B'};
-  font-size: 10px; font-weight: 700;
-  border-radius: 999px; text-align: center;
-`;
-// 계정 필터 칩 (회사/개인) — 탭 아래
-// 메일 검색창
-const SearchRow = styled.div`
-  display: flex; align-items: center; gap: 6px;
-  margin: 8px 10px; padding: 0 10px;
-  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
-  flex-shrink: 0;
-  &:focus-within { border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.1); }
-`;
-const SearchIcon = styled.svg`width: 15px; height: 15px; color: #94A3B8; flex-shrink: 0;`;
-const SearchInput = styled.input`
-  flex: 1; min-width: 0; border: none; background: transparent; outline: none;
-  height: 34px; font-size: 13px; color: #0F172A; font-family: inherit;
-  &::placeholder { color: #94A3B8; }
-`;
-const SearchClear = styled.button`
-  flex-shrink: 0; border: none; background: transparent; cursor: pointer;
-  color: #94A3B8; font-size: 18px; line-height: 1; padding: 0 2px;
-  &:hover { color: #0F172A; }
-`;
-const AcctFilterRow = styled.div`
-  display: flex; align-items: center; gap: 8px;
-  padding: 0 14px 10px;
-`;
-const AcctSelectWrap = styled.div`flex: 1; min-width: 0;`;
-// 회사 공용 / 개인 구분 배지 — 한 인박스에 두 성격이 섞이므로 칩에서 바로 구분되어야 한다
-// 운영 #55 — 계정 관리(설정) 진입 칩 (dashed, 보조 액션)
-const AcctManageChip = styled.button`
-  padding: 3px 10px; border-radius: 999px;
-  font-size: 11px; font-weight: 600; cursor: pointer;
-  border: 1px dashed #CBD5E1; background: transparent; color: #64748B;
-  margin-left: auto;
-  &:hover { border-color: #14B8A6; color: #0F766E; }
-`;
-// 운영 #55 — 계정 미연결 빈 상태
-const NoAcctHint = styled.div`
-  font-size: 12px; color: #64748B; line-height: 1.6;
-  max-width: 320px; text-align: center; margin-top: 6px;
-`;
-const NoAcctBtn = styled.button`
-  margin-top: 16px; padding: 0 18px; height: 40px;
-  background: #14B8A6; color: #FFFFFF; border: none; border-radius: 8px;
-  font-size: 13px; font-weight: 700; cursor: pointer;
-  &:hover { background: #0D9488; }
-`;
 
-// 새 메일 작성 버튼 — Q Talk NewChatBtn 과 동일값
-const ExpandBtn = styled.button`
-  position: absolute; top: 16px; left: 12px; z-index: 5;
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 28px; height: 28px; padding: 0; border-radius: 8px;
-  border: 1px solid #E2E8F0; background: #fff; color: #64748B; cursor: pointer;
-  box-shadow: 0 1px 2px rgba(15,23,42,.05);
-  &:hover { background: #F8FAFC; color: #0F172A; }
-  @media (min-width: 1025px) { display: none; }
-`;
-const ComposeBtn = styled.button`
-  width: 32px; height: 32px;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: #14B8A6; border: none; border-radius: 8px;
-  color: #FFFFFF; cursor: pointer;
-  transition: background 0.15s; flex-shrink: 0;
-  &:hover { background: #0D9488; }
-  &:focus-visible { outline: 2px solid rgba(20, 184, 166, 0.3); outline-offset: 2px; }
-`;
-// 새 메일 작성 모달
-const ComposeOverlay = styled.div`
-  position: fixed; inset: 0; z-index: 1000;
-  background: rgba(15, 23, 42, 0.45);
-  display: flex; align-items: center; justify-content: center;
-  padding: 20px;
-  @media (max-width: 640px) { padding: 0; align-items: stretch; }
-`;
-const ComposeModal = styled.div`
-  width: min(680px, 100%); max-height: 90vh;
-  background: #FFFFFF; border-radius: 14px;
-  box-shadow: 0 4px 12px rgba(15,23,42,0.06), 0 12px 40px rgba(15,23,42,0.18);
-  display: flex; flex-direction: column; overflow: hidden;
-  @media (max-width: 640px) { border-radius: 0; max-height: 100vh; height: 100vh; }
-`;
-const ComposeHead = styled.div`
-  min-height: 60px; padding: 14px 20px;
-  border-bottom: 1px solid #E2E8F0;
-  display: flex; align-items: center; justify-content: space-between;
-  flex-shrink: 0;
-`;
-const ComposeTitle = styled.h2`
-  margin: 0; font-size: 18px; font-weight: 700; color: #0F172A; letter-spacing: -0.2px;
-`;
-const CloseBtn = styled.button`
-  width: 30px; height: 30px; border: none; background: transparent;
-  color: #94A3B8; font-size: 16px; cursor: pointer; border-radius: 8px;
-  &:hover { background: #F1F5F9; color: #0F172A; }
-`;
-const FwdAttachHint = styled.div`font-size: 12px; color: #0F766E; background: #F0FDFA; border: 1px solid #CCFBF1; border-radius: 8px; padding: 8px 12px;`;
-const ComposeBody = styled.div`
-  padding: 16px 20px; overflow-y: auto;
-  display: flex; flex-direction: column; gap: 12px;
-`;
-const ComposeField = styled.div`
-  display: flex; flex-direction: column; gap: 4px;
-`;
-const ComposeLabel = styled.label`
-  font-size: 12px; font-weight: 600; color: #64748B;
-`;
-const ComposeInput = styled.input`
-  height: 40px; padding: 0 12px;
-  border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 14px; color: #0F172A;
-  &::placeholder { color: #94A3B8; }
-  &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.12); }
-`;
-const ComposeFoot = styled.div`
-  padding: 12px 20px; border-top: 1px solid #E2E8F0;
-  display: flex; align-items: center; justify-content: flex-end; gap: 8px;
-  flex-shrink: 0;
-`;
-// Q Talk ChatList 와 동일 — 둥근 행이 측면 여백 갖도록 padding
-const ListMoreRow = styled.div`
-  display: flex; justify-content: center; align-items: center; padding: 12px 0;
-`;
-const ThreadList = styled.div`
-  flex: 1; overflow-y: auto;
-  padding: 6px 6px 12px;
-  &::-webkit-scrollbar { width: 6px; }
-  &::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 3px; }
-`;
-// Q Talk ChatRow 정확값 — 둥근 행, active=#F0FDFA + inset 3px 0 0 #0D9488, hover #F8FAFC
-const ThreadItem = styled.button<{ $active: boolean; $unread: boolean; $handled?: boolean }>`
-  display: block; width: 100%;
-  opacity: ${(p) => (p.$handled ? 0.5 : 1)};   /* 처리됨 — 자리는 지키고 조용히 물러난다 */
-  transition: opacity 0.15s ease;
-  padding: 10px 10px;
-  margin: 2px 0;
-  border-radius: 10px;
-  border: none;
-  background: ${p => p.$active ? '#F0FDFA' : 'transparent'};
-  ${p => p.$active && 'box-shadow: inset 3px 0 0 #0D9488;'}
-  text-align: left;
-  cursor: pointer;
-  transition: background 0.1s;
-  &:hover { ${p => !p.$active && 'background: #F8FAFC;'} }
-`;
-const ThreadRow1 = styled.div`
-  display: flex; justify-content: space-between; align-items: baseline;
-  margin-bottom: 4px;
-`;
-const ThreadSender = styled.span`
-  font-size: 13px; font-weight: 600; color: #0F172A;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  max-width: 70%;
-`;
-const ThreadTime = styled.span`
-  font-size: 11px; color: #94A3B8; flex-shrink: 0;
-`;
-const ThreadSubject = styled.div<{ $unread: boolean }>`
-  display: flex; align-items: center; gap: 6px;
-  font-size: 13px;
-  font-weight: ${p => p.$unread ? 600 : 500};
-  color: #334155;
-  margin-bottom: 2px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-`;
-const UnreadDot = styled.span`
-  display: inline-block; flex-shrink: 0;
-  width: 8px; height: 8px; border-radius: 50%;
-  background: #14B8A6;
-`;
-const ThreadPreview = styled.div`
-  font-size: 12px; color: #64748B;
-  line-height: 1.4;
-  overflow: hidden; text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-`;
-// M3-B — 행 별표 + 라벨 칩
-const ThreadRow1Right = styled.span`
-  display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
-`;
-const StarSpan = styled.span<{ $on: boolean }>`
-  font-size: 14px; line-height: 1; cursor: pointer;
-  color: ${p => p.$on ? '#F59E0B' : '#CBD5E1'};
-  &:hover { color: ${p => p.$on ? '#D97706' : '#94A3B8'}; }
-`;
-const RowLabels = styled.div`
-  display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;
-`;
-// M5 — Uncertain(확인 권장) 사유 배지 (Warning amber)
-const ReplyRow = styled.div`
-  display: flex; align-items: center; gap: 6px; margin-top: 6px; min-height: 24px;
-`;
-const OverdueChip = styled.span`
-  font-size: 10px; font-weight: 700; color: #B91C1C; background: #FEF2F2;
-  border: 1px solid #FECACA; border-radius: 999px; padding: 1px 7px;
-`;
-// 리스트 행의 처리 버튼 — 확인 완료 · 스팸 · 답변 완료. 높이·정렬을 하나로 고정한다.
-const RowBtn = styled.button<{ $danger?: boolean }>`
-  height: 24px; padding: 0 8px; flex-shrink: 0;
-  display: inline-flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 600; line-height: 1;
-  color: ${(p) => (p.$danger ? '#94A3B8' : '#64748B')};
-  background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 6px;
-  cursor: pointer;
-  &:first-of-type { margin-left: auto; }   /* 뱃지가 없으면 버튼 묶음이 우측으로 */
-  &:hover:not(:disabled) {
-    ${(p) => (p.$danger
-      ? 'border-color: #FECACA; color: #B91C1C; background: #FEF2F2;'
-      : 'border-color: #14B8A6; color: #0F766E; background: #F0FDFA;')}
-  }
-  &:disabled { opacity: 0.5; cursor: wait; }
-`;
-// 검토 권장 — 처리 버튼과 같은 줄 (높이 24px 로 버튼과 시각 정렬)
-const UncertainInline = styled.span`
-  height: 24px; padding: 0 8px; margin-right: auto;
-  display: inline-flex; align-items: center; gap: 3px;
-  border-radius: 999px; background: rgba(245, 158, 11, 0.13); color: #92400E;
-  font-size: 11px; font-weight: 700; line-height: 1;
-`;
-const RuleBadge = styled.span`
-  display: inline-flex; align-items: center; align-self: flex-start;
-  margin-top: 4px; padding: 2px 8px; border-radius: 999px;
-  background: #F1F5F9; color: #64748B; font-size: 11px; font-weight: 600;
-`;
-const UncertainBadge = styled.span`
-  display: inline-flex; align-items: center; gap: 3px; align-self: flex-start;
-  margin-top: 4px; padding: 2px 8px; border-radius: 999px;
-  background: rgba(245, 158, 11, 0.13); color: #92400E;
-  font-size: 11px; font-weight: 700;
-`;
-const LabelChip = styled.span<{ $color: string; $clickable?: boolean }>`
-  display: inline-flex; align-items: center; gap: 3px;
-  padding: 1px 8px; border-radius: 999px;
-  font-size: 11px; font-weight: 600;
-  color: ${p => p.$color};
-  background: ${p => p.$color}1A;
-  border: 1px solid ${p => p.$color}55;
-  cursor: ${p => p.$clickable ? 'pointer' : 'default'};
-`;
 
-// 상세 헤더 우측 (메시지 수·고객 칩 + 스팸) — PanelHeader 안 오른쪽 슬롯
-const DetailHeaderRight = styled.div`
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  flex-shrink: 0;
-`;
-// 맥락 패널 좌측 리사이즈 핸들 (Q Task 패턴 통일)
-const CtxResizeHandle = styled.div`
-  position: absolute; top: 0; left: -3px; width: 6px; height: 100%;
-  cursor: col-resize; z-index: 5;
-  &:hover { background: rgba(20,184,166,0.2); }
-  &:active { background: rgba(20,184,166,0.4); }
-  @media (max-width: 1024px) { display: none; }
-`;
-// 상세 부가 툴바 (컨트롤·라벨) — PanelHeader 아래 별도 줄
-const DetailToolbar = styled.div`
-  padding: 12px 20px;
-  border-bottom: 1px solid #F1F5F9;
-  background: #FFFFFF;
-`;
-const MetaChip = styled.span`
-  padding: 2px 8px;
-  background: #F1F5F9; color: #475569;
-  font-size: 11px; font-weight: 500;
-  border-radius: 999px;
-`;
-// M3-B — 상세 헤더 컨트롤 (별표/팔로우/담당) + 라벨
-const DetailControls = styled.div`
-  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-  margin-top: 0;
-`;
-const CtrlBtn = styled.button<{ $on: boolean }>`
-  height: 28px; padding: 0 12px;
-  border-radius: 999px;
-  font-size: 12px; font-weight: 600;
-  cursor: pointer;
-  border: 1px solid ${p => p.$on ? '#5EEAD4' : '#E2E8F0'};
-  background: ${p => p.$on ? '#F0FDFA' : '#FFFFFF'};
-  color: ${p => p.$on ? '#0F766E' : '#64748B'};
-  transition: background 0.12s, border-color 0.12s;
-  &:hover { border-color: #5EEAD4; }
-  &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
-`;
-const DetailLabels = styled.div`
-  display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;
-`;
-const AddLabelChip = styled.button<{ $color: string }>`
-  padding: 2px 10px; border-radius: 999px;
-  font-size: 11px; font-weight: 600;
-  cursor: pointer;
-  color: ${p => p.$color};
-  background: #FFFFFF;
-  border: 1px dashed ${p => p.$color}88;
-  &:hover { background: ${p => p.$color}12; }
-`;
-const NewLabelInput = styled.input`
-  height: 24px; padding: 0 10px;
-  border: 1px dashed #CBD5E1; border-radius: 999px;
-  font-size: 11px; color: #334155;
-  width: 96px;
-  &::placeholder { color: #94A3B8; }
-  &:focus { outline: none; border-color: #14B8A6; border-style: solid; }
-  &:disabled { opacity: 0.5; }
-`;
-const AssignWrap = styled.div`
-  min-width: 150px;
-`;
-const DangerBtn = styled.button`
-  margin-left: auto;
-  height: 28px; padding: 0 12px;
-  background: transparent; color: #B91C1C;
-  border: 1px solid #FECACA; border-radius: 6px;
-  font-size: 12px; font-weight: 600;
-  cursor: pointer;
-  &:hover { background: #FEF2F2; border-color: #FCA5A5; color: #991B1B; }
-`;
 
-// 메일 본문은 상세 패널(이미 카드) 안에서 또 카드로 감싸지 않는다 — 읽는 화면은 넓고 평평해야 한다.
-// 메시지끼리는 구분선으로만 나누고, 내가 보낸 메일은 좌측 민트 라인 + 옅은 배경으로만 구분한다.
-// 본문 iframe 은 내용 높이만큼 늘어나고, 길어지면 이 스크롤러가 끝까지 스크롤한다.
-const MessagesScroll = styled.div`
-  flex: 1; min-height: 0; overflow-y: auto;
-  padding: 0 24px 24px;
-  background: #FFFFFF;
-  @media (max-width: 640px) { padding: 0 16px 16px; }
-`;
-const MessageCard = styled.div<{ $outbound: boolean }>`
-  background: ${p => p.$outbound ? '#F8FDFC' : 'transparent'};
-  border-left: ${p => p.$outbound ? '3px solid #5EEAD4' : 'none'};
-  padding-left: ${p => p.$outbound ? '13px' : '0'};
-  border-bottom: 1px solid #E2E8F0;
-  padding-bottom: 12px;
-  &:last-child { border-bottom: none; padding-bottom: 0; }
-`;
-const MessageHeader = styled.div`
-  display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
-  padding: 16px 0 8px;
-  background: transparent;
-`;
-const MsgHeaderRight = styled.div`display: flex; align-items: center; gap: 10px; flex-shrink: 0;`;
-const MsgForwardBtn = styled.button`
-  background: transparent; border: 1px solid #E2E8F0; color: #475569;
-  padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
-  &:hover { background: #F0FDFA; border-color: #99F6E4; color: #0F766E; }
-`;
-const MessageFrom = styled.div`
-  font-size: 13px; font-weight: 600; color: #0F172A;
-`;
-const MessageTime = styled.div`
-  font-size: 11px; color: #94A3B8;
-`;
-const MessageBodyFrame = styled.iframe`
-  width: 100%;
-  min-height: 40px;   /* 짧은 답장은 짧게 — 아래가 비어 늘어지지 않는다 */
-  border: none;
-  display: block;
-  background: transparent;
-`;
-const MessageBodyText = styled.div`
-  padding: 4px 0 8px;
-  font-size: 14px; color: #334155;
-  white-space: pre-wrap;
-  font-family: -apple-system, sans-serif;
-  line-height: 1.6;
-`;
-const Attachments = styled.div`
-  padding: 10px 0 2px;
-  border-top: 1px solid #F1F5F9;
-  display: flex; flex-direction: column; gap: 4px;
-`;
-const Attachment = styled.div`
-  font-size: 12px; color: #475569;
-`;
-// 하단 액션 영역 — 본문과 같은 흰 바탕. 회색/흰 박스를 겹쳐 띄우지 않는다(박스 속 박스 금지).
-const DetailFooter = styled.div`
-  padding: 14px 24px;
-  border-top: 1px solid #E2E8F0;
-  background: #FFFFFF;
-  max-height: 55vh;
-  overflow-y: auto;
-`;
-const ReplyBar = styled.div`
-  display: flex; align-items: center; justify-content: flex-start; gap: 8px;
-  padding: 0; border: none; background: transparent;
-`;
-const Composer = styled.div`
-  display: flex; flex-direction: column; gap: 10px;
-`;
-const ComposerTo = styled.div`
-  font-size: 12px; color: #64748B;
-  strong { color: #0F172A; font-weight: 600; }
-`;
-const ComposerError = styled.div`
-  padding: 8px 10px;
-  background: #FEF2F2; color: #B91C1C;
-  border: 1px solid #FECACA; border-radius: 8px;
-  font-size: 12px;
-`;
-// 좌측 정렬 고정 — [보내기] [AI] [취소]. 버튼이 좌우로 튀지 않게 space-between 을 쓰지 않는다.
-const ComposerActions = styled.div`
-  display: flex; align-items: center; justify-content: flex-start; gap: 8px;
-  flex-wrap: wrap;
-`;
-const ComposerHint = styled.div`
-  font-size: 11px; color: #94A3B8;
-`;
-// AI 답변 제안 — Coral 강조 (AI 감지/액션 컬러)
-// 자동·마케팅 메일 — AI 답변 비노출 안내 (게이트)
-const AiGatedHint = styled.span`
-  font-size: 12px; color: #94A3B8;
-  display: inline-flex; align-items: center;
-`;
 
-const Loading = styled.div`
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  padding: 60px 24px;
-  font-size: 13px; color: #94A3B8;
-  gap: 12px;
-`;
-const Spinner = styled.div`
-  width: 24px; height: 24px;
-  border: 2px solid #E2E8F0;
-  border-top-color: #14B8A6;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  @keyframes spin { to { transform: rotate(360deg); } }
-`;
-const ErrorBar = styled.div`
-  margin: 12px 16px;
-  padding: 10px 12px;
-  background: #FEF2F2; color: #B91C1C;
-  border: 1px solid #FECACA; border-radius: 8px;
-  font-size: 12px;
-`;
-const EmptyList = styled.div`
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  flex: 1; padding: 48px 24px; gap: 12px;
-`;
-const EmptyIcon = styled.svg`
-  width: 48px; height: 48px;
-  color: #CBD5E1;
-`;
-const EmptyText = styled.div`
-  font-size: 13px; color: #64748B;
-`;
-const Empty = styled.div`
-  padding: 60px 24px; text-align: center;
-  font-size: 13px; color: #64748B;
-`;
 
-// 첨부 아이콘 — 이모지(📎) 대신 SVG (플랫폼 아이콘 통일, 폰트 의존 제거)
-const ClipIcon = styled.svg`
-  width: 13px; height: 13px; flex-shrink: 0; vertical-align: -2px; color: #64748B;
-`;
 
-// 작업대 오버레이 뒤 dim (태블릿·폰)
-const CtxBackdrop = styled.div`
-  position: fixed; inset: 0; z-index: 40;
-  background: rgba(15, 23, 42, 0.35);
-  @media (min-width: 1025px) { display: none; }
-`;
 
 // 리스트 행의 스팸 버튼 — 파괴적이지 않지만 되돌릴 수 있음을 알리는 톤(회색 → hover 시 danger)
 
-// 보내는 사람(Send-as) — 주소가 2개 이상일 때만 뜬다
-const ComposerFrom = styled.div`display: flex; align-items: center; gap: 8px;`;
-const FromLbl = styled.span`font-size: 12px; color: #64748B; flex-shrink: 0;`;
-const FromSelect = styled.div`flex: 1; min-width: 0; max-width: 320px;`;
 
-// 처리됨 — 그 자리에 남되 조용히 물러난다 (행을 지우면 아래가 위로 밀려 읽던 자리가 흔들린다)
-const HandledBadge = styled.span`
-  height: 24px; padding: 0 8px; margin-left: auto;
-  display: inline-flex; align-items: center;
-  border-radius: 999px; background: #F1F5F9; color: #94A3B8;
-  font-size: 11px; font-weight: 700; line-height: 1;
-`;
+

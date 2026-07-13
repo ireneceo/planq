@@ -196,7 +196,9 @@
     "aiRegenerate": "Regenerate AI draft",
     "aiLimitExceeded": "You've used all AI actions this month.",
     "aiHint": "AI writes a draft reply for this email",
-    "from": "From"
+    "from": "From",
+    "addAlias": "Add send-as address",
+    "useReceived": "Send from {{addr}} (register)"
   },
   "errors": {
     "loadList": "Failed to load inbox"
@@ -335,5 +337,8 @@
     "errSame": "That's the account's own address.",
     "errFailed": "Could not add it.",
     "providerNote": "To send from Gmail, the address must be verified under Gmail’s \"Send mail as\". Your own mail server usually allows any address on a domain you own."
+  },
+  "detail": {
+    "toAddr": "Received at"
   }
 }

@@ -42,6 +42,7 @@ import {
 import WeeklyReviewModal from '../../components/QTask/WeeklyReviewModal';
 import WeeklyReviewTab from '../../components/QTask/WeeklyReviewTab';
 import PanelEdgeHandle from '../../components/Layout/PanelEdgeHandle';
+import PartnerKindBadge from '../../components/Common/PartnerKindBadge';
 
 // ─── Types ───
 type Scope = 'mine' | 'workspace';
@@ -291,6 +292,21 @@ const QTaskPage:React.FC=()=>{
   const[newTitle,setNewTitle]=useState('');
   const[newAssignee,setNewAssignee]=useState<number|null>(null);
   const[newProjectId,setNewProjectId]=useState<number|null>(null);
+  // 업무 추가 폼 담당자 후보 — 프로젝트를 고르면 그 프로젝트의 외부 참여자(고객·협력사·프리랜서)도 나온다.
+  //   프로젝트를 안 고르면 내부 멤버만 (외부인은 프로젝트 스코프 안에서만 담당자가 될 수 있다 — 백엔드 assertAssignable 과 같은 규칙).
+  const[addExternals,setAddExternals]=useState<Array<{user_id:number;name:string;kind:string}>>([]);
+  useEffect(()=>{
+    if(!bizId||!newProjectId){setAddExternals([]);return;}
+    let alive=true;
+    (async()=>{
+      try{
+        const r=await apiFetch(`/api/tasks/by-business/${bizId}/assignable-externals?project_id=${newProjectId}`);
+        const j=await r.json();
+        if(alive&&j.success)setAddExternals((j.data||[]).map((e:{user_id:number;name:string;kind:string})=>({user_id:e.user_id,name:e.name,kind:e.kind})));
+      }catch{/* 외부 후보는 부가 — 실패해도 내부 멤버로 등록은 된다 */}
+    })();
+    return()=>{alive=false;};
+  },[bizId,newProjectId]);
   const[newDueDate,setNewDueDate]=useState<string>('');
   const[newStartDate,setNewStartDate]=useState<string>('');
   const[newEstHours,setNewEstHours]=useState<string>('');
@@ -1912,11 +1928,14 @@ const QTaskPage:React.FC=()=>{
                     placeholder={tab==='requested'?t('add.assigneeRequiredHint','담당자 선택 (필수)'):t('add.assigneeDefault','담당자: 나')}
                     value={newAssignee==null?null:{
                       value:String(newAssignee),
-                      label:(members.find(m=>m.user_id===newAssignee)?.name||'-')+(newAssignee===myId?t('detail.meSuffix',' (나)'):''),
+                      label:(members.find(m=>m.user_id===newAssignee)?.name||addExternals.find(e=>e.user_id===newAssignee)?.name||'-')+(newAssignee===myId?t('detail.meSuffix',' (나)'):''),
                     }}
                     onChange={(v)=>setNewAssignee((v as {value?:string})?.value?Number((v as {value:string}).value):null)}
-                    options={members.filter(m=>tab==='requested'?m.user_id!==myId:true)
-                      .map(m=>({value:String(m.user_id),label:m.name+(m.user_id===myId?t('detail.meSuffix',' (나)'):'')}))} />
+                    options={[
+                      ...members.filter(m=>tab==='requested'?m.user_id!==myId:true)
+                        .map(m=>({value:String(m.user_id),label:m.name+(m.user_id===myId?t('detail.meSuffix',' (나)'):'')})),
+                      ...addExternals.map(e=>({value:String(e.user_id),label:e.name,icon:<PartnerKindBadge kind={e.kind} size="xs" />})),
+                    ]} />
                 </AddOptField>
                 <AddOptField style={{flex:'1 1 200px'}}>
                   <AddOptLabel>{t('add.dateRange','시작 ~ 마감')}</AddOptLabel>
@@ -2720,11 +2739,14 @@ const QTaskPage:React.FC=()=>{
                     placeholder={tab==='requested'?t('add.assigneeRequiredHint','담당자 선택 (필수)'):t('add.assigneeDefault','담당자: 나')}
                     value={newAssignee==null?null:{
                       value:String(newAssignee),
-                      label:(members.find(m=>m.user_id===newAssignee)?.name||'-')+(newAssignee===myId?t('detail.meSuffix',' (나)'):''),
+                      label:(members.find(m=>m.user_id===newAssignee)?.name||addExternals.find(e=>e.user_id===newAssignee)?.name||'-')+(newAssignee===myId?t('detail.meSuffix',' (나)'):''),
                     }}
                     onChange={(v)=>setNewAssignee((v as {value?:string})?.value?Number((v as {value:string}).value):null)}
-                    options={members.filter(m=>tab==='requested'?m.user_id!==myId:true)
-                      .map(m=>({value:String(m.user_id),label:m.name+(m.user_id===myId?t('detail.meSuffix',' (나)'):'')}))} />
+                    options={[
+                      ...members.filter(m=>tab==='requested'?m.user_id!==myId:true)
+                        .map(m=>({value:String(m.user_id),label:m.name+(m.user_id===myId?t('detail.meSuffix',' (나)'):'')})),
+                      ...addExternals.map(e=>({value:String(e.user_id),label:e.name,icon:<PartnerKindBadge kind={e.kind} size="xs" />})),
+                    ]} />
                 </AddOptField>
               </AddOptRow>
               <AddOptRow>

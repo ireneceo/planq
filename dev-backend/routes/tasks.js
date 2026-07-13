@@ -640,11 +640,11 @@ router.post('/ai-create', authenticateToken, ...aiCreateLimiter, async (req, res
       if (!planCan.ok) return res.status(422).json(planEngine.buildQuotaError(planCan, business_id));
     }
 
-    // 담당자 후보 풀 — Cue(AI) 는 제외한다. 이 경로(ai-create/confirm)에는 Cue 자동 실행 트리거가 없어서
-    //   "Cue 에게 시켜줘" 로 배정되면 아무도 실행하지 않는 좀비 업무가 된다
-    //   (후보 승격 경로는 같은 이유로 이미 막혀 있다 — services/task_extractor.js).
+    // 담당자 후보 풀 — Cue(AI) 포함. "Cue 에게 시켜줘" 는 정상 기능이다.
+    //   (앞서 좀비 업무를 막으려고 풀에서 뺐었는데, 정석은 confirm 에 실행 트리거를 붙이는 것 —
+    //    아래 executeForTask. 기능을 빼는 게 아니라 빠진 트리거를 채운다.)
     const memberRows = await BusinessMember.findAll({
-      where: { business_id, role: { [Op.ne]: 'ai' } },
+      where: { business_id },
       attributes: ['user_id', 'role', 'job_title', 'expertise', 'name'],
       include: [{ model: User, as: 'user', attributes: ['id', 'name'] }],
     });
@@ -732,6 +732,10 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
     const { TaskEstimation } = require('../models');
     const io = req.app.get('io');
     const created = [];
+    // Cue(AI) 담당 업무는 만들자마자 실행한다 — 단건 POST 경로와 같은 규칙.
+    //   이 트리거가 없어서 "Cue 에게 시켜줘" 로 만든 업무가 아무도 안 하는 업무로 남았다.
+    const bizForCue = await Business.findByPk(business_id, { attributes: ['cue_user_id'] });
+    const cueUserId = bizForCue?.cue_user_id || null;
     // #90 계열 — 일괄 생성 task 의 담당자(≠생성자) 알림. wsName/notify 는 loop 밖 1회 준비.
     const { notify: notifyAssignee } = require('./notifications');
     const bizForNotify = await Business.findByPk(business_id, { attributes: ['name', 'brand_name'] });
@@ -752,11 +756,13 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
         if (!chk.ok) return errorResponse(res, `assignee_not_assignable:${chk.reason}`, 403);
       }
       const isInternalRequest = finalAssignee !== req.user.id;
-      // PERMISSION_MATRIX §5.7 — 요청 업무(담당자 ≠ 작성자)는 예측시간을 요청자가 정하지 않는다.
-      //   담당자가 ack 후 본인 캐파에 맞춰 정한다. 단건 POST 경로와 같은 규칙 (여기만 빠져 있었다).
+      // PERMISSION_MATRIX §5.7 — 사람에게 요청하는 업무는 예측시간을 요청자가 정하지 않는다
+      //   (담당자가 ack 후 본인 캐파에 맞춰 정한다). 단, **Cue(AI) 담당이면 저장한다** — AI 에겐
+      //   캐파 협상이 없고, 사용자가 "예상 4시간" 이라고 말했으면 그대로 남아야 한다.
       const rawEstimated = Number.isFinite(Number(c.estimated_hours)) && Number(c.estimated_hours) > 0
         ? Number(c.estimated_hours) : null;
-      const estimatedHours = isInternalRequest ? null : rawEstimated;
+      const assigneeIsCue = cueUserId && Number(finalAssignee) === Number(cueUserId);
+      const estimatedHours = (isInternalRequest && !assigneeIsCue) ? null : rawEstimated;
 
       const task = await Task.create({
         business_id,
@@ -781,6 +787,14 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
             defaults: { task_id: task.id, user_id: req.user.id, is_client: false, added_by_user_id: req.user.id },
           });
         } catch (e) { console.warn('[ai-create auto-reviewer]', e.message); }
+      }
+
+      // Cue 담당이면 즉시 실행 (비동기 — 응답은 기다리지 않는다)
+      if (cueUserId && Number(finalAssignee) === Number(cueUserId)) {
+        const { executeForTask } = require('../services/cue_task_executor');
+        executeForTask(task.id, { triggeredBy: req.user.id })
+          .then((r) => console.log('[cue_task_executor]', task.id, r.ok ? 'ok' : `skip: ${r.reason}`))
+          .catch((e) => console.error('[cue_task_executor] crash', e.message));
       }
 
       // task_estimations source='ai' — AI 추천값 박제 (사용자 인라인 수정 시 source='user' row 추가됨)
