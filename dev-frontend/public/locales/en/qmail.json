@@ -194,7 +194,8 @@
     "waitingDays": "{{n}} days waiting",
     "aiRegenerate": "Regenerate AI draft",
     "aiLimitExceeded": "You've used all AI actions this month.",
-    "aiHint": "AI writes a draft reply for this email"
+    "aiHint": "AI writes a draft reply for this email",
+    "from": "From"
   },
   "errors": {
     "loadList": "Failed to load inbox"
@@ -316,5 +317,21 @@
     "off": "Not appended",
     "desc": "Appended to replies, forwards, and new mail sent from this account. Each account can have its own.",
     "placeholder": "e.g. Jane Doe · Worpro Lab · +82 10-0000-0000"
+  },
+  "alias": {
+    "title": "Send-as addresses",
+    "desc": "If this mailbox receives several domains, register the addresses so you can pick one when sending. Replies default to the address the mail arrived at.",
+    "accountAddr": "Account default",
+    "default": "Default",
+    "setDefault": "Make default",
+    "remove": "Remove",
+    "add": "Add",
+    "emailPh": "hello@another-domain.com",
+    "namePh": "Display name (optional)",
+    "errInvalid": "Check the email address format.",
+    "errExists": "That address is already registered.",
+    "errSame": "That's the account's own address.",
+    "errFailed": "Could not add it.",
+    "providerNote": "To send from Gmail, the address must be verified under Gmail’s \"Send mail as\". Your own mail server usually allows any address on a domain you own."
   }
 }

@@ -578,12 +578,27 @@ router.post('/:businessId/email-threads/:id/messages',
 
       const { atts, files } = await resolveAttachments(attachment_file_ids, businessId);
 
+      // 이 스레드가 "어느 주소로" 왔는지 — 그 주소로 답한다 (별칭 자동 선택의 근거)
+      let lastInboundTo = null;
+      try {
+        const lastIn = await EmailMessage.findOne({
+          where: { thread_id: thread.id, direction: 'inbound' },
+          order: [['sent_at', 'DESC']],
+          attributes: ['to_emails'],
+        });
+        if (lastIn && Array.isArray(lastIn.to_emails)) lastInboundTo = lastIn.to_emails.map((x) => (typeof x === 'string' ? x : x?.address)).filter(Boolean);
+      } catch (e) { console.warn('[qmail] lastInboundTo', e.message); }
+
       // 발송 (실패 시 502 — outbound row 안 만듦. 프론트는 작성 내용 유지)
       let sendResult;
       try {
         sendResult = await sendMail(account, {
           to: toList, cc, bcc, subject, html: body_html,
           inReplyTo, references, attachments: atts,
+          // 발신 주소 — 사용자가 고른 별칭이 있으면 그것, 없으면 "이 메일이 온 주소" 로 답한다.
+          //   다른 도메인 주소로 답장이 나가면 사고다 (Send-as: docs/MAIL_ALIAS_AND_VOICE_DESIGN.md §A-4).
+          fromAliasId: (req.body || {}).from_alias_id || null,
+          replyToAddresses: lastInboundTo,
         });
       } catch (e) {
         console.error('[qmail] reply send failed:', e.message);
@@ -690,7 +705,7 @@ router.post('/:businessId/email-compose',
 
       let sendResult;
       try {
-        sendResult = await sendMail(account, { to: toList, cc, bcc, subject: subj, html: body_html, attachments: atts });
+        sendResult = await sendMail(account, { to: toList, cc, bcc, subject: subj, html: body_html, attachments: atts, fromAliasId: (req.body || {}).from_alias_id || null });
       } catch (e) {
         console.error('[qmail] compose send failed:', e.message);
         return errorResponse(res, `send_failed: ${e.message}`, 502);
@@ -754,7 +769,7 @@ router.post('/:businessId/email-threads/:id/forward',
 
       let sendResult;
       try {
-        sendResult = await sendMail(account, { to: toList, cc, bcc, subject: subj, html: body_html, attachments: atts });
+        sendResult = await sendMail(account, { to: toList, cc, bcc, subject: subj, html: body_html, attachments: atts, fromAliasId: (req.body || {}).from_alias_id || null });
       } catch (e) {
         console.error('[qmail] forward send failed:', e.message);
         return errorResponse(res, `send_failed: ${e.message}`, 502);
