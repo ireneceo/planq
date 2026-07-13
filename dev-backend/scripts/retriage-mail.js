@@ -11,7 +11,7 @@ require('dotenv').config();
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
 const { EmailThread, EmailMessage, EmailAccount, EmailThreadParticipant } = require('../models');
-const { triageInbound } = require('../services/emailTriage');
+const { retriageStored } = require('../services/emailTriage');
 const { applyRules } = require('../services/mailSenderRules');
 const { isKnownContact } = require('../services/emailImapCron');
 
@@ -73,7 +73,10 @@ const APPLY = process.argv.includes('--apply');
       ...(msg.references_chain ? { references: msg.references_chain } : {}),
     };
     const known = await isKnownContact(acc.business_id, fromEmail);
-    const base = triageInbound({
+    // triage(사람/자동/광고)는 동기화 때 헤더 원문으로 판정한 값을 그대로 신뢰한다.
+    //   여기서 다시 계산하면 헤더가 없어 광고가 사람 메일로 뒤집힌다 (실제 사고 → 백업 복원).
+    const base = retriageStored({
+      triage: th.triage,
       subject: msg.subject || th.subject,
       bodyText: msg.body_text || '',
       fromEmail,
@@ -96,7 +99,6 @@ const APPLY = process.argv.includes('--apply');
         reply_needed: nextReply,
         reply_needed_reason: nextReply ? (th.reply_needed_reason || 'inbound') : 'retriage',
         status: nextStatus,
-        triage: tr.triage || th.triage,
         uncertain_reason: tr.uncertain_reason || null,
         rule_id: tr.rule_id || null,
       });

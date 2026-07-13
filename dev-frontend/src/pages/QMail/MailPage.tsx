@@ -108,6 +108,23 @@ const FOLDERS: Array<{ key: Folder; defaultLabel: string }> = [
   { key: 'archived', defaultLabel: '보관' },
 ];
 
+
+// 메일 본문 문서 만들기 — 정화된 원본 문서에 높이 보고 스크립트만 덧붙인다.
+//   원본에 <html>/<body> 가 있으면 그대로 쓰고(배경·정렬·템플릿 CSS 보존), 조각 HTML 이면 최소 골격만 씌운다.
+//   우리 폰트·여백을 강제하지 않는다 — 강제하면 발신자가 만든 레이아웃이 깨진다.
+function buildMailSrcDoc(id: number, html: string): string {
+  const safe = sanitizeMailHtml(html);
+  const resize = `<script>(function(){var send=function(){parent.postMessage({planqMailFrame:${id},h:document.documentElement.scrollHeight},'*');};send();window.addEventListener('load',send);if(window.ResizeObserver)new ResizeObserver(send).observe(document.body);setTimeout(send,300);setTimeout(send,1200);})();<\/script>`;
+  // 가로 넘침만 최소 보정 (고정폭 템플릿이 패널보다 넓을 때 잘리지 않고 스크롤되게)
+  const guard = '<style>html,body{margin:0;padding:0;}body{overflow-x:auto;}img{max-width:100%;height:auto;}</style>';
+  const hasDoc = /<body[\s>]/i.test(safe);
+  if (hasDoc) {
+    if (/<\/body>/i.test(safe)) return safe.replace(/<\/body>/i, `${guard}${resize}</body>`);
+    return `${safe}${guard}${resize}`;
+  }
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${guard}</head><body>${safe}${resize}</body></html>`;
+}
+
 const MailPage: React.FC = () => {
   const { t } = useTranslation('qmail');
   const { user } = useAuth();
@@ -1193,14 +1210,15 @@ const MailPage: React.FC = () => {
                         </MsgForwardBtn>
                       </MsgHeaderRight>
                     </MessageHeader>
-                    {/* 본문은 DOMPurify 로 정제(script/on* 제거) 후 sandbox iframe 에 넣는다.
-                        iframe 은 allow-scripts 만 (allow-same-origin 없음 → 불투명 origin, 부모 DOM·쿠키 접근 불가).
-                        안에서 도는 스크립트는 우리가 넣은 높이 보고용 한 줄뿐 — 메일이 잘리지 않고 끝까지 보이게 한다. */}
+                    {/* 메일 본문은 원본 문서 그대로 보여준다 — 우리 CSS 를 덮어씌우면 가운데 정렬이 풀리고
+                        배경이 사라지고 여백이 잘린다(메일 템플릿은 <style> + table + body bgcolor 로 짜여 있다).
+                        sanitizeMailHtml 이 문서를 통째로 정화(script·on* 제거)하고, sandbox iframe
+                        (allow-scripts 만, same-origin 없음)이 격리한다. 우리가 넣는 스크립트는 높이 보고 한 줄. */}
                     {m.body_html ? (
                       <MessageBodyFrame
                         sandbox="allow-scripts"
                         style={{ height: `${frameH[m.id] || 240}px` }}
-                        srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:-apple-system,sans-serif;font-size:14px;color:#0F172A;margin:0;padding:0 0 4px;line-height:1.7;}img{max-width:100%;height:auto;}a{color:#0D9488;}table{max-width:100%;}</style></head><body>${sanitizeMailHtml(m.body_html)}<script>(function(){var send=function(){parent.postMessage({planqMailFrame:${m.id},h:document.documentElement.scrollHeight},'*');};send();window.addEventListener('load',send);if(window.ResizeObserver)new ResizeObserver(send).observe(document.body);setTimeout(send,300);setTimeout(send,1200);})();<\/script></body></html>`}
+                        srcDoc={buildMailSrcDoc(m.id, m.body_html)}
                         title={`message-${m.id}`}
                       />
                     ) : (
