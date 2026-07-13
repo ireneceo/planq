@@ -1,8 +1,23 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-07-13 (Opus, 1M) — LLM 게이트웨이 단일화 (Fable D-1) · 앞서 메일 판정 헤더 저장
+**마지막 업데이트:** 2026-07-13 (Opus, 1M) — 행동 계층 추출 (Fable D-3) · LLM 게이트웨이 (D-1) · 메일 판정 헤더 저장
 **작업 상태:** 완료 (dev 검증 통과 · **미배포** — 배포하려면 `/배포`. ⚠️ 운영 배포 전 **수동 ALTER 선행 필요**)
+
+---
+
+## ✅ 이번 세션 완료 (3) — 행동 계층 추출 · Fable D-3 1사이클 (commit a9acd27)
+
+업무 상태 전이가 12개 라우트에 인라인이라, **라우트를 안 지나는 실행자(Cue·cron)가 가드·이력·알림·broadcast·Focus 정리를 통째로 우회**할 수 있었다.
+
+- **신규 `services/actions/task_actions.js`** — 11개 행동(ack·submit·cancel·complete·approve·revision·revert·revertStatus·reviewer 추가/제거·policy). 권한 검사는 **함수 진입부 1회** — 라우트와 Cue 가 같은 문.
+- **`routes/task_workflow.js` 718 → 246줄** — 파싱·응답만. **에러 code 문자열도 계약**이라 그대로 유지(프론트가 분기).
+- **가드 16→17** — `actionlayer`(라우트의 status 직접 쓰기·이력 기록·트랜잭션 차단) + **notify/broadcast 잠금 대상을 라우트 → 행동 계층으로 이동**(라우트만 잠그면 Cue 가 우회).
+- **done_feedback 잔재 제거** — 대시보드의 항상 0건이던 죽은 쿼리 + 좀비 상태를 만들던 seed 3개. 모델 ENUM 은 **운영 잔존 행 확인 후 ALTER 필요**(dev 0건).
+
+**★ 동작 무변경 증명 (이 리팩터의 유일한 합격 기준):** 12라우트 전수 시나리오를 실 HTTP 로 돌려 응답·상태·이력 순서·댓글·알림 건수를 박제 → 리팩터 후 재생 → **완전 일치**.
+
+**Fable 게이트 CONDITIONAL(BLOCK 0)** — Fable 은 제출된 before 스냅샷을 믿지 않고 `git stash` 로 옛 코드를 복원해 **직접 다시 떠서 3자 대조**했다. 서버가 파일보다 오래된 코드를 물고 있던 것도 잡았다. socket 실수신·감사 IP·Cue 비대칭·운영 옛 task 전이 실증. 덤: 옛 policy_change 감사가 old_value 에 변경 '후' 값을 적던 버그가 정정됨.
 
 ---
 
@@ -90,10 +105,10 @@ session-state.md 읽고 이어서 개발해.
 ### 1. LLM 게이트웨이 단일화 (2~3일, Fable 게이트)
 raw fetch 13파일 · gpt-4o-mini 하드코딩 27곳 → 단일 모듈(모델 추상화·프롬프트 레지스트리·툴 호출·재시도·비용계량). costGuard·cue_usage 흡수하되 파괴 금지.
 
-### 2. 행동 계층(Action Layer) 추출 (3일)
-상태 전이가 12개 라우트에 인라인. `services/taskTransition.js` 가 첫 절단면 — 나머지 전이(approve/revision/complete/recalc)를 여기로 모은다.
+### 2. 행동 계층 2사이클 — 생성 계열 (2일)
+1사이클(task 전이) 완료. 남은 것: `task_create` / `comment_create` / `event_create` / `document_draft` — #81 이 필요로 하는 생성 계열. **invoice 는 의도적으로 카탈로그 제외**(재무 영구 봉쇄).
 
-### 3. #81 Cue 대화형 실행 (2일) — 1·2 선행 필수
+### 3. #81 Cue 대화형 실행 (2일) — 1·2 선행 완료되면 "행동 계층에 툴 시그니처 씌우기" 로 축소
 ### 4. KB 과잉 제거 (1일) — 운영 KB 총 527 bytes 인데 임베딩·청킹·하이브리드 완비
 ### 5. 잔여 부채 — god-file 분리(projects.js 3,071 · invoices.js 2,229 · QNotePage.tsx 4,464) · 이벤트 스트림 통합 · 검사 하니스 보강
 

@@ -1,6 +1,31 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-07-13 (Opus, 1M) — **🧠 LLM 게이트웨이 단일화 (Fable D-1) — raw fetch 13곳 → services/llm.js 단일 지점. 툴 호출 지원(#81 전제) + 운영 관측. Fable 게이트 BLOCK 1건(KB AI정리 500) 수정 후 통과.** 헬스 30/30 · guard-invariants 16/16 · e2e tenant·mail 0 · 실호출 회귀 19/19.
+> **최종 업데이트:** 2026-07-13 (Opus, 1M) — **🏛️ 행동 계층 추출 (Fable D-3 1사이클) — 업무 전이는 사람도 Cue 도 같은 문을 지난다. 라우트 718→246줄. 전/후 동작 완전 일치 실증. Fable 게이트 CONDITIONAL(BLOCK 0).** 헬스 30/30 · guard-invariants 17/17 · e2e tenant·mail 0.
+
+## ✅ 완료: 행동 계층(Action Layer) 추출 — Fable D-3 1사이클 (2026-07-13)
+
+상태 전이가 12개 라우트에 인라인이었다. **라우트를 통과하지 않는 실행자(Cue·cron)는 가드·이력·알림·broadcast·Focus 정리를 통째로 우회할 수 있었다.**
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 신규 `services/actions/task_actions.js` | ack · submitReview · cancelReview · complete · approve · requestRevision · revertReviewerState · revertStatus · addReviewer · removeReviewer · setPolicy. **권한 검사는 함수 진입부에서 1회** — 라우트와 Cue 가 같은 문 | ✅ |
+| actor 인터페이스 | `{ kind:'user'\|'cue', userId, onBehalfOfUserId, req(감사 IP 맥락만) }` — 트리거한 사람이 아니라 **위임자** 기준 권한 | ✅ |
+| `routes/task_workflow.js` 얇게 | 718 → 246줄. 파싱 + actor 구성 + 호출 + 응답만. 에러 code 도 계약이라 그대로 내보냄(프론트가 분기) | ✅ |
+| 전이 규칙 단일 원천 | `recalcStatusFromReviewers` 를 행동 계층으로 | ✅ |
+| 불변식 16→17 | `actionlayer` — 라우트의 status 직접 쓰기·이력 직접 기록·트랜잭션 개방 차단. **notify/broadcast 잠금 대상을 라우트 → 행동 계층으로 이동** (라우트만 잠그면 Cue 경로가 우회한다) | ✅ |
+| done_feedback 잔재 제거 | 2026-04-25 폐지된 단계 — 대시보드의 **항상 0건이던 죽은 쿼리** + 좀비 상태를 만들 수 있던 유일한 경로인 seed 3개. 모델 ENUM 은 운영 잔존 행 확인 후 ALTER 필요(dev 0건) | ✅ |
+
+### 동작 무변경 증명 (이 리팩터의 유일한 합격 기준)
+12라우트 전수 시나리오(권한 403 · 가드 400 · 완주 흐름)를 실 HTTP 로 돌려 **응답 · 상태 · 이력 순서 · 댓글 · 알림 건수**를 JSON 으로 박제 → 리팩터 후 재생 → **완전 일치**. "코드가 예뻐졌다" 는 증거가 아니다.
+
+### Fable 검증 게이트 — CONDITIONAL (BLOCK 0, 권고 3건 전부 반영)
+Fable 은 제출된 before 스냅샷을 믿지 않고 **`git stash` 로 옛 코드를 복원해 직접 다시 떠서 3자 대조**했다(바이트 일치 확인). 검증 시작 시점에 **서버가 파일보다 오래된 코드를 물고 있던 것**도 잡아냈다. 스냅샷이 놓친 10곳(부분 승인 · 라운드 중 컨펌자 추가/제거 · 정책 변경 recalc · platform_admin 분기 · manual task ack)을 직접 채워 검증:
+- **socket 실수신** — socket.io-client 로 붙어 `task:updated` · `inbox:refresh` 수신 실증 (`req.app.get('io')` → `global.__planqIo` 변경 안전)
+- **감사 로그** — reviewer_add/remove/policy_change 의 `user_id` · `ip_address` 여전히 기록. **덤: 옛 policy_change 감사가 old_value 에 변경 '후' 값을 적던 버그가 이 리팩터로 정정됐다**
+- **Cue 비대칭 유지** — 사람 라우트는 컨펌자 0명이면 400, Cue 는 autoReviewer 로 위임자 자동 등록 (의도된 비대칭)
+- **운영 옛 데이터** — 2026-05-20 생성 task 로 전이 실행 → 정상 (원복 완료)
+
+---
 
 ## ✅ 완료: LLM 게이트웨이 단일화 (2026-07-13, Fable D-1)
 
