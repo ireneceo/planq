@@ -6,11 +6,11 @@
  *
  *  ◆ M: 일반 업무 (manual, 요청자 없음)
  *    M1 not_started / M2 in_progress(컨펌0) / M3 in_progress(컨펌2)
- *    M4 reviewing R1 / M5 revision R1 / M6 reviewing R2 / M7 done_feedback / M8 completed
+ *    M4 reviewing R1 / M5 revision R1 / M6 reviewing R2 / M7 completed / M8 completed
  *
  *  ◆ R: 내가 받은 요청 (internal_request, 요청자=owner, 담당자=irene)
  *    R1 task_requested (미확인) / R2 waiting (확인 완료)
- *    R3 in_progress / R4 reviewing R1 / R5 revision R1 / R6 done_feedback
+ *    R3 in_progress / R4 reviewing R1 / R5 revision R1 / R6 completed
  *
  *  ◆ S: 내가 보낸 요청 (requester=irene, assignee=member1/2)
  *    S1 task_requested (상대 미확인) / S2 in_progress / S3 reviewing (irene 리뷰어)
@@ -120,7 +120,7 @@ async function run() {
   await hist(m6, { event_type: 'revision', actor: MEMBER1, actor_role: 'reviewer', round: 1, note: '섹션 구조를 단순화해주세요.' });
   await hist(m6, { event_type: 'review_submit', from_status: 'revision_requested', to_status: 'reviewing', actor: IRENE, actor_role: 'assignee', round: 2, note: '피드백 반영 완료' });
 
-  const m7 = await mk({ title: 'M7 마무리 대기 (전원 승인, 일반)', assignee_id: IRENE, status: 'done_feedback', progress_percent: 100, review_round: 1 });
+  const m7 = await mk({ title: 'M7 전원 승인 완료 (일반)', assignee_id: IRENE, status: 'completed', progress_percent: 100, review_round: 1 });
   await addR(m7, OWNER, 'approved'); await addR(m7, MEMBER1, 'approved');
   await hist(m7, { event_type: 'review_submit', from_status: 'in_progress', to_status: 'reviewing', actor: IRENE, actor_role: 'assignee', round: 1 });
   await hist(m7, { event_type: 'approve', actor: MEMBER1, actor_role: 'reviewer', round: 1 });
@@ -176,7 +176,7 @@ async function run() {
   const r6 = await mk({
     title: 'R6 마무리 대기 (요청 업무)',
     assignee_id: IRENE, created_by: OWNER, request_by_user_id: OWNER,
-    source: 'internal_request', status: 'done_feedback', progress_percent: 100,
+    source: 'internal_request', status: 'completed', progress_percent: 100,
     request_ack_at: new Date(), review_round: 1,
   });
   await addR(r6, OWNER, 'approved'); await addR(r6, MEMBER1, 'approved');

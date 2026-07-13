@@ -123,7 +123,7 @@ async function seedProject({ name, type, start, end, color, tasks, customerMessa
     type: 'fixed', start: daysFrom(-14), end: daysFrom(28), color: '#F43F5E',
     tasks: [
       { title: '브랜드 자산 인벤토리', status: 'completed', progress: 100, start: daysFrom(-14), due: daysFrom(-10), est: 6, assignee: OWNER_ID },
-      { title: '로고 시안 3안 제시', status: 'done_feedback', progress: 100, start: daysFrom(-9), due: daysFrom(-2), est: 12, assignee: OWNER_ID, requestedBy: IRENE_ID, acked: true, description: '아이린 요청 — 3안 중 최종 선정' },
+      { title: '로고 시안 3안 제시', status: 'completed', progress: 100, start: daysFrom(-9), due: daysFrom(-2), est: 12, assignee: OWNER_ID, requestedBy: IRENE_ID, acked: true, description: '아이린 요청 — 3안 중 최종 선정' },
       { title: '컬러 팔레트 조정', status: 'in_progress', progress: 40, start: daysFrom(-3), due: daysFrom(4), est: 4, assignee: OWNER_ID, requestedBy: IRENE_ID, acked: true, description: '2안 기준 파스텔 톤 조정' },
       { title: '타이포 시스템 가이드', status: 'not_started', progress: 0, start: daysFrom(5), due: daysFrom(14), est: 8, assignee: OWNER_ID },
       { title: '적용 가이드 최종 납품', status: 'not_started', progress: 0, start: daysFrom(20), due: daysFrom(28), est: 4, assignee: OWNER_ID },

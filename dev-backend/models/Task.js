@@ -59,8 +59,11 @@ Task.init({
     //  in_progress     — 진행중 (진행률 > 0)
     //  reviewing       — 컨펌중 (담당자가 컨펌 요청 보낸 상태)
     //  revision_requested — 수정요청 (컨펌자 중 1명이라도 revision)
-    //  done_feedback   — 완료 피드백 (정책 충족) — 담당자 최종 완료 대기
-    //  completed       — 담당자가 최종 완료 처리
+    //  done_feedback   — ⚠️ 폐지됨 (2026-04-25). 컨펌 정책이 충족되면 곧바로 completed 로 간다.
+    //                     **이 값을 쓰는 코드 경로는 0** (2026-07-13 확인 — 라우트·서비스·seed 전부 제거).
+    //                     ENUM 에서 빼려면 운영 DB 의 잔존 행 수를 먼저 세고 ALTER 해야 한다 (dev 는 0건).
+    //                     그때까지는 "읽을 수는 있지만 아무도 쓰지 않는" 값으로 남긴다.
+    //  completed       — 최종 완료 (컨펌 정책 충족 시 자동, 또는 컨펌자 0명일 때 담당자가 직접)
     //  canceled        — 취소
     type: DataTypes.ENUM(
       'not_started', 'waiting', 'in_progress',

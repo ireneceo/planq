@@ -89,7 +89,6 @@ async function collectTasks(businessId, userId) {
         [Op.or]: [
           { assignee_id: userId, request_by_user_id: { [Op.ne]: userId, [Op.not]: null } },
           { assignee_id: userId, status: 'revision_requested' },
-          { request_by_user_id: userId, status: 'done_feedback' },
         ],
       },
       attributes: ['assignee_id', 'request_by_user_id'],
@@ -194,32 +193,9 @@ async function collectTasks(businessId, userId) {
     });
   }
 
-  // 3) 내가 요청자 + status = done_feedback (최종 완료 대기)
-  const toApprove = await Task.findAll({
-    where: {
-      business_id: businessId,
-      request_by_user_id: userId,
-      status: 'done_feedback',
-    },
-    attributes: ['id', 'title', 'due_date', 'updatedAt'],
-    include: [{ model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false }],
-    limit: 20,
-  });
-  for (const t of toApprove) {
-    const due = toIsoDateOnlyAsDate(t.due_date);
-    items.push({
-      id: `task-${t.id}-approve`,
-      type: 'task',
-      priority: 'today',
-      verb: 'approve',
-      subject: t.title,
-      context: t.assignee ? `담당: ${resolveName(t.assignee, nameMap)}` : null,
-      dueAt: due ? due.toISOString() : null,
-      createdAt: safeToIso(t.updatedAt),
-      actor: t.assignee ? { name: resolveName(t.assignee, nameMap) } : null,
-      drawer: { kind: 'task', id: t.id },
-    });
-  }
+  // 3) 옛 '완료 피드백(done_feedback)' 대기 목록이 여기 있었다.
+  //    그 단계는 2026-04-25 에 폐지됐다 — 컨펌 정책이 충족되면 곧바로 completed 로 전이한다.
+  //    그래서 이 쿼리는 **항상 0건**이었다(죽은 코드). 요청자가 승인할 일은 컨펌자 승인(approve)으로 대체됐다.
 
   return items;
 }
