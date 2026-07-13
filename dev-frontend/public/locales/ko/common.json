@@ -235,7 +235,8 @@
     "openLabel": "열기",
     "newTask": "업무",
     "newMail": "메일",
-    "newEvent": "일정"
+    "newEvent": "일정",
+    "voice": "말로 추가"
   },
   "saving": "처리 중…",
   "loading": "로딩 중…",
@@ -718,5 +719,31 @@
     "delete": "삭제",
     "placeholder": "메모 작성... (⌘/Ctrl+Enter 저장)",
     "saveHint": "저장 (⌘/Ctrl+Enter)"
+  },
+  "voice": {
+    "title": "말로 추가",
+    "hint": "말하면 업무·일정·메모·메일 중 무엇인지 알아서 판단해요. 만들기 전에 항상 확인 화면을 보여줍니다.",
+    "ex1": "루아님께 경쟁사 비교표 이번 주까지 요청해줘",
+    "ex2": "다음 주 화요일 3시 아이린앤컴퍼니 미팅",
+    "start": "녹음 시작",
+    "tapToSpeak": "눌러서 말하기",
+    "recording": "녹음 중 {{n}}초",
+    "remain": "{{n}}초 남음",
+    "stop": "말하기 끝",
+    "thinking": "무슨 말인지 보는 중…",
+    "confirm": "이대로 만들기",
+    "retry": "다시 말하기",
+    "editHint": "다음 화면에서 내용을 고칠 수 있어요.",
+    "assignee": "담당",
+    "silent": "들리지 않았어요. 다시 말해 주세요.",
+    "failed": "인식하지 못했어요. 다시 말해 주세요.",
+    "unavailable": "음성 인식을 사용할 수 없어요. 잠시 후 다시 시도해 주세요.",
+    "noPermission": "마이크 권한이 필요해요. 브라우저 설정에서 허용해 주세요.",
+    "kind": {
+      "task": "업무",
+      "event": "일정",
+      "memo": "메모",
+      "mail": "메일 답장"
+    }
   }
 }

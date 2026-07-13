@@ -30,13 +30,17 @@ const APPLY = process.argv.includes('--apply');
   // 사람이 이미 처리한 스레드는 제외 — reply_needed_reason 이 'rule'/'backfill' 이거나
   // 담당자가 지정된 건 사용자의 판단이므로 그대로 둔다.
   // 대상: ①답변 필요로 켜진 것(과잉 분류 해제) ②자동·마케팅으로 밀려난 것(내용이 업무면 확인 권장으로 승격)
+  // 대상: 열린 메일 전부(답변 필요·확인 권장·자동). 단 **사람이 직접 내린 건 건드리지 않는다** —
+  //   "답변 완료"(dismissed) · "확인 완료"(handled) · 학습 규칙(rule) 은 사용자의 판단이다.
+  //   여태 human+확인 권장 스레드가 대상에서 빠져 있어, 규칙이 개선돼도 답변 필요로 승격되지 않았다
+  //   (실제 사례: "[해지관련 문의]" 가 확인 권장에 갇혀 있었다).
   const threads = await EmailThread.findAll({
     where: {
       rule_id: null,
       status: { [Op.in]: ['open', 'uncertain'] },
       [Op.or]: [
-        { reply_needed: true },
-        { triage: { [Op.in]: ['automated', 'marketing'] } },
+        { reply_needed_reason: null },
+        { reply_needed_reason: { [Op.notIn]: ['dismissed', 'handled', 'rule'] } },
       ],
     },
     order: [['id', 'ASC']],
@@ -67,8 +71,13 @@ const APPLY = process.argv.includes('--apply');
     const fromEmail = msg.from_email || '';
     // 헤더 원문은 저장하지 않지만, 판정에 필요한 두 신호는 컬럼으로 남아 있다:
     //   in_reply_to/references_chain (우리 대화에 대한 회신) · to_emails (우리 주소로 직접 왔는가)
+    // to_emails 는 [{name, email}] 객체 배열이다. 그대로 join 하면 "[object Object]" 가 되어
+    //   "우리 주소로 왔는가" 판정이 **항상 실패**한다 (질문 메일이 답변 필요로 못 올라간 진짜 원인).
+    const toList = Array.isArray(msg.to_emails)
+      ? msg.to_emails.map((x) => (typeof x === 'string' ? x : (x && x.email) || '')).filter(Boolean)
+      : [];
     const headers = {
-      to: Array.isArray(msg.to_emails) ? msg.to_emails.join(', ') : String(msg.to_emails || ''),
+      to: toList.join(', '),
       ...(msg.in_reply_to ? { 'in-reply-to': msg.in_reply_to } : {}),
       ...(msg.references_chain ? { references: msg.references_chain } : {}),
     };

@@ -988,14 +988,14 @@ const MailPage: React.FC = () => {
                           ? { value: a.id, label: `${a.is_personal ? (t('accounts.personal', { defaultValue: '개인' }) as string) : (t('accounts.team', { defaultValue: '회사' }) as string)} · ${a.email}` }
                           : null;
                       })()
-                    : { value: 0, label: t('accounts.all', { defaultValue: '전체 메일함' }) as string }
+                    : { value: 0, label: t('accounts.all', { defaultValue: '메일 전체' }) as string }
                 }
                 onChange={(opt) => {
                   const v = Number((opt as { value?: number } | null)?.value || 0);
                   setAccount(v > 0 ? v : null);
                 }}
                 options={[
-                  { value: 0, label: t('accounts.all', { defaultValue: '전체 메일함' }) as string },
+                  { value: 0, label: t('accounts.all', { defaultValue: '메일 전체' }) as string },
                   ...accounts.map((a) => ({
                     value: a.id,
                     label: `${a.is_personal ? (t('accounts.personal', { defaultValue: '개인' }) as string) : (t('accounts.team', { defaultValue: '회사' }) as string)} · ${a.email}${a.unread > 0 ? ` (${a.unread})` : ''}`,
@@ -1142,7 +1142,9 @@ const MailPage: React.FC = () => {
                     {mt.subject || '(no subject)'}
                   </ThreadSubject>
                   {mt.last_message_preview && <ThreadPreview>{mt.last_message_preview}</ThreadPreview>}
-                  {mt.status === 'uncertain' && (
+                  {/* 검토 권장 뱃지는 처리 버튼과 같은 줄에 둔다 — 따로 두면 빈 줄이 생기고 행이 길어진다.
+                      확인 권장 폴더가 아닐 때만 단독 표시(그 폴더에선 아래 처리 줄에 함께 나온다). */}
+                  {mt.status === 'uncertain' && folder !== 'uncertain' && (
                     <UncertainBadge>
                       ⚠ {t(`uncertain.${mt.uncertain_reason || 'review'}`, { defaultValue: t('uncertain.review', { defaultValue: '검토 권장' }) }) as string}
                     </UncertainBadge>
@@ -1166,33 +1168,39 @@ const MailPage: React.FC = () => {
                           }) as string}
                         </OverdueChip>
                       )}
-                      <DismissBtn
+                      <RowBtn
                         type="button"
                         disabled={dismissingId === mt.id}
                         onClick={(e) => dismissReply(e, mt.id)}
                       >
                         {t('reply.dismiss', { defaultValue: '답변 완료' }) as string}
-                      </DismissBtn>
+                      </RowBtn>
                     </ReplyRow>
                   )}
                   {/* 확인 권장 — 판단이 끝난 메일을 여기서 바로 내린다. 못 내리면 이 폴더는 영영 안 줄고
                       관리 자산이 아니라 쓰레기통이 된다. 원본은 그대로(전체 탭에 남는다). */}
                   {folder === 'uncertain' && (
                     <ReplyRow>
-                      <DismissBtn
+                      {mt.status === 'uncertain' && (
+                        <UncertainInline>
+                          ⚠ {t(`uncertain.${mt.uncertain_reason || 'review'}`, { defaultValue: t('uncertain.review', { defaultValue: '검토 권장' }) }) as string}
+                        </UncertainInline>
+                      )}
+                      <RowBtn
                         type="button"
                         disabled={dismissingId === mt.id}
                         onClick={(e) => markHandled(e, mt.id)}
                       >
                         {t('actions.markHandled', { defaultValue: '확인 완료' }) as string}
-                      </DismissBtn>
-                      <RowSpamBtn
+                      </RowBtn>
+                      <RowBtn
                         type="button"
+                        $danger
                         disabled={dismissingId === mt.id}
                         onClick={(e) => markSpamRow(e, mt.id)}
                       >
                         {t('actions.markSpam', { defaultValue: '스팸' }) as string}
-                      </RowSpamBtn>
+                      </RowBtn>
                     </ReplyRow>
                   )}
                   {mt.labels && mt.labels.length > 0 && (
@@ -1803,19 +1811,34 @@ const RowLabels = styled.div`
 `;
 // M5 — Uncertain(확인 권장) 사유 배지 (Warning amber)
 const ReplyRow = styled.div`
-  display: flex; align-items: center; gap: 6px; margin-top: 6px;
+  display: flex; align-items: center; gap: 6px; margin-top: 6px; min-height: 24px;
 `;
 const OverdueChip = styled.span`
   font-size: 10px; font-weight: 700; color: #B91C1C; background: #FEF2F2;
   border: 1px solid #FECACA; border-radius: 999px; padding: 1px 7px;
 `;
-const DismissBtn = styled.button`
-  margin-left: auto;
-  font-size: 10px; font-weight: 600; color: #64748B;
+// 리스트 행의 처리 버튼 — 확인 완료 · 스팸 · 답변 완료. 높이·정렬을 하나로 고정한다.
+const RowBtn = styled.button<{ $danger?: boolean }>`
+  height: 24px; padding: 0 8px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 600; line-height: 1;
+  color: ${(p) => (p.$danger ? '#94A3B8' : '#64748B')};
   background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 6px;
-  padding: 2px 8px; cursor: pointer;
-  &:hover:not(:disabled) { border-color: #14B8A6; color: #0F766E; background: #F0FDFA; }
+  cursor: pointer;
+  &:first-of-type { margin-left: auto; }   /* 뱃지가 없으면 버튼 묶음이 우측으로 */
+  &:hover:not(:disabled) {
+    ${(p) => (p.$danger
+      ? 'border-color: #FECACA; color: #B91C1C; background: #FEF2F2;'
+      : 'border-color: #14B8A6; color: #0F766E; background: #F0FDFA;')}
+  }
   &:disabled { opacity: 0.5; cursor: wait; }
+`;
+// 검토 권장 — 처리 버튼과 같은 줄 (높이 24px 로 버튼과 시각 정렬)
+const UncertainInline = styled.span`
+  height: 24px; padding: 0 8px; margin-right: auto;
+  display: inline-flex; align-items: center; gap: 3px;
+  border-radius: 999px; background: rgba(245, 158, 11, 0.13); color: #92400E;
+  font-size: 11px; font-weight: 700; line-height: 1;
 `;
 const RuleBadge = styled.span`
   display: inline-flex; align-items: center; align-self: flex-start;
@@ -2061,13 +2084,6 @@ const CtxBackdrop = styled.div`
 `;
 
 // 리스트 행의 스팸 버튼 — 파괴적이지 않지만 되돌릴 수 있음을 알리는 톤(회색 → hover 시 danger)
-const RowSpamBtn = styled.button`
-  height: 24px; padding: 0 8px; border-radius: 6px; cursor: pointer;
-  font-size: 11px; font-weight: 600; color: #94A3B8;
-  background: transparent; border: 1px solid #E2E8F0;
-  &:hover:not(:disabled) { color: #B91C1C; border-color: #FECACA; background: #FEF2F2; }
-  &:disabled { opacity: 0.5; cursor: not-allowed; }
-`;
 
 // 보내는 사람(Send-as) — 주소가 2개 이상일 때만 뜬다
 const ComposerFrom = styled.div`display: flex; align-items: center; gap: 8px;`;

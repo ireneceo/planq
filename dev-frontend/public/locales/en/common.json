@@ -235,7 +235,8 @@
     "openLabel": "Open",
     "newTask": "Task",
     "newMail": "Mail",
-    "newEvent": "Event"
+    "newEvent": "Event",
+    "voice": "Add by voice"
   },
   "saving": "Saving…",
   "loading": "Loading…",
@@ -718,5 +719,31 @@
     "delete": "Delete",
     "placeholder": "Write a note… (⌘/Ctrl+Enter to save)",
     "saveHint": "Save (⌘/Ctrl+Enter)"
+  },
+  "voice": {
+    "title": "Add by voice",
+    "hint": "Speak and AI decides whether it is a task, event, note, or mail. You always confirm before anything is created.",
+    "ex1": "Ask Lua for the competitor comparison by Friday",
+    "ex2": "Meeting with Acme next Tuesday at 3",
+    "start": "Start recording",
+    "tapToSpeak": "Tap to speak",
+    "recording": "Recording {{n}}s",
+    "remain": "{{n}}s left",
+    "stop": "Done speaking",
+    "thinking": "Working out what you said…",
+    "confirm": "Create this",
+    "retry": "Speak again",
+    "editHint": "You can edit it on the next screen.",
+    "assignee": "Assignee",
+    "silent": "Didn't catch that. Please try again.",
+    "failed": "Couldn't recognize that. Please try again.",
+    "unavailable": "Voice input is unavailable right now. Please try later.",
+    "noPermission": "Microphone permission is required. Allow it in your browser settings.",
+    "kind": {
+      "task": "Task",
+      "event": "Event",
+      "memo": "Note",
+      "mail": "Mail reply"
+    }
   }
 }

@@ -11,6 +11,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import { isPopoutWindow } from '../../utils/popout';
+import VoiceCaptureSheet from './VoiceCaptureSheet';
 
 export type DockTool = 'qtalk' | 'qnote' | 'qhelper';
 
@@ -35,6 +36,7 @@ const FAB_HIDDEN_PREFIXES = ['/memo', '/talk-popout', '/note-popout', '/help-pop
 
 const RightDock: React.FC = () => {
   const { t } = useTranslation('common');
+  const [voiceOpen, setVoiceOpen] = useState(false);
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -91,9 +93,21 @@ const RightDock: React.FC = () => {
   };
 
   return (
+    <>
     <FabWrap ref={fabRef} $onTalk={onTalk}>
       {expanded && (
         <Menu role="menu" aria-label={t('dock.menuLabel', '바로 열기') as string}>
+          {/* 말로 추가 — 이동 중·손이 바쁠 때. 모바일에서 제일 많이 쓴다(그래서 퀵버튼 최상단).
+              말하면 업무·일정·메모·메일 중 무엇인지 AI 가 판단하고, 사람이 확인해야 저장된다. */}
+          <VoiceItem data-testid="dock-voice" role="menuitem" type="button" onClick={() => { setExpanded(false); setVoiceOpen(true); }}>
+            <MicSvg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+              <line x1="12" y1="19" x2="12" y2="23" />
+            </MicSvg>
+            <span>{t('dock.voice', '말로 추가')}</span>
+          </VoiceItem>
+          <MenuDivider />
           {/* #80 — 빠른 만들기 그룹 (열기 도구와 구분) */}
           <GroupLabel>{t('dock.createLabel', '빠른 만들기') as string}</GroupLabel>
           <MenuItem data-testid="dock-create-task" $create role="menuitem" type="button" onClick={() => handleCreate('task')}>
@@ -133,6 +147,8 @@ const RightDock: React.FC = () => {
         {expanded ? <IconClose /> : <IconDock />}
       </Fab>
     </FabWrap>
+      {voiceOpen && <VoiceCaptureSheet onClose={() => setVoiceOpen(false)} />}
+    </>
   );
 };
 
@@ -231,3 +247,14 @@ const MenuDivider = styled.div`height: 1px; background: #E2E8F0; margin: 2px 4px
 const PlusIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#14B8A6" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
 );
+
+// 말로 추가 — 퀵버튼 최상단. AI 액션이라 Coral 톤(별 대신 마이크)
+const VoiceItem = styled.button`
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 9px 12px; border: none; border-radius: 10px; cursor: pointer;
+  font-size: 13px; font-weight: 700; color: #fff;
+  background: linear-gradient(135deg, #F43F5E 0%, #BE185D 100%);
+  &:hover { filter: brightness(1.05); }
+  &:focus-visible { outline: 2px solid #F43F5E; outline-offset: 2px; }
+`;
+const MicSvg = styled.svg`width: 15px; height: 15px; flex-shrink: 0;`;
