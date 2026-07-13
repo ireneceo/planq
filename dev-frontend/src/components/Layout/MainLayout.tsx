@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { Suspense, useState, useEffect, useRef } from 'react';
 import styled, { css } from 'styled-components';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -1730,7 +1730,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           </PushPromptWrap>
         )}
         <PageScroll>
-          <MobileContentPadding>{children}</MobileContentPadding>
+          {/* 페이지 청크 로딩은 **본문 안에서만** 일어난다.
+              여태 Suspense 가 라우트 전체를 감싸고 있어서, 페이지가 로드되는 동안 사이드바·헤더까지
+              통째로 사라지고 하얀 화면에 스피너만 남았다 (Irene: "느리더라도 고정 레이아웃은 그대로
+              보여야 답답함이 덜하다"). 여기 경계를 두면 껍데기는 그대로 있고 본문만 스켈레톤이 된다. */}
+          <MobileContentPadding>
+            <Suspense fallback={<ContentSkeleton />}>{children}</Suspense>
+          </MobileContentPadding>
         </PageScroll>
       </MainContent>
       {!isNativeApp() && <InstallPromptBanner />}
@@ -1746,3 +1752,34 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 };
 
 export default MainLayout;
+
+// 페이지 로딩 중 본문 자리 — 껍데기(사이드바·헤더)는 그대로 두고 여기만 뛴다.
+//   하얀 화면보다 낫다. 레이아웃이 남아 있으면 사용자는 "느리다" 고 느끼지 "멈췄다" 고 느끼지 않는다.
+const ContentSkeleton: React.FC = () => (
+  <SkelWrap aria-busy="true" aria-live="polite">
+    <SkelHeader />
+    <SkelRow $w="70%" />
+    <SkelRow $w="92%" />
+    <SkelRow $w="84%" />
+    <SkelRow $w="60%" />
+  </SkelWrap>
+);
+const SkelWrap = styled.div`
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 20px;
+`;
+const SkelHeader = styled.div`
+  height: 36px; width: 220px; border-radius: 10px;
+  background: linear-gradient(90deg, #F1F5F9 25%, #F8FAFC 50%, #F1F5F9 75%);
+  background-size: 200% 100%;
+  animation: planqSkel 1.2s ease-in-out infinite;
+  @keyframes planqSkel { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  @media (prefers-reduced-motion: reduce) { animation: none; }
+`;
+const SkelRow = styled.div<{ $w: string }>`
+  height: 56px; width: ${(p) => p.$w}; border-radius: 12px;
+  background: linear-gradient(90deg, #F1F5F9 25%, #F8FAFC 50%, #F1F5F9 75%);
+  background-size: 200% 100%;
+  animation: planqSkel 1.2s ease-in-out infinite;
+  @media (prefers-reduced-motion: reduce) { animation: none; }
+`;
