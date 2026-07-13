@@ -29,27 +29,21 @@ export function sanitizeRichText(value: string | null | undefined): string {
   });
 }
 
-// 받은 메일 본문 정화 — 뉴스레터/서명은 리치텍스트보다 태그·속성이 넓다(table 레이아웃, 인라인 style).
-// script·on* 핸들러·iframe·form 은 DOMPurify 가 제거한다. 정화한 뒤 sandbox iframe 안에 넣으므로
-// (allow-scripts 만, same-origin 없음) 스타일이 살아 있어도 우리 화면을 건드리지 못한다.
-const MAIL_TAGS = [
-  ...ALLOWED_TAGS,
-  'div', 'center', 'font', 'small', 'big', 'sub', 'sup', 'dl', 'dt', 'dd', 'caption',
-  'col', 'colgroup', 'tfoot', 'figure', 'figcaption', 'address', 'h5', 'h6',
-];
-const MAIL_ATTR = [
-  ...ALLOWED_ATTR,
-  'style', 'width', 'height', 'align', 'valign', 'bgcolor', 'color', 'border',
-  'cellpadding', 'cellspacing', 'size', 'face', 'srcset', 'id',
-];
-
-/** 받은 메일 본문(HTML) 정화. sandbox iframe 안에서 표시하는 것을 전제로 한다. */
+// 받은 메일 본문 정화 — 뉴스레터·거래 메일은 우리가 쓰는 리치텍스트와 완전히 다른 물건이다.
+//   <style> 블록 + table 레이아웃 + body bgcolor 로 짜여 있고, 그걸 지우면 가운데 정렬이 풀리고
+//   배경이 사라지고 여백이 잘린다(실제 증상). 그래서 여기서는 **문서를 통째로** 살린다:
+//     - DOMPurify 기본 허용집합 + <style> 허용 (DOMPurify 가 CSS 도 정화한다)
+//     - WHOLE_DOCUMENT: html/head/body 구조와 body 속성(bgcolor 등) 보존
+//     - script·on* 핸들러·iframe·form·object 는 제거
+//   위험하지 않은 이유: 결과는 sandbox iframe(allow-scripts 만, same-origin 없음) 안에서만 렌더된다.
+//   부모 DOM·쿠키·스토리지에 접근할 수 없다. 스크립트는 우리가 넣는 높이 보고용 한 줄뿐이다.
 export function sanitizeMailHtml(value: string | null | undefined): string {
   if (!value) return '';
   return DOMPurify.sanitize(value, {
-    ALLOWED_TAGS: MAIL_TAGS,
-    ALLOWED_ATTR: MAIL_ATTR,
-    FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input', 'button', 'link', 'meta', 'base'],
+    WHOLE_DOCUMENT: true,
+    ADD_TAGS: ['style'],
+    FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input', 'button', 'base'],
+    FORBID_ATTR: ['srcdoc', 'formaction'],
     ALLOWED_URI_REGEXP: /^(?:https?:|mailto:|tel:|cid:|\/|#|data:image\/)/i,
   });
 }

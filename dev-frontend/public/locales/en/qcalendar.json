@@ -153,5 +153,16 @@
   },
   "month": {
     "createOn": "Add an event on this day"
+  },
+  "personal": {
+    "ariaLabel": "Personal event details",
+    "badge": "Personal calendar (read-only)",
+    "when": "When",
+    "allDay": "All day",
+    "location": "Location",
+    "account": "Account",
+    "description": "Description",
+    "readOnlyHint": "This event lives in your personal calendar, so PlanQ does not edit it. Only you can see it.",
+    "openInGoogle": "Open in Google Calendar"
   }
 }

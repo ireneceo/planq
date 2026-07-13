@@ -245,7 +245,33 @@ function triageBySenderOnly({ subject, bodyText, fromEmail, ownEmails }) {
   return { triage, reply_needed: triage === 'human' && c.status === 'open', spam_score: c.spam_score, status: c.status, uncertain_reason: c.uncertain_reason };
 }
 
+// 재판정 전용 — 이미 저장된 triage 를 신뢰하고 status/reply_needed 만 다시 계산한다.
+//   동기화 시점에는 메일 헤더 원문(List-Unsubscribe·Auto-Submitted)이 있어서 automated/marketing
+//   판정이 정확했다. 재판정 시점에는 그 헤더가 없으므로 triage 를 다시 계산하면 안 된다
+//   (실제로 다시 계산했다가 광고 109건이 human 으로 뒤집혔다 → 백업에서 복원).
+function retriageStored({ triage, subject, bodyText, fromEmail, headers, ownEmails, isKnownContact = false }) {
+  if (triage === 'spam') return { triage, status: 'spam', reply_needed: false, uncertain_reason: null };
+
+  // 자동 발송 — 내용이 업무이거나 우리 시스템 알림이면 확인 권장으로 올린다
+  if (triage === 'automated' || triage === 'marketing') {
+    const relevant = triage === 'automated'
+      && (isFromOurPlatform(fromEmail) || hasBusinessRelevance(subject, bodyText));
+    return relevant
+      ? { triage, status: 'uncertain', reply_needed: false, uncertain_reason: 'automated_relevant' }
+      : { triage, status: 'open', reply_needed: false, uncertain_reason: null };
+  }
+
+  // 사람이 보낸 메일 — 답변 필요는 확실한 것만, 나머지는 확인 권장
+  const sure = isKnownContact
+    || isThreadReply(headers)
+    || (isAddressedToUs(headers, ownEmails) && hasStrongRequest(subject, bodyText));
+  return sure
+    ? { triage, status: 'open', reply_needed: true, uncertain_reason: null }
+    : { triage, status: 'uncertain', reply_needed: false, uncertain_reason: 'unclear_intent' };
+}
+
 module.exports = {
+  retriageStored,
   hasWorkSignal,
   hasBusinessRelevance,
   isFromOurPlatform,
