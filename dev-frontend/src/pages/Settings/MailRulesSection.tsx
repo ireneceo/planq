@@ -1,6 +1,6 @@
 // 메일 분류 규칙 (학습형) — 투명성 화면.
 //
-// PlanQ 는 같은 발신자를 두 번 "답변 완료" 하면 "답장 안 해도 되는 발신자" 로 학습한다.
+// PlanQ 는 같은 발신자를 두 번 "답변 불필요" 하면 "답장 안 해도 되는 발신자" 로 학습한다.
 // 그런데 사용자가 모르는 사이 메일이 조용히 걸러지면 안 된다 → 학습된 규칙과 그 근거를
 // 여기서 전부 보여주고, 언제든 지울 수 있게 한다. 규칙 삭제 = 즉시 원상복구(원본 메일 무손상).
 import { useCallback, useEffect, useState } from 'react';
@@ -67,7 +67,7 @@ export default function MailRulesSection({ businessId }: Props) {
     if (r.source === 'manual') return t('rules.evidence.manual', { defaultValue: '직접 추가함' }) as string;
     if (sig.startsWith('dismiss_x')) {
       const n = sig.replace('dismiss_x', '');
-      return t('rules.evidence.dismiss', { n, defaultValue: `"답변 완료" 를 ${n}번 눌러서 학습됨` }) as string;
+      return t('rules.evidence.dismiss', { n, defaultValue: `"답변 불필요" 를 ${n}번 눌러서 학습됨` }) as string;
     }
     if (sig.startsWith('spam_x')) {
       const n = sig.replace('spam_x', '');
@@ -85,7 +85,7 @@ export default function MailRulesSection({ businessId }: Props) {
         <div>
           <Title>{t('rules.title', { defaultValue: '메일 분류 규칙' })}</Title>
           <Desc>
-            {t('rules.desc', { defaultValue: '같은 발신자를 두 번 "답변 완료" 하면 앞으로 그 발신자는 "답변 필요" 에 나타나지 않도록 자동으로 학습합니다. 학습된 규칙은 아래에서 전부 확인하고 지울 수 있습니다. 규칙을 지우면 원래대로 돌아갑니다 — 메일 자체는 삭제되지 않습니다.' })}
+            {t('rules.desc', { defaultValue: '같은 발신자를 두 번 "답변 불필요" 하면 앞으로 그 발신자는 "답변 필요" 에 나타나지 않도록 자동으로 학습합니다. 학습된 규칙은 아래에서 전부 확인하고 지울 수 있습니다. 규칙을 지우면 원래대로 돌아갑니다 — 메일 자체는 삭제되지 않습니다.' })}
           </Desc>
         </div>
       </Head>
@@ -118,7 +118,7 @@ export default function MailRulesSection({ businessId }: Props) {
       ) : rules.length === 0 ? (
         <EmptyState
           title={t('rules.empty.title', { defaultValue: '아직 학습된 규칙이 없어요' }) as string}
-          description={t('rules.empty.body', { defaultValue: '같은 발신자를 두 번 "답변 완료" 하면 자동으로 규칙이 만들어집니다. 직접 추가할 수도 있습니다.' }) as string}
+          description={t('rules.empty.body', { defaultValue: '같은 발신자를 두 번 "답변 불필요" 하면 자동으로 규칙이 만들어집니다. 직접 추가할 수도 있습니다.' }) as string}
         />
       ) : (
         <List>

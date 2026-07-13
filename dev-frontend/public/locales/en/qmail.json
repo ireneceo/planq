@@ -191,14 +191,15 @@
     "uploadFailed": "Attachment upload failed",
     "sendFailed": "Send failed",
     "aiDraft": "AI draft reply",
-    "dismiss": "Mark replied",
+    "dismiss": "No reply needed",
     "waitingDays": "{{n}} days waiting",
     "aiRegenerate": "Regenerate AI draft",
     "aiLimitExceeded": "You've used all AI actions this month.",
     "aiHint": "AI writes a draft reply for this email",
     "from": "From",
     "addAlias": "Add send-as address",
-    "useReceived": "Send from {{addr}} (register)"
+    "useReceived": "Send from {{addr}} (register)",
+    "dismissHint": "No reply required. It moves to Needs review."
   },
   "errors": {
     "loadList": "Failed to load inbox"
@@ -298,7 +299,7 @@
     },
     "evidence": {
       "manual": "Added manually",
-      "dismiss": "Learned after you marked it replied {{n}} times",
+      "dismiss": "Learned after you marked it no-reply {{n}} times",
       "spam": "Learned after you marked it spam {{n}} times",
       "domain": "Promoted to the whole domain after several addresses were learned as no-reply"
     },

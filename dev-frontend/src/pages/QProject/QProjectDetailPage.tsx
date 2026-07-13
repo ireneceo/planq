@@ -381,7 +381,16 @@ const QProjectDetailPage: React.FC = () => {
     <PageShell
       title={project.name}
       actions={
-        <BackBtn type="button" onClick={() => navigate('/projects')}>← {t('backToList', '목록')}</BackBtn>
+        <HeaderActions>
+          {/* 소통 창구로 바로 — 채팅과 메일이 PlanQ 의 두 창구다. 프로젝트에서 한 번에 건너간다. */}
+          <HeaderBtn type="button" onClick={() => navigate(`/talk?project=${projectId}`)}>
+            {t('header.openChat', '프로젝트 채팅')}
+          </HeaderBtn>
+          <HeaderBtn type="button" onClick={() => navigate(`/mail?folder=all&project=${projectId}`)}>
+            {t('header.openMail', '프로젝트 메일')}
+          </HeaderBtn>
+          <BackBtn type="button" onClick={() => navigate('/projects')}>← {t('backToList', '목록')}</BackBtn>
+        </HeaderActions>
       }
     >
       <TabBar>
@@ -1250,3 +1259,12 @@ const ProjectDescriptionEditor = ({ projectId, initial, onSave }: {
     </AutoSaveField>
   );
 };
+
+const HeaderActions = styled.div`display: flex; align-items: center; gap: 8px;`;
+const HeaderBtn = styled.button`
+  height: 32px; padding: 0 12px; border-radius: 8px; cursor: pointer;
+  font-size: 12px; font-weight: 600; color: #0F766E;
+  background: #F0FDFA; border: 1px solid #99F6E4;
+  &:hover { background: #CCFBF1; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+`;

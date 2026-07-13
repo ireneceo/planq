@@ -68,7 +68,8 @@ const PersonalVaultPage: React.FC = () => {
   };
 
   const [summary, setSummary] = useState<{
-    counts: { files: number; posts: number; kb_documents: number };
+    // notes 는 Q Note(별도 FastAPI) 프록시 집계 — 그쪽이 내려가 있으면 필드 자체가 안 온다
+    counts: { files: number; posts: number; kb_documents: number; notes?: number };
     recent: { files: VaultFile[]; posts: VaultPost[]; kb_documents: VaultKb[] };
   } | null>(null);
   const [posts, setPosts] = useState<VaultPost[] | null>(null);
@@ -144,7 +145,8 @@ const PersonalVaultPage: React.FC = () => {
           <TabBtn key={k} type="button" role="tab" aria-selected={tab === k}
             $active={tab === k} onClick={() => setTabSync(k)}>
             {t(`common:vault.tab.${k}`, {
-              defaultValue: { dashboard: '대시보드', posts: '문서', files: '파일', kb: '정보', notes: '노트' }[k]
+              // 첫 탭은 어디서나 '개요' (Q Bill 과 통일). 대시보드는 좌측 메뉴 최상단 하나뿐이다.
+              defaultValue: { dashboard: '개요', posts: '문서', files: '파일', kb: '정보', notes: '노트' }[k]
             }) as string}
           </TabBtn>
         ))}
@@ -169,6 +171,13 @@ const PersonalVaultPage: React.FC = () => {
               <KpiLabel>{t('common:vault.tab.kb', { defaultValue: '정보' }) as string}</KpiLabel>
               <KpiValueBig>{summary.counts.kb_documents}</KpiValueBig>
             </KpiCard>
+            {/* Q Note 가 내려가 있으면 notes 필드 자체가 안 온다 — 그때는 카드도 그리지 않는다 (0 이라고 거짓말하지 않게) */}
+            {summary.counts.notes != null && (
+              <KpiCard>
+                <KpiLabel>{t('common:vault.tab.notes', { defaultValue: '노트' }) as string}</KpiLabel>
+                <KpiValueBig>{summary.counts.notes}</KpiValueBig>
+              </KpiCard>
+            )}
           </KpiGrid>
           {summary.recent.posts.length > 0 && (
             <Section>
@@ -209,7 +218,8 @@ const PersonalVaultPage: React.FC = () => {
               </List>
             </Section>
           )}
-          {summary.counts.files === 0 && summary.counts.posts === 0 && summary.counts.kb_documents === 0 && (
+          {summary.counts.files === 0 && summary.counts.posts === 0 && summary.counts.kb_documents === 0
+            && !summary.counts.notes && (
             <EmptyWrap>
               <EmptyState
                 title={t('common:vault.empty.title', '아직 개인 자료가 없어요') as string}

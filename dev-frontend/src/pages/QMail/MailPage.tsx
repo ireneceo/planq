@@ -324,7 +324,8 @@ const MailPage: React.FC = () => {
   // 라벨(태그)·프로젝트 필터 — 태그는 스레드에 붙는 진짜 태그이고, 여기서 리스트 필터로도 쓴다.
   // 프로젝트/채팅방 연결은 우측 맥락 패널에서 걸고, 이 셀렉트로 "그 프로젝트 메일만" 볼 수 있다.
   const [labelFilter, setLabelFilter] = useState<string>('');
-  const [projectFilter, setProjectFilter] = useState<number>(0);
+  // 프로젝트 필터 — URL(?project=)로도 받는다. 프로젝트 화면에서 "프로젝트 메일" 로 바로 올 수 있게.
+  const [projectFilter, setProjectFilter] = useState<number>(() => Number(sp.get('project')) || 0);
   const [projectOpts, setProjectOpts] = useState<Array<{ id: number; name: string }>>([]);
   const [frameH, setFrameH] = useState<Record<number, number>>({});
   const [members, setMembers] = useState<MailMember[]>([]);
@@ -1351,12 +1352,15 @@ const MailPage: React.FC = () => {
                           }) as string}
                         </OverdueChip>
                       )}
+                      {/* 답장을 보내면 reply_needed 는 서버가 알아서 끈다 (email_threads.js 답장 라우트).
+                          그래서 여기 남는 문은 하나뿐 — 답하지 않아도 되는 메일을 내리는 문. */}
                       <RowBtn
                         type="button"
                         disabled={dismissingId === mt.id}
+                        title={t('reply.dismissHint', { defaultValue: '답장하지 않아도 되는 메일입니다. 확인 권장으로 내려갑니다.' }) as string}
                         onClick={(e) => dismissReply(e, mt.id)}
                       >
-                        {t('reply.dismiss', { defaultValue: '답변 완료' }) as string}
+                        {t('reply.dismiss', { defaultValue: '답변 불필요' }) as string}
                       </RowBtn>
                     </ReplyRow>
                   )}

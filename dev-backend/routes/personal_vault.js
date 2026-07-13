@@ -50,6 +50,7 @@ router.get('/:businessId/summary', authenticateToken, attachWorkspaceScope(), as
     if (!isMemberOrAbove(scope)) {
       return errorResponse(res, 'member_only', 403);
     }
+    const businessId = Number(req.params.businessId);
     const [
       fileCount, postCount, kbCount,
       recentFiles, recentPosts, recentKb,
@@ -74,8 +75,27 @@ router.get('/:businessId/summary', authenticateToken, attachWorkspaceScope(), as
       }),
     ]);
 
+    // 노트(Q Note 세션) 수 — 별도 FastAPI 라 프록시로 센다. 실패해도 요약은 준다.
+    let noteCount = null;
+    try {
+      const qnoteBase = process.env.QNOTE_INTERNAL_URL || process.env.QNOTE_URL || 'http://localhost:8000';
+      const rq = await fetch(qnoteBase + '/api/sessions?business_id=' + businessId + '&scope=mine&visibility=L1&limit=1&page=1', {
+        headers: { Authorization: req.headers.authorization || '' },
+        signal: AbortSignal.timeout(3000),
+      });
+      if (rq.ok) {
+        // q-note 응답: { success, data: [...], pagination: { page, limit, total } }
+        const jq = await rq.json();
+        const total = jq && jq.pagination && jq.pagination.total;
+        noteCount = Number(total != null ? total : (Array.isArray(jq && jq.data) ? jq.data.length : 0)) || 0;
+      }
+    } catch (e) { /* Q Note 가 내려가 있어도 보관함 요약은 뜬다 */ }
+
+    const countsOut = { files: fileCount, posts: postCount, kb_documents: kbCount };
+    if (noteCount !== null) countsOut.notes = noteCount;
+
     successResponse(res, {
-      counts: { files: fileCount, posts: postCount, kb_documents: kbCount },
+      counts: countsOut,
       recent: {
         files: recentFiles,
         posts: recentPosts,

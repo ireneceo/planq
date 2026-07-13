@@ -381,23 +381,12 @@ async function syncOne(account, opts = {}) {
           // 백필(과거 메일)은 읽기만 — 이미 다른 데서 처리했을 가능성이 높다. 수백 건이 한꺼번에
           //   "답변 필요" 로 들어오면 그 폴더가 무용지물이 된다 (Irene 결정).
           const replyNeeded = isBackfill ? false : tr.reply_needed;
-          if (isNew) {
-            triageFields = {
-              status: tr.status,
-              spam_score: tr.spam_score,
-              uncertain_reason: tr.uncertain_reason,
-              triage: tr.triage,
-              reply_needed: replyNeeded,
-              rule_id: tr.rule_applied?.id || null,   // 투명성 — 화면에 "규칙으로 자동 분류됨" 표시
-              ...(replyNeeded ? { reply_needed_at: parsed.date || new Date(), reply_needed_reason: ruleReason } : {}),
-              ...(isBackfill ? { reply_needed_reason: 'backfill' } : {}),
-            };
-          } else if (replyNeeded && thread.status !== 'spam' && thread.status !== 'archived') {
-            triageFields = { reply_needed: true, reply_needed_at: parsed.date || new Date(), reply_needed_reason: ruleReason, rule_id: tr.rule_applied?.id || null };
-          } else if (tr.rule_applied && !tr.reply_needed) {
-            // 규칙이 "답장 불필요" 로 판정 → 기존 스레드의 답변 필요도 해제
-            triageFields = { reply_needed: false, reply_needed_at: null, reply_needed_reason: 'rule', rule_id: tr.rule_applied.id };
-          }
+          const { threadFieldsForInbound } = require('./emailTriage');
+          triageFields = threadFieldsForInbound({
+            isNew, thread, tr, replyNeeded, ruleReason, messageDate: parsed.date,
+          });
+          // 백필(과거 메일)은 읽기만 — 이미 다른 데서 처리했을 가능성이 높다.
+          if (isNew && isBackfill) triageFields.reply_needed_reason = 'backfill';
         } catch (e) { console.warn('[emailTriage]', e.message); }
         await thread.update({
           message_count: thread.message_count + 1,

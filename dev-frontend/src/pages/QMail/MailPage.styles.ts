@@ -284,7 +284,7 @@ export const OverdueChip = styled.span`
   font-size: 10px; font-weight: 700; color: #B91C1C; background: #FEF2F2;
   border: 1px solid #FECACA; border-radius: 999px; padding: 1px 7px;
 `;
-// 리스트 행의 처리 버튼 — 확인 완료 · 스팸 · 답변 완료. 높이·정렬을 하나로 고정한다.
+// 리스트 행의 처리 버튼 — 확인 완료 · 스팸 · 답변 불필요. 높이·정렬을 하나로 고정한다.
 export const RowBtn = styled.button<{ $danger?: boolean }>`
   height: 24px; padding: 0 8px; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;

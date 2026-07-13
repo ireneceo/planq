@@ -433,7 +433,8 @@
       "dashboard": "Overview",
       "posts": "Docs",
       "files": "Files",
-      "kb": "Knowledge"
+      "kb": "Knowledge",
+      "notes": "Notes"
     },
     "recent": {
       "posts": "Recent docs",
@@ -453,7 +454,9 @@
       "files": "No personal files",
       "filesBody": "Files uploaded in Q file without a project end up here.",
       "kb": "No personal knowledge",
-      "kbBody": "Knowledge saved as 'private' in Q info ends up here."
+      "kbBody": "Knowledge saved as 'private' in Q info ends up here.",
+      "notes": "No personal notes yet",
+      "notesBody": "Meeting memos, recordings and transcripts you create in Q note collect here."
     },
     "visOpenLabel": "Visibility",
     "visChangeHint": "Change visibility"
