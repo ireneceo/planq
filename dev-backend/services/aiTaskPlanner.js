@@ -12,8 +12,9 @@
 
 const { recordUsage } = require('./cue_orchestrator');
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
-const MODEL = 'gpt-4o-mini';
+// LLM 호출은 게이트웨이 단일 지점을 지난다 (services/llm.js).
+const { callLLM, isEnabled, modelFor } = require('./llm');
+const MODEL = modelFor('task_plan');
 
 // 결과물 기반 명명 검증 — 단독으로 쓰이면 부적절한 단어 (사용자 인지용)
 const VAGUE_WORDS_KO = ['디자인', '개발', '시장조사', '조사', '회의', '미팅', '리뷰', '검토', '확인', '준비', '체크', '논의', '기획', '분석'];
@@ -143,44 +144,24 @@ ${memberLines}
 }
 
 async function callOpenAi(systemPrompt, userPrompt) {
-  if (!OPENAI_API_KEY) {
+  if (!isEnabled()) {
     return { content: '{"tasks":[],"reasoning":"OPENAI_API_KEY not configured"}', input_tokens: 0, output_tokens: 0, fallback: true };
   }
-  try {
-    const r = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.2,
-        max_tokens: 2000,
-        response_format: { type: 'json_object' },
-      }),
-      signal: AbortSignal.timeout(45_000),
-    });
-    if (!r.ok) {
-      const err = await r.text();
-      console.warn('[aiTaskPlanner] LLM error', r.status, err.slice(0, 200));
-      return { content: '{"tasks":[],"reasoning":"LLM error"}', input_tokens: 0, output_tokens: 0, fallback: true };
-    }
-    const data = await r.json();
-    return {
-      content: data.choices?.[0]?.message?.content || '{"tasks":[]}',
-      input_tokens: data.usage?.prompt_tokens || 0,
-      output_tokens: data.usage?.completion_tokens || 0,
-      fallback: false,
-    };
-  } catch (err) {
-    console.warn('[aiTaskPlanner] LLM exception', err.message);
-    return { content: '{"tasks":[],"reasoning":"LLM exception"}', input_tokens: 0, output_tokens: 0, fallback: true };
-  }
+  const r = await callLLM({
+    purpose: 'task_plan',
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+    json: true,
+    fallback: '{"tasks":[],"reasoning":"LLM error"}',   // 실패해도 화면은 빈 목록으로 살아 있어야 한다
+  });
+  return {
+    content: r.content || '{"tasks":[]}',
+    input_tokens: r.input_tokens || 0,
+    output_tokens: r.output_tokens || 0,
+    fallback: r.fallback,
+  };
 }
 
 function clampInt(v, min, max, fallback) {
