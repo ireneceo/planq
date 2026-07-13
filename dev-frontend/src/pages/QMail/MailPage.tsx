@@ -277,42 +277,44 @@ const MailPage: React.FC = () => {
   //   줄며 스크롤이 위로 튀었다 (Irene: "그 자리에 그대로 있어야 해").
   //   → 이미 읽은 페이지 수만큼 다시 받고, 스크롤 위치를 복원한다.
   const listRef = useRef<HTMLDivElement>(null);
-  const loadList = useCallback(async (opts: { keepScroll?: boolean } = {}) => {
+  const loadList = useCallback(async (opts: { silent?: boolean } = {}) => {
     if (!businessId) return;
-    const keepPages = opts.keepScroll ? Math.max(1, pageRef.current) : 1;
-    const savedTop = opts.keepScroll ? (listRef.current?.scrollTop ?? 0) : 0;
-    if (!opts.keepScroll) setListLoading(true);
+    // 실시간 갱신(silent)은 **목록을 교체하지 않는다**. 교체하면 길이·순서가 바뀌면서 스크롤이 튄다.
+    //   (Irene: "리프레시 아무것도 안 되고 움직임 없이 바로바로 적용되는 형태여야 해")
+    //   대신 제자리 병합: 이미 있는 행은 필드만 갱신, 새 메일만 맨 위에 붙인다. 사라진 행은 남긴다
+    //   (사라지는 순간 아래가 위로 밀린다 — 다음 진입에서 정리된다).
+    const silent = !!opts.silent;
+    const pages = silent ? Math.max(1, pageRef.current) : 1;
+    if (!silent) setListLoading(true);
     setErrorMsg(null);
     try {
       const acctQ = accountFilter ? `&account_id=${accountFilter}` : '';
       const qP = qDebounced ? `&q=${encodeURIComponent(qDebounced)}` : '';
       const fP = filterQuery();
-      const r = await apiFetch(`/api/businesses/${businessId}/email-threads?folder=${folder}&limit=${PAGE_SIZE * keepPages}&page=1${acctQ}${qP}${fP}`);
+      const r = await apiFetch(`/api/businesses/${businessId}/email-threads?folder=${folder}&limit=${PAGE_SIZE * pages}&page=1${acctQ}${qP}${fP}`);
       const j = await r.json();
-      if (j.success) {
-        // 처리됨으로 표시한 행은 서버 응답에서 빠졌더라도 그 자리에 남긴다 (자리가 흔들리지 않게).
-        setThreads((prev) => {
-          const fresh: Thread[] = j.data || [];
-          if (!handledRef.current.size) return fresh;
-          const freshIds = new Set(fresh.map((x) => x.id));
-          const kept = prev.filter((x) => handledRef.current.has(x.id) && !freshIds.has(x.id));
-          if (!kept.length) return fresh;
-          const byId = new Map(prev.map((x, i) => [x.id, i]));
-          return [...fresh, ...kept].sort((a, b) => (byId.get(a.id) ?? 1e9) - (byId.get(b.id) ?? 1e9));
-        });
-        setHasMore(!!j.pagination?.has_more);
-        if (opts.keepScroll && listRef.current) {
-          // DOM 반영 후 복원 (한 프레임 뒤가 아니라 즉시 — 첫 paint 가 위에서 그려지지 않게)
-          requestAnimationFrame(() => { if (listRef.current) listRef.current.scrollTop = savedTop; });
-        } else {
-          pageRef.current = 1;
-        }
+      if (!j.success) { setErrorMsg(j.message || (t('errors.loadList', { defaultValue: '인박스 로딩 실패' }) as string)); return; }
+      const fresh: Thread[] = j.data || [];
+      setHasMore(!!j.pagination?.has_more);
+      if (!silent) {
+        setThreads(fresh);
+        pageRef.current = 1;
+        return;
       }
-      else setErrorMsg(j.message || (t('errors.loadList', { defaultValue: '인박스 로딩 실패' }) as string));
+      setThreads((prev) => {
+        if (!prev.length) return fresh;
+        const freshById = new Map(fresh.map((x) => [x.id, x]));
+        const prevIds = new Set(prev.map((x) => x.id));
+        // 1) 기존 행은 자리 그대로, 내용만 최신으로
+        const merged = prev.map((row) => freshById.get(row.id) || row);
+        // 2) 새로 온 메일만 맨 위에 (자리 이동 없음 — 위에 얹힐 뿐)
+        const added = fresh.filter((x) => !prevIds.has(x.id));
+        return added.length ? [...added, ...merged] : merged;
+      });
     } catch (e) {
       setErrorMsg((e as Error).message);
     } finally {
-      setListLoading(false);
+      if (!silent) setListLoading(false);
     }
   }, [businessId, folder, accountFilter, qDebounced, filterQuery, t]);
 
@@ -631,7 +633,7 @@ const MailPage: React.FC = () => {
 
   // ── 실시간 silent 갱신 (socket / visibility) — 스피너 없이 list+counts+열린 detail 갱신
   const silentReload = useCallback(() => {
-    loadList({ keepScroll: true });   // 실시간 갱신은 읽던 자리를 흔들지 않는다
+    loadList({ silent: true });   // 제자리 병합 — 스크롤도 순서도 흔들지 않는다
     loadCounts();
     loadAccounts();
     if (activeId) loadDetail(activeId);
