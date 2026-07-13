@@ -181,7 +181,7 @@ function daysFrom(today, offset) {
       start_date: daysFrom(today, -21), end_date: daysFrom(today, 35), color: '#F59E0B' },
     [
       { title: '기획 단계 워크샵', status: 'completed', progress_percent: 100, start_date: daysFrom(today, -21), due_date: daysFrom(today, -19), estimated_hours: 6, actual_hours: 6 },
-      { title: '리서치 보고서 작성', status: 'done_feedback', progress_percent: 100, start_date: daysFrom(today, -18), due_date: daysFrom(today, -10), estimated_hours: 10, actual_hours: 9, assignee_id: others[0]?.user_id || owner.user_id },
+      { title: '리서치 보고서 작성', status: 'completed', progress_percent: 100, start_date: daysFrom(today, -18), due_date: daysFrom(today, -10), estimated_hours: 10, actual_hours: 9, assignee_id: others[0]?.user_id || owner.user_id },
       { title: '디자인 시안 3안', status: 'reviewing', progress_percent: 100, start_date: daysFrom(today, -9), due_date: daysFrom(today, -1), estimated_hours: 16, actual_hours: 17, assignee_id: others[0]?.user_id || owner.user_id },
       { title: '콘텐츠 카피라이팅', status: 'revision_requested', progress_percent: 70, start_date: daysFrom(today, -5), due_date: daysFrom(today, 3), estimated_hours: 8, actual_hours: 6, assignee_id: others[1]?.user_id || owner.user_id },
       { title: '프론트엔드 구현', status: 'in_progress', progress_percent: 45, start_date: daysFrom(today, 0), due_date: daysFrom(today, 18), estimated_hours: 40, actual_hours: 18, assignee_id: others[0]?.user_id || owner.user_id },

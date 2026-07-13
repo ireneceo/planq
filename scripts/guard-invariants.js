@@ -286,7 +286,10 @@ function checkPagination() {
 const NOTIFY_LOCKED = [
   'dev-backend/routes/conversations.js',
   'dev-backend/routes/projects.js',
-  'dev-backend/routes/task_workflow.js',
+  // 업무 전이의 notify 는 라우트가 아니라 **행동 계층**에 있다 (D-3) — 사람도 Cue 도 같은 문을 지나므로
+  //   여기를 잠가야 Cue 경로의 알림 누락까지 같이 막힌다. 라우트만 잠그면 Cue 가 우회한다.
+  'dev-backend/services/actions/task_actions.js',
+  'dev-backend/services/taskTransition.js',
   'dev-backend/routes/tasks.js',
   'dev-backend/routes/invoices.js',
   'dev-backend/routes/signatures.js',
@@ -307,7 +310,8 @@ function checkNotify() {
 // ═══════════════════════════════════════════════
 const BROADCAST_LOCKED = [
   'dev-backend/routes/tasks.js',
-  'dev-backend/routes/task_workflow.js',
+  // 업무 전이의 broadcast 도 행동 계층에 있다 (D-3)
+  'dev-backend/services/actions/task_actions.js',
   'dev-backend/routes/conversations.js',
   'dev-backend/routes/posts.js',
   'dev-backend/routes/files.js',
@@ -477,6 +481,47 @@ function checkLlmGateway() {
 }
 
 // ═══════════════════════════════════════════════
+// 8-c. actionlayer — 업무 상태 전이는 행동 계층 단일 착지점을 지난다
+//
+//   라우트가 직접 status 를 쓰고 이력·알림을 인라인으로 처리하면, 라우트를 지나지 않는 실행자
+//   (Cue·cron)는 그 규칙을 통째로 우회한다. 실제로 그랬다 — Cue 가 일을 끝내도 이력도 알림도
+//   화면 갱신도 없었다. 라우트는 파싱·응답만, 규칙은 services/actions/task_actions.js 안에.
+// ═══════════════════════════════════════════════
+const ACTION_LAYER = 'dev-backend/services/actions/task_actions.js';
+const WORKFLOW_ROUTE = 'dev-backend/routes/task_workflow.js';
+
+function checkActionLayer() {
+  const bad = [];
+  const layer = path.join(ROOT, ACTION_LAYER);
+  if (!fs.existsSync(layer)) {
+    bad.push(`${ACTION_LAYER}: 행동 계층 파일 없음`);
+  } else {
+    const src = read(layer);
+    for (const [feature, re] of [
+      ['권한 검사', /isAssignee|canManageReviewers/],
+      ['전이 규칙', /recalcStatusFromReviewers/],
+      ['이력 기록', /TaskStatusHistory/],
+      ['알림', /notify/],
+      ['broadcast', /broadcastTask/],
+    ]) {
+      if (!re.test(src)) bad.push(`${ACTION_LAYER}: ${feature} 소실 — 행동 계층의 존재 이유가 빠졌다`);
+    }
+  }
+
+  // 라우트는 얇아야 한다 — 상태를 직접 쓰거나 이력·알림을 인라인으로 처리하면 우회 구멍이 다시 열린다.
+  const route = path.join(ROOT, WORKFLOW_ROUTE);
+  if (fs.existsSync(route)) {
+    const src = read(route);
+    if (/TaskStatusHistory\.create/.test(src)) bad.push(`${WORKFLOW_ROUTE}: 라우트가 이력을 직접 쓴다 — 행동 계층으로`);
+    if (/status:\s*'(reviewing|completed|in_progress|revision_requested|waiting|canceled)'/.test(src)) {
+      bad.push(`${WORKFLOW_ROUTE}: 라우트가 status 를 직접 쓴다 — 행동 계층으로 (Cue 가 우회한다)`);
+    }
+    if (/sequelize\.transaction\(/.test(src)) bad.push(`${WORKFLOW_ROUTE}: 라우트가 트랜잭션을 연다 — 도메인 로직이 새고 있다`);
+  }
+  report('actionlayer', '업무 전이는 행동 계층 단일 착지점 (라우트는 파싱·응답만)', bad.length === 0, bad);
+}
+
+// ═══════════════════════════════════════════════
 // 9. godfile — 신규 god-file 차단 래칫 (기존 초과분은 동결, 15% 이상 추가 성장도 실패)
 // ═══════════════════════════════════════════════
 function checkGodfile() {
@@ -529,6 +574,7 @@ const CATEGORIES = {
   cueauth: checkCueAuth,
   costguard: checkCostGuard,
   llmgateway: checkLlmGateway,
+  actionlayer: checkActionLayer,
   godfile: checkGodfile,
   docfresh: checkDocFresh,
 };
