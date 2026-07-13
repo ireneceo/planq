@@ -23,6 +23,7 @@ import * as qtalkApi from '../../services/qtalk';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { mapApiError } from '../../utils/apiError';
 import PanelEdgeHandle from '../../components/Layout/PanelEdgeHandle';
+import { usePanelWidth } from '../../components/Layout/PanelResizeHandle';
 
 /**
  * QTalkPage — 실데이터 기반 (시드 데이터 로드)
@@ -342,6 +343,8 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
   const [leftCollapsed, setLeftCollapsed] = useState<boolean>(() => {
     try { return localStorage.getItem(STORAGE_LEFT) === '1'; } catch { return false; }
   });
+  // 좌측 리스트 폭 — 드래그로 조절 (우측 패널과 같은 방식)
+  const { width: leftWidth, startResize: startLeftResize } = usePanelWidth('qtalk_left_width', 300, 'left');
   const [rightCollapsed, setRightCollapsed] = useState<boolean>(() => {
     if (embedded) return true; // 좁은 드로어/팝아웃 — 우측 패널 기본 접힘(대화목록+채팅 우선, 토글로 펼침)
     try { return localStorage.getItem(STORAGE_RIGHT) === '1'; } catch { return false; }
@@ -1469,11 +1472,13 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         side="left"
         collapsed={leftCollapsed}
         onToggle={toggleLeft}
-        offset={leftCollapsed ? 0 : 300}   /* LeftPanel Container width: 300px */
+        offset={leftCollapsed ? 0 : leftWidth}
         labelCollapse={t('left.collapse', { defaultValue: '리스트 접기' }) as string}
         labelExpand={t('left.expand', { defaultValue: '리스트 열기' }) as string}
       />
       <LeftPanel
+        width={leftWidth}
+        onResizeStart={startLeftResize}
         projects={projects}
         conversations={conversations}
         activeProjectId={activeProjectId}

@@ -51,6 +51,7 @@ import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
 import SecurityLevelBadge, { useSecurityLevelLabel } from '../Common/SecurityLevelBadge';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import PanelEdgeHandle from '../Layout/PanelEdgeHandle';
+import PanelResizeHandle, { usePanelWidth } from '../Layout/PanelResizeHandle';
 
 // 좌측 필터: 전체(기본) / 프로젝트 그룹 / 카테고리
 // '내 문서'·'기본' 섹션은 제거. 상단 통합검색이 프로젝트명·제목·본문·카테고리를 모두 커버.
@@ -698,6 +699,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     try { return localStorage.getItem(COLLAPSE_KEY) === '1'; } catch { return false; }
   });
+  // 좌측 리스트 폭 — 드래그로 조절 (다른 화면과 같은 방식)
+  const { width: listWidth, startResize: startListResize } = usePanelWidth('qdocs_list_width', 300, 'left');
+
   const toggleSidebar = useCallback(() => {
     setSidebarCollapsed(prev => {
       const next = !prev;
@@ -730,7 +734,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   }, [PIN_KEY, projId]);
 
   return (
-    <Layout $collapsed={sidebarCollapsed} $projectFull={isProject} $hasDetail={!!detail || isEditing}>
+    <Layout $collapsed={sidebarCollapsed} $projectFull={isProject} $hasDetail={!!detail || isEditing} $listW={listWidth}>
       {isProject && !detail && !isEditing && (
         <ProjBrowse>
           <AtToolbar>
@@ -839,13 +843,14 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           side="left"
           collapsed={sidebarCollapsed}
           onToggle={toggleSidebar}
-          offset={sidebarCollapsed ? 0 : 300}
+          offset={sidebarCollapsed ? 0 : listWidth}
           labelCollapse={t('sidebar.collapse', '리스트 접기') as string}
           labelExpand={t('sidebar.expand', '리스트 열기') as string}
         />
       )}
       {!isProject && !sidebarCollapsed && (
-      <Sidebar $hasDetail={!!detail || isEditing} $projectFull={false}>
+      <Sidebar $hasDetail={!!detail || isEditing} $projectFull={false} style={{ position: 'relative' }}>
+        <PanelResizeHandle onMouseDown={startListResize} />
         <>
         <PanelHeader>
           <TitleGroup>
@@ -1565,12 +1570,12 @@ const PrintOnlyTitle = styled.h1`
     font-size: 24px; font-weight: 700; color: #0F172A; margin: 0 0 16px 0;
   }
 `;
-const Layout = styled.div<{ $collapsed?: boolean; $projectFull?: boolean; $hasDetail?: boolean }>`
+const Layout = styled.div<{ $collapsed?: boolean; $projectFull?: boolean; $hasDetail?: boolean; $listW?: number }>`
   display: grid;
   /* 좌측 리스트 폭 — Q note 와 동일 (300px). 좌측 리스트 패턴 통일 */
   /* 프로젝트 스코프: 단일 컬럼. browse 시 ProjBrowse(파일 탭과 동일한 Toolbar+Split) 가 셀을 채우고,
      문서를 열면(상세/편집) 같은 셀에 상세를 풀폭으로 렌더. */
-  grid-template-columns: ${p => p.$projectFull ? '1fr' : (p.$collapsed ? '0 1fr' : '300px 1fr')};
+  grid-template-columns: ${p => p.$projectFull ? '1fr' : (p.$collapsed ? '0 1fr' : `${p.$listW || 300}px 1fr`)};
   height: 100%; min-height: 0;
   /* 경계선 핸들(PanelEdgeHandle)이 이 컨테이너 기준으로 absolute 배치된다 */
   position: relative;

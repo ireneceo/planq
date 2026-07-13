@@ -123,12 +123,14 @@ export const Panel = styled.div<{
  * - 태블릿/모바일(≤1024px): absolute 오버레이 드로어 (좌측 고정, 그림자, z-index 30)
  *    → 펼침 시 SidebarBackdrop 와 함께 노출
  */
-export const CollapsibleSidebar = styled.aside<{ $collapsed?: boolean }>`
+export const CollapsibleSidebar = styled.aside<{ $collapsed?: boolean; $w?: number }>`
   background: #FFFFFF;
   border-right: 1px solid #E2E8F0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* 폭 조절 핸들(PanelResizeHandle)이 이 컨테이너 기준으로 absolute 배치된다 */
+  position: relative;
   transform: translateX(${(p) => (p.$collapsed ? '-100%' : '0')});
   transition: transform 200ms ease;
   visibility: ${(p) => (p.$collapsed ? 'hidden' : 'visible')};
