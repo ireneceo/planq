@@ -76,20 +76,28 @@ function folderWhere(folder, userId) {
     // assigned/following 은 EmailThreadParticipant 조인 필요 → 리스트 라우트에서 thread_id 필터로 처리. 여기선 status 기준만.
     case 'assigned':
     case 'following': return { status: { [Op.in]: ['open', 'uncertain'] } };
-    case 'uncertain': return { status: 'uncertain' };
+    // 확인 권장 = "한 번 보고 판단할 것" — 처리 완료(옛 inbox)를 여기에 합쳤다.
+    //   ① 애매한 메일 (status='uncertain'): 스팸·광고는 아닌데 업무인지 모르겠는 것,
+    //      그리고 자동 발송이지만 내용이 업무인 것(결제 완료·보고서·시스템 업무 안내)
+    //   ② 답변이 끝난 사람 메일 (답장했거나 "답변 완료" 로 넘긴 것)
+    //   두 개가 사실상 같은 성격("답장할 건 아닌데 봐야 하는 것")이라 탭을 나눌 이유가 없다 (Irene).
+    case 'uncertain':
+    case 'inbox':
+      return {
+        [Op.or]: [
+          { status: 'uncertain' },
+          { status: 'open', reply_needed: false, triage: { [Op.notIn]: ['automated', 'marketing'] } },
+        ],
+      };
     case 'spam': return { status: 'spam' };
     case 'archived': return { status: 'archived' };
-    // N+83 — 자동·마케팅 폴더 (noreply 알림 + 뉴스레터 벌크). 인박스 노이즈 분리.
+    // 자동·마케팅 — 광고·뉴스레터·기계 알림. 단, 내용이 업무라 확인 권장으로 올라간 건 제외
+    //   (같은 메일이 두 폴더에 겹쳐 보이면 어느 쪽이 진짜인지 알 수 없다).
     case 'marketing': return { status: 'open', triage: { [Op.in]: ['automated', 'marketing'] } };
     // 전체 — 스팸·보관 뺀 모든 메일 (자동·마케팅 포함). "다 어디 갔지" 를 없애는 안전망.
     case 'all': return { status: { [Op.notIn]: ['spam', 'archived'] } };
-    case 'inbox':
     default:
-      // 인박스 = 사람이 보낸 열린 메일 중 **답변이 끝난 것** (답변했거나 "답변 완료" 로 넘긴 것).
-      //   여태는 reply_needed 조건이 없어서 '답변 필요' 와 완전히 같은 리스트가 나왔다
-      //   (사람 메일이 전부 미답변이면 두 탭 내용이 100% 겹침 — Irene 지적).
-      //   이제 두 탭은 상호 배타: 답변 필요(할 일) ↔ 인박스(처리 끝). uncertain·spam 은 별도 폴더.
-      return { status: 'open', reply_needed: false, triage: { [Op.notIn]: ['automated', 'marketing'] } };
+      return { status: { [Op.notIn]: ['spam', 'archived'] } };
   }
 }
 
