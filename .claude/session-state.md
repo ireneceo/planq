@@ -1,8 +1,8 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-07-12 (Opus, 1M) — Q Mail 상세·분류 정비 + Cue 초안 회귀 + 안 읽음 정합 + 확인 필요 메일 탭
-**작업 상태:** 완료 (운영 배포 완료 — commit ac257f1). 다음 = 아래 "다음 섹션".
+**마지막 업데이트:** 2026-07-13 (Opus, 1M) — 메일 답변 필요 판정 정합 + 보관함 노트 카운트 + Q Bill 탭 뱃지
+**작업 상태:** 완료 (dev 검증 통과 · **미배포** — 배포하려면 `/배포`)
 
 ---
 
@@ -14,106 +14,72 @@ session-state.md 읽고 이어서 개발해.
 
 ---
 
-## ✅ 이번 세션 완료 (2026-07-12 후반) — 운영 배포 완료 (ac257f1)
+## ✅ 이번 세션 완료 (2026-07-13)
 
-### Q Mail — 상세 화면
-- **3단 그리드 복구** — #130 사이드바 통일 때 2열 그리드에 자식 3개를 그려 맥락 패널이 상세를 덮고 우측엔 화살표만 남았다. 실측 300|672|320px.
-- **본문 끝까지** — iframe 고정 240px → 내용 높이만큼(1128px), 스크롤러 611/1228. **카드-속-카드 제거**(상세 패널이 이미 카드). `sanitizeMailHtml`(DOMPurify) + sandbox allow-scripts(높이 보고만).
-- **답장은 클릭해서 열기** + 버튼 좌측 고정 [답장하기/보내기] [AI] [취소] (첫 버튼 x 동일 — 열고 닫아도 안 튐).
-- **태그·프로젝트 필터** — 상세 라벨 = 진짜 태그 → 목록 필터로 연결(`?label=` JSON_CONTAINS + escape). 계정은 셀렉트(account=0=전체), 탭·계정 localStorage 유지, 기본 탭 '답변 필요'(여태 inbox 라 첫 화면이 빈 목록), '전체' 폴더 추가.
-- **우측 패널** — '연결' 항목 해체(프로젝트/고객이 곧 항목). "팀 공유"(실은 노트 공개범위) → "새 노트를 볼 사람".
+전 세션이 SSH 끊김으로 중간에 멈춰 있었다 (커밋 안 된 변경 15파일). **이어받아 마무리 + 그 안에 있던 회귀 3건을 잡았다.**
 
-### ★ 답변 필요 = 확실한 것만 (Irene 정책: "확인 권장을 많이 쓰고")
-- **셋 중 하나일 때만** — ①아는 상대(고객·멤버·전에 답장한 상대) ②우리 대화 회신(in-reply-to) ③직접 수신 + 명확한 요청. CC 로만 받은 건 제외. 나머지는 전부 **확인 권장**.
-- 옛 신호는 물음표·'확인'·'진행' 까지 잡아 뉴스레터·고지서가 다 들어왔다 → `STRONG_REQUEST` 신설('확인 바랍니다' 는 통지문 상투구라 제외). 케이스 7/7.
-- `scripts/retriage-mail.js` — 옛 규칙으로 켜진 스레드 재판정(멱등·원본 무손상, headers 없이 in_reply_to·to_emails 컬럼으로 판정). **dev 112 → 28 · 운영 22 → 7**.
+### ★ 답변 필요 판정 — 순서가 곧 규칙 (`services/emailTriage.js`)
+멈춰 있던 변경은 `needsReply` 를 "관계(아는 상대) 먼저" → "메일 성격 먼저" 로 바꾸는 중이었는데, **그 상태로 커밋했으면 회귀였다.** 실데이터 재판정 시뮬레이션(dev 400스레드)에서 오히려 **54건이 새로 답변 필요로 승격**됐다:
 
-### AI 버튼 2단계 (전부 Coral 이면 주 액션이 안 보인다)
-- 주 액션 = `AiActionButton`(별 + Coral): AI 답변 초안 · 문서 자동 작성 · 지식 자동 추가
-- 보조 = **`AiAssistButton` 신설**(파스텔 민트, Q Talk 옛 운영 디자인 복원): 요약 생성 · 업무 추출
+- **반송(bounce)** — mailer-daemon 은 **In-Reply-To 를 달고 온다** → "우리 대화 회신" 으로 통과. `isBounce()` 신설, 회신 판정보다 **먼저** 차단.
+- **거래 알림** — 헤더를 DB 에 저장하지 않아 **재판정 경로에선 광고 판정(List-Unsubscribe)이 눈을 감는다**. 그래서 Shopee 배송/결제 알림이 그물을 빠져나갔고, 본문 상투구("Need help?" · "problems?")가 물음표·요청 신호에 걸려 **오히려 답변 필요로 올라왔다**. `isTransactionalNotice()`(제목 기반) 신설.
+- **URL 물음표** — 추적 URL 의 `?` 가 질문으로 잡혔다 → `plainText()` 로 링크 제거 후 판정. 요청 신호 창도 앞 1200자로 축소(뒤쪽 상투구 배제).
 
-### Cue 답변 대기 회귀
-- 카드 조건이 `m.is_question && m.cue_draft` — is_question 은 **사람 메시지에만** 붙는 값이라 카드가 뜰 수 없었다 → 초안이 일반 말풍선으로 그려져 "이미 보낸 메시지" 로 보이고 뱃지만 대기. 카드를 초안 메시지 자신에 붙이고 본문은 말풍선에서 숨김. isDraft = `ai_mode_used='draft' && 미승인`(백엔드와 동일 정의).
+**최종 판정 순서 (코드와 1:1):** 우리가 보낸 것 → 반송 → 대량 발송 → 거래 알림 → **회신(true)** → 자동 발송 → **아는 상대(true)** → 모르는 상대 + 직접 수신 + 명확한 요청/질문.
 
-### 안 읽음 숫자 정합 (배지 39인데 리스트엔 표시 0)
-- ① unread 쿼리 LEFT → **INNER JOIN**(참여한 방만). 참여 안 한 방(오너 가시성)의 과거 메시지 전부를 세던 것 제거 — 워크스페이스 6 기준 35 → 4.
-- ② 사이드바 배지는 **전 워크스페이스 합계**인데 리스트는 현재 워크스페이스 → 배지를 현재 워크스페이스로 스코프.
+**실측 결과:** 오승격 **0건** · 노이즈 해제 8건(Shopee·WordPress 벌크 → 확인 권장). `scripts/retriage-mail.js --apply` dev 반영 완료(2025건 중 8건).
 
-### 확인 필요 (인박스)
-- 페이지 제목 + 리스트 헤더 중복 제거. **전체 탭은 업무/메일/서명/청구 카테고리로 묶기**(개별 탭은 우선순위 그룹).
-- **메일 탭 신설** — 답변 필요 메일은 "답장하면 끝" 인 1회성 액션. 담당자 지정 시 그 사람만, 미지정은 공유 큐. 상한 30, 방치 7일↑만 긴급.
+- **확인 완료 스레드 재개** — 처리(archived)한 대화에 새 메일이 오면 어느 폴더에도 안 나타나고 조용히 묻혔다 → `threadFieldsForInbound()` 로 신규/후속 규칙을 한 곳에 모으고, archived 는 새 메일 시 재개(스팸만 예외).
 
-### 레이아웃 표준
-- Q Talk 우측: 패널이 없는데(대화 미선택) 핸들만 떠 있던 것 + RightPanel 내부 중복 핸들 제거. Q docs 자체 CollapsedStrip → 공통 `PanelEdgeHandle`. 4화면 핸들 가려짐 0.
-- 채팅 고객명 → 통합 타임라인 링크(`/business/clients/:id/timeline`).
+### 개인 보관함 노트 카운트 (죽어 있던 값)
+요약 API 가 q-note 응답을 `jq.total` / `jq.sessions` 로 읽었는데 실제 형태는 `{ data, pagination: { total } }` → **항상 0**. 파싱 교정 + 대시보드 KPI 카드·빈 상태 조건·i18n(ko/en) 완결. 실 HTTP 검증: `counts.notes = 56` = q-note 원본 56 일치.
+(Q Note 가 내려가 있으면 `notes` 필드 자체가 안 온다 → 그때는 카드도 안 그린다. 0 이라고 거짓말하지 않게.)
 
----
+### 그 외
+- **Q Bill 탭별 할 일 뱃지** — 좌측 메뉴에만 숫자가 뜨고 어느 탭에 할 일이 있는지는 알 수 없었다 → `/api/dashboard/todo.billTabCounts` + 탭 옆 숫자 (합계 = 메뉴 뱃지 검증).
+- **프로젝트 → 소통 창구 바로가기** — 프로젝트 상세 헤더에 "프로젝트 채팅"·"프로젝트 메일" (Q Mail 이 `?project=` URL 필터 수신).
+- **용어 교정** — "답변 완료" → **"답변 불필요"** (실제 동작은 '답장 안 해도 되는 메일을 내리는 문'). 보관함 첫 탭 "대시보드" → "개요". Q위키 아티클도 같이 갱신(옛 용어·옛 규칙 설명이 화면과 어긋나 있었다).
 
-## 📦 지난 세션 (2026-07-12 전반) — 전부 운영 배포
-
-### P0 에이전트 권한 모델 (Fable 게이트 CONDITIONAL → 권고 3건 반영)
-Cue 가 담당자로 지정되면 자동 실행되는데 **권한 계층을 통째로 우회**하고 있었다.
-- **위임 주체(principal)** — Cue 는 업무 요청자의 권한으로만 행동. fail-closed. 위임자가 AI 면 거부(권한 세탁 차단). 트리거한 사람이 아니라 위임자 기준(escalation 차단).
-- **읽기 IDOR** — `execDraftReply` 가 business_id 만 비교 → 참여하지도 않은 대화방을 Cue 가 요약해 적어줬다. `canAccessConversation` 필수.
-- **쓰기** — 신규 `services/taskTransition.js` 상태 전이 **단일 착지점**. 옛 코드는 status 직접 써서 reviewer 가드·이력·notify·broadcast·focus 전부 건너뜀. 컨펌자 0명이면 위임자 자동 등록(옛 코드는 approve 403 나는 **죽은 업무** 생성).
-- **guard-invariants 14→16** — `cuefinance`(Cue 재무 영구 봉쇄를 게이트로 박제) + `cueauth`. 반증실험으로 유효성 증명.
-- **감사** — `audit_logs.acting_for_user_id` (운영 ALTER **선행** 후 배포).
-
-### 업무 자동추출 — Fable BLOCK 해제 (Irene: "이거 정말 중요")
-- **F1** 외부 고객이 내부 업무후보 7건 조회(내부 대화 원문 포함) → 멤버 이상 강제
-- **F2** 후보→업무 승격이 `assertAssignable` 우회 → 외부인 담당자화 + 타 워크스페이스 알림 발송(크로스테넌트 유출) → 게이트 추가
-- **F3** 채팅 추출이 **고객을 담당자로 지정** → 담당자 풀에서 외부인·AI 코드 배제 + 프롬프트 가드(메일 경로와 동일)
-- **F4** 업무명 "완료" 접미사 → `sanitizeTitle()`  **F5** Cue 담당 = 좀비 업무 → 등록자로 대체  **F6** pending 후보 중복 → 제목 dedup
-- 담당자 결정 **설계는 옳았다** (LLM 은 이름만 제안, 코드가 확정). 풀에 고객이 섞인 게 문제였음.
-
-### Q Mail
-- **발신자 표시 오류** — 화면이 발신자 자리에 **내 메일함 이름**을 그렸다(PlanQ 알림이 "IRENE WP"로 보임). 데이터는 멀쩡, 화면이 틀림 → `counterpart`(마지막 inbound from_name) 추가. 운영 정상 확인.
-- **발신 이름 원래 기준** — Gmail 연결 시 구글 프로필명이 박혔다 → `businesses.mail_from_name` 이 단일 원천. 운영 데이터 교정("워프로랩").
-- **"답변 필요" 자가 오염** — PlanQ 알림이 Auto-Submitted 헤더 없이 나가 자기 알림을 "답장할 메일"로 분류. 오탐 93%. → RFC 3834 헤더 + `buildOwnEmailSet` + 백필. **운영 116 → 20건**. "답변 완료" 버튼 + 3일 경과 칩.
-- **확인 필요 불침범(Fable C안)** — 메일은 확인 필요 total 에 미합산. Q Bill 과 같은 **Q Mail 메뉴 자체 배지**.
-- **UI 표준** — 경계선 화살표 핸들(공통 `PanelEdgeHandle.tsx` 신규 추출), 공통 `EmptyState`, 업무 추출 버튼 Q Talk 통일, 계정 칩(회사/개인 + 주소), 탭 카운트 계정 필터 버그 fix, i18n 누락 채움.
-- **메일 계정 관리자 교정 경로 복구** — 회사 대표 메일이 한 멤버 개인 메일로 등록(회사 메일 191건이 그 사람만 봄). admin 전환 버튼이 백엔드 404 로 **한 번도 동작한 적 없던 죽은 기능** → 최소 권한 교정 경로 신설.
+### 가드 (전부 통과)
+헬스 30/30 · guard-invariants 15/15 · e2e tenant 0 실패 · 프론트 빌드 EXIT 0 / TS error 0 · 위키 커버리지 EXIT 0
 
 ---
 
 ## 🔖 다음 섹션 (우선순위)
 
-### 1. 메일 분류 규칙 학습 (Irene 승인 완료 — 최우선)
-운영하면서 클릭으로 학습해 조건을 구체화한다. **LLM 0.**
-- 신규 `mail_sender_rules` (business_id · pattern(주소|도메인) · verdict(no_reply/always_reply/marketing/spam) · source(learned/manual) · hit_count · evidence)
-- 학습: 같은 발신자 **2회 "답변 완료"** → `no_reply` 규칙 자동 생성 + **그 발신자의 기존 미처리 건 일괄 정리** + 앞으로 애초에 안 들어옴
-- 반대 신호: 그 발신자에게 **답장하면 규칙 즉시 해제**(사람이 대응한다는 강한 신호 우선)
-- 스팸 2회 → 도메인 단위 spam 규칙. 같은 도메인 주소 3개가 no_reply → **도메인 승격**
-- **투명성 필수**: 설정에 "메일 분류 규칙" 화면(학습된 규칙·근거·삭제). 사용자 모르게 메일이 사라지면 안 됨. 규칙 적용 스레드에 "규칙으로 자동 분류됨" 표시
-- 워크스페이스별 격리 (한 고객사가 배운 규칙이 다른 곳에 새지 않음)
-- 규모 중 (테이블 1 + 라우트 3 + 설정 화면 1). 되돌리기 쉬움(규칙 삭제 = 원상복구, 원본 메일 무손상)
+### 1. 메일 분류 규칙 학습 — 남은 부분
+`mail_sender_rules` 테이블·라우트·설정 화면은 이미 있다(이번 세션에서 문구만 교정). 남은 것:
+- 학습 트리거 실동작 검증 (같은 발신자 2회 "답변 불필요" → `no_reply` 규칙 자동 생성 → 기존 미처리 건 일괄 정리)
+- 반대 신호(그 발신자에게 답장 → 규칙 즉시 해제) 실동작 검증
+- 도메인 승격(같은 도메인 3개 no_reply → 도메인 규칙) 실동작 검증
+- **헤더 미저장이 근본 문제** — `email_messages` 에 List-Unsubscribe·Precedence·Auto-Submitted 정도만 저장하면 재판정이 눈을 뜬다. 지금은 제목·발신자 패턴으로 우회 중.
 
 ### 2. LLM 게이트웨이 단일화 (2~3일, Fable 게이트)
 raw fetch 13파일 · gpt-4o-mini 하드코딩 27곳 → 단일 모듈(모델 추상화·프롬프트 레지스트리·툴 호출·재시도·비용계량). costGuard·cue_usage 흡수하되 파괴 금지.
 
 ### 3. 행동 계층(Action Layer) 추출 (3일)
-상태 전이가 12개 라우트에 인라인. **`services/taskTransition.js` 가 첫 절단면** — 나머지 전이(approve/revision/complete/recalc)를 여기로 모은다. 이게 있어야 (a)Cue 툴 호출 (b)MCP 노출 (c)권한 검사 단일화.
+상태 전이가 12개 라우트에 인라인. `services/taskTransition.js` 가 첫 절단면 — 나머지 전이(approve/revision/complete/recalc)를 여기로 모은다.
 
 ### 4. #81 Cue 대화형 실행 (2일) — 2·3 선행 필수
-### 5. KB 과잉 제거 (1일) — 운영 KB 총 527 bytes 인데 임베딩·청킹·하이브리드 완비. 롱컨텍스트+캐싱으로 단순화 = 코드 삭제
-### 6. 잔여 부채 — god-file 분리(projects.js 3,071 · invoices.js 2,229 · QNotePage.tsx 4,464) · 이벤트 스트림 통합(6테이블 UNION) · 검사 하니스 보강(chrome-suppression · canary-crawl)
+### 5. KB 과잉 제거 (1일) — 운영 KB 총 527 bytes 인데 임베딩·청킹·하이브리드 완비
+### 6. 잔여 부채 — god-file 분리(projects.js 3,071 · invoices.js 2,229 · QNotePage.tsx 4,464) · 이벤트 스트림 통합 · 검사 하니스 보강
 
 ### ⏸ Irene 몫
 - 운영 task **#142 Stripe 활성화** · **#143 이메일 DKIM** · **#144 APNs 키**
 - Google OAuth 검증 제출 (#126 캘린더 양방향 선행 조건)
-- 안 쓴 앱 비밀번호(`johq…`) 구글에서 취소 — 저장하지 않았음
+- **admin role** — 2026-07-10 활성화 완료(dev). 운영 반영 시 수동 ALTER 선행 필요
 
 ---
 
 ## 🚀 배포 상태
-이번 세션 **전부 운영 배포 완료**. 마지막 커밋 `1e194b2` · deploy 20260712_101401.
-운영 백필 실행 완료: `backfill-mail-selfnotify.js --apply` (95건 재분류).
-운영 DB 선행 ALTER 적용: `audit_logs.acting_for_user_id`.
+이번 세션 **미배포**. dev 만 반영(재판정 8건 · 위키 시드 포함).
+운영 배포하려면 `/배포` — 배포 시 운영에서도 `node scripts/retriage-mail.js --apply` + `node seed-wiki-content.js` 실행 필요.
 
 ## 🔑 환경/인증
 - dev 백엔드 3003 · q-note 8000 / 운영 3004 · 8001 (POS 공존 — 절대 건드리지 말 것)
-- 가드 3축: `node scripts/health-check.js`(30) + `node scripts/guard-invariants.js`(16) + `node scripts/e2e/run.js --suite tenant`
+- 가드 3축: `node scripts/health-check.js`(30) + `node scripts/guard-invariants.js`(15) + `node scripts/e2e/run.js --suite tenant`
 - 위키 게이트: `node dev-backend/seed-wiki-content.js` + `node dev-backend/scripts/wiki-coverage-check.js`
+- q-note 실 DB: `/opt/planq/q-note/data/qnote.db` (루트의 `qnote.db` 는 빈 껍데기 — 헷갈리지 말 것)
 - 운영 메일 계정: help@irenewp.com(회사 공용, 발신명 "워프로랩") · irene@irenewp.com(Irene 개인)
 
 ## 📂 주요 문서

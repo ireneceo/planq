@@ -430,10 +430,11 @@
       "saving": "저장 중..."
     },
     "tab": {
-      "dashboard": "대시보드",
+      "dashboard": "개요",
       "posts": "문서",
       "files": "파일",
-      "kb": "정보"
+      "kb": "정보",
+      "notes": "노트"
     },
     "recent": {
       "posts": "최근 문서",
@@ -453,7 +454,9 @@
       "files": "개인 파일 없음",
       "filesBody": "Q file 에서 프로젝트 미연결로 올린 파일이 여기에 모입니다.",
       "kb": "개인 정보 없음",
-      "kbBody": "Q info 에서 '개인'으로 저장한 정보가 여기에 모입니다."
+      "kbBody": "Q info 에서 '개인'으로 저장한 정보가 여기에 모입니다.",
+      "notes": "개인 노트 없음",
+      "notesBody": "Q note 에서 만든 회의 메모·녹음·트랜스크립트가 여기에 모입니다."
     },
     "visOpenLabel": "공개",
     "visChangeHint": "공개 범위 변경"

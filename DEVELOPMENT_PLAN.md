@@ -1,6 +1,32 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-07-12 (Opus, 1M) — **📬 Q Mail UX 정비(상세·분류·태그) + Cue 초안 회귀 + 안 읽음 숫자 정합 + 확인 필요 메일 탭. 운영 배포 완료(ac257f1).** 헬스 30/30 · guard-invariants 15/15 · e2e tenant 0 · 빌드 EXIT0/TS0.
+> **최종 업데이트:** 2026-07-13 (Opus, 1M) — **📬 메일 답변 필요 판정 정합(반송·거래알림 오분류 차단) + 개인 보관함 노트 카운트 + Q Bill 탭 뱃지 + 프로젝트→소통 창구 바로가기. dev 검증 완료 (미배포).** 헬스 30/30 · guard-invariants 15/15 · e2e tenant 0 · 빌드 EXIT0/TS0.
+
+## ✅ 완료: 메일 판정 정합 + 보관함 노트 카운트 + Q Bill 탭 뱃지 (2026-07-13)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 답변 필요 판정 — 판정 순서 재정립 | `needsReply` 가 관계(아는 상대)·회신 여부를 먼저 봐서, 고객사가 보낸 뉴스레터·자동 안내가 전부 "답변 필요" 로 올라왔다 → **메일의 성격을 관계보다 먼저** 판정 (우리가 보낸 것 → 반송 → 대량 발송 → 거래 알림 → 회신 → 자동 발송 → 아는 상대 → 모르는 상대+요청) | ✅ |
+| 반송(bounce) 오분류 차단 | mailer-daemon 반송은 **In-Reply-To 를 달고 온다** → "우리 대화 회신" 으로 통과해 답변 필요로 올라왔다(실측 9건). `isBounce()` 신설, 회신 판정보다 먼저 차단 | ✅ |
+| 거래 알림 오분류 차단 (헤더 없이) | 헤더를 DB 에 저장하지 않아 **재판정 경로에선 광고 판정(List-Unsubscribe)이 눈을 감는다** → 쇼핑몰 알림이 그물을 빠져나가고, 본문 상투구("Need help?" · "problems?")가 물음표·요청 신호에 걸려 오히려 답변 필요로 승격. `isTransactionalNotice()`(제목 기반) 신설 | ✅ |
+| URL 물음표 오탐 제거 | 추적 URL 쿼리스트링의 `?` 가 질문으로 잡혔다 → `plainText()` 로 링크·이미지 제거 후 판정. 요청 신호 창도 본문 앞 1200자로 축소(뒤쪽 상투구 배제) | ✅ |
+| 확인 완료 스레드 재개 | 처리(archived)한 대화에 새 메일이 오면 어느 폴더에도 안 나타나고 조용히 묻혔다 → `threadFieldsForInbound()` 단일 함수로 신규/후속 규칙 통합, archived 는 새 메일 시 재개(스팸만 예외) | ✅ |
+| dev 재판정 반영 | `scripts/retriage-mail.js --apply` — 2025건 중 8건 재분류(Shopee 배송알림·WordPress 벌크 → 확인 권장). 오승격 **0건** | ✅ |
+| 개인 보관함 노트 카운트 | 요약 API 가 q-note 응답을 `jq.total`/`jq.sessions` 로 읽어 **항상 0** (실제 형태는 `{data, pagination:{total}}`) → 파싱 교정 + 대시보드 KPI 카드·빈 상태 조건·i18n(ko/en) 완결. 실측 56건 일치 | ✅ |
+| Q Bill 탭별 할 일 뱃지 | 좌측 메뉴에만 숫자가 뜨고 정작 어느 탭에 할 일이 있는지 알 수 없었다 → `/api/dashboard/todo.billTabCounts` + 탭 옆 숫자 | ✅ |
+| 프로젝트 → 소통 창구 바로가기 | 프로젝트 상세 헤더에 "프로젝트 채팅"·"프로젝트 메일" (Q Mail 은 `?project=` URL 필터 수신) | ✅ |
+| 용어 교정 | "답변 완료" → **"답변 불필요"** (실제 동작은 '답장 안 해도 되는 메일을 내리는 문'). 보관함 첫 탭 "대시보드" → "개요" (Q Bill 과 통일) | ✅ |
+
+### 수정된 파일
+- `dev-backend/services/emailTriage.js` (판정 순서·isBounce·isTransactionalNotice·plainText·threadFieldsForInbound)
+- `dev-backend/services/emailImapCron.js` (스레드 필드 결정 → emailTriage 단일 함수로 위임)
+- `dev-backend/routes/personal_vault.js` · `dev-backend/routes/dashboard.js`
+- `dev-frontend/src/pages/PersonalVault/PersonalVaultPage.tsx` · `QBill/QBillPage.tsx` · `QMail/MailPage.tsx` · `QMail/MailPage.styles.ts` · `QProject/QProjectDetailPage.tsx` · `Settings/MailRulesSection.tsx`
+- i18n: `ko/en` × `common · qmail · qproject`
+
+---
 
 ## ✅ 완료: Q Mail 상세·분류 정비 + 채팅 안 읽음/Cue 초안 회귀 (2026-07-12, 후반 사이클)
 

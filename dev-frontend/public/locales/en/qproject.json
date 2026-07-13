@@ -547,7 +547,7 @@
     "openInDocs": "Open in Documents tab"
   },
   "canvas": {
-    "tabLabel": "Canvas",
+    "tabLabel": "Overview",
     "intro": "Strategy → Execution → Deliverables, at a glance",
     "layer1": "Framing (Why)",
     "layer2": "Strategy (How)",
@@ -672,5 +672,9 @@
     },
     "loadError": "Failed to load the canvas",
     "retry": "Retry"
+  },
+  "header": {
+    "openChat": "Project chat",
+    "openMail": "Project mail"
   }
 }

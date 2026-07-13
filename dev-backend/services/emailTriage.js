@@ -88,8 +88,8 @@ async function buildOwnEmailSet(businessId) {
 //     답변 필요 = 업무 처리가 필요한 것 · 문의 · 기존 일과 연결되는 것 · 고객이 보낸 것
 //     확인 권장 = 스팸·광고는 아닌데 업무인지 애매한 것
 //
-//   신호는 "사람이 우리에게 뭔가를 요구/문의했는가" 를 본다. 아는 상대(고객·멤버·기존 대화 상대)면
-//   내용과 무관하게 답변 필요 — 관계 자체가 가장 강한 신호다.
+//   신호는 "사람이 우리에게 뭔가를 요구/문의했는가" 를 본다. 아는 상대(고객·멤버·기존 대화 상대)가
+//   직접 쓴 메일이면 내용과 무관하게 답변 필요 — 단, 대량·자동 발송은 관계보다 먼저 걸러낸다(needsReply 참조).
 const WORK_SIGNAL = new RegExp([
   '문의', '요청', '부탁', '확인\\s*부탁', '회신', '답변', '검토', '견적', '계약', '청구', '입금', '세금계산서',
   '일정', '미팅', '회의', '가능(할까요|한가요|하신가요)', '언제', '어떻게', '알려\\s*주', '보내\\s*주', '주실',
@@ -98,9 +98,19 @@ const WORK_SIGNAL = new RegExp([
   '\\binquiry\\b', '\\bquestion\\b', '\\bfollow[- ]?up\\b', '\\blet me know\\b', '\\bfeedback\\b',
 ].join('|'), 'i');
 
-// 질문 부호 — 한 줄이라도 물음표가 있으면 사람이 뭔가 묻고 있다
+// 사람이 쓴 말만 남긴다 — 링크·이미지·추적 URL 을 걷어낸다.
+//   URL 쿼리스트링의 '?' 가 물음표로 잡혀서 배송 알림("...?u=aHR0cHM6...")이 답변 필요로 올라왔다.
+function plainText(text) {
+  return String(text || '')
+    .replace(/<https?:\/\/[^>]*>/gi, ' ')   // 메일 클라이언트가 감싼 링크
+    .replace(/https?:\/\/\S+/gi, ' ')       // 맨 URL
+    .replace(/\[image:[^\]]*\]/gi, ' ')
+    .replace(/\[cid:[^\]]*\]/gi, ' ');
+}
+
+// 질문 부호 — 한 줄이라도 물음표가 있으면 사람이 뭔가 묻고 있다 (링크 제외)
 function hasQuestion(text) {
-  return /[?？]/.test(String(text || '').slice(0, 4000));
+  return /[?？]/.test(plainText(text).slice(0, 4000));
 }
 
 function hasWorkSignal(subject, bodyText) {
@@ -124,7 +134,7 @@ const STRONG_REQUEST = new RegExp([
 ].join('|'), 'i');
 
 function hasStrongRequest(subject, bodyText) {
-  const head = `${subject || ''}\n${String(bodyText || '').slice(0, 2000)}`;
+  const head = `${subject || ''}\n${plainText(bodyText).slice(0, 2000)}`;
   return STRONG_REQUEST.test(head);
 }
 
@@ -186,24 +196,78 @@ function hasBusinessRelevance(subject, bodyText) {
 // ── 답변 필요 판정 — **단일 원천**. 동기화(triageInbound)와 재판정(retriageStored)이 같은 문을 쓴다.
 //   여태 두 곳에 같은 조건을 복붙해 두어, 한쪽만 고치면 조용히 어긋났다 (실제로 어긋났다).
 //
-//   답변 필요 = ① 아는 상대(고객·멤버·전에 우리가 답장한 상대) — 관계가 가장 확실한 신호
-//              ② 우리 대화에 대한 회신 (기존 일과 연결)
-//              ③ 우리 주소로 직접 온 메일 + (명확한 요청 || 질문)
-//                 사람이 물어봤으면 답해야 한다. 광고·뉴스레터는 이미 triage 에서 빠진다.
+//   순서가 곧 규칙이다 (아래 코드와 1:1):
+//     ① 우리 대화에 대한 회신 → 답변 필요. 관계가 가장 확실하다.
+//     ② 답장할 상대가 없는 메일(우리가 보낸 것 · 대량 발송 · 자동 발송) → 아니오.
+//        아는 상대여도 여기서 걸린다 — 고객사가 보낸 뉴스레터에 답장할 사람은 없다.
+//     ③ 아는 상대(고객·멤버·전에 우리가 답장한 상대)가 직접 쓴 메일 → 답변 필요.
+//     ④ 모르는 상대 → 우리 주소로 직접 왔고 명확한 요청·질문이 있을 때만.
 //   그 외는 스팸·광고가 아니어도 확인 권장 — 사람이 한 번 보고 판단한다.
 function needsReply({ subject, bodyText, fromEmail, headers, ownEmails, isKnownContact }) {
-  if (isKnownContact) return true;
+  // ② 답장할 상대가 없는 메일 — 관계(아는 상대)보다, 회신 여부보다 **먼저** 걸러낸다.
+  //    여태 isKnownContact 가 맨 앞에 있어서 고객사가 보낸 뉴스레터·우리 시스템의 자동 안내가
+  //    전부 "답변 필요" 로 올라왔다. 메일의 성격이 관계보다 먼저다.
+  if (isSelfSender(fromEmail, ownEmails) || isFromOurPlatform(fromEmail)) return false;  // 우리가 보낸 것
+  if (isBounce(fromEmail, subject)) return false;                                        // 반송 — 회신처럼 생겼다
+  if (isMarketing(headers) || isBulkBody(bodyText)) return false;                        // 대량 발송
+  if (isTransactionalNotice(subject)) return false;                                      // 주문·배송·결제 알림
+
+  // ① 우리 대화에 온 회신 — 여기까지 왔으면 사람이 쓴 회신이다 (반송·알림은 위에서 빠졌다)
   if (isThreadReply(headers)) return true;
+
+  if (isAutomated(headers, fromEmail, ownEmails)) return false;                          // 자동 발송
+
+  // ③ 아는 상대(고객·멤버·전에 답장한 상대)가 직접 쓴 메일
+  if (isKnownContact) return true;
+
+  // ④ 모르는 상대 — 우리 주소로 직접 왔고 명확한 요청·질문이 있을 때만.
+  //    본문 창을 앞부분으로 좁힌다 — 사람의 용건은 앞에 오고, 뒤쪽 상투구("Need help?")가 아니다.
   if (!isAddressedToUs(headers, ownEmails)) return false;
+  const body = plainText(bodyText).slice(0, 1200);
+  return hasStrongRequest(subject, body) || hasQuestion(`${subject || ''}\n${body}`);
+}
 
-  // 뉴스레터·자동발송 주소는 답변 필요가 아니다 — 요청 문장이든 물음표든.
-  //   마케팅 메일은 "Could you drastically increase…?" 처럼 요청·질문 문구로 가득하다.
-  //   진짜 사람의 요청은 news-mail·noreply 주소로 오지 않는다.
-  //   (아는 상대·우리 대화 회신은 위에서 이미 통과했다 — 관계가 발신자 패턴보다 강하다)
-  if (isAutomated(null, fromEmail, null)) return false;
+/** 반송(bounce) — 메일 서버가 되돌려보낸 것. In-Reply-To 를 달고 오기 때문에 "우리 대화 회신" 으로
+ *  오인된다(실측: mailer-daemon 9건이 답변 필요로 올라왔다). 기계가 보낸 것이라 답장할 상대가 없다. */
+function isBounce(fromEmail, subject) {
+  const f = String(fromEmail || '').toLowerCase();
+  if (/(^|[._-])(mailer-daemon|postmaster|bounces?)([._-]|@)/i.test(f)) return true;
+  return /(delivery status notification|undelivered mail|mail delivery (failed|subsystem)|returned mail|address not found)/i
+    .test(String(subject || ''));
+}
 
-  const head = `${subject || ''}\n${String(bodyText || '').slice(0, 2000)}`;
-  return hasStrongRequest(subject, bodyText) || hasQuestion(head);
+/** 거래 알림 (주문·배송·결제 확인) — 사람이 답장을 기대하고 쓴 글이 아니다.
+ *
+ *  헤더(List-Unsubscribe)는 DB 에 저장하지 않아서 **재판정 경로에선 광고 판정이 눈을 감는다**.
+ *  그래서 쇼핑몰 알림이 그물을 빠져나갔다. 게다가 본문 상투구("Need help?" · "problems?")가
+ *  물음표·요청 신호에 걸려 오히려 답변 필요로 올라왔다 — 제목으로 성격을 먼저 판정한다. */
+const TRANSACTIONAL_NOTICE = new RegExp([
+  'your (order|payment|parcel|shipment|delivery|refund|booking)',
+  'order #?[\\w-]+ (has been|is now)', 'have you received (your |the )?order',
+  '(has been|was) (delivered|shipped|dispatched|confirmed|cancell?ed)',
+  'out for delivery', 'on the way', 'tracking (number|code)',
+  'payment (has been )?(confirmed|received|successful)',
+  '주문(이)? (완료|접수|확인)', '배송(이)? (완료|시작|출발)', '결제(가)? (완료|확인)', '발송(이)? (완료|시작)',
+].join('|'), 'i');
+
+function isTransactionalNotice(subject) {
+  return TRANSACTIONAL_NOTICE.test(String(subject || ''));
+}
+
+/** 발신자가 우리 자신(이 워크스페이스의 메일 계정) — 우리가 보낸 메일에 우리가 답장할 일은 없다 */
+function isSelfSender(fromEmail, ownEmails) {
+  const f = String(fromEmail || '').toLowerCase().trim();
+  if (!f || !ownEmails) return false;
+  const set = ownEmails instanceof Set ? ownEmails : new Set(Array.isArray(ownEmails) ? ownEmails : []);
+  return set.has(f);
+}
+
+/** 본문에 수신거부 링크 — List-Unsubscribe 헤더 없이 보내는 자체 발송기(뉴스레터 플러그인 등)를 잡는다.
+ *  회신(quoted 원문에 수신거부가 딸려 올 수 있다)은 위에서 이미 통과했으므로 여기 안 온다. */
+function isBulkBody(bodyText) {
+  const b = String(bodyText || '');
+  if (!b) return false;
+  return /(수신\s?거부|구독\s?취소|unsubscribe|opt[-\s]?out)/i.test(b) && /https?:\/\//.test(b);
 }
 
 // 메인 — { triage, reply_needed, spam_score, status, uncertain_reason }
@@ -297,8 +361,55 @@ function retriageStored({ triage, subject, bodyText, fromEmail, headers, ownEmai
     : { triage, status: 'uncertain', reply_needed: false, uncertain_reason: 'unclear_intent' };
 }
 
+// 수신된 메일 한 통이 스레드의 상태를 어떻게 바꾸는가 — 신규/후속을 한 곳에서 결정한다.
+//
+// 여태 이 규칙이 IMAP 수집기 안에 인라인으로 있었고, "확인 완료(archived) 한 스레드" 는 후속 inbound 에서
+// 통째로 제외됐다. 그래서 처리한 대화에 새 메일이 오면 어느 폴더에도 안 나타나고 조용히 묻혔다.
+// 확인 완료는 **그때까지의 내용** 에 대한 처리다. 새 메일이 오면 다시 열려야 한다.
+// 스팸만 예외 — 스팸함에 넣은 발신자는 계속 스팸이다.
+//
+// @param thread  기존 스레드 (isNew 면 무시)
+// @param tr      triageInbound + 규칙 적용 결과
+// @param replyNeeded  백필 보정까지 끝난 최종 값
+// @param ruleReason   'rule' | 'inbound'
+// @returns 스레드에 그대로 update 할 필드
+function threadFieldsForInbound({ isNew, thread, tr, replyNeeded, ruleReason, messageDate }) {
+  const at = messageDate || new Date();
+  if (isNew) {
+    return {
+      status: tr.status,
+      spam_score: tr.spam_score,
+      uncertain_reason: tr.uncertain_reason,
+      triage: tr.triage,
+      reply_needed: replyNeeded,
+      rule_id: tr.rule_applied?.id || null,
+      ...(replyNeeded ? { reply_needed_at: at, reply_needed_reason: ruleReason } : {}),
+    };
+  }
+  if (thread.status === 'spam' || tr.triage === 'spam') return {};
+
+  // 확인 완료했던 스레드에 새 메일 → 다시 검토 대상으로 (reason 도 비워 재판정이 돌게)
+  const reopen = thread.status === 'archived'
+    ? { status: tr.status, uncertain_reason: tr.uncertain_reason, reply_needed_reason: null }
+    : {};
+
+  if (replyNeeded) {
+    return { ...reopen, reply_needed: true, reply_needed_at: at, reply_needed_reason: ruleReason, rule_id: tr.rule_applied?.id || null };
+  }
+  if (tr.rule_applied) {
+    // 규칙이 "답장 불필요" 로 판정 → 기존 스레드의 답변 필요도 해제
+    return { ...reopen, reply_needed: false, reply_needed_at: null, reply_needed_reason: 'rule', rule_id: tr.rule_applied.id };
+  }
+  return reopen;
+}
+
 module.exports = {
+  isBounce,
+  isTransactionalNotice,
+  threadFieldsForInbound,
   retriageStored,
+  isBulkBody,
+  isSelfSender,
   needsReply,
   hasWorkSignal,
   hasBusinessRelevance,

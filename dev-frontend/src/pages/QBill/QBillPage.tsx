@@ -8,6 +8,7 @@ import OverviewTab from './OverviewTab';
 import InvoicesTab from './InvoicesTab';
 import PaymentsTab from './PaymentsTab';
 import TaxInvoicesTab from './TaxInvoicesTab';
+import { apiFetch } from '../../contexts/AuthContext';
 
 type Tab = 'overview' | 'invoices' | 'payments' | 'tax-invoices';
 
@@ -37,6 +38,22 @@ export default function QBillPage() {
   }, [location.search, navigate]);
 
   const [tab, setTab] = useState<Tab>(() => readTab(location.search, TABS));
+  // 탭별 할 일 수 (청구서 확인·발행 대기 / 입금 알림 / 증빙 발행)
+  const [todoCounts, setTodoCounts] = useState<Record<string, number>>({});
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const r = await apiFetch('/api/dashboard/todo');
+        const j = await r.json();
+        if (alive && j.success) setTodoCounts(j.data?.billTabCounts || {});
+      } catch { /* 뱃지는 부가 — 실패해도 화면은 동작 */ }
+    };
+    load();
+    const onRefresh = () => load();
+    window.addEventListener('inbox:refresh', onRefresh);
+    return () => { alive = false; window.removeEventListener('inbox:refresh', onRefresh); };
+  }, []);
 
   useEffect(() => { setTab(readTab(location.search, TABS)); }, [location.search, TABS]);
 
@@ -59,6 +76,8 @@ export default function QBillPage() {
             onClick={() => switchTab(k)}
           >
             {t(`page.tabs.${k === 'tax-invoices' ? 'taxInvoices' : k}`)}
+            {/* 할 일 숫자 — 좌측 메뉴에만 뜨고 어느 탭에 할 일이 있는지는 알 수 없었다 (#140) */}
+            {(todoCounts[k] || 0) > 0 && <TabCount $active={tab === k}>{todoCounts[k]}</TabCount>}
           </TabBtn>
         ))}
       </TabBar>
@@ -99,4 +118,13 @@ const TabBtn = styled.button<{ $active: boolean }>`
 
 const Body = styled.div`
   padding: 20px;
+`;
+
+// 탭 옆 할 일 숫자
+const TabCount = styled.span<{ $active: boolean }>`
+  margin-left: 6px; padding: 0 6px; height: 16px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 8px; font-size: 10px; font-weight: 700;
+  color: ${(p) => (p.$active ? '#0F766E' : '#B45309')};
+  background: ${(p) => (p.$active ? '#F0FDFA' : '#FEF3C7')};
 `;

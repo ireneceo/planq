@@ -547,7 +547,7 @@
     "openInDocs": "문서 탭에서 열기"
   },
   "canvas": {
-    "tabLabel": "캔버스",
+    "tabLabel": "개요",
     "intro": "전략 → 실행 → 산출물을 한 화면에",
     "layer1": "프레이밍 (Why)",
     "layer2": "전략 (How)",
@@ -672,5 +672,9 @@
     },
     "loadError": "캔버스를 불러오지 못했습니다",
     "retry": "다시 시도"
+  },
+  "header": {
+    "openChat": "프로젝트 채팅",
+    "openMail": "프로젝트 메일"
   }
 }

@@ -961,6 +961,13 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
     // Q Bill 메뉴 뱃지용 — 청구 관련 액션 대기 건수 (발행 대기 정기 draft·증빙 발행·입금알림·결제 대기)
     const BILL_TYPES = new Set(['invoice', 'invoice_draft', 'tax_invoice', 'payment_notify']);
     const billCount = all.filter(it => BILL_TYPES.has(it.type)).length;
+    // Q Bill 탭별 할 일 수 — 좌측 메뉴에만 숫자가 뜨고 정작 "어느 탭에 할 일이 있는지" 는 알 수 없었다.
+    //   invoices: 발행 대기 draft + 확인할 청구서 / payments: 입금 알림 / tax-invoices: 증빙 발행
+    const billTabCounts = {
+      invoices: all.filter(it => it.type === 'invoice' || it.type === 'invoice_draft').length,
+      payments: all.filter(it => it.type === 'payment_notify').length,
+      'tax-invoices': all.filter(it => it.type === 'tax_invoice').length,
+    };
 
     // Q Mail 메뉴 뱃지용 — 답변 필요 메일 건수. Q Bill 과 같은 문법(메뉴 옆 뱃지).
     //   ⚠️ total 에 합산하지 않는다 — "확인 필요" 는 '나에게 귀속된, 내가 완료할 수 있는 액션' 만 담는
@@ -993,7 +1000,7 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
       }
     } catch (e) { console.warn('[todo] mailReplyCount', e.message); }
 
-    return successResponse(res, { items: all, counts, total: all.length, billCount, mailReplyCount, workspaces });
+    return successResponse(res, { items: all, counts, total: all.length, billCount, billTabCounts, mailReplyCount, workspaces });
   } catch (err) {
     return next(err);
   }
