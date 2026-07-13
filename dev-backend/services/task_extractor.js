@@ -803,7 +803,25 @@ async function registerCandidate(candidateId, userId, overrides = {}) {
       due_date: finalDue,
       from_candidate_id: candidate.id,
       created_by: userId,
+      // 요청 업무 모델 정렬 — 담당자가 등록자가 아니면 "내가 남에게 요청한 업무" 다.
+      //   여태 이 경로만 source/request_by_user_id 를 안 채워서, 같은 업무가 등록 경로에 따라
+      //   요청 업무로 보이기도 하고 아니기도 했다 (단건 POST · AI 확정 경로와 통일).
+      ...(finalAssignee && Number(finalAssignee) !== Number(userId)
+        ? { source: 'internal_request', request_by_user_id: userId }
+        : {}),
     }, { transaction: t });
+
+    // 요청 업무면 요청자를 컨펌자로 자동 등록 (컨펌 필수화 — 다른 두 경로와 같은 정책)
+    if (finalAssignee && Number(finalAssignee) !== Number(userId)) {
+      try {
+        const { TaskReviewer } = require('../models');
+        await TaskReviewer.findOrCreate({
+          where: { task_id: task.id, user_id: userId },
+          defaults: { task_id: task.id, user_id: userId, is_client: false, added_by_user_id: userId },
+          transaction: t,
+        });
+      } catch (e) { console.warn('[registerCandidate auto-reviewer]', e.message); }
+    }
 
     // 후보 상태 갱신
     await candidate.update({

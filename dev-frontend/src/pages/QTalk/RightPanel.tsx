@@ -103,7 +103,7 @@ const RightPanel: React.FC<Props> = ({
     const pIssues = issues.filter(inScope).length;
     const pTasksAll = tasks.filter(inScope);
     const pTasks = pTasksAll.length;
-    const myT = pTasksAll.filter((x) => x.assignee_id === myUserId || x.assignee_id === 15).length;
+    const myT = pTasksAll.filter((x) => x.assignee_id === myUserId).length;
     const pNotesArr = notes.filter(inScope);
     const pNotes = (isClient
       ? pNotesArr.filter((n) => n.visibility === 'personal' && n.author_id === myUserId)
@@ -175,7 +175,9 @@ const RightPanel: React.FC<Props> = ({
     return c ? c.name : null;
   };
   const projectTasks: MockTask[] = tasks.filter(matchScope);
-  const myTasks = projectTasks.filter((x) => x.assignee_id === myUserId || x.assignee_id === 15 /* mock: owner 시점 */);
+  // 내 할 일 = 담당자가 나. (여태 `|| assignee_id === 15` 라는 mock 잔재가 있어서 모든 사용자의
+  //   '내 할 일' 에 user 15 의 업무가 섞여 나왔다 — 실데이터 오염.)
+  const myTasks = projectTasks.filter((x) => x.assignee_id === myUserId);
   const projectNotes: MockNote[] = notes.filter(matchScope);
   // 채팅 패턴: ASC (오래된 위 → 최신 아래, 입력란 바로 위가 최신)
   const visibleNotes = (isClient
@@ -463,7 +465,7 @@ const RightPanel: React.FC<Props> = ({
                   author_name: n.author_name,
                   created_at: n.created_at,
                 }))}
-                myUserId={null}
+                myUserId={myUserId}
                 canChooseVisibility={!isClient}
                 formatTime={formatTimeAgo}
                 onAdd={(body, visibility) => onAddNote(body, visibility)}

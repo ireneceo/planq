@@ -640,8 +640,11 @@ router.post('/ai-create', authenticateToken, ...aiCreateLimiter, async (req, res
       if (!planCan.ok) return res.status(422).json(planEngine.buildQuotaError(planCan, business_id));
     }
 
+    // 담당자 후보 풀 — Cue(AI) 는 제외한다. 이 경로(ai-create/confirm)에는 Cue 자동 실행 트리거가 없어서
+    //   "Cue 에게 시켜줘" 로 배정되면 아무도 실행하지 않는 좀비 업무가 된다
+    //   (후보 승격 경로는 같은 이유로 이미 막혀 있다 — services/task_extractor.js).
     const memberRows = await BusinessMember.findAll({
-      where: { business_id },
+      where: { business_id, role: { [Op.ne]: 'ai' } },
       attributes: ['user_id', 'role', 'job_title', 'expertise', 'name'],
       include: [{ model: User, as: 'user', attributes: ['id', 'name'] }],
     });
@@ -723,9 +726,18 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
       const startDate = startOff !== null ? addDaysStr(todayLocal, startOff) : null;
       const dueDate = dueOff !== null ? addDaysStr(todayLocal, dueOff) : null;
       const finalAssignee = c.assignee_user_id || req.user.id;
+      // 담당자 검증 — 단일 생성 경로(POST /tasks)와 같은 가드. 여태 이 일괄 생성 경로만 빠져 있어서
+      //   클라이언트가 임의 assignee_user_id(외부 고객·타 워크스페이스 사용자)를 넣으면 그대로 배정됐다.
+      if (Number(finalAssignee) !== Number(req.user.id)) {
+        const chk = await assertAssignable(finalAssignee, business_id, project_id || null);
+        if (!chk.ok) return errorResponse(res, `assignee_not_assignable:${chk.reason}`, 403);
+      }
       const isInternalRequest = finalAssignee !== req.user.id;
-      const estimatedHours = Number.isFinite(Number(c.estimated_hours)) && Number(c.estimated_hours) > 0
+      // PERMISSION_MATRIX §5.7 — 요청 업무(담당자 ≠ 작성자)는 예측시간을 요청자가 정하지 않는다.
+      //   담당자가 ack 후 본인 캐파에 맞춰 정한다. 단건 POST 경로와 같은 규칙 (여기만 빠져 있었다).
+      const rawEstimated = Number.isFinite(Number(c.estimated_hours)) && Number(c.estimated_hours) > 0
         ? Number(c.estimated_hours) : null;
+      const estimatedHours = isInternalRequest ? null : rawEstimated;
 
       const task = await Task.create({
         business_id,
