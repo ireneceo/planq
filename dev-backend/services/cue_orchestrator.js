@@ -17,7 +17,6 @@ const CueUsage = require('../models/CueUsage');
 const { createAuditLog } = require('../middleware/audit');
 const kbService = require('./kb_service');
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const MODEL_NANO = 'gpt-4.1-nano';
 const MODEL_MINI = 'gpt-4o-mini';
 
@@ -87,49 +86,28 @@ async function recordUsage(businessId, actionType, model, inputTokens, outputTok
   return { cost, ym };
 }
 
-// ─── LLM 호출 ───
+// ─── LLM 호출 — 게이트웨이(services/llm.js) 로 위임 ───
+//   시그니처(model, messages, opts)와 반환 형태는 그대로 둔다 — 내부 호출부 5곳 무변경.
+//   재시도·타임아웃·입력상한은 이제 게이트웨이가 책임진다. 여기 남은 것은 Cue 의 폴백 문장뿐.
+//   ※ 모델은 호출부가 고른 것(nano/mini)을 그대로 넘긴다 — 모델 선택 결과 1:1 보존.
+const CUE_FALLBACK = '확인 후 답변드리겠습니다.';
+
 async function callLLM(model, messages, opts = {}) {
-  if (!OPENAI_API_KEY) {
-    // 폴백: 자료 기반 고정 응답
-    return {
-      content: '확인 후 답변드리겠습니다.',
-      input_tokens: 0,
-      output_tokens: 0,
-      fallback: true
-    };
-  }
-  try {
-    const r = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature: opts.temperature ?? 0.3,
-        max_tokens: opts.maxTokens || 400
-      }),
-      // N+48 — 외부 API timeout 강제 (운영 readiness). OpenAI hang 시 backend stall 방어.
-      signal: AbortSignal.timeout(45_000),
-    });
-    if (!r.ok) {
-      const err = await r.text();
-      console.warn('[cue_orchestrator] LLM error', r.status, err.slice(0, 200));
-      return { content: '확인 후 답변드리겠습니다.', input_tokens: 0, output_tokens: 0, fallback: true };
-    }
-    const data = await r.json();
-    return {
-      content: data.choices?.[0]?.message?.content || '',
-      input_tokens: data.usage?.prompt_tokens || 0,
-      output_tokens: data.usage?.completion_tokens || 0,
-      fallback: false
-    };
-  } catch (err) {
-    console.warn('[cue_orchestrator] LLM exception', err.message);
-    return { content: '확인 후 답변드리겠습니다.', input_tokens: 0, output_tokens: 0, fallback: true };
-  }
+  const { callLLM: gatewayCall } = require('./llm');
+  const r = await gatewayCall({
+    purpose: opts.purpose || 'cue_reply',
+    model,
+    messages,
+    temperature: opts.temperature ?? 0.3,
+    maxTokens: opts.maxTokens || 400,
+    fallback: CUE_FALLBACK,
+  });
+  return {
+    content: r.content,
+    input_tokens: r.input_tokens,
+    output_tokens: r.output_tokens,
+    fallback: r.fallback,
+  };
 }
 
 // ─── 프롬프트 구성 ───

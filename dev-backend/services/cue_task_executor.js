@@ -19,34 +19,26 @@ const { Task, Business, Message, Conversation, User, AuditLog } = require('../mo
 const { getUserScope, canAccessConversation, canAccessTask, kbDocumentsListWhereByLevel } = require('../middleware/access_scope');
 const { submitForReview } = require('./taskTransition');
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+// LLM 호출 — 게이트웨이(services/llm.js) 경유. 반환값에 token usage 포함 (cue_usage recordUsage 용).
+//   이 호출부는 실패를 삼키지 않는다 — Cue 가 업무를 "했다" 고 빈 결과를 남기면 안 된다 (옛 동작: throw).
+const { callLLM, isEnabled } = require('./llm');
 
-// LLM 호출 (gpt-4o-mini) — 반환값에 token usage 포함 (cue_usage recordUsage 용)
 async function llm(system, user, maxTokens = 800) {
-  if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY missing');
-  const r = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: user },
-      ],
-      temperature: 0.3,
-      max_tokens: maxTokens,
-    }),
-    signal: AbortSignal.timeout(45_000),
+  if (!isEnabled()) throw new Error('OPENAI_API_KEY missing');
+  const r = await callLLM({
+    purpose: 'cue_task',
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user', content: user },
+    ],
+    maxTokens,
+    fallback: '',
   });
-  if (!r.ok) {
-    const t = await r.text().catch(() => '');
-    throw new Error(`LLM ${r.status}: ${t.slice(0, 200)}`);
-  }
-  const j = await r.json();
+  if (r.fallback) throw new Error('LLM 호출 실패 (게이트웨이 재시도 후에도)');
   return {
-    content: (j.choices?.[0]?.message?.content || '').trim(),
-    input_tokens: j.usage?.prompt_tokens || 0,
-    output_tokens: j.usage?.completion_tokens || 0,
+    content: (r.content || '').trim(),
+    input_tokens: r.input_tokens || 0,
+    output_tokens: r.output_tokens || 0,
   };
 }
 

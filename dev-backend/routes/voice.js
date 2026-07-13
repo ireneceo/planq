@@ -99,6 +99,9 @@ async function classifyIntent(text) {
   const r = await callLLM({
     purpose: 'task_plan',
     json: true,
+    // 이 호출의 출력은 짧은 JSON 한 덩어리다 — task_plan 의 기본 상한(업무 분해용, 2000)을 물려받지 않는다.
+    //   레지스트리 기본값이 바뀌어도 여기 비용 상한은 흔들리지 않게 명시한다.
+    maxTokens: 300,
     messages: [
       { role: 'system', content: INTENT_SYSTEM },
       { role: 'user', content: text.slice(0, 1000) },
