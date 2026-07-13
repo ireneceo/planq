@@ -788,6 +788,7 @@ async function registerCandidate(candidateId, userId, overrides = {}) {
       //   자동 컨펌자의 is_client 는 항상 false (옛 동작).
       demoteCueAssignee: true,
       autoReviewerIsClient: false,
+      allowUnassigned: true,             // 이 경로만 '미배정'(assignee_id: null) 업무를 남길 수 있다 (옛 동작)
     });
     if (!result.ok) {
       // 에러 문자열은 계약이다 — caller 3곳이 /^cannot_assign:/ 로 403 을 분기한다.

@@ -543,12 +543,13 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
         const { Conversation } = require('../models');
         const conv = await Conversation.findOne({ where: { id: convId, business_id }, attributes: ['id', 'project_id'] });
         if (!conv) return errorResponse(res, 'conversation_not_found', 404);
-        ctxFields = { conversation_id: conv.id };
+        // 행동 계층 params 는 camelCase 다 — snake_case 로 넘기면 조용히 버려진다(업무가 대화·메일에서 끊긴다)
+        ctxFields = { conversationId: conv.id };
       } else if (thrId) {
         const { EmailThread } = require('../models');
         const th = await EmailThread.findOne({ where: { id: thrId, business_id }, attributes: ['id', 'project_id', 'client_id'] });
         if (!th) return errorResponse(res, 'thread_not_found', 404);
-        ctxFields = { email_thread_id: th.id, ...(th.client_id ? { client_id: th.client_id } : {}) };
+        ctxFields = { emailThreadId: th.id, ...(th.client_id ? { clientId: th.client_id } : {}) };
       }
     }
 

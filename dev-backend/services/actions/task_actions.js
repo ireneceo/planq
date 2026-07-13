@@ -203,7 +203,9 @@ async function createTask(actor, params = {}, opts = {}) {
   }
 
   // source / request_by 자동 판정: 담당자 ≠ 생성자 → 내부 요청 (생성자가 요청자)
-  let finalAssignee = params.assigneeId || subjectId;
+  //   담당자 미지정 → 등록자 본인 (옛 POST /tasks · confirm 동작: `assignee_id || req.user.id`).
+  //   단 후보 등록 경로만 '미배정'(명시적 null)을 남길 수 있다 — 옛 registerCandidate 동작.
+  let finalAssignee = params.assigneeId || (opts.allowUnassigned ? null : subjectId);
   const projectId = params.projectId || null;
 
   // 고객은 자기 자신에게 업무를 만들 수 없다 — 멤버에게 '요청' 만 가능
@@ -213,7 +215,7 @@ async function createTask(actor, params = {}, opts = {}) {
 
   // 담당자 배정 게이트 — 본인 외를 담당자로 지정할 때만. 멤버=전체 / 외부 파트너=그 프로젝트 참여자만 /
   //   그 외(타 워크스페이스·유령)=차단. 에러 문자열 `cannot_assign:` 은 계약이다 (caller 들이 regex 분기).
-  if (Number(finalAssignee) !== Number(subjectId)) {
+  if (finalAssignee && Number(finalAssignee) !== Number(subjectId)) {
     const chk = await assertAssignable(finalAssignee, businessId, projectId);
     if (!chk.ok) return fail(`cannot_assign:${chk.reason}`, 403);
   }
@@ -228,7 +230,8 @@ async function createTask(actor, params = {}, opts = {}) {
     finalAssignee = subjectId;   // 책임 주체는 사람
   }
 
-  const isInternalRequest = Number(finalAssignee) !== Number(subjectId);
+  // 미배정 업무는 '요청' 이 아니다 — source·request_by 도, 자동 컨펌자도 붙지 않는다 (옛 `finalAssignee && ...` 가드)
+  const isInternalRequest = !!finalAssignee && Number(finalAssignee) !== Number(subjectId);
   const assigneeIsCue = cueUserId && Number(finalAssignee) === Number(cueUserId);
 
   // PERMISSION_MATRIX §5.7 — 남에게 요청하는 업무의 예측시간·반복설정은 요청자가 정하지 않는다
