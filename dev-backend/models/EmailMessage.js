@@ -13,6 +13,12 @@ EmailMessage.init({
   message_id: { type: DataTypes.STRING(500), allowNull: false },
   in_reply_to: { type: DataTypes.STRING(500), allowNull: true },
   references_chain: { type: DataTypes.TEXT, allowNull: true },
+
+  // 분류에 쓰는 헤더만 골라 보관 (List-Unsubscribe · Precedence · Auto-Submitted 등).
+  //   원문 헤더 전체를 담지 않는다 — 판정에 안 쓰는 값까지 쌓을 이유가 없다 (키 목록은 emailTriage.TRIAGE_HEADER_KEYS).
+  //   이게 없으면 재판정 경로에서 광고·자동발송 판정이 눈을 감아, 제목 패턴으로 우회할 수밖에 없었다.
+  //   NULL = 이 컬럼이 생기기 전에 수집된 메일 (그때는 저장된 triage 를 그대로 신뢰한다).
+  triage_headers: { type: DataTypes.JSON, allowNull: true },
   imap_uid: { type: DataTypes.INTEGER, allowNull: true },
   // From/To/Cc/Bcc
   from_email: { type: DataTypes.STRING(255), allowNull: true },

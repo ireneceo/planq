@@ -131,6 +131,22 @@ async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, 
     e.code = 'invalid_recipient';
     throw e;
   }
+  // dev 서버 발송 정지 — 플랫폼 발송(emailService)과 **같은 문**을 지난다.
+  //   여태 Q Mail 계정 발송만 이 문을 비껴가서, dev 에서 답장 버튼을 누르면 연결된 회사 메일 계정으로
+  //   **실제 고객에게 진짜 메일이 나갔다** (.env 는 EMAIL_SENDING_ENABLED=false 인데도).
+  //   발송만 멈추고 나머지 흐름(outbound 기록·스레드 갱신·규칙 해제)은 그대로 둔다 — dev 에서 답장
+  //   흐름을 끝까지 검증할 수 있어야 하기 때문이다. 운영은 미설정(기본 ON)이라 영향 없다.
+  if (String(process.env.EMAIL_SENDING_ENABLED ?? 'true').toLowerCase() === 'false') {
+    const recipients = [].concat(to || []).map((v) => String(v));
+    console.warn(`[emailSend] 발송 정지(이 서버는 발송 안 함): to=${recipients.join(', ')}, subject=${subject}`);
+    return {
+      messageId: `<suppressed-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@planq.local>`,
+      accepted: [],
+      rejected: [],
+      suppressed: true,
+    };
+  }
+
   const transport = await buildTransport(account);
 
   // 발신 이름 — 원래 기준은 워크스페이스 메일 설정(businesses.mail_from_name, /business/settings/email).

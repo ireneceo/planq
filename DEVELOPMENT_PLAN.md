@@ -1,6 +1,48 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-07-13 (Opus, 1M) — **📬 메일 답변 필요 판정 정합(반송·거래알림 오분류 차단) + 개인 보관함 노트 카운트 + Q Bill 탭 뱃지 + 프로젝트→소통 창구 바로가기. dev 검증 완료 (미배포).** 헬스 30/30 · guard-invariants 15/15 · e2e tenant 0 · 빌드 EXIT0/TS0.
+> **최종 업데이트:** 2026-07-13 (Opus, 1M) — **📬 메일 판정 헤더 저장(재판정이 눈을 뜬다) + 광고 판정이 릴리즈 이후 한 번도 발동 안 하던 버그 + dev 메일 실발송 사고 차단 + 학습 규칙 실동작 검증 29/29. dev 검증 완료 (미배포 · 운영 ALTER 선행 필요).** 헬스 30/30 · guard-invariants 15/15 · e2e tenant·mail 0.
+
+## ✅ 완료: 메일 분류 규칙 학습 — 마무리 + 판정 헤더 저장 (2026-07-13, 후반 사이클)
+
+### ★ 광고 판정이 한 번도 발동한 적 없었다 (조용히 죽어 있던 기능)
+`isMarketing()` 의 1순위 신호는 `List-Unsubscribe` 인데, **mailparser 는 List-\* 헤더를 `list` 키 하나로 접는다** → `headers.get('list-unsubscribe')` 는 **항상 undefined**. 즉 수집 시점에도 이 검사는 릴리즈 이후 한 번도 참이 된 적이 없다. `Precedence: bulk` 를 붙이는 발송기만 걸렸고, **List-Unsubscribe 만 붙이는 가장 흔한 뉴스레터는 전부 그물을 빠져나갔다.**
+- 손으로 만든 Map 으로 테스트하면 절대 안 잡힌다 → **실 mailparser 출력**으로 검증해야 드러난다.
+- fix: 헤더 조회 단일 지점 `hget()` 이 접힌 `list` 객체(`{unsubscribe:{url,mail}, id:{...}}`)를 이해한다. 수집·재판정이 같이 고쳐진다.
+
+### ★ 판정용 헤더 저장 — 재판정이 눈을 뜬다 (근본 fix)
+헤더를 하나도 저장하지 않아, 수집 때는 정확하던 광고·자동발송 판정이 **재판정 경로에선 통째로 눈을 감았다**(지난 사이클이 제목 패턴으로 우회한 근본 원인).
+- `email_messages.triage_headers` JSON — 판정에 쓰는 키만 (List-Unsubscribe·List-Id·Precedence·Auto-Submitted·ESP 헤더). 원문 전체 보관 X.
+- `headersFromMessage(msg)` 단일 헬퍼 — 저장 헤더 + 기존 컬럼(to_emails·in_reply_to·references)을 합쳐 복원. 손으로 헤더를 조립하던 곳 제거.
+- `retriageStored({headersComplete})` — 헤더 있으면 `triageInbound` 와 **같은 문**을 지나 처음부터 재판정 / 헤더 없는 옛 메일은 저장된 분류 신뢰 (다시 계산하면 광고가 사람 메일로 뒤집힌다 — 실제 109건 사고).
+- dev 실데이터 2,032건 재판정 **재분류 0건** (옛 데이터 회귀 없음).
+
+### ★ dev 에서 Q Mail 답장이 실제 고객에게 나가고 있었다
+`.env` 는 `EMAIL_SENDING_ENABLED=false` 인데 **Q Mail 계정 발송(`emailSend.sendMail`)만 그 문을 비껴갔다** — dev 에서 답장 버튼을 누르면 연결된 회사 메일 계정으로 진짜 메일이 나갔다(outbound 4건). 플랫폼 발송과 같은 게이트를 지나게 했다. 발송만 멈추고 나머지 흐름(outbound 기록·스레드 갱신·규칙 해제)은 유지 — dev 에서 답장 흐름을 끝까지 검증할 수 있어야 하기 때문.
+
+### 학습 규칙 실동작 검증 (실 HTTP, 29/29 · 데이터 전량 원복)
+릴리즈만 되고 아무도 실제로 돌려본 적 없던 학습 흐름을 전 경로 실증:
+| 시나리오 | 결과 |
+|------|:----:|
+| dismiss 1회 → 규칙 없음 (임계 2회) / 2회 → `no_reply` 규칙 자동 생성 + 근거(evidence) 기록 | ✅ |
+| 규칙 생성 시 그 발신자의 남은 "답변 필요" 일괄 정리 + 규칙 뱃지(rule_id) | ✅ |
+| 규칙 적용 — 같은 발신자의 새 메일은 애초에 답변 필요로 안 들어옴 (hit_count 증가) | ✅ |
+| 답장 발송 → 규칙 즉시 해제 + **규칙이 숨겼던 스레드 원상복구**(reason=rule_removed) | ✅ |
+| 답장한 스레드는 되살아나지 않음 · 사용자가 직접 "답변 불필요" 한 건은 불가침 · 고아 뱃지 0 | ✅ |
+| 도메인 승격 (주소 3개 no_reply → 도메인 규칙) + 학습한 적 없는 새 주소에도 적용 | ✅ |
+| 규칙 삭제 라우트 → 즉시 원상복구 (restored 1/1) | ✅ |
+
+### 상시 가드 신설 — `scripts/e2e/canary-mail-triage.js` (`--suite mail`)
+이 판정은 "통과했는데 실제로는 눈 감고 있는" 사고가 반복된 곳이라 카나리로 박제. **실 mailparser 출력**으로 검증(손으로 만든 Map 은 이 버그를 못 잡는다) + 과잉 차단 카나리(사람 문의가 살아 있는가) + 옛 메일 분류 유지. **반증실험**: hget 의 list 대응을 되돌리면 3건 실패 → 원복 시 0.
+
+### 수정된 파일
+- `dev-backend/services/emailTriage.js` (hget list 접힘 · TRIAGE_HEADER_KEYS · pickTriageHeaders · headersFromMessage · retriageStored headersComplete)
+- `dev-backend/services/emailSend.js` (dev 발송 정지 게이트) · `services/emailImapCron.js` (헤더 저장) · `models/EmailMessage.js` (triage_headers)
+- `dev-backend/scripts/retriage-mail.js` (헬퍼 사용) · `scripts/e2e/canary-mail-triage.js`(신규) · `scripts/e2e/run.js`
+- **DB:** `ALTER TABLE email_messages ADD COLUMN triage_headers JSON NULL AFTER references_chain` (dev 적용 완료 — **운영 배포 시 수동 선행 필요**)
+
+---
+
+> **이전 사이클:** 2026-07-13 (Opus, 1M) — **📬 메일 답변 필요 판정 정합(반송·거래알림 오분류 차단) + 개인 보관함 노트 카운트 + Q Bill 탭 뱃지 + 프로젝트→소통 창구 바로가기. dev 검증 완료.** 헬스 30/30 · guard-invariants 15/15 · e2e tenant 0 · 빌드 EXIT0/TS0.
 
 ## ✅ 완료: 메일 판정 정합 + 보관함 노트 카운트 + Q Bill 탭 뱃지 (2026-07-13)
 

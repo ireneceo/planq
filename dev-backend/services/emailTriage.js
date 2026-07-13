@@ -20,6 +20,15 @@ function hget(headers, key) {
     let v = null;
     if (typeof headers.get === 'function') {
       v = headers.get(key);
+      // mailparser 는 List-* 헤더를 'list' 키 하나로 접는다 — get('list-unsubscribe') 는 **항상 undefined**.
+      //   그래서 광고 판정의 1순위 신호(List-Unsubscribe·List-Id)가 여태 한 번도 발동한 적이 없다.
+      //   Precedence: bulk 를 붙이는 발송기만 걸렸고, List-Unsubscribe 만 붙이는 흔한 뉴스레터는
+      //   전부 그물을 빠져나갔다 (실 mailparser 출력으로 확인).
+      //   접힌 값은 객체다: { unsubscribe: {url, mail}, id: {name, id} }.
+      if (v == null && /^list-/i.test(key)) {
+        const list = headers.get('list');
+        if (list && typeof list === 'object') v = list[key.slice(5).toLowerCase()];
+      }
     } else if (typeof headers === 'object') {
       const lower = String(key).toLowerCase();
       const hit = Object.keys(headers).find((k) => k.toLowerCase() === lower);
@@ -30,6 +39,50 @@ function hget(headers, key) {
     if (typeof v === 'object') return JSON.stringify(v); // List-Unsubscribe 등은 객체로 파싱될 수 있음
     return String(v);
   } catch { return null; }
+}
+
+// ── 판정에 쓰는 헤더 (이것만 저장한다) ─────────────────────────────────────
+//   여태 헤더를 하나도 저장하지 않아서, 수집 시점엔 정확하던 광고·자동발송 판정이 **재판정 경로에선
+//   통째로 눈을 감았다**. 그래서 쇼핑몰 알림이 그물을 빠져나갔고 제목 패턴으로 우회할 수밖에 없었다.
+//   원문 헤더 전부가 아니라 아래 목록만 보관한다 — 판정에 안 쓰는 값까지 쌓을 이유가 없다.
+const TRIAGE_HEADER_KEYS = [
+  'list-unsubscribe', 'list-id', 'precedence',            // 대량 발송 (RFC 2369)
+  'auto-submitted', 'x-auto-response-suppress',           // 자동 발송 (RFC 3834)
+  'feedback-id', 'x-mailgun-sid', 'x-sg-eid', 'x-campaign', 'x-csa-complaints', // ESP(대량발송기)
+];
+
+/** 수집 시점 — mailparser 헤더(Map)에서 판정용 키만 골라 평문 객체로. 없으면 null (빈 객체 X:
+ *  "헤더 없는 옛 메일" 과 "헤더를 봤는데 아무 신호도 없던 메일" 은 다른 상태다). */
+function pickTriageHeaders(headers) {
+  if (!headers) return null;
+  const out = {};
+  for (const k of TRIAGE_HEADER_KEYS) {
+    const v = hget(headers, k);
+    if (v != null && v !== '') out[k] = String(v).slice(0, 500);
+  }
+  return out;   // {} 도 유효한 값 — "헤더를 봤고 신호가 없었다"
+}
+
+/** 재판정 시점 — 저장된 메시지 한 통에서 판정용 헤더를 복원한다.
+ *  헤더 원문(triage_headers) + 이미 컬럼으로 있던 신호(to_emails · in_reply_to · references_chain)를 합친다.
+ *  to_emails 는 [{name,email}] 객체 배열이다 — 그대로 join 하면 "[object Object]" 가 되어
+ *  "우리 주소로 직접 왔는가" 판정이 항상 실패한다. */
+function headersFromMessage(msg) {
+  if (!msg) return { headers: {}, complete: false };
+  const toList = Array.isArray(msg.to_emails)
+    ? msg.to_emails.map((x) => (typeof x === 'string' ? x : (x && x.email) || '')).filter(Boolean)
+    : [];
+  const stored = msg.triage_headers && typeof msg.triage_headers === 'object' ? msg.triage_headers : null;
+  return {
+    headers: {
+      ...(stored || {}),
+      to: toList.join(', '),
+      ...(msg.in_reply_to ? { 'in-reply-to': msg.in_reply_to } : {}),
+      ...(msg.references_chain ? { references: msg.references_chain } : {}),
+    },
+    // complete = 수집 시점과 같은 정보를 갖췄다 → triage 를 처음부터 다시 계산해도 안전하다.
+    complete: !!stored,
+  };
 }
 
 // 벌크/뉴스레터 시그널 — RFC 2369 List-* + Precedence
@@ -335,11 +388,19 @@ function triageBySenderOnly({ subject, bodyText, fromEmail, ownEmails }) {
   return { triage, reply_needed: triage === 'human' && c.status === 'open', spam_score: c.spam_score, status: c.status, uncertain_reason: c.uncertain_reason };
 }
 
-// 재판정 전용 — 이미 저장된 triage 를 신뢰하고 status/reply_needed 만 다시 계산한다.
-//   동기화 시점에는 메일 헤더 원문(List-Unsubscribe·Auto-Submitted)이 있어서 automated/marketing
-//   판정이 정확했다. 재판정 시점에는 그 헤더가 없으므로 triage 를 다시 계산하면 안 된다
-//   (실제로 다시 계산했다가 광고 109건이 human 으로 뒤집혔다 → 백업에서 복원).
-function retriageStored({ triage, subject, bodyText, fromEmail, headers, ownEmails, isKnownContact = false }) {
+// 재판정 전용.
+//
+//   headersComplete=true  — 판정용 헤더가 저장돼 있다(triage_headers). 수집 시점과 같은 정보이므로
+//                           triage 부터 처음부터 다시 계산한다. 규칙을 고치면 옛 메일도 같이 교정된다.
+//   headersComplete=false — 헤더가 없는 옛 메일. 저장된 triage 를 신뢰하고 status/reply_needed 만 다시 센다.
+//                           헤더 없이 triage 를 다시 계산하면 광고가 사람 메일로 뒤집힌다
+//                           (실제로 그랬다 — 109건이 human 으로 뒤집혀 백업에서 복원했다).
+function retriageStored({ triage, subject, bodyText, fromEmail, headers, ownEmails, isKnownContact = false, headersComplete = false }) {
+  // 헤더가 있으면 동기화와 같은 문을 그대로 지난다 — 판정 로직이 두 벌로 갈라지지 않는다.
+  if (headersComplete) {
+    return triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, isKnownContact });
+  }
+
   if (triage === 'spam') return { triage, status: 'spam', reply_needed: false, uncertain_reason: null };
 
   // 자동 발송 — 내용이 업무이거나 우리 시스템 알림이면 확인 권장으로 올린다
@@ -404,6 +465,9 @@ function threadFieldsForInbound({ isNew, thread, tr, replyNeeded, ruleReason, me
 }
 
 module.exports = {
+  TRIAGE_HEADER_KEYS,
+  pickTriageHeaders,
+  headersFromMessage,
   isBounce,
   isTransactionalNotice,
   threadFieldsForInbound,
