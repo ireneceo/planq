@@ -58,6 +58,7 @@ import SessionTaxonomyBar from '../../components/QNote/SessionTaxonomyBar';
 const MemoView = React.lazy(() => import('./MemoView'));
 // NewNoteModal — Q docs PostAiModal manual mode 패턴 동일 (탭 메모/음성 + 옵션). 사이클 N+17 hotfix.
 import NewNoteModal, { type NewNoteKind } from './NewNoteModal';
+import PanelEdgeHandle from '../../components/Layout/PanelEdgeHandle';
 
 /**
  * Q Note 페이지
@@ -2002,6 +2003,16 @@ const QNotePage = () => {
 
   return (
     <PanelGridLayout $cols={sidebarCollapsed ? '0px 1fr' : '300px 1fr'}>
+      {/* 리스트 접기/펼치기 — 공통 PanelEdgeHandle (Q Talk·Q Mail·Q docs·Q Task 와 같은 경계선 화살표).
+          Q Note 만 핸들이 아예 없어서 접으면 다시 여는 방법이 백드롭 클릭뿐이었다. */}
+      <PanelEdgeHandle
+        side="left"
+        collapsed={sidebarCollapsed}
+        onToggle={() => setSidebarCollapsed((v) => !v)}
+        offset={sidebarCollapsed ? 0 : 300}
+        labelCollapse={t('page.sidebar.collapse', '리스트 접기') as string}
+        labelExpand={t('page.sidebar.expand', '리스트 열기') as string}
+      />
       <CollapsibleSidebar $collapsed={sidebarCollapsed}>
         <SidebarHeader>
           <TitleGroup>
@@ -2182,20 +2193,8 @@ const QNotePage = () => {
       )}
 
       <Panel $grow $last $relative data-panel-main>
-        <CollapseToggle
-          onClick={() => setSidebarCollapsed((v) => !v)}
-          aria-label={sidebarCollapsed ? t('page.sidebarOpen') : t('page.sidebarCollapse')}
-          title={sidebarCollapsed ? t('page.sidebarOpen') : t('page.sidebarCollapse')}
-        >
-          <SidebarToggleChevron>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
-              {sidebarCollapsed
-                ? <polyline points="9 18 15 12 9 6" />
-                : <polyline points="15 18 9 12 15 6" />
-              }
-            </svg>
-          </SidebarToggleChevron>
-        </CollapseToggle>
+        {/* 자체 사이드바 토글 제거 — 공통 PanelEdgeHandle 과 같은 자리에 겹쳐 서로 가리고 있었다
+            (닫고 열고 하는 아이콘이 뒤로 숨어버렸다는 지적). 접기 핸들은 레이아웃 레벨 하나로 통일. */}
 
         {/* 사이클 N+17 — 빈 상태 (메모 작성 중 X + 활성 세션 X) */}
         {phase === 'empty' && !composingMemo && (
@@ -3342,30 +3341,6 @@ const Dot = styled.span`
 `;
 
 /* Q Note 사이드바(세션 리스트) 접기 — Q Talk/Secondary 와 동일한 엣지 바 디자인 */
-const CollapseToggle = styled.button`
-  position: absolute;
-  top: 50%;
-  left: 0;
-  transform: translate(-50%, -50%);
-  width: 8px; height: 60px;
-  padding: 0; border: none;
-  background: #CBD5E1;
-  border-radius: 4px;
-  cursor: pointer;
-  z-index: 10;
-  box-shadow: 0 1px 3px rgba(15,23,42,0.08);
-  transition: width 0.15s ease, height 0.15s ease, background 0.15s ease;
-  display: flex; align-items: center; justify-content: center;
-  &::before { content: ''; position: absolute; top: -10px; bottom: -10px; left: -8px; right: -8px; }
-  &:hover { width: 14px; height: 72px; background: #14B8A6; }
-  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
-`;
-const SidebarToggleChevron = styled.span`
-  display: flex; align-items: center; justify-content: center;
-  color: #64748B;
-  svg { width: 10px; height: 10px; }
-  ${CollapseToggle}:hover & { color: #FFFFFF; }
-`;
 
 const MainHeader = styled.div`
   padding: 14px 20px;

@@ -201,7 +201,11 @@
       "emptyHint": "회의에서 실행할 업무를 AI가 찾아 후보로 제안합니다.",
       "extractFailed": "업무 추출 실패"
     },
-    "catAll": "전체"
+    "catAll": "전체",
+    "sidebar": {
+      "collapse": "리스트 접기",
+      "expand": "리스트 열기"
+    }
   },
   "memoPopup": {
     "title": "메모",

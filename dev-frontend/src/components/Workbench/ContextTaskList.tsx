@@ -12,7 +12,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../contexts/AuthContext';
-import WorkbenchSection from './WorkbenchSection';
+import WorkbenchSection, { WorkbenchEmptyRow, WorkbenchSectionLink } from './WorkbenchSection';
 
 export interface ContextTask {
   id: number;
@@ -125,7 +125,7 @@ export default function ContextTaskList({
           <SkelRow /><SkelRow /><SkelRow />
         </Skeleton>
       ) : !data || total === 0 ? (
-        <Empty>{t('workbench.emptyTasks', '아직 이 대화에서 만든 업무가 없어요. 위에서 한 줄로 등록해 보세요.') as string}</Empty>
+        <WorkbenchEmptyRow>{t('workbench.emptyTasks', '아직 이 대화에서 만든 업무가 없어요. 위에서 한 줄로 등록해 보세요.') as string}</WorkbenchEmptyRow>
       ) : (
         groups.map(({ key, label, bucket }) => (
           bucket.total === 0 ? null : (
@@ -153,10 +153,10 @@ export default function ContextTaskList({
                 })}
               </Rows>
               {bucket.total > bucket.items.length && (
-                <MoreLink type="button" onClick={() => navigate(projectId ? `/tasks?project=${projectId}` : '/tasks')}>
+                <WorkbenchSectionLink type="button" onClick={() => navigate(projectId ? `/tasks?project=${projectId}` : '/tasks')}>
                   {t('workbench.seeAll', { n: bucket.total, defaultValue: 'Q Task 에서 {{n}}건 전체 보기' }) as string}
                   <span aria-hidden>›</span>
-                </MoreLink>
+                </WorkbenchSectionLink>
               )}
             </Group>
           )
@@ -202,14 +202,6 @@ const Due = styled.span<{ $overdue: boolean }>`
   padding: ${(p) => (p.$overdue ? '0 6px' : '0')};
   border-radius: 999px;
 `;
-const MoreLink = styled.button`
-  align-self: flex-start; border: none; background: none; padding: 2px 8px; cursor: pointer;
-  display: inline-flex; align-items: center; gap: 3px;
-  font-size: 11px; font-weight: 600; color: #0F766E;
-  &:hover { color: #0D9488; text-decoration: underline; }
-  span { font-size: 13px; line-height: 1; }
-`;
-const Empty = styled.div`font-size: 12px; color: #94A3B8; line-height: 1.5;`;
 const Skeleton = styled.div`display: flex; flex-direction: column; gap: 6px;`;
 const SkelRow = styled.div`
   height: 32px; border-radius: 8px;
