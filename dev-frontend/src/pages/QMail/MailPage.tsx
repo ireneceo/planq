@@ -182,7 +182,7 @@ const MailPage: React.FC = () => {
     return () => window.removeEventListener('keydown', onKey);
   }, [toggleRightCollapsed]);
   const [folderCounts, setFolderCounts] = useState<Record<Folder, number>>({
-    reply_needed: 0, uncertain: 0, inbox: 0, all: 0, marketing: 0, following: 0, spam: 0, archived: 0,
+    reply_needed: 0, uncertain: 0, all: 0, marketing: 0, following: 0, spam: 0, archived: 0,
   });
   const [accounts, setAccounts] = useState<MailAccount[]>([]);
   const [labelMaster, setLabelMaster] = useState<MailLabel[]>([]);

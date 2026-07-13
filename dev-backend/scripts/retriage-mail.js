@@ -29,8 +29,16 @@ const APPLY = process.argv.includes('--apply');
 
   // 사람이 이미 처리한 스레드는 제외 — reply_needed_reason 이 'rule'/'backfill' 이거나
   // 담당자가 지정된 건 사용자의 판단이므로 그대로 둔다.
+  // 대상: ①답변 필요로 켜진 것(과잉 분류 해제) ②자동·마케팅으로 밀려난 것(내용이 업무면 확인 권장으로 승격)
   const threads = await EmailThread.findAll({
-    where: { reply_needed: true, status: { [Op.in]: ['open', 'uncertain'] }, rule_id: null },
+    where: {
+      rule_id: null,
+      status: { [Op.in]: ['open', 'uncertain'] },
+      [Op.or]: [
+        { reply_needed: true },
+        { triage: { [Op.in]: ['automated', 'marketing'] } },
+      ],
+    },
     order: [['id', 'ASC']],
   });
   const assigned = new Set((await EmailThreadParticipant.findAll({
@@ -74,21 +82,27 @@ const APPLY = process.argv.includes('--apply');
       isKnownContact: known,
     });
     const tr = await applyRules(acc.business_id, fromEmail, base);
-    if (tr.reply_needed) { kept++; continue; }
+    const nextStatus = tr.status || th.status;
+    const nextReply = !!tr.reply_needed;
+    // 바뀐 게 없으면 건드리지 않는다 (멱등)
+    if (nextReply === !!th.reply_needed && nextStatus === th.status) { kept++; continue; }
     changed++;
-    if (samples.length < 8) samples.push(`${th.id} | ${(th.subject || '').slice(0, 34)} | ${fromEmail} → ${tr.status}/${tr.triage || base.triage || '-'}`);
+    if (samples.length < 8) {
+      const to = nextReply ? '답변 필요' : (nextStatus === 'uncertain' ? '확인 권장' : nextStatus);
+      samples.push(`${th.id} | ${(th.subject || '').slice(0, 30)} | ${fromEmail} → ${to}`);
+    }
     if (APPLY) {
       await th.update({
-        reply_needed: false,
-        reply_needed_reason: 'retriage',
-        status: tr.status || th.status,
+        reply_needed: nextReply,
+        reply_needed_reason: nextReply ? (th.reply_needed_reason || 'inbound') : 'retriage',
+        status: nextStatus,
         triage: tr.triage || th.triage,
         uncertain_reason: tr.uncertain_reason || null,
         rule_id: tr.rule_id || null,
       });
     }
   }
-  console.log(`대상 ${threads.length}건 — 답변 필요 유지 ${kept} · 해제 ${changed} · 건너뜀(담당자·데이터없음) ${skipped}`);
+  console.log(`대상 ${threads.length}건 — 그대로 ${kept} · 재분류 ${changed} · 건너뜀(담당자·데이터없음) ${skipped}`);
   if (samples.length) console.log('해제 예시:\n  ' + samples.join('\n  '));
   console.log(APPLY ? '→ 반영 완료' : '→ 미리보기 (반영하려면 --apply)');
   await sequelize.close();
