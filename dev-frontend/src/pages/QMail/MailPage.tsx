@@ -116,9 +116,11 @@ const FOLDERS: Array<{ key: Folder; defaultLabel: string }> = [
 //   우리 폰트·여백을 강제하지 않는다 — 강제하면 발신자가 만든 레이아웃이 깨진다.
 function buildMailSrcDoc(id: number, html: string): string {
   const safe = sanitizeMailHtml(html);
-  const resize = `<script>(function(){var send=function(){parent.postMessage({planqMailFrame:${id},h:document.documentElement.scrollHeight},'*');};send();window.addEventListener('load',send);if(window.ResizeObserver)new ResizeObserver(send).observe(document.body);setTimeout(send,300);setTimeout(send,1200);})();<\/script>`;
+  // 높이는 **본문(body) 실제 높이**로 잰다. documentElement.scrollHeight 는 iframe 높이보다 작아질 수
+  //   없어서(html 이 뷰포트를 채운다) 짧은 답장도 240px 로 남아 아래가 텅 빈 채 늘어졌다.
+  const resize = `<script>(function(){var send=function(){var b=document.body;var h=Math.ceil(Math.max(b.scrollHeight,b.getBoundingClientRect().height,b.offsetHeight));parent.postMessage({planqMailFrame:${id},h:h},'*');};send();window.addEventListener('load',send);if(window.ResizeObserver)new ResizeObserver(send).observe(document.body);setTimeout(send,300);setTimeout(send,1200);})();<\/script>`;
   // 가로 넘침만 최소 보정 (고정폭 템플릿이 패널보다 넓을 때 잘리지 않고 스크롤되게)
-  const guard = '<style>html,body{margin:0;padding:0;}body{overflow-x:auto;}img{max-width:100%;height:auto;}</style>';
+  const guard = '<style>html,body{margin:0;padding:0;height:auto;}body{overflow-x:auto;display:flow-root;}img{max-width:100%;height:auto;}</style>';
   const hasDoc = /<body[\s>]/i.test(safe);
   if (hasDoc) {
     if (/<\/body>/i.test(safe)) return safe.replace(/<\/body>/i, `${guard}${resize}</body>`);
@@ -412,6 +414,38 @@ const MailPage: React.FC = () => {
     finally { setDismissingId(null); }
   }, [businessId, loadCounts]);
 
+  // 확인 완료 — 확인 권장에서 내린다. "관리하려면 아닌 건 배제할 수 있어야 한다" (Irene).
+  //   원본은 그대로, 분류만 바뀐다(보관). 전체 탭에서는 계속 보인다.
+  const markHandled = useCallback(async (e: React.MouseEvent, threadId: number) => {
+    e.stopPropagation();
+    if (!businessId) return;
+    setDismissingId(threadId);
+    try {
+      const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${threadId}/mark-handled`, { method: 'POST' });
+      if (!r.ok) throw new Error('handled_failed');
+      setThreads(prev => prev.filter(x => x.id !== threadId));
+      if (activeId === threadId) setActive(null);
+      loadCounts();
+      window.dispatchEvent(new CustomEvent('inbox:refresh'));
+    } catch { /* 실패 시 목록 유지 — 다음 로드에서 복원 */ }
+    finally { setDismissingId(null); }
+  }, [businessId, loadCounts, activeId]);
+
+  // 스팸으로 (리스트에서 바로) — 광고·스팸은 여기서 끝낸다
+  const markSpamRow = useCallback(async (e: React.MouseEvent, threadId: number) => {
+    e.stopPropagation();
+    if (!businessId) return;
+    setDismissingId(threadId);
+    try {
+      const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${threadId}/mark-spam`, { method: 'POST' });
+      if (!r.ok) throw new Error('spam_failed');
+      setThreads(prev => prev.filter(x => x.id !== threadId));
+      if (activeId === threadId) setActive(null);
+      loadCounts();
+    } catch { /* 유지 */ }
+    finally { setDismissingId(null); }
+  }, [businessId, loadCounts, activeId]);
+
   // 라벨 토글 (상세) — 현재 라벨 배열에 추가/제거
   const toggleLabel = useCallback((name: string) => {
     if (!detail) return;
@@ -533,7 +567,7 @@ const MailPage: React.FC = () => {
       const d = e.data as { planqMailFrame?: number; h?: number } | null;
       if (!d || typeof d.planqMailFrame !== 'number' || typeof d.h !== 'number') return;
       const id = d.planqMailFrame;
-      const h = Math.min(Math.max(d.h, 80), 6000);
+      const h = Math.min(Math.max(d.h, 32), 6000);
       setFrameH(prev => (prev[id] === h ? prev : { ...prev, [id]: h }));
     };
     window.addEventListener('message', onMsg);
@@ -1114,6 +1148,26 @@ const MailPage: React.FC = () => {
                       </DismissBtn>
                     </ReplyRow>
                   )}
+                  {/* 확인 권장 — 판단이 끝난 메일을 여기서 바로 내린다. 못 내리면 이 폴더는 영영 안 줄고
+                      관리 자산이 아니라 쓰레기통이 된다. 원본은 그대로(전체 탭에 남는다). */}
+                  {folder === 'uncertain' && (
+                    <ReplyRow>
+                      <DismissBtn
+                        type="button"
+                        disabled={dismissingId === mt.id}
+                        onClick={(e) => markHandled(e, mt.id)}
+                      >
+                        {t('actions.markHandled', { defaultValue: '확인 완료' }) as string}
+                      </DismissBtn>
+                      <RowSpamBtn
+                        type="button"
+                        disabled={dismissingId === mt.id}
+                        onClick={(e) => markSpamRow(e, mt.id)}
+                      >
+                        {t('actions.markSpam', { defaultValue: '스팸' }) as string}
+                      </RowSpamBtn>
+                    </ReplyRow>
+                  )}
                   {mt.labels && mt.labels.length > 0 && (
                     <RowLabels>
                       {mt.labels.map(l => <LabelChip key={l} $color={labelColor(l)}>{l}</LabelChip>)}
@@ -1240,7 +1294,7 @@ const MailPage: React.FC = () => {
                     {m.body_html ? (
                       <MessageBodyFrame
                         sandbox="allow-scripts"
-                        style={{ height: `${frameH[m.id] || 240}px` }}
+                        style={{ height: `${frameH[m.id] || 120}px` }}
                         srcDoc={buildMailSrcDoc(m.id, m.body_html)}
                         title={`message-${m.id}`}
                       />
@@ -1847,7 +1901,7 @@ const MessageTime = styled.div`
 `;
 const MessageBodyFrame = styled.iframe`
   width: 100%;
-  min-height: 120px;
+  min-height: 40px;   /* 짧은 답장은 짧게 — 아래가 비어 늘어지지 않는다 */
   border: none;
   display: block;
   background: transparent;
@@ -1954,4 +2008,13 @@ const CtxBackdrop = styled.div`
   position: fixed; inset: 0; z-index: 40;
   background: rgba(15, 23, 42, 0.35);
   @media (min-width: 1025px) { display: none; }
+`;
+
+// 리스트 행의 스팸 버튼 — 파괴적이지 않지만 되돌릴 수 있음을 알리는 톤(회색 → hover 시 danger)
+const RowSpamBtn = styled.button`
+  height: 24px; padding: 0 8px; border-radius: 6px; cursor: pointer;
+  font-size: 11px; font-weight: 600; color: #94A3B8;
+  background: transparent; border: 1px solid #E2E8F0;
+  &:hover:not(:disabled) { color: #B91C1C; border-color: #FECACA; background: #FEF2F2; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;

@@ -461,6 +461,36 @@ router.post('/:businessId/email-threads/:id/mark-not-spam',
 );
 
 // ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// POST mark-handled — "확인 완료" (확인 권장에서 내리기)
+//   확인 권장은 "한 번 보고 판단할 것" 이 쌓이는 곳이다. 판단이 끝난 메일을 못 내리면
+//   그 폴더는 영영 줄지 않고, 관리 자산이 아니라 쓰레기통이 된다.
+//   원본은 그대로 — 분류만 바꾼다 (전체 탭에는 계속 있다). 같은 발신자 학습은 하지 않는다
+//   (한 번 확인했다고 그 발신자 메일을 앞으로 안 볼 이유는 없다 — 그건 규칙 화면에서 명시적으로).
+// ─────────────────────────────────────────────
+router.post('/:businessId/email-threads/:id/mark-handled',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const acctIds = await accessibleAccountIds(businessId, req.user.id);
+      const thread = await EmailThread.findOne({
+        where: { id: req.params.id, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } },
+      });
+      if (!thread) return errorResponse(res, 'thread_not_found', 404);
+      await thread.update({
+        status: 'archived',
+        reply_needed: false,
+        reply_needed_at: null,
+        reply_needed_reason: 'handled',
+        uncertain_reason: null,
+      });
+      broadcastMail(req, businessId, 'mail:updated', { thread_id: thread.id, handled: true });
+      return successResponse(res, { id: thread.id, status: 'archived' });
+    } catch (err) { next(err); }
+  }
+);
+
 // POST dismiss-reply — "답변 필요" 해제 (답장 완료 / 답장 불필요)
 //   Q Mail 밖(Gmail·맥 메일 등)에서 답장하면 플래그가 영영 안 꺼져 "답변 필요" 가 죽은 지표가 된다.
 //   IMAP 수집기는 inbound 만 보므로 우리가 밖에서 보낸 답장을 알 수 없다 → 사람이 끄는 문을 연다.
