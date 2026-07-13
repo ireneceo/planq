@@ -271,17 +271,43 @@ const MailPage: React.FC = () => {
     if (projectFilter) s2 += `&project_id=${projectFilter}`;
     return s2;
   }, [labelFilter, projectFilter]);
-  const loadList = useCallback(async () => {
+  // 목록 갱신 — **읽고 있던 자리를 지킨다**.
+  //   여태 무조건 1페이지(30건)만 다시 받아 threads 를 통째로 교체했다. 그래서 무한스크롤로 90건을
+  //   내려본 상태에서 "확인 완료" 를 누르면(→ socket mail:updated → silentReload) 목록이 30건으로
+  //   줄며 스크롤이 위로 튀었다 (Irene: "그 자리에 그대로 있어야 해").
+  //   → 이미 읽은 페이지 수만큼 다시 받고, 스크롤 위치를 복원한다.
+  const listRef = useRef<HTMLDivElement>(null);
+  const loadList = useCallback(async (opts: { keepScroll?: boolean } = {}) => {
     if (!businessId) return;
-    setListLoading(true);
+    const keepPages = opts.keepScroll ? Math.max(1, pageRef.current) : 1;
+    const savedTop = opts.keepScroll ? (listRef.current?.scrollTop ?? 0) : 0;
+    if (!opts.keepScroll) setListLoading(true);
     setErrorMsg(null);
     try {
       const acctQ = accountFilter ? `&account_id=${accountFilter}` : '';
       const qP = qDebounced ? `&q=${encodeURIComponent(qDebounced)}` : '';
       const fP = filterQuery();
-      const r = await apiFetch(`/api/businesses/${businessId}/email-threads?folder=${folder}&limit=${PAGE_SIZE}&page=1${acctQ}${qP}${fP}`);
+      const r = await apiFetch(`/api/businesses/${businessId}/email-threads?folder=${folder}&limit=${PAGE_SIZE * keepPages}&page=1${acctQ}${qP}${fP}`);
       const j = await r.json();
-      if (j.success) { setThreads(j.data || []); pageRef.current = 1; setHasMore(!!j.pagination?.has_more); }
+      if (j.success) {
+        // 처리됨으로 표시한 행은 서버 응답에서 빠졌더라도 그 자리에 남긴다 (자리가 흔들리지 않게).
+        setThreads((prev) => {
+          const fresh: Thread[] = j.data || [];
+          if (!handledRef.current.size) return fresh;
+          const freshIds = new Set(fresh.map((x) => x.id));
+          const kept = prev.filter((x) => handledRef.current.has(x.id) && !freshIds.has(x.id));
+          if (!kept.length) return fresh;
+          const byId = new Map(prev.map((x, i) => [x.id, i]));
+          return [...fresh, ...kept].sort((a, b) => (byId.get(a.id) ?? 1e9) - (byId.get(b.id) ?? 1e9));
+        });
+        setHasMore(!!j.pagination?.has_more);
+        if (opts.keepScroll && listRef.current) {
+          // DOM 반영 후 복원 (한 프레임 뒤가 아니라 즉시 — 첫 paint 가 위에서 그려지지 않게)
+          requestAnimationFrame(() => { if (listRef.current) listRef.current.scrollTop = savedTop; });
+        } else {
+          pageRef.current = 1;
+        }
+      }
       else setErrorMsg(j.message || (t('errors.loadList', { defaultValue: '인박스 로딩 실패' }) as string));
     } catch (e) {
       setErrorMsg((e as Error).message);
@@ -400,6 +426,12 @@ const MailPage: React.FC = () => {
 
   // 답변 필요 해제 — 밖(Gmail·맥 메일)에서 이미 답장했거나 답장이 불필요한 메일
   const [dismissingId, setDismissingId] = useState<number | null>(null);
+  // 처리한 메일은 **목록에서 빼지 않는다** — 행이 사라지면 아래 내용이 그만큼 위로 밀려
+  //   읽던 자리가 흔들린다 (Irene: "그 자리에 그대로 있어야 해. 스크롤 되면 안돼").
+  //   그 자리에 흐리게 "처리됨" 으로 남겼다가, 폴더를 바꾸거나 다시 들어오면 사라진다.
+  const [handledIds, setHandledIds] = useState<Set<number>>(new Set());
+  const handledRef = useRef(handledIds);
+  useEffect(() => { handledRef.current = handledIds; }, [handledIds]);
   const dismissReply = useCallback(async (e: React.MouseEvent, threadId: number) => {
     e.stopPropagation();
     if (!businessId) return;
@@ -407,7 +439,7 @@ const MailPage: React.FC = () => {
     try {
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${threadId}/dismiss-reply`, { method: 'POST' });
       if (!r.ok) throw new Error('dismiss_failed');
-      setThreads(prev => prev.filter(x => x.id !== threadId));   // 답변 필요 폴더에서 즉시 제거
+      setHandledIds(prev => new Set(prev).add(threadId));   // 자리를 지킨 채 '처리됨' 표시
       loadCounts();
       window.dispatchEvent(new CustomEvent('inbox:refresh'));    // 사이드바 Q Mail 뱃지 즉시 갱신
     } catch { /* 실패 시 목록 유지 — 다음 로드에서 복원 */ }
@@ -423,7 +455,7 @@ const MailPage: React.FC = () => {
     try {
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${threadId}/mark-handled`, { method: 'POST' });
       if (!r.ok) throw new Error('handled_failed');
-      setThreads(prev => prev.filter(x => x.id !== threadId));
+      setHandledIds(prev => new Set(prev).add(threadId));
       if (activeId === threadId) setActive(null);
       loadCounts();
       window.dispatchEvent(new CustomEvent('inbox:refresh'));
@@ -439,7 +471,7 @@ const MailPage: React.FC = () => {
     try {
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${threadId}/mark-spam`, { method: 'POST' });
       if (!r.ok) throw new Error('spam_failed');
-      setThreads(prev => prev.filter(x => x.id !== threadId));
+      setHandledIds(prev => new Set(prev).add(threadId));
       if (activeId === threadId) setActive(null);
       loadCounts();
     } catch { /* 유지 */ }
@@ -543,6 +575,7 @@ const MailPage: React.FC = () => {
     }
   }, [businessId, loadList, loadCounts]);
 
+  useEffect(() => { setHandledIds(new Set()); }, [folder, accountFilter, qDebounced, labelFilter, projectFilter]);
   useEffect(() => { loadList(); }, [loadList]);
   useEffect(() => { loadCounts(); }, [loadCounts]);
   useEffect(() => { loadAccounts(); }, [loadAccounts]);
@@ -598,7 +631,7 @@ const MailPage: React.FC = () => {
 
   // ── 실시간 silent 갱신 (socket / visibility) — 스피너 없이 list+counts+열린 detail 갱신
   const silentReload = useCallback(() => {
-    loadList();
+    loadList({ keepScroll: true });   // 실시간 갱신은 읽던 자리를 흔들지 않는다
     loadCounts();
     loadAccounts();
     if (activeId) loadDetail(activeId);
@@ -1105,7 +1138,7 @@ const MailPage: React.FC = () => {
                 : (t('emptyFolder', { defaultValue: '이 폴더에 메일이 없어요' }) as string)}</EmptyText>
             </EmptyList>
           ) : (
-            <ThreadList onScroll={(e) => {
+            <ThreadList ref={listRef} onScroll={(e) => {
               const el = e.currentTarget;
               if (hasMore && !loadingMore && el.scrollHeight - el.scrollTop - el.clientHeight < 300) loadMore();
             }}>
@@ -1115,6 +1148,7 @@ const MailPage: React.FC = () => {
                   type="button"
                   $active={activeId === mt.id}
                   $unread={mt.unread_count > 0}
+                  $handled={handledIds.has(mt.id)}
                   onClick={() => setActive(mt.id)}
                 >
                   <ThreadRow1>
@@ -1158,7 +1192,12 @@ const MailPage: React.FC = () => {
                   )}
                   {/* 답변 필요 폴더 — 오래 방치된 문의를 눈에 띄게 하고, 밖(Gmail 등)에서 이미 답장한
                       메일을 사람이 직접 끌 수 있게 한다. 안 그러면 플래그가 영영 안 꺼져 지표가 죽는다. */}
-                  {folder === 'reply_needed' && (
+                  {folder === 'reply_needed' && handledIds.has(mt.id) && (
+                    <ReplyRow>
+                      <HandledBadge>{t('actions.handledDone', { defaultValue: '처리됨' }) as string}</HandledBadge>
+                    </ReplyRow>
+                  )}
+                  {folder === 'reply_needed' && !handledIds.has(mt.id) && (
                     <ReplyRow>
                       {waitingDays(mt.reply_needed_at) >= 3 && (
                         <OverdueChip>
@@ -1179,7 +1218,12 @@ const MailPage: React.FC = () => {
                   )}
                   {/* 확인 권장 — 판단이 끝난 메일을 여기서 바로 내린다. 못 내리면 이 폴더는 영영 안 줄고
                       관리 자산이 아니라 쓰레기통이 된다. 원본은 그대로(전체 탭에 남는다). */}
-                  {folder === 'uncertain' && (
+                  {folder === 'uncertain' && handledIds.has(mt.id) && (
+                    <ReplyRow>
+                      <HandledBadge>{t('actions.handledDone', { defaultValue: '처리됨' }) as string}</HandledBadge>
+                    </ReplyRow>
+                  )}
+                  {folder === 'uncertain' && !handledIds.has(mt.id) && (
                     <ReplyRow>
                       {mt.status === 'uncertain' && (
                         <UncertainInline>
@@ -1751,8 +1795,10 @@ const ThreadList = styled.div`
   &::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 3px; }
 `;
 // Q Talk ChatRow 정확값 — 둥근 행, active=#F0FDFA + inset 3px 0 0 #0D9488, hover #F8FAFC
-const ThreadItem = styled.button<{ $active: boolean; $unread: boolean }>`
+const ThreadItem = styled.button<{ $active: boolean; $unread: boolean; $handled?: boolean }>`
   display: block; width: 100%;
+  opacity: ${(p) => (p.$handled ? 0.5 : 1)};   /* 처리됨 — 자리는 지키고 조용히 물러난다 */
+  transition: opacity 0.15s ease;
   padding: 10px 10px;
   margin: 2px 0;
   border-radius: 10px;
@@ -2089,3 +2135,11 @@ const CtxBackdrop = styled.div`
 const ComposerFrom = styled.div`display: flex; align-items: center; gap: 8px;`;
 const FromLbl = styled.span`font-size: 12px; color: #64748B; flex-shrink: 0;`;
 const FromSelect = styled.div`flex: 1; min-width: 0; max-width: 320px;`;
+
+// 처리됨 — 그 자리에 남되 조용히 물러난다 (행을 지우면 아래가 위로 밀려 읽던 자리가 흔들린다)
+const HandledBadge = styled.span`
+  height: 24px; padding: 0 8px; margin-left: auto;
+  display: inline-flex; align-items: center;
+  border-radius: 999px; background: #F1F5F9; color: #94A3B8;
+  font-size: 11px; font-weight: 700; line-height: 1;
+`;

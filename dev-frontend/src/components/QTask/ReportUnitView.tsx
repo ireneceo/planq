@@ -101,7 +101,7 @@ const ReportUnitView: React.FC<Props> = ({ businessId, scope, refId, periodType 
       {/* 코멘트 */}
       <Section>
         <SecTitle>
-          💬 {scope === 'project' ? t('weeklyReview.unit.pmComment', { defaultValue: 'PM 업무보고' }) : t('weeklyReview.unit.myComment', { defaultValue: '내 코멘트' })}
+          {scope === 'project' ? t('weeklyReview.unit.pmComment', { defaultValue: 'PM 업무보고' }) : t('weeklyReview.unit.myComment', { defaultValue: '내 코멘트' })}
           {confirmed && <Lock>{t('weeklyReview.unit.locked', { defaultValue: '확정됨 — 되돌려야 수정' })}</Lock>}
           {data.can_edit && !confirmed && (
             <GenBtn type="button" onClick={doGenerate} disabled={genBusy} title={t('weeklyReview.unit.genScrTitle', { defaultValue: '보고 데이터로 상황·문제·해결(SCR) 구조 요약을 자동 작성합니다' }) as string}>

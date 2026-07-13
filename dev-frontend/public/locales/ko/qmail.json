@@ -158,7 +158,8 @@
   "actions": {
     "markSpam": "스팸",
     "notSpam": "스팸 해제",
-    "markHandled": "확인 완료"
+    "markHandled": "확인 완료",
+    "handledDone": "처리됨"
   },
   "selectWorkspace": "워크스페이스를 선택해 주세요.",
   "selectThread": "스레드를 선택해 주세요",

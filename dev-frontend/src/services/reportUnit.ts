@@ -16,6 +16,8 @@ export interface ReportSnapshot {
   subject?: { id?: number; user_id?: number; name?: string; status?: string; department?: string | null; start_date?: string | null; end_date?: string | null; owner_user_id?: number };
   strategy?: { context: string | null; key_question: string | null; goal: string | null; governing_thought: string | null; approach: string | null };
   kpi?: Record<string, number>;
+  // 진척 그래프(번업) — 그 기간의 사실로 박제된 일별 시리즈 (보고서에서 다시 그린다)
+  progress_series?: Array<{ date: string; estimated_cumulative: number; actual_cumulative: number }>;
   workstreams?: WorkstreamBrief[];
   highlights?: TaskBrief[];
   in_progress?: TaskBrief[];

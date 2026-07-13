@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { STATUS_COLOR, type StatusCode } from '../../../utils/taskLabel';
 import type { ReportSnapshot, TaskBrief } from '../../../services/reportUnit';
+import ProgressBurnupChart from '../ProgressBurnupChart';
 
 interface Props { snap: ReportSnapshot; compact?: boolean; }
 
@@ -41,6 +42,16 @@ const ReportContent: React.FC<Props> = ({ snap, compact }) => {
 
   return (
     <Wrap>
+      {/* 진척 그래프 — 보고서의 성과 그래프. 스냅샷에 박제된 일별 시리즈로 다시 그린다.
+          보고서 IA 개편 때 그래프가 통째로 빠져 있었다 — 운영 피드백 #145 회귀 신고.
+          공통 본문에 두어 개별·통합·공개 보고서 모두에 나온다. */}
+      {(snap.progress_series?.length || 0) > 0 && (
+        <ChartSec>
+          <ChartTitle>{t('report.chartTitle', { defaultValue: '진척 그래프' }) as string}</ChartTitle>
+          <ProgressBurnupChart series={snap.progress_series || []} height={compact ? 180 : 240} />
+        </ChartSec>
+      )}
+
       {/* 프로젝트: 전략 핵심메시지 + 추진과제(워크스트림) */}
       {isProject && snap.strategy?.governing_thought && (
         <Governing>“{snap.strategy.governing_thought}”{snap.strategy.goal && <GoalLine>{snap.strategy.goal}</GoalLine>}</Governing>
@@ -125,3 +136,6 @@ const DelivItem = styled.button`display:flex;align-items:center;gap:8px;width:10
 const People = styled.div`display:flex;flex-wrap:wrap;gap:8px;`;
 const Person = styled.div<{ $client?: boolean }>`display:flex;flex-direction:column;gap:1px;padding:6px 10px;background:${(p) => (p.$client ? '#FFF1F2' : '#F8FAFC')};border:1px solid ${(p) => (p.$client ? '#FECDD3' : '#E2E8F0')};border-radius:8px;`;
 const PName = styled.span`font-size:12px;font-weight:700;color:#0F172A;`;
+
+const ChartSec = styled.div`display: flex; flex-direction: column; gap: 6px;`;
+const ChartTitle = styled.div`font-size: 12px; font-weight: 700; color: #0F172A;`;
