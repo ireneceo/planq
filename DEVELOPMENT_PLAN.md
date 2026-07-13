@@ -1,6 +1,32 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-07-13 (Opus, 1M) — **📬 메일 판정 헤더 저장(재판정이 눈을 뜬다) + 광고 판정이 릴리즈 이후 한 번도 발동 안 하던 버그 + dev 메일 실발송 사고 차단 + 학습 규칙 실동작 검증 29/29. dev 검증 완료 (미배포 · 운영 ALTER 선행 필요).** 헬스 30/30 · guard-invariants 15/15 · e2e tenant·mail 0.
+> **최종 업데이트:** 2026-07-13 (Opus, 1M) — **🧠 LLM 게이트웨이 단일화 (Fable D-1) — raw fetch 13곳 → services/llm.js 단일 지점. 툴 호출 지원(#81 전제) + 운영 관측. Fable 게이트 BLOCK 1건(KB AI정리 500) 수정 후 통과.** 헬스 30/30 · guard-invariants 16/16 · e2e tenant·mail 0 · 실호출 회귀 19/19.
+
+## ✅ 완료: LLM 게이트웨이 단일화 (2026-07-13, Fable D-1)
+
+`services/llm.js` 는 이미 지어져 있었으나 **아무도 그 문을 지나가지 않았다** — 13곳이 각자 `fetch('https://api.openai.com/...')` 를 복붙하고 있었다. 그래서 429(레이트리밋)를 아무도 재시도하지 않았고(초안·번역이 조용히 실패), 모델을 바꾸려면 13곳을 고쳐야 했고, 한 달에 LLM 을 몇 번 불렀는지 아무도 몰랐다.
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 호출부 11파일 이관 | cue.js · kb.js · task_estimations · aiTaskPlanner · brief_service · cue_orchestrator · cue_task_executor · kb_service · reportNarrative · translation_service · wikiQuestionCluster → **raw fetch 0건** | ✅ |
+| 동작 무변경 (1:1 보존) | 프롬프트 문구 변경 0. temperature·max_tokens·timeout 을 옛 호출부 실측값으로 레지스트리 교정 (brief 100k·report 40k 입력 상한도 옛 값 존중 — 낮추면 요약이 조용히 짧아진다) | ✅ |
+| 책임 경계 | costGuard·plan.can·recordUsage 는 **흡수하지 않는다** — 누가 부를 자격이 있고 얼마를 쓰는지는 도메인이 안다. 게이트웨이는 "어떻게 부르는가" 만 안다 | ✅ |
+| 툴 호출 지원 | `tools`/`tool_choice` → `tool_calls` 반환. 게이트웨이는 **제안만 받고 실행하지 않는다** (#81 Cue 실행의 전제) | ✅ |
+| 운영 관측 | `/api/health.llm` — 호출수·실패율·평균지연·토큰·용도별 내역. 신규 테이블 없음 | ✅ |
+| 불변식 가드 (15→16) | `llmgateway` — raw fetch 재유입 차단 + 게이트웨이 공동화(재시도·타임아웃·입력상한·툴호출·관측 소실) 차단. 반증실험 통과 | ✅ |
+
+### Fable 검증 게이트 — BLOCK 1건 → 수정 후 통과
+- **BLOCK: KB "AI 로 정리" 가 LLM 성공 후 500 으로 죽었다** (`routes/kb.js`) — 옛 `const j = await r.json()` 은 지웠는데 응답의 `llm_usage: j.usage` 참조가 남아 ReferenceError. **LLM 비용은 나가는데 사용자는 후보를 한 건도 못 받는다.** 실호출 재검증 200(후보 1건, llm_usage 정상).
+- 권고 3건 반영: kb_tags temperature 변경 근거 명시(옛 값은 API 기본 1.0 — 키워드 추출엔 실수에 가까워 의도적으로 0.3) · voice.js 는 레지스트리 기본값 파급 차단 위해 maxTokens 명시 · 커밋 5분할(부분 revert 가능)
+- Fable 이 독립 실증한 것: 옛 fetch 값 vs 레지스트리 전 파일 1:1 대조 · Cue 답변 경로 실호출(recordUsage 증가) · 실패 경로(죽은 API base 로 실증 — throw 보존 확인) · costGuard 11번째 호출 429 · 데이터 전량 원복
+
+### 실호출 회귀 (19/19, 데이터 전량 원복)
+Q helper 답변 · 업무 시간 추정 · 메시지 번역 · AI 업무 분해 · 자료정리 — 전부 실 LLM 호출로 **응답 형식 동일** 확인. 게이트웨이 통계에 용도별로 잡히고(`kb_answer`·`task_estimate`·`task_plan`·`translation`·`brief`), `cue_usage` 원장도 계속 증가(흡수 안 됨). 툴 호출은 `get_weather` 제안 반환 확인.
+
+### 수정된 파일 (커밋 5분할)
+`services/llm.js` · `server.js`(관측) / Cue 계열 4 / KB·자료정리 3 / 업무·번역·보고서·위키 5 / `scripts/guard-invariants.js`
+
+---
 
 ## ✅ 완료: 메일 분류 규칙 학습 — 마무리 + 판정 헤더 저장 (2026-07-13, 후반 사이클)
 
