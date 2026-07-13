@@ -161,3 +161,6 @@ router.post('/capture',
 );
 
 module.exports = router;
+// 검증·재사용용 export (라우터는 default)
+module.exports.classifyIntent = classifyIntent;
+module.exports.transcribe = transcribe;

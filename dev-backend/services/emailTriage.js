@@ -45,7 +45,8 @@ function isMarketing(headers) {
 }
 
 // 뉴스레터·캠페인 발신자 — List-* 헤더가 없는 옛 메일/일부 발송기 커버
-const NEWSLETTER_SENDER = /(^|[._-])(news(letter)?s?|campaign|marketing|promo(tions?)?|digest|updates?|mailing)([._-]|@)/i;
+// '@' 뒤(도메인 시작)도 경계로 인정한다 — team@news-mail.elementor.com 같은 발송 도메인이 흔하다
+const NEWSLETTER_SENDER = /(^|[._@-])(news(letter)?s?|campaign|marketing|promo(tions?)?|digest|updates?|mailing|mailer)([._-]|@)/i;
 
 // 자동발송(트랜잭션/알림) 시그널 — Auto-Submitted + 발신자 패턴
 //   ownEmails: 이 워크스페이스가 소유한 메일 주소들 + 플랫폼 발신 주소.
@@ -181,6 +182,30 @@ function hasBusinessRelevance(subject, bodyText) {
   return BUSINESS_RELEVANT.test(head);
 }
 
+
+// ── 답변 필요 판정 — **단일 원천**. 동기화(triageInbound)와 재판정(retriageStored)이 같은 문을 쓴다.
+//   여태 두 곳에 같은 조건을 복붙해 두어, 한쪽만 고치면 조용히 어긋났다 (실제로 어긋났다).
+//
+//   답변 필요 = ① 아는 상대(고객·멤버·전에 우리가 답장한 상대) — 관계가 가장 확실한 신호
+//              ② 우리 대화에 대한 회신 (기존 일과 연결)
+//              ③ 우리 주소로 직접 온 메일 + (명확한 요청 || 질문)
+//                 사람이 물어봤으면 답해야 한다. 광고·뉴스레터는 이미 triage 에서 빠진다.
+//   그 외는 스팸·광고가 아니어도 확인 권장 — 사람이 한 번 보고 판단한다.
+function needsReply({ subject, bodyText, fromEmail, headers, ownEmails, isKnownContact }) {
+  if (isKnownContact) return true;
+  if (isThreadReply(headers)) return true;
+  if (!isAddressedToUs(headers, ownEmails)) return false;
+
+  // 뉴스레터·자동발송 주소는 답변 필요가 아니다 — 요청 문장이든 물음표든.
+  //   마케팅 메일은 "Could you drastically increase…?" 처럼 요청·질문 문구로 가득하다.
+  //   진짜 사람의 요청은 news-mail·noreply 주소로 오지 않는다.
+  //   (아는 상대·우리 대화 회신은 위에서 이미 통과했다 — 관계가 발신자 패턴보다 강하다)
+  if (isAutomated(null, fromEmail, null)) return false;
+
+  const head = `${subject || ''}\n${String(bodyText || '').slice(0, 2000)}`;
+  return hasStrongRequest(subject, bodyText) || hasQuestion(head);
+}
+
 // 메인 — { triage, reply_needed, spam_score, status, uncertain_reason }
 //   status/spam_score/uncertain_reason 은 classify 결과 그대로 통과 (호환 유지).
 function triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, isKnownContact = false }) {
@@ -216,9 +241,7 @@ function triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, isKno
     //              ② 우리 대화에 대한 회신 (기존 일과 연결)
     //              ③ 우리 주소로 직접 온 메일 + 명확한 요청 문장 (문의·견적·회신 부탁…)
     //   그 외는 스팸·광고가 아니어도 확인 권장 — 사람이 한 번 보고 판단한다.
-    const sure = isKnownContact
-      || isThreadReply(headers)
-      || (isAddressedToUs(headers, ownEmails) && hasStrongRequest(subject, bodyText));
+    const sure = needsReply({ subject, bodyText, fromEmail, headers, ownEmails, isKnownContact });
     if (sure) {
       reply_needed = true;
     } else {
@@ -265,9 +288,10 @@ function retriageStored({ triage, subject, bodyText, fromEmail, headers, ownEmai
   }
 
   // 사람이 보낸 메일 — 답변 필요는 확실한 것만, 나머지는 확인 권장
-  const sure = isKnownContact
-    || isThreadReply(headers)
-    || (isAddressedToUs(headers, ownEmails) && hasStrongRequest(subject, bodyText));
+  //   ③ 우리 주소로 직접 온 메일 + (명확한 요청 || 질문). 사람이 물어봤으면 답해야 한다 —
+  //      "…폐쇄를 진행하면 될까요?" 처럼 요청 단어 없이 질문만 있는 메일이 확인 권장에 갇혔다.
+  //      광고·뉴스레터는 이미 자동·마케팅으로 빠지므로(triage) 여기 human 경로엔 오지 않는다.
+  const sure = needsReply({ subject, bodyText, fromEmail, headers, ownEmails, isKnownContact });
   return sure
     ? { triage, status: 'open', reply_needed: true, uncertain_reason: null }
     : { triage, status: 'uncertain', reply_needed: false, uncertain_reason: 'unclear_intent' };
@@ -275,6 +299,7 @@ function retriageStored({ triage, subject, bodyText, fromEmail, headers, ownEmai
 
 module.exports = {
   retriageStored,
+  needsReply,
   hasWorkSignal,
   hasBusinessRelevance,
   isFromOurPlatform,

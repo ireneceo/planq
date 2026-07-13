@@ -232,6 +232,11 @@ const TodoList: React.FC<Props> = ({ items, loading, groupBy = 'priority', hideH
                   </CardIcon>
                   <CardBody>
                     <CardLine1>
+                      {/* 카테고리로 묶으면(전체 탭) 우선순위 그룹 제목이 없다 → 카드가 스스로 말해야 한다.
+                          여태 좌측 빨간 라인만 있어서 그 라인이 왜 있는지 알 수 없었다 (Irene). */}
+                      {groupBy === 'category' && (
+                        <PriorityChip $priority={it.priority}>{t(`todo.priority.${it.priority}`)}</PriorityChip>
+                      )}
                       <Verb>{t(`todo.verb.${it.verb}`)}</Verb>
                       <Subject>{it.subject}</Subject>
                     </CardLine1>
@@ -526,4 +531,18 @@ const InlineBtn = styled.button<{ $variant: 'primary' | 'ghost' | 'danger' }>`
     border-color: #FECACA;
     &:hover { background: #FEF2F2; }
   `}
+`;
+
+// 우선순위 칩 — 색만으로 알리지 않는다(색맹·흑백 출력). 글자로도 말한다.
+const PRIORITY_CHIP: Record<string, { bg: string; fg: string }> = {
+  urgent: { bg: '#FEF2F2', fg: '#B91C1C' },
+  today: { bg: '#FEF3C7', fg: '#92400E' },
+  waiting: { bg: '#F1F5F9', fg: '#475569' },
+  week: { bg: '#F0FDFA', fg: '#0F766E' },
+};
+const PriorityChip = styled.span<{ $priority: string }>`
+  flex-shrink: 0; padding: 1px 7px; border-radius: 999px;
+  font-size: 10px; font-weight: 700; line-height: 1.6;
+  background: ${(p) => (PRIORITY_CHIP[p.$priority] || PRIORITY_CHIP.week).bg};
+  color: ${(p) => (PRIORITY_CHIP[p.$priority] || PRIORITY_CHIP.week).fg};
 `;

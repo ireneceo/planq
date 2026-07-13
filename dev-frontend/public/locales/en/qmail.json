@@ -251,7 +251,7 @@
     "quickAddTitle": "Add a task in one line"
   },
   "accounts": {
-    "all": "All",
+    "all": "All mailboxes",
     "manage": "Manage accounts",
     "manageTitle": "Add / configure mail accounts",
     "personal": "Personal",

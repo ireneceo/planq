@@ -251,7 +251,7 @@
     "quickAddTitle": "한 줄 업무 등록"
   },
   "accounts": {
-    "all": "전체",
+    "all": "메일 전체",
     "manage": "계정 관리",
     "manageTitle": "메일 계정 추가·설정",
     "personal": "개인",
