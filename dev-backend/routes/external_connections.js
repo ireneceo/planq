@@ -11,9 +11,10 @@
 //   GET /me/external-connections — 본인 user_id 의 external_connections 만 (Phase 1 에서는 비어있음)
 //   GET /businesses/:bizId/external-connections?include_legacy=true — business_cloud_tokens + email_accounts union
 const express = require('express');
+const { Op } = require('sequelize');
 const router = express.Router();
 const {
-  ExternalConnection, BusinessCloudToken, EmailAccount, EmailThread, BusinessMember, Business,
+  ExternalConnection, BusinessCloudToken, EmailAccount, EmailThread, BusinessMember, Business, CalendarEvent,
 } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
@@ -403,11 +404,20 @@ router.get('/me/calendar/events', authenticateToken, async (req, res, next) => {
     });
     if (!conns.length) return successResponse(res, { events: [], connections: [] });
 
+    // PlanQ 가 구글에 밀어 넣은 일정 id — 오버레이에서 제외한다 (PlanQ 원본 + 구글 사본 = 이중 표시).
+    //   신규 일정은 구글쪽 표식(extendedProperties.planq)으로도 걸러지지만, 표식이 없던 옛 일정은
+    //   여기서 넘기는 id 집합으로만 걸러낼 수 있다.
+    const pushed = await CalendarEvent.findAll({
+      where: { business_id: bizId, gcal_event_id: { [Op.ne]: null } },
+      attributes: ['gcal_event_id'],
+    });
+    const excludeIds = new Set(pushed.map((e) => String(e.gcal_event_id)));
+
     const events = [];
     const connections = [];
     for (const conn of conns) {
       try {
-        const evs = await personalCalendar.listEvents(conn, { timeMin, timeMax });
+        const evs = await personalCalendar.listEvents(conn, { timeMin, timeMax, excludeIds });
         events.push(...evs);
         connections.push({ id: conn.id, account_email: conn.account_email, ok: true });
         if (conn.last_sync_error || conn.fail_count) await conn.update({ last_sync_error: null, fail_count: 0, last_sync_at: new Date() });

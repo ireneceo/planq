@@ -172,6 +172,9 @@ async function createMeetingEvent(cal, { summary, description, startAt, endAt, a
       start: { dateTime: new Date(startAt).toISOString(), timeZone: tz },
       end:   { dateTime: new Date(endAt).toISOString(),   timeZone: tz },
       ...(recurrence ? { recurrence } : {}),
+      // PlanQ 가 만든 일정이라는 표식 — 개인 Google 캘린더 오버레이가 이걸 보고 되돌아온
+      // 자기 일정을 걸러낸다 (안 그러면 PlanQ 원본 + 구글 사본이 나란히 떠 이중으로 보인다).
+      extendedProperties: { private: { planq: '1' } },
       attendees: Array.isArray(attendeeEmails)
         ? attendeeEmails.filter((e) => e && /@/.test(e)).map((email) => ({ email }))
         : undefined,
