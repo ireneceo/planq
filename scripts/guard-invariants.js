@@ -437,6 +437,46 @@ function checkCostGuard() {
 }
 
 // ═══════════════════════════════════════════════
+// 8-b. llmgateway — 모든 LLM 호출은 게이트웨이(services/llm.js) 단일 지점을 지난다
+//
+//   raw fetch 가 다시 기어들어오면: 재시도·타임아웃·입력상한·비용관측이 그 호출에만 없다.
+//   여태 13곳이 각자 fetch 를 복붙해서 429 를 아무도 재시도하지 않았고(초안·번역이 조용히 실패),
+//   모델을 바꾸려면 13곳을 고쳐야 했고, 한 달에 몇 번 불렀는지 아무도 몰랐다.
+//   툴 호출(#81 Cue 실행)·모델 라우팅·평가훅이 앉을 자리도 이 단일 지점이다.
+// ═══════════════════════════════════════════════
+const LLM_GATEWAY = 'dev-backend/services/llm.js';
+
+function checkLlmGateway() {
+  const bad = [];
+  const dirs = ['dev-backend/routes', 'dev-backend/services', 'dev-backend/scripts'];
+  for (const d of dirs) {
+    for (const f of walk(path.join(ROOT, d), ['.js'])) {
+      if (rel(f) === LLM_GATEWAY) continue;   // 게이트웨이 자신만 예외
+      const src = read(f);
+      if (/api\.openai\.com/.test(src)) {
+        bad.push(`${rel(f)}: OpenAI 직접 호출 — services/llm.js 의 callLLM/embed 를 쓸 것`);
+      }
+    }
+  }
+  // 게이트웨이가 사라지거나 핵심 기능이 빠지면 그것도 실패 (파일만 남고 속이 빈 경우 차단)
+  const gw = path.join(ROOT, LLM_GATEWAY);
+  if (!fs.existsSync(gw)) bad.push(`${LLM_GATEWAY}: 게이트웨이 파일 없음`);
+  else {
+    const src = read(gw);
+    for (const [feature, re] of [
+      ['재시도', /RETRYABLE|MAX_ATTEMPTS/],
+      ['타임아웃', /AbortSignal\.timeout/],
+      ['입력 상한', /maxInputChars/],
+      ['툴 호출', /tool_calls/],
+      ['비용 관측', /getStats/],
+    ]) {
+      if (!re.test(src)) bad.push(`${LLM_GATEWAY}: ${feature} 소실 — 게이트웨이의 존재 이유가 빠졌다`);
+    }
+  }
+  report('llmgateway', 'LLM 호출은 게이트웨이 단일 지점 (raw fetch 0)', bad.length === 0, bad);
+}
+
+// ═══════════════════════════════════════════════
 // 9. godfile — 신규 god-file 차단 래칫 (기존 초과분은 동결, 15% 이상 추가 성장도 실패)
 // ═══════════════════════════════════════════════
 function checkGodfile() {
@@ -488,6 +528,7 @@ const CATEGORIES = {
   cuefinance: checkCueFinance,
   cueauth: checkCueAuth,
   costguard: checkCostGuard,
+  llmgateway: checkLlmGateway,
   godfile: checkGodfile,
   docfresh: checkDocFresh,
 };
