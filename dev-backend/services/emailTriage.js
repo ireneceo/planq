@@ -12,10 +12,19 @@ const AUTOMATED_SENDER = /(^|[._-])(no-?reply|do-?not-?reply|donotreply|noreply|
 const SOCIAL_DOMAIN = /@([^>\s]*\.)?(linkedin|facebook|fb|twitter|instagram|tiktok|youtube|pinterest|reddit|medium|slack|notion|asana|trello|atlassian|zoom|calendly|meetup|eventbrite)\.[a-z.]+/i;
 
 // mailparser headers(Map) 안전 조회 (소문자 키)
+// 헤더 읽기 — 동기화(mailparser)는 Map 을 주고, 재판정 스크립트는 평문 객체를 준다.
+//   Map 만 받으면 평문 객체에서 조용히 null 이 나와 광고 판정이 통째로 죽는다 → 둘 다 받는다.
 function hget(headers, key) {
-  if (!headers || typeof headers.get !== 'function') return null;
+  if (!headers) return null;
   try {
-    const v = headers.get(key);
+    let v = null;
+    if (typeof headers.get === 'function') {
+      v = headers.get(key);
+    } else if (typeof headers === 'object') {
+      const lower = String(key).toLowerCase();
+      const hit = Object.keys(headers).find((k) => k.toLowerCase() === lower);
+      v = hit ? headers[hit] : null;
+    }
     if (v == null) return null;
     if (typeof v === 'string') return v;
     if (typeof v === 'object') return JSON.stringify(v); // List-Unsubscribe 등은 객체로 파싱될 수 있음
