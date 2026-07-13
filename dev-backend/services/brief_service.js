@@ -15,8 +15,8 @@ const { Op } = require('sequelize');
 const { File, Post, sequelize } = require('../models');
 const cueOrch = require('./cue_orchestrator');
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
-const MODEL = 'gpt-4o-mini';
+// LLM 호출은 게이트웨이 단일 지점을 지난다 (services/llm.js).
+const { callLLM, isEnabled } = require('./llm');
 
 // 파일 본문 텍스트 추출 — 1차 출시는 text/* 와 단순 PDF 만 지원.
 // 실패 시 빈 문자열 반환 (graceful — LLM 이 텍스트 부분만 처리).
@@ -152,29 +152,20 @@ async function buildAndCreatePost(opts) {
   const userMsg = sources.map((s, i) =>
     `[${s.source}]\n${s.text || '(빈 본문)'}\n`
   ).join('\n---\n');
-  if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY missing');
+  if (!isEnabled()) throw new Error('OPENAI_API_KEY missing');
 
-  const r = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: userMsg.slice(0, 100_000) },
-      ],
-      temperature: 0.2,
-      max_tokens: 4000,
-      response_format: { type: 'json_object' },
-    }),
-    signal: AbortSignal.timeout(45_000),
+  const res = await callLLM({
+    purpose: 'brief',
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: userMsg.slice(0, 100_000) },
+    ],
+    json: true,
+    fallback: '',
   });
-  if (!r.ok) {
-    const errText = await r.text().catch(() => '');
-    throw new Error(`LLM ${r.status}: ${errText.slice(0, 200)}`);
-  }
-  const data = await r.json();
-  const content = data.choices?.[0]?.message?.content || '{}';
+  // 실패를 삼키지 않는다 — 자료 정리 결과가 반쯤 빈 채로 저장되면 안 된다 (옛 동작: throw).
+  if (res.fallback) throw new Error('LLM 호출 실패 (게이트웨이 재시도 후에도)');
+  const content = res.content || '{}';
   let parsed;
   try {
     parsed = JSON.parse(content);
@@ -221,9 +212,9 @@ async function buildAndCreatePost(opts) {
   // 6) 사용량 기록
   try {
     await cueOrch.recordUsage(
-      business_id, 'brief', MODEL,
-      data.usage?.prompt_tokens || 0,
-      data.usage?.completion_tokens || 0,
+      business_id, 'brief', res.model,
+      res.input_tokens || 0,
+      res.output_tokens || 0,
     );
   } catch (e) { console.warn('[brief_service] recordUsage failed:', e.message); }
 

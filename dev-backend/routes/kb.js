@@ -1020,7 +1020,8 @@ router.get('/businesses/:businessId/kb/pinned/template.csv', authenticateToken, 
 //   - POST /kb/documents/batch: 검수된 후보 N 일괄 저장 (번역·임베딩 백그라운드)
 // ═══════════════════════════════════════════════════════════════
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+// LLM 호출은 게이트웨이 단일 지점을 지난다 (services/llm.js).
+const { callLLM, isEnabled } = require('../services/llm');
 
 const SYSTEM_PROMPT_INGEST = `너는 PlanQ Knowledge Base 자료 정리 도우미.
 사용자가 자유 텍스트를 던지면 KB 항목 후보를 추출해.
@@ -1064,7 +1065,7 @@ router.post('/businesses/:businessId/kb/ai-ingest', authenticateToken, checkBusi
       return res.status(422).json(planEngine.buildQuotaError(planCan, businessId));
     }
 
-    if (!OPENAI_API_KEY) {
+    if (!isEnabled()) {
       return errorResponse(res, 'openai_key_missing', 503);
     }
 
@@ -1073,24 +1074,17 @@ router.post('/businesses/:businessId/kb/ai-ingest', authenticateToken, checkBusi
       { role: 'user', content: `[입력 언어 힌트: ${source_language || 'auto'}]\n\n${cleanText}` },
     ];
 
-    const r = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages,
-        temperature: 0.1,    // 원문 보존이 핵심 — 거의 deterministic
-        max_tokens: 4000,
-        response_format: { type: 'json_object' },
-      }),
+    // kb_extract — 원문 보존이 핵심이라 temperature 0.1 (레지스트리 값). 옛 호출부엔 타임아웃이
+    //   아예 없었다 → 게이트웨이가 45s 를 건다 (OpenAI hang 시 요청이 영영 안 끝나던 구멍).
+    const { content: raw, fallback, input_tokens, output_tokens } = await callLLM({
+      purpose: 'kb_extract',
+      messages,
+      json: true,
+      fallback: '',
     });
-    if (!r.ok) {
-      const errText = await r.text().catch(() => '');
-      console.error('[kb/ai-ingest] LLM error', r.status, errText.slice(0, 200));
-      return errorResponse(res, 'llm_error', 502);
-    }
-    const j = await r.json();
-    const content = (j.choices?.[0]?.message?.content || '').trim();
+    if (fallback) return errorResponse(res, 'llm_error', 502);
+    const content = (raw || '').trim();
+    const llmUsage = { prompt_tokens: input_tokens, completion_tokens: output_tokens };
 
     // JSON 파싱 — 4 형식 모두 허용:
     //   1) [...]              — 배열
@@ -1125,7 +1119,7 @@ router.post('/businesses/:businessId/kb/ai-ingest', authenticateToken, checkBusi
     // cue_usage 차감
     try { await planEngine.consume(businessId, 'cue', 1); } catch { /* noop */ }
 
-    return successResponse(res, { candidates: normalized, llm_usage: j.usage || null });
+    return successResponse(res, { candidates: normalized, llm_usage: llmUsage });
   } catch (err) { next(err); }
 });
 

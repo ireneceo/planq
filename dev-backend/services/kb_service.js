@@ -10,37 +10,16 @@ const KbDocument = require('../models/KbDocument');
 const KbChunk = require('../models/KbChunk');
 const KbPinnedFaq = require('../models/KbPinnedFaq');
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
-const EMBED_MODEL = 'text-embedding-3-small';
+// LLM·임베딩 호출은 게이트웨이 단일 지점을 지난다 (services/llm.js).
+const { callLLM, embed: gatewayEmbed, isEnabled, EMBED_MODEL } = require('./llm');
 const EMBED_DIM = 1536;
 
-// ─── 임베딩 ───
+// ─── 임베딩 — 게이트웨이(services/llm.js) 경유 ───
 async function embedText(text) {
-  if (!OPENAI_API_KEY || !text) return null;
-  const t = String(text).slice(0, 8000).trim();
-  if (!t) return null;
-  try {
-    const r = await fetch('https://api.openai.com/v1/embeddings', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ model: EMBED_MODEL, input: t }),
-      signal: AbortSignal.timeout(30_000),  // N+48 embedding 30s
-    });
-    if (!r.ok) {
-      console.warn('[kb_service] embed failed', r.status);
-      return null;
-    }
-    const data = await r.json();
-    const vec = data?.data?.[0]?.embedding;
-    if (!Array.isArray(vec) || vec.length !== EMBED_DIM) return null;
-    return floatsToBlob(vec);
-  } catch (err) {
-    console.warn('[kb_service] embed error', err.message);
-    return null;
-  }
+  if (!isEnabled() || !text) return null;
+  const vec = await gatewayEmbed(text);   // 실패 시 null (게이트웨이가 재시도까지 하고도 실패)
+  if (!Array.isArray(vec) || vec.length !== EMBED_DIM) return null;
+  return floatsToBlob(vec);
 }
 
 // Float32Array → Buffer (BLOB 저장용, 6144 bytes)
@@ -302,30 +281,23 @@ async function extractTags(docId) {
     const usage = await cueOrch.checkUsageLimit(doc.business_id);
     overLimit = usage.over;
   } catch { /* checkUsageLimit 실패 시 통과 (best-effort) */ }
-  if (!OPENAI_API_KEY || overLimit) {
+  if (!isEnabled() || overLimit) {
     const tags = simpleKeywordExtract(`${doc.title || ''}\n${doc.body || ''}`);
     if (tags.length) await doc.update({ tags });
     return;
   }
   try {
     const text = `${doc.title || ''}\n${(doc.body || '').slice(0, 4000)}`;
-    const r = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: '당신은 한국어/영어 혼용 문서에서 핵심 키워드를 추출하는 도구입니다. JSON 만 출력하세요.' },
-          { role: 'user', content: `다음 문서에서 검색·필터에 쓸 핵심 키워드 5~8개를 추출해 JSON 배열로만 답하세요. 키워드는 명사 또는 짧은 명사구. 일반적이지 않고 문서 고유의 식별 가치가 있는 것 우선.\n\n문서:\n${text}\n\n출력 형식:\n["키워드1","키워드2",...]` },
-        ],
-        max_completion_tokens: 200,
-        response_format: { type: 'json_object' },
-      }),
-      signal: AbortSignal.timeout(45_000),  // N+48 chat 45s
+    const { content: raw, fallback, input_tokens, output_tokens, model } = await callLLM({
+      purpose: 'kb_tags',
+      messages: [
+        { role: 'system', content: '당신은 한국어/영어 혼용 문서에서 핵심 키워드를 추출하는 도구입니다. JSON 만 출력하세요.' },
+        { role: 'user', content: `다음 문서에서 검색·필터에 쓸 핵심 키워드 5~8개를 추출해 JSON 배열로만 답하세요. 키워드는 명사 또는 짧은 명사구. 일반적이지 않고 문서 고유의 식별 가치가 있는 것 우선.\n\n문서:\n${text}\n\n출력 형식:\n["키워드1","키워드2",...]` },
+      ],
+      json: true,
+      fallback: '',
     });
-    if (!r.ok) { console.warn('[kb_service] tag extraction LLM failed', r.status); return; }
-    const data = await r.json();
-    const raw = data?.choices?.[0]?.message?.content || '';
+    if (fallback) { console.warn('[kb_service] 태그 추출 실패 — 태그 없이 진행'); return; }
     let tags = [];
     try {
       const parsed = JSON.parse(raw);
@@ -344,9 +316,7 @@ async function extractTags(docId) {
     // 사용량 기록 — Cue 월 한도와 같은 카운터 (kb_embed 카테고리)
     try {
       const cueOrch = require('./cue_orchestrator');
-      const inputTokens = data.usage?.prompt_tokens || 0;
-      const outputTokens = data.usage?.completion_tokens || 0;
-      await cueOrch.recordUsage(doc.business_id, 'kb_embed', 'gpt-4o-mini', inputTokens, outputTokens);
+      await cueOrch.recordUsage(doc.business_id, 'kb_embed', model, input_tokens || 0, output_tokens || 0);
     } catch (e) { console.warn('[kb_service] recordUsage failed', e.message); }
   } catch (err) {
     console.warn('[kb_service] extractTags error', err.message);
