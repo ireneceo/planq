@@ -8,6 +8,7 @@ import MonthView from './MonthView';
 import AgendaView from './AgendaView';
 import TimeGridView from './TimeGridView';
 import EventDrawer from './EventDrawer';
+import PersonalEventDrawer from './PersonalEventDrawer';
 import { responsiveDrawerWidth } from '../../utils/responsiveDrawer';
 import NewEventModal from './NewEventModal';
 import type { CalendarEvent, CalendarViewMode, CalendarScope, CalendarItem, PersonalCalendarEvent } from './types';
@@ -77,6 +78,8 @@ const QCalendarPage: React.FC = () => {
   const [taskEvents, setTaskEvents] = useState<CalendarItem[]>([]);
   // 개인 Google 캘린더 overlay (외부 연동 Phase 2)
   const [personalEvents, setPersonalEvents] = useState<PersonalCalendarEvent[]>([]);
+  // 개인 Google 일정 상세 (읽기 전용 패널) — 재클릭 시 닫힘 (리스트 재클릭 토글 규칙)
+  const [selectedPersonalId, setSelectedPersonalId] = useState<string | null>(null);
   const [personalConnected, setPersonalConnected] = useState(false);
   const [showPersonal, setShowPersonal] = useState(true);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
@@ -309,10 +312,11 @@ const QCalendarPage: React.FC = () => {
   const goToday = useCallback(() => setAnchor(new Date()), []);
 
   const handleSelectEvent = useCallback((id: number | string, instanceDate?: string) => {
-    // 개인 Google 일정 (string id) — 읽기 전용. Google Calendar 원본을 새 탭에서 연다.
+    // 개인 Google 일정 (string id) — 읽기 전용. PlanQ 안에서 상세를 보여준다.
+    //   여태 클릭하면 곧바로 Google Calendar 새 탭으로 튕겨나갔다 ("왜 구글로 가?").
+    //   Google 에서 고칠 사람은 패널의 "Google Calendar 에서 열기" 를 누르면 된다.
     if (typeof id === 'string') {
-      const p = personalEvents.find((e) => e.id === id);
-      if (p?.html_link) window.open(p.html_link, '_blank', 'noopener');
+      setSelectedPersonalId((cur) => (cur === id ? null : id));
       return;
     }
     // #104 — task 파생 이벤트(id ≥ OFFSET) 는 TaskDetailDrawer 오버레이. 캘린더 이벤트 id 와 겹침 없음.
@@ -578,6 +582,17 @@ const QCalendarPage: React.FC = () => {
           gcalConnected={gcalConnected}
         />
       )}
+
+      {selectedPersonalId && (() => {
+        const p = personalEvents.find((e) => e.id === selectedPersonalId);
+        if (!p) return null;
+        return (
+          <PersonalEventDrawer
+            event={p}
+            onClose={() => setSelectedPersonalId(null)}
+          />
+        );
+      })()}
 
       {showNewModal && (
         <NewEventModal

@@ -30,7 +30,7 @@ import EmptyState from '../../components/Common/EmptyState';
 import { sanitizeMailHtml } from '../../utils/sanitizeHtml';
 import AiActionButton from '../../components/Common/AiActionButton';
 
-type Folder = 'reply_needed' | 'uncertain' | 'inbox' | 'all' | 'marketing' | 'following' | 'spam' | 'archived';
+type Folder = 'reply_needed' | 'uncertain' | 'all' | 'marketing' | 'following' | 'spam' | 'archived';
 
 // 메일 계정 (회사 공용 / 개인) — 폴더트리 그룹 (외부 연동 Phase 3)
 interface MailAccount {
@@ -98,8 +98,9 @@ interface MailMember { user_id: number; name: string }
 //   '내 담당' 제거 — 이름이 들어갔다는 이유로 따로 뺄 근거가 약하고, 그런 메일은 어차피 답변 필요다.
 const FOLDERS: Array<{ key: Folder; defaultLabel: string }> = [
   { key: 'reply_needed', defaultLabel: '답변 필요' },
+  // 확인 권장 = 애매한 메일 + 자동이지만 내용이 업무인 것(결제·보고서·업무 안내) + 답변이 끝난 메일.
+  // '처리 완료' 탭은 성격이 같아서 여기에 합쳤다 (Irene: "같은 의미 같은데. 확인권장만 남기자").
   { key: 'uncertain', defaultLabel: '확인 권장' },
-  { key: 'inbox', defaultLabel: '처리 완료' },   // 답변 필요와 상호 배타 — 답변했거나 "답변 완료" 로 넘긴 사람 메일
   { key: 'all', defaultLabel: '전체' },          // 스팸·보관 뺀 모든 메일 (자동·마케팅 포함)
   { key: 'marketing', defaultLabel: '자동·마케팅' },
   { key: 'following', defaultLabel: '팔로우' },

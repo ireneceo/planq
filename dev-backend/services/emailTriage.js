@@ -134,6 +134,32 @@ function isThreadReply(headers) {
   return !!(headers['in-reply-to'] || headers['In-Reply-To'] || headers.references || headers.References);
 }
 
+// ── 자동 발송이어도 사람이 확인해야 하는 내용 (Irene: "자동이라고 다 빼면 어떻게 해")
+//   결제·입금·청구·증빙, 보고서, 우리 시스템이 보내는 업무 안내, 계약·서명, 장애·보안 공지 등.
+//   발신 방식(자동)이 아니라 **내용**으로 판단한다 → 확인 권장(uncertain)으로 올린다.
+//   광고·홍보(marketing)와 스팸은 대상이 아니다 — 그건 봐도 할 일이 없다.
+const BUSINESS_RELEVANT = new RegExp([
+  // 돈
+  '결제(\\s*완료|\\s*실패|\\s*취소|되었|승인|예정)?', '입금', '출금', '송금', '환불', '청구(서|됨|액)?',
+  '세금계산서', '현금영수증', '영수증', '거래명세', '정산', '요금(제|안내|청구)?', '납부', '연체', '미납',
+  '\\bpayment\\b', '\\binvoice\\b', '\\breceipt\\b', '\\bbilling\\b', '\\brefund\\b', '\\bsubscription\\b',
+  // 문서·서명·계약
+  '서명(\\s*요청|\\s*완료)?', '전자계약', '계약(서|\\s*체결|\\s*완료)', '견적(서)?', '제안(서)?',
+  '\\bsigned?\\b', '\\bcontract\\b', '\\bagreement\\b',
+  // 업무·보고
+  '업무', '할\\s*일', '보고서', '리포트', '주간\\s*보고', '실적', '통계', '요약\\s*보고',
+  '마감', '기한', '일정\\s*변경', '회의록', '승인\\s*요청', '결재',
+  '\\breport\\b', '\\bsummary\\b', '\\bdeadline\\b', '\\bapproval\\b', '\\btask\\b',
+  // 계정·운영 (놓치면 사고)
+  '장애', '점검', '중단', '보안', '유출', '비밀번호', '만료', '갱신', '해지', '경고',
+  '\\bincident\\b', '\\bmaintenance\\b', '\\bsecurity\\b', '\\bexpir(e|ed|ing|ation)\\b', '\\bsuspend(ed)?\\b',
+].join('|'), 'i');
+
+function hasBusinessRelevance(subject, bodyText) {
+  const head = `${subject || ''}\n${String(bodyText || '').slice(0, 1500)}`;
+  return BUSINESS_RELEVANT.test(head);
+}
+
 // 메인 — { triage, reply_needed, spam_score, status, uncertain_reason }
 //   status/spam_score/uncertain_reason 은 classify 결과 그대로 통과 (호환 유지).
 function triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, isKnownContact = false }) {
@@ -153,6 +179,14 @@ function triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, isKno
   let status = c.status;
   let uncertain_reason = c.uncertain_reason;
   let reply_needed = false;
+
+  // 자동 발송(automated)이어도 내용이 업무면 확인 권장으로 올린다 — 결제 완료·보고서·시스템 업무
+  // 안내가 '자동·마케팅' 폴더에 묻혀 아무도 안 보는 일을 막는다. 답장할 상대는 없으니 답변 필요는 아니다.
+  if (triage === 'automated' && c.status === 'open' && hasBusinessRelevance(subject, bodyText)) {
+    status = 'uncertain';
+    uncertain_reason = 'automated_relevant';
+    reply_needed = false;
+  }
 
   if (triage === 'human' && c.status === 'open') {
     // Irene 정책: "확인 권장을 많이 쓰고, 답변 필요는 확실히 답해야 하는 것만."
@@ -194,6 +228,7 @@ function triageBySenderOnly({ subject, bodyText, fromEmail, ownEmails }) {
 
 module.exports = {
   hasWorkSignal,
+  hasBusinessRelevance,
   hasStrongRequest,
   isAddressedToUs,
   isThreadReply,
