@@ -20,7 +20,7 @@ const { EmailThread, EmailMessage, EmailAttachment, EmailAccount, EmailThreadPar
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { requireMenu } = require('../middleware/menu_permission');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
-const { applyMemberDisplayName } = require('../services/displayName');
+const { applyMemberDisplayName, getMemberNameMap } = require('../services/displayName');
 const { sendMail } = require('../services/emailSend');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
@@ -1203,8 +1203,10 @@ router.get('/:businessId/email-threads/:id/issues',
     try {
       const thread = await accessibleThread(req);
       if (!thread) return errorResponse(res, 'thread_not_found', 404);
-      const rows = await ProjectIssue.findAll({ where: { email_thread_id: thread.id }, order: [['id', 'DESC']] });
-      return successResponse(res, rows.map((r) => r.toJSON()));
+      // 이슈도 코멘트다 — 시간 순(오래된 것 위)으로, 누가 썼는지 같이 (메모와 동일 규칙)
+      const rows = await ProjectIssue.findAll({ where: { email_thread_id: thread.id }, order: [['id', 'ASC']] });
+      const nameMap = await authorNameMap(Number(req.params.businessId), rows.map((r) => r.author_user_id));
+      return successResponse(res, rows.map((r) => ({ ...r.toJSON(), author_name: nameMap[r.author_user_id] || null })));
     } catch (err) { next(err); }
   }
 );
@@ -1222,7 +1224,8 @@ router.post('/:businessId/email-threads/:id/issues',
         body: body.slice(0, 5000), author_user_id: req.user.id,
       });
       broadcastMail(req, businessId, 'mail:updated', { thread_id: thread.id, issue_added: true });
-      return successResponse(res, issue.toJSON(), 'created', 201);
+      const nameMap = await authorNameMap(businessId, [req.user.id]);
+      return successResponse(res, { ...issue.toJSON(), author_name: nameMap[req.user.id] || null }, 'created', 201);
     } catch (err) { next(err); }
   }
 );
@@ -1240,6 +1243,21 @@ router.delete('/:businessId/email-threads/:id/issues/:issueId',
   }
 );
 
+
+// 작성자 표시명 — 워크스페이스 표시명(BusinessMember.name) 우선, 없으면 계정명(User.name).
+//   memory: feedback_member_display_name_on_lists — 리스트에 계정명이 새어 나오면 안 된다.
+async function authorNameMap(businessId, userIds) {
+  const ids = [...new Set((userIds || []).filter(Boolean).map(Number))];
+  if (!ids.length) return {};
+  const [members, users] = await Promise.all([
+    getMemberNameMap(businessId, ids),
+    User.findAll({ where: { id: ids }, attributes: ['id', 'name'], raw: true }),
+  ]);
+  const out = {};
+  for (const u of users) out[u.id] = u.name || null;
+  for (const [uid, v] of members) if (v && v.name) out[uid] = v.name;
+  return out;
+}
 // ─── 노트 (project_notes, email_thread_id 스코프, visibility) ───
 router.get('/:businessId/email-threads/:id/notes',
   authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
@@ -1252,7 +1270,12 @@ router.get('/:businessId/email-threads/:id/notes',
         where: { email_thread_id: thread.id, [Op.or]: [{ visibility: { [Op.ne]: 'personal' } }, { author_user_id: req.user.id }] },
         order: [['id', 'ASC']],
       });
-      return successResponse(res, rows.map((r) => r.toJSON()));
+      // 메모는 댓글이다 — 누가 언제 썼는지 없으면 대화가 안 된다. 이름은 워크스페이스 표시명 우선.
+      const nameMap = await authorNameMap(Number(req.params.businessId), rows.map((r) => r.author_user_id));
+      return successResponse(res, rows.map((r) => ({
+        ...r.toJSON(),
+        author_name: nameMap[r.author_user_id] || null,
+      })));
     } catch (err) { next(err); }
   }
 );
@@ -1272,7 +1295,8 @@ router.post('/:businessId/email-threads/:id/notes',
         author_user_id: req.user.id, visibility, body: body.slice(0, 5000),
       });
       if (visibility !== 'personal') broadcastMail(req, businessId, 'mail:updated', { thread_id: thread.id, note_added: true });
-      return successResponse(res, note.toJSON(), 'created', 201);
+      const nameMap = await authorNameMap(businessId, [req.user.id]);
+      return successResponse(res, { ...note.toJSON(), author_name: nameMap[req.user.id] || null }, 'created', 201);
     } catch (err) { next(err); }
   }
 );

@@ -1333,7 +1333,7 @@ const MailPage: React.FC = () => {
             <PanelHeader>
               <PanelMetaTitle>{t('context.panelTitle', { defaultValue: '맥락' }) as string}</PanelMetaTitle>
             </PanelHeader>
-            <MailContextPanel businessId={businessId} thread={detail} members={members} onLinked={() => loadDetail(detail.id)} />
+            <MailContextPanel businessId={businessId} thread={detail} members={members} myUserId={myUserId} onLinked={() => loadDetail(detail.id)} />
           </Panel>
         )}
 

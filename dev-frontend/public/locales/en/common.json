@@ -709,5 +709,14 @@
     "placeholder": "How should it change? (empty = regenerate as-is)",
     "go": "Regenerate",
     "running": "Generating…"
+  },
+  "note": {
+    "empty": "No notes yet",
+    "onlyMe": "Only me",
+    "withTeam": "Team",
+    "someone": "Teammate",
+    "delete": "Delete",
+    "placeholder": "Write a note… (⌘/Ctrl+Enter to save)",
+    "saveHint": "Save (⌘/Ctrl+Enter)"
   }
 }
