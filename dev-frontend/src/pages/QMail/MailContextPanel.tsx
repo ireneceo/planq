@@ -11,6 +11,9 @@ import PlanQSelect from '../../components/Common/PlanQSelect';
 import TaskCandidateCard, { type RegisterOverrides } from '../../components/Common/TaskCandidateCard';
 import AiAssistButton from '../../components/Common/AiAssistButton';
 import NoteThread from '../../components/Common/NoteThread';
+import WorkbenchSection from '../../components/Workbench/WorkbenchSection';
+import ContextTaskList from '../../components/Workbench/ContextTaskList';
+import CueTaskBar from '../../components/QTask/CueTaskBar';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 
 interface ThreadLite {
@@ -22,7 +25,7 @@ interface ThreadLite {
 }
 interface Issue { id: number; body: string; author_user_id: number; author_name?: string | null; created_at?: string | null }
 interface Note { id: number; body: string; visibility: string; author_user_id: number; author_name?: string | null; created_at?: string | null }
-interface Member { user_id: number; name: string }
+interface Member { user_id: number; name: string; role?: string; is_ai?: boolean }
 interface Candidate {
   id: number;
   title: string;
@@ -68,6 +71,14 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
   const [summary, setSummary] = useState<Summary | null>(null);
   const [sumLoading, setSumLoading] = useState(false);
   const [busy, setBusy] = useState(false);
+  // 업무 리스트 갱신 신호 — 한 줄 등록·후보 승격 후 즉시 반영
+  const [tasksKey, setTasksKey] = useState(0);
+  // 담당자 후보 — Cue(AI) 제외. 이 경로엔 Cue 자동 실행 트리거가 없어서 배정하면 좀비 업무가 된다
+  //   (백엔드도 같은 이유로 플래너 풀에서 제외한다 — routes/tasks.js).
+  const taskMembers = useMemo(
+    () => members.filter((m) => !(m as { is_ai?: boolean; role?: string }).is_ai && (m as { role?: string }).role !== 'ai'),
+    [members],
+  );
   const lastClientRef = useRef<number | null>(null);
 
   const clientId = thread.client?.id ?? null;
@@ -153,7 +164,10 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: overrides.title, assignee_id: overrides.assignee_id, start_date: overrides.start_date, due_date: overrides.due_date }),
       });
-      if ((await r.json()).success) setCandidates((prev) => prev.filter(p => p.id !== id));
+      if ((await r.json()).success) {
+        setCandidates((prev) => prev.filter(p => p.id !== id));
+        setTasksKey((k) => k + 1);   // 등록된 업무가 바로 아래 리스트에 나타나야 한다
+      }
     } finally { setRowBusy(null); }
   }, [rowBusy, businessId, thread.id]);
 
@@ -227,9 +241,10 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
 
   return (
     <Wrap>
-      <Section>
-        <SecHead>
-          <SecTitle>{t('context.summaryTitle', { defaultValue: '요약' }) as string}</SecTitle>
+      {/* 요약 — 긴 스레드를 먼저 파악 (읽기 보조) */}
+      <WorkbenchSection
+        title={t('context.summaryTitle', { defaultValue: '요약' }) as string}
+        action={(
           <AiAssistButton
             onClick={summarize}
             loading={sumBusy}
@@ -243,36 +258,41 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
               : t('context.summarize', { defaultValue: '요약 생성' }) as string}
             title={t('context.summaryHint', { defaultValue: '긴 스레드를 AI가 핵심만 요약해요.' }) as string}
           />
-        </SecHead>
-        {aiSummary ? <SummaryBox>{aiSummary}</SummaryBox>
+        )}
+      >
+        {aiSummary
+          ? <SummaryBox>{aiSummary}</SummaryBox>
           : <Dim>{t('context.summaryHint', { defaultValue: '긴 스레드를 AI가 핵심만 요약해요.' }) as string}</Dim>}
-      </Section>
+      </WorkbenchSection>
 
-      {/* 연결이라는 항목명은 필요 없다 — 프로젝트·고객이 곧 항목이고, 셀렉트가 곧 연결이다. */}
-      <Section>
-        <SecTitle>{t('context.project', { defaultValue: '프로젝트' }) as string}</SecTitle>
-        <PlanQSelect size="sm" isSearchable isDisabled={busy}
-          value={projectOptions.find(o => o.value === (projectId || 0))}
-          onChange={(opt: unknown) => { const v = (opt as { value?: number } | null)?.value || 0; link({ project_id: v > 0 ? v : null }); }}
-          options={projectOptions} menuPlacement="bottom" />
-      </Section>
+      {/* 한 줄 업무 등록 — AI 추출이 못 찾아도 사람이 바로 적는다. 이름을 지목하면 요청 업무가 된다. */}
+      <WorkbenchSection title={t('context.quickAddTitle', { defaultValue: '한 줄 업무 등록' }) as string} static>
+        <CueTaskBar
+          businessId={businessId}
+          members={taskMembers}
+          projectId={projectId}
+          context={{ email_thread_id: thread.id }}
+          compact
+          onCreated={() => setTasksKey((k) => k + 1)}
+        />
+      </WorkbenchSection>
 
-      <Section>
-        <SecHead>
-          <SecTitle>{t('context.tasksTitle', { defaultValue: '업무 후보' }) as string}{candidates.length > 0 && <CountBadge>{candidates.length}</CountBadge>}</SecTitle>
-          {canExtract && (
-            /* 업무 추출도 AI 가 하는 일 → PlanQ 표준 AI 버튼(별 + Coral). Q Talk 도 같다.
-               같은 일을 하는 버튼이 화면마다 다른 색이면 AI 여부를 매번 다시 배워야 한다. */
-            <AiAssistButton
-              onClick={extract}
-              loading={extractBusy}
-              label={extractBusy
-                ? (t('context.extracting', { defaultValue: '추출 중…' }) as string)
-                : (t('context.extract', { defaultValue: '업무 추출' }) as string)}
-              title={t('context.extractHint', { defaultValue: 'AI 가 이 메일에서 할 일 후보를 뽑아냅니다' }) as string}
-            />
-          )}
-        </SecHead>
+      {/* 업무 후보 (AI 추출) */}
+      <WorkbenchSection
+        title={t('context.tasksTitle', { defaultValue: '업무 후보' }) as string}
+        count={candidates.length}
+        defaultOpen={candidates.length > 0}
+        action={canExtract ? (
+          <AiAssistButton
+            onClick={extract}
+            loading={extractBusy}
+            label={extractBusy
+              ? (t('context.extracting', { defaultValue: '추출 중…' }) as string)
+              : (t('context.extract', { defaultValue: '업무 추출' }) as string)}
+            title={t('context.extractHint', { defaultValue: 'AI 가 이 메일에서 할 일 후보를 뽑아냅니다' }) as string}
+          />
+        ) : null}
+      >
         {extractMsg && <Dim>{extractMsg}</Dim>}
         {candidates.length === 0 && !extractMsg ? (
           <Dim>{canExtract
@@ -290,7 +310,7 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
                   guessed_assignee: c.guessedAssignee ? { user_id: c.guessedAssignee.id, name: c.guessedAssignee.name } : (c.guessed_assignee_user_id ? { user_id: c.guessed_assignee_user_id, name: members.find(m => m.user_id === c.guessed_assignee_user_id)?.name || '' } : null),
                   guessed_due_date: c.guessed_due_date,
                 }}
-                members={members.map(m => ({ user_id: m.user_id, name: m.name }))}
+                members={taskMembers}
                 busy={rowBusy === c.id}
                 onRegister={register}
                 onReject={reject}
@@ -298,11 +318,21 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
             ))}
           </CandList>
         )}
-      </Section>
+      </WorkbenchSection>
 
-      <Section>
-        <SecTitle>{t('context.issuesTitle', { defaultValue: '이슈' }) as string}{issues.length > 0 && <CountBadge>{issues.length}</CountBadge>}</SecTitle>
-        {/* 이슈도 이 메일에 달리는 코멘트다 — 메모와 같은 컴포넌트. 다만 팀 공용이라 공개 범위 선택은 없다. */}
+      {/* 업무 — 프로젝트 업무 / 내 할 일 / 요청한 업무 */}
+      <ContextTaskList
+        businessId={businessId}
+        emailThreadId={thread.id}
+        reloadKey={tasksKey}
+      />
+
+      {/* 이슈 */}
+      <WorkbenchSection
+        title={t('context.issuesTitle', { defaultValue: '이슈' }) as string}
+        count={issues.length}
+        defaultOpen={issues.length > 0}
+      >
         <NoteThread
           notes={issues.map((it) => ({ ...it, visibility: 'internal' }))}
           myUserId={myUserId}
@@ -314,12 +344,14 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
           emptyText={t('context.issuesEmpty', { defaultValue: '아직 이슈가 없습니다' }) as string}
           placeholder={t('context.issuePh', { defaultValue: '이슈 작성... (⌘/Ctrl+Enter 저장)' }) as string}
         />
-      </Section>
+      </WorkbenchSection>
 
-      <Section>
-        <SecTitle>{t('context.notesTitle', { defaultValue: '메모' }) as string}{notes.length > 0 && <CountBadge>{notes.length}</CountBadge>}</SecTitle>
-        {/* 이 메일에 대한 메모 = 댓글이다 → Q Talk 프로젝트 메모와 같은 공통 컴포넌트(NoteThread).
-            여태 한 줄 입력 + [추가] 버튼이라 같은 기능이 화면마다 다른 물건처럼 보였다. */}
+      {/* 메모 */}
+      <WorkbenchSection
+        title={t('context.notesTitle', { defaultValue: '메모' }) as string}
+        count={notes.length}
+        defaultOpen={notes.length > 0}
+      >
         <NoteThread
           notes={notes}
           myUserId={myUserId}
@@ -330,10 +362,18 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
           emptyText={t('context.notesEmpty', { defaultValue: '아직 메모가 없습니다' }) as string}
           placeholder={t('context.notePh', { defaultValue: '메모 작성... (⌘/Ctrl+Enter 저장)' }) as string}
         />
-      </Section>
+      </WorkbenchSection>
 
-      <Section>
-        <SecTitle>{t('context.client', { defaultValue: '고객' }) as string}</SecTitle>
+      {/* 프로젝트 */}
+      <WorkbenchSection title={t('context.project', { defaultValue: '프로젝트' }) as string} static>
+        <PlanQSelect size="sm" isSearchable isDisabled={busy}
+          value={projectOptions.find(o => o.value === (projectId || 0))}
+          onChange={(opt: unknown) => { const v = (opt as { value?: number } | null)?.value || 0; link({ project_id: v > 0 ? v : null }); }}
+          options={projectOptions} menuPlacement="top" />
+      </WorkbenchSection>
+
+      {/* 고객 — 연결하면 그 고객의 채널 활동 + 통합 타임라인 */}
+      <WorkbenchSection title={t('context.client', { defaultValue: '고객' }) as string} static>
         <PlanQSelect size="sm" isSearchable isDisabled={busy}
           value={clientOptions.find(o => o.value === (clientId || 0))}
           onChange={(opt: unknown) => { const v = (opt as { value?: number } | null)?.value || 0; link({ client_id: v > 0 ? v : null }); }}
@@ -370,7 +410,7 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
             <Dim>{t('context.noActivity', { defaultValue: '아직 다른 채널 활동이 없어요.' }) as string}</Dim>
           )
         )}
-      </Section>
+      </WorkbenchSection>
     </Wrap>
   );
 };
@@ -378,11 +418,7 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
 export default MailContextPanel;
 
 const Wrap = styled.div`display:flex; flex-direction:column; gap:16px; padding:16px 14px; overflow-y:auto;`;
-const Section = styled.section`display:flex; flex-direction:column; gap:10px;`;
-const SecTitle = styled.div`font-size:12px; font-weight:700; color:#0F172A; letter-spacing:-0.2px;`;
 const Dim = styled.div`font-size:12px; color:#94A3B8; line-height:1.5;`;
-const SecHead = styled.div`display:flex; align-items:center; justify-content:space-between; gap:8px;`;
-const CountBadge = styled.span`margin-left:6px; font-size:11px; font-weight:700; color:#0F766E; background:#F0FDFA; border-radius:999px; padding:1px 7px;`;
 // Q Talk ChatPanel:3430 과 동일 — 같은 기능은 어느 화면에서든 같은 모양 (teal + 체크박스 아이콘)
 const CandList = styled.div`display:flex; flex-direction:column; gap:8px;`;
 const SummaryBox = styled.div`font-size:12px; color:#334155; line-height:1.6; white-space:pre-wrap; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; padding:10px 12px;`;

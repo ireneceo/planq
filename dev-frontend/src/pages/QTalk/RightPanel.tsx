@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -15,6 +15,10 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import TaskCandidateCard from '../../components/Common/TaskCandidateCard';
 import type { RegisterCandidateOverrides } from '../../services/qtalk';
 import NoteThread from '../../components/Common/NoteThread';
+import WorkbenchSection from '../../components/Workbench/WorkbenchSection';
+import ContextTaskList from '../../components/Workbench/ContextTaskList';
+import CueTaskBar from '../../components/QTask/CueTaskBar';
+import AiAssistButton from '../../components/Common/AiAssistButton';
 
 interface Props {
   project: MockProject | null;
@@ -39,6 +43,14 @@ interface Props {
   onDeleteIssue: (id: number) => void;
   onAddNote: (body: string, visibility: 'personal' | 'internal') => void;
   onToggleTask: (id: number) => void;
+  // 작업대(N+? 통합) — 한 줄 등록 · 업무 추출 · 3분류 리스트
+  businessId?: number | null;
+  members?: Array<{ user_id: number; name: string; role?: string; is_ai?: boolean }>;
+  activeConv?: MockConversation | null;
+  extracting?: boolean;
+  onOpenExtract?: () => void;
+  onToggleAutoExtract?: (conversationId: number, enabled: boolean) => void;
+  onOpenTask?: (taskId: number) => void;
 }
 
 type Section = 'issues' | 'myTasks' | 'projectTasks' | 'notes' | 'info';
@@ -49,6 +61,8 @@ const RightPanel: React.FC<Props> = ({
   showHiddenCandidates = false, onToggleHiddenCandidates,
   onRegisterCandidate, onMergeCandidate, onRejectCandidate,
   onAddIssue, onUpdateIssue, onDeleteIssue, onAddNote, onToggleTask,
+  businessId = null, members = [], activeConv = null, extracting = false,
+  onOpenExtract, onToggleAutoExtract, onOpenTask,
 }) => {
   const { t } = useTranslation('qtalk');
   // N+72-6 — status 라벨은 qtask namespace 에 정의됨. raw "not_started" 표시 회귀 fix
@@ -56,6 +70,13 @@ const RightPanel: React.FC<Props> = ({
   const { user } = useAuth();
   const { formatTimeAgo, formatDate } = useTimeFormat();
   const navigate = useNavigate();
+  // 담당자 후보 — Cue(AI) 제외 (배정해도 이 경로엔 실행 트리거가 없어 좀비 업무가 된다)
+  const taskMembers = useMemo(
+    () => members.filter((m) => !m.is_ai && m.role !== 'ai').map((m) => ({ user_id: m.user_id, name: m.name })),
+    [members],
+  );
+  // 업무 리스트 갱신 신호 — 한 줄 등록·후보 승격 후 즉시 반영
+  const [tasksKey, setTasksKey] = useState(0);
   const isClient = user?.business_role === 'client';
   const myUserId = user ? Number(user.id) : -1;
   // 업무 status 라벨 (observer 관점) — overdue 판정에 오늘 날짜 (워크스페이스 tz 정확도는 부모에서 주입 가능, 우선 로컬 ISO)
@@ -215,39 +236,82 @@ const RightPanel: React.FC<Props> = ({
       </HeaderBar>
 
       <Scroll>
-        {/* 업무 후보 (있을 때만) — N+36 옵션 D: 토글 시 hidden 도 포함 (있건 없건 토글은 보임) */}
-        {!isClient && (candidates.length > 0 || showHiddenCandidates) && (
-          <CandidatesSection data-section="candidates">
-            <CandidatesHeader>
-              <CandidatesTitle>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <polyline points="9 11 12 14 22 4" />
-                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-                </svg>
-                {t('right.candidates.title', '업무 후보')}
-                <Count>{candidates.length}</Count>
-              </CandidatesTitle>
-              {/* N+36 옵션 D — "이전 후보 보기" 토글 (30일 이전 hidden 후보 포함) */}
-              {onToggleHiddenCandidates && (
-                <HiddenToggle type="button" onClick={onToggleHiddenCandidates} aria-pressed={showHiddenCandidates}>
-                  {showHiddenCandidates
-                    ? t('right.candidates.hideOld', '최근만 보기')
-                    : t('right.candidates.showOld', '이전 후보 보기')}
-                </HiddenToggle>
-              )}
-            </CandidatesHeader>
-            {candidates.map((c) => (
+        {/* 한 줄 업무 등록 — 채팅 흐름에서 바로. AI 추출이 못 찾아도 사람이 적는다.
+            "◯◯님께 요청해줘" 로 쓰면 그 사람에게 가는 요청 업무가 된다 (담당자는 코드가 확정). */}
+        {!isClient && businessId && (
+          <WorkbenchSection title={t('right.quickAdd', '한 줄 업무 등록') as string} static>
+            <CueTaskBar
+              businessId={businessId}
+              members={taskMembers}
+              projectId={project?.id || null}
+              context={activeConversationId ? { conversation_id: activeConversationId } : null}
+              compact
+              onCreated={() => setTasksKey((k) => k + 1)}
+            />
+          </WorkbenchSection>
+        )}
+
+        {/* 업무 후보 — 추출 버튼이 여기로 왔다 (채팅 입력란 하단에 있던 것). Q Mail 과 같은 자리. */}
+        {!isClient && (
+          <WorkbenchSection
+            title={t('right.candidates.title', '업무 후보') as string}
+            count={candidates.length}
+            defaultOpen={candidates.length > 0}
+            action={onOpenExtract ? (
+              <AiAssistButton
+                onClick={onOpenExtract}
+                loading={!!extracting}
+                label={extracting
+                  ? (t('chat.input.extracting', '추출 중...') as string)
+                  : (t('chat.input.extractNow', '업무 추출') as string)}
+                title={t('chat.input.extractHint', 'AI 가 이 대화에서 할 일 후보를 뽑아냅니다') as string}
+              />
+            ) : null}
+          >
+            {activeConv && onToggleAutoExtract && (
+              <AutoRow>
+                <AutoLabel>
+                  <AutoCheckbox
+                    type="checkbox"
+                    checked={!!activeConv.auto_extract_enabled}
+                    onChange={(e) => onToggleAutoExtract(activeConv.id, e.target.checked)}
+                  />
+                  {t('chat.input.autoExtract', '자동 업무 추출')}
+                </AutoLabel>
+                {onToggleHiddenCandidates && (
+                  <HiddenToggle type="button" onClick={onToggleHiddenCandidates} aria-pressed={showHiddenCandidates}>
+                    {showHiddenCandidates
+                      ? t('right.candidates.hideOld', '최근만 보기')
+                      : t('right.candidates.showOld', '이전 후보 보기')}
+                  </HiddenToggle>
+                )}
+              </AutoRow>
+            )}
+            {candidates.length === 0 ? (
+              <EmptyRow>{t('right.candidates.empty', 'AI 가 대화에서 할 일을 찾으면 여기에 나타납니다.') as string}</EmptyRow>
+            ) : candidates.map((c) => (
               <TaskCandidateCard
                 key={c.id}
                 candidate={c}
-                members={(project?.members || []).map((m) => ({ user_id: m.user_id, name: m.name }))}
+                members={taskMembers}
                 myUserId={myUserId}
-                onRegister={onRegisterCandidate}
+                onRegister={(id, o) => { onRegisterCandidate(id, o); setTasksKey((k) => k + 1); }}
                 onMerge={onMergeCandidate}
                 onReject={onRejectCandidate}
               />
             ))}
-          </CandidatesSection>
+          </WorkbenchSection>
+        )}
+
+        {/* 업무 — 프로젝트 업무 / 내 할 일 / 요청한 업무 (Q Mail 과 같은 컴포넌트) */}
+        {!isClient && businessId && (project?.id || activeConversationId) && (
+          <ContextTaskList
+            businessId={businessId}
+            projectId={project?.id || null}
+            conversationId={project?.id ? null : activeConversationId}
+            reloadKey={tasksKey}
+            onOpenTask={onOpenTask}
+          />
         )}
 
         {/* 섹션 1: 주요 이슈 */}
@@ -673,31 +737,8 @@ const HiddenToggle = styled.button`
   &[aria-pressed="true"] { background: #F1F5F9; border-color: #94A3B8; color: #0F172A; }
 `;
 
-const CandidatesSection = styled.div`
-  margin: 10px 12px;
-  padding: 10px;
-  background: linear-gradient(135deg, #FFF1F2 0%, #FEF3C7 100%);
-  border: 1px solid #FECDD3;
-  border-radius: 10px;
-`;
 
-const CandidatesHeader = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-`;
 
-const CandidatesTitle = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #9F1239;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-`;
 
 const Count = styled.span`
   min-width: 16px;
@@ -1071,3 +1112,7 @@ const EmptyRow = styled.div`
   font-size: 12px;
   color: #94A3B8;
 `;
+
+const AutoRow = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;`;
+const AutoLabel = styled.label`display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #64748B; cursor: pointer;`;
+const AutoCheckbox = styled.input`width: 14px; height: 14px; accent-color: #14B8A6; cursor: pointer;`;

@@ -26,7 +26,8 @@
       "titlePlaceholder": "업무 제목 (예: [   ] 업로드 — 모호한 부분은 비워두세요)",
       "request": "요청",
       "metaPeriod": "기간",
-      "periodPlaceholder": "날짜 선택"
+      "periodPlaceholder": "날짜 선택",
+      "empty": "AI 가 대화에서 할 일을 찾으면 여기에 나타납니다."
     },
     "issues": {
       "title": "주요 이슈",
@@ -79,7 +80,8 @@
         "paused": "일시 중지",
         "closed": "종료"
       }
-    }
+    },
+    "quickAdd": "한 줄 업무 등록"
   },
   "channelBadge": {
     "internal": "내부",

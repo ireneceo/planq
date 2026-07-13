@@ -1112,6 +1112,26 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
   };
 
   const [extracting, setExtracting] = useState(false);
+  // 작업대 담당자 셀렉트용 워크스페이스 멤버 (Cue 는 RightPanel 에서 걸러진다)
+  const [wsMembers, setWsMembers] = useState<Array<{ user_id: number; name: string; role?: string; is_ai?: boolean }>>([]);
+  useEffect(() => {
+    if (!businessId) return;
+    let alive = true;
+    (async () => {
+      try {
+        const r = await apiFetch(`/api/businesses/${businessId}/members`);
+        const j = await r.json();
+        if (!alive || !j.success) return;
+        setWsMembers((j.data || []).map((m: { user_id: number; name?: string; user?: { name?: string }; role?: string; is_ai?: boolean }) => ({
+          user_id: m.user_id,
+          name: m.name || m.user?.name || `#${m.user_id}`,
+          role: m.role,
+          is_ai: m.is_ai,
+        })));
+      } catch { /* 작업대 담당자 셀렉트는 부가 — 실패해도 채팅은 동작 */ }
+    })();
+    return () => { alive = false; };
+  }, [businessId]);
 
   // 청크 2: 메시지 전송 (사이클 O4 — existingFileIds 추가).
   // 사이클 N+15-E — Optimistic local insertion. 사용자 클릭 즉시 메시지 표시 (네트워크 RT 0ms 인상).
@@ -1549,6 +1569,12 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
       <RightPanel
         project={activeProject}
         activeConversationId={activeConversationId}
+        businessId={businessId}
+        members={wsMembers}
+        activeConv={conversations.find((c) => c.id === activeConversationId) || null}
+        extracting={extracting}
+        onOpenExtract={handleExtract}
+        onToggleAutoExtract={handleToggleAutoExtract}
         conversations={conversations}
         tasks={tasks}
         notes={notes}

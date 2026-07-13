@@ -88,6 +88,8 @@ export const Panel = styled.div<{
   $relative?: boolean;
   $hideTablet?: boolean;
   $hideMobile?: boolean;
+  /** 태블릿·폰에서 오버레이 드로어로 띄운다 (숨기지 않는다 — 폰에서도 쓸 수 있어야 한다) */
+  $overlay?: boolean;
 }>`
   ${(p) => (p.$grow ? 'flex: 1; min-width: 0;' : `width: ${p.$width || 300}px; flex-shrink: 0;`)}
   background: #FFFFFF;
@@ -99,6 +101,18 @@ export const Panel = styled.div<{
   min-height: 0;
   ${(p) => (p.$hideTablet ? '@media (max-width: 1024px) { display: none; }' : '')}
   ${(p) => (p.$hideMobile ? '@media (max-width: 640px) { display: none; }' : '')}
+  ${(p) => (p.$overlay ? `
+    @media (max-width: 1024px) {
+      position: fixed;
+      top: 56px;            /* MainLayout 의 고정 모바일 헤더 */
+      right: 0; bottom: 0;
+      width: min(400px, 92vw);
+      z-index: 41;
+      border-left: 1px solid #E2E8F0;
+      box-shadow: -8px 0 24px rgba(15, 23, 42, 0.12);
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+  ` : '')}
 `;
 
 /**

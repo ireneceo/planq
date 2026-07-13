@@ -26,7 +26,8 @@
       "titlePlaceholder": "Task title (e.g., Upload [   ] — leave brackets to fill in later)",
       "request": "Request",
       "metaPeriod": "Period",
-      "periodPlaceholder": "Pick dates"
+      "periodPlaceholder": "Pick dates",
+      "empty": "Tasks AI finds in this conversation will appear here."
     },
     "issues": {
       "title": "Key Issues",
@@ -79,7 +80,8 @@
         "paused": "Paused",
         "closed": "Closed"
       }
-    }
+    },
+    "quickAdd": "Add a task in one line"
   },
   "channelBadge": {
     "internal": "Internal",

@@ -695,7 +695,7 @@ router.post('/ai-create', authenticateToken, ...aiCreateLimiter, async (req, res
 // ============================================
 router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
   try {
-    const { business_id, project_id, candidates, base_date } = req.body;
+    const { business_id, project_id, candidates, base_date, context } = req.body;
     if (!business_id) return errorResponse(res, 'business_id required', 400);
     if (!Array.isArray(candidates) || candidates.length === 0) {
       return errorResponse(res, 'candidates array required', 400);
@@ -704,6 +704,25 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
     const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id, removed_at: null } });
     if (!bm && req.user.platform_role !== 'platform_admin') {
       return errorResponse(res, 'forbidden — members only', 403);
+    }
+
+    // 컨텍스트 연결 — 채팅/메일 작업대에서 등록하면 그 대화·스레드에 붙는다 (안 붙으면 그 자리 리스트에 안 보인다).
+    //   클라이언트가 보낸 id 를 믿지 않는다 — 이 워크스페이스 소유인지 재검증하고, 메일이면 고객도 상속.
+    let ctxFields = {};
+    if (context && typeof context === 'object') {
+      const convId = Number(context.conversation_id) || null;
+      const thrId = Number(context.email_thread_id) || null;
+      if (convId) {
+        const { Conversation } = require('../models');
+        const conv = await Conversation.findOne({ where: { id: convId, business_id }, attributes: ['id', 'project_id'] });
+        if (!conv) return errorResponse(res, 'conversation_not_found', 404);
+        ctxFields = { conversation_id: conv.id };
+      } else if (thrId) {
+        const { EmailThread } = require('../models');
+        const th = await EmailThread.findOne({ where: { id: thrId, business_id }, attributes: ['id', 'project_id', 'client_id'] });
+        if (!th) return errorResponse(res, 'thread_not_found', 404);
+        ctxFields = { email_thread_id: th.id, ...(th.client_id ? { client_id: th.client_id } : {}) };
+      }
     }
 
     const tz = await getWorkspaceTz(business_id);
@@ -742,6 +761,7 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
       const task = await Task.create({
         business_id,
         project_id: project_id || null,
+        ...ctxFields,
         title,
         description: c.description ? String(c.description).slice(0, 2000) : null,
         assignee_id: finalAssignee,
@@ -1835,6 +1855,123 @@ router.delete('/:id/comments/:commentId', authenticateToken, async (req, res, ne
 // ============================================
 // GET /api/tasks/requested-comments — 내가 요청한 업무들의 최신 댓글
 // ============================================
+// ============================================
+// GET /api/tasks/context — 대화·메일·프로젝트 컨텍스트의 업무 3분류
+//   ?business_id= & (project_id | conversation_id | email_thread_id) & limit=8
+//
+// Q Talk 우측 패널 / Q Mail 맥락 패널이 같은 데이터를 본다 (두 화면 = 하나의 작업대).
+// "업무를 추가했으면 그 자리에서 리스트도 보여야 한다" (Irene) — 프로젝트 업무 / 내 할 일 /
+// 요청한 업무 3분류. 세 버킷은 겹칠 수 있다(내 할 일은 프로젝트 업무의 부분집합) — 관점이 다르다.
+//
+// 패널 하나 열 때 4~6번 왕복하던 것을 1회로. 각 버킷은 프리뷰(limit) + total.
+// ============================================
+router.get('/context', authenticateToken, async (req, res, next) => {
+  try {
+    const businessId = Number(req.query.business_id);
+    if (!Number.isFinite(businessId)) return errorResponse(res, 'business_id required', 400);
+
+    const scope = await getUserScope(req.user.id, businessId);
+    // 후보·요청 정보는 내부 자산 — 외부 고객에게는 이 섹션 자체를 주지 않는다
+    if (!isMemberOrAbove(scope) && req.user.platform_role !== 'platform_admin') {
+      return errorResponse(res, 'forbidden — members only', 403);
+    }
+
+    const projectId = Number(req.query.project_id) || null;
+    const conversationId = Number(req.query.conversation_id) || null;
+    const emailThreadId = Number(req.query.email_thread_id) || null;
+    const limit = Math.min(Math.max(Number(req.query.limit) || 8, 1), 20);
+
+    // 스코프 where — 우선순위 project > conversation > email_thread
+    let scopeWhere = null;
+    let scopeKind = null;
+    if (projectId) {
+      const p = await Project.findOne({ where: { id: projectId, business_id: businessId }, attributes: ['id'] });
+      if (!p) return errorResponse(res, 'project_not_found', 404);
+      scopeWhere = { project_id: projectId };
+      scopeKind = 'project';
+    } else if (conversationId) {
+      const { Conversation } = require('../models');
+      const conv = await Conversation.findOne({ where: { id: conversationId, business_id: businessId }, attributes: ['id', 'project_id'] });
+      if (!conv) return errorResponse(res, 'conversation_not_found', 404);
+      // 대화가 프로젝트에 속하면 그 프로젝트 업무까지 (채팅 = 프로젝트의 창구)
+      scopeWhere = conv.project_id
+        ? { [Op.or]: [{ conversation_id: conversationId }, { project_id: conv.project_id }] }
+        : { conversation_id: conversationId };
+      scopeKind = 'conversation';
+    } else if (emailThreadId) {
+      const { EmailThread } = require('../models');
+      const th = await EmailThread.findOne({ where: { id: emailThreadId, business_id: businessId }, attributes: ['id', 'project_id', 'client_id'] });
+      if (!th) return errorResponse(res, 'thread_not_found', 404);
+      // 메일이 프로젝트/고객에 연결돼 있으면 그 맥락의 업무까지 함께 (맥락 패널의 존재 이유)
+      const ors = [{ email_thread_id: emailThreadId }];
+      if (th.project_id) ors.push({ project_id: th.project_id });
+      if (th.client_id) ors.push({ client_id: th.client_id });
+      scopeWhere = ors.length > 1 ? { [Op.or]: ors } : ors[0];
+      scopeKind = 'email_thread';
+    } else {
+      return errorResponse(res, 'scope required (project_id | conversation_id | email_thread_id)', 400);
+    }
+
+    const baseWhere = {
+      business_id: businessId,
+      ...scopeWhere,
+      // 끝난 업무는 최근 7일만 (작업대는 지금 할 일을 보는 곳)
+      [Op.and]: [{
+        [Op.or]: [
+          { status: { [Op.notIn]: ['completed', 'canceled'] } },
+          { updated_at: { [Op.gte]: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
+        ],
+      }],
+    };
+
+    const include = [
+      { model: Project, attributes: ['id', 'name'], required: false },
+      { model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false },
+    ];
+    const order = [['due_date', 'ASC'], ['id', 'DESC']];
+
+    const myWhere = { ...baseWhere, assignee_id: req.user.id };
+    const reqWhere = {
+      ...baseWhere,
+      [Op.and]: [
+        ...baseWhere[Op.and],
+        { [Op.or]: [{ request_by_user_id: req.user.id }, { created_by: req.user.id }] },
+        { assignee_id: { [Op.and]: [{ [Op.ne]: null }, { [Op.ne]: req.user.id }] } },
+      ],
+    };
+
+    const [all, mine, requested] = await Promise.all([
+      Task.findAndCountAll({ where: baseWhere, include, order, limit, distinct: true }),
+      Task.findAndCountAll({ where: myWhere, include, order, limit, distinct: true }),
+      Task.findAndCountAll({ where: reqWhere, include, order, limit, distinct: true }),
+    ]);
+
+    const serialize = (rows) => rows.map((t) => ({
+      id: t.id,
+      title: t.title,
+      status: t.status,
+      due_date: t.due_date,
+      project_id: t.project_id,
+      project_name: t.Project?.name || null,
+      assignee_id: t.assignee_id,
+      assignee: t.assignee ? { id: t.assignee.id, name: t.assignee.name } : null,
+      progress_percent: t.progress_percent,
+    }));
+
+    const data = {
+      scope: scopeKind,
+      project_tasks: { items: serialize(all.rows), total: all.count },
+      my_tasks: { items: serialize(mine.rows), total: mine.count },
+      requested: { items: serialize(requested.rows), total: requested.count },
+    };
+    // 리스트에 계정명이 새어 나오지 않게 — 워크스페이스 표시명 우선
+    for (const key of ['project_tasks', 'my_tasks', 'requested']) {
+      await applyMemberDisplayName(data[key].items, businessId, ['assignee']);
+    }
+    return successResponse(res, data);
+  } catch (err) { next(err); }
+});
+
 // ============================================
 // GET /api/tasks/requested — 내가 요청한 업무 (created_by=me AND assignee != me)
 // ============================================
