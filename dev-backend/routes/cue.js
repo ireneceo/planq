@@ -7,7 +7,8 @@ const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+// LLM 호출은 게이트웨이 단일 지점을 지난다 (services/llm.js).
+const { callLLM, isEnabled } = require('../services/llm');
 
 // 사이클 P7 — Q helper / Cue 모드 분리 (데이터 격리).
 //   mode='qhelper' : PlanQ 매뉴얼 전담. 워크스페이스 컨텍스트 X.
@@ -164,7 +165,7 @@ router.post('/help-public', async (req, res, next) => {
       return successResponse(res, { answer: cached.answer, cached: true, log_id: logId });
     }
 
-    if (!OPENAI_API_KEY) {
+    if (!isEnabled()) {
       return successResponse(res, {
         answer: 'PlanQ 안내 챗봇 점검 중입니다. 문의 남기기 탭으로 알려주시면 바로 답변드립니다.',
         fallback: true,
@@ -179,30 +180,18 @@ router.post('/help-public', async (req, res, next) => {
       });
     }
 
-    const r = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT_GUEST },
-          { role: 'user', content: q },
-        ],
-        temperature: 0.3,
-        max_tokens: 400,
-      }),
-      signal: AbortSignal.timeout(45_000),
+    const { content, fallback } = await callLLM({
+      purpose: 'kb_answer',
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT_GUEST },
+        { role: 'user', content: q },
+      ],
+      maxTokens: 400,
+      temperature: 0.3,
+      fallback: '',
     });
-    if (!r.ok) {
-      const t = await r.text().catch(() => '');
-      console.error('[cue/help-public] LLM error', r.status, t.slice(0, 200));
-      return errorResponse(res, 'llm_error', 502);
-    }
-    const j = await r.json();
-    const answer = (j.choices?.[0]?.message?.content || '').trim();
+    if (fallback) return errorResponse(res, 'llm_error', 502);
+    const answer = (content || '').trim();
     if (answer) {
       guestCache.set(hash, { answer, expiresAt: Date.now() + GUEST_CACHE_TTL_MS });
     }
@@ -219,7 +208,7 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
     }
     const q = question.trim().slice(0, 1000);
 
-    if (!OPENAI_API_KEY) {
+    if (!isEnabled()) {
       return successResponse(res, {
         answer: 'AI 도움말을 위해 OpenAI 키가 필요합니다. 운영자에게 문의해주세요.',
         fallback: true,
@@ -322,27 +311,15 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
       { role: 'user', content: q },
     ];
 
-    const r = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages,
-        temperature: 0.3,
-        max_tokens: 600,
-      }),
-      signal: AbortSignal.timeout(45_000),
+    const { content, fallback } = await callLLM({
+      purpose: 'kb_answer',
+      messages,
+      maxTokens: 600,
+      temperature: 0.3,
+      fallback: '',
     });
-    if (!r.ok) {
-      const t = await r.text().catch(() => '');
-      console.error('[cue/help] LLM error', r.status, t.slice(0, 200));
-      return errorResponse(res, 'llm_error', 502);
-    }
-    const j = await r.json();
-    const answer = (j.choices?.[0]?.message?.content || '').trim();
+    if (fallback) return errorResponse(res, 'llm_error', 502);
+    const answer = (content || '').trim();
     // KNOWLEDGE_LOOP 축2 — qhelper 질문 로그 (workspace 모드는 위키 개선 대상 아님)
     let logId = null;
     if (finalMode === 'qhelper') {
