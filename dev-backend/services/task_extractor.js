@@ -16,47 +16,22 @@ const Project = require('../models/Project');
 const { recordUsage, checkUsageLimit, PRICING } = require('./cue_orchestrator');
 const { getMemberNameMap } = require('./displayName');
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
-const MODEL = 'gpt-4o-mini';
+const { callLLM } = require('./llm');
+
+const MODEL = 'gpt-4o-mini';   // 사용량 기록(recordUsage)용 라벨 — 실제 모델 선택은 게이트웨이(PURPOSES)
 const MAX_MESSAGES = 50;
 
-// ─── LLM 호출 (JSON 모드) ───
+// ─── LLM 호출 (JSON 모드) ─── 게이트웨이 경유 (services/llm.js: 재시도·타임아웃·상한·통계)
 async function callLLMJson(messages, opts = {}) {
-  if (!OPENAI_API_KEY) {
-    return { content: '[]', input_tokens: 0, output_tokens: 0, fallback: true };
-  }
-  try {
-    const r = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages,
-        temperature: opts.temperature ?? 0.1,
-        max_tokens: opts.maxTokens || 1500,
-        response_format: { type: 'json_object' }
-      }),
-      signal: AbortSignal.timeout(45_000),
-    });
-    if (!r.ok) {
-      const err = await r.text();
-      console.warn('[task_extractor] LLM error', r.status, err.slice(0, 200));
-      return { content: '{"tasks":[]}', input_tokens: 0, output_tokens: 0, fallback: true };
-    }
-    const data = await r.json();
-    return {
-      content: data.choices?.[0]?.message?.content || '{"tasks":[]}',
-      input_tokens: data.usage?.prompt_tokens || 0,
-      output_tokens: data.usage?.completion_tokens || 0,
-      fallback: false
-    };
-  } catch (err) {
-    console.warn('[task_extractor] LLM exception', err.message);
-    return { content: '{"tasks":[]}', input_tokens: 0, output_tokens: 0, fallback: true };
-  }
+  const r = await callLLM({
+    purpose: 'task_extract',
+    messages,
+    json: true,
+    temperature: opts.temperature,
+    maxTokens: opts.maxTokens,
+    fallback: '{"tasks":[]}',
+  });
+  return { content: r.content, input_tokens: r.input_tokens, output_tokens: r.output_tokens, fallback: r.fallback };
 }
 
 // ─── 프롬프트 (30년차 시각, 정밀화) ───
