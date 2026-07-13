@@ -321,6 +321,20 @@ app.get('/api/health', async (req, res) => {
     smtp_configured: !!process.env.SMTP_HOST,
     vapid_configured: !!process.env.VAPID_PUBLIC_KEY,
   };
+  // LLM 게이트웨이 관측 — 여태 "한 달에 LLM 을 몇 번 불렀고 몇 번 실패했는지" 아무도 몰랐다.
+  //   프로세스 재시작 시 0 으로 리셋되는 in-memory 카운터 (신규 테이블 없음 — Fable D-1).
+  try {
+    const { getStats } = require('./services/llm');
+    const s = getStats();
+    out.llm = {
+      enabled: s.enabled,
+      calls: s.calls, ok: s.ok, failed: s.failed, fallback: s.fallback, retries: s.retries,
+      fail_rate: s.fail_rate, avg_ms: s.avg_ms,
+      input_tokens: s.input_tokens, output_tokens: s.output_tokens,
+      by_purpose: s.by_purpose,
+      last_error: s.last_error,
+    };
+  } catch { /* best-effort */ }
   res.json(out);
 });
 

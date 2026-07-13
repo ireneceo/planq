@@ -18,20 +18,30 @@ const API_BASE = process.env.OPENAI_API_BASE || 'https://api.openai.com/v1';
 
 // 용도별 모델·기본값 레지스트리. 모델 교체는 여기 한 줄 (또는 env LLM_MODEL_<PURPOSE>).
 //   maxInputChars — 프롬프트 총량 상한. 넘으면 잘라서 보낸다(요금은 입력 토큰에도 붙는다).
+//   ※ 아래 값은 **옛 호출부의 실제 값과 1:1** 이다 (게이트웨이 이관은 동작 무변경 리팩터 — Fable D-1).
+//     레지스트리가 실제와 다르면 그건 문서가 아니라 거짓말이다. 값을 바꾸려면 여기서 의도적으로 바꾼다.
 const PURPOSES = {
   cue_reply:      { model: 'gpt-4o-mini', temperature: 0.3, maxTokens: 400,  timeoutMs: 45_000, maxInputChars: 24_000 },
-  cue_task:       { model: 'gpt-4o-mini', temperature: 0.2, maxTokens: 1200, timeoutMs: 60_000, maxInputChars: 32_000 },
+  cue_task:       { model: 'gpt-4o-mini', temperature: 0.3, maxTokens: 1200, timeoutMs: 45_000, maxInputChars: 32_000 },
   task_extract:   { model: 'gpt-4o-mini', temperature: 0.1, maxTokens: 1500, timeoutMs: 45_000, maxInputChars: 32_000 },
-  task_plan:      { model: 'gpt-4o-mini', temperature: 0.2, maxTokens: 1200, timeoutMs: 45_000, maxInputChars: 16_000 },
-  task_estimate:  { model: 'gpt-4o-mini', temperature: 0.1, maxTokens: 300,  timeoutMs: 30_000, maxInputChars: 12_000 },
+  task_plan:      { model: 'gpt-4o-mini', temperature: 0.2, maxTokens: 2000, timeoutMs: 45_000, maxInputChars: 16_000 },
+  task_estimate:  { model: 'gpt-4o-mini', temperature: 0.2, maxTokens: 100,  timeoutMs: 20_000, maxInputChars: 12_000 },
   mail_reply:     { model: 'gpt-4o-mini', temperature: 0.3, maxTokens: 800,  timeoutMs: 45_000, maxInputChars: 24_000 },
   mail_summary:   { model: 'gpt-4o-mini', temperature: 0.2, maxTokens: 500,  timeoutMs: 45_000, maxInputChars: 24_000 },
-  translation:    { model: 'gpt-4o-mini', temperature: 0.1, maxTokens: 2000, timeoutMs: 45_000, maxInputChars: 16_000 },
+  translation:    { model: 'gpt-4o-mini', temperature: 0.1, maxTokens: 2000, timeoutMs: 20_000, maxInputChars: 16_000 },
+  kb_extract:     { model: 'gpt-4o-mini', temperature: 0.1, maxTokens: 4000, timeoutMs: 45_000, maxInputChars: 32_000 },
+  // kb_tags — 옛 호출부는 temperature 를 아예 안 줬다(= API 기본 1.0). 키워드 추출에 1.0 은 실수에 가깝다
+  //   (같은 문서에서 매번 다른 태그가 나온다). **의도적으로** 0.3 으로 낮춘다 — 이 한 줄만 1:1 이 아니다.
+  kb_tags:        { model: 'gpt-4o-mini', temperature: 0.3, maxTokens: 200,  timeoutMs: 45_000, maxInputChars: 8_000 },
   kb_answer:      { model: 'gpt-4o-mini', temperature: 0.2, maxTokens: 800,  timeoutMs: 45_000, maxInputChars: 32_000 },
   docs_generate:  { model: 'gpt-4o-mini', temperature: 0.4, maxTokens: 3000, timeoutMs: 90_000, maxInputChars: 24_000 },
-  brief:          { model: 'gpt-4o-mini', temperature: 0.3, maxTokens: 2000, timeoutMs: 90_000, maxInputChars: 32_000 },
-  report:         { model: 'gpt-4o-mini', temperature: 0.3, maxTokens: 1200, timeoutMs: 60_000, maxInputChars: 24_000 },
-  wiki_cluster:   { model: 'gpt-4o-mini', temperature: 0.2, maxTokens: 1000, timeoutMs: 45_000, maxInputChars: 24_000 },
+  // brief — 옛 호출부가 자료를 100,000자까지 보냈다(자료 여러 건을 합쳐 요약하는 기능). 상한을 그 아래로
+  //   내리면 요약이 조용히 일부 자료를 빠뜨린다. 옛 값을 존중하되 천장은 둔다.
+  brief:          { model: 'gpt-4o-mini', temperature: 0.2, maxTokens: 4000, timeoutMs: 45_000, maxInputChars: 110_000 },
+  // report — 옛 호출부가 데이터를 40,000자로 잘라 보냈다. 게이트웨이 상한을 그보다 낮추면 리포트가
+  //   조용히 짧아진다(동작 변경). 옛 값을 그대로 존중한다.
+  report:         { model: 'gpt-4o-mini', temperature: 0.3, maxTokens: 1200, timeoutMs: 45_000, maxInputChars: 44_000 },
+  wiki_cluster:   { model: 'gpt-4o-mini', temperature: 0.3, maxTokens: 1500, timeoutMs: 45_000, maxInputChars: 24_000 },
   template:       { model: 'gpt-4o-mini', temperature: 0.2, maxTokens: 1500, timeoutMs: 45_000, maxInputChars: 16_000 },
   generic:        { model: 'gpt-4o-mini', temperature: 0.3, maxTokens: 800,  timeoutMs: 45_000, maxInputChars: 16_000 },
 };
@@ -96,17 +106,22 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * @param {string} p.purpose   PURPOSES 키 (모델·상한·타임아웃 결정). 없으면 'generic'
  * @param {Array}  p.messages  [{ role, content }]
  * @param {boolean} [p.json]   JSON 모드 (response_format: json_object)
+ * @param {Array} [p.tools]    OpenAI function-calling 툴 목록. 주면 tool_calls 를 그대로 돌려준다.
+ *                             ※ 게이트웨이는 **툴을 실행하지 않는다** — 무엇을 부를지 제안만 받는다.
+ *                             실행은 행동 계층(services/taskTransition.js 계열)이 권한 검사를 거쳐서 한다.
+ *                             "데이터가 바뀌는 것은 사람이 누른 뒤에만" (docs/AI_NATIVE_IMPLEMENTATION_PLAN.md D-2.5).
+ * @param {string|object} [p.toolChoice]  'auto' | 'none' | { type:'function', function:{name} }
  * @param {*} [p.fallback]     실패 시 content 로 돌려줄 값 (LLM 은 없으면 못 쓰는 게 아니라 덜 똑똑해질 뿐)
- * @returns {{content, input_tokens, output_tokens, fallback, model, ms, attempts, truncated}}
+ * @returns {{content, tool_calls, input_tokens, output_tokens, fallback, model, ms, attempts, truncated}}
  */
-async function callLLM({ purpose = 'generic', messages, json = false, fallback = '', ...opts }) {
+async function callLLM({ purpose = 'generic', messages, json = false, tools = null, toolChoice = undefined, fallback = '', ...opts }) {
   const cfg = resolve(purpose, opts);
   const started = Date.now();
   stats.calls++; bump(purpose, 'calls');
 
   if (!isEnabled()) {
     stats.fallback++; bump(purpose, 'failed');
-    return { content: fallback, input_tokens: 0, output_tokens: 0, fallback: true, model: cfg.model, ms: 0, attempts: 0, truncated: false };
+    return { content: fallback, tool_calls: [], input_tokens: 0, output_tokens: 0, fallback: true, model: cfg.model, ms: 0, attempts: 0, truncated: false };
   }
 
   const capped = capMessages(messages || [], cfg.maxInputChars);
@@ -125,6 +140,7 @@ async function callLLM({ purpose = 'generic', messages, json = false, fallback =
           temperature: cfg.temperature,
           max_tokens: cfg.maxTokens,
           ...(json ? { response_format: { type: 'json_object' } } : {}),
+          ...(tools && tools.length ? { tools, ...(toolChoice ? { tool_choice: toolChoice } : {}) } : {}),
         }),
         signal: AbortSignal.timeout(cfg.timeoutMs),
       });
@@ -152,6 +168,8 @@ async function callLLM({ purpose = 'generic', messages, json = false, fallback =
       bump(purpose, 'ok'); bump(purpose, 'ms', ms);
       return {
         content: data.choices?.[0]?.message?.content || '',
+        // 툴 제안 (실행 아님). tools 를 안 준 호출은 항상 빈 배열이라 기존 호출부에 영향 0.
+        tool_calls: data.choices?.[0]?.message?.tool_calls || [],
         input_tokens: inTok,
         output_tokens: outTok,
         fallback: false,
@@ -177,7 +195,7 @@ async function callLLM({ purpose = 'generic', messages, json = false, fallback =
   bump(purpose, 'failed'); bump(purpose, 'ms', ms);
   stats.last_error = { at: new Date().toISOString(), purpose, status: lastStatus, message: lastMessage.slice(0, 200) };
   console.warn(`[llm] ${purpose} 실패 (${lastStatus || 'exception'}): ${lastMessage.slice(0, 200)}`);
-  return { content: fallback, input_tokens: 0, output_tokens: 0, fallback: true, model: cfg.model, ms, attempts: MAX_ATTEMPTS, truncated: capped.truncated };
+  return { content: fallback, tool_calls: [], input_tokens: 0, output_tokens: 0, fallback: true, model: cfg.model, ms, attempts: MAX_ATTEMPTS, truncated: capped.truncated };
 }
 
 /** 임베딩 — 실패 시 null (호출부가 키워드 검색으로 폴백한다) */
@@ -224,15 +242,22 @@ async function embed(text, { model = EMBED_MODEL } = {}) {
   return null;
 }
 
-/** 운영 관측 — /api/health 와 admin 에서 읽는다 */
+/** 운영 관측 — /api/health 와 admin 에서 읽는다.
+ *  ※ 스냅샷이다 — 중첩 객체(by_purpose)까지 복사한다. 얕은 복사로 돌려주면 호출부가 "이전 값" 으로
+ *    들고 있던 스냅샷이 원본과 함께 변해서, 전후 비교가 **항상 같다고 나온다** (검증이 눈을 감는다). */
 function getStats() {
   const avg = stats.ok > 0 ? Math.round(stats.total_ms / stats.ok) : 0;
   return {
     enabled: isEnabled(),
     ...stats,
+    by_purpose: JSON.parse(JSON.stringify(stats.by_purpose)),
+    last_error: stats.last_error ? { ...stats.last_error } : null,
     avg_ms: avg,
     fail_rate: stats.calls > 0 ? Number((stats.failed / stats.calls).toFixed(3)) : 0,
   };
 }
 
-module.exports = { callLLM, embed, getStats, isEnabled, PURPOSES, EMBED_MODEL };
+/** 이 용도가 실제로 쓰는 모델 이름 (env override 반영) — 응답에 모델을 표기하는 호출부용 */
+function modelFor(purpose) { return resolve(purpose).model; }
+
+module.exports = { callLLM, embed, getStats, isEnabled, modelFor, PURPOSES, EMBED_MODEL };
