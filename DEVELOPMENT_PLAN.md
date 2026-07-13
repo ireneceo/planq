@@ -1,6 +1,31 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-07-13 (Opus, 1M) — **🏛️ 행동 계층 추출 (Fable D-3 1사이클) — 업무 전이는 사람도 Cue 도 같은 문을 지난다. 라우트 718→246줄. 전/후 동작 완전 일치 실증. Fable 게이트 CONDITIONAL(BLOCK 0).** 헬스 30/30 · guard-invariants 17/17 · e2e tenant·mail 0.
+> **최종 업데이트:** 2026-07-13 (Opus, 1M) — **🏛️ 행동 계층 2A(생성 계열) 갭 게이트 40 PASS / 0 FAIL. 권한 거부가 500 으로 새던 결함 1건 fix.** 헬스 30/30 · guard-invariants 18/18 · e2e tenant 0.
+
+## ✅ 완료: 행동 계층 2A(생성 계열) Fable 갭 게이트 — 거짓 FAIL 3건의 정체 (2026-07-13)
+
+전/후 스냅샷이 **안 본 것들**(G1~G14)을 실HTTP 로 때리는 갭 게이트를 붙였더니 FAIL 4건이 떴다. 하나씩 진짜 회귀인지 테스트 결함인지 갈랐다 — **코드 회귀 3건은 고쳤고, 나머지는 게이트 자신이 틀렸다.**
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| **G1·G2 컨텍스트 유실 (진짜 회귀)** | 라우트가 행동 계층에 `conversation_id`·`email_thread_id` 를 **snake_case 로** 넘겨 조용히 버려졌다 — 업무가 대화·메일에서 끊긴다. params 는 camelCase 가 계약 | ✅ |
+| **G3 미배정 강제 배정 (진짜 회귀)** | 담당자 미지정 후보 등록 시 등록자가 강제로 담당자가 됐다. `allowUnassigned` 로 옛 동작(미배정 = null) 복원 — 후보 등록 경로만 허용 | ✅ |
+| **G14 권한 거부가 500 (진짜 회귀)** | 행동 계층은 `menu_forbidden:qtask` 를 **http 403** 으로 거부하는데 `registerCandidate` 가 그 status 를 버려 라우트가 **500 서버 오류**로 흘렸다. 거부인지 장애인지 화면이 구분 못 함. `err.http` 를 계약으로 올려 caller 3곳이 그대로 응답 | ✅ |
+| **G6·G7 (게이트 결함 — 오탐)** | `logSince()` 가 **바이트 오프셋**(`statSync().size`)으로 **문자열**을 slice. 로그가 한글투성이라 바이트 > 문자 → 새로 쓰인 줄을 통째로 건너뛰어 **Cue 완료 로그가 구조적으로 안 보였다.** 버퍼에서 자르도록 fix. 타임아웃도 45s → 240s (실제 Cue 실행 ~2분) | ✅ |
+| **G11 (게이트 결함 — 레이스)** | fire-and-forget 알림을 `sleep` 없이 즉시 카운트 → 언제나 0건. 프로브 실측 +500ms 에 정확히 1건 도착 | ✅ |
+
+**교훈 (박제):** 부수효과가 커밋 뒤 fire-and-forget 이면 테스트는 **반드시 기다려야** 한다. 그리고 **로그 tail 로 판정하는 테스트는 바이트/문자 오프셋을 틀리면 "기능이 죽은 것처럼" 보인다** — 실패를 코드에서 찾기 전에 판정 기계부터 의심할 것.
+
+### 수정된 파일
+- `dev-backend/services/task_extractor.js` (err.http 계약 + allowUnassigned)
+- `dev-backend/services/actions/task_actions.js` (allowUnassigned · 미배정은 요청 아님)
+- `dev-backend/routes/tasks.js` (confirm 컨텍스트 camelCase)
+- `dev-backend/routes/projects.js` · `qnote_bridge.js` · `email_threads.js` (거부 상태 그대로 응답)
+- `dev-backend/test-fable-2a-gaps.js` (게이트 결함 2건 fix)
+
+**검증:** `test-fable-2a-gaps.js` **40 PASS / 0 FAIL** (실HTTP · 전량 원복) · 헬스 30/30 · 불변식 18/18 · e2e tenant 0
+
+---
 
 ## ✅ 완료: 행동 계층(Action Layer) 추출 — Fable D-3 1사이클 (2026-07-13)
 
