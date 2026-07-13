@@ -324,6 +324,8 @@ async function syncOne(account, opts = {}) {
           message_id: messageId,
           in_reply_to: parsed.inReplyTo || null,
           references_chain: Array.isArray(parsed.references) ? parsed.references.join(' ') : (parsed.references || null),
+          // 판정용 헤더를 여기서 남긴다 — 이걸 안 남기면 재판정 때 광고·자동발송 판정이 눈을 감는다.
+          triage_headers: require('./emailTriage').pickTriageHeaders(parsed.headers),
           imap_uid: uid,
           from_email: fromEmail,
           from_name: fromName,

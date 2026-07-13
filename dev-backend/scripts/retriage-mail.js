@@ -11,7 +11,7 @@ require('dotenv').config();
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
 const { EmailThread, EmailMessage, EmailAccount, EmailThreadParticipant } = require('../models');
-const { retriageStored } = require('../services/emailTriage');
+const { retriageStored, headersFromMessage } = require('../services/emailTriage');
 const { applyRules } = require('../services/mailSenderRules');
 const { isKnownContact } = require('../services/emailImapCron');
 
@@ -57,7 +57,7 @@ const APPLY = process.argv.includes('--apply');
   }
   console.log(`백필인데 답변 필요로 켜져 있던 스레드: ${backfillStuck}건${APPLY ? ' → 해제' : ''}`);
 
-  let changed = 0, kept = 0, skipped = 0;
+  let changed = 0, kept = 0, skipped = 0, withHeaders = 0;
   const samples = [];
   for (const th of threads) {
     if (assigned.has(th.id)) { skipped++; continue; }
@@ -69,30 +69,21 @@ const APPLY = process.argv.includes('--apply');
     });
     if (!msg) { skipped++; continue; }
     const fromEmail = msg.from_email || '';
-    // 헤더 원문은 저장하지 않지만, 판정에 필요한 두 신호는 컬럼으로 남아 있다:
-    //   in_reply_to/references_chain (우리 대화에 대한 회신) · to_emails (우리 주소로 직접 왔는가)
-    // to_emails 는 [{name, email}] 객체 배열이다. 그대로 join 하면 "[object Object]" 가 되어
-    //   "우리 주소로 왔는가" 판정이 **항상 실패**한다 (질문 메일이 답변 필요로 못 올라간 진짜 원인).
-    const toList = Array.isArray(msg.to_emails)
-      ? msg.to_emails.map((x) => (typeof x === 'string' ? x : (x && x.email) || '')).filter(Boolean)
-      : [];
-    const headers = {
-      to: toList.join(', '),
-      ...(msg.in_reply_to ? { 'in-reply-to': msg.in_reply_to } : {}),
-      ...(msg.references_chain ? { references: msg.references_chain } : {}),
-    };
+    // 판정용 헤더 복원 — 단일 헬퍼. 저장된 헤더(triage_headers)가 있으면 complete=true 가 되어
+    //   triage 부터 처음부터 다시 계산한다. 헤더가 없는 옛 메일은 저장된 triage 를 신뢰한다.
+    const { headers, complete } = headersFromMessage(msg);
     const known = await isKnownContact(acc.business_id, fromEmail);
-    // triage(사람/자동/광고)는 동기화 때 헤더 원문으로 판정한 값을 그대로 신뢰한다.
-    //   여기서 다시 계산하면 헤더가 없어 광고가 사람 메일로 뒤집힌다 (실제 사고 → 백업 복원).
     const base = retriageStored({
       triage: th.triage,
       subject: msg.subject || th.subject,
       bodyText: msg.body_text || '',
       fromEmail,
       headers,
+      headersComplete: complete,
       ownEmails: ownEmailsByBiz.get(acc.business_id) || [],
       isKnownContact: known,
     });
+    if (complete) withHeaders++;
     const tr = await applyRules(acc.business_id, fromEmail, base);
     const nextStatus = tr.status || th.status;
     const nextReply = !!tr.reply_needed;
@@ -114,6 +105,7 @@ const APPLY = process.argv.includes('--apply');
     }
   }
   console.log(`대상 ${threads.length}건 — 그대로 ${kept} · 재분류 ${changed} · 건너뜀(담당자·데이터없음) ${skipped}`);
+  console.log(`헤더로 완전 재판정한 스레드: ${withHeaders}건 (나머지는 헤더 없는 옛 메일 → 저장된 분류 신뢰)`);
   if (samples.length) console.log('해제 예시:\n  ' + samples.join('\n  '));
   console.log(APPLY ? '→ 반영 완료' : '→ 미리보기 (반영하려면 --apply)');
   await sequelize.close();
