@@ -2199,8 +2199,9 @@ router.post('/task-candidates/:id/register', authenticateToken, async (req, res,
     if (err.message === 'candidate_already_resolved') {
       return errorResponse(res, 'candidate_already_resolved', 400);
     }
-    // 담당자 배정 게이트 (D2-b #66) — 사람이 쓰는 POST /api/tasks 와 같은 403 코드
-    if (/^cannot_assign:/.test(err.message)) return errorResponse(res, err.message, 403);
+    // 행동 계층의 거부는 그 상태 그대로 (cannot_assign·menu_forbidden 403 …) — 사람이 쓰는 POST /api/tasks 와 같은 코드.
+    //   여기서 http 를 잃으면 "권한 없음" 이 500 서버 오류로 둔갑한다.
+    if (err.http) return errorResponse(res, err.message, err.http);
     next(err);
   }
 });

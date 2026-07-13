@@ -37,8 +37,13 @@ const api = async (method, path, userId, body) => {
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const fs = require('fs');
-const logSince = (offset) => fs.readFileSync(LOG, 'utf-8').slice(offset);
-const waitLog = async (offset, re, timeoutMs = 45000) => {
+// offset 은 statSync().size — 바이트다. 문자열을 바이트 오프셋으로 slice 하면 (로그가 한글투성이라
+//   바이트 > 문자) 새로 쓰인 줄을 통째로 건너뛴다 → Cue 로그가 영영 안 보인다. 바이트는 버퍼에서 자른다.
+const logSince = (offset) => fs.readFileSync(LOG).subarray(offset).toString('utf-8');
+// Cue 완료 로그는 executeForTask 가 *끝나야* 찍힌다 — 실제 LLM 실행은 2분을 넘기기도 한다.
+//   45초로 자르면 트리거가 멀쩡한데도 FAIL 이 뜬다(오탐). 실측 기준 여유를 둔다.
+const CUE_LOG_TIMEOUT = 240000;
+const waitLog = async (offset, re, timeoutMs = CUE_LOG_TIMEOUT) => {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     const m = logSince(offset).match(re);
@@ -242,6 +247,8 @@ const waitLog = async (offset, re, timeoutMs = 45000) => {
     if (g11id) {
       const rev = await TaskReviewer.findOne({ where: { task_id: g11id, user_id: CLIENT_USER } });
       check('자동 컨펌자 is_client=true (경로별 차이 보존)', !!rev && !!rev.is_client, `is_client=${rev?.is_client}`);
+      // 알림·socket·감사는 커밋 뒤 fire-and-forget 이다 — 즉시 세면 언제나 0건이 나온다(테스트 레이스).
+      await sleep(1500);
       const notif11 = await Notification.count({ where: { link: { [Op.like]: `%task=${g11id}` } } });
       check('담당자 알림 정확히 1건 (이중 발화 없음)', notif11 === 1, `count=${notif11}`);
     }

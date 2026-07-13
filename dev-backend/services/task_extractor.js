@@ -791,9 +791,11 @@ async function registerCandidate(candidateId, userId, overrides = {}) {
       allowUnassigned: true,             // 이 경로만 '미배정'(assignee_id: null) 업무를 남길 수 있다 (옛 동작)
     });
     if (!result.ok) {
-      // 에러 문자열은 계약이다 — caller 3곳이 /^cannot_assign:/ 로 403 을 분기한다.
+      // 에러 문자열도, 상태 코드도 계약이다. http 를 버리면 행동 계층이 403 으로 막은 것(menu_forbidden 등)이
+      //   caller 에서 500 으로 새어 나간다 — 거부인지 서버 장애인지 화면이 구분 못 한다.
       const err = new Error(result.code);
       err.code = String(result.code).startsWith('cannot_assign:') ? 'cannot_assign' : result.code;
+      err.http = result.http || 400;
       throw err;   // rollback 은 바깥 catch 가 한다 (이중 롤백 방지)
     }
     const task = result.data.task;
