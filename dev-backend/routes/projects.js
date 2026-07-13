@@ -2191,15 +2191,9 @@ router.post('/task-candidates/:id/register', authenticateToken, async (req, res,
       if ('due_date' in req.body) overrides.due_date = req.body.due_date;
       if (typeof req.body.description === 'string') overrides.description = req.body.description;
     }
+    // 생성·broadcast·알림·감사는 행동 계층이 소유한다 (services/actions/task_actions.createTask).
+    //   여태 caller 3곳이 각자 task:new 를 쐈고 payload 도 서로 달랐다(어떤 곳은 inbox:refresh 누락).
     const result = await taskExtractor.registerCandidate(candidate.id, req.user.id, overrides);
-
-    // Socket.IO: Q Task 페이지 실시간 반영을 위해 business room 에 task:new 발행
-    const io = req.app.get('io');
-    if (io && result.task) {
-      if (result.task.project_id) io.to(`project:${result.task.project_id}`).emit('task:new', result.task);
-      if (result.task.business_id) io.to(`business:${result.task.business_id}`).emit('task:new', result.task);
-    }
-
     return successResponse(res, result);
   } catch (err) {
     if (err.message === 'candidate_already_resolved') {

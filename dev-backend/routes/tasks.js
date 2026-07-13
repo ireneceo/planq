@@ -12,6 +12,20 @@ const { todayInTz, mondayOfDateStr, addDaysStr, mondayOfIsoWeek } = require('../
 const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../services/displayName');
 // §8.5 — 고객용 task 직렬화 (공수 시간·예측 출처·내부 메타·internal 댓글 차단)
 const { serializeTaskForClient, serializeTasksForClient } = require('../utils/taskClientView');
+// 생성·전이는 행동 계층 단일 착지점을 지난다 (사람도 Cue 도 같은 문).
+const taskActions = require('../services/actions/task_actions');
+const { modelFor: llmModelFor } = require('../services/llm');
+
+// 행동의 주체 — 사람이 HTTP 로 들어온 경우. req 는 감사 로그의 IP 맥락에만 쓴다.
+function actorFrom(req) {
+  return {
+    kind: 'user',
+    userId: req.user.id,
+    onBehalfOfUserId: null,
+    platformRole: req.user.platform_role || null,
+    req,
+  };
+}
 
 // 업무의 "오늘/이번 주/마감 지연" 경계는 워크스페이스 타임존 기준.
 // 아래 헬퍼는 Asia/Seoul 워크스페이스에서 00:00~23:59 이 하루의 경계가 되도록 보장한다.
@@ -399,220 +413,33 @@ router.post('/', authenticateToken, async (req, res, next) => {
     const { business_id, project_id, title, description, assignee_id, due_date, priority,
       estimated_hours, category, source_message_id, conversation_id, planned_week_start, start_date,
       cue_kind, cue_context_ref, recurrence_rule, workstream_id } = req.body;
-    if (!business_id) return errorResponse(res, 'business_id required', 400);
-    if (!title || !String(title).trim()) return errorResponse(res, 'title required', 400);
 
-    // 워크스페이스 접근권 확인 — 멤버(owner/member) OR 클라이언트
-    const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id } });
-    let isClient = false;
-    if (!bm) {
-      const cl = await Client.findOne({ where: { user_id: req.user.id, business_id } });
-      if (!cl) return errorResponse(res, 'forbidden', 403);
-      isClient = true;
-    }
+    // 생성은 행동 계층 단일 착지점을 지난다 (services/actions/task_actions.js).
+    //   권한·요청자 자동 컨펌자·Cue 실행·socket·알림·감사가 전부 그 안에서 일어난다 — Cue 도 같은 문.
+    const result = await taskActions.createTask(actorFrom(req), {
+      businessId: business_id, projectId: project_id, title, description,
+      assigneeId: assignee_id, dueDate: due_date, startDate: start_date, priority,
+      estimatedHours: estimated_hours, category, sourceMessageId: source_message_id,
+      conversationId: conversation_id, plannedWeekStart: planned_week_start,
+      cueKind: cue_kind, cueContextRef: cue_context_ref,
+      recurrenceRule: recurrence_rule, workstreamId: workstream_id,
+    }, { autoAiEstimate: true });
+    if (!result.ok) return errorResponse(res, result.code, result.http || 400);
 
-    // source / request_by 자동 판정:
-    //   담당자 ≠ 생성자 → 내부 요청 (생성자가 요청자)
-    //   담당자 = 생성자 → 본인 수동 업무
-    const finalAssignee = assignee_id || req.user.id;
-    const isInternalRequest = finalAssignee !== req.user.id;
-
-    // 클라이언트(고객): 자기 자신에게 업무 생성 금지 — '요청 추가' (멤버에게 요청) 만 허용
-    if (isClient && !isInternalRequest) {
-      return errorResponse(res, 'Clients can only request tasks to members, not assign to themselves.', 403);
-    }
-
-    // D2-b (#66) — 담당자 배정 게이트 (보안민감). 본인 외 다른 사람을 담당자로 지정할 때만 검증.
-    //   멤버=전체 / 외부 파트너=그 프로젝트 참여자만 / 그 외 user_id=차단(타 워크스페이스·유령).
-    if (finalAssignee !== req.user.id) {
-      const chk = await assertAssignable(finalAssignee, business_id, project_id || null);
-      if (!chk.ok) return errorResponse(res, `cannot_assign:${chk.reason}`, 403);
-    }
-
-    // 사이클 N+19 — PERMISSION_MATRIX §5.7 정렬:
-    // 요청 케이스 (담당자 ≠ 작성자) 에서는 예측시간/반복설정 작성 권한 없음.
-    // 담당자가 ack 후 본인 캐파에 맞춰 정한다. 조용히 무시 (사용자 friction ↓).
-    const effectiveEstimatedHours = isInternalRequest ? null : (estimated_hours || null);
-    const effectiveRecurrenceRule = isInternalRequest ? null : (recurrence_rule || null);
-    if (isInternalRequest && (estimated_hours || recurrence_rule)) {
-      console.warn('[tasks.POST] requester=' + req.user.id + ' assignee=' + finalAssignee + ' — estimated_hours/recurrence_rule sanitized (책임선 분리)');
-    }
-
-    // #120 — 그룹(워크스트림) 배치. workstream_id 가 해당 project 소속인지 검증(멀티테넌트/오배치 차단).
-    //   PUT 라우트(:1019)와 동일 패턴. project_id 없으면 workstream 배치 불가.
-    let effectiveWorkstreamId = null;
-    if (workstream_id != null) {
-      if (!project_id) return errorResponse(res, 'invalid_workstream', 400);
-      const { ProjectWorkstream } = require('../models');
-      // 멀티테넌트: project 가 이 워크스페이스 소속인지 먼저 확인(크로스테넌트 project_id/workstream 차단).
-      const prj = await Project.findOne({ where: { id: project_id, business_id } });
-      if (!prj) return errorResponse(res, 'invalid_workstream', 400);
-      const ws = await ProjectWorkstream.findOne({ where: { id: workstream_id, project_id } });
-      if (!ws) return errorResponse(res, 'invalid_workstream', 400);
-      effectiveWorkstreamId = workstream_id;
-    }
-
-    // 정기업무 — recurrence_rule 들어오면 due_date 필수, RRULE 검증, next_occurrence_at 계산
-    let nextOccurrenceAt = null;
-    if (effectiveRecurrenceRule) {
-      if (!due_date) {
-        return errorResponse(res, 'due_date is required for recurring tasks (it serves as the first occurrence)', 400);
-      }
-      const { RRule } = require('rrule');
-      const { computeNextOccurrence } = require('../services/recurringTaskGenerator');
-      try {
-        RRule.parseString(effectiveRecurrenceRule);
-      } catch (e) {
-        return errorResponse(res, `Invalid recurrence_rule: ${e.message}`, 400);
-      }
-      // parent 자체가 첫 occurrence (count=1) → 다음 occurrence 계산
-      const next = computeNextOccurrence(effectiveRecurrenceRule, due_date, 1);
-      nextOccurrenceAt = next ? next.toISOString().slice(0, 10) : null;
-    }
-
-    const task = await Task.create({
-      business_id,
-      project_id: project_id || null,
-      title: String(title).trim(),
-      description: description || null,
-      assignee_id: finalAssignee,
-      due_date: due_date || null,
-      start_date: start_date || null,
-      estimated_hours: effectiveEstimatedHours,
-      category: category || null,
-      source_message_id: source_message_id || null,
-      conversation_id: conversation_id || null,
-      planned_week_start: planned_week_start || null,
-      workstream_id: effectiveWorkstreamId,
-      created_by: req.user.id,
-      source: isInternalRequest ? 'internal_request' : 'manual',
-      request_by_user_id: isInternalRequest ? req.user.id : null,
-      // 사이클 P8 — Cue 팀원화
-      cue_kind: cue_kind || null,
-      cue_context_ref: cue_context_ref || null,
-      // 정기업무 — parent 시리즈 (instance 는 cron 이 자동 생성)
-      recurrence_rule: effectiveRecurrenceRule,
-      recurrence_parent_id: null,
-      next_occurrence_at: nextOccurrenceAt,
-    });
-
-    // 요청업무(internal_request) — 요청자를 컨펌자(reviewer)로 자동 등록 → 컨펌 필수화.
-    // 담당자가 곧장 '완료' 하지 못하고 '확인요청'(submit-review) → 요청자 승인 흐름 강제.
-    // (책임선 = 권한선: 요청자=발주자가 결과물 컨펌 권한을 가짐. memory feedback_responsibility_line)
-    // 담당자===요청자(자기 자신에게 요청)면 컨펌 불필요 → 스킵.
-    if (isInternalRequest && finalAssignee && finalAssignee !== req.user.id) {
-      try {
-        await TaskReviewer.findOrCreate({
-          where: { task_id: task.id, user_id: req.user.id },
-          defaults: { task_id: task.id, user_id: req.user.id, is_client: isClient, added_by_user_id: req.user.id },
-        });
-      } catch (e) { console.warn('[task POST auto-reviewer]', e.message); }
-    }
-
-    // 사이클 P8 + #81 — assignee=Cue 면 비동기 자동 실행 (cue_kind 없으면 executor 가 추론)
-    try {
-      const biz = await Business.findByPk(business_id, { attributes: ['cue_user_id'] });
-      if (biz?.cue_user_id && finalAssignee === biz.cue_user_id) {
-        const { executeForTask } = require('../services/cue_task_executor');
-        executeForTask(task.id, { triggeredBy: req.user.id }).then(r => {
-          console.log('[cue_task_executor]', task.id, r.ok ? 'ok' : `skip: ${r.reason}`);
-        }).catch(e => console.error('[cue_task_executor] crash', e.message));
-      }
-    } catch (e) {
-      console.warn('[task POST cue check]', e.message);
-    }
-
-    const full = await Task.findByPk(task.id, {
+    // 응답 — 이 경로는 includes(project·assignee·requester) + 표시명이 붙은 형태를 돌려준다
+    const full = await Task.findByPk(result.data.task.id, {
       include: [
         { model: Project, attributes: ['id', 'name'], required: false },
         { model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false },
         { model: User, as: 'requester', attributes: ['id', 'name', 'name_localized'], required: false },
       ],
     });
-
-    // #87 — assignee/requester 이름 워크스페이스 표시명으로 (emit·return 모두 동일 적용)
     const fullJson = full.toJSON();
     await applyMemberDisplayName([fullJson], business_id, ['assignee', 'requester']);
-
-    // Socket.IO: project room + business room 양쪽 emit (Q Task 페이지가 business 룸 구독)
-    // actor_user_id — 토스터가 본인 액션 알림 자기에게 표시 차단용.
-    const io = req.app.get('io');
-    if (io) {
-      const newTaskPayload = { ...fullJson, actor_user_id: req.user.id };
-      if (project_id) io.to(`project:${project_id}`).emit('task:new', newTaskPayload);
-      if (business_id) io.to(`business:${business_id}`).emit('task:new', newTaskPayload);
-      broadcastInboxRefresh(io, business_id, project_id, 'task_new', full.id);
-    }
-
-    // 알림: 담당자 ≠ 생성자 일 때만 — 본인이 본인에게 만든 업무는 noise
-    if (isInternalRequest && finalAssignee) {
-      try {
-        const { notify } = require('./notifications');
-        const biz = await Business.findByPk(business_id, { attributes: ['name', 'brand_name'] });
-        notify({
-          userId: finalAssignee,
-          businessId: business_id,
-          eventKind: 'task',
-          title: '새 업무가 배정되었습니다',
-          body: `"${full.title}"${full.due_date ? ` · 마감 ${String(full.due_date).slice(0, 10)}` : ''}`,
-          link: `${process.env.APP_URL || 'https://dev.planq.kr'}/tasks?task=${task.id}`,
-          ctaLabel: '업무 보기',
-          workspaceName: biz?.brand_name || biz?.name || null,
-        }).catch((e) => console.warn('[notify task assigned]', e.message));
-      } catch (e) { console.warn('[notify task assigned outer]', e.message); }
-    }
-
-    // 자동 AI 예측 — title 있고 estimated_hours 미입력 시 백그라운드 LLM 호출
-    // → tasks.estimated_hours 자동 채움 + task_estimations source='ai' row + socket task:updated emit
-    // 사용자가 직접 입력한 값은 source='user' 로 덮을 때만 우선
-    if (full.title && (!full.estimated_hours || Number(full.estimated_hours) === 0) && !cue_kind) {
-      setImmediate(async () => {
-        try {
-          const { callAiEstimate, AI_MODEL } = require('./task_estimations');
-          const { TaskEstimation } = require('../models');
-          const ai = await callAiEstimate(full.title, full.description || '');
-          if (!ai || !ai.hours) return;
-          // task 가 아직 존재하는지 확인 — 빠른 삭제·테스트 cleanup 케이스에서 FK 에러 방지
-          const stillExists = await Task.findByPk(task.id, { attributes: ['id'] });
-          if (!stillExists) return;
-          // tasks.estimated_hours 동기 (UI 표시용)
-          await Task.update({ estimated_hours: ai.hours }, { where: { id: task.id } });
-          await TaskEstimation.create({
-            task_id: task.id,
-            business_id: task.business_id,
-            value: ai.hours,
-            source: 'ai',
-            model: AI_MODEL,
-          });
-          // socket emit — 프론트 자동 갱신
-          // latest_estimation_source 명시 노출 (toJSON 만으로는 literal 컬럼 누락 → frontend 회색 분기 안 됨)
-          if (io) {
-            const updated = await Task.findByPk(task.id, {
-              include: [
-                { model: Project, attributes: ['id', 'name'], required: false },
-                { model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false },
-                { model: User, as: 'requester', attributes: ['id', 'name', 'name_localized'], required: false },
-              ],
-            });
-            if (updated) {
-              const payload = {
-                ...updated.toJSON(),
-                latest_estimation_source: 'ai',  // 방금 ai estimation row 만들었으므로 확정
-                actor_user_id: req.user.id,
-                ai_estimate: true,
-              };
-              if (project_id) io.to(`project:${project_id}`).emit('task:updated', payload);
-              io.to(`business:${business_id}`).emit('task:updated', payload);
-              broadcastInboxRefresh(io, business_id, project_id, 'task_ai_estimate', updated.id);
-            }
-          }
-        } catch (e) { console.warn('[auto-ai-estimate]', e.message); }
-      });
-    }
-
     return successResponse(res, fullJson);
   } catch (err) { next(err); }
 });
+
 
 // ============================================
 // POST /api/tasks/ai-create — 자연어 한 줄 → AI 가 다중 업무 분해 (미리보기, DB 저장 X)
@@ -729,117 +556,53 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
     const todayLocal = base_date && /^\d{4}-\d{2}-\d{2}$/.test(base_date)
       ? base_date
       : todayInTz(tz);
-    const { TaskEstimation } = require('../models');
-    const io = req.app.get('io');
     const created = [];
-    // Cue(AI) 담당 업무는 만들자마자 실행한다 — 단건 POST 경로와 같은 규칙.
-    //   이 트리거가 없어서 "Cue 에게 시켜줘" 로 만든 업무가 아무도 안 하는 업무로 남았다.
-    const bizForCue = await Business.findByPk(business_id, { attributes: ['cue_user_id'] });
-    const cueUserId = bizForCue?.cue_user_id || null;
-    // #90 계열 — 일괄 생성 task 의 담당자(≠생성자) 알림. wsName/notify 는 loop 밖 1회 준비.
-    const { notify: notifyAssignee } = require('./notifications');
-    const bizForNotify = await Business.findByPk(business_id, { attributes: ['name', 'brand_name'] });
-    const wsNameForNotify = bizForNotify?.brand_name || bizForNotify?.name || null;
+    const actor = actorFrom(req);
 
+    // 후보를 하나씩 실제 업무로 — 생성은 행동 계층 단일 착지점을 지난다.
+    //   중간에 실패하면 그 지점에서 멈춘다(이미 만든 것은 남는다) — 프론트의 부분 성공 UX 계약이다.
     for (const c of candidates) {
       const title = String(c.title || '').trim().slice(0, 200);
       if (!title) continue;
       const startOff = Number.isInteger(c.start_offset_days) ? c.start_offset_days : null;
       const dueOff = Number.isInteger(c.due_offset_days) ? c.due_offset_days : null;
-      const startDate = startOff !== null ? addDaysStr(todayLocal, startOff) : null;
-      const dueDate = dueOff !== null ? addDaysStr(todayLocal, dueOff) : null;
-      const finalAssignee = c.assignee_user_id || req.user.id;
-      // 담당자 검증 — 단일 생성 경로(POST /tasks)와 같은 가드. 여태 이 일괄 생성 경로만 빠져 있어서
-      //   클라이언트가 임의 assignee_user_id(외부 고객·타 워크스페이스 사용자)를 넣으면 그대로 배정됐다.
-      if (Number(finalAssignee) !== Number(req.user.id)) {
-        const chk = await assertAssignable(finalAssignee, business_id, project_id || null);
-        if (!chk.ok) return errorResponse(res, `assignee_not_assignable:${chk.reason}`, 403);
-      }
-      const isInternalRequest = finalAssignee !== req.user.id;
-      // PERMISSION_MATRIX §5.7 — 사람에게 요청하는 업무는 예측시간을 요청자가 정하지 않는다
-      //   (담당자가 ack 후 본인 캐파에 맞춰 정한다). 단, **Cue(AI) 담당이면 저장한다** — AI 에겐
-      //   캐파 협상이 없고, 사용자가 "예상 4시간" 이라고 말했으면 그대로 남아야 한다.
       const rawEstimated = Number.isFinite(Number(c.estimated_hours)) && Number(c.estimated_hours) > 0
         ? Number(c.estimated_hours) : null;
-      const assigneeIsCue = cueUserId && Number(finalAssignee) === Number(cueUserId);
-      const estimatedHours = (isInternalRequest && !assigneeIsCue) ? null : rawEstimated;
 
-      const task = await Task.create({
-        business_id,
-        project_id: project_id || null,
+      const result = await taskActions.createTask(actor, {
+        businessId: business_id,
+        projectId: project_id || null,
         ...ctxFields,
         title,
         description: c.description ? String(c.description).slice(0, 2000) : null,
-        assignee_id: finalAssignee,
-        start_date: startDate,
-        due_date: dueDate,
-        estimated_hours: estimatedHours,
-        created_by: req.user.id,
-        source: isInternalRequest ? 'internal_request' : 'manual',
-        request_by_user_id: isInternalRequest ? req.user.id : null,
+        assigneeId: c.assignee_user_id || req.user.id,
+        startDate: startOff !== null ? addDaysStr(todayLocal, startOff) : null,
+        dueDate: dueOff !== null ? addDaysStr(todayLocal, dueOff) : null,
+        estimatedHours: rawEstimated,
+      }, {
+        // 이 경로의 고유 규칙 (통일 금지 — 프론트가 이 차이에 기대고 있다):
+        keepEstimateForCue: true,          // 담당=Cue 면 요청 업무여도 예측시간을 남긴다
+        autoReviewerIsClient: false,       // 자동 컨펌자는 항상 내부(옛 동작)
+        estimation: rawEstimated ? { value: rawEstimated, source: 'ai', model: llmModelFor('task_plan') } : null,
       });
-
-      // 요청업무 — 요청자를 컨펌자로 자동 등록 (단일 생성 경로와 동일 정책, 컨펌 필수화)
-      if (isInternalRequest && finalAssignee && finalAssignee !== req.user.id) {
-        try {
-          await TaskReviewer.findOrCreate({
-            where: { task_id: task.id, user_id: req.user.id },
-            defaults: { task_id: task.id, user_id: req.user.id, is_client: false, added_by_user_id: req.user.id },
-          });
-        } catch (e) { console.warn('[ai-create auto-reviewer]', e.message); }
+      // 담당자 배정 실패의 에러 문자열은 이 경로만 다르다 (프론트 분기 계약) → 재매핑
+      if (!result.ok) {
+        const code = String(result.code).startsWith('cannot_assign:')
+          ? result.code.replace('cannot_assign:', 'assignee_not_assignable:')
+          : result.code;
+        return errorResponse(res, code, result.http || 400);
       }
 
-      // Cue 담당이면 즉시 실행 (비동기 — 응답은 기다리지 않는다)
-      if (cueUserId && Number(finalAssignee) === Number(cueUserId)) {
-        const { executeForTask } = require('../services/cue_task_executor');
-        executeForTask(task.id, { triggeredBy: req.user.id })
-          .then((r) => console.log('[cue_task_executor]', task.id, r.ok ? 'ok' : `skip: ${r.reason}`))
-          .catch((e) => console.error('[cue_task_executor] crash', e.message));
-      }
-
-      // task_estimations source='ai' — AI 추천값 박제 (사용자 인라인 수정 시 source='user' row 추가됨)
-      if (estimatedHours) {
-        try {
-          await TaskEstimation.create({
-            task_id: task.id,
-            business_id: task.business_id,
-            value: estimatedHours,
-            source: 'ai',
-            model: 'gpt-4o-mini',
-          });
-        } catch (e) { console.warn('[ai-create/confirm] TaskEstimation', e.message); }
-      }
-
-      const full = await Task.findByPk(task.id, {
+      const full = await Task.findByPk(result.data.task.id, {
         include: [
           { model: Project, attributes: ['id', 'name'], required: false },
           { model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false },
           { model: User, as: 'requester', attributes: ['id', 'name', 'name_localized'], required: false },
         ],
       });
-      // #87 — 워크스페이스 표시명 (push·return·broadcast 동일)
       const fullJson = full.toJSON();
       await applyMemberDisplayName([fullJson], business_id, ['assignee', 'requester']);
       created.push(fullJson);
-
-      if (io) {
-        const payload = { ...fullJson, actor_user_id: req.user.id };
-        if (project_id) io.to(`project:${project_id}`).emit('task:new', payload);
-        io.to(`business:${business_id}`).emit('task:new', payload);
-        broadcastInboxRefresh(io, business_id, project_id, 'task_new', full.id);
-      }
-
-      // #90 계열 — 담당자 ≠ 생성자 일 때 새 업무 배정 알림 (단일 생성·재배정 라우트와 동일)
-      if (isInternalRequest && finalAssignee) {
-        notifyAssignee({
-          userId: finalAssignee, businessId: business_id, eventKind: 'task',
-          title: '새 업무가 배정되었습니다',
-          body: `"${title}"${dueDate ? ` · 마감 ${String(dueDate).slice(0, 10)}` : ''}`,
-          link: `${process.env.APP_URL || 'https://dev.planq.kr'}/tasks?task=${task.id}`,
-          ctaLabel: '업무 보기', workspaceName: wsNameForNotify,
-          actorUserId: req.user.id, entityType: 'task', entityId: task.id, ioApp: io || null,
-        }).catch((e) => console.warn('[notify ai-create]', e.message));
-      }
     }
 
     return successResponse(res, { created, count: created.length });
@@ -1702,119 +1465,13 @@ router.post('/:id/comments', authenticateToken, async (req, res, next) => {
   try {
     const task = await Task.findByPk(req.params.id);
     if (!task) return errorResponse(res, 'task_not_found', 404);
-    const scope = await getUserScope(req.user.id, task.business_id, req.user.platform_role);
-    if (!(await canAccessTask(req.user.id, task, scope))) {
-      return errorResponse(res, 'forbidden', 403);
-    }
-    const { content, visibility } = req.body || {};
-    if (!content || !String(content).trim()) return errorResponse(res, 'content_required', 400);
-    // Client 는 shared 댓글만, internal/personal 작성 금지
-    const visAllowed = ['personal', 'internal', 'shared'];
-    let finalVis = visAllowed.includes(visibility) ? visibility : 'shared';
-    if (scope.isClient) finalVis = 'shared';
-    const comment = await TaskComment.create({
-      task_id: task.id,
-      user_id: req.user.id,
-      content: String(content).trim(),
-      visibility: finalVis,
+    // 댓글 생성·알림·Cue 재실행은 행동 계층이 소유한다 (services/actions/task_actions.js).
+    const result = await taskActions.createComment(actorFrom(req), task, {
+      content: req.body?.content,
+      visibility: req.body?.visibility,
     });
-    const full = await TaskComment.findByPk(comment.id, {
-      include: [{ model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] }],
-    });
-    // #87 — 댓글 작성자 워크스페이스 표시명으로 (emit·return 동일)
-    const fullJson = full.toJSON();
-    await applyMemberDisplayName([fullJson], task.business_id, ['author']);
-    // Socket.IO
-    const io = req.app.get('io');
-    if (io) io.to(`task:${task.id}`).emit('comment:new', fullJson);
-
-    // 멘션 알림 + N+63 일반 댓글 알림 (shared / internal 가시성만)
-    let mentionedSet = new Set();
-    if (finalVis !== 'personal') {
-      try {
-        const { resolveMentions } = require('../services/mention_parser');
-        const mentioned = await resolveMentions(comment.content, task.business_id, req.user.id);
-        mentionedSet = new Set(mentioned);
-        const Business = require('../models').Business;
-        const biz = await Business.findByPk(task.business_id, { attributes: ['name', 'brand_name'] });
-        const previewBody = comment.content.length > 140 ? comment.content.slice(0, 140) + '…' : comment.content;
-        const wsName = biz?.brand_name || biz?.name || null;
-        const link = `${process.env.APP_URL || 'https://dev.planq.kr'}/tasks?task=${task.id}`;
-
-        // (a) 멘션 알림 (별도 토글 — comment_mention)
-        if (mentioned.length > 0) {
-          const { notifyMany } = require('./notifications');
-          notifyMany({
-            userIds: mentioned, businessId: task.business_id, eventKind: 'comment_mention',
-            title: `업무 댓글에서 언급됨 — ${task.title}`,
-            body: previewBody, link, ctaLabel: '댓글 보기', workspaceName: wsName,
-            actorUserId: req.user.id, entityType: 'task', entityId: task.id, ioApp: io,
-          }).catch((e) => console.warn('[notify comment_mention task]', e.message));
-        }
-
-        // (b) N+63 — 일반 댓글 알림 (사용자 호소 #5). assignee + creator + reviewers (작성자/멘션됨 제외).
-        //     eventKind='task' 통합 (별도 'comment' kind 도입은 다음 사이클).
-        const { TaskReviewer } = require('../models');
-        const reviewers = await TaskReviewer.findAll({ where: { task_id: task.id }, attributes: ['user_id'] });
-        const recipientSet = new Set();
-        if (task.assignee_id) recipientSet.add(task.assignee_id);
-        if (task.created_by) recipientSet.add(task.created_by);
-        if (task.request_by_user_id) recipientSet.add(task.request_by_user_id);
-        for (const r of reviewers) if (r.user_id) recipientSet.add(r.user_id);
-        recipientSet.delete(req.user.id);  // 작성자 본인 제외
-        for (const m of mentionedSet) recipientSet.delete(m);  // 멘션됨 제외 (중복 차단)
-        // Client 가 internal 댓글에 알림 받으면 안 됨 — client_id 인 사용자 필터 (생략 — visibility 가 internal 이면 backend 가 이미 차단)
-        if (recipientSet.size > 0) {
-          const { notifyMany } = require('./notifications');
-          const authorName = req.user.email?.split('@')[0] || '누군가';
-          notifyMany({
-            userIds: [...recipientSet], businessId: task.business_id, eventKind: 'task',
-            title: `${authorName} 님이 업무 댓글을 남김 — ${task.title}`,
-            body: previewBody, link, ctaLabel: '댓글 보기', workspaceName: wsName,
-            actorUserId: req.user.id, entityType: 'task', entityId: task.id, ioApp: io,
-          }).catch((e) => console.warn('[notify task comment]', e.message));
-        }
-      } catch (e) { console.warn('[mention task outer]', e.message); }
-    }
-
-    // 사이클 N+27 — Cue 가 assignee 이고 cue_kind 있는 task 의 새 댓글이면 Cue 가 댓글 읽고 task.body 업데이트 + 답글 댓글
-    // 조건: 댓글 작성자가 Cue 자신이 아니어야 (무한 루프 방지) + reviewing 상태 (1차 결과 받은 후 추가 지시)
-    try {
-      const Business = require('../models').Business;
-      const biz = await Business.findByPk(task.business_id, { attributes: ['cue_user_id'] });
-      const isCueAssigned = biz?.cue_user_id && biz.cue_user_id === task.assignee_id && task.cue_kind;
-      const isAuthorNotCue = req.user.id !== biz?.cue_user_id;
-      const isReviewable = task.status === 'reviewing' || task.status === 'revision_requested';
-      if (isCueAssigned && isAuthorNotCue && isReviewable) {
-        setImmediate(async () => {
-          try {
-            const { executeForTask } = require('../services/cue_task_executor');
-            const r = await executeForTask(task.id, { commentNote: comment.content, triggeredBy: comment.user_id });
-            if (r.ok) {
-              // Cue 답글 댓글 추가 (사용자에게 "반영했어요" 알림)
-              const replyComment = await TaskComment.create({
-                task_id: task.id, user_id: biz.cue_user_id,
-                content: '댓글을 반영해 결과를 업데이트했어요. 위 본문을 확인해주세요.',
-                visibility: 'shared',
-              });
-              const replyFull = await TaskComment.findByPk(replyComment.id, {
-                include: [{ model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] }],
-              });
-              if (io && replyFull) {
-                const replyJson = replyFull.toJSON();
-                await applyMemberDisplayName([replyJson], task.business_id, ['author']);
-                io.to(`task:${task.id}`).emit('comment:new', replyJson);
-              }
-              console.log('[cue_task_executor comment]', task.id, 'ok');
-            } else {
-              console.log('[cue_task_executor comment]', task.id, 'skip:', r.reason);
-            }
-          } catch (e) { console.error('[cue_task_executor comment crash]', e.message); }
-        });
-      }
-    } catch (e) { console.warn('[comment cue check]', e.message); }
-
-    return successResponse(res, fullJson);
+    if (!result.ok) return errorResponse(res, result.code, result.http || 400);
+    return successResponse(res, result.data);
   } catch (err) { next(err); }
 });
 

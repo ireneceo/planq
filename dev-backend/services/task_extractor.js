@@ -748,31 +748,6 @@ async function registerCandidate(candidateId, userId, overrides = {}) {
       finalAssignee = candidate.guessed_assignee_user_id || userId;
     }
 
-    // 🔒 담당자 배정 게이트 (D2-b #66) — 여태 tasks.js POST/PUT 에만 걸려 있고 이 승격 경로는
-    //   통째로 우회했다. 실증: POST /api/tasks 로는 타 워크스페이스 사용자 배정이 403 인데,
-    //   후보 등록으로는 200 → 외부 고객/타 워크스페이스 사람이 담당자가 되고(그 업무를 볼 수 있게 되고)
-    //   알림까지 발송됐다(크로스테넌트 유출). 사람이 쓰는 문과 같은 문을 지나게 한다.
-    if (finalAssignee && finalAssignee !== userId) {
-      const { assertAssignable } = require('../middleware/access_scope');
-      const chk = await assertAssignable(finalAssignee, businessId, candidate.project_id);
-      if (!chk.ok) {
-        // rollback 은 바깥 catch 가 한다 (여기서 또 부르면 이중 롤백 → 500)
-        const err = new Error(`cannot_assign:${chk.reason}`);
-        err.code = 'cannot_assign';
-        throw err;
-      }
-    }
-
-    // 🔒 Cue(AI)를 담당자로 승격 금지 — 등록 경로에는 executeForTask 트리거가 없어 아무도 실행하지
-    //   않는 좀비 업무가 되고, 봇 계정에 알림이 나간다. 책임 주체는 사람 (project_ai_native_strategy).
-    //   Cue 에게 맡기려면 업무를 만든 뒤 담당자를 Cue 로 지정한다 (그 경로엔 실행 트리거가 있다).
-    if (finalAssignee) {
-      const BusinessM = require('../models/Business');
-      const bizRow = await BusinessM.findByPk(businessId, { attributes: ['cue_user_id'], transaction: t });
-      if (bizRow?.cue_user_id && bizRow.cue_user_id === finalAssignee) {
-        finalAssignee = userId;   // 등록한 사람이 책임 주체
-      }
-    }
     // 기간 (start_date / due_date) — 명시 override → 그 값 (null 허용) / 미전달 → guessed
     const finalStart = Object.prototype.hasOwnProperty.call(overrides, 'start_date')
       ? (overrides.start_date || null)
@@ -781,49 +756,48 @@ async function registerCandidate(candidateId, userId, overrides = {}) {
       ? (overrides.due_date || null)
       : (candidate.guessed_due_date || null);
 
-    // tasks 테이블에 삽입
-    const task = await Task.create({
-      business_id: businessId,
-      project_id: candidate.project_id, // null 허용
-      conversation_id: candidate.conversation_id,
-      source_message_id: candidate.source_message_ids?.[0] || null,
-      // 메일 스레드 후보 — 업무를 메일 스레드 + 고객에 연결 (Q Mail ↔ Q Task ↔ 타임라인 통합)
+    // 업무 생성 — 행동 계층 단일 착지점을 지난다 (services/actions/task_actions.js).
+    //   담당자 배정 게이트·요청자 자동 컨펌자·알림·socket·감사가 전부 그 안에 있다.
+    //   candidate.update 와 **같은 트랜잭션**을 넘긴다 — 업무만 생기고 후보는 pending 으로 남는 반쪽 상태 차단.
+    //   부수효과는 그 트랜잭션이 커밋된 뒤에만 발화한다(afterCommit).
+    const { createTask } = require('./actions/task_actions');
+    const result = await createTask({ kind: 'user', userId }, {
+      businessId,
+      projectId: candidate.project_id,   // null 허용
+      conversationId: candidate.conversation_id,
+      sourceMessageId: candidate.source_message_ids?.[0] || null,
+      // 메일 후보 — 업무를 스레드 + 고객에 연결 (Q Mail ↔ Q Task ↔ 타임라인)
       ...(candidate.email_thread_id ? {
-        email_thread_id: candidate.email_thread_id,
-        source_email_message_id: candidate.source_email_message_ids?.[0] || null,
-        client_id: emailClientId,
+        emailThreadId: candidate.email_thread_id,
+        sourceEmailMessageId: candidate.source_email_message_ids?.[0] || null,
+        clientId: emailClientId,
       } : {}),
-      // N+88 — Q Note 후보 → 업무에 세션 역참조 (Q Note ↔ Q Task 브릿지)
-      ...(candidate.qnote_session_id ? { qnote_session_id: candidate.qnote_session_id } : {}),
+      // Q Note 후보 → 세션 역참조
+      ...(candidate.qnote_session_id ? { qnoteSessionId: candidate.qnote_session_id } : {}),
       title: finalTitle,
       description: finalDesc,
-      assignee_id: finalAssignee,
+      assigneeId: finalAssignee,
       status: 'not_started',
-      start_date: finalStart,
-      due_date: finalDue,
-      from_candidate_id: candidate.id,
-      created_by: userId,
-      // 요청 업무 모델 정렬 — 담당자가 등록자가 아니면 "내가 남에게 요청한 업무" 다.
-      //   여태 이 경로만 source/request_by_user_id 를 안 채워서, 같은 업무가 등록 경로에 따라
-      //   요청 업무로 보이기도 하고 아니기도 했다 (단건 POST · AI 확정 경로와 통일).
-      ...(finalAssignee && Number(finalAssignee) !== Number(userId)
-        ? { source: 'internal_request', request_by_user_id: userId }
-        : {}),
-    }, { transaction: t });
-
-    // 요청 업무면 요청자를 컨펌자로 자동 등록 (컨펌 필수화 — 다른 두 경로와 같은 정책)
-    if (finalAssignee && Number(finalAssignee) !== Number(userId)) {
-      try {
-        const { TaskReviewer } = require('../models');
-        await TaskReviewer.findOrCreate({
-          where: { task_id: task.id, user_id: userId },
-          defaults: { task_id: task.id, user_id: userId, is_client: false, added_by_user_id: userId },
-          transaction: t,
-        });
-      } catch (e) { console.warn('[registerCandidate auto-reviewer]', e.message); }
+      startDate: finalStart,
+      dueDate: finalDue,
+      fromCandidateId: candidate.id,
+    }, {
+      transaction: t,
+      // 이 경로 고유 규칙:
+      //   Cue 를 담당자로 승격 금지 — 등록 경로엔 실행 트리거가 없어 아무도 안 하는 좀비 업무가 된다.
+      //   자동 컨펌자의 is_client 는 항상 false (옛 동작).
+      demoteCueAssignee: true,
+      autoReviewerIsClient: false,
+    });
+    if (!result.ok) {
+      // 에러 문자열은 계약이다 — caller 3곳이 /^cannot_assign:/ 로 403 을 분기한다.
+      const err = new Error(result.code);
+      err.code = String(result.code).startsWith('cannot_assign:') ? 'cannot_assign' : result.code;
+      throw err;   // rollback 은 바깥 catch 가 한다 (이중 롤백 방지)
     }
+    const task = result.data.task;
 
-    // 후보 상태 갱신
+    // 후보 상태 갱신 (같은 트랜잭션 — 업무 생성과 원자적)
     await candidate.update({
       status: 'registered',
       registered_task_id: task.id,
@@ -832,31 +806,6 @@ async function registerCandidate(candidateId, userId, overrides = {}) {
     }, { transaction: t });
 
     await t.commit();
-
-    // #90 — 후보 → 업무 승격 시 담당자 알림 (수동 생성 라우트 tasks.js 와 동일 정책).
-    //  담당자 ≠ 등록자 일 때만 (본인이 본인에게 등록한 업무는 noise). 알림/링크 누락 회귀 차단.
-    //  중첩 try/catch — 알림 실패가 이미 commit 된 등록 결과에 영향 주지 않도록.
-    if (finalAssignee && finalAssignee !== userId) {
-      try {
-        const { notify } = require('../routes/notifications');
-        const Business = require('../models/Business');
-        const biz = await Business.findByPk(businessId, { attributes: ['name', 'brand_name'] });
-        notify({
-          userId: finalAssignee,
-          businessId,
-          eventKind: 'task',
-          title: '새 업무가 배정되었습니다',
-          body: `"${finalTitle}"${finalDue ? ` · 마감 ${String(finalDue).slice(0, 10)}` : ''}`,
-          link: `${process.env.APP_URL || 'https://dev.planq.kr'}/tasks?task=${task.id}`,
-          ctaLabel: '업무 보기',
-          workspaceName: biz?.brand_name || biz?.name || null,
-          actorUserId: userId,
-          entityType: 'task',
-          entityId: task.id,
-          ioApp: global.__io || null,
-        }).catch((e) => console.warn('[notify cue task assigned]', e.message));
-      } catch (e) { console.warn('[notify cue task assigned outer]', e.message); }
-    }
 
     return { candidate: candidate.toJSON(), task: task.toJSON() };
   } catch (err) {

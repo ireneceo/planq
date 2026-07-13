@@ -522,6 +522,53 @@ function checkActionLayer() {
 }
 
 // ═══════════════════════════════════════════════
+// 8-d. createlayer — 업무·댓글 **생성**도 행동 계층을 지난다 (D-3 2A)
+//
+//   생성이 4곳에 복제돼 있었다(POST /tasks · ai-create/confirm · registerCandidate · copy).
+//   같은 실패에 다른 에러 문자열, 같은 성공에 다른 부수효과 — 어느 문으로 들어오느냐로 결과가 달랐다.
+//   라우트가 다시 직접 Task.create 를 부르면 그 문에는 권한·알림·감사·socket 이 없다.
+// ═══════════════════════════════════════════════
+const CREATE_FORBIDDEN = [
+  // [파일, 금지 패턴, 허용 건수(기존 부채)]
+  ['dev-backend/routes/tasks.js', /Task\.create\(/g, 1],          // copy 라우트 1건 (2A-5 대상, 동결)
+  ['dev-backend/routes/tasks.js', /TaskComment\.create\(/g, 0],
+  ['dev-backend/services/task_extractor.js', /Task\.create\(/g, 0],
+];
+
+function checkCreateLayer() {
+  const bad = [];
+  for (const [f, re, allowed] of CREATE_FORBIDDEN) {
+    const full = path.join(ROOT, f);
+    if (!fs.existsSync(full)) { bad.push(`${f}: 파일 없음 (이동했으면 CREATE_FORBIDDEN 갱신)`); continue; }
+    const n = (read(full).match(re) || []).length;
+    if (n > allowed) {
+      bad.push(`${f}: ${String(re).slice(1, -3)} ${n}건 (허용 ${allowed}) — services/actions/task_actions.createTask 를 쓸 것`);
+    }
+  }
+  // 행동 계층이 생성 책임(권한·부수효과)을 실제로 갖고 있는가 — 파일만 남고 속이 비는 것 차단
+  const layer = path.join(ROOT, ACTION_LAYER);
+  if (fs.existsSync(layer)) {
+    const src = read(layer);
+    for (const [feature, re] of [
+      ['createTask', /async function createTask/],
+      ['createComment', /async function createComment/],
+      ['위임자 fail-closed', /cue_delegator_required/],
+      ['배정 게이트', /assertAssignable/],
+      ['메뉴 권한', /assertMenuWrite/],
+      ['커밋 후 부수효과', /afterCommit/],
+      ['감사', /task\.create/],
+    ]) {
+      if (!re.test(src)) bad.push(`${ACTION_LAYER}: ${feature} 소실 — 생성 계층의 존재 이유가 빠졌다`);
+    }
+    // 재무는 카탈로그에 없다 (Cue 가 이 문을 통해 돈을 건드릴 수 없다 — 영구 봉쇄)
+    if (/Invoice|Payment|InvoiceInstallment/.test(src)) {
+      bad.push(`${ACTION_LAYER}: 재무 모델 참조 — Cue 행동 카탈로그에 돈이 들어왔다 (영구 봉쇄 위반)`);
+    }
+  }
+  report('createlayer', '업무·댓글 생성도 행동 계층 단일 착지점', bad.length === 0, bad);
+}
+
+// ═══════════════════════════════════════════════
 // 9. godfile — 신규 god-file 차단 래칫 (기존 초과분은 동결, 15% 이상 추가 성장도 실패)
 // ═══════════════════════════════════════════════
 function checkGodfile() {
@@ -575,6 +622,7 @@ const CATEGORIES = {
   costguard: checkCostGuard,
   llmgateway: checkLlmGateway,
   actionlayer: checkActionLayer,
+  createlayer: checkCreateLayer,
   godfile: checkGodfile,
   docfresh: checkDocFresh,
 };
