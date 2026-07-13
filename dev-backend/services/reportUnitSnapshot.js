@@ -4,7 +4,7 @@
 const { Op } = require('sequelize');
 const {
   Project, Task, User, ProjectMember, BusinessMember, Department, ProjectIssue, Post, Document,
-  ProjectWorkstream, ProjectClient,
+  ProjectWorkstream, ProjectClient, TaskDailyProgress,
 } = require('../models');
 const { fetchProjectStats } = require('./weeklyReviewSnapshot');
 const { todayInTz, mondayOfDateStr, addDaysStr } = require('../utils/datetime');
@@ -102,6 +102,7 @@ async function buildProjectSnapshot(businessId, projectId, periodType, periodSta
   return {
     schema_version: SCHEMA_VERSION, scope: 'project', ref_id: project.id,
     period: { type: periodType, start, end },
+    progress_series: await buildProgressSeries(tasks.map((x) => x.id), start, end),
     subject: { id: project.id, name: project.name, status: project.status, start_date: ymd(project.start_date), end_date: ymd(project.end_date), owner_user_id: project.owner_user_id },
     strategy: { context: project.strategy_context, key_question: project.strategy_key_question, goal: project.strategy_goal, governing_thought: project.strategy_governing_thought, approach: project.strategy_approach },
     kpi: {
@@ -116,6 +117,40 @@ async function buildProjectSnapshot(businessId, projectId, periodType, periodSta
 }
 
 // ── 개인(멤버) 단위 — 나의 보고 / 개별 보고 ──
+
+// ── 진척 시리즈(번업) — 보고서에 그래프를 넣기 위한 **박제 데이터**.
+//   Irene: "우측패널에 나오는 주간 업무 진척 그래프가 캡쳐돼서 업무보고에 포함되어야 해. 캡처시점 제대로 맞춰서."
+//   그래서 이미지가 아니라 **그 기간의 일별 시리즈를 스냅샷에 굳혀** 저장한다 — 나중에 업무가 바뀌어도
+//   보고서의 그래프는 그 주의 사실 그대로 남는다 (이미지 캡처는 다시 그릴 수도, 확대할 수도 없다).
+//   정의는 Q Task 라이브 그래프와 동일: est = Σ(예측시간 × 진행률), act = Σ(실제시간). 누적(단조증가).
+async function buildProgressSeries(taskIds, start, end) {
+  if (!taskIds.length) return [];
+  const rows = await TaskDailyProgress.findAll({
+    where: { task_id: { [Op.in]: taskIds }, snapshot_date: { [Op.between]: [start, end] } },
+    order: [['snapshot_date', 'ASC']],
+  });
+  // snapshot_date 가 Date 로 역직렬화되면 String 비교가 항상 실패한다 (옛 그래프 빈화면 원인) → 정규화
+  const dayKey = (sd) => (sd instanceof Date ? sd.toISOString().slice(0, 10) : String(sd).slice(0, 10));
+  const out = [];
+  let cursor = start;
+  let maxEst = 0;
+  let maxAct = 0;
+  while (cursor <= end) {
+    const day = rows.filter((r) => dayKey(r.snapshot_date) === cursor);
+    const est = day.reduce((sum, r) => sum + (Number(r.estimated_hours) || 0) * ((r.progress_percent || 0) / 100), 0);
+    const act = day.reduce((sum, r) => sum + (Number(r.actual_hours) || 0), 0);
+    maxEst = Math.max(maxEst, est);   // 누적은 줄지 않는다 (되돌림이 있어도 라인은 피크 유지)
+    maxAct = Math.max(maxAct, act);
+    out.push({
+      date: cursor,
+      estimated_cumulative: Math.round(maxEst * 10) / 10,
+      actual_cumulative: Math.round(maxAct * 10) / 10,
+    });
+    cursor = addDaysStr(cursor, 1);
+  }
+  return out;
+}
+
 async function buildMemberSnapshot(businessId, userId, periodType, periodStart) {
   const bm = await BusinessMember.findOne({
     where: { business_id: businessId, user_id: userId },
@@ -151,6 +186,7 @@ async function buildMemberSnapshot(businessId, userId, periodType, periodStart) 
     period: { type: periodType, start, end },
     subject: { user_id: userId, name: bm.name || displayName(bm.user, userId), department: bm.department?.name || null },
     kpi: { total_tasks: total, completed_tasks: completed, in_progress_count: in_progress.length, overdue_count: overdue, completed_in_period: completed },
+    progress_series: await buildProgressSeries(tasks.map((x) => x.id), start, end),
     highlights, in_progress, risks, blockers, next,
   };
 }

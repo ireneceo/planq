@@ -158,7 +158,8 @@
   "actions": {
     "markSpam": "Spam",
     "notSpam": "Not spam",
-    "markHandled": "Reviewed"
+    "markHandled": "Reviewed",
+    "handledDone": "Done"
   },
   "selectWorkspace": "Select a workspace.",
   "selectThread": "Select a thread",

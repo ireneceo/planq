@@ -862,7 +862,7 @@
       },
       "pmComment": "PM 업무보고",
       "myComment": "내 코멘트",
-      "genScr": "✨ AI 요약 생성 (SCR)",
+      "genScr": "AI 요약 생성",
       "genScrLoading": "AI 작성 중…",
       "genScrTitle": "보고 데이터로 상황·문제·해결(SCR) 구조 요약을 자동 작성합니다",
       "genScrErr": "AI 요약 생성에 실패했습니다. 잠시 후 다시 시도해주세요."
@@ -1065,5 +1065,13 @@
     "overdue": "{{n}}일 지남",
     "today": "오늘",
     "inDays": "D-{{n}}"
+  },
+  "report": {
+    "chartTitle": "진척 그래프",
+    "chartEstimated": "진척(예측 기준)",
+    "chartActual": "투입(실제 시간)",
+    "chartCapacity": "주간 가용시간 {{n}}h 기준",
+    "chartEmptyTitle": "이 기간의 진척 데이터가 없어요",
+    "chartEmptyHint": "업무를 진행(포커스)하거나 실제 시간을 입력하면 그래프가 채워집니다."
   }
 }

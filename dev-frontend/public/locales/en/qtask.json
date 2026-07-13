@@ -848,7 +848,7 @@
       },
       "pmComment": "PM report",
       "myComment": "My comment",
-      "genScr": "✨ Generate AI Summary (SCR)",
+      "genScr": "Generate AI summary",
       "genScrLoading": "Generating…",
       "genScrTitle": "Auto-writes a Situation-Complication-Resolution (SCR) summary from the report data",
       "genScrErr": "Failed to generate the AI summary. Please try again shortly."
@@ -1065,5 +1065,13 @@
     "overdue": "{{n}}d overdue",
     "today": "Today",
     "inDays": "D-{{n}}"
+  },
+  "report": {
+    "chartTitle": "Progress chart",
+    "chartEstimated": "Progress (planned)",
+    "chartActual": "Effort (actual)",
+    "chartCapacity": "Against {{n}}h weekly capacity",
+    "chartEmptyTitle": "No progress data for this period",
+    "chartEmptyHint": "Start focusing on tasks or log actual hours and the chart fills in."
   }
 }
