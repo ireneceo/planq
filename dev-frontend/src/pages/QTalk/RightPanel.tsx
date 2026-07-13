@@ -5,7 +5,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   type MockProject, type MockConversation, type MockTask, type MockNote, type MockIssue, type MockTaskCandidate,
 } from './types';
-import { STATUS_COLOR, getStatusLabel, type StatusCode } from '../../utils/taskLabel';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import LetterAvatar from '../../components/Common/LetterAvatar';
@@ -15,7 +14,7 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import TaskCandidateCard from '../../components/Common/TaskCandidateCard';
 import type { RegisterCandidateOverrides } from '../../services/qtalk';
 import NoteThread from '../../components/Common/NoteThread';
-import WorkbenchSection from '../../components/Workbench/WorkbenchSection';
+import WorkbenchSection, { WorkbenchEmptyRow, WorkbenchSectionLink } from '../../components/Workbench/WorkbenchSection';
 import ContextTaskList from '../../components/Workbench/ContextTaskList';
 import CueTaskBar from '../../components/QTask/CueTaskBar';
 import AiAssistButton from '../../components/Common/AiAssistButton';
@@ -60,15 +59,14 @@ const RightPanel: React.FC<Props> = ({
   width, onResizeStart,
   showHiddenCandidates = false, onToggleHiddenCandidates,
   onRegisterCandidate, onMergeCandidate, onRejectCandidate,
-  onAddIssue, onUpdateIssue, onDeleteIssue, onAddNote, onToggleTask,
+  onAddIssue, onUpdateIssue, onDeleteIssue, onAddNote,
   businessId = null, members = [], activeConv = null, extracting = false,
   onOpenExtract, onToggleAutoExtract, onOpenTask,
 }) => {
   const { t } = useTranslation('qtalk');
   // N+72-6 — status 라벨은 qtask namespace 에 정의됨. raw "not_started" 표시 회귀 fix
-  const { t: tStatus } = useTranslation('qtask');
   const { user } = useAuth();
-  const { formatTimeAgo, formatDate } = useTimeFormat();
+  const { formatTimeAgo } = useTimeFormat();
   const navigate = useNavigate();
   // 담당자 후보 — Cue(AI) 제외 (배정해도 이 경로엔 실행 트리거가 없어 좀비 업무가 된다)
   const taskMembers = useMemo(
@@ -80,7 +78,6 @@ const RightPanel: React.FC<Props> = ({
   const isClient = user?.business_role === 'client';
   const myUserId = user ? Number(user.id) : -1;
   // 업무 status 라벨 (observer 관점) — overdue 판정에 오늘 날짜 (워크스페이스 tz 정확도는 부모에서 주입 가능, 우선 로컬 ISO)
-  const todayStr = new Date().toISOString().slice(0, 10);
 
   // 섹션 초기 펼침 상태는 내용 유무 기반으로 아래 useEffect 에서 결정 (모두 접힌 상태로 시작 → count 있는 것만 auto expand)
   const [expanded, setExpanded] = useState<Record<Section, boolean>>({
@@ -195,10 +192,6 @@ const RightPanel: React.FC<Props> = ({
     const c = conversations.find((x) => x.id === id);
     return c ? c.name : null;
   };
-  const projectTasks: MockTask[] = tasks.filter(matchScope);
-  // 내 할 일 = 담당자가 나. (여태 `|| assignee_id === 15` 라는 mock 잔재가 있어서 모든 사용자의
-  //   '내 할 일' 에 user 15 의 업무가 섞여 나왔다 — 실데이터 오염.)
-  const myTasks = projectTasks.filter((x) => x.assignee_id === myUserId);
   const projectNotes: MockNote[] = notes.filter(matchScope);
   // 채팅 패턴: ASC (오래된 위 → 최신 아래, 입력란 바로 위가 최신)
   const visibleNotes = (isClient
@@ -237,7 +230,7 @@ const RightPanel: React.FC<Props> = ({
 
       <Scroll>
         {/* 한 줄 업무 등록 — 채팅 흐름에서 바로. AI 추출이 못 찾아도 사람이 적는다.
-            "◯◯님께 요청해줘" 로 쓰면 그 사람에게 가는 요청 업무가 된다 (담당자는 코드가 확정). */}
+            이름을 지목하면 그 사람에게 가는 요청 업무가 된다 (담당자는 코드가 확정). */}
         {!isClient && businessId && (
           <WorkbenchSection title={t('right.quickAdd', '한 줄 업무 등록') as string} static>
             <CueTaskBar
@@ -288,7 +281,7 @@ const RightPanel: React.FC<Props> = ({
               </AutoRow>
             )}
             {candidates.length === 0 ? (
-              <EmptyRow>{t('right.candidates.empty', 'AI 가 대화에서 할 일을 찾으면 여기에 나타납니다.') as string}</EmptyRow>
+              <WorkbenchEmptyRow>{t('right.candidates.empty', 'AI 가 대화에서 할 일을 찾으면 여기에 나타납니다.') as string}</WorkbenchEmptyRow>
             ) : candidates.map((c) => (
               <TaskCandidateCard
                 key={c.id}
@@ -315,25 +308,21 @@ const RightPanel: React.FC<Props> = ({
         )}
 
         {/* 섹션 1: 주요 이슈 */}
-        <Section>
-          <SectionHeader onClick={() => toggle('issues')}>
-            <SectionTitle>
-              <Chevron $open={expanded.issues} />
-              {t('right.issues.title', '주요 이슈')}
-              <Count>{projectIssues.length}</Count>
-            </SectionTitle>
-            {expanded.issues && !isClient && (
-              <AddBtn onClick={(e) => { e.stopPropagation(); setShowAddIssue(true); }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-                {t('right.issues.add', '추가')}
-              </AddBtn>
-            )}
-          </SectionHeader>
-          {expanded.issues && (
-            <SectionBody>
+        <WorkbenchSection
+          title={t('right.issues.title', '주요 이슈') as string}
+          count={projectIssues.length}
+          open={expanded.issues}
+          onToggle={() => toggle('issues')}
+          action={expanded.issues && !isClient ? (
+            <AddBtn onClick={(e) => { e.stopPropagation(); setShowAddIssue(true); }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              {t('right.issues.add', '추가')}
+            </AddBtn>
+          ) : null}
+        >
               {showAddIssue && !isClient && (
                 <NewIssueInput
                   autoFocus
@@ -385,140 +374,31 @@ const RightPanel: React.FC<Props> = ({
                 </IssueItem>
               ))}
               {!showAllIssues && projectIssues.length > 3 && (
-                <ShowMore onClick={() => setShowAllIssues(true)}>
+                <WorkbenchSectionLink type="button" onClick={() => setShowAllIssues(true)}>
                   {t('right.issues.showMore', '과거 이슈 {{n}}개 더 보기', { n: projectIssues.length - 3 })}
-                </ShowMore>
+                </WorkbenchSectionLink>
               )}
               {showAllIssues && projectIssues.length > 3 && (
-                <ShowMore onClick={() => setShowAllIssues(false)}>{t('right.issues.collapse', '접기')}</ShowMore>
+                <WorkbenchSectionLink type="button" onClick={() => setShowAllIssues(false)}>{t('right.issues.collapse', '접기')}</WorkbenchSectionLink>
               )}
               {projectIssues.length === 0 && !showAddIssue && (
-                <EmptyRow>{t('right.issues.empty', '아직 이슈가 없습니다')}</EmptyRow>
+                <WorkbenchEmptyRow>{t('right.issues.empty', '아직 이슈가 없습니다')}</WorkbenchEmptyRow>
               )}
-            </SectionBody>
-          )}
-        </Section>
+        </WorkbenchSection>
 
         {/* 섹션 2: 내 할 일 */}
-        <Section>
-          <SectionHeader onClick={() => toggle('myTasks')}>
-            <SectionTitle>
-              <Chevron $open={expanded.myTasks} />
-              {t('right.myTasks.title', '내 할 일')}
-              <Count>{myTasks.length}</Count>
-            </SectionTitle>
-          </SectionHeader>
-          {expanded.myTasks && (
-            <SectionBody>
-              {myTasks.map((task) => (
-                <TaskItem key={task.id} $completed={task.status === 'completed'}>
-                  <TaskCheck
-                    type="checkbox"
-                    checked={task.status === 'completed'}
-                    onChange={() => onToggleTask(task.id)}
-                  />
-                  <TaskBody>
-                    <TaskTitle $completed={task.status === 'completed'}>{task.title}</TaskTitle>
-                    <TaskMeta>
-                      {(() => {
-                        const sc = STATUS_COLOR[task.status as StatusCode] || STATUS_COLOR.not_started;
-                        return (
-                          <StatusPill $bg={sc.bg} $fg={sc.fg}>
-                            {getStatusLabel({ status: task.status, due_date: task.due_date }, 'observer', todayStr,
-                              (k, f) => tStatus(k, f || '') as string)}
-                          </StatusPill>
-                        );
-                      })()}
-                      {task.due_date && <TaskDue>{formatDate(task.due_date)}</TaskDue>}
-                      {task.recurrence && <RecurIcon title={t('right.myTasks.recurTitle', '반복 업무') as string}>↻</RecurIcon>}
-                    </TaskMeta>
-                  </TaskBody>
-                </TaskItem>
-              ))}
-              {myTasks.length === 0 && <EmptyRow>{t('right.myTasks.empty', '담당 업무가 없습니다')}</EmptyRow>}
-              <QTaskLink onClick={() => {
-                // 리스트 뷰 강제 — 카드 뷰가 저장돼 있어도 리스트로 열림
-                try { localStorage.setItem('qtask_view_mode', 'list'); } catch { /* ignore */ }
-                window.location.href = '/tasks';
-              }}>
-                → {t('right.myTasks.viewAll', 'Q Task 에서 전체 보기')}
-              </QTaskLink>
-            </SectionBody>
-          )}
-        </Section>
 
         {/* 섹션 3: 프로젝트 업무 */}
-        <Section>
-          <SectionHeader onClick={() => toggle('projectTasks')}>
-            <SectionTitle>
-              <Chevron $open={expanded.projectTasks} />
-              {project ? t('right.projectTasks.title', '프로젝트 업무') : t('right.projectTasks.titleStandalone', '업무')}
-              <Count>{tasks.length}</Count>
-            </SectionTitle>
-          </SectionHeader>
-          {expanded.projectTasks && (() => {
-            // 최신순으로 정렬해서 상위 5개만 노출. 나머지는 Q Task 에서 전체 보기.
-            const sorted = [...projectTasks].sort((a, b) => b.id - a.id);
-            const TASK_PREVIEW = 5;
-            const preview = sorted.slice(0, TASK_PREVIEW);
-            const hiddenCount = sorted.length - preview.length;
-            return (
-            <SectionBody>
-              {preview.map((task) => (
-                <ProjectTaskRow
-                  key={task.id}
-                  onClick={() => {
-                    try { localStorage.setItem('qtask_view_mode', 'list'); } catch { /* ignore */ }
-                    window.location.href = `/tasks?task=${task.id}`;
-                  }}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <ProjectTaskTitle>{task.title}</ProjectTaskTitle>
-                  <ProjectTaskRight>
-                    {task.due_date && <ProjectTaskDue>{formatDate(task.due_date)}</ProjectTaskDue>}
-                    {task.recurrence && <RecurIcon>↻</RecurIcon>}
-                    {(() => {
-                      const sc = STATUS_COLOR[task.status as StatusCode] || STATUS_COLOR.not_started;
-                      return (
-                        <StatusPill $bg={sc.bg} $fg={sc.fg}>
-                          {getStatusLabel({ status: task.status, due_date: task.due_date }, 'observer', todayStr,
-                            (k, f) => tStatus(k, f || '') as string)}
-                        </StatusPill>
-                      );
-                    })()}
-                  </ProjectTaskRight>
-                </ProjectTaskRow>
-              ))}
-              {projectTasks.length === 0 && <EmptyRow>{t('right.projectTasks.empty', '업무가 없습니다')}</EmptyRow>}
-              {projectTasks.length > 0 && (
-                <QTaskLink
-                  onClick={() => {
-                    try { localStorage.setItem('qtask_view_mode', 'list'); } catch { /* ignore */ }
-                    const url = project ? `/tasks?project=${project.id}` : '/tasks';
-                    window.location.href = url;
-                  }}
-                >
-                  {hiddenCount > 0
-                    ? `→ ${t('right.projectTasks.viewAllWithCount', 'Q Task 에서 전체 보기 ({{n}}개 더)', { n: hiddenCount })}`
-                    : `→ ${t('right.projectTasks.viewAll', 'Q Task 에서 전체 보기')}`}
-                </QTaskLink>
-              )}
-            </SectionBody>
-            );
-          })()}
-        </Section>
+        {/* 레거시 '프로젝트 업무' · '내 할 일' 섹션 제거 — 위 ContextTaskList 가 같은 내용을
+            프로젝트 업무 / 내 할 일 / 요청한 업무 3분류로 보여준다 (같은 정보를 두 번 그릴 이유가 없다). */}
 
         {/* 섹션 4: 프로젝트 메모 */}
-        <Section>
-          <SectionHeader onClick={() => toggle('notes')}>
-            <SectionTitle>
-              <Chevron $open={expanded.notes} />
-              {project ? t('right.notes.title', '프로젝트 메모') : t('right.notes.titleStandalone', '메모')}
-              <Count>{visibleNotes.length}</Count>
-            </SectionTitle>
-          </SectionHeader>
-          {expanded.notes && (
-            <SectionBody>
+        <WorkbenchSection
+          title={(project ? t('right.notes.title', '프로젝트 메모') : t('right.notes.titleStandalone', '메모')) as string}
+          count={visibleNotes.length}
+          open={expanded.notes}
+          onToggle={() => toggle('notes')}
+        >
               {/* 메모는 공통 NoteThread — Q Mail 맥락 패널과 같은 컴포넌트(디자인 단일 원천) */}
               <NoteThread
                 notes={visibleNotes.map((n) => ({
@@ -542,25 +422,21 @@ const RightPanel: React.FC<Props> = ({
                     : null;
                 }}
               />
-            </SectionBody>
-          )}
-        </Section>
+        </WorkbenchSection>
 
         {/* 섹션 5: 프로젝트 정보 — 독립 대화는 간단히 '일반 대화' 라벨만 */}
         {project && (
-        <Section>
-          <SectionHeader onClick={() => toggle('info')}>
-            <SectionTitle>
-              <Chevron $open={expanded.info} />
-              {t('right.info.title', '프로젝트 정보')}
-            </SectionTitle>
-          </SectionHeader>
-          {expanded.info && (() => {
+        <WorkbenchSection
+          title={t('right.info.title', '프로젝트 정보') as string}
+          open={expanded.info}
+          onToggle={() => toggle('info')}
+        >
+          {(() => {
             // 내부 프로젝트 감지 — client_company 없거나 "내부" 로 끝나는 placeholder 값
             const cc = project.client_company?.trim() || '';
             const isInternal = !cc || /내부$|internal$/i.test(cc) || cc === '—';
             return (
-            <SectionBody>
+            <>
               <InfoRow>
                 <InfoLabel>{t('right.info.name', '이름')}</InfoLabel>
                 <InfoValue>
@@ -599,10 +475,10 @@ const RightPanel: React.FC<Props> = ({
               <DetailLink type="button" onClick={() => navigate(`/projects/p/${project.id}`)}>
                 → {t('right.info.detail', '프로젝트 상세 보기')}
               </DetailLink>
-            </SectionBody>
+            </>
             );
           })()}
-        </Section>
+        </WorkbenchSection>
         )}
       </Scroll>
     </>
@@ -740,19 +616,6 @@ const HiddenToggle = styled.button`
 
 
 
-const Count = styled.span`
-  min-width: 16px;
-  height: 16px;
-  padding: 0 5px;
-  background: rgba(15, 23, 42, 0.08);
-  color: #475569;
-  border-radius: 8px;
-  font-size: 10px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-`;
 
 // 후보 카드 styled — CandidateEditCard 컴포넌트로 이전. 미사용 styled 제거.
 // RoleTag 만 남김 — 멤버 리스트(섹션 5 정보) 에서 별도로 사용 중.
@@ -765,39 +628,9 @@ const RoleTag = styled.span`
   border-radius: 8px;
 `;
 
-const Section = styled.div`
-  border-bottom: 1px solid #F1F5F9;
-`;
 
-const SectionHeader = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 14px;
-  cursor: pointer;
-  user-select: none;
-  &:hover { background: #F8FAFC; }
-`;
 
-const SectionTitle = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 700;
-  color: #0F172A;
-  letter-spacing: -0.1px;
-`;
 
-const Chevron = styled.span<{ $open: boolean }>`
-  width: 0;
-  height: 0;
-  border-left: 4px solid transparent;
-  border-right: 4px solid transparent;
-  border-top: 5px solid #94A3B8;
-  transform: rotate(${(p) => (p.$open ? '0' : '-90')}deg);
-  transition: transform 0.15s;
-`;
 
 const AddBtn = styled.button`
   display: flex;
@@ -814,14 +647,6 @@ const AddBtn = styled.button`
   &:hover { background: #F0FDFA; }
 `;
 
-const SectionBody = styled.div`
-  padding: 0 14px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 320px;
-  overflow-y: auto;
-`;
 
 const IssueItem = styled.div`
   padding: 8px 10px;
@@ -891,116 +716,20 @@ const IssueDeleteBtn = styled.button`
   &:hover { color: #DC2626; }
 `;
 
-const ShowMore = styled.button`
-  padding: 6px;
-  background: transparent;
-  color: #64748B;
-  border: none;
-  font-size: 11px;
-  cursor: pointer;
-  text-align: center;
-  width: 100%;
-  &:hover { color: #0D9488; }
-`;
 
 
-const TaskItem = styled.div<{ $completed?: boolean }>`
-  display: flex;
-  gap: 8px;
-  padding: 6px 8px;
-  border-radius: 6px;
-  opacity: ${(p) => (p.$completed ? 0.55 : 1)};
-  &:hover { background: #F8FAFC; }
-`;
 
-const TaskCheck = styled.input`
-  margin-top: 2px;
-  accent-color: #0D9488;
-  cursor: pointer;
-`;
 
-const TaskBody = styled.div`
-  flex: 1;
-  min-width: 0;
-`;
 
-const TaskTitle = styled.div<{ $completed?: boolean }>`
-  font-size: 12px;
-  color: #0F172A;
-  margin-bottom: 3px;
-  line-height: 1.3;
-  ${(p) => p.$completed && 'text-decoration: line-through; color: #94A3B8;'}
-`;
 
-const TaskMeta = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-`;
 
-const StatusPill = styled.span<{ $bg: string; $fg: string }>`
-  padding: 1px 6px;
-  background: ${(p) => p.$bg};
-  color: ${(p) => p.$fg};
-  font-size: 9px;
-  font-weight: 700;
-  border-radius: 8px;
-`;
 
-const TaskDue = styled.span`
-  font-size: 10px;
-  color: #64748B;
-`;
 
-const RecurIcon = styled.span`
-  font-size: 11px;
-  color: #0F766E;
-`;
 
-const QTaskLink = styled.button`
-  margin-top: 4px;
-  padding: 6px;
-  background: transparent;
-  color: #0D9488;
-  border: none;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  text-align: left;
-  &:hover { color: #0F766E; }
-`;
 
-const ProjectTaskRow = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 6px 8px;
-  border-radius: 6px;
-  &:hover { background: #F8FAFC; }
-`;
 
-const ProjectTaskTitle = styled.div`
-  font-size: 12px;
-  color: #0F172A;
-  flex: 1;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-`;
 
-const ProjectTaskRight = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-`;
 
-const ProjectTaskDue = styled.span`
-  font-size: 10px;
-  color: #64748B;
-`;
 
 
 
@@ -1107,11 +836,6 @@ const DetailLink = styled.button`
   &:hover { color: #0F766E; }
 `;
 
-const EmptyRow = styled.div`
-  padding: 10px 0;
-  font-size: 12px;
-  color: #94A3B8;
-`;
 
 const AutoRow = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;`;
 const AutoLabel = styled.label`display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #64748B; cursor: pointer;`;

@@ -201,7 +201,11 @@
       "emptyHint": "AI finds actionable tasks from this session and suggests them as candidates.",
       "extractFailed": "Failed to extract tasks"
     },
-    "catAll": "All"
+    "catAll": "All",
+    "sidebar": {
+      "collapse": "Collapse list",
+      "expand": "Open list"
+    }
   },
   "memoPopup": {
     "title": "Memo",

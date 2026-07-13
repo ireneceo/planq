@@ -236,7 +236,7 @@
     "summaryHint": "긴 스레드를 AI가 핵심만 요약해요.",
     "issuesTitle": "이슈",
     "issuePh": "이슈 작성... (⌘/Ctrl+Enter 저장)",
-    "notesTitle": "노트",
+    "notesTitle": "메모",
     "notePh": "메모 작성... (⌘/Ctrl+Enter 저장)",
     "add": "추가",
     "delete": "삭제",
@@ -249,7 +249,8 @@
     "noteVisLabel": "새 노트를 볼 사람",
     "notesEmpty": "아직 메모가 없습니다",
     "issuesEmpty": "아직 이슈가 없습니다",
-    "quickAddTitle": "한 줄 업무 등록"
+    "quickAddTitle": "한 줄 업무 등록",
+    "notesTitleProject": "프로젝트 메모"
   },
   "accounts": {
     "all": "메일 전체",

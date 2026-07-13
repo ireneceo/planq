@@ -11,7 +11,7 @@ import PlanQSelect from '../../components/Common/PlanQSelect';
 import TaskCandidateCard, { type RegisterOverrides } from '../../components/Common/TaskCandidateCard';
 import AiAssistButton from '../../components/Common/AiAssistButton';
 import NoteThread from '../../components/Common/NoteThread';
-import WorkbenchSection from '../../components/Workbench/WorkbenchSection';
+import WorkbenchSection, { WorkbenchEmptyRow, WorkbenchSectionLink } from '../../components/Workbench/WorkbenchSection';
 import ContextTaskList from '../../components/Workbench/ContextTaskList';
 import CueTaskBar from '../../components/QTask/CueTaskBar';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
@@ -262,7 +262,7 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
       >
         {aiSummary
           ? <SummaryBox>{aiSummary}</SummaryBox>
-          : <Dim>{t('context.summaryHint', { defaultValue: '긴 스레드를 AI가 핵심만 요약해요.' }) as string}</Dim>}
+          : <WorkbenchEmptyRow>{t('context.summaryHint', { defaultValue: '긴 스레드를 AI가 핵심만 요약해요.' }) as string}</WorkbenchEmptyRow>}
       </WorkbenchSection>
 
       {/* 한 줄 업무 등록 — AI 추출이 못 찾아도 사람이 바로 적는다. 이름을 지목하면 요청 업무가 된다. */}
@@ -293,11 +293,11 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
           />
         ) : null}
       >
-        {extractMsg && <Dim>{extractMsg}</Dim>}
+        {extractMsg && <WorkbenchEmptyRow>{extractMsg}</WorkbenchEmptyRow>}
         {candidates.length === 0 && !extractMsg ? (
-          <Dim>{canExtract
+          <WorkbenchEmptyRow>{canExtract
             ? t('context.tasksHint', { defaultValue: '메일 본문에서 할 일을 자동으로 뽑아 Q Task로 등록해요.' }) as string
-            : t('context.tasksGated', { defaultValue: '자동·마케팅 메일에서는 업무를 추출하지 않아요.' }) as string}</Dim>
+            : t('context.tasksGated', { defaultValue: '자동·마케팅 메일에서는 업무를 추출하지 않아요.' }) as string}</WorkbenchEmptyRow>
         ) : (
           <CandList>
             {candidates.map((c) => (
@@ -348,7 +348,9 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
 
       {/* 메모 */}
       <WorkbenchSection
-        title={t('context.notesTitle', { defaultValue: '메모' }) as string}
+        title={(projectId
+          ? t('context.notesTitleProject', { defaultValue: '프로젝트 메모' })
+          : t('context.notesTitle', { defaultValue: '메모' })) as string}
         count={notes.length}
         defaultOpen={notes.length > 0}
       >
@@ -380,7 +382,7 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
           options={clientOptions} menuPlacement="top" />
         {clientId && (
           sumLoading ? (
-            <Dim>{t('context.loading', { defaultValue: '불러오는 중…' }) as string}</Dim>
+            <WorkbenchEmptyRow>{t('context.loading', { defaultValue: '불러오는 중…' }) as string}</WorkbenchEmptyRow>
           ) : summary ? (
             <>
               <CountRow>
@@ -402,12 +404,12 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
                   );
                 })}
               </RecentList>
-              <TimelineLink type="button" onClick={() => navigate(`/business/clients/${clientId}/timeline`)}>
+              <WorkbenchSectionLink type="button" onClick={() => navigate(`/business/clients/${clientId}/timeline`)}>
                 {t('context.openTimeline', { defaultValue: '통합 타임라인 보기' }) as string}<span aria-hidden>›</span>
-              </TimelineLink>
+              </WorkbenchSectionLink>
             </>
           ) : (
-            <Dim>{t('context.noActivity', { defaultValue: '아직 다른 채널 활동이 없어요.' }) as string}</Dim>
+            <WorkbenchEmptyRow>{t('context.noActivity', { defaultValue: '아직 다른 채널 활동이 없어요.' }) as string}</WorkbenchEmptyRow>
           )
         )}
       </WorkbenchSection>
@@ -417,8 +419,7 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
 
 export default MailContextPanel;
 
-const Wrap = styled.div`display:flex; flex-direction:column; gap:16px; padding:16px 14px; overflow-y:auto;`;
-const Dim = styled.div`font-size:12px; color:#94A3B8; line-height:1.5;`;
+const Wrap = styled.div`flex:1; min-height:0; overflow-y:auto;`;
 // Q Talk ChatPanel:3430 과 동일 — 같은 기능은 어느 화면에서든 같은 모양 (teal + 체크박스 아이콘)
 const CandList = styled.div`display:flex; flex-direction:column; gap:8px;`;
 const SummaryBox = styled.div`font-size:12px; color:#334155; line-height:1.6; white-space:pre-wrap; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; padding:10px 12px;`;
@@ -442,10 +443,3 @@ const RecentType = styled.span<{ $type: Channel }>`
   background:${p => typeColor[p.$type].bg}; color:${p => typeColor[p.$type].fg};
 `;
 const RecentText = styled.span`font-size:12px; color:#475569; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;`;
-const TimelineLink = styled.button`
-  display:flex; align-items:center; justify-content:space-between; gap:6px; width:100%;
-  padding:9px 12px; border-radius:8px; cursor:pointer; margin-top:2px;
-  font-size:12px; font-weight:600; color:#0F766E; background:#F0FDFA; border:1px solid #99F6E4;
-  &:hover{ background:#CCFBF1; }
-  span{ font-size:16px; line-height:1; }
-`;
