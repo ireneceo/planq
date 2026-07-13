@@ -97,6 +97,8 @@ function serializeAccount(acc) {
     business_id: j.business_id,
     email: j.email,
     display_name: j.display_name,
+    signature_html: j.signature_html || null,
+    signature_enabled: j.signature_enabled !== false,
     imap_host: j.imap_host,
     imap_port: j.imap_port,
     imap_username: j.imap_username,
@@ -209,6 +211,9 @@ router.put('/:businessId/email-accounts/:id', authenticateToken, checkBusinessAc
       }
     }
     if (b.display_name !== undefined) patch.display_name = b.display_name || null;
+    // 서명 — 계정마다 등록한다. HTML 저장(발송 시 emailSend.appendSignature 가 붙인다).
+    if (b.signature_html !== undefined) patch.signature_html = b.signature_html ? String(b.signature_html).slice(0, 20000) : null;
+    if (b.signature_enabled !== undefined) patch.signature_enabled = !!b.signature_enabled;
     if (b.imap_host !== undefined) patch.imap_host = b.imap_host;
     if (b.imap_port !== undefined) patch.imap_port = Number(b.imap_port) || 993;
     if (b.imap_username !== undefined) patch.imap_username = b.imap_username;

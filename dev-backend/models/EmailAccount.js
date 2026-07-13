@@ -11,6 +11,10 @@ EmailAccount.init({
   business_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'businesses', key: 'id' } },
   email: { type: DataTypes.STRING(255), allowNull: false },
   display_name: { type: DataTypes.STRING(100), allowNull: true },
+  // 서명 — 계정마다 다르다 (회사 공용 메일과 내 개인 메일의 서명이 같을 리 없다).
+  //   HTML 로 저장하고 발송 시 본문 끝에 붙인다. 자동 삽입은 계정별로 끌 수 있다.
+  signature_html: { type: DataTypes.TEXT, allowNull: true },
+  signature_enabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
   // 인증 방식 — N+70 Task C/D 통합
   //   password: IMAP/SMTP 비밀번호 직접 (앱 비밀번호) — 옛 방식
   //   google_oauth: Gmail API + XOAUTH2 — OAuth 2.0

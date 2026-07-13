@@ -156,8 +156,9 @@
     "review": "검토 권장"
   },
   "actions": {
-    "markSpam": "스팸으로",
-    "notSpam": "스팸 해제"
+    "markSpam": "스팸",
+    "notSpam": "스팸 해제",
+    "markHandled": "확인 완료"
   },
   "selectWorkspace": "워크스페이스를 선택해 주세요.",
   "selectThread": "스레드를 선택해 주세요",
@@ -306,5 +307,14 @@
   "filters": {
     "allLabels": "태그 전체",
     "allProjects": "프로젝트 전체"
+  },
+  "signature": {
+    "title": "서명",
+    "saved": "저장됨",
+    "failed": "저장 실패",
+    "on": "보낼 때 자동 첨부",
+    "off": "첨부 안 함",
+    "desc": "이 계정으로 보내는 답장·전달·새 메일 끝에 자동으로 붙습니다. 계정마다 다르게 쓸 수 있어요.",
+    "placeholder": "예) 홍길동 · 워프로랩 · 010-0000-0000"
   }
 }

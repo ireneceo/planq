@@ -156,8 +156,9 @@
     "review": "Review suggested"
   },
   "actions": {
-    "markSpam": "Mark spam",
-    "notSpam": "Not spam"
+    "markSpam": "Spam",
+    "notSpam": "Not spam",
+    "markHandled": "Reviewed"
   },
   "selectWorkspace": "Select a workspace.",
   "selectThread": "Select a thread",
@@ -306,5 +307,14 @@
   "filters": {
     "allLabels": "All tags",
     "allProjects": "All projects"
+  },
+  "signature": {
+    "title": "Signature",
+    "saved": "Saved",
+    "failed": "Save failed",
+    "on": "Append when sending",
+    "off": "Not appended",
+    "desc": "Appended to replies, forwards, and new mail sent from this account. Each account can have its own.",
+    "placeholder": "e.g. Jane Doe · Worpro Lab · +82 10-0000-0000"
   }
 }

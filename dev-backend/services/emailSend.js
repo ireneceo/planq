@@ -70,6 +70,18 @@ function joinAddrs(v) {
 
 // 메일 발송. 성공 시 { messageId, accepted, rejected }, 실패 시 throw.
 //   attachments: nodemailer 형식 [{ filename, path, contentType }]
+
+// 서명 붙이기 — data-planq-signature 표식으로 중복 삽입을 막는다.
+//   서명이 비었거나 계정에서 껐으면 그대로 둔다.
+const SIGNATURE_MARK = 'data-planq-signature';
+function appendSignature(html, account) {
+  const sig = account && account.signature_enabled !== false ? String(account.signature_html || '').trim() : '';
+  if (!sig) return html;
+  const body = String(html || '');
+  if (body.includes(SIGNATURE_MARK)) return body;   // 이미 들어 있음 (초안에서 편집한 경우)
+  return `${body}<br><div ${SIGNATURE_MARK}="1" style="margin-top:16px;color:#334155;font-size:13px;">${sig}</div>`;
+}
+
 async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, references, attachments }) {
   // 수신자 검증 — 가짜/예약TLD/형식불량 주소 차단 (바운스·평판 보호). emailService 게이트 재사용.
   const { emailBlockReason } = require('./emailService');
@@ -100,13 +112,17 @@ async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, 
     ? `"${String(fromName).replace(/"/g, '')}" <${account.email}>`
     : account.email;
 
+  // 서명 — 계정마다 다르다. 발송 직전 한 곳에서 붙인다(답장·전달·새 메일 3경로가 모두 여기를 지난다).
+  //   이미 서명이 들어간 본문(사용자가 편집한 초안)에는 다시 붙이지 않는다 — 표식으로 판별.
+  const htmlWithSig = appendSignature(html, account);
+
   const info = await transport.sendMail({
     from,
     to: joinAddrs(to),
     ...(joinAddrs(cc) ? { cc: joinAddrs(cc) } : {}),
     ...(joinAddrs(bcc) ? { bcc: joinAddrs(bcc) } : {}),
     subject: subject || '(제목 없음)',
-    html,
+    html: htmlWithSig,
     ...(text ? { text } : {}),
     ...(inReplyTo ? { inReplyTo } : {}),
     ...(references && references.length ? { references } : {}),
@@ -120,4 +136,5 @@ async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, 
   };
 }
 
-module.exports = { sendMail, buildTransport, deriveSmtpHost };
+module.exports = {
+  appendSignature, sendMail, buildTransport, deriveSmtpHost };

@@ -18,6 +18,9 @@ export interface EmailAccountRow {
   smtp_tls: boolean | null;
   is_active: boolean;
   is_default: boolean;
+  // 서명 — 계정마다 등록 (발송 시 백엔드가 본문 끝에 붙인다)
+  signature_html: string | null;
+  signature_enabled: boolean;
   owner_user_id: number | null;
   is_personal: boolean;
   scope: 'team' | 'personal';
