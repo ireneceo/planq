@@ -19,7 +19,6 @@ import { fetchWorkspaceFiles, uploadMyFile, isImage as isRenderableImage } from 
 import { mediaTablet } from '../../theme/breakpoints';
 import { mapApiError } from '../../utils/apiError';
 import { useImageLightbox } from '../../components/Common/ImageLightbox';
-import AiAssistButton from '../../components/Common/AiAssistButton';
 import { useNavigate } from 'react-router-dom';
 import MessageReactions from './MessageReactions';   // #138 이모지 리액션
 
@@ -69,9 +68,8 @@ function channelLabel(name: string, projectName?: string | null): string {
 
 const ChatPanel: React.FC<Props> = ({
   project, conversations, messages, activeConversationId, onSelectConversation,
-  onOpenExtract, onSendMessage, onCueDraftSend, onCueDraftReject,
-  onToggleAutoExtract, onRenameConversation, onOpenSettings,
-  candidatesCount, extracting, leftCollapsed, rightCollapsed, onToggleLeft, onToggleRight,
+  onSendMessage, onCueDraftSend, onCueDraftReject, onRenameConversation, onOpenSettings,
+  candidatesCount, leftCollapsed, rightCollapsed, onToggleLeft, onToggleRight,
   onOpenNewChat, onMobileBack, mobileHidden = false,
   onLoadOlder, hasMoreOlder = false, loadingOlder = false, embedded = false,
 }) => {
@@ -1912,36 +1910,21 @@ const ChatPanel: React.FC<Props> = ({
             ))}
           </MentionDropdown>
         )}
-        {!isClient && (
+        {/* 자동추출 토글 + 업무 추출 버튼은 우측 작업대로 옮겼다 (Q Mail 과 같은 자리).
+            입력란은 쓰는 곳이고, 업무는 작업대에서 다룬다. 여기 남는 건 대화 흐름에 필요한
+            Cue 답변 대기 뱃지뿐 — 지금 답이 대기 중이라는 사실은 채팅 중에 알아야 한다. */}
+        {!isClient && cueDraftCount > 0 && (
           <InputToolbar>
-            <ToggleLabel>
-              <ToggleInput
-                type="checkbox"
-                checked={activeConv.auto_extract_enabled}
-                onChange={(e) => onToggleAutoExtract(activeConv.id, e.target.checked)}
-              />
-              <ToggleSlider $on={activeConv.auto_extract_enabled} />
-              <ToggleText>{t('chat.input.autoExtract', '자동 업무 추출')}</ToggleText>
-            </ToggleLabel>
-            {/* 보조 AI 액션 → 파스텔 민트 (주 AI 액션은 별 + Coral). 공통 AiAssistButton 단일 소스 */}
-            <AiAssistButton
-              onClick={onOpenExtract}
-              loading={extracting}
-              label={extracting ? t('chat.input.extracting', '추출 중...') as string : t('chat.input.extractNow', '업무 추출') as string}
-              title={t('chat.input.extractHint', 'AI 가 이 대화에서 할 일 후보를 뽑아냅니다') as string}
-            />
-            {cueDraftCount > 0 && (
-              <CueBadgeInline
-                type="button"
-                onClick={scrollToFirstDraft}
-                title={t('chat.input.cueWaitingHint', 'Cue 답변 대기 — 클릭하면 해당 메시지로 이동')}
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <polyline points="18 15 12 9 6 15" />
-                </svg>
-                {t('chat.input.cueWaiting', { count: cueDraftCount })}
-              </CueBadgeInline>
-            )}
+            <CueBadgeInline
+              type="button"
+              onClick={scrollToFirstDraft}
+              title={t('chat.input.cueWaitingHint', 'Cue 답변 대기 — 클릭하면 해당 메시지로 이동')}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <polyline points="18 15 12 9 6 15" />
+              </svg>
+              {t('chat.input.cueWaiting', { count: cueDraftCount })}
+            </CueBadgeInline>
           </InputToolbar>
         )}
         {(uploadingFiles.length > 0 || stagedExistingIds.length > 0 || stagedPostIds.length > 0) && (
@@ -3413,45 +3396,9 @@ const InputToolbar = styled.div`
   margin-bottom: 8px;
 `;
 
-const ToggleLabel = styled.label`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  user-select: none;
-`;
 
-const ToggleInput = styled.input`
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-`;
 
-const ToggleSlider = styled.span<{ $on: boolean }>`
-  width: 28px;
-  height: 16px;
-  border-radius: 8px;
-  background: ${(p) => (p.$on ? '#0D9488' : '#CBD5E1')};
-  position: relative;
-  transition: background 0.15s;
-  &::after {
-    content: '';
-    position: absolute;
-    top: 2px;
-    left: ${(p) => (p.$on ? '14px' : '2px')};
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: #FFFFFF;
-    transition: left 0.15s;
-  }
-`;
 
-const ToggleText = styled.span`
-  font-size: 11px;
-  color: #64748B;
-  font-weight: 500;
-`;
 
 
 

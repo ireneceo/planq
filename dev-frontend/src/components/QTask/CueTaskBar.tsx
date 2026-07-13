@@ -16,6 +16,10 @@ interface Props {
   businessId: number;
   members: AiCardMember[];
   projectId?: number | null;
+  /** 채팅·메일 작업대에서 쓸 때 — 등록된 업무가 그 대화/스레드에 연결된다 (안 붙으면 그 자리 리스트에 안 보인다) */
+  context?: { conversation_id?: number | null; email_thread_id?: number | null } | null;
+  /** 좁은 패널(320~440px)용 — 글로벌 ⌘T 미등록, 여백 축소 */
+  compact?: boolean;
   onCreated?: (created: Array<{ id: number; title: string }>) => void;
 }
 
@@ -25,7 +29,7 @@ function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-export default function CueTaskBar({ businessId, members, projectId = null, onCreated }: Props) {
+export default function CueTaskBar({ businessId, members, projectId = null, context = null, compact = false, onCreated }: Props) {
   const { t } = useTranslation('qtask');
   const { t: tErr } = useTranslation('errors');
   const [stage, setStage] = useState<Stage>('idle');
@@ -59,8 +63,10 @@ export default function CueTaskBar({ businessId, members, projectId = null, onCr
   }, []);
   useEffect(() => { autoGrow(); }, [prompt, autoGrow]);
 
-  // ⌘T / Ctrl+T — 어디서든 바 포커스 (브라우저 새 탭 단축키 가로채지 않도록 입력 중이 아닐 때만)
+  // ⌘T / Ctrl+T — 어디서든 바 포커스 (브라우저 새 탭 단축키 가로채지 않도록 입력 중이 아닐 때만).
+  //   패널판(compact)은 등록하지 않는다 — 같은 화면에 바가 둘이면 포커스가 어디로 갈지 알 수 없다.
   useEffect(() => {
+    if (compact) return;
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && (e.key === 't' || e.key === 'T')) {
         const tag = (document.activeElement?.tagName || '').toLowerCase();
@@ -71,7 +77,7 @@ export default function CueTaskBar({ businessId, members, projectId = null, onCr
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [compact]);
 
   const send = async (instruction?: string) => {
     if (!prompt.trim() || submitting) return;
@@ -124,7 +130,7 @@ export default function CueTaskBar({ businessId, members, projectId = null, onCr
       const r = await apiFetch('/api/tasks/ai-create/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ business_id: businessId, project_id: projectId, candidates: selected, base_date: baseDate }),
+        body: JSON.stringify({ business_id: businessId, project_id: projectId, candidates: selected, base_date: baseDate, context: context || undefined }),
       });
       const j = await r.json();
       if (!j.success) throw new Error(j.message || 'failed');
@@ -151,7 +157,7 @@ export default function CueTaskBar({ businessId, members, projectId = null, onCr
   const placeholder = `${t('ai.bar.lead', 'Cue에게 말하기')} — "${examples[phIdx] || ''}"`;
 
   return (
-    <Wrap>
+    <Wrap $compact={compact}>
       <BarRow $active={stage !== 'idle' || !!prompt}>
         <Sparkle aria-hidden>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8 5.8 21.3l2.4-7.4L2 9.4h7.6L12 2z" /></svg>
@@ -230,8 +236,8 @@ export default function CueTaskBar({ businessId, members, projectId = null, onCr
 
 const CORAL = '#F43F5E';
 
-const Wrap = styled.div`
-  padding: 10px 16px 0;
+const Wrap = styled.div<{ $compact?: boolean }>`
+  padding: ${(p) => (p.$compact ? '0' : '10px 16px 0')};
   flex-shrink: 0;
 `;
 const BarRow = styled.div<{ $active: boolean }>`

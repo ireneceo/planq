@@ -245,7 +245,8 @@
     "extractHint": "AI extracts task candidates from this email",
     "noteVisLabel": "Who can see new notes",
     "notesEmpty": "No notes yet",
-    "issuesEmpty": "No issues yet"
+    "issuesEmpty": "No issues yet",
+    "quickAddTitle": "Add a task in one line"
   },
   "accounts": {
     "all": "All",

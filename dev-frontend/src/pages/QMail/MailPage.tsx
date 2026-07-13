@@ -29,6 +29,8 @@ import PanelEdgeHandle from '../../components/Layout/PanelEdgeHandle';
 import EmptyState from '../../components/Common/EmptyState';
 import { sanitizeMailHtml } from '../../utils/sanitizeHtml';
 import AiActionButton from '../../components/Common/AiActionButton';
+import FloatingPanelToggle from '../../components/Common/FloatingPanelToggle';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
 type Folder = 'reply_needed' | 'uncertain' | 'all' | 'marketing' | 'following' | 'spam' | 'archived';
 
@@ -225,6 +227,22 @@ const MailPage: React.FC = () => {
     nsp.delete('thread');
     setSp(nsp, { replace: true });
   };
+
+  // 첫 화면은 "일이 있는 곳" 으로 — 답변 필요가 있으면 거기서 시작하고, 없으면 확인 권장.
+  //   사람이 고른 탭에 내용이 있으면 그 선택을 존중한다(지난 선택 유지). 빈 탭에 떨어뜨리지 않는다.
+  const autoFolderDone = useRef(false);
+  useEffect(() => {
+    if (autoFolderDone.current) return;
+    if (sp.get('folder')) { autoFolderDone.current = true; return; }   // URL 로 명시했으면 건드리지 않음
+    const counts = folderCounts;
+    if (counts.reply_needed === 0 && counts.uncertain === 0) return;   // 아직 카운트 로딩 전
+    autoFolderDone.current = true;
+    const currentEmpty = (counts[folder] ?? 0) === 0;
+    if (!currentEmpty) return;                                          // 지금 탭에 내용이 있으면 그대로
+    const next: Folder = counts.reply_needed > 0 ? 'reply_needed' : 'uncertain';
+    if (next !== folder) setFolder(next);
+  }, [folderCounts, folder, sp]);
+
 
   const setActive = (id: number | null) => {
     const nsp = new URLSearchParams(sp);
@@ -772,6 +790,11 @@ const MailPage: React.FC = () => {
     () => accounts.map(a => ({ value: a.id, label: `${a.display_name || a.email}${a.is_personal ? ` (${t('account.personal', { defaultValue: '개인' })})` : ''}` })),
     [accounts, t],
   );
+  // 모바일·태블릿(≤1024px) — 작업대는 오버레이 드로어로 연다.
+  //   여태 $hideTablet 으로 통째로 숨겨서, 폰에서는 메일의 업무·메모·연결을 아예 쓸 수 없었다.
+  const ctxNarrow = viewportNarrow;
+  const [ctxOverlayOpen, setCtxOverlayOpen] = useState(false);
+  useBodyScrollLock(ctxNarrow && ctxOverlayOpen);
   const closeCompose = () => {
     setComposeOpen(false); setCTo(''); setCSubject(''); setCBody(''); setCUploads([]); setCFileIds([]); setCError(null);
     setFwdFromMsgId(null); setFwdAttachCount(0);
@@ -1327,9 +1350,20 @@ const MailPage: React.FC = () => {
             labelExpand={`${t('context.expand', { defaultValue: '맥락 패널 펼치기' }) as string} (⌘/)`}
           />
         )}
-        {detail && businessId && !rightCollapsed && (
-          <Panel $width={rightWidth} $last $hideTablet $relative>
-            <CtxResizeHandle onMouseDown={startRightResize} />
+        {/* 작업대 — 데스크탑은 우측 컬럼, 태블릿·폰은 오버레이 드로어 (Q Task 와 같은 패턴) */}
+        {detail && businessId && ctxNarrow && ctxOverlayOpen && (
+          <CtxBackdrop onClick={() => setCtxOverlayOpen(false)} />
+        )}
+        {detail && businessId && ctxNarrow && (
+          <FloatingPanelToggle
+            open={ctxOverlayOpen}
+            onToggle={() => setCtxOverlayOpen((v) => !v)}
+            ariaLabel={t('context.panelTitle', { defaultValue: '맥락' }) as string}
+          />
+        )}
+        {detail && businessId && ((!ctxNarrow && !rightCollapsed) || (ctxNarrow && ctxOverlayOpen)) && (
+          <Panel $width={rightWidth} $last $relative $overlay={ctxNarrow}>
+            {!ctxNarrow && <CtxResizeHandle onMouseDown={startRightResize} />}
             <PanelHeader>
               <PanelMetaTitle>{t('context.panelTitle', { defaultValue: '맥락' }) as string}</PanelMetaTitle>
             </PanelHeader>
@@ -1913,4 +1947,11 @@ const Empty = styled.div`
 // 첨부 아이콘 — 이모지(📎) 대신 SVG (플랫폼 아이콘 통일, 폰트 의존 제거)
 const ClipIcon = styled.svg`
   width: 13px; height: 13px; flex-shrink: 0; vertical-align: -2px; color: #64748B;
+`;
+
+// 작업대 오버레이 뒤 dim (태블릿·폰)
+const CtxBackdrop = styled.div`
+  position: fixed; inset: 0; z-index: 40;
+  background: rgba(15, 23, 42, 0.35);
+  @media (min-width: 1025px) { display: none; }
 `;

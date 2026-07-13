@@ -1054,5 +1054,16 @@
     "resumeTitle": "In progress",
     "resumeHint": "Focus moved to another task. Resume to continue tracking time.",
     "resumeFocus": "Resume work"
+  },
+  "workbench": {
+    "tasks": "Tasks",
+    "projectTasks": "Project tasks",
+    "myTasks": "My tasks",
+    "requested": "Requested by me",
+    "emptyTasks": "No tasks from this thread yet. Add one in a line above.",
+    "seeAll": "See all {{n}} in Q Task",
+    "overdue": "{{n}}d overdue",
+    "today": "Today",
+    "inDays": "D-{{n}}"
   }
 }

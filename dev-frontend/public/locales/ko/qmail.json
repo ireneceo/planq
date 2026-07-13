@@ -245,7 +245,8 @@
     "extractHint": "AI 가 이 메일에서 할 일 후보를 뽑아냅니다",
     "noteVisLabel": "새 노트를 볼 사람",
     "notesEmpty": "아직 메모가 없습니다",
-    "issuesEmpty": "아직 이슈가 없습니다"
+    "issuesEmpty": "아직 이슈가 없습니다",
+    "quickAddTitle": "한 줄 업무 등록"
   },
   "accounts": {
     "all": "전체",
