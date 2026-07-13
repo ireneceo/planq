@@ -26,6 +26,7 @@ import PlanQSelect from '../../components/Common/PlanQSelect';
 import { uploadMyFile } from '../../services/files';
 import MailContextPanel from './MailContextPanel';
 import PanelEdgeHandle from '../../components/Layout/PanelEdgeHandle';
+import PanelResizeHandle, { usePanelWidth } from '../../components/Layout/PanelResizeHandle';
 import EmptyState from '../../components/Common/EmptyState';
 import { sanitizeMailHtml } from '../../utils/sanitizeHtml';
 import AiActionButton from '../../components/Common/AiActionButton';
@@ -206,6 +207,11 @@ const MailPage: React.FC = () => {
     reply_needed: 0, uncertain: 0, all: 0, marketing: 0, following: 0, spam: 0, archived: 0,
   });
   const [accounts, setAccounts] = useState<MailAccount[]>([]);
+  // 좌측 리스트 폭 — 우측 패널처럼 드래그로 조절 (제목이 길면 300px 는 답답하다)
+  const { width: listWidth, startListResize } = (() => {
+    const { width, startResize } = usePanelWidth('qmail_list_width', 300, 'left');
+    return { width, startListResize: startResize };
+  })();
   const [labelMaster, setLabelMaster] = useState<MailLabel[]>([]);
   // 라벨(태그)·프로젝트 필터 — 태그는 스레드에 붙는 진짜 태그이고, 여기서 리스트 필터로도 쓴다.
   // 프로젝트/채팅방 연결은 우측 맥락 패널에서 걸고, 이 셀렉트로 "그 프로젝트 메일만" 볼 수 있다.
@@ -959,7 +965,7 @@ const MailPage: React.FC = () => {
   return (
     <PanelGridLayout
       $cols={[
-        sidebarCollapsed ? '0px' : '300px',
+        sidebarCollapsed ? '0px' : `${listWidth}px`,
         '1fr',
         (detail && businessId && !rightCollapsed) ? `${rightWidth}px` : '0px',
       ].join(' ')}
@@ -972,11 +978,12 @@ const MailPage: React.FC = () => {
         side="left"
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed((v) => !v)}
-        offset={sidebarCollapsed ? 0 : 300}
+        offset={sidebarCollapsed ? 0 : listWidth}
         labelCollapse={t('sidebar.collapse', { defaultValue: '목록 접기' }) as string}
         labelExpand={t('sidebar.expand', { defaultValue: '목록 열기' }) as string}
       />
-      <CollapsibleSidebar $collapsed={sidebarCollapsed}>
+      <CollapsibleSidebar $collapsed={sidebarCollapsed} $w={listWidth}>
+        <PanelResizeHandle onMouseDown={startListResize} />
         <PanelHeader>
           <PanelTitle>Q Mail</PanelTitle>
           <ComposeBtn type="button" onClick={() => setComposeOpen(true)} title={t('compose.new', { defaultValue: '새 메일' }) as string} aria-label={t('compose.new', { defaultValue: '새 메일' }) as string}>

@@ -8,6 +8,7 @@ import LetterAvatar from '../../components/Common/LetterAvatar';
 import SearchBoxCommon from '../../components/Common/SearchBox';
 import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
 import { mediaTablet } from '../../theme/breakpoints';
+import PanelResizeHandle from '../../components/Layout/PanelResizeHandle';
 
 interface Props {
   projects: MockProject[];
@@ -19,6 +20,9 @@ interface Props {
   onSelectConversation: (projectId: number, conversationId: number) => void;
   onOpenNewChat: () => void;
   collapsed: boolean;
+  /** 폭(px) — 드래그 조절. 없으면 300 */
+  width?: number;
+  onResizeStart?: (e: React.MouseEvent) => void;
   onToggleCollapsed: () => void;
   /** 핀(즐겨찾기) 토글 — 부모가 API 호출 + 옵티미스틱 업데이트 */
   onTogglePin?: (conversationId: number, pinned: boolean) => void;
@@ -44,7 +48,7 @@ interface ChatEntry {
 const LeftPanel: React.FC<Props> = ({
   projects, conversations, activeConversationId,
   loading = false,
-  onSelectConversation, onOpenNewChat, collapsed,
+  onSelectConversation, onOpenNewChat, collapsed, width, onResizeStart,
   onTogglePin, canManage, onArchive, onUnlink, onOpenArchive, mobileHidden = false,
 }) => {
   const { t } = useTranslation('qtalk');
@@ -135,7 +139,8 @@ const LeftPanel: React.FC<Props> = ({
   if (collapsed) return null;
 
   return (
-    <Container $mobileHidden={mobileHidden}>
+    <Container $mobileHidden={mobileHidden} $w={width}>
+      {onResizeStart && <PanelResizeHandle onMouseDown={onResizeStart} />}
       <Header>
         <HeaderTop>
           <TitleGroup>
@@ -308,9 +313,10 @@ const LeftPanel: React.FC<Props> = ({
 export default LeftPanel;
 
 // ─────────────────────────────────────────────
-const Container = styled.aside<{ $mobileHidden?: boolean }>`
+const Container = styled.aside<{ $mobileHidden?: boolean; $w?: number }>`
   /* 좌측 리스트 폭 — Q note/Q docs 와 동일 (300px). 좌측 리스트 패턴 통일 */
-  width: 300px;
+  width: ${(p) => p.$w || 300}px;
+  position: relative;   /* 폭 조절 핸들 기준 */
   flex-shrink: 0;
   background: #FFFFFF;
   border-right: 1px solid #E2E8F0;

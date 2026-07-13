@@ -59,6 +59,7 @@ const MemoView = React.lazy(() => import('./MemoView'));
 // NewNoteModal — Q docs PostAiModal manual mode 패턴 동일 (탭 메모/음성 + 옵션). 사이클 N+17 hotfix.
 import NewNoteModal, { type NewNoteKind } from './NewNoteModal';
 import PanelEdgeHandle from '../../components/Layout/PanelEdgeHandle';
+import PanelResizeHandle, { usePanelWidth } from '../../components/Layout/PanelResizeHandle';
 
 /**
  * Q Note 페이지
@@ -257,6 +258,8 @@ const QNotePage = () => {
     if (typeof window !== 'undefined') return window.innerWidth < 900;
     return false;
   });
+  // 좌측 리스트 폭 — 드래그로 조절 (다른 화면과 같은 방식, localStorage 저장)
+  const { width: listWidth, startResize: startListResize } = usePanelWidth('qnote_list_width', 300, 'left');
   const [viewportNarrow, setViewportNarrow] = useState<boolean>(() => {
     // 1024px — PanelGridLayout/CollapsibleSidebar 의 오버레이 드로어 전환 breakpoint 와 일치.
     // (옛 900px 은 CSS 1024px 와 어긋나 900~1024 구간에서 사이드바가 백드롭 없이 본문 위 겹침)
@@ -2002,18 +2005,19 @@ const QNotePage = () => {
   };
 
   return (
-    <PanelGridLayout $cols={sidebarCollapsed ? '0px 1fr' : '300px 1fr'}>
+    <PanelGridLayout $cols={sidebarCollapsed ? '0px 1fr' : `${listWidth}px 1fr`}>
       {/* 리스트 접기/펼치기 — 공통 PanelEdgeHandle (Q Talk·Q Mail·Q docs·Q Task 와 같은 경계선 화살표).
           Q Note 만 핸들이 아예 없어서 접으면 다시 여는 방법이 백드롭 클릭뿐이었다. */}
       <PanelEdgeHandle
         side="left"
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed((v) => !v)}
-        offset={sidebarCollapsed ? 0 : 300}
+        offset={sidebarCollapsed ? 0 : listWidth}
         labelCollapse={t('page.sidebar.collapse', '리스트 접기') as string}
         labelExpand={t('page.sidebar.expand', '리스트 열기') as string}
       />
-      <CollapsibleSidebar $collapsed={sidebarCollapsed}>
+      <CollapsibleSidebar $collapsed={sidebarCollapsed} $w={listWidth}>
+        <PanelResizeHandle onMouseDown={startListResize} />
         <SidebarHeader>
           <TitleGroup>
             <SidebarTitle>Q note</SidebarTitle>
