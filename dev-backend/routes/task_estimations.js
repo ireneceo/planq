@@ -8,8 +8,9 @@ const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { perUserDaily } = require('../middleware/costGuard');
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
-const AI_MODEL = 'gpt-4o-mini';
+// LLM 호출은 게이트웨이 단일 지점을 지난다 (services/llm.js) — 모델·타임아웃·재시도·입력상한이 거기 있다.
+const { callLLM, isEnabled, modelFor } = require('../services/llm');
+const AI_MODEL = modelFor('task_estimate');
 
 // 비용폭탄 C2 — AI 추정은 외부 LLM 비용. per-user 10/분 + 100/일 (업무폼 버튼 1회/task, 인간 상한 여유).
 const aiEstimateLimiter = perUserDaily('ai-est', { perMin: 10, perDay: 100, message: 'AI 추정을 너무 자주 호출했습니다. 잠시 후 다시 시도하세요.' });
@@ -45,7 +46,7 @@ async function loadWorkspacePatterns(businessId, limit = 12) {
 
 // AI 추천 — 제목 + 설명 기반. 0.25 단위 반올림. businessId 주면 워크스페이스 패턴 few-shot 사용.
 async function callAiEstimate(title, description, businessId = null) {
-  if (!OPENAI_API_KEY) return null;
+  if (!isEnabled()) return null;
   let sys = `너는 PlanQ Cue, 업무 시간 추정 전문가야.
 업무 제목·설명을 보고 평균적으로 몇 시간이 걸릴지 추정한다.
 - 0.25 단위로 반올림
@@ -67,25 +68,17 @@ async function callAiEstimate(title, description, businessId = null) {
   try { sys += await require('../services/cueKnowledge').getWorkPatternPromptBlock(businessId); } catch { /* noop */ }
   const user = `제목: ${title}${description ? `\n설명: ${description.slice(0, 600)}` : ''}`;
   try {
-    const r = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: AI_MODEL,
-        messages: [
-          { role: 'system', content: sys },
-          { role: 'user', content: user },
-        ],
-        temperature: 0.2,
-        max_tokens: 100,
-        response_format: { type: 'json_object' },
-      }),
-      signal: AbortSignal.timeout(20_000),
+    const { content, fallback } = await callLLM({
+      purpose: 'task_estimate',
+      messages: [
+        { role: 'system', content: sys },
+        { role: 'user', content: user },
+      ],
+      json: true,
+      fallback: '',
     });
-    if (!r.ok) return null;
-    const j = await r.json();
-    const content = j.choices?.[0]?.message?.content || '{}';
-    const parsed = JSON.parse(content);
+    if (fallback) return null;   // 게이트웨이가 재시도까지 하고도 실패 — 추정 없이 진행 (옛 동작 동일)
+    const parsed = JSON.parse(content || '{}');
     let hours = Number(parsed.hours);
     if (!Number.isFinite(hours)) return null;
     hours = Math.max(0.25, Math.min(40, Math.round(hours * 4) / 4));

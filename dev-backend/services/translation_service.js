@@ -12,14 +12,14 @@ const LANG_NAMES = {
   es: 'Spanish (Español)',
 };
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
-const MODEL = 'gpt-4o-mini';
+// LLM 호출은 게이트웨이 단일 지점을 지난다 (services/llm.js).
+const { callLLM, isEnabled } = require('./llm');
 
 // 입력 언어 자동 감지 + 두 언어로 번역
 // languages: ["ko","en"] 같은 2-원소 배열
 // 반환: { detected_language, translations: { ko: "...", en: "..." } }
 async function translateForBilingual(text, languages, businessId = null) {
-  if (!OPENAI_API_KEY) {
+  if (!isEnabled()) {
     return { detected_language: null, translations: null, fallback: true };
   }
   if (!Array.isArray(languages) || languages.length !== 2) {
@@ -65,29 +65,21 @@ JSON RULES:
 - Schema: {"detected_language": "ko|en|ja|zh|es", "translations": {"${a}": "...", "${b}": "..."}}`;
 
   try {
-    const r = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: text },
-        ],
-        temperature: 0.1,
-        // 양 언어 + JSON wrapper + 한자/한글 토큰 비율 + escape 여유 → 최소 400, 최대 2000
-        max_tokens: Math.min(2000, Math.max(400, Math.ceil(text.length * 4) + 200)),
-        response_format: { type: 'json_object' },
-      }),
-      signal: AbortSignal.timeout(20_000),  // 번역은 짧은 응답 — 20s
+    const { content: raw, fallback: failed, input_tokens, output_tokens, model } = await callLLM({
+      purpose: 'translation',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: text },
+      ],
+      json: true,
+      // 양 언어 + JSON wrapper + 한자/한글 토큰 비율 + escape 여유 → 최소 400, 최대 2000 (옛 값 보존)
+      maxTokens: Math.min(2000, Math.max(400, Math.ceil(text.length * 4) + 200)),
+      fallback: '',
     });
-    if (!r.ok) {
-      const err = await r.text();
-      console.warn('[translation] LLM error', r.status, err.slice(0, 200));
+    if (failed) {
       return { detected_language: null, translations: null, fallback: true, reason: 'llm_error' };
     }
-    const data = await r.json();
-    const content = data.choices?.[0]?.message?.content || '{}';
+    const content = raw || '{}';
     // LLM 이 raw newline 을 응답하면 JSON.parse 실패. string value 내부의 control char 를 escape 후 재시도.
     let parsed;
     try {
@@ -118,20 +110,19 @@ JSON RULES:
     if (!translations[a].trim() || !translations[b].trim()) {
       return { detected_language: detected, translations: null, fallback: true, reason: 'empty_translation' };
     }
-    // 사용량 기록 — translation 카테고리 (cue_usage 통합 추적)
+    // 사용량 기록 — translation 카테고리 (cue_usage 통합 추적).
+    //   게이트웨이는 사용량을 차감하지 않는다 — 누가 부를 자격이 있고 얼마를 쓰는지는 도메인이 안다.
     if (businessId) {
       try {
         const { recordUsage } = require('./cue_orchestrator');
-        await recordUsage(businessId, 'translation', MODEL,
-          data.usage?.prompt_tokens || 0,
-          data.usage?.completion_tokens || 0);
+        await recordUsage(businessId, 'translation', model, input_tokens || 0, output_tokens || 0);
       } catch (e) { console.warn('[translation] recordUsage failed', e.message); }
     }
     return {
       detected_language: detected,
       translations,
-      input_tokens: data.usage?.prompt_tokens || 0,
-      output_tokens: data.usage?.completion_tokens || 0,
+      input_tokens: input_tokens || 0,
+      output_tokens: output_tokens || 0,
       fallback: false,
     };
   } catch (e) {

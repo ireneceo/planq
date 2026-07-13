@@ -1,8 +1,8 @@
 // services/reportNarrative.js — #85 보고서 executive summary(SCR 구조) AI 생성.
 // 스냅샷 데이터(KPI·하이라이트·리스크·블로커·다음) → SCR(상황·문제·해결) 경영진 요약.
 // 온디맨드(버튼) 전용 — 자동 호출 안 함(AI 최소사용 원칙). 보고서 IA/탭 불변, 서술 블록만.
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
-const MODEL = 'gpt-4o-mini';
+// LLM 호출은 게이트웨이 단일 지점을 지난다 (services/llm.js).
+const { callLLM, isEnabled } = require('./llm');
 
 function briefList(arr, n = 12) {
   if (!Array.isArray(arr)) return [];
@@ -13,7 +13,7 @@ function briefList(arr, n = 12) {
 
 // 스냅샷 + 컨텍스트 → { headline, situation, complication, resolution, narrative }
 async function generateScrNarrative({ snapshot, scopeLabel, periodLabel, lang = 'ko' }) {
-  if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY missing');
+  if (!isEnabled()) throw new Error('OPENAI_API_KEY missing');
   const s = snapshot || {};
   const data = {
     scope: scopeLabel || '',
@@ -41,28 +41,19 @@ async function generateScrNarrative({ snapshot, scopeLabel, periodLabel, lang = 
 - resolution: next actions and decisions needed. 2-3 sentences.
 Rules: only facts present in the data, no exaggeration or speculation. English. Respond as JSON only: {"headline","situation","complication","resolution"}`;
 
-  const r = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [
-        { role: 'system', content: SYSTEM },
-        { role: 'user', content: JSON.stringify(data).slice(0, 40_000) },
-      ],
-      temperature: 0.3,
-      max_tokens: 1200,
-      response_format: { type: 'json_object' },
-    }),
-    signal: AbortSignal.timeout(45_000),
+  const { content, fallback } = await callLLM({
+    purpose: 'report',
+    messages: [
+      { role: 'system', content: SYSTEM },
+      { role: 'user', content: JSON.stringify(data).slice(0, 40_000) },
+    ],
+    json: true,
+    fallback: '',
   });
-  if (!r.ok) {
-    const t = await r.text().catch(() => '');
-    throw new Error(`LLM ${r.status}: ${t.slice(0, 200)}`);
-  }
-  const j = await r.json();
+  // 이 호출부는 실패를 삼키지 않는다 — 보고서는 반쯤 빈 채로 저장되면 안 된다 (옛 동작 유지: throw).
+  if (fallback) throw new Error('LLM 호출 실패 (게이트웨이 재시도 후에도)');
   let parsed = {};
-  try { parsed = JSON.parse(j.choices?.[0]?.message?.content || '{}'); } catch { parsed = {}; }
+  try { parsed = JSON.parse(content || '{}'); } catch { parsed = {}; }
 
   const headline = String(parsed.headline || '').trim();
   const situation = String(parsed.situation || '').trim();

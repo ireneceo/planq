@@ -12,7 +12,8 @@ const SIM_THRESHOLD = 0.85;
 const MIN_CLUSTER = 3;
 const WINDOW_DAYS = 30;
 const MAX_LOGS = 500;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+// LLM 호출은 게이트웨이 단일 지점을 지난다 (services/llm.js).
+const { callLLM, isEnabled } = require('./llm');
 
 // 초안이 쌓이는 카테고리 (관리자가 발행 시 올바른 카테고리로 이동)
 async function ensureSuggestedCategory() {
@@ -30,34 +31,25 @@ function draftSlug(repQuestion) {
 
 // 클러스터 → 위키 초안 (ko/en, 위키 body 블록 형식)
 async function generateDraft(questions) {
-  if (!OPENAI_API_KEY) return null;
-  const r = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'gpt-4o-mini',
-      response_format: { type: 'json_object' },
-      temperature: 0.3,
-      max_tokens: 1500,
-      messages: [
-        {
-          role: 'system',
-          content: `You draft help-center articles for PlanQ (B2B work-management SaaS). Users repeatedly asked the questions below but the wiki had no good answer. Write ONE article draft that answers them. You may not know PlanQ internals — write the best general structure and mark uncertain spots with [확인 필요]. Return JSON:
+  if (!isEnabled()) return null;
+  const { content, fallback } = await callLLM({
+    purpose: 'wiki_cluster',
+    json: true,
+    timeoutMs: 60_000,   // 옛 호출부 값 보존 (초안 생성은 길다)
+    messages: [
+      {
+        role: 'system',
+        content: `You draft help-center articles for PlanQ (B2B work-management SaaS). Users repeatedly asked the questions below but the wiki had no good answer. Write ONE article draft that answers them. You may not know PlanQ internals — write the best general structure and mark uncertain spots with [확인 필요]. Return JSON:
 {"title_ko":"...","title_en":"...","summary_ko":"<=200자","summary_en":"...","body_ko":[{"type":"text","text_ko":"..."},{"type":"step","text_ko":"..."}],"body_en":[{"type":"text","text_en":"..."},{"type":"step","text_en":"..."}]}
 block types: heading|text|step|callout. 3~8 blocks per language.`,
-        },
-        { role: 'user', content: `반복 질문들:\n${questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}` },
-      ],
-    }),
-    signal: AbortSignal.timeout(60_000),
+      },
+      { role: 'user', content: `반복 질문들:\n${questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}` },
+    ],
+    fallback: '',
   });
-  if (!r.ok) {
-    console.warn('[wikiQuestionCluster] LLM error', r.status);
-    return null;
-  }
-  const j = await r.json();
+  if (fallback) return null;
   try {
-    const d = JSON.parse(j.choices?.[0]?.message?.content || '{}');
+    const d = JSON.parse(content || '{}');
     if (!d.title_ko || !d.title_en) return null;
     return d;
   } catch { return null; }
