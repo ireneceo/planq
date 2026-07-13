@@ -709,5 +709,14 @@
     "placeholder": "어떻게 고칠까요? (비우면 그대로 다시 생성)",
     "go": "재생성",
     "running": "생성 중…"
+  },
+  "note": {
+    "empty": "아직 메모가 없습니다",
+    "onlyMe": "나만",
+    "withTeam": "공개",
+    "someone": "팀원",
+    "delete": "삭제",
+    "placeholder": "메모 작성... (⌘/Ctrl+Enter 저장)",
+    "saveHint": "저장 (⌘/Ctrl+Enter)"
   }
 }

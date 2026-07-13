@@ -129,7 +129,10 @@ function hasStrongRequest(subject, bodyText) {
 
 // 우리 주소가 To 에 직접 있는가 (참조·숨은참조·대량발송 목록이 아니라)
 function isAddressedToUs(headers, ownEmails) {
-  const own = new Set((ownEmails || []).map((e) => String(e).toLowerCase()));
+  // ownEmails 는 동기화 경로에선 Set, 재판정 스크립트에선 배열로 들어온다 — 둘 다 받는다.
+  //   (Set 에 .map 을 부르다 동기화가 조용히 실패했다)
+  const list = ownEmails instanceof Set ? [...ownEmails] : (Array.isArray(ownEmails) ? ownEmails : []);
+  const own = new Set(list.map((e) => String(e).toLowerCase()));
   if (own.size === 0) return false;
   const to = String((headers && (headers.to || headers.To)) || '').toLowerCase();
   if (!to) return false;

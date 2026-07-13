@@ -14,6 +14,7 @@ import { useIsNarrow } from '../../hooks/useMediaQuery';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import TaskCandidateCard from '../../components/Common/TaskCandidateCard';
 import type { RegisterCandidateOverrides } from '../../services/qtalk';
+import NoteThread from '../../components/Common/NoteThread';
 
 interface Props {
   project: MockProject | null;
@@ -73,11 +74,9 @@ const RightPanel: React.FC<Props> = ({
   const [showAllIssues, setShowAllIssues] = useState(false);
   const [editingIssueId, setEditingIssueId] = useState<number | null>(null);
   const [editIssueText, setEditIssueText] = useState('');
-  const [newNoteText, setNewNoteText] = useState('');
   const noteListRef = useRef<HTMLDivElement | null>(null);
   // 메모 공유 범위 UI: "공개"(internal) 디폴트 · "나만"(personal) 선택.
   // DB ENUM 은 personal/internal 유지 (Phase 9 visibility 재설계에 위임).
-  const [newNoteShared, setNewNoteShared] = useState(true);
 
   const toggle = (s: Section) => setExpanded((prev) => ({ ...prev, [s]: !prev[s] }));
 
@@ -136,12 +135,6 @@ const RightPanel: React.FC<Props> = ({
     setEditIssueText('');
   };
 
-  const submitNote = () => {
-    if (!newNoteText.trim()) return;
-    // 간소화 UI 매핑: "나만" → personal · "같이" → internal (DB ENUM 유지)
-    onAddNote(newNoteText, newNoteShared ? 'internal' : 'personal');
-    setNewNoteText('');
-  };
 
   const isNarrow = useIsNarrow(1200);
   const [narrowOpen, setNarrowOpen] = useState(false);
@@ -460,51 +453,29 @@ const RightPanel: React.FC<Props> = ({
           </SectionHeader>
           {expanded.notes && (
             <SectionBody>
-              <NoteList ref={noteListRef}>
-                {visibleNotes.length === 0 && <EmptyRow>{t('right.notes.empty', '아직 메모가 없습니다')}</EmptyRow>}
-                {visibleNotes.map((n) => (
-                  <NoteItem key={n.id}>
-                    {n.visibility === 'personal' && (
-                      <NoteVis $internal={false}>{t('right.notes.onlyMe', '나만')}</NoteVis>
-                    )}
-                    <NoteContent>
-                      <NoteBody>{n.body}</NoteBody>
-                      <NoteMeta>
-                        {n.author_name} · {formatTimeAgo(n.created_at)}
-                        {project && n.conversation_id && convName(n.conversation_id) && (
-                          <> · <SourceTag title={t('right.sourceChat', '출처 대화') as string}>#{convName(n.conversation_id)}</SourceTag></>
-                        )}
-                      </NoteMeta>
-                    </NoteContent>
-                  </NoteItem>
-                ))}
-              </NoteList>
-              <NoteInput>
-                <NoteTextInput
-                  rows={1}
-                  value={newNoteText}
-                  onChange={(e) => setNewNoteText(e.target.value)}
-                  onKeyDown={(e) => {
-                    // IME 조합 중은 무시 (한글 마지막 음절 중복 입력 방지)
-                    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
-                    // ⌘/Ctrl+Enter 만 저장 — 일반 Enter 는 줄바꿈
-                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submitNote(); }
-                  }}
-                  placeholder={t('right.notes.placeholder', '메모 작성... (⌘/Ctrl+Enter 저장)')}
-                />
-                {!isClient && (
-                  <NoteVisToggle>
-                    <NoteVisOption $active={newNoteShared} onClick={() => setNewNoteShared(true)}>{t('right.notes.withTeam', '공개')}</NoteVisOption>
-                    <NoteVisOption $active={!newNoteShared} onClick={() => setNewNoteShared(false)}>{t('right.notes.onlyMe', '나만')}</NoteVisOption>
-                  </NoteVisToggle>
-                )}
-                <NoteSendBtn onClick={submitNote} disabled={!newNoteText.trim()} title={t('right.notes.saveHint', '저장 (⌘/Ctrl+Enter)') as string}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <line x1="22" y1="2" x2="11" y2="13" />
-                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                  </svg>
-                </NoteSendBtn>
-              </NoteInput>
+              {/* 메모는 공통 NoteThread — Q Mail 맥락 패널과 같은 컴포넌트(디자인 단일 원천) */}
+              <NoteThread
+                notes={visibleNotes.map((n) => ({
+                  id: n.id,
+                  body: n.body,
+                  visibility: n.visibility,
+                  author_user_id: n.author_id,
+                  author_name: n.author_name,
+                  created_at: n.created_at,
+                }))}
+                myUserId={null}
+                canChooseVisibility={!isClient}
+                formatTime={formatTimeAgo}
+                onAdd={(body, visibility) => onAddNote(body, visibility)}
+                emptyText={t('right.notes.empty', '아직 메모가 없습니다') as string}
+                placeholder={t('right.notes.placeholder', '메모 작성... (⌘/Ctrl+Enter 저장)') as string}
+                renderMeta={(n) => {
+                  const conv = project ? notes.find((x) => x.id === n.id)?.conversation_id : null;
+                  return conv && convName(conv)
+                    ? <> · <SourceTag title={t('right.sourceChat', '출처 대화') as string}>#{convName(conv)}</SourceTag></>
+                    : null;
+                }}
+              />
             </SectionBody>
           )}
         </Section>
@@ -889,12 +860,6 @@ const ShowMore = styled.button`
   &:hover { color: #0D9488; }
 `;
 
-const EmptyRow = styled.div`
-  padding: 12px;
-  text-align: center;
-  color: #94A3B8;
-  font-size: 11px;
-`;
 
 const TaskItem = styled.div<{ $completed?: boolean }>`
   display: flex;
@@ -994,43 +959,10 @@ const ProjectTaskDue = styled.span`
   color: #64748B;
 `;
 
-const NoteItem = styled.div`
-  display: flex;
-  gap: 8px;
-  padding: 8px 10px;
-  background: #F8FAFC;
-  border-radius: 6px;
-`;
 
-const NoteVis = styled.span<{ $internal: boolean }>`
-  padding: 1px 6px;
-  background: ${(p) => (p.$internal ? '#E0F2FE' : '#F1F5F9')};
-  color: ${(p) => (p.$internal ? '#0284C7' : '#475569')};
-  font-size: 9px;
-  font-weight: 700;
-  border-radius: 8px;
-  height: fit-content;
-  flex-shrink: 0;
-`;
 
-const NoteContent = styled.div`
-  flex: 1;
-  min-width: 0;
-`;
 
-const NoteBody = styled.div`
-  font-size: 12px;
-  color: #1E293B;
-  line-height: 1.4;
-  margin-bottom: 3px;
-  white-space: pre-wrap;
-  word-break: break-word;
-`;
 
-const NoteMeta = styled.div`
-  font-size: 10px;
-  color: #94A3B8;
-`;
 
 const SourceTag = styled.span`
   font-size: 10px;
@@ -1049,79 +981,11 @@ const SourceTag = styled.span`
 
 /* 메모 리스트만 자체 스크롤 — 입력란이 우측 패널 스크롤 아래로 밀려 가려지지 않도록.
    사용자: "메모가 길 때 입력란이 가려지면 안 됨, 입력은 할 수 있는 걸 알아야" */
-const NoteList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-height: 280px;
-  overflow-y: auto;
-  padding-right: 2px;
-  &::-webkit-scrollbar { width: 6px; }
-  &::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 3px; }
-`;
 
-const NoteInput = styled.div`
-  display: flex;
-  align-items: flex-end;
-  gap: 6px;
-  margin-top: 4px;
-  padding: 6px 8px;
-  background: #F8FAFC;
-  border: 1px solid #E2E8F0;
-  border-radius: 8px;
-  &:focus-within { border-color: #14B8A6; background: #FFFFFF; }
-`;
 
-const NoteTextInput = styled.textarea`
-  flex: 1;
-  border: none;
-  background: transparent;
-  font-size: 12px;
-  color: #0F172A;
-  font-family: inherit;
-  line-height: 1.4;
-  resize: none;
-  min-height: 32px;
-  max-height: 120px;
-  padding: 4px 0;
-  &:focus { outline: none; }
-  &::placeholder { color: #94A3B8; }
-`;
 
-const NoteVisToggle = styled.div`
-  display: flex;
-  gap: 2px;
-  background: #FFFFFF;
-  border-radius: 6px;
-  padding: 2px;
-`;
 
-const NoteVisOption = styled.button<{ $active?: boolean }>`
-  padding: 3px 8px;
-  font-size: 10px;
-  font-weight: 600;
-  background: ${(p) => (p.$active ? '#F0FDFA' : 'transparent')};
-  color: ${(p) => (p.$active ? '#0F766E' : '#64748B')};
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  &:hover { color: #0F766E; background: #F0FDFA; }
-`;
 
-const NoteSendBtn = styled.button`
-  width: 24px;
-  height: 24px;
-  border-radius: 5px;
-  background: #0D9488;
-  color: #FFFFFF;
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  &:hover:not(:disabled) { background: #0F766E; }
-  &:disabled { background: #CBD5E1; cursor: not-allowed; }
-`;
 
 const InfoRow = styled.div`
   display: flex;
@@ -1198,4 +1062,10 @@ const DetailLink = styled.button`
   cursor: pointer;
   text-align: left;
   &:hover { color: #0F766E; }
+`;
+
+const EmptyRow = styled.div`
+  padding: 10px 0;
+  font-size: 12px;
+  color: #94A3B8;
 `;

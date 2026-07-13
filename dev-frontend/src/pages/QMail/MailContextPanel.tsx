@@ -10,6 +10,8 @@ import { apiFetch } from '../../contexts/AuthContext';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import TaskCandidateCard, { type RegisterOverrides } from '../../components/Common/TaskCandidateCard';
 import AiAssistButton from '../../components/Common/AiAssistButton';
+import NoteThread from '../../components/Common/NoteThread';
+import { useTimeFormat } from '../../hooks/useTimeFormat';
 
 interface ThreadLite {
   id: number;
@@ -18,8 +20,8 @@ interface ThreadLite {
   client?: { id: number; display_name?: string; company_name?: string } | null;
   project?: { id: number; name?: string } | null;
 }
-interface Issue { id: number; body: string; author_user_id: number }
-interface Note { id: number; body: string; visibility: string; author_user_id: number }
+interface Issue { id: number; body: string; author_user_id: number; author_name?: string | null; created_at?: string | null }
+interface Note { id: number; body: string; visibility: string; author_user_id: number; author_name?: string | null; created_at?: string | null }
 interface Member { user_id: number; name: string }
 interface Candidate {
   id: number;
@@ -33,6 +35,7 @@ interface Props {
   businessId: number;
   thread: ThreadLite;
   members: Member[];
+  myUserId: number | null;
   onLinked: () => void; // 연결 변경 후 상세 새로고침
 }
 type Channel = 'chat' | 'email' | 'task' | 'invoice';
@@ -43,8 +46,9 @@ interface Summary {
 
 const CHANNELS: Channel[] = ['chat', 'email', 'task', 'invoice'];
 
-const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, onLinked }) => {
+const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUserId, onLinked }) => {
   const { t } = useTranslation('qmail');
+  const { formatTimeAgo } = useTimeFormat();
   const navigate = useNavigate();
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [extractBusy, setExtractBusy] = useState(false);
@@ -58,9 +62,6 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, onLink
   // 이슈 / 노트
   const [issues, setIssues] = useState<Issue[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
-  const [newIssue, setNewIssue] = useState('');
-  const [newNote, setNewNote] = useState('');
-  const [notePersonal, setNotePersonal] = useState(false);
   const [iaBusy, setIaBusy] = useState(false);
   const [clients, setClients] = useState<Array<{ id: number; label: string }>>([]);
   const [projects, setProjects] = useState<Array<{ id: number; label: string }>>([]);
@@ -167,7 +168,7 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, onLink
   // 스레드 전환 시 요약 동기 + 이슈·노트 로드
   useEffect(() => {
     let alive = true;
-    setAiSummary(thread.ai_summary || null); setNewIssue(''); setNewNote('');
+    setAiSummary(thread.ai_summary || null);
     (async () => {
       try {
         const [ri, rn] = await Promise.all([
@@ -192,27 +193,26 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, onLink
     } finally { setSumBusy(false); }
   }, [sumBusy, businessId, thread.id]);
 
-  const addIssue = useCallback(async () => {
-    const body = newIssue.trim(); if (!body || iaBusy) return; setIaBusy(true);
+  const addIssue = useCallback(async (body: string) => {
+    if (!body.trim() || iaBusy) return; setIaBusy(true);
     try {
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${thread.id}/issues`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body }) });
-      const j = await r.json(); if (j.success) { setIssues(p => [j.data, ...p]); setNewIssue(''); }
+      const j = await r.json(); if (j.success) setIssues(p => [...p, j.data]);
     } finally { setIaBusy(false); }
-  }, [newIssue, iaBusy, businessId, thread.id]);
+  }, [iaBusy, businessId, thread.id]);
 
   const deleteIssue = useCallback(async (id: number) => {
     const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${thread.id}/issues/${id}`, { method: 'DELETE' });
     if ((await r.json()).success) setIssues(p => p.filter(x => x.id !== id));
   }, [businessId, thread.id]);
 
-  const addNote = useCallback(async () => {
-    const body = newNote.trim(); if (!body || iaBusy) return; setIaBusy(true);
+  const addNote = useCallback(async (body: string, visibility: 'internal' | 'personal') => {
+    if (!body.trim() || iaBusy) return; setIaBusy(true);
     try {
-      const visibility = notePersonal ? 'personal' : 'internal';
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${thread.id}/notes`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body, visibility }) });
-      const j = await r.json(); if (j.success) { setNotes(p => [...p, j.data]); setNewNote(''); }
+      const j = await r.json(); if (j.success) setNotes(p => [...p, j.data]);
     } finally { setIaBusy(false); }
-  }, [newNote, notePersonal, iaBusy, businessId, thread.id]);
+  }, [iaBusy, businessId, thread.id]);
 
   const deleteNote = useCallback(async (id: number) => {
     const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${thread.id}/notes/${id}`, { method: 'DELETE' });
@@ -302,45 +302,34 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, onLink
 
       <Section>
         <SecTitle>{t('context.issuesTitle', { defaultValue: '이슈' }) as string}{issues.length > 0 && <CountBadge>{issues.length}</CountBadge>}</SecTitle>
-        {issues.map((it) => (
-          <NoteRow key={it.id}>
-            <NoteBody>{it.body}</NoteBody>
-            <DelBtn type="button" aria-label={t('context.delete', { defaultValue: '삭제' }) as string} onClick={() => deleteIssue(it.id)}>✕</DelBtn>
-          </NoteRow>
-        ))}
-        <AddRow>
-          <AddInput value={newIssue} placeholder={t('context.issuePh', { defaultValue: '이슈 추가…' }) as string}
-            onChange={(e) => setNewIssue(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addIssue(); } }} />
-          <AddBtn type="button" onClick={addIssue} disabled={iaBusy || !newIssue.trim()}>{t('context.add', { defaultValue: '추가' }) as string}</AddBtn>
-        </AddRow>
+        {/* 이슈도 이 메일에 달리는 코멘트다 — 메모와 같은 컴포넌트. 다만 팀 공용이라 공개 범위 선택은 없다. */}
+        <NoteThread
+          notes={issues.map((it) => ({ ...it, visibility: 'internal' }))}
+          myUserId={myUserId}
+          canChooseVisibility={false}
+          busy={iaBusy}
+          formatTime={formatTimeAgo}
+          onAdd={addIssue}
+          onDelete={deleteIssue}
+          emptyText={t('context.issuesEmpty', { defaultValue: '아직 이슈가 없습니다' }) as string}
+          placeholder={t('context.issuePh', { defaultValue: '이슈 작성... (⌘/Ctrl+Enter 저장)' }) as string}
+        />
       </Section>
 
       <Section>
-        <SecTitle>{t('context.notesTitle', { defaultValue: '노트' }) as string}{notes.length > 0 && <CountBadge>{notes.length}</CountBadge>}</SecTitle>
-        {notes.map((n) => (
-          <NoteRow key={n.id}>
-            <NoteBody>{n.body}{n.visibility === 'personal' && <VisTag>{t('context.visPersonal', { defaultValue: '나만' }) as string}</VisTag>}</NoteBody>
-            <DelBtn type="button" aria-label={t('context.delete', { defaultValue: '삭제' }) as string} onClick={() => deleteNote(n.id)}>✕</DelBtn>
-          </NoteRow>
-        ))}
-        <AddRow>
-          <AddInput value={newNote} placeholder={t('context.notePh', { defaultValue: '노트 추가…' }) as string}
-            onChange={(e) => setNewNote(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addNote(); } }} />
-          <AddBtn type="button" onClick={addNote} disabled={iaBusy || !newNote.trim()}>{t('context.add', { defaultValue: '추가' }) as string}</AddBtn>
-        </AddRow>
-        {/* 이 토글은 메일을 팀에 공유하는 게 아니라, 지금 쓰는 노트를 누가 보는지의 설정이다.
-            여태 라벨이 팀 공유라서 메일 공유 버튼처럼 읽혔다 → 무엇에 대한 설정인지 문장으로 밝힌다. */}
-        <VisRow>
-          <VisLbl>{t('context.noteVisLabel', { defaultValue: '새 노트를 볼 사람' }) as string}</VisLbl>
-          <VisToggle type="button" $on={notePersonal} role="switch" aria-checked={notePersonal} onClick={() => setNotePersonal(v => !v)}>
-            <VisDot $on={notePersonal} />
-            {notePersonal
-              ? t('context.noteVisMe', { defaultValue: '나만 보기' }) as string
-              : t('context.noteVisTeam', { defaultValue: '팀원 모두' }) as string}
-          </VisToggle>
-        </VisRow>
+        <SecTitle>{t('context.notesTitle', { defaultValue: '메모' }) as string}{notes.length > 0 && <CountBadge>{notes.length}</CountBadge>}</SecTitle>
+        {/* 이 메일에 대한 메모 = 댓글이다 → Q Talk 프로젝트 메모와 같은 공통 컴포넌트(NoteThread).
+            여태 한 줄 입력 + [추가] 버튼이라 같은 기능이 화면마다 다른 물건처럼 보였다. */}
+        <NoteThread
+          notes={notes}
+          myUserId={myUserId}
+          busy={iaBusy}
+          formatTime={formatTimeAgo}
+          onAdd={addNote}
+          onDelete={deleteNote}
+          emptyText={t('context.notesEmpty', { defaultValue: '아직 메모가 없습니다' }) as string}
+          placeholder={t('context.notePh', { defaultValue: '메모 작성... (⌘/Ctrl+Enter 저장)' }) as string}
+        />
       </Section>
 
       <Section>
@@ -397,29 +386,6 @@ const CountBadge = styled.span`margin-left:6px; font-size:11px; font-weight:700;
 // Q Talk ChatPanel:3430 과 동일 — 같은 기능은 어느 화면에서든 같은 모양 (teal + 체크박스 아이콘)
 const CandList = styled.div`display:flex; flex-direction:column; gap:8px;`;
 const SummaryBox = styled.div`font-size:12px; color:#334155; line-height:1.6; white-space:pre-wrap; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; padding:10px 12px;`;
-const NoteRow = styled.div`display:flex; align-items:flex-start; gap:6px; padding:6px 0; border-bottom:1px solid #F1F5F9; &:last-of-type{ border-bottom:none; }`;
-const NoteBody = styled.div`flex:1; min-width:0; font-size:12px; color:#334155; line-height:1.5; word-break:break-word;`;
-const VisTag = styled.span`margin-left:6px; font-size:10px; font-weight:600; color:#92400E; background:#FEF3C7; border-radius:999px; padding:0 6px;`;
-const DelBtn = styled.button`flex-shrink:0; width:20px; height:20px; border:none; background:none; cursor:pointer; color:#94A3B8; font-size:12px; border-radius:4px; &:hover{ background:#FEF2F2; color:#DC2626; }`;
-const AddRow = styled.div`display:flex; gap:6px; margin-top:4px;`;
-const AddInput = styled.input`
-  flex:1; min-width:0; height:32px; padding:0 8px; border:1px solid #CBD5E1; border-radius:8px; font-size:12px; color:#0F172A;
-  &:focus{ outline:none; border-color:#14B8A6; box-shadow:0 0 0 3px rgba(20,184,166,0.15); }
-`;
-const AddBtn = styled.button`
-  flex-shrink:0; height:32px; padding:0 12px; border-radius:8px; cursor:pointer; font-size:12px; font-weight:600;
-  color:#0F766E; background:#F0FDFA; border:1px solid #99F6E4;
-  &:hover:not(:disabled){ background:#CCFBF1; } &:disabled{ opacity:0.5; cursor:default; }
-`;
-const VisRow = styled.div`display:flex; align-items:center; gap:8px; margin-top:2px;`;
-const VisLbl = styled.span`font-size:11px; color:#94A3B8;`;
-const VisToggle = styled.button<{ $on?: boolean }>`
-  display:inline-flex; align-items:center; gap:6px;
-  padding:3px 8px; border-radius:999px; cursor:pointer; font-size:11px; font-weight:600;
-  color:${p => p.$on ? '#92400E' : '#0F766E'}; background:${p => p.$on ? '#FEF3C7' : '#F0FDFA'};
-  border:1px solid ${p => p.$on ? '#FDE68A' : '#99F6E4'};
-`;
-const VisDot = styled.span<{ $on?: boolean }>`width:7px; height:7px; border-radius:50%; background:${p => p.$on ? '#D97706' : '#14B8A6'};`;
 const typeColor: Record<Channel, { bg: string; fg: string }> = {
   chat: { bg: '#F0FDFA', fg: '#0F766E' },
   email: { bg: '#EFF6FF', fg: '#1D4ED8' },

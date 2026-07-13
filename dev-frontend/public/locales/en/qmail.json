@@ -232,9 +232,9 @@
     "summarizing": "Summarizing…",
     "summaryHint": "AI summarizes long threads into key points.",
     "issuesTitle": "Issues",
-    "issuePh": "Add an issue…",
+    "issuePh": "Write an issue… (⌘/Ctrl+Enter to save)",
     "notesTitle": "Notes",
-    "notePh": "Add a note…",
+    "notePh": "Write a note… (⌘/Ctrl+Enter to save)",
     "add": "Add",
     "delete": "Delete",
     "visPersonal": "Private",
@@ -243,7 +243,9 @@
     "collapse": "Collapse context panel",
     "expand": "Expand context panel",
     "extractHint": "AI extracts task candidates from this email",
-    "noteVisLabel": "Who can see new notes"
+    "noteVisLabel": "Who can see new notes",
+    "notesEmpty": "No notes yet",
+    "issuesEmpty": "No issues yet"
   },
   "accounts": {
     "all": "All",
