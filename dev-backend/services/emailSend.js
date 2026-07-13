@@ -71,18 +71,58 @@ function joinAddrs(v) {
 // 메일 발송. 성공 시 { messageId, accepted, rejected }, 실패 시 throw.
 //   attachments: nodemailer 형식 [{ filename, path, contentType }]
 
+
+// ── 발신 주소 결정 (Send-as) — 단일 원천. 설계: docs/MAIL_ALIAS_AND_VOICE_DESIGN.md §A-4
+//   우선순위: ①명시한 별칭(서버가 소유 재검증) ②답장이면 그 메일이 온 주소 ③계정 기본 별칭 ④계정 주소
+//   "받은 주소로 답한다" 는 사용자가 기대하는 기본값이다 — 다른 도메인으로 답장이 나가면 사고다.
+async function resolveSender(account, { fromAliasId = null, replyToAddresses = null } = {}) {
+  const { EmailAccountAlias } = require('../models');
+  let aliases = [];
+  try {
+    aliases = await EmailAccountAlias.findAll({ where: { account_id: account.id }, order: [['is_default', 'DESC'], ['id', 'ASC']] });
+  } catch (e) { console.warn('[emailSend] aliases', e.message); }
+
+  // ① 명시 — 이 계정 소유인지 재검증 (클라이언트가 보낸 id 를 믿지 않는다)
+  if (fromAliasId) {
+    const hit = aliases.find((a) => Number(a.id) === Number(fromAliasId));
+    if (!hit) {
+      const e = new Error('alias_not_owned');
+      e.code = 'alias_not_owned';
+      throw e;
+    }
+    return { email: hit.email, displayName: hit.display_name || null, signatureHtml: hit.signature_html || null };
+  }
+
+  // ② 답장 — 받은 주소가 계정/별칭 중 하나면 그 주소로
+  if (Array.isArray(replyToAddresses) && replyToAddresses.length) {
+    const lower = replyToAddresses.map((a) => String(a || '').toLowerCase());
+    const hit = aliases.find((a) => lower.includes(String(a.email).toLowerCase()));
+    if (hit) return { email: hit.email, displayName: hit.display_name || null, signatureHtml: hit.signature_html || null };
+    // 계정 주소로 온 것이면 계정 주소 그대로 (아래 ④)
+  }
+
+  // ③ 기본 별칭
+  const def = aliases.find((a) => a.is_default);
+  if (def) return { email: def.email, displayName: def.display_name || null, signatureHtml: def.signature_html || null };
+
+  // ④ 계정 주소
+  return { email: account.email, displayName: null, signatureHtml: null };
+}
+
 // 서명 붙이기 — data-planq-signature 표식으로 중복 삽입을 막는다.
 //   서명이 비었거나 계정에서 껐으면 그대로 둔다.
 const SIGNATURE_MARK = 'data-planq-signature';
-function appendSignature(html, account) {
-  const sig = account && account.signature_enabled !== false ? String(account.signature_html || '').trim() : '';
+function appendSignature(html, account, aliasSignatureHtml = null) {
+  // 별칭 서명이 있으면 그것이 우선 — 도메인이 다르면 브랜드가 다르다
+  const raw = aliasSignatureHtml != null ? aliasSignatureHtml : (account && account.signature_html);
+  const sig = account && account.signature_enabled !== false ? String(raw || '').trim() : '';
   if (!sig) return html;
   const body = String(html || '');
   if (body.includes(SIGNATURE_MARK)) return body;   // 이미 들어 있음 (초안에서 편집한 경우)
   return `${body}<br><div ${SIGNATURE_MARK}="1" style="margin-top:16px;color:#334155;font-size:13px;">${sig}</div>`;
 }
 
-async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, references, attachments }) {
+async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, references, attachments, fromAliasId = null, replyToAddresses = null }) {
   // 수신자 검증 — 가짜/예약TLD/형식불량 주소 차단 (바운스·평판 보호). emailService 게이트 재사용.
   const { emailBlockReason } = require('./emailService');
   const blocked = emailBlockReason([].concat(to || [], cc || [], bcc || []));
@@ -108,13 +148,16 @@ async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, 
       fromName = biz?.mail_from_name || biz?.brand_name || biz?.name || '';
     } catch (e) { console.warn('[emailSend] from name fallback', e.message); }
   }
+  // 발신 주소 — 별칭(Send-as) 반영. 별칭에 표시 이름이 있으면 그것이 우선한다.
+  const sender = await resolveSender(account, { fromAliasId, replyToAddresses });
+  if (sender.displayName) fromName = sender.displayName;
   const from = fromName
-    ? `"${String(fromName).replace(/"/g, '')}" <${account.email}>`
-    : account.email;
+    ? `"${String(fromName).replace(/"/g, '')}" <${sender.email}>`
+    : sender.email;
 
   // 서명 — 계정마다 다르다. 발송 직전 한 곳에서 붙인다(답장·전달·새 메일 3경로가 모두 여기를 지난다).
   //   이미 서명이 들어간 본문(사용자가 편집한 초안)에는 다시 붙이지 않는다 — 표식으로 판별.
-  const htmlWithSig = appendSignature(html, account);
+  const htmlWithSig = appendSignature(html, account, sender.signatureHtml);
 
   const info = await transport.sendMail({
     from,
@@ -137,4 +180,5 @@ async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, 
 }
 
 module.exports = {
-  appendSignature, sendMail, buildTransport, deriveSmtpHost };
+  appendSignature,
+  resolveSender, sendMail, buildTransport, deriveSmtpHost };

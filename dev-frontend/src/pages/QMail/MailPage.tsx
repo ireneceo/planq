@@ -699,6 +699,33 @@ const MailPage: React.FC = () => {
     return () => clearTimeout(tid);
   }, [replyOpen, businessId, activeId, replyHtml, replyFileIds]);
 
+  // 보내는 주소(Send-as) — 이 계정에 등록된 별칭. 주소가 하나뿐이면 셀렉트를 숨긴다
+  //   (없는 선택지를 보여주지 않는다).
+  const [aliases, setAliases] = useState<Array<{ id: number; email: string; display_name: string | null; is_default: boolean }>>([]);
+  const [fromAliasId, setFromAliasId] = useState<number>(0);   // 0 = 계정 기본 주소
+  useEffect(() => {
+    const accId = detail?.account?.id;
+    if (!businessId || !accId) { setAliases([]); return; }
+    let alive = true;
+    (async () => {
+      try {
+        const r = await apiFetch(`/api/businesses/${businessId}/email-accounts/${accId}/aliases`);
+        const j = await r.json();
+        if (alive && j.success) setAliases(j.data || []);
+      } catch { /* 별칭은 부가 — 실패해도 계정 주소로 보낸다 */ }
+    })();
+    return () => { alive = false; };
+  }, [businessId, detail?.account?.id]);
+
+  // 답장 기본 발신 주소 = 이 메일이 온 주소 (백엔드도 같은 규칙 — 여기선 화면 표시용)
+  useEffect(() => {
+    if (!detail) { setFromAliasId(0); return; }
+    const lastInbound = [...detail.messages].reverse().find(m => m.direction === 'inbound');
+    const to = (lastInbound?.to_emails || []).map((x) => String(x).toLowerCase());
+    const hit = aliases.find(a => to.includes(a.email.toLowerCase()));
+    setFromAliasId(hit ? hit.id : 0);
+  }, [detail, aliases]);
+
   // 답장 받는 사람 힌트 (마지막 inbound 발신자)
   const replyToHint = useMemo(() => {
     if (!detail) return '';
@@ -728,7 +755,7 @@ const MailPage: React.FC = () => {
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${detail.id}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body_html: replyHtml, attachment_file_ids: fileIds }),
+        body: JSON.stringify({ body_html: replyHtml, attachment_file_ids: fileIds, from_alias_id: fromAliasId || undefined }),
       });
       const j = await r.json();
       if (!j.success) throw new Error(j.message || (t('reply.sendFailed', { defaultValue: '발송 실패' }) as string));
@@ -1335,6 +1362,29 @@ const MailPage: React.FC = () => {
                   </ReplyBar>
                 ) : (
                   <Composer onKeyDown={onComposerKeyDown}>
+                    {aliases.length > 0 && (
+                      <ComposerFrom>
+                        <FromLbl>{t('reply.from', { defaultValue: '보내는 사람' }) as string}</FromLbl>
+                        <FromSelect>
+                          <PlanQSelect
+                            size="sm"
+                            isSearchable={aliases.length > 5}
+                            value={{
+                              value: fromAliasId,
+                              label: fromAliasId
+                                ? (aliases.find(a => a.id === fromAliasId)?.email || '')
+                                : (detail.account?.email || ''),
+                            }}
+                            onChange={(opt) => setFromAliasId(Number((opt as { value?: number } | null)?.value || 0))}
+                            options={[
+                              { value: 0, label: detail.account?.email || '' },
+                              ...aliases.map(a => ({ value: a.id, label: a.email })),
+                            ]}
+                            menuPlacement="top"
+                          />
+                        </FromSelect>
+                      </ComposerFrom>
+                    )}
                     {replyToHint && (
                       <ComposerTo>
                         {t('reply.to', { defaultValue: '받는 사람' }) as string}: <strong>{replyToHint}</strong>
@@ -2018,3 +2068,8 @@ const RowSpamBtn = styled.button`
   &:hover:not(:disabled) { color: #B91C1C; border-color: #FECACA; background: #FEF2F2; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
+
+// 보내는 사람(Send-as) — 주소가 2개 이상일 때만 뜬다
+const ComposerFrom = styled.div`display: flex; align-items: center; gap: 8px;`;
+const FromLbl = styled.span`font-size: 12px; color: #64748B; flex-shrink: 0;`;
+const FromSelect = styled.div`flex: 1; min-width: 0; max-width: 320px;`;

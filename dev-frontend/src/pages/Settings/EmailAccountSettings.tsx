@@ -17,6 +17,7 @@ import {
 } from '../../services/mail';
 import MailRulesSection from './MailRulesSection';
 import MailSignatureSection from './MailSignatureSection';
+import MailAliasSection from './MailAliasSection';
 
 const EmailAccountSettings: React.FC = () => {
   const { t } = useTranslation('qmail');
@@ -152,6 +153,13 @@ const EmailAccountSettings: React.FC = () => {
             {acc.fail_count > 0 && <ErrorBadge>{t('settings.failCount', '{{n}}회 실패', { n: acc.fail_count }) as string}</ErrorBadge>}
           </MetaRow>
           {acc.last_sync_error && <ErrorMsg>⚠️ {acc.last_sync_error}</ErrorMsg>}
+          {/* 보내는 주소(Send-as) — 여러 도메인을 쓰는 메일함 */}
+          <MailAliasSection
+            businessId={businessId}
+            accountId={acc.id}
+            accountEmail={acc.email}
+          />
+
           {/* 서명 — 계정마다 등록 (발송 시 백엔드가 본문 끝에 붙인다) */}
           <MailSignatureSection
             businessId={businessId}

@@ -3,8 +3,9 @@
 // 비밀번호는 services/encryption.js (AES-256-GCM).
 // POST/PUT 시 IMAP 실연결 검증 강제 — 잘못된 자격이 조용히 등록되어 5분마다 실패하는 사고 차단.
 const express = require('express');
+const { Op } = require('sequelize');
 const router = express.Router();
-const { EmailAccount, Business } = require('../models');
+const { EmailAccount, Business, EmailAccountAlias } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { encrypt, decrypt } = require('../services/encryption');
@@ -491,6 +492,95 @@ router.get('/email-accounts/oauth/gmail/callback', async (req, res) => {
     console.error('[gmail-oauth/callback]', e);
     return res.redirect(302, buildErrorRedirect(returnUrl, e.message));
   }
+});
+
+// ─────────────────────────────────────────────
+// 발신 별칭 (Send-as) — 한 메일함으로 여러 도메인 주소를 쓰는 경우
+//   설계: docs/MAIL_ALIAS_AND_VOICE_DESIGN.md §A
+//   권한: 계정 편집과 동일 (회사 공용 = admin, 개인 계정 = 본인)
+// ─────────────────────────────────────────────
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+async function loadAccountForEdit(req) {
+  const businessId = Number(req.params.businessId);
+  const acc = await EmailAccount.findOne({ where: { id: Number(req.params.id), business_id: businessId } });
+  if (!acc) return { error: 'account_not_found' };
+  if (acc.owner_user_id) {
+    if (Number(acc.owner_user_id) !== Number(req.user.id)) return { error: 'forbidden' };   // 남의 개인 계정
+  } else if (!isAdmin(req)) {
+    return { error: 'admin_required' };                                                     // 회사 공용
+  }
+  return { acc, businessId };
+}
+
+router.get('/:businessId/email-accounts/:id/aliases', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const { acc, error } = await loadAccountForEdit(req);
+    if (error) return errorResponse(res, error, error === 'account_not_found' ? 404 : 403);
+    const rows = await EmailAccountAlias.findAll({ where: { account_id: acc.id }, order: [['is_default', 'DESC'], ['id', 'ASC']] });
+    return successResponse(res, rows.map((r) => r.toJSON()));
+  } catch (err) { next(err); }
+});
+
+router.post('/:businessId/email-accounts/:id/aliases', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const { acc, businessId, error } = await loadAccountForEdit(req);
+    if (error) return errorResponse(res, error, error === 'account_not_found' ? 404 : 403);
+    const b = req.body || {};
+    const email = String(b.email || '').trim().toLowerCase();
+    if (!EMAIL_RE.test(email)) return errorResponse(res, 'invalid_email', 400);
+    if (email === String(acc.email).toLowerCase()) return errorResponse(res, 'same_as_account', 400);
+    const dup = await EmailAccountAlias.findOne({ where: { account_id: acc.id, email } });
+    if (dup) return errorResponse(res, 'alias_exists', 409);
+
+    const alias = await EmailAccountAlias.create({
+      business_id: businessId,
+      account_id: acc.id,
+      email,
+      display_name: b.display_name ? String(b.display_name).slice(0, 100) : null,
+      signature_html: b.signature_html ? String(b.signature_html).slice(0, 20000) : null,
+      is_default: !!b.is_default,
+    });
+    if (alias.is_default) {
+      await EmailAccountAlias.update({ is_default: false }, { where: { account_id: acc.id, id: { [Op.ne]: alias.id } } });
+    }
+    return successResponse(res, alias.toJSON(), 'created', 201);
+  } catch (err) { next(err); }
+});
+
+router.put('/:businessId/email-accounts/:id/aliases/:aliasId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const { acc, error } = await loadAccountForEdit(req);
+    if (error) return errorResponse(res, error, error === 'account_not_found' ? 404 : 403);
+    const alias = await EmailAccountAlias.findOne({ where: { id: Number(req.params.aliasId), account_id: acc.id } });
+    if (!alias) return errorResponse(res, 'alias_not_found', 404);
+    const b = req.body || {};
+    const patch = {};
+    if (b.email !== undefined) {
+      const email = String(b.email || '').trim().toLowerCase();
+      if (!EMAIL_RE.test(email)) return errorResponse(res, 'invalid_email', 400);
+      patch.email = email;
+    }
+    if (b.display_name !== undefined) patch.display_name = b.display_name ? String(b.display_name).slice(0, 100) : null;
+    if (b.signature_html !== undefined) patch.signature_html = b.signature_html ? String(b.signature_html).slice(0, 20000) : null;
+    if (b.is_default !== undefined) patch.is_default = !!b.is_default;
+    await alias.update(patch);
+    if (patch.is_default) {
+      await EmailAccountAlias.update({ is_default: false }, { where: { account_id: acc.id, id: { [Op.ne]: alias.id } } });
+    }
+    return successResponse(res, alias.toJSON());
+  } catch (err) { next(err); }
+});
+
+router.delete('/:businessId/email-accounts/:id/aliases/:aliasId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const { acc, error } = await loadAccountForEdit(req);
+    if (error) return errorResponse(res, error, error === 'account_not_found' ? 404 : 403);
+    const alias = await EmailAccountAlias.findOne({ where: { id: Number(req.params.aliasId), account_id: acc.id } });
+    if (!alias) return errorResponse(res, 'alias_not_found', 404);
+    await alias.destroy();
+    return successResponse(res, { id: alias.id, deleted: true });
+  } catch (err) { next(err); }
 });
 
 module.exports = router;

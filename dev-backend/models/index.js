@@ -105,6 +105,7 @@ const HelpQuestionLog = require('./HelpQuestionLog');
 const CueKnowledge = require('./CueKnowledge');
 // ─── Q Mail (Phase 9 — M1) ───
 const EmailAccount = require('./EmailAccount');
+const EmailAccountAlias = require('./EmailAccountAlias');
 const EmailThread = require('./EmailThread');
 const EmailMessage = require('./EmailMessage');
 const EmailAttachment = require('./EmailAttachment');
@@ -464,7 +465,11 @@ ExportJob.belongsTo(User, { as: 'user', foreignKey: 'user_id' });
 ExportJob.belongsTo(Business, { as: 'business', foreignKey: 'business_id' });
 ExportJob.belongsTo(Business, { as: 'targetBusiness', foreignKey: 'target_business_id' });
 
+EmailAccount.hasMany(EmailAccountAlias, { foreignKey: 'account_id', as: 'aliases', onDelete: 'CASCADE' });
+EmailAccountAlias.belongsTo(EmailAccount, { foreignKey: 'account_id', as: 'account' });
+
 module.exports = {
+  EmailAccountAlias,
   MessageReaction,
   MailSenderRule,
   User,
