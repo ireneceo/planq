@@ -1,44 +1,68 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-07-13 (Opus, 1M) — 행동 계층 **2A(생성 계열) 갭 게이트 40 PASS / 0 FAIL** · 권한 거부가 500 으로 새던 결함 fix
-**작업 상태:** 완료 (dev 검증 통과 · **미배포** — 배포하려면 `/배포`. ⚠️ 운영 배포 전 **수동 ALTER 선행 필요**)
+**마지막 업데이트:** 2026-07-14 (Opus, 1M) — 운영 피드백 **11건 처리** + 운영 배포 2회 + 백필 2건
+**작업 상태:** 완료 (dev 검증 통과 · **운영 배포 완료** — 커밋 `6a1ed50`)
 
 ---
 
-## ✅ 이번 세션 완료 — 행동 계층 2A 갭 게이트 (commit d35511c)
+## ✅ 이번 세션 완료
 
-전/후 스냅샷이 **안 본 영역**(G1~G14)을 실HTTP 로 때리는 갭 게이트를 붙였더니 FAIL 4건. 하나씩 진짜 회귀인지 테스트 결함인지 갈랐다 — **코드 회귀 3건 fix, 나머지는 게이트 자신이 틀렸다.**
+### 먼저 드러난 건 코드가 아니라 배포였다
+운영 미해결 피드백 15건을 전수 실측하니, 운영이 dev 보다 **19커밋 뒤처져** 있었다.
+Irene 이 "왜 돌아갔냐"던 것들이 **이미 고쳐졌으나 미배포**였다 — 답변 불필요 버튼 · 진척 그래프(#145) ·
+프로젝트 헤더 채팅/메일 버튼(#144) · Q Bill 탭 뱃지(#140). 배포로 해소.
 
-### 진짜 회귀 (fix 완료)
-- **G1·G2 컨텍스트 유실** — 라우트가 행동 계층에 `conversation_id`·`email_thread_id` 를 **snake_case** 로 넘겨 **조용히 버려졌다**(업무가 대화·메일에서 끊긴다). params 는 **camelCase 가 계약**. 타입도 에러도 안 난다.
-- **G3 미배정 강제 배정** — 담당자 미지정 후보 등록 시 등록자가 강제로 담당자가 됐다. `allowUnassigned` 로 옛 동작(미배정 = null) 복원 — 후보 등록 경로만 허용.
-- **G14 권한 거부가 500** — 행동 계층은 `menu_forbidden:qtask` 를 **http 403** 으로 거부하는데 `registerCandidate` 가 그 status 를 버려 라우트가 **500 서버 오류**로 흘렸다. 화면이 "권한 없음"과 "장애"를 구분 못 함. `err.http` 를 계약으로 올려 caller 3곳(projects·qnote_bridge·email_threads)이 그대로 응답.
+### ★ 가장 나빴던 것 — 저장 실패를 아무도 몰랐다 (#147)
+`apiFetch` 는 4xx/5xx 여도 **throw 하지 않는다.** 그런데 프로젝트 설정 어디에서도 `res.ok` 를 안 봤고
+`saveMembers` 는 `catch {}` 로 에러를 삼켰다 → **저장이 실패해도 화면은 성공한 척했다.**
+자동저장 뱃지가 없던 것(9필드 중 8개)보다 이게 더 위험했다.
 
-### 게이트 결함 (오탐 — 테스트 fix)
-- **G6·G7** — `logSince()` 가 **바이트 오프셋**(`statSync().size`)으로 **문자열**을 slice. 로그가 한글투성이라 바이트 > 문자 → 새로 쓰인 줄을 통째로 건너뛰어 **Cue 완료 로그가 구조적으로 안 보였다.** 버퍼에서 자르도록 fix + 타임아웃 45s → 240s (실제 Cue 실행 ~2분).
-- **G11** — fire-and-forget 알림을 `sleep` 없이 즉시 카운트 → 언제나 0건. 프로브 실측 +500ms 에 정확히 1건 도착(user=17).
+### 고친 피드백 11건
+| # | 요지 |
+|---|------|
+| #147 | 자동저장 뱃지 + **저장 실패 가시화**(saveProject 단일 착지점 · 에러 삼킴 제거) |
+| #150 | 프로젝트명이 채팅방 제목에 **구워져 저장**돼 rename 전파 안 됨(운영 실사례 2건). 사용자가 지은 이름은 보존 |
+| #148 | 이슈·메모가 **Enter 없이는 등록 불가**였다(버튼 없음 → 태블릿 차단). 버튼·Enter 같은 문 |
+| #140 | Q Bill 개요 — 기간 토글이 **아무 일도 안 했다**. 매출을 발행일 → **결제일** 버킷으로. 회차 결제 110만원 누락 복구 |
+| #151 | 마크다운 붙여넣기 — TipTap 규칙은 타이핑에만 발동. RichEditor 엔 **표 확장 자체가 없었다**. `markdownPaste.ts` 공용 헬퍼 |
+| #149 | 메일 제목 `[PlanQ]` 13곳 하드코딩 → `subjectPrefix()` 단일 원천. 체험판은 접두어 **세 겹**. 프리헤더 8종 명시 |
+| #145 | 확정 보고서 진척 그래프 — 스냅샷에 필드 없음(운영 60건). 숫자 그대로 두고 빠진 필드만 백필 |
+| #139 | 프로젝트 참여 외부 인력 담당자 — 백엔드·Q Task 는 이미 됐는데 **TasksTab 만** 누락 |
+| #143 | Q info 리스트 = 조회·복사 전용, 편집은 우측 패널 (Irene 요청) |
+| #142 | 개인 보관함 — 카드화·KPI 열 수·파일 탭이 220px 칸에 갇혀 1열로 떨어지던 것 |
+| #141 | 첫 탭 '캔버스' → '개요' (ko/en) |
+| #146 | 랜딩 인사이트 검색 (Features 랜딩은 **미완** — 아래 참조) |
 
-> **교훈 (박제):** FAIL 을 코드에서 찾기 전에 **판정 기계부터 의심**한다. 테스트가 "로그 없음"이라는데 `grep` 하면 로그가 있으면, 틀린 건 테스트다. memory `feedback_false_fail_suspect_the_judge.md`.
+### 그 외
+- 패널 핸들 통일(`panelHandleStyle.ts` + guard `PANELHANDLE` + `canary-panel-handles`)
+- god-file 래칫: `QProjectDetailPage.styles.ts` 분리 (1460 → 1311줄)
+- **불변식 가드가 내 코드의 신규 위반 2건을 잡았다** (i18n 하드코딩 +3, god-file 초과) — 베이스라인 안 올리고 정리
+
+### 배포 (완료)
+- 1차: `f2cacf7` → `f63e616` (19커밋, 밀린 것 해소). 배포 전 운영 ALTER `email_messages.triage_headers` 선행
+- 2차: → **`6a1ed50`** (피드백 11건)
+- **사고 기록:** 첫 시도가 프론트 빌드 중 타임아웃 강제 종료(exit 143) → 백엔드 파일만 새 코드 + PM2 는 옛 프로세스(96분) + 프론트 옛 번들인 **부분 배포**. 백그라운드 재실행으로 완주(172초). 3점 실측(PM2 uptime · 번들 시각 · 커밋)으로 반영 증명. 메일 cron 정상 복귀 확인
+- **운영 백필 실행 완료(멱등):** `backfill-conversation-titles.js` 2건 · `backfill-report-progress-series.js` 53건
 
 ### 검증
-`test-fable-2a-gaps.js` **40 PASS / 0 FAIL** (실HTTP · 전량 원복 — 잔존 task/candidate/perm 0, cue_usage 원복) · health-check **30/30** · guard-invariants **18/18** · e2e tenant **0 실패**
-
-### 수정된 파일
-- `dev-backend/services/task_extractor.js` — `err.http` 계약 + `allowUnassigned`
-- `dev-backend/services/actions/task_actions.js` — `allowUnassigned` · 미배정은 '요청' 아님
-- `dev-backend/routes/tasks.js` — confirm 컨텍스트 camelCase
-- `dev-backend/routes/projects.js` · `qnote_bridge.js` · `email_threads.js` — 거부 상태 그대로 응답
-- `dev-backend/test-fable-2a-gaps.js` — 게이트 결함 2건 fix
+헬스 30/30 · 불변식 19/19 · e2e tenant 0 · 핸들 카나리 0 · 빌드 EXIT0/TS0 ·
+실HTTP 10/10 + 6/6 (데이터 전량 원복) · 메일 제목·프리헤더 실측 · 위키 커버리지 exit 0
 
 ---
 
 ## 다음 할 일
 
-1. **행동 계층 3사이클** — `event_create` / `document_draft` (생성 계열 잔여). **invoice 전이는 의도적 카탈로그 제외** (재무 영구 봉쇄).
-2. **#81 Cue 대화형 실행** — 행동 계층 2A 완료로 선행 조건 충족.
-3. **KB 과잉 제거.**
-4. 운영 배포는 별도 `/배포` 대기 (이번 사이클 dev 만 반영). ⚠️ **운영 ALTER 수동 선행** 필요.
+1. **#146 나머지 절반 — Features 랜딩** (`/features`): 캡처 이미지 추가(현재 `<img>` 0건, 가짜 브라우저 목업뿐) +
+   **빠진 기능 8종** 반영 — 전자서명 · 통합 인박스 · Q지식/위키 · 개인 보관함 · 업무보고(주간/월간) ·
+   포커스 · 회의록/녹취 · 고객관리. 스크린샷 촬영 + 소개 문구(ko/en) 작성 필요.
+2. **행동 계층 3사이클** — `event_create` / `document_draft` (생성 계열 잔여).
+   `CalendarEvent.create` 는 `routes/calendar.js` 3곳, `Document.create` 는 `routes/docs.js` + `export.js` +
+   `exportJobWorker.js` 에 인라인 — 라우트를 통과하지 않는 실행자(Cue·워커)가 가드를 우회한다.
+   **invoice 전이는 의도적 카탈로그 제외**(재무 영구 봉쇄).
+3. **#81 Cue 대화형 실행** — 행동 계층 2A 완료로 선행 조건 충족. `/기능설계` + Fable 게이트 필요.
+4. **#126 구글 캘린더 양방향** — 선행 = Irene 의 Google OAuth 검증 제출(GCP 콘솔).
+5. KB 과잉 제거.
 
 ---
 
