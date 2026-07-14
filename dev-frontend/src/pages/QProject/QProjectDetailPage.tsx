@@ -1,6 +1,5 @@
 // /projects/p/:id — 프로젝트 허브 (대시보드/업무/문서/고객/프로세스 파트 5탭)
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import styled from 'styled-components';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
@@ -200,6 +199,21 @@ const ActionAutoSave: React.FC<{
   return (
     <AutoSaveField ref={handle} type={type} style={style} onSave={async () => { await save(pending.current); }}>
       {children(fire)}
+    </AutoSaveField>
+  );
+};
+
+// 프로젝트 설명 — AutoSaveField + draft state (controlled)
+const ProjectDescriptionEditor = ({ projectId, initial, onSave }: {
+  projectId: number;
+  initial: string;
+  onSave: (v: string) => Promise<void>;
+}) => {
+  const [draft, setDraft] = useState(initial);
+  useEffect(() => { setDraft(initial); }, [projectId, initial]);
+  return (
+    <AutoSaveField onSave={async () => { await onSave(draft.trim()); }}>
+      <EditTextarea rows={3} value={draft} onChange={(e) => setDraft(e.target.value)} />
     </AutoSaveField>
   );
 };

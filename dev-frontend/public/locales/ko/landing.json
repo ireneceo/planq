@@ -464,7 +464,13 @@
       "sub": "14일 무료 체험. 신용카드 필요 없습니다.",
       "btn": "무료로 시작하기"
     },
-    "readMinutes": "{{n}}분"
+    "readMinutes": "{{n}}분",
+    "searchPlaceholder": "검색",
+    "noResults": {
+      "title": "검색 결과가 없습니다",
+      "desc": "다른 검색어나 카테고리를 선택해 보세요.",
+      "reset": "검색 초기화"
+    }
   },
   "pricingPage": {
     "eyebrow": "PRICING",

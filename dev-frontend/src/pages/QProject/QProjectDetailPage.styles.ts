@@ -232,21 +232,6 @@ export const IssueInput = styled.input`flex:1;padding:6px 10px;border:1px solid 
 export const VisTag = styled.span<{$internal?:boolean}>`padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;flex-shrink:0;background:${p=>p.$internal?'#F0FDFA':'#F1F5F9'};color:${p=>p.$internal?'#0F766E':'#64748B'};`;
 export const Empty = styled.div`padding:60px;text-align:center;color:#94A3B8;`;
 
-// 프로젝트 설명 — AutoSaveField + draft state (controlled)
-const ProjectDescriptionEditor = ({ projectId, initial, onSave }: {
-  projectId: number;
-  initial: string;
-  onSave: (v: string) => Promise<void>;
-}) => {
-  const [draft, setDraft] = useState(initial);
-  useEffect(() => { setDraft(initial); }, [projectId, initial]);
-  return (
-    <AutoSaveField onSave={async () => { await onSave(draft.trim()); }}>
-      <EditTextarea rows={3} value={draft} onChange={(e) => setDraft(e.target.value)} />
-    </AutoSaveField>
-  );
-};
-
 export const HeaderActions = styled.div`display: flex; align-items: center; gap: 8px;`;
 export const HeaderBtn = styled.button`
   height: 32px; padding: 0 12px; border-radius: 8px; cursor: pointer;
