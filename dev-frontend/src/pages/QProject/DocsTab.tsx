@@ -483,7 +483,7 @@ const DocsTab: React.FC<Props> = (props) => {
 
       {/* Split: 좌 (폴더 트리 or 프로젝트 그룹) + 우 파일 영역
           N+30 — personal 모드: 좌측 패널 자체 렌더 X (평면 view, 폴더·프로젝트 그룹 없음) */}
-      <Split>
+      <Split $single={isPersonal}>
         {!isPersonal && (
         <FolderTreePanel>
           {isWorkspace ? (
@@ -1392,8 +1392,13 @@ const SelectToggle = styled.button<{ $on: boolean }>`
 `;
 
 // Split layout
-const Split = styled.div`
-  display:grid;grid-template-columns:220px 1fr;gap:12px;align-items:start;
+/* 개인 보관함(personal)은 좌측 폴더 트리를 렌더하지 않는다. 그런데 컬럼은 220px 1fr 그대로여서
+   파일 영역이 **220px 칸에 갇혔다** — 카드 그리드가 항상 1열로 떨어지고 우측 1fr 이 통째로 비었다.
+   (사용자 신고 — 파일탭 카드리스트가 1열로 떨어져서 우측이 다 빈다) #142 */
+const Split = styled.div<{ $single?: boolean }>`
+  display:grid;
+  grid-template-columns:${p => (p.$single ? '1fr' : '220px 1fr')};
+  gap:12px;align-items:start;
   @media (max-width: 900px){ grid-template-columns:1fr; }
 `;
 const FolderTreePanel = styled.div`

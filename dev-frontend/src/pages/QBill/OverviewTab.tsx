@@ -100,7 +100,9 @@ export default function OverviewTab() {
       {/* 상단: 제목 + 기간 토글 */}
       <Head>
         <TitleArea>
-          <H1>{t('overview.title')}</H1>
+          {/* 제목은 선택한 기간을 따라간다 — 이번 달로 고정해두면 최근 30일을 골라도
+              제목이 이번 달이라 숫자가 틀린 것처럼 보인다 (#140) */}
+          <H1>{t('overview.titleFor', { period: t(`overview.period.${period}`) })}</H1>
         </TitleArea>
         <PeriodToggle role="tablist">
           {(['thisMonth', 'last30', 'ytd'] as Period[]).map(k => (
@@ -177,7 +179,7 @@ export default function OverviewTab() {
         <KpiCard $accent="#0F766E">
           <KpiHead>
             <KpiLabel>{t('overview.kpi.revenue')}</KpiLabel>
-            <KpiHelp>{t('overview.kpi.revenueHelp')}</KpiHelp>
+            <KpiHelp>{t('overview.kpi.revenueHelp', { period: t(`overview.period.${period}`) })}</KpiHelp>
           </KpiHead>
           <KpiValue>{formatMoney(stats.revenue, 'KRW')}</KpiValue>
           <KpiSpark $color="#14B8A6">
@@ -288,31 +290,81 @@ export default function OverviewTab() {
   );
 }
 
-// ─── 통계 (실 ApiInvoice 기반) ───
-function computeStats(list: ApiInvoice[], _period: Period) {
+// ─── 매출 집계의 단일 원천 (#140) ───
+//
+// 옛 코드의 세 가지 어긋남 — Irene: "개요에 그래프가 맞지 않아. 숫자 맞춰줘."
+//   ① 기간 토글이 **아무 일도 안 했다** (`_period` 를 함수 안에서 한 번도 쓰지 않음).
+//      화면은 "이번 달 한눈에 보기" 인데 매출 KPI 는 전 기간 누적이었다.
+//   ② 매출을 **발행일** 버킷에 넣었다 — 1월에 발행하고 7월에 입금된 건이 1월 막대에 꽂혔다.
+//      매출은 **돈이 들어온 달**의 것이다.
+//   ③ 세금계산서 대기 금액만 모든 통화를 합산해놓고 원(₩)으로 표시했다.
+//
+// 이제 결제 이벤트(단건=invoice.paid_at / 분할=각 회차의 paid_at)를 원장처럼 펼쳐서 집계한다.
+
+interface PaymentEvent { at: Date; amount: number; }
+
+/** 결제 이벤트 목록 — KRW 만. 분할 청구는 회차별로 각각의 결제일을 갖는다. */
+function paymentEvents(list: ApiInvoice[]): PaymentEvent[] {
+  const out: PaymentEvent[] = [];
+  for (const inv of list) {
+    if (inv.currency !== 'KRW') continue;
+    if (inv.installments && inv.installments.length > 0) {
+      for (const inst of inv.installments) {
+        if (inst.status !== 'paid') continue;
+        const at = inst.paid_at || inv.paid_at;
+        if (!at) continue;
+        out.push({ at: new Date(at), amount: Number(inst.paid_amount || inst.amount || 0) });
+      }
+      continue;
+    }
+    if (inv.status !== 'paid' && inv.status !== 'partially_paid') continue;
+    const at = inv.paid_at || inv.issued_at || inv.created_at;
+    if (!at) continue;
+    out.push({ at: new Date(at), amount: Number(inv.paid_amount || 0) });
+  }
+  return out;
+}
+
+/** 기간의 시작 시각 — 화면의 토글(이번 달 / 최근 30일 / 올해)과 1:1 로 대응한다. */
+function periodStart(period: Period): Date {
+  const now = new Date();
+  if (period === 'last30') { const d = new Date(now); d.setDate(d.getDate() - 30); return d; }
+  if (period === 'ytd') return new Date(now.getFullYear(), 0, 1);
+  return new Date(now.getFullYear(), now.getMonth(), 1);   // thisMonth
+}
+
+function computeStats(list: ApiInvoice[], period: Period) {
   const krw = list.filter(i => i.currency === 'KRW');
   const num = (v: string | number | null | undefined) => Number(v || 0);
-  const revenue = krw.filter(i => i.status === 'paid' || i.status === 'partially_paid')
-    .reduce((s, i) => s + num(i.paid_amount), 0);
+
+  // 매출 = 선택한 기간에 **실제로 들어온 돈**
+  const from = periodStart(period);
+  const revenue = paymentEvents(list)
+    .filter(e => e.at >= from)
+    .reduce((s, e) => s + e.amount, 0);
+
+  // 미수금·초안·세금계산서 대기는 '지금 상태'다 — 기간으로 자르지 않는다
   const outstandingList = krw.filter(i => i.status === 'sent' || i.status === 'partially_paid' || i.status === 'overdue');
   const outstanding = outstandingList.reduce((s, i) => s + (num(i.grand_total) - num(i.paid_amount)), 0);
   const outstandingAvgDays = outstandingList.length === 0 ? 0 :
     Math.round(outstandingList.reduce((s, i) => s + Math.max(0, daysSince(i.issued_at || i.created_at)), 0) / outstandingList.length);
   const drafts = krw.filter(i => i.status === 'draft');
-  // 세금계산서 대기: tax_invoice_status='pending' 또는 분할 회차 paid+미발행
-  const pendingTaxAmount = list.reduce((s, i) => {
+
+  // 세금계산서 대기 — KRW 로 표시하므로 KRW 만 집계한다 (옛 코드는 전 통화를 합쳐 원으로 찍었다)
+  const pendingTaxAmount = krw.reduce((s, i) => {
     if (i.installments && i.installments.length > 0) {
       return s + i.installments.filter(x => x.status === 'paid' && !x.tax_invoice_no).reduce((ss, x) => ss + Number(x.amount || 0), 0);
     }
     if (i.tax_invoice_status === 'pending' && i.status === 'paid') return s + num(i.grand_total);
     return s;
   }, 0);
-  const pendingTaxCount = list.filter(i => {
+  const pendingTaxCount = krw.filter(i => {
     if (i.installments && i.installments.length > 0) {
       return i.installments.some(x => x.status === 'paid' && !x.tax_invoice_no);
     }
     return i.tax_invoice_status === 'pending' && i.status === 'paid';
   }).length;
+
   return {
     revenue,
     revenueSpark: buildSparkFromInvoices(list),
@@ -326,41 +378,31 @@ function computeStats(list: ApiInvoice[], _period: Period) {
   };
 }
 
-// 최근 6개월 매출 sparkline (실 invoice 기반)
-function buildSparkFromInvoices(list: ApiInvoice[]): number[] {
-  const months = 6;
+/** 월별 매출 버킷 — KPI 와 **같은 원장**(결제일 기준)을 쓴다. 그래야 막대 합과 KPI 가 어긋나지 않는다. */
+function monthlyRevenue(list: ApiInvoice[], months: number): number[] {
   const buckets: number[] = Array(months).fill(0);
   const now = new Date();
-  for (const inv of list) {
-    if (inv.status !== 'paid' && inv.status !== 'partially_paid') continue;
-    if (inv.currency !== 'KRW') continue;
-    const dt = inv.issued_at ? new Date(inv.issued_at) : new Date(inv.created_at);
-    const monthDiff = (now.getFullYear() - dt.getFullYear()) * 12 + (now.getMonth() - dt.getMonth());
+  for (const e of paymentEvents(list)) {
+    const monthDiff = (now.getFullYear() - e.at.getFullYear()) * 12 + (now.getMonth() - e.at.getMonth());
     if (monthDiff < 0 || monthDiff >= months) continue;
-    buckets[months - 1 - monthDiff] += Number(inv.paid_amount || 0);
+    buckets[months - 1 - monthDiff] += e.amount;
   }
-  return buckets.length > 0 ? buckets : [0];
+  return buckets;
+}
+
+// 최근 6개월 매출 sparkline
+function buildSparkFromInvoices(list: ApiInvoice[]): number[] {
+  return monthlyRevenue(list, 6);
 }
 
 function buildTrend(list: ApiInvoice[], t: TFunction) {
-  // 12개월 — 실 invoice 누적 매출
   const months = 12;
-  const buckets: { month: string; value: number }[] = [];
+  const values = monthlyRevenue(list, months);
   const now = new Date();
-  for (let i = months - 1; i >= 0; i--) {
-    const dt = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    buckets.push({ month: t('overview.monthLabel', { month: dt.getMonth() + 1 }), value: 0 });
-  }
-  for (const inv of list) {
-    if (inv.status !== 'paid' && inv.status !== 'partially_paid') continue;
-    if (inv.currency !== 'KRW') continue;
-    const dt = inv.issued_at ? new Date(inv.issued_at) : new Date(inv.created_at);
-    const monthDiff = (now.getFullYear() - dt.getFullYear()) * 12 + (now.getMonth() - dt.getMonth());
-    if (monthDiff < 0 || monthDiff >= months) continue;
-    const idx = months - 1 - monthDiff;
-    buckets[idx].value += Number(inv.paid_amount || 0);
-  }
-  return buckets;
+  return values.map((value, idx) => {
+    const dt = new Date(now.getFullYear(), now.getMonth() - (months - 1 - idx), 1);
+    return { month: t('overview.monthLabel', { month: dt.getMonth() + 1 }), value };
+  });
 }
 
 function buildTopUnpaid(list: ApiInvoice[]): ApiInvoice[] {
@@ -421,7 +463,8 @@ function formatRelative(iso: string, t: TFunction): string {
 function Sparkline({ data, color }: { data: number[]; color: string }) {
   const w = 120;
   const h = 28;
-  const max = Math.max(...data);
+  // 값이 전부 0 이면 v/max 가 NaN → polyline points 가 NaN 이 되어 선이 통째로 사라진다.
+  const max = Math.max(...data, 1);
   const points = data.map((v, i) => {
     const x = (i / (data.length - 1)) * w;
     const y = h - (v / max) * h;

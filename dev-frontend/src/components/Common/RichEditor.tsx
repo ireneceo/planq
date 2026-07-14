@@ -11,6 +11,13 @@ import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
+// 표 (#151) — 여태 RichEditor 에는 표 확장이 없어서 업무 본문·메일·지식에 표를 **넣을 수도 볼 수도** 없었다.
+// (문서 에디터 PostEditor 에는 있었다 — 같은 앱인데 화면마다 되고 안 됐다.)
+import { Table } from '@tiptap/extension-table';
+import { TableRow } from '@tiptap/extension-table-row';
+import { TableCell } from '@tiptap/extension-table-cell';
+import { TableHeader } from '@tiptap/extension-table-header';
+import { handleMarkdownPaste } from '../../utils/markdownPaste';
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
@@ -72,6 +79,10 @@ export default function RichEditor({
       }),
       TaskList,
       TaskItem.configure({ nested: true }),
+      Table.configure({ resizable: true }),
+      TableRow,
+      TableHeader,
+      TableCell,
       SlashCommand.configure({ listComponent: SlashCommandList }),
     ],
     content: value,
@@ -86,14 +97,19 @@ export default function RichEditor({
     },
     editorProps: {
       attributes: { class: 'pq-editor-body' },
-      handlePaste: (_view, event) => {
-        if (!uploadUrlRef.current) return false;
-        const files = Array.from(event.clipboardData?.files || []);
-        const images = files.filter(f => f.type.startsWith('image/'));
-        if (images.length === 0) return false;
-        event.preventDefault();
-        images.forEach(f => uploadAndInsertImage(f));
-        return true;
+      handlePaste: (view, event) => {
+        // 1) 이미지 붙여넣기 — 옛 동작 그대로 (업로드 경로가 있을 때만)
+        if (uploadUrlRef.current) {
+          const files = Array.from(event.clipboardData?.files || []);
+          const images = files.filter(f => f.type.startsWith('image/'));
+          if (images.length > 0) {
+            event.preventDefault();
+            images.forEach(f => uploadAndInsertImage(f));
+            return true;
+          }
+        }
+        // 2) 마크다운 텍스트 붙여넣기 → 제목·표·목록으로 변환 (#151)
+        return handleMarkdownPaste(view, event);
       },
       handleDrop: (_view, event) => {
         if (!uploadUrlRef.current) return false;
@@ -220,6 +236,23 @@ const EditorShell = styled.div<{ $mh: number }>`
   & .pq-editor-body hr{border:none;border-top:1px solid #E2E8F0;margin:14px 0;}
   & .pq-editor-body img{max-width:100%;border-radius:8px;display:block;margin:4px 0;}
   & .pq-editor-body a{color:#0D9488;text-decoration:underline;text-decoration-color:#99F6E4;text-underline-offset:3px;}
+  /* 표 (#151) — 문서 에디터(PostEditor)와 같은 시각. 넓은 표는 가로 스크롤로 가둔다(페이지가 밀리지 않게) */
+  & .pq-editor-body .tableWrapper{overflow-x:auto;}
+  & .pq-editor-body table{
+    border-collapse:separate;border-spacing:0;table-layout:fixed;
+    width:max-content;min-width:100%;font-size:13px;margin:16px 0;
+    border:1px solid #CBD5E1;border-radius:10px;overflow:hidden;background:#fff;
+  }
+  & .pq-editor-body table td,& .pq-editor-body table th{
+    border-right:1px solid #E2E8F0;border-bottom:1px solid #E2E8F0;
+    padding:10px 14px;vertical-align:top;min-width:96px;position:relative;box-sizing:border-box;
+  }
+  & .pq-editor-body table td:last-child,& .pq-editor-body table th:last-child{border-right:none;}
+  & .pq-editor-body table tr:last-child td,& .pq-editor-body table tr:last-child th{border-bottom:none;}
+  & .pq-editor-body table th{
+    background:#F8FAFC;color:#0F172A;font-weight:700;text-align:left;
+    letter-spacing:-0.1px;border-bottom:1px solid #CBD5E1;
+  }
   & .pq-editor-body ::selection{background:#CCFBF1;}
 `;
 

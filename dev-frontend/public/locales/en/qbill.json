@@ -20,7 +20,7 @@
     },
     "kpi": {
       "revenue": "Revenue",
-      "revenueHelp": "Collected this period",
+      "revenueHelp": "Payments received in {{period}}",
       "outstanding": "Outstanding",
       "outstandingHelp": "Sent, awaiting payment",
       "pendingIssue": "Pending issue",
@@ -70,7 +70,8 @@
       "daysAgo": "{{n}}d ago",
       "monthsAgo": "{{n}}mo ago"
     },
-    "monthLabel": "{{month}}"
+    "monthLabel": "{{month}}",
+    "titleFor": "{{period}} at a glance"
   },
   "invoices": {
     "title": "Invoices",

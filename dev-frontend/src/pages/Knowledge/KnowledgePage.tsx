@@ -750,38 +750,19 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                        />
                      </RowChk>
                    )}
-                   {/* 제목 — 인라인 편집 (Q task 패턴) */}
+                   {/* 제목 — 읽기 전용. 클릭하면 우측 패널이 열리고 거기서 편집 (#143) */}
                    <ColTitleArea>
-                     <RowTitleEdit
-                       docId={d.id}
-                       businessId={businessId}
-                       initialValue={d.title}
-                       onSaved={(newTitle) => {
-                         setDocs(prev => prev.map(x => x.id === d.id ? { ...x, title: newTitle } : x));
-                         if (detailId === d.id) setDetail(prev => prev ? { ...prev, title: newTitle } : prev);
-                       }}
-                     />
+                     <RowTitleText>{d.title}</RowTitleText>
                    </ColTitleArea>
 
-                   {/* 가운데: 커스텀 항목 — 인라인 편집 */}
-                   <ColCustomArea onClick={(e) => e.stopPropagation()}>
+                   {/* 가운데: 커스텀 항목 — 클릭하면 값 복사 (#143) */}
+                   <ColCustomArea>
                      {Array.isArray(d.custom_columns) && d.custom_columns.filter(c => c.show_in_list).map(col => (
                        <CustomItem key={col.id}>
                          <CustomLabel>{col.name}</CustomLabel>
-                         <InlineCellEdit
-                           docId={d.id}
-                           colId={col.id}
+                         <CopyCell
                            colType={col.type}
-                           initialValue={(d.custom_values || {})[col.id] as string | undefined}
-                           businessId={businessId}
-                           onSaved={(newVal) => {
-                             setDocs(prev => prev.map(x => x.id === d.id
-                               ? { ...x, custom_values: { ...(x.custom_values || {}), [col.id]: newVal } }
-                               : x));
-                             if (detailId === d.id) {
-                               setDetail(prev => prev ? { ...prev, custom_values: { ...(prev.custom_values || {}), [col.id]: newVal } } : prev);
-                             }
-                           }}
+                           value={(d.custom_values || {})[col.id] as string | undefined}
                          />
                        </CustomItem>
                      ))}
@@ -1531,47 +1512,8 @@ const DrawerTitleEdit: React.FC<{
   );
 };
 // 행 제목 인라인 편집 — Q task 패턴 (클릭 → input 변환 → blur 저장)
-const RowTitleEdit: React.FC<{
-  docId: number;
-  businessId: number;
-  initialValue: string;
-  onSaved: (v: string) => void;
-}> = ({ docId, businessId, initialValue, onSaved }) => {
-  const { t } = useTranslation('knowledge');
-  const [editing, setEditing] = React.useState(false);
-  const [draft, setDraft] = React.useState(initialValue);
-  React.useEffect(() => { if (!editing) setDraft(initialValue); }, [initialValue, editing]);
-  const commit = async () => {
-    setEditing(false);
-    const trimmed = draft.trim();
-    if (!trimmed || trimmed === initialValue) return;
-    try { await updateKnowledge(businessId, docId, { title: trimmed }); onSaved(trimmed); } catch { /* skip */ }
-  };
-  if (!editing) {
-    return (
-      <RowTitle
-        onClick={(e) => { e.stopPropagation(); setEditing(true); }}
-        title={t('inline.editHint', '클릭해서 편집') as string}
-      >
-        {initialValue}
-      </RowTitle>
-    );
-  }
-  return (
-    <RowTitleInput
-      autoFocus
-      value={draft}
-      onChange={e => setDraft(e.target.value)}
-      onBlur={commit}
-      onClick={(e) => e.stopPropagation()}
-      onKeyDown={(e) => {
-        e.stopPropagation();
-        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-        if (e.key === 'Escape') { setDraft(initialValue); setEditing(false); }
-      }}
-    />
-  );
-};
+/* RowTitleEdit(리스트 제목 인라인 편집)는 제거됐다 (#143) — 리스트는 조회·복사 전용,
+   제목 편집은 우측 패널의 DrawerTitleEdit 한 곳. 죽은 코드를 남기면 다음 사람이 다시 쓴다. */
 
 const DrawerTitleInput = styled.input`
   font-size: 16px; font-weight: 700; color: #0F172A;
@@ -1737,6 +1679,40 @@ const DrawerCustomLabel = styled.span`
 `;
 
 // ─── 인라인 셀 편집 — 리스트 행의 커스텀 항목 클릭 시 그 자리에서 수정 ───
+/**
+ * 리스트의 값 셀 — 조회·복사 전용 (#143).
+ *
+ * Irene: "리스트에서 바로 수정하기보다 복사되게 하는 게 좋지 않을까? 수정은 우측 패널에서.
+ *         여기는 DB 저장소처럼 쓰고 싶은데."
+ * 판단: 맞다. 리스트는 **꺼내 쓰는 곳**이다 — 계정·키·주소를 눈으로 찾아 복사하는 화면인데,
+ *       클릭이 곧 편집이면 값을 꺼내려다 실수로 고치게 된다. 편집은 우측 패널에 이미 전부 있다.
+ *       (드로어 안의 InlineCellEdit 는 그대로 — 거기서는 편집이 맞다.)
+ */
+const CopyCell: React.FC<{ value: string | undefined; colType: string }> = ({ value, colType }) => {
+  const { t } = useTranslation('knowledge');
+  const [copied, setCopied] = React.useState(false);
+  if (colType === 'secret') return <CustomValue>{value ? '••••••' : ''}</CustomValue>;
+
+  const text = value == null || value === '' ? '' : String(value);
+  if (!text) return <CustomValue>—</CustomValue>;
+
+  const copy = async (e: React.MouseEvent) => {
+    e.stopPropagation();                       // 행 클릭(드로어 열기)과 겹치지 않게
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch { /* 클립보드 권한 없음 — 값은 그대로 보인다 */ }
+  };
+
+  return (
+    <CopyValue type="button" onClick={copy} title={t('inline.copyHint', '클릭해서 복사') as string}>
+      <span>{text}</span>
+      <CopyMark $on={copied}>{copied ? t('inline.copied', '복사됨') : t('inline.copy', '복사')}</CopyMark>
+    </CopyValue>
+  );
+};
+
 const InlineCellEdit: React.FC<{
   docId: number;
   colId: string;
@@ -2042,12 +2018,6 @@ const List = styled.div`
 const KB_LIST_COLS = 'minmax(160px, 1.6fr) minmax(220px, 2.6fr) auto minmax(90px, auto) 36px';
 const RowChk = styled.div`display:flex; align-items:center; justify-content:center;`;
 const RowAct = styled.div`display:flex; justify-content:flex-end;`;
-const RowTitleInput = styled.input`
-  width: 100%; height: 26px; padding: 0 8px;
-  font-size: 14px; font-weight: 600; color: #0F172A;
-  border: 1px solid #14B8A6; border-radius: 4px; background: #fff;
-  &:focus { outline: none; box-shadow: 0 0 0 2px rgba(20,184,166,0.2); }
-`;
 const IconBtn = styled.button`
   width: 28px; height: 28px;
   display: flex; align-items: center; justify-content: center;
@@ -2132,13 +2102,28 @@ const ActiveTagChip = styled.button`
   &:hover { background: #0D9488; }
 `;
 const ActiveTagX = styled.span`font-size: 14px; line-height: 1;`;
-const RowTitle = styled.div`
+/* 리스트 제목 — 읽기 전용 (#143). 행을 클릭하면 우측 패널이 열리고 거기서 편집한다. */
+const RowTitleText = styled.div`
   font-size: 14px; font-weight: 600; color: #0F172A;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  cursor: text; padding: 2px 8px;
-  border: 1px dashed transparent; border-radius: 4px;
-  transition: all 0.12s;
+  padding: 2px 8px;
+`;
+/* 값 셀 — 클릭하면 복사 (#143). "DB 저장소처럼 꺼내 쓰는" 화면. */
+const CopyValue = styled.button`
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  padding: 2px 8px; border: 1px dashed transparent; border-radius: 4px;
+  background: none; font-family: inherit; font-size: 13px; font-weight: 500;
+  color: #334155; text-align: left; cursor: pointer; transition: all 0.12s;
+  & > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   &:hover { background: #F0FDFA; border-color: #CCFBF1; }
+  &:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,0.3); }
+`;
+const CopyMark = styled.span<{ $on: boolean }>`
+  flex-shrink: 0; font-size: 11px; font-weight: 600;
+  color: ${p => (p.$on ? '#0F766E' : '#94A3B8')};
+  opacity: ${p => (p.$on ? 1 : 0)};
+  transition: opacity 0.12s;
+  ${CopyValue}:hover & { opacity: 1; }
 `;
 // ─── DetailDrawer 내부 ───
 const DrawerTitle = styled.div`

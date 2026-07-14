@@ -69,7 +69,10 @@
   },
   "drawer.customColumns": "항목",
   "inline": {
-    "editHint": "클릭해서 편집"
+    "editHint": "클릭해서 편집",
+    "copy": "복사",
+    "copied": "복사됨",
+    "copyHint": "클릭해서 복사"
   },
   "status": {
     "pending": "대기",

@@ -69,7 +69,10 @@
   },
   "drawer.customColumns": "Custom fields",
   "inline": {
-    "editHint": "Click to edit"
+    "editHint": "Click to edit",
+    "copy": "Copy",
+    "copied": "Copied",
+    "copyHint": "Click to copy"
   },
   "status": {
     "pending": "Pending",

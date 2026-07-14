@@ -15,6 +15,7 @@ import { TableRow } from '@tiptap/extension-table-row';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { TableHeader } from '@tiptap/extension-table-header';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
+import { handleMarkdownPaste } from '../../utils/markdownPaste';
 import { createLowlight, common } from 'lowlight';
 import { apiFetch } from '../../contexts/AuthContext';
 import { LightboxWrapper } from '../Common/ImageLightbox';
@@ -86,23 +87,26 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
     editable,
     onUpdate: ({ editor }) => onChange(editor.getJSON()),
     editorProps: {
-      handlePaste: (_view, event) => {
+      handlePaste: (view, event) => {
+        // 1) 이미지 붙여넣기 — 옛 동작 그대로
         const items = event.clipboardData?.items;
-        if (!items) return false;
-        for (let i = 0; i < items.length; i++) {
-          const item = items[i];
-          if (item.type.startsWith('image/')) {
-            const f = item.getAsFile();
-            if (f) {
-              event.preventDefault();
-              uploadEditorImage(f, businessId).then(url => {
-                if (url && editor) editor.chain().focus().setImage({ src: url }).run();
-              });
-              return true;
+        if (items) {
+          for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            if (item.type.startsWith('image/')) {
+              const f = item.getAsFile();
+              if (f) {
+                event.preventDefault();
+                uploadEditorImage(f, businessId).then(url => {
+                  if (url && editor) editor.chain().focus().setImage({ src: url }).run();
+                });
+                return true;
+              }
             }
           }
         }
-        return false;
+        // 2) 마크다운 텍스트 붙여넣기 → 제목·표·목록으로 변환 (#151)
+        return handleMarkdownPaste(view, event);
       },
       handleDrop: (_view, event) => {
         const files = event.dataTransfer?.files;
