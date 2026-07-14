@@ -10,6 +10,7 @@ const SUITES = {
   l1: () => require('./canary-l1'),             // L1 개인자원 누출 카나리 (백엔드 API 크롤)
   tenant: () => require('./canary-tenant'),     // 멀티테넌트 격리 카나리 (비멤버 biz 403 실증)
   mail: () => require('./canary-mail-triage'),  // 메일 판정 카나리 (실 mailparser 헤더 — 조용히 눈감는 계열)
+  handles: () => require('./canary-panel-handles'), // 패널 토글 화살표 중복 카나리 (접힘 상태에서만 드러남)
   // chrome: () => require('./chrome-suppression'),
 };
 

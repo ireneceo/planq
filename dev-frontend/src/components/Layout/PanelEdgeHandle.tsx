@@ -74,7 +74,7 @@ const Handle = styled.button<{ $side: 'left' | 'right'; $pos: number }>`
   transition: width 0.15s ease, background 0.15s ease, left 200ms ease, right 200ms ease;
 
   /* 좁은 폭에서의 숨김 경계는 side 마다 다르다 — 파일 상단 주석 참조 */
-  @media (max-width: ${(p) => (p.$side === 'right' ? 1024 : 1024)}px) {
+  @media (max-width: ${(p) => (p.$side === 'right' ? 1200 : 1024)}px) {
     display: none;
   }
 

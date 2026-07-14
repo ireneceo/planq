@@ -37,10 +37,6 @@ interface Props {
   onOpenSettings?: () => void;
   candidatesCount: number;
   extracting?: boolean;
-  leftCollapsed: boolean;
-  rightCollapsed: boolean;
-  onToggleLeft: () => void;
-  onToggleRight: () => void;
   onFocusCandidates?: () => void; // (legacy — 배너에서 더 이상 사용 안 함, 호출자 호환 유지)
   onOpenNewChat?: () => void;
   /** 모바일(<=tablet) 에서 리스트로 돌아가기 */
@@ -69,7 +65,7 @@ function channelLabel(name: string, projectName?: string | null): string {
 const ChatPanel: React.FC<Props> = ({
   project, conversations, messages, activeConversationId, onSelectConversation,
   onSendMessage, onCueDraftSend, onCueDraftReject, onRenameConversation, onOpenSettings,
-  candidatesCount, leftCollapsed, rightCollapsed, onToggleLeft, onToggleRight,
+  candidatesCount,
   onOpenNewChat, onMobileBack, mobileHidden = false,
   onLoadOlder, hasMoreOlder = false, loadingOlder = false, embedded = false,
 }) => {
@@ -1031,13 +1027,6 @@ const ChatPanel: React.FC<Props> = ({
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><polyline points="15 18 9 12 15 6"/></svg>
               </MobileBackBtn>
             )}
-            {leftCollapsed && (
-              <IconBtn onClick={onToggleLeft} title={t('chat.expandLeft', '좌측 열기') as string}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="9 18 15 12 9 6" />
-                </svg>
-              </IconBtn>
-            )}
             <HeaderTitleBlock $embedded={embedded}>
               <ChatNameRow>
                 <ChatName $editable={false}>{project.name}</ChatName>
@@ -1106,13 +1095,9 @@ const ChatPanel: React.FC<Props> = ({
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><polyline points="15 18 9 12 15 6"/></svg>
             </MobileBackBtn>
           )}
-          {leftCollapsed && (
-            <IconBtn onClick={onToggleLeft} title={t('chat.expandLeft', '좌측 열기')}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="9 18 15 12 9 6" />
-              </svg>
-            </IconBtn>
-          )}
+          {/* 리스트 열기 버튼은 두지 않는다 — ≥1025px 는 PanelEdgeHandle(경계선),
+              ≤1024px 는 MobileBackBtn(리스트로 돌아가기)이 이미 담당한다.
+              여기에 맨 chevron 을 더하면 접힘 상태에서 화살표가 둘로 보인다. */}
           <HeaderTitleBlock $embedded={embedded}>
             {editingName ? (
               <ChatNameInput
@@ -1214,13 +1199,9 @@ const ChatPanel: React.FC<Props> = ({
               </svg>
             </IconBtn>
           )}
-          {rightCollapsed && (
-            <IconBtn onClick={onToggleRight} title={t('chat.expandRight', '우측 열기')}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
-            </IconBtn>
-          )}
+          {/* 작업대 열기 버튼은 두지 않는다 — 표준 핸들이 전 구간을 이미 덮는다.
+              ≥1201px: PanelEdgeHandle(경계선) · ≤1200px: FloatingPanelToggle(뷰포트 변).
+              여기에 맨 chevron 을 하나 더 두면 접힘 상태에서 화살표가 둘로 보인다. */}
         </HeaderRight>
       </HeaderBar>
 
