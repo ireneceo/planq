@@ -1,6 +1,56 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-07-13 (Opus, 1M) — **🏛️ 행동 계층 2A(생성 계열) 갭 게이트 40 PASS / 0 FAIL. 권한 거부가 500 으로 새던 결함 1건 fix.** 헬스 30/30 · guard-invariants 18/18 · e2e tenant 0.
+> **최종 업데이트:** 2026-07-14 (Opus, 1M) — **📮 운영 피드백 11건 처리 + 운영 배포 2회.** 헬스 30/30 · guard-invariants 19/19 · e2e tenant 0 · 빌드 EXIT0/TS0 · 실HTTP 10/10.
+
+## ✅ 완료: 운영 피드백 11건 — "저장했다고 거짓말하던 화면" (2026-07-14)
+
+운영 `feedback_items` 미해결 15건을 전수 실측했더니, **먼저 드러난 건 코드가 아니라 배포였다** — 운영이 dev 보다 19커밋 뒤처져 있어 "왜 돌아갔냐"던 것(답변 불필요 버튼·진척 그래프·프로젝트 헤더 버튼·Q Bill 탭 뱃지) 4건이 **이미 고쳐졌으나 미배포** 상태였다. 배포로 해소 후 나머지를 고쳤다.
+
+### ★ 가장 나빴던 것 — 저장 실패를 아무도 몰랐다 (#147)
+`apiFetch` 는 4xx/5xx 여도 **throw 하지 않고 Response 를 그대로 돌려준다.** 그런데 프로젝트 설정 어디에서도 `res.ok` 를 보지 않았고, 멤버 저장(`saveMembers`)은 `catch {}` 로 에러를 통째로 삼켰다 → **저장이 실패해도 화면은 성공한 척했다.** 자동저장 뱃지가 없던 것(9개 필드 중 8개)보다 이게 더 위험했다.
+- `saveProject` 단일 착지점 + `res.ok` 검사 → 실패 시 `!` 뱃지
+- `AutoSaveField` 가 이미 노출하던 `triggerSave()` 핸들로 **onChange 없는 컨트롤**(버튼 그룹·색상 스와치·달력·onBlur 입력)도 같은 문을 지나게 함
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| **#147 자동저장 + 실패 가시화** | 위 참조. 저장 단일 착지점 · 에러 삼킴 제거 | ✅ |
+| **#150 프로젝트명 전파** | 대화방 제목에 프로젝트명이 **구워져 저장**된다(`"{이름} 고객"`). rename 라우트가 대화방을 안 건드려 채팅방은 옛 이름 그대로(**운영 실사례 2건**). 옛 이름으로 시작하는 파생 제목만 옮기고 **사용자가 지은 이름은 보존**. Q Talk 은 `project:updated` 를 구독조차 안 했다 → 리스너 + localStorage 캐시 무효화 | ✅ |
+| **#148 이슈·메모 입력** | 저장 코드가 `onKeyDown` 안에만 있어 **Enter 없이는 등록 자체가 불가능**했다(버튼 없음 → 태블릿 차단). 버튼·Enter 가 같은 함수를 지나게 + 중복 제출 가드. 상세 탭에 추진 방식·핵심 추진과제 **읽기 전용**(편집은 개요 한 곳 — 단일 원천) | ✅ |
+| **#140 Q Bill 개요 정합** | 기간 토글이 **아무 일도 안 했다**(`_period` 미사용) — 화면은 "이번 달" 인데 전 기간 누적을 표시(dev 실측 12,650,000원 vs 실제 이번 달 0원). 매출을 **발행일 → 결제일** 버킷으로. 회차 결제 누락(110만원) 복구. 통화 혼합·0나눗셈(전부 0 → NaN → 선 사라짐) 가드 | ✅ |
+| **#151 마크다운 붙여넣기** | TipTap 의 마크다운 규칙은 **타이핑에만** 발동 — 붙여넣기는 평문. 파이프 표는 RichEditor 에 **표 확장 자체가 없어** 원천 불가(PostEditor 엔 있었다 — 같은 앱인데 화면마다 갈렸다). 공용 `markdownPaste.ts`(marked + sanitizeRichText) + RichEditor Table 확장. HTML 을 들고 온 붙여넣기는 기본 파서에 양보 | ✅ |
+| **#149 알림 문구 단일 원천** | 제목 접두어 `[PlanQ]` 가 13곳 하드코딩, 워크스페이스명은 한 줄만 사용 → `subjectPrefix()` 단일 원천(워크스페이스 메일 = `[워크스페이스명]`, 계정 메일만 `[PlanQ]`). 체험판은 접두어가 **세 겹**이었다. 제목의 `escapeHtml` 제거(`A&B` → `A&amp;B` 로 나가던 버그). **프리헤더 8종 명시** — 모바일 미리보기가 "안녕하세요 …님," 인사말을 긁어가던 것 | ✅ |
+| **#145 확정 보고서 진척 그래프** | 화면은 복원됐으나 그 전에 확정된 스냅샷엔 필드가 없어 그래프 미표시(**운영 60건 전부**). 숫자는 그대로 두고 **빠진 필드만** 채우는 백필(멱등) | ✅ |
+| **#139 외부 인력 담당자** | 백엔드(`assertAssignable`)는 이미 "프로젝트 참여자면 외부 인력 배정 가능" 이었고 Q Task 화면도 이미 보여줬는데 **프로젝트 안의 업무추가 폼(TasksTab)만** 내부 멤버만 노출 — 같은 탭의 ProjectTaskList 는 제대로 하고 있었다. 유형(고객/협력사/프리랜서) 라벨 동반. **권한 경계 유지**: 프로젝트 미선택 → 내부만, 프로젝트 없는 업무에 외부 배정 → 403 | ✅ |
+| **#143 Q info 리스트** | 리스트는 **조회·복사 전용**(클릭 = 값 복사), 편집은 우측 패널 한 곳. "DB 저장소처럼 쓰고 싶다"(Irene) — 값을 꺼내려다 실수로 고치는 것을 막는다. 죽은 인라인 편집 컴포넌트 제거 | ✅ |
+| **#142 개인 보관함** | 최근 항목 카드화 + 전체보기 링크, KPI 열 수 정합(6열에 카드 4장 → 우측 공백), 파일 탭이 **220px 칸에 갇혀** 1열로 떨어지던 것(폴더 트리를 숨겼는데 그리드 컬럼은 그대로) | ✅ |
+| **#141 첫 탭 "개요"** | 프로젝트 상세 '캔버스' → '개요'(ko/en). "대시보드" 는 좌측 메뉴 최상단 하나뿐 | ✅ |
+| **#146 인사이트 검색** | 랜딩 `/insights` 검색(제목·요약). 결과 0건 시 "곧 시작합니다"(글 없음) 대신 검색 전용 빈 상태 + 초기화 | ✅ |
+| 패널 핸들 통일 | `panelHandleStyle.ts` 단일 시각 정의 + guard `PANELHANDLE` + `canary-panel-handles`(접힘 상태에서만 드러나는 중복 화살표) | ✅ |
+| god-file 래칫 | `QProjectDetailPage.styles.ts` 분리 — 1460 → 1311줄 | ✅ |
+
+### 불변식 가드가 내 코드를 잡았다
+guard-invariants 가 **신규 위반 2건**을 검출: ① 한국어 하드코딩 +3 (JSX·styled 주석 안의 따옴표 감싼 한국어 — grep 이 구분 못 함) ② god-file 초과(QProjectDetailPage +17%). 베이스라인을 올리지 않고 둘 다 정리.
+
+### 배포 사고 — 부분 배포 (기록)
+첫 배포가 **프론트 빌드 도중 타임아웃으로 강제 종료**(exit 143) → 백엔드 파일만 새 코드, PM2 는 옛 프로세스(uptime 96분), 프론트는 옛 번들. 그 순간 `npm ci` 중이던 node_modules 를 메일 cron 이 읽어 `sequelize` 모듈 not found 1회. **백그라운드 재실행으로 완주**(172초) 후 3점 실측(PM2 uptime 18초 · 번들 시각 갱신 · 커밋 기록)으로 반영 증명. 메일 cron 정상 복귀 확인.
+
+### 운영 백필 (배포 후 실행 완료)
+- `backfill-conversation-titles.js` — **2건** 정정("PlanQ / 기율법률사무소 고객" → "기율법률사무소 고객"), 재실행 0건(멱등)
+- `backfill-report-progress-series.js` — **53건** 채움, 재실행 0건(멱등)
+
+### 수정된 파일
+- 백엔드: `routes/projects.js` · `services/emailService.js` · `services/trial.js` · `scripts/backfill-conversation-titles.js`(신규) · `scripts/backfill-report-progress-series.js`(신규)
+- 프론트: `pages/QProject/QProjectDetailPage.tsx` · `QProjectDetailPage.styles.ts`(신규) · `TasksTab.tsx` · `DocsTab.tsx` · `pages/QBill/OverviewTab.tsx` · `pages/Knowledge/KnowledgePage.tsx` · `pages/PersonalVault/PersonalVaultPage.tsx` · `pages/Landing/BlogPage.tsx` · `components/Common/RichEditor.tsx` · `components/Docs/PostEditor.tsx` · `utils/markdownPaste.ts`(신규) · `components/Layout/panelHandleStyle.ts`(신규)
+- i18n: ko/en × `qproject · qbill · knowledge · landing`
+- 가드: `scripts/guard-invariants.js`(PANELHANDLE) · `scripts/e2e/canary-panel-handles.js`(신규)
+- 신규 의존성: `marked@^15` (GFM 파이프 표)
+
+**검증:** 헬스 30/30 · 불변식 19/19 · e2e tenant 0 · 핸들 카나리 0 · 빌드 EXIT0/TS0 · 실HTTP 10/10 + 6/6 (데이터 전량 원복) · 메일 제목·프리헤더 실측(가짜 transport 로 발송 HTML 캡처) · 위키 커버리지 exit 0
+
+### 남은 것
+**#146 절반** — Features 랜딩의 캡처 이미지 + 빠진 기능 8종(전자서명·통합 인박스·Q지식/위키·개인 보관함·업무보고·포커스·회의록·고객관리). 스크린샷 촬영 + 소개 문구 작성 필요.
+
+---
 
 ## ✅ 완료: 행동 계층 2A(생성 계열) Fable 갭 게이트 — 거짓 FAIL 3건의 정체 (2026-07-13)
 
