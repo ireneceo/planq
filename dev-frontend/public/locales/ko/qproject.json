@@ -175,7 +175,7 @@
     "sat": "토"
   },
   "tab": {
-    "dashboard": "캔버스",
+    "dashboard": "개요",
     "tasks": "업무",
     "process": "테이블",
     "clients": "고객",
@@ -670,7 +670,7 @@
         "red": "지연"
       }
     },
-    "loadError": "캔버스를 불러오지 못했습니다",
+    "loadError": "개요를 불러오지 못했습니다",
     "retry": "다시 시도"
   },
   "header": {

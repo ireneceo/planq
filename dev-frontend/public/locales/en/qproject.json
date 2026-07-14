@@ -175,7 +175,7 @@
     "sat": "Sat"
   },
   "tab": {
-    "dashboard": "Canvas",
+    "dashboard": "Overview",
     "tasks": "Tasks",
     "process": "Table",
     "clients": "Clients",
@@ -670,7 +670,7 @@
         "red": "Behind"
       }
     },
-    "loadError": "Failed to load the canvas",
+    "loadError": "Failed to load the overview",
     "retry": "Retry"
   },
   "header": {
