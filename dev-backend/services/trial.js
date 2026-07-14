@@ -23,10 +23,12 @@ async function safeNotify(biz, kind) {
     const owner = await User.findByPk(biz.owner_id, { attributes: ['email', 'name'] });
     if (!owner?.email) return;
     const wsName = biz.brand_name || biz.name;
+    // 제목 접두어는 emailService 의 subjectPrefix 가 [워크스페이스명] 으로 붙인다 (#149).
+    // 여기서 [PlanQ] 를 또 박으면 '[워크스페이스] [PlanQ] 워크스페이스 — …' 처럼 세 겹이 된다.
     const subjects = {
-      pre_bill: `[PlanQ] ${wsName} — 체험 7일 남음, 결제 안내`,
-      expired: `[PlanQ] ${wsName} — 체험 종료, 7일 안 결제 필요`,
-      locked: `[PlanQ] ${wsName} — 결제 미확인, 워크스페이스 잠금`,
+      pre_bill: '체험 7일 남음, 결제 안내',
+      expired: '체험 종료 — 7일 안에 결제가 필요합니다',
+      locked: '결제 미확인 — 워크스페이스가 잠금됐습니다',
     };
     const bodies = {
       pre_bill: '14일 체험이 7일 남았습니다. 결제 페이지에서 입금 정보를 확인하세요.',
@@ -35,7 +37,7 @@ async function safeNotify(biz, kind) {
     };
     await emailService.sendNotificationEmail({
       to: owner.email,
-      title: subjects[kind] || `[PlanQ] ${wsName}`,
+      title: subjects[kind] || '결제 안내',
       body: bodies[kind] || '',
       link: `${process.env.APP_URL || 'https://planq.kr'}/business/settings/plan`,
       ctaLabel: '결제 페이지 열기',

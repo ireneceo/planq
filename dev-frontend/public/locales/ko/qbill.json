@@ -20,7 +20,7 @@
     },
     "kpi": {
       "revenue": "매출",
-      "revenueHelp": "수금 완료 금액",
+      "revenueHelp": "{{period}}에 입금된 금액",
       "outstanding": "미수금",
       "outstandingHelp": "발행 후 미결제",
       "pendingIssue": "발행 대기",
@@ -70,7 +70,8 @@
       "daysAgo": "{{n}}일 전",
       "monthsAgo": "{{n}}달 전"
     },
-    "monthLabel": "{{month}}월"
+    "monthLabel": "{{month}}월",
+    "titleFor": "{{period}} 한눈에 보기"
   },
   "invoices": {
     "title": "청구서",
