@@ -1532,10 +1532,6 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         onRenameConversation={handleRenameConversation}
         onOpenSettings={activeConversationId ? () => setSettingsOpen(true) : undefined}
         candidatesCount={projectCandidates.length}
-        leftCollapsed={leftCollapsed}
-        rightCollapsed={rightCollapsed}
-        onToggleLeft={toggleLeft}
-        onToggleRight={toggleRight}
         onOpenNewChat={() => setChatModalOpen(true)}
         onMobileBack={handleMobileBack}
         mobileHidden={activeConversationId === null}
