@@ -1,25 +1,25 @@
 /**
- * FloatingPanelToggle — 얇은 엣지 핸들 (스크롤바 느낌)
+ * FloatingPanelToggle — 뷰포트 가장자리에 붙는 패널 핸들 (좁은 폭 전용).
  *
- * - 뷰포트 우측 엣지에 항상 붙은 가는 세로 바
- * - 닫힌 상태: 우측 변 right:0 · 화살표 ◁
- * - 열린 상태: 패널 왼쪽 변에 부착 (right: panelWidth) · 화살표 ▷
+ * PanelEdgeHandle 과 **같은 물건이고 시각도 같다** — 배치만 다르다.
+ *   PanelEdgeHandle  : 그리드 경계선에 absolute (≥1201px, 패널이 컬럼일 때)
+ *   FloatingPanelToggle: 뷰포트 우측 변에 fixed  (≤1200px, 패널이 오버레이 드로어일 때)
+ * 두 컴포넌트의 숨김 경계는 정확히 맞물려 **어느 폭에서도 핸들은 한 개만** 보인다.
+ *
+ * - 닫힌 상태: 우측 변 right:0 · 화살표 ◁ / 열린 상태: 패널 왼쪽 변에 부착 · 화살표 ▷
  * - 같은 핸들이 열기/닫기 모두 담당 (중복 UI 없음)
- * - 폰·태블릿·데스크탑 narrow 전부 같은 UI
  *
- * 시각 폭 8px · 히트 영역 28px (`::before` 투명 확장)
+ * 시각은 `Layout/panelHandleStyle.ts` 단일 정의 — 단색 · 그라데이션 없음 · 그림자 없음.
  *
  * 패널 폭은 CSS 상수 PANEL_WIDTH 공유:
  *   min(420px, calc(100vw - 56px))
  * → 항상 왼쪽 56px 여백이 남아 햄버거 메뉴처럼 바깥 탭 가능.
  *
- * 디스커버리 보강 (2026-05-08):
- *   - 첫 방문 1회 attention pulse (배경 컬러 펄스, 1.4s × 2회)
- *   - 추가: 첫 방문 시 페이지 진입 직후 핸들 자체가 살짝 좌측으로 슬라이드 (peek) 했다가
- *     원위치로 복귀 — 0.6s peek + 0.6s 복귀. "여기 뭔가 있다" 시각적 시그널을 한층 강화.
+ * 디스커버리 보강: 첫 방문 1회 attention 펄스 + peek 슬라이드 (localStorage 기억).
  */
 import React, { useEffect, useState } from 'react';
 import styled, { css, keyframes } from 'styled-components';
+import { panelHandleBar, panelHandleChevron, HANDLE_W, HANDLE_W_HOVER } from '../Layout/panelHandleStyle';
 
 // localStorage 키 — 최초 1회만 펄스 재생
 const PULSE_SEEN_KEY = 'planq.edgeHandle.pulseSeen';
@@ -59,7 +59,7 @@ const FloatingPanelToggle: React.FC<Props> = ({
       aria-pressed={open}
     >
       <Chevron $open={open}>
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="15 18 9 12 15 6" />
         </svg>
       </Chevron>
@@ -69,45 +69,40 @@ const FloatingPanelToggle: React.FC<Props> = ({
 
 export default FloatingPanelToggle;
 
-// 마운트 시 1회 재생되는 주목 펄스 — 2회 반복 후 조용해짐
+// 마운트 시 1회 재생되는 주목 펄스 — 색만 바뀐다(그림자 링 없음). 2회 반복 후 조용해짐
 const attention = keyframes`
-  0%   { background: #94A3B8; box-shadow: -2px 0 6px rgba(15, 23, 42, 0.06), 0 0 0 0 rgba(20, 184, 166, 0.55); }
-  50%  { background: #14B8A6; box-shadow: -2px 0 6px rgba(15, 23, 42, 0.06), 0 0 0 10px rgba(20, 184, 166, 0); }
-  100% { background: #94A3B8; box-shadow: -2px 0 6px rgba(15, 23, 42, 0.06), 0 0 0 0 rgba(20, 184, 166, 0); }
+  0%   { background: #94A3B8; }
+  50%  { background: #14B8A6; }
+  100% { background: #94A3B8; }
 `;
-// peek — 핸들이 살짝 왼쪽으로 튀어나왔다가 (24px 폭으로 확장 + 좌측으로 약간 이동) 원위치로 복귀.
-// 첫 방문 한 번만 재생. attention 펄스와 동시에 발생하여 시각적 시그널 강화.
+// peek — 핸들이 살짝 왼쪽으로 튀어나왔다가 원위치로 복귀. 첫 방문 한 번만.
 const peek = keyframes`
-  0%   { width: 8px; transform: translate(0, -50%); }
+  0%   { width: ${HANDLE_W}px; transform: translate(0, -50%); }
   35%  { width: 24px; transform: translate(-6px, -50%); }
   70%  { width: 24px; transform: translate(-6px, -50%); }
-  100% { width: 8px; transform: translate(0, -50%); }
+  100% { width: ${HANDLE_W}px; transform: translate(0, -50%); }
 `;
 
 const Handle = styled.button<{ $open: boolean; $pulse: boolean }>`
+  ${panelHandleBar}
   position: fixed;
   top: 50%;
-  ${({ $open }) => $open ? css`right: ${PANEL_WIDTH_CSS};` : css`right: 0;`}
+  ${({ $open }) => ($open ? css`right: ${PANEL_WIDTH_CSS};` : css`right: 0;`)}
   transform: translateY(-50%);
-
-  width: 8px;
-  height: 92px;
-  border: none;
-  padding: 0;
-  background: #94A3B8;
+  /* 뷰포트 변에 붙으므로 안쪽(좌측) 모서리만 둥글다 */
   border-radius: 6px 0 0 6px;
-  cursor: pointer;
   z-index: 900;
-  box-shadow: -2px 0 6px rgba(15, 23, 42, 0.06);
   transition: right 0.28s cubic-bezier(0.22, 1, 0.36, 1),
               background 0.15s ease,
-              width 0.15s ease,
-              box-shadow 0.15s ease;
+              width 0.15s ease;
+
+  /* 히트 영역은 화면 밖으로 새지 않게 우측만 좁힌다 */
+  &::before { right: -2px; }
 
   display: none;
   @media (max-width: 1200px) {
-    display: block;
-    /* 최초 방문 1회 주목 펄스 + peek 슬라이드 (닫힌 상태 + shouldPulse 일 때만, localStorage 기억) */
+    display: flex;
+    /* 최초 방문 1회 주목 펄스 + peek 슬라이드 (닫힌 상태 + shouldPulse 일 때만) */
     ${({ $open, $pulse }) => !$open && $pulse && css`
       animation: ${attention} 1.4s ease-out 2, ${peek} 1.6s ease-out 1;
     `}
@@ -115,30 +110,14 @@ const Handle = styled.button<{ $open: boolean; $pulse: boolean }>`
 
   @media (prefers-reduced-motion: reduce) {
     animation: none !important;
+    transition: none;
   }
 
-  /* 히트 영역 확장 — 투명 패딩으로 터치 타겟 확보 */
-  &::before {
-    content: '';
-    position: absolute;
-    top: -12px; bottom: -12px;
-    left: -20px; right: -2px;
-  }
-
-  &:hover {
-    width: 12px;
-    background: #14B8A6;
-  }
-  &:active { background: #0F766E; }
+  &:hover { width: ${HANDLE_W_HOVER}px; }
 `;
 
 const Chevron = styled.span<{ $open: boolean }>`
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #64748B;
+  ${panelHandleChevron}
   transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), color 0.15s ease;
   transform: rotate(${({ $open }) => ($open ? '180deg' : '0deg')});
 

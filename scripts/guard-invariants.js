@@ -593,7 +593,53 @@ function checkGodfile() {
 }
 
 // ═══════════════════════════════════════════════
-// 10. docfresh — 핵심 문서 신선도 (경고만 — 게이트 실패 아님)
+// 10. panelhandle — 패널 핸들 시각 단일 정의 + 숨김 경계 봉합
+//   패널 접기 핸들이 두 컴포넌트로 갈라져 시각이 따로 놀았다(하나는 그라데이션+그림자 2겹,
+//   하나는 단색). 게다가 숨김 경계가 어긋나(1024 vs 1200) 1025~1200px 에서 핸들 두 개가
+//   동시에 떠 "붙을 패널이 없는 화살표"가 혼자 떠 있었다.
+//   → 시각은 panelHandleStyle 한 곳에만. 경계는 right=1200 / left=1024 로 맞물린다.
+// ═══════════════════════════════════════════════
+function checkPanelHandle() {
+  const STYLE = 'dev-frontend/src/components/Layout/panelHandleStyle.ts';
+  const EDGE = 'dev-frontend/src/components/Layout/PanelEdgeHandle.tsx';
+  const FLOAT = 'dev-frontend/src/components/Common/FloatingPanelToggle.tsx';
+  const fails = [];
+
+  for (const f of [STYLE, EDGE, FLOAT]) {
+    if (!fs.existsSync(path.join(ROOT, f))) { fails.push(`${f}: 없음 — 핸들 시각 단일 정의가 사라졌다`); }
+  }
+  if (fails.length) { report('panelhandle', '패널 핸들 시각 단일 정의', false, fails); return; }
+
+  // ① 시각 계약 — 단색. 그라데이션·그림자 금지 (Irene 확정)
+  for (const f of [STYLE, EDGE, FLOAT]) {
+    const src = read(path.join(ROOT, f));
+    if (/linear-gradient|radial-gradient/.test(src)) fails.push(`${f}: 그라데이션 재유입 — 핸들은 단색만`);
+    // box-shadow: none 은 허용, 그 외 값은 금지
+    const shadows = src.match(/box-shadow:\s*([^;]+);/g) || [];
+    shadows.filter((s) => !/none/.test(s)).forEach((s) => fails.push(`${f}: 그림자 재유입 — ${s.trim()}`));
+  }
+
+  // ② 시각은 두 컴포넌트가 공유 — 각자 색·크기를 다시 선언하면 드리프트
+  for (const f of [EDGE, FLOAT]) {
+    if (!read(path.join(ROOT, f)).includes('panelHandleStyle')) {
+      fails.push(`${f}: panelHandleStyle 미사용 — 시각을 자체 선언하면 다시 갈라진다`);
+    }
+  }
+
+  // ③ 숨김 경계 봉합 — 우측 핸들 ≤1200 숨김 / 플로팅 ≤1200 노출. 어긋나면 겹치거나 둘 다 사라진다
+  const edge = read(path.join(ROOT, EDGE));
+  if (!/\$side === 'right'\s*\?\s*1200/.test(edge)) {
+    fails.push(`${EDGE}: 우측 핸들 숨김 경계가 1200 이 아니다 — 오버레이 구간에 핸들이 혼자 떠 있게 된다`);
+  }
+  if (!/max-width:\s*1200px/.test(read(path.join(ROOT, FLOAT)))) {
+    fails.push(`${FLOAT}: 노출 경계가 1200 이 아니다 — PanelEdgeHandle 과 겹치거나 빈 구간이 생긴다`);
+  }
+
+  report('panelhandle', '패널 핸들 — 단색 시각 단일 정의 + 숨김 경계 봉합(right 1200 / left 1024)', fails.length === 0, fails);
+}
+
+// ═══════════════════════════════════════════════
+// 11. docfresh — 핵심 문서 신선도 (경고만 — 게이트 실패 아님)
 // ═══════════════════════════════════════════════
 function checkDocFresh() {
   const DOCS = ['docs/SYSTEM_ARCHITECTURE.md', 'docs/DATABASE_ERD.md', 'docs/ONBOARDING.md', 'docs/PERMISSION_MATRIX.md'];
@@ -624,6 +670,7 @@ const CATEGORIES = {
   actionlayer: checkActionLayer,
   createlayer: checkCreateLayer,
   godfile: checkGodfile,
+  panelhandle: checkPanelHandle,
   docfresh: checkDocFresh,
 };
 
