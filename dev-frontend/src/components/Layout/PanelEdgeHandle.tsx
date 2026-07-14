@@ -1,17 +1,26 @@
 /**
  * PanelEdgeHandle — 패널 경계선 중앙의 접기/펼치기 화살표 핸들 (PlanQ 표준).
  *
- * Q Talk(LeftPanel/RightPanel) · Q docs(PostsPage) · Q Task 가 각자 같은 스타일을 복제해 왔다.
- * 신규 화면은 이 공통 컴포넌트를 쓴다 (UI 통일 + 드리프트 차단). 기존 3곳은 점진 이관.
+ * Q Talk(LeftPanel/RightPanel) · Q Mail · Q Note · Q docs · Q Task 가 공유한다.
  *
  * - 하나의 핸들이 접기/펼치기 겸용 (chevron 방향이 상태에 따라 뒤집힘)
  * - PanelGridLayout(position: relative) 의 직계 자식으로 두고, 경계선 x 위치를 offset 으로 넘긴다
  *   → 패널 자체(overflow: hidden)에 넣으면 핸들이 잘리므로 컨테이너에 붙인다
  * - 컨테이너 가장자리(offset 0)에서는 핸들이 밖으로 삐져나가지 않도록 자동 보정
- * - 태블릿 이하(≤1024px)는 숨김 — 그 폭에서는 사이드바가 오버레이 드로어로 동작한다
+ *
+ * 시각은 `panelHandleStyle.ts` 단일 정의 — 단색 · 그라데이션 없음 · 그림자 없음.
+ * FloatingPanelToggle(좁은 폭에서 뷰포트 가장자리에 붙는 같은 물건)과 픽셀 단위로 같다.
+ *
+ * ── 숨김 경계 (side 마다 다르다. 임의로 통일하지 말 것) ──
+ *   side='right' → ≤1200px 숨김.
+ *     그 폭부터 우측 패널은 **오버레이 드로어**가 되고 FloatingPanelToggle 이 여는 역할을 넘겨받는다.
+ *     여기서 안 숨기면, 붙을 그리드 경계가 사라진 핸들이 화면에 **혼자 떠 있고** 플로팅 바와 둘이 겹친다.
+ *   side='left'  → ≤1024px 숨김.
+ *     좌측 리스트에는 플로팅 대응물이 없다. 1025~1200px 에서도 리스트 접기는 살아 있어야 한다.
  */
 import React from 'react';
 import styled from 'styled-components';
+import { panelHandleBar, panelHandleChevron, HANDLE_W } from './panelHandleStyle';
 
 interface Props {
   /** 'left'  = 좌측 리스트 토글 (핸들이 컨테이너 왼쪽 기준으로 배치)
@@ -24,8 +33,6 @@ interface Props {
   labelCollapse: string;
   labelExpand: string;
 }
-
-const HANDLE_W = 12;
 
 const PanelEdgeHandle: React.FC<Props> = ({
   side, collapsed, onToggle, offset, labelCollapse, labelExpand,
@@ -57,55 +64,26 @@ const PanelEdgeHandle: React.FC<Props> = ({
 export default PanelEdgeHandle;
 
 const Handle = styled.button<{ $side: 'left' | 'right'; $pos: number }>`
+  ${panelHandleBar}
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
   ${(p) => (p.$side === 'left' ? `left: ${p.$pos}px;` : `right: ${p.$pos}px;`)}
-  width: ${HANDLE_W}px;
-  height: 72px;
-  padding: 0;
-  border: none;
-  background: linear-gradient(180deg, #94A3B8 0%, #64748B 100%);
   border-radius: 6px;
-  cursor: pointer;
   z-index: 10;
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.4) inset;
-  transition: width 0.2s ease, height 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, left 200ms ease, right 200ms ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  /* 히트 영역 확장 (얇은 바를 손가락·마우스로 쉽게 잡도록) */
-  &::before {
-    content: '';
-    position: absolute;
-    top: -10px; bottom: -10px; left: -12px; right: -12px;
+  transition: width 0.15s ease, background 0.15s ease, left 200ms ease, right 200ms ease;
+
+  /* 좁은 폭에서의 숨김 경계는 side 마다 다르다 — 파일 상단 주석 참조 */
+  @media (max-width: ${(p) => (p.$side === 'right' ? 1024 : 1024)}px) {
+    display: none;
   }
-  &:hover {
-    width: 18px;
-    height: 84px;
-    background: linear-gradient(180deg, #14B8A6 0%, #0F766E 100%);
-    box-shadow: 0 4px 12px rgba(20, 184, 166, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.6) inset;
-  }
-  &:hover svg { animation: chevronNudgeEdge 0.7s ease infinite; }
-  &:active { transform: translateY(-50%) scale(0.95); }
-  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 3px; }
-  @keyframes chevronNudgeEdge {
-    0%, 100% { transform: translateX(0); }
-    50% { transform: translateX(-2px); }
-  }
+
   @media (prefers-reduced-motion: reduce) {
     transition: none;
-    &:hover { width: ${HANDLE_W}px; height: 72px; }
-    &:hover svg { animation: none; }
-    &:active { transform: translateY(-50%); }
   }
-  @media (max-width: 1024px) { display: none; }
 `;
 
 const Chevron = styled.span`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #FFFFFF;
-  svg { width: 14px; height: 14px; }
+  ${panelHandleChevron}
+  ${Handle}:hover & { color: #FFFFFF; }
 `;
