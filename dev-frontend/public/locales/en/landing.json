@@ -464,7 +464,13 @@
       "sub": "14 days free. No credit card required.",
       "btn": "Start free"
     },
-    "readMinutes": "{{n}} min"
+    "readMinutes": "{{n}} min",
+    "searchPlaceholder": "Search",
+    "noResults": {
+      "title": "No results",
+      "desc": "Try a different keyword or category.",
+      "reset": "Reset search"
+    }
   },
   "pricingPage": {
     "eyebrow": "PRICING",

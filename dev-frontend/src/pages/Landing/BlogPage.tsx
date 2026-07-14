@@ -29,6 +29,7 @@ const Reveal: React.FC<{ children: React.ReactNode; as?: React.ElementType }> = 
 const BlogPage: React.FC = () => {
   const { t, i18n } = useTranslation('landing');
   const [active, setActive] = useState<Category>('all');
+  const [query, setQuery] = useState('');
   const [posts, setPosts] = useState<BlogPostCard[] | null>(null);
 
   useEffect(() => {
@@ -41,7 +42,13 @@ const BlogPage: React.FC = () => {
   const lang = (i18n.language || 'ko').slice(0, 2) === 'en' ? 'en' : 'ko';
   const pick = (p: BlogPostCard, k: 'title' | 'summary') =>
     (lang === 'en' ? p[`${k}_en` as const] : p[`${k}_ko` as const]) || p[`${k}_ko` as const] || p[`${k}_en` as const] || '';
-  const filtered = (posts || []).filter((p) => active === 'all' || p.blog_category === active);
+  // 검색 (#146) — 목록이 이미 전량 내려오므로(서버 limit 100) 여기서 거른다. 제목·요약을 본다.
+  const q = query.trim().toLowerCase();
+  const filtered = (posts || []).filter((p) => {
+    if (active !== 'all' && p.blog_category !== active) return false;
+    if (!q) return true;
+    return `${pick(p, 'title')} ${pick(p, 'summary')}`.toLowerCase().includes(q);
+  });
   const hasAnyPosts = (posts || []).length > 0;
 
   return (
@@ -68,6 +75,18 @@ const BlogPage: React.FC = () => {
                 {t(`blogPage.categories.${c}`)}
               </FilterChip>
             ))}
+            <SearchWrap>
+              <SearchIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </SearchIcon>
+              <SearchInput
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t('blogPage.searchPlaceholder', '검색') as string}
+                aria-label={t('blogPage.searchPlaceholder', '검색') as string}
+              />
+            </SearchWrap>
           </FilterRow>
         </Container>
       </FilterBar>
@@ -91,6 +110,22 @@ const BlogPage: React.FC = () => {
                   </PostCardLink>
                 ))}
               </PreviewGrid>
+            </Reveal>
+          ) : hasAnyPosts ? (
+            /* 글은 있는데 검색·필터에 안 걸린 경우 — "곧 시작합니다" 를 띄우면 글이 없는 줄 안다 (#146) */
+            <Reveal>
+              <EmptyState>
+                <EmptyIcon>
+                  <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                </EmptyIcon>
+                <EmptyTitle>{t('blogPage.noResults.title', '검색 결과가 없습니다')}</EmptyTitle>
+                <EmptyDesc>{t('blogPage.noResults.desc', '다른 검색어나 카테고리를 선택해 보세요.')}</EmptyDesc>
+                <ResetBtn type="button" onClick={() => { setQuery(''); setActive('all'); }}>
+                  {t('blogPage.noResults.reset', '검색 초기화')}
+                </ResetBtn>
+              </EmptyState>
             </Reveal>
           ) : (
             <Reveal>
@@ -177,7 +212,23 @@ const FilterBar = styled.div`
   padding: 12px 0;
 `;
 const FilterRow = styled.div`
-  display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+  display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center;
+`;
+/* 검색 (#146) — 카테고리 칩 옆. 좁은 화면에선 한 줄을 통째로 차지한다. */
+const SearchWrap = styled.div`
+  position: relative; display: flex; align-items: center;
+  @media (max-width: 640px) { width: 100%; }
+`;
+const SearchIcon = styled.svg`
+  position: absolute; left: 12px; width: 15px; height: 15px; color: #94A3B8; pointer-events: none;
+`;
+const SearchInput = styled.input`
+  height: 36px; width: 200px; padding: 0 12px 0 34px;
+  font-family: inherit; font-size: 13px; color: #0F172A;
+  background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 18px;
+  &::placeholder { color: #94A3B8; }
+  &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
+  @media (max-width: 640px) { width: 100%; }
 `;
 const FilterChip = styled.button<{ $active: boolean }>`
   height: 36px; padding: 0 16px;
@@ -215,6 +266,14 @@ const EmptyDesc = styled.p`
   font-size: 15px; font-weight: 300; color: #64748B; line-height: 1.8;
   max-width: 480px; margin: 0;
   word-break: keep-all;
+`;
+const ResetBtn = styled.button`
+  margin-top: 12px;
+  padding: 12px 24px; border-radius: 999px; cursor: pointer;
+  font-family: inherit; font-size: 14px; font-weight: 600;
+  color: #0F766E; background: #F0FDFA; border: 1px solid #99F6E4;
+  &:hover { background: #CCFBF1; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
 `;
 const EmptyCta = styled(Link)`
   margin-top: 12px;

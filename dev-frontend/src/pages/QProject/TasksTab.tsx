@@ -50,6 +50,7 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
   const location = useLocation();
   const { user } = useAuth();
   const { t: tp } = useTranslation('qproject');
+  const { t: tc } = useTranslation('clients');   // 고객/협력사/프리랜서 유형 라벨 (#139)
   const myId = user ? Number(user.id) : -1;
   const wsTz = user?.workspace_timezone || detectBrowserTz();
   const todayStr = todayInTz(wsTz);
@@ -103,6 +104,28 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
   const [members, setMembers] = useState<Member[]>([]);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const dateAnchorRef = useRef<HTMLButtonElement>(null);
+
+  // 프로젝트 참여 외부 인력(고객·협력사·프리랜서)도 담당자가 될 수 있다 (#139).
+  //   백엔드(assertAssignable)는 **그 프로젝트의 참여자일 때만** 외부인 배정을 허용한다 —
+  //   프로젝트가 정해진 이 화면이 바로 그 조건을 만족하는데, 여기만 내부 멤버만 보여줬다.
+  //   (같은 탭의 ProjectTaskList 는 이미 제대로 하고 있었다 — 한 화면 안에서 동작이 갈렸다.)
+  const [externals, setExternals] = useState<{ user_id: number; name: string; kind: string }[]>([]);
+  useEffect(() => {
+    if (!projectId || !businessId) { setExternals([]); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await apiFetch(`/api/tasks/by-business/${businessId}/assignable-externals?project_id=${projectId}`);
+        const j = await r.json();
+        if (!cancelled) setExternals(j.success && Array.isArray(j.data) ? j.data : []);
+      } catch { if (!cancelled) setExternals([]); }
+    })();
+    return () => { cancelled = true; };
+  }, [projectId, businessId]);
+  const externalCandidates = useMemo(
+    () => externals.filter(e => !members.some(m => m.user_id === e.user_id)),
+    [externals, members],
+  );
   // Optimistic local copy — prop 변경 시 reseed
   const [localTasks, setLocalTasks] = useState<TaskRow[]>(tasks);
   useEffect(() => { setLocalTasks(tasks); }, [tasks]);
@@ -185,9 +208,25 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
           <AddOptLabel>{tp('addTask.assigneeLabel', '담당자')}</AddOptLabel>
           <PlanQSelect size="sm" isClearable
             placeholder={tp('addTask.assigneePlaceholder', '담당자: 나') as string}
-            value={newAssignee == null ? null : { value: String(newAssignee), label: members.find(m => m.user_id === newAssignee)?.name || String(newAssignee) }}
+            value={newAssignee == null ? null : {
+              value: String(newAssignee),
+              label: members.find(m => m.user_id === newAssignee)?.name
+                || externalCandidates.find(e => e.user_id === newAssignee)?.name
+                || String(newAssignee),
+            }}
             onChange={v => setNewAssignee((v as { value?: string } | null)?.value ? Number((v as { value: string }).value) : null)}
-            options={members.map(m => ({ value: String(m.user_id), label: m.name + (m.user_id === myId ? tp('addTask.meSuffix', ' (나)') : '') }))} />
+            options={[
+              // 우리 팀
+              ...members.map(m => ({
+                value: String(m.user_id),
+                label: m.name + (m.user_id === myId ? tp('addTask.meSuffix', ' (나)') : ''),
+              })),
+              // 이 프로젝트에 참여한 외부 인력 — 고객/협력사/프리랜서를 라벨로 구분한다
+              ...externalCandidates.map(e => ({
+                value: String(e.user_id),
+                label: `${e.name} · ${tc(`kind.${e.kind}`, e.kind)}`,
+              })),
+            ]} />
         </AddOptField>
         <AddOptField style={{ flex: '1 1 240px' }}>
           <AddOptLabel>{tp('addTask.periodLabel', '기간')}</AddOptLabel>
