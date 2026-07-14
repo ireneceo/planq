@@ -434,8 +434,25 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
         });
       } catch (e) { console.warn('[ProjectStatusHistory create]', e.message); }
     }
-    // 외부 클라우드 폴더 이름 동기화 (이름 변경됨 + 매핑 존재)
+    // 이름 변경 시 파생 이름 동기화 (#150)
     if (patch.name && patch.name !== prevName) {
+      // (1) 대화방 제목 — 생성 시 프로젝트명을 제목에 구워 저장한다("{프로젝트명} 고객"). 그래서
+      //     프로젝트를 rename 해도 채팅방은 옛 이름을 계속 보여줬다(사용자 신고 지점).
+      //     사용자가 직접 바꾼 제목까지 덮어쓰면 안 되므로 **아직 옛 이름으로 시작하는 제목만** 옮긴다.
+      try {
+        const convs = await Conversation.findAll({
+          where: { project_id: project.id, business_id: project.business_id },
+          attributes: ['id', 'title'],
+        });
+        for (const c of convs) {
+          const title = c.title || '';
+          if (!title.startsWith(prevName)) continue;   // 사용자가 직접 지은 이름 — 손대지 않는다
+          const nextTitle = patch.name + title.slice(prevName.length);
+          if (nextTitle !== title) await c.update({ title: nextTitle });
+        }
+      } catch (e) { console.error('[projects] conversation title sync failed:', e.message); }
+
+      // (2) 외부 클라우드 폴더 이름
       const { BusinessCloudToken } = require('../models');
       if (project.gdrive_folder_id) {
         try {
@@ -456,6 +473,10 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
         io.to(`business:${project.business_id}`).emit('project:updated', payload);
         io.to(`project:${project.id}`).emit('project:updated', payload);
         io.to(`business:${project.business_id}`).emit('inbox:refresh', { reason: 'project_updated', project_id: project.id });
+        // 대화방 제목이 프로젝트명에서 파생되므로 rename 은 채팅 목록도 갱신해야 한다 (#150)
+        if (patch.name && patch.name !== prevName) {
+          io.to(`business:${project.business_id}`).emit('conversation:updated', { project_id: project.id, business_id: project.business_id });
+        }
       }
     } catch (e) { console.warn('[projects] broadcast failed', e.message); }
     return successResponse(res, detail);
