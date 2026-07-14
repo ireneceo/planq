@@ -80,7 +80,8 @@
     "noTeam": "No team"
   },
   "common": {
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "add": "Add"
   },
   "error": {
     "invalidUrl": "Invalid URL",
@@ -341,7 +342,8 @@
     "noChats": "No chats yet",
     "projClients": "Participating clients",
     "editInfo": "Overview",
-    "members": "Project members"
+    "members": "Project members",
+    "strategy": "Strategy"
   },
   "info": {
     "type": "Type",
@@ -676,5 +678,11 @@
   "header": {
     "openChat": "Project chat",
     "openMail": "Project mail"
+  },
+  "detail": {
+    "readOnly": "Read-only"
+  },
+  "strategy": {
+    "editInOverview": "Edit in Overview"
   }
 }

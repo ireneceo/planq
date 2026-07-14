@@ -393,6 +393,35 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
   const activeProjectIdRef = useRef<number | null>(null);
   useEffect(() => { activeProjectIdRef.current = activeProjectId; }, [activeProjectId]);
 
+  // 프로젝트·대화 목록을 서버 최신값으로 다시 받는다 (#150).
+  //   대화방 제목은 프로젝트명에서 파생돼 저장되므로(“{프로젝트명} 고객”), 프로젝트 rename 은
+  //   좌측 목록·헤더까지 바뀌어야 한다. merge 가 아니라 **server fresh 로 덮어쓴다** —
+  //   신규만 merge 하면 옛 제목이 남는다(박제: feedback_visibility_refresh_server_fresh).
+  const silentReloadLists = useCallback(async () => {
+    if (!businessId) return;
+    const bid = Number(businessId);
+    try {
+      const [projList, convList] = await Promise.all([
+        qtalkApi.listProjects(businessId),
+        qtalkApi.listBusinessConversations(businessId).catch(() => [] as qtalkApi.ApiConversation[]),
+      ]);
+      const mappedProjects = projList.map(apiProjectToMock);
+      const mappedConvs = convList.map(apiConversationToMock);
+      setProjects(mappedProjects);
+      setConversations(mappedConvs);
+      setConvsRaw((prev) => {
+        const next = { ...prev };
+        for (const c of convList) next[c.id] = c;
+        return next;
+      });
+      saveQtalkCache(bid, mappedProjects, mappedConvs);   // 캐시의 옛 이름도 같이 무효화
+    } catch { /* 다음 신호 또는 foreground 복귀 때 재시도 */ }
+  }, [businessId]);
+  // 소켓 effect 는 [user?.id] 로만 재실행된다 — 워크스페이스가 바뀌어도 핸들러는 옛 클로저를 붙든다.
+  // 이 파일의 기존 관용(ref mirror)대로 최신 함수를 참조한다.
+  const silentReloadRef = useRef(silentReloadLists);
+  useEffect(() => { silentReloadRef.current = silentReloadLists; }, [silentReloadLists]);
+
   useEffect(() => {
     if (!user) return; // 로그인 후에만 연결
 
@@ -402,6 +431,17 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
     if (businessId) joinRoom(`business:${businessId}`);
     const offs: Array<() => void> = [];
     const on = <T,>(evt: string, cb: (data: T) => void) => { offs.push(onSocket(evt, cb)); };
+
+    // 프로젝트 rename → 좌측 목록·채팅방 제목 즉시 반영 (#150).
+    //   여태 Q Talk 은 이 이벤트를 듣지 않아, 다른 화면에서 이름을 바꿔도 새로고침 전까지 옛 이름이었다.
+    let renameTimer: number | null = null;
+    const reloadSoon = () => {
+      if (renameTimer) window.clearTimeout(renameTimer);
+      renameTimer = window.setTimeout(() => { void silentReloadRef.current(); }, 250);   // 연속 신호 합치기
+    };
+    on('project:updated', reloadSoon);
+    on('conversation:updated', reloadSoon);
+    offs.push(() => { if (renameTimer) window.clearTimeout(renameTimer); });
 
     // #138 — 리액션 실시간 (다른 사람이 누른 것도 즉시 보임). 서버가 conv/business room 양쪽으로 emit.
     on('message:reaction', (p: { message_id: number; conversation_id: number; reactions: { emoji: string; count: number; users: { id: number }[] }[] }) => {

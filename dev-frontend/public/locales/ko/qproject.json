@@ -80,7 +80,8 @@
     "noTeam": "팀 미지정"
   },
   "common": {
-    "cancel": "취소"
+    "cancel": "취소",
+    "add": "추가"
   },
   "error": {
     "invalidUrl": "잘못된 주소",
@@ -341,7 +342,8 @@
     "noChats": "채팅방이 없습니다",
     "projClients": "참여 고객",
     "editInfo": "기본 정보",
-    "members": "프로젝트 멤버"
+    "members": "프로젝트 멤버",
+    "strategy": "추진 전략"
   },
   "info": {
     "type": "타입",
@@ -676,5 +678,11 @@
   "header": {
     "openChat": "프로젝트 채팅",
     "openMail": "프로젝트 메일"
+  },
+  "detail": {
+    "readOnly": "읽기 전용"
+  },
+  "strategy": {
+    "editInOverview": "개요에서 편집"
   }
 }

@@ -6,10 +6,11 @@ import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import PageShell from '../../components/Layout/PageShell';
-import AutoSaveField from '../../components/Common/AutoSaveField';
+import AutoSaveField, { type AutoSaveHandle } from '../../components/Common/AutoSaveField';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import ProjectCanvas from './canvas/ProjectCanvas'; // 기본 탭 — 즉시 로드(로딩 플래시 없음)
+import { getCanvas } from '../../services/projectCanvas';
 // 나머지 탭은 지연 로드(lazy) — 프로젝트 열 때 모든 탭 코드(+무거운 에디터 tiptap)를 한꺼번에
 // 받던 것을 탭 클릭 시점 로드로 분리. 초기 페이지 로드 대폭 경량화.
 const TasksTab = React.lazy(() => import('./TasksTab'));
@@ -72,6 +73,33 @@ interface TaskRow {
   project_id?: number | null;
 }
 
+/**
+ * 저장 피드백을 onChange 없는 컨트롤까지 넓힌다 (#147).
+ *
+ * AutoSaveField 는 자식의 onChange 를 가로채 debounce 후 저장한다. 그런데 프로젝트 설정의
+ * 절반(타입·구분·상태 버튼, 색상 스와치, 기간 달력, 역할 입력)은 onClick/onBlur 로 저장해서
+ * **뱃지가 붙을 자리가 없었다** — 저장은 되는데 사용자는 됐는지 알 수 없었다.
+ * AutoSaveField 가 이미 노출하던 triggerSave() 핸들로 그 컨트롤들도 같은 문을 지나게 한다.
+ */
+const ActionAutoSave: React.FC<{
+  type?: 'input' | 'select' | 'toggle' | 'list';
+  save: (patch: Record<string, unknown>) => Promise<void>;
+  style?: React.CSSProperties;
+  children: (fire: (patch: Record<string, unknown>) => void) => React.ReactNode;
+}> = ({ type = 'toggle', save, style, children }) => {
+  const handle = useRef<AutoSaveHandle>(null);
+  const pending = useRef<Record<string, unknown>>({});
+  const fire = useCallback((patch: Record<string, unknown>) => {
+    pending.current = patch;
+    handle.current?.triggerSave();
+  }, []);
+  return (
+    <AutoSaveField ref={handle} type={type} style={style} onSave={async () => { await save(pending.current); }}>
+      {children(fire)}
+    </AutoSaveField>
+  );
+};
+
 const QProjectDetailPage: React.FC = () => {
   const { t } = useTranslation('qproject');
   const { formatDateTime } = useTimeFormat();
@@ -131,6 +159,7 @@ const QProjectDetailPage: React.FC = () => {
   const [newIssue, setNewIssue] = useState('');
   const [newNote, setNewNote] = useState('');
   const [newNoteVis, setNewNoteVis] = useState<'personal' | 'internal'>('internal');
+  const [submitting, setSubmitting] = useState(false);   // 버튼 비활성화용 (중복 제출 가드)
   const submittingRef = useRef(false);
   const periodAnchorRef = useRef<HTMLButtonElement>(null);
   const [periodPickerOpen, setPeriodPickerOpen] = useState(false);
@@ -149,6 +178,30 @@ const QProjectDetailPage: React.FC = () => {
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [closeModalOpen, setCloseModalOpen] = useState(false);
   const [clientsToRemove, setClientsToRemove] = useState<Set<number>>(new Set());
+
+  // 설정 탭 — 저장 단일 착지점 (#147).
+  // apiFetch 는 Response 를 그대로 돌려준다 → 여기서 res.ok 를 보지 않으면 저장이 실패해도
+  // 화면은 성공한 척한다(옛 코드가 그랬다). 실패는 throw 해서 AutoSaveField 가 ! 뱃지를 띄운다.
+  const saveProject = useCallback(async (patch: Record<string, unknown>) => {
+    const res = await apiFetch(`/api/projects/${projectId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    });
+    if (!res.ok) throw new Error(`save failed: ${res.status}`);
+    setProject(prev => (prev ? { ...prev, ...patch } as ProjectDetail : prev));
+  }, [projectId]);
+
+  // 텍스트 입력은 controlled — AutoSaveField 표준 패턴(onChange 가로채기)에 태우기 위함
+  const [nameDraft, setNameDraft] = useState('');
+  const [clientCompanyDraft, setClientCompanyDraft] = useState('');
+  const [hexDraft, setHexDraft] = useState('');
+  useEffect(() => {
+    if (!project) return;
+    setNameDraft(project.name || '');
+    setClientCompanyDraft(project.client_company || '');
+    setHexDraft(project.color || '');
+  }, [project?.id, project?.name, project?.client_company, project?.color]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 상태 변경 이력 (기본 히스토리) — details 탭 진입 시 + 상태 변경 후 자동 로드
   const projStatusLabel = (s: string) =>
@@ -309,37 +362,96 @@ const QProjectDetailPage: React.FC = () => {
   const saveMembers = async (next: { user_id: number; role: string; is_pm?: boolean; User?: { id: number; name: string; display_name?: string | null }}[]) => {
     if (!project) return;
     setProject(prev => prev ? { ...prev, projectMembers: next } : prev);
+    // 실패를 삼키지 않는다 (#147) — 옛 코드는 catch {} 로 조용히 넘겨서, 저장이 안 돼도
+    // 화면은 낙관적 갱신 그대로였다. 이제 throw 해서 호출부(자동저장 뱃지)가 ! 를 띄운다.
+    const r = await apiFetch(`/api/projects/${projectId}/members`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ members: next.map(m => ({ user_id: m.user_id, role: m.role || '기타', is_pm: !!m.is_pm })) }),
+    });
+    const j = await r.json().catch(() => null);
+    if (!r.ok || !j?.success) throw new Error(j?.message || `members save failed: ${r.status}`);
+    setProject(j.data);
+  };
+  // 뱃지가 없는 호출부(추가·삭제·PM 토글)는 옛 낙관적 동작 유지 — 실패는 다음 조작의 서버 값으로 덮인다
+  const saveMembersOptimistic = (next: Parameters<typeof saveMembers>[0]) => { void saveMembers(next).catch(() => {}); };
+
+  // 이슈·메모 등록 (#148) — 옛 코드는 저장 경로가 onKeyDown 안에만 있어서 **Enter 없이는 저장이 불가능**했다
+  // (버튼이 없으니 태블릿/모바일에선 등록 자체가 막힘). 버튼과 Enter 가 같은 함수를 지나게 한다.
+  const submitIssue = useCallback(async () => {
+    const body = newIssue.trim();
+    if (!body || submittingRef.current) return;
+    submittingRef.current = true; setSubmitting(true);
     try {
-      const r = await apiFetch(`/api/projects/${projectId}/members`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ members: next.map(m => ({ user_id: m.user_id, role: m.role || '기타', is_pm: !!m.is_pm })) }),
+      const r = await apiFetch(`/api/projects/${projectId}/issues`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body }),
       });
       const j = await r.json();
-      if (j.success) setProject(j.data);
-    } catch { /* optimistic — 실패 시 다음 조작에 서버 값으로 덮어짐 */ }
+      if (j.success) { setIssues(prev => [j.data, ...prev]); setNewIssue(''); }
+    } finally { submittingRef.current = false; setSubmitting(false); }
+  }, [newIssue, projectId]);
+
+  const submitNote = useCallback(async () => {
+    const body = newNote.trim();
+    if (!body || submittingRef.current) return;
+    submittingRef.current = true; setSubmitting(true);
+    try {
+      const r = await apiFetch(`/api/projects/${projectId}/notes`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body, visibility: newNoteVis }),
+      });
+      const j = await r.json();
+      if (j.success) { setNotes(prev => [j.data, ...prev]); setNewNote(''); }
+    } finally { submittingRef.current = false; setSubmitting(false); }
+  }, [newNote, newNoteVis, projectId]);
+
+  // Enter 는 편의 경로일 뿐 — 한글 조합 중(isComposing)엔 발동하지 않는다
+  const onEnterSubmit = (fn: () => void) => (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter' || (e.nativeEvent as unknown as { isComposing?: boolean }).isComposing) return;
+    e.preventDefault();
+    fn();
   };
+
+  // 상세 탭의 전략 요약 (#148) — Irene: "추진 방식·핵심 추진과제도 상세에 있어야 하는 것 아니냐".
+  //   같은 데이터(projects 행 + project_workstreams)이므로 **읽기 전용으로 비춘다** — 편집은 개요 탭 한 곳.
+  //   두 곳에서 편집하게 만들면 어느 쪽이 진짜인지 흐려진다(단일 원천 유지).
+  const [strategySummary, setStrategySummary] = useState<{ approach: string | null; workstreams: { id: number; title: string }[] } | null>(null);
+  useEffect(() => {
+    if (tab !== 'details' || !projectId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const canvas = await getCanvas(projectId);
+        if (cancelled) return;
+        setStrategySummary({
+          approach: canvas.strategy?.approach ?? null,
+          workstreams: (canvas.workstreams || []).map(w => ({ id: w.id, title: w.title })),
+        });
+      } catch { /* 개요 탭에서 다시 시도된다 */ }
+    })();
+    return () => { cancelled = true; };
+  }, [tab, projectId]);
   const addMember = (userId: number) => {
     const existing = project?.projectMembers || [];
     if (existing.some(m => m.user_id === userId)) return;
     const bm = bizMembers.find(b => b.user_id === userId);
     if (!bm?.user) return;
-    saveMembers([...existing, { user_id: userId, role: '팀원', is_pm: false, User: { id: bm.user.id, name: bm.user.name, display_name: bm.user.display_name ?? null } }]);
+    saveMembersOptimistic([...existing, { user_id: userId, role: '팀원', is_pm: false, User: { id: bm.user.id, name: bm.user.name, display_name: bm.user.display_name ?? null } }]);
     setAddMemberOpen(false);
   };
   const removeMember = (userId: number) => {
     const existing = project?.projectMembers || [];
-    saveMembers(existing.filter(m => m.user_id !== userId));
+    saveMembersOptimistic(existing.filter(m => m.user_id !== userId));
   };
+  // 역할 입력만 자동저장 뱃지를 받는다 → 실패를 그대로 올린다 (await + throw)
   const updateMemberRole = (userId: number, role: string) => {
     const existing = project?.projectMembers || [];
-    saveMembers(existing.map(m => m.user_id === userId ? { ...m, role } : m));
+    return saveMembers(existing.map(m => m.user_id === userId ? { ...m, role } : m));
   };
   const togglePm = (userId: number) => {
     if (!project) return;
     // 프로젝트 생성자는 항상 PM — 해제 불가 (서버에서도 강제)
     if (userId === project.owner_user_id) return;
     const existing = project.projectMembers || [];
-    saveMembers(existing.map(m => m.user_id === userId ? { ...m, is_pm: !m.is_pm } : m));
+    saveMembersOptimistic(existing.map(m => m.user_id === userId ? { ...m, is_pm: !m.is_pm } : m));
   };
 
 
@@ -440,138 +552,164 @@ const QProjectDetailPage: React.FC = () => {
             <EditGrid>
               <EditField>
                 <EditLabel>{t('edit.projectName', '프로젝트명')}</EditLabel>
-                <EditInput defaultValue={project.name}
-                  onBlur={async e => {
-                    const v = e.target.value.trim();
-                    if (v && v !== project.name) {
-                      await apiFetch(`/api/projects/${projectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: v }) });
-                      setProject(prev => prev ? { ...prev, name: v } : prev);
-                    }
-                  }} />
+                <AutoSaveField
+                  type="input"
+                  onSave={async () => {
+                    const v = nameDraft.trim();
+                    if (!v || v === project.name) return;   // 빈 이름 저장 금지 (옛 onBlur 규칙 보존)
+                    await saveProject({ name: v });
+                  }}
+                >
+                  <EditInput value={nameDraft} onChange={e => setNameDraft(e.target.value)} />
+                </AutoSaveField>
               </EditField>
               <EditField>
                 <EditLabel>{t('edit.client', '고객사')}</EditLabel>
-                <EditInput defaultValue={project.client_company || ''}
-                  onBlur={async e => {
-                    const v = e.target.value.trim();
-                    await apiFetch(`/api/projects/${projectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_company: v || null }) });
-                    setProject(prev => prev ? { ...prev, client_company: v || null } : prev);
-                  }} />
+                <AutoSaveField
+                  type="input"
+                  onSave={async () => {
+                    const v = clientCompanyDraft.trim();
+                    if ((project.client_company || '') === v) return;
+                    await saveProject({ client_company: v || null });
+                  }}
+                >
+                  <EditInput value={clientCompanyDraft} onChange={e => setClientCompanyDraft(e.target.value)} />
+                </AutoSaveField>
               </EditField>
               <EditField>
                 <EditLabel>{t('edit.type', '타입')}</EditLabel>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <TypeBtn2 $active={project.project_type === 'fixed'} onClick={async () => {
-                    await apiFetch(`/api/projects/${projectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project_type: 'fixed' }) });
-                    setProject(prev => prev ? { ...prev, project_type: 'fixed' } : prev);
-                  }}>{t('edit.typeFixed', '일시 프로젝트')}</TypeBtn2>
-                  <TypeBtn2 $active={project.project_type === 'ongoing'} onClick={async () => {
-                    await apiFetch(`/api/projects/${projectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project_type: 'ongoing' }) });
-                    setProject(prev => prev ? { ...prev, project_type: 'ongoing' } : prev);
-                  }}>{t('edit.typeOngoing', '지속 구독')}</TypeBtn2>
-                </div>
+                <ActionAutoSave type="select" save={saveProject}>
+                  {fire => (
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <TypeBtn2 $active={project.project_type === 'fixed'} onClick={() => {
+                        if (project.project_type === 'fixed') return;
+                        fire({ project_type: 'fixed' });
+                      }}>{t('edit.typeFixed', '일시 프로젝트')}</TypeBtn2>
+                      <TypeBtn2 $active={project.project_type === 'ongoing'} onClick={() => {
+                        if (project.project_type === 'ongoing') return;
+                        fire({ project_type: 'ongoing' });
+                      }}>{t('edit.typeOngoing', '지속 구독')}</TypeBtn2>
+                    </div>
+                  )}
+                </ActionAutoSave>
               </EditField>
               <EditField>
                 <EditLabel>{t('edit.kind', '구분')}</EditLabel>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <TypeBtn2 $active={(project.kind ?? 'client') === 'client'} onClick={async () => {
-                    await apiFetch(`/api/projects/${projectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: 'client' }) });
-                    setProject(prev => prev ? { ...prev, kind: 'client' } : prev);
-                  }}>{t('edit.kindClient', '고객 프로젝트')}</TypeBtn2>
-                  <TypeBtn2 $active={project.kind === 'internal'} onClick={async () => {
-                    await apiFetch(`/api/projects/${projectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: 'internal' }) });
-                    setProject(prev => prev ? { ...prev, kind: 'internal' } : prev);
-                  }}>{t('edit.kindInternal', '내부 프로젝트')}</TypeBtn2>
-                </div>
+                <ActionAutoSave type="select" save={saveProject}>
+                  {fire => (
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <TypeBtn2 $active={(project.kind ?? 'client') === 'client'} onClick={() => {
+                        if ((project.kind ?? 'client') === 'client') return;
+                        fire({ kind: 'client' });
+                      }}>{t('edit.kindClient', '고객 프로젝트')}</TypeBtn2>
+                      <TypeBtn2 $active={project.kind === 'internal'} onClick={() => {
+                        if (project.kind === 'internal') return;
+                        fire({ kind: 'internal' });
+                      }}>{t('edit.kindInternal', '내부 프로젝트')}</TypeBtn2>
+                    </div>
+                  )}
+                </ActionAutoSave>
                 <EditHint>{t('edit.kindHint', '내부 = 자체 투자(비청구). 수익성 통계에서 제외되고 "내부 투자"로 별도 집계됩니다.')}</EditHint>
               </EditField>
               <EditField>
                 <EditLabel>{t('edit.status', '상태')}</EditLabel>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <TypeBtn2 $active={project.status === 'active'} onClick={async () => {
-                    if (project.status === 'active') return;
-                    await apiFetch(`/api/projects/${projectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'active' }) });
-                    setProject(prev => prev ? { ...prev, status: 'active' } : prev);
-                  }}>{t('edit.statusActive', '진행 중')}</TypeBtn2>
-                  <TypeBtn2 $active={project.status === 'paused'} onClick={async () => {
-                    if (project.status === 'paused') return;
-                    await apiFetch(`/api/projects/${projectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'paused' }) });
-                    setProject(prev => prev ? { ...prev, status: 'paused' } : prev);
-                  }}>{t('edit.statusPaused', '일시 중지')}</TypeBtn2>
-                  <TypeBtn2 $active={project.status === 'closed'} onClick={() => {
-                    if (project.status !== 'closed') setCloseModalOpen(true);
-                  }}>{t('edit.statusClosed', '완료')}</TypeBtn2>
-                </div>
+                <ActionAutoSave type="select" save={saveProject}>
+                  {fire => (
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <TypeBtn2 $active={project.status === 'active'} onClick={() => {
+                        if (project.status === 'active') return;
+                        fire({ status: 'active' });
+                      }}>{t('edit.statusActive', '진행 중')}</TypeBtn2>
+                      <TypeBtn2 $active={project.status === 'paused'} onClick={() => {
+                        if (project.status === 'paused') return;
+                        fire({ status: 'paused' });
+                      }}>{t('edit.statusPaused', '일시 중지')}</TypeBtn2>
+                      {/* 완료는 되돌리기 어려운 전이 — 확인 모달을 거친다 (자동저장 대상 아님) */}
+                      <TypeBtn2 $active={project.status === 'closed'} onClick={() => {
+                        if (project.status !== 'closed') setCloseModalOpen(true);
+                      }}>{t('edit.statusClosed', '완료')}</TypeBtn2>
+                    </div>
+                  )}
+                </ActionAutoSave>
               </EditField>
               <EditField>
                 <EditLabel>{t('edit.period', '기간')}</EditLabel>
-                <EditDateRangeTrigger ref={periodAnchorRef} type="button"
-                  onClick={() => setPeriodPickerOpen(v => !v)}>
-                  {(project.start_date || project.end_date) ?
-                    (project.project_type === 'fixed'
-                      ? `${project.start_date?.slice(0, 10) || t('info.noValue', '—')} ~ ${project.end_date?.slice(0, 10) || t('info.noValue', '—')}`
-                      : project.start_date?.slice(0, 10) || t('info.noValue', '—'))
-                    : <DatePH>{t('edit.periodPlaceholder', '기간 선택')}</DatePH>}
-                </EditDateRangeTrigger>
-                {periodPickerOpen && (
-                  <CalendarPicker
-                    isOpen anchorRef={periodAnchorRef}
-                    startDate={project.start_date?.slice(0, 10) || ''}
-                    endDate={project.end_date?.slice(0, 10) || project.start_date?.slice(0, 10) || ''}
-                    singleMode={project.project_type === 'ongoing'}
-                    onRangeSelect={async (s, e) => {
-                      const patch: Record<string, string | null> = { start_date: s || null };
-                      if (project.project_type === 'fixed') patch.end_date = e || null;
-                      await apiFetch(`/api/projects/${projectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) });
-                      setProject(prev => prev ? { ...prev, start_date: s || null, end_date: project.project_type === 'fixed' ? (e || null) : prev.end_date } : prev);
-                    }}
-                    onClose={() => setPeriodPickerOpen(false)}
-                  />
-                )}
+                <ActionAutoSave type="select" save={saveProject}>
+                  {fire => (
+                    <>
+                      <EditDateRangeTrigger ref={periodAnchorRef} type="button"
+                        onClick={() => setPeriodPickerOpen(v => !v)}>
+                        {(project.start_date || project.end_date) ?
+                          (project.project_type === 'fixed'
+                            ? `${project.start_date?.slice(0, 10) || t('info.noValue', '—')} ~ ${project.end_date?.slice(0, 10) || t('info.noValue', '—')}`
+                            : project.start_date?.slice(0, 10) || t('info.noValue', '—'))
+                          : <DatePH>{t('edit.periodPlaceholder', '기간 선택')}</DatePH>}
+                      </EditDateRangeTrigger>
+                      {periodPickerOpen && (
+                        <CalendarPicker
+                          isOpen anchorRef={periodAnchorRef}
+                          startDate={project.start_date?.slice(0, 10) || ''}
+                          endDate={project.end_date?.slice(0, 10) || project.start_date?.slice(0, 10) || ''}
+                          singleMode={project.project_type === 'ongoing'}
+                          onRangeSelect={(s, e) => {
+                            const patch: Record<string, string | null> = { start_date: s || null };
+                            if (project.project_type === 'fixed') patch.end_date = e || null;
+                            fire(patch);
+                          }}
+                          onClose={() => setPeriodPickerOpen(false)}
+                        />
+                      )}
+                    </>
+                  )}
+                </ActionAutoSave>
               </EditField>
               <EditField style={{ gridColumn: '1 / -1' }}>
                 <EditLabel>{t('edit.color', '색상')}</EditLabel>
-                <ColorRow>
-                  {PROJECT_COLORS.map(c => (
-                    <ColorSwatch key={c} type="button" $active={(project.color || '').toLowerCase() === c.toLowerCase()}
-                      style={{ background: c }}
-                      title={c}
-                      onClick={async () => {
-                        await apiFetch(`/api/projects/${projectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ color: c }) });
-                        setProject(prev => prev ? { ...prev, color: c } : prev);
-                      }} />
-                  ))}
-                </ColorRow>
+                <ActionAutoSave type="list" save={saveProject}>
+                  {fire => (
+                    <ColorRow>
+                      {PROJECT_COLORS.map(c => (
+                        <ColorSwatch key={c} type="button" $active={(project.color || '').toLowerCase() === c.toLowerCase()}
+                          style={{ background: c }}
+                          title={c}
+                          onClick={() => fire({ color: c })} />
+                      ))}
+                    </ColorRow>
+                  )}
+                </ActionAutoSave>
                 <HexRow>
                   <HexPreview style={{ background: project.color || '#E2E8F0' }} />
-                  <HexNativePicker
-                    type="color"
-                    value={/^#[0-9a-fA-F]{6}$/.test(project.color || '') ? (project.color as string) : '#14B8A6'}
-                    onChange={async e => {
-                      const v = e.target.value;
-                      setProject(prev => prev ? { ...prev, color: v } : prev);
-                      await apiFetch(`/api/projects/${projectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ color: v }) });
-                    }}
-                    title={t('edit.colorPicker', '색상 선택기') as string}
-                    aria-label={t('edit.colorPicker', '색상 선택기') as string}
-                  />
-                  <HexInput
-                    type="text"
-                    maxLength={7}
-                    placeholder="#RRGGBB"
-                    defaultValue={project.color || ''}
-                    onBlur={async e => {
-                      let v = e.target.value.trim();
+                  <ActionAutoSave type="select" save={saveProject}>
+                    {fire => (
+                      <HexNativePicker
+                        type="color"
+                        value={/^#[0-9a-fA-F]{6}$/.test(project.color || '') ? (project.color as string) : '#14B8A6'}
+                        onChange={e => fire({ color: e.target.value })}
+                        title={t('edit.colorPicker', '색상 선택기') as string}
+                        aria-label={t('edit.colorPicker', '색상 선택기') as string}
+                      />
+                    )}
+                  </ActionAutoSave>
+                  <AutoSaveField
+                    type="input"
+                    onSave={async () => {
+                      let v = hexDraft.trim();
                       if (v && !v.startsWith('#')) v = '#' + v;
-                      if (v && !/^#[0-9a-fA-F]{6}$/.test(v)) {
-                        e.target.value = project.color || '';
-                        return;
-                      }
+                      // 형식이 틀리면 저장하지 않고 원래 값으로 되돌린다 (옛 onBlur 규칙 보존)
+                      if (v && !/^#[0-9a-fA-F]{6}$/.test(v)) { setHexDraft(project.color || ''); return; }
                       const next = v || null;
-                      await apiFetch(`/api/projects/${projectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ color: next }) });
-                      setProject(prev => prev ? { ...prev, color: next } : prev);
+                      if ((project.color || null) === next) return;
+                      await saveProject({ color: next });
                     }}
-                  />
+                  >
+                    <HexInput
+                      type="text"
+                      maxLength={7}
+                      placeholder="#RRGGBB"
+                      value={hexDraft}
+                      onChange={e => setHexDraft(e.target.value)}
+                    />
+                  </AutoSaveField>
                 </HexRow>
               </EditField>
               <EditField style={{ gridColumn: '1 / -1' }}>
@@ -602,10 +740,18 @@ const QProjectDetailPage: React.FC = () => {
                         {isOwner && <OwnerTag>{t('members.owner', '오너')}</OwnerTag>}
                         {isPm && !isOwner && <PmTag>PM</PmTag>}
                       </MemberName>
-                      <MemberRoleInput defaultValue={m.role || t('edit.roleDefault', '팀원')} placeholder={t('edit.rolePlaceholder', '역할') as string}
-                        disabled={isOwner}
-                        onBlur={e => { const v = e.target.value.trim(); if (v && v !== m.role) updateMemberRole(m.user_id, v); }}
-                        onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+                      <ActionAutoSave
+                        type="input"
+                        style={{ flex: '0 0 120px' }}   /* MemberRow 는 flex — 래퍼가 폭을 먹지 않게 입력칸 폭을 그대로 물려준다 */
+                        save={async patch => { await updateMemberRole(m.user_id, String(patch.role)); }}
+                      >
+                        {fire => (
+                          <MemberRoleInput defaultValue={m.role || t('edit.roleDefault', '팀원')} placeholder={t('edit.rolePlaceholder', '역할') as string}
+                            disabled={isOwner}
+                            onBlur={e => { const v = e.target.value.trim(); if (v && v !== m.role) fire({ role: v }); }}
+                            onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+                        )}
+                      </ActionAutoSave>
                       {/* PM 체크박스 — 오너는 강제 체크 + disabled */}
                       <PmToggle
                         type="button"
@@ -688,6 +834,35 @@ const QProjectDetailPage: React.FC = () => {
       {tab === 'details' && (
         <InfoBody>
 
+          {/* 전략 요약 — 개요 탭과 같은 데이터. 편집은 개요 한 곳에서만 (#148) */}
+          {strategySummary && (strategySummary.approach || strategySummary.workstreams.length > 0) && (
+            <Card>
+              <CardTitle>
+                {t('section.strategy', '추진 전략')}
+                <ReadOnlyHint>{t('detail.readOnly', '읽기 전용')}</ReadOnlyHint>
+                <StrategyEditLink type="button" onClick={() => setTab('dashboard')}>
+                  {t('strategy.editInOverview', '개요에서 편집')}
+                </StrategyEditLink>
+              </CardTitle>
+              {strategySummary.approach && (
+                <StrategyBlock>
+                  <StrategyLabel>{t('canvas.approach.label', '추진 방식')}</StrategyLabel>
+                  <StrategyText>{strategySummary.approach}</StrategyText>
+                </StrategyBlock>
+              )}
+              {strategySummary.workstreams.length > 0 && (
+                <StrategyBlock>
+                  <StrategyLabel>{t('canvas.workstreams.title', '핵심 추진과제')}</StrategyLabel>
+                  <IssueList>
+                    {strategySummary.workstreams.map(w => (
+                      <IssueRow key={w.id}><IssueBody>{w.title}</IssueBody></IssueRow>
+                    ))}
+                  </IssueList>
+                </StrategyBlock>
+              )}
+            </Card>
+          )}
+
           <Card>
             <CardTitle>{t('section.issues', '주요 이슈')} <small>{issues.length}</small></CardTitle>
             {issues.length === 0 ? <Dim>{t('issues.empty', '이슈가 없습니다')}</Dim> : (
@@ -702,16 +877,10 @@ const QProjectDetailPage: React.FC = () => {
             )}
             <AddIssueRow>
               <IssueInput placeholder={t('issues.addPlaceholder', '이슈 추가...') as string} value={newIssue} onChange={e => setNewIssue(e.target.value)}
-                onKeyDown={async e => {
-                  if (e.key !== 'Enter' || (e.nativeEvent as unknown as { isComposing?: boolean }).isComposing || !newIssue.trim()) return;
-                  if (submittingRef.current) return;
-                  e.preventDefault(); submittingRef.current = true;
-                  try {
-                    const r = await apiFetch(`/api/projects/${projectId}/issues`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body: newIssue.trim() }) });
-                    const j = await r.json();
-                    if (j.success) { setIssues(prev => [j.data, ...prev]); setNewIssue(''); }
-                  } finally { submittingRef.current = false; }
-                }} />
+                onKeyDown={onEnterSubmit(submitIssue)} />
+              <AddBtn type="button" onClick={submitIssue} disabled={!newIssue.trim() || submitting}>
+                {t('common.add', '추가')}
+              </AddBtn>
             </AddIssueRow>
           </Card>
 
@@ -739,16 +908,10 @@ const QProjectDetailPage: React.FC = () => {
                   options={[{ value: 'internal', label: t('notes.visInternal', '내부') }, { value: 'personal', label: t('notes.visPersonal', '개인') }]} />
               </div>
               <IssueInput placeholder={t('notes.addPlaceholder', '메모 추가...') as string} value={newNote} onChange={e => setNewNote(e.target.value)}
-                onKeyDown={async e => {
-                  if (e.key !== 'Enter' || (e.nativeEvent as unknown as { isComposing?: boolean }).isComposing || !newNote.trim()) return;
-                  if (submittingRef.current) return;
-                  e.preventDefault(); submittingRef.current = true;
-                  try {
-                    const r = await apiFetch(`/api/projects/${projectId}/notes`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body: newNote.trim(), visibility: newNoteVis }) });
-                    const j = await r.json();
-                    if (j.success) { setNotes(prev => [j.data, ...prev]); setNewNote(''); }
-                  } finally { submittingRef.current = false; }
-                }} />
+                onKeyDown={onEnterSubmit(submitNote)} />
+              <AddBtn type="button" onClick={submitNote} disabled={!newNote.trim() || submitting}>
+                {t('common.add', '추가')}
+              </AddBtn>
             </AddIssueRow>
           </Card>
 
@@ -1240,7 +1403,33 @@ const IssueList = styled.div`display:flex;flex-direction:column;gap:6px;margin-b
 const IssueRow = styled.div`padding:8px 10px;background:#F8FAFC;border-radius:6px;display:flex;flex-direction:column;gap:2px;`;
 const IssueBody = styled.div`font-size:12px;color:#0F172A;line-height:1.5;display:flex;align-items:center;gap:6px;strong{font-size:12px;}`;
 const IssueMeta = styled.div`font-size:10px;color:#94A3B8;`;
+/* 상세 탭의 전략 요약 (#148) — 개요와 같은 데이터를 읽기 전용으로 비춘다 */
+const ReadOnlyHint = styled.span`
+  margin-left:8px;padding:2px 8px;border-radius:10px;
+  font-size:11px;font-weight:500;color:#94A3B8;background:#F1F5F9;
+`;
+const StrategyEditLink = styled.button`
+  margin-left:auto;padding:2px 8px;border:none;background:none;cursor:pointer;
+  font-size:12px;font-weight:600;font-family:inherit;color:#0D9488;border-radius:6px;
+  &:hover{background:#F0FDFA;}
+  &:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(20,184,166,0.3);}
+`;
+const StrategyBlock = styled.div`& + &{margin-top:16px;}`;
+const StrategyLabel = styled.div`font-size:12px;font-weight:600;color:#64748B;margin-bottom:6px;`;
+const StrategyText = styled.div`font-size:13px;font-weight:500;color:#334155;line-height:1.6;white-space:pre-wrap;`;
+
 const AddIssueRow = styled.div`display:flex;gap:6px;align-items:center;`;
+/* 이슈·메모 등록 버튼 (#148) — Enter 없이도 등록할 수 있어야 한다 (태블릿·모바일). Primary 토큰. */
+const AddBtn = styled.button`
+  flex-shrink:0;height:32px;min-width:56px;padding:0 12px;
+  font-size:12px;font-weight:600;font-family:inherit;
+  color:#fff;background:#14B8A6;border:1px solid #14B8A6;border-radius:6px;cursor:pointer;
+  transition:background 0.15s, border-color 0.15s;
+  &:hover:not(:disabled){background:#0D9488;border-color:#0D9488;}
+  &:active:not(:disabled){background:#0F766E;border-color:#0F766E;}
+  &:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(20,184,166,0.3);}
+  &:disabled{background:#E2E8F0;border-color:#E2E8F0;color:#94A3B8;cursor:not-allowed;}
+`;
 const IssueInput = styled.input`flex:1;padding:6px 10px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;font-family:inherit;&:focus{outline:none;border-color:#14B8A6;}`;
 const VisTag = styled.span<{$internal?:boolean}>`padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;flex-shrink:0;background:${p=>p.$internal?'#F0FDFA':'#F1F5F9'};color:${p=>p.$internal?'#0F766E':'#64748B'};`;
 const Empty = styled.div`padding:60px;text-align:center;color:#94A3B8;`;
