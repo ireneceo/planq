@@ -1366,11 +1366,19 @@ const QTaskPage:React.FC=()=>{
     let elapsedBiz=0;
     for(const p of pts){const[y,m,d]=p.date.split('-').map(Number);const wd=new Date(Date.UTC(y,m-1,d)).getUTCDay();if(wd>=1&&wd<=5)elapsedBiz++;}
     const totalBiz=Math.max(1,(capacity.days||5)-holidayDays);
-    const pv=weekTotalEst*Math.min(1,elapsedBiz/totalBiz);
+    const weekProgress=elapsedBiz/totalBiz;
+    const pv=weekTotalEst*Math.min(1,weekProgress);
     const spi=ev/Math.max(pv,0.1);
     const cpi=ev/Math.max(ac,0.1);
-    let key:'onTrack'|'ahead'|'overBudget'|'behind', tone:'good'|'warn'|'bad';
-    if(spi<0.85){ key='behind'; tone=spi<0.6?'bad':'warn'; }
+    let key:'onTrack'|'ahead'|'overBudget'|'behind'|'behindPace', tone:'good'|'warn'|'bad';
+    // #166 — '가용 페이스'는 궤적이지 매 시점 합격선이 아니다. 주 초반(경과 40% 미만)엔 SPI 노이즈가 커서
+    //   '미달' 완료형 판정을 봉인(중립 진행중). 단 심각(spi<0.6)은 유예 무시. 주중=과정형(behindPace)/주말=결과형(behind).
+    if(spi<0.85){
+      const serious=spi<0.6;
+      if(!serious&&weekProgress<0.4){ key='onTrack'; tone='good'; }
+      else if(elapsedBiz<totalBiz){ key='behindPace'; tone=serious?'bad':'warn'; }
+      else { key='behind'; tone=serious?'bad':'warn'; }
+    }
     else if(cpi<0.85){ key='overBudget'; tone='warn'; }
     else if(spi>1.15){ key='ahead'; tone='good'; }
     else { key='onTrack'; tone='good'; }

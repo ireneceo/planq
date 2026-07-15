@@ -334,6 +334,16 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
     if (!fbBody.trim() || submitting) return;
     setSubmitting(true);
     setFbResultMsg(null);
+    // #162 — 도움말 팝아웃(/help-popout) 안에서 제출하면 여태 팝아웃 자신의 URL 이 page_url 로 찍혀
+    //   실제 사용 화면 대신 전부 /help-popout 으로 오기록됐다(트리아지 왜곡). 팝아웃이면 부모(opener) 화면 URL 을 잡는다.
+    let pageUrl = location.pathname + (location.search || '');
+    try {
+      if (typeof window !== 'undefined' && window.opener && !window.opener.closed
+          && location.pathname.startsWith('/help')) {
+        const o = window.opener.location;
+        pageUrl = o.pathname + (o.search || '');
+      }
+    } catch { /* cross-origin 등 — 자기 URL 유지 */ }
     try {
       const res = await apiFetch('/api/feedback', {
         method: 'POST',
@@ -343,7 +353,7 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
           priority: fbPriority,
           title: (fbBody.trim().split('\n')[0] || '').slice(0, 60) || '(제목 없음)',
           body: fbBody.trim(),
-          page_url: location.pathname + (location.search || ''),
+          page_url: pageUrl,
           attachments: fbAttachments.length > 0 ? fbAttachments : null,
         }),
       });

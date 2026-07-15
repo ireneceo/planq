@@ -309,8 +309,12 @@
         "detail": "Spent {{ac}}h for {{ev}}h of progress — taking longer than expected"
       },
       "behind": {
-        "label": "Behind target",
-        "detail": "Below where you should be this week (earned {{ev}}h · spent {{ac}}h)"
+        "label": "Missed this week’s target",
+        "detail": "Below the week-end target line (earned {{ev}}h · spent {{ac}}h)"
+      },
+      "behindPace": {
+        "label": "A little behind pace",
+        "detail": "Still mid-week — you can catch up in the days left (earned {{ev}}h · spent {{ac}}h)"
       }
     },
     "reverted": "Reverted",
