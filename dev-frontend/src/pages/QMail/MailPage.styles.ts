@@ -584,7 +584,7 @@ export const FromManage = styled.button`
 // 폴더 맥락 일괄 액션 버튼 — Secondary(ghost). $confirm 이면 2단계 확인(Coral 강조).
 export const BulkAction = styled.button<{ $confirm?: boolean }>`
   flex-shrink: 0; align-self: center;
-  height: 28px; padding: 0 10px; margin-left: 6px;
+  height: 36px; padding: 0 12px; margin-left: 6px;
   border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
   white-space: nowrap;
   background: ${(p) => (p.$confirm ? '#FFF1F2' : '#FFFFFF')};

@@ -2032,7 +2032,7 @@ const Row = styled.div<{ $active: boolean; $selectMode?: boolean }>`
   cursor: pointer;
   display: grid;
   grid-template-columns: ${p => p.$selectMode ? `36px ${KB_LIST_COLS}` : KB_LIST_COLS};
-  gap: 8px; align-items: start;
+  gap: 8px; align-items: center;
   padding: 10px 14px;
   background: ${p => p.$active ? '#F0FDFA' : 'transparent'};
   border-bottom: 1px solid #F1F5F9;
