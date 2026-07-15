@@ -373,6 +373,7 @@ app.use('/api/admin/wiki', require('./routes/admin_wiki'));
 app.use('/api/blog', require('./routes/blog'));
 app.use('/api/org', require('./routes/org'));
 app.use('/api/insights', require('./routes/insights'));
+app.use('/api/activity', require('./routes/activity'));
 app.use('/api/stats', require('./routes/stats'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/push', require('./routes/push'));

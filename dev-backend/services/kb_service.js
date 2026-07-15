@@ -140,9 +140,31 @@ async function embedPinnedFaq(faq) {
   return emb;
 }
 
+// ─── D-5: 워크스페이스 KB 총량 (작은 KB 는 임베딩 검색을 건너뛴다) ───
+//   총 content 바이트가 임계 미만이면 벡터 검색으로 top-K 를 고르는 대신 KB 를 전량 주입한다.
+//   벡터 미스가 없어 재현율 100% 이고, 임베딩 API 호출(비용·지연) 자체를 없앤다.
+//   임계 초과 시에만 embedText + 200 후보 캡 + 코사인 정렬(기존 경로 그대로).
+//   임계값은 튜닝 다이얼 — 프롬프트 주입 비용이 부담되면 낮춘다.
+const SMALL_KB_BYTES = 100 * 1024;          // 100KB 미만이면 전량 주입
+const KB_SIZE_TTL_MS = 60 * 1000;           // 총량 캐시 60s — 매 검색마다 SUM 재실행 회피
+const _kbSizeCache = new Map();             // businessId -> { bytes, at }
+
+async function getWorkspaceKbBytes(businessId) {
+  const hit = _kbSizeCache.get(businessId);
+  if (hit && Date.now() - hit.at < KB_SIZE_TTL_MS) return hit.bytes;
+  const row = await KbChunk.findOne({
+    where: { business_id: businessId },
+    attributes: [[sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.fn('LENGTH', sequelize.col('content'))), 0), 'bytes']],
+    raw: true,
+  });
+  const bytes = Number(row?.bytes || 0);
+  _kbSizeCache.set(businessId, { bytes, at: Date.now() });
+  return bytes;
+}
+
 // ─── 하이브리드 검색 ───
 // 1) Pinned FAQ 에서 임베딩 top-K
-// 2) KbChunk 에서 임베딩 top-K + LIKE 폴백
+// 2) KbChunk 에서 임베딩 top-K + LIKE 폴백 (작은 KB 는 임베딩 없이 전량)
 // 3) 코사인 정렬 후 tier 별로 반환
 async function hybridSearch(businessId, query, opts = {}) {
   const limit = opts.limit || 5;
@@ -156,7 +178,11 @@ async function hybridSearch(businessId, query, opts = {}) {
   //   넘기면 "그 사람이 볼 수 있는 KbDocument" 로만 검색을 좁힌다. 아래 scope 가중(OR)과 AND 로 결합.
   //   Cue 처럼 사람 대신 검색하는 경로가 워크스페이스 전체를 긁는 것을 차단.
   const permDocWhere = opts.docWhere || null;
-  const queryEmbedding = await embedText(query);
+  // D-5 — 작은 KB(총 content < 100KB) 는 임베딩 없이 스코프 내 청크를 전량 주입한다.
+  //   아래 청크 fetch(필터·캡)·정렬(기본점수)·반환(슬라이스)이 smallKb 로 분기한다.
+  const totalKbBytes = await getWorkspaceKbBytes(businessId);
+  const smallKb = totalKbBytes > 0 && totalKbBytes < SMALL_KB_BYTES;
+  const queryEmbedding = smallKb ? null : await embedText(query);
 
   // ─── Pinned FAQ ───
   const faqs = await KbPinnedFaq.findAll({
@@ -190,8 +216,9 @@ async function hybridSearch(businessId, query, opts = {}) {
 
   // ─── KB Chunks ───
   const chunkWhere = { business_id: businessId };
-  if (!queryEmbedding) {
-    // 임베딩 없으면 content LIKE 폴백
+  if (!queryEmbedding && !smallKb) {
+    // 임베딩 불가(대형 KB·OPENAI 미설정) — 키워드 LIKE 로 후보를 좁힌다.
+    // smallKb 는 필터 없이 스코프 내 전량 fetch (전량 주입).
     chunkWhere.content = { [Op.like]: `%${String(query).slice(0, 80)}%` };
   }
   // 스코프·카테고리 필터 — KbDocument 의 컬럼 기반 (sub-include where)
@@ -209,7 +236,7 @@ async function hybridSearch(businessId, query, opts = {}) {
 
   const chunks = await KbChunk.findAll({
     where: chunkWhere,
-    limit: 200,
+    limit: smallKb ? 500 : 200,   // 임계초과만 200 후보 캡. smallKb 는 <100KB 라 청크 수 자체가 적음(안전 상한 500)
     order: [['id', 'DESC']],
     include: [{
       model: KbDocument,
@@ -229,6 +256,10 @@ async function hybridSearch(businessId, query, opts = {}) {
     }
     if (score === 0 && String(c.content).toLowerCase().includes(String(query).toLowerCase())) {
       score = 0.5;
+    }
+    if (score === 0 && smallKb) {
+      // 전량 주입 — 키워드 미스여도 작은 KB 는 통째로 컨텍스트에 넣는다(기본 점수, 매칭보다 낮게)
+      score = 0.35;
     }
     if (score > 0) {
       // 스코프 가중: client > project > workspace
@@ -258,7 +289,9 @@ async function hybridSearch(businessId, query, opts = {}) {
   scoredChunks.sort((a, b) => b.score - a.score);
 
   const topFaqs = scoredFaqs.filter(f => f.score >= 0.3).slice(0, limit);
-  const topChunks = scoredChunks.filter(c => c.score >= 0.3).slice(0, limit);
+  // smallKb: 전량 주입 — 청크는 top-K 로 자르지 않고 스코프 내 전량 반환(<100KB 라 bounded)
+  const chunkLimit = smallKb ? scoredChunks.length : limit;
+  const topChunks = scoredChunks.filter(c => c.score >= 0.3).slice(0, chunkLimit);
 
   return {
     pinned_faqs: topFaqs,
@@ -347,6 +380,7 @@ module.exports = {
   indexDocument,
   extractTags,
   hybridSearch,
+  getWorkspaceKbBytes,   // D-5 — 워크스페이스 KB 총량(작은 KB 게이트). 검증·재사용용 노출
   splitIntoChunks,
   cosineSimilarity,
   blobToFloats,

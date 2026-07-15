@@ -728,17 +728,16 @@ function checkGodfile() {
 // ═══════════════════════════════════════════════
 function checkPanelHandle() {
   const STYLE = 'dev-frontend/src/components/Layout/panelHandleStyle.ts';
-  const EDGE = 'dev-frontend/src/components/Layout/PanelEdgeHandle.tsx';
   const FLOAT = 'dev-frontend/src/components/Common/FloatingPanelToggle.tsx';
   const fails = [];
 
-  for (const f of [STYLE, EDGE, FLOAT]) {
-    if (!fs.existsSync(path.join(ROOT, f))) { fails.push(`${f}: 없음 — 핸들 시각 단일 정의가 사라졌다`); }
+  for (const f of [STYLE, FLOAT]) {
+    if (!fs.existsSync(path.join(ROOT, f))) { fails.push(`${f}: 없음 — 핸들 단일 정의가 사라졌다`); }
   }
-  if (fails.length) { report('panelhandle', '패널 핸들 시각 단일 정의', false, fails); return; }
+  if (fails.length) { report('panelhandle', '패널 핸들 단일 정의', false, fails); return; }
 
   // ① 시각 계약 — 단색. 그라데이션·그림자 금지 (Irene 확정)
-  for (const f of [STYLE, EDGE, FLOAT]) {
+  for (const f of [STYLE, FLOAT]) {
     const src = read(path.join(ROOT, f));
     if (/linear-gradient|radial-gradient/.test(src)) fails.push(`${f}: 그라데이션 재유입 — 핸들은 단색만`);
     // box-shadow: none 은 허용, 그 외 값은 금지
@@ -746,23 +745,31 @@ function checkPanelHandle() {
     shadows.filter((s) => !/none/.test(s)).forEach((s) => fails.push(`${f}: 그림자 재유입 — ${s.trim()}`));
   }
 
-  // ② 시각은 두 컴포넌트가 공유 — 각자 색·크기를 다시 선언하면 드리프트
-  for (const f of [EDGE, FLOAT]) {
-    if (!read(path.join(ROOT, f)).includes('panelHandleStyle')) {
-      fails.push(`${f}: panelHandleStyle 미사용 — 시각을 자체 선언하면 다시 갈라진다`);
+  // ② 시각은 panelHandleStyle 단일 정의를 공유 — 자체 선언하면 드리프트
+  const float = read(path.join(ROOT, FLOAT));
+  if (!float.includes('panelHandleStyle')) {
+    fails.push(`${FLOAT}: panelHandleStyle 미사용 — 시각을 자체 선언하면 다시 갈라진다`);
+  }
+
+  // ③ 단일 표준 — FloatingPanelToggle 이 좌·우 대칭을 모두 지원(뷰포트 변 플로팅).
+  //    Irene 확정: 데스크탑 경계선 세로바는 폐기하고 전 폭·좌우 이 하나로 통일.
+  if (!/\$side === 'right'/.test(float) || !/'left'/.test(float)) {
+    fails.push(`${FLOAT}: 좌/우 side 지원이 사라졌다 — 좌우 대칭 단일 핸들이어야 한다`);
+  }
+
+  // ④ 폐기된 경계선 핸들(PanelEdgeHandle) 재유입 차단 — 화면마다 제각각이던 원흉.
+  //    좌우 통일 플로팅 핸들만 쓴다. import·JSX 어느 쪽도 금지.
+  const usages = [];
+  for (const dir of ['dev-frontend/src/pages', 'dev-frontend/src/components']) {
+    for (const file of walk(path.join(ROOT, dir), ['.tsx', '.ts'])) {
+      if (/<PanelEdgeHandle|PanelEdgeHandle['"]/.test(read(file))) usages.push(rel(file));
     }
   }
-
-  // ③ 숨김 경계 봉합 — 우측 핸들 ≤1200 숨김 / 플로팅 ≤1200 노출. 어긋나면 겹치거나 둘 다 사라진다
-  const edge = read(path.join(ROOT, EDGE));
-  if (!/\$side === 'right'\s*\?\s*1200/.test(edge)) {
-    fails.push(`${EDGE}: 우측 핸들 숨김 경계가 1200 이 아니다 — 오버레이 구간에 핸들이 혼자 떠 있게 된다`);
-  }
-  if (!/max-width:\s*1200px/.test(read(path.join(ROOT, FLOAT)))) {
-    fails.push(`${FLOAT}: 노출 경계가 1200 이 아니다 — PanelEdgeHandle 과 겹치거나 빈 구간이 생긴다`);
+  if (usages.length) {
+    fails.push(`PanelEdgeHandle 재유입(${usages.length}) — 좌우 통일 플로팅 핸들만 사용: ${usages.slice(0, 4).join(', ')}`);
   }
 
-  report('panelhandle', '패널 핸들 — 단색 시각 단일 정의 + 숨김 경계 봉합(right 1200 / left 1024)', fails.length === 0, fails);
+  report('panelhandle', '패널 핸들 — 단색 단일 정의 + 좌우 대칭 플로팅(경계선 세로바 폐기)', fails.length === 0, fails);
 }
 
 // ═══════════════════════════════════════════════

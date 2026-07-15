@@ -58,7 +58,7 @@ import SessionTaxonomyBar from '../../components/QNote/SessionTaxonomyBar';
 const MemoView = React.lazy(() => import('./MemoView'));
 // NewNoteModal — Q docs PostAiModal manual mode 패턴 동일 (탭 메모/음성 + 옵션). 사이클 N+17 hotfix.
 import NewNoteModal, { type NewNoteKind } from './NewNoteModal';
-import PanelEdgeHandle from '../../components/Layout/PanelEdgeHandle';
+import FloatingPanelToggle from '../../components/Common/FloatingPanelToggle';
 import PanelResizeHandle, { usePanelWidth } from '../../components/Layout/PanelResizeHandle';
 
 /**
@@ -2006,15 +2006,14 @@ const QNotePage = () => {
 
   return (
     <PanelGridLayout $cols={sidebarCollapsed ? '0px 1fr' : `${listWidth}px 1fr`}>
-      {/* 리스트 접기/펼치기 — 공통 PanelEdgeHandle (Q Talk·Q Mail·Q docs·Q Task 와 같은 경계선 화살표).
-          Q Note 만 핸들이 아예 없어서 접으면 다시 여는 방법이 백드롭 클릭뿐이었다. */}
-      <PanelEdgeHandle
+      {/* 리스트 접기/펼치기 — 공통 FloatingPanelToggle(뷰포트 왼쪽 변 플로팅, 전 폭 동일 디자인).
+          열림 시 실제 리스트 폭(listWidth)을 offset 으로 넘겨 리스트 안쪽 변에 붙인다. */}
+      <FloatingPanelToggle
         side="left"
-        collapsed={sidebarCollapsed}
+        open={!sidebarCollapsed}
         onToggle={() => setSidebarCollapsed((v) => !v)}
-        offset={sidebarCollapsed ? 0 : listWidth}
-        labelCollapse={t('page.sidebar.collapse', '리스트 접기') as string}
-        labelExpand={t('page.sidebar.expand', '리스트 열기') as string}
+        offsetOpen={`${listWidth}px`}
+        ariaLabel={(sidebarCollapsed ? t('page.sidebar.expand', '리스트 열기') : t('page.sidebar.collapse', '리스트 접기')) as string}
       />
       <CollapsibleSidebar $collapsed={sidebarCollapsed} $w={listWidth}>
         <PanelResizeHandle onMouseDown={startListResize} />
