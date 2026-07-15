@@ -609,6 +609,48 @@ function checkCreateLayer() {
 }
 
 // ═══════════════════════════════════════════════
+// 8-e. cuetools — Cue 대화형 실행(#81): 쓰기는 confirm 게이트를 지나고, 재무는 카탈로그에 없다
+//
+//   /help 는 툴을 **제안**만 한다(실행 X). 실행은 execute-action → cue_tools.executeTool → 행동 계층.
+//   라우트가 행동 계층 create 를 직접 부르면 confirm 게이트를 우회한다 → 차단.
+//   Cue 카탈로그에 재무(invoice/payment) 툴이 새로 들어오는 것도 정적으로 막는다(영구 봉쇄).
+// ═══════════════════════════════════════════════
+const CUE_TOOLS = 'dev-backend/services/cue_tools.js';
+const CUE_ROUTE = 'dev-backend/routes/cue.js';
+
+function checkCueTools() {
+  const bad = [];
+  // 존재 이유(스키마·실행·검증·담당자 해석) + 재무 모델 참조 0 (blockFinancial)
+  checkLayerFeatures(bad, CUE_TOOLS, [
+    ['TOOL_SCHEMAS', /TOOL_SCHEMAS/],
+    ['executeTool', /async function executeTool/],
+    ['입력 검증', /function validateNormalize/],
+    ['담당자 해석', /resolveAssignees/],
+  ]);
+  const toolsFull = path.join(ROOT, CUE_TOOLS);
+  if (fs.existsSync(toolsFull)) {
+    const src = read(toolsFull);
+    // 재무 계열이 툴 카탈로그·문서 kind 에 인용부호로 들어오면 실패 (주석의 설명 텍스트는 인용부호가 없어 안 걸림)
+    if (/'(invoice|tax_invoice)'/.test(src)) {
+      bad.push(`${CUE_TOOLS}: 재무 문서 kind('invoice'/'tax_invoice') 발견 — Cue 카탈로그 재무 봉쇄 위반`);
+    }
+    if (/name:\s*'(create_invoice|create_payment|mark_paid|issue_receipt)'/i.test(src)) {
+      bad.push(`${CUE_TOOLS}: 재무 툴 이름 발견 — Cue 카탈로그 재무 봉쇄 위반`);
+    }
+  }
+  // 라우트는 행동 계층을 직접 require 하지 않는다 — 쓰기는 cue_tools 를 지나야 confirm 게이트가 산다
+  const routeFull = path.join(ROOT, CUE_ROUTE);
+  if (fs.existsSync(routeFull)) {
+    const src = read(routeFull);
+    if (/require\(['"]\.\.\/services\/actions\//.test(src)) {
+      bad.push(`${CUE_ROUTE}: 행동 계층 직접 require — 쓰기는 cue_tools 경유 (confirm 게이트 우회 차단)`);
+    }
+    if (!/execute-action/.test(src)) bad.push(`${CUE_ROUTE}: execute-action 라우트 소실`);
+  }
+  report('cuetools', 'Cue 대화형 실행 — 쓰기 confirm 게이트 + 재무 봉쇄', bad.length === 0, bad);
+}
+
+// ═══════════════════════════════════════════════
 // 9. godfile — 신규 god-file 차단 래칫 (기존 초과분은 동결, 15% 이상 추가 성장도 실패)
 // ═══════════════════════════════════════════════
 function checkGodfile() {
@@ -709,6 +751,7 @@ const CATEGORIES = {
   llmgateway: checkLlmGateway,
   actionlayer: checkActionLayer,
   createlayer: checkCreateLayer,
+  cuetools: checkCueTools,
   godfile: checkGodfile,
   panelhandle: checkPanelHandle,
   docfresh: checkDocFresh,

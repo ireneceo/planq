@@ -10,6 +10,12 @@ const { successResponse, errorResponse } = require('../middleware/errorHandler')
 // LLM 호출은 게이트웨이 단일 지점을 지난다 (services/llm.js).
 const { callLLM, isEnabled } = require('../services/llm');
 
+// #81 Cue 대화형 실행 — 툴 카탈로그·검증·dispatch (services/cue_tools.js).
+//   /help 는 스키마·컨텍스트만 가져가 LLM 에 제안시키고, 실행은 execute-action 에서만.
+const cueTools = require('../services/cue_tools');
+// 킬스위치 — 운영 중 오작동 시 CUE_TOOLS_ENABLED=0 + 재시작으로 즉시 옛 동작(답변만)으로 롤백.
+const CUE_TOOLS_ENABLED = process.env.CUE_TOOLS_ENABLED !== '0';
+
 // 사이클 P7 — Q helper / Cue 모드 분리 (데이터 격리).
 //   mode='qhelper' : PlanQ 매뉴얼 전담. 워크스페이스 컨텍스트 X.
 //   mode='workspace' : 현재 활성 워크스페이스 컨텍스트 주입 (Cue 페르소나).
@@ -207,6 +213,7 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
       return errorResponse(res, 'question_required', 400);
     }
     const q = question.trim().slice(0, 1000);
+    let workspaceBizId = null;   // #81 — 툴 제안(로스터 주입·proposed_action)에 재사용
 
     if (!isEnabled()) {
       return successResponse(res, {
@@ -269,6 +276,12 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
             scope,
           });
           if (ctx.markdown) ctxBlock += `\n\n# 워크스페이스 현황\n${ctx.markdown}`;
+          workspaceBizId = businessId;
+          // #81 — 툴 활성 시 오늘/시간대/멤버 로스터 주입 (담당자 이름 정확 해석의 핵심)
+          if (CUE_TOOLS_ENABLED) {
+            try { ctxBlock += `\n\n${await cueTools.buildToolSystemContext(businessId)}`; }
+            catch (e) { console.warn('[cue/help tools ctx]', e.message); }
+          }
         }
       } catch (e) {
         console.warn('[cue/help workspace] context build failed:', e.message);
@@ -311,15 +324,25 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
       { role: 'user', content: q },
     ];
 
-    const { content, fallback } = await callLLM({
+    // #81 — workspace 모드 + 킬스위치 on 이면 쓰기 툴을 제안하게 한다 (실행 X, 제안만).
+    const useTools = CUE_TOOLS_ENABLED && finalMode === 'workspace' && !!workspaceBizId;
+    const { content, fallback, tool_calls } = await callLLM({
       purpose: 'kb_answer',
       messages,
       maxTokens: 600,
       temperature: 0.3,
       fallback: '',
+      ...(useTools ? { tools: cueTools.TOOL_SCHEMAS } : {}),
     });
     if (fallback) return errorResponse(res, 'llm_error', 502);
     const answer = (content || '').trim();
+
+    // 툴 제안 → 확인 카드용 proposed_action (첫 유효 쓰기 툴 1건). 절대 실행 안 함.
+    let proposedAction = null;
+    if (useTools && Array.isArray(tool_calls) && tool_calls.length) {
+      try { proposedAction = await cueTools.buildProposedAction(workspaceBizId, tool_calls); }
+      catch (e) { console.warn('[cue/help buildProposedAction]', e.message); }
+    }
     // KNOWLEDGE_LOOP 축2 — qhelper 질문 로그 (workspace 모드는 위키 개선 대상 아님)
     let logId = null;
     if (finalMode === 'qhelper') {
@@ -333,7 +356,57 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
         top_article_id: wikiTopArticleId,
       });
     }
-    return successResponse(res, { answer, mode: finalMode, sources: wikiSources, log_id: logId });
+    return successResponse(res, {
+      answer, mode: finalMode, sources: wikiSources, log_id: logId,
+      ...(proposedAction ? { proposed_action: proposedAction } : {}),
+    });
+  } catch (e) { next(e); }
+});
+
+// ═══════════════════════════════════════════════
+// #81 POST /api/cue/execute-action — 확인 카드 [추가] → 실행
+//   actor = 사용자 본인. cue_tools.executeTool 이 검증 → 행동 계층 dispatch (메뉴 권한·assertAssignable·감사·broadcast).
+//   execute-action 은 사용자가 이미 정상 라우트로 할 수 있는 것과 동일한 게이트된 행동을 부르는 대체 입구 —
+//   새 권한 상승 경로 0. 그래서 confirm 을 서버에 저장하지 않는다(stateless, 클라 params 는 여기서 재검증).
+// ═══════════════════════════════════════════════
+router.post('/execute-action', authenticateToken, ...helpLimiter, async (req, res, next) => {
+  try {
+    if (!CUE_TOOLS_ENABLED) return errorResponse(res, 'tools_disabled', 403);
+    const { tool, params } = req.body || {};
+    if (!tool || !cueTools.WRITE_TOOLS.has(tool)) return errorResponse(res, 'unknown_tool', 400);
+
+    // businessId 는 인증 컨텍스트에서 서버가 도출 (클라 business_id 불신). 행동 계층이 멤버십 재검증.
+    let businessId = req.user.active_business_id;
+    if (!businessId) {
+      const { BusinessMember } = require('../models');
+      const bm = await BusinessMember.findOne({
+        where: { user_id: req.user.id, removed_at: null },
+        order: [['id', 'ASC']], attributes: ['business_id'],
+      });
+      businessId = bm?.business_id || null;
+    }
+    if (!businessId) return errorResponse(res, 'no_workspace', 400);
+
+    // 플랜 쿼터 — 실행이 유일한 계량점(제안 /help 는 무과금)
+    const planEngine = require('../services/plan');
+    const planCan = await planEngine.can(businessId, 'use_cue', { actions: 1 });
+    if (!planCan.ok) return res.status(422).json(planEngine.buildQuotaError(planCan, businessId));
+
+    const actor = { kind: 'user', userId: req.user.id, platformRole: req.user.platform_role, req };
+    const r = await cueTools.executeTool(actor, businessId, tool, params || {});
+    if (!r.ok) return errorResponse(res, r.code, r.http || 400);
+
+    // 계량(관측) + 프로비넌스 감사 — actor=사용자라 행동 계층 create 감사와 별개로 "Cue 대화로 실행됨" 을 남긴다
+    const { recordUsage } = require('../services/cue_orchestrator');
+    recordUsage(businessId, 'tool_call', 'gpt-4o-mini', 0, 0).catch((e) => console.warn('[cue tool_call usage]', e.message));
+    require('../services/auditService').logAudit(req, {
+      action: 'cue.tool_execute', targetType: r.data.entity_type, targetId: r.data.entity_id,
+      businessId, newValue: { tool, entity_type: r.data.entity_type, entity_id: r.data.entity_id },
+    });
+
+    return successResponse(res, {
+      tool, entity_type: r.data.entity_type, entity_id: r.data.entity_id, entity: r.data.entity,
+    }, 'executed', 201);
   } catch (e) { next(e); }
 });
 

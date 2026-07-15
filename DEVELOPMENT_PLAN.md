@@ -1,6 +1,30 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-07-15 (Opus, 1M) — **🚪 행동 계층 3사이클 — 일정·문서 생성 단일 착지점(event_create / document_draft).** 헬스 30/30 · guard-invariants 19/19 · 실HTTP+서비스 25/25 (데이터 전량 원복). dev 검증 완료 (미배포).
+> **최종 업데이트:** 2026-07-15 (Opus, 1M) — **🤖 #81 Cue 대화형 실행 — 자연어 지시 → 툴 제안 → confirm → 실행.** 빌드 EXIT0/TS0 · guard 20/20 · 실HTTP+서비스 24/24 · LLM end-to-end 스모크 통과 (데이터 전량 원복). dev 검증 완료 (미배포).
+
+## ✅ 완료: #81 Cue 대화형 실행 (2026-07-15)
+
+Q helper **워크스페이스 채팅**에서 자연어로 실행 지시("박개발에게 다음주 수요일까지 로고 검토 업무 만들어줘") → Cue 가 **툴 호출을 제안** → 사용자가 파라미터 표시된 **확인 카드**를 클릭해야 실행. "데이터가 바뀌는 건 사람이 누른 뒤에만." 설계 문서 `docs/CUE_CONVERSATIONAL_EXECUTION_DESIGN.md` (§D-2.5, 6단계 `/기능설계` + 시니어 검증).
+
+**핵심 멘탈 모델:** `execute-action`은 사용자가 이미 `POST /tasks`로 할 수 있는 **동일한 게이트된 행동 계층**을 부르는 대체 입구 — LLM은 자연어 프런트엔드일 뿐, 권한은 사람 본인의 것. **새 권한 상승 경로 0** → confirm 을 서버에 저장 안 함(stateless).
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| `services/cue_tools.js` | 툴 카탈로그(create_task·event·document_draft) + 검증/정규화 + 담당자 이름 해석(`resolveAssignees` 재사용) + dispatch. **재무 툴 부재(영구 봉쇄)** | ✅ |
+| `routes/cue.js /help` 확장 | workspace + 킬스위치(`CUE_TOOLS_ENABLED`) 시 tools 전달 + **오늘·시간대·멤버 로스터 주입**(담당자 해석 정확도 핵심). tool_calls → proposed_action(첫 유효 쓰기 1건, 실행 X) | ✅ |
+| `POST /api/cue/execute-action` | actor=사용자 본인 → cue_tools.executeTool → 행동 계층(메뉴 권한·assertAssignable·감사·broadcast). recordUsage('tool_call') + `cue.tool_execute` 프로비넌스 감사 | ✅ |
+| `CueActionCard.tsx` + 드로어 배선 | 인라인 확인 카드(팝업 아님) — 담당자 PlanQSelect·마감 SingleDateField·설명 접기·[취소]/[＋추가](ActionButton, submitting 가드). done → "✓ 추가됨·열기↗"(딥링크) | ✅ |
+| guard `cuetools` (19→20) | TOOL_SCHEMAS·executeTool·검증·담당자 해석 존재 + 재무 봉쇄 + 라우트가 행동 계층 직접 require 안 함 | ✅ |
+| i18n ko/en (qhelper.action 34키) | 카드 라벨·버튼·문서종류·에러 매핑 | ✅ |
+
+### 시니어 설계 검증에서 잡은 것 (구현 반영)
+cue_tools 분리(/help 는 스키마만, 실행은 execute만) · 로스터 주입(정확 일치) · 첫 유효 툴 1건 · 시간대 주입 · 서버 businessId 도출 · 프로비넌스 감사 · 킬스위치. 트레이드오프 명시: 서버 nonce 없음(UI 가드로 충분·비파괴) · 제안 무과금/실행 1회 과금 · 읽기 툴 미구현(기존 컨텍스트 주입이 처리).
+
+### 검증
+빌드 EXIT0/TS0 · guard 20/20 · 헬스 30/30 · 실HTTP+서비스 **24/24**(카탈로그·재무봉쇄·담당자해석·execute 3종·경계·메뉴 게이트 403) · **LLM end-to-end 스모크**: "박개발에게 다음주 수요일까지…" → create_task, assignee=17 해석, due=2026-07-22 계산. 데이터 전량 원복.
+
+### 남은 것
+전이 툴(submit_review 등)·읽기 툴·MCP 외부 표면(D-4)은 후속. **재무는 영구 카탈로그 제외.** Fable 게이트(보안 경계) 대상 — 배포 전 실행 권장.
 
 ## ✅ 완료: 행동 계층 3사이클 — 일정·문서 생성도 같은 문 (2026-07-15)
 
