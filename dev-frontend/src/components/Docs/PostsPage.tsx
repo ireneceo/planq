@@ -1158,7 +1158,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                       <AiRegenerateBar busy={regenBusy} onRegenerate={regenerateDoc} />
                     </AiRegenRow>
                   )}
-                  <div className="pq-fullbleed">
+                  {/* 툴바를 위 MetaRow 회색 구분선에 바로 붙인다(Body gap 16 상쇄) — 편집 상단 여백 제거(Irene) */}
+                  <div className="pq-fullbleed" style={{ marginTop: -16 }}>
                     <PostEditor value={contentDraft} onChange={setContentDraft} businessId={scope.businessId} placeholder={t('contentPlaceholder', '본문을 작성하세요…') as string} borderless />
                   </div>
                 </>
@@ -1943,7 +1944,7 @@ const CategoryTag = styled.button`
 // 편집 메타 — 한 줄(카테고리·프로젝트·형태·공개·보안). 좁으면 wrap. (Irene: 한 줄로)
 // 구분선 풀폭, 글자만 좌우 24px 안쪽.
 const MetaRow = styled.div`
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 0;
   padding-bottom: 12px; border-bottom: 1px solid #F1F5F9;
   & > * { flex-shrink: 0; }
 `;
