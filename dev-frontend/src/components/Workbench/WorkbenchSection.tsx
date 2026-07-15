@@ -1,8 +1,8 @@
-// 작업대 섹션 — Q Talk 우측 패널 · Q Mail 맥락 패널 **유일한** 섹션 골격.
+// 작업대 섹션 — Q Talk 우측 패널 · Q mail 맥락 패널 **유일한** 섹션 골격.
 //
 // 값은 Q Talk 우측 패널(운영에서 검증된 것)을 그대로 박제한다. 여태 골격이 3벌 공존해서
-// (Q Talk 레거시 styled / 이 컴포넌트 / Q Mail Wrap) 같은 패널 안에서도 리듬이 어긋났다:
-//   섹션 간 공백 Q Mail 40px vs Q Talk 22px, 콘텐츠 좌 인셋 0 vs 14px, chevron·카운트 배지도 제각각.
+// (Q Talk 레거시 styled / 이 컴포넌트 / Q mail Wrap) 같은 패널 안에서도 리듬이 어긋났다:
+//   섹션 간 공백 Q mail 40px vs Q Talk 22px, 콘텐츠 좌 인셋 0 vs 14px, chevron·카운트 배지도 제각각.
 // 지금부터 두 패널은 이 파일만 쓴다. 여기 값을 바꾸면 두 화면이 함께 바뀐다.
 //
 // 접힘은 비제어(defaultOpen) / 제어(open + onToggle) 둘 다 지원한다 — Q Talk 은 스코프가 바뀔 때

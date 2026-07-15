@@ -83,7 +83,7 @@
         "desc": "Live transcript and translation during meetings. Auto-detect key questions, suggest answers from materials you uploaded. Auto summary after."
       },
       "mail": {
-        "name": "Q Mail",
+        "name": "Q mail",
         "desc": "Customer email, brought into your workflow. Receive scattered mail in one workspace and see it alongside chats and client info — no more bouncing between inbox and work."
       },
       "docs": {
@@ -330,7 +330,7 @@
         ]
       },
       "mail": {
-        "name": "Q Mail — Email integration",
+        "name": "Q mail — Email integration",
         "lead": "Workspace email in one place. Connected to the email channel of the notification matrix.",
         "bullets": [
           "Member-only menu — unified customer email handling",

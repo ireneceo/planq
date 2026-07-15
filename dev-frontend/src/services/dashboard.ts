@@ -66,7 +66,7 @@ export interface TodoResponse {
   counts: Record<TodoPriority, number>;
   total: number;
   billCount?: number;  // Q Bill 메뉴 뱃지 — 청구 관련 액션 대기 건수
-  mailReplyCount?: number;  // Q Mail 메뉴 뱃지 — 답변 필요 메일 (확인 필요 total 에는 합산 안 함)
+  mailReplyCount?: number;  // Q mail 메뉴 뱃지 — 답변 필요 메일 (확인 필요 total 에는 합산 안 함)
   workspaces?: TodoWorkspace[];
 }
 

@@ -1,12 +1,12 @@
 import styled, { css } from 'styled-components';
 
 /**
- * 멀티 컬럼(패널) 페이지 공통 레이아웃 — Q Talk / Q Mail / Q Note / Q Task 통일 (단일 진실 원천).
+ * 멀티 컬럼(패널) 페이지 공통 레이아웃 — Q Talk / Q mail / Q Note / Q Task 통일 (단일 진실 원천).
  *
  * 각 페이지가 Layout/Panel/Sidebar 스타일을 따로 복제하지 않도록 박제.
  * 두 가지 컨테이너 전략을 제공하되, viewport 높이 수학(panelShellHeight)은 하나로 공유한다.
  *
- * - `PanelLayout`       : flex row 컨테이너 (Q Talk / Q Mail / Q Task)
+ * - `PanelLayout`       : flex row 컨테이너 (Q Talk / Q mail / Q Task)
  * - `PanelGridLayout`   : grid 컨테이너 + 1열(사이드바) 접힘 애니메이션 (Q Note)
  * - `Panel`             : 패널 컬럼 (고정폭 또는 flex). $relative 로 position:relative 옵션
  * - `CollapsibleSidebar`: 접히는 사이드바 (데스크탑 translateX 슬라이드 + 태블릿/모바일 absolute 오버레이 드로어)
@@ -38,7 +38,7 @@ export const PanelLayout = styled.div<{ $embedded?: boolean }>`
   display: flex;
   /* 경계선 핸들(PanelEdgeHandle)이 이 컨테이너 기준으로 absolute 배치된다.
      relative 가 없으면 핸들이 엉뚱한 조상 기준으로 잡혀 옆 패널 뒤로 숨거나 잘렸다
-     (Q Mail 만 PanelGridLayout=relative 라 정상이었고 나머지 페이지가 전부 깨져 있었다). */
+     (Q mail 만 PanelGridLayout=relative 라 정상이었고 나머지 페이지가 전부 깨져 있었다). */
   position: relative;
   /* N+93 — embedded(팝아웃/분리 창): MainLayout 헤더가 없으므로 viewport 수학(-56px) 대신 부모 100% 채움.
      팝아웃 좁은 폭이 ≤1024 분기를 타 56px 여백이 생기던 회귀 차단. */

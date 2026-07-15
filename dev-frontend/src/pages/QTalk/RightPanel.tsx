@@ -32,7 +32,7 @@ interface Props {
   onToggleHiddenCandidates?: () => void;
   collapsed: boolean;
   onToggleCollapsed: () => void;
-  width?: number; // 데스크탑 폭 (리사이즈 — Q Task/Q Mail 통일)
+  width?: number; // 데스크탑 폭 (리사이즈 — Q Task/Q mail 통일)
   onResizeStart?: (e: React.MouseEvent) => void;
   onRegisterCandidate: (id: number, overrides?: RegisterCandidateOverrides) => void;
   onMergeCandidate: (id: number) => void;
@@ -244,7 +244,7 @@ const RightPanel: React.FC<Props> = ({
           </WorkbenchSection>
         )}
 
-        {/* 업무 후보 — 추출 버튼이 여기로 왔다 (채팅 입력란 하단에 있던 것). Q Mail 과 같은 자리. */}
+        {/* 업무 후보 — 추출 버튼이 여기로 왔다 (채팅 입력란 하단에 있던 것). Q mail 과 같은 자리. */}
         {!isClient && (
           <WorkbenchSection
             title={t('right.candidates.title', '업무 후보') as string}
@@ -296,7 +296,7 @@ const RightPanel: React.FC<Props> = ({
           </WorkbenchSection>
         )}
 
-        {/* 업무 — 프로젝트 업무 / 내 할 일 / 요청한 업무 (Q Mail 과 같은 컴포넌트) */}
+        {/* 업무 — 프로젝트 업무 / 내 할 일 / 요청한 업무 (Q mail 과 같은 컴포넌트) */}
         {!isClient && businessId && (project?.id || activeConversationId) && (
           <ContextTaskList
             businessId={businessId}
@@ -399,7 +399,7 @@ const RightPanel: React.FC<Props> = ({
           open={expanded.notes}
           onToggle={() => toggle('notes')}
         >
-              {/* 메모는 공통 NoteThread — Q Mail 맥락 패널과 같은 컴포넌트(디자인 단일 원천) */}
+              {/* 메모는 공통 NoteThread — Q mail 맥락 패널과 같은 컴포넌트(디자인 단일 원천) */}
               <NoteThread
                 notes={visibleNotes.map((n) => ({
                   id: n.id,
@@ -538,7 +538,7 @@ const Container = styled.aside<{ $overlay?: boolean; $w?: number }>`
       @media (max-width: 1200px) { display: none; }
     `}
 `;
-// 좌측 리사이즈 핸들 (Q Task/Q Mail 통일)
+// 좌측 리사이즈 핸들 (Q Task/Q mail 통일)
 const TalkResizeHandle = styled.div`
   position: absolute; top: 0; left: -3px; width: 6px; height: 100%;
   cursor: col-resize; z-index: 12;

@@ -1123,7 +1123,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               {detail?.kind === 'table' && detail.q_record_id ? (
                 <>
                   {tableDescOpen ? (
-                    <DescBox>
+                    <DescBox className="pq-fullbleed">
                       <DescBoxHeader>
                         <DescBoxLabel>{t('tableDescTitle', { defaultValue: '표 설명 에디터' }) as string}</DescBoxLabel>
                         <DescCloseBtn type="button" onClick={() => setTableDescOpen(false)}
@@ -1158,7 +1158,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                       <AiRegenerateBar busy={regenBusy} onRegenerate={regenerateDoc} />
                     </AiRegenRow>
                   )}
-                  <PostEditor value={contentDraft} onChange={setContentDraft} businessId={scope.businessId} placeholder={t('contentPlaceholder', '본문을 작성하세요…') as string} borderless />
+                  <div className="pq-fullbleed">
+                    <PostEditor value={contentDraft} onChange={setContentDraft} businessId={scope.businessId} placeholder={t('contentPlaceholder', '본문을 작성하세요…') as string} borderless />
+                  </div>
                 </>
               )}
 
@@ -1283,7 +1285,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 </MetaRight>
               </ViewMeta>
               {/* 보안등급 상시노출 SecurityRow 제거 — 뷰는 MetaBar chip(일반 자동숨김), 변경은 편집 모드 메타에서(Irene) */}
-              <div data-print-area>
+              <div data-print-area className="pq-fullbleed">
                 <PrintOnlyTitle>{detail.title}</PrintOnlyTitle>
                 {detail.kind === 'table' && detail.q_record_id ? (
                   // 표 kind — 본문 설명(있으면) + Q record 그리드 (보기 모드: read-only)
@@ -1891,15 +1893,17 @@ const Content = styled.section<{ $hasDetail?: boolean; $projectFull?: boolean }>
 `;
 const Body = styled.div`
   flex: 1; min-height: 0;
-  /* 좌우 24px 로 메모와 통일(에디터 좌우 여백 0 — 컨테이너가 제공). 카드/회색페이지 없음, 풀레이아웃(Irene). */
-  padding: 20px 24px;
+  /* 좌우 0 — 에디터 툴바·구분선이 좌우 끝까지 풀폭. 글자 안쪽 여백은 아래 규칙으로 통일(Irene).
+     에디터(.pq-fullbleed)만 풀폭 유지(자체 본문 여백), 그 외 모든 섹션은 좌우 24px. */
+  padding: 20px 0;
   overflow-y: auto;
   background: #fff;
   display: flex; flex-direction: column; gap: 16px;
+  & > *:not(.pq-fullbleed) { padding-left: 24px; padding-right: 24px; }
   @media (max-width: 900px) {
     /* 모바일: Content가 스크롤하므로 Body는 스크롤 안 함 */
     overflow-y: visible;
-    padding: 16px;
+    padding: 16px 0;
   }
 `;
 const TitleInput = styled.input`
@@ -1913,6 +1917,7 @@ const EditActions = styled.div`
   @media (max-width: 640px) { gap: 6px; }
 `;
 // 상세 메타 — 헤더 아래 한 줄 MetaBar. 좌(작성자·날짜·분류·프로젝트) ↔ 우(공개·공유·보안). (Irene)
+// 구분선은 좌우 끝까지(풀폭), 글자만 좌우 24px 안쪽.
 const ViewMeta = styled.div`
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   font-size: 12px; color: #94A3B8;
@@ -1936,6 +1941,7 @@ const CategoryTag = styled.button`
   &:hover { background: #CCFBF1; }
 `;
 // 편집 메타 — 한 줄(카테고리·프로젝트·형태·공개·보안). 좁으면 wrap. (Irene: 한 줄로)
+// 구분선 풀폭, 글자만 좌우 24px 안쪽.
 const MetaRow = styled.div`
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;
   padding-bottom: 12px; border-bottom: 1px solid #F1F5F9;
@@ -2009,7 +2015,7 @@ const DescBox = styled.div`
 `;
 const DescBoxHeader = styled.div`
   display: flex; align-items: center; justify-content: space-between;
-  padding: 8px 12px;
+  padding: 8px 24px;
   border-bottom: 1px solid #F1F5F9;
   background: #F8FAFC;
   border-radius: 10px 10px 0 0;

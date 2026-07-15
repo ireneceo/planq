@@ -1,4 +1,4 @@
-// Q Mail 우측 컨텍스트 패널 (사이클 N+87 Phase A) — Q Talk 우측 패널 패턴 이식.
+// Q mail 우측 컨텍스트 패널 (사이클 N+87 Phase A) — Q Talk 우측 패널 패턴 이식.
 //   프로젝트·고객 picker (EmailThread.client_id/project_id) + 고객 cross-channel(channel-summary).
 //   ★ 요약/업무후보/이슈/노트는 Phase B/C — 여기선 연결 + cross-channel 만 (mock 금지: 실 데이터만).
 //   설계: docs/QMAIL_CONTEXT_DESIGN.md §5, §7.1

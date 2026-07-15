@@ -12,7 +12,7 @@
     "dismiss": "무시"
   },
   "settings": {
-    "title": "Q Mail 계정",
+    "title": "Q mail 계정",
     "add": "계정 추가",
     "addFirst": "첫 계정 등록",
     "addTitle": "메일 계정 등록",
@@ -272,7 +272,7 @@
   },
   "noAccount": {
     "title": "아직 연결된 메일 계정이 없어요",
-    "desc": "Gmail 또는 IMAP 메일 계정을 연결하면 Q Mail에서 받은 메일을 함께 보고 답장할 수 있어요. 여러 계정을 연결하면 주소별로도 볼 수 있어요.",
+    "desc": "Gmail 또는 IMAP 메일 계정을 연결하면 Q mail에서 받은 메일을 함께 보고 답장할 수 있어요. 여러 계정을 연결하면 주소별로도 볼 수 있어요.",
     "cta": "메일 계정 연결하기"
   },
   "nav": {

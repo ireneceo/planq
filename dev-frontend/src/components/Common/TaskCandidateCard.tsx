@@ -1,4 +1,4 @@
-// 공유 업무 후보 카드 (사이클 N+88 통일) — Q Talk · Q Mail · Q Note 공통.
+// 공유 업무 후보 카드 (사이클 N+88 통일) — Q Talk · Q mail · Q Note 공통.
 //   기존 QTalk/CandidateEditCard 를 일반화: 타입 generic + i18n 'common' ns. 페이지는 API 만 wiring.
 //   30년차 원칙: LLM 추출은 hint, 등록 직전 제목·담당·마감 인라인 편집. 담당≠본인 → "요청", 본인/미정 → "등록".
 import React, { useState, useMemo, useRef } from 'react';

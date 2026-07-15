@@ -224,7 +224,7 @@ const ProfileIntegrationsPage: React.FC = () => {
       <IntroCard>
         <IntroLine>
           <IntroDot $tone="personal" />
-          <span>{t('integrations.defPersonal', { defaultValue: '여기서 연결하는 건 나만 보는 내 개인 계정이에요. 같은 워크스페이스 동료에게는 보이지 않아요. (예: 개인 Gmail 을 연결하면 그 메일은 Q Mail 에서 나에게만, 회사 메일과 분리 표시)' }) as string}</span>
+          <span>{t('integrations.defPersonal', { defaultValue: '여기서 연결하는 건 나만 보는 내 개인 계정이에요. 같은 워크스페이스 동료에게는 보이지 않아요. (예: 개인 Gmail 을 연결하면 그 메일은 Q mail 에서 나에게만, 회사 메일과 분리 표시)' }) as string}</span>
         </IntroLine>
         <IntroLine>
           <IntroDot $tone="team" />
@@ -319,7 +319,7 @@ const ProfileIntegrationsPage: React.FC = () => {
              Gmail·네이버·다음·회사메일 등 아무 메일이나 앱 비밀번호로 연결 가능) ─── */}
       <Section>
         <SectionTitle>{t('integrations.mail', '메일') as string}</SectionTitle>
-        <SectionSub>{t('integrations.mailSub2', { defaultValue: 'Gmail·네이버·다음·회사 메일 등 아무 메일이나 연결해 Q Mail 인박스에서 받을 수 있어요 (본인만 보임). 추가·재연결은 "내 메일 계정"에서 해요.' }) as string}</SectionSub>
+        <SectionSub>{t('integrations.mailSub2', { defaultValue: 'Gmail·네이버·다음·회사 메일 등 아무 메일이나 연결해 Q mail 인박스에서 받을 수 있어요 (본인만 보임). 추가·재연결은 "내 메일 계정"에서 해요.' }) as string}</SectionSub>
         {personalMail.length === 0 ? (
           <Empty>
             <span>{t('integrations.mailEmpty', '연결된 개인 메일이 없어요') as string}</span>

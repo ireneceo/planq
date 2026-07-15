@@ -1,4 +1,4 @@
-// Q Mail M2 — 인박스 read-only UI (사이클 N+75-D 박제)
+// Q mail M2 — 인박스 read-only UI (사이클 N+75-D 박제)
 //
 // 3컬럼 구조 (Q_MAIL_SPEC §4.1 정합):
 //   좌: MailFolderTree (폴더 선택 — 답변필요/인박스/스팸/보관)
@@ -229,7 +229,9 @@ function buildMailSrcDoc(id: number, html: string): string {
   //   없어서(html 이 뷰포트를 채운다) 짧은 답장도 240px 로 남아 아래가 텅 빈 채 늘어졌다.
   const resize = `<script>(function(){var send=function(){var b=document.body;var h=Math.ceil(Math.max(b.scrollHeight,b.getBoundingClientRect().height,b.offsetHeight));parent.postMessage({planqMailFrame:${id},h:h},'*');};send();window.addEventListener('load',send);if(window.ResizeObserver)new ResizeObserver(send).observe(document.body);setTimeout(send,300);setTimeout(send,1200);})();<\/script>`;
   // 가로 넘침만 최소 보정 (고정폭 템플릿이 패널보다 넓을 때 잘리지 않고 스크롤되게)
-  const guard = '<style>html,body{margin:0;padding:0;height:auto;}body{overflow-x:auto;display:flow-root;}img{max-width:100%;height:auto;}</style>';
+  // 최상위 고정폭 블록(뉴스레터 table/div/center)을 가운데 정렬 — Gmail 등 타 클라이언트와 동일.
+  //   width 없는(=full) 콘텐츠는 margin:auto 영향 없이 그대로 풀폭. 고정폭만 중앙으로 모인다(Irene).
+  const guard = '<style>html,body{margin:0;padding:0;height:auto;}body{overflow-x:auto;display:flow-root;}img{max-width:100%;height:auto;}body>table,body>div,body>center,body>a{margin-left:auto;margin-right:auto;}</style>';
   const hasDoc = /<body[\s>]/i.test(safe);
   if (hasDoc) {
     if (/<\/body>/i.test(safe)) return safe.replace(/<\/body>/i, `${guard}${resize}</body>`);
@@ -558,7 +560,7 @@ const MailPage: React.FC = () => {
       if (!r.ok) throw new Error('dismiss_failed');
       setHandledIds(prev => new Set(prev).add(threadId));   // 자리를 지킨 채 '처리됨' 표시
       loadCounts();
-      window.dispatchEvent(new CustomEvent('inbox:refresh'));    // 사이드바 Q Mail 뱃지 즉시 갱신
+      window.dispatchEvent(new CustomEvent('inbox:refresh'));    // 사이드바 Q mail 뱃지 즉시 갱신
     } catch { /* 실패 시 목록 유지 — 다음 로드에서 복원 */ }
     finally { setDismissingId(null); }
   }, [businessId, loadCounts]);
@@ -1124,7 +1126,7 @@ const MailPage: React.FC = () => {
     } finally { setCSending(false); }
   };
 
-  if (!businessId) return <PageShell title="Q Mail"><Empty>{t('selectWorkspace', { defaultValue: '워크스페이스를 선택해 주세요.' }) as string}</Empty></PageShell>;
+  if (!businessId) return <PageShell title="Q mail"><Empty>{t('selectWorkspace', { defaultValue: '워크스페이스를 선택해 주세요.' }) as string}</Empty></PageShell>;
 
   // 3단 그리드 — 목록 | 상세 | 맥락.
   // 2열로 두면 맥락 패널이 갈 자리가 없어 상세를 덮고, 우측엔 화살표만 남는다
@@ -1137,7 +1139,7 @@ const MailPage: React.FC = () => {
         (detail && businessId && !rightCollapsed && !composeOpen) ? `${rightWidth}px` : '0px',
       ].join(' ')}
     >
-      {/* #130 — 좌측 리스트: 300px 접이식 (여태 340px 고정·접기 없음이라 Q Mail 만 다른 화면처럼 보였다) */}
+      {/* #130 — 좌측 리스트: 300px 접이식 (여태 340px 고정·접기 없음이라 Q mail 만 다른 화면처럼 보였다) */}
       {!sidebarCollapsed && viewportNarrow && <SidebarBackdrop onClick={() => setSidebarCollapsed(true)} />}
       {/* 좌측 리스트 접기 — 공통 FloatingPanelToggle(뷰포트 왼쪽 변 플로팅, 전 폭 동일 디자인). */}
       <FloatingPanelToggle
@@ -1150,7 +1152,7 @@ const MailPage: React.FC = () => {
       <CollapsibleSidebar $collapsed={sidebarCollapsed} $w={listWidth}>
         <PanelResizeHandle onMouseDown={startListResize} />
         <PanelHeader>
-          <PanelTitle>Q Mail</PanelTitle>
+          <PanelTitle>Q mail</PanelTitle>
           <HeaderActions>
             {accounts.length >= 1 && (
               <AcctManageIcon type="button" onClick={() => navigate('/business/settings/mail-accounts')}
@@ -1312,7 +1314,7 @@ const MailPage: React.FC = () => {
                 <path d="M22 6l-10 7L2 6" /><rect x="2" y="4" width="20" height="16" rx="2" />
               </EmptyIcon>
               <EmptyText>{t('noAccount.title', { defaultValue: '아직 연결된 메일 계정이 없어요' }) as string}</EmptyText>
-              <NoAcctHint>{t('noAccount.desc', { defaultValue: 'Gmail 또는 IMAP 메일 계정을 연결하면 Q Mail에서 받은 메일을 함께 보고 답장할 수 있어요. 여러 계정을 연결하면 주소별로도 볼 수 있어요.' }) as string}</NoAcctHint>
+              <NoAcctHint>{t('noAccount.desc', { defaultValue: 'Gmail 또는 IMAP 메일 계정을 연결하면 Q mail에서 받은 메일을 함께 보고 답장할 수 있어요. 여러 계정을 연결하면 주소별로도 볼 수 있어요.' }) as string}</NoAcctHint>
               <NoAcctBtn type="button" onClick={() => navigate('/business/settings/mail-accounts')}>
                 {t('noAccount.cta', { defaultValue: '메일 계정 연결하기' }) as string}
               </NoAcctBtn>
@@ -1516,7 +1518,7 @@ const MailPage: React.FC = () => {
           ) : detailLoading && !detail ? (
             <Loading><Spinner /></Loading>
           ) : !detail ? (
-            /* 빈 상태 — Q docs·Q Note·Q Talk 와 같은 공통 EmptyState (여태 Q Mail 만 13px 회색 한 줄) */
+            /* 빈 상태 — Q docs·Q Note·Q Talk 와 같은 공통 EmptyState (여태 Q mail 만 13px 회색 한 줄) */
             <EmptyState
               icon={(
                 <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">

@@ -1,7 +1,7 @@
 // 우측 패널 폭 — 단일 소스 (Fable 감사 2026-07-15: 폭이 6종 default + 4종 clamp 로 난립하던 것 수렴).
 //
 // PlanQ 우측 영역은 성격상 두 부류뿐이다:
-//   1) 컬럼형 워크벤치 — 본문 옆에 상주하는 리스트/맥락 컬럼 (Q Talk 작업대, Q Task 인사이트, Q Mail 맥락,
+//   1) 컬럼형 워크벤치 — 본문 옆에 상주하는 리스트/맥락 컬럼 (Q Talk 작업대, Q Task 인사이트, Q mail 맥락,
 //      좌측 리스트 Talk/Mail/Note/docs). flex 컬럼, 폭은 화면별 localStorage 저장.
 //   2) 오버레이 상세/편집 드로어 — position:fixed 로 본문 위를 덮는 상세/생성 폼
 //      (공통 DetailDrawer, TaskDetailDrawer, Clients, 업무추가 등).

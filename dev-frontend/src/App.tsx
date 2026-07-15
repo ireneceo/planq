@@ -95,7 +95,7 @@ const ShareReceivePage = lazy(() => import('./pages/ShareReceive/ShareReceivePag
 const InsightsPage = lazy(() => import('./pages/Insights/InsightsPage'));
 const PrivacyPolicy = lazy(() => import('./pages/Legal/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('./pages/Legal/TermsOfService'));
-// N+75-D Q Mail M2 — 인박스 read-only (옛 ComingSoonPage 자리 대체)
+// N+75-D Q mail M2 — 인박스 read-only (옛 ComingSoonPage 자리 대체)
 const MailPage = lazy(() => import('./pages/QMail/MailPage'));
 // Landing — 비로그인 외부 트래픽이 보는 영역 (HomePage 는 RootRoute 에서 직접 import)
 const LandingFeatures = lazy(() => import('./pages/Landing/FeaturesPage'));
@@ -409,7 +409,7 @@ function App() {
         {/* 기존 /billing URL 은 /bills 로 흡수 (북마크 호환) */}
         <Route path="/billing" element={<Navigate to="/bills" replace />} />
 
-        {/* Q Mail M2 — 인박스 read-only UI (사이클 N+75-D) */}
+        {/* Q mail M2 — 인박스 read-only UI (사이클 N+75-D) */}
         <Route path="/mail" element={
           <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
             <MainLayout><MailPage /></MainLayout>
