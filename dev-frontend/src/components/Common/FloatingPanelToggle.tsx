@@ -97,9 +97,13 @@ const Handle = styled.button<{ $open: boolean; $pulse: boolean; $side: 'left' | 
   position: fixed;
   top: 50%;
   transform: translateY(-50%);
+  /* 우측: 뷰포트 오른쪽 변(=콘텐츠 오른쪽). 좌측: 콘텐츠 왼쪽 변(앱 네비 폭 --pq-content-left 만큼 안쪽).
+     좌측을 뷰포트 left:0 으로 두면 앱 좌측 메뉴 뒤로 들어간다. */
   ${({ $side, $open, $openDist }) => ($side === 'right'
     ? css`right: ${$open ? $openDist : '0px'}; border-radius: 6px 0 0 6px;`
-    : css`left: ${$open ? $openDist : '0px'}; border-radius: 0 6px 6px 0;`)}
+    : css`left: ${$open
+        ? `calc(var(--pq-content-left, 0px) + ${$openDist})`
+        : 'var(--pq-content-left, 0px)'}; border-radius: 0 6px 6px 0;`)}
   z-index: 900;
   transition: right 0.28s cubic-bezier(0.22, 1, 0.36, 1),
               left 0.28s cubic-bezier(0.22, 1, 0.36, 1),
