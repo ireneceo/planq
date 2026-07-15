@@ -8,6 +8,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
+import CreateDrawer from '../../components/Common/CreateDrawer';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import { useAuth } from '../../contexts/AuthContext';
 import { listBusinessMembers, listProjects, listWorkspaceClients, type WorkspaceMemberRow, type WorkspaceClientRow, type ApiProject, type SupportedLang } from '../../services/qtalk';
@@ -152,17 +153,16 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
     }
   };
 
-  if (!open) return null;
   return (
-    <Backdrop onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <Dialog role="dialog" aria-modal="true">
-        <Header>
-          <Title>{t('newChat.title', '새 대화 시작')}</Title>
-          <CloseBtn onClick={onClose} aria-label={t('common:close', { defaultValue: '닫기' })}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </CloseBtn>
-        </Header>
-        <Body>
+    <CreateDrawer
+      open={open}
+      onClose={onClose}
+      title={t('newChat.title', '새 대화 시작')}
+      onSubmit={handleSubmit}
+      submitting={submitting}
+      submitLabel={t('newChat.create', '대화 만들기')}
+      submitDisabled={!canSubmit}
+    >
           <Field>
             <Label>{t('newChat.name', '대화창 이름')} <Req>*</Req></Label>
             <Input autoFocus value={title} placeholder={t('newChat.namePh', '예: 4월 정기 미팅 / Acme 온보딩')}
@@ -292,59 +292,13 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
               />
             )}
           </Field>
-        </Body>
-        <Footer>
-          <SecondaryBtn type="button" onClick={onClose}>{t('common.cancel', '취소')}</SecondaryBtn>
-          <PrimaryBtn type="button" onClick={handleSubmit} disabled={!canSubmit}>
-            {submitting ? t('newChat.creating', '생성 중...') : t('newChat.create', '대화 만들기')}
-          </PrimaryBtn>
-        </Footer>
-      </Dialog>
-    </Backdrop>
+    </CreateDrawer>
   );
 };
 
 export default NewChatModal;
 
 // ─── styled (디자인 토큰 통일: EmptyState / AddDrawer 와 동일 팔레트) ───
-const Backdrop = styled.div`
-  position:fixed;inset:0;background:rgba(15,23,42,0.40);z-index: 1000;
-  display:flex;align-items:center;justify-content:center;padding:20px;
-  animation:nmFade 0.15s ease-out;
-  @keyframes nmFade{from{opacity:0;}to{opacity:1;}}
-`;
-const Dialog = styled.div`
-  width:100%;max-width:520px;background:#FFF;border-radius:14px;
-  box-shadow:0 24px 48px rgba(15,23,42,0.18);
-  display:flex;flex-direction:column;max-height:90vh;overflow:hidden;
-  animation:nmPop 0.18s ease-out;
-  @keyframes nmPop{from{transform:translateY(8px);opacity:0.6;}to{transform:translateY(0);opacity:1;}}
-
-  /* mobile: top 고정 + 키보드 시 visual viewport(--vvh)로 높이 제한 → 하단 입력·버튼이 키보드에 안 가림 (운영 #23) */
-  @media (max-width: 640px) {
-    position: fixed; z-index: 1000;
-    top: 70px;
-    bottom: auto;
-    left: 16px;
-    right: 16px;
-    width: auto;
-    max-width: none;
-    max-height: calc(var(--vvh, 100vh) - 90px);
-  }
-`;
-const Header = styled.div`
-  padding:18px 22px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;
-`;
-const Title = styled.h2`font-size:16px;font-weight:700;color:#0F172A;margin:0;`;
-const CloseBtn = styled.button`
-  width:32px;height:32px;display:flex;align-items:center;justify-content:center;
-  background:transparent;border:none;border-radius:8px;color:#64748B;cursor:pointer;
-  &:hover{background:#F1F5F9;color:#0F172A;}
-`;
-const Body = styled.div`
-  padding:20px 22px;overflow-y:auto;display:flex;flex-direction:column;gap:18px;
-  flex:1;min-height:0;
-`;
 const Field = styled.div`display:flex;flex-direction:column;gap:6px;`;
 const Label = styled.label`font-size:13px;font-weight:600;color:#0F172A;`;
 const Req = styled.span`color:#F43F5E;margin-left:2px;`;
@@ -379,18 +333,4 @@ const ChipX = styled.button`
   width:18px;height:18px;display:flex;align-items:center;justify-content:center;
   background:transparent;border:none;color:#64748B;cursor:pointer;font-size:14px;line-height:1;border-radius:50%;
   &:hover{background:#E2E8F0;color:#0F172A;}
-`;
-const Footer = styled.div`
-  padding:14px 22px;border-top:1px solid #E2E8F0;display:flex;justify-content:flex-end;gap:8px;flex-shrink:0;background:#FAFBFC;
-`;
-const PrimaryBtn = styled.button`
-  height:40px;padding:0 20px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;
-  font-size:13px;font-weight:700;cursor:pointer;transition:background 0.15s;
-  &:hover:not(:disabled){background:#0D9488;}
-  &:disabled{background:#CBD5E1;cursor:not-allowed;}
-`;
-const SecondaryBtn = styled.button`
-  height:40px;padding:0 16px;background:#FFF;color:#475569;border:1px solid #E2E8F0;border-radius:8px;
-  font-size:13px;font-weight:600;cursor:pointer;
-  &:hover{background:#F8FAFC;border-color:#CBD5E1;}
 `;

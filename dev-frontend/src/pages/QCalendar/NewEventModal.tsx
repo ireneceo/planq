@@ -6,6 +6,7 @@ import type { CalendarEvent, EventCategory, EventVisibility } from './types';
 import { CATEGORY_OPTIONS } from './categoryColors';
 import { toDateKey } from './dateUtils';
 import PlanQSelect from '../../components/Common/PlanQSelect';
+import CreateDrawer from '../../components/Common/CreateDrawer';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import RecurrencePicker from '../../components/Common/RecurrencePicker';
 import { getVideoStatus } from '../../services/calendar';
@@ -175,18 +176,15 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
   };
 
   return (
-    <>
-      <Backdrop onClick={onClose} />
-      <Modal role="dialog" aria-modal="true" aria-label={t('new')}>
-        <Header>
-          <HeaderTitle>{t('new')}</HeaderTitle>
-          <CloseBtn onClick={onClose}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </CloseBtn>
-        </Header>
-        <Body>
+    <CreateDrawer
+      open
+      onClose={onClose}
+      title={t('new')}
+      onSubmit={handleSubmit}
+      submitting={submitting}
+      submitLabel={t('button.create')}
+      submitDisabled={!title.trim()}
+    >
           <Field>
             <TitleInput
               ref={titleRef}
@@ -370,63 +368,13 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
               placeholder={t('form.descriptionPlaceholder')}
             />
           </Field>
-        </Body>
-        <Footer>
-          <SecondaryBtn type="button" onClick={onClose}>{t('button.cancel')}</SecondaryBtn>
-          <PrimaryBtn type="button" disabled={!canSubmit} onClick={handleSubmit}>
-            {t('button.create')}
-          </PrimaryBtn>
-        </Footer>
-      </Modal>
-    </>
+    </CreateDrawer>
   );
 };
 
 export default NewEventModal;
 
 // ── styled ──
-const Backdrop = styled.div`
-  position: fixed; inset: 0; background: rgba(15, 23, 42, 0.08);
-  z-index: 1000;
-`;
-const Modal = styled.div`
-  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-  z-index: 1000; width: 540px; max-width: calc(100vw - 40px); max-height: calc(var(--vvh, 100vh) - 48px);
-  background: #fff; border-radius: 14px; box-shadow: 0 30px 60px -20px rgba(15, 23, 42, 0.25);
-  display: flex; flex-direction: column; overflow: hidden;
-
-  /* mobile: 바텀시트 — 하단 고정이라 키보드가 올라와도(--vvh 축소) 시트 바닥이 키보드 위에 붙어
-     흰 여백/푸터 상승이 없다(#161). Footer 는 flex-shrink:0 로 이미 시트 바닥에 고정. */
-  @media (max-width: 640px) {
-    top: auto;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    transform: none;
-    width: auto;
-    max-width: none;
-    border-radius: 14px 14px 0 0;
-    max-height: calc(var(--vvh, 100vh) - 24px);
-  }
-`;
-const Header = styled.div`
-  display: flex; align-items: center; padding: 14px 18px;
-  border-bottom: 1px solid #E2E8F0;
-  flex-shrink: 0;
-`;
-const HeaderTitle = styled.div`
-  flex: 1; font-size: 15px; font-weight: 700; color: #0F172A; letter-spacing: -0.1px;
-`;
-const CloseBtn = styled.button`
-  width: 30px; height: 30px; border: none; background: transparent; color: #64748B;
-  border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center;
-  &:hover { background: #F1F5F9; color: #0F172A; }
-`;
-const Body = styled.div`
-  padding: 16px 18px; overflow-y: auto;
-  display: flex; flex-direction: column; gap: 14px;
-  flex: 1; min-height: 0;
-`;
 const Field = styled.div` display: flex; flex-direction: column; gap: 6px; position: relative; `;
 const Label = styled.label`
   font-size: 11px; font-weight: 600; color: #64748B;
@@ -496,22 +444,4 @@ const Textarea = styled.textarea`
   font-size: 13px; color: #0F172A; outline: none; resize: vertical;
   font-family: inherit;
   &:focus { border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.12); }
-`;
-const Footer = styled.div`
-  padding: 12px 18px; border-top: 1px solid #E2E8F0;
-  display: flex; justify-content: flex-end; gap: 8px;
-  flex-shrink: 0;
-  @media (max-width: 640px) { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
-`;
-const SecondaryBtn = styled.button`
-  padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 500;
-  background: transparent; color: #475569; border: 1px solid #CBD5E1; cursor: pointer;
-  &:hover { background: #F8FAFC; color: #0F172A; }
-`;
-const PrimaryBtn = styled.button`
-  padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600;
-  background: #14B8A6; color: #fff; border: none; cursor: pointer;
-  transition: background 0.15s ease;
-  &:hover:not(:disabled) { background: #0F766E; }
-  &:disabled { background: #CBD5E1; cursor: not-allowed; }
 `;
