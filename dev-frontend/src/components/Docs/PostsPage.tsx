@@ -1136,7 +1136,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                       <AiRegenerateBar busy={regenBusy} onRegenerate={regenerateDoc} />
                     </AiRegenRow>
                   )}
-                  <PostEditor value={contentDraft} onChange={setContentDraft} businessId={scope.businessId} placeholder={t('contentPlaceholder', '본문을 작성하세요…') as string} />
+                  <PostEditor value={contentDraft} onChange={setContentDraft} businessId={scope.businessId} placeholder={t('contentPlaceholder', '본문을 작성하세요…') as string} borderless />
                 </>
               )}
 
@@ -1187,13 +1187,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               </PanelSubTitle>
               </TitleRow>
               <EditActions>
-                {/* N+72-7 — 30년차 UX 재구성. 공개=visibility (chip), 공유=share (외부). 자주 안 쓰는 액션은 IconBtn + 툴팁. */}
-                {/* 1) 공개 범위 chip — 상태 표시 + 클릭 시 변경 모달 */}
-                <VisChip type="button" onClick={() => setVisModalOpen(true)} title={t('visibility.changeHint', '공개 범위 변경') as string} $level={detail.vlevel || 'L3'}>
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/></svg>
-                  {t('visibility.openLabel', '공개') as string}: {visLabel(detail.vlevel)}
-                </VisChip>
-                {/* 2) Primary 액션 — 자주 쓰는 것 */}
+                {/* N+72-7 — 30년차 UX 재구성. 공개=visibility, 공유=share (외부). 자주 안 쓰는 액션은 IconBtn + 툴팁. */}
+                {/* 공개 chip 은 헤더에서 제거 — 아래 MetaBar 로 단일화(중복 제거, Irene). 헤더는 제목+액션 전용. */}
+                {/* Primary 액션 — 자주 쓰는 것 */}
                 <PrimaryBtn type="button" onClick={() => setShareOpen(true)} title={t('share.headerHint', '외부 사람과 공유 — 링크 / 이메일 / 만료') as string}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
                   {t('share.button', '공유')}
@@ -1222,6 +1218,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             </PanelHeader>
             <Body>
               <ViewMeta>
+                <MetaLeft>
                 <span>{displayName(detail.author, i18n.language) || '—'}</span>
                 <span>·</span>
                 <span>{formatDate(detail.created_at)}</span>
@@ -1243,6 +1240,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                     {detail.project.name}
                   </ProjectTag>
                 )}
+                </MetaLeft>
+                <MetaRight>
                 {/* N+67 — visibility chip + 변경 modal */}
                 <VisibilityChip
                   type="button"
@@ -1259,6 +1258,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 )}
                 {/* D4 #62 — 보안등급 배지 (일반은 노이즈 0, 자동 숨김) */}
                 <SecurityLevelBadge level={detail.security_level} />
+                </MetaRight>
               </ViewMeta>
               {/* D4 #62 — 보안등급 선택 (visibility 와 별개 축. 내부·기밀은 외부 공유 차단) */}
               <SecurityRow>
@@ -1285,14 +1285,14 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   // 표 kind — 본문 설명(있으면) + Q record 그리드 (보기 모드: read-only)
                   <>
                     {detail.content_json && (
-                      <PostEditor value={detail.content_json} onChange={() => {}} editable={false} />
+                      <PostEditor value={detail.content_json} onChange={() => {}} editable={false} borderless />
                     )}
                     {/* N+72-7 — 본문↔표 사이 간격 (사용자 호소 "들러붙어 보기 안좋아") */}
                     {detail.content_json && <SectionGap />}
                     <PostTableGrid recordId={detail.q_record_id} businessId={scope.businessId} readOnly />
                   </>
                 ) : (
-                  <PostEditor value={detail.content_json} onChange={() => {}} editable={false} />
+                  <PostEditor value={detail.content_json} onChange={() => {}} editable={false} borderless />
                 )}
               </div>
 
@@ -1865,18 +1865,6 @@ const KindBtn = styled.button<{ $active: boolean }>`
   & + & { border-left: 1px solid #E2E8F0; }
 `;
 // N+72-7 — 헤더 공개범위 chip (RowVisChip 보다 크고 button 형태, 클릭=변경)
-const VisChip = styled.button<{ $level: string }>`
-  display: inline-flex; align-items: center; gap: 5px;
-  height: 28px; padding: 0 10px;
-  background: ${p => p.$level === 'L1' ? '#F1F5F9' : p.$level === 'L2' ? '#FEF3C7' : p.$level === 'L4' ? '#FCE7F3' : '#CCFBF1'};
-  color: ${p => p.$level === 'L1' ? '#475569' : p.$level === 'L2' ? '#92400E' : p.$level === 'L4' ? '#9F1239' : '#0F766E'};
-  border: 1px solid ${p => p.$level === 'L1' ? '#CBD5E1' : p.$level === 'L2' ? '#FDE68A' : p.$level === 'L4' ? '#FBCFE8' : '#5EEAD4'};
-  border-radius: 999px;
-  font-size: 12px; font-weight: 600;
-  cursor: pointer;
-  transition: background 0.12s, border-color 0.12s;
-  &:hover { filter: brightness(0.97); }
-`;
 const ShareMini = styled.span`font-size: 11px; cursor: help;`;
 const RowMeta = styled.div`
   margin-top: 6px;
@@ -1901,7 +1889,8 @@ const Body = styled.div`
   flex: 1; min-height: 0;
   padding: 24px 28px;
   overflow-y: auto;
-  background: #F8FAFC;
+  /* 회색 카드-페이지 대비 제거 — 채팅·메일처럼 풀레이아웃(Irene). PostEditor 는 borderless 로 카드 제거. */
+  background: #fff;
   display: flex; flex-direction: column; gap: 16px;
   @media (max-width: 900px) {
     /* 모바일: Content가 스크롤하므로 Body는 스크롤 안 함 */
@@ -1919,10 +1908,14 @@ const EditActions = styled.div`
   display: flex; gap: 8px; flex-wrap: wrap;
   @media (max-width: 640px) { gap: 6px; }
 `;
+// 상세 메타 — 헤더 아래 한 줄 MetaBar. 좌(작성자·날짜·분류·프로젝트) ↔ 우(공개·공유·보안). (Irene)
 const ViewMeta = styled.div`
-  display: flex; align-items: center; gap: 8px;
-  font-size: 12px; color: #94A3B8; flex-wrap: wrap;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  font-size: 12px; color: #94A3B8;
+  padding-bottom: 12px; border-bottom: 1px solid #F1F5F9;
 `;
+const MetaLeft = styled.div`display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0;`;
+const MetaRight = styled.div`display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex-shrink: 0;`;
 // D4 #62 — 보안등급 선택 행 (DocsTab files 패턴 정합)
 const SecurityRow = styled.div`
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
