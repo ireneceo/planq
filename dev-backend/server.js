@@ -521,10 +521,23 @@ function scheduleNextMidnight() {
       const r = await shareExpiry.runShareExpiryNotify(io);
       console.log('[share-expiry-notify]', r);
     } catch (e) { console.warn('[share-expiry-notify] failed', e.message); }
+    // Cue 자동실행 복구 — fire-and-forget 유실로 갇힌 '담당=Cue 미처리' 업무 재실행 (실사례 task 785)
+    try {
+      const cueRecovery = require('./services/cueTaskRecovery');
+      const r = await cueRecovery.runCueTaskRecovery();
+      console.log('[cue-recovery]', r);
+    } catch (e) { console.warn('[cue-recovery] failed', e.message); }
     scheduleNextMidnight();
   }, delay);
 }
 scheduleNextMidnight();
+
+// Cue 복구 — 부팅 2분 후 1회 스윕. 배포·재시작(=fire-and-forget 유실의 주원인) 직후 갇힌 업무를 빠르게 회복.
+setTimeout(() => {
+  require('./services/cueTaskRecovery').runCueTaskRecovery()
+    .then((r) => console.log('[cue-recovery boot]', r))
+    .catch((e) => console.warn('[cue-recovery boot] failed', e.message));
+}, 120000);
 
 // 주간 보고 자동 박제 cron (매시간 0분)
 const { initWeeklyReviewCron } = require('./services/weeklyReviewCron');
