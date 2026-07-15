@@ -2056,7 +2056,11 @@ const QNotePage = () => {
                     setSessions(prev => [created, ...prev]);
                     navigate(`/notes/${created.id}`, { replace: true });
                   } catch (e) {
+                    // preCreate 실패 → lazy compose 폴백(MemoView 가 첫 입력 시 POST + 실패 시 error Dot 표면화).
+                    // 침묵 금지 — canonical onStart(memo) 경로와 동일하게 로그 남긴다.
+                    console.warn('[QNote] preCreate failed, falling back to lazy create', e);
                     setActiveSession(null);
+                    setComposingPrefill({ project_id: null, client_id: null });
                     setComposingMemo(true);
                     navigate('/notes', { replace: true });
                   }
@@ -2220,8 +2224,10 @@ const QNotePage = () => {
                 setComposingMemo(false);
                 setSessions(prev => [created, ...prev]);
                 navigate(`/notes/${created.id}`, { replace: true });
-              } catch {
+              } catch (e) {
+                console.warn('[QNote] preCreate failed, falling back to lazy create', e);
                 setActiveSession(null);
+                setComposingPrefill({ project_id: null, client_id: null });
                 setComposingMemo(true);
                 navigate('/notes', { replace: true });
               }

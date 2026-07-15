@@ -21,6 +21,7 @@ import {
   type KbDocumentRow, type KbCategory,
 } from '../../services/knowledge';
 import { fetchWorkspaceFiles, uploadMyFile, type ProjectFile } from '../../services/files';
+import { OVERLAY_DRAWER } from '../../theme/panelWidth';
 
 const CATEGORIES: KbCategory[] = ['policy', 'manual', 'incident', 'faq', 'about', 'pricing'];
 
@@ -191,7 +192,7 @@ const ProjectKnowledgeTab: React.FC<Props> = ({ businessId, projectId }) => {
 
       {/* 상세 drawer — KnowledgePage 와 동일 패턴 (작은 버전) */}
       {detailId !== null && (
-        <DetailDrawer open onClose={() => setDetailId(null)} width={460} ariaLabel={t('drawer.title', '정보 상세') as string}>
+        <DetailDrawer open onClose={() => setDetailId(null)} width={OVERLAY_DRAWER.default} ariaLabel={t('drawer.title', '정보 상세') as string}>
           <DetailDrawer.Header onClose={() => setDetailId(null)}>
             <DrawerTitle>{detail?.title || '...'}</DrawerTitle>
           </DetailDrawer.Header>

@@ -2280,8 +2280,10 @@ const QTaskPage:React.FC=()=>{
 
       {/* ════ RIGHT ════ */}
       {/* 우측 패널 접기/펼치기 — 공통 FloatingPanelToggle(뷰포트 변 플로팅, 전 폭 동일 디자인).
-          열림 시 실제 패널 폭(rightWidth)을 offset 으로 넘겨 패널 안쪽 변에 붙인다. */}
-      {!isNarrow && (!isClient || !!detailTaskId) && (
+          토글은 '인사이트 컬럼(rightWidth)' 전용. 상세 드로어(TaskDetailDrawer, fixed 오버레이,
+          폭 drawerWidth)가 열리면 그 위를 덮으므로 토글 숨김 — 닫기는 드로어 자체 CloseBtn 이 담당.
+          (혼선 방지: 토글이 rightWidth 만 보고 떠서 drawerWidth 와 어긋나던 회귀 차단) */}
+      {!isNarrow && !detailTaskId && !isClient && (
         <FloatingPanelToggle
           side="right"
           open={!rightCollapsed}

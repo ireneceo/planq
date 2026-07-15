@@ -7,13 +7,15 @@
 //
 // 메모리 박제 (반응형 드로어 정책): ≥1025px 지정 width / 641~1024 90vw / ≤640 100vw.
 // 본 helper 는 ≥641px 의 default 시작값. DetailDrawer 컴포넌트가 모바일 풀스크린 처리.
+import { OVERLAY_DRAWER } from '../theme/panelWidth';
+
 export function responsiveDrawerWidth(savedKey?: string): number {
   if (savedKey) {
     try {
       const v = localStorage.getItem(savedKey);
-      if (v) return Math.max(360, Math.min(1000, Number(v)));
+      if (v) return Math.max(OVERLAY_DRAWER.savedMin, Math.min(OVERLAY_DRAWER.savedMax, Number(v)));
     } catch { /* ignore */ }
   }
-  if (typeof window === 'undefined') return 480;
-  return Math.max(380, Math.min(560, Math.round(window.innerWidth * 0.35)));
+  if (typeof window === 'undefined') return OVERLAY_DRAWER.default;
+  return Math.max(OVERLAY_DRAWER.min, Math.min(OVERLAY_DRAWER.max, Math.round(window.innerWidth * 0.35)));
 }
