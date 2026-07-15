@@ -5,9 +5,11 @@
 // 조절되게 이 하나를 쓴다. 폭은 화면별로 localStorage 에 저장돼 다음에 들어와도 그대로다.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
+import { COLUMN_PANEL } from '../../theme/panelWidth';
 
-export const PANEL_MIN_W = 240;
-export const PANEL_MAX_W = 520;
+// 컬럼형 패널 폭 clamp — 단일 소스(theme/panelWidth) 참조.
+export const PANEL_MIN_W = COLUMN_PANEL.min;
+export const PANEL_MAX_W = COLUMN_PANEL.max;
 
 /**
  * 패널 폭 상태 + 드래그 시작 핸들러.

@@ -8,6 +8,7 @@ import DetailDrawer from '../../components/Common/DetailDrawer';
 import ActionButton from '../../components/Common/ActionButton';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import type { PersonalCalendarEvent } from './types';
+import { OVERLAY_DRAWER } from '../../theme/panelWidth';
 
 interface Props {
   event: PersonalCalendarEvent;
@@ -19,7 +20,7 @@ export default function PersonalEventDrawer({ event, onClose }: Props) {
   const { formatDateTime } = useTimeFormat();
 
   return (
-    <DetailDrawer open onClose={onClose} width={420} ariaLabel={t('personal.ariaLabel', { defaultValue: '개인 일정 상세' }) as string}>
+    <DetailDrawer open onClose={onClose} width={OVERLAY_DRAWER.default} ariaLabel={t('personal.ariaLabel', { defaultValue: '개인 일정 상세' }) as string}>
       <DetailDrawer.Header onClose={onClose}>
         <HeadWrap>
           <Title>{event.title}</Title>
