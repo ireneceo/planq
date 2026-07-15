@@ -55,13 +55,16 @@ async function createPendingSubscription({ businessId, planCode, cycle, userId, 
 
   const t = await sequelize.transaction();
   try {
-    // 기존 active/past_due/grace 구독 → replaced 처리
+    // 기존 '미결제 pending' 체크아웃만 replaced (재오픈/재클릭 dedupe).
+    //   ★결제완료 active/past_due/grace 는 건드리지 않는다 — 새 체크아웃을 열었다고 이미 낸 구독을
+    //   미결제로 갈아치우면 결제가 고아가 된다(운영 워프로랩 실사고). 새 결제가 mark-paid 될 때
+    //   markPaymentPaid 가 이전 active 를 supersede 한다.
     await Subscription.update(
       { status: 'replaced', canceled_at: new Date() },
       {
         where: {
           business_id: businessId,
-          status: { [Op.in]: ['active', 'past_due', 'grace', 'pending'] },
+          status: 'pending',
         },
         transaction: t,
       }
@@ -188,6 +191,21 @@ async function markPaymentPaid({ paymentId, markedByUserId, payerName, payerMemo
       next_billing_at: periodEnd,
       past_due_at: null, grace_started_at: null, grace_ends_at: null, demoted_at: null,
     }, { transaction: t });
+
+    // ★새 구독이 활성화되면 그 워크스페이스의 '다른' 결제완료 구독(active/past_due/grace)을 supersede.
+    //   createPendingSubscription 이 더 이상 active 를 안 밀어내므로, 실제 승계는 여기(결제확정 시점)에서 한 번만.
+    //   (같은 sub 재-mark 는 위 alreadyPaid 가드로 차단되어 자기 자신을 replaced 로 만들 일은 없다)
+    await Subscription.update(
+      { status: 'replaced', canceled_at: now },
+      {
+        where: {
+          business_id: sub.business_id,
+          id: { [Op.ne]: sub.id },
+          status: { [Op.in]: ['active', 'past_due', 'grace'] },
+        },
+        transaction: t,
+      }
+    );
 
     // Business.plan 동기화 + 이력 기록
     const biz = await Business.findByPk(sub.business_id, { transaction: t, lock: t.LOCK.UPDATE });
@@ -507,12 +525,17 @@ async function buildReceiptPdf(paymentId) {
 
 // ─── 6. 현재 구독 조회 ───
 async function getCurrentSubscription(businessId) {
+  // ★결제완료(active/grace/past_due)를 미결제 pending 보다 우선 반환.
+  //   안 그러면 결제한 상태에서 새 체크아웃(pending)을 열면 화면이 '미결제/프리'로 보인다(운영 워프로랩 실사고).
   return await Subscription.findOne({
     where: {
       business_id: businessId,
       status: { [Op.in]: ['pending', 'active', 'past_due', 'grace'] },
     },
-    order: [['created_at', 'DESC']],
+    order: [
+      [sequelize.literal(`FIELD(status, 'active', 'grace', 'past_due', 'pending')`), 'ASC'],
+      ['created_at', 'DESC'],
+    ],
   });
 }
 
