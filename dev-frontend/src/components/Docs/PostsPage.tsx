@@ -1123,7 +1123,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               {detail?.kind === 'table' && detail.q_record_id ? (
                 <>
                   {/* 표 설명 — 열기/닫기 하나의 full-width 헤더 바로 통일(닫힘=헤더만, 열림=헤더+에디터). (Irene) */}
-                  <div className="pq-fullbleed">
+                  <div className="pq-fullbleed" style={{ marginTop: -16 }}>
                     <DescToggleHeader type="button" onClick={() => setTableDescOpen(v => !v)} aria-expanded={tableDescOpen}>
                       <DescBoxLabel>{t('tableDescTitle', { defaultValue: '표 설명' }) as string}</DescBoxLabel>
                       <DescChevron $open={tableDescOpen}>
@@ -1281,7 +1281,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 </MetaRight>
               </ViewMeta>
               {/* 보안등급 상시노출 SecurityRow 제거 — 뷰는 MetaBar chip(일반 자동숨김), 변경은 편집 모드 메타에서(Irene) */}
-              <div data-print-area className="pq-fullbleed">
+              <div data-print-area className="pq-fullbleed" style={{ marginTop: -16 }}>
                 <PrintOnlyTitle>{detail.title}</PrintOnlyTitle>
                 {detail.kind === 'table' && detail.q_record_id ? (
                   // 표 kind — 본문 설명(있으면) + Q record 그리드 (보기 모드: read-only)
@@ -2002,7 +2002,7 @@ const DescToggleHeader = styled.button`
   display: flex; align-items: center; justify-content: space-between; width: 100%;
   padding: 10px 24px; text-align: left;
   background: #F8FAFC; border: none;
-  border-top: 1px solid #F1F5F9; border-bottom: 1px solid #F1F5F9;
+  border-bottom: 1px solid #F1F5F9;
   cursor: pointer; transition: background 0.15s;
   &:hover { background: #F1F5F9; }
 `;

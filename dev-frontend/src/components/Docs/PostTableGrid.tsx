@@ -977,6 +977,8 @@ const AttachChipLink = styled.a<{ $kind: 'file' | 'post' }>`
 const EmptyWrap = styled.div`
   padding: 36px 24px; background: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 10px;
   text-align: center;
+  /* 라운드 박스라 좌우 끝에 붙으면 안 됨 — full-bleed 컨테이너 안에서 좌우 여백(Irene) */
+  margin: 0 24px;
 `;
 const EmptyTitle = styled.div`font-size: 14px; font-weight: 600; color: #0F172A; margin-bottom: 4px;`;
 const EmptyHint = styled.div`font-size: 12px; color: #64748B; margin-bottom: 14px;`;
