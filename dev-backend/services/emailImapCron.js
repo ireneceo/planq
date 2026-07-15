@@ -491,9 +491,10 @@ async function tick() {
 }
 
 function init() {
-  // 5분 마다 — '*/5 * * * *'
-  cron.schedule('*/5 * * * *', () => { tick().catch(() => {}); });
-  console.log('[emailImapCron] initialized — runs every 5 minutes');
+  // 2분 마다 — 수신 지연 단축(Irene: 실시간에 더 가깝게). fetch 후 socket 'mail:new' 로 UI 자동 갱신.
+  //   (진짜 즉시는 IMAP IDLE push 필요 — 백로그. Gmail IMAP 2분 폴링은 rate-limit 여유.)
+  cron.schedule('*/2 * * * *', () => { tick().catch(() => {}); });
+  console.log('[emailImapCron] initialized — runs every 2 minutes');
 }
 
 module.exports = { init, tick, syncOne, isKnownContact };
