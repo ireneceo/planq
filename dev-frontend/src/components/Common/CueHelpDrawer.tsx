@@ -16,6 +16,7 @@ import { formatDate } from '../../utils/dateFormat';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { mapApiError } from '../../utils/apiError';
 import { fetchWikiContext, fetchWikiCategories, type WikiArticleSummary, type WikiCategory } from '../../services/wiki';
+import CueActionCard, { type CueProposal, type CueActionResult } from './CueActionCard';
 
 // 사이클 P7d — 채팅 모드 분리: qhelper(PlanQ 매뉴얼) / workspace(Cue, 워크스페이스 데이터)
 // 'feedback' / 'inquiry' 는 별도 view (채팅 아닌 폼)
@@ -45,9 +46,23 @@ interface Turn {
   sources?: Array<{ slug: string; title: string }>;  // Q위키 RAG 근거 article
   logId?: number | null;                              // KNOWLEDGE_LOOP 축2 — 피드백 대상 로그
   feedback?: 'helpful' | 'not_helpful';               // 제출된 피드백 (재클릭 차단)
+  proposedAction?: CueProposal;                       // #81 — Cue 실행 제안 (확인 카드)
+  actionStatus?: 'pending' | 'done' | 'dismissed';    // 카드 상태
+  actionResult?: CueActionResult;                     // 실행 결과 (딥링크용)
 }
 
 // N+93 — standalone: /help-popout 분리 창에서 풀윈도우로 마운트 (FAB/백드롭 없음, 항상 open, 닫기=window.close).
+// #81 — 실행 완료 요약 (확인 카드가 접힌 뒤)
+const ActionDone = styled.div`
+  margin-top: 8px; display: flex; align-items: center; gap: 10px;
+  font-size: 13px; color: #0f766e; font-weight: 600;
+`;
+const ActionOpen = styled.button`
+  border: 1px solid #99f6e4; background: #f0fdfa; color: #0f766e;
+  border-radius: 8px; padding: 4px 10px; font-size: 12px; font-weight: 700; cursor: pointer;
+  &:hover { background: #ccfbf1; }
+`;
+
 const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false }) => {
   const { t } = useTranslation('common');
   const { t: tErr } = useTranslation('errors');
@@ -235,7 +250,14 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
         throw new Error(msg as string);
       }
       const srcs = Array.isArray(j.data?.sources) ? j.data.sources : [];
-      setTurns(prev => prev.map((tn, i) => i === prev.length - 1 ? { ...tn, a: j.data.answer || '', loading: false, sources: srcs, logId: j.data.log_id ?? null } : tn));
+      // #81 — Cue 실행 제안 (workspace 모드). 화이트리스트 툴만 카드로.
+      const pa = j.data?.proposed_action;
+      const proposed = pa && ['create_task', 'create_event', 'create_document_draft'].includes(pa.tool)
+        ? (pa as CueProposal) : undefined;
+      setTurns(prev => prev.map((tn, i) => i === prev.length - 1
+        ? { ...tn, a: j.data.answer || '', loading: false, sources: srcs, logId: j.data.log_id ?? null,
+            proposedAction: proposed, actionStatus: proposed ? 'pending' as const : undefined }
+        : tn));
     } catch (e) {
       setTurns(prev => prev.map((tn, i) => i === prev.length - 1
         ? { ...tn, error: mapApiError(e, tErr), loading: false }
@@ -259,6 +281,18 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
       });
     } catch { /* 피드백 실패는 조용히 무시 */ }
   }, [turns, isGuest]);
+
+  // #81 — 확인 카드 실행 완료/취소 → 해당 턴 상태 갱신
+  const onActionExecuted = useCallback((turnIdx: number, r: CueActionResult) => {
+    setTurns(prev => prev.map((tn, i) => i === turnIdx ? { ...tn, actionStatus: 'done' as const, actionResult: r } : tn));
+  }, []);
+  const onActionDismiss = useCallback((turnIdx: number) => {
+    setTurns(prev => prev.map((tn, i) => i === turnIdx ? { ...tn, actionStatus: 'dismissed' as const } : tn));
+  }, []);
+  const actionDeepLink = (r: CueActionResult): string =>
+    r.entity_type === 'task' ? `/tasks?task=${r.entity_id}`
+      : r.entity_type === 'event' ? `/calendar?event=${r.entity_id}`
+        : `/info?doc=${r.entity_id}`;
 
   // 게스트 문의 제출 — 랜딩 /contact 와 동일 백엔드 (POST /api/inquiries)
   const submitInquiry = useCallback(async () => {
@@ -537,6 +571,24 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
                       : tn.error
                         ? <ErrorText>{tn.error}</ErrorText>
                         : <Answer>{tn.a}</Answer>}
+                    {/* #81 — Cue 실행 제안 확인 카드 (workspace 모드) */}
+                    {mode === 'workspace' && !tn.loading && !tn.error && tn.proposedAction && tn.actionStatus !== 'dismissed' && (
+                      tn.actionStatus === 'done' && tn.actionResult ? (
+                        <ActionDone>
+                          <span>✓ {t('qhelper.action.done', '추가됐어요')}</span>
+                          <ActionOpen type="button" onClick={() => { navigate(actionDeepLink(tn.actionResult!)); closeDrawer(); }}>
+                            {t('qhelper.action.open', '열기')} ↗
+                          </ActionOpen>
+                        </ActionDone>
+                      ) : (
+                        <CueActionCard
+                          proposal={tn.proposedAction}
+                          businessId={user?.business_id ?? null}
+                          onExecuted={(r) => onActionExecuted(i, r)}
+                          onDismiss={() => onActionDismiss(i)}
+                        />
+                      )
+                    )}
                     {mode === 'qhelper' && !tn.loading && !tn.error && tn.sources && tn.sources.length > 0 && (
                       <Sources>
                         <SourcesLabel>{tw('drawer.sources')}</SourcesLabel>

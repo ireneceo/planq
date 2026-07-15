@@ -1,8 +1,22 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-07-15 (Opus, 1M) — 행동 계층 3사이클: **일정·문서 생성 단일 착지점**(event_create / document_draft)
-**작업 상태:** 완료 (dev 검증 통과 — 실HTTP+서비스 25/25 · 데이터 전량 원복 · **미배포**, 미커밋)
+**마지막 업데이트:** 2026-07-15 (Opus, 1M) — **#81 Cue 대화형 실행** (자연어 → 툴 제안 → confirm → 실행)
+**작업 상태:** 완료 (dev 검증 통과 — 빌드 EXIT0/TS0 · guard 20/20 · 실HTTP+서비스 24/24 · LLM 스모크 · 데이터 원복 · **미배포**, **미커밋**)
+
+---
+
+## ✅ 이번 세션 완료 (2026-07-15) — #81 Cue 대화형 실행
+
+행동 계층(전이+생성 카탈로그) + LLM 게이트웨이 위에 **툴 시그니처 + confirm 게이트**만 얹음(별도 개발 아님, 설계 §D-2.5). `/기능설계` 6단계 + 시니어 설계 검증.
+
+- **신규:** `services/cue_tools.js`(카탈로그·검증·담당자해석·dispatch) · `POST /api/cue/execute-action` · `CueActionCard.tsx` · guard `cuetools` · docs 2개(DESIGN·TESTS)
+- **확장:** `routes/cue.js /help`(tools+로스터+tz+킬스위치) · `CueHelpDrawer.tsx`(Turn.proposedAction) · i18n ko/en(qhelper.action 34키)
+- **안전:** actor=사용자 본인(새 권한상승 0) · 재무 영구 봉쇄 · 킬스위치 `CUE_TOOLS_ENABLED` · 담당자 못 찾으면 본인 fallback
+- **검증:** 빌드 EXIT0/TS0 · guard 20/20 · 헬스 30/30 · 실HTTP 24/24 · LLM 스모크("박개발에게 다음주 수요일까지…" → assignee=17·due=07-22) · 데이터 원복
+- **함정 기록:** cue_tools 의 BusinessMember→User include 에 `as:'user'` 필수(다중 연관). pm2 restart 잊으면 옛 코드 물고 alias 에러.
+
+**다음 세션: 커밋 필요(미커밋). 이 기능은 Fable 게이트 대상(보안 경계) — 배포 전 권장. 배포는 Irene "/배포" 시에만.**
 
 ---
 
