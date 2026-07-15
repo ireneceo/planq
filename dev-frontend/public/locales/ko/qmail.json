@@ -320,7 +320,8 @@
   },
   "filters": {
     "allLabels": "태그 전체",
-    "allProjects": "프로젝트 전체"
+    "allProjects": "프로젝트 전체",
+    "toggle": "필터"
   },
   "signature": {
     "title": "서명",

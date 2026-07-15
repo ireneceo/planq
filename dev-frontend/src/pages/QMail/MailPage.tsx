@@ -32,7 +32,6 @@ import FloatingPanelToggle from '../../components/Common/FloatingPanelToggle';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import {
   AcctFilterRow,
-  AcctManageChip,
   AcctSelectWrap,
   AddLabelChip,
   AiGatedHint,
@@ -132,7 +131,12 @@ import {
   UncertainBadge,
   UncertainInline,
   UnreadDot,
-  FolderTabsRow,
+  ToolRow,
+  FilterToggle,
+  FilterChevron,
+  FilterBadge,
+  FilterPanel,
+  AcctManageIcon,
   BulkAction,
 } from './MailPage.styles';
 
@@ -626,6 +630,20 @@ const MailPage: React.FC = () => {
     } catch { /* 무시 — 실패 시 목록 그대로 */ } finally { setBulkBusy(false); }
   }, [businessId, bulkBusy, bulkAction, folder, loadList, loadCounts]);
   useEffect(() => { setBulkConfirm(false); }, [folder]);  // 폴더 바뀌면 확인 상태 리셋
+
+  // #154 — 접이식 필터(Fable): 기본 데스크탑 펼침·모바일 접힘. 사용자 토글은 localStorage 영속.
+  const [filtersOpen, setFiltersOpen] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('qmail:filtersOpen');
+      if (saved != null) return saved === '1';
+    } catch { /* ignore */ }
+    return !(typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches);
+  });
+  useEffect(() => {
+    try { localStorage.setItem('qmail:filtersOpen', filtersOpen ? '1' : '0'); } catch { /* ignore */ }
+  }, [filtersOpen]);
+  // 접혀 있어도 "필터 걸림"을 배지로 알린다 — 숨겨진 필터로 인한 혼란 차단.
+  const activeFilterCount = (accountFilter ? 1 : 0) + (projectFilter ? 1 : 0) + (labelFilter ? 1 : 0);
 
   // 라벨 토글 (상세) — 현재 라벨 배열에 추가/제거
   const toggleLabel = useCallback((name: string) => {
@@ -1158,18 +1176,38 @@ const MailPage: React.FC = () => {
             </svg>
           </ComposeBtn>
         </PanelHeader>
-        <FolderTabsRow>
-          <FolderTabs>
-            {FOLDERS.map(({ key, defaultLabel }) => (
-              <FolderTab key={key} type="button" $active={folder === key} onClick={() => setFolder(key)}>
-                {t(`folders.${key}`, { defaultValue: defaultLabel }) as string}
-                {folderCounts[key] > 0 && <TabCount $active={folder === key}>{folderCounts[key]}</TabCount>}
-              </FolderTab>
-            ))}
-          </FolderTabs>
-          {/* #154 — 폴더 맥락 일괄 액션(그 폴더에 항목 있을 때만). 세로 줄 추가 없이 탭 줄 우측 고정. */}
+        <FolderTabs>
+          {FOLDERS.map(({ key, defaultLabel }) => (
+            <FolderTab key={key} type="button" $active={folder === key} onClick={() => setFolder(key)}>
+              {t(`folders.${key}`, { defaultValue: defaultLabel }) as string}
+              {folderCounts[key] > 0 && <TabCount $active={folder === key}>{folderCounts[key]}</TabCount>}
+            </FolderTab>
+          ))}
+        </FolderTabs>
+        {/* 상주 툴바(Fable): 검색[flex:1] + 필터 토글 + 폴더 맥락 일괄버튼. 탭은 위에서 무손상. */}
+        <ToolRow>
+          <SearchRow>
+            <SearchIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </SearchIcon>
+            <SearchInput
+              value={searchQ}
+              onChange={(e) => setSearchQ(e.target.value)}
+              placeholder={t('search.placeholder', { defaultValue: '메일 검색 (제목·내용)' }) as string}
+              aria-label={t('search.placeholder', { defaultValue: '메일 검색' }) as string}
+            />
+            {searchQ && (
+              <SearchClear type="button" onClick={() => setSearchQ('')} aria-label={t('search.clear', { defaultValue: '검색 지우기' }) as string}>×</SearchClear>
+            )}
+          </SearchRow>
+          <FilterToggle type="button" onClick={() => setFiltersOpen((v) => !v)} $on={filtersOpen}
+            aria-expanded={filtersOpen} title={t('filters.toggle', { defaultValue: '필터' }) as string}>
+            <span>{t('filters.toggle', { defaultValue: '필터' }) as string}</span>
+            <FilterChevron $on={filtersOpen} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></FilterChevron>
+            {activeFilterCount > 0 && <FilterBadge>{activeFilterCount}</FilterBadge>}
+          </FilterToggle>
           {bulkAction && folderCounts[folder] > 0 && (
-            <BulkAction type="button" $confirm={bulkConfirm} disabled={bulkBusy}
+            <BulkAction type="button" $confirm={bulkConfirm} disabled={bulkBusy} title={bulkAction.label}
               onClick={bulkConfirm ? doBulk : armBulk}>
               {bulkBusy
                 ? (t('bulk.working', { defaultValue: '처리 중…' }) as string)
@@ -1178,100 +1216,93 @@ const MailPage: React.FC = () => {
                   : bulkAction.label}
             </BulkAction>
           )}
-        </FolderTabsRow>
-        <SearchRow>
-          <SearchIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </SearchIcon>
-          <SearchInput
-            value={searchQ}
-            onChange={(e) => setSearchQ(e.target.value)}
-            placeholder={t('search.placeholder', { defaultValue: '메일 검색 (제목·내용)' }) as string}
-            aria-label={t('search.placeholder', { defaultValue: '메일 검색' }) as string}
-          />
-          {searchQ && (
-            <SearchClear type="button" onClick={() => setSearchQ('')} aria-label={t('search.clear', { defaultValue: '검색 지우기' }) as string}>×</SearchClear>
-          )}
-        </SearchRow>
-        {/* 계정 선택 — 태그 나열 대신 셀렉트 (주소가 늘어나면 태그 줄이 길어져 검색줄을 밀어낸다).
-            옆에 "계정 관리" 진입로. 선택은 저장돼 다시 들어와도 그대로 열린다. */}
-        {accounts.length >= 1 && (
-          <AcctFilterRow>
-            <AcctSelectWrap>
-              <PlanQSelect
-                size="sm"
-                isSearchable={accounts.length > 5}
-                value={
-                  accountFilter
-                    ? (() => {
-                        const a = accounts.find((x) => x.id === accountFilter);
-                        return a
-                          ? { value: a.id, label: `${a.is_personal ? (t('accounts.personal', { defaultValue: '개인' }) as string) : (t('accounts.team', { defaultValue: '회사' }) as string)} · ${a.email}` }
-                          : null;
-                      })()
-                    : { value: 0, label: t('accounts.all', { defaultValue: '메일 전체' }) as string }
-                }
-                onChange={(opt) => {
-                  const v = Number((opt as { value?: number } | null)?.value || 0);
-                  setAccount(v > 0 ? v : null);
-                }}
-                options={[
-                  { value: 0, label: t('accounts.all', { defaultValue: '메일 전체' }) as string },
-                  ...accounts.map((a) => ({
-                    value: a.id,
-                    label: `${a.is_personal ? (t('accounts.personal', { defaultValue: '개인' }) as string) : (t('accounts.team', { defaultValue: '회사' }) as string)} · ${a.email}${a.unread > 0 ? ` (${a.unread})` : ''}`,
-                  })),
-                ]}
-              />
-            </AcctSelectWrap>
-            <AcctManageChip
-              type="button"
-              onClick={() => navigate('/business/settings/mail-accounts')}
-              title={t('accounts.manageTitle', { defaultValue: '메일 계정 추가·설정' }) as string}
-            >
-              {t('accounts.manage', { defaultValue: '계정 관리' }) as string}
-            </AcctManageChip>
-          </AcctFilterRow>
-        )}
-        {/* 태그(라벨)·프로젝트 필터 — 태그는 상세에서 붙이고 여기서 걸러 본다. 항상 "전체" 포함. */}
-        {(labelMaster.length > 0 || projectOpts.length > 0) && (
-          <AcctFilterRow>
-            {labelMaster.length > 0 && (
-              <AcctSelectWrap>
-                <PlanQSelect
-                  size="sm"
-                  isSearchable={labelMaster.length > 5}
-                  value={{
-                    value: labelFilter,
-                    label: labelFilter || (t('filters.allLabels', { defaultValue: '태그 전체' }) as string),
-                  }}
-                  onChange={(opt) => setLabelFilter(String((opt as { value?: string } | null)?.value || ''))}
-                  options={[
-                    { value: '', label: t('filters.allLabels', { defaultValue: '태그 전체' }) as string },
-                    ...labelMaster.map((l) => ({ value: l.name, label: l.name })),
-                  ]}
-                />
-              </AcctSelectWrap>
+        </ToolRow>
+        {/* 접이식 필터(Fable) — 계정+프로젝트 / 태그+⚙계정관리. 기본 데스크탑 펼침·모바일 접힘(localStorage 기억). */}
+        {filtersOpen && (accounts.length >= 1 || projectOpts.length > 0 || labelMaster.length > 0) && (
+          <FilterPanel>
+            {(accounts.length >= 1 || projectOpts.length > 0) && (
+              <AcctFilterRow>
+                {accounts.length >= 1 && (
+                  <AcctSelectWrap>
+                    <PlanQSelect
+                      size="sm"
+                      isSearchable={accounts.length > 5}
+                      value={
+                        accountFilter
+                          ? (() => {
+                              const a = accounts.find((x) => x.id === accountFilter);
+                              return a
+                                ? { value: a.id, label: `${a.is_personal ? (t('accounts.personal', { defaultValue: '개인' }) as string) : (t('accounts.team', { defaultValue: '회사' }) as string)} · ${a.email}` }
+                                : null;
+                            })()
+                          : { value: 0, label: t('accounts.all', { defaultValue: '메일 전체' }) as string }
+                      }
+                      onChange={(opt) => {
+                        const v = Number((opt as { value?: number } | null)?.value || 0);
+                        setAccount(v > 0 ? v : null);
+                      }}
+                      options={[
+                        { value: 0, label: t('accounts.all', { defaultValue: '메일 전체' }) as string },
+                        ...accounts.map((a) => ({
+                          value: a.id,
+                          label: `${a.is_personal ? (t('accounts.personal', { defaultValue: '개인' }) as string) : (t('accounts.team', { defaultValue: '회사' }) as string)} · ${a.email}${a.unread > 0 ? ` (${a.unread})` : ''}`,
+                        })),
+                      ]}
+                    />
+                  </AcctSelectWrap>
+                )}
+                {projectOpts.length > 0 && (
+                  <AcctSelectWrap>
+                    <PlanQSelect
+                      size="sm"
+                      isSearchable={projectOpts.length > 5}
+                      value={{
+                        value: projectFilter,
+                        label: projectOpts.find((p) => p.id === projectFilter)?.name
+                          || (t('filters.allProjects', { defaultValue: '프로젝트 전체' }) as string),
+                      }}
+                      onChange={(opt) => setProjectFilter(Number((opt as { value?: number } | null)?.value || 0))}
+                      options={[
+                        { value: 0, label: t('filters.allProjects', { defaultValue: '프로젝트 전체' }) as string },
+                        ...projectOpts.map((p) => ({ value: p.id, label: p.name })),
+                      ]}
+                    />
+                  </AcctSelectWrap>
+                )}
+              </AcctFilterRow>
             )}
-            {projectOpts.length > 0 && (
-              <AcctSelectWrap>
-                <PlanQSelect
-                  size="sm"
-                  isSearchable={projectOpts.length > 5}
-                  value={{
-                    value: projectFilter,
-                    label: projectOpts.find((p) => p.id === projectFilter)?.name
-                      || (t('filters.allProjects', { defaultValue: '프로젝트 전체' }) as string),
-                  }}
-                  onChange={(opt) => setProjectFilter(Number((opt as { value?: number } | null)?.value || 0))}
-                  options={[
-                    { value: 0, label: t('filters.allProjects', { defaultValue: '프로젝트 전체' }) as string },
-                    ...projectOpts.map((p) => ({ value: p.id, label: p.name })),
-                  ]}
-                />
-              </AcctSelectWrap>
+            {(labelMaster.length > 0 || accounts.length >= 1) && (
+              <AcctFilterRow>
+                {labelMaster.length > 0 && (
+                  <AcctSelectWrap>
+                    <PlanQSelect
+                      size="sm"
+                      isSearchable={labelMaster.length > 5}
+                      value={{
+                        value: labelFilter,
+                        label: labelFilter || (t('filters.allLabels', { defaultValue: '태그 전체' }) as string),
+                      }}
+                      onChange={(opt) => setLabelFilter(String((opt as { value?: string } | null)?.value || ''))}
+                      options={[
+                        { value: '', label: t('filters.allLabels', { defaultValue: '태그 전체' }) as string },
+                        ...labelMaster.map((l) => ({ value: l.name, label: l.name })),
+                      ]}
+                    />
+                  </AcctSelectWrap>
+                )}
+                {accounts.length >= 1 && (
+                  <AcctManageIcon
+                    type="button"
+                    onClick={() => navigate('/business/settings/mail-accounts')}
+                    title={t('accounts.manageTitle', { defaultValue: '메일 계정 추가·설정' }) as string}
+                    aria-label={t('accounts.manage', { defaultValue: '계정 관리' }) as string}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+                  </AcctManageIcon>
+                )}
+              </AcctFilterRow>
             )}
-          </AcctFilterRow>
+          </FilterPanel>
         )}
           {faqSuggestions.length > 0 && (
             <FaqSuggestBox>
