@@ -47,12 +47,12 @@ export const PinnedDocInfo = styled.div`
 // ───────── Dashboard Timeline (공용 GanttTrack) ─────────
 // ───────── styled ─────────
 export const BackBtn = styled.button`padding:6px 12px;background:#FFF;color:#334155;border:1px solid #CBD5E1;border-radius:8px;font-size:12px;cursor:pointer;&:hover{background:#F8FAFC;border-color:#94A3B8;}`;
-export const TabBar = styled.div`display:flex;gap:4px;border-bottom:1px solid #E2E8F0;background:#FFF;padding:0 20px;margin:-20px -20px 20px;`;
+export const TabBar = styled.div`display:flex;gap:4px;border-bottom:1px solid #E2E8F0;background:#FFF;padding:0 20px;margin:-20px -20px 20px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;&::-webkit-scrollbar{display:none;}`;
 export const TabFallback = styled.div`padding:40px 24px;text-align:center;font-size:13px;color:#94A3B8;`;
 export const Tab = styled.button<{$active:boolean}>`
   padding:12px 14px;background:transparent;border:none;color:${p=>p.$active?'#0F766E':'#64748B'};
   font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid ${p=>p.$active?'#14B8A6':'transparent'};
-  display:inline-flex;align-items:center;gap:6px;
+  display:inline-flex;align-items:center;gap:6px;white-space:nowrap;flex:0 0 auto;
   &:hover{color:#0F766E;}
 `;
 export const InfoBody = styled.div`display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:16px;@media (max-width:900px){grid-template-columns:1fr;}`;
