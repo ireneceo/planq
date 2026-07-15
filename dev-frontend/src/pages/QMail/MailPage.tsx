@@ -132,10 +132,8 @@ import {
   UncertainBadge,
   UncertainInline,
   UnreadDot,
-  BulkBar,
-  BulkText,
-  BulkBtn,
-  BulkGhost,
+  FolderTabsRow,
+  BulkAction,
 } from './MailPage.styles';
 
 type Folder = 'reply_needed' | 'uncertain' | 'all' | 'marketing' | 'following' | 'spam' | 'archived';
@@ -598,25 +596,36 @@ const MailPage: React.FC = () => {
     finally { setDismissingId(null); }
   }, [businessId, loadCounts, activeId]);
 
-  // #154 — 일괄 처리 (현재 폴더 로드된 스레드 전체): 모두 읽음 / 모두 답변불필요. 2단계 확인.
-  const [bulkConfirm, setBulkConfirm] = useState<null | 'read' | 'dismiss'>(null);
+  // #154 — 폴더 맥락 일괄 처리(Fable 설계): 폴더별 단일 액션 + 폴더 전체({all,folder}) + 2단계 인라인 확인.
+  const [bulkConfirm, setBulkConfirm] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
-  const doBulk = useCallback(async (kind: 'read' | 'dismiss') => {
-    if (!businessId || bulkBusy) return;
-    const ids = threads.map((th) => th.id);
-    if (!ids.length) { setBulkConfirm(null); return; }
+  const bulkTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 폴더 → 일괄 액션. 확인권장/전체는 bulk-read 재사용(읽음=알람 해제). 그 외 폴더는 액션 없음.
+  const bulkAction: { path: string; label: string } | null =
+    folder === 'reply_needed' ? { path: 'bulk-dismiss', label: t('bulk.dismissAll', { defaultValue: '모두 답변 불필요' }) as string }
+    : folder === 'uncertain' ? { path: 'bulk-read', label: t('bulk.confirmDone', { defaultValue: '모두 확인완료' }) as string }
+    : folder === 'all' ? { path: 'bulk-read', label: t('bulk.markRead', { defaultValue: '모두 읽음' }) as string }
+    : null;
+  const armBulk = useCallback(() => {
+    setBulkConfirm(true);
+    if (bulkTimer.current) clearTimeout(bulkTimer.current);
+    bulkTimer.current = setTimeout(() => setBulkConfirm(false), 4000);  // 4초 후 자동 원복
+  }, []);
+  const doBulk = useCallback(async () => {
+    if (!businessId || bulkBusy || !bulkAction) return;
+    if (bulkTimer.current) clearTimeout(bulkTimer.current);
     setBulkBusy(true);
     try {
-      const path = kind === 'read' ? 'bulk-read' : 'bulk-dismiss';
-      const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${path}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ thread_ids: ids }),
+      const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${bulkAction.path}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ all: true, folder }),
       });
       await r.json().catch(() => null);
-      setBulkConfirm(null);
+      setBulkConfirm(false);
       await loadList();
       loadCounts();
     } catch { /* 무시 — 실패 시 목록 그대로 */ } finally { setBulkBusy(false); }
-  }, [businessId, bulkBusy, threads, loadList, loadCounts]);
+  }, [businessId, bulkBusy, bulkAction, folder, loadList, loadCounts]);
+  useEffect(() => { setBulkConfirm(false); }, [folder]);  // 폴더 바뀌면 확인 상태 리셋
 
   // 라벨 토글 (상세) — 현재 라벨 배열에 추가/제거
   const toggleLabel = useCallback((name: string) => {
@@ -1149,14 +1158,27 @@ const MailPage: React.FC = () => {
             </svg>
           </ComposeBtn>
         </PanelHeader>
-        <FolderTabs>
-          {FOLDERS.map(({ key, defaultLabel }) => (
-            <FolderTab key={key} type="button" $active={folder === key} onClick={() => setFolder(key)}>
-              {t(`folders.${key}`, { defaultValue: defaultLabel }) as string}
-              {folderCounts[key] > 0 && <TabCount $active={folder === key}>{folderCounts[key]}</TabCount>}
-            </FolderTab>
-          ))}
-        </FolderTabs>
+        <FolderTabsRow>
+          <FolderTabs>
+            {FOLDERS.map(({ key, defaultLabel }) => (
+              <FolderTab key={key} type="button" $active={folder === key} onClick={() => setFolder(key)}>
+                {t(`folders.${key}`, { defaultValue: defaultLabel }) as string}
+                {folderCounts[key] > 0 && <TabCount $active={folder === key}>{folderCounts[key]}</TabCount>}
+              </FolderTab>
+            ))}
+          </FolderTabs>
+          {/* #154 — 폴더 맥락 일괄 액션(그 폴더에 항목 있을 때만). 세로 줄 추가 없이 탭 줄 우측 고정. */}
+          {bulkAction && folderCounts[folder] > 0 && (
+            <BulkAction type="button" $confirm={bulkConfirm} disabled={bulkBusy}
+              onClick={bulkConfirm ? doBulk : armBulk}>
+              {bulkBusy
+                ? (t('bulk.working', { defaultValue: '처리 중…' }) as string)
+                : bulkConfirm
+                  ? (t('bulk.confirmN', { defaultValue: '{{n}}개 처리?', n: folderCounts[folder] }) as string)
+                  : bulkAction.label}
+            </BulkAction>
+          )}
+        </FolderTabsRow>
         <SearchRow>
           <SearchIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -1304,25 +1326,6 @@ const MailPage: React.FC = () => {
                 : (t('emptyFolder', { defaultValue: '이 폴더에 메일이 없어요' }) as string)}</EmptyText>
             </EmptyList>
           ) : (
-            <>
-            {(folder === 'reply_needed' || folder === 'uncertain') && (
-              <BulkBar>
-                {bulkConfirm ? (
-                  <>
-                    <BulkText>{bulkConfirm === 'read'
-                      ? t('bulk.confirmRead', { defaultValue: '로드된 메일을 모두 읽음 처리할까요?' }) as string
-                      : t('bulk.confirmDismiss', { defaultValue: '로드된 메일을 모두 답변불필요로 표시할까요?' }) as string}</BulkText>
-                    <BulkBtn type="button" onClick={() => doBulk(bulkConfirm)} disabled={bulkBusy}>{t('bulk.confirm', { defaultValue: '확인' }) as string}</BulkBtn>
-                    <BulkGhost type="button" onClick={() => setBulkConfirm(null)} disabled={bulkBusy}>{t('bulk.cancel', { defaultValue: '취소' }) as string}</BulkGhost>
-                  </>
-                ) : (
-                  <>
-                    <BulkGhost type="button" onClick={() => setBulkConfirm('read')}>{t('bulk.markAllRead', { defaultValue: '모두 읽음' }) as string}</BulkGhost>
-                    <BulkGhost type="button" onClick={() => setBulkConfirm('dismiss')}>{t('bulk.dismissAll', { defaultValue: '모두 답변불필요' }) as string}</BulkGhost>
-                  </>
-                )}
-              </BulkBar>
-            )}
             <ThreadList ref={listRef} onScroll={(e) => {
               const el = e.currentTarget;
               if (hasMore && !loadingMore && el.scrollHeight - el.scrollTop - el.clientHeight < 300) loadMore();
@@ -1446,7 +1449,6 @@ const MailPage: React.FC = () => {
               ))}
               {loadingMore && <ListMoreRow><Spinner /></ListMoreRow>}
             </ThreadList>
-            </>
           )}
         </CollapsibleSidebar>
 

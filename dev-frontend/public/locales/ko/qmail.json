@@ -352,10 +352,14 @@
   },
   "bulk": {
     "markAllRead": "모두 읽음",
-    "dismissAll": "모두 답변불필요",
+    "dismissAll": "모두 답변 불필요",
     "confirmRead": "로드된 메일을 모두 읽음 처리할까요?",
     "confirmDismiss": "로드된 메일을 모두 답변불필요로 표시할까요?",
     "confirm": "확인",
-    "cancel": "취소"
+    "cancel": "취소",
+    "confirmDone": "모두 확인완료",
+    "markRead": "모두 읽음",
+    "working": "처리 중…",
+    "confirmN": "{{n}}개 처리?"
   }
 }

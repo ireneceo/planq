@@ -63,10 +63,10 @@ export const FaqUsedBadge = styled.div`
 // 폴더 탭 (답변필요/인박스/내담당/팔로우/스팸/보관) — 좌측 상단 가로 탭
 export const FolderTabs = styled.div`
   display: flex; gap: 2px;
-  padding: 4px 8px 0;
-  border-bottom: 1px solid #E2E8F0;
+  padding: 4px 6px 0;
+  
   overflow-x: auto;
-  flex-shrink: 0;
+  flex: 1; min-width: 0;
   scrollbar-width: none;
   &::-webkit-scrollbar { display: none; }
 `;
@@ -93,7 +93,7 @@ export const TabCount = styled.span<{ $active: boolean }>`
 // 메일 검색창
 export const SearchRow = styled.div`
   display: flex; align-items: center; gap: 6px;
-  margin: 8px 10px; padding: 0 10px;
+  margin: 8px 16px; padding: 0 10px;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
   flex-shrink: 0;
   &:focus-within { border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.1); }
@@ -111,7 +111,7 @@ export const SearchClear = styled.button`
 `;
 export const AcctFilterRow = styled.div`
   display: flex; align-items: center; gap: 8px;
-  padding: 0 14px 10px;
+  padding: 0 16px 10px;
 `;
 export const AcctSelectWrap = styled.div`flex: 1; min-width: 0;`;
 // 회사 공용 / 개인 구분 배지 — 한 인박스에 두 성격이 섞이므로 칩에서 바로 구분되어야 한다
@@ -566,21 +566,27 @@ export const FromManage = styled.button`
   &:hover { text-decoration: underline; }
 `;
 
-// #154 — 일괄 처리 바 (모두 읽음 / 모두 답변불필요). 리스트 상단.
-export const BulkBar = styled.div`
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  padding: 8px 12px; border-bottom: 1px solid #E2E8F0; background: #F8FAFC;
+// #154 — 폴더 탭 줄에 인라인 일괄 액션(Fable 설계). 탭은 flex:1 가로스크롤, 액션은 우측 고정.
+export const FolderTabsRow = styled.div`
+  display: flex; align-items: center;
+  border-bottom: 1px solid #E2E8F0;
+  padding-right: 8px;
 `;
-export const BulkText = styled.span`
-  font-size: 12px; color: #475569; margin-right: auto; line-height: 1.4;
-`;
-export const BulkGhost = styled.button`
-  height: 30px; padding: 0 12px; background: #FFFFFF; color: #475569;
-  border: 1px solid #E2E8F0; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
-  &:hover:not(:disabled) { background: #F1F5F9; border-color: #CBD5E1; color: #0F172A; }
+// 폴더 맥락 일괄 액션 버튼 — Secondary(ghost). $confirm 이면 2단계 확인(Coral 강조).
+export const BulkAction = styled.button<{ $confirm?: boolean }>`
+  flex-shrink: 0; align-self: center;
+  height: 28px; padding: 0 10px; margin-left: 6px;
+  border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
+  white-space: nowrap;
+  background: ${(p) => (p.$confirm ? '#FFF1F2' : '#FFFFFF')};
+  color: ${(p) => (p.$confirm ? '#E11D48' : '#475569')};
+  border: 1px solid ${(p) => (p.$confirm ? '#FDA4AF' : '#E2E8F0')};
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  &:hover:not(:disabled) {
+    background: ${(p) => (p.$confirm ? '#FFE4E6' : '#F1F5F9')};
+    border-color: ${(p) => (p.$confirm ? '#FB7185' : '#CBD5E1')};
+    color: ${(p) => (p.$confirm ? '#BE123C' : '#0F172A')};
+  }
   &:disabled { opacity: 0.55; cursor: not-allowed; }
-`;
-export const BulkBtn = styled(BulkGhost)`
-  background: #14B8A6; color: #FFFFFF; border-color: #14B8A6;
-  &:hover:not(:disabled) { background: #0D9488; border-color: #0D9488; color: #FFFFFF; }
+  &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
 `;
