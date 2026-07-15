@@ -178,6 +178,18 @@ async function createTask(actor, params = {}, opts = {}) {
   let finalAssignee = params.assigneeId || (opts.allowUnassigned ? null : subjectId);
   const projectId = params.projectId || null;
 
+  // 멀티테넌트 격리 — project_id·client_id 는 반드시 이 워크스페이스 소속이어야 한다.
+  //   여태 workstream 분기에서만 project 소속을 봤고 일반 경로는 무검증이라, 다른 워크스페이스의
+  //   project/client id 를 자기 task 에 붙일 수 있었다(Fable F1). 모든 createTask 진입점 공통 봉합.
+  if (projectId) {
+    const prj = await Project.findOne({ where: { id: projectId, business_id: businessId }, attributes: ['id'] });
+    if (!prj) return fail('invalid_project', 400);
+  }
+  if (params.clientId) {
+    const cl = await Client.findOne({ where: { id: params.clientId, business_id: businessId }, attributes: ['id'] });
+    if (!cl) return fail('invalid_client', 400);
+  }
+
   // 고객은 자기 자신에게 업무를 만들 수 없다 — 멤버에게 '요청' 만 가능
   if (isClient && Number(finalAssignee) === Number(subjectId)) {
     return fail('Clients can only request tasks to members, not assign to themselves.', 403);

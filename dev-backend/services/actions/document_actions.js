@@ -107,6 +107,16 @@ async function createDocument(actor, params = {}) {
   const menu = await assertMenuWrite(subjectId, businessId, 'qdocs', subj.platformRole);
   if (!menu.ok) return menu;
 
+  // 멀티테넌트 격리 — project_id·client_id 는 반드시 이 워크스페이스 소속 (다른 워크스페이스 FK 첨부 차단).
+  if (params.projectId) {
+    const prj = await Project.findOne({ where: { id: params.projectId, business_id: businessId }, attributes: ['id'] });
+    if (!prj) return fail('invalid_project', 400);
+  }
+  if (params.clientId) {
+    const cl = await Client.findOne({ where: { id: params.clientId, business_id: businessId }, attributes: ['id'] });
+    if (!cl) return fail('invalid_client', 400);
+  }
+
   // 템플릿 기반 생성 시 — body_template(HTML) 을 placeholder 치환 후 body_html 에 저장.
   //   사용자가 명시적으로 body_json 을 넘기면 그 값 우선.
   const templateId = params.templateId || null;
