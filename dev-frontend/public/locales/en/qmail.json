@@ -320,7 +320,8 @@
   },
   "filters": {
     "allLabels": "All tags",
-    "allProjects": "All projects"
+    "allProjects": "All projects",
+    "toggle": "Filters"
   },
   "signature": {
     "title": "Signature",
