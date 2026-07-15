@@ -356,6 +356,10 @@
     "confirmRead": "Mark all loaded emails as read?",
     "confirmDismiss": "Mark all loaded emails as no reply needed?",
     "confirm": "Confirm",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "confirmDone": "Mark all read",
+    "markRead": "Mark all read",
+    "working": "Working…",
+    "confirmN": "Apply to {{n}}?"
   }
 }

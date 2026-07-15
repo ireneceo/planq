@@ -536,6 +536,21 @@ router.post('/:businessId/email-threads/:id/dismiss-reply',
 // #154 일괄 처리 — 선택한 스레드들 "모두 답변불필요" / "모두 읽음". 접근 가능한 계정으로 스코프.
 //   개별 dismiss-reply/mark-read 의 벌크판. 학습(규칙 생성)은 벌크에선 생략(개별 클릭 시에만).
 // ─────────────────────────────────────────────
+// 대상 스레드 id 해석 — { all:true, folder } 이면 폴더 전체(folderWhere+스코프, 500 캡), 아니면 thread_ids.
+//   Fable 권고: "모두"가 로드된 페이지만이 아니라 폴더 전체에 진짜로 적용되게.
+const BULK_FOLDERS = new Set(['reply_needed', 'uncertain', 'all']);
+async function resolveBulkTargetIds(body, businessId, userId) {
+  const acctIds = await accessibleAccountIds(businessId, userId);
+  const acctScope = { [Op.in]: acctIds.length ? acctIds : [0] };
+  if (body?.all && BULK_FOLDERS.has(body?.folder)) {
+    const rows = await EmailThread.findAll({
+      where: { ...folderWhere(body.folder, userId), business_id: businessId, account_id: acctScope },
+      attributes: ['id'], limit: 500,
+    });
+    return { ids: rows.map((r) => r.id), acctScope };
+  }
+  return { ids: parseThreadIds(body), acctScope };
+}
 const parseThreadIds = (body) => (Array.isArray(body?.thread_ids)
   ? body.thread_ids.map(Number).filter(Boolean).slice(0, 500) : []);
 
@@ -544,12 +559,11 @@ router.post('/:businessId/email-threads/bulk-dismiss',
   async (req, res, next) => {
     try {
       const businessId = Number(req.params.businessId);
-      const ids = parseThreadIds(req.body);
+      const { ids, acctScope } = await resolveBulkTargetIds(req.body, businessId, req.user.id);
       if (!ids.length) return errorResponse(res, 'no_threads', 400);
-      const acctIds = await accessibleAccountIds(businessId, req.user.id);
       const [count] = await EmailThread.update(
         { reply_needed: false, reply_needed_at: null, reply_needed_reason: 'dismissed' },
-        { where: { id: { [Op.in]: ids }, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] }, reply_needed: true } },
+        { where: { id: { [Op.in]: ids }, business_id: businessId, account_id: acctScope, reply_needed: true } },
       );
       broadcastMail(req, businessId, 'mail:updated', { bulk: true, reply_needed: false });
       return successResponse(res, { updated: count });
@@ -562,12 +576,11 @@ router.post('/:businessId/email-threads/bulk-read',
   async (req, res, next) => {
     try {
       const businessId = Number(req.params.businessId);
-      const ids = parseThreadIds(req.body);
+      const { ids, acctScope } = await resolveBulkTargetIds(req.body, businessId, req.user.id);
       if (!ids.length) return errorResponse(res, 'no_threads', 400);
-      const acctIds = await accessibleAccountIds(businessId, req.user.id);
       const [count] = await EmailThread.update(
         { unread_count: 0 },
-        { where: { id: { [Op.in]: ids }, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] }, unread_count: { [Op.gt]: 0 } } },
+        { where: { id: { [Op.in]: ids }, business_id: businessId, account_id: acctScope, unread_count: { [Op.gt]: 0 } } },
       );
       await EmailMessage.update({ is_read: true }, { where: { thread_id: { [Op.in]: ids }, is_read: false } }).catch(() => {});
       broadcastMail(req, businessId, 'mail:updated', { bulk: true, unread: 0 });
