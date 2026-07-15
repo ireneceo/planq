@@ -47,6 +47,9 @@ export default function WorkstreamBoard({ projectId, workstreams, onChanged, rea
     onChanged();
   };
 
+  // 개요(readOnly) — 추진과제 없으면 편집 안내 대신 숨긴다(Irene).
+  if (readOnly && workstreams.length === 0) return null;
+
   return (
     <div>
       {workstreams.length === 0 && !adding && <Empty>{t('canvas.workstreams.empty')}</Empty>}
