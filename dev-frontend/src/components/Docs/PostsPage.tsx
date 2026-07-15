@@ -1789,6 +1789,8 @@ const RowList = styled.div`
   flex: 1; min-height: 0;
   display: flex; flex-direction: column;
   overflow-y: auto;
+  /* Q Talk/Mail/Note 리스트와 통일 — 둥근 행이 측면 여백 갖도록 (Irene: Q docs만 선 스타일이라 달랐음) */
+  padding: 6px 6px 12px;
 `;
 // 프로젝트 문서 탭 browse 컨테이너 — 파일 탭(DocsTab) Body 흐름과 동일: 배경 #F8FAFC + padding 20 +
 //   세로 flex(gap 12: Toolbar + Split). 내부는 공용 assetTabLayout(AtToolbar/AtSplit/AtPanel/AtArea/AtGrid/AtCard)
@@ -1799,13 +1801,18 @@ const ProjBrowse = styled.div`
   display: flex; flex-direction: column; gap: 12px;
   @media (max-width: 900px) { padding: 16px; }
 `;
+// Q Talk ChatRow / Mail ThreadItem 정확값 — 둥근 행, active=#F0FDFA + inset 3px 0 0 #0D9488, hover #F8FAFC.
+// 가로 구분선 제거(Q docs만 선 스타일이라 달랐다 — Irene 통일 지시).
 const RowItem = styled.button<{ $active: boolean; $project?: boolean }>`
   all: unset; cursor: pointer; position: relative; display: block; width: 100%; box-sizing: border-box;
-  padding: 12px 16px;
-  padding-right: ${p => p.$project ? '44px' : '16px'};
-  border-bottom: 1px solid #F1F5F9;
+  padding: 10px 12px;
+  padding-right: ${p => p.$project ? '40px' : '12px'};
+  margin: 2px 0;
+  border-radius: 10px;
   background: ${p => p.$active ? '#F0FDFA' : 'transparent'};
-  &:hover { background: ${p => p.$active ? '#F0FDFA' : '#F8FAFC'}; }
+  ${p => p.$active && 'box-shadow: inset 3px 0 0 #0D9488;'}
+  transition: background 0.1s;
+  &:hover { ${p => !p.$active && 'background: #F8FAFC;'} }
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: -2px; }
 `;
 // 행에서 '상단 메뉴에 추가(고정)' 토글 — 우측 상단 코너. 켜짐=teal, 꺼짐=흐린 회색(hover 시 진해짐).
