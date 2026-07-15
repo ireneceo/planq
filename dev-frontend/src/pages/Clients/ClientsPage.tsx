@@ -15,6 +15,7 @@ import { useTimeFormat } from '../../hooks/useTimeFormat';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import SearchBox from '../../components/Common/SearchBox';
 import PlanQSelect from '../../components/Common/PlanQSelect';
+import CreateDrawer from '../../components/Common/CreateDrawer';
 import PartnerKindBadge, { usePartnerKindLabel } from '../../components/Common/PartnerKindBadge';
 import PageShell from '../../components/Layout/PageShell';
 import AutoSaveField from '../../components/Common/AutoSaveField';
@@ -663,31 +664,27 @@ export default function ClientsPage() {
       </>)}
 
       {/* 고객 초대 모달 */}
-      {inviteOpen && (
-        <ConfirmBackdrop onMouseDown={(e) => { if (e.target === e.currentTarget) setInviteOpen(false); }}>
-          <ConfirmDialog role="dialog" aria-modal="true" aria-label={t('inviteModal.title') as string}>
-            <ConfirmTitle>{t('inviteModal.title')}</ConfirmTitle>
-            <ConfirmBody>
-              <Field><FieldLabel>{t('inviteModal.name')} <Req>*</Req></FieldLabel><FieldInput autoFocus value={inviteName} onChange={(e) => setInviteName(e.target.value)} placeholder={t('inviteModal.namePlaceholder') as string} /></Field>
-              <Field><FieldLabel>{t('inviteModal.email')} <Req>*</Req></FieldLabel><FieldInput value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="client@example.com" type="email" /></Field>
-              <Field><FieldLabel>{t('inviteModal.company')}</FieldLabel><FieldInput value={inviteCompany} onChange={(e) => setInviteCompany(e.target.value)} placeholder={t('inviteModal.companyPlaceholder') as string} /></Field>
-              <Field><FieldLabel>{t('kind.label', { defaultValue: '유형' }) as string}</FieldLabel>
-                <PlanQSelect size="md" isClearable={false} isSearchable={false}
-                  value={kindOptions.find((o) => o.value === inviteKind)} options={kindOptions}
-                  onChange={(o) => setInviteKind(((o as { value?: string })?.value as 'customer' | 'vendor' | 'freelancer' | 'other') || 'customer')} />
-              </Field>
-              <Helper>{t('inviteModal.helper')}</Helper>
-              {inviteError && <WarnBlock>{inviteError}</WarnBlock>}
-            </ConfirmBody>
-            <ConfirmFooter>
-              <CFCancel type="button" onClick={() => setInviteOpen(false)} disabled={inviteSubmitting}>{t('inviteModal.cancel')}</CFCancel>
-              <CFPrimary type="button" onClick={submitInvite} disabled={inviteSubmitting || !inviteName.trim() || !inviteEmail.trim()}>
-                {inviteSubmitting ? t('inviteModal.submitting') : t('inviteModal.submit')}
-              </CFPrimary>
-            </ConfirmFooter>
-          </ConfirmDialog>
-        </ConfirmBackdrop>
-      )}
+      {/* 고객 초대 — 센터 모달 → 우측 CreateDrawer 로 통일(Fable 감사 2026-07-15: 추가/등록은 우측 패널 기본) */}
+      <CreateDrawer
+        open={inviteOpen}
+        onClose={() => setInviteOpen(false)}
+        title={t('inviteModal.title')}
+        onSubmit={submitInvite}
+        submitting={inviteSubmitting}
+        submitLabel={t('inviteModal.submit')}
+        submitDisabled={!inviteName.trim() || !inviteEmail.trim()}
+      >
+        <Field><FieldLabel>{t('inviteModal.name')} <Req>*</Req></FieldLabel><FieldInput autoFocus value={inviteName} onChange={(e) => setInviteName(e.target.value)} placeholder={t('inviteModal.namePlaceholder') as string} /></Field>
+        <Field><FieldLabel>{t('inviteModal.email')} <Req>*</Req></FieldLabel><FieldInput value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="client@example.com" type="email" /></Field>
+        <Field><FieldLabel>{t('inviteModal.company')}</FieldLabel><FieldInput value={inviteCompany} onChange={(e) => setInviteCompany(e.target.value)} placeholder={t('inviteModal.companyPlaceholder') as string} /></Field>
+        <Field><FieldLabel>{t('kind.label', { defaultValue: '유형' }) as string}</FieldLabel>
+          <PlanQSelect size="md" isClearable={false} isSearchable={false}
+            value={kindOptions.find((o) => o.value === inviteKind)} options={kindOptions}
+            onChange={(o) => setInviteKind(((o as { value?: string })?.value as 'customer' | 'vendor' | 'freelancer' | 'other') || 'customer')} />
+        </Field>
+        <Helper>{t('inviteModal.helper')}</Helper>
+        {inviteError && <WarnBlock>{inviteError}</WarnBlock>}
+      </CreateDrawer>
 
       {/* 삭제 확인 모달 */}
       {deleteTarget && (
@@ -951,7 +948,6 @@ const FieldLabel = styled.label`font-size:12px;font-weight:600;color:#0F172A;`;
 const FieldInput = styled.input`height:38px;padding:0 12px;border:1px solid #E2E8F0;border-radius:8px;font-size:13px;color:#0F172A;font-family:inherit;background:#FFF;&:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,0.1);}&::placeholder{color:#CBD5E1;}`;
 const Req = styled.span`color:#F43F5E;margin-left:2px;`;
 const CFCancel = styled.button`height:40px;padding:0 16px;background:#fff;color:#475569;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;&:hover:not(:disabled){background:#f8fafc;border-color:#cbd5e1;}&:disabled{opacity:0.5;cursor:not-allowed;}`;
-const CFPrimary = styled.button`height:40px;padding:0 20px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
 const CFDanger = styled.button`height:40px;padding:0 20px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;&:hover:not(:disabled){background:#b91c1c;}&:disabled{background:#fca5a5;cursor:not-allowed;}`;
 
 // 인라인 메모 — AutoSaveField 적용 (debounce 2s + ✓ 뱃지)
