@@ -651,6 +651,51 @@ function checkCueTools() {
 }
 
 // ═══════════════════════════════════════════════
+// 8-f. mcpreadonly — MCP 외부 표면(#D-4)은 읽기 전용. 쓰기는 절대 이 문으로 나가지 않는다
+//
+//   외부 에이전트에 쓰기를 열면 "Cue 의 권한 우회 직접 write"를 외부에 복제하는 것 — D-4 순서 엄수.
+//   MCP 서버는 행동 계층을 require 하지 않고, 도메인 모델을 create/update/destroy 하지 않으며,
+//   재무 모델을 참조하지 않는다. 툴 이름에 쓰기 동사(create/update/delete/submit/complete)가 없다.
+// ═══════════════════════════════════════════════
+const MCP_SERVER = 'dev-backend/mcp/server.js';
+
+function checkMcpReadonly() {
+  const bad = [];
+  const full = path.join(ROOT, MCP_SERVER);
+  if (!fs.existsSync(full)) { report('mcpreadonly', 'MCP 읽기 서버 read-only', true, []); return; }
+  const src = read(full);
+  // 존재 이유(읽기 4툴·토큰 인증·감사·격리)
+  for (const [feature, re] of [
+    ['토큰 인증', /token_hash|authenticate/],
+    ['scope 격리', /getUserScope/],
+    ['감사', /mcp\.\$\{|action: `mcp\.|mcp\.\$\{tool\}/],
+    ['stateless transport', /StreamableHTTPServerTransport/],
+  ]) {
+    if (!re.test(src)) bad.push(`${MCP_SERVER}: ${feature} 소실`);
+  }
+  // 행동 계층 require 금지 (쓰기 우회 차단)
+  if (/require\(['"]\.\.\/services\/actions\//.test(src)) {
+    bad.push(`${MCP_SERVER}: 행동 계층 require — MCP 는 읽기 전용, 쓰기 표면 금지`);
+  }
+  // 도메인 모델 쓰기 금지 — ApiToken.last_used_at 메타 업데이트만 예외로 허용
+  const writes = src.match(/\.(create|destroy|bulkCreate)\(/g) || [];
+  if (writes.length > 0) bad.push(`${MCP_SERVER}: 모델 쓰기(${writes.join(',')}) — MCP 읽기 전용 위반`);
+  // 모델 인스턴스 업데이트는 `.update({...})` 형태(객체 인자). crypto `.update(s)` 는 제외.
+  //   token.update({last_used_at}) 메타 1건만 허용.
+  const modelUpdates = (src.match(/\.update\(\s*\{/g) || []).length;
+  if (modelUpdates > 1) bad.push(`${MCP_SERVER}: 모델 update ${modelUpdates}건 — last_used_at 메타 외 쓰기 금지`);
+  // 재무 모델 참조 금지
+  if (/\b(Invoice|Payment|InvoiceInstallment)\b/.test(src)) {
+    bad.push(`${MCP_SERVER}: 재무 모델 참조 — 외부 표면 재무 봉쇄 위반`);
+  }
+  // 툴 이름에 쓰기 동사 금지 (이름에 숫자 포함 가능 — get_client_360)
+  const toolNames = [...src.matchAll(/registerTool\(\s*['"]([a-z0-9_]+)['"]/g)].map((m) => m[1]);
+  const writeVerb = toolNames.filter((n) => /create|update|delete|submit|complete|comment|write|send|mark/.test(n));
+  if (writeVerb.length) bad.push(`${MCP_SERVER}: 쓰기 동사 툴(${writeVerb.join(',')}) — MCP 읽기 전용 위반`);
+  report('mcpreadonly', `MCP 외부 표면 read-only (툴 ${toolNames.length})`, bad.length === 0, bad);
+}
+
+// ═══════════════════════════════════════════════
 // 9. godfile — 신규 god-file 차단 래칫 (기존 초과분은 동결, 15% 이상 추가 성장도 실패)
 // ═══════════════════════════════════════════════
 function checkGodfile() {
@@ -752,6 +797,7 @@ const CATEGORIES = {
   actionlayer: checkActionLayer,
   createlayer: checkCreateLayer,
   cuetools: checkCueTools,
+  mcpreadonly: checkMcpReadonly,
   godfile: checkGodfile,
   panelhandle: checkPanelHandle,
   docfresh: checkDocFresh,
