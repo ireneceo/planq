@@ -8,6 +8,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import PageShell from '../../components/Layout/PageShell';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
 import { useAuth } from '../../contexts/AuthContext';
+import { useIsNarrow } from '../../hooks/useMediaQuery';
 import type { RangePreset, StatsSegment } from '../../services/insights';
 import styled from 'styled-components';
 import TasksTab from './tabs/TasksTab';
@@ -89,9 +90,11 @@ const InsightsPage: React.FC = () => {
     </div>
   );
 
-  // 탭별 페이지 타이틀 — 사이드바 메뉴와 일관 (UserChip + 기간 셀렉터 우측에 자연스럽게)
+  // 탭별 페이지 타이틀 — 사이드바 메뉴와 일관. 모바일에선 긴 접두어("통계 · Insights ·")가
+  //   폭을 잡아먹어 탭명이 ellipsis 로 잘려 다 같아 보였다(#170) → 좁은 폭에선 탭명만 노출.
+  const titleNarrow = useIsNarrow(768);
   const tabTitle = t(`tabs.${tab}`, tab);
-  const pageTitle = `${t('title', '통계 · Insights')} · ${tabTitle}`;
+  const pageTitle = titleNarrow ? tabTitle : `${t('title', '통계 · Insights')} · ${tabTitle}`;
 
   if (!bizId) {
     return (
