@@ -131,7 +131,8 @@ export default function WorkstreamBoard({ projectId, workstreams, onChanged, rea
 }
 
 const Empty = styled.div`font-size:13px;color:#94A3B8;padding:8px 0 14px;`;
-const Grid = styled.div`display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;`;
+// auto-fit — 카드 2·3개여도 좌우 끝까지 채운다(우측 빈 공간 X, Irene). 4개까지 한 줄.
+const Grid = styled.div`display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;`;
 const Card = styled.div<{ $dim?: boolean }>`display:flex;background:#fff;border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;opacity:${(p) => (p.$dim ? 0.6 : 1)};transition:box-shadow .15s;&:hover{box-shadow:0 4px 12px rgba(15,23,42,.06);}`;
 const Bar = styled.div`width:5px;flex-shrink:0;`;
 const CardBody = styled.div`flex:1;min-width:0;padding:14px 16px;`;

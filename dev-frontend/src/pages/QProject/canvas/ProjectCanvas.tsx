@@ -116,6 +116,9 @@ export default function ProjectCanvas({ projectId, businessId, readOnly = false 
   // 개요가 완전히 비었는지(타임라인 제외) — 폴리시드 빈상태 안내용
   const overviewEmpty = readOnly && !layer1 && !layer2 && !layer3;
 
+  const goEdit = () => navigate(`/projects/p/${projectId}?tab=details`);
+  const secEdit = readOnly ? <EditIcon onClick={goEdit} /> : null;
+
   return (
     <Wrap>
       {/* ───── 일정 진행 타임라인 ★ (시그니처) ───── */}
@@ -134,58 +137,68 @@ export default function ProjectCanvas({ projectId, businessId, readOnly = false 
           <EmptyIcon><FileTextIcon size={26} /></EmptyIcon>
           <EmptyTitle>{t('canvas.overviewEmpty.title', { defaultValue: '아직 프로젝트 개요가 비어 있어요' }) as string}</EmptyTitle>
           <EmptyDesc>{t('canvas.overviewEmpty.desc', { defaultValue: '배경·목표·성공지표·추진과제를 채우면 이 화면이 한눈에 보는 프로젝트 대시보드가 됩니다.' }) as string}</EmptyDesc>
-          <EmptyCta type="button" onClick={() => navigate(`/projects/p/${projectId}?tab=details`)}>
+          <EmptyCta type="button" onClick={goEdit}>
             {t('canvas.overviewEmpty.cta', { defaultValue: '상세정보에서 채우기' }) as string}
           </EmptyCta>
         </EmptyOverview>
       )}
 
-      {/* ───── Layer 1 프레이밍 ───── */}
-      {show(layer1) && <LayerLabel $tone="blue">{t('canvas.layer1')}</LayerLabel>}
-      {show(has(strategy.context) || has(strategy.key_question)) && (
-        <TwoCol>
-          <StrategyField fieldKey="context" value={strategy.context}
-            label={t('canvas.context.label')} hint={t('canvas.context.hint')} ph={t('canvas.context.ph')} save={saveStrategy} readOnly={readOnly} />
-          <StrategyField fieldKey="key_question" value={strategy.key_question}
-            label={t('canvas.keyQuestion.label')} hint={t('canvas.keyQuestion.hint')} ph={t('canvas.keyQuestion.ph')} save={saveStrategy} readOnly={readOnly} />
-        </TwoCol>
-      )}
-      <StrategyField fieldKey="goal" value={strategy.goal}
-        label={t('canvas.goal.label')} hint={t('canvas.goal.hint')} ph={t('canvas.goal.ph')} save={saveStrategy} readOnly={readOnly} />
-      {show(hasMetrics) && <Card><SuccessMetricsEditor projectId={projectId} initial={data.success_metrics} onSaved={() => { /* canvas reloads via socket */ }} readOnly={readOnly} /></Card>}
-
-      {/* ───── Layer 2 전략 ───── */}
-      {show(layer2) && <LayerLabel $tone="green">{t('canvas.layer2')}</LayerLabel>}
-      {show(has(strategy.governing_thought)) && (
-        <GoverningWrap>
-          <GoverningLabel>{t('canvas.governing.label')}{!readOnly && <Hint>{t('canvas.governing.hint')}</Hint>}</GoverningLabel>
-          <GoverningField value={strategy.governing_thought} ph={t('canvas.governing.ph')} save={saveStrategy} readOnly={readOnly} />
-        </GoverningWrap>
-      )}
-      <StrategyField fieldKey="approach" value={strategy.approach}
-        label={t('canvas.approach.label')} hint={t('canvas.approach.hint')} ph={t('canvas.approach.ph')} save={saveStrategy} readOnly={readOnly} />
+      {/* ───── 핵심 추진과제 — 타임라인 아래로 이동 + 풀폭(개수 무관) (Irene) ───── */}
       {show(hasWorkstreams) && (
         <>
-          <SectionTitle>{t('canvas.workstreams.title')}{!readOnly && <Hint>{t('canvas.workstreams.hint')}</Hint>}</SectionTitle>
+          <SectionTitle>{t('canvas.workstreams.title')}{secEdit}{!readOnly && <Hint>{t('canvas.workstreams.hint')}</Hint>}</SectionTitle>
           <WorkstreamBoard projectId={projectId} workstreams={data.workstreams} onChanged={silentLoad} readOnly={readOnly} />
         </>
       )}
 
-      {/* ───── Layer 3 실행 ───── */}
-      {show(layer3) && <LayerLabel $tone="orange">{t('canvas.layer3')}</LayerLabel>}
+      {/* ───── 프레이밍(Why) — 파랑 파스텔 hero, 배경·목표 2열 (Irene) ───── */}
+      {show(layer1) && <LayerLabel $tone="blue">{t('canvas.layer1')}{secEdit}</LayerLabel>}
+      {show(has(strategy.context) || has(strategy.goal)) && (
+        <AutoGrid>
+          <HeroField tone="blue" fieldKey="context" value={strategy.context}
+            label={t('canvas.context.label')} hint={t('canvas.context.hint')} ph={t('canvas.context.ph')} save={saveStrategy} readOnly={readOnly} />
+          <HeroField tone="blue" fieldKey="goal" value={strategy.goal}
+            label={t('canvas.goal.label')} hint={t('canvas.goal.hint')} ph={t('canvas.goal.ph')} save={saveStrategy} readOnly={readOnly} />
+        </AutoGrid>
+      )}
+      <HeroField tone="blue" fieldKey="key_question" value={strategy.key_question}
+        label={t('canvas.keyQuestion.label')} hint={t('canvas.keyQuestion.hint')} ph={t('canvas.keyQuestion.ph')} save={saveStrategy} readOnly={readOnly} />
+      {show(hasMetrics) && <Card><SuccessMetricsEditor projectId={projectId} initial={data.success_metrics} onSaved={() => { /* canvas reloads via socket */ }} readOnly={readOnly} /></Card>}
 
+      {/* ───── 전략 — teal 파스텔 hero, 핵심메시지·추진방식 2열 (Irene) ───── */}
+      {show(layer2) && <LayerLabel $tone="green">{t('canvas.layer2')}{secEdit}</LayerLabel>}
+      {show(has(strategy.governing_thought) || has(strategy.approach)) && (
+        <AutoGrid>
+          <HeroField tone="teal" fieldKey="governing_thought" value={strategy.governing_thought}
+            label={t('canvas.governing.label')} hint={t('canvas.governing.hint')} ph={t('canvas.governing.ph')} save={saveStrategy} readOnly={readOnly} />
+          <HeroField tone="teal" fieldKey="approach" value={strategy.approach}
+            label={t('canvas.approach.label')} hint={t('canvas.approach.hint')} ph={t('canvas.approach.ph')} save={saveStrategy} readOnly={readOnly} />
+        </AutoGrid>
+      )}
+
+      {/* ───── 실행 — 주간 포커스 ───── */}
+      {show(layer3) && <LayerLabel $tone="orange">{t('canvas.layer3')}</LayerLabel>}
       {show(hasWeek) && (
         <>
           <SectionTitle>{t('canvas.weekFocus.title')}</SectionTitle>
-          <TwoCol>
+          <AutoGrid>
             <WeekCol title={t('canvas.weekFocus.thisWeek')} tasks={data.week_focus.this_week} emptyText={t('canvas.weekFocus.empty')} onOpen={(id) => navigate(`/projects/p/${projectId}?tab=tasks&task=${id}`)} />
             <WeekCol title={t('canvas.weekFocus.nextWeek')} tasks={data.week_focus.next_week} emptyText={t('canvas.weekFocus.emptyNext')} onOpen={(id) => navigate(`/projects/p/${projectId}?tab=tasks&task=${id}`)} />
-          </TwoCol>
+          </AutoGrid>
         </>
       )}
 
-      {show(hasDeliv || hasStake) && (
-        <GridTwo>
+      {/* ───── 리스크·이슈 | 산출물 2열 (리스크 먼저) (Irene) ───── */}
+      {show(hasRisks || hasDeliv) && (
+        <AutoGrid>
+          {show(hasRisks) && (
+            <Card>
+              <SectionTitle>{t('canvas.risks.title')}{secEdit}</SectionTitle>
+              {data.risks.length === 0 ? <Empty>{t('canvas.risks.empty')}</Empty> : (
+                <RiskList>{data.risks.map((r) => <RiskRow key={r.id}><AlertTriangleIcon size={14} /><span>{r.body}</span></RiskRow>)}</RiskList>
+              )}
+            </Card>
+          )}
           {show(hasDeliv) && (
             <Card>
               <SectionTitle>{t('canvas.deliverables.title')}</SectionTitle>
@@ -202,65 +215,56 @@ export default function ProjectCanvas({ projectId, businessId, readOnly = false 
               )}
             </Card>
           )}
-          {show(hasStake) && (
-            <Card>
-              <SectionTitle>{t('canvas.stakeholders.title')}</SectionTitle>
-              {(data.stakeholders.members.length + data.stakeholders.clients.length) === 0 ? <Empty>{t('canvas.stakeholders.empty')}</Empty> : (
-                <>
-                  {data.stakeholders.members.length > 0 && <GroupLabel>{t('canvas.stakeholders.members')}</GroupLabel>}
-                  <People>
-                    {data.stakeholders.members.map((m) => (
-                      <Person key={`m-${m.user_id}`}>
-                        <PName>{m.name}</PName>
-                        {m.dept && <DeptBadge>{m.dept}{m.team ? ` · ${m.team}` : ''}</DeptBadge>}
-                      </Person>
-                    ))}
-                  </People>
-                  {data.stakeholders.clients.length > 0 && <GroupLabel>{t('canvas.stakeholders.clients')}</GroupLabel>}
-                  <People>
-                    {data.stakeholders.clients.map((c) => (
-                      <Person key={`c-${c.id}`}><PName>{c.name}</PName><PartnerKindBadge kind={c.kind} size="xs" /></Person>
-                    ))}
-                  </People>
-                </>
-              )}
-            </Card>
-          )}
-        </GridTwo>
+        </AutoGrid>
       )}
 
-      {show(hasRisks) && (
-        <Card>
-          <SectionTitle>{t('canvas.risks.title')}</SectionTitle>
-          {data.risks.length === 0 ? <Empty>{t('canvas.risks.empty')}</Empty> : (
-            <RiskList>{data.risks.map((r) => <RiskRow key={r.id}><AlertTriangleIcon size={14} /><span>{r.body}</span></RiskRow>)}</RiskList>
-          )}
-        </Card>
-      )}
-
-      {/* ───── 관련 프로젝트 (§3.5) ───── */}
-      <RelatedProjects projectId={projectId} businessId={businessId} refreshSignal={refreshSignal} readOnly={readOnly} />
+      {/* ───── 이해관계자 | 관련 프로젝트 2열 (같은 스타일) (Irene) ───── */}
+      <AutoGrid>
+        {show(hasStake) && (
+          <Card>
+            <SectionTitle>{t('canvas.stakeholders.title')}{secEdit}</SectionTitle>
+            {(data.stakeholders.members.length + data.stakeholders.clients.length) === 0 ? <Empty>{t('canvas.stakeholders.empty')}</Empty> : (
+              <>
+                {data.stakeholders.members.length > 0 && <GroupLabel>{t('canvas.stakeholders.members')}</GroupLabel>}
+                <People>
+                  {data.stakeholders.members.map((m) => (
+                    <Person key={`m-${m.user_id}`}>
+                      <PName>{m.name}</PName>
+                      {m.dept && <DeptBadge>{m.dept}{m.team ? ` · ${m.team}` : ''}</DeptBadge>}
+                    </Person>
+                  ))}
+                </People>
+                {data.stakeholders.clients.length > 0 && <GroupLabel>{t('canvas.stakeholders.clients')}</GroupLabel>}
+                <People>
+                  {data.stakeholders.clients.map((c) => (
+                    <Person key={`c-${c.id}`}><PName>{c.name}</PName><PartnerKindBadge kind={c.kind} size="xs" /></Person>
+                  ))}
+                </People>
+              </>
+            )}
+          </Card>
+        )}
+        <RelatedProjects projectId={projectId} businessId={businessId} refreshSignal={refreshSignal} readOnly={readOnly} />
+      </AutoGrid>
     </Wrap>
   );
 }
 
-// 전략 텍스트 필드 (AutoSave) — uncontrolled + ref 로 최신 값 저장
-function StrategyField({ fieldKey, value, label, hint, ph, save, readOnly }: {
+// 파스텔 hero 필드 — 프레이밍(배경·목표)·전략(핵심메시지·추진방식)을 두껍고 큰 글자 + 톤 배경으로(Irene).
+function HeroField({ fieldKey, value, label, hint, ph, save, readOnly, tone }: {
   fieldKey: StrategyKey; value: string | null;
   label: string; hint: string; ph: string;
   save: (k: StrategyKey, v: string) => () => Promise<void>;
-  readOnly?: boolean;
+  readOnly?: boolean; tone: 'blue' | 'teal';
 }) {
   const valRef = useRef(value ?? '');
-  // 개요(readOnly) — 값 없으면 '—' 대신 필드 자체를 숨긴다(Irene).
   if (readOnly && !(value && value.trim())) return null;
-  // 개요(readOnly) — 맨 텍스트 나열 대신 라벨 eyebrow + 본문 카드(컨설턴트 보고서 형태, Irene).
   if (readOnly) {
     return (
-      <ReadCard>
-        <ReadCardLabel>{label}</ReadCardLabel>
-        <ReadOnlyText>{value}</ReadOnlyText>
-      </ReadCard>
+      <HeroCard $tone={tone}>
+        <HeroLabel $tone={tone}>{label}</HeroLabel>
+        <HeroText>{value}</HeroText>
+      </HeroCard>
     );
   }
   return (
@@ -273,16 +277,17 @@ function StrategyField({ fieldKey, value, label, hint, ph, save, readOnly }: {
   );
 }
 
-// 핵심 메시지(governing thought) 필드 — 큰 단일 입력, uncontrolled + ref
-function GoverningField({ value, ph, save, readOnly }: { value: string | null; ph: string; save: (k: StrategyKey, v: string) => () => Promise<void>; readOnly?: boolean }) {
-  const valRef = useRef(value ?? '');
-  if (readOnly) return <GoverningReadOnly>{value || '—'}</GoverningReadOnly>;
+// 섹션 제목 옆 수정 아이콘 — 상세정보(편집 가능)로 이동. 개요 readOnly 에서만 노출.
+function EditIcon({ onClick }: { onClick: () => void }) {
+  const { t } = useTranslation('qproject');
+  const label = t('canvas.editInDetails', { defaultValue: '상세정보에서 수정' }) as string;
   return (
-    <AutoSaveField onSave={() => save('governing_thought', valRef.current)()} type="input">
-      <GoverningInput defaultValue={value ?? ''} placeholder={ph} onChange={(e) => { valRef.current = e.target.value; }} />
-    </AutoSaveField>
+    <EditIconBtn type="button" onClick={onClick} title={label} aria-label={label}>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    </EditIconBtn>
   );
 }
+
 
 function WeekCol({ title, tasks, emptyText, onOpen }: { title: string; tasks: CanvasTaskBrief[]; emptyText: string; onOpen: (id: number) => void }) {
   return (
@@ -316,19 +321,31 @@ const LayerLabel = styled.div<{ $tone: 'blue' | 'green' | 'orange' }>`
   background:${(p) => (p.$tone === 'blue' ? '#DBEAFE' : p.$tone === 'green' ? '#CCFBF1' : '#FFEDD5')};
   &::before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor;}
 `;
-const TwoCol = styled.div`display:grid;grid-template-columns:1fr 1fr;gap:14px;@media (max-width:768px){grid-template-columns:1fr;}`;
-const GridTwo = styled.div`display:grid;grid-template-columns:1fr 1fr;gap:14px;@media (max-width:768px){grid-template-columns:1fr;}`;
 const Field = styled.div``;
 const FieldLabel = styled.div`font-size:13px;font-weight:700;color:#0F172A;margin-bottom:6px;`;
 const Hint = styled.span`font-size:11px;font-weight:500;color:#94A3B8;margin-left:8px;`;
 const Textarea = styled.textarea`width:100%;min-height:72px;resize:vertical;border:1px solid #E2E8F0;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.6;color:#334155;font-family:inherit;&:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,.15);}&::placeholder{color:#94A3B8;}`;
-// 개요 탭 읽기전용(#167) — 라벨 eyebrow + 본문 카드(컨설턴트 보고서 형태). 본문 14px(가이드 body).
-const ReadCard = styled.div`background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:7px;`;
-const ReadCardLabel = styled.div`font-size:12px;font-weight:700;color:#0F766E;text-transform:uppercase;letter-spacing:0.05em;`;
-const ReadOnlyText = styled.div`width:100%;font-size:14px;line-height:1.65;color:#0F172A;white-space:pre-wrap;word-break:break-word;`;
-const GoverningReadOnly = styled.div`width:100%;font-size:18px;font-weight:700;color:#0F172A;line-height:1.5;white-space:pre-wrap;word-break:break-word;`;
+// 빈 칸 안 남기는 2열 — 1개면 풀폭, 2개면 좌우, 좁으면 1열 (Irene: 우측 공간 비우지마)
+const AutoGrid = styled.div`display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;`;
+// 파스텔 hero 카드 — 프레이밍(파랑)/전략(teal) 톤. 두껍고 큰 글자(핵심메시지 스타일). (Irene)
+const HeroCard = styled.div<{ $tone: 'blue' | 'teal' }>`
+  border-radius:14px;padding:18px 20px;display:flex;flex-direction:column;gap:9px;
+  background:${p => p.$tone === 'blue' ? 'linear-gradient(135deg,#EFF6FF,#fff)' : 'linear-gradient(135deg,#F0FDFA,#fff)'};
+  border:1px solid ${p => p.$tone === 'blue' ? '#BFDBFE' : '#99F6E4'};
+`;
+const HeroLabel = styled.div<{ $tone: 'blue' | 'teal' }>`
+  display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;letter-spacing:0.03em;
+  color:${p => p.$tone === 'blue' ? '#1D4ED8' : '#0F766E'};
+`;
+const HeroText = styled.div`font-size:18px;font-weight:700;line-height:1.5;color:#0F172A;white-space:pre-wrap;word-break:break-word;`;
+// 섹션 제목 옆 수정 아이콘 — 상세정보(편집 가능한 곳)로 이동. 통일 형태(Irene)
+const EditIconBtn = styled.button`
+  margin-left:6px;width:22px;height:22px;padding:0;border:none;background:transparent;color:#94A3B8;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;border-radius:6px;vertical-align:middle;
+  &:hover{background:#F1F5F9;color:#0F766E;}
+`;
 const Card = styled.div`background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:16px 18px;`;
-const SectionTitle = styled.div`font-size:15px;font-weight:700;color:#0F172A;letter-spacing:-0.1px;margin-top:6px;`;
+const SectionTitle = styled.div`font-size:15px;font-weight:700;color:#0F172A;letter-spacing:-0.1px;margin-top:6px;margin-bottom:10px;display:flex;align-items:center;`;
 // 개요 폴리시드 빈상태 — 내용 없어도 대시보드처럼 안내(Irene).
 const EmptyOverview = styled.div`display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;padding:44px 24px;background:linear-gradient(135deg,#F8FAFC,#fff);border:1px solid #E2E8F0;border-radius:14px;`;
 const EmptyIcon = styled.div`display:inline-flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:16px;background:#F0FDFA;color:#0F766E;`;
@@ -336,9 +353,6 @@ const EmptyTitle = styled.div`font-size:16px;font-weight:700;color:#0F172A;`;
 const EmptyDesc = styled.div`font-size:14px;font-weight:500;color:#64748B;line-height:1.6;max-width:440px;`;
 const EmptyCta = styled.button`margin-top:4px;height:40px;padding:0 20px;background:#14B8A6;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;&:hover{background:#0D9488;}`;
 const GroupLabel = styled.div`font-size:11px;font-weight:600;color:#94A3B8;margin:10px 0 6px;`;
-const GoverningWrap = styled.div`background:linear-gradient(135deg,#F0FDFA,#fff);border:1px solid #99F6E4;border-radius:12px;padding:16px 18px;`;
-const GoverningLabel = styled.div`font-size:12px;font-weight:700;color:#0F766E;margin-bottom:8px;`;
-const GoverningInput = styled.input`width:100%;border:none;background:transparent;font-size:18px;font-weight:700;color:#0F172A;line-height:1.5;&:focus{outline:none;}&::placeholder{color:#5EEAD4;font-weight:600;}`;
 const Empty = styled.div`font-size:13px;color:#94A3B8;padding:10px 0;`;
 const WeekHead = styled.div`display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#0F172A;margin-bottom:10px;`;
 const WeekCount = styled.span`display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;background:#CCFBF1;color:#0F766E;border-radius:999px;font-size:11px;font-weight:700;`;
