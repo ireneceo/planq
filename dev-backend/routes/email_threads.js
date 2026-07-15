@@ -589,6 +589,25 @@ router.post('/:businessId/email-threads/bulk-read',
   },
 );
 
+// #154 — "모두 확인완료"(확인권장 폴더). 개별 mark-handled 의 벌크판: status=archived + reply_needed 해제
+//   → 확인 권장 목록에서 내려간다("판단 끝난 메일"). 전체 탭엔 남는다(원본 보존).
+router.post('/:businessId/email-threads/bulk-handled',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const { ids, acctScope } = await resolveBulkTargetIds(req.body, businessId, req.user.id);
+      if (!ids.length) return errorResponse(res, 'no_threads', 400);
+      const [count] = await EmailThread.update(
+        { status: 'archived', reply_needed: false, reply_needed_at: null, reply_needed_reason: 'handled', uncertain_reason: null },
+        { where: { id: { [Op.in]: ids }, business_id: businessId, account_id: acctScope } },
+      );
+      broadcastMail(req, businessId, 'mail:updated', { bulk: true, handled: true });
+      return successResponse(res, { updated: count });
+    } catch (err) { next(err); }
+  },
+);
+
 // ─────────────────────────────────────────────
 // POST 답장 — outbound 메시지 발송 + 스레드 갱신 + reply_needed 해제 + broadcast
 //   body: { body_html, to?, cc?, bcc?, attachment_file_ids? }
