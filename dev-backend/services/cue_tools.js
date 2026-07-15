@@ -8,17 +8,21 @@
 // 재무(invoice/payment)는 카탈로그에 없다 — Cue 는 문서 초안까지만, 돈은 영구 봉쇄 (guard cuetools).
 // LLM 은 툴을 **제안**할 뿐, actor 는 언제나 사용자 본인(execute-action) 또는 위임자(행동 계층) — 권한은 사람의 것.
 
-const { BusinessMember, User, Business } = require('../models');
+const { BusinessMember, User, Business, Task } = require('../models');
 const { getMemberNameMap } = require('./displayName');
 const { resolveAssignees } = require('./task_extractor');
-const { createTask } = require('./actions/task_actions');
+const { createTask, submitReview, complete, createComment } = require('./actions/task_actions');
 const { createEvent } = require('./actions/event_actions');
 const { createDocument } = require('./actions/document_actions');
 
 // 문서 종류 — 재무 계열(invoice·tax_invoice) 의도적 제외 (Cue 는 청구서를 만들지 않는다)
 const DOC_KINDS = ['quote', 'contract', 'nda', 'proposal', 'sow', 'meeting_note', 'sop', 'custom'];
 
-const WRITE_TOOLS = new Set(['create_task', 'create_event', 'create_document_draft']);
+// 전이·댓글 툴 — 이미 존재하는 업무(task_id)를 대상으로 한다. 권한은 행동 계층이 건다
+//   (submit/complete 는 담당자만 = only_assignee 403, 댓글은 canAccessTask). Cue 는 대상만 지정.
+const TASK_TARGET_TOOLS = new Set(['submit_review', 'complete_task', 'add_task_comment']);
+
+const WRITE_TOOLS = new Set(['create_task', 'create_event', 'create_document_draft', ...TASK_TARGET_TOOLS]);
 
 // ─────────────────────────────────────────────
 // LLM function-calling 스키마 — /help 가 tools 로 넘긴다
@@ -77,6 +81,45 @@ const TOOL_SCHEMAS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'submit_review',
+      description: '이미 있는 업무의 결과물을 제출해 컨펌(검토) 요청을 보낸다. "이 업무 검토 요청 보내줘", "결과물 제출해줘" 등. 담당자 본인만 가능. task_id 는 [현재 업무] 또는 컨텍스트에서.',
+      parameters: {
+        type: 'object',
+        properties: { task_id: { type: 'integer', description: '대상 업무 id.' } },
+        required: ['task_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'complete_task',
+      description: '이미 있는 업무를 완료 처리한다. "이 업무 완료해줘", "끝났어" 등. 담당자 본인만 가능. 컨펌자가 있는 업무는 컨펌을 거쳐야 하므로 거부될 수 있다.',
+      parameters: {
+        type: 'object',
+        properties: { task_id: { type: 'integer', description: '대상 업무 id.' } },
+        required: ['task_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'add_task_comment',
+      description: '이미 있는 업무에 댓글을 남긴다. "이 업무에 ~라고 코멘트 달아줘" 등.',
+      parameters: {
+        type: 'object',
+        properties: {
+          task_id: { type: 'integer', description: '대상 업무 id.' },
+          content: { type: 'string', description: '댓글 내용.' },
+        },
+        required: ['task_id', 'content'],
+      },
+    },
+  },
 ];
 
 const clip = (s, n) => (typeof s === 'string' ? s.trim().slice(0, n) : undefined);
@@ -132,6 +175,18 @@ function validateNormalize(tool, raw = {}) {
       ok: true,
       params: { kind: raw.kind, title, client_id: posInt(raw.client_id), project_id: posInt(raw.project_id) },
     };
+  }
+  if (tool === 'submit_review' || tool === 'complete_task') {
+    const taskId = posInt(raw.task_id);
+    if (!taskId) return { ok: false, code: 'task_id_required' };
+    return { ok: true, params: { task_id: taskId } };
+  }
+  if (tool === 'add_task_comment') {
+    const taskId = posInt(raw.task_id);
+    const content = clip(raw.content, 5000);
+    if (!taskId) return { ok: false, code: 'task_id_required' };
+    if (!content) return { ok: false, code: 'content_required' };
+    return { ok: true, params: { task_id: taskId, content } };
   }
   return { ok: false, code: 'unknown_tool' };
 }
@@ -215,6 +270,12 @@ async function buildProposedAction(businessId, toolCalls) {
       params.assignee_id = r.userId || undefined;
       params.assignee_resolved_name = r.displayName || undefined;  // 카드 표시용 (못 찾으면 undefined → "본인")
     }
+    // 전이·댓글 — 카드가 "어느 업무인지" 보여주도록 대상 업무 제목을 해석 (워크스페이스 격리)
+    if (TASK_TARGET_TOOLS.has(name) && params.task_id) {
+      const task = await Task.findOne({ where: { id: params.task_id, business_id: businessId }, attributes: ['id', 'title'] });
+      if (!task) continue;   // 다른 워크스페이스/없는 업무를 가리키면 제안 자체를 버린다
+      params.task_title = task.title;
+    }
     return { tool: name, params };
   }
   return null;
@@ -228,6 +289,19 @@ async function executeTool(actor, businessId, tool, rawParams) {
   const v = validateNormalize(tool, rawParams);
   if (!v.ok) return { ok: false, code: v.code, http: 400 };
   const p = v.params;
+
+  // 전이·댓글 — 대상 업무를 워크스페이스 격리로 로드한 뒤 행동 계층 전이 호출.
+  //   권한(담당자만·접근권)은 행동 계층이 건다. 여기선 대상 존재·소속만 확인.
+  if (TASK_TARGET_TOOLS.has(tool)) {
+    const task = await Task.findOne({ where: { id: p.task_id, business_id: businessId } });
+    if (!task) return { ok: false, code: 'invalid_task', http: 400 };
+    let tr;
+    if (tool === 'submit_review') tr = await submitReview(task, actor);
+    else if (tool === 'complete_task') tr = await complete(task, actor);
+    else tr = await createComment(actor, task, { content: p.content });
+    if (!tr.ok) return tr;
+    return { ok: true, data: { entity_type: 'task', entity_id: task.id, entity: tr.data?.task || task } };
+  }
 
   let r;
   let entityType;

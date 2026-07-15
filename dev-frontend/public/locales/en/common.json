@@ -244,7 +244,21 @@
       "errTitle": "A title is required.",
       "errDates": "The event time is invalid.",
       "errQuota": "Cue usage limit reached.",
-      "errGeneric": "Couldn't run this. Please try again shortly."
+      "errGeneric": "Couldn't run this. Please try again shortly.",
+      "hdrSubmit": "Request review",
+      "hdrComplete": "Complete task",
+      "hdrComment": "Task comment",
+      "doSubmit": "Send review request",
+      "doComplete": "Mark complete",
+      "doComment": "Add comment",
+      "targetTask": "Target task",
+      "commentBody": "Comment",
+      "errOnlyAssignee": "Only the assignee can do this.",
+      "errNoReviewers": "Assign a reviewer first before requesting review.",
+      "errNeedsConfirm": "Needs reviewer approval before completing.",
+      "errTask": "Target task not found.",
+      "errContent": "A comment is required.",
+      "errClosed": "This task is already closed."
     }
   },
   "cue": {

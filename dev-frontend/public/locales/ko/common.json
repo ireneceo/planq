@@ -244,7 +244,21 @@
       "errTitle": "제목이 필요해요.",
       "errDates": "일정 시각이 올바르지 않아요.",
       "errQuota": "Cue 사용 한도를 초과했어요.",
-      "errGeneric": "실행하지 못했어요. 잠시 후 다시 시도해주세요."
+      "errGeneric": "실행하지 못했어요. 잠시 후 다시 시도해주세요.",
+      "hdrSubmit": "검토 요청",
+      "hdrComplete": "업무 완료",
+      "hdrComment": "업무 댓글",
+      "doSubmit": "검토 요청 보내기",
+      "doComplete": "완료 처리",
+      "doComment": "댓글 남기기",
+      "targetTask": "대상 업무",
+      "commentBody": "댓글 내용",
+      "errOnlyAssignee": "이 업무의 담당자만 할 수 있어요.",
+      "errNoReviewers": "먼저 컨펌자를 지정해야 검토 요청을 보낼 수 있어요.",
+      "errNeedsConfirm": "컨펌자 승인을 거쳐야 완료할 수 있어요.",
+      "errTask": "대상 업무를 찾을 수 없어요.",
+      "errContent": "댓글 내용이 필요해요.",
+      "errClosed": "이미 종료된 업무예요."
     }
   },
   "cue": {
