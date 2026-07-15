@@ -627,7 +627,8 @@ router.post('/subscriptions/:id/demote', async (req, res, next) => {
     const reason = req.body?.reason ? String(req.body.reason).slice(0, 255) : 'admin manual demote';
 
     const billing = require('../services/billing');
-    await billing.downgradeToFree(sub.business_id, reason);
+    // downgradeToFree 는 구조분해 시그니처({businessId,userId,reason}) — positional 호출은 businessId=undefined 로 항상 실패했다(Fable 발견).
+    await billing.downgradeToFree({ businessId: sub.business_id, userId: req.user?.id, reason });
 
     require('../services/auditService').logAudit(req, {
       action: 'admin.subscription.demote',

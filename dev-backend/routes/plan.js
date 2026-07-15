@@ -52,9 +52,15 @@ router.get('/:businessId/status', authenticateToken, checkBusinessAccess, async 
         order: [['created_at', 'DESC']],
         limit: 10
       }),
+      // ★결제완료(active/grace/past_due) 우선 — 미결제 pending 이 최신이어도 결제분을 현재 구독으로.
+      //   plan status 는 플랜 화면(PlanSettings)의 실제 데이터 소스라, billing.getCurrentSubscription 과 정렬 일치 필수
+      //   (안 그러면 결제 후 새 체크아웃만 열어도 '미결제/프리' 사고 재현 — Fable 게이트).
       SubscriptionModel.findOne({
         where: { business_id: businessId, status: { [Op.in]: ['pending', 'active', 'past_due', 'grace'] } },
-        order: [['created_at', 'DESC']],
+        order: [
+          [SubscriptionModel.sequelize.literal(`FIELD(status, 'active', 'grace', 'past_due', 'pending')`), 'ASC'],
+          ['created_at', 'DESC'],
+        ],
       }),
       PaymentModel.findOne({
         where: { business_id: businessId, status: 'pending' },

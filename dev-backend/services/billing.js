@@ -150,6 +150,12 @@ async function markPaymentPaid({ paymentId, markedByUserId, payerName, payerMemo
 
     const sub = await Subscription.findByPk(pay.subscription_id, { transaction: t, lock: t.LOCK.UPDATE });
     if (!sub) throw new Error('subscription_not_found');
+    // ★이미 replaced/demoted/canceled 된 죽은 구독에 매달린 고아 pending 결제를 mark-paid 하면
+    //   죽은 구독이 부활하며 현 플랜을 옛 플랜으로 뒤집는다(N+94급). 살아있는 구독의 결제만 확정 허용.
+    if (!['pending', 'active', 'past_due', 'grace'].includes(sub.status)) {
+      await t.rollback();
+      throw new Error('subscription_superseded');
+    }
 
     const now = new Date();
     const periodStart = sub.current_period_end && sub.current_period_end > now
