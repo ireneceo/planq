@@ -44,6 +44,9 @@ FeedbackItem.init({
   // 자동 수집 메타
   page_url: { type: DataTypes.STRING(500), allowNull: true },
   user_agent: { type: DataTypes.STRING(500), allowNull: true },
+  // #162 — 디바이스·앱 환경(vw/vh/dpr/lang/platform/standalone 등) + 팝아웃 여부. 트리아지 정확도.
+  client_env: { type: DataTypes.JSON, allowNull: true, defaultValue: null },
+  is_popout: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   // 처리 상태
   status: {
     type: DataTypes.ENUM('pending', 'reviewing', 'done', 'wontfix'),

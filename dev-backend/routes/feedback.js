@@ -18,7 +18,7 @@ const ALLOWED_PRIORITY = ['normal', 'high'];
 //   parent_id 동봉 시 = 답변 받은 원 피드백에 대한 추가 문의(스레드 자식, #70)
 router.post('/', authenticateToken, async (req, res, next) => {
   try {
-    const { category, priority, title, body, page_url, attachments, parent_id } = req.body || {};
+    const { category, priority, title, body, page_url, attachments, parent_id, client_env, is_popout } = req.body || {};
     if (!body || !String(body).trim()) return errorResponse(res, 'body_required', 400);
 
     // 추가 문의(parent_id) 검증 — 본인 소유 + 답변 받은 최상위 부모만
@@ -58,6 +58,8 @@ router.post('/', authenticateToken, async (req, res, next) => {
       attachments: Array.isArray(attachments) ? attachments.slice(0, 5) : null,
       page_url: page_url ? String(page_url).slice(0, 500) : null,
       user_agent: ua,
+      client_env: (client_env && typeof client_env === 'object' && !Array.isArray(client_env)) ? client_env : null,
+      is_popout: !!is_popout,
       status: 'pending',
     });
 
