@@ -93,48 +93,20 @@ export const TabCount = styled.span<{ $active: boolean }>`
 // 메일 검색창
 export const SearchRow = styled.div`
   display: flex; align-items: center; gap: 6px;
-  flex: 1; min-width: 0; padding: 0 10px;
+  margin: 8px 16px; padding: 0 10px;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
+  flex-shrink: 0;
   &:focus-within { border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.1); }
 `;
-// #154 상주 툴바 — 검색[flex:1] + 필터 토글 + 일괄버튼. 여백은 --list-gutter(16px) 통일.
-export const ToolRow = styled.div`
-  display: flex; align-items: center; gap: 8px;
-  margin: 8px 16px;
+// 리스트 헤더 우측 액션 묶음 — ⚙계정관리 + 새메일(+). 제목 옆 우측 정렬.
+export const HeaderActions = styled.div`
+  display: flex; align-items: center; gap: 6px; margin-left: auto;
 `;
-export const FilterToggle = styled.button<{ $on?: boolean }>`
-  flex-shrink: 0; position: relative;
-  display: inline-flex; align-items: center; gap: 4px;
-  height: 34px; padding: 0 10px;
-  border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
-  background: ${(p) => (p.$on ? '#F0FDFA' : '#FFFFFF')};
-  color: ${(p) => (p.$on ? '#0F766E' : '#475569')};
-  border: 1px solid ${(p) => (p.$on ? '#99F6E4' : '#E2E8F0')};
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-  &:hover { border-color: #14B8A6; color: #0F766E; }
-  &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
-`;
-export const FilterChevron = styled.svg<{ $on?: boolean }>`
-  width: 14px; height: 14px; flex-shrink: 0;
-  transition: transform 0.15s ease;
-  transform: rotate(${(p) => (p.$on ? '180deg' : '0deg')});
-`;
-export const FilterBadge = styled.span`
-  min-width: 16px; height: 16px; padding: 0 4px;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: #14B8A6; color: #FFFFFF;
-  font-size: 10px; font-weight: 700; border-radius: 999px;
-`;
-// 접이식 필터 영역 — 계정+프로젝트 / 태그+계정관리 아이콘
-export const FilterPanel = styled.div`
-  display: flex; flex-direction: column; gap: 8px;
-  padding-bottom: 4px;
-`;
-// 계정관리 — 톱니 아이콘 (기존 dashed "계정 관리" 텍스트 칩 대체)
+// 계정관리 — 톱니 아이콘 (헤더 + 앞). 기존 dashed "계정 관리" 텍스트 칩 대체.
 export const AcctManageIcon = styled.button`
   flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;
-  width: 34px; height: 34px; padding: 0;
+  width: 32px; height: 32px; padding: 0;
   border: 1px solid #E2E8F0; border-radius: 8px; background: #FFFFFF;
   color: #64748B; cursor: pointer;
   transition: color 0.15s, border-color 0.15s;
