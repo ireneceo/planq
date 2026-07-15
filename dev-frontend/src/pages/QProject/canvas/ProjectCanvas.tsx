@@ -158,7 +158,7 @@ export default function ProjectCanvas({ projectId, businessId, readOnly = false 
       {show(layer2) && <LayerLabel $tone="green">{t('canvas.layer2')}</LayerLabel>}
       {show(has(strategy.governing_thought)) && (
         <GoverningWrap>
-          {!readOnly && <GoverningLabel>{t('canvas.governing.label')}<Hint>{t('canvas.governing.hint')}</Hint></GoverningLabel>}
+          <GoverningLabel>{t('canvas.governing.label')}{!readOnly && <Hint>{t('canvas.governing.hint')}</Hint>}</GoverningLabel>
           <GoverningField value={strategy.governing_thought} ph={t('canvas.governing.ph')} save={saveStrategy} readOnly={readOnly} />
         </GoverningWrap>
       )}
@@ -254,16 +254,21 @@ function StrategyField({ fieldKey, value, label, hint, ph, save, readOnly }: {
   const valRef = useRef(value ?? '');
   // 개요(readOnly) — 값 없으면 '—' 대신 필드 자체를 숨긴다(Irene).
   if (readOnly && !(value && value.trim())) return null;
+  // 개요(readOnly) — 맨 텍스트 나열 대신 라벨 eyebrow + 본문 카드(컨설턴트 보고서 형태, Irene).
+  if (readOnly) {
+    return (
+      <ReadCard>
+        <ReadCardLabel>{label}</ReadCardLabel>
+        <ReadOnlyText>{value}</ReadOnlyText>
+      </ReadCard>
+    );
+  }
   return (
     <Field>
-      <FieldLabel>{label}{!readOnly && <Hint>{hint}</Hint>}</FieldLabel>
-      {readOnly
-        ? <ReadOnlyText>{value}</ReadOnlyText>
-        : (
-          <AutoSaveField onSave={() => save(fieldKey, valRef.current)()} type="input">
-            <Textarea defaultValue={value ?? ''} placeholder={ph} onChange={(e) => { valRef.current = e.target.value; }} />
-          </AutoSaveField>
-        )}
+      <FieldLabel>{label}<Hint>{hint}</Hint></FieldLabel>
+      <AutoSaveField onSave={() => save(fieldKey, valRef.current)()} type="input">
+        <Textarea defaultValue={value ?? ''} placeholder={ph} onChange={(e) => { valRef.current = e.target.value; }} />
+      </AutoSaveField>
     </Field>
   );
 }
@@ -317,8 +322,10 @@ const Field = styled.div``;
 const FieldLabel = styled.div`font-size:13px;font-weight:700;color:#0F172A;margin-bottom:6px;`;
 const Hint = styled.span`font-size:11px;font-weight:500;color:#94A3B8;margin-left:8px;`;
 const Textarea = styled.textarea`width:100%;min-height:72px;resize:vertical;border:1px solid #E2E8F0;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.6;color:#334155;font-family:inherit;&:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,.15);}&::placeholder{color:#94A3B8;}`;
-// 개요 탭 읽기전용(#167) — 값을 definition-list 스타일로 비춘다. 본문 14px(디자인 가이드 body).
-const ReadOnlyText = styled.div`width:100%;min-height:22px;font-size:14px;line-height:1.65;color:#334155;white-space:pre-wrap;word-break:break-word;`;
+// 개요 탭 읽기전용(#167) — 라벨 eyebrow + 본문 카드(컨설턴트 보고서 형태). 본문 14px(가이드 body).
+const ReadCard = styled.div`background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:7px;`;
+const ReadCardLabel = styled.div`font-size:12px;font-weight:700;color:#0F766E;text-transform:uppercase;letter-spacing:0.05em;`;
+const ReadOnlyText = styled.div`width:100%;font-size:14px;line-height:1.65;color:#0F172A;white-space:pre-wrap;word-break:break-word;`;
 const GoverningReadOnly = styled.div`width:100%;font-size:18px;font-weight:700;color:#0F172A;line-height:1.5;white-space:pre-wrap;word-break:break-word;`;
 const Card = styled.div`background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:16px 18px;`;
 const SectionTitle = styled.div`font-size:15px;font-weight:700;color:#0F172A;letter-spacing:-0.1px;margin-top:6px;`;

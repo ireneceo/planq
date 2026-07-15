@@ -361,10 +361,13 @@ router.get('/:businessId/email-threads/:id',
             body_text: mj.body_text,
             sent_at: mj.sent_at,
             is_read: mj.is_read,
-            attachments: (mj.attachments || []).map(a => ({
+            // inline 이미지(cid)는 본문에 속하므로 첨부 목록에서 제외. 모델 필드명(filename/size_bytes) 정정 +
+            //   file_id 를 내려줘야 프론트가 다운로드 가능(여태 file_name/file_size 오필드라 'undefined (NaN KB)' + 다운로드 불가 회귀).
+            attachments: (mj.attachments || []).filter(a => !a.is_inline).map(a => ({
               id: a.id,
-              file_name: a.file_name,
-              file_size: a.file_size,
+              file_id: a.file_id,
+              file_name: a.filename,
+              file_size: a.size_bytes,
               mime_type: a.mime_type,
             })),
           };

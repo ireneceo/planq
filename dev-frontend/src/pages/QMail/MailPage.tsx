@@ -15,6 +15,7 @@ import PageShell from '../../components/Layout/PageShell';
 import PanelHeader, { PanelTitle, PanelSubTitle, PanelMetaTitle } from '../../components/Layout/PanelHeader';
 import { PanelGridLayout, CollapsibleSidebar, SidebarBackdrop, Panel } from '../../components/Layout/PanelLayout';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
+import { downloadBlob } from '../../utils/download';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { joinRoom, leaveRoom, onSocket, getSocket } from '../../services/socket';
@@ -186,7 +187,7 @@ interface Message {
   body_text: string | null;
   sent_at: string;
   is_read: boolean;
-  attachments: Array<{ id: number; file_name: string; file_size: number; mime_type: string }>;
+  attachments: Array<{ id: number; file_id: number | null; file_name: string; file_size: number; mime_type: string }>;
 }
 
 interface ThreadDetail extends Thread {
@@ -1066,6 +1067,16 @@ const MailPage: React.FC = () => {
   const ctxNarrow = viewportNarrow;
   const [ctxOverlayOpen, setCtxOverlayOpen] = useState(false);
   useBodyScrollLock(ctxNarrow && ctxOverlayOpen);
+  // 받은 메일 첨부 다운로드 — file_id 로 PlanQ File 인박스에서 인증 blob 다운로드.
+  const downloadAttachment = async (fileId: number | null, name: string) => {
+    if (!fileId || !businessId) return;
+    try {
+      const r = await apiFetch(`/api/files/${businessId}/${fileId}/download`);
+      if (!r.ok) throw new Error('download_failed');
+      await downloadBlob(await r.blob(), name || 'attachment');
+    } catch { /* 조용히 — 목록은 그대로 */ }
+  };
+
   const closeCompose = () => {
     setComposeOpen(false); setCTo(''); setCSubject(''); setCBody(''); setCUploads([]); setCFileIds([]); setCError(null);
     setFwdFromMsgId(null); setFwdAttachCount(0);
@@ -1631,8 +1642,15 @@ const MailPage: React.FC = () => {
                     {m.attachments.length > 0 && (
                       <Attachments>
                         {m.attachments.map(a => (
-                          <Attachment key={a.id}>
-                            <ClipIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></ClipIcon> {a.file_name} ({Math.round(a.file_size / 1024)} KB)
+                          <Attachment
+                            key={a.id}
+                            as="button"
+                            type="button"
+                            onClick={() => downloadAttachment(a.file_id, a.file_name)}
+                            disabled={!a.file_id}
+                            title={a.file_id ? (t('attachment.download', { defaultValue: '내려받기' }) as string) : undefined}
+                          >
+                            <ClipIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></ClipIcon> {a.file_name || (t('attachment.fallback', { defaultValue: '첨부파일' }) as string)}{a.file_size ? ` (${Math.round(a.file_size / 1024)} KB)` : ''}
                           </Attachment>
                         ))}
                       </Attachments>
