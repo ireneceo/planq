@@ -1,6 +1,38 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-07-14 (Opus, 1M) — **📮 운영 피드백 11건 처리 + 운영 배포 2회.** 헬스 30/30 · guard-invariants 19/19 · e2e tenant 0 · 빌드 EXIT0/TS0 · 실HTTP 10/10.
+> **최종 업데이트:** 2026-07-15 (Opus, 1M) — **🚪 행동 계층 3사이클 — 일정·문서 생성 단일 착지점(event_create / document_draft).** 헬스 30/30 · guard-invariants 19/19 · 실HTTP+서비스 25/25 (데이터 전량 원복). dev 검증 완료 (미배포).
+
+## ✅ 완료: 행동 계층 3사이클 — 일정·문서 생성도 같은 문 (2026-07-15)
+
+일정 생성이 `routes/calendar.js` 에만, 문서 생성이 `routes/docs.js` 에만 인라인이었다. 그래서 **라우트를 통과하지 않는 실행자(Cue·워커)는 메뉴 권한·감사·알림·socket 을 통째로 우회**할 수 있었고, 두 라우트 모두 **메뉴 쓰기 권한(qcalendar/qdocs)을 아예 검사하지 않았다** — `none` 으로 설정된 멤버도 일정·문서를 만들 수 있었다(task_actions 가 qtask 를 봉합했던 것과 같은 갭). #81 Cue 대화형 실행이 이 문들을 지나게 하는 것이 목적.
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 공용 `services/actions/_subject.js` | `resolveSubject`(Cue 는 위임자 권한으로만, 위임자가 AI 면 거부) + `assertMenuWrite` 를 task_actions 에서 뽑아 3파일 공용. 규칙 두 벌 두면 한쪽만 고쳐지는 회귀 | ✅ |
+| 신규 `services/actions/event_actions.js` | `createEvent(actor, params)` — 멤버십·**qcalendar 게이트(신설 봉합)**·gcal Meet·attendee 검증·감사·attendee 알림·`event:created` broadcast. 사람도 Cue 도 같은 문 | ✅ |
+| 신규 `services/actions/document_actions.js` | `createDocument(actor, params)` — 멤버십·**qdocs 게이트(신설 봉합)**·템플릿 렌더·usage_count·감사. `KIND_VALUES/renderTemplate/buildTemplateContext` 이관(단일 원천). 재무 모델 카탈로그 제외 | ✅ |
+| 라우트 얇게 | `calendar.js POST /by-business/:id` (175→24줄) · `docs.js POST /documents` — 파싱+actor+호출+응답만 | ✅ |
+| 절단면 — 인라인 유지(의도된 예외) | 정기일정 분할·예외 파생 복제 2건(편집 트랜잭션 메커닉, PUT 가 이미 가드) · 워크스페이스 간 본인 자료 전송 복사 3건(배치 가드+배치 감사, per-item 게이트는 성능·감사 회귀). "통일 유혹 금지" | ✅ |
+| 불변식 가드 확장 | `createlayer` — CalendarEvent/Document raw create 차단(동결 예외 카운트) + `_subject`·event·document 계층 핵심기능 검사(qcalendar/qdocs 게이트·감사·재무봉쇄) | ✅ |
+
+### 발견 — docs POST /documents 잠재버그(의도적 보존)
+옛 코드 `successResponse(res, doc.toJSON(), 201)` 는 201 을 **message 인자**로 넘겨 실제로는 **HTTP 200 + body `{message: 201}`** 을 반환한다(status 는 200 고정). 추출은 **동작 1:1 보존이 계약**이라 그대로 재현했다. 별도 소규모 수정 후보(→ `successResponse(res, doc, 'created', 201)`).
+
+### 검증 (실HTTP + 서비스 25/25 · 데이터 전량 원복)
+- HTTP event_create — 오너·멤버 생성 201, 저장→조회 값 일치, end<start 400, **고객 403**, **qcalendar=none 멤버 403(`menu_forbidden:qcalendar`)** + 권한 복원 후 재생성
+- HTTP document_draft — 생성(옛 status 200 보존), invalid_kind/payload 400, **qdocs=none 멤버 403(`menu_forbidden:qdocs`)**
+- 서비스 Cue 위임 — 위임=오너 생성 ok(created_by=위임자), 위임자 없음 `cue_delegator_required`, **위임자=AI `delegator_is_ai`**(권한 세탁 차단) — 일정·문서 양쪽
+- 헬스 30/30 · guard-invariants 19/19 · 백엔드 무크래시 · 원복 후 stray 0
+
+### 수정된 파일
+- 신규: `services/actions/_subject.js` · `services/actions/event_actions.js` · `services/actions/document_actions.js`
+- 얇게: `routes/calendar.js` · `routes/docs.js` · `services/actions/task_actions.js`(공용 모듈 import)
+- 가드: `scripts/guard-invariants.js`(createlayer 확장)
+
+### 남은 것 (행동 계층)
+생성 계열은 task·comment·event·document 로 카탈로그 완성. **invoice 전이는 의도적 카탈로그 영구 제외**(재무 봉쇄). 다음은 #81 Cue 대화형 실행(`/기능설계`+Fable 게이트).
+
+---
 
 ## ✅ 완료: 운영 피드백 11건 — "저장했다고 거짓말하던 화면" (2026-07-14)
 
