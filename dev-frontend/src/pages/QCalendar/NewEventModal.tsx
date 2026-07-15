@@ -395,16 +395,18 @@ const Modal = styled.div`
   background: #fff; border-radius: 14px; box-shadow: 0 30px 60px -20px rgba(15, 23, 42, 0.25);
   display: flex; flex-direction: column; overflow: hidden;
 
-  /* mobile: top/bottom 고정으로 GNB 피하고 화면 안에 확실히 배치 */
+  /* mobile: 바텀시트 — 하단 고정이라 키보드가 올라와도(--vvh 축소) 시트 바닥이 키보드 위에 붙어
+     흰 여백/푸터 상승이 없다(#161). Footer 는 flex-shrink:0 로 이미 시트 바닥에 고정. */
   @media (max-width: 640px) {
-    top: 70px;
-    bottom: auto;
-    left: 16px;
-    right: 16px;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
     transform: none;
     width: auto;
     max-width: none;
-    max-height: calc(var(--vvh, 100vh) - 90px);
+    border-radius: 14px 14px 0 0;
+    max-height: calc(var(--vvh, 100vh) - 24px);
   }
 `;
 const Header = styled.div`
@@ -499,6 +501,7 @@ const Footer = styled.div`
   padding: 12px 18px; border-top: 1px solid #E2E8F0;
   display: flex; justify-content: flex-end; gap: 8px;
   flex-shrink: 0;
+  @media (max-width: 640px) { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
 `;
 const SecondaryBtn = styled.button`
   padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 500;
