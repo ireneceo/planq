@@ -22,7 +22,7 @@ import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import * as qtalkApi from '../../services/qtalk';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { mapApiError } from '../../utils/apiError';
-import PanelEdgeHandle from '../../components/Layout/PanelEdgeHandle';
+import FloatingPanelToggle from '../../components/Common/FloatingPanelToggle';
 import { usePanelWidth } from '../../components/Layout/PanelResizeHandle';
 
 /**
@@ -1506,15 +1506,15 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
 
   return (
     <PanelLayout $embedded={embedded}>
-      {/* 좌측 리스트 접기/펼치기 — 우측과 동일하게 공통 핸들을 레이아웃 레벨에.
-          패널 안에 그리면 옆 패널(대화창)에 가려 클릭이 안 먹었다. */}
-      <PanelEdgeHandle
+      {/* 좌측 리스트 접기/펼치기 — 공통 FloatingPanelToggle(뷰포트 왼쪽 변 플로팅).
+          ≤1024px(mediaTablet)은 리스트↔대화 풀스크린 전환이라 핸들 숨김(hideBelow). */}
+      <FloatingPanelToggle
         side="left"
-        collapsed={leftCollapsed}
+        hideBelow={1024}
+        open={!leftCollapsed}
         onToggle={toggleLeft}
-        offset={leftCollapsed ? 0 : leftWidth}
-        labelCollapse={t('left.collapse', { defaultValue: '리스트 접기' }) as string}
-        labelExpand={t('left.expand', { defaultValue: '리스트 열기' }) as string}
+        offsetOpen={`${leftWidth}px`}
+        ariaLabel={(leftCollapsed ? t('left.expand', { defaultValue: '리스트 열기' }) : t('left.collapse', { defaultValue: '리스트 접기' })) as string}
       />
       <LeftPanel
         width={leftWidth}
@@ -1592,19 +1592,17 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
           }, 150);
         }}
       />
-      {/* 우측 작업대 접기/펼치기 — 공통 PanelEdgeHandle 을 레이아웃 레벨에 그린다.
-          여태 RightPanel 안의 CollapsedStrip(width:0, ≤1200px 에서 display:none)에 그려서
-          옆 패널에 가리거나 아예 사라졌다. Q Mail 만 정상이던 이유.
-          대화를 안 고르면 RightPanel 자체가 없다(RightPanel.tsx: !project && !conversation → null).
-          그때 핸들만 남으면 존재하지 않는 패널의 접기 버튼이 떠 있게 된다 → 패널이 있을 때만 그린다. */}
+      {/* 우측 작업대 접기/펼치기 — 공통 FloatingPanelToggle(뷰포트 오른쪽 변 플로팅).
+          ≤1200px 은 RightPanel 내부 오버레이 플로팅이 담당하므로 여기선 >1200 만(hideBelow).
+          대화를 안 고르면 RightPanel 자체가 없다 → 패널이 있을 때만 그린다. */}
       {(activeProject || activeConversationId) && (
-        <PanelEdgeHandle
+        <FloatingPanelToggle
           side="right"
-          collapsed={rightCollapsed}
+          hideBelow={1200}
+          open={!rightCollapsed}
           onToggle={toggleRight}
-          offset={rightCollapsed ? 0 : rightWidth}
-          labelCollapse={`${t('right.collapse', { defaultValue: '작업대 접기' }) as string} (⌘/)`}
-          labelExpand={`${t('right.expand', { defaultValue: '작업대 열기' }) as string} (⌘/)`}
+          offsetOpen={`${rightWidth}px`}
+          ariaLabel={`${(rightCollapsed ? t('right.expand', { defaultValue: '작업대 열기' }) : t('right.collapse', { defaultValue: '작업대 접기' })) as string} (⌘/)`}
         />
       )}
       <RightPanel

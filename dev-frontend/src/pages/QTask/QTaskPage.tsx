@@ -41,7 +41,6 @@ import {
 } from '../../utils/recurrence';
 import WeeklyReviewModal from '../../components/QTask/WeeklyReviewModal';
 import WeeklyReviewTab from '../../components/QTask/WeeklyReviewTab';
-import PanelEdgeHandle from '../../components/Layout/PanelEdgeHandle';
 import PartnerKindBadge from '../../components/Common/PartnerKindBadge';
 
 // ─── Types ───
@@ -2269,17 +2268,15 @@ const QTaskPage:React.FC=()=>{
       </Panel>
 
       {/* ════ RIGHT ════ */}
-      {/* CollapsedStrip — 0폭 anchor + EdgeHandle (Q Talk / Q docs 표준 통일) */}
-      {/* 우측 패널 접기/펼치기 — 공통 PanelEdgeHandle 을 레이아웃 레벨에 (패널 안에 그리면 가려진다).
-          Q Mail 과 동일 패턴. */}
+      {/* 우측 패널 접기/펼치기 — 공통 FloatingPanelToggle(뷰포트 변 플로팅, 전 폭 동일 디자인).
+          열림 시 실제 패널 폭(rightWidth)을 offset 으로 넘겨 패널 안쪽 변에 붙인다. */}
       {!isNarrow && (!isClient || !!detailTaskId) && (
-        <PanelEdgeHandle
+        <FloatingPanelToggle
           side="right"
-          collapsed={rightCollapsed}
+          open={!rightCollapsed}
           onToggle={()=>setRightCollapsed(v=>!v)}
-          offset={rightCollapsed ? 0 : rightWidth}
-          labelCollapse={`${t('right.collapse','패널 접기') as string} (⌘/)`}
-          labelExpand={`${t('right.expand','패널 열기') as string} (⌘/)`}
+          offsetOpen={`${rightWidth}px`}
+          ariaLabel={`${(rightCollapsed ? t('right.expand','패널 열기') : t('right.collapse','패널 접기')) as string} (⌘/)`}
         />
       )}
       {/* TaskDetailDrawer 는 position:fixed 오버레이 — rightCollapsed 와 무관하게 detailTaskId 만 보고 렌더. */}

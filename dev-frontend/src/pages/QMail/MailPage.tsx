@@ -24,7 +24,6 @@ import ActionButton from '../../components/Common/ActionButton';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { uploadMyFile } from '../../services/files';
 import MailContextPanel from './MailContextPanel';
-import PanelEdgeHandle from '../../components/Layout/PanelEdgeHandle';
 import PanelResizeHandle, { usePanelWidth } from '../../components/Layout/PanelResizeHandle';
 import EmptyState from '../../components/Common/EmptyState';
 import { sanitizeMailHtml } from '../../utils/sanitizeHtml';
@@ -1108,15 +1107,13 @@ const MailPage: React.FC = () => {
     >
       {/* #130 — 좌측 리스트: 300px 접이식 (여태 340px 고정·접기 없음이라 Q Mail 만 다른 화면처럼 보였다) */}
       {!sidebarCollapsed && viewportNarrow && <SidebarBackdrop onClick={() => setSidebarCollapsed(true)} />}
-      {/* 좌측 리스트 접기 — Q Talk·Q docs·Q Task 와 같은 경계선 중앙 화살표 핸들 (공통 컴포넌트).
-          여태 Q Mail 만 헤더 안 박스 버튼이라 다른 화면과 어긋나 있었다. */}
-      <PanelEdgeHandle
+      {/* 좌측 리스트 접기 — 공통 FloatingPanelToggle(뷰포트 왼쪽 변 플로팅, 전 폭 동일 디자인). */}
+      <FloatingPanelToggle
         side="left"
-        collapsed={sidebarCollapsed}
+        open={!sidebarCollapsed}
         onToggle={() => setSidebarCollapsed((v) => !v)}
-        offset={sidebarCollapsed ? 0 : listWidth}
-        labelCollapse={t('sidebar.collapse', { defaultValue: '목록 접기' }) as string}
-        labelExpand={t('sidebar.expand', { defaultValue: '목록 열기' }) as string}
+        offsetOpen={`${listWidth}px`}
+        ariaLabel={(sidebarCollapsed ? t('sidebar.expand', { defaultValue: '목록 열기' }) : t('sidebar.collapse', { defaultValue: '목록 접기' })) as string}
       />
       <CollapsibleSidebar $collapsed={sidebarCollapsed} $w={listWidth}>
         <PanelResizeHandle onMouseDown={startListResize} />
@@ -1658,15 +1655,15 @@ const MailPage: React.FC = () => {
           )}
         </Panel>
 
-        {/* 우측 맥락 패널 — Q Talk RightPanel 과 같은 경계선 핸들로 접기/펼치기 (⌘/ · Ctrl+\) */}
-        {detail && businessId && (
-          <PanelEdgeHandle
+        {/* 우측 맥락 패널 접기 — 공통 FloatingPanelToggle(뷰포트 오른쪽 변 플로팅). 데스크탑·태블릿 컬럼용
+            (좁은 폭 오버레이는 아래 ctxNarrow 분기가 담당 — 둘은 상호배타). (⌘/ · Ctrl+\) */}
+        {detail && businessId && !ctxNarrow && (
+          <FloatingPanelToggle
             side="right"
-            collapsed={rightCollapsed}
+            open={!rightCollapsed}
             onToggle={toggleRightCollapsed}
-            offset={rightCollapsed ? 0 : rightWidth}
-            labelCollapse={`${t('context.collapse', { defaultValue: '맥락 패널 접기' }) as string} (⌘/)`}
-            labelExpand={`${t('context.expand', { defaultValue: '맥락 패널 펼치기' }) as string} (⌘/)`}
+            offsetOpen={`${rightWidth}px`}
+            ariaLabel={`${(rightCollapsed ? t('context.expand', { defaultValue: '맥락 패널 펼치기' }) : t('context.collapse', { defaultValue: '맥락 패널 접기' })) as string} (⌘/)`}
           />
         )}
         {/* 작업대 — 데스크탑은 우측 컬럼, 태블릿·폰은 오버레이 드로어 (Q Task 와 같은 패턴) */}

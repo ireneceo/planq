@@ -50,7 +50,7 @@ import SignatureProgressSection from './SignatureProgressSection';
 import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
 import SecurityLevelBadge, { useSecurityLevelLabel } from '../Common/SecurityLevelBadge';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
-import PanelEdgeHandle from '../Layout/PanelEdgeHandle';
+import FloatingPanelToggle from '../Common/FloatingPanelToggle';
 import PanelResizeHandle, { usePanelWidth } from '../Layout/PanelResizeHandle';
 
 // 좌측 필터: 전체(기본) / 프로젝트 그룹 / 카테고리
@@ -836,16 +836,16 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           </AtSplit>
         </ProjBrowse>
       )}
-      {/* 리스트 접기/펼치기 — 공통 PanelEdgeHandle 을 레이아웃 레벨에 그린다.
-          패널 안(CollapsedStrip)에 그리면 옆 컬럼에 가려 클릭이 안 먹었다 (Q Talk·Q Task 와 같은 회귀). */}
+      {/* 리스트 접기/펼치기 — 공통 FloatingPanelToggle(뷰포트 왼쪽 변 플로팅).
+          ≤900px 은 리스트↔상세 풀스크린 전환이라 핸들 숨김(hideBelow). */}
       {!isProject && (
-        <PanelEdgeHandle
+        <FloatingPanelToggle
           side="left"
-          collapsed={sidebarCollapsed}
+          hideBelow={900}
+          open={!sidebarCollapsed}
           onToggle={toggleSidebar}
-          offset={sidebarCollapsed ? 0 : listWidth}
-          labelCollapse={t('sidebar.collapse', '리스트 접기') as string}
-          labelExpand={t('sidebar.expand', '리스트 열기') as string}
+          offsetOpen={`${listWidth}px`}
+          ariaLabel={(sidebarCollapsed ? t('sidebar.expand', '리스트 열기') : t('sidebar.collapse', '리스트 접기')) as string}
         />
       )}
       {!isProject && !sidebarCollapsed && (
