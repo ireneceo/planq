@@ -50,7 +50,7 @@ export const KpiGrid = styled.div<{ $cols?: number }>`
   /* minmax(0,1fr): 트랙이 콘텐츠보다 못 줄어 가로 오버플로우 나던 것 차단 (긴 문구 대응) */
   display: grid; grid-template-columns: repeat(${(p) => p.$cols || 6}, minmax(0, 1fr)); gap: 12px; margin-bottom: 28px;
   @media (max-width: 1024px) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  @media (max-width: 560px) { grid-template-columns: 1fr; }
+  @media (max-width: 560px) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 `;
 
 export const KpiCard = styled.div`

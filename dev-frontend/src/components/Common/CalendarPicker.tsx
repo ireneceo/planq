@@ -243,9 +243,15 @@ const Wrapper = styled.div`
   border:1px solid #E2E8F0;border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,0.18);
   padding:16px 20px;animation:fadeIn 0.15s ease-out;
   @keyframes fadeIn{from{opacity:0;transform:translateY(-4px);}to{opacity:1;transform:translateY(0);}}
+  /* 모바일 — 뷰포트 밖으로 잘리지 않게 폭 캡 + 세로 스크롤(#175) */
+  @media (max-width:640px){ max-width:calc(100vw - 16px); box-sizing:border-box; max-height:calc(var(--vvh, 100dvh) - 24px); overflow-y:auto; }
 `;
-const Layout = styled.div`display:flex;gap:0;`;
-const Sidebar = styled.div`display:flex;flex-direction:column;gap:2px;padding-right:16px;margin-right:16px;border-right:1px solid #E2E8F0;min-width:90px;`;
+const Layout = styled.div`display:flex;gap:0;
+  @media (max-width:640px){ flex-direction:column; }
+`;
+const Sidebar = styled.div`display:flex;flex-direction:column;gap:2px;padding-right:16px;margin-right:16px;border-right:1px solid #E2E8F0;min-width:90px;
+  @media (max-width:640px){ flex-direction:row;flex-wrap:wrap;border-right:none;border-bottom:1px solid #E2E8F0;padding:0 0 8px;margin:0 0 8px;min-width:0; }
+`;
 const SidebarBtn = styled.button<{$danger?:boolean}>`
   padding:7px 10px;text-align:left;background:transparent;border:none;border-radius:6px;
   font-size:12px;font-weight:500;cursor:pointer;color:${p=>p.$danger?'#DC2626':'#374151'};
@@ -255,7 +261,9 @@ const SingleFooter = styled.div`margin-top:8px;padding-top:8px;border-top:1px so
 const CalSection = styled.div``;
 const CalHeader = styled.div`display:flex;justify-content:space-between;margin-bottom:4px;`;
 const NavBtn = styled.button`display:flex;align-items:center;justify-content:center;width:28px;height:28px;border:none;border-radius:50%;background:transparent;color:#64748B;cursor:pointer;&:hover{background:#F1F5F9;}`;
-const CalBody = styled.div`display:flex;gap:24px;`;
+const CalBody = styled.div`display:flex;gap:24px;
+  @media (max-width:640px){ flex-direction:column;gap:12px; }
+`;
 const SecondMonth = styled.div``;
 const MonthBox = styled.div`width:220px;`;
 const MonthLabel = styled.div`text-align:center;font-size:13px;font-weight:700;color:#0F172A;margin-bottom:10px;`;
