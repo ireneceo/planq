@@ -286,9 +286,11 @@ function statusLabel(s: SignatureStatus, t: (k: string, fb?: string) => string):
 }
 
 // ─── styled ───
+// 아웃 라운드박스 제거 — 안에 서명자 카드가 이미 박스라 이중이었다. border-top 구분선만(AttachSection 정합, Irene).
+// 좌우 여백은 부모 Body 규칙(.pq 24px)이 제공하므로 여기선 상하만.
 const Section = styled.section`
-  margin-top: 20px; padding: 20px;
-  background: #fff; border: 1px solid #E2E8F0; border-radius: 12px;
+  margin-top: 12px; padding-top: 16px;
+  border-top: 1px solid #E2E8F0;
 `;
 const SectionHeader = styled.div`
   display: flex; align-items: center; justify-content: space-between;
