@@ -553,9 +553,8 @@ const IconBtn = styled.button`
 const Body = styled.div`
   flex: 1; min-height: 0;
   display: flex; flex-direction: column;
-  /* #127 — 메모 편집은 풀블리드. 회색 페이지 위 흰 카드(패딩 24/28 + 외곽선)가 좁은 메모 화면에서
-     쓰기 영역을 잡아먹고 문서 편집기처럼 무거워 보였다 → 편집기가 화면을 그대로 채운다. */
-  padding: 0;
+  /* #127 — 풀블리드(카드 없음). 좌우 24px 는 글자가 끝까지 안 붙게(에디터는 좌우 여백 0, 여기서 통일). */
+  padding: 0 24px;
   background: #fff;
   overflow-y: auto;
 `;

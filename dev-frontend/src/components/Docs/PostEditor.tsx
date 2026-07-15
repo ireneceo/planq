@@ -373,9 +373,9 @@ const TableBubbleBtn = styled.button<{ $danger?: boolean }>`
 `;
 
 const Body = styled.div<{ $editable?: boolean; $borderless?: boolean; $compact?: boolean }>`
-  /* borderless(문서·메모 풀모드)도 좌우 여백을 줘 글자가 화면 끝까지 붙지 않게 (Irene).
-     상하는 얇게, 좌우는 문서 마진. compact(팝업)는 좁으니 최소 여백 유지. */
-  padding: ${p => p.$compact ? '8px 12px' : (p.$borderless ? '12px 24px' : '16px 20px')};
+  /* borderless(문서·메모 풀모드) 좌우 여백은 컨테이너(Body)가 24px 로 통일 제공 — 여기선 상하만.
+     이중 여백(Body+에디터) 회귀 방지. compact(팝업)는 좁으니 자체 최소 여백 유지. */
+  padding: ${p => p.$compact ? '8px 12px' : (p.$borderless ? '12px 0' : '16px 20px')};
   min-height: ${p => p.$compact ? '0' : (p.$editable ? '240px' : '80px')};
   /* compact (메모 popup) — Wrap 이 overflow:hidden + flex:1 이라 Body 가 직접 스크롤 영역이어야 함.
      이게 없으면 본문이 길어질 때 Wrap 에 잘려 스크롤 불가 (메모장 스크롤 안 됨 회귀 fix). */

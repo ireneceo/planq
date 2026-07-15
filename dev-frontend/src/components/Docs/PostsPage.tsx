@@ -1891,9 +1891,9 @@ const Content = styled.section<{ $hasDetail?: boolean; $projectFull?: boolean }>
 `;
 const Body = styled.div`
   flex: 1; min-height: 0;
-  padding: 24px 28px;
+  /* 좌우 24px 로 메모와 통일(에디터 좌우 여백 0 — 컨테이너가 제공). 카드/회색페이지 없음, 풀레이아웃(Irene). */
+  padding: 20px 24px;
   overflow-y: auto;
-  /* 회색 카드-페이지 대비 제거 — 채팅·메일처럼 풀레이아웃(Irene). PostEditor 는 borderless 로 카드 제거. */
   background: #fff;
   display: flex; flex-direction: column; gap: 16px;
   @media (max-width: 900px) {
@@ -2003,10 +2003,9 @@ const DescToggleBtn = styled.button`
   transition: all 0.15s;
   &:hover { color: #0F766E; border-color: #14B8A6; background: #F0FDFA; }
 `;
+// 라운드박스 제거 — 안의 PostEditor 가 borderless 라 박스 안 박스였다. 평평하게(Irene).
 const DescBox = styled.div`
   display: flex; flex-direction: column;
-  border: 1px solid #E2E8F0; border-radius: 10px;
-  background: #fff;
 `;
 const DescBoxHeader = styled.div`
   display: flex; align-items: center; justify-content: space-between;
