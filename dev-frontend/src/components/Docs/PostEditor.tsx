@@ -289,7 +289,9 @@ const Wrap = styled.div<{ $borderless?: boolean; $compact?: boolean }>`
   background: ${p => p.$borderless ? 'transparent' : '#fff'};
   border: ${p => p.$borderless ? 'none' : '1px solid #E2E8F0'};
   border-radius: ${p => p.$borderless ? '0' : '12px'};
-  overflow: hidden;
+  /* borderless(문서·메모 풀모드)는 sticky 툴바가 바깥 스크롤 컨테이너에 붙을 수 있게 overflow visible.
+     bordered/compact 는 라운드 클리핑·내부 스크롤 위해 hidden 유지. */
+  overflow: ${p => p.$borderless ? 'visible' : 'hidden'};
   display: flex; flex-direction: column;
   /* 사이클 N+17 — compact 면 popup 안에서 부모 height 100% 채워 사용 (popup 자체가 가변) */
   ${p => p.$compact ? `flex: 1; min-height: 0;` : `
@@ -300,6 +302,9 @@ const Wrap = styled.div<{ $borderless?: boolean; $compact?: boolean }>`
 const Toolbar = styled.div<{ $compact?: boolean }>`
   display: flex; align-items: center; gap: 2px; padding: 6px 8px;
   background: #F8FAFC; border-bottom: 1px solid #E2E8F0;
+  /* 스크롤해도 툴바가 상단에 따라오게 sticky. borderless(풀모드)는 Wrap overflow:visible 라
+     바깥 스크롤 컨테이너 상단에 고정 — 문서·메모 편집 중 서식 버튼 항상 접근. */
+  position: sticky; top: 0; z-index: 5;
   /* 사이클 N+17 — compact (메모 popup) 는 한 줄 강제 + 가로 스크롤. wrap 으로 3줄 차지 회피.
      자식 ToolBtn 강제 축소 + Sep 마진 축소 — 같은 컴포넌트 재사용하면서 compact 모드만 다른 size 적용. */
   ${p => p.$compact ? `
@@ -368,7 +373,9 @@ const TableBubbleBtn = styled.button<{ $danger?: boolean }>`
 `;
 
 const Body = styled.div<{ $editable?: boolean; $borderless?: boolean; $compact?: boolean }>`
-  padding: ${p => p.$compact ? '8px 12px' : (p.$borderless ? '0' : '16px 20px')};
+  /* borderless(문서·메모 풀모드)도 좌우 여백을 줘 글자가 화면 끝까지 붙지 않게 (Irene).
+     상하는 얇게, 좌우는 문서 마진. compact(팝업)는 좁으니 최소 여백 유지. */
+  padding: ${p => p.$compact ? '8px 12px' : (p.$borderless ? '12px 24px' : '16px 20px')};
   min-height: ${p => p.$compact ? '0' : (p.$editable ? '240px' : '80px')};
   /* compact (메모 popup) — Wrap 이 overflow:hidden + flex:1 이라 Body 가 직접 스크롤 영역이어야 함.
      이게 없으면 본문이 길어질 때 Wrap 에 잘려 스크롤 불가 (메모장 스크롤 안 됨 회귀 fix). */

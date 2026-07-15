@@ -2203,8 +2203,10 @@ const QNotePage = () => {
         {/* 자체 사이드바 토글 제거 — 공통 PanelEdgeHandle 과 같은 자리에 겹쳐 서로 가리고 있었다
             (닫고 열고 하는 아이콘이 뒤로 숨어버렸다는 지적). 접기 핸들은 레이아웃 레벨 하나로 통일. */}
 
-        {/* 사이클 N+17 — 빈 상태 (메모 작성 중 X + 활성 세션 X) */}
-        {phase === 'empty' && !composingMemo && (
+        {/* 사이클 N+17 — 빈 상태 (메모 작성 중 X + 활성 세션 X).
+            활성 text 메모가 있으면 숨김 — eager 생성 시 phase 는 voice 기준 empty 라
+            빈 상태(노트 시작 안내)가 메모 에디터 위에 겹쳐 뜨던 회귀 fix (Irene). */}
+        {phase === 'empty' && !composingMemo && activeSession?.input_type !== 'text' && (
           <SharedEmptyState
             icon={<MicIcon size={36} />}
             title={t('page.empty.title')}

@@ -1116,6 +1116,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                         onChange={setContentDraft}
                         businessId={scope.businessId}
                         placeholder={t('tableDescPlaceholder', '표에 대한 설명을 입력하세요 (선택)') as string}
+                        borderless
                       />
                     </DescBox>
                   ) : (
