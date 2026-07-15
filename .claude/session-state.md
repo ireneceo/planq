@@ -16,7 +16,11 @@
 - **검증:** 빌드 EXIT0/TS0 · guard 20/20 · 헬스 30/30 · 실HTTP 24/24 · LLM 스모크("박개발에게 다음주 수요일까지…" → assignee=17·due=07-22) · 데이터 원복
 - **함정 기록:** cue_tools 의 BusinessMember→User include 에 `as:'user'` 필수(다중 연관). pm2 restart 잊으면 옛 코드 물고 alias 에러.
 
-**다음 세션: 커밋 필요(미커밋). 이 기능은 Fable 게이트 대상(보안 경계) — 배포 전 권장. 배포는 Irene "/배포" 시에만.**
+**커밋 완료:** `d06c580`(#81) + `f3a0c9b`(Fable F1 수정). 미배포.
+
+**Fable 게이트 판정 = CONDITIONAL (통과).** #81 신규 코드는 재무 봉쇄·confirm 게이트·권한·cross-tenant businessId·킬스위치 전부 독립 무결. 발견 F1(선재 결함): `createTask` 가 project/client 소속 미검증 → 다른 워크스페이스 project_id·client_id 첨부 가능. **즉시 봉합**(createTask·createDocument 에 project_id·client_id ∈ business_id 검증, cross-tenant 400·정상 통과 실증). 모든 createTask 진입점 공통.
+
+**다음 세션: 배포는 Irene "/배포" 시에만.**
 
 ---
 
