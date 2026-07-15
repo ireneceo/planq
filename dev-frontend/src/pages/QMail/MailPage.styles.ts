@@ -198,9 +198,17 @@ export const CloseBtn = styled.button`
   &:hover { background: #F1F5F9; color: #0F172A; }
 `;
 export const FwdAttachHint = styled.div`font-size: 12px; color: #0F766E; background: #F0FDFA; border: 1px solid #CCFBF1; border-radius: 8px; padding: 8px 12px;`;
+/* 메일 작성 — 센터모달 폐기, 중앙 패널을 채우는 풀페이지 저작(Q docs 예외군과 동일, Fable 승인).
+   좌측 리스트 유지 · 우측 맥락패널 숨김 · 헤더/본문/푸터 세로 스택. */
+export const ComposeFull = styled.div`
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  background: #fff;
+`;
 export const ComposeBody = styled.div`
   padding: 16px 20px; overflow-y: auto;
   display: flex; flex-direction: column; gap: 12px;
+  flex: 1; min-height: 0;
 `;
 export const ComposeField = styled.div`
   display: flex; flex-direction: column; gap: 4px;

@@ -47,8 +47,7 @@ import {
   ComposeHead,
   ComposeInput,
   ComposeLabel,
-  ComposeModal,
-  ComposeOverlay,
+  ComposeFull,
   ComposeTitle,
   Composer,
   ComposerActions,
@@ -1135,7 +1134,7 @@ const MailPage: React.FC = () => {
       $cols={[
         sidebarCollapsed ? '0px' : `${listWidth}px`,
         '1fr',
-        (detail && businessId && !rightCollapsed) ? `${rightWidth}px` : '0px',
+        (detail && businessId && !rightCollapsed && !composeOpen) ? `${rightWidth}px` : '0px',
       ].join(' ')}
     >
       {/* #130 — 좌측 리스트: 300px 접이식 (여태 340px 고정·접기 없음이라 Q Mail 만 다른 화면처럼 보였다) */}
@@ -1456,7 +1455,7 @@ const MailPage: React.FC = () => {
 
         {/* 우: 상세 — 모바일(≤1024)에서 본문 패널이 전체를 채운다(data-panel-main). 좌측 리스트는 오버레이 드로어.
             여태 $hideTablet 이라 모바일서 본문이 통째로 숨어 흰 화면이 됐다(#173/174/159/178). */}
-        <Panel $grow $relative $last={!detail} data-panel-main>
+        <Panel $grow $relative $last={!detail && !composeOpen} data-panel-main>
           {/* 태블릿 이하 전용 — 그 폭에서는 사이드바가 오버레이 드로어라 경계선 핸들이 없다.
               데스크탑 접기/펼치기는 PanelEdgeHandle 이 담당. */}
           {sidebarCollapsed && (
@@ -1469,7 +1468,52 @@ const MailPage: React.FC = () => {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 18l6-6-6-6" /></svg>
             </ExpandBtn>
           )}
-          {detailLoading && !detail ? (
+          {composeOpen ? (
+            /* 메일 작성 — 중앙 패널 풀페이지(센터모달 폐기, Fable 승인). 좌측 리스트 유지·맥락패널 숨김. */
+            <ComposeFull>
+              <ComposeHead>
+                <ComposeTitle>{t('compose.new', { defaultValue: '새 메일' }) as string}</ComposeTitle>
+                <CloseBtn type="button" onClick={closeCompose} aria-label={t('common.close', { defaultValue: '닫기' }) as string}>✕</CloseBtn>
+              </ComposeHead>
+              <ComposeBody>
+                {accounts.length > 1 && (
+                  <ComposeField>
+                    <ComposeLabel>{t('compose.from', { defaultValue: '보내는 계정' }) as string}</ComposeLabel>
+                    <PlanQSelect
+                      size="sm"
+                      value={composeAccountOptions.find(o => o.value === cAccountId)}
+                      onChange={(opt: unknown) => { const v = (opt as { value?: number } | null)?.value; if (v) setCAccountId(Number(v)); }}
+                      options={composeAccountOptions}
+                      isSearchable={false}
+                      menuPlacement="bottom"
+                    />
+                  </ComposeField>
+                )}
+                <ComposeField>
+                  <ComposeLabel>{t('compose.to', { defaultValue: '받는 사람' }) as string}</ComposeLabel>
+                  <ComposeInput value={cTo} onChange={(e) => setCTo(e.target.value)} placeholder="name@example.com" inputMode="email" />
+                </ComposeField>
+                <ComposeField>
+                  <ComposeLabel>{t('compose.subject', { defaultValue: '제목' }) as string}</ComposeLabel>
+                  <ComposeInput value={cSubject} onChange={(e) => setCSubject(e.target.value)} placeholder={t('compose.subjectPh', { defaultValue: '제목을 입력하세요' }) as string} />
+                </ComposeField>
+                <RichEditor value={cBody} onChange={setCBody} placeholder={t('compose.bodyPh', { defaultValue: '메일 내용을 입력하세요…' }) as string} />
+                {fwdFromMsgId && fwdAttachCount > 0 && (
+                  <FwdAttachHint><ClipIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></ClipIcon> {t('forward.origAttach', { defaultValue: '원본 첨부 {{n}}개 포함', n: fwdAttachCount }) as string}</FwdAttachHint>
+                )}
+                <AttachmentField businessId={businessId} uploads={cUploads} onUploadsChange={setCUploads} existingFileIds={cFileIds} onExistingFileIdsChange={setCFileIds} />
+                {cError && <ComposerError>{cError}</ComposerError>}
+              </ComposeBody>
+              <ComposeFoot>
+                <ActionButton tone="secondary" size="md" onClick={closeCompose} disabled={cSending}>
+                  {t('compose.cancel', { defaultValue: '취소' }) as string}
+                </ActionButton>
+                <ActionButton tone="primary" size="md" loading={cSending} onClick={sendCompose}>
+                  {t('compose.send', { defaultValue: '보내기' }) as string}
+                </ActionButton>
+              </ComposeFoot>
+            </ComposeFull>
+          ) : detailLoading && !detail ? (
             <Loading><Spinner /></Loading>
           ) : !detail ? (
             /* 빈 상태 — Q docs·Q Note·Q Talk 와 같은 공통 EmptyState (여태 Q Mail 만 13px 회색 한 줄) */
@@ -1738,53 +1782,6 @@ const MailPage: React.FC = () => {
           </Panel>
         )}
 
-      {composeOpen && (
-        <ComposeOverlay onMouseDown={closeCompose}>
-          <ComposeModal onMouseDown={(e) => e.stopPropagation()}>
-            <ComposeHead>
-              <ComposeTitle>{t('compose.new', { defaultValue: '새 메일' }) as string}</ComposeTitle>
-              <CloseBtn type="button" onClick={closeCompose} aria-label={t('common.close', { defaultValue: '닫기' }) as string}>✕</CloseBtn>
-            </ComposeHead>
-            <ComposeBody>
-              {accounts.length > 1 && (
-                <ComposeField>
-                  <ComposeLabel>{t('compose.from', { defaultValue: '보내는 계정' }) as string}</ComposeLabel>
-                  <PlanQSelect
-                    size="sm"
-                    value={composeAccountOptions.find(o => o.value === cAccountId)}
-                    onChange={(opt: unknown) => { const v = (opt as { value?: number } | null)?.value; if (v) setCAccountId(Number(v)); }}
-                    options={composeAccountOptions}
-                    isSearchable={false}
-                    menuPlacement="bottom"
-                  />
-                </ComposeField>
-              )}
-              <ComposeField>
-                <ComposeLabel>{t('compose.to', { defaultValue: '받는 사람' }) as string}</ComposeLabel>
-                <ComposeInput value={cTo} onChange={(e) => setCTo(e.target.value)} placeholder="name@example.com" inputMode="email" />
-              </ComposeField>
-              <ComposeField>
-                <ComposeLabel>{t('compose.subject', { defaultValue: '제목' }) as string}</ComposeLabel>
-                <ComposeInput value={cSubject} onChange={(e) => setCSubject(e.target.value)} placeholder={t('compose.subjectPh', { defaultValue: '제목을 입력하세요' }) as string} />
-              </ComposeField>
-              <RichEditor value={cBody} onChange={setCBody} placeholder={t('compose.bodyPh', { defaultValue: '메일 내용을 입력하세요…' }) as string} />
-              {fwdFromMsgId && fwdAttachCount > 0 && (
-                <FwdAttachHint><ClipIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></ClipIcon> {t('forward.origAttach', { defaultValue: '원본 첨부 {{n}}개 포함', n: fwdAttachCount }) as string}</FwdAttachHint>
-              )}
-              <AttachmentField businessId={businessId} uploads={cUploads} onUploadsChange={setCUploads} existingFileIds={cFileIds} onExistingFileIdsChange={setCFileIds} />
-              {cError && <ComposerError>{cError}</ComposerError>}
-            </ComposeBody>
-            <ComposeFoot>
-              <ActionButton tone="secondary" size="md" onClick={closeCompose} disabled={cSending}>
-                {t('compose.cancel', { defaultValue: '취소' }) as string}
-              </ActionButton>
-              <ActionButton tone="primary" size="md" loading={cSending} onClick={sendCompose}>
-                {t('compose.send', { defaultValue: '보내기' }) as string}
-              </ActionButton>
-            </ComposeFoot>
-          </ComposeModal>
-        </ComposeOverlay>
-      )}
     </PanelGridLayout>
   );
 };
