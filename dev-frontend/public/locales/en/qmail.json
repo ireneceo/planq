@@ -349,5 +349,13 @@
   },
   "detail": {
     "toAddr": "Received at"
+  },
+  "bulk": {
+    "markAllRead": "Mark all read",
+    "dismissAll": "Dismiss all",
+    "confirmRead": "Mark all loaded emails as read?",
+    "confirmDismiss": "Mark all loaded emails as no reply needed?",
+    "confirm": "Confirm",
+    "cancel": "Cancel"
   }
 }
