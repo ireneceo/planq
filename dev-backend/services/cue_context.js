@@ -500,4 +500,8 @@ async function buildCueContext({ businessId, conversationId, projectId, clientId
   return { markdown, kb, history, project, client, userSnap, matches, overview };
 }
 
-module.exports = { buildCueContext };
+// 읽기 함수 개별 노출 — MCP 읽기 서버(#D-4)가 재포장한다. 전부 scope 인자로 격리된다.
+module.exports = {
+  buildCueContext,
+  getWorkspaceOverview, getWorkspaceMatches, getClientSnapshot, getProjectSnapshot,
+};

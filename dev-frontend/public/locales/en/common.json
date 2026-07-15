@@ -798,5 +798,22 @@
       "memo": "Note",
       "mail": "Mail reply"
     }
+  },
+  "apitoken": {
+    "title": "API tokens (integrations)",
+    "desc": "Tokens that let external tools like Claude Code read this workspace. Read-only — external tools cannot change your data.",
+    "namePh": "Token name (e.g. Claude Code)",
+    "create": "Create token",
+    "errCreate": "Could not create the token.",
+    "issuedLabel": "Token created — you can only see it now. Copy it somewhere safe.",
+    "copy": "Copy",
+    "copied": "Copied",
+    "loading": "Loading…",
+    "empty": "No tokens yet.",
+    "unnamed": "(unnamed)",
+    "created": "Created",
+    "lastUsed": "Last used",
+    "neverUsed": "Never used",
+    "revoke": "Revoke"
   }
 }

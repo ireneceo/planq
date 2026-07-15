@@ -6,6 +6,7 @@ import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import AutoSaveField from '../../components/Common/AutoSaveField';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import StorageSettings from './StorageSettings';
+import ApiTokenSection from './ApiTokenSection';
 import PlanSettings from './PlanSettings';
 import PermissionsSettings from './PermissionsSettings';
 import BillingSettings from './BillingSettings';
@@ -1139,7 +1140,10 @@ export default function WorkspaceSettingsPage() {
 
       {/* ─── STORAGE (외부 클라우드 연동) ─── */}
       {tab === 'storage' && businessId && (
-        <StorageSettings businessId={businessId} />
+        <>
+          <StorageSettings businessId={businessId} />
+          <ApiTokenSection businessId={businessId} />
+        </>
       )}
 
       {/* ─── PLAN (구독 플랜) ─── */}

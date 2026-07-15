@@ -123,6 +123,7 @@ const ReceiptCorrection = require('./ReceiptCorrection');
 const ClientSubscription = require('./ClientSubscription');
 // ─── Refresh Token (다중 디바이스 세션) ───
 const RefreshToken = require('./RefreshToken');
+const ApiToken = require('./ApiToken');
 const FocusSession = require('./FocusSession');
 
 // ============================================
@@ -589,6 +590,7 @@ module.exports = {
   InvoiceStatusHistory,
   ReceiptCorrection,
   RefreshToken,
+  ApiToken,
   FocusSession,
 };
 
@@ -700,6 +702,11 @@ ReceiptCorrection.belongsTo(User, { as: 'marker', foreignKey: 'marked_by' });
 // RefreshToken — 다중 디바이스 세션
 RefreshToken.belongsTo(User, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 User.hasMany(RefreshToken, { as: 'refreshTokens', foreignKey: 'user_id' });
+
+// ApiToken — MCP 읽기 서버용 워크스페이스 스코프 토큰 (#D-4)
+ApiToken.belongsTo(User, { foreignKey: 'user_id', onDelete: 'CASCADE' });
+ApiToken.belongsTo(Business, { foreignKey: 'business_id', onDelete: 'CASCADE' });
+User.hasMany(ApiToken, { as: 'apiTokens', foreignKey: 'user_id' });
 
 // FocusSession — 업무 흐름 (개인 시간 추적)
 FocusSession.belongsTo(User, { foreignKey: 'user_id', onDelete: 'CASCADE' });

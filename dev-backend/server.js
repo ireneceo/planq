@@ -403,6 +403,7 @@ app.use('/api/search', require('./routes/search'));
 app.use('/api/invoices', require('./routes/invoices'));
 app.use('/api/client-subscriptions', require('./routes/client_subscriptions'));
 app.use('/api/docs', require('./routes/docs'));
+app.use('/api/api-tokens', require('./routes/api_tokens'));   // #D-4 — MCP 외부 토큰 관리
 // 서명 — /api/posts/:id/signatures, /api/signatures/:id, /api/sign/:token/* (공개)
 app.use('/api', require('./routes/signatures'));
 app.use('/api/inquiries', require('./routes/inquiries'));
