@@ -12,8 +12,12 @@ import PlanQSelect, { type PlanQSelectOption } from './PlanQSelect';
 
 const DOC_KIND_KEYS = ['quote', 'contract', 'nda', 'proposal', 'sow', 'meeting_note', 'sop', 'custom'] as const;
 
+export type CueToolName =
+  | 'create_task' | 'create_event' | 'create_document_draft'
+  | 'submit_review' | 'complete_task' | 'add_task_comment';
+
 export interface CueProposal {
-  tool: 'create_task' | 'create_event' | 'create_document_draft';
+  tool: CueToolName;
   params: Record<string, unknown>;
 }
 export interface CueActionResult {
@@ -60,6 +64,12 @@ const CueActionCard: React.FC<Props> = ({ proposal, businessId, onExecuted, onDi
     if (c === 'invalid_kind') return t('qhelper.action.errKind', '지원하지 않는 문서 종류예요.');
     if (c === 'title_required' || c === 'invalid_payload') return t('qhelper.action.errTitle', '제목이 필요해요.');
     if (c === 'invalid_dates') return t('qhelper.action.errDates', '일정 시각이 올바르지 않아요.');
+    if (c === 'only_assignee') return t('qhelper.action.errOnlyAssignee', '이 업무의 담당자만 할 수 있어요.');
+    if (c === 'no_reviewers_add_first') return t('qhelper.action.errNoReviewers', '먼저 컨펌자를 지정해야 검토 요청을 보낼 수 있어요.');
+    if (c === 'not_ready_for_complete') return t('qhelper.action.errNeedsConfirm', '컨펌자 승인을 거쳐야 완료할 수 있어요.');
+    if (c === 'invalid_task') return t('qhelper.action.errTask', '대상 업무를 찾을 수 없어요.');
+    if (c === 'content_required') return t('qhelper.action.errContent', '댓글 내용이 필요해요.');
+    if (c === 'task_closed') return t('qhelper.action.errClosed', '이미 종료된 업무예요.');
     return tErr(c, { defaultValue: t('qhelper.action.errGeneric', '실행하지 못했어요. 잠시 후 다시 시도해주세요.') }) as string;
   };
 
@@ -85,24 +95,57 @@ const CueActionCard: React.FC<Props> = ({ proposal, businessId, onExecuted, onDi
     }
   };
 
+  const isCreate = proposal.tool === 'create_task' || proposal.tool === 'create_event' || proposal.tool === 'create_document_draft';
+  const isComment = proposal.tool === 'add_task_comment';
   const title = String(params.title || '');
-  const header =
-    proposal.tool === 'create_task' ? t('qhelper.action.hdrTask', '업무 추가')
-    : proposal.tool === 'create_event' ? t('qhelper.action.hdrEvent', '일정 추가')
-    : t('qhelper.action.hdrDoc', '문서 초안');
-  const addLabel =
-    proposal.tool === 'create_task' ? t('qhelper.action.addTask', '＋ 업무 추가')
-    : proposal.tool === 'create_event' ? t('qhelper.action.addEvent', '＋ 일정 추가')
-    : t('qhelper.action.addDoc', '＋ 초안 만들기');
+  const taskTitle = String(params.task_title || `#${params.task_id ?? ''}`);
+  const content = String(params.content || '');
+
+  const HDR: Record<CueToolName, string> = {
+    create_task: t('qhelper.action.hdrTask', '업무 추가'),
+    create_event: t('qhelper.action.hdrEvent', '일정 추가'),
+    create_document_draft: t('qhelper.action.hdrDoc', '문서 초안'),
+    submit_review: t('qhelper.action.hdrSubmit', '검토 요청'),
+    complete_task: t('qhelper.action.hdrComplete', '업무 완료'),
+    add_task_comment: t('qhelper.action.hdrComment', '업무 댓글'),
+  };
+  const ADD: Record<CueToolName, string> = {
+    create_task: t('qhelper.action.addTask', '＋ 업무 추가'),
+    create_event: t('qhelper.action.addEvent', '＋ 일정 추가'),
+    create_document_draft: t('qhelper.action.addDoc', '＋ 초안 만들기'),
+    submit_review: t('qhelper.action.doSubmit', '검토 요청 보내기'),
+    complete_task: t('qhelper.action.doComplete', '완료 처리'),
+    add_task_comment: t('qhelper.action.doComment', '댓글 남기기'),
+  };
+  const header = HDR[proposal.tool];
+  const addLabel = ADD[proposal.tool];
+  // [추가] 활성 조건: 생성=제목 필요, 댓글=내용 필요, 전이(submit/complete)=항상 가능
+  const canSubmit = isCreate ? !!title.trim() : isComment ? !!content.trim() : true;
 
   return (
     <Card role="group" aria-label={header}>
       <Hdr>✦ {t('qhelper.action.proposeBy', 'Cue 제안')} · {header}</Hdr>
 
-      <Field>
-        <Lbl>{t('qhelper.action.title', '제목')}</Lbl>
-        <Input value={title} onChange={(e) => set('title', e.target.value)} maxLength={300} />
-      </Field>
+      {isCreate && (
+        <Field>
+          <Lbl>{t('qhelper.action.title', '제목')}</Lbl>
+          <Input value={title} onChange={(e) => set('title', e.target.value)} maxLength={300} />
+        </Field>
+      )}
+
+      {!isCreate && (
+        <Field as="div">
+          <Lbl>{t('qhelper.action.targetTask', '대상 업무')}</Lbl>
+          <ReadVal>{taskTitle}</ReadVal>
+        </Field>
+      )}
+
+      {isComment && (
+        <Field>
+          <Lbl>{t('qhelper.action.commentBody', '댓글 내용')}</Lbl>
+          <Textarea value={content} onChange={(e) => set('content', e.target.value)} rows={3} maxLength={5000} />
+        </Field>
+      )}
 
       {proposal.tool === 'create_task' && (
         <>
@@ -180,7 +223,7 @@ const CueActionCard: React.FC<Props> = ({ proposal, businessId, onExecuted, onDi
         <ActionButton tone="secondary" size="sm" onClick={onDismiss} disabled={submitting}>
           {t('qhelper.action.cancel', '취소')}
         </ActionButton>
-        <ActionButton tone="primary" size="sm" onClick={execute} loading={submitting} disabled={!title.trim()}>
+        <ActionButton tone="primary" size="sm" onClick={execute} loading={submitting} disabled={!canSubmit}>
           {addLabel}
         </ActionButton>
       </Actions>

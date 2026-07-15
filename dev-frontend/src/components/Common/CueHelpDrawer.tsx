@@ -252,7 +252,7 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
       const srcs = Array.isArray(j.data?.sources) ? j.data.sources : [];
       // #81 — Cue 실행 제안 (workspace 모드). 화이트리스트 툴만 카드로.
       const pa = j.data?.proposed_action;
-      const proposed = pa && ['create_task', 'create_event', 'create_document_draft'].includes(pa.tool)
+      const proposed = pa && ['create_task', 'create_event', 'create_document_draft', 'submit_review', 'complete_task', 'add_task_comment'].includes(pa.tool)
         ? (pa as CueProposal) : undefined;
       setTurns(prev => prev.map((tn, i) => i === prev.length - 1
         ? { ...tn, a: j.data.answer || '', loading: false, sources: srcs, logId: j.data.log_id ?? null,
