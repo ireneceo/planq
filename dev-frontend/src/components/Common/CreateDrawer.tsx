@@ -31,7 +31,8 @@ export interface CreateDrawerProps {
   submitLabel?: React.ReactNode; // 기본 common:save
   submitDisabled?: boolean;     // 폼 유효성 실패 등으로 제출 비활성
   submitTone?: 'primary' | 'danger';
-  width?: number;               // 기본 OVERLAY_DRAWER.default(480). 복합 폼은 OVERLAY_DRAWER.wide
+  width?: number;               // 명시 폭 override. 미지정 시 wide 여부로 결정
+  wide?: boolean;               // 복합 다중섹션 폼 — OVERLAY_DRAWER.wide(560). 기본 false → 480
   ariaLabel?: string;
   leftSlot?: React.ReactNode;   // 푸터 좌측 보조 슬롯(옵션)
 }
@@ -39,13 +40,14 @@ export interface CreateDrawerProps {
 const CreateDrawer: React.FC<CreateDrawerProps> = ({
   open, onClose, title, children,
   onSubmit, submitting, submitLabel, submitDisabled, submitTone = 'primary',
-  width = OVERLAY_DRAWER.default, ariaLabel, leftSlot,
+  width, wide, ariaLabel, leftSlot,
 }) => {
+  const resolvedWidth = width ?? (wide ? OVERLAY_DRAWER.wide : OVERLAY_DRAWER.default);
   const { t } = useTranslation('common');
   const label = ariaLabel || (typeof title === 'string' ? title : undefined);
 
   return (
-    <DetailDrawer open={open} onClose={onClose} width={width} ariaLabel={label}>
+    <DetailDrawer open={open} onClose={onClose} width={resolvedWidth} ariaLabel={label}>
       <DetailDrawer.Header onClose={onClose}>{title}</DetailDrawer.Header>
       <DetailDrawer.Body>{children}</DetailDrawer.Body>
       <DrawerFooter left={leftSlot} align={leftSlot ? 'space-between' : 'right'}>

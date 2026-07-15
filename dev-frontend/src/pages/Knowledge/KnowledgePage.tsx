@@ -27,6 +27,7 @@ import RichEditor from '../../components/Common/RichEditor';
 import { useImageLightbox } from '../../components/Common/ImageLightbox';
 // 가로 Tabs 폐지 — 좌측 카테고리 트리로 변경 (Q file/Q record 패턴 통일)
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
+import CreateDrawer from '../../components/Common/CreateDrawer';
 import KbAiIngestModal from './KbAiIngestModal';
 import KbCsvIngestModal from './KbCsvIngestModal';
 import {
@@ -1254,16 +1255,15 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
 
       {/* ─── 사이클 P3 — 통합 단일 폼 등록 모달 ─── */}
       {modalOpen && (
-        <>
-          <Backdrop onClick={() => !submitting && closeModal()} />
-          <Modal onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
-            <ModalHeader>
-              <ModalTitle>{t('modal.title')}</ModalTitle>
-              <ModalCloseBtn type="button" onClick={() => !submitting && closeModal()} aria-label="Close">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg>
-              </ModalCloseBtn>
-            </ModalHeader>
-            <ModalBody>
+        <CreateDrawer
+          open
+          wide
+          onClose={() => { if (!submitting) closeModal(); }}
+          title={t('modal.title')}
+          onSubmit={submit}
+          submitting={submitting}
+          submitLabel={t('modal.save')}
+        >
               {/* 1) 제목 (필수) */}
               <Field>
                 <Label>{t('modal.titleLabel')} <RequiredMark>*</RequiredMark></Label>
@@ -1454,17 +1454,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
 
               {submitError && <ErrorBox>{submitError}</ErrorBox>}
               {resultMsg && <SuccessBox>{resultMsg}</SuccessBox>}
-            </ModalBody>
-            <ModalFooter>
-              <SecondaryBtn type="button" onClick={closeModal} disabled={submitting}>
-                {t('modal.cancel')}
-              </SecondaryBtn>
-              <PrimaryBtn type="button" onClick={submit} disabled={submitting}>
-                {submitting ? t('modal.saving') : t('modal.save')}
-              </PrimaryBtn>
-            </ModalFooter>
-          </Modal>
-        </>
+        </CreateDrawer>
       )}
 
       {aiIngestOpen && businessId && (
@@ -2194,31 +2184,6 @@ const DangerBtn = styled.button`
 // ─── 등록 모달 ───
 const RequiredMark = styled.span`color: #DC2626; margin-left: 2px;`;
 const OptionalMark = styled.span`color: #94A3B8; font-weight: 400; font-size: 11px; margin-left: 4px;`;
-const Backdrop = styled.div`
-  position: fixed; inset: 0; background: rgba(15, 23, 42, 0.08); z-index: 50;
-`;
-const Modal = styled.div`
-  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-  z-index: 60; width: 600px; max-width: calc(100vw - 40px); max-height: calc(100vh - 48px);
-  background: #fff; border-radius: 14px; box-shadow: 0 30px 60px -20px rgba(15, 23, 42, 0.25);
-  display: flex; flex-direction: column; overflow: hidden;
-  @media (max-width: 640px) {
-    top: 70px; bottom: 20px; left: 16px; right: 16px;
-    transform: none; width: auto; max-width: none; max-height: none;
-  }
-`;
-const ModalHeader = styled.div`
-  display: flex; align-items: center; padding: 14px 18px;
-  border-bottom: 1px solid #E2E8F0; flex-shrink: 0;
-`;
-const ModalTitle = styled.div`flex: 1; font-size: 15px; font-weight: 700; color: #0F172A; letter-spacing: -0.1px;`;
-const ModalCloseBtn = styled.button`
-  width: 30px; height: 30px; border: none; background: transparent; color: #64748B;
-  border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center;
-  &:hover { background: #F1F5F9; color: #0F172A; }
-`;
-const ModalBody = styled.div`padding: 16px 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; flex: 1; min-height: 0;`;
-const ModalFooter = styled.div`padding: 14px 18px; border-top: 1px solid #E2E8F0; display: flex; justify-content: flex-end; gap: 8px;`;
 const Field = styled.div`display: flex; flex-direction: column; gap: 6px; flex: 1;`;
 const Label = styled.label`font-size: 13px; font-weight: 600; color: #0F172A;`;
 const ErrorBox = styled.div`
@@ -2233,7 +2198,6 @@ const SuccessBox = styled.div`
 `;
 const TextInput = styled.input`height: 36px; padding: 0 10px; border: 1px solid #E2E8F0; border-radius: 6px; font-size: 13px; color: #0F172A; &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }`;
 // N+72-5 — TextArea 폐기 (RichEditor 통합)
-const PrimaryBtn = styled.button`height: 36px; padding: 0 18px; background: #14B8A6; color: #FFFFFF; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; &:disabled { background: #CBD5E1; cursor: not-allowed; } &:hover:not(:disabled) { background: #0D9488; }`;
 const SecondaryBtn = styled.button`height: 36px; padding: 0 14px; background: transparent; color: #475569; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; &:hover { background: #F8FAFC; border-color: #CBD5E1; }`;
 
 
