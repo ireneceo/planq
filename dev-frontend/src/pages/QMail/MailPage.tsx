@@ -132,6 +132,10 @@ import {
   UncertainBadge,
   UncertainInline,
   UnreadDot,
+  BulkBar,
+  BulkText,
+  BulkBtn,
+  BulkGhost,
 } from './MailPage.styles';
 
 type Folder = 'reply_needed' | 'uncertain' | 'all' | 'marketing' | 'following' | 'spam' | 'archived';
@@ -593,6 +597,26 @@ const MailPage: React.FC = () => {
     } catch { /* 유지 */ }
     finally { setDismissingId(null); }
   }, [businessId, loadCounts, activeId]);
+
+  // #154 — 일괄 처리 (현재 폴더 로드된 스레드 전체): 모두 읽음 / 모두 답변불필요. 2단계 확인.
+  const [bulkConfirm, setBulkConfirm] = useState<null | 'read' | 'dismiss'>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const doBulk = useCallback(async (kind: 'read' | 'dismiss') => {
+    if (!businessId || bulkBusy) return;
+    const ids = threads.map((th) => th.id);
+    if (!ids.length) { setBulkConfirm(null); return; }
+    setBulkBusy(true);
+    try {
+      const path = kind === 'read' ? 'bulk-read' : 'bulk-dismiss';
+      const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${path}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ thread_ids: ids }),
+      });
+      await r.json().catch(() => null);
+      setBulkConfirm(null);
+      await loadList();
+      loadCounts();
+    } catch { /* 무시 — 실패 시 목록 그대로 */ } finally { setBulkBusy(false); }
+  }, [businessId, bulkBusy, threads, loadList, loadCounts]);
 
   // 라벨 토글 (상세) — 현재 라벨 배열에 추가/제거
   const toggleLabel = useCallback((name: string) => {
@@ -1280,6 +1304,25 @@ const MailPage: React.FC = () => {
                 : (t('emptyFolder', { defaultValue: '이 폴더에 메일이 없어요' }) as string)}</EmptyText>
             </EmptyList>
           ) : (
+            <>
+            {(folder === 'reply_needed' || folder === 'uncertain') && (
+              <BulkBar>
+                {bulkConfirm ? (
+                  <>
+                    <BulkText>{bulkConfirm === 'read'
+                      ? t('bulk.confirmRead', { defaultValue: '로드된 메일을 모두 읽음 처리할까요?' }) as string
+                      : t('bulk.confirmDismiss', { defaultValue: '로드된 메일을 모두 답변불필요로 표시할까요?' }) as string}</BulkText>
+                    <BulkBtn type="button" onClick={() => doBulk(bulkConfirm)} disabled={bulkBusy}>{t('bulk.confirm', { defaultValue: '확인' }) as string}</BulkBtn>
+                    <BulkGhost type="button" onClick={() => setBulkConfirm(null)} disabled={bulkBusy}>{t('bulk.cancel', { defaultValue: '취소' }) as string}</BulkGhost>
+                  </>
+                ) : (
+                  <>
+                    <BulkGhost type="button" onClick={() => setBulkConfirm('read')}>{t('bulk.markAllRead', { defaultValue: '모두 읽음' }) as string}</BulkGhost>
+                    <BulkGhost type="button" onClick={() => setBulkConfirm('dismiss')}>{t('bulk.dismissAll', { defaultValue: '모두 답변불필요' }) as string}</BulkGhost>
+                  </>
+                )}
+              </BulkBar>
+            )}
             <ThreadList ref={listRef} onScroll={(e) => {
               const el = e.currentTarget;
               if (hasMore && !loadingMore && el.scrollHeight - el.scrollTop - el.clientHeight < 300) loadMore();
@@ -1403,6 +1446,7 @@ const MailPage: React.FC = () => {
               ))}
               {loadingMore && <ListMoreRow><Spinner /></ListMoreRow>}
             </ThreadList>
+            </>
           )}
         </CollapsibleSidebar>
 

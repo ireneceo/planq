@@ -565,3 +565,22 @@ export const FromManage = styled.button`
   font-size: 11px; font-weight: 600; color: #0F766E;
   &:hover { text-decoration: underline; }
 `;
+
+// #154 — 일괄 처리 바 (모두 읽음 / 모두 답변불필요). 리스트 상단.
+export const BulkBar = styled.div`
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 8px 12px; border-bottom: 1px solid #E2E8F0; background: #F8FAFC;
+`;
+export const BulkText = styled.span`
+  font-size: 12px; color: #475569; margin-right: auto; line-height: 1.4;
+`;
+export const BulkGhost = styled.button`
+  height: 30px; padding: 0 12px; background: #FFFFFF; color: #475569;
+  border: 1px solid #E2E8F0; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
+  &:hover:not(:disabled) { background: #F1F5F9; border-color: #CBD5E1; color: #0F172A; }
+  &:disabled { opacity: 0.55; cursor: not-allowed; }
+`;
+export const BulkBtn = styled(BulkGhost)`
+  background: #14B8A6; color: #FFFFFF; border-color: #14B8A6;
+  &:hover:not(:disabled) { background: #0D9488; border-color: #0D9488; color: #FFFFFF; }
+`;

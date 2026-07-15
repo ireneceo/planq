@@ -533,6 +533,50 @@ router.post('/:businessId/email-threads/:id/dismiss-reply',
 );
 
 // ─────────────────────────────────────────────
+// #154 일괄 처리 — 선택한 스레드들 "모두 답변불필요" / "모두 읽음". 접근 가능한 계정으로 스코프.
+//   개별 dismiss-reply/mark-read 의 벌크판. 학습(규칙 생성)은 벌크에선 생략(개별 클릭 시에만).
+// ─────────────────────────────────────────────
+const parseThreadIds = (body) => (Array.isArray(body?.thread_ids)
+  ? body.thread_ids.map(Number).filter(Boolean).slice(0, 500) : []);
+
+router.post('/:businessId/email-threads/bulk-dismiss',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const ids = parseThreadIds(req.body);
+      if (!ids.length) return errorResponse(res, 'no_threads', 400);
+      const acctIds = await accessibleAccountIds(businessId, req.user.id);
+      const [count] = await EmailThread.update(
+        { reply_needed: false, reply_needed_at: null, reply_needed_reason: 'dismissed' },
+        { where: { id: { [Op.in]: ids }, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] }, reply_needed: true } },
+      );
+      broadcastMail(req, businessId, 'mail:updated', { bulk: true, reply_needed: false });
+      return successResponse(res, { updated: count });
+    } catch (err) { next(err); }
+  },
+);
+
+router.post('/:businessId/email-threads/bulk-read',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const ids = parseThreadIds(req.body);
+      if (!ids.length) return errorResponse(res, 'no_threads', 400);
+      const acctIds = await accessibleAccountIds(businessId, req.user.id);
+      const [count] = await EmailThread.update(
+        { unread_count: 0 },
+        { where: { id: { [Op.in]: ids }, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] }, unread_count: { [Op.gt]: 0 } } },
+      );
+      await EmailMessage.update({ is_read: true }, { where: { thread_id: { [Op.in]: ids }, is_read: false } }).catch(() => {});
+      broadcastMail(req, businessId, 'mail:updated', { bulk: true, unread: 0 });
+      return successResponse(res, { updated: count });
+    } catch (err) { next(err); }
+  },
+);
+
+// ─────────────────────────────────────────────
 // POST 답장 — outbound 메시지 발송 + 스레드 갱신 + reply_needed 해제 + broadcast
 //   body: { body_html, to?, cc?, bcc?, attachment_file_ids? }
 //   to 미지정 시 마지막 inbound 발신자에게 자동 답장
