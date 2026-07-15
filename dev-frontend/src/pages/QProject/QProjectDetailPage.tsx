@@ -9,7 +9,6 @@ import AutoSaveField, { type AutoSaveHandle } from '../../components/Common/Auto
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import ProjectCanvas from './canvas/ProjectCanvas'; // 기본 탭 — 즉시 로드(로딩 플래시 없음)
-import { getCanvas } from '../../services/projectCanvas';
 // 나머지 탭은 지연 로드(lazy) — 프로젝트 열 때 모든 탭 코드(+무거운 에디터 tiptap)를 한꺼번에
 // 받던 것을 탭 클릭 시점 로드로 분리. 초기 페이지 로드 대폭 경량화.
 const TasksTab = React.lazy(() => import('./TasksTab'));
@@ -117,11 +116,6 @@ import {
   IssueRow,
   IssueBody,
   IssueMeta,
-  ReadOnlyHint,
-  StrategyEditLink,
-  StrategyBlock,
-  StrategyLabel,
-  StrategyText,
   AddIssueRow,
   AddBtn,
   IssueInput,
@@ -528,25 +522,7 @@ const QProjectDetailPage: React.FC = () => {
     fn();
   };
 
-  // 상세 탭의 전략 요약 (#148) — Irene: "추진 방식·핵심 추진과제도 상세에 있어야 하는 것 아니냐".
-  //   같은 데이터(projects 행 + project_workstreams)이므로 **읽기 전용으로 비춘다** — 편집은 개요 탭 한 곳.
-  //   두 곳에서 편집하게 만들면 어느 쪽이 진짜인지 흐려진다(단일 원천 유지).
-  const [strategySummary, setStrategySummary] = useState<{ approach: string | null; workstreams: { id: number; title: string }[] } | null>(null);
-  useEffect(() => {
-    if (tab !== 'details' || !projectId) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const canvas = await getCanvas(projectId);
-        if (cancelled) return;
-        setStrategySummary({
-          approach: canvas.strategy?.approach ?? null,
-          workstreams: (canvas.workstreams || []).map(w => ({ id: w.id, title: w.title })),
-        });
-      } catch { /* 개요 탭에서 다시 시도된다 */ }
-    })();
-    return () => { cancelled = true; };
-  }, [tab, projectId]);
+  // #167 — 상세정보 탭이 편집 캔버스(ProjectCanvas)를 직접 렌더하므로 옛 읽기전용 전략요약(#148)은 제거.
   const addMember = (userId: number) => {
     const existing = project?.projectMembers || [];
     if (existing.some(m => m.user_id === userId)) return;
@@ -645,8 +621,9 @@ const QProjectDetailPage: React.FC = () => {
       </TabBar>
 
       <Suspense fallback={<TabFallback>{t('common.loading', '불러오는 중…')}</TabFallback>}>
+      {/* #167 — 개요 탭은 보기 전용. 편집(전략·지표·추진과제·프로젝트 연결)은 상세정보 탭 한 곳. */}
       {tab === 'dashboard' && !isClient && (
-        <ProjectCanvas projectId={projectId} businessId={project.business_id} />
+        <ProjectCanvas projectId={projectId} businessId={project.business_id} readOnly />
       )}
 
       {tab === 'tasks' && (
@@ -952,34 +929,10 @@ const QProjectDetailPage: React.FC = () => {
       {tab === 'details' && (
         <InfoBody>
 
-          {/* 전략 요약 — 개요 탭과 같은 데이터. 편집은 개요 한 곳에서만 (#148) */}
-          {strategySummary && (strategySummary.approach || strategySummary.workstreams.length > 0) && (
-            <Card>
-              <CardTitle>
-                {t('section.strategy', '추진 전략')}
-                <ReadOnlyHint>{t('detail.readOnly', '읽기 전용')}</ReadOnlyHint>
-                <StrategyEditLink type="button" onClick={() => setTab('dashboard')}>
-                  {t('strategy.editInOverview', '개요에서 편집')}
-                </StrategyEditLink>
-              </CardTitle>
-              {strategySummary.approach && (
-                <StrategyBlock>
-                  <StrategyLabel>{t('canvas.approach.label', '추진 방식')}</StrategyLabel>
-                  <StrategyText>{strategySummary.approach}</StrategyText>
-                </StrategyBlock>
-              )}
-              {strategySummary.workstreams.length > 0 && (
-                <StrategyBlock>
-                  <StrategyLabel>{t('canvas.workstreams.title', '핵심 추진과제')}</StrategyLabel>
-                  <IssueList>
-                    {strategySummary.workstreams.map(w => (
-                      <IssueRow key={w.id}><IssueBody>{w.title}</IssueBody></IssueRow>
-                    ))}
-                  </IssueList>
-                </StrategyBlock>
-              )}
-            </Card>
-          )}
+          {/* #167 — 편집은 상세정보 탭 한 곳(단일 원천). 개요와 같은 캔버스를 여기서 편집(개요는 읽기전용). */}
+          <div style={{ gridColumn: '1 / -1' }}>
+            <ProjectCanvas projectId={projectId} businessId={project.business_id} />
+          </div>
 
           <Card>
             <CardTitle>{t('section.issues', '주요 이슈')} <small>{issues.length}</small></CardTitle>

@@ -10,7 +10,7 @@ import {
   getRelatedProjects, linkProject, unlinkProject, type RelatedProject,
 } from '../../../services/projectTimeline';
 
-interface Props { projectId: number; businessId: number; refreshSignal?: number; }
+interface Props { projectId: number; businessId: number; refreshSignal?: number; readOnly?: boolean; }
 
 const HEALTH: Record<'green' | 'yellow' | 'red', { bg: string; fg: string }> = {
   green: { bg: '#DCFCE7', fg: '#15803D' },
@@ -18,7 +18,7 @@ const HEALTH: Record<'green' | 'yellow' | 'red', { bg: string; fg: string }> = {
   red: { bg: '#FEE2E2', fg: '#B91C1C' },
 };
 
-export default function RelatedProjects({ projectId, businessId, refreshSignal }: Props) {
+export default function RelatedProjects({ projectId, businessId, refreshSignal, readOnly = false }: Props) {
   const { t } = useTranslation('qproject');
   const navigate = useNavigate();
   const [links, setLinks] = useState<RelatedProject[]>([]);
@@ -64,9 +64,11 @@ export default function RelatedProjects({ projectId, businessId, refreshSignal }
     <Section>
       <Head>
         <Title>{t('canvas.related.title')}<Hint>{t('canvas.related.hint')}</Hint></Title>
-        <LinkBtn type="button" onClick={picking ? () => setPicking(false) : openPicker} $on={picking}>
-          <PlusIcon size={14} />{t('canvas.related.link')}
-        </LinkBtn>
+        {!readOnly && (
+          <LinkBtn type="button" onClick={picking ? () => setPicking(false) : openPicker} $on={picking}>
+            <PlusIcon size={14} />{t('canvas.related.link')}
+          </LinkBtn>
+        )}
       </Head>
 
       {picking && (
@@ -102,8 +104,10 @@ export default function RelatedProjects({ projectId, businessId, refreshSignal }
               <PCard key={l.link_id}>
                 <CardTop>
                   <PName type="button" onClick={() => navigate(`/projects/p/${p.id}`)}>{p.name}</PName>
-                  <Unlink type="button" aria-label={t('canvas.related.unlink')} title={t('canvas.related.unlink')}
-                    disabled={busy} onClick={() => doUnlink(p.id)}>×</Unlink>
+                  {!readOnly && (
+                    <Unlink type="button" aria-label={t('canvas.related.unlink')} title={t('canvas.related.unlink')}
+                      disabled={busy} onClick={() => doUnlink(p.id)}>×</Unlink>
+                  )}
                 </CardTop>
                 {l.relation_label && <RelLabel>{l.relation_label}</RelLabel>}
                 <BarTrack><BarFill style={{ width: `${p.progress_percent}%` }} /></BarTrack>
