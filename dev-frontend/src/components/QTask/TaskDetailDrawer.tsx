@@ -2164,7 +2164,9 @@ const DateTrigger = styled.button<{ $empty?: boolean }>`
   color:${p => p.$empty ? '#CBD5E1' : '#64748B'};
   &:hover{border-color:#14B8A6;color:#0F766E;}
 `;
-const DescEditorWrap = styled.div`background:#FFF;border:1px solid #E2E8F0;border-radius:8px;overflow:hidden;&:focus-within{border-color:#14B8A6;}`;
+// 이중 박스 제거 — RichEditor(EditorShell)가 자체 border/radius 를 가지므로 wrap 은 박스를 두지 않는다.
+// 결과물(body) 에디터와 동일하게 단일 박스로 보이게. (Irene — 업무설명 라운드박스 2개 회귀 fix)
+const DescEditorWrap = styled.div``;
 
 // Actions
 const ActionCard = styled.div`background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;& + &{margin-top:8px;}
