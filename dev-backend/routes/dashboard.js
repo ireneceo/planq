@@ -952,10 +952,8 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
     //   담당자 지정(is_assigned)이 실사용되면 "내 담당 + 3일 경과" 부분집합만 확인 필요로 승격.
     let mailReplyCount = 0;
     try {
-      const { EmailThread, EmailAccount } = require('../models');
-      // 뱃지 스코프: workspaces 는 business_id 가 명시되면 그 하나만(위 860~871), 아니면 전 워크스페이스.
-      //   → business_id 를 넘기는 프론트(useInboxCount) 경로는 이미 현재 워크스페이스로 스코프된다.
-      //   (#180 의 25 vs 14 는 서버 스코프 문제가 아니라 별도 원인 — 재진단 필요)
+      const { EmailThread, EmailAccount, EmailThreadParticipant } = require('../models');
+      // 뱃지 스코프: workspaces 는 business_id 명시 시 그 하나만(위 860~871), 아니면 전 워크스페이스.
       const bizIds = workspaces.map((w) => w.business_id);
       if (bizIds.length > 0) {
         // 접근 가능한 계정만 (회사 공용 + 본인 개인) — 남의 개인 메일함은 세지 않는다
@@ -968,13 +966,27 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
           attributes: ['id'],
         });
         if (accs.length > 0) {
-          mailReplyCount = await EmailThread.count({
+          // #180 — 뱃지 수 = "내가 답변할 메일" 수. collectMails(확인필요)와 같은 담당자 필터로 맞춘다:
+          //   남이 담당(is_assigned, user_id≠나)한 스레드는 내 뱃지에서 제외 → 뱃지 25 vs 확인필요 14 불일치 해소.
+          const rnThreads = await EmailThread.findAll({
             where: {
               account_id: { [Op.in]: accs.map((a) => a.id) },
               reply_needed: true,
               status: { [Op.in]: ['open', 'uncertain'] },
             },
+            attributes: ['id'],
           });
+          const rnIds = rnThreads.map((t) => t.id);
+          if (rnIds.length) {
+            const assigned = await EmailThreadParticipant.findAll({
+              where: { thread_id: { [Op.in]: rnIds }, is_assigned: true },
+              attributes: ['thread_id', 'user_id'],
+            });
+            const assignedToOther = new Set(
+              assigned.filter((a) => Number(a.user_id) !== Number(userId)).map((a) => a.thread_id),
+            );
+            mailReplyCount = rnIds.filter((id) => !assignedToOther.has(id)).length;
+          }
         }
       }
     } catch (e) { console.warn('[todo] mailReplyCount', e.message); }
