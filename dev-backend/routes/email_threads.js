@@ -883,7 +883,10 @@ router.post('/:businessId/email-threads/:id/ai-suggest',
       if (!latestInboundText) return errorResponse(res, 'empty_inbound', 400);
 
       const biz = await Business.findByPk(businessId, { attributes: ['id', 'name', 'brand_name', 'default_language'] });
-      const language = (req.body || {}).language || biz?.default_language || 'ko';
+      // #153 — 답장은 받은 메일의 언어로. 수신 본문에 한글이 있으면 ko, 없으면 en 을
+      //   워크스페이스 default_language 보다 우선(영어 메일에 한글 답장 나가던 것 방지). 명시 override 는 최우선.
+      const detectedLang = /[가-힣]/.test(latestInboundText) ? 'ko' : 'en';
+      const language = (req.body || {}).language || detectedLang || biz?.default_language || 'ko';
 
       // M4 — 등록된 FAQ 활용: 들어온 질문과 강하게 매칭되는 FAQ(KbDocument category=faq)를
       //   AI 답변의 권위 있는 근거로 주입 → "다음 같은 질문 자동답변" 가치 실현. (raw cosine ≥ 0.80)

@@ -260,7 +260,8 @@
     "notesEmpty": "No notes yet",
     "issuesEmpty": "No issues yet",
     "quickAddTitle": "Add a task in one line",
-    "notesTitleProject": "Project notes"
+    "notesTitleProject": "Project notes",
+    "summaryFailed": "Could not generate a summary. Please try again in a moment."
   },
   "accounts": {
     "all": "All mailboxes",
