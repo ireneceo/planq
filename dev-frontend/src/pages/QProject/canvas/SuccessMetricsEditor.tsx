@@ -9,11 +9,12 @@ interface Props {
   projectId: number;
   initial: SuccessMetric[];
   onSaved?: (m: SuccessMetric[]) => void;
+  readOnly?: boolean;   // 개요 탭 보기전용(#167)
 }
 
 type Status = 'idle' | 'saving' | 'saved' | 'error';
 
-export default function SuccessMetricsEditor({ projectId, initial, onSaved }: Props) {
+export default function SuccessMetricsEditor({ projectId, initial, onSaved, readOnly = false }: Props) {
   const { t } = useTranslation('qproject');
   const [rows, setRows] = useState<SuccessMetric[]>(initial);
   const [status, setStatus] = useState<Status>('idle');
@@ -72,16 +73,16 @@ export default function SuccessMetricsEditor({ projectId, initial, onSaved }: Pr
           </RowHead>
           {rows.map((r, i) => (
             <Row key={r.id || `new-${i}`}>
-              <In value={r.label} placeholder={t('canvas.metrics.labelPh') as string} onChange={(e) => patchRow(i, 'label', e.target.value)} />
-              <InS value={r.current} placeholder={t('canvas.metrics.currentPh') as string} onChange={(e) => patchRow(i, 'current', e.target.value)} />
-              <InS value={r.target} placeholder={t('canvas.metrics.targetPh') as string} onChange={(e) => patchRow(i, 'target', e.target.value)} />
-              <InS value={r.unit} placeholder={t('canvas.metrics.unitPh') as string} onChange={(e) => patchRow(i, 'unit', e.target.value)} />
-              <DelBtn type="button" onClick={() => removeRow(i)} title={t('canvas.workstreams.del') as string}><TrashIcon size={14} /></DelBtn>
+              <In value={r.label} readOnly={readOnly} placeholder={t('canvas.metrics.labelPh') as string} onChange={(e) => patchRow(i, 'label', e.target.value)} />
+              <InS value={r.current} readOnly={readOnly} placeholder={t('canvas.metrics.currentPh') as string} onChange={(e) => patchRow(i, 'current', e.target.value)} />
+              <InS value={r.target} readOnly={readOnly} placeholder={t('canvas.metrics.targetPh') as string} onChange={(e) => patchRow(i, 'target', e.target.value)} />
+              <InS value={r.unit} readOnly={readOnly} placeholder={t('canvas.metrics.unitPh') as string} onChange={(e) => patchRow(i, 'unit', e.target.value)} />
+              {!readOnly && <DelBtn type="button" onClick={() => removeRow(i)} title={t('canvas.workstreams.del') as string}><TrashIcon size={14} /></DelBtn>}
             </Row>
           ))}
         </List>
       )}
-      <AddBtn type="button" onClick={addRow}><PlusIcon size={14} />{t('canvas.metrics.add')}</AddBtn>
+      {!readOnly && <AddBtn type="button" onClick={addRow}><PlusIcon size={14} />{t('canvas.metrics.add')}</AddBtn>}
     </Box>
   );
 }

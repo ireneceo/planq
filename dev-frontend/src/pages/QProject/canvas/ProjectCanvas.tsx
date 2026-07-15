@@ -21,9 +21,10 @@ import SuccessMetricsEditor from './SuccessMetricsEditor';
 import WorkstreamBoard from './WorkstreamBoard';
 import RelatedProjects from './RelatedProjects';
 
-interface Props { projectId: number; businessId: number; }
+// readOnly — 개요 탭은 보기 전용(#167). 편집은 상세정보 탭 한 곳(단일 원천 유지, #148 원칙 그대로).
+interface Props { projectId: number; businessId: number; readOnly?: boolean; }
 
-export default function ProjectCanvas({ projectId, businessId }: Props) {
+export default function ProjectCanvas({ projectId, businessId, readOnly = false }: Props) {
   const { t } = useTranslation('qproject');
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -118,24 +119,24 @@ export default function ProjectCanvas({ projectId, businessId }: Props) {
       <LayerLabel $tone="blue">{t('canvas.layer1')}</LayerLabel>
       <TwoCol>
         <StrategyField fieldKey="context" value={strategy.context}
-          label={t('canvas.context.label')} hint={t('canvas.context.hint')} ph={t('canvas.context.ph')} save={saveStrategy} />
+          label={t('canvas.context.label')} hint={t('canvas.context.hint')} ph={t('canvas.context.ph')} save={saveStrategy} readOnly={readOnly} />
         <StrategyField fieldKey="key_question" value={strategy.key_question}
-          label={t('canvas.keyQuestion.label')} hint={t('canvas.keyQuestion.hint')} ph={t('canvas.keyQuestion.ph')} save={saveStrategy} />
+          label={t('canvas.keyQuestion.label')} hint={t('canvas.keyQuestion.hint')} ph={t('canvas.keyQuestion.ph')} save={saveStrategy} readOnly={readOnly} />
       </TwoCol>
       <StrategyField fieldKey="goal" value={strategy.goal}
-        label={t('canvas.goal.label')} hint={t('canvas.goal.hint')} ph={t('canvas.goal.ph')} save={saveStrategy} />
-      <Card><SuccessMetricsEditor projectId={projectId} initial={data.success_metrics} onSaved={() => { /* canvas reloads via socket */ }} /></Card>
+        label={t('canvas.goal.label')} hint={t('canvas.goal.hint')} ph={t('canvas.goal.ph')} save={saveStrategy} readOnly={readOnly} />
+      <Card><SuccessMetricsEditor projectId={projectId} initial={data.success_metrics} onSaved={() => { /* canvas reloads via socket */ }} readOnly={readOnly} /></Card>
 
       {/* ───── Layer 2 전략 ───── */}
       <LayerLabel $tone="green">{t('canvas.layer2')}</LayerLabel>
       <GoverningWrap>
         <GoverningLabel>{t('canvas.governing.label')}<Hint>{t('canvas.governing.hint')}</Hint></GoverningLabel>
-        <GoverningField value={strategy.governing_thought} ph={t('canvas.governing.ph')} save={saveStrategy} />
+        <GoverningField value={strategy.governing_thought} ph={t('canvas.governing.ph')} save={saveStrategy} readOnly={readOnly} />
       </GoverningWrap>
       <StrategyField fieldKey="approach" value={strategy.approach}
-        label={t('canvas.approach.label')} hint={t('canvas.approach.hint')} ph={t('canvas.approach.ph')} save={saveStrategy} />
+        label={t('canvas.approach.label')} hint={t('canvas.approach.hint')} ph={t('canvas.approach.ph')} save={saveStrategy} readOnly={readOnly} />
       <SectionTitle>{t('canvas.workstreams.title')}<Hint>{t('canvas.workstreams.hint')}</Hint></SectionTitle>
-      <WorkstreamBoard projectId={projectId} workstreams={data.workstreams} onChanged={silentLoad} />
+      <WorkstreamBoard projectId={projectId} workstreams={data.workstreams} onChanged={silentLoad} readOnly={readOnly} />
 
       {/* ───── Layer 3 실행 ───── */}
       <LayerLabel $tone="orange">{t('canvas.layer3')}</LayerLabel>
@@ -193,31 +194,37 @@ export default function ProjectCanvas({ projectId, businessId }: Props) {
       </Card>
 
       {/* ───── 관련 프로젝트 (§3.5) ───── */}
-      <RelatedProjects projectId={projectId} businessId={businessId} refreshSignal={refreshSignal} />
+      <RelatedProjects projectId={projectId} businessId={businessId} refreshSignal={refreshSignal} readOnly={readOnly} />
     </Wrap>
   );
 }
 
 // 전략 텍스트 필드 (AutoSave) — uncontrolled + ref 로 최신 값 저장
-function StrategyField({ fieldKey, value, label, hint, ph, save }: {
+function StrategyField({ fieldKey, value, label, hint, ph, save, readOnly }: {
   fieldKey: StrategyKey; value: string | null;
   label: string; hint: string; ph: string;
   save: (k: StrategyKey, v: string) => () => Promise<void>;
+  readOnly?: boolean;
 }) {
   const valRef = useRef(value ?? '');
   return (
     <Field>
       <FieldLabel>{label}<Hint>{hint}</Hint></FieldLabel>
-      <AutoSaveField onSave={() => save(fieldKey, valRef.current)()} type="input">
-        <Textarea defaultValue={value ?? ''} placeholder={ph} onChange={(e) => { valRef.current = e.target.value; }} />
-      </AutoSaveField>
+      {readOnly
+        ? <ReadOnlyText>{value || '—'}</ReadOnlyText>
+        : (
+          <AutoSaveField onSave={() => save(fieldKey, valRef.current)()} type="input">
+            <Textarea defaultValue={value ?? ''} placeholder={ph} onChange={(e) => { valRef.current = e.target.value; }} />
+          </AutoSaveField>
+        )}
     </Field>
   );
 }
 
 // 핵심 메시지(governing thought) 필드 — 큰 단일 입력, uncontrolled + ref
-function GoverningField({ value, ph, save }: { value: string | null; ph: string; save: (k: StrategyKey, v: string) => () => Promise<void> }) {
+function GoverningField({ value, ph, save, readOnly }: { value: string | null; ph: string; save: (k: StrategyKey, v: string) => () => Promise<void>; readOnly?: boolean }) {
   const valRef = useRef(value ?? '');
+  if (readOnly) return <GoverningReadOnly>{value || '—'}</GoverningReadOnly>;
   return (
     <AutoSaveField onSave={() => save('governing_thought', valRef.current)()} type="input">
       <GoverningInput defaultValue={value ?? ''} placeholder={ph} onChange={(e) => { valRef.current = e.target.value; }} />
@@ -263,6 +270,9 @@ const Field = styled.div``;
 const FieldLabel = styled.div`font-size:13px;font-weight:700;color:#0F172A;margin-bottom:6px;`;
 const Hint = styled.span`font-size:11px;font-weight:500;color:#94A3B8;margin-left:8px;`;
 const Textarea = styled.textarea`width:100%;min-height:72px;resize:vertical;border:1px solid #E2E8F0;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.6;color:#334155;font-family:inherit;&:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,.15);}&::placeholder{color:#94A3B8;}`;
+// 개요 탭 읽기전용(#167) — 값을 definition-list 스타일로 비춘다(빈 값은 —).
+const ReadOnlyText = styled.div`width:100%;min-height:24px;font-size:13px;line-height:1.6;color:#334155;white-space:pre-wrap;word-break:break-word;`;
+const GoverningReadOnly = styled.div`width:100%;font-size:18px;font-weight:700;color:#0F172A;line-height:1.5;white-space:pre-wrap;word-break:break-word;`;
 const Card = styled.div`background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:16px 18px;`;
 const SectionTitle = styled.div`font-size:14px;font-weight:700;color:#0F172A;margin-top:6px;`;
 const GroupLabel = styled.div`font-size:11px;font-weight:600;color:#94A3B8;margin:10px 0 6px;`;

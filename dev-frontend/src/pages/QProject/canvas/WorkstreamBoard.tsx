@@ -13,9 +13,10 @@ interface Props {
   projectId: number;
   workstreams: Workstream[];
   onChanged: () => void;
+  readOnly?: boolean;   // 개요 탭 보기전용(#167) — 추가·수정·삭제·정렬 어포던스 숨김
 }
 
-export default function WorkstreamBoard({ projectId, workstreams, onChanged }: Props) {
+export default function WorkstreamBoard({ projectId, workstreams, onChanged, readOnly = false }: Props) {
   const { t } = useTranslation('qproject');
   const [adding, setAdding] = useState(false);
   const [newTitle, setNewTitle] = useState('');
@@ -64,12 +65,15 @@ export default function WorkstreamBoard({ projectId, workstreams, onChanged }: P
                       onBlur={() => saveEdit(ws)}
                       onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditId(null); }} />
                   ) : (
-                    <Title onClick={() => { setEditId(ws.id); setEditTitle(ws.title); }}>{ws.title}</Title>
+                    <Title as={readOnly ? 'div' : undefined} style={readOnly ? { cursor: 'default' } : undefined}
+                      onClick={readOnly ? undefined : () => { setEditId(ws.id); setEditTitle(ws.title); }}>{ws.title}</Title>
                   )}
-                  <Reorder>
-                    <MiniBtn type="button" disabled={idx === 0} onClick={() => move(idx, -1)} title="↑">↑</MiniBtn>
-                    <MiniBtn type="button" disabled={idx === workstreams.length - 1} onClick={() => move(idx, 1)} title="↓">↓</MiniBtn>
-                  </Reorder>
+                  {!readOnly && (
+                    <Reorder>
+                      <MiniBtn type="button" disabled={idx === 0} onClick={() => move(idx, -1)} title="↑">↑</MiniBtn>
+                      <MiniBtn type="button" disabled={idx === workstreams.length - 1} onClick={() => move(idx, 1)} title="↓">↓</MiniBtn>
+                    </Reorder>
+                  )}
                 </TitleRow>
                 {ws.description && <Desc>{ws.description}</Desc>}
                 <ProgressTrack><ProgressFill style={{ width: `${r.progress_pct}%`, background: c }} /></ProgressTrack>
@@ -79,6 +83,9 @@ export default function WorkstreamBoard({ projectId, workstreams, onChanged }: P
                   <Dot />{r.in_progress} {t('canvas.workstreams.inProgress')}
                   {r.overdue > 0 && <><Dot /><Over>{r.overdue} {t('canvas.workstreams.overdue')}</Over></>}
                 </Meta>
+                {readOnly ? (
+                  <Footer><StatusStatic>{t(`canvas.workstreams.status.${ws.status}`)}</StatusStatic></Footer>
+                ) : (
                 <Footer>
                   <StatusSelWrap>
                     <PlanQSelect size="sm" isSearchable={false}
@@ -95,12 +102,13 @@ export default function WorkstreamBoard({ projectId, workstreams, onChanged }: P
                     <IconBtn type="button" onClick={() => setConfirmDel(ws.id)} title={t('canvas.workstreams.del') as string}><TrashIcon size={14} /></IconBtn>
                   )}
                 </Footer>
+                )}
               </CardBody>
             </Card>
           );
         })}
 
-        {adding ? (
+        {readOnly ? null : adding ? (
           <AddCard>
             <AddInput autoFocus value={newTitle} placeholder={t('canvas.workstreams.titlePh') as string}
               onChange={(e) => setNewTitle(e.target.value)}
@@ -137,6 +145,7 @@ const Dot = styled.span`width:3px;height:3px;border-radius:50%;background:#CBD5E
 const Over = styled.span`color:#EF4444;font-weight:600;`;
 const Footer = styled.div`display:flex;align-items:center;gap:8px;margin-top:12px;`;
 const StatusSelWrap = styled.div`min-width:104px;`;
+const StatusStatic = styled.span`font-size:11px;font-weight:700;color:#64748B;background:#F1F5F9;border-radius:999px;padding:3px 10px;`;
 const IconBtn = styled.button`display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;margin-left:auto;border:none;background:transparent;color:#CBD5E1;border-radius:6px;cursor:pointer;&:hover{background:#FEF2F2;color:#EF4444;}`;
 const ConfirmRow = styled.div`display:flex;align-items:center;gap:8px;margin-left:auto;`;
 const ConfirmHint = styled.span`font-size:11px;color:#64748B;`;
