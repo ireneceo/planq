@@ -344,6 +344,16 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
         pageUrl = o.pathname + (o.search || '');
       }
     } catch { /* cross-origin 등 — 자기 URL 유지 */ }
+    // #162 — 디바이스·앱 환경 + 팝아웃 여부 수집(트리아지 정확도). page_url 팝아웃 보정과 세트.
+    const isPopout = location.pathname.startsWith('/help') && typeof window !== 'undefined' && !!window.opener;
+    let clientEnv: Record<string, unknown> | null = null;
+    try {
+      clientEnv = {
+        vw: window.innerWidth, vh: window.innerHeight, dpr: window.devicePixelRatio,
+        lang: navigator.language, platform: navigator.platform,
+        standalone: window.matchMedia('(display-mode: standalone)').matches,
+      };
+    } catch { clientEnv = null; }
     try {
       const res = await apiFetch('/api/feedback', {
         method: 'POST',
@@ -354,6 +364,8 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
           title: (fbBody.trim().split('\n')[0] || '').slice(0, 60) || '(제목 없음)',
           body: fbBody.trim(),
           page_url: pageUrl,
+          is_popout: isPopout,
+          client_env: clientEnv,
           attachments: fbAttachments.length > 0 ? fbAttachments : null,
         }),
       });
