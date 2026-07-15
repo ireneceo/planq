@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import CalendarPicker from '../../components/Common/CalendarPicker';
+import CreateDrawer from '../../components/Common/CreateDrawer';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import PlanQSelect from '../../components/Common/PlanQSelect';
@@ -202,19 +203,16 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
   const availableToAdd = availableMembers.filter((m) => !members.find((x) => x.user_id === m.user_id));
 
   return (
-    <Backdrop onClick={onClose}>
-      <Modal role="dialog" aria-modal="true" aria-label={t('modal.title', '새 프로젝트') as string} onClick={(e) => e.stopPropagation()}>
-        <ModalHeader>
-          <ModalTitle>{t('modal.title', '새 프로젝트')}</ModalTitle>
-          <CloseBtn onClick={onClose}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </CloseBtn>
-        </ModalHeader>
-
-        <ModalBody>
+    <CreateDrawer
+      open={open}
+      onClose={onClose}
+      wide
+      title={t('modal.title', '새 프로젝트')}
+      onSubmit={handleCreate}
+      submitting={submitting}
+      submitLabel={t('modal.create', '프로젝트 생성')}
+      submitDisabled={!name.trim()}
+    >
           {/* 기본 정보 */}
           <Field>
             <Label>{t('modal.name', '프로젝트명')} <Required>*</Required></Label>
@@ -492,108 +490,13 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
               );
             })}
           </Field>
-        </ModalBody>
-
-        <ModalFooter>
-          <FooterBtn onClick={onClose} disabled={submitting}>{t('modal.cancel', '취소')}</FooterBtn>
-          <FooterBtn $primary disabled={!name.trim() || submitting} onClick={handleCreate}>
-            {submitting ? t('modal.creating', '생성 중...') : t('modal.create', '프로젝트 생성')}
-          </FooterBtn>
-        </ModalFooter>
-      </Modal>
-    </Backdrop>
+    </CreateDrawer>
   );
 };
 
 export default NewProjectModal;
 
 // ─────────────────────────────────────────────
-const Backdrop = styled.div`
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.5);
-  z-index: 2000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  animation: fadeIn 0.15s ease-out;
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-`;
-
-const Modal = styled.div`
-  width: 100%;
-  max-width: 560px;
-  max-height: calc(100vh - 40px);
-  background: #FFFFFF;
-  border-radius: 16px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  animation: slideUp 0.2s ease-out;
-  @keyframes slideUp {
-    from { transform: translateY(20px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
-  }
-  /* mobile: top/bottom 고정으로 GNB 피하고 화면 안에 확실히 배치 */
-  @media (max-width: 640px) {
-    position: fixed; z-index: 1000;
-    top: 70px;
-    bottom: auto;
-    left: 16px;
-    right: 16px;
-    width: auto;
-    max-width: none;
-    max-height: calc(var(--vvh, 100vh) - 90px);
-  }
-`;
-
-const ModalHeader = styled.div`
-  padding: 18px 22px;
-  border-bottom: 1px solid #F1F5F9;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-shrink: 0;
-`;
-
-const ModalTitle = styled.h2`
-  font-size: 17px;
-  font-weight: 700;
-  color: #0F172A;
-  margin: 0;
-`;
-
-const CloseBtn = styled.button`
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  color: #64748B;
-  cursor: pointer;
-  &:hover { background: #F1F5F9; color: #0F172A; }
-`;
-
-const ModalBody = styled.div`
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 20px 22px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  &::-webkit-scrollbar { width: 6px; }
-  &::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 3px; }
-`;
-
 const Field = styled.div`
   display: flex;
   flex-direction: column;
@@ -820,15 +723,6 @@ const AddClientBtn = styled.button`
 `;
 
 
-const ModalFooter = styled.div`
-  padding: 14px 22px;
-  border-top: 1px solid #F1F5F9;
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  flex-shrink: 0;
-`;
-
 const SwatchRow = styled.div`
   display: flex;
   flex-wrap: wrap;
@@ -863,23 +757,3 @@ const Swatch = styled.button<{ $color: string; $active: boolean }>`
   &:focus-visible { outline: none; box-shadow: 0 0 0 3px ${(p) => p.$color}66; }
 `;
 
-const FooterBtn = styled.button<{ $primary?: boolean }>`
-  padding: 10px 18px;
-  font-size: 13px;
-  font-weight: 600;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.1s;
-  ${(p) => p.$primary ? `
-    background: #0D9488;
-    color: #FFFFFF;
-    border: none;
-    &:hover:not(:disabled) { background: #0F766E; }
-    &:disabled { background: #CBD5E1; cursor: not-allowed; }
-  ` : `
-    background: transparent;
-    color: #64748B;
-    border: 1px solid #E2E8F0;
-    &:hover { background: #F8FAFC; color: #0F172A; }
-  `}
-`;

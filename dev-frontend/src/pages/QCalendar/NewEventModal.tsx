@@ -180,6 +180,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
       open
       onClose={onClose}
       title={t('new')}
+      wide
       onSubmit={handleSubmit}
       submitting={submitting}
       submitLabel={t('button.create')}
