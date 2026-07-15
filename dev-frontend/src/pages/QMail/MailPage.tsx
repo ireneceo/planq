@@ -603,7 +603,7 @@ const MailPage: React.FC = () => {
   // 폴더 → 일괄 액션. 확인권장/전체는 bulk-read 재사용(읽음=알람 해제). 그 외 폴더는 액션 없음.
   const bulkAction: { path: string; label: string } | null =
     folder === 'reply_needed' ? { path: 'bulk-dismiss', label: t('bulk.dismissAll', { defaultValue: '모두 답변 불필요' }) as string }
-    : folder === 'uncertain' ? { path: 'bulk-read', label: t('bulk.confirmDone', { defaultValue: '모두 확인완료' }) as string }
+    : folder === 'uncertain' ? { path: 'bulk-handled', label: t('bulk.confirmDone', { defaultValue: '모두 확인완료' }) as string }
     : folder === 'all' ? { path: 'bulk-read', label: t('bulk.markRead', { defaultValue: '모두 읽음' }) as string }
     : null;
   const armBulk = useCallback(() => {
@@ -1223,11 +1223,14 @@ const MailPage: React.FC = () => {
             {bulkAction && folderCounts[folder] > 0 && (
               <BulkAction type="button" $confirm={bulkConfirm} disabled={bulkBusy} title={bulkAction.label}
                 onClick={bulkConfirm ? doBulk : armBulk}>
-                {bulkBusy
+                {!bulkBusy && (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                )}
+                <span>{bulkBusy
                   ? (t('bulk.working', { defaultValue: '처리 중…' }) as string)
                   : bulkConfirm
                     ? (t('bulk.confirmN', { defaultValue: '{{n}}개 처리?', n: folderCounts[folder] }) as string)
-                    : bulkAction.label}
+                    : bulkAction.label}</span>
               </BulkAction>
             )}
           </AcctFilterRow>
