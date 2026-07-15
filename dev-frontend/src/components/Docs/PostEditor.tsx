@@ -156,7 +156,17 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
   // 사용자 호소: "빈 노트/문서 에디터 어디 클릭해도 커서 진입 가능"
   const handleWrapperClick = (e: React.MouseEvent) => {
     if (!editable || !editor) return;
-    if ((e.target as HTMLElement).closest('.ProseMirror')) return;
+    const targetEl = e.target as HTMLElement;
+    if (targetEl.closest('.ProseMirror')) return;
+    // 툴바·버튼·링크 클릭은 커서 하이재킹 대상 아님
+    if (targetEl.closest('button, a, input, select, textarea, [role="button"]')) return;
+    // 드래그로 텍스트 선택한 직후엔 커서를 끝으로 뺏지 않는다(선택 유지).
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed) return;
+    // 본문 '아래' 빈 영역을 클릭했을 때만 끝으로 진입. 좌우·상단 여백 클릭은 무시.
+    //   (여백 클릭이 focus('end') 를 불러 커서가 끝으로 튀며 화면이 맨 아래로 점프하던 회귀 fix — Irene)
+    const pm = (e.currentTarget as HTMLElement).querySelector('.ProseMirror');
+    if (pm && e.clientY < pm.getBoundingClientRect().bottom) return;
     editor.commands.focus('end');
   };
 

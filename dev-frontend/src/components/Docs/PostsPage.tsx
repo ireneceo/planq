@@ -1122,17 +1122,16 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               {error && <ErrorBar>{error}</ErrorBar>}
               {detail?.kind === 'table' && detail.q_record_id ? (
                 <>
-                  {tableDescOpen ? (
-                    <DescBox className="pq-fullbleed">
-                      <DescBoxHeader>
-                        <DescBoxLabel>{t('tableDescTitle', { defaultValue: '표 설명 에디터' }) as string}</DescBoxLabel>
-                        <DescCloseBtn type="button" onClick={() => setTableDescOpen(false)}
-                          title={t('tableDescClose', { defaultValue: '에디터 닫기' }) as string}
-                          aria-label={t('tableDescClose', { defaultValue: '에디터 닫기' }) as string}>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-                          <span>{t('tableDescCloseShort', { defaultValue: '닫기' }) as string}</span>
-                        </DescCloseBtn>
-                      </DescBoxHeader>
+                  {/* 표 설명 — 열기/닫기 하나의 full-width 헤더 바로 통일(닫힘=헤더만, 열림=헤더+에디터). (Irene) */}
+                  <div className="pq-fullbleed">
+                    <DescToggleHeader type="button" onClick={() => setTableDescOpen(v => !v)} aria-expanded={tableDescOpen}>
+                      <DescBoxLabel>{t('tableDescTitle', { defaultValue: '표 설명' }) as string}</DescBoxLabel>
+                      <DescChevron $open={tableDescOpen}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                        {tableDescOpen ? (t('tableDescCloseShort', { defaultValue: '닫기' }) as string) : (t('tableDescOpenShort', { defaultValue: '열기' }) as string)}
+                      </DescChevron>
+                    </DescToggleHeader>
+                    {tableDescOpen && (
                       <PostEditor
                         value={contentDraft}
                         onChange={setContentDraft}
@@ -1140,15 +1139,11 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                         placeholder={t('tableDescPlaceholder', '표에 대한 설명을 입력하세요 (선택)') as string}
                         borderless
                       />
-                    </DescBox>
-                  ) : (
-                    <DescToggleBtn type="button" onClick={() => setTableDescOpen(true)}>
-                      + {t('tableDescOpen', { defaultValue: '표 설명 에디터 열기' }) as string}
-                    </DescToggleBtn>
-                  )}
+                    )}
+                  </div>
                   {/* N+72-7 — 본문↔표 간격 (편집 모드) */}
                   <SectionGap />
-                  <PostTableGrid recordId={detail.q_record_id} businessId={scope.businessId} />
+                  <div className="pq-fullbleed"><PostTableGrid recordId={detail.q_record_id} businessId={scope.businessId} /></div>
                 </>
               ) : (
                 <>
@@ -2002,36 +1997,23 @@ const RemoveBtn = styled.button`
 `;
 
 const ErrorBar = styled.div`font-size: 12px; color: #DC2626; background: #FEF2F2; padding: 8px 12px; border-radius: 6px;`;
-const DescToggleBtn = styled.button`
-  align-self: flex-start;
-  padding: 6px 12px; font-size: 12px; font-weight: 500; color: #64748B;
-  background: transparent; border: 1px dashed #CBD5E1; border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.15s;
-  &:hover { color: #0F766E; border-color: #14B8A6; background: #F0FDFA; }
-`;
-// 라운드박스 제거 — 안의 PostEditor 가 borderless 라 박스 안 박스였다. 평평하게(Irene).
-const DescBox = styled.div`
-  display: flex; flex-direction: column;
-`;
-const DescBoxHeader = styled.div`
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 8px 24px;
-  border-bottom: 1px solid #F1F5F9;
-  background: #F8FAFC;
-  border-radius: 10px 10px 0 0;
+// 표 설명 — 열기/닫기 통합 full-width 헤더 바(라운드·이질감 제거, flat 통일). (Irene)
+const DescToggleHeader = styled.button`
+  display: flex; align-items: center; justify-content: space-between; width: 100%;
+  padding: 10px 24px; text-align: left;
+  background: #F8FAFC; border: none;
+  border-top: 1px solid #F1F5F9; border-bottom: 1px solid #F1F5F9;
+  cursor: pointer; transition: background 0.15s;
+  &:hover { background: #F1F5F9; }
 `;
 const DescBoxLabel = styled.span`
   font-size: 11px; font-weight: 700; color: #64748B;
   text-transform: uppercase; letter-spacing: 0.05em;
 `;
-const DescCloseBtn = styled.button`
+const DescChevron = styled.span<{ $open?: boolean }>`
   display: inline-flex; align-items: center; gap: 4px;
-  padding: 4px 8px; font-size: 11px; font-weight: 500; color: #64748B;
-  background: transparent; border: 1px solid transparent; border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.15s;
-  &:hover { color: #DC2626; border-color: #FECACA; background: #FEF2F2; }
+  font-size: 11px; font-weight: 600; color: #64748B;
+  svg { transition: transform 0.18s ease; transform: rotate(${p => p.$open ? '180deg' : '0deg'}); }
 `;
 
 // 버튼 — PanelHeader 60px (padding 14*2=28 + 32 content) 와 일치하도록 32px

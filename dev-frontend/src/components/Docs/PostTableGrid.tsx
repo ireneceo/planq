@@ -865,7 +865,8 @@ export default PostTableGrid;
 // ─── styled ───
 const Loading = styled.div`padding: 40px; text-align: center; color: #94A3B8; font-size: 13px;`;
 const GridWrap = styled.div`width: 100%;`;
-const GridScroll = styled.div`overflow-x: auto; border: 1px solid #E2E8F0; border-radius: 10px; background: #fff;`;
+// 라운드 제거 — 문서 flat 풀레이아웃과 통일(상하 flat 라인만, 좌우는 full-bleed 로 패널 끝까지). (Irene)
+const GridScroll = styled.div`overflow-x: auto; border-top: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; background: #fff;`;
 const GridTable = styled.table`
   width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px;
   background: #fff;
