@@ -26,6 +26,7 @@ import RichEditor from '../../components/Common/RichEditor';
 import AttachmentField from '../../components/Common/AttachmentField';
 import SearchBox from '../../components/Common/SearchBox';
 import FloatingPanelToggle, { PANEL_WIDTH_CSS } from '../../components/Common/FloatingPanelToggle';
+import CreateDrawer from '../../components/Common/CreateDrawer';
 import { useIsNarrow } from '../../hooks/useMediaQuery';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
@@ -239,12 +240,6 @@ const QTaskPage:React.FC=()=>{
   const rightResizingRef=useRef(false);
   const[drawerWidth,setDrawerWidth]=useState<number>(()=>responsiveDrawerWidth('qtask_drawer_width'));
   const drawerResizingRef=useRef(false);
-  const startDrawerResize=(e:React.MouseEvent)=>{
-    e.preventDefault();
-    drawerResizingRef.current=true;
-    document.body.style.userSelect='none';
-    document.body.style.cursor='col-resize';
-  };
   useEffect(()=>{
     const onMove=(e:MouseEvent)=>{
       if(rightResizingRef.current){
@@ -2713,20 +2708,17 @@ const QTaskPage:React.FC=()=>{
         </RightPanel>
       )}
       {/* ── 업무 추가 우측 패널 (panel 모드만) ── */}
-      {addingTask&&!addInline&&<DrawerBackdrop onClick={()=>{setAddingTask(false);setAddInline(false);resetNewTask();}} />}
       {addingTask&&!addInline&&(
-        <DetailDrawer $w={drawerWidth}>
-          <DrawerResizeHandle onMouseDown={startDrawerResize} />
-          <RightHeader>
-            <RightTitle>
-              + {scope==='mine'&&tab==='requested'?t('add.reqBtn','요청 추가'):t('add.btn','업무 추가')}
-            </RightTitle>
-            <CollapseBtn onClick={()=>{setAddingTask(false);setAddInline(false);resetNewTask();}}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </CollapseBtn>
-          </RightHeader>
-          <RightScroll>
-            {/* 박스 제거 — 우측 패널 자체 padding 안에 직접 배치 (사용자: 박스 안 박스 금지) */}
+        <CreateDrawer
+          open
+          wide
+          onClose={()=>{setAddingTask(false);setAddInline(false);resetNewTask();}}
+          title={scope==='mine'&&tab==='requested'?t('add.reqBtn','요청 추가'):t('add.btn','업무 추가')}
+          onSubmit={addTask}
+          submitting={addingSubmitting}
+          submitLabel={t('add.save','추가')}
+          submitDisabled={!newTitle.trim()||(tab==='requested'&&!newAssignee)}
+        >
             <PanelAddForm>
               <AddInput autoFocus value={newTitle} placeholder={t('add.placeholder','업무명 입력 후 Ctrl+Enter 로 저장')}
                 onChange={e=>setNewTitle(e.target.value)}
@@ -2893,18 +2885,8 @@ const QTaskPage:React.FC=()=>{
                   />
                 </AttachInlineBox>
               )}
-              <AddBtnRow>
-                <AddCancelBtn type="button" onClick={()=>{setAddingTask(false);setAddInline(false);resetNewTask();}}>
-                  {t('add.cancel','취소')}
-                </AddCancelBtn>
-                <AddSaveBtn type="button" onClick={addTask}
-                  disabled={addingSubmitting||!newTitle.trim()||(tab==='requested'&&!newAssignee)}>
-                  {addingSubmitting?t('add.saving','저장 중...'):t('add.save','추가')}
-                </AddSaveBtn>
-              </AddBtnRow>
             </PanelAddForm>
-          </RightScroll>
-        </DetailDrawer>
+        </CreateDrawer>
       )}
       {/* 주간 보고 마무리 모달 */}
       {weeklyReviewModalOpen && bizId && (
@@ -3271,8 +3253,6 @@ const NameChip=styled.span<{$type:'from'|'to'|'observer'}>`
 // CollapsedStrip 은 0 폭 anchor — EdgeHandle 만 LeftPanel·RightPanel 경계에 노출.
 // N+63 — 시인성·세련도 강화. 옛 8×60 회색 → 12×72 + 진한 색 + chevron 14×14 + hover 시 18×84 teal + nudge animation.
 // 평소도 명확히 보이게, hover 시 확실한 affordance, focus ring 강화.
-// CollapseBtn — 입력 폼 닫기 버튼 (line 2401) 에서 계속 사용 — 우측 패널 토글에서만 EdgeHandle 로 대체
-const CollapseBtn=styled.button`width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#64748B;cursor:pointer;&:hover{background:#F1F5F9;color:#0F172A;}`;
 const RightPanel=styled.aside<{$w?:number;$overlay?:boolean}>`background:#FFF;border-left:1px solid #E2E8F0;display:flex;flex-direction:column;overflow:hidden;
   ${p=>p.$overlay?`
     position:fixed;top:0;right:0;bottom:0;
@@ -3290,10 +3270,6 @@ const RightPanel=styled.aside<{$w?:number;$overlay?:boolean}>`background:#FFF;bo
 `;
 const RightPanelBackdrop=styled.div`position:fixed;inset:0;background:rgba(15, 23, 42, 0.08);-webkit-z-index:45;animation:pqRpFade 0.22s ease-out;@keyframes pqRpFade{from{opacity:0;}to{opacity:1;}}@media (prefers-reduced-motion: reduce){animation:none;}`;
 const ResizeHandle=styled.div`position:absolute;top:0;left:-3px;width:6px;height:100%;cursor:col-resize;z-index:5;&:hover{background:rgba(20,184,166,0.2);}&:active{background:rgba(20,184,166,0.4);}`;
-// 사이클 N+19 — DetailDrawer z-index 40 → 60 (RightPanel overlay 50 보다 위, 사용자 의도)
-const DetailDrawer=styled.aside<{$w?:number}>`position:fixed;top:0;right:0;bottom:0;width:min(${p=>p.$w||560}px,calc(100vw - 56px));background:#FFF;border-left:1px solid #E2E8F0;box-shadow:-16px 0 40px rgba(15,23,42,0.14);display:flex;flex-direction:column;overflow:hidden;z-index:60;animation:pqSlideIn 0.28s cubic-bezier(0.22,1,0.36,1);@keyframes pqSlideIn{from{transform:translateX(100%);}to{transform:translateX(0);}}padding-bottom:env(safe-area-inset-bottom,0px);@media (prefers-reduced-motion: reduce){animation:none;}@media (max-width: 1024px){top:56px;}`;
-const DrawerBackdrop=styled.div`position:fixed;inset:0;background:rgba(15, 23, 42, 0.08);z-index:55;animation:pqFadeIn 0.22s ease-out;@keyframes pqFadeIn{from{opacity:0;}to{opacity:1;}}@media (prefers-reduced-motion: reduce){animation:none;}`;
-const DrawerResizeHandle=styled.div`position:absolute;top:0;left:-4px;width:8px;height:100%;cursor:col-resize;z-index:61;&:hover{background:rgba(20,184,166,0.25);}&:active{background:rgba(20,184,166,0.45);}@media (max-width:1024px){display:none;}`;
 const RightHeader=styled.div`height:60px;padding:14px 20px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;`;
 const RightTitle=styled.h2`font-size:13px;font-weight:700;color:#0F172A;margin:0;letter-spacing:-0.1px;`;
 const RightScroll=styled.div`flex:1;overflow-y:auto;overflow-x:hidden;min-width:0;&>*{min-width:0;max-width:100%;}&::-webkit-scrollbar{width:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;

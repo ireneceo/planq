@@ -1931,7 +1931,7 @@ const DateRangeCell: React.FC<{
 // ─── styled ───
 const Backdrop = styled.div`
   position:fixed;inset:0;background:rgba(15, 23, 42, 0.08);
-  z-index:39;
+  z-index:125;
   animation:pqFadeIn 0.22s ease-out;
   @keyframes pqFadeIn{from{opacity:0;}to{opacity:1;}}
   @media (prefers-reduced-motion: reduce){animation:none;}
@@ -1943,11 +1943,11 @@ const Drawer = styled.aside<{ $w: number }>`
   height:var(--vvh, 100dvh);
   width:min(${p => p.$w}px, calc(100vw - 56px));
   background:#FFF;border-left:1px solid #E2E8F0;
-  box-shadow:-16px 0 40px rgba(15,23,42,0.14);display:flex;flex-direction:column;overflow:hidden;z-index:120;
+  box-shadow:-16px 0 40px rgba(15,23,42,0.14);display:flex;flex-direction:column;overflow:hidden;z-index:130;
   animation:pqSlideIn 0.28s cubic-bezier(0.22,1,0.36,1);
   @keyframes pqSlideIn{from{transform:translateX(100%);}to{transform:translateX(0);}}
   @media (prefers-reduced-motion: reduce){animation:none;}
-  /* 모바일 고정 헤더(z-index:99) 밑에서 시작 + safe-area 보정. z-index 120 으로 헤더 위 스택 → 닫기 버튼 안 가림(#171/172). */
+  /* RightDock FAB(120) 위로 z-index 130. 모바일 고정 헤더(99) 밑에서 시작 + safe-area 보정 → 닫기 버튼 안 가림(#171/172). */
   @media (max-width: 1024px){ top:calc(56px + env(safe-area-inset-top)); height:calc(var(--vvh, 100dvh) - 56px - env(safe-area-inset-top)); }
 `;
 const ResizeHandle = styled.div`

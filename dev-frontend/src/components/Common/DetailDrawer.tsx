@@ -120,8 +120,9 @@ const slideInRight = keyframes`
 const Backdrop = styled.div`
   position: fixed; inset: 0;
   background: rgba(15, 23, 42, 0.08);
-  
-  z-index: 45;
+  /* RightDock FAB(z-index 120) 위로 — 드로어 열리면 우하단 퀵메뉴가 드로어를 뚫고 나오지 않게.
+     위계: 페이지크롬(99·100) < FAB(120) < 드로어(125·130) < 센터모달(1000+). */
+  z-index: 125;
   animation: ${fadeIn} 0.22s ease-out;
   @media (prefers-reduced-motion: reduce) { animation: none; }
 `;
@@ -133,7 +134,7 @@ const Backdrop = styled.div`
 const Panel = styled.aside<{ $width: number }>`
   position: fixed; top: 0; right: 0;
   height: var(--vvh, 100dvh);
-  z-index: 50;
+  z-index: 130;
   background: #fff;
   display: flex; flex-direction: column;
   border-left: 1px solid #E2E8F0;
