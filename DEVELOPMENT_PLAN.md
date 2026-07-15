@@ -1,6 +1,33 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-07-15 (Opus, 1M) — **v1.47.0 운영 배포 완료 🚀** — D(KB 정리+이벤트 스트림) · 패널 핸들 좌우 통일(플로팅 단일화) · Google 심사 대응(Gmail·Google 로그인 버튼 숨김 + 메일 연결 UX) · 이전분 동반(전이 툴·MCP 읽기 서버). 3점 실측 검증(헬스·PM2 backend/qnote/mcp·activity 401·번들·api_tokens). Google OAuth 검증(calendar.events) 데모 영상 촬영 가이드 전달 — 진행 중(Irene).
+> **최종 업데이트:** 2026-07-15 (Opus, 1M) — **🚀 대규모 세션 배포 완료** — 구독 결제 사고 완결(replace-chain 재무 회귀·Fable GATE PASS) + 워프로랩 운영 데이터 복구 + 문서/에디터/표/리스트 borderless 풀레이아웃 통일 + 추가/등록 CreateDrawer 통일 + Q Mail 첨부 fix·풀페이지 작성 + 프로젝트 개요 대시보드 재설계 + 말로추가(운영 DEEPGRAM) + Cue 복구 스윕 + 메일 fetch 2분. **다음 섹션 백로그 박제: `docs/qa/NEXT_SECTION_BACKLOG.md`** (🔴 IMAP IDLE·모바일 반응형·기능 전수검사·멀티탭 등).
+
+## ✅ 완료: 대규모 UI 통일 + 재무 사고 완결 + 메일/개요 (2026-07-15)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 🔴 구독 결제 사고 완결 | replace-chain 결함(결제된 구독이 미결제 pending에 밀려남) — createPending/markPaymentPaid/getCurrentSubscription/plan.js 정렬/stale 가드/admin demote 6점 수정. **Fable GATE PASS**. 워프로랩 운영 데이터 basic active 복구 | ✅ |
+| 문서/에디터 borderless 풀레이아웃 | 문서·메모·표 카드 박스 제거, 툴바 sticky·풀폭, 이중박스 제거, 리스트 라운드 통일, 에디터 맨아래 점프 회귀 fix | ✅ |
+| 추가/등록 CreateDrawer 통일 | 센터모달 5종(고객초대·대화·일정·프로젝트·지식) → 우측 CreateDrawer. 메일 작성 풀페이지 | ✅ |
+| Q Mail 첨부 fix | 상세 API 오필드(file_name/file_size)·file_id 누락 → 이름·크기 정상+다운로드. inline 제외 | ✅ |
+| 프로젝트 개요 대시보드 재설계 | 빈섹션 숨김·hero 2열(파랑/teal 파스텔)·워크스트림 풀폭·2열 페어·수정아이콘·관련프로젝트 카드화 | ✅ |
+| 말로추가 | 운영 .env DEEPGRAM 키 추가+재시작 → 음성 STT 작동 | ✅ |
+| Cue 갇힌 업무 복구 스윕 | fire-and-forget 유실 회복(부팅+자정 cron, 멱등·무한재시도 차단) | ✅ |
+| 메일 fetch 2분 | 5분→2분 수신지연 단축(임시). 즉시=IMAP IDLE 백로그 #1 | ✅ |
+| Q mail 소문자·개요 폰트·Q Task 퀵메뉴/확인카드 | 브랜드 소문자·가이드 폰트·업무추가 일반드로어·태그색 | ✅ |
+
+### 수정된 파일
+- 백엔드: `services/billing.js` `routes/plan.js` `routes/admin.js` `routes/email_threads.js` `services/cueTaskRecovery.js`(신규) `services/emailImapCron.js` `server.js`
+- 프론트: `components/Docs/{PostEditor,PostsPage,PostTableGrid,SignatureProgressSection}.tsx` `components/Common/{RichEditor,ScheduleTimeline,CreateDrawer}.tsx` `pages/QMail/{MailPage,MailPage.styles}.tsx` `pages/QProject/canvas/*` `pages/QTask/QTaskPage.tsx` + Clients/Calendar/Talk/Knowledge 이관
+- 문서: `docs/qa/NEXT_SECTION_BACKLOG.md`(신규)
+
+### 운영 반영(이번 세션)
+- 배포: `fdf65fc` 까지 3점 실측(health 200·PM2 fresh·번들 갱신·billing 착지). 이후 커밋(관련프로젝트·타임라인·메일 2분·백로그)은 **미배포** — 다음 `/배포` 필요.
+- 운영 직접: 워프로랩 구독 데이터 복구 · DEEPGRAM 키 추가
+
+---
 
 ## ✅ 완료: #81 Cue 대화형 실행 (2026-07-15)
 
