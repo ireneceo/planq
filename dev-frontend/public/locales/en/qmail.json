@@ -86,6 +86,12 @@
         "s1": "In Daum Mail → Preferences → IMAP/POP3, turn on \"Use IMAP\".",
         "s2": "Enter your Daum account password in the \"Password\" field and save.",
         "link": "Open Daum Mail settings →"
+      },
+      "custom": {
+        "title": "Connect company or other mail",
+        "s1": "Ask your mail provider or company IT for the IMAP/SMTP server address and port (e.g. incoming imap.company.com:993 · outgoing smtp.company.com:587).",
+        "s2": "Make sure \"IMAP access\" is enabled in your mailbox settings (some services turn it off by default).",
+        "s3": "Enter the server details and your login password (or an app password if you use 2-step verification) below, then save."
       }
     },
     "fieldEmail": "Email",
@@ -136,7 +142,8 @@
     "appPasswordPh": "Not your account password — the generated app password",
     "fieldFromName": "Sender name",
     "fromNamePh": "e.g. PlanQ · Customer Support",
-    "fromNameHint": "This is the name recipients see in their inbox. Leave empty to show the address only."
+    "fromNameHint": "This is the name recipients see in their inbox. Leave empty to show the address only.",
+    "hintAppPassword": "For Gmail, Outlook, Naver and more, click \"Add account\" and pick your service for step-by-step app-password instructions. For company mail, choose \"Custom\" and enter your server details."
   },
   "folders": {
     "title": "Mailboxes",
