@@ -1,6 +1,6 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-07-15 (Opus, 1M) — **v1.46.2 운영 배포 완료 🚀 · 🤖 #81 Cue 대화형 실행.** 자연어 지시 → 툴 제안 → confirm → 실행. Fable 게이트 CONDITIONAL 통과 + F1(멀티테넌트) 봉합. 빌드 EXIT0/TS0 · guard 20/20 · 실HTTP+서비스 24/24 · LLM 스모크. **운영 배포 완료**(commit `de654c6` · 3점 실측 검증).
+> **최종 업데이트:** 2026-07-15 (Opus, 1M) — **v1.47.0 운영 배포 완료 🚀** — D(KB 정리+이벤트 스트림) · 패널 핸들 좌우 통일(플로팅 단일화) · Google 심사 대응(Gmail·Google 로그인 버튼 숨김 + 메일 연결 UX) · 이전분 동반(전이 툴·MCP 읽기 서버). 3점 실측 검증(헬스·PM2 backend/qnote/mcp·activity 401·번들·api_tokens). Google OAuth 검증(calendar.events) 데모 영상 촬영 가이드 전달 — 진행 중(Irene).
 
 ## ✅ 완료: #81 Cue 대화형 실행 (2026-07-15)
 

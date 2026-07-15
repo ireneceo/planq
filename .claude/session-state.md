@@ -1,8 +1,25 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-07-15 (Opus, 1M) — **#81 Cue 대화형 실행** (자연어 → 툴 제안 → confirm → 실행)
-**작업 상태:** 완료 (dev 검증 통과 — 빌드 EXIT0/TS0 · guard 20/20 · 실HTTP+서비스 24/24 · LLM 스모크 · 데이터 원복 · **미배포**, **미커밋**)
+**마지막 업데이트:** 2026-07-15 (Opus, 1M) — **v1.47.0 운영 배포 완료 🚀** (timestamp `20260715_112033`, backup `/opt/planq/backups/20260715_112033`, commit `08c8216`)
+**작업 상태:** 배포 완료·검증 통과 (3점 실측: 외부 헬스 200 · PM2 backend/qnote/**mcp** online fresh · D-6 activity 401 · 번들 11:23 · 백엔드 에러 0 · api_tokens 테이블 생성)
+
+### 이번 배포 포함 (v1.46.2 → v1.47.0)
+- **D — KB 정리 + 이벤트 스트림** (읽기 전용, Fable 불필요): D-5 작은 KB(<100KB) 임베딩 skip·전량 주입(`kb_service`) · D-6 워크스페이스 활동 타임라인(`services/event_stream.js` 6원장 UNION + owner 게이트 `GET /api/activity/:businessId`). 검증 22/22.
+- **패널 핸들 좌우 통일**: 데스크탑 경계선 세로바(`PanelEdgeHandle`) **폐기·삭제** → 뷰포트 변 플로팅(`FloatingPanelToggle`) 하나로 좌/우 대칭·전 폭·전 화면(Q Talk·Task·Mail·Note·docs). `side`+`offsetOpen`+`hideBelow`+**`--pq-content-left`**(앱 네비 폭 오프셋 — 좌측 핸들이 콘텐츠 좌변에 붙게). guard PANELHANDLE 새 불변식(좌우대칭 강제+EdgeHandle 재유입 차단). 카나리 0.
+- **Google 심사 대응**: Gmail 원클릭(`GMAIL_ONECLICK_ENABLED=false`)·Google 로그인 버튼(`GOOGLE_LOGIN_ENABLED=false`) **숨김** — 심사 통과 시 각 한 줄 `true`. 메일 연결 UX: 회사메일(Custom) 단계 안내 신설 + 앱비번 중심 hint(ko/en).
+- 이전 세션분 동반 배포: `1e5694e`(#81 전이 툴) · `29d308b`(#D-4 MCP 읽기 서버 — planq-prod-mcp 127.0.0.1:3005).
+
+### Google OAuth 검증 (진행 중 — Irene)
+- 검증 대상 = **`calendar.events`**(워크스페이스 캘린더, 생성/수정/삭제+Meet). 데모 영상 촬영 가이드 전달됨(운영 planq.kr, 10단계 전수 코드검증 통과).
+- 운영 gcal 설정 확인: REDIRECT=planq.kr · CLIENT_ID/SECRET 설정됨.
+- **Irene 준비:** 촬영 계정을 GCP 테스트 사용자 추가(External+Testing이라 조직메일도 필수) · owner 권한 · 승인 리디렉션 URI `https://planq.kr/api/cloud/callback/gcal` 확인 · 영상 업로드/제출.
+- Gmail(`mail.google.com` 제한 scope)·개인캘린더(`calendar.readonly`)는 **이번 라운드 제외**(Gmail은 CASA 별도 트랙 — 앱비번 IMAP로 대체 가능).
+
+---
+
+## (이전) #81 Cue 대화형 실행
+**작업 상태:** 완료·배포됨(v1.46.2)
 
 ---
 
