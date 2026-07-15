@@ -199,8 +199,9 @@ const Track = styled.div`position:relative;padding:34px 0 8px;`;
 const Grid = styled.div`position:absolute;top:34px;bottom:8px;width:1px;background:#F1F5F9;`;
 const GridLabel = styled.span`position:absolute;top:-16px;left:0;transform:translateX(-50%);font-size:10px;color:#94A3B8;white-space:nowrap;`;
 const MsLane = styled.div`position:relative;height:0;`;
-const Ms = styled.button`position:absolute;top:-28px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;cursor:pointer;z-index:3;background:none;border:none;padding:2px;font:inherit;border-radius:6px;&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}@media (max-width:640px){padding:6px 8px;}`;
-const MsLabel = styled.span`font-size:10px;font-weight:700;color:#0F172A;white-space:nowrap;max-width:90px;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px;`;
+const Ms = styled.button`position:absolute;top:-28px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;cursor:pointer;z-index:3;background:none;border:none;padding:2px;font:inherit;border-radius:6px;&:hover{z-index:6;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}@media (max-width:640px){padding:6px 8px;}`;
+// 흰 배경 padding — 라벨이 서로 겹쳐도 읽히게. hover 시 z-index 올려 앞으로(Irene: 글자 겹쳐 밀리지 않게).
+const MsLabel = styled.span`font-size:10px;font-weight:700;color:#0F172A;white-space:nowrap;max-width:84px;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px;background:#fff;padding:0 3px;border-radius:3px;`;
 const Diamond = styled.span`width:12px;height:12px;transform:rotate(45deg);border:2px solid;border-radius:2px;`;
 const Axis = styled.div`position:relative;height:10px;background:#E2E8F0;border-radius:999px;`;
 const AxisProgress = styled.div`position:absolute;top:0;left:0;height:100%;background:linear-gradient(90deg,#99F6E4,#14B8A6);border-radius:999px;`;

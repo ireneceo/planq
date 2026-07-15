@@ -126,9 +126,10 @@ export default function RelatedProjects({ projectId, businessId, refreshSignal, 
   );
 }
 
-const Section = styled.div`display:flex;flex-direction:column;gap:10px;`;
+// 이해관계자 카드와 동일 스타일 — 흰 배경 + border + radius + padding (Irene: 관련프로젝트도 같은 스타일).
+const Section = styled.div`display:flex;flex-direction:column;gap:10px;background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:16px 18px;`;
 const Head = styled.div`display:flex;align-items:center;justify-content:space-between;gap:12px;`;
-const Title = styled.div`font-size:14px;font-weight:700;color:#0F172A;`;
+const Title = styled.div`font-size:15px;font-weight:700;color:#0F172A;letter-spacing:-0.1px;`;
 const Hint = styled.span`font-size:11px;font-weight:500;color:#94A3B8;margin-left:8px;`;
 const LinkBtn = styled.button<{ $on: boolean }>`display:inline-flex;align-items:center;gap:5px;height:32px;padding:0 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid ${(p) => (p.$on ? '#14B8A6' : '#E2E8F0')};background:${(p) => (p.$on ? '#F0FDFA' : '#fff')};color:${(p) => (p.$on ? '#0F766E' : '#475569')};&:hover{border-color:#14B8A6;color:#0F766E;}`;
 const Picker = styled.div`background:#fff;border:1px solid #99F6E4;border-radius:12px;padding:12px;`;
