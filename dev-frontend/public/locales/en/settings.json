@@ -112,7 +112,7 @@
     },
     "send": {
       "title": "Send via your own mail",
-      "desc": "Connect your Gmail / company SMTP to compose, reply, and forward directly in Q Mail."
+      "desc": "Connect your Gmail / company SMTP to compose, reply, and forward directly in Q mail."
     }
   },
   "notifications": {
@@ -488,7 +488,7 @@
   },
   "menu": {
     "qtalk": "Q Talk",
-    "qmail": "Q Mail",
+    "qmail": "Q mail",
     "qtask": "Q Task",
     "qcalendar": "Q Calendar",
     "qnote": "Q Note",

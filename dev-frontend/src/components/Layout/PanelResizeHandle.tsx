@@ -1,7 +1,7 @@
 // 패널 폭 조절 — 좌측 리스트 · 우측 패널 공통.
 //
 // 여태 우측 패널만 폭을 조절할 수 있었다. 좌측 리스트(대화·메일·세션·문서)는 300px 고정이라
-// 제목이 길면 답답했다 (Irene). 다섯 화면(Q Talk·Q Mail·Q docs·Q Note·Q Task)이 같은 방식으로
+// 제목이 길면 답답했다 (Irene). 다섯 화면(Q Talk·Q mail·Q docs·Q Note·Q Task)이 같은 방식으로
 // 조절되게 이 하나를 쓴다. 폭은 화면별로 localStorage 에 저장돼 다음에 들어와도 그대로다.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';

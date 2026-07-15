@@ -1166,7 +1166,7 @@ export default function WorkspaceSettingsPage() {
         <EmailSettings businessId={businessId} isOwner={isAdmin} />
       )}
 
-      {/* ─── Q MAIL ACCOUNTS (Q Mail M1 — 메일 계정 IMAP/SMTP 등록) ─── */}
+      {/* ─── Q MAIL ACCOUNTS (Q mail M1 — 메일 계정 IMAP/SMTP 등록) ─── */}
       {tab === 'mail-accounts' && businessId && (
         <EmailAccountSettings />
       )}

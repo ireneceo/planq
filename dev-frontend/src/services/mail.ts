@@ -1,4 +1,4 @@
-// services/mail.ts — Q Mail M1 frontend API 래퍼
+// services/mail.ts — Q mail M1 frontend API 래퍼
 import { apiFetch } from '../contexts/AuthContext';
 
 export interface EmailAccountRow {

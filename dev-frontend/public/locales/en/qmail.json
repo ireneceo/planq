@@ -12,7 +12,7 @@
     "dismiss": "Dismiss"
   },
   "settings": {
-    "title": "Q Mail Accounts",
+    "title": "Q mail Accounts",
     "add": "Add account",
     "addFirst": "Add first account",
     "addTitle": "Add mail account",
@@ -272,7 +272,7 @@
   },
   "noAccount": {
     "title": "No mail account connected yet",
-    "desc": "Connect a Gmail or IMAP account to read and reply to your mail inside Q Mail. Connect multiple accounts to view them by address.",
+    "desc": "Connect a Gmail or IMAP account to read and reply to your mail inside Q mail. Connect multiple accounts to view them by address.",
     "cta": "Connect a mail account"
   },
   "nav": {

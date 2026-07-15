@@ -349,7 +349,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
     if (embedded) return true; // 좁은 드로어/팝아웃 — 우측 패널 기본 접힘(대화목록+채팅 우선, 토글로 펼침)
     try { return localStorage.getItem(STORAGE_RIGHT) === '1'; } catch { return false; }
   });
-  // 우측 패널 리사이즈 (Q Task/Q Mail 통일) — localStorage 저장 · clamp 280~560
+  // 우측 패널 리사이즈 (Q Task/Q mail 통일) — localStorage 저장 · clamp 280~560
   const [rightWidth, setRightWidth] = useState<number>(() => {
     try { const v = localStorage.getItem('qtalk_right_width'); return v ? Math.max(280, Math.min(560, Number(v))) : 320; } catch { return 320; }
   });
@@ -364,7 +364,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
     window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onUp);
     return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
   }, [rightWidth]);
-  // 키보드 단축키: ⌘/ (mac) · Ctrl+\ (win) → 우측 패널 토글 (Q Task/Q Mail 통일)
+  // 키보드 단축키: ⌘/ (mac) · Ctrl+\ (win) → 우측 패널 토글 (Q Task/Q mail 통일)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey; if (!mod) return;

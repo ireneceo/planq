@@ -112,7 +112,7 @@
     },
     "send": {
       "title": "본인 메일 직접 발송",
-      "desc": "Gmail / 회사 SMTP 계정을 연결하면 Q Mail에서 직접 작성·답장·전달할 수 있습니다."
+      "desc": "Gmail / 회사 SMTP 계정을 연결하면 Q mail에서 직접 작성·답장·전달할 수 있습니다."
     }
   },
   "notifications": {
@@ -488,7 +488,7 @@
   },
   "menu": {
     "qtalk": "Q Talk",
-    "qmail": "Q Mail",
+    "qmail": "Q mail",
     "qtask": "Q Task",
     "qcalendar": "Q Calendar",
     "qnote": "Q Note",

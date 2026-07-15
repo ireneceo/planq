@@ -126,10 +126,10 @@ const EmailSettings: React.FC<Props> = ({ businessId, isOwner }) => {
         </Field>
       </Section>
 
-      {/* 직접 발송 — 이미 제공 중 (Q Mail) */}
+      {/* 직접 발송 — 이미 제공 중 (Q mail) */}
       <Section>
         <SectionTitle>{t('email.send.title', '본인 메일 직접 발송')}</SectionTitle>
-        <SectionDesc>{t('email.send.desc', 'Gmail / 회사 SMTP 계정을 연결하면 Q Mail에서 직접 작성·답장·전달할 수 있습니다.')}</SectionDesc>
+        <SectionDesc>{t('email.send.desc', 'Gmail / 회사 SMTP 계정을 연결하면 Q mail에서 직접 작성·답장·전달할 수 있습니다.')}</SectionDesc>
       </Section>
     </Wrap>
   );

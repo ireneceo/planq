@@ -21,6 +21,7 @@ import { useNoteTaskExtraction } from '../../hooks/useNoteTaskExtraction';
 import TaskCandidateCard, { type CandidateData } from '../../components/Common/TaskCandidateCard';
 import { parseBodyToDoc, deriveTitleFromDoc, isDocEmpty } from '../../utils/qnoteBody';
 import VisibilityChip from '../../components/Common/VisibilityChip';
+import AiAssistButton from '../../components/Common/AiAssistButton';
 import type { VLevel } from '../../components/Common/VisibilityBadge';
 import SessionTaxonomyBar from '../../components/QNote/SessionTaxonomyBar';
 import QNoteShareModal from '../../components/QNote/QNoteShareModal';
@@ -331,9 +332,12 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
         <MemoTasks>
           <MemoSummaryTop>
             <MemoSummaryTitle>{t('page.tasks.title', '업무')}</MemoSummaryTitle>
-            <MemoSummaryRegen type="button" onClick={noteTasks.extract} disabled={noteTasks.extracting}>
-              {noteTasks.extracting ? t('page.tasks.extracting', '추출 중...') : t('page.tasks.extract', '업무 추출')}
-            </MemoSummaryRegen>
+            <AiAssistButton
+              onClick={noteTasks.extract}
+              loading={noteTasks.extracting}
+              label={noteTasks.extracting ? (t('page.tasks.extracting', '추출 중...') as string) : (t('page.tasks.extract', '업무 추출') as string)}
+              title={t('page.tasks.emptyHint', '회의에서 실행할 업무를 AI가 찾아 후보로 제안합니다.') as string}
+            />
           </MemoSummaryTop>
           {noteTasks.error && <MemoSummaryError>{noteTasks.error}</MemoSummaryError>}
           {noteTasks.candidates.length > 0 ? (
@@ -553,8 +557,8 @@ const IconBtn = styled.button`
 const Body = styled.div`
   flex: 1; min-height: 0;
   display: flex; flex-direction: column;
-  /* #127 — 풀블리드(카드 없음). 좌우 24px 는 글자가 끝까지 안 붙게(에디터는 좌우 여백 0, 여기서 통일). */
-  padding: 0 24px;
+  /* #127 — 풀블리드(카드 없음). 좌우 0 — 에디터 툴바가 좌우 끝까지 풀폭. 글자 안쪽 여백은 에디터 본문이 24px 담당. */
+  padding: 0;
   background: #fff;
   overflow-y: auto;
 `;

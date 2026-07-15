@@ -1,4 +1,4 @@
-// EmailAccountSettings — Q Mail M1 사용자 등록 UI
+// EmailAccountSettings — Q mail M1 사용자 등록 UI
 // 워크스페이스 설정 → 메일 계정. admin 전용.
 // PageShell + 계정 목록 + 등록/수정 모달 (DetailDrawer) + 서비스 preset + 연결 테스트.
 import React, { useState, useEffect, useCallback } from 'react';

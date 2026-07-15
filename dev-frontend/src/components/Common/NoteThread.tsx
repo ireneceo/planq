@@ -1,8 +1,8 @@
-// 메모(댓글) 스레드 — Q Talk 우측 패널 · Q Mail 맥락 패널 공통.
+// 메모(댓글) 스레드 — Q Talk 우측 패널 · Q mail 맥락 패널 공통.
 //
 // 메모는 "어딘가에 붙는 댓글" 이다: 누가 언제 썼는지 보이고, 여러 개가 시간 순으로 쌓이고,
 // 공개 범위를 고를 수 있다. 화면마다 한 줄 입력 + [추가] 버튼으로 제각각 만들면 같은 기능이
-// 다른 물건처럼 보인다(Q Mail 이 그랬다). 디자인 원본은 Q Talk RightPanel 의 메모 — 그대로 박제.
+// 다른 물건처럼 보인다(Q mail 이 그랬다). 디자인 원본은 Q Talk RightPanel 의 메모 — 그대로 박제.
 import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
