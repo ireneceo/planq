@@ -37,77 +37,9 @@ function isOwnerOrAdmin(member) {
   return member && (member.role === 'owner' || member.role === 'admin');
 }
 
-const KIND_VALUES = ['quote', 'invoice', 'tax_invoice', 'contract', 'nda',
-                     'proposal', 'sow', 'meeting_note', 'sop', 'custom'];
-
-// {{path.to.value}} 치환 — 단순 mustache-like.
-// values 객체에서 path 따라 lookup. 미발견 placeholder 는 빈 문자열로 치환 (사용자가 직접 채울 수 있도록).
-function renderTemplate(text, values) {
-  if (!text || typeof text !== 'string') return text;
-  return text.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, path) => {
-    const parts = path.split('.');
-    let cur = values;
-    for (const p of parts) {
-      if (cur && typeof cur === 'object' && p in cur) cur = cur[p];
-      else return '';
-    }
-    return cur == null ? '' : String(cur);
-  });
-}
-
-// createDocument 시 사용할 컨텍스트 빌드 — business + client + project + 기본 날짜
-// projectId 가 주어지면 ctx.project 추가, project 의 primary client 가 있고 clientId 가 비어있으면 자동 fallback.
-async function buildTemplateContext(businessId, clientId, title, projectId) {
-  const ctx = {
-    title: title || '',
-    issued_at: new Date().toISOString().slice(0, 10),
-    valid_until: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
-    effective_date: new Date().toISOString().slice(0, 10),
-    duration_months: 24,
-    business: {}, client: {}, project: {}, party_a: {}, party_b: {}, session: {},
-  };
-  if (businessId) {
-    const biz = await Business.findByPk(businessId, { attributes: ['id', 'name', 'brand_name', 'address', 'phone'] });
-    if (biz) {
-      const j = biz.toJSON();
-      ctx.business = { ...j, name: j.brand_name || j.name || '' };
-      ctx.party_a = { name: ctx.business.name };
-    }
-  }
-  // 프로젝트 컨텍스트 — primary client 자동 매핑
-  let resolvedClientId = clientId;
-  if (projectId) {
-    const proj = await Project.findByPk(projectId, {
-      attributes: ['id', 'business_id', 'name', 'description', 'client_company', 'start_date', 'end_date', 'status'],
-    });
-    if (proj && proj.business_id === businessId) {
-      ctx.project = proj.toJSON();
-      // project 에서 primary client 추적 — ProjectClient association 통해
-      if (!resolvedClientId) {
-        const { ProjectClient } = require('../models');
-        const pc = await ProjectClient.findOne({
-          where: { project_id: projectId },
-          order: [['id', 'ASC']],
-        });
-        if (pc?.client_id) resolvedClientId = pc.client_id;
-      }
-    }
-    // 워크스페이스 불일치는 무시
-  }
-  if (resolvedClientId) {
-    const cli = await Client.findByPk(resolvedClientId, { attributes: ['id', 'display_name', 'company_name', 'invite_email', 'biz_name', 'biz_tax_id', 'biz_ceo', 'biz_address', 'tax_invoice_email', 'billing_contact_email'] });
-    if (cli) {
-      const j = cli.toJSON();
-      ctx.client = {
-        ...j,
-        name: j.display_name || j.company_name || '',
-        email: j.tax_invoice_email || j.billing_contact_email || j.invite_email || '',
-      };
-      ctx.party_b = { name: ctx.client.name };
-    }
-  }
-  return ctx;
-}
+// KIND_VALUES · renderTemplate · buildTemplateContext 는 행동 계층으로 이관 (단일 원천).
+//   문서 생성 규칙은 services/actions/document_actions.js — 사람도 Cue 도 같은 문.
+const { createDocument, KIND_VALUES, buildTemplateContext } = require('../services/actions/document_actions');
 
 // ============================================
 // Templates
@@ -319,45 +251,22 @@ router.get('/documents', authenticateToken, async (req, res, next) => {
 });
 
 // POST /api/docs/documents — 신규 문서 생성 (template/empty/ai)
+// POST /api/docs/documents — 신규 문서 생성 (template/empty).
+//   얇은 라우트 — 파싱 + actor 구성 + 행동 계층 호출 + 응답. 규칙: services/actions/document_actions.js.
 router.post('/documents', authenticateToken, async (req, res, next) => {
   try {
-    const { business_id, template_id, kind, title, client_id, project_id,
-            form_data, body_json } = req.body;
-    if (!business_id || !kind || !title) return errorResponse(res, 'invalid_payload', 400);
-    if (!KIND_VALUES.includes(kind)) return errorResponse(res, 'invalid_kind', 400);
-    if (!(await assertBusinessAccess(req.user.id, business_id, req.user.platform_role))) {
-      return errorResponse(res, 'forbidden', 403);
-    }
-    // 템플릿 기반 생성 시 — body_template (HTML) 을 placeholder 치환 후 body_html 에 저장.
-    // 사용자가 명시적으로 body_json 을 넘기면 그 값 우선.
-    let initialBodyHtml = null;
-    if (template_id) {
-      const tpl = await DocumentTemplate.findByPk(template_id);
-      if (tpl?.body_template) {
-        const ctx = await buildTemplateContext(business_id, client_id, title, project_id);
-        initialBodyHtml = renderTemplate(tpl.body_template, ctx);
+    const b = req.body || {};
+    const r = await createDocument(
+      { kind: 'user', userId: req.user.id, platformRole: req.user.platform_role, req },
+      {
+        businessId: b.business_id, templateId: b.template_id, kind: b.kind, title: b.title,
+        clientId: b.client_id, projectId: b.project_id,
+        formData: b.form_data, bodyJson: b.body_json,
       }
-    }
-    const doc = await Document.create({
-      business_id, template_id: template_id || null, kind, title,
-      client_id: client_id || null, project_id: project_id || null,
-      form_data: form_data || null,
-      body_json: body_json || null,
-      body_html: body_json ? null : initialBodyHtml,
-      created_by: req.user.id,
-    });
-    if (template_id) {
-      DocumentTemplate.increment('usage_count', { where: { id: template_id } }).catch(() => {});
-    }
-    // N+63 — audit. 신규 문서 (계약·견적·법적 콘텐츠 가능)
-    require('../services/auditService').logAudit(req, {
-      action: 'document.create',
-      targetType: 'document',
-      targetId: doc.id,
-      businessId: doc.business_id,
-      newValue: { title: doc.title, kind: doc.kind, status: doc.status, template_id: template_id || null },
-    });
-    return successResponse(res, doc.toJSON(), 201);
+    );
+    if (!r.ok) return errorResponse(res, r.code, r.http || 400);
+    // 옛 동작 1:1 보존: successResponse(res, doc, 201) — 201 이 message 로 들어가 status 는 200 (기존 잠재버그).
+    return successResponse(res, r.data.document.toJSON(), 201);
   } catch (e) { next(e); }
 });
 

@@ -522,18 +522,46 @@ function checkActionLayer() {
 }
 
 // ═══════════════════════════════════════════════
-// 8-d. createlayer — 업무·댓글 **생성**도 행동 계층을 지난다 (D-3 2A)
+// 8-d. createlayer — 업무·댓글·일정·문서 **생성**도 행동 계층을 지난다 (D-3 2A · 3사이클)
 //
-//   생성이 4곳에 복제돼 있었다(POST /tasks · ai-create/confirm · registerCandidate · copy).
-//   같은 실패에 다른 에러 문자열, 같은 성공에 다른 부수효과 — 어느 문으로 들어오느냐로 결과가 달랐다.
-//   라우트가 다시 직접 Task.create 를 부르면 그 문에는 권한·알림·감사·socket 이 없다.
+//   생성이 여러 곳에 복제돼 있었다(POST /tasks · ai-create/confirm · registerCandidate · copy ·
+//   POST /events · POST /documents). 같은 실패에 다른 에러 문자열, 같은 성공에 다른 부수효과 —
+//   어느 문으로 들어오느냐로 결과가 달랐다. 라우트가 다시 직접 create 를 부르면 그 문에는
+//   권한(메뉴)·알림·감사·socket 이 없다. #81 Cue 대화형 실행이 이 문들을 지나게 하는 것이 목적.
 // ═══════════════════════════════════════════════
+const SUBJECT_LAYER = 'dev-backend/services/actions/_subject.js';
+const EVENT_LAYER = 'dev-backend/services/actions/event_actions.js';
+const DOCUMENT_LAYER = 'dev-backend/services/actions/document_actions.js';
+
 const CREATE_FORBIDDEN = [
-  // [파일, 금지 패턴, 허용 건수(기존 부채)]
+  // [파일, 금지 패턴, 허용 건수(기존 부채/의도된 예외)]
   ['dev-backend/routes/tasks.js', /Task\.create\(/g, 1],          // copy 라우트 1건 (2A-5 대상, 동결)
   ['dev-backend/routes/tasks.js', /TaskComment\.create\(/g, 0],
   ['dev-backend/services/task_extractor.js', /Task\.create\(/g, 0],
+  // 일정 — 기본 생성은 event_actions.createEvent. 정기일정 분할·예외 파생 복제 2건만 인라인 허용
+  //   (편집 트랜잭션 내부에서 기존 이벤트를 복사하는 메커닉 — 생성 액션이 아니다. PUT 라우트가 이미 가드).
+  ['dev-backend/routes/calendar.js', /CalendarEvent\.create\(/g, 2],
+  // 문서 — 기본 생성은 document_actions.createDocument
+  ['dev-backend/routes/docs.js', /Document\.create\(/g, 0],
+  // 워크스페이스 간 본인 자료 전송 복사 — 배치 단위 가드(member-of-both) + 배치 감사. per-item 게이트는
+  //   성능·감사 회귀라 인라인 유지. export.js 1건 · worker 2건(전송+Q Note) 동결.
+  ['dev-backend/routes/export.js', /Document\.create\(/g, 1],
+  ['dev-backend/services/exportJobWorker.js', /Document\.create\(/g, 2],
 ];
+
+// 각 행동 계층 파일이 존재 이유(권한·부수효과·재무봉쇄)를 실제로 갖고 있는가 — 파일만 남고 속이 비는 것 차단
+function checkLayerFeatures(bad, layerRel, features, { blockFinancial = true } = {}) {
+  const full = path.join(ROOT, layerRel);
+  if (!fs.existsSync(full)) { bad.push(`${layerRel}: 행동 계층 파일 없음`); return; }
+  const src = read(full);
+  for (const [feature, re] of features) {
+    if (!re.test(src)) bad.push(`${layerRel}: ${feature} 소실 — 생성 계층의 존재 이유가 빠졌다`);
+  }
+  // 재무는 카탈로그에 없다 (Cue 가 이 문을 통해 돈을 건드릴 수 없다 — 영구 봉쇄). 대문자 모델명만.
+  if (blockFinancial && /\b(Invoice|Payment|InvoiceInstallment)\b/.test(src)) {
+    bad.push(`${layerRel}: 재무 모델 참조 — Cue 행동 카탈로그에 돈이 들어왔다 (영구 봉쇄 위반)`);
+  }
+}
 
 function checkCreateLayer() {
   const bad = [];
@@ -542,30 +570,42 @@ function checkCreateLayer() {
     if (!fs.existsSync(full)) { bad.push(`${f}: 파일 없음 (이동했으면 CREATE_FORBIDDEN 갱신)`); continue; }
     const n = (read(full).match(re) || []).length;
     if (n > allowed) {
-      bad.push(`${f}: ${String(re).slice(1, -3)} ${n}건 (허용 ${allowed}) — services/actions/task_actions.createTask 를 쓸 것`);
+      bad.push(`${f}: ${String(re).slice(1, -3)} ${n}건 (허용 ${allowed}) — services/actions 의 생성 액션을 쓸 것`);
     }
   }
-  // 행동 계층이 생성 책임(권한·부수효과)을 실제로 갖고 있는가 — 파일만 남고 속이 비는 것 차단
-  const layer = path.join(ROOT, ACTION_LAYER);
-  if (fs.existsSync(layer)) {
-    const src = read(layer);
-    for (const [feature, re] of [
-      ['createTask', /async function createTask/],
-      ['createComment', /async function createComment/],
-      ['위임자 fail-closed', /cue_delegator_required/],
-      ['배정 게이트', /assertAssignable/],
-      ['메뉴 권한', /assertMenuWrite/],
-      ['커밋 후 부수효과', /afterCommit/],
-      ['감사', /task\.create/],
-    ]) {
-      if (!re.test(src)) bad.push(`${ACTION_LAYER}: ${feature} 소실 — 생성 계층의 존재 이유가 빠졌다`);
-    }
-    // 재무는 카탈로그에 없다 (Cue 가 이 문을 통해 돈을 건드릴 수 없다 — 영구 봉쇄)
-    if (/Invoice|Payment|InvoiceInstallment/.test(src)) {
-      bad.push(`${ACTION_LAYER}: 재무 모델 참조 — Cue 행동 카탈로그에 돈이 들어왔다 (영구 봉쇄 위반)`);
-    }
-  }
-  report('createlayer', '업무·댓글 생성도 행동 계층 단일 착지점', bad.length === 0, bad);
+
+  // 공용 subject — Cue 는 위임자 권한으로만, 위임자가 AI 면 거부 (권한 세탁 차단)
+  checkLayerFeatures(bad, SUBJECT_LAYER, [
+    ['위임자 fail-closed', /cue_delegator_required/],
+    ['AI 위임자 거부', /delegator_is_ai/],
+    ['메뉴 권한', /assertMenuWrite/],
+  ]);
+
+  // 업무·댓글 생성 계층
+  checkLayerFeatures(bad, ACTION_LAYER, [
+    ['createTask', /async function createTask/],
+    ['createComment', /async function createComment/],
+    ['배정 게이트', /assertAssignable/],
+    ['메뉴 권한', /assertMenuWrite/],
+    ['커밋 후 부수효과', /afterCommit/],
+    ['감사', /task\.create/],
+  ]);
+
+  // 일정 생성 계층 — qcalendar 메뉴 게이트 + 감사
+  checkLayerFeatures(bad, EVENT_LAYER, [
+    ['createEvent', /async function createEvent/],
+    ['메뉴 권한(qcalendar)', /assertMenuWrite\([^)]*qcalendar|'qcalendar'/],
+    ['감사', /event\.created/],
+  ]);
+
+  // 문서 생성 계층 — qdocs 메뉴 게이트 + 감사. 재무 모델 봉쇄.
+  checkLayerFeatures(bad, DOCUMENT_LAYER, [
+    ['createDocument', /async function createDocument/],
+    ['메뉴 권한(qdocs)', /assertMenuWrite\([^)]*qdocs|'qdocs'/],
+    ['감사', /document\.create/],
+  ]);
+
+  report('createlayer', '업무·댓글·일정·문서 생성도 행동 계층 단일 착지점', bad.length === 0, bad);
 }
 
 // ═══════════════════════════════════════════════

@@ -41,6 +41,7 @@ const { RRule, rrulestr } = require('rrule');
 const gcal = require('../services/google_calendar');
 const crypto = require('crypto');
 const { Business } = require('../models');
+const { createEvent } = require('../services/actions/event_actions');
 
 const HEX_RE = /^#[0-9A-Fa-f]{6}$/;
 const CATEGORY_SET = new Set(['personal', 'work', 'meeting', 'deadline', 'other']);
@@ -221,179 +222,28 @@ router.get('/by-business/:businessId', authenticateToken, attachWorkspaceScope()
 //         attendees?: [{ user_id? | client_id? }] }
 // ============================================
 router.post('/by-business/:businessId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
-  if (req.businessRole === 'client') return errorResponse(res, 'Clients cannot create events. Members may invite you as an attendee.', 403);
-  const t = await sequelize.transaction();
+  // 얇은 라우트 — 파싱 + actor 구성 + 행동 계층 호출 + 응답. 생성 규칙은 services/actions/event_actions.js.
   try {
     const businessId = Number(req.params.businessId);
-    const bm = await requireMember(req.user.id, businessId);
-    if (!bm || bm.role === 'ai') {
-      await t.rollback();
-      return errorResponse(res, 'forbidden', 403);
-    }
-
-    const {
-      title, description, location,
-      start_at, end_at, all_day,
-      category, color, rrule,
-      meeting_url, meeting_provider,
-      auto_create_meeting,
-      visibility, project_id,
-      attendees = [],
-      reminder_minutes,  // N+63 — 임박 알림 (5/10/15/30/60 분 등). null = OFF
-      // N+65 — 4단계 visibility 통합
-      vlevel, target_member_ids, target_client_ids,
-    } = req.body || {};
-
-    if (!title?.trim()) { await t.rollback(); return errorResponse(res, 'title is required', 400); }
-    const sd = parseDate(start_at);
-    const ed = parseDate(end_at);
-    if (!sd || !ed) { await t.rollback(); return errorResponse(res, 'start_at and end_at are required', 400); }
-    if (ed < sd) { await t.rollback(); return errorResponse(res, 'end_at must be after start_at', 400); }
-
-    // project_id — 같은 business 여야 함
-    let projectId = null;
-    if (project_id) {
-      const prj = await Project.findOne({ where: { id: project_id, business_id: businessId } });
-      if (!prj) { await t.rollback(); return errorResponse(res, 'invalid_project', 400); }
-      projectId = prj.id;
-    }
-
-    // Google Meet 자동 생성 — auto_create_meeting 옵션 시
-    // 워크스페이스에 Google Calendar 연동 (BusinessCloudToken provider='gcal') 있어야 발급 가능.
-    // 미연결 시 errorResponse 'gcal_not_connected' 로 frontend 가 연결 CTA 표시.
-    let finalMeetingUrl = meeting_url?.trim() || null;
-    let finalMeetingProvider = PROVIDER_SET.has(meeting_provider) ? meeting_provider : null;
-    let finalGcalEventId = null;  // N+63 — 단방향 sync 추적
-    if (auto_create_meeting) {
-      const gcalToken = await gcal.getTokenForBusiness(businessId);
-      if (!gcalToken) {
-        await t.rollback();
-        return errorResponse(res, 'gcal_not_connected', 400);
+    const b = req.body || {};
+    const r = await createEvent(
+      { kind: 'user', userId: req.user.id, platformRole: req.user.platform_role, req },
+      {
+        businessId,
+        title: b.title, description: b.description, location: b.location,
+        startAt: b.start_at, endAt: b.end_at, allDay: b.all_day,
+        category: b.category, color: b.color, rrule: b.rrule,
+        meetingUrl: b.meeting_url, meetingProvider: b.meeting_provider,
+        autoCreateMeeting: b.auto_create_meeting,
+        visibility: b.visibility, projectId: b.project_id,
+        attendees: b.attendees || [],
+        reminderMinutes: b.reminder_minutes,
+        vlevel: b.vlevel, targetMemberIds: b.target_member_ids, targetClientIds: b.target_client_ids,
       }
-      try {
-        const cal = await gcal.getCalendarClient(gcalToken);
-        const meeting = await gcal.createMeetingEvent(cal, {
-          summary: title.trim(),
-          description: description?.trim() || null,
-          startAt: sd,
-          endAt: ed,
-          // 사이클 N+23: 정기 일정 rrule 을 Google Calendar 의 recurrence 로 전달 →
-          // 모든 회차에 동일 Meet 링크 영구 유효. 옛 단일 이벤트 패턴은 첫 회차 끝나면
-          // "회의 존재 안 함" 회귀.
-          rrule: rrule?.trim() || null,
-        });
-        if (meeting?.meetUrl) {
-          finalMeetingUrl = meeting.meetUrl;
-          finalMeetingProvider = 'google_meet';
-          finalGcalEventId = meeting.id || null;
-        }
-      } catch (e) {
-        console.error('[gcal createMeetingEvent]', e.message);
-        await t.rollback();
-        return errorResponse(res, 'gcal_meeting_create_failed', 502);
-      }
-    }
-
-    const event = await CalendarEvent.create({
-      business_id: businessId,
-      project_id: projectId,
-      title: title.trim(),
-      description: description?.trim() || null,
-      location: location?.trim() || null,
-      start_at: sd,
-      end_at: ed,
-      all_day: !!all_day,
-      category: CATEGORY_SET.has(category) ? category : 'work',
-      color: (color && HEX_RE.test(color)) ? color : null,
-      rrule: rrule?.trim() || null,
-      meeting_url: finalMeetingUrl,
-      meeting_provider: finalMeetingProvider,
-      gcal_event_id: finalGcalEventId,
-      reminder_minutes: Number.isFinite(Number(reminder_minutes)) && Number(reminder_minutes) > 0
-        ? Math.min(10080, Number(reminder_minutes))  // max 1주 (7 * 24 * 60)
-        : null,
-      visibility: VISIBILITY_SET.has(visibility) ? visibility : 'business',
-      // N+65 — vlevel 명시되면 hook 가 visibility 도 동기. L2/L4 sub-target 받음.
-      vlevel: ['L1','L2','L3','L4'].includes(vlevel) ? vlevel : null,
-      target_member_ids: Array.isArray(target_member_ids) ? target_member_ids.map(Number).filter(Boolean) : null,
-      target_client_ids: Array.isArray(target_client_ids) ? target_client_ids.map(Number).filter(Boolean) : null,
-      created_by: req.user.id,
-    }, { transaction: t });
-
-    // attendees — user_id 는 business 멤버 여야 함
-    if (Array.isArray(attendees) && attendees.length > 0) {
-      const validUserIds = new Set(
-        (await BusinessMember.findAll({
-          where: {
-            business_id: businessId,
-            user_id: attendees.map((a) => a.user_id).filter(Boolean),
-          },
-        })).map((x) => x.user_id)
-      );
-      const validClientIds = new Set(
-        (await Client.findAll({
-          where: {
-            business_id: businessId,
-            id: attendees.map((a) => a.client_id).filter(Boolean),
-          },
-        })).map((x) => x.id)
-      );
-
-      const rows = [];
-      const seen = new Set();
-      for (const a of attendees) {
-        const key = `${a.user_id || ''}:${a.client_id || ''}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        if (a.user_id && validUserIds.has(a.user_id)) {
-          rows.push({ event_id: event.id, user_id: a.user_id, response: 'pending' });
-        } else if (a.client_id && validClientIds.has(a.client_id)) {
-          rows.push({ event_id: event.id, client_id: a.client_id, response: 'pending' });
-        }
-      }
-      if (rows.length) await CalendarEventAttendee.bulkCreate(rows, { transaction: t });
-    }
-
-    await t.commit();
-
-    await createAuditLog({
-      user_id: req.user.id,
-      business_id: businessId,
-      action: 'event.created',
-      target_type: 'calendar_event',
-      target_id: event.id,
-      new_value: { title: event.title, start_at: event.start_at, end_at: event.end_at },
-      ip_address: req.ip,
-    });
-
-    const full = await CalendarEvent.findByPk(event.id, { include: INCLUDE_DETAIL });
-
-    // 알림: 멤버 attendee 에게 (본인 제외, client 는 별도 채널 필요 — 추후)
-    try {
-      const memberAttendeeIds = (full.attendees || [])
-        .filter((a) => a.user_id && a.user_id !== req.user.id)
-        .map((a) => a.user_id);
-      if (memberAttendeeIds.length > 0) {
-        const { notifyMany } = require('./notifications');
-        const Business = require('../models').Business;
-        const biz = await Business.findByPk(businessId, { attributes: ['name', 'brand_name'] });
-        const wsName = biz?.brand_name || biz?.name || null;
-        const startStr = event.start_at ? new Date(event.start_at).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' }) : '';
-        notifyMany({
-          userIds: memberAttendeeIds, businessId, eventKind: 'event',
-          title: '일정 초대', body: `"${event.title}"${startStr ? ` · ${startStr}` : ''}`,
-          link: `${process.env.APP_URL || 'https://dev.planq.kr'}/calendar?event=${event.id}`,
-          ctaLabel: '일정 보기', workspaceName: wsName,
-        }).catch((e) => console.warn('[notify event invite]', e.message));
-      }
-    } catch (e) { console.warn('[notify event invite outer]', e.message); }
-
-    broadcastEvent(req, full, 'event:created');
-    return successResponse(res, full.toJSON(), 'created', 201);
-  } catch (err) {
-    if (!t.finished) await t.rollback();
-    next(err);
-  }
+    );
+    if (!r.ok) return errorResponse(res, r.code, r.http || 400);
+    return successResponse(res, r.data.full.toJSON(), 'created', 201);
+  } catch (err) { next(err); }
 });
 
 // ============================================
