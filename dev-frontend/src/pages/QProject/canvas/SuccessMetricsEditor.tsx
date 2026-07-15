@@ -49,6 +49,9 @@ export default function SuccessMetricsEditor({ projectId, initial, onSaved, read
   const addRow = () => { setRows((prev) => [...prev, { label: '', target: '', current: '', unit: '' }]); };
   const removeRow = (i: number) => { setRows((prev) => prev.filter((_, idx) => idx !== i)); scheduleSave(); };
 
+  // 개요(readOnly) — 내용 없으면 편집 안내 대신 섹션 자체를 숨긴다(Irene).
+  if (readOnly && rows.length === 0) return null;
+
   return (
     <Box>
       <Head>
@@ -59,7 +62,7 @@ export default function SuccessMetricsEditor({ projectId, initial, onSaved, read
           {status === 'error' && <Err>!</Err>}
         </Status>
       </Head>
-      <HintText>{t('canvas.metrics.hint')}</HintText>
+      {!readOnly && <HintText>{t('canvas.metrics.hint')}</HintText>}
       {rows.length === 0 ? (
         <Empty>{t('canvas.metrics.empty')}</Empty>
       ) : (

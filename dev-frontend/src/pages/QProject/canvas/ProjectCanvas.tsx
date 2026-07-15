@@ -101,6 +101,20 @@ export default function ProjectCanvas({ projectId, businessId, readOnly = false 
   if (error || !data) return <ErrorBox><AlertTriangleIcon size={20} /><div>{t('canvas.loadError')}</div><Retry type="button" onClick={silentLoad}>{t('canvas.retry')}</Retry></ErrorBox>;
 
   const { strategy } = data;
+  const has = (v: string | null | undefined) => !!(v && String(v).trim());
+  // readOnly(개요)는 채워진 것만. 편집(상세정보)은 전부 노출.
+  const show = (cond: boolean) => !readOnly || cond;
+  const hasMetrics = data.success_metrics.length > 0;
+  const hasWorkstreams = data.workstreams.length > 0;
+  const hasWeek = (data.week_focus.this_week.length + data.week_focus.next_week.length) > 0;
+  const hasDeliv = data.deliverables.length > 0;
+  const hasStake = (data.stakeholders.members.length + data.stakeholders.clients.length) > 0;
+  const hasRisks = data.risks.length > 0;
+  const layer1 = has(strategy.context) || has(strategy.key_question) || has(strategy.goal) || hasMetrics;
+  const layer2 = has(strategy.governing_thought) || has(strategy.approach) || hasWorkstreams;
+  const layer3 = hasWeek || hasDeliv || hasStake || hasRisks;
+  // 개요가 완전히 비었는지(타임라인 제외) — 폴리시드 빈상태 안내용
+  const overviewEmpty = readOnly && !layer1 && !layer2 && !layer3;
 
   return (
     <Wrap>
@@ -115,83 +129,114 @@ export default function ProjectCanvas({ projectId, businessId, readOnly = false 
         />
       )}
 
+      {overviewEmpty && (
+        <EmptyOverview>
+          <EmptyIcon><FileTextIcon size={26} /></EmptyIcon>
+          <EmptyTitle>{t('canvas.overviewEmpty.title', { defaultValue: '아직 프로젝트 개요가 비어 있어요' }) as string}</EmptyTitle>
+          <EmptyDesc>{t('canvas.overviewEmpty.desc', { defaultValue: '배경·목표·성공지표·추진과제를 채우면 이 화면이 한눈에 보는 프로젝트 대시보드가 됩니다.' }) as string}</EmptyDesc>
+          <EmptyCta type="button" onClick={() => navigate(`/projects/p/${projectId}?tab=details`)}>
+            {t('canvas.overviewEmpty.cta', { defaultValue: '상세정보에서 채우기' }) as string}
+          </EmptyCta>
+        </EmptyOverview>
+      )}
+
       {/* ───── Layer 1 프레이밍 ───── */}
-      <LayerLabel $tone="blue">{t('canvas.layer1')}</LayerLabel>
-      <TwoCol>
-        <StrategyField fieldKey="context" value={strategy.context}
-          label={t('canvas.context.label')} hint={t('canvas.context.hint')} ph={t('canvas.context.ph')} save={saveStrategy} readOnly={readOnly} />
-        <StrategyField fieldKey="key_question" value={strategy.key_question}
-          label={t('canvas.keyQuestion.label')} hint={t('canvas.keyQuestion.hint')} ph={t('canvas.keyQuestion.ph')} save={saveStrategy} readOnly={readOnly} />
-      </TwoCol>
+      {show(layer1) && <LayerLabel $tone="blue">{t('canvas.layer1')}</LayerLabel>}
+      {show(has(strategy.context) || has(strategy.key_question)) && (
+        <TwoCol>
+          <StrategyField fieldKey="context" value={strategy.context}
+            label={t('canvas.context.label')} hint={t('canvas.context.hint')} ph={t('canvas.context.ph')} save={saveStrategy} readOnly={readOnly} />
+          <StrategyField fieldKey="key_question" value={strategy.key_question}
+            label={t('canvas.keyQuestion.label')} hint={t('canvas.keyQuestion.hint')} ph={t('canvas.keyQuestion.ph')} save={saveStrategy} readOnly={readOnly} />
+        </TwoCol>
+      )}
       <StrategyField fieldKey="goal" value={strategy.goal}
         label={t('canvas.goal.label')} hint={t('canvas.goal.hint')} ph={t('canvas.goal.ph')} save={saveStrategy} readOnly={readOnly} />
-      <Card><SuccessMetricsEditor projectId={projectId} initial={data.success_metrics} onSaved={() => { /* canvas reloads via socket */ }} readOnly={readOnly} /></Card>
+      {show(hasMetrics) && <Card><SuccessMetricsEditor projectId={projectId} initial={data.success_metrics} onSaved={() => { /* canvas reloads via socket */ }} readOnly={readOnly} /></Card>}
 
       {/* ───── Layer 2 전략 ───── */}
-      <LayerLabel $tone="green">{t('canvas.layer2')}</LayerLabel>
-      <GoverningWrap>
-        <GoverningLabel>{t('canvas.governing.label')}<Hint>{t('canvas.governing.hint')}</Hint></GoverningLabel>
-        <GoverningField value={strategy.governing_thought} ph={t('canvas.governing.ph')} save={saveStrategy} readOnly={readOnly} />
-      </GoverningWrap>
+      {show(layer2) && <LayerLabel $tone="green">{t('canvas.layer2')}</LayerLabel>}
+      {show(has(strategy.governing_thought)) && (
+        <GoverningWrap>
+          {!readOnly && <GoverningLabel>{t('canvas.governing.label')}<Hint>{t('canvas.governing.hint')}</Hint></GoverningLabel>}
+          <GoverningField value={strategy.governing_thought} ph={t('canvas.governing.ph')} save={saveStrategy} readOnly={readOnly} />
+        </GoverningWrap>
+      )}
       <StrategyField fieldKey="approach" value={strategy.approach}
         label={t('canvas.approach.label')} hint={t('canvas.approach.hint')} ph={t('canvas.approach.ph')} save={saveStrategy} readOnly={readOnly} />
-      <SectionTitle>{t('canvas.workstreams.title')}<Hint>{t('canvas.workstreams.hint')}</Hint></SectionTitle>
-      <WorkstreamBoard projectId={projectId} workstreams={data.workstreams} onChanged={silentLoad} readOnly={readOnly} />
+      {show(hasWorkstreams) && (
+        <>
+          <SectionTitle>{t('canvas.workstreams.title')}{!readOnly && <Hint>{t('canvas.workstreams.hint')}</Hint>}</SectionTitle>
+          <WorkstreamBoard projectId={projectId} workstreams={data.workstreams} onChanged={silentLoad} readOnly={readOnly} />
+        </>
+      )}
 
       {/* ───── Layer 3 실행 ───── */}
-      <LayerLabel $tone="orange">{t('canvas.layer3')}</LayerLabel>
+      {show(layer3) && <LayerLabel $tone="orange">{t('canvas.layer3')}</LayerLabel>}
 
-      <SectionTitle>{t('canvas.weekFocus.title')}</SectionTitle>
-      <TwoCol>
-        <WeekCol title={t('canvas.weekFocus.thisWeek')} tasks={data.week_focus.this_week} emptyText={t('canvas.weekFocus.empty')} onOpen={(id) => navigate(`/projects/p/${projectId}?tab=tasks&task=${id}`)} />
-        <WeekCol title={t('canvas.weekFocus.nextWeek')} tasks={data.week_focus.next_week} emptyText={t('canvas.weekFocus.emptyNext')} onOpen={(id) => navigate(`/projects/p/${projectId}?tab=tasks&task=${id}`)} />
-      </TwoCol>
+      {show(hasWeek) && (
+        <>
+          <SectionTitle>{t('canvas.weekFocus.title')}</SectionTitle>
+          <TwoCol>
+            <WeekCol title={t('canvas.weekFocus.thisWeek')} tasks={data.week_focus.this_week} emptyText={t('canvas.weekFocus.empty')} onOpen={(id) => navigate(`/projects/p/${projectId}?tab=tasks&task=${id}`)} />
+            <WeekCol title={t('canvas.weekFocus.nextWeek')} tasks={data.week_focus.next_week} emptyText={t('canvas.weekFocus.emptyNext')} onOpen={(id) => navigate(`/projects/p/${projectId}?tab=tasks&task=${id}`)} />
+          </TwoCol>
+        </>
+      )}
 
-      <GridTwo>
+      {show(hasDeliv || hasStake) && (
+        <GridTwo>
+          {show(hasDeliv) && (
+            <Card>
+              <SectionTitle>{t('canvas.deliverables.title')}</SectionTitle>
+              {data.deliverables.length === 0 ? <Empty>{t('canvas.deliverables.empty')}</Empty> : (
+                <DelivList>
+                  {data.deliverables.map((d) => (
+                    <DelivRow key={`${d.kind}-${d.id}`} onClick={() => navigate(d.link)}>
+                      <FileTextIcon size={15} />
+                      <DelivTitle>{d.title}</DelivTitle>
+                      <DelivTag>{d.kind === 'post' ? t('canvas.deliverables.post') : t('canvas.deliverables.document')}</DelivTag>
+                    </DelivRow>
+                  ))}
+                </DelivList>
+              )}
+            </Card>
+          )}
+          {show(hasStake) && (
+            <Card>
+              <SectionTitle>{t('canvas.stakeholders.title')}</SectionTitle>
+              {(data.stakeholders.members.length + data.stakeholders.clients.length) === 0 ? <Empty>{t('canvas.stakeholders.empty')}</Empty> : (
+                <>
+                  {data.stakeholders.members.length > 0 && <GroupLabel>{t('canvas.stakeholders.members')}</GroupLabel>}
+                  <People>
+                    {data.stakeholders.members.map((m) => (
+                      <Person key={`m-${m.user_id}`}>
+                        <PName>{m.name}</PName>
+                        {m.dept && <DeptBadge>{m.dept}{m.team ? ` · ${m.team}` : ''}</DeptBadge>}
+                      </Person>
+                    ))}
+                  </People>
+                  {data.stakeholders.clients.length > 0 && <GroupLabel>{t('canvas.stakeholders.clients')}</GroupLabel>}
+                  <People>
+                    {data.stakeholders.clients.map((c) => (
+                      <Person key={`c-${c.id}`}><PName>{c.name}</PName><PartnerKindBadge kind={c.kind} size="xs" /></Person>
+                    ))}
+                  </People>
+                </>
+              )}
+            </Card>
+          )}
+        </GridTwo>
+      )}
+
+      {show(hasRisks) && (
         <Card>
-          <SectionTitle>{t('canvas.deliverables.title')}</SectionTitle>
-          {data.deliverables.length === 0 ? <Empty>{t('canvas.deliverables.empty')}</Empty> : (
-            <DelivList>
-              {data.deliverables.map((d) => (
-                <DelivRow key={`${d.kind}-${d.id}`} onClick={() => navigate(d.link)}>
-                  <FileTextIcon size={15} />
-                  <DelivTitle>{d.title}</DelivTitle>
-                  <DelivTag>{d.kind === 'post' ? t('canvas.deliverables.post') : t('canvas.deliverables.document')}</DelivTag>
-                </DelivRow>
-              ))}
-            </DelivList>
+          <SectionTitle>{t('canvas.risks.title')}</SectionTitle>
+          {data.risks.length === 0 ? <Empty>{t('canvas.risks.empty')}</Empty> : (
+            <RiskList>{data.risks.map((r) => <RiskRow key={r.id}><AlertTriangleIcon size={14} /><span>{r.body}</span></RiskRow>)}</RiskList>
           )}
         </Card>
-        <Card>
-          <SectionTitle>{t('canvas.stakeholders.title')}</SectionTitle>
-          {(data.stakeholders.members.length + data.stakeholders.clients.length) === 0 ? <Empty>{t('canvas.stakeholders.empty')}</Empty> : (
-            <>
-              {data.stakeholders.members.length > 0 && <GroupLabel>{t('canvas.stakeholders.members')}</GroupLabel>}
-              <People>
-                {data.stakeholders.members.map((m) => (
-                  <Person key={`m-${m.user_id}`}>
-                    <PName>{m.name}</PName>
-                    {m.dept && <DeptBadge>{m.dept}{m.team ? ` · ${m.team}` : ''}</DeptBadge>}
-                  </Person>
-                ))}
-              </People>
-              {data.stakeholders.clients.length > 0 && <GroupLabel>{t('canvas.stakeholders.clients')}</GroupLabel>}
-              <People>
-                {data.stakeholders.clients.map((c) => (
-                  <Person key={`c-${c.id}`}><PName>{c.name}</PName><PartnerKindBadge kind={c.kind} size="xs" /></Person>
-                ))}
-              </People>
-            </>
-          )}
-        </Card>
-      </GridTwo>
-
-      <Card>
-        <SectionTitle>{t('canvas.risks.title')}</SectionTitle>
-        {data.risks.length === 0 ? <Empty>{t('canvas.risks.empty')}</Empty> : (
-          <RiskList>{data.risks.map((r) => <RiskRow key={r.id}><AlertTriangleIcon size={14} /><span>{r.body}</span></RiskRow>)}</RiskList>
-        )}
-      </Card>
+      )}
 
       {/* ───── 관련 프로젝트 (§3.5) ───── */}
       <RelatedProjects projectId={projectId} businessId={businessId} refreshSignal={refreshSignal} readOnly={readOnly} />
@@ -207,11 +252,13 @@ function StrategyField({ fieldKey, value, label, hint, ph, save, readOnly }: {
   readOnly?: boolean;
 }) {
   const valRef = useRef(value ?? '');
+  // 개요(readOnly) — 값 없으면 '—' 대신 필드 자체를 숨긴다(Irene).
+  if (readOnly && !(value && value.trim())) return null;
   return (
     <Field>
-      <FieldLabel>{label}<Hint>{hint}</Hint></FieldLabel>
+      <FieldLabel>{label}{!readOnly && <Hint>{hint}</Hint>}</FieldLabel>
       {readOnly
-        ? <ReadOnlyText>{value || '—'}</ReadOnlyText>
+        ? <ReadOnlyText>{value}</ReadOnlyText>
         : (
           <AutoSaveField onSave={() => save(fieldKey, valRef.current)()} type="input">
             <Textarea defaultValue={value ?? ''} placeholder={ph} onChange={(e) => { valRef.current = e.target.value; }} />
@@ -270,11 +317,17 @@ const Field = styled.div``;
 const FieldLabel = styled.div`font-size:13px;font-weight:700;color:#0F172A;margin-bottom:6px;`;
 const Hint = styled.span`font-size:11px;font-weight:500;color:#94A3B8;margin-left:8px;`;
 const Textarea = styled.textarea`width:100%;min-height:72px;resize:vertical;border:1px solid #E2E8F0;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.6;color:#334155;font-family:inherit;&:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,.15);}&::placeholder{color:#94A3B8;}`;
-// 개요 탭 읽기전용(#167) — 값을 definition-list 스타일로 비춘다(빈 값은 —).
-const ReadOnlyText = styled.div`width:100%;min-height:24px;font-size:13px;line-height:1.6;color:#334155;white-space:pre-wrap;word-break:break-word;`;
+// 개요 탭 읽기전용(#167) — 값을 definition-list 스타일로 비춘다. 본문 14px(디자인 가이드 body).
+const ReadOnlyText = styled.div`width:100%;min-height:22px;font-size:14px;line-height:1.65;color:#334155;white-space:pre-wrap;word-break:break-word;`;
 const GoverningReadOnly = styled.div`width:100%;font-size:18px;font-weight:700;color:#0F172A;line-height:1.5;white-space:pre-wrap;word-break:break-word;`;
 const Card = styled.div`background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:16px 18px;`;
-const SectionTitle = styled.div`font-size:14px;font-weight:700;color:#0F172A;margin-top:6px;`;
+const SectionTitle = styled.div`font-size:15px;font-weight:700;color:#0F172A;letter-spacing:-0.1px;margin-top:6px;`;
+// 개요 폴리시드 빈상태 — 내용 없어도 대시보드처럼 안내(Irene).
+const EmptyOverview = styled.div`display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;padding:44px 24px;background:linear-gradient(135deg,#F8FAFC,#fff);border:1px solid #E2E8F0;border-radius:14px;`;
+const EmptyIcon = styled.div`display:inline-flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:16px;background:#F0FDFA;color:#0F766E;`;
+const EmptyTitle = styled.div`font-size:16px;font-weight:700;color:#0F172A;`;
+const EmptyDesc = styled.div`font-size:14px;font-weight:500;color:#64748B;line-height:1.6;max-width:440px;`;
+const EmptyCta = styled.button`margin-top:4px;height:40px;padding:0 20px;background:#14B8A6;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;&:hover{background:#0D9488;}`;
 const GroupLabel = styled.div`font-size:11px;font-weight:600;color:#94A3B8;margin:10px 0 6px;`;
 const GoverningWrap = styled.div`background:linear-gradient(135deg,#F0FDFA,#fff);border:1px solid #99F6E4;border-radius:12px;padding:16px 18px;`;
 const GoverningLabel = styled.div`font-size:12px;font-weight:700;color:#0F766E;margin-bottom:8px;`;
