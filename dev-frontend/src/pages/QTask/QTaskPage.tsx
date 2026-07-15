@@ -355,13 +355,15 @@ const QTaskPage:React.FC=()=>{
   // PWA Share Target 등에서 ?prefill= 으로 본문 전달받음. 마운트 시 한 번만 적용.
   // 사이클 N+56 — ?attachFileIds=1,2,3 도 같이 받아 새 task 모달 첨부 prefill.
   const [searchParams, setSearchParams] = useSearchParams();
-  // #80 — 퀵메뉴 '+업무' 진입 시 AI 업무 추가 모달 자동 오픈
+  // 퀵메뉴 '+업무' 진입 → 일반 업무추가 드로어(일정·메일과 동일한 '추가' 팝업). (Irene — AI 분해모달 아님)
   useEffect(() => {
     if (searchParams.get('create') === '1') {
-      setAiOpen(true);
+      setAddingTask(true);
+      setAddInline(false);
+      setNewAssignee(tab === 'requested' ? null : (myId ?? null));
       const next = new URLSearchParams(searchParams); next.delete('create'); setSearchParams(next, { replace: true });
     }
-  }, [searchParams, setSearchParams]);
+  }, [searchParams, setSearchParams, tab, myId]);
   const prefillAppliedRef = useRef(false);
   useEffect(() => {
     if (prefillAppliedRef.current) return;
@@ -3321,7 +3323,8 @@ const PPFill=styled.div<{$w:number}>`height:100%;width:${p=>p.$w}%;background:#1
 const PPPct=styled.span`font-size:11px;font-weight:700;color:#475569;min-width:28px;text-align:right;`;
 const IssueCard=styled.div`padding:6px 8px;background:#F8FAFC;border-radius:6px;border-left:2px solid #F43F5E;& + &{margin-top:4px;}`;
 const NoteCard=styled.div<{$internal?:boolean}>`padding:6px 8px;background:#F8FAFC;border-radius:6px;border-left:2px solid ${p=>p.$internal?'#0284C7':'#94A3B8'};& + &{margin-top:4px;}`;
-const IProjTag=styled.span`padding:1px 5px;background:#F1F5F9;color:#64748B;font-size:9px;font-weight:600;border-radius:4px;margin-right:4px;`;
+// 프로젝트 태그 — 흰 배경 + 포인트(코랄) 글자·테두리. 회색 배경이 코랄 카드 위에서 안 보이던 것 개선(Irene).
+const IProjTag=styled.span`padding:1px 6px;background:#FFFFFF;color:#E11D48;border:1px solid #FECDD3;font-size:9px;font-weight:700;border-radius:999px;margin-right:4px;`;
 
 // Detail slide-over
 const CommentItem=styled.div`padding:8px 10px;background:#F8FAFC;border-radius:8px;& + &{margin-top:6px;}`;
