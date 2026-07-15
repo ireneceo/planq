@@ -477,10 +477,16 @@ export const MessageBodyText = styled.div`
 export const Attachments = styled.div`
   padding: 10px 0 2px;
   border-top: 1px solid #F1F5F9;
-  display: flex; flex-direction: column; gap: 4px;
+  display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px;
 `;
 export const Attachment = styled.div`
-  font-size: 12px; color: #475569;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; color: #475569; font-family: inherit;
+  padding: 5px 10px; border: 1px solid #E2E8F0; border-radius: 8px; background: #F8FAFC;
+  cursor: pointer; transition: border-color 0.12s, color 0.12s, background 0.12s;
+  & > svg { width: 13px; height: 13px; flex-shrink: 0; }
+  &:hover:not(:disabled) { border-color: #14B8A6; color: #0F766E; background: #F0FDFA; }
+  &:disabled { cursor: default; opacity: 0.7; }
 `;
 // 하단 액션 영역 — 본문과 같은 흰 바탕. 회색/흰 박스를 겹쳐 띄우지 않는다(박스 속 박스 금지).
 export const DetailFooter = styled.div`
