@@ -26,6 +26,20 @@
 
 ---
 
+## 🔖 재개 지점 (2026-07-15 후반 — "다 하고 배포하자" 진행 중 일시정지)
+
+**"모두 하자" 로드맵 진행:**
+- ✅ **A. #81 전이 툴** — submit_review·complete_task·add_task_comment. dev 완료·커밋 `1e5694e`. 검증 11/11 + LLM 스모크.
+- ✅ **B. #D-4 MCP 읽기 서버** — 커밋 `29d308b`. planq-mcp(127.0.0.1:3005) + api_tokens 테이블(dev 생성됨) + 읽기 4툴 + ApiTokenSection UI + guard mcpreadonly(21). 검증 9/9(cross-tenant 격리·401·감사). **@modelcontextprotocol/sdk + zod 신규 deps.** 배포 스크립트에 planq-prod-mcp 추가(외부 노출은 nginx /mcp 별도 — 미적용).
+- 🔨 **D. KB 정리 + 이벤트 스트림 뷰** — **미착수(스키마 조사만, 코드 0).**
+  - D-5: `kb_service.hybridSearch`(147) 진입부 — 워크스페이스 청크 < 100KB 면 임베딩 skip, 전량 주입. `limit:200`(212)은 임계초과 경로에만.
+  - D-6: 신규 `services/event_stream.js` `getWorkspaceStream(bizId,{since,actor,kinds})` — 6테이블 UNION. business_id: audit_logs·invoice_status_history·project_status_history 직접 / task_status_history→tasks.task_id / bill_events→(invoice_id FK 확인 필요) / messages→conversations.conversation_id. actor 정규화 user_id·actor_user_id·changed_by·sender_id→actor_user_id, users.is_ai 파생. 읽기 전용·Fable 불필요.
+- ⏸ C(#146 스크린샷 대기) · ❌ #126(Irene GCP 콘솔)
+
+**⚠️ 미배포 (v1.46.2 이후):** `1e5694e`(전이툴) + `29d308b`(MCP). Irene 이 "다 하고 배포하자" → **D 완료 후 배포 예정**(일시정지로 보류). **MCP 는 api_tokens CREATE TABLE 운영 선행 필요**(신규 테이블 — sync-database 가 CREATE 는 처리하나 배포 후 확인). 외부 노출 원하면 nginx /mcp→127.0.0.1:3005 + Fable 게이트(신규 공개 표면).
+
+---
+
 ## ✅ 이번 세션 완료 (2026-07-15) — 행동 계층 3사이클
 
 일정 생성(calendar.js)·문서 생성(docs.js)이 라우트에만 인라인 → 라우트 안 지나는 실행자(Cue·워커)가 가드 우회. 게다가 **두 라우트 모두 메뉴 쓰기 권한(qcalendar/qdocs)을 안 봤다** — none 멤버도 생성 가능(task_actions 가 qtask 봉합한 것과 같은 갭).
