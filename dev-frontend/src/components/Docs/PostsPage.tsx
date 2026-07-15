@@ -1096,6 +1096,28 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                     </KindBtn>
                   </KindToggle>
                 )}
+                {/* 편집 메타 패리티 — 상세에서 바꾸던 공개·보안을 편집 모드에서도 같은 줄에서 수정(Irene) */}
+                {mode === 'edit' && detail && (
+                  <>
+                    <VisibilityChip type="button" onClick={() => setVisModalOpen(true)} title={t('visibility.change', { defaultValue: '공개 범위 변경' }) as string}>
+                      {t('visibility.label', { defaultValue: '공개' }) as string}: {visLabel(detail.vlevel)}
+                    </VisibilityChip>
+                    <div style={{ minWidth: 150 }}>
+                      <PlanQSelect
+                        size="sm" isClearable={false} isSearchable={false}
+                        value={{ value: detail.security_level || 'general', label: secLabel(detail.security_level || 'general') }}
+                        options={(['general', 'internal', 'confidential'] as const).map((lv) => ({ value: lv, label: secLabel(lv) }))}
+                        onChange={async (o) => {
+                          const lv = (((o as { value?: string })?.value) || 'general') as 'general' | 'internal' | 'confidential';
+                          try {
+                            const r = await updatePostSecurityLevel(detail.id, lv);
+                            setDetail(prev => prev ? { ...prev, security_level: lv, ...(r.revoked_share ? { share_token: null, vlevel: prev.vlevel === 'L4' ? 'L3' : prev.vlevel } : {}) } : prev);
+                          } catch { /* keep current on error */ }
+                        }}
+                      />
+                    </div>
+                  </>
+                )}
               </MetaRow>
               {error && <ErrorBar>{error}</ErrorBar>}
               {detail?.kind === 'table' && detail.q_record_id ? (
@@ -1260,25 +1282,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 <SecurityLevelBadge level={detail.security_level} />
                 </MetaRight>
               </ViewMeta>
-              {/* D4 #62 — 보안등급 선택 (visibility 와 별개 축. 내부·기밀은 외부 공유 차단) */}
-              <SecurityRow>
-                <SecurityRowLabel>{t('securityLevel.label', { defaultValue: '보안등급' }) as string}</SecurityRowLabel>
-                <div style={{ minWidth: 160 }}>
-                  <PlanQSelect
-                    size="sm" isClearable={false} isSearchable={false}
-                    value={{ value: detail.security_level || 'general', label: secLabel(detail.security_level || 'general') }}
-                    options={(['general', 'internal', 'confidential'] as const).map((lv) => ({ value: lv, label: secLabel(lv) }))}
-                    onChange={async (o) => {
-                      const lv = (((o as { value?: string })?.value) || 'general') as 'general' | 'internal' | 'confidential';
-                      try {
-                        const r = await updatePostSecurityLevel(detail.id, lv);
-                        setDetail(prev => prev ? { ...prev, security_level: lv, ...(r.revoked_share ? { share_token: null, vlevel: prev.vlevel === 'L4' ? 'L3' : prev.vlevel } : {}) } : prev);
-                      } catch { /* keep current on error */ }
-                    }}
-                  />
-                </div>
-                <SecHint>{t(`securityLevel.${detail.security_level || 'general'}Hint`, { defaultValue: '' }) as string}</SecHint>
-              </SecurityRow>
+              {/* 보안등급 상시노출 SecurityRow 제거 — 뷰는 MetaBar chip(일반 자동숨김), 변경은 편집 모드 메타에서(Irene) */}
               <div data-print-area>
                 <PrintOnlyTitle>{detail.title}</PrintOnlyTitle>
                 {detail.kind === 'table' && detail.q_record_id ? (
@@ -1917,17 +1921,6 @@ const ViewMeta = styled.div`
 const MetaLeft = styled.div`display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0;`;
 const MetaRight = styled.div`display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex-shrink: 0;`;
 // D4 #62 — 보안등급 선택 행 (DocsTab files 패턴 정합)
-const SecurityRow = styled.div`
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  margin: 12px 0 4px;
-`;
-const SecurityRowLabel = styled.span`
-  font-size: 12px; font-weight: 600; color: #475569;
-`;
-const SecHint = styled.span`
-  font-size: 11px; color: #94A3B8; flex: 1; min-width: 0;
-`;
-
 // 태그
 const PinTag = styled.span`font-size: 12px;`;
 const ProjectTag = styled.span<{ $color: string }>`
@@ -1942,9 +1935,11 @@ const CategoryTag = styled.button`
   border-radius: 999px; font-size: 11px; font-weight: 600;
   &:hover { background: #CCFBF1; }
 `;
+// 편집 메타 — 한 줄(카테고리·프로젝트·형태·공개·보안). 좁으면 wrap. (Irene: 한 줄로)
 const MetaRow = styled.div`
-  display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;
-  @media (max-width: 640px) { grid-template-columns: 1fr; }
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;
+  padding-bottom: 12px; border-bottom: 1px solid #F1F5F9;
+  & > * { flex-shrink: 0; }
 `;
 // N+67 — visibility chip (PostsPage detail meta row)
 const VisibilityChip = styled.button`
