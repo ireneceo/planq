@@ -953,7 +953,10 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
     let mailReplyCount = 0;
     try {
       const { EmailThread, EmailAccount } = require('../models');
-      const bizIds = workspaces.map((w) => w.business_id);
+      // #180 — 메뉴 뱃지는 착지 화면(현재 워크스페이스 메일 리스트)의 수와 일치해야 한다.
+      //   여태 전 워크스페이스 합산이라 뱃지 25 vs 리스트 14 불일치. 현재 워크스페이스로 스코프.
+      //   (크로스워크스페이스 미처리 신호는 워크스페이스 스위처 per-workspace dot 으로 이관 예정 — 후속)
+      const bizIds = businessId ? [businessId] : workspaces.map((w) => w.business_id);
       if (bizIds.length > 0) {
         // 접근 가능한 계정만 (회사 공용 + 본인 개인) — 남의 개인 메일함은 세지 않는다
         const accs = await EmailAccount.findAll({

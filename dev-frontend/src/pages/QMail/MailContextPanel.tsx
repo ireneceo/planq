@@ -62,6 +62,7 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
   // 요약 (AI 스레드 요약 — Phase A 의 channel-summary 와 다름)
   const [aiSummary, setAiSummary] = useState<string | null>(thread.ai_summary || null);
   const [sumBusy, setSumBusy] = useState(false);
+  const [sumError, setSumError] = useState<string | null>(null);  // #179 — 요약 실패 표면화
   // 이슈 / 노트
   const [issues, setIssues] = useState<Issue[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
@@ -199,12 +200,15 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
   }, [businessId, thread.id, thread.ai_summary]);
 
   const summarize = useCallback(async () => {
-    if (sumBusy) return; setSumBusy(true);
+    if (sumBusy) return; setSumBusy(true); setSumError(null);
     try {
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${thread.id}/summarize`, { method: 'POST' });
       const j = await r.json();
+      // #179 — 여태 실패(503/429/네트워크)해도 조용히 죽어 "무반응"으로 보였다. 실패를 표면화한다.
       if (j.success) setAiSummary(j.data?.ai_summary || null);
-    } finally { setSumBusy(false); }
+      else setSumError(j.message || 'failed');
+    } catch { setSumError('network'); }
+    finally { setSumBusy(false); }
   }, [sumBusy, businessId, thread.id]);
 
   const addIssue = useCallback(async (body: string) => {
@@ -260,9 +264,11 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
           />
         )}
       >
-        {aiSummary
-          ? <SummaryBox>{aiSummary}</SummaryBox>
-          : <WorkbenchEmptyRow>{t('context.summaryHint', { defaultValue: '긴 스레드를 AI가 핵심만 요약해요.' }) as string}</WorkbenchEmptyRow>}
+        {sumError
+          ? <SummaryError>{t('context.summaryFailed', { defaultValue: '요약을 만들지 못했어요. 잠시 후 다시 시도해 주세요.' }) as string}</SummaryError>
+          : aiSummary
+            ? <SummaryBox>{aiSummary}</SummaryBox>
+            : <WorkbenchEmptyRow>{t('context.summaryHint', { defaultValue: '긴 스레드를 AI가 핵심만 요약해요.' }) as string}</WorkbenchEmptyRow>}
       </WorkbenchSection>
 
       {/* 한 줄 업무 등록 — AI 추출이 못 찾아도 사람이 바로 적는다. 이름을 지목하면 요청 업무가 된다. */}
@@ -423,6 +429,7 @@ const Wrap = styled.div`flex:1; min-height:0; overflow-y:auto;`;
 // Q Talk ChatPanel:3430 과 동일 — 같은 기능은 어느 화면에서든 같은 모양 (teal + 체크박스 아이콘)
 const CandList = styled.div`display:flex; flex-direction:column; gap:8px;`;
 const SummaryBox = styled.div`font-size:12px; color:#334155; line-height:1.6; white-space:pre-wrap; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; padding:10px 12px;`;
+const SummaryError = styled.div`font-size:12px; color:#B91C1C; line-height:1.5; background:#FEF2F2; border:1px solid #FECACA; border-radius:10px; padding:10px 12px;`;
 const typeColor: Record<Channel, { bg: string; fg: string }> = {
   chat: { bg: '#F0FDFA', fg: '#0F766E' },
   email: { bg: '#EFF6FF', fg: '#1D4ED8' },

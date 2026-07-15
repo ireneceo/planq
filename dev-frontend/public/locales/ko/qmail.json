@@ -260,7 +260,8 @@
     "notesEmpty": "아직 메모가 없습니다",
     "issuesEmpty": "아직 이슈가 없습니다",
     "quickAddTitle": "한 줄 업무 등록",
-    "notesTitleProject": "프로젝트 메모"
+    "notesTitleProject": "프로젝트 메모",
+    "summaryFailed": "요약을 만들지 못했어요. 잠시 후 다시 시도해 주세요."
   },
   "accounts": {
     "all": "메일 전체",

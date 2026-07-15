@@ -1298,8 +1298,10 @@ const MailPage: React.FC = () => {
                       {/* 보낸 사람 = 실제 발신자(메일 헤더의 이름). 여태 내 메일함 이름
                           (account.display_name)을 그려서 PlanQ 알림이 내 계정명으로 보였다.
                           연결된 고객 이름도 발신자를 가리면 안 된다 — 고객 연결은 별도 칩으로 표시된다. */}
+                      {/* #164 — 이름이 없을 땐 전체 이메일 주소 대신 @ 앞 로컬 파트만 축약 표시(리스트 노이즈 감소). */}
                       {mt.counterpart?.name || mt.client?.display_name || mt.client?.company_name
-                        || mt.counterpart?.email || mt.account?.email || '(unknown)'}
+                        || (mt.counterpart?.email || mt.account?.email || '').split('@')[0]
+                        || '(unknown)'}
                     </ThreadSender>
                     <ThreadRow1Right>
                       <StarSpan
