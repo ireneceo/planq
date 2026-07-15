@@ -515,6 +515,9 @@ const UserMenuItemBtn = styled.button<{ $danger?: boolean }>`${UserMenuItemBase}
 
 const MainContent = styled.div<{ $marginLeft: number }>`
   margin-left: ${props => props.$marginLeft}px;
+  /* 콘텐츠 좌측 인셋(앱 네비 폭)을 CSS 변수로 노출 — 좌측 플로팅 패널 핸들이 뷰포트가 아닌
+     콘텐츠 왼쪽 변 기준으로 붙도록(FloatingPanelToggle side='left'). 태블릿에선 네비가 오버레이라 0. */
+  --pq-content-left: ${props => props.$marginLeft}px;
   /* 운영 #34 — flex column 앱 셸: 배너(flex-shrink:0) + PageScroll(flex:1).
      배너가 페이지 높이 컨텍스트 밖에 있어, 배너가 떠도 PageScroll(=뷰포트−배너)만큼만 페이지가 차지.
      PanelLayout 페이지(height:100%)가 정확히 가용 높이를 채워 채팅입력란 넘침·레이아웃 점프 차단.
@@ -525,7 +528,7 @@ const MainContent = styled.div<{ $marginLeft: number }>`
   flex-direction: column;
   overflow: hidden;
   transition: margin-left 0.25s ease;
-  ${mediaTablet} { margin-left: 0; padding-top: 56px; }
+  ${mediaTablet} { margin-left: 0; --pq-content-left: 0px; padding-top: 56px; }
 `;
 
 /* 페이지 스크롤 영역 — 배너 아래 남은 공간(flex:1). 흐름형 페이지는 여기서 스크롤,
