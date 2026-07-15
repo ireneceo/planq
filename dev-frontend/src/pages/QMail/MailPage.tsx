@@ -1404,8 +1404,9 @@ const MailPage: React.FC = () => {
           )}
         </CollapsibleSidebar>
 
-        {/* 우: 상세 */}
-        <Panel $grow $hideTablet $last={!detail}>
+        {/* 우: 상세 — 모바일(≤1024)에서 본문 패널이 전체를 채운다(data-panel-main). 좌측 리스트는 오버레이 드로어.
+            여태 $hideTablet 이라 모바일서 본문이 통째로 숨어 흰 화면이 됐다(#173/174/159/178). */}
+        <Panel $grow $relative $last={!detail} data-panel-main>
           {/* 태블릿 이하 전용 — 그 폭에서는 사이드바가 오버레이 드로어라 경계선 핸들이 없다.
               데스크탑 접기/펼치기는 PanelEdgeHandle 이 담당. */}
           {sidebarCollapsed && (

@@ -1943,18 +1943,19 @@ const Drawer = styled.aside<{ $w: number }>`
   height:var(--vvh, 100dvh);
   width:min(${p => p.$w}px, calc(100vw - 56px));
   background:#FFF;border-left:1px solid #E2E8F0;
-  box-shadow:-16px 0 40px rgba(15,23,42,0.14);display:flex;flex-direction:column;overflow:hidden;z-index:40;
+  box-shadow:-16px 0 40px rgba(15,23,42,0.14);display:flex;flex-direction:column;overflow:hidden;z-index:120;
   animation:pqSlideIn 0.28s cubic-bezier(0.22,1,0.36,1);
   @keyframes pqSlideIn{from{transform:translateX(100%);}to{transform:translateX(0);}}
   @media (prefers-reduced-motion: reduce){animation:none;}
-  @media (max-width: 1024px){ top:56px; height:calc(var(--vvh, 100dvh) - 56px); }
+  /* 모바일 고정 헤더(z-index:99) 밑에서 시작 + safe-area 보정. z-index 120 으로 헤더 위 스택 → 닫기 버튼 안 가림(#171/172). */
+  @media (max-width: 1024px){ top:calc(56px + env(safe-area-inset-top)); height:calc(var(--vvh, 100dvh) - 56px - env(safe-area-inset-top)); }
 `;
 const ResizeHandle = styled.div`
   position:absolute;top:0;left:-4px;width:8px;height:100%;cursor:col-resize;z-index:45;
   &:hover{background:rgba(20,184,166,0.25);}&:active{background:rgba(20,184,166,0.45);}
   @media (max-width: 1024px) { display: none; }
 `;
-const DrawerHeader = styled.div`height:60px;padding:14px 20px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;`;
+const DrawerHeader = styled.div`height:60px;padding:14px 20px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;position:sticky;top:0;background:#FFFFFF;z-index:1;`;
 // WORK_FLOW §6-B — 이월 연속성 배너 (차분한 slate, 비강조)
 const CarriedBanner = styled.div`display:flex;align-items:center;gap:8px;margin:12px 20px 0;padding:8px 12px;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:10px;font-size:12px;font-weight:600;color:#475569;line-height:1.4;`;
 const CarriedTag = styled.span`flex-shrink:0;padding:1px 8px;font-size:10px;font-weight:700;color:#FFFFFF;background:#64748B;border-radius:10px;letter-spacing:-0.2px;`;

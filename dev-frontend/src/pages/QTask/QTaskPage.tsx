@@ -288,6 +288,9 @@ const QTaskPage:React.FC=()=>{
   const[addingTask,setAddingTask]=useState(false);
   // 인라인(=표 하단 행 추가) 모드 여부. true=표 아래에서 폼 / false=우측 패널 폼
   const[addInline,setAddInline]=useState(false);
+  // 모바일에서 업무추가 폼(우측 패널·오버레이)이 열리면 body 잠금 → data-overlay-open → 우하단 FAB 자동 숨김(#181).
+  // 인라인 추가(표 하단)는 오버레이가 아니라 제외. ref-count 방식이라 위 rightOverlayOpen lock 과 병존 안전.
+  useBodyScrollLock(isNarrow && addingTask && !addInline);
   const[newTitle,setNewTitle]=useState('');
   const[newAssignee,setNewAssignee]=useState<number|null>(null);
   const[newProjectId,setNewProjectId]=useState<number|null>(null);

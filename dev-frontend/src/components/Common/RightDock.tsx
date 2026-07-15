@@ -48,7 +48,9 @@ const RightDock: React.FC = () => {
     || (typeof document !== 'undefined' && document.body.dataset.popout === '1')
     || isPopoutWindow(); // #84 — 팝아웃 창 내부 이동에도 FAB 숨김 유지
   // Q Talk (메인 채팅) — 모바일에선 채팅 입력바를 가리므로 FAB 숨김 (데스크탑·타 페이지는 유지)
-  const onTalk = location.pathname === '/talk' || location.pathname.startsWith('/talk/');
+  // Q Talk 에서 FAB 숨김은 "활성 대화방(입력바 있음)" 일 때만 — 대화 리스트(?conv 없음)에선 FAB 유지(#165).
+  const onTalk = (location.pathname === '/talk' || location.pathname.startsWith('/talk/'))
+    && new URLSearchParams(location.search).has('conv');
 
   // 펼침 메뉴 — 외부 클릭/Esc 닫기
   useEffect(() => {
