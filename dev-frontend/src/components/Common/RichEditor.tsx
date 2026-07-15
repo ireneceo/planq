@@ -171,7 +171,14 @@ export default function RichEditor({
   // 사용자 호소: "에디터 빈 곳 클릭해도 첫 번째 줄 커서 진입" — 빈 노트/문서 진입 시 어디 클릭해도 커서 진입.
   const handleWrapperClick = (e: React.MouseEvent) => {
     if (readOnly || !editor) return;
-    if ((e.target as HTMLElement).closest('.ProseMirror')) return;
+    const targetEl = e.target as HTMLElement;
+    if (targetEl.closest('.ProseMirror')) return;
+    if (targetEl.closest('button, a, input, select, textarea, [role="button"]')) return;
+    // 드래그 선택 직후 커서 뺏지 않음 + 본문 아래 빈 영역 클릭일 때만 끝으로 진입 (맨아래 점프 회귀 fix)
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed) return;
+    const pm = (e.currentTarget as HTMLElement).querySelector('.ProseMirror');
+    if (pm && e.clientY < pm.getBoundingClientRect().bottom) return;
     editor.commands.focus('end');
   };
 
