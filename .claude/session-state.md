@@ -23,13 +23,18 @@
 - **⑤(B) Cue provenance** — Fable GO. `created_via VARCHAR(20) NULL` 3테이블(tasks/calendar_events/documents) + action layer 배선 + cue_tools 생성 3분기 'cue' + `ProvenanceBadge`(중립 회색) 3화면 + i18n common:provenance.cue. source='manual' 유지·권한/재무 무접촉(grep 불변식)·고객 차단. 실HTTP+toJSON+가드3축 통과.
 - **⑥ 카나리 자동화 3건** — Fable CONDITIONAL-GO. canary-tabs.js에 뒤로가기·F5복원·마이크 track-alive 추가 → tabs 6/6. Irene 인간검증 5→2건(IME·전환 체감)으로 압축.
 
+### ⑥ 멀티탭 전역 승격 — 운영 라이브 (6464deb, 20260716_220926)
+- `tabsBeta.ts` isTabsBeta/isTabsSpike **기본 on(데스크탑 ≥1025px)**. dev·운영 모두 자동 노출. opt-out '0' 또는 기본값 flip 으로 즉시 롤백.
+- 승격 근거: **keep-alive 입력 state 탭 왕복 보존 실증**(KEEPALIVE_TEST 유지) + tabs 스위트 6/6(opt-out 무회귀·무크래시·keep-alive·뒤로가기·F5·마이크 track-alive). IME 조합은 blur commit→state 반영으로 손실 없음.
+- 운영 검증: 청크 해시 일치(운영=검증빌드 index-kEODvNZl.js)·헬스 200·PM2 fresh. **Irene 브라우저는 하드리프레시(Cmd+Shift+R) 필요**(옛 캐시 번들).
+- 모바일 무영향(데스크탑 전용).
+
 ### 다음 할 일
-- **Irene 인간검증 2건** (spike on: `localStorage.setItem('planq_tabs_spike','1')`): ① IME 한글 조합 중 탭 전환 무손실 ② 전환 체감 → 통과 시 ⑥ beta/spike 운영 flip(플래그 default 변경 + /배포)
 - ⑪ 탭 드래그 정렬 · QNote 폴링정지(9b) (남은 폴리시)
 - ⑦ 인프라(Irene 액션): Stripe Webhook Secret · SMTP DKIM/SPF/DMARC DNS · Google OAuth 검증 제출
 
-### 운영 반영 완료 (이 배포)
-- ⑤B created_via 3테이블 마이그레이션(운영 실측 varchar(20) NULL) + ProvenanceBadge 3화면 + 위키 캔버스AI 아티클 seed + 카나리 6건. 멀티탭 플래그 여전히 off(운영 shell 무회귀 실측·탭바 미노출).
+### 운영 반영 완료 (오늘 밤)
+- ⑤ 캔버스 AI 초안 · ⑥ 멀티탭 keep-alive(전역 on) · ⑤B created_via provenance(3테이블 마이그레이션·ProvenanceBadge 3화면) · 카나리 6건 · Q위키 캔버스AI.
 
 ---
 
