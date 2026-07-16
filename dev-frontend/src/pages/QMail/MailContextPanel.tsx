@@ -150,6 +150,8 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${thread.id}/extract-tasks`, { method: 'POST' });
       const j = await r.json();
       if (r.status === 429) { setExtractMsg(t('context.usageLimit', { defaultValue: '이번 달 AI 사용량을 초과했어요.' }) as string); return; }
+      // #179 — AI 미가동(503)을 "업무 없음"과 구분. 무반응처럼 보이던 것 표면화.
+      if (r.status === 503) { setExtractMsg(t('context.aiUnavailable', { defaultValue: 'AI 서비스를 잠시 사용할 수 없어요. 잠시 후 다시 시도해 주세요.' }) as string); return; }
       if (j.success) {
         const got = j.data?.candidates || [];
         setCandidates((prev) => [...got, ...prev.filter(p => !got.some((g: Candidate) => g.id === p.id))]);

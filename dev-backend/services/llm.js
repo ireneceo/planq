@@ -121,6 +121,8 @@ async function callLLM({ purpose = 'generic', messages, json = false, tools = nu
 
   if (!isEnabled()) {
     stats.fallback++; bump(purpose, 'failed');
+    // 관찰성 — 키 미설정으로 LLM 이 조용히 안 도는 상태를 /health 에 남긴다(#179 추출 무반응 근본).
+    stats.last_error = { at: new Date().toISOString(), purpose, status: 0, message: 'llm_disabled_no_api_key' };
     return { content: fallback, tool_calls: [], input_tokens: 0, output_tokens: 0, fallback: true, model: cfg.model, ms: 0, attempts: 0, truncated: false };
   }
 
