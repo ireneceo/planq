@@ -18,6 +18,7 @@ export interface Tab {
   path: string;          // 이 탭의 현재 location path+search (단일 원천, 직렬화 가능)
   alive: boolean;        // true=마운트 유지, false=suspend
   lastActiveAt: number;  // LRU
+  indicator?: 'recording' | null; // Q Note 녹음 등 상태 dot (비영속)
 }
 
 interface TabState {
@@ -27,6 +28,7 @@ interface TabState {
 }
 
 const MAX_ALIVE = 4;
+const OPEN_MAX = 10;   // 열린 탭 소프트캡 — 초과 시 최오래 비활성 탭 자동 close
 const STORAGE_KEY = 'planq_tabs_v1';
 
 // ── kind ↔ path 매핑 ──────────────────────────────────────────
@@ -42,6 +44,7 @@ const PREFIX_KIND: Array<[RegExp, TabKind]> = [
   [/^\/bills/, 'bill'],
   [/^\/mail/, 'mail'],
   [/^\/files/, 'files'],
+  [/^\/business\/clients/, 'clients'], // 실 라우트(App.tsx). /^\/clients/ 보다 먼저 — 'other' 흡수 방지
   [/^\/clients/, 'clients'],
   [/^\/info/, 'info'],
   [/^\/inbox/, 'inbox'],
@@ -108,6 +111,15 @@ function newId() { return `t${Date.now().toString(36)}_${(idSeq++).toString(36)}
 let navigateDelegate: ((path: string) => void) | null = null;
 export function setTabNavigator(fn: ((path: string) => void) | null) { navigateDelegate = fn; }
 
+// 트리 스왑 후 각 탭 pane 의 MemoryRouter navigate 통로 (mirror 모드에선 navigateDelegate 우선).
+const paneNavigators = new Map<string, (path: string) => void>();
+
+// path 에서 대화 id 파싱 (/talk/123 또는 ?conv=123). Toaster 단일 소스.
+function convIdOfPath(path: string): number | null {
+  const m = path.match(/^\/talk\/(\d+)/) || path.match(/[?&]conv=(\d+)/);
+  return m ? Number(m[1]) : null;
+}
+
 export const tabStore = {
   subscribe,
   getSnapshot,
@@ -123,6 +135,11 @@ export const tabStore = {
       activeId = existing.id;
       tabs = tabs.map((t) => (t.id === existing.id ? { ...t, path, alive: true, lastActiveAt: now, title: title ?? t.title } : t));
     } else {
+      // 소프트캡 — 신규 탭이 OPEN_MAX 초과면 가장 오래된 비활성 탭 close
+      if (tabs.length >= OPEN_MAX) {
+        const victim = [...tabs].filter((t) => t.id !== state.activeId).sort((a, b) => a.lastActiveAt - b.lastActiveAt)[0];
+        if (victim) tabs = tabs.filter((t) => t.id !== victim.id);
+      }
       const id = newId();
       activeId = id;
       tabs = [...tabs, { id, kind: kindOfPath(path), title: title ?? '', path, alive: true, lastActiveAt: now }];
@@ -164,6 +181,37 @@ export const tabStore = {
   },
 
   setMirror(on: boolean) { set({ mirror: on }); },
+
+  // 탭 순서 이동 (드래그 정렬)
+  moveTab(id: string, toIndex: number) {
+    const from = state.tabs.findIndex((t) => t.id === id);
+    if (from < 0) return;
+    const arr = [...state.tabs];
+    const [m] = arr.splice(from, 1);
+    arr.splice(Math.max(0, Math.min(toIndex, arr.length)), 0, m);
+    set({ tabs: arr });
+  },
+
+  // 상태 dot (녹음 등) — 비영속
+  setTabIndicator(id: string, ind: 'recording' | null) {
+    if (!state.tabs.some((t) => t.id === id && (t.indicator ?? null) !== ind)) return;
+    set({ tabs: state.tabs.map((t) => (t.id === id ? { ...t, indicator: ind } : t)) });
+  },
+
+  // 트리 스왑 후 pane navigator 등록/해제
+  registerPaneNavigator(id: string, fn: (path: string) => void) { paneNavigators.set(id, fn); },
+  unregisterPaneNavigator(id: string) { paneNavigators.delete(id); },
+
+  // Toaster 단일 소스 — 열린 대화들 / 활성 탭이 보고 있는 대화
+  getOpenConversationIds(): Set<number> {
+    const s = new Set<number>();
+    for (const t of state.tabs) { const c = convIdOfPath(t.path); if (c != null) s.add(c); }
+    return s;
+  },
+  getActiveConversationId(): number | null {
+    const t = activeTab(state);
+    return t ? convIdOfPath(t.path) : null;
+  },
 
   // 미러 모드 부팅 — 현재 location 을 활성 탭으로 seed(없으면 생성). chrome 전환의 단일탭 진입점.
   seedFromPath(path: string, title?: string) {
