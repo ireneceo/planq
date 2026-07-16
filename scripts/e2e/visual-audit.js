@@ -6,6 +6,9 @@ const b = require('./lib/browser');
 
 const OUT = process.env.AUDIT_OUT || '/tmp/planq-audit';
 
+// 알려진 잔여 아티팩트: /mail(requiredRole 라우트)은 감사 후반 누적 헤드리스 쿠키 소실 시 /login 으로
+//   바운스할 수 있다. 제품 버그 아님(로그인 직후 첫 방문·mobile-keyboard 스위트에선 정상 확인). 스크린샷은
+//   그대로 생성되므로 사람 리뷰엔 지장 없음. redirect 플래그는 보조 휴리스틱으로만 취급.
 // 운영 핵심(워크스페이스/개인 앱) 화면. 마케팅/admin/auth 는 2차.
 const ROUTES = [
   '/dashboard', '/inbox', '/tasks', '/todo', '/talk', '/calendar', '/notes', '/docs',
@@ -26,6 +29,7 @@ async function shoot(page, route, label, viewport) {
   //   no_cookie 로 실패→accessToken=null→미인증→/login 바운스(특히 requiredRole 라우트). 실제 제품
   //   버그가 아닌 하니스 쿠키 아티팩트이므로, /login 으로 튕기면 1회 full goto 로 재부팅·재인증 후 재캡처.
   if (!route.startsWith('/login') && page.url().replace(b.BASE, '').startsWith('/login')) {
+    await b.login(page).catch(() => {});   // 쿠키 재확립 (누적 소실 회복)
     await page.goto(b.BASE + route, { waitUntil: 'networkidle2', timeout: 30000 }).catch(() => {});
     await b.sleep(1200);
   }
