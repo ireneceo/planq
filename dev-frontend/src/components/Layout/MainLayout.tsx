@@ -11,6 +11,9 @@ import WorkspaceBillingBanner from './WorkspaceBillingBanner';
 import SidebarClock from './SidebarClock';
 import FocusWidget from '../Focus/FocusWidget';
 import PanelHeader, { PanelTitle } from './PanelHeader';
+import TabStrip from '../Tab/TabStrip';
+import { TABSTRIP_H } from '../../theme/layout';
+import { isTabsBeta } from '../../utils/tabsBeta';
 import { useTimezones } from '../../hooks/useTimezones';
 import { useInboxCount } from '../../hooks/useInboxCount';
 import { useAdminInboxCounts } from '../../hooks/useAdminInboxCounts';
@@ -67,10 +70,10 @@ const LayoutContainer = styled.div`
   overflow: hidden;
 `;
 
-const Sidebar = styled.div<{ $isOpen?: boolean; $isCollapsed?: boolean }>`
-  position: fixed; top: 0; left: 0;
+const Sidebar = styled.div<{ $isOpen?: boolean; $isCollapsed?: boolean; $tabMode?: boolean }>`
+  position: fixed; top: ${props => (props.$tabMode ? TABSTRIP_H : 0)}px; left: 0;
   width: ${props => props.$isCollapsed ? `${SIDEBAR_W_COLLAPSED}px` : `${SIDEBAR_W_OPEN}px`};
-  height: 100vh;
+  height: ${props => (props.$tabMode ? `calc(100vh - ${TABSTRIP_H}px)` : '100vh')};
   background: linear-gradient(180deg, #115E59 0%, #134E4A 100%);
   z-index: 100; display: flex; flex-direction: column;
   transition: width 0.25s ease; overflow-x: hidden;
@@ -303,11 +306,11 @@ const InboxBadge = styled.span<{ $collapsed?: boolean }>`
 // SecondaryPanel — 2뎁스 (통계·분석 / 워크스페이스 전용)
 // ─────────────────────────────────────────────────────────────
 
-const SecondaryPanel = styled.aside<{ $sidebarW: number; $collapsed: boolean }>`
-  position: fixed; top: 0;
+const SecondaryPanel = styled.aside<{ $sidebarW: number; $collapsed: boolean; $tabMode?: boolean }>`
+  position: fixed; top: ${props => (props.$tabMode ? TABSTRIP_H : 0)}px;
   left: ${props => props.$sidebarW}px;
   width: ${props => props.$collapsed ? SECONDARY_COLLAPSED_W : SECONDARY_W}px;
-  height: 100vh;
+  height: ${props => (props.$tabMode ? `calc(100vh - ${TABSTRIP_H}px)` : '100vh')};
   background: #FFFFFF;
   border-right: 1px solid #E2E8F0;
   z-index: 90;
@@ -806,6 +809,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     null;
 
   const sidebarW = isCollapsed ? SIDEBAR_W_COLLAPSED : SIDEBAR_W_OPEN;
+  // ⑥ 멀티탭 — beta 플래그(데스크탑) 시 최상단 탭 스트립 + 사이드바/2뎁스 offset. 세션 1회 확정.
+  const [tabMode] = useState(isTabsBeta);
 
   // Secondary 접힘 — 아이콘 strip 모드 (완전 숨김 아님). localStorage 유지.
   const [secondaryCollapsed, setSecondaryCollapsed] = useState<boolean>(() => {
@@ -826,6 +831,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
   return (
     <LayoutContainer>
+      {/* ⑥ 멀티탭 탭 스트립 (A안: 최상단 풀폭) — beta 플래그·데스크탑에서만. off 면 렌더 X(무회귀) */}
+      {tabMode && <TabStrip />}
       {/* N+63 — 알림 dropdown (사이드바 종 모양 trigger) */}
       <NotificationDropdown open={notifOpen} onClose={() => setNotifOpen(false)} anchorRef={bellRef} />
       <MobileHeader>
@@ -838,7 +845,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
       <Overlay $show={sidebarOpen} onClick={() => setSidebarOpen(false)} />
 
-      <Sidebar $isOpen={sidebarOpen} $isCollapsed={isCollapsed}>
+      <Sidebar $isOpen={sidebarOpen} $isCollapsed={isCollapsed} $tabMode={tabMode}>
         <SidebarHeader $isCollapsed={isCollapsed}>
           {isCollapsed ? (
             <SidebarToggleButton
@@ -1489,7 +1496,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
       {/* Secondary 2뎁스 패널 — /stats/* 또는 /business/settings·/settings·/profile 경로에서만 */}
       {currentSecondary === 'reports' && (
-        <SecondaryPanel $sidebarW={sidebarW} $collapsed={secondaryCollapsed} aria-label={t('nav.sectionReports', '통계·분석')}>
+        <SecondaryPanel $sidebarW={sidebarW} $collapsed={secondaryCollapsed} $tabMode={tabMode} aria-label={t('nav.sectionReports', '통계·분석')}>
           <PanelHeader>
             {!secondaryCollapsed && <PanelTitle>{t('nav.sectionReports', '통계·분석')}</PanelTitle>}
             <SecondaryCloseButton
@@ -1528,7 +1535,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       )}
 
       {currentSecondary === 'settings' && (
-        <SecondaryPanel $sidebarW={sidebarW} $collapsed={secondaryCollapsed} aria-label={t('nav.settings')}>
+        <SecondaryPanel $sidebarW={sidebarW} $collapsed={secondaryCollapsed} $tabMode={tabMode} aria-label={t('nav.settings')}>
           <PanelHeader>
             {!secondaryCollapsed && <PanelTitle>{t('nav.settings')}</PanelTitle>}
             <SecondaryCloseButton
@@ -1670,7 +1677,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
       {/* 내 계정 — 개인 2뎁스 SecondaryPanel */}
       {currentSecondary === 'account' && (
-        <SecondaryPanel $sidebarW={sidebarW} $collapsed={secondaryCollapsed} aria-label={t('nav.myAccount', '내 계정')}>
+        <SecondaryPanel $sidebarW={sidebarW} $collapsed={secondaryCollapsed} $tabMode={tabMode} aria-label={t('nav.myAccount', '내 계정')}>
           <PanelHeader>
             {!secondaryCollapsed && <PanelTitle>{t('nav.myAccount', '내 계정')}</PanelTitle>}
             <SecondaryCloseButton
