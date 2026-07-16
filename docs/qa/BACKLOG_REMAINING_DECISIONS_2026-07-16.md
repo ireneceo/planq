@@ -24,7 +24,11 @@
 
 ---
 
-> **2026-07-16 심야 갱신:** ⑤(A) **완료·운영 배포됨** — 캔버스 AI 초안 생성(`projects.strategy_sources` JSON + `project_workstreams.source` ENUM('ai','manual') 마이그레이션 + `services/canvasDraft.js` + POST `/:id/canvas/ai-draft` + AutoGenBadge 3상태. ProjectCanvas·WorkstreamBoard 부착). ⑤(C) **확인 결과 이미 구현됨** — 세 보고서 뷰(ReportUnitView "자동 확정"·IntegratedReportView "자동확정"·WeeklyReviewWorkspaceView `Badge $auto` "자동")가 `finalized_by==='auto'`로 자체 자동 배지 표시 중. 신규 작업 불요(작동 배지를 ✨로 교체 = churn). ⑤(B)만 미결(아래).
+> **2026-07-16 심야 2차 갱신 (Fable 판정 후 실행):**
+> - ⑤(B) **완료(dev)** — Fable GO 판정. `created_via VARCHAR(20) NULL` 3테이블(tasks/calendar_events/documents, sync-database 자동) + action layer(createTask/Event/Document) `createdVia` 배선 + cue_tools executeTool 생성 3분기 `'cue'` 세팅 + `ProvenanceBadge`(중립 회색, ✨ 없음) 3화면(TaskDetailDrawer·EventDrawer·DocumentEditorPage) + i18n `common:provenance.cue`(Cue로 추가됨/Added via Cue). **원칙 무충돌 실증**: source='manual' 유지·created_via가 권한/재무/전이 로직 0건(grep 불변식)·고객 응답 차단(taskClientView BLOCKED_FIELDS). 실HTTP: Cue execute-action→created_via='cue'/source='manual'·멤버 toJSON 노출. 가드 3축 통과.
+> - ⑥ **카나리 자동화 3건 추가** — Fable CONDITIONAL-GO. `canary-tabs.js`에 뒤로가기·F5복원·마이크 track-alive(fake-device) 추가 → tabs 스위트 **6/6**. Irene 인간검증 5→**2건(IME 한글조합·전환 체감)**으로 압축. beta/spike 운영 플래그는 여전히 off(Irene 2검증 후 /배포 때 flip).
+>
+> **[1차] 2026-07-16 심야 갱신:** ⑤(A) **완료·운영 배포됨** — 캔버스 AI 초안 생성(`projects.strategy_sources` JSON + `project_workstreams.source` ENUM('ai','manual') 마이그레이션 + `services/canvasDraft.js` + POST `/:id/canvas/ai-draft` + AutoGenBadge 3상태. ProjectCanvas·WorkstreamBoard 부착). ⑤(C) **확인 결과 이미 구현됨** — 세 보고서 뷰(ReportUnitView "자동 확정"·IntegratedReportView "자동확정"·WeeklyReviewWorkspaceView `Badge $auto` "자동")가 `finalized_by==='auto'`로 자체 자동 배지 표시 중. 신규 작업 불요(작동 배지를 ✨로 교체 = churn). ⑤(B)만 미결(아래).
 
 ## ⑤ 자동/수동 인지 (source 플래그) — **⑤(B)만 결정 필요 (A·C 완료)**
 
