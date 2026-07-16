@@ -253,10 +253,11 @@ export default function ClientsPage() {
       body: JSON.stringify(patch),
     });
     const j = await res.json();
-    if (j.success) {
-      setClients((prev) => prev.map((c) => c.id === id ? { ...c, ...patch } : c));
-      setActiveDetail((prev) => prev && prev.id === id ? { ...prev, ...patch } : prev);
-    }
+    // apiFetch 는 throw 안 함 — res.ok/success 미검사 시 저장 실패가 침묵(AutoSaveField 가 항상 ✓).
+    //   throw 해야 AutoSaveField 가 ! 에러 배지를 띄운다(거짓 저장 방지).
+    if (!res.ok || !j.success) throw new Error(j.message || 'save_failed');
+    setClients((prev) => prev.map((c) => c.id === id ? { ...c, ...patch } : c));
+    setActiveDetail((prev) => prev && prev.id === id ? { ...prev, ...patch } : prev);
   };
 
   // 초대 재발송 (invited 상태 고객) — 메일 다시 보내기

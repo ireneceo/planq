@@ -197,16 +197,20 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
     } catch {/* noop */}
   };
 
+  // 재무 헬퍼는 throw 함(403 owner_only·400 등) — catch 없으면 uncaught rejection + 사용자 피드백 0.
+  const financeErr = (e: unknown) => setRemindNote({ tone: 'warn', text: (e as Error).message || (t('detail.financeError', { defaultValue: '처리에 실패했습니다' }) as string) });
   const handleMarkPaid = async (installmentId: number) => {
     if (busy) return;
-    setBusy(true);
+    setBusy(true); setRemindNote(null);
     try { await markInstallmentPaid(invoice.business_id, invoice.id, installmentId, { paid_at: new Date().toISOString() }); await refresh(); }
+    catch (e) { financeErr(e); }
     finally { setBusy(false); }
   };
   const handleUnmarkPaid = async (installmentId: number) => {
     if (busy) return;
-    setBusy(true);
+    setBusy(true); setRemindNote(null);
     try { await unmarkInstallmentPaid(invoice.business_id, invoice.id, installmentId); await refresh(); }
+    catch (e) { financeErr(e); }
     finally { setBusy(false); }
   };
   const handleMarkTax = (installmentId: number) => {
@@ -241,12 +245,14 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
       setTaxModal(null);
       setTaxNoInput(''); setTaxFile(null);
       await refresh();
-    } finally { setBusy(false); }
+    } catch (e) { financeErr(e); }
+    finally { setBusy(false); }
   };
   const doCancelInst = async (installmentId: number) => {
     if (busy) return;
-    setBusy(true);
+    setBusy(true); setRemindNote(null);
     try { await cancelInstallment(invoice.business_id, invoice.id, installmentId); await refresh(); }
+    catch (e) { financeErr(e); }
     finally { setBusy(false); }
   };
   const handleCancelInst = (installmentId: number) => {
