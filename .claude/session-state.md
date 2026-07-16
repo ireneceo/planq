@@ -17,10 +17,17 @@
 ### 결론 (밤샘 루프 종료)
 백로그 전수 검증 완료 — 기능 고장(Q Mail AI·voice·캘린더배너)은 전부 수정·커밋. **#162·#152·#166·모바일②·#163·MyFeedback 은 이미 완료였음**(백로그 close 누락). 남은 미완 ⑤·⑥ 은 **Irene 설계결정 필요**라 자율 미착수.
 
+### 배포 완료 (2026-07-16 밤, Irene /검증+/배포 승인)
+- Q Mail AI(9a293e3)·voice(79db3e4)·캘린더배너 **운영 반영 완료** — 3점 실측(health200·PM2 fresh·코드착지). 첫 시도 부분배포(exit143 빌드 killed)→`--skip-build` 재실행 완주.
+
+### ⑤ 캔버스 AI 초안 생성 — 완성 (dev, Irene 승인 "신규 개발")
+- backend `3c14911`: 마이그레이션(projects.strategy_sources JSON·project_workstreams.source ENUM) + services/canvasDraft.js + POST /:id/canvas/ai-draft(cost guard+plan.can+비파괴 병합+source='ai') + PATCH strategy source flip. 실HTTP+LLM 6/6.
+- frontend `84f4f04`: AI 초안 버튼(Coral) + AutoGenBadge 3상태 + WorkstreamBoard 배지. tsc/vite EXIT0.
+- **⑤ 운영 배포는 Fable 게이트 대상**(신규 시스템+DB 마이그레이션+LLM) — Irene /배포 + Fable 검증 필요. 아직 dev만.
+
 ### 다음 — Irene 결정/액션 대기
-- ⑤ 자동/수동 인지: 캔버스는 AI생성 경로 자체가 없음(전제 불성립) · Cue provenance는 의도된 설계. **즉시 가능 슬라이스(C): 자동생성 보고서 배지** 승인 시 구현. 상세 `docs/qa/BACKLOG_REMAINING_DECISIONS_2026-07-16.md`
-- ⑥ 멀티탭: 착수 전 **UI 와이어 승인** 필요(게이트)
-- 운영 배포: Irene `/배포` 대기 (9a293e3·79db3e4·캘린더배너 = dev만)
+- ⑥ 멀티탭: **와이어 3안(A 최상단 / B 본문컬럼상단 / C 헤더통합) 제시 완료 → Irene 픽 대기.** 추천 B. 픽하면 구현.
+- ⑤ 운영 배포: Fable 게이트 후 /배포
 - ⑦ 인프라(Stripe secret·DKIM·OAuth 검증) = Irene 액션
 
 ---
