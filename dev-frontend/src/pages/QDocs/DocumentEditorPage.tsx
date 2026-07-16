@@ -137,7 +137,7 @@ const DocumentEditorPage: React.FC = () => {
             <SideTitle>{t('editor.meta', '메타')}</SideTitle>
             <Row><Label>{t('editor.kind', '유형')}</Label><Value>{kindLabel}</Value></Row>
             <Row><Label>{t('editor.status', '상태')}</Label><Value>{doc.status}</Value></Row>
-            {/* ⑤B — Cue 대화형 실행으로 추가된 문서: "Cue로 추가됨" 정보성 배지(표시 전용) */}
+            {/* ⑤B — Cue 대화형 실행으로 추가된 문서: Cue 유래 정보성 배지(표시 전용) */}
             {doc.created_via === 'cue' && (
               <Row><Label>{t('editor.origin')}</Label><Value><ProvenanceBadge label={tc('provenance.cue') as string} /></Value></Row>
             )}
