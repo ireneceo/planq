@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import PageShell from '../../components/Layout/PageShell';
+import CalendarSyncNotice from '../../components/Calendar/CalendarSyncNotice';
 import MonthView from './MonthView';
 import AgendaView from './AgendaView';
 import TimeGridView from './TimeGridView';
@@ -487,6 +488,7 @@ const QCalendarPage: React.FC = () => {
 
   return (
     <PageShell title={t('title')} actions={headerActions}>
+      <CalendarSyncNotice connected={gcalConnected || personalConnected} />
       <Toolbar>
         <ToolbarLeft>
           <TodayBtn onClick={goToday}>{t('today')}</TodayBtn>
