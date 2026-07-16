@@ -685,11 +685,11 @@ const IconLogout = () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentCo
 const IconHamburger = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>);
 const IconClose = () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg>);
 
-interface MainLayoutProps { children: React.ReactNode; }
+interface MainLayoutProps { children: React.ReactNode; tabMode?: boolean; }
 
 type SecondarySection = 'reports' | 'settings' | 'account' | null;
 
-const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
+const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp }) => {
   useAppShellLock();  // 모바일 뷰포트 고정 락 — 앱 셸에서만 (공개 페이지는 body 스크롤)
   const { t } = useTranslation('layout');
   const { user, logout, hasRole } = useAuth();
@@ -814,8 +814,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     null;
 
   const sidebarW = isCollapsed ? SIDEBAR_W_COLLAPSED : SIDEBAR_W_OPEN;
-  // ⑥ 멀티탭 — beta 플래그(데스크탑) 시 최상단 탭 스트립 + 사이드바/2뎁스 offset. 세션 1회 확정.
-  const [tabMode] = useState(isTabsBeta);
+  // ⑥ 멀티탭 — tabMode prop(트리 스왑 TabAppShell) 우선, 없으면 beta 플래그(미러 모드 strip). 세션 1회 확정.
+  const [tabModeLocal] = useState(isTabsBeta);
+  const tabMode = tabModeProp ?? tabModeLocal;
 
   // Secondary 접힘 — 아이콘 strip 모드 (완전 숨김 아님). localStorage 유지.
   const [secondaryCollapsed, setSecondaryCollapsed] = useState<boolean>(() => {
@@ -1744,15 +1745,21 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <PushPromptBanner />
           </PushPromptWrap>
         )}
-        <PageScroll>
-          {/* 페이지 청크 로딩은 **본문 안에서만** 일어난다.
-              여태 Suspense 가 라우트 전체를 감싸고 있어서, 페이지가 로드되는 동안 사이드바·헤더까지
-              통째로 사라지고 하얀 화면에 스피너만 남았다 (Irene: "느리더라도 고정 레이아웃은 그대로
-              보여야 답답함이 덜하다"). 여기 경계를 두면 껍데기는 그대로 있고 본문만 스켈레톤이 된다. */}
-          <MobileContentPadding>
-            <Suspense fallback={<ContentSkeleton />}>{children}</Suspense>
-          </MobileContentPadding>
-        </PageScroll>
+        {/* ⑥ 멀티탭 tabMode — children = TabPanes(각자 PaneScroll 소유). PageScroll 로 감싸면 이중 스크롤 +
+            탭 간 스크롤 오염(Fable §D). 그래서 tabMode 는 직결. 단일탭(shell)은 기존 PageScroll 유지. */}
+        {tabMode ? (
+          children
+        ) : (
+          <PageScroll>
+            {/* 페이지 청크 로딩은 **본문 안에서만** 일어난다.
+                여태 Suspense 가 라우트 전체를 감싸고 있어서, 페이지가 로드되는 동안 사이드바·헤더까지
+                통째로 사라지고 하얀 화면에 스피너만 남았다 (Irene: "느리더라도 고정 레이아웃은 그대로
+                보여야 답답함이 덜하다"). 여기 경계를 두면 껍데기는 그대로 있고 본문만 스켈레톤이 된다. */}
+            <MobileContentPadding>
+              <Suspense fallback={<ContentSkeleton />}>{children}</Suspense>
+            </MobileContentPadding>
+          </PageScroll>
+        )}
       </MainContent>
       {!isNativeApp() && <InstallPromptBanner />}
       {user?.business_id && (
