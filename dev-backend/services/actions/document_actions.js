@@ -141,6 +141,7 @@ async function createDocument(actor, params = {}) {
     body_json: bodyJson,
     body_html: bodyJson ? null : initialBodyHtml,
     created_by: subjectId,
+    created_via: params.createdVia || null,   // provenance 표시 전용(예: 'cue')
   });
 
   if (templateId) {

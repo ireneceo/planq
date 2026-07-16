@@ -816,5 +816,8 @@
     "lastUsed": "최근 사용",
     "neverUsed": "미사용",
     "revoke": "회수"
+  },
+  "provenance": {
+    "cue": "Cue로 추가됨"
   }
 }

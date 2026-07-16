@@ -284,6 +284,7 @@ async function createTask(actor, params = {}, opts = {}) {
       progress_percent: params.progressPercent || undefined,
       created_by: subjectId,
       source: isInternalRequest ? 'internal_request' : (params.source || 'manual'),
+      created_via: params.createdVia || null,   // provenance 표시 전용(예: 'cue'). source·권한 무관.
       request_by_user_id: isInternalRequest ? subjectId : null,
       cue_kind: params.cueKind || null,
       cue_context_ref: params.cueContextRef || null,

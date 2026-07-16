@@ -82,6 +82,8 @@ CalendarEvent.init({
   shared_at: { type: DataTypes.DATE, allowNull: true },
   share_password_hash: { type: DataTypes.STRING(255), allowNull: true },
   share_expires_at: { type: DataTypes.DATE, allowNull: true },
+  // provenance(정보성 표시 전용) — 'cue'=Cue 대화형 실행. 권한/전이 로직 무접촉 display-only.
+  created_via: { type: DataTypes.STRING(20), allowNull: true, defaultValue: null },
 }, {
   sequelize,
   tableName: 'calendar_events',

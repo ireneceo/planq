@@ -143,6 +143,7 @@ async function createEvent(actor, params = {}) {
       target_member_ids: Array.isArray(params.targetMemberIds) ? params.targetMemberIds.map(Number).filter(Boolean) : null,
       target_client_ids: Array.isArray(params.targetClientIds) ? params.targetClientIds.map(Number).filter(Boolean) : null,
       created_by: subjectId,
+      created_via: params.createdVia || null,   // provenance 표시 전용(예: 'cue')
     }, { transaction: t });
 
     // attendees — user_id 는 business 멤버, client_id 는 business 고객이어야 함
