@@ -40,12 +40,17 @@ async function run() {
     page.on('pageerror', (e) => pageerrors.push(e.message.slice(0, 160)));
     await page.setCookie({ name: 'refresh_token', value: refresh, domain: new URL(FRONT).hostname, path: '/', httpOnly: true, secure: FRONT.startsWith('https') });
 
-    // 1) shell 경로 무회귀 (spike off) — /login·앱경로 렌더 + 크래시 0
+    // 1) opt-out/롤백 무회귀 — 플래그를 명시 off('0') 하면 기존 shell(BrowserRouter, 탭바 없음) 로 렌더.
+    //    기본값이 전역 on 이 됐으므로, 이 검사는 opt-out·롤백 경로가 무회귀임을 보장한다.
     await page.goto(`${FRONT}/login`, { waitUntil: 'networkidle2', timeout: 30000 });
-    await new Promise((r) => setTimeout(r, 1200));
+    await page.evaluate(() => { localStorage.setItem('planq_tabs_spike', '0'); localStorage.setItem('planq_tabs_beta', '0'); });
+    await page.goto(`${FRONT}/tasks`, { waitUntil: 'networkidle2', timeout: 30000 });
+    await new Promise((r) => setTimeout(r, 1500));
     const shellBody = await page.evaluate(() => document.body.innerText.slice(0, 200));
-    const shellOk = (await page.evaluate(() => { const el = document.querySelector('#root'); return !!el && el.children.length > 0; })) && !CRASH_RE.test(shellBody);
-    results.push({ name: 'tabs:shell(flag off 무회귀)', fail: shellOk ? 0 : 1, fatal: 0, details: shellOk ? [] : ['shell 렌더/크래시: ' + shellBody.slice(0, 80)] });
+    const shellRendered = await page.evaluate(() => { const el = document.querySelector('#root'); return !!el && el.children.length > 0 && document.body.innerText.length > 20; });
+    const noStripOff = await page.evaluate(() => !document.querySelector('[data-testid="tabstrip"]'));
+    const shellOk = shellRendered && noStripOff && !CRASH_RE.test(shellBody);
+    results.push({ name: 'tabs:opt-out 무회귀(off=기존 shell·탭바 없음)', fail: shellOk ? 0 : 1, fatal: 0, details: shellOk ? [] : [`rendered=${shellRendered} noStrip=${noStripOff} ` + shellBody.slice(0, 70)] });
 
     // 2) tree-swap 부팅 (spike on) — 형제 MemoryRouter 무크래시 + 탭 스트립 렌더
     await page.goto(`${FRONT}/tasks`, { waitUntil: 'domcontentloaded', timeout: 30000 });
