@@ -8,7 +8,7 @@
 // 클릭 → /business/settings/plan (결제 페이지)
 
 import { useEffect, useState, useCallback } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useChromeLocation, useChromeNav } from '../../hooks/useChromeNav';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
-import { useNavigate } from 'react-router-dom';
+import { useChromeNav } from '../../hooks/useChromeNav';
 import { useTranslation } from 'react-i18next';
 import {
   cityFromTz,

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useChromeLocation, useChromeNav } from '../../hooks/useChromeNav';
 import { useAuth, apiFetch, type WorkspaceMembership } from '../../contexts/AuthContext';
 import { useUnreadByBusiness } from '../../hooks/useUnreadTotal';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';

@@ -3,7 +3,8 @@
 import React, { useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate } from 'react-router-dom';
+import { useChromeNav } from '../../hooks/useChromeNav';
+import ChromeLink from '../Tab/ChromeLink';
 import { useNotifications, type NotificationItem } from '../../hooks/useNotifications';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { resolveNotificationLink } from '../../utils/notificationLink';
