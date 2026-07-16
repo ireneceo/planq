@@ -1952,6 +1952,8 @@ const Drawer = styled.aside<{ $w: number }>`
   @media (prefers-reduced-motion: reduce){animation:none;}
   /* RightDock FAB(120) 위로 z-index 130. 모바일 고정 헤더(99) 밑에서 시작 + safe-area 보정 → 닫기 버튼 안 가림(#171/172). */
   @media (max-width: 1024px){ top:calc(56px + env(safe-area-inset-top)); height:calc(var(--vvh, 100dvh) - 56px - env(safe-area-inset-top)); }
+  /* ≤640 폰 — 풀스크린(여태 min(w,100vw-56)이라 56px 조각으로 뒤 화면이 비쳤다). 좌측 border·그림자 제거. */
+  @media (max-width: 640px){ width:100vw; border-left:none; box-shadow:none; }
 `;
 const ResizeHandle = styled.div`
   position:absolute;top:0;left:-4px;width:8px;height:100%;cursor:col-resize;z-index:45;

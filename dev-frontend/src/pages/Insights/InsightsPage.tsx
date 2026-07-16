@@ -22,14 +22,6 @@ import WeeklyTrendTab from './tabs/WeeklyTrendTab';
 type TabKey = 'overview' | 'tasks' | 'weekly' | 'profit' | 'team' | 'finance' | 'reports';
 const ALL_TABS: TabKey[] = ['overview', 'tasks', 'weekly', 'profit', 'team', 'finance', 'reports'];
 
-const RANGE_OPTIONS: PlanQSelectOption[] = [
-  { value: '7d',         label: 'Last 7 days' },
-  { value: '30d',        label: 'Last 30 days' },
-  { value: '90d',        label: 'Last 90 days' },
-  { value: 'month',      label: 'This month' },
-  { value: 'prev-month', label: 'Last month' },
-  { value: 'quarter',    label: 'This quarter' },
-];
 
 const InsightsPage: React.FC = () => {
   const { t } = useTranslation('insights');
@@ -56,6 +48,16 @@ const InsightsPage: React.FC = () => {
       navigate('/stats/overview', { replace: true });
     }
   }, [tabParam, navigate]);
+
+  // 기간 라벨 — 하드코딩 영어('Last 30 days') 제거, ko/en locale(range.*) 정합. t() 폴백 인라인.
+  const RANGE_OPTIONS: PlanQSelectOption[] = [
+    { value: '7d',         label: t('range.7d', { defaultValue: '최근 7일' }) as string },
+    { value: '30d',        label: t('range.30d', { defaultValue: '최근 30일' }) as string },
+    { value: '90d',        label: t('range.90d', { defaultValue: '최근 90일' }) as string },
+    { value: 'month',      label: t('range.month', { defaultValue: '이번 달' }) as string },
+    { value: 'prev-month', label: t('range.prev-month', { defaultValue: '지난 달' }) as string },
+    { value: 'quarter',    label: t('range.quarter', { defaultValue: '이번 분기' }) as string },
+  ];
 
   const setRange = (r: string) => {
     const next = new URLSearchParams(params);

@@ -1,5 +1,13 @@
 {
   "title": "통계 · Insights",
+  "range": {
+    "7d": "최근 7일",
+    "30d": "최근 30일",
+    "90d": "최근 90일",
+    "month": "이번 달",
+    "prev-month": "지난 달",
+    "quarter": "이번 분기"
+  },
   "tabs": {
     "tasks": "업무·시간",
     "overview": "개요",

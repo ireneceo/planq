@@ -108,6 +108,32 @@ async function assertKeyboardSafe(page, elHandle) {
   return { fails, info: r };
 }
 
+// ── 흰 화면(blank 렌더) 판정 ──
+//   #173/174/159/178(모바일 Q Mail 전체 흰 화면) 계열 회귀 차단. 키보드 스위트는 "입력 가림"만 봐서
+//   페이지가 통째로 안 그려져도(입력 0개) ⚪(정상)로 통과했다 — blank 화면이 새어나간 구멍.
+//   뷰포트 중앙/좌·우 세로선을 elementFromPoint 로 샘플링해 "실제 콘텐츠 픽셀(텍스트/미디어)"이 그려졌는지 센다.
+//   컨테이너(html/body/#root)만 잡히면 = 배경만 그려진 흰 화면. 정상 페이지는 수십 painted, blank 는 0~1.
+async function assertRendered(page) {
+  return page.evaluate(() => {
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const CONTAINER = ['HTML', 'BODY'];
+    const MEDIA = ['SVG', 'IMG', 'PATH', 'INPUT', 'BUTTON', 'CANVAS', 'TEXTAREA', 'SELECT'];
+    let painted = 0, samples = 0;
+    for (let y = 70; y < vh - 16; y += 22) {
+      for (const fx of [0.5, 0.28, 0.72]) {
+        samples++;
+        const el = document.elementFromPoint(Math.round(vw * fx), y);
+        if (!el) continue;
+        const isContainer = CONTAINER.includes(el.tagName) || el.id === 'root';
+        if (isContainer) continue;
+        const hasText = (el.textContent || '').trim().length > 0;
+        if (hasText || MEDIA.includes(el.tagName)) painted++;
+      }
+    }
+    return { painted, samples, vw, vh };
+  });
+}
+
 // 입력요소가 실제 렌더될 때까지 대기 (SPA 지연 렌더 플레이크 방지). 없어도 조용히 통과(입력 없는 화면 정상).
 async function waitForInputs(page, timeout = 3000) {
   try {
@@ -148,4 +174,4 @@ async function visibleInputs(page) {
   return out;
 }
 
-module.exports = { launch, login, goto, gotoSPA, sleep, assertKeyboardSafe, visibleInputs, waitForInputs, BASE, CREDS, MOBILE_VP };
+module.exports = { launch, login, goto, gotoSPA, sleep, assertKeyboardSafe, assertRendered, visibleInputs, waitForInputs, BASE, CREDS, MOBILE_VP };

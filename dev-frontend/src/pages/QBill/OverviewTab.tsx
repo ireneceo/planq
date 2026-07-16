@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { mediaPhone } from '../../theme/breakpoints';
 import {
   listInvoices, formatMoney, updateInvoiceStatus, markInstallmentPaid,
   type ApiInvoice, type ApiInstallment,
@@ -595,10 +596,13 @@ const ReviewBtn = styled.button`
 `;
 const KpiGrid = styled.div`
   display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;
+  /* 모바일 — 세로 적층(1열)로 스크롤 길어지는 것 방지. 2열 그리드로 한눈에(#169). */
+  ${mediaPhone} { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 `;
 const KpiCard = styled.div<{ $accent: string }>`
   position: relative; background: #fff; border: 1px solid #E2E8F0; border-radius: 12px;
   padding: 16px 18px; overflow: hidden;
+  ${mediaPhone} { padding: 12px 12px; border-radius: 10px; }
   &::before {
     content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
     background: ${p => p.$accent}; opacity: 0.6;
@@ -606,16 +610,20 @@ const KpiCard = styled.div<{ $accent: string }>`
 `;
 const KpiHead = styled.div`
   display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 10px;
+  /* 2열 좁은 폭에선 라벨 옆 도움말이 안 들어감 → 세로 스택(라벨 위 · 도움말 아래). */
+  ${mediaPhone} { flex-direction: column; gap: 2px; margin-bottom: 6px; }
 `;
 const KpiLabel = styled.div`
   font-size: 12px; font-weight: 600; color: #475569; text-transform: uppercase; letter-spacing: 0.4px;
 `;
 const KpiHelp = styled.div`
   font-size: 11px; color: #94A3B8; text-align: right;
+  ${mediaPhone} { text-align: left; }
 `;
 const KpiValue = styled.div`
   font-size: 26px; font-weight: 700; color: #0F172A; letter-spacing: -0.5px;
   display: flex; align-items: baseline; gap: 4px;
+  ${mediaPhone} { font-size: 21px; }
 `;
 const KpiUnit = styled.span`
   font-size: 14px; font-weight: 600; color: #64748B;
