@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import MainLayout from '../Layout/MainLayout';
 import TabPane from './TabPane';
 import PopstateBridge from './PopstateBridge';
+import ChromeOverlays from './ChromeOverlays';
 import { useTabs, useActiveTab } from '../../hooks/useTabStore';
 
 export default function TabAppShell() {
@@ -25,6 +26,7 @@ export default function TabAppShell() {
         <TabPane key={t.id} tab={t} active={active?.id === t.id} />
       ))}
       <PopstateBridge />
+      <ChromeOverlays />
     </MainLayout>
   );
 }
