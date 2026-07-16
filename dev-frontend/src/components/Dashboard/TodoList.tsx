@@ -237,7 +237,7 @@ const TodoList: React.FC<Props> = ({ items, loading, groupBy = 'priority', hideH
                       {groupBy === 'category' && (
                         <PriorityChip $priority={it.priority}>{t(`todo.priority.${it.priority}`)}</PriorityChip>
                       )}
-                      <Verb>{t(`todo.verb.${it.verb}`)}</Verb>
+                      <Verb>{t(`todo.verb.${it.verb}`, { defaultValue: it.verb })}</Verb>
                       <Subject>{it.subject}</Subject>
                     </CardLine1>
                     <CardLine2>

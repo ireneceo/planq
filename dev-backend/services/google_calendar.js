@@ -198,6 +198,42 @@ async function createMeetingEvent(cal, { summary, description, startAt, endAt, a
 }
 
 /**
+ * 일반 일정 생성 (Meet 없이) — PlanQ 일반 일정을 Google Calendar 로 push.
+ *   Meet 이벤트는 createMeetingEvent 가 담당. 여기선 conferenceData 없이 순수 이벤트만 insert.
+ *   allDay 지원(date vs dateTime). planq='1' 표식으로 개인 오버레이 되돌이 중복 차단.
+ * @returns {object} { id, htmlLink }
+ */
+async function insertEvent(cal, { summary, description, location, startAt, endAt, allDay, timezone, rrule, attendeeEmails }) {
+  const tz = timezone || 'Asia/Seoul';
+  let recurrence;
+  if (rrule && typeof rrule === 'string' && rrule.trim()) {
+    recurrence = [rrule.trim().startsWith('RRULE:') ? rrule.trim() : `RRULE:${rrule.trim()}`];
+  }
+  const start = allDay
+    ? { date: new Date(startAt).toISOString().slice(0, 10) }
+    : { dateTime: new Date(startAt).toISOString(), timeZone: tz };
+  const end = allDay
+    ? { date: new Date(endAt).toISOString().slice(0, 10) }
+    : { dateTime: new Date(endAt).toISOString(), timeZone: tz };
+  const res = await cal.events.insert({
+    calendarId: 'primary',
+    sendUpdates: 'none',
+    requestBody: {
+      summary: summary || 'PlanQ 일정',
+      description: description || null,
+      location: location || null,
+      start, end,
+      ...(recurrence ? { recurrence } : {}),
+      extendedProperties: { private: { planq: '1' } },
+      attendees: Array.isArray(attendeeEmails)
+        ? attendeeEmails.filter((e) => e && /@/.test(e)).map((email) => ({ email }))
+        : undefined,
+    },
+  });
+  return { id: res.data.id, htmlLink: res.data.htmlLink || null };
+}
+
+/**
  * 이벤트 업데이트 (PlanQ event 가 수정될 때 동기화)
  */
 async function updateEvent(cal, gcalEventId, { summary, description, startAt, endAt, timezone }) {
@@ -237,6 +273,7 @@ module.exports = {
   getCalendarClient,
   getTokenForBusiness,
   createMeetingEvent,
+  insertEvent,
   updateEvent,
   deleteEvent,
 };
