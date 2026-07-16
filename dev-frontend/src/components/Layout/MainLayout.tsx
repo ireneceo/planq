@@ -1,6 +1,9 @@
 import React, { Suspense, useState, useEffect, useRef } from 'react';
 import styled, { css } from 'styled-components';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+// ⑥ 멀티탭 chrome RR 탈피 — MainLayout 은 router-less zone 후보라 react-router 훅/Link 미사용.
+//   TabStore 소비로 전환(미러 모드에서 단일탭 동작 동일). Link → ChromeLink, useLocation/Navigate → chromeNav.
+import ChromeLink from '../Tab/ChromeLink';
+import { useChromeLocation, useChromeNav } from '../../hooks/useChromeNav';
 import { useTranslation } from 'react-i18next';
 import { displayName } from '../../utils/displayName';
 import { useAuth } from '../../contexts/AuthContext';
@@ -241,7 +244,7 @@ const NavTitle = styled.div<{ $isCollapsed?: boolean }>`
   `}
 `;
 
-const NavItem = styled(Link)<{ $active?: boolean; $isCollapsed?: boolean }>`
+const NavItem = styled(ChromeLink)<{ $active?: boolean; $isCollapsed?: boolean }>`
   position: relative;
   display: flex; align-items: center;
   padding: ${props => props.$isCollapsed ? '6px 0' : '4px 16px'};
@@ -337,7 +340,7 @@ const SecondaryGroupLabel = styled.div`
 `;
 
 
-const SecondaryNavItem = styled(Link)<{ $active?: boolean; $collapsed?: boolean }>`
+const SecondaryNavItem = styled(ChromeLink)<{ $active?: boolean; $collapsed?: boolean }>`
   display: flex; align-items: center; gap: 10px;
   padding: 9px 20px;
   color: #334155; text-decoration: none;
@@ -513,7 +516,7 @@ const UserMenuItemBase = css<{ $danger?: boolean }>`
   }
   &:focus-visible { outline: 2px solid rgba(94, 234, 212, 0.5); outline-offset: -2px; }
 `;
-const UserMenuItemLink = styled(Link)<{ $danger?: boolean }>`${UserMenuItemBase}`;
+const UserMenuItemLink = styled(ChromeLink)<{ $danger?: boolean }>`${UserMenuItemBase}`;
 const UserMenuItemBtn = styled.button<{ $danger?: boolean }>`${UserMenuItemBase}`;
 
 const MainContent = styled.div<{ $marginLeft: number }>`
@@ -601,7 +604,7 @@ const AccordionWrap = styled.div`
   ${mediaTablet} { display: block; }
 `;
 
-const AccordionItem = styled(Link)<{ $active?: boolean }>`
+const AccordionItem = styled(ChromeLink)<{ $active?: boolean }>`
   display: flex; align-items: center; gap: 10px;
   padding: 10px 16px 10px 48px;
   color: #CCFBF1; text-decoration: none;
@@ -689,8 +692,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const { t } = useTranslation('layout');
   const { user, logout, hasRole } = useAuth();
   const userDisplayName = displayName(user, i18n.language);
-  const location = useLocation();
-  const navigate = useNavigate();
+  const location = useChromeLocation();
+  const navigate = useChromeNav();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(() => readLS(LS_COLLAPSED, false));
   const [searchOpen, setSearchOpen] = useState(false);
