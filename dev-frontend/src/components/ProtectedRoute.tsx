@@ -88,6 +88,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole 
   }
 
   if (!isAuthenticated) {
+    // ⑥ 멀티탭 — 트리 스왑 부팅 시 딥링크 복원(router state 는 트리 스왑에서 유실되므로 sessionStorage 로)
+    try { sessionStorage.setItem('planq_boot_deeplink', location.pathname + (location.search || '')); } catch { /* noop */ }
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 

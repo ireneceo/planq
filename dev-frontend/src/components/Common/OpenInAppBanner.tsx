@@ -11,7 +11,7 @@
 // 1차 한계: 진짜 자동 redirect 는 manifest.json protocol_handlers + iOS .well-known 인프라 필요 (Phase 별도)
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { useLocation } from 'react-router-dom';
+import { useChromeLocation } from '../../hooks/useChromeNav';
 import { useTranslation } from 'react-i18next';
 import { usePwaInstall } from '../../contexts/PwaInstallContext';
 
@@ -28,7 +28,7 @@ function isDismissed(): boolean {
 
 const OpenInAppBanner: React.FC = () => {
   const { t } = useTranslation('common');
-  const location = useLocation();
+  const location = useChromeLocation();
   const pwa = usePwaInstall();
   const [dismissed, setDismissed] = useState(false);
 

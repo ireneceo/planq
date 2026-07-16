@@ -4,7 +4,7 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { Link, useLocation } from 'react-router-dom';
+import { useChromeLocation } from '../../hooks/useChromeNav';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 
 // 랜딩 페이지 경로 — 이 경로들에서는 약관 모달 표시 안 함
@@ -13,7 +13,7 @@ const LANDING_PATHS = ['/', '/features', '/pricing', '/about', '/contact', '/ins
 const TermsReacceptModal: React.FC = () => {
   const { t } = useTranslation('auth');
   const { user, refreshUser } = useAuth();
-  const location = useLocation();
+  const location = useChromeLocation();
   const [termsAgree, setTermsAgree] = useState(false);
   const [privacyAgree, setPrivacyAgree] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -68,7 +68,7 @@ const TermsReacceptModal: React.FC = () => {
             <ConsentItem>
               <input type="checkbox" id="re-terms" checked={termsAgree} onChange={e => setTermsAgree(e.target.checked)} />
               <label htmlFor="re-terms">
-                <Link to="/legal/terms" target="_blank" rel="noopener">{t('terms.termsLink', '이용약관')}</Link>
+                <a href="/legal/terms" target="_blank" rel="noopener">{t('terms.termsLink', '이용약관')}</a>
                 {t('terms.versionLabel', ' (v{{v}})', { v: user.platform.current_terms_version }) as string}
                 {t('terms.agreeRequired', ' 에 동의합니다 (필수)')}
               </label>
@@ -78,7 +78,7 @@ const TermsReacceptModal: React.FC = () => {
             <ConsentItem>
               <input type="checkbox" id="re-privacy" checked={privacyAgree} onChange={e => setPrivacyAgree(e.target.checked)} />
               <label htmlFor="re-privacy">
-                <Link to="/legal/privacy" target="_blank" rel="noopener">{t('terms.privacyLink', '개인정보 처리방침')}</Link>
+                <a href="/legal/privacy" target="_blank" rel="noopener">{t('terms.privacyLink', '개인정보 처리방침')}</a>
                 {t('terms.versionLabel', ' (v{{v}})', { v: user.platform.current_privacy_version }) as string}
                 {t('terms.agreeRequired', ' 에 동의합니다 (필수)')}
               </label>

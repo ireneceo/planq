@@ -3,7 +3,7 @@
 //
 // 2026-05-05 도입.
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useChromeNav } from '../../hooks/useChromeNav';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 
@@ -32,7 +32,7 @@ const CODE_TO_KEY: Record<string, { titleKey: string; descKey: string; addonHint
 
 const LimitReachedDialog: React.FC = () => {
   const { t } = useTranslation('common');
-  const navigate = useNavigate();
+  const navigate = useChromeNav();
   const [detail, setDetail] = useState<LimitDetail | null>(null);
 
   useEffect(() => {
