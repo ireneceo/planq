@@ -51,6 +51,8 @@ Document.init({
   ai_generated: { type: DataTypes.BOOLEAN, defaultValue: false },
   ai_model: { type: DataTypes.STRING(50), allowNull: true },
   ai_prompt: { type: DataTypes.TEXT, allowNull: true },
+  // provenance(정보성 표시 전용) — 'cue'=Cue 대화형 실행. 권한/전이 로직 무접촉 display-only.
+  created_via: { type: DataTypes.STRING(20), allowNull: true, defaultValue: null },
   // D4 #62 — 보안등급 (general/internal/confidential). general 외 외부공유(share_token) 차단.
   //   계약·NDA·제안서 등 민감 문서 외부 반출 게이트. 변경 = member 이상. 상향 시 share_token 무효화.
   security_level: {

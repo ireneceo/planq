@@ -43,6 +43,13 @@ export function AutoGenBadge({ label }: { label: string }) {
   return <GenBadge>✨ {label}</GenBadge>;
 }
 
+// provenance(생성 경로) 배지 — "Cue로 추가됨" 등. ✨(AI 생성) 시맨틱과 구분:
+//   Cue 생성물은 사람이 확인 카드를 눌러 만든 것(actor=사용자)이라 AI 생성 배지와 혼용 금지.
+//   중립 회색 톤 · 아이콘 없이 텍스트만.
+export function ProvenanceBadge({ label }: { label: string }) {
+  return <ProvBadge>{label}</ProvBadge>;
+}
+
 const HintWrap = styled.span`position:relative;display:inline-flex;align-items:center;`;
 const HintBtn = styled.button`
   display:inline-flex;align-items:center;justify-content:center;
@@ -62,6 +69,12 @@ const Tip = styled.span<{ $placement: 'top' | 'bottom' }>`
 const GenBadge = styled.span`
   display:inline-flex;align-items:center;gap:3px;
   font-size:10px;font-weight:700;color:#0F766E;background:#F0FDFA;
+  border-radius:999px;padding:2px 8px;white-space:nowrap;
+`;
+// 중립 회색 provenance 배지 (AI 생성 배지와 색으로 구분)
+const ProvBadge = styled.span`
+  display:inline-flex;align-items:center;
+  font-size:10px;font-weight:600;color:#64748B;background:#F1F5F9;
   border-radius:999px;padding:2px 8px;white-space:nowrap;
 `;
 

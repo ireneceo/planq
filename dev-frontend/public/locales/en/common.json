@@ -816,5 +816,8 @@
     "lastUsed": "Last used",
     "neverUsed": "Never used",
     "revoke": "Revoke"
+  },
+  "provenance": {
+    "cue": "Added via Cue"
   }
 }

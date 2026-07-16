@@ -101,7 +101,7 @@ interface TaskDetail {
   // 시스템 자동 vs 사용자 입력 시그널 — 'ai'/'auto' 면 회색 italic, 'user' 면 검정 (사이클 N+6)
   latest_estimation_source?: 'ai' | 'user' | null;
   actual_source?: 'auto' | 'user' | null;
-  source?: string; request_by_user_id?: number | null; request_ack_at?: string | null;
+  source?: string; created_via?: string | null; request_by_user_id?: number | null; request_ack_at?: string | null;
   created_at?: string | null;
   review_round?: number | null; review_policy?: 'all'|'any';
   assignee_id: number | null; created_by: number; project_id: number | null;

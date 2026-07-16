@@ -314,6 +314,7 @@ async function executeTool(actor, businessId, tool, rawParams) {
       dueDate: p.due_date,
       projectId: p.project_id,
       source: 'manual',
+      createdVia: 'cue',                    // provenance(표시 전용) — source·권한 무관, "Cue로 추가됨" 배지용
     }, { autoAiEstimate: false });          // Cue 채팅 생성은 백그라운드 AI 추정 안 붙임
     entityType = 'task';
   } else if (tool === 'create_event') {
@@ -321,12 +322,14 @@ async function executeTool(actor, businessId, tool, rawParams) {
       businessId, title: p.title,
       startAt: p.start_at, endAt: p.end_at,
       description: p.description, location: p.location,
+      createdVia: 'cue',
     });
     entityType = 'event';
   } else if (tool === 'create_document_draft') {
     r = await createDocument(actor, {
       businessId, kind: p.kind, title: p.title,
       clientId: p.client_id, projectId: p.project_id,
+      createdVia: 'cue',
     });
     entityType = 'document';
   } else {

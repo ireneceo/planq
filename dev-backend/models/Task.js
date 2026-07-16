@@ -118,6 +118,14 @@ Task.init({
     type: DataTypes.ENUM('manual', 'internal_request', 'qtalk_extract'),
     defaultValue: 'manual',
   },
+  // provenance(정보성 표시 전용) — 어떤 경로로 생성됐는지. 'cue'=Cue 대화형 실행(확인 카드 클릭).
+  //   source(워크플로우 필드)와 분리: source 는 담당자 배정에 따라 override 되므로 provenance 로 못 씀.
+  //   권한/재무/전이 로직에 절대 물리지 않는 display-only 컬럼. ENUM 아님(값 확장 시 수동 ALTER 회피).
+  created_via: {
+    type: DataTypes.STRING(20),
+    allowNull: true,
+    defaultValue: null,
+  },
   request_by_user_id: {
     type: DataTypes.INTEGER,
     allowNull: true,
