@@ -9,6 +9,7 @@ import { isPopoutWindow } from './utils/popout';
 import TabMirror from './components/Tab/TabMirror';
 import TabAppShell from './components/Tab/TabAppShell';
 import { isTabsSpike } from './utils/tabsBeta';
+import { tabStore } from './stores/tabStore';
 import { isNativeApp } from './services/native';
 import NativeBridge from './components/NativeBridge';
 import { installRoutePrefetch } from './lib/routePrefetch';
@@ -578,6 +579,18 @@ function ModeGate() {
     if (mode !== 'pending' || isLoading) return;
     let ts = false;
     try { ts = isTabsSpike() && isAuthenticated && isAppInitialPath(); } catch { /* noop */ }
+    if (ts) {
+      // 트리 스왑 진입 — 미러 끄고 부팅 탭 seed(deeplink > 현재 URL > /dashboard). sessionStorage 복원분 있으면 유지.
+      try {
+        tabStore.setMirror(false);
+        if (tabStore.getSnapshot().tabs.length === 0) {
+          let boot = window.location.pathname + (window.location.search || '');
+          const dl = sessionStorage.getItem('planq_boot_deeplink');
+          if (dl) { boot = dl; sessionStorage.removeItem('planq_boot_deeplink'); }
+          tabStore.newTab(boot || '/dashboard');
+        }
+      } catch { /* noop */ }
+    }
     setMode(ts ? 'tab' : 'shell');
   }, [isLoading, isAuthenticated, mode]);
   if (mode === 'tab') return <TabAppShell />;

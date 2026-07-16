@@ -4,7 +4,7 @@
 //   - dismiss 는 sessionStorage (탭 닫으면 다시 표시 — 적극 유도)
 //   - iOS Safari (PWA 아님) — push 자체 미지원이지만 사용자 안내 + "홈 화면에 추가" 유도
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import ChromeLink from '../Tab/ChromeLink';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { usePushStatus } from '../../hooks/usePushStatus';
@@ -212,7 +212,7 @@ const CtaBtn = styled.button`
   &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { opacity: 0.6; cursor: not-allowed; }
 `;
-const SettingsLink = styled(Link)`
+const SettingsLink = styled(ChromeLink)`
   height: 32px; padding: 0 12px;
   display: inline-flex; align-items: center;
   background: transparent; color: #9A3412;
