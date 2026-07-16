@@ -54,6 +54,8 @@ contenteditable 은 캐럿 rect(`getSelection().getRangeAt(0).getClientRects()` 
 
 뷰포트: `375×667, isMobile, hasTouch, dSF 2`. 키보드 높이 근사 330px.
 
+**흰 화면(blank 렌더) 판정 — §1 축1 "pixel geometry를 아무도 안 봄" 직접 보강 (2026-07-16):** 키보드 프로토콜은 "입력이 가려지나"만 봐서, 페이지가 **통째로 안 그려져도**(입력 0개) ⚪(정상)로 통과했다 — 모바일 Q Mail 전체 흰 화면(#173/174/159/178) 유출 구멍. `lib/browser.js:assertRendered(page)` — 뷰포트 세로선(중앙·좌 0.28·우 0.72)을 `elementFromPoint`로 샘플링해 **실제 콘텐츠 픽셀(텍스트/미디어)이 그려진 수(painted)**를 센다. 컨테이너(html/body/#root)만 잡히면 배경만 그려진 흰 화면. `run.js`가 opener 열기 前 base 페이지에 대해 **painted<2 = blank = 실패 집계**(❌ · '흰화면' 표기). 입력 0개 리스트 페이지(mail-list 등)도 이 판정으로 "정상 렌더인데 입력만 없음(⚪)"과 "통째 blank(❌)"를 구분.
+
 ## 4. 크로스커팅 감사 (카나리 크롤 — 라우트를 몰라도 잡음)
 **표시명 누출:**
 1. 시드: e2e member `User.name='계정명_CANARY'`, `BusinessMember.name='표시명_OK'` (영구 시드).
