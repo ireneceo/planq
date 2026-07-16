@@ -1,8 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import type { ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
 import i18n from '../i18n';
 import { isNativeApp, nativePlatform } from '../services/native';
+
+// ⑥ 멀티탭 P1 선행(Fable BLOCKER #1) — AuthProvider 는 라우터 조상 위에 놓이므로 react-router 훅을
+//   쓰면 안 된다(트리 스왑 후 첫 렌더 크래시). 세션 종료(로그아웃·토큰만료) 이동은 window.location 로.
+//   풀 이동이 오히려 메모리 상태를 깨끗이 비워 안전. 현재 단일탭에서도 동작 동일(무회귀).
+const goLogin = () => { if (window.location.pathname !== '/login') window.location.assign('/login'); };
 
 export type UserRole = 'platform_admin' | 'business_owner' | 'business_member' | 'client';
 
@@ -279,7 +283,6 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const navigate = useNavigate();
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 유저 데이터 정규화
@@ -331,10 +334,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } else {
         setUser(null);
         setAccessToken(null);
-        navigate('/login');
+        goLogin();
       }
     }, 14 * 60 * 1000);
-  }, [navigate]);
+  }, []);
 
   // 초기 세션 확인 — refresh token cookie로 복원 시도
   useEffect(() => {
@@ -409,7 +412,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setUser(null);
           setAccessToken(null);
           if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-          navigate('/login');
+          goLogin();
         }
       }
     };
@@ -489,7 +492,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser(null);
     setAccessToken(null);
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-    navigate('/login');
+    goLogin();
   };
 
   const updateUser = (userData: Partial<User>) => {
