@@ -9,7 +9,8 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import styled, { keyframes, css } from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, Link } from 'react-router-dom';
+import { useChromeNav } from '../../hooks/useChromeNav';
+import ChromeLink from '../Tab/ChromeLink';
 import { apiFetch } from '../../contexts/AuthContext';
 import { useActivityTracker } from '../../hooks/useActivityTracker';
 
@@ -34,7 +35,7 @@ interface Props { isCollapsed?: boolean; }
 const FocusWidget: React.FC<Props> = ({ isCollapsed }) => {
   const { t } = useTranslation('focus');
   // useAuth 제거 — N+49 hotfix 로 onStart 제거 후 user 미사용
-  const navigate = useNavigate();
+  const navigate = useChromeNav();
 
   // user.focus_enabled 가 아직 응답에 없으면 server settings 한 번 fetch
   const [enabled, setEnabled] = useState<boolean | null>(null);
@@ -461,7 +462,7 @@ const ViewBtn = styled.button`
   &:hover { background: rgba(255, 255, 255, 0.12); color: #FFFFFF; }
 `;
 // N+49 hotfix — idle 상태 안내 + Q Task 진입 link (button 아닌 Link — 자연스러운 navigation)
-const GotoLink = styled(Link)`
+const GotoLink = styled(ChromeLink)`
   ${baseBtn}
   text-decoration: none;
   background: rgba(255, 255, 255, 0.1); color: #FFFFFF;

@@ -12,7 +12,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import styled from 'styled-components';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useChromeNav } from '../../hooks/useChromeNav';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
@@ -40,7 +40,7 @@ const todayDateStr = () => new Date().toISOString().slice(0, 10);
 
 const DailyStartModal: React.FC = () => {
   const { t } = useTranslation('focus');
-  const navigate = useNavigate();
+  const navigate = useChromeNav();
   const dialogRef = useRef<HTMLDivElement>(null);
 
   const [open, setOpen] = useState(false);

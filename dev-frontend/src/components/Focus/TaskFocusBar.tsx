@@ -15,7 +15,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import styled, { keyframes, css } from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import ChromeLink from '../Tab/ChromeLink';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 
 interface FocusSession {
@@ -220,7 +220,7 @@ const SvgPause = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="cur
 // SvgStop / DangerBtn 제거 — N+32 후속 (옵션 B): 종료 버튼은 task status 액션이 책임. Focus 자체 종료 X.
 
 // N+32 — 설정 페이지로 가는 inline link (focus_enabled=false 시 CTA)
-const CtaLink = styled(Link)`
+const CtaLink = styled(ChromeLink)`
   display: inline-flex; align-items: center; gap: 4px;
   padding: 8px 14px; height: 36px;
   background: #14B8A6; color: #FFFFFF;
