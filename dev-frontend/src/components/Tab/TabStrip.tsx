@@ -36,6 +36,17 @@ export default function TabStrip({ leftOffset = 0 }: { leftOffset?: number }) {
   if (tabs.length === 0) return null;
   const label = (tab: Tab) => tab.title || (t(NAV_KEY[tab.kind], { defaultValue: tab.kind }) as string);
 
+  // #5 — 그 탭에 열린 모달/드로어(aria-modal)가 있으면 탭을 닫지 않는다. 대신 그 탭을 활성화해
+  //   사용자가 열어둔 패널을 보고 직접 닫게 한다("마음대로 닫히지 않게", Irene).
+  const tryClose = (id: string, isActiveTab: boolean) => {
+    const pane = document.querySelector(`[data-pane-tab="${id}"]`);
+    if (pane && pane.querySelector('[aria-modal="true"]')) {
+      if (!isActiveTab) tabStore.setActive(id);
+      return;
+    }
+    tabStore.closeTab(id);
+  };
+
   return (
     <Strip role="tablist" aria-label={t('tabs.strip', { defaultValue: '열린 탭' }) as string} data-testid="tabstrip" style={{ left: leftOffset }}>
       <Scroll>
@@ -51,7 +62,7 @@ export default function TabStrip({ leftOffset = 0 }: { leftOffset?: number }) {
               data-testid={`tabstrip-tab-${tab.id}`}
               title={label(tab)}
               onClick={() => { if (!isActive) tabStore.setActive(tab.id); }}
-              onMouseDown={(e) => { if (e.button === 1 && tabs.length > 1) { e.preventDefault(); tabStore.closeTab(tab.id); } }}
+              onMouseDown={(e) => { if (e.button === 1 && tabs.length > 1) { e.preventDefault(); tryClose(tab.id, isActive); } }}
             >
               <TabLabel>{label(tab)}</TabLabel>
               {tab.indicator === 'recording' && <RecDot aria-label={t('tabs.recording', { defaultValue: '녹음 중' }) as string} />}
@@ -60,7 +71,7 @@ export default function TabStrip({ leftOffset = 0 }: { leftOffset?: number }) {
                   type="button"
                   aria-label={t('tabs.close', { defaultValue: '탭 닫기' }) as string}
                   data-testid={`tabstrip-close-${tab.id}`}
-                  onClick={(e) => { e.stopPropagation(); tabStore.closeTab(tab.id); }}
+                  onClick={(e) => { e.stopPropagation(); tryClose(tab.id, isActive); }}
                 ><XIcon size={12} /></Close>
               )}
             </Chip>
