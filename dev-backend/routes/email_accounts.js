@@ -188,6 +188,7 @@ router.post('/:businessId/email-accounts', authenticateToken, checkBusinessAcces
       targetType: 'EmailAccount', targetId: acc.id,
       newValue: { email, imap_host: acc.imap_host, imap_port: acc.imap_port },
     });
+    require('../services/emailImapCron').startIdleForAccount(acc).catch((e) => console.error('[idle-start]', e.message)); // 신규 계정 즉시 IMAP IDLE(실시간)
     successResponse(res, serializeAccount(acc), 'EmailAccount created', 201);
   } catch (err) { next(err); }
 });
@@ -487,6 +488,7 @@ router.get('/email-accounts/oauth/gmail/callback', async (req, res) => {
       payload.is_default = isFirstTeam;
       acc = await EmailAccount.create(payload);
     }
+    require('../services/emailImapCron').startIdleForAccount(acc).catch((e) => console.error('[idle-start-oauth]', e.message)); // OAuth 연결/재연결 → 즉시 IMAP IDLE 재시작
     return res.redirect(302, buildSuccessRedirect(parsed.returnUrl, tokens.email));
   } catch (e) {
     console.error('[gmail-oauth/callback]', e);
