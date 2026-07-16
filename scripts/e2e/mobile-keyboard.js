@@ -24,6 +24,14 @@ async function clickTestId(page, id) {
   }, id);
 }
 
+// Q Mail 작성 풀페이지 열기 — 모바일은 리스트(사이드바)가 접힘 오버레이라 먼저 펼친 뒤 [＋ 새 메일] 클릭.
+//   compose 열면 사이드바 자동 접힘(main 패널 풀폭) → 입력 온전히 노출.
+async function openMailCompose(page) {
+  await clickTestId(page, 'mail-list-expand');   // 접힘 상태에서만 렌더되는 펼치기 버튼
+  await b.sleep(450);
+  return clickTestId(page, 'mail-compose-open');
+}
+
 // 시나리오: path + (선택) open 스텝. open 후 보이는 입력요소 전부 판정.
 //   create 모달은 URL 파라미터(?create=1 · ?new=1)로 결정론적 오픈 — path 에 쿼리를 넣으면 goto 시 자동 오픈.
 const SCENARIOS = [
@@ -34,6 +42,8 @@ const SCENARIOS = [
   { name: 'tasks-week', path: '/tasks', open: null },
   { name: 'tasks-create', path: '/tasks?create=1', open: null },        // 업무 생성 모달(RightDock create 경로와 동일)
   { name: 'inbox', path: '/inbox', open: null },
+  { name: 'mail-list', path: '/mail', open: null },                     // #173/174/159/178 흰 화면 회귀 가드(blank 렌더 검사)
+  { name: 'mail-compose', path: '/mail', open: openMailCompose },       // 작성 풀페이지 입력(받는사람·제목·본문) 키보드 가림
   { name: 'calendar-add', path: '/calendar?create=1', open: null },     // 새 일정 모달(URL 자동 오픈)
   { name: 'docs', path: '/docs', open: null },
   { name: 'wiki', path: '/wiki', open: null },
@@ -46,11 +56,15 @@ async function run() {
   try {
     await b.login(page);
     for (const sc of SCENARIOS) {
-      const rec = { name: sc.name, path: sc.path, inputs: 0, pass: 0, fail: 0, fatal: 0, details: [] };
+      const rec = { name: sc.name, path: sc.path, inputs: 0, pass: 0, fail: 0, fatal: 0, blank: false, details: [] };
       try {
         await b.goto(page, sc.path);
         // 인증 리다이렉트 체크
         if (page.url().includes('/login')) { rec.details.push('로그인 리다이렉트 — 접근 불가'); results.push(rec); continue; }
+        // 흰 화면(blank) 가드 — opener(모달) 열기 전 base 페이지가 실제로 그려졌는지. painted<2면 통째로 안 그려진 것.
+        await b.sleep(300);
+        const rendered = await b.assertRendered(page);
+        if (rendered.painted < 2) { rec.blank = true; rec.details.push(`🔴 흰 화면(blank) — painted ${rendered.painted}/${rendered.samples}`); }
         if (sc.open) { const opened = await sc.open(page); await b.sleep(700); if (!opened) rec.details.push('opener 트리거 못 찾음(수동 확인 필요)'); }
         // 고정 sleep 만으로는 SPA 지연 렌더 시 입력 0개 플레이크 → 입력 출현을 명시 대기(최대 3s).
         await b.waitForInputs(page, 3000);
@@ -79,10 +93,10 @@ if (require.main === module) {
     let fail = 0, fatal = 0;
     console.log('\n=== 모바일 키보드 스위트 ===');
     for (const r of res) {
-      const status = (r.fatal > 0) ? '🔥' : (r.fail > 0 ? '❌' : (r.inputs === 0 ? '⚪' : '✅'));
-      console.log(`${status} ${r.name} (${r.path}) — 입력 ${r.inputs} · 통과 ${r.pass} · 실패 ${r.fail}${r.fatal ? ' · FATAL ' + r.fatal : ''}`);
+      const status = (r.fatal > 0) ? '🔥' : ((r.fail > 0 || r.blank) ? '❌' : (r.inputs === 0 ? '⚪' : '✅'));
+      console.log(`${status} ${r.name} (${r.path}) — 입력 ${r.inputs} · 통과 ${r.pass} · 실패 ${r.fail}${r.blank ? ' · 흰화면' : ''}${r.fatal ? ' · FATAL ' + r.fatal : ''}`);
       r.details.forEach((d) => console.log('     └ ' + d));
-      fail += r.fail; fatal += (r.fatal || 0);
+      fail += r.fail + (r.blank ? 1 : 0); fatal += (r.fatal || 0);
     }
     console.log(`\n총 실패: ${fail}${fatal ? ' · FATAL(하니스 환경): ' + fatal : ''}`);
     process.exit(fatal > 0 ? 2 : (fail > 0 ? 1 : 0));

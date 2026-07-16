@@ -18,10 +18,10 @@ function printSuite(name, results) {
   let fail = 0, fatal = 0;
   console.log(`\n=== ${name} ===`);
   for (const r of results) {
-    const bad = (r.fail || 0) + (r.leaked ? 1 : 0) + (r.overblock ? 1 : 0) + (r.error ? 1 : 0);
+    const bad = (r.fail || 0) + (r.blank ? 1 : 0) + (r.leaked ? 1 : 0) + (r.overblock ? 1 : 0) + (r.error ? 1 : 0);
     const status = (r.fatal > 0) ? '🔥' : (bad > 0 ? '❌' : (r.inputs === 0 && !r.hasCanary && r.route === undefined ? '⚪' : '✅'));
     const metric = (r.path !== undefined)
-      ? `(${r.path}) — 입력 ${r.inputs} · 통과 ${r.pass} · 실패 ${r.fail}${r.fatal ? ' · FATAL ' + r.fatal : ''}`
+      ? `(${r.path}) — 입력 ${r.inputs} · 통과 ${r.pass} · 실패 ${r.fail}${r.blank ? ' · 흰화면' : ''}${r.fatal ? ' · FATAL ' + r.fatal : ''}`
       : (r.route !== undefined ? (r.detail || (r.leaked ? '— 누출' : '')) : '');
     console.log(`${status} ${r.name || r.route} ${metric}`);
     (r.details || []).forEach((d) => console.log('     └ ' + d));

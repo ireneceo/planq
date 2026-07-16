@@ -25,6 +25,7 @@ import styled, { keyframes } from 'styled-components';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
+import { mediaPhone } from '../../theme/breakpoints';
 
 interface DetailDrawerProps {
   open: boolean;
@@ -141,6 +142,15 @@ const Panel = styled.aside<{ $width: number }>`
   box-shadow: -16px 0 40px rgba(15, 23, 42, 0.14);
   animation: ${slideInRight} 0.28s cubic-bezier(0.22, 1, 0.36, 1);
   width: min(${({ $width }) => $width}px, calc(100vw - 56px));
+  /* ≤640px — 문서화된 계약(파일 상단 §)대로 100vw 풀스크린. 여태 min(width,100vw-56)만 있어
+     폰에서도 56px 조각이 남아 뒤 화면이 비쳤다(새 일정 드로어 왼쪽 달력 노출). 풀스크린이면
+     좌측 border·그림자도 불필요, 하단 safe-area 확보. DetailDrawer 쓰는 모든 드로어에 일괄 적용. */
+  ${mediaPhone} {
+    width: 100vw;
+    border-left: none;
+    box-shadow: none;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
   @media (prefers-reduced-motion: reduce) { animation: none; }
 `;
 
