@@ -17,10 +17,18 @@ const ROUTES = [
 
 async function shoot(page, route, label, viewport) {
   await page.setViewport(viewport);
-  try {
-    await page.goto(b.BASE + route, { waitUntil: 'networkidle2', timeout: 30000 });
-  } catch { /* timeout 이어도 현재 상태 캡처 */ }
+  // 하드 goto 반복은 앱 리부트마다 refresh 토큰 rotation 이 겹쳐 세션이 죽고(/mail·/files 가 /login 으로
+  //   튕기는 오탐), /insights 등도 공개 랜딩으로 잘못 잡힌다(browser.js:39). run() 에서 1회만 full goto 로
+  //   부팅·인증하고, 이후 라우트 전환은 SPA 네비로 — 실제 인앱 상태를 아티팩트 없이 캡처.
+  await b.gotoSPA(page, route);
   await b.sleep(1200);
+  // 회복 안전망 — 헤드리스에서 rotated refresh 쿠키가 깔끔히 persist 안 되면 백그라운드 refresh 가
+  //   no_cookie 로 실패→accessToken=null→미인증→/login 바운스(특히 requiredRole 라우트). 실제 제품
+  //   버그가 아닌 하니스 쿠키 아티팩트이므로, /login 으로 튕기면 1회 full goto 로 재부팅·재인증 후 재캡처.
+  if (!route.startsWith('/login') && page.url().replace(b.BASE, '').startsWith('/login')) {
+    await page.goto(b.BASE + route, { waitUntil: 'networkidle2', timeout: 30000 }).catch(() => {});
+    await b.sleep(1200);
+  }
   const redirected = page.url().replace(b.BASE, '');
   // 품질 신호 수집
   const signal = await page.evaluate(() => {
@@ -44,6 +52,9 @@ async function run() {
   const { browser, page } = await b.launch({ mobile: false });
   try {
     await b.login(page);
+    // 최초 1회 full goto 로 앱 부팅·인증 (메모리 access 토큰 확보). 이후 shoot 은 SPA 네비만 사용.
+    await page.goto(b.BASE + '/dashboard', { waitUntil: 'networkidle2', timeout: 30000 }).catch(() => {});
+    await b.sleep(1200);
     for (const route of ROUTES) {
       const m = await shoot(page, route, 'mobile', { width: 375, height: 812, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
       const d = await shoot(page, route, 'desktop', { width: 1280, height: 800, deviceScaleFactor: 1 });

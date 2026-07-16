@@ -104,8 +104,9 @@ Stripe 대시보드 → Developers → Webhooks → 엔드포인트 `https://pla
 - **① 전수검사 1차 — 조용한 실패 5건** (`13f4a99`) — TaskDetailDrawer.changeStatus/actStart·ClientsPage.patchClient·InvoiceDetailDrawer 재무4·signatures OTP 502.
 - **캘린더 PlanQ→Google 쓰기 동기화**(`6b7a1ea`, 배포됨)·**메일 링크 새탭**(`173ae6e`, 배포됨)·**todo.verb.reply**(배포됨).
 
-### 🔴 ① 전수검사 2차 — 확정 30 사이트 (스윕 결과, 미착수)
-**근본:** `apiFetch`(AuthContext.tsx:223-270)는 non-2xx 에 throw 안 함 → `await apiFetch(); 낙관적 setState(); }catch{}` 의 catch 가 HTTP 에러를 안 잡음. 지배 패턴 = 공용 `checkOk(res)` 헬퍼(revert + AutoSave 에러배지)로 다수 일괄 해소.
+### ✅ ① 전수검사 2차 — 확정 30 사이트 (완료 — 커밋 6526942, 2026-07-16 실측 재확인)
+**완료 확인(2026-07-16):** 30 사이트 전량 인라인 가드(`if(!r.ok)` revert / early-return / 에러표면화) 적용됨. 스팟체크 대조(전부 가드 확인): ProjectTaskList submitBelow·submitGroupTask, TasksTab submit, QProjectDetailPage performCloseProject, ProcessPartsTab updateRow·delRow, MailPage patchThread·doBulk·toggleFollow·toggleAssignMe·assignTo, QMail aiSuggest(#179 error map+catch). 공용 checkOk 헬퍼 대신 사이트별 인라인 가드 채택(동등 효과). 잔여 LOW(초안 자동저장·mark-read·드래그 재정렬)는 best-effort 로 의도적 유지.
+**근본(참고):** `apiFetch`(AuthContext.tsx)는 non-2xx 에 throw 안 함 → `await apiFetch(); 낙관적 setState(); }catch{}` 의 catch 가 HTTP 에러를 안 잡음. → 각 호출 `r.ok` 명시 검사로 해소.
 
 **HIGH (생성/삭제/권한/제출):**
 1. ProjectTaskList.tsx:82 `submitBelow` POST /api/tasks — 실패 시 입력 유실. early-return+배지.
