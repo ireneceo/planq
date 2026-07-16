@@ -8,7 +8,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useTabs, useActiveTab } from '../../hooks/useTabStore';
 import { tabStore, type Tab, type TabKind } from '../../stores/tabStore';
-import { XIcon, PlusIcon, ChevronDownIcon } from '../Common/Icons';
+import { XIcon, PlusIcon } from '../Common/Icons';
 
 // kind → layout ns nav 라벨 키 (사이드바와 동일 문구, 언어전환 재렌더 보장)
 const NAV_KEY: Record<TabKind, string> = {
@@ -33,8 +33,17 @@ export default function TabStrip({ leftOffset = 0 }: { leftOffset?: number }) {
   const tabs = useTabs();
   const active = useActiveTab();
   const { t } = useTranslation('layout');
-  const [menu, setMenu] = useState<null | 'new' | 'overflow'>(null);
+  const [open, setOpen] = useState(false);   // + 새탭 패널
+  const [q, setQ] = useState('');
+  const [anchorX, setAnchorX] = useState(0);
   const activeRef = useRef<HTMLButtonElement>(null);
+  const newBtnRef = useRef<HTMLButtonElement>(null);
+
+  const openNewPanel = () => {
+    const r = newBtnRef.current?.getBoundingClientRect();
+    if (r) setAnchorX(Math.max(6, Math.min(r.left, window.innerWidth - 260)));
+    setQ(''); setOpen((v) => !v);
+  };
 
   useLayoutEffect(() => {
     activeRef.current?.scrollIntoView({ inline: 'nearest', block: 'nearest' });
@@ -73,36 +82,35 @@ export default function TabStrip({ leftOffset = 0 }: { leftOffset?: number }) {
             </Chip>
           );
         })}
-        {/* + 는 마지막 탭 옆 (브라우저처럼). 새 탭 생성(중복 허용) */}
-        <NewBtn type="button" aria-label={t('tabs.new', { defaultValue: '새 탭' }) as string} data-testid="tabstrip-new"
-          $on={menu === 'new'} onClick={() => setMenu((m) => (m === 'new' ? null : 'new'))}><PlusIcon size={16} /></NewBtn>
+        {/* + 는 마지막 탭 옆 — 그냥 + 아이콘(배경 없음). 클릭 시 검색+리스트 패널 */}
+        <NewBtn ref={newBtnRef} type="button" aria-label={t('tabs.new', { defaultValue: '새 탭' }) as string}
+          data-testid="tabstrip-new" onClick={openNewPanel}><PlusIcon size={16} /></NewBtn>
       </Scroll>
 
-      <Right>
-        <IconBtn type="button" aria-label={t('tabs.overflow', { defaultValue: '모든 탭' }) as string} data-testid="tabstrip-overflow"
-          $on={menu === 'overflow'} onClick={() => setMenu((m) => (m === 'overflow' ? null : 'overflow'))}><ChevronDownIcon size={16} /></IconBtn>
-      </Right>
-
-      {menu && (
-        <>
-          <Backdrop onClick={() => setMenu(null)} />
-          <Menu role="menu" style={{ right: 8 }}>
-            {menu === 'new'
-              ? NEW_TAB_ITEMS.map((it) => (
-                <MenuItem key={it.path} role="menuitem" $active={false}
-                  onClick={() => { setMenu(null); tabStore.newTab(it.path); }}>
-                  <MenuLabel>{t(NAV_KEY[it.kind], { defaultValue: it.kind }) as string}</MenuLabel>
-                </MenuItem>
-              ))
-              : tabs.map((tab) => (
-                <MenuItem key={tab.id} role="menuitem" $active={active?.id === tab.id}
-                  onClick={() => { setMenu(null); tabStore.setActive(tab.id); }}>
-                  <MenuLabel>{label(tab)}</MenuLabel>
-                </MenuItem>
-              ))}
-          </Menu>
-        </>
-      )}
+      {open && (() => {
+        const items = NEW_TAB_ITEMS
+          .map((it) => ({ ...it, label: t(NAV_KEY[it.kind], { defaultValue: it.kind }) as string }))
+          .filter((it) => !q.trim() || it.label.toLowerCase().includes(q.trim().toLowerCase()));
+        return (
+          <>
+            <Backdrop onClick={() => setOpen(false)} />
+            <Panel role="dialog" aria-label={t('tabs.new', { defaultValue: '새 탭' }) as string}
+              style={{ left: anchorX }} data-testid="tabstrip-new-panel">
+              <Search autoFocus value={q} onChange={(e) => setQ(e.target.value)}
+                placeholder={t('tabs.searchPlaceholder', { defaultValue: '페이지 검색' }) as string}
+                onKeyDown={(e) => { if (e.key === 'Enter' && items[0]) { tabStore.newTab(items[0].path); setOpen(false); } if (e.key === 'Escape') setOpen(false); }} />
+              <List>
+                {items.map((it) => (
+                  <PanelItem key={it.path} type="button" onClick={() => { tabStore.newTab(it.path); setOpen(false); }}>
+                    {it.label}
+                  </PanelItem>
+                ))}
+                {items.length === 0 && <Empty>{t('tabs.noResults', { defaultValue: '결과 없음' }) as string}</Empty>}
+              </List>
+            </Panel>
+          </>
+        );
+      })()}
     </Strip>
   );
 }
@@ -144,33 +152,38 @@ const Close = styled.button`
   color: inherit; border-radius: 4px; cursor: pointer; opacity: 0.75;
   &:hover { background: rgba(255, 255, 255, 0.18); opacity: 1; }
 `;
-const NewBtn = styled.button<{ $on: boolean }>`
+// + 는 그냥 아이콘 (라운드 배경 없음). hover 시 색만 밝게.
+const NewBtn = styled.button`
   display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; align-self: center;
-  width: 28px; height: 28px; margin-left: 4px; border: none; border-radius: 8px; cursor: pointer;
-  color: #99F6E4; background: ${(p) => (p.$on ? 'rgba(255,255,255,0.10)' : 'transparent')};
-  &:hover { background: rgba(255, 255, 255, 0.10); color: #FFFFFF; }
-  &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
-`;
-const Right = styled.div`display: flex; align-items: center; flex-shrink: 0; padding-left: 6px;`;
-const IconBtn = styled.button<{ $on: boolean }>`
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 32px; height: 32px; border: none; border-radius: 8px; cursor: pointer;
-  color: #99F6E4; background: ${(p) => (p.$on ? 'rgba(255,255,255,0.10)' : 'transparent')};
-  &:hover { background: rgba(255, 255, 255, 0.10); color: #FFFFFF; }
-  &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
+  width: 30px; height: 30px; margin: 0 4px; border: none; border-radius: 0; background: transparent; cursor: pointer;
+  color: #99F6E4;
+  &:hover { color: #FFFFFF; }
+  &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: -2px; }
 `;
 const Backdrop = styled.div`position: fixed; inset: 0; z-index: 111;`;
-const Menu = styled.div`
-  position: absolute; top: 40px; z-index: 112; min-width: 200px; max-height: 60vh; overflow-y: auto;
-  padding: 6px; background: #115E59; border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+// + 아래 열리는 검색+리스트 패널
+const Panel = styled.div`
+  position: fixed; top: 40px; z-index: 112; width: 252px; max-height: 66vh;
+  display: flex; flex-direction: column;
+  background: #115E59; border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); overflow: hidden;
+`;
+const Search = styled.input`
+  flex-shrink: 0; margin: 8px; height: 34px; padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06); color: #FFFFFF; font-size: 13px; outline: none;
+  &::placeholder { color: #99F6E4; }
+  &:focus { border-color: #5EEAD4; }
+`;
+const List = styled.div`
+  flex: 1; min-height: 0; overflow-y: auto; padding: 0 6px 6px;
   scrollbar-width: none; &::-webkit-scrollbar { display: none; }
 `;
-const MenuItem = styled.button<{ $active: boolean }>`
+const PanelItem = styled.button`
   display: flex; align-items: center; width: 100%; height: 34px; padding: 0 12px;
   border: none; border-radius: 7px; cursor: pointer; text-align: left;
-  background: ${(p) => (p.$active ? 'rgba(255,255,255,0.10)' : 'transparent')};
-  color: #CCFBF1; font-size: 13px; font-weight: 500;
+  background: transparent; color: #CCFBF1; font-size: 13px; font-weight: 500;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   &:hover { background: rgba(255, 255, 255, 0.08); color: #FFFFFF; }
 `;
-const MenuLabel = styled.span`flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
+const Empty = styled.div`padding: 14px 12px; text-align: center; font-size: 12px; color: #99F6E4;`;

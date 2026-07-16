@@ -4,7 +4,9 @@
     "new": "New tab",
     "close": "Close tab",
     "overflow": "All tabs",
-    "recording": "Recording"
+    "recording": "Recording",
+    "searchPlaceholder": "Search pages",
+    "noResults": "No results"
   },
   "nav": {
     "myAccount": "My Account",
