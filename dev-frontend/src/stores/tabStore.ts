@@ -3,7 +3,7 @@
 // 설계: docs/MULTITAB_DESIGN.md §4. 전역 상태 라이브러리 미도입 원칙 유지 —
 //   순수 외부 store + useSyncExternalStore(구독). Context 재렌더 폭발 회피.
 //
-// strangler(Fable 권장): 트리 스왑 전까지 store 는 "미러 모드"로 동작 — 현재 단일 BrowserRouter 의
+// strangler(Fable 권장): 트리 스왑 전까지 store 는 미러 모드로 동작 — 현재 단일 BrowserRouter 의
 //   location 을 활성 탭 path 로 반영. chrome(사이드바·알림 등)이 이 store 를 소비하도록 하나씩 전환하면
 //   각 단계가 단일탭에서 무회귀 검증 가능. P1 트리 스왑 시 미러 어댑터를 끄고 탭별 MemoryRouter 로 승격.
 
@@ -44,7 +44,7 @@ const PREFIX_KIND: Array<[RegExp, TabKind]> = [
   [/^\/bills/, 'bill'],
   [/^\/mail/, 'mail'],
   [/^\/files/, 'files'],
-  [/^\/business\/clients/, 'clients'], // 실 라우트(App.tsx). /^\/clients/ 보다 먼저 — 'other' 흡수 방지
+  [/^\/business\/clients/, 'clients'], // 실 라우트(App.tsx). /^\/clients/ 보다 먼저 — other kind 흡수 방지
   [/^\/clients/, 'clients'],
   [/^\/info/, 'info'],
   [/^\/inbox/, 'inbox'],
