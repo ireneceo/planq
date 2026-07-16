@@ -195,13 +195,13 @@ async function saveAttachmentAsFile({ businessId, fromEmail, att, accountUserId 
 }
 
 // account 1개 sync — N+70 auth_type 분기 (password / google_oauth)
-async function syncOne(account, opts = {}) {
+// IMAP 연결 설정 빌드 — syncOne(폴링) 과 IDLE 매니저(지속연결) 공용.
+//   OAuth 는 access_token 만료 시 refresh 후 DB 갱신. onIdle=true 면 node-imap keepalive 로 IDLE 유지.
+async function buildImapConfig(account, { onIdle = false } = {}) {
   let imapConfig;
   if (account.auth_type === 'google_oauth') {
-    // OAuth — access_token 으로 XOAUTH2 SASL 인증
     const gmailOauth = require('./gmail_oauth');
     let accessToken = decrypt(account.oauth_access_token_encrypted);
-    // 만료 check + refresh
     const expiresAt = account.oauth_expires_at ? new Date(account.oauth_expires_at).getTime() : 0;
     const now = Date.now();
     if (!accessToken || (expiresAt && now > expiresAt - 60000)) {
@@ -224,7 +224,6 @@ async function syncOne(account, opts = {}) {
       tlsOptions: { rejectUnauthorized: false },
     };
   } else {
-    // 옛 password 방식
     const password = decrypt(account.imap_password_encrypted);
     if (!password) throw new Error('password_decrypt_failed');
     imapConfig = {
@@ -237,6 +236,13 @@ async function syncOne(account, opts = {}) {
       tlsOptions: { rejectUnauthorized: false },
     };
   }
+  // node-imap keepalive: idle 상태에서 주기적으로 NOOP/IDLE 갱신 → 새 메일 즉시 'mail' 이벤트.
+  if (onIdle) imapConfig.keepalive = { interval: 10000, idleInterval: 300000, forceNoop: true };
+  return imapConfig;
+}
+
+async function syncOne(account, opts = {}) {
+  const imapConfig = await buildImapConfig(account);
 
   const conn = await imaps.connect({ imap: imapConfig });
 
@@ -490,11 +496,112 @@ async function tick() {
   }
 }
 
-function init() {
-  // 2분 마다 — 수신 지연 단축(Irene: 실시간에 더 가깝게). fetch 후 socket 'mail:new' 로 UI 자동 갱신.
-  //   (진짜 즉시는 IMAP IDLE push 필요 — 백로그. Gmail IMAP 2분 폴링은 rate-limit 여유.)
-  cron.schedule('*/2 * * * *', () => { tick().catch(() => {}); });
-  console.log('[emailImapCron] initialized — runs every 2 minutes');
+// ────────────────────────────────────────────────────────────────────────────
+// IMAP IDLE 매니저 — 진짜 실시간 수신 (폴링 X)
+//   계정별 지속 IMAP 연결을 열어두고, 메일 서버가 새 메일을 push(IDLE)하면 node-imap 이
+//   'mail' 이벤트를 즉시 emit → syncOne 트리거 → 파싱·저장·socket 'mail:new' broadcast.
+//   전형 지연 < 2초 (Gmail 등 타 클라이언트와 동일 체감). 2분 cron 은 IDLE 끊김 대비 backstop.
+// ────────────────────────────────────────────────────────────────────────────
+const idleConns = new Map();     // accountId → { conn, stopped }
+const idleBackoff = new Map();   // accountId → 다음 재연결 지연(ms)
+const syncBusy = new Set();      // accountId 동기화 진행 중 (self-overlap 방지)
+const syncPending = new Set();   // 진행 중 재요청 — 끝나면 한 번 더 (놓친 메일 방지)
+
+// 계정 1개를 안전하게 동기화 (self-overlap 직렬화 + 최신 account 재로딩).
+async function guardedSync(accountId) {
+  if (syncBusy.has(accountId)) { syncPending.add(accountId); return; }
+  syncBusy.add(accountId);
+  try {
+    do {
+      syncPending.delete(accountId);
+      const acc = await EmailAccount.findByPk(accountId);
+      if (!acc || !acc.is_active) break;
+      const n = await syncOne(acc);
+      if (n > 0) console.log(`[emailIdle] account #${accountId} (${acc.email}) — ${n} new (idle push)`);
+    } while (syncPending.has(accountId));
+  } catch (e) {
+    console.error(`[emailIdle] guardedSync #${accountId} failed:`, e.message);
+  } finally {
+    syncBusy.delete(accountId);
+  }
 }
 
-module.exports = { init, tick, syncOne, isKnownContact };
+function scheduleReconnect(account) {
+  const id = account.id;
+  const entry = idleConns.get(id);
+  if (entry && entry.stopped) return;  // 의도적 중단이면 재연결 안 함
+  const prev = idleBackoff.get(id) || 0;
+  const next = prev === 0 ? 5000 : Math.min(prev * 2, 300000);  // 5s → … → 5min cap
+  idleBackoff.set(id, next);
+  setTimeout(() => { startIdleForAccount(account).catch(() => {}); }, next);
+}
+
+async function startIdleForAccount(account) {
+  const id = account.id;
+  // 기존 연결 정리
+  const existing = idleConns.get(id);
+  if (existing && existing.conn) { try { existing.conn.end(); } catch { /* */ } }
+
+  try {
+    const imapConfig = await buildImapConfig(account, { onIdle: true });
+    const conn = await imaps.connect({ imap: imapConfig });
+    await conn.openBox(account.imap_folder || 'INBOX');
+    idleConns.set(id, { conn, stopped: false });
+    idleBackoff.set(id, 0);  // 성공 → backoff 리셋
+    console.log(`[emailIdle] IDLE 연결 성립 — account #${id} (${account.email})`);
+
+    // 연결 직후 한 번 동기화 (IDLE 성립 전 도착분 회수)
+    guardedSync(id).catch(() => {});
+
+    // node-imap 이벤트는 conn.imap 에 있음
+    const raw = conn.imap;
+    raw.on('mail', () => { guardedSync(id).catch(() => {}); });          // 새 메일 push → 즉시
+    raw.on('update', () => { guardedSync(id).catch(() => {}); });        // 플래그 변경 등
+    const onDrop = (label) => (err) => {
+      const e = idleConns.get(id);
+      if (e && e.stopped) return;
+      console.warn(`[emailIdle] account #${id} ${label}${err ? ': ' + err.message : ''} — 재연결 예약`);
+      scheduleReconnect(account);
+    };
+    raw.on('error', onDrop('error'));
+    raw.on('close', onDrop('close'));
+    raw.on('end', onDrop('end'));
+  } catch (e) {
+    console.warn(`[emailIdle] account #${id} (${account.email}) IDLE 연결 실패: ${e.message} — 재연결 예약`);
+    scheduleReconnect(account);
+  }
+}
+
+function stopIdleForAccount(accountId) {
+  const entry = idleConns.get(accountId);
+  if (entry) { entry.stopped = true; try { entry.conn && entry.conn.end(); } catch { /* */ } }
+  idleConns.delete(accountId);
+  idleBackoff.delete(accountId);
+}
+
+// 활성 계정 목록과 IDLE 연결을 맞춘다 — 신규 계정 연결, 제거된 계정 정리.
+async function reconcileIdle() {
+  try {
+    const accounts = await EmailAccount.findAll({ where: { is_active: true }, limit: 200 });
+    const activeIds = new Set(accounts.map((a) => a.id));
+    // 제거/비활성된 계정 IDLE 정리
+    for (const id of idleConns.keys()) { if (!activeIds.has(id)) stopIdleForAccount(id); }
+    // 신규 계정 IDLE 시작
+    for (const acc of accounts) { if (!idleConns.has(acc.id)) await startIdleForAccount(acc); }
+  } catch (e) {
+    console.error('[emailIdle] reconcile 실패:', e.message);
+  }
+}
+
+function init() {
+  // (1) IMAP IDLE — 진짜 실시간 수신 (주 채널). 계정별 지속 연결로 새 메일 즉시 push.
+  reconcileIdle().catch(() => {});
+  // 신규/제거 계정 반영 — 5분마다 IDLE 연결 목록 재조정
+  cron.schedule('*/5 * * * *', () => { reconcileIdle().catch(() => {}); });
+  // (2) 폴링 backstop — IDLE 이 조용히 끊긴 계정(모바일 네트워크·서버 idle timeout) 대비 안전망.
+  //     IDLE 이 대부분 즉시 처리하므로 3분 backstop 으로 충분(부하 감소). fetch 후 socket 'mail:new'.
+  cron.schedule('*/3 * * * *', () => { tick().catch(() => {}); });
+  console.log('[emailImapCron] initialized — IMAP IDLE (실시간) + 3분 backstop 폴링');
+}
+
+module.exports = { init, tick, syncOne, isKnownContact, reconcileIdle, startIdleForAccount, stopIdleForAccount };
