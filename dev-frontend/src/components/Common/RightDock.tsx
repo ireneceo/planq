@@ -38,8 +38,8 @@ const RightDock: React.FC = () => {
   const { t } = useTranslation('common');
   const [voiceOpen, setVoiceOpen] = useState(false);
   const { user } = useAuth();
-  const location = useLocation();
-  const navigate = useNavigate();
+  const location = useChromeLocation();
+  const navigate = useChromeNav();
   const [expanded, setExpanded] = useState(false);
   const fabRef = useRef<HTMLDivElement>(null);
 

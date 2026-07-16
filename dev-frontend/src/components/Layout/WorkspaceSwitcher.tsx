@@ -47,8 +47,8 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
   const { t } = useTranslation('layout');
   const { user, switchWorkspace } = useAuth();
   const unreadByBiz = useUnreadByBusiness();
-  const location = useLocation();
-  const navigate = useNavigate();
+  const location = useChromeLocation();
+  const navigate = useChromeNav();
   const [open, setOpen] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);

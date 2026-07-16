@@ -163,8 +163,8 @@ function playSynth() {
 export default function NotificationToaster() {
   const { user } = useAuth();
   const { t, i18n } = useTranslation('common');
-  const navigate = useNavigate();
-  const location = useLocation();
+  const navigate = useChromeNav();
+  const location = useChromeLocation();
   const [toasts, setToasts] = useState<Toast[]>([]);
   // message:new 가 conv room + business room 양쪽으로 도착해 같은 메시지가 중복 토스트 되는 것 차단 (운영 #25)
   const seenMsgRef = useRef<Map<number, number>>(new Map());

@@ -29,7 +29,7 @@ async function forceSwUpdate(): Promise<void> {
 }
 
 const BuildVersionGuard: React.FC = () => {
-  const location = useLocation();
+  const location = useChromeLocation();
   const initialRef = useRef<string | null>(null);
   const pendingReloadRef = useRef(false);
 

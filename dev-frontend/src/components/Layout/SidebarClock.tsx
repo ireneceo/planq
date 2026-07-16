@@ -159,7 +159,7 @@ export default function SidebarClock({
   isWorkspaceAdmin = false,
 }: Props) {
   const { t } = useTranslation('layout');
-  const navigate = useNavigate();
+  const navigate = useChromeNav();
   const [now, setNow] = useState<Date>(new Date());
   const [open, setOpen] = useState(false);
 

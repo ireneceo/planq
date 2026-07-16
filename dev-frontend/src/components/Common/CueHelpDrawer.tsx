@@ -67,8 +67,8 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
   const { t } = useTranslation('common');
   const { t: tErr } = useTranslation('errors');
   const { t: tw } = useTranslation('wiki');
-  const location = useLocation();
-  const navigate = useNavigate();
+  const location = useChromeLocation();
+  const navigate = useChromeNav();
   const { user, isLoading } = useAuth();
   const isGuest = !user;
   const tz = (user as { workspace_timezone?: string } | null)?.workspace_timezone || 'Asia/Seoul';
