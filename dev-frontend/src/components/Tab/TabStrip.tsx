@@ -136,7 +136,8 @@ const Chip = styled.button<{ $active: boolean }>`
   cursor: pointer;
   background: ${(p) => (p.$active ? '#0F766E' : 'transparent')};
   color: ${(p) => (p.$active ? '#FFFFFF' : '#CCFBF1')};
-  font-size: 13px; font-weight: ${(p) => (p.$active ? 600 : 500)};
+  /* 굵기 고정(500) — 활성 시 굵기 변화로 글자·X 가 밀리는 것 방지. 활성 구분은 색·배경·상단 액센트로만 */
+  font-size: 13px; font-weight: 500;
   transition: background 0.12s, color 0.12s;
   &:hover { background: ${(p) => (p.$active ? '#0F766E' : 'rgba(255,255,255,0.08)')}; color: #FFFFFF; }
   &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: -2px; }
