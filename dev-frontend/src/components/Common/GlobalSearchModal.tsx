@@ -2,7 +2,7 @@
 // GET /api/search?business_id=X&q=... → 도메인별 결과 (tasks/posts/records/files/...).
 // 좌측 카테고리 (필터) + 우측 결과. Notion / Linear / Slack 패턴.
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useChromeNav } from '../../hooks/useChromeNav';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
@@ -14,6 +14,8 @@ interface Props {
   open: boolean;
   onClose: () => void;
   businessId: number;
+  // ⑥ 멀티탭 — 결과를 새 탭으로 열기 등 커스텀 네비. 미지정 시 현재 탭 이동(기본).
+  onNavigate?: (to: string) => void;
 }
 
 type Category = 'tasks' | 'posts' | 'records' | 'files' | 'conversations' | 'knowledge' | 'clients' | 'projects';
@@ -48,9 +50,9 @@ const CAT_BADGE_COLOR: Record<Category, string> = {
   files: '#64748B', conversations: '#14B8A6', knowledge: '#0D9488', clients: '#F59E0B', projects: '#10B981',
 };
 
-const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId }) => {
+const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavigate }) => {
   const { t } = useTranslation('common');
-  const navigate = useNavigate();
+  const navigate = useChromeNav();
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
   const [result, setResult] = useState<SearchResult>({});
@@ -89,7 +91,7 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId }) => {
     return h;
   }, [result]);
 
-  const goto = (to: string) => { onClose(); navigate(to); };
+  const goto = (to: string) => { onClose(); (onNavigate || navigate)(to); };
 
   if (!open) return null;
 

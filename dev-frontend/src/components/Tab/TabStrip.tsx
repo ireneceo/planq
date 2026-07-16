@@ -9,6 +9,8 @@ import { useTranslation } from 'react-i18next';
 import { useTabs, useActiveTab } from '../../hooks/useTabStore';
 import { tabStore, type Tab, type TabKind } from '../../stores/tabStore';
 import { XIcon, PlusIcon } from '../Common/Icons';
+import { useAuth } from '../../contexts/AuthContext';
+import GlobalSearchModal from '../Common/GlobalSearchModal';
 
 // kind → layout ns nav 라벨 키 (사이드바와 동일 문구, 언어전환 재렌더 보장)
 const NAV_KEY: Record<TabKind, string> = {
@@ -18,32 +20,14 @@ const NAV_KEY: Record<TabKind, string> = {
   clients: 'nav.clients', bill: 'nav.qbill', other: 'nav.settings',
 };
 
-// 새 탭 드롭다운 — 사이드바 기능 순서 (path→newTab, 중복 허용)
-const NEW_TAB_ITEMS: Array<{ kind: TabKind; path: string }> = [
-  { kind: 'dashboard', path: '/dashboard' }, { kind: 'inbox', path: '/inbox' },
-  { kind: 'talk', path: '/talk' }, { kind: 'mail', path: '/mail' },
-  { kind: 'task', path: '/tasks' }, { kind: 'project', path: '/projects' },
-  { kind: 'calendar', path: '/calendar' }, { kind: 'note', path: '/notes' },
-  { kind: 'docs', path: '/docs' }, { kind: 'info', path: '/info' },
-  { kind: 'files', path: '/files' }, { kind: 'bill', path: '/bills' },
-  { kind: 'clients', path: '/business/clients' },
-];
-
 export default function TabStrip({ leftOffset = 0 }: { leftOffset?: number }) {
   const tabs = useTabs();
   const active = useActiveTab();
   const { t } = useTranslation('layout');
-  const [open, setOpen] = useState(false);   // + 새탭 패널
-  const [q, setQ] = useState('');
-  const [anchorX, setAnchorX] = useState(0);
+  const { user } = useAuth();
+  const bizId = user?.business_id ? Number(user.business_id) : 0;
+  const [searchOpen, setSearchOpen] = useState(false); // + → 통합검색(새 탭으로 열기)
   const activeRef = useRef<HTMLButtonElement>(null);
-  const newBtnRef = useRef<HTMLButtonElement>(null);
-
-  const openNewPanel = () => {
-    const r = newBtnRef.current?.getBoundingClientRect();
-    if (r) setAnchorX(Math.max(6, Math.min(r.left, window.innerWidth - 260)));
-    setQ(''); setOpen((v) => !v);
-  };
 
   useLayoutEffect(() => {
     activeRef.current?.scrollIntoView({ inline: 'nearest', block: 'nearest' });
@@ -82,35 +66,14 @@ export default function TabStrip({ leftOffset = 0 }: { leftOffset?: number }) {
             </Chip>
           );
         })}
-        {/* + 는 마지막 탭 옆 — 그냥 + 아이콘(배경 없음). 클릭 시 검색+리스트 패널 */}
-        <NewBtn ref={newBtnRef} type="button" aria-label={t('tabs.new', { defaultValue: '새 탭' }) as string}
-          data-testid="tabstrip-new" onClick={openNewPanel}><PlusIcon size={16} /></NewBtn>
+        {/* + 는 마지막 탭 옆 — 그냥 + 아이콘(배경 없음). 클릭 시 통합검색(결과 클릭 = 새 탭) */}
+        <NewBtn type="button" aria-label={t('tabs.new', { defaultValue: '새 탭' }) as string}
+          data-testid="tabstrip-new" onClick={() => setSearchOpen(true)}><PlusIcon size={16} /></NewBtn>
       </Scroll>
 
-      {open && (() => {
-        const items = NEW_TAB_ITEMS
-          .map((it) => ({ ...it, label: t(NAV_KEY[it.kind], { defaultValue: it.kind }) as string }))
-          .filter((it) => !q.trim() || it.label.toLowerCase().includes(q.trim().toLowerCase()));
-        return (
-          <>
-            <Backdrop onClick={() => setOpen(false)} />
-            <Panel role="dialog" aria-label={t('tabs.new', { defaultValue: '새 탭' }) as string}
-              style={{ left: anchorX }} data-testid="tabstrip-new-panel">
-              <Search autoFocus value={q} onChange={(e) => setQ(e.target.value)}
-                placeholder={t('tabs.searchPlaceholder', { defaultValue: '페이지 검색' }) as string}
-                onKeyDown={(e) => { if (e.key === 'Enter' && items[0]) { tabStore.newTab(items[0].path); setOpen(false); } if (e.key === 'Escape') setOpen(false); }} />
-              <List>
-                {items.map((it) => (
-                  <PanelItem key={it.path} type="button" onClick={() => { tabStore.newTab(it.path); setOpen(false); }}>
-                    {it.label}
-                  </PanelItem>
-                ))}
-                {items.length === 0 && <Empty>{t('tabs.noResults', { defaultValue: '결과 없음' }) as string}</Empty>}
-              </List>
-            </Panel>
-          </>
-        );
-      })()}
+      {/* + = 통합검색. 결과 클릭 = 새 탭으로 열기(navigate 대신 newTab 주입) */}
+      <GlobalSearchModal open={searchOpen} onClose={() => setSearchOpen(false)} businessId={bizId}
+        onNavigate={(to) => tabStore.newTab(to)} />
     </Strip>
   );
 }
@@ -161,30 +124,3 @@ const NewBtn = styled.button`
   &:hover { color: #FFFFFF; }
   &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: -2px; }
 `;
-const Backdrop = styled.div`position: fixed; inset: 0; z-index: 111;`;
-// + 아래 열리는 검색+리스트 패널
-const Panel = styled.div`
-  position: fixed; top: 40px; z-index: 112; width: 252px; max-height: 66vh;
-  display: flex; flex-direction: column;
-  background: #115E59; border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); overflow: hidden;
-`;
-const Search = styled.input`
-  flex-shrink: 0; margin: 8px; height: 34px; padding: 0 12px;
-  border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06); color: #FFFFFF; font-size: 13px; outline: none;
-  &::placeholder { color: #99F6E4; }
-  &:focus { border-color: #5EEAD4; }
-`;
-const List = styled.div`
-  flex: 1; min-height: 0; overflow-y: auto; padding: 0 6px 6px;
-  scrollbar-width: none; &::-webkit-scrollbar { display: none; }
-`;
-const PanelItem = styled.button`
-  display: flex; align-items: center; width: 100%; height: 34px; padding: 0 12px;
-  border: none; border-radius: 7px; cursor: pointer; text-align: left;
-  background: transparent; color: #CCFBF1; font-size: 13px; font-weight: 500;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  &:hover { background: rgba(255, 255, 255, 0.08); color: #FFFFFF; }
-`;
-const Empty = styled.div`padding: 14px 12px; text-align: center; font-size: 12px; color: #99F6E4;`;
