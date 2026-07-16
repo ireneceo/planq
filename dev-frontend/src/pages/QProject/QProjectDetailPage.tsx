@@ -558,10 +558,11 @@ const QProjectDetailPage: React.FC = () => {
         await apiFetch(`/api/projects/${projectId}/clients/${pcId}`, { method: 'DELETE' });
       }
       // 2) 프로젝트 status=closed → 대화도 자동 archived (백엔드 cascade)
-      await apiFetch(`/api/projects/${projectId}`, {
+      const sr = await apiFetch(`/api/projects/${projectId}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'closed' }),
       });
+      if (!sr.ok) return;  // owner-only(403) 등 거절 시 closed 표시 금지 + 모달 유지(거짓 종료 방지)
       setProject((prev) => prev ? {
         ...prev, status: 'closed',
         projectClients: (prev.projectClients || []).filter((c) => !clientsToRemove.has(c.id)),
@@ -813,7 +814,8 @@ const QProjectDetailPage: React.FC = () => {
                   projectId={projectId}
                   initial={project.description || ''}
                   onSave={async (v) => {
-                    await apiFetch(`/api/projects/${projectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ description: v || null }) });
+                    const r = await apiFetch(`/api/projects/${projectId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ description: v || null }) });
+                    if (!r.ok) throw new Error(`save failed: ${r.status}`);  // 실패 시 저장됨 표시 금지(saveProject 패턴)
                     setProject(prev => prev ? { ...prev, description: v || null } : prev);
                   }}
                 />

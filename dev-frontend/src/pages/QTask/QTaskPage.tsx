@@ -646,7 +646,8 @@ const QTaskPage:React.FC=()=>{
   // frontend optimistic 만 (응답 socket task:updated 가 정확한 status 로 다시 갱신).
   const saveField=async(taskId:number,field:string,value:unknown)=>{
     try{
-      await apiFetch(`/api/tasks/${taskId}/time`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({[field]:value})});
+      const r=await apiFetch(`/api/tasks/${taskId}/time`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({[field]:value})});
+      if(!r.ok)return;  // apiFetch 는 throw 안 함 — 403(비담당자 시간편집) 등에 낙관적 적용 금지(거짓 성공)
       setAllTasks(prev=>prev.map(t=>{
         if(t.id!==taskId)return t;
         const u={...t,[field]:value};
@@ -678,7 +679,8 @@ const QTaskPage:React.FC=()=>{
     const task=allTasks.find(t=>t.id===taskId);
     if(!task)return;
     try{
-      await apiFetch(`/api/tasks/by-business/${bizId}/${taskId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({title})});
+      const r=await apiFetch(`/api/tasks/by-business/${bizId}/${taskId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({title})});
+      if(!r.ok)return;  // 실패 시 낙관적 title 적용 금지
       setAllTasks(prev=>prev.map(t=>t.id===taskId?{...t,title}:t));
     }catch{}
   };
@@ -884,8 +886,9 @@ const QTaskPage:React.FC=()=>{
   // 리스트 타이틀/날짜 편집용 간단 저장 (드로어 내부에도 자체 saveField 존재)
   const saveTaskField=async(taskId:number,field:string,value:unknown)=>{
     try{
-      await apiFetch(`/api/tasks/by-business/${bizId}/${taskId}`,{method:'PUT',headers:{'Content-Type':'application/json'},
+      const r=await apiFetch(`/api/tasks/by-business/${bizId}/${taskId}`,{method:'PUT',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({[field]:value})});
+      if(!r.ok)return;  // 실패 시 낙관적 적용 금지
       setAllTasks(prev=>prev.map(t=>t.id===taskId?{...t,[field]:value}:t));
     }catch{}
   };
@@ -898,9 +901,10 @@ const QTaskPage:React.FC=()=>{
         body:overrides?JSON.stringify(overrides):undefined,
       });
       const j=await r.json();
+      if(!r.ok||!j?.success)return;  // 실패 시 candidate 유지(성공 전 제거 금지 — 거짓 등록 방지)
       setCandidates(prev=>prev.filter(c=>c.id!==candId));
       await load();
-      if(j?.success&&j?.data?.task?.id){
+      if(j?.data?.task?.id){
         openDetail(j.data.task.id);
       }
     }catch{}
@@ -940,18 +944,21 @@ const QTaskPage:React.FC=()=>{
       await apiFetch(`/api/tasks/${taskId}/time`,{method:'PATCH',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({progress_percent:newStatus==='completed'?100:undefined})});
       // Use the existing PUT route for status
-      await apiFetch(`/api/tasks/by-business/${bizId}/${taskId}`,{method:'PUT',headers:{'Content-Type':'application/json'},
+      const sr=await apiFetch(`/api/tasks/by-business/${bizId}/${taskId}`,{method:'PUT',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({status:newStatus})});
-      setAllTasks(prev=>prev.map(t=>{
-        if(t.id!==taskId)return t;
-        const u={...t,status:newStatus};
-        if(newStatus==='completed'){u.progress_percent=100;}
-        return u;
-      }));
-      // 완료 시 우선순위 해제
-      if(newStatus==='completed'){
-        const task=allTasks.find(t=>t.id===taskId);
-        if(task?.priority_order)togglePriority(taskId,false);
+      // status 전이는 reviewer 가드(no_reviewers 400)·권한(403)으로 거절될 수 있다 — 성공 시에만 낙관적 적용(거짓 성공 방지)
+      if(sr.ok){
+        setAllTasks(prev=>prev.map(t=>{
+          if(t.id!==taskId)return t;
+          const u={...t,status:newStatus};
+          if(newStatus==='completed'){u.progress_percent=100;}
+          return u;
+        }));
+        // 완료 시 우선순위 해제
+        if(newStatus==='completed'){
+          const task=allTasks.find(t=>t.id===taskId);
+          if(task?.priority_order)togglePriority(taskId,false);
+        }
       }
     }catch{}
     setStatusDropdownId(null);
@@ -1265,10 +1272,11 @@ const QTaskPage:React.FC=()=>{
       const mr=await(await apiFetch(`/api/businesses/${bizId}/members`)).json();
       const me=mr.data?.find((m:{user_id:number})=>m.user_id===myId);
       if(!me)return;
-      await apiFetch(`/api/businesses/${bizId}/members/${me.id}/work-hours`,{
+      const r=await apiFetch(`/api/businesses/${bizId}/members/${me.id}/work-hours`,{
         method:'PATCH',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({[field]:value}),
       });
+      if(!r.ok)return;  // 실패 시 낙관적 capacity 적용 금지
       // Update local state
       if(field==='daily_work_hours')setCapacity(prev=>({...prev,daily:value,weekly:Math.round(value*(prev.days)*prev.rate*10)/10}));
       if(field==='weekly_work_days')setCapacity(prev=>({...prev,days:value,weekly:Math.round(prev.daily*value*prev.rate*10)/10}));
@@ -1619,8 +1627,9 @@ const QTaskPage:React.FC=()=>{
                       <TaskRowActionMenu
                         onAddBelow={() => { setNewBelowTitle(''); setAddingBelowId(task.id); }}
                         onCopy={async () => {
-                          await apiFetch(`/api/tasks/${task.id}/copy`, { method: 'POST' });
-                          // socket task:new 자동 반영
+                          const r = await apiFetch(`/api/tasks/${task.id}/copy`, { method: 'POST' });
+                          if (!r.ok) { const j = await r.json().catch(() => ({})); return { ok: false, message: j?.message }; }  // 실패 표면화(onDelete 패턴)
+                          return { ok: true };  // socket task:new 자동 반영
                         }}
                         onDelete={async () => {
                           const r = await apiFetch(`/api/tasks/by-business/${bizId}/${task.id}`, { method: 'DELETE' });
@@ -1727,14 +1736,16 @@ const QTaskPage:React.FC=()=>{
                               setAllTasks(prev => prev.map(tt => tt.id===task.id
                                 ? { ...tt, assignee_id: uid, assignee: uid != null ? { id: uid, name: m?.name || tt.assignee?.name || '-' } : null }
                                 : tt));
-                              apiFetch(`/api/tasks/by-business/${bizId}/${task.id}`, {
-                                method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ assignee_id: uid }),
-                              }).catch(()=>{
-                                setAllTasks(prev => prev.map(tt => tt.id===task.id
+                              {
+                                const revert = () => setAllTasks(prev => prev.map(tt => tt.id===task.id
                                   ? { ...tt, assignee_id: prevAssigneeId, assignee: prevAssignee }
                                   : tt));
-                              });
+                                // apiFetch 는 non-2xx 에 throw 안 함 — .catch 만 두면 403(권한)에 revert 가 안 터진다(거짓 성공).
+                                apiFetch(`/api/tasks/by-business/${bizId}/${task.id}`, {
+                                  method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ assignee_id: uid }),
+                                }).then(r => { if (!r.ok) revert(); }).catch(revert);
+                              }
                             }}
                             options={members.map(m=>({value:String(m.user_id),label:m.name+(m.user_id===myId?t('detail.meSuffix',' (나)'):'')}))} />
                         </div>
@@ -1854,7 +1865,7 @@ const QTaskPage:React.FC=()=>{
                           if (e.key === 'Enter' && newBelowTitle.trim() && !submittingBelow) {
                             setSubmittingBelow(true);
                             try {
-                              await apiFetch('/api/tasks', {
+                              const r = await apiFetch('/api/tasks', {
                                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
                                   business_id: bizId,
@@ -1865,6 +1876,7 @@ const QTaskPage:React.FC=()=>{
                                   due_date: task.due_date || null,
                                 }),
                               });
+                              if (!r.ok) return;  // 실패 시 입력 유지(폼 보존)
                               setAddingBelowId(null); setNewBelowTitle('');
                             } finally { setSubmittingBelow(false); }
                           }

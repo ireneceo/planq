@@ -68,9 +68,12 @@ export default function MailAliasSection({ businessId, accountId, accountEmail }
   };
 
   const remove = async (id: number) => {
-    setBusy(true);
-    try { await apiFetch(`${base}/${id}`, { method: 'DELETE' }); await load(); }
-    finally { setBusy(false); }
+    setBusy(true); setErr(null);
+    try {
+      const r = await apiFetch(`${base}/${id}`, { method: 'DELETE' });
+      if (!r.ok) { const j = await r.json().catch(() => ({})); setErr(j?.message || (t('alias.errFailed', { defaultValue: '삭제하지 못했어요.' }) as string)); return; }
+      await load();
+    } finally { setBusy(false); }
   };
 
   const setDefault = async (id: number) => {

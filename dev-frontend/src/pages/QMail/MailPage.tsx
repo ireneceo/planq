@@ -538,9 +538,11 @@ const MailPage: React.FC = () => {
     setThreads(prev => prev.map(t => (t.id === id ? { ...t, ...patch } as Thread : t)));
     setDetail(prev => (prev && prev.id === id ? { ...prev, ...patch } as ThreadDetail : prev));
     try {
-      await apiFetch(`/api/businesses/${businessId}/email-threads/${id}`, {
+      const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
       });
+      // apiFetch 는 non-2xx 에 throw 안 함 — !ok 도 명시 검사해야 별/라벨 낙관적 갱신이 서버 fresh 로 복원된다.
+      if (!r.ok) { silentReloadRef.current?.(); return; }
       loadCounts();
     } catch { /* 실패 시 silentReload 로 복원 */ silentReloadRef.current?.(); }
   }, [businessId, loadCounts]);
@@ -628,6 +630,7 @@ const MailPage: React.FC = () => {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ all: true, folder }),
       });
       await r.json().catch(() => null);
+      if (!r.ok) return;  // 실패 시 확인 버튼 유지(거짓 완료 방지) — 4초 후 자동 원복
       setBulkConfirm(false);
       await loadList();
       loadCounts();
@@ -647,13 +650,15 @@ const MailPage: React.FC = () => {
   const toggleFollow = useCallback(async () => {
     if (!detail || !businessId) return;
     const next = !detail.my_following;
+    const prevFollowing = detail.my_following;
     setDetail(prev => (prev ? { ...prev, my_following: next } : prev));
     try {
-      await apiFetch(`/api/businesses/${businessId}/email-threads/${detail.id}/follow`, {
+      const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${detail.id}/follow`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ follow: next }),
       });
+      if (!r.ok) { setDetail(prev => (prev ? { ...prev, my_following: prevFollowing } : prev)); return; }  // 실패 시 되돌림
       loadCounts();
-    } catch { /* noop */ }
+    } catch { setDetail(prev => (prev ? { ...prev, my_following: prevFollowing } : prev)); }
   }, [detail, businessId, loadCounts]);
 
   // 담당 토글 (상세) — 본인 ↔ 해제
@@ -661,13 +666,15 @@ const MailPage: React.FC = () => {
     if (!detail || !businessId || !myUserId) return;
     const mine = detail.assignee_user_id === myUserId;
     const uid = mine ? null : myUserId;
+    const prevUid = detail.assignee_user_id; const prevName = detail.assignee_name;
     setDetail(prev => (prev ? { ...prev, assignee_user_id: uid, assignee_name: mine ? null : (members.find(m => m.user_id === myUserId)?.name || null) } : prev));
     try {
-      await apiFetch(`/api/businesses/${businessId}/email-threads/${detail.id}/assign`, {
+      const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${detail.id}/assign`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: uid }),
       });
+      if (!r.ok) { setDetail(prev => (prev ? { ...prev, assignee_user_id: prevUid, assignee_name: prevName } : prev)); return; }  // 실패 시 되돌림
       loadCounts();
-    } catch { /* noop */ }
+    } catch { setDetail(prev => (prev ? { ...prev, assignee_user_id: prevUid, assignee_name: prevName } : prev)); }
   }, [detail, businessId, myUserId, members, loadCounts]);
 
   const labelColor = useCallback((name: string) => labelMaster.find(l => l.name === name)?.color || '#14B8A6', [labelMaster]);
@@ -679,13 +686,15 @@ const MailPage: React.FC = () => {
   // 담당자 지정 (멤버 선택 — PlanQSelect)
   const assignTo = useCallback(async (uid: number | null) => {
     if (!detail || !businessId) return;
+    const prevUid = detail.assignee_user_id; const prevName = detail.assignee_name;
     setDetail(prev => (prev ? { ...prev, assignee_user_id: uid, assignee_name: uid ? (members.find(m => m.user_id === uid)?.name || null) : null } : prev));
     try {
-      await apiFetch(`/api/businesses/${businessId}/email-threads/${detail.id}/assign`, {
+      const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${detail.id}/assign`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: uid }),
       });
+      if (!r.ok) { setDetail(prev => (prev ? { ...prev, assignee_user_id: prevUid, assignee_name: prevName } : prev)); return; }  // 실패 시 되돌림
       loadCounts();
-    } catch { /* noop */ }
+    } catch { setDetail(prev => (prev ? { ...prev, assignee_user_id: prevUid, assignee_name: prevName } : prev)); }
   }, [detail, businessId, members, loadCounts]);
 
   // 새 라벨 생성 (마스터 추가 후 현재 스레드에 적용)

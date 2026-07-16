@@ -159,7 +159,12 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
 
   const handleDisconnect = async () => {
     if (!disconnectTarget) return;
-    await apiFetch(`/api/cloud/disconnect/${disconnectTarget}/${businessId}`, { method: 'DELETE' });
+    const r = await apiFetch(`/api/cloud/disconnect/${disconnectTarget}/${businessId}`, { method: 'DELETE' });
+    if (!r.ok) {  // apiFetch 는 throw 안 함 — 실패 시 모달 유지 + 에러 표시(거짓 해제 방지)
+      const j = await r.json().catch(() => ({}));
+      setS3msg({ tone: 'err', text: j?.message || (tr('storage.disconnectFailed', '연결 해제에 실패했어요') as string) });
+      return;
+    }
     setDisconnectTarget(null);
     await load();
   };
