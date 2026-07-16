@@ -1195,6 +1195,7 @@ function serializeWorkstream(ws, tasks) {
   return {
     id: ws.id, title: ws.title, description: ws.description,
     order_index: ws.order_index, color: ws.color, status: ws.status,
+    source: ws.source || 'manual', // ⑤ 자동/수동 인지
     rollup: { total, completed, in_progress: inProgress, overdue, progress_pct: progressPct },
   };
 }
@@ -1307,6 +1308,8 @@ router.get('/:id/canvas', authenticateToken, async (req, res, next) => {
         goal: project.strategy_goal, governing_thought: project.strategy_governing_thought,
         approach: project.strategy_approach,
       },
+      // ⑤ 자동/수동 인지 — 전략 필드별 출처(ai/manual). null 은 전부 manual(옛/수동).
+      strategy_sources: (project.strategy_sources && typeof project.strategy_sources === 'object') ? project.strategy_sources : {},
       success_metrics: Array.isArray(project.success_metrics) ? project.success_metrics : [],
       workstreams: workstreams.map((ws) => serializeWorkstream(ws, tasksPlain)),
       tasks: tasksPlain.map((t) => ({ id: t.id, title: t.title, status: t.status, workstream_id: t.workstream_id, assignee_name: t.assignee?.name || null })),
@@ -1327,10 +1330,17 @@ router.patch('/:id/strategy', authenticateToken, async (req, res, next) => {
     if (role === 'client') return errorResponse(res, 'member_only', 403);
     const ALLOWED = ['context', 'key_question', 'goal', 'governing_thought', 'approach'];
     const updates = {};
+    const editedFields = [];
     for (const k of ALLOWED) {
-      if (k in (req.body || {})) updates[`strategy_${k}`] = req.body[k] == null ? null : String(req.body[k]);
+      if (k in (req.body || {})) { updates[`strategy_${k}`] = req.body[k] == null ? null : String(req.body[k]); editedFields.push(k); }
     }
     if (Object.keys(updates).length === 0) return errorResponse(res, 'no_fields', 400);
+    // ⑤ — 사용자가 손댄 필드는 출처를 'manual' 로 flip (AI 초안이 사용자 편집분으로 전환).
+    if (editedFields.length) {
+      const src = (project.strategy_sources && typeof project.strategy_sources === 'object') ? { ...project.strategy_sources } : {};
+      for (const k of editedFields) src[k] = 'manual';
+      updates.strategy_sources = src;
+    }
     await project.update(updates);
     broadcastCanvas(req, project, 'strategy_updated');
     return successResponse(res, {
@@ -1367,6 +1377,86 @@ router.put('/:id/success-metrics', authenticateToken, async (req, res, next) => 
     return successResponse(res, metrics);
   } catch (err) { next(err); }
 });
+
+// POST /:id/canvas/ai-draft — ⑤ AI 캔버스 초안 생성 (전략·지표·추진과제 비파괴 채움 + source='ai')
+//   비어있는 필드만 AI로 채운다 — 사용자 수동 입력은 절대 덮어쓰지 않음. 채운 필드는 source='ai'(수정하면 flip).
+{
+  const { perUserDaily } = require('../middleware/costGuard');
+  const canvasAiGuards = perUserDaily('canvas_draft', { perMin: 3, perDay: 30 });
+  router.post('/:id/canvas/ai-draft', authenticateToken, ...canvasAiGuards, async (req, res, next) => {
+    try {
+      const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+      if (error) return errorResponse(res, error.message, error.code);
+      if (role === 'client') return errorResponse(res, 'member_only', 403);
+      const businessId = project.business_id;
+
+      // plan 게이트 — LLM 비용 (운영 안정성 1번: rate-limit + plan.can + 입력 캡)
+      const planEngine = require('../services/plan');
+      const can = await planEngine.can(businessId, 'use_cue');
+      if (!can.ok) return res.status(422).json(planEngine.buildQuotaError(can, businessId));
+
+      // 컨텍스트 — 고객명 + 관련 업무 제목
+      let clientName = null;
+      try {
+        const pc = await ProjectClient.findOne({ where: { project_id: project.id }, include: [{ model: Client, attributes: ['display_name', 'company_name'], required: false }] });
+        clientName = pc?.Client?.display_name || pc?.Client?.company_name || null;
+      } catch { /* optional */ }
+      const relTasks = await Task.findAll({ where: { project_id: project.id }, attributes: ['title'], limit: 20, order: [['created_at', 'DESC']] });
+      const taskTitles = relTasks.map((t) => t.title).filter(Boolean);
+
+      const { generateCanvasDraft } = require('../services/canvasDraft');
+      let draft;
+      try {
+        draft = await generateCanvasDraft(project, { clientName, taskTitles });
+      } catch (e) {
+        if (e.message === 'llm_unavailable') return errorResponse(res, 'ai_unavailable', 503);
+        return errorResponse(res, 'ai_draft_failed', 502);
+      }
+
+      // 비파괴 병합 — 빈 전략 필드만 채우고 source='ai'. 채워진 것은 보존.
+      const STRAT = ['context', 'key_question', 'goal', 'governing_thought', 'approach'];
+      const updates = {};
+      const src = (project.strategy_sources && typeof project.strategy_sources === 'object') ? { ...project.strategy_sources } : {};
+      let strategyFilled = 0;
+      for (const k of STRAT) {
+        const cur = project[`strategy_${k}`];
+        if ((cur == null || String(cur).trim() === '') && draft.strategy[k]) {
+          updates[`strategy_${k}`] = draft.strategy[k]; src[k] = 'ai'; strategyFilled++;
+        }
+      }
+      const curMetrics = Array.isArray(project.success_metrics) ? project.success_metrics : [];
+      let metricsFilled = 0;
+      if (curMetrics.length === 0 && draft.metrics.length) {
+        updates.success_metrics = draft.metrics.map((m, i) => ({ id: `m_${Date.now()}_${i}`, ...m, source: 'ai' }));
+        metricsFilled = updates.success_metrics.length;
+      }
+      if (Object.keys(updates).length) { updates.strategy_sources = src; await project.update(updates); }
+
+      // 추진과제 — 현재 없을 때만 AI 생성 (source='ai')
+      let workstreamsCreated = 0;
+      const wsCount = await ProjectWorkstream.count({ where: { project_id: project.id } });
+      if (wsCount === 0 && draft.workstreams.length) {
+        for (let i = 0; i < draft.workstreams.length; i++) {
+          const w = draft.workstreams[i];
+          await ProjectWorkstream.create({ business_id: project.business_id, project_id: project.id, title: w.title, description: w.description || null, order_index: i, status: 'active', created_by: req.user.id, source: 'ai' });
+          workstreamsCreated++;
+        }
+      }
+
+      // 사용량 기록 (cue_usage) + 감사
+      try {
+        const { CueUsage } = require('../models'); const ym = new Date().toISOString().slice(0, 7);
+        const inTok = draft.usage?.input_tokens || 0; const outTok = draft.usage?.output_tokens || 0;
+        const [row, created] = await CueUsage.findOrCreate({ where: { business_id: businessId, year_month: ym, action_type: 'canvas_draft' }, defaults: { action_count: 1, token_input: inTok, token_output: outTok, cost_usd: 0 } });
+        if (!created) await row.update({ action_count: (row.action_count || 0) + 1, token_input: (row.token_input || 0) + inTok, token_output: (row.token_output || 0) + outTok });
+      } catch (e) { console.warn('[canvas-draft] usage', e.message); }
+      createAuditLog({ userId: req.user.id, businessId, action: 'project.canvas_ai_draft', targetType: 'project', targetId: project.id, newValue: { strategy_filled: strategyFilled, metrics_filled: metricsFilled, workstreams_created: workstreamsCreated } });
+
+      broadcastCanvas(req, project, 'ai_draft');
+      return successResponse(res, { strategy_filled: strategyFilled, metrics_filled: metricsFilled, workstreams_created: workstreamsCreated });
+    } catch (err) { next(err); }
+  });
+}
 
 // GET /:id/workstreams — 목록 + rollup
 router.get('/:id/workstreams', authenticateToken, async (req, res, next) => {

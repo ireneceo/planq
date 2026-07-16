@@ -57,6 +57,9 @@ Project.init({
   strategy_approach: { type: DataTypes.TEXT, allowNull: true, comment: '추진 방식 (Approach)' },
   // 성공 지표 (정량 KR) — [{ id, label, target, current, unit }]
   success_metrics: { type: DataTypes.JSON, allowNull: true, comment: '성공 지표 리스트 (구조화)' },
+  // ⑤ 자동/수동 인지 — 전략 필드별 출처. { context:'ai'|'manual', key_question, goal, governing_thought, approach }
+  //   null/미지정 = manual(옛 데이터·수동입력). AI 초안 생성 시 'ai', 사용자가 그 필드 편집하면 'manual'로 flip.
+  strategy_sources: { type: DataTypes.JSON, allowNull: true, comment: '전략 5필드 출처(ai/manual) 맵' },
   // R1 — 일정 타임라인 "주요 업무만 보기" 기본값 (프로젝트별 설정)
   timeline_key_only: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, comment: '타임라인 주요 업무만 기본 표시' },
 }, {

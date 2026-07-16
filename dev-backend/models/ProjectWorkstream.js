@@ -25,6 +25,8 @@ ProjectWorkstream.init({
     allowNull: false, defaultValue: 'active',
   },
   created_by: { type: DataTypes.INTEGER, allowNull: true },
+  // ⑤ 자동/수동 인지 — 이 추진과제 출처. AI 초안 생성분 'ai', 사용자 생성/편집분 'manual'.
+  source: { type: DataTypes.ENUM('ai', 'manual'), allowNull: false, defaultValue: 'manual' },
 }, {
   sequelize,
   tableName: 'project_workstreams',
