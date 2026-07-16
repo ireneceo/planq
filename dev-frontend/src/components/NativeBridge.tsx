@@ -7,11 +7,11 @@
 //
 // 웹에서는 native 리스너를 달지 않으므로 회귀 0 (planq:navigate 리스너만, 웹에선 아무도 발행 안 함).
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useChromeNav } from '../hooks/useChromeNav';
 import { isNativeApp, nativePlatform } from '../services/native';
 
 export default function NativeBridge() {
-  const navigate = useNavigate();
+  const navigate = useChromeNav();
 
   useEffect(() => {
     // 공용 — 알림 탭/딥링크가 발행하는 앱 내부 네비게이션 이벤트.
