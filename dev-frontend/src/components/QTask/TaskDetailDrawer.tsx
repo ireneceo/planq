@@ -952,7 +952,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 </CarriedBanner>
               );
             })()}
-            {/* ⑤B — Cue 대화형 실행으로 추가된 업무: "Cue로 추가됨" 정보성 배지(표시 전용) */}
+            {/* ⑤B — Cue 대화형 실행으로 추가된 업무: Cue 유래 정보성 배지(표시 전용) */}
             {detailTask.created_via === 'cue' && (
               <ProvenanceRow><ProvenanceBadge label={t('provenance.cue', { ns: 'common' })} /></ProvenanceRow>
             )}
