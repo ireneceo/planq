@@ -1,10 +1,16 @@
 // utils/tabsBeta.ts — ⑥ 멀티탭 롤아웃 스위치 (strangler)
-// 트리 스왑 전까지 탭 UI 는 이 플래그 뒤에서만 노출. 단일탭 사용자는 플래그 off = 기존과 100% 동일.
-// 마지막 커밋(12/12)에서 기본 on 으로 flip 예정(Irene 승인 후). 데스크탑 전용.
+// 트리 스왑 전까지 탭 UI 노출 게이트. 데스크탑 전용.
+//   - 운영(planq.kr): 기본 off — 완성(커밋12)에서 전역 on flip.
+//   - dev(검토용): 기본 on — Irene 검토 편의. localStorage 로 개별 on/off override 가능.
 export function isTabsBeta(): boolean {
   try {
-    if (localStorage.getItem('planq_tabs_beta') !== '1') return false;
-    return window.matchMedia?.('(min-width: 1025px)').matches ?? false;
+    if (!(window.matchMedia?.('(min-width: 1025px)').matches ?? false)) return false;
+    const ls = localStorage.getItem('planq_tabs_beta');
+    if (ls === '1') return true;    // 명시 on
+    if (ls === '0') return false;   // 명시 off (opt-out)
+    // 기본값: dev 도메인 on, 그 외(운영) off
+    const host = window.location.hostname;
+    return host === 'dev.planq.kr' || host === 'localhost' || host === '127.0.0.1';
   } catch {
     return false;
   }
