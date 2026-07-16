@@ -677,8 +677,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const onDelete = async () => {
     if (!deleteTarget) return;
     const id = deleteTarget.id;
+    const ok = await deletePost(id);  // boolean 반환(throw 안 함) — false(403 등)면 삭제 반영 금지
+    if (!ok) return;  // 실패 시 확인 모달 유지(거짓 삭제 방지)
     setDeleteTarget(null);
-    await deletePost(id);
     setActiveId(null);
     setDetail(null);
     await load(); await loadMeta();
@@ -686,7 +687,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
 
   const detachOne = async (attId: number) => {
     if (!detail) return;
-    await detachFromPost(detail.id, attId);
+    const ok = await detachFromPost(detail.id, attId);  // boolean(throw 안 함)
+    if (!ok) return;  // 실패 시 반영 금지(거짓 분리 방지)
     const reloaded = await fetchPost(detail.id);
     setDetail(reloaded);
   };

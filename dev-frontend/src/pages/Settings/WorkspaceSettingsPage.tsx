@@ -1340,15 +1340,18 @@ export default function WorkspaceSettingsPage() {
                                   defaultValue={target.default_role || ''}
                                   onBlur={async (e) => {
                                     const val = e.target.value.trim();
+                                    const input = e.target;
                                     try {
-                                      await apiFetch(`/api/businesses/${businessId}/members/${target.id}/default-role`, {
+                                      const r = await apiFetch(`/api/businesses/${businessId}/members/${target.id}/default-role`, {
                                         method: 'PATCH',
                                         headers: { 'Content-Type': 'application/json' },
                                         body: JSON.stringify({ default_role: val || null }),
                                       });
+                                      // uncontrolled defaultValue — 실패 시 입력이 타이핑값 그대로 남아 거짓 저장. 서버값으로 원복.
+                                      if (!r.ok) { input.value = target.default_role || ''; return; }
                                       const fresh = await listMembers(businessId);
                                       setMembers(fresh);
-                                    } catch { /* silent */ }
+                                    } catch { input.value = target.default_role || ''; }
                                   }}
                                 />
                               ) : (

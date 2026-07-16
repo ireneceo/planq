@@ -52,15 +52,20 @@ const ProcessPartsTab: React.FC<Props> = ({ projectId }) => {
   };
 
   const updateRow = async (id: number, patch: Partial<PartRow>) => {
-    setRows(prev => prev.map(x => x.id === id ? { ...x, ...patch } : x));
-    await apiFetch(`/api/projects/${projectId}/process-parts/${id}`, {
+    const prev = rows.find(x => x.id === id);
+    setRows(cur => cur.map(x => x.id === id ? { ...x, ...patch } : x));
+    const r = await apiFetch(`/api/projects/${projectId}/process-parts/${id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
     });
+    if (!r.ok && prev) setRows(cur => cur.map(x => x.id === id ? prev : x));  // 실패 시 되돌림
   };
 
   const delRow = async (id: number) => {
+    const removed = rows.find(x => x.id === id);
+    const idx = rows.findIndex(x => x.id === id);
     setRows(prev => prev.filter(x => x.id !== id));
-    await apiFetch(`/api/projects/${projectId}/process-parts/${id}`, { method: 'DELETE' });
+    const r = await apiFetch(`/api/projects/${projectId}/process-parts/${id}`, { method: 'DELETE' });
+    if (!r.ok && removed) setRows(cur => { const n = [...cur]; n.splice(Math.min(idx, n.length), 0, removed); return n; });  // 실패 시 복원
   };
 
   // 드래그 앤 드롭 순서 변경
@@ -215,14 +220,18 @@ const StatusEditor: React.FC<{
     }
   };
   const update = async (id: number, patch: Partial<StatusOpt>) => {
+    const snapshot = local;
     setLocal(prev => { const next = prev.map(x => x.id === id ? { ...x, ...patch } : x); onChange(next); return next; });
-    await apiFetch(`/api/projects/${projectId}/status-options/${id}`, {
+    const r = await apiFetch(`/api/projects/${projectId}/status-options/${id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
     });
+    if (!r.ok) { setLocal(snapshot); onChange(snapshot); }  // 실패 시 되돌림
   };
   const remove = async (id: number) => {
+    const snapshot = local;
     setLocal(prev => { const next = prev.filter(x => x.id !== id); onChange(next); return next; });
-    await apiFetch(`/api/projects/${projectId}/status-options/${id}`, { method: 'DELETE' });
+    const r = await apiFetch(`/api/projects/${projectId}/status-options/${id}`, { method: 'DELETE' });
+    if (!r.ok) { setLocal(snapshot); onChange(snapshot); }  // 실패 시 복원
   };
 
   return (
@@ -279,8 +288,10 @@ const ColumnEditor: React.FC<{
     }
   };
   const remove = async (id: number) => {
+    const snapshot = local;
     setLocal(prev => { const next = prev.filter(x => x.id !== id); onChange(next); return next; });
-    await apiFetch(`/api/projects/${projectId}/process-columns/${id}`, { method: 'DELETE' });
+    const r = await apiFetch(`/api/projects/${projectId}/process-columns/${id}`, { method: 'DELETE' });
+    if (!r.ok) { setLocal(snapshot); onChange(snapshot); }  // 실패 시 복원
   };
 
   return (

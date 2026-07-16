@@ -183,7 +183,7 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
     if (submitting || !newTitle.trim()) return;
     setSubmitting(true);
     try {
-      await apiFetch('/api/tasks', {
+      const r = await apiFetch('/api/tasks', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           business_id: businessId, project_id: projectId, title: newTitle.trim(),
@@ -192,6 +192,7 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
           estimated_hours: newEst ? Number(newEst) : null,
         }),
       });
+      if (!r.ok) return;  // 실패 시 폼 유지(입력 보존)
       resetNew();
       setAdding(null);
       onRefresh();

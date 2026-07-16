@@ -209,10 +209,12 @@ const ProfileIntegrationsPage: React.FC = () => {
 
   const onDisconnectPersonal = async (id: number | string) => {
     if (typeof id === 'string') return;  // legacy 표시 row
+    setErrorMsg(null);
     try {
-      await apiFetch(`/api/me/external-connections/${id}`, { method: 'DELETE' });
+      const r = await apiFetch(`/api/me/external-connections/${id}`, { method: 'DELETE' });
+      if (!r.ok) { const j = await r.json().catch(() => ({})); setErrorMsg(j?.message || (t('integrations.disconnectFailed', { defaultValue: '해제 실패' }) as string)); return; }  // 실패 표면화(onDisconnectOauth 미러)
       await load();
-    } catch (_) { /* skip */ }
+    } catch (e) { setErrorMsg((e as Error).message); }
   };
 
   // 개인 메일 추가·재연결·해제는 "내 메일 계정"(EmailAccountSettings scope=personal) 단일 화면에서

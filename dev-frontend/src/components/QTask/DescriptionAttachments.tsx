@@ -83,10 +83,18 @@ const DescriptionAttachments: React.FC<Props> = ({ taskId, businessId, canEdit, 
       }
       // 2) 기존 워크스페이스 파일 link
       if (existingFileIds.length > 0) {
-        await apiFetch(`/api/tasks/${taskId}/attachments/link`, {
+        const lr = await apiFetch(`/api/tasks/${taskId}/attachments/link`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ file_ids: existingFileIds, context: 'description_attach' }),
         });
+        if (!lr.ok) {  // upload 분기와 동일하게 link 실패도 표면화 + picker 유지(거짓 첨부 방지)
+          const lj = await lr.json().catch(() => null);
+          setErrMsg(lj?.message === 'only_creator_or_owner_can_attach_description'
+            ? (t('descAttach.error.notPermitted', { defaultValue: '의뢰자 영역 첨부 권한이 없습니다' }) as string)
+            : (t('descAttach.error.failed', { defaultValue: '첨부 실패' }) as string));
+          setSubmitting(false);
+          return;
+        }
       }
       // (참고) post 연결은 backend link 라우트가 아직 file_ids 만 받음 — 현재 댓글 패턴과 동일 한계.
       // 향후 backend 보강 시 자동 작동하도록 existingPostIds state 만 유지.

@@ -79,7 +79,7 @@ const ProjectTaskList: React.FC<Props> = ({
     if (!newBelowTitle.trim() || submittingBelow) return;
     setSubmittingBelow(true);
     try {
-      await apiFetch('/api/tasks', {
+      const r = await apiFetch('/api/tasks', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           business_id: businessId,
@@ -91,6 +91,7 @@ const ProjectTaskList: React.FC<Props> = ({
           workstream_id: after.workstream_id ?? null,  // 같은 그룹에 추가
         }),
       });
+      if (!r.ok) return;  // apiFetch 는 throw 안 함 — 실패 시 폼 유지(입력 보존), 닫지 않음
       setAddingBelowId(null);
       setNewBelowTitle('');
       onRefresh?.();
@@ -104,7 +105,7 @@ const ProjectTaskList: React.FC<Props> = ({
     if (!newGroupTaskTitle.trim() || submittingGroupTask) return;
     setSubmittingGroupTask(true);
     try {
-      await apiFetch('/api/tasks', {
+      const r = await apiFetch('/api/tasks', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           business_id: businessId,
@@ -114,6 +115,7 @@ const ProjectTaskList: React.FC<Props> = ({
           workstream_id: gid === 'none' ? null : gid,  // 이 그룹에 배치
         }),
       });
+      if (!r.ok) return;  // 실패 시 폼 유지(입력 보존)
       setAddingInGroup(null);
       setNewGroupTaskTitle('');
       onRefresh?.();
@@ -212,11 +214,13 @@ const ProjectTaskList: React.FC<Props> = ({
   const sorted = sortTasks(tasks);
 
   const saveField = async (taskId: number, field: string, value: unknown) => {
+    const prevVal = (tasks.find((t) => t.id === taskId) as Record<string, unknown> | undefined)?.[field];
     onLocalUpdate(taskId, { [field]: value } as Partial<TaskRow>);
-    await apiFetch(`/api/tasks/by-business/${businessId}/${taskId}`, {
+    const r = await apiFetch(`/api/tasks/by-business/${businessId}/${taskId}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ [field]: value }),
     });
+    if (!r.ok) onLocalUpdate(taskId, { [field]: prevVal } as Partial<TaskRow>);  // 실패 시 낙관적 되돌림(assignGroup 패턴)
   };
 
   // 업무 → 그룹 이동 (드롭다운·드래그 공용). 실패 시 optimistic 되돌림.
@@ -312,8 +316,13 @@ const ProjectTaskList: React.FC<Props> = ({
             <TaskRowActionMenu
               onAddBelow={() => { setNewBelowTitle(''); setAddingBelowId(task.id); }}
               onCopy={async () => {
-                await apiFetch(`/api/tasks/${task.id}/copy`, { method: 'POST' });
+                const r = await apiFetch(`/api/tasks/${task.id}/copy`, { method: 'POST' });
+                if (!r.ok) {
+                  const j = await r.json().catch(() => ({}));
+                  return { ok: false, message: j?.message };  // 실패 표면화 (onDelete 패턴)
+                }
                 onRefresh?.();
+                return { ok: true };
               }}
               onDelete={async () => {
                 const r = await apiFetch(`/api/tasks/by-business/${businessId}/${task.id}`, { method: 'DELETE' });
