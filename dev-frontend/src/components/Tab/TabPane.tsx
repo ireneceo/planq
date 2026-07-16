@@ -20,7 +20,7 @@ export default function TabPane({ tab, active }: { tab: Tab; active: boolean }) 
   }, [active]);
 
   return (
-    <PaneWrap $active={active} aria-hidden={!active} {...(active ? {} : { inert: '' as unknown as boolean })}>
+    <PaneWrap $active={active} data-pane-tab={tab.id} aria-hidden={!active} {...(active ? {} : { inert: '' as unknown as boolean })}>
       <TabActiveProvider value={active}>
         <MemoryRouter initialEntries={[tab.path]}>
           <UrlMirror tabId={tab.id} active={active} />
