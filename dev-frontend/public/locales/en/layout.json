@@ -1,4 +1,11 @@
 {
+  "tabs": {
+    "strip": "Open tabs",
+    "new": "New tab",
+    "close": "Close tab",
+    "overflow": "All tabs",
+    "recording": "Recording"
+  },
   "nav": {
     "myAccount": "My Account",
     "workEnv": "Work Environment",
