@@ -12,14 +12,14 @@ export function parseTabPath(full: string): { pathname: string; search: string }
   return { pathname: full.slice(0, qi), search: full.slice(qi) };
 }
 
-export function openOrFocus(path: string) { tabStore.openOrFocus(path); }
+export function navigateTab(path: string) { tabStore.navigateActive(path); }
 
 // RR useLocation 대체 — 활성 탭 path 의 {pathname, search}
 export function useChromeLocation(): { pathname: string; search: string } {
   return parseTabPath(useActiveTabPath());
 }
 
-// RR useNavigate 대체 — openOrFocus 반환 (navigate(path) 호출부 그대로 동작). options/숫자 인자는 무시.
+// RR useNavigate 대체 — 활성 탭 경로 변경(브라우저 탭 모델: 안으로 들어가도 새 탭 X).
 export function useChromeNav(): (path: string) => void {
-  return openOrFocus;
+  return navigateTab;
 }

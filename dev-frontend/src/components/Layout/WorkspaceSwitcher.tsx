@@ -299,7 +299,6 @@ export default WorkspaceSwitcher;
 // ─────────────────────────────────────────────
 const Container = styled.div`
   position: relative;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 `;
 
 // 워크스페이스 카드 — 사이드바에서 살짝 분리된 카드 (border + bg)

@@ -90,8 +90,8 @@ const Sidebar = styled.div<{ $isOpen?: boolean; $isCollapsed?: boolean; $tabMode
 `;
 
 const SidebarHeader = styled.div<{ $isCollapsed?: boolean }>`
-  padding: 14px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  flex-shrink: 0; height: 60px;   /* 2뎁스·콘텐츠 헤더와 픽셀 동일 — 회색 라인 정렬 */
+  padding: 14px 16px;   /* 워크스페이스 선택 위아래 선 제거(Irene) — 콘텐츠 라인과 연결 안 돼 빼는 게 맞음 */
+  flex-shrink: 0; height: 60px;
   display: flex; align-items: center;
   justify-content: ${props => props.$isCollapsed ? 'center' : 'space-between'};
   gap: 8px;
