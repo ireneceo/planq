@@ -94,3 +94,52 @@ Stripe 대시보드 → Developers → Webhooks → 엔드포인트 `https://pla
 | 개요 구조 | (신규 필요) | 개요=읽기·상세=편집 확정 + 자동/수동 3상태 원칙 |
 | 반응형 | `dev-frontend/src/theme/breakpoints.ts` + [[feedback_responsive_strategy]] | 전 페이지 완성 체크리스트 |
 | 자동/수동 인지 | (신규 필요) | ⑤ 원칙 문서화 + `source` 플래그 스키마 |
+
+---
+
+## 진행 로그 — 2026-07-16 (전수검사 스윕 + 실시간 메일)
+
+### ✅ 완료·검증 (dev 반영, 배포 대기)
+- **③′ Q Mail IMAP IDLE 실시간 수신** (`bd74a39`) — 2분 폴링 → **계정별 지속 IDLE 연결 push(<2초)**. `buildImapConfig` 공용화·IDLE 매니저(startIdleForAccount/guardedSync/scheduleReconnect/reconcileIdle)·계정연결 즉시 IDLE·3분 backstop. IDLE 성립 안정 확인(#1·#32, 재연결 0). **운영 반영 = /배포 후 prod restart 시 전 계정 IDLE 자동.**
+- **① 전수검사 1차 — 조용한 실패 5건** (`13f4a99`) — TaskDetailDrawer.changeStatus/actStart·ClientsPage.patchClient·InvoiceDetailDrawer 재무4·signatures OTP 502.
+- **캘린더 PlanQ→Google 쓰기 동기화**(`6b7a1ea`, 배포됨)·**메일 링크 새탭**(`173ae6e`, 배포됨)·**todo.verb.reply**(배포됨).
+
+### 🔴 ① 전수검사 2차 — 확정 30 사이트 (스윕 결과, 미착수)
+**근본:** `apiFetch`(AuthContext.tsx:223-270)는 non-2xx 에 throw 안 함 → `await apiFetch(); 낙관적 setState(); }catch{}` 의 catch 가 HTTP 에러를 안 잡음. 지배 패턴 = 공용 `checkOk(res)` 헬퍼(revert + AutoSave 에러배지)로 다수 일괄 해소.
+
+**HIGH (생성/삭제/권한/제출):**
+1. ProjectTaskList.tsx:82 `submitBelow` POST /api/tasks — 실패 시 입력 유실. early-return+배지.
+2. ProjectTaskList.tsx:107 `submitGroupTask` POST — 동일.
+3. TasksTab.tsx:186 `submit` POST — resetNew/onRefresh 무조건.
+4. QProjectDetailPage.tsx:558·561 `performCloseProject` DELETE clients + PUT status=closed — owner-only 403 인데 closed 표시. 각 res.ok 검사·낙관적 취소.
+5. ProcessPartsTab.tsx:63 `delRow` DELETE — 낙관적 filter 후 미검사. 실패 시 복원.
+6. ProcessPartsTab.tsx:225 `StatusEditor.remove` DELETE — 복원.
+7. ProcessPartsTab.tsx:283 `ColumnEditor.remove` DELETE — 복원.
+8. PostsPage.tsx:681 `onDelete` (posts.ts:215 boolean, no throw) — 반환값 무시·드로어 닫기. boolean 검사.
+9. QTaskPage.tsx:1730 inline assignee PUT {assignee_id} — **revert 가 apiFetch resolve 라 안 터짐**(권한 민감, 대표적 함정). `.then(r=>{if(!r.ok)revert()})`.
+
+**MED (저장/상태변경) — 공용 헬퍼 대상:**
+10. QTaskPage.tsx:938 `changeStatus` PATCH time+PUT status — no_reviewers 400/권한에도 표시.
+11. QTaskPage.tsx:647 `saveField` PATCH time — 403 only_assignee 무시.
+12. QTaskPage.tsx:677 `saveTitle` PUT.
+13. QTaskPage.tsx:885 `saveTaskField` PUT.
+14. QTaskPage.tsx:1268 `saveCapacity` PATCH work-hours.
+15. QTaskPage.tsx:893 `registerCandidate` POST — 성공 전 candidate 제거.
+16. QTaskPage.tsx:1621 `onCopy` POST copy — sibling onDelete 처럼 가드.
+17. QTaskPage.tsx:1857 inline add-below Enter POST.
+18. DescriptionAttachments.tsx:86 link POST — upload 분기는 검사, link 분기 누락.
+19. ProjectTaskList.tsx:216 `saveField` PUT — completed 체크박스 토글 구동.
+20. ProcessPartsTab.tsx:56 `updateRow` PATCH — 복원.
+21. ProcessPartsTab.tsx:219 `StatusEditor.update` PATCH — 복원.
+22. QProjectDetailPage.tsx:816 `ProjectDescriptionEditor onSave` PUT — 무조건 setProject. throw(saveProject:303 미러).
+23. ProjectTaskList.tsx:315 `onCopy` POST copy.
+24. MailPage.tsx:541 `patchThread` (별/라벨) PUT — revert 안 터짐.
+25. MailPage.tsx:627 `doBulk` POST — early-return+배지.
+26. MailPage.tsx:653/666/684 `toggleFollow`/`toggleAssignMe`/`assignTo` POST — 검사+revert.
+27. StorageSettings.tsx:160 `handleDisconnect` DELETE cloud — 모달 유지+S3Msg.
+28. WorkspaceSettingsPage.tsx:1344 member default-role PATCH — uncontrolled defaultValue 리셋.
+29. MailAliasSection.tsx:70 `remove` DELETE alias — err 세팅.
+30. ProfileIntegrationsPage.tsx:210 `onDisconnectPersonal` DELETE — sibling 미러.
+
+**추가 확정(30 캡 밖, MED/LOW):** PostsPage.tsx:689 detachOne·545 changeKind·PostTableGrid.tsx:723 handleAiGenerate(모달 finally 닫힘). LOW: PostTableGrid:752·PostEditor:57·PostsPage 1113/790/930·ProcessPartsTab:84·MailPage:723·ChatPanel 1689/1705·QTaskPage:788·DailyStartModal:109·LanguageSelector:39(best-effort).
+**정상(제외):** Clients 전부·QBill/QDocs 공개·QTalk/QNote·QTask 모달군·Focus·공용컴포넌트.
