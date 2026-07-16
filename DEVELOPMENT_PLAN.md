@@ -1,6 +1,24 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-07-15 (Opus, 1M) — **🚀 대규모 세션 배포 완료** — 구독 결제 사고 완결(replace-chain 재무 회귀·Fable GATE PASS) + 워프로랩 운영 데이터 복구 + 문서/에디터/표/리스트 borderless 풀레이아웃 통일 + 추가/등록 CreateDrawer 통일 + Q Mail 첨부 fix·풀페이지 작성 + 프로젝트 개요 대시보드 재설계 + 말로추가(운영 DEEPGRAM) + Cue 복구 스윕 + 메일 fetch 2분. **다음 섹션 백로그 박제: `docs/qa/NEXT_SECTION_BACKLOG.md`** (🔴 IMAP IDLE·모바일 반응형·기능 전수검사·멀티탭 등).
+> **최종 업데이트:** 2026-07-16 (Opus 4.8, 1M) — **🚀 배포 완료** — 🔴 Q Mail IMAP IDLE 실시간 수신(2분 폴링→즉시 push <2초, 운영 실측 검증) + PlanQ→Google Calendar 쓰기 동기화(데모 차단 해소, 운영 실측 INSERT_ID 반환) + 메일 링크 새탭 + 기능 무반응 **전수검사 35건**(1차 5 + 2차 30, apiFetch no-throw 거짓성공 스윕) + 메일 탭 배지(전체=미읽음/액션없는 탭 배지제거) + 답변필요 처리 시 즉시 제거·선택해제·초기화 + todo.verb.reply. 다음: `docs/qa/NEXT_SECTION_BACKLOG.md`(모바일 반응형·Q Mail AI·멀티탭·전수검사 잔여 LOW).
+
+## ✅ 완료: IMAP IDLE + 캘린더 동기화 + 기능 전수검사 35건 + 메일 UX (2026-07-16)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 🔴 Q Mail IMAP IDLE 실시간 수신 | 2분 폴링→계정별 지속 IDLE 연결(새 메일 즉시 push <2초). buildImapConfig 공용·guardedSync·scheduleReconnect·reconcileIdle·계정연결 즉시 IDLE·3분 backstop. **운영 실측**: 자연도착 메일 idle push 로그+저장 확인 | ✅ |
+| PlanQ→Google Calendar 쓰기 동기화 | 일반 일정도 구글 캘린더 push(옛: Meet만). insertEvent 추가·event_actions createEvent best-effort push·gcal_event_id→수정/삭제 자동동기화. **데모 차단 해소**. **운영 실측**: calendar.events scope·INSERT_ID 반환 확인 | ✅ |
+| 기능 무반응 전수검사 35건 | apiFetch non-2xx no-throw → catch 못잡는 거짓성공 스윕. 1차 5(TaskDetailDrawer changeStatus/actStart·ClientsPage·InvoiceDetail 재무4·signatures OTP 502) + 2차 30(QTaskPage 9·QProject·MailPage 토글·Settings 등). revert/early-return/에러표면화 | ✅ |
+| 메일 탭 배지 재정의 | 배지=그 탭 액션이 지우는 수. 전체=미읽음("모두 읽음"이 지움)·reply_needed/uncertain=pending·나머지(마케팅/팔로우/스팸/보관)=배지제거 | ✅ |
+| 답변필요 처리 즉시 제거 | handledIds('처리됨 자리유지') 폐지 → afterTriage(리스트 제거+선택해제+loadList 초기화). dismiss/handled/spam 3핸들러 공통 | ✅ |
+| 메일 본문 링크 새 탭 | sandbox iframe+base target=_blank+allow-popups → 링크 새 브라우저 탭 | ✅ |
+| todo.verb.reply | 확인필요 raw 표시 → ko/en 키+fallback. 긴급=답변필요 7일 방치 | ✅ |
+
+---
+
+> **[이전] 최종 업데이트:** 2026-07-15 (Opus, 1M) — **🚀 대규모 세션 배포 완료** — 구독 결제 사고 완결(replace-chain 재무 회귀·Fable GATE PASS) + 워프로랩 운영 데이터 복구 + 문서/에디터/표/리스트 borderless 풀레이아웃 통일 + 추가/등록 CreateDrawer 통일 + Q Mail 첨부 fix·풀페이지 작성 + 프로젝트 개요 대시보드 재설계 + 말로추가(운영 DEEPGRAM) + Cue 복구 스윕 + 메일 fetch 2분. **다음 섹션 백로그 박제: `docs/qa/NEXT_SECTION_BACKLOG.md`** (🔴 IMAP IDLE·모바일 반응형·기능 전수검사·멀티탭 등).
 
 ## ✅ 완료: 대규모 UI 통일 + 재무 사고 완결 + 메일/개요 (2026-07-15)
 
