@@ -1,7 +1,7 @@
 // 프로젝트 캔버스 (D3 #65) — 전략(Why)→실행(How)→산출물·추적을 한 화면에.
 // 컨설팅 논리(SCQA·피라미드·MECE) 구조. /api/projects/:id/canvas 단일 집계 + 실시간(§16).
 import { useCallback, useEffect, useRef, useState } from 'react';
-import styled from 'styled-components';
+import styled, { keyframes } from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -13,9 +13,10 @@ import ScheduleTimeline from '../../../components/Common/ScheduleTimeline';
 import { STATUS_COLOR, type StatusCode } from '../../../utils/taskLabel';
 import { FileTextIcon, AlertTriangleIcon } from '../../../components/Common/Icons';
 import {
-  getCanvas, patchStrategy,
-  type CanvasData, type StrategyKey, type CanvasTaskBrief,
+  getCanvas, patchStrategy, aiDraftCanvas,
+  type CanvasData, type StrategyKey, type CanvasTaskBrief, type CanvasSource,
 } from '../../../services/projectCanvas';
+import { AutoGenBadge } from '../../../components/Common/SourceHint';
 import { getTimeline, setTimelineKeyOnly, type TimelineData } from '../../../services/projectTimeline';
 import SuccessMetricsEditor from './SuccessMetricsEditor';
 import WorkstreamBoard from './WorkstreamBoard';
@@ -97,6 +98,26 @@ export default function ProjectCanvas({ projectId, businessId, readOnly = false 
     await patchStrategy(projectId, { [key]: value });
   }, [projectId]);
 
+  // ⑤ AI 초안 생성 — 빈 전략·지표·추진과제를 AI가 채움(비파괴). 중복 제출 가드 + 실패 표면화.
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiMsg, setAiMsg] = useState<string | null>(null);
+  const runAiDraft = useCallback(async () => {
+    if (aiBusy) return;
+    setAiBusy(true); setAiMsg(null);
+    try {
+      const res = await aiDraftCanvas(projectId);
+      await silentLoad();
+      if (!res.strategy_filled && !res.metrics_filled && !res.workstreams_created) {
+        setAiMsg(t('canvas.ai.nothingToFill', { defaultValue: '이미 채워져 있어요 — 빈 항목만 AI가 채웁니다.' }) as string);
+      }
+    } catch (e) {
+      const m = (e as Error)?.message;
+      setAiMsg(m === 'ai_unavailable'
+        ? t('canvas.ai.unavailable', { defaultValue: 'AI를 잠시 사용할 수 없어요. 잠시 후 다시 시도해 주세요.' }) as string
+        : t('canvas.ai.failed', { defaultValue: '초안 생성에 실패했어요. 잠시 후 다시 시도해 주세요.' }) as string);
+    } finally { setAiBusy(false); }
+  }, [aiBusy, projectId, silentLoad, t]);
+
   if (loading) return <Skeleton><SkelBar style={{ width: '40%' }} /><SkelBlock /><SkelBlock /></Skeleton>;
   if (error || !data) return <ErrorBox><AlertTriangleIcon size={20} /><div>{t('canvas.loadError')}</div><Retry type="button" onClick={silentLoad}>{t('canvas.retry')}</Retry></ErrorBox>;
 
@@ -119,8 +140,22 @@ export default function ProjectCanvas({ projectId, businessId, readOnly = false 
   const goEdit = () => navigate(`/projects/p/${projectId}?tab=details`);
   const secEdit = readOnly ? <EditIcon onClick={goEdit} /> : null;
 
+  const sources = data.strategy_sources || {};
+
   return (
     <Wrap>
+      {/* ───── ⑤ AI 초안 채우기 (편집 모드) — 빈 항목만, 수정 가능 ───── */}
+      {!readOnly && (
+        <AiBar>
+          <AiBtn type="button" onClick={runAiDraft} disabled={aiBusy}>
+            {aiBusy ? <AiSpinner aria-hidden /> : <span aria-hidden>✨</span>}
+            {t('canvas.ai.draftBtn', { defaultValue: 'AI로 초안 채우기' }) as string}
+          </AiBtn>
+          <AiHint>{t('canvas.ai.hint', { defaultValue: '빈 전략·지표·추진과제를 AI가 초안으로 채워요. 언제든 수정할 수 있어요.' }) as string}</AiHint>
+          {aiMsg && <AiMsg role="status">{aiMsg}</AiMsg>}
+        </AiBar>
+      )}
+
       {/* ───── 일정 진행 타임라인 ★ (시그니처) ───── */}
       <SectionTitle>{t('canvas.tl.title')}</SectionTitle>
       {timeline && (
@@ -155,13 +190,13 @@ export default function ProjectCanvas({ projectId, businessId, readOnly = false 
       {show(layer1) && <LayerLabel $tone="blue">{t('canvas.layer1')}{secEdit}</LayerLabel>}
       {show(has(strategy.context) || has(strategy.goal)) && (
         <AutoGrid>
-          <HeroField tone="blue" fieldKey="context" value={strategy.context}
+          <HeroField tone="blue" fieldKey="context" value={strategy.context} source={sources.context}
             label={t('canvas.context.label')} hint={t('canvas.context.hint')} ph={t('canvas.context.ph')} save={saveStrategy} readOnly={readOnly} />
-          <HeroField tone="blue" fieldKey="goal" value={strategy.goal}
+          <HeroField tone="blue" fieldKey="goal" value={strategy.goal} source={sources.goal}
             label={t('canvas.goal.label')} hint={t('canvas.goal.hint')} ph={t('canvas.goal.ph')} save={saveStrategy} readOnly={readOnly} />
         </AutoGrid>
       )}
-      <HeroField tone="blue" fieldKey="key_question" value={strategy.key_question}
+      <HeroField tone="blue" fieldKey="key_question" value={strategy.key_question} source={sources.key_question}
         label={t('canvas.keyQuestion.label')} hint={t('canvas.keyQuestion.hint')} ph={t('canvas.keyQuestion.ph')} save={saveStrategy} readOnly={readOnly} />
       {show(hasMetrics) && <Card><SuccessMetricsEditor projectId={projectId} initial={data.success_metrics} onSaved={() => { /* canvas reloads via socket */ }} readOnly={readOnly} /></Card>}
 
@@ -169,9 +204,9 @@ export default function ProjectCanvas({ projectId, businessId, readOnly = false 
       {show(layer2) && <LayerLabel $tone="green">{t('canvas.layer2')}{secEdit}</LayerLabel>}
       {show(has(strategy.governing_thought) || has(strategy.approach)) && (
         <AutoGrid>
-          <HeroField tone="teal" fieldKey="governing_thought" value={strategy.governing_thought}
+          <HeroField tone="teal" fieldKey="governing_thought" value={strategy.governing_thought} source={sources.governing_thought}
             label={t('canvas.governing.label')} hint={t('canvas.governing.hint')} ph={t('canvas.governing.ph')} save={saveStrategy} readOnly={readOnly} />
-          <HeroField tone="teal" fieldKey="approach" value={strategy.approach}
+          <HeroField tone="teal" fieldKey="approach" value={strategy.approach} source={sources.approach}
             label={t('canvas.approach.label')} hint={t('canvas.approach.hint')} ph={t('canvas.approach.ph')} save={saveStrategy} readOnly={readOnly} />
         </AutoGrid>
       )}
@@ -251,25 +286,28 @@ export default function ProjectCanvas({ projectId, businessId, readOnly = false 
 }
 
 // 파스텔 hero 필드 — 프레이밍(배경·목표)·전략(핵심메시지·추진방식)을 두껍고 큰 글자 + 톤 배경으로(Irene).
-function HeroField({ fieldKey, value, label, hint, ph, save, readOnly, tone }: {
+function HeroField({ fieldKey, value, label, hint, ph, save, readOnly, tone, source }: {
   fieldKey: StrategyKey; value: string | null;
   label: string; hint: string; ph: string;
   save: (k: StrategyKey, v: string) => () => Promise<void>;
-  readOnly?: boolean; tone: 'blue' | 'teal';
+  readOnly?: boolean; tone: 'blue' | 'teal'; source?: CanvasSource;
 }) {
+  const { t } = useTranslation('qproject');
   const valRef = useRef(value ?? '');
   if (readOnly && !(value && value.trim())) return null;
+  // ⑤ 자동/수동 인지 — AI가 채운 필드엔 "✨ 자동 생성" 배지(수정하면 백엔드가 manual 로 flip → 배지 사라짐).
+  const badge = source === 'ai' ? <AutoGenBadge label={t('canvas.ai.autoBadge', { defaultValue: '자동 생성' }) as string} /> : null;
   if (readOnly) {
     return (
       <HeroCard $tone={tone}>
-        <HeroLabel $tone={tone}>{label}</HeroLabel>
+        <HeroLabel $tone={tone}>{label}{badge}</HeroLabel>
         <HeroText>{value}</HeroText>
       </HeroCard>
     );
   }
   return (
     <Field>
-      <FieldLabel>{label}<Hint>{hint}</Hint></FieldLabel>
+      <FieldLabel>{label}{badge}<Hint>{hint}</Hint></FieldLabel>
       <AutoSaveField onSave={() => save(fieldKey, valRef.current)()} type="input">
         <Textarea defaultValue={value ?? ''} placeholder={ph} onChange={(e) => { valRef.current = e.target.value; }} />
       </AutoSaveField>
@@ -314,6 +352,26 @@ function WeekCol({ title, tasks, emptyText, onOpen }: { title: string; tasks: Ca
 
 // ───────── styles ─────────
 const Wrap = styled.div`display:flex;flex-direction:column;gap:14px;width:100%;`;
+// ⑤ AI 초안 바 — Coral(AI 주 액션 톤)
+const aiSpin = keyframes`to { transform: rotate(360deg); }`;
+const AiBar = styled.div`
+  display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  padding:12px 14px; background:#FFF1F2; border:1px solid #FECDD3; border-radius:12px;
+`;
+const AiBtn = styled.button`
+  display:inline-flex; align-items:center; gap:6px; flex-shrink:0;
+  height:36px; padding:0 16px; font-size:13px; font-weight:700; color:#fff; cursor:pointer;
+  background:#F43F5E; border:none; border-radius:8px; transition:background .15s;
+  &:hover:not(:disabled){ background:#E11D48; }
+  &:disabled{ opacity:.6; cursor:default; }
+  &:focus-visible{ outline:3px solid rgba(244,63,94,.3); outline-offset:2px; }
+`;
+const AiSpinner = styled.span`
+  display:inline-block; width:14px; height:14px; border-radius:50%;
+  border:2px solid rgba(255,255,255,.5); border-top-color:#fff; animation:${aiSpin} .7s linear infinite;
+`;
+const AiHint = styled.span`flex:1; min-width:160px; font-size:12px; color:#9F1239; line-height:1.5;`;
+const AiMsg = styled.span`flex-basis:100%; font-size:12px; font-weight:600; color:#B45309;`;
 const LayerLabel = styled.div<{ $tone: 'blue' | 'green' | 'orange' }>`
   display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;letter-spacing:.02em;
   margin-top:14px;padding:4px 12px;border-radius:999px;align-self:flex-start;

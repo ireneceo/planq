@@ -7,6 +7,7 @@ import {
   wsColor, type Workstream,
 } from '../../../services/projectCanvas';
 import { PlusIcon, TrashIcon } from '../../../components/Common/Icons';
+import { AutoGenBadge } from '../../../components/Common/SourceHint';
 import PlanQSelect from '../../../components/Common/PlanQSelect';
 
 interface Props {
@@ -71,6 +72,7 @@ export default function WorkstreamBoard({ projectId, workstreams, onChanged, rea
                     <Title as={readOnly ? 'div' : undefined} style={readOnly ? { cursor: 'default' } : undefined}
                       onClick={readOnly ? undefined : () => { setEditId(ws.id); setEditTitle(ws.title); }}>{ws.title}</Title>
                   )}
+                  {ws.source === 'ai' && <AutoGenBadge label={t('canvas.ai.autoBadge', { defaultValue: '자동 생성' }) as string} />}
                   {!readOnly && (
                     <Reorder>
                       <MiniBtn type="button" disabled={idx === 0} onClick={() => move(idx, -1)} title="↑">↑</MiniBtn>
