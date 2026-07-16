@@ -11,7 +11,7 @@
 //   - 'chat' (인앱) channel ON 일 때만 표시 (notification_prefs 매트릭스)
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useChromeLocation, useChromeNav } from '../../hooks/useChromeNav';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';

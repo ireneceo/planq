@@ -5,7 +5,7 @@
 //   폴링: 5분 인터벌 + focus/visibility 복귀 시 즉시 (오래 켜둔 탭도 빠르게 최신화).
 //   운영: 알림 미수신이 "옛 SW 캐시"로 밝혀진 사고 (2026-06-15) → SW 강제 update 추가.
 import { useEffect, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useChromeLocation } from '../../hooks/useChromeNav';
 
 const POLL_MS = 5 * 60 * 1000;  // 5분
 

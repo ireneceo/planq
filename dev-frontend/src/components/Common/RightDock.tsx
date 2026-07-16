@@ -7,7 +7,7 @@
 //   분리 창(/*-popout, /memo/*) 안에서는 자기 안에 자기 뜨는 혼란 방지 위해 숨김.
 import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useChromeLocation, useChromeNav } from '../../hooks/useChromeNav';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import { isPopoutWindow } from '../../utils/popout';
