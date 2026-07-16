@@ -4,7 +4,9 @@
     "new": "새 탭",
     "close": "탭 닫기",
     "overflow": "모든 탭",
-    "recording": "녹음 중"
+    "recording": "녹음 중",
+    "searchPlaceholder": "페이지 검색",
+    "noResults": "결과 없음"
   },
   "nav": {
     "myWorkSettings": "내 업무 설정",
