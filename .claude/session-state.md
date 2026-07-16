@@ -19,14 +19,17 @@
 - `planq_tabs_spike`: 트리 스왑 keep-alive. 기본 off(dev도). Irene 5 인간검증(IME·체감·뒤로가기·마이크·F5) 후 ⑫에서 승격.
 - spike 켜기: `localStorage.setItem('planq_tabs_spike','1')`
 
-### 추가 완료 (Fable 판정 후 실행, dev — 배포 대기)
+### 추가 완료 (Fable 판정 후 실행 — 운영 배포됨 c80fed0, 20260716_214815)
 - **⑤(B) Cue provenance** — Fable GO. `created_via VARCHAR(20) NULL` 3테이블(tasks/calendar_events/documents) + action layer 배선 + cue_tools 생성 3분기 'cue' + `ProvenanceBadge`(중립 회색) 3화면 + i18n common:provenance.cue. source='manual' 유지·권한/재무 무접촉(grep 불변식)·고객 차단. 실HTTP+toJSON+가드3축 통과.
 - **⑥ 카나리 자동화 3건** — Fable CONDITIONAL-GO. canary-tabs.js에 뒤로가기·F5복원·마이크 track-alive 추가 → tabs 6/6. Irene 인간검증 5→2건(IME·전환 체감)으로 압축.
 
 ### 다음 할 일
-- **Irene 인간검증 2건** (spike on: `localStorage.setItem('planq_tabs_spike','1')`): ① IME 한글 조합 중 탭 전환 무손실 ② 전환 체감 → 통과 시 ⑥ beta/spike 운영 flip(별도 /배포)
-- **다음 /배포 대상**: ⑤B(마이그레이션 created_via 3테이블 — 운영 sync-database 자동) + Q위키 캔버스AI 아티클 seed + 카나리 6건. (배포 시 Fable 게이트: cue_tools 인접 + 스키마 → diff 대조 + 실호출)
+- **Irene 인간검증 2건** (spike on: `localStorage.setItem('planq_tabs_spike','1')`): ① IME 한글 조합 중 탭 전환 무손실 ② 전환 체감 → 통과 시 ⑥ beta/spike 운영 flip(플래그 default 변경 + /배포)
 - ⑪ 탭 드래그 정렬 · QNote 폴링정지(9b) (남은 폴리시)
+- ⑦ 인프라(Irene 액션): Stripe Webhook Secret · SMTP DKIM/SPF/DMARC DNS · Google OAuth 검증 제출
+
+### 운영 반영 완료 (이 배포)
+- ⑤B created_via 3테이블 마이그레이션(운영 실측 varchar(20) NULL) + ProvenanceBadge 3화면 + 위키 캔버스AI 아티클 seed + 카나리 6건. 멀티탭 플래그 여전히 off(운영 shell 무회귀 실측·탭바 미노출).
 
 ---
 
