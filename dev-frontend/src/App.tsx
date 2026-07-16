@@ -6,6 +6,7 @@ import { PwaInstallProvider } from './contexts/PwaInstallContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/Common/ErrorBoundary';
 import { isPopoutWindow } from './utils/popout';
+import TabMirror from './components/Tab/TabMirror';
 import { isNativeApp } from './services/native';
 import NativeBridge from './components/NativeBridge';
 import { installRoutePrefetch } from './lib/routePrefetch';
@@ -537,6 +538,8 @@ function App() {
         idle 시점 또는 조건 발동 시 chunk 받음 → entry preload 부담 감소.
       */}
       <Suspense fallback={null}>
+        {/* ⑥ 멀티탭 미러 어댑터 (M0) — location↔TabStore 동기. 렌더 없음(null). chrome 전환의 기반 */}
+        {!hideAppChrome && <TabMirror />}
         {!hideAppChrome && <CueHelpDrawer />}
         {!hideAppChrome && <MemoFab />}
         {!hideAppChrome && <RightDock />}
