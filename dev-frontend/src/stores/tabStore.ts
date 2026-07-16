@@ -124,27 +124,25 @@ export const tabStore = {
   subscribe,
   getSnapshot,
 
-  // 같은 identity 탭 있으면 focus(+path 갱신), 없으면 새 탭. title 은 나중에 setTabTitle 로 갱신.
-  openOrFocus(path: string, title?: string) {
-    const identity = identityOfPath(path);
+  // 브라우저 탭 모델 — 현재(활성) 탭의 경로를 바꾼다(안으로 들어가도 새 탭 X). 사이드바/본문 링크 내비.
+  navigateActive(path: string) {
+    if (state.mirror) { if (navigateDelegate) navigateDelegate(path); return; } // location→seedFromPath 가 store 갱신
+    const id = state.activeId;
+    if (id) { this.setTabPath(id, path); const nav = paneNavigators.get(id); if (nav) nav(path); }
+    else this.newTab(path);
+  },
+
+  // 새 탭 — 같은 페이지도 중복 허용. '+' / 새탭 드롭다운. OPEN_MAX 초과면 최오래 비활성 탭 close.
+  newTab(path = '/dashboard') {
     const now = Date.now();
-    const existing = state.tabs.find((t) => identityOfPath(t.path) === identity);
     let tabs = state.tabs;
-    let activeId: string;
-    if (existing) {
-      activeId = existing.id;
-      tabs = tabs.map((t) => (t.id === existing.id ? { ...t, path, alive: true, lastActiveAt: now, title: title ?? t.title } : t));
-    } else {
-      // 소프트캡 — 신규 탭이 OPEN_MAX 초과면 가장 오래된 비활성 탭 close
-      if (tabs.length >= OPEN_MAX) {
-        const victim = [...tabs].filter((t) => t.id !== state.activeId).sort((a, b) => a.lastActiveAt - b.lastActiveAt)[0];
-        if (victim) tabs = tabs.filter((t) => t.id !== victim.id);
-      }
-      const id = newId();
-      activeId = id;
-      tabs = [...tabs, { id, kind: kindOfPath(path), title: title ?? '', path, alive: true, lastActiveAt: now }];
+    if (tabs.length >= OPEN_MAX) {
+      const victim = [...tabs].filter((t) => t.id !== state.activeId).sort((a, b) => a.lastActiveAt - b.lastActiveAt)[0];
+      if (victim) tabs = tabs.filter((t) => t.id !== victim.id);
     }
-    set({ tabs: applyLru(tabs, activeId), activeId });
+    const id = newId();
+    tabs = [...tabs, { id, kind: kindOfPath(path), title: '', path, alive: true, lastActiveAt: now }];
+    set({ tabs: applyLru(tabs, id), activeId: id });
     if (state.mirror && navigateDelegate) navigateDelegate(path);
   },
 
@@ -213,12 +211,18 @@ export const tabStore = {
     return t ? convIdOfPath(t.path) : null;
   },
 
-  // 미러 모드 부팅 — 현재 location 을 활성 탭으로 seed(없으면 생성). chrome 전환의 단일탭 진입점.
-  seedFromPath(path: string, title?: string) {
-    const identity = identityOfPath(path);
-    const existing = state.tabs.find((t) => identityOfPath(t.path) === identity);
-    if (existing) { this.setTabPath(existing.id, path); set({ activeId: existing.id }); return; }
-    this.openOrFocus(path, title);
+  // 미러 모드 location→store 단일 소스 — 활성 탭 path 갱신(없으면 생성). dedup 안 함(브라우저 탭 모델:
+  //   탭 안에서 더 깊이 들어가면 새 탭 만들지 않고 그 탭의 경로만 바뀐다).
+  seedFromPath(path: string) {
+    const now = Date.now();
+    const act = state.activeId ? state.tabs.find((t) => t.id === state.activeId) : null;
+    if (act) {
+      if (act.path === path) return;
+      set({ tabs: state.tabs.map((t) => (t.id === act.id ? { ...t, path, kind: kindOfPath(path), lastActiveAt: now } : t)) });
+    } else {
+      const id = newId();
+      set({ tabs: [...state.tabs, { id, kind: kindOfPath(path), title: '', path, alive: true, lastActiveAt: now }], activeId: id });
+    }
   },
 };
 

@@ -16,7 +16,7 @@ const ChromeLink = forwardRef<HTMLAnchorElement, Props>(function ChromeLink({ to
     if (e.defaultPrevented) return;
     if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; // 브라우저 기본에 양보
     e.preventDefault();
-    tabStore.openOrFocus(to);
+    tabStore.navigateActive(to); // 현재 탭 경로 변경(새 탭 X). ⌘/Ctrl 클릭 시 위에서 브라우저 새 탭에 양보
   };
   return <a href={to} ref={ref} onClick={handle} {...rest}>{children}</a>;
 });
