@@ -35,8 +35,8 @@ function daysLeft(iso: string | null | undefined): number | null {
 export default function WorkspaceBillingBanner() {
   const { t } = useTranslation('plan');
   const { user } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
+  const navigate = useChromeNav();
+  const location = useChromeLocation();
   const [status, setStatus] = useState<PlanStatus | null>(null);
   const [dismissed, setDismissed] = useState(false);
 

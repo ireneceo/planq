@@ -16,7 +16,7 @@ interface Props {
 
 const NotificationDropdown: React.FC<Props> = ({ open, onClose, anchorRef }) => {
   const { t } = useTranslation('layout');
-  const navigate = useNavigate();
+  const navigate = useChromeNav();
   const { items, loading, markRead, markAllRead } = useNotifications({ limit: 10, autoRefresh: open });
   const popoverRef = useRef<HTMLDivElement>(null);
   const { formatTimeAgo } = useTimeFormat();
@@ -151,7 +151,7 @@ const Footer = styled.div`
   padding: 10px 16px; border-top: 1px solid #F1F5F9; flex-shrink: 0;
   text-align: center;
 `;
-const FooterLink = styled(Link)`
+const FooterLink = styled(ChromeLink)`
   font-size: 12px; font-weight: 600; color: #0F766E; text-decoration: none;
   &:hover { text-decoration: underline; }
 `;
