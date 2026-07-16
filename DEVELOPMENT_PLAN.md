@@ -1,8 +1,34 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-07-16 밤 (Opus 4.8, 1M) — **자율 밤샘 세션: 백로그 전수 검증 + 기능고장 3건 근본수정** — `docs/qa/NEXT_SECTION_BACKLOG.md` 전수 검증 결과, **genuinely 고장난 것만 실작업**이었고 나머지는 이미 구현됐으나 close 안 된 상태였다. ①**Q Mail AI #153/#164/#179**(`9a293e3`) — 공용 `services/emailBodyClean.js` 신설(인용/전달/서명 정리)로 언어감지 any-char편향 제거·미리보기 헤더조각 제거·추출 무반응 503 표면화. 실HTTP 검증(영어메일→영어답장 ko:0/en:198)·유닛11/11·health30/30. ②**#155 말로추가 iOS 포맷**(`79db3e4`) — isTypeSupported webm↔mp4 분기+파일명 정합+미지원가드+권한시 자동시작. ③**#126 캘린더 배너** 완성. **이미 완료 확인(재작업 안 함): #166·모바일②(a~e)·#163·MyFeedback·#162·#152**(에이전트 오탐 다수 — 반드시 현재코드 검증 후 진행). **남은 미완 ⑤·⑥ = Irene 설계결정 필요** → `docs/qa/BACKLOG_REMAINING_DECISIONS_2026-07-16.md`. 운영 미배포.
+> **최종 업데이트:** 2026-07-16 심야 (Opus 4.8, 1M) — **⑤ 캔버스 AI 초안 + ⑥ 멀티탭 keep-alive(Fable 게이트) 운영 배포** — 자율 밤샘 세션 후반. ⑤**캔버스 AI 초안 생성**: 마이그레이션(`projects.strategy_sources` JSON·`project_workstreams.source` ENUM('ai','manual')) + `services/canvasDraft.js`(LLM 게이트웨이 경유) + POST `/:id/canvas/ai-draft` + 프론트 AI버튼·AutoGenBadge 3상태. 실HTTP+LLM 6/6. ⑥**멀티탭 keep-alive**(노션식): strangler 10/12커밋 — `tabStore`(외부store+useSyncExternalStore)·통일 `TabStrip`(사이드바 색토큰·Q아이콘)·chrome 17파일 RR탈피·공유 라우트 config+drift가드·히스토리 순수로직·트리스왑(형제 MemoryRouter, spike 플래그)·keep-alive·오버레이·숨은탭 격리·닫기가드. **tabs e2e 스위트 3/3 영구 게이트**(shell 무회귀·형제 MemoryRouter 무크래시·keep-alive). **운영 배포 완료**(`2a03a38`, Complete 103s): 두 멀티탭 플래그(beta/spike) 운영 기본 off → 운영 사용자는 재구성 shell만(planq.kr /login·/·/features 렌더·크래시0·pageerror0 실측), 탭바·keep-alive 미노출. ⑤ 운영 마이그레이션 실측(strategy_sources=json·source=enum). 가드 3축(health 30/30·guard 22/22·tenant 0). 남은 폴리시: ⑪드래그정렬·⑫beta승격(Irene 5인간검증 후).
+
+> **[이전] 최종 업데이트:** 2026-07-16 밤 (Opus 4.8, 1M) — **자율 밤샘 세션: 백로그 전수 검증 + 기능고장 3건 근본수정** — `docs/qa/NEXT_SECTION_BACKLOG.md` 전수 검증 결과, **genuinely 고장난 것만 실작업**이었고 나머지는 이미 구현됐으나 close 안 된 상태였다. ①**Q Mail AI #153/#164/#179**(`9a293e3`) — 공용 `services/emailBodyClean.js` 신설(인용/전달/서명 정리)로 언어감지 any-char편향 제거·미리보기 헤더조각 제거·추출 무반응 503 표면화. 실HTTP 검증(영어메일→영어답장 ko:0/en:198)·유닛11/11·health30/30. ②**#155 말로추가 iOS 포맷**(`79db3e4`) — isTypeSupported webm↔mp4 분기+파일명 정합+미지원가드+권한시 자동시작. ③**#126 캘린더 배너** 완성. **이미 완료 확인(재작업 안 함): #166·모바일②(a~e)·#163·MyFeedback·#162·#152**(에이전트 오탐 다수 — 반드시 현재코드 검증 후 진행). **남은 미완 ⑤·⑥ = Irene 설계결정 필요** → `docs/qa/BACKLOG_REMAINING_DECISIONS_2026-07-16.md`. 운영 미배포.
 
 > **[이전] 최종 업데이트:** 2026-07-16 (Opus 4.8, 1M) — **모바일 흰 화면 회귀 차단 + 검사 하니스 강화** — e2e mobile 스위트에 `assertRendered()` **흰 화면(blank) 판정** 신규(키보드 스위트가 "입력 가림"만 봐 페이지 통째 blank도 ⚪ 통과하던 구멍 차단, #173/174/159/178 계열) + `run.js` blank=실패 집계 + mail 시나리오(mail-list·mail-compose) + MailPage `data-testid`·모바일 compose 사이드바 자동접힘 + DetailDrawer 폰 풀스크린(56px 조각 새던 것) + QBill 개요 2열 그리드 반응형 + Insights 기간라벨 i18n. **검증: mobile/crosscut/l1 전 스위트 0 실패 + tsc -b exit 0 + 가드 3축(health 30/30·guard 22/22·tenant 0)**. 다음: `docs/qa/NEXT_SECTION_BACKLOG.md`(Q Mail AI·멀티탭·전수검사 잔여 LOW).
+
+## ✅ 완료: ⑤ 캔버스 AI 초안 + ⑥ 멀티탭 keep-alive 운영 배포 (2026-07-16 심야)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| ⑤ 캔버스 AI 초안 생성 | 마이그레이션(`projects.strategy_sources` JSON·`project_workstreams.source` ENUM('ai','manual')) + `services/canvasDraft.js`(LLM 게이트웨이 경유, 전략소스 참조) + POST `/api/projects/:id/canvas/ai-draft` + 프론트 AI 버튼·AutoGenBadge 3상태. 실HTTP+LLM 6/6 | ✅ |
+| ⑥ tabStore (외부 store) | 전역 상태 라이브러리 미도입 원칙 유지 — 순수 외부 store + `useSyncExternalStore`. 브라우저 탭 모델(navigateActive 활성탭 경로만 변경)·중복 허용·LRU(alive 4)·OPEN_MAX 10·sessionStorage 영속·`__pqTab` 테스트훅(spike 게이트) | ✅ |
+| ⑥ 통일 TabStrip | 사이드바 색 토큰 수평 연장(#115E59/#0F766E/#CCFBF1/#5EEAD4)·좌측바짝·위아래꽉·이름텍스트·상단 액센트·굵기고정(위치 no-shift)·＋통합검색으로 새탭(GlobalSearchModal onNavigate)·닫기가드(#5 열린 패널 보호) | ✅ |
+| ⑥ chrome RR 탈피 17파일 | NotificationToaster·RightDock·CueHelpDrawer·WorkspaceSwitcher·GlobalSearchModal·FocusWidget·TaskFocusBar 등 → `useChromeNav`/`useChromeLocation`/`ChromeLink`. chrome zone router-less 동작 | ✅ |
+| ⑥ 트리 스왑 keep-alive | `main.tsx`/`App` ModeGate 재구성(spike 게이트) — 탭별 형제 `MemoryRouter`(nested 아님) pane, 비활성 display:none+inert(상태·스크롤·열어둔 패널 보존). PopstateBridge·오버레이 편입·숨은탭 리소스 격리(useVisibilityRefresh/BodyScrollLock/FocusTrap tabActive 게이트) | ✅ |
+| ⑥ tabs e2e 영구 게이트 | `scripts/e2e/canary-tabs.js` (run.js SUITES 등록) — shell 무회귀(flag off)·형제 MemoryRouter 무크래시(ErrorBoundary 삼킨 크래시도 CRASH_RE 검출)·keep-alive 2탭 동시 alive. 3/3 | ✅ |
+| 공유 라우트 config + drift 가드 | `routes/appRoutes.tsx`(APP_ROUTES 51) + `scripts/guard-app-routes.js`(shell↔pane 라우트 드리프트 차단) | ✅ |
+| 운영 배포 + 마이그레이션 실측 | `2a03a38` Complete 103s. 운영 `SHOW COLUMNS` 실측(strategy_sources=json·source=enum('ai','manual')). planq.kr shell 무회귀(렌더·크래시0·pageerror0). 멀티탭 플래그 2개 운영 off | ✅ |
+
+### 수정된 파일
+- 백엔드(⑤): `dev-backend/services/canvasDraft.js`(신규) `routes/projects.js` `sync-database`(마이그레이션)
+- 프론트(⑥ 신규): `stores/tabStore.ts` `stores/tabHistory.ts` `components/Tab/*`(TabStrip·TabMirror·UrlMirror·TabPane·PopstateBridge·TabAppShell·ChromeOverlays·ChromeLink) `hooks/useChromeNav.ts` `contexts/TabActiveContext.tsx` `routes/appRoutes.tsx`
+- 프론트(⑥ 편집): `main.tsx` `App.tsx` `components/Layout/MainLayout.tsx` + chrome 17파일 RR탈피 + `utils/tabsBeta.ts` `components/Common/Icons.tsx`(Q시리즈 아이콘 10종)
+- 가드/e2e: `scripts/e2e/canary-tabs.js` `scripts/guard-app-routes.js` `scripts/e2e/run.js`(SUITES)
+- 설계: `docs/MULTITAB_DESIGN.md` `docs/qa/BACKLOG_REMAINING_DECISIONS_2026-07-16.md`
+
+---
 
 ## ✅ 완료: 모바일 흰화면 회귀 차단 + 검사 하니스 blank 판정 + 반응형 (2026-07-16)
 

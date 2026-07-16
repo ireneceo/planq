@@ -464,6 +464,16 @@ const ARTICLES = [
       s('업무 리스트에서 "추진과제(그룹) 추가"로 그룹을 만듭니다.', 'Create a group with "Add workstream" in the task list.'),
       s('각 그룹의 "업무 추가"로 그 그룹에 바로 업무를 넣습니다. 드래그로 그룹을 옮길 수도 있어요.', 'Use "Add task" in each group to place a task there; you can also drag tasks between groups.'),
     ] },
+  { cat: 'qproject', slug: 'project-canvas-ai-draft', visibility: 'authenticated', linked_route: '/projects', est: 2,
+    title: t('캔버스 AI 초안으로 프로젝트 얼개 잡기', 'Draft a project canvas with AI'),
+    summary: t('전략 자료를 바탕으로 프로젝트 캔버스(추진과제) 초안을 AI가 제안', 'AI proposes a project canvas draft (workstreams) from your strategy sources'),
+    body: [
+      p('프로젝트 캔버스는 목표·추진과제(워크스트림)로 프로젝트의 얼개를 잡는 공간입니다. 전략 자료를 연결하면 AI가 초안을 제안해 시작을 빠르게 합니다.',
+        'The project canvas lays out your project as goals and workstreams. Link strategy sources and AI proposes a draft so you can start faster.'),
+      s('캔버스 상단의 AI 버튼을 눌러 초안 생성을 시작합니다.', 'Press the AI button at the top of the canvas to start generating a draft.'),
+      s('제안된 추진과제는 자동 생성 표시가 붙어요. 검토 후 그대로 두거나 수정·삭제하면 표시가 사라집니다.', 'Proposed workstreams are marked as auto-generated. Review them; editing or keeping them clears the mark.'),
+      note('AI 초안은 참고용 제안입니다. 실제 추진과제는 항상 사용자가 확정합니다.', 'The AI draft is a suggestion for reference; you always confirm the actual workstreams.'),
+    ] },
 
   // ── Insights ──
   { cat: 'insights', slug: 'insights-overview', visibility: 'authenticated', linked_route: '/stats/overview', est: 2,
