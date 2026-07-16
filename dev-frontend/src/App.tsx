@@ -1,12 +1,14 @@
-import { lazy, Suspense, useEffect } from 'react';
-import { Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { PwaInstallProvider } from './contexts/PwaInstallContext';
 // 첫 paint 에 반드시 필요한 eager — Auth/PWA context, Layout, ErrorBoundary, ProtectedRoute, prefetch
 import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/Common/ErrorBoundary';
 import { isPopoutWindow } from './utils/popout';
 import TabMirror from './components/Tab/TabMirror';
+import TabAppShell from './components/Tab/TabAppShell';
+import { isTabsSpike } from './utils/tabsBeta';
 import { isNativeApp } from './services/native';
 import NativeBridge from './components/NativeBridge';
 import { installRoutePrefetch } from './lib/routePrefetch';
@@ -138,7 +140,8 @@ function BlogSlugRedirect() {
   return <Navigate to={`/insights/${slug || ''}`} replace />;
 }
 
-function App() {
+// ShellApp — 기존 App 본문 (BrowserRouter 안에서 렌더. useLocation/Routes/오버레이). 단일탭(shell) 경로.
+function ShellApp() {
   // 라우트 청크 prefetch — idle 시점 핵심 페이지 + 전역 hover/focus delegation
   useEffect(() => installRoutePrefetch(), []);
   // 팝아웃/standalone 창(#31) + 공개 미리보기 페이지(#33)에선 메인 chrome(토스터·FAB·Dock·헬프드로어) 숨김.
@@ -154,9 +157,7 @@ function App() {
     || _loc.pathname.startsWith('/blog/');
   const hideAppChrome = isPopout || isMarketing;
   return (
-    <ErrorBoundary>
-    <AuthProvider>
-    <PwaInstallProvider>
+    <>
       <Suspense fallback={<PageLoadingFallback />}>
       <Routes>
         {/* Public routes */}
@@ -556,6 +557,39 @@ function App() {
         <TermsReacceptModal />
         <ImpersonateBanner />
       </Suspense>
+    </>
+  );
+}
+
+// 초기 URL 이 앱경로(공개/마케팅/로그인/팝아웃 아님)인가 — tree-swap 진입 조건.
+function isAppInitialPath(): boolean {
+  const p = window.location.pathname;
+  const nonApp = /^\/(login|register|invite|forgot-password|reset-password|verify-email|oauth|legal|privacy|terms|wiki|app|features|pricing|about|contact|blog|public|sign|memo|talk-popout|note-popout|help-popout)(\/|$)/;
+  return !(p === '/' || nonApp.test(p));
+}
+
+// ModeGate — auth 로딩 해소 후 1회 확정(세션 불변, Fable §3). AuthProvider 아래 · Router 위.
+//   tab: 로그인+데스크탑+spike 플래그+앱경로 → TabAppShell(keep-alive, router-less).
+//   pending/shell: BrowserRouter + ShellApp(기존 동작). flag off 는 항상 이 경로 = 무변화(회귀 0).
+function ModeGate() {
+  const { isAuthenticated, isLoading } = useAuth();
+  const [mode, setMode] = useState<'pending' | 'tab' | 'shell'>('pending');
+  useEffect(() => {
+    if (mode !== 'pending' || isLoading) return;
+    let ts = false;
+    try { ts = isTabsSpike() && isAuthenticated && isAppInitialPath(); } catch { /* noop */ }
+    setMode(ts ? 'tab' : 'shell');
+  }, [isLoading, isAuthenticated, mode]);
+  if (mode === 'tab') return <TabAppShell />;
+  return <BrowserRouter><ShellApp /></BrowserRouter>;
+}
+
+function App() {
+  return (
+    <ErrorBoundary>
+    <AuthProvider>
+    <PwaInstallProvider>
+      <ModeGate />
     </PwaInstallProvider>
     </AuthProvider>
     </ErrorBoundary>

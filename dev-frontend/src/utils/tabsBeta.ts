@@ -15,3 +15,14 @@ export function isTabsBeta(): boolean {
     return false;
   }
 }
+
+// 트리 스왑(keep-alive) 게이트 — 별도 off-by-default(dev 도 off). puppeteer tabs 스위트 + Irene 검증 후
+//   승격 예정. spike on 이어야 TabAppShell(형제 MemoryRouter) 마운트. off 면 기존 shell(BrowserRouter) 무변화.
+export function isTabsSpike(): boolean {
+  try {
+    if (!(window.matchMedia?.('(min-width: 1025px)').matches ?? false)) return false;
+    return localStorage.getItem('planq_tabs_spike') === '1';
+  } catch {
+    return false;
+  }
+}

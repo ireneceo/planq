@@ -1,6 +1,5 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter } from 'react-router-dom'
 import './i18n'
 import './index.css'
 import App from './App.tsx'
@@ -129,10 +128,9 @@ if (typeof window !== 'undefined' && window.visualViewport) {
 // 시스템 통째 제거. 새 빌드는 사용자 일반 reload 시 nginx HTML no-cache + SW updateViaCache:'none'
 // 으로 충분히 받음. SW activate 가 옛 client 자동 정리.
 
+// ⑥ 멀티탭 — BrowserRouter 는 App 내부 ModeGate 가 shell 경로에서만 감싼다(tree-swap 은 router-less zone).
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
+    <App />
   </StrictMode>,
 )
