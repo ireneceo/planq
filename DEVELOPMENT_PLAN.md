@@ -1,6 +1,26 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-07-16 (Opus 4.8, 1M) — **🚀 배포 완료** — 🔴 Q Mail IMAP IDLE 실시간 수신(2분 폴링→즉시 push <2초, 운영 실측 검증) + PlanQ→Google Calendar 쓰기 동기화(데모 차단 해소, 운영 실측 INSERT_ID 반환) + 메일 링크 새탭 + 기능 무반응 **전수검사 35건**(1차 5 + 2차 30, apiFetch no-throw 거짓성공 스윕) + 메일 탭 배지(전체=미읽음/액션없는 탭 배지제거) + 답변필요 처리 시 즉시 제거·선택해제·초기화 + todo.verb.reply. 다음: `docs/qa/NEXT_SECTION_BACKLOG.md`(모바일 반응형·Q Mail AI·멀티탭·전수검사 잔여 LOW).
+> **최종 업데이트:** 2026-07-16 (Opus 4.8, 1M) — **모바일 흰 화면 회귀 차단 + 검사 하니스 강화** — e2e mobile 스위트에 `assertRendered()` **흰 화면(blank) 판정** 신규(키보드 스위트가 "입력 가림"만 봐 페이지 통째 blank도 ⚪ 통과하던 구멍 차단, #173/174/159/178 계열) + `run.js` blank=실패 집계 + mail 시나리오(mail-list·mail-compose) + MailPage `data-testid`·모바일 compose 사이드바 자동접힘 + DetailDrawer 폰 풀스크린(56px 조각 새던 것) + QBill 개요 2열 그리드 반응형 + Insights 기간라벨 i18n. **검증: mobile/crosscut/l1 전 스위트 0 실패 + tsc -b exit 0 + 가드 3축(health 30/30·guard 22/22·tenant 0)**. 다음: `docs/qa/NEXT_SECTION_BACKLOG.md`(Q Mail AI·멀티탭·전수검사 잔여 LOW).
+
+## ✅ 완료: 모바일 흰화면 회귀 차단 + 검사 하니스 blank 판정 + 반응형 (2026-07-16)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 검사 하니스 blank 판정 | `assertRendered()`(mobile-keyboard.js) — 뷰포트 세로선 elementFromPoint 샘플링으로 실제 painted 픽셀 카운트. painted<2면 흰 화면. 키보드 스위트가 "입력 가림"만 봐 blank 페이지도 ⚪ 통과하던 구멍(#173/174/159/178) 차단. `run.js` blank=실패 집계+표기 | ✅ |
+| 메일 하니스 시나리오 | mail-list(blank 렌더 가드)·mail-compose(작성 풀페이지 입력 키보드 가림). openMailCompose = 사이드바 펼치기→[＋ 새 메일] | ✅ |
+| MailPage data-testid·모바일 compose | `mail-compose-open`·`mail-list-expand` 부여(하니스 opener 안정) + compose 열 때 모바일 사이드바 자동접힘(main 풀폭) | ✅ |
+| DetailDrawer 폰 풀스크린 | ≤640px `width:100vw`+border-left·shadow 제거+safe-area. 여태 min(w,100vw-56)이라 56px 조각으로 뒤 화면 비치던 것(새 일정 드로어 좌측 달력 노출) 차단. DetailDrawer 쓰는 모든 드로어 일괄 | ✅ |
+| QBill 개요 2열 그리드 | 모바일 세로 1열 적층→2열 그리드(minmax 0 1fr)로 한눈에(#169). 라벨+도움말 세로 스택 | ✅ |
+| Insights 기간라벨 i18n | 하드코딩 영어('Last 30 days') 제거 → ko/en `range.*` locale + t() 폴백 | ✅ |
+
+### 수정된 파일
+- 하니스: `scripts/e2e/mobile-keyboard.js`(assertRendered·mail 시나리오) `scripts/e2e/run.js`(blank 집계) `scripts/e2e/lib/browser.js`(assertRendered export)
+- 프론트: `components/Common/DetailDrawer.tsx` `components/QTask/TaskDetailDrawer.tsx` `pages/QMail/MailPage.tsx` `pages/QBill/OverviewTab.tsx` `pages/Insights/InsightsPage.tsx`
+- i18n: `public/locales/{ko,en}/insights.json`
+
+---
 
 ## ✅ 완료: IMAP IDLE + 캘린더 동기화 + 기능 전수검사 35건 + 메일 UX (2026-07-16)
 
