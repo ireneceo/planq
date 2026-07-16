@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useTabActive } from '../contexts/TabActiveContext';
 
 // 포커스 가능 요소 셀렉터
 const FOCUSABLE = [
@@ -18,8 +19,9 @@ export const useFocusTrap = (
   ref: React.RefObject<HTMLElement | null>,
   active: boolean,
 ): void => {
+  const tabActive = useTabActive(); // ⑥ 숨은 탭 모달은 포커스 가로채지 않음(단일탭 = 항상 활성)
   useEffect(() => {
-    if (!active || !ref.current) return;
+    if (!active || !tabActive || !ref.current) return;
 
     const container = ref.current;
     const previouslyFocused = document.activeElement as HTMLElement | null;
@@ -62,5 +64,5 @@ export const useFocusTrap = (
         previouslyFocused.focus();
       }
     };
-  }, [active, ref]);
+  }, [active, tabActive, ref]);
 };
