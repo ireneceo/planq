@@ -10,12 +10,15 @@ export interface CanvasStrategy {
 }
 export type StrategyKey = keyof CanvasStrategy;
 
+export type CanvasSource = 'ai' | 'manual';
+
 export interface SuccessMetric {
   id?: string;
   label: string;
   target: string;
   current: string;
   unit: string;
+  source?: CanvasSource;  // ⑤ 자동/수동 인지
 }
 
 export interface WorkstreamRollup {
@@ -25,6 +28,7 @@ export interface Workstream {
   id: number; title: string; description: string | null;
   order_index: number; color: string | null;
   status: 'active' | 'done' | 'dropped';
+  source?: CanvasSource;  // ⑤ 자동/수동 인지
   rollup: WorkstreamRollup;
 }
 
@@ -45,6 +49,7 @@ export interface Deliverable {
 export interface CanvasData {
   project: { id: number; name: string; status: string; start_date: string | null; end_date: string | null; color: string | null; description: string | null; owner_user_id: number };
   strategy: CanvasStrategy;
+  strategy_sources?: Partial<Record<StrategyKey, CanvasSource>>;  // ⑤ 전략 필드별 출처
   success_metrics: SuccessMetric[];
   workstreams: Workstream[];
   tasks: CanvasGraphTask[];
@@ -69,6 +74,12 @@ export async function patchStrategy(projectId: number, patch: Partial<CanvasStra
   return jsonOf(await apiFetch(`/api/projects/${projectId}/strategy`, {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
   }));
+}
+
+// ⑤ AI 캔버스 초안 생성 — 빈 전략·지표·추진과제를 AI가 초안으로 채운다(비파괴). 실패 시 throw(message).
+export interface AiDraftResult { strategy_filled: number; metrics_filled: number; workstreams_created: number; }
+export async function aiDraftCanvas(projectId: number): Promise<AiDraftResult> {
+  return jsonOf(await apiFetch(`/api/projects/${projectId}/canvas/ai-draft`, { method: 'POST' }));
 }
 
 export async function putSuccessMetrics(projectId: number, metrics: SuccessMetric[]): Promise<SuccessMetric[]> {

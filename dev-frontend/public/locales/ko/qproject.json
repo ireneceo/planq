@@ -554,6 +554,14 @@
     "layer1": "프레이밍 (Why)",
     "layer2": "전략 (How)",
     "layer3": "실행 · 추적",
+    "ai": {
+      "draftBtn": "AI로 초안 채우기",
+      "hint": "빈 전략·지표·추진과제를 AI가 초안으로 채워요. 언제든 수정할 수 있어요.",
+      "autoBadge": "자동 생성",
+      "nothingToFill": "이미 채워져 있어요 — 빈 항목만 AI가 채웁니다.",
+      "unavailable": "AI를 잠시 사용할 수 없어요. 잠시 후 다시 시도해 주세요.",
+      "failed": "초안 생성에 실패했어요. 잠시 후 다시 시도해 주세요."
+    },
     "context": {
       "label": "추진 배경",
       "hint": "왜 지금, 어떤 상황에서 (Situation)",
