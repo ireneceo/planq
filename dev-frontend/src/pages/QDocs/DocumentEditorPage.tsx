@@ -12,6 +12,7 @@ import PageShell from '../../components/Layout/PageShell';
 import RevisionPanel from '../../components/Docs/RevisionPanel';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import SecurityLevelBadge, { useSecurityLevelLabel } from '../../components/Common/SecurityLevelBadge';
+import { ProvenanceBadge } from '../../components/Common/SourceHint';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   getDocument, updateDocument, downloadDocumentPdf, updateDocumentSecurityLevel,
@@ -136,6 +137,10 @@ const DocumentEditorPage: React.FC = () => {
             <SideTitle>{t('editor.meta', '메타')}</SideTitle>
             <Row><Label>{t('editor.kind', '유형')}</Label><Value>{kindLabel}</Value></Row>
             <Row><Label>{t('editor.status', '상태')}</Label><Value>{doc.status}</Value></Row>
+            {/* ⑤B — Cue 대화형 실행으로 추가된 문서: "Cue로 추가됨" 정보성 배지(표시 전용) */}
+            {doc.created_via === 'cue' && (
+              <Row><Label>{t('editor.origin', '출처')}</Label><Value><ProvenanceBadge label={tc('provenance.cue', { defaultValue: 'Cue로 추가됨' }) as string} /></Value></Row>
+            )}
             {doc.client_id && <Row><Label>{t('editor.client', '고객')}</Label><Value>#{doc.client_id}</Value></Row>}
             {doc.project_id && <Row><Label>{t('editor.project', '프로젝트')}</Label><Value>#{doc.project_id}</Value></Row>}
             {/* D4 #62 — 보안등급 (내부·기밀은 외부 공유 차단) */}
