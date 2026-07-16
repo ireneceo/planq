@@ -323,6 +323,14 @@ const MailPage: React.FC = () => {
   const [folderCounts, setFolderCounts] = useState<Record<Folder, number>>({
     reply_needed: 0, uncertain: 0, all: 0, marketing: 0, following: 0, spam: 0, archived: 0,
   });
+  // 전체 탭 배지 = 미읽음 수 ("모두 읽음" 이 지운다). folderCounts.all(총 스레드 수)는 빈 상태 판정용으로만 유지.
+  const [allUnread, setAllUnread] = useState(0);
+  // 탭 배지 정책 — 그 탭의 액션이 지우는 수만 노출. 액션 없는 탭(자동·마케팅/팔로우/스팸/보관)은 배지 없음.
+  const tabBadge = useCallback((key: Folder): number => {
+    if (key === 'all') return allUnread;                          // 미읽음 (모두 읽음이 지움)
+    if (key === 'reply_needed' || key === 'uncertain') return folderCounts[key] || 0;  // pending (일괄 액션이 비움)
+    return 0;                                                     // 그 외 — 배지 없음
+  }, [allUnread, folderCounts]);
   const [accounts, setAccounts] = useState<MailAccount[]>([]);
   // 좌측 리스트 폭 — 우측 패널처럼 드래그로 조절 (제목이 길면 300px 는 답답하다)
   const { width: listWidth, startListResize } = (() => {
@@ -490,6 +498,12 @@ const MailPage: React.FC = () => {
       })
     );
     setFolderCounts(Object.fromEntries(results) as Record<Folder, number>);
+    // 전체 탭 배지용 미읽음 수 (unread=true) — "모두 읽음" 시 0 이 되어 배지가 사라진다.
+    try {
+      const ur = await apiFetch(`/api/businesses/${businessId}/email-threads?folder=all&unread=true&limit=1${acctQs}`);
+      const uj = await ur.json();
+      setAllUnread(ur.ok ? (uj.pagination?.total || 0) : 0);
+    } catch { setAllUnread(0); }
   }, [businessId, accountFilter]);
 
   // 라벨 마스터 + 멤버 (M3-B 라벨/할당용)
@@ -1198,7 +1212,7 @@ const MailPage: React.FC = () => {
           {FOLDERS.map(({ key, defaultLabel }) => (
             <FolderTab key={key} type="button" $active={folder === key} onClick={() => setFolder(key)}>
               {t(`folders.${key}`, { defaultValue: defaultLabel }) as string}
-              {folderCounts[key] > 0 && <TabCount $active={folder === key}>{folderCounts[key]}</TabCount>}
+              {tabBadge(key) > 0 && <TabCount $active={folder === key}>{tabBadge(key)}</TabCount>}
             </FolderTab>
           ))}
         </FolderTabs>
