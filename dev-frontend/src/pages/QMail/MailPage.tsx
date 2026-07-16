@@ -233,12 +233,18 @@ function buildMailSrcDoc(id: number, html: string): string {
   // 최상위 고정폭 블록(뉴스레터 table/div/center)을 가운데 정렬 — Gmail 등 타 클라이언트와 동일.
   //   width 없는(=full) 콘텐츠는 margin:auto 영향 없이 그대로 풀폭. 고정폭만 중앙으로 모인다(Irene).
   const guard = '<style>html,body{margin:0;padding:0;height:auto;}body{overflow-x:auto;display:flow-root;}img{max-width:100%;height:auto;}body>table,body>div,body>center,body>a{margin-left:auto;margin-right:auto;}</style>';
+  // 메일 본문 링크는 iframe 안이 아니라 **새 브라우저 탭**으로 — Gmail 등 타 클라이언트와 동일.
+  //   <base target="_blank"> 로 모든 <a> 가 새 탭. sandbox 에 allow-popups(+escape) 를 줘야 실제로 열린다.
+  //   (URL 은 sanitizeMailHtml 이 http(s)/mailto 로 제한. 최신 브라우저는 _blank 에 자동 noopener 적용.)
+  const base = '<base target="_blank" rel="noopener noreferrer">';
   const hasDoc = /<body[\s>]/i.test(safe);
   if (hasDoc) {
-    if (/<\/body>/i.test(safe)) return safe.replace(/<\/body>/i, `${guard}${resize}</body>`);
-    return `${safe}${guard}${resize}`;
+    // <head> 있으면 그 안에, 없으면 최상단에 base 주입
+    const withBase = /<head[^>]*>/i.test(safe) ? safe.replace(/<head[^>]*>/i, `$&${base}`) : `${base}${safe}`;
+    if (/<\/body>/i.test(withBase)) return withBase.replace(/<\/body>/i, `${guard}${resize}</body>`);
+    return `${withBase}${guard}${resize}`;
   }
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${guard}</head><body>${safe}${resize}</body></html>`;
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${base}${guard}</head><body>${safe}${resize}</body></html>`;
 }
 
 const MailPage: React.FC = () => {
@@ -1631,7 +1637,7 @@ const MailPage: React.FC = () => {
                         (allow-scripts 만, same-origin 없음)이 격리한다. 우리가 넣는 스크립트는 높이 보고 한 줄. */}
                     {m.body_html ? (
                       <MessageBodyFrame
-                        sandbox="allow-scripts"
+                        sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
                         style={{ height: `${frameH[m.id] || 120}px` }}
                         srcDoc={buildMailSrcDoc(m.id, m.body_html)}
                         title={`message-${m.id}`}
