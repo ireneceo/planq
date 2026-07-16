@@ -216,10 +216,7 @@ const ProjectTaskList: React.FC<Props> = ({
   const saveField = async (taskId: number, field: string, value: unknown) => {
     const prevVal = (tasks.find((t) => t.id === taskId) as Record<string, unknown> | undefined)?.[field];
     onLocalUpdate(taskId, { [field]: value } as Partial<TaskRow>);
-    const r = await apiFetch(`/api/tasks/by-business/${businessId}/${taskId}`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ [field]: value }),
-    });
+    const r = await apiFetch(`/api/tasks/by-business/${businessId}/${taskId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [field]: value }) });
     if (!r.ok) onLocalUpdate(taskId, { [field]: prevVal } as Partial<TaskRow>);  // 실패 시 낙관적 되돌림(assignGroup 패턴)
   };
 
@@ -315,14 +312,10 @@ const ProjectTaskList: React.FC<Props> = ({
             )}
             <TaskRowActionMenu
               onAddBelow={() => { setNewBelowTitle(''); setAddingBelowId(task.id); }}
-              onCopy={async () => {
+              onCopy={async () => {  // 실패 표면화 (onDelete 패턴) — apiFetch throw 안 함
                 const r = await apiFetch(`/api/tasks/${task.id}/copy`, { method: 'POST' });
-                if (!r.ok) {
-                  const j = await r.json().catch(() => ({}));
-                  return { ok: false, message: j?.message };  // 실패 표면화 (onDelete 패턴)
-                }
-                onRefresh?.();
-                return { ok: true };
+                if (!r.ok) { const j = await r.json().catch(() => ({})); return { ok: false, message: j?.message }; }
+                onRefresh?.(); return { ok: true };
               }}
               onDelete={async () => {
                 const r = await apiFetch(`/api/tasks/by-business/${businessId}/${task.id}`, { method: 'DELETE' });
