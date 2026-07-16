@@ -110,26 +110,28 @@ export default function TabStrip({ leftOffset = 0 }: { leftOffset?: number }) {
 // ── styled (사이드바 토큰 수평 연장) ──
 const Strip = styled.div`
   position: fixed; top: 0; right: 0; z-index: 95;   /* left 는 inline(사이드바 폭) — 사이드바 오른쪽부터 */
-  display: flex; align-items: center;
-  height: 40px; padding: 0 8px 0 10px;
+  display: flex; align-items: stretch;              /* 탭이 위아래로 꽉 차게 */
+  height: 40px; padding: 0;                          /* 좌측 바짝(첫 탭 = 사이드바 끝) */
   background: #115E59; border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   transition: left 0.25s ease;
 `;
 const Scroll = styled.div`
-  display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0;
+  display: flex; align-items: stretch; gap: 0; flex: 1; min-width: 0;
   overflow-x: auto; scrollbar-width: none;
   &::-webkit-scrollbar { display: none; }
 `;
 const Chip = styled.button<{ $active: boolean }>`
   display: inline-flex; align-items: center; gap: 6px; flex: 0 1 auto;
-  max-width: 220px; min-width: 0; height: 30px; padding: 0 8px 0 12px;
-  border: none; border-radius: 6px; cursor: pointer;
+  max-width: 220px; min-width: 0; height: 40px; padding: 0 10px 0 14px;   /* 위아래 꽉 채움 */
+  border: none; border-right: 1px solid rgba(255, 255, 255, 0.06); border-radius: 0;
+  border-top: 2px solid ${(p) => (p.$active ? '#5EEAD4' : 'transparent')};  /* 활성 탭 상단 액센트 */
+  cursor: pointer;
   background: ${(p) => (p.$active ? '#0F766E' : 'transparent')};
   color: ${(p) => (p.$active ? '#FFFFFF' : '#CCFBF1')};
   font-size: 13px; font-weight: ${(p) => (p.$active ? 600 : 500)};
   transition: background 0.12s, color 0.12s;
   &:hover { background: ${(p) => (p.$active ? '#0F766E' : 'rgba(255,255,255,0.08)')}; color: #FFFFFF; }
-  &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
+  &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: -2px; }
 `;
 const TabLabel = styled.span`overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;`;
 const RecDot = styled.span`
@@ -143,8 +145,8 @@ const Close = styled.button`
   &:hover { background: rgba(255, 255, 255, 0.18); opacity: 1; }
 `;
 const NewBtn = styled.button<{ $on: boolean }>`
-  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
-  width: 28px; height: 28px; margin-left: 2px; border: none; border-radius: 8px; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; align-self: center;
+  width: 28px; height: 28px; margin-left: 4px; border: none; border-radius: 8px; cursor: pointer;
   color: #99F6E4; background: ${(p) => (p.$on ? 'rgba(255,255,255,0.10)' : 'transparent')};
   &:hover { background: rgba(255, 255, 255, 0.10); color: #FFFFFF; }
   &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
