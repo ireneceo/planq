@@ -10,6 +10,11 @@
     "agenda": "Agenda"
   },
   "new": "New event",
+  "syncNotice": {
+    "title": "Google Calendar sync is currently limited.",
+    "body": "Events you create in PlanQ are automatically pushed to Google Calendar, and connected personal Google events show up here. Real-time two-way sync (auto-reflecting changes made in Google) will be available after Google's review approval.",
+    "dismiss": "Dismiss"
+  },
   "filter": {
     "all": "All",
     "mine": "Me",

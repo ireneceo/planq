@@ -10,6 +10,11 @@
     "agenda": "아젠다"
   },
   "new": "새 일정",
+  "syncNotice": {
+    "title": "Google 캘린더는 현재 제한적으로 연동됩니다.",
+    "body": "PlanQ에서 만든 일정은 Google 캘린더에 자동 반영되고, 연결한 개인 Google 일정은 여기서 함께 볼 수 있어요. 실시간 양방향 동기화(Google에서 변경한 내용의 자동 반영)는 Google 검수 승인 후 제공됩니다.",
+    "dismiss": "안내 닫기"
+  },
   "filter": {
     "all": "전체",
     "mine": "나",
