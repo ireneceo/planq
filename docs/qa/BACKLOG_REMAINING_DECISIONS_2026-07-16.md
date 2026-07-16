@@ -24,7 +24,9 @@
 
 ---
 
-## ⑤ 자동/수동 인지 (source 플래그) — **결정 필요**
+> **2026-07-16 심야 갱신:** ⑤(A) **완료·운영 배포됨** — 캔버스 AI 초안 생성(`projects.strategy_sources` JSON + `project_workstreams.source` ENUM('ai','manual') 마이그레이션 + `services/canvasDraft.js` + POST `/:id/canvas/ai-draft` + AutoGenBadge 3상태. ProjectCanvas·WorkstreamBoard 부착). ⑤(C) **확인 결과 이미 구현됨** — 세 보고서 뷰(ReportUnitView "자동 확정"·IntegratedReportView "자동확정"·WeeklyReviewWorkspaceView `Badge $auto` "자동")가 `finalized_by==='auto'`로 자체 자동 배지 표시 중. 신규 작업 불요(작동 배지를 ✨로 교체 = churn). ⑤(B)만 미결(아래).
+
+## ⑤ 자동/수동 인지 (source 플래그) — **⑤(B)만 결정 필요 (A·C 완료)**
 
 ### 조사로 드러난 사실 (전제가 일부 성립 안 함)
 1. **프로젝트 개요/캔버스는 현재 AI가 생성하지 않는다.** strategy_*·success_metrics·workstream·process part
@@ -50,13 +52,13 @@
 
 ---
 
-## ⑥ 노션형 상단 멀티탭 — **UI 와이어 승인 필요 (착수 전 게이트)**
+## ⑥ 노션형 상단 멀티탭 — **구현·배포 완료(플래그 off), Irene 5 인간검증만 남음**
 
-- 현황: P0-A(공유 소켓) 완료. 남은 P0-B(useTabActive + document34/hook16 마이그레이션) → SPIKE(Fable 게이트:
-  chrome 포함 형제 MemoryRouter 무크래시) → P1(TabStore·탭별 history·chrome react-router 탈피 리팩터).
-- 규모 대·다중 사이클·데스크탑 전용. 백로그 자체가 **"착수 전 UI 와이어 확정"**을 명시.
-- 자율로 P0-B만 해봐야 나머지 없이는 무용하고, 와이어가 바뀌면 통째 churn → **와이어 승인 전 미착수**가 맞음.
-- 필요 산출: 탭 스트립이 기존 사이드바/헤더와 충돌 없는 배치의 UI 와이어(Irene). 설계 `docs/MULTITAB_DESIGN.md`.
+> **2026-07-16 심야 갱신:** P0-A~P1 **전부 완료 + 운영 배포됨(플래그 off)**. UI 와이어는 Irene 피드백 반복 반영으로 확정(좌측바짝·브라우저모델·＋통합검색·위치고정·닫기가드). strangler 10/12 커밋.
+- 구현: `tabStore`(외부 store)·통일 `TabStrip`·chrome 17파일 RR탈피·형제 `MemoryRouter` 트리스왑·keep-alive·오버레이 편입·숨은탭 격리·라우트 config+drift 가드. tabs e2e **3/3 영구 게이트**.
+- 운영: 두 플래그(`planq_tabs_beta`/`planq_tabs_spike`) 기본 off → 운영 사용자는 재구성 shell만(planq.kr 무회귀 실측), 탭바·keep-alive 미노출.
+- **남은 것 = Irene 5 인간검증** (spike on: `localStorage.setItem('planq_tabs_spike','1')`): IME 한글조합·전환 체감·뒤로가기·Q Note 마이크 유지·F5 복원 → 통과 시 ⑫에서 beta 승격. + ⑪ 탭 드래그정렬(폴리시).
+- 메모리: [[project_multitab_keepalive]]. 설계 `docs/MULTITAB_DESIGN.md`.
 
 ---
 
