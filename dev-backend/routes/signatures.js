@@ -434,8 +434,12 @@ router.post('/sign/:token/otp', otpSendLimiter, async (req, res, next) => {
       otp_code_hash: codeHash, otp_sent_at: new Date(), otp_expires_at: ttl, otp_attempts: 0,
     });
     const post = await Post.findByPk(sr.entity_id);
-    await sendSignatureOtpEmail({ to: sr.signer_email, docTitle: post?.title || '문서', code }).catch(() => null);
+    // 발송 실패를 삼키고 sent:true 반환하면 사용자는 오지 않는 코드를 무한정 기다린다(거짓 전송).
+    //   운영(SMTP 有)에서 실패 시 502 로 알려 재시도/문의 유도. dev(SMTP 無)는 콘솔 코드로 대체.
+    const otpSent = await sendSignatureOtpEmail({ to: sr.signer_email, docTitle: post?.title || '문서', code })
+      .then(() => true).catch((e) => { console.error('[sig-otp] send failed:', e?.message); return false; });
     if (!process.env.SMTP_HOST) console.log(`[DEV-OTP] token=${sr.token.slice(0,8)}.. code=${code} email=${sr.signer_email}`);
+    if (!otpSent && process.env.SMTP_HOST) return errorResponse(res, 'otp_send_failed', 502);
     return successResponse(res, { sent: true, expires_at: ttl });
   } catch (err) { next(err); }
 });

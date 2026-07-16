@@ -509,10 +509,12 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ progress_percent: newStatus === 'completed' ? 100 : undefined }),
       });
-      await apiFetch(`/api/tasks/by-business/${bizId}/${detailTask.id}`, {
+      const sr = await apiFetch(`/api/tasks/by-business/${bizId}/${detailTask.id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
       });
+      // status 전이는 reviewer 가드(400)·권한(403)으로 거절될 수 있다 — 성공 확인 없이 'saved' 금지(거짓 성공 방지)
+      if (!sr.ok) throw new Error('status_change_failed');
       setDetailTask(prev => {
         if (!prev) return prev;
         const u: TaskDetail = { ...prev, status: newStatus };
@@ -637,10 +639,11 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     const id = detailTask.id;
     setActionBusy(true);
     try {
-      await apiFetch(`/api/tasks/by-business/${bizId}/${id}`, {
+      const r = await apiFetch(`/api/tasks/by-business/${bizId}/${id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'in_progress' }),
       });
+      if (!r.ok) return;  // 권한·가드 거절 시 로컬 in_progress 적용 금지(거짓 성공 방지). busy 는 finally 가 해제.
       // #93-ⓑ — "진행 시작" 깜빡임 제거: 전체 refetch(refreshAfterAction) 대신 status 만 인플레이스 병합.
       //   본문/설명 RichEditor·댓글 등 무관한 영역은 그대로 두고, 이력·리뷰어만 가볍게 보강.
       setDetailTask(prev => prev ? { ...prev, status: 'in_progress' } as TaskDetail : prev);
