@@ -384,6 +384,10 @@ const MailPage: React.FC = () => {
     else nsp.set('thread', String(id));
     setSp(nsp, { replace: true });
   };
+  // 선택 해제 — 현재 URL 기준(함수형 업데이트라 stale 안전). 상세 패널 닫힘(activeId 파생).
+  const clearSelection = useCallback(() => {
+    setSp((prev) => { const n = new URLSearchParams(prev); n.delete('thread'); return n; }, { replace: true });
+  }, [setSp]);
 
   // 계정 필터 토글 (재클릭 해제 — 공통 UX 규칙)
   const setAccount = (id: number | null) => {
@@ -574,6 +578,15 @@ const MailPage: React.FC = () => {
   const [handledIds, setHandledIds] = useState<Set<number>>(new Set());
   const handledRef = useRef(handledIds);
   useEffect(() => { handledRef.current = handledIds; }, [handledIds]);
+  // 처리(답변불필요) → 리스트에서 즉시 제거 + 선택 해제 + 리스트 리프레시(처음 들어온 상태로).
+  //   (옛 handledIds '처리됨 자리 유지'는 Irene 요청으로 폐지 — "처리되면 그냥 없어지고 아무것도 선택 안된 처음 상태로".)
+  const afterTriage = useCallback((threadId: number) => {
+    setThreads(prev => prev.filter(t => t.id !== threadId));   // 즉시 사라짐(플래시 없음)
+    clearSelection();                                          // 아무것도 선택 안된 상태 + 상세 닫힘
+    loadCounts();
+    loadList();                                                // 서버 fresh — 처음 들어온 리스트로
+    window.dispatchEvent(new CustomEvent('inbox:refresh'));    // 사이드바 Q mail 뱃지 즉시 갱신
+  }, [clearSelection, loadCounts, loadList]);
   const dismissReply = useCallback(async (e: React.MouseEvent, threadId: number) => {
     e.stopPropagation();
     if (!businessId) return;
@@ -581,12 +594,10 @@ const MailPage: React.FC = () => {
     try {
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${threadId}/dismiss-reply`, { method: 'POST' });
       if (!r.ok) throw new Error('dismiss_failed');
-      setHandledIds(prev => new Set(prev).add(threadId));   // 자리를 지킨 채 '처리됨' 표시
-      loadCounts();
-      window.dispatchEvent(new CustomEvent('inbox:refresh'));    // 사이드바 Q mail 뱃지 즉시 갱신
+      afterTriage(threadId);
     } catch { /* 실패 시 목록 유지 — 다음 로드에서 복원 */ }
     finally { setDismissingId(null); }
-  }, [businessId, loadCounts]);
+  }, [businessId, afterTriage]);
 
   // 확인 완료 — 확인 권장에서 내린다. "관리하려면 아닌 건 배제할 수 있어야 한다" (Irene).
   //   원본은 그대로, 분류만 바뀐다(보관). 전체 탭에서는 계속 보인다.
@@ -597,13 +608,10 @@ const MailPage: React.FC = () => {
     try {
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${threadId}/mark-handled`, { method: 'POST' });
       if (!r.ok) throw new Error('handled_failed');
-      setHandledIds(prev => new Set(prev).add(threadId));
-      if (activeId === threadId) setActive(null);
-      loadCounts();
-      window.dispatchEvent(new CustomEvent('inbox:refresh'));
+      afterTriage(threadId);
     } catch { /* 실패 시 목록 유지 — 다음 로드에서 복원 */ }
     finally { setDismissingId(null); }
-  }, [businessId, loadCounts, activeId]);
+  }, [businessId, afterTriage]);
 
   // 스팸으로 (리스트에서 바로) — 광고·스팸은 여기서 끝낸다
   const markSpamRow = useCallback(async (e: React.MouseEvent, threadId: number) => {
@@ -613,12 +621,10 @@ const MailPage: React.FC = () => {
     try {
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${threadId}/mark-spam`, { method: 'POST' });
       if (!r.ok) throw new Error('spam_failed');
-      setHandledIds(prev => new Set(prev).add(threadId));
-      if (activeId === threadId) setActive(null);
-      loadCounts();
+      afterTriage(threadId);
     } catch { /* 유지 */ }
     finally { setDismissingId(null); }
-  }, [businessId, loadCounts, activeId]);
+  }, [businessId, afterTriage]);
 
   // #154 — 폴더 맥락 일괄 처리(Fable 설계): 폴더별 단일 액션 + 폴더 전체({all,folder}) + 2단계 인라인 확인.
   const [bulkConfirm, setBulkConfirm] = useState(false);
