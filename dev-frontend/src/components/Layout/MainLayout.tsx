@@ -74,9 +74,9 @@ const LayoutContainer = styled.div`
 `;
 
 const Sidebar = styled.div<{ $isOpen?: boolean; $isCollapsed?: boolean; $tabMode?: boolean }>`
-  position: fixed; top: ${props => (props.$tabMode ? TABSTRIP_H : 0)}px; left: 0;
+  position: fixed; top: 0; left: 0;   /* 사이드바는 위→아래 통짜 (탭바가 덮지 않음). 탭바는 사이드바 오른쪽부터 */
   width: ${props => props.$isCollapsed ? `${SIDEBAR_W_COLLAPSED}px` : `${SIDEBAR_W_OPEN}px`};
-  height: ${props => (props.$tabMode ? `calc(100vh - ${TABSTRIP_H}px)` : '100vh')};
+  height: 100vh;
   background: linear-gradient(180deg, #115E59 0%, #134E4A 100%);
   z-index: 100; display: flex; flex-direction: column;
   transition: width 0.25s ease; overflow-x: hidden;
@@ -519,8 +519,10 @@ const UserMenuItemBase = css<{ $danger?: boolean }>`
 const UserMenuItemLink = styled(ChromeLink)<{ $danger?: boolean }>`${UserMenuItemBase}`;
 const UserMenuItemBtn = styled.button<{ $danger?: boolean }>`${UserMenuItemBase}`;
 
-const MainContent = styled.div<{ $marginLeft: number }>`
+const MainContent = styled.div<{ $marginLeft: number; $tabMode?: boolean }>`
   margin-left: ${props => props.$marginLeft}px;
+  /* ⑥ 멀티탭 — 탭바(fixed, 사이드바 오른쪽 top:0)만큼 본문 상단 여백 */
+  padding-top: ${props => (props.$tabMode ? TABSTRIP_H : 0)}px;
   /* 콘텐츠 좌측 인셋(앱 네비 폭)을 CSS 변수로 노출 — 좌측 플로팅 패널 핸들이 뷰포트가 아닌
      콘텐츠 왼쪽 변 기준으로 붙도록(FloatingPanelToggle side='left'). 태블릿에선 네비가 오버레이라 0. */
   --pq-content-left: ${props => props.$marginLeft}px;
@@ -834,8 +836,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
   return (
     <LayoutContainer>
-      {/* ⑥ 멀티탭 탭 스트립 (A안: 최상단 풀폭) — beta 플래그·데스크탑에서만. off 면 렌더 X(무회귀) */}
-      {tabMode && <TabStrip />}
+      {/* ⑥ 멀티탭 탭 스트립 — 사이드바 오른쪽부터(본문 영역 위). beta·데스크탑에서만. off 면 렌더 X(무회귀) */}
+      {tabMode && <TabStrip leftOffset={sidebarW} />}
       {/* N+63 — 알림 dropdown (사이드바 종 모양 trigger) */}
       <NotificationDropdown open={notifOpen} onClose={() => setNotifOpen(false)} anchorRef={bellRef} />
       <MobileHeader>
@@ -1734,7 +1736,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         </SecondaryPanel>
       )}
 
-      <MainContent $marginLeft={mainMarginLeft}>
+      <MainContent $marginLeft={mainMarginLeft} $tabMode={tabMode}>
         <WorkspaceBillingBanner />
         {/* N+72-6 — 알림 안내 모든 페이지 mount (옛: TodoPage 만). granted-off 자동 silent re-subscribe + iOS 비-PWA 안내 */}
         {!isNativeApp() && user && (

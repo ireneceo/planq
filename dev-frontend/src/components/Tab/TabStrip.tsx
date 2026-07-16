@@ -30,7 +30,7 @@ const NEW_TAB_ITEMS: Array<{ kind: TabKind; path: string }> = [
   { kind: 'clients', path: '/business/clients' },
 ];
 
-export default function TabStrip() {
+export default function TabStrip({ leftOffset = 0 }: { leftOffset?: number }) {
   const tabs = useTabs();
   const active = useActiveTab();
   const { t } = useTranslation('layout');
@@ -46,7 +46,7 @@ export default function TabStrip() {
   const label = (tab: Tab) => tab.title || (t(NAV_KEY[tab.kind], { defaultValue: tab.kind }) as string);
 
   return (
-    <Strip role="tablist" aria-label={t('tabs.strip', { defaultValue: '열린 탭' }) as string} data-testid="tabstrip">
+    <Strip role="tablist" aria-label={t('tabs.strip', { defaultValue: '열린 탭' }) as string} data-testid="tabstrip" style={{ left: leftOffset }}>
       <Scroll>
         {tabs.map((tab) => {
           const Icon = iconForTab(tab.kind, tab.path);
@@ -115,9 +115,11 @@ export default function TabStrip() {
 
 // ── styled (사이드바 토큰 수평 연장) ──
 const Strip = styled.div`
-  position: relative; display: flex; align-items: center;
-  height: 40px; width: 100%; flex-shrink: 0; padding: 0 8px 0 10px;
+  position: fixed; top: 0; right: 0; z-index: 95;   /* left 는 inline(사이드바 폭) — 사이드바 오른쪽부터 */
+  display: flex; align-items: center;
+  height: 40px; padding: 0 8px 0 10px;
   background: #115E59; border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  transition: left 0.25s ease;
 `;
 const Scroll = styled.div`
   display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0;
