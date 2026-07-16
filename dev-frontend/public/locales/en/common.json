@@ -792,6 +792,7 @@
     "failed": "Couldn't recognize that. Please try again.",
     "unavailable": "Voice input is unavailable right now. Please try later.",
     "noPermission": "Microphone permission is required. Allow it in your browser settings.",
+    "unsupported": "This browser doesn't support voice recording.",
     "kind": {
       "task": "Task",
       "event": "Event",

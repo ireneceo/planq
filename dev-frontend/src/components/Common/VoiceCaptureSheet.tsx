@@ -14,6 +14,25 @@ import ActionButton from './ActionButton';
 
 const MAX_SECONDS = 30;
 
+// #155 — 녹음 포맷을 브라우저 기본에 맡기지 않고 지원되는 것 중 명시 선택.
+//   iOS Safari 는 webm 미지원 → mp4(aac). 크롬/안드로이드는 webm(opus). isTypeSupported 로 분기.
+//   백엔드(voice.js)는 이 blob 의 Content-Type 을 Deepgram 에 그대로 전달하므로 포맷 정합이 핵심.
+function pickAudioMime(): string | undefined {
+  if (typeof MediaRecorder === 'undefined' || typeof MediaRecorder.isTypeSupported !== 'function') return undefined;
+  const prefs = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4;codecs=mp4a.40.2', 'audio/mp4', 'audio/aac'];
+  for (const m of prefs) { try { if (MediaRecorder.isTypeSupported(m)) return m; } catch { /* 다음 후보 */ } }
+  return undefined; // 지원 목록 판단 불가 → 브라우저 기본
+}
+
+// MIME → 파일 확장자 (Deepgram 은 Content-Type 을 보지만 파일명도 내용과 맞춘다)
+function extForMime(type: string): string {
+  if (/mp4|m4a|aac/.test(type)) return 'm4a';
+  if (/webm/.test(type)) return 'webm';
+  if (/ogg/.test(type)) return 'ogg';
+  if (/wav/.test(type)) return 'wav';
+  return 'audio';
+}
+
 type Kind = 'task' | 'event' | 'memo' | 'mail';
 interface Intent {
   kind: Kind;
@@ -58,7 +77,7 @@ export default function VoiceCaptureSheet({ onClose }: Props) {
     setStage('thinking');
     try {
       const fd = new FormData();
-      fd.append('audio', blob, 'voice.webm');
+      fd.append('audio', blob, `voice.${extForMime(blob.type || 'audio/webm')}`);
       fd.append('business_id', String(businessId));
       const r = await apiFetch('/api/voice/capture', { method: 'POST', body: fd });
       const j = await r.json();
@@ -85,9 +104,16 @@ export default function VoiceCaptureSheet({ onClose }: Props) {
 
   const start = useCallback(async () => {
     setErr(null);
+    // 지원 가드 — 구형 브라우저·비보안 컨텍스트(http)에선 아예 없다. 조용히 죽지 않게 명시 안내.
+    if (typeof MediaRecorder === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      setErr(t('voice.unsupported', { defaultValue: '이 브라우저에서는 음성 녹음을 지원하지 않아요.' }) as string);
+      setStage('error');
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const rec = new MediaRecorder(stream);
+      const mime = pickAudioMime();
+      const rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
       chunksRef.current = [];
       rec.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
       rec.onstop = () => {
@@ -119,6 +145,21 @@ export default function VoiceCaptureSheet({ onClose }: Props) {
     document.addEventListener('visibilitychange', onHide);
     return () => { document.removeEventListener('visibilitychange', onHide); stopTracks(); };
   }, []);
+
+  // #155 — 마이크 권한이 이미 허용된 사용자는 열자마자 바로 녹음(한 번 눌러 열고 바로 말하기).
+  //   권한 미허용/판단불가(Safari 등 permissions.query 미지원)면 idle 안내 화면 유지 —
+  //   첫 사용자는 예시·설명을 보고 마이크 버튼을 눌러 권한을 명시 허용한다(놀람 방지).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const q = (navigator as Navigator & { permissions?: Permissions }).permissions;
+        const st = await q?.query?.({ name: 'microphone' as PermissionName });
+        if (!cancelled && !recRef.current && st?.state === 'granted') start();
+      } catch { /* permissions API 미지원 — idle 유지 */ }
+    })();
+    return () => { cancelled = true; };
+  }, [start]);
 
   // 확인 — 의도별로 기존 경로에 넘긴다 (여기서 직접 저장하지 않는다)
   const confirm = () => {
