@@ -11,6 +11,7 @@ const SUITES = {
   tenant: () => require('./canary-tenant'),     // 멀티테넌트 격리 카나리 (비멤버 biz 403 실증)
   mail: () => require('./canary-mail-triage'),  // 메일 판정 카나리 (실 mailparser 헤더 — 조용히 눈감는 계열)
   handles: () => require('./canary-panel-handles'), // 패널 토글 화살표 중복 카나리 (접힘 상태에서만 드러남)
+  tabs: () => require('./canary-tabs'),         // ⑥ 멀티탭 트리 스왑(형제 라우터 무크래시·keep-alive·shell 무회귀)
   // chrome: () => require('./chrome-suppression'),
 };
 
