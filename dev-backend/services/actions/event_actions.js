@@ -192,6 +192,24 @@ async function createEvent(actor, params = {}) {
     ip_address: actor.req?.ip || null,
   });
 
+  // ── PlanQ → Google Calendar push (일반 일정) — 워크스페이스 gcal 연동 시. Meet 은 위에서 이미 push.
+  //   best-effort: Google 실패해도 PlanQ 일정은 유지(이미 커밋). gcal_event_id 저장 → 오버레이 중복 차단·수정/삭제 동기화 연결.
+  if (!params.autoCreateMeeting && !event.gcal_event_id) {
+    try {
+      const gcalToken = await gcal.getTokenForBusiness(businessId);
+      if (gcalToken) {
+        const cal = await gcal.getCalendarClient(gcalToken);
+        const pushed = await gcal.insertEvent(cal, {
+          summary: event.title, description: event.description, location: event.location,
+          startAt: event.start_at, endAt: event.end_at, allDay: event.all_day, rrule: event.rrule,
+        });
+        if (pushed?.id) await event.update({ gcal_event_id: pushed.id });
+      }
+    } catch (e) {
+      console.warn('[gcal insertEvent push]', e.message);  // best-effort
+    }
+  }
+
   const full = await CalendarEvent.findByPk(event.id, { include: INCLUDE_DETAIL });
 
   // 알림 — 멤버 attendee 에게 (본인 제외). client attendee 는 별도 채널 (추후).
