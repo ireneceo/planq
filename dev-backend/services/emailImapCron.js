@@ -367,7 +367,10 @@ async function syncOne(account, opts = {}) {
         }
 
         // thread 갱신
-        const preview = (parsed.text || '').slice(0, 500).replace(/\s+/g, ' ').trim();
+        // #164 — 미리보기는 정리된 본문에서. 날 parsed.text 앞부분은 전달/인용 헤더블록
+        //   (From:/Sent:/원본주소) 이나 뉴스레터 프리헤더라 "영어조각·원본주소"로 시작했다.
+        const { buildPreview } = require('./emailBodyClean');
+        const preview = buildPreview(parsed.text, parsed.html, 500);
         const participants = Array.isArray(thread.participants) ? thread.participants : [];
         const existingPart = participants.find(p => p.email && p.email.toLowerCase() === fromEmail);
         if (!existingPart && fromEmail) {

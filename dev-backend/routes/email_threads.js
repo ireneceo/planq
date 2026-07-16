@@ -955,17 +955,20 @@ router.post('/:businessId/email-threads/:id/ai-suggest',
       const lastInbound = [...msgs].reverse().find(m => m.direction === 'inbound');
       if (!lastInbound) return errorResponse(res, 'no_inbound_message', 400);
 
-      // 본문 텍스트 확보 (body_text 우선, 없으면 body_html strip — AI 입력용 4000자)
-      const stripped = lastInbound.body_text
+      // 본문 텍스트 확보 — 정리된 "새로 쓴 본문"(인용/전달/서명 제거) 우선. AI 입력·언어감지 공통.
+      const { cleanVisibleBody, detectLang } = require('../services/emailBodyClean');
+      const cleaned = cleanVisibleBody(lastInbound.body_text, lastInbound.body_html);
+      const stripped = cleaned
+        || lastInbound.body_text
         || String(lastInbound.body_html || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
       const latestInboundText = (stripped || '').slice(0, 4000);
       if (!latestInboundText) return errorResponse(res, 'empty_inbound', 400);
 
       const biz = await Business.findByPk(businessId, { attributes: ['id', 'name', 'brand_name', 'default_language'] });
-      // #153 — 답장은 받은 메일의 언어로. 수신 본문에 한글이 있으면 ko, 없으면 en 을
-      //   워크스페이스 default_language 보다 우선(영어 메일에 한글 답장 나가던 것 방지). 명시 override 는 최우선.
-      const detectedLang = /[가-힣]/.test(latestInboundText) ? 'ko' : 'en';
-      const language = (req.body || {}).language || detectedLang || biz?.default_language || 'ko';
+      // #153 — 답장은 받은 메일의 언어로. 정리된 본문의 ko/en 지배 비율로 판정(인용된 옛 한글 답장·
+      //   한글 서명 한 글자에 ko 로 끌려가던 편향 제거). 워크스페이스 default 는 둘 다 0 일 때만. 명시 override 최우선.
+      const detectedLang = detectLang(cleaned || latestInboundText, biz?.default_language || 'ko');
+      const language = (req.body || {}).language || detectedLang;
 
       // M4 — 등록된 FAQ 활용: 들어온 질문과 강하게 매칭되는 FAQ(KbDocument category=faq)를
       //   AI 답변의 권위 있는 근거로 주입 → "다음 같은 질문 자동답변" 가치 실현. (raw cosine ≥ 0.80)
@@ -1216,6 +1219,9 @@ router.post('/:businessId/email-threads/:id/extract-tasks',
       const extractor = require('../services/task_extractor');
       const out = await extractor.extractEmailTaskCandidates({ emailThreadId: thread.id, userId: req.user.id, businessId });
       if (out.skipped === 'usage_limit_exceeded') return errorResponse(res, 'cue_usage_limit_exceeded', 429);
+      // #179 — LLM 이 아예 안 돈 것(키 미설정·게이트웨이 폴백)을 "업무 없음"으로 위장하지 않는다.
+      //   summarize 처럼 503 으로 표면화 → 프론트가 "AI 잠시 불가"로 구분 표시(무반응처럼 보이던 근본).
+      if (out.fallback) return errorResponse(res, 'ai_unavailable', 503);
       if ((out.candidates || []).length) {
         broadcastMail(req, businessId, 'email_candidate:created', { thread_id: thread.id, count: out.candidates.length });
       }
