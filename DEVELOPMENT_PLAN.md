@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-07-16 (Opus 4.8, 1M) — **모바일 흰 화면 회귀 차단 + 검사 하니스 강화** — e2e mobile 스위트에 `assertRendered()` **흰 화면(blank) 판정** 신규(키보드 스위트가 "입력 가림"만 봐 페이지 통째 blank도 ⚪ 통과하던 구멍 차단, #173/174/159/178 계열) + `run.js` blank=실패 집계 + mail 시나리오(mail-list·mail-compose) + MailPage `data-testid`·모바일 compose 사이드바 자동접힘 + DetailDrawer 폰 풀스크린(56px 조각 새던 것) + QBill 개요 2열 그리드 반응형 + Insights 기간라벨 i18n. **검증: mobile/crosscut/l1 전 스위트 0 실패 + tsc -b exit 0 + 가드 3축(health 30/30·guard 22/22·tenant 0)**. 다음: `docs/qa/NEXT_SECTION_BACKLOG.md`(Q Mail AI·멀티탭·전수검사 잔여 LOW).
+> **최종 업데이트:** 2026-07-16 밤 (Opus 4.8, 1M) — **자율 밤샘 세션: 백로그 전수 검증 + 기능고장 3건 근본수정** — `docs/qa/NEXT_SECTION_BACKLOG.md` 전수 검증 결과, **genuinely 고장난 것만 실작업**이었고 나머지는 이미 구현됐으나 close 안 된 상태였다. ①**Q Mail AI #153/#164/#179**(`9a293e3`) — 공용 `services/emailBodyClean.js` 신설(인용/전달/서명 정리)로 언어감지 any-char편향 제거·미리보기 헤더조각 제거·추출 무반응 503 표면화. 실HTTP 검증(영어메일→영어답장 ko:0/en:198)·유닛11/11·health30/30. ②**#155 말로추가 iOS 포맷**(`79db3e4`) — isTypeSupported webm↔mp4 분기+파일명 정합+미지원가드+권한시 자동시작. ③**#126 캘린더 배너** 완성. **이미 완료 확인(재작업 안 함): #166·모바일②(a~e)·#163·MyFeedback·#162·#152**(에이전트 오탐 다수 — 반드시 현재코드 검증 후 진행). **남은 미완 ⑤·⑥ = Irene 설계결정 필요** → `docs/qa/BACKLOG_REMAINING_DECISIONS_2026-07-16.md`. 운영 미배포.
+
+> **[이전] 최종 업데이트:** 2026-07-16 (Opus 4.8, 1M) — **모바일 흰 화면 회귀 차단 + 검사 하니스 강화** — e2e mobile 스위트에 `assertRendered()` **흰 화면(blank) 판정** 신규(키보드 스위트가 "입력 가림"만 봐 페이지 통째 blank도 ⚪ 통과하던 구멍 차단, #173/174/159/178 계열) + `run.js` blank=실패 집계 + mail 시나리오(mail-list·mail-compose) + MailPage `data-testid`·모바일 compose 사이드바 자동접힘 + DetailDrawer 폰 풀스크린(56px 조각 새던 것) + QBill 개요 2열 그리드 반응형 + Insights 기간라벨 i18n. **검증: mobile/crosscut/l1 전 스위트 0 실패 + tsc -b exit 0 + 가드 3축(health 30/30·guard 22/22·tenant 0)**. 다음: `docs/qa/NEXT_SECTION_BACKLOG.md`(Q Mail AI·멀티탭·전수검사 잔여 LOW).
 
 ## ✅ 완료: 모바일 흰화면 회귀 차단 + 검사 하니스 blank 판정 + 반응형 (2026-07-16)
 
