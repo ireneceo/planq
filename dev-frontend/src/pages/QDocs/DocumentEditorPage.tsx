@@ -139,7 +139,7 @@ const DocumentEditorPage: React.FC = () => {
             <Row><Label>{t('editor.status', '상태')}</Label><Value>{doc.status}</Value></Row>
             {/* ⑤B — Cue 대화형 실행으로 추가된 문서: "Cue로 추가됨" 정보성 배지(표시 전용) */}
             {doc.created_via === 'cue' && (
-              <Row><Label>{t('editor.origin', '출처')}</Label><Value><ProvenanceBadge label={tc('provenance.cue', { defaultValue: 'Cue로 추가됨' }) as string} /></Value></Row>
+              <Row><Label>{t('editor.origin')}</Label><Value><ProvenanceBadge label={tc('provenance.cue') as string} /></Value></Row>
             )}
             {doc.client_id && <Row><Label>{t('editor.client', '고객')}</Label><Value>#{doc.client_id}</Value></Row>}
             {doc.project_id && <Row><Label>{t('editor.project', '프로젝트')}</Label><Value>#{doc.project_id}</Value></Row>}

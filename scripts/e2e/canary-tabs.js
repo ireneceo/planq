@@ -31,7 +31,8 @@ async function run() {
   try { refresh = await getRefreshCookie(); }
   catch (e) { return [{ name: 'tabs:login', error: true, fatal: 1, detail: e.message }]; }
 
-  const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  // fake-device: 마이크 track-alive 검사(#6)용 — 실제 하드웨어 없이 getUserMedia 성립.
+  const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] });
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: 1400, height: 900 });
@@ -74,6 +75,63 @@ async function run() {
       } else ka.detail = '__pqTab 훅 없음';
     } catch (e) { ka.detail = e.message; }
     results.push({ name: 'tabs:keep-alive(2탭 동시 alive·전환)', fail: ka.ok ? 0 : 1, fatal: 0, details: ka.ok ? [] : [ka.detail] });
+
+    const hasHook = await page.evaluate(() => !!window.__pqTab);
+
+    // 4) 뒤로가기 — 활성 탭 안에서 네비 후 브라우저 back → 무크래시 + 탭 유지 (PopstateBridge 히스토리 통합)
+    let back = { ok: false, detail: '__pqTab 훅 없음' };
+    if (hasHook) {
+      try {
+        await page.evaluate(() => window.__pqTab.navigateActive('/tasks/all'));
+        await new Promise((r) => setTimeout(r, 800));
+        await page.goBack({ waitUntil: 'domcontentloaded' }).catch(() => null);
+        await new Promise((r) => setTimeout(r, 1000));
+        const tabsAlive = await page.evaluate(() => window.__pqTab.getSnapshot().tabs.length);
+        const noCrash = pageerrors.length === 0 && !CRASH_RE.test(await page.evaluate(() => document.body.innerText.slice(0, 200)));
+        back.ok = tabsAlive >= 1 && noCrash;
+        back.detail = `tabs=${tabsAlive} 크래시=${!noCrash}`;
+      } catch (e) { back.detail = e.message; }
+    }
+    results.push({ name: 'tabs:뒤로가기(히스토리 통합·무크래시)', fail: back.ok ? 0 : 1, fatal: 0, details: back.ok ? [] : [back.detail] });
+
+    // 5) F5 복원 — reload 후 sessionStorage 에서 탭셋 복원 + 무크래시
+    let f5 = { ok: false, detail: '' };
+    try {
+      const before = hasHook ? await page.evaluate(() => window.__pqTab.getSnapshot().tabs.length) : 0;
+      await page.reload({ waitUntil: 'networkidle2', timeout: 30000 });
+      await new Promise((r) => setTimeout(r, 2500));
+      const after = await page.evaluate(() => (window.__pqTab ? window.__pqTab.getSnapshot().tabs.length : 0));
+      const body5 = await page.evaluate(() => document.body.innerText.slice(0, 200));
+      const strip5 = await page.evaluate(() => !!document.querySelector('[data-testid="tabstrip"]'));
+      f5.ok = after >= 1 && after >= before - 1 && strip5 && !CRASH_RE.test(body5);
+      f5.detail = `before=${before} after=${after} strip=${strip5}`;
+    } catch (e) { f5.detail = e.message; }
+    results.push({ name: 'tabs:F5 복원(sessionStorage 탭셋)', fail: f5.ok ? 0 : 1, fatal: 0, details: f5.ok ? [] : [f5.detail] });
+
+    // 6) 마이크 track-alive — 활성 탭에서 getUserMedia → 탭 전환(숨김 display:none+inert) → 스트림 track 유지
+    //   Q Note 녹음이 탭 전환에도 안 끊기는지의 브라우저 레벨 프록시. fake-device 로 하드웨어 없이 검증.
+    let mic = { ok: false, detail: '__pqTab 훅 없음' };
+    if (await page.evaluate(() => !!window.__pqTab)) {
+      try {
+        const gum = await page.evaluate(async () => {
+          try {
+            const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+            window.__micTrack = s.getAudioTracks()[0];
+            return window.__micTrack ? window.__micTrack.readyState : 'no-track';
+          } catch (e) { return 'gum-fail:' + e.name; }
+        });
+        if (gum === 'live') {
+          // 다른 탭 새로 열어 활성 전환 → 원 탭 숨김
+          await page.evaluate(() => window.__pqTab.newTab('/dashboard'));
+          await new Promise((r) => setTimeout(r, 1500));
+          const stillLive = await page.evaluate(() => window.__micTrack && window.__micTrack.readyState === 'live');
+          await page.evaluate(() => { try { window.__micTrack && window.__micTrack.stop(); } catch { /* noop */ } });
+          mic.ok = !!stillLive && pageerrors.length === 0;
+          mic.detail = `전환후 track=${stillLive ? 'live' : 'ended'}`;
+        } else { mic.detail = 'getUserMedia=' + gum; }
+      } catch (e) { mic.detail = e.message; }
+    }
+    results.push({ name: 'tabs:마이크 track-alive(숨은탭 스트림 유지)', fail: mic.ok ? 0 : 1, fatal: 0, details: mic.ok ? [] : [mic.detail] });
   } finally {
     await browser.close();
   }

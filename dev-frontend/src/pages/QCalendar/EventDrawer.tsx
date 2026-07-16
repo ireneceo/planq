@@ -242,7 +242,7 @@ const EventDrawer: React.FC<Props> = ({
       <DetailDrawer.Body>
         {/* ⑤B — Cue 대화형 실행으로 추가된 일정: "Cue로 추가됨" 정보성 배지(표시 전용) */}
         {event.created_via === 'cue' && (
-          <ProvenanceRow><ProvenanceBadge label={t('provenance.cue', { ns: 'common', defaultValue: 'Cue로 추가됨' })} /></ProvenanceRow>
+          <ProvenanceRow><ProvenanceBadge label={t('provenance.cue', { ns: 'common' })} /></ProvenanceRow>
         )}
         {/* 시간 — 인라인 편집 */}
         <Section>

@@ -954,7 +954,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
             })()}
             {/* ⑤B — Cue 대화형 실행으로 추가된 업무: "Cue로 추가됨" 정보성 배지(표시 전용) */}
             {detailTask.created_via === 'cue' && (
-              <ProvenanceRow><ProvenanceBadge label={t('provenance.cue', { ns: 'common', defaultValue: 'Cue로 추가됨' })} /></ProvenanceRow>
+              <ProvenanceRow><ProvenanceBadge label={t('provenance.cue', { ns: 'common' })} /></ProvenanceRow>
             )}
             {/* #90 — 자동추출 업무의 원본(출처) 링크: 어느 대화·메일에서 왔는지 돌아가기 */}
             {detailTask.source_ref && (
