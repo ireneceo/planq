@@ -35,6 +35,7 @@ export interface CalendarEvent {
   target_member_ids?: number[] | null;
   target_client_ids?: number[] | null;
   created_by: number;
+  created_via?: string | null;
   creator?: { id: number; name: string; email?: string } | null;
   Project?: { id: number; name: string; color?: string | null } | null;
   attendees?: CalendarAttendee[];

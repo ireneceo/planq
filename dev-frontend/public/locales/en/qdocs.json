@@ -523,7 +523,8 @@
       "row": "Row",
       "delTable": "Delete table",
       "table": "Table"
-    }
+    },
+    "origin": "Origin"
   },
   "tab": {
     "title": "Docs",

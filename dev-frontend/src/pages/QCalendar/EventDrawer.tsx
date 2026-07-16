@@ -12,6 +12,7 @@ import AutoSaveField from '../../components/Common/AutoSaveField';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import RecurrencePicker from '../../components/Common/RecurrencePicker';
+import { ProvenanceBadge } from '../../components/Common/SourceHint';
 import { formatRRuleLabel } from '../../utils/recurrence';
 
 // 30분 스텝 시간 옵션 — NewEventModal 과 동일 패턴
@@ -239,6 +240,10 @@ const EventDrawer: React.FC<Props> = ({
       </DetailDrawer.Header>
 
       <DetailDrawer.Body>
+        {/* ⑤B — Cue 대화형 실행으로 추가된 일정: "Cue로 추가됨" 정보성 배지(표시 전용) */}
+        {event.created_via === 'cue' && (
+          <ProvenanceRow><ProvenanceBadge label={t('provenance.cue', { ns: 'common', defaultValue: 'Cue로 추가됨' })} /></ProvenanceRow>
+        )}
         {/* 시간 — 인라인 편집 */}
         <Section>
           <SectionIcon>
@@ -908,6 +913,7 @@ const ReadOnlyHint = styled.span`
 `;
 
 const Section = styled.div` display: flex; gap: 12px; `;
+const ProvenanceRow = styled.div` display: flex; margin-bottom: 4px; `;
 const SectionIcon = styled.div`
   width: 20px; color: #94A3B8; flex-shrink: 0; padding-top: 2px;
 `;

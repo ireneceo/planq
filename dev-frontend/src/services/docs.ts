@@ -43,6 +43,7 @@ export interface DocSummary {
   share_token: string | null;
   security_level?: 'general' | 'internal' | 'confidential';  // D4 #62
   ai_generated: boolean;
+  created_via?: string | null;   // ⑤B provenance('cue' 등) — 표시 전용
   created_at: string;
   updated_at: string;
   Client?: { id: number; display_name: string | null; company_name: string | null } | null;

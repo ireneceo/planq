@@ -13,6 +13,7 @@ import SingleDateField from '../Common/SingleDateField';
 import PlanQSelect from '../Common/PlanQSelect';
 import IdentityContext from '../Common/IdentityContext';
 import PartnerKindBadge from '../Common/PartnerKindBadge';
+import { ProvenanceBadge } from '../Common/SourceHint';
 import RichEditor from '../Common/RichEditor';
 import ShareModal from '../Common/ShareModal';
 import ConfirmDialog from '../Common/ConfirmDialog';
@@ -951,6 +952,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 </CarriedBanner>
               );
             })()}
+            {/* ⑤B — Cue 대화형 실행으로 추가된 업무: "Cue로 추가됨" 정보성 배지(표시 전용) */}
+            {detailTask.created_via === 'cue' && (
+              <ProvenanceRow><ProvenanceBadge label={t('provenance.cue', { ns: 'common', defaultValue: 'Cue로 추가됨' })} /></ProvenanceRow>
+            )}
             {/* #90 — 자동추출 업무의 원본(출처) 링크: 어느 대화·메일에서 왔는지 돌아가기 */}
             {detailTask.source_ref && (
               <SourceRefLink
@@ -1965,6 +1970,7 @@ const DrawerHeader = styled.div`height:60px;padding:14px 20px;border-bottom:1px 
 const CarriedBanner = styled.div`display:flex;align-items:center;gap:8px;margin:12px 20px 0;padding:8px 12px;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:10px;font-size:12px;font-weight:600;color:#475569;line-height:1.4;`;
 const CarriedTag = styled.span`flex-shrink:0;padding:1px 8px;font-size:10px;font-weight:700;color:#FFFFFF;background:#64748B;border-radius:10px;letter-spacing:-0.2px;`;
 // #90 — 원본 출처 링크 (대화/메일/노트). route 있으면 button(클릭→이동), 없으면 div(라벨만).
+const ProvenanceRow = styled.div`display:flex;margin:12px 20px 0;`;
 const SourceRefLink = styled.div<{ $clickable?: boolean }>`
   display:flex;align-items:center;gap:7px;margin:12px 20px 0;padding:7px 11px;width:calc(100% - 40px);
   background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;
