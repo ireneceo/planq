@@ -240,3 +240,35 @@ export const AlertTriangleIcon = ({ size = 16, ...rest }: IconProps) => (
     <line x1="12" y1="17" x2="12.01" y2="17" />
   </svg>
 );
+
+// ⑥ 멀티탭 — 사이드바 nav 아이콘을 Icons.tsx 로 승격 (MainLayout 로컬 정의 이관, 탭/사이드바 동일 컴포넌트).
+export const DashboardIcon = ({ size = 16, ...rest }: IconProps) => (
+  <svg {...base(size)} {...rest}><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+);
+export const TodoCheckIcon = ({ size = 16, ...rest }: IconProps) => (
+  <svg {...base(size)} {...rest}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+);
+export const TaskIcon = ({ size = 16, ...rest }: IconProps) => (
+  <svg {...base(size)} {...rest}><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+);
+export const ProjectIcon = ({ size = 16, ...rest }: IconProps) => (
+  <svg {...base(size)} {...rest}><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+);
+export const NoteIcon = ({ size = 16, ...rest }: IconProps) => (
+  <svg {...base(size)} {...rest}><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+);
+export const FolderIcon = ({ size = 16, ...rest }: IconProps) => (
+  <svg {...base(size)} {...rest}><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+);
+export const BillIcon = ({ size = 16, ...rest }: IconProps) => (
+  <svg {...base(size)} {...rest}><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+);
+export const BookIcon = ({ size = 16, ...rest }: IconProps) => (
+  <svg {...base(size)} {...rest}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+);
+export const ClientsIcon = ({ size = 16, ...rest }: IconProps) => (
+  <svg {...base(size)} {...rest}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+);
+export const InsightsIcon = ({ size = 16, ...rest }: IconProps) => (
+  <svg {...base(size)} {...rest}><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-5"/></svg>
+);

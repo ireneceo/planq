@@ -1,4 +1,11 @@
 {
+  "tabs": {
+    "strip": "열린 탭",
+    "new": "새 탭",
+    "close": "탭 닫기",
+    "overflow": "모든 탭",
+    "recording": "녹음 중"
+  },
   "nav": {
     "myWorkSettings": "내 업무 설정",
     "myAccount": "내 계정",
