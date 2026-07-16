@@ -230,3 +230,12 @@ export const tabStore = {
 export function activeTab(s: TabState): Tab | null {
   return s.activeId ? s.tabs.find((t) => t.id === s.activeId) || null : null;
 }
+
+// e2e/spike 테스트 훅 — spike 플래그 시에만 window 에 store 노출(tabs 스위트가 조작·검증). 운영 무영향.
+if (typeof window !== 'undefined') {
+  try {
+    if (localStorage.getItem('planq_tabs_spike') === '1') {
+      (window as unknown as { __pqTab?: typeof tabStore }).__pqTab = tabStore;
+    }
+  } catch { /* noop */ }
+}
