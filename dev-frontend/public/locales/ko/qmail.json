@@ -155,7 +155,18 @@
     "archived": "보관",
     "assigned": "내 담당",
     "following": "팔로우",
-    "all": "전체"
+    "all": "전체",
+    "sent": "보낸메일"
+  },
+  "thread": {
+    "sent": "보낸"
+  },
+  "translate": {
+    "langLabel": "번역 언어",
+    "translate": "번역하기",
+    "showOriginal": "원본 보기",
+    "loading": "번역 중…",
+    "error": "번역할 수 없습니다"
   },
   "uncertain": {
     "billing": "청구/결제 관련",

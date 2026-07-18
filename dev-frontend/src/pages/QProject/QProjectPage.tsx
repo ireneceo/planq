@@ -243,6 +243,7 @@ const QProjectPage: React.FC = () => {
       count={projects.length}
       actions={
         <>
+          {/* #183 — 헤더엔 보기 전환 + 새 프로젝트만. 필터는 아래 FilterBar 행으로(오버플로 방지). */}
           <ViewTabs>
             <ViewTab $active={view === 'list'} onClick={() => setView('list')} type="button">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
@@ -257,65 +258,68 @@ const QProjectPage: React.FC = () => {
               <span>{t('view.calendar')}</span>
             </ViewTab>
           </ViewTabs>
-          <SearchBox
-            value={query}
-            onChange={setQuery}
-            placeholder={t('filter.searchPlaceholder') as string}
-            width={240}
-          />
-          <FilterSeg role="tablist" aria-label={t('filter.searchPlaceholder') as string}>
-            {(['active', 'paused', 'closed', 'all'] as StatusFilter[]).map((s) => (
-              <FilterSegBtn key={s} type="button" $active={statusFilter === s}
-                role="tab" aria-selected={statusFilter === s}
-                onClick={() => setStatusFilter(s)}>
-                {t(`filter.${s}`)}
-              </FilterSegBtn>
-            ))}
-          </FilterSeg>
-          {/* #99 — 고객/내부 구분 필터 */}
-          <FilterSeg role="tablist" aria-label={t('filter.kindLabel', '구분') as string}>
-            {(['all', 'client', 'internal'] as const).map((k) => (
-              <FilterSegBtn key={k} type="button" $active={kindFilter === k}
-                role="tab" aria-selected={kindFilter === k}
-                onClick={() => setKindFilter(k)}>
-                {t(`filter.kind.${k}`, k === 'all' ? '전체' : k === 'client' ? '고객' : '내부')}
-              </FilterSegBtn>
-            ))}
-          </FilterSeg>
-          {/* #99 — 정렬 */}
-          <SelectWrap>
-            <PlanQSelect size="sm" isClearable={false} isSearchable={false}
-              aria-label={t('filter.sortLabel', '정렬') as string}
-              value={{ value: sortBy, label: t(`filter.sort.${sortBy}`) }}
-              options={[
-                { value: 'recent', label: t('filter.sort.recent', '최근순') },
-                { value: 'name', label: t('filter.sort.name', '이름순') },
-                { value: 'progress', label: t('filter.sort.progress', '진행률순') },
-                { value: 'deadline', label: t('filter.sort.deadline', '마감임박순') },
-              ]}
-              onChange={(opt) => opt && setSortBy((opt as { value: string }).value as typeof sortBy)} />
-          </SelectWrap>
-          {/* #99 — 그룹 (list 뷰) */}
-          {view === 'list' && (
-            <SelectWrap>
-              <PlanQSelect size="sm" isClearable={false} isSearchable={false}
-                aria-label={t('filter.groupLabel', '그룹') as string}
-                value={{ value: groupBy, label: t(`filter.group.${groupBy}`) }}
-                options={[
-                  { value: 'none', label: t('filter.group.none', '그룹 없음') },
-                  { value: 'kind', label: t('filter.group.kind', '고객/내부') },
-                  { value: 'status', label: t('filter.group.status', '상태별') },
-                  { value: 'client', label: t('filter.group.client', '고객사별') },
-                  { value: 'department', label: t('filter.group.department', '부서별(담당자)') },
-                  { value: 'team', label: t('filter.group.team', '팀별(담당자)') },
-                ]}
-                onChange={(opt) => opt && setGroupBy((opt as { value: string }).value as typeof groupBy)} />
-            </SelectWrap>
-          )}
           <NewProjectCta type="button" onClick={() => setNewProjectOpen(true)}>+ <span>{t('newProject', '새 프로젝트')}</span></NewProjectCta>
         </>
       }
     >
+      {/* #183 — 필터 행 (헤더 아래, 다른 페이지 레이아웃처럼). 좁은 화면에서 줄바꿈. */}
+      <FilterBar>
+        <SearchBox
+          value={query}
+          onChange={setQuery}
+          placeholder={t('filter.searchPlaceholder') as string}
+          width={240}
+        />
+        <FilterSeg role="tablist" aria-label={t('filter.searchPlaceholder') as string}>
+          {(['active', 'paused', 'closed', 'all'] as StatusFilter[]).map((s) => (
+            <FilterSegBtn key={s} type="button" $active={statusFilter === s}
+              role="tab" aria-selected={statusFilter === s}
+              onClick={() => setStatusFilter(s)}>
+              {t(`filter.${s}`)}
+            </FilterSegBtn>
+          ))}
+        </FilterSeg>
+        {/* #99 — 고객/내부 구분 필터 */}
+        <FilterSeg role="tablist" aria-label={t('filter.kindLabel', '구분') as string}>
+          {(['all', 'client', 'internal'] as const).map((k) => (
+            <FilterSegBtn key={k} type="button" $active={kindFilter === k}
+              role="tab" aria-selected={kindFilter === k}
+              onClick={() => setKindFilter(k)}>
+              {t(`filter.kind.${k}`, k === 'all' ? '전체' : k === 'client' ? '고객' : '내부')}
+            </FilterSegBtn>
+          ))}
+        </FilterSeg>
+        {/* #99 — 정렬 */}
+        <SelectWrap>
+          <PlanQSelect size="sm" isClearable={false} isSearchable={false}
+            aria-label={t('filter.sortLabel', '정렬') as string}
+            value={{ value: sortBy, label: t(`filter.sort.${sortBy}`) }}
+            options={[
+              { value: 'recent', label: t('filter.sort.recent', '최근순') },
+              { value: 'name', label: t('filter.sort.name', '이름순') },
+              { value: 'progress', label: t('filter.sort.progress', '진행률순') },
+              { value: 'deadline', label: t('filter.sort.deadline', '마감임박순') },
+            ]}
+            onChange={(opt) => opt && setSortBy((opt as { value: string }).value as typeof sortBy)} />
+        </SelectWrap>
+        {/* #99 — 그룹 (list 뷰) */}
+        {view === 'list' && (
+          <SelectWrap>
+            <PlanQSelect size="sm" isClearable={false} isSearchable={false}
+              aria-label={t('filter.groupLabel', '그룹') as string}
+              value={{ value: groupBy, label: t(`filter.group.${groupBy}`) }}
+              options={[
+                { value: 'none', label: t('filter.group.none', '그룹 없음') },
+                { value: 'kind', label: t('filter.group.kind', '고객/내부') },
+                { value: 'status', label: t('filter.group.status', '상태별') },
+                { value: 'client', label: t('filter.group.client', '고객사별') },
+                { value: 'department', label: t('filter.group.department', '부서별(담당자)') },
+                { value: 'team', label: t('filter.group.team', '팀별(담당자)') },
+              ]}
+              onChange={(opt) => opt && setGroupBy((opt as { value: string }).value as typeof groupBy)} />
+          </SelectWrap>
+        )}
+      </FilterBar>
       <NewProjectModal
         businessId={user?.business_id || 0}
         open={newProjectOpen}
@@ -817,6 +821,12 @@ const CalendarView: React.FC<{
 };
 
 // ─── Styled ───
+// #183 — 필터 행 (헤더 아래). 좁은 화면에서 줄바꿈해 좌우 오버플로 방지.
+const FilterBar = styled.div`
+  display:flex;align-items:center;flex-wrap:wrap;gap:8px;
+  margin-bottom:16px;
+  @media(max-width:640px){ gap:6px; }
+`;
 const NewProjectCta = styled.button`
   display:inline-flex;align-items:center;justify-content:center;gap:6px;
   padding:0 12px;height:32px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;

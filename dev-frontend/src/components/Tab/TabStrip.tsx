@@ -28,6 +28,8 @@ export default function TabStrip({ leftOffset = 0 }: { leftOffset?: number }) {
   const bizId = user?.business_id ? Number(user.business_id) : 0;
   const [searchOpen, setSearchOpen] = useState(false); // + → 통합검색(새 탭으로 열기)
   const activeRef = useRef<HTMLButtonElement>(null);
+  const [dragId, setDragId] = useState<string | null>(null);   // 드래그 중인 탭
+  const [overId, setOverId] = useState<string | null>(null);   // 드롭 대상(시각 표시)
 
   useLayoutEffect(() => {
     activeRef.current?.scrollIntoView({ inline: 'nearest', block: 'nearest' });
@@ -47,6 +49,15 @@ export default function TabStrip({ leftOffset = 0 }: { leftOffset?: number }) {
     tabStore.closeTab(id);
   };
 
+  // 드래그 정렬 — 대상 탭 위치로 이동(브라우저 탭처럼). 데스크탑 전용이라 HTML5 DnD 로 충분.
+  const onDrop = (targetId: string) => {
+    if (dragId && dragId !== targetId) {
+      const toIndex = tabs.findIndex((t) => t.id === targetId);
+      if (toIndex >= 0) tabStore.moveTab(dragId, toIndex);
+    }
+    setDragId(null); setOverId(null);
+  };
+
   return (
     <Strip role="tablist" aria-label={t('tabs.strip', { defaultValue: '열린 탭' }) as string} data-testid="tabstrip" style={{ left: leftOffset }}>
       <Scroll>
@@ -59,8 +70,15 @@ export default function TabStrip({ leftOffset = 0 }: { leftOffset?: number }) {
               role="tab"
               aria-selected={isActive}
               $active={isActive}
+              $dragging={dragId === tab.id}
+              $dropTarget={!!dragId && overId === tab.id && dragId !== tab.id}
               data-testid={`tabstrip-tab-${tab.id}`}
               title={label(tab)}
+              draggable={tabs.length > 1}
+              onDragStart={(e) => { setDragId(tab.id); e.dataTransfer.effectAllowed = 'move'; }}
+              onDragOver={(e) => { if (dragId) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (overId !== tab.id) setOverId(tab.id); } }}
+              onDrop={(e) => { e.preventDefault(); onDrop(tab.id); }}
+              onDragEnd={() => { setDragId(null); setOverId(null); }}
               onClick={() => { if (!isActive) tabStore.setActive(tab.id); }}
               onMouseDown={(e) => { if (e.button === 1 && tabs.length > 1) { e.preventDefault(); tryClose(tab.id, isActive); } }}
             >
@@ -102,17 +120,20 @@ const Scroll = styled.div`
   overflow-x: auto; scrollbar-width: none;
   &::-webkit-scrollbar { display: none; }
 `;
-const Chip = styled.button<{ $active: boolean }>`
+const Chip = styled.button<{ $active: boolean; $dragging?: boolean; $dropTarget?: boolean }>`
   display: inline-flex; align-items: center; gap: 6px; flex: 0 1 auto;
   max-width: 220px; min-width: 0; height: 40px; padding: 0 10px 0 14px;   /* 위아래 꽉 채움 */
   border: none; border-right: 1px solid rgba(255, 255, 255, 0.06); border-radius: 0;
   border-top: 2px solid ${(p) => (p.$active ? '#5EEAD4' : 'transparent')};  /* 활성 탭 상단 액센트 */
+  /* 드롭 대상 — 왼쪽에 액센트 라인으로 삽입 위치 표시 */
+  box-shadow: ${(p) => (p.$dropTarget ? 'inset 2px 0 0 0 #5EEAD4' : 'none')};
   cursor: pointer;
   background: ${(p) => (p.$active ? '#0F766E' : 'transparent')};
   color: ${(p) => (p.$active ? '#FFFFFF' : '#CCFBF1')};
+  opacity: ${(p) => (p.$dragging ? 0.45 : 1)};   /* 드래그 중인 탭 흐리게 */
   /* 굵기 고정(500) — 활성 시 굵기 변화로 글자·X 가 밀리는 것 방지. 활성 구분은 색·배경·상단 액센트로만 */
   font-size: 13px; font-weight: 500;
-  transition: background 0.12s, color 0.12s;
+  transition: background 0.12s, color 0.12s, opacity 0.12s;
   &:hover { background: ${(p) => (p.$active ? '#0F766E' : 'rgba(255,255,255,0.08)')}; color: #FFFFFF; }
   &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: -2px; }
 `;

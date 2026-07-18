@@ -130,7 +130,7 @@ const PersonalVaultPage: React.FC = () => {
           <ExplainerBody>
             <ExplainerTitle>{t('common:vault.explainer.title', '개인 자료만 모인 곳') as string}</ExplainerTitle>
             <ExplainerText>
-              {t('common:vault.explainer.body', { defaultValue: '같은 자료가 Q file·Q docs 메뉴에도 보이지만 권한 표시(자물쇠)로 구분됩니다. 공유는 [공유하기] 버튼으로 가능합니다.' }) as string}
+              {t('common:vault.explainer.body', { defaultValue: '개요·문서·파일·지식·노트 탭에서 내 개인 자료를 한곳에 모아 봅니다. 같은 자료가 Q docs·Q file 메뉴에도 보이지만 자물쇠 표시로 구분됩니다. 공유는 [공유하기] 버튼으로 가능합니다.' }) as string}
             </ExplainerText>
           </ExplainerBody>
           <ExplainerDismiss type="button" onClick={dismissExplainer}

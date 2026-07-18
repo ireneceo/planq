@@ -129,6 +129,12 @@ import {
   ThreadSubject,
   ThreadTime,
   UncertainBadge,
+  SentTag,
+  TransBar,
+  TransSelect,
+  TransBtn,
+  TransErr,
+  TransBody,
   UncertainInline,
   UnreadDot,
   HeaderActions,
@@ -136,7 +142,7 @@ import {
   BulkAction,
 } from './MailPage.styles';
 
-type Folder = 'reply_needed' | 'uncertain' | 'all' | 'marketing' | 'following' | 'spam' | 'archived';
+type Folder = 'reply_needed' | 'uncertain' | 'all' | 'sent' | 'marketing' | 'following' | 'spam' | 'archived';
 
 // 메일 계정 (회사 공용 / 개인) — 폴더트리 그룹 (외부 연동 Phase 3)
 interface MailAccount {
@@ -159,6 +165,7 @@ interface Thread {
   subject: string | null;
   last_message_preview: string | null;
   last_message_at: string;
+  last_message_direction?: 'inbound' | 'outbound' | null;  // #186 — 마지막 메시지 방향(받은/보낸 구분)
   status: string;
   reply_needed: boolean;
   reply_needed_at?: string | null;
@@ -208,6 +215,7 @@ const FOLDERS: Array<{ key: Folder; defaultLabel: string }> = [
   // '처리 완료' 탭은 성격이 같아서 여기에 합쳤다 (Irene: "같은 의미 같은데. 확인권장만 남기자").
   { key: 'uncertain', defaultLabel: '확인 권장' },
   { key: 'all', defaultLabel: '전체' },          // 스팸·보관 뺀 모든 메일 (자동·마케팅 포함)
+  { key: 'sent', defaultLabel: '보낸메일' },      // #186 — 내가 마지막으로 보낸(outbound) 스레드
   { key: 'marketing', defaultLabel: '자동·마케팅' },
   { key: 'following', defaultLabel: '팔로우' },
   { key: 'spam', defaultLabel: '스팸' },
@@ -248,7 +256,7 @@ function buildMailSrcDoc(id: number, html: string): string {
 }
 
 const MailPage: React.FC = () => {
-  const { t } = useTranslation('qmail');
+  const { t, i18n } = useTranslation('qmail');
   const { user } = useAuth();
   const { formatTimeAgo, formatDateTime } = useTimeFormat();
   const [sp, setSp] = useSearchParams();
@@ -321,7 +329,7 @@ const MailPage: React.FC = () => {
     return () => window.removeEventListener('keydown', onKey);
   }, [toggleRightCollapsed]);
   const [folderCounts, setFolderCounts] = useState<Record<Folder, number>>({
-    reply_needed: 0, uncertain: 0, all: 0, marketing: 0, following: 0, spam: 0, archived: 0,
+    reply_needed: 0, uncertain: 0, all: 0, sent: 0, marketing: 0, following: 0, spam: 0, archived: 0,
   });
   // 전체 탭 배지 = 미읽음 수 ("모두 읽음" 이 지운다). folderCounts.all(총 스레드 수)는 빈 상태 판정용으로만 유지.
   const [allUnread, setAllUnread] = useState(0);
@@ -345,6 +353,25 @@ const MailPage: React.FC = () => {
   const [projectFilter, setProjectFilter] = useState<number>(() => Number(sp.get('project')) || 0);
   const [projectOpts, setProjectOpts] = useState<Array<{ id: number; name: string }>>([]);
   const [frameH, setFrameH] = useState<Record<number, number>>({});
+  // #184 — 메시지별 번역 상태 (원본보기/번역하기 토글). target 기본 = UI 언어.
+  const [transLang, setTransLang] = useState<string>(() => (i18n.language?.startsWith('en') ? 'en' : 'ko'));
+  const [msgTrans, setMsgTrans] = useState<Record<number, { text?: string; lang?: string; showing: boolean; loading: boolean; error?: boolean }>>({});
+  const translateMsg = useCallback(async (msgId: number, threadId: number) => {
+    setMsgTrans(prev => ({ ...prev, [msgId]: { ...(prev[msgId] || {}), showing: true, loading: true, error: false } }));
+    try {
+      const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${threadId}/messages/${msgId}/translate`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target_lang: transLang }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.success || !j.data?.translated) {
+        setMsgTrans(prev => ({ ...prev, [msgId]: { ...(prev[msgId] || {}), showing: false, loading: false, error: true } }));
+        return;
+      }
+      setMsgTrans(prev => ({ ...prev, [msgId]: { text: j.data.translated, lang: j.data.target_lang, showing: true, loading: false, error: false } }));
+    } catch {
+      setMsgTrans(prev => ({ ...prev, [msgId]: { ...(prev[msgId] || {}), showing: false, loading: false, error: true } }));
+    }
+  }, [businessId, transLang]);
   const [members, setMembers] = useState<MailMember[]>([]);
   // 메일 검색 (제목·미리보기·본문) — 300ms 디바운스
   const [searchQ, setSearchQ] = useState('');
@@ -1412,6 +1439,10 @@ const MailPage: React.FC = () => {
                   </ThreadRow1>
                   <ThreadSubject $unread={mt.unread_count > 0}>
                     {mt.unread_count > 0 && <UnreadDot />}
+                    {/* #186 — 내가 마지막으로 보낸 스레드는 '보낸' 태그로 받은 메일과 구분 */}
+                    {mt.last_message_direction === 'outbound' && (
+                      <SentTag>{t('thread.sent', { defaultValue: '보낸' }) as string}</SentTag>
+                    )}
                     {mt.subject || '(no subject)'}
                   </ThreadSubject>
                   {mt.last_message_preview && <ThreadPreview>{mt.last_message_preview}</ThreadPreview>}
@@ -1674,6 +1705,39 @@ const MailPage: React.FC = () => {
                       />
                     ) : (
                       <MessageBodyText>{m.body_text || '(no content)'}</MessageBodyText>
+                    )}
+                    {/* #184 — 번역하기 / 원본 보기 토글 (언어 선택). 답장 원문 언어는 #153에서 처리됨. */}
+                    <TransBar>
+                      <TransSelect value={transLang} onChange={(e) => setTransLang(e.target.value)}
+                        aria-label={t('translate.langLabel', { defaultValue: '번역 언어' }) as string}>
+                        <option value="ko">한국어</option>
+                        <option value="en">English</option>
+                        <option value="ja">日本語</option>
+                        <option value="zh">中文</option>
+                        <option value="es">Español</option>
+                      </TransSelect>
+                      {msgTrans[m.id]?.showing ? (
+                        <TransBtn type="button"
+                          onClick={() => setMsgTrans(prev => ({ ...prev, [m.id]: { ...(prev[m.id] || { loading: false }), showing: false } }))}>
+                          {t('translate.showOriginal', { defaultValue: '원본 보기' }) as string}
+                        </TransBtn>
+                      ) : (
+                        <TransBtn type="button" disabled={msgTrans[m.id]?.loading}
+                          onClick={() => {
+                            const cached = msgTrans[m.id];
+                            if (cached?.text && cached.lang === transLang) {
+                              setMsgTrans(prev => ({ ...prev, [m.id]: { ...cached, showing: true } }));
+                            } else { translateMsg(m.id, detail.id); }
+                          }}>
+                          {msgTrans[m.id]?.loading
+                            ? (t('translate.loading', { defaultValue: '번역 중…' }) as string)
+                            : (t('translate.translate', { defaultValue: '번역하기' }) as string)}
+                        </TransBtn>
+                      )}
+                      {msgTrans[m.id]?.error && <TransErr>{t('translate.error', { defaultValue: '번역할 수 없습니다' }) as string}</TransErr>}
+                    </TransBar>
+                    {msgTrans[m.id]?.showing && msgTrans[m.id]?.text && (
+                      <TransBody>{msgTrans[m.id]!.text}</TransBody>
                     )}
                     {m.attachments.length > 0 && (
                       <Attachments>

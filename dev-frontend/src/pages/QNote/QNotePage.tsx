@@ -15,6 +15,7 @@ import StartMeetingModal from './StartMeetingModal';
 import type { StartConfig } from './StartMeetingModal';
 import { getLanguageByCode } from '../../constants/languages';
 import { useAuth, getAccessToken } from '../../contexts/AuthContext';
+import { useReallyVisible } from '../../contexts/TabActiveContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import {
   listSessions,
@@ -178,6 +179,9 @@ function joinTranslation(segments: BlockSegment[]): { text: string; hasAny: bool
 }
 
 const QNotePage = () => {
+  // 9b — 숨은 앱탭(멀티탭 비활성)·브라우저 백그라운드에선 준비상태/락 폴링을 멈춘다(불필요한 백엔드 부하 차단).
+  //   녹음 heartbeat 는 별개로 항상 유지(백그라운드 녹음 지속). 단일탭에선 항상 true → 무회귀.
+  const reallyVisible = useReallyVisible();
   const { t } = useTranslation('qnote');
   const { t: tErr } = useTranslation('errors');
   const { user } = useAuth();
@@ -307,6 +311,7 @@ const QNotePage = () => {
       setReadiness(null);
       return;
     }
+    if (!reallyVisible) return;  // 숨은 탭 — 폴링 정지(다시 활성되면 effect 재실행)
     let cancelled = false;
     let stopped = false;
     let timer: number | undefined;
@@ -367,7 +372,7 @@ const QNotePage = () => {
       if (timer) window.clearInterval(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, activeSessionId]);
+  }, [phase, activeSessionId, reallyVisible]);
 
   // 내 발화 처리 모드: 'skip' (기본 — 아예 블록 생성 안 함) | 'hide' (생성 후 숨김) | 'show' (다 보임)
   type SelfMode = 'skip' | 'hide' | 'show';
@@ -569,6 +574,7 @@ const QNotePage = () => {
     if (!activeSession) return;
     if (phase !== 'prepared' && phase !== 'paused') return;
     if (recorderTokenRef.current) return; // 내가 락을 쥐고 있으면 스킵
+    if (!reallyVisible) return;           // 9b — 숨은 탭에선 락 폴링 정지(활성 복귀 시 재실행)
     let cancelled = false;
     const check = async () => {
       try {
@@ -581,7 +587,7 @@ const QNotePage = () => {
     check();
     const iv = window.setInterval(check, 4000);
     return () => { cancelled = true; window.clearInterval(iv); };
-  }, [activeSession?.id, phase]);
+  }, [activeSession?.id, phase, reallyVisible]);
 
   // ── pending 을 블록으로 커밋 — 각 문장을 독립 블록으로 생성 (merge 없음) ──
   const commitPendingAsBlock = useCallback((p: PendingBuffer, kind: BlockKind) => {

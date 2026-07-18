@@ -493,7 +493,7 @@
     },
     "explainer": {
       "title": "Just your personal items",
-      "body": "The same items appear in Q file / Q docs menus too, but the lock badge distinguishes them. Use [Share] to publish them.",
+      "body": "The Overview, Docs, Files, Knowledge and Notes tabs gather all your personal items in one place. The same items appear in Q docs / Q file menus too, but the lock badge distinguishes them. Use [Share] to publish them.",
       "dismiss": "Dismiss"
     },
     "empty": {

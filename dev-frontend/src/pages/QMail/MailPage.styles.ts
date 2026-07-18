@@ -341,6 +341,38 @@ export const UncertainBadge = styled.span`
   background: rgba(245, 158, 11, 0.13); color: #92400E;
   font-size: 11px; font-weight: 700;
 `;
+// #186 — '보낸' 태그 (제목 앞 인라인). 받은 메일과 즉시 구분.
+export const SentTag = styled.span`
+  display: inline-flex; align-items: center; flex-shrink: 0;
+  margin-right: 5px; padding: 1px 6px; border-radius: 4px;
+  background: rgba(20, 184, 166, 0.14); color: #0F766E;
+  font-size: 10px; font-weight: 700; vertical-align: middle;
+`;
+// #184 — 번역 컨트롤 바 + 번역 본문
+export const TransBar = styled.div`
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-top: 8px;
+`;
+export const TransSelect = styled.select`
+  height: 28px; padding: 0 6px; border: 1px solid #E2E8F0; border-radius: 6px;
+  background: #FFF; color: #334155; font-size: 12px; cursor: pointer;
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: -1px; }
+`;
+export const TransBtn = styled.button`
+  height: 28px; padding: 0 12px; border: 1px solid #14B8A6; border-radius: 6px;
+  background: rgba(20, 184, 166, 0.08); color: #0F766E;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  &:hover:not(:disabled) { background: rgba(20, 184, 166, 0.16); }
+  &:disabled { opacity: 0.6; cursor: default; }
+`;
+export const TransErr = styled.span`
+  color: #DC2626; font-size: 12px;
+`;
+export const TransBody = styled.div`
+  margin-top: 8px; padding: 10px 12px; border-radius: 8px;
+  background: #F8FAFC; border: 1px solid #E2E8F0;
+  color: #1E293B; font-size: 13px; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
+`;
 export const LabelChip = styled.span<{ $color: string; $clickable?: boolean }>`
   display: inline-flex; align-items: center; gap: 3px;
   padding: 1px 8px; border-radius: 999px;
