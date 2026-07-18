@@ -1,64 +1,32 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-07-18 (Opus 4.8, 1M) — IMAP IDLE 재연결 누수 핫픽스 운영 배포
-**작업 상태:** 완료 (배포됨)
+**마지막 업데이트:** 2026-07-18 (Opus 4.8, 1M) — IMAP 핫픽스 + 운영 피드백 잔여 개발 + Features 8종 (3배포)
+**작업 상태:** 완료 (/개발완료)
 
 ### 진행 중인 작업
-- 없음 (구현 대기: 게스트 퀵메뉴/위키 UX — 아래 "다음 할 일" 참조)
+- 없음 (구현 대기: 게스트 퀵메뉴/위키 UX — "다음 할 일" 참조)
 
-### ⏭️ 다음 섹션 최우선 — 게스트 퀵메뉴 · Q helper · /wiki 네비 (설계 확정·구현 대기)
-**설계 문서: `docs/qa/GUEST_QUICKMENU_WIKI_DESIGN.md` (Fable 정리 + Irene 결정 완료 — 이 문서만 보고 바로 구현).**
-- **진짜 원인:** `App.tsx:156` isMarketing→hideAppChrome 로 마케팅 경로에서 CueHelpDrawer 마운트 안 됨(#71 회귀) → 게스트 퀵메뉴 소멸. /wiki 는 목록에 없어 회원이 워크스페이스 런처를 봄(반대). CueHelpDrawer 게스트 모드(위키+문의 2탭)는 이미 완성 — 입구만 막힘. **백엔드 0, 프론트 5파일.**
-- **변경 5파일:** 신규 `utils/publicSurface.ts` · `App.tsx`(공개표면 CueHelpDrawer 게스트 마운트 + /wiki 를 LandingLayout/WikiShell 로 감쌈) · `CueHelpDrawer.tsx`(publicSurface prop, guestView 프레젠테이션, openWikiPath 새탭) · `RightDock.tsx`(공개표면 숨김) · `WikiArticlePage.tsx`(게스트 "화면열기" 숨김).
-- **Irene 확정:** 위키·문의는 비회원 완전 자유(로그인 벽 0). "화면 열기"만 비회원 숨김(라벨 아님). 워크스페이스→위키는 새 탭.
+### 완료된 작업 (이번 세션 · 전부 운영 배포됨)
+- **IMAP IDLE 재연결 누수 핫픽스** (`52fdf3a`) — `help@irenewp.com` "메일 sync 실패 3회 연속 — Too many simultaneous connections" 알림 폭주 해결. Gmail 계정당 15연결 초과 = node-imap disconnect 시 error+close+end 3이벤트 각각 재연결 + 의도적 end() 재유발 + 타이머 중복. dropped 플래그·reconnectTimers dedup·teardown removeAllListeners·connecting 가드·backstop live-IDLE skip. 운영 실측 fail=0·last_sync 즉시. 메모리 `feedback_imap_idle_reconnect_leak`.
+- **순수 개발 잔여 7건** (`df1359e`·`02487c6`): ⑪ 탭 드래그 정렬 · 9b Q Note 폴링 정지(useReallyVisible) · #157 퀵메뉴 배경 딤 · #168 개인보관함 안내문구 · #183 Q project 헤더 필터 아래 행 · #186 메일 받은/보낸 구분(보낸 배지+sent 폴더) · #184 메일 번역(translate 라우트+토글).
+- **#146 Features 8종** (`e832e44`) — 통합 인박스·고객관리·전자서명·Q위키·개인보관함·업무보고·포커스·회의록 "더 많은 기능" 섹션 (ko/en).
+- **운영 피드백 50→2건** — 43(라이브)+5(배포후) done + 개별 완료 답변. 남은 #126(Google OAuth 검증=Irene)·#146(캡처 이미지=디자인 결정).
+- **빌드 heap 8192→4096** — 7.7GB dev 머신에서 8192 반복 abort/Terminated = 배포 프론트빌드 stall 근본원인. 메모리 `feedback_build_heap_4096_on_dev`.
+- 검증: 가드 3축(health 30/30·guard 21/21·tenant 0) · 3배포 각 3점 실측(PM2 fresh·청크해시 dev=운영·콘텐츠) · #184/#186 운영 실호출·쿼리.
+
+### 다음 할 일 (최우선)
+**게스트 퀵메뉴 · Q helper · /wiki 네비게이션 구현** — 설계 확정, 구현만 남음.
+- **설계 문서: `docs/qa/GUEST_QUICKMENU_WIKI_DESIGN.md`** (Fable 정리 + Irene 결정 완료 — 이 문서만 보고 구현).
+- 진짜 원인: `App.tsx:156` isMarketing→hideAppChrome 로 마케팅 경로에서 CueHelpDrawer 미마운트(#71 회귀) → 게스트 퀵메뉴 소멸. /wiki 는 목록에 없어 회원이 워크스페이스 런처를 봄(반대). 게스트 모드(위키+문의 2탭)는 이미 완성 — 입구만 막힘.
+- 변경 5파일(백엔드 0): 신규 `utils/publicSurface.ts` · `App.tsx`(공개표면 CueHelpDrawer 게스트 마운트 + /wiki 를 LandingLayout/WikiShell 로 감쌈) · `CueHelpDrawer.tsx`(publicSurface prop·guestView·openWikiPath 새탭) · `RightDock.tsx`(공개표면 숨김) · `WikiArticlePage.tsx`(게스트 "화면열기" 숨김).
+- Irene 확정: 위키·문의 비회원 완전 자유(로그인 벽 0), "화면 열기"만 게스트 숨김(라벨 아님), 워크스페이스→위키 새 탭.
 - 검증: 비로그인/로그인 × 랜딩/위키/워크스페이스 4상태 매트릭스. 회귀 #71(마케팅 Toaster/Banner) 주의.
 
-### 이번 세션 완료 (2026-07-18)
-
-**★ 운영 배포 완료 (2026-07-18):** 잔여 개발 5건 + Features 8종 + IMAP 핫픽스 전부 운영 라이브. 배포 3건(`52fdf3a` IMAP · `02487c6` 잔여개발5 · `e832e44` Features). 3점 실측(PM2 fresh·청크해시 dev=운영·콘텐츠 라이브). 피드백 **50→2건**(운영 done 43 + 배포후 done 5 = 48 완료 · 남은 #126·#146 = Irene 결정/액션 대기).
-
-**A. 운영 피드백 잔여 개발 + 완료 정리 (배포 완료):**
-- 운영 미해결 피드백 50건 전수 검증(에이전트, file:line 근거) → **43건은 이미 고쳐져 운영 라이브**(상태만 안 닫힘) → **운영 done 마킹 + 개별 완료 답변 완료**(직접 DB, responded_by=1).
-- 남은 7건 중 **5건 dev 완성**(이번 세션): #157 퀵메뉴 배경 딤(RightDock scrim) · #168 개인보관함 안내문구(탭 구성 반영) · #183 Q project 헤더 필터를 아래 행으로 · #186 메일 받은/보낸 구분(보낸 배지 + sent 폴더) · #184 메일 번역(translate 라우트+토글, translateWithRetry 재사용). **→ /배포 시 운영 반영 후 done 마킹 예정.**
-- **2건 순수개발 밖:** #126(캘린더 양방향 = Google OAuth 검증, Irene 액션) · #146(Features 랜딩 캡처 이미지 + 빠진 기능 8종 소개, 콘텐츠·스크린샷).
-- **남은 폴리시 완결:** ⑪ 탭 드래그 정렬(tabStore.moveTab 배선) · 9b Q Note 폴링 정지(useReallyVisible 게이트, heartbeat 유지). ⑤(자동/수동 배지)는 A/B/C 기완료 확인.
-- **인프라:** 빌드 heap 8192→4096 (7.7GB 머신 OOM abort 수정 — 배포 프론트빌드 stall 근본원인). `npm run build` 전체 완주 확인.
-
-**B. IMAP IDLE 재연결 누수 핫픽스** (운영 배포 `52fdf3a`, Deployment Complete 115s) — `help@irenewp.com` "메일 계정 sync 실패 (3회 연속) — Too many simultaneous connections" 알림 폭주 해결.
-  - **근본원인:** Gmail 계정당 동시 IMAP 15연결 제한. `services/emailImapCron.js` IDLE 재연결 로직이 1 disconnect(error+close+end 3이벤트)→3재연결·의도적 end()가 재유발·타이머 중복예약 으로 고아 연결 누적 → 15개 초과.
-  - **수정:** dropped 1회성 플래그 · reconnectTimers dedup · teardownConn removeAllListeners 先 · connecting 플레이스홀더 · 폴링 backstop live-IDLE skip. (백엔드 전용, 프론트 무변경)
-  - **검증:** health 30/30 · 재연결 storm 소멸 · 운영 `help@irenewp.com` fail=0·last_sync 즉시 갱신·err∅ · dev도 회복(fail=0). 메모리 `feedback_imap_idle_reconnect_leak.md`.
-  - **배포 주의(기록):** 1차 full 배포가 프론트 빌드 단계에서 stall(tee EOF로 exit0 위장, PM2 미재시작=부분배포). 백엔드 전용이라 `--skip-build --auto`로 완주. **다음 프론트 포함 배포 전 `npm run build` 정상 여부 확인 권장.**
-
-### 완료된 작업 (이번 세션)
-- **⑤ 캔버스 AI 초안 생성** (운영 배포됨): 마이그레이션(projects.strategy_sources JSON · project_workstreams.source ENUM('ai','manual')) + services/canvasDraft.js(LLM 게이트웨이 경유) + POST /api/projects/:id/canvas/ai-draft + 프론트 AI버튼·AutoGenBadge 3상태. 실HTTP+LLM 6/6. 운영 마이그레이션 컬럼 실측 통과.
-- **⑥ 멀티탭 keep-alive** (dev 완성 + 운영 배포, 플래그 off): strangler 10/12 커밋 — tabStore(외부 store)·통일 TabStrip(사이드바 색·Q아이콘·＋통합검색·닫기가드)·chrome 17파일 RR탈피·트리스왑(형제 MemoryRouter, spike 게이트)·keep-alive·오버레이 편입·숨은탭 격리·공유 라우트 config+drift 가드·히스토리 순수로직. tabs e2e 3/3 영구 게이트.
-- **운영 배포 완료** (2a03a38, Complete 103s): 두 멀티탭 플래그(beta/spike) 운영 off → 운영 사용자는 재구성 shell만(planq.kr /login·/·/features 렌더·크래시0·pageerror0 실측). 백업 /opt/planq/backups/20260716_203001.
-- **Q위키 아티클 추가**: qproject/project-canvas-ai-draft (⑤ 사용자 대면). dev seed 반영·게이트 통과. **운영 위키 seed는 다음 /배포 시 반영 예정.**
-- (세션 전반) Q Mail AI #153/164/179(9a293e3, 운영) · voice iOS #155(79db3e4, 운영) · 캘린더 배너 #126.
-
-### 멀티탭 플래그 (중요)
-- `planq_tabs_beta`: 미러 스트립. dev 기본 on, 운영 off.
-- `planq_tabs_spike`: 트리 스왑 keep-alive. 기본 off(dev도). Irene 5 인간검증(IME·체감·뒤로가기·마이크·F5) 후 ⑫에서 승격.
-- spike 켜기: `localStorage.setItem('planq_tabs_spike','1')`
-
-### 추가 완료 (Fable 판정 후 실행 — 운영 배포됨 c80fed0, 20260716_214815)
-- **⑤(B) Cue provenance** — Fable GO. `created_via VARCHAR(20) NULL` 3테이블(tasks/calendar_events/documents) + action layer 배선 + cue_tools 생성 3분기 'cue' + `ProvenanceBadge`(중립 회색) 3화면 + i18n common:provenance.cue. source='manual' 유지·권한/재무 무접촉(grep 불변식)·고객 차단. 실HTTP+toJSON+가드3축 통과.
-- **⑥ 카나리 자동화 3건** — Fable CONDITIONAL-GO. canary-tabs.js에 뒤로가기·F5복원·마이크 track-alive 추가 → tabs 6/6. Irene 인간검증 5→2건(IME·전환 체감)으로 압축.
-
-### ⑥ 멀티탭 전역 승격 — 운영 라이브 (6464deb, 20260716_220926)
-- `tabsBeta.ts` isTabsBeta/isTabsSpike **기본 on(데스크탑 ≥1025px)**. dev·운영 모두 자동 노출. opt-out '0' 또는 기본값 flip 으로 즉시 롤백.
-- 승격 근거: **keep-alive 입력 state 탭 왕복 보존 실증**(KEEPALIVE_TEST 유지) + tabs 스위트 6/6(opt-out 무회귀·무크래시·keep-alive·뒤로가기·F5·마이크 track-alive). IME 조합은 blur commit→state 반영으로 손실 없음.
-- 운영 검증: 청크 해시 일치(운영=검증빌드 index-kEODvNZl.js)·헬스 200·PM2 fresh. **Irene 브라우저는 하드리프레시(Cmd+Shift+R) 필요**(옛 캐시 번들).
-- 모바일 무영향(데스크탑 전용).
-
-### 다음 할 일
-- ⑪ 탭 드래그 정렬 · QNote 폴링정지(9b) (남은 폴리시)
-- ⑦ 인프라(Irene 액션): Stripe Webhook Secret · SMTP DKIM/SPF/DMARC DNS · Google OAuth 검증 제출
-
-### 운영 반영 완료 (오늘 밤)
-- ⑤ 캔버스 AI 초안 · ⑥ 멀티탭 keep-alive(전역 on) · ⑤B created_via provenance(3테이블 마이그레이션·ProvenanceBadge 3화면) · 카나리 6건 · Q위키 캔버스AI.
+### 기타 남은 것
+- ⑦ 인프라(Irene 액션): Stripe Webhook Secret · SMTP DKIM/SPF/DMARC DNS · Google OAuth 검증 제출(#126 캘린더 양방향 활성).
+- #146 캡처: 실제 앱 스크린샷 = 클린 데모 워크스페이스 캡처 필요(고객 실데이터 노출 방지) + 디자인 큐레이션 → Irene 방향 결정 후 진행.
+- 네이티브 앱(iOS/Android) 코드 완료·미출시 — Apple Developer $99·Mac Xcode·Firebase(전부 Irene 액션).
 
 ---
 
@@ -72,6 +40,6 @@
 ```
 
 ### 참조
-- 설계: docs/MULTITAB_DESIGN.md · docs/qa/BACKLOG_REMAINING_DECISIONS_2026-07-16.md
-- 게이트: scripts/e2e/canary-tabs.js (node scripts/e2e/run.js --suite tabs → 3/3)
-- 메모리: project_multitab_keepalive.md
+- 다음 작업 설계: `docs/qa/GUEST_QUICKMENU_WIKI_DESIGN.md`
+- 진행 히스토리: `DEVELOPMENT_PLAN.md` 최상단
+- 메모리: `feedback_imap_idle_reconnect_leak` · `feedback_build_heap_4096_on_dev`

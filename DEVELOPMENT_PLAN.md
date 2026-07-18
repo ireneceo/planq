@@ -1,10 +1,44 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-07-16 심야 (Opus 4.8, 1M) — **⑤ 캔버스 AI 초안 + ⑥ 멀티탭 keep-alive(Fable 게이트) 운영 배포** — 자율 밤샘 세션 후반. ⑤**캔버스 AI 초안 생성**: 마이그레이션(`projects.strategy_sources` JSON·`project_workstreams.source` ENUM('ai','manual')) + `services/canvasDraft.js`(LLM 게이트웨이 경유) + POST `/:id/canvas/ai-draft` + 프론트 AI버튼·AutoGenBadge 3상태. 실HTTP+LLM 6/6. ⑥**멀티탭 keep-alive**(노션식): strangler 10/12커밋 — `tabStore`(외부store+useSyncExternalStore)·통일 `TabStrip`(사이드바 색토큰·Q아이콘)·chrome 17파일 RR탈피·공유 라우트 config+drift가드·히스토리 순수로직·트리스왑(형제 MemoryRouter, spike 플래그)·keep-alive·오버레이·숨은탭 격리·닫기가드. **tabs e2e 스위트 3/3 영구 게이트**(shell 무회귀·형제 MemoryRouter 무크래시·keep-alive). **운영 배포 완료**(`2a03a38`, Complete 103s): 두 멀티탭 플래그(beta/spike) 운영 기본 off → 운영 사용자는 재구성 shell만(planq.kr /login·/·/features 렌더·크래시0·pageerror0 실측), 탭바·keep-alive 미노출. ⑤ 운영 마이그레이션 실측(strategy_sources=json·source=enum). 가드 3축(health 30/30·guard 22/22·tenant 0). 남은 폴리시: ⑪드래그정렬·⑫beta승격(Irene 5인간검증 후).
+> **최종 업데이트:** 2026-07-18 (Opus 4.8, 1M) — **IMAP 핫픽스 + 운영 피드백 잔여 개발 + Features 8종 운영 배포 (3배포)** — ①**IMAP IDLE 재연결 누수 핫픽스**(`52fdf3a`): `help@irenewp.com` "메일 sync 실패 3회 연속 — Too many simultaneous connections" 알림 폭주 근본 해결. Gmail 계정당 동시 15연결 제한 초과 원인 = node-imap disconnect 시 error+close+end 3이벤트 각각 재연결 → 고아 연결 누적 + 의도적 end() 재유발. dropped 1회성 플래그·reconnectTimers dedup·teardown removeAllListeners·connecting 가드·폴링 backstop live-IDLE skip. 운영 실측 fail=0·last_sync 즉시 갱신. ②**순수 개발 잔여 7건**(`df1359e`·`02487c6`): ⑪탭 드래그 정렬(tabStore.moveTab 배선) · 9b Q Note 폴링 정지(useReallyVisible, 녹음 heartbeat 유지) · #157 퀵메뉴 배경 딤 · #168 개인보관함 안내문구 · #183 Q project 헤더 필터 아래 행 · #186 메일 받은/보낸 구분(보낸 배지+sent 폴더) · #184 메일 번역(translate 라우트+토글, translateWithRetry 재사용). ③**#146 Features 8종**(`e832e44`): 통합 인박스·고객관리·전자서명·Q위키·개인보관함·업무보고·포커스·회의록 "더 많은 기능" 섹션. **운영 피드백 50→2건**(48 done+완료답변 · 남은 #126 OAuth·#146 캡처 = Irene). **빌드 heap 8192→4096**(7.7GB 머신 OOM abort = 배포 프론트빌드 stall 근본원인). 3배포 각 3점 실측(PM2 fresh·청크해시 dev=운영·콘텐츠). 가드 3축(health 30/30·guard 21/21·tenant 0). **다음: 게스트 퀵메뉴·/wiki 네비 구현**(`docs/qa/GUEST_QUICKMENU_WIKI_DESIGN.md`).
+
+> **[이전] 최종 업데이트:** 2026-07-16 심야 (Opus 4.8, 1M) — **⑤ 캔버스 AI 초안 + ⑥ 멀티탭 keep-alive(Fable 게이트) 운영 배포** — 자율 밤샘 세션 후반. ⑤**캔버스 AI 초안 생성**: 마이그레이션(`projects.strategy_sources` JSON·`project_workstreams.source` ENUM('ai','manual')) + `services/canvasDraft.js`(LLM 게이트웨이 경유) + POST `/:id/canvas/ai-draft` + 프론트 AI버튼·AutoGenBadge 3상태. 실HTTP+LLM 6/6. ⑥**멀티탭 keep-alive**(노션식): strangler 10/12커밋 — `tabStore`(외부store+useSyncExternalStore)·통일 `TabStrip`(사이드바 색토큰·Q아이콘)·chrome 17파일 RR탈피·공유 라우트 config+drift가드·히스토리 순수로직·트리스왑(형제 MemoryRouter, spike 플래그)·keep-alive·오버레이·숨은탭 격리·닫기가드. **tabs e2e 스위트 3/3 영구 게이트**(shell 무회귀·형제 MemoryRouter 무크래시·keep-alive). **운영 배포 완료**(`2a03a38`, Complete 103s): 두 멀티탭 플래그(beta/spike) 운영 기본 off → 운영 사용자는 재구성 shell만(planq.kr /login·/·/features 렌더·크래시0·pageerror0 실측), 탭바·keep-alive 미노출. ⑤ 운영 마이그레이션 실측(strategy_sources=json·source=enum). 가드 3축(health 30/30·guard 22/22·tenant 0). 남은 폴리시: ⑪드래그정렬·⑫beta승격(Irene 5인간검증 후).
 
 > **[이전] 최종 업데이트:** 2026-07-16 밤 (Opus 4.8, 1M) — **자율 밤샘 세션: 백로그 전수 검증 + 기능고장 3건 근본수정** — `docs/qa/NEXT_SECTION_BACKLOG.md` 전수 검증 결과, **genuinely 고장난 것만 실작업**이었고 나머지는 이미 구현됐으나 close 안 된 상태였다. ①**Q Mail AI #153/#164/#179**(`9a293e3`) — 공용 `services/emailBodyClean.js` 신설(인용/전달/서명 정리)로 언어감지 any-char편향 제거·미리보기 헤더조각 제거·추출 무반응 503 표면화. 실HTTP 검증(영어메일→영어답장 ko:0/en:198)·유닛11/11·health30/30. ②**#155 말로추가 iOS 포맷**(`79db3e4`) — isTypeSupported webm↔mp4 분기+파일명 정합+미지원가드+권한시 자동시작. ③**#126 캘린더 배너** 완성. **이미 완료 확인(재작업 안 함): #166·모바일②(a~e)·#163·MyFeedback·#162·#152**(에이전트 오탐 다수 — 반드시 현재코드 검증 후 진행). **남은 미완 ⑤·⑥ = Irene 설계결정 필요** → `docs/qa/BACKLOG_REMAINING_DECISIONS_2026-07-16.md`. 운영 미배포.
 
 > **[이전] 최종 업데이트:** 2026-07-16 (Opus 4.8, 1M) — **모바일 흰 화면 회귀 차단 + 검사 하니스 강화** — e2e mobile 스위트에 `assertRendered()` **흰 화면(blank) 판정** 신규(키보드 스위트가 "입력 가림"만 봐 페이지 통째 blank도 ⚪ 통과하던 구멍 차단, #173/174/159/178 계열) + `run.js` blank=실패 집계 + mail 시나리오(mail-list·mail-compose) + MailPage `data-testid`·모바일 compose 사이드바 자동접힘 + DetailDrawer 폰 풀스크린(56px 조각 새던 것) + QBill 개요 2열 그리드 반응형 + Insights 기간라벨 i18n. **검증: mobile/crosscut/l1 전 스위트 0 실패 + tsc -b exit 0 + 가드 3축(health 30/30·guard 22/22·tenant 0)**. 다음: `docs/qa/NEXT_SECTION_BACKLOG.md`(Q Mail AI·멀티탭·전수검사 잔여 LOW).
+
+## ✅ 완료: IMAP 핫픽스 + 운영 피드백 잔여 개발 + Features 8종 (2026-07-18)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| IMAP IDLE 재연결 누수 핫픽스 | `emailImapCron.js` — 1 disconnect=3이벤트 각각 재연결·의도적 end() 재유발·타이머 중복으로 Gmail 15연결 초과. dropped 플래그·reconnectTimers dedup·teardown removeAllListeners·connecting 가드·backstop live-IDLE skip. 운영 실측 fail=0 | ✅ |
+| ⑪ 탭 드래그 정렬 | `tabStore.moveTab`(기존)에 TabStrip 드래그 배선(draggable·드롭표시·드래그중 흐림) | ✅ |
+| 9b Q Note 폴링 정지 | 숨은 탭(useReallyVisible)에서 준비상태·녹음락 폴링 정지. 녹음 heartbeat는 유지 | ✅ |
+| #157 퀵메뉴 배경 딤 | RightDock DockBackdrop scrim (글자 겹침 해소) | ✅ |
+| #168 개인보관함 안내문구 | 현재 탭 구성(개요·문서·파일·지식·노트) 반영 (ko/en) | ✅ |
+| #183 Q project 헤더 반응형 | 필터를 헤더 아래 FilterBar 행으로 분리 (오버플로 차단) | ✅ |
+| #186 메일 받은/보낸 구분 | '보낸' 배지(last_message_direction) + 보낸메일 폴더(folderWhere 'sent'). 운영 보낸3/받은714 | ✅ |
+| #184 메일 번역 | POST `.../messages/:id/translate`(translateWithRetry 재사용) + 메시지별 원본/번역 토글·언어선택. 운영 실호출 en→ko | ✅ |
+| #146 Features 8종 | 통합 인박스·고객관리·전자서명·Q위키·개인보관함·업무보고·포커스·회의록 "더 많은 기능" 섹션 (ko/en 43키) | ✅ |
+| 운영 피드백 정리 | 50→2건. 43(라이브)+5(배포후) done + 개별 완료 답변. 남은 #126(OAuth)·#146(캡처)=Irene | ✅ |
+| 빌드 heap 4096 | 8192→4096 (7.7GB 머신 OOM abort — 배포 프론트빌드 stall 근본 해결) | ✅ |
+
+### 수정된 파일
+- 백엔드: `services/emailImapCron.js` · `routes/email_threads.js`(translate 라우트·sent 폴더)
+- 프론트: `stores/tabStore.ts`(무변경-기존) · `components/Tab/TabStrip.tsx` · `pages/QNote/QNotePage.tsx` · `components/Common/RightDock.tsx` · `pages/PersonalVault/PersonalVaultPage.tsx` · `pages/QProject/QProjectPage.tsx` · `pages/QMail/MailPage.tsx`·`MailPage.styles.ts` · `pages/Landing/FeaturesPage.tsx` · `package.json`(heap)
+- i18n: ko/en × common·qmail·landing
+- 설계: `docs/qa/GUEST_QUICKMENU_WIKI_DESIGN.md`(신규, 다음 섹션) · 가드 baseline
+
+### 검증
+가드 3축(health 30/30·guard 21/21·tenant 0) · 빌드 완주(4096) · #184 번역 실호출(dev·운영) · #186 sent 쿼리(운영) · 3배포 각 3점 실측(PM2 fresh·청크해시 dev=운영·콘텐츠 라이브)
+
+### 다음
+게스트 퀵메뉴·Q helper·/wiki 네비 구현 — `docs/qa/GUEST_QUICKMENU_WIKI_DESIGN.md` (Fable 정리·Irene 결정 완료, 프론트 5파일·백엔드 0)
+
+---
 
 ## ✅ 완료: ⑤ 캔버스 AI 초안 + ⑥ 멀티탭 keep-alive 운영 배포 (2026-07-16 심야)
 
