@@ -166,7 +166,8 @@
     "translate": "번역하기",
     "showOriginal": "원본 보기",
     "loading": "번역 중…",
-    "error": "번역할 수 없습니다"
+    "error": "번역할 수 없습니다",
+    "lang": { "ko": "한국어", "en": "English", "ja": "日本語", "zh": "中文", "es": "Español" }
   },
   "uncertain": {
     "billing": "청구/결제 관련",
