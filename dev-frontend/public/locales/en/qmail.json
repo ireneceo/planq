@@ -155,7 +155,18 @@
     "archived": "Archived",
     "assigned": "Assigned to me",
     "following": "Following",
-    "all": "All mail"
+    "all": "All mail",
+    "sent": "Sent"
+  },
+  "thread": {
+    "sent": "Sent"
+  },
+  "translate": {
+    "langLabel": "Translation language",
+    "translate": "Translate",
+    "showOriginal": "Show original",
+    "loading": "Translating…",
+    "error": "Couldn't translate"
   },
   "uncertain": {
     "billing": "Billing/payment",

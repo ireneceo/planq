@@ -96,6 +96,8 @@ const RightDock: React.FC = () => {
 
   return (
     <>
+    {/* #157 — 퀵메뉴 펼치면 뒷배경을 어둡게(글자 겹쳐 메뉴가 안 보이던 문제). 클릭 시 닫힘. */}
+    {expanded && <DockBackdrop aria-hidden="true" onClick={() => setExpanded(false)} />}
     <FabWrap ref={fabRef} $onTalk={onTalk}>
       {expanded && (
         <Menu role="menu" aria-label={t('dock.menuLabel', '바로 열기') as string}>
@@ -176,6 +178,13 @@ const IconHelp = () => (
 );
 
 // ===== styled =====
+// #157 — 퀵메뉴 뒤 딤 배경 (FabWrap z-index 120 바로 아래). 메뉴·FAB 는 위에 떠 선명하게 보인다.
+const DockBackdrop = styled.div`
+  position: fixed; inset: 0; z-index: 119;
+  background: rgba(15, 23, 42, 0.45);
+  animation: dockBackdropIn 0.12s ease-out;
+  @keyframes dockBackdropIn { from { opacity: 0; } to { opacity: 1; } }
+`;
 const FabWrap = styled.div<{ $onTalk?: boolean }>`
   position: fixed; right: 20px; bottom: 16px;
   /* 모바일 상단바(z-index 99)·사이드바(100) 위로 떠야 펼친 메뉴가 안 가림 (#86). 모달(1000+)보다는 아래. */

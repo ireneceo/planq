@@ -96,6 +96,8 @@ function folderWhere(folder, userId) {
     case 'marketing': return { status: 'open', triage: { [Op.in]: ['automated', 'marketing'] } };
     // 전체 — 스팸·보관 뺀 모든 메일 (자동·마케팅 포함). "다 어디 갔지" 를 없애는 안전망.
     case 'all': return { status: { [Op.notIn]: ['spam', 'archived'] } };
+    // #186 — 보낸메일 = 내가 마지막으로 보낸(outbound) 스레드. 스팸·보관 제외.
+    case 'sent': return { last_message_direction: 'outbound', status: { [Op.notIn]: ['spam', 'archived'] } };
     default:
       return { status: { [Op.notIn]: ['spam', 'archived'] } };
   }
@@ -1001,6 +1003,45 @@ router.post('/:businessId/email-threads/:id/ai-suggest',
       const html = (out.content || '').trim().split(/\n{2,}/).map(p => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
 
       return successResponse(res, { suggestion: html, usage: out.usage, faq_used: faqSources.length > 0, faq_sources: faqSources });
+    } catch (err) { next(err); }
+  }
+);
+
+// ─────────────────────────────────────────────
+// #184 — 메일 본문 번역 (원본보기/번역하기 토글). 지정 언어로 번역, translateWithRetry 재사용(검출+재시도+한도).
+// POST /:biz/email-threads/:id/messages/:msgId/translate  { target_lang } → { detected_language, target_lang, translated }
+// ─────────────────────────────────────────────
+router.post('/:businessId/email-threads/:id/messages/:msgId/translate',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const threadId = Number(req.params.id);
+      const msgId = Number(req.params.msgId);
+      const acctIds = await accessibleAccountIds(businessId, req.user.id);
+      const thread = await EmailThread.findOne({ where: { id: threadId, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } } });
+      if (!thread) return errorResponse(res, 'thread_not_found', 404);
+      const msg = await EmailMessage.findOne({ where: { id: msgId, thread_id: threadId, business_id: businessId } });
+      if (!msg) return errorResponse(res, 'message_not_found', 404);
+
+      const SUPPORTED = ['ko', 'en', 'ja', 'zh', 'es'];
+      const target = String((req.body || {}).target_lang || 'ko');
+      if (!SUPPORTED.includes(target)) return errorResponse(res, 'unsupported_language', 400);
+
+      // 본문 텍스트 — 정리된 본문 우선(인용/전달/서명 제거), 없으면 원문 / HTML strip.
+      const { cleanVisibleBody } = require('../services/emailBodyClean');
+      const text = cleanVisibleBody(msg.body_text, msg.body_html) || msg.body_text
+        || String(msg.body_html || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+      if (!text || !text.trim()) return errorResponse(res, 'empty_body', 400);
+
+      // 대상 + 짝 언어(중복 회피)로 양방향 번역 후 target 만 반환.
+      const other = target === 'en' ? 'ko' : 'en';
+      const { translateWithRetry } = require('../services/translation_service');
+      const r = await translateWithRetry(text, [target, other], businessId);
+      if (r.fallback || !r.translations || !r.translations[target]) {
+        return errorResponse(res, r.reason === 'usage_limit_exceeded' ? 'usage_limit_exceeded' : 'translation_unavailable', 503);
+      }
+      return successResponse(res, { detected_language: r.detected_language, target_lang: target, translated: r.translations[target] });
     } catch (err) { next(err); }
   }
 );

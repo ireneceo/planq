@@ -1,11 +1,18 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-07-16 심야 (Opus 4.8, 1M) — 대형 자율 세션 마감
-**작업 상태:** 완료 (/개발완료)
+**마지막 업데이트:** 2026-07-18 (Opus 4.8, 1M) — IMAP IDLE 재연결 누수 핫픽스 운영 배포
+**작업 상태:** 완료 (배포됨)
 
 ### 진행 중인 작업
 - 없음
+
+### 이번 세션 완료 (2026-07-18)
+- **IMAP IDLE 재연결 누수 핫픽스** (운영 배포 `52fdf3a`, Deployment Complete 115s) — `help@irenewp.com` "메일 계정 sync 실패 (3회 연속) — Too many simultaneous connections" 알림 폭주 해결.
+  - **근본원인:** Gmail 계정당 동시 IMAP 15연결 제한. `services/emailImapCron.js` IDLE 재연결 로직이 1 disconnect(error+close+end 3이벤트)→3재연결·의도적 end()가 재유발·타이머 중복예약 으로 고아 연결 누적 → 15개 초과.
+  - **수정:** dropped 1회성 플래그 · reconnectTimers dedup · teardownConn removeAllListeners 先 · connecting 플레이스홀더 · 폴링 backstop live-IDLE skip. (백엔드 전용, 프론트 무변경)
+  - **검증:** health 30/30 · 재연결 storm 소멸 · 운영 `help@irenewp.com` fail=0·last_sync 즉시 갱신·err∅ · dev도 회복(fail=0). 메모리 `feedback_imap_idle_reconnect_leak.md`.
+  - **배포 주의(기록):** 1차 full 배포가 프론트 빌드 단계에서 stall(tee EOF로 exit0 위장, PM2 미재시작=부분배포). 백엔드 전용이라 `--skip-build --auto`로 완주. **다음 프론트 포함 배포 전 `npm run build` 정상 여부 확인 권장.**
 
 ### 완료된 작업 (이번 세션)
 - **⑤ 캔버스 AI 초안 생성** (운영 배포됨): 마이그레이션(projects.strategy_sources JSON · project_workstreams.source ENUM('ai','manual')) + services/canvasDraft.js(LLM 게이트웨이 경유) + POST /api/projects/:id/canvas/ai-draft + 프론트 AI버튼·AutoGenBadge 3상태. 실HTTP+LLM 6/6. 운영 마이그레이션 컬럼 실측 통과.
