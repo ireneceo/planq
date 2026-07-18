@@ -224,12 +224,13 @@
   "featuresPage": {
     "eyebrow": "FEATURES",
     "title": "Everything you need, right here.",
-    "sub": "PlanQ ties 16 modules into one flow. No more jumping between tools.",
+    "sub": "PlanQ ties everything into one flow. No more jumping between tools.",
     "anchors": {
       "qseries": "Q Series",
       "workspace": "Workspace",
       "ai": "AI · Analytics",
-      "foundation": "Foundation"
+      "foundation": "Foundation",
+      "more": "More"
     },
     "qseries": {
       "tag": "Q SERIES",
@@ -397,6 +398,83 @@
       "billing": {
         "name": "PortOne · Popbill billing",
         "lead": "Bank-transfer first + PortOne V2 second + Popbill tax invoices integrated. 4-stage cron (overdue / recurring / report)."
+      }
+    },
+    "more": {
+      "tag": "MORE",
+      "title": "It's all in here, too",
+      "desc": "From a unified inbox to e-signatures and work reports — the tools you need are already inside.",
+      "inbox": {
+        "name": "Unified inbox (Needs attention)",
+        "lead": "Emails, tasks and requests that need a reply, gathered in one place so nothing slips.",
+        "bullets": {
+          "0": "Auto-sorts reply-needed / review-suggested mail",
+          "1": "Task confirmations & requests on one screen",
+          "2": "Cleared items disappear instantly"
+        }
+      },
+      "clients": {
+        "name": "Client management",
+        "lead": "One invite and clients join instantly via a web link. Chats, tasks and billing organized per client.",
+        "bullets": {
+          "0": "Email invite → instant Client creation",
+          "1": "Per-client chats, tasks, files, billing",
+          "2": "External partners (vendors, freelancers) tracked separately"
+        }
+      },
+      "signature": {
+        "name": "E-signature",
+        "lead": "Get contracts and proposals signed inside PlanQ — with OTP verification, expiry and audit logs.",
+        "bullets": {
+          "0": "Send signature requests on docs & posts",
+          "1": "OTP verification + expiry",
+          "2": "Signature history kept in audit logs"
+        }
+      },
+      "wiki": {
+        "name": "Q Knowledge · Wiki",
+        "lead": "Build up FAQs and product how-tos as knowledge, reused across AI replies and help.",
+        "bullets": {
+          "0": "Embedding search over workspace knowledge (FAQ)",
+          "1": "Korean-language help (wiki) search",
+          "2": "Grounds Cue & mail AI replies"
+        }
+      },
+      "vault": {
+        "name": "Personal vault",
+        "lead": "Your private docs, files, knowledge and notes in one place — fully private until you share.",
+        "bullets": {
+          "0": "Overview, Docs, Files, Knowledge, Notes tabs",
+          "1": "Lock badge marks visibility",
+          "2": "Publish to team/clients with [Share]"
+        }
+      },
+      "reports": {
+        "name": "Work reports",
+        "lead": "From personal weekly reviews to workspace-wide weekly reports, performance is summarized automatically.",
+        "bullets": {
+          "0": "Weekly progress (burn-up) performance graph",
+          "1": "Personal & workspace weekly/monthly reports",
+          "2": "Snapshotted at finalization"
+        }
+      },
+      "focus": {
+        "name": "Focus mode",
+        "lead": "Focus on one task and auto-log the time spent, so work hours accumulate on their own.",
+        "bullets": {
+          "0": "Start a focus session → real time auto-accrues",
+          "1": "Idle sessions auto-capped",
+          "2": "Real time-spent evidence per task"
+        }
+      },
+      "meeting": {
+        "name": "Meeting notes (Q Note)",
+        "lead": "A personal tool that transcribes meetings live, detects questions and even drafts answers.",
+        "bullets": {
+          "0": "Live voice → transcript · speaker labels",
+          "1": "Auto question detection + answer drafts",
+          "2": "A fully private space only you can access"
+        }
       }
     },
     "cta": {

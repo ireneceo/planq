@@ -17,6 +17,8 @@ const QSERIES = ['talk', 'task', 'note', 'file', 'bill'] as const;
 const WORKSPACE = ['project', 'calendar', 'docs', 'mail'] as const;
 const AI_GROUP = ['cue', 'insights', 'notifications'] as const;
 const FOUNDATION = ['security', 'i18n', 'gdrive', 'billing'] as const;
+// #146 — 빠진 기능 추가: 통합 인박스·고객관리·전자서명·Q위키·개인 보관함·업무보고·포커스·회의록
+const MORE = ['inbox', 'clients', 'signature', 'wiki', 'vault', 'reports', 'focus', 'meeting'] as const;
 
 const FeaturesPage: React.FC = () => {
   const { t } = useTranslation('landing');
@@ -27,12 +29,13 @@ const FeaturesPage: React.FC = () => {
         <Container>
           <Eyebrow>{t('featuresPage.eyebrow', 'FEATURES')}</Eyebrow>
           <Title>{t('featuresPage.title', '필요한 건 전부 여기 있습니다.')}</Title>
-          <Sub>{t('featuresPage.sub', 'PlanQ는 16개 모듈이 하나의 흐름으로 연결됩니다. 도구를 옮겨 다닐 일이 없습니다.')}</Sub>
+          <Sub>{t('featuresPage.sub', 'PlanQ는 하나의 흐름으로 연결됩니다. 도구를 옮겨 다닐 일이 없습니다.')}</Sub>
           <Anchors>
             <Anchor href="#q-series">{t('featuresPage.anchors.qseries', 'Q 시리즈')}</Anchor>
             <Anchor href="#workspace">{t('featuresPage.anchors.workspace', '워크스페이스')}</Anchor>
             <Anchor href="#ai">{t('featuresPage.anchors.ai', 'AI · 분석')}</Anchor>
             <Anchor href="#foundation">{t('featuresPage.anchors.foundation', '기반')}</Anchor>
+            <Anchor href="#more">{t('featuresPage.anchors.more', '더 많은 기능')}</Anchor>
           </Anchors>
         </Container>
       </SubHero>
@@ -149,6 +152,33 @@ const FeaturesPage: React.FC = () => {
                   <SmallName>{t(`featuresPage.foundation.${k}.name`)}</SmallName>
                   <SmallLead>{t(`featuresPage.foundation.${k}.lead`)}</SmallLead>
                 </SmallCard>
+              </Reveal>
+            ))}
+          </CardGrid>
+        </Container>
+      </Group>
+
+      {/* Group 5 — 더 많은 기능 (#146 빠진 기능 추가) */}
+      <Group id="more" $bg="bg">
+        <Container>
+          <Reveal as="div"><GroupTag>{t('featuresPage.more.tag', 'MORE')}</GroupTag></Reveal>
+          <Reveal as="h2"><GroupTitle>{t('featuresPage.more.title', '이것도 전부 들어 있습니다')}</GroupTitle></Reveal>
+          <Reveal as="p"><GroupDesc>{t('featuresPage.more.desc', '통합 인박스부터 전자서명·업무보고까지 — 업무에 필요한 도구가 이미 안에 있습니다.')}</GroupDesc></Reveal>
+          <CardGrid $cols={2}>
+            {MORE.map((k, i) => (
+              <Reveal key={k}>
+                <ModuleCard style={{ transitionDelay: `${i * 50}ms` }}>
+                  <ModuleName>{t(`featuresPage.more.${k}.name`)}</ModuleName>
+                  <ModuleLead>{t(`featuresPage.more.${k}.lead`)}</ModuleLead>
+                  <ModuleList>
+                    {[0, 1, 2].map(idx => (
+                      <ModuleItem key={idx}>
+                        <Bullet />
+                        <span>{t(`featuresPage.more.${k}.bullets.${idx}`)}</span>
+                      </ModuleItem>
+                    ))}
+                  </ModuleList>
+                </ModuleCard>
               </Reveal>
             ))}
           </CardGrid>
