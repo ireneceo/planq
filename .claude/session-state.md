@@ -8,7 +8,15 @@
 - 없음
 
 ### 이번 세션 완료 (2026-07-18)
-- **IMAP IDLE 재연결 누수 핫픽스** (운영 배포 `52fdf3a`, Deployment Complete 115s) — `help@irenewp.com` "메일 계정 sync 실패 (3회 연속) — Too many simultaneous connections" 알림 폭주 해결.
+
+**A. 운영 피드백 잔여 개발 + 완료 정리 (commit `df1359e`, dev 완성·미배포):**
+- 운영 미해결 피드백 50건 전수 검증(에이전트, file:line 근거) → **43건은 이미 고쳐져 운영 라이브**(상태만 안 닫힘) → **운영 done 마킹 + 개별 완료 답변 완료**(직접 DB, responded_by=1).
+- 남은 7건 중 **5건 dev 완성**(이번 세션): #157 퀵메뉴 배경 딤(RightDock scrim) · #168 개인보관함 안내문구(탭 구성 반영) · #183 Q project 헤더 필터를 아래 행으로 · #186 메일 받은/보낸 구분(보낸 배지 + sent 폴더) · #184 메일 번역(translate 라우트+토글, translateWithRetry 재사용). **→ /배포 시 운영 반영 후 done 마킹 예정.**
+- **2건 순수개발 밖:** #126(캘린더 양방향 = Google OAuth 검증, Irene 액션) · #146(Features 랜딩 캡처 이미지 + 빠진 기능 8종 소개, 콘텐츠·스크린샷).
+- **남은 폴리시 완결:** ⑪ 탭 드래그 정렬(tabStore.moveTab 배선) · 9b Q Note 폴링 정지(useReallyVisible 게이트, heartbeat 유지). ⑤(자동/수동 배지)는 A/B/C 기완료 확인.
+- **인프라:** 빌드 heap 8192→4096 (7.7GB 머신 OOM abort 수정 — 배포 프론트빌드 stall 근본원인). `npm run build` 전체 완주 확인.
+
+**B. IMAP IDLE 재연결 누수 핫픽스** (운영 배포 `52fdf3a`, Deployment Complete 115s) — `help@irenewp.com` "메일 계정 sync 실패 (3회 연속) — Too many simultaneous connections" 알림 폭주 해결.
   - **근본원인:** Gmail 계정당 동시 IMAP 15연결 제한. `services/emailImapCron.js` IDLE 재연결 로직이 1 disconnect(error+close+end 3이벤트)→3재연결·의도적 end()가 재유발·타이머 중복예약 으로 고아 연결 누적 → 15개 초과.
   - **수정:** dropped 1회성 플래그 · reconnectTimers dedup · teardownConn removeAllListeners 先 · connecting 플레이스홀더 · 폴링 backstop live-IDLE skip. (백엔드 전용, 프론트 무변경)
   - **검증:** health 30/30 · 재연결 storm 소멸 · 운영 `help@irenewp.com` fail=0·last_sync 즉시 갱신·err∅ · dev도 회복(fail=0). 메모리 `feedback_imap_idle_reconnect_leak.md`.
