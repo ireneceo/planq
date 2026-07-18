@@ -456,6 +456,10 @@ async function tick() {
       limit: 50,
     });
     for (const acc of accounts) {
+      // 실시간 IDLE 연결이 살아있는 계정은 이미 즉시 수신 중 — 폴링이 2번째 연결을 열어
+      // Gmail 동시연결 제한(15)을 압박하는 것을 막는다. IDLE 이 끊긴(conn=null) 계정만 backstop 폴링.
+      const idle = idleConns.get(acc.id);
+      if (idle && idle.conn) continue;
       try {
         const n = await syncOne(acc);
         if (n > 0) console.log(`[emailImapCron] account #${acc.id} (${acc.email}) — ${n} new`);
@@ -505,8 +509,12 @@ async function tick() {
 //   'mail' 이벤트를 즉시 emit → syncOne 트리거 → 파싱·저장·socket 'mail:new' broadcast.
 //   전형 지연 < 2초 (Gmail 등 타 클라이언트와 동일 체감). 2분 cron 은 IDLE 끊김 대비 backstop.
 // ────────────────────────────────────────────────────────────────────────────
-const idleConns = new Map();     // accountId → { conn, stopped }
+// entry 형태: { conn, raw, stopped, connecting }
+//   · conn(truthy) = 실시간 IDLE 연결 살아있음. drop 되면 conn=null 로 표시(엔트리는 유지 → backstop 폴링 대상).
+//   · connecting = 연결 시도 중(플레이스홀더). 동시 connect 로 Gmail 동시연결 제한(15) 초과 방지.
+const idleConns = new Map();     // accountId → { conn, raw, stopped, connecting }
 const idleBackoff = new Map();   // accountId → 다음 재연결 지연(ms)
+const reconnectTimers = new Map(); // accountId → setTimeout 핸들 (재연결 중복 예약 차단)
 const syncBusy = new Set();      // accountId 동기화 진행 중 (self-overlap 방지)
 const syncPending = new Set();   // 진행 중 재요청 — 끝나면 한 번 더 (놓친 메일 방지)
 
@@ -529,55 +537,99 @@ async function guardedSync(accountId) {
   }
 }
 
+// 예약된 재연결 타이머 취소 (중복/누수 방지)
+function clearReconnect(id) {
+  const t = reconnectTimers.get(id);
+  if (t) { clearTimeout(t); reconnectTimers.delete(id); }
+}
+
+// 연결 해체 — end() 전에 리스너를 먼저 떼어 우리가 부른 end() 가 drop 핸들러(재연결)를 재트리거하지 않게 한다.
+//   (Gmail 동시연결 누수의 핵심 원인: 의도적 end() → close/end 이벤트 → 또 다른 재연결 → 고아 연결 누적)
+function teardownConn(entry) {
+  if (!entry) return;
+  const raw = entry.raw || (entry.conn && entry.conn.imap);
+  try { if (raw) raw.removeAllListeners(); } catch { /* */ }
+  try { entry.conn && entry.conn.end(); } catch { /* */ }
+}
+
 function scheduleReconnect(account) {
   const id = account.id;
   const entry = idleConns.get(id);
-  if (entry && entry.stopped) return;  // 의도적 중단이면 재연결 안 함
+  if (entry && entry.stopped) return;   // 의도적 중단이면 재연결 안 함
+  if (reconnectTimers.has(id)) return;  // 이미 재연결 예약됨 — 중복 예약 차단 (한 drop 이 여러 이벤트여도 1개만)
   const prev = idleBackoff.get(id) || 0;
   const next = prev === 0 ? 5000 : Math.min(prev * 2, 300000);  // 5s → … → 5min cap
   idleBackoff.set(id, next);
-  setTimeout(() => { startIdleForAccount(account).catch(() => {}); }, next);
+  const t = setTimeout(() => {
+    reconnectTimers.delete(id);
+    startIdleForAccount(account).catch(() => {});
+  }, next);
+  reconnectTimers.set(id, t);
 }
 
 async function startIdleForAccount(account) {
   const id = account.id;
-  // 기존 연결 정리
   const existing = idleConns.get(id);
-  if (existing && existing.conn) { try { existing.conn.end(); } catch { /* */ } }
+  if (existing && existing.connecting) return;  // 이미 연결 시도 중 — 동시 connect 로 연결 2개 뜨는 것 차단
+  clearReconnect(id);
+  teardownConn(existing);                        // 기존 연결 리스너 제거 후 end (재연결 재유발 X)
 
+  // connecting 플레이스홀더를 동기적으로 먼저 세팅 → reconcile/재연결 레이스에서 중복 진입 차단
+  idleConns.set(id, { conn: null, raw: null, stopped: false, connecting: true });
+
+  let conn;
   try {
     const imapConfig = await buildImapConfig(account, { onIdle: true });
-    const conn = await imaps.connect({ imap: imapConfig });
+    conn = await imaps.connect({ imap: imapConfig });
     await conn.openBox(account.imap_folder || 'INBOX');
-    idleConns.set(id, { conn, stopped: false });
-    idleBackoff.set(id, 0);  // 성공 → backoff 리셋
-    console.log(`[emailIdle] IDLE 연결 성립 — account #${id} (${account.email})`);
-
-    // 연결 직후 한 번 동기화 (IDLE 성립 전 도착분 회수)
-    guardedSync(id).catch(() => {});
-
-    // node-imap 이벤트는 conn.imap 에 있음
-    const raw = conn.imap;
-    raw.on('mail', () => { guardedSync(id).catch(() => {}); });          // 새 메일 push → 즉시
-    raw.on('update', () => { guardedSync(id).catch(() => {}); });        // 플래그 변경 등
-    const onDrop = (label) => (err) => {
-      const e = idleConns.get(id);
-      if (e && e.stopped) return;
-      console.warn(`[emailIdle] account #${id} ${label}${err ? ': ' + err.message : ''} — 재연결 예약`);
-      scheduleReconnect(account);
-    };
-    raw.on('error', onDrop('error'));
-    raw.on('close', onDrop('close'));
-    raw.on('end', onDrop('end'));
   } catch (e) {
+    // 연결 실패 — 플레이스홀더 정리(단, 그 사이 stop 요청 왔으면 존중) 후 재연결 예약
+    if (conn) { try { conn.end(); } catch { /* */ } }
+    const cur = idleConns.get(id);
+    if (cur && cur.stopped) { idleConns.delete(id); return; }
+    idleConns.delete(id);
     console.warn(`[emailIdle] account #${id} (${account.email}) IDLE 연결 실패: ${e.message} — 재연결 예약`);
     scheduleReconnect(account);
+    return;
   }
+
+  // 연결 도중 stop 요청이 들어왔으면 즉시 정리
+  const cur = idleConns.get(id);
+  if (cur && cur.stopped) { try { conn.end(); } catch { /* */ } idleConns.delete(id); return; }
+
+  const raw = conn.imap;
+  const entry = { conn, raw, stopped: false, connecting: false };
+  idleConns.set(id, entry);
+  idleBackoff.set(id, 0);  // 성공 → backoff 리셋
+  console.log(`[emailIdle] IDLE 연결 성립 — account #${id} (${account.email})`);
+
+  // 연결 직후 한 번 동기화 (IDLE 성립 전 도착분 회수)
+  guardedSync(id).catch(() => {});
+
+  // node-imap 이벤트는 conn.imap 에 있음
+  raw.on('mail', () => { guardedSync(id).catch(() => {}); });          // 새 메일 push → 즉시
+  raw.on('update', () => { guardedSync(id).catch(() => {}); });        // 플래그 변경 등
+
+  let dropped = false;  // 한 물리적 disconnect 가 error+close+end 를 모두 발생시켜도 재연결은 1회만
+  const onDrop = (label) => (err) => {
+    if (dropped) return;
+    dropped = true;
+    try { raw.removeAllListeners(); } catch { /* */ }
+    const e = idleConns.get(id);
+    if (e && e.stopped) return;
+    if (e) { e.conn = null; e.raw = null; }  // 연결 끊김 표시 → backstop 폴링이 커버 가능
+    console.warn(`[emailIdle] account #${id} ${label}${err ? ': ' + err.message : ''} — 재연결 예약`);
+    scheduleReconnect(account);
+  };
+  raw.on('error', onDrop('error'));
+  raw.on('close', onDrop('close'));
+  raw.on('end', onDrop('end'));
 }
 
 function stopIdleForAccount(accountId) {
+  clearReconnect(accountId);
   const entry = idleConns.get(accountId);
-  if (entry) { entry.stopped = true; try { entry.conn && entry.conn.end(); } catch { /* */ } }
+  if (entry) { entry.stopped = true; teardownConn(entry); }
   idleConns.delete(accountId);
   idleBackoff.delete(accountId);
 }
