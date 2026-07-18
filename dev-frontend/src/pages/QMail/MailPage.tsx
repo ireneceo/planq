@@ -1710,11 +1710,11 @@ const MailPage: React.FC = () => {
                     <TransBar>
                       <TransSelect value={transLang} onChange={(e) => setTransLang(e.target.value)}
                         aria-label={t('translate.langLabel', { defaultValue: '번역 언어' }) as string}>
-                        <option value="ko">한국어</option>
-                        <option value="en">English</option>
-                        <option value="ja">日本語</option>
-                        <option value="zh">中文</option>
-                        <option value="es">Español</option>
+                        <option value="ko">{t('translate.lang.ko') as string}</option>
+                        <option value="en">{t('translate.lang.en') as string}</option>
+                        <option value="ja">{t('translate.lang.ja') as string}</option>
+                        <option value="zh">{t('translate.lang.zh') as string}</option>
+                        <option value="es">{t('translate.lang.es') as string}</option>
                       </TransSelect>
                       {msgTrans[m.id]?.showing ? (
                         <TransBtn type="button"
