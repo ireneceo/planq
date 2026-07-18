@@ -5,7 +5,14 @@
 **작업 상태:** 완료 (배포됨)
 
 ### 진행 중인 작업
-- 없음
+- 없음 (구현 대기: 게스트 퀵메뉴/위키 UX — 아래 "다음 할 일" 참조)
+
+### ⏭️ 다음 섹션 최우선 — 게스트 퀵메뉴 · Q helper · /wiki 네비 (설계 확정·구현 대기)
+**설계 문서: `docs/qa/GUEST_QUICKMENU_WIKI_DESIGN.md` (Fable 정리 + Irene 결정 완료 — 이 문서만 보고 바로 구현).**
+- **진짜 원인:** `App.tsx:156` isMarketing→hideAppChrome 로 마케팅 경로에서 CueHelpDrawer 마운트 안 됨(#71 회귀) → 게스트 퀵메뉴 소멸. /wiki 는 목록에 없어 회원이 워크스페이스 런처를 봄(반대). CueHelpDrawer 게스트 모드(위키+문의 2탭)는 이미 완성 — 입구만 막힘. **백엔드 0, 프론트 5파일.**
+- **변경 5파일:** 신규 `utils/publicSurface.ts` · `App.tsx`(공개표면 CueHelpDrawer 게스트 마운트 + /wiki 를 LandingLayout/WikiShell 로 감쌈) · `CueHelpDrawer.tsx`(publicSurface prop, guestView 프레젠테이션, openWikiPath 새탭) · `RightDock.tsx`(공개표면 숨김) · `WikiArticlePage.tsx`(게스트 "화면열기" 숨김).
+- **Irene 확정:** 위키·문의는 비회원 완전 자유(로그인 벽 0). "화면 열기"만 비회원 숨김(라벨 아님). 워크스페이스→위키는 새 탭.
+- 검증: 비로그인/로그인 × 랜딩/위키/워크스페이스 4상태 매트릭스. 회귀 #71(마케팅 Toaster/Banner) 주의.
 
 ### 이번 세션 완료 (2026-07-18)
 
