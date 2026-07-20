@@ -79,7 +79,7 @@ router.get('/me/deletion-preflight', authenticateToken, async (req, res, next) =
     const [privateFiles, extConns, emailAccts] = await Promise.all([
       File.count({ where: { uploader_id: req.user.id, visibility: 'L1' } }).catch(() => 0),
       ExternalConnection.count({ where: { user_id: req.user.id } }).catch(() => 0),
-      EmailAccount.count({ where: { user_id: req.user.id } }).catch(() => 0),
+      EmailAccount.count({ where: { owner_user_id: req.user.id } }).catch(() => 0),
     ]);
 
     return successResponse(res, {
