@@ -965,32 +965,71 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                 />
               </DrawerSection>
 
-              {/* 사용자 정의 항목 — 인라인 편집 */}
-              {Array.isArray(detail.custom_columns) && detail.custom_columns.length > 0 && (
-                <DrawerSection>
-                  <SectionLabel>{t('drawer.customColumns', '항목')}</SectionLabel>
-                  <DrawerCustomList>
-                    {detail.custom_columns.map(col => (
-                      <DrawerCustomRow key={col.id}>
-                        <DrawerCustomLabel>{col.name}</DrawerCustomLabel>
-                        <InlineCellEdit
-                          docId={detail.id}
-                          colId={col.id}
-                          colType={col.type}
-                          initialValue={(detail.custom_values || {})[col.id] as string | undefined}
-                          businessId={businessId}
-                          onSaved={(newVal) => {
-                            setDocs(prev => prev.map(x => x.id === detail.id
-                              ? { ...x, custom_values: { ...(x.custom_values || {}), [col.id]: newVal } }
-                              : x));
-                            setDetail(prev => prev ? { ...prev, custom_values: { ...(prev.custom_values || {}), [col.id]: newVal } } : prev);
-                          }}
-                        />
-                      </DrawerCustomRow>
-                    ))}
-                  </DrawerCustomList>
-                </DrawerSection>
-              )}
+              {/* 사용자 정의 항목 — #187: 수정에서도 항목 추가/이름변경/삭제 가능하게 (항상 노출). */}
+              {(() => {
+                const cols = Array.isArray(detail.custom_columns) ? detail.custom_columns : [];
+                // custom_columns 배열을 통째로 PATCH + 로컬 state 갱신 (단일 착지점)
+                const saveCols = async (nextCols: typeof cols, nextVals?: Record<string, unknown>) => {
+                  const payload: { custom_columns: typeof cols; custom_values?: Record<string, unknown> } = { custom_columns: nextCols };
+                  if (nextVals) payload.custom_values = nextVals;
+                  try { await updateKnowledge(businessId, detail.id, payload); }
+                  catch { return; }  // 실패 시 로컬 state 안 바꿈 (낙관 갱신 취소)
+                  setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, custom_columns: nextCols, ...(nextVals ? { custom_values: nextVals } : {}) } : x));
+                  setDetail(prev => prev ? { ...prev, custom_columns: nextCols, ...(nextVals ? { custom_values: nextVals } : {}) } : prev);
+                };
+                return (
+                  <DrawerSection>
+                    <SectionLabel>{t('drawer.customColumns', '항목')}</SectionLabel>
+                    <DrawerCustomList>
+                      {cols.map((col, idx) => (
+                        <DrawerCustomRow key={col.id}>
+                          <DrawerColNameInput
+                            defaultValue={col.name}
+                            placeholder={t('modal.colNamePh', '항목명') as string}
+                            onBlur={(e) => {
+                              const name = e.target.value.trim();
+                              if (name === col.name) return;
+                              const next = cols.map((c, i) => i === idx ? { ...c, name } : c);
+                              saveCols(next);
+                            }}
+                          />
+                          <DrawerColValueRow>
+                            <InlineCellEdit
+                              docId={detail.id}
+                              colId={col.id}
+                              colType={col.type}
+                              initialValue={(detail.custom_values || {})[col.id] as string | undefined}
+                              businessId={businessId}
+                              onSaved={(newVal) => {
+                                setDocs(prev => prev.map(x => x.id === detail.id
+                                  ? { ...x, custom_values: { ...(x.custom_values || {}), [col.id]: newVal } } : x));
+                                setDetail(prev => prev ? { ...prev, custom_values: { ...(prev.custom_values || {}), [col.id]: newVal } } : prev);
+                              }}
+                            />
+                            <RemoveColBtn
+                              type="button"
+                              title={t('drawer.removeColumn', '항목 삭제') as string}
+                              onClick={() => {
+                                const next = cols.filter((_, i) => i !== idx);
+                                const vals = { ...(detail.custom_values || {}) };
+                                delete vals[col.id];
+                                saveCols(next, vals);
+                              }}
+                            >×</RemoveColBtn>
+                          </DrawerColValueRow>
+                        </DrawerCustomRow>
+                      ))}
+                      <AddColBtn
+                        type="button"
+                        onClick={() => {
+                          const id = `c${Math.random().toString(36).slice(2, 10)}`;
+                          saveCols([...cols, { id, name: t('drawer.newColumn', '새 항목'), type: 'text', show_in_list: true }]);
+                        }}
+                      >+ {t('modal.addColumn', '항목 추가')}</AddColBtn>
+                    </DrawerCustomList>
+                  </DrawerSection>
+                );
+              })()}
               {/* 첨부 파일·문서 — AttachmentField 통합 컴포넌트로 통일 (사이클 P5 후속, 2026-05-14).
                   새 정보 등록 모달과 같은 UI/UX. 새 업로드는 표준 File 테이블 등록 후 즉시
                   attached_file_ids 에 link. 기존 파일/문서 선택도 즉시 PATCH updateKnowledge. */}
@@ -1664,8 +1703,17 @@ const DrawerCustomRow = styled.div`
   padding: 6px 0; border-bottom: 1px solid #F1F5F9;
   &:last-child { border-bottom: none; }
 `;
-const DrawerCustomLabel = styled.span`
-  font-size: 12px; font-weight: 600; color: #64748B;
+// #187 — 상세 드로어에서 항목명 직접 편집 (blur 시 저장)
+const DrawerColNameInput = styled.input`
+  font-size: 12px; font-weight: 600; color: #334155;
+  border: 1px solid transparent; border-radius: 6px;
+  padding: 5px 8px; background: #F8FAFC; min-width: 0; width: 100%;
+  &:hover { border-color: #E2E8F0; }
+  &:focus { outline: none; border-color: #14B8A6; background: #fff; }
+`;
+const DrawerColValueRow = styled.div`
+  display: flex; align-items: center; gap: 6px; min-width: 0;
+  & > *:first-child { flex: 1; min-width: 0; }
 `;
 
 // ─── 인라인 셀 편집 — 리스트 행의 커스텀 항목 클릭 시 그 자리에서 수정 ───
@@ -1715,6 +1763,7 @@ const InlineCellEdit: React.FC<{
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(initialValue == null ? '' : String(initialValue));
   const [saving, setSaving] = React.useState(false);
+  const [saveErr, setSaveErr] = React.useState(false);
 
   React.useEffect(() => { if (!editing) setDraft(initialValue == null ? '' : String(initialValue)); }, [initialValue, editing]);
 
@@ -1735,7 +1784,8 @@ const InlineCellEdit: React.FC<{
         custom_values: { [colId]: draft },
       });
       onSaved(draft);
-    } catch { /* skip — 다음 사이클에 에러 처리 */ }
+      setSaveErr(false);
+    } catch { setSaveErr(true); setEditing(true); }  // #187 — 저장 실패를 삼키지 말고 편집 유지 + 표시
     finally { setSaving(false); }
   };
 
@@ -1753,9 +1803,11 @@ const InlineCellEdit: React.FC<{
   return (
     <InlineInput
       autoFocus
+      $err={saveErr}
+      title={saveErr ? (t('inline.saveFailed', '저장 실패 — 다시 시도해주세요') as string) : undefined}
       type={colType === 'date' ? 'date' : colType === 'number' ? 'number' : colType === 'url' ? 'url' : colType === 'email' ? 'email' : 'text'}
       value={draft}
-      onChange={(e) => setDraft(e.target.value)}
+      onChange={(e) => { setDraft(e.target.value); if (saveErr) setSaveErr(false); }}
       onBlur={commit}
       onKeyDown={(e) => {
         if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
@@ -1776,12 +1828,12 @@ const InlineValue = styled.span`
   transition: all 0.12s;
   &:hover { background: #F0FDFA; color: #0F766E; border-color: #CCFBF1; }
 `;
-const InlineInput = styled.input`
+const InlineInput = styled.input<{ $err?: boolean }>`
   height: 22px; padding: 0 6px;
-  border: 1px solid #14B8A6; border-radius: 4px;
+  border: 1px solid ${p => (p.$err ? '#EF4444' : '#14B8A6')}; border-radius: 4px;
   font-size: 12px; color: #0F172A; background: #fff;
   max-width: 200px;
-  &:focus { outline: none; box-shadow: 0 0 0 2px rgba(20,184,166,0.2); }
+  &:focus { outline: none; box-shadow: 0 0 0 2px ${p => (p.$err ? 'rgba(239,68,68,0.2)' : 'rgba(20,184,166,0.2)')}; }
 `;
 
 // ─── styled ───
@@ -1990,6 +2042,7 @@ const MainArea = styled.div`display: flex; flex-direction: column; gap: 10px; mi
 const CustomItem = styled.span`
   display: inline-flex; align-items: center; gap: 4px;
   white-space: nowrap; font-size: 12px;
+  min-width: 0; max-width: 260px;  /* #187 — 개별 항목 폭 제한 (라벨+값이 옆 컬럼 침범 방지) */
 `;
 const CustomLabel = styled.span`color: #94A3B8; font-weight: 500;`;
 const CustomValue = styled.span`color: #334155; font-weight: 500;
@@ -2040,7 +2093,7 @@ const ColTitleArea = styled.div`min-width: 0;`;
 const ColCustomArea = styled.div`
   display: flex; flex-wrap: wrap; gap: 12px 16px;
   align-items: center;
-  min-width: 0;
+  min-width: 0; overflow: hidden;  /* #187 — 넘친 커스텀 값이 옆 컬럼 위로 흐르지 않게 */
   @media (max-width: 900px) { grid-column: 1 / -1; }
 `;
 // 우측: 카테고리 chip(여러개 가능) + 메타 (스코프·날짜)

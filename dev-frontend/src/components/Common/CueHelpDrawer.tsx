@@ -197,7 +197,7 @@ const CueHelpDrawer: React.FC<{
   useEffect(() => {
     if (mode !== 'qhelper' || wikiCats.length) return;
     let cancelled = false;
-    fetchWikiCategories().then((c) => { if (!cancelled) setWikiCats(c); }).catch(() => {});
+    fetchWikiCategories().then((c) => { if (!cancelled) setWikiCats(Array.isArray(c) ? c : []); }).catch(() => {});
     return () => { cancelled = true; };
   }, [mode, wikiCats.length]);
 
@@ -485,8 +485,11 @@ const CueHelpDrawer: React.FC<{
         </FloatingTrigger>
       )}
       {open && <>
-      {!standalone && <Backdrop onClick={() => setOpen(false)} />}
-      <Drawer ref={drawerRef} $standalone={standalone} role="dialog" aria-label={t('qhelper.title', 'Q helper') as string}>
+      {/* 공개 표면(랜딩·위키)에선 우측 전체 드로어 대신 FAB 위 팝오버(챗봇 위젯 스타일).
+          배경 딤은 두지 않는다 — 랜딩을 가리지 않고 옆에 뜨는 느낌(#188). 바깥 클릭은 닫기. */}
+      {!standalone && !publicSurface && <Backdrop onClick={() => setOpen(false)} />}
+      {!standalone && publicSurface && <PopoverBackdrop onClick={() => setOpen(false)} />}
+      <Drawer ref={drawerRef} $standalone={standalone} $popover={!standalone && publicSurface} role="dialog" aria-label={t('qhelper.title', 'Q helper') as string}>
         <Header>
           <HeaderTitle>
             {/* N+93 — 타이틀은 탭과 무관하게 항상 'Q helper' 고정 (Irene). Sparkle 도 항상 민트. */}
@@ -879,24 +882,46 @@ const Backdrop = styled.div`
   background: rgba(15, 23, 42, 0.30);
   z-index: 1000;
 `;
-const Drawer = styled.div<{ $standalone?: boolean }>`
-  position: fixed; top: 0; right: 0; bottom: 0;
-  width: ${(p) => (p.$standalone ? '100vw' : '440px')};
-  ${(p) => p.$standalone && 'left: 0;'}
-  background: #FFFFFF;
-  border-left: ${(p) => (p.$standalone ? 'none' : '1px solid #E2E8F0')};
-  box-shadow: ${(p) => (p.$standalone ? 'none' : '-8px 0 32px rgba(15, 23, 42, 0.10)')};
+const Drawer = styled.div<{ $standalone?: boolean; $popover?: boolean }>`
+  position: fixed;
   z-index: 1001;
+  background: #FFFFFF;
   display: flex; flex-direction: column;
-  animation: ${(p) => (p.$standalone ? 'none' : 'cueSlideIn 0.2s ease-out')};
-  @keyframes cueSlideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
-  @media (max-width: 1024px) { width: ${(p) => (p.$standalone ? '100vw' : 'min(440px, 90vw)')}; }
-  @media (max-width: 640px) {
-    width: 100vw;
-    border-left: none;
-    box-shadow: none;
-    padding-bottom: env(safe-area-inset-bottom);
-  }
+  ${(p) => (p.$popover ? `
+    /* 공개 표면 — FAB(우하단 20/80px) 바로 위에 뜨는 챗봇 위젯 팝오버 (#188) */
+    right: 20px; bottom: 88px; top: auto; left: auto;
+    width: min(400px, calc(100vw - 40px));
+    height: min(620px, calc(100vh - 120px));
+    border: 1px solid #E2E8F0; border-radius: 16px;
+    box-shadow: 0 12px 48px rgba(15, 23, 42, 0.18);
+    overflow: hidden;
+    transform-origin: bottom right;
+    animation: cuePopIn 0.16s ease-out;
+    @keyframes cuePopIn { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    @media (max-width: 640px) {
+      right: 0; bottom: 0; left: 0; top: auto;
+      width: 100vw; height: 88vh; border-radius: 16px 16px 0 0;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+  ` : `
+    /* 워크스페이스 — 우측 전체 드로어 */
+    top: 0; right: 0; bottom: 0;
+    width: ${p.$standalone ? '100vw' : '440px'};
+    ${p.$standalone ? 'left: 0;' : ''}
+    border-left: ${p.$standalone ? 'none' : '1px solid #E2E8F0'};
+    box-shadow: ${p.$standalone ? 'none' : '-8px 0 32px rgba(15, 23, 42, 0.10)'};
+    animation: ${p.$standalone ? 'none' : 'cueSlideIn 0.2s ease-out'};
+    @keyframes cueSlideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+    @media (max-width: 1024px) { width: ${p.$standalone ? '100vw' : 'min(440px, 90vw)'}; }
+    @media (max-width: 640px) {
+      width: 100vw; border-left: none; box-shadow: none;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+  `)}
+`;
+// 팝오버 배경 — 딤 없이 투명. 바깥 클릭만 닫기(랜딩을 가리지 않는다, #188).
+const PopoverBackdrop = styled.div`
+  position: fixed; inset: 0; z-index: 1000; background: transparent;
 `;
 const Header = styled.div`
   flex-shrink: 0;

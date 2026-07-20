@@ -72,7 +72,8 @@
     "editHint": "클릭해서 편집",
     "copy": "복사",
     "copied": "복사됨",
-    "copyHint": "클릭해서 복사"
+    "copyHint": "클릭해서 복사",
+    "saveFailed": "저장 실패 — 다시 시도해주세요"
   },
   "status": {
     "pending": "대기",
@@ -100,7 +101,9 @@
     "deleteConfirm": "정말 삭제할까요? 인덱스도 함께 삭제됩니다.",
     "reindex": "다시 인덱싱",
     "close": "닫기",
-    "catSaveErr": "카테고리 저장 실패"
+    "catSaveErr": "카테고리 저장 실패",
+    "removeColumn": "항목 삭제",
+    "newColumn": "새 항목"
   },
   "row": {
     "delete": "삭제"
