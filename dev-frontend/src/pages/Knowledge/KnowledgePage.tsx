@@ -79,6 +79,12 @@ interface KnowledgePageProps {
   mode?: 'workspace' | 'personal';
 }
 
+// #187 — 본문(RichEditor HTML)에서 태그 제거 후 리스트 미리보기용 텍스트. 120자 컷.
+function stripHtmlPreview(html: string): string {
+  const text = html.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim();
+  return text.length > 120 ? text.slice(0, 120) + '…' : text;
+}
+
 const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 'workspace' }) => {
   const { t } = useTranslation('knowledge');
   const { t: tErr } = useTranslation('errors');
@@ -754,6 +760,10 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                    {/* 제목 — 읽기 전용. 클릭하면 우측 패널이 열리고 거기서 편집 (#143) */}
                    <ColTitleArea>
                      <RowTitleText>{d.title}</RowTitleText>
+                     {/* #187 — 본문 미리보기 (HTML 제거 + 한 줄 말줄임). 리스트에서 내용 감 잡게. */}
+                     {d.body && stripHtmlPreview(d.body) && (
+                       <RowBodyPreview>{stripHtmlPreview(d.body)}</RowBodyPreview>
+                     )}
                    </ColTitleArea>
 
                    {/* 가운데: 커스텀 항목 — 클릭하면 값 복사 (#143) */}
@@ -2150,6 +2160,12 @@ const RowTitleText = styled.div`
   font-size: 14px; font-weight: 600; color: #0F172A;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   padding: 2px 8px;
+`;
+// #187 — 본문 미리보기 (제목 아래 한 줄 말줄임)
+const RowBodyPreview = styled.div`
+  font-size: 12px; color: #94A3B8;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  padding: 0 8px; margin-top: 1px;
 `;
 /* 값 셀 — 클릭하면 복사 (#143). "DB 저장소처럼 꺼내 쓰는" 화면. */
 const CopyValue = styled.button`
