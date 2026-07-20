@@ -86,6 +86,7 @@
   "parity_keys": {},
   "tenant": {
     "dev-backend/routes/admin.js": 5,
+    "dev-backend/routes/auth.js": 1,
     "dev-backend/routes/businesses.js": 2,
     "dev-backend/routes/feedback.js": 2,
     "dev-backend/routes/kb.js": 1,
@@ -117,7 +118,7 @@
   },
   "godfile": {
     "dev-backend/routes/admin.js": 988,
-    "dev-backend/routes/auth.js": 930,
+    "dev-backend/routes/auth.js": 941,
     "dev-backend/routes/businesses.js": 1517,
     "dev-backend/routes/calendar.js": 1081,
     "dev-backend/routes/conversations.js": 1303,
