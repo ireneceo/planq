@@ -44,7 +44,8 @@ export default function DownloadAppPage() {
         <Card>
           <Brand>PlanQ</Brand>
           <InAppTitle>{t('inApp.title')}</InAppTitle>
-          <PrimaryBtn as="button" type="button" onClick={() => navigate('/')}>{t('inApp.cta')}</PrimaryBtn>
+          {/* 네이티브 앱 안 — 마케팅 홈(/)이 아니라 워크스페이스(/inbox)로. 비로그인이면 /inbox 가드가 로그인으로 보냄 */}
+          <PrimaryBtn as="button" type="button" onClick={() => navigate('/inbox')}>{t('inApp.cta')}</PrimaryBtn>
         </Card>
       </Screen>
     );

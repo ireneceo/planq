@@ -145,6 +145,20 @@ function BlogSlugRedirect() {
 }
 
 /**
+ * NativeMarketingRedirect — 네이티브 앱(iOS/Android WebView)에서 마케팅 랜딩 라우트 봉쇄.
+ *
+ * Remote URL 방식이라 앱 WebView 가 planq.kr SPA 전체를 로드한다. 랜딩(/pricing·/features·홈 등)에는
+ * 플랜 가격·애드온 가격·"결제 전에 확인하세요" 표면이 있어 App Store 3.1.1(외부결제 유도) 리젝 사유가 된다.
+ * 앱 내부 구매 표면(utils/purchase.canPurchaseInApp)은 이미 봉쇄했으므로, 마케팅 랜딩만 남은 뒷문을 막는다.
+ * 로그인 상태면 워크스페이스(/inbox), 비로그인이면 /login 으로 보낸다.
+ */
+function NativeMarketingRedirect() {
+  const { isAuthenticated, isLoading } = useAuth();
+  if (isLoading) return null;
+  return <Navigate to={isAuthenticated ? '/inbox' : '/login'} replace />;
+}
+
+/**
  * WikiShell — /wiki 를 랜딩 GNB/푸터로 감싼다.
  *
  * 여태 /wiki 는 레이아웃 없는 standalone 이라 홈·로그인·워크스페이스로 갈 방법이 없는 막다른 길이었다.
@@ -539,20 +553,21 @@ function ShellApp() {
         <Route path="/public/report/:token" element={<PublicReportPage />} />
         <Route path="/sign/:token" element={<PublicSignPage />} />
 
-        {/* Landing 라우트 — 비로그인 외부 트래픽 (PWA 사용자는 start_url=/inbox 라 안 봄) */}
-        <Route path="/" element={<RootRoute />} />
-        <Route path="/features" element={<LandingFeatures />} />
-        <Route path="/pricing" element={<LandingPricing />} />
-        <Route path="/insights" element={<LandingBlog />} />
-        <Route path="/insights/:slug" element={<LandingBlogPost />} />
+        {/* Landing 라우트 — 비로그인 외부 트래픽 (PWA 사용자는 start_url=/inbox 라 안 봄).
+            네이티브 앱에서는 마케팅 랜딩(가격 표면)이 App Store 3.1.1 뒷문이라 전부 redirect 봉쇄. */}
+        <Route path="/" element={isNativeApp() ? <NativeMarketingRedirect /> : <RootRoute />} />
+        <Route path="/features" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingFeatures />} />
+        <Route path="/pricing" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingPricing />} />
+        <Route path="/insights" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingBlog />} />
+        <Route path="/insights/:slug" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingBlogPost />} />
         {/* 옛 /blog URL → /insights 영구 이전 (SEO·외부 링크 보존) */}
         <Route path="/blog" element={<Navigate to="/insights" replace />} />
         <Route path="/blog/:slug" element={<BlogSlugRedirect />} />
-        <Route path="/about" element={<LandingAbout />} />
-        <Route path="/contact" element={<LandingContact />} />
+        <Route path="/about" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingAbout />} />
+        <Route path="/contact" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingContact />} />
 
-        {/* Default fallback — 알 수 없는 경로는 랜딩 홈으로 */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* Default fallback — 웹은 랜딩 홈, 네이티브는 마케팅 봉쇄 redirect */}
+        <Route path="*" element={isNativeApp() ? <NativeMarketingRedirect /> : <Navigate to="/" replace />} />
       </Routes>
       </Suspense>
       {/*
