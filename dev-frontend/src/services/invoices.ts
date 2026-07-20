@@ -260,6 +260,12 @@ export async function unmarkInstallmentPaid(
   return expectOk<ApiInvoice>(r);
 }
 
+// #187/Q Bill — 단일 invoice 결제 취소 (실수로 결제 확인한 것 되돌림). paid → sent + payment 회수.
+export async function unmarkInvoicePaid(businessId: number, invoiceId: number): Promise<ApiInvoice> {
+  const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}/unmark-paid`, { method: 'POST' });
+  return expectOk<ApiInvoice>(r);
+}
+
 export async function markInstallmentTaxInvoice(
   businessId: number, invoiceId: number, installmentId: number,
   payload: { tax_invoice_no: string; issued_at?: string; file_id?: number }

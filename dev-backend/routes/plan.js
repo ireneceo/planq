@@ -615,12 +615,14 @@ router.post('/:businessId/addons/request', authenticateToken, checkBusinessAcces
   } catch (err) { next(err); }
 });
 
-// POST /:businessId/addons/orders/:paymentId/mark-paid — owner 가 입금 후 호출
-//   body: { payer_name?, payer_memo? }
+// POST /:businessId/addons/orders/:paymentId/mark-paid — 입금 확인 후 결제 확정.
+//   ★ platform_admin 만 (구독 자가활성화 차단과 일관 — Irene 2026-06-08 plan.js:422).
+//     owner 자가 mark-paid 를 열어두면 미입금 상태로 결제 처리해 무료로 한도 확보 가능한 우회였다.
+//     정식 경로는 admin.js POST /admin/payments/:id/mark-paid (admin 전용). owner 는 신청만.
 router.post('/:businessId/addons/orders/:paymentId/mark-paid', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
-    if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') {
-      return errorResponse(res, 'owner_only', 403);
+    if (req.user.platform_role !== 'platform_admin') {
+      return errorResponse(res, 'admin_only — 애드온 결제 확인은 관리자 입금 확인 후 처리됩니다 (구독과 동일)', 403, 'admin_only');
     }
     const businessId = Number(req.params.businessId);
     const paymentId = Number(req.params.paymentId);
