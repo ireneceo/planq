@@ -52,5 +52,25 @@
 	<string>파일 첨부 시 사진 촬영에 카메라를 사용합니다.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>파일 첨부 시 사진 선택에 사진 보관함을 사용합니다.</string>
+	<!--
+	  custom URL scheme — Universal Links 의 fallback.
+	  iOS 는 서버 302 redirect 체인에서 UL 발화를 보장하지 않는다. Google 연동 복귀
+	  (/oauth/native-return)가 SFSafariViewController 안에서 멈추는 것을 막기 위해
+	  planq:// 로도 앱에 돌아올 수 있게 둔다. NativeBridge 의 appUrlOpen 이 양쪽 다 수신.
+	-->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>app.planq</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>planq</string>
+			</array>
+		</dict>
+	</array>
+	<!-- 표준 HTTPS/TLS 만 사용 — 업로드마다 뜨는 수출규정 문답 생략 (App Store Connect) -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>

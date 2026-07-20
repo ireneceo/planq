@@ -13,6 +13,7 @@ import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
+import { canPurchaseInApp } from '../../utils/purchase';
 
 interface PlanStatus {
   plan: { code: string };
@@ -91,7 +92,8 @@ const TrialStatusBanner: React.FC<Props> = ({ businessId }) => {
         <Title $tone={tone}>{title}</Title>
         <Desc $tone={tone}>{desc}</Desc>
       </Texts>
-      <CtaLink to="/business/settings/plan" $tone={tone}>{cta}</CtaLink>
+      {/* App Store 3.1.1 — 네이티브에선 구매 유도 CTA 숨김 */}
+      {canPurchaseInApp() && <CtaLink to="/business/settings/plan" $tone={tone}>{cta}</CtaLink>}
     </Wrap>
   );
 };

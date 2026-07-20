@@ -14,6 +14,7 @@ import { useTimeFormat } from '../../hooks/useTimeFormat';
 import CheckoutModal from './CheckoutModal';
 import AddonSection from './AddonSection';
 import { CheckIcon } from '../../components/Common/Icons';
+import { canPurchaseInApp } from '../../utils/purchase';
 
 interface Props { businessId: number; }
 
@@ -404,7 +405,10 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
                 </FeatureList>
 
                 <ColCta>
-                  {isCurrent ? (
+                  {/* App Store 3.1.1 — 네이티브 앱에선 구매 표면 미노출 (utils/purchase). 현재 플랜만 표시 */}
+                  {!canPurchaseInApp() ? (
+                    isCurrent ? <BtnGhost type="button" disabled>{t('comparison.current')}</BtnGhost> : null
+                  ) : isCurrent ? (
                     <BtnGhost type="button" disabled>{t('comparison.current')}</BtnGhost>
                   ) : p.code === 'enterprise' ? (
                     <BtnGhost type="button" onClick={() => handleAction(p.code)}>{t('comparison.contactSales')}</BtnGhost>
@@ -504,7 +508,7 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
       </Section>
 
       {/* P-2 자체 결제 — CheckoutModal (입금 안내 + mark-paid) */}
-      {paymentOpen && actionPlan && actionPlan !== 'free' && actionPlan !== 'enterprise' && (() => {
+      {canPurchaseInApp() && paymentOpen && actionPlan && actionPlan !== 'free' && actionPlan !== 'enterprise' && (() => {
         const targetPlan = catalog.find(p => p.code === actionPlan);
         if (!targetPlan) return null;
         return (

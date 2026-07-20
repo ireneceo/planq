@@ -221,6 +221,13 @@ sync_database() {
   log "Syncing DB schema on prod..."
   prod_run "cd $PROD_BE && NODE_ENV=production node sync-database.js 2>&1 | tail -20"
   success "DB sync 완료"
+
+  # sync-database(Sequelize alter)가 못 하는 것 — ENUM 확장·NULL 허용 변경·백필.
+  # 전부 멱등이라 매 배포 실행해도 안전하다. 순서 중요: 이걸 건너뛴 채 신 모델 코드가
+  # 올라가면 push_subscriptions 조회가 Unknown column 으로 죽어 기존 웹푸시까지 전멸한다.
+  log "Running idempotent migrations..."
+  prod_run "cd $PROD_BE && NODE_ENV=production node scripts/migrate-push-native.js 2>&1 | tail -10"
+  success "마이그레이션 완료 (push native / client_kind)"
 }
 
 # ──────────────────────────────────────────
