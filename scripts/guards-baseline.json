@@ -1,6 +1,6 @@
 {
   "_comment": "래칫 베이스라인 — guard-invariants.js --update-baseline 으로만 갱신. 수동 편집 금지.",
-  "_updated": "2026-07-18",
+  "_updated": "2026-07-20",
   "i18n": {
     "dev-frontend/src/components/Common/CalendarPicker.tsx": 1,
     "dev-frontend/src/components/Common/CueHelpDrawer.tsx": 1,
@@ -95,6 +95,7 @@
     "dev-backend/routes/task_attachments.js": 1
   },
   "pagination": {
+    "dev-backend/routes/account_deletion.js": 1,
     "dev-backend/routes/auth.js": 1,
     "dev-backend/routes/auth_oauth.js": 1,
     "dev-backend/routes/calendar.js": 1,
@@ -116,15 +117,15 @@
   },
   "godfile": {
     "dev-backend/routes/admin.js": 988,
-    "dev-backend/routes/auth.js": 876,
-    "dev-backend/routes/businesses.js": 1464,
+    "dev-backend/routes/auth.js": 930,
+    "dev-backend/routes/businesses.js": 1517,
     "dev-backend/routes/calendar.js": 1081,
     "dev-backend/routes/conversations.js": 1303,
     "dev-backend/routes/dashboard.js": 1001,
     "dev-backend/routes/docs.js": 845,
     "dev-backend/routes/email_threads.js": 1492,
     "dev-backend/routes/files.js": 1103,
-    "dev-backend/routes/invoices.js": 2254,
+    "dev-backend/routes/invoices.js": 2298,
     "dev-backend/routes/kb.js": 1549,
     "dev-backend/routes/plan.js": 734,
     "dev-backend/routes/posts.js": 1285,
@@ -133,7 +134,7 @@
     "dev-backend/routes/tasks.js": 2130,
     "dev-backend/routes/users.js": 776,
     "dev-backend/routes/weekly_reviews.js": 570,
-    "dev-frontend/src/components/Common/CueHelpDrawer.tsx": 1315,
+    "dev-frontend/src/components/Common/CueHelpDrawer.tsx": 1356,
     "dev-frontend/src/components/Docs/PostTableGrid.tsx": 1122,
     "dev-frontend/src/components/Docs/PostsPage.tsx": 2080,
     "dev-frontend/src/components/Layout/MainLayout.tsx": 1808,
@@ -141,7 +142,7 @@
     "dev-frontend/src/components/QTask/TemplateSelectModal.tsx": 818,
     "dev-frontend/src/pages/Clients/ClientsPage.tsx": 976,
     "dev-frontend/src/pages/Knowledge/KnowledgePage.tsx": 2204,
-    "dev-frontend/src/pages/Profile/ProfilePage.tsx": 1948,
+    "dev-frontend/src/pages/Profile/ProfilePage.tsx": 1952,
     "dev-frontend/src/pages/QBill/InvoiceDetailDrawer.tsx": 1499,
     "dev-frontend/src/pages/QBill/NewInvoiceModal.tsx": 1395,
     "dev-frontend/src/pages/QBill/PublicInvoicePage.tsx": 1131,
@@ -158,7 +159,7 @@
     "dev-frontend/src/pages/QTalk/RightPanel.tsx": 843,
     "dev-frontend/src/pages/QTask/QTaskPage.tsx": 3359,
     "dev-frontend/src/pages/Settings/EmailAccountSettings.tsx": 881,
-    "dev-frontend/src/pages/Settings/PlanSettings.tsx": 1033,
+    "dev-frontend/src/pages/Settings/PlanSettings.tsx": 1039,
     "dev-frontend/src/pages/Settings/WorkspaceSettingsPage.tsx": 1875
   }
 }

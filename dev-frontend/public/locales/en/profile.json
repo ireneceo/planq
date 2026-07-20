@@ -234,5 +234,28 @@
     "mailAccount": "Email account",
     "mail": "Email",
     "drive": "Files"
+  },
+  "accountDeletion": {
+    "title": "Delete account",
+    "desc": "When you delete your account, your personal data is permanently anonymized after {{days}} days. You can recover it by signing in again during the grace period.",
+    "exportHint": "We recommend exporting your data before deleting.",
+    "exportLink": "Export data →",
+    "blockTransferTitle": "Wind down your workspaces first",
+    "blockTransferBody": "You own the workspaces below. Transfer ownership to another member or clear them before deleting your account.",
+    "blockAdminTitle": "You are the only platform admin",
+    "blockAdminBody": "Assign another admin before deleting your account.",
+    "blockedTooltip": "Resolve the items above before deleting.",
+    "soloWarn": "These empty workspaces will be deleted along with your account:",
+    "deleteButton": "Delete account",
+    "confirmTitle": "Delete your account?",
+    "confirmWarn": "This becomes irreversible after {{days}} days. Your personal data, private vault, and meeting notes are permanently deleted. Messages and task history in workspaces remain as “Deleted user”.",
+    "typeEmail": "Type your email ({{email}}) to confirm",
+    "password": "Password",
+    "cancel": "Cancel",
+    "confirmDelete": "Request permanent deletion",
+    "errWrongPassword": "Incorrect password.",
+    "errBlocked": "Transfer your workspace ownership first.",
+    "errOauth": "Social-login accounts need email verification (OTP). Please contact support.",
+    "errGeneric": "Could not process the request. Please try again shortly."
   }
 }
