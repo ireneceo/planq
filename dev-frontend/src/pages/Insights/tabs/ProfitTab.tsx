@@ -10,7 +10,7 @@ import {
   SectionLabel, SectionRow, DownloadBtn, DownloadIcon, ChartCard, ChartEmpty,
   TableWrap, Table, Tr, Th, Td,
   SkeletonGrid, SkeletonCard, ErrorBanner,
-  fmtKRW, fmtNum,
+  fmtMoney, fmtNum, ForeignBadge,
 } from '../components';
 import { downloadRowsAsCsv } from '../csvUtils';
 
@@ -18,6 +18,7 @@ interface Row {
   project_id: number; name: string; client: string; status: string;
   revenue: number; labor_cost: number; direct_cost: number; profit: number;
   margin_pct: number | null; hours: number; est_hours: number; profit_per_hour: number | null;
+  has_foreign_currency?: boolean;
 }
 interface InternalRow {
   project_id: number; name: string; status: string;
@@ -26,8 +27,10 @@ interface InternalRow {
 interface Data {
   period: { from: string; to: string; label: string };
   segment?: StatsSegment;
+  home_currency?: string;
+  has_foreign_currency?: boolean;
   kpis: Record<string, { value: number | null }>;
-  bubble?: { project_id: number; name: string; hours: number; revenue: number; profit: number; margin_pct: number | null }[];
+  bubble?: { project_id: number; name: string; hours: number; revenue: number; profit: number; margin_pct: number | null; has_foreign_currency?: boolean }[];
   table: Row[] | InternalRow[];
   internal_investment?: { project_count: number; total_hours: number; total_cost: number };
   insights: { severity: string; title: string; value: string; hint?: string; action_label?: string; action_link?: string }[];
@@ -51,6 +54,8 @@ const ProfitTab: React.FC<{ businessId: number; range: RangePreset; segment?: St
   if (err) return <ErrorBanner>{t('error.summary')} — {err}</ErrorBanner>;
   if (loading || !data) return <SkeletonGrid>{[0,1,2,3,4,5].map((i) => <SkeletonCard key={i} />)}</SkeletonGrid>;
 
+  const home = data.home_currency || 'KRW';
+
   // ── 내부 투자 뷰 (segment=internal) — 매출/마진 아닌 시간·원가 중심 ──
   if (segment === 'internal') {
     const rows = (data.table as InternalRow[]);
@@ -71,7 +76,7 @@ const ProfitTab: React.FC<{ businessId: number; range: RangePreset; segment?: St
         <KpiGrid>
           <KpiCard><KpiLabel>{t('profit.kpi.internalProjects', '내부 프로젝트')}</KpiLabel><KpiValueBig>{fmtNum(data.kpis.internal_projects?.value ?? 0)}</KpiValueBig></KpiCard>
           <KpiCard><KpiLabel>{t('profit.kpi.internalHours', '내부 투자 시간')}</KpiLabel><KpiValueBig>{fmtNum(data.kpis.internal_hours?.value ?? 0, 'h')}</KpiValueBig></KpiCard>
-          <KpiCard><KpiLabel>{t('profit.kpi.internalCost', '내부 투자 원가')}</KpiLabel><KpiValueBig>{fmtKRW(data.kpis.internal_cost?.value ?? 0)}</KpiValueBig></KpiCard>
+          <KpiCard><KpiLabel>{t('profit.kpi.internalCost', '내부 투자 원가')}</KpiLabel><KpiValueBig>{fmtMoney(data.kpis.internal_cost?.value ?? 0, home)}</KpiValueBig></KpiCard>
         </KpiGrid>
         <SectionRow style={{ marginTop: 24 }}>
           <SectionLabel>{t('profit.internal.tableTitle', '내부 프로젝트별 투자')}</SectionLabel>
@@ -95,9 +100,9 @@ const ProfitTab: React.FC<{ businessId: number; range: RangePreset; segment?: St
                   <Tr key={r.project_id} $clickable onClick={() => navigate(`/projects/p/${r.project_id}`)}>
                     <Td>{r.name}</Td>
                     <Td $num>{fmtNum(r.hours, 'h')}</Td>
-                    <Td $num>{fmtKRW(r.labor_cost)}</Td>
-                    <Td $num>{fmtKRW(r.direct_cost)}</Td>
-                    <Td $num>{fmtKRW(r.total_cost)}</Td>
+                    <Td $num>{fmtMoney(r.labor_cost, home)}</Td>
+                    <Td $num>{fmtMoney(r.direct_cost, home)}</Td>
+                    <Td $num>{fmtMoney(r.total_cost, home)}</Td>
                   </Tr>
                 ))}
               </tbody>
@@ -130,9 +135,9 @@ const ProfitTab: React.FC<{ businessId: number; range: RangePreset; segment?: St
       <KpiGrid>
         <KpiCard><KpiLabel>{t('profit.kpi.activeProjects', '활성 프로젝트')}</KpiLabel><KpiValueBig>{fmtNum(data.kpis.active_projects.value)}</KpiValueBig></KpiCard>
         <KpiCard><KpiLabel>{t('profit.kpi.negativeMargin', '마진 음수')}</KpiLabel><KpiValueBig>{fmtNum(data.kpis.negative_margin.value)}</KpiValueBig></KpiCard>
-        <KpiCard><KpiLabel>{t('profit.kpi.avgPph', 'Profit per Hour')}</KpiLabel><KpiValueBig>{data.kpis.avg_profit_per_hour.value == null ? '—' : `${fmtKRW(data.kpis.avg_profit_per_hour.value)}/h`}</KpiValueBig></KpiCard>
-        <KpiCard><KpiLabel>{t('profit.kpi.totalRevenue', '매출 합계')}</KpiLabel><KpiValueBig>{fmtKRW(data.kpis.total_revenue.value)}</KpiValueBig></KpiCard>
-        <KpiCard><KpiLabel>{t('profit.kpi.totalProfit', '이익 합계')}</KpiLabel><KpiValueBig>{fmtKRW(data.kpis.total_profit.value)}</KpiValueBig></KpiCard>
+        <KpiCard><KpiLabel>{t('profit.kpi.avgPph', 'Profit per Hour')}</KpiLabel><KpiValueBig>{data.kpis.avg_profit_per_hour.value == null ? '—' : `${fmtMoney(data.kpis.avg_profit_per_hour.value, home)}/h`}</KpiValueBig></KpiCard>
+        <KpiCard><KpiLabel>{t('profit.kpi.totalRevenue', '매출 합계')}</KpiLabel><KpiValueBig>{fmtMoney(data.kpis.total_revenue.value, home)}</KpiValueBig></KpiCard>
+        <KpiCard><KpiLabel>{t('profit.kpi.totalProfit', '이익 합계')}</KpiLabel><KpiValueBig>{fmtMoney(data.kpis.total_profit.value, home)}</KpiValueBig></KpiCard>
         <KpiCard><KpiLabel>{t('profit.kpi.totalHours', '총 투입 시간')}</KpiLabel><KpiValueBig>{fmtNum(data.kpis.total_hours.value, 'h')}</KpiValueBig></KpiCard>
       </KpiGrid>
 
@@ -156,7 +161,7 @@ const ProfitTab: React.FC<{ businessId: number; range: RangePreset; segment?: St
                 tick={{ fontSize: 11, fill: '#64748B' }}
                 label={{ value: t('profit.chart.axis.hours', '투입 시간 (h)') as string, position: 'insideBottom', offset: -8, fill: '#64748B', fontSize: 11 }} />
               <YAxis type="number" dataKey="revenue" name={t('profit.chart.axis.revenue', '매출') as string}
-                tick={{ fontSize: 11, fill: '#64748B' }} tickFormatter={(v) => fmtKRW(v)}
+                tick={{ fontSize: 11, fill: '#64748B' }} tickFormatter={(v) => fmtMoney(v, home)}
                 label={{ value: t('profit.chart.axis.revenue', '매출') as string, angle: -90, position: 'insideLeft', fill: '#64748B', fontSize: 11 }} />
               <ZAxis range={[60, 60]} />
               <Tooltip
@@ -167,8 +172,8 @@ const ProfitTab: React.FC<{ businessId: number; range: RangePreset; segment?: St
                     <div style={{ background: '#0F172A', color: '#FFF', padding: '10px 12px', borderRadius: 8, fontSize: 11, lineHeight: 1.6 }}>
                       <div><strong style={{ color: '#5EEAD4' }}>{p.name}</strong></div>
                       <div>{t('profit.tooltip.hours', '시간')}: {p.hours}h</div>
-                      <div>{t('profit.tooltip.revenue', '매출')}: {fmtKRW(p.revenue)}</div>
-                      <div>{t('profit.tooltip.profit', '이익')}: {fmtKRW(p.profit)}</div>
+                      <div>{t('profit.tooltip.revenue', '매출')}: {fmtMoney(p.revenue, home)}</div>
+                      <div>{t('profit.tooltip.profit', '이익')}: {fmtMoney(p.profit, home)}</div>
                       {p.margin_pct != null && <div>{t('profit.tooltip.margin', '마진')}: {p.margin_pct.toFixed(1)}%</div>}
                     </div>
                   );
@@ -218,23 +223,30 @@ const ProfitTab: React.FC<{ businessId: number; range: RangePreset; segment?: St
             <tbody>
               {pnlRows.slice(0, 50).map((r) => (
                 <Tr key={r.project_id} $clickable onClick={() => navigate(`/projects/p/${r.project_id}`)}>
-                  <Td>{r.name}</Td>
+                  <Td>{r.name}{r.has_foreign_currency && <ForeignBadge>{t('foreignLabel', '외화')}</ForeignBadge>}</Td>
                   <Td>{r.client}</Td>
-                  <Td $num>{fmtKRW(r.revenue)}</Td>
-                  <Td $num>{fmtKRW(r.labor_cost + r.direct_cost)}</Td>
-                  <Td $num style={{ color: r.profit < 0 ? '#B91C1C' : '#0F172A' }}>{fmtKRW(r.profit)}</Td>
+                  <Td $num>{fmtMoney(r.revenue, home)}</Td>
+                  <Td $num>{fmtMoney(r.labor_cost + r.direct_cost, home)}</Td>
+                  <Td $num style={{ color: r.profit < 0 ? '#B91C1C' : '#0F172A' }}>{fmtMoney(r.profit, home)}</Td>
                   <Td $num>{r.margin_pct == null ? '—' : `${r.margin_pct.toFixed(1)}%`}</Td>
                   <Td $num>{fmtNum(r.hours, 'h')}</Td>
-                  <Td $num>{r.profit_per_hour == null ? '—' : `${fmtKRW(r.profit_per_hour)}/h`}</Td>
+                  <Td $num>{r.profit_per_hour == null ? '—' : `${fmtMoney(r.profit_per_hour, home)}/h`}</Td>
                 </Tr>
               ))}
             </tbody>
           </Table>
         </TableWrap>
       )}
+      {data.has_foreign_currency && (
+        <ForeignNote>{t('profit.foreignNote', '외화 매출은 홈 통화 손익 집계에서 제외됩니다 ("외화" 표시). 통화별 상세는 개요 탭에서 확인하세요.')}</ForeignNote>
+      )}
     </>
   );
 };
+
+const ForeignNote = styled.div`
+  margin: 12px 0 4px; font-size: 12px; color: #64748B;
+`;
 
 const InternalNote = styled.div`
   margin: 4px 0 16px; padding: 8px 12px; font-size: 12px; color: #64748B;

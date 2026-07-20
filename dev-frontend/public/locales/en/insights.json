@@ -72,7 +72,13 @@
   },
   "watch": {
     "title": "In-progress over-budget alerts",
-    "col": { "task": "Task", "assignee": "Assignee", "estimated": "Est (h)", "actual": "Actual (h)", "over": "Over" }
+    "col": {
+      "task": "Task",
+      "assignee": "Assignee",
+      "estimated": "Est (h)",
+      "actual": "Actual (h)",
+      "over": "Over"
+    }
   },
   "filter": {
     "assignee": "All assignees",
@@ -141,15 +147,35 @@
         "title": "Project profitability",
         "empty": "Will appear once project hours and revenue accumulate"
       },
-      "axis": { "hours": "Hours (h)", "revenue": "Revenue" }
+      "axis": {
+        "hours": "Hours (h)",
+        "revenue": "Revenue"
+      }
     },
-    "tooltip": { "hours": "Hours", "revenue": "Revenue", "profit": "Profit", "margin": "Margin" },
-    "table": { "title": "Project profitability detail", "empty": "No projects" },
+    "tooltip": {
+      "hours": "Hours",
+      "revenue": "Revenue",
+      "profit": "Profit",
+      "margin": "Margin"
+    },
+    "table": {
+      "title": "Project profitability detail",
+      "empty": "No projects"
+    },
     "col": {
-      "name": "Project", "client": "Client", "revenue": "Revenue", "cost": "Cost",
-      "laborCost": "Labor", "directCost": "Direct", "totalCost": "Total cost",
-      "profit": "Profit", "margin": "Margin", "hours": "Hours", "pph": "Profit/Hr"
-    }
+      "name": "Project",
+      "client": "Client",
+      "revenue": "Revenue",
+      "cost": "Cost",
+      "laborCost": "Labor",
+      "directCost": "Direct",
+      "totalCost": "Total cost",
+      "profit": "Profit",
+      "margin": "Margin",
+      "hours": "Hours",
+      "pph": "Profit/Hr"
+    },
+    "foreignNote": "Foreign-currency revenue is excluded from the home-currency P&L (marked \"FX\"). See the Overview tab for a per-currency breakdown."
   },
   "team": {
     "kpi": {
@@ -170,11 +196,20 @@
         "bar": "Utilization"
       }
     },
-    "table": { "title": "Member ranking", "empty": "No active members" },
+    "table": {
+      "title": "Member ranking",
+      "empty": "No active members"
+    },
     "col": {
-      "name": "Name", "role": "Role", "utilization": "Utilization", "accuracy": "Accuracy",
-      "bias": "Bias", "completed": "Completed", "leadtime": "Lead time",
-      "revenue": "Revenue share", "effectiveRate": "Effective rate",
+      "name": "Name",
+      "role": "Role",
+      "utilization": "Utilization",
+      "accuracy": "Accuracy",
+      "bias": "Bias",
+      "completed": "Completed",
+      "leadtime": "Lead time",
+      "revenue": "Revenue share",
+      "effectiveRate": "Effective rate",
       "actualHours": "Actual hours (h)"
     },
     "drawer": {
@@ -195,12 +230,17 @@
       "strength": "Strength",
       "weakness": "Weakness",
       "neutral": "Neutral"
-    }
+    },
+    "foreignNote": "Foreign-currency revenue is excluded from per-member revenue share (home currency only). See the Overview tab for a per-currency breakdown."
   },
   "finance": {
     "kpi": {
-      "revenue": "Revenue", "totalCost": "Total cost", "profit": "Profit",
-      "margin": "Margin", "receivable": "Receivable", "overhead": "Overhead"
+      "revenue": "Revenue",
+      "totalCost": "Total cost",
+      "profit": "Profit",
+      "margin": "Margin",
+      "receivable": "Receivable",
+      "overhead": "Overhead"
     },
     "chart": {
       "trend": {
@@ -216,8 +256,14 @@
         "bar": "Amount"
       }
     },
-    "table": { "title": "Category detail", "empty": "No data" },
-    "col": { "category": "Category", "amount": "Amount" }
+    "table": {
+      "title": "Category detail",
+      "empty": "No data"
+    },
+    "col": {
+      "category": "Category",
+      "amount": "Amount"
+    }
   },
   "reports": {
     "integrated": {
@@ -270,5 +316,6 @@
       "ready": "Ready",
       "failed": "Failed"
     }
-  }
+  },
+  "foreignLabel": "FX"
 }

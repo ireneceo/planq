@@ -10,7 +10,7 @@ import {
   SectionLabel, SectionRow, DownloadBtn, DownloadIcon, ChartCard, ChartEmpty,
   TableWrap, Table, Tr, Th, Td,
   SkeletonGrid, SkeletonCard, ErrorBanner,
-  fmtKRW, fmtNum, fmtPct,
+  fmtMoney, fmtNum, fmtPct,
 } from '../components';
 import { downloadRowsAsCsv } from '../csvUtils';
 import DetailDrawer from '../../../components/Common/DetailDrawer';
@@ -32,6 +32,8 @@ interface Row {
 }
 interface Data {
   period: { from: string; to: string; label: string };
+  home_currency?: string;
+  has_foreign_currency?: boolean;
   kpis: Record<string, { value: number | null }>;
   util_buckets: { under60: number; normal: number; over90: number; over100: number };
   table: Row[];
@@ -56,6 +58,8 @@ const TeamTab: React.FC<{ businessId: number; range: RangePreset; segment?: Stat
 
   if (err) return <ErrorBanner>{t('error.summary')} — {err}</ErrorBanner>;
   if (loading || !data) return <SkeletonGrid>{[0,1,2,3,4,5].map((i) => <SkeletonCard key={i} />)}</SkeletonGrid>;
+
+  const home = data.home_currency || 'KRW';
 
   const utilBars = data.table
     .filter((r) => r.utilization_pct != null)
@@ -87,7 +91,7 @@ const TeamTab: React.FC<{ businessId: number; range: RangePreset; segment?: Stat
       <KpiGrid>
         <KpiCard><KpiLabel>{t('team.kpi.members', '활성 멤버')}</KpiLabel><KpiValueBig>{fmtNum(data.kpis.members.value)}</KpiValueBig></KpiCard>
         <KpiCard><KpiLabel>{t('team.kpi.avgUtil', '팀 평균 가동률')}</KpiLabel><KpiValueBig>{fmtPct(data.kpis.avg_utilization.value)}</KpiValueBig></KpiCard>
-        <KpiCard><KpiLabel>{t('team.kpi.topRevenue', '인당 매출 1위')}</KpiLabel><KpiValueBig>{fmtKRW(data.kpis.top_revenue.value)}</KpiValueBig></KpiCard>
+        <KpiCard><KpiLabel>{t('team.kpi.topRevenue', '인당 매출 1위')}</KpiLabel><KpiValueBig>{fmtMoney(data.kpis.top_revenue.value, home)}</KpiValueBig></KpiCard>
         <KpiCard><KpiLabel>{t('team.kpi.topAccuracy', '정확도 1위')}</KpiLabel><KpiValueBig>{fmtPct(data.kpis.top_accuracy.value)}</KpiValueBig></KpiCard>
         <KpiCard><KpiLabel>{t('team.kpi.overUtil', '가동률 초과')}</KpiLabel><KpiValueBig>{fmtNum(data.kpis.over_util_count.value)}</KpiValueBig></KpiCard>
         <KpiCard><KpiLabel>{t('team.kpi.totalCompleted', '완료 업무 합계')}</KpiLabel><KpiValueBig>{fmtNum(data.kpis.total_completed.value)}</KpiValueBig></KpiCard>
@@ -159,13 +163,16 @@ const TeamTab: React.FC<{ businessId: number; range: RangePreset; segment?: Stat
                   <Td $num>{fmtPct(r.bias_pct, { signed: true })}</Td>
                   <Td $num>{fmtNum(r.completed_tasks)}</Td>
                   <Td $num>{r.avg_leadtime_days == null ? '—' : `${r.avg_leadtime_days}d`}</Td>
-                  <Td $num>{fmtKRW(r.revenue_share)}</Td>
-                  <Td $num>{r.effective_rate == null ? '—' : `${fmtKRW(r.effective_rate)}/h`}</Td>
+                  <Td $num>{fmtMoney(r.revenue_share, home)}</Td>
+                  <Td $num>{r.effective_rate == null ? '—' : `${fmtMoney(r.effective_rate, home)}/h`}</Td>
                 </ClickableTr>
               ))}
             </tbody>
           </Table>
         </TableWrap>
+      )}
+      {data.has_foreign_currency && (
+        <ForeignNote>{t('team.foreignNote', '외화 매출은 인당 매출 배분에서 제외됩니다 (홈 통화 기준). 통화별 상세는 개요 탭에서 확인하세요.')}</ForeignNote>
       )}
 
       <DetailDrawer
@@ -252,6 +259,7 @@ const ClickableTr = styled(Tr)<{ $active?: boolean }>`
 `;
 const DrawerTitle = styled.div`font-size: 16px; font-weight: 700; color: #0F172A;`;
 const DrawerSub = styled.div`font-size: 12px; color: #64748B; margin-top: 2px;`;
+const ForeignNote = styled.div`margin: 12px 0 4px; font-size: 12px; color: #64748B;`;
 const DrawerSectionLabel = styled.div`
   font-size: 11px; font-weight: 700; color: #475569;
   text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 8px;

@@ -11,6 +11,34 @@ const { Task, TaskEstimation, sequelize } = require('../models');
 // 순 수금액 = 결제액 - 환불액. 매출 통계는 항상 이 값으로 합산(환불 반영). refunded_amount 미차감 시 매출 과대.
 const netPay = (p) => Number(p.amount || 0) - Number(p.refunded_amount || 0);
 
+// ── 다통화 정합 (Fable 설계 게이트 통과) ──
+// 재무 집계는 워크스페이스 홈 통화만 합산한다. 외화(USD/EUR/JPY/CNY)를 KRW 에 그대로 더하면
+// 범주 오류(예: $2,200 = ₩2,200)라 매출이 오염된다. 외화는 별도 by_currency 브레이크다운으로
+// 분리 노출하고, 환산(홈통화 기준 합치기)은 트리거 기반 후속(사업 Fable (c))으로 미룬다.
+// 통화 원천은 Invoice.currency 단일화 (InvoicePayment.currency 와 일치 검증됨, mismatch 0).
+async function getHomeCurrency(businessId) {
+  const { Business } = require('../models');
+  const biz = await Business.findByPk(businessId, { attributes: ['default_currency'] });
+  return (biz && biz.default_currency) || 'KRW';
+}
+// 통화별 합계 맵 {KRW: n, USD: m, ...}. curOf/valOf 로 각 row 의 통화·값 추출.
+function groupByCurrency(rows, curOf, valOf) {
+  const map = {};
+  for (const r of rows) {
+    const c = curOf(r) || 'KRW';
+    map[c] = (map[c] || 0) + valOf(r);
+  }
+  return map;
+}
+// 홈 통화 외 통화만(반올림 0 제외). 프론트 브레이크다운 칩용 {USD: 2200, ...}.
+function foreignBreakdown(map, home) {
+  const out = {};
+  for (const [c, v] of Object.entries(map)) {
+    if (c !== home && Math.round(v) !== 0) out[c] = Math.round(v);
+  }
+  return out;
+}
+
 function mape(rows) {
   let sum = 0; let n = 0;
   for (const r of rows) {
@@ -340,22 +368,27 @@ async function buildOverviewTab(businessId, period) {
 
   const fromDt = new Date(period.from + ' 00:00:00');
   const toDt = new Date(period.to + ' 23:59:59');
+  const home = await getHomeCurrency(businessId);
 
-  // 매출 (수금) — InvoicePayment 합계
+  // 매출 (수금) — InvoicePayment 합계 (홈 통화만, 외화는 분리)
   const payments = await InvoicePayment.findAll({
     where: { paid_at: { [Op.between]: [fromDt, toDt] } },
-    include: [{ model: Invoice, where: { business_id: businessId }, attributes: ['id', 'project_id'] }],
+    include: [{ model: Invoice, where: { business_id: businessId }, attributes: ['id', 'project_id', 'currency'] }],
     attributes: ['amount', 'refunded_amount'],
   });
-  const revenue = payments.reduce((s, p) => s + netPay(p), 0);
+  const revByCur = groupByCurrency(payments, (p) => p.Invoice?.currency, netPay);
+  const revenue = revByCur[home] || 0;
+  const revenueForeign = foreignBreakdown(revByCur, home);
 
-  // 발행액 (issued)
+  // 발행액 (issued) — 홈 통화만, 외화는 분리
   const issuedInvoices = await Invoice.findAll({
     where: { business_id: businessId, issued_at: { [Op.between]: [fromDt, toDt] } },
     attributes: ['grand_total', 'paid_amount', 'status', 'currency'],
   });
-  const issued = issuedInvoices.reduce((s, i) => s + Number(i.grand_total || 0), 0);
-  const overdue = issuedInvoices.filter((i) => i.status === 'overdue')
+  const issuedByCur = groupByCurrency(issuedInvoices, (i) => i.currency, (i) => Number(i.grand_total || 0));
+  const issued = issuedByCur[home] || 0;
+  const issuedForeign = foreignBreakdown(issuedByCur, home);
+  const overdue = issuedInvoices.filter((i) => i.status === 'overdue' && (i.currency || 'KRW') === home)
     .reduce((s, i) => s + (Number(i.grand_total || 0) - Number(i.paid_amount || 0)), 0);
 
   // 고정비 추정 — 월정 OverheadItem 합계 × (기간/30일)
@@ -418,10 +451,10 @@ async function buildOverviewTab(businessId, period) {
     const mEnd = new Date(today.getFullYear(), today.getMonth() - i + 1, 0);
     const mPays = await InvoicePayment.findAll({
       where: { paid_at: { [Op.between]: [m, mEnd] } },
-      include: [{ model: Invoice, where: { business_id: businessId }, attributes: ['id', 'project_id'] }],
+      include: [{ model: Invoice, where: { business_id: businessId }, attributes: ['id', 'project_id', 'currency'] }],
       attributes: ['amount', 'refunded_amount'],
     });
-    const monthRev = mPays.reduce((s, p) => s + netPay(p), 0);
+    const monthRev = mPays.reduce((s, p) => ((p.Invoice?.currency || 'KRW') === home ? s + netPay(p) : s), 0);
     trend.push({
       month: m.toISOString().slice(0, 7),
       revenue: monthRev,
@@ -449,11 +482,12 @@ async function buildOverviewTab(businessId, period) {
 
   return {
     period: { from: period.from, to: period.to, label: period.label },
+    home_currency: home,
     kpis: {
-      revenue: { value: Math.round(revenue), prev: null, delta_pct: null },
+      revenue: { value: Math.round(revenue), prev: null, delta_pct: null, by_currency: revenueForeign },
       profit: { value: Math.round(profit), prev: null, delta_pct: null },
       utilization_pct: { value: utilization == null ? null : Number(utilization.toFixed(1)), prev: null, delta_pct: null },
-      issued: { value: Math.round(issued), prev: null, delta_pct: null },
+      issued: { value: Math.round(issued), prev: null, delta_pct: null, by_currency: issuedForeign },
       active_projects: { value: activeProjects, prev: null, delta_pct: null },
       new_clients: { value: newClients, prev: null, delta_pct: null },
     },
@@ -470,6 +504,7 @@ async function buildProfitTab(businessId, period, segment = 'client') {
   const { Project, Invoice, InvoicePayment, Task, ProjectExpense, OverheadItem } = require('../models');
   const fromDt = new Date(period.from + ' 00:00:00');
   const toDt = new Date(period.to + ' 23:59:59');
+  const home = await getHomeCurrency(businessId);
 
   // 전체 프로젝트 조회 후 kind 로 분리 — internal_investment 요약이 client/기본 뷰에서도
   //   항상 채워지도록(세그먼트로 pre-filter 하면 기본 뷰에서 내부 요약이 0 이 되는 버그).
@@ -481,21 +516,27 @@ async function buildProfitTab(businessId, period, segment = 'client') {
 
   const projectIds = projects.map((p) => p.id);
 
-  // 프로젝트별 매출 (수금)
+  // 프로젝트별 매출 (수금) — 홈 통화만 합산. 외화 결제가 있는 프로젝트는 has_foreign 로 표시해
+  //   revenue 0 으로 조용히 사라지는 오정보 차단 (Fable 필수조건).
   const payments = await InvoicePayment.findAll({
     where: { paid_at: { [Op.between]: [fromDt, toDt] } },
     include: [{
       model: Invoice,
       where: { business_id: businessId, project_id: { [Op.in]: projectIds } },
-      attributes: ['id', 'project_id'],
+      attributes: ['id', 'project_id', 'currency'],
     }],
     attributes: ['amount', 'refunded_amount'],
   });
   const revenueByProject = {};
+  const foreignProjects = new Set();
   for (const p of payments) {
     const pid = p.Invoice?.project_id;
     if (!pid) continue;
-    revenueByProject[pid] = (revenueByProject[pid] || 0) + netPay(p);
+    if ((p.Invoice?.currency || 'KRW') === home) {
+      revenueByProject[pid] = (revenueByProject[pid] || 0) + netPay(p);
+    } else if (Math.round(netPay(p)) !== 0) {
+      foreignProjects.add(pid);
+    }
   }
 
   // 프로젝트별 actual_hours
@@ -538,6 +579,7 @@ async function buildProfitTab(businessId, period, segment = 'client') {
       client: p.client_company || '—',
       kind: p.kind,
       status: p.status,
+      has_foreign_currency: foreignProjects.has(p.id),
       revenue: Math.round(revenue),
       labor_cost: Math.round(laborCost),
       direct_cost: Math.round(directCost),
@@ -626,9 +668,12 @@ async function buildProfitTab(businessId, period, segment = 'client') {
 
   // 수익성 KPI·버블·표는 고객 프로젝트 기준(내부 제외). 'all' 이어도 수익성은 고객만 의미.
   const pnlRows = clientRows;
+  const hasForeignPnl = clientRows.some((r) => r.has_foreign_currency);
   return {
     period: { from: period.from, to: period.to, label: period.label },
     segment,
+    home_currency: home,
+    has_foreign_currency: hasForeignPnl,
     kpis: {
       active_projects: { value: pnlRows.filter((r) => r.status === 'active').length, prev: null, delta_pct: null },
       negative_margin: { value: negativeMargin, prev: null, delta_pct: null },
@@ -640,6 +685,7 @@ async function buildProfitTab(businessId, period, segment = 'client') {
     bubble: pnlRows.filter((r) => r.hours > 0).map((r) => ({
       project_id: r.project_id, name: r.name,
       hours: r.hours, revenue: r.revenue, profit: r.profit, margin_pct: r.margin_pct,
+      has_foreign_currency: r.has_foreign_currency,
     })),
     table: pnlRows.sort((a, b) => b.revenue - a.revenue),
     internal_investment: internalInvestment,
@@ -677,6 +723,7 @@ async function buildTeamTab(businessId, period, segment = 'client') {
   const { BusinessMember, User, Task, Invoice, InvoicePayment, Project } = require('../models');
   const fromDt = new Date(period.from + ' 00:00:00');
   const toDt = new Date(period.to + ' 23:59:59');
+  const home = await getHomeCurrency(businessId);
 
   // 프로젝트 kind 맵 — 매출배분 분모를 고객 프로젝트 시간으로 한정하기 위함.
   const projRows = await Project.findAll({ where: { business_id: businessId }, attributes: ['id', 'kind'] });
@@ -701,13 +748,15 @@ async function buildTeamTab(businessId, period, segment = 'client') {
     attributes: ['assignee_id', 'actual_hours', 'estimated_hours', 'completed_at', 'created_at', 'category', 'project_id'],
   });
 
-  // 매출 (수금) — 청구서가 task 와 직접 연결 안 되어 있어, 고객 프로젝트 시간 비중으로 분배
+  // 매출 (수금) — 청구서가 task 와 직접 연결 안 되어 있어, 고객 프로젝트 시간 비중으로 분배.
+  //   인당 매출 배분은 홈 통화만 — 외화가 섞이면 revenue_share 가 오염됨(Fable 필수조건).
   const payments = await InvoicePayment.findAll({
     where: { paid_at: { [Op.between]: [fromDt, toDt] } },
-    include: [{ model: Invoice, where: { business_id: businessId }, attributes: ['id', 'project_id'] }],
+    include: [{ model: Invoice, where: { business_id: businessId }, attributes: ['id', 'project_id', 'currency'] }],
     attributes: ['amount', 'refunded_amount'],
   });
-  const totalRevenue = payments.reduce((s, p) => s + netPay(p), 0);
+  const totalRevenue = payments.reduce((s, p) => ((p.Invoice?.currency || 'KRW') === home ? s + netPay(p) : s), 0);
+  const hasForeignRevenue = payments.some((p) => (p.Invoice?.currency || 'KRW') !== home && Math.round(netPay(p)) !== 0);
 
   const totalActualHours = tasks.reduce((s, t) => s + Number(t.actual_hours || 0), 0);
   // 매출배분 분모 = 고객 프로젝트 시간만 (내부업무 시간이 인당매출을 희석/오배분하던 것 차단)
@@ -850,6 +899,8 @@ async function buildTeamTab(businessId, period, segment = 'client') {
 
   return {
     period: { from: period.from, to: period.to, label: period.label },
+    home_currency: home,
+    has_foreign_currency: hasForeignRevenue,
     kpis: {
       members: { value: rows.length, prev: null, delta_pct: null },
       avg_utilization: { value: rows.length ? Number((rows.reduce((s, r) => s + (r.utilization_pct || 0), 0) / rows.length).toFixed(1)) : null, prev: null, delta_pct: null },
@@ -877,19 +928,24 @@ async function buildFinanceTab(businessId, period, segment = 'client') {
   const expenseProjKind = segment === 'client' ? { kind: 'client' }
     : segment === 'internal' ? { kind: 'internal' } : {};
 
+  const home = await getHomeCurrency(businessId);
   const payments = await InvoicePayment.findAll({
     where: { paid_at: { [Op.between]: [fromDt, toDt] } },
-    include: [{ model: Invoice, where: { business_id: businessId }, attributes: ['id', 'project_id'] }],
+    include: [{ model: Invoice, where: { business_id: businessId }, attributes: ['id', 'project_id', 'currency'] }],
     attributes: ['amount', 'refunded_amount', 'paid_at'],
   });
-  const revenue = payments.reduce((s, p) => s + netPay(p), 0);
+  const revByCur = groupByCurrency(payments, (p) => p.Invoice?.currency, netPay);
+  const revenue = revByCur[home] || 0;
+  const revenueForeign = foreignBreakdown(revByCur, home);
 
-  // 미수금 (current overdue)
+  // 미수금 (current overdue) — 홈 통화만, 외화는 분리
   const overdueInvoices = await Invoice.findAll({
     where: { business_id: businessId, status: { [Op.in]: ['sent', 'partially_paid', 'overdue'] } },
-    attributes: ['grand_total', 'paid_amount', 'status', 'due_date'],
+    attributes: ['grand_total', 'paid_amount', 'status', 'due_date', 'currency'],
   });
-  const receivable = overdueInvoices.reduce((s, i) => s + (Number(i.grand_total || 0) - Number(i.paid_amount || 0)), 0);
+  const recByCur = groupByCurrency(overdueInvoices, (i) => i.currency, (i) => Number(i.grand_total || 0) - Number(i.paid_amount || 0));
+  const receivable = recByCur[home] || 0;
+  const receivableForeign = foreignBreakdown(recByCur, home);
 
   // 고정비 (월정 기준 기간 분배)
   const overheads = await OverheadItem.findAll({
@@ -964,7 +1020,7 @@ async function buildFinanceTab(businessId, period, segment = 'client') {
   const [trendPays, trendDirects] = await Promise.all([
     InvoicePayment.findAll({
       where: { paid_at: { [Op.gte]: trendStart } },
-      include: [{ model: Invoice, where: { business_id: businessId }, attributes: [] }],
+      include: [{ model: Invoice, where: { business_id: businessId }, attributes: ['currency'] }],
       attributes: ['amount', 'refunded_amount', 'paid_at'],
     }),
     ProjectExpense.findAll({
@@ -977,7 +1033,7 @@ async function buildFinanceTab(businessId, period, segment = 'client') {
   for (let i = 11; i >= 0; i--) {
     const m = new Date(toDt.getFullYear(), toDt.getMonth() - i, 1);
     const key = m.toISOString().slice(0, 7);
-    const rev = trendPays.filter(p => ym(p.paid_at) === key).reduce((s, p) => s + netPay(p), 0);
+    const rev = trendPays.filter(p => ym(p.paid_at) === key && (p.Invoice?.currency || 'KRW') === home).reduce((s, p) => s + netPay(p), 0);
     const dc = trendDirects.filter(e => ym(e.incurred_at) === key).reduce((s, e) => s + Number(e.amount || 0), 0);
     const cost = monthlyOverhead + dc;
     costTrend.push({ month: key, revenue: Math.round(rev), cost: Math.round(cost), profit: Math.round(rev - cost) });
@@ -985,13 +1041,14 @@ async function buildFinanceTab(businessId, period, segment = 'client') {
 
   return {
     period: { from: period.from, to: period.to, label: period.label },
+    home_currency: home,
     cost_trend: costTrend,
     kpis: {
-      revenue: { value: Math.round(revenue), prev: null, delta_pct: null },
+      revenue: { value: Math.round(revenue), prev: null, delta_pct: null, by_currency: revenueForeign },
       total_cost: { value: Math.round(totalCost), prev: null, delta_pct: null },
       profit: { value: Math.round(profit), prev: null, delta_pct: null },
       margin_pct: { value: margin == null ? null : Number(margin.toFixed(1)), prev: null, delta_pct: null },
-      receivable: { value: Math.round(receivable), prev: null, delta_pct: null },
+      receivable: { value: Math.round(receivable), prev: null, delta_pct: null, by_currency: receivableForeign },
       overhead: { value: Math.round(overheadAlloc), prev: null, delta_pct: null },
     },
     expenses_by_category: expensesByCategory,
