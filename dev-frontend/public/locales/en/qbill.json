@@ -332,6 +332,10 @@
       "turnOff": "Turn off alerts",
       "turnOn": "Turn alerts back on",
       "failed": "Couldn't change the alert setting. Please try again later"
+    },
+    "unmarkPaid": {
+      "action": "Undo payment",
+      "hint": "Undo payment and set back to unpaid"
     }
   },
   "newInvoice": {

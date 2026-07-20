@@ -9,7 +9,7 @@ import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import { CheckIcon } from '../../components/Common/Icons';
 import {
   formatMoney, invoiceStatusColor, installmentStatusColor,
-  getInvoice, markInstallmentPaid, unmarkInstallmentPaid,
+  getInvoice, markInstallmentPaid, unmarkInstallmentPaid, unmarkInvoicePaid,
   markInstallmentTaxInvoice, cancelInstallment, updateInvoiceStatus,
   markInvoiceTaxInvoice, markInvoiceCashReceipt,
   findConversationForClient, deleteInvoice, sendInvoiceReminder, sendInvoicePreview, resendInvoice, downloadInvoicePdf,
@@ -210,6 +210,14 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
     if (busy) return;
     setBusy(true); setRemindNote(null);
     try { await unmarkInstallmentPaid(invoice.business_id, invoice.id, installmentId); await refresh(); }
+    catch (e) { financeErr(e); }
+    finally { setBusy(false); }
+  };
+  // Q Bill — 단일 invoice 결제 취소 (실수로 결제 확인한 것 되돌림)
+  const handleUnmarkInvoicePaid = async () => {
+    if (busy) return;
+    setBusy(true); setRemindNote(null);
+    try { await unmarkInvoicePaid(invoice.business_id, invoice.id); await refresh(); }
     catch (e) { financeErr(e); }
     finally { setBusy(false); }
   };
@@ -452,6 +460,16 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
             >
               <CheckIcon size={13} style={{ verticalAlign: '-1px' }} />
               {t('detail.markPaid.action', { defaultValue: '결제 완료' })}
+            </ActionBtn>
+          )}
+          {/* 단일 invoice 결제 취소 — 실수로 결제 확인한 것 되돌림 (paid → sent + payment 회수) */}
+          {isOwner && !isSplit && invoice.status === 'paid' && (
+            <ActionBtn
+              onClick={handleUnmarkInvoicePaid}
+              disabled={busy}
+              title={t('detail.unmarkPaid.hint', { defaultValue: '결제 완료를 취소하고 미결제로 되돌립니다' }) as string}
+            >
+              {t('detail.unmarkPaid.action', { defaultValue: '결제 취소' })}
             </ActionBtn>
           )}
           {invoice.status !== 'draft' && invoice.status !== 'canceled' && (invoice.client_id || invoice.recipient_email) && (

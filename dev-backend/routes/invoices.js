@@ -1728,6 +1728,43 @@ router.post('/:businessId/:id/installments/:installId/unmark-paid', authenticate
   } catch (error) { try { await t.rollback(); } catch {} next(error); }
 });
 
+// ─── 단일 invoice 결제 취소 (unmark-paid) — 회차 unmark 의 단일 버전 (Fable 🟠1) ───
+//   실수로 "결제 확인" 한 단일 청구서를 되돌린다. paid → sent + payment 원장 회수.
+//   split invoice 는 회차별 unmark 를 쓰므로 여기선 400. owner-only.
+router.post('/:businessId/:id/unmark-paid', authenticateToken, checkBusinessAccess, requireMenu('qbill','write'), async (req, res, next) => {
+  if (!assertInvoiceMutationOwner(req, res)) return;
+  const t = await sequelize.transaction();
+  try {
+    const invoice = await Invoice.findOne({
+      where: { id: req.params.id, business_id: req.params.businessId }, transaction: t, lock: t.LOCK.UPDATE,
+    });
+    if (!invoice) { await t.rollback(); return errorResponse(res, 'Invoice not found', 404); }
+    if (invoice.installment_mode === 'split') { await t.rollback(); return errorResponse(res, 'use_installment_unmark — 분할 청구서는 회차별로 결제 취소하세요', 400); }
+    if (invoice.status !== 'paid') { await t.rollback(); return errorResponse(res, 'not_paid', 400); }
+
+    // 결제 원장 회수 — 삭제 전 스냅샷 보존(audit). 단일은 installment_id NULL.
+    const removedPayments = await InvoicePayment.findAll({ where: { invoice_id: invoice.id, installment_id: null }, transaction: t });
+    const removedSnapshot = removedPayments.map((p) => ({ id: p.id, amount: Number(p.amount), method: p.method, pg_provider: p.pg_provider, pg_transaction_id: p.pg_transaction_id, paid_at: p.paid_at }));
+    await InvoicePayment.destroy({ where: { invoice_id: invoice.id, installment_id: null }, transaction: t });
+
+    const prevStatus = invoice.status;
+    await invoice.update({ status: 'sent', paid_at: null, paid_amount: 0 }, { transaction: t });
+    await t.commit();
+
+    setImmediate(() => recordInvoiceStatusChange(invoice, prevStatus, 'sent', req.user.id, 'invoice unmark-paid'));
+    await updateInvoiceChatCards(invoice.id, { status: 'sent', paid_at: null, paid_amount: 0 });
+    const io = req.app.get('io');
+    if (io) io.to(`business:${invoice.business_id}`).emit('inbox:refresh', { reason: 'invoice_status', invoice_id: invoice.id, status: 'sent' });
+    if (invoice.project_id) require('../services/projectStageEngine').onInvoiceChanged(invoice.id).catch(() => null);
+    require('../services/auditService').logAudit(req, {
+      action: 'invoice.unmark_paid', targetType: 'invoice', targetId: invoice.id,
+      newValue: { from: prevStatus, to: 'sent', removed_payments: removedSnapshot },
+    });
+    const refreshed = await Invoice.findByPk(invoice.id);
+    return successResponse(res, refreshed, 'Invoice payment unmarked');
+  } catch (error) { try { await t.rollback(); } catch {} next(error); }
+});
+
 // ─── Installment: 세금계산서 발행 마킹 ───
 router.post('/:businessId/:id/installments/:installId/mark-tax-invoice', authenticateToken, checkBusinessAccess, requireMenu('qbill','write'), async (req, res, next) => {
   if (!assertInvoiceMutationOwner(req, res)) return;
