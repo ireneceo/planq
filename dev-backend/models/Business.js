@@ -150,6 +150,8 @@ Business.init({
     type: DataTypes.ENUM('active', 'past_due', 'canceled', 'trialing'),
     defaultValue: 'active'
   },
+  // 워크스페이스 soft-delete — 소유자 탈퇴 시 데이터 없는 솔로 워크스페이스 동반 삭제 (ACCOUNT_DELETION_DESIGN 🔴A).
+  deleted_at: { type: DataTypes.DATE, allowNull: true },
   // ─── Cue 설정 ───
   cue_mode: {
     type: DataTypes.ENUM('smart', 'auto', 'draft'),

@@ -89,6 +89,10 @@ User.init({
     type: DataTypes.ENUM('active', 'suspended', 'deleted'),
     defaultValue: 'active'
   },
+  // 계정 삭제(회원 탈퇴) — ACCOUNT_DELETION_DESIGN. status='deleted'+예약 후 30일 유예→익명화.
+  deletion_requested_at: { type: DataTypes.DATE, allowNull: true },
+  deletion_scheduled_at: { type: DataTypes.DATE, allowNull: true },
+  anonymized_at: { type: DataTypes.DATE, allowNull: true },
   last_login_at: {
     type: DataTypes.DATE,
     allowNull: true

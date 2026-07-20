@@ -41,6 +41,12 @@ BusinessMember.init({
     allowNull: true,
     references: { model: 'users', key: 'id' },
   },
+  // 제거 사유 — 계정 탈퇴로 removed 된 것만 복구 시 되살리기 위한 구분 마커 (ACCOUNT_DELETION_DESIGN 🔴B).
+  //   'account_deletion' = 탈퇴 유예 진입 시 마크. 복구 시 이 값 + removed_at>=deletion_requested_at 인 row 만 원복.
+  removed_reason: {
+    type: DataTypes.STRING(40),
+    allowNull: true,
+  },
   // 'owner' = 사업자 대표, 'admin' = 관리자급 직원 (owner급 위임 — 타인 자원 관리·멤버 권한 관리, 재무 owner_only 제외), 'member' = 멤버, 'ai' = Cue 전용
   // ENUM 순서는 모델·dev DB·운영 DB 3곳 동일해야 sync-database 가 재-ALTER 를 반복하지 않음 (admin 은 append)
   role: {
