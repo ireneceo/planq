@@ -6,12 +6,16 @@ import PageShell from '../../components/Layout/PageShell';
 import { useImageLightbox } from '../../components/Common/ImageLightbox';
 import { fetchWikiArticle, type WikiArticleDetail, type WikiBlock } from '../../services/wiki';
 import { mediaPhone } from '../../theme/breakpoints';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function WikiArticlePage() {
   const { slug = '' } = useParams();
   const navigate = useNavigate();
   const { t, i18n } = useTranslation('wiki');
   const { open: openLightbox, lightbox } = useImageLightbox();
+  // 위키 본문은 비회원에게 완전 공개다. 다만 '화면 열기'는 로그인해야 닿는 앱 화면으로 점프하므로
+  // 비회원에겐 아예 숨긴다 (로그인 벽 문구를 띄우지 않는다 — Irene 결정).
+  const { user } = useAuth();
 
   const [article, setArticle] = useState<WikiArticleDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,7 +51,7 @@ export default function WikiArticlePage() {
           {article.category && <Eyebrow>{article.category.title}</Eyebrow>}
           <Title>{article.title}</Title>
           {article.summary && <Lead>{article.summary}</Lead>}
-          {article.linked_route && (
+          {article.linked_route && user && (
             <OpenScreen onClick={() => navigate(article.linked_route as string)}>
               {t('article.openScreen')} →
             </OpenScreen>
