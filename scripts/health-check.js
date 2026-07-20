@@ -568,7 +568,11 @@ function defineWikiTests() {
       .map((f) => { try { return fsx.readFileSync(f, 'utf8'); } catch { return ''; } }).join('\n');
     const paths = [...new Set([...src.matchAll(/path="([^"]+)"/g)].map((m) => m[1]))].filter((x) => x !== '*');
     if (paths.length < 20) throw new Error(`라우트 추출 실패(${paths.length}개) — 이 검사가 거짓 통과하지 않도록 중단`);
-    const res = paths.map((x) => new RegExp('^' + x.replace(/:[^/]+/g, '[^/]+').replace(/\*/g, '.*') + '$'));
+    // 와일드카드('/business/*', '/admin/*')는 매칭에서 제외한다. '.*' 로 풀면 오타 링크
+    //   (예: /business/clientz)까지 "실존"으로 통과해 이 검사의 사각이 된다.
+    //   구체 경로(/business/clients·/business/members 등)는 목록에 따로 들어 있어 손실 없다.
+    const concrete = paths.filter((x) => !x.includes('*'));
+    const res = concrete.map((x) => new RegExp('^' + x.replace(/:[^/]+/g, '[^/]+') + '$'));
 
     // DB 조회는 dev-backend 컨텍스트에서 — .env(DB_*)가 그쪽에 있다.
     const { execSync } = require('child_process');
@@ -578,7 +582,7 @@ function defineWikiTests() {
       + `{host:process.env.DB_HOST,dialect:'mysql',logging:false});`
       + `s.query(\\"SELECT slug,linked_route FROM help_articles WHERE linked_route IS NOT NULL AND linked_route<>''\\")`
       + `.then(([r])=>{console.log('@@'+JSON.stringify(r));return s.close();})"`,
-      { cwd: '/opt/planq/dev-backend', encoding: 'utf8' });
+      { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 20000 });
     const line = out.split('\n').find((l) => l.startsWith('@@'));
     if (!line) throw new Error('help_articles 조회 실패 — 거짓 통과 방지 위해 중단');
     const rows = JSON.parse(line.slice(2));
