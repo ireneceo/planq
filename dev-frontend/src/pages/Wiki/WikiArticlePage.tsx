@@ -15,13 +15,17 @@ export default function WikiArticlePage() {
   const { open: openLightbox, lightbox } = useImageLightbox();
   // 위키 본문은 비회원에게 완전 공개다. 다만 '화면 열기'는 로그인해야 닿는 앱 화면으로 점프하므로
   // 비회원에겐 아예 숨긴다 (로그인 벽 문구를 띄우지 않는다 — Irene 결정).
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
 
   const [article, setArticle] = useState<WikiArticleDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<number | null>(null);
 
   useEffect(() => {
+    // 인증이 해소되기 전에 fetch 하면 visibility='authenticated' 문서가 401 로 떨어진다.
+    // 로그인한 사용자가 주소창으로 직접 열거나 새로고침할 때 "로그인이 필요합니다" 가 뜨던 원인.
+    // 게스트(user=null)는 authLoading 이 끝난 뒤 그대로 진행 — public 문서는 정상 조회된다.
+    if (authLoading) return;
     let alive = true;
     setLoading(true); setStatus(null);
     window.scrollTo(0, 0);
@@ -30,7 +34,7 @@ export default function WikiArticlePage() {
       .catch((e: Error & { status?: number }) => { if (alive) setStatus(e.status || 500); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [slug]);
+  }, [slug, authLoading, user?.id]);
 
   const lang = (i18n.language || 'ko').slice(0, 2) === 'en' ? 'en' : 'ko';
   const blockText = (b: WikiBlock) => (lang === 'en' ? b.text_en : b.text_ko) || b.text_ko || b.text_en || '';
@@ -51,7 +55,7 @@ export default function WikiArticlePage() {
           {article.category && <Eyebrow>{article.category.title}</Eyebrow>}
           <Title>{article.title}</Title>
           {article.summary && <Lead>{article.summary}</Lead>}
-          {article.linked_route && user && (
+          {article.linked_route && !authLoading && user && (
             <OpenScreen onClick={() => navigate(article.linked_route as string)}>
               {t('article.openScreen')} →
             </OpenScreen>

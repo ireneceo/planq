@@ -450,8 +450,10 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
         </EntCta>
       </EnterpriseCard>
 
-      {/* 추가 슬롯 (Add-on) — 멤버·고객·Q Note·Cue·스토리지 */}
-      {currentPlan.code !== 'free' && currentPlan.code !== 'enterprise' && businessId && (
+      {/* 추가 슬롯 (Add-on) — 멤버·고객·Q Note·Cue·스토리지.
+          App Store 3.1.1 — add-on 도 앱에서 소비하는 디지털 재화라 외부결제 신청 표면을
+          네이티브에서 노출하면 안 된다. 플랜 CTA 와 같은 게이트. */}
+      {canPurchaseInApp() && currentPlan.code !== 'free' && currentPlan.code !== 'enterprise' && businessId && (
         <Section>
           <AddonSection businessId={businessId} isOwner={user?.business_role === 'owner' || user?.platform_role === 'platform_admin'} />
         </Section>
