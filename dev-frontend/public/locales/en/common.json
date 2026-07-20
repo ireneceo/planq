@@ -613,15 +613,21 @@
     },
     "trialEnding": {
       "title": "{{days}} days left — pay to keep going",
-      "desc": "Settle the bill before the trial ends to avoid auto-lock."
+      "desc": "Settle the bill before the trial ends to avoid auto-lock.",
+      "titleNative": "{{days}} day(s) left in trial",
+      "descNative": "Some features will be restricted after the trial ends."
     },
     "pastDue": {
       "title": "Trial ended — {{days}} days left to pay",
-      "desc": "The workspace will be locked if payment is not received."
+      "desc": "The workspace will be locked if payment is not received.",
+      "titleNative": "Trial ended — {{days}} day(s) until access closes",
+      "descNative": "Workspace features will be restricted after this period."
     },
     "canceled": {
       "title": "Workspace locked — pay to restore",
-      "desc": "Access resumes immediately after payment is confirmed."
+      "desc": "Access resumes immediately after payment is confirmed.",
+      "titleNative": "Workspace is locked",
+      "descNative": "Access to this workspace is currently restricted."
     },
     "cta": {
       "openPlan": "Plan & billing",

@@ -60,23 +60,39 @@ const TrialStatusBanner: React.FC<Props> = ({ businessId }) => {
   let desc = '';
   let cta = t('trialBanner.cta.openPlan', '결제 페이지');
 
+  // App Store 3.1.1 — 네이티브 앱에선 명령형 결제 유도 문구(미리 결제하세요 등)도 리젝 회색지대라
+  //   상태만 알리는 중립 문구로 대체한다. (CTA 숨김만으론 본문 유도 표현이 남음 — Fable 권고)
+  const native = !canPurchaseInApp();
+
   if (status.subscription_status === 'canceled') {
     tone = 'danger';
-    title = t('trialBanner.canceled.title', '워크스페이스 잠금 — 결제 후 복구됩니다');
-    desc = t('trialBanner.canceled.desc', '결제 확인 시 즉시 정상 사용 가능합니다.');
+    title = native
+      ? t('trialBanner.canceled.titleNative', '워크스페이스가 잠겨 있습니다')
+      : t('trialBanner.canceled.title', '워크스페이스 잠금 — 결제 후 복구됩니다');
+    desc = native
+      ? t('trialBanner.canceled.descNative', '현재 워크스페이스 사용이 제한된 상태입니다.')
+      : t('trialBanner.canceled.desc', '결제 확인 시 즉시 정상 사용 가능합니다.');
     cta = t('trialBanner.cta.payNow', '결제하기');
   } else if (status.in_grace || status.subscription_status === 'past_due') {
     tone = 'danger';
     const days = daysBetween(status.grace_ends_at);
-    title = t('trialBanner.pastDue.title', '체험 종료 — 결제 마감 {{days}}일 남음', { days: Math.max(days, 0) });
-    desc = t('trialBanner.pastDue.desc', '결제하지 않으면 워크스페이스가 잠금됩니다.');
+    title = native
+      ? t('trialBanner.pastDue.titleNative', '체험 종료 — 접근 마감 {{days}}일 남음', { days: Math.max(days, 0) })
+      : t('trialBanner.pastDue.title', '체험 종료 — 결제 마감 {{days}}일 남음', { days: Math.max(days, 0) });
+    desc = native
+      ? t('trialBanner.pastDue.descNative', '기간이 지나면 워크스페이스 기능이 제한됩니다.')
+      : t('trialBanner.pastDue.desc', '결제하지 않으면 워크스페이스가 잠금됩니다.');
     cta = t('trialBanner.cta.payNow', '결제하기');
   } else if (status.in_trial) {
     const days = daysBetween(status.trial_ends_at);
     if (days <= 7) {
       tone = 'warn';
-      title = t('trialBanner.trialEnding.title', '체험 {{days}}일 남음 — 결제 안내', { days });
-      desc = t('trialBanner.trialEnding.desc', '체험 종료 후 자동 잠금되지 않도록 미리 결제하세요.');
+      title = native
+        ? t('trialBanner.trialEnding.titleNative', '체험 {{days}}일 남음', { days })
+        : t('trialBanner.trialEnding.title', '체험 {{days}}일 남음 — 결제 안내', { days });
+      desc = native
+        ? t('trialBanner.trialEnding.descNative', '체험 종료 후 일부 기능이 제한됩니다.')
+        : t('trialBanner.trialEnding.desc', '체험 종료 후 자동 잠금되지 않도록 미리 결제하세요.');
     } else {
       tone = 'info';
       title = t('trialBanner.trial.title', 'Starter 체험 {{days}}일 남음', { days });
