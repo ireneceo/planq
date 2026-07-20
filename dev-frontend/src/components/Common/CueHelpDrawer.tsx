@@ -63,14 +63,36 @@ const ActionOpen = styled.button`
   &:hover { background: #ccfbf1; }
 `;
 
-const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false }) => {
+/**
+ * publicSurface — 랜딩/마케팅/Q위키 등 공개 표면에서 마운트됐는가 (utils/publicSurface).
+ *   렌더는 게스트 프레젠테이션(Q위키+문의 2탭)으로 고정하되, API 호출은 isGuest 기준을 그대로 둔다.
+ *   (로그인 회원이 랜딩에 있어도 인증 호출·문의 prefill 은 본인 권한으로)
+ * routerNavigate — 공개 표면 전용 react-router navigate 주입.
+ *   여기서 RR 훅을 직접 호출하면 안 된다: 이 컴포넌트는 ChromeOverlays(router-less zone)에서도
+ *   마운트되므로 훅 직접 호출 시 크래시한다. 공개 표면에선 TabMirror 가 없어 useChromeNav 가
+ *   silent no-op 이 되므로(위키 링크가 죽은 버튼), App.tsx 가 RR navigate 를 내려준다.
+ */
+const CueHelpDrawer: React.FC<{
+  standalone?: boolean;
+  publicSurface?: boolean;
+  routerNavigate?: (path: string) => void;
+}> = ({ standalone = false, publicSurface = false, routerNavigate }) => {
   const { t } = useTranslation('common');
   const { t: tErr } = useTranslation('errors');
   const { t: tw } = useTranslation('wiki');
-  const location = useChromeLocation();
+  const chromeLocation = useChromeLocation();
   const navigate = useChromeNav();
   const { user, isLoading } = useAuth();
   const isGuest = !user;
+  // 공개 표면에선 sessionStorage 복원 탭의 stale path 가 올 수 있어 실제 브라우저 경로를 쓴다.
+  const location = publicSurface
+    ? {
+        pathname: typeof window !== 'undefined' ? window.location.pathname : '/',
+        search: typeof window !== 'undefined' ? window.location.search : '',
+      }
+    : chromeLocation;
+  // 렌더(탭 구성·버튼) 기준. API 분기는 isGuest 를 그대로 쓴다 — 회원은 공개 표면에서도 본인 권한.
+  const guestView = isGuest || publicSurface;
   const tz = (user as { workspace_timezone?: string } | null)?.workspace_timezone || 'Asia/Seoul';
   // N+93 — 비즈니스 멤버는 RightDock 통합 런처가 Q helper 진입을 제공 → 자체 floating FAB 숨김.
   // 게스트/Client 는 런처가 없으므로 기존 floating FAB 유지.
@@ -107,27 +129,45 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
   const [wikiContext, setWikiContext] = useState<WikiArticleSummary[]>([]);
   const [wikiCats, setWikiCats] = useState<WikiCategory[]>([]);
 
-  // Q위키 article / 전체 위키로 이동 (드로어 닫고 라우팅, standalone 은 그대로)
+  // Q위키 article / 전체 위키로 이동.
+  //   워크스페이스 안(앱 경로의 로그인 사용자) 또는 팝아웃 창 → 새 탭.
+  //     작업 중이던 화면이 위키로 전환돼 사라지면 안 된다 (Irene: "전환되어 버리면 안 됨").
+  //     Client 역할도 동일 — 워크스페이스에서 위키는 항상 새 탭.
+  //   공개 표면(랜딩·위키) → 같은 탭 이동. 단 useChromeNav 는 TabMirror 부재로 no-op 이므로
+  //     App.tsx 가 주입한 RR navigate 를 쓴다 (없으면 전체 로드로 폴백).
   const openWikiPath = useCallback((path: string) => {
-    navigate(path);
-    if (!standalone) setOpen(false);
-  }, [navigate, standalone]);
+    const inWorkspaceCtx = !publicSurface && !isGuest;
+    if (standalone || inWorkspaceCtx) {
+      window.open(path, '_blank', 'noopener');
+      return; // 원래 보던 화면 유지 — 드로어도 닫지 않는다
+    }
+    if (publicSurface) {
+      if (routerNavigate) routerNavigate(path);
+      else window.location.assign(path);
+    } else {
+      navigate(path);
+    }
+    setOpen(false);
+  }, [navigate, routerNavigate, standalone, publicSurface, isGuest]);
 
-  // 게스트가 잘못된 모드로 떨어지지 않게 보정
+  // 게스트(또는 공개 표면)가 워크스페이스 전용 모드로 떨어지지 않게 보정
   useEffect(() => {
-    if (isGuest && (mode === 'workspace' || mode === 'feedback')) {
+    if (guestView && (mode === 'workspace' || mode === 'feedback' || mode === 'myhistory')) {
       setMode('qhelper');
     }
-  }, [isGuest, mode]);
+  }, [guestView, mode]);
 
   // N+93 — 통합 런처(RightDock)에서 Q helper 선택 시 오픈 (qhelper 모드로 진입)
   useEffect(() => {
     const onOpen = (e: Event) => {
-      if ((e as CustomEvent).detail?.tool === 'qhelper') { setMode('workspace'); setOpen(true); }
+      if ((e as CustomEvent).detail?.tool === 'qhelper') {
+        setMode(guestView ? 'qhelper' : 'workspace');
+        setOpen(true);
+      }
     };
     window.addEventListener('planq:open-tool', onOpen as EventListener);
     return () => window.removeEventListener('planq:open-tool', onOpen as EventListener);
-  }, []);
+  }, [guestView]);
 
   // N+93 — standalone(/help-popout): 닫기는 창 닫기
   const closeDrawer = () => { if (standalone) window.close(); else setOpen(false); };
@@ -163,13 +203,13 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
 
   // Q위키 탭 — 현재 화면 맥락 article (로그인 사용자만, path 바뀌면 갱신)
   useEffect(() => {
-    if (mode !== 'qhelper' || isGuest || !open) { return; }
+    if (mode !== 'qhelper' || guestView || !open) { return; }
     let cancelled = false;
     fetchWikiContext(location.pathname)
       .then((arts) => { if (!cancelled) setWikiContext(arts); })
       .catch(() => { if (!cancelled) setWikiContext([]); });
     return () => { cancelled = true; };
-  }, [mode, isGuest, open, location.pathname]);
+  }, [mode, guestView, open, location.pathname]);
 
   useBodyScrollLock(open);
 
@@ -197,13 +237,13 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
       const prefill = ce.detail?.prefill || '';
       const tab = ce.detail?.tab;
       if (tab === 'wiki') setMode('qhelper');
-      else if (tab === 'cue' && !isGuest) setMode('workspace');
+      else if (tab === 'cue' && !guestView) setMode('workspace');
       setOpen(true);
       if (prefill) setInput(prefill);
     };
     window.addEventListener('cue:ask', onAsk as EventListener);
     return () => window.removeEventListener('cue:ask', onAsk as EventListener);
-  }, [isGuest]);
+  }, [guestView]);
 
   // 열린 후 input focus
   useEffect(() => {
@@ -431,10 +471,11 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
 
   return (
     <>
-      {!standalone && !open && !fabHidden && !dockManaged && !isLoading && (
+      {/* 공개 표면에는 RightDock 런처가 없으므로 회원이어도 자체 FAB 를 띄운다(dockManaged 무시). */}
+      {!standalone && !open && !fabHidden && (!dockManaged || publicSurface) && !isLoading && (
         <FloatingTrigger
           type="button"
-          onClick={() => { setMode(isGuest ? 'qhelper' : 'workspace'); setOpen(true); }}
+          onClick={() => { setMode(guestView ? 'qhelper' : 'workspace'); setOpen(true); }}
           aria-label={t('qhelper.openFloating', 'Q helper — 사용 안내 + 피드백') as string}
           title={t('qhelper.openFloating', 'Q helper — 사용 안내 + 피드백') as string}
         >
@@ -453,18 +494,18 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8 5.8 21.3l2.4-7.4L2 9.4h7.6L12 2z"/></svg>
             </Sparkle>
             <span>
-              {isGuest ? t('qhelper.guestTitle', 'PlanQ 안내') : t('qhelper.title', 'Q helper')}
+              {guestView ? t('qhelper.guestTitle', 'PlanQ 안내') : t('qhelper.title', 'Q helper')}
             </span>
           </HeaderTitle>
           <HeaderActions>
             {/* N+93 — 피드백 보내기는 상단 빨간 버튼으로 유지 (Irene). 탭은 3개(워크스페이스/PlanQ안내/문의). */}
-            {!isGuest && mode !== 'feedback' && (
+            {!guestView && mode !== 'feedback' && (
               <FeedbackEnter type="button" onClick={() => setMode('feedback')}>
                 {t('qhelper.openFeedbackBtn', '피드백 보내기')}
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
               </FeedbackEnter>
             )}
-            {!isGuest && mode === 'feedback' && (
+            {!guestView && mode === 'feedback' && (
               <BackToGuide type="button" onClick={() => setMode('qhelper')}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
                 {t('qhelper.backToGuide', '안내로 돌아가기')}
@@ -475,7 +516,7 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
             </CloseBtn>
           </HeaderActions>
         </Header>
-        {mode !== 'feedback' && !isGuest && (
+        {mode !== 'feedback' && !guestView && (
           // N+93 — 3탭: {워크스페이스명} 안내 → PlanQ 안내 → 문의 남기기 (피드백은 상단 빨간 버튼)
           <ModeSwitch role="tablist">
             <ModeBtn type="button" $active={mode === 'workspace'} $variant="workspace"
@@ -495,7 +536,7 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
             </ModeBtn>
           </ModeSwitch>
         )}
-        {isGuest && (
+        {guestView && (
           <ModeSwitch role="tablist">
             <ModeBtn type="button" $active={mode === 'qhelper'} $variant="qhelper"
               onClick={() => { setMode('qhelper'); setTurns([]); }} role="tab" aria-selected={mode === 'qhelper'}>
@@ -511,7 +552,7 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
         )}
         {mode === 'qhelper' && turns.length === 0 && (
           <WikiPanel>
-            {!isGuest && wikiContext.length > 0 && (
+            {!guestView && wikiContext.length > 0 && (
               <WikiSection>
                 <WikiSectionLabel>{tw('drawer.thisScreen')}</WikiSectionLabel>
                 {wikiContext.slice(0, 3).map((a) => (
@@ -561,17 +602,17 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
               <Empty>
                 <EmptyTitle>
                   {mode === 'workspace' ? t('qhelper.cueEmptyTitle', { ws: user?.business_name || (t('qhelper.workspaceFallback', '워크스페이스') as string), defaultValue: '{{ws}} 에 대해 무엇이든' })
-                    : isGuest ? t('qhelper.guestEmptyTitle', 'PlanQ, 무엇이든 물어보세요')
+                    : guestView ? t('qhelper.guestEmptyTitle', 'PlanQ, 무엇이든 물어보세요')
                     : t('qhelper.emptyTitle', '무엇이 궁금한가요?')}
                 </EmptyTitle>
                 <EmptyHint>
                   {mode === 'workspace'
                     ? t('qhelper.cueEmptyHint', '현재 워크스페이스의 고객·업무·일정·회의를 기반으로 답변합니다. 다른 워크스페이스 데이터는 보지 않습니다.')
-                    : isGuest
+                    : guestView
                       ? t('qhelper.guestEmptyHint', 'PlanQ 의 기능·가격·도입 효과를 편하게 물어보세요. 사람에게 직접 묻고 싶으면 "문의 남기기" 탭으로 이동하세요.')
                       : t('qhelper.emptyHint', 'PlanQ 의 사용법·기능을 자연어로 물어보세요. 현재 화면 컨텍스트를 읽고 답변합니다.')}
                 </EmptyHint>
-                {!isGuest && (
+                {!guestView && (
                   <EmptyShortcut>
                     <kbd>⌘</kbd> <kbd>?</kbd> {t('qhelper.toggleHint', '로 언제든 열고 닫기')}
                   </EmptyShortcut>
@@ -711,7 +752,7 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
           )}
           {mode === 'inquiry' && (
             <FbForm>
-              {!isGuest && (
+              {!guestView && (
                 <MyHistoryLink type="button" onClick={() => setMode('myhistory')}>
                   {t('qhelper.myHistoryEnter', { defaultValue: '내가 남긴 문의·피드백 보기' }) as string} →
                 </MyHistoryLink>
@@ -747,7 +788,7 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
               {inqResultMsg && <FbResult>{inqResultMsg}</FbResult>}
             </FbForm>
           )}
-          {mode === 'myhistory' && !isGuest && (
+          {mode === 'myhistory' && !guestView && (
             <MyHistoryWrap>
               <MyHistoryBack type="button" onClick={() => setMode('inquiry')}>
                 ← {t('qhelper.myHistoryBack', { defaultValue: '문의 남기기로' }) as string}
@@ -788,7 +829,7 @@ const CueHelpDrawer: React.FC<{ standalone?: boolean }> = ({ standalone = false 
                 value={input}
                 placeholder={mode === 'workspace'
                   ? t('qhelper.cueInputPh', { ws: user?.business_name || (t('qhelper.workspaceFallback', '워크스페이스') as string), defaultValue: '{{ws}} 에 대해 묻기 (Enter 로 보내기, Shift+Enter 줄바꿈)' }) as string
-                  : isGuest
+                  : guestView
                     ? t('qhelper.guestInputPh', 'PlanQ 에 대해 무엇이든 물어보세요 (Enter 로 보내기)') as string
                     : t('qhelper.inputPh', '질문을 입력하세요 (Enter 로 보내기, Shift+Enter 줄바꿈)') as string}
                 onChange={e => setInput(e.target.value)}

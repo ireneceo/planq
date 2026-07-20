@@ -5,11 +5,14 @@
 //   - 모바일: 별도 창 개념이 없으므로 in-app 으로 폴백 (Q Talk=페이지 이동, Q Note/Q helper=드로어/모달).
 //   흩어진 FAB 2개(메모·헬프) 통합. 비즈니스 멤버에게만 노출 — 게스트/Client 는 기존 Q helper FAB 유지(별도).
 //   분리 창(/*-popout, /memo/*) 안에서는 자기 안에 자기 뜨는 혼란 방지 위해 숨김.
+//   공개 표면(랜딩·Q위키)에서도 숨김 — 비회원 트래픽 영역에 워크스페이스 런처가 뜨면 안 된다.
+//   App.tsx 가 이미 hideAppChrome 로 언마운트하지만, 마운트 경로가 늘어도 새지 않게 여기서도 방어.
 import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useChromeLocation, useChromeNav } from '../../hooks/useChromeNav';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
+import { isPublicSurfacePath } from '../../utils/publicSurface';
 import { isPopoutWindow } from '../../utils/popout';
 import VoiceCaptureSheet from './VoiceCaptureSheet';
 
@@ -46,7 +49,8 @@ const RightDock: React.FC = () => {
   const isBusinessMember = !!user?.business_id && ['owner', 'admin', 'member'].includes(user.business_role || '');
   const pathHidden = FAB_HIDDEN_PREFIXES.some((p) => location.pathname === p || location.pathname.startsWith(`${p}/`))
     || (typeof document !== 'undefined' && document.body.dataset.popout === '1')
-    || isPopoutWindow(); // #84 — 팝아웃 창 내부 이동에도 FAB 숨김 유지
+    || isPopoutWindow() // #84 — 팝아웃 창 내부 이동에도 FAB 숨김 유지
+    || isPublicSurfacePath(location.pathname); // 공개 표면 심층방어
   // Q Talk (메인 채팅) — 모바일에선 채팅 입력바를 가리므로 FAB 숨김 (데스크탑·타 페이지는 유지)
   // Q Talk 에서 FAB 숨김은 "활성 대화방(입력바 있음)" 일 때만 — 대화 리스트(?conv 없음)에선 FAB 유지(#165).
   const onTalk = (location.pathname === '/talk' || location.pathname.startsWith('/talk/'))

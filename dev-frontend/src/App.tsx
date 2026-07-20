@@ -1,11 +1,12 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { PwaInstallProvider } from './contexts/PwaInstallContext';
 // 첫 paint 에 반드시 필요한 eager — Auth/PWA context, Layout, ErrorBoundary, ProtectedRoute, prefetch
 import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/Common/ErrorBoundary';
 import { isPopoutWindow } from './utils/popout';
+import { isPublicSurfacePath } from './utils/publicSurface';
 import TabMirror from './components/Tab/TabMirror';
 import TabAppShell from './components/Tab/TabAppShell';
 import { isTabsSpike } from './utils/tabsBeta';
@@ -48,6 +49,8 @@ const QNotePage = lazy(() => import('./pages/QNote/QNotePage'));
 const MemoStandalonePage = lazy(() => import('./pages/QNote/MemoStandalonePage'));
 const NoteCaptureStandalonePage = lazy(() => import('./pages/QNote/NoteCaptureStandalonePage'));
 const HelpStandalonePage = lazy(() => import('./pages/Help/HelpStandalonePage'));
+// 위키를 감쌀 랜딩 GNB/푸터 (WikiShell). 라우트가 Suspense 안이라 lazy 안전.
+const LandingLayout = lazy(() => import('./components/Landing/LandingLayout'));
 const WikiPage = lazy(() => import('./pages/Wiki/WikiPage'));
 const WikiArticlePage = lazy(() => import('./pages/Wiki/WikiArticlePage'));
 const ProfilePage = lazy(() => import('./pages/Profile/ProfilePage'));
@@ -141,6 +144,20 @@ function BlogSlugRedirect() {
   return <Navigate to={`/insights/${slug || ''}`} replace />;
 }
 
+/**
+ * WikiShell — /wiki 를 랜딩 GNB/푸터로 감싼다.
+ *
+ * 여태 /wiki 는 레이아웃 없는 standalone 이라 홈·로그인·워크스페이스로 갈 방법이 없는 막다른 길이었다.
+ * LandingLayout 의 GNB 가 비로그인엔 로그인/가입을, 로그인엔 "내 워크스페이스"(→/inbox)를 이미 제공한다.
+ * transparentTop=false — 위키는 다크 Hero 가 없어 흰 sticky GNB 로 시작해야 한다.
+ *
+ * 팝아웃 창(help-popout 등에서 위키로 이동)에선 GNB 를 붙이지 않는다 — 창 자체가 소형 도구다.
+ */
+function WikiShell({ children }: { children: React.ReactNode }) {
+  if (isPopoutWindow()) return <>{children}</>;
+  return <LandingLayout transparentTop={false}>{children}</LandingLayout>;
+}
+
 // ShellApp — 기존 App 본문 (BrowserRouter 안에서 렌더. useLocation/Routes/오버레이). 단일탭(shell) 경로.
 function ShellApp() {
   // 라우트 청크 prefetch — idle 시점 핵심 페이지 + 전역 hover/focus delegation
@@ -152,11 +169,14 @@ function ShellApp() {
     || _loc.pathname.startsWith('/memo/')
     || _loc.pathname.startsWith('/public/')
     || isPopoutWindow(); // #84 — 팝아웃 창 안에서 /wiki 등으로 이동해도 chrome 숨김 유지
-  // #71 — 랜딩/마케팅 페이지(비로그인 외부 트래픽 영역). 로그인 상태로 방문해도 인앱 chrome 안 띄움.
-  const isMarketing = ['/', '/features', '/pricing', '/insights', '/blog', '/about', '/contact'].includes(_loc.pathname)
-    || _loc.pathname.startsWith('/insights/')
-    || _loc.pathname.startsWith('/blog/');
-  const hideAppChrome = isPopout || isMarketing;
+  // #71 — 공개 표면(랜딩/마케팅 + Q위키). 비로그인 외부 트래픽 영역이라
+  // 로그인 상태로 방문해도 인앱 chrome(토스터·공지배너·Dock)을 안 띄운다.
+  // 판정은 utils/publicSurface 단일 원천 — 새 공개 페이지는 거기만 갱신.
+  const isPublicSurface = isPublicSurfacePath(_loc.pathname);
+  const hideAppChrome = isPopout || isPublicSurface;
+  // 공개 표면의 Q helper 는 tabStore(useChromeNav) 가 아니라 RR navigate 로 이동해야 한다.
+  // TabMirror 가 언마운트라 navigateDelegate 가 null → chrome nav 는 silent no-op (Fable 검증).
+  const rrNavigate = useNavigate();
   return (
     <>
       <Suspense fallback={<PageLoadingFallback />}>
@@ -172,9 +192,10 @@ function ShellApp() {
         <Route path="/verify-email/:token" element={<VerifyEmailPage />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
-        {/* Q위키 (Q Wiki) — 게스트 허용 공개 라우트 (public article) + 로그인 시 전체 */}
-        <Route path="/wiki" element={<WikiPage />} />
-        <Route path="/wiki/a/:slug" element={<WikiArticlePage />} />
+        {/* Q위키 (Q Wiki) — 게스트 허용 공개 라우트 (public article) + 로그인 시 전체.
+            WikiShell 로 GNB/푸터를 붙여 막다른 길 해소 (랜딩·로그인·가입·내 워크스페이스 진입로). */}
+        <Route path="/wiki" element={<WikiShell><WikiPage /></WikiShell>} />
+        <Route path="/wiki/a/:slug" element={<WikiShell><WikiArticlePage /></WikiShell>} />
 
         {/* Authenticated routes with MainLayout */}
         <Route path="/dashboard" element={
@@ -542,7 +563,13 @@ function ShellApp() {
       <Suspense fallback={null}>
         {/* ⑥ 멀티탭 미러 어댑터 (M0) — location↔TabStore 동기. 렌더 없음(null). chrome 전환의 기반 */}
         {!hideAppChrome && <TabMirror />}
-        {!hideAppChrome && <CueHelpDrawer />}
+        {/*
+          Q helper 만 hideAppChrome 의 예외 — 공개 표면에서도 마운트한다.
+          마케팅 경로에서 통째로 언마운트돼 게스트 퀵메뉴가 소멸했던 회귀(#71 부작용) 복구.
+          publicSurface 일 때는 게스트 프레젠테이션(Q위키+문의 2탭) + RR navigate 주입.
+          나머지 chrome(TabMirror·MemoFab·RightDock·Toaster·AnnouncementBanner)은 숨김 유지.
+        */}
+        {!isPopout && <CueHelpDrawer publicSurface={isPublicSurface} routerNavigate={rrNavigate} />}
         {!hideAppChrome && <MemoFab />}
         {!hideAppChrome && <RightDock />}
         {!hideAppChrome && <NotificationToaster />}
