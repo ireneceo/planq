@@ -72,7 +72,8 @@
     "editHint": "Click to edit",
     "copy": "Copy",
     "copied": "Copied",
-    "copyHint": "Click to copy"
+    "copyHint": "Click to copy",
+    "saveFailed": "Save failed — please try again"
   },
   "status": {
     "pending": "Pending",
@@ -100,7 +101,9 @@
     "deleteConfirm": "Delete this entry? Index will also be removed.",
     "reindex": "Reindex",
     "close": "Close",
-    "catSaveErr": "Failed to save category"
+    "catSaveErr": "Failed to save category",
+    "removeColumn": "Remove item",
+    "newColumn": "New item"
   },
   "row": {
     "delete": "Delete"

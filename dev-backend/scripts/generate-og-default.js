@@ -23,23 +23,11 @@ const HTML = `<!doctype html><html><head><meta charset="utf-8"><style>
     background: linear-gradient(135deg, #F0FDFA 0%, #FFFFFF 60%, #FEF3F4 100%);
     font-family: -apple-system, 'Pretendard', 'Apple SD Gothic Neo', system-ui, sans-serif;
   }
-  .logo { width: 720px; max-width: 80%; height: auto; }
+  /* #191 — 로고(슬로건 포함 SVG)만 중앙에. "수익성 엔진" 태그·하단 도메인 제거. */
+  .logo { width: 820px; max-width: 84%; height: auto; }
   .logo svg { width: 100%; height: auto; display: block; }
-  .tag {
-    margin-top: 40px;
-    font-size: 32px; font-weight: 500;
-    color: #475569; letter-spacing: -0.5px;
-    text-align: center; line-height: 1.4;
-  }
-  .domain {
-    position: absolute; bottom: 40px; right: 48px;
-    font-size: 22px; font-weight: 700; color: #14B8A6;
-    letter-spacing: 0.5px;
-  }
 </style></head><body>
   <div class="logo">${slogan}</div>
-  <div class="tag">일이 일이 되지 않게 — 수익성 엔진</div>
-  <div class="domain">planq.kr</div>
 </body></html>`;
 
 (async () => {

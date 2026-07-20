@@ -15,7 +15,13 @@
 const path = require('path');
 const fs = require('fs');
 
-const SHARE_BOT_UA = /facebookexternalhit|Facebot|Twitterbot|LinkedInBot|Slackbot|SkypeUriPreview|TelegramBot|WhatsApp|KakaoTalk|Kakaotalk-scrap|Pinterest|Discordbot|Applebot|Embedly|Slack-ImgProxy|Mastodon|redditbot/i;
+// ★ 링크 미리보기 크롤러 UA만. 카카오톡은 크롤러가 'Kakaotalk-scrap' 이고, 인앱 브라우저는
+//   '...KAKAOTALK 10.x' 로 온다. bare 'KakaoTalk' 를 넣으면 인앱 브라우저(=실사용자)까지 봇으로
+//   잡혀 모든 API 가 OG HTML 을 받아 랜딩이 크래시했다(#189). 크롤러만 매칭한다.
+const SHARE_BOT_UA = /facebookexternalhit|Facebot|Twitterbot|LinkedInBot|Slackbot|SkypeUriPreview|TelegramBot|WhatsApp|Kakaotalk-scrap|Pinterest|Discordbot|Applebot|Embedly|Slack-ImgProxy|Mastodon|redditbot/i;
+
+// OG 메타는 HTML 문서 경로에만 의미가 있다. API·소켓·정적 자원은 봇이어도 스킵(HTML 주면 JS 가 깨진다).
+const OG_SKIP_PREFIX = /^\/(api|socket\.io|qnote|assets|locales)\b/;
 
 let cache = { settings: null, at: 0 };
 const TTL = 5 * 60 * 1000;
@@ -191,6 +197,8 @@ async function ogMetaMiddleware(req, res, next) {
   const url = req.originalUrl || req.url;
   // path 추출 (query string 제외)
   const pathOnly = url.split('?')[0];
+  // ★ API·소켓·정적 자원은 OG HTML 대상 아님 (#189 — 크롤러 판정돼도 여기엔 HTML 주면 안 됨).
+  if (OG_SKIP_PREFIX.test(pathOnly)) return next();
   const settings = await loadSettings();
 
   // 1) /public/posts/:token

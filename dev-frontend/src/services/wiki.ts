@@ -44,6 +44,14 @@ export interface WikiArticleDetail extends WikiArticleSummary {
 
 async function getJson<T>(url: string): Promise<T> {
   const r = await apiFetch(url);
+  // ★ 비-JSON 200 방어(#189) — 카카오톡 인앱브라우저 등에서 API 가 OG HTML(text/html)을 받으면
+  //   json() 이 {} 로 파싱돼 j.data=undefined 가 조용히 흘러 호출부(.length)가 크래시했다.
+  const ct = r.headers.get('content-type') || '';
+  if (!ct.includes('application/json')) {
+    const err = new Error(`non-json response (${r.status})`);
+    (err as Error & { status?: number }).status = r.status;
+    throw err;
+  }
   const j = await r.json().catch(() => ({}));
   if (!r.ok || j?.success === false) {
     const err = new Error(j?.message || `request failed (${r.status})`);
