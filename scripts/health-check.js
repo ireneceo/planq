@@ -620,7 +620,13 @@ function defineAccountDeletionTests() {
       // anonymized user 의 business_members 에 이름/bio 잔존
       + `const [b]=await s.query(\\\"SELECT bm.id FROM business_members bm JOIN users u ON u.id=bm.user_id `
       + `WHERE u.anonymized_at IS NOT NULL AND (bm.name IS NOT NULL OR bm.bio IS NOT NULL)\\\");`
-      + `console.log('@@'+JSON.stringify({userPii:a.map(x=>x.id),memberPii:b.map(x=>x.id)}));`
+      // anonymized user 의 email_accounts 잔존 (🔴1 — owner_user_id 유령컬럼으로 안 지워지던 것)
+      + `const [c]=await s.query(\\\"SELECT ea.id FROM email_accounts ea JOIN users u ON u.id=ea.owner_user_id `
+      + `WHERE u.anonymized_at IS NOT NULL\\\");`
+      // anonymized user 의 clients display_name 잔존
+      + `const [d]=await s.query(\\\"SELECT cl.id FROM clients cl JOIN users u ON u.id=cl.user_id `
+      + `WHERE u.anonymized_at IS NOT NULL AND cl.display_name<>'탈퇴한 고객'\\\");`
+      + `console.log('@@'+JSON.stringify({userPii:a.map(x=>x.id),memberPii:b.map(x=>x.id),emailPii:c.map(x=>x.id),clientPii:d.map(x=>x.id)}));`
       + `await s.close();})();"`,
       { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 20000 });
     const line = out.split('\n').find((l) => l.startsWith('@@'));
@@ -629,6 +635,8 @@ function defineAccountDeletionTests() {
     const problems = [];
     if (r.userPii.length) problems.push(`익명화됐는데 users PII 잔존: ${r.userPii.join(',')}`);
     if (r.memberPii.length) problems.push(`익명화됐는데 business_members PII 잔존: ${r.memberPii.join(',')}`);
+    if (r.emailPii.length) problems.push(`익명화됐는데 email_accounts 잔존: ${r.emailPii.join(',')}`);
+    if (r.clientPii.length) problems.push(`익명화됐는데 clients PII 잔존: ${r.clientPii.join(',')}`);
     if (problems.length) throw new Error(problems.join(' / '));
     return true;
   });

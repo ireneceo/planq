@@ -27,6 +27,7 @@ async function anonymizeUser(user) {
       language_levels: null, answer_style_default: null, answer_length_default: null,
       timezone: null, reference_timezones: null,
       refresh_token: null, reset_token: null, email_verify_token: null,
+      password_reset_token: null, email_change_otp_hash: null, secondary_email_otp_hash: null,
       anonymized_at: new Date(),
     }, { transaction: t });
 
@@ -45,18 +46,24 @@ async function anonymizeUser(user) {
       // conversations.title 에 client.display_name 이 박제됨(clientOnboarding) — 마스킹
       await Conversation.update(
         { title: '탈퇴한 고객' },
-        { where: { client_id: { [Op.in]: clientIds } }, transaction: t }).catch(() => {});
+        { where: { client_id: { [Op.in]: clientIds } }, transaction: t });
     }
 
-    // 4) 개인 자산 L1 삭제 (D4)
-    await File.update({ deleted_at: new Date() }, { where: { uploader_id: uid, visibility: 'L1', deleted_at: null }, transaction: t }).catch(() => {});
-    await Post.destroy({ where: { author_id: uid, vlevel: 'L1' }, transaction: t }).catch(() => {});
-    await KbDocument.destroy({ where: { uploaded_by: uid, scope: 'private' }, transaction: t }).catch(() => {});
+    // 4) 개인 자산 L1 삭제 (D4). ★ catch 제거 — 실패하면 rollback 되어 anonymized_at 미기록 → 재시도(🟠4).
+    //   침묵 catch 가 Unknown column 을 삼켜 "성공했는데 PII 잔존"이 나던 것(🔴1 실사례).
+    await File.update({ deleted_at: new Date() }, { where: { uploader_id: uid, visibility: 'L1', deleted_at: null }, transaction: t });
+    await Post.destroy({ where: { author_id: uid, vlevel: 'L1' }, transaction: t });
+    await KbDocument.destroy({ where: { uploaded_by: uid, scope: 'private' }, transaction: t });
 
-    // 5) 토큰/연동 purge (유예 진입 시 일부 지웠으나 멱등 재확인)
-    for (const M of [RefreshToken, ApiToken, PushSubscription, OauthConnection, ExternalConnection, EmailAccount, NotificationPref]) {
-      await M.destroy({ where: { user_id: uid }, transaction: t }).catch(() => {});
-    }
+    // 5) 토큰/연동 purge — ★ 각 모델의 실제 user FK 컬럼명(EmailAccount 만 owner_user_id).
+    //   컬럼명이 맞으면 destroy 는 매칭 0건이어도 에러 없음. catch 없이 진짜 에러는 rollback.
+    await RefreshToken.destroy({ where: { user_id: uid }, transaction: t });
+    await ApiToken.destroy({ where: { user_id: uid }, transaction: t });
+    await PushSubscription.destroy({ where: { user_id: uid }, transaction: t });
+    await OauthConnection.destroy({ where: { user_id: uid }, transaction: t });
+    await ExternalConnection.destroy({ where: { user_id: uid }, transaction: t });
+    await EmailAccount.destroy({ where: { owner_user_id: uid }, transaction: t });
+    await NotificationPref.destroy({ where: { user_id: uid }, transaction: t });
 
     await t.commit();
     return true;
@@ -67,17 +74,22 @@ async function anonymizeUser(user) {
   }
 }
 
-// Q Note purge — cross-DB(FastAPI). best-effort, 익명화 트랜잭션 밖.
+// Q Note purge — cross-DB(FastAPI). 익명화 트랜잭션 밖(멱등, 실패 시 다음 cron 재시도).
+//   URL·헤더는 exportJobWorker 와 동일 규약(QNOTE_INTERNAL_URL + /api/sessions/internal + x-internal-api-key).
+//   실패해도 users.anonymized_at 은 이미 커밋됨 — 하지만 음성 지문 잔존은 심각하므로 실패를 반환해 재시도 유도.
 async function purgeQNote(uid) {
+  const base = process.env.QNOTE_INTERNAL_URL || 'http://localhost:8000';
+  const key = process.env.INTERNAL_API_KEY;
   try {
-    const base = process.env.QNOTE_INTERNAL_URL || 'http://localhost:8000';
-    const secret = process.env.INTERNAL_SHARED_SECRET || process.env.QNOTE_INTERNAL_SECRET;
-    await fetch(`${base}/api/internal/qnote/purge-user`, {
+    const res = await fetch(`${base}/api/sessions/internal/purge-user`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Internal-Secret': secret || '' },
+      headers: { 'Content-Type': 'application/json', 'x-internal-api-key': key || '' },
       body: JSON.stringify({ user_id: uid }),
+      signal: AbortSignal.timeout(20000),
     });
-  } catch (e) { console.warn('[anonymize] qnote purge', uid, e.message); }
+    if (!res.ok) { console.warn('[anonymize] qnote purge', uid, 'status', res.status); return false; }
+    return true;
+  } catch (e) { console.warn('[anonymize] qnote purge', uid, e.message); return false; }
 }
 
 async function runAccountAnonymizeCron() {
@@ -93,9 +105,12 @@ async function runAccountAnonymizeCron() {
   let ok = 0, fail = 0;
   for (const u of due) {
     const uid = u.id;
+    // Q Note purge(음성 지문 등)를 먼저 — 실패하면 익명화를 보류해 다음 cron 재시도(anonymized_at 미기록).
+    //   전부 성공 or 전무. 생체정보가 남은 채 "익명화 완료"로 표시되지 않게 (Fable 🔴2).
+    const qnoteOk = await purgeQNote(uid);
+    if (!qnoteOk) { fail++; continue; }
     const done = await anonymizeUser(u);
-    if (done) { ok++; await purgeQNote(uid); }
-    else fail++;
+    if (done) ok++; else fail++;
   }
   return { due: due.length, ok, fail };
 }

@@ -10,7 +10,7 @@ from typing import Optional, List
 from urllib.parse import urlparse
 
 import aiosqlite
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form, Header
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form, Header, Body
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -78,6 +78,50 @@ async def internal_export_sessions(
         'created_at': r['created_at'],
       })
   return success(out)
+
+
+# ─── 계정 삭제(회원 탈퇴) 시 Q Note 개인 데이터 전량 삭제 (ACCOUNT_DELETION_DESIGN D6) ───
+#   Node accountAnonymize.js 가 익명화 후 호출. 음성 지문(생체정보)·세션·전사·요약·문서 삭제.
+#   SQLite CASCADE 를 신뢰하지 않고 FK 순서대로 명시 삭제.
+@router.post('/internal/purge-user')
+async def internal_purge_user(
+    payload: dict = Body(...),
+    x_internal_api_key: Optional[str] = Header(None),
+):
+  expected = os.environ.get('INTERNAL_API_KEY')
+  if not expected or x_internal_api_key != expected:
+    raise HTTPException(status_code=401, detail='invalid internal key')
+  user_id = payload.get('user_id')
+  if not user_id:
+    raise HTTPException(status_code=400, detail='user_id required')
+  async with db_connect() as db:
+    # 세션 id 목록
+    cur = await db.execute("SELECT id FROM sessions WHERE user_id = ?", (int(user_id),))
+    sids = [r[0] for r in await cur.fetchall()]
+    for sid in sids:
+      # speaker_embeddings 는 speaker_id 기반(session_id 없음) → speakers 를 먼저 조회해 삭제
+      scur = await db.execute("SELECT id FROM speakers WHERE session_id = ?", (sid,))
+      spids = [r[0] for r in await scur.fetchall()]
+      for spid in spids:
+        await db.execute("DELETE FROM speaker_embeddings WHERE speaker_id = ?", (spid,))
+      await db.execute("DELETE FROM speakers WHERE session_id = ?", (sid,))
+      # 전사·요약·질문
+      await db.execute("DELETE FROM utterances WHERE session_id = ?", (sid,))
+      await db.execute("DELETE FROM summaries WHERE session_id = ?", (sid,))
+      await db.execute("DELETE FROM qa_pairs WHERE session_id = ?", (sid,))
+      await db.execute("DELETE FROM detected_questions WHERE session_id = ?", (sid,))
+    # 문서(user_id 기반) → document_chunks
+    dcur = await db.execute("SELECT id FROM documents WHERE user_id = ?", (int(user_id),))
+    docids = [r[0] for r in await dcur.fetchall()]
+    for did in docids:
+      await db.execute("DELETE FROM document_chunks WHERE document_id = ?", (did,))
+    await db.execute("DELETE FROM documents WHERE user_id = ?", (int(user_id),))
+    # 세션 본체
+    await db.execute("DELETE FROM sessions WHERE user_id = ?", (int(user_id),))
+    # 음성 지문(user_id 직접)
+    await db.execute("DELETE FROM voice_fingerprints WHERE user_id = ?", (int(user_id),))
+    await db.commit()
+  return success({'purged': True, 'sessions': len(sids), 'documents': len(docids)})
 
 
 UPLOADS_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'uploads')

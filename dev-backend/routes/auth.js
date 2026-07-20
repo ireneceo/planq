@@ -904,9 +904,20 @@ router.post('/deletion-recover', async (req, res, next) => {
         { removed_at: null, removed_by: null, removed_reason: null },
         { where: { user_id: user.id, removed_reason: 'account_deletion', removed_at: requestedAt ? { [require('sequelize').Op.gte]: requestedAt } : { [require('sequelize').Op.ne]: null } }, transaction: t });
       // 동반 삭제됐던 솔로 워크스페이스 복원 (내가 owner + deleted_at >= 요청시각)
+      //   + 그 워크스페이스의 Cue 계정도 active 복원 (request 가 deleted 마크했으므로 — 🟠1).
       if (requestedAt) {
+        const restoredWs = await Business.findAll({
+          where: { owner_id: user.id, deleted_at: { [require('sequelize').Op.gte]: requestedAt } },
+          attributes: ['cue_user_id'], transaction: t,
+        });
         await Business.update({ deleted_at: null },
           { where: { owner_id: user.id, deleted_at: { [require('sequelize').Op.gte]: requestedAt } }, transaction: t });
+        const cueIds = restoredWs.map((b) => b.cue_user_id).filter(Boolean);
+        if (cueIds.length) {
+          const { User: UserModel } = require('../models');
+          await UserModel.update({ status: 'active' },
+            { where: { id: { [require('sequelize').Op.in]: cueIds }, is_ai: true }, transaction: t });
+        }
       }
       await t.commit();
     } catch (e) { await t.rollback().catch(() => {}); throw e; }
