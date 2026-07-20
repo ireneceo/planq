@@ -629,6 +629,7 @@ async function buildProfitTab(businessId, period, segment = 'client') {
     return {
       period: { from: period.from, to: period.to, label: period.label },
       segment,
+      home_currency: home,
       kpis: {
         internal_projects: { value: internalRows.length, prev: null, delta_pct: null },
         internal_hours: { value: internalInvestment.total_hours, prev: null, delta_pct: null },
