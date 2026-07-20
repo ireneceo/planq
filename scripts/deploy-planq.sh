@@ -227,7 +227,16 @@ sync_database() {
   # 올라가면 push_subscriptions 조회가 Unknown column 으로 죽어 기존 웹푸시까지 전멸한다.
   log "Running idempotent migrations..."
   prod_run "cd $PROD_BE && NODE_ENV=production node scripts/migrate-push-native.js 2>&1 | tail -10"
-  success "마이그레이션 완료 (push native / client_kind)"
+  # Q Bill 결제 원장 — invoice_payments.installment_id (매출 통계 원천). 코드보다 먼저.
+  prod_run "cd $PROD_BE && NODE_ENV=production node scripts/migrate-invoice-payment-installment.js 2>&1 | tail -10"
+  # 계정 삭제(회원 탈퇴) 스키마 — users/businesses/business_members 컬럼.
+  prod_run "cd $PROD_BE && NODE_ENV=production node scripts/migrate-account-deletion.js 2>&1 | tail -10"
+  success "마이그레이션 완료 (push native / invoice-payment / account-deletion)"
+
+  # 백필 — 마이그레이션 후. 과거 paid invoice/회차에 payment 원장 생성(멱등). 매출 0 복구.
+  log "Backfilling invoice payments..."
+  prod_run "cd $PROD_BE && NODE_ENV=production node scripts/backfill-invoice-payments.js 2>&1 | tail -6"
+  success "백필 완료 (invoice payments)"
 }
 
 # ──────────────────────────────────────────
