@@ -4,6 +4,7 @@ import { useTranslation, Trans } from 'react-i18next';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import type { LanguageLevels, LanguageSkillLevel, User } from '../../contexts/AuthContext';
 import { WavRecorder } from '../../services/audio/recordToWav';
+import AccountDeletionSection from './AccountDeletionSection';
 import {
   getVoiceFingerprints,
   registerVoiceFingerprint,
@@ -1041,6 +1042,9 @@ export default function ProfilePage() {
 
         {/* N+32 — UserTimezoneSection + FocusSettingsCard 는 /me/work-settings 페이지로 이동.
             ProfilePage 는 개인 정보 (이름/언어/약력 등) 중심. 업무 도구 설정은 별도 메뉴. */}
+
+        {/* 계정 삭제(회원 탈퇴) — 개인 설정 최하단 Danger Zone */}
+        <AccountDeletionSection />
 
       </Container>
 

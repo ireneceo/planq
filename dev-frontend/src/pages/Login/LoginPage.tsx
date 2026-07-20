@@ -120,6 +120,19 @@ const FormSubtitle = styled.p`
   margin: 0 0 32px 0;
 `;
 
+const RecoverBanner = styled.div`
+  display: flex; flex-direction: column; gap: 10px;
+  background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px;
+  padding: 14px 16px; margin: 0 0 20px;
+`;
+const RecoverText = styled.p`font-size: 13px; color: #92400e; margin: 0; line-height: 1.5;`;
+const RecoverBtn = styled.button`
+  align-self: flex-start; height: 38px; padding: 0 16px; border-radius: 8px;
+  border: none; background: #d97706; color: #fff; font-size: 13px; font-weight: 700; cursor: pointer;
+  &:hover:not(:disabled) { background: #b45309; }
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
+`;
+
 const Form = styled.form`
   display: flex;
   flex-direction: column;
@@ -387,6 +400,9 @@ const LoginPage: React.FC = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  // 탈퇴 유예 중 복구 (account_deleted_pending)
+  const [recoverPending, setRecoverPending] = useState(false);
+  const [recovering, setRecovering] = useState(false);
 
   // dev 환경에서만 퀵로그인 패널 노출. 프로덕션(planq.kr)에서는 숨김.
   const isDev = typeof window !== 'undefined' && (
@@ -460,6 +476,19 @@ const LoginPage: React.FC = () => {
     try {
       const success = await login(email, password, remember);
       if (!success) {
+        // 탈퇴 유예 중인지 확인 — 맞으면 복구 안내 (login 은 boolean 만 반환하므로 직접 조회)
+        try {
+          const res = await fetch('/api/auth/login', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password }),
+          });
+          const body = await res.json().catch(() => ({}));
+          if (res.status === 403 && body?.code === 'account_deleted_pending') {
+            setRecoverPending(true);
+            setError('');
+            return;
+          }
+        } catch { /* noop */ }
         setError(t('login.errorInvalid'));
       }
     } catch (err: unknown) {
@@ -467,6 +496,23 @@ const LoginPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleRecover = async () => {
+    setRecovering(true);
+    setError('');
+    try {
+      const res = await fetch('/api/auth/deletion-recover', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      if (!res.ok) { setError(t('login.recoverFailed', '복구하지 못했습니다. 이메일·비밀번호를 확인하세요.')); return; }
+      // 복구 성공 → 정상 로그인
+      const success = await login(email, password, remember);
+      if (!success) setError(t('login.errorInvalid'));
+    } catch {
+      setError(t('login.recoverFailed', '복구하지 못했습니다. 이메일·비밀번호를 확인하세요.'));
+    } finally { setRecovering(false); }
   };
 
   return (
@@ -482,6 +528,15 @@ const LoginPage: React.FC = () => {
         <RightSection>
           <FormTitle>{t('login.title')}</FormTitle>
           <FormSubtitle>{t('login.subtitle')}</FormSubtitle>
+
+          {recoverPending && (
+            <RecoverBanner>
+              <RecoverText>{t('login.recoverPending', '이 계정은 탈퇴 유예 중입니다. 지금 복구하면 계속 사용할 수 있습니다.')}</RecoverText>
+              <RecoverBtn type="button" onClick={handleRecover} disabled={recovering}>
+                {recovering ? t('login.recovering', '복구 중…') : t('login.recoverNow', '계정 복구하기')}
+              </RecoverBtn>
+            </RecoverBanner>
+          )}
 
           <Form onSubmit={handleSubmit}>
             <InputGroup>

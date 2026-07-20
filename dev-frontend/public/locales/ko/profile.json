@@ -234,5 +234,28 @@
     "mailAccount": "메일 계정",
     "mail": "메일",
     "drive": "파일"
+  },
+  "accountDeletion": {
+    "title": "계정 삭제",
+    "desc": "계정을 삭제하면 {{days}}일 후 개인 정보가 영구히 익명화됩니다. 유예 기간 안에는 다시 로그인해 복구할 수 있습니다.",
+    "exportHint": "삭제 전에 내 데이터를 먼저 내려받는 것을 권장합니다.",
+    "exportLink": "데이터 내보내기 →",
+    "blockTransferTitle": "먼저 워크스페이스를 정리해야 합니다",
+    "blockTransferBody": "아래 워크스페이스의 소유자입니다. 다른 멤버에게 소유권을 넘기거나 워크스페이스를 정리한 뒤 탈퇴할 수 있습니다.",
+    "blockAdminTitle": "유일한 플랫폼 관리자입니다",
+    "blockAdminBody": "다른 관리자를 지정한 뒤 탈퇴할 수 있습니다.",
+    "blockedTooltip": "탈퇴하려면 먼저 위 항목을 정리하세요.",
+    "soloWarn": "다음 워크스페이스는 데이터가 없어 계정과 함께 삭제됩니다:",
+    "deleteButton": "계정 삭제",
+    "confirmTitle": "정말 계정을 삭제할까요?",
+    "confirmWarn": "이 작업은 {{days}}일 후 되돌릴 수 없습니다. 개인 정보·개인 보관함·회의록이 영구 삭제됩니다. 워크스페이스의 메시지·업무 기록은 '탈퇴한 사용자'로 남습니다.",
+    "typeEmail": "확인을 위해 이메일 주소({{email}})를 입력하세요",
+    "password": "비밀번호",
+    "cancel": "취소",
+    "confirmDelete": "영구 삭제 요청",
+    "errWrongPassword": "비밀번호가 올바르지 않습니다.",
+    "errBlocked": "먼저 워크스페이스 소유권을 정리해야 합니다.",
+    "errOauth": "소셜 로그인 계정은 이메일 인증(OTP)이 필요합니다. 고객지원으로 문의해 주세요.",
+    "errGeneric": "요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요."
   }
 }
