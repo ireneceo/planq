@@ -133,7 +133,14 @@
     "scopeFutureHint": "이 회차부터 미래 회차까지 변경. 과거 회차는 그대로",
     "scopeAll": "모든 일정",
     "scopeAllHint": "과거·미래 모든 회차 변경",
-    "deleteScopeTitle": "어느 회차를 삭제할까요?"
+    "deleteScopeTitle": "어느 회차를 삭제할까요?",
+    "gcalSync": "Google Calendar",
+    "gcalSyncedOn": "구글 캘린더에 동기화됨",
+    "gcalPush": "구글 캘린더로 보내기",
+    "gcalPushing": "보내는 중…",
+    "gcalNotConnected": "워크스페이스 Google Calendar 연동이 필요합니다. 설정 > 파일·외부 연동에서 연결하세요.",
+    "gcalPushFailed": "구글 캘린더로 보내지 못했습니다.",
+    "gcalNeedConnect": "워크스페이스 Google Calendar를 연동하면 이후 일정이 자동으로 구글에 올라갑니다. (설정 > 파일·외부 연동)"
   },
   "empty": {
     "month": "이번 달엔 예정된 일정이 없습니다",

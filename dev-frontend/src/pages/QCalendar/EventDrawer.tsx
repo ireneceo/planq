@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import type { CalendarEvent, EventCategory } from './types';
 import VisibilityField, { serializeVisibility, parseVisibility, type VisibilityValue } from '../../components/Common/VisibilityField';
 import { CATEGORY_OPTIONS, getEventColors } from './categoryColors';
@@ -125,6 +125,28 @@ const EventDrawer: React.FC<Props> = ({
     if (!onCreateMeetingRoom) return;
     setReissuingMeeting(true);
     try { await onCreateMeetingRoom(); } finally { setReissuingMeeting(false); }
+  };
+
+  // #126 — "구글 캘린더로 보내기" (backfill). push 기능 이전에 만든 일정(gcal_event_id NULL)을 명시적 push.
+  const [pushingGcal, setPushingGcal] = useState(false);
+  const [gcalPushErr, setGcalPushErr] = useState<string | null>(null);
+  const handlePushToGcal = async () => {
+    if (!event || !user?.business_id) return;
+    setPushingGcal(true); setGcalPushErr(null);
+    try {
+      const res = await apiFetch(`/api/calendar/by-business/${user.business_id}/${event.id}/push-to-gcal`, { method: 'POST' });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setGcalPushErr(j?.code === 'gcal_not_connected'
+          ? t('drawer.gcalNotConnected', '워크스페이스 Google Calendar 연동이 필요합니다. 설정 > 파일·외부 연동에서 연결하세요.')
+          : t('drawer.gcalPushFailed', '구글 캘린더로 보내지 못했습니다.'));
+        return;
+      }
+      // 성공 — gcal_event_id 반영 (부모 갱신)
+      if (j?.data?.gcal_event_id) await onUpdate({ gcal_event_id: j.data.gcal_event_id } as Partial<CalendarEvent>);
+    } catch {
+      setGcalPushErr(t('drawer.gcalPushFailed', '구글 캘린더로 보내지 못했습니다.'));
+    } finally { setPushingGcal(false); }
   };
 
   if (!event) return null;
@@ -605,6 +627,32 @@ const EventDrawer: React.FC<Props> = ({
           </Section>
         )}
 
+        {/* #126 — Google Calendar sync status + backfill(send old events to Google) */}
+        {canEdit && (
+          <Section>
+            <SectionIcon>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+            </SectionIcon>
+            <SectionBody>
+              <MutedSmall>{t('drawer.gcalSync', 'Google Calendar')}</MutedSmall>
+              {event.gcal_event_id ? (
+                <GcalSynced>✓ {t('drawer.gcalSyncedOn', '구글 캘린더에 동기화됨')}</GcalSynced>
+              ) : gcalConnected ? (
+                <>
+                  <GcalPushBtn type="button" onClick={handlePushToGcal} disabled={pushingGcal}>
+                    {pushingGcal ? t('drawer.gcalPushing', '보내는 중…') : t('drawer.gcalPush', '구글 캘린더로 보내기')}
+                  </GcalPushBtn>
+                  {gcalPushErr && <GcalErr>{gcalPushErr}</GcalErr>}
+                </>
+              ) : (
+                <MeetingHint>{t('drawer.gcalNeedConnect', '워크스페이스 Google Calendar를 연동하면 이후 일정이 자동으로 구글에 올라갑니다. (설정 > 파일·외부 연동)')}</MeetingHint>
+              )}
+            </SectionBody>
+          </Section>
+        )}
+
         {/* 설명 */}
         <Section>
           <SectionIcon>
@@ -1022,6 +1070,20 @@ const ReissueBtn = styled.button`
   background: #FFFBEB; color: #92400E; border: 1px solid #FDE68A; cursor: pointer;
   &:hover:not(:disabled) { background: #FEF3C7; }
   &:disabled { opacity: 0.6; cursor: not-allowed; }
+`;
+// #126 — Google Calendar 동기화 UI
+const GcalSynced = styled.div`
+  font-size: 12.5px; font-weight: 600; color: #0F766E;
+`;
+const GcalPushBtn = styled.button`
+  display: inline-flex; align-items: center; align-self: flex-start;
+  padding: 8px 14px; border-radius: 8px; font-size: 12.5px; font-weight: 600;
+  background: #F0FDFA; color: #0F766E; border: 1px solid #99F6E4; cursor: pointer;
+  &:hover:not(:disabled) { background: #14B8A6; color: #fff; }
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
+`;
+const GcalErr = styled.div`
+  font-size: 12px; color: #DC2626; margin-top: 6px; line-height: 1.5;
 `;
 const CopyBtn = styled.button`
   display: inline-flex; align-items: center; padding: 7px 12px; border-radius: 6px;
