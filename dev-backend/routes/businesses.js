@@ -1214,6 +1214,59 @@ router.delete('/:id/members/:memberId', authenticateToken, async (req, res, next
   } catch (err) { await t.rollback().catch(() => {}); next(err); }
 });
 
+// 워크스페이스 소유권 이전 — owner → 다른 활성 member. (계정 삭제 선행 기능. ACCOUNT_DELETION_DESIGN)
+//   owner 판정은 두 곳: businesses.owner_id (auth.js:149 가 이걸로 role override) + business_members.role.
+//   둘을 한 트랜잭션에서 원자적으로 스왑해야 정합이 깨지지 않는다. FOR UPDATE 로 동시 강등 race 방어.
+router.post('/:id/transfer-ownership', authenticateToken, async (req, res, next) => {
+  const { sequelize } = require('../config/database');
+  const { Op } = require('sequelize');
+  const t = await sequelize.transaction();
+  try {
+    const businessId = Number(req.params.id);
+    const isPlatformAdmin = req.user.platform_role === 'platform_admin';
+    const toUserId = Number(req.body?.to_user_id);
+    if (!toUserId) { await t.rollback(); return errorResponse(res, 'to_user_id_required', 400); }
+
+    const business = await Business.findByPk(businessId, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!business) { await t.rollback(); return errorResponse(res, 'business_not_found', 404); }
+
+    // 요청자가 현 owner 인가 (owner_id 기준 — 진실 원천)
+    if (!isPlatformAdmin && business.owner_id !== req.user.id) {
+      await t.rollback(); return errorResponse(res, 'owner_only', 403);
+    }
+    if (toUserId === business.owner_id) { await t.rollback(); return errorResponse(res, 'already_owner', 400); }
+
+    // 대상이 같은 워크스페이스의 활성 human 멤버인가
+    const target = await BusinessMember.findOne({
+      where: { business_id: businessId, user_id: toUserId, removed_at: null },
+      transaction: t, lock: t.LOCK.UPDATE,
+    });
+    if (!target) { await t.rollback(); return errorResponse(res, 'target_not_active_member', 404); }
+    if (target.role === 'ai') { await t.rollback(); return errorResponse(res, 'cannot_transfer_to_ai', 400); }
+
+    // 현 owner 의 membership (강등 대상). owner_id 는 있는데 membership 이 없을 수도 있어 방어.
+    const currentOwnerMember = await BusinessMember.findOne({
+      where: { business_id: businessId, user_id: business.owner_id, removed_at: null },
+      transaction: t, lock: t.LOCK.UPDATE,
+    });
+
+    const prevOwnerId = business.owner_id;
+    // 스왑 — owner_id + 양쪽 role
+    await business.update({ owner_id: toUserId }, { transaction: t });
+    await target.update({ role: 'owner' }, { transaction: t });
+    if (currentOwnerMember) await currentOwnerMember.update({ role: 'admin' }, { transaction: t });
+
+    await t.commit();
+    require('../services/auditService').logAudit(req, {
+      action: 'business.transfer_ownership', targetType: 'business', targetId: businessId,
+      oldValue: { owner_id: prevOwnerId }, newValue: { owner_id: toUserId },
+    });
+    const io = req.app.get('io');
+    if (io) io.to(`business:${businessId}`).emit('business:updated', { id: businessId, owner_id: toUserId });
+    return successResponse(res, { business_id: businessId, owner_id: toUserId, prev_owner_id: prevOwnerId });
+  } catch (err) { await t.rollback().catch(() => {}); next(err); }
+});
+
 // ─────────────────────────────────────────────
 // 권한 정책 (PERMISSION_MATRIX §4) — financial/schedule/client_info 3축.
 // 조회: member+ (투명성 원칙). 편집: owner/platform_admin.
