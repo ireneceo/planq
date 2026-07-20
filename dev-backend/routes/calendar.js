@@ -1077,4 +1077,36 @@ router.get('/public/by-token/:token/auth-check', authenticateToken, async (req, 
   } catch (err) { next(err); }
 });
 
+// #126 — "구글 캘린더로 보내기" (backfill). PlanQ→Google push 기능(2026-07-16) 이전에 만든 일정은
+//   gcal_event_id 가 NULL 이라 자동 동기화 대상이 아니었다(수정해도 push 안 됨). 명시적으로 push.
+//   ★ push 는 워크스페이스 gcal 연동(business_cloud_tokens, calendar.events 쓰기 scope)이 있어야 한다.
+//     개인설정 캘린더 연동은 읽기전용(오버레이)이라 push 불가 — 미연결 시 명확히 안내(조용한 skip 금지).
+router.post('/by-business/:businessId/:id/push-to-gcal', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const event = await CalendarEvent.findOne({ where: { id: Number(req.params.id), business_id: businessId } });
+    if (!event) return errorResponse(res, 'event_not_found', 404);
+    if (event.gcal_event_id) return successResponse(res, { already_synced: true, gcal_event_id: event.gcal_event_id });
+
+    const gcalToken = await gcal.getTokenForBusiness(businessId);
+    if (!gcalToken) {
+      // 워크스페이스 gcal 미연결 — 개인설정 연동(readonly)만으론 push 불가. 프론트가 연동 안내로 분기.
+      return errorResponse(res, 'gcal_not_connected — 워크스페이스 Google Calendar 연동이 필요합니다', 400, 'gcal_not_connected');
+    }
+    const cal = await gcal.getCalendarClient(gcalToken);
+    const pushed = await gcal.insertEvent(cal, {
+      summary: event.title, description: event.description, location: event.location,
+      startAt: event.start_at, endAt: event.end_at, allDay: event.all_day, rrule: event.rrule,
+    });
+    if (!pushed?.id) return errorResponse(res, 'gcal_push_failed', 502);
+    await event.update({ gcal_event_id: pushed.id });
+
+    require('../services/auditService').logAudit(req, {
+      action: 'calendar.push_to_gcal', targetType: 'calendar_event', targetId: event.id,
+      newValue: { gcal_event_id: pushed.id },
+    });
+    return successResponse(res, { gcal_event_id: pushed.id });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

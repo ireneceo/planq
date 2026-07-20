@@ -28,6 +28,7 @@ export interface CalendarEvent {
   color: string | null;
   rrule: string | null;
   meeting_url: string | null;
+  gcal_event_id?: string | null;  // #126 — Google Calendar 동기화 시 저장. NULL = 미동기화(backfill 대상)
   meeting_provider: MeetingProvider | null;
   visibility: EventVisibility;
   // N+65 — 통합 visibility (hook 가 옛 visibility 와 자동 동기)

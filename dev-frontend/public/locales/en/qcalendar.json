@@ -133,7 +133,14 @@
     "scopeFutureHint": "Change this and all future occurrences",
     "scopeAll": "All events",
     "scopeAllHint": "Change all past and future occurrences",
-    "deleteScopeTitle": "Which occurrences to delete?"
+    "deleteScopeTitle": "Which occurrences to delete?",
+    "gcalSync": "Google Calendar",
+    "gcalSyncedOn": "Synced to Google Calendar",
+    "gcalPush": "Send to Google Calendar",
+    "gcalPushing": "Sending…",
+    "gcalNotConnected": "Connect this workspace's Google Calendar first (Settings > Files & integrations).",
+    "gcalPushFailed": "Could not send to Google Calendar.",
+    "gcalNeedConnect": "Connect this workspace's Google Calendar and new events sync to Google automatically. (Settings > Files & integrations)"
   },
   "empty": {
     "month": "No events this month",
