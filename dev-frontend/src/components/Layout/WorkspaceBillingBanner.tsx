@@ -13,6 +13,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import { fetchStatus, type PlanStatus } from '../../services/plan';
+import { canPurchaseInApp } from '../../utils/purchase';
 
 type BannerKind = 'past_due' | 'grace' | 'demoted' | null;
 
@@ -67,15 +68,24 @@ export default function WorkspaceBillingBanner() {
 
   // grace/past_due 는 미결제 청구가 있으므로 ?pay=1 로 진입 → 결제 모달(청구 내역+입금 안내) 자동 오픈.
   // demoted(이미 free 강등) 는 미결제 건 없이 재구독이라 플랜 선택 화면 그대로.
+  // App Store 3.1.1 — 네이티브 앱에선 결제 진입을 막는다. 다만 배너 자체는 남긴다:
+  // 미결제·유예·강등은 사용자가 알아야 할 계정 상태 정보이고, 정보 표시는 규정 위반이 아니다.
+  // 클릭 액션만 제거해 비대화형 안내로 렌더한다 (결제 유도 CTA 라벨도 같이 숨김).
+  const payEnabled = canPurchaseInApp();
   const handleClick = () => {
+    if (!payEnabled) return;
     const hasPending = !!status?.pending_payment;
     navigate(hasPending && kind !== 'demoted' ? '/business/settings/plan?pay=1' : '/business/settings/plan');
   };
 
   return (
     <Wrap $kind={kind}>
-      <Content onClick={handleClick} role="button" tabIndex={0}
-        onKeyDown={(e) => { if (e.key === 'Enter') handleClick(); }}>
+      <Content
+        onClick={payEnabled ? handleClick : undefined}
+        role={payEnabled ? 'button' : undefined}
+        tabIndex={payEnabled ? 0 : undefined}
+        $static={!payEnabled}
+        onKeyDown={payEnabled ? ((e) => { if (e.key === 'Enter') handleClick(); }) : undefined}>
         <Icon $kind={kind}>
           {kind === 'demoted' ? (
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -100,7 +110,7 @@ export default function WorkspaceBillingBanner() {
             {kind === 'demoted' && t('banner.demoted.desc')}
           </Desc>
         </Body>
-        <CTA>{t('banner.cta')}</CTA>
+        {payEnabled && <CTA>{t('banner.cta')}</CTA>}
       </Content>
       <CloseBtn type="button" onClick={() => setDismissed(true)} aria-label={t('banner.dismiss')}>×</CloseBtn>
     </Wrap>
@@ -131,10 +141,12 @@ const Wrap = styled.div<{ $kind: Exclude<BannerKind, null> }>`
   border-bottom: 1px solid ${p => KIND_BORDER[p.$kind]};
   color: ${p => KIND_FG[p.$kind]};
 `;
-const Content = styled.div`
+const Content = styled.div<{ $static?: boolean }>`
   flex: 1; display: flex; align-items: center; gap: 12px;
-  padding: 10px 16px; cursor: pointer;
-  &:hover { background: rgba(0,0,0,0.04); }
+  padding: 10px 16px;
+  /* $static — 네이티브 앱(구매 표면 봉쇄)에선 클릭 액션이 없으므로 커서·hover 도 제거 */
+  cursor: ${p => (p.$static ? 'default' : 'pointer')};
+  &:hover { background: ${p => (p.$static ? 'transparent' : 'rgba(0,0,0,0.04)')}; }
   /* 모바일: 1단 흐름 */
   @media (max-width: 640px) {
     flex-direction: column;

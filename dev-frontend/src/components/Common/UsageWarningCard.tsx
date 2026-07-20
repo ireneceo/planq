@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
+import { canPurchaseInApp } from '../../utils/purchase';
 
 interface UsageBlock {
   members: number;
@@ -90,11 +91,14 @@ const UsageWarningCard: React.FC<Props> = ({ businessId }) => {
         </TitleArea>
         <CtaGroup>
           <CtaLink to="/business/settings/plan#usage">{t('usageWarn.detail', '사용량 자세히')}</CtaLink>
-          <CtaPrimary to="/business/settings/plan" $danger={anyOver}>
-            {anyOver
-              ? t('usageWarn.ctaUpgrade', '지금 업그레이드')
-              : t('usageWarn.cta', '플랜·Add-on')}
-          </CtaPrimary>
+          {/* App Store 3.1.1 — 네이티브에선 구매 유도 CTA 숨김. 사용량 확인 링크는 정보라 유지 */}
+          {canPurchaseInApp() && (
+            <CtaPrimary to="/business/settings/plan" $danger={anyOver}>
+              {anyOver
+                ? t('usageWarn.ctaUpgrade', '지금 업그레이드')
+                : t('usageWarn.cta', '플랜·Add-on')}
+            </CtaPrimary>
+          )}
         </CtaGroup>
       </Header>
       <List>

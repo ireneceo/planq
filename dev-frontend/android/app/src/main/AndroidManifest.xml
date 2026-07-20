@@ -30,6 +30,17 @@
                 <data android:scheme="https" android:host="planq.kr" />
                 <data android:scheme="https" android:host="dev.planq.kr" />
             </intent-filter>
+            <!--
+              custom scheme fallback — App Links(autoVerify) 는 assetlinks.json 서빙 후에만 발화한다.
+              그 전에도, 그리고 서버 302 redirect 체인에서 App Links 가 안 먹는 경우에도
+              planq:// 로 앱에 복귀할 수 있게 둔다. NativeBridge 의 appUrlOpen 이 양쪽 다 수신.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="planq" />
+            </intent-filter>
 
         </activity>
 

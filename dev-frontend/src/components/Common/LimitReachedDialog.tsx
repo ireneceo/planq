@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { useChromeNav } from '../../hooks/useChromeNav';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
+import { canPurchaseInApp } from '../../utils/purchase';
 
 interface LimitDetail {
   code?: string;
@@ -76,9 +77,12 @@ const LimitReachedDialog: React.FC = () => {
         </UsageLink>
         <Actions>
           <SecondaryBtn type="button" onClick={close}>{t('limit.close', '닫기')}</SecondaryBtn>
-          <PrimaryBtn type="button" onClick={() => { close(); navigate(upgradeUrl); }}>
-            {t('limit.cta', '플랜·Add-on 보기')}
-          </PrimaryBtn>
+          {/* App Store 3.1.1 — 네이티브에선 구매 유도 CTA 숨김 */}
+          {canPurchaseInApp() && (
+            <PrimaryBtn type="button" onClick={() => { close(); navigate(upgradeUrl); }}>
+              {t('limit.cta', '플랜·Add-on 보기')}
+            </PrimaryBtn>
+          )}
         </Actions>
       </Card>
     </Backdrop>

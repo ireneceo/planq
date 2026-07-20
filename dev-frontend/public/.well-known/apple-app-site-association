@@ -1,0 +1,17 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["__APPLE_TEAM_ID__.app.planq"],
+        "components": [
+          { "/": "/oauth/native-return", "comment": "Google 연동/로그인 복귀" },
+          { "/": "/inbox*", "comment": "알림 딥링크 — 확인 필요" },
+          { "/": "/talk*", "comment": "알림 딥링크 — Q Talk" },
+          { "/": "/task*", "comment": "알림 딥링크 — Q Task" },
+          { "/": "/notifications*", "comment": "알림 피드" }
+        ]
+      }
+    ]
+  },
+  "webcredentials": { "apps": ["__APPLE_TEAM_ID__.app.planq"] }
+}
