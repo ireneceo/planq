@@ -267,6 +267,8 @@ const setupSecurity = (app) => {
     },
   });
   app.use('/api/auth/login', loginLimiter);
+  // 탈퇴 복구도 비밀번호 브루트포스 대상 — login 과 동일 limiter 적용 (Fable 🟠2).
+  app.use('/api/auth/deletion-recover', loginLimiter);
 
   // Rate Limiting — 회원가입
   const registerLimiter = rateLimit({
