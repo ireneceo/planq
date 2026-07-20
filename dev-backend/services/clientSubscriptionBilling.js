@@ -118,6 +118,9 @@ async function billOneSubscription(sub, today = new Date()) {
   if (!client) return { subscription_id: sub.id, skipped: 'client_not_found' };
   const business = await Business.findByPk(sub.business_id);
   if (!business) return { subscription_id: sub.id, skipped: 'business_not_found' };
+  // 계정 삭제로 soft-delete 된 워크스페이스는 청구 중단 — 삭제된 워크스페이스의 활성 구독이
+  //   계속 청구서 생성+고객 이메일 발송하는 것 차단 (ACCOUNT_DELETION_DESIGN, access_scope 관문 밖 cron).
+  if (business.deleted_at) return { subscription_id: sub.id, skipped: 'business_deleted' };
   const creatorId = await resolveCreator(sub, business);
   if (!creatorId) return { subscription_id: sub.id, skipped: 'no_creator' };
 
