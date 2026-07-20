@@ -746,6 +746,9 @@ Project.hasMany(Invoice, { as: 'invoices', foreignKey: 'project_id' });
 InvoicePayment.belongsTo(Invoice, { foreignKey: 'invoice_id', onDelete: 'CASCADE' });
 InvoicePayment.belongsTo(User, { as: 'recorder', foreignKey: 'recorded_by' });
 Invoice.hasMany(InvoicePayment, { as: 'payments', foreignKey: 'invoice_id', onDelete: 'CASCADE' });
+// 회차 결제 — 회차 재생성 시 SET NULL (받은 돈 기록은 보존). QBILL_PAYMENT_LEDGER_FIX D1.
+InvoicePayment.belongsTo(InvoiceInstallment, { as: 'installment', foreignKey: 'installment_id', onDelete: 'SET NULL' });
+InvoiceInstallment.hasMany(InvoicePayment, { as: 'payments', foreignKey: 'installment_id', onDelete: 'SET NULL' });
 
 // InvoiceInstallment — Invoice 삭제 시 CASCADE
 InvoiceInstallment.belongsTo(Invoice, { foreignKey: 'invoice_id', onDelete: 'CASCADE' });

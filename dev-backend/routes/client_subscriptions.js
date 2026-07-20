@@ -4,7 +4,10 @@
 //   PUT    /api/client-subscriptions/:businessId/:id        edit / pause / resume
 //   DELETE /api/client-subscriptions/:businessId/:id        cancel (soft)
 //   POST   /api/client-subscriptions/:businessId/:id/bill-now  즉시 1회 발행
-// 권한: qbill write (멤버도 OK — recurring_invoice 와 동일 정책). 멀티테넌트 business_id 강제.
+// 권한: read=qbill read. **mutation(생성/편집/해지/즉시발행)=owner-only** — 구독은 결국
+//   invoice 를 발행(bill-now 는 status='sent'+고객메일 즉시)하므로, invoice send 의
+//   owner-only(assertInvoiceMutationOwner)를 우회하지 못하게 재무 mutation 과 같은 경계를 건다.
+//   (예전엔 member 도 가능해 send owner-only 를 bill-now 로 우회할 수 있었다.) 멀티테넌트 business_id 강제.
 const express = require('express');
 const router = express.Router();
 const { ClientSubscription, Client, Business } = require('../models');
@@ -12,6 +15,13 @@ const { authenticateToken, checkBusinessAccess } = require('../middleware/auth')
 const { requireMenu } = require('../middleware/menu_permission');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../middleware/audit');
+
+// 재무 mutation 은 워크스페이스 owner 또는 platform_admin 만 (invoices.js assertInvoiceMutationOwner 와 동일 경계).
+function requireBillingOwner(req, res, next) {
+  const ok = req.businessRole === 'owner' || req.user?.platform_role === 'platform_admin';
+  if (!ok) return errorResponse(res, 'owner_only — client subscription mutation requires workspace owner or platform admin', 403);
+  next();
+}
 
 const INTERVALS = ['weekly', 'biweekly', 'monthly', 'quarterly', 'semiannual', 'yearly'];
 const END_MODES = ['never', 'after_count', 'until_date'];
@@ -71,7 +81,7 @@ router.get('/:businessId', authenticateToken, checkBusinessAccess, requireMenu('
 });
 
 // POST create
-router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu('qbill', 'write'), async (req, res, next) => {
+router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu('qbill', 'write'), requireBillingOwner, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
     const { client_id, plan_name, amount, currency, interval, vat_rate, auto_mode, due_days, start_date, notes } = req.body || {};
@@ -122,7 +132,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
 });
 
 // PUT edit / pause / resume
-router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMenu('qbill', 'write'), async (req, res, next) => {
+router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMenu('qbill', 'write'), requireBillingOwner, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
     const sub = await ClientSubscription.findOne({ where: { id: Number(req.params.id), business_id: businessId } });
@@ -158,7 +168,7 @@ router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMe
 });
 
 // DELETE — cancel (soft, status='canceled')
-router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMenu('qbill', 'write'), async (req, res, next) => {
+router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMenu('qbill', 'write'), requireBillingOwner, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
     const sub = await ClientSubscription.findOne({ where: { id: Number(req.params.id), business_id: businessId } });
@@ -174,7 +184,7 @@ router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, requir
 });
 
 // POST bill-now — 즉시 1회 발행 (next_billing_at 무관). active 만.
-router.post('/:businessId/:id/bill-now', authenticateToken, checkBusinessAccess, requireMenu('qbill', 'write'), async (req, res, next) => {
+router.post('/:businessId/:id/bill-now', authenticateToken, checkBusinessAccess, requireMenu('qbill', 'write'), requireBillingOwner, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
     const sub = await ClientSubscription.findOne({ where: { id: Number(req.params.id), business_id: businessId } });

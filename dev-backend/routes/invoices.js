@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { Invoice, InvoiceItem, InvoiceInstallment, Client, User, Business, Post, Conversation, Message, ReceiptCorrection } = require('../models');
+const { Invoice, InvoiceItem, InvoiceInstallment, InvoicePayment, Client, User, Business, Post, Conversation, Message, ReceiptCorrection } = require('../models');
 const { resolveRecurringInfo } = require('../services/invoiceRecurring');
 const { logBillEvent, listBillEvents } = require('../services/billEvents');
 const { isStripeEnabled } = require('../services/stripeService'); // Q Bill 워크스페이스 카드결제 활성 판정
@@ -9,7 +9,7 @@ const { requireMenu } = require('../middleware/menu_permission');
 
 // 회차 결제 확정(단일 착지점) + 상태 전이 history + 채팅 카드 동기 — 서비스로 이관(Stripe webhook 공용).
 //   호출부는 아래 이름 그대로 사용(무변경). 정의는 services/invoicePayments.js.
-const { markInstallmentPaid, recordInvoiceStatusChange, updateInvoiceChatCards } = require('../services/invoicePayments');
+const { markInstallmentPaid, markInvoicePaid, recordInvoiceStatusChange, updateInvoiceChatCards } = require('../services/invoicePayments');
 const { attachWorkspaceScope, invoiceListWhere, canAccessInvoice, isMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { sequelize } = require('../config/database');
@@ -1689,6 +1689,9 @@ router.post('/:businessId/:id/installments/:installId/unmark-paid', authenticate
     });
     if (!inst || inst.status !== 'paid') { await t.rollback(); return errorResponse(res, 'not_paid', 400); }
     await inst.update({ status: 'sent', paid_at: null, marked_by_user_id: null, marked_at: null, payer_memo: null }, { transaction: t });
+    // ★ 결제 원장 회수 (D3) — 결제 취소는 "받은 적 없음"이므로 그 회차 payment 삭제.
+    //   회차 status='paid' ↔ payment 존재 불변식 유지. bill_event(unmark)로 이력은 별도 보존.
+    await InvoicePayment.destroy({ where: { invoice_id: invoice.id, installment_id: inst.id }, transaction: t });
     const all = await InvoiceInstallment.findAll({ where: { invoice_id: invoice.id }, transaction: t });
     const paidSum = all.filter(i => i.status === 'paid').reduce((s, i) => s + Number(i.amount), 0);
     const totalSum = all.reduce((s, i) => s + Number(i.amount), 0);
@@ -2196,13 +2199,43 @@ router.patch('/:businessId/:id/status', authenticateToken, checkBusinessAccess, 
     }
 
     const prevStatus = invoice.status;
+
+    // ★ status='paid' 는 결제 원장 단일 착지점(markInvoicePaid)으로 위임한다 (R6/D2).
+    //   - split invoice 는 회차별 mark-paid 로만 결제 — PATCH paid 를 막아 원장 누락(매출 0)·불변식 위반 차단.
+    //   - 단일 invoice 는 markInvoicePaid 가 트랜잭션+락+원장 append + 부작용(chat card·overdue·bill event·
+    //     socket·status history)을 모두 수행하므로, 라우트는 audit 만 남기고 즉시 반환(부작용 중복 방지).
+    if (status === 'paid') {
+      if (invoice.installment_mode === 'split') {
+        return errorResponse(res, 'use_installment_mark_paid — split invoice 는 회차별로 결제 처리하세요', 400);
+      }
+      const result = await markInvoicePaid({
+        businessId: Number(req.params.businessId),
+        invoiceId: invoice.id,
+        markedByUserId: req.user.id,
+        method: 'bank_transfer',
+        io: req.app.get('io'),
+      });
+      require('../services/auditService').logAudit(req, {
+        action: 'invoice.status.change', targetType: 'invoice', targetId: invoice.id,
+        oldValue: { status: prevStatus }, newValue: { status: 'paid', already_paid: !!result.alreadyPaid },
+      });
+      return successResponse(res, result.invoice || invoice);
+    }
+
     const updates = { status };
     if (status === 'sent' && !invoice.sent_at) {
       updates.sent_at = new Date();
       updates.issued_at = new Date();
     }
-    if (status === 'paid') updates.paid_at = new Date();
-    if (status === 'canceled') updates.paid_at = null;
+    // ★ canceled — 이미 받은 돈(paid 회차 또는 paid_amount>0)이 있으면 차단 (R3).
+    //   회차 취소의 cannot_cancel_paid 와 일관. 받은 돈을 장부에서 지우지 않는다. unmark 선행 강제.
+    if (status === 'canceled') {
+      const paidInst = await InvoiceInstallment.count({ where: { invoice_id: invoice.id, status: 'paid' } });
+      if (paidInst > 0 || Number(invoice.paid_amount || 0) > 0) {
+        return errorResponse(res, 'cannot_cancel_paid — 결제된 회차/금액이 있어 취소 전 unmark-paid 가 필요합니다', 400);
+      }
+      updates.paid_at = null;
+    }
 
     await invoice.update(updates);
     // 사이클 N+21 — status history
