@@ -95,9 +95,10 @@ async def internal_purge_user(
   if not user_id:
     raise HTTPException(status_code=400, detail='user_id required')
   async with db_connect() as db:
-    # 세션 id 목록
-    cur = await db.execute("SELECT id FROM sessions WHERE user_id = ?", (int(user_id),))
-    sids = [r[0] for r in await cur.fetchall()]
+    # 세션 id + business_id 목록 (물리 파일 경로 계산용)
+    cur = await db.execute("SELECT id, business_id FROM sessions WHERE user_id = ?", (int(user_id),))
+    sess_rows = await cur.fetchall()
+    sids = [r[0] for r in sess_rows]
     for sid in sids:
       # speaker_embeddings 는 speaker_id 기반(session_id 없음) → speakers 를 먼저 조회해 삭제
       scur = await db.execute("SELECT id FROM speakers WHERE session_id = ?", (sid,))
@@ -121,7 +122,16 @@ async def internal_purge_user(
     # 음성 지문(user_id 직접)
     await db.execute("DELETE FROM voice_fingerprints WHERE user_id = ?", (int(user_id),))
     await db.commit()
-  return success({'purged': True, 'sessions': len(sids), 'documents': len(docids)})
+  # 물리 파일 삭제 — data/uploads/{business_id}/{session_id}/ 디렉토리 (개인 문서 내용, Fable 🟠).
+  import shutil
+  uploads_root = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'uploads')
+  files_removed = 0
+  for (sid, bid) in sess_rows:
+    d = os.path.join(uploads_root, str(bid), str(sid))
+    if os.path.isdir(d):
+      shutil.rmtree(d, ignore_errors=True)
+      files_removed += 1
+  return success({'purged': True, 'sessions': len(sids), 'documents': len(docids), 'file_dirs': files_removed})
 
 
 UPLOADS_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'uploads')
