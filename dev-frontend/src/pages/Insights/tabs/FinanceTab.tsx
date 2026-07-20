@@ -9,13 +9,14 @@ import {
   SectionLabel, SectionRow, DownloadBtn, DownloadIcon, ChartCard, ChartEmpty,
   TableWrap, Table, Tr, Th, Td,
   SkeletonGrid, SkeletonCard, ErrorBanner,
-  fmtKRW, fmtPct,
+  fmtMoney, fmtPct, CurrencyBreakdown,
 } from '../components';
 import { downloadRowsAsCsv } from '../csvUtils';
 
 interface Data {
   period: { from: string; to: string; label: string };
-  kpis: Record<string, { value: number | null }>;
+  home_currency?: string;
+  kpis: Record<string, { value: number | null; by_currency?: Record<string, number> }>;
   cost_trend?: { month: string; revenue: number; cost: number; profit: number }[];
   expenses_by_category: { category: string; amount: number }[];
   insights: { severity: string; title: string; value: string; hint?: string; action_label?: string; action_link?: string }[];
@@ -39,6 +40,9 @@ const FinanceTab: React.FC<{ businessId: number; range: RangePreset; segment?: S
   if (err) return <ErrorBanner>{t('error.summary')} — {err}</ErrorBanner>;
   if (loading || !data) return <SkeletonGrid>{[0,1,2,3,4,5].map((i) => <SkeletonCard key={i} />)}</SkeletonGrid>;
 
+  const home = data.home_currency || 'KRW';
+  const foreignLabel = t('foreignLabel', '외화') as string;
+
   return (
     <>
       <InsightRow>
@@ -57,12 +61,12 @@ const FinanceTab: React.FC<{ businessId: number; range: RangePreset; segment?: S
       </InsightRow>
 
       <KpiGrid>
-        <KpiCard><KpiLabel>{t('finance.kpi.revenue', '매출')}</KpiLabel><KpiValueBig>{fmtKRW(data.kpis.revenue.value)}</KpiValueBig></KpiCard>
-        <KpiCard><KpiLabel>{t('finance.kpi.totalCost', '총 비용')}</KpiLabel><KpiValueBig>{fmtKRW(data.kpis.total_cost.value)}</KpiValueBig></KpiCard>
-        <KpiCard><KpiLabel>{t('finance.kpi.profit', '이익')}</KpiLabel><KpiValueBig>{fmtKRW(data.kpis.profit.value)}</KpiValueBig></KpiCard>
+        <KpiCard><KpiLabel>{t('finance.kpi.revenue', '매출')}</KpiLabel><KpiValueBig>{fmtMoney(data.kpis.revenue.value, home)}</KpiValueBig><CurrencyBreakdown map={data.kpis.revenue.by_currency} label={foreignLabel} /></KpiCard>
+        <KpiCard><KpiLabel>{t('finance.kpi.totalCost', '총 비용')}</KpiLabel><KpiValueBig>{fmtMoney(data.kpis.total_cost.value, home)}</KpiValueBig></KpiCard>
+        <KpiCard><KpiLabel>{t('finance.kpi.profit', '이익')}</KpiLabel><KpiValueBig>{fmtMoney(data.kpis.profit.value, home)}</KpiValueBig></KpiCard>
         <KpiCard><KpiLabel>{t('finance.kpi.margin', '마진')}</KpiLabel><KpiValueBig>{fmtPct(data.kpis.margin_pct.value)}</KpiValueBig></KpiCard>
-        <KpiCard><KpiLabel>{t('finance.kpi.receivable', '미수금')}</KpiLabel><KpiValueBig>{fmtKRW(data.kpis.receivable.value)}</KpiValueBig></KpiCard>
-        <KpiCard><KpiLabel>{t('finance.kpi.overhead', '고정비')}</KpiLabel><KpiValueBig>{fmtKRW(data.kpis.overhead.value)}</KpiValueBig></KpiCard>
+        <KpiCard><KpiLabel>{t('finance.kpi.receivable', '미수금')}</KpiLabel><KpiValueBig>{fmtMoney(data.kpis.receivable.value, home)}</KpiValueBig><CurrencyBreakdown map={data.kpis.receivable.by_currency} label={foreignLabel} /></KpiCard>
+        <KpiCard><KpiLabel>{t('finance.kpi.overhead', '고정비')}</KpiLabel><KpiValueBig>{fmtMoney(data.kpis.overhead.value, home)}</KpiValueBig></KpiCard>
       </KpiGrid>
 
       <SectionLabel>{t('finance.chart.trend.title', '12개월 매출·비용·이익 추이')}</SectionLabel>
@@ -74,8 +78,8 @@ const FinanceTab: React.FC<{ businessId: number; range: RangePreset; segment?: S
             <LineChart data={data.cost_trend} margin={{ top: 16, right: 24, bottom: 8, left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
               <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#64748B' }} tickFormatter={(v) => String(v).slice(2)} />
-              <YAxis tick={{ fontSize: 11, fill: '#64748B' }} tickFormatter={(v) => fmtKRW(v)} />
-              <Tooltip formatter={(v) => fmtKRW(typeof v === 'number' ? v : Number(v))} />
+              <YAxis tick={{ fontSize: 11, fill: '#64748B' }} tickFormatter={(v) => fmtMoney(v, home)} />
+              <Tooltip formatter={(v) => fmtMoney(typeof v === 'number' ? v : Number(v), home)} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               <Line type="monotone" dataKey="revenue" name={t('finance.chart.trend.revenue', '매출') as string} stroke="#14B8A6" strokeWidth={2} dot={false} />
               <Line type="monotone" dataKey="cost" name={t('finance.chart.trend.cost', '비용') as string} stroke="#F43F5E" strokeWidth={2} dot={false} />
@@ -94,8 +98,8 @@ const FinanceTab: React.FC<{ businessId: number; range: RangePreset; segment?: S
             <BarChart data={data.expenses_by_category.slice(0, 10)} margin={{ top: 16, right: 24, bottom: 8, left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
               <XAxis dataKey="category" tick={{ fontSize: 11, fill: '#64748B' }} />
-              <YAxis tick={{ fontSize: 11, fill: '#64748B' }} tickFormatter={(v) => fmtKRW(v)} />
-              <Tooltip formatter={(v) => fmtKRW(typeof v === 'number' ? v : Number(v))} />
+              <YAxis tick={{ fontSize: 11, fill: '#64748B' }} tickFormatter={(v) => fmtMoney(v, home)} />
+              <Tooltip formatter={(v) => fmtMoney(typeof v === 'number' ? v : Number(v), home)} />
               <Bar dataKey="amount" name={t('finance.chart.expenses.bar', '금액') as string} fill="#F43F5E" />
             </BarChart>
           </ResponsiveContainer>
@@ -127,7 +131,7 @@ const FinanceTab: React.FC<{ businessId: number; range: RangePreset; segment?: S
               {data.expenses_by_category.map((r) => (
                 <Tr key={r.category}>
                   <Td>{r.category}</Td>
-                  <Td $num>{fmtKRW(r.amount)}</Td>
+                  <Td $num>{fmtMoney(r.amount, home)}</Td>
                 </Tr>
               ))}
             </tbody>

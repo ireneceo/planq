@@ -72,7 +72,13 @@
   },
   "watch": {
     "title": "진행중 예산초과 경고",
-    "col": { "task": "업무", "assignee": "담당", "estimated": "예측(h)", "actual": "실제(h)", "over": "초과" }
+    "col": {
+      "task": "업무",
+      "assignee": "담당",
+      "estimated": "예측(h)",
+      "actual": "실제(h)",
+      "over": "초과"
+    }
   },
   "filter": {
     "assignee": "담당자 전체",
@@ -168,7 +174,8 @@
       "margin": "마진",
       "hours": "시간",
       "pph": "Profit/Hr"
-    }
+    },
+    "foreignNote": "외화 매출은 홈 통화 손익 집계에서 제외됩니다 (\"외화\" 표시). 통화별 상세는 개요 탭에서 확인하세요."
   },
   "team": {
     "kpi": {
@@ -223,7 +230,8 @@
       "strength": "강점",
       "weakness": "약점",
       "neutral": "보통"
-    }
+    },
+    "foreignNote": "외화 매출은 인당 매출 배분에서 제외됩니다 (홈 통화 기준). 통화별 상세는 개요 탭에서 확인하세요."
   },
   "finance": {
     "kpi": {
@@ -308,5 +316,6 @@
       "ready": "준비 완료",
       "failed": "생성 실패"
     }
-  }
+  },
+  "foreignLabel": "외화"
 }

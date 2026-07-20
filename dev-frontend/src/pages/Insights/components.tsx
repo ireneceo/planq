@@ -158,3 +158,51 @@ export const fmtPct = (v: number | null | undefined, opts?: { signed?: boolean }
   const s = v.toFixed(1) + '%';
   return opts?.signed && v > 0 ? '+' + s : s;
 };
+
+// ── 다통화 표시 ──
+// 홈 통화(KRW)는 기존 fmtKRW 축약(억/만원)을 그대로 유지 → all-KRW 워크스페이스 렌더 동일(회귀 0).
+// 외화는 통화 기호 + 통화별 소수 자릿수(KRW/JPY 0, USD/EUR/CNY 2)로 표기.
+const CUR_SYMBOL: Record<string, string> = { KRW: '₩', USD: '$', EUR: '€', JPY: '¥', CNY: '¥' };
+const CUR_DECIMALS: Record<string, number> = { KRW: 0, JPY: 0, USD: 2, EUR: 2, CNY: 2 };
+
+export const fmtMoney = (v: number | null | undefined, currency = 'KRW'): string => {
+  if (v == null || isNaN(v)) return '—';
+  const cur = currency || 'KRW';
+  if (cur === 'KRW') return fmtKRW(v); // 홈=KRW 는 기존 축약 그대로 → all-KRW 렌더 동일(회귀 0)
+  const dec = CUR_DECIMALS[cur] ?? 2;
+  const sym = CUR_SYMBOL[cur] || `${cur} `;
+  return sym + v.toLocaleString(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec });
+};
+
+const BreakdownRow = styled.div`
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px;
+`;
+const BreakdownLabel = styled.span`
+  font-size: 11px; font-weight: 500; color: #94A3B8;
+`;
+const BreakdownChip = styled.span`
+  display: inline-flex; align-items: center; padding: 2px 8px;
+  font-size: 12px; font-weight: 600; color: #334155;
+  background: #F1F5F9; border: 1px solid #E2E8F0; border-radius: 16px;
+`;
+
+// 외화 존재 시 항상 렌더(선택 아님, Fable 필수조건). map 이 비면 null. label 은 호출부에서 t() 전달.
+export const CurrencyBreakdown = ({ map, label }: { map?: Record<string, number> | null; label?: string }) => {
+  if (!map || Object.keys(map).length === 0) return null;
+  return (
+    <BreakdownRow>
+      {label ? <BreakdownLabel>{label}</BreakdownLabel> : null}
+      {Object.entries(map).map(([cur, val]) => (
+        <BreakdownChip key={cur}>{fmtMoney(val, cur)}</BreakdownChip>
+      ))}
+    </BreakdownRow>
+  );
+};
+
+// P&L 표/버블에서 외화 매출이 있는 행 표시 — revenue 0 으로 조용히 사라지는 오정보 차단.
+export const ForeignBadge = styled.span`
+  display: inline-flex; align-items: center; padding: 1px 6px; margin-left: 6px;
+  font-size: 10px; font-weight: 600; color: #F43F5E;
+  background: #FFF1F2; border: 1px solid #FECDD3; border-radius: 10px;
+  vertical-align: middle;
+`;

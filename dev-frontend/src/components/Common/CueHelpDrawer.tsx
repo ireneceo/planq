@@ -85,7 +85,7 @@ const CueHelpDrawer: React.FC<{
   const { user, isLoading } = useAuth();
   const isGuest = !user;
   // 공개 표면에선 sessionStorage 복원 탭의 stale path 가 올 수 있어 실제 브라우저 경로를 쓴다.
-  const location = publicSurface
+  const location: { pathname: string; search: string } = publicSurface
     ? {
         pathname: typeof window !== 'undefined' ? window.location.pathname : '/',
         search: typeof window !== 'undefined' ? window.location.search : '',
