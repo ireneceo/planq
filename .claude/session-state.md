@@ -1,7 +1,7 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-07-20 (Opus 4.8, 1M) — Q Bill 결함 + 소유권이전 + 계정삭제(앱 5.1.1) 운영 배포 완료
+**마지막 업데이트:** 2026-07-20 (Opus 4.8, 1M) — Q Bill + 소유권이전 + 계정삭제(앱 5.1.1) + 운영 피드백 5건 운영 배포 완료 (2배포)
 **작업 상태:** 완료 (배포·실측 검증까지)
 
 ### 이번 세션 완료 (전부 운영 배포됨 · 16커밋)
@@ -9,6 +9,7 @@
 2. **앱 심사 선제대응** — App.entitlements·결제봉쇄(canPurchaseInApp)·planq:// scheme·AASA/assetlinks·guard-native-release(17). Team ID/.p8 대기.
 3. **Q Bill 결함 2건** — ①매출 0: invoice_payments write 0건인데 stats 6곳이 이걸로 계산 → 결제확정 3경로(markInstallmentPaid/markInvoicePaid/PATCH status) payment append + FOR UPDATE 락(webhook 이중계상) + paid→sent 400 차단 + 백필. ②구독 owner 가드(bill-now 우회 차단). health-check billing 불변식 가드.
 4. **워크스페이스 소유권 이전** — POST /businesses/:id/transfer-ownership (owner_id + role 원자 스왑). 계정삭제 선행.
+6. **운영 피드백 5건** (커밋 15906f4) — #189 카카오톡 인앱브라우저 랜딩 크래시(봇 오인→API가 HTML→wikiCats.length 크래시. 서버 SHARE_BOT_UA+/api스킵 + 프론트 content-type 가드 이중방어. 운영 nginx는 share-bot conf 없어 코드만으로 해소) · #188 게스트 말풍선 팝오버(우측패널→FAB위 챗봇위젯) · #191 OG 이미지(수익성엔진 태그 제거, 로고+슬로건 중앙) · #187 Q info 커스텀항목 편집+overflow · #190 안드로이드 답변. feedback_items #187~191 done. 남은 #126·#146=Irene.
 5. **★계정 삭제 (App Store 5.1.1(v))** — soft delete(status='deleted')+30일 유예→익명화 cron. 스키마 마이그레이션(users 3+businesses.deleted_at+business_members.removed_reason) · preflight/request/복구(공개)/auth code분기 · services/accountAnonymize.js(users/business_members/clients/conversations PII+L1삭제+토큰purge) · q-note POST /internal/purge-user(음성지문·세션·물리파일) · 프론트 ProfilePage Danger Zone(이메일타이핑+비번)·LoginPage 복구. health-check account 가드.
 
 ### ★ 세션 최대 교훈 (메모리 feedback_guard_must_be_falsified 강화됨)
