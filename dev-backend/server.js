@@ -348,6 +348,7 @@ app.use('/api/platform', require('./routes/platform_public')); // 공개 — 랜
 app.use('/api/projects', require('./routes/projects'));
 app.use('/api/projects', require('./routes/project_process'));
 app.use('/api/users', require('./routes/users'));
+app.use('/api/users', require('./routes/account_deletion'));
 app.use('/api/businesses', require('./routes/businesses'));
 // KNOWLEDGE_LOOP 축1 — Cue 워크스페이스 지식 카드
 app.use('/api/businesses', require('./routes/cue_knowledge'));
