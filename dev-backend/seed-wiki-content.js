@@ -101,7 +101,7 @@ const ARTICLES = [
       note('관리자(admin) 역할은 청구를 제외한 대부분의 메뉴에 자동 접근됩니다.',
         'The admin role automatically gets access to most menus except owner-only billing actions.'),
     ] },
-  { cat: 'getting-started', slug: 'invite-client', visibility: 'authenticated', linked_route: '/clients', est: 2,
+  { cat: 'getting-started', slug: 'invite-client', visibility: 'authenticated', linked_route: '/business/clients', est: 2,
     title: t('고객 초대하기', 'Invite a client'),
     summary: t('고객을 초대해 대화·문서·청구를 공유', 'Invite clients to share chats, documents, and billing'),
     body: [
@@ -112,7 +112,7 @@ const ARTICLES = [
     ] },
 
   // ── Q Talk ──
-  { cat: 'qtalk', slug: 'start-conversation', visibility: 'authenticated', linked_route: '/qtalk', est: 2,
+  { cat: 'qtalk', slug: 'start-conversation', visibility: 'authenticated', linked_route: '/talk', est: 2,
     title: t('대화 시작하기', 'Start a conversation'),
     summary: t('고객·팀과 새 대화방을 열고 메시지를 주고받기', 'Open a new chat with clients or team and exchange messages'),
     body: [
@@ -121,7 +121,7 @@ const ARTICLES = [
       note('메시지는 수정(수정됨 표시)·삭제(삭제된 메시지로 마스킹)가 가능합니다.',
         'Messages can be edited (marked “edited”) or deleted (masked as “deleted message”).'),
     ] },
-  { cat: 'qtalk', slug: 'auto-task-extract', visibility: 'authenticated', linked_route: '/qtalk', est: 3,
+  { cat: 'qtalk', slug: 'auto-task-extract', visibility: 'authenticated', linked_route: '/talk', est: 3,
     title: t('대화에서 업무 자동 추출', 'Auto-extract tasks from chat'),
     summary: t('대화 내용에서 해야 할 일을 업무 후보로 자동 정리', 'Turn conversation content into suggested task candidates'),
     body: [
@@ -130,7 +130,7 @@ const ARTICLES = [
       s('대화 우측 패널에서 업무 후보 카드를 확인합니다.', 'Check the task candidate cards in the right panel of the chat.'),
       s('필요한 후보를 선택해 담당자·마감을 정하고 업무로 등록합니다.', 'Pick the candidates you want, set owner/due date, and create tasks.'),
     ] },
-  { cat: 'qtalk', slug: 'message-reactions', visibility: 'authenticated', linked_route: '/qtalk', est: 2,
+  { cat: 'qtalk', slug: 'message-reactions', visibility: 'authenticated', linked_route: '/talk', est: 2,
     title: t('메시지에 이모지로 반응하기', 'React to a message with an emoji'),
     summary: t('답장 대신 이모지로 확인·동의를 빠르게 표시', 'Use an emoji instead of a reply to acknowledge or agree'),
     body: [
@@ -143,7 +143,7 @@ const ARTICLES = [
       note('반응한 사람 수는 이모지 옆 숫자로 보입니다. 삭제된 메시지에는 반응할 수 없습니다.',
         'The number next to an emoji shows how many people reacted. Deleted messages cannot be reacted to.'),
     ] },
-  { cat: 'qtalk', slug: 'translation', visibility: 'authenticated', linked_route: '/qtalk', est: 2,
+  { cat: 'qtalk', slug: 'translation', visibility: 'authenticated', linked_route: '/talk', est: 2,
     title: t('메시지 번역', 'Message translation'),
     summary: t('한국어·영어 메시지를 자동 번역해서 보기', 'Auto-translate messages between Korean and English'),
     body: [
@@ -153,7 +153,7 @@ const ARTICLES = [
     ] },
 
   // ── Q Task ──
-  { cat: 'qtask', slug: 'create-task', visibility: 'authenticated', linked_route: '/qtask', est: 3,
+  { cat: 'qtask', slug: 'create-task', visibility: 'authenticated', linked_route: '/tasks', est: 3,
     title: t('업무 만들고 담당자 정하기', 'Create a task and assign an owner'),
     summary: t('업무를 만들고 담당자·마감·예상시간을 설정', 'Create a task and set owner, due date, and estimated time'),
     body: [
@@ -164,7 +164,7 @@ const ARTICLES = [
       note('마감이 지나면 빨간 뱃지로 표시되고, 마감 연장은 담당자 이상만 가능합니다.',
         'Overdue tasks show a red badge; only the owner or above can extend a due date.'),
     ] },
-  { cat: 'qtask', slug: 'confirm-review', visibility: 'authenticated', linked_route: '/qtask', est: 3,
+  { cat: 'qtask', slug: 'confirm-review', visibility: 'authenticated', linked_route: '/tasks', est: 3,
     title: t('확인 요청(컨펌) 워크플로우', 'Confirmation (review) workflow'),
     summary: t('결과물을 확인자에게 보내 승인·반려 받기', 'Send your deliverable to reviewers for approval or revision'),
     body: [
@@ -175,7 +175,7 @@ const ARTICLES = [
       note('확인자가 없으면 검토 상태로 보낼 수 없습니다 — 먼저 확인자를 지정하세요.',
         'You can’t move to review without reviewers — assign one first.'),
     ] },
-  { cat: 'qtask', slug: 'focus-weekly', visibility: 'authenticated', linked_route: '/qtask', est: 2,
+  { cat: 'qtask', slug: 'focus-weekly', visibility: 'authenticated', linked_route: '/tasks', est: 2,
     title: t('포커스와 주간 업무 진척', 'Focus and weekly progress'),
     summary: t('업무에 집중한 실제 시간을 측정하고 주간 그래프로 확인', 'Measure real focus time and review it on the weekly graph'),
     body: [
@@ -185,7 +185,7 @@ const ARTICLES = [
     ] },
 
   // ── Q Bill ──
-  { cat: 'qbill', slug: 'issue-invoice', visibility: 'authenticated', linked_route: '/qbill', est: 3,
+  { cat: 'qbill', slug: 'issue-invoice', visibility: 'authenticated', linked_route: '/bills', est: 3,
     title: t('청구서 발행하기', 'Issue an invoice'),
     summary: t('고객에게 청구서를 만들고 발행', 'Create and send an invoice to a client'),
     body: [
@@ -195,7 +195,7 @@ const ARTICLES = [
       note('발행·결제 마킹·세금계산서 등 재무 작업은 소유자(owner)만 가능합니다.',
         'Financial actions like issuing, marking paid, and tax invoices are owner-only.'),
     ] },
-  { cat: 'qbill', slug: 'confirm-payment', visibility: 'authenticated', linked_route: '/qbill', est: 2,
+  { cat: 'qbill', slug: 'confirm-payment', visibility: 'authenticated', linked_route: '/bills', est: 2,
     title: t('결제 확인(입금 마킹)', 'Confirm payment (mark as paid)'),
     summary: t('계좌이체 입금을 확인하고 결제 완료로 표시', 'Confirm a bank transfer and mark the invoice as paid'),
     body: [
@@ -207,7 +207,7 @@ const ARTICLES = [
       note('결제가 확인되어야 세금계산서·현금영수증 발행 큐가 열립니다.',
         'The tax-invoice / cash-receipt queue opens only after payment is confirmed.'),
     ] },
-  { cat: 'qbill', slug: 'overdue-reminder', visibility: 'authenticated', linked_route: '/qbill', est: 2,
+  { cat: 'qbill', slug: 'overdue-reminder', visibility: 'authenticated', linked_route: '/bills', est: 2,
     title: t('결제가 안 될 때 (독촉 보내기)', "When an invoice isn't paid (sending a reminder)"),
     summary: t('마감일이 지나면 알림으로 물어보고, 독촉 메일은 직접 눌러야 나갑니다', 'When the due date passes we ask you first — reminder emails go out only when you send them'),
     body: [
@@ -239,7 +239,7 @@ const ARTICLES = [
       note('여기 넣는 계정은 이 워크스페이스의 것입니다 — 고객 결제금은 PlanQ 를 거치지 않고 이 계정으로 바로 들어옵니다. Stripe 계정은 도메인과 무관하므로 이미 쓰는 계정을 그대로 써도 됩니다. 다만 Webhook 은 이 화면에 표시된 주소로 하나 더 등록하고 그 Signing secret 을 넣어야 합니다(엔드포인트마다 secret 이 다릅니다).',
         "The account you enter here is this workspace's own — customer payments land in it directly, never passing through PlanQ. Stripe accounts aren't tied to a domain, so you can reuse an existing one. You do need to add one more webhook endpoint (the URL shown on the screen) and paste its signing secret, since each endpoint has its own."),
     ] },
-  { cat: 'qbill', slug: 'tax-cash-receipt', visibility: 'authenticated', linked_route: '/qbill', est: 3,
+  { cat: 'qbill', slug: 'tax-cash-receipt', visibility: 'authenticated', linked_route: '/bills', est: 3,
     title: t('세금계산서·현금영수증', 'Tax invoices & cash receipts'),
     summary: t('발행 큐에서 증빙을 챙기고 발행을 마킹', 'Track receipts in the queue and mark them issued'),
     body: [
@@ -252,7 +252,7 @@ const ARTICLES = [
     ] },
 
   // ── Q Note ──
-  { cat: 'qnote', slug: 'record-meeting', visibility: 'authenticated', linked_route: '/qnote', est: 3,
+  { cat: 'qnote', slug: 'record-meeting', visibility: 'authenticated', linked_route: '/notes', est: 3,
     title: t('회의 녹음과 요약', 'Record and summarize a meeting'),
     summary: t('회의를 녹음하며 실시간 받아쓰기와 요약을 받기', 'Record a meeting with live transcription and a summary'),
     body: [
@@ -261,7 +261,7 @@ const ARTICLES = [
       note('Q Note 는 기본적으로 개인 공간입니다 — 명시적으로 공유하기 전까지 다른 사람이 볼 수 없습니다.',
         'Q Note is private by default — no one else sees it until you explicitly share.'),
     ] },
-  { cat: 'qnote', slug: 'quick-memo', visibility: 'authenticated', linked_route: '/qnote', est: 2,
+  { cat: 'qnote', slug: 'quick-memo', visibility: 'authenticated', linked_route: '/notes', est: 2,
     title: t('빠른 메모', 'Quick notes'),
     summary: t('회의가 아니어도 텍스트·음성 메모를 빠르게 남기기', 'Capture text or voice notes quickly, even outside meetings'),
     body: [
@@ -270,14 +270,14 @@ const ARTICLES = [
     ] },
 
   // ── Q docs ──
-  { cat: 'qdocs', slug: 'create-document', visibility: 'authenticated', linked_route: '/qdocs', est: 3,
+  { cat: 'qdocs', slug: 'create-document', visibility: 'authenticated', linked_route: '/docs', est: 3,
     title: t('견적·계약·제안서 작성', 'Create quotes, contracts, proposals'),
     summary: t('템플릿으로 문서를 빠르게 작성', 'Create documents quickly from templates'),
     body: [
       s('Q docs 에서 문서 유형(견적·계약·제안서)을 선택합니다.', 'In Q docs, choose a document type (quote, contract, proposal).'),
       s('내용을 작성하고 고객·프로젝트에 연결합니다.', 'Write the content and link it to a client or project.'),
     ] },
-  { cat: 'qdocs', slug: 'collect-signature', visibility: 'authenticated', linked_route: '/qdocs', est: 3,
+  { cat: 'qdocs', slug: 'collect-signature', visibility: 'authenticated', linked_route: '/docs', est: 3,
     title: t('서명 받기', 'Collect a signature'),
     summary: t('문서에 외부 고객의 서명을 OTP 인증으로 받기', 'Collect external signatures with OTP verification'),
     body: [
@@ -288,7 +288,7 @@ const ARTICLES = [
     ] },
 
   // ── 파일·자료 ──
-  { cat: 'qfile', slug: 'upload-share-file', visibility: 'authenticated', linked_route: '/qfile', est: 2,
+  { cat: 'qfile', slug: 'upload-share-file', visibility: 'authenticated', linked_route: '/files', est: 2,
     title: t('파일 올리고 공유하기', 'Upload and share files'),
     summary: t('파일을 보관하고 링크로 공유', 'Store files and share them via link'),
     body: [
@@ -519,7 +519,7 @@ const ARTICLES = [
     ] },
 
   // ── Q info ──
-  { cat: 'qinfo', slug: 'client-member-360', visibility: 'authenticated', linked_route: '/clients', est: 2,
+  { cat: 'qinfo', slug: 'client-member-360', visibility: 'authenticated', linked_route: '/business/clients', est: 2,
     title: t('고객·멤버 360° 정보', 'Client & member 360° profiles'),
     summary: t('고객·멤버의 대화·업무·청구·파일을 한 곳에서', 'See a person’s chats, tasks, billing, and files in one place'),
     body: [

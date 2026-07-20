@@ -553,6 +553,47 @@ function defineExternalTests() {
 // ============================================
 // 카테고리 7: frontend (정적 린트)
 // ============================================
+function defineWikiTests() {
+  const isLocal = BACKEND.startsWith('http://localhost');
+  if (!isLocal) return;  // 원격 검증 시 파일 시스템(라우트 추출) 접근 불가
+
+  // Q위키 article 의 linked_route("이 화면 열기")가 실제 SPA 라우트를 가리키는가.
+  //   존재하지 않는 경로면 catch-all 이 랜딩(/)으로 축출해 버튼이 조용히 죽는다.
+  //   실사례: /qtask·/qbill·/qnote·/qdocs·/qfile·/qtalk·/clients 로 18건이 죽어 있었다
+  //   (브랜드명 그대로 적었으나 실제 라우트는 /tasks·/bills·/notes·/docs·/files·/talk·/business/clients).
+  //   관리자 위키 편집에서 새 article 을 추가할 때도 같은 실수가 나므로 상시 감시한다.
+  test('wiki', 'help_articles.linked_route 가 실존 라우트를 가리킴', async () => {
+    const fsx = require('fs');
+    const src = ['/opt/planq/dev-frontend/src/App.tsx', '/opt/planq/dev-frontend/src/routes/appRoutes.tsx']
+      .map((f) => { try { return fsx.readFileSync(f, 'utf8'); } catch { return ''; } }).join('\n');
+    const paths = [...new Set([...src.matchAll(/path="([^"]+)"/g)].map((m) => m[1]))].filter((x) => x !== '*');
+    if (paths.length < 20) throw new Error(`라우트 추출 실패(${paths.length}개) — 이 검사가 거짓 통과하지 않도록 중단`);
+    const res = paths.map((x) => new RegExp('^' + x.replace(/:[^/]+/g, '[^/]+').replace(/\*/g, '.*') + '$'));
+
+    // DB 조회는 dev-backend 컨텍스트에서 — .env(DB_*)가 그쪽에 있다.
+    const { execSync } = require('child_process');
+    const out = execSync(
+      `node -e "require('dotenv').config();const{Sequelize}=require('sequelize');`
+      + `const s=new Sequelize(process.env.DB_NAME,process.env.DB_USER,process.env.DB_PASSWORD,`
+      + `{host:process.env.DB_HOST,dialect:'mysql',logging:false});`
+      + `s.query(\\"SELECT slug,linked_route FROM help_articles WHERE linked_route IS NOT NULL AND linked_route<>''\\")`
+      + `.then(([r])=>{console.log('@@'+JSON.stringify(r));return s.close();})"`,
+      { cwd: '/opt/planq/dev-backend', encoding: 'utf8' });
+    const line = out.split('\n').find((l) => l.startsWith('@@'));
+    if (!line) throw new Error('help_articles 조회 실패 — 거짓 통과 방지 위해 중단');
+    const rows = JSON.parse(line.slice(2));
+    const bad = rows.filter((r) => {
+      const only = String(r.linked_route).split('?')[0].split('#')[0];
+      return !res.some((re) => re.test(only));
+    });
+    if (bad.length) {
+      throw new Error(`깨진 linked_route ${bad.length}/${rows.length}건:\n      `
+        + bad.slice(0, 8).map((b) => `${b.slug} → ${b.linked_route}`).join('\n      '));
+    }
+    return true;
+  });
+}
+
 function defineFrontendTests() {
   const isLocal = BACKEND.startsWith('http://localhost');
   if (!isLocal) return;  // 원격 검증 시 파일 시스템 접근 불가
@@ -750,6 +791,7 @@ async function runTests(allTests, category) {
   defineVoiceTests();
   defineExternalTests();
   defineFrontendTests();
+  defineWikiTests();
   defineRealtimeTests();
 
   const allPass = await runTests(tests, opts.category);

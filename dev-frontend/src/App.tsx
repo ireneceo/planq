@@ -592,8 +592,11 @@ function ShellApp() {
 // 초기 URL 이 앱경로(공개/마케팅/로그인/팝아웃 아님)인가 — tree-swap 진입 조건.
 function isAppInitialPath(): boolean {
   const p = window.location.pathname;
-  const nonApp = /^\/(login|register|invite|forgot-password|reset-password|verify-email|oauth|legal|privacy|terms|wiki|app|features|pricing|about|contact|blog|public|sign|memo|talk-popout|note-popout|help-popout)(\/|$)/;
-  return !(p === '/' || nonApp.test(p));
+  // 공개 표면(마케팅·위키)은 isPublicSurfacePath 단일 원천을 그대로 쓴다.
+  // 여기에 목록을 한 벌 더 두면 갈라진다 — 실제로 /insights 가 이 목록에만 빠져 있어서
+  // 로그인 데스크탑이 /insights 를 열면 인사이츠 마케팅 페이지 대신 워크스페이스 셸이 떴다.
+  const nonAppOther = /^\/(login|register|invite|forgot-password|reset-password|verify-email|oauth|legal|privacy|terms|app|public|sign|memo|talk-popout|note-popout|help-popout)(\/|$)/;
+  return !(isPublicSurfacePath(p) || nonAppOther.test(p));
 }
 
 // ModeGate — auth 로딩 해소 후 1회 확정(세션 불변, Fable §3). AuthProvider 아래 · Router 위.

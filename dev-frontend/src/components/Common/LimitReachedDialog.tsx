@@ -51,7 +51,9 @@ const LimitReachedDialog: React.FC = () => {
   const map = CODE_TO_KEY[code] || { titleKey: 'limit.generic.title', descKey: 'limit.generic.desc' };
   const title = t(map.titleKey, detail.message || code);
   const desc = t(map.descKey, detail.message_en || '');
-  const addonHint = map.addonHintKey ? t(map.addonHintKey, '') : '';
+  // App Store 3.1.1 — add-on 안내 문구는 가격·구매 방법을 담고 있어 네이티브에선 숨긴다.
+  // "구매를 웹으로 안내하는 문구도 두지 않는다"(utils/purchase) 원칙과 정렬.
+  const addonHint = (canPurchaseInApp() && map.addonHintKey) ? t(map.addonHintKey, '') : '';
 
   const upgradeUrl = detail.upgrade_url || '/business/settings/plan';
   const close = () => setDetail(null);
