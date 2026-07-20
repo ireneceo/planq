@@ -602,6 +602,15 @@ function attachWorkspaceScope(opts = {}) {
       if (!businessId || Number.isNaN(businessId)) {
         return res.status(400).json({ success: false, message: 'Business ID required' });
       }
+      // 계정 삭제로 soft-delete 된 워크스페이스 차단 — 전 워크스페이스 접근의 단일 관문(ACCOUNT_DELETION_DESIGN 🔴A).
+      //   platform_admin 은 복구/감사 목적으로 통과(deleted_at 무시). 현재 노출 경로는 없으나(soft-delete 대상이
+      //   owner 도 탈퇴한 데이터-0 솔로) 범용 워크스페이스 삭제 도입 대비 심층방어.
+      if (!req.user.platform_role || req.user.platform_role !== 'platform_admin') {
+        const bizRow = await Business.findByPk(businessId, { attributes: ['id', 'deleted_at'] });
+        if (bizRow && bizRow.deleted_at) {
+          return res.status(404).json({ success: false, message: 'Workspace not found', code: 'workspace_deleted' });
+        }
+      }
       const scope = await getUserScope(req.user.id, businessId, req.user.platform_role);
       // platformAdminAs 옵션 적용 (옛 호환)
       if (platformAdminAs && scope.isPlatformAdmin) {
