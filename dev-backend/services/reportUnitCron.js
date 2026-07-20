@@ -48,7 +48,11 @@ async function finalizeUnitsForPeriod(businessId, periodType, periodStart, { aut
 // 시간당 — ws_tz 가 직전 기간을 충분히 지났을 때 자동확정 (멱등이라 여러 번 무해)
 async function runReportUnitCron() {
   try {
-    const businesses = await Business.findAll({ attributes: ['id', 'timezone', 'monthly_finalize_enabled'] });
+    // 계정 삭제로 soft-delete 된 워크스페이스는 리포트 자동확정 대상에서 제외 (access_scope 관문 밖 cron)
+    const businesses = await Business.findAll({
+      attributes: ['id', 'timezone', 'monthly_finalize_enabled'],
+      where: { deleted_at: null },
+    });
     for (const biz of businesses) {
       const tz = biz.timezone || 'Asia/Seoul';
       let todayStr;
