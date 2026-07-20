@@ -545,6 +545,32 @@ export default function WorkspaceSettingsPage() {
   const [memberBusy, setMemberBusy] = useState(false);
   const [memberError, setMemberError] = useState<string | null>(null);
   const [confirmRemoveId, setConfirmRemoveId] = useState<number | null>(null);
+  const [confirmTransferId, setConfirmTransferId] = useState<number | null>(null);  // 소유권 이전 확인
+
+  // 워크스페이스 소유권 이전 — owner 만. 대상 멤버가 owner 가 되고 현 owner 는 admin 강등.
+  const handleTransferOwnership = async (targetUserId: number) => {
+    if (!businessId) return;
+    setMemberBusy(true); setMemberError(null);
+    try {
+      const res = await apiFetch(`/api/businesses/${businessId}/transfer-ownership`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to_user_id: targetUserId }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setMemberError(j?.message?.includes('owner_only')
+          ? t('members.drawer.errTransferOwnerOnly', '소유자만 이전할 수 있습니다.') as string
+          : mapApiError(new Error(j?.message || 'failed'), tErr));
+        return;
+      }
+      const fresh = await listMembers(businessId);
+      setMembers(fresh);
+      setConfirmTransferId(null);
+      setSelectedMemberId(null);
+    } catch (err: unknown) {
+      setMemberError(mapApiError(err, tErr));
+    } finally { setMemberBusy(false); }
+  };
 
   const handleRoleChange = async (memberId: number, nextRole: 'owner' | 'member') => {
     if (!businessId) return;
@@ -1441,6 +1467,32 @@ export default function WorkspaceSettingsPage() {
                         {memberError && <DangerError>{memberError}</DangerError>}
 
                         {/* 제거 / 나가기 / 초대 취소 */}
+                        {/* 소유권 이전 — 현재 owner 가, 대상(owner 아닌 활성 human 멤버)에게 넘김 */}
+                        {user?.business_role === 'owner' && !isSelf && !isPending && String(target.role) !== 'owner' && String(target.role) !== 'ai' && target.user_id && (
+                          <>
+                            <DangerRow>
+                              <DangerRowLabel>{t('members.drawer.transferLabel', '소유권')}</DangerRowLabel>
+                              <DangerBtn type="button" disabled={memberBusy} onClick={() => setConfirmTransferId(target.id)}>
+                                {t('members.drawer.transferBtn', '소유권 이전')}
+                              </DangerBtn>
+                            </DangerRow>
+                            {confirmTransferId === target.id && (
+                              <ConfirmBox>
+                                <ConfirmText>
+                                  {t('members.drawer.transferConfirm', '이 멤버에게 워크스페이스 소유권을 넘깁니다. 당신은 관리자(admin)로 바뀌고, 이후 소유자 전용 작업(재무·삭제 등)은 이 멤버가 하게 됩니다. 되돌리려면 새 소유자가 다시 이전해야 합니다.')}
+                                </ConfirmText>
+                                <ConfirmRow>
+                                  <InviteCancel type="button" onClick={() => setConfirmTransferId(null)}>
+                                    {t('members.inviteCancel', '취소')}
+                                  </InviteCancel>
+                                  <DangerBtn type="button" disabled={memberBusy} onClick={() => handleTransferOwnership(target.user_id as number)}>
+                                    {memberBusy ? t('members.drawer.transferring', '이전 중...') : t('members.drawer.transferBtn', '소유권 이전')}
+                                  </DangerBtn>
+                                </ConfirmRow>
+                              </ConfirmBox>
+                            )}
+                          </>
+                        )}
                         <DangerRow>
                           <DangerRowLabel>
                             {isPending

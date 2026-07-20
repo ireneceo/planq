@@ -349,7 +349,12 @@
       "leaveConfirm": "이 워크스페이스에서 나가시겠습니까? 과거 업무 이력은 보존됩니다.",
       "cancelInviteConfirm": "이 초대를 취소할까요? 초대 링크가 무효화됩니다.",
       "errLastOwner": "마지막 관리자는 제거·강등할 수 없습니다. 먼저 다른 멤버를 관리자로 지정해 주세요.",
-      "errForbidden": "제거 권한이 없습니다."
+      "errForbidden": "제거 권한이 없습니다.",
+      "transferLabel": "소유권",
+      "transferBtn": "소유권 이전",
+      "transferring": "이전 중...",
+      "transferConfirm": "이 멤버에게 워크스페이스 소유권을 넘깁니다. 당신은 관리자(admin)로 바뀌고, 이후 소유자 전용 작업(재무·삭제 등)은 이 멤버가 하게 됩니다. 되돌리려면 새 소유자가 다시 이전해야 합니다.",
+      "errTransferOwnerOnly": "소유자만 이전할 수 있습니다."
     },
     "roleAdmin": "관리자",
     "roleMember": "멤버",

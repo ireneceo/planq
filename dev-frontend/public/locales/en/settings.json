@@ -349,7 +349,12 @@
       "leaveConfirm": "Leave this workspace? Your past task history will be preserved.",
       "cancelInviteConfirm": "Cancel this invite? The invitation link will be revoked.",
       "errLastOwner": "Cannot remove or demote the last admin. Promote another member to admin first.",
-      "errForbidden": "You don't have permission to remove."
+      "errForbidden": "You don't have permission to remove.",
+      "transferLabel": "Ownership",
+      "transferBtn": "Transfer ownership",
+      "transferring": "Transferring...",
+      "transferConfirm": "Transfer workspace ownership to this member. You become an admin, and owner-only actions (billing, deletion) move to them. To reverse, the new owner must transfer back.",
+      "errTransferOwnerOnly": "Only the owner can transfer."
     },
     "roleAdmin": "Admin",
     "roleMember": "Member",
