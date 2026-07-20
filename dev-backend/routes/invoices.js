@@ -1690,7 +1690,10 @@ router.post('/:businessId/:id/installments/:installId/unmark-paid', authenticate
     if (!inst || inst.status !== 'paid') { await t.rollback(); return errorResponse(res, 'not_paid', 400); }
     await inst.update({ status: 'sent', paid_at: null, marked_by_user_id: null, marked_at: null, payer_memo: null }, { transaction: t });
     // ★ 결제 원장 회수 (D3) — 결제 취소는 "받은 적 없음"이므로 그 회차 payment 삭제.
-    //   회차 status='paid' ↔ payment 존재 불변식 유지. bill_event(unmark)로 이력은 별도 보존.
+    //   회차 status='paid' ↔ payment 존재 불변식 유지. 삭제 전 스냅샷을 잡아 audit 로 이력 보존
+    //   (payment hard delete 로 pg_transaction_id 등이 사라지므로 — Fable 🟠2).
+    const removedPayments = await InvoicePayment.findAll({ where: { invoice_id: invoice.id, installment_id: inst.id }, transaction: t });
+    const removedSnapshot = removedPayments.map((p) => ({ id: p.id, amount: Number(p.amount), method: p.method, pg_provider: p.pg_provider, pg_transaction_id: p.pg_transaction_id, paid_at: p.paid_at }));
     await InvoicePayment.destroy({ where: { invoice_id: invoice.id, installment_id: inst.id }, transaction: t });
     const all = await InvoiceInstallment.findAll({ where: { invoice_id: invoice.id }, transaction: t });
     const paidSum = all.filter(i => i.status === 'paid').reduce((s, i) => s + Number(i.amount), 0);
@@ -1717,7 +1720,9 @@ router.post('/:businessId/:id/installments/:installId/unmark-paid', authenticate
       action: 'invoice.installment.unmark_paid',
       targetType: 'invoice_installment',
       targetId: inst.id,
-      newValue: { invoice_id: invoice.id, installment_no: inst.installment_no, invoice_status: newStatus },
+      // 삭제된 payment 스냅샷을 audit 에 보존 (Fable 🟠2 — hard delete 로 pg_transaction_id 등이 사라지므로).
+      //   bill_events.event_type 은 ENUM 이라 'payment_unmarked' 가 없어 audit 로 이력을 남긴다.
+      newValue: { invoice_id: invoice.id, installment_no: inst.installment_no, invoice_status: newStatus, removed_payments: removedSnapshot },
     });
     successResponse(res, refreshed, 'Installment payment unmarked');
   } catch (error) { try { await t.rollback(); } catch {} next(error); }
@@ -2208,6 +2213,10 @@ router.patch('/:businessId/:id/status', authenticateToken, checkBusinessAccess, 
       if (invoice.installment_mode === 'split') {
         return errorResponse(res, 'use_installment_mark_paid — split invoice 는 회차별로 결제 처리하세요', 400);
       }
+      // draft/canceled 는 결제 불가 — markInvoicePaid 의 INVALID_STATE 를 400 으로 표면화 (🟠3, 기본 500 방지).
+      if (invoice.status === 'draft' || invoice.status === 'canceled') {
+        return errorResponse(res, 'invoice_not_payable — draft/canceled 는 결제할 수 없습니다', 400);
+      }
       const result = await markInvoicePaid({
         businessId: Number(req.params.businessId),
         invoiceId: invoice.id,
@@ -2222,20 +2231,22 @@ router.patch('/:businessId/:id/status', authenticateToken, checkBusinessAccess, 
       return successResponse(res, result.invoice || invoice);
     }
 
+    // ★ 여기 도달하는 status = draft/sent/overdue/canceled (paid 는 위에서 위임 처리).
+    //   받은 돈(status='paid' OR paid_amount>0 OR paid 회차)이 있는 청구서를 paid 밖으로 되돌리면
+    //   payment 원장이 남은 채 재-paid 시 이중계상된다(Fable 🔴). 되돌리기 전 unmark-paid 강제.
+    //   status='paid' 조건 포함 → 레거시 paid_amount=0 인 옛 paid 건도 차단(🟠1).
+    const paidInstCount = await InvoiceInstallment.count({ where: { invoice_id: invoice.id, status: 'paid' } });
+    const hasReceivedMoney = invoice.status === 'paid' || Number(invoice.paid_amount || 0) > 0 || paidInstCount > 0;
+    if (hasReceivedMoney) {
+      return errorResponse(res, 'cannot_change_paid — 결제된 청구서는 되돌리기/취소 전 회차별 unmark-paid 가 필요합니다', 400);
+    }
+
     const updates = { status };
     if (status === 'sent' && !invoice.sent_at) {
       updates.sent_at = new Date();
       updates.issued_at = new Date();
     }
-    // ★ canceled — 이미 받은 돈(paid 회차 또는 paid_amount>0)이 있으면 차단 (R3).
-    //   회차 취소의 cannot_cancel_paid 와 일관. 받은 돈을 장부에서 지우지 않는다. unmark 선행 강제.
-    if (status === 'canceled') {
-      const paidInst = await InvoiceInstallment.count({ where: { invoice_id: invoice.id, status: 'paid' } });
-      if (paidInst > 0 || Number(invoice.paid_amount || 0) > 0) {
-        return errorResponse(res, 'cannot_cancel_paid — 결제된 회차/금액이 있어 취소 전 unmark-paid 가 필요합니다', 400);
-      }
-      updates.paid_at = null;
-    }
+    if (status === 'canceled') updates.paid_at = null;
 
     await invoice.update(updates);
     // 사이클 N+21 — status history

@@ -578,7 +578,13 @@ function defineBillingLedgerTests() {
       // payment 있는데 회차가 paid 아님 (유령 원장 — canceled/unmark 후 남은 것)
       + `const [c]=await s.query(\\\"SELECT ip.id FROM invoice_payments ip `
       + `JOIN invoice_installments ii ON ii.id=ip.installment_id WHERE ii.status<>'paid'\\\");`
-      + `console.log('@@'+JSON.stringify({instNoPay:a.map(x=>x.id),singleNoPay:b.map(x=>x.id),ghostPay:c.map(x=>x.id)}));`
+      // 단일 유령 원장 — installment_id NULL payment 인데 invoice 가 paid 아님(paid→sent 되돌림 후 잔존)
+      + `const [d]=await s.query(\\\"SELECT ip.id FROM invoice_payments ip `
+      + `JOIN invoices i ON i.id=ip.invoice_id WHERE ip.installment_id IS NULL AND i.status<>'paid'\\\");`
+      // paid 엔티티당 payment >1 (이중계상). 단일=invoice_id 그룹(installment NULL), 회차=installment_id 그룹.
+      + `const [e]=await s.query(\\\"SELECT invoice_id FROM invoice_payments WHERE installment_id IS NULL GROUP BY invoice_id HAVING COUNT(*)>1\\\");`
+      + `const [f]=await s.query(\\\"SELECT installment_id FROM invoice_payments WHERE installment_id IS NOT NULL GROUP BY installment_id HAVING COUNT(*)>1\\\");`
+      + `console.log('@@'+JSON.stringify({instNoPay:a.map(x=>x.id),singleNoPay:b.map(x=>x.id),ghostPay:c.map(x=>x.id),singleGhost:d.map(x=>x.id),dupSingle:e.map(x=>x.invoice_id),dupInst:f.map(x=>x.installment_id)}));`
       + `await s.close();})();"`,
       { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 20000 });
     const line = out.split('\n').find((l) => l.startsWith('@@'));
@@ -588,6 +594,9 @@ function defineBillingLedgerTests() {
     if (r.instNoPay.length) problems.push(`paid 회차인데 payment 없음: ${r.instNoPay.join(',')}`);
     if (r.singleNoPay.length) problems.push(`paid 단일 invoice 인데 payment 없음: ${r.singleNoPay.join(',')}`);
     if (r.ghostPay.length) problems.push(`payment 있는데 회차 paid 아님: ${r.ghostPay.join(',')}`);
+    if (r.singleGhost.length) problems.push(`단일 유령 payment(invoice paid 아님): ${r.singleGhost.join(',')}`);
+    if (r.dupSingle.length) problems.push(`단일 invoice 이중 payment: ${r.dupSingle.join(',')}`);
+    if (r.dupInst.length) problems.push(`회차 이중 payment: ${r.dupInst.join(',')}`);
     if (problems.length) throw new Error(problems.join(' / '));
     return true;
   });
