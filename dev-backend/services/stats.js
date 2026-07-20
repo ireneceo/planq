@@ -8,6 +8,9 @@ const { Task, TaskEstimation, sequelize } = require('../models');
 
 // MAPE = mean of |est - actual| / actual (0 < actual)
 // 단일값 0 div 가드, 그 외 task 평균
+// 순 수금액 = 결제액 - 환불액. 매출 통계는 항상 이 값으로 합산(환불 반영). refunded_amount 미차감 시 매출 과대.
+const netPay = (p) => Number(p.amount || 0) - Number(p.refunded_amount || 0);
+
 function mape(rows) {
   let sum = 0; let n = 0;
   for (const r of rows) {
@@ -342,9 +345,9 @@ async function buildOverviewTab(businessId, period) {
   const payments = await InvoicePayment.findAll({
     where: { paid_at: { [Op.between]: [fromDt, toDt] } },
     include: [{ model: Invoice, where: { business_id: businessId }, attributes: ['id', 'project_id'] }],
-    attributes: ['amount'],
+    attributes: ['amount', 'refunded_amount'],
   });
-  const revenue = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
+  const revenue = payments.reduce((s, p) => s + netPay(p), 0);
 
   // 발행액 (issued)
   const issuedInvoices = await Invoice.findAll({
@@ -416,9 +419,9 @@ async function buildOverviewTab(businessId, period) {
     const mPays = await InvoicePayment.findAll({
       where: { paid_at: { [Op.between]: [m, mEnd] } },
       include: [{ model: Invoice, where: { business_id: businessId }, attributes: ['id', 'project_id'] }],
-      attributes: ['amount'],
+      attributes: ['amount', 'refunded_amount'],
     });
-    const monthRev = mPays.reduce((s, p) => s + Number(p.amount || 0), 0);
+    const monthRev = mPays.reduce((s, p) => s + netPay(p), 0);
     trend.push({
       month: m.toISOString().slice(0, 7),
       revenue: monthRev,
@@ -486,13 +489,13 @@ async function buildProfitTab(businessId, period, segment = 'client') {
       where: { business_id: businessId, project_id: { [Op.in]: projectIds } },
       attributes: ['id', 'project_id'],
     }],
-    attributes: ['amount'],
+    attributes: ['amount', 'refunded_amount'],
   });
   const revenueByProject = {};
   for (const p of payments) {
     const pid = p.Invoice?.project_id;
     if (!pid) continue;
-    revenueByProject[pid] = (revenueByProject[pid] || 0) + Number(p.amount || 0);
+    revenueByProject[pid] = (revenueByProject[pid] || 0) + netPay(p);
   }
 
   // 프로젝트별 actual_hours
@@ -702,9 +705,9 @@ async function buildTeamTab(businessId, period, segment = 'client') {
   const payments = await InvoicePayment.findAll({
     where: { paid_at: { [Op.between]: [fromDt, toDt] } },
     include: [{ model: Invoice, where: { business_id: businessId }, attributes: ['id', 'project_id'] }],
-    attributes: ['amount'],
+    attributes: ['amount', 'refunded_amount'],
   });
-  const totalRevenue = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
+  const totalRevenue = payments.reduce((s, p) => s + netPay(p), 0);
 
   const totalActualHours = tasks.reduce((s, t) => s + Number(t.actual_hours || 0), 0);
   // 매출배분 분모 = 고객 프로젝트 시간만 (내부업무 시간이 인당매출을 희석/오배분하던 것 차단)
@@ -877,9 +880,9 @@ async function buildFinanceTab(businessId, period, segment = 'client') {
   const payments = await InvoicePayment.findAll({
     where: { paid_at: { [Op.between]: [fromDt, toDt] } },
     include: [{ model: Invoice, where: { business_id: businessId }, attributes: ['id', 'project_id'] }],
-    attributes: ['amount', 'paid_at'],
+    attributes: ['amount', 'refunded_amount', 'paid_at'],
   });
-  const revenue = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
+  const revenue = payments.reduce((s, p) => s + netPay(p), 0);
 
   // 미수금 (current overdue)
   const overdueInvoices = await Invoice.findAll({
@@ -962,7 +965,7 @@ async function buildFinanceTab(businessId, period, segment = 'client') {
     InvoicePayment.findAll({
       where: { paid_at: { [Op.gte]: trendStart } },
       include: [{ model: Invoice, where: { business_id: businessId }, attributes: [] }],
-      attributes: ['amount', 'paid_at'],
+      attributes: ['amount', 'refunded_amount', 'paid_at'],
     }),
     ProjectExpense.findAll({
       include: [{ model: require('../models').Project, where: { business_id: businessId }, attributes: [] }],
@@ -974,7 +977,7 @@ async function buildFinanceTab(businessId, period, segment = 'client') {
   for (let i = 11; i >= 0; i--) {
     const m = new Date(toDt.getFullYear(), toDt.getMonth() - i, 1);
     const key = m.toISOString().slice(0, 7);
-    const rev = trendPays.filter(p => ym(p.paid_at) === key).reduce((s, p) => s + Number(p.amount || 0), 0);
+    const rev = trendPays.filter(p => ym(p.paid_at) === key).reduce((s, p) => s + netPay(p), 0);
     const dc = trendDirects.filter(e => ym(e.incurred_at) === key).reduce((s, e) => s + Number(e.amount || 0), 0);
     const cost = monthlyOverhead + dc;
     costTrend.push({ month: key, revenue: Math.round(rev), cost: Math.round(cost), profit: Math.round(rev - cost) });
