@@ -508,13 +508,25 @@ router.post('/login', async (req, res, next) => {
       return errorResponse(res, 'Invalid email or password', 401);
     }
 
-    if (user.status !== 'active') {
-      return errorResponse(res, 'Account suspended', 403);
-    }
-
     const isValid = await bcrypt.compare(password, user.password_hash);
     if (!isValid) {
       return errorResponse(res, 'Invalid email or password', 401);
+    }
+
+    // ★ 상태 검사는 비밀번호 검증 뒤에 (enumeration 방지 — Fable 🟠3).
+    //   탈퇴 유예 중이면 복구 안내 code 로 구분(프론트가 suspended 와 다르게 "복구하시겠습니까" 표시).
+    if (user.status === 'deleted') {
+      const pending = user.deletion_scheduled_at && new Date(user.deletion_scheduled_at) > new Date();
+      if (pending) {
+        return res.status(403).json({
+          success: false, message: 'Account pending deletion', code: 'account_deleted_pending',
+          recoverable: true, grace_until: user.deletion_scheduled_at,
+        });
+      }
+      return errorResponse(res, 'Account deleted', 403, 'account_deleted');
+    }
+    if (user.status !== 'active') {
+      return errorResponse(res, 'Account suspended', 403, 'account_suspended');
     }
 
     // Generate tokens
@@ -861,6 +873,48 @@ router.post('/resend-verify-email', authenticateToken, async (req, res, next) =>
       to: user.email, name: user.name, verifyToken: tokenRaw, ttlHours: 72,
     }).catch(() => null);
     return successResponse(res, { sent: true });
+  } catch (err) { next(err); }
+});
+
+// 계정 탈퇴 유예 중 복구 — 공개 라우트 (deleted 는 토큰을 못 얻으므로 인증 불가, Fable 🔴2).
+//   이메일+비밀번호 재인증 → status='active' + membership/워크스페이스 원복. login 과 동일 rate-limit(security.js).
+router.post('/deletion-recover', async (req, res, next) => {
+  try {
+    const { email, password } = req.body || {};
+    if (!email || !password) return errorResponse(res, 'email_password_required', 400);
+    const user = await User.findOne({ where: { email: String(email).toLowerCase().trim() } });
+    // 존재/상태 노출 최소화 — 일관된 실패 메시지
+    const fail = () => errorResponse(res, 'Cannot recover this account', 403, 'recover_failed');
+    if (!user || user.is_ai || user.status !== 'deleted') return fail();
+    const pending = user.deletion_scheduled_at && new Date(user.deletion_scheduled_at) > new Date();
+    if (!pending) return fail(); // 유예 만료(익명화됨) → 복구 불가
+    const isOauthOnly = user.password_hash && user.password_hash.startsWith('$2a$12$oauth_no_password_set');
+    if (isOauthOnly) return errorResponse(res, 'oauth_otp_required', 400, 'oauth_otp_required');
+    const ok = await bcrypt.compare(String(password), user.password_hash);
+    if (!ok) return fail();
+
+    const { sequelize } = require('../config/database');
+    const { BusinessMember, Business } = require('../models');
+    const requestedAt = user.deletion_requested_at;
+    const t = await sequelize.transaction();
+    try {
+      await user.update({ status: 'active', deletion_requested_at: null, deletion_scheduled_at: null }, { transaction: t });
+      // 이 탈퇴로 removed 된 membership 만 원복 (🔴B — removed_reason 마커로 구분)
+      await BusinessMember.update(
+        { removed_at: null, removed_by: null, removed_reason: null },
+        { where: { user_id: user.id, removed_reason: 'account_deletion', removed_at: requestedAt ? { [require('sequelize').Op.gte]: requestedAt } : { [require('sequelize').Op.ne]: null } }, transaction: t });
+      // 동반 삭제됐던 솔로 워크스페이스 복원 (내가 owner + deleted_at >= 요청시각)
+      if (requestedAt) {
+        await Business.update({ deleted_at: null },
+          { where: { owner_id: user.id, deleted_at: { [require('sequelize').Op.gte]: requestedAt } }, transaction: t });
+      }
+      await t.commit();
+    } catch (e) { await t.rollback().catch(() => {}); throw e; }
+
+    require('../services/auditService').logAudit(req, {
+      action: 'user.deletion_recover', targetType: 'user', targetId: user.id, newValue: { recovered: true },
+    });
+    return successResponse(res, { recovered: true });
   } catch (err) { next(err); }
 });
 

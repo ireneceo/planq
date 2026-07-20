@@ -508,6 +508,11 @@ function scheduleNextMidnight() {
       console.log('[upload-cleanup]', r);
     } catch (e) { console.warn('[upload-cleanup] failed', e.message); }
     try {
+      // 탈퇴 유예(30일) 만료 계정 익명화 (ACCOUNT_DELETION_DESIGN)
+      const r = await require('./services/accountAnonymize').runAccountAnonymizeCron();
+      if (r.due > 0) console.log('[account-anonymize]', r);
+    } catch (e) { console.warn('[account-anonymize] failed', e.message); }
+    try {
       const r = await overdueHandler.runDailyOverdueCron(new Date(), io);
       console.log('[overdue]', r);
     } catch (e) { console.warn('[overdue] failed', e.message); }

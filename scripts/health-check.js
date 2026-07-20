@@ -602,6 +602,38 @@ function defineBillingLedgerTests() {
   });
 }
 
+// 계정 삭제 익명화 정합 — anonymized_at 있으면 PII 잔존 0. ACCOUNT_DELETION_DESIGN.
+//   "삭제했는데 이름이 보인다" 분쟁 차단. 익명화 로직이 필드를 빠뜨리면 검출.
+function defineAccountDeletionTests() {
+  const isLocal = BACKEND.startsWith('http://localhost');
+  if (!isLocal) return;
+
+  test('account', '익명화된 계정에 PII 잔존 없음', async () => {
+    const { execSync } = require('child_process');
+    const out = execSync(
+      `node -e "require('dotenv').config();const{Sequelize}=require('sequelize');`
+      + `const s=new Sequelize(process.env.DB_NAME,process.env.DB_USER,process.env.DB_PASSWORD,`
+      + `{host:process.env.DB_HOST,dialect:'mysql',logging:false});(async()=>{`
+      // anonymized 인데 users PII 가 마스킹 안 된 것
+      + `const [a]=await s.query(\\\"SELECT id FROM users WHERE anonymized_at IS NOT NULL AND `
+      + `(name<>'탈퇴한 사용자' OR email NOT LIKE 'deleted-%@deleted.planq.kr' OR bio IS NOT NULL OR phone IS NOT NULL)\\\");`
+      // anonymized user 의 business_members 에 이름/bio 잔존
+      + `const [b]=await s.query(\\\"SELECT bm.id FROM business_members bm JOIN users u ON u.id=bm.user_id `
+      + `WHERE u.anonymized_at IS NOT NULL AND (bm.name IS NOT NULL OR bm.bio IS NOT NULL)\\\");`
+      + `console.log('@@'+JSON.stringify({userPii:a.map(x=>x.id),memberPii:b.map(x=>x.id)}));`
+      + `await s.close();})();"`,
+      { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 20000 });
+    const line = out.split('\n').find((l) => l.startsWith('@@'));
+    if (!line) throw new Error('익명화 정합 조회 실패 — 거짓 통과 방지 위해 중단');
+    const r = JSON.parse(line.slice(2));
+    const problems = [];
+    if (r.userPii.length) problems.push(`익명화됐는데 users PII 잔존: ${r.userPii.join(',')}`);
+    if (r.memberPii.length) problems.push(`익명화됐는데 business_members PII 잔존: ${r.memberPii.join(',')}`);
+    if (problems.length) throw new Error(problems.join(' / '));
+    return true;
+  });
+}
+
 function defineWikiTests() {
   const isLocal = BACKEND.startsWith('http://localhost');
   if (!isLocal) return;  // 원격 검증 시 파일 시스템(라우트 추출) 접근 불가
@@ -846,6 +878,7 @@ async function runTests(allTests, category) {
   defineFrontendTests();
   defineWikiTests();
   defineBillingLedgerTests();
+  defineAccountDeletionTests();
   defineRealtimeTests();
 
   const allPass = await runTests(tests, opts.category);
