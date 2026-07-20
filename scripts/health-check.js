@@ -553,6 +553,46 @@ function defineExternalTests() {
 // ============================================
 // 카테고리 7: frontend (정적 린트)
 // ============================================
+// Q Bill 결제 원장(invoice_payments) ↔ paid 상태 정합. QBILL_PAYMENT_LEDGER_FIX D6.
+//   원장은 stats.js 매출의 유일한 원천 — write 를 잊으면 매출이 조용히 0 이 된다(이번 결함).
+//   불변식: paid 회차 1건 = payment 1건, paid 단일 invoice = payment 1건.
+//   canceled invoice 는 예외(취소 전 paid 회차가 unmark 없이 남아 있을 수 있음 — R3).
+function defineBillingLedgerTests() {
+  const isLocal = BACKEND.startsWith('http://localhost');
+  if (!isLocal) return;
+
+  test('billing', 'invoice_payments 원장이 paid 상태와 일치 (매출 0 회귀 가드)', async () => {
+    const { execSync } = require('child_process');
+    const out = execSync(
+      `node -e "require('dotenv').config();const{Sequelize}=require('sequelize');`
+      + `const s=new Sequelize(process.env.DB_NAME,process.env.DB_USER,process.env.DB_PASSWORD,`
+      + `{host:process.env.DB_HOST,dialect:'mysql',logging:false});(async()=>{`
+      // paid 회차인데 payment 없는 것 (canceled 부모 제외 안 함 — paid 회차는 무조건 payment 필요)
+      + `const [a]=await s.query(\\\"SELECT ii.id FROM invoice_installments ii `
+      + `LEFT JOIN invoice_payments ip ON ip.installment_id=ii.id `
+      + `WHERE ii.status='paid' AND ip.id IS NULL\\\");`
+      // paid 단일 invoice(single)인데 payment 없는 것
+      + `const [b]=await s.query(\\\"SELECT i.id FROM invoices i `
+      + `LEFT JOIN invoice_payments ip ON ip.invoice_id=i.id AND ip.installment_id IS NULL `
+      + `WHERE i.installment_mode='single' AND i.status='paid' AND ip.id IS NULL\\\");`
+      // payment 있는데 회차가 paid 아님 (유령 원장 — canceled/unmark 후 남은 것)
+      + `const [c]=await s.query(\\\"SELECT ip.id FROM invoice_payments ip `
+      + `JOIN invoice_installments ii ON ii.id=ip.installment_id WHERE ii.status<>'paid'\\\");`
+      + `console.log('@@'+JSON.stringify({instNoPay:a.map(x=>x.id),singleNoPay:b.map(x=>x.id),ghostPay:c.map(x=>x.id)}));`
+      + `await s.close();})();"`,
+      { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 20000 });
+    const line = out.split('\n').find((l) => l.startsWith('@@'));
+    if (!line) throw new Error('원장 정합 조회 실패 — 거짓 통과 방지 위해 중단');
+    const r = JSON.parse(line.slice(2));
+    const problems = [];
+    if (r.instNoPay.length) problems.push(`paid 회차인데 payment 없음: ${r.instNoPay.join(',')}`);
+    if (r.singleNoPay.length) problems.push(`paid 단일 invoice 인데 payment 없음: ${r.singleNoPay.join(',')}`);
+    if (r.ghostPay.length) problems.push(`payment 있는데 회차 paid 아님: ${r.ghostPay.join(',')}`);
+    if (problems.length) throw new Error(problems.join(' / '));
+    return true;
+  });
+}
+
 function defineWikiTests() {
   const isLocal = BACKEND.startsWith('http://localhost');
   if (!isLocal) return;  // 원격 검증 시 파일 시스템(라우트 추출) 접근 불가
@@ -796,6 +836,7 @@ async function runTests(allTests, category) {
   defineExternalTests();
   defineFrontendTests();
   defineWikiTests();
+  defineBillingLedgerTests();
   defineRealtimeTests();
 
   const allPass = await runTests(tests, opts.category);

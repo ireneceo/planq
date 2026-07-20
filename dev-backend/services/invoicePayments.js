@@ -4,8 +4,18 @@
 //   분리: SAAS_BILLING_VS_QBILL_SEPARATION.md (invoices/installments = Business 수취, payments 무관).
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
-const { Invoice, InvoiceInstallment, InvoiceStatusHistory, Message } = require('../models');
+const { Invoice, InvoiceInstallment, InvoiceStatusHistory, InvoicePayment, Message } = require('../models');
 const { logBillEvent } = require('./billEvents');
+
+// 결제수단 → InvoicePayment.method ENUM(portone|bank_transfer|cash|other) 매핑.
+//   stripe 는 ENUM 에 없어 other + pg_provider='stripe' 로 기록(portone 전환 대비 최소 변경).
+//   QBILL_PAYMENT_LEDGER_FIX R5/method 매핑.
+function toPaymentFields(method, pgTransactionId) {
+  if (method === 'stripe') {
+    return { method: 'other', pg_provider: 'stripe', pg_channel: 'stripe', pg_transaction_id: pgTransactionId || null };
+  }
+  return { method: 'bank_transfer', pg_provider: null, pg_channel: null, pg_transaction_id: pgTransactionId || null };
+}
 
 // 사이클 N+21 — Invoice 상태 전이 history 박제. (routes/invoices.js 에서 이관 — 라우트는 여기서 import)
 async function recordInvoiceStatusChange(invoice, fromStatus, toStatus, userId, note = null) {
@@ -103,11 +113,14 @@ async function markInstallmentPaid({ businessId, invoiceId, installmentId, paidA
   try {
     invoice = await Invoice.findOne({ where: { id: invoiceId, business_id: businessId }, transaction: t });
     if (!invoice) { await t.rollback(); const e = new Error('invoice_not_found'); e.code = 'NOT_FOUND'; throw e; }
-    inst = await InvoiceInstallment.findOne({ where: { id: installmentId, invoice_id: invoice.id }, transaction: t });
+    // ★ FOR UPDATE 락 — Stripe 는 checkout.session.completed + payment_intent.succeeded 를 거의 동시에
+    //   보낸다. 락 없이 findOne 하면 두 트랜잭션이 모두 status='pending' 스냅샷으로 아래 멱등 가드를
+    //   통과 → payment 2행 = 매출 이중계상. 락 후 status 재검사로 직렬화한다. (R2)
+    inst = await InvoiceInstallment.findOne({ where: { id: installmentId, invoice_id: invoice.id }, transaction: t, lock: t.LOCK.UPDATE });
     if (!inst) { await t.rollback(); const e = new Error('installment_not_found'); e.code = 'NOT_FOUND'; throw e; }
     if (inst.status === 'canceled') { await t.rollback(); const e = new Error('installment_canceled'); e.code = 'INVALID_STATE'; throw e; }
     if (inst.status === 'paid') {
-      // 멱등 — webhook 재전송/중복 결제 세션. 아무 것도 바꾸지 않고 반환.
+      // 멱등 — webhook 재전송/중복 결제 세션. 락 뒤에서 재검사하므로 동시 도착도 여기로 수렴.
       await t.rollback();
       return { alreadyPaid: true, invoice, installment: inst };
     }
@@ -131,6 +144,19 @@ async function markInstallmentPaid({ businessId, invoiceId, installmentId, paidA
       paid_amount: paidSum,
       status: newStatus,
       paid_at: newStatus === 'paid' ? new Date() : invoice.paid_at,
+    }, { transaction: t });
+
+    // ★ 결제 원장 append — 같은 트랜잭션 안에서 원자화(R1). 매출 통계(stats.js)의 유일한 원천.
+    //   회차 status='paid' 전환과 원장이 항상 일치(불변식). 락으로 직렬화돼 중복 생성 없음.
+    await InvoicePayment.create({
+      invoice_id: invoice.id,
+      installment_id: inst.id,
+      amount: Number(inst.amount),
+      paid_at: paidAt || new Date(),
+      currency: invoice.currency || 'KRW',
+      recorded_by: markedByUserId,
+      memo: payerMemo || null,
+      ...toPaymentFields(method, pgTransactionId),
     }, { transaction: t });
 
     await t.commit();
@@ -166,18 +192,37 @@ async function markInstallmentPaid({ businessId, invoiceId, installmentId, paidA
  *   부작용은 PATCH /:id/status(paid) 라우트와 동일.
  */
 async function markInvoicePaid({ businessId, invoiceId, paidAt, markedByUserId = null, method = 'bank_transfer', pgTransactionId = null, io = null }) {
-  const invoice = await Invoice.findOne({ where: { id: invoiceId, business_id: businessId } });
-  if (!invoice) { const e = new Error('invoice_not_found'); e.code = 'NOT_FOUND'; throw e; }
-  if (invoice.status === 'canceled' || invoice.status === 'draft') { const e = new Error('invoice_not_payable'); e.code = 'INVALID_STATE'; throw e; }
-  if (invoice.status === 'paid') return { alreadyPaid: true, invoice }; // 멱등
+  // ★ 트랜잭션 신설(R1) — 원래는 트랜잭션이 없어 invoice.update 와 payment.create 를 원자화할 수 없었다.
+  //   FOR UPDATE 락(R2)으로 Stripe 2이벤트 동시 도착 시 payment 이중 생성 방지.
+  const t = await sequelize.transaction();
+  let invoice, prevStatus;
+  try {
+    invoice = await Invoice.findOne({ where: { id: invoiceId, business_id: businessId }, transaction: t, lock: t.LOCK.UPDATE });
+    if (!invoice) { await t.rollback(); const e = new Error('invoice_not_found'); e.code = 'NOT_FOUND'; throw e; }
+    if (invoice.status === 'canceled' || invoice.status === 'draft') { await t.rollback(); const e = new Error('invoice_not_payable'); e.code = 'INVALID_STATE'; throw e; }
+    if (invoice.status === 'paid') { await t.rollback(); return { alreadyPaid: true, invoice }; } // 멱등 (락 뒤 재검사)
 
-  const prevStatus = invoice.status;
-  await invoice.update({
-    status: 'paid',
-    paid_at: paidAt || new Date(),
-    paid_amount: invoice.grand_total,
-    ...(pgTransactionId ? { stripe_payment_intent: pgTransactionId } : {}),
-  });
+    prevStatus = invoice.status;
+    await invoice.update({
+      status: 'paid',
+      paid_at: paidAt || new Date(),
+      paid_amount: invoice.grand_total,
+      ...(pgTransactionId ? { stripe_payment_intent: pgTransactionId } : {}),
+    }, { transaction: t });
+
+    // ★ 결제 원장 append — 단일 invoice 결제(installment_id=NULL). amount=grand_total.
+    await InvoicePayment.create({
+      invoice_id: invoice.id,
+      installment_id: null,
+      amount: Number(invoice.grand_total),
+      paid_at: paidAt || new Date(),
+      currency: invoice.currency || 'KRW',
+      recorded_by: markedByUserId,
+      ...toPaymentFields(method, pgTransactionId),
+    }, { transaction: t });
+
+    await t.commit();
+  } catch (e) { try { await t.rollback(); } catch { /* */ } throw e; }
 
   const noteLabel = method === 'stripe' ? 'stripe card payment' : 'mark-paid';
   setImmediate(() => recordInvoiceStatusChange(invoice, prevStatus, 'paid', markedByUserId, noteLabel));

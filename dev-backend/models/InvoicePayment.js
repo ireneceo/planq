@@ -8,6 +8,8 @@ class InvoicePayment extends Model {}
 InvoicePayment.init({
   id: { type: DataTypes.BIGINT, primaryKey: true, autoIncrement: true },
   invoice_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'invoices', key: 'id' } },
+  // 회차 결제면 그 회차 id, 단일 invoice 결제면 NULL. FK ON DELETE SET NULL (회차 재생성돼도 결제기록 보존).
+  installment_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'invoice_installments', key: 'id' } },
   amount: { type: DataTypes.DECIMAL(14, 2), allowNull: false },
   method: {
     type: DataTypes.ENUM('portone', 'bank_transfer', 'cash', 'other'),
@@ -35,6 +37,7 @@ InvoicePayment.init({
   underscored: true,
   indexes: [
     { fields: ['invoice_id'] },
+    { fields: ['installment_id'] },
     { fields: ['pg_transaction_id'] },
   ],
 });
