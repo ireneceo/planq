@@ -1,8 +1,21 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-07-20 (Opus 4.8, 1M) — Q Bill + 소유권이전 + 계정삭제(앱 5.1.1) + 운영 피드백 5건 운영 배포 완료 (2배포)
-**작업 상태:** 완료 (배포·실측 검증까지)
+**마지막 업데이트:** 2026-07-20 (Opus 4.8, 1M) — **v1.47.1 다통화 통화별 분리 + App Store 3.1.1 네이티브 봉쇄 운영 배포 완료** (Fable 설계·구현 게이트 양쪽 PASS, `d0cd84c` Complete 197s)
+**작업 상태:** 완료 (배포·3점 실측 검증까지)
+
+### 이번 세션 완료 (v1.47.1 · 운영 배포됨 · 5커밋)
+1. **다통화 통화별 분리**(`6224858`·`d0cd84c`) — Insights `stats.js` 가 통화 구분 없이 raw 합산+프론트 fmtKRW → 외화 ₩오염($2,200=₩2,200). 4 build+trend 홈통화(businesses.default_currency)만 합산 + `by_currency` 브레이크다운 + P&L `has_foreign_currency` 플래그 + team revenue_share 홈통화만. 프론트 `fmtMoney`(통화별 소수, 홈=KRW fmtKRW 재사용=회귀0)+칩+뱃지·각주. 원천 Invoice.currency 단일화(mismatch 0). 실HTTP biz5 revenue=13,860,000+by_currency={USD:2200}.
+2. **App Store 3.1.1 네이티브 봉쇄**(`d44b22e`) — Remote URL WebView 가 마케팅 랜딩(/pricing 가격표면) 도달하는 뒷문 차단. App.tsx 랜딩 8라우트→NativeMarketingRedirect, DownloadApp CTA→/inbox, TrialStatusBanner 네이티브 중립문구.
+3. **cron 삭제 워크스페이스 가드**(`6fe31fb`) — soft-delete 워크스페이스가 cron 청구/리포트 계속 돌던 것 차단(clientSubscriptionBilling·reportUnitCron).
+4. **순매출 환불 차감**(`08cfb7a`) — 매출 통계 refunded_amount 차감.
+
+### 이번 세션 부수 발견/조치
+- **Stripe 실상태 확인** — SaaS 카드구독(platform) Stripe 코드 완성이나 **키 미연결**(dev·운영 platform_settings 미입력). KRW 결제 코드는 OK(zero-decimal). 운영 워프로랩 업무 #142/#155 로 추적 중.
+- **운영 워프로랩(biz1) 업무 추가** — `#160 Android Play Console 법인 등록($25)` Irene 담당(누락분만, 기존 115건 무손실→116).
+- **★빌드/배포 kill 회피** — Bash 도구가 vite 를 프로세스그룹째 signal-16(exit 144)로 디스크쓰기 직전 kill(로그엔 성공·파일 미반영). `setsid` 완전분리로 해소(메모리 [[feedback_build_heap_4096_on_dev]] 갱신). 배포도 setsid 로 완주.
+
+### [이전 세션] Q Bill + 소유권이전 + 계정삭제(앱 5.1.1) + 운영 피드백 5건 (2배포 · 16커밋)
 
 ### 이번 세션 완료 (전부 운영 배포됨 · 16커밋)
 1. **게스트 퀵메뉴·Q helper 공개표면·/wiki 네비** — utils/publicSurface. Fable: useChromeNav no-op → RR navigate 주입.
