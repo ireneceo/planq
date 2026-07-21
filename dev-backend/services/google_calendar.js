@@ -263,6 +263,14 @@ async function deleteEvent(cal, gcalEventId) {
   }
 }
 
+// #126 보안 — 워크스페이스 gcal 은 연결한 owner 의 primary 캘린더에 쓴다. 따라서 개인(L1)·
+//   팀 비공개(L2)·visibility='personal' 일정을 push 하면 남의 개인 일정이 owner 구글캘린더로
+//   유출된다(share 라우트 calendar.js:990/1041 가 이미 막는 제한 레벨과 동일). 모든 gcal push
+//   ingress(생성 push·push-to-gcal·PUT sync)가 이 단일 술어로 게이트한다 — 규칙 두 벌 금지.
+function isPrivateForGcal(event) {
+  return !!(event && (event.vlevel === 'L1' || event.vlevel === 'L2' || event.visibility === 'personal'));
+}
+
 module.exports = {
   isConfigured,
   SCOPES,
@@ -276,4 +284,5 @@ module.exports = {
   insertEvent,
   updateEvent,
   deleteEvent,
+  isPrivateForGcal,
 };

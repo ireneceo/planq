@@ -654,7 +654,18 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
     });
 
     // N+63 — Google Calendar sync (best-effort, transaction 밖)
-    if (needsGcalSync) {
+    // #126 보안 — 워크스페이스 gcal(owner primary)에 이미 올라간 일정이 개인(L1)·팀비공개(L2)·personal
+    //   로 전환되면 유출 상태가 남는다. update 가 아니라 gcal 에서 삭제하고 링크를 끊는다.
+    if (event.gcal_event_id && gcal.isPrivateForGcal(event)) {
+      try {
+        const gcalToken = await gcal.getTokenForBusiness(businessId);
+        if (gcalToken) {
+          const cal = await gcal.getCalendarClient(gcalToken);
+          await gcal.deleteEvent(cal, event.gcal_event_id);
+        }
+      } catch (e) { console.warn('[gcal sync PUT→private delete]', e.message); }
+      await event.update({ gcal_event_id: null }).catch(() => {});
+    } else if (needsGcalSync) {
       try {
         const gcalToken = await gcal.getTokenForBusiness(businessId);
         if (gcalToken) {
@@ -1086,6 +1097,9 @@ router.post('/by-business/:businessId/:id/push-to-gcal', authenticateToken, chec
     const businessId = Number(req.params.businessId);
     const event = await CalendarEvent.findOne({ where: { id: Number(req.params.id), business_id: businessId } });
     if (!event) return errorResponse(res, 'event_not_found', 404);
+    // #126 보안 — 개인(L1)·팀 비공개(L2)·personal 일정은 워크스페이스 gcal(owner primary)로 push 금지.
+    //   여태 이 라우트엔 vlevel 검사가 없어 id 만 알면 남의 개인 일정을 owner 구글캘린더로 밀 수 있었다(IDOR·유출).
+    if (gcal.isPrivateForGcal(event)) return errorResponse(res, 'cannot_push_private_event', 403, 'cannot_push_private_event');
     if (event.gcal_event_id) return successResponse(res, { already_synced: true, gcal_event_id: event.gcal_event_id });
 
     const gcalToken = await gcal.getTokenForBusiness(businessId);
