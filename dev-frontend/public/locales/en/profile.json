@@ -233,7 +233,11 @@
     "manageMailMore": "Manage · add email accounts",
     "mailAccount": "Email account",
     "mail": "Email",
-    "drive": "Files"
+    "drive": "Files",
+    "calendar": "Calendar",
+    "calendarSub": "View your Google Calendar events inside Q Calendar, read-only (color-separated from the shared workspace calendar). Note: to push your PlanQ events into Google Calendar, connect the workspace calendar.",
+    "calendarEmpty": "No personal calendar connected",
+    "connectCalendar": "Connect Google Calendar"
   },
   "accountDeletion": {
     "title": "Delete account",

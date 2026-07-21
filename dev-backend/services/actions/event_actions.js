@@ -89,6 +89,13 @@ async function createEvent(actor, params = {}) {
     projectId = prj.id;
   }
 
+  // #126 보안 — 개인(L1)·팀비공개(L2)·personal 일정은 워크스페이스 gcal(owner primary) push 대상 제외(유출 차단).
+  //   Meet 자동발급도 워크스페이스 gcal 에 이벤트를 만들므로, 개인 일정엔 발급 금지(조용한 유출 대신 명시적 거부).
+  const evVisibility = VISIBILITY_SET.has(params.visibility) ? params.visibility : 'business';
+  const evVlevel = ['L1', 'L2', 'L3', 'L4'].includes(params.vlevel) ? params.vlevel : null;
+  const isPrivateEvt = gcal.isPrivateForGcal({ visibility: evVisibility, vlevel: evVlevel });
+  if (params.autoCreateMeeting && isPrivateEvt) return fail('cannot_create_meeting_for_private_event', 400);
+
   const t = await sequelize.transaction();
   let event;
   try {
@@ -138,8 +145,8 @@ async function createEvent(actor, params = {}) {
       reminder_minutes: Number.isFinite(Number(params.reminderMinutes)) && Number(params.reminderMinutes) > 0
         ? Math.min(10080, Number(params.reminderMinutes))  // max 1주 (7 * 24 * 60)
         : null,
-      visibility: VISIBILITY_SET.has(params.visibility) ? params.visibility : 'business',
-      vlevel: ['L1', 'L2', 'L3', 'L4'].includes(params.vlevel) ? params.vlevel : null,
+      visibility: evVisibility,
+      vlevel: evVlevel,
       target_member_ids: Array.isArray(params.targetMemberIds) ? params.targetMemberIds.map(Number).filter(Boolean) : null,
       target_client_ids: Array.isArray(params.targetClientIds) ? params.targetClientIds.map(Number).filter(Boolean) : null,
       created_by: subjectId,
@@ -195,7 +202,8 @@ async function createEvent(actor, params = {}) {
 
   // ── PlanQ → Google Calendar push (일반 일정) — 워크스페이스 gcal 연동 시. Meet 은 위에서 이미 push.
   //   best-effort: Google 실패해도 PlanQ 일정은 유지(이미 커밋). gcal_event_id 저장 → 오버레이 중복 차단·수정/삭제 동기화 연결.
-  if (!params.autoCreateMeeting && !event.gcal_event_id) {
+  //   #126 보안 — 개인(L1)·팀 비공개(L2)·personal 일정은 push 금지(owner 구글캘린더 유출 차단).
+  if (!params.autoCreateMeeting && !event.gcal_event_id && !gcal.isPrivateForGcal(event)) {
     try {
       const gcalToken = await gcal.getTokenForBusiness(businessId);
       if (gcalToken) {

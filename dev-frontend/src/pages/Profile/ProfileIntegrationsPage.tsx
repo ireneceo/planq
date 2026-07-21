@@ -290,7 +290,7 @@ const ProfileIntegrationsPage: React.FC = () => {
       {/* ─── 개인 캘린더 ─── */}
       <Section>
         <SectionTitle>{t('integrations.calendar', '캘린더') as string}</SectionTitle>
-        <SectionSub>{t('integrations.calendarSub', '내 캘린더를 Q Calendar 에서 함께 봐요 (워크스페이스 공용과 색깔 분리)') as string}</SectionSub>
+        <SectionSub>{t('integrations.calendarSub', '내 Google 캘린더 일정을 Q Calendar 에서 보기 전용으로 함께 봐요 (워크스페이스 공용과 색 분리). ※ 내가 만든 PlanQ 일정을 Google 캘린더에 넣으려면 워크스페이스 캘린더 연동이 필요해요.') as string}</SectionSub>
         {personalConns.filter(c => ['google_calendar', 'microsoft_calendar', 'apple_calendar'].includes(c.provider)).length === 0 ? (
           <Empty>
             <span>{t('integrations.calendarEmpty', '연결된 개인 캘린더가 없어요') as string}</span>
