@@ -18,7 +18,7 @@ session-state.md 읽고 이어서 개발해.
 
 **마지막 작업:** **#194 제품 공지/체인지로그 시스템 운영 배포 완료**(commit `2650256`, deploy Complete 206s). 콘텐츠 원천=help_articles(blog_category='updates') 단일, 신규 컬럼 users.whats_new_seen_at 1개. 노출 3면: ①랜딩 블로그 updates 탭+/changelog redirect ②인앱 사이드바 메가폰+새소식 DetailDrawer(미읽음 워터마크) ③critical 배너 기존 재사용(미구현). updates 는 wiki /categories·/articles·검색에서 격리. Fable 게이트 PASS(guard 3축·빌드 TS0·실HTTP 20/20·격리 3면·배포안전성). 운영 3점 실측 통과(PM2 fresh·청크해시 dev=운영 index-BQRTo2VK·백엔드 실호출 라이브). 운영 seed 실행 완료(updates cat id15 + welcome-whats-new). **⚠️ seed-changelog.js 는 deploy 스크립트에 없음 — 향후 재배포 시 운영 콘텐츠는 이미 있으므로 무관, 단 새 워크스페이스/운영 리셋 시 수동 재실행 필요(멱등).**
 
-**바로 다음 작업:** **#196 영어 전면**(랜딩·도움말 영어 미제공 전체 재검증, 규모 큼) + **#146 잔여**(/features 캡처·빠진 기능).
+**바로 다음 작업:** **#196 영어 전면 + #146 잔여** — Fable 설계 게이트 착수했다 정지(Irene 취침). ⚠️ **실측 결과 #196 규모 작음(예상과 반대)**: 위키 42글·16카테고리 영어 100%, 랜딩 t() 밖 하드코딩 0. 전 앱 en/*.json 미번역 한국어 **단 2건** — ①`en/qmail.json` `translate.lang.ko`='한국어'→'Korean' ②`en/qnote.json` `startModal.priority.templateDownload` 영어문장 안 한국어 섞임. 그 외 empty en 은 한국어 조사/단위 suffix(건/명/월/마다) — 영어 UX 판단 필요(qbill overview.unit.count·qproject card.clientsCount/tasksUnit/canvas.tl.monthSuffix·qtask recur.everySuffix/weeklyReview.dept.peopleSuffix). recur.everySuffix 는 영어 어순 달라 template 검토. weeklyReview.workspace.delta.down 은 ko도 빈값(무시). **#146**: /features 캡처 이미지 0개(Opus 이미지 업로드 불가 → wikiScreenshot.js puppeteer 자동캡처 가능성 검토 or Irene) + 빠진 기능 대조 필요. **재개 시**: Fable 설계 게이트부터 다시(위 데이터 그대로 넘기면 빠름) → 구현 → Fable 검증.
 
 **맥락 유지할 것:**
 - ★ **CLAUDE.md 정책 변경**: 모든 기획/설계·구현검증·테스트검증 **무조건 Fable(model:fable) 게이트**. `/fable-검증` 커맨드 + Stop 훅(`fable-gate-stop.sh`) 강제. Opus 자체검증 완료보고 금지. 메모리 `feedback_fable_all_design_verification`.
