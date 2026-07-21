@@ -36,6 +36,9 @@ import {
   AcctSelectWrap,
   AddLabelChip,
   AiGatedHint,
+  AiInstructionRow,
+  AiInstructionInput,
+  AiInstructionHint,
   AssignWrap,
   Attachment,
   Attachments,
@@ -891,15 +894,21 @@ const MailPage: React.FC = () => {
   const [replyError, setReplyError] = useState<string | null>(null);
   const [aiBusy, setAiBusy] = useState(false);
   const [aiFaqSources, setAiFaqSources] = useState<string[]>([]); // M4 — AI 답변이 활용한 등록 FAQ
+  const [aiInstruction, setAiInstruction] = useState(''); // #192 — 초안 수정 요청(추가 지시)
 
   // AI 답변 제안 (Cue) — 마지막 inbound 기반 초안 → 컴포저 채움
   const aiSuggest = useCallback(async () => {
     if (!detail || !businessId || aiBusy) return;
     setAiBusy(true);
     setReplyError(null);
+    // #192 — 수정 요청이 있으면 그 지시 + 현재 초안을 함께 보내 다듬는다(원샷 재생성 대신 refine).
+    const instruction = aiInstruction.trim();
     try {
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${detail.id}/ai-suggest`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(instruction
+          ? { instruction, current_draft: replyHtml || undefined }
+          : {}),
       });
       const j = await r.json();
       if (!j.success) {
@@ -913,10 +922,11 @@ const MailPage: React.FC = () => {
       }
       if (j.data?.suggestion) setReplyHtml(j.data.suggestion);
       setAiFaqSources(j.data?.faq_used ? (j.data.faq_sources || []) : []);
+      if (instruction) setAiInstruction(''); // 반영됐으니 요청란 비움
     } catch (e) {
       setReplyError((e as Error).message);
     } finally { setAiBusy(false); }
-  }, [detail, businessId, aiBusy, t]);
+  }, [detail, businessId, aiBusy, t, aiInstruction, replyHtml]);
 
   // 스레드 전환 시 컴포저 초기화 — 답장창은 닫힌 채로. 먼저 내용을 읽고, 답장하기를 누르면 열린다.
   useEffect(() => {
@@ -1838,6 +1848,21 @@ const MailPage: React.FC = () => {
                         {t('reply.faqUsed', { defaultValue: '등록된 FAQ 기반 답변' }) as string}
                         {aiFaqSources[0] ? ` · ${aiFaqSources[0]}` : ''}
                       </FaqUsedBadge>
+                    )}
+                    {/* #192 — 초안이 있고 AI 가 허용된 메일이면 수정 요청 입력란 노출. 지시를 넣고
+                        AI 초안 다시 생성을 누르면 현재 초안을 그 지시대로 다듬는다. (원샷 생성만 되던 불편 해소) */}
+                    {replyHtml.trim() && (!detail?.triage || detail.triage === 'human' || detail.triage === 'unknown') && (
+                      <AiInstructionRow>
+                        <AiInstructionInput
+                          value={aiInstruction}
+                          disabled={aiBusy || sending}
+                          onChange={(e) => setAiInstruction(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (aiInstruction.trim()) aiSuggest(); } }}
+                          placeholder={t('reply.aiInstructionPlaceholder', { defaultValue: 'AI 에게 수정 요청 (예: 더 정중하게 · 가격 강조 · 짧게)' }) as string}
+                          aria-label={t('reply.aiInstructionLabel', { defaultValue: 'AI 수정 요청' }) as string}
+                        />
+                        <AiInstructionHint>{t('reply.aiInstructionHint', { defaultValue: '입력 후 “다시 생성”' }) as string}</AiInstructionHint>
+                      </AiInstructionRow>
                     )}
                     {/* 버튼 자리는 고정 — 좌측부터 [보내기] [AI] [취소]. 답장창을 열고 닫아도 좌우가 뒤바뀌지 않는다.
                         (여태 AI 가 왼쪽, 보내기/취소가 오른쪽 끝이라 열 때마다 위치가 바뀌어 보였다) */}

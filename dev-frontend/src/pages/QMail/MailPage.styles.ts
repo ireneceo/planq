@@ -550,6 +550,23 @@ export const ComposerActions = styled.div`
   display: flex; align-items: center; justify-content: flex-start; gap: 8px;
   flex-wrap: wrap;
 `;
+// #192 — AI 초안 수정 요청 입력. 초안이 있을 때만 노출. 지시를 넣고 "다시 생성" 하면 refine.
+export const AiInstructionRow = styled.div`
+  display: flex; align-items: center; gap: 8px;
+  margin: 2px 0 2px;
+`;
+export const AiInstructionInput = styled.input`
+  flex: 1; min-width: 0; height: 34px; padding: 0 12px;
+  border: 1px solid #E2E8F0; border-radius: 8px;
+  font-size: 13px; color: #334155; background: #fff;
+  &::placeholder { color: #94A3B8; }
+  &:focus { outline: none; border-color: #F43F5E; box-shadow: 0 0 0 3px rgba(244,63,94,0.12); }
+  &:disabled { opacity: 0.5; }
+`;
+export const AiInstructionHint = styled.span`
+  font-size: 11px; color: #94A3B8; white-space: nowrap;
+  @media (max-width: 640px) { display: none; }
+`;
 export const ComposerHint = styled.div`
   font-size: 11px; color: #94A3B8;
 `;
