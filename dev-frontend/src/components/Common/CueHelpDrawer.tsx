@@ -15,7 +15,7 @@ import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import { formatDate } from '../../utils/dateFormat';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { mapApiError } from '../../utils/apiError';
-import { fetchWikiContext, fetchWikiCategories, type WikiArticleSummary, type WikiCategory } from '../../services/wiki';
+import { fetchWikiContext, fetchWikiCategories, fetchWikiArticles, type WikiArticleSummary, type WikiCategory } from '../../services/wiki';
 import CueActionCard, { type CueProposal, type CueActionResult } from './CueActionCard';
 
 // 사이클 P7d — 채팅 모드 분리: qhelper(PlanQ 매뉴얼) / workspace(Cue, 워크스페이스 데이터)
@@ -128,6 +128,10 @@ const CueHelpDrawer: React.FC<{
   // Q위키 탭 — 현재 화면 맥락 article + 카테고리 칩
   const [wikiContext, setWikiContext] = useState<WikiArticleSummary[]>([]);
   const [wikiCats, setWikiCats] = useState<WikiCategory[]>([]);
+  // #146 — Q helper 도움말 검색 (help_articles FULLTEXT 한글검색 재사용).
+  const [wikiSearch, setWikiSearch] = useState('');
+  const [wikiSearchResults, setWikiSearchResults] = useState<WikiArticleSummary[]>([]);
+  const [wikiSearching, setWikiSearching] = useState(false);
 
   // Q위키 article / 전체 위키로 이동.
   //   워크스페이스 안(앱 경로의 로그인 사용자) 또는 팝아웃 창 → 새 탭.
@@ -200,6 +204,21 @@ const CueHelpDrawer: React.FC<{
     fetchWikiCategories().then((c) => { if (!cancelled) setWikiCats(Array.isArray(c) ? c : []); }).catch(() => {});
     return () => { cancelled = true; };
   }, [mode, wikiCats.length]);
+
+  // #146 — 도움말 검색: 입력 300ms 디바운스 → fetchWikiArticles({ q }). 빈 검색어면 결과 비움.
+  useEffect(() => {
+    const q = wikiSearch.trim();
+    if (!q) { setWikiSearchResults([]); setWikiSearching(false); return; }
+    setWikiSearching(true);
+    let cancelled = false;
+    const id = window.setTimeout(() => {
+      fetchWikiArticles({ q, limit: 12 })
+        .then((r) => { if (!cancelled) setWikiSearchResults(Array.isArray(r?.data) ? r.data : []); })
+        .catch(() => { if (!cancelled) setWikiSearchResults([]); })
+        .finally(() => { if (!cancelled) setWikiSearching(false); });
+    }, 300);
+    return () => { cancelled = true; window.clearTimeout(id); };
+  }, [wikiSearch]);
 
   // Q위키 탭 — 현재 화면 맥락 article (로그인 사용자만, path 바뀌면 갱신)
   useEffect(() => {
@@ -555,25 +574,54 @@ const CueHelpDrawer: React.FC<{
         )}
         {mode === 'qhelper' && turns.length === 0 && (
           <WikiPanel>
-            {!guestView && wikiContext.length > 0 && (
+            {/* #146 — 도움말 검색. 검색어가 있으면 결과를, 없으면 이 화면 맥락·카테고리를 보여준다. */}
+            <WikiSearchInput
+              value={wikiSearch}
+              onChange={(e) => setWikiSearch(e.target.value)}
+              placeholder={tw('drawer.searchPlaceholder', { defaultValue: '도움말 검색' }) as string}
+              aria-label={tw('drawer.searchPlaceholder', { defaultValue: '도움말 검색' }) as string}
+            />
+            {wikiSearch.trim() ? (
               <WikiSection>
-                <WikiSectionLabel>{tw('drawer.thisScreen')}</WikiSectionLabel>
-                {wikiContext.slice(0, 3).map((a) => (
-                  <WikiContextCard key={a.id} type="button" onClick={() => openWikiPath(`/wiki/a/${a.slug}`)}>
-                    <WikiCardTitle>{a.title}</WikiCardTitle>
-                    {a.summary && <WikiCardSummary>{a.summary}</WikiCardSummary>}
-                  </WikiContextCard>
-                ))}
+                <WikiSectionLabel>{tw('drawer.searchResults', { defaultValue: '검색 결과' }) as string}</WikiSectionLabel>
+                {wikiSearchResults.length > 0 ? (
+                  wikiSearchResults.map((a) => (
+                    <WikiContextCard key={a.id} type="button" onClick={() => openWikiPath(`/wiki/a/${a.slug}`)}>
+                      <WikiCardTitle>{a.title}</WikiCardTitle>
+                      {a.summary && <WikiCardSummary>{a.summary}</WikiCardSummary>}
+                    </WikiContextCard>
+                  ))
+                ) : (
+                  <WikiEmptyHint>
+                    {wikiSearching
+                      ? (tw('drawer.searching', { defaultValue: '검색 중…' }) as string)
+                      : (tw('drawer.searchNoResults', { defaultValue: '검색 결과가 없어요' }) as string)}
+                  </WikiEmptyHint>
+                )}
               </WikiSection>
-            )}
-            {wikiCats.length > 0 && (
-              <QuickChips>
-                {wikiCats.map((c) => (
-                  <QuickChip key={c.id} type="button" onClick={() => openWikiPath(`/wiki?category=${c.slug}`)}>
-                    {c.title}
-                  </QuickChip>
-                ))}
-              </QuickChips>
+            ) : (
+              <>
+                {!guestView && wikiContext.length > 0 && (
+                  <WikiSection>
+                    <WikiSectionLabel>{tw('drawer.thisScreen')}</WikiSectionLabel>
+                    {wikiContext.slice(0, 3).map((a) => (
+                      <WikiContextCard key={a.id} type="button" onClick={() => openWikiPath(`/wiki/a/${a.slug}`)}>
+                        <WikiCardTitle>{a.title}</WikiCardTitle>
+                        {a.summary && <WikiCardSummary>{a.summary}</WikiCardSummary>}
+                      </WikiContextCard>
+                    ))}
+                  </WikiSection>
+                )}
+                {wikiCats.length > 0 && (
+                  <QuickChips>
+                    {wikiCats.map((c) => (
+                      <QuickChip key={c.id} type="button" onClick={() => openWikiPath(`/wiki?category=${c.slug}`)}>
+                        {c.title}
+                      </QuickChip>
+                    ))}
+                  </QuickChips>
+                )}
+              </>
             )}
             <WikiFullLink type="button" onClick={() => openWikiPath('/wiki')}>
               {tw('drawer.openFullWiki')} →
@@ -1131,6 +1179,17 @@ const WikiPanel = styled.div`
 `;
 const WikiSection = styled.div`
   display: flex; flex-direction: column; gap: 6px;
+`;
+// #146 — 도움말 검색 입력
+const WikiSearchInput = styled.input`
+  box-sizing: border-box; width: 100%; height: 36px; padding: 0 12px;
+  border: 1px solid #E2E8F0; border-radius: 8px;
+  font-size: 13px; color: #334155; background: #fff;
+  &::placeholder { color: #94A3B8; }
+  &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.12); }
+`;
+const WikiEmptyHint = styled.div`
+  font-size: 12px; color: #94A3B8; padding: 6px 2px;
 `;
 const WikiSectionLabel = styled.div`
   font-size: 11px; font-weight: 700; color: #94A3B8;

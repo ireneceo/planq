@@ -31,6 +31,10 @@
     "tabInquiry": "Contact",
     "thisScreen": "On this screen",
     "searchWiki": "Search Q Wiki",
+    "searchPlaceholder": "Search help",
+    "searchResults": "Search results",
+    "searching": "Searching…",
+    "searchNoResults": "No results found",
     "openFullWiki": "Open full Q Wiki",
     "sources": "Referenced articles"
   }
