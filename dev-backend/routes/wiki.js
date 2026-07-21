@@ -75,13 +75,25 @@ function visibilityWhere(req) {
   return w;
 }
 
+// #194 — 'updates'(제품 공지) 카테고리 id 캐시. 위키 read 표면(목록·검색)에서 공지를 걸러낸다.
+//   콘텐츠 원천은 help_articles 이지만 updates 는 도움말이 아니므로 위키 브라우즈에 섞이면 안 됨.
+let _updatesCatId; let _updatesCatAt = 0;
+async function updatesCategoryId() {
+  if (_updatesCatId !== undefined && Date.now() - _updatesCatAt < 300000) return _updatesCatId;
+  const c = await HelpCategory.findOne({ where: { slug: 'updates' }, attributes: ['id'] });
+  _updatesCatId = c ? c.id : null; _updatesCatAt = Date.now();
+  return _updatesCatId;
+}
+
 // ─── GET /categories — 발행 article 있는 카테고리만 ───
 router.get('/categories', optionalAuth, async (req, res, next) => {
   try {
     const lang = reqLang(req);
     const articleWhere = visibilityWhere(req);
     // 발행(+게스트는 public) article 이 1건 이상 있는 카테고리만 노출
+    // #194 — 'updates'(제품 공지/체인지로그) 카테고리는 도움말이 아니므로 위키 목록에서 제외.
     const cats = await HelpCategory.findAll({
+      where: { slug: { [Op.ne]: 'updates' } },
       include: [{
         model: HelpArticle, as: 'articles', attributes: ['id'], where: articleWhere, required: true,
       }],
@@ -117,6 +129,10 @@ router.get('/articles', optionalAuth, async (req, res, next) => {
         catId = cat ? cat.id : -1;
       }
       where.category_id = catId;
+    } else {
+      // 카테고리 필터가 없으면 updates(제품 공지)는 위키 목록에서 제외 (#194)
+      const upId = await updatesCategoryId();
+      if (upId) where.category_id = { [Op.ne]: upId };
     }
 
     const q = String(req.query.q || '').trim();

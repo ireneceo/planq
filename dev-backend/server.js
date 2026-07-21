@@ -372,6 +372,8 @@ app.use('/api/wiki', require('./routes/wiki'));
 app.use('/api/admin/wiki', require('./routes/admin_wiki'));
 // KNOWLEDGE_LOOP 축3 — 랜딩 블로그 (Q위키 발행분 public 조회)
 app.use('/api/blog', require('./routes/blog'));
+// #194 제품 공지/체인지로그 — 인앱 "새 소식" 패널 (updates 발행분 + 미읽음 워터마크)
+app.use('/api/whats-new', require('./routes/whats_new'));
 app.use('/api/org', require('./routes/org'));
 app.use('/api/insights', require('./routes/insights'));
 app.use('/api/activity', require('./routes/activity'));

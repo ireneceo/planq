@@ -563,6 +563,8 @@ function ShellApp() {
         {/* 옛 /blog URL → /insights 영구 이전 (SEO·외부 링크 보존) */}
         <Route path="/blog" element={<Navigate to="/insights" replace />} />
         <Route path="/blog/:slug" element={<BlogSlugRedirect />} />
+        {/* #194 — /changelog → 인사이트 블로그 updates 탭 (제품 소식). 네이티브는 마케팅 봉쇄 */}
+        <Route path="/changelog" element={isNativeApp() ? <NativeMarketingRedirect /> : <Navigate to="/insights?category=updates" replace />} />
         <Route path="/about" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingAbout />} />
         <Route path="/contact" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingContact />} />
 

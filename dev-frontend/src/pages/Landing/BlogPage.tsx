@@ -2,13 +2,14 @@
 // KNOWLEDGE_LOOP 축3 — 콘텐츠 소스는 Q위키(help_articles 의 블로그 발행분). 별도 CMS 없음.
 // 카테고리 5종: 가이드 영상 / 홍보 영상 / 사용 가이드 / 자동화 인사이트 / 고객 사례.
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import LandingLayout from '../../components/Landing/LandingLayout';
 import { useReveal } from '../../hooks/useReveal';
 
-const CATEGORIES = ['all', 'guide-video', 'brand-video', 'how-to', 'insights', 'cases'] as const;
+// #194 — 'updates'(제품 소식·체인지로그) 탭 추가. /changelog → /insights?category=updates 로 착지.
+const CATEGORIES = ['all', 'updates', 'guide-video', 'brand-video', 'how-to', 'insights', 'cases'] as const;
 type Category = typeof CATEGORIES[number];
 
 export interface BlogPostCard {
@@ -28,7 +29,13 @@ const Reveal: React.FC<{ children: React.ReactNode; as?: React.ElementType }> = 
 
 const BlogPage: React.FC = () => {
   const { t, i18n } = useTranslation('landing');
-  const [active, setActive] = useState<Category>('all');
+  const [searchParams] = useSearchParams();
+  // #194 — URL ?category= 로 초기 탭 결정 (/changelog redirect 가 updates 로 착지).
+  const initialCategory = (() => {
+    const c = searchParams.get('category');
+    return c && (CATEGORIES as readonly string[]).includes(c) ? (c as Category) : 'all';
+  })();
+  const [active, setActive] = useState<Category>(initialCategory);
   const [query, setQuery] = useState('');
   const [posts, setPosts] = useState<BlogPostCard[] | null>(null);
 
