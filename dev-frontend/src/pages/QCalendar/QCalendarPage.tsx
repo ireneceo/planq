@@ -311,6 +311,10 @@ const QCalendarPage: React.FC = () => {
   }, [view]);
 
   const goToday = useCallback(() => setAnchor(new Date()), []);
+  // #193 — 날짜를 클릭하면 day 뷰로 들어가는데, URL 싱크가 replace 라 브라우저 뒤로가기로도
+  //   못 나오고 월 복귀 수단은 헤더의 작은 뷰 드롭다운뿐이라 "뒤로 못 나온다"고 느낀다.
+  //   day 뷰에서 눈에 보이는 "월간 보기로" 복귀 버튼 제공(anchor 유지 → 그 날짜의 월을 보여줌).
+  const goBackToMonth = useCallback(() => setView('month'), []);
 
   const handleSelectEvent = useCallback((id: number | string, instanceDate?: string) => {
     // 개인 Google 일정 (string id) — 읽기 전용. PlanQ 안에서 상세를 보여준다.
@@ -491,6 +495,14 @@ const QCalendarPage: React.FC = () => {
       <CalendarSyncNotice connected={gcalConnected || personalConnected} />
       <Toolbar>
         <ToolbarLeft>
+          {view === 'day' && (
+            <BackToMonthBtn onClick={goBackToMonth} type="button">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+              {t('backToMonth', { defaultValue: '월간 보기로' }) as string}
+            </BackToMonthBtn>
+          )}
           <TodayBtn onClick={goToday}>{t('today')}</TodayBtn>
           <HeaderTitle>{headerTitle}</HeaderTitle>
           <NavIconBtn onClick={goPrev} aria-label={t('prev')}>
@@ -663,6 +675,16 @@ const TodayBtn = styled.button`
   padding: 6px 12px; border: 1px solid #CBD5E1; border-radius: 6px;
   background: #fff; color: #0F172A; font-size: 12.5px; font-weight: 600; cursor: pointer;
   &:hover { background: #F8FAFC; }
+`;
+// #193 — day 뷰 전용 월 복귀 버튼. teal 액센트로 "여기서 나가는 길"임을 눈에 띄게.
+const BackToMonthBtn = styled.button`
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 6px 10px 6px 8px; border: 1px solid #5EEAD4; border-radius: 6px;
+  background: #F0FDFA; color: #0F766E; font-size: 12.5px; font-weight: 600; cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  &:hover { background: #CCFBF1; border-color: #14B8A6; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+  svg { flex-shrink: 0; }
 `;
 const NavIconBtn = styled.button`
   width: 30px; height: 30px; border: 1px solid #CBD5E1; border-radius: 6px;

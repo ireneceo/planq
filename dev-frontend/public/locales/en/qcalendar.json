@@ -3,6 +3,7 @@
   "today": "Today",
   "prev": "Previous",
   "next": "Next",
+  "backToMonth": "Back to month",
   "view": {
     "month": "Month",
     "week": "Week",
