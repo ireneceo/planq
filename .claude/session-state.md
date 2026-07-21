@@ -1,8 +1,8 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-07-21 10:35 (Opus 4.8, 1M)
-**작업 상태:** 중단 (이어서 재개 예정) — 운영 피드백 버그·기능 6건 배포 완료, #194 설계안 승인 대기
+**마지막 업데이트:** 2026-07-21 15:00 (Opus 4.8, 1M)
+**작업 상태:** #194 제품 공지/체인지로그 시스템 **운영 배포 완료** (commit `2650256`, Fable 게이트 PASS + 3점 실측). 다음 = #196 영어 전면 / #146 잔여.
 
 ---
 
@@ -16,9 +16,9 @@ session-state.md 읽고 이어서 개발해.
 
 ## 🔖 지금 중단 지점
 
-**마지막 작업:** 운영 피드백 처리분 9커밋 운영 배포 완료(`73445fd`까지, Complete 197s, 3점 실측 통과). #195 운영 카테고리 seed(`node seed-wiki-content.js --categories-only`)까지 반영 확인(운영 qfile="Q File (파일·자료)").
+**마지막 작업:** **#194 제품 공지/체인지로그 시스템 운영 배포 완료**(commit `2650256`, deploy Complete 206s). 콘텐츠 원천=help_articles(blog_category='updates') 단일, 신규 컬럼 users.whats_new_seen_at 1개. 노출 3면: ①랜딩 블로그 updates 탭+/changelog redirect ②인앱 사이드바 메가폰+새소식 DetailDrawer(미읽음 워터마크) ③critical 배너 기존 재사용(미구현). updates 는 wiki /categories·/articles·검색에서 격리. Fable 게이트 PASS(guard 3축·빌드 TS0·실HTTP 20/20·격리 3면·배포안전성). 운영 3점 실측 통과(PM2 fresh·청크해시 dev=운영 index-BQRTo2VK·백엔드 실호출 라이브). 운영 seed 실행 완료(updates cat id15 + welcome-whats-new). **⚠️ seed-changelog.js 는 deploy 스크립트에 없음 — 향후 재배포 시 운영 콘텐츠는 이미 있으므로 무관, 단 새 워크스페이스/운영 리셋 시 수동 재실행 필요(멱등).**
 
-**바로 다음 작업:** **#194 제품 공지/체인지로그 시스템** — 설계 자문(Fable) 완료, Irene 승인 시 구현. 그다음 **#196 영어 전면** + **#146 잔여**(/features 캡처·빠진 기능).
+**바로 다음 작업:** **#196 영어 전면**(랜딩·도움말 영어 미제공 전체 재검증, 규모 큼) + **#146 잔여**(/features 캡처·빠진 기능).
 
 **맥락 유지할 것:**
 - ★ **CLAUDE.md 정책 변경**: 모든 기획/설계·구현검증·테스트검증 **무조건 Fable(model:fable) 게이트**. `/fable-검증` 커맨드 + Stop 훅(`fable-gate-stop.sh`) 강제. Opus 자체검증 완료보고 금지. 메모리 `feedback_fable_all_design_verification`.
