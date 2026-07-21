@@ -1,10 +1,19 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-07-20 (Opus 4.8, 1M) — **v1.47.1 다통화 통화별 분리 + App Store 3.1.1 네이티브 봉쇄 운영 배포 완료** (Fable 설계·구현 게이트 양쪽 PASS, `d0cd84c` Complete 197s)
-**작업 상태:** 완료 (배포·3점 실측 검증까지)
+**마지막 업데이트:** 2026-07-21 (Opus 4.8, 1M) — **Fable 게이트 정책 강제 인프라 구축** (설정·정책·문서, 앱 소스 무변경)
+**작업 상태:** 완료
 
-### 이번 세션 완료 (v1.47.1 · 운영 배포됨 · 5커밋)
+### 이번 세션 완료 (설정/정책 — 앱 소스 무변경)
+Irene 지시: "모든 기획/개발 설계·검증·테스트 검증은 무조건 Fable". CLAUDE.md 정책(이미 반영)에 더해 **실효 강제 3종** 구축:
+1. **Stop 훅** `fable-gate-stop.sh` (+settings.json Stop 배열 연결) — dev-backend/dev-frontend/q-note 미커밋 소스 변경이 Fable 검증(마커) 없이 정지되면 완료 **1회 차단**(변경 지문당 1회 → 대화 방해 없음). 우회: `touch .claude/.fable-gate-skip`.
+2. **`/fable-검증` 커맨드** 신설 — `model:fable` 서브에이전트가 ①diff범위 ②가드3축+빌드 ③실HTTP회귀 ④배포안전성 독립 검증 → `VERDICT: PASS` 시에만 `.claude/.fable-gate.json` 마커 기록(정지 허용).
+3. **정합성** — `검증.md`/`기능설계.md`/`개발완료.md`(0-F 게이트)에 Fable 정책 연결 문구, `.gitignore`에 런타임 상태파일 3종.
+- 실동작 확인: 훅 1차 block→2차 통과, JSON 유효, 0-F 체크 bash 동작.
+- **주의(한계)**: 훅은 "검증 마커 존재"까지만 강제 — 검증 주체가 실제 fable 모델인지는 `/fable-검증` 커맨드+Claude 준수에 의존.
+- **미처리**: `dev-frontend/src/pages/QMail/MailPage.tsx` (이번 세션 무관 기존 미커밋 변경, 손대지 않음). 이 때문에 소스 게이트가 열려 있음 — 별도 검증/커밋 필요.
+
+### [이전 세션] v1.47.1 다통화 통화별 분리 + App Store 3.1.1 네이티브 봉쇄 (운영 배포됨 · 5커밋 · `d0cd84c`)
 1. **다통화 통화별 분리**(`6224858`·`d0cd84c`) — Insights `stats.js` 가 통화 구분 없이 raw 합산+프론트 fmtKRW → 외화 ₩오염($2,200=₩2,200). 4 build+trend 홈통화(businesses.default_currency)만 합산 + `by_currency` 브레이크다운 + P&L `has_foreign_currency` 플래그 + team revenue_share 홈통화만. 프론트 `fmtMoney`(통화별 소수, 홈=KRW fmtKRW 재사용=회귀0)+칩+뱃지·각주. 원천 Invoice.currency 단일화(mismatch 0). 실HTTP biz5 revenue=13,860,000+by_currency={USD:2200}.
 2. **App Store 3.1.1 네이티브 봉쇄**(`d44b22e`) — Remote URL WebView 가 마케팅 랜딩(/pricing 가격표면) 도달하는 뒷문 차단. App.tsx 랜딩 8라우트→NativeMarketingRedirect, DownloadApp CTA→/inbox, TrialStatusBanner 네이티브 중립문구.
 3. **cron 삭제 워크스페이스 가드**(`6fe31fb`) — soft-delete 워크스페이스가 cron 청구/리포트 계속 돌던 것 차단(clientSubscriptionBilling·reportUnitCron).
