@@ -176,6 +176,13 @@ User.init({
   reference_timezones: {
     type: DataTypes.JSON,
     allowNull: true
+  },
+  // #194 제품 공지/체인지로그 — "새 소식" 미읽음 워터마크.
+  //   이 시각 이후 발행된 updates 공지(help_articles.blog_category='updates')를 미읽음으로 집계.
+  //   null = 아직 한 번도 안 봄 → 최근 공지 전부 미읽음(온보딩).
+  whats_new_seen_at: {
+    type: DataTypes.DATE,
+    allowNull: true
   }
 }, {
   sequelize,

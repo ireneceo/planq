@@ -1,4 +1,15 @@
 {
+  "whatsNew": {
+    "title": "What's new",
+    "subtitle": "See the latest PlanQ updates",
+    "loading": "Loading…",
+    "new": "New",
+    "viewAll": "View all updates",
+    "empty": {
+      "title": "No updates yet",
+      "desc": "We'll share new features and improvements here."
+    }
+  },
   "cueTip": {
     "label": "Cue?",
     "aria": "What is Cue?",

@@ -22,6 +22,8 @@ import { useInboxCount } from '../../hooks/useInboxCount';
 import { useAdminInboxCounts } from '../../hooks/useAdminInboxCounts';
 import { useNotificationCount } from '../../hooks/useNotifications';
 import NotificationDropdown from '../Common/NotificationDropdown';
+import { useWhatsNew } from '../../hooks/useWhatsNew';
+import WhatsNewDrawer from '../Common/WhatsNewDrawer';
 import { useUnreadTotal } from '../../hooks/useUnreadTotal';
 import { useGlobalBadge } from '../../hooks/useGlobalBadge';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
@@ -767,6 +769,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
   const notifCount = useNotificationCount();
   const [notifOpen, setNotifOpen] = useState(false);
   const bellRef = useRef<HTMLButtonElement>(null);
+  // #194 — 제품 공지/체인지로그 "새 소식" (사이드바 메가폰 + 드로어)
+  const { items: whatsNewItems, unreadCount: whatsNewUnread, loading: whatsNewLoading, markSeen: markWhatsNewSeen } = useWhatsNew();
+  const [whatsNewOpen, setWhatsNewOpen] = useState(false);
+  const openWhatsNew = () => { setWhatsNewOpen(true); markWhatsNewSeen(); };
   const talkUnreadCount = useUnreadTotal(user?.business_id ? Number(user.business_id) : null);
   // OS app badge (데스크탑 dock / 모바일 홈스크린 아이콘) — 인박스 + 채팅 합산 단일 적용.
   // 둘 중 하나라도 > 0 이면 표시. 사용자가 실제로 봐서 둘 다 0 될 때까지 안 사라짐.
@@ -841,6 +847,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
       {tabMode && <TabStrip leftOffset={sidebarW} />}
       {/* N+63 — 알림 dropdown (사이드바 종 모양 trigger) */}
       <NotificationDropdown open={notifOpen} onClose={() => setNotifOpen(false)} anchorRef={bellRef} />
+      {/* #194 — 제품 공지/체인지로그 새 소식 드로어 (사이드바 메가폰 trigger) */}
+      <WhatsNewDrawer open={whatsNewOpen} onClose={() => setWhatsNewOpen(false)} items={whatsNewItems} loading={whatsNewLoading} />
       <MobileHeader>
         <HamburgerButton onClick={() => setSidebarOpen(true)} aria-label={t('nav.expandSidebar')}>
           <IconHamburger />
@@ -866,6 +874,18 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
             <>
               <Logo src="/planQ_white_new.svg" alt="PlanQ" />
               <HeaderActions>
+                <BellButton
+                  type="button"
+                  onClick={openWhatsNew}
+                  aria-label={t('whatsNew.title', '새 소식') as string}
+                  title={t('whatsNew.title', '새 소식') as string}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 11l18-5v12L3 14v-3z" />
+                    <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
+                  </svg>
+                  {whatsNewUnread > 0 && <BellBadge>{whatsNewUnread > 99 ? '99+' : whatsNewUnread}</BellBadge>}
+                </BellButton>
                 <BellButton
                   ref={bellRef}
                   type="button"
