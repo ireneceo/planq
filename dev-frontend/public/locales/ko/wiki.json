@@ -31,6 +31,10 @@
     "tabInquiry": "문의",
     "thisScreen": "이 화면에서",
     "searchWiki": "Q위키 검색",
+    "searchPlaceholder": "도움말 검색",
+    "searchResults": "검색 결과",
+    "searching": "검색 중…",
+    "searchNoResults": "검색 결과가 없어요",
     "openFullWiki": "전체 Q위키 열기",
     "sources": "참고한 도움말"
   }
