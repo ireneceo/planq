@@ -12,6 +12,30 @@
 
 > **[이전] 최종 업데이트:** 2026-07-16 (Opus 4.8, 1M) — **모바일 흰 화면 회귀 차단 + 검사 하니스 강화** — e2e mobile 스위트에 `assertRendered()` **흰 화면(blank) 판정** 신규(키보드 스위트가 "입력 가림"만 봐 페이지 통째 blank도 ⚪ 통과하던 구멍 차단, #173/174/159/178 계열) + `run.js` blank=실패 집계 + mail 시나리오(mail-list·mail-compose) + MailPage `data-testid`·모바일 compose 사이드바 자동접힘 + DetailDrawer 폰 풀스크린(56px 조각 새던 것) + QBill 개요 2열 그리드 반응형 + Insights 기간라벨 i18n. **검증: mobile/crosscut/l1 전 스위트 0 실패 + tsc -b exit 0 + 가드 3축(health 30/30·guard 22/22·tenant 0)**. 다음: `docs/qa/NEXT_SECTION_BACKLOG.md`(Q Mail AI·멀티탭·전수검사 잔여 LOW).
 
+## ✅ 완료: #194 제품 공지/체인지로그 시스템 (2026-07-21, v1.48.0)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 콘텐츠 원천 단일화 | help_articles(blog_category='updates') 재사용. 신규 테이블 0, 신규 컬럼 users.whats_new_seen_at 1개(미읽음 워터마크) | ✅ |
+| 인앱 "새 소식" 패널 | 사이드바 메가폰 버튼 + 미읽음 badge + WhatsNewDrawer(DetailDrawer 재사용). useWhatsNew 훅(mount+focus 폴링, push 없음). 열람 시 POST /seen 워터마크 갱신 | ✅ |
+| 랜딩 블로그 updates 탭 + /changelog | BlogPage 'updates' 탭 + ?category= 초기화. /changelog → /insights?category=updates redirect(네이티브 봉쇄) | ✅ |
+| 위키 격리 | updates 는 도움말 아님 — routes/wiki.js /categories·/articles(목록·검색)에서 제외(updatesCategoryId 캐시). KB 미인덱싱 | ✅ |
+| 백엔드 API | routes/whats_new.js(GET 목록+미읽음, POST seen) + server.js mount + seed-changelog.js(멱등) | ✅ |
+| i18n ko/en | common whatsNew.* · landing categories.updates | ✅ |
+| Fable 게이트 + 운영 배포 | 설계·구현검증 PASS(guard 3축·빌드 TS0·실HTTP 20/20·격리 3면·배포안전성). 운영 배포 2650256/206s, 마이그레이션·seed·3점 실측 | ✅ |
+
+### 수정된 파일
+- 백엔드: `models/User.js` · `routes/whats_new.js`(신규) · `routes/wiki.js` · `server.js` · `seed-changelog.js`(신규)
+- 프론트: `pages/Landing/BlogPage.tsx` · `App.tsx` · `hooks/useWhatsNew.ts`(신규) · `components/Common/WhatsNewDrawer.tsx`(신규) · `components/Layout/MainLayout.tsx`
+- i18n: ko/en × common·landing · 버전 package.json(be/fe) 1.48.0
+
+### 다음
+#196 영어 전면(실측 결과 규모 작음 — 미번역 2건+suffix 판단) + #146 잔여(/features 캡처·빠진 기능). Fable 설계 게이트부터 재개.
+
+---
+
 ## ✅ 완료: IMAP 핫픽스 + 운영 피드백 잔여 개발 + Features 8종 (2026-07-18)
 
 ### 완료된 작업
