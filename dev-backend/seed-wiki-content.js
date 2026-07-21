@@ -25,23 +25,23 @@ const CATEGORIES = [
     summary: t('청구서 발행·결제 확인·세금계산서·현금영수증', 'Issue invoices, confirm payments, tax invoices and cash receipts') },
   { slug: 'qnote', icon: 'mic', sort: 5, title: t('Q Note (음성·메모)', 'Q Note (Voice & Notes)'),
     summary: t('회의 녹음·실시간 받아쓰기·요약, 빠른 메모', 'Record meetings, live transcription, summaries, quick notes') },
-  { slug: 'qdocs', icon: 'doc', sort: 6, title: t('Q docs (문서)', 'Q docs (Documents)'),
+  { slug: 'qdocs', icon: 'doc', sort: 7, title: t('Q docs (문서)', 'Q docs (Documents)'),
     summary: t('견적·계약·제안서 작성과 외부 서명 받기', 'Create quotes, contracts, proposals and collect external signatures') },
-  { slug: 'qfile', icon: 'folder', sort: 7, title: t('파일·자료', 'Files & Knowledge'),
+  { slug: 'qfile', icon: 'folder', sort: 8, title: t('Q File (파일·자료)', 'Q File (Files & Knowledge)'),
     summary: t('파일 보관·공유, 대화 자료(지식) 관리', 'Store and share files, manage conversation knowledge') },
-  { slug: 'qcalendar', icon: 'calendar', sort: 5, title: t('Q Calendar (일정)', 'Q Calendar'),
+  { slug: 'qcalendar', icon: 'calendar', sort: 6, title: t('Q Calendar (일정)', 'Q Calendar'),
     summary: t('일정 만들기·구글 캘린더/Meet 연동·공유·나만보기', 'Create events, Google Calendar/Meet sync, sharing, private events') },
-  { slug: 'qmail', icon: 'mail', sort: 7, title: t('Q Mail (메일)', 'Q Mail'),
+  { slug: 'qmail', icon: 'mail', sort: 9, title: t('Q Mail (메일)', 'Q Mail'),
     summary: t('메일 계정 연결·인박스·메일과 대화 통합', 'Connect mail accounts, inbox, unify mail with chat') },
-  { slug: 'qproject', icon: 'folder', sort: 8, title: t('Q Project (프로젝트)', 'Q Project'),
+  { slug: 'qproject', icon: 'folder', sort: 10, title: t('Q Project (프로젝트)', 'Q Project'),
     summary: t('프로젝트 만들기·정렬/그룹·거래 시퀀스·내부/고객 구분', 'Create projects, sort/group, deal sequence, client vs internal') },
-  { slug: 'insights', icon: 'chart', sort: 12, title: t('Insights (통계)', 'Insights'),
+  { slug: 'insights', icon: 'chart', sort: 11, title: t('Insights (통계)', 'Insights'),
     summary: t('업무·수익성·팀·재무 통계와 내부/고객 구분', 'Tasks, profitability, team, finance stats with client/internal split') },
-  { slug: 'cue', icon: 'star', sort: 13, title: t('Cue (AI 팀원)', 'Cue (AI teammate)'),
+  { slug: 'cue', icon: 'star', sort: 12, title: t('Cue (AI 팀원)', 'Cue (AI teammate)'),
     summary: t('Cue에게 업무 맡기기·채팅 자동응답·자료 요약', 'Hand off tasks to Cue, auto-reply in chat, summarize material') },
-  { slug: 'qinfo', icon: 'info', sort: 14, title: t('Q info (고객·멤버 정보)', 'Q info'),
+  { slug: 'qinfo', icon: 'info', sort: 13, title: t('Q info (고객·멤버 정보)', 'Q info'),
     summary: t('고객·멤버 360° 정보와 통합 타임라인', 'Client and member 360° profiles with a unified timeline') },
-  { slug: 'settings', icon: 'gear', sort: 15, title: t('설정·권한', 'Settings & Permissions'),
+  { slug: 'settings', icon: 'gear', sort: 14, title: t('설정·권한', 'Settings & Permissions'),
     summary: t('워크스페이스·멤버 권한·개인 연동 설정', 'Workspace, member permissions and personal integrations') },
 ];
 
@@ -553,6 +553,12 @@ async function run() {
     catBySlug[c.slug] = row.id;
   }
   console.log(`카테고리 ${CATEGORIES.length}건 업서트`);
+
+  // --categories-only: 카테고리(명칭·정렬)만 반영하고 아티클 업서트·임베딩(비용)은 건너뛴다.
+  if (process.argv.includes('--categories-only')) {
+    console.log('카테고리만 반영 — 아티클/임베딩 건너뜀.');
+    process.exit(0);
+  }
 
   let count = 0;
   let blogCount = 0;
