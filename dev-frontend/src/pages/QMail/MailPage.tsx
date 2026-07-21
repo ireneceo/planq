@@ -357,7 +357,10 @@ const MailPage: React.FC = () => {
   const [transLang, setTransLang] = useState<string>(() => (i18n.language?.startsWith('en') ? 'en' : 'ko'));
   const [msgTrans, setMsgTrans] = useState<Record<number, { text?: string; lang?: string; showing: boolean; loading: boolean; error?: boolean }>>({});
   const translateMsg = useCallback(async (msgId: number, threadId: number) => {
-    setMsgTrans(prev => ({ ...prev, [msgId]: { ...(prev[msgId] || {}), showing: true, loading: true, error: false } }));
+    // 로딩 동안에는 showing 을 켜지 않는다. 켜면 버튼 삼항이 즉시 "원본 보기" 로 뒤집혀
+    // "번역 중…" 로딩 표시가 사라지고, 번역문은 아직 없어 화면이 무반응처럼 보인다(#197).
+    // 번역문이 도착한 뒤에만 showing:true 로 전환해 해당 메시지 바로 밑에 표시.
+    setMsgTrans(prev => ({ ...prev, [msgId]: { ...(prev[msgId] || {}), showing: false, loading: true, error: false } }));
     try {
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${threadId}/messages/${msgId}/translate`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target_lang: transLang }),
