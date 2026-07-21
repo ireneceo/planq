@@ -258,6 +258,11 @@ const apiFetch = async (url: string, options: RequestInit = {}): Promise<Respons
       retryHeaders.set('Authorization', `Bearer ${accessToken}`);
       return fetch(url, { ...options, headers: retryHeaders, credentials: 'include' });
     }
+    // refresh 실패 = 세션이 끝났다. 여기서 응답을 그대로 돌려주면 호출자(예: 확인필요/인박스
+    //   fetchTodo)가 백엔드 원문("Access token required")을 화면에 렌더해 사용자가 로그인
+    //   화면으로 못 가고 영문 에러에 갇힌다. 전역 신호를 발행해 AuthProvider 가 (로그인 세션이
+    //   있었을 때만) 정리 후 /login 으로 이동시킨다. 게스트/공개 표면(user 없음)은 gate 에서 무시.
+    try { window.dispatchEvent(new Event('planq:session-expired')); } catch { /* noop */ }
   }
 
   // 422 plan quota — 글로벌 이벤트로 LimitReachedDialog 띄움. 호출자는 그대로 응답 받음.
@@ -423,6 +428,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 세션 만료 전역 신호 — apiFetch 반응형 refresh 실패(refresh 쿠키 만료·무효) 시 발행됨.
+  //   로그인 세션이 실제로 있었던 경우에만(user 존재) 정리 후 /login 이동. 게스트/공개 표면
+  //   (공유 링크 등 user 없음)은 무시해 오리다이렉트를 막는다. scheduleRefresh/visibility 실패
+  //   경로와 동일한 종결 처리(goLogin)로 일관.
+  useEffect(() => {
+    const onSessionExpired = () => {
+      if (!user) return;
+      setUser(null);
+      setAccessToken(null);
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      goLogin();
+    };
+    window.addEventListener('planq:session-expired', onSessionExpired);
+    return () => window.removeEventListener('planq:session-expired', onSessionExpired);
+  }, [user]);
 
   // remember 기본값 true (기존 동작 호환). false 면 백엔드가 session cookie 설정 → 브라우저
   // 닫으면 refresh_token 사라져 자동 로그아웃. 공용 PC 사용자가 명시적 OFF 시 안전.
