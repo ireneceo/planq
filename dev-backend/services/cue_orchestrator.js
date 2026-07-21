@@ -376,7 +376,7 @@ async function generateDocumentDraft(businessId, { systemPrompt, userPrompt, max
 
 // ─── Q Mail M3-C — 이메일 답장 초안 (gpt-4o-mini, CueUsage 'email_reply') ───
 // 마지막 inbound 메일 + 비즈니스 컨텍스트로 답장 본문 초안 생성. 사실 날조 금지 프롬프트.
-async function generateEmailReplyDraft(businessId, { businessName, subject, latestInboundText, language = 'ko', faqContext = null }) {
+async function generateEmailReplyDraft(businessId, { businessName, subject, latestInboundText, language = 'ko', faqContext = null, userInstruction = null, currentDraft = null }) {
   const usage = await checkUsageLimit(businessId);
   if (usage.over) return { error: 'usage_limit_exceeded', usage };
   const lang = language === 'en' ? 'English' : 'Korean';
@@ -389,7 +389,16 @@ async function generateEmailReplyDraft(businessId, { businessName, subject, late
   if (faqContext) {
     systemPrompt += `\n\nRegistered FAQ answers (authoritative — base your reply on the matching one if the incoming email asks about it):\n${faqContext}`;
   }
-  const userPrompt = `Incoming email${subject ? ` (subject: ${subject})` : ''}:\n\n${(latestInboundText || '').slice(0, 4000)}\n\nDraft a reply body.`;
+  // #192 — 초안을 받은 뒤 수정 요청(추가 지시)을 주면 그 지시대로 다듬는다. 받은 메일 근거는 유지(날조 금지).
+  if (userInstruction) {
+    systemPrompt += `\n\nThe user is refining an existing draft. Apply this revision request while staying grounded in the incoming email and the rules above: "${String(userInstruction).slice(0, 1000)}".`;
+  }
+  let userPrompt = `Incoming email${subject ? ` (subject: ${subject})` : ''}:\n\n${(latestInboundText || '').slice(0, 4000)}\n\n`;
+  if (userInstruction && currentDraft) {
+    userPrompt += `Current draft to revise:\n\n${String(currentDraft).slice(0, 4000)}\n\nRewrite the reply body, applying the user's revision request from the instructions above.`;
+  } else {
+    userPrompt += `Draft a reply body.`;
+  }
   const result = await callLLM(MODEL_MINI, [
     { role: 'system', content: systemPrompt },
     { role: 'user', content: userPrompt },

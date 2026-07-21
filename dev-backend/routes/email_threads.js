@@ -987,6 +987,14 @@ router.post('/:businessId/email-threads/:id/ai-suggest',
         }
       } catch { /* FAQ 활용은 선택 — 실패해도 일반 초안 생성 */ }
 
+      // #192 — 사용자 수정 요청(instruction) + 현재 초안(current_draft) 을 받아 초안을 다듬는다.
+      //   입력 캡(costGuard 원칙): instruction 1000자 / current_draft 는 HTML strip 후 4000자.
+      const instruction = String((req.body || {}).instruction || '').trim().slice(0, 1000) || null;
+      const currentDraftRaw = (req.body || {}).current_draft;
+      const currentDraft = currentDraftRaw
+        ? String(currentDraftRaw).replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 4000) || null
+        : null;
+
       const cueOrch = require('../services/cue_orchestrator');
       const out = await cueOrch.generateEmailReplyDraft(businessId, {
         businessName: (biz && (biz.brand_name || biz.name)) || null,
@@ -994,6 +1002,8 @@ router.post('/:businessId/email-threads/:id/ai-suggest',
         latestInboundText,
         language,
         faqContext,
+        userInstruction: instruction,
+        currentDraft: instruction ? currentDraft : null,
       });
       if (out.error === 'usage_limit_exceeded') return errorResponse(res, 'cue_usage_limit_exceeded', 429);
       if (out.error === 'llm_unavailable') return errorResponse(res, 'ai_unavailable', 503);
