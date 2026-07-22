@@ -320,7 +320,7 @@
       "uploadNowSub": "CSV · Excel · JSON · TXT · MD · PDF · DOCX — uploads immediately",
       "uploadLaterSub": "CSV · Excel · JSON · TXT · MD · PDF · DOCX — uploads on meeting start",
       "itemCount": "{{count}}",
-      "templateDownload": "Download sample CSV (columns can be named question/질문 · answer/답변 · short_answer · keywords · category — any variant OK)",
+      "templateDownload": "Download sample CSV (columns can be named question · answer · short_answer · keywords · category — any variant OK)",
       "divider": "or enter manually",
       "questionPlaceholder": "Question (e.g. Why did you choose this topic?)",
       "answerPlaceholder": "Exact answer (as you'd say it, length OK)",

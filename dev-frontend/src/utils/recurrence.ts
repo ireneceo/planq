@@ -115,7 +115,7 @@ export function formatRRuleLabel(
 
   if (freq === 'DAILY') {
     if (interval > 1) {
-      return `${interval} ${t('recur.customUnitDay', '일')}${t('recur.everySuffix', '마다')}`;
+      return t('recur.everyNDays', { count: interval, defaultValue: `${interval}일마다` });
     }
     return t('recur.presetDaily', '매일');
   }
@@ -129,7 +129,7 @@ export function formatRRuleLabel(
       return t('recur.presetBiweekly', { day: dayLabel, defaultValue: `격주 ${dayLabel}` });
     }
     if (interval > 2) {
-      return `${interval} ${t('recur.customUnitWeek', '주')}${t('recur.everySuffix', '마다')}`;
+      return t('recur.everyNWeeks', { count: interval, defaultValue: `${interval}주마다` });
     }
     if (isShort || !anchor) {
       return t('recur.presetWeeklyShort', '매주');
@@ -140,7 +140,7 @@ export function formatRRuleLabel(
   }
   if (freq === 'MONTHLY') {
     if (interval > 1) {
-      return `${interval} ${t('recur.customUnitMonth', '개월')}${t('recur.everySuffix', '마다')}`;
+      return t('recur.everyNMonths', { count: interval, defaultValue: `${interval}개월마다` });
     }
     if (isShort) return t('recur.presetMonthlyShort', '매월');
     // anchor invalid + BYMONTHDAY 도 없으면 short 자동 폴백 (NaN 차단)
@@ -150,7 +150,7 @@ export function formatRRuleLabel(
   }
   if (freq === 'YEARLY') {
     if (interval > 1) {
-      return `${interval} ${t('recur.customUnitYear', '년')}${t('recur.everySuffix', '마다')}`;
+      return t('recur.everyNYears', { count: interval, defaultValue: `${interval}년마다` });
     }
     if (isShort) return t('recur.presetYearlyShort', '매년');
     const month = parts.BYMONTH || (anchor ? String(anchor.getUTCMonth() + 1) : '');
