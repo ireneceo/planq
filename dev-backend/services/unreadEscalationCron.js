@@ -25,7 +25,7 @@ const ESCALATE_KINDS = [
 ];
 
 async function runUnreadEscalation() {
-  const { Notification, User } = require('../models');
+  const { Notification, User, Business } = require('../models');
   const { isAllowed } = require('../routes/notifications');
   const { sendUnreadNotificationEmail } = require('./emailService');
 
@@ -45,18 +45,35 @@ async function runUnreadEscalation() {
   });
   if (!rows.length) return { users: 0, emails: 0, marked: 0 };
 
-  // 사용자별 그룹
-  const byUser = new Map();
+  // 사용자 × 워크스페이스 그룹 — 한 통에 여러 워크스페이스가 섞이면 제목 접두어([워크스페이스명])를
+  //   하나로 못 붙인다. (user, business_id) 로 서로소 분할해 워크스페이스별 봉투 1통씩 발송 (#149).
+  const groups = new Map();
   for (const r of rows) {
-    if (!byUser.has(r.user_id)) byUser.set(r.user_id, []);
-    byUser.get(r.user_id).push(r);
+    const key = `${r.user_id}|${r.business_id ?? 'null'}`;
+    if (!groups.has(key)) groups.set(key, { userId: r.user_id, businessId: r.business_id ?? null, list: [] });
+    groups.get(key).list.push(r);
   }
 
+  // 워크스페이스명 배치 조회 (N+1 방지 — 쿼리 1개)
+  const bizIds = [...new Set(rows.map((r) => r.business_id).filter(Boolean))];
+  const bizRows = bizIds.length
+    ? await Business.findAll({ where: { id: bizIds }, attributes: ['id', 'name', 'brand_name'] })
+    : [];
+  const wsNameById = new Map(bizRows.map((b) => [b.id, b.brand_name || b.name || null]));
+
+  const userCache = new Map();  // 멀티 워크스페이스 사용자 중복 조회 방지
+  const getUser = async (uid) => {
+    if (userCache.has(uid)) return userCache.get(uid);
+    const u = await User.findByPk(uid, { attributes: ['email', 'name'] });
+    userCache.set(uid, u);
+    return u;
+  };
+
   let emails = 0, marked = 0;
-  for (const [userId, list] of byUser) {
+  for (const g of groups.values()) {
     // race 재확인 — 그 사이 사용자가 읽었으면(read_at) 제외
     const fresh = [];
-    for (const r of list) {
+    for (const r of g.list) {
       await r.reload().catch(() => {});
       if (!r.read_at && !r.email_escalated_at) fresh.push(r);
     }
@@ -66,13 +83,15 @@ async function runUnreadEscalation() {
     //   (활성 사용자는 대화/알림을 읽으면 read 처리되어 큐에서 빠지므로 스팸 아님)
     //   push 가 기기/OS/PWA캐시 문제로 안 떠도 중요 알림(채팅·멘션·업무 등)을 이메일로 반드시 전달.
     {
-      const user = await User.findByPk(userId, { attributes: ['email', 'name'] });
+      const user = await getUser(g.userId);
       if (user && user.email) {
         const ok = await sendUnreadNotificationEmail({
           to: user.email,
           name: user.name,
           items: fresh.slice(0, 10).map((r) => ({ title: r.title, body: r.body, link: r.link })),
           count: fresh.length,
+          workspaceName: g.businessId ? (wsNameById.get(g.businessId) || null) : null,
+          businessId: g.businessId || null,
         }).catch(() => false);
         if (ok) emails++;
       }
@@ -82,7 +101,7 @@ async function runUnreadEscalation() {
     await Notification.update({ email_escalated_at: new Date() }, { where: { id: ids } });
     marked += ids.length;
   }
-  return { users: byUser.size, emails, marked };
+  return { users: new Set(rows.map((r) => r.user_id)).size, emails, marked };
 }
 
 let timer = null;
