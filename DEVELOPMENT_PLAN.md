@@ -14,6 +14,30 @@
 
 > **[이전] 최종 업데이트:** 2026-07-16 (Opus 4.8, 1M) — **모바일 흰 화면 회귀 차단 + 검사 하니스 강화** — e2e mobile 스위트에 `assertRendered()` **흰 화면(blank) 판정** 신규(키보드 스위트가 "입력 가림"만 봐 페이지 통째 blank도 ⚪ 통과하던 구멍 차단, #173/174/159/178 계열) + `run.js` blank=실패 집계 + mail 시나리오(mail-list·mail-compose) + MailPage `data-testid`·모바일 compose 사이드바 자동접힘 + DetailDrawer 폰 풀스크린(56px 조각 새던 것) + QBill 개요 2열 그리드 반응형 + Insights 기간라벨 i18n. **검증: mobile/crosscut/l1 전 스위트 0 실패 + tsc -b exit 0 + 가드 3축(health 30/30·guard 22/22·tenant 0)**. 다음: `docs/qa/NEXT_SECTION_BACKLOG.md`(Q Mail AI·멀티탭·전수검사 잔여 LOW).
 
+## ✅ 완료: 알림 다이제스트 접두어 + #196 반복주기 영어 + Q Record (2026-07-22, v1.48.1)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 알림 다이제스트 접두어 버그 | 미읽음 에스컬레이션(`unreadEscalationCron.js`)이 제목 `[PlanQ]` 하드코딩 → 사용자×워크스페이스 그룹핑 분리발송 + `subjectPrefix(workspaceName)` 단일원천 재사용 + 워크스페이스 칩 + EmailLog 귀속. 혼합 워크스페이스는 각 1통(count도 워크스페이스별 정확) | ✅ 배포 |
+| #196 반복주기 영어 어순 | `formatRRuleLabel` 4분기(일/주/개월/년) 접미사 연결(`3 week` 깨짐) → 보간키 `recur.everyN*`(`Every 3 weeks`). picker 미리보기 동시 해결. qnote CSV 안내 영어판 한글 별칭 제거 | ✅ 배포 |
+| #146 빠진 기능 대조 | 결론: features 페이지는 이미 완전. Q Record는 **폐지된 레거시**(Q docs 표 kind로 흡수, /records→/docs redirect)라 추가했다 **되돌림**. Q info(지식베이스)는 MORE 'wiki' 항목에 이미 포함 | ✅ 대조(변경 없음) |
+| 링크→앱 열기 파악 | Fable 독립 파악 — UL/AL 자동열기+경로 화이트리스트, Android host전체캡처=웹미리보기 예외 위반 지뢰. 메모리 `project_link_app_open_prelaunch` 박제(앱 출시 전 정비) | ✅ 파악 |
+| #146 스크린샷 A′ 설계 | Fable 설계 확정 — 데모 워크스페이스 시드+자동캡처→git 정적asset. 격리 fail-closed 가드. 다음 세션 구현 | ✅ 설계 |
+
+### 수정된 파일
+- 백엔드: `services/unreadEscalationCron.js` · `services/emailService.js`
+- 프론트: `src/utils/recurrence.ts` · `src/pages/Landing/FeaturesPage.tsx` · `public/locales/{ko,en}/qtask.json` · `en/qnote.json` · `public/locales/{ko,en}/landing.json` · 버전 1.48.1
+
+### 검증·배포
+Fable 게이트 3건 PASS(다이제스트·#196·Q Record 각 diff범위·guard 33/33·21/21·tenant0·빌드TS0·실측+반증). 다이제스트+#196 운영 배포(`d7148ab`+`2a7a51f`, Complete 200s, 3점 실측). Q Record(`aa24a90`)는 다음 `/배포` 대상.
+
+### 다음
+Q Record `/배포` + #146 스크린샷 구현(Fable A′, 선결: 데모 카피 검수·.env DEMO_CAPTURE_PASSWORD).
+
+---
+
 ## ✅ 완료: #194 제품 공지/체인지로그 시스템 (2026-07-21, v1.48.0)
 
 ### 완료된 작업
