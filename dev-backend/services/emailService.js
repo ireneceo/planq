@@ -979,7 +979,7 @@ async function sendSignupVerifyEmail({ to, name, verifyToken, ttlHours = 72 }) {
 //   push 가 OS/브라우저/푸시중계 구간에서 201 받고도 기기에 안 뜨는 경우를 위한 백업.
 //   unreadEscalationCron 이 일정 시간 미읽음 알림을 모아 1통으로 발송.
 // ═══════════════════════════════════════════════════════════════
-function unreadNotificationEmailHtml({ name, items, count }) {
+function unreadNotificationEmailHtml({ name, items, count, workspaceName }) {
   const rows = (items || []).map((it) => `
     <div style="padding:12px 14px;border:1px solid #E2E8F0;border-radius:10px;margin-bottom:8px;text-align:left;">
       <div style="font-weight:700;font-size:14px;color:#0F172A;line-height:1.4;">${escapeHtml(it.title || '')}</div>
@@ -989,6 +989,7 @@ function unreadNotificationEmailHtml({ name, items, count }) {
   // 본문은 '실제 알림 내용'을 최상단에 — 안내 보일러플레이트는 하단 작은 글씨로 강등
   //   (모바일에서 긴 안내문이 실내용을 밀어내던 문제 fix)
   const body = `
+    ${workspaceName ? `<div style="font-size:11px;font-weight:700;color:#0D9488;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:8px;">${escapeHtml(workspaceName)}</div>` : ''}
     <div style="font-size:18px;font-weight:700;color:#0F172A;line-height:1.4;">${escapeHtml(name || '안녕하세요')}님, 확인하지 않은 알림이 ${count}건 있습니다</div>
     <div style="margin-top:16px;">${rows}</div>
     ${more > 0 ? `<div style="font-size:13px;color:#64748B;">외 ${more}건</div>` : ''}
@@ -1002,18 +1003,20 @@ function unreadNotificationEmailHtml({ name, items, count }) {
   return emailWrap({ title: '확인하지 않은 알림', body, preheader });
 }
 
-async function sendUnreadNotificationEmail({ to, name, items, count }) {
+async function sendUnreadNotificationEmail({ to, name, items, count, workspaceName, businessId }) {
   if (!to) return false;
   // 제목만으로 무슨 알림인지 유추 가능하게 — 첫 알림 제목을 노출 (없으면 일반 문구 fallback)
+  //   접두어는 subjectPrefix 단일 원천 재사용 — 워크스페이스 맥락이면 [워크스페이스명], 없으면 [PlanQ] (#149).
   const first = (items && items[0] && items[0].title) ? String(items[0].title).trim() : '';
   const subject = first
     ? (count > 1
-        ? `[${PLATFORM.brand}] ${first} 외 ${count - 1}건`
-        : `[${PLATFORM.brand}] ${first}`)
-    : `[${PLATFORM.brand}] 확인하지 않은 알림 ${count}건`;
+        ? `${subjectPrefix(workspaceName)} ${first} 외 ${count - 1}건`
+        : `${subjectPrefix(workspaceName)} ${first}`)
+    : `${subjectPrefix(workspaceName)} 확인하지 않은 알림 ${count}건`;
   return sendEmail({
     to, subject,
-    html: unreadNotificationEmailHtml({ name, items, count }),
+    html: unreadNotificationEmailHtml({ name, items, count, workspaceName }),
+    businessId: businessId || null,   // EmailLog 워크스페이스 귀속
     template: 'unread_escalation', relatedEntityType: 'notification',
   });
 }
