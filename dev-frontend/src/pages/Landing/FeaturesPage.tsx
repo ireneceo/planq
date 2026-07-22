@@ -17,8 +17,8 @@ const QSERIES = ['talk', 'task', 'note', 'file', 'bill'] as const;
 const WORKSPACE = ['project', 'calendar', 'docs', 'mail'] as const;
 const AI_GROUP = ['cue', 'insights', 'notifications'] as const;
 const FOUNDATION = ['security', 'i18n', 'gdrive', 'billing'] as const;
-// #146 — 빠진 기능 추가: 통합 인박스·고객관리·전자서명·Q위키·개인 보관함·업무보고·포커스·회의록
-const MORE = ['inbox', 'clients', 'signature', 'wiki', 'vault', 'reports', 'focus', 'meeting'] as const;
+// #146 — 빠진 기능 추가: 통합 인박스·고객관리·Q Record·전자서명·Q위키·개인 보관함·업무보고·포커스·회의록
+const MORE = ['inbox', 'clients', 'record', 'signature', 'wiki', 'vault', 'reports', 'focus', 'meeting'] as const;
 
 const FeaturesPage: React.FC = () => {
   const { t } = useTranslation('landing');

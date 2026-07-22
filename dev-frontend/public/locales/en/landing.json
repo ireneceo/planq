@@ -475,6 +475,15 @@
           "1": "Auto question detection + answer drafts",
           "2": "A fully private space only you can access"
         }
+      },
+      "record": {
+        "name": "Q Record · Database",
+        "lead": "Design the tables you need, like a Notion database — organize lists, assets and contacts as a workspace database.",
+        "bullets": {
+          "0": "Custom column types · inline row editing",
+          "1": "Masked secret fields · permission-based access",
+          "2": "Bring scattered data into one grid"
+        }
       }
     },
     "cta": {
