@@ -240,7 +240,11 @@
     "presetWeeklyShort": "Weekly",
     "presetBiweeklyShort": "Every other week",
     "presetMonthlyShort": "Monthly",
-    "presetYearlyShort": "Yearly"
+    "presetYearlyShort": "Yearly",
+    "everyNDays": "Every {{count}} days",
+    "everyNWeeks": "Every {{count}} weeks",
+    "everyNMonths": "Every {{count}} months",
+    "everyNYears": "Every {{count}} years"
   },
   "backlog": {
     "title": "Unassigned",

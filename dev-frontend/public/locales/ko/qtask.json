@@ -280,7 +280,11 @@
     "presetWeeklyShort": "매주",
     "presetBiweeklyShort": "격주",
     "presetMonthlyShort": "매월",
-    "presetYearlyShort": "매년"
+    "presetYearlyShort": "매년",
+    "everyNDays": "{{count}}일마다",
+    "everyNWeeks": "{{count}}주마다",
+    "everyNMonths": "{{count}}개월마다",
+    "everyNYears": "{{count}}년마다"
   },
   "backlog": {
     "title": "미배정 업무",
