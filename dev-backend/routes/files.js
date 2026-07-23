@@ -412,6 +412,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, upload.singl
           external_id: key,
           external_url: null,  // private 버킷 — 다운로드 시 presign
           visibility: projectId ? 'L2' : 'L1',
+          vlevel: projectId ? 'L2' : 'L1',   // ★ 권위 컬럼 동시 기록 (미기록 시 default L3 노출)
         });
         fs.unlinkSync(tempPath);
         tempPath = null;
@@ -459,6 +460,8 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, upload.singl
           external_id: driveFile.id,
           external_url: driveFile.webViewLink,
           visibility: projectId ? 'L2' : 'L1',  // VISIBILITY_VOCABULARY.md §2 — 프로젝트=팀 / 미연결=개인 default
+          // ★ vlevel 이 권위 컬럼 — 같이 안 쓰면 모델 default 'L3' 로 저장돼 개인 파일이 전 멤버에게 노출된다
+          vlevel: projectId ? 'L2' : 'L1',
         });
         // 로컬 임시 파일 제거
         fs.unlinkSync(tempPath);
@@ -531,6 +534,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, upload.singl
             content_hash: hash,
             ref_count: 1,
             visibility: projectId ? 'L2' : 'L1',
+            vlevel: projectId ? 'L2' : 'L1',   // ★ 권위 컬럼 동시 기록 (미기록 시 default L3 노출)
           }, { transaction: t });
         } else {
           file = existing;
@@ -551,6 +555,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, upload.singl
           content_hash: hash,
           ref_count: 1,
           visibility: projectId ? 'L2' : 'L1',
+          vlevel: projectId ? 'L2' : 'L1',   // ★ 권위 컬럼 동시 기록 (미기록 시 default L3 노출)
         }, { transaction: t });
         // 쿼터 업데이트 (dedup 히트면 증가 없음)
         usage.bytes_used = Number(usage.bytes_used) + req.file.size;

@@ -229,6 +229,16 @@ async function wipeDemoData(businessId) {
   const convs = await Conversation.findAll({ where: { business_id: businessId }, attributes: ['id'] });
   const convIds = convs.map((c) => c.id);
   if (convIds.length) {
+    // ★ message_attachments 를 messages 보다 먼저 지운다 — FK 때문에 순서가 뒤바뀌면
+    //   데모 대화에 첨부가 1건이라도 있을 때 재시드가 FK 위반으로 죽는다.
+    await sequelize.query(
+      'DELETE FROM message_attachments WHERE message_id IN (SELECT id FROM messages WHERE conversation_id IN (:ids))',
+      { replacements: { ids: convIds } },
+    ).catch(() => {});
+    await sequelize.query(
+      'DELETE FROM message_reactions WHERE message_id IN (SELECT id FROM messages WHERE conversation_id IN (:ids))',
+      { replacements: { ids: convIds } },
+    ).catch(() => {});
     await Message.destroy({ where: { conversation_id: convIds } });
     await ConversationParticipant.destroy({ where: { conversation_id: convIds } });
     await Conversation.destroy({ where: { id: convIds } });
