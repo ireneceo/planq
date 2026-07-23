@@ -654,7 +654,12 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, onSa
             </Label>
             <Input
               type="password" value={form.imap_password}
-              onChange={e => setForm({ ...form, imap_password: e.target.value.replace(/[\s\u00A0]/g, '') })}
+              /* 앱비밀번호 provider 만 공백 제거 — 일반 IMAP 은 중간 공백이 유효한 비밀번호일 수 있어
+                 입력 자체를 막으면 안 된다 (백엔드 normalizeImapPassword 와 같은 기준). */
+              onChange={e => setForm({
+                ...form,
+                imap_password: usesAppPassword ? e.target.value.replace(/[\s\u00A0]/g, '') : e.target.value,
+              })}
               autoComplete="new-password"
               placeholder={usesAppPassword ? (t('settings.appPasswordPh', '계정 비밀번호가 아닌, 발급받은 앱 비밀번호') as string) : undefined}
             />

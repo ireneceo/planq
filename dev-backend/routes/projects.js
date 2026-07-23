@@ -2863,6 +2863,16 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
     const projIds = projects.map(p => p.id);
     // 프로젝트가 없어도 "내 파일"(project_id NULL) 은 조회 필요 — 아래 로직 진행
 
+    // ★ chat·task 첨부는 direct 파일과 달리 vlevel 컬럼이 없어 fileListWhereByLevel 로 못 거른다.
+    //   프로젝트 산출물이므로 **내가 속한 프로젝트만** 대상으로 좁힌다. 안 그러면 프로젝트 비멤버가
+    //   대화 첨부·업무 첨부의 파일명과 무인증 public download_url 까지 받아간다.
+    //   owner/admin/platform_admin 은 워크스페이스 전권이라 기존대로 전체.
+    const fullView = fileScope.isPlatformAdmin || fileScope.isOwner || fileScope.isAdmin;
+    const myProjIds = fullView
+      ? projIds
+      : projIds.filter((id) => (fileScope.projectMemberIds || []).includes(id)
+        || (fileScope.projectClientProjectIds || []).includes(id));
+
     const results = [];
 
     // 1) direct 파일 — 프로젝트 소속 + "내 파일"(project_id NULL) 둘 다 포함
@@ -2918,9 +2928,9 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
       });
     }
 
-    // 2) chat 첨부
+    // 2) chat 첨부 — 내가 속한 프로젝트만 (위 myProjIds 주석 참조)
     const conversations = await Conversation.findAll({
-      where: { business_id: bizId, project_id: { [Op.in]: projIds } },
+      where: { business_id: bizId, project_id: { [Op.in]: myProjIds } },
       attributes: ['id', 'title', 'project_id']
     });
     const convMap = new Map(conversations.map(c => [c.id, c]));
@@ -2962,9 +2972,9 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
       }
     }
 
-    // 3) task 첨부
+    // 3) task 첨부 — 내가 속한 프로젝트만 (위 myProjIds 주석 참조)
     const tasks = await Task.findAll({
-      where: { business_id: bizId, project_id: { [Op.in]: projIds } },
+      where: { business_id: bizId, project_id: { [Op.in]: myProjIds } },
       attributes: ['id', 'title', 'project_id']
     });
     const taskMap = new Map(tasks.map(t => [t.id, t]));
