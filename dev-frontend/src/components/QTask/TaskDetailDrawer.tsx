@@ -1938,7 +1938,8 @@ const DateRangeCell: React.FC<{
 
 // ─── styled ───
 const Backdrop = styled.div`
-  position:fixed;inset:0;background:rgba(15, 23, 42, 0.08);
+  /* --chrome-top: 멀티탭 스트립 높이 (DetailDrawer 와 동일 계약, #199) */
+  position:fixed;top:var(--chrome-top, 0px);left:0;right:0;bottom:0;background:rgba(15, 23, 42, 0.08);
   z-index:125;
   animation:pqFadeIn 0.22s ease-out;
   @keyframes pqFadeIn{from{opacity:0;}to{opacity:1;}}
@@ -1947,8 +1948,8 @@ const Backdrop = styled.div`
 // 모바일 키보드 대응(#79): 높이를 --vvh 바운드 → 키보드 up 시 드로어가 줄고 하단 액션바/댓글
 //   입력이 항상 키보드 위. (bottom:0 은 레이아웃 뷰포트라 키보드 뒤로 감.)
 const Drawer = styled.aside<{ $w: number }>`
-  position:fixed;top:0;right:0;
-  height:var(--vvh, 100dvh);
+  position:fixed;top:var(--chrome-top, 0px);right:0;
+  height:calc(var(--vvh, 100dvh) - var(--chrome-top, 0px));
   width:min(${p => p.$w}px, calc(100vw - 56px));
   background:#FFF;border-left:1px solid #E2E8F0;
   box-shadow:-16px 0 40px rgba(15,23,42,0.14);display:flex;flex-direction:column;overflow:hidden;z-index:130;

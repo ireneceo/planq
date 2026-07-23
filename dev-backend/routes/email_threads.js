@@ -1044,14 +1044,14 @@ router.post('/:businessId/email-threads/:id/messages/:msgId/translate',
         || String(msg.body_html || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
       if (!text || !text.trim()) return errorResponse(res, 'empty_body', 400);
 
-      // 대상 + 짝 언어(중복 회피)로 양방향 번역 후 target 만 반환.
-      const other = target === 'en' ? 'ko' : 'en';
-      const { translateWithRetry } = require('../services/translation_service');
-      const r = await translateWithRetry(text, [target, other], businessId);
-      if (r.fallback || !r.translations || !r.translations[target]) {
+      // 단방향 번역 — 메일은 대상 언어 하나만 필요하다. 양방향(채팅용)을 쓰면 출력 토큰이 2배라
+      // 본문 1천 자만 넘어도 JSON 이 잘리고 재시도까지 겹쳐 2분 대기 후 실패했다(#197).
+      const { translateOneWithRetry } = require('../services/translation_service');
+      const r = await translateOneWithRetry(text, target, businessId);
+      if (r.fallback || !r.translated) {
         return errorResponse(res, r.reason === 'usage_limit_exceeded' ? 'usage_limit_exceeded' : 'translation_unavailable', 503);
       }
-      return successResponse(res, { detected_language: r.detected_language, target_lang: target, translated: r.translations[target] });
+      return successResponse(res, { detected_language: r.detected_language, target_lang: target, translated: r.translated });
     } catch (err) { next(err); }
   }
 );

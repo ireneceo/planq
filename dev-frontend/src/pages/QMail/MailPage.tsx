@@ -243,7 +243,14 @@ function buildMailSrcDoc(id: number, html: string): string {
   // 가로 넘침만 최소 보정 (고정폭 템플릿이 패널보다 넓을 때 잘리지 않고 스크롤되게)
   // 최상위 고정폭 블록(뉴스레터 table/div/center)을 가운데 정렬 — Gmail 등 타 클라이언트와 동일.
   //   width 없는(=full) 콘텐츠는 margin:auto 영향 없이 그대로 풀폭. 고정폭만 중앙으로 모인다(Irene).
-  const guard = '<style>html,body{margin:0;padding:0;height:auto;}body{overflow-x:auto;display:flow-root;}img{max-width:100%;height:auto;}body>table,body>div,body>center,body>a{margin-left:auto;margin-right:auto;}</style>';
+  // ★ img 규칙 — 전역 `height:auto` 는 발신자가 지정한 HTML height 속성(presentational hint)을 무효화해서,
+  //   보낸 사람이 썸네일 크기로 줄여 넣은 이미지가 원본 크기로 부풀어 올랐다(#200). Gmail 은 이런 override 를
+  //   하지 않는다. 크기 지정이 **없는** 이미지에만 height:auto 를 주고, 지정된 것은 발신자 의도를 존중한다.
+  //   추가로 초대형 원본이 화면을 삼키지 않게 max-height 캡만 둔다(링크는 새 탭에서 원본).
+  const guard = '<style>html,body{margin:0;padding:0;height:auto;}body{overflow-x:auto;display:flow-root;}'
+    + 'img{max-width:100%;max-height:60vh;object-fit:contain;}'
+    + 'img:not([height]):not([width]):not([style*="height"]):not([style*="width"]){height:auto;}'
+    + 'body>table,body>div,body>center,body>a{margin-left:auto;margin-right:auto;}</style>';
   // 메일 본문 링크는 iframe 안이 아니라 **새 브라우저 탭**으로 — Gmail 등 타 클라이언트와 동일.
   //   <base target="_blank"> 로 모든 <a> 가 새 탭. sandbox 에 allow-popups(+escape) 를 줘야 실제로 열린다.
   //   (URL 은 sanitizeMailHtml 이 http(s)/mailto 로 제한. 최신 브라우저는 _blank 에 자동 noopener 적용.)
