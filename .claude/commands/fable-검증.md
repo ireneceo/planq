@@ -47,7 +47,10 @@ Fable 이 `VERDICT: PASS` 를 낸 경우에만 아래 Bash 실행:
 
 ```bash
 REPO=/opt/planq
-FP=$(git -C "$REPO" status --porcelain -- dev-backend dev-frontend q-note | sha256sum | cut -d' ' -f1)
+# ★ 지문은 훅(fable-gate-stop.sh)과 **정확히 같은 방식**으로 계산해야 한다.
+#   훅은 printf '%s' 로 후행 개행 없이 해시한다 — 파이프(`| sha256sum`)로 계산하면
+#   개행이 섞여 해시가 영원히 달라지고, 마커를 남겨도 게이트가 통과되지 않는다.
+FP=$(printf '%s' "$(git -C "$REPO" status --porcelain -- dev-backend dev-frontend q-note)" | sha256sum | cut -d' ' -f1)
 printf '{"fingerprint":"%s","ts":%s,"by":"fable"}\n' "$FP" "$(date +%s)" > "$REPO/.claude/.fable-gate.json"
 echo "✅ Fable 게이트 통과 기록됨 (fp=${FP:0:12})"
 ```
