@@ -49,7 +49,7 @@ const CloudConnectNotice: React.FC<Props> = ({ businessId }) => {
 
   if (connected) {
     return (
-      <ConnectedNotice>
+      <ConnectedNotice data-testid="cloud-connect-notice">
         <NoticeIcon $tone="amber" aria-hidden>!</NoticeIcon>
         <NoticeText>
           <strong>{t('docs.cloud.connectedTitle', { defaultValue: '워크스페이스 공용 파일을 Google Drive 에 보관 중입니다.' })}</strong>{' '}
@@ -65,7 +65,7 @@ const CloudConnectNotice: React.FC<Props> = ({ businessId }) => {
   }
 
   return (
-    <RecommendNotice>
+    <RecommendNotice data-testid="cloud-connect-notice">
       <NoticeIcon $tone="teal" aria-hidden>+</NoticeIcon>
       <NoticeText>
         <strong>{t('docs.cloud.recommendTitle', { defaultValue: 'Google Drive 연결을 권장합니다.' })}</strong>{' '}

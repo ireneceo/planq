@@ -247,7 +247,8 @@
           "File · image attachments (SHA-256 dedup) + auto KO/EN translation",
           "Realtime via Socket.IO + per-user pinning + edit/delete with audit log",
           "Two-way Project ↔ chat linking + AI candidate dedup"
-        ]
+        ],
+        "shotAlt": "Q talk screen — client conversation channels and message list in a workspace"
       },
       "task": {
         "name": "Q Task — Task execution",
@@ -258,7 +259,8 @@
           "Hours tracking (estimated · actual · progress%) + capacity dashboard + burndown chart",
           "This week / All mine / Requests — three tabs separating incoming and outgoing",
           "Confirmation workflow (all/any policy) + AI deliverable-based task naming"
-        ]
+        ],
+        "shotAlt": "Q task screen — this week's tasks with available hours and progress chart"
       },
       "note": {
         "name": "Q Note — Voice meetings · memos",
@@ -269,7 +271,8 @@
           "Auto vocabulary extraction (verbatim from materials) — improves STT accuracy",
           "Pre-registered speakers + post-matching (no in-meeting modals)",
           "Two-tier model split (gpt-4.1-nano + gpt-4o-mini) for cost efficiency"
-        ]
+        ],
+        "shotAlt": "Q note screen — meeting transcript with automatic summary"
       },
       "file": {
         "name": "Q File — Files",
@@ -280,7 +283,8 @@
           "Two-way Google Drive sync (workspace only) + native PlanQ storage (personal)",
           "1GB / 50GB / 500GB storage and 10MB / 30MB / 50MB per file by plan",
           "External share token links + previews"
-        ]
+        ],
+        "shotAlt": "Q file screen — project files organized in per-client folders"
       },
       "bill": {
         "name": "Q Bill — Billing · payments",
@@ -291,7 +295,8 @@
           "5 currencies (KRW/USD/EUR/JPY/CNY) + KR + SWIFT/EN bank info shown together",
           "Native bank-transfer billing as primary + PortOne V2 secondary",
           "Popbill tax invoices (auto for KR businesses) + public payment page (token)"
-        ]
+        ],
+        "shotAlt": "Q bill screen — monthly revenue with invoice and payment status"
       }
     },
     "workspace": {
