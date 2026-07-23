@@ -10,6 +10,7 @@
 //   GET  /api/personal-vault/:businessId/kb-documents — 본인 private 지식
 
 const express = require('express');
+const path = require('path');
 const { Op } = require('sequelize');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
@@ -125,7 +126,19 @@ router.get('/:businessId/files', authenticateToken, attachWorkspaceScope(), asyn
       order: [['created_at', 'DESC']],
       limit, offset,
     });
-    res.json({ success: true, data: rows, pagination: { total: count, limit, offset } });
+    // 이미지면 public-image 썸네일 URL 동봉 (projects all-files 와 동일 규칙).
+    // 없으면 보관함 카드가 빈 채로 렌더된다. 비이미지·외부저장(gdrive)은 생략.
+    const data = rows.map((f) => {
+      const isImage = f.mime_type && f.mime_type.startsWith('image/');
+      const isPlanQ = f.storage_provider === 'planq' || !f.storage_provider;
+      return {
+        ...f.toJSON(),
+        preview_url: (isImage && isPlanQ && f.file_path)
+          ? `/api/files/public-image/${path.basename(f.file_path)}`
+          : undefined,
+      };
+    });
+    res.json({ success: true, data, pagination: { total: count, limit, offset } });
   } catch (err) { next(err); }
 });
 

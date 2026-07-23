@@ -1,7 +1,7 @@
 // 마케팅 캡처용 데모 워크스페이스 시드 (#146 랜딩 /features 스크린샷)
 //
 // 목적: 랜딩 /features 의 Q 시리즈 5블록에 넣을 제품 스크린샷을 "실제 PlanQ 화면"으로 캡처하기 위해
-//       가상 회사 1개(라온랩스)의 완결된 워크스페이스를 dev DB 에 만든다.
+//       가상 회사 1개(온무늬)의 완결된 워크스페이스를 dev DB 에 만든다.
 //       캡처는 scripts/marketing-capture.js 가 이 계정으로 로그인해 수행한다.
 //
 // 특징
@@ -31,7 +31,7 @@ const {
 // 상수
 // ─────────────────────────────────────────────
 const ALLOWED_DB = ['planq_dev_db'];          // ★ 운영 DB 에서는 절대 실행되지 않는다
-const DEMO_SLUG = 'raonlabs-demo';
+const DEMO_SLUG = 'onmuni-demo';
 const DEMO_EMAIL_SUFFIX = '@demo.planq.kr';   // 데모 계정 식별자 (실 사용자 계정과 도메인 분리)
 const UPLOAD_ROOT = path.join(__dirname, '..', 'uploads');
 
@@ -64,18 +64,18 @@ const CLIENT_USER = { email: `client${DEMO_EMAIL_SUFFIX}`, name: '정민아' };
 
 // 지난 달 수금 이력 (Q bill 12개월 그래프용) — ago = 며칠 전 입금
 const PAST_PAID = [
-  { client: 'green', title: '그린테이블 브랜드 키트 2차', item: '브랜드 키트 · 응용 디자인', amount: 1800000, ago: 38 },
-  { client: 'haneul', title: '하늘커머스 상세페이지 리뉴얼', item: '상세페이지 6종 디자인', amount: 2600000, ago: 66 },
-  { client: 'brick', title: '브릭스터디 브랜드 가이드', item: '브랜드 가이드라인 제작', amount: 3200000, ago: 95 },
-  { client: 'green', title: '그린테이블 시즌 패키지', item: '시즌 한정 패키지 디자인', amount: 2100000, ago: 128 },
-  { client: 'haneul', title: '하늘커머스 광고 소재 제작', item: '퍼포먼스 광고 소재 12종', amount: 1450000, ago: 158 },
-  { client: 'brick', title: '브릭스터디 앱 아이콘 · 스플래시', item: '앱 아이콘 및 스플래시 리디자인', amount: 900000, ago: 190 },
+  { client: 'green', title: '들녘테이블 브랜드 키트 2차', item: '브랜드 키트 · 응용 디자인', amount: 1800000, ago: 38 },
+  { client: 'haneul', title: '노들커머스 상세페이지 리뉴얼', item: '상세페이지 6종 디자인', amount: 2600000, ago: 66 },
+  { client: 'brick', title: '모눈스터디 브랜드 가이드', item: '브랜드 가이드라인 제작', amount: 3200000, ago: 95 },
+  { client: 'green', title: '들녘테이블 시즌 패키지', item: '시즌 한정 패키지 디자인', amount: 2100000, ago: 128 },
+  { client: 'haneul', title: '노들커머스 광고 소재 제작', item: '퍼포먼스 광고 소재 12종', amount: 1450000, ago: 158 },
+  { client: 'brick', title: '모눈스터디 앱 아이콘 · 스플래시', item: '앱 아이콘 및 스플래시 리디자인', amount: 900000, ago: 190 },
 ];
 
 const CLIENTS = [
-  { key: 'haneul', company: '하늘커머스', contact: '정민아', title: '마케팅팀장', linkUser: true },
-  { key: 'brick', company: '브릭스터디', contact: '오세훈', title: '대표', linkUser: false },
-  { key: 'green', company: '그린테이블', contact: '한지우', title: '브랜드 매니저', linkUser: false },
+  { key: 'haneul', company: '노들커머스', contact: '정민아', title: '마케팅팀장', linkUser: true },
+  { key: 'brick', company: '모눈스터디', contact: '강민재', title: '대표', linkUser: false },
+  { key: 'green', company: '들녘테이블', contact: '윤소민', title: '브랜드 매니저', linkUser: false },
 ];
 
 // ─────────────────────────────────────────────
@@ -195,20 +195,20 @@ async function upsertUser({ email, name, jobTitle }) {
 
 async function upsertBusiness(ownerId) {
   const attrs = {
-    name: '라온랩스',
+    name: '온무늬',
     owner_id: ownerId,
     default_language: 'ko',
-    brand_name: '라온랩스',
-    brand_name_en: 'Raon Labs',
+    brand_name: '온무늬',
+    brand_name_en: 'Onmuni Studio',
     brand_tagline: '브랜드와 제품을 함께 만드는 스튜디오',
-    legal_name: '주식회사 라온랩스',
+    legal_name: '주식회사 온무늬',
     legal_entity_type: 'corporation',
     representative: '김서연',
     biz_type: '서비스업',
     biz_item: '디자인 · 소프트웨어 개발',
-    address: '서울특별시 성동구 성수이로 118',
+    address: '서울특별시 성동구 성수동',
     phone: '02-1234-5678',
-    email: 'hello@raonlabs.example',
+    email: 'hello@onmuni.example',
     timezone: 'Asia/Seoul',
     plan: 'pro',
     subscription_status: 'active',
@@ -415,9 +415,9 @@ async function seed() {
   // 5-1) 프로젝트 — 업무·대화가 어느 일에 속하는지 보이도록 (Q task 프로젝트 열 · Q talk 그룹)
   const projects = {};
   const projectSpecs = [
-    { key: 'haneul', name: '하늘커머스 브랜드 리뉴얼', desc: '로고 · 컬러 시스템 · 브랜드 가이드', start: -30, end: 45, lead: 'jimin' },
-    { key: 'brick', name: '브릭스터디 앱 랜딩 리뉴얼', desc: '랜딩 5개 섹션 기획 · 디자인 · 퍼블리싱', start: -14, end: 30, lead: 'junho' },
-    { key: 'green', name: '그린테이블 패키지 디자인', desc: '패키지 3종 · 인쇄 감리', start: -60, end: -2, lead: 'jimin', status: 'closed' },
+    { key: 'haneul', name: '노들커머스 브랜드 리뉴얼', desc: '로고 · 컬러 시스템 · 브랜드 가이드', start: -30, end: 45, lead: 'jimin' },
+    { key: 'brick', name: '모눈스터디 앱 랜딩 리뉴얼', desc: '랜딩 5개 섹션 기획 · 디자인 · 퍼블리싱', start: -14, end: 30, lead: 'junho' },
+    { key: 'green', name: '들녘테이블 패키지 디자인', desc: '패키지 3종 · 인쇄 감리', start: -60, end: -2, lead: 'jimin', status: 'closed' },
   ];
   for (const spec of projectSpecs) {
     const c = CLIENTS.find((x) => x.key === spec.key);
@@ -450,20 +450,20 @@ async function seed() {
   // 6) Q talk — 대화 3개
   const convHaneul = await Conversation.create({
     business_id: biz.id, client_id: clients.haneul.id, project_id: projects.haneul.id,
-    channel_type: 'customer', display_name: '하늘커머스 · 브랜드 리뉴얼',
-    title: '하늘커머스 · 브랜드 리뉴얼', status: 'active',
+    channel_type: 'customer', display_name: '노들커머스 · 브랜드 리뉴얼',
+    title: '노들커머스 · 브랜드 리뉴얼', status: 'active',
     auto_extract_enabled: true, cue_enabled: true, last_message_at: hoursAgo(5),
   });
   const convBrick = await Conversation.create({
     business_id: biz.id, client_id: clients.brick.id, project_id: projects.brick.id,
-    channel_type: 'customer', display_name: '브릭스터디 · 앱 랜딩 리뉴얼',
-    title: '브릭스터디 · 앱 랜딩 리뉴얼', status: 'active',
+    channel_type: 'customer', display_name: '모눈스터디 · 앱 랜딩 리뉴얼',
+    title: '모눈스터디 · 앱 랜딩 리뉴얼', status: 'active',
     auto_extract_enabled: true, cue_enabled: true, last_message_at: daysAgo(1),
   });
   const convTeam = await Conversation.create({
     business_id: biz.id,
-    channel_type: 'internal', display_name: '라온랩스 팀',
-    title: '라온랩스 팀', status: 'active',
+    channel_type: 'internal', display_name: '온무늬 팀',
+    title: '온무늬 팀', status: 'active',
     auto_extract_enabled: false, cue_enabled: true, last_message_at: hoursAgo(3),
   });
 
@@ -501,25 +501,25 @@ async function seed() {
   await msg(convHaneul, users.jimin, '확인했습니다. 시안 작업 착수했고 금요일 오전까지 PDF로 정리해 드리겠습니다.', daysAgo(1));
   await msg(convHaneul, clientUser, '좋습니다. 경쟁사 비교 자료도 한 장 넣어주시면 보고에 도움이 될 것 같아요.', hoursAgo(5));
 
-  await msg(convBrick, owner, '오세훈 대표님, 앱 랜딩 리뉴얼 범위 정리해서 견적서 초안 준비 중입니다. 페이지는 5개 기준으로 잡았습니다.', daysAgo(4));
+  await msg(convBrick, owner, '강민재 대표님, 앱 랜딩 리뉴얼 범위 정리해서 견적서 초안 준비 중입니다. 페이지는 5개 기준으로 잡았습니다.', daysAgo(4));
   await msg(convBrick, users.junho, '현재 랜딩 성능 점검도 같이 진행 중입니다. 결과 나오면 개선 포인트와 함께 공유드리겠습니다.', daysAgo(1));
 
-  await msg(convTeam, owner, '이번 주 우선순위 공유합니다. 하늘커머스 시안 금요일 납품이 최우선이에요.', hoursAgo(30));
+  await msg(convTeam, owner, '이번 주 우선순위 공유합니다. 노들커머스 시안 금요일 납품이 최우선이에요.', hoursAgo(30));
   await msg(convTeam, users.jimin, '로고 시안 3종 중 2종 완료했습니다. 오늘 중 나머지 한 종 마무리하겠습니다.', hoursAgo(26));
-  await msg(convTeam, users.junho, '브릭스터디 랜딩 성능 점검 결과는 내일 오전에 정리해서 올릴게요.', hoursAgo(7));
-  await msg(convTeam, owner, '좋습니다. 그린테이블 청구서는 오늘 발송하겠습니다.', hoursAgo(3));
+  await msg(convTeam, users.junho, '모눈스터디 랜딩 성능 점검 결과는 내일 오전에 정리해서 올릴게요.', hoursAgo(7));
+  await msg(convTeam, owner, '좋습니다. 들녘테이블 청구서는 오늘 발송하겠습니다.', hoursAgo(3));
   console.log('대화 3개 · 메시지 12건');
 
   // 7) Q task — 업무 8건
   const week = mondayThisWeek();
   const taskSpecs = [
-    { title: '하늘커머스 로고 시안 3종 PDF 납품', assignee: users.jimin, client: clients.haneul, proj: 'haneul', status: 'in_progress', prog: 60, est: 8, act: 4.5, due: dateFromNow(2), start: dateFromNow(-2), cat: '디자인' },
+    { title: '노들커머스 로고 시안 3종 PDF 납품', assignee: users.jimin, client: clients.haneul, proj: 'haneul', status: 'in_progress', prog: 60, est: 8, act: 4.5, due: dateFromNow(2), start: dateFromNow(-2), cat: '디자인' },
     { title: '컬러 시스템 제안서(Primary·Secondary) 작성', assignee: users.jimin, client: clients.haneul, proj: 'haneul', status: 'in_progress', prog: 35, est: 5, act: 1.5, due: dateFromNow(3), start: dateFromNow(-1), cat: '디자인' },
     { title: '경쟁사 브랜드 비교표 1장 정리', assignee: owner, client: clients.haneul, proj: 'haneul', status: 'in_progress', prog: 40, est: 3, act: 1, due: dateFromNow(1), start: dateFromNow(-1), cat: '기획' },
-    { title: '브릭스터디 랜딩 성능 점검 리포트 작성', assignee: users.junho, client: clients.brick, proj: 'brick', status: 'in_progress', prog: 70, est: 6, act: 4, due: dateFromNow(1), start: dateFromNow(-3), cat: '개발' },
+    { title: '모눈스터디 랜딩 성능 점검 리포트 작성', assignee: users.junho, client: clients.brick, proj: 'brick', status: 'in_progress', prog: 70, est: 6, act: 4, due: dateFromNow(1), start: dateFromNow(-3), cat: '개발' },
     { title: '앱 랜딩 와이어프레임 5종 확정', assignee: users.junho, client: clients.brick, proj: 'brick', status: 'waiting', prog: 0, est: 12, act: 0, due: dateFromNow(10), start: dateFromNow(4), cat: '기획', week: null },
-    { title: '하늘커머스 리뉴얼 견적서 v2 작성', assignee: owner, client: clients.haneul, proj: 'haneul', status: 'not_started', prog: 0, est: 2, act: 0, due: dateFromNow(5), start: null, cat: '기획' },
-    { title: '그린테이블 패키지 최종 파일 납품', assignee: users.jimin, client: clients.green, proj: 'green', status: 'completed', prog: 100, est: 10, act: 11, due: dateFromNow(-2), start: dateFromNow(-12), cat: '디자인', done: daysAgo(2) },
+    { title: '노들커머스 리뉴얼 견적서 v2 작성', assignee: owner, client: clients.haneul, proj: 'haneul', status: 'not_started', prog: 0, est: 2, act: 0, due: dateFromNow(5), start: null, cat: '기획' },
+    { title: '들녘테이블 패키지 최종 파일 납품', assignee: users.jimin, client: clients.green, proj: 'green', status: 'completed', prog: 100, est: 10, act: 11, due: dateFromNow(-2), start: dateFromNow(-12), cat: '디자인', done: daysAgo(2) },
     { title: '월간 운영 리포트 발송', assignee: owner, client: null, status: 'in_progress', prog: 50, est: 2, act: 1, due: dateFromNow(4), start: dateFromNow(-1), cat: '운영' },
   ];
   for (const t of taskSpecs) {
@@ -556,14 +556,14 @@ async function seed() {
     });
   }
   const fileSpecs = [
-    { folder: 'haneul', client: 'haneul', name: '하늘커머스_브랜드_리뉴얼_제안서.pdf', kind: 'pdf', up: 'seoyeon', age: 12, size: 1_240_000, desc: '킥오프 제안서 최종본', lines: ['1. 프로젝트 배경', '2. 리뉴얼 방향', '3. 일정 및 산출물', '4. 견적 개요'] },
+    { folder: 'haneul', client: 'haneul', name: '노들커머스_브랜드_리뉴얼_제안서.pdf', kind: 'pdf', up: 'seoyeon', age: 12, size: 1_240_000, desc: '킥오프 제안서 최종본', lines: ['1. 프로젝트 배경', '2. 리뉴얼 방향', '3. 일정 및 산출물', '4. 견적 개요'] },
     { folder: 'haneul', client: 'haneul', name: '로고_시안_3종_v1.pdf', kind: 'pdf', up: 'jimin', age: 2, size: 2_380_000, desc: '1차 시안 (A/B/C안)', lines: ['A안 — 심볼 중심', 'B안 — 워드마크 중심', 'C안 — 조합형'] },
     { folder: 'haneul', client: 'haneul', name: '컬러시스템_가이드.pdf', kind: 'pdf', up: 'jimin', age: 1, size: 880_000, desc: 'Primary·Secondary 팔레트', lines: ['Primary — Deep Teal', 'Secondary — Warm Sand', 'Accent — Coral'] },
     { folder: 'haneul', client: 'haneul', name: '기존_로고_사용_가이드.pdf', kind: 'pdf', up: 'seoyeon', age: 2, size: 640_000, desc: '고객 전달 기존 가이드', lines: ['현행 로고 사용 규정', '최소 여백 · 금지 사용 예'] },
-    { folder: 'brick', client: 'brick', name: '브릭스터디_랜딩_와이어프레임.pdf', kind: 'pdf', up: 'junho', age: 5, size: 1_610_000, desc: '5개 페이지 구조', lines: ['Hero / Feature / Pricing', 'FAQ / CTA'] },
+    { folder: 'brick', client: 'brick', name: '모눈스터디_랜딩_와이어프레임.pdf', kind: 'pdf', up: 'junho', age: 5, size: 1_610_000, desc: '5개 페이지 구조', lines: ['Hero / Feature / Pricing', 'FAQ / CTA'] },
     { folder: 'brick', client: 'brick', name: '랜딩_성능점검_결과.pdf', kind: 'pdf', up: 'junho', age: 1, size: 430_000, desc: 'Lighthouse 측정 결과', lines: ['Performance 62 → 목표 90', 'LCP 4.1s / CLS 0.18', '이미지 최적화 우선'] },
-    { folder: 'green', client: 'green', name: '그린테이블_패키지_최종.pdf', kind: 'pdf', up: 'jimin', age: 3, size: 3_150_000, desc: '납품 최종 인쇄 데이터', lines: ['패키지 3종 전개도', '인쇄 사양 · 별색 지정'] },
-    { folder: 'green', client: 'green', name: '그린테이블_납품확인서.pdf', kind: 'pdf', up: 'seoyeon', age: 2, size: 264_000, desc: '최종 납품 확인', lines: ['납품일 · 산출물 목록', '검수 완료'] },
+    { folder: 'green', client: 'green', name: '들녘테이블_패키지_최종.pdf', kind: 'pdf', up: 'jimin', age: 3, size: 3_150_000, desc: '납품 최종 인쇄 데이터', lines: ['패키지 3종 전개도', '인쇄 사양 · 별색 지정'] },
+    { folder: 'green', client: 'green', name: '들녘테이블_납품확인서.pdf', kind: 'pdf', up: 'seoyeon', age: 2, size: 264_000, desc: '최종 납품 확인', lines: ['납품일 · 산출물 목록', '검수 완료'] },
   ];
   let totalBytes = 0;
   for (const f of fileSpecs) {
@@ -600,7 +600,7 @@ async function seed() {
 
   const invoiceSpecs = [
     {
-      client: 'green', title: '그린테이블 패키지 디자인 (최종)', status: 'paid',
+      client: 'green', title: '들녘테이블 패키지 디자인 (최종)', status: 'paid',
       items: [
         { description: '패키지 디자인 3종', quantity: 1, unit_price: 2400000 },
         { description: '인쇄 감리 및 최종 파일 정리', quantity: 1, unit_price: 600000 },
@@ -608,14 +608,14 @@ async function seed() {
       issued: daysAgo(18), due: dateFromNow(-4), paid: daysAgo(5),
     },
     {
-      client: 'haneul', title: '하늘커머스 브랜드 리뉴얼 착수금', status: 'sent',
+      client: 'haneul', title: '노들커머스 브랜드 리뉴얼 착수금', status: 'sent',
       items: [
         { description: '브랜드 전략 · 로고 리뉴얼 착수금 (50%)', quantity: 1, unit_price: 5000000 },
       ],
       issued: daysAgo(6), due: dateFromNow(8),
     },
     {
-      client: 'brick', title: '브릭스터디 앱 랜딩 리뉴얼', status: 'draft',
+      client: 'brick', title: '모눈스터디 앱 랜딩 리뉴얼', status: 'draft',
       items: [
         { description: '랜딩 페이지 5종 기획 · 디자인', quantity: 1, unit_price: 1600000 },
         { description: '퍼블리싱 및 성능 최적화', quantity: 1, unit_price: 600000 },

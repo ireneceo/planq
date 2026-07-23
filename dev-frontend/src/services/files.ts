@@ -144,6 +144,7 @@ export async function fetchWorkspaceFiles(businessId: number): Promise<ProjectFi
 export async function fetchPersonalFiles(businessId: number): Promise<ProjectFile[]> {
   const raw = await fetchAllPages<{
     id: number; file_name: string; mime_type: string; file_size: number; created_at: string;
+    preview_url?: string;
   }>((page, limit) => `/api/personal-vault/${businessId}/files?page=${page}&limit=${limit}`);
   return raw.map(f => ({
     id: `direct-${f.id}`,
@@ -155,6 +156,7 @@ export async function fetchPersonalFiles(businessId: number): Promise<ProjectFil
     uploader_name: '나',
     uploaded_at: f.created_at,
     download_url: `/api/files/${businessId}/${f.id}/download`,
+    preview_url: f.preview_url,   // 이미지 썸네일 — 어댑터가 버리면 카드가 빈 채로 렌더된다
     folder_id: null,
     deletable: true,        // 본인 자산이므로 항상 삭제 가능
     storage_provider: 'planq' as StorageProvider,
