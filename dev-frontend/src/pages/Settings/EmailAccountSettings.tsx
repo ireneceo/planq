@@ -337,7 +337,7 @@ const APP_PASSWORD_GUIDES: Record<string, GuideDef> = {
     steps: [
       { key: 'settings.guide.gmail.s1', default: '구글 계정에 2단계 인증(2-Step Verification)을 먼저 켜주세요. (앱 비밀번호는 2단계 인증이 켜져 있어야 발급됩니다)' },
       { key: 'settings.guide.gmail.s2', default: '아래 "앱 비밀번호 만들기"를 눌러 새 비밀번호를 생성하세요. 앱 이름은 "PlanQ"로 입력하면 됩니다.' },
-      { key: 'settings.guide.gmail.s3', default: '생성된 16자리 비밀번호(공백 제외)를 아래 "앱 비밀번호" 칸에 붙여넣고 저장하세요. 서버 정보는 자동 입력되어 있습니다.' },
+      { key: 'settings.guide.gmail.s3', default: '생성된 16자리 비밀번호를 아래 "앱 비밀번호" 칸에 그대로 붙여넣고 저장하세요(공백은 자동으로 제거됩니다). 서버 정보는 자동 입력되어 있습니다.' },
     ],
     link: { url: 'https://myaccount.google.com/apppasswords', labelKey: 'settings.guide.gmail.link', labelDefault: '앱 비밀번호 만들기 →' },
   },
@@ -396,7 +396,7 @@ const APP_PASSWORD_GUIDES: Record<string, GuideDef> = {
 
 // 백엔드 검증 에러 코드 → 사용자 안내 (저장 전 IMAP 실검증 실패 시)
 const IMAP_ERROR_GUIDE: Record<string, { key: string; def: string; preset?: string }> = {
-  gmail_app_password_required: { key: 'settings.err.gmailAppPassword', def: 'Gmail 은 일반 비밀번호로 연결할 수 없습니다. 위 안내대로 앱 비밀번호를 발급해 입력해 주세요.', preset: 'gmail' },
+  gmail_app_password_required: { key: 'settings.err.gmailAppPassword', def: 'Gmail 로그인에 실패했습니다. 앱 비밀번호가 맞는지, 2단계 인증과 IMAP 사용이 켜져 있는지 확인해 주세요.', preset: 'gmail' },
   naver_app_password_required: { key: 'settings.err.naverAppPassword', def: '네이버 인증에 실패했습니다. IMAP 사용 설정과 (2단계 인증 시) 애플리케이션 비밀번호를 확인해 주세요.', preset: 'naver' },
   ms_app_password_required: { key: 'settings.err.msAppPassword', def: 'Microsoft 계정 인증에 실패했습니다. 앱 비밀번호를 발급해 입력해 주세요.', preset: 'outlook' },
   imap_auth_failed: { key: 'settings.err.authFailed', def: '아이디 또는 비밀번호가 올바르지 않아 연결하지 못했습니다.' },
@@ -654,7 +654,7 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, onSa
             </Label>
             <Input
               type="password" value={form.imap_password}
-              onChange={e => setForm({ ...form, imap_password: e.target.value })}
+              onChange={e => setForm({ ...form, imap_password: e.target.value.replace(/[\s\u00A0]/g, '') })}
               autoComplete="new-password"
               placeholder={usesAppPassword ? (t('settings.appPasswordPh', '계정 비밀번호가 아닌, 발급받은 앱 비밀번호') as string) : undefined}
             />

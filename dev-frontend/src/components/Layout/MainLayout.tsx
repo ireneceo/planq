@@ -824,6 +824,15 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
   const [tabModeLocal] = useState(isTabsBeta);
   const tabMode = tabModeProp ?? tabModeLocal;
 
+  // ★ 크롬 상단 오프셋 단일 원천 — 탭스트립은 브라우저 크롬이므로 앱 내부 오버레이(드로어·백드롭)가
+  //   그 위를 덮으면 안 된다(#199). CSS 변수 하나로 계약화해 드로어들이 tabMode 를 알 필요가 없게 한다.
+  //   모바일은 탭모드가 아니므로 0 — 기존 --vvh 키보드 계약과 충돌하지 않는다.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty('--chrome-top', tabMode ? `${TABSTRIP_H}px` : '0px');
+    return () => { root.style.setProperty('--chrome-top', '0px'); };
+  }, [tabMode]);
+
   // Secondary 접힘 — 아이콘 strip 모드 (완전 숨김 아님). localStorage 유지.
   const [secondaryCollapsed, setSecondaryCollapsed] = useState<boolean>(() => {
     try { return localStorage.getItem(SECONDARY_COLLAPSED_KEY) === '1'; } catch { return false; }

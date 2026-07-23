@@ -119,7 +119,9 @@ const slideInRight = keyframes`
 `;
 
 const Backdrop = styled.div`
-  position: fixed; inset: 0;
+  /* --chrome-top: 멀티탭 스트립 높이(MainLayout 이 세팅). 탭바는 브라우저 크롬이라 덮지 않는다(#199).
+     탭모드가 아니면 0 이라 기존 동작과 동일. */
+  position: fixed; top: var(--chrome-top, 0px); left: 0; right: 0; bottom: 0;
   background: rgba(15, 23, 42, 0.08);
   /* RightDock FAB(z-index 120) 위로 — 드로어 열리면 우하단 퀵메뉴가 드로어를 뚫고 나오지 않게.
      위계: 페이지크롬(99·100) < FAB(120) < 드로어(125·130) < 센터모달(1000+). */
@@ -133,8 +135,8 @@ const Backdrop = styled.div`
 //   키보드가 올라오면 --vvh 가 줄어 Panel 이 같이 줄고 → Body(flex:1) 스크롤 + Footer(액션바)가
 //   항상 키보드 위에 유지된다. 데스크탑은 --vvh = 전체 높이라 무변경.
 const Panel = styled.aside<{ $width: number }>`
-  position: fixed; top: 0; right: 0;
-  height: var(--vvh, 100dvh);
+  position: fixed; top: var(--chrome-top, 0px); right: 0;
+  height: calc(var(--vvh, 100dvh) - var(--chrome-top, 0px));
   z-index: 130;
   background: #fff;
   display: flex; flex-direction: column;

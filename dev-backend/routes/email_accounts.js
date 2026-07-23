@@ -67,6 +67,19 @@ async function findAccountForMutation(req, { allowRemediation = true } = {}) {
 }
 
 // IMAP 자격 실검증 — 등록/수정 전 강제. 실패 원인을 provider 별 안내 코드로 분류.
+// 앱 비밀번호를 쓰는 provider — Google/Naver/Apple/MS 는 화면에 4자 4묶음(예: 'abcd efgh ijkl mnop')으로
+// 보여줘서 사용자가 공백째 붙여넣는다. 그대로 IMAP AUTH 하면 실패 → "일반 비밀번호를 넣었다" 로 오진된다.
+const APP_PASSWORD_HOSTS = ['gmail', 'googlemail', 'naver', 'icloud', 'me.com', 'office365', 'outlook', 'hotmail'];
+function normalizeImapPassword(host, password) {
+  if (password === undefined || password === null) return password;
+  const raw = String(password);
+  const h = String(host || '').toLowerCase();
+  // 앱비밀번호 provider: 모든 공백류(일반/NBSP) 제거. 그 외: 앞뒤 공백만 (중간 공백이 유효한 비밀번호일 수 있음)
+  return APP_PASSWORD_HOSTS.some((x) => h.includes(x))
+    ? raw.replace(/[\s\u00A0]/g, '')
+    : raw.trim();
+}
+
 async function verifyImapCredentials({ host, port, tls, username, password, folder }) {
   try {
     const imaps = require('imap-simple');
@@ -152,13 +165,18 @@ router.post('/:businessId/email-accounts', authenticateToken, checkBusinessAcces
     if (!b.imap_host || !b.imap_username || !b.imap_password) {
       return errorResponse(res, 'imap_required', 400);
     }
+    // 앱비밀번호 공백 정규화 — 검증과 저장이 같은 값을 쓰도록 여기서 한 번만 처리
+    const imapPassword = normalizeImapPassword(b.imap_host, b.imap_password);
+    const smtpPassword = b.smtp_password
+      ? normalizeImapPassword(b.smtp_host || b.imap_host, b.smtp_password)
+      : null;
     // 중복 (워크스페이스 내 같은 email 1개만)
     const dup = await EmailAccount.findOne({ where: { business_id: businessId, email } });
     if (dup) return errorResponse(res, 'duplicate_email', 409);
     // 저장 전 실연결 검증 — 실패 시 등록 자체를 거부 + 원인별 안내 코드
     const verify = await verifyImapCredentials({
       host: b.imap_host, port: Number(b.imap_port) || 993, tls: b.imap_tls !== false,
-      username: b.imap_username, password: b.imap_password, folder: b.imap_folder || 'INBOX',
+      username: b.imap_username, password: imapPassword, folder: b.imap_folder || 'INBOX',
     });
     if (!verify.ok) return res.status(400).json({ success: false, message: verify.code, detail: verify.detail });
     // 첫 공용 계정이면 is_default 자동 (개인 계정은 공용 default 후보 아님)
@@ -171,13 +189,13 @@ router.post('/:businessId/email-accounts', authenticateToken, checkBusinessAcces
       imap_host: b.imap_host,
       imap_port: Number(b.imap_port) || 993,
       imap_username: b.imap_username,
-      imap_password_encrypted: encrypt(b.imap_password),
+      imap_password_encrypted: encrypt(imapPassword),
       imap_tls: b.imap_tls !== false,
       imap_folder: b.imap_folder || 'INBOX',
       smtp_host: b.smtp_host || null,
       smtp_port: Number(b.smtp_port) || (b.smtp_host ? 587 : null),
       smtp_username: b.smtp_username || null,
-      smtp_password_encrypted: b.smtp_password ? encrypt(b.smtp_password) : null,
+      smtp_password_encrypted: smtpPassword ? encrypt(smtpPassword) : null,
       smtp_tls: b.smtp_tls !== false,
       is_active: true,
       is_default: scope === 'team' && teamCount === 0,
@@ -219,19 +237,23 @@ router.put('/:businessId/email-accounts/:id', authenticateToken, checkBusinessAc
     if (b.imap_host !== undefined) patch.imap_host = b.imap_host;
     if (b.imap_port !== undefined) patch.imap_port = Number(b.imap_port) || 993;
     if (b.imap_username !== undefined) patch.imap_username = b.imap_username;
-    if (b.imap_password !== undefined && b.imap_password) patch.imap_password_encrypted = encrypt(b.imap_password);
+    if (b.imap_password !== undefined && b.imap_password) {
+      patch.imap_password_encrypted = encrypt(normalizeImapPassword(b.imap_host || acc.imap_host, b.imap_password));
+    }
     if (b.imap_tls !== undefined) patch.imap_tls = !!b.imap_tls;
     if (b.imap_folder !== undefined) patch.imap_folder = b.imap_folder || 'INBOX';
     if (b.smtp_host !== undefined) patch.smtp_host = b.smtp_host || null;
     if (b.smtp_port !== undefined) patch.smtp_port = Number(b.smtp_port) || null;
     if (b.smtp_username !== undefined) patch.smtp_username = b.smtp_username || null;
-    if (b.smtp_password !== undefined && b.smtp_password) patch.smtp_password_encrypted = encrypt(b.smtp_password);
+    if (b.smtp_password !== undefined && b.smtp_password) {
+      patch.smtp_password_encrypted = encrypt(normalizeImapPassword(b.smtp_host || acc.smtp_host || b.imap_host || acc.imap_host, b.smtp_password));
+    }
     if (b.smtp_tls !== undefined) patch.smtp_tls = !!b.smtp_tls;
     if (b.is_active !== undefined) patch.is_active = !!b.is_active;
     // IMAP 자격이 바뀌면 저장 전 실연결 검증 (비밀번호 재입력으로 계정 살리는 경로 포함)
     const imapTouched = ['imap_host', 'imap_port', 'imap_username', 'imap_password'].some((k) => b[k] !== undefined && b[k]);
     if (imapTouched) {
-      const password = (b.imap_password && String(b.imap_password)) || decrypt(acc.imap_password_encrypted);
+      const password = (b.imap_password && normalizeImapPassword(b.imap_host || acc.imap_host, b.imap_password)) || decrypt(acc.imap_password_encrypted);
       const verify = await verifyImapCredentials({
         host: b.imap_host !== undefined ? b.imap_host : acc.imap_host,
         port: Number(b.imap_port !== undefined ? b.imap_port : acc.imap_port) || 993,

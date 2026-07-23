@@ -152,9 +152,112 @@ async function translateWithRetry(text, languages, businessId = null) {
   return r;
 }
 
+// ─────────────────────────────────────────────
+// 단방향 번역 — 메일 본문처럼 "한 언어로만" 필요한 긴 텍스트용 (#197)
+// ─────────────────────────────────────────────
+// translateForBilingual 은 Q talk 채팅용이라 **양 언어를 동시에** 생성한다. 메일 본문(수천 자)에
+// 그걸 쓰면 출력 토큰이 2배로 들고 2000토큰 상한에서 JSON 이 중간에 잘려(Unterminated string)
+// 재시도까지 겹쳐 사용자가 2분 대기 후 실패를 봤다. 여기서는 대상 언어 하나만 만든다.
+// 반환: { detected_language, translated, fallback?, reason? }
+async function translateOne(text, targetLang, businessId = null) {
+  if (!isEnabled()) return { detected_language: null, translated: null, fallback: true, reason: 'llm_disabled' };
+  const target = String(targetLang || '');
+  if (!SUPPORTED_LANGS.includes(target)) {
+    return { detected_language: null, translated: null, fallback: true, reason: 'unsupported_language' };
+  }
+  if (!text || !text.trim()) {
+    return { detected_language: null, translated: null, fallback: true, reason: 'empty_text' };
+  }
+  const input = text.length > 8000 ? text.slice(0, 8000) : text;
+  if (businessId) {
+    try {
+      const { checkUsageLimit } = require('./cue_orchestrator');
+      const usage = await checkUsageLimit(businessId);
+      if (usage.over) return { detected_language: null, translated: null, fallback: true, reason: 'usage_limit_exceeded' };
+    } catch { /* best-effort */ }
+  }
+
+  const systemPrompt = `You are a precise translator. Detect the source language of the user message, then translate it into ${LANG_NAMES[target]}.
+
+RULES:
+- Translate the ENTIRE message. Never summarize, paraphrase, or truncate.
+- If the source is already ${LANG_NAMES[target]}, return it verbatim.
+- Preserve ALL line breaks (\\n in JSON), numbering, bullets, indentation, blank lines.
+- Preserve emojis, URLs, @mentions, #hashtags, code blocks, special characters as-is.
+- No commentary, no markdown fences.
+
+JSON RULES:
+- Respond as VALID JSON only.
+- Inside string values use \\n for newline, \\" for quote, \\\\ for backslash.
+- Schema: {"detected_language": "ko|en|ja|zh|es", "translated": "..."}`;
+
+  try {
+    // 단방향이라 출력량은 대략 입력 문자수에 비례. 잘림이 곧 실패이므로 넉넉히 잡되 상한은 purpose 가 캡한다.
+    const { content: raw, fallback: failed, finish_reason, input_tokens, output_tokens, model } = await callLLM({
+      purpose: 'translation_long',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: input },
+      ],
+      json: true,
+      maxTokens: Math.min(4000, Math.max(500, Math.ceil(input.length * 1.6) + 300)),
+      fallback: '',
+    });
+    if (failed) return { detected_language: null, translated: null, fallback: true, reason: 'llm_error' };
+
+    let parsed;
+    const content = raw || '{}';
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      const sanitized = content
+        .replace(/\r\n/g, '\\n').replace(/\n/g, '\\n').replace(/\r/g, '\\n').replace(/\t/g, '\\t')
+        // eslint-disable-next-line no-control-regex
+        .replace(new RegExp("[\u0000-\u0008\u000B\u000C\u000E-\u001F]", "g"), "");
+      try { parsed = JSON.parse(sanitized); } catch (e2) {
+        console.warn('[translation] one-way JSON parse failed', e2.message, '| raw 100:', content.slice(0, 100));
+        return { detected_language: null, translated: null, fallback: true, reason: 'json_parse_failed' };
+      }
+    }
+    const detected = parsed.detected_language || null;
+    const translated = typeof parsed.translated === 'string' ? parsed.translated : null;
+    if (!translated || !translated.trim()) {
+      return { detected_language: detected, translated: null, fallback: true, reason: 'empty_translation' };
+    }
+    // ★ 잘린 번역 통과 차단 — 토큰 상한에 걸려 앞부분만 온 응답이 "성공" 으로 새면 사용자는
+    //   조용히 반쪽 번역을 읽게 된다. 길이가 원문의 25% 미만이거나 length 로 끊겼으면 실패 처리.
+    if (finish_reason === 'length' || translated.length < input.length * 0.25) {
+      console.warn(`[translation] truncated — in ${input.length} / out ${translated.length} / finish=${finish_reason}`);
+      return { detected_language: detected, translated: null, fallback: true, reason: 'truncated' };
+    }
+    if (businessId) {
+      try {
+        const { recordUsage } = require('./cue_orchestrator');
+        await recordUsage(businessId, 'translation', model, input_tokens || 0, output_tokens || 0);
+      } catch (e) { console.warn('[translation] recordUsage failed', e.message); }
+    }
+    return { detected_language: detected, translated, input_tokens: input_tokens || 0, output_tokens: output_tokens || 0 };
+  } catch (e) {
+    console.warn('[translation] one-way exception', e.message);
+    return { detected_language: null, translated: null, fallback: true, reason: 'exception' };
+  }
+}
+
+// 단방향 재시도 wrapper — 양방향과 동일 정책 (일시적 parse/빈응답 1회 재시도)
+async function translateOneWithRetry(text, targetLang, businessId = null) {
+  let r = await translateOne(text, targetLang, businessId);
+  if (r.fallback && ['empty_translation', 'malformed_response', 'json_parse_failed'].includes(r.reason)) {
+    console.log(`[translation] one-way retry — first reason=${r.reason}`);
+    r = await translateOne(text, targetLang, businessId);
+  }
+  return r;
+}
+
 module.exports = {
   translateForBilingual,
   translateWithRetry,
+  translateOne,
+  translateOneWithRetry,
   validateLanguages,
   SUPPORTED_LANGS,
   LANG_NAMES,

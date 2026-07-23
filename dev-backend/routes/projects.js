@@ -3074,9 +3074,21 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
     const projId = project.id;
     const results = [];
 
+    // ★ 가시성 게이트 — loadProjectOrForbidden 은 "워크스페이스 멤버면 통과" 라, 프로젝트 비멤버도
+    //   여기까지 들어온다. 그대로 전체를 내려주면 L2(프로젝트 멤버 전용) 파일의 이름·크기·업로더,
+    //   그리고 preview_url(무인증 조회 가능)까지 비멤버에게 샌다.
+    //   VISIBILITY_VOCABULARY.md §1 — L2 = 프로젝트 멤버. 워크스페이스 전체가 보는 건 L3.
+    //   필터는 files 목록과 같은 단일 원천(fileListWhereByLevel)을 재사용한다.
+    const { getUserScope, fileListWhereByLevel } = require('../middleware/access_scope');
+    const scope = await getUserScope(req.user.id, bizId, req.user.platform_role);
+    const isProjectMember = scope.isPlatformAdmin || scope.isOwner || scope.isAdmin
+      || (scope.projectMemberIds || []).includes(projId)
+      || (scope.projectClientProjectIds || []).includes(projId);
+    const levelWhere = fileListWhereByLevel(scope);
+
     // 1) direct 파일
     const directFiles = await File.findAll({
-      where: { business_id: bizId, project_id: projId, deleted_at: null },
+      where: { ...levelWhere, project_id: projId, deleted_at: null },
       include: [
         { model: User, as: 'uploader', attributes: ['id', 'name'] },
         { model: FileFolder, as: 'folder', attributes: ['id', 'name'] }
@@ -3112,10 +3124,11 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
     }
 
     // 2) chat 첨부 — 프로젝트 연결된 대화의 메시지 첨부
-    const conversations = await Conversation.findAll({
+    //    프로젝트 비멤버에게는 대화 첨부를 노출하지 않는다 (대화 참여자 범위 밖)
+    const conversations = isProjectMember ? await Conversation.findAll({
       where: { business_id: bizId, project_id: projId },
       attributes: ['id', 'title', 'channel_type']
-    });
+    }) : [];
     const convMap = new Map(conversations.map(c => [c.id, c]));
     if (conversations.length > 0) {
       const chatFiles = await MessageAttachment.findAll({
@@ -3150,11 +3163,11 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
       }
     }
 
-    // 3) task 첨부 — 프로젝트의 업무에 첨부된 파일
-    const tasks = await Task.findAll({
+    // 3) task 첨부 — 프로젝트의 업무에 첨부된 파일 (비멤버 제외 — 위와 동일 이유)
+    const tasks = isProjectMember ? await Task.findAll({
       where: { business_id: bizId, project_id: projId },
       attributes: ['id', 'title']
-    });
+    }) : [];
     const taskMap = new Map(tasks.map(t => [t.id, t]));
     if (tasks.length > 0) {
       const taskFiles = await TaskAttachment.findAll({

@@ -29,6 +29,9 @@ const PURPOSES = {
   mail_reply:     { model: 'gpt-4o-mini', temperature: 0.3, maxTokens: 800,  timeoutMs: 45_000, maxInputChars: 24_000 },
   mail_summary:   { model: 'gpt-4o-mini', temperature: 0.2, maxTokens: 500,  timeoutMs: 45_000, maxInputChars: 24_000 },
   translation:    { model: 'gpt-4o-mini', temperature: 0.1, maxTokens: 2000, timeoutMs: 20_000, maxInputChars: 16_000 },
+  // 메일 본문 번역 — 채팅 한 줄과 달리 수천 자다. 20초/2000토큰이면 JSON 이 중간에서 잘려
+  // 재시도까지 겹쳐 2분 대기 후 실패했다(#197). 다른 mail_* 와 같은 45초로 정렬.
+  translation_long: { model: 'gpt-4o-mini', temperature: 0.1, maxTokens: 4000, timeoutMs: 45_000, maxInputChars: 24_000 },
   kb_extract:     { model: 'gpt-4o-mini', temperature: 0.1, maxTokens: 4000, timeoutMs: 45_000, maxInputChars: 32_000 },
   // kb_tags — 옛 호출부는 temperature 를 아예 안 줬다(= API 기본 1.0). 키워드 추출에 1.0 은 실수에 가깝다
   //   (같은 문서에서 매번 다른 태그가 나온다). **의도적으로** 0.3 으로 낮춘다 — 이 한 줄만 1:1 이 아니다.
@@ -123,7 +126,7 @@ async function callLLM({ purpose = 'generic', messages, json = false, tools = nu
     stats.fallback++; bump(purpose, 'failed');
     // 관찰성 — 키 미설정으로 LLM 이 조용히 안 도는 상태를 /health 에 남긴다(#179 추출 무반응 근본).
     stats.last_error = { at: new Date().toISOString(), purpose, status: 0, message: 'llm_disabled_no_api_key' };
-    return { content: fallback, tool_calls: [], input_tokens: 0, output_tokens: 0, fallback: true, model: cfg.model, ms: 0, attempts: 0, truncated: false };
+    return { content: fallback, tool_calls: [], finish_reason: null, input_tokens: 0, output_tokens: 0, fallback: true, model: cfg.model, ms: 0, attempts: 0, truncated: false };
   }
 
   const capped = capMessages(messages || [], cfg.maxInputChars);
@@ -172,6 +175,8 @@ async function callLLM({ purpose = 'generic', messages, json = false, tools = nu
         content: data.choices?.[0]?.message?.content || '',
         // 툴 제안 (실행 아님). tools 를 안 준 호출은 항상 빈 배열이라 기존 호출부에 영향 0.
         tool_calls: data.choices?.[0]?.message?.tool_calls || [],
+        // 'length' 면 maxTokens 상한에서 잘린 응답 — 호출부가 "반쪽 결과 성공 처리" 를 막을 수 있다
+        finish_reason: data.choices?.[0]?.finish_reason || null,
         input_tokens: inTok,
         output_tokens: outTok,
         fallback: false,
