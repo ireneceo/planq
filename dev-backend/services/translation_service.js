@@ -246,7 +246,14 @@ JSON RULES:
 // 단방향 재시도 wrapper — 양방향과 동일 정책 (일시적 parse/빈응답 1회 재시도)
 async function translateOneWithRetry(text, targetLang, businessId = null) {
   let r = await translateOne(text, targetLang, businessId);
-  if (r.fallback && ['empty_translation', 'malformed_response', 'json_parse_failed'].includes(r.reason)) {
+  // ★ 재시도는 "일시적 실패" 에만. 출력 토큰 상한에서 잘린 것(truncated)이나 그 결과로 깨진 JSON 은
+  //   같은 입력·같은 상한이면 **결정적으로 또 실패**한다. 재시도하면 사용자 대기만 2배가 된다(#197).
+  const RETRYABLE = ['empty_translation', 'malformed_response'];
+  if (r.fallback && r.reason === 'json_parse_failed' && text.length > 4000) {
+    console.log('[translation] json_parse_failed on long input — 재시도 skip (토큰 상한 결정적 실패)');
+    return r;
+  }
+  if (r.fallback && (RETRYABLE.includes(r.reason) || r.reason === 'json_parse_failed')) {
     console.log(`[translation] one-way retry — first reason=${r.reason}`);
     r = await translateOne(text, targetLang, businessId);
   }
