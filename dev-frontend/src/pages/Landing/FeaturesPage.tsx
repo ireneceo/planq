@@ -1,6 +1,7 @@
 // 기능 페이지 — PlanQ 모든 모듈을 4 그룹으로 정리.
 // 컨텐츠는 실제 구현된 기능 기준 (CLAUDE.md / 메모리 / 코드).
 // 그룹 1: Q 시리즈 (핵심 5) / 그룹 2: 워크스페이스 (4) / 그룹 3: AI·분석 (3) / 그룹 4: 기반 (4)
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -14,6 +15,23 @@ const Reveal: React.FC<{ children: React.ReactNode; as?: React.ElementType }> = 
 };
 
 const QSERIES = ['talk', 'task', 'note', 'file', 'bill'] as const;
+type QKey = typeof QSERIES[number];
+
+// 제품 스크린샷 — scripts/marketing-capture.js 가 데모 워크스페이스에서 캡처한 정적 asset.
+// 파일이 아직 없거나 로드에 실패하면 기존 목업 힌트로 되돌아간다 (랜딩이 깨지지 않게).
+const FeatureShot: React.FC<{ k: QKey; alt: string }> = ({ k, alt }) => {
+  const [failed, setFailed] = useState(false);
+  if (failed) return <MockHint>Q {k}</MockHint>;
+  return (
+    <Shot
+      src={`/screenshots/features/q-${k}.webp`}
+      alt={alt}
+      loading="lazy"
+      decoding="async"
+      onError={() => setFailed(true)}
+    />
+  );
+};
 const WORKSPACE = ['project', 'calendar', 'docs', 'mail'] as const;
 const AI_GROUP = ['cue', 'insights', 'notifications'] as const;
 const FOUNDATION = ['security', 'i18n', 'gdrive', 'billing'] as const;
@@ -71,7 +89,7 @@ const FeaturesPage: React.FC = () => {
                       <MockUrl>app.planq.kr/{k === 'talk' ? 'qtalk' : k === 'task' ? 'tasks' : k === 'note' ? 'qnote' : k === 'file' ? 'files' : 'bills'}</MockUrl>
                     </MockBar>
                     <MockBody>
-                      <MockHint>Q {k}</MockHint>
+                      <FeatureShot k={k} alt={t(`featuresPage.q.${k}.shotAlt`)} />
                     </MockBody>
                   </FeatureMock>
                 </Reveal>
@@ -323,6 +341,12 @@ const FeatureMock = styled.div`
   overflow: hidden;
   aspect-ratio: 16 / 11;
   display: flex; flex-direction: column;
+`;
+// 캡처 원본은 1440×900 (16:10) — 브라우저 바 높이를 뺀 본문에 맞춰 상단 기준으로 채운다
+const Shot = styled.img`
+  width: 100%; height: 100%;
+  object-fit: cover; object-position: top left;
+  display: block;
 `;
 const MockBar = styled.div`
   height: 36px; flex-shrink: 0;

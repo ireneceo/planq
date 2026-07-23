@@ -485,7 +485,9 @@ function BarChart({ data }: { data: BarDatum[] }) {
     <BarsWrap>
       {data.map((d, i) => (
         <BarColumn key={i}>
-          <BarFill style={{ height: `${(d.value / max) * 100}%` }} />
+          <BarTrack>
+            <BarFill style={{ height: `${(d.value / max) * 100}%` }} />
+          </BarTrack>
           <BarLabel>{d.month}</BarLabel>
         </BarColumn>
       ))}
@@ -716,8 +718,15 @@ const BarsWrap = styled.div`
   display: flex; align-items: flex-end; gap: 6px; height: 160px;
 `;
 const BarColumn = styled.div`
-  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  flex: 1; height: 100%;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
   min-width: 0;
+`;
+// 막대 트랙 — BarFill 의 height:% 는 높이가 확정된 부모에서만 해석된다.
+// (트랙 없이 auto 높이 컬럼에 바로 넣으면 % 가 auto 로 떨어져 항상 min-height 2px 로만 그려졌다)
+const BarTrack = styled.div`
+  flex: 1; min-height: 0; width: 100%;
+  display: flex; align-items: flex-end; justify-content: center;
 `;
 const BarFill = styled.div`
   width: 100%; max-width: 28px;
