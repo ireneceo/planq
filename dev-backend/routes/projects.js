@@ -2978,6 +2978,10 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
       for (const a of taskFiles) {
         const task = taskMap.get(a.task_id);
         const proj = task ? projMap.get(task.project_id) : null;
+        // 이미지면 task 첨부 public 엔드포인트로 썸네일 노출 (direct/chat 소스와 동일 규칙)
+        const previewUrl = (a.mime_type && a.mime_type.startsWith('image/') && a.stored_name)
+          ? `/api/tasks/public/attach/${a.stored_name}`
+          : undefined;
         results.push({
           id: `task-${a.id}`,
           source: 'task',
@@ -2987,9 +2991,11 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
           uploader_id: a.uploaded_by,
           uploader_name: a.uploader ? a.uploader.name : null,
           uploaded_at: (a.createdAt || a.created_at || new Date()).toISOString ? (a.createdAt || a.created_at).toISOString() : new Date().toISOString(),
+          // 라우터 마운트 경로 포함 — `/public/attach/...` 는 존재하지 않는 경로라 404 였다
           download_url: a.storage_provider === 'gdrive' && a.external_url
             ? a.external_url
-            : `/public/attach/${a.stored_name}`,
+            : `/api/tasks/public/attach/${a.stored_name}`,
+          preview_url: previewUrl,
           external_id: a.external_id || null,
           external_url: a.external_url || null,
           context: task ? { kind: 'task', id: task.id, label: task.title } : undefined,
@@ -3033,6 +3039,10 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
             ? (f.createdAt || f.created_at).toISOString() : new Date().toISOString(),
           download_url: f.storage_provider === 'gdrive' && f.external_url
             ? f.external_url : `/api/files/${bizId}/${f.id}/download`,
+          preview_url: (f.mime_type && f.mime_type.startsWith('image/')
+            && (f.storage_provider === 'planq' || !f.storage_provider) && f.file_path)
+            ? `/api/files/public-image/${path.basename(f.file_path)}`
+            : undefined,
           external_id: f.external_id, external_url: f.external_url,
           context: post ? { kind: 'post', id: post.id, label: post.title } : undefined,
           project_context: proj ? { id: proj.id, name: proj.name, color: proj.color } : null,
@@ -3074,6 +3084,10 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
       order: [['created_at', 'DESC']]
     });
     for (const f of directFiles) {
+      // 이미지면 public-image 엔드포인트로 썸네일 노출 (all-files 와 동일 규칙).
+      // 비이미지나 외부저장(gdrive)은 preview_url 생략.
+      const isImage = f.mime_type && f.mime_type.startsWith('image/');
+      const isPlanQ = f.storage_provider === 'planq' || !f.storage_provider;
       results.push({
         id: `direct-${f.id}`,
         source: 'direct',
@@ -3086,6 +3100,9 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
         download_url: f.storage_provider === 'gdrive' && f.external_url
           ? f.external_url
           : `/api/files/${bizId}/${f.id}/download`,
+        preview_url: (isImage && isPlanQ && f.file_path)
+          ? `/api/files/public-image/${path.basename(f.file_path)}`
+          : undefined,
         external_id: f.external_id,
         external_url: f.external_url,
         folder_id: f.folder_id,
@@ -3122,6 +3139,9 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
           uploader_name: a.Message.sender ? a.Message.sender.name : null,
           uploaded_at: (a.createdAt || a.created_at || new Date()).toISOString ? (a.createdAt || a.created_at).toISOString() : new Date().toISOString(),
           download_url: a.file_path ? `/uploads/${path.relative(path.join(__dirname, '..', 'uploads'), a.file_path)}` : null,
+          preview_url: (a.mime_type && a.mime_type.startsWith('image/') && a.file_path)
+            ? `/api/message-attachments/public/${path.basename(a.file_path)}`
+            : undefined,
           context: conv ? { kind: 'conversation', id: conv.id, label: conv.title || '대화방' } : undefined,
           folder_id: null,
           deletable: false,
@@ -3153,9 +3173,13 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
           uploader_id: a.uploaded_by,
           uploader_name: a.uploader ? a.uploader.name : null,
           uploaded_at: (a.createdAt || a.created_at || new Date()).toISOString ? (a.createdAt || a.created_at).toISOString() : new Date().toISOString(),
+          // 라우터 마운트 경로 포함 — `/public/attach/...` 는 존재하지 않는 경로라 404 였다
           download_url: a.storage_provider === 'gdrive' && a.external_url
             ? a.external_url
-            : `/public/attach/${a.stored_name}`,
+            : `/api/tasks/public/attach/${a.stored_name}`,
+          preview_url: (a.mime_type && a.mime_type.startsWith('image/') && a.stored_name)
+            ? `/api/tasks/public/attach/${a.stored_name}`
+            : undefined,
           external_id: a.external_id || null,
           external_url: a.external_url || null,
           context: task ? { kind: 'task', id: task.id, label: task.title } : undefined,

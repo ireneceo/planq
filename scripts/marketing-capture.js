@@ -30,7 +30,7 @@ const CREDS = {
 // pick: 캡처 직전 목록에서 한 항목을 여는 선택자 (상세 패널이 빈 상태로 찍히는 것 방지).
 //   match 를 주면 그 텍스트를 포함한 항목을 우선 고른다.
 const SHOTS = [
-  { key: 'talk', route: '/talk', label: 'Q talk', pick: '[data-qtalk-chat]', match: '하늘커머스' },
+  { key: 'talk', route: '/talk', label: 'Q talk', pick: '[data-qtalk-chat]', match: '노들커머스' },
   { key: 'task', route: '/tasks/workspace', label: 'Q task' },   // 워크스페이스 전체 업무 — 팀 전원의 일이 보이는 화면
   { key: 'note', route: '/notes', label: 'Q note', pick: '[data-qnote-session]' },
   { key: 'file', route: '/files', label: 'Q file' },
@@ -118,8 +118,8 @@ async function optimize(pngBuffer, outPath) {
     await sleep(2500);
 
     // ★ 캡처 전 워크스페이스 확인 — 데모 아닌 워크스페이스가 열려 있으면 즉시 중단 (fail-closed)
-    const wsName = await page.evaluate(() => document.body.innerText.includes('라온랩스'));
-    if (!wsName) abort('현재 화면에 데모 워크스페이스(라온랩스)가 보이지 않습니다 — 시드/로그인 상태 확인');
+    const wsName = await page.evaluate(() => document.body.innerText.includes('온무늬'));
+    if (!wsName) abort('현재 화면에 데모 워크스페이스(온무늬)가 보이지 않습니다 — 시드/로그인 상태 확인');
 
     for (const shot of targets) {
       // 탭 상태(sessionStorage)를 비우고 full goto — 각 컷이 자기 탭 하나만 연 깨끗한 화면이 된다.
