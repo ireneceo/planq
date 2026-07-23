@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-07-22 (Opus 4.8, 1M) — **v1.48.1 — 알림 다이제스트 접두어 버그 + #196 반복주기 영어 어순 (Fable 게이트 PASS ×2 + 운영 배포)** — ①**미읽음 에스컬레이션 다이제스트 제목 `[PlanQ]` 하드코딩 → 워크스페이스별 분리 발송**(`unreadEscalationCron.js` 그룹키 `user_id|business_id` + Business 배치조회 + `sendUnreadNotificationEmail`에 workspaceName·businessId, `emailService.js` `subjectPrefix` 단일원천 재사용 + 워크스페이스 칩 + EmailLog 귀속). 같은 업무댓글이 즉시알림=`[워프로랩]`인데 에스컬레이션=`[PlanQ] 외 N건`으로 갈리던 것 해소. 혼합 워크스페이스는 각 1통 분리(count도 워크스페이스별 정확). ②**#196 반복주기 영어 어순** — `formatRRuleLabel` 4분기(일/주/개월/년) 접미사 연결(`3 week` 깨짐) → 보간키 `recur.everyN*`(`Every 3 weeks`). picker 미리보기 동시해결. qnote CSV 안내 영어판 한글 별칭 제거. **Fable 게이트 2건 PASS**(각 diff범위·guard 33/33·21/21·tenant0·빌드TS0·실측: 다이제스트 EmailLog subject 실측+반증 flip, #196 formatRRuleLabel 실호출 "Every 3 weeks"/"3주마다"+반증). **운영 배포**(`d7148ab`+`2a7a51f`, Complete 200s): 3점 실측(PM2 fresh·청크 demo=운영 index-CkJ29FWy·백엔드/locale 착지). ③**링크→앱 열기 파악**(Fable) — 앱 출시 게이트와 묶인 사전정비 항목으로 메모리 박제(Android host전체캡처=웹미리보기 예외 위반 지뢰). **다음: #146 잔여(/features 캡처)**.
+> **최종 업데이트:** 2026-07-23 (Opus 4.8, 1M) — **#146 랜딩 제품 스크린샷 + 운영 피드백 5건 + 파일 격리 보안 fix (Fable 게이트 여러 라운드 PASS, 미배포)** — ①**#146 /features 제품 스크린샷**(`406a5fc`): 데모 워크스페이스 "온무늬"(원래 "라온랩스"였으나 Fable 검색으로 실존 법인 확인→회피) 멱등 시드 + 자동 캡처 파이프라인. `seed-demo-workspace.js`(팀3·고객3·프로젝트3·대화3/메시지12·업무8·실바이트 파일8(10MB)·청구서9·수금7, fail-closed 격리 가드 6종 반증) + `q-note/scripts/seed_demo_sessions.py`(FastAPI/SQLite 별도 세션3) + `scripts/marketing-capture.js`(e2e lib 재사용 1440×900@2x→webp≤150KB, 온보딩배너 억제) + `FeaturesPage.tsx` `<img onError 폴백>` + landing.json `shotAlt` ko/en. **데모 이름 전부 Fable 검색 검증**(온무늬·노들커머스·모눈스터디·들녘테이블/김서연·이지민·박준호·정민아·강민재·윤소민). 5장 라이브 https://dev.planq.kr/features. ②**★ 파일 격리 보안 결함**(`4c73ffe`): 업로드가 legacy `visibility`만 쓰고 권위 컬럼 `vlevel` 미기록→모델 default `L3`→**개인(L1)/팀(L2) 파일이 전 멤버에게 노출 + 무인증 download 200**. `routes/files.js` 4경로 vlevel 동시기록 + `scripts/backfill-file-vlevel.js`(dry-run 기본, 멱등). **운영 실측 13건 노출**(전부 워프로랩 내부, 외부 고객 워크스페이스 유출 0)→백필 미적용. ③**운영 피드백 5건**(`631d51f`, Fable 14건 전수 판정 후): #198 개인메일 등록실패(앱비번 공백 정규화 `services/email_credentials.js`), #197/#202 메일번역 2분실패(양방향→단방향 `translateOne`+`translation_long` 45초/4000토큰+잘린번역차단, 1300자 60초→7초), #200(c) 메일이미지 원본확대(전역 height:auto→크기미지정만+max-height 60vh), #199 탭 위로 드로어(`--chrome-top` CSS변수), 별건 프로젝트 파일 유출(`/projects/:id/files`·`all-files` chat·task 첨부 멤버십 필터). ④**Fable 게이트 마커 지문 버그 수정**(`0bd29bb`): `/fable-검증`이 `git status|sha256sum`(개행포함)인데 훅은 `printf '%s'`(개행없음)라 영원히 불일치→마커 무시되던 것 통일. **Fable 게이트 다수 라운드**(god-file·all-files유출 FAIL→수정→PASS). 가드 3축(health 33/33·invariants 21/21·tenant 0)·빌드 EXIT 0/TS 0. **다음: /배포(13커밋)+파일 백필 운영적용 · 미해결 피드백 잔여(#200a·b·#201·#195·#196)**.
+
+> **[이전] 최종 업데이트:** 2026-07-22 (Opus 4.8, 1M) — **v1.48.1 — 알림 다이제스트 접두어 버그 + #196 반복주기 영어 어순 (Fable 게이트 PASS ×2 + 운영 배포)** — ①**미읽음 에스컬레이션 다이제스트 제목 `[PlanQ]` 하드코딩 → 워크스페이스별 분리 발송**(`unreadEscalationCron.js` 그룹키 `user_id|business_id` + Business 배치조회 + `sendUnreadNotificationEmail`에 workspaceName·businessId, `emailService.js` `subjectPrefix` 단일원천 재사용 + 워크스페이스 칩 + EmailLog 귀속). 같은 업무댓글이 즉시알림=`[워프로랩]`인데 에스컬레이션=`[PlanQ] 외 N건`으로 갈리던 것 해소. 혼합 워크스페이스는 각 1통 분리(count도 워크스페이스별 정확). ②**#196 반복주기 영어 어순** — `formatRRuleLabel` 4분기(일/주/개월/년) 접미사 연결(`3 week` 깨짐) → 보간키 `recur.everyN*`(`Every 3 weeks`). picker 미리보기 동시해결. qnote CSV 안내 영어판 한글 별칭 제거. **Fable 게이트 2건 PASS**(각 diff범위·guard 33/33·21/21·tenant0·빌드TS0·실측: 다이제스트 EmailLog subject 실측+반증 flip, #196 formatRRuleLabel 실호출 "Every 3 weeks"/"3주마다"+반증). **운영 배포**(`d7148ab`+`2a7a51f`, Complete 200s): 3점 실측(PM2 fresh·청크 demo=운영 index-CkJ29FWy·백엔드/locale 착지). ③**링크→앱 열기 파악**(Fable) — 앱 출시 게이트와 묶인 사전정비 항목으로 메모리 박제(Android host전체캡처=웹미리보기 예외 위반 지뢰). **다음: #146 잔여(/features 캡처)**.
 
 > **[이전] 최종 업데이트:** 2026-07-21 (Opus 4.8, 1M) — **v1.48.0 — 제품 공지/체인지로그 시스템 (#194, Fable 게이트 PASS + 운영 배포)** — 콘텐츠 원천 단일화 `help_articles(blog_category='updates')`. 신규 테이블 0, 신규 컬럼 `users.whats_new_seen_at` 1개(미읽음 워터마크). **노출 3면**: ①랜딩 블로그 `updates` 탭 + `/changelog`→`/insights?category=updates` redirect(네이티브 봉쇄) ②인앱 사이드바 메가폰 버튼 + "새 소식" DetailDrawer(`useWhatsNew` 훅, 미읽음 badge) ③critical 배너는 기존 재사용(이번 미구현). **격리**: updates 는 도움말 아님 — `routes/wiki.js` `/categories`·`/articles`(목록·검색)에서 제외(updatesCategoryId 캐시). push fan-out 없음. **백엔드**: `models/User.js`·`routes/whats_new.js`(GET 목록+미읽음, POST seen 워터마크)·`server.js` mount·`seed-changelog.js`(멱등, KB 미인덱싱). **프론트**: `BlogPage`(updates 탭+?category 초기화)·`App.tsx`(redirect)·`hooks/useWhatsNew`·`components/Common/WhatsNewDrawer`·`MainLayout`(메가폰). i18n ko/en(common `whatsNew.*`·landing `categories.updates`). **Fable 게이트 PASS**: guard 3축(health 33/33·invariants 21/21·tenant 0)·빌드 TS0·실HTTP 20/20(워터마크 unread 1→seen→0·무인증 401·EN 현지화·blog public·위키 3면 격리·옛데이터 회귀 0)·배포안전성(sync 멱등·seed 멱등·blog_published_at 보존·KB 오염 0). **운영 배포**(`2650256`, Complete 206s): 마이그레이션 반영(whats_new_seen_at)·운영 seed(updates cat id15+welcome-whats-new)·3점 실측(PM2 fresh·청크해시 dev=운영 index-BQRTo2VK·백엔드 실호출 라이브·위키 격리 라이브). **다음: #196 영어 전면·#146 잔여**.
 
@@ -13,6 +15,36 @@
 > **[이전] 최종 업데이트:** 2026-07-16 밤 (Opus 4.8, 1M) — **자율 밤샘 세션: 백로그 전수 검증 + 기능고장 3건 근본수정** — `docs/qa/NEXT_SECTION_BACKLOG.md` 전수 검증 결과, **genuinely 고장난 것만 실작업**이었고 나머지는 이미 구현됐으나 close 안 된 상태였다. ①**Q Mail AI #153/#164/#179**(`9a293e3`) — 공용 `services/emailBodyClean.js` 신설(인용/전달/서명 정리)로 언어감지 any-char편향 제거·미리보기 헤더조각 제거·추출 무반응 503 표면화. 실HTTP 검증(영어메일→영어답장 ko:0/en:198)·유닛11/11·health30/30. ②**#155 말로추가 iOS 포맷**(`79db3e4`) — isTypeSupported webm↔mp4 분기+파일명 정합+미지원가드+권한시 자동시작. ③**#126 캘린더 배너** 완성. **이미 완료 확인(재작업 안 함): #166·모바일②(a~e)·#163·MyFeedback·#162·#152**(에이전트 오탐 다수 — 반드시 현재코드 검증 후 진행). **남은 미완 ⑤·⑥ = Irene 설계결정 필요** → `docs/qa/BACKLOG_REMAINING_DECISIONS_2026-07-16.md`. 운영 미배포.
 
 > **[이전] 최종 업데이트:** 2026-07-16 (Opus 4.8, 1M) — **모바일 흰 화면 회귀 차단 + 검사 하니스 강화** — e2e mobile 스위트에 `assertRendered()` **흰 화면(blank) 판정** 신규(키보드 스위트가 "입력 가림"만 봐 페이지 통째 blank도 ⚪ 통과하던 구멍 차단, #173/174/159/178 계열) + `run.js` blank=실패 집계 + mail 시나리오(mail-list·mail-compose) + MailPage `data-testid`·모바일 compose 사이드바 자동접힘 + DetailDrawer 폰 풀스크린(56px 조각 새던 것) + QBill 개요 2열 그리드 반응형 + Insights 기간라벨 i18n. **검증: mobile/crosscut/l1 전 스위트 0 실패 + tsc -b exit 0 + 가드 3축(health 30/30·guard 22/22·tenant 0)**. 다음: `docs/qa/NEXT_SECTION_BACKLOG.md`(Q Mail AI·멀티탭·전수검사 잔여 LOW).
+
+## ✅ 완료: #146 랜딩 스크린샷 + 운영 피드백 5건 + 파일 격리 보안 fix (2026-07-23)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| #146 /features 제품 스크린샷 | 데모 워크스페이스 "온무늬" 멱등 시드(`seed-demo-workspace.js`) + Q Note 별도 시드(`seed_demo_sessions.py`) + 자동 캡처(`marketing-capture.js`, webp 5장) + FeaturesPage `<img onError 폴백>` + shotAlt ko/en. fail-closed 격리 가드 6종 반증 | ✅ |
+| 데모 이름 실존 회피 | 라온랩스·그린테이블(실존 법인)·오세훈(서울시장)·성수이로118(실존 빌딩) → 온무늬·들녘테이블·강민재·성수동. 전부 Fable 검색 검증(동일명 0건) | ✅ |
+| ★ 파일 격리 보안 결함 | 업로드가 vlevel 미기록→default L3→개인/팀 파일 전멤버 노출+무인증 download 200. `routes/files.js` 4경로 vlevel 동시기록 + backfill 스크립트(dry-run). 운영 13건 실재(워프로랩 내부, 외부유출0) | ✅ 코드 / ⏳ 운영백필 |
+| #198 개인메일 등록 실패 | 앱비번 4자4묶음 공백 → `services/email_credentials.js` normalizeImapPassword(앱비번 provider만 공백제거, 일반IMAP trim). 오진문구 완화. 한수정 보고 | ✅ |
+| #197/#202 메일 번역 실패 | 진짜 원인 LLM 양방향(2000토큰/20초)→단방향 translateOne+translation_long(45초/4000토큰)+잘린번역차단(finish_reason). 1300자 60초실패→7초 | ✅ |
+| #200(c) 메일 이미지 확대 | 전역 height:auto가 발신자 HTML height 무효화 → 크기미지정만+max-height 60vh | ✅ |
+| #199 탭 위로 드로어 | `--chrome-top` CSS변수 단일원천(MainLayout)→DetailDrawer·TaskDetailDrawer 탭아래 | ✅ |
+| 별건 프로젝트 파일 유출 | 프로젝트 비멤버가 L2 파일·첨부+무인증 download_url. `/projects/:id/files`·`all-files` chat·task 멤버십 필터(myProjIds) | ✅ |
+| Fable 게이트 마커 지문 버그 | `/fable-검증`(개행포함) ↔ 훅(개행없음) 지문 불일치로 마커 영원히 무시되던 것 통일 | ✅ |
+| seed 고아파일·FK 정리 | 절대경로 unlink·message_attachments FK 선삭제·잔재 test-*.js 3개 삭제 | ✅ |
+
+### 수정된 파일
+- 백엔드: `routes/files.js` · `routes/projects.js` · `routes/personal_vault.js` · `routes/email_accounts.js` · `routes/email_threads.js` · `services/email_credentials.js`(신규) · `services/llm.js` · `services/translation_service.js` · `scripts/seed-demo-workspace.js`(신규) · `scripts/backfill-file-vlevel.js`(신규)
+- 프론트: `pages/Landing/FeaturesPage.tsx` · `pages/QBill/OverviewTab.tsx` · `pages/QMail/MailPage.tsx` · `pages/Settings/EmailAccountSettings.tsx` · `components/Layout/MainLayout.tsx` · `components/Common/DetailDrawer.tsx` · `components/Common/CloudConnectNotice.tsx` · `components/QTask/TaskDetailDrawer.tsx` · `services/files.ts` · `public/locales/{ko,en}/landing.json` · `public/screenshots/features/*.webp`(5장)
+- 기타: `q-note/scripts/seed_demo_sessions.py`(신규) · `scripts/marketing-capture.js`(신규) · `.claude/commands/fable-검증.md`
+
+### 검증·배포
+Fable 게이트 여러 라운드(god-file·all-files유출 FAIL→수정→재검증 PASS). 가드 3축(health 33/33·invariants 21/21·tenant 0)·빌드 EXIT 0/TS 0·실HTTP(파일격리 반증·앱비번 정규화 라우트 400·번역 7초·all-files 비멤버 0건). **미배포**(로컬 13커밋). QBill 월별매출 막대 렌더버그(2px 뭉개짐)도 캡처 중 발견해 수정.
+
+### 다음
+/배포(13커밋)+파일 백필 운영적용(dry-run→롤백스냅→--apply). 미해결 피드백 잔여: #200(a)(b) 메일정렬·과거메일 · #201 캘린더문구(개인연동 거짓안내) · #195 도움말 3카테고리 게스트미노출 · #196 Hero 하드코딩 · #192 AiRefineBar · #203 메일알림(reply_needed 정확도 선행+ENUM 3단게이트).
+
+---
 
 ## ✅ 완료: 알림 다이제스트 접두어 + #196 반복주기 영어 + Q Record (2026-07-22, v1.48.1)
 

@@ -1,8 +1,8 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-07-22 12:15 (Opus 4.8, 1M)
-**작업 상태:** **v1.48.1 운영 배포 완료** (commit `d7148ab`+`2a7a51f`, Complete 200s, Fable 게이트 PASS ×2 + 3점 실측). ①알림 다이제스트 제목 `[PlanQ]`→워크스페이스별 분리 발송 ②#196 반복주기 영어 어순(`Every 3 weeks`)+qnote CSV 영어화 ③링크→앱 파악(메모리 `project_link_app_open_prelaunch` 박제, 앱출시 전 정비). 다음 = **#146 잔여(/features 캡처·빠진 기능)**.
+**마지막 업데이트:** 2026-07-23 18:05 (Opus 4.8, 1M) — /개발완료 처리됨
+**작업 상태:** **완료 (전부 Fable 게이트 PASS, 미배포).** #146 랜딩 스크린샷 + 운영 피드백 5건 + **파일 격리 보안 결함**(개인/팀 파일이 전 멤버 노출 — 운영에 13건 실재, 전부 워프로랩 내부) 수정. 가드 3축 통과·커밋·백업 완료. 다음 = **/배포** + 파일 백필 운영 적용 + 미해결 피드백 잔여.
 
 ---
 
@@ -16,54 +16,60 @@ session-state.md 읽고 이어서 개발해.
 
 ## 🔖 지금 중단 지점
 
-**마지막 작업:** **v1.48.1 운영 배포 완료**(`d7148ab`+`2a7a51f`, Complete 200s, 3점 실측 통과·청크 index-CkJ29FWy). ①**알림 다이제스트 접두어 버그** — 미읽음 에스컬레이션(`unreadEscalationCron.js`)이 제목 `[PlanQ]` 하드코딩 → 사용자×워크스페이스 그룹핑 분리발송 + `subjectPrefix(workspaceName)` 재사용 + EmailLog 귀속. 같은 업무댓글이 즉시=`[워프로랩]`/에스컬레이션=`[PlanQ] 외 N건`으로 갈리던 것 해소. ②**#196 반복주기 영어 어순** — `formatRRuleLabel` 4분기 접미사 연결(`3 week` 깨짐)→보간키 `recur.everyN*`(`Every 3 weeks`), qnote CSV 영어화. 둘 다 Fable 게이트 PASS.
+**마지막 작업 (미배포, 로컬 커밋 13개):**
 
-**바로 다음 작업:** **#146 스크린샷 구현(Fable A′ 설계 확정) + Q Record 배포**. 
-- **Q Record**(`aa24a90`): /features MORE 그룹에 누락됐던 Q Record(Notion-DB식) 추가 완료. Fable 게이트 통과 후 **미배포** — 다음 `/배포` 대상.
-- **#146 스크린샷 = Fable A′ 채택**(데모 워크스페이스+자동캡처→git 정적asset). 실행설계: (1) `dev-backend/scripts/seed-demo-workspace.js` 멱등 시드(가상회사 "라온랩스"+데모유저 `demo-capture@planq.kr`/.env `DEMO_CAPTURE_PASSWORD`+가상 고객·대화·업무·파일·청구, 상대날짜) (2) `scripts/marketing-capture.js`(e2e lib `launch/login/gotoSPA` 재사용, 1440×900@2x, sharp→webp≤150KB→`dev-frontend/public/screenshots/features/q-{talk,task,note,file,bill}.webp`) (3) `FeaturesPage.tsx` MockBody→`<img onError fallback>`, aspect 16/10 (4) landing.json `q.{k}.shotAlt` ko/en. **격리 fail-closed 가드 필수**(데모계정 타 비즈 멤버십이면 abort·BASE dev만 화이트리스트, 반증테스트). **캡처 ko 단일**(시드 한글). **선결 2**: 데모 카피 Irene 1회 검수 + .env DEMO_CAPTURE_PASSWORD. 함정: Q Note 시드는 FastAPI/SQLite라 별도(데모유저 토큰 세션 or 1회 수동녹음). 규모 중, 스키마0·공개라우트0.
+1. **#146 랜딩 /features 제품 스크린샷** (`406a5fc`·`0bd29bb`·`4c73ffe` 일부) — 데모 워크스페이스 "온무늬"(라온랩스에서 변경 — 실존 법인 회피) 시드 + 자동 캡처 파이프라인. 5장 라이브: https://dev.planq.kr/features
+   - `dev-backend/scripts/seed-demo-workspace.js` — 멱등 시드(팀3·고객3·프로젝트3·대화3/메시지12·업무8·파일8(실바이트 10MB)·청구서9·수금7). fail-closed 격리 가드(DB화이트리스트·NODE_ENV·타워크스페이스소속·양방향).
+   - `q-note/scripts/seed_demo_sessions.py` — Q Note SQLite 별도 시드(세션3).
+   - `scripts/marketing-capture.js` — e2e lib 재사용, 1440×900@2x→webp≤150KB. 온보딩 배너 억제·프로젝트 열기.
+   - `.env DEMO_CAPTURE_PASSWORD` 추가됨. 데모 계정 `capture@demo.planq.kr`, ws=105.
+   - **데모 이름(Fable 검색 검증): 온무늬·노들커머스·모눈스터디·들녘테이블 / 김서연·이지민·박준호·정민아·강민재·윤소민.** 전화 02-1234-5678만 실가입 확인불가(Irene 판단 대기).
+
+2. **운영 피드백 5건 수정** (`631d51f`) — Fable 14건 전수 판정 후:
+   - **#198** 개인메일 등록 실패 — 앱비밀번호 4자4묶음 공백 → `services/email_credentials.js`(신규) `normalizeImapPassword`(앱비번 provider만 공백제거, 일반IMAP은 trim). 한수정 보고 건.
+   - **#197/#202** 메일 번역 2분 실패 — 진짜 원인 LLM 양방향(2000토큰/20초). 단방향 `translateOne`+`translation_long`(45초/4000토큰)+잘린번역차단(finish_reason). **1300자 60초실패→7초성공**.
+   - **#200(c)** 메일 이미지 원본크기 확대 — 전역 height:auto가 발신자 HTML height 무효화 → 크기미지정만 적용+max-height:60vh.
+   - **#199** 노션형 탭 위로 드로어 — `--chrome-top` CSS변수 단일원천(MainLayout)→DetailDrawer·TaskDetailDrawer 탭아래.
+   - **별건 파일 유출** — 프로젝트 비멤버가 L2 파일·첨부+무인증 download_url. `/projects/:id/files`·`all-files` 둘 다 vlevel/멤버십 필터(fileListWhereByLevel+myProjIds).
+
+3. **★ 파일 격리 보안 결함** (`4c73ffe`) — **업로드가 visibility만 쓰고 vlevel 미기록→default L3→개인/팀 파일 전멤버 노출**. `routes/files.js` 4경로에 vlevel 동시기록 + `scripts/backfill-file-vlevel.js`(dry-run 기본). **운영 미적용 — 13건 실재(전부 워프로랩 내부, 외부유출0)**.
 
 **맥락 유지할 것:**
-- ★ **Fable 무조건 게이트**(CLAUDE.md): 모든 설계·구현검증·테스트 model:fable 독립수행. Stop 훅 강제. 메모리 `feedback_fable_all_design_verification`.
-- **링크→앱 열기**: 파악 완료·메모리 `project_link_app_open_prelaunch` 박제. 앱 출시 전 정비 필수(Android host전체캡처=웹미리보기 예외 위반 지뢰·iOS AASA 과소). 앱 미출시라 지금 영향 0.
-- **버전 라벨**: 운영 PM2 아직 1.48.0 표시(bump 커밋 `c925d33`이 배포 뒤). 기능은 라이브 정상, 라벨은 다음 배포 시 1.48.1 반영.
-- **#126 후속(OAuth 대기)**: 개인 구글캘린더 쓰기 = `calendar.events` scope(Irene Google 검증 합산). 유출/IDOR 봉합 완료.
-- 미푸시: 로컬 다수 커밋 미푸시(배포 rsync라 무관).
-
----
-
-## 📦 이번 세션 작업 요약
-
-- `d7148ab` 알림 다이제스트 접두어 `[PlanQ]`→워크스페이스별 분리발송 (Fable PASS, 운영 배포)
-- `2a7a51f` #196 반복주기 영어 어순 `Every 3 weeks` + qnote CSV 영어화 (Fable PASS, 운영 배포)
-- `c925d33` chore(release): v1.48.1
-- `aa24a90` #146 features 페이지에 Q Record 추가 (Fable 게이트 후 미배포)
-- 파악(개발 아님): 링크→앱 열기(메모리 박제) · #146 스크린샷 Fable A′ 설계 확정
-- **①②는 운영 배포 완료(3점 실측)**. Q Record는 다음 `/배포` 대상.
-
-**커밋:** `aa24a90` feat(landing): #146 features 페이지에 Q Record 추가
+- ★ **Fable 무조건 게이트**(CLAUDE.md). 이번 세션 Fable 게이트 여러 번(FAIL→수정→PASS 반복). god-file·all-files유출을 Fable이 잡아냄.
+- **Fable 게이트 마커 지문 버그 수정**(`0bd29bb`): `/fable-검증` 문서가 `git status|sha256sum`(개행포함)인데 훅은 `printf '%s'`(개행없음)라 영원히 불일치→마커 무시되던 것. `printf '%s' "$(...)"` 로 통일.
+- **버전 라벨**: 운영 PM2 아직 1.48.0/1.48.1. 다음 배포 시 반영.
+- **#126 후속(OAuth 대기)**: 개인 구글캘린더 쓰기 = Irene Google 검증 대기.
 
 ---
 
 ## 📂 다음 할 일 (우선순위)
 
-1. **Q Record `/배포`** — `aa24a90` 운영 미배포. 다음 배포 시 함께(버전 라벨 1.48.1도 반영).
-2. **#146 스크린샷 구현** — Fable A′ 설계 확정(위 중단지점). 데모 워크스페이스 시드 + 자동캡처 파이프라인. 선결: 데모 카피 Irene 검수 + .env DEMO_CAPTURE_PASSWORD. 구현 후 Fable 게이트(격리 반증 필수).
-3. **링크→앱 열기** — 앱 출시 게이트와 묶임(메모리 `project_link_app_open_prelaunch`). 출시 전 iOS AASA 확장·Android host캡처 수정 필수.
-4. #126 개인캘린더 쓰기·OAuth = Irene(Google 검증).
+1. **/배포** — 로컬 커밋 13개 미배포. #146 스크린샷 + 피드백 5건 + 파일 격리 fix 포함.
+   - **파일 백필 운영 적용**(배포 동반): `node scripts/backfill-file-vlevel.js`(dry-run 영향건수 확인)→롤백스냅 생성→`--apply`→"불일치0" 확인. 노출범위 좁힘(L3→L1/L2)=정상복원(Fable 판정). 운영 13건 대상.
+2. **미해결 피드백 잔여** (Fable 후속 권고, 다음 사이클):
+   - **#200(a)(b)** 메일 답변필요 정렬/과거메일 잔존 — 프론트 merge를 server-fresh로(앵커 보존). 옛 데이터 광고메일 재판정.
+   - **#201** 캘린더 문구 — 개인연동 사용자에겐 현재 문구가 **거짓**(개인연동은 읽기전용인데 "자동 반영" 안내). 연동종류별 분기.
+   - **#195** 도움말 qtalk/qinfo/settings 3카테고리 게스트 미노출(공개 아티클 0건). seed-wiki-content 승격.
+   - **#196** HomePage.tsx:34 Hero 헤드라인 하드코딩(영어모드 한국어). t() 이관.
+   - **#192** 메일 외 AI 다듬기 확장(공통 AiRefineBar). **#193** agenda 복귀. **#146** 검색헤더 승격.
+3. **#203 메일 알림** (보류) — reply_needed 정확도(#200b) 선행 필수(지금 붙이면 광고 push). `notification_prefs` ENUM ALTER = **운영 마이그레이션 3단 게이트**.
+4. **별건 미구현** (Fable 판정): `public-image` 무인증 게이트를 L3/share_token 한정+서명URL = 보안경계 재설계 3단 게이트. 프로젝트 자료탭 metadata 정책.
+5. **#126 개인캘린더·OAuth** = Irene(Google 검증).
 
 ---
 
 ## 🔑 환경변수 / 인증 현황
 
-- 운영 = 별도 서버 `irene@87.106.78.146`(planq.kr, port 3004, /opt/planq/backend, DB planq_prod_db). SSH passwordless 가능(피드백 read-only 조회·seed 실행에 사용).
-- Google OAuth 검증 미완(Irene) — 캘린더 양방향·개인캘린더 쓰기·Gmail 원클릭 대기. `calendar.events` scope 합산 제안됨.
-- Stripe SaaS 카드구독 키 미연결(Irene). Apple Team ID·APNs .p8 대기(Irene).
+- 운영 = `irene@87.106.78.146`(planq.kr, port 3004, /opt/planq/backend, DB planq_prod_db). SSH passwordless(read-only 조회·피드백 확인에 사용).
+- **feedback_items 컬럼**: id,user_id,business_id,category,priority,title,body,attachments,page_url,status,admin_response,... (kind 컬럼 없음 — dev와 다름 주의). 미해결: pending 12+reviewing 2 = 14건.
+- `.env DEMO_CAPTURE_PASSWORD` 추가됨(dev만, 데모 시드/캡처용).
+- Google OAuth 검증 미완(Irene). Stripe SaaS 키 미연결(Irene).
 
 ---
 
 ## 복구 가이드
 새 세션: `session-state.md 읽고 이어서 개발해.`
 ### 참조
-- 정책: CLAUDE.md "Fable 검증 게이트 (전 설계·검증 무조건)" · 메모리 `feedback_fable_all_design_verification`
-- #194 설계: (이 파일 맥락 섹션) — 구현 착수 시 docs 설계문서화 권장
-- 운영 피드백 조회: `ssh irene@87.106.78.146 "cd /opt/planq/backend && node -e '...feedback_items...'"` (read-only)
+- 정책: CLAUDE.md "Fable 검증 게이트" · 메모리 `feedback_fable_all_design_verification`
+- 운영 피드백 조회: `ssh irene@87.106.78.146 "cd /opt/planq/backend && node -e '...'"` (read-only, feedback_items에 kind 컬럼 없음)
+- 운영 파일 격리 확인: `SELECT visibility,vlevel,COUNT(*) FROM files WHERE deleted_at IS NULL GROUP BY 1,2` (불일치=노출)
