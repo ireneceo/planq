@@ -268,8 +268,13 @@ async function wipeDemoData(businessId) {
 
   const files = await File.findAll({ where: { business_id: businessId }, attributes: ['id', 'file_path'] });
   for (const f of files) {
-    const abs = path.join(UPLOAD_ROOT, f.file_path || '');
-    if (f.file_path && abs.startsWith(UPLOAD_ROOT) && fs.existsSync(abs)) fs.unlinkSync(abs);
+    // file_path 는 시드가 만든 것(uploads 기준 상대경로)과 업로드 API 가 만든 것(절대경로)이 섞인다.
+    // 상대경로만 가정하면 절대경로 row 의 물리 파일이 안 지워져 고아로 누적된다.
+    if (!f.file_path) continue;
+    const abs = path.isAbsolute(f.file_path) ? f.file_path : path.join(UPLOAD_ROOT, f.file_path);
+    const resolved = path.resolve(abs);
+    // uploads 밖은 절대 건드리지 않는다 (경로 탈출 방어)
+    if (resolved.startsWith(path.resolve(UPLOAD_ROOT) + path.sep) && fs.existsSync(resolved)) fs.unlinkSync(resolved);
   }
   await File.destroy({ where: { business_id: businessId }, force: true });
   await FileFolder.destroy({ where: { business_id: businessId } });
