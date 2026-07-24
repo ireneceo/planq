@@ -231,7 +231,10 @@ sync_database() {
   prod_run "cd $PROD_BE && NODE_ENV=production node scripts/migrate-invoice-payment-installment.js 2>&1 | tail -10"
   # 계정 삭제(회원 탈퇴) 스키마 — users/businesses/business_members 컬럼.
   prod_run "cd $PROD_BE && NODE_ENV=production node scripts/migrate-account-deletion.js 2>&1 | tail -10"
-  success "마이그레이션 완료 (push native / invoice-payment / account-deletion)"
+  # #203/#207 Q Mail 알림 — notification_prefs/notifications ENUM 확장 + email_accounts.notify_scope.
+  #   ★ 순서: 이 ALTER 가 PM2 reload 보다 먼저 끝나야 한다(신 코드가 먼저 뜨면 Data truncated).
+  prod_run "cd $PROD_BE && NODE_ENV=production node scripts/migrate-mail-notify.js 2>&1 | tail -10"
+  success "마이그레이션 완료 (push native / invoice-payment / account-deletion / mail-notify)"
 
   # 백필 — 마이그레이션 후. 과거 paid invoice/회차에 payment 원장 생성(멱등). 매출 0 복구.
   log "Backfilling invoice payments..."

@@ -91,6 +91,7 @@ function serializeAccount(acc) {
     smtp_tls: j.smtp_tls,
     is_active: j.is_active,
     is_default: j.is_default,
+    notify_scope: j.notify_scope || 'recommended',   // #207 알림 범위
     owner_user_id: j.owner_user_id ?? null,
     is_personal: j.owner_user_id != null,
     scope: j.owner_user_id != null ? 'personal' : 'team',
@@ -216,6 +217,12 @@ router.put('/:businessId/email-accounts/:id', authenticateToken, checkBusinessAc
     }
     if (b.smtp_tls !== undefined) patch.smtp_tls = !!b.smtp_tls;
     if (b.is_active !== undefined) patch.is_active = !!b.is_active;
+    // #207 — 알림 범위 (전체 / 확인권장+답변필요 / 답변필요만). 계정 속성이라 여기서 저장한다.
+    if (b.notify_scope !== undefined) {
+      const allowed = ['all', 'recommended', 'reply_only'];
+      if (!allowed.includes(String(b.notify_scope))) return errorResponse(res, 'invalid_notify_scope', 400);
+      patch.notify_scope = String(b.notify_scope);
+    }
     // IMAP 자격이 바뀌면 저장 전 실연결 검증 (비밀번호 재입력으로 계정 살리는 경로 포함)
     const imapTouched = ['imap_host', 'imap_port', 'imap_username', 'imap_password'].some((k) => b[k] !== undefined && b[k]);
     if (imapTouched) {

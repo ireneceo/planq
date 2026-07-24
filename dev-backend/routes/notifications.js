@@ -15,8 +15,10 @@ const EVENT_KINDS = [
   'mention',          // 채팅 @멘션 (사이클 N+16-C 부터 채팅 전용)
   'comment_mention',  // 업무/문서 댓글 @멘션 (사이클 N+16-C 신규)
   'share_expiry',     // N+74-B — 외부 공유 링크 만료 임박 (D-3)
+  'mail',             // #203 — Q Mail 새 메일 (받을 범위는 메일 계정별 notify_scope 로 따로 고른다)
   // 플랫폼 관리자 알림 (business_id NULL row 로 저장)
   'inquiry', 'signup', 'payment', 'subscription', 'trial', 'feedback',
+  'system',           // 시스템 경고 (메일 계정 sync 실패 등) — 여태 목록에 없어 끌 방법이 없었다
 ];
 const CHANNELS = ['inbox', 'chat', 'email', 'push']; // 사이클 J4 — push 채널 추가
 
@@ -93,9 +95,12 @@ router.isAllowed = isAllowed;
 //
 // 시스템 메일 (인증 OTP, 비밀번호 재설정) 도 매트릭스 무관 —
 //   전용 helper (sendVerificationCodeEmail / sendSignatureOtpEmail) 사용.
-async function notify({ userId, businessId, eventKind, title, body, link, ctaLabel, workspaceName, tag, actorUserId, entityType, entityId, ioApp }) {
+async function notify({ userId, businessId, eventKind, title, body, link, ctaLabel, workspaceName, tag, actorUserId, entityType, entityId, ioApp, skipChannels }) {
   if (!userId || !eventKind) return { inbox: false, email: false, push: false };
   const results = { inbox: false, email: false, push: false };
+  // #203 — 호출자가 특정 채널만 끌 수 있다(사용자 설정과 별개). 메일 알림은 '확인 권장' 을
+  //   이메일로 보내지 않는다 — 하루 수십 건이 메일함으로 되돌아오면 그게 스팸이다.
+  const skip = new Set(Array.isArray(skipChannels) ? skipChannels : []);
 
   // Cue AI 팀원(is_ai)은 사람이 아니므로 어떤 채널도 알림 대상이 아니다.
   // Cue 는 합성 주소(cue+{businessId}@system.planq.kr)라 email 발송 시 바운스
@@ -154,7 +159,7 @@ async function notify({ userId, businessId, eventKind, title, body, link, ctaLab
   }
 
   // email 채널
-  if (await isAllowed(userId, businessId, eventKind, 'email')) {
+  if (!skip.has('email') && await isAllowed(userId, businessId, eventKind, 'email')) {
     try {
       const { User } = require('../models');
       const user = await User.findByPk(userId, { attributes: ['email'] });
@@ -172,7 +177,7 @@ async function notify({ userId, businessId, eventKind, title, body, link, ctaLab
   }
 
   // push 채널 — tag 로 OS 알림 그룹핑 (같은 대화방 연속 메시지는 마지막 것으로 대체)
-  if (await isAllowed(userId, businessId, eventKind, 'push')) {
+  if (!skip.has('push') && await isAllowed(userId, businessId, eventKind, 'push')) {
     try {
       const { sendPushToUser } = require('../services/push_service');
       // badge — 인박스(확인 필요) + 채팅 unread 합산. frontend useGlobalBadge 와 동일 정의.
@@ -233,10 +238,10 @@ async function notify({ userId, businessId, eventKind, title, body, link, ctaLab
 }
 
 // 멀티 수신자용 (워크스페이스 멤버 N 명에게 한 번에)
-async function notifyMany({ userIds, businessId, eventKind, title, body, link, ctaLabel, workspaceName, excludeUserId, tag, actorUserId, entityType, entityId, ioApp }) {
+async function notifyMany({ userIds, businessId, eventKind, title, body, link, ctaLabel, workspaceName, excludeUserId, tag, actorUserId, entityType, entityId, ioApp, skipChannels }) {
   const filtered = (userIds || []).filter((id) => id && id !== excludeUserId);
   const results = await Promise.all(
-    filtered.map((uid) => notify({ userId: uid, businessId, eventKind, title, body, link, ctaLabel, workspaceName, tag, actorUserId, entityType, entityId, ioApp }))
+    filtered.map((uid) => notify({ userId: uid, businessId, eventKind, title, body, link, ctaLabel, workspaceName, tag, actorUserId, entityType, entityId, ioApp, skipChannels }))
   );
   return results;
 }

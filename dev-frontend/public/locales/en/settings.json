@@ -139,7 +139,8 @@
       "tax_invoice": "Tax invoices",
       "task": "Tasks",
       "event": "Calendar",
-      "invite": "Invites"
+      "invite": "Invites",
+      "mail": "New mail (Q mail)"
     },
     "eventDesc": {
       "message": "New message arrives in a chat room",
@@ -150,7 +151,8 @@
       "tax_invoice": "Tax invoice issuance deadlines",
       "task": "Assigned / under review / completed",
       "event": "Added / changed / upcoming",
-      "invite": "Workspace and project invites"
+      "invite": "Workspace and project invites",
+      "mail": "Follows each mail account’s notification scope (default: reply needed + review recommended)"
     },
     "footerNote": "Inbox is the in-app notification area. Chat / Email go to external channels.",
     "policy": {

@@ -168,7 +168,13 @@
     "cancel": "Cancel translation",
     "loading": "Translating…",
     "error": "Couldn't translate",
-    "lang": { "ko": "한국어", "en": "English", "ja": "日本語", "zh": "中文", "es": "Español" }
+    "lang": {
+      "ko": "한국어",
+      "en": "English",
+      "ja": "日本語",
+      "zh": "中文",
+      "es": "Español"
+    }
   },
   "uncertain": {
     "billing": "Billing/payment",
@@ -380,5 +386,17 @@
     "markRead": "Mark all read",
     "working": "Working…",
     "confirmN": "Apply to {{n}}?"
+  },
+  "notifyScope": {
+    "title": "Notification scope",
+    "desc": "Decides which new mail in this mailbox triggers a notification. Choose how you receive them (in-app, mobile, email) in notification settings.",
+    "replyOnly": "Reply needed only",
+    "replyOnlyDesc": "Only mail where someone is waiting for your reply",
+    "recommended": "Reply needed + review",
+    "recommendedDesc": "Also mail worth a quick look (default)",
+    "all": "Everything",
+    "allDesc": "Includes ads and automated mail",
+    "saved": "Saved",
+    "failed": "Save failed"
   }
 }
