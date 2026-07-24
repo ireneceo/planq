@@ -1,6 +1,6 @@
 {
   "search": {
-    "placeholder": "Search mail (subject·content)",
+    "placeholder": "Search mail (subject·content·sender)",
     "clear": "Clear search",
     "empty": "No results found"
   },

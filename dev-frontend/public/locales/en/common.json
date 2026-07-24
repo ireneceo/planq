@@ -401,10 +401,22 @@
   },
   "search": {
     "title": "Global search",
-    "placeholder": "Search tasks · docs · records · files · clients",
+    "placeholder": "Search menus · tasks · docs · records · files · clients",
     "hint": "Type to search. Open with ⌘K or Ctrl+\\.",
     "searching": "Searching...",
-    "noResults": "No results"
+    "noResults": "No results",
+    "menus": "Menus",
+    "results": "Results",
+    "cat": {
+      "tasks": "Task",
+      "posts": "Doc",
+      "records": "Record",
+      "files": "File",
+      "conversations": "Chat",
+      "knowledge": "Knowledge",
+      "clients": "Client",
+      "projects": "Project"
+    }
   },
   "attach": {
     "uploadHint": "Drag files here or click to browse",

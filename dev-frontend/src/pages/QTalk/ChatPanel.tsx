@@ -1306,7 +1306,8 @@ const ChatPanel: React.FC<Props> = ({
         )}
         {convMessages.map((m, idx) => {
           const prev = idx > 0 ? convMessages[idx - 1] : undefined;
-          const continuation = isContinuation(m, prev);
+          // #209 — 안읽음 구분선 바로 아래 메시지는 그룹을 끊는다 (구분선 뒤에 이름·시간 없는 행이 오면 발신자 불명)
+          const continuation = m.id === unreadDividerBeforeId ? false : isContinuation(m, prev);
           // 사이클 N+16-E — 메시지 액션 권한 + 상태
           const isSender = user && Number(m.sender_id) === Number(user.id);
           const isDeleted = !!m.is_deleted;
@@ -1323,6 +1324,7 @@ const ChatPanel: React.FC<Props> = ({
             )}
           <MessageItem
             data-msg-id={m.id}
+            data-cont={continuation ? '1' : '0'}   /* #209 — 하니스가 연속 메시지 간격을 판정 */
             $continuation={continuation}
             $selected={selectionMode && isSelected}
             $flashing={isFlash}
@@ -2422,7 +2424,9 @@ const MessageList = styled.div`
   padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  /* #209 — 행 간격은 flex gap 이 아니라 각 행의 margin 이 정한다.
+     gap 은 연속 메시지에도 똑같이 16px 를 강제해 연속으로 보낸 메시지가 띄엄띄엄 보이던 원인. */
+  gap: 0;
   background: #F8FAFC;
   &::-webkit-scrollbar { width: 6px; }
   &::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 3px; }
@@ -2444,7 +2448,7 @@ const OlderSpinner = styled.span`
 // '여기까지 읽음' 구분선 — 진입 시점 기준 첫 안 읽은 메시지 앞. 가운데 라벨 + 양옆 라인(Coral).
 const UnreadDivider = styled.div`
   display: flex; align-items: center; gap: 10px;
-  margin: 8px 4px; color: #F43F5E; font-size: 11px; font-weight: 700;
+  margin: 24px 4px 8px; color: #F43F5E; font-size: 11px; font-weight: 700;  /* #209 — 옛 flex gap 대체 */
   &::before, &::after { content: ''; flex: 1; height: 1px; background: rgba(244, 63, 94, 0.25); }
   span { flex-shrink: 0; letter-spacing: 0.2px; }
 `;
@@ -2524,6 +2528,8 @@ const SkelMsgRow = styled.div<{ $align: 'left' | 'right' }>`
   flex-direction: ${(p) => (p.$align === 'right' ? 'row-reverse' : 'row')};
   align-items: flex-start;
   gap: 12px;
+  margin-top: 16px;                 /* #209 — 옛 MessageList flex gap 대체 */
+  &:first-child { margin-top: 0; }
 `;
 const SkelMsgAvatar = styled.div`
   width: 36px;
@@ -2555,8 +2561,10 @@ const MessageItem = styled.div<{ $continuation?: boolean; $selected?: boolean; $
   display: flex;
   gap: 12px;
   align-items: flex-start;
-  margin-top: ${(p) => (p.$continuation ? '0' : '12px')};
-  padding: 4px 6px;
+  /* #209 — 같은 발신자 연속 메시지(이름·시간 헤더 없음)는 한 덩어리로 붙인다.
+     비연속은 28px(옛 flex gap 16 + margin 12 과 동일), 연속은 0 + 좌우 padding 만 */
+  margin-top: ${(p) => (p.$continuation ? '0' : '28px')};
+  padding: ${(p) => (p.$continuation ? '1px 6px' : '4px 6px')};
   margin-left: -6px;
   margin-right: -6px;
   border-radius: 8px;
@@ -2582,8 +2590,8 @@ const MessageItem = styled.div<{ $continuation?: boolean; $selected?: boolean; $
   /* N+93 (#7) — 모바일: 간격 압축으로 채팅 더 많이 보이게 */
   @media (max-width: 640px) {
     gap: 8px;
-    margin-top: ${(p) => (p.$continuation ? '0' : '8px')};
-    padding: 2px 6px;
+    margin-top: ${(p) => (p.$continuation ? '0' : '24px')};   /* 옛 gap 16 + margin 8 */
+    padding: ${(p) => (p.$continuation ? '0 6px' : '2px 6px')};
   }
 `;
 

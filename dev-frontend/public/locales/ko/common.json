@@ -401,10 +401,22 @@
   },
   "search": {
     "title": "통합 검색",
-    "placeholder": "업무·문서·레코드·파일·고객 모두 검색",
+    "placeholder": "메뉴·업무·문서·레코드·파일·고객 모두 검색",
     "hint": "검색어를 입력하세요. ⌘K 또는 Ctrl+\\ 로도 열 수 있습니다.",
     "searching": "검색 중...",
-    "noResults": "결과 없음"
+    "noResults": "결과 없음",
+    "menus": "메뉴",
+    "results": "검색 결과",
+    "cat": {
+      "tasks": "업무",
+      "posts": "문서",
+      "records": "레코드",
+      "files": "파일",
+      "conversations": "대화",
+      "knowledge": "지식",
+      "clients": "고객",
+      "projects": "프로젝트"
+    }
   },
   "attach": {
     "uploadHint": "파일을 드래그하거나 클릭",

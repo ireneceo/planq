@@ -159,22 +159,35 @@ router.get('/:businessId/email-threads',
       }
       if (String(unread) === 'true') where.unread_count = { [Op.gt]: 0 };
       if (String(starred) === 'true') where.is_starred = true;
-      // 풀텍스트 — subject + last_message_preview + 메시지 본문(body_text)
+      // 풀텍스트 — subject + last_message_preview + 메시지(본문·제목·보낸사람)
+      // #212 — 공백은 토큰 구분자. "wordpress org" 는 두 토큰이 각각 어딘가에 있으면 매칭(AND).
+      //        옛 동작(공백 포함 단일 LIKE)은 "wordpress.org" 같은 실제 문자열을 못 찾았다.
       if (q && String(q).trim()) {
-        const kw = String(q).trim().slice(0, 100);
-        // 본문 매칭 thread id (접근 가능 계정 스코프 내) — 제목/미리보기에 없어도 내용으로 검색
-        const [bodyRows] = await sequelize.query(
-          'SELECT DISTINCT thread_id FROM email_messages WHERE business_id = :bid AND account_scope_match AND body_text LIKE :kw LIMIT 500'
-            .replace('account_scope_match', 'thread_id IN (SELECT id FROM email_threads WHERE business_id = :bid AND account_id IN (:acctIds))'),
-          { replacements: { bid: businessId, kw: `%${kw}%`, acctIds: acctIds.length ? acctIds : [0] } }
-        );
-        const bodyTids = bodyRows.map(r => r.thread_id);
-        const orConds = [
-          { subject: { [Op.like]: `%${kw}%` } },
-          { last_message_preview: { [Op.like]: `%${kw}%` } },
-        ];
-        if (bodyTids.length) orConds.push({ id: { [Op.in]: bodyTids } });
-        where[Op.or] = orConds;
+        const tokens = String(q).trim().slice(0, 100).split(/\s+/)
+          .map(s => s.trim()).filter(Boolean).slice(0, 4);
+        const andConds = [];
+        // 사용자 입력의 LIKE 와일드카드(% _ \)는 리터럴로 — 검색어 "50%" 가 전건 매칭되지 않게
+        const esc = (s) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
+        for (const raw of tokens) {
+          const tk = esc(raw);
+          // 토큰별 메시지 매칭 thread id (접근 가능 계정 스코프 내) — 제목/미리보기에 없어도 내용·발신자로 검색
+          const [msgRows] = await sequelize.query(
+            `SELECT DISTINCT thread_id FROM email_messages
+              WHERE business_id = :bid
+                AND thread_id IN (SELECT id FROM email_threads WHERE business_id = :bid AND account_id IN (:acctIds))
+                AND (body_text LIKE :kw OR subject LIKE :kw OR from_name LIKE :kw OR from_email LIKE :kw)
+              LIMIT 1000`,
+            { replacements: { bid: businessId, kw: `%${tk}%`, acctIds: acctIds.length ? acctIds : [0] } }
+          );
+          const msgTids = msgRows.map(r => r.thread_id);
+          const orConds = [
+            { subject: { [Op.like]: `%${tk}%` } },
+            { last_message_preview: { [Op.like]: `%${tk}%` } },
+          ];
+          if (msgTids.length) orConds.push({ id: { [Op.in]: msgTids } });
+          andConds.push({ [Op.or]: orConds });
+        }
+        if (andConds.length) where[Op.and] = [...(where[Op.and] || []), ...andConds];
       }
 
       const { rows, count } = await EmailThread.findAndCountAll({
