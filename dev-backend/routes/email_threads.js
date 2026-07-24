@@ -489,9 +489,16 @@ router.post('/:businessId/email-threads/:id/mark-handled',
         reply_needed_at: null,
         reply_needed_reason: 'handled',
         uncertain_reason: null,
+        // #205 — "확인 완료" 는 곧 "봤다" 다. 읽음까지 같이 내려야 미읽음 뱃지가 남지 않는다
+        //   (Irene: "제대로 읽음표시랑 함께 리스트에서 없어져야지"). mark-read 와 같은 처리.
+        unread_count: 0,
       });
-      broadcastMail(req, businessId, 'mail:updated', { thread_id: thread.id, handled: true });
-      return successResponse(res, { id: thread.id, status: 'archived' });
+      await EmailMessage.update(
+        { is_read: true },
+        { where: { thread_id: thread.id, is_read: false } },
+      ).catch(() => {});
+      broadcastMail(req, businessId, 'mail:updated', { thread_id: thread.id, handled: true, unread: 0 });
+      return successResponse(res, { id: thread.id, status: 'archived', unread_count: 0 });
     } catch (err) { next(err); }
   }
 );
@@ -604,10 +611,16 @@ router.post('/:businessId/email-threads/bulk-handled',
       const { ids, acctScope } = await resolveBulkTargetIds(req.body, businessId, req.user.id);
       if (!ids.length) return errorResponse(res, 'no_threads', 400);
       const [count] = await EmailThread.update(
-        { status: 'archived', reply_needed: false, reply_needed_at: null, reply_needed_reason: 'handled', uncertain_reason: null },
+        // #205 — 개별 mark-handled 와 같은 처리(읽음까지). 두 경로가 갈리면 벌크로 내린 메일만
+        //   미읽음 뱃지가 남는다.
+        { status: 'archived', reply_needed: false, reply_needed_at: null, reply_needed_reason: 'handled', uncertain_reason: null, unread_count: 0 },
         { where: { id: { [Op.in]: ids }, business_id: businessId, account_id: acctScope } },
       );
-      broadcastMail(req, businessId, 'mail:updated', { bulk: true, handled: true });
+      await EmailMessage.update(
+        { is_read: true },
+        { where: { thread_id: { [Op.in]: ids }, is_read: false } },
+      ).catch(() => {});
+      broadcastMail(req, businessId, 'mail:updated', { bulk: true, handled: true, unread: 0 });
       return successResponse(res, { updated: count });
     } catch (err) { next(err); }
   },

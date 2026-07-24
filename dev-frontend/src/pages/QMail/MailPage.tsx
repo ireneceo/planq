@@ -507,22 +507,27 @@ const MailPage: React.FC = () => {
   //   줄며 스크롤이 위로 튀었다 (Irene: "그 자리에 그대로 있어야 해").
   //   → 이미 읽은 페이지 수만큼 다시 받고, 스크롤 위치를 복원한다.
   const listRef = useRef<HTMLDivElement>(null);
+  // #205 — 목록 요청 순번. 응답이 순서를 바꿔 도착하면(느린 silent 요청이 뒤늦게 옴) 옛 응답이
+  //   최신 상태를 덮어써 방금 내린 행이 되살아난다. 최신 요청의 응답만 반영한다.
+  const listSeqRef = useRef(0);
   const loadList = useCallback(async (opts: { silent?: boolean } = {}) => {
     if (!businessId) return;
-    // 실시간 갱신(silent)은 **목록을 교체하지 않는다**. 교체하면 길이·순서가 바뀌면서 스크롤이 튄다.
+    // 실시간 갱신(silent)은 **목록을 통째로 교체하지 않는다**. 교체하면 길이·순서가 바뀌면서 스크롤이 튄다.
     //   (Irene: "리프레시 아무것도 안 되고 움직임 없이 바로바로 적용되는 형태여야 해")
-    //   대신 제자리 병합: 이미 있는 행은 필드만 갱신, 새 메일만 맨 위에 붙인다. 사라진 행은 남긴다
-    //   (사라지는 순간 아래가 위로 밀린다 — 다음 진입에서 정리된다).
+    //   대신 제자리 병합: 살아있는 행은 자리 그대로 필드만 갱신, 새 메일만 맨 위에 붙인다.
+    //   서버가 더 이상 주지 않는 행은 내린다(#205 — 아래 병합부 주석 참조).
     const silent = !!opts.silent;
     const pages = silent ? Math.max(1, pageRef.current) : 1;
     if (!silent) setListLoading(true);
     setErrorMsg(null);
+    const seq = ++listSeqRef.current;
     try {
       const acctQ = accountFilter ? `&account_id=${accountFilter}` : '';
       const qP = qDebounced ? `&q=${encodeURIComponent(qDebounced)}` : '';
       const fP = filterQuery();
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads?folder=${folder}&limit=${PAGE_SIZE * pages}&page=1${acctQ}${qP}${fP}`);
       const j = await r.json();
+      if (seq !== listSeqRef.current) return;   // 더 최신 요청이 떠 있다 — 이 응답은 버린다
       if (!j.success) { setErrorMsg(j.message || (t('errors.loadList', { defaultValue: '인박스 로딩 실패' }) as string)); return; }
       const fresh: Thread[] = j.data || [];
       setHasMore(!!j.pagination?.has_more);
@@ -535,8 +540,15 @@ const MailPage: React.FC = () => {
         if (!prev.length) return fresh;
         const freshById = new Map(fresh.map((x) => [x.id, x]));
         const prevIds = new Set(prev.map((x) => x.id));
-        // 1) 기존 행은 자리 그대로, 내용만 최신으로
-        const merged = prev.map((row) => freshById.get(row.id) || row);
+        // 1) 기존 행은 자리 그대로, 내용만 최신으로.
+        //    ★ #205 — 서버가 더 이상 주지 않는 행은 **내린다**. 여태 남겨뒀더니(“사라지는 순간
+        //    아래가 위로 밀린다”는 이유) 다른 기기·다른 사람이 확인완료·스팸·보관으로 내린 메일이
+        //    이 화면에만 영영 남았다. 실측: A 탭에서 확인완료 → B 탭은 12초 뒤에도 그대로,
+        //    게다가 새 행이 얹히며 목록이 30→31 로 불어났다. CLAUDE.md §16(실시간 반영) 위반이고
+        //    memory feedback_visibility_refresh_server_fresh(서버 응답으로 덮어쓰기) 와도 어긋난다.
+        //    살아남은 행의 순서는 그대로라 스크롤은 여전히 흔들리지 않는다 — 내려간 행 아래가
+        //    한 칸 올라올 뿐이고, 그건 사용자가 기대하는 움직임이다.
+        const merged = prev.filter((row) => freshById.has(row.id)).map((row) => freshById.get(row.id) as Thread);
         // 2) 새로 온 메일만 맨 위에 (자리 이동 없음 — 위에 얹힐 뿐)
         const added = fresh.filter((x) => !prevIds.has(x.id));
         return added.length ? [...added, ...merged] : merged;
@@ -1470,6 +1482,8 @@ const MailPage: React.FC = () => {
                 <ThreadItem
                   key={mt.id}
                   type="button"
+                  data-testid="mail-thread-row"
+                  data-thread-id={mt.id}
                   $active={activeId === mt.id}
                   $unread={mt.unread_count > 0}
                   $handled={handledIds.has(mt.id)}
@@ -1565,6 +1579,7 @@ const MailPage: React.FC = () => {
                       )}
                       <RowBtn
                         type="button"
+                        data-testid="mail-row-handled"
                         disabled={dismissingId === mt.id}
                         onClick={(e) => markHandled(e, mt.id)}
                       >
