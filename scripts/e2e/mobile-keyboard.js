@@ -32,7 +32,28 @@ async function openMailCompose(page) {
   return clickTestId(page, 'mail-compose-open');
 }
 
-// 시나리오: path + (선택) open 스텝. open 후 보이는 입력요소 전부 판정.
+// #204 — 모바일 진입 시 메일 리스트가 기본 접힘이라 "메일이 안 나온다"던 회귀.
+//   blank 판정은 페이지가 그려지기만 하면 통과해 이 계열을 못 잡는다(실제로 ⚪ 로 통과했다).
+//   불변식: 좁은 화면에서 ?thread= 없이 /mail 에 들어오면 목록이 먼저 보여야 한다
+//   (= 접힘 상태에서만 렌더되는 `mail-list-expand` 버튼이 있으면 안 된다).
+//   행 수는 계정 데이터에 좌우되므로 판정 근거로 쓰지 않고 참고로만 기록한다.
+async function assertMailListVisible(page) {
+  const r = await page.evaluate(() => {
+    const main = document.querySelector('[data-panel-main]');
+    const rows = [...document.querySelectorAll('div,li,button')].filter((el) => {
+      const bb = el.getBoundingClientRect();
+      if (bb.width < 120 || bb.height < 30 || bb.height > 200) return false;
+      if (bb.top >= window.innerHeight || bb.bottom <= 0) return false;
+      if (main && main.contains(el)) return false;
+      return getComputedStyle(el).cursor === 'pointer' && (el.innerText || '').trim().length > 10;
+    });
+    return { rows: rows.length, collapsed: !!document.querySelector('[data-testid="mail-list-expand"]') };
+  });
+  if (r.collapsed) return { ok: false, msg: `🔴 모바일 진입 시 메일 목록이 접혀 있음 — 사용자는 빈 상세만 본다 (보이는 행 ${r.rows})` };
+  return { ok: true, msg: `목록 펼침 · 보이는 행 ${r.rows}` };
+}
+
+// 시나리오: path + (선택) open 스텝 + (선택) assert 판정. open 후 보이는 입력요소 전부 판정.
 //   create 모달은 URL 파라미터(?create=1 · ?new=1)로 결정론적 오픈 — path 에 쿼리를 넣으면 goto 시 자동 오픈.
 const SCENARIOS = [
   { name: 'clients-search', path: '/business/clients', open: null },
@@ -42,7 +63,7 @@ const SCENARIOS = [
   { name: 'tasks-week', path: '/tasks', open: null },
   { name: 'tasks-create', path: '/tasks?create=1', open: null },        // 업무 생성 모달(RightDock create 경로와 동일)
   { name: 'inbox', path: '/inbox', open: null },
-  { name: 'mail-list', path: '/mail', open: null },                     // #173/174/159/178 흰 화면 회귀 가드(blank 렌더 검사)
+  { name: 'mail-list', path: '/mail', open: null, assert: assertMailListVisible },  // #173/174/159/178 흰 화면 + #204 목록 접힘 회귀 가드
   { name: 'mail-compose', path: '/mail', open: openMailCompose },       // 작성 풀페이지 입력(받는사람·제목·본문) 키보드 가림
   { name: 'calendar-add', path: '/calendar?create=1', open: null },     // 새 일정 모달(URL 자동 오픈)
   { name: 'docs', path: '/docs', open: null },
@@ -65,6 +86,11 @@ async function run() {
         await b.sleep(300);
         const rendered = await b.assertRendered(page);
         if (rendered.painted < 2) { rec.blank = true; rec.details.push(`🔴 흰 화면(blank) — painted ${rendered.painted}/${rendered.samples}`); }
+        // 시나리오 고유 판정 (opener 실행 전 — 진입 직후 상태를 본다)
+        if (sc.assert) {
+          const a = await sc.assert(page);
+          if (a.ok) { rec.details.push(a.msg); } else { rec.fail++; rec.details.push(a.msg); }
+        }
         if (sc.open) { const opened = await sc.open(page); await b.sleep(700); if (!opened) rec.details.push('opener 트리거 못 찾음(수동 확인 필요)'); }
         // 고정 sleep 만으로는 SPA 지연 렌더 시 입력 0개 플레이크 → 입력 출현을 명시 대기(최대 3s).
         await b.waitForInputs(page, 3000);

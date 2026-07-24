@@ -441,16 +441,47 @@ const MailPage: React.FC = () => {
   }, [folderCounts, folder, sp]);
 
 
+  // ── 좌측 리스트 접기 상태 ──
+  // #130 — 좌측 리스트를 Q Note·Q docs 와 같은 표준으로: 300px 그리드 + 접기(태블릿/모바일 오버레이).
+  // #204 — 좁은 화면에서 리스트를 기본 접힘으로 시작하면, 메일에 들어온 사용자가 보는 건
+  //   빈 상세 패널과 작은 `>` 버튼뿐이다("모바일 PWA 에서 메일 리스트가 안 나온다").
+  //   모바일 메일 표준은 목록 우선 — 목록 → 탭 → 상세 → 뒤로 목록. 그래서 기본은 펼침으로 두고,
+  //   ?thread= 로 바로 들어온 경우(알림 클릭 등)만 상세가 목적이므로 접은 채 시작한다.
+  //   ★ 선언 위치 주의 — setActive·clearSelection 이 이 값을 쓰고, clearSelection 은 useCallback
+  //     의존성 배열에서 렌더 시점에 참조한다. 아래쪽에 두면 TDZ ReferenceError 가 난다.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    if (window.innerWidth > 1024) return false;   // 데스크탑은 오버레이가 아니라 항상 펼침
+    return new URLSearchParams(window.location.search).has('thread');
+  });
+  const [viewportNarrow, setViewportNarrow] = useState<boolean>(() => (
+    typeof window !== 'undefined' ? window.innerWidth <= 1024 : false
+  ));
+  useEffect(() => {
+    const mql = window.matchMedia('(max-width: 1024px)');
+    const handler = (e: MediaQueryListEvent | MediaQueryList) => setViewportNarrow('matches' in e ? e.matches : false);
+    handler(mql);
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
+  }, []);
+
   const setActive = (id: number | null) => {
     const nsp = new URLSearchParams(sp);
-    if (id === null || activeId === id) nsp.delete('thread');
+    const deselect = id === null || activeId === id;   // 재클릭 토글 해제 (공통 UX 규칙)
+    if (deselect) nsp.delete('thread');
     else nsp.set('thread', String(id));
     setSp(nsp, { replace: true });
+    // #204 — 좁은 화면에서 리스트는 본문 위를 덮는 오버레이 드로어다. 스레드를 고르면 접어야
+    //   본문이 보이고, 선택을 풀면 다시 목록으로 돌아와야 한다. 데스크탑은 두 패널이 나란히
+    //   놓이므로 건드리지 않는다.
+    if (viewportNarrow) setSidebarCollapsed(!deselect);
   };
   // 선택 해제 — 현재 URL 기준(함수형 업데이트라 stale 안전). 상세 패널 닫힘(activeId 파생).
   const clearSelection = useCallback(() => {
     setSp((prev) => { const n = new URLSearchParams(prev); n.delete('thread'); return n; }, { replace: true });
-  }, [setSp]);
+    // #204 — 좁은 화면에서 선택을 풀면(처리 완료·상세 닫기) 빈 상세가 아니라 목록으로 돌아와야 한다.
+    if (viewportNarrow) setSidebarCollapsed(false);
+  }, [setSp, viewportNarrow]);
 
   // 계정 필터 토글 (재클릭 해제 — 공통 UX 규칙)
   const setAccount = (id: number | null) => {
@@ -1096,20 +1127,6 @@ const MailPage: React.FC = () => {
   };
 
   // ── 새 메일 작성 (compose) ──
-  // #130 — 좌측 리스트를 Q Note·Q docs 와 같은 표준으로: 300px 그리드 + 접기(태블릿/모바일 오버레이).
-  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => (
-    typeof window !== 'undefined' ? window.innerWidth < 900 : false
-  ));
-  const [viewportNarrow, setViewportNarrow] = useState<boolean>(() => (
-    typeof window !== 'undefined' ? window.innerWidth <= 1024 : false
-  ));
-  useEffect(() => {
-    const mql = window.matchMedia('(max-width: 1024px)');
-    const handler = (e: MediaQueryListEvent | MediaQueryList) => setViewportNarrow('matches' in e ? e.matches : false);
-    handler(mql);
-    mql.addEventListener('change', handler);
-    return () => mql.removeEventListener('change', handler);
-  }, []);
 
   const [composeOpen, setComposeOpen] = useState(false);
   const [cAccountId, setCAccountId] = useState<number | null>(null);
@@ -1647,7 +1664,13 @@ const MailPage: React.FC = () => {
                 </svg>
               )}
               title={t('empty.title', { defaultValue: '메일에서 시작해 보세요' }) as string}
-              description={`${t('empty.line1', { defaultValue: '고객 문의 · 견적 요청 · 계약 회신 — 대화의 절반은 메일에서 옵니다.' }) as string}\n${t('empty.line2', { defaultValue: '왼쪽 목록에서 메일을 선택하거나, 새 메일을 보내보세요.' }) as string}`}
+              /* #204 — 좁은 화면에는 "왼쪽 목록" 이 없다(리스트가 오버레이 드로어). 문구가 거짓이
+                 되지 않도록 뷰포트별로 안내를 나눈다. */
+              description={`${t('empty.line1', { defaultValue: '고객 문의 · 견적 요청 · 계약 회신 — 대화의 절반은 메일에서 옵니다.' }) as string}\n${
+                viewportNarrow
+                  ? (t('empty.line2Narrow', { defaultValue: '위 목록 열기 버튼으로 메일을 선택하거나, 새 메일을 보내보세요.' }) as string)
+                  : (t('empty.line2', { defaultValue: '왼쪽 목록에서 메일을 선택하거나, 새 메일을 보내보세요.' }) as string)
+              }`}
               ctaLabel={accounts.length > 0 ? (t('compose.new', { defaultValue: '새 메일' }) as string) : undefined}
               onCta={accounts.length > 0 ? () => setComposeOpen(true) : undefined}
             />
