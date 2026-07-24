@@ -1329,7 +1329,7 @@ const MailPage: React.FC = () => {
           <SearchInput
             value={searchQ}
             onChange={(e) => setSearchQ(e.target.value)}
-            placeholder={t('search.placeholder', { defaultValue: '메일 검색 (제목·내용)' }) as string}
+            placeholder={t('search.placeholder', { defaultValue: '메일 검색 (제목·내용·보낸사람)' }) as string}
             aria-label={t('search.placeholder', { defaultValue: '메일 검색' }) as string}
           />
           {searchQ && (

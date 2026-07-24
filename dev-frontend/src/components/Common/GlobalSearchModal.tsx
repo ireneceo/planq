@@ -7,7 +7,8 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
-import { apiFetch } from '../../contexts/AuthContext';
+import { apiFetch, useAuth } from '../../contexts/AuthContext';
+import { visibleNavMenus, SECTION_LABEL_KEY, type NavMenuEntry } from '../../config/navMenus';
 import Spinner from './Spinner';
 
 interface Props {
@@ -50,8 +51,13 @@ const CAT_BADGE_COLOR: Record<Category, string> = {
   files: '#64748B', conversations: '#14B8A6', knowledge: '#0D9488', clients: '#F59E0B', projects: '#10B981',
 };
 
+// #210 — 메뉴 매칭 정규화: 대소문자·공백·중점 무시("q mail" → "qmail", "Q Bill" → "qbill")
+const normalize = (s: string) => s.toLowerCase().replace(/[\s·.]/g, '');
+
 const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavigate }) => {
   const { t } = useTranslation('common');
+  const { t: tNav } = useTranslation('layout');   // #210 — 메뉴 라벨은 사이드바와 같은 layout ns 키
+  const { user } = useAuth();
   const navigate = useChromeNav();
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
@@ -91,6 +97,27 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
     return h;
   }, [result]);
 
+  // #210 — 메뉴(페이지) 이동 결과. 검색어가 없으면 전체 메뉴 목록(= '+' 로 새 탭 열 때 메뉴 고르기),
+  //         있으면 메뉴 이름·별칭·경로 매칭. 사이드바와 같은 역할 조건(config/navMenus)을 쓴다.
+  const menus = useMemo(
+    () => visibleNavMenus({ businessRole: user?.business_role, isPlatformAdmin: user?.platform_role === 'platform_admin' }),
+    [user?.business_role, user?.platform_role],
+  );
+  const menuLabel = React.useCallback((m: NavMenuEntry) => tNav(m.labelKey) as string, [tNav]);
+  // 검색 동의어는 언어별 콘텐츠 — locales layout `nav.searchAliases.<key>` (쉼표 구분, 없으면 빈 값)
+  const menuAliases = React.useCallback(
+    (m: NavMenuEntry) => String(tNav(`nav.searchAliases.${m.key}`, { defaultValue: '' })).split(',').filter(Boolean),
+    [tNav],
+  );
+  const menuHits = useMemo(() => {
+    const nq = normalize(query.trim());
+    if (!nq) return menus;
+    return menus.filter((m) => {
+      const hay = [menuLabel(m), m.key, m.to, ...menuAliases(m)].map(normalize);
+      return hay.some((h) => h.includes(nq));
+    }).slice(0, 8);
+  }, [menus, query, menuLabel, menuAliases]);
+
   const goto = (to: string) => { onClose(); (onNavigate || navigate)(to); };
 
   if (!open) return null;
@@ -106,27 +133,50 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
           <SearchInput
             ref={inputRef} type="text" value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder={t('search.placeholder', '업무·문서·레코드·파일·고객 모두 검색') as string}
+            placeholder={t('search.placeholder', '메뉴·업무·문서·레코드·파일·고객 모두 검색') as string}
           />
           {loading && <Spinner size={14} color="muted" />}
           <Kbd onClick={onClose}>Esc</Kbd>
         </SearchHeader>
 
         <Results>
+          {/* #210 — 메뉴 이동. 검색어 없을 때는 전체 메뉴가 그대로 목록이 된다(고르면 그 페이지로) */}
+          {menuHits.length > 0 && (
+            <>
+              <GroupTitle>{t('search.menus', { defaultValue: '메뉴' }) as string}</GroupTitle>
+              {menuHits.map(m => (
+                <Hit key={`menu-${m.key}`} type="button" data-testid={`gsearch-menu-${m.key}`} onClick={() => goto(m.to)}>
+                  <TypeBadge $color="#0F766E">{tNav(SECTION_LABEL_KEY[m.section]) as string}</TypeBadge>
+                  <HitMain>
+                    <HitTitle>{menuLabel(m)}</HitTitle>
+                    <HitSub>{m.to}</HitSub>
+                  </HitMain>
+                </Hit>
+              ))}
+            </>
+          )}
+
           {!query.trim() ? (
-            <Hint>{t('search.hint', '검색어를 입력하세요. ⌘K 또는 Ctrl+\\ 로도 열 수 있습니다.')}</Hint>
+            menuHits.length > 0
+              ? <FootHint>{t('search.hint', '검색어를 입력하세요. ⌘K 또는 Ctrl+\\ 로도 열 수 있습니다.')}</FootHint>
+              : <Hint>{t('search.hint', '검색어를 입력하세요. ⌘K 또는 Ctrl+\\ 로도 열 수 있습니다.')}</Hint>
           ) : allHits.length === 0 ? (
-            <Hint>{loading ? t('search.searching', '검색 중...') : t('search.noResults', '결과 없음')}</Hint>
+            (loading || menuHits.length === 0) && (
+              <Hint>{loading ? t('search.searching', '검색 중...') : t('search.noResults', '결과 없음')}</Hint>
+            )
           ) : (
-            allHits.map(h => (
-              <Hit key={`${h.type}-${h.id}`} type="button" onClick={() => goto(h.to)}>
-                <TypeBadge $color={CAT_BADGE_COLOR[h.type]}>{t(`search.cat.${h.type}`, { defaultValue: CAT_LABEL_KO[h.type] })}</TypeBadge>
-                <HitMain>
-                  <HitTitle>{h.title}</HitTitle>
-                  {h.sub && <HitSub>{h.sub}</HitSub>}
-                </HitMain>
-              </Hit>
-            ))
+            <>
+              <GroupTitle>{t('search.results', { defaultValue: '검색 결과' }) as string}</GroupTitle>
+              {allHits.map(h => (
+                <Hit key={`${h.type}-${h.id}`} type="button" onClick={() => goto(h.to)}>
+                  <TypeBadge $color={CAT_BADGE_COLOR[h.type]}>{t(`search.cat.${h.type}`, { defaultValue: CAT_LABEL_KO[h.type] })}</TypeBadge>
+                  <HitMain>
+                    <HitTitle>{h.title}</HitTitle>
+                    {h.sub && <HitSub>{h.sub}</HitSub>}
+                  </HitMain>
+                </Hit>
+              ))}
+            </>
           )}
         </Results>
       </Dialog>
@@ -184,6 +234,17 @@ const Results = styled.div`
 const Hint = styled.div`
   padding: 40px 20px; text-align: center;
   font-size: 13px; color: #94A3B8;
+`;
+// #210 — 메뉴 목록이 이미 보일 때의 하단 안내 (큰 여백 없이 한 줄)
+const FootHint = styled.div`
+  padding: 10px 12px 4px; text-align: center;
+  font-size: 12px; color: #CBD5E1;
+`;
+// #210 — 결과 그룹 헤더 (메뉴 / 검색 결과)
+const GroupTitle = styled.div`
+  padding: 8px 12px 4px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.4px;
+  color: #94A3B8; text-transform: uppercase;
 `;
 const Hit = styled.button`
   display: flex; align-items: center; gap: 10px;
