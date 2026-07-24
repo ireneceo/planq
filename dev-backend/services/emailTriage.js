@@ -85,8 +85,22 @@ function headersFromMessage(msg) {
   };
 }
 
-// 벌크/뉴스레터 시그널 — RFC 2369 List-* + Precedence
-function isMarketing(headers) {
+// #200 — 한국 정보통신망법 §50: 영리 목적 광고 메일은 **제목 맨 앞에 `(광고)` 표기가 법정 의무**다.
+//   헤더가 없는 옛 메일(triage_headers NULL)에도 통하는 유일한 확실 신호 — 실측: 운영 inbound 중
+//   제목에 '광고' 가 든 11건 전부가 광고·자동발송이고, 접두 표기가 붙은 정당한 고객 메일은 0건.
+//   ★ 반드시 **원문 subject + 맨 앞 앵커**로만 본다. thread.subject 는 'Re:' 가 제거돼 있어서
+//     고객이 광고 메일을 인용해 되물은 회신("Re: (광고)…")을 광고로 오판할 수 있다.
+const AD_PREFIX = /^\s*(re\s*:|fwd?\s*:)*\s*[([{<]\s*광고\s*[)\]}>]/i;
+function hasAdPrefix(subject) {
+  const s = String(subject || '');
+  // 'Re:'/'Fwd:' 가 앞에 붙은 건 사람이 되보낸 것 — 광고 그 자체가 아니다
+  if (/^\s*(re|fwd?)\s*:/i.test(s)) return false;
+  return AD_PREFIX.test(s);
+}
+
+// 벌크/뉴스레터 시그널 — RFC 2369 List-* + Precedence (+ 법정 광고 표기)
+function isMarketing(headers, subject) {
+  if (hasAdPrefix(subject)) return true;
   if (hget(headers, 'list-unsubscribe')) return true;
   if (hget(headers, 'list-id')) return true;
   const prec = (hget(headers, 'precedence') || '').toLowerCase();
@@ -262,7 +276,7 @@ function needsReply({ subject, bodyText, fromEmail, headers, ownEmails, isKnownC
   //    전부 "답변 필요" 로 올라왔다. 메일의 성격이 관계보다 먼저다.
   if (isSelfSender(fromEmail, ownEmails) || isFromOurPlatform(fromEmail)) return false;  // 우리가 보낸 것
   if (isBounce(fromEmail, subject)) return false;                                        // 반송 — 회신처럼 생겼다
-  if (isMarketing(headers) || isBulkBody(bodyText)) return false;                        // 대량 발송
+  if (isMarketing(headers, subject) || isBulkBody(bodyText)) return false;               // 대량 발송·법정 광고 표기
   if (isTransactionalNotice(subject)) return false;                                      // 주문·배송·결제 알림
 
   // ① 우리 대화에 온 회신 — 여기까지 왔으면 사람이 쓴 회신이다 (반송·알림은 위에서 빠졌다)
@@ -331,7 +345,7 @@ function triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, isKno
   let triage;
   if (c.status === 'spam') {
     triage = 'spam';
-  } else if (isMarketing(headers)) {
+  } else if (isMarketing(headers, subject)) {
     triage = 'marketing';
   } else if (isAutomated(headers, fromEmail, ownEmails)) {
     triage = 'automated';
@@ -402,6 +416,11 @@ function retriageStored({ triage, subject, bodyText, fromEmail, headers, ownEmai
   }
 
   if (triage === 'spam') return { triage, status: 'spam', reply_needed: false, uncertain_reason: null };
+
+  // #200 — 헤더가 없어도 법정 광고 표기(제목 맨 앞 `(광고)`)는 확실하다. 이 한 가지만 triage 를 고쳐준다.
+  //   "헤더 없이 triage 재계산 금지" 규칙의 취지는 **광고가 사람 메일로 뒤집히는 것**을 막는 것이라
+  //   marketing 쪽 단방향 승격은 그 위험이 없다.
+  if (triage === 'human' && hasAdPrefix(subject)) triage = 'marketing';
 
   // 자동 발송 — 내용이 업무이거나 우리 시스템 알림이면 확인 권장으로 올린다
   if (triage === 'automated' || triage === 'marketing') {

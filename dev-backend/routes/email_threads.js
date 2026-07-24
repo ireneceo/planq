@@ -747,9 +747,13 @@ router.post('/:businessId/email-threads/:id/messages',
       }
 
       // 답장 했으니 reply_needed 해제 + uncertain → open
+      // #200 — reason 을 null 로 지우면 재판정(retriage-mail.js)의 제외 필터를 그대로 통과해
+      //   **이미 답장한 스레드가 답변 필요로 되살아났다**(운영 189 의 reason 진동이 물증).
+      //   'replied' 로 박제한다. 새 inbound 가 오면 threadFieldsForInbound 가 'inbound' 로 덮어
+      //   재점등은 정상 작동한다.
       await thread.update({
         reply_needed: false,
-        reply_needed_reason: null,
+        reply_needed_reason: 'replied',
         last_message_at: now,
         last_message_direction: 'outbound',
         last_message_preview: preview,

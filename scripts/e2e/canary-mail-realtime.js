@@ -114,7 +114,9 @@ async function run() {
       }
     }
   } catch (e) {
-    rec.details.push('ERROR: ' + String(e.message).slice(0, 140));
+    // fail-closed — 하니스가 깨져도 조용히 통과하면 가드가 없는 것보다 나쁘다
+    rec.fail++;
+    rec.details.push('🔴 ERROR: ' + String(e.message).slice(0, 140));
   } finally {
     if (browser) await browser.close().catch(() => {});
     if (target && snap) {
@@ -127,10 +129,126 @@ async function run() {
   return [rec];
 }
 
-module.exports = { run, name: 'mail-realtime' };
+// ── #200 — 순서·스크롤 불변식 ────────────────────────────────────────────────
+//   ① 재정렬: 기존 스레드에 새 메일이 오면(last_message_at 갱신) 목록 최상단으로 올라와야 한다.
+//      옛 병합(prev 순서 유지 + 새 id 만 prepend)은 자리를 그대로 둬서 F5 전엔 안 올라왔다.
+//   ② 스크롤 앵커: 그렇게 순서가 바뀌어도, 보고 있던 행은 화면의 같은 자리에 있어야 한다.
+//      (순서를 왜곡해 스크롤을 지키던 옛 방식으로 되돌아가지 못하게 두 불변식을 같이 건다.)
+function bumpTime(threadId) {
+  return dbJson(`
+    const { sequelize } = require('./config/database');
+    (async () => {
+      const [[t]] = await sequelize.query('SELECT last_message_at FROM email_threads WHERE id=${threadId}');
+      await sequelize.query('UPDATE email_threads SET last_message_at=NOW() WHERE id=${threadId}');
+      console.log('__JSON__' + JSON.stringify({ prev: t.last_message_at }));
+      process.exit(0);
+    })();
+  `);
+}
+
+function restoreTime(threadId, prev) {
+  const v = prev instanceof Date ? prev.toISOString().slice(0, 19).replace('T', ' ') : String(prev).slice(0, 19).replace('T', ' ');
+  return dbJson(`
+    const { sequelize } = require('./config/database');
+    (async () => {
+      await sequelize.query("UPDATE email_threads SET last_message_at='${v}' WHERE id=${threadId}");
+      const [[t]] = await sequelize.query('SELECT last_message_at FROM email_threads WHERE id=${threadId}');
+      console.log('__JSON__' + JSON.stringify(t));
+      process.exit(0);
+    })();
+  `);
+}
+
+async function runOrder() {
+  const rec = { name: 'mail-realtime-reorder', path: '/mail?folder=all', inputs: 0, pass: 0, fail: 0, details: [] };
+  let browser = null; let target = null; let prevTime = null;
+  try {
+    browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    const B = await browser.newPage(); await B.setViewport({ width: 1440, height: 900 });
+    B.setDefaultTimeout(30000);
+    await b.login(B); await b.goto(B, '/mail?folder=all');
+    await b.sleep(3000);
+
+    const ids0 = await B.evaluate(rowIds);
+    if (ids0.length < 6) { rec.details.push(`행 ${ids0.length}건 — 판정 스킵(데이터 부족)`); return [rec]; }
+
+    // ① 재정렬 — 중간 행에 새 메일이 온 상황
+    target = ids0[4];
+    prevTime = bumpTime(target).prev;
+    await B.evaluate(() => window.dispatchEvent(new Event('mail:refresh')));
+    let topOk = false; let ids1 = ids0;
+    for (let i = 0; i < 10; i++) {
+      await b.sleep(400);
+      ids1 = await B.evaluate(rowIds);
+      if (ids1[0] === target) { topOk = true; break; }
+    }
+    if (topOk) { rec.pass++; rec.details.push(`갱신된 스레드 ${target} 이 최상단으로 이동 (옛 위치 index 4)`); }
+    else { rec.fail++; rec.details.push(`🔴 갱신된 스레드 ${target} 이 최상단으로 안 올라옴 — 서버 순서를 버리는 병합 회귀 (현재 top=${ids1[0]})`); }
+
+    // ② 스크롤 앵커 — 목록 중간을 보고 있을 때 순서가 바뀌어도 보던 행이 제자리
+    await B.evaluate(() => {
+      const el = document.querySelector('[data-testid="mail-thread-row"]')?.parentElement;
+      if (el) el.scrollTop = 600;
+    });
+    await b.sleep(400);
+    const before = await B.evaluate(() => {
+      const rows = [...document.querySelectorAll('[data-testid="mail-thread-row"]')];
+      const el = rows[0]?.parentElement;
+      if (!el) return null;
+      const elTop = el.getBoundingClientRect().top;
+      const hit = rows.find((r) => r.getBoundingClientRect().bottom > elTop + 1);
+      return hit ? { id: Number(hit.getAttribute('data-thread-id')), top: hit.getBoundingClientRect().top - elTop, scrollTop: el.scrollTop } : null;
+    });
+    if (!before || before.scrollTop < 100) {
+      rec.details.push('목록이 짧아 스크롤 판정 스킵');
+    } else {
+      // ★ 앵커보다 **아래**에 있던 스레드를 갱신 → 최상단으로 올라오며 앵커 위 콘텐츠가 한 행 늘어난다.
+      //   앵커 보정이 없으면 보던 행이 정확히 한 행 높이만큼 아래로 밀린다(= 화면이 튄다).
+      const anchorIdx = ids1.indexOf(before.id);
+      const other = ids1.slice(anchorIdx + 1).find((id) => id !== target) || ids1.find((id) => id !== before.id && id !== target);
+      const otherPrev = bumpTime(other).prev;
+      await B.evaluate(() => window.dispatchEvent(new Event('mail:refresh')));
+      await b.sleep(2500);
+      const after = await B.evaluate((anchorId) => {
+        const rows = [...document.querySelectorAll('[data-testid="mail-thread-row"]')];
+        const el = rows[0]?.parentElement;
+        if (!el) return null;
+        const elTop = el.getBoundingClientRect().top;
+        const row = rows.find((r) => Number(r.getAttribute('data-thread-id')) === anchorId);
+        return row ? { top: row.getBoundingClientRect().top - elTop, scrollTop: el.scrollTop } : null;
+      }, before.id);
+      restoreTime(other, otherPrev);
+      if (!after) { rec.details.push(`앵커 행 ${before.id} 이 목록에서 사라짐 — 스크롤 판정 스킵`); }
+      else {
+        const drift = Math.abs(after.top - before.top);
+        if (drift <= 80) { rec.pass++; rec.details.push(`스크롤 앵커 유지 — 보던 행 ${before.id} 위치 ${Math.round(before.top)}px → ${Math.round(after.top)}px (drift ${Math.round(drift)}px)`); }
+        else { rec.fail++; rec.details.push(`🔴 화면이 튐 — 보던 행 ${before.id} 이 ${Math.round(before.top)}px → ${Math.round(after.top)}px (drift ${Math.round(drift)}px)`); }
+      }
+    }
+  } catch (e) {
+    // fail-closed — 하니스가 깨져도 조용히 통과하면 가드가 없는 것보다 나쁘다
+    rec.fail++;
+    rec.details.push('🔴 ERROR: ' + String(e.message).slice(0, 140));
+  } finally {
+    if (browser) await browser.close().catch(() => {});
+    if (target && prevTime) {
+      try { const v = restoreTime(target, prevTime); rec.details.push(`원복 완료 (thread ${target} last_message_at → ${v && v.last_message_at})`); }
+      catch (e) { rec.fail++; rec.details.push('🔴 원복 실패: ' + e.message); }
+    }
+  }
+  return [rec];
+}
+
+async function runAll() {
+  const a = await run();
+  const c = await runOrder();
+  return [...a, ...c];
+}
+
+module.exports = { run: runAll, name: 'mail-realtime' };
 
 if (require.main === module) {
-  run().then((res) => {
+  runAll().then((res) => {
     let fail = 0;
     console.log('\n=== 메일 실시간 반영 카나리 ===');
     for (const r of res) {

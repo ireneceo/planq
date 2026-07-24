@@ -17,6 +17,7 @@ import CueKnowledgeSection from './CueKnowledgeSection';
 import NotificationSettings from './NotificationSettings';
 import WorkManagementSettings from '../../components/Settings/WorkManagementSettings';
 import { mapApiError } from '../../utils/apiError';
+import { displayName as memberDisplayName } from '../../utils/displayName';
 import TimezoneSelector from '../../components/Common/TimezoneSelector';
 import PageShell from '../../components/Layout/PageShell';
 import { useTimezones } from '../../hooks/useTimezones';
@@ -487,7 +488,7 @@ const InfoBanner = styled.div`
 // Page
 // ─────────────────────────────────────────────
 export default function WorkspaceSettingsPage() {
-  const { t } = useTranslation('settings');
+  const { t, i18n } = useTranslation('settings');
   const { t: tErr } = useTranslation('errors');
   const { user, refreshUser } = useAuth();
   const businessId = user?.business_id || 0;
@@ -1260,8 +1261,10 @@ export default function WorkspaceSettingsPage() {
             {members.map((m) => {
               const isAi = m.role === 'ai' || !!m.user?.is_ai;
               const isPending = !m.user_id && !!m.invite_email;
-              const displayName = isPending ? (m.invite_email || '') : (m.user?.name || '');
-              const firstLetter = (displayName || '?').charAt(0).toUpperCase();
+              // 워크스페이스 표시명(BusinessMember.name) 우선 — 계정명 직접 렌더는 표시명 누출
+              //   (memory feedback_member_display_name_on_lists · 백엔드가 user.display_name 을 채워 내려준다)
+              const shownName = isPending ? (m.invite_email || '') : memberDisplayName(m.user, i18n.language);
+              const firstLetter = (shownName || '?').charAt(0).toUpperCase();
               const roleLabel = m.role === 'owner'
                 ? t('members.roleAdmin')
                 : m.role === 'ai'
@@ -1278,7 +1281,7 @@ export default function WorkspaceSettingsPage() {
                   <Avatar $ai={isAi}>{isAi ? 'C' : firstLetter}</Avatar>
                   <MemberInfo>
                     <MemberNameRow>
-                      <MemberName>{displayName || t('members.pendingInvite', '초대 대기 중')}</MemberName>
+                      <MemberName>{shownName || t('members.pendingInvite', '초대 대기 중')}</MemberName>
                       {!isAi && !isPending && m.user?.organization && <MemberOrg>· {m.user.organization}</MemberOrg>}
                     </MemberNameRow>
                     <MemberEmail>{subLine}</MemberEmail>
