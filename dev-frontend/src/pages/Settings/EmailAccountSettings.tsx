@@ -17,6 +17,7 @@ import {
 } from '../../services/mail';
 import MailRulesSection from './MailRulesSection';
 import MailSignatureSection from './MailSignatureSection';
+import MailNotifyScopeSection from './MailNotifyScopeSection';
 import MailAliasSection from './MailAliasSection';
 
 // Gmail 원클릭(OAuth) 연결 버튼 — Google 앱 심사(mail.google.com 제한 scope) 통과 전까지 숨긴다.
@@ -162,6 +163,13 @@ const EmailAccountSettings: React.FC = () => {
             businessId={businessId}
             accountId={acc.id}
             accountEmail={acc.email}
+          />
+
+          {/* #207 — 알림 범위. 계정 연결 직후 여기서 바로 고르게 한다 (기본 = 답변필요+확인권장) */}
+          <MailNotifyScopeSection
+            businessId={businessId}
+            accountId={acc.id}
+            initialScope={acc.notify_scope || 'recommended'}
           />
 
           {/* 서명 — 계정마다 등록 (발송 시 백엔드가 본문 끝에 붙인다) */}

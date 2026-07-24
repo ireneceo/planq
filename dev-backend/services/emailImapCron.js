@@ -425,6 +425,23 @@ async function syncOne(account, opts = {}) {
           });
         }
 
+        // #203 — 새 메일 알림 (인앱 종 · 모바일 push · 답변필요는 이메일까지).
+        //   여태 socket broadcast 만 하고 notify 호출이 없어 알림이 0건이었다 (CLAUDE.md §13).
+        //   범위는 계정별 notify_scope, 수신자 분기(개인=본인만 / 회사=멤버 전원)는 mailNotify 안에서.
+        //   과거분 백필(isBackfill)은 알리지 않는다 — 옛 메일 수백 통이 한꺼번에 울린다.
+        if (!isBackfill) {
+          try {
+            const { notifyInboundMail } = require('./mailNotify');
+            await notifyInboundMail({
+              account, thread,
+              fromName, fromEmail,
+              subject: parsed.subject,
+              fields: triageFields,
+              ioApp: io || global.__planqIo,
+            });
+          } catch (e) { console.error('[mailNotify] inbound', e.message); }
+        }
+
         newCount++;
         maxUid = Math.max(maxUid, uid);
       } catch (e) {

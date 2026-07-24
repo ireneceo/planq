@@ -16,12 +16,13 @@ interface Props {
 
 // 사이클 N+16-C — 'message' (채팅 일반) + 'comment_mention' (업무 댓글 멘션) 신규 토글.
 // 옛 'mention' 은 채팅 @멘션 전용으로 의미 정정. 댓글 멘션은 별도 row.
-type EventKind = 'message' | 'mention' | 'comment_mention' | 'signature' | 'invoice' | 'tax_invoice' | 'task' | 'event' | 'invite';
+type EventKind = 'message' | 'mention' | 'comment_mention' | 'signature' | 'invoice' | 'tax_invoice' | 'task' | 'event' | 'invite' | 'mail';
 // 4 채널 — 인박스(영구) / 인앱(우측 상단 토스트) / 디바이스(OS push) / 이메일
 type Channel = 'inbox' | 'chat' | 'push' | 'email';
 type Matrix = Record<EventKind, Record<Channel, boolean>>;
 
 const EVENTS: EventKind[] = [
+  'mail',                        // #203 — Q Mail 새 메일 (무엇을 받을지는 메일 계정별 알림 범위 설정)
   'message', 'mention',          // 채팅 (일반 메시지 / @멘션)
   'comment_mention',              // 업무·문서 댓글 @멘션
   'task', 'event', 'invite',     // 업무·일정·초대

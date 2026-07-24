@@ -168,7 +168,13 @@
     "cancel": "번역 취소",
     "loading": "번역 중…",
     "error": "번역할 수 없습니다",
-    "lang": { "ko": "한국어", "en": "English", "ja": "日本語", "zh": "中文", "es": "Español" }
+    "lang": {
+      "ko": "한국어",
+      "en": "English",
+      "ja": "日本語",
+      "zh": "中文",
+      "es": "Español"
+    }
   },
   "uncertain": {
     "billing": "청구/결제 관련",
@@ -380,5 +386,17 @@
     "markRead": "모두 읽음",
     "working": "처리 중…",
     "confirmN": "{{n}}개 처리?"
+  },
+  "notifyScope": {
+    "title": "알림 범위",
+    "desc": "이 메일함에 새 메일이 올 때 알림을 받을 기준입니다. 어떤 방법으로 받을지(인앱·모바일·이메일)는 알림 설정에서 고릅니다.",
+    "replyOnly": "답변 필요만",
+    "replyOnlyDesc": "사람이 답장을 기다리는 메일만 알립니다",
+    "recommended": "답변 필요 + 확인 권장",
+    "recommendedDesc": "한 번 보고 판단할 메일까지 알립니다 (기본값)",
+    "all": "전체",
+    "allDesc": "광고·자동 발송까지 모두 알립니다",
+    "saved": "저장됨",
+    "failed": "저장 실패"
   }
 }

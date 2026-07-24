@@ -22,6 +22,8 @@ Notification.init({
       'signature', 'invoice', 'tax_invoice', 'task', 'event', 'invite',
       'message', 'mention', 'comment_mention', 'share_expiry',
       'inquiry', 'signup', 'payment', 'subscription', 'trial', 'feedback',
+      'mail',             // #203 — Q Mail 새 메일
+      'system',           // 시스템 경고 (메일 sync 실패 등)
     ),
     allowNull: false,
   },

@@ -47,6 +47,12 @@ EmailAccount.init({
   // 상태
   is_active: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
   is_default: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  // #207 — 이 계정의 메일 중 무엇을 알림으로 받을지. 기본은 확인권장+답변필요(Irene 지정).
+  notify_scope: {
+    type: DataTypes.ENUM('all', 'recommended', 'reply_only'),
+    allowNull: false,
+    defaultValue: 'recommended',
+  },
   last_sync_at: { type: DataTypes.DATE, allowNull: true },
   last_sync_error: { type: DataTypes.TEXT, allowNull: true },
   fail_count: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },

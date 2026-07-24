@@ -36,6 +36,9 @@ NotificationPref.init({
       'comment_mention',  // 업무/문서 댓글 @멘션 (사이클 N+16-C 신규 — 채팅 멘션과 분리)
       // 플랫폼 관리자 알림 (business_id NULL row 로 저장)
       'inquiry', 'signup', 'payment', 'subscription', 'trial', 'feedback',
+      'share_expiry',     // 외부 공유 링크 만료 임박 (여태 이 ENUM 에만 빠져 '끌 수 없는 알림' 이었다)
+      'mail',             // #203 — Q Mail 새 메일 (범위는 email_accounts.notify_scope)
+      'system',           // 메일 계정 sync 실패 등 시스템 경고
     ),
     allowNull: false,
   },

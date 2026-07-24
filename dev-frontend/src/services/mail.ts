@@ -18,6 +18,8 @@ export interface EmailAccountRow {
   smtp_tls: boolean | null;
   is_active: boolean;
   is_default: boolean;
+  // #207 — 이 계정 메일 중 무엇을 알림으로 받을지 (all=전체 / recommended=확인권장+답변필요 / reply_only=답변필요만)
+  notify_scope: 'all' | 'recommended' | 'reply_only';
   // 서명 — 계정마다 등록 (발송 시 백엔드가 본문 끝에 붙인다)
   signature_html: string | null;
   signature_enabled: boolean;
@@ -49,6 +51,7 @@ export interface EmailAccountInput {
   smtp_tls?: boolean;
   is_active?: boolean;
   scope?: 'team' | 'personal';   // POST 시 계정 범위 (회사 공용/개인). 편집 시 무시.
+  notify_scope?: 'all' | 'recommended' | 'reply_only';
 }
 
 async function handle<T>(r: Response): Promise<T> {
