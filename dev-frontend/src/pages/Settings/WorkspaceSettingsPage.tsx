@@ -1301,11 +1301,14 @@ export default function WorkspaceSettingsPage() {
             const canEditHours = isSelf || isAdmin;
             const isPending = !target.user_id && !!target.invite_email;
             const u = target.user;
+            // 드로어도 리스트와 같은 워크스페이스 표시명을 쓴다 — 한 화면에서 리스트는 표시명,
+            //   드로어는 계정명이면 같은 사람이 두 이름으로 보인다 (계정 이메일·최근 로그인은 아래 별도 표시).
+            const targetName = isPending ? (target.invite_email || '') : memberDisplayName(u, i18n.language);
             const fmtLastLogin = u?.last_login_at ? new Date(u.last_login_at).toLocaleString() : '—';
             return (
               <>
                 <MemberDrawerBackdrop onClick={() => setSelectedMemberId(null)} />
-                <MemberDrawer role="dialog" aria-modal="true" aria-label={u?.name || 'member'}>
+                <MemberDrawer role="dialog" aria-modal="true" aria-label={targetName || 'member'}>
                   <MemberDrawerHeader>
                     <MemberDrawerBack type="button" onClick={() => setSelectedMemberId(null)}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
@@ -1319,10 +1322,10 @@ export default function WorkspaceSettingsPage() {
                   <MemberDrawerScroll>
                     <DrawerHeadRow>
                       <Avatar $ai={false} style={{ width: 56, height: 56, fontSize: 22 }}>
-                        {(isPending ? (target.invite_email || '?') : (u?.name || '?')).charAt(0).toUpperCase()}
+                        {(targetName || '?').charAt(0).toUpperCase()}
                       </Avatar>
                       <DrawerHeadText>
-                        <DrawerName>{isPending ? (target.invite_email || '') : (u?.name || '')}</DrawerName>
+                        <DrawerName>{targetName}</DrawerName>
                         {!isPending && u?.job_title && <DrawerSub>{u.job_title}{u.organization ? ` · ${u.organization}` : ''}</DrawerSub>}
                         {isPending && <DrawerPendingNote>{t('members.pendingNote', '초대 수락 후 프로필이 표시됩니다.')}</DrawerPendingNote>}
                       </DrawerHeadText>
