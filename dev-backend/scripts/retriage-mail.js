@@ -40,7 +40,9 @@ const APPLY = process.argv.includes('--apply');
       status: { [Op.in]: ['open', 'uncertain'] },
       [Op.or]: [
         { reply_needed_reason: null },
-        { reply_needed_reason: { [Op.notIn]: ['dismissed', 'handled', 'rule'] } },
+        // #200 — 'replied'(우리가 답장함) 추가. 여태 답장 라우트가 reason 을 null 로 지워서
+        //   이미 답장한 스레드가 재판정 때마다 답변 필요로 **되살아났다**.
+        { reply_needed_reason: { [Op.notIn]: ['dismissed', 'handled', 'rule', 'replied'] } },
       ],
     },
     order: [['id', 'ASC']],
@@ -63,6 +65,15 @@ const APPLY = process.argv.includes('--apply');
     if (assigned.has(th.id)) { skipped++; continue; }
     const acc = accMap.get(th.account_id);
     if (!acc) { skipped++; continue; }
+    // #200 — 마지막 **inbound** 만 보고 판정하면, 그 뒤에 우리가 보낸 답장을 못 본다.
+    //   → 이미 답장한 스레드가 재판정 때마다 답변 필요로 되살아났다. 마지막 메시지가 outbound 면
+    //   답변 필요로 승격하지 않는다(해제는 그대로 허용 — 노이즈 정리는 계속 돌아야 한다).
+    const lastMsg = await EmailMessage.findOne({
+      where: { thread_id: th.id },
+      order: [['sent_at', 'DESC'], ['id', 'DESC']],
+      attributes: ['id', 'direction'],
+    });
+    const repliedLast = !!lastMsg && lastMsg.direction === 'outbound';
     const msg = await EmailMessage.findOne({
       where: { thread_id: th.id, direction: 'inbound' },
       order: [['sent_at', 'DESC']],
@@ -86,9 +97,16 @@ const APPLY = process.argv.includes('--apply');
     if (complete) withHeaders++;
     const tr = await applyRules(acc.business_id, fromEmail, base);
     const nextStatus = tr.status || th.status;
-    const nextReply = !!tr.reply_needed;
+    // 마지막 메시지가 우리 답장이면 답변 필요로 올리지 않는다 (부활 차단)
+    const nextReply = repliedLast ? false : !!tr.reply_needed;
+    // #200 — triage 는 **marketing 으로 가는 단방향만** 저장한다.
+    //   status/reply_needed 만 고치면 법정 광고 표기 메일이 triage='human' 인 채로 남아
+    //   확인 권장 폴더 조건(status=open · reply_needed=false · triage NOT IN(automated,marketing))에
+    //   그대로 걸린다 — 폴더에서 안 빠진다. 반대 방향(marketing→human)은 저장하지 않는다
+    //   (헤더 없는 옛 메일이 사람 메일로 뒤집히던 사고 방지).
+    const nextTriage = (tr.triage === 'marketing' && th.triage !== 'marketing') ? 'marketing' : th.triage;
     // 바뀐 게 없으면 건드리지 않는다 (멱등)
-    if (nextReply === !!th.reply_needed && nextStatus === th.status) { kept++; continue; }
+    if (nextReply === !!th.reply_needed && nextStatus === th.status && nextTriage === th.triage) { kept++; continue; }
     changed++;
     if (samples.length < 8) {
       const to = nextReply ? '답변 필요' : (nextStatus === 'uncertain' ? '확인 권장' : nextStatus);
@@ -99,6 +117,7 @@ const APPLY = process.argv.includes('--apply');
         reply_needed: nextReply,
         reply_needed_reason: nextReply ? (th.reply_needed_reason || 'inbound') : 'retriage',
         status: nextStatus,
+        triage: nextTriage,
         uncertain_reason: tr.uncertain_reason || null,
         rule_id: tr.rule_id || null,
       });

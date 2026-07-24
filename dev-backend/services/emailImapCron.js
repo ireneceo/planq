@@ -371,7 +371,11 @@ async function syncOne(account, opts = {}) {
         //   (From:/Sent:/원본주소) 이나 뉴스레터 프리헤더라 "영어조각·원본주소"로 시작했다.
         const { buildPreview } = require('./emailBodyClean');
         const preview = buildPreview(parsed.text, parsed.html, 500);
-        const participants = Array.isArray(thread.participants) ? thread.participants : [];
+        // #200 — ★ 반드시 복제본에 push 한다. thread.participants 를 in-place 로 밀면 Sequelize 가
+        //   변경을 감지하지 못해 UPDATE 에서 이 컬럼이 통째로 빠진다 → 운영 953 스레드 전원
+        //   participants=[] 였고, findOrCreateThread 의 "제목+참여자" 매칭이 항상 실패해
+        //   같은 제목 메일이 매번 새 스레드로 쪼개졌다(#200 "여러 건 겹친 경우 정리").
+        const participants = [...(Array.isArray(thread.participants) ? thread.participants : [])];
         const existingPart = participants.find(p => p.email && p.email.toLowerCase() === fromEmail);
         if (!existingPart && fromEmail) {
           participants.push({ email: fromEmail, name: fromName, is_internal: false });

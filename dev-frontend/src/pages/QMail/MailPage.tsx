@@ -8,7 +8,7 @@
 // read-only: 답장/전송 X (M3 후속), 라벨/스타/할당 X (M3 후속)
 // 가능: 폴더 전환, 스레드 조회, 읽음 처리 (open 시 자동), 스팸 마킹
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import PageShell from '../../components/Layout/PageShell';
@@ -510,12 +510,51 @@ const MailPage: React.FC = () => {
   // #205 — 목록 요청 순번. 응답이 순서를 바꿔 도착하면(느린 silent 요청이 뒤늦게 옴) 옛 응답이
   //   최신 상태를 덮어써 방금 내린 행이 되살아난다. 최신 요청의 응답만 반영한다.
   const listSeqRef = useRef(0);
+
+  // #200 — 스크롤 앵커. 실시간 갱신은 **서버 순서를 그대로 채택**하고(답장이 온 스레드가 최상단으로
+  //   올라와야 한다 — Irene: "최근 다시 온 메일이 최상단이 아니야"), 화면이 튀는 문제는 여기서 푼다.
+  //   갱신 직전 뷰포트 최상단 행의 위치를 기억해 두고, 렌더 직후 같은 행이 같은 자리에 오도록 보정한다.
+  //   측정·보정은 useLayoutEffect 에서 즉시 (RAF 지연 금지 — 첫 paint 가 옛 위치로 그려진다).
+  const anchorRef = useRef<Array<{ id: number; top: number }> | null>(null);
+  const captureAnchor = useCallback(() => {
+    const el = listRef.current;
+    if (!el) { anchorRef.current = null; return; }
+    // 맨 위에 있으면 앵커 없이 0 유지 — 새 메일이 위에 나타나는 게 사용자가 기대하는 움직임이다
+    if (el.scrollTop <= 8) { anchorRef.current = []; return; }
+    const elTop = el.getBoundingClientRect().top;
+    const rows = Array.from(el.querySelectorAll<HTMLElement>('[data-thread-id]'));
+    const out: Array<{ id: number; top: number }> = [];
+    for (const row of rows) {
+      const r = row.getBoundingClientRect();
+      if (r.bottom <= elTop + 1) continue;            // 뷰포트 위로 지나간 행
+      out.push({ id: Number(row.dataset.threadId), top: r.top - elTop });
+      if (out.length >= 3) break;                     // 후보 3개 — 첫 후보가 최상단으로 점프한 경우 대비
+    }
+    anchorRef.current = out;
+  }, []);
+  useLayoutEffect(() => {
+    const anchors = anchorRef.current;
+    if (!anchors) return;
+    anchorRef.current = null;
+    const el = listRef.current;
+    if (!el) return;
+    if (anchors.length === 0) { el.scrollTop = 0; return; }
+    const elTop = el.getBoundingClientRect().top;
+    for (const a of anchors) {
+      const row = el.querySelector<HTMLElement>(`[data-thread-id="${a.id}"]`);
+      if (!row) continue;                                        // 사라진 행 → 다음 후보
+      if (row === el.querySelector('[data-thread-id]')) continue; // 이 행이 최상단으로 올라감 → 따라가면 화면이 점프
+      const delta = (row.getBoundingClientRect().top - elTop) - a.top;
+      if (delta) el.scrollTop += delta;
+      return;
+    }
+    // 후보가 전부 사라졌거나 전부 최상단으로 이동 → scrollTop 그대로 둔다 (튐 방지 최선)
+  }, [threads]);
   const loadList = useCallback(async (opts: { silent?: boolean } = {}) => {
     if (!businessId) return;
-    // 실시간 갱신(silent)은 **목록을 통째로 교체하지 않는다**. 교체하면 길이·순서가 바뀌면서 스크롤이 튄다.
+    // 실시간 갱신(silent)은 이미 읽은 페이지 수만큼 다시 받아 **서버 상태를 그대로 반영**한다.
     //   (Irene: "리프레시 아무것도 안 되고 움직임 없이 바로바로 적용되는 형태여야 해")
-    //   대신 제자리 병합: 살아있는 행은 자리 그대로 필드만 갱신, 새 메일만 맨 위에 붙인다.
-    //   서버가 더 이상 주지 않는 행은 내린다(#205 — 아래 병합부 주석 참조).
+    //   순서·소멸은 서버가 정하고(#200·#205), 화면이 튀지 않게 하는 건 스크롤 앵커의 몫이다.
     const silent = !!opts.silent;
     const pages = silent ? Math.max(1, pageRef.current) : 1;
     if (!silent) setListLoading(true);
@@ -536,29 +575,19 @@ const MailPage: React.FC = () => {
         pageRef.current = 1;
         return;
       }
-      setThreads((prev) => {
-        if (!prev.length) return fresh;
-        const freshById = new Map(fresh.map((x) => [x.id, x]));
-        const prevIds = new Set(prev.map((x) => x.id));
-        // 1) 기존 행은 자리 그대로, 내용만 최신으로.
-        //    ★ #205 — 서버가 더 이상 주지 않는 행은 **내린다**. 여태 남겨뒀더니(“사라지는 순간
-        //    아래가 위로 밀린다”는 이유) 다른 기기·다른 사람이 확인완료·스팸·보관으로 내린 메일이
-        //    이 화면에만 영영 남았다. 실측: A 탭에서 확인완료 → B 탭은 12초 뒤에도 그대로,
-        //    게다가 새 행이 얹히며 목록이 30→31 로 불어났다. CLAUDE.md §16(실시간 반영) 위반이고
-        //    memory feedback_visibility_refresh_server_fresh(서버 응답으로 덮어쓰기) 와도 어긋난다.
-        //    살아남은 행의 순서는 그대로라 스크롤은 여전히 흔들리지 않는다 — 내려간 행 아래가
-        //    한 칸 올라올 뿐이고, 그건 사용자가 기대하는 움직임이다.
-        const merged = prev.filter((row) => freshById.has(row.id)).map((row) => freshById.get(row.id) as Thread);
-        // 2) 새로 온 메일만 맨 위에 (자리 이동 없음 — 위에 얹힐 뿐)
-        const added = fresh.filter((x) => !prevIds.has(x.id));
-        return added.length ? [...added, ...merged] : merged;
-      });
+      // ★ #200 — 서버 순서를 그대로 채택한다(서버는 last_message_at DESC).
+      //   여태 prev 순서를 유지하고 새 id 만 위에 얹었더니, **기존 스레드에 답장이 와도 자리가
+      //   그대로**여서 F5 전엔 최신 메일이 최상단에 오지 않았다(Irene #200).
+      //   #205(서버가 안 주는 행은 내린다)도 이 방식이면 자동으로 충족된다.
+      //   스크롤 튐은 순서를 왜곡해서가 아니라 앵커 보정(captureAnchor + useLayoutEffect)으로 막는다.
+      captureAnchor();
+      setThreads(fresh);
     } catch (e) {
       setErrorMsg((e as Error).message);
     } finally {
       if (!silent) setListLoading(false);
     }
-  }, [businessId, folder, accountFilter, qDebounced, filterQuery, t]);
+  }, [businessId, folder, accountFilter, qDebounced, filterQuery, captureAnchor, t]);
 
   // 무한스크롤 — 다음 페이지 append
   const loadMore = useCallback(async () => {
