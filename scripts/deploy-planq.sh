@@ -266,7 +266,9 @@ build_frontend() {
   BUILD_LOG="/tmp/planq-deploy-build-$(date +%s).log"
   PRE_MTIME=$(stat -c %Y "$DEV_FE_BUILD/index.html" 2>/dev/null || echo 0)
 
-  NODE_OPTIONS='--max-old-space-size=8192' npm run build > "$BUILD_LOG" 2>&1
+  # heap 4096 — dev 는 7.7GB 머신이라 8192 는 OOM 으로 Terminated 된다(2026-07-24 부분배포 실사고).
+  #   package.json build 도 인라인 4096 이라 여기 환경변수는 정합용. 8192 로 올리지 말 것.
+  NODE_OPTIONS='--max-old-space-size=4096' npm run build > "$BUILD_LOG" 2>&1
   BUILD_EXIT=$?
   tail -8 "$BUILD_LOG"
 
