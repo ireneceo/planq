@@ -31,7 +31,13 @@ const HomePage: React.FC = () => {
           <HeroLogoImg src="/planQ_white_new.svg" alt="PlanQ" />
           <HeroSlogan>{t('hero.slogan', '일이 일이 되지 않게')}</HeroSlogan>
           <HeroPreHeadline>{t('hero.preHeadline', '업무, 프로젝트, 사람, 시간, 고객, 청구를')}</HeroPreHeadline>
-          <HeroHeadline>하나로 연결해<br /><HeroHighlight>시간을 돈으로 바꾸는</HeroHighlight><br />수익성 엔진</HeroHeadline>
+          {/* #196 — 랜딩 유일한 하드코딩이었다(영어 모드에서도 한국어 노출). 하이라이트 조각이
+              중간에 끼어 있어 3조각으로 나눠 키를 준다 — 어순이 다른 영어에서도 자연스럽게. */}
+          <HeroHeadline>
+            {t('hero.headline1', '하나로 연결해')}<br />
+            <HeroHighlight>{t('hero.headlineHighlight', '시간을 돈으로 바꾸는')}</HeroHighlight><br />
+            {t('hero.headline2', '수익성 엔진')}
+          </HeroHeadline>
           <HeroCta to="/register">{t('hero.cta', '무료로 시작하기')}</HeroCta>
         </HeroInner>
       </Hero>

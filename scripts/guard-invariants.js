@@ -77,7 +77,13 @@ const read = (f) => fs.readFileSync(f, 'utf-8');
 // ── 베이스라인 ───────────────────────────────────
 let baseline = {};
 try { baseline = JSON.parse(fs.readFileSync(BASELINE_PATH, 'utf-8')); } catch { baseline = {}; }
-const newBaseline = { _comment: '래칫 베이스라인 — guard-invariants.js --update-baseline 으로만 갱신. 수동 편집 금지.', _updated: new Date().toISOString().slice(0, 10) };
+// 기존 베이스라인에서 출발한다 — 빈 객체에서 시작하면 이번 실행에서 돌지 않은 카테고리
+//   (예: `--category=i18n --update-baseline`) 의 키가 통째로 사라져, 파일을 덮어쓰는 순간
+//   tenant·pagination·godfile 래칫이 베이스 0 으로 리셋된다(= 가드가 조용히 죽는다).
+//   실제로 그렇게 95줄이 날아간 적이 있다. 돌린 카테고리만 갱신하고 나머지는 보존한다.
+const newBaseline = { ...baseline };
+newBaseline._comment = '래칫 베이스라인 — guard-invariants.js --update-baseline 으로만 갱신. 수동 편집 금지.';
+newBaseline._updated = new Date().toISOString().slice(0, 10);
 
 /**
  * 래칫 판정 공통기: current = { 파일: 위반수 }, key = 베이스라인 키.
@@ -140,7 +146,9 @@ function checkI18n() {
     let n = 0;
     read(f).split('\n').forEach((l, i) => {
       const t = l.trim();
-      if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*')) return;
+      // JSX 주석 `{/* … */}` 도 주석이다. 여태 이 접두어만 빠져 있어, 주석 안에서 한국어를
+      // 따옴표로 인용하면(예: 버튼이 "취소" 로 바뀐다) 하드코딩으로 오탐했다.
+      if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*') || t.startsWith('{/*')) return;
       if (!re.test(l)) return;
       // t() 폴백·i18n 키·콘솔로그·주석성 라벨 제외
       if (/\bt\(|i18nKey|defaultValue|console\.(log|warn|error|info)/.test(l)) return;

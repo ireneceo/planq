@@ -1,24 +1,35 @@
-// 캘린더 상단 안내 — Google 캘린더 연동 시 현재 동기화 범위 안내(#126).
-//   현재: PlanQ→Google 내보내기 + 연결한 개인 Google 일정 읽기(overlay)는 동작.
-//   실시간 양방향(Google 변경의 자동 반영)은 Google OAuth 검수 승인 후 제공([[project_google_oauth_verification_pending]]).
-//   고객이 "양방향이 안 된다"고 오해하지 않도록 기대치를 맞춘다. CloudConnectNotice(Drive 단방향)와 같은
-//   시각 언어. 일상 사용 화면이라 사용자별 1회 dismiss(localStorage) — 승인되면 이 배너 자체를 제거.
+// 캘린더 상단 안내 — Google 캘린더 연동 시 현재 동기화 범위 안내(#126·#201).
+//
+// #201 — 옛 문구는 두 연동을 한 문장으로 뭉쳐 "PlanQ에서 만든 일정은 Google 캘린더에 자동 반영"
+//   이라고만 했다. 개인 연동만 한 사용자에게 이 문장은 거짓이다. 실제 동작은 연동 종류로 갈린다:
+//     - 워크스페이스 연동(BusinessCloudToken, scope calendar.events)
+//         → PlanQ → Google 쓰기 O. 단 google_calendar.isPrivateForGcal 이 개인(L1)·팀 비공개(L2)·
+//           visibility='personal' 일정을 막으므로 "워크스페이스에 공개된 일정만" 넘어간다.
+//     - 개인 연동(external_connections owner_scope='user', scope calendar.readonly)
+//         → 읽기 전용 overlay 뿐. 쓰기 경로 자체가 없다(services/personalCalendar.js).
+//   그래서 연동 종류별로 문장을 분기한다. 양쪽 다 연결했으면 두 문장 모두 보여준다.
+//
+//   실시간 양방향(Google 변경의 자동 반영)은 Google OAuth 검수 승인 후 제공
+//   ([[project_google_oauth_verification_pending]]) — 워크스페이스 연동에만 해당하는 이야기다.
+//   일상 사용 화면이라 사용자별 1회 dismiss(localStorage). 문구가 실질적으로 바뀌었으므로
+//   dismiss 키에 v2 를 붙여, 옛 (틀린) 문구를 닫았던 사용자도 정정된 안내를 한 번은 보게 한다.
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 
 interface Props {
-  connected: boolean;   // 워크스페이스 또는 개인 Google 캘린더 연동 여부
+  workspaceConnected: boolean;  // 워크스페이스 Google 캘린더 (owner 연결, 쓰기 가능)
+  personalConnected: boolean;   // 개인 Google 캘린더 (읽기 전용 overlay)
 }
 
-const DISMISS_KEY = 'qcal_sync_notice_dismissed';
+const DISMISS_KEY = 'qcal_sync_notice_dismissed_v2';
 
-const CalendarSyncNotice: React.FC<Props> = ({ connected }) => {
+const CalendarSyncNotice: React.FC<Props> = ({ workspaceConnected, personalConnected }) => {
   const { t } = useTranslation('qcalendar');
   const [dismissed, setDismissed] = useState(() => {
     try { return localStorage.getItem(DISMISS_KEY) === '1'; } catch { return false; }
   });
-  if (!connected || dismissed) return null;
+  if ((!workspaceConnected && !personalConnected) || dismissed) return null;
 
   const close = () => {
     try { localStorage.setItem(DISMISS_KEY, '1'); } catch { /* noop */ }
@@ -29,8 +40,19 @@ const CalendarSyncNotice: React.FC<Props> = ({ connected }) => {
     <Notice role="note">
       <NoticeIcon aria-hidden>!</NoticeIcon>
       <NoticeText>
-        <strong>{t('syncNotice.title', { defaultValue: 'Google 캘린더는 현재 제한적으로 연동됩니다.' })}</strong>{' '}
-        {t('syncNotice.body', { defaultValue: 'PlanQ에서 만든 일정은 Google 캘린더에 자동 반영되고, 연결한 개인 Google 일정은 여기서 함께 볼 수 있어요. 실시간 양방향 동기화(Google에서 변경한 내용의 자동 반영)는 Google 검수 승인 후 제공됩니다.' })}
+        <strong>{t('syncNotice.title', { defaultValue: 'Google 캘린더 연동 범위' })}</strong>
+        {workspaceConnected && (
+          <NoticeLine>
+            <LineLabel>{t('syncNotice.workspaceLabel', { defaultValue: '워크스페이스 연동' }) as string}</LineLabel>
+            {t('syncNotice.workspaceBody', { defaultValue: '워크스페이스에 공개한 일정만 연결된 Google 캘린더로 자동 반영됩니다(PlanQ → Google 한 방향). 개인 일정과 팀 비공개 일정은 반영되지 않아요. Google에서 직접 고친 내용이 PlanQ로 돌아오는 양방향 동기화는 Google 검수 승인 후 제공됩니다.' })}
+          </NoticeLine>
+        )}
+        {personalConnected && (
+          <NoticeLine>
+            <LineLabel>{t('syncNotice.personalLabel', { defaultValue: '개인 연동' }) as string}</LineLabel>
+            {t('syncNotice.personalBody', { defaultValue: '연결한 내 Google 캘린더 일정을 이 화면에서 함께 보기만 합니다(읽기 전용). PlanQ에서 만든 일정은 내 Google 캘린더로 넘어가지 않아요.' })}
+          </NoticeLine>
+        )}
       </NoticeText>
       <CloseBtn type="button" onClick={close} aria-label={t('syncNotice.dismiss', { defaultValue: '안내 닫기' }) as string}>×</CloseBtn>
     </Notice>
@@ -71,6 +93,19 @@ const NoticeText = styled.div`
   line-height: 1.55;
   color: #334155;
   strong { color: #0F172A; font-weight: 700; }
+`;
+const NoticeLine = styled.div`
+  margin-top: 4px;
+`;
+const LineLabel = styled.span`
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #92400E;
+  background: #FDE68A;
 `;
 const CloseBtn = styled.button`
   flex-shrink: 0;

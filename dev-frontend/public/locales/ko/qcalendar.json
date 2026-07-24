@@ -12,8 +12,11 @@
   },
   "new": "새 일정",
   "syncNotice": {
-    "title": "Google 캘린더는 현재 제한적으로 연동됩니다.",
-    "body": "PlanQ에서 만든 일정은 Google 캘린더에 자동 반영되고, 연결한 개인 Google 일정은 여기서 함께 볼 수 있어요. 실시간 양방향 동기화(Google에서 변경한 내용의 자동 반영)는 Google 검수 승인 후 제공됩니다.",
+    "title": "Google 캘린더 연동 범위",
+    "workspaceLabel": "워크스페이스 연동",
+    "workspaceBody": "워크스페이스에 공개한 일정만 연결된 Google 캘린더로 자동 반영됩니다(PlanQ → Google 한 방향). 개인 일정과 팀 비공개 일정은 반영되지 않아요. Google에서 직접 고친 내용이 PlanQ로 돌아오는 양방향 동기화는 Google 검수 승인 후 제공됩니다.",
+    "personalLabel": "개인 연동",
+    "personalBody": "연결한 내 Google 캘린더 일정을 이 화면에서 함께 보기만 합니다(읽기 전용). PlanQ에서 만든 일정은 내 Google 캘린더로 넘어가지 않아요.",
     "dismiss": "안내 닫기"
   },
   "filter": {

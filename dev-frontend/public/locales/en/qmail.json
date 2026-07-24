@@ -165,6 +165,7 @@
     "langLabel": "Translation language",
     "translate": "Translate",
     "showOriginal": "Show original",
+    "cancel": "Cancel translation",
     "loading": "Translating…",
     "error": "Couldn't translate",
     "lang": { "ko": "한국어", "en": "English", "ja": "日本語", "zh": "中文", "es": "Español" }
