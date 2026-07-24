@@ -29,7 +29,7 @@ const NAV_ITEMS: { to: string; key: string }[] = [
 ];
 
 const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => {
-  const { t } = useTranslation('landing');
+  const { t, i18n } = useTranslation('landing');
   const { user } = useAuth();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -59,6 +59,18 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
   // transparentTop=false 면 항상 white (서브 페이지 — 처음부터 라이트).
   const isTransparent = transparentTop && !scrolled && !mobileOpen;
 
+  // #196 — 게스트가 언어를 바꿀 수단이 랜딩에 없었다. i18n detection 은 localStorage → navigator 라
+  //   브라우저가 한국어면 영어 사용자가 영어 랜딩에 닿을 방법이 아예 없다. LegalPage 의 KO·EN
+  //   토글과 같은 형태를 GNB 에 둔다(changeLanguage 가 localStorage 도 갱신 — 앱 진입 후에도 유지).
+  const isKo = !(i18n.language || '').startsWith('en');
+  const langSwitch = (light: boolean) => (
+    <Lang>
+      <LangBtn $active={isKo} $light={light} type="button" onClick={() => i18n.changeLanguage('ko')}>KO</LangBtn>
+      <LangDiv $light={light}>·</LangDiv>
+      <LangBtn $active={!isKo} $light={light} type="button" onClick={() => i18n.changeLanguage('en')}>EN</LangBtn>
+    </Lang>
+  );
+
   return (
     <Page>
       <Gnb $transparent={isTransparent} $solid={!isTransparent}>
@@ -74,6 +86,7 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
           </DesktopNav>
 
           <DesktopCta>
+            {langSwitch(isTransparent)}
             {user ? (
               <PrimaryBtn to="/inbox">{t('nav.toApp', '내 워크스페이스')}</PrimaryBtn>
             ) : (
@@ -105,6 +118,7 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
               <MobileNavItem key={item.to} to={item.to}>{t(item.key)}</MobileNavItem>
             ))}
             <MobileDivider />
+            {langSwitch(false)}
             {user ? (
               <PrimaryBtn to="/inbox">{t('nav.toApp', '내 워크스페이스')}</PrimaryBtn>
             ) : (
@@ -246,6 +260,25 @@ const NavItem = styled(NavLink)<{ $light: boolean }>`
 const DesktopCta = styled.div`
   display: flex; gap: 8px; align-items: center;
   @media (max-width: 900px) { display: none; }
+`;
+// #196 — KO·EN 토글 (LegalPage 와 같은 형태). GNB 가 hero 위에서 transparent(다크 배경) 일 때는
+//   글자를 밝게 뒤집어야 읽힌다 — $light 가 그 분기.
+const Lang = styled.div`
+  display: flex; align-items: center; margin-right: 4px;
+  /* 모바일 시트에서 KO 글자 시작점이 MobileNavItem(padding-left 14px)과 맞도록 6px 보정 */
+  padding-left: 6px;
+`;
+const LangBtn = styled.button<{ $active: boolean; $light: boolean }>`
+  background: none; border: none; padding: 4px 8px;
+  font-size: 12px; font-weight: ${p => (p.$active ? 700 : 500)};
+  color: ${p => (p.$light
+    ? (p.$active ? '#5EEAD4' : 'rgba(255,255,255,0.65)')
+    : (p.$active ? '#0F766E' : '#94A3B8'))};
+  cursor: pointer;
+  &:hover { color: ${p => (p.$light ? '#FFFFFF' : '#0F172A')}; }
+`;
+const LangDiv = styled.span<{ $light: boolean }>`
+  color: ${p => (p.$light ? 'rgba(255,255,255,0.4)' : '#CBD5E1')};
 `;
 const PrimaryBtn = styled(Link)`
   height: 36px; padding: 0 18px;

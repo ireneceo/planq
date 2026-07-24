@@ -112,7 +112,10 @@ const ARTICLES = [
     ] },
 
   // ── Q Talk ──
-  { cat: 'qtalk', slug: 'start-conversation', visibility: 'authenticated', linked_route: '/talk', est: 2,
+  // #195 — 게스트(랜딩 도움말)는 visibility='public' 아티클만 본다. 카테고리는 public 아티클이
+  //   1건 이상일 때만 노출되므로(routes/wiki.js /categories required:true), 이 글이 authenticated
+  //   이면 Q Talk 카테고리가 통째로 사라진다. 핵심 기능이 공개 도움말에서 안 보이던 원인.
+  { cat: 'qtalk', slug: 'start-conversation', visibility: 'public', linked_route: '/talk', est: 2,
     title: t('대화 시작하기', 'Start a conversation'),
     summary: t('고객·팀과 새 대화방을 열고 메시지를 주고받기', 'Open a new chat with clients or team and exchange messages'),
     body: [
@@ -306,7 +309,8 @@ const ARTICLES = [
     ] },
 
   // ── 설정·권한 ──
-  { cat: 'settings', slug: 'member-permissions', visibility: 'authenticated', linked_route: '/business/members', est: 3,
+  // #195 — '설정·권한' 카테고리의 게스트 대표 글 (승격 근거는 qtalk start-conversation 주석 참조)
+  { cat: 'settings', slug: 'member-permissions', visibility: 'public', linked_route: '/business/members', est: 3,
     title: t('멤버 메뉴 권한', 'Member menu permissions'),
     summary: t('멤버별로 메뉴 접근(없음/읽기/쓰기)을 조정', 'Adjust each member’s menu access (none/read/write)'),
     body: [
@@ -519,7 +523,8 @@ const ARTICLES = [
     ] },
 
   // ── Q info ──
-  { cat: 'qinfo', slug: 'client-member-360', visibility: 'authenticated', linked_route: '/business/clients', est: 2,
+  // #195 — 'Q info' 카테고리의 유일한 글. authenticated 면 카테고리 자체가 게스트에게 사라진다.
+  { cat: 'qinfo', slug: 'client-member-360', visibility: 'public', linked_route: '/business/clients', est: 2,
     title: t('고객·멤버 360° 정보', 'Client & member 360° profiles'),
     summary: t('고객·멤버의 대화·업무·청구·파일을 한 곳에서', 'See a person’s chats, tasks, billing, and files in one place'),
     body: [

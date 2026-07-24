@@ -137,6 +137,7 @@ import {
   TransSelect,
   TransBtn,
   TransErr,
+  TransLoading,
   TransBody,
   UncertainInline,
   UnreadDot,
@@ -366,14 +367,27 @@ const MailPage: React.FC = () => {
   // #184 — 메시지별 번역 상태 (원본보기/번역하기 토글). target 기본 = UI 언어.
   const [transLang, setTransLang] = useState<string>(() => (i18n.language?.startsWith('en') ? 'en' : 'ko'));
   const [msgTrans, setMsgTrans] = useState<Record<number, { text?: string; lang?: string; showing: boolean; loading: boolean; error?: boolean }>>({});
+  // #202 — 번역은 LLM 호출이라 긴 본문이면 수십 초가 걸린다. 취소 수단이 없으면 사용자는 그 동안
+  //   "번역 중…" 에 갇힌다(버튼 disabled). 메시지별 AbortController 를 잡아두고, 로딩 중 버튼을
+  //   "취소" 로 바꿔 abort 시킨다. abort 는 실패가 아니므로 에러 문구 없이 idle 로 되돌린다.
+  const transAbortRef = useRef<Record<number, AbortController>>({});
+  const cancelTranslate = useCallback((msgId: number) => {
+    const ac = transAbortRef.current[msgId];
+    if (ac) { ac.abort(); delete transAbortRef.current[msgId]; }
+    setMsgTrans(prev => ({ ...prev, [msgId]: { ...(prev[msgId] || {}), showing: false, loading: false, error: false } }));
+  }, []);
   const translateMsg = useCallback(async (msgId: number, threadId: number) => {
     // 로딩 동안에는 showing 을 켜지 않는다. 켜면 버튼 삼항이 즉시 "원본 보기" 로 뒤집혀
     // "번역 중…" 로딩 표시가 사라지고, 번역문은 아직 없어 화면이 무반응처럼 보인다(#197).
     // 번역문이 도착한 뒤에만 showing:true 로 전환해 해당 메시지 바로 밑에 표시.
+    transAbortRef.current[msgId]?.abort();          // 앞선 요청이 남아 있으면 정리
+    const ac = new AbortController();
+    transAbortRef.current[msgId] = ac;
     setMsgTrans(prev => ({ ...prev, [msgId]: { ...(prev[msgId] || {}), showing: false, loading: true, error: false } }));
     try {
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${threadId}/messages/${msgId}/translate`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target_lang: transLang }),
+        signal: ac.signal,
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.success || !j.data?.translated) {
@@ -381,10 +395,19 @@ const MailPage: React.FC = () => {
         return;
       }
       setMsgTrans(prev => ({ ...prev, [msgId]: { text: j.data.translated, lang: j.data.target_lang, showing: true, loading: false, error: false } }));
-    } catch {
+    } catch (e) {
+      // 사용자가 누른 취소는 실패가 아니다 — cancelTranslate 가 이미 idle 로 되돌렸으므로 건드리지 않는다.
+      if ((e as { name?: string })?.name === 'AbortError') return;
       setMsgTrans(prev => ({ ...prev, [msgId]: { ...(prev[msgId] || {}), showing: false, loading: false, error: true } }));
+    } finally {
+      if (transAbortRef.current[msgId] === ac) delete transAbortRef.current[msgId];
     }
   }, [businessId, transLang]);
+  // 스레드를 떠나거나 화면을 닫을 때 남은 번역 요청 정리 (좀비 요청·언마운트 후 setState 차단)
+  useEffect(() => () => {
+    Object.values(transAbortRef.current).forEach(ac => ac.abort());
+    transAbortRef.current = {};
+  }, []);
   const [members, setMembers] = useState<MailMember[]>([]);
   // 메일 검색 (제목·미리보기·본문) — 300ms 디바운스
   const [searchQ, setSearchQ] = useState('');
@@ -1736,23 +1759,30 @@ const MailPage: React.FC = () => {
                         <option value="zh">{t('translate.lang.zh') as string}</option>
                         <option value="es">{t('translate.lang.es') as string}</option>
                       </TransSelect>
-                      {msgTrans[m.id]?.showing ? (
+                      {/* #202 — 로딩 중에는 "취소", 번역이 떠 있으면 "원본 보기", 그 외 "번역하기" 3분기.
+                          로딩 상태에서 버튼을 죽여두면(옛 동작) 긴 번역에 사용자가 갇힌다. */}
+                      {msgTrans[m.id]?.loading ? (
+                        <TransBtn type="button" onClick={() => cancelTranslate(m.id)}>
+                          {t('translate.cancel', { defaultValue: '번역 취소' }) as string}
+                        </TransBtn>
+                      ) : msgTrans[m.id]?.showing ? (
                         <TransBtn type="button"
                           onClick={() => setMsgTrans(prev => ({ ...prev, [m.id]: { ...(prev[m.id] || { loading: false }), showing: false } }))}>
                           {t('translate.showOriginal', { defaultValue: '원본 보기' }) as string}
                         </TransBtn>
                       ) : (
-                        <TransBtn type="button" disabled={msgTrans[m.id]?.loading}
+                        <TransBtn type="button"
                           onClick={() => {
                             const cached = msgTrans[m.id];
                             if (cached?.text && cached.lang === transLang) {
                               setMsgTrans(prev => ({ ...prev, [m.id]: { ...cached, showing: true } }));
                             } else { translateMsg(m.id, detail.id); }
                           }}>
-                          {msgTrans[m.id]?.loading
-                            ? (t('translate.loading', { defaultValue: '번역 중…' }) as string)
-                            : (t('translate.translate', { defaultValue: '번역하기' }) as string)}
+                          {t('translate.translate', { defaultValue: '번역하기' }) as string}
                         </TransBtn>
+                      )}
+                      {msgTrans[m.id]?.loading && (
+                        <TransLoading>{t('translate.loading', { defaultValue: '번역 중…' }) as string}</TransLoading>
                       )}
                       {msgTrans[m.id]?.error && <TransErr>{t('translate.error', { defaultValue: '번역할 수 없습니다' }) as string}</TransErr>}
                     </TransBar>

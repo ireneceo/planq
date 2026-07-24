@@ -12,8 +12,11 @@
   },
   "new": "New event",
   "syncNotice": {
-    "title": "Google Calendar sync is currently limited.",
-    "body": "Events you create in PlanQ are automatically pushed to Google Calendar, and connected personal Google events show up here. Real-time two-way sync (auto-reflecting changes made in Google) will be available after Google's review approval.",
+    "title": "What syncs with Google Calendar",
+    "workspaceLabel": "Workspace connection",
+    "workspaceBody": "Only events shared with the workspace are pushed to the connected Google Calendar (PlanQ → Google, one way). Personal events and team-private events are never pushed. Two-way sync — changes made in Google flowing back into PlanQ — will be available after Google's review approval.",
+    "personalLabel": "Personal connection",
+    "personalBody": "Your connected Google Calendar events are shown here for viewing only (read-only). Events you create in PlanQ are not pushed to your personal Google Calendar.",
     "dismiss": "Dismiss"
   },
   "filter": {

@@ -368,6 +368,10 @@ export const TransBtn = styled.button`
 export const TransErr = styled.span`
   color: #DC2626; font-size: 12px;
 `;
+// #202 — 번역 중 표시. 버튼은 "취소" 로 바뀌므로 진행 상태를 별도 텍스트로 남긴다.
+export const TransLoading = styled.span`
+  color: #0F766E; font-size: 12px;
+`;
 export const TransBody = styled.div`
   margin-top: 8px; padding: 10px 12px; border-radius: 8px;
   background: #F8FAFC; border: 1px solid #E2E8F0;

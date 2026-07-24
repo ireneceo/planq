@@ -492,7 +492,7 @@ const QCalendarPage: React.FC = () => {
 
   return (
     <PageShell title={t('title')} actions={headerActions}>
-      <CalendarSyncNotice connected={gcalConnected || personalConnected} />
+      <CalendarSyncNotice workspaceConnected={gcalConnected} personalConnected={personalConnected} />
       <Toolbar>
         <ToolbarLeft>
           {view === 'day' && (
