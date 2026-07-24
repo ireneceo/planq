@@ -1,8 +1,8 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-07-24 (Opus 4.8, 1M) — /개발완료 처리됨
-**작업 상태:** **완료 (Fable 게이트 3회 PASS, 미배포).** 운영 피드백 6건(#201·#202·#195·#196·#204·#205) + 가드·하니스 결함 3건 수정. 가드 3축 통과·커밋·백업 완료. **다음 = /배포**(직전 세션 #146 스크린샷 + 피드백 5건 + 파일 격리 fix 까지 누적 미배포) + 파일 vlevel 백필 운영 적용 + 잔여 피드백.
+**마지막 업데이트:** 2026-07-24 심야 (Opus 4.8, 1M) — /저장
+**작업 상태:** **이번 세션 5건 완료 (Fable 게이트 전건 PASS).** #209·#212·#210·#200 은 **운영 배포 완료**(20260724_172925). #203/#207 은 **구현·검증 PASS, 미배포**(로컬 커밋). **다음 = #203/#207 /배포** → /개발완료.
 
 ---
 
@@ -14,49 +14,48 @@ session-state.md 읽고 이어서 개발해.
 
 ---
 
-## 🔖 이번 세션에 한 일 (미배포)
+## 🔖 이번 세션에 한 일
 
-**운영 피드백 6건:**
-1. **#201 캘린더 안내 거짓 문구** — 워크스페이스 연동(쓰기 O)과 개인 연동(`calendar.readonly` 읽기전용)을 한 문장으로 뭉쳐 개인 연동자에게 거짓. `CalendarSyncNotice` prop 2분기(`workspaceConnected`/`personalConnected`) + 문구 분리 + dismiss 키 `_v2`.
-2. **#202 메일 번역 취소** — 로딩 중 버튼 disabled 라 긴 번역에 갇힘 → 메시지별 `AbortController` + "번역 취소" 버튼.
-3. **#195 도움말 게스트 카테고리** — public 아티클 0건 카테고리는 게스트에게 소멸(`routes/wiki.js /categories required:true`). qtalk·qinfo·settings 대표 아티클 승격(`seed-wiki-content.js`). 게스트 카테고리 11→14. **dev seed 반영됨, 운영은 배포 시 `node seed-wiki-content.js` 필요.**
-4. **#196 랜딩 영어** — 랜딩에 언어 전환 UI 부재 → `LandingLayout` GNB·모바일시트 KO·EN 토글. `HomePage.tsx` Hero 하드코딩 3키 이관.
-5. **★ #204 모바일 PWA 메일 리스트** — `MailPage.sidebarCollapsed` 초기값 `innerWidth<900` → 모바일만 목록 접힘(실측 모바일 0행). 목록 우선 + 딥링크만 상세 우선 + 선택/해제 연동 + 문구 뷰포트 분기.
-6. **★ #205 확인완료 2결함** — (a) `mark-handled`·`bulk-handled` 읽음(`unread_count`/`is_read`) 미갱신 → 두 경로 수정 (b) silent 병합이 "사라진 행 남김" → 다른 기기서 잔존+목록 30→31. fresh 없는 행 제거 + `listSeqRef` 응답순서 가드. **백엔드 변경 → 배포 시 pm2 restart 필요(DB 스키마 변경 0).**
+### 배포 완료 (운영 20260724_172925, 커밋 51425f4, Complete 225s)
+1. **#209 Q Talk 연속 메시지 간격** — 근본원인은 `MessageList` 의 `display:flex; gap:16px` 가 연속/비연속 구분 없이 16px 강제. `gap:0` + 행 margin 이관(비연속 28px·연속 0). data-cont 속성. 안읽음 구분선 아래 그룹 끊기.
+2. **#212 메일 검색 공백 토큰** — q 를 공백 토큰(≤4)으로 쪼개 토큰별 OR(제목·미리보기·본문·제목·보낸사람) → AND. LIKE 와일드카드 이스케이프. `wordpress org` 옛 1건 → 33건.
+3. **#210 통합검색 메뉴** — `config/navMenus.ts` 신설(메뉴 41종, 사이드바와 동일 역할 게이팅). 탭 `+`·⌘K 검색에 메뉴 노출. searchAliases i18n. 멤버 표시명 헬퍼 통일(리스트+드로어).
+4. **#200 메일 정렬·광고·부활** — (a) 서버 순서 채택+스크롤 앵커(prev-순서 병합 폐기) (b) 법정 `(광고)` 규칙 (c) 답장 `replied` reason + retriage outbound 가드로 부활 차단 (d) participants clone-first(운영 953 스레드 `participants=[]` 근본원인). 신규 카나리 2불변식(mailrt: 재정렬+스크롤 앵커, fail-closed).
 
-**가드·하니스 결함 3건:**
-- `guard-invariants.js` i18n 탐지기 JSX 주석 `{/*` 오탐 → 래칫 445→426 조임
-- **★ `--category=X --update-baseline` 이 미실행 카테고리 베이스라인 통째 삭제** → `{...baseline}` 보존 (memory `project_guard_invariants_depersonalization` 박제)
-- 하니스: `mobile-keyboard.js` 목록접힘 불변식 + **`canary-mail-realtime.js` 신규**(`--suite mailrt`, 2탭 §16 게이트)
+**배포 후속 절차 실행 완료:** 위키 seed(카테고리 14) · **파일 vlevel 백필 13건 정정**(개인/팀 파일 노출 해소) · **메일 재판정 7건**(운영 답변필요 4→5, (광고) 잔존 0).
 
-**맥락 유지:**
-- ★ **Fable 무조건 게이트**. 이번 3회 PASS, 매회 Fable 이 직접 코드 되돌려 재빌드→FAIL 확인→원복(#204·#205).
-- 커밋 시 auto-save wip 2개(`94d4938`·`8de7535`)가 직전 사이클을 이미 커밋한 상태 — /개발완료 커밋으로 정리.
+### 미배포 (로컬 커밋 — 다음 /배포 대상)
+5. **★ #203/#207 Q Mail 알림** (Fable 설계 CONDITIONAL → 구현 PASS)
+   - 여태 메일 도착 시 socket broadcast 만 하고 **notify 호출이 아예 없어 알림 0건**이었다(§13 위반).
+   - `services/mailNotify.js` 신설 — inbound 저장 후 단일 착지점. 성격 판정(폴더 정의 동일 술어) × 계정별 `notify_scope`(전체/확인권장+답변필요/답변필요만, 기본 recommended).
+   - 수신자 분기: **개인 계정=본인만 / 회사 계정=멤버 전원**(Cue AI·제거 멤버 제외). 이메일은 답변필요만+루프가드. 시간당 캡 20. 본문=제목까지만.
+   - **잠복버그 2건 동시 해소**: notification_prefs ENUM 의 `share_expiry` 누락(끌 수 없는 알림), `system` kind 미등록(인앱 알림 조용한 실패).
+   - 마이그레이션 `scripts/migrate-mail-notify.js`(멱등, ENUM append-only + email_accounts.notify_scope) — deploy-planq.sh 등록(PM2 reload 前).
+   - 프론트: `MailNotifyScopeSection.tsx`(3택 라디오, 즉시저장+실패 롤백) + EmailAccountSettings 삽입 + NotificationSettings EVENTS += mail + i18n ko/en.
 
 ---
 
 ## 📂 다음 할 일 (우선순위)
 
-1. **/배포** — 누적 미배포(직전 #146 스크린샷+피드백 5건+파일격리 fix + 이번 6건). 배포 시 동반:
-   - 운영 위키 seed: `ssh …prod "cd /opt/planq/backend && node seed-wiki-content.js"` (#195 게스트 카테고리)
-   - **파일 vlevel 백필**: `node scripts/backfill-file-vlevel.js` dry-run → 롤백스냅 → `--apply` (운영 13건 노출, 직전 세션 미완)
+1. **/배포** — #203/#207 (커밋 완료, 미배포). 배포 스크립트가 migrate-mail-notify.js 자동 실행(ENUM ALTER → 코드). 운영 3계정 자동 recommended.
 2. **잔여 운영 피드백:**
-   - **#200(a)(b)** 메일 답변필요 정렬 흔들림 + 과거 광고메일 잔존 (server-fresh + 옛 데이터 재판정)
-   - **#207** 메일 알림 범위 설정(전체/확인권장+답변필요/답변필요만, 기본=답변필요+확인권장). #203 과 묶음
-   - **#203** 메일 답변필요 알림 (reply_needed 정확도 #200b 선행 필수, `notification_prefs` ENUM = 운영 마이그레이션 3단 게이트)
-   - **#206** Q Task 보류/외부컨펌중 상태 (ENUM 변경, "fable 프로세스 확인")
-   - **#208** 출퇴근·휴가 관리 (신규 시스템, "fable 기획설계" — Fable 설계 게이트부터)
-   - **#192** 메일 외 AI 다듬기 확장(공통 AiRefineBar) · **#193** 캘린더 뒤로가기 · **#146** 검색 헤더 승격
-3. **#126 개인캘린더·OAuth** = Irene(Google 검증 대기)
+   - **#200(b') participants 백필** — 운영 954 스레드 `participants=[]` 옛 데이터. to_emails 포맷 혼재 정규화 필요(별건, 중규모).
+   - **#206** Q Task 보류/외부컨펌 상태 (tasks.status ENUM 변경 — #203 과 같은 "sync-database 불가·수동 ALTER" 계열, Fable 프로세스)
+   - **#208** 출퇴근·휴가 관리 (신규 시스템, Fable 기획설계부터)
+   - **#211** B2B 에이전시 타깃 기능 제안 (Fable 기획)
+   - **#192** AiRefineBar 공통화 · **#193** 캘린더 뒤로가기 · **#199**(배포됨 확인) · **#146** 검색 헤더 승격
+   - **#200(c)** 메일 이미지 확대 — 이전 사이클 수정됨(Fable 확인)
+3. **후속 정비(비차단):** deploy-planq.sh heap 8192 죽은코드 정리 · `PostCategory.vlevel` dev 로그 경고(posts.js:238 선재)
 
 ---
 
 ## 🔑 환경변수 / 인증 현황
 
 - 운영 = `irene@87.106.78.146`(planq.kr, port 3004, /opt/planq/backend, DB planq_prod_db). SSH passwordless(read-only 조회).
-- **feedback_items**: kind 컬럼 없음(dev와 다름). 미해결 pending 16 + reviewing 2 = 18건.
-- 운영 위키 스키마: help_categories(title_ko/title_en), help_articles(is_published tinyint, visibility enum public/authenticated).
-- dev DB 접근은 `cd /opt/planq/dev-backend` 후 node (dotenvx .env 그 디렉터리 기준). e2e/가드는 `cd /opt/planq` 루트에서.
+- **운영 실배포 기준점 정정:** ead59e4 아님 → **`c925d33`(v1.48.1)**. 이번 배포로 51425f4 까지 반영됨. #203/#207 은 그 이후 로컬 커밋.
+- 운영 feedback_items: content 컬럼 없음(body). 미해결 pending 조회: `ssh … "cd /opt/planq/backend && node -e '...config/database sequelize...'"`.
+- dev DB 접근 `cd /opt/planq/dev-backend` 후 node. e2e/가드는 `cd /opt/planq` 루트.
+- 로그인 rate-limit: 15분 8회. e2e 스위트 연달아 돌리면 login failed — 간격 두기.
 
 ---
 
@@ -64,5 +63,5 @@ session-state.md 읽고 이어서 개발해.
 새 세션: `session-state.md 읽고 이어서 개발해.`
 ### 참조
 - 정책: CLAUDE.md "Fable 검증 게이트" · 메모리 `feedback_fable_all_design_verification`
-- 운영 피드백 조회: `ssh irene@87.106.78.146 "cd /opt/planq/backend && node _fb.js"` (config/database 의 sequelize 사용, models.sequelize 아님)
-- 2탭 실시간 카나리: `cd /opt/planq && node scripts/e2e/run.js --suite mailrt`
+- 2탭 실시간 카나리: `cd /opt/planq && node scripts/e2e/run.js --suite mailrt` (재정렬+스크롤 앵커 2불변식 신설)
+- 메일 알림 검증: mailNotify classify/allowedByScope 유닛 + 개인격리 flip 반증
