@@ -302,7 +302,8 @@
   "empty": {
     "title": "Start from your inbox",
     "line1": "Enquiries, quote requests, contract replies — half of every conversation starts in email.",
-    "line2": "Pick a message from the list on the left, or write a new one."
+    "line2": "Pick a message from the list on the left, or write a new one.",
+    "line2Narrow": "Tap Open list above to pick a message, or write a new one."
   },
   "rules": {
     "title": "Mail sorting rules",
