@@ -712,7 +712,7 @@
         {
           "year": "2026",
           "label": "General availability",
-          "desc": "Profitability Engine officially introduced. PortOne native billing, installments, multi-currency, and unified notification matrix shipped."
+          "desc": "Profitability Engine officially introduced. Native bank-transfer billing, installments, multi-currency, and unified notification matrix shipped."
         }
       ]
     },
