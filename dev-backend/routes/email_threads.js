@@ -22,6 +22,7 @@ const { requireMenu } = require('../middleware/menu_permission');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { applyMemberDisplayName, getMemberNameMap } = require('../services/displayName');
 const { sendMail } = require('../services/emailSend');
+const { emailsOf, mergeParticipants, selfEmailsForAccount } = require('../services/emailAddress');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
 
@@ -693,7 +694,9 @@ router.post('/:businessId/email-threads/:id/messages',
           order: [['sent_at', 'DESC']],
           attributes: ['to_emails'],
         });
-        if (lastIn && Array.isArray(lastIn.to_emails)) lastInboundTo = lastIn.to_emails.map((x) => (typeof x === 'string' ? x : x?.address)).filter(Boolean);
+        //   #200(b') — 여기서 `x?.address` 로 읽던 탓에 저장 shape `{email,name}` 이 통째로
+        //   걸러져 항상 빈 배열이었다 (resolveSender ② 별칭 자동 선택이 죽어 있었다).
+        if (lastIn) lastInboundTo = emailsOf(lastIn.to_emails);
       } catch (e) { console.warn('[qmail] lastInboundTo', e.message); }
 
       // 발송 (실패 시 502 — outbound row 안 만듦. 프론트는 작성 내용 유지)
@@ -751,6 +754,16 @@ router.post('/:businessId/email-threads/:id/messages',
       //   **이미 답장한 스레드가 답변 필요로 되살아났다**(운영 189 의 reason 진동이 물증).
       //   'replied' 로 박제한다. 새 inbound 가 오면 threadFieldsForInbound 가 'inbound' 로 덮어
       //   재점등은 정상 작동한다.
+      // #200(b') — 발송 수신자도 스레드 참여자다. 여태 outbound 경로가 participants 를
+      //   전혀 안 써서, 내가 먼저 보낸 스레드는 상대가 답장해도 findOrCreateThread 의
+      //   "제목+참여자" 매칭이 실패해 새 스레드로 쪼개졌다.
+      const replySelfEmails = await selfEmailsForAccount(account);
+      const nextParticipants = mergeParticipants(
+        thread.participants,
+        [...toList, ...(Array.isArray(cc) ? cc : [])],
+        { excludeEmails: replySelfEmails },
+      );
+
       await thread.update({
         reply_needed: false,
         reply_needed_reason: 'replied',
@@ -758,6 +771,7 @@ router.post('/:businessId/email-threads/:id/messages',
         last_message_direction: 'outbound',
         last_message_preview: preview,
         message_count: (thread.message_count || 0) + 1,
+        participants: nextParticipants,
         ...(thread.status === 'uncertain' ? { status: 'open' } : {}),
       });
 
@@ -824,10 +838,18 @@ router.post('/:businessId/email-compose',
 
       const now = new Date();
       const preview = htmlToPreview(body_html);
+      // #200(b') — 새 스레드도 처음부터 참여자를 갖는다. 이게 비어 있으면 상대 답장이
+      //   헤더 없이 올 때 같은 제목 스레드로 못 붙는다.
+      const composeParticipants = mergeParticipants(
+        [],
+        [...toList, ...(Array.isArray(cc) ? cc : [])],
+        { excludeEmails: await selfEmailsForAccount(account) },
+      );
       const thread = await EmailThread.create({
         business_id: businessId, account_id: accId, subject: subj, status: 'open',
         reply_needed: false, message_count: 1, unread_count: 0,
         last_message_at: now, last_message_direction: 'outbound', last_message_preview: preview,
+        participants: composeParticipants,
       });
       const outMsg = await EmailMessage.create({
         thread_id: thread.id, business_id: businessId, direction: 'outbound',
@@ -888,10 +910,21 @@ router.post('/:businessId/email-threads/:id/forward',
 
       const now = new Date();
       const preview = htmlToPreview(body_html);
+      // #200(b') — 전달도 수신자를 참여자로 박제한다.
+      //   한계: 전달 스레드 제목은 `Fwd: ...` 접두를 정규화 없이 저장하는데(위 subj),
+      //   findOrCreateThread step3 는 정규화 제목 완전일치라 참여자를 채워도 이 스레드에는
+      //   붙지 않는다. 제목 저장 방식 변경은 목록 표시에 영향이 있어 이번 범위 밖 —
+      //   전달 스레드는 In-Reply-To/References(step1·2)로만 이어진다.
+      const fwdParticipants = mergeParticipants(
+        [],
+        [...toList, ...(Array.isArray(cc) ? cc : [])],
+        { excludeEmails: await selfEmailsForAccount(account) },
+      );
       const thread = await EmailThread.create({
         business_id: businessId, account_id: accId, subject: subj, status: 'open',
         reply_needed: false, message_count: 1, unread_count: 0,
         last_message_at: now, last_message_direction: 'outbound', last_message_preview: preview,
+        participants: fwdParticipants,
       });
       const outMsg = await EmailMessage.create({
         thread_id: thread.id, business_id: businessId, direction: 'outbound',

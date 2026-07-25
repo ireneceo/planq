@@ -76,6 +76,10 @@ async function findOrCreateThread({ businessId, accountId, parsed, fromEmail }) 
         subject: normSubj,
         last_message_at: { [Op.gte]: since },
       },
+      // #200(b') — 후보를 무순서로 뽑으면 동일 제목 스레드가 여러 개일 때(운영 89 그룹)
+      //   어디에 붙을지 PK 임의 순서로 정해진다. 참여자 백필이 이 경로를 실제로 켜므로
+      //   "가장 최근에 오간 스레드" 로 착지점을 고정한다.
+      order: [['last_message_at', 'DESC']],
       limit: 5,
     });
     for (const cand of candidates) {
@@ -375,11 +379,15 @@ async function syncOne(account, opts = {}) {
         //   변경을 감지하지 못해 UPDATE 에서 이 컬럼이 통째로 빠진다 → 운영 953 스레드 전원
         //   participants=[] 였고, findOrCreateThread 의 "제목+참여자" 매칭이 항상 실패해
         //   같은 제목 메일이 매번 새 스레드로 쪼개졌다(#200 "여러 건 겹친 경우 정리").
-        const participants = [...(Array.isArray(thread.participants) ? thread.participants : [])];
-        const existingPart = participants.find(p => p.email && p.email.toLowerCase() === fromEmail);
-        if (!existingPart && fromEmail) {
-          participants.push({ email: fromEmail, name: fromName, is_internal: false });
-        }
+        //   #200(b') — 참여자 판정 술어를 services/emailAddress.js 로 단일화했다.
+        //   발신자 + 외부 참조(cc). 내 계정 주소·별칭은 참여자가 아니다.
+        const { mergeParticipants, selfEmailsForAccount } = require('./emailAddress');
+        const selfEmails = await selfEmailsForAccount(account);
+        const participants = mergeParticipants(
+          thread.participants,
+          [{ email: fromEmail, name: fromName }, ...(Array.isArray(ccEmails) ? ccEmails : [])],
+          { excludeEmails: selfEmails },
+        );
         // N+83 — Inbound 트리아지 (human/automated/marketing/spam). spam 판정은 classify 재사용.
         //   신규 스레드: 전체 분류 박제 + human 이면 reply_needed 자동 ON ("답변 필요" 폴더 작동).
         //   기존 스레드 후속 inbound: 사람 메일이면 reply_needed 복원 (status/triage 는 유지, spam/archived 제외).
