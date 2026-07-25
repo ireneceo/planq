@@ -712,7 +712,7 @@
         {
           "year": "2026",
           "label": "정식 출시",
-          "desc": "수익성 엔진 (Profitability Engine) 정식 도입. PortOne 자체 결제, 분할 청구, 외화 결제, 통합 알림 매트릭스 라이브."
+          "desc": "수익성 엔진 (Profitability Engine) 정식 도입. 자체 결제(계좌이체), 분할 청구, 외화 결제, 통합 알림 매트릭스 라이브."
         }
       ]
     },

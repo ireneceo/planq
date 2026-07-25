@@ -39,6 +39,14 @@ SELECT terms_version, privacy_version FROM platform_settings;   -- 배포 전후
 ### 1. 코드 배포
 `deploy-planq.sh` — locales·프론트 반영. DB 스키마 변경 0.
 
+### ⚠️ 기한 컨틴전시 — 공지가 늦으면 시행일을 미룬다
+시행일 `2026-08-01` 기준 "7일 전 공지"의 **마지막 날은 2026-07-25**다.
+공지(아래 2·3)가 **07-25 를 넘기면** §10 자기 규정 위반이 된다. 그때는 공지를 강행하지 말고
+**`effectiveDate` 를 공지일 + 7일 이후로 연기**한다:
+- `dev-frontend/src/pages/Legal/PrivacyPolicy.tsx` · `TermsOfService.tsx` 의 `effectiveDate`
+- 이 문서의 날짜·공지 문구도 함께 갱신
+- 두 파일만 고치면 되고 DB·버전은 무관 (재동의 미트리거 유지)
+
 ### 2. 개정 공지 노출 (1회) — **시행일 7일 전까지**
 플랫폼 관리자 → 공지 설정에서 `announcement_text` 설정:
 - ko: `개인정보처리방침·이용약관이 2026-08-01 자로 개정됩니다. 결제대행사 기재를 실제 제공 중인 수단(계좌이체·Stripe)에 맞게 정정했습니다.`
