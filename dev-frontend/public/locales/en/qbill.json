@@ -765,7 +765,8 @@
       "clear": "Remove (disable card payment)",
       "show": "Show",
       "hide": "Hide",
-      "whose": "The Stripe account you enter here belongs to this workspace. When a customer pays by card, the money lands in this account directly — it never passes through PlanQ. Stripe accounts are not tied to a domain, so you can reuse one you already have: just add one more webhook endpoint (the URL shown on this screen) and paste its signing secret."
+      "whose": "The Stripe account you enter here belongs to this workspace. When a customer pays by card, the money lands in this account directly — it never passes through PlanQ. Stripe accounts are not tied to a domain, so you can reuse one you already have: just add one more webhook endpoint (the URL shown on this screen) and paste its signing secret.",
+      "storedMalformed": "The stored value is not a Stripe key. Replace it with a value starting with pk_, or clear it."
     }
   },
   "common": {

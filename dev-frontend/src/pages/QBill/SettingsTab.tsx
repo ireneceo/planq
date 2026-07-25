@@ -240,6 +240,13 @@ export default function SettingsTab({ inWorkspaceSettings = false }: SettingsTab
             <AutoSaveField type="input" onSave={async () => save({ stripe_publishable_key: stripePub.trim() || null })}>
               <EditInput type="text" value={stripePub} onChange={e => setStripePub(e.target.value)} disabled={!canManageMoney} placeholder="pk_live_..." />
             </AutoSaveField>
+            {/* 저장 시점 검증만 두면, 이미 저장된 잘못된 값(운영 실측: 사람 이름)이 화면에서 계속 침묵한다.
+                로드 직후에도 형식을 검사해 알려준다. 값은 임의로 지우지 않는다 — 사용자 자산. */}
+            {!!stripePub.trim() && !stripePub.trim().startsWith('pk_') && (
+              <FieldError>
+                {t('settings.stripe.storedMalformed', '저장된 값이 Stripe 키 형식이 아닙니다. pk_ 로 시작하는 값으로 바꾸거나 비워주세요.')}
+              </FieldError>
+            )}
           </EditField>
           <EditField $span={2}>
             <EditLabel>
@@ -457,6 +464,7 @@ const EditField = styled.div<{ $span?: number }>`
   @media (max-width: 720px) { grid-column: span 1; }
 `;
 const EditLabel = styled.label`font-size: 11px; font-weight: 600; color: #475569; text-transform: uppercase; letter-spacing: 0.4px;`;
+const FieldError = styled.p`margin: 0; font-size: 12px; color: #B91C1C; line-height: 1.5;`;
 const EditInput = styled.input`
   width: 100%; padding: 8px 10px; font-size: 13px; color: #0F172A;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 8px;

@@ -70,4 +70,33 @@ async function isStripeEnabled(merchant, merchantId) {
   } catch { return false; }
 }
 
-module.exports = { getStripeForMerchant, getStripeKeysForMerchant, isStripeEnabled, normalizeMerchant };
+// Stripe 키 형식 검증 — 플랫폼 설정(routes/admin.js)·워크스페이스 설정(routes/businesses.js) 공용.
+//
+// 왜 백엔드에도 두는가: 프론트에서만 막으면 API 직접 호출로 다시 들어온다. 실제로 운영
+// platform_settings·businesses 양쪽 stripe_publishable_key 에 사람 이름("irene")이 저장돼 있었다.
+//
+// 접두는 Stripe 가 정한 고정값이다:
+//   pk_  publishable / sk_  secret / rk_  restricted(서버측 정식 사용처 — 막으면 안 된다)
+//   whsec_  webhook signing secret
+// 빈 문자열은 "삭제" 이므로 통과시킨다 — 검증이 해제 경로를 막으면 키를 지울 수 없게 된다.
+const STRIPE_KEY_RULES = {
+  stripe_publishable_key: ['pk_'],
+  stripe_secret: ['sk_', 'rk_'],
+  stripe_webhook_secret: ['whsec_'],
+};
+
+function invalidStripeKeyField(body) {
+  for (const [field, prefixes] of Object.entries(STRIPE_KEY_RULES)) {
+    const raw = body ? body[field] : undefined;
+    if (raw === undefined || raw === null) continue;       // 미전송 = 기존 보존
+    const v = String(raw).trim();
+    if (v === '') continue;                                 // 빈 문자열 = 삭제
+    if (!prefixes.some((p) => v.startsWith(p))) return { field, expected: prefixes };
+  }
+  return null;
+}
+
+module.exports = {
+  getStripeForMerchant, getStripeKeysForMerchant, isStripeEnabled, normalizeMerchant,
+  invalidStripeKeyField, STRIPE_KEY_RULES,
+};
