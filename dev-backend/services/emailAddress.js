@@ -77,10 +77,17 @@ function mergeParticipants(prev, incoming, { excludeEmails = [] } = {}) {
   return out;
 }
 
-// 변경 여부 판정 (백필 UPDATE 스킵용) — 키 순서까지 같은 형태로만 만들어지므로 문자열 비교로 충분
+// 변경 여부 판정 (백필 UPDATE 스킵용).
+//   ★ JSON.stringify 비교는 쓰면 안 된다 — MySQL 은 JSON 객체 키를 길이순으로 재정렬해 저장한다
+//   (`{email,name,is_internal}` 로 써도 읽을 땐 `{name,email,is_internal}`). 그대로 문자열 비교하면
+//   내용이 같아도 항상 "변경"으로 잡혀 멱등이 깨지고 매 실행이 전건 UPDATE 가 된다.
 function participantsEqual(a, b) {
-  const norm = (v) => JSON.stringify(Array.isArray(v) ? v : []);
-  return norm(a) === norm(b);
+  const key = (v) => (Array.isArray(v) ? v : []).map((p) => [
+    String(p && p.email || '').toLowerCase(),
+    String(p && p.name || ''),
+    (p && p.is_internal === true) ? '1' : '0',
+  ].join('\u0000')).join('');
+  return key(a) === key(b);
 }
 
 // 이 계정이 "나" 인 주소들 — 계정 주소 + 별칭. 참여자 제외 집합.

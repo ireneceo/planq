@@ -255,6 +255,12 @@ async function syncOne(account, opts = {}) {
   const { buildOwnEmailSet } = require('./emailTriage');
   const ownEmails = await buildOwnEmailSet(account.business_id);
 
+  // 참여자 제외 집합 — 이 계정 주소 + 별칭. 동기화 1회당 한 번만 조회한다.
+  //   ownEmails(비즈니스 전체)와 다르다: 같은 워크스페이스의 다른 계정끼리 주고받은 메일에서
+  //   상대 계정은 정당한 참여자다 (#200 b').
+  const { mergeParticipants, selfEmailsForAccount } = require('./emailAddress');
+  const selfEmails = await selfEmailsForAccount(account);
+
   let newCount = 0;
   try {
     const box = await conn.openBox(account.imap_folder);
@@ -380,12 +386,16 @@ async function syncOne(account, opts = {}) {
         //   participants=[] 였고, findOrCreateThread 의 "제목+참여자" 매칭이 항상 실패해
         //   같은 제목 메일이 매번 새 스레드로 쪼개졌다(#200 "여러 건 겹친 경우 정리").
         //   #200(b') — 참여자 판정 술어를 services/emailAddress.js 로 단일화했다.
-        //   발신자 + 외부 참조(cc). 내 계정 주소·별칭은 참여자가 아니다.
-        const { mergeParticipants, selfEmailsForAccount } = require('./emailAddress');
-        const selfEmails = await selfEmailsForAccount(account);
+        //   "이 계정 주소(+별칭)가 아닌 모든 from/to/cc". 방향 무관 대칭 규칙 — inbound 의 to 를
+        //   버리면 자기 주소로 발신된 메일이 자기 함에 도착한 스레드(운영 236건)가 상대를
+        //   영영 못 갖는다. bcc 는 의도적 은닉 수신자라 제외한다.
         const participants = mergeParticipants(
           thread.participants,
-          [{ email: fromEmail, name: fromName }, ...(Array.isArray(ccEmails) ? ccEmails : [])],
+          [
+            { email: fromEmail, name: fromName },
+            ...(Array.isArray(toEmails) ? toEmails : []),
+            ...(Array.isArray(ccEmails) ? ccEmails : []),
+          ],
           { excludeEmails: selfEmails },
         );
         // N+83 — Inbound 트리아지 (human/automated/marketing/spam). spam 판정은 classify 재사용.
@@ -688,4 +698,5 @@ function init() {
   console.log('[emailImapCron] initialized — IMAP IDLE (실시간) + 3분 backstop 폴링');
 }
 
-module.exports = { init, tick, syncOne, isKnownContact, reconcileIdle, startIdleForAccount, stopIdleForAccount };
+//   findOrCreateThread 는 검증용으로도 노출한다 — 스레드 매칭(step1~3)은 IMAP 없이 검증할 수 있어야 한다.
+module.exports = { init, tick, syncOne, isKnownContact, reconcileIdle, startIdleForAccount, stopIdleForAccount, findOrCreateThread };
