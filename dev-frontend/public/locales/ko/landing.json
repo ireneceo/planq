@@ -295,8 +295,8 @@
           "ProjectStage 자동 진행 엔진 — entity 상태 기반 멱등 재계산",
           "분할 청구 (invoice_installments) — 회차별 결제·세금계산서 마킹",
           "외화 결제 5종 (KRW/USD/EUR/JPY/CNY) + 한국+SWIFT/영문 입금 정보 동시 노출",
-          "1순위 자체 결제 (계좌이체 mark-paid) + 2순위 PortOne V2",
-          "팝빌 세금계산서 (한국 사업자만 자동) + 공개 결제 페이지 (token)"
+          "1순위 자체 결제 (계좌이체 mark-paid) + 2순위 카드 결제 (Stripe)",
+          "세금계산서 발행 관리 (한국 사업자 — 외부 발행 후 마킹) + 공개 결제 페이지 (token)"
         ],
         "shotAlt": "Q bill 화면 — 이번 달 매출과 청구서 발행·수금 현황"
       }
@@ -403,8 +403,8 @@
         "lead": "워크스페이스 공용 파일 → Drive · 개인 파일 → PlanQ 자체. 옵션 B+1 정책 (단방향)."
       },
       "billing": {
-        "name": "PortOne · 팝빌 결제",
-        "lead": "1순위 자체 결제 (계좌이체) + 2순위 PortOne V2 + 팝빌 세금계산서 통합. cron 4 단계 (overdue / recurring / report)."
+        "name": "Stripe 결제 · 세금계산서 발행 관리",
+        "lead": "1순위 자체 결제 (계좌이체) + 2순위 카드 결제 (Stripe) + 세금계산서 발행 관리(외부 발행 후 마킹 추적). cron 4 단계 (overdue / recurring / report)."
       }
     },
     "more": {

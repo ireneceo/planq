@@ -123,10 +123,12 @@ const AdminBillingSettingsPage = () => {
       setKeyError((e) => { const n = { ...e }; delete n[field]; return n; });
       return true;
     }
+    // 구분자도 번역 대상이다 — 여기에 한국어를 박으면 영어 UI 가 "sk_ 또는 rk_" 로 섞여 나온다.
+    const join = t('billing.keyPrefixJoin', ' 또는 ') as string;
     setKeyError((e) => ({
       ...e,
       [field]: t('billing.keyPrefixError', '{{prefix}} 로 시작하는 값을 넣어주세요.',
-        { prefix: (KEY_PREFIXES[field] || []).join(' 또는 ') }) as string,
+        { prefix: (KEY_PREFIXES[field] || []).join(join) }) as string,
     }));
     return false;
   };

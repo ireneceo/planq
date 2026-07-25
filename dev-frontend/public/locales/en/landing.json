@@ -295,8 +295,8 @@
           "ProjectStage auto-progression engine — idempotent recalculation by entity state",
           "Installment billing (invoice_installments) — per-installment payment & tax-invoice marking",
           "5 currencies (KRW/USD/EUR/JPY/CNY) + KR + SWIFT/EN bank info shown together",
-          "Native bank-transfer billing as primary + PortOne V2 secondary",
-          "Popbill tax invoices (auto for KR businesses) + public payment page (token)"
+          "Native bank-transfer billing as primary + card payment (Stripe) secondary",
+          "Tax invoice tracking (KR businesses — issued externally, marked here) + public payment page (token)"
         ],
         "shotAlt": "Q bill screen — monthly revenue with invoice and payment status"
       }
@@ -403,8 +403,8 @@
         "lead": "Workspace shared files → Drive · personal files → PlanQ native. Option B+1 policy (one-way)."
       },
       "billing": {
-        "name": "PortOne · Popbill billing",
-        "lead": "Bank-transfer first + PortOne V2 second + Popbill tax invoices integrated. 4-stage cron (overdue / recurring / report)."
+        "name": "Stripe payments · tax invoice tracking",
+        "lead": "Bank-transfer first + card payment (Stripe) second + tax invoice tracking (issued externally, marked here). 4-stage cron (overdue / recurring / report)."
       }
     },
     "more": {
