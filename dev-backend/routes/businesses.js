@@ -569,6 +569,11 @@ router.put('/:businessId/billing', authenticateToken, checkBusinessAccess, async
       if ((stripe_secret || stripe_webhook_secret) && usingFallbackKey() && process.env.NODE_ENV === 'production') {
         return errorResponse(res, 'encryption_key_required: EMAIL_ENCRYPTION_KEY 를 설정해야 결제 시크릿을 저장할 수 있습니다.', 400);
       }
+      // 키 형식 — 플랫폼 설정과 같은 검증기(빈 문자열=삭제는 통과).
+      const badKey = require('../services/stripeService').invalidStripeKeyField(req.body);
+      if (badKey) {
+        return errorResponse(res, `invalid_stripe_key_format: ${badKey.field} must start with ${badKey.expected.join(' or ')}`, 400);
+      }
       if (stripe_publishable_key !== undefined) {
         updates.stripe_publishable_key = stripe_publishable_key ? String(stripe_publishable_key).slice(0, 255) : null;
       }

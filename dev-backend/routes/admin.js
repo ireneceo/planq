@@ -375,14 +375,30 @@ router.post('/email-logs/:id/retry', async (req, res, next) => {
 //   (이전엔 여기서 j.stripe_secret_enc 로 _set 를 재계산했으나, 전역 toJSON 이 _enc 를 먼저 지워
 //    항상 false 가 되던 회귀 — Fable F-1. instance 가 아닌 toJSON 결과를 다시 읽지 말 것.)
 function serializePlatformSettings(row) {
-  return row.toJSON();
+  const j = row.toJSON();
+  // PortOne 은 걷어냈다 — 입력 경로가 없으므로 응답에서도 내보내지 않는다(죽은 필드 노출 금지).
+  //   DB 컬럼과 결제 이력(Payment.method ENUM 'portone')은 그대로 둔다.
+  delete j.portone_store_id;
+  delete j.portone_channel_key;
+  delete j.portone_channel_key_billing;
+  delete j.portone_webhook_secret;
+  return j;
 }
 
 router.get('/platform-settings', async (req, res, next) => {
   try {
     const row = await PlatformSetting.findOne({ order: [['id', 'ASC']] });
     if (!row) return successResponse(res, null);
-    return successResponse(res, serializePlatformSettings(row));
+    const data = serializePlatformSettings(row);
+    // "카드 결제 켜짐" 은 서버가 판정해서 내려준다.
+    //   *_set 은 "암호문이 존재하는가" 일 뿐이라, 암호화 키 회전·blob 손상 시 실제 결제 가능 여부와
+    //   갈린다(_set=true 인데 복호화 실패로 결제는 꺼짐). 화면이 두 조건을 재조합하면 그 순간
+    //   거짓 "켜짐" 이 생긴다 — 실제 소비처(routes/plan.js·invoices.js)와 같은 단일 원천을 쓴다.
+    try {
+      const { isStripeEnabled } = require('../services/stripeService');
+      data.stripe_enabled = await isStripeEnabled('platform');
+    } catch { data.stripe_enabled = false; }
+    return successResponse(res, data);
   } catch (err) { next(err); }
 });
 
@@ -398,6 +414,11 @@ router.put('/platform-settings', async (req, res, next) => {
     }
     if (b.brand !== undefined && (!String(b.brand).trim() || String(b.brand).length > 100)) {
       return errorResponse(res, 'brand_invalid', 400);
+    }
+    // Stripe 키 형식 — 접두가 틀리면 저장 자체를 막는다(프론트 검증만으론 API 직호출로 재발).
+    const badKey = require('../services/stripeService').invalidStripeKeyField(b);
+    if (badKey) {
+      return errorResponse(res, `invalid_stripe_key_format: ${badKey.field} must start with ${badKey.expected.join(' or ')}`, 400);
     }
     const setStr = (k, max) => (b[k] !== undefined ? { [k]: b[k] ? String(b[k]).slice(0, max) : null } : {});
     const setNum = (k, fb) => (b[k] !== undefined && Number.isFinite(Number(b[k])) ? { [k]: Number(b[k]) } : (fb !== undefined ? {} : {}));
@@ -429,10 +450,7 @@ router.put('/platform-settings', async (req, res, next) => {
         ? { stripe_secret_enc: b.stripe_secret ? encrypt(String(b.stripe_secret)) : null } : {}),
       ...(b.stripe_webhook_secret !== undefined
         ? { stripe_webhook_secret_enc: b.stripe_webhook_secret ? encrypt(String(b.stripe_webhook_secret)) : null } : {}),
-      ...setStr('portone_store_id', 100),
-      ...setStr('portone_channel_key', 200),
-      ...setStr('portone_channel_key_billing', 200),
-      ...setStr('portone_webhook_secret', 200),
+      // PortOne 은 걷어냈다(입력 경로 제거). DB 컬럼·결제 이력 ENUM 은 보존.
       ...setNum('default_vat_rate'),
       ...setNum('default_due_days'),
       // 약관 버전 + 점검·공지 (2026-05-05)
