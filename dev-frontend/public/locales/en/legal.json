@@ -13,7 +13,7 @@
         "Required: email address, password (hashed), name",
         "Optional: profile photo, phone number, organization name",
         "Automatically collected: IP address, cookies, access logs, browser/device info",
-        "Payment: handled directly by payment processors (Stripe, PortOne). The Company only stores transaction ID and amount."
+        "Payment: card payments are handled directly by our payment processor (Stripe); the Company stores only the transaction ID and amount. For bank-transfer payments, the Company checks the depositor name and amount solely to confirm the deposit, and does not separately collect or store bank account details."
       ]
     },
     "s2": {
@@ -34,7 +34,7 @@
         "Google LLC (USA) — when you connect Google Calendar: email, calendar events (read-only), OAuth token. Purpose: showing your events inside PlanQ Calendar. Retention: until disconnection.",
         "PlanQ's access, use, and storage of Google user data complies with the Google API Services User Data Policy, including the Limited Use requirements. Such data is used only to provide the features described above, and is never used for advertising or sold to third parties.",
         "Stripe, Inc. (USA / Malaysia) — global card payments: amount, email. Card details handled by Stripe directly.",
-        "PortOne (Iamport Inc., Korea) — Korean payments: amount, email.",
+        "When a workspace connects its own Stripe account to receive card payments from its clients (Q Bill), payment data is processed directly between the client and that workspace's Stripe account and does not pass through the Company. The Company stores only the transaction ID and amount for invoice processing; the workspace operator is the data controller for such payments.",
         "OpenAI, L.L.C. (USA) — Cue AI feature: partial conversation content. Not used for model training (per OpenAI API terms).",
         "Deepgram, Inc. (USA) — Q Note recording: audio data. Not used for model training."
       ]
@@ -120,7 +120,7 @@
       "title": "Article 3 (Subscription and Payment)",
       "items": [
         "Paid Services are billed monthly or yearly with automatic renewal.",
-        "Payment methods: Stripe (global cards), PortOne (Korean payments — cards, KakaoPay, Naver Pay, bank transfer, etc.)",
+        "Payment methods: bank transfer, and card payment via Stripe where available. For bank transfers, the Company activates the subscription after confirming the deposit.",
         "Users may cancel anytime before the next billing date. Cancellation takes effect from the next billing cycle.",
         "International users may be charged additional taxes (VAT, GST, sales tax) on top of listed prices.",
         "Failed payments enter a 7-day grace period. If unpaid, the account reverts to the Free plan."

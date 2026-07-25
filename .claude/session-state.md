@@ -37,6 +37,14 @@ session-state.md 읽고 이어서 개발해.
 
 ---
 
+## ⚠️ 배포 시 반드시 수행 (코드 배포로 안 끝나는 것)
+
+- **약관·처리방침 개정 공지** — 절차: `docs/LEGAL_UPDATE_2026-08-01_ROLLOUT.md`
+  시행일 **2026-08-01** (처리방침 §10 = 시행 7일 전 공지 의무). 배포 시 `announcement_text` 공지 1회 +
+  개정 안내 메일 1회. **`terms_version`/`privacy_version` 은 올리지 않는다**(재동의 미트리거 — 배포 전후 값 동일 확인).
+- **#200(b') 메일 참여자 백필** — 운영 954행. dry-run → `email_threads` 스냅샷 → `--apply` → 재실행 변경 0 확인.
+  `node scripts/backfill-thread-participants.js`
+
 ## 📂 다음 할 일 (우선순위)
 
 1. **#200(b') participants 백필** — 운영 954 스레드 `participants=[]` 옛 데이터. to_emails 포맷 혼재(string 배열 vs 객체 배열) 정규화 필요, 멱등. 중복 스레드 병합은 하지 말 것(고위험·저가치).
