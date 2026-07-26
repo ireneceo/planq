@@ -99,10 +99,10 @@
       "observer": "On hold"
     },
     "external_review": {
-      "assignee": "External confirm",
-      "reviewer": "External confirm",
-      "requester": "External confirm",
-      "observer": "External confirm"
+      "assignee": "External review",
+      "reviewer": "External review",
+      "requester": "External review",
+      "observer": "External review"
     }
   },
   "roleBadge": {
@@ -130,7 +130,7 @@
     "rev_revision": "I requested revision",
     "rev_approved": "I approved",
     "on_hold": "On hold",
-    "external_review": "External confirm"
+    "external_review": "External review"
   },
   "scope": {
     "mine": "My tasks",
@@ -1097,15 +1097,21 @@
     "chartEmptyHint": "Start focusing on tasks or log actual hours and the chart fills in."
   },
   "hold": {
-    "action": "Hold",
+    "action": "Put on hold",
     "resume": "Resume",
-    "externalAction": "External confirm",
+    "externalAction": "Send for external review",
     "externalResume": "Resume work",
     "reasonPlaceholder": "Reason (optional)",
     "confirm": "Confirm hold",
     "cancel": "Cancel",
     "banner": "On hold",
-    "bannerWithReason": "On hold — {{reason}}",
-    "externalBanner": "Waiting on external confirmation"
+    "externalBanner": "Awaiting external confirmation",
+    "completeBlocked": "Resume the task before completing"
+  },
+  "weekHold": {
+    "chip": "On hold {{n}}",
+    "emptyTitle": "No active tasks this week",
+    "emptyDesc": "{{n}} on-hold task(s) are in the All tab",
+    "emptyCta": "View on-hold tasks"
   }
 }

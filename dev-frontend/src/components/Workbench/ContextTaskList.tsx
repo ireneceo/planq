@@ -53,6 +53,9 @@ const STATUS_TONE: Record<string, string> = {
   revision_requested: '#EF4444',
   completed: '#22C55E',
   canceled: '#CBD5E1',
+  // #206 — 없으면 회색 폴백이라 not_started 와 구분이 안 됐다 (QTalk 우측·QMail 컨텍스트 2표면)
+  on_hold: '#EA580C',
+  external_review: '#0EA5E9',
 };
 
 export default function ContextTaskList({
@@ -139,7 +142,8 @@ export default function ContextTaskList({
                   const due = dueLabel(task.due_date);
                   return (
                     <Row key={task.id} type="button" onClick={() => openTask(task.id)}>
-                      <Dot $color={STATUS_TONE[task.status] || '#94A3B8'} />
+                      <Dot $color={STATUS_TONE[task.status] || '#94A3B8'}
+                        title={t(`qtask:status.${task.status}.observer`, task.status) as string} />
                       <RowMain>
                         <RowTitle>{task.title}</RowTitle>
                         <RowMeta>

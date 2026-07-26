@@ -86,7 +86,9 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
 
   const allHits: Hit[] = useMemo(() => {
     const h: Hit[] = [];
-    (result.tasks || []).forEach(x => h.push({ id: x.id, title: x.title, sub: x.status, to: `/tasks?task=${x.id}`, type: 'tasks' }));
+    // #206 — status 를 raw 로 내보내면 `on_hold` 같은 snake_case 가 사용자에게 그대로 노출된다
+    //   (신규 2값만의 문제가 아니라 기존 전 상태가 그랬다 — 일괄 라벨화).
+    (result.tasks || []).forEach(x => h.push({ id: x.id, title: x.title, sub: x.status ? t(`qtask:status.${x.status}.observer`, { defaultValue: x.status }) as string : undefined, to: `/tasks?task=${x.id}`, type: 'tasks' }));
     (result.posts || []).forEach(x => h.push({ id: x.id, title: x.title, sub: x.category || undefined, to: `/docs?post=${x.id}`, type: 'posts' }));
     (result.records || []).forEach(x => h.push({ id: x.id, title: x.name, sub: x.category || undefined, to: `/records/${x.id}`, type: 'records' }));
     (result.files || []).forEach(x => h.push({ id: x.id, title: x.file_name, sub: x.mime_type || undefined, to: `/files?file=${x.id}`, type: 'files' }));
@@ -95,7 +97,7 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
     (result.clients || []).forEach(x => h.push({ id: x.id, title: x.display_name || x.company_name || `#${x.id}`, sub: x.email || undefined, to: `/business/clients?client=${x.id}`, type: 'clients' }));
     (result.projects || []).forEach(x => h.push({ id: x.id, title: x.name, sub: x.status, to: `/projects/p/${x.id}`, type: 'projects' }));
     return h;
-  }, [result]);
+  }, [result, t]);   // #206 — 상태 라벨 i18n 사용 → 언어 전환 시 재계산
 
   // #210 — 메뉴(페이지) 이동 결과. 검색어가 없으면 전체 메뉴 목록(= '+' 로 새 탭 열 때 메뉴 고르기),
   //         있으면 메뉴 이름·별칭·경로 매칭. 사이드바와 같은 역할 조건(config/navMenus)을 쓴다.

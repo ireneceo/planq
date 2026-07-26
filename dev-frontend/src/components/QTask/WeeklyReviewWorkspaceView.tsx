@@ -358,8 +358,12 @@ export default WeeklyReviewWorkspaceView;
 function riskKindLabel(t: (k: string) => string, k: RiskKind): string {
   return t(`weeklyReview.workspace.risks.kind${k === 'overdue' ? 'Overdue' : k === 'stalled' ? 'Stalled' : 'DueSoonLow'}`);
 }
-function blockerStatusLabel(t: (k: string) => string, s: BlockerStatus): string {
-  return t(`weeklyReview.workspace.blockers.status${s === 'waiting' ? 'Waiting' : 'Revision'}`);
+// #206 — 옛 구현은 waiting 이 아니면 무조건 "수정요청" 이었다. 보류가 수정요청으로 **오표기**된다.
+//   전용 키가 있으면 쓰고, 없으면 업무 상태 라벨(qtask ns)로 폴백한다 — 신규 상태가 늘어도 안 깨진다.
+function blockerStatusLabel(t: (k: string, o?: Record<string, unknown>) => string, s: BlockerStatus): string {
+  if (s === 'waiting') return t('weeklyReview.workspace.blockers.statusWaiting');
+  if (s === 'revision_requested') return t('weeklyReview.workspace.blockers.statusRevision');
+  return t(`qtask:status.${s}.observer`, { defaultValue: s });
 }
 function healthLabel(t: (k: string) => string, h: Health): string {
   return t(`weeklyReview.workspace.portfolio.health${h === 'green' ? 'Green' : h === 'yellow' ? 'Yellow' : 'Red'}`);
@@ -513,8 +517,8 @@ const RiskKindChip = styled.span<{ $kind: RiskKind }>`
 `;
 const BlockerChip = styled.span<{ $status: BlockerStatus }>`
   font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 3px;
-  background: ${p => p.$status === 'waiting' ? '#E0E7FF' : '#FEE2E2'};
-  color: ${p => p.$status === 'waiting' ? '#3730A3' : '#991B1B'};
+  background: ${p => p.$status === 'waiting' ? '#E0E7FF' : p.$status === 'on_hold' ? '#FFEDD5' : '#FEE2E2'};
+  color: ${p => p.$status === 'waiting' ? '#3730A3' : p.$status === 'on_hold' ? '#9A3412' : '#991B1B'};
 `;
 const DDayChip = styled.span<{ $danger?: boolean }>`
   font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 3px;

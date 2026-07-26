@@ -20,9 +20,12 @@ export interface EmptyStateProps {
   onSecondaryCta?: () => void;
   size?: 'sm' | 'md';                  // sm: 리스트 row 작은 빈 상태, md: 페이지 전체 빈 상태
   className?: string;
+  // 하니스 계약(CLAUDE.md §17) — CTA 버튼에 붙는 앵커. rest props 를 흘리지 않는 컴포넌트라
+  //   호출부에서 data-testid 를 줘도 DOM 에 닿지 않는다. 명시 prop 으로 받는다.
+  ctaTestId?: string;
 }
 
-const EmptyState: React.FC<EmptyStateProps> = ({ icon, title, description, ctaLabel, ctaIcon, onCta, secondaryCtaLabel, onSecondaryCta, size = 'md', className }) => {
+const EmptyState: React.FC<EmptyStateProps> = ({ icon, title, description, ctaLabel, ctaIcon, onCta, secondaryCtaLabel, onSecondaryCta, size = 'md', className, ctaTestId }) => {
   return (
     <Wrap className={className} $size={size}>
       {icon && size === 'md' && <IconCircle>{icon}</IconCircle>}
@@ -31,7 +34,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({ icon, title, description, ctaLa
       {(ctaLabel || secondaryCtaLabel) && (
         <CtaRow>
           {ctaLabel && onCta && (
-            <Cta type="button" onClick={onCta}>
+            <Cta type="button" onClick={onCta} data-testid={ctaTestId}>
               {ctaIcon}
               <span>{ctaLabel}</span>
             </Cta>

@@ -1105,7 +1105,13 @@
     "confirm": "보류 확정",
     "cancel": "취소",
     "banner": "보류 중",
-    "bannerWithReason": "보류 중 — {{reason}}",
-    "externalBanner": "외부 컨펌 대기 중"
+    "externalBanner": "외부 컨펌 대기 중",
+    "completeBlocked": "보류 해제 후 완료 처리할 수 있어요"
+  },
+  "weekHold": {
+    "chip": "보류 {{n}}",
+    "emptyTitle": "이번 주 활성 업무가 없어요",
+    "emptyDesc": "보류 중인 업무 {{n}}건은 전체 탭에 있어요",
+    "emptyCta": "보류 업무 보기"
   }
 }

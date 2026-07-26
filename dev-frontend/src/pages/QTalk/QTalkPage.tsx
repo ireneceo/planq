@@ -1366,6 +1366,8 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
   const handleToggleTask = async (id: number) => {
     const task = tasks.find((t) => t.id === id);
     if (!task) return;
+    // #206 — 보류/외부컨펌 중엔 완료 전이 불가 (백엔드 가드와 미러). 조용히 무시.
+    if (task.status === 'on_hold' || task.status === 'external_review') return;
     const nextStatus = task.status === 'completed' ? 'in_progress' : 'completed';
     try {
       const updated = await qtalkApi.updateTaskStatus(id, nextStatus);

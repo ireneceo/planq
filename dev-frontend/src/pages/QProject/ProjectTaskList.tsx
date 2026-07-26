@@ -12,6 +12,7 @@ import { apiFetch } from '../../contexts/AuthContext';
 import TaskRowActionMenu from '../../components/QTask/TaskRowActionMenu';
 import { GanttHeader, GanttRowTrack, GanttBar, useGanttScrollSync, type GanttRange } from '../../components/Common/GanttTrack';
 import { STATUS_COLOR, displayStatus, getStatusLabel, statusOptionsFor, type StatusCode } from '../../utils/taskLabel';
+import { StatusGlyph } from '../../components/Common/Icons';
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
 import { friendlyDeleteError } from '../../utils/taskDeleteError';
 import {
@@ -208,7 +209,9 @@ const ProjectTaskList: React.FC<Props> = ({
     const prevVal = (tasks.find((t) => t.id === taskId) as Record<string, unknown> | undefined)?.[field];
     onLocalUpdate(taskId, { [field]: value } as Partial<TaskRow>);
     const r = await apiFetch(`/api/tasks/by-business/${businessId}/${taskId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [field]: value }) });
-    if (!r.ok) onLocalUpdate(taskId, { [field]: prevVal } as Partial<TaskRow>);  // 실패 시 낙관적 되돌림(assignGroup 패턴)
+    if (!r.ok) { onLocalUpdate(taskId, { [field]: prevVal } as Partial<TaskRow>); return; }  // 실패 시 낙관적 되돌림(assignGroup 패턴)
+    // #206 — status 전이는 백엔드가 Focus 세션을 전환/종료한다. 위젯 30초 폴링을 기다리지 않게 즉시 동기화.
+    if (field === 'status') { try { window.dispatchEvent(new CustomEvent('focus:refresh')); } catch { /* noop */ } }
   };
 
   // 업무 → 그룹 이동 (드롭다운·드래그 공용). 실패 시 optimistic 되돌림.
@@ -279,7 +282,10 @@ const ProjectTaskList: React.FC<Props> = ({
     const statusLabel = getStatusLabel(task, role, today, (k, f) => t(k, f || k));
     const isEditing = editingTitle === task.id;
     const prog = task.progress_percent || 0;
-    const sliderColor = task.status === 'completed' ? '#94A3B8' : isDelayed ? '#DC2626' : '#14B8A6';
+    // #206 — 보류/외부컨펌도 완료와 같은 회색(흐르지 않는 상태의 시각 언어)
+    const frozen = task.status === 'completed' || task.status === 'on_hold' || task.status === 'external_review';
+    const holdBlocked = task.status === 'on_hold' || task.status === 'external_review';
+    const sliderColor = frozen ? '#94A3B8' : isDelayed ? '#DC2626' : '#14B8A6';
 
     return (
       <Fragment key={task.id}>
@@ -318,7 +324,9 @@ const ProjectTaskList: React.FC<Props> = ({
                 return { ok: true };
               }}
             />
-            <TaskCheck type="checkbox" checked={task.status === 'completed'}
+            {/* #206 — 보류/외부컨펌 중 완료 우회 차단 (백엔드 가드와 미러) */}
+            <TaskCheck type="checkbox" checked={task.status === 'completed'} disabled={holdBlocked}
+              title={holdBlocked ? t('hold.completeBlocked', '보류 해제 후 완료 처리할 수 있어요') as string : undefined}
               onChange={() => saveField(task.id, 'status', task.status === 'completed' ? 'in_progress' : 'completed')} />
             {isEditing ? (
               <TitleInput autoFocus value={titleDraft}
@@ -395,8 +403,9 @@ const ProjectTaskList: React.FC<Props> = ({
           </TCell>
           <TCell $w={showTimeline ? '60px' : '100px'} $center style={{ position: 'relative', overflow: 'visible' }}>
             <StatusPill data-dropdown $bg={sc.bg} $fg={sc.fg} $clickable
-              onClick={e => { e.stopPropagation(); setStatusOpenId(statusOpenId === task.id ? null : task.id); }}>
-              {statusLabel}
+              onClick={e => { e.stopPropagation(); setStatusOpenId(statusOpenId === task.id ? null : task.id); }}
+              aria-haspopup="listbox" aria-expanded={statusOpenId === task.id}>
+              <StatusGlyph code={task.status} /> {statusLabel}
             </StatusPill>
             {statusOpenId === task.id && (
               <StatusDropdown data-dropdown>

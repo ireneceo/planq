@@ -793,7 +793,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     const task = await Task.findOne({ where: { id: req.params.id, business_id: businessId } });
     if (!task) return errorResponse(res, 'task_not_found', 404);
 
-    const { title, description, body, assignee_id, status, priority, due_date, start_date, estimated_hours, actual_hours, progress_percent, category, planned_week_start, project_id, recurrence_rule, workstream_id, is_milestone } = req.body;
+    const { title, description, body, assignee_id, status, priority, due_date, start_date, estimated_hours, actual_hours, progress_percent, category, planned_week_start, project_id, recurrence_rule, workstream_id, is_milestone, hold_reason } = req.body;
     const updates = {};
     if (is_milestone !== undefined) updates.is_milestone = !!is_milestone;
     if (title !== undefined) updates.title = title;
@@ -905,6 +905,16 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
       if (!gate.ok) return errorResponse(res, gate.reason, 400);
     }
 
+    // #206 보류 사유 — **on_hold 인 동안에만** 의미가 있다.
+    //   보류가 아닌 업무에 사유가 남으면 해제 후에도 유령 사유가 배너에 되살아난다.
+    //   이번 요청이 on_hold 진입이거나 이미 on_hold 인 경우에만 반영하고, 그 외엔 무시한다.
+    if (hold_reason !== undefined) {
+      const enteringHold = status === 'on_hold';
+      if (enteringHold || task.status === 'on_hold') {
+        updates.hold_reason = hold_reason ? String(hold_reason).trim().slice(0, 500) || null : null;
+      }
+    }
+
     // #206 — 드롭다운으로 직접 status 를 바꾸는 경로에서도 보류 필드를 정합하게 유지한다.
     //   on_hold 진입: 복귀 목적지 저장 / on_hold 이탈: 초기화 (액션 계층 hold·resume 과 같은 규칙)
     if (status !== undefined && status !== task.status) {
@@ -958,6 +968,8 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
       body: () => isAssignee || isPlatformAdmin || isWsAdmin,         // owner 빠짐, admin 백도어 (수행자 영역, §5.7)
       category: () => isCreator || isAssignee || isOwnerOrAdmin,
       status: () => isAssignee || isCreator || isOwnerOrAdmin,
+      // #206 보류 사유 — 상태를 바꿀 수 있는 사람이 사유도 쓴다 (같은 집합)
+      hold_reason: () => isAssignee || isCreator || isOwnerOrAdmin,
       assignee_id: () => isCreator || isOwnerOrAdmin,
       due_date: () => isCreator || isOwnerOrAdmin,
       start_date: () => isCreator || isOwnerOrAdmin,

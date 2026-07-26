@@ -18,6 +18,8 @@ import RichEditor from '../Common/RichEditor';
 import ShareModal from '../Common/ShareModal';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import ActionButton from '../Common/ActionButton';
+import AutoSaveField from '../Common/AutoSaveField';
+import { StatusGlyph } from '../Common/Icons';
 import {
   buildPresetRRule, buildCustomRRule, parseRRule,
   type RecurPreset, type RecurEndType, type RecurCustomUnit,
@@ -312,6 +314,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const [approveOpen, setApproveOpen] = useState(false);   // #112c — 승인 코멘트 인라인 폼
   const [holdFormOpen, setHoldFormOpen] = useState(false); // #206 — 보류 사유 인라인 폼 (팝업 위 팝업 금지)
   const [holdReason, setHoldReason] = useState('');
+  const [holdReasonDraft, setHoldReasonDraft] = useState('');  // #206 — 배너 안 사후 편집(AutoSave)
   const [approveNote, setApproveNote] = useState('');
   // #112 — 수정요청에 참고 파일 첨부 (일반 댓글 첨부와 동일 인프라: context='comment')
   const [revisionFiles, setRevisionFiles] = useState<File[]>([]);
@@ -383,7 +386,12 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         apiFetch(`/api/tasks/${id}/detail`).then(r => r.json()),
         loadWorkflow(id),
       ]);
-      if (dr.success) setDetailTask(dr.data);
+      if (dr.success) {
+        setDetailTask(dr.data);
+        // #206 — 서버 값으로 배너 사유 draft 동기화. 사용자가 타이핑 중인 값을 덮지 않도록
+        //   로드/재로드 시점에만 맞춘다 (AutoSave 가 저장 후 detail 을 다시 읽는 경로 포함).
+        setHoldReasonDraft(dr.data?.hold_reason || '');
+      }
     } catch { /* ignore */ }
   }, [loadWorkflow]);
 
@@ -622,7 +630,15 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const actHold = async () => {
     const reason = holdReason.trim();
     const r = await callAction('/hold', 'POST', reason ? { reason } : undefined);
-    if (r?.success) { setHoldFormOpen(false); setHoldReason(''); }
+    if (r?.success) {
+      setHoldFormOpen(false); setHoldReason('');
+      // 접근성(설계 §2-10) — 눌렀던 버튼이 사라지면 포커스가 body 로 떨어져 키보드 사용자가 위치를 잃는다.
+      //   새로 나타난 배너의 [보류 해제] 로 옮겨 맥락을 잇는다.
+      requestAnimationFrame(() => {
+        const el = document.querySelector<HTMLElement>('[data-testid="task-resume"]');
+        el?.focus();
+      });
+    }
   };
   const actResume = () => callAction('/resume');
   const actExternalReview = async () => {
@@ -959,7 +975,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
             <TaskFocusBar taskId={detailTask.id} businessId={bizId} assigneeId={detailTask.assignee_id} status={detailTask.status} />
             {/* WORK_FLOW §6-B — 이월 연속성 배너: 지난 주부터 넘어온 활성 업무임을 알리고 과거 이력이 살아있음을 인지시킴. */}
             {(() => {
-              const active = ['in_progress','reviewing','revision_requested','waiting'].includes(detailTask.status);
+              const active = ['in_progress','reviewing','revision_requested','waiting','external_review'].includes(detailTask.status);
               const created = (detailTask.created_at || '').slice(0,10);
               const mon = (() => { const d = new Date(); const off = (d.getDay()+6)%7; d.setDate(d.getDate()-off); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
               if (!active || !created || created >= mon) return null;
@@ -1043,11 +1059,12 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   {canDirectStatus ? (
                     <StatusBadge as="button" $bg={sc.bg} $fg={sc.fg}
                       onClick={e => { e.stopPropagation(); setStatusOpen(v => !v); }}
-                      title={t('list.statusHint', 'Click to change status') as string}>
-                      {statusLabel} ▾
+                      title={t('list.statusHint', 'Click to change status') as string}
+                      aria-haspopup="listbox" aria-expanded={statusOpen}>
+                      <StatusGlyph code={dStatus} /> {statusLabel} ▾
                     </StatusBadge>
                   ) : (
-                    <StatusBadge as="span" $bg={sc.bg} $fg={sc.fg} title={statusLabel}>{statusLabel}</StatusBadge>
+                    <StatusBadge as="span" $bg={sc.bg} $fg={sc.fg} title={statusLabel}><StatusGlyph code={dStatus} /> {statusLabel}</StatusBadge>
                   )}
                   {detailTask.review_round != null && detailTask.review_round > 0 &&
                     (detailTask.status === 'reviewing' || detailTask.status === 'revision_requested') &&
@@ -1123,6 +1140,40 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   </MetaDate>
                 )}
               </Meta>
+
+              {/* #206 — "왜 멈춰 있나"는 스크롤 없이 첫 화면에서 보여야 한다(설계 §2-3).
+                  role="status" 로 상태 변경이 보조기기에 읽히게 하고, 사유는 배너 안에서 바로 고친다
+                  (리스트 드롭다운으로 사유 없이 보류한 경우의 사후 보완 경로). */}
+              {(isOnHold || isExternalReview) && (
+                <HoldBanner $kind={isOnHold ? 'hold' : 'external'} role="status" data-testid="task-hold-banner">
+                  <HoldBannerHead>
+                    <HoldBannerTitle>
+                      <StatusGlyph code={isOnHold ? 'on_hold' : 'external_review'} size={13} />
+                      {isOnHold ? t('hold.banner', 'On hold') : t('hold.externalBanner', 'Awaiting external confirmation')}
+                    </HoldBannerTitle>
+                    {canChangeStatus && (
+                      <ActionSecondary onClick={actResume} disabled={actionBusy}
+                        data-testid={isOnHold ? 'task-resume' : 'task-external-resume'}>
+                        {isOnHold ? t('hold.resume', 'Resume') : t('hold.externalResume', 'Resume work')}
+                      </ActionSecondary>
+                    )}
+                  </HoldBannerHead>
+                  {isOnHold && (canChangeStatus ? (
+                    <AutoSaveField type="input" onSave={() => saveField('hold_reason', holdReasonDraft.trim() || null)}>
+                      <HoldReasonInput
+                        data-testid="task-hold-reason"
+                        placeholder={t('hold.reasonPlaceholder', 'Reason (optional)') as string}
+                        maxLength={500}
+                        value={holdReasonDraft}
+                        aria-label={t('hold.reasonPlaceholder', 'Reason (optional)') as string}
+                        onChange={e => setHoldReasonDraft(e.target.value)}
+                      />
+                    </AutoSaveField>
+                  ) : detailTask.hold_reason ? (
+                    <HoldReasonText>{detailTask.hold_reason}</HoldReasonText>
+                  ) : null)}
+                </HoldBanner>
+              )}
               <MetaGrid>
                 <MetaCell>
                   <MetaLabel>{t('detail.meta.project', '프로젝트')}
@@ -1435,25 +1486,6 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               )}
             </Section>
 
-            {/* #206 보류 / 외부컨펌 배너 — 지금 이 업무가 왜 멈춰 있는지를 액션보다 먼저 알린다 */}
-            {(isOnHold || isExternalReview) && (
-              <HoldBanner $kind={isOnHold ? 'hold' : 'external'}>
-                <HoldBannerText>
-                  {isOnHold
-                    ? (detailTask.hold_reason
-                      ? t('hold.bannerWithReason', 'On hold — {{reason}}', { reason: detailTask.hold_reason })
-                      : t('hold.banner', 'On hold'))
-                    : t('hold.externalBanner', 'Waiting on external confirmation')}
-                </HoldBannerText>
-                {canChangeStatus && (
-                  <ActionSecondary onClick={actResume} disabled={actionBusy}
-                    data-testid={isOnHold ? 'task-resume' : 'task-external-resume'}>
-                    {isOnHold ? t('hold.resume', 'Resume') : t('hold.externalResume', 'Resume work')}
-                  </ActionSecondary>
-                )}
-              </HoldBanner>
-            )}
-
             {/* #206 보류 / 외부컨펌 진입 — 전진 액션이 아니므로 Secondary 톤 (UI 3톤 규칙) */}
             {(holdAvailable || externalAvailable) && (
               holdFormOpen ? (
@@ -1466,7 +1498,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     autoFocus
                   />
                   <RevisionRow>
-                    <ActionSecondary onClick={() => { setHoldFormOpen(false); setHoldReason(''); }}>{t('common.cancel', 'Cancel')}</ActionSecondary>
+                    <ActionSecondary onClick={() => { setHoldFormOpen(false); setHoldReason(''); }}>{t('hold.cancel', 'Cancel')}</ActionSecondary>
                     <ActionPrimary onClick={actHold} disabled={actionBusy} data-testid="task-hold-confirm">
                       {t('hold.confirm', 'Confirm hold')}
                     </ActionPrimary>
@@ -1476,20 +1508,22 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 <HoldActionRow>
                   {holdAvailable && (
                     <ActionSecondary onClick={() => setHoldFormOpen(true)} disabled={actionBusy} data-testid="task-hold">
-                      {t('hold.action', 'Hold')}
+                      {t('hold.action', 'Put on hold')}
                     </ActionSecondary>
                   )}
                   {externalAvailable && (
                     <ActionSecondary onClick={actExternalReview} disabled={actionBusy} data-testid="task-external">
-                      {t('hold.externalAction', 'External confirm')}
+                      {t('hold.externalAction', 'Send for external review')}
                     </ActionSecondary>
                   )}
                 </HoldActionRow>
               )
             )}
 
-            {/* 단계 되돌리기 — 하단 액션 영역 앞. 권한·이력은 backend 가 판정. (운영 피드백: 위 제목 옆 X → 액션 앞) */}
-            {detailTask.status !== 'not_started' && (
+            {/* 단계 되돌리기 — 하단 액션 영역 앞. 권한·이력은 backend 가 판정. (운영 피드백: 위 제목 옆 X → 액션 앞)
+                #206 — 보류/외부컨펌 중에는 숨긴다. 출구는 [보류 해제] 하나로 단일화(설계 §2-3):
+                되돌리기와 해제가 같이 있으면 어느 쪽이 보류를 푸는지 모호하다. */}
+            {detailTask.status !== 'not_started' && !isOnHold && !isExternalReview && (
               <RevertRow>
                 <RevertBtn type="button" onClick={() => revertStatus()} disabled={reverting}
                   title={t('detail.revert.tip', '직전 단계로 되돌리기') as string} aria-label={t('detail.revert.tip', '직전 단계로 되돌리기') as string}>
@@ -1937,6 +1971,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                               //   라벨은 to_status/from_status 에서 파생해 "보류/보류 해제"를 유지한다.
                               h.to_status === 'on_hold' ? t('hold.banner', 'On hold')
                                 : h.from_status === 'on_hold' ? t('hold.resume', 'Resume')
+                                : h.from_status === 'external_review' ? t('hold.externalResume', 'Resume work')
                                   : h.to_status === 'external_review' ? t('hold.externalAction', 'External confirm')
                                     : t(`detail.history.event.${h.event_type}`, h.event_type)
                             }</TimelineEvent>
@@ -2101,13 +2136,21 @@ const MetaDate = styled.span`font-size:11px;color:#94A3B8;white-space:nowrap;`;
 const RevertRow = styled.div`display:flex;justify-content:flex-end;padding:4px 0 2px;`;
 // #206 — 보류/외부컨펌 배너. 색은 STATUS_COLOR(on_hold orange / external_review sky) 와 같은 계열.
 const HoldBanner = styled.div<{ $kind: 'hold' | 'external' }>`
-  display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
-  padding:10px 12px;border-radius:10px;margin:4px 0 8px;
+  display:flex;flex-direction:column;align-items:stretch;gap:8px;
+  padding:10px 12px;border-radius:10px;margin:6px 0 10px;
   background:${p => (p.$kind === 'hold' ? '#FFEDD5' : '#E0F2FE')};
   border:1px solid ${p => (p.$kind === 'hold' ? '#FDBA74' : '#7DD3FC')};
   color:${p => (p.$kind === 'hold' ? '#9A3412' : '#075985')};
 `;
-const HoldBannerText = styled.div`font-size:13px;font-weight:600;line-height:1.4;min-width:0;word-break:break-word;`;
+const HoldBannerHead = styled.div`display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;width:100%;`;
+const HoldBannerTitle = styled.div`display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;line-height:1.4;min-width:0;`;
+const HoldReasonInput = styled.input`
+  width:100%;box-sizing:border-box;padding:7px 30px 7px 10px;border-radius:8px;font-size:13px;
+  border:1px solid rgba(0,0,0,0.12);background:rgba(255,255,255,0.75);color:inherit;
+  &::placeholder{color:currentColor;opacity:0.55;}
+  &:focus{outline:2px solid rgba(0,0,0,0.25);outline-offset:1px;background:#FFF;}
+`;
+const HoldReasonText = styled.div`font-size:13px;line-height:1.5;word-break:break-word;opacity:0.9;`;
 const HoldActionRow = styled.div`display:flex;gap:8px;flex-wrap:wrap;padding:2px 0 6px;`;
 const StatusBadgeWrap = styled.span`position:relative;display:inline-flex;align-items:center;gap:4px;`;
 const StatusBadge = styled.span<{ $bg: string; $fg: string }>`display:inline-flex;align-items:center;gap:2px;padding:3px 10px;font-size:11px;font-weight:700;background:${p => p.$bg};color:${p => p.$fg};border:none;border-radius:10px;cursor:pointer;user-select:none;&:hover{filter:brightness(0.95);}`;
