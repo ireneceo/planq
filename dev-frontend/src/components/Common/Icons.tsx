@@ -272,3 +272,24 @@ export const ClientsIcon = ({ size = 16, ...rest }: IconProps) => (
 export const InsightsIcon = ({ size = 16, ...rest }: IconProps) => (
   <svg {...base(size)} {...rest}><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-5"/></svg>
 );
+
+// #206 — 업무 상태 뱃지 보조 글리프. 색만으로 구분하면 색각 이상 사용자에게 실패하므로
+//   보류(‖)/외부컨펌(↗)에 아이콘을 병행한다. 라벨이 이미 옆에 있으므로 aria-hidden.
+//   그 외 상태는 null — 기존 뱃지 모양을 바꾸지 않는다.
+export const StatusGlyph = ({ code, size = 11, ...rest }: IconProps & { code?: string }) => {
+  if (code === 'on_hold') {
+    return (
+      <svg {...base(size)} aria-hidden="true" focusable="false" {...rest}>
+        <line x1="9" y1="4" x2="9" y2="20" /><line x1="15" y1="4" x2="15" y2="20" />
+      </svg>
+    );
+  }
+  if (code === 'external_review') {
+    return (
+      <svg {...base(size)} aria-hidden="true" focusable="false" {...rest}>
+        <line x1="7" y1="17" x2="17" y2="7" /><polyline points="9 7 17 7 17 15" />
+      </svg>
+    );
+  }
+  return null;
+};

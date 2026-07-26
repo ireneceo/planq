@@ -22,6 +22,7 @@ import TemplateSelectModal from '../../components/QTask/TemplateSelectModal';
 import CueTaskBar from '../../components/QTask/CueTaskBar';
 import AiActionButton from '../../components/Common/AiActionButton';
 import EmptyState from '../../components/Common/EmptyState';
+import { StatusGlyph } from '../../components/Common/Icons';
 import RichEditor from '../../components/Common/RichEditor';
 import AttachmentField from '../../components/Common/AttachmentField';
 import SearchBox from '../../components/Common/SearchBox';
@@ -55,6 +56,7 @@ type SortDir = 'asc' | 'desc';
 
 interface TaskRow {
   id: number; title: string; description: string | null; status: string;
+  hold_reason?: string | null;   // #206 — 보류 사유(리스트 title·칸반 카드 표시)
   has_unread?: boolean;
   priority_order: number | null; start_date: string | null; due_date: string | null;
   estimated_hours: number | null; actual_hours: number; progress_percent: number;
@@ -91,7 +93,11 @@ interface CandidateRow { id: number; title: string; description: string | null; 
 // 라벨·displayStatus·STATUS_COLOR 는 utils 로 이동 — 관점별 라벨 반영
 // (utils/taskLabel.ts + utils/taskRoles.ts)
 
-function sliderColor(){return '#14B8A6';} // 단일 색상 — 깔끔하게
+// #206 — 보류/외부컨펌은 회색으로 탈색한다(진행률 값 자체는 보존).
+//   teal 로 두면 "지금 흐르는 중"으로 읽혀 보류 상태와 모순.
+function sliderColor(status?:string){
+  return (status==='on_hold'||status==='external_review') ? '#94A3B8' : '#14B8A6';
+}
 
 // 날짜 범위 셀 — 시작+마감 통합. 클릭 시 캘린더 피커 열림
 const DateRangeCell:React.FC<{
@@ -958,9 +964,13 @@ const QTaskPage:React.FC=()=>{
   };
 
   const toggleComplete=(task:TaskRow)=>{
+    // #206 — 보류/외부컨펌 중엔 완료로 못 간다(백엔드 가드와 미러). 체크박스는 disabled 지만
+    //   프로그램적 호출 경로까지 막아 우회를 원천 차단한다.
+    if(task.status==='on_hold'||task.status==='external_review')return;
     if(task.status==='completed')changeStatus(task.id,'in_progress');
     else changeStatus(task.id,'completed');
   };
+  const completeBlocked=(status?:string)=>status==='on_hold'||status==='external_review';
 
   const handleSort=(key:SortKey)=>{
     if(sortKey===key)setSortDir(d=>d==='asc'?'desc':'asc');
@@ -1158,6 +1168,11 @@ const QTaskPage:React.FC=()=>{
   //  mine 뷰: 본인이 assignee 인 task 만 합산 (= 본인이 직접 처리하는 시간)
   //  workspace 뷰: 모든 task 의 담당자 시간 합산
   // 다른 담당자의 시간은 화면 task 행에 참고용으로 표시 (read-only).
+  // #206 V1 — 보류해서 주간 목록에서 빠진 "내 담당" 업무 수. 주간 탭에서만 의미가 있다.
+  //   allTasks 기준(주간 필터를 이미 통과 못 한 것들을 세야 하므로 filtered 로는 셀 수 없다).
+  const myHoldCount=useMemo(()=>allTasks.filter(t=>t.status==='on_hold'&&t.assignee_id===myId).length,[allTasks,myId]);
+  const goToHeldTasks=useCallback(()=>{ setTab('all'); setStatusFilter('on_hold'); },[setTab]);
+
   const summary=useMemo(()=>{
     let est=0,act=0;
     for(const t of filtered){
@@ -1532,7 +1547,7 @@ const QTaskPage:React.FC=()=>{
                 placeholder={t('filter.allStatus','All status')}
                 value={statusFilter?{value:statusFilter,label:t(`status.${statusFilter}.observer`,statusFilter)}:null}
                 onChange={(v)=>setStatusFilter((v as {value?:string})?.value||'')}
-                options={STATUS_CODES.filter(k=>k!=='task_requested').map(k=>({value:k,label:t(`status.${k}.observer`,k)}))} />
+                options={STATUS_CODES.filter(k=>k!=='task_requested'&&k!=='done_feedback').map(k=>({value:k,label:t(`status.${k}.observer`,k)}))} />
             </div>
             {scope==='workspace'&&(
               <div style={{minWidth:160}}>
@@ -1558,6 +1573,16 @@ const QTaskPage:React.FC=()=>{
                     : t('summary.remainCap', { rem: formatHours(remainingTotal), cap: formatHours(effectiveCapacity), defaultValue: '남은 {{rem}}h / 가용 {{cap}}h' })}
               </Chip>
               <Chip $coral>{t('summary.actual', { act: formatHours(summary.act) })}</Chip>
+              {/* #206 V1 — 보류하면 주간 목록에서 사라진다. 사라졌다는 사실 자체를 여기서 말해주지 않으면
+                  사용자는 업무가 없어졌다고 느낀다. 클릭하면 전체 탭 + 보류 필터로 착지. */}
+              {tab==='week'&&myHoldCount>0&&(
+                <Chip as="button" type="button" data-testid="qtask-hold-chip"
+                  onClick={goToHeldTasks}
+                  title={t('weekHold.emptyCta','보류 업무 보기') as string}
+                  style={{background:'#FFEDD5',color:'#9A3412',cursor:'pointer',border:'none'}}>
+                  <StatusGlyph code="on_hold" /> {t('weekHold.chip',{n:myHoldCount,defaultValue:'보류 {{n}}'})}
+                </Chip>
+              )}
             </ChipRow>
             <AiActionButton
               onClick={()=>setAiOpen(true)}
@@ -1639,7 +1664,10 @@ const QTaskPage:React.FC=()=>{
                           return { ok: true };
                         }}
                       />
-                      <TaskCheck type="checkbox" checked={task.status==='completed'} onChange={()=>toggleComplete(task)} />
+                      <TaskCheck type="checkbox" checked={task.status==='completed'}
+                        disabled={completeBlocked(task.status)}
+                        title={completeBlocked(task.status)?t('hold.completeBlocked','보류 해제 후 완료 처리할 수 있어요') as string:undefined}
+                        onChange={()=>toggleComplete(task)} />
                       {isEditing?(
                         <TitleInput autoFocus value={titleDraft} onChange={e=>setTitleDraft(e.target.value)}
                           onClick={e=>e.stopPropagation()}
@@ -1751,8 +1779,9 @@ const QTaskPage:React.FC=()=>{
                     <TCell $w="68px" $center style={{position:'relative',overflow:'visible'}}>
                       <StatusPill $bg={sc.bg} $fg={sc.fg} $clickable
                         onClick={e=>{e.stopPropagation();setStatusDropdownId(statusDropdownId===task.id?null:task.id);}}
-                        title={t('list.statusHint','클릭하면 단계 선택')}
-                      >{_statusLabel}</StatusPill>
+                        title={task.status==='on_hold'&&task.hold_reason ? task.hold_reason : t('list.statusHint','클릭하면 단계 선택')}
+                        aria-haspopup="listbox" aria-expanded={statusDropdownId===task.id}
+                      ><StatusGlyph code={task.status} /> {_statusLabel}</StatusPill>
                       {statusDropdownId===task.id&&(
                         <StatusDropdown data-dropdown="status">
                           {statusOptionsFor(task).map(s=>{const c=STATUS_COLOR[s as StatusCode]||STATUS_COLOR.not_started;return(
@@ -1829,7 +1858,7 @@ const QTaskPage:React.FC=()=>{
                         const progEditable = task.assignee_id===myId;
                         return (
                           <SliderWrap $disabled={!progEditable}>
-                            <SliderTrack><SliderFill $w={prog} $color={sliderColor()} /></SliderTrack>
+                            <SliderTrack><SliderFill $w={prog} $color={sliderColor(task.status)} /></SliderTrack>
                             <SliderRange type="range" min="0" max="100" step="5" value={prog}
                               disabled={!progEditable}
                               title={progEditable?undefined:t('list.notMyProgress','담당자만 수정 가능 (참고용)') as string}
@@ -1886,7 +1915,25 @@ const QTaskPage:React.FC=()=>{
                   </Fragment>
                 );
           })}
-          {filtered.length===0&&(
+          {/* #206 V1 — 주간이 비었는데 보류가 있으면 "없다"가 아니라 "어디 있는지"를 말해야 한다.
+              기본 빈 상태만 두면 삭제된 줄 안다. */}
+          {filtered.length===0&&tab==='week'&&myHoldCount>0&&(
+            <EmptyCenterWrap>
+            <EmptyState
+              icon={
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="9" y1="4" x2="9" y2="20" /><line x1="15" y1="4" x2="15" y2="20" />
+                </svg>
+              }
+              title={t('weekHold.emptyTitle','이번 주 활성 업무가 없어요')}
+              description={t('weekHold.emptyDesc',{n:myHoldCount,defaultValue:'보류 중인 업무 {{n}}건은 전체 탭에 있어요'})}
+              ctaLabel={t('weekHold.emptyCta','보류 업무 보기') as string}
+              onCta={goToHeldTasks}
+              ctaTestId="qtask-hold-empty-cta"
+            />
+            </EmptyCenterWrap>
+          )}
+          {filtered.length===0&&!(tab==='week'&&myHoldCount>0)&&(
             <EmptyCenterWrap>
             <EmptyState
               icon={
@@ -2165,10 +2212,10 @@ const QTaskPage:React.FC=()=>{
                       match:(x)=>x.assignee_id===myId&&displayStatus(x,todayStr)==='waiting' },
                     { key:'in_progress', title:t('columnGroup.in_progress','진행중'), color:STATUS_COLOR.in_progress,
                       match:(x)=>x.assignee_id===myId&&displayStatus(x,todayStr)==='in_progress' },
-                    { key:'revision', title:t('columnGroup.revision_requested','수정필요'), color:STATUS_COLOR.revision_requested,
-                      match:(x)=>x.assignee_id===myId&&displayStatus(x,todayStr)==='revision_requested' },
                     { key:'external_review', title:t('columnGroup.external_review','외부컨펌중'), color:STATUS_COLOR.external_review,
                       match:(x)=>x.assignee_id===myId&&x.status==='external_review' },
+                    { key:'revision', title:t('columnGroup.revision_requested','수정필요'), color:STATUS_COLOR.revision_requested,
+                      match:(x)=>x.assignee_id===myId&&displayStatus(x,todayStr)==='revision_requested' },
                   ];
                 } else if (scope === 'mine' && tab === 'requested') {
                   // 요청자 관점
@@ -2179,12 +2226,12 @@ const QTaskPage:React.FC=()=>{
                       match:(x)=>displayStatus(x,todayStr)==='waiting' },
                     { key:'in_progress', title:t('columnGroup.in_progress','진행중'), color:STATUS_COLOR.in_progress,
                       match:(x)=>x.status==='in_progress' },
+                    { key:'external_review', title:t('columnGroup.external_review','외부컨펌중'), color:STATUS_COLOR.external_review,
+                      match:(x)=>x.status==='external_review' },
                     { key:'reviewing_obs', title:t('columnGroup.reviewing_obs','확인진행중'), color:STATUS_COLOR.reviewing,
                       match:(x)=>x.status==='reviewing' },
                     { key:'revision_self', title:t('columnGroup.revision_self','수정중'), color:STATUS_COLOR.revision_requested,
                       match:(x)=>x.status==='revision_requested' },
-                    { key:'external_review', title:t('columnGroup.external_review','외부컨펌중'), color:STATUS_COLOR.external_review,
-                      match:(x)=>x.status==='external_review' },
                     { key:'on_hold', title:t('columnGroup.on_hold','보류'), color:STATUS_COLOR.on_hold,
                       match:(x)=>x.status==='on_hold' },
                     { key:'completed', title:t('columnGroup.completed','완료'), color:STATUS_COLOR.completed,
@@ -2201,12 +2248,12 @@ const QTaskPage:React.FC=()=>{
                       match:(x)=>displayStatus(x,todayStr)==='waiting' },
                     { key:'in_progress', title:t('columnGroup.in_progress','진행중'), color:STATUS_COLOR.in_progress,
                       match:(x)=>x.status==='in_progress' },
+                    { key:'external_review', title:t('columnGroup.external_review','외부컨펌중'), color:STATUS_COLOR.external_review,
+                      match:(x)=>x.status==='external_review' },
                     { key:'reviewing_obs', title:t('columnGroup.reviewing_obs','확인진행중'), color:STATUS_COLOR.reviewing,
                       match:(x)=>x.status==='reviewing' },
                     { key:'revision_obs', title:t('columnGroup.revision_obs','수정요청'), color:STATUS_COLOR.revision_requested,
                       match:(x)=>x.status==='revision_requested' },
-                    { key:'external_review', title:t('columnGroup.external_review','외부컨펌중'), color:STATUS_COLOR.external_review,
-                      match:(x)=>x.status==='external_review' },
                     { key:'on_hold', title:t('columnGroup.on_hold','보류'), color:STATUS_COLOR.on_hold,
                       match:(x)=>x.status==='on_hold' },
                     { key:'completed', title:t('columnGroup.completed','완료'), color:STATUS_COLOR.completed,
@@ -2268,15 +2315,19 @@ const QTaskPage:React.FC=()=>{
                               </KanbanTitle>
                               <KanbanRoleRow>
                                 <KanbanRoleBadge $role={myRole}>{t(`roleBadge.${myRole}`,myRole)}</KanbanRoleBadge>
-                                <KanbanStatusText>{getStatusLabel(task,myRole,todayStr,(k,f)=>t(k,f||k))}</KanbanStatusText>
+                                <KanbanStatusText><StatusGlyph code={task.status} /> {getStatusLabel(task,myRole,todayStr,(k,f)=>t(k,f||k))}</KanbanStatusText>
                               </KanbanRoleRow>
+                              {/* #206 — 보류 카드는 "왜 멈췄나"가 카드에서 바로 보여야 컬럼을 훑을 때 판단이 된다 */}
+                              {task.status==='on_hold'&&task.hold_reason&&(
+                                <KanbanHoldReason title={task.hold_reason}>{task.hold_reason}</KanbanHoldReason>
+                              )}
                               <KanbanMeta>
                                 {task.due_date&&(
                                   <KanbanDue $overdue={!!isDelayed}>{task.due_date.slice(5,10).replace('-','/')}</KanbanDue>
                                 )}
                               </KanbanMeta>
                               {prog>0&&(
-                                <KanbanProgress><KanbanProgressFill style={{width:`${prog}%`}}/></KanbanProgress>
+                                <KanbanProgress><KanbanProgressFill style={{width:`${prog}%`,background:sliderColor(task.status)}}/></KanbanProgress>
                               )}
                             </KanbanCard>
                           );
@@ -3223,6 +3274,8 @@ const KanbanColumn=styled.div`display:flex;flex-direction:column;gap:8px;min-wid
 const KanbanColHeader=styled.div`display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:700;`;
 const KanbanCount=styled.span`font-size:11px;font-weight:600;opacity:0.8;`;
 const KanbanColBody=styled.div`display:flex;flex-direction:column;gap:8px;min-height:40px;`;
+const KanbanHoldReason=styled.div`font-size:11px;line-height:1.4;color:#9A3412;margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
 const KanbanCard=styled.div<{$delayed?:boolean;$done?:boolean;$selected?:boolean}>`
   position:relative;
   background:#FFFFFF;

@@ -662,7 +662,10 @@
     "taskCompletedRequester": "Your requested task is done",
     "taskCompletedReviewer": "Reviewed task is now complete",
     "taskReviewing": "Review requested — please confirm",
-    "taskRevisionRequested": "Revision requested"
+    "taskRevisionRequested": "Revision requested",
+    "taskOnHold": "Task put on hold",
+    "taskExternalReview": "Task sent for external review",
+    "taskResumed": "Task resumed"
   },
   "share": {
     "chat": {
@@ -689,6 +692,12 @@
     "kb": {
       "bundleTitle": "Shared materials",
       "bundleEmpty": "No shared materials."
+    },
+    "task": {
+      "status": {
+        "on_hold": "On hold",
+        "external_review": "External review"
+      }
     }
   },
   "myFeedback": {

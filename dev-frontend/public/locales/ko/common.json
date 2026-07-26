@@ -662,7 +662,10 @@
     "taskCompletedRequester": "요청한 업무가 완료됐어요",
     "taskCompletedReviewer": "검토한 업무가 완료 처리됐어요",
     "taskReviewing": "검토 요청 — 컨펌해 주세요",
-    "taskRevisionRequested": "수정 요청이 들어왔어요"
+    "taskRevisionRequested": "수정 요청이 들어왔어요",
+    "taskOnHold": "업무가 보류되었습니다",
+    "taskExternalReview": "외부 컨펌 대기로 전환되었습니다",
+    "taskResumed": "보류가 해제되었습니다"
   },
   "share": {
     "chat": {
@@ -689,6 +692,12 @@
     "kb": {
       "bundleTitle": "공유 자료",
       "bundleEmpty": "공유된 자료가 없습니다."
+    },
+    "task": {
+      "status": {
+        "on_hold": "보류중",
+        "external_review": "외부컨펌중"
+      }
     }
   },
   "myFeedback": {

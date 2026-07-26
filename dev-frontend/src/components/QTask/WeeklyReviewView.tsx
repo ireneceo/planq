@@ -254,7 +254,7 @@ const WeeklyReviewView: React.FC<Props> = ({ reviewId, onBack }) => {
                 {snap.blockers.map(b => (
                   <SimpleRow key={`b-${b.task_id}`}>
                     <SimpleTitle>{b.title}</SimpleTitle>
-                    <SimpleMeta>{b.blocked_status} · {b.days_blocked}일째</SimpleMeta>
+                    <SimpleMeta>{t(`qtask:status.${b.blocked_status}.observer`, { defaultValue: b.blocked_status })} · {t('weeklyReview.workspace.blockers.daysBlocked', { n: b.days_blocked, defaultValue: '{{n}}일째' })}</SimpleMeta>
                   </SimpleRow>
                 ))}
               </RiskCol>

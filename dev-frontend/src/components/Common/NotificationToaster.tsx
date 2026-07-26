@@ -168,6 +168,9 @@ export default function NotificationToaster() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   // message:new 가 conv room + business room 양쪽으로 도착해 같은 메시지가 중복 토스트 되는 것 차단 (운영 #25)
   const seenMsgRef = useRef<Map<number, number>>(new Map());
+  // #206 — task:updated payload 에 from_status 가 없어 "해제"를 판정할 수 없다.
+  //   직전 상태를 클라가 기억해 전이 방향을 만든다 (세션 한정, 메모리만).
+  const prevTaskStatusRef = useRef<Map<number, string>>(new Map());
   const activeConvIdRef = useRef<number | null>(null);
   const activePathRef = useRef<string>(location.pathname);
 
@@ -439,6 +442,34 @@ export default function NotificationToaster() {
           add({
             type: 'task',
             title: t('toaster.taskRevisionRequested', '수정 요청이 들어왔어요') as string,
+            body: task.title, link, contextKey: ctx,
+          });
+        }
+      }
+      // #206 보류 / 외부컨펌 / 해제 — 담당자·의뢰자에게. 백엔드 알림(DB·push)과 별개로
+      //   화면을 보고 있는 사람에게 즉시 알린다(§16 실시간 반영).
+      const cares = isAssignee || isRequester;
+      const prevStatus = prevTaskStatusRef.current.get(task.id);
+      if (task.status) prevTaskStatusRef.current.set(task.id, task.status);
+      if (cares) {
+        if (task.status === 'on_hold' && prevStatus !== 'on_hold') {
+          add({
+            type: 'task',
+            title: t('toaster.taskOnHold', '업무가 보류되었습니다') as string,
+            body: task.title, link, contextKey: ctx,
+          });
+        } else if (task.status === 'external_review' && prevStatus !== 'external_review') {
+          add({
+            type: 'task',
+            title: t('toaster.taskExternalReview', '외부 컨펌 대기로 전환되었습니다') as string,
+            body: task.title, link, contextKey: ctx,
+          });
+        } else if ((prevStatus === 'on_hold' || prevStatus === 'external_review')
+          && task.status !== 'on_hold' && task.status !== 'external_review') {
+          // 해제 — 직전 상태를 알아야 판정된다(payload 에 from_status 가 없으므로 클라가 기억한다)
+          add({
+            type: 'task',
+            title: t('toaster.taskResumed', '보류가 해제되었습니다') as string,
             body: task.title, link, contextKey: ctx,
           });
         }

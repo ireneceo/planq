@@ -103,5 +103,10 @@ export function statusOptionsFor(
   if (!['in_progress', 'external_review'].includes(task.status || '')) {
     opts = opts.filter(s => s !== 'external_review');
   }
+  // 종료된 업무는 보류 대상이 아니다 (백엔드 cannot_hold_closed_task 400 과 미러 —
+  //   옵션에 남겨두면 사용자가 고른 뒤 거절당하는 헛클릭이 된다)
+  if (['completed', 'canceled'].includes(task.status || '')) {
+    opts = opts.filter(s => s !== 'on_hold');
+  }
   return opts;
 }

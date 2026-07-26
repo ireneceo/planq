@@ -197,7 +197,7 @@ export async function previewCurrentWeek(_businessId: number): Promise<WeeklyRev
 
 export type Severity = 'high' | 'medium' | 'low';
 export type RiskKind = 'overdue' | 'stalled' | 'due_soon_low_progress';
-export type BlockerStatus = 'waiting' | 'revision_requested';
+export type BlockerStatus = 'waiting' | 'revision_requested' | 'on_hold';   // #206
 export type Health = 'green' | 'yellow' | 'red';
 export type MemberLoadStatus = 'underloaded' | 'normal' | 'overloaded';
 

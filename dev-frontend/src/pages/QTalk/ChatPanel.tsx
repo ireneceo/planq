@@ -3,6 +3,7 @@ import { downloadBlob } from '../../utils/download';
 import { createPortal } from 'react-dom';
 import styled, { css } from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { STATUS_COLOR, type StatusCode } from '../../utils/taskLabel';
 import { useSearchParams } from 'react-router-dom';
 import {
   type MockMessage, type MockProject, type MockConversation, type PostCardMeta,
@@ -72,6 +73,7 @@ const ChatPanel: React.FC<Props> = ({
   const { t } = useTranslation('qtalk');
   const navigate = useNavigate();
   const { t: tErr } = useTranslation('errors');
+  const { t: tq } = useTranslation('qtask');   // #206 — 업무 상태 라벨 단일 원천
   const { user } = useAuth();
   const { formatTime } = useTimeFormat();
   const isClient = user?.business_role === 'client';
@@ -1476,6 +1478,13 @@ const ChatPanel: React.FC<Props> = ({
                         <DocCardTitle>{tc.title}</DocCardTitle>
                         <DocCardLabel>
                           {t('chat.card.taskLabel', { defaultValue: '업무' }) as string}
+                          {/* #206 — status 를 받아만 놓고 안 그렸다. 보류된 업무 카드가 살아있는 업무와
+                              똑같이 보이면 대화에서 잘못된 기대가 생긴다(전 상태 일괄 표시). */}
+                          {tc.status && <> · <TaskCardStatus
+                            $bg={(STATUS_COLOR[tc.status as StatusCode] || STATUS_COLOR.not_started).bg}
+                            $fg={(STATUS_COLOR[tc.status as StatusCode] || STATUS_COLOR.not_started).fg}>
+                            {tq(`status.${tc.status}.observer`, { defaultValue: tc.status }) as string}
+                          </TaskCardStatus></>}
                           {tc.due_date && <> · {String(tc.due_date).slice(0, 10)}</>}
                           {tc.has_password && <> · {t('chat.card.locked', { defaultValue: '🔒 비번 보호' }) as string}</>}
                         </DocCardLabel>
@@ -3148,6 +3157,9 @@ const DocCardTitle = styled.span`
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
 const DocCardLabel = styled.span`font-size:11px;color:#64748B;font-weight:500;`;
+const TaskCardStatus = styled.span<{ $bg: string; $fg: string }>`
+  display:inline-block;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;
+  background:${p => p.$bg};color:${p => p.$fg};`;
 const DocCardArrow = styled.span`color:#94A3B8;flex-shrink:0;`;
 const CardNote = styled.div`
   margin-top: 6px; padding: 8px 10px;

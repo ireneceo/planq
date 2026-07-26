@@ -47,12 +47,17 @@ const STATUS_TONE: Record<string, { bg: string; fg: string }> = {
   revision_requested:{ bg: '#FEF2F2', fg: '#DC2626' },
   completed:         { bg: '#DCFCE7', fg: '#166534' },
   canceled:          { bg: '#E2E8F0', fg: '#64748B' },
+  // #206 — 없으면 외부 고객에게 raw `on_hold` 가 그대로 노출된다 (공개 공유 링크)
+  on_hold:           { bg: '#FFEDD5', fg: '#9A3412' },
+  external_review:   { bg: '#E0F2FE', fg: '#075985' },
 };
 
 const STATUS_LABEL_DEFAULTS: Record<string, string> = {
   not_started: '시작 전', waiting: '대기', in_progress: '진행 중',
   reviewing: '검토', revision_requested: '수정 요청',
   completed: '완료', canceled: '취소',
+  // #206 on_hold·external_review 는 이 폴백 맵에 두지 않는다 — common.json 의
+  //   public.task.status.* 키(ko/en)가 단일 원천. 여기 한국어를 더하면 en 화면에 한국어가 샌다.
 };
 
 const PublicTaskPage = () => {

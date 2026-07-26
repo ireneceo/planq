@@ -18,9 +18,11 @@ import {
   fmtNum, fmtPct,
 } from '../components';
 import { downloadRowsAsCsv } from '../csvUtils';
+import { STATUS_COLOR, type StatusCode } from '../../../utils/taskLabel';
 
 const TasksTab: React.FC<{ businessId: number; range: RangePreset }> = ({ businessId, range }) => {
   const { t } = useTranslation('insights');
+  const { t: tq } = useTranslation('qtask');   // #206 — 업무 상태 라벨은 qtask ns 단일 원천
   const navigate = useNavigate();
   const [data, setData] = useState<TasksTabData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -243,6 +245,8 @@ const TasksTab: React.FC<{ businessId: number; range: RangePreset }> = ({ busine
                 <Th $num>{t('table.col.actual', '실제(h)')}</Th>
                 <Th $num>{t('table.col.accuracy', '정확도')}</Th>
                 <Th $num>{t('table.col.leadtime', '리드타임')}</Th>
+                {/* #206 — CSV 에는 status 가 나가는데 화면엔 없었다(불일치). 라벨+색으로 맞춘다. */}
+                <Th>{t('table.col.status', '상태')}</Th>
               </Tr>
             </thead>
             <tbody>
@@ -255,6 +259,12 @@ const TasksTab: React.FC<{ businessId: number; range: RangePreset }> = ({ busine
                   <Td $num>{r.actual ?? '—'}</Td>
                   <Td $num>{r.accuracy_pct != null ? r.accuracy_pct.toFixed(0) + '%' : '—'}</Td>
                   <Td $num>{r.leadtime_days != null ? r.leadtime_days + 'd' : '—'}</Td>
+                  <Td>{r.status
+                    ? <StatusTag $bg={(STATUS_COLOR[r.status as StatusCode] || STATUS_COLOR.not_started).bg}
+                        $fg={(STATUS_COLOR[r.status as StatusCode] || STATUS_COLOR.not_started).fg}>
+                        {tq(`status.${r.status}.observer`, { defaultValue: r.status })}
+                      </StatusTag>
+                    : '—'}</Td>
                 </Tr>
               ))}
             </tbody>
@@ -267,6 +277,10 @@ const TasksTab: React.FC<{ businessId: number; range: RangePreset }> = ({ busine
 
 export default TasksTab;
 
+const StatusTag = styled.span<{ $bg: string; $fg: string }>`
+  display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+  background: ${(p) => p.$bg}; color: ${(p) => p.$fg}; white-space: nowrap;
+`;
 const KpiDelta = styled.div<{ $positive: boolean }>`
   font-size: 12px; font-weight: 700;
   color: ${(p) => (p.$positive ? '#16A34A' : '#DC2626')};
