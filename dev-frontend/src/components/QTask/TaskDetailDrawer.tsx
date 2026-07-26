@@ -632,7 +632,9 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     } finally { setActionBusy(false); }
   };
   // #206 보류 / 외부컨펌 — 전용 액션 라우트 경유 (hold_prev_status 세팅·이력·알림이 액션 계층에 있다)
+  useEffect(() => { console.log('[F206-DEBUG] drawer MOUNT'); return () => console.log('[F206-DEBUG] drawer UNMOUNT'); }, []); /* FABLE-DEBUG */
   useEffect(() => {
+    console.log('[F206-DEBUG] tick effect run', resumeFocusTick, 'found:', !!document.querySelector('[data-testid="task-resume"]')); /* FABLE-DEBUG */
     if (!resumeFocusTick) return;
     document.querySelector<HTMLElement>('[data-testid="task-resume"]')?.focus();
   }, [resumeFocusTick]);
@@ -640,6 +642,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const actHold = async () => {
     const reason = holdReason.trim();
     const r = await callAction('/hold', 'POST', reason ? { reason } : undefined);
+    console.log('[F206-DEBUG] actHold result', r && r.success); /* FABLE-DEBUG */
     if (r?.success) {
       setHoldFormOpen(false); setHoldReason('');
       // 접근성(설계 §2-10) — 눌렀던 버튼이 사라지면 focus trap 이 첫 tabbable("돌아가기")로 회수해

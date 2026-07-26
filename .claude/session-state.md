@@ -1,24 +1,23 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-07-25 (Opus 5, 1M) — /개발완료
-**작업 상태:** **완료 (Fable 게이트 6회 통과 · 운영 배포 + 백필 완주).** 이번 세션 전건 운영 반영.
-**운영 실배포 기준 커밋:** `644ae95`
+**마지막 업데이트:** 2026-07-26 (Opus 5, 1M) — 저장
+**작업 상태:** **⛔ 미완 — #206 UI/UX 사이클이 Fable 게이트 4차 판정 대기 중.**
+약관 시행일 연기(`32af1a2`)는 **운영 배포 완료**. #206 기능(`e180352`)은 게이트 PASS·**미배포**.
 
 ---
 
-## ⚠️ 배포 시 반드시 수행 (코드 배포로 안 끝나는 것)
+## ⚠️ 기한 있는 작업 — Irene 조치 대기
 
-- **약관·처리방침 개정 공지 — ⏰ Irene 조치 대기(미완)**
-  절차: `docs/LEGAL_UPDATE_2026-08-01_ROLLOUT.md`
-  코드는 배포됐고(문구·시행일 2026-08-01 라이브), **공지 노출 + 안내 메일 1회가 남았다.**
-  §10 "시행 7일 전 공지" 기준 **마지막 날 = 2026-07-25**. 넘겼으면 공지를 강행하지 말고
-  `effectiveDate` 를 공지일+7일 이후로 연기(`PrivacyPolicy.tsx`·`TermsOfService.tsx` 두 파일만).
-  **`terms_version`/`privacy_version` 은 올리지 않는다**(재동의 미트리거 — 배포 전후 값 동일 확인).
+- **약관·처리방침 개정 공지 — 마감 `2026-08-03`** (시행일 `2026-08-10` 의 7일 전)
+  절차: `docs/LEGAL_UPDATE_2026-08-01_ROLLOUT.md` §2(공지)·§3(안내 메일).
+  코드·운영 반영 완료(운영 `/privacy`·`/terms` 에 2026-08-10 라이브, 재동의 미트리거 실측 0명).
+  **또 넘기면 시행일을 공지일+7일 이후로 다시 연기**한다 — 두 tsx 의 `effectiveDate` 만.
+  `terms_version`/`privacy_version` 은 **올리지 않는다**(운영 실측 `1.0`/`1.0` 유지).
 
 ---
 
-## ⚡ 빠른 재개 (새 세션에서 이것만 붙여넣기)
+## ⚡ 빠른 재개
 
 ```
 session-state.md 읽고 이어서 개발해.
@@ -26,76 +25,98 @@ session-state.md 읽고 이어서 개발해.
 
 ---
 
-## 🔖 이번 세션에 한 일 (전건 운영 배포 완료 — `644ae95`, 222s)
+## 🔖 이번 세션에 한 일
 
-### 1. ★ #200(b') 메일 참여자 백필 + 쓰기측 정합
-- `services/emailAddress.js` 신설 — 주소 포맷 3형태(문자열/`{email,name}`/`{address,name}`) 흡수 단일 원천
-- 술어: **계정 주소(+별칭)가 아닌 모든 from/to/cc**. bcc 는 은닉 수신자라 제외
-  (Fable 이 최초 술어 "inbound to 를 버리는 비대칭" 을 실측 반려 → 대칭 술어로 개정. 참여자0 운영 235→17)
-- **쓰기측 반쪽 해소** — 답장·작성·전달 3경로가 participants 미기록이라 백필해도 재축적되던 구조
-- **`email_threads.js:696` 잠복 버그** — `x?.address` 가 저장 shape 을 흘려 별칭 답장 발신주소 선택이 죽어 있었다
-- step3 후보 `order last_message_at DESC` (백필이 여는 매칭 표면의 착지점 고정)
-- `participantsEqual` — MySQL JSON 키 길이순 재정렬 때문에 stringify 비교가 멱등을 깨던 것
-- **운영 백필 완주**: dry-run 952 → 스냅샷 → apply 6s → 재실행 변경 0 → 빈 participants **954→17** · `updated_at` 990/990 보존
+### 1. 약관 시행일 연기 — 운영 배포 완료 (`32af1a2`, 211s)
+공지 마감(7/25)을 넘겨 `effectiveDate` `2026-08-01` → **`2026-08-10`** (tsx 2줄).
+폐기 스크립트 2건 삭제(`deploy-to-production.sh`·`rollback-production.sh`) — 운영에 `/opt/planq-prod` 경로가
+**아예 없고** 백업은 tar 형식인데 디렉토리 rsync 를 가정해 실행돼도 롤백 불가였다(Fable 이 운영 SSH 로 반증).
+3점 실측 + 재동의 미트리거(버전 불일치 사용자 0명) 확인. Fable 게이트 PASS.
 
-### 2. PortOne 걷어내기 (입력 경로만, 이력 보존)
-관리자 섹션·GET 응답 필드·PUT 저장 4필드·i18n 키 제거. `Payment.method` ENUM `'portone'`·결제내역 라벨·DB 컬럼은 보존.
+### 2. #206 Q Task 보류/외부컨펌 — 기능 완료 (`e180352`, 미배포)
+설계 `docs/TASK_HOLD_EXTERNAL_REVIEW_DESIGN.md` (Fable 설계 게이트).
+- ENUM 2값 **끝 append** + `hold_prev_status`/`hold_reason` 2컬럼. 마이그레이션 `scripts/migrate-task-hold-status.js`(멱등 실측)
+- 보류는 활성 5+1 단계 어디서든, 해제 시 `hold_prev_status` 복귀(컨펌자 0명이면 in_progress fallback)
+- 외부컨펌은 in_progress 에서만 진입/복귀. 보류는 이번 주에서 퇴장, 외부컨펌은 잔류
+- **★ `event_type` 은 반드시 `'status_change'`** — `'hold'`/`'resume'` 고유 타입으로 기록하면
+  `taskActualHours.js:46` 필터에 안 보여 **보류 시간이 그대로 누적**된다(실측 4.0h vs 정답 3.0h).
+  Fable 구현 게이트가 잡은 결함. 보류 구분은 from/to_status 가 담고 타임라인 라벨은 거기서 파생.
 
-### 3. 결제 설정 화면 재구성 ("넣어야 하는 것만 딱" — Irene)
-결과→입력 순서: 현황 카드(켜짐/꺼짐 + 부족 항목) → 2단계 체크리스트(Secret·Webhook, 출처·딥링크·엔드포인트 URL 복사) → 계좌이체 → 정책.
-**Publishable Key 강등** — Stripe 호스티드 결제라 이 값을 쓰는 코드가 0건(운영에 `irene` 저장돼도 무해했던 이유).
-웹훅 URL 은 `window.location.origin` 파생. 입력란 `width:100%`(15개 전부 630px 정렬 실측).
+### 3. #206 UI/UX 사이클 — **미커밋, 게이트 대기**
+설계 `docs/TASK_HOLD_UI_UX_DESIGN.md` (Fable UI/UX 설계 게이트, 표면 19곳 전수 조사).
+**Fable 이 찾은 깨진 표면 7곳**: 공개 공유 페이지 raw `on_hold` 노출 · 워크스페이스 주간보고가 보류를
+**"수정요청"으로 오표기** · 전역 검색 raw status(기존 전 상태가 그랬음) · QTalk/QMail 우측 dot 회색 폴백 ·
+토스터 무반응 · 체크박스 완료 우회 3곳 · 개인 주간보고 코드 노출.
+구현: 프론트 16파일 + `EmptyState.ctaTestId` + 백엔드 1건(PUT `hold_reason` 조건부 반영).
+- 색만으로 구분 금지 → `StatusGlyph`(보류 `‖` / 외부컨펌 `↗`) 병행. COLOR_GUIDE 등록
+- **소실 회귀 방어**: 주간 탭 `보류 N` 칩 + 전용 빈 상태 → 클릭 시 전체 탭+보류 필터 착지
+- 배너를 제목 직하로 + `role="status"` + 사유 배너 내 AutoSave 편집. 보류 중 되돌리기 숨김
+- 보류+마감지남 = 지연 뱃지 **유지**(보류 ≠ 마감 연장), 진행바 회색 탈색
+- en 정정: `External review` / `Put on hold` / `Send for external review`
+- 가드 위반 2건을 **베이스라인 대신 코드로** 해결(i18n 래칫 426 유지 · `ProjectTaskList` 798줄)
 
-### 4. Stripe 키 형식 검증 + 활성 판정 단일화
-`pk_`/`sk_`·`rk_`/`whsec_`, 빈값(삭제) 통과. 프론트+백엔드 양쪽. 활성 판정은 서버 계산 `stripe_enabled` 하나만
-(암호화 키 회전 시 거짓 "켜짐" 차단 + 전용 경고).
+---
 
-### 5. 약관·랜딩 사실 정정
-`legal.json` ko/en 3곳 교체(계좌이체 경로 신규 기술 · 워크스페이스 Q Bill 구조 = 개인정보처리자가 워크스페이스 운영자 · 미제공 수단 삭제).
-랜딩 4곳 — "팝빌 자동발행"(실제는 외부 발행 후 마킹) · 연혁의 "PortOne 라이브"(그 시점에도 거짓) 제거.
+## ⛔ 지금 막혀 있는 것 — 접근성 1항목
 
-**Fable 게이트 6회** (설계 CONDITIONAL PASS ×2 → 구현 FAIL ×2 → PASS). FAIL 사유가 전부 실제 결함:
-i18n 래칫 427/426(영어 UI 에 `sk_ 또는 rk_` 한·영 혼합) · 약관 공지 절차 리포 미문서화 · 연혁 거짓 기재.
+**§2-10 "보류 확정 후 [보류 해제]로 포커스 이동"** 이 **3번 연속 죽은 코드**로 판정됐다.
+Fable 이 매번 focusin 이벤트를 계측해 `task-resume` 등장 0건을 실증했다.
+
+| 시도 | 방식 | 왜 죽었나 |
+|---|---|---|
+| 1 | `requestAnimationFrame` | rAF 가 React 커밋보다 먼저 → `querySelector` null |
+| 2 | `useRef` 플래그 + `useEffect([status])` | 플래그 세팅이 `await callAction` **이후**라 effect 가 이미 지나감. 게다가 **소비 안 된 플래그가 남아 다음에 연 다른 업무의 포커스를 훔침** |
+| 3 (현재) | `useState` 틱 + `useEffect([tick])` | setState 가 새 커밋을 만드므로 배너 커밋 이후 실행 보장 — **4차 판정 대기 중** |
+
+**교훈(다음 세션 필독):** 렌더 후 DOM 을 만지는 코드는 "형태가 맞다"로 통과시키면 안 된다.
+반드시 focusin/activeElement 같은 **관측 가능한 신호로 실측**하고, 무력화 빌드와 로그가 갈리는지 본다.
+갈리지 않으면 죽은 코드다. `useFocusTrap` 이 첫 tabbable("돌아가기")로 회수해가는 경쟁도 확인 대상.
 
 ---
 
 ## 📂 다음 할 일 (우선순위)
 
-1. **약관 개정 공지** (위 ⚠️ 섹션) — Irene 조치, 기한 있음
-2. **Stripe 키 입력** (Irene) — 카드 결제를 켜려면 **Secret Key + Webhook Secret 2개**만 넣으면 된다.
-   Publishable 은 현재 결제 흐름에서 미사용. 웹훅은 **2개 등록**:
-   `https://planq.kr/api/stripe/webhook`(PlanQ 구독) · `https://planq.kr/api/stripe/webhook/ws/1`(워프로랩 Q Bill).
-   이벤트 둘 다 `checkout.session.completed`, `payment_intent.succeeded`.
-   현재 운영에 `stripe_publishable_key='irene'` 가 두 곳(platform·biz1) 저장돼 있어 화면에 형식 경고가 뜬다 —
-   **자동 삭제하지 않았다**(사용자 자산). 교체하거나 비우면 된다.
-3. **회사 영문명 확정 (Irene)** — 개발자 등록용. 확정 기록 없음.
-   한국 법인 국문 = (주)아이린엔컴퍼니(운영 DB 예금주는 "아이린**앤**컴퍼니" — 표기 불일치 정리 필요).
-   영문 `Irene & Company Inc.` 는 **설정 화면 placeholder 예시일 뿐 결정값 아님**. 말레이시아 법인 이름 미기록.
-   등기부 영문명 확인 후 랜딩 푸터·약관·Stripe 명의 일치시킬 것.
-4. **#206** Q Task 보류/외부컨펌 상태 — `tasks.status` ENUM 변경(수동 ALTER 계열). Fable 프로세스
-5. **#208** 출퇴근·휴가 관리 — 신규 시스템, Fable 기획설계부터
-6. **#211** B2B 에이전시 타깃 기능 제안 · **#192** AiRefineBar · **#193** 캘린더 뒤로가기 · **#146** 검색 헤더 승격
-7. **정리 권장:** 리포 루트 `deploy-to-production.sh` 는 운영 경로를 `/opt/planq-prod/` 로 참조하는 **폐기본**
-   (이번에 실수로 실행 → 3단계 중단, 운영 무영향). 정본은 `scripts/deploy-planq.sh --auto`
+1. **#206 UI/UX Fable 4차 판정 확인** → PASS 면 커밋 + `/개발완료` 재실행
+2. **약관 개정 공지** (위 ⚠️) — Irene, 마감 2026-08-03
+3. **#206 `/배포`** — ⚠️ **ENUM 변경이라 순서 강제: DB ALTER → 백엔드 → 프론트.**
+   역전하면 새 코드가 옛 ENUM 에 `on_hold` 를 써서 truncation 저장 실패.
+   운영 적용: `cd /opt/planq/backend && node scripts/migrate-task-hold-status.js`
+4. **★ 시간 엔진 라운드 경계 결함 (별건, 운영 데이터 오염 확인됨)**
+   `taskActualHours.js:46` 이 `event_type='status_change'` 만 집계하는데 액션 계층의
+   `review_submit`·`completed`·`revision`·`revert`·`approve` 는 전부 고유 타입 → 라운드가 안 닫힌다.
+   **운영 실측 3건**: task 24 저장 153.6h vs 실제 2.2h(**+151h**) · task 53 0h vs 67.7h · task 6 0.5h vs 1.0h.
+   전부 워크스페이스 1(워프로랩) 내부, 외부 고객 유출 0. dev 영향 0(포커스 사용률이 높아 우선순위 1이 덮음).
+   수정 방향: `to_status` 가 있는 전이 행을 경계로 인정 + 오염분 recompute 백필.
+   **백필 전 쓰기측 전 경로 확인** 원칙 적용(memory `feedback_backfill_needs_write_side_fix`).
+5. **죽은 컴포넌트 정리** — `WeeklyReviewView`/`WeeklyReviewWorkspaceView` 는 import 소비자 0
+   (새 보고서 IA 로 대체됨). 이번에 F13/F14 로 고친 게 사실상 죽은 코드였다.
+6. **#208** 출퇴근·휴가 (신규 시스템, Fable 기획설계부터) · **#211** B2B 타깃 제안 ·
+   **#192** AiRefineBar · **#193** 캘린더 뒤로가기
+7. **Stripe 키 입력**(Irene) — Secret + Webhook Secret 2개. 운영에 `stripe_publishable_key='irene'` 잔존(무해)
+8. **회사 영문명 확정**(Irene) — 등기부 영문명 확인 후 랜딩 푸터·약관·Stripe 명의 일치
 
 ---
 
 ## 🔑 환경변수 / 인증 현황
 
-- 운영 = `irene@87.106.78.146` (planq.kr, port 3004, `/opt/planq/backend`, DB `planq_prod_db`). SSH passwordless(read-only 조회).
+- 운영 = `irene@87.106.78.146` (planq.kr, port 3004, `/opt/planq/backend`, DB `planq_prod_db`). SSH passwordless(**read-only 조회만**).
 - **배포 정본: `./scripts/deploy-planq.sh --auto`** (백그라운드 실행 필수 — 포그라운드는 타임아웃 부분배포).
-  `DEPLOY_EXIT=1` 은 알려진 부수 신호 — "Deployment Complete" + 3점 실측으로 판정.
-- 운영 백업/롤백: `/opt/planq/backups/{TIMESTAMP}` (이번 배포 = `20260725_181050`, participants 스냅샷 포함).
-- dev DB 접근 `cd /opt/planq/dev-backend` 후 node. **가드/e2e 는 `cd /opt/planq` 루트** (cwd 틀리면 거짓 FAIL).
-- dev 테스트 계정: `admin@test.planq.kr` / `Test1234!` (platform_admin), `health-check@planq.kr` / `HealthCheck2026!`.
-  로그인 응답 토큰 필드 = `data.token`. rate-limit 15분 8회.
-- dev 는 `EMAIL_SENDING_ENABLED=false` — 메일 발송 정지(흐름은 끝까지 탐).
+  롤백은 매 배포 끝에 스크립트가 tar 명령을 출력한다(별도 롤백 스크립트는 없음 — 신설 후보).
+- 운영 백업: `/opt/planq/backups/{TIMESTAMP}` (이번 = `20260726_141759`).
+- dev DB 접근 `cd /opt/planq/dev-backend` 후 node. **가드/e2e 는 `cd /opt/planq` 루트**(cwd 틀리면 즉시 크래시 — 이번에도 겪음).
+- dev 테스트 계정: `health-check@planq.kr` / `HealthCheck2026!` (**business 5·73 owner — 실HTTP 검증은 이 계정**).
+  `admin@test.planq.kr` / `Test1234!` 는 platform_admin 이지만 **business_members row 가 없어** 워크스페이스 검증 불가.
+  로그인 응답 토큰 = `data.token`. rate-limit 15분 8회.
+- 업무 PUT 라우트는 `/api/tasks/by-business/:businessId/:id` — `/api/tasks/:id` 는 **404**.
+- `users` 비밀번호 컬럼은 `password_hash`. `business_members` 에 `status` 컬럼 없음(`removed_at IS NULL` 로 판정).
+- 프론트 타입체크는 `npm run build` 로만(heap 4096). `npx tsc` 는 heap 옵션이 없어 **OOM**.
+- dev 는 `EMAIL_SENDING_ENABLED=false`.
 
 ---
 
 ## 복구 가이드
 새 세션: `session-state.md 읽고 이어서 개발해.`
 ### 참조
-- 정책: CLAUDE.md "Fable 검증 게이트" · 메모리 `feedback_fable_all_design_verification`
-- 이번 사이클 신규 메모리: `feedback_backfill_needs_write_side_fix` · `feedback_mysql_json_key_reorder`
-- 백필 재실행: `cd /opt/planq/backend && node scripts/backfill-thread-participants.js` (dry-run 기본)
+- 정책: CLAUDE.md "Fable 검증 게이트" · memory `feedback_fable_all_design_verification`
+- 이번 사이클 설계 문서: `docs/TASK_HOLD_EXTERNAL_REVIEW_DESIGN.md` · `docs/TASK_HOLD_UI_UX_DESIGN.md`
+- 마이그레이션 재실행(멱등): `cd dev-backend && node scripts/migrate-task-hold-status.js`
