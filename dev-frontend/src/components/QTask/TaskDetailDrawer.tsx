@@ -315,6 +315,11 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const [holdFormOpen, setHoldFormOpen] = useState(false); // #206 — 보류 사유 인라인 폼 (팝업 위 팝업 금지)
   const [holdReason, setHoldReason] = useState('');
   const [holdReasonDraft, setHoldReasonDraft] = useState('');  // #206 — 배너 안 사후 편집(AutoSave)
+  // #206 §2-10 — 보류 확정 후 [보류 해제]로 포커스 이동.
+  //   ref 플래그로는 안 된다: 플래그 세팅이 callAction 의 setState 커밋보다 늦어 effect 가 이미 지나가고,
+  //   소비되지 않은 플래그가 남아 **다음에 연 다른 업무의 포커스를 훔친다**.
+  //   틱 state 는 그 자체가 새 커밋을 만들므로 배너 커밋 이후 실행이 보장되고 잔존 상태도 없다.
+  const [resumeFocusTick, setResumeFocusTick] = useState(0);
   const [approveNote, setApproveNote] = useState('');
   // #112 — 수정요청에 참고 파일 첨부 (일반 댓글 첨부와 동일 인프라: context='comment')
   const [revisionFiles, setRevisionFiles] = useState<File[]>([]);
@@ -627,17 +632,19 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     } finally { setActionBusy(false); }
   };
   // #206 보류 / 외부컨펌 — 전용 액션 라우트 경유 (hold_prev_status 세팅·이력·알림이 액션 계층에 있다)
+  useEffect(() => {
+    if (!resumeFocusTick) return;
+    document.querySelector<HTMLElement>('[data-testid="task-resume"]')?.focus();
+  }, [resumeFocusTick]);
+
   const actHold = async () => {
     const reason = holdReason.trim();
     const r = await callAction('/hold', 'POST', reason ? { reason } : undefined);
     if (r?.success) {
       setHoldFormOpen(false); setHoldReason('');
-      // 접근성(설계 §2-10) — 눌렀던 버튼이 사라지면 포커스가 body 로 떨어져 키보드 사용자가 위치를 잃는다.
-      //   새로 나타난 배너의 [보류 해제] 로 옮겨 맥락을 잇는다.
-      requestAnimationFrame(() => {
-        const el = document.querySelector<HTMLElement>('[data-testid="task-resume"]');
-        el?.focus();
-      });
+      // 접근성(설계 §2-10) — 눌렀던 버튼이 사라지면 focus trap 이 첫 tabbable("돌아가기")로 회수해
+      //   키보드 사용자가 위치를 잃는다. 새로 나타난 배너의 [보류 해제]로 옮겨 맥락을 잇는다.
+      setResumeFocusTick(v => v + 1);
     }
   };
   const actResume = () => callAction('/resume');
@@ -1491,6 +1498,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               holdFormOpen ? (
                 <RevisionForm>
                   <RevisionInput
+                    data-testid="task-hold-reason"
                     placeholder={t('hold.reasonPlaceholder', 'Reason (optional)') as string}
                     value={holdReason}
                     maxLength={500}
