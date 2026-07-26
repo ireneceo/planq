@@ -91,6 +91,18 @@
       "reviewer": "Canceled",
       "requester": "Canceled",
       "observer": "Canceled"
+    },
+    "on_hold": {
+      "assignee": "On hold",
+      "reviewer": "On hold",
+      "requester": "On hold",
+      "observer": "On hold"
+    },
+    "external_review": {
+      "assignee": "External confirm",
+      "reviewer": "External confirm",
+      "requester": "External confirm",
+      "observer": "External confirm"
     }
   },
   "roleBadge": {
@@ -116,7 +128,9 @@
     "completed": "Completed",
     "rev_pending": "Waiting my approval",
     "rev_revision": "I requested revision",
-    "rev_approved": "I approved"
+    "rev_approved": "I approved",
+    "on_hold": "On hold",
+    "external_review": "External confirm"
   },
   "scope": {
     "mine": "My tasks",
@@ -1081,5 +1095,17 @@
     "chartCapacity": "Against {{n}}h weekly capacity",
     "chartEmptyTitle": "No progress data for this period",
     "chartEmptyHint": "Start focusing on tasks or log actual hours and the chart fills in."
+  },
+  "hold": {
+    "action": "Hold",
+    "resume": "Resume",
+    "externalAction": "External confirm",
+    "externalResume": "Resume work",
+    "reasonPlaceholder": "Reason (optional)",
+    "confirm": "Confirm hold",
+    "cancel": "Cancel",
+    "banner": "On hold",
+    "bannerWithReason": "On hold — {{reason}}",
+    "externalBanner": "Waiting on external confirmation"
   }
 }

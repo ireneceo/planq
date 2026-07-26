@@ -46,7 +46,35 @@ function taskLink(taskId) {
 // 여기로 올려 Cue 를 포함한 모든 경로가 같은 함수를 지나게 한다.
 const REVIEW_STATUSES = ['reviewing', 'revision_requested'];
 
-async function canEnterStatus(taskId, toStatus, transaction) {
+// #206 진입 매트릭스 — 여기가 단일 원천. PUT·액션 계층·revert-status 가 전부 이 함수를 지난다.
+//   보류(on_hold)는 활성 상태 어디서든. completed/canceled 는 "닫힌 일"이라 보류 대상이 아니다.
+//   외부컨펌(external_review)은 in_progress 에서만 — 내부 컨펌 라운드(reviewing)와 축이 다르므로
+//   컨펌 라운드 중에 외부로 빠지는 경로를 열지 않는다 (라운드 상태 오염 차단).
+const HOLD_FROM = [
+  'not_started', 'waiting', 'in_progress',
+  'reviewing', 'revision_requested', 'external_review',
+];
+const EXTERNAL_FROM = ['in_progress', 'external_review'];
+
+// opts: { fromStatus, transaction }
+//   fromStatus 를 넘기면 on_hold/external_review 진입 가능 여부까지 검사한다.
+//   넘기지 않으면 from 검사는 건너뛴다 (호출부가 이미 상태를 확정한 경우).
+async function canEnterStatus(taskId, toStatus, opts = {}) {
+  const { fromStatus = null, transaction } = opts;
+
+  if (toStatus === 'on_hold') {
+    if (fromStatus && !HOLD_FROM.includes(fromStatus)) {
+      return { ok: false, reason: 'cannot_hold_closed_task' };
+    }
+    return { ok: true };
+  }
+  if (toStatus === 'external_review') {
+    if (fromStatus && !EXTERNAL_FROM.includes(fromStatus)) {
+      return { ok: false, reason: 'external_review_from_in_progress_only' };
+    }
+    return { ok: true };
+  }
+
   if (!REVIEW_STATUSES.includes(toStatus)) return { ok: true };
   const count = await TaskReviewer.count({ where: { task_id: taskId }, transaction });
   if (count === 0) return { ok: false, reason: 'no_reviewers_assigned' };
@@ -209,4 +237,8 @@ module.exports = {
   submitForReview,
   cancelReview,
   REVIEW_STATUSES,
+  HOLD_FROM,
+  EXTERNAL_FROM,
+  workspaceName,
+  taskLink,
 };

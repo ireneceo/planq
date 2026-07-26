@@ -204,10 +204,17 @@ function buildTasksTab({ tasks, aiByTask, period, prevAgg }) {
     }));
 
   // ── 상태 깔때기 (현재 기간 생성 전체) ───────
-  const funnel = { not_started: 0, in_progress: 0, reviewing: 0, completed: 0, canceled: 0 };
+  // ★ #206 R3 — 이 else-if 체인은 매핑 없는 상태를 **조용히 누락**한다(합계 ≠ 전체).
+  //   신규 상태 추가 시 반드시 여기 매핑을 같이 넣을 것.
+  //   on_hold 는 전용 키(보류를 진행중으로 세면 실제 진행 규모가 부풀려진다),
+  //   external_review 는 in_progress 버킷(외부 회신 대기도 진행 중인 일이다).
+  const funnel = {
+    not_started: 0, in_progress: 0, reviewing: 0, on_hold: 0, completed: 0, canceled: 0,
+  };
   for (const t of all) {
     if (t.status === 'waiting') funnel.not_started += 1;
     else if (t.status === 'revision_requested') funnel.in_progress += 1;
+    else if (t.status === 'external_review') funnel.in_progress += 1;
     else if (funnel[t.status] != null) funnel[t.status] += 1;
   }
 

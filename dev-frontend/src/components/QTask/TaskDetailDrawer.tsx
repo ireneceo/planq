@@ -29,7 +29,7 @@ import TaskFocusBar from '../Focus/TaskFocusBar';
 import TaskAttachments from './TaskAttachments';
 import RelatedTasksSection from './RelatedTasksSection';
 import DescriptionAttachments from './DescriptionAttachments';
-import { STATUS_COLOR, displayStatus, getStatusLabel, type StatusCode } from '../../utils/taskLabel';
+import { STATUS_COLOR, displayStatus, getStatusLabel, statusOptionsFor, type StatusCode } from '../../utils/taskLabel';
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { CheckIcon } from '../Common/Icons';
@@ -104,6 +104,8 @@ interface TaskDetail {
   actual_source?: 'auto' | 'user' | null;
   source?: string; created_via?: string | null; request_by_user_id?: number | null; request_ack_at?: string | null;
   created_at?: string | null;
+  // #206 보류 — hold_prev_status 는 서버 내부 복귀용이라 UI 가 읽지 않는다. 사유만 배너에 표시.
+  hold_reason?: string | null;
   review_round?: number | null; review_policy?: 'all'|'any';
   assignee_id: number | null; created_by: number; project_id: number | null;
   is_milestone?: boolean;
@@ -142,15 +144,6 @@ export interface TaskDetailDrawerProps {
 
 // 사이클 N+6: reviewer 0명이면 reviewing/revision_requested 단계 자체가 노출되지 않음.
 // 백엔드 PUT 도 같은 가드 (no_reviewers_assigned 400) — 양쪽 동시 적용으로 모순 0.
-// 사이클 N+22 (2026-05-18): waiting (진행대기) 은 DB ENUM 정식 값이고 리스트/뱃지에서 노출되므로
-// 드롭다운에서도 일관 포함 — 요청·비요청 구분 없이 동일 7 옵션 제공.
-const statusOptionsFor = (task: { source?: string; reviewers?: Array<{ user_id: number }> }): string[] => {
-  const hasReviewers = (task.reviewers || []).length > 0;
-  let opts = ['not_started','waiting','in_progress','reviewing','revision_requested','completed','canceled'];
-  if (!hasReviewers) opts = opts.filter(s => s !== 'reviewing' && s !== 'revision_requested');
-  return opts;
-};
-
 const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   taskId, bizId, myId, todayStr, members, projects: projectsProp,
   width, onWidthChange, onClose, onPatch, onRefresh, onDuplicated,
@@ -317,6 +310,8 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const [revisionOpen, setRevisionOpen] = useState(false);
   const [revisionNote, setRevisionNote] = useState('');
   const [approveOpen, setApproveOpen] = useState(false);   // #112c — 승인 코멘트 인라인 폼
+  const [holdFormOpen, setHoldFormOpen] = useState(false); // #206 — 보류 사유 인라인 폼 (팝업 위 팝업 금지)
+  const [holdReason, setHoldReason] = useState('');
   const [approveNote, setApproveNote] = useState('');
   // #112 — 수정요청에 참고 파일 첨부 (일반 댓글 첨부와 동일 인프라: context='comment')
   const [revisionFiles, setRevisionFiles] = useState<File[]>([]);
@@ -623,6 +618,29 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       return r;
     } finally { setActionBusy(false); }
   };
+  // #206 보류 / 외부컨펌 — 전용 액션 라우트 경유 (hold_prev_status 세팅·이력·알림이 액션 계층에 있다)
+  const actHold = async () => {
+    const reason = holdReason.trim();
+    const r = await callAction('/hold', 'POST', reason ? { reason } : undefined);
+    if (r?.success) { setHoldFormOpen(false); setHoldReason(''); }
+  };
+  const actResume = () => callAction('/resume');
+  const actExternalReview = async () => {
+    if (!detailTask || actionBusy) return;
+    const id = detailTask.id;
+    setActionBusy(true);
+    try {
+      const r = await apiFetch(`/api/tasks/by-business/${bizId}/${id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'external_review' }),
+      });
+      if (!r.ok) return;   // 가드 거절 시 로컬 반영 금지 (거짓 성공 방지)
+      const j = await r.json();
+      await refreshAfterAction(j?.data);
+      try { window.dispatchEvent(new CustomEvent('inbox:refresh')); } catch { /* noop */ }
+      try { window.dispatchEvent(new CustomEvent('focus:refresh')); } catch { /* noop */ }
+    } finally { setActionBusy(false); }
+  };
   const actAck = () => callAction('/ack');
   const actSubmitReview = () => callAction('/submit-review');
   const actCancelReview = () => callAction('/cancel-review');
@@ -906,6 +924,13 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           const cancelReviewAvailable = iAmAssignee && detailTask.status === 'reviewing';
           const completeSimple = iAmAssignee && reviewers.length === 0 && detailTask.status === 'in_progress';
           const completeFinal = false; // done_feedback 단계 폐지 — 컨펌 충족 시 자동 completed
+          // #206 보류 / 외부컨펌 — 권한 집합은 status 편집과 동일 (담당자·작성자·owner·admin). 최종 방어는 백엔드.
+          const canChangeStatus = iAmAssignee || iAmCreator || iAmWsOwner || myWsRole === 'admin';
+          const isOnHold = detailTask.status === 'on_hold';
+          const isExternalReview = detailTask.status === 'external_review';
+          const holdAvailable = canChangeStatus && !isOnHold
+            && !['completed', 'canceled'].includes(detailTask.status);
+          const externalAvailable = canChangeStatus && detailTask.status === 'in_progress';
           const assigneeHasAction = ackAvailable || startAvailable || submitAvailable || cancelReviewAvailable || completeSimple || completeFinal || (detailTask.status === 'reviewing' && reviewers.length > 0 && reviewPolicy === 'all');
           const reviewerCanAct = iAmReviewer && (detailTask.status === 'reviewing' || detailTask.status === 'revision_requested');
           const approvedCount = reviewers.filter(rv => rv.state === 'approved').length;
@@ -1410,6 +1435,59 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               )}
             </Section>
 
+            {/* #206 보류 / 외부컨펌 배너 — 지금 이 업무가 왜 멈춰 있는지를 액션보다 먼저 알린다 */}
+            {(isOnHold || isExternalReview) && (
+              <HoldBanner $kind={isOnHold ? 'hold' : 'external'}>
+                <HoldBannerText>
+                  {isOnHold
+                    ? (detailTask.hold_reason
+                      ? t('hold.bannerWithReason', 'On hold — {{reason}}', { reason: detailTask.hold_reason })
+                      : t('hold.banner', 'On hold'))
+                    : t('hold.externalBanner', 'Waiting on external confirmation')}
+                </HoldBannerText>
+                {canChangeStatus && (
+                  <ActionSecondary onClick={actResume} disabled={actionBusy}
+                    data-testid={isOnHold ? 'task-resume' : 'task-external-resume'}>
+                    {isOnHold ? t('hold.resume', 'Resume') : t('hold.externalResume', 'Resume work')}
+                  </ActionSecondary>
+                )}
+              </HoldBanner>
+            )}
+
+            {/* #206 보류 / 외부컨펌 진입 — 전진 액션이 아니므로 Secondary 톤 (UI 3톤 규칙) */}
+            {(holdAvailable || externalAvailable) && (
+              holdFormOpen ? (
+                <RevisionForm>
+                  <RevisionInput
+                    placeholder={t('hold.reasonPlaceholder', 'Reason (optional)') as string}
+                    value={holdReason}
+                    maxLength={500}
+                    onChange={e => setHoldReason(e.target.value)}
+                    autoFocus
+                  />
+                  <RevisionRow>
+                    <ActionSecondary onClick={() => { setHoldFormOpen(false); setHoldReason(''); }}>{t('common.cancel', 'Cancel')}</ActionSecondary>
+                    <ActionPrimary onClick={actHold} disabled={actionBusy} data-testid="task-hold-confirm">
+                      {t('hold.confirm', 'Confirm hold')}
+                    </ActionPrimary>
+                  </RevisionRow>
+                </RevisionForm>
+              ) : (
+                <HoldActionRow>
+                  {holdAvailable && (
+                    <ActionSecondary onClick={() => setHoldFormOpen(true)} disabled={actionBusy} data-testid="task-hold">
+                      {t('hold.action', 'Hold')}
+                    </ActionSecondary>
+                  )}
+                  {externalAvailable && (
+                    <ActionSecondary onClick={actExternalReview} disabled={actionBusy} data-testid="task-external">
+                      {t('hold.externalAction', 'External confirm')}
+                    </ActionSecondary>
+                  )}
+                </HoldActionRow>
+              )
+            )}
+
             {/* 단계 되돌리기 — 하단 액션 영역 앞. 권한·이력은 backend 가 판정. (운영 피드백: 위 제목 옆 X → 액션 앞) */}
             {detailTask.status !== 'not_started' && (
               <RevertRow>
@@ -1853,7 +1931,15 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                         <TimelineBody>
                           <TimelineHead>
                             <strong>{h.actor?.name || '—'}</strong>
-                            <TimelineEvent>{t(`detail.history.event.${h.event_type}`, h.event_type)}</TimelineEvent>
+                            <TimelineEvent>{
+                              // #206 — 보류/해제는 event_type 을 'status_change' 로 기록한다(시간 엔진이
+                              //   라운드 경계를 보려면 그래야 한다 — taskActualHours.js:46). 사람이 읽는
+                              //   라벨은 to_status/from_status 에서 파생해 "보류/보류 해제"를 유지한다.
+                              h.to_status === 'on_hold' ? t('hold.banner', 'On hold')
+                                : h.from_status === 'on_hold' ? t('hold.resume', 'Resume')
+                                  : h.to_status === 'external_review' ? t('hold.externalAction', 'External confirm')
+                                    : t(`detail.history.event.${h.event_type}`, h.event_type)
+                            }</TimelineEvent>
                             {h.target?.name && <TimelineTarget>→ {h.target.name}</TimelineTarget>}
                             {h.round != null && <TimelineRound>R{h.round}</TimelineRound>}
                           </TimelineHead>
@@ -2013,6 +2099,16 @@ const TitleInput = styled.input`font-size:19px;font-weight:700;color:#0F172A;lin
 const Meta = styled.div`display:flex;align-items:center;gap:6px;font-size:11px;color:#64748B;flex-wrap:wrap;`;
 const MetaDate = styled.span`font-size:11px;color:#94A3B8;white-space:nowrap;`;
 const RevertRow = styled.div`display:flex;justify-content:flex-end;padding:4px 0 2px;`;
+// #206 — 보류/외부컨펌 배너. 색은 STATUS_COLOR(on_hold orange / external_review sky) 와 같은 계열.
+const HoldBanner = styled.div<{ $kind: 'hold' | 'external' }>`
+  display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+  padding:10px 12px;border-radius:10px;margin:4px 0 8px;
+  background:${p => (p.$kind === 'hold' ? '#FFEDD5' : '#E0F2FE')};
+  border:1px solid ${p => (p.$kind === 'hold' ? '#FDBA74' : '#7DD3FC')};
+  color:${p => (p.$kind === 'hold' ? '#9A3412' : '#075985')};
+`;
+const HoldBannerText = styled.div`font-size:13px;font-weight:600;line-height:1.4;min-width:0;word-break:break-word;`;
+const HoldActionRow = styled.div`display:flex;gap:8px;flex-wrap:wrap;padding:2px 0 6px;`;
 const StatusBadgeWrap = styled.span`position:relative;display:inline-flex;align-items:center;gap:4px;`;
 const StatusBadge = styled.span<{ $bg: string; $fg: string }>`display:inline-flex;align-items:center;gap:2px;padding:3px 10px;font-size:11px;font-weight:700;background:${p => p.$bg};color:${p => p.$fg};border:none;border-radius:10px;cursor:pointer;user-select:none;&:hover{filter:brightness(0.95);}`;
 const RoundBadge = styled.span`display:inline-flex;align-items:center;padding:2px 6px;font-size:10px;font-weight:800;color:#92400E;background:#FEF3C7;border-radius:6px;letter-spacing:0.3px;`;

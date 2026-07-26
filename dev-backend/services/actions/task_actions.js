@@ -99,7 +99,10 @@ function audit(actor, entry) {
 async function recalcStatusFromReviewers(task, transaction) {
   const reviewers = await TaskReviewer.findAll({ where: { task_id: task.id }, transaction });
   if (reviewers.length === 0) return task.status;
-  if (['completed', 'canceled', 'not_started', 'waiting', 'in_progress'].includes(task.status)) return task.status;
+  // #206 on_hold·external_review 는 리뷰 라운드가 아니다 — 컨펌자 state 로 상태를 되살리면
+  // 보류가 소리없이 풀린다(R4). 호출부가 전부 inReviewRound 가드 뒤에 있어 실위험은 낮지만 방어적 조기반환.
+  if (['completed', 'canceled', 'not_started', 'waiting', 'in_progress',
+    'on_hold', 'external_review'].includes(task.status)) return task.status;
 
   // 이 시점: reviewing / revision_requested 중 하나
   const hasRevision = reviewers.some((r) => r.state === 'revision');
@@ -603,6 +606,9 @@ async function ack(task, actor) {
 async function submitReview(task, actor, { note = null } = {}) {
   if (!(await isAssignee(task, actor.userId))) return fail('only_assignee', 403);
   if (['completed', 'canceled'].includes(task.status)) return fail('task_closed');
+  // #206 보류는 "일이 멈춤"의 선언 — 우회 전진 금지. 해제 후 진행한다.
+  // (external_review 는 전진 허용 — 외부 컨펌 끝내고 내부 컨펌 직행은 자연스럽다.)
+  if (task.status === 'on_hold') return fail('task_on_hold');
 
   // 사람은 컨펌자를 명시적으로 지정해야 한다 (Cue 는 자동 등록 — taskTransition.autoReviewer).
   const reviewers = await TaskReviewer.count({ where: { task_id: task.id } });
@@ -627,6 +633,8 @@ async function cancelReview(task, actor) {
 /** 담당자 최종 완료 — 컨펌자가 있으면 이 문이 아니라 컨펌 라운드를 지나야 한다 */
 async function complete(task, actor) {
   if (!(await isAssignee(task, actor.userId))) return fail('only_assignee', 403);
+  // #206 — 보류 중 완료 우회 금지 (submitReview 와 같은 이유)
+  if (task.status === 'on_hold') return fail('task_on_hold');
 
   const reviewerCount = await TaskReviewer.count({ where: { task_id: task.id } });
   // 컨펌자가 있으면 완료는 컨펌 정책 충족으로만 일어난다 (recalcStatusFromReviewers 가 자동 전이).
@@ -823,9 +831,15 @@ async function revertStatus(task, actor) {
   const gate = await canEnterStatus(task.id, target);
   if (!gate.ok) return fail(gate.reason);
 
+  // #206 R5 — revert 로 on_hold 에 재진입하면 hold_prev_status 가 비어 resume 이 fallback 으로만 간다.
+  //   되돌리는 시점의 현재 상태를 복귀 목적지로 세팅한다. on_hold 를 벗어나는 revert 는 초기화.
+  const holdFields = {};
+  if (target === 'on_hold') holdFields.hold_prev_status = fromStatus;
+  else if (fromStatus === 'on_hold') { holdFields.hold_prev_status = null; holdFields.hold_reason = null; }
+
   const t = await sequelize.transaction();
   try {
-    await task.update({ status: target }, { transaction: t });
+    await task.update({ status: target, ...holdFields }, { transaction: t });
     await logHistory({
       taskId: task.id, eventType: 'revert',
       fromStatus, toStatus: target, actorUserId: userId, transaction: t,
@@ -845,6 +859,144 @@ async function revertStatus(task, actor) {
       wsName: await workspaceName(task.business_id), excludeUserId: userId,
     });
   }
+  return done(task);
+}
+
+// ─────────────────────────────────────────────
+// 행동 — 보류 / 외부컨펌 (#206)
+// ─────────────────────────────────────────────
+
+// status 를 바꿀 수 있는 사람 = 담당자 / 작성자 / owner / admin.
+// routes/tasks.js FIELD_RULES.status 와 **같은 집합** — 신규 권한 기계를 만들지 않는다.
+async function canChangeStatus(task, actor) {
+  const userId = actor.userId;
+  if (actor.platformRole === 'platform_admin') return true;
+  if (await isAssignee(task, userId)) return true;
+  if (await isRequester(task, userId)) return true;
+  const bm = await BusinessMember.findOne({
+    where: { business_id: task.business_id, user_id: userId },
+  });
+  return bm?.role === 'owner' || bm?.role === 'admin';
+}
+
+// 보류/해제의 관심 당사자 = 담당자 + 의뢰자. 둘이 같은 사람이면 1통만 (중복 알림 차단).
+function notifyStatusAudience(task, actor, { title, body, wsName }) {
+  const ids = [task.assignee_id, task.request_by_user_id || task.created_by];
+  const seen = new Set();
+  for (const userId of ids) {
+    if (!userId || seen.has(userId)) continue;
+    seen.add(userId);
+    notifyTask({ userId, task, wsName, excludeUserId: actor.userId, title, body });
+  }
+}
+
+/**
+ * 업무를 보류한다. 활성 상태 어디서든 진입 — 해제 시 돌아갈 곳을 hold_prev_status 에 명시 저장한다.
+ * (TaskStatusHistory 에서 파생하지 않는 이유: PUT 의 history 기록이 silent-fail 이라 권위 소스로 부적합)
+ */
+async function hold(task, actor, { reason = null } = {}) {
+  if (!(await canChangeStatus(task, actor))) return fail('forbidden_fields:status', 403);
+  if (task.status === 'on_hold') return fail('already_on_hold');
+
+  const fromStatus = task.status;
+  const gate = await canEnterStatus(task.id, 'on_hold', { fromStatus });
+  if (!gate.ok) return fail(gate.reason);
+
+  const cleanReason = reason ? String(reason).trim().slice(0, 500) : null;
+
+  const t = await sequelize.transaction();
+  try {
+    await task.update({
+      status: 'on_hold',
+      hold_prev_status: fromStatus,
+      hold_reason: cleanReason,
+    }, { transaction: t });
+    // ★ event_type 은 반드시 'status_change' — services/taskActualHours.js:46 이 이 값만 집계한다.
+    //   'hold' 같은 고유 타입으로 기록하면 in_progress 라운드가 보류 시점에 마감되지 않아
+    //   **보류한 시간이 통째로 actual_hours 에 누적된다**(설계 §3 의 핵심 효용이 무너짐).
+    //   보류/해제의 구분은 from_status/to_status 가 이미 담고 있고, 타임라인 라벨은 그걸로 파생한다.
+    await logHistory({
+      taskId: task.id, eventType: 'status_change',
+      fromStatus, toStatus: 'on_hold',
+      actorUserId: actor.userId, note: cleanReason, transaction: t,
+    });
+    await t.commit();
+  } catch (e) { await t.rollback(); throw e; }
+
+  // in_progress 이탈 → 담당자 Focus 세션 정리 (안 하면 "포커스 중" 배너가 보류 중에도 남는다)
+  try { await syncFocusOnTaskStatus(task, fromStatus, 'on_hold'); }
+  catch (e) { console.warn('[task_actions hold focusSync]', e.message); }
+
+  await task.reload();
+  broadcastTask(task);
+
+  // CLAUDE.md §13 — 전이 라우트는 notify 강제. 보류는 담당자·의뢰자 양쪽의 관심사다.
+  const wsName = await workspaceName(task.business_id);
+  notifyStatusAudience(task, actor, {
+    title: '업무가 보류되었습니다',
+    body: cleanReason ? `"${task.title}" — ${cleanReason}` : undefined,
+    wsName,
+  });
+
+  audit(actor, {
+    action: 'task.hold', targetType: 'task', targetId: task.id, businessId: task.business_id,
+    oldValue: { status: fromStatus },
+    newValue: { status: 'on_hold', hold_reason: cleanReason },
+  });
+  return done(task);
+}
+
+/**
+ * 보류/외부컨펌을 해제한다.
+ *   on_hold        → hold_prev_status 복귀 (없거나 진입 불가면 in_progress fallback)
+ *   external_review → in_progress 고정 복귀
+ */
+async function resume(task, actor) {
+  if (!(await canChangeStatus(task, actor))) return fail('forbidden_fields:status', 403);
+  if (!['on_hold', 'external_review'].includes(task.status)) return fail('not_on_hold');
+
+  const fromStatus = task.status;
+  const prevStatus = task.hold_prev_status;   // reload 후엔 NULL 이므로 여기서 잡아둔다 (audit 용)
+  let target = fromStatus === 'external_review'
+    ? 'in_progress'
+    : (prevStatus || 'in_progress');
+
+  // 보류 사이에 컨펌자가 전원 빠졌다면 reviewing 복귀가 불가능하다 → in_progress fallback.
+  const gate = await canEnterStatus(task.id, target, { fromStatus });
+  if (!gate.ok) target = 'in_progress';
+
+  const t = await sequelize.transaction();
+  try {
+    await task.update({
+      status: target,
+      hold_prev_status: null,
+      hold_reason: null,
+    }, { transaction: t });
+    // 'status_change' 고정 — 위 hold 와 같은 이유 (라운드 재개 경계가 시간 엔진에 보여야 한다)
+    await logHistory({
+      taskId: task.id, eventType: 'status_change',
+      fromStatus, toStatus: target,
+      actorUserId: actor.userId, transaction: t,
+    });
+    await t.commit();
+  } catch (e) { await t.rollback(); throw e; }
+
+  // in_progress 재진입 → Focus 세션 재시작 (focus_enabled 시)
+  try { await syncFocusOnTaskStatus(task, fromStatus, target); }
+  catch (e) { console.warn('[task_actions resume focusSync]', e.message); }
+
+  await task.reload();
+  broadcastTask(task);
+
+  const wsName = await workspaceName(task.business_id);
+  const title = fromStatus === 'external_review' ? '외부 컨펌이 끝났습니다' : '보류가 해제되었습니다';
+  notifyStatusAudience(task, actor, { title, wsName });
+
+  audit(actor, {
+    action: 'task.resume', targetType: 'task', targetId: task.id, businessId: task.business_id,
+    oldValue: { status: fromStatus, hold_prev_status: prevStatus },
+    newValue: { status: target },
+  });
   return done(task);
 }
 
@@ -972,6 +1124,8 @@ module.exports = {
   ack, submitReview, cancelReview, complete,
   approve, requestRevision, revertReviewerState,
   revertStatus, addReviewer, removeReviewer, setPolicy,
+  // 행동 — 보류 / 외부컨펌 (#206)
+  hold, resume,
   // 전이 규칙 (다른 도메인이 상태를 재평가해야 할 때 — 단일 원천)
   recalcStatusFromReviewers,
   // 권한 술어 (읽기 라우트가 재사용)

@@ -11,7 +11,7 @@ import PartnerKindBadge from '../../components/Common/PartnerKindBadge';
 import { apiFetch } from '../../contexts/AuthContext';
 import TaskRowActionMenu from '../../components/QTask/TaskRowActionMenu';
 import { GanttHeader, GanttRowTrack, GanttBar, useGanttScrollSync, type GanttRange } from '../../components/Common/GanttTrack';
-import { STATUS_COLOR, displayStatus, getStatusLabel, type StatusCode } from '../../utils/taskLabel';
+import { STATUS_COLOR, displayStatus, getStatusLabel, statusOptionsFor, type StatusCode } from '../../utils/taskLabel';
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
 import { friendlyDeleteError } from '../../utils/taskDeleteError';
 import {
@@ -33,15 +33,6 @@ export interface TaskRow {
 }
 
 // 업무 종류별 드롭다운 옵션 (Q Task 와 동일)
-// 사이클 N+6: reviewer 0명이면 reviewing/revision_requested 단계 자체가 노출되지 않음. 백엔드 PUT 가드 (no_reviewers_assigned 400) 와 일관.
-// 사이클 N+22 (2026-05-18): waiting (진행대기) 은 DB ENUM 정식 값 — 리스트/뱃지에서 노출되므로 드롭다운도 일관 포함 (요청·비요청 무관).
-const statusOptionsFor = (task: { source?: string; reviewers?: Array<{ user_id: number }> }): string[] => {
-  const hasReviewers = (task.reviewers || []).length > 0;
-  let opts = ['not_started', 'waiting', 'in_progress', 'reviewing', 'revision_requested', 'completed', 'canceled'];
-  if (!hasReviewers) opts = opts.filter(s => s !== 'reviewing' && s !== 'revision_requested');
-  return opts;
-};
-
 type SortKey = 'priority_order' | 'title' | 'status' | 'progress_percent' | 'due_date' | 'start_date';
 type SortDir = 'asc' | 'desc';
 

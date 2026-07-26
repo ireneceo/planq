@@ -114,7 +114,9 @@ router.get('/my-week', authenticateToken, async (req, res, next) => {
               { due_date: { [Op.lt]: monday } },   // ★ 지연(마감 지난 미착수)도 포함 — Irene 2026-07-05. null 마감은 NULL 비교로 자동 제외(backlog flood 차단 유지)
             ],
           },
-          { status: { [Op.in]: ['in_progress', 'reviewing', 'revision_requested', 'waiting'] } },
+          // #206 external_review 는 이번 주에 남긴다 (외부를 채근할 책임이 담당자에게 있다).
+          //   on_hold 는 의도적으로 제외 — 보류는 이번 주 무대에서 퇴장, 전체 탭에만 주차.
+          { status: { [Op.in]: ['in_progress', 'reviewing', 'revision_requested', 'waiting', 'external_review'] } },
         ],
       },
       include: [
@@ -874,7 +876,15 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
 
     // 진행율 → status 자동 전환 (PATCH /time 과 동일 — 단일 진실 원천 회복)
     // reviewer 분기: ≥1명이면 100% 입력해도 자동 completed 차단 (사용자 명시 컨펌 요청 필요)
-    if (updates.progress_percent === 100 && task.status !== 'completed' && updates.status === undefined) {
+    //
+    // ★ #206 R1 — 보류/외부컨펌 중에는 이 자동 전환을 **정지**한다.
+    //   보류 중 진행률 100 을 입력했다고 업무가 소리없이 completed 로 닫히면 안 된다(보류 선언 무시).
+    //   전진하려면 명시적으로 해제(resume)한 뒤 진행한다. 프론트(QTaskPage)도 같은 가드를 갖는다.
+    const holdBlocksAutoSync = ['on_hold', 'external_review'].includes(task.status)
+      && updates.status === undefined;
+    if (holdBlocksAutoSync) {
+      // 자동 전환 없음 — 진행률만 저장된다
+    } else if (updates.progress_percent === 100 && task.status !== 'completed' && updates.status === undefined) {
       const revCount = await TaskReviewer.count({ where: { task_id: task.id } });
       if (revCount === 0) {
         updates.status = 'completed';
@@ -890,8 +900,20 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     // 우회해 직접 status 를 쓰던 구멍을 막으면서, 사람 경로도 같은 함수를 지나게 정렬).
     if (status !== undefined) {
       const { canEnterStatus } = require('../services/taskTransition');
-      const gate = await canEnterStatus(task.id, status);
+      // #206 — fromStatus 를 넘겨야 on_hold/external_review 진입 매트릭스까지 검사된다
+      const gate = await canEnterStatus(task.id, status, { fromStatus: task.status });
       if (!gate.ok) return errorResponse(res, gate.reason, 400);
+    }
+
+    // #206 — 드롭다운으로 직접 status 를 바꾸는 경로에서도 보류 필드를 정합하게 유지한다.
+    //   on_hold 진입: 복귀 목적지 저장 / on_hold 이탈: 초기화 (액션 계층 hold·resume 과 같은 규칙)
+    if (status !== undefined && status !== task.status) {
+      if (status === 'on_hold') {
+        updates.hold_prev_status = task.status;
+      } else if (task.status === 'on_hold') {
+        updates.hold_prev_status = null;
+        updates.hold_reason = null;
+      }
     }
 
     // 완료 해제 시 progress 자동 조정 (사이클 N+6, 단일 진실 원천):
@@ -1112,6 +1134,27 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
             title: '업무 수정 요청', body: `"${task.title}"` ,
             link: taskLink, ctaLabel: '수정 시작', workspaceName: wsName,
           }).catch((e) => console.warn('[notify revision]', e.message));
+        }
+        // #206 보류 / 외부컨펌 / 해제 → 담당자 + 의뢰자 (§13. 드롭다운 경로도 알림이 나가야 한다)
+        const HOLD_TITLES = {
+          on_hold: '업무가 보류되었습니다',
+          external_review: '외부 컨펌 대기로 전환되었습니다',
+        };
+        const holdTitle = HOLD_TITLES[newStatus]
+          || (['on_hold', 'external_review'].includes(prev.status)
+            ? (prev.status === 'external_review' ? '외부 컨펌이 끝났습니다' : '보류가 해제되었습니다')
+            : null);
+        if (holdTitle) {
+          const audience = [...new Set(
+            [task.assignee_id, task.request_by_user_id || task.created_by].filter(Boolean)
+          )];
+          notifyMany({
+            userIds: audience, businessId: task.business_id, eventKind: 'task',
+            title: holdTitle,
+            body: task.hold_reason ? `"${task.title}" — ${task.hold_reason}` : `"${task.title}"`,
+            link: taskLink, ctaLabel: '업무 보기', workspaceName: wsName,
+            excludeUserId: req.user.id,
+          }).catch((e) => console.warn('[notify hold]', e.message));
         }
       }
     } catch (e) { console.warn('[task PUT notify outer]', e.message); }

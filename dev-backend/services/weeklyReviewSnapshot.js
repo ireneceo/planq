@@ -496,11 +496,11 @@ async function fetchRisks(businessId, monday, sunday, userIdFilter) {
   return [...overdue, ...dueSoon, ...stalled];
 }
 
-// blockers — waiting / revision_requested
+// blockers — waiting / revision_requested / on_hold(#206 보류는 막힌 일이다)
 async function fetchBlockers(businessId, userIdFilter) {
   const where = {
     business_id: businessId,
-    status: { [Op.in]: ['waiting', 'revision_requested'] },
+    status: { [Op.in]: ['waiting', 'revision_requested', 'on_hold'] },
   };
   if (userIdFilter) where.assignee_id = userIdFilter;
   const tasks = await Task.findAll({

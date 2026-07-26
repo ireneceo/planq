@@ -8,7 +8,8 @@ export type ProjectStatus = 'active' | 'paused' | 'closed';
 export type TaskStatus =
   | 'not_started' | 'waiting' | 'in_progress'
   | 'reviewing' | 'revision_requested' | 'done_feedback'
-  | 'completed' | 'canceled';
+  | 'completed' | 'canceled'
+  | 'on_hold' | 'external_review';   // #206
 
 export interface MockMember {
   user_id: number;
