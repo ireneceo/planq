@@ -75,7 +75,7 @@ async function getProjectSnapshot(projectId, businessId, scope) {
     where: {
       [Op.and]: [
         taskBase,
-        { project_id: projectId, status: { [Op.in]: ['in_progress', 'reviewing', 'revision_requested', 'task_requested'] } },
+        { project_id: projectId, status: { [Op.in]: ['in_progress', 'reviewing', 'revision_requested', 'task_requested', 'external_review', 'on_hold'] } },
       ],
     },
     attributes: ['id', 'title', 'status', 'due_date', 'progress_percent', 'assignee_id'],
@@ -107,7 +107,7 @@ async function getUserSnapshot(userId, businessId, businessTimezone, scope) {
     where: {
       business_id: businessId,
       assignee_id: userId,
-      status: { [Op.in]: ['in_progress', 'reviewing', 'revision_requested', 'task_requested', 'waiting'] },
+      status: { [Op.in]: ['in_progress', 'reviewing', 'revision_requested', 'task_requested', 'waiting', 'external_review', 'on_hold'] },
     },
     attributes: ['id', 'title', 'status', 'due_date', 'progress_percent'],
     order: [['due_date', 'ASC']],
@@ -258,7 +258,8 @@ async function getWorkspaceMatches({ businessId, scope, query }) {
 // #61 — 권한 스코프 워크스페이스 현황 (쿼리 무관, 항상 주입).
 // Cue 가 "프로젝트 진행 어때?" "업무 얼마나 남았어?" 같은 일반 질문에 답하도록 전체 그림 제공.
 // 가시성은 질문자 권한 기준: member 이상=전체 / client=관여분 / 재무=owner·admin.
-const ACTIVE_TASK = ['not_started', 'waiting', 'in_progress', 'reviewing', 'revision_requested'];
+// #206 — Cue 가 "보류 업무 뭐 있어?" 에 답할 수 있어야 한다
+const ACTIVE_TASK = ['not_started', 'waiting', 'in_progress', 'reviewing', 'revision_requested', 'external_review', 'on_hold'];
 function todayStr(tz) {
   try { return new Date().toLocaleDateString('en-CA', { timeZone: tz || 'Asia/Seoul' }); }
   catch { return new Date().toISOString().slice(0, 10); }

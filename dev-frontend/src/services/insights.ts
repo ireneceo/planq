@@ -63,7 +63,9 @@ export interface TasksTabData {
   };
   scatter: ScatterPoint[];
   ai_trend: AiTrendPoint[];
-  funnel: { not_started: number; in_progress: number; reviewing: number; completed: number; canceled: number };
+  // #206 on_hold 는 전용 버킷 (보류를 진행중으로 세면 진행 규모가 부풀려진다).
+  //   external_review 는 서버에서 in_progress 버킷에 합산된다.
+  funnel: { not_started: number; in_progress: number; reviewing: number; on_hold: number; completed: number; canceled: number };
   sources: { manual: number; internal_request: number; qtalk_extract: number };
   categories_pareto: { category: string; count: number; pct: number; cumulative_pct: number }[];
   in_progress_watch?: { task_id: number; title: string; assignee_name: string | null; estimated: number; actual: number; over_pct: number }[];

@@ -109,7 +109,8 @@ async function collectTasks(businessId, userId) {
       assignee_id: userId,
       request_by_user_id: { [Op.ne]: userId, [Op.not]: null },
       request_ack_at: null,
-      status: { [Op.notIn]: ['completed', 'canceled'] },
+      // #206 — 보류된 요청으로 담당자를 채근하지 않는다 (보류는 "일이 멈춤"의 합의)
+      status: { [Op.notIn]: ['completed', 'canceled', 'on_hold'] },
     },
     attributes: ['id', 'title', 'due_date', 'createdAt'],
     include: [{ model: User, as: 'requester', attributes: ['id', 'name', 'name_localized'], required: false }],

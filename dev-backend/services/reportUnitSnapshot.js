@@ -65,9 +65,9 @@ async function buildProjectSnapshot(businessId, projectId, periodType, periodSta
   const tp = tasks.map((t) => t.toJSON());
 
   const highlights = tp.filter((t) => t.status === 'completed' && inRange(t.completed_at, start, end)).map(briefTask).slice(0, 20);
-  const in_progress = tp.filter((t) => t.status === 'in_progress' || t.status === 'reviewing').map(briefTask).slice(0, 20);
+  const in_progress = tp.filter((t) => t.status === 'in_progress' || t.status === 'reviewing' || t.status === 'external_review').map(briefTask).slice(0, 20);
   const risks = tp.filter((t) => t.due_date && ymd(t.due_date) < today && t.status !== 'completed' && t.status !== 'canceled').map(briefTask).slice(0, 20);
-  const blockers = tp.filter((t) => t.status === 'waiting' || t.status === 'revision_requested').map(briefTask).slice(0, 15);
+  const blockers = tp.filter((t) => t.status === 'waiting' || t.status === 'revision_requested' || t.status === 'on_hold').map(briefTask).slice(0, 15);
   // 리뷰 M6 — 주간: 차주 정확 매치 / 월간: 익월(YYYY-MM) 내 계획
   const inNext = (d) => { const v = ymd(d); if (!v) return false; return periodType === 'monthly' ? v.slice(0, 7) === nextStart.slice(0, 7) : v === nextStart; };
   const next = tp.filter((t) => inNext(t.planned_week_start) && t.status !== 'canceled').map(briefTask).slice(0, 20);
@@ -171,9 +171,9 @@ async function buildMemberSnapshot(businessId, userId, periodType, periodStart) 
   const tp = tasks.map((t) => t.toJSON());
 
   const highlights = tp.filter((t) => t.status === 'completed' && inRange(t.completed_at, start, end)).map(briefTask).slice(0, 20);
-  const in_progress = tp.filter((t) => t.status === 'in_progress' || t.status === 'reviewing').map(briefTask).slice(0, 20);
+  const in_progress = tp.filter((t) => t.status === 'in_progress' || t.status === 'reviewing' || t.status === 'external_review').map(briefTask).slice(0, 20);
   const risks = tp.filter((t) => t.due_date && ymd(t.due_date) < today && t.status !== 'completed').map(briefTask).slice(0, 20);
-  const blockers = tp.filter((t) => t.status === 'waiting' || t.status === 'revision_requested').map(briefTask).slice(0, 15);
+  const blockers = tp.filter((t) => t.status === 'waiting' || t.status === 'revision_requested' || t.status === 'on_hold').map(briefTask).slice(0, 15);
   const inNext = (d) => { const v = ymd(d); if (!v) return false; return periodType === 'monthly' ? v.slice(0, 7) === nextStart.slice(0, 7) : v === nextStart; };
   const next = tp.filter((t) => inNext(t.planned_week_start)).map(briefTask).slice(0, 20);
 

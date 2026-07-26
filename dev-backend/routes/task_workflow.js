@@ -155,6 +155,32 @@ router.post('/:id/revert-status', authenticateToken, async (req, res, next) => {
 });
 
 // ─────────────────────────────────────────────
+// POST /api/tasks/:id/hold — 업무 보류 (#206)
+//   body: { reason?: string }  권한: 담당자 / 작성자 / owner / admin
+// ─────────────────────────────────────────────
+router.post('/:id/hold', authenticateToken, async (req, res, next) => {
+  try {
+    const task = await loadTaskOrFail(req.params.id, res);
+    if (!task) return;
+    const result = await actions.hold(task, actorFrom(req), { reason: req.body?.reason });
+    return sendResult(res, result, (t) => successResponse(res, t.toJSON()));
+  } catch (err) { next(err); }
+});
+
+// ─────────────────────────────────────────────
+// POST /api/tasks/:id/resume — 보류/외부컨펌 해제 (#206)
+//   on_hold → hold_prev_status 복귀 / external_review → in_progress
+// ─────────────────────────────────────────────
+router.post('/:id/resume', authenticateToken, async (req, res, next) => {
+  try {
+    const task = await loadTaskOrFail(req.params.id, res);
+    if (!task) return;
+    const result = await actions.resume(task, actorFrom(req));
+    return sendResult(res, result, (t) => successResponse(res, t.toJSON()));
+  } catch (err) { next(err); }
+});
+
+// ─────────────────────────────────────────────
 // POST /api/tasks/:id/complete — 담당자 최종 완료 (컨펌자 0명일 때만)
 // ─────────────────────────────────────────────
 router.post('/:id/complete', authenticateToken, async (req, res, next) => {

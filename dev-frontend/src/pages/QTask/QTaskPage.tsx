@@ -10,7 +10,7 @@ import SingleDateField from '../../components/Common/SingleDateField';
 import { PanelLayout, Panel } from '../../components/Layout/PanelLayout';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { todayInTz, mondayOfDateStr, addDaysStr, detectBrowserTz } from '../../utils/timezones';
-import { STATUS_CODES, STATUS_COLOR, displayStatus, getStatusLabel, type StatusCode } from '../../utils/taskLabel';
+import { STATUS_CODES, STATUS_COLOR, displayStatus, getStatusLabel, statusOptionsFor, type StatusCode } from '../../utils/taskLabel';
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
 import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
@@ -654,8 +654,13 @@ const QTaskPage:React.FC=()=>{
         if(field==='progress_percent'){
           const pct=Number(value);
           const hasReviewer=(t.reviewers||[]).length>0;
+          // ★ #206 R1 — 보류/외부컨펌 중에는 progress→status 자동 전환 정지 (backend PUT 과 미러).
+          //   보류한 업무가 진행률 100 입력만으로 소리없이 completed 가 되면 보류 선언이 무시된다.
+          const holdBlocks=t.status==='on_hold'||t.status==='external_review';
           // optimistic — backend 의 reviewer 분기와 일치
-          if(pct===100&&!hasReviewer&&t.status!=='completed'){
+          if(holdBlocks){
+            /* 자동 전환 없음 — 진행률만 반영 */
+          } else if(pct===100&&!hasReviewer&&t.status!=='completed'){
             u.status='completed';
           } else if(pct>0&&pct<100&&(t.status==='not_started'||t.status==='task_requested'||t.status==='task_re_requested'||t.status==='waiting')){
             u.status='in_progress';
@@ -918,18 +923,6 @@ const QTaskPage:React.FC=()=>{
   };
 
   // 업무 종류별 선택 가능한 단계 목록
-  // 사이클 N+6: reviewer 0명이면 reviewing/revision_requested 단계 자체가 없어야 일관 (UI 액션 노출 정책과 매트릭스 일치).
-  // 백엔드 PUT 도 같은 가드 (no_reviewers_assigned 400) — 양쪽 동시 적용으로 모순 0.
-  const statusOptionsFor=(task:{source?:string;reviewers?:Array<{user_id:number}>}):string[]=>{
-    const isReq=task.source==='internal_request'||task.source==='qtalk_extract';
-    const hasReviewers=(task.reviewers||[]).length>0;
-    // waiting (진행대기) 은 DB ENUM 정식 값 — 리스트/상세 뱃지에서 노출되므로 드롭다운도 일관 포함.
-    let opts=isReq
-      ? ['not_started','waiting','in_progress','reviewing','revision_requested','completed','canceled']
-      : ['not_started','waiting','in_progress','reviewing','revision_requested','completed','canceled'];
-    if(!hasReviewers) opts=opts.filter(s=>s!=='reviewing'&&s!=='revision_requested');
-    return opts;
-  };
   // 드롭다운 옵션 라벨 — not_started 가 요청 업무면 task_requested 라벨 사용
   const optionLabel=(task:{source?:string;request_ack_at?:string|null},status:string,role:string):string=>{
     const isReq=task.source==='internal_request'||task.source==='qtalk_extract';
@@ -1005,7 +998,10 @@ const QTaskPage:React.FC=()=>{
               if(dueStr<periodFrom) return true;                   // ★ 지연(마감 지난 미착수)도 이번 주 포함 — Irene 2026-07-05
               return dueStr<=periodTo;                             // 이번 주 마감 (미래만 제외)
             }
-            return true; // in_progress·reviewing·revision_requested·waiting
+            // #206 R6 — 보류는 이번 주 무대에서 퇴장(전체 탭·보류 컬럼에만 주차). 서버 my-week 화이트리스트와 미러.
+            //   external_review 는 잔류 — 외부를 채근할 책임이 담당자에게 남는다.
+            if(t.status==='on_hold') return false;
+            return true; // in_progress·reviewing·revision_requested·waiting·external_review
           })();
           if(!inPeriod) return false;
 
@@ -1243,8 +1239,9 @@ const QTaskPage:React.FC=()=>{
   //  잔여 = 예측 × (1 − 진행률) — 거의 끝난 carried-over 업무가 가용을 거짓으로 잡아먹는 왜곡 제거.
   //  이월 = 활성 단계(in_progress~) 이면서 표시 주 시작(periodFrom) 이전에 생성됨 → 지난 주에서 넘어온 업무(derived, 복제 0).
   const taskRemaining=useCallback((t:TaskRow)=>Math.max(0,(Number(t.estimated_hours)||0)*(1-(t.progress_percent||0)/100)),[]);
+  // #206 external_review 는 활성 단계(이월 대상). on_hold 는 이번 주 목록에서 빠지므로 여기서도 제외.
   const isCarried=useCallback((t:TaskRow)=>(
-    (t.status==='in_progress'||t.status==='reviewing'||t.status==='revision_requested'||t.status==='waiting')
+    (t.status==='in_progress'||t.status==='reviewing'||t.status==='revision_requested'||t.status==='waiting'||t.status==='external_review')
     && (t.createdAt||'').slice(0,10) < periodFrom
   ),[periodFrom]);
   // 부하 구성 — 내 활성 업무의 잔여를 이월/이번주 신규로 분해 (가용시간 인지 핵심)
@@ -2170,6 +2167,8 @@ const QTaskPage:React.FC=()=>{
                       match:(x)=>x.assignee_id===myId&&displayStatus(x,todayStr)==='in_progress' },
                     { key:'revision', title:t('columnGroup.revision_requested','수정필요'), color:STATUS_COLOR.revision_requested,
                       match:(x)=>x.assignee_id===myId&&displayStatus(x,todayStr)==='revision_requested' },
+                    { key:'external_review', title:t('columnGroup.external_review','외부컨펌중'), color:STATUS_COLOR.external_review,
+                      match:(x)=>x.assignee_id===myId&&x.status==='external_review' },
                   ];
                 } else if (scope === 'mine' && tab === 'requested') {
                   // 요청자 관점
@@ -2184,6 +2183,10 @@ const QTaskPage:React.FC=()=>{
                       match:(x)=>x.status==='reviewing' },
                     { key:'revision_self', title:t('columnGroup.revision_self','수정중'), color:STATUS_COLOR.revision_requested,
                       match:(x)=>x.status==='revision_requested' },
+                    { key:'external_review', title:t('columnGroup.external_review','외부컨펌중'), color:STATUS_COLOR.external_review,
+                      match:(x)=>x.status==='external_review' },
+                    { key:'on_hold', title:t('columnGroup.on_hold','보류'), color:STATUS_COLOR.on_hold,
+                      match:(x)=>x.status==='on_hold' },
                     { key:'completed', title:t('columnGroup.completed','완료'), color:STATUS_COLOR.completed,
                       match:(x)=>x.status==='completed' },
                   ];
@@ -2202,6 +2205,10 @@ const QTaskPage:React.FC=()=>{
                       match:(x)=>x.status==='reviewing' },
                     { key:'revision_obs', title:t('columnGroup.revision_obs','수정요청'), color:STATUS_COLOR.revision_requested,
                       match:(x)=>x.status==='revision_requested' },
+                    { key:'external_review', title:t('columnGroup.external_review','외부컨펌중'), color:STATUS_COLOR.external_review,
+                      match:(x)=>x.status==='external_review' },
+                    { key:'on_hold', title:t('columnGroup.on_hold','보류'), color:STATUS_COLOR.on_hold,
+                      match:(x)=>x.status==='on_hold' },
                     { key:'completed', title:t('columnGroup.completed','완료'), color:STATUS_COLOR.completed,
                       match:(x)=>x.status==='completed' },
                   ];

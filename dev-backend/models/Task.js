@@ -65,12 +65,32 @@ Task.init({
     //                     그때까지는 "읽을 수는 있지만 아무도 쓰지 않는" 값으로 남긴다.
     //  completed       — 최종 완료 (컨펌 정책 충족 시 자동, 또는 컨펌자 0명일 때 담당자가 직접)
     //  canceled        — 취소
+    //  on_hold         — 보류 (#206). 활성 상태 어디서든 진입. 해제 시 hold_prev_status 로 복귀.
+    //                     "일이 멈춤"의 선언 — 이번 주 목록에서 빠지고 실제시간 누적이 멈춘다.
+    //  external_review — 외부컨펌중 (#206). 고객·외주 등 PlanQ **밖**의 회신 대기.
+    //                     내부 컨펌(reviewing, task_reviewers)과 다른 축 — reviewer row 도 승인 액션도 없다.
+    //                     in_progress 에서만 진입/복귀. 이번 주 목록에는 남는다 (마감 책임 = 담당자).
+    // ★ ENUM 값은 **끝에 append 만** — 중간 삽입·순서 변경 금지 (테이블 리빌드 + 기존 행 재매핑 리스크).
     type: DataTypes.ENUM(
       'not_started', 'waiting', 'in_progress',
       'reviewing', 'revision_requested', 'done_feedback',
-      'completed', 'canceled'
+      'completed', 'canceled',
+      'on_hold', 'external_review'
     ),
     defaultValue: 'not_started'
+  },
+  // #206 보류 — 해제 시 복귀 목적지. TaskStatusHistory 에서 파생하지 않는 이유:
+  // routes/tasks.js 의 PUT history 기록이 try/catch silent-fail 이라 권위 소스로 부적합.
+  hold_prev_status: {
+    type: DataTypes.STRING(30),
+    allowNull: true,
+    defaultValue: null,
+  },
+  // #206 보류 사유 (선택). 해제 시 NULL 초기화 — 영구 이력은 TaskStatusHistory.note 에 남는다.
+  hold_reason: {
+    type: DataTypes.STRING(500),
+    allowNull: true,
+    defaultValue: null,
   },
   // ─── 사이클 P8 — Cue 팀원화 ───
   // assignee_id 가 워크스페이스의 Cue 사용자(is_ai=true) 면 자동 실행.
