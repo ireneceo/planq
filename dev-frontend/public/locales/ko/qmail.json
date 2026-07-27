@@ -412,5 +412,8 @@
     "bounced": "반송됨",
     "pending": "발송 대기",
     "delivered": "전달됨"
+  },
+  "compose": {
+    "fromAddress": "보내는 주소"
   }
 }

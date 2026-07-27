@@ -10,7 +10,7 @@
  * 팀 캘린더로의 비공개 push 는 #126 유출 차단 원칙 그대로 **영구 금지**다(gcal.isPrivateForGcal).
  *
  * 3중 토글 — 하나라도 꺼져 있으면 그 목적지는 제외된다:
- *   ① 일정 단위   calendar_events.gcal_sync
+ *   ① 일정 단위   calendar_events.gcal_sync_workspace / gcal_sync_personal (목적지별 각각)
  *   ② 연동 단위   business_cloud_tokens.sync_enabled / external_connections.sync_enabled
  *   ③ 권한        gcal.hasWriteScope / personalCalendar.hasCalendarWrite
  *
@@ -43,15 +43,18 @@ function toInput(event, timezone) {
  * 이 일정이 가야 할 목적지 목록. 토글·권한을 전부 통과한 것만 남는다.
  * @returns {Promise<Array<{target:'workspace'|'personal', connection_id:number|null, user_id:number|null, token:object}>>}
  */
-async function resolveTargets(event, { businessId, userId }) {
-  // ① 일정 단위 체크가 꺼져 있으면 목적지 0 — reconcile 이 기존 링크를 전부 회수한다.
-  if (event.gcal_sync === false || event.gcal_sync === 0) return [];
+// 일정 단위 체크 — 팀/개인 각각. 옛 단일 컬럼(gcal_sync)에서 rename 됐으므로
+//   혹시 남아 있는 옛 필드도 하위호환으로 인정한다(값이 undefined 면 기본 ON).
+const wantsWorkspace = (e) => (e.gcal_sync_workspace !== false && e.gcal_sync_workspace !== 0)
+  && (e.gcal_sync === undefined || (e.gcal_sync !== false && e.gcal_sync !== 0));
+const wantsPersonal = (e) => e.gcal_sync_personal !== false && e.gcal_sync_personal !== 0;
 
+async function resolveTargets(event, { businessId, userId }) {
   const targets = [];
   const isPrivate = gcal.isPrivateForGcal(event);
 
-  // ── 팀 캘린더 — 공개·업무 일정만 ──
-  if (!isPrivate) {
+  // ── 팀 캘린더 — 공개·업무 일정만. 비공개는 체크와 무관하게 영구 금지(#126 유출 차단) ──
+  if (!isPrivate && wantsWorkspace(event)) {
     const token = await BusinessCloudToken.findOne({ where: { business_id: businessId, provider: 'gcal' } });
     if (token && token.sync_enabled !== false && gcal.hasWriteScope(token.scope)) {
       targets.push({ target: 'workspace', connection_id: null, user_id: null, token });
@@ -60,7 +63,7 @@ async function resolveTargets(event, { businessId, userId }) {
 
   // ── 개인 캘린더 — 일정 소유자 본인 것만. 남의 개인 캘린더에 쓰지 않는다 ──
   const ownerId = userId || event.created_by;
-  if (ownerId) {
+  if (ownerId && wantsPersonal(event)) {
     const conn = await ExternalConnection.findOne({
       where: { owner_scope: 'user', user_id: ownerId, provider: 'google_calendar', is_active: true },
     });
@@ -194,4 +197,4 @@ async function removeEverywhere(eventId, businessId) {
   return removed;
 }
 
-module.exports = { reconcile, removeEverywhere, resolveTargets, toInput };
+module.exports = { reconcile, removeEverywhere, resolveTargets, toInput, wantsWorkspace, wantsPersonal };

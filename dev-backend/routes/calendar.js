@@ -239,7 +239,7 @@ router.post('/by-business/:businessId', authenticateToken, checkBusinessAccess, 
         visibility: b.visibility, projectId: b.project_id,
         attendees: b.attendees || [],
         reminderMinutes: b.reminder_minutes,
-        vlevel: b.vlevel, gcalSync: b.gcal_sync, targetMemberIds: b.target_member_ids, targetClientIds: b.target_client_ids,
+        vlevel: b.vlevel, gcalSyncWorkspace: b.gcal_sync_workspace, gcalSyncPersonal: b.gcal_sync_personal, targetMemberIds: b.target_member_ids, targetClientIds: b.target_client_ids,
       }
     );
     if (!r.ok) return errorResponse(res, r.code, r.http || 400);
@@ -536,8 +536,9 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
       if (!VISIBILITY_SET.has(visibility)) { await t.rollback(); return errorResponse(res, 'invalid visibility', 400); }
       updates.visibility = visibility;
     }
-    // 일정 단위 "구글 캘린더에 올리기" 체크. 끄면 reconcile 이 구글에서 회수한다(남겨두지 않는다).
-    if (req.body.gcal_sync !== undefined) updates.gcal_sync = !!req.body.gcal_sync;
+    // 일정 단위 "구글 캘린더에 올리기" — 팀/개인 각각. 끄면 reconcile 이 그 목적지에서 회수한다.
+    if (req.body.gcal_sync_workspace !== undefined) updates.gcal_sync_workspace = !!req.body.gcal_sync_workspace;
+    if (req.body.gcal_sync_personal !== undefined) updates.gcal_sync_personal = !!req.body.gcal_sync_personal;
     // N+65 — vlevel 통합 visibility (등록 모달과 정합). hook 가 visibility 도 자동 동기.
     if (req.body.vlevel !== undefined) {
       if (req.body.vlevel === null) updates.vlevel = null;
@@ -660,7 +661,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
     //   목적지·토글·권한·회수는 전부 services/calendarSync.reconcile 이 판단한다.
     //   비공개로 전환된 일정이 팀 캘린더에서 **삭제**되는 것(#126 유출 차단)도 reconcile 의 회수 경로가
     //   담당한다 — 목적지 목록에서 빠지면 구글에서 지우고 링크를 끊는다.
-    //   gcal_sync 체크를 끈 경우도 같은 경로로 구글에서 사라진다.
+    //   목적지별 체크(gcal_sync_workspace/personal)를 끈 경우도 같은 경로로 구글에서 사라진다.
     try {
       const r = await calendarSync.reconcile(event, { businessId, userId: req.user.id });
       if (r.errors.length) console.warn('[calendarSync PUT]', JSON.stringify(r.errors).slice(0, 300));

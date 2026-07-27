@@ -1179,6 +1179,9 @@ const MailPage: React.FC = () => {
 
   const [composeOpen, setComposeOpen] = useState(false);
   const [cAccountId, setCAccountId] = useState<number | null>(null);
+  // 컴포저(새 메일·전달)용 별칭 — 답장(detail.account)과 계정이 다를 수 있어 따로 로딩한다.
+  const [cAliases, setCAliases] = useState<Array<{ id: number; email: string; display_name: string | null; is_default: boolean }>>([]);
+  const [cFromAliasId, setCFromAliasId] = useState<number>(0);   // 0 = 계정 기본 주소
   const [cTo, setCTo] = useState('');
   const [cSubject, setCSubject] = useState('');
   const [cBody, setCBody] = useState('');
@@ -1193,6 +1196,21 @@ const MailPage: React.FC = () => {
   useEffect(() => {
     if (composeOpen && cAccountId == null && accounts.length) setCAccountId(accounts[0].id);
   }, [composeOpen, cAccountId, accounts]);
+  useEffect(() => {
+    const accId = cAccountId || accounts[0]?.id;
+    if (!composeOpen || !businessId || !accId) { setCAliases([]); return; }
+    let alive = true;
+    (async () => {
+      try {
+        const r = await apiFetch(`/api/businesses/${businessId}/email-accounts/${accId}/aliases`);
+        const j = await r.json();
+        if (alive && j.success) setCAliases(j.data || []);
+      } catch { /* 별칭은 부가 — 실패해도 계정 주소로 보낸다 */ }
+    })();
+    return () => { alive = false; };
+  }, [composeOpen, businessId, cAccountId, accounts]);
+  // 계정을 바꾸면 이전 계정의 별칭 선택이 남으면 안 된다 (서버가 alias_not_owned 로 거절)
+  useEffect(() => { setCFromAliasId(0); }, [cAccountId]);
   // #80 — 퀵메뉴 '+메일' 진입 시 작성 모달 자동 오픈
   useEffect(() => {
     if (sp.get('compose') === '1') {
@@ -1290,11 +1308,11 @@ const MailPage: React.FC = () => {
       const r = fwdFromMsgId && activeId
         ? await apiFetch(`/api/businesses/${businessId}/email-threads/${activeId}/forward`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ account_id: accId, message_id: fwdFromMsgId, to, subject: cSubject, body_html: cBody, attachment_file_ids: fileIds }),
+          body: JSON.stringify({ account_id: accId, message_id: fwdFromMsgId, to, subject: cSubject, body_html: cBody, attachment_file_ids: fileIds, from_alias_id: cFromAliasId }),
         })
         : await apiFetch(`/api/businesses/${businessId}/email-compose`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ account_id: accId, to, subject: cSubject, body_html: cBody, attachment_file_ids: fileIds }),
+          body: JSON.stringify({ account_id: accId, to, subject: cSubject, body_html: cBody, attachment_file_ids: fileIds, from_alias_id: cFromAliasId }),
         });
       const j = await r.json();
       if (!j.success) throw new Error(j.message || (t('compose.sendFailed', { defaultValue: '발송 실패' }) as string));
@@ -1688,6 +1706,27 @@ const MailPage: React.FC = () => {
                       value={composeAccountOptions.find(o => o.value === cAccountId)}
                       onChange={(opt: unknown) => { const v = (opt as { value?: number } | null)?.value; if (v) setCAccountId(Number(v)); }}
                       options={composeAccountOptions}
+                      isSearchable={false}
+                      menuPlacement="bottom"
+                    />
+                  </ComposeField>
+                )}
+                {cAliases.length > 0 && (
+                  <ComposeField>
+                    <ComposeLabel>{t('compose.fromAddress') as string}</ComposeLabel>
+                    <PlanQSelect
+                      size="sm"
+                      value={{
+                        value: cFromAliasId,
+                        label: cFromAliasId
+                          ? (cAliases.find(a => a.id === cFromAliasId)?.email || '')
+                          : (accounts.find(a => a.id === (cAccountId || accounts[0]?.id))?.email || ''),
+                      }}
+                      onChange={(opt) => setCFromAliasId(Number((opt as { value?: number } | null)?.value || 0))}
+                      options={[
+                        { value: 0, label: accounts.find(a => a.id === (cAccountId || accounts[0]?.id))?.email || '' },
+                        ...cAliases.map(a => ({ value: a.id, label: a.email })),
+                      ]}
                       isSearchable={false}
                       menuPlacement="bottom"
                     />

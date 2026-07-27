@@ -23,6 +23,16 @@ const { successResponse, errorResponse, parsePagination, paginatedResponse } = r
 const { applyMemberDisplayName, getMemberNameMap } = require('../services/displayName');
 const { sendMail, deliveryFromSendResult } = require('../services/emailSend');
 const { followUpState } = require('../services/mailFollowUp');
+
+// 발신 별칭 id 파싱 — **0 은 "계정 주소 명시 선택"이고 미지정이 아니다.**
+//   `from_alias_id || null` 로 뭉개면 서버가 기본별칭으로 덮어써, 화면은 help@ 를 보여주는데
+//   실제 From 은 support@ 로 나간다(표시≠실발신). Fable 게이트가 실 From 헤더로 재현한 사고.
+function parseFromAliasId(body) {
+  const v = (body || {}).from_alias_id;
+  if (v === undefined || v === null || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
 const { emailsOf, mergeParticipants, selfEmailsForAccount } = require('../services/emailAddress');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
@@ -141,6 +151,11 @@ router.get('/:businessId/email-threads',
       } else {
         where.account_id = { [Op.in]: acctIds };
       }
+      // 별칭별 보기 — "support@ 로 온 것만" 처럼 우리 쪽 수신 주소로 좁힌다.
+      //   계정 격리(위 account_id 조건) 안에서만 동작하므로 남의 개인 메일이 새지 않는다.
+      if (req.query.received_at) {
+        where.received_at_email = String(req.query.received_at).toLowerCase().slice(0, 255);
+      }
       // assigned/following 폴더 — 본인 participant 가 달린 thread 로 제한
       if (folder === 'assigned' || folder === 'following') {
         const pcol = folder === 'assigned' ? 'is_assigned' : 'is_following';
@@ -251,6 +266,7 @@ router.get('/:businessId/email-threads',
           last_message_preview: obj.last_message_preview,
           last_message_at: obj.last_message_at,
           last_message_direction: obj.last_message_direction,
+          received_at_email: obj.received_at_email || null,   // 별칭별 보기 — 이 대화가 들어온 우리 주소
           // 읽음 추적 대신 쓰는 결정론적 신호 — services/mailFollowUp 참조
           follow_up: followUpState(obj, lastOutByThread.get(obj.id) || null),
           status: obj.status,
@@ -727,7 +743,7 @@ router.post('/:businessId/email-threads/:id/messages',
           inReplyTo, references, attachments: atts,
           // 발신 주소 — 사용자가 고른 별칭이 있으면 그것, 없으면 "이 메일이 온 주소" 로 답한다.
           //   다른 도메인 주소로 답장이 나가면 사고다 (Send-as: docs/MAIL_ALIAS_AND_VOICE_DESIGN.md §A-4).
-          fromAliasId: (req.body || {}).from_alias_id || null,
+          fromAliasId: parseFromAliasId(req.body),
           replyToAddresses: lastInboundTo,
         });
       } catch (e) {
@@ -853,7 +869,7 @@ router.post('/:businessId/email-compose',
 
       let sendResult;
       try {
-        sendResult = await sendMail(account, { to: toList, cc, bcc, subject: subj, html: body_html, attachments: atts, fromAliasId: (req.body || {}).from_alias_id || null });
+        sendResult = await sendMail(account, { to: toList, cc, bcc, subject: subj, html: body_html, attachments: atts, fromAliasId: parseFromAliasId(req.body) });
       } catch (e) {
         console.error('[qmail] compose send failed:', e.message);
         return errorResponse(res, `send_failed: ${e.message}`, 502);
@@ -928,7 +944,7 @@ router.post('/:businessId/email-threads/:id/forward',
 
       let sendResult;
       try {
-        sendResult = await sendMail(account, { to: toList, cc, bcc, subject: subj, html: body_html, attachments: atts, fromAliasId: (req.body || {}).from_alias_id || null });
+        sendResult = await sendMail(account, { to: toList, cc, bcc, subject: subj, html: body_html, attachments: atts, fromAliasId: parseFromAliasId(req.body) });
       } catch (e) {
         console.error('[qmail] forward send failed:', e.message);
         return errorResponse(res, `send_failed: ${e.message}`, 502);
@@ -1589,5 +1605,8 @@ router.delete('/:businessId/email-threads/:id/notes/:noteId',
     } catch (err) { next(err); }
   }
 );
+
+// 검증용 노출 — 이 파싱이 틀리면 표시≠실발신 사고가 난다. 단위 검증 가능해야 한다.
+router._parseFromAliasId = parseFromAliasId;
 
 module.exports = router;

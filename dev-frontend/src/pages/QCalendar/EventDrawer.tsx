@@ -521,7 +521,7 @@ const EventDrawer: React.FC<Props> = ({
           </SectionBody>
         </Section>
 
-        {/* 구글 캘린더 반영 — 끄면 이미 올라간 구글 일정도 삭제된다(남겨두면 "안 지워진다" 호소가 반복). */}
+        {/* 구글 캘린더 — 팀/개인 각각(계정이 다르다). 끄면 구글에 올라간 일정도 삭제 전파 */}
         <Section>
           <SectionIcon>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -532,24 +532,31 @@ const EventDrawer: React.FC<Props> = ({
             </svg>
           </SectionIcon>
           <SectionBody>
-            <MutedSmall>{t('drawer.gcalSync')}</MutedSmall>
-            {canEdit ? (
-              <AutoSaveField type="toggle" onSave={async () => { /* onChange 직접 호출 */ }}>
-                <GcalSyncRow>
-                  <input
-                    type="checkbox"
-                    checked={(event as CalendarEvent & { gcal_sync?: boolean }).gcal_sync !== false}
-                    onChange={(e) => onUpdate({ gcal_sync: e.target.checked } as unknown as Partial<CalendarEvent>)}
-                  />
-                  <span>{(event as CalendarEvent & { gcal_sync?: boolean }).gcal_sync !== false
-                    ? t('drawer.gcalSyncOn')
-                    : t('drawer.gcalSyncOff')}</span>
-                </GcalSyncRow>
-              </AutoSaveField>
-            ) : (
-              <Plain>{(event as CalendarEvent & { gcal_sync?: boolean }).gcal_sync !== false
-                ? t('drawer.gcalSyncOn') : t('drawer.gcalSyncOff')}</Plain>
-            )}
+            <MutedSmall>{t('drawer.gcalSection')}</MutedSmall>
+            {(() => {
+              const ev = event as CalendarEvent & { gcal_sync_workspace?: boolean; gcal_sync_personal?: boolean; vlevel?: string | null };
+              const priv = ev.vlevel === 'L1' || ev.vlevel === 'L2';
+              const wsOn = ev.gcal_sync_workspace !== false && !priv;
+              const peOn = ev.gcal_sync_personal !== false;
+              if (!canEdit) {
+                return <Plain>{[wsOn ? t('drawer.gcalTeam') : null, peOn ? t('drawer.gcalPersonal') : null]
+                  .filter(Boolean).join(' · ') || t('drawer.gcalNone')}</Plain>;
+              }
+              return (
+                <>
+                  <GcalSyncRow $disabled={priv} title={priv ? (t('drawer.gcalTeamBlocked') as string) : undefined}>
+                    <input type="checkbox" checked={wsOn} disabled={priv}
+                      onChange={(e) => onUpdate({ gcal_sync_workspace: e.target.checked } as unknown as Partial<CalendarEvent>)} />
+                    <span>{t('drawer.gcalTeam')}</span>
+                  </GcalSyncRow>
+                  <GcalSyncRow>
+                    <input type="checkbox" checked={peOn}
+                      onChange={(e) => onUpdate({ gcal_sync_personal: e.target.checked } as unknown as Partial<CalendarEvent>)} />
+                    <span>{t('drawer.gcalPersonal')}</span>
+                  </GcalSyncRow>
+                </>
+              );
+            })()}
           </SectionBody>
         </Section>
 
@@ -1010,7 +1017,7 @@ const TzNote = styled.div<{ $alt?: boolean }>`
   color: ${p => p.$alt ? '#0F766E' : '#94A3B8'};
 `;
 const Plain = styled.div` font-size: 13px; color: #334155; `;
-const GcalSyncRow = styled.label`display:inline-flex;align-items:center;gap:8px;font-size:13px;color:#334155;cursor:pointer;`;
+const GcalSyncRow = styled.label<{ $disabled?: boolean }>`display:flex;align-items:center;gap:8px;padding:3px 0;font-size:13px;color:#334155;cursor:${p=>p.$disabled?'not-allowed':'pointer'};opacity:${p=>p.$disabled?0.55:1};`;
 const Muted = styled.span` font-size: 12px; color: #94A3B8; font-style: italic; `;
 const Description = styled.div`
   font-size: 13px; color: #334155; line-height: 1.55; white-space: pre-wrap;

@@ -412,5 +412,8 @@
     "bounced": "Bounced",
     "pending": "Pending",
     "delivered": "Delivered"
+  },
+  "compose": {
+    "fromAddress": "From address"
   }
 }

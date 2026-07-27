@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import type { CalendarEvent, EventCategory, EventVisibility } from './types';
 import { CATEGORY_OPTIONS } from './categoryColors';
 import { toDateKey } from './dateUtils';
@@ -12,7 +12,6 @@ import RecurrencePicker from '../../components/Common/RecurrencePicker';
 import { getVideoStatus } from '../../services/calendar';
 import VisibilityField, { serializeVisibility, type VisibilityValue } from '../../components/Common/VisibilityField';
 import { listWorkspaceClients, type WorkspaceClientRow } from '../../services/qtalk';
-import { apiFetch } from '../../contexts/AuthContext';
 
 interface Props {
   initialStart: Date;
@@ -38,6 +37,7 @@ const TIME_OPTIONS = (() => {
 const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, onClose, onCreate }) => {
   const { t, i18n } = useTranslation('qcalendar');
   const { user } = useAuth();
+  const bizId = user?.business_id || null;
   // 운영 #41 — 입력 시간의 기준 타임존(워크스페이스) 안내
   const wsTz = user?.workspace_timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
   const wsTzLabel = (() => {
@@ -93,8 +93,27 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
   const [projectId, setProjectId] = useState<number | ''>('');
   const [meetingUrl, setMeetingUrl] = useState('');
   const [autoCreateMeeting, setAutoCreateMeeting] = useState(false);
-  // 구글 캘린더에 올릴지 — 기본 ON (Irene 요구 "디폴트는 다 연동 체크된 상태").
-  const [gcalSync, setGcalSync] = useState(true);
+  // 구글 캘린더에 올릴지 — **팀/개인 각각** (계정이 다르므로 하나로 합치면 안 된다). 기본 둘 다 ON.
+  const [gcalSyncWorkspace, setGcalSyncWorkspace] = useState(true);
+  const [gcalSyncPersonal, setGcalSyncPersonal] = useState(true);
+  // 비공개(L1)·팀비공개(L2)·personal 일정은 팀 캘린더로 나갈 수 없다(#126 유출 차단).
+  //   서버가 어차피 막지만, 화면에서 미리 비활성 + 이유를 보여야 사용자가 규칙을 안다.
+  const isPrivateVis = vis.vlevel === 'L1' || vis.vlevel === 'L2';
+  // 개인 캘린더는 쓰기 동의(calendar.events)까지 된 연결이 있을 때만 의미가 있다.
+  const [personalCalWritable, setPersonalCalWritable] = useState(false);
+  useEffect(() => {
+    if (!bizId) return;
+    apiFetch(`/api/me/external-connections?business_id=${bizId}`)
+      .then(r => r.json())
+      .then(j => {
+        if (!j.success) return;
+        setPersonalCalWritable((j.data || []).some(
+          (c: { provider?: string; is_active?: boolean; can_write_calendar?: boolean | null }) =>
+            c.provider === 'google_calendar' && c.is_active && c.can_write_calendar === true
+        ));
+      })
+      .catch(() => {});
+  }, [bizId]);
   // 사이클 N+13 — Daily.co 완전 교체, Google Meet 자동 생성으로 변경
   const [gcalConfigured, setGcalConfigured] = useState(false);
   const [gcalConnected, setGcalConnected] = useState(false);
@@ -170,7 +189,8 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
         : (meetingUrl.trim() ? 'manual' : null),
       auto_create_meeting: autoCreateMeeting && gcalConnected,
       rrule,
-      gcal_sync: gcalSync,
+      gcal_sync_workspace: gcalSyncWorkspace,
+      gcal_sync_personal: gcalSyncPersonal,
       // N+66 — 통합 visibility
       vlevel: vis.vlevel,
       target_member_ids: ser.target_member_ids,
@@ -323,6 +343,42 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
             />
           </Field>
 
+          {/* 구글 캘린더 연동 — 팀/개인은 **연결된 구글 계정이 다르다**. 각각 켜고 끈다.
+              공개 범위 바로 아래에 둔다 — 어디로 나가는지가 공개 범위에 달렸기 때문.
+              (화상 미팅 링크 항목 아래에 두면 회의 기능에 종속돼 보인다 — Irene 지적) */}
+          {(gcalConnected || personalCalWritable) && (
+            <Field>
+              <Label>{t('form.gcalSection')}</Label>
+              {gcalConnected && (
+                <GcalRow $disabled={isPrivateVis}>
+                  <input
+                    type="checkbox"
+                    checked={gcalSyncWorkspace && !isPrivateVis}
+                    disabled={isPrivateVis}
+                    onChange={(e) => setGcalSyncWorkspace(e.target.checked)}
+                  />
+                  <span>
+                    {t('form.gcalTeam')}
+                    <GcalHint>{isPrivateVis ? t('form.gcalTeamBlocked') : t('form.gcalTeamHint')}</GcalHint>
+                  </span>
+                </GcalRow>
+              )}
+              {personalCalWritable && (
+                <GcalRow>
+                  <input
+                    type="checkbox"
+                    checked={gcalSyncPersonal}
+                    onChange={(e) => setGcalSyncPersonal(e.target.checked)}
+                  />
+                  <span>
+                    {t('form.gcalPersonal')}
+                    <GcalHint>{t('form.gcalPersonalHint')}</GcalHint>
+                  </span>
+                </GcalRow>
+              )}
+            </Field>
+          )}
+
           <Field>
             <Label>{t('form.location')}</Label>
             <Input
@@ -335,21 +391,6 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
             <Label>{t('form.meetingUrl')}</Label>
             {/* Google Meet 자동 생성 — 워크스페이스가 Google Calendar 연결되어 있을 때만 노출.
                 연결 안 됨 + 서버 OAuth 설정은 정상 → "Google 계정 연결하기" CTA 안내. */}
-            {/* 구글 캘린더 반영 — 목적지(팀/개인)는 공개 범위에 따라 서버가 정한다.
-                비공개 일정은 본인 개인 캘린더로만 간다(팀 캘린더 유출 없음). */}
-            <AutoMeetingRow>
-              <CheckboxLabel>
-                <input
-                  type="checkbox"
-                  checked={gcalSync}
-                  onChange={(e) => setGcalSync(e.target.checked)}
-                />
-                <AutoMeetingText>
-                  <strong>{t('form.gcalSync')}</strong>
-                  <small>{t('form.gcalSyncHelp')}</small>
-                </AutoMeetingText>
-              </CheckboxLabel>
-            </AutoMeetingRow>
             {gcalConnected && (
               <AutoMeetingRow>
                 <CheckboxLabel>
@@ -394,6 +435,13 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
 export default NewEventModal;
 
 // ── styled ──
+const GcalRow = styled.label<{ $disabled?: boolean }>`
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 6px 0; font-size: 13px; color: #334155;
+  cursor: ${p => (p.$disabled ? 'not-allowed' : 'pointer')};
+  opacity: ${p => (p.$disabled ? 0.55 : 1)};
+`;
+const GcalHint = styled.small`display:block;margin-top:2px;font-size:11.5px;color:#94A3B8;line-height:1.45;`;
 const Field = styled.div` display: flex; flex-direction: column; gap: 6px; position: relative; `;
 const Label = styled.label`
   font-size: 11px; font-weight: 600; color: #64748B;
