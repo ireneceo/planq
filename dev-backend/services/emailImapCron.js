@@ -334,6 +334,20 @@ async function syncOne(account, opts = {}) {
         const toEmails = (parsed.to && parsed.to.value) ? parsed.to.value.map(v => ({ email: v.address, name: v.name })) : [];
         const ccEmails = (parsed.cc && parsed.cc.value) ? parsed.cc.value.map(v => ({ email: v.address, name: v.name })) : null;
 
+        // 이 메일이 **우리 쪽 어느 주소**로 왔는지 스레드에 박아둔다(별칭별 보기의 기반).
+        //   이미 값이 있으면 덮지 않는다 — 대화의 최초 착지 주소가 그 대화의 성격이다.
+        if (!thread.received_at_email) {
+          try {
+            const { EmailAccountAlias } = require('../models');
+            const aliasRows = await EmailAccountAlias.findAll({ where: { account_id: account.id }, attributes: ['email'] });
+            const ours = new Set([String(account.email || '').toLowerCase(), ...aliasRows.map(a => String(a.email).toLowerCase())]);
+            const cand = [...(toEmails || []), ...(ccEmails || [])]
+              .map(x => String(x && x.email || '').toLowerCase()).filter(Boolean)
+              .find(e => ours.has(e));
+            if (cand) await thread.update({ received_at_email: cand });
+          } catch (e) { console.warn('[emailImapCron] received_at_email', e.message); }
+        }
+
         const message = await EmailMessage.create({
           thread_id: thread.id,
           business_id: account.business_id,

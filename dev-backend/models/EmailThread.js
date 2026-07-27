@@ -43,6 +43,10 @@ EmailThread.init({
   unread_count: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
   last_message_at: { type: DataTypes.DATE, allowNull: true },
   last_message_direction: { type: DataTypes.ENUM('inbound', 'outbound'), allowNull: true },
+  // 이 대화가 **우리 쪽 어느 주소**로 들어왔는가 (계정 본주소 또는 별칭).
+  //   별칭이 여러 개인 메일함에서 "support@ 로 온 것만 보기" 같은 필터의 기반이 된다.
+  //   매 조회마다 to_emails JSON 을 스캔하는 건 오답이라 수신 시점에 한 번 박아둔다.
+  received_at_email: { type: DataTypes.STRING(255), allowNull: true },
   last_message_preview: { type: DataTypes.STRING(500), allowNull: true },
   participants: { type: DataTypes.JSON, allowNull: true, defaultValue: null },
   // visibility 4단계 통일

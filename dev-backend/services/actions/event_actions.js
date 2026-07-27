@@ -149,8 +149,9 @@ async function createEvent(actor, params = {}) {
         : null,
       visibility: evVisibility,
       vlevel: evVlevel,
-      // 일정 단위 구글 연동 체크 — 기본 ON (Irene 요구 "디폴트는 다 연동 체크").
-      gcal_sync: params.gcalSync === undefined ? true : !!params.gcalSync,
+      // 일정 단위 구글 연동 체크 — 팀/개인 각각, 기본 ON ("디폴트는 다 연동 체크" 유지).
+      gcal_sync_workspace: params.gcalSyncWorkspace === undefined ? true : !!params.gcalSyncWorkspace,
+      gcal_sync_personal: params.gcalSyncPersonal === undefined ? true : !!params.gcalSyncPersonal,
       target_member_ids: Array.isArray(params.targetMemberIds) ? params.targetMemberIds.map(Number).filter(Boolean) : null,
       target_client_ids: Array.isArray(params.targetClientIds) ? params.targetClientIds.map(Number).filter(Boolean) : null,
       created_by: subjectId,

@@ -88,8 +88,12 @@
     "autoCreateMeetingHelp": "Creates a Google Calendar event with a Meet link automatically",
     "gcalConnectPrompt": "Connect Google account",
     "gcalConnectHelp": "Go to workspace settings → Cloud integrations to connect Google Calendar and enable auto Meet links",
-    "gcalSync": "Add to Google Calendar",
-    "gcalSyncHelp": "Shared events go to the team calendar and yours; private events go only to your own calendar."
+    "gcalSection": "Google Calendar",
+    "gcalTeam": "Add to team Google Calendar",
+    "gcalTeamHint": "Goes to the Google account connected to this workspace.",
+    "gcalTeamBlocked": "Private events cannot be added to the team calendar.",
+    "gcalPersonal": "Add to my Google Calendar",
+    "gcalPersonalHint": "Goes only to the Google account you connected."
   },
   "button": {
     "create": "Create event",
@@ -142,15 +146,17 @@
     "scopeAll": "All events",
     "scopeAllHint": "Change all past and future occurrences",
     "deleteScopeTitle": "Which occurrences to delete?",
-    "gcalSync": "Google Calendar",
     "gcalSyncedOn": "Synced to Google Calendar",
     "gcalPush": "Send to Google Calendar",
     "gcalPushing": "Sending…",
     "gcalNotConnected": "Connect this workspace's Google Calendar first (Settings > Files & integrations).",
     "gcalPushFailed": "Could not send to Google Calendar.",
     "gcalNeedConnect": "Connect this workspace's Google Calendar and new events sync to Google automatically. (Settings > Files & integrations)",
-    "gcalSyncOn": "Added to Google Calendar",
-    "gcalSyncOff": "Not added (turning off also removes it from Google)"
+    "gcalSection": "Google Calendar",
+    "gcalTeam": "Team calendar",
+    "gcalPersonal": "My calendar",
+    "gcalTeamBlocked": "Private events cannot be added to the team calendar",
+    "gcalNone": "Not added"
   },
   "empty": {
     "month": "No events this month",
