@@ -58,6 +58,10 @@ function check(name, ok, detail) { results.push({ name, ok, detail }); console.l
   await sequelize.query('UPDATE task_status_history SET created_at = DATE_SUB(NOW(), INTERVAL 2 HOUR) WHERE id = ?', { replacements: [ipRow.id] });
   await sequelize.query('UPDATE task_status_history SET created_at = DATE_SUB(NOW(), INTERVAL 1 HOUR) WHERE id = ?', { replacements: [holdRow.id] });
 
+  // 4.5) 백데이트 검증 — 판정 기계부터 의심
+  const [chk] = await sequelize.query('SELECT id, from_status, to_status, event_type, created_at FROM task_status_history WHERE task_id = ? ORDER BY id', { replacements: [taskId] });
+  console.log('history after backdate:', JSON.stringify(chk, null, 1));
+
   // 5) 배너 사유 인라인 편집 (on_hold 중 PUT hold_reason)
   const putR = await api('PUT', `/api/tasks/by-business/5/${taskId}`, { hold_reason: 'F206 수정된 사유 v2' });
   check('on_hold 중 PUT hold_reason 성공', putR.j?.success === true, `http=${putR.status}`);
@@ -75,6 +79,8 @@ function check(name, ok, detail) { results.push({ name, ok, detail }); console.l
   // 7) ★ 시간 누적 회귀 — in_progress(-2h) → hold(-1h) → resume(now).
   //    정상: 보류 1h 구간 미산입 → actual ≈ 1.0h / 회귀: ≈ 2.0h
   await new Promise(r => setTimeout(r, 1500)); // afterCreate 훅 완료 대기
+  const [chk2] = await sequelize.query('SELECT id, from_status, to_status, event_type, created_at FROM task_status_history WHERE task_id = ? ORDER BY id', { replacements: [taskId] });
+  console.log('history after resume:', JSON.stringify(chk2, null, 1));
   const t2 = await Task.findByPk(taskId);
   const act = Number(t2.actual_hours);
   check('보류 구간 시간 미산입 (≈1.0h)', act >= 0.9 && act <= 1.15, `actual_hours=${act} source=${t2.actual_source}`);
