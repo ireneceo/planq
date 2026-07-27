@@ -6,6 +6,14 @@ const { google } = require('googleapis');
 const personalOauth = require('./personalOauth');
 const gcalDates = require('./google_calendar');   // 종일 날짜 변환 단일 원천
 
+// 구글 종일 end.date(배타적) → PlanQ 마지막 날(포함). 쓰기측 allDayEndDateStr 의 역함수.
+//   달력 산술은 Date.UTC 로 — 월·연·윤년 경계를 직접 계산하면 틀린다.
+function exclusiveEndToInclusive(dateStr) {
+  const [y, m, d] = String(dateStr).split('-').map(Number);
+  if (!y || !m || !d) return dateStr;
+  return new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10);
+}
+
 // Google 일정 → PlanQ 정규화 shape
 function normalize(ev, conn) {
   const start = ev.start || {};
@@ -20,7 +28,10 @@ function normalize(ev, conn) {
     description: ev.description || null,
     location: ev.location || null,
     start_at: start.dateTime || (start.date ? `${start.date}T00:00:00` : null),
-    end_at: end.dateTime || (end.date ? `${end.date}T00:00:00` : null),
+    // ★ 구글의 종일 end.date 는 **배타적**(마지막 날 다음 날)이다. 그대로 쓰면 PlanQ 화면에서
+    //   하루 길게 보인다 — 하루짜리 일정이 이틀로 걸쳐 그려졌다.
+    //   PlanQ 규약(마지막 날 23:59 포함)으로 되돌린다. 쓰기 경로의 +1 과 정확히 대칭.
+    end_at: end.dateTime || (end.date ? `${exclusiveEndToInclusive(end.date)}T23:59:59` : null),
     all_day: allDay,
     html_link: ev.htmlLink || null,
     organizer_email: (ev.organizer && ev.organizer.email) || null,
@@ -135,6 +146,6 @@ async function deleteEvent(conn, gcalEventId) {
 }
 
 module.exports = {
-  listEvents, isPlanqOrigin,
+  listEvents, isPlanqOrigin, exclusiveEndToInclusive,
   hasCalendarWrite, insertEvent, updateEvent, deleteEvent, CALENDAR_WRITE_SCOPES,
 };

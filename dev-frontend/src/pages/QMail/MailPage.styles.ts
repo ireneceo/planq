@@ -485,6 +485,16 @@ export const MessageHeader = styled.div`
 `;
 export const MsgHeaderRight = styled.div`display: flex; align-items: center; gap: 10px; flex-shrink: 0;`;
 
+// 후속 조치 칩 — 스레드 목록에서 "답이 안 왔다 / 애초에 안 나갔다" 를 알린다.
+export const FollowUpChip = styled.span<{ $tone: 'warn' | 'err' }>`
+  display: inline-flex; align-items: center; align-self: flex-start;
+  margin-top: 4px; padding: 2px 8px; border-radius: 10px;
+  font-size: 11px; font-weight: 600; white-space: nowrap;
+  background: ${p => (p.$tone === 'warn' ? '#FFFBEB' : '#FEF2F2')};
+  color: ${p => (p.$tone === 'warn' ? '#D97706' : '#DC2626')};
+  border: 1px solid ${p => (p.$tone === 'warn' ? '#FDE68A' : '#FECACA')};
+`;
+
 // 발송 상태 칩 — 읽기 전용 상태 표시(버튼 아님)라 상태 색을 쓴다. UI_DESIGN_GUIDE §1.7 3톤 규칙은 액션 버튼 한정.
 export const DeliveryChip = styled.span<{ $tone: 'warn' | 'err' }>`
   display: inline-flex; align-items: center;

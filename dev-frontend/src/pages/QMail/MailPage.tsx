@@ -108,6 +108,7 @@ import {
   MsgForwardBtn,
   MsgHeaderRight,
   DeliveryChip,
+  FollowUpChip,
   NewLabelInput,
   NoAcctBtn,
   NoAcctHint,
@@ -171,6 +172,9 @@ interface Thread {
   last_message_preview: string | null;
   last_message_at: string;
   last_message_direction?: 'inbound' | 'outbound' | null;  // #186 — 마지막 메시지 방향(받은/보낸 구분)
+  // 읽음 추적 대신 쓰는 결정론적 신호 — 보낸 뒤 답이 없거나, 애초에 발송이 안 됐거나.
+  //   서버 판정(services/mailFollowUp) 단일 원천. 프론트에서 날짜를 다시 계산하지 말 것.
+  follow_up?: { kind: 'awaiting_reply'; days: number } | { kind: 'delivery_problem'; delivery_status: string } | null;
   status: string;
   reply_needed: boolean;
   reply_needed_at?: string | null;
@@ -1553,6 +1557,18 @@ const MailPage: React.FC = () => {
                     {mt.subject || '(no subject)'}
                   </ThreadSubject>
                   {mt.last_message_preview && <ThreadPreview>{mt.last_message_preview}</ThreadPreview>}
+                  {/* 후속 조치 신호 — "봤나" 대신 "움직여야 하나" 에 답한다. 발송 실패는 별개로 구분. */}
+                  {mt.follow_up && (
+                    mt.follow_up.kind === 'delivery_problem' ? (
+                      <FollowUpChip $tone="err">
+                        {t(`delivery.${mt.follow_up.delivery_status}`) as string}
+                      </FollowUpChip>
+                    ) : (
+                      <FollowUpChip $tone="warn">
+                        {t('thread.awaitingReply', { count: mt.follow_up.days }) as string}
+                      </FollowUpChip>
+                    )
+                  )}
                   {/* 검토 권장 뱃지는 처리 버튼과 같은 줄에 둔다 — 따로 두면 빈 줄이 생기고 행이 길어진다.
                       확인 권장 폴더가 아닐 때만 단독 표시(그 폴더에선 아래 처리 줄에 함께 나온다). */}
                   {mt.status === 'uncertain' && folder !== 'uncertain' && (
