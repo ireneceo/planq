@@ -93,6 +93,8 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
   const [projectId, setProjectId] = useState<number | ''>('');
   const [meetingUrl, setMeetingUrl] = useState('');
   const [autoCreateMeeting, setAutoCreateMeeting] = useState(false);
+  // 구글 캘린더에 올릴지 — 기본 ON (Irene 요구 "디폴트는 다 연동 체크된 상태").
+  const [gcalSync, setGcalSync] = useState(true);
   // 사이클 N+13 — Daily.co 완전 교체, Google Meet 자동 생성으로 변경
   const [gcalConfigured, setGcalConfigured] = useState(false);
   const [gcalConnected, setGcalConnected] = useState(false);
@@ -168,6 +170,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
         : (meetingUrl.trim() ? 'manual' : null),
       auto_create_meeting: autoCreateMeeting && gcalConnected,
       rrule,
+      gcal_sync: gcalSync,
       // N+66 — 통합 visibility
       vlevel: vis.vlevel,
       target_member_ids: ser.target_member_ids,
@@ -332,6 +335,21 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
             <Label>{t('form.meetingUrl')}</Label>
             {/* Google Meet 자동 생성 — 워크스페이스가 Google Calendar 연결되어 있을 때만 노출.
                 연결 안 됨 + 서버 OAuth 설정은 정상 → "Google 계정 연결하기" CTA 안내. */}
+            {/* 구글 캘린더 반영 — 목적지(팀/개인)는 공개 범위에 따라 서버가 정한다.
+                비공개 일정은 본인 개인 캘린더로만 간다(팀 캘린더 유출 없음). */}
+            <AutoMeetingRow>
+              <CheckboxLabel>
+                <input
+                  type="checkbox"
+                  checked={gcalSync}
+                  onChange={(e) => setGcalSync(e.target.checked)}
+                />
+                <AutoMeetingText>
+                  <strong>{t('form.gcalSync')}</strong>
+                  <small>{t('form.gcalSyncHelp')}</small>
+                </AutoMeetingText>
+              </CheckboxLabel>
+            </AutoMeetingRow>
             {gcalConnected && (
               <AutoMeetingRow>
                 <CheckboxLabel>

@@ -118,6 +118,7 @@ const Team = require('./Team');
 // ─── 멤버 권한 + 상태 전이 히스토리 (사이클 N+21) ───
 const BusinessMemberPermission = require('./BusinessMemberPermission');
 const ProjectStatusHistory = require('./ProjectStatusHistory');
+const CalendarEventGcalLink = require('./CalendarEventGcalLink');
 const InvoiceStatusHistory = require('./InvoiceStatusHistory');
 const ReceiptCorrection = require('./ReceiptCorrection');
 const ClientSubscription = require('./ClientSubscription');
@@ -587,6 +588,7 @@ module.exports = {
   ReportUnit,
   BusinessMemberPermission,
   ProjectStatusHistory,
+  CalendarEventGcalLink,
   InvoiceStatusHistory,
   ReceiptCorrection,
   RefreshToken,

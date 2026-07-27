@@ -79,69 +79,8 @@ function isAdminRole(req) {
     || req.user?.platform_role === 'platform_admin';
 }
 
-// 응답 sanitize — 비밀번호/토큰 hash 노출 차단
-function sanitize(row) {
-  const j = row.toJSON ? row.toJSON() : row;
-  delete j.access_token_encrypted;
-  delete j.refresh_token_encrypted;
-  delete j.password_encrypted;
-  return {
-    ...j,
-    has_access_token: !!j.access_token_encrypted,
-    has_refresh_token: !!j.refresh_token_encrypted,
-    has_password: !!j.password_encrypted,
-  };
-}
-
-// 옛 BusinessCloudToken → ExternalConnection-like shape
-function adaptLegacyCloudToken(row) {
-  const providerMap = { gdrive: 'google_drive', gcal: 'google_calendar' };
-  return {
-    id: `legacy-cloud-${row.id}`,
-    owner_scope: 'workspace',
-    business_id: row.business_id,
-    user_id: null,
-    provider: providerMap[row.provider] || row.provider,
-    auth_type: 'oauth',
-    account_email: row.account_email,
-    account_name: null,
-    is_active: true,
-    is_default: true,
-    last_sync_at: null,
-    scope: row.scope,
-    metadata: { root_folder_id: row.root_folder_id, connected_by: row.connected_by },
-    created_at: row.connected_at,
-    updated_at: row.updated_at || row.connected_at,
-    _legacy_source: 'business_cloud_tokens',
-  };
-}
-
-// 옛 EmailAccount → ExternalConnection-like
-function adaptLegacyEmailAccount(row) {
-  const providerMap = { google_oauth: 'gmail', password: 'gmail', microsoft_oauth: 'outlook' };
-  return {
-    id: `legacy-email-${row.id}`,
-    owner_scope: 'workspace',  // 옛 EmailAccount 는 항상 workspace
-    business_id: row.business_id,
-    user_id: null,
-    provider: providerMap[row.auth_type] || 'gmail',
-    auth_type: row.auth_type === 'google_oauth' ? 'oauth' : 'password',
-    account_email: row.email,
-    account_name: row.display_name,
-    imap_host: row.imap_host,
-    imap_port: row.imap_port,
-    smtp_host: row.smtp_host,
-    smtp_port: row.smtp_port,
-    is_active: row.is_active,
-    is_default: row.is_default,
-    last_sync_at: row.last_sync_at,
-    last_sync_error: row.last_sync_error,
-    fail_count: row.fail_count,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-    _legacy_source: 'email_accounts',
-  };
-}
+// 직렬화·레거시 어댑터는 services/externalConnectionSerializer 로 분리
+const { sanitize, adaptLegacyCloudToken, adaptLegacyEmailAccount } = require('../services/externalConnectionSerializer');
 
 // ─── 워크스페이스 — admin only ─────────────────────
 // GET /api/businesses/:bizId/external-connections?include_legacy=true
@@ -224,6 +163,20 @@ router.post('/me/external-connections', authenticateToken, async (req, res, next
 });
 
 // DELETE /api/me/external-connections/:id — 본인 해제 (Google 토큰 revoke best-effort)
+// PUT /api/me/external-connections/:id/sync — 개인 연동 쓰기 동기화 on/off (Irene 요구 2026-07-27)
+//   is_active(연결 자체·읽기 overlay 포함)와 다른 축이다. 이건 "내 구글 캘린더에 밀어넣기" 만 끈다.
+router.put('/me/external-connections/:id/sync', authenticateToken, async (req, res, next) => {
+  try {
+    const conn = await ExternalConnection.findOne({
+      where: { id: req.params.id, user_id: req.user.id, owner_scope: 'user' },
+    });
+    if (!conn) return errorResponse(res, 'not_found', 404);
+    const enabled = !!req.body?.sync_enabled;
+    await conn.update({ sync_enabled: enabled });
+    successResponse(res, { id: conn.id, sync_enabled: enabled });
+  } catch (err) { next(err); }
+});
+
 router.delete('/me/external-connections/:id', authenticateToken, async (req, res, next) => {
   try {
     const conn = await ExternalConnection.findOne({

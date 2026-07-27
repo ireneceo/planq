@@ -230,7 +230,8 @@
     "reconnect": "Reconnect",
     "gcal": {
       "scopeMissing": "Calendar permission is missing, so events are not sent to Google — reconnect and check the Calendar item"
-    }
+    },
+    "syncEnabled": "Auto-sync events"
   },
   "brand": {
     "sectionTitle": "Brand",

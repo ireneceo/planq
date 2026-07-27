@@ -85,7 +85,9 @@
     "autoCreateMeeting": "Auto-create Google Meet",
     "autoCreateMeetingHelp": "Creates a Google Calendar event with a Meet link automatically",
     "gcalConnectPrompt": "Connect Google account",
-    "gcalConnectHelp": "Go to workspace settings → Cloud integrations to connect Google Calendar and enable auto Meet links"
+    "gcalConnectHelp": "Go to workspace settings → Cloud integrations to connect Google Calendar and enable auto Meet links",
+    "gcalSync": "Add to Google Calendar",
+    "gcalSyncHelp": "Shared events go to the team calendar and yours; private events go only to your own calendar."
   },
   "button": {
     "create": "Create event",

@@ -39,6 +39,7 @@ const { createAuditLog } = require('../middleware/audit');
 const { RRule, rrulestr } = require('rrule');
 // 사이클 N+13: Daily.co 완전 교체 → Google Calendar API (Meet 자동 생성)
 const gcal = require('../services/google_calendar');
+const calendarSync = require('../services/calendarSync');
 const crypto = require('crypto');
 const { Business } = require('../models');
 const { createEvent } = require('../services/actions/event_actions');
@@ -238,7 +239,7 @@ router.post('/by-business/:businessId', authenticateToken, checkBusinessAccess, 
         visibility: b.visibility, projectId: b.project_id,
         attendees: b.attendees || [],
         reminderMinutes: b.reminder_minutes,
-        vlevel: b.vlevel, targetMemberIds: b.target_member_ids, targetClientIds: b.target_client_ids,
+        vlevel: b.vlevel, gcalSync: b.gcal_sync, targetMemberIds: b.target_member_ids, targetClientIds: b.target_client_ids,
       }
     );
     if (!r.ok) return errorResponse(res, r.code, r.http || 400);
@@ -535,6 +536,8 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
       if (!VISIBILITY_SET.has(visibility)) { await t.rollback(); return errorResponse(res, 'invalid visibility', 400); }
       updates.visibility = visibility;
     }
+    // 일정 단위 "구글 캘린더에 올리기" 체크. 끄면 reconcile 이 구글에서 회수한다(남겨두지 않는다).
+    if (req.body.gcal_sync !== undefined) updates.gcal_sync = !!req.body.gcal_sync;
     // N+65 — vlevel 통합 visibility (등록 모달과 정합). hook 가 visibility 도 자동 동기.
     if (req.body.vlevel !== undefined) {
       if (req.body.vlevel === null) updates.vlevel = null;
@@ -653,41 +656,16 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
       ip_address: req.ip,
     });
 
-    // N+63 — Google Calendar sync (best-effort, transaction 밖)
-    // #126 보안 — 워크스페이스 gcal(owner primary)에 이미 올라간 일정이 개인(L1)·팀비공개(L2)·personal
-    //   로 전환되면 유출 상태가 남는다. update 가 아니라 gcal 에서 삭제하고 링크를 끊는다.
-    if (event.gcal_event_id && gcal.isPrivateForGcal(event)) {
-      try {
-        const gcalToken = await gcal.getTokenForBusiness(businessId);
-        if (gcalToken) {
-          const cal = await gcal.getCalendarClient(gcalToken);
-          await gcal.deleteEvent(cal, event.gcal_event_id);
-        }
-      } catch (e) { console.warn('[gcal sync PUT→private delete]', e.message); }
-      await event.update({ gcal_event_id: null }).catch(() => {});
-    } else if (needsGcalSync) {
-      let gcalToken = null;
-      try {
-        gcalToken = await gcal.getTokenForBusiness(businessId);
-        if (gcalToken) {
-          const cal = await gcal.getCalendarClient(gcalToken);
-          await gcal.updateEvent(cal, event.gcal_event_id, {
-            summary: event.title,
-            description: event.description,
-            startAt: event.start_at,
-            endAt: event.end_at,
-          });
-          await gcal.clearPushError(gcalToken);
-        }
-      } catch (e) {
-        // 404/410: 이미 사라진 google event → gcal_event_id 정리 (연동 자체는 정상이므로 오류 기록 안 함)
-        if (e.code === 404 || e.code === 410) {
-          await event.update({ gcal_event_id: null }).catch(() => {});
-        } else {
-          console.warn('[gcal sync PUT]', e.message);
-          await gcal.recordPushError(gcalToken, e);
-        }
-      }
+    // Google Calendar sync (best-effort, transaction 밖 — Google 이 느려도 DB 락을 잡지 않는다).
+    //   목적지·토글·권한·회수는 전부 services/calendarSync.reconcile 이 판단한다.
+    //   비공개로 전환된 일정이 팀 캘린더에서 **삭제**되는 것(#126 유출 차단)도 reconcile 의 회수 경로가
+    //   담당한다 — 목적지 목록에서 빠지면 구글에서 지우고 링크를 끊는다.
+    //   gcal_sync 체크를 끈 경우도 같은 경로로 구글에서 사라진다.
+    try {
+      const r = await calendarSync.reconcile(event, { businessId, userId: req.user.id });
+      if (r.errors.length) console.warn('[calendarSync PUT]', JSON.stringify(r.errors).slice(0, 300));
+    } catch (e) {
+      console.warn('[calendarSync PUT] reconcile 실패:', e.message);
     }
 
     const full = await CalendarEvent.findByPk(event.id, { include: INCLUDE_DETAIL });
@@ -805,17 +783,29 @@ router.delete('/by-business/:businessId/:id', authenticateToken, checkBusinessAc
 
     const snapshot = { title: event.title, start_at: event.start_at, end_at: event.end_at };
     const savedGcalEventId = event.gcal_event_id;  // N+63 — destroy 전 snapshot
+
+    // ★ 구글 정리를 destroy 보다 **먼저** 한다.
+    //   calendar_event_gcal_links 는 FK ON DELETE CASCADE 라 destroy 후엔 어느 이벤트를 지울지
+    //   알 방법이 사라진다 — 그러면 구글에 고아 일정이 영구히 남는다.
+    try {
+      await calendarSync.removeEverywhere(event.id, businessId);
+    } catch (e) { console.warn('[calendarSync DELETE]', e.message); }
+
     // P2a — master 삭제 시 children cascade
     if (isMasterDel) {
+      const children = await CalendarEvent.findAll({ where: { recurrence_parent_id: event.id }, attributes: ['id'] });
+      for (const c of children) {
+        await calendarSync.removeEverywhere(c.id, businessId).catch(() => {});
+      }
       await CalendarEvent.destroy({ where: { recurrence_parent_id: event.id } });
     }
     await event.destroy();
 
-    // N+63 — Google Calendar sync (best-effort, destroy 후)
+    // 옛 단일 컬럼 경로 — 링크 테이블이 생기기 전에 올라간 일정은 링크 row 가 없다.
     if (savedGcalEventId) {
       try {
         const gcalToken = await gcal.getTokenForBusiness(businessId);
-        if (gcalToken) {
+        if (gcalToken && gcal.hasWriteScope(gcalToken.scope)) {
           const cal = await gcal.getCalendarClient(gcalToken);
           await gcal.deleteEvent(cal, savedGcalEventId);
         }

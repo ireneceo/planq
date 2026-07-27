@@ -16,7 +16,11 @@ const { encrypt, decrypt } = require('./encryption');
 
 // provider → OAuth scope (openid/email/profile 로 계정 식별)
 const PROVIDER_SCOPES = {
-  google_calendar: ['https://www.googleapis.com/auth/calendar.readonly', 'openid', 'email', 'profile'],
+  // calendar.events — 읽기(list)와 쓰기(insert/update/delete)를 모두 포함한다.
+  //   옛 calendar.readonly 는 읽기만 돼서 "연동했는데 내 구글 캘린더에 PlanQ 일정이 안 뜬다"는
+  //   Irene 보고(2026-07-27)의 원인이었다. 기존 연결은 granted scope 가 옛 값이라 쓰기가 막히므로
+  //   재동의 전까지 읽기 overlay 만 유지하고, 화면이 "다시 연결" 을 안내한다(hasCalendarWrite).
+  google_calendar: ['https://www.googleapis.com/auth/calendar.events', 'openid', 'email', 'profile'],
   google_drive: ['https://www.googleapis.com/auth/drive.file', 'openid', 'email', 'profile'],
   gmail: ['https://mail.google.com/', 'openid', 'email', 'profile'],
 };

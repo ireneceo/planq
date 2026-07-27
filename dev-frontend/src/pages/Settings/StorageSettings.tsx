@@ -16,6 +16,7 @@ interface ProviderState {
   last_error?: string | null;
   needs_reconnect?: boolean;
   scope_ok?: boolean;      // gcal — 동의 화면에서 캘린더 쓰기 권한을 실제로 받았는지
+  sync_enabled?: boolean;  // 연결 유지 + 동기화만 끔
 }
 
 interface Props {
@@ -176,6 +177,24 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
   // 연결은 됐는데 실제로는 못 쓰는 상태 — 권한 누락(scope_ok=false) 또는 토큰 만료.
   // 둘 다 "연동 완료" 로만 보이던 것이 2026-07-27 운영 사고의 원인이었다.
   const gcalBroken = providers.gcal.scope_ok === false || !!providers.gcal.needs_reconnect;
+
+  // 동기화 on/off — 연결은 유지한 채 밀어넣기만 멈춘다. 해제(disconnect)와 다른 축이다.
+  const [syncSaving, setSyncSaving] = useState(false);
+  const toggleGcalSync = async (next: boolean) => {
+    if (syncSaving) return;
+    setSyncSaving(true);
+    // 낙관적 반영 — 실패 시 load() 가 서버 값으로 되돌린다(거짓 성공 방지).
+    setProviders(prev => ({ ...prev, gcal: { ...prev.gcal, sync_enabled: next } }));
+    try {
+      const r = await apiFetch(`/api/cloud/sync/gcal/${businessId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sync_enabled: next }),
+      });
+      if (!r.ok) throw new Error('sync_toggle_failed');
+    } catch {
+      await load();
+    } finally { setSyncSaving(false); }
+  };
 
   return (
     <Wrap>
@@ -370,9 +389,20 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
           {!providers.gcal.configured ? (
             <InlineHint>{tr('storage.gcal.notConfigured', '서버에 Google OAuth 가 설정되지 않았습니다 (.env 확인 필요)')}</InlineHint>
           ) : providers.gcal.connected ? (
+            <>
+              <SyncToggleLabel>
+                <input
+                  type="checkbox"
+                  checked={providers.gcal.sync_enabled !== false}
+                  disabled={syncSaving}
+                  onChange={(e) => toggleGcalSync(e.target.checked)}
+                />
+                {tr('storage.syncEnabled')}
+              </SyncToggleLabel>
             <DangerBtn type="button" onClick={() => setDisconnectTarget('gcal')}>
               {tr('storage.disconnect', '연결 해제')}
             </DangerBtn>
+            </>
           ) : (
             <PrimaryBtn type="button" disabled={!!connecting} onClick={() => handleConnect('gcal')}>
               {connecting === 'gcal' ? tr('storage.connecting', '연결 중…') : tr('storage.connect', '연결하기')}
@@ -488,6 +518,7 @@ const LinkBtn = styled.button`
   font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;text-decoration:none;
   &:hover{background:#CCFBF1;}
 `;
+const SyncToggleLabel = styled.label`display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#475569;cursor:pointer;margin-right:auto;`;
 const InlineHint = styled.div`font-size:12px;color:#94A3B8;padding:8px 12px;background:#F8FAFC;border-radius:8px;`;
 // 독립 서버(S3) 설정 폼 (운영 #29)
 const S3Form = styled.div`margin-top:12px;padding:14px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;display:flex;flex-direction:column;gap:10px;`;
