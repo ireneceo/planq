@@ -1151,7 +1151,7 @@ const MailPage: React.FC = () => {
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${detail.id}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body_html: replyHtml, attachment_file_ids: fileIds, from_alias_id: fromAliasId || undefined }),
+        body: JSON.stringify({ body_html: replyHtml, attachment_file_ids: fileIds, from_alias_id: fromAliasId }),   // 0 = 계정 주소 명시 선택 (undefined 로 바꾸면 서버가 기본별칭으로 덮어쓴다)
       });
       const j = await r.json();
       if (!j.success) throw new Error(j.message || (t('reply.sendFailed', { defaultValue: '발송 실패' }) as string));

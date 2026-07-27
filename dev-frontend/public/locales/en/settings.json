@@ -113,6 +113,11 @@
     "send": {
       "title": "Send via your own mail",
       "desc": "Connect your Gmail / company SMTP to compose, reply, and forward directly in Q mail."
+    },
+    "signature": {
+      "label": "Workspace email signature",
+      "placeholder": "Signature appended to outgoing company email",
+      "hint": "Used when a mail account has no signature of its own. Account and alias signatures take precedence."
     }
   },
   "notifications": {

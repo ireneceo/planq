@@ -82,6 +82,12 @@ async function resolveSender(account, { fromAliasId = null, replyToAddresses = n
     aliases = await EmailAccountAlias.findAll({ where: { account_id: account.id }, order: [['is_default', 'DESC'], ['id', 'ASC']] });
   } catch (e) { console.warn('[emailSend] aliases', e.message); }
 
+  // ①-a 사용자가 "계정 주소" 를 **명시 선택**한 경우(0). 미지정(null/undefined)과 구분해야 한다 —
+  //   0 을 미지정으로 뭉개면 아래 ③ 기본별칭이 사용자의 명시 선택을 덮어쓴다.
+  if (fromAliasId !== null && fromAliasId !== undefined && Number(fromAliasId) === 0) {
+    return { email: account.email, displayName: null, signatureHtml: null };
+  }
+
   // ① 명시 — 이 계정 소유인지 재검증 (클라이언트가 보낸 id 를 믿지 않는다)
   if (fromAliasId) {
     const hit = aliases.find((a) => Number(a.id) === Number(fromAliasId));
@@ -98,7 +104,13 @@ async function resolveSender(account, { fromAliasId = null, replyToAddresses = n
     const lower = replyToAddresses.map((a) => String(a || '').toLowerCase());
     const hit = aliases.find((a) => lower.includes(String(a.email).toLowerCase()));
     if (hit) return { email: hit.email, displayName: hit.display_name || null, signatureHtml: hit.signature_html || null };
-    // 계정 주소로 온 것이면 계정 주소 그대로 (아래 ④)
+    // ★ 계정 본주소로 온 메일이면 **여기서 끝낸다**. 아래 ③ 기본별칭으로 흘려보내면
+    //   help@ 로 받은 메일에 답장했는데 실제 From 이 support@(기본별칭)로 나간다 —
+    //   화면은 help@ 를 표시하므로 **표시≠실발신** 사고가 된다(Fable 실측 확인).
+    //   주석은 원래 이 동작을 전제했는데 코드가 ③으로 떨어지고 있었다.
+    if (lower.includes(String(account.email).toLowerCase())) {
+      return { email: account.email, displayName: null, signatureHtml: null };
+    }
   }
 
   // ③ 기본 별칭
@@ -112,9 +124,21 @@ async function resolveSender(account, { fromAliasId = null, replyToAddresses = n
 // 서명 붙이기 — data-planq-signature 표식으로 중복 삽입을 막는다.
 //   서명이 비었거나 계정에서 껐으면 그대로 둔다.
 const SIGNATURE_MARK = 'data-planq-signature';
-function appendSignature(html, account, aliasSignatureHtml = null) {
+// 우선순위: 별칭 서명 > 계정 서명 > **워크스페이스 공통 서명** > 없음.
+//   여태 워크스페이스 층이 아예 없어서, 팀 공통 서명을 한 곳에서 관리할 방법이 없었다
+//   (Irene: "서명은 왜 개별로인데 회사 공통으로 쓰는 건 없어? 팀공통이 기본 아니야?").
+//   계정 서명을 비워두면 자동으로 공통을 쓴다 — 별도 "공통 사용" 스위치가 필요 없고,
+//   기존 계정별 서명은 우선순위상 그대로 이기므로 **아무것도 덮어쓰지 않는다**.
+//   서명 자체를 끄고 싶으면 기존 signature_enabled=false 그대로.
+function appendSignature(html, account, aliasSignatureHtml = null, workspaceSignatureHtml = null) {
   // 별칭 서명이 있으면 그것이 우선 — 도메인이 다르면 브랜드가 다르다
-  const raw = aliasSignatureHtml != null ? aliasSignatureHtml : (account && account.signature_html);
+  const firstNonEmpty = (...vals) => {
+    for (const v of vals) { const t = String(v || '').trim(); if (t) return t; }
+    return '';
+  };
+  const raw = aliasSignatureHtml != null && String(aliasSignatureHtml).trim()
+    ? aliasSignatureHtml
+    : firstNonEmpty(account && account.signature_html, workspaceSignatureHtml);
   const sig = account && account.signature_enabled !== false ? String(raw || '').trim() : '';
   if (!sig) return html;
   const body = String(html || '');
@@ -155,14 +179,17 @@ async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, 
   //   우선순위: 계정별 발신 이름(명시 override) → 워크스페이스 발신 이름 → 브랜드명 → 워크스페이스명.
   //   개인 계정(owner_user_id)은 본인 이름이 기본이므로 계정 값을 그대로 쓴다.
   let fromName = account.display_name || '';
-  if (!fromName && account.business_id) {
+  // 워크스페이스 설정 1회 조회 — 발신 이름과 공통 서명을 같이 가져온다(조회 추가 없음).
+  let workspaceSignature = null;
+  if (account.business_id) {
     try {
       const { Business } = require('../models');
       const biz = await Business.findByPk(account.business_id, {
-        attributes: ['mail_from_name', 'brand_name', 'name'],
+        attributes: ['mail_from_name', 'brand_name', 'name', 'mail_signature_html'],
       });
-      fromName = biz?.mail_from_name || biz?.brand_name || biz?.name || '';
-    } catch (e) { console.warn('[emailSend] from name fallback', e.message); }
+      if (!fromName) fromName = biz?.mail_from_name || biz?.brand_name || biz?.name || '';
+      workspaceSignature = biz?.mail_signature_html || null;
+    } catch (e) { console.warn('[emailSend] workspace 설정 조회 실패', e.message); }
   }
   // 발신 주소 — 별칭(Send-as) 반영. 별칭에 표시 이름이 있으면 그것이 우선한다.
   const sender = await resolveSender(account, { fromAliasId, replyToAddresses });
@@ -173,7 +200,7 @@ async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, 
 
   // 서명 — 계정마다 다르다. 발송 직전 한 곳에서 붙인다(답장·전달·새 메일 3경로가 모두 여기를 지난다).
   //   이미 서명이 들어간 본문(사용자가 편집한 초안)에는 다시 붙이지 않는다 — 표식으로 판별.
-  const htmlWithSig = appendSignature(html, account, sender.signatureHtml);
+  const htmlWithSig = appendSignature(html, account, sender.signatureHtml, workspaceSignature);
 
   const info = await transport.sendMail({
     from,

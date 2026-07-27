@@ -194,6 +194,9 @@ Business.init({
 
   // 메일 발송 설정 (Phase E2/E3) — 사용자에게 보낼 이메일의 발신 표시이름과 회신 주소
   mail_from_name: { type: DataTypes.STRING(100), allowNull: true, comment: '메일 발신 표시이름 (예: "워프로랩 청구팀")' },
+  // 워크스페이스 공통 메일 서명 — 계정 서명이 비어 있으면 이걸 쓴다(팀 공통이 기본).
+  //   우선순위: 별칭 서명 > 계정 서명 > 이 값 > 없음. services/emailSend.appendSignature 참조.
+  mail_signature_html: { type: DataTypes.TEXT, allowNull: true, comment: '워크스페이스 공통 메일 서명 (HTML)' },
   mail_reply_to: { type: DataTypes.STRING(200), allowNull: true, comment: '회신 주소 (Reply-To 헤더, 비우면 발신 주소 사용)' },
   tax_invoice_email: { type: DataTypes.STRING(200), allowNull: true },
   // 포트원 V2 — 암호화는 Phase 6 에서
