@@ -521,6 +521,38 @@ const EventDrawer: React.FC<Props> = ({
           </SectionBody>
         </Section>
 
+        {/* 구글 캘린더 반영 — 끄면 이미 올라간 구글 일정도 삭제된다(남겨두면 "안 지워진다" 호소가 반복). */}
+        <Section>
+          <SectionIcon>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+              <line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/>
+              <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+          </SectionIcon>
+          <SectionBody>
+            <MutedSmall>{t('drawer.gcalSync')}</MutedSmall>
+            {canEdit ? (
+              <AutoSaveField type="toggle" onSave={async () => { /* onChange 직접 호출 */ }}>
+                <GcalSyncRow>
+                  <input
+                    type="checkbox"
+                    checked={(event as CalendarEvent & { gcal_sync?: boolean }).gcal_sync !== false}
+                    onChange={(e) => onUpdate({ gcal_sync: e.target.checked } as unknown as Partial<CalendarEvent>)}
+                  />
+                  <span>{(event as CalendarEvent & { gcal_sync?: boolean }).gcal_sync !== false
+                    ? t('drawer.gcalSyncOn')
+                    : t('drawer.gcalSyncOff')}</span>
+                </GcalSyncRow>
+              </AutoSaveField>
+            ) : (
+              <Plain>{(event as CalendarEvent & { gcal_sync?: boolean }).gcal_sync !== false
+                ? t('drawer.gcalSyncOn') : t('drawer.gcalSyncOff')}</Plain>
+            )}
+          </SectionBody>
+        </Section>
+
         {/* 정기 일정 — RecurrencePicker */}
         <Section>
           <SectionIcon>
@@ -978,6 +1010,7 @@ const TzNote = styled.div<{ $alt?: boolean }>`
   color: ${p => p.$alt ? '#0F766E' : '#94A3B8'};
 `;
 const Plain = styled.div` font-size: 13px; color: #334155; `;
+const GcalSyncRow = styled.label`display:inline-flex;align-items:center;gap:8px;font-size:13px;color:#334155;cursor:pointer;`;
 const Muted = styled.span` font-size: 12px; color: #94A3B8; font-style: italic; `;
 const Description = styled.div`
   font-size: 13px; color: #334155; line-height: 1.55; white-space: pre-wrap;

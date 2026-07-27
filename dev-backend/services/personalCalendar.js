@@ -4,6 +4,7 @@
 // 일정을 가져와 Q Calendar 에 violet overlay 로 표시. 쓰기 없음 (calendar.readonly scope).
 const { google } = require('googleapis');
 const personalOauth = require('./personalOauth');
+const gcalDates = require('./google_calendar');   // 종일 날짜 변환 단일 원천
 
 // Google 일정 → PlanQ 정규화 shape
 function normalize(ev, conn) {
@@ -86,8 +87,9 @@ function planqBody({ title, description, location, startAt, endAt, allDay, timez
     extendedProperties: { private: { planq: '1' } },
   };
   if (allDay) {
-    body.start = { date: new Date(startAt).toISOString().slice(0, 10) };
-    body.end = { date: new Date(endAt || startAt).toISOString().slice(0, 10) };
+    // 종일 날짜 변환은 팀 경로와 **같은 함수**를 쓴다 — 규칙이 두 벌이면 한쪽만 고쳐지고 어긋난다.
+    body.start = { date: gcalDates.localDateStr(startAt, tz) };
+    body.end = { date: gcalDates.allDayEndDateStr(endAt || startAt, tz) };
   } else {
     body.start = { dateTime: new Date(startAt).toISOString(), timeZone: tz };
     body.end = { dateTime: new Date(endAt || startAt).toISOString(), timeZone: tz };

@@ -34,6 +34,31 @@ function hasWriteScope(scopeStr) {
   return granted.includes(CALENDAR_WRITE_SCOPE) || granted.includes(CALENDAR_FULL_SCOPE);
 }
 
+// ── 종일 일정 날짜 변환 (팀·개인 경로 공용 단일 원천) ──────────────────────────
+//
+// PlanQ 저장 규약: start_at = 시작일 로컬 00:00 / end_at = 종료일 로컬 23:59 (**마지막 날 포함**).
+// Google 규약   : 종일 일정의 end.date 는 **배타적** — 마지막 날 **다음 날**을 넣어야 한다.
+//
+// 여태 두 군데가 틀려 있었다:
+//   ① end 에 +1 을 안 해서 구글에서 하루 짧게(또는 0일이라 안 보이게) 나왔다.
+//   ② `new Date(x).toISOString().slice(0,10)` 로 UTC 기준 날짜를 뽑아,
+//      KST 00:00 = 전날 15:00Z 라 **시작일이 하루 앞으로 밀렸다.**
+// 둘 다 종일 일정에서만 발현해 눈에 잘 안 띈다. 날짜는 반드시 **이벤트 타임존 기준**으로 뽑는다.
+const DEFAULT_TZ = 'Asia/Seoul';
+
+function localDateStr(value, tz) {
+  // en-CA 로케일은 YYYY-MM-DD 를 준다 (수동 조립보다 안전).
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz || DEFAULT_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date(value));
+}
+
+// 마지막 날(포함) → 구글이 원하는 배타적 end (하루 뒤). 월·연 경계도 Date 가 처리한다.
+function allDayEndDateStr(value, tz) {
+  const [y, m, d] = localDateStr(value, tz).split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
+}
+
 function isConfigured() {
   return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REDIRECT_URI);
 }
@@ -222,10 +247,10 @@ async function insertEvent(cal, { summary, description, location, startAt, endAt
     recurrence = [rrule.trim().startsWith('RRULE:') ? rrule.trim() : `RRULE:${rrule.trim()}`];
   }
   const start = allDay
-    ? { date: new Date(startAt).toISOString().slice(0, 10) }
+    ? { date: localDateStr(startAt, tz) }
     : { dateTime: new Date(startAt).toISOString(), timeZone: tz };
   const end = allDay
-    ? { date: new Date(endAt).toISOString().slice(0, 10) }
+    ? { date: allDayEndDateStr(endAt, tz) }   // 구글 종일 end 는 배타적 — 마지막 날 +1
     : { dateTime: new Date(endAt).toISOString(), timeZone: tz };
   const res = await cal.events.insert({
     calendarId: 'primary',
@@ -302,6 +327,8 @@ async function clearPushError(token) {
 module.exports = {
   isConfigured,
   hasWriteScope,
+  localDateStr,
+  allDayEndDateStr,
   recordPushError,
   clearPushError,
   CALENDAR_WRITE_SCOPE,

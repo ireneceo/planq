@@ -28,6 +28,9 @@ interface ExternalConnection {
   is_default: boolean;
   last_sync_at: string | null;
   created_at: string;
+  // 서버 파생 — 옛 calendar.readonly 연결은 false(재동의 필요). 프론트에서 scope 를 재파싱하지 말 것.
+  can_write_calendar?: boolean | null;
+  sync_enabled?: boolean;
 }
 
 interface OauthConnectionRow {
@@ -207,6 +210,24 @@ const ProfileIntegrationsPage: React.FC = () => {
     };
   }, [load, t]);
 
+  // 개인 캘린더 쓰기 동기화 on/off — 연결(is_active)은 유지, 밀어넣기만 멈춘다.
+  const togglePersonalSync = async (id: number | string, next: boolean) => {
+    if (typeof id === 'string') return;
+    setErrorMsg(null);
+    // 낙관적 반영 — 실패하면 load() 가 서버 값으로 되돌린다(거짓 성공 방지).
+    setPersonalConns(prev => prev.map(c => (c.id === id ? { ...c, sync_enabled: next } : c)));
+    try {
+      const r = await apiFetch(`/api/me/external-connections/${id}/sync`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sync_enabled: next }),
+      });
+      if (!r.ok) throw new Error('sync_toggle_failed');
+    } catch (e) {
+      setErrorMsg((e as Error).message);
+      await load();
+    }
+  };
+
   const onDisconnectPersonal = async (id: number | string) => {
     if (typeof id === 'string') return;  // legacy 표시 row
     setErrorMsg(null);
@@ -290,7 +311,7 @@ const ProfileIntegrationsPage: React.FC = () => {
       {/* ─── 개인 캘린더 ─── */}
       <Section>
         <SectionTitle>{t('integrations.calendar', '캘린더') as string}</SectionTitle>
-        <SectionSub>{t('integrations.calendarSub', '내 Google 캘린더 일정을 Q Calendar 에서 보기 전용으로 함께 봐요 (워크스페이스 공용과 색 분리). ※ 내가 만든 PlanQ 일정을 Google 캘린더에 넣으려면 워크스페이스 캘린더 연동이 필요해요.') as string}</SectionSub>
+        <SectionSub>{t('integrations.calendarSub2') as string}</SectionSub>
         {personalConns.filter(c => ['google_calendar', 'microsoft_calendar', 'apple_calendar'].includes(c.provider)).length === 0 ? (
           <Empty>
             <span>{t('integrations.calendarEmpty', '연결된 개인 캘린더가 없어요') as string}</span>
@@ -309,6 +330,24 @@ const ProfileIntegrationsPage: React.FC = () => {
                 <ConnInfo>
                   <ConnTitle>{PROVIDER_LABEL[c.provider]}</ConnTitle>
                   <ConnSub>{c.account_email}</ConnSub>
+                  {/* 쓰기 동의 여부에 따라 갈린다 — 옛 readonly 연결은 재동의해야 올리기가 켜진다 */}
+                  {c.can_write_calendar === false ? (
+                    <ReconnectHint>
+                      {t('integrations.calendarNeedsReconnect') as string}
+                      <LinkBtnInline type="button" onClick={() => connectPersonal('google_calendar')}>
+                        {t('integrations.reconnect') as string}
+                      </LinkBtnInline>
+                    </ReconnectHint>
+                  ) : (
+                    <SyncToggle>
+                      <input
+                        type="checkbox"
+                        checked={c.sync_enabled !== false}
+                        onChange={(e) => togglePersonalSync(c.id, e.target.checked)}
+                      />
+                      <span>{t('integrations.calendarSyncOn') as string}</span>
+                    </SyncToggle>
+                  )}
                 </ConnInfo>
                 <DangerBtn type="button" onClick={() => onDisconnectPersonal(c.id)}>{t('integrations.disconnect', '해제') as string}</DangerBtn>
               </ConnRow>
@@ -436,6 +475,9 @@ const ConnIcon = styled.div`font-size: 24px;`;
 const ConnInfo = styled.div`flex: 1; display: flex; flex-direction: column; gap: 2px;`;
 const ConnTitle = styled.div`font-size: 13px; font-weight: 700; color: #0F172A;`;
 const ConnSub = styled.div`font-size: 12px; color: #475569;`;
+const SyncToggle = styled.label`display:inline-flex;align-items:center;gap:6px;margin-top:4px;font-size:12px;color:#475569;cursor:pointer;`;
+const ReconnectHint = styled.div`display:flex;align-items:center;gap:6px;margin-top:4px;font-size:12px;color:#B45309;`;
+const LinkBtnInline = styled.button`background:none;border:none;padding:0;font-size:12px;font-weight:600;color:#0F766E;cursor:pointer;text-decoration:underline;&:hover{color:#134E4A;}`;
 const ConnMeta = styled.div`font-size: 11px; color: #94A3B8;`;
 const DangerBtn = styled.button`
   height: 30px; padding: 0 12px;

@@ -17,7 +17,7 @@ CalendarEventGcalLink.init({
   //   sync-database.js(Sequelize alter)가 **먼저** 이 테이블을 만들어버리는 경로에서
   //   FK 없이 생성되고 이후 마이그레이션은 hasTable 로 skip 해 **FK 가 영구 누락**된다.
   //   그러면 일정을 지워도 링크가 고아로 남아 구글에 유령 일정이 남는다.
-  //   배포 스크립트는 sync-database 를 마이그레이션보다 먼저 돌리고(:222 vs :247),
+  //   배포 스크립트는 sync-database 를 마이그레이션보다 먼저 돌리고(:222 vs :248),
   //   CLAUDE.md 표준 절차도 수동 `node sync-database.js` 를 지시하므로 순서로는 못 막는다.
   event_id: {
     type: DataTypes.BIGINT, allowNull: false,
