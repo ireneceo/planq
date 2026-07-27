@@ -218,6 +218,14 @@ install_deps() {
 # DB schema sync (Sequelize alter)
 # ──────────────────────────────────────────
 sync_database() {
+  # ★ rename 마이그레이션은 sync-database **앞**에서 돌아야 한다.
+  #   sequelize alter:true 는 **모델에 없는 컬럼을 DROP** 한다. sync 가 먼저 돌면
+  #   옛 gcal_sync 가 삭제되면서 그 값(사용자가 끈 연동)이 파괴되고, 새 컬럼이 default 1 로
+  #   생겨 **껐던 일정이 전부 다시 켜진다.** 그 뒤엔 rename 할 대상이 없어 이 스크립트도 무력하다.
+  #   Fable 게이트가 재현으로 확정한 경로다 — 순서를 바꾸지 말 것.
+  log "Running pre-sync migrations (rename)..."
+  prod_run "cd $PROD_BE && NODE_ENV=production node scripts/migrate-calendar-sync-split.js 2>&1 | tail -10"
+
   log "Syncing DB schema on prod..."
   prod_run "cd $PROD_BE && NODE_ENV=production node sync-database.js 2>&1 | tail -20"
   success "DB sync 완료"
@@ -246,10 +254,6 @@ sync_database() {
   #   (모델에 없으면 sync 가 FK 없이 만들고, 이 스크립트는 hasTable 로 skip 해 FK 가 영구 누락된다).
   #   이 스크립트는 컬럼 3개와 "sync 가 손대지 않는 경우" 의 안전망 역할.
   prod_run "cd $PROD_BE && NODE_ENV=production node scripts/migrate-calendar-sync-toggles.js 2>&1 | tail -10"
-  # 일정 단위 연동 플래그 팀/개인 분리 — gcal_sync → gcal_sync_workspace rename + gcal_sync_personal 추가.
-  #   ★ rename 이라 sync-database(alter)로는 안 된다. sync 가 먼저 돌면 새 컬럼만 생기고
-  #     옛 gcal_sync 가 남아 두 벌이 된다. 반드시 이 스크립트가 처리한다.
-  prod_run "cd $PROD_BE && NODE_ENV=production node scripts/migrate-calendar-sync-split.js 2>&1 | tail -10"
   success "마이그레이션 완료 (push native / invoice-payment / account-deletion / mail-notify / task-hold / mail-delivery / calendar-sync / calendar-split)"
 
   # 백필 — 마이그레이션 후. 과거 paid invoice/회차에 payment 원장 생성(멱등). 매출 0 복구.

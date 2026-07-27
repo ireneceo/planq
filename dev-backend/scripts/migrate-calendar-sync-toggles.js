@@ -78,13 +78,19 @@ async function ensureLinkTable() {
     // 기본 ON — Irene 요구. NOT NULL + DEFAULT 1 이라 기존 행도 즉시 1 로 채워진다.
     if (await addColumn('business_cloud_tokens', 'sync_enabled', "TINYINT(1) NOT NULL DEFAULT 1 COMMENT '팀 캘린더 동기화 on/off (연결은 유지)'")) changed++;
     if (await addColumn('external_connections', 'sync_enabled', "TINYINT(1) NOT NULL DEFAULT 1 COMMENT '개인 캘린더 쓰기 동기화 on/off'")) changed++;
-    if (await addColumn('calendar_events', 'gcal_sync', "TINYINT(1) NOT NULL DEFAULT 1 COMMENT '이 일정을 구글 캘린더에 올릴지'")) changed++;
+    // ★ gcal_sync 는 migrate-calendar-sync-split 에서 gcal_sync_workspace 로 rename 됐다.
+    //   분리가 끝난 DB 에 이 컬럼을 다시 ADD 하면 **죽은 컬럼이 부활**해 두 벌이 된다
+    //   (Fable 게이트 재현). 후속 컬럼이 있으면 이 스크립트는 손대지 않는다.
+    if (await hasColumn('calendar_events', 'gcal_sync_workspace')) {
+      console.log('[migration] calendar_events.gcal_sync — split 완료 상태라 skip');
+    } else if (await addColumn('calendar_events', 'gcal_sync', "TINYINT(1) NOT NULL DEFAULT 1 COMMENT '이 일정을 구글 캘린더에 올릴지'")) changed++;
     if (await ensureLinkTable()) changed++;
 
     // 확인 출력
-    const [[ev]] = await sequelize.query("SELECT COUNT(*) AS n FROM calendar_events WHERE gcal_sync=1");
+    const syncCol = (await hasColumn('calendar_events', 'gcal_sync_workspace')) ? 'gcal_sync_workspace' : 'gcal_sync';
+    const [[ev]] = await sequelize.query(`SELECT COUNT(*) AS n FROM calendar_events WHERE ${syncCol}=1`);
     const [[linked]] = await sequelize.query("SELECT COUNT(*) AS n FROM calendar_events WHERE gcal_event_id IS NOT NULL");
-    console.log(`[migration] gcal_sync=1 일정 ${ev.n}건 / 이미 구글에 올라간 일정 ${linked.n}건`);
+    console.log(`[migration] ${syncCol}=1 일정 ${ev.n}건 / 이미 구글에 올라간 일정 ${linked.n}건`);
     console.log('[migration] 자동 일괄 업로드 cron 없음 — 과거 일정은 그대로 둔다 (수동 "구글 캘린더로 보내기" 로만)');
     console.log(changed ? `[migration] 완료 — 변경 ${changed}건` : '[migration] 완료 — 변경 0 (멱등 확인)');
     process.exit(0);
