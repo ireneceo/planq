@@ -146,6 +146,11 @@ export interface TaskDetailDrawerProps {
 
 // 사이클 N+6: reviewer 0명이면 reviewing/revision_requested 단계 자체가 노출되지 않음.
 // 백엔드 PUT 도 같은 가드 (no_reviewers_assigned 400) — 양쪽 동시 적용으로 모순 0.
+// 보류 확정 → 드로어 재마운트 사이에 살아남아야 하는 유일한 상태.
+//   컴포넌트 밖에 두는 이유는 위 actHold 주석 참조. 소비 즉시 비워 다음에 연 다른 업무의
+//   포커스를 훔치지 않게 한다(2차 시도에서 실제로 발생했던 부작용).
+let pendingResumeFocusTaskId: number | null = null;
+
 const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   taskId, bizId, myId, todayStr, members, projects: projectsProp,
   width, onWidthChange, onClose, onPatch, onRefresh, onDuplicated,
@@ -175,7 +180,13 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const drawerRef = useRef<HTMLElement>(null);
   useBodyScrollLock(!!taskId);
   useEscapeStack(!!taskId, onClose);
-  useFocusTrap(drawerRef, !!taskId);
+  // 이 인스턴스가 "보류 직후 재마운트된 것" 인지 마운트 시 한 번만 판정하고 즉시 소비한다.
+  const resumeFocusRef = useRef<boolean | null>(null);
+  if (resumeFocusRef.current === null) {
+    resumeFocusRef.current = pendingResumeFocusTaskId != null && pendingResumeFocusTaskId === taskId;
+    if (resumeFocusRef.current) pendingResumeFocusTaskId = null;
+  }
+  useFocusTrap(drawerRef, !!taskId, resumeFocusRef.current ? '[data-testid="task-resume"]' : undefined);
 
   const [detailTask, setDetailTask] = useState<TaskDetail | null>(null);
   const [weekFocusH, setWeekFocusH] = useState(0);  // WORK_FLOW §6-B — 이번 주 포커스 시간(이월 배너)
@@ -319,7 +330,6 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   //   ref 플래그로는 안 된다: 플래그 세팅이 callAction 의 setState 커밋보다 늦어 effect 가 이미 지나가고,
   //   소비되지 않은 플래그가 남아 **다음에 연 다른 업무의 포커스를 훔친다**.
   //   틱 state 는 그 자체가 새 커밋을 만들므로 배너 커밋 이후 실행이 보장되고 잔존 상태도 없다.
-  const [resumeFocusTick, setResumeFocusTick] = useState(0);
   const [approveNote, setApproveNote] = useState('');
   // #112 — 수정요청에 참고 파일 첨부 (일반 댓글 첨부와 동일 인프라: context='comment')
   const [revisionFiles, setRevisionFiles] = useState<File[]>([]);
@@ -632,19 +642,18 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     } finally { setActionBusy(false); }
   };
   // #206 보류 / 외부컨펌 — 전용 액션 라우트 경유 (hold_prev_status 세팅·이력·알림이 액션 계층에 있다)
-  useEffect(() => {
-    if (!resumeFocusTick) return;
-    document.querySelector<HTMLElement>('[data-testid="task-resume"]')?.focus();
-  }, [resumeFocusTick]);
 
   const actHold = async () => {
     const reason = holdReason.trim();
     const r = await callAction('/hold', 'POST', reason ? { reason } : undefined);
     if (r?.success) {
       setHoldFormOpen(false); setHoldReason('');
-      // 접근성(설계 §2-10) — 눌렀던 버튼이 사라지면 focus trap 이 첫 tabbable("돌아가기")로 회수해
-      //   키보드 사용자가 위치를 잃는다. 새로 나타난 배너의 [보류 해제]로 옮겨 맥락을 잇는다.
-      setResumeFocusTick(v => v + 1);
+      // 접근성(설계 §2-10) — 눌렀던 [보류] 버튼이 사라지면 focus trap 이 첫 tabbable("돌아가기")로
+      //   회수해 키보드 사용자가 위치를 잃는다. 새로 나타난 배너의 [보류 해제]로 옮겨 맥락을 잇는다.
+      //   ★ 이 드로어는 보류 성공 직후 언마운트→재마운트된다(실측 +5ms 소멸 / +55ms 재생성).
+      //     그래서 인스턴스 내부 state·ref 로는 의도가 전달되지 않는다 — 1~4차 시도가 전부 여기서
+      //     죽었다. 모듈 스코프에 남겨 **새 인스턴스가 마운트될 때 소비**한다.
+      pendingResumeFocusTaskId = detailTask.id;
     }
   };
   const actResume = () => callAction('/resume');

@@ -22,6 +22,7 @@ const { requireMenu } = require('../middleware/menu_permission');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { applyMemberDisplayName, getMemberNameMap } = require('../services/displayName');
 const { sendMail, deliveryFromSendResult } = require('../services/emailSend');
+const { followUpState } = require('../services/mailFollowUp');
 const { emailsOf, mergeParticipants, selfEmailsForAccount } = require('../services/emailAddress');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
@@ -210,6 +211,7 @@ router.get('/:businessId/email-threads',
       //   (participants JSON 은 옛 row 에 이름이 비어 있어 신뢰할 수 없다 — fallback 으로만.)
       const threadIds = rows.map(r => r.id);
       const senderByThread = new Map();
+      const lastOutByThread = new Map();
       if (threadIds.length > 0) {
         const lastInbound = await sequelize.query(
           `SELECT em.thread_id, em.from_name, em.from_email
@@ -223,6 +225,18 @@ router.get('/:businessId/email-threads',
         for (const m of lastInbound) {
           senderByThread.set(m.thread_id, { name: m.from_name || null, email: m.from_email || null });
         }
+        // "응답 없음 N일" 판정용 — 마지막 보낸 메일이 실제로 나갔는지 확인해야 한다.
+        //   못 나간 걸 "응답 없음" 으로 표시하면 사용자가 상대를 탓하게 된다.
+        const lastOut = await sequelize.query(
+          `SELECT em.thread_id, em.delivery_status
+             FROM email_messages em
+             JOIN (SELECT thread_id, MAX(id) AS mid
+                     FROM email_messages
+                    WHERE thread_id IN (:ids) AND direction = 'outbound'
+                 GROUP BY thread_id) last ON last.mid = em.id`,
+          { replacements: { ids: threadIds }, type: sequelize.QueryTypes.SELECT }
+        );
+        for (const m of lastOut) lastOutByThread.set(m.thread_id, { delivery_status: m.delivery_status });
       }
 
       const data = rows.map(t => {
@@ -237,6 +251,8 @@ router.get('/:businessId/email-threads',
           last_message_preview: obj.last_message_preview,
           last_message_at: obj.last_message_at,
           last_message_direction: obj.last_message_direction,
+          // 읽음 추적 대신 쓰는 결정론적 신호 — services/mailFollowUp 참조
+          follow_up: followUpState(obj, lastOutByThread.get(obj.id) || null),
           status: obj.status,
           reply_needed: obj.reply_needed,
           reply_needed_at: obj.reply_needed_at,

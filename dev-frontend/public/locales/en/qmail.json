@@ -164,7 +164,8 @@
     "sent": "Sent"
   },
   "thread": {
-    "sent": "Sent"
+    "sent": "Sent",
+    "awaitingReply": "No reply for {{count}} days"
   },
   "translate": {
     "langLabel": "Translation language",

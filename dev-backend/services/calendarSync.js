@@ -18,13 +18,16 @@
  *   없으면 만들고, 빠졌으면 **구글에서 지우고** 링크를 끊는다. 지우지 않으면 사용자가
  *   체크를 꺼도 구글에 남아 "안 없어진다" 는 호소가 그대로 반복된다.
  */
-const { CalendarEventGcalLink, BusinessCloudToken, ExternalConnection } = require('../models');
+const { CalendarEventGcalLink, BusinessCloudToken, ExternalConnection, Business } = require('../models');
 const gcal = require('./google_calendar');
 const personalCalendar = require('./personalCalendar');
 
 // 일정 → 구글 이벤트 입력 shape (팀/개인 공용)
-function toInput(event) {
+//   timezone 은 워크스페이스 설정(Business.timezone)을 실어 보낸다. 안 넘기면 항상 KST 기본값이라
+//   비-KST 워크스페이스의 **종일 일정 날짜가 어긋난다**(날짜를 타임존 기준으로 뽑기 때문).
+function toInput(event, timezone) {
   return {
+    timezone: timezone || undefined,
     title: event.title,
     summary: event.title,
     description: event.description || null,
@@ -70,8 +73,8 @@ async function resolveTargets(event, { businessId, userId }) {
 
 const keyOf = (t) => `${t.target}:${t.connection_id ?? ''}`;
 
-async function pushTo(t, event) {
-  const input = toInput(event);
+async function pushTo(t, event, tz) {
+  const input = toInput(event, tz);
   if (t.target === 'workspace') {
     const cal = await gcal.getCalendarClient(t.token);
     const r = await gcal.insertEvent(cal, { ...input, summary: event.title });
@@ -81,8 +84,8 @@ async function pushTo(t, event) {
   return r && r.id;
 }
 
-async function updateAt(t, event, gcalEventId) {
-  const input = toInput(event);
+async function updateAt(t, event, gcalEventId, tz) {
+  const input = toInput(event, tz);
   if (t.target === 'workspace') {
     const cal = await gcal.getCalendarClient(t.token);
     await gcal.updateEvent(cal, gcalEventId, { ...input, summary: event.title });
@@ -116,6 +119,10 @@ async function removeAt(link, businessId) {
 async function reconcile(event, { businessId, userId }) {
   const out = { added: 0, updated: 0, removed: 0, errors: [] };
   const targets = await resolveTargets(event, { businessId, userId });
+  // 워크스페이스 타임존 1회 조회 (목적지마다 다시 읽지 않는다). 없으면 google_calendar 의 기본값.
+  let tz = null;
+  try { tz = (await Business.findByPk(businessId, { attributes: ['timezone'] }))?.timezone || null; }
+  catch { /* 조회 실패 시 기본 타임존으로 진행 — 동기화 자체를 막지는 않는다 */ }
   const links = await CalendarEventGcalLink.findAll({ where: { event_id: event.id } });
 
   const wanted = new Map(targets.map((t) => [keyOf(t), t]));
@@ -137,7 +144,7 @@ async function reconcile(event, { businessId, userId }) {
   for (const [k, t] of wanted) {
     if (have.has(k)) continue;
     try {
-      const gid = await pushTo(t, event);
+      const gid = await pushTo(t, event, tz);
       if (!gid) continue;
       await CalendarEventGcalLink.create({
         event_id: event.id, target: t.target, connection_id: t.connection_id,
@@ -159,7 +166,7 @@ async function reconcile(event, { businessId, userId }) {
     const link = have.get(k);
     if (!link) continue;
     try {
-      await updateAt(t, event, link.gcal_event_id);
+      await updateAt(t, event, link.gcal_event_id, tz);
       out.updated++;
     } catch (e) {
       const code = e && (e.code || e.status);

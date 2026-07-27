@@ -273,13 +273,26 @@ async function insertEvent(cal, { summary, description, location, startAt, endAt
 /**
  * 이벤트 업데이트 (PlanQ event 가 수정될 때 동기화)
  */
-async function updateEvent(cal, gcalEventId, { summary, description, startAt, endAt, timezone }) {
-  const tz = timezone || 'Asia/Seoul';
+async function updateEvent(cal, gcalEventId, { summary, description, location, startAt, endAt, allDay, timezone }) {
+  const tz = timezone || DEFAULT_TZ;
   const patch = {};
   if (summary !== undefined) patch.summary = summary;
   if (description !== undefined) patch.description = description;
-  if (startAt) patch.start = { dateTime: new Date(startAt).toISOString(), timeZone: tz };
-  if (endAt) patch.end = { dateTime: new Date(endAt).toISOString(), timeZone: tz };
+  if (location !== undefined) patch.location = location;
+  // ★ allDay 를 반드시 insert 와 같은 방식으로 처리한다.
+  //   여태 updateEvent 는 allDay 를 받지도 않아 무조건 dateTime 으로 patch 했다 →
+  //   구글에 올라간 **종일 일정이 제목 한 글자만 고쳐도 시간제(00:00~23:59)로 변형**됐다.
+  //   insert 만 고치고 update 를 두면 같은 결함이 수정 경로로 되살아난다(Fable 게이트 지적).
+  if (startAt) {
+    patch.start = allDay
+      ? { date: localDateStr(startAt, tz) }
+      : { dateTime: new Date(startAt).toISOString(), timeZone: tz };
+  }
+  if (endAt) {
+    patch.end = allDay
+      ? { date: allDayEndDateStr(endAt, tz) }   // 구글 종일 end 는 배타적 — 마지막 날 +1
+      : { dateTime: new Date(endAt).toISOString(), timeZone: tz };
+  }
   const res = await cal.events.patch({
     calendarId: 'primary',
     eventId: gcalEventId,

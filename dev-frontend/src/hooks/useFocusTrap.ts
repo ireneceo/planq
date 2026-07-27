@@ -18,6 +18,15 @@ const FOCUSABLE = [
 export const useFocusTrap = (
   ref: React.RefObject<HTMLElement | null>,
   active: boolean,
+  /**
+   * 최초 포커스를 첫 tabbable 대신 이 셀렉터로 보낸다 (선택).
+   * 문자열이라 렌더마다 identity 가 바뀌지 않는다 — 객체 옵션이면 effect 가 매번 재실행된다.
+   *
+   * 왜 트랩이 받는가: 트랩이 열릴 때 rAF 로 첫 tabbable 을 잡으므로, 바깥에서 따로 focus() 를 걸면
+   * 누가 이기는지가 훅 선언 순서에 달린 경쟁이 된다. #206 §2-10 이 네 번 죽은 이유가 그 경쟁을
+   * 추측으로 짜 맞춘 것이었다. 의도를 트랩에 넘겨 경쟁 자체를 없앤다.
+   */
+  initialFocusSelector?: string,
 ): void => {
   const tabActive = useTabActive(); // ⑥ 숨은 탭 모달은 포커스 가로채지 않음(단일탭 = 항상 활성)
   useEffect(() => {
@@ -26,11 +35,21 @@ export const useFocusTrap = (
     const container = ref.current;
     const previouslyFocused = document.activeElement as HTMLElement | null;
 
-    // 최초 포커스 이동 — 첫 포커스 가능 요소로
-    const firstFocusable = container.querySelector<HTMLElement>(FOCUSABLE);
-    if (firstFocusable) {
-      // 마이크로태스크 — 애니메이션 프레임 이후에 포커스해 스크롤 튐 방지
-      requestAnimationFrame(() => firstFocusable.focus());
+    // 최초 포커스 이동 — rAF 이후에 포커스해 스크롤 튐 방지
+    if (initialFocusSelector) {
+      // 지정 대상이 아직 렌더 전일 수 있다(데이터 로드 후 나타나는 배너 등) → 몇 프레임 재시도.
+      // 끝내 없으면 첫 tabbable 로 폴백 — 포커스가 body 로 빠지는 것보다 낫다.
+      let tries = 0;
+      const tryFocus = () => {
+        const target = container.querySelector<HTMLElement>(initialFocusSelector);
+        if (target) { target.focus(); return; }
+        if (++tries < 10) { requestAnimationFrame(tryFocus); return; }
+        container.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+      };
+      requestAnimationFrame(tryFocus);
+    } else {
+      const firstFocusable = container.querySelector<HTMLElement>(FOCUSABLE);
+      if (firstFocusable) requestAnimationFrame(() => firstFocusable.focus());
     }
 
     const handleKey = (e: KeyboardEvent) => {
@@ -64,5 +83,5 @@ export const useFocusTrap = (
         previouslyFocused.focus();
       }
     };
-  }, [active, tabActive, ref]);
+  }, [active, tabActive, ref, initialFocusSelector]);
 };
