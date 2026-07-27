@@ -19,12 +19,13 @@ import styled from 'styled-components';
 
 interface Props {
   workspaceConnected: boolean;  // 워크스페이스 Google 캘린더 (owner 연결, 쓰기 가능)
-  personalConnected: boolean;   // 개인 Google 캘린더 (읽기 전용 overlay)
+  personalConnected: boolean;   // 개인 Google 캘린더 연결됨
+  personalCanWrite?: boolean;   // 쓰기 스코프(calendar.events)까지 동의했는가 — 문구가 여기서 갈린다
 }
 
-const DISMISS_KEY = 'qcal_sync_notice_dismissed_v2';
+const DISMISS_KEY = 'qcal_sync_notice_dismissed_v3';
 
-const CalendarSyncNotice: React.FC<Props> = ({ workspaceConnected, personalConnected }) => {
+const CalendarSyncNotice: React.FC<Props> = ({ workspaceConnected, personalConnected, personalCanWrite = false }) => {
   const { t } = useTranslation('qcalendar');
   const [dismissed, setDismissed] = useState(() => {
     try { return localStorage.getItem(DISMISS_KEY) === '1'; } catch { return false; }
@@ -44,13 +45,13 @@ const CalendarSyncNotice: React.FC<Props> = ({ workspaceConnected, personalConne
         {workspaceConnected && (
           <NoticeLine>
             <LineLabel>{t('syncNotice.workspaceLabel', { defaultValue: '워크스페이스 연동' }) as string}</LineLabel>
-            {t('syncNotice.workspaceBody', { defaultValue: '워크스페이스에 공개한 일정만 연결된 Google 캘린더로 자동 반영됩니다(PlanQ → Google 한 방향). 개인 일정과 팀 비공개 일정은 반영되지 않아요. Google에서 직접 고친 내용이 PlanQ로 돌아오는 양방향 동기화는 Google 검수 승인 후 제공됩니다.' })}
+            {t('syncNotice.workspaceBody')}
           </NoticeLine>
         )}
         {personalConnected && (
           <NoticeLine>
             <LineLabel>{t('syncNotice.personalLabel', { defaultValue: '개인 연동' }) as string}</LineLabel>
-            {t('syncNotice.personalBody', { defaultValue: '연결한 내 Google 캘린더 일정을 이 화면에서 함께 보기만 합니다(읽기 전용). PlanQ에서 만든 일정은 내 Google 캘린더로 넘어가지 않아요.' })}
+            {personalCanWrite ? t('syncNotice.personalBodyWrite') : t('syncNotice.personalBodyRead')}
           </NoticeLine>
         )}
       </NoticeText>

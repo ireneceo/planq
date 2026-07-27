@@ -14,10 +14,12 @@
   "syncNotice": {
     "title": "Google 캘린더 연동 범위",
     "workspaceLabel": "워크스페이스 연동",
-    "workspaceBody": "워크스페이스에 공개한 일정만 연결된 Google 캘린더로 자동 반영됩니다(PlanQ → Google 한 방향). 개인 일정과 팀 비공개 일정은 반영되지 않아요. Google에서 직접 고친 내용이 PlanQ로 돌아오는 양방향 동기화는 Google 검수 승인 후 제공됩니다.",
+    "workspaceBody": "워크스페이스에 공개한 일정만 연결된 Google 캘린더로 자동 반영됩니다(PlanQ → Google 한 방향). 팀 비공개·개인 일정은 팀 캘린더에 올라가지 않아요. Google에서 직접 고친 내용이 PlanQ로 돌아오는 양방향 동기화는 Google 검수 승인 후 제공됩니다.",
     "personalLabel": "개인 연동",
     "personalBody": "연결한 내 Google 캘린더 일정을 이 화면에서 함께 보기만 합니다(읽기 전용). PlanQ에서 만든 일정은 내 Google 캘린더로 넘어가지 않아요.",
-    "dismiss": "안내 닫기"
+    "dismiss": "안내 닫기",
+    "personalBodyRead": "연결한 내 Google 캘린더 일정을 이 화면에서 함께 보기만 합니다(읽기 전용). PlanQ에서 만든 일정을 내 Google 캘린더로 보내려면 다시 연결해 주세요.",
+    "personalBodyWrite": "연결한 내 Google 캘린더 일정을 함께 보고, PlanQ에서 만든 일정도 내 Google 캘린더로 올라갑니다. 비공개 일정은 내 캘린더에만 올라가고 팀 캘린더에는 올라가지 않아요. 일정마다 끌 수 있습니다."
   },
   "filter": {
     "all": "전체",

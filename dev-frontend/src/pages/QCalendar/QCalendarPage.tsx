@@ -82,6 +82,8 @@ const QCalendarPage: React.FC = () => {
   // 개인 Google 일정 상세 (읽기 전용 패널) — 재클릭 시 닫힘 (리스트 재클릭 토글 규칙)
   const [selectedPersonalId, setSelectedPersonalId] = useState<string | null>(null);
   const [personalConnected, setPersonalConnected] = useState(false);
+  // 개인 연동이 쓰기까지 되는가 — 옛 readonly 동의 연결은 false. 안내 문구가 여기서 갈린다.
+  const [personalCanWrite, setPersonalCanWrite] = useState(false);
   const [showPersonal, setShowPersonal] = useState(true);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [loading, setLoading] = useState(false);
@@ -134,9 +136,11 @@ const QCalendarPage: React.FC = () => {
       .then((r) => r.json())
       .then((j) => {
         if (j.success) {
-          setPersonalConnected((j.data || []).some(
+          const cals = (j.data || []).filter(
             (c: { provider?: string; is_active?: boolean }) => c.provider === 'google_calendar' && c.is_active
-          ));
+          );
+          setPersonalConnected(cals.length > 0);
+          setPersonalCanWrite(cals.some((c: { can_write_calendar?: boolean | null }) => c.can_write_calendar === true));
         }
       })
       .catch(() => {});
@@ -492,7 +496,7 @@ const QCalendarPage: React.FC = () => {
 
   return (
     <PageShell title={t('title')} actions={headerActions}>
-      <CalendarSyncNotice workspaceConnected={gcalConnected} personalConnected={personalConnected} />
+      <CalendarSyncNotice workspaceConnected={gcalConnected} personalConnected={personalConnected} personalCanWrite={personalCanWrite} />
       <Toolbar>
         <ToolbarLeft>
           {view === 'day' && (
