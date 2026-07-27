@@ -89,7 +89,11 @@ router.get('/status/:businessId', authenticateToken, checkBusinessAccess, async 
         connected_by: t.connector ? t.connector.name : null,
         last_error: t.last_error || null,
         last_error_at: t.last_error_at || null,
-        needs_reconnect: /invalid_grant|unauthorized|invalid_credentials/i.test(t.last_error || '')
+        // gcal 은 쓰기 권한(calendar.events)이 있어야 일정을 구글로 보낼 수 있다.
+        // 동의 화면에서 캘린더 항목 미체크로 연결된 옛 토큰은 여기서 false 로 드러난다.
+        scope_ok: t.provider === 'gcal' ? gcal.hasWriteScope(t.scope) : true,
+        needs_reconnect: /invalid_grant|unauthorized|invalid_credentials|insufficient/i.test(t.last_error || '')
+          || (t.provider === 'gcal' && !gcal.hasWriteScope(t.scope))
       };
     }
     successResponse(res, statusMap);
@@ -230,6 +234,17 @@ router.get('/callback/gcal', async (req, res) => {
   try {
     const { tokens, accountEmail } = await gcal.exchangeCodeForTokens(code);
 
+    // 동의 화면에서 캘린더 항목 체크박스를 해제한 채 승인해도 code 는 정상 발급된다.
+    // 이때 저장해 버리면 "연동 완료" 로 보이지만 이후 모든 push 가 403 으로 죽는다
+    // (2026-07-27 운영 사고). 쓰기 권한 없는 토큰은 저장하지 않고 재연결을 요구한다.
+    if (!gcal.hasWriteScope(tokens.scope)) {
+      console.warn('[gcal callback] 캘린더 쓰기 권한 누락 — 저장 거부. granted=%s', tokens.scope || '(none)');
+      return res.status(400).send(buildCallbackHtml({
+        provider: 'gcal', ok: false, title: '연동 실패',
+        body: '<h2>캘린더 권한이 필요합니다</h2><p>Google 동의 화면에서 <strong>"Google 캘린더의 캘린더를 사용하여 이벤트 보기 및 수정"</strong> 항목이 체크되지 않았습니다.<br/>다시 연결하면서 해당 항목을 <strong>체크</strong>해 주세요.</p>',
+      }));
+    }
+
     const [record] = await BusinessCloudToken.findOrCreate({
       where: { business_id: parsed.businessId, provider: 'gcal' },
       defaults: {
@@ -251,6 +266,8 @@ router.get('/callback/gcal', async (req, res) => {
     record.account_email = accountEmail || record.account_email;
     record.connected_by = parsed.userId;
     record.connected_at = new Date();
+    record.last_error = null;          // 재연결 성공 — 옛 오류 배지 해제
+    record.last_error_at = null;
     await record.save();
 
     return res.send(buildCallbackHtml({

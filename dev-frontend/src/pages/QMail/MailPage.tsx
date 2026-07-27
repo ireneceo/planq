@@ -107,6 +107,7 @@ import {
   MetaChip,
   MsgForwardBtn,
   MsgHeaderRight,
+  DeliveryChip,
   NewLabelInput,
   NoAcctBtn,
   NoAcctHint,
@@ -198,6 +199,9 @@ interface Message {
   body_text: string | null;
   sent_at: string;
   is_read: boolean;
+  // outbound 만 채워진다. 'delivered' 는 DSN 없이는 알 수 없어 서버가 만들지 않는다.
+  delivery_status?: 'pending' | 'sent' | 'delivered' | 'bounced' | 'failed' | 'suppressed' | null;
+  delivery_error?: string | null;
   attachments: Array<{ id: number; file_id: number | null; file_name: string; file_size: number; mime_type: string }>;
 }
 
@@ -1794,6 +1798,15 @@ const MailPage: React.FC = () => {
                         )}
                       </MessageFrom>
                       <MsgHeaderRight>
+                        {/* 발송 상태 — 나간 메일만. 'sent'(정상)는 표시하지 않는다(잡음). 문제 있을 때만 드러낸다. */}
+                        {m.direction === 'outbound' && m.delivery_status && m.delivery_status !== 'sent' && (
+                          <DeliveryChip
+                            $tone={m.delivery_status === 'suppressed' ? 'warn' : 'err'}
+                            title={m.delivery_error || undefined}
+                          >
+                            {t(`delivery.${m.delivery_status}`) as string}
+                          </DeliveryChip>
+                        )}
                         <MessageTime>{formatTimeAgo(m.sent_at)}</MessageTime>
                         <MsgForwardBtn type="button" onClick={() => startForward(m)}
                           title={t('forward.button', { defaultValue: '전달' }) as string}

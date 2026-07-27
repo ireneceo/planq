@@ -666,8 +666,9 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
       } catch (e) { console.warn('[gcal sync PUT→private delete]', e.message); }
       await event.update({ gcal_event_id: null }).catch(() => {});
     } else if (needsGcalSync) {
+      let gcalToken = null;
       try {
-        const gcalToken = await gcal.getTokenForBusiness(businessId);
+        gcalToken = await gcal.getTokenForBusiness(businessId);
         if (gcalToken) {
           const cal = await gcal.getCalendarClient(gcalToken);
           await gcal.updateEvent(cal, event.gcal_event_id, {
@@ -676,13 +677,15 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
             startAt: event.start_at,
             endAt: event.end_at,
           });
+          await gcal.clearPushError(gcalToken);
         }
       } catch (e) {
-        // 404/410: 이미 사라진 google event → gcal_event_id 정리
+        // 404/410: 이미 사라진 google event → gcal_event_id 정리 (연동 자체는 정상이므로 오류 기록 안 함)
         if (e.code === 404 || e.code === 410) {
           await event.update({ gcal_event_id: null }).catch(() => {});
         } else {
           console.warn('[gcal sync PUT]', e.message);
+          await gcal.recordPushError(gcalToken, e);
         }
       }
     }
@@ -1107,11 +1110,23 @@ router.post('/by-business/:businessId/:id/push-to-gcal', authenticateToken, chec
       // 워크스페이스 gcal 미연결 — 개인설정 연동(readonly)만으론 push 불가. 프론트가 연동 안내로 분기.
       return errorResponse(res, 'gcal_not_connected — 워크스페이스 Google Calendar 연동이 필요합니다', 400, 'gcal_not_connected');
     }
+    // 동의 화면에서 캘린더 항목을 체크하지 않고 연결된 토큰은 여기서 걸러진다.
+    // 안 걸러내면 구글이 403 insufficientPermissions 를 주고 사용자는 원인을 알 수 없다.
+    if (!gcal.hasWriteScope(gcalToken.scope)) {
+      return errorResponse(res, 'gcal_scope_missing — Google 캘린더 쓰기 권한이 없습니다. 설정에서 다시 연결해 주세요', 400, 'gcal_scope_missing');
+    }
     const cal = await gcal.getCalendarClient(gcalToken);
-    const pushed = await gcal.insertEvent(cal, {
-      summary: event.title, description: event.description, location: event.location,
-      startAt: event.start_at, endAt: event.end_at, allDay: event.all_day, rrule: event.rrule,
-    });
+    let pushed;
+    try {
+      pushed = await gcal.insertEvent(cal, {
+        summary: event.title, description: event.description, location: event.location,
+        startAt: event.start_at, endAt: event.end_at, allDay: event.all_day, rrule: event.rrule,
+      });
+      await gcal.clearPushError(gcalToken);
+    } catch (e) {
+      await gcal.recordPushError(gcalToken, e);
+      throw e;
+    }
     if (!pushed?.id) return errorResponse(res, 'gcal_push_failed', 502);
     await event.update({ gcal_event_id: pushed.id });
 
