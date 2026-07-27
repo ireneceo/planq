@@ -296,12 +296,13 @@ router.put('/:businessId/brand', authenticateToken, checkBusinessAccess, async (
 router.get('/:businessId/mail', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const business = await Business.findByPk(req.params.businessId, {
-      attributes: ['id', 'name', 'brand_name', 'mail_from_name', 'mail_reply_to'],
+      attributes: ['id', 'name', 'brand_name', 'mail_from_name', 'mail_reply_to', 'mail_signature_html'],
     });
     if (!business) return errorResponse(res, 'Workspace not found', 404);
     return successResponse(res, {
       mail_from_name: business.mail_from_name,
       mail_reply_to: business.mail_reply_to,
+      mail_signature_html: business.mail_signature_html || null,
       brand_name: business.brand_name,
       name: business.name,
       smtp_configured: !!(process.env.SMTP_HOST && process.env.SMTP_USER),
@@ -318,8 +319,12 @@ router.put('/:businessId/mail', authenticateToken, checkBusinessAccess, async (r
     const business = await Business.findByPk(req.params.businessId);
     if (!business) return errorResponse(res, 'Workspace not found', 404);
 
-    const { mail_from_name, mail_reply_to } = req.body || {};
+    const { mail_from_name, mail_reply_to, mail_signature_html } = req.body || {};
     const updates = {};
+    if (mail_signature_html !== undefined) {
+      // 계정 서명이 비어 있는 곳에만 적용된다 — 기존 계정별 서명을 덮어쓰지 않는다.
+      updates.mail_signature_html = mail_signature_html ? String(mail_signature_html).slice(0, 20000) : null;
+    }
     if (mail_from_name !== undefined) {
       updates.mail_from_name = mail_from_name ? String(mail_from_name).trim().slice(0, 100) : null;
     }

@@ -6,6 +6,7 @@ import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import AutoSaveField from '../../components/Common/AutoSaveField';
+import RichEditor from '../../components/Common/RichEditor';
 import { apiFetch } from '../../contexts/AuthContext';
 
 interface Props {
@@ -16,6 +17,7 @@ interface Props {
 interface MailConfig {
   mail_from_name: string | null;
   mail_reply_to: string | null;
+  mail_signature_html: string | null;
   brand_name: string | null;
   name: string | null;
   smtp_configured: boolean;
@@ -28,6 +30,7 @@ const EmailSettings: React.FC<Props> = ({ businessId, isOwner }) => {
   const [error, setError] = useState<string | null>(null);
   const [fromName, setFromName] = useState('');
   const [replyTo, setReplyTo] = useState('');
+  const [signature, setSignature] = useState('');
 
   useEffect(() => {
     if (!businessId) return;
@@ -42,6 +45,7 @@ const EmailSettings: React.FC<Props> = ({ businessId, isOwner }) => {
         setConfig(c);
         setFromName(c.mail_from_name || '');
         setReplyTo(c.mail_reply_to || '');
+        setSignature(c.mail_signature_html || '');
         setError(null);
       })
       .catch(e => { if (!cancelled) setError((e as Error).message); })
@@ -49,7 +53,7 @@ const EmailSettings: React.FC<Props> = ({ businessId, isOwner }) => {
     return () => { cancelled = true; };
   }, [businessId]);
 
-  const save = async (patch: Partial<{ mail_from_name: string | null; mail_reply_to: string | null }>) => {
+  const save = async (patch: Partial<{ mail_from_name: string | null; mail_reply_to: string | null; mail_signature_html: string | null }>) => {
     const r = await apiFetch(`/api/businesses/${businessId}/mail`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -123,6 +127,21 @@ const EmailSettings: React.FC<Props> = ({ businessId, isOwner }) => {
             />
           </AutoSaveField>
           <Hint>{t('email.identity.replyToHint', '고객이 답장하면 이 주소로 회신이 옵니다. 비워두면 답장 불가.')}</Hint>
+        </Field>
+
+        {/* 회사 공통 메일 서명 — 계정 서명이 비어 있을 때 쓰인다(팀 공통이 기본).
+            우선순위: 별칭 서명 > 계정 서명 > 이 값 > 없음. 기존 계정별 서명을 덮어쓰지 않는다. */}
+        <Field>
+          <Label>{t('email.signature.label')}</Label>
+          <AutoSaveField type="input" onSave={async () => save({ mail_signature_html: signature.trim() || null })}>
+            <RichEditor
+              value={signature}
+              onChange={setSignature}
+              readOnly={!isOwner}
+              placeholder={t('email.signature.placeholder') as string}
+            />
+          </AutoSaveField>
+          <Hint>{t('email.signature.hint')}</Hint>
         </Field>
       </Section>
 
