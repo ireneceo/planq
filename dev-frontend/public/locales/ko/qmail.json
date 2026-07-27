@@ -165,7 +165,8 @@
   },
   "thread": {
     "sent": "보낸",
-    "awaitingReply": "응답 없음 {{count}}일"
+    "awaitingReply_one": "응답 없음 {{count}}일",
+    "awaitingReply_other": "응답 없음 {{count}}일"
   },
   "translate": {
     "langLabel": "번역 언어",

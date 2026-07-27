@@ -165,7 +165,8 @@
   },
   "thread": {
     "sent": "Sent",
-    "awaitingReply": "No reply for {{count}} days"
+    "awaitingReply_one": "No reply for 1 day",
+    "awaitingReply_other": "No reply for {{count}} days"
   },
   "translate": {
     "langLabel": "Translation language",

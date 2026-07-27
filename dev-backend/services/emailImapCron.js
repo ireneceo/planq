@@ -455,6 +455,7 @@ async function syncOne(account, opts = {}) {
               account, thread,
               fromName, fromEmail,
               subject: parsed.subject,
+              messageId: parsed.messageId || null,   // 계정 간 같은 메일 알림 중복 제거 기준
               fields: triageFields,
               ioApp: io || global.__planqIo,
             });
