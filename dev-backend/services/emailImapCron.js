@@ -18,6 +18,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { decrypt } = require('./encryption');
+const { needsReauth } = require('./emailAccountHealth');
 const {
   EmailAccount, EmailThread, EmailMessage, EmailAttachment, EmailThreadParticipant,
   Client, File: FileModel, Business,
@@ -514,8 +515,8 @@ async function tick() {
         //   · neverSynced: 한 번도 성공 sync 안 됨 (검증 안 된 신규/잘못 등록 계정)
         //   · authConfigError: 자격증명 오류 (decrypt/password/auth/token 등) — 사용자가 재인증해야 하는 문제
         // → 둘 다 DB 에 last_sync_error 만 기록하고 자동메일 안 보냄. 사용자는 Settings 에서 상태 확인.
-        const errMsg = String(e.message || '');
-        const isAuthConfigError = /decrypt|password|auth|credential|login|xoauth|token|invalid|missing/i.test(errMsg);
+        // 재인증 필요 판정은 services/emailAccountHealth 단일 원천 (화면 배지와 같은 술어).
+        const isAuthConfigError = needsReauth(e);
         const neverSynced = !acc.last_sync_at;
         if (failCount === FAIL_ALERT_THRESHOLD && !isAuthConfigError && !neverSynced) {
           try {
@@ -532,8 +533,40 @@ async function tick() {
               }).catch(() => {});
             }
           } catch (_) { /* ignore */ }
+        } else if (failCount === FAIL_ALERT_THRESHOLD && isAuthConfigError && !neverSynced) {
+          // 한 번은 성공했던 계정이 인증 오류로 죽었다 = 살아 있던 연결이 끊긴 것. 반드시 알린다.
+          //   여태 이 분기가 통째로 침묵이라 help@irenewp.com 이 5일간 방치됐다(수신·발송 동반 사망).
+          //   이메일 채널만 skip 한다 — 죽은 계정을 고치라는 안내가 그 계정으로 나가면 안 되고,
+          //   잘못 등록된 주소로 반송이 쌓이는 것도 막아야 한다. 인앱·푸시는 보낸다.
+          //   fail_count === 임계값 정확히 일치할 때만 발화하므로 반복 알림은 구조적으로 없다.
+          try {
+            const { notify } = require('../routes/notifications');
+            const { BusinessMember } = require('../models');
+            const targets = new Set();
+            if (acc.owner_user_id) {
+              targets.add(acc.owner_user_id);                       // 개인 계정 — 본인만
+            } else {
+              const owners = await BusinessMember.findAll({
+                where: { business_id: acc.business_id, role: ['owner', 'admin'], removed_at: null },
+                attributes: ['user_id'],
+              });
+              owners.forEach((m) => targets.add(m.user_id));         // 회사 계정 — owner/admin
+            }
+            for (const uid of targets) {
+              await notify({
+                userId: uid, businessId: acc.business_id,
+                eventKind: 'system',
+                title: `메일 계정 재연결이 필요합니다 — ${acc.email}`,
+                body: '인증이 만료되어 메일 수신·발송이 중단됐습니다. 설정에서 다시 연결해 주세요.',
+                link: '/business/settings/mail-accounts',
+                skipChannels: ['email'],
+                ioApp: global.__planqIo,
+              }).catch(() => {});
+            }
+            console.warn(`[emailImapCron] account #${acc.id} (${acc.email}) — 재인증 필요 알림 발송 (${targets.size}명)`);
+          } catch (_) { /* ignore */ }
         } else if (failCount === FAIL_ALERT_THRESHOLD) {
-          console.warn(`[emailImapCron] account #${acc.id} (${acc.email}) — 인증/설정 미완 또는 미검증 계정이라 자동알림 생략`);
+          console.warn(`[emailImapCron] account #${acc.id} (${acc.email}) — 한 번도 sync 성공한 적 없는 계정이라 자동알림 생략`);
         }
       }
     }

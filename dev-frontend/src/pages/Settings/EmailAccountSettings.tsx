@@ -149,6 +149,7 @@ const EmailAccountSettings: React.FC = () => {
               : <TeamBadge>{t('settings.scopeTeam', '회사 공용') as string}</TeamBadge>}
             {acc.is_default && <DefaultBadge>{t('settings.default', '기본') as string}</DefaultBadge>}
             {!acc.is_active && <InactiveBadge>{t('settings.inactive', '비활성') as string}</InactiveBadge>}
+            {acc.needs_reconnect && <ErrorBadge>{t('settings.needsReconnect') as string}</ErrorBadge>}
           </EmailRow>
           {acc.display_name && <DisplayName>{acc.display_name}</DisplayName>}
           <MetaRow>
@@ -179,11 +180,29 @@ const EmailAccountSettings: React.FC = () => {
             initialHtml={acc.signature_html ?? null}
             initialEnabled={acc.signature_enabled !== false}
           />
-          {acc.last_sync_error && /invalid credentials|authenticat|login fail/i.test(acc.last_sync_error) && (
+          {/* 재인증 안내 — 판정은 서버(needs_reconnect) 단일 원천. 근거: services/emailAccountHealth.js */}
+          {acc.needs_reconnect && (
             <FixHint>
-              {(acc.imap_host || '').includes('gmail')
-                ? t('settings.fixAuthGmail', 'Gmail 은 앱 비밀번호가 필요합니다 — "편집"에서 앱 비밀번호로 다시 입력해 주세요.') as string
-                : t('settings.fixAuthGeneric', '"편집"에서 아이디와 비밀번호를 다시 입력해 주세요.') as string}
+              {acc.reauth_kind === 'oauth'
+                // 원클릭 재연결은 구글 앱 심사 통과 전까지 막혀 있다. 그 상태에서 "다시 연결하세요" 라고만
+                //   안내하면 사용자는 누를 버튼이 없다 — 실제로 할 수 있는 길(앱 비밀번호)로 보낸다.
+                ? (GMAIL_ONECLICK_ENABLED
+                    ? t('settings.fixAuthOauth') as string
+                    : t('settings.fixAuthOauthToPassword') as string)
+                : (acc.imap_host || '').includes('gmail')
+                  ? t('settings.fixAuthGmail') as string
+                  : t('settings.fixAuthGeneric') as string}
+              <ReconnectRow>
+                {acc.reauth_kind === 'oauth' && GMAIL_ONECLICK_ENABLED ? (
+                  <PrimaryBtn type="button" onClick={connectGmail}>
+                    {t('settings.reconnectNow') as string}
+                  </PrimaryBtn>
+                ) : (
+                  <PrimaryBtn type="button" onClick={() => setEditing(acc)}>
+                    {t('settings.switchToAppPassword') as string}
+                  </PrimaryBtn>
+                )}
+              </ReconnectRow>
             </FixHint>
           )}
           {testResult[acc.id] && (
@@ -819,6 +838,7 @@ const ErrorBadge = styled.span`
 `;
 const ErrorMsg = styled.div`font-size: 12px; color: #B91C1C; margin-top: 6px; line-height: 1.4;`;
 const FixHint = styled.div`font-size: 12px; color: #B45309; margin-top: 4px; line-height: 1.4; padding: 6px 10px; background: #FFFBEB; border-radius: 6px;`;
+const ReconnectRow = styled.div`margin-top: 8px;`;
 const TestSuccess = styled.div`font-size: 12px; color: #0F766E; font-weight: 600; margin-top: 6px;`;
 const TestError = styled.div`font-size: 12px; color: #B91C1C; font-weight: 600; margin-top: 6px;`;
 const CardActions = styled.div`display: flex; gap: 6px; flex-wrap: wrap; align-items: flex-start;`;

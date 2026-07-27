@@ -37,6 +37,10 @@ CalendarEvent.init({
   // 이후 PUT (시간/제목/설명 변경) / DELETE 시 같은 google event 를 update/delete 하여 sync.
   // null = PlanQ only (Meet 발급 안 한 일반 이벤트).
   gcal_event_id: { type: DataTypes.STRING(100), allowNull: true },
+  // 일정 단위 "구글 캘린더에 올리기" 체크 (Irene 요구 2026-07-27). 기본 ON.
+  //   끄면 calendarSync.reconcile 이 구글에서 회수한다 — 남겨두면 "안 지워진다" 호소가 반복된다.
+  //   ★ DB 컬럼만 추가하고 이 필드를 빠뜨리면 값이 undefined 라 토글이 조용히 무시된다.
+  gcal_sync: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
   // N+63 — 임박 알림 (start_at - reminder_minutes 시점에 attendees 에게 알림 발송).
   // null = 알림 비활성. 5/10/15/30/60 분 등. EventDrawer 셀렉트로 사용자 설정.
   reminder_minutes: { type: DataTypes.INTEGER, allowNull: true },

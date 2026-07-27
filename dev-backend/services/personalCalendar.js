@@ -56,4 +56,83 @@ async function listEvents(conn, { timeMin, timeMax, maxResults = 250, excludeIds
     .map(ev => normalize(ev, conn));
 }
 
-module.exports = { listEvents, isPlanqOrigin };
+// ── 쓰기 (2026-07-27 신설) ────────────────────────────────────────────────
+// 여태 이 파일에는 쓰기가 한 줄도 없었다. 개인 연동은 calendar.readonly 라 구조적으로 불가였고,
+// 그래서 "개인 캘린더 연동했는데 PlanQ 일정이 안 올라온다"(Irene) 는 고장이 아니라 기능 부재였다.
+// PROVIDER_SCOPES.google_calendar 를 calendar.events 로 올리며 쓰기를 연다.
+
+const CALENDAR_WRITE_SCOPES = [
+  'https://www.googleapis.com/auth/calendar.events',
+  'https://www.googleapis.com/auth/calendar',
+];
+
+/**
+ * 이 연결이 쓰기까지 되는가.
+ * 기존 사용자는 calendar.readonly 로 동의해둔 상태라 재동의 전까지 false — 읽기 overlay 는 그대로
+ * 두고 화면이 "다시 연결" 을 안내한다. 강제 해제하면 멀쩡한 읽기까지 잃는다.
+ */
+function hasCalendarWrite(conn) {
+  const granted = String((conn && conn.scope) || '').split(/\s+/).filter(Boolean);
+  return CALENDAR_WRITE_SCOPES.some((s) => granted.includes(s));
+}
+
+// PlanQ 원본 표식 — 되돌아온 자기 일정을 overlay 에 중복으로 그리지 않기 위해 반드시 붙인다.
+function planqBody({ title, description, location, startAt, endAt, allDay, timezone, rrule }) {
+  const tz = timezone || 'Asia/Seoul';
+  const body = {
+    summary: title,
+    description: description || undefined,
+    location: location || undefined,
+    extendedProperties: { private: { planq: '1' } },
+  };
+  if (allDay) {
+    body.start = { date: new Date(startAt).toISOString().slice(0, 10) };
+    body.end = { date: new Date(endAt || startAt).toISOString().slice(0, 10) };
+  } else {
+    body.start = { dateTime: new Date(startAt).toISOString(), timeZone: tz };
+    body.end = { dateTime: new Date(endAt || startAt).toISOString(), timeZone: tz };
+  }
+  if (rrule) {
+    const arr = Array.isArray(rrule) ? rrule : [rrule];
+    body.recurrence = arr.map((r) => (String(r).startsWith('RRULE:') ? String(r) : `RRULE:${r}`));
+  }
+  return body;
+}
+
+async function insertEvent(conn, input) {
+  const auth = await personalOauth.getAuthedClient(conn);
+  const cal = google.calendar({ version: 'v3', auth });
+  const resp = await cal.events.insert(
+    { calendarId: 'primary', requestBody: planqBody(input) },
+    { timeout: 10000 },
+  );
+  return { id: resp.data.id, htmlLink: resp.data.htmlLink };
+}
+
+async function updateEvent(conn, gcalEventId, input) {
+  const auth = await personalOauth.getAuthedClient(conn);
+  const cal = google.calendar({ version: 'v3', auth });
+  const resp = await cal.events.patch(
+    { calendarId: 'primary', eventId: gcalEventId, requestBody: planqBody(input) },
+    { timeout: 10000 },
+  );
+  return { id: resp.data.id };
+}
+
+// 이미 사라진 이벤트(404/410)는 성공으로 친다 — 목적("구글에 없게 한다")이 이미 달성된 상태다.
+async function deleteEvent(conn, gcalEventId) {
+  const auth = await personalOauth.getAuthedClient(conn);
+  const cal = google.calendar({ version: 'v3', auth });
+  try {
+    await cal.events.delete({ calendarId: 'primary', eventId: gcalEventId }, { timeout: 10000 });
+  } catch (e) {
+    const code = e && (e.code || e.status);
+    if (code !== 404 && code !== 410) throw e;
+  }
+  return true;
+}
+
+module.exports = {
+  listEvents, isPlanqOrigin,
+  hasCalendarWrite, insertEvent, updateEvent, deleteEvent, CALENDAR_WRITE_SCOPES,
+};

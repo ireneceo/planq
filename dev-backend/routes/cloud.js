@@ -91,6 +91,7 @@ router.get('/status/:businessId', authenticateToken, checkBusinessAccess, async 
         last_error_at: t.last_error_at || null,
         // gcal 은 쓰기 권한(calendar.events)이 있어야 일정을 구글로 보낼 수 있다.
         // 동의 화면에서 캘린더 항목 미체크로 연결된 옛 토큰은 여기서 false 로 드러난다.
+        sync_enabled: t.sync_enabled !== false,   // 연결 유지 + 동기화만 끔
         scope_ok: t.provider === 'gcal' ? gcal.hasWriteScope(t.scope) : true,
         needs_reconnect: /invalid_grant|unauthorized|invalid_credentials|insufficient/i.test(t.last_error || '')
           || (t.provider === 'gcal' && !gcal.hasWriteScope(t.scope))
@@ -284,6 +285,26 @@ router.get('/callback/gcal', async (req, res) => {
 });
 
 // ─── 연동 해제 ───
+// ─── 동기화 on/off — 연결은 유지한 채 밀어넣기만 멈춘다 (Irene 요구 2026-07-27) ───
+//   해제(disconnect)와 다른 축이다. 해제는 토큰을 버리므로 다시 동의를 받아야 하지만,
+//   이건 잠시 꺼두는 것이라 토글만 되돌리면 즉시 재개된다.
+router.put('/sync/:provider/:businessId', authenticateToken, checkBusinessAccess, requireOwnerForCloud, async (req, res, next) => {
+  try {
+    const { provider, businessId } = req.params;
+    if (!['gcal', 'gdrive'].includes(provider)) return errorResponse(res, 'invalid_provider', 400);
+    const token = await BusinessCloudToken.findOne({ where: { business_id: businessId, provider } });
+    if (!token) return errorResponse(res, 'not_connected', 404);
+    const enabled = !!req.body?.sync_enabled;
+    await token.update({ sync_enabled: enabled });
+    require('../services/auditService').logAudit(req, {
+      action: enabled ? 'cloud.sync_enable' : 'cloud.sync_disable',
+      targetType: 'BusinessCloudToken', targetId: token.id,
+      newValue: { provider, sync_enabled: enabled },
+    });
+    successResponse(res, { provider, sync_enabled: enabled });
+  } catch (error) { next(error); }
+});
+
 router.delete('/disconnect/:provider/:businessId', authenticateToken, checkBusinessAccess, requireOwnerForCloud, async (req, res, next) => {
   try {
     const { provider, businessId } = req.params;

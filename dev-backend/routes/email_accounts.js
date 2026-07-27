@@ -10,6 +10,7 @@ const { authenticateToken, checkBusinessAccess } = require('../middleware/auth')
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { encrypt, decrypt } = require('../services/encryption');
 const { createAuditLog } = require('../middleware/audit');
+const { accountHealth, oauthToPasswordPatch } = require('../services/emailAccountHealth');
 
 // admin 권한 검사 — owner 또는 admin 또는 platform_admin
 function isAdmin(req) {
@@ -98,6 +99,8 @@ function serializeAccount(acc) {
     last_sync_at: j.last_sync_at,
     last_sync_error: j.last_sync_error,
     fail_count: j.fail_count,
+    auth_type: j.auth_type,
+    ...accountHealth(j),   // 재인증 필요 판정 = 서버 단일 원천 (services/emailAccountHealth.js)
     // 비밀번호는 응답 X — 보유 여부만 boolean
     has_imap_password: !!j.imap_password_encrypted,
     has_smtp_password: !!j.smtp_password_encrypted,
@@ -239,6 +242,8 @@ router.put('/:businessId/email-accounts/:id', authenticateToken, checkBusinessAc
       // 검증 통과 → 실패 이력 리셋
       patch.last_sync_error = null;
       patch.fail_count = 0;
+
+      Object.assign(patch, oauthToPasswordPatch(acc, b, patch));  // OAuth → 앱 비밀번호 전환 (검증 통과 후에만)
     }
     const prevOwner = acc.owner_user_id;
     await acc.update(patch);

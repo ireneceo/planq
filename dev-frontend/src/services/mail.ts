@@ -29,6 +29,11 @@ export interface EmailAccountRow {
   last_sync_at: string | null;
   last_sync_error: string | null;
   fail_count: number;
+  auth_type: 'password' | 'google_oauth' | 'microsoft_oauth';
+  // 서버 단일 원천(services/emailAccountHealth) 판정. 프론트에서 오류 문자열을 다시 파싱하지 말 것 —
+  //   규칙이 두 벌이 되면 서버는 아는데 화면은 모르는 상태가 생긴다(help@ 5일 방치의 원인).
+  needs_reconnect: boolean;
+  reauth_kind: 'oauth' | 'password' | null;
   has_imap_password: boolean;
   has_smtp_password: boolean;
   created_at: string;

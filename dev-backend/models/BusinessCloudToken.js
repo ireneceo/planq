@@ -84,6 +84,14 @@ BusinessCloudToken.init({
     type: DataTypes.STRING(128),
     allowNull: true
   },
+  // 연결은 유지한 채 동기화만 끄기 (Irene 요구 2026-07-27). 기본 ON.
+  //   ★ DB 컬럼만 추가하고 이 필드를 빠뜨리면 값이 undefined 라 토글이 조용히 무시된다.
+  sync_enabled: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: true,
+    comment: '팀 캘린더 동기화 on/off (연결은 유지)'
+  },
   last_error: {
     type: DataTypes.STRING(300),
     allowNull: true,

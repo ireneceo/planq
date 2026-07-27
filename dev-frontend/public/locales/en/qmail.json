@@ -121,8 +121,8 @@
     "connectFailed": "Could not start Gmail connection. Please try again shortly.",
     "hintOauth": "For Gmail, use \"Connect with Gmail\" (one click) or an app password. If one-click does not work, add the account with an app password.",
     "hintNewMailOnly": "Only new mail received after connecting will appear. Past mail is not imported.",
-    "fixAuthGmail": "Gmail requires an app password — open \"Edit\" and re-enter an app password.",
-    "fixAuthGeneric": "Open \"Edit\" and re-enter the username and password.",
+    "fixAuthGmail": "Gmail requires an app password — open Edit and enter the app password again.",
+    "fixAuthGeneric": "Open Edit and re-enter the username and password.",
     "err": {
       "gmailAppPassword": "Gmail cannot be connected with a regular password. Create an app password as guided above and enter it.",
       "naverAppPassword": "Naver authentication failed. Check that IMAP is enabled and use an application password if 2-step verification is on.",
@@ -143,7 +143,12 @@
     "fieldFromName": "Sender name",
     "fromNamePh": "e.g. PlanQ · Customer Support",
     "fromNameHint": "This is the name recipients see in their inbox. Leave empty to show the address only.",
-    "hintAppPassword": "For Gmail, Outlook, Naver and more, click \"Add account\" and pick your service for step-by-step app-password instructions. For company mail, choose \"Custom\" and enter your server details."
+    "hintAppPassword": "For Gmail, Outlook, Naver and more, click \"Add account\" and pick your service for step-by-step app-password instructions. For company mail, choose \"Custom\" and enter your server details.",
+    "needsReconnect": "Reconnect needed",
+    "fixAuthOauth": "Authorization expired, so receiving and sending have stopped. Please reconnect.",
+    "fixAuthOauthToPassword": "Authorization expired, so receiving and sending have stopped. Create an app password and switch the connection method to keep it working without expiry.",
+    "reconnectNow": "Reconnect",
+    "switchToAppPassword": "Switch to app password"
   },
   "folders": {
     "title": "Mailboxes",

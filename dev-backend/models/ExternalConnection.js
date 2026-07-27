@@ -54,6 +54,9 @@ ExternalConnection.init({
   smtp_tls: { type: DataTypes.BOOLEAN, defaultValue: true },
   // 상태
   is_active: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+  // 개인 캘린더 쓰기 동기화 on/off (Irene 요구 2026-07-27). 기본 ON.
+  //   is_active 는 연결 자체(읽기 overlay 포함), 이건 쓰기 동기화만 끈다 — 축이 다르다.
+  sync_enabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
   is_default: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   last_sync_at: { type: DataTypes.DATE, allowNull: true },
   last_sync_error: { type: DataTypes.TEXT, allowNull: true },

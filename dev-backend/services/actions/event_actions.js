@@ -21,6 +21,7 @@ const { resolveSubject, assertMenuWrite, fail, done } = require('./_subject');
 const { applyMemberDisplayName } = require('../displayName');
 const { createAuditLog } = require('../../middleware/audit');
 const gcal = require('../google_calendar');
+const calendarSync = require('../calendarSync');
 
 const HEX_RE = /^#[0-9A-Fa-f]{6}$/;
 const CATEGORY_SET = new Set(['personal', 'work', 'meeting', 'deadline', 'other']);
@@ -148,6 +149,8 @@ async function createEvent(actor, params = {}) {
         : null,
       visibility: evVisibility,
       vlevel: evVlevel,
+      // 일정 단위 구글 연동 체크 — 기본 ON (Irene 요구 "디폴트는 다 연동 체크").
+      gcal_sync: params.gcalSync === undefined ? true : !!params.gcalSync,
       target_member_ids: Array.isArray(params.targetMemberIds) ? params.targetMemberIds.map(Number).filter(Boolean) : null,
       target_client_ids: Array.isArray(params.targetClientIds) ? params.targetClientIds.map(Number).filter(Boolean) : null,
       created_by: subjectId,
@@ -204,23 +207,15 @@ async function createEvent(actor, params = {}) {
   // ── PlanQ → Google Calendar push (일반 일정) — 워크스페이스 gcal 연동 시. Meet 은 위에서 이미 push.
   //   best-effort: Google 실패해도 PlanQ 일정은 유지(이미 커밋). gcal_event_id 저장 → 오버레이 중복 차단·수정/삭제 동기화 연결.
   //   #126 보안 — 개인(L1)·팀 비공개(L2)·personal 일정은 push 금지(owner 구글캘린더 유출 차단).
-  if (!params.autoCreateMeeting && !event.gcal_event_id && !gcal.isPrivateForGcal(event)) {
-    let gcalToken = null;
+  // 목적지 결정(팀/개인)·토글·권한은 전부 services/calendarSync 단일 착지점에 있다.
+  //   Meet 자동생성으로 이미 워크스페이스 이벤트를 만든 경우는 그쪽이 링크를 쥐고 있으므로 건너뛴다.
+  if (!params.autoCreateMeeting) {
     try {
-      gcalToken = await gcal.getTokenForBusiness(businessId);
-      if (gcalToken) {
-        const cal = await gcal.getCalendarClient(gcalToken);
-        const pushed = await gcal.insertEvent(cal, {
-          summary: event.title, description: event.description, location: event.location,
-          startAt: event.start_at, endAt: event.end_at, allDay: event.all_day, rrule: event.rrule,
-        });
-        if (pushed?.id) await event.update({ gcal_event_id: pushed.id });
-        await gcal.clearPushError(gcalToken);
-      }
+      const r = await calendarSync.reconcile(event, { businessId, userId: actor.userId || event.created_by });
+      if (r.errors.length) console.warn('[calendarSync create]', JSON.stringify(r.errors).slice(0, 300));
     } catch (e) {
-      // best-effort: Google 실패해도 PlanQ 일정은 유지. 단 조용히 넘기지 않고 연동 상태에 남긴다.
-      console.warn('[gcal insertEvent push]', e.message);
-      await gcal.recordPushError(gcalToken, e);
+      // best-effort: Google 실패해도 PlanQ 일정은 유지(이미 커밋). 조용히 넘기지는 않는다.
+      console.warn('[calendarSync create] reconcile 실패:', e.message);
     }
   }
 
