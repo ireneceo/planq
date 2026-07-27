@@ -647,7 +647,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       setHoldFormOpen(false); setHoldReason('');
       // 접근성(설계 §2-10) — 눌렀던 버튼이 사라지면 focus trap 이 첫 tabbable("돌아가기")로 회수해
       //   키보드 사용자가 위치를 잃는다. 새로 나타난 배너의 [보류 해제]로 옮겨 맥락을 잇는다.
-      setResumeFocusTick(v => v + 1);
+      // FABLE-FALSIFY: setResumeFocusTick(v => v + 1);
     }
   };
   const actResume = () => callAction('/resume');
