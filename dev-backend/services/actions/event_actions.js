@@ -122,6 +122,7 @@ async function createEvent(actor, params = {}) {
         }
       } catch (e) {
         console.error('[gcal createMeetingEvent]', e.message);
+        await gcal.recordPushError(gcalToken, e);   // 설정 화면에 재연결 필요 표시
         await t.rollback();
         return fail('gcal_meeting_create_failed', 502);
       }
@@ -204,8 +205,9 @@ async function createEvent(actor, params = {}) {
   //   best-effort: Google 실패해도 PlanQ 일정은 유지(이미 커밋). gcal_event_id 저장 → 오버레이 중복 차단·수정/삭제 동기화 연결.
   //   #126 보안 — 개인(L1)·팀 비공개(L2)·personal 일정은 push 금지(owner 구글캘린더 유출 차단).
   if (!params.autoCreateMeeting && !event.gcal_event_id && !gcal.isPrivateForGcal(event)) {
+    let gcalToken = null;
     try {
-      const gcalToken = await gcal.getTokenForBusiness(businessId);
+      gcalToken = await gcal.getTokenForBusiness(businessId);
       if (gcalToken) {
         const cal = await gcal.getCalendarClient(gcalToken);
         const pushed = await gcal.insertEvent(cal, {
@@ -213,9 +215,12 @@ async function createEvent(actor, params = {}) {
           startAt: event.start_at, endAt: event.end_at, allDay: event.all_day, rrule: event.rrule,
         });
         if (pushed?.id) await event.update({ gcal_event_id: pushed.id });
+        await gcal.clearPushError(gcalToken);
       }
     } catch (e) {
-      console.warn('[gcal insertEvent push]', e.message);  // best-effort
+      // best-effort: Google 실패해도 PlanQ 일정은 유지. 단 조용히 넘기지 않고 연동 상태에 남긴다.
+      console.warn('[gcal insertEvent push]', e.message);
+      await gcal.recordPushError(gcalToken, e);
     }
   }
 

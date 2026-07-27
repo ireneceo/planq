@@ -398,5 +398,12 @@
     "allDesc": "광고·자동 발송까지 모두 알립니다",
     "saved": "저장됨",
     "failed": "저장 실패"
+  },
+  "delivery": {
+    "suppressed": "발송 안 함",
+    "failed": "발송 실패",
+    "bounced": "반송됨",
+    "pending": "발송 대기",
+    "delivered": "전달됨"
   }
 }

@@ -398,5 +398,12 @@
     "allDesc": "Includes ads and automated mail",
     "saved": "Saved",
     "failed": "Save failed"
+  },
+  "delivery": {
+    "suppressed": "Not sent",
+    "failed": "Send failed",
+    "bounced": "Bounced",
+    "pending": "Pending",
+    "delivered": "Delivered"
   }
 }

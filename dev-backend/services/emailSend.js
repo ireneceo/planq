@@ -195,6 +195,30 @@ async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, 
   };
 }
 
+/**
+ * SMTP 결과를 실제 상태로 옮긴다.
+ *
+ * 여태 발송 라우트 3곳이 무조건 delivery_status:'sent' 를 박아 넣었다. 그래서
+ *  - dev 에서 게이트가 삼킨 발송도 "보냄" 으로 기록되어 사용자가 보냈다고 믿었고 (2026-07-27 Irene 보고)
+ *  - 수신자가 거부된 발송도 성공으로 남았다.
+ * 'delivered'(수신자 메일서버 최종 인계)는 DSN 없이는 알 수 없으므로 여기서 절대 만들지 않는다.
+ */
+function deliveryFromSendResult(sendResult) {
+  if (sendResult?.suppressed) {
+    return { delivery_status: 'suppressed', delivery_error: 'EMAIL_SENDING_ENABLED=false — 이 서버는 실제 발송하지 않습니다' };
+  }
+  const accepted = Array.isArray(sendResult?.accepted) ? sendResult.accepted : [];
+  const rejected = Array.isArray(sendResult?.rejected) ? sendResult.rejected : [];
+  if (rejected.length && !accepted.length) {
+    return { delivery_status: 'failed', delivery_error: `전 수신자 거부: ${rejected.join(', ')}`.slice(0, 1000) };
+  }
+  if (rejected.length) {
+    // 일부만 거부 — 나간 건 나갔으므로 sent 이되 거부 목록을 남긴다(조용히 삼키지 않는다).
+    return { delivery_status: 'sent', delivery_error: `일부 수신자 거부: ${rejected.join(', ')}`.slice(0, 1000) };
+  }
+  return { delivery_status: 'sent', delivery_error: null };
+}
+
 module.exports = {
   appendSignature,
-  resolveSender, sendMail, buildTransport, deriveSmtpHost };
+  resolveSender, sendMail, buildTransport, deriveSmtpHost, deliveryFromSendResult };

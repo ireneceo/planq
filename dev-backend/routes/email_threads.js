@@ -21,7 +21,7 @@ const { authenticateToken, checkBusinessAccess } = require('../middleware/auth')
 const { requireMenu } = require('../middleware/menu_permission');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { applyMemberDisplayName, getMemberNameMap } = require('../services/displayName');
-const { sendMail } = require('../services/emailSend');
+const { sendMail, deliveryFromSendResult } = require('../services/emailSend');
 const { emailsOf, mergeParticipants, selfEmailsForAccount } = require('../services/emailAddress');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
@@ -377,6 +377,10 @@ router.get('/:businessId/email-threads/:id',
             body_text: mj.body_text,
             sent_at: mj.sent_at,
             is_read: mj.is_read,
+            // 발송 상태 — outbound 만 의미 있다. 'sent' 는 SMTP 250 accept 까지이고
+            //   수신자 메일함 도착 보증이 아니다. 'suppressed'(서버 발송 정지)를 'sent' 로 뭉개지 않는다.
+            delivery_status: mj.direction === 'outbound' ? mj.delivery_status : null,
+            delivery_error: mj.direction === 'outbound' ? (mj.delivery_error || null) : null,
             // inline 이미지(cid)는 본문에 속하므로 첨부 목록에서 제외. 모델 필드명(filename/size_bytes) 정정 +
             //   file_id 를 내려줘야 프론트가 다운로드 가능(여태 file_name/file_size 오필드라 'undefined (NaN KB)' + 다운로드 불가 회귀).
             attachments: (mj.attachments || []).filter(a => !a.is_inline).map(a => ({
@@ -717,6 +721,7 @@ router.post('/:businessId/email-threads/:id/messages',
 
       const now = new Date();
       const preview = htmlToPreview(body_html);
+      const delivery = deliveryFromSendResult(sendResult);
 
       const outMsg = await EmailMessage.create({
         thread_id: threadId,
@@ -735,7 +740,7 @@ router.post('/:businessId/email-threads/:id/messages',
         body_text: preview,
         sent_by_user_id: req.user.id,
         is_read: true,
-        delivery_status: 'sent',
+        ...delivery,
         sent_at: now,
       });
 
@@ -796,7 +801,9 @@ router.post('/:businessId/email-threads/:id/messages',
         thread_id: threadId,
         direction: 'outbound',
         message_id: outMsg.message_id,
-        delivery_status: 'sent',
+        delivery_status: delivery.delivery_status,
+        delivery_error: delivery.delivery_error,
+        suppressed: !!sendResult.suppressed,   // 프론트가 "실제 발송 안 됨" 안내를 띄우는 근거
         sent_at: now,
         rejected: sendResult.rejected,
       });
@@ -859,13 +866,16 @@ router.post('/:businessId/email-compose',
         cc_emails: (Array.isArray(cc) && cc.length) ? cc : null,
         bcc_emails: (Array.isArray(bcc) && bcc.length) ? bcc : null,
         subject: subj, body_html, body_text: preview,
-        sent_by_user_id: req.user.id, is_read: true, delivery_status: 'sent', sent_at: now,
+        sent_by_user_id: req.user.id, is_read: true, ...deliveryFromSendResult(sendResult), sent_at: now,
       });
       for (const f of files) {
         await EmailAttachment.create({ message_id: outMsg.id, file_id: f.id, filename: f.file_name, mime_type: f.mime_type || null, size_bytes: f.file_size || null });
       }
       broadcastMail(req, businessId, 'mail:new', { thread_id: thread.id });
-      return successResponse(res, { id: thread.id, thread_id: thread.id, rejected: sendResult.rejected }, 'sent', 201);
+      return successResponse(res, {
+        id: thread.id, thread_id: thread.id, rejected: sendResult.rejected,
+        delivery_status: outMsg.delivery_status, suppressed: !!sendResult.suppressed,
+      }, 'sent', 201);
     } catch (err) { next(err); }
   }
 );
@@ -934,13 +944,16 @@ router.post('/:businessId/email-threads/:id/forward',
         cc_emails: (Array.isArray(cc) && cc.length) ? cc : null,
         bcc_emails: (Array.isArray(bcc) && bcc.length) ? bcc : null,
         subject: subj, body_html, body_text: preview,
-        sent_by_user_id: req.user.id, is_read: true, delivery_status: 'sent', sent_at: now,
+        sent_by_user_id: req.user.id, is_read: true, ...deliveryFromSendResult(sendResult), sent_at: now,
       });
       for (const f of files) {
         await EmailAttachment.create({ message_id: outMsg.id, file_id: f.id, filename: f.file_name, mime_type: f.mime_type || null, size_bytes: f.file_size || null });
       }
       broadcastMail(req, businessId, 'mail:new', { thread_id: thread.id });
-      return successResponse(res, { id: thread.id, thread_id: thread.id, rejected: sendResult.rejected }, 'sent', 201);
+      return successResponse(res, {
+        id: thread.id, thread_id: thread.id, rejected: sendResult.rejected,
+        delivery_status: outMsg.delivery_status, suppressed: !!sendResult.suppressed,
+      }, 'sent', 201);
     } catch (err) { next(err); }
   }
 );

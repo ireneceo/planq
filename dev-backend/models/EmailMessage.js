@@ -34,8 +34,11 @@ EmailMessage.init({
   sent_by_user_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'users', key: 'id' } },
   is_read: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   // 상태
+  // 'suppressed' — 서버 발송 게이트(EMAIL_SENDING_ENABLED=false)가 막은 발송.
+  //   'sent' 와 반드시 구분한다. 섞으면 dev 에서 "보냈다" 는 거짓 기록이 남는다.
+  // 'delivered' 는 DSN 이 있어야 알 수 있어 발송 시점엔 절대 기록하지 않는다.
   delivery_status: {
-    type: DataTypes.ENUM('pending', 'sent', 'delivered', 'bounced', 'failed'),
+    type: DataTypes.ENUM('pending', 'sent', 'delivered', 'bounced', 'failed', 'suppressed'),
     allowNull: false, defaultValue: 'sent',
   },
   delivery_error: { type: DataTypes.TEXT, allowNull: true },

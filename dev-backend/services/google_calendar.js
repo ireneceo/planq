@@ -22,6 +22,18 @@ const SCOPES = [
   'email',
 ];
 
+// 구글 동의 화면은 항목별 체크박스라, 사용자가 캘린더 항목을 체크하지 않아도 code 는 발급된다.
+// granted scope 검사 없이 저장하면 화면에는 "연동 완료" 로 뜨지만 이후 모든 push 가
+// 403 insufficientPermissions 로 죽는다 (2026-07-27 운영 사고 — 03:41 재연결이 openid email 만 받음).
+const CALENDAR_WRITE_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
+const CALENDAR_FULL_SCOPE = 'https://www.googleapis.com/auth/calendar';
+
+function hasWriteScope(scopeStr) {
+  if (!scopeStr) return false;
+  const granted = String(scopeStr).split(/\s+/).filter(Boolean);
+  return granted.includes(CALENDAR_WRITE_SCOPE) || granted.includes(CALENDAR_FULL_SCOPE);
+}
+
 function isConfigured() {
   return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REDIRECT_URI);
 }
@@ -271,8 +283,28 @@ function isPrivateForGcal(event) {
   return !!(event && (event.vlevel === 'L1' || event.vlevel === 'L2' || event.visibility === 'personal'));
 }
 
+// push 실패를 console.warn 으로만 남기면 아무도 모른다 — 2026-07-27 운영 사고에서 403 이
+// 5일간 로그에만 쌓였다. 연동 레코드에 남겨 설정 화면이 "재연결 필요" 를 띄울 근거로 쓴다.
+async function recordPushError(token, err) {
+  if (!token) return;
+  const msg = String(err?.message || err || 'unknown').slice(0, 300);
+  try { await token.update({ last_error: msg, last_error_at: new Date() }); }
+  catch (e) { console.error('[gcal] last_error 기록 실패:', e.message); }
+}
+
+// 성공하면 옛 오류 배지를 걷는다 (변화 없을 때 불필요한 UPDATE 는 하지 않는다).
+async function clearPushError(token) {
+  if (!token || !token.last_error) return;
+  try { await token.update({ last_error: null, last_error_at: null }); }
+  catch (e) { console.error('[gcal] last_error 해제 실패:', e.message); }
+}
+
 module.exports = {
   isConfigured,
+  hasWriteScope,
+  recordPushError,
+  clearPushError,
+  CALENDAR_WRITE_SCOPE,
   SCOPES,
   gcalRedirectUri,
   buildAuthUrl,

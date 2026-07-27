@@ -123,7 +123,6 @@ const DateRangeCell:React.FC<{
 // fmtDate removed — using native date inputs now
 
 const QTaskPage:React.FC=()=>{
-  useEffect(()=>{ console.log('[F206-DEBUG] QTaskPage MOUNT'); return ()=>console.log('[F206-DEBUG] QTaskPage UNMOUNT'); },[]); /* FABLE-DEBUG */
   const{t}=useTranslation('qtask');
   const{user}=useAuth();
   const isClient = user?.business_role === 'client';

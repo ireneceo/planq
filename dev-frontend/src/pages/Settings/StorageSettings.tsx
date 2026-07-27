@@ -15,6 +15,7 @@ interface ProviderState {
   connected_at?: string;
   last_error?: string | null;
   needs_reconnect?: boolean;
+  scope_ok?: boolean;      // gcal — 동의 화면에서 캘린더 쓰기 권한을 실제로 받았는지
 }
 
 interface Props {
@@ -172,6 +173,9 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
   if (loading) return <Skeleton />;
 
   const gdriveConnected = providers.gdrive.connected;
+  // 연결은 됐는데 실제로는 못 쓰는 상태 — 권한 누락(scope_ok=false) 또는 토큰 만료.
+  // 둘 다 "연동 완료" 로만 보이던 것이 2026-07-27 운영 사고의 원인이었다.
+  const gcalBroken = providers.gcal.scope_ok === false || !!providers.gcal.needs_reconnect;
 
   return (
     <Wrap>
@@ -346,8 +350,22 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
                 : tr('storage.gcal.desc', '화상 미팅 일정 만들 때 Google Meet 링크가 자동으로 발급됩니다 (calendar.events scope)')}
             </CardSub>
           </CardTitleWrap>
-          {providers.gcal.connected && <StatusBadge $kind="active">{tr('storage.active', '사용 중')}</StatusBadge>}
+          {providers.gcal.connected && (gcalBroken
+            ? <StatusBadge $kind="inactive">{tr('storage.reconnectNeeded')}</StatusBadge>
+            : <StatusBadge $kind="active">{tr('storage.active')}</StatusBadge>)}
         </CardHead>
+        {providers.gcal.connected && gcalBroken && (
+          <CardActions>
+            <S3Msg $tone="err">
+              {providers.gcal.scope_ok === false
+                ? tr('storage.gcal.scopeMissing')
+                : tr('storage.tokenError')}
+            </S3Msg>
+            <PrimaryBtn type="button" disabled={!!connecting} onClick={() => handleConnect('gcal')}>
+              {connecting === 'gcal' ? tr('storage.connecting') : tr('storage.reconnect')}
+            </PrimaryBtn>
+          </CardActions>
+        )}
         <CardActions>
           {!providers.gcal.configured ? (
             <InlineHint>{tr('storage.gcal.notConfigured', '서버에 Google OAuth 가 설정되지 않았습니다 (.env 확인 필요)')}</InlineHint>

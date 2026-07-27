@@ -227,7 +227,10 @@
     },
     "reconnectNeeded": "Reconnect needed",
     "tokenError": "Google authorization expired — please reconnect",
-    "reconnect": "Reconnect"
+    "reconnect": "Reconnect",
+    "gcal": {
+      "scopeMissing": "Calendar permission is missing, so events are not sent to Google — reconnect and check the Calendar item"
+    }
   },
   "brand": {
     "sectionTitle": "Brand",
