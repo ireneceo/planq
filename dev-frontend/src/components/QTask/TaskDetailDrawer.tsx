@@ -653,7 +653,9 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       //   ★ 이 드로어는 보류 성공 직후 언마운트→재마운트된다(실측 +5ms 소멸 / +55ms 재생성).
       //     그래서 인스턴스 내부 state·ref 로는 의도가 전달되지 않는다 — 1~4차 시도가 전부 여기서
       //     죽었다. 모듈 스코프에 남겨 **새 인스턴스가 마운트될 때 소비**한다.
-      pendingResumeFocusTaskId = detailTask.id;
+      //   비교 대상은 재마운트된 인스턴스의 `taskId` 프롭이므로 같은 값을 남긴다
+      //   (`detailTask` 는 await 이후라 타입상 null 가능 — 그리고 프롭이 진짜 기준이다).
+      pendingResumeFocusTaskId = taskId ?? null;
     }
   };
   const actResume = () => callAction('/resume');

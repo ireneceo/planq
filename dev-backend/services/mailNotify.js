@@ -50,7 +50,29 @@ function allowedByScope(kind, scope) {
  * @param {object} p.thread   EmailThread 인스턴스 (triage 반영 후)
  * @param {object} p.fields   이번 inbound 로 계산된 triage 필드 (없으면 thread 값 사용)
  */
-async function notifyInboundMail({ account, thread, fromName, fromEmail, subject, fields = {}, ioApp }) {
+// 같은 메일이 연결된 두 계정(예: help@ · irene@)으로 동시에 오면 **저장은 2건이 맞다** —
+//   각 사서함에 실제로 도착한 메일이라 양쪽 인박스에 보여야 한다. 그러나 사용자에겐 한 통이므로
+//   **알림은 1번**이어야 한다. 계정이 다르면 스레드도 달라 OS 알림 tag(`mail-{thread_id}`)가 갈리는 탓에
+//   여태 배너가 따로 떴다 (2026-07-27 Irene 보고 "배너가 3번 떴다").
+//   RFC Message-ID 기준으로 **사용자별** 중복을 제거한다 — 사용자 단위라 help@ 만 보는 다른 멤버는
+//   자기 알림을 정상적으로 받는다. 시간당 캡(counters)과 같은 인메모리 방식(PM2 fork_mode 단일 인스턴스).
+const DEDUP_WINDOW_MS = 10 * 60 * 1000;
+const recentNotified = new Map();   // `${userId}|${messageId}` → ts
+
+function seenRecently(userId, messageId, now) {
+  if (!messageId) return false;                       // Message-ID 없으면 중복 판정 불가 — 알린다
+  const key = `${userId}|${messageId}`;
+  const prev = recentNotified.get(key);
+  if (prev && now - prev < DEDUP_WINDOW_MS) return true;
+  recentNotified.set(key, now);
+  // 무한 증식 방지 — 가끔 낡은 항목을 쓸어낸다 (맵이 커졌을 때만)
+  if (recentNotified.size > 2000) {
+    for (const [k, ts] of recentNotified) if (now - ts >= DEDUP_WINDOW_MS) recentNotified.delete(k);
+  }
+  return false;
+}
+
+async function notifyInboundMail({ account, thread, fromName, fromEmail, subject, messageId, fields = {}, ioApp }) {
   if (!account || !thread) return { sent: 0, reason: 'no_target' };
 
   const replyNeeded = fields.reply_needed !== undefined ? !!fields.reply_needed : !!thread.reply_needed;
@@ -100,7 +122,11 @@ async function notifyInboundMail({ account, thread, fromName, fromEmail, subject
   } catch { /* 표시용이라 실패해도 진행 */ }
 
   let sent = 0;
+  let deduped = 0;
+  const now = Date.now();
   for (const uid of userIds) {
+    // 같은 Message-ID 로 이 사용자에게 이미 알렸으면 건너뛴다 (다른 계정으로 온 같은 메일).
+    if (seenRecently(uid, messageId, now)) { deduped += 1; continue; }
     const skipChannels = [];
     if (kind !== 'reply') skipChannels.push('email');
     else {
@@ -127,7 +153,7 @@ async function notifyInboundMail({ account, thread, fromName, fromEmail, subject
       console.error('[mailNotify]', e.message);
     }
   }
-  return { sent, kind, scope };
+  return { sent, deduped, kind, scope };
 }
 
-module.exports = { notifyInboundMail, classify, allowedByScope, HOURLY_CAP };
+module.exports = { notifyInboundMail, classify, allowedByScope, seenRecently, HOURLY_CAP, DEDUP_WINDOW_MS };
