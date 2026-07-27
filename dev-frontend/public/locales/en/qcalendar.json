@@ -148,7 +148,9 @@
     "gcalPushing": "Sending…",
     "gcalNotConnected": "Connect this workspace's Google Calendar first (Settings > Files & integrations).",
     "gcalPushFailed": "Could not send to Google Calendar.",
-    "gcalNeedConnect": "Connect this workspace's Google Calendar and new events sync to Google automatically. (Settings > Files & integrations)"
+    "gcalNeedConnect": "Connect this workspace's Google Calendar and new events sync to Google automatically. (Settings > Files & integrations)",
+    "gcalSyncOn": "Added to Google Calendar",
+    "gcalSyncOff": "Not added (turning off also removes it from Google)"
   },
   "empty": {
     "month": "No events this month",

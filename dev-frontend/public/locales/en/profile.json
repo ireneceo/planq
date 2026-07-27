@@ -237,7 +237,11 @@
     "calendar": "Calendar",
     "calendarSub": "View your Google Calendar events inside Q Calendar, read-only (color-separated from the shared workspace calendar). Note: to push your PlanQ events into Google Calendar, connect the workspace calendar.",
     "calendarEmpty": "No personal calendar connected",
-    "connectCalendar": "Connect Google Calendar"
+    "connectCalendar": "Connect Google Calendar",
+    "calendarSub2": "See your Google Calendar events in Q Calendar, and add PlanQ events to your Google Calendar. Private events go only to your own calendar, never the team calendar.",
+    "calendarSyncOn": "Add PlanQ events to my Google Calendar",
+    "calendarNeedsReconnect": "Reconnect to enable adding events",
+    "reconnect": "Reconnect"
   },
   "accountDeletion": {
     "title": "Delete account",
