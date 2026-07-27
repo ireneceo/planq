@@ -13,7 +13,16 @@ class CalendarEventGcalLink extends Model {}
 
 CalendarEventGcalLink.init({
   id: { type: DataTypes.BIGINT, primaryKey: true, autoIncrement: true },
-  event_id: { type: DataTypes.BIGINT, allowNull: false },
+  // ★ references/onDelete 를 반드시 모델에 둔다 — 마이그레이션 DDL 에만 FK 를 쓰면,
+  //   sync-database.js(Sequelize alter)가 **먼저** 이 테이블을 만들어버리는 경로에서
+  //   FK 없이 생성되고 이후 마이그레이션은 hasTable 로 skip 해 **FK 가 영구 누락**된다.
+  //   그러면 일정을 지워도 링크가 고아로 남아 구글에 유령 일정이 남는다.
+  //   배포 스크립트는 sync-database 를 마이그레이션보다 먼저 돌리고(:222 vs :247),
+  //   CLAUDE.md 표준 절차도 수동 `node sync-database.js` 를 지시하므로 순서로는 못 막는다.
+  event_id: {
+    type: DataTypes.BIGINT, allowNull: false,
+    references: { model: 'calendar_events', key: 'id' }, onDelete: 'CASCADE',
+  },
   target: { type: DataTypes.ENUM('workspace', 'personal'), allowNull: false },
   // personal 일 때만 채워진다. workspace 는 워크스페이스당 하나뿐이라 NULL.
   connection_id: { type: DataTypes.INTEGER, allowNull: true },
