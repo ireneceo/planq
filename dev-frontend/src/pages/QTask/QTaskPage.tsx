@@ -99,6 +99,28 @@ function sliderColor(status?:string){
   return (status==='on_hold'||status==='external_review') ? '#94A3B8' : '#14B8A6';
 }
 
+// 우선순위 번호(1,2,3..)를 매길 때의 정렬 사슬.
+//   ★ 팝아웃 `TaskPopoutView.tsx` 의 prioMap 비교자와 **동일**해야 한다 — 두 화면의 번호 칩이 갈리면
+//     사용자에겐 버그로 보인다. 사슬: priority(asc) → 완료 뒤로 → 마감(null last) → 제목.
+//   ★ 예전에는 "이미 정렬된 filtered 를 priority 만으로 stable sort" 해서 tie 순서가 입력 순서에
+//     암묵 의존했다. 입력이 바뀌면 조용히 깨지므로 사슬을 명시한다.
+function cmpNullLastStr(a?:string|null,b?:string|null){
+  if(!a&&!b)return 0;
+  if(!a)return 1;
+  if(!b)return -1;
+  return a<b?-1:a>b?1:0;
+}
+function byPriorityChain(a:TaskRow,b:TaskRow):number{
+  const p=(a.priority_order||0)-(b.priority_order||0);
+  if(p!==0)return p;
+  const doneRank=(t:TaskRow)=>(t.status==='completed'||t.status==='canceled')?1:0;
+  const d=doneRank(a)-doneRank(b);
+  if(d!==0)return d;
+  const due=cmpNullLastStr(a.due_date,b.due_date);
+  if(due!==0)return due;
+  return (a.title||'').localeCompare(b.title||'');
+}
+
 // 날짜 범위 셀 — 시작+마감 통합. 클릭 시 캘린더 피커 열림
 const DateRangeCell:React.FC<{
   start:string|null|undefined; due:string|null|undefined;
@@ -830,13 +852,13 @@ const QTaskPage:React.FC=()=>{
     setAllTasks(prev=>{
       const task=prev.find(t=>t.id===taskId);
       if(!task)return prev;
-      const filteredIds=new Set((filteredRef.current||[]).map(t=>t.id));
+      const weekIds=new Set((weekSetRef.current||[]).map(t=>t.id));
 
       if(task.priority_order){
         // 해제: 이 task null + filtered 안 priority task 들 1,2,3..로 reindex
         const updated=prev.map(t=>t.id===taskId?{...t,priority_order:null}:t);
-        const inWeek=updated.filter(t=>filteredIds.has(t.id)&&t.priority_order!=null);
-        inWeek.sort((a,b)=>(a.priority_order||0)-(b.priority_order||0));
+        const inWeek=updated.filter(t=>weekIds.has(t.id)&&t.priority_order!=null);
+        inWeek.sort(byPriorityChain);
         saveField(taskId,'priority_order',null);
         return updated.map(t=>{
           const idx=inWeek.findIndex(x=>x.id===t.id);
@@ -848,8 +870,8 @@ const QTaskPage:React.FC=()=>{
         });
       } else {
         // 부여: filtered 안 priority task 갯수+1. 잔존 갭도 정리.
-        const inWeek=prev.filter(t=>filteredIds.has(t.id)&&t.priority_order!=null);
-        inWeek.sort((a,b)=>(a.priority_order||0)-(b.priority_order||0));
+        const inWeek=prev.filter(t=>weekIds.has(t.id)&&t.priority_order!=null);
+        inWeek.sort(byPriorityChain);
         const newP=inWeek.length+1;
         saveField(taskId,'priority_order',newP);
         const updated=prev.map(t=>t.id===taskId?{...t,priority_order:newP}:t);
@@ -979,6 +1001,65 @@ const QTaskPage:React.FC=()=>{
 
   const today=todayStr;
 
+  // ── 이번 주 canonical 집합 판정 ──
+  //   ★ 우선순위 번호와 DB 재인덱스의 정본은 **이 판정**이다. search / statusFilter / 완료 가리기 같은
+  //     "보기 옵션" 은 번호에 영향을 주면 안 된다. 예전에는 filtered 를 그대로 입력으로 써서, week 탭에서
+  //     검색어만 입력해도 매칭된 부분집합 기준으로 priority_order 를 1..N 으로 silent PUT 재작성 →
+  //     검색 밖 task 의 우선순위와 충돌하는 데이터 오염이 났다 (2026-07-28 Fable 설계 게이트가 잡은 실버그).
+  //   ★ 백엔드 `my-week` 의 where 절과 **미러**다 (routes/tasks.js). 한쪽만 고치면 메인과 팝아웃의
+  //     우선순위 번호가 갈린다 — 실제로 reviewer·관여완료 분기 누락으로 그 결함이 났다.
+  const inWeekCanonical=useCallback((t:TaskRow, includeDone:boolean)=>{
+    // 1) 기간/상태 검사 — "이번 주 나의 업무" canonical 규칙 (docs/WORK_FLOW_DESIGN.md §5).
+    //  - 완료/취소: "완료시점"이 이번 주인 것만 (completed_at 이 기간 안). 마감 과거여도 이번 주에
+    //    끝냈으면 이번 주 업무 (완료시점 기준). completed_at 없으면 제외(언제 끝났는지 모름).
+    //  - 미진행(not_started): "이번 주 것"만 — 이번 주 계획(planned_week_start) 또는 이번 주 마감(due).
+    //    옛/미래/날짜없는 미진행은 제외 (착수 안 한 backlog 가 이번 주로 쏟아지는 워프로랩 flood 차단).
+    //  - 진행중·검토중·수정요청·대기: 날짜 무관 전부 표시. 한 번 착수한 내 업무는 마감/날짜 없어도
+    //    끝까지 이번 주 책임선에 남는다 (요청받아 진행 중인 마감없는 업무 포함).
+    const completedStr=(t.completed_at||'').slice(0,10);
+    const dueStr=(t.due_date||'').slice(0,10);
+    const plannedStr=(t.planned_week_start||'').slice(0,10);
+    const isDone=t.status==='completed'||t.status==='canceled';
+    const inPeriod=(()=>{
+      if(isDone) return completedStr ? (completedStr>=periodFrom&&completedStr<=periodTo) : false;
+      if(t.status==='not_started'){
+        if(plannedStr===periodFrom) return true;            // 이번 주 계획
+        if(!dueStr) return false;                            // 마감 없는 backlog 제외 (flood 차단)
+        if(dueStr<periodFrom) return true;                   // ★ 지연(마감 지난 미착수)도 이번 주 포함 — Irene 2026-07-05
+        return dueStr<=periodTo;                             // 이번 주 마감 (미래만 제외)
+      }
+      // #206 R6 — 보류는 이번 주 무대에서 퇴장(전체 탭·보류 컬럼에만 주차). 서버 my-week 화이트리스트와 미러.
+      //   external_review 는 잔류 — 외부를 채근할 책임이 담당자에게 남는다.
+      if(t.status==='on_hold') return false;
+      return true; // in_progress·reviewing·revision_requested·waiting·external_review
+    })();
+    if(!inPeriod) return false;
+
+    // 2) 내가 행동해야 하는 것 + 완료 포함 여부
+    // 담당자=나: 활성 단계(reviewing 포함) 모두 표시. 마감 책임이 끝까지 담당자에게 있어
+    // 컨펌 대기 중이라도 본인 화면에서 사라지면 안 됨. completed/canceled 는 아래 완료 분기가 담당.
+    if(t.assignee_id===myId){
+      if(!isDone) return true;
+    }
+    const myRev=t.reviewers?.find(rv=>rv.user_id===myId);
+    if(myRev&&myRev.state==='pending'&&(t.status==='reviewing'||t.status==='revision_requested'))return true;
+    // 내가 관여한 이번 주 완료 (리스트에서는 "완료 가리기" OFF 일 때만, 번호 정본에서는 항상)
+    if(includeDone && isDone){
+      const involved =
+        t.assignee_id===myId ||
+        t.request_by_user_id===myId ||
+        t.created_by===myId ||
+        !!myRev;
+      if(involved) return true;
+    }
+    return false;
+  },[myId,periodFrom,periodTo]);
+
+  // 우선순위 번호·재인덱스의 정본 집합 (보기 옵션 무관). week 탭 밖에서는 쓰지 않는다.
+  const weekSet=useMemo(()=>(
+    scope==='mine'&&tab==='week' ? allTasks.filter(t=>inWeekCanonical(t,true)) : []
+  ),[allTasks,scope,tab,inWeekCanonical]);
+
   // ── Client-side filtering (no reload) ──
   const filtered=useMemo(()=>{
     let list=allTasks;
@@ -987,53 +1068,9 @@ const QTaskPage:React.FC=()=>{
     }else{
       if(tab==='week'){
         // 사용자: 기간(periodFrom~periodTo) 기준으로 업무 리스트 + 가용시간 매칭
-        // 기간 안에 들어오는 task 중에서 내가 행동해야 하거나 기간 안에 완료한 것
-        list=list.filter(t=>{
-          // 1) 기간/상태 검사 — "이번 주 나의 업무" canonical 규칙 (docs/WORK_FLOW_DESIGN.md §5).
-          //  - 완료/취소: "완료시점"이 이번 주인 것만 (completed_at 이 기간 안). 마감 과거여도 이번 주에
-          //    끝냈으면 이번 주 업무 (완료시점 기준). completed_at 없으면 제외(언제 끝났는지 모름).
-          //  - 미진행(not_started): "이번 주 것"만 — 이번 주 계획(planned_week_start) 또는 이번 주 마감(due).
-          //    옛/미래/날짜없는 미진행은 제외 (착수 안 한 backlog 가 이번 주로 쏟아지는 워프로랩 flood 차단).
-          //  - 진행중·검토중·수정요청·대기: 날짜 무관 전부 표시. 한 번 착수한 내 업무는 마감/날짜 없어도
-          //    끝까지 이번 주 책임선에 남는다 (요청받아 진행 중인 마감없는 업무 포함).
-          const completedStr=(t.completed_at||'').slice(0,10);
-          const dueStr=(t.due_date||'').slice(0,10);
-          const plannedStr=(t.planned_week_start||'').slice(0,10);
-          const isDone=t.status==='completed'||t.status==='canceled';
-          const inPeriod=(()=>{
-            if(isDone) return completedStr ? (completedStr>=periodFrom&&completedStr<=periodTo) : false;
-            if(t.status==='not_started'){
-              if(plannedStr===periodFrom) return true;            // 이번 주 계획
-              if(!dueStr) return false;                            // 마감 없는 backlog 제외 (flood 차단)
-              if(dueStr<periodFrom) return true;                   // ★ 지연(마감 지난 미착수)도 이번 주 포함 — Irene 2026-07-05
-              return dueStr<=periodTo;                             // 이번 주 마감 (미래만 제외)
-            }
-            // #206 R6 — 보류는 이번 주 무대에서 퇴장(전체 탭·보류 컬럼에만 주차). 서버 my-week 화이트리스트와 미러.
-            //   external_review 는 잔류 — 외부를 채근할 책임이 담당자에게 남는다.
-            if(t.status==='on_hold') return false;
-            return true; // in_progress·reviewing·revision_requested·waiting·external_review
-          })();
-          if(!inPeriod) return false;
-
-          // 2) 내가 행동해야 하는 것 + 완료 옵션
-          // 담당자=나: 활성 단계(reviewing 포함) 모두 표시. 마감 책임이 끝까지 담당자에게 있어
-          // 컨펌 대기 중이라도 본인 화면에서 사라지면 안 됨. completed/canceled 는 hideCompletedInWeek 가 담당.
-          if(t.assignee_id===myId){
-            if(!isDone) return true;
-          }
-          const myRev=t.reviewers?.find(rv=>rv.user_id===myId);
-          if(myRev&&myRev.state==='pending'&&(t.status==='reviewing'||t.status==='revision_requested'))return true;
-          // 완료 가리기 OFF (디폴트) → 내가 관여한 이번 주 완료 표시
-          if(!hideCompletedInWeek && isDone){
-            const involved =
-              t.assignee_id===myId ||
-              t.request_by_user_id===myId ||
-              t.created_by===myId ||
-              !!myRev;
-            if(involved) return true;
-          }
-          return false;
-        });
+        // 기간 안에 들어오는 task 중에서 내가 행동해야 하거나 기간 안에 완료한 것.
+        // 판정은 canonical 과 **같은 함수** — 다른 건 완료 표시 여부뿐이다.
+        list=list.filter(t=>inWeekCanonical(t,!hideCompletedInWeek));
       }
       if(tab==='all')list=list.filter(t=>t.assignee_id===myId||(t.reviewers||[]).some(rv=>rv.user_id===myId));
       if(tab==='requested')list=list.filter(t=>(t.request_by_user_id===myId)||(t.created_by===myId&&t.assignee_id!=null&&t.assignee_id!==myId));
@@ -1090,34 +1127,37 @@ const QTaskPage:React.FC=()=>{
   // 키보드 ↑/↓ — 리스트 뷰에서만 활성화
   const taskItemIds=useMemo(()=>filtered.map(t=>t.id),[filtered]);
 
-  // togglePriority 가 latest filtered 에 접근하기 위한 ref
-  const filteredRef=useRef<typeof filtered>([]);
-  useEffect(()=>{filteredRef.current=filtered;},[filtered]);
+  // togglePriority 가 latest weekSet 에 접근하기 위한 ref.
+  //   ★ filtered 가 아니라 weekSet — 보기 옵션(검색·상태필터·완료가리기)이 DB 재인덱스 범위를
+  //     좁히면 그 밖의 task 우선순위와 충돌한다 (inWeekCanonical 주석 참조).
+  const weekSetRef=useRef<typeof weekSet>([]);
+  useEffect(()=>{weekSetRef.current=weekSet;},[weekSet]);
 
-  // 표시용 우선순위 인덱스 — filtered 안에서 priority_order 가 있는 task 들 sort 후 1,2,3..로 매핑.
+  // 표시용 우선순위 인덱스 — canonical weekSet 안에서 priority_order 가 있는 task 들 sort 후 1,2,3..로 매핑.
   // DB 컬럼은 글로벌이라 갭(예: 1,2,9,10) 가능. 표시는 항상 연속.
+  // ★ 팝아웃 TaskPopoutView.prioMap 과 같은 결과여야 한다 (같은 집합 + 같은 tie-break).
   const displayPriorityMap=useMemo(()=>{
     const m=new Map<number,number>();
     if(!(scope==='mine'&&tab==='week'))return m;
-    const inWeek=filtered.filter(t=>t.priority_order!=null);
-    inWeek.sort((a,b)=>(a.priority_order||0)-(b.priority_order||0));
+    const inWeek=weekSet.filter(t=>t.priority_order!=null);
+    inWeek.sort(byPriorityChain);
     inWeek.forEach((t,i)=>m.set(t.id,i+1));
     return m;
-  },[filtered,scope,tab]);
+  },[weekSet,scope,tab]);
 
   // 페이지 진입 시 갭 자동 정리 (silent) — 사용자가 토글 안 해도 DB가 1,2,3..로 일치
   useEffect(()=>{
     if(!(scope==='mine'&&tab==='week'))return;
-    const inWeek=filtered.filter(t=>t.priority_order!=null);
+    const inWeek=weekSet.filter(t=>t.priority_order!=null);
     if(inWeek.length===0)return;
-    inWeek.sort((a,b)=>(a.priority_order||0)-(b.priority_order||0));
+    inWeek.sort(byPriorityChain);
     const needsReindex=inWeek.some((t,i)=>t.priority_order!==i+1);
     if(!needsReindex)return;
     inWeek.forEach((t,i)=>{
       if(t.priority_order!==i+1)saveField(t.id,'priority_order',i+1);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[filtered,scope,tab]);
+  },[weekSet,scope,tab]);   // 본문이 읽는 집합과 dep 를 일치시킨다 (옛 filtered dep 는 지뢰)
 
   // 지연 뱃지 quick chip — outside click + ESC 닫기
   useEffect(()=>{

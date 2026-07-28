@@ -40,6 +40,8 @@ interface PopoutTask {
   reviewer_count?: number | string | null;
   // 우선순위. DB 는 글로벌 단일 컬럼이라 갭(1,2,9)·중복(1,1,2)이 실재한다 — 표시는 항상 재인덱스한다.
   priority_order?: number | null;
+  // my-week 가 실어 보낸다. getRoles 가 reviewer 관점을 메인과 같은 근거로 판정하게 하는 용도.
+  reviewers?: Array<{ id?: number; user_id: number; state?: string; is_client?: boolean }>;
   Project?: { id: number; name: string } | null;
 }
 
@@ -80,7 +82,12 @@ function bySortRule(a: PopoutTask, b: PopoutTask): number {
 export type QuickAction =
   | 'complete' | 'uncheck' | 'submit' | 'checked_locked' | 'reviewing' | 'none';
 
-export function quickActionFor(status: string, reviewerCount: number): QuickAction {
+// isAssignee=false 는 **무조건 퀵액션 없음**. my-week 집합이 "내가 pending 컨펌자인 남의 업무" 와
+//   "내가 관여한 이번 주 완료" 까지 포함하도록 넓어졌으므로(메인 weekSet 미러), 담당자 전제인 5분기를
+//   그대로 적용하면 남의 revision_requested 에 ↻ 가 떠서 클릭 시 403 only_assignee 가 난다.
+//   컨펌 액션은 행 클릭 → TaskDetailDrawer 가 이미 담당한다.
+export function quickActionFor(status: string, reviewerCount: number, isAssignee: boolean): QuickAction {
+  if (!isAssignee) return 'none';
   if (status === 'canceled') return 'none';
   if (status === 'completed') return reviewerCount === 0 ? 'uncheck' : 'checked_locked';
   if (status === 'reviewing') return 'reviewing';
@@ -373,7 +380,7 @@ const TaskPopoutView: React.FC = () => {
               const color = STATUS_COLOR[code] || STATUS_COLOR.not_started;
               const role = primaryPerspective(getRoles(tk, myId));
               const rc = Number(tk.reviewer_count ?? 0) || 0;
-              const qa = quickActionFor(tk.status, rc);
+              const qa = quickActionFor(tk.status, rc, tk.assignee_id === myId);
               const busy = busyId === tk.id;
               return (
                 // ★ Row 는 div 다. 체크박스 버튼과 본문 버튼은 **형제** — 중첩하면 button-in-button 이 되어
