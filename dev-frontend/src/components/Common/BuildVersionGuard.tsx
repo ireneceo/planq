@@ -19,6 +19,10 @@ function isReloadSafe(): boolean {
     // 핀(Document PiP) 창은 opener 문서에 종속 — 이 창을 reload 하면 핀 창이 같이 죽는다.
     // 자동 갱신 때문에 사용자가 항상-위로 띄워둔 도구가 사라지면 안 된다 (utils/pinnedWindow.ts).
     if (document.body.dataset.pipActive === '1') return false;
+    // Q Note 녹음 중 reload = 마이크 사망. web_conference 캡처는 사용자가 회의 탭에 가 있는 것이
+    // 정상 사용이라 이 탭은 hidden 상태 — 아래 hidden 분기에 그대로 걸려 배포 때마다 녹음이 죽었다.
+    // 플래그는 QNotePage 가 녹음 phase 동안만 세운다.
+    if (document.body.dataset.recordingActive === '1') return false;
   } catch { /* noop */ }
   return true;
 }

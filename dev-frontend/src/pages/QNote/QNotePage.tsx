@@ -55,6 +55,7 @@ import SearchBoxCommon from '../../components/Common/SearchBox';
 import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
 import { deriveMemoPreview } from '../../utils/qnoteBody';
 import SessionTaxonomyBar from '../../components/QNote/SessionTaxonomyBar';
+import ConfirmDialog from '../../components/Common/ConfirmDialog';
 // MemoView (PostEditor 풀모드 + 헤더) — 메모 신규/편집 시점에만 chunk fetch (vendor-tiptap lazy).
 const MemoView = React.lazy(() => import('./MemoView'));
 // NewNoteModal — Q docs PostAiModal manual mode 패턴 동일 (탭 메모/음성 + 옵션). 사이클 N+17 hotfix.
@@ -231,9 +232,13 @@ const QNotePage = () => {
     if (sessionDeleting) return;
     setSessionDeleting(true);
     try {
+      // 녹음 중인 세션을 지우는 경우 — 삭제 전에 먼저 마이크를 끄고 락을 반납한다.
+      // 안 그러면 세션은 사라졌는데 녹음은 계속 도는 "정지 버튼 없는 좀비"가 되고,
+      // 언마운트 cleanup 도 activeSession 이 null 이라 락을 영영 반납하지 못한다.
+      if (recordingSessionIdRef.current === sessionId) stopRecordingForNavigation();
       await deleteSession(sessionId);
       setSessions(prev => prev.filter(s => s.id !== sessionId));
-      if (activeSession?.id === sessionId) setActiveSession(null);
+      if (activeSession?.id === sessionId) { setActiveSession(null); setPhase('empty'); }
       setSessionDeleteConfirmId(null);
     } catch (e) {
       console.error('[QNotePage] delete session error:', e);
@@ -441,6 +446,11 @@ const QNotePage = () => {
   // 이 탭이 녹음을 "쥐고 있을 때만" 토큰이 존재. heartbeat 5초, 서버는 30초 stale 로 판정.
   const recorderTokenRef = useRef<string | null>(null);
   const heartbeatTimerRef = useRef<number | null>(null);
+  // ★ 녹음 중인 세션 id 를 **락 획득 시점에 고정**한다.
+  //   heartbeat 가 activeSessionRef 를 따라가면, 녹음 중에 새 메모를 만드는 것만으로
+  //   심박이 엉뚱한 세션 id 로 나가 409 를 받고 → 녹음이 강제 중단됐다.
+  //   심박의 대상은 "화면에 보이는 세션"이 아니라 "내가 락을 쥔 세션"이다.
+  const recordingSessionIdRef = useRef<number | null>(null);
   const [lockedByOther, setLockedByOther] = useState(false);
   const speakersRef = useRef<QNoteSpeaker[]>([]);
   const activeSessionRef = useRef<QNoteSession | null>(null);
@@ -536,11 +546,12 @@ const QNotePage = () => {
     // fetch(..., { keepalive: true }) 는 탭 종료 후에도 최대 64KB 요청 보장 + 헤더 허용.
     const handleUnload = () => {
       const tok = recorderTokenRef.current;
-      const sess = activeSessionRef.current;
-      if (!tok || !sess) return;
+      // 반납 대상은 "화면에 보이는 세션"이 아니라 "락을 쥔 세션" (heartbeat 와 동일 기준)
+      const sid = recordingSessionIdRef.current;
+      if (!tok || !sid) return;
       try {
         const accessToken = getAccessToken();
-        fetch(`/qnote/api/sessions/${sess.id}/recorder/release`, {
+        fetch(`/qnote/api/sessions/${sid}/recorder/release`, {
           method: 'POST',
           keepalive: true,
           headers: {
@@ -561,11 +572,13 @@ const QNotePage = () => {
       if (heartbeatTimerRef.current) { window.clearInterval(heartbeatTimerRef.current); heartbeatTimerRef.current = null; }
       // React 언마운트(SPA 라우팅)에서는 fetch 로 정상 release
       const tok = recorderTokenRef.current;
-      const sess = activeSessionRef.current;
-      if (tok && sess) {
-        releaseRecorderLock(sess.id, tok);
+      const sid = recordingSessionIdRef.current;
+      if (tok && sid) {
+        releaseRecorderLock(sid, tok);
         recorderTokenRef.current = null;
+        recordingSessionIdRef.current = null;
       }
+      delete document.body.dataset.recordingActive;
     };
   }, []);
 
@@ -622,6 +635,73 @@ const QNotePage = () => {
     setPending(null);
   }, [commitPendingAsBlock]);
 
+  // ── 녹음 보호 가드 ────────────────────────────────────
+  //   녹음을 죽이는 경로가 무경고로 열려 있었다. 실사고: 답변 카드를 접으면 포커스가 버튼으로 가고,
+  //   그 상태에서 방향키를 누르면 useListKeyboardNav(window 전역 리스너)가 세션을 넘겨
+  //   openReview → liveRef.stop() 으로 **마이크가 그 자리에서 죽었다**.
+  //   더 나쁜 경로도 있었다 — 활성 세션 행 재클릭(토글 해제)은 stop 도 없이 화면만 비워
+  //   "정지 버튼 없는 좀비 녹음"을 만들었다.
+  //   원칙: 녹음은 사용자가 명시적으로 확인해야만 끊긴다.
+  const [recGuard, setRecGuard] = useState<null | { run: () => void }>(null);
+  const isRecordingNow = () => phase === 'recording' && !!liveRef.current;
+
+  // 확인 후 실제 중단 — stop + heartbeat 정지 + 락 반납까지 한 번에 (좀비 방지)
+  const stopRecordingForNavigation = () => {
+    liveRef.current?.stop();
+    liveRef.current = null;
+    if (heartbeatTimerRef.current) { window.clearInterval(heartbeatTimerRef.current); heartbeatTimerRef.current = null; }
+    clearInterim();
+    flushPending();
+    const tok = recorderTokenRef.current;
+    const sid = recordingSessionIdRef.current;
+    if (tok && sid) { releaseRecorderLock(sid, tok); }
+    recorderTokenRef.current = null;
+    recordingSessionIdRef.current = null;
+    // phase 도 같이 내린다. 안 내리면 마이크는 죽었는데 빨간 뱃지·정지 버튼이 남고
+    // (음성노트 모달을 취소한 경우) 방향키 nav 도 계속 잠긴 채로 남는다.
+    // 이동 대상이 phase 를 다시 정하는 경로(openReview·토글 해제)는 그 값이 덮어쓴다.
+    setPhase('paused');
+  };
+
+  // 녹음 중이면 확인 다이얼로그를 거치고, 아니면 즉시 실행.
+  const guardRecording = (run: () => void) => {
+    if (!isRecordingNow()) { run(); return; }
+    setRecGuard({ run });
+  };
+
+  // 녹음 중에는 새 빌드 자동 reload 를 막는다 (BuildVersionGuard.isReloadSafe 가 이 플래그를 읽는다).
+  //   web_conference 캡처는 사용자가 회의 탭에 가 있는 게 정상 사용이라 Q Note 탭은 hidden —
+  //   "hidden + 입력 중 아님" 조건이 그대로 맞아떨어져 배포가 뜰 때마다 녹음이 소리 없이 죽었다.
+  useEffect(() => {
+    if (phase === 'recording') document.body.dataset.recordingActive = '1';
+    else delete document.body.dataset.recordingActive;
+  }, [phase]);
+
+  // 새 메모 즉시 생성 (사이클 N+22 드롭다운 경로). guardRecording 이 감쌀 수 있게 함수로 분리.
+  const createMemoSession = async () => {
+    try {
+      const emptyDoc = { type: 'doc', content: [{ type: 'paragraph' }] };
+      const created = await createSession({
+        business_id: Number(businessId),
+        title: 'Untitled',
+        input_type: 'text',
+        body: JSON.stringify(emptyDoc),
+      } as any);
+      setActiveSession(created);
+      setComposingMemo(false);
+      setSessions((prev) => [created, ...prev]);
+      navigate(`/notes/${created.id}`, { replace: true });
+    } catch (e) {
+      // preCreate 실패 → lazy compose 폴백(MemoView 가 첫 입력 시 POST + 실패 시 error Dot 표면화).
+      // 침묵 금지 — canonical onStart(memo) 경로와 동일하게 로그 남긴다.
+      console.warn('[QNote] preCreate failed, falling back to lazy create', e);
+      setActiveSession(null);
+      setComposingPrefill({ project_id: null, client_id: null });
+      setComposingMemo(true);
+      navigate('/notes', { replace: true });
+    }
+  };
+
   // ── 세션 클릭 → status 기반 phase 결정 ─────────────────
   //   completed → review (리뷰 모드)
   //   그 외     → paused (이어서 녹음 가능)
@@ -630,9 +710,12 @@ const QNotePage = () => {
     // 사이클 N+17 — text 메모도 우측 detail panel 로 (popup 아님). composing 모드 해제.
     setComposingMemo(false);
     if (activeSession?.id === sessionId) {
-      setActiveSession(null);
-      setPhase('empty');
-      navigate('/notes', { replace: true });
+      // ★ 토글 해제도 녹음을 끊는 행위다 — 여태 stop 없이 화면만 비워 좀비 녹음이 남았다.
+      guardRecording(() => {
+        setActiveSession(null);
+        setPhase('empty');
+        navigate('/notes', { replace: true });
+      });
       return;
     }
     openReview(sessionId);
@@ -665,11 +748,23 @@ const QNotePage = () => {
     itemIds: sessionItemIds,
     activeId: activeSession?.id ?? null,
     onChange: (id) => openReview(id),
-    enabled: !sidebarCollapsed,
+    // ★ 녹음 중엔 방향키 세션 이동 자체를 끈다 (openReview 가드와 이중 방어).
+    //   이 훅은 window 전역 keydown 이라 포커스가 버튼·body 에 있으면 그대로 통과한다.
+    enabled: !sidebarCollapsed && phase !== 'recording',
     itemSelector: (id) => `[data-qnote-session="${id}"]`,
   });
 
+  // 다른 세션 열기 = 녹음 중단. 확인을 거친 뒤에만 실제로 연다.
+  //   (URL 핸들러는 phase==='empty' 일 때만 부르므로 이 가드에 걸리지 않는다.)
   const openReview = async (sessionId: number) => {
+    if (isRecordingNow()) {
+      setRecGuard({ run: () => { void doOpenReview(sessionId); } });
+      return;
+    }
+    return doOpenReview(sessionId);
+  };
+
+  const doOpenReview = async (sessionId: number) => {
     const _t0 = performance.now();
     // eslint-disable-next-line no-console
     console.log(`[QNOTE-TIMING] openReview(${sessionId}) start`);
@@ -968,6 +1063,7 @@ const QNotePage = () => {
     try {
       await acquireRecorderLock(activeSession.id, token);
       recorderTokenRef.current = token;
+      recordingSessionIdRef.current = activeSession.id;   // 심박 대상 고정 (activeSession 이 바뀌어도 불변)
       setLockedByOther(false);
     } catch (err: any) {
       if (err?.status === 409) {
@@ -992,14 +1088,17 @@ const QNotePage = () => {
       if (heartbeatTimerRef.current) window.clearInterval(heartbeatTimerRef.current);
       heartbeatTimerRef.current = window.setInterval(async () => {
         const tok = recorderTokenRef.current;
-        if (!tok || !activeSessionRef.current) return;
+        // ★ activeSessionRef 가 아니라 락을 쥔 세션 id 로 보낸다 (녹음 중 새 메모 생성 시 오발사 차단)
+        const recSid = recordingSessionIdRef.current;
+        if (!tok || !recSid) return;
         try {
-          await heartbeatRecorderLock(activeSessionRef.current.id, tok);
+          await heartbeatRecorderLock(recSid, tok);
         } catch (e: any) {
           if (e?.status === 409) {
             // 다른 탭이 가로챘거나 서버가 stale 판정 → 현재 녹음 중단
             if (heartbeatTimerRef.current) { window.clearInterval(heartbeatTimerRef.current); heartbeatTimerRef.current = null; }
             recorderTokenRef.current = null;
+            recordingSessionIdRef.current = null;
             liveRef.current?.stop();
             liveRef.current = null;
             clearInterim();
@@ -1025,9 +1124,11 @@ const QNotePage = () => {
       live.stop();
       // live.start 실패 → 방금 획득한 락 해제
       if (heartbeatTimerRef.current) { window.clearInterval(heartbeatTimerRef.current); heartbeatTimerRef.current = null; }
-      if (recorderTokenRef.current && activeSession) {
-        await releaseRecorderLock(activeSession.id, recorderTokenRef.current);
+      // 반납 대상은 다른 경로와 동일하게 "락을 쥔 세션" 기준으로 읽는다 (표기 통일)
+      if (recorderTokenRef.current && recordingSessionIdRef.current) {
+        await releaseRecorderLock(recordingSessionIdRef.current, recorderTokenRef.current);
         recorderTokenRef.current = null;
+        recordingSessionIdRef.current = null;
       }
     }
   };
@@ -1036,11 +1137,12 @@ const QNotePage = () => {
   const releaseLockIfHeld = useCallback(async () => {
     if (heartbeatTimerRef.current) { window.clearInterval(heartbeatTimerRef.current); heartbeatTimerRef.current = null; }
     const tok = recorderTokenRef.current;
-    const sess = activeSessionRef.current;
-    if (tok && sess) {
-      await releaseRecorderLock(sess.id, tok);
+    const sid = recordingSessionIdRef.current;
+    if (tok && sid) {
+      await releaseRecorderLock(sid, tok);
     }
     recorderTokenRef.current = null;
+    recordingSessionIdRef.current = null;
   }, []);
 
   // ── 녹음 일시 중지 ────────────────────────────────────
@@ -2047,36 +2149,17 @@ const QNotePage = () => {
             </NewSessionBtn>
             {newNoteDropdownOpen && (
               <NewNoteDropdown onMouseLeave={() => setNewNoteDropdownOpen(false)}>
-                <NewNoteItem type="button" onClick={async () => {
+                <NewNoteItem type="button" onClick={() => {
                   setNewNoteDropdownOpen(false);
-                  try {
-                    const emptyDoc = { type: 'doc', content: [{ type: 'paragraph' }] };
-                    const created = await createSession({
-                      business_id: Number(businessId),
-                      title: 'Untitled',
-                      input_type: 'text',
-                      body: JSON.stringify(emptyDoc),
-                    } as any);
-                    setActiveSession(created);
-                    setComposingMemo(false);
-                    setSessions(prev => [created, ...prev]);
-                    navigate(`/notes/${created.id}`, { replace: true });
-                  } catch (e) {
-                    // preCreate 실패 → lazy compose 폴백(MemoView 가 첫 입력 시 POST + 실패 시 error Dot 표면화).
-                    // 침묵 금지 — canonical onStart(memo) 경로와 동일하게 로그 남긴다.
-                    console.warn('[QNote] preCreate failed, falling back to lazy create', e);
-                    setActiveSession(null);
-                    setComposingPrefill({ project_id: null, client_id: null });
-                    setComposingMemo(true);
-                    navigate('/notes', { replace: true });
-                  }
+                  // 녹음 중 새 메모 생성은 activeSession 을 바꿔 심박을 흔든다 → 확인 후에만.
+                  guardRecording(() => { void createMemoSession(); });
                 }}>
                   <NewNoteItemTitle>{t('page.newNoteDropdown.memoLabel', { defaultValue: '메모' }) as string}</NewNoteItemTitle>
                   <NewNoteItemDesc>{t('page.newNoteDropdown.memoDesc', { defaultValue: '텍스트 · 코드블록 · 서식 지원' }) as string}</NewNoteItemDesc>
                 </NewNoteItem>
                 <NewNoteItem type="button" onClick={() => {
                   setNewNoteDropdownOpen(false);
-                  setShowStartModal(true);
+                  guardRecording(() => setShowStartModal(true));
                 }}>
                   <NewNoteItemTitle>{t('page.newNoteDropdown.voiceLabel', { defaultValue: '음성 노트' }) as string}</NewNoteItemTitle>
                   <NewNoteItemDesc>{t('page.newNoteDropdown.voiceDesc', { defaultValue: '회의 녹음 + STT + 답변 찾기' }) as string}</NewNoteItemDesc>
@@ -2186,6 +2269,10 @@ const QNotePage = () => {
             <SessDelDialog onClick={(e) => e.stopPropagation()}>
               <SessDelTitle>{t('page.sessionDeleteTitle', { defaultValue: '세션을 삭제할까요?' }) as string}</SessDelTitle>
               <SessDelDesc>{t('page.sessionDeleteDesc', { defaultValue: '발화·문서·QA 등 모든 데이터가 함께 삭제됩니다. 되돌릴 수 없습니다.' }) as string}</SessDelDesc>
+              {/* 지우려는 세션이 지금 녹음 중이면 그 사실을 같은 다이얼로그에서 알린다 (팝업 위 팝업 금지) */}
+              {recordingSessionIdRef.current === sessionDeleteConfirmId && (
+                <SessDelDesc>{t('page.sessionDeleteRecording', { defaultValue: '이 세션은 녹음 중입니다. 삭제하면 녹음도 함께 중단됩니다.' }) as string}</SessDelDesc>
+              )}
               <SessDelActions>
                 <SessDelCancel type="button" onClick={() => setSessionDeleteConfirmId(null)} disabled={sessionDeleting}>
                   {t('common.cancel', { defaultValue: '취소' }) as string}
@@ -2734,8 +2821,26 @@ const QNotePage = () => {
         )}
       </Panel>
 
+      {/* 녹음 보호 — 녹음을 끊는 모든 경로가 이 문을 지난다 (window.confirm 금지) */}
+      <ConfirmDialog
+        isOpen={!!recGuard}
+        onClose={() => setRecGuard(null)}
+        onConfirm={() => {
+          const g = recGuard;
+          setRecGuard(null);
+          stopRecordingForNavigation();
+          g?.run();
+        }}
+        variant="warning"
+        title={t('page.recordingGuard.title', '녹음이 진행 중입니다') as string}
+        message={t('page.recordingGuard.message', '이동하면 녹음이 중단됩니다. 지금까지 기록된 내용은 저장되어 있습니다.') as string}
+        confirmText={t('page.recordingGuard.confirm', '중단하고 이동') as string}
+        cancelText={t('page.recordingGuard.cancel', '녹음 계속하기') as string}
+      />
+
       <StartMeetingModal
         open={showStartModal && !editingSession}
+        userLanguage={user?.language ?? undefined}
         onClose={() => setShowStartModal(false)}
         onStart={handleStartMeeting}
       />
@@ -2743,6 +2848,7 @@ const QNotePage = () => {
       <StartMeetingModal
         open={showStartModal && editingSession}
         editMode
+        userLanguage={user?.language ?? undefined}
         editingSessionId={activeSession?.id}
         initialConfig={activeSession ? {
           title: activeSession.title,

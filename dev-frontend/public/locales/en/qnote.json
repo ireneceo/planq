@@ -205,6 +205,15 @@
     "sidebar": {
       "collapse": "Collapse list",
       "expand": "Open list"
+    },
+    "sessionDeleteTitle": "Delete this session?",
+    "sessionDeleteDesc": "All data — transcript, documents, Q&A — is deleted with it. This cannot be undone.",
+    "sessionDeleteRecording": "This session is recording. Deleting it also stops the recording.",
+    "recordingGuard": {
+      "title": "Recording in progress",
+      "message": "Leaving will stop the recording. Everything captured so far is already saved.",
+      "confirm": "Stop and leave",
+      "cancel": "Keep recording"
     }
   },
   "memoPopup": {
