@@ -119,6 +119,13 @@ router.get('/my-week', authenticateToken, async (req, res, next) => {
           { status: { [Op.in]: ['in_progress', 'reviewing', 'revision_requested', 'waiting', 'external_review'] } },
         ],
       },
+      // 컨펌자 수 — 팝아웃/리스트의 퀵액션 분기(체크 완료 vs 컨펌 요청)가 이 값으로 갈린다.
+      //   ★ attributes 는 반드시 { include: [...] } 형태 — 배열로 나열하면 전 컬럼이 날아간다.
+      attributes: {
+        include: [
+          [literal('(SELECT COUNT(*) FROM task_reviewers WHERE task_id = `Task`.`id`)'), 'reviewer_count'],
+        ],
+      },
       include: [
         { model: Project, attributes: ['id', 'name'], required: false },
         { model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false },

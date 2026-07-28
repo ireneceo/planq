@@ -633,6 +633,10 @@ async function cancelReview(task, actor) {
 /** 담당자 최종 완료 — 컨펌자가 있으면 이 문이 아니라 컨펌 라운드를 지나야 한다 */
 async function complete(task, actor) {
   if (!(await isAssignee(task, actor.userId))) return fail('only_assignee', 403);
+  // 이미 닫힌 업무는 이 문으로 다시 열리지 않는다 (submitReview 와 같은 가드).
+  //   ★ canceled → completed 뒤집힘 차단. my-week 는 canceled 를 포함하므로 리스트 퀵액션이
+  //     취소된 업무를 완료로 되살릴 수 있었다. completed 재호출도 completed_at 을 덮어쓴다.
+  if (['completed', 'canceled'].includes(task.status)) return fail('task_closed');
   // #206 — 보류 중 완료 우회 금지 (submitReview 와 같은 이유)
   if (task.status === 'on_hold') return fail('task_on_hold');
 

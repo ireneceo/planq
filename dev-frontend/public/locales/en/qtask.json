@@ -1126,6 +1126,25 @@
     "due": "Due {{date}}",
     "showDone": "Show {{count}} completed",
     "hideDone": "Hide completed",
-    "noWorkspace": "Pick a workspace, then open this window again."
+    "noWorkspace": "Pick a workspace, then open this window again.",
+    "act": {
+      "complete": "Mark complete",
+      "uncheck": "Undo completion",
+      "locked": "Completed via approval",
+      "lockedTip": "Completed via approval — revert from the detail view",
+      "submit": "Send for approval",
+      "reviewing": "Awaiting approval",
+      "reviewingTip": "Awaiting approval — waiting for reviewers to respond",
+      "errOnlyAssignee": "Only the assignee can do this",
+      "errClosed": "This task is already closed",
+      "errOnHold": "This task is on hold",
+      "errNeedsReview": "This task must go through approval",
+      "errNoReviewers": "Assign a reviewer first",
+      "errNothingToRevert": "There is no history to revert to",
+      "errForbiddenRevert": "You don't have permission to revert",
+      "errGeneric": "Could not complete the action",
+      "errNetwork": "Connection failed"
+    },
+    "priorityN": "Priority {{n}}"
   }
 }

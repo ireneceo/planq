@@ -1126,6 +1126,25 @@
     "due": "마감 {{date}}",
     "showDone": "완료 {{count}}건 보기",
     "hideDone": "완료 숨기기",
-    "noWorkspace": "워크스페이스를 선택한 뒤 다시 열어주세요."
+    "noWorkspace": "워크스페이스를 선택한 뒤 다시 열어주세요.",
+    "act": {
+      "complete": "완료 처리",
+      "uncheck": "완료 되돌리기",
+      "locked": "컨펌으로 완료됨",
+      "lockedTip": "컨펌으로 완료됨 — 되돌리기는 상세에서",
+      "submit": "확인 요청 보내기",
+      "reviewing": "확인 중",
+      "reviewingTip": "확인 중 — 컨펌자 응답을 기다리는 중입니다",
+      "errOnlyAssignee": "담당자만 처리할 수 있습니다",
+      "errClosed": "이미 종료된 업무입니다",
+      "errOnHold": "보류 중인 업무입니다",
+      "errNeedsReview": "컨펌을 거쳐야 완료됩니다",
+      "errNoReviewers": "컨펌자를 먼저 지정하세요",
+      "errNothingToRevert": "되돌릴 이력이 없습니다",
+      "errForbiddenRevert": "되돌릴 권한이 없습니다",
+      "errGeneric": "처리하지 못했습니다",
+      "errNetwork": "연결에 실패했습니다"
+    },
+    "priorityN": "우선순위 {{n}}"
   }
 }
