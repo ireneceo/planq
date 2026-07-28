@@ -94,6 +94,11 @@ export interface OpenPinnedOptions {
    * (호출부가 사용자 제스처로 "다시 열기" 를 받아야 한다).
    */
   onUnexpectedClose?: (info: { tool: string; promoted: boolean }) => void;
+  /**
+   * 핀 전환 시 이전 도구를 일반 창으로 강등하려 했으나 팝업 차단으로 막힌 경우.
+   * (requestWindow 가 제스처를 소모한 뒤라 브라우저가 한 제스처당 팝업 1개 정책으로 막을 수 있다.)
+   */
+  onDemoteBlocked?: (tool: string) => void;
 }
 
 /**
@@ -104,20 +109,35 @@ export async function openPinned(opts: OpenPinnedOptions): Promise<boolean> {
   const api = pipApi();
   if (!api) return false;
 
-  // 규칙 2 — 동시에 하나만. 다른 도구가 핀돼 있으면 그 도구를 일반 창으로 강등한 뒤 자리를 넘긴다.
-  //   (브라우저가 새 PiP 를 열며 옛 PiP 를 자동으로 닫으므로, 강등을 우리가 먼저 해두지 않으면
-  //    사용자는 열려 있던 도구를 통째로 잃는다.)
-  if (active && active.tool !== opts.tool) {
-    const prev = active;
-    prev.intentional = true;
-    try { prev.win.close(); } catch { /* noop */ }
-    active = null;
-    markPipActive(false);
-    window.open(opts.pathOf(prev.tool), `pq-${prev.tool}`, opts.featuresOf(prev.tool));
+  // 규칙 2 — 동시에 하나만. 다른 도구가 핀돼 있으면 그 도구는 일반 창으로 강등하고 자리를 넘긴다.
+  //
+  // ★ 순서가 핵심이다: **requestWindow 를 먼저, 강등 window.open 을 나중에.**
+  //   window.open 이 클릭의 transient activation 을 소모하면 직후 requestWindow 가
+  //   `NotAllowedError: Document PiP requires user activation` 으로 결정론적으로 거부된다
+  //   (2026-07-28 Fable 게이트가 잡은 결함 — 전환 시 새 도구가 조용히 일반 창으로 열리던 것).
+  //   반대 순서(PiP 먼저 → window.open)는 스파이크에서 둘 다 성공 확인.
+  const prev = active && active.tool !== opts.tool ? active : null;
+  //   새 PiP 를 열면 브라우저가 옛 PiP 를 자동으로 닫는다 → 그 pagehide 가 "예기치 않은 닫힘" 으로
+  //   승격 로직을 이중 발사하지 않도록 미리 의도적 닫힘으로 표시한다.
+  if (prev) prev.intentional = true;
+
+  let win: Window;
+  try {
+    win = await api.requestWindow({ width: opts.width, height: opts.height });
+  } catch {
+    // 사용자가 PiP 를 취소했거나 브라우저가 거부 → 이전 핀은 그대로 살아 있다. 표시만 원복.
+    if (prev) prev.intentional = false;
+    return false;
   }
 
   try {
-    const win = await api.requestWindow({ width: opts.width, height: opts.height });
+    // 이전 핀은 이 시점에 브라우저가 닫았다 — 도구를 잃지 않게 일반 창으로 되살린다.
+    if (prev) {
+      try { prev.win.close(); } catch { /* 이미 닫혔다 */ }
+      const demoted = window.open(opts.pathOf(prev.tool), `pq-${prev.tool}`, opts.featuresOf(prev.tool));
+      if (!demoted) opts.onDemoteBlocked?.(prev.tool);
+    }
+
     const state: PinState = { tool: opts.tool, win, intentional: false };
     active = state;
     markPipActive(true);
@@ -156,8 +176,10 @@ export async function openPinned(opts: OpenPinnedOptions): Promise<boolean> {
 
     return true;
   } catch {
-    // 사용자가 PiP 를 취소했거나 브라우저가 거부 → 호출부에서 일반 창 폴백
-    markPipActive(!!active);
+    // PiP 창은 열렸지만 문서 조립에 실패한 경우 — 빈 창을 남기지 않고 닫은 뒤 일반 창으로 폴백시킨다.
+    try { win.close(); } catch { /* noop */ }
+    active = null;
+    markPipActive(false);
     return false;
   }
 }
