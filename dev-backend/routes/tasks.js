@@ -97,26 +97,51 @@ router.get('/my-week', authenticateToken, async (req, res, next) => {
     //  - completed/canceled: completed_at 이 이번 주 (완료시점 기준)
     //  - not_started: 이번 주 계획(planned_week_start) / 이번 주 마감 / 지연(마감 과거) 일 때. 마감 없는 backlog 만 제외
     //  - in_progress/reviewing/revision_requested/waiting: 날짜 무관 전부 (착수한 업무는 끝까지 책임)
+    // ★ 집합은 메인 QTaskPage 의 weekSet 과 **미러**다 (QTaskPage.tsx weekSet memo).
+    //   한쪽만 고치면 두 화면의 우선순위 번호가 갈린다 — 실제로 reviewer·관여완료 분기가 빠져 있어
+    //   팝아웃 번호가 메인보다 밀리는 결함이 났다(2026-07-28 Fable 설계 게이트 판정).
+    //   반드시 양쪽 같이 수정할 것.
+    const uid = Number(userId);   // literal 삽입 전 정수 강제 (인젝션 차단)
     const tasks = await Task.findAll({
       where: {
         business_id: businessId,
-        assignee_id: userId,
         [Op.or]: [
+          {
+            assignee_id: uid,
+            [Op.or]: [
+              {
+                status: { [Op.in]: ['completed', 'canceled'] },
+                completed_at: { [Op.between]: [`${monday} 00:00:00`, `${sunday} 23:59:59`] },
+              },
+              {
+                status: 'not_started',
+                [Op.or]: [
+                  { planned_week_start: monday },
+                  { due_date: { [Op.between]: [monday, sunday] } },
+                  { due_date: { [Op.lt]: monday } },   // ★ 지연(마감 지난 미착수)도 포함 — Irene 2026-07-05. null 마감은 NULL 비교로 자동 제외(backlog flood 차단 유지)
+                ],
+              },
+              // #206 external_review 는 이번 주에 남긴다 (외부를 채근할 책임이 담당자에게 있다).
+              //   on_hold 는 의도적으로 제외 — 보류는 이번 주 무대에서 퇴장, 전체 탭에만 주차.
+              { status: { [Op.in]: ['in_progress', 'reviewing', 'revision_requested', 'waiting', 'external_review'] } },
+            ],
+          },
+          // 내가 pending 컨펌자인 활성 업무 — 날짜 무관 (메인 filtered 의 myRev pending 분기 미러).
+          //   담당자가 아니어도 "내가 행동해야 하는 것"이라 이번 주 무대에 오른다.
+          {
+            status: { [Op.in]: ['reviewing', 'revision_requested'] },
+            id: { [Op.in]: literal(`(SELECT task_id FROM task_reviewers WHERE user_id = ${uid} AND state = 'pending')`) },
+          },
+          // 내가 관여한 이번 주 완료 — 의뢰자/작성자/리뷰어(state 무관). 메인의 involved 분기 미러.
           {
             status: { [Op.in]: ['completed', 'canceled'] },
             completed_at: { [Op.between]: [`${monday} 00:00:00`, `${sunday} 23:59:59`] },
-          },
-          {
-            status: 'not_started',
             [Op.or]: [
-              { planned_week_start: monday },
-              { due_date: { [Op.between]: [monday, sunday] } },
-              { due_date: { [Op.lt]: monday } },   // ★ 지연(마감 지난 미착수)도 포함 — Irene 2026-07-05. null 마감은 NULL 비교로 자동 제외(backlog flood 차단 유지)
+              { request_by_user_id: uid },
+              { created_by: uid },
+              { id: { [Op.in]: literal(`(SELECT task_id FROM task_reviewers WHERE user_id = ${uid})`) } },
             ],
           },
-          // #206 external_review 는 이번 주에 남긴다 (외부를 채근할 책임이 담당자에게 있다).
-          //   on_hold 는 의도적으로 제외 — 보류는 이번 주 무대에서 퇴장, 전체 탭에만 주차.
-          { status: { [Op.in]: ['in_progress', 'reviewing', 'revision_requested', 'waiting', 'external_review'] } },
         ],
       },
       // 컨펌자 수 — 팝아웃/리스트의 퀵액션 분기(체크 완료 vs 컨펌 요청)가 이 값으로 갈린다.
@@ -129,9 +154,16 @@ router.get('/my-week', authenticateToken, async (req, res, next) => {
       include: [
         { model: Project, attributes: ['id', 'name'], required: false },
         { model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false },
+        // 관점별 라벨·퀵액션 분기가 all-tasks 와 같은 근거로 판정되게 reviewer row 를 같이 준다.
+        { model: TaskReviewer, as: 'reviewers', attributes: ['id', 'user_id', 'state', 'is_client'], required: false },
       ],
       order: [['due_date', 'ASC'], ['priority_order', 'ASC'], ['created_at', 'ASC']],
     });
+
+    // ★ 집계(가용시간·번다운·요약)는 **담당자-only 부분집합**으로 고정한다.
+    //   tasks 를 넓힌 채 그대로 합산하면 남의 업무 시간이 내 번다운·남은시간에 섞인다
+    //   (인사이트 카드와 팝아웃 헤더가 동시에 오염). 목록만 넓히고 계산은 그대로.
+    const mine = tasks.filter(t => t.assignee_id === uid);
 
     // 가용시간
     const capacity = await getMemberCapacity(userId, businessId);
@@ -145,7 +177,7 @@ router.get('/my-week', authenticateToken, async (req, res, next) => {
       const dayLabel = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'][i];
 
       // 이 날까지 완료된 업무의 시간 합산 — completed_at 은 UTC, 워크스페이스 tz 날짜로 변환
-      const completedByDay = tasks.filter(t =>
+      const completedByDay = mine.filter(t =>
         t.status === 'completed' && t.completed_at && dateStrInTz(t.completed_at, tz) <= dateStr
       );
       const estDay = completedByDay.reduce((s, t) => s + (Number(t.estimated_hours) || 0), 0);
@@ -156,10 +188,10 @@ router.get('/my-week', authenticateToken, async (req, res, next) => {
       burndown.push({ date: dateStr, label: dayLabel, estimated_cumulative: estCum, actual_cumulative: actCum });
     }
 
-    // 집계
-    const totalEstimated = tasks.reduce((s, t) => s + (Number(t.estimated_hours) || 0), 0);
-    const totalActual = tasks.reduce((s, t) => s + (Number(t.actual_hours) || 0), 0);
-    const totalRemaining = tasks.reduce((s, t) => {
+    // 집계 — mine 기준 (위 주석 참조)
+    const totalEstimated = mine.reduce((s, t) => s + (Number(t.estimated_hours) || 0), 0);
+    const totalActual = mine.reduce((s, t) => s + (Number(t.actual_hours) || 0), 0);
+    const totalRemaining = mine.reduce((s, t) => {
       const est = Number(t.estimated_hours) || 0;
       const prog = (t.progress_percent || 0) / 100;
       return s + est * (1 - prog);
@@ -171,7 +203,7 @@ router.get('/my-week', authenticateToken, async (req, res, next) => {
       week: monday,
       capacity,
       summary: {
-        total_tasks: tasks.length,
+        total_tasks: mine.length,
         total_estimated: Math.round(totalEstimated * 10) / 10,
         total_actual: Math.round(totalActual * 10) / 10,
         total_remaining: Math.round(totalRemaining * 10) / 10,
