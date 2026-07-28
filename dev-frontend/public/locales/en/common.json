@@ -310,9 +310,10 @@
   "cancel": "Cancel",
   "close": "Close",
   "dock": {
-    "toggle": "Quick open — Q Talk · Q Note · Q helper",
+    "toggle": "Quick open — Q Talk · Q Task · Q Note · Q helper",
     "menuLabel": "Quick open",
     "qtalk": "Q Talk",
+    "qtask": "Q Task",
     "qnote": "Q Note",
     "qhelper": "Q helper",
     "popout": "Open in new window",
@@ -321,7 +322,12 @@
     "newTask": "Task",
     "newMail": "Mail",
     "newEvent": "Event",
-    "voice": "Add by voice"
+    "voice": "Add by voice",
+    "pin": "Pin — always on top",
+    "unpin": "Unpin",
+    "pinOnlyOne": "Only one pin at a time — pinning another tool turns the previous one into a normal window",
+    "pinClosed": "The pinned {{tool}} window closed",
+    "pinReopen": "Reopen"
   },
   "saving": "Saving…",
   "loading": "Loading…",

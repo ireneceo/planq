@@ -59,6 +59,7 @@ const MyWorkSettingsPage = lazy(() => import('./pages/Profile/MyWorkSettingsPage
 const WorkspaceSettingsPage = lazy(() => import('./pages/Settings/WorkspaceSettingsPage'));
 const QTalkPage = lazy(() => import('./pages/QTalk/QTalkPage'));
 const QTalkStandalonePage = lazy(() => import('./pages/QTalk/QTalkStandalonePage'));
+const QTaskStandalonePage = lazy(() => import('./pages/QTask/QTaskStandalonePage'));
 const PersonalVaultPage = lazy(() => import('./pages/PersonalVault/PersonalVaultPage'));
 const MyFeedbackPage = lazy(() => import('./pages/MyFeedback/MyFeedbackPage'));
 const QTaskPage = lazy(() => import('./pages/QTask/QTaskPage'));
@@ -179,7 +180,7 @@ function ShellApp() {
   // 팝아웃/standalone 창(#31) + 공개 미리보기 페이지(#33)에선 메인 chrome(토스터·FAB·Dock·헬프드로어) 숨김.
   //   공개 공유/미리보기는 외부 열람용 — 로그인 사용자의 인앱 알림이 뜨면 안 됨.
   const _loc = useLocation();
-  const isPopout = /\/(talk-popout|note-popout|help-popout)(\/|$)/.test(_loc.pathname)
+  const isPopout = /\/(talk-popout|task-popout|note-popout|help-popout)(\/|$)/.test(_loc.pathname)
     || _loc.pathname.startsWith('/memo/')
     || _loc.pathname.startsWith('/public/')
     || isPopoutWindow(); // #84 — 팝아웃 창 안에서 /wiki 등으로 이동해도 chrome 숨김 유지
@@ -365,6 +366,11 @@ function ShellApp() {
         <Route path="/talk-popout" element={
           <ProtectedRoute>
             <QTalkStandalonePage />
+          </ProtectedRoute>
+        } />
+        <Route path="/task-popout" element={
+          <ProtectedRoute>
+            <QTaskStandalonePage />
           </ProtectedRoute>
         } />
         <Route path="/note-popout" element={
@@ -612,7 +618,7 @@ function isAppInitialPath(): boolean {
   // 공개 표면(마케팅·위키)은 isPublicSurfacePath 단일 원천을 그대로 쓴다.
   // 여기에 목록을 한 벌 더 두면 갈라진다 — 실제로 /insights 가 이 목록에만 빠져 있어서
   // 로그인 데스크탑이 /insights 를 열면 인사이츠 마케팅 페이지 대신 워크스페이스 셸이 떴다.
-  const nonAppOther = /^\/(login|register|invite|forgot-password|reset-password|verify-email|oauth|legal|privacy|terms|app|public|sign|memo|talk-popout|note-popout|help-popout)(\/|$)/;
+  const nonAppOther = /^\/(login|register|invite|forgot-password|reset-password|verify-email|oauth|legal|privacy|terms|app|public|sign|memo|talk-popout|task-popout|note-popout|help-popout)(\/|$)/;
   return !(isPublicSurfacePath(p) || nonAppOther.test(p));
 }
 
