@@ -16,10 +16,11 @@ session-state.md 읽고 이어서 개발해.
 
 ## 🔖 지금 중단 지점 (06:40 갱신)
 
-**완료:**
-- **Q Task 팝아웃 체크박스 완료처리 + 우선순위 표시** — 커밋 `4ce3950`. 아래 "설계 확정본" 대로 구현.
-  Fable 구현·테스트 게이트 **실행 중** (검증 스크립트 `dev-backend/test-fable-gate-popout.js` — 게이트 종료 시 삭제 필요)
-- **Q Note 녹음 보호 가드** — 커밋 `7a8372a` + `7bf5065` (idle 자동저장이 wip 로 커밋함 — **정식 feat 커밋으로 정리 필요**).
+**완료 (전부 Fable 게이트 PASS · dev 반영 · 운영 미배포):**
+- **Q Task 팝아웃 체크박스 완료처리 + 우선순위 표시** — 커밋 `4ce3950` + tie-break 수정 `074cce6`.
+  Fable 게이트: 실HTTP 36 PASS(반증 시나리오 4·5·7 포함) → 우선순위 tie-break 1건 조건부 → 수정 후 재게이트 PASS(번호 매핑 13/13)
+  - 남은 판단거리(Irene): 메인은 컨펌대기 남의 업무도 우선순위 번호에 세지만 my-week API 는 제외 → 그런 업무 있으면 팝아웃 번호가 밀림(실측 5건). API 절단면이라 별도 사이클
+- **Q Note 녹음 보호 가드** — 커밋 `77786b7`.
   **Fable 게이트 1차 FAIL → 수정 → 재게이트 PASS.** health-check 33/33 · guard-invariants 22/22 · 실HTTP 락 11/11 · 빌드 error TS 0
   - 내용: 녹음 끊는 경로(재클릭 토글·openReview·새 메모·음성 모달·**세션 삭제**)에 ConfirmDialog 게이트,
     방향키 nav 녹음 중 차단, **heartbeat 대상 세션을 락 획득 시점에 고정**(`recordingSessionIdRef` — 녹음 중 새 메모 생성만으로
@@ -27,10 +28,8 @@ session-state.md 읽고 이어서 개발해.
     (`body.dataset.recordingActive` + `BuildVersionGuard.isReloadSafe`), StartMeetingModal 사용언어 프리필 + 유령 초안 제거
 
 **바로 다음 작업 (순서대로):**
-1. 팝아웃 Fable 게이트 판정 수령 → 결함 있으면 수정 후 재게이트
-2. 테스트 스크립트 삭제(`test-fable-gate-popout.js`, `test-popout-check.js`) + wip 커밋 2개를 정식 커밋으로 정리
-3. **Irene 신규 요구 2건** (아래 ⚠️ 섹션) — 핀 아이콘 위치 변경 + 핀 창 닫힘 안내 오작동 (Fable 재설계 필요)
-4. `/배포` 는 Irene 명시 지시 후에만 (누적 미배포: `fa1766a` 팝아웃 + `4ce3950` 체크박스/우선순위 + Q Note 녹음 가드)
+1. **Irene 신규 요구 2건** (아래 ⚠️ 섹션) — 핀 아이콘 위치 변경 + 핀 창 닫힘 안내 오작동 (Fable 재설계 필요)
+2. `/배포` 는 Irene 명시 지시 후에만 (누적 미배포: `fa1766a` 팝아웃 + `4ce3950` 체크박스/우선순위 + `77786b7` Q Note 녹음 가드 + `074cce6` tie-break)
 
 ---
 
