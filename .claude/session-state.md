@@ -1,8 +1,8 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-07-28 04:05 (Opus 5, 1M)
-**작업 상태:** 중단 (Irene 외출 — 이어서 재개 예정). **dev 반영 완료 / 운영 미배포**
+**마지막 업데이트:** 2026-07-28 06:40 (Opus 5, 1M)
+**작업 상태:** 진행 중 (SSH 2회 끊김 후 재개). **dev 반영 완료 / 운영 미배포**
 
 ---
 
@@ -14,15 +14,23 @@ session-state.md 읽고 이어서 개발해.
 
 ---
 
-## 🔖 지금 중단 지점
+## 🔖 지금 중단 지점 (06:40 갱신)
 
-**마지막 작업:** 팝아웃 사이클 배포 가능 상태로 커밋 완료(`fa1766a`, Fable 재게이트 32/32 PASS).
-이어서 **Q Task 팝아웃 체크박스/완료처리**의 Fable 설계 게이트를 받았고(조건부 승인), 구현 착수 직전.
+**완료:**
+- **Q Task 팝아웃 체크박스 완료처리 + 우선순위 표시** — 커밋 `4ce3950`. 아래 "설계 확정본" 대로 구현.
+  Fable 구현·테스트 게이트 **실행 중** (검증 스크립트 `dev-backend/test-fable-gate-popout.js` — 게이트 종료 시 삭제 필요)
+- **Q Note 녹음 보호 가드** — 커밋 `7a8372a` + `7bf5065` (idle 자동저장이 wip 로 커밋함 — **정식 feat 커밋으로 정리 필요**).
+  **Fable 게이트 1차 FAIL → 수정 → 재게이트 PASS.** health-check 33/33 · guard-invariants 22/22 · 실HTTP 락 11/11 · 빌드 error TS 0
+  - 내용: 녹음 끊는 경로(재클릭 토글·openReview·새 메모·음성 모달·**세션 삭제**)에 ConfirmDialog 게이트,
+    방향키 nav 녹음 중 차단, **heartbeat 대상 세션을 락 획득 시점에 고정**(`recordingSessionIdRef` — 녹음 중 새 메모 생성만으로
+    409 나 녹음이 죽던 실버그, 실HTTP 로 재현 입증), release 3경로 ref 통일, **PWA 새 빌드 자동 reload 차단**
+    (`body.dataset.recordingActive` + `BuildVersionGuard.isReloadSafe`), StartMeetingModal 사용언어 프리필 + 유령 초안 제거
 
 **바로 다음 작업 (순서대로):**
-1. **체크박스 완료처리 구현** — Fable 설계 게이트 **조건부 승인** 받은 상태. 아래 "설계 확정본" 그대로 구현
-2. **Irene 신규 요구 2건** (아래 ⚠️ 섹션) — 핀 아이콘 위치 변경 + 핀 창 닫힘 안내 오작동
-3. 구현 후 Fable 구현·테스트 게이트 (status 전이 = 보호 영역이라 필수)
+1. 팝아웃 Fable 게이트 판정 수령 → 결함 있으면 수정 후 재게이트
+2. 테스트 스크립트 삭제(`test-fable-gate-popout.js`, `test-popout-check.js`) + wip 커밋 2개를 정식 커밋으로 정리
+3. **Irene 신규 요구 2건** (아래 ⚠️ 섹션) — 핀 아이콘 위치 변경 + 핀 창 닫힘 안내 오작동 (Fable 재설계 필요)
+4. `/배포` 는 Irene 명시 지시 후에만 (누적 미배포: `fa1766a` 팝아웃 + `4ce3950` 체크박스/우선순위 + Q Note 녹음 가드)
 
 ---
 
