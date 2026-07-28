@@ -243,13 +243,19 @@ const TaskPopoutView: React.FC = () => {
   //     완료 업무도 priority_order 를 그대로 들고 있는 메인 화면과 번호가 어긋난다.
   //   ★ tie-break 를 명시한다 — DB 에 중복값(1,1,2,3,3,8)이 실재해 stable sort 의 입력 순서에 기대면
   //     서버 정렬(due asc)로 들어오는 팝아웃과 메인의 번호가 갈린다.
+  //   ★ 동률일 때의 순서는 메인과 **완전히 같은 사슬**이어야 한다. 메인의 displayPriorityMap 은
+  //     priority 만으로 stable sort 하므로 동률의 실제 순서는 그 입력(filtered)이 결정한다 —
+  //     즉 완료 뒤로 → due(null last) → title. id tie-break 을 쓰면 두 화면의 번호가 갈릴 뿐 아니라
+  //     같은 팝아웃 안에서도 행 순서(bySortRule = title tie-break)와 칩 번호가 역전됐다.
   const prioMap = useMemo(() => {
     const m = new Map<number, number>();
+    const doneRank = (tk: PopoutTask) => (CLOSED.includes(tk.status) ? 1 : 0);
     tasks
       .filter((tk) => tk.priority_order != null)
       .sort((a, b) => (a.priority_order! - b.priority_order!)
+        || (doneRank(a) - doneRank(b))
         || cmpNullLast(a.due_date, b.due_date)
-        || (a.id - b.id))
+        || (a.title || '').localeCompare(b.title || ''))
       .forEach((tk, i) => m.set(tk.id, i + 1));
     return m;
   }, [tasks]);
