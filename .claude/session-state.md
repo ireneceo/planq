@@ -1,8 +1,8 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-07-28 06:40 (Opus 5, 1M)
-**작업 상태:** 진행 중 (SSH 2회 끊김 후 재개). **dev 반영 완료 / 운영 미배포**
+**마지막 업데이트:** 2026-07-28 08:40 (Opus 5, 1M)
+**작업 상태:** 완료 (Irene 이동). **dev 반영 완료 / 운영 미배포 (누적 5커밋)**
 
 ---
 
@@ -14,104 +14,94 @@ session-state.md 읽고 이어서 개발해.
 
 ---
 
-## 🔖 지금 중단 지점 (06:40 갱신)
+## ✅ 이번 세션 완료 (전부 Fable 게이트 통과)
 
-**완료 (전부 Fable 게이트 PASS · dev 반영 · 운영 미배포):**
-- **Q Task 팝아웃 체크박스 완료처리 + 우선순위 표시** — 커밋 `4ce3950` + tie-break 수정 `074cce6`.
-  Fable 게이트: 실HTTP 36 PASS(반증 시나리오 4·5·7 포함) → 우선순위 tie-break 1건 조건부 → 수정 후 재게이트 PASS(번호 매핑 13/13)
-  - 남은 판단거리(Irene): 메인은 컨펌대기 남의 업무도 우선순위 번호에 세지만 my-week API 는 제외 → 그런 업무 있으면 팝아웃 번호가 밀림(실측 5건). API 절단면이라 별도 사이클
-- **Q Note 녹음 보호 가드** — 커밋 `77786b7`.
-  **Fable 게이트 1차 FAIL → 수정 → 재게이트 PASS.** health-check 33/33 · guard-invariants 22/22 · 실HTTP 락 11/11 · 빌드 error TS 0
-  - 내용: 녹음 끊는 경로(재클릭 토글·openReview·새 메모·음성 모달·**세션 삭제**)에 ConfirmDialog 게이트,
-    방향키 nav 녹음 중 차단, **heartbeat 대상 세션을 락 획득 시점에 고정**(`recordingSessionIdRef` — 녹음 중 새 메모 생성만으로
-    409 나 녹음이 죽던 실버그, 실HTTP 로 재현 입증), release 3경로 ref 통일, **PWA 새 빌드 자동 reload 차단**
-    (`body.dataset.recordingActive` + `BuildVersionGuard.isReloadSafe`), StartMeetingModal 사용언어 프리필 + 유령 초안 제거
-
-**바로 다음 작업 (순서대로):**
-1. **Irene 신규 요구 2건** (아래 ⚠️ 섹션) — 핀 아이콘 위치 변경 + 핀 창 닫힘 안내 오작동 (Fable 재설계 필요)
-2. `/배포` 는 Irene 명시 지시 후에만 (누적 미배포: `fa1766a` 팝아웃 + `4ce3950` 체크박스/우선순위 + `77786b7` Q Note 녹음 가드 + `074cce6` tie-break)
-
----
-
-## ⚠️ Irene 신규 요구 2건 (미착수 — 재개 시 먼저 판단)
-
-1. **핀 아이콘을 도크 메뉴에서 빼고, 팝아웃 창에 들어가면 상단에 나오게**
-   - 현재: 도크 "열기" 각 항목 우측 핀 버튼(`dock-pin-<tool>`)
-   - 요구: 도크에서 제거 → 팝아웃 창 헤더 상단에 핀 버튼
-   - **기술 제약(Fable 설계 판정)**: Document PiP `requestWindow` 는 **그 문서 안의 사용자 제스처**가 필요.
-     팝아웃(별도 창) 안에서 누른 클릭은 opener 로 전이되지 않아 postMessage 위임 불가.
-     팝아웃이 스스로 PiP 를 열면 자기가 owner 인데 **자신을 닫으면 PiP 도 죽는다**.
-     → 그래서 최초 설계가 "메뉴에서 핀으로 열기" 였다. **이 요구는 절단면 재설계가 필요 —
-     Fable 에 다시 올릴 것.** (후보: 팝아웃 창 상단 핀 버튼 → 그 창이 자신을 PiP 로 "승격"하되
-     자기 창을 닫는 대신 유지/전환하는 방식이 실제로 가능한지 스파이크 필요)
-2. **핀 창을 닫으면 "닫혔다"는 안내가 뜬다**
-   - 증상 보고: 사용자가 직접 닫아도 `dock-pin-lost` 카드("… 핀 창이 닫혔습니다 / 다시 열기")가 노출
-   - 원인 추정: `utils/pinnedWindow.ts` 의 `intentional` 플래그는 **우리 UI 의 핀 해제**만 표시한다.
-     브라우저 PiP 창의 **네이티브 X 버튼**으로 닫으면 `intentional=false` → "예기치 않은 닫힘" 으로
-     오판 → 자동 승격(일반 창) + 안내 카드. **사용자 의도 닫힘을 구별할 신호가 없다**는 게 근본 문제.
-   - 재개 시: 자동 승격 자체를 없애고 "닫으면 그냥 닫힌다"로 갈지, 화면공유 케이스만 구제할지 결정 필요 → Fable
+1. **Q Task 팝아웃 체크박스 완료처리** — `4ce3950`. Fable 설계 게이트가 3분기 초안을 **5분기로 교정**
+   (그대로 만들면 `canceled → completed` 뒤집힘 · 컨펌 라운드 파괴 2건 실사고 경로). 실HTTP 36 PASS.
+   `task_actions.complete()` closed 가드 1줄 추가(여태 on_hold 만 막았음)
+2. **팝아웃 우선순위 번호 tie-break 동기화** — `074cce6`. 메인 `displayPriorityMap` 의 실효 사슬
+   (priority → 완료 뒤로 → due null-last → title) 복제. 재게이트 번호 매핑 13/13 + 수정 전 불일치 반증
+3. **Q Note 녹음 보호 가드** — `77786b7`. Fable 1차 **FAIL**(삭제 경로·PWA reload) → 수정 → PASS.
+   녹음 끊는 5경로 ConfirmDialog + **심박 세션 락 획득 시점 고정**(`recordingSessionIdRef`) +
+   **`body.dataset.recordingActive`** 로 새 빌드 자동 reload 차단(배포마다 녹음 사망하던 경로) +
+   락 반납 3경로 ref 통일 + StartMeetingModal 사용언어 프리필/유령 초안 제거
+4. **my-week 집합을 메인 weekSet 과 동기화** — `d35e530`(wip, 정리 필요). Fable 설계 게이트 결정:
+   번호 차이 원인은 tie-break 이 아니라 **집합 차이**. reviewer pending 분기 + involved-completed 분기 +
+   `reviewers` include 추가, **집계(번다운·요약)는 담당자-only `mine` 고정**, 팝아웃 `quickActionFor` 에
+   `isAssignee` 게이트. 구현 검증 e2e 7종 PASS
+5. **★ 실버그 수정 (Fable 이 조사 중 발견)** — 메인의 우선순위 번호·DB 자동 재인덱스·토글이
+   **search/statusFilter/완료가리기가 적용된 `filtered`** 를 입력으로 써서, week 탭에서 검색어만 입력해도
+   매칭 부분집합 기준으로 `priority_order` 를 silent PUT 재작성 → 검색 밖 업무와 충돌하는 데이터 오염.
+   번호 정본을 canonical `weekSet` 으로 분리 + tie-break 을 `byPriorityChain` 명시 함수로 고정
+6. **위키 갱신** — `record-meeting`(녹음 중 확인 창) · `focus-weekly`(팝아웃 체크박스·우선순위) ko/en. 시드 반영 완료
 
 ---
 
-## 📐 체크박스 완료처리 — Fable 설계 확정본 (그대로 구현할 것)
+## 🔖 지금 중단 지점 — 핀 요구 2건 (설계 확정, **구현 미착수**)
 
-**판정: 조건부 승인.** Opus 초안의 3분기를 **5분기로 수정**해야 통과. 그대로 만들면
-`canceled → completed 뒤집힘` · `컨펌 라운드 파괴` 2건의 실사고 경로가 열린다.
+Fable 설계 게이트가 **지시서까지 완성**했다. 아래 그대로 구현하면 된다.
 
-### 백엔드 (승인)
-- `routes/tasks.js` my-week 에 `reviewer_count` 추가.
-  **`attributes: { include: [[literal('(SELECT COUNT(*) FROM task_reviewers WHERE task_id = \`Task\`.\`id\`)'), 'reviewer_count']] }`**
-  형태 필수 — my-week `findAll` 은 attributes 옵션이 없어(전 컬럼) 배열 나열로 쓰면 기존 컬럼이 날아간다.
-- 소비자 영향 0 (`QTaskPage.tsx:521` 은 capacity/burndown 만 읽음). 프론트 `Number()` 방어 캐스팅.
-- **★ 같은 커밋에 1줄 가드**: `task_actions.js complete()` 에
-  `if (['completed','canceled'].includes(task.status)) return fail('task_closed')`.
-  현재 `complete()` 는 on_hold 만 막고 **closed 가드가 없다**(`:637`). my-week 는 canceled 를 포함한다(`tasks.js:106`).
+### 실측으로 확정된 물리 제약 (puppeteer, 재검증 불필요)
+- 팝아웃 창 안의 클릭은 opener 로 transient activation **전이 불가** (클린 headful 3회 반복).
+  ⚠️ 첫 스파이크의 "가능" 은 `--disable-popup-blocking` 플래그 + 직전 메인 클릭 잔여 activation 이 만든
+  **거짓 양성**이었다 — 판정 기계부터 의심해 뒤집음
+- 팝아웃이 자기 PiP 는 열 수 있고, **그 창을 닫으면 PiP 도 죽는다**
+- **PiP 소유 창이 SPA 네비게이션해도 PiP 는 생존** ← 홀더 변신의 근거
+- PiP 는 브라우저 전역 1개. **축출 시 `pagehide` 미발화** → 500ms `closed` 폴링 필수
+- PiP 닫힘 신호는 pagehide 1회뿐, **원인 정보 0** (사용자 X vs 화면공유 kill 구별 불가)
 
-### 프론트 분기표 (my-week 실제 등장 상태 기준)
-| 행 상태 | reviewer 0 | reviewer ≥1 |
-|---|---|---|
-| not_started/waiting/in_progress/external_review | ☐ → `/complete` | **in_progress·revision_requested 만** ↻ → `/submit-review`, 그 외 퀵액션 없음 |
-| reviewing | (발생 불가) | "확인 중" 표시만 — **액션 금지** |
-| revision_requested | ☐ → `/complete` | ↻ 재요청 |
-| completed | ☑ → `/revert-status` | **☑ 고정(disabled)** + 툴팁 "컨펌으로 완료됨 — 되돌리기는 상세에서" |
-| canceled | 인터랙션 없음 | 인터랙션 없음 |
+### 결정 1 — 핀 버튼을 도크에서 팝아웃 헤더로 (홀더 창 방식)
+핀 클릭 → 팝아웃이 PiP 를 열고 **자신은 360×132 홀더 창으로 변신**. 해제 시 원래 팝아웃으로 복귀
+(`window.open` 0회 → 팝업차단·activation 순서 결함 계열 소멸).
+- 신규 `utils/pinHost.ts` (`usePinHost(tool)` → mode `normal|holder|pip-content`), **`utils/pinnedWindow.ts` 삭제**
+- 신규 `components/Common/PopoutPinButton.tsx` + `PinHolderView.tsx`
+- `RightDock.tsx` 에서 핀 전부 제거 (`PinBtn`/`PinNote`/`PinLostCard`/`handlePin`/`pinned`/`pinLost`/`IconPin`/`PIN_SIZE`/`pq_pin_last_tool`)
+- 4개 팝아웃 헤더에 핀 버튼: `TaskPopoutView`(Head 우측) · QTalk/NoteCapture/Help standalone(우상단 36×36)
+- `data-testid`: `popout-pin-toggle` / `pin-holder` / `pin-holder-unpin`. 홀더에 `aria-modal` 금지
+- 축출 프로토콜: `BroadcastChannel('planq:pin')` 로 `pin-intent` 선공지 → ack 또는 250ms 타임아웃 후 `requestWindow`
+- NoteCapture 팝아웃은 `body.dataset.recordingActive==='1'` 중 핀 클릭 시 ConfirmDialog 게이트 (핀 전환 = 재로드 = 녹음 사망)
+- i18n `common.popoutPin.*` ko/en 신규, `dock.pin`/`unpin`/`pinOnlyOne`/`pinClosed`/`pinReopen` 5키 삭제
 
-**왜 이렇게:**
-- `reviewing` 에서 submit-review 재호출 = **새 라운드 시작 + 전 컨펌자 pending 리셋**(`taskTransition.js:123-127`) → 받은 승인 증발
-- 컨펌 승인 완료 업무에 `revert-status` 하면 마지막 from_status 보유 row 가 `review_submit` 이라
-  **reviewing 이 아니라 in_progress 로 떨어진다**(`:822-829`). `canEnterStatus` 는 비리뷰 상태라 통과 → 게이트가 안 막는다.
-  reviewer state 는 'approved' 로 남아 이력과 모순, 재체크하면 라운드 파괴. → 언체크는 **reviewer_count===0 만**
-- **`on_hold` 분기는 죽은 코드** — my-week 가 on_hold 를 의도적으로 제외(`tasks.js:118`). 대신 **`external_review` 가 포함**됨(`:119`)
-- **구조 함정**: 현재 `Row` 가 `styled.button`(`TaskPopoutView.tsx:291`) → 체크박스 넣으면 button-in-button.
-  **Row 를 div 로 바꾸고** 체크박스 버튼 + 본문 클릭영역을 형제로 분리해야 한다 (stopPropagation 만으론 부족)
-- notify/socket broadcast 는 **액션 계층이 이미 전부 처리** — 신규 백엔드 작업 0
-- 팝아웃은 별도 창이라 `window.dispatchEvent('inbox:refresh')` 는 메인 창에 안 닿는다(창 간 동기화는 socket 담당)
-- 중간 상태 건너뛰기(not_started → 바로 완료)는 **허용**이 정책 (`canEnterStatus` 는 completed 진입 무제한)
+### 결정 2 — "닫으면 그냥 닫힌다"
+자동 승격 · `dock-pin-lost` 카드 · "다시 열기" **전면 삭제**. PiP 를 X 로 닫으면 홀더도 조용히 자살.
+구별 가능한 **축출만** 선공지로 일반 창 복귀.
 
-### e2e 검증 시나리오 13종 (Fable 지정 — 구현 후 전부 실 HTTP)
-1 reviewer0·in_progress→체크→completed+completed_at+history+의뢰자 push / 2 not_started→체크→completed(from='not_started')
-/ 3 reviewer≥1·in_progress→↻→reviewing·전원 pending·컨펌자 push·**completed 아님** / 4 reviewing→액션 없음(반증: 직접
-호출 시 round 증가 입증) / 5 컨펌완료→체크 고정·클릭 무반응(반증: 직접 revert 하면 in_progress 로 떨어짐 실측)
-/ 6 reviewer0·completed→언체크→직전 복귀+history 'revert' / 7 canceled→무반응(반증: 직접 POST → 400 task_closed)
-/ 8 타 사용자 토큰 → 403 only_assignee / 9 더블클릭 → 요청 1회 / 10 타 창 hold 후 체크 → 400 인라인+행 소멸
-/ 11 체크박스 클릭이 드로어 안 열림 + button 중첩 0 / 12 2창 동기화 ≤1초 / 13 빌드 exit 0 + reviewer_count 실측
+### 하지 말 것
+메인 창에서 `requestWindow`/`markPipActive` 재도입 · 승격/강등용 `window.open` · postMessage 핀 위임(실측 불가)
+· 닫힘 안내 카드/토스트 재도입 · `BuildVersionGuard`/`isReloadSafe` 로직 수정 · `MemoStandalonePage`·`utils/popout.ts` 변경
+
+### 구현 검증 시나리오 (Fable 지정 8종, puppeteer)
+1 핀 클릭 → PiP iframe + 홀더 ≤400px + `pipActive='1'` / 2 PiP 안 토글 → 복귀 520×780 / 3 PiP 외부 close →
+**두 창 소멸 + `dock-pin-lost` 부재** / 4 qtask 핀 중 qtalk 핀 → qtask 홀더가 2초 내 **일반 창 복귀**(닫히면 FAIL)
+/ 5 **반증**: 선공지 주석 처리 후 4번 재실행 → qtask 소멸해야 함 → 원복 / 6 핀 중 메인 reload → PiP 생존
+/ 7 도크에 `dock-pin-*` testid 0개 + 모바일·미지원 브라우저 미노출 / 8 빌드 exit 0 + i18n·parity PASS + note 녹음 중 핀 → ConfirmDialog
+
+### 남는 리스크 (Fable 기록)
+- 화면공유 강제종료 시 도구 전체 소멸 — 이 환경에서 공유-kill 재현 불가. 운영 호소 오면 "무-pagehide 죽음"을
+  자살 대신 일반 창 복귀로 바꾸는 1분기 수정으로 대응(절단면 준비됨)
+- 홀더 창의 존재 자체가 물리 제약의 대가. Irene 이 홀더를 못 받아들이면 **유일한 대안은 핀 생성 도크 회귀**
 
 ---
 
-## 📦 이번 세션 작업 요약
+## 📂 다음 할 일
 
-- **Q Task 팝아웃 신설** — 도크 순서 Q Talk→**Q Task**→Q Note→Q helper. `/task-popout` 전용 경량 뷰
-  (`TaskPopoutView.tsx`, 기존 my-week API 재사용, 백엔드 변경 0) + §16 실시간 4요소 + 드로어 연동
-- **핀(항상 위) 신설** — Document PiP. 기본은 일반 창, 핀은 opt-in **동시 1개**(전환 시 이전 핀 일반 창 강등).
-  **#44 커서 포커스 스파이크 통과가 착수 조건**이었고 현재 Chrome 재현 0(한글 IME 포함, headless+headful)
-- **★ Fable 이 잡은 결함** — 강등 `window.open` 이 transient activation 을 소모해 직후 `requestWindow` 가
-  `NotAllowedError`. **순서를 뒤집어**(requestWindow 먼저) 수정. 되돌리면 다시 깨짐까지 반증
-- **메모 팝아웃 PiP 잔재 제거** — 2026-06-16 전환 때 `MemoPopup.detachToWindow` 만 누락돼 홀로 PiP 였던 것
-  (회의 중 화면공유 시작하면 메모 창 소멸). `MemoStandalonePage` 마커 누락도 보완
-- **★ i18n 검사 명령 거짓 통과 수정** — CLAUDE.md·/검증 의 역참조 grep 은 **ugrep 에서 항상 0건**.
-  정본을 `node scripts/guard-invariants.js --category=i18n` 으로 교체. 반증 완료(옛 grep 0건 / 가드 FAIL / 대안 grep 1건)
+1. **핀 요구 2건 구현** (위 지시서) → Fable 구현 게이트
+2. **`/배포`** — Irene 명시 지시 후에만. 누적 미배포: `fa1766a` 팝아웃 신설 · `4ce3950` 체크박스/우선순위 ·
+   `77786b7` Q Note 녹음 가드 · `074cce6` tie-break · my-week 집합 확장. **배포 후 운영 위키 시드 필요**
+   (`ssh prod "cd /opt/planq/backend && node seed-wiki-content.js"`)
+3. **★ 시간 엔진 라운드 경계 결함** (미해결, 운영 데이터 오염) — `services/taskActualHours.js:46` 이
+   `event_type='status_change'` 만 집계. 액션 계층의 `review_submit`·`review_cancel`·`approve`·`revision`·
+   `revert`·`completed` 는 고유 타입이라 탈락 → 라운드 미마감. 운영 실측: task 24 저장 153.6h vs 실제 2.2h ·
+   task 53 0h vs 67.7h. **수정 방향: `to_status IS NOT NULL` 술어로 교체 + 멱등 백필**(dry-run 기본)
+4. **이월 결함 6건** — EventDrawer 죽은 i18n 키 폴백 · EventDrawer 가 연결 안 된 목적지도 항상 표시 ·
+   PUT `/mail` owner 미강제 · PWA 설치 배너 `role="dialog"`(§17 위반) · `routes/calendar.js:604` 죽은
+   `needsGcalSync` · serializer `has_access_token` 3필드 항상 false
+5. **KbDocument sync 실패** — `kb_documents.project_id INT` vs `projects.id BIGINT` FK 타입 불일치
+6. **#208** 출퇴근·휴가(신규, Fable 기획설계부터) · **#211** B2B 타깃 · **#192** AiRefineBar · **#193** 캘린더 뒤로가기
 
-**커밋:** `fa1766a` feat(dock): Q Task 팝아웃 신설 + 팝아웃 핀(항상 위) + 메모 PiP 잔재 정리 (**push 안 함 — 로컬**)
+### 기록만 (사용자 영향 0, 다음 접촉 시)
+- 제목·마감·priority 가 **전부 같은** 행끼리는 메인/팝아웃 번호가 바뀔 수 있다(시각적으로 구별 불가능한 행).
+  총순서가 필요해지면 **양쪽에 id tie-break 을 동시에** 넣어야 한다 — 한쪽만 넣으면 도로 갈린다
 
 ---
 
@@ -128,38 +118,22 @@ session-state.md 읽고 이어서 개발해.
 
 ---
 
-## 📂 다음 할 일
-
-1. **체크박스 완료처리 구현** (위 설계 확정본) → Fable 구현·테스트 게이트
-2. **Irene 신규 요구 2건** (핀 아이콘 위치 / 핀 닫힘 안내) — Fable 재설계 필요
-3. `/배포` (누적 미배포: `fa1766a` 팝아웃 사이클 + 이후 체크박스)
-4. **★ 시간 엔진 라운드 경계 결함** (미해결, 운영 데이터 오염) — `services/taskActualHours.js:46` 이
-   `event_type='status_change'` 만 집계. 액션 계층의 `review_submit`·`review_cancel`·`approve`·`revision`·
-   `revert`·`completed` 는 고유 타입이라 탈락 → 라운드 미마감. 운영 실측: task 24 저장 153.6h vs 실제 2.2h ·
-   task 53 0h vs 67.7h. **수정 방향: `to_status IS NOT NULL` 술어로 교체 + 멱등 백필**(dry-run 기본)
-5. **이월 결함 6건** — EventDrawer 죽은 i18n 키 폴백 · EventDrawer 가 연결 안 된 목적지도 항상 표시 ·
-   PUT `/mail` owner 미강제 · PWA 설치 배너 `role="dialog"`(§17 위반) · `routes/calendar.js:604` 죽은
-   `needsGcalSync` · serializer `has_access_token` 3필드 항상 false
-6. **KbDocument sync 실패** — `kb_documents.project_id INT` vs `projects.id BIGINT` FK 타입 불일치
-7. **#208** 출퇴근·휴가(신규, Fable 기획설계부터) · **#211** B2B 타깃 · **#192** AiRefineBar · **#193** 캘린더 뒤로가기
-
----
-
 ## 🔑 환경 / 인증
 
 - 운영 = `irene@87.106.78.146` (planq.kr, port 3004, `/opt/planq/backend`, DB `planq_prod_db`). SSH passwordless.
   **배포 외의 운영 접근은 조회만.**
 - **배포 정본: `./scripts/deploy-planq.sh --auto`** — **반드시 `nohup` 분리 실행**(타임아웃 걸면 부분 배포).
   완주 표시는 `Deployment Complete (NNNs)`. 백업 `backups/{TIMESTAMP}` + 롤백 명령을 끝에 출력.
-- dev DB 접근 `cd /opt/planq/dev-backend` 후 node. **가드/e2e 는 `cd /opt/planq` 루트**.
-- dev 테스트 계정: `health-check@planq.kr` / `HealthCheck2026!` (business 5·73 owner). 토큰 = `data.token`. rate-limit 15분 8회.
+- dev DB 접근 `cd /opt/planq/dev-backend` 후 node. **가드/e2e/위키체크는 각자 정해진 cwd** —
+  `wiki-coverage-check.js`·`seed-wiki-content.js` 는 **`cd dev-backend` 필수**(.env 로드), 가드는 `/opt/planq` 루트.
+- dev 테스트 계정: `health-check@planq.kr` / `HealthCheck2026!` (business 5·73 owner). 토큰 = `data.token`. **rate-limit 15분 8회**.
 - 업무 라우트: PUT/DELETE 는 `/api/tasks/by-business/:businessId/:id` — `/api/tasks/:id` 는 404.
   워크플로 전이는 `/api/tasks/:id/{complete,submit-review,revert-status,...}` (task_workflow.js).
-- 프론트 타입체크는 `npm run build` 로만(heap 4096). `npx tsc` 는 OOM.
-- **i18n 검사는 `node scripts/guard-invariants.js --category=i18n` 으로만** (역참조 grep 은 거짓 통과).
+- 프론트 타입체크는 `npm run build` 로만(heap 4096). `npx tsc` 는 OOM. **동시 빌드 금지**(같은 출력 디렉터리 덮어씀).
+- **i18n 검사는 `node scripts/guard-invariants.js --category=i18n` 으로만** (역참조 grep 은 ugrep 에서 거짓 통과).
+- Q Note 녹음 락 stale 판정은 문서의 30초가 아니라 **실측 12초** (`q-note/routers/sessions.py:328`).
 - dev 는 `EMAIL_SENDING_ENABLED=false` — Q Mail 발송도 이 게이트를 지나며 `suppressed` 로 기록된다.
-- 스파이크/검증 스크립트: 세션 scratchpad `/tmp/claude-1000/-opt-planq/f6ca33a1-*/scratchpad/`
-  (`spike-pip-focus.js`, `verify-task-popout.js`) — **세션 종료 시 소멸**. 필요하면 재작성.
+- **idle 자동저장 훅이 30분마다 wip 커밋을 만든다** — 작업 끝에 정식 커밋으로 정리할 것.
 
 ---
 
@@ -167,4 +141,5 @@ session-state.md 읽고 이어서 개발해.
 새 세션: `session-state.md 읽고 이어서 개발해.`
 ### 참조
 - 정책: CLAUDE.md "Fable 검증 게이트" · memory `feedback_fable_all_design_verification`
-- 설계 문서: `docs/TASK_HOLD_EXTERNAL_REVIEW_DESIGN.md` · `docs/TASK_HOLD_UI_UX_DESIGN.md` · `docs/LEGAL_UPDATE_2026-08-01_ROLLOUT.md`
+- 설계 문서: `docs/TASK_HOLD_EXTERNAL_REVIEW_DESIGN.md` · `docs/TASK_HOLD_UI_UX_DESIGN.md` ·
+  `docs/LEGAL_UPDATE_2026-08-01_ROLLOUT.md` · `docs/Q_WIKI_MAINTENANCE.md`

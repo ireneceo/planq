@@ -185,6 +185,10 @@ const ARTICLES = [
       p('업무를 진행 중으로 두면 집중한 시간이 자동으로 누적되어 실제 소요 시간에 반영됩니다.',
         'While a task is in progress, focus time accrues automatically and feeds into actual hours.'),
       s('주간 업무 진척 그래프에서 예측·실측 시간을 비교합니다.', 'Compare estimated vs. actual time on the weekly progress graph.'),
+      s('우측 도크에서 Q Task 를 팝아웃 창으로 띄우면 이번 주 업무만 모아 볼 수 있습니다. 체크박스로 바로 완료 처리하고, 우선순위 번호는 Q Task 화면과 같은 순서로 표시됩니다.',
+        'Pop out Q Task from the right dock to see just this week\'s work. Check the box to complete a task, and priority numbers match the order shown on the main Q Task page.'),
+      note('컨펌자가 지정된 업무는 체크 대신 "확인 요청"이 뜹니다 — 컨펌 절차를 건너뛰지 않도록 하기 위함입니다.',
+        'Tasks with reviewers show "request review" instead of a checkbox, so the confirmation round is never skipped.'),
     ] },
 
   // ── Q Bill ──
@@ -261,6 +265,8 @@ const ARTICLES = [
     body: [
       s('Q Note 에서 회의를 시작하고 목적·참여자를 입력합니다.', 'Start a meeting in Q Note and enter its purpose and participants.'),
       s('녹음 중 실시간으로 받아쓰기가 진행되고, 종료 후 요약이 생성됩니다.', 'Transcription runs live during recording; a summary is generated when you stop.'),
+      s('녹음 중에 다른 세션을 열거나 새 메모를 만들려고 하면 확인 창이 뜹니다. 녹음은 확인을 누른 뒤에만 중단되고, 그때까지 기록된 내용은 이미 저장되어 있습니다.',
+        'If you open another session or start a new note while recording, a confirmation appears. Recording stops only after you confirm, and everything captured so far is already saved.'),
       note('Q Note 는 기본적으로 개인 공간입니다 — 명시적으로 공유하기 전까지 다른 사람이 볼 수 없습니다.',
         'Q Note is private by default — no one else sees it until you explicitly share.'),
     ] },
