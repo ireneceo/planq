@@ -494,12 +494,34 @@ PlanQ는 **한국어/영어 두 언어를 동시 지원**한다. 모든 사용�
 - 설정: `dev-frontend/src/i18n.ts` (`ns` 배열에 신규 네임스페이스 등록 필수)
 
 ### 검사
+
+**정본은 가드 스크립트다. 아래 명령으로만 판정한다.**
+
 ```bash
-# 한국어 하드코딩 감지 (주석 제외, 코드 내부 문자열만)
-grep -rEn "(['\"\`])[^'\"\`]*[가-힣][^'\"\`]*\1" dev-frontend/src --include='*.tsx' --include='*.ts' \
+# 한국어 하드코딩 래칫 + ko/en 키 패리티 + i18n.ts ns 등록
+node scripts/guard-invariants.js --category=i18n
+node scripts/guard-invariants.js --category=parity
+```
+
+래칫이라 **기존 부채는 동결, 증가만 실패**한다. 실패하면 신규 위반을 i18n 으로 전환하고,
+의도적으로 부채를 줄인 경우에만 `--update-baseline` 으로 조인다.
+(단독 `--category=X --update-baseline` 은 **다른 카테고리 베이스라인을 파괴**한 전례가 있다 — 전체 실행으로 갱신할 것.)
+
+제외 규칙(가드 내장): `t()` 폴백·`i18nKey`·`defaultValue`·`console.*`·주석(`//`, `/*`, `*`, JSX `{/*`).
+memory `feedback_i18n_tdefault_not_hardcoding` — **t() 기본값은 하드코딩이 아니다.**
+
+**한 파일만 눈으로 훑을 때의 보조 grep** (가드보다 시끄럽다 — `t()` 폴백까지 잡힌다):
+
+```bash
+grep -rEn "'[^']*[가-힣][^']*'|\"[^\"]*[가-힣][^\"]*\"" dev-frontend/src --include='*.tsx' --include='*.ts' \
   | grep -v -E '//|/\*|\*/|^\s*\*' | grep -v '/locales/'
 ```
-결과에 줄이 나오면 해당 위치를 i18n으로 전환해야 한다.
+
+> ⚠️ **옛 문서의 역참조 grep(`(['\"\`])…\1`)은 쓰지 말 것 — 거짓 통과한다.**
+> 이 서버 `grep` 은 ugrep 이라 **역참조가 동작하지 않아 저장소 전체에 대해 항상 0건**을 반환한다.
+> 2026-07-28 반증: 실제 하드코딩(`title="저장되었습니다"`)을 심고 세 명령을 돌린 결과 —
+> 옛 grep **0건(못 잡음)** / 가드 스크립트 **FAIL(426 vs base 426, 잡음)** / 위 보조 grep **1건(잡음)**.
+> 같은 정규식이 가드 스크립트(JavaScript) 안에서는 정상 동작하므로 가드 자체는 건전하다.
 
 ---
 

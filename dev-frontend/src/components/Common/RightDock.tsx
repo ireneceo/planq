@@ -139,6 +139,8 @@ const RightDock: React.FC = () => {
         setPinned(null);
         if (!promoted) setPinLost(lost as DockTool);
       },
+      // 핀 전환 시 이전 도구 강등 창이 팝업 차단으로 막힌 경우 — 사용자 제스처로 되살릴 수 있게 안내
+      onDemoteBlocked: (demoted) => setPinLost(demoted as DockTool),
     });
     // 미지원·사용자 취소 → 일반 창 폴백 (도구를 못 여는 일은 없게)
     if (!ok) window.open(POPOUT_PATH[tool], `pq-${tool}`, POPOUT_FEATURES[tool]);
