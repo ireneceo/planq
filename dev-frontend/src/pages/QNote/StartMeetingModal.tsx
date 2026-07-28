@@ -259,7 +259,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
         setTitle(d.title || '');
         setBrief(d.brief || '');
         setParticipants(Array.isArray(d.participants) ? d.participants : []);
-        setMeetingLang(d.meetingLang || '');
+        setMeetingLang(d.meetingLang || effectiveUserLanguage);
         setTranslationLang(d.translationLang || effectiveUserLanguage);
         setAnswerLang(d.answerLang || '');
         setShowAdvanced(!!d.showAdvanced);
@@ -275,12 +275,12 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
       }
     } catch { /* ignore parse errors */ }
 
-    // 초안 없으면 전부 빈 값
+    // 초안 없으면 전부 빈 값 (사용언어만 예외 — 사용자 언어를 기본으로 채운다)
     hasDraftRef.current = false;
     setTitle('');
     setBrief('');
     setParticipants([]);
-    setMeetingLang('');
+    setMeetingLang(effectiveUserLanguage);
     setTranslationLang(effectiveUserLanguage);
     setAnswerLang('');
     setShowAdvanced(false);
@@ -304,7 +304,10 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
           priorityQAs, meetingAnswerStyle, meetingAnswerLength,
         };
         // 전부 비어있으면 저장하지 않음 (빈 초안 유령 방지)
-        const hasAny = title || brief || participants.length || meetingLang ||
+        // meetingLang/translationLang 은 사용자 언어로 자동 프리필되는 값이라 판정에서 뺀다.
+        // 넣으면 아무것도 입력하지 않아도 초안이 저장돼 매번 "초안 복원됨" 배지가 뜨고,
+        // 초안 지우기(clearDraft)가 다시 프리필 → 즉시 재저장이라 사실상 무효가 된다.
+        const hasAny = title || brief || participants.length ||
           pastedContext || urls.length || priorityQAs.length || meetingAnswerStyle;
         if (hasAny) {
           localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
@@ -328,7 +331,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
     setParticipants([]);
     setPName('');
     setPRole('');
-    setMeetingLang('');
+    setMeetingLang(effectiveUserLanguage);   // 초안 지우기도 공란이 아니라 사용자 언어로 복귀
     setTranslationLang(effectiveUserLanguage);
     setAnswerLang('');
     setShowAdvanced(false);

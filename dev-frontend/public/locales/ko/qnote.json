@@ -205,6 +205,15 @@
     "sidebar": {
       "collapse": "리스트 접기",
       "expand": "리스트 열기"
+    },
+    "sessionDeleteTitle": "세션을 삭제할까요?",
+    "sessionDeleteDesc": "발화·문서·QA 등 모든 데이터가 함께 삭제됩니다. 되돌릴 수 없습니다.",
+    "sessionDeleteRecording": "이 세션은 녹음 중입니다. 삭제하면 녹음도 함께 중단됩니다.",
+    "recordingGuard": {
+      "title": "녹음이 진행 중입니다",
+      "message": "이동하면 녹음이 중단됩니다. 지금까지 기록된 내용은 저장되어 있습니다.",
+      "confirm": "중단하고 이동",
+      "cancel": "녹음 계속하기"
     }
   },
   "memoPopup": {
