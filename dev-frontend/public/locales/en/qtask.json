@@ -1113,5 +1113,19 @@
     "emptyTitle": "No active tasks this week",
     "emptyDesc": "{{n}} on-hold task(s) are in the All tab",
     "emptyCta": "View on-hold tasks"
+  },
+  "popout": {
+    "windowTitle": "PlanQ Tasks",
+    "title": "My tasks this week",
+    "summary": "{{open}} open · {{hours}}h left",
+    "loading": "Loading…",
+    "error": "Couldn't load your tasks.",
+    "retry": "Try again",
+    "emptyTitle": "No tasks assigned this week",
+    "emptyLine": "New assignments show up here right away.",
+    "due": "Due {{date}}",
+    "showDone": "Show {{count}} completed",
+    "hideDone": "Hide completed",
+    "noWorkspace": "Pick a workspace, then open this window again."
   }
 }

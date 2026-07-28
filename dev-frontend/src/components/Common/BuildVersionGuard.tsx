@@ -16,6 +16,9 @@ function isReloadSafe(): boolean {
     if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return false;
     if (document.body.dataset.formDirty === '1') return false;
     if (document.querySelector('[data-form-dirty="1"]')) return false;
+    // 핀(Document PiP) 창은 opener 문서에 종속 — 이 창을 reload 하면 핀 창이 같이 죽는다.
+    // 자동 갱신 때문에 사용자가 항상-위로 띄워둔 도구가 사라지면 안 된다 (utils/pinnedWindow.ts).
+    if (document.body.dataset.pipActive === '1') return false;
   } catch { /* noop */ }
   return true;
 }

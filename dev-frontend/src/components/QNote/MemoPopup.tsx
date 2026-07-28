@@ -581,9 +581,14 @@ const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSession
   };
   closeRef.current = handleClose;  // #113 — Esc 핸들러가 항상 최신 flush 로직 참조
 
-  // 사이클 N+17 — 메모 분리 창. 우선순위:
-  //  1. Document Picture-in-Picture API (Chrome 116+ 데스크탑) — 진짜 브라우저 밖 floating, always-on-top
-  //  2. fallback window.open — 모든 brower 표준 새 창. 일부 brower 는 새 탭으로 처리됨
+  // 사이클 N+17 — 메모 분리 창. **window.open 일반 창 단일 경로.**
+  //   2026-06-16(#43/#44/#45, 커밋 f75b020)에 RightDock 팝아웃이 Document PiP → window.open 으로
+  //   전환됐는데 이 경로만 PiP 가 남아 있었다(2026-07-28 Fable 검토에서 방치된 회귀로 판정).
+  //   PiP 의 3결함이 메모에도 그대로 적용된다:
+  //     ① 문서당 PiP 1개 — 다른 PiP 가 열리면 메모 창이 소리 없이 닫힌다
+  //     ② 화면공유 시작 시 자동 닫힘 — 회의 중 메모라는 사용 시나리오와 정면충돌
+  //     ③ 입력 커서 포커스 이상(#44, 원인 미규명)
+  //   "항상 위"는 별도의 명시적 핀 기능으로만 다룬다(설계 진행 중) — 기본 경로에 숨기지 않는다.
   // 미저장 dirty 가 있으면 먼저 flush → 새 창에서 같은 메모 이어쓰기 가능 (sessions.body 동기).
   const detachToWindow = async () => {
     // 신규 메모면 먼저 저장해서 sessionId 확보
@@ -596,25 +601,7 @@ const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSession
     // 옛 /notes/{id}?detached=1 은 풀 페이지로 떴음. /memo/{id} 가 사이드바 없이 popup 형태.
     const url = `${window.location.origin}/memo/${id}`;
 
-    // Chrome Document PiP — 진짜 브라우저 밖 floating window
-    const dpip = (window as any).documentPictureInPicture;
-    if (dpip?.requestWindow) {
-      try {
-        const pipWin = await dpip.requestWindow({ width: layout.w, height: layout.h });
-        // PiP 창 안에 same-origin iframe 으로 /notes/{id} 로딩
-        const doc = pipWin.document;
-        doc.title = t('memoPopup.title') as string;
-        const iframe = doc.createElement('iframe');
-        iframe.src = url;
-        iframe.style.cssText = 'border:0;width:100%;height:100%;display:block;';
-        doc.body.style.cssText = 'margin:0;padding:0;height:100vh;';
-        doc.body.appendChild(iframe);
-        onClose();
-        return;
-      } catch { /* fallback to window.open */ }
-    }
-
-    // 일반 brower — popup window. 위치/크기 hint (일부 brower 는 무시하고 새 탭)
+    // 일반 창 — popup window. 위치/크기 hint (일부 브라우저는 무시하고 새 탭)
     const features = `width=${layout.w},height=${layout.h},left=200,top=120,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes`;
     const opened = window.open(url, `planq-memo-${id}`, features);
     if (opened) onClose();

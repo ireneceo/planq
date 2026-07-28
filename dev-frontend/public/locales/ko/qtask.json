@@ -1113,5 +1113,19 @@
     "emptyTitle": "이번 주 활성 업무가 없어요",
     "emptyDesc": "보류 중인 업무 {{n}}건은 전체 탭에 있어요",
     "emptyCta": "보류 업무 보기"
+  },
+  "popout": {
+    "windowTitle": "PlanQ 업무",
+    "title": "이번 주 내 업무",
+    "summary": "{{open}}건 진행 · 남은 {{hours}}h",
+    "loading": "불러오는 중…",
+    "error": "업무를 불러오지 못했습니다.",
+    "retry": "다시 시도",
+    "emptyTitle": "이번 주 배정된 업무가 없습니다",
+    "emptyLine": "새 업무가 배정되면 이 창에 바로 나타납니다.",
+    "due": "마감 {{date}}",
+    "showDone": "완료 {{count}}건 보기",
+    "hideDone": "완료 숨기기",
+    "noWorkspace": "워크스페이스를 선택한 뒤 다시 열어주세요."
   }
 }

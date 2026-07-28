@@ -310,9 +310,10 @@
   "cancel": "취소",
   "close": "닫기",
   "dock": {
-    "toggle": "바로 열기 — Q Talk · Q Note · Q helper",
+    "toggle": "바로 열기 — Q Talk · Q Task · Q Note · Q helper",
     "menuLabel": "바로 열기",
     "qtalk": "Q Talk",
+    "qtask": "Q Task",
     "qnote": "Q Note",
     "qhelper": "Q helper",
     "popout": "새 창으로 분리",
@@ -321,7 +322,12 @@
     "newTask": "업무",
     "newMail": "메일",
     "newEvent": "일정",
-    "voice": "말로 추가"
+    "voice": "말로 추가",
+    "pin": "핀으로 열기 — 항상 위",
+    "unpin": "핀 해제",
+    "pinOnlyOne": "핀은 한 번에 하나만 — 다른 도구를 핀하면 이전 창은 일반 창으로 바뀝니다",
+    "pinClosed": "{{tool}} 핀 창이 닫혔습니다",
+    "pinReopen": "다시 열기"
   },
   "saving": "처리 중…",
   "loading": "로딩 중…",

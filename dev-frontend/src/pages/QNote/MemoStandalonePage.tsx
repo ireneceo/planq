@@ -11,6 +11,7 @@ import styled from 'styled-components';
 import MemoPopup from '../../components/QNote/MemoPopup';
 import { getSession } from '../../services/qnote';
 import { useAuth } from '../../contexts/AuthContext';
+import { markPopoutWindow } from '../../utils/popout';
 import { useAppShellLock } from '../../hooks/useAppShellLock';
 
 const MemoStandalonePage: React.FC = () => {
@@ -22,6 +23,14 @@ const MemoStandalonePage: React.FC = () => {
 
   const [businessId, setBusinessId] = useState<number | null>(user?.business_id ?? null);
   const [loadError, setLoadError] = useState(false);
+
+  // #84 — 다른 팝아웃 페이지(talk/task/note/help)와 동일하게 창 단위 팝아웃 마커를 남긴다.
+  //   여태 빠져 있어서, 이 창 안에서 다른 라우트로 이동하면 우하단 FAB·토스터가 되살아났다.
+  useEffect(() => {
+    document.body.dataset.popout = '1';
+    markPopoutWindow();
+    return () => { delete document.body.dataset.popout; };
+  }, []);
 
   // 세션 정보로 business_id 확정 (현재 active workspace 와 다를 수 있음)
   useEffect(() => {
