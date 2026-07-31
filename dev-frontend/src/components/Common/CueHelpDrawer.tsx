@@ -76,7 +76,9 @@ const CueHelpDrawer: React.FC<{
   standalone?: boolean;
   publicSurface?: boolean;
   routerNavigate?: (path: string) => void;
-}> = ({ standalone = false, publicSurface = false, routerNavigate }) => {
+  /** 팝아웃 창의 핀(항상 위) 토글 — 헤더 우측 액션에 그대로 놓는다. 인앱 드로어는 undefined. */
+  pinSlot?: React.ReactNode;
+}> = ({ standalone = false, publicSurface = false, routerNavigate, pinSlot }) => {
   const { t } = useTranslation('common');
   const { t: tErr } = useTranslation('errors');
   const { t: tw } = useTranslation('wiki');
@@ -533,6 +535,7 @@ const CueHelpDrawer: React.FC<{
                 {t('qhelper.backToGuide', '안내로 돌아가기')}
               </BackToGuide>
             )}
+            {pinSlot}
             <CloseBtn type="button" onClick={closeDrawer} aria-label={t('close', '닫기') as string}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </CloseBtn>

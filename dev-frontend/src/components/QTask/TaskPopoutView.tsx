@@ -105,7 +105,12 @@ interface WeekSummary {
 
 const CLOSED = ['completed', 'canceled'];
 
-const TaskPopoutView: React.FC = () => {
+interface TaskPopoutViewProps {
+  /** 헤더 우측에 놓을 핀 토글 (QTaskStandalonePage 가 주입 — 핀 상태는 창이 소유한다) */
+  pinSlot?: React.ReactNode;
+}
+
+const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   const { t } = useTranslation('qtask');
   const { user } = useAuth();
   const bizId = user?.business_id ? Number(user.business_id) : null;
@@ -344,14 +349,17 @@ const TaskPopoutView: React.FC = () => {
     <Wrap>
       <Head>
         <HeadTitle>{t('popout.title', '이번 주 내 업무')}</HeadTitle>
-        {summary && (
-          <HeadMeta>
-            {t('popout.summary', '{{open}}건 진행 · 남은 {{hours}}h', {
-              open: openTasks.length,
-              hours: Math.round((summary.total_remaining || 0) * 10) / 10,
-            })}
-          </HeadMeta>
-        )}
+        <HeadRight>
+          {summary && (
+            <HeadMeta>
+              {t('popout.summary', '{{open}}건 진행 · 남은 {{hours}}h', {
+                open: openTasks.length,
+                hours: Math.round((summary.total_remaining || 0) * 10) / 10,
+              })}
+            </HeadMeta>
+          )}
+          {pinSlot}
+        </HeadRight>
       </Head>
 
       <Body>
@@ -483,8 +491,12 @@ const Head = styled.div`
 const HeadTitle = styled.h1`
   margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.2px; color: #0F172A;
 `;
+const HeadRight = styled.div`
+  margin-left: auto;
+  display: flex; align-items: center; gap: 10px;
+`;
 const HeadMeta = styled.span`
-  font-size: 12px; color: #64748B; margin-left: auto; white-space: nowrap;
+  font-size: 12px; color: #64748B; white-space: nowrap;
 `;
 const Body = styled.div`
   flex: 1; min-height: 0; overflow-y: auto;

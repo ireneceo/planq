@@ -322,12 +322,7 @@
     "newTask": "업무",
     "newMail": "메일",
     "newEvent": "일정",
-    "voice": "말로 추가",
-    "pin": "핀으로 열기 — 항상 위",
-    "unpin": "핀 해제",
-    "pinOnlyOne": "핀은 한 번에 하나만 — 다른 도구를 핀하면 이전 창은 일반 창으로 바뀝니다",
-    "pinClosed": "{{tool}} 핀 창이 닫혔습니다",
-    "pinReopen": "다시 열기"
+    "voice": "말로 추가"
   },
   "saving": "처리 중…",
   "loading": "로딩 중…",
@@ -887,5 +882,13 @@
   },
   "provenance": {
     "cue": "Cue로 추가됨"
+  },
+  "popoutPin": {
+    "pin": "핀으로 열기 — 항상 위",
+    "unpin": "핀 해제",
+    "holderNote": "항상 위 창에서 보고 있습니다",
+    "recordingTitle": "녹음 중입니다",
+    "recordingMessage": "지금 전환하면 이 창이 다시 열리며 녹음이 중단됩니다. 계속할까요?",
+    "recordingConfirm": "녹음을 멈추고 전환"
   }
 }

@@ -1,8 +1,47 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-07-28 08:40 (Opus 5, 1M)
-**작업 상태:** 완료 (Irene 이동). **dev 반영 완료 / 운영 미배포 (누적 5커밋)**
+**마지막 업데이트:** 2026-07-31 12:00 (Opus 5, 1M)
+**작업 상태:** 핀 요구 2건 구현 완료 — Fable 재판정 대기. **dev 반영 완료 / 운영 미배포 (누적 6커밋 예정)**
+
+---
+
+## ✅ 이번 세션 (2026-07-31) — 핀 요구 2건 구현
+
+전 세션 Fable 설계 게이트의 지시서대로 **홀더 창 방식**을 구현했다.
+
+- **신규 `utils/pinHost.ts`** — `usePinHost(tool)` → mode `normal|holder|pip-content`. 핀 클릭 시 그 팝아웃 창이
+  자기 PiP 를 열고 자신은 360×132 홀더로 변신(`window.open` 0회). `BroadcastChannel('planq:pin')` 로
+  `pin-intent` 선공지 → ack/250ms → `requestWindow`. 축출은 pagehide 가 없어 500ms `closed` 폴링.
+  `POPOUT_SIZE`/`popoutFeatures()` 를 **창 크기 단일 원천**으로 두고 RightDock 이 그걸 쓴다.
+- **신규 `PopoutPinButton.tsx`**(32×32, `popout-pin-toggle`) + **`PinHolderView.tsx`**(`pin-holder`/`pin-holder-unpin`)
+- **`utils/pinnedWindow.ts` 삭제** · RightDock 핀 전부 제거(`dock-pin-*` 0건) · `dock.pin*` 5키 → `popoutPin.*` 6키
+- **핀 버튼 배치는 지시서와 다르게** 갔다 — "우상단 fixed 36×36" 자리에 이미 각 도구 헤더 버튼이 있어 겹친다.
+  각 헤더 액션 영역에 `pinSlot` prop 주입 + 이웃과 같은 32×32. 건드린 공유 컴포넌트는
+  `LeftPanel`·`MemoPopup`·`CueHelpDrawer` (전부 optional prop, 기존 사용처 무변경). **Fable 승인됨**
+
+### 검증 중 발견해 같이 고친 실결함 3건
+1. **`supportsPin()` 이 팝아웃에서 항상 false** — 모바일 판정에 `max-width:768px` 를 쓰는데 팝아웃 창 자체가
+   520px 라 데스크탑에서도 참. `(hover: none),(pointer: coarse)` 로 교체 (핀 버튼이 영영 안 뜰 뻔)
+2. **ConfirmDialog 가 MemoPopup 뒤에 깔림** — z-index 2100 vs 2301. Q Note 팝아웃에서 녹음 중 핀 누르면
+   확인창이 안 보여 **무반응처럼 보였다**. ConfirmDialog 에 `zIndex` prop 신설(기본 2100 유지, 호출부만 2400)
+3. **QTalk 팝아웃에서 대화 바꾼 뒤 핀하면 옛 대화가 열림** — embedded 는 URL 싱크를 끄므로 iframe.src 가 stale.
+   `onEmbeddedContextChange` prop → 호스트가 `history.replaceState` 로 자기 URL 만 갱신(navigate 금지 유지)
+4. **(Fable FAIL 지적)** close 거부 환경 홀더 고착 — 주소창에 `/task-popout` 직접 친 탭은 `window.close()` 가
+   거부돼 홀더가 거짓 안내로 남고 해제 버튼도 무반응(`releasePip` 이 pipRef null 로 조기 return) → F5 외 탈출 불가.
+   `onPipGone` 에 200ms 후 `window.closed` 확인 → 미닫힘이면 일반 창 복귀 분기 추가
+
+### 검증 결과 (xvfb + headful puppeteer, Document PiP 는 headless 불가)
+- `verify-pin.js` **16/16** · `verify-pin-2.js` 3/3(녹음 게이트·모바일 미노출) · `verify-pin-3.js` 3/3(대화 싱크)
+- **반증 2종** — ①선공지(BroadcastChannel) 무력화 시 홀더가 축출과 함께 소멸(4c PASS 의 근거가 선공지임을 증명)
+  ②홀더 자살 무력화 시 창 잔존(3b 판정이 실상태를 본다는 증명)
+- 가드 22/22 · health-check 33/33 · 빌드 exit 0 / `error TS` 0 / dist mtime 갱신 확인
+- 하니스 자체의 거짓 PASS 를 2번 잡았다 — ①`[role="dialog"]` 로 확인창을 찾다 MemoPopup 을 잡음(공용 Modal 은
+  `role`/`aria-modal` 이 없다) ②도크 FAB 클릭 빗나가도 "dock-pin 0건" 으로 통과
+
+### 남는 리스크
+- 프로토콜 밖 축출(화면공유 강제종료)은 여전히 구별 불가 — 다만 위 4번 복구 분기가 이 경로도 구제한다
+- 공용 `Modal` 에 `aria-modal="true"` 가 없다 (CLAUDE.md §17 위반, **이번 범위 밖** — 하니스 모달 스코핑이 안 된다)
 
 ---
 
@@ -14,7 +53,7 @@ session-state.md 읽고 이어서 개발해.
 
 ---
 
-## ✅ 이번 세션 완료 (전부 Fable 게이트 통과)
+## ✅ 지난 세션 완료 (2026-07-28, 전부 Fable 게이트 통과)
 
 1. **Q Task 팝아웃 체크박스 완료처리** — `4ce3950`. Fable 설계 게이트가 3분기 초안을 **5분기로 교정**
    (그대로 만들면 `canceled → completed` 뒤집힘 · 컨펌 라운드 파괴 2건 실사고 경로). 실HTTP 36 PASS.
@@ -37,57 +76,18 @@ session-state.md 읽고 이어서 개발해.
 
 ---
 
-## 🔖 지금 중단 지점 — 핀 요구 2건 (설계 확정, **구현 미착수**)
+## 🔖 구현 완료 — 핀 요구 2건 (설계·구현 모두 종료)
 
-Fable 설계 게이트가 **지시서까지 완성**했다. 아래 그대로 구현하면 된다.
-
-### 실측으로 확정된 물리 제약 (puppeteer, 재검증 불필요)
-- 팝아웃 창 안의 클릭은 opener 로 transient activation **전이 불가** (클린 headful 3회 반복).
-  ⚠️ 첫 스파이크의 "가능" 은 `--disable-popup-blocking` 플래그 + 직전 메인 클릭 잔여 activation 이 만든
-  **거짓 양성**이었다 — 판정 기계부터 의심해 뒤집음
-- 팝아웃이 자기 PiP 는 열 수 있고, **그 창을 닫으면 PiP 도 죽는다**
-- **PiP 소유 창이 SPA 네비게이션해도 PiP 는 생존** ← 홀더 변신의 근거
-- PiP 는 브라우저 전역 1개. **축출 시 `pagehide` 미발화** → 500ms `closed` 폴링 필수
-- PiP 닫힘 신호는 pagehide 1회뿐, **원인 정보 0** (사용자 X vs 화면공유 kill 구별 불가)
-
-### 결정 1 — 핀 버튼을 도크에서 팝아웃 헤더로 (홀더 창 방식)
-핀 클릭 → 팝아웃이 PiP 를 열고 **자신은 360×132 홀더 창으로 변신**. 해제 시 원래 팝아웃으로 복귀
-(`window.open` 0회 → 팝업차단·activation 순서 결함 계열 소멸).
-- 신규 `utils/pinHost.ts` (`usePinHost(tool)` → mode `normal|holder|pip-content`), **`utils/pinnedWindow.ts` 삭제**
-- 신규 `components/Common/PopoutPinButton.tsx` + `PinHolderView.tsx`
-- `RightDock.tsx` 에서 핀 전부 제거 (`PinBtn`/`PinNote`/`PinLostCard`/`handlePin`/`pinned`/`pinLost`/`IconPin`/`PIN_SIZE`/`pq_pin_last_tool`)
-- 4개 팝아웃 헤더에 핀 버튼: `TaskPopoutView`(Head 우측) · QTalk/NoteCapture/Help standalone(우상단 36×36)
-- `data-testid`: `popout-pin-toggle` / `pin-holder` / `pin-holder-unpin`. 홀더에 `aria-modal` 금지
-- 축출 프로토콜: `BroadcastChannel('planq:pin')` 로 `pin-intent` 선공지 → ack 또는 250ms 타임아웃 후 `requestWindow`
-- NoteCapture 팝아웃은 `body.dataset.recordingActive==='1'` 중 핀 클릭 시 ConfirmDialog 게이트 (핀 전환 = 재로드 = 녹음 사망)
-- i18n `common.popoutPin.*` ko/en 신규, `dock.pin`/`unpin`/`pinOnlyOne`/`pinClosed`/`pinReopen` 5키 삭제
-
-### 결정 2 — "닫으면 그냥 닫힌다"
-자동 승격 · `dock-pin-lost` 카드 · "다시 열기" **전면 삭제**. PiP 를 X 로 닫으면 홀더도 조용히 자살.
-구별 가능한 **축출만** 선공지로 일반 창 복귀.
-
-### 하지 말 것
-메인 창에서 `requestWindow`/`markPipActive` 재도입 · 승격/강등용 `window.open` · postMessage 핀 위임(실측 불가)
-· 닫힘 안내 카드/토스트 재도입 · `BuildVersionGuard`/`isReloadSafe` 로직 수정 · `MemoStandalonePage`·`utils/popout.ts` 변경
-
-### 구현 검증 시나리오 (Fable 지정 8종, puppeteer)
-1 핀 클릭 → PiP iframe + 홀더 ≤400px + `pipActive='1'` / 2 PiP 안 토글 → 복귀 520×780 / 3 PiP 외부 close →
-**두 창 소멸 + `dock-pin-lost` 부재** / 4 qtask 핀 중 qtalk 핀 → qtask 홀더가 2초 내 **일반 창 복귀**(닫히면 FAIL)
-/ 5 **반증**: 선공지 주석 처리 후 4번 재실행 → qtask 소멸해야 함 → 원복 / 6 핀 중 메인 reload → PiP 생존
-/ 7 도크에 `dock-pin-*` testid 0개 + 모바일·미지원 브라우저 미노출 / 8 빌드 exit 0 + i18n·parity PASS + note 녹음 중 핀 → ConfirmDialog
-
-### 남는 리스크 (Fable 기록)
-- 화면공유 강제종료 시 도구 전체 소멸 — 이 환경에서 공유-kill 재현 불가. 운영 호소 오면 "무-pagehide 죽음"을
-  자살 대신 일반 창 복귀로 바꾸는 1분기 수정으로 대응(절단면 준비됨)
-- 홀더 창의 존재 자체가 물리 제약의 대가. Irene 이 홀더를 못 받아들이면 **유일한 대안은 핀 생성 도크 회귀**
-
----
+설계 지시서 전문은 커밋 이력과 `utils/pinHost.ts` 상단 주석에 박제돼 있다. 실측으로 확정된 물리 제약:
+팝아웃→opener transient activation 전이 불가 · 팝아웃은 자기 PiP 를 열 수 있고 그 창을 닫으면 PiP 도 죽음 ·
+PiP 소유 창이 SPA 네비게이션해도 PiP 생존 · PiP 는 브라우저 전역 1개이고 **축출 시 pagehide 미발화**(500ms 폴링) ·
+닫힘 신호는 pagehide 1회뿐 원인 정보 0.
 
 ## 📂 다음 할 일
 
-1. **핀 요구 2건 구현** (위 지시서) → Fable 구현 게이트
-2. **`/배포`** — Irene 명시 지시 후에만. 누적 미배포: `fa1766a` 팝아웃 신설 · `4ce3950` 체크박스/우선순위 ·
-   `77786b7` Q Note 녹음 가드 · `074cce6` tie-break · my-week 집합 확장. **배포 후 운영 위키 시드 필요**
+1. **`/배포`** — Irene 명시 지시 후에만. 누적 미배포: `fa1766a` 팝아웃 신설 · `4ce3950` 체크박스/우선순위 ·
+   `77786b7` Q Note 녹음 가드 · `074cce6` tie-break · `dd760cf` my-week 집합 확장 · **핀 홀더 창(이번 세션)**.
+   **배포 후 운영 위키 시드 필요**
    (`ssh prod "cd /opt/planq/backend && node seed-wiki-content.js"`)
 3. **★ 시간 엔진 라운드 경계 결함** (미해결, 운영 데이터 오염) — `services/taskActualHours.js:46` 이
    `event_type='status_change'` 만 집계. 액션 계층의 `review_submit`·`review_cancel`·`approve`·`revision`·

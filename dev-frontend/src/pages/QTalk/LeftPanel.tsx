@@ -36,6 +36,8 @@ interface Props {
   onOpenArchive?: () => void;
   /** 모바일(<=tablet)에서 대화가 선택된 경우 LeftPanel 을 숨김 */
   mobileHidden?: boolean;
+  /** 팝아웃 창의 핀(항상 위) 토글 — 헤더 우측 액션에 그대로 놓는다. 일반 /talk 는 undefined. */
+  pinSlot?: React.ReactNode;
 }
 
 
@@ -49,7 +51,7 @@ const LeftPanel: React.FC<Props> = ({
   projects, conversations, activeConversationId,
   loading = false,
   onSelectConversation, onOpenNewChat, collapsed, width, onResizeStart,
-  onTogglePin, canManage, onArchive, onUnlink, onOpenArchive, mobileHidden = false,
+  onTogglePin, canManage, onArchive, onUnlink, onOpenArchive, mobileHidden = false, pinSlot,
 }) => {
   const { t } = useTranslation('qtalk');
   const { user } = useAuth();
@@ -150,6 +152,7 @@ const LeftPanel: React.FC<Props> = ({
             </HelpDot>
           </TitleGroup>
           <HeaderActions>
+            {pinSlot}
             {!isClient && (
               <NewChatBtn onClick={onOpenNewChat} title={t('left.newChat', '새 대화')} aria-label="New chat">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

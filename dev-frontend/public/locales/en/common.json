@@ -322,12 +322,7 @@
     "newTask": "Task",
     "newMail": "Mail",
     "newEvent": "Event",
-    "voice": "Add by voice",
-    "pin": "Pin — always on top",
-    "unpin": "Unpin",
-    "pinOnlyOne": "Only one pin at a time — pinning another tool turns the previous one into a normal window",
-    "pinClosed": "The pinned {{tool}} window closed",
-    "pinReopen": "Reopen"
+    "voice": "Add by voice"
   },
   "saving": "Saving…",
   "loading": "Loading…",
@@ -887,5 +882,13 @@
   },
   "provenance": {
     "cue": "Added via Cue"
+  },
+  "popoutPin": {
+    "pin": "Pin — always on top",
+    "unpin": "Unpin",
+    "holderNote": "Showing in the always-on-top window",
+    "recordingTitle": "Recording in progress",
+    "recordingMessage": "Switching now reopens this window and stops the recording. Continue?",
+    "recordingConfirm": "Stop recording and switch"
   }
 }
