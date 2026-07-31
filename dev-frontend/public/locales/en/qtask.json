@@ -460,7 +460,7 @@
       "assignee": "Assignee",
       "assigneePh": "Select assignee",
       "project": "Project",
-      "projectPh": "Select project (or leave empty)",
+      "projectPh": "Select",
       "assigneeOnly": "Only the assignee can edit (read-only)",
       "aiEstimate": "AI estimate",
       "aiEstShort": "AI estimate",

@@ -1199,7 +1199,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   </MetaLabel>
                   <PlanQSelect size="sm" isClearable
                     isDisabled={!canEditProject}
-                    placeholder={t('detail.meta.projectPh', '프로젝트 선택') as string}
+                    placeholder={t('detail.meta.projectPh', '선택') as string}
                     value={detailTask.project_id == null ? null : {
                       value: String(detailTask.project_id),
                       label: projects.find(p => p.id === detailTask.project_id)?.name
