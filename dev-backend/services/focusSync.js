@@ -54,8 +54,8 @@ async function syncFocusOnTaskStatus(task, prevStatus, newStatus, options = {}) 
       // 트랜잭션 안(미커밋)에서 호출되면 세션 stop 이 안 보여 부정확 → 커밋 후 호출 케이스만 즉시 반영.
       if (!options.transaction) {
         try {
-          const { recomputeActualHoursFromHistory } = require('./taskActualHours');
-          await recomputeActualHoursFromHistory(task.id);
+          const { recomputeActualHours } = require('./taskActualHours');
+          await recomputeActualHours(task.id);
           // recompute 는 별도 인스턴스를 갱신 → 호출부 broadcast(task.toJSON()) 가 stale 하지 않도록
           // 전달된 task 인스턴스도 새 actual_hours/actual_source 로 동기화 (§16 실시간 반영).
           if (typeof task.reload === 'function') await task.reload();

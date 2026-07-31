@@ -915,10 +915,11 @@ async function hold(task, actor, { reason = null } = {}) {
       hold_prev_status: fromStatus,
       hold_reason: cleanReason,
     }, { transaction: t });
-    // ★ event_type 은 반드시 'status_change' — services/taskActualHours.js:46 이 이 값만 집계한다.
-    //   'hold' 같은 고유 타입으로 기록하면 in_progress 라운드가 보류 시점에 마감되지 않아
-    //   **보류한 시간이 통째로 actual_hours 에 누적된다**(설계 §3 의 핵심 효용이 무너짐).
-    //   보류/해제의 구분은 from_status/to_status 가 이미 담고 있고, 타임라인 라벨은 그걸로 파생한다.
+    // ★ event_type 은 'status_change' 로 유지한다. (옛 근거였던 actual_hours 라운드 마감은
+    //   2026-07-31 에 사라졌다 — 경과시간 누적 폐기.) 지금의 근거는 두 가지다:
+    //   ① 타임라인 라벨이 status_change 를 기준으로 전이를 그린다
+    //   ② revertStatus 가 `from_status IS NOT NULL` 인 최신 행으로 되돌릴 곳을 찾는다.
+    //   보류/해제의 구분은 from_status/to_status 가 이미 담고 있다.
     await logHistory({
       taskId: task.id, eventType: 'status_change',
       fromStatus, toStatus: 'on_hold',

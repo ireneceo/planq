@@ -5,7 +5,7 @@
 // 사용: node scripts/backfill-focus-actual-hours.js
 const { sequelize } = require('../config/database');
 const { Task, FocusSession } = require('../models');
-const { recomputeActualHoursFromHistory } = require('../services/taskActualHours');
+const { recomputeActualHours } = require('../services/taskActualHours');
 
 (async () => {
   // 대상 = focus 세션이 붙은 task 만 (computeActualSeconds 캡이 영향을 주는 정확한 범위).
@@ -24,7 +24,7 @@ const { recomputeActualHoursFromHistory } = require('../services/taskActualHours
   for (const id of ids) {
     const before = await Task.findByPk(id, { attributes: ['id', 'actual_hours', 'actual_source'], raw: true });
     if (!before) continue;
-    const after = await recomputeActualHoursFromHistory(id);  // null = user 입력(스킵) 또는 task 없음
+    const after = await recomputeActualHours(id);  // null = user 입력(스킵) 또는 task 없음
     if (after == null) continue;
     const beforeH = Number(before.actual_hours);
     if (Math.abs(beforeH - after) >= 0.05) {

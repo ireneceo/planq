@@ -1,80 +1,48 @@
-// taskActualHours — task_status_history 기반 actual_hours 자동 누적 (사이클 N+6)
+// taskActualHours — actual_hours 자동 산정 (사이클 N+6 신설 → 2026-07-31 재설계)
 //
-// 설계 원칙:
-//   - 모든 in_progress 진입 ~ 이탈 (reviewing/completed/canceled/revision_requested 등) 사이 시간 합산
-//   - 반려 후 다시 in_progress = 새 라운드 누적 (여러 라운드 합산)
-//   - 현재 in_progress 상태면 지금까지 시간도 임시 합산 — 사용자에게 즉시 시각 피드백
-//   - actual_source='user' 면 자동 누적 skip (사용자 직접 입력값 보존)
+// ★ 정책: 자동값의 근거는 **포커스 타이머 실측**뿐이다. 사용자가 직접 입력한 값은 건드리지 않는다.
 //
-// 호출:
-//   - TaskStatusHistory afterCreate hook 에서 자동 (status_change 이벤트만)
-//   - 또는 status 변경 라우트에서 명시적 호출 (workflow 라우트 commit 직후)
+// 왜 status_history 기반 누적을 버렸나 (Fable 설계 게이트 2026-07-31):
+//   옛 구현은 task_status_history 의 in_progress 진입~이탈 구간을 합산했다. 그런데 그 구간은
+//   **경과시간(elapsed)이지 작업시간(work)이 아니다.** 진행 상태로 두고 퇴근하는 게 정상 사용이라,
+//   2시간짜리 작업이 사흘 라운드면 67.7h 로, 45일 방치면 1948h 로 기록됐다(dev task 529 실측).
+//   게다가 라운드 경계 자체가 깨져 있었다 — 집계가 `event_type='status_change'` 행만 읽는 바람에
+//   `review_submit`·`completed`·`revert`·`review_cancel` 로 기록된 전이(운영 96행, 34%)가 탈락해
+//   같은 이력이 status 에 따라 **0h 로 증발하거나 72h 로 부풀었다**(양방향 실측 반증 완료).
+//   어떤 상한 heuristic 도 퇴근·주말·점심을 작업시간에서 분리하지 못한다 → 추정을 그만두고 비운다.
+//   운영 fallback 대상 84건 중 80건은 경계를 완벽히 고쳐도 어차피 0h 였다.
+//   부수 효과: 허구값이 cueKnowledge.computeWorkPatternStats 를 통해 AI 시간추정 프롬프트로
+//   흘러들어가 워크스페이스 전체 추정을 오염시키던 경로도 함께 끊긴다.
+//
+// 호출: focus 세션 start/stop/재개 시 (routes/focus.js) · 액션 계층 status 전이 후 (services/focusSync.js)
 
-const { Task, TaskStatusHistory, FocusSession } = require('../models');
+const { Task, FocusSession } = require('../models');
 
 // 같은 task 의 모든 focus_session 실측 시간 합 (초). active/paused 도 computeActualSeconds 가 현재까지 계산.
-// 포커스 타이머가 측정한 실제 집중 시간 = 가장 정확한 실제시간 (일시정지·유휴 제외).
+// 포커스 타이머가 측정한 실제 집중 시간 = 유일한 자동 근거 (일시정지·유휴 제외, 방치분 캡 포함).
 async function sumTaskFocusSeconds(taskId) {
   if (!taskId) return 0;
   const rows = await FocusSession.findAll({ where: { task_id: taskId } });
   return rows.reduce((sum, r) => sum + (typeof r.computeActualSeconds === 'function' ? r.computeActualSeconds() : 0), 0);
 }
 
-async function recomputeActualHoursFromHistory(taskId) {
+/**
+ * actual_hours 재계산. 반환: 계산된 시간(h) 또는 null(사용자 입력값이라 건드리지 않음 / task 없음).
+ * 포커스 세션이 없으면 0 — "모르면 비운다". 프론트는 0/빈값을 placeholder 로 자연 처리한다.
+ */
+async function recomputeActualHours(taskId) {
   const task = await Task.findByPk(taskId);
   if (!task) return null;
-  // 사용자가 직접 입력했으면 자동 누적 정지
+  // 사용자가 직접 입력했으면 자동 산정 정지 (검정 표시 = 확정값)
   if (task.actual_source === 'user') return null;
 
-  // ── 우선순위 1: 포커스 실측 시간 (SSOT, #17/#35) ──
-  // 포커스 타이머를 쓴 task 는 측정값이 status 구간보다 정확(일시정지·유휴 제외) →
-  // 포커스 세션이 있으면 그 합을 actual_hours 로. 포커스 미사용 task 만 status_history fallback.
-  // (운영 #35: 포커스로 완료해도 actual_hours 가 0 이던 회귀 — status_history 에 in_progress 구간이
-  //  없으면 0 이었음. 포커스 측정값을 직접 반영해 근본 차단.)
   const focusSec = await sumTaskFocusSeconds(taskId);
-  if (focusSec > 0) {
-    const fHours = Math.round((focusSec / 3600) * 10) / 10;
-    // 자동 측정값 — actual_source='auto' 명시(프론트 연회색). 시작/멈춤/재개/완료 사이 시간 합.
-    if (fHours !== Number(task.actual_hours) || task.actual_source !== 'auto') {
-      await task.update({ actual_hours: fHours, actual_source: 'auto' });
-    }
-    return fHours;
-  }
-
-  // ── 우선순위 2: status_history in_progress 구간 합 (포커스 미사용) ──
-  const history = await TaskStatusHistory.findAll({
-    where: { task_id: taskId, event_type: 'status_change' },
-    order: [['created_at', 'ASC']],
-    attributes: ['from_status', 'to_status', 'created_at'],
-  });
-
-  let totalMs = 0;
-  let inProgressStartMs = null;
-  for (const h of history) {
-    // Sequelize underscored 모델 — DB 컬럼명 created_at 이지만 instance 접근은 createdAt.
-    // get('created_at') 으로 컬럼명 직접 조회 (raw vs camelCase 양쪽 모두 안전).
-    const ts = h.get('created_at') || h.createdAt;
-    const t = new Date(ts).getTime();
-    if (h.to_status === 'in_progress') {
-      // 새 in_progress 진입 — 마커 시작 (이미 마커 있으면 그대로 유지: 같은 to_status 중복 방어)
-      if (inProgressStartMs == null) inProgressStartMs = t;
-    } else if (inProgressStartMs != null) {
-      // in_progress 이탈 — 누적 + 마커 해제
-      totalMs += Math.max(0, t - inProgressStartMs);
-      inProgressStartMs = null;
-    }
-  }
-  // 현재 in_progress 면 지금까지 시간도 임시 누적 (사용자에게 즉시 피드백)
-  if (inProgressStartMs != null && task.status === 'in_progress') {
-    totalMs += Math.max(0, Date.now() - inProgressStartMs);
-  }
-
-  const hours = Math.round((totalMs / 1000 / 3600) * 10) / 10;  // 0.1h 단위
-  // 변경이 있을 때만 update — 자동 측정값이므로 actual_source='auto' (연회색 표시)
+  const hours = Math.round((focusSec / 3600) * 10) / 10;  // 0.1h 단위
+  // 변경이 있을 때만 update — 자동 측정값이므로 actual_source='auto' (프론트 연회색 italic)
   if (hours !== Number(task.actual_hours) || task.actual_source !== 'auto') {
     await task.update({ actual_hours: hours, actual_source: 'auto' });
   }
   return hours;
 }
 
-module.exports = { recomputeActualHoursFromHistory };
+module.exports = { recomputeActualHours };
