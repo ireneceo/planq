@@ -2,16 +2,26 @@
 //   RightDock "열기 > Q Task" 클릭 시 window.open('/task-popout') 로 열림.
 //   MainLayout 우회(사이드바/헤더 없음) + TaskPopoutView(경량 전용 뷰) 마운트.
 //   QTaskPage 를 그대로 띄우지 않는 이유는 TaskPopoutView 상단 주석 참조.
+//   핀(항상 위)은 이 창 자신이 소유한다 — utils/pinHost.ts 상단 주석 참조.
 import React, { useEffect } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import TaskPopoutView from '../../components/QTask/TaskPopoutView';
+import PopoutPinButton from '../../components/Common/PopoutPinButton';
+import PinHolderView from '../../components/Common/PinHolderView';
+import { usePinHost, POPOUT_SIZE } from '../../utils/pinHost';
 import { markPopoutWindow } from '../../utils/popout';
 import { useAppShellLock } from '../../hooks/useAppShellLock';
 
 const QTaskStandalonePage: React.FC = () => {
   useAppShellLock();
   const { t } = useTranslation('qtask');
+  const { t: tc } = useTranslation('common');
+  const pin = usePinHost({
+    tool: 'qtask',
+    title: tc('dock.qtask', 'Q Task') as string,
+    ...POPOUT_SIZE.qtask,
+  });
 
   useEffect(() => {
     document.title = t('popout.windowTitle', 'PlanQ 업무') as string;
@@ -22,7 +32,9 @@ const QTaskStandalonePage: React.FC = () => {
 
   return (
     <Shell>
-      <TaskPopoutView />
+      {pin.mode === 'holder'
+        ? <PinHolderView host={pin} label={tc('dock.qtask', 'Q Task') as string} />
+        : <TaskPopoutView pinSlot={<PopoutPinButton host={pin} />} />}
     </Shell>
   );
 };

@@ -250,9 +250,13 @@ interface QTalkPageProps {
   embedded?: boolean;
   initialConvId?: number | null;
   initialProjectId?: number | null;
+  /** 팝아웃 창이 주입하는 핀(항상 위) 토글 — 좌측 패널 헤더 우측에 놓인다. 일반 /talk 는 undefined. */
+  pinSlot?: React.ReactNode;
+  /** embedded 전용 — 선택 컨텍스트 변화 통지. 호스트(팝아웃 창)가 자기 URL 을 replaceState 로 맞춘다. */
+  onEmbeddedContextChange?: (projectId: number | null, conversationId: number | null) => void;
 }
 
-const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId = null, initialProjectId = null }) => {
+const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId = null, initialProjectId = null, pinSlot, onEmbeddedContextChange }) => {
   const { t } = useTranslation('qtalk');
   const { t: tErr } = useTranslation('errors');
   const { user } = useAuth();
@@ -312,7 +316,12 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
   // 선택 상태 → URL 싱크. 항상 /talk 베이스로 정규화 (path-param 진입은 1회만 의미 있음).
   // embedded(드로어·팝아웃)에서는 navigate 금지 — 호스트 페이지 URL 보존 + /talk-popout 이 /talk 로 튕기는 회귀 차단.
   useEffect(() => {
-    if (embedded) return;
+    if (embedded) {
+      // 팝아웃 창은 navigate 대신 호스트가 자기 URL 만 정직하게 유지한다.
+      // 핀 전환 시 PiP 가 **지금 보고 있는 대화**를 열게 하는 근거 (pinHost 가 iframe.src 로 현재 URL 을 쓴다).
+      onEmbeddedContextChange?.(activeProjectId, activeConversationId);
+      return;
+    }
     const sp = new URLSearchParams();
     if (activeProjectId) sp.set('project', String(activeProjectId));
     if (activeConversationId) sp.set('conv', String(activeConversationId));
@@ -1534,6 +1543,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         onArchive={(c) => setArchiveConv(c)}
         onUnlink={(c) => setUnlinkConv(c)}
         onOpenArchive={!embedded && canViewArchive ? () => setArchivedModalOpen(true) : undefined}
+        pinSlot={pinSlot}
         onTogglePin={async (convId, pinned) => {
           // 옵티미스틱 — UI 즉시 반영
           const nowIso = pinned ? new Date().toISOString() : null;

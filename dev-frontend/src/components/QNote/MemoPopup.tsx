@@ -37,6 +37,8 @@ interface Props {
   // 사이클 N+17 hotfix — 분리 창 (Document PiP / window.open) 안에서 fullscreen popup 으로.
   // floating 위치/드래그/리사이즈 비활성, ⧉ 분리 버튼 hide, close=window.close().
   standalone?: boolean;
+  /** 팝아웃 창의 핀(항상 위) 토글 — 헤더 우측 액션에 그대로 놓는다. 인앱 마운트는 undefined. */
+  pinSlot?: React.ReactNode;
 }
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
@@ -293,7 +295,7 @@ const IconResize = () => (
 );
 
 // ─── 컴포넌트 ───
-const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSessionId, onCreated, standalone = false }) => {
+const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSessionId, onCreated, standalone = false, pinSlot }) => {
   const { t } = useTranslation('qnote');
 
   // ─── layout (drag/resize) ───
@@ -684,6 +686,7 @@ const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSession
             <IconDetach />
           </HeaderBtn>
         )}
+        {pinSlot}
         <HeaderBtn
           onClick={handleClose}
           title={t('memoPopup.close') as string}

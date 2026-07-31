@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import { isPublicSurfacePath } from '../../utils/publicSurface';
 import { isPopoutWindow } from '../../utils/popout';
-import { supportsPin, pinnedTool, lastPinnedTool, openPinned, closePin } from '../../utils/pinnedWindow';
+import { popoutFeatures } from '../../utils/pinHost';
 import VoiceCaptureSheet from './VoiceCaptureSheet';
 
 export type DockTool = 'qtalk' | 'qtask' | 'qnote' | 'qhelper';
@@ -30,21 +30,6 @@ const POPOUT_PATH: Record<DockTool, string> = {
   qnote: '/note-popout',
   qhelper: '/help-popout',
 };
-// 도구별 분리 창 크기
-const POPOUT_FEATURES: Record<DockTool, string> = {
-  qtalk: 'width=520,height=780,menubar=no,toolbar=no,location=no,status=no',
-  // qtask — 리스트 + 상세 드로어(오버레이)가 함께 뜨므로 Q Talk 와 같은 폭·높이
-  qtask: 'width=520,height=780,menubar=no,toolbar=no,location=no,status=no',
-  qnote: 'width=480,height=640,menubar=no,toolbar=no,location=no,status=no',
-  qhelper: 'width=440,height=720,menubar=no,toolbar=no,location=no,status=no',
-};
-// 핀(Document PiP) 창 크기 — PiP 는 features 문자열이 아니라 숫자 크기를 받는다
-const PIN_SIZE: Record<DockTool, { width: number; height: number }> = {
-  qtalk: { width: 520, height: 780 },
-  qtask: { width: 520, height: 780 },
-  qnote: { width: 480, height: 640 },
-  qhelper: { width: 440, height: 720 },
-};
 
 const FAB_HIDDEN_PREFIXES = ['/memo', '/talk-popout', '/task-popout', '/note-popout', '/help-popout'];
 
@@ -56,14 +41,8 @@ const RightDock: React.FC = () => {
   const navigate = useChromeNav();
   const [expanded, setExpanded] = useState(false);
   const fabRef = useRef<HTMLDivElement>(null);
-  // 핀(항상 위) — utils/pinnedWindow 가 단일 원천. 여기 state 는 아이콘 표시용 미러다.
-  const [pinned, setPinned] = useState<string | null>(() => pinnedTool());
-  // 화면공유 시작 등으로 핀 창이 저절로 닫혔는데 팝업 차단으로 자동 승격까지 막힌 경우 —
-  // 사용자 제스처가 있어야 창을 열 수 있으므로 "다시 열기" 카드를 띄운다.
-  const [pinLost, setPinLost] = useState<DockTool | null>(null);
-  const canPin = supportsPin();
-  const pinHint = canPin ? lastPinnedTool() : null;
-
+  // 핀(항상 위)은 도크에 없다 — 팝아웃 창 자신의 헤더가 소유한다(utils/pinHost.ts).
+  //   팝아웃 창의 클릭은 메인 창으로 transient activation 이 전이되지 않아, 여기서 대신 눌러줄 수 없다.
   const isBusinessMember = !!user?.business_id && ['owner', 'admin', 'member'].includes(user.business_role || '');
   const pathHidden = FAB_HIDDEN_PREFIXES.some((p) => location.pathname === p || location.pathname.startsWith(`${p}/`))
     || (typeof document !== 'undefined' && document.body.dataset.popout === '1')
@@ -113,38 +92,8 @@ const RightDock: React.FC = () => {
     }
     // 데스크탑 — 도구를 각각 독립 창으로 팝아웃 (운영 #43/#45, 2026-06-16 결정).
     //   기본은 일반 창이다. 도구별 고유 창 이름(pq-${tool})이라 넷 다 동시에 떠 있고,
-    //   화상회의 화면공유 중에도 사라지지 않는다. "항상 위" 는 아래 handlePin 의 명시적 선택.
-    window.open(POPOUT_PATH[tool], `pq-${tool}`, POPOUT_FEATURES[tool]);
-  };
-
-  // 핀으로 열기 / 핀 해제 — 반드시 이 클릭(사용자 제스처) 안에서 requestWindow 를 호출해야 한다.
-  const handlePin = async (tool: DockTool) => {
-    setExpanded(false);
-    setPinLost(null);
-    if (pinnedTool() === tool) {
-      // 같은 도구 핀 해제 = 일반 창으로 되돌리기 (도구를 잃지 않는다)
-      closePin({ reopenAsWindow: { path: POPOUT_PATH[tool], features: POPOUT_FEATURES[tool] } });
-      setPinned(null);
-      return;
-    }
-    const ok = await openPinned({
-      tool,
-      path: POPOUT_PATH[tool],
-      width: PIN_SIZE[tool].width,
-      height: PIN_SIZE[tool].height,
-      title: t(`dock.${tool}`, tool) as string,
-      pathOf: (x) => POPOUT_PATH[x as DockTool],
-      featuresOf: (x) => POPOUT_FEATURES[x as DockTool],
-      onUnexpectedClose: ({ tool: lost, promoted }) => {
-        setPinned(null);
-        if (!promoted) setPinLost(lost as DockTool);
-      },
-      // 핀 전환 시 이전 도구 강등 창이 팝업 차단으로 막힌 경우 — 사용자 제스처로 되살릴 수 있게 안내
-      onDemoteBlocked: (demoted) => setPinLost(demoted as DockTool),
-    });
-    // 미지원·사용자 취소 → 일반 창 폴백 (도구를 못 여는 일은 없게)
-    if (!ok) window.open(POPOUT_PATH[tool], `pq-${tool}`, POPOUT_FEATURES[tool]);
-    setPinned(ok ? tool : null);
+    //   화상회의 화면공유 중에도 사라지지 않는다. "항상 위"(핀)는 그 창 헤더의 핀 버튼으로 켠다.
+    window.open(POPOUT_PATH[tool], `pq-${tool}`, popoutFeatures(tool));
   };
 
   return (
@@ -178,48 +127,13 @@ const RightDock: React.FC = () => {
           </MenuItem>
           <MenuDivider />
           <GroupLabel>{t('dock.openLabel', '열기') as string}</GroupLabel>
-          {OPEN_TOOLS.map(({ tool, bg, testid, Icon }) => {
-            const isPinned = pinned === tool;
-            return (
-              <OpenRow key={tool}>
-                <MenuItem data-testid={testid} role="menuitem" type="button" onClick={() => handlePick(tool)}>
-                  <ItemIcon $bg={bg}><Icon /></ItemIcon>
-                  <span>{t(`dock.${tool}`, tool)}</span>
-                </MenuItem>
-                {canPin && (
-                  <PinBtn
-                    data-testid={`dock-pin-${tool}`}
-                    type="button"
-                    $active={isPinned}
-                    $hint={!isPinned && pinHint === tool}
-                    aria-pressed={isPinned}
-                    aria-label={(isPinned ? t('dock.unpin', '핀 해제') : t('dock.pin', '핀으로 열기 — 항상 위')) as string}
-                    title={(isPinned ? t('dock.unpin', '핀 해제') : t('dock.pin', '핀으로 열기 — 항상 위')) as string}
-                    onClick={() => handlePin(tool)}
-                  >
-                    <IconPin />
-                  </PinBtn>
-                )}
-              </OpenRow>
-            );
-          })}
-          {canPin && <PinNote>{t('dock.pinOnlyOne', '핀은 한 번에 하나만 — 다른 도구를 핀하면 이전 창은 일반 창으로 바뀝니다')}</PinNote>}
+          {OPEN_TOOLS.map(({ tool, bg, testid, Icon }) => (
+            <MenuItem key={tool} data-testid={testid} role="menuitem" type="button" onClick={() => handlePick(tool)}>
+              <ItemIcon $bg={bg}><Icon /></ItemIcon>
+              <span>{t(`dock.${tool}`, tool)}</span>
+            </MenuItem>
+          ))}
         </Menu>
-      )}
-      {/* 핀 창이 저절로 닫혔고 자동 승격도 팝업 차단으로 막힌 경우 — 클릭(사용자 제스처)으로 되살린다 */}
-      {pinLost && (
-        <PinLostCard role="status" data-testid="dock-pin-lost">
-          <PinLostText>
-            {t('dock.pinClosed', '{{tool}} 핀 창이 닫혔습니다', { tool: t(`dock.${pinLost}`, pinLost) })}
-          </PinLostText>
-          <PinLostBtn
-            type="button"
-            data-testid="dock-pin-reopen"
-            onClick={() => { const tool = pinLost; setPinLost(null); handlePick(tool); }}
-          >
-            {t('dock.pinReopen', '다시 열기')}
-          </PinLostBtn>
-        </PinLostCard>
       )}
       <Fab
         data-testid="right-dock-fab"
@@ -258,9 +172,6 @@ const IconNote = () => (
 // 사이드바 Q Task 아이콘과 동일 형태 (MainLayout IconTask)
 const IconTask = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-);
-const IconPin = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.7-2.6A2 2 0 0 1 17 13.3V7h1a1 1 0 0 0 0-2H6a1 1 0 0 0 0 2h1v6.3a2 2 0 0 1-.3 1.1z"/></svg>
 );
 const IconHelp = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
@@ -340,49 +251,6 @@ const MenuItem = styled.button<{ $create?: boolean }>`
   &:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(15,23,42,0.16); ${({ $create }) => $create && 'border-color: #14B8A6; color: #0F766E;'} }
   &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
   span { white-space: nowrap; }
-`;
-
-// 열기 항목 1행 = [도구 버튼][핀 버튼]. 중첩 button 금지라 형제로 둔다.
-const OpenRow = styled.div`
-  display: flex; align-items: stretch; gap: 6px; width: 100%;
-  /* 도구 버튼이 남는 폭을 먹고, 핀 버튼은 고정 36px.
-     MenuItem 자체에 flex:1 을 주면 세로 column 인 Menu 안의 다른 항목까지 늘어나므로 여기서만 준다. */
-  > button:first-child { flex: 1; min-width: 0; width: auto; }
-`;
-const PinBtn = styled.button<{ $active: boolean; $hint: boolean }>`
-  flex-shrink: 0;
-  width: 36px; min-height: 36px;
-  display: inline-flex; align-items: center; justify-content: center;
-  border-radius: 12px; cursor: pointer;
-  background: ${({ $active }) => ($active ? '#0F766E' : '#FFFFFF')};
-  color: ${({ $active, $hint }) => ($active ? '#FFFFFF' : $hint ? '#0F766E' : '#94A3B8')};
-  border: 1px solid ${({ $active, $hint }) => ($active ? '#0F766E' : $hint ? '#99F6E4' : '#E2E8F0')};
-  box-shadow: 0 4px 14px rgba(15,23,42,0.12);
-  transition: transform 0.12s, color 0.12s, background 0.12s;
-  &:hover { transform: translateY(-1px); color: ${({ $active }) => ($active ? '#FFFFFF' : '#0F766E')}; }
-  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
-`;
-const PinNote = styled.div`
-  font-size: 10.5px; line-height: 1.4; color: #94A3B8;
-  padding: 0 6px; text-align: right;
-`;
-// 핀 창이 저절로 닫혔는데(화면공유 시작 등) 팝업 차단으로 자동 승격까지 막힌 경우.
-// window.open 은 사용자 제스처가 필요하므로 클릭을 받는다.
-const PinLostCard = styled.div`
-  display: flex; align-items: center; gap: 8px;
-  width: 188px; box-sizing: border-box;
-  padding: 10px 12px;
-  background: #FFFFFF; border: 1px solid #FDA4AF; border-radius: 12px;
-  box-shadow: 0 6px 18px rgba(15,23,42,0.16);
-  font-size: 12px; color: #0F172A;
-`;
-const PinLostText = styled.span`flex: 1; line-height: 1.35;`;
-const PinLostBtn = styled.button`
-  flex-shrink: 0; padding: 6px 10px; min-height: 32px;
-  border: 1px solid #0F766E; border-radius: 8px; background: #0F766E; color: #FFFFFF;
-  font-size: 11.5px; font-weight: 700; cursor: pointer;
-  &:hover { filter: brightness(1.05); }
-  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
 `;
 
 const ItemIcon = styled.span<{ $bg: string }>`
