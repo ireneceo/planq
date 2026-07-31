@@ -27,13 +27,23 @@ const NON_URI_VALUE = '[^a-z]|[a-z+.\\-]+(?:[^a-z+.\\-:]|$)';
 const RICH_URI_RE = new RegExp(`^(?:https?:|mailto:|tel:|/|#|data:image/|${NON_URI_VALUE})`, 'i');
 const MAIL_URI_RE = new RegExp(`^(?:https?:|mailto:|tel:|cid:|/|#|data:image/|${NON_URI_VALUE})`, 'i');
 
+/**
+ * 평문이면 <p>+<br> 로 감싸고, 이미 HTML 이면 그대로 돌려준다.
+ * #219 — 리치텍스트 에디터는 평문의 개행을 무시하고 한 문단으로 합쳐버린다.
+ *   읽기 화면(pre-wrap)에선 멀쩡하다가 편집으로 바꾸는 순간 줄이 사라지는 이유.
+ *   에디터에 넣기 전 이 함수로 한 번 통과시킨다(정화기를 태우면 taskList 의 data-type 이 날아간다).
+ */
+export function plainTextToHtml(value: string | null | undefined): string {
+  if (!value) return '';
+  if (/<[a-z][\s\S]*>/i.test(value)) return value;
+  const esc = value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return esc.split(/\n{2,}/).map((para) => `<p>${para.replace(/\n/g, '<br/>')}</p>`).join('');
+}
+
 /** 리치텍스트 HTML 정화. 평문이면 <p>+<br> 로 감싼다. */
 export function sanitizeRichText(value: string | null | undefined): string {
   if (!value) return '';
-  const looksHtml = /<[a-z][\s\S]*>/i.test(value);
-  const html = looksHtml
-    ? value
-    : `<p>${value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br/>')}</p>`;
+  const html = plainTextToHtml(value);
   return DOMPurify.sanitize(html, {
     ALLOWED_TAGS,
     ALLOWED_ATTR,

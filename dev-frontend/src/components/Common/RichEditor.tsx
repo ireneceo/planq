@@ -25,6 +25,7 @@ import { apiFetch } from '../../contexts/AuthContext';
 import { SlashCommand } from './SlashCommand';
 import SlashCommandList from './SlashCommandList';
 import { LightboxWrapper } from './ImageLightbox';
+import { plainTextToHtml } from '../../utils/sanitizeHtml';
 
 // Image extension 확장 — width attribute 지원 (사이클 N+9, 사이즈 조정용).
 // HTML 출력: <img src="..." width="33%" /> 등.
@@ -85,7 +86,8 @@ export default function RichEditor({
       TableCell,
       SlashCommand.configure({ listComponent: SlashCommandList }),
     ],
-    content: value,
+    // #219 — 평문 본문(개행만 있는 옛 데이터·문서 이관본)은 그대로 넣으면 한 문단으로 뭉친다.
+    content: plainTextToHtml(value),
     editable: !readOnly,
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
@@ -128,7 +130,7 @@ export default function RichEditor({
   useEffect(() => {
     if (!editor) return;
     if (value === currentValueRef.current) return;
-    editor.commands.setContent(value || '', { emitUpdate: false });
+    editor.commands.setContent(plainTextToHtml(value), { emitUpdate: false });
     currentValueRef.current = value;
   }, [value, editor]);
 

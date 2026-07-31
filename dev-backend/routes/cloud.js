@@ -40,22 +40,26 @@ function buildCallbackHtml({ provider, ok, title, body }) {
   </div>
   <script>
     (function(){
-      // 1) 부모 창에 결과 즉시 통보 (실패 안전)
-      try { window.opener && window.opener.postMessage({ type: ${JSON.stringify(messageType)}, ok: ${ok ? 'true' : 'false'} }, '*'); } catch(e){}
-      var tryClose = function(){
-        try { window.close(); } catch(e){}
-      };
-      // 2) 닫기 버튼
+      var TYPE = ${JSON.stringify(messageType)};
+      var OK = ${ok ? 'true' : 'false'};
+      // #224 — 팝업이 accounts.google.com 을 경유하면서 COOP 로 **opener 가 끊긴다.**
+      //   그 결과 (a) postMessage 가 조용히 실패하고 (b) 자기 window.close() 도 거부돼
+      //   "완료 화면에서 창이 영영 안 닫히는" 회귀가 났다(사용자 보고).
+      //   opener 에 의존하지 않는 동일 출처 채널(BroadcastChannel + localStorage)로 완료를 알리고,
+      //   **팝업 핸들을 쥐고 있는 부모가 대신 닫게** 한다. 자기 close 는 되면 좋은 보조 경로로만 둔다.
+      var payload = { type: TYPE, ok: OK, ts: Date.now() };
+      try { var bc = new BroadcastChannel('planq:oauth'); bc.postMessage(payload); bc.close(); } catch(e){}
+      try { localStorage.setItem('planq:oauth:done', JSON.stringify(payload)); } catch(e){}
+      try { window.opener && window.opener.postMessage(payload, '*'); } catch(e){}
+
+      var tryClose = function(){ try { window.close(); } catch(e){} };
       document.getElementById('closeBtn').addEventListener('click', tryClose);
-      // 3) 800ms 후 자동 닫기 시도
-      setTimeout(tryClose, 800);
-      // 4) 1.5s 후 닫혀 있지 않으면 안내 화면으로 교체 (COOP 차단된 경우)
+      setTimeout(tryClose, 600);
+      // 그래도 살아있으면(=COOP 로 close 거부) 안내 화면으로 교체. 부모의 close 가 이 사이에 먼저 성공하면 이 코드는 실행되지 않는다.
       setTimeout(function(){
-        if (!document.hidden) {
-          var p = document.getElementById('primary');
-          var f = document.getElementById('fallback');
-          if (p && f) { p.style.display = 'none'; f.style.display = 'block'; }
-        }
+        var p = document.getElementById('primary');
+        var f = document.getElementById('fallback');
+        if (p && f) { p.style.display = 'none'; f.style.display = 'block'; }
       }, 1500);
     })();
   </script>

@@ -532,22 +532,33 @@ router.post('/businesses/:businessId/kb/documents/import-from-post', authenticat
     if (!post) return errorResponse(res, 'post_not_found', 404);
 
     // N+72-7 fix — 실제 컬럼명 `content_text` / `content_json` 사용 (옛: body_text/body_html 오참조 → 항상 empty_post_body 회귀).
-    let text = (post.content_text || '').trim();
-    // content_text 가 비어있고 content_json 만 있으면 (RichEditor JSON) text 추출 시도
-    if (!text && post.content_json) {
+    // ★ #234 — **content_json 을 먼저 본다.** posts.js 가 저장하는 `content_text` 는 검색/프리뷰용이라
+    //   블록을 ' ' 로 잇고 `\s+ → ' '` 로 평탄화한 물건이다. 그걸 우선 쓰던 탓에 인포로 보낸 문서가
+    //   한 문단으로 "다닥다닥 붙어" 보였다(개행이 애초에 남아있지 않았다).
+    //   구조가 살아있는 content_json 에서 문단을 복원하고, 없을 때만 content_text 로 물러선다.
+    // 문단·제목·인용·코드블록은 문단 경계(빈 줄), 리스트 항목은 줄바꿈 하나.
+    // 아래 HTML 변환이 빈 줄을 <p> 분리로, 단일 개행을 <br/> 로 옮긴다.
+    const PARA = new Set(['paragraph', 'heading', 'blockquote', 'codeBlock']);
+    const LINE = new Set(['listItem', 'taskItem']);
+    const extractText = (node) => {
+      if (!node) return '';
+      if (typeof node === 'string') return node;
+      if (Array.isArray(node)) return node.map(extractText).join('');
+      if (node.type === 'hardBreak') return '\n';
+      if (node.text) return node.text;
+      const inner = Array.isArray(node.content) ? node.content.map(extractText).join('') : '';
+      if (PARA.has(node.type)) return `${inner}\n\n`;
+      if (LINE.has(node.type)) return `${inner}\n`;
+      return inner;
+    };
+    let text = '';
+    if (post.content_json) {
       try {
         const json = typeof post.content_json === 'string' ? JSON.parse(post.content_json) : post.content_json;
-        const extractText = (node) => {
-          if (!node) return '';
-          if (typeof node === 'string') return node;
-          if (node.text) return node.text;
-          if (Array.isArray(node.content)) return node.content.map(extractText).join(' ');
-          if (Array.isArray(node)) return node.map(extractText).join(' ');
-          return '';
-        };
-        text = extractText(json).replace(/\s+/g, ' ').trim();
-      } catch { /* JSON parse fail — ignore */ }
+        text = extractText(json).replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+      } catch { /* JSON parse fail — content_text 로 폴백 */ }
     }
+    if (!text) text = (post.content_text || '').trim();
     if (!text) return errorResponse(res, '본문이 비어있어 Q knowledge 에 보낼 수 없습니다.', 400);
 
     // N+64 — 자유 카테고리 (string 40자 cap)
@@ -567,10 +578,18 @@ router.post('/businesses/:businessId/kb/documents/import-from-post', authenticat
       if (!finalClientId) return errorResponse(res, 'client_id_required_for_client_scope', 400);
     }
 
+    // ★ #234 — KbDocument.body 는 프론트에서 **RichEditor(HTML)** 로 렌더된다. 평문을 그대로 넣으면
+    //   Tiptap 이 개행을 무시하고 한 문단으로 합쳐 "내용이 다닥다닥 붙는다"(사용자 보고).
+    //   빈 줄 = 문단 분리, 단일 개행 = <br> 로 옮겨 원문의 줄 구조를 보존한다.
+    const esc = (x) => String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const bodyHtml = /<[a-z][\s\S]*>/i.test(text)
+      ? text
+      : text.split(/\n{2,}/).map((para) => `<p>${esc(para).replace(/\n/g, '<br/>')}</p>`).join('');
+
     const doc = await KbDocument.create({
       business_id: businessId,
       title: String(post.title || `Post #${post.id}`).slice(0, 300),
-      body: text,
+      body: bodyHtml,
       source_type: 'post',
       source_post_id: post.id,
       category: finalCategory,

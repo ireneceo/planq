@@ -186,6 +186,11 @@ function buildStyles(
       display: 'flex',
       alignItems: 'center',
       gap: 10,
+      // #243 — 긴 이메일 주소가 드롭다운 폭을 넘어 잘려 보이던 문제. 폭을 늘리면 좁은 패널에서
+      //   메뉴가 화면 밖으로 나가므로, 옵션 텍스트를 줄바꿈시켜 전체가 보이게 한다.
+      whiteSpace: 'normal',
+      overflowWrap: 'anywhere',
+      lineHeight: 1.45,
       '&:active': {
         backgroundColor: C.primary100,
       },
