@@ -598,16 +598,8 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
 
     await event.update(updates, { transaction: t });
 
-    // N+63 — Google Calendar 단방향 sync (PlanQ → Google).
-    // event.gcal_event_id 가 있으면 (Meet 자동 발급된 이벤트), Google Calendar 의
-    // 같은 event 도 시간/제목/설명 변경 반영. 실패해도 PlanQ 변경은 commit (best-effort sync).
-    // transaction 밖에서 호출 — Google API 가 느려도 DB 트랜잭션 holding 시간 안 늘림.
-    const needsGcalSync = event.gcal_event_id && (
-      updates.title !== undefined ||
-      updates.description !== undefined ||
-      updates.start_at !== undefined ||
-      updates.end_at !== undefined
-    );
+    // (N+63 의 gcal 단방향 sync 판단 변수는 제거됐다 — 계산만 하고 아무도 안 쓰는 죽은 코드였고,
+    //  실제 PlanQ → Google 반영은 아래 커밋 후의 calendarSync.reconcile 이 목적지·권한까지 보고 처리한다.)
 
     // attendees 교체
     let priorAttendeeIds = new Set(); // 수정 전 멤버 참석자 — 신규 추가분만 초대 알림 보내려 캡처

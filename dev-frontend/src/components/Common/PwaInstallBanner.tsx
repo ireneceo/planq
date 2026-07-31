@@ -27,8 +27,10 @@ export default function PwaInstallBanner() {
     if (result === 'dismissed') dismissForSession();
   };
 
+  // 비모달 배너에 role="dialog" 를 주면 안 된다 — 검사 하니스가 [role=dialog]/[aria-modal] 로
+  // 모달을 스코핑하는데(CLAUDE.md §17), 이 배너가 잡혀 판정이 오염된다. complementary 가 맞다.
   return (
-    <BannerRoot role="dialog" aria-label={t('pwa.installAria', '앱으로 설치') as string}>
+    <BannerRoot role="complementary" aria-label={t('pwa.installAria', '앱으로 설치') as string}>
       <Icon>
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <rect x="5" y="2" width="14" height="20" rx="2"/>

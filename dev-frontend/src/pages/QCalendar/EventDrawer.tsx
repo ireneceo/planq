@@ -54,6 +54,8 @@ interface Props {
   onCreateMeetingRoom?: () => Promise<void>;
   // 사이클 N+13: Daily.co → Google Meet 교체. 워크스페이스의 Google Calendar 연동 여부
   gcalConnected?: boolean;
+  // 개인 Google Calendar 가 연결 + 쓰기 권한까지 있는가 (NewEventModal 과 같은 기준)
+  personalCalWritable?: boolean;
 }
 
 // 시간 + 날짜 → ISO 변환 (로컬 타임존 기준, NewEventModal 의 mkISO 동일 패턴)
@@ -68,7 +70,7 @@ const mkISO = (dateStr: string, timeStr: string, allDay: boolean, isEnd: boolean
 
 const EventDrawer: React.FC<Props> = ({
   event, instanceDate, projects = [], members = [], clients = [], myUserId, myBusinessRole,
-  onClose, onUpdate, onDelete, onCreateMeetingRoom, gcalConnected,
+  onClose, onUpdate, onDelete, onCreateMeetingRoom, gcalConnected, personalCalWritable,
 }) => {
   const { t, i18n } = useTranslation('qcalendar');
   const { user } = useAuth();
@@ -521,7 +523,10 @@ const EventDrawer: React.FC<Props> = ({
           </SectionBody>
         </Section>
 
-        {/* 구글 캘린더 — 팀/개인 각각(계정이 다르다). 끄면 구글에 올라간 일정도 삭제 전파 */}
+        {/* 구글 캘린더 — 팀/개인 각각(계정이 다르다). 끄면 구글에 올라간 일정도 삭제 전파.
+            ★ 연결되지 않은 목적지는 아예 안 보여준다 — 체크해도 아무 데도 안 가는 토글은 거짓 안내다.
+            (NewEventModal 은 이미 같은 기준으로 게이트한다. 드로어만 빠져 있었다 — 2026-07-31 정합) */}
+        {(gcalConnected || personalCalWritable) && (
         <Section>
           <SectionIcon>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -536,29 +541,35 @@ const EventDrawer: React.FC<Props> = ({
             {(() => {
               const ev = event as CalendarEvent & { gcal_sync_workspace?: boolean; gcal_sync_personal?: boolean; vlevel?: string | null };
               const priv = ev.vlevel === 'L1' || ev.vlevel === 'L2';
-              const wsOn = ev.gcal_sync_workspace !== false && !priv;
-              const peOn = ev.gcal_sync_personal !== false;
+              // 연결된 목적지만 계산에 넣는다 — 안 연결된 쪽은 켜져 있어도 실제로 나가는 데가 없다.
+              const wsOn = !!gcalConnected && ev.gcal_sync_workspace !== false && !priv;
+              const peOn = !!personalCalWritable && ev.gcal_sync_personal !== false;
               if (!canEdit) {
                 return <Plain>{[wsOn ? t('drawer.gcalTeam') : null, peOn ? t('drawer.gcalPersonal') : null]
                   .filter(Boolean).join(' · ') || t('drawer.gcalNone')}</Plain>;
               }
               return (
                 <>
-                  <GcalSyncRow $disabled={priv} title={priv ? (t('drawer.gcalTeamBlocked') as string) : undefined}>
-                    <input type="checkbox" checked={wsOn} disabled={priv}
-                      onChange={(e) => onUpdate({ gcal_sync_workspace: e.target.checked } as unknown as Partial<CalendarEvent>)} />
-                    <span>{t('drawer.gcalTeam')}</span>
-                  </GcalSyncRow>
-                  <GcalSyncRow>
-                    <input type="checkbox" checked={peOn}
-                      onChange={(e) => onUpdate({ gcal_sync_personal: e.target.checked } as unknown as Partial<CalendarEvent>)} />
-                    <span>{t('drawer.gcalPersonal')}</span>
-                  </GcalSyncRow>
+                  {gcalConnected && (
+                    <GcalSyncRow $disabled={priv} title={priv ? (t('drawer.gcalTeamBlocked') as string) : undefined}>
+                      <input type="checkbox" checked={wsOn} disabled={priv}
+                        onChange={(e) => onUpdate({ gcal_sync_workspace: e.target.checked } as unknown as Partial<CalendarEvent>)} />
+                      <span>{t('drawer.gcalTeam')}</span>
+                    </GcalSyncRow>
+                  )}
+                  {personalCalWritable && (
+                    <GcalSyncRow>
+                      <input type="checkbox" checked={peOn}
+                        onChange={(e) => onUpdate({ gcal_sync_personal: e.target.checked } as unknown as Partial<CalendarEvent>)} />
+                      <span>{t('drawer.gcalPersonal')}</span>
+                    </GcalSyncRow>
+                  )}
                 </>
               );
             })()}
           </SectionBody>
         </Section>
+        )}
 
         {/* 정기 일정 — RecurrencePicker */}
         <Section>
@@ -862,7 +873,7 @@ const EventDrawer: React.FC<Props> = ({
             {event.vlevel === 'L1' ? (
               <PrivateShareNote>{t('share.privateBlocked', { defaultValue: '나만보기 일정은 공유할 수 없어요' }) as string}</PrivateShareNote>
             ) : (
-              <ShareBtn type="button" onClick={() => setShareOpen(true)} title={t('button.share', { defaultValue: '공유' }) as string}>
+              <ShareBtn type="button" onClick={() => setShareOpen(true)} title={t('drawer.share', '공유') as string}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="18" cy="5" r="3" />
                   <circle cx="6" cy="12" r="3" />
@@ -870,7 +881,7 @@ const EventDrawer: React.FC<Props> = ({
                   <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
                   <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
                 </svg>
-                {t('button.share', { defaultValue: '공유' }) as string}
+                {t('drawer.share', '공유') as string}
               </ShareBtn>
             )}
             {canEdit && (
