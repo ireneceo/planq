@@ -117,6 +117,8 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
   // 사이클 N+13 — Daily.co 완전 교체, Google Meet 자동 생성으로 변경
   const [gcalConfigured, setGcalConfigured] = useState(false);
   const [gcalConnected, setGcalConnected] = useState(false);
+  // #242 — 토큰 존재(gcalConnected)와 쓰기 권한(gcalCanWrite)은 다르다. Meet·팀 동기화는 권한 기준.
+  const [gcalCanWrite, setGcalCanWrite] = useState(false);
   const [rrule, setRrule] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -125,8 +127,9 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
       .then((s) => {
         setGcalConfigured(!!s.gcal_configured);
         setGcalConnected(!!s.gcal_connected);
+        setGcalCanWrite(!!s.gcal_can_write);
       })
-      .catch(() => { setGcalConfigured(false); setGcalConnected(false); });
+      .catch(() => { setGcalConfigured(false); setGcalConnected(false); setGcalCanWrite(false); });
   }, [businessId]);
 
   const [datePickerOpen, setDatePickerOpen] = useState(false);
@@ -173,7 +176,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
     const finalProjectId = vis.variant === 'L2_project'
       ? ser.project_id
       : (projectId === '' ? null : Number(projectId));
-    onCreate({
+    const created = onCreate({
       title: title.trim(),
       description: description.trim() || null,
       location: location.trim() || null,
@@ -184,10 +187,10 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
       visibility,  // backend hook 가 vlevel 우선 처리하므로 backward-compat
       project_id: finalProjectId,
       meeting_url: meetingUrl.trim() || null,
-      meeting_provider: autoCreateMeeting && gcalConnected
+      meeting_provider: autoCreateMeeting && gcalCanWrite
         ? 'google_meet'
         : (meetingUrl.trim() ? 'manual' : null),
-      auto_create_meeting: autoCreateMeeting && gcalConnected,
+      auto_create_meeting: autoCreateMeeting && gcalCanWrite,
       rrule,
       gcal_sync_workspace: gcalSyncWorkspace,
       gcal_sync_personal: gcalSyncPersonal,
@@ -196,6 +199,8 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
       target_member_ids: ser.target_member_ids,
       target_client_ids: vis.variant === 'L4' ? ser.client_ids : [],
     } as unknown as Partial<CalendarEvent>);
+    // #242 — 실패 경로에서 submitting 이 영영 안 풀려 버튼이 잠기던 것. 성공 시엔 모달이 사라지므로 무해.
+    Promise.resolve(created).finally(() => setSubmitting(false));
   };
 
   return (
@@ -346,10 +351,10 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
           {/* 구글 캘린더 연동 — 팀/개인은 **연결된 구글 계정이 다르다**. 각각 켜고 끈다.
               공개 범위 바로 아래에 둔다 — 어디로 나가는지가 공개 범위에 달렸기 때문.
               (화상 미팅 링크 항목 아래에 두면 회의 기능에 종속돼 보인다 — Irene 지적) */}
-          {(gcalConnected || personalCalWritable) && (
+          {(gcalCanWrite || personalCalWritable) && (
             <Field>
               <Label>{t('form.gcalSection')}</Label>
-              {gcalConnected && (
+              {gcalCanWrite && (
                 <GcalRow $disabled={isPrivateVis}>
                   <input
                     type="checkbox"
@@ -391,7 +396,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
             <Label>{t('form.meetingUrl')}</Label>
             {/* Google Meet 자동 생성 — 워크스페이스가 Google Calendar 연결되어 있을 때만 노출.
                 연결 안 됨 + 서버 OAuth 설정은 정상 → "Google 계정 연결하기" CTA 안내. */}
-            {gcalConnected && (
+            {gcalCanWrite && (
               <AutoMeetingRow>
                 <CheckboxLabel>
                   <input
@@ -411,6 +416,15 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
                 <AutoMeetingText>
                   <strong>{t('form.gcalConnectPrompt')}</strong>
                   <small>{t('form.gcalConnectHelp')}</small>
+                </AutoMeetingText>
+              </AutoMeetingRow>
+            )}
+            {/* #242 — 토큰은 있는데 캘린더 권한만 없는 상태. 옛 코드는 어느 분기에도 안 걸려 이유를 알 수 없었다(체크박스는 켜진 채로) */}
+            {gcalConnected && !gcalCanWrite && gcalConfigured && (
+              <AutoMeetingRow as="a" href="/business/settings/storage" style={{ textDecoration: 'none', cursor: 'pointer' }}>
+                <AutoMeetingText>
+                  <strong>{t('form.gcalReconnectPrompt')}</strong>
+                  <small>{t('form.gcalReconnectHelp')}</small>
                 </AutoMeetingText>
               </AutoMeetingRow>
             )}

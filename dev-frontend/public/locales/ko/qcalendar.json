@@ -19,7 +19,8 @@
     "personalBody": "연결한 내 Google 캘린더 일정을 이 화면에서 함께 보기만 합니다(읽기 전용). PlanQ에서 만든 일정은 내 Google 캘린더로 넘어가지 않아요.",
     "dismiss": "안내 닫기",
     "personalBodyRead": "연결한 내 Google 캘린더 일정을 이 화면에서 함께 보기만 합니다(읽기 전용). PlanQ에서 만든 일정을 내 Google 캘린더로 보내려면 다시 연결해 주세요.",
-    "personalBodyWrite": "연결한 내 Google 캘린더 일정을 함께 보고, PlanQ에서 만든 일정도 내 Google 캘린더로 올라갑니다. 비공개 일정은 내 캘린더에만 올라가고 팀 캘린더에는 올라가지 않아요. 일정마다 끌 수 있습니다."
+    "personalBodyWrite": "연결한 내 Google 캘린더 일정을 함께 보고, PlanQ에서 만든 일정도 내 Google 캘린더로 올라갑니다. 비공개 일정은 내 캘린더에만 올라가고 팀 캘린더에는 올라가지 않아요. 일정마다 끌 수 있습니다.",
+    "workspaceBroken": "워크스페이스 연동에 캘린더 권한이 없습니다 — Meet 링크·동기화가 동작하지 않습니다. 설정 > 파일·외부 연동에서 다시 연결해 주세요."
   },
   "filter": {
     "all": "전체",
@@ -93,7 +94,9 @@
     "gcalTeamHint": "워크스페이스에 연결된 구글 계정의 캘린더에 올라갑니다.",
     "gcalTeamBlocked": "비공개 일정은 팀 캘린더에 올릴 수 없습니다.",
     "gcalPersonal": "내 구글 캘린더에 올리기",
-    "gcalPersonalHint": "내가 연결한 구글 계정의 캘린더에만 올라갑니다."
+    "gcalPersonalHint": "내가 연결한 구글 계정의 캘린더에만 올라갑니다.",
+    "gcalReconnectPrompt": "Google 캘린더 재연결 필요",
+    "gcalReconnectHelp": "연결된 계정에 캘린더 권한이 없어 Meet 링크 생성과 동기화가 동작하지 않습니다."
   },
   "button": {
     "create": "일정 만들기",
@@ -194,5 +197,6 @@
     "description": "설명",
     "readOnlyHint": "내 개인 캘린더의 일정이라 PlanQ 에서는 수정하지 않습니다. 나에게만 보입니다.",
     "openInGoogle": "Google Calendar 에서 열기"
-  }
+  },
+  "meetLinkFailed": "일정은 저장됐지만 Google Meet 링크를 만들지 못했습니다. 설정 > 파일·외부 연동에서 Google 캘린더를 다시 연결해 주세요."
 }

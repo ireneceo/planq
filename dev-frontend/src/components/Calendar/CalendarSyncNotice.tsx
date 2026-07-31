@@ -18,19 +18,23 @@ import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 
 interface Props {
-  workspaceConnected: boolean;  // 워크스페이스 Google 캘린더 (owner 연결, 쓰기 가능)
+  workspaceConnected: boolean;  // 워크스페이스 Google 캘린더 토큰 존재
+  workspaceCanWrite?: boolean;  // #242 — 그 토큰에 캘린더 쓰기 권한이 있는가. false 면 Meet·동기화가 안 된다
   personalConnected: boolean;   // 개인 Google 캘린더 연결됨
   personalCanWrite?: boolean;   // 쓰기 스코프(calendar.events)까지 동의했는가 — 문구가 여기서 갈린다
 }
 
 const DISMISS_KEY = 'qcal_sync_notice_dismissed_v3';
 
-const CalendarSyncNotice: React.FC<Props> = ({ workspaceConnected, personalConnected, personalCanWrite = false }) => {
+const CalendarSyncNotice: React.FC<Props> = ({ workspaceConnected, workspaceCanWrite = false, personalConnected, personalCanWrite = false }) => {
   const { t } = useTranslation('qcalendar');
   const [dismissed, setDismissed] = useState(() => {
     try { return localStorage.getItem(DISMISS_KEY) === '1'; } catch { return false; }
   });
-  if ((!workspaceConnected && !personalConnected) || dismissed) return null;
+  // #242 — 권한이 깨진 연동 경고는 **dismiss 되어도 계속 보여준다**. 정보 안내와 달리
+  //   사용자가 조치(재연결)해야 기능이 돌아오는 오류이기 때문이다.
+  const workspaceBroken = workspaceConnected && !workspaceCanWrite;
+  if ((!workspaceConnected && !personalConnected) || (dismissed && !workspaceBroken)) return null;
 
   const close = () => {
     try { localStorage.setItem(DISMISS_KEY, '1'); } catch { /* noop */ }
@@ -45,7 +49,7 @@ const CalendarSyncNotice: React.FC<Props> = ({ workspaceConnected, personalConne
         {workspaceConnected && (
           <NoticeLine>
             <LineLabel>{t('syncNotice.workspaceLabel', { defaultValue: '워크스페이스 연동' }) as string}</LineLabel>
-            {t('syncNotice.workspaceBody')}
+            {workspaceBroken ? t('syncNotice.workspaceBroken') : t('syncNotice.workspaceBody')}
           </NoticeLine>
         )}
         {personalConnected && (

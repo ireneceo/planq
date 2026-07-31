@@ -88,8 +88,15 @@ const QCalendarPage: React.FC = () => {
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // #242 — Meet 경고는 errorMsg 와 **분리한다**. errorMsg 는 fetchRange 진입부에서 초기화되는데,
+  //   일정 생성이 자기 socket 에코(event:created)로 곧바로 fetchRange 를 부르는 바람에
+  //   경고가 ~300ms 만에 지워져 사용자에게 사실상 보이지 않았다(Fable 게이트 실측).
+  //   이 경고는 조치(재연결)가 필요한 고지라 자동 소거하지 않고 사용자가 닫아야 사라진다.
+  const [meetWarnMsg, setMeetWarnMsg] = useState<string | null>(null);
   // 사이클 N+13: Daily.co → Google Meet 교체. 워크스페이스가 Google Calendar 연동되어 있어야 자동 생성 가능.
   const [gcalConnected, setGcalConnected] = useState(false);
+  // #242 — 토큰 존재 ≠ 캘린더 쓰기 권한. Meet·팀 동기화 UI 는 이 값으로 게이트한다.
+  const [gcalCanWrite, setGcalCanWrite] = useState(false);
   const today = useMemo(() => new Date(), []);
 
   // 업무 상세 드로어 (Q Task 페이지로 이동하지 않고 캘린더 위에 오버레이)
@@ -125,8 +132,8 @@ const QCalendarPage: React.FC = () => {
   useEffect(() => {
     if (!bizId) return;
     getVideoStatus(bizId)
-      .then((s) => setGcalConnected(!!s.gcal_connected))
-      .catch(() => setGcalConnected(false));
+      .then((s) => { setGcalConnected(!!s.gcal_connected); setGcalCanWrite(!!s.gcal_can_write); })
+      .catch(() => { setGcalConnected(false); setGcalCanWrite(false); });
   }, [bizId]);
 
   // 개인 Google 캘린더 연결 여부 (외부 연동 Phase 2) — 연결됐을 때만 overlay 토글 노출
@@ -383,11 +390,16 @@ const QCalendarPage: React.FC = () => {
       const created = await createEvent(bizId, payload as Parameters<typeof createEvent>[1]);
       setEvents((prev) => [...prev, created]);
       setShowNewModal(false);
+      // #242 — 일정 저장은 성공(모달 닫힘)이지만 Meet 링크만 실패한 경우. 조용히 넘기면
+      //   사용자는 링크 없는 일정을 성공으로 오해한다 → 명시적으로 알린다.
+      if (created?.meet_warning) setMeetWarnMsg(t('meetLinkFailed') as string);
       // #124 — 등록 후 우측 상세 드로어 자동 오픈 안 함(사용자 요청). 생성만 하고 목록에 반영.
     } catch (e) {
       setErrorMsg(mapApiError(e, tErr));
     }
-  }, [bizId]);
+    // t/tErr 를 deps 에 넣는다 — 빠뜨리면 최초 렌더 시점 언어로 박제돼, 언어를 바꾼 뒤에도
+    //   토스트만 옛 언어로 뜬다(Fable 게이트 관찰).
+  }, [bizId, t, tErr]);
 
   const handleUpdate = useCallback(async (
     patch: Partial<CalendarEvent>,
@@ -496,7 +508,7 @@ const QCalendarPage: React.FC = () => {
 
   return (
     <PageShell title={t('title')} actions={headerActions}>
-      <CalendarSyncNotice workspaceConnected={gcalConnected} personalConnected={personalConnected} personalCanWrite={personalCanWrite} />
+      <CalendarSyncNotice workspaceConnected={gcalConnected} workspaceCanWrite={gcalCanWrite} personalConnected={personalConnected} personalCanWrite={personalCanWrite} />
       <Toolbar>
         <ToolbarLeft>
           {view === 'day' && (
@@ -597,7 +609,7 @@ const QCalendarPage: React.FC = () => {
           onUpdate={handleUpdate}
           onDelete={handleDelete}
           onCreateMeetingRoom={handleCreateMeetingRoom}
-          gcalConnected={gcalConnected}
+          gcalCanWrite={gcalCanWrite}
           personalCalWritable={personalConnected && personalCanWrite}
         />
       )}
@@ -625,6 +637,10 @@ const QCalendarPage: React.FC = () => {
 
       {errorMsg && (
         <ErrorToast onClick={() => setErrorMsg(null)}>{errorMsg}</ErrorToast>
+      )}
+      {/* #242 — 일정은 저장됐고 Meet 링크만 실패한 경우. 자동 소거 없이 클릭으로만 닫힌다. */}
+      {meetWarnMsg && (
+        <MeetWarnToast role="status" onClick={() => setMeetWarnMsg(null)}>{meetWarnMsg}</MeetWarnToast>
       )}
       {loading && <LoadingBar />}
     </PageShell>
@@ -713,6 +729,16 @@ const ErrorToast = styled.div`
   position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
   padding: 10px 16px; border-radius: 8px;
   background: #FEE2E2; color: #B91C1C; font-size: 13px; font-weight: 500;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12); cursor: pointer;
+  z-index: 80;
+`;
+// #242 — 경고(조치 필요)는 에러(실패)와 톤을 구분한다. Warning 색 + errorMsg 위에 쌓이도록 bottom 을 띄운다.
+const MeetWarnToast = styled.div`
+  position: fixed; bottom: 64px; left: 50%; transform: translateX(-50%);
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 10px 16px; border-radius: 8px;
+  background: #FFFBEB; color: #92400E; border: 1px solid #FDE68A;
+  font-size: 13px; font-weight: 500; line-height: 1.5;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12); cursor: pointer;
   z-index: 80;
 `;

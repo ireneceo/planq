@@ -28,6 +28,8 @@ export interface CalendarEvent {
   color: string | null;
   rrule: string | null;
   meeting_url: string | null;
+  /** #242 — 일정은 저장됐지만 Meet 링크 생성이 실패한 경우의 사유 코드 (생성 응답에만 실린다) */
+  meet_warning?: string | null;
   gcal_event_id?: string | null;  // #126 — Google Calendar 동기화 시 저장. NULL = 미동기화(backfill 대상)
   meeting_provider: MeetingProvider | null;
   visibility: EventVisibility;

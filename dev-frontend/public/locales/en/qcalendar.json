@@ -19,7 +19,8 @@
     "personalBody": "Your connected Google Calendar events are shown here for viewing only (read-only). Events you create in PlanQ are not pushed to your personal Google Calendar.",
     "dismiss": "Dismiss",
     "personalBodyRead": "Your connected Google Calendar events are shown here for reference only (read-only). To send PlanQ events to your Google Calendar, reconnect the account.",
-    "personalBodyWrite": "Your Google Calendar events are shown here, and PlanQ events are added to your Google Calendar too. Private events go only to your own calendar, never the team calendar. You can turn this off per event."
+    "personalBodyWrite": "Your Google Calendar events are shown here, and PlanQ events are added to your Google Calendar too. Private events go only to your own calendar, never the team calendar. You can turn this off per event.",
+    "workspaceBroken": "The workspace connection lacks calendar permission — Meet links and sync will not work. Reconnect in Settings > Files & Integrations."
   },
   "filter": {
     "all": "All",
@@ -93,7 +94,9 @@
     "gcalTeamHint": "Goes to the Google account connected to this workspace.",
     "gcalTeamBlocked": "Private events cannot be added to the team calendar.",
     "gcalPersonal": "Add to my Google Calendar",
-    "gcalPersonalHint": "Goes only to the Google account you connected."
+    "gcalPersonalHint": "Goes only to the Google account you connected.",
+    "gcalReconnectPrompt": "Google Calendar needs to be reconnected",
+    "gcalReconnectHelp": "The connected account lacks calendar permission, so Meet links and sync are unavailable."
   },
   "button": {
     "create": "Create event",
@@ -194,5 +197,6 @@
     "description": "Description",
     "readOnlyHint": "This event lives in your personal calendar, so PlanQ does not edit it. Only you can see it.",
     "openInGoogle": "Open in Google Calendar"
-  }
+  },
+  "meetLinkFailed": "Event saved, but the Google Meet link could not be created. Please reconnect Google Calendar in Settings > Files & Integrations."
 }

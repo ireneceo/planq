@@ -97,16 +97,26 @@ async function createEvent(actor, params = {}) {
   const isPrivateEvt = gcal.isPrivateForGcal({ visibility: evVisibility, vlevel: evVlevel });
   if (params.autoCreateMeeting && isPrivateEvt) return fail('cannot_create_meeting_for_private_event', 400);
 
-  const t = await sequelize.transaction();
-  let event;
-  try {
-    // Google Meet 자동 생성 — auto_create_meeting 옵션 시. 워크스페이스 gcal 연동 필요.
-    let finalMeetingUrl = params.meetingUrl?.trim() || null;
-    let finalMeetingProvider = PROVIDER_SET.has(params.meetingProvider) ? params.meetingProvider : null;
-    let finalGcalEventId = null;
-    if (params.autoCreateMeeting) {
-      const gcalToken = await gcal.getTokenForBusiness(businessId);
-      if (!gcalToken) { await t.rollback(); return fail('gcal_not_connected'); }
+  // ── Google Meet 자동 생성 — **트랜잭션 밖에서** 먼저 시도한다 (운영 피드백 #242, Fable 설계 게이트 2026-07-31).
+  //   옛 구현은 이 블록을 tx 안에 두고 실패 시 `t.rollback()` + 502 로 **일정 생성을 통째로 되돌렸다**.
+  //   그래서 워크스페이스 토큰에 캘린더 쓰기 권한이 없으면(운영 실사례) 사용자가 Meet 을 켠 순간
+  //   일정이 아예 안 만들어졌다. 부가 기능이 본 기능을 죽인 것이다.
+  //   같은 파일 아래 일반 push 는 원래부터 best-effort 였고, calendarSync.js 주석이 그 근거를 명시한다 —
+  //   "구글 한 곳이 죽었다고 PlanQ 일정 저장을 되돌리면 사용자가 일을 못 한다." 정책을 그쪽으로 통일한다.
+  //   실패는 삼키지 않는다: meetWarning 코드를 응답에 실어 프론트가 "일정은 저장됐지만 링크 실패" 를 알린다.
+  //   (구글 네트워크 I/O 동안 tx 를 잡고 있던 기존 냄새도 같이 해소된다.)
+  let finalMeetingUrl = params.meetingUrl?.trim() || null;
+  let finalMeetingProvider = PROVIDER_SET.has(params.meetingProvider) ? params.meetingProvider : null;
+  let finalGcalEventId = null;
+  let meetWarning = null;
+  if (params.autoCreateMeeting) {
+    const gcalToken = await gcal.getTokenForBusiness(businessId);
+    if (!gcalToken) {
+      meetWarning = 'gcal_not_connected';
+    } else if (!gcal.hasWriteScope(gcalToken.scope)) {
+      // 권한이 없는 게 이미 확인되면 구글을 부르지 않는다 — 어차피 403 이고, 헛 왕복만 남는다.
+      meetWarning = 'gcal_scope_missing';
+    } else {
       try {
         const cal = await gcal.getCalendarClient(gcalToken);
         const meeting = await gcal.createMeetingEvent(cal, {
@@ -124,11 +134,14 @@ async function createEvent(actor, params = {}) {
       } catch (e) {
         console.error('[gcal createMeetingEvent]', e.message);
         await gcal.recordPushError(gcalToken, e);   // 설정 화면에 재연결 필요 표시
-        await t.rollback();
-        return fail('gcal_meeting_create_failed', 502);
+        meetWarning = 'gcal_meeting_create_failed';
       }
     }
+  }
 
+  const t = await sequelize.transaction();
+  let event;
+  try {
     event = await CalendarEvent.create({
       business_id: businessId,
       project_id: projectId,
@@ -210,7 +223,10 @@ async function createEvent(actor, params = {}) {
   //   #126 보안 — 개인(L1)·팀 비공개(L2)·personal 일정은 push 금지(owner 구글캘린더 유출 차단).
   // 목적지 결정(팀/개인)·토글·권한은 전부 services/calendarSync 단일 착지점에 있다.
   //   Meet 자동생성으로 이미 워크스페이스 이벤트를 만든 경우는 그쪽이 링크를 쥐고 있으므로 건너뛴다.
-  if (!params.autoCreateMeeting) {
+  //   ★ 게이트가 `!autoCreateMeeting` 이 아니라 `!finalGcalEventId` 인 이유: Meet 이 **실패**했을 때도
+  //     옛 조건이면 여기를 건너뛰어 개인 캘린더 push 까지 같이 죽었다(#242 부수 피해). 실제로 구글
+  //     이벤트를 만든 경우에만 건너뛴다.
+  if (!finalGcalEventId) {
     try {
       const r = await calendarSync.reconcile(event, { businessId, userId: actor.userId || event.created_by });
       if (r.errors.length) console.warn('[calendarSync create]', JSON.stringify(r.errors).slice(0, 300));
@@ -250,7 +266,8 @@ async function createEvent(actor, params = {}) {
   }
 
   // 표시명 적용은 라우트가 응답 직전에 하지 않는다 — 옛 라우트도 안 했다(생성 응답은 raw). 무변경.
-  return done({ event, full });
+  // meetWarning — Meet 링크만 실패한 경우. 일정 생성은 성공(201)이고, 프론트가 이 코드로 경고를 띄운다.
+  return done({ event, full, meetWarning });
 }
 
 module.exports = { createEvent };

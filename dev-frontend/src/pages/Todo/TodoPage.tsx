@@ -333,7 +333,7 @@ const TodoPage: React.FC = () => {
           onUpdate={handleEventUpdate}
           onDelete={handleEventDelete}
           onCreateMeetingRoom={handleEventCreateMeetingRoom}
-          gcalConnected={false}
+          gcalCanWrite={false}
         />
       )}
       {/* 업무 흐름 — 오늘 시작 안내 모달 (focus_enabled + daily_prompt true 일 때만) */}

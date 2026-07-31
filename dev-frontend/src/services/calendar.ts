@@ -83,6 +83,8 @@ export async function deleteEvent(
 export async function getVideoStatus(bizId?: number): Promise<{
   gcal_configured: boolean;
   gcal_connected: boolean;
+  /** #242 — 토큰이 있어도 캘린더 쓰기 권한이 없을 수 있다. Meet/동기화 UI 는 이 값으로 게이트한다. */
+  gcal_can_write: boolean;
   account_email: string | null;
 }> {
   const qs = bizId ? `?business_id=${bizId}` : '';
