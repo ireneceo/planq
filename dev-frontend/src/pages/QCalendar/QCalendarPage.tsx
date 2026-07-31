@@ -598,6 +598,7 @@ const QCalendarPage: React.FC = () => {
           onDelete={handleDelete}
           onCreateMeetingRoom={handleCreateMeetingRoom}
           gcalConnected={gcalConnected}
+          personalCalWritable={personalConnected && personalCanWrite}
         />
       )}
 

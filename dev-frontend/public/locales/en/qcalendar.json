@@ -156,7 +156,9 @@
     "gcalTeam": "Team calendar",
     "gcalPersonal": "My calendar",
     "gcalTeamBlocked": "Private events cannot be added to the team calendar",
-    "gcalNone": "Not added"
+    "gcalNone": "Not added",
+    "gcalSync": "Google Calendar",
+    "share": "Share"
   },
   "empty": {
     "month": "No events this month",

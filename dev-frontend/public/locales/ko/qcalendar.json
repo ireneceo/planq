@@ -156,7 +156,9 @@
     "gcalTeam": "팀 캘린더",
     "gcalPersonal": "내 캘린더",
     "gcalTeamBlocked": "비공개 일정은 팀 캘린더에 올릴 수 없습니다",
-    "gcalNone": "올리지 않음"
+    "gcalNone": "올리지 않음",
+    "gcalSync": "Google Calendar",
+    "share": "공유"
   },
   "empty": {
     "month": "이번 달엔 예정된 일정이 없습니다",
