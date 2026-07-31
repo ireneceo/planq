@@ -243,7 +243,11 @@ router.post('/by-business/:businessId', authenticateToken, checkBusinessAccess, 
       }
     );
     if (!r.ok) return errorResponse(res, r.code, r.http || 400);
-    return successResponse(res, r.data.full.toJSON(), 'created', 201);
+    // #242 — Meet 링크만 실패한 경우에도 일정 생성은 성공(201)이다. 실패 사실은 삼키지 않고
+    //   meet_warning 코드로 실어 보내 프론트가 "일정은 저장됐지만 링크 실패" 를 알린다.
+    const created = r.data.full.toJSON();
+    if (r.data.meetWarning) created.meet_warning = r.data.meetWarning;
+    return successResponse(res, created, 'created', 201);
   } catch (err) { next(err); }
 });
 
@@ -890,14 +894,19 @@ router.get('/video/status', authenticateToken, async (req, res, next) => {
     const businessId = req.query.business_id ? Number(req.query.business_id) : null;
     const configured = gcal.isConfigured();
     let connected = false;
+    let canWrite = false;
     let accountEmail = null;
     if (businessId && configured) {
       const tk = await gcal.getTokenForBusiness(businessId);
-      if (tk) { connected = true; accountEmail = tk.account_email; }
+      if (tk) { connected = true; accountEmail = tk.account_email; canWrite = gcal.hasWriteScope(tk.scope); }
     }
     return successResponse(res, {
       gcal_configured: configured,
       gcal_connected: connected,
+      // #242 — 토큰이 있어도 캘린더 쓰기 권한(scope)이 없을 수 있다. 옛 응답은 그 구분이 없어
+      //   프론트가 Meet 자동생성 체크박스를 켤 수 있게 노출했고, 켜면 일정 생성이 실패했다.
+      //   `gcal_connected` 의 의미는 그대로 두고(연결 CTA 분기가 쓴다) 쓰기 가능 여부를 따로 준다.
+      gcal_can_write: canWrite,
       account_email: accountEmail,
     });
   } catch (err) { next(err); }
@@ -919,6 +928,10 @@ router.post('/by-business/:businessId/:id/meeting', authenticateToken, checkBusi
     }
     const gcalToken = await gcal.getTokenForBusiness(businessId);
     if (!gcalToken) return errorResponse(res, 'gcal_not_connected', 400);
+    // #242 — 쓰기 권한 없는 토큰이면 구글을 부르지 않고 명시적으로 거부한다. 옛 코드는 그냥 호출해
+    //   502 gcal_meeting_create_failed 로 죽었고 사용자는 이유를 알 수 없었다.
+    //   (push-to-gcal 라우트는 이미 같은 검사를 하고 있었다 — 이 라우트만 빠져 있었다.)
+    if (!gcal.hasWriteScope(gcalToken.scope)) return errorResponse(res, 'gcal_scope_missing', 400, 'gcal_scope_missing');
 
     let meeting;
     let cal;
