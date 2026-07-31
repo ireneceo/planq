@@ -245,6 +245,8 @@ const Backdrop = styled.div`
   @media (max-width: 640px) { padding: 0; align-items: flex-end; }
 `;
 const Dialog = styled.div`
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
   background: #FFFFFF;
   border-radius: 16px;
   width: 100%;

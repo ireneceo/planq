@@ -1216,6 +1216,8 @@ const ScopeBackdrop = styled.div`
   z-index: 2099;
 `;
 const ScopeModal = styled.div`
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
   position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
   z-index: 2100;
   width: 420px; max-width: calc(100vw - 32px);

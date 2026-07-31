@@ -268,6 +268,8 @@ const Backdrop = styled.div`
   @media (min-width: 641px) { align-items: center; }
 `;
 const Sheet = styled.div`
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
   width: 100%; max-width: 420px;
   background: #fff; border-radius: 16px 16px 0 0;
   padding: 16px 20px calc(20px + env(safe-area-inset-bottom));

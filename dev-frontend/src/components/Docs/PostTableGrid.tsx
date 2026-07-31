@@ -995,6 +995,8 @@ const PopoverBackdrop = styled.div`
   z-index: 1100; padding: 20px;
 `;
 const PopoverDialog = styled.div`
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
   background: #fff; border-radius: 12px; max-width: 420px; width: 100%;
   display: flex; flex-direction: column;
   box-shadow: 0 20px 60px rgba(15,23,42,0.2);

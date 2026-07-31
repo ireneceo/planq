@@ -539,10 +539,12 @@ const CorrBadge = styled.span<{ $canceled?: boolean }>`
   background: ${p => p.$canceled ? '#FEE2E2' : '#FEF3C7'};
 `;
 const ModalBackdrop = styled.div`
+  overflow-y: auto;
   position: fixed; inset: 0; background: rgba(15,23,42,0.5);
   display: flex; align-items: center; justify-content: center; z-index: 1100; padding: 20px;
 `;
 const ModalDialog = styled.div`
+  max-height: calc(100vh - 40px);
   background: #fff; border-radius: 12px; max-width: 460px; width: 100%;
   display: flex; flex-direction: column; box-shadow: 0 24px 64px rgba(0,0,0,0.2);
 `;
@@ -556,7 +558,9 @@ const ModalClose = styled.button`
   background: transparent; border: none; cursor: pointer; color: #64748B; border-radius: 4px;
   &:hover { background: #F1F5F9; }
 `;
-const ModalBody = styled.div`padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;`;
+// #216 — overflow-y·min-height 가 있어야 다이얼로그의 max-height 안에서 **본문이** 스크롤된다.
+//   없으면 내용이 흰 카드 밖(백드롭 위)으로 흘러나와 요약칩·푸터가 떠 보인다(Fable 실측 스필 133~273px).
+const ModalBody = styled.div`padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; min-height: 0;`;
 const ModalDesc = styled.div`font-size: 12px; color: #64748B; line-height: 1.5;`;
 const ModalField = styled.div`display: flex; flex-direction: column; gap: 4px;`;
 const ModalLabel = styled.label`font-size: 11px; font-weight: 600; color: #475569;`;

@@ -252,6 +252,8 @@ const Backdrop = styled.div`
 `;
 
 const Popover = styled.div`
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
   position: fixed;
   z-index: 2001;
   width: 280px;
