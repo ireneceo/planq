@@ -102,7 +102,10 @@ KbDocument.init({
     defaultValue: 'workspace',
   },
   project_id: {
-    type: DataTypes.INTEGER,
+    // ★ BIGINT — projects.id 가 bigint 다. INTEGER 로 선언돼 있던 탓에 dev 에서 FK 생성이 매번
+    //   실패했고(타입 불일치), 모델이 운영 실제 스키마와도 어긋나 있었다(운영은 bigint + FK 정상).
+    //   2026-07-31 정합. 다른 project_id FK 22개는 전부 bigint 였고 이 컬럼만 int 였다.
+    type: DataTypes.BIGINT,
     allowNull: true,
     references: { model: 'projects', key: 'id' },
   },

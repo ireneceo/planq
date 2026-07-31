@@ -977,7 +977,8 @@ async function resume(task, actor) {
       hold_prev_status: null,
       hold_reason: null,
     }, { transaction: t });
-    // 'status_change' 고정 — 위 hold 와 같은 이유 (라운드 재개 경계가 시간 엔진에 보여야 한다)
+    // 'status_change' 고정 — 위 hold 와 같은 이유 (타임라인 라벨 + revertStatus 의 from_status 파생).
+    //   옛 근거였던 "시간 엔진 라운드 재개 경계" 는 2026-07-31 경과시간 누적 폐기로 사라졌다.
     await logHistory({
       taskId: task.id, eventType: 'status_change',
       fromStatus, toStatus: target,
