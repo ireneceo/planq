@@ -1,8 +1,30 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-07-31 12:00 (Opus 5, 1M)
-**작업 상태:** 핀 요구 2건 구현 완료 — Fable 재판정 대기. **dev 반영 완료 / 운영 미배포 (누적 6커밋 예정)**
+**마지막 업데이트:** 2026-07-31 13:00 (Opus 5, 1M)
+**작업 상태:** 핀 2건 + 이월결함 5건 + 시간엔진 재설계 완료 (전부 Fable 게이트 PASS).
+**dev 반영 완료 / 운영 미배포 (누적 8커밋)**
+
+### 이번 세션 추가분 (2026-07-31 오후)
+- **`44b05c4` 이월 결함 5건** — sanitize() 의 has_* 3필드가 delete 뒤에 계산돼 **항상 false**(계약 위반) ·
+  EventDrawer 가 **연결 안 된 구글 캘린더 목적지 토글**을 항상 노출(NewEventModal 은 이미 게이트 중이었음) ·
+  `t('button.share')` 키 부재로 **영어 사용자에게 한국어 '공유'** 노출 · PWA 배너 role="dialog"→complementary(§17) ·
+  죽은 `needsGcalSync` 제거(기능은 calendarSync.reconcile 이 담당, 살아 있음).
+  ※ 이월 목록의 "PUT /mail owner 미강제" 는 **오기록** — 코드가 이미 403 을 낸다.
+- **`c4c5fb3` 시간 엔진 재설계 (Irene 승인)** — status 경과시간 자동 누적 **폐기**.
+  actual_hours 자동값 = **포커스 실측만**. 사용자 직접 입력은 불변.
+  Fable 설계 게이트가 내 초안(D1: to_status IS NOT NULL 로 경계 수정)을 **기각**했다 —
+  경계를 고쳐도 task 53 이 0h→67.7h(밤 2번 포함 경과시간)로 **새 거짓을 쓴다**.
+  또 훅 조건을 넓히면 **락 지뢰**를 밟는다(tasks X-lock 트랜잭션 밖에서 같은 행 UPDATE → 최대 50초 정지).
+  → afterCreate 훅 통째 삭제로 지뢰 근본 소멸. hold 28ms/resume 15ms 실측.
+  백필 `scripts/backfill-actual-hours-drop-status-fallback.js` (dry-run 기본/--apply/--restore).
+  **운영 백필 미실행** — 코드 배포가 먼저다(옛 훅 생존 시 재오염). 예측 6건: task 5·6·13·24·115·141.
+
+### 다음 접촉 시 정리 (Fable 이 비차단으로 남긴 것)
+- `task_actions.js` resume() 주석의 "라운드 재개 경계가 시간 엔진에 보여야 한다" 문구가 이제 옛 근거
+- `TaskDetailDrawer.tsx:455` 주석에 옛 함수명 `recomputeActualHoursFromHistory` 잔존(프론트 무변경 원칙으로 미수정)
+- **KbDocument FK** — 운영은 이미 정상(bigint + FK + 고아 0). **dev DB 만 int 드리프트** + 없는 프로젝트 13 을
+  참조하는 고아 2건(조회 구조상 이미 안 보임). 모델도 INTEGER 라 운영 실제와 어긋남 → 모델 BIGINT + dev ALTER 필요
 
 ---
 
