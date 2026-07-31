@@ -19,7 +19,7 @@ const {
   FocusSession, User, Task, TaskReviewer, AuditLog,
 } = require('../models');
 const { sequelize } = require('../config/database');
-const { recomputeActualHoursFromHistory } = require('../services/taskActualHours');
+const { recomputeActualHours } = require('../services/taskActualHours');
 
 // ─── 헬퍼 ────────────────────────────────────────────────────────
 const startStopLimiter = rateLimit({
@@ -156,7 +156,7 @@ router.post('/start', authenticateToken, startStopLimiter, async (req, res, next
 
       // 이전 task 의 actual_hours 재계산 (커밋 후 — 세션 stop 이 보이는 상태에서) + 실시간 반영(#38)
       if (existing?.task_id) {
-        await recomputeActualHoursFromHistory(existing.task_id).catch(() => null);
+        await recomputeActualHours(existing.task_id).catch(() => null);
         await broadcastTaskUpdate(req, existing.task_id);
       }
 
@@ -196,7 +196,7 @@ router.post('/pause', authenticateToken, startStopLimiter, async (req, res, next
     }).catch(() => null);
     // 운영 #38: 일시중단 시점까지 측정된 시간도 '실제'(actual_hours) 에 즉시 반영.
     // (paused 세션도 computeActualSeconds 가 그때까지 누적을 계산 — recompute 가 SSOT 로 합산)
-    await recomputeActualHoursFromHistory(session.task_id).catch(() => null);
+    await recomputeActualHours(session.task_id).catch(() => null);
     await broadcastTaskUpdate(req, session.task_id);
     const taskInfo = await loadTaskInfo(session.task_id);
     const taskAccum = await sumStoppedFocusSeconds(session.task_id, req.user.id, session.id);
@@ -253,7 +253,7 @@ router.post('/stop', authenticateToken, startStopLimiter, async (req, res, next)
       end_reason: end_reason || 'manual',
     });
     if (session.task_id) {
-      await recomputeActualHoursFromHistory(session.task_id).catch(() => null);
+      await recomputeActualHours(session.task_id).catch(() => null);
       await broadcastTaskUpdate(req, session.task_id);
     }
     await AuditLog.create({

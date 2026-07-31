@@ -434,14 +434,10 @@ TaskStatusHistory.belongsTo(Task, { foreignKey: 'task_id', onDelete: 'CASCADE' }
 TaskStatusHistory.belongsTo(User, { as: 'actor', foreignKey: 'actor_user_id' });
 TaskStatusHistory.belongsTo(User, { as: 'target', foreignKey: 'target_user_id' });
 Task.hasMany(TaskStatusHistory, { as: 'history', foreignKey: 'task_id' });
-// status_change 기록 후 actual_hours 자동 재계산 (사이클 N+6 — 진행 시간 자동 누적)
-TaskStatusHistory.addHook('afterCreate', async (row) => {
-  if (row.event_type !== 'status_change') return;
-  try {
-    const { recomputeActualHoursFromHistory } = require('../services/taskActualHours');
-    await recomputeActualHoursFromHistory(row.task_id);
-  } catch (e) { console.warn('[task actual_hours auto] hook failed:', e.message); }
-});
+// (2026-07-31 — actual_hours 재계산 afterCreate 훅 삭제. status 경과시간 누적을 폐기해 근거가 사라졌고,
+//  이 훅 자체가 지뢰였다: hold/resume/review_submit/completed 는 tasks 행 X-lock 을 쥔 트랜잭션 안에서
+//  history 를 create 하는데, 훅이 그 밖의 커넥션으로 같은 행을 UPDATE 하러 들어가 락 대기가 걸렸다.
+//  잔여 갱신 경로는 services/focusSync.js 와 routes/focus.js 가 전담한다.)
 
 // TaskAttachment
 TaskAttachment.belongsTo(Task, { foreignKey: 'task_id', onDelete: 'CASCADE' });
