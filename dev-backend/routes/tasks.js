@@ -14,6 +14,7 @@ const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../servic
 const { serializeTaskForClient, serializeTasksForClient } = require('../utils/taskClientView');
 // 생성·전이는 행동 계층 단일 착지점을 지난다 (사람도 Cue 도 같은 문).
 const taskActions = require('../services/actions/task_actions');
+const { myWeekWhere } = require('../services/weekTaskSet');
 const { modelFor: llmModelFor } = require('../services/llm');
 
 // 행동의 주체 — 사람이 HTTP 로 들어온 경우. req 는 감사 로그의 IP 맥락에만 쓴다.
@@ -102,48 +103,11 @@ router.get('/my-week', authenticateToken, async (req, res, next) => {
     //   팝아웃 번호가 메인보다 밀리는 결함이 났다(2026-07-28 Fable 설계 게이트 판정).
     //   반드시 양쪽 같이 수정할 것.
     const uid = Number(userId);   // literal 삽입 전 정수 강제 (인젝션 차단)
+    // 집합 정의는 services/weekTaskSet.js 가 정본이다 — 보고서 빌더들이 각자 사본을 갖고 있다가
+    //   "날짜 없는 backlog 가 모든 과거 주에 소급 포함" · "주 스코프 없이 전체 업무 합산" 결함을
+    //   냈다(#223). 여기와 그쪽이 같은 함수를 쓰게 해서 정의가 다시 갈라지지 않게 한다.
     const tasks = await Task.findAll({
-      where: {
-        business_id: businessId,
-        [Op.or]: [
-          {
-            assignee_id: uid,
-            [Op.or]: [
-              {
-                status: { [Op.in]: ['completed', 'canceled'] },
-                completed_at: { [Op.between]: [`${monday} 00:00:00`, `${sunday} 23:59:59`] },
-              },
-              {
-                status: 'not_started',
-                [Op.or]: [
-                  { planned_week_start: monday },
-                  { due_date: { [Op.between]: [monday, sunday] } },
-                  { due_date: { [Op.lt]: monday } },   // ★ 지연(마감 지난 미착수)도 포함 — Irene 2026-07-05. null 마감은 NULL 비교로 자동 제외(backlog flood 차단 유지)
-                ],
-              },
-              // #206 external_review 는 이번 주에 남긴다 (외부를 채근할 책임이 담당자에게 있다).
-              //   on_hold 는 의도적으로 제외 — 보류는 이번 주 무대에서 퇴장, 전체 탭에만 주차.
-              { status: { [Op.in]: ['in_progress', 'reviewing', 'revision_requested', 'waiting', 'external_review'] } },
-            ],
-          },
-          // 내가 pending 컨펌자인 활성 업무 — 날짜 무관 (메인 filtered 의 myRev pending 분기 미러).
-          //   담당자가 아니어도 "내가 행동해야 하는 것"이라 이번 주 무대에 오른다.
-          {
-            status: { [Op.in]: ['reviewing', 'revision_requested'] },
-            id: { [Op.in]: literal(`(SELECT task_id FROM task_reviewers WHERE user_id = ${uid} AND state = 'pending')`) },
-          },
-          // 내가 관여한 이번 주 완료 — 의뢰자/작성자/리뷰어(state 무관). 메인의 involved 분기 미러.
-          {
-            status: { [Op.in]: ['completed', 'canceled'] },
-            completed_at: { [Op.between]: [`${monday} 00:00:00`, `${sunday} 23:59:59`] },
-            [Op.or]: [
-              { request_by_user_id: uid },
-              { created_by: uid },
-              { id: { [Op.in]: literal(`(SELECT task_id FROM task_reviewers WHERE user_id = ${uid})`) } },
-            ],
-          },
-        ],
-      },
+      where: myWeekWhere(uid, businessId, monday, sunday),
       // 컨펌자 수 — 팝아웃/리스트의 퀵액션 분기(체크 완료 vs 컨펌 요청)가 이 값으로 갈린다.
       //   ★ attributes 는 반드시 { include: [...] } 형태 — 배열로 나열하면 전 컬럼이 날아간다.
       attributes: {

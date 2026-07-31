@@ -83,7 +83,6 @@ interface TaskRow {
   next_occurrence_at?: string | null;
   createdAt: string;
 }
-interface BurndownPoint { label: string; estimated_cumulative: number; actual_cumulative: number; }
 interface IssueRow { id: number; body: string; author?: { name: string }; projectName?: string; }
 interface NoteRow { id: number; body: string; author?: { name: string }; visibility?: string; projectName?: string; }
 interface CommentAttach { id: number; stored_name?: string; original_name: string; file_size: number; mime_type: string | null; }
@@ -218,8 +217,6 @@ const QTaskPage:React.FC=()=>{
   const[submittingBelow,setSubmittingBelow]=useState(false);
   const[assigneeFilter,setAssigneeFilter]=useState<number|null>(null); // workspace mode 담당자 필터
   const[capacity,setCapacity]=useState<{daily:number;days:number;rate:number;weekly:number}>({daily:8,days:5,rate:1,weekly:40});
-  const[burndown,_setBurndown]=useState<BurndownPoint[]>([]);
-  void burndown;
   const[issues,setIssues]=useState<IssueRow[]>([]);
   const[notes,setNotes]=useState<NoteRow[]>([]);
   const[loading,setLoading]=useState(true);
@@ -545,7 +542,6 @@ const QTaskPage:React.FC=()=>{
             setCapacity(wr.data.capacity);
             // 운영 #50 — 이번 주 휴일도 백엔드에서 복원 (페이지 이탈 후 0 리셋 버그 fix)
             if(typeof wr.data.capacity?.holidays==='number')setHolidayDays(wr.data.capacity.holidays);
-            _setBurndown((wr.data.burndown||[]).map((b:Record<string,unknown>)=>({label:b.label as string,estimated_cumulative:b.estimated_cumulative as number,actual_cumulative:b.actual_cumulative as number})));
           }
         }catch{/* ignore */}
         // WORK_FLOW §6 (U5) — 실측 참여율 제안 (서버가 커버리지 충분할 때만 suggested_rate 반환)
