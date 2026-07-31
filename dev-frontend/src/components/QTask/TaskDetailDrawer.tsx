@@ -452,7 +452,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   }, [detailTask, bizId, kbSaving, kbSaved]);
 
   // #105 — 포커스 일시정지/재개 시 "실제" 시간 즉시 반영.
-  //   backend 는 pause 시점에 recomputeActualHoursFromHistory + broadcast 까지 하지만
+  //   backend 는 pause 시점에 recomputeActualHours + broadcast 까지 하지만
   //   드로어는 socket 을 직접 구독하지 않으므로 같은 탭 안전망(focus:refresh)으로 재로드.
   useEffect(() => {
     const onFocusRefresh = () => loadDetail(taskId);
