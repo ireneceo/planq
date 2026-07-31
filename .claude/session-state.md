@@ -1,9 +1,28 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-07-31 13:00 (Opus 5, 1M)
-**작업 상태:** 핀 2건 + 이월결함 5건 + 시간엔진 재설계 완료 (전부 Fable 게이트 PASS).
-**dev 반영 완료 / 운영 미배포 (누적 8커밋)**
+**마지막 업데이트:** 2026-07-31 14:00 (Opus 5, 1M)
+**작업 상태:** **운영 배포 완료** (commit `cbee3ac`, 20260731_134458). 후속 백필·시드까지 끝.
+다음: 운영 피드백 #242(Meet 자동생성 실패) 수정 — Fable 설계 게이트 진행 중.
+
+### 🚀 2026-07-31 운영 배포 (9커밋)
+`Deployment Complete (208s)` · 백업 `/opt/planq/backups/20260731_134458` · health ok · PM2 3개 online ·
+청크 13:48:16 · nginx reload 완료. (exit 1 은 알려진 부수 신호, "에러 1건"은 ENUM 값 `'failed'` 문자열 오탐)
+- **actual_hours 백필 적용** — dry-run 이 Fable 예측 6건과 정확히 일치 → apply → **재실행 0건(멱등)**.
+  task 24 **153.6h→0.0h** · 115 6.0→6.1 · 141 0→0.5 · **user 42건 전부 보존** · 24h 초과 잔존 0.
+  백업 `backend/backups/actual-hours-backfill-1785505742798.json`
+- **운영 위키 시드** — 카테고리 14 · 문서 41 · 임베딩 인덱싱 완료
+- **운영 smoke** — KB project_id bigint + FK 2개 · `has_access_token` 이 운영 실데이터 2건에서 **true**
+  (dev 는 연결 0건이라 못 보던 케이스) · 토큰 원문 미노출 · history 515행 보존
+
+### 📋 운영 피드백 점검 (2026-07-31, 미처리 54건 = pending 52 + reviewing 2 / 총 243건)
+분류: **버그 18 · UX 개선 7 · 신규 기능 19 · 콘텐츠·정책 10**. 영역별로는 **Q Mail 19건**이 최다, Q Task 8, 캘린더 5.
+- **#242 (최우선, 원인 규명 완료)** — Meet 자동생성 시 일정 자체가 안 만들어짐. **3중 결함**:
+  ①운영 워크스페이스 1 토큰이 `userinfo.email openid` 뿐이라 `hasWriteScope()=false`
+  ②`/video/status` 의 `gcal_connected` 가 **토큰 존재만** 보고 true → 프론트가 Meet 체크박스 노출
+  ③`event_actions.js:107-129` 가 Meet 실패 시 **트랜잭션 통째 롤백**.
+  ★같은 파일 213-221 의 일반 push 는 best-effort 라 **한 파일 안에서 실패 정책이 정반대**
+- 나머지 53건은 `/tmp` 점검 목록 참조 — 다음 사이클에서 우선순위대로
 
 ### 이번 세션 추가분 (2026-07-31 오후)
 - **`44b05c4` 이월 결함 5건** — sanitize() 의 has_* 3필드가 delete 뒤에 계산돼 **항상 false**(계약 위반) ·
