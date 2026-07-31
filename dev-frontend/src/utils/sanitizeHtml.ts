@@ -14,6 +14,19 @@ const ALLOWED_TAGS = [
 ];
 const ALLOWED_ATTR = ['href', 'target', 'rel', 'src', 'alt', 'title', 'class', 'colspan', 'rowspan'];
 
+// ★ #226 — DOMPurify 는 **URI 속성만이 아니라 모든 속성 값**을 이 정규식으로 검사한다.
+//   그래서 스킴 목록만 나열한 옛 정규식은 `align="center"`·`width="600"`·`colspan="2"` 처럼
+//   URI 가 아닌 평범한 값까지 통째로 지웠다(실측: 운영 메일 1통에서 align 5·width 11 전멸).
+//   메일은 20년째 table 레이아웃 + presentational 속성으로 짜이므로, 그게 지워지면 가운데 정렬이
+//   풀려 왼쪽으로 쏠리고 고정폭 박스가 무너진다 — 사용자 보고 #226 의 증상 그대로다.
+//   뒤 두 대안(`[^a-z]` · 스킴 없는 토큰)은 DOMPurify 기본 정규식에서 그대로 가져온 것으로
+//   "스킴이 아닌 값" 을 통과시킨다. 위험 스킴(javascript: 등)은 여전히 어느 대안에도 안 걸려 차단된다.
+//   ★ 두 정화기의 허용 스킴은 **다르다** — 메일만 cid:(첨부 인라인 이미지)를 쓴다. 상수를 통째로
+//     공유하면 리치텍스트에 cid: 가 딸려 들어가므로(무해하지만 범위 밖 확대), 스킴 부분만 갈라 둔다.
+const NON_URI_VALUE = '[^a-z]|[a-z+.\\-]+(?:[^a-z+.\\-:]|$)';
+const RICH_URI_RE = new RegExp(`^(?:https?:|mailto:|tel:|/|#|data:image/|${NON_URI_VALUE})`, 'i');
+const MAIL_URI_RE = new RegExp(`^(?:https?:|mailto:|tel:|cid:|/|#|data:image/|${NON_URI_VALUE})`, 'i');
+
 /** 리치텍스트 HTML 정화. 평문이면 <p>+<br> 로 감싼다. */
 export function sanitizeRichText(value: string | null | undefined): string {
   if (!value) return '';
@@ -25,7 +38,7 @@ export function sanitizeRichText(value: string | null | undefined): string {
     ALLOWED_TAGS,
     ALLOWED_ATTR,
     // javascript:, data: 등 위험 스킴 차단 (이미지 data: 는 인라인 붙여넣기에 쓰이므로 허용)
-    ALLOWED_URI_REGEXP: /^(?:https?:|mailto:|tel:|\/|#|data:image\/)/i,
+    ALLOWED_URI_REGEXP: RICH_URI_RE,
   });
 }
 
@@ -44,6 +57,6 @@ export function sanitizeMailHtml(value: string | null | undefined): string {
     ADD_TAGS: ['style'],
     FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input', 'button', 'base'],
     FORBID_ATTR: ['srcdoc', 'formaction'],
-    ALLOWED_URI_REGEXP: /^(?:https?:|mailto:|tel:|cid:|\/|#|data:image\/)/i,
+    ALLOWED_URI_REGEXP: MAIL_URI_RE,
   });
 }
