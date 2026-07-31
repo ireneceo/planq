@@ -17,6 +17,7 @@
 //   - portfolio.health:  green/yellow/red 룰 (§B.3.5)
 //   - member util:       capacity vs Σ TaskDailyProgress.actual_hours (해당 주차)
 
+const { myAssignedWeekWhere } = require('./weekTaskSet');
 const { Op } = require('sequelize');
 const {
   Task, Project, TaskDailyProgress, BusinessMember, ProjectIssue,
@@ -53,19 +54,14 @@ async function buildSnapshot(userId, businessId, weekStart) {
   const friday = fridayOf(monday);
   const sunday = sundayOf(monday);
 
-  // 1) 본인 이번 주 task (기존 로직 유지)
+  // 1) 본인 이번 주 task — 정본(services/weekTaskSet.js §5)으로 통일.
+  //   옛 인라인 where 에는 "날짜가 하나도 없는 미완료 업무는 무조건 포함" catch-all 이 있어,
+  //   **그 주에 존재하지도 않았던 업무가 그 주 보고서에 소급 포함**됐다(#223, 운영 실측 25/25 phantom).
+  //   createdBefore 가드로 과거 주 재구성 시 미래 생성분을 봉쇄한다.
   const tasks = await Task.findAll({
     where: {
       business_id: businessId,
-      assignee_id: userId,
-      [Op.or]: [
-        { planned_week_start: monday },
-        { start_date: { [Op.between]: [monday, friday] } },
-        { due_date: { [Op.between]: [monday, friday] } },
-        { due_date: { [Op.lt]: monday }, status: { [Op.notIn]: ['completed', 'canceled'] } },
-        { completed_at: { [Op.between]: [`${monday} 00:00:00`, `${friday} 23:59:59`] } },
-        { start_date: null, due_date: null, status: { [Op.notIn]: ['completed', 'canceled'] } },
-      ],
+      ...myAssignedWeekWhere(userId, monday, sunday, { createdBefore: `${sunday} 23:59:59` }),
     },
     include: [{ model: Project, attributes: ['id', 'name'], required: false }],
     order: [['priority_order', 'ASC'], ['due_date', 'ASC']],

@@ -1,7 +1,9 @@
 // reportUnitSnapshot.js — 단위 보고서(ReportUnit) 자동 초안 빌더 (R2, 마스터설계 §4.2·§7.0)
 //   scope = project / department. KPI 수치는 fetchProjectStats 단일 원천 재사용(P4).
 //   주간/월간 period 경계 안에서 하이라이트·리스크·차기 계획·팀/멤버 롤업 집계.
+const { myAssignedWeekWhere } = require('./weekTaskSet');
 const { Op } = require('sequelize');
+const { sequelize } = require('../config/database');
 const {
   Project, Task, User, ProjectMember, BusinessMember, Department, ProjectIssue, Post, Document,
   ProjectWorkstream, ProjectClient, TaskDailyProgress,
@@ -123,12 +125,50 @@ async function buildProjectSnapshot(businessId, projectId, periodType, periodSta
 //   그래서 이미지가 아니라 **그 기간의 일별 시리즈를 스냅샷에 굳혀** 저장한다 — 나중에 업무가 바뀌어도
 //   보고서의 그래프는 그 주의 사실 그대로 남는다 (이미지 캡처는 다시 그릴 수도, 확대할 수도 없다).
 //   정의는 Q Task 라이브 그래프와 동일: est = Σ(예측시간 × 진행률), act = Σ(실제시간). 누적(단조증가).
-async function buildProgressSeries(taskIds, start, end) {
+// 기간 진척선 — **그 기간에 새로 만든 진척·투입**을 0 에서 시작해 그린다(번업).
+//
+// ★ #223 — 여태 task_daily_progress 값을 그대로 합산했는데, 그 행은 업무별 **일생 누적치**다.
+//   그래서 이월 업무가 주 시작 시점에 이미 안고 있던 시간이 첫날부터 통째로 들어와
+//   선이 0 이 아니라 195h(운영)·2244h(dev) 에서 시작했고, running-max 가 그 값을 주 내내 고정해
+//   **평평한 선**이 됐다. 정작 그 주 진척(수 h)은 200h y축에 묻혀 안 보였다 — 신고 증상 그대로.
+//   대상을 주 무대 업무로 좁히는 것만으로는 안 풀린다(운영·dev 양쪽 실측으로 반증됨).
+//   → 업무별 기준선(기간 시작 이전 최신 값)을 빼서 Δ 를 그린다. 부수 효과로 폐기된 자동누적
+//     시절의 부풀린 과거 값도 기준선에 갇혀 상쇄된다 — 데이터를 고치지 않고 정의로 면역을 얻는다.
+//
+// 기준선은 `start - 1일` 고정이 아니라 **`snapshot_date < start` 의 업무별 최신 행**이다.
+//   하루 고정이면 cron 이 그 하루를 걸렀을 때 그 업무의 일생 누적이 Δ 로 재유입된다(뒷문).
+//   기준 행이 없는 업무(기간 중 생성)는 기준 0 — 처음부터 쌓인 것이 맞다.
+//
+// 클램프는 **업무별**로 한다. 집계 후 클램프는 오답이다: 한 업무의 하향 정정(-3.2h)이 다른 업무의
+//   진척(+4.6h)을 잡아먹어 합계가 과소·음수가 된다(운영 실측 반례). 하향 정정은 *과거 기록의 수정*이지
+//   그 주의 음(−)의 노동이 아니므로 0 으로 눕힌다.
+//
+// @param today 'YYYY-MM-DD'. 주면 오늘 이후 요일은 방출하지 않는다 — 아직 오지 않은 날에
+//   running-max 가 이전 피크를 밀어넣어 주 전체 폭의 평평한 선을 그리던 것을 막는다
+//   (라이브 그래프는 이미 미래를 null 처리한다. 보고서만 안 하고 있었다).
+async function buildProgressSeries(taskIds, start, end, today = null) {
   if (!taskIds.length) return [];
   const rows = await TaskDailyProgress.findAll({
     where: { task_id: { [Op.in]: taskIds }, snapshot_date: { [Op.between]: [start, end] } },
     order: [['snapshot_date', 'ASC']],
   });
+
+  // 업무별 기준선 — 기간 시작 **이전**의 최신 스냅샷 (원쿼리)
+  const [baseRows] = await sequelize.query(
+    `SELECT p.task_id, p.actual_hours, p.estimated_hours, p.progress_percent
+       FROM task_daily_progress p
+       JOIN (SELECT task_id, MAX(snapshot_date) md FROM task_daily_progress
+              WHERE task_id IN (:ids) AND snapshot_date < :start GROUP BY task_id) m
+         ON m.task_id = p.task_id AND m.md = p.snapshot_date`,
+    { replacements: { ids: taskIds, start } },
+  );
+  const baseAct = new Map();
+  const baseEst = new Map();
+  for (const b of baseRows) {
+    baseAct.set(b.task_id, Number(b.actual_hours) || 0);
+    baseEst.set(b.task_id, (Number(b.estimated_hours) || 0) * ((b.progress_percent || 0) / 100));
+  }
+
   // snapshot_date 가 Date 로 역직렬화되면 String 비교가 항상 실패한다 (옛 그래프 빈화면 원인) → 정규화
   const dayKey = (sd) => (sd instanceof Date ? sd.toISOString().slice(0, 10) : String(sd).slice(0, 10));
   const out = [];
@@ -136,9 +176,16 @@ async function buildProgressSeries(taskIds, start, end) {
   let maxEst = 0;
   let maxAct = 0;
   while (cursor <= end) {
+    if (today && cursor > today) break;
     const day = rows.filter((r) => dayKey(r.snapshot_date) === cursor);
-    const est = day.reduce((sum, r) => sum + (Number(r.estimated_hours) || 0) * ((r.progress_percent || 0) / 100), 0);
-    const act = day.reduce((sum, r) => sum + (Number(r.actual_hours) || 0), 0);
+    const est = day.reduce((sum, r) => {
+      const v = (Number(r.estimated_hours) || 0) * ((r.progress_percent || 0) / 100);
+      return sum + Math.max(0, v - (baseEst.get(r.task_id) || 0));
+    }, 0);
+    const act = day.reduce((sum, r) => {
+      const v = Number(r.actual_hours) || 0;
+      return sum + Math.max(0, v - (baseAct.get(r.task_id) || 0));
+    }, 0);
     maxEst = Math.max(maxEst, est);   // 누적은 줄지 않는다 (되돌림이 있어도 라인은 피크 유지)
     maxAct = Math.max(maxAct, act);
     out.push({
@@ -186,9 +233,24 @@ async function buildMemberSnapshot(businessId, userId, periodType, periodStart) 
     period: { type: periodType, start, end },
     subject: { user_id: userId, name: bm.name || displayName(bm.user, userId), department: bm.department?.name || null },
     kpi: { total_tasks: total, completed_tasks: completed, in_progress_count: in_progress.length, overdue_count: overdue, completed_in_period: completed },
-    progress_series: await buildProgressSeries(tasks.map((x) => x.id), start, end),
+    // ★ #223 — 진척선의 대상은 **그 기간 무대에 오른 업무**여야 한다.
+    //   여태 `tasks`(본인 전체 업무) 를 그대로 넘겼는데, task_daily_progress 행은 업무별 *일생 누적치*라
+    //   Σ 가 포트폴리오 총합(운영 실측 ~195h)이 되어 7일 내내 평평했고, 정작 그 주 진척(+4.6h)은
+    //   200h y축에 묻혀 보이지 않았다 — "진척 그래프가 제대로 표시되지 않음" 의 실체.
+    //   같은 병리를 routes/tasks.js:1855 가 이미 한 번 잡았다("안 좁히면 153h 로 박힌다").
+    //   선정은 services/weekTaskSet.js 정본을 쓴다(주간). 월간은 같은 규칙을 월 경계로 적용.
+    progress_series: await buildProgressSeries(await periodTaskIds(businessId, userId, start, end), start, end, today),
     highlights, in_progress, risks, blockers, next,
   };
+}
+
+// 기간 무대 업무 id — 진척선 전용 스코프. 섹션 리스트(highlights 등)는 종전대로 전체에서 필터한다.
+async function periodTaskIds(businessId, userId, start, end) {
+  const rows = await Task.findAll({
+    where: { business_id: businessId, ...myAssignedWeekWhere(userId, start, end, { createdBefore: `${end} 23:59:59` }) },
+    attributes: ['id'],
+  });
+  return rows.map((r) => r.id);
 }
 
 // ── 부서 단위 ──
@@ -278,4 +340,8 @@ async function buildAutoSnapshot(businessId, scope, refId, periodType, periodSta
   return null;
 }
 
-module.exports = { buildAutoSnapshot, buildProjectSnapshot, buildMemberSnapshot, buildWorkspaceMembers, periodBounds, SCHEMA_VERSION };
+module.exports = {
+  buildAutoSnapshot, buildProjectSnapshot, buildMemberSnapshot, buildWorkspaceMembers, periodBounds, SCHEMA_VERSION,
+  // 진척선 계산은 기준선·클램프 규칙이 얽혀 있어 단위 반증이 필요하다(#223) — 테스트 전용 노출.
+  __test: { buildProgressSeries },
+};

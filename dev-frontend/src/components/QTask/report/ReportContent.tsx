@@ -45,7 +45,9 @@ const ReportContent: React.FC<Props> = ({ snap, compact }) => {
       {/* 진척 그래프 — 보고서의 성과 그래프. 스냅샷에 박제된 일별 시리즈로 다시 그린다.
           보고서 IA 개편 때 그래프가 통째로 빠져 있었다 — 운영 피드백 #145 회귀 신고.
           공통 본문에 두어 개별·통합·공개 보고서 모두에 나온다. */}
-      {(snap.progress_series?.length || 0) > 0 && (
+      {/* #223 — 시리즈가 비었다고 섹션을 통째로 숨기면, 업무를 여러 건 등록한 사용자가 왜 그래프가
+          없는지 알 방법이 없다. ProgressBurnupChart 는 이미 빈 상태 문구를 갖고 있으니 말하게 둔다. */}
+      {snap.progress_series != null && (
         <ChartSec>
           <ChartTitle>{t('report.chartTitle', { defaultValue: '진척 그래프' }) as string}</ChartTitle>
           <ProgressBurnupChart series={snap.progress_series || []} height={compact ? 180 : 240} />
