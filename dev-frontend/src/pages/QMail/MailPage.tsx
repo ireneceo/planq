@@ -262,7 +262,9 @@ function buildMailSrcDoc(id: number, html: string): string {
     + 'body>table,body>div,body>center,body>a{margin-left:auto;margin-right:auto;}</style>';
   // 메일 본문 링크는 iframe 안이 아니라 **새 브라우저 탭**으로 — Gmail 등 타 클라이언트와 동일.
   //   <base target="_blank"> 로 모든 <a> 가 새 탭. sandbox 에 allow-popups(+escape) 를 줘야 실제로 열린다.
-  //   (URL 은 sanitizeMailHtml 이 http(s)/mailto 로 제한. 최신 브라우저는 _blank 에 자동 noopener 적용.)
+  //   (sanitizeMailHtml 이 **위험 스킴**(javascript:·vbscript:·data:text/html 등)을 차단한다. 스킴 없는
+  //    상대값은 통과하는데, 그건 URI 가 아닌 속성값(align="center" 등)을 살리기 위한 것이다 — #226.
+  //    최신 브라우저는 _blank 에 자동 noopener 적용.)
   const base = '<base target="_blank" rel="noopener noreferrer">';
   const hasDoc = /<body[\s>]/i.test(safe);
   if (hasDoc) {
