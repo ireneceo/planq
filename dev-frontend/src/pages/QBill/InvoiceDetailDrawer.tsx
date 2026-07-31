@@ -1033,10 +1033,12 @@ function ProgressStepper({ status }: { status: ApiInvoice['status'] }) {
 
 // ─── styled (세금계산서 마킹 모달) ───
 const TaxModalBackdrop = styled.div`
+  overflow-y: auto;
   position: fixed; inset: 0; background: rgba(15, 23, 42, 0.5);
   display: flex; align-items: center; justify-content: center; z-index: 1100; padding: 20px;
 `;
 const TaxModalDialog = styled.div`
+  max-height: calc(100vh - 40px);
   background: #fff; border-radius: 12px; max-width: 460px; width: 100%;
   display: flex; flex-direction: column; box-shadow: 0 24px 64px rgba(0, 0, 0, 0.2);
 `;
@@ -1053,6 +1055,7 @@ const TaxModalClose = styled.button`
   &:hover { background: #F1F5F9; }
 `;
 const TaxModalBody = styled.div`
+  overflow-y: auto; min-height: 0;
   padding: 18px 20px; display: flex; flex-direction: column; gap: 10px;
 `;
 const TaxModalDesc = styled.div`font-size: 12px; color: #64748B; line-height: 1.5;`;

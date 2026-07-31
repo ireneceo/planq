@@ -556,6 +556,8 @@ const CreateOverlay = styled.div`
   display: flex; align-items: center; justify-content: center; padding: 16px;
 `;
 const CreateModal = styled.div`
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
   width: 100%; max-width: 380px; background: #FFFFFF; border-radius: 14px;
   padding: 22px 22px 18px; box-shadow: 0 24px 48px -16px rgba(15,23,42,0.4);
 `;

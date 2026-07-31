@@ -100,6 +100,8 @@ const Backdrop = styled.div`
   z-index: 9999; padding: 16px;
 `;
 const Card = styled.div`
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
   background: #FFFFFF;
   border-radius: 12px;
   padding: 28px 28px 20px;
