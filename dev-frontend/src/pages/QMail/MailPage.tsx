@@ -15,7 +15,6 @@ import PageShell from '../../components/Layout/PageShell';
 import PanelHeader, { PanelTitle, PanelSubTitle, PanelMetaTitle } from '../../components/Layout/PanelHeader';
 import { PanelGridLayout, CollapsibleSidebar, SidebarBackdrop, Panel } from '../../components/Layout/PanelLayout';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
-import { downloadBlob } from '../../utils/download';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { joinRoom, leaveRoom, onSocket, getSocket } from '../../services/socket';
@@ -25,6 +24,8 @@ import ActionButton from '../../components/Common/ActionButton';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { uploadMyFile } from '../../services/files';
 import MailContextPanel from './MailContextPanel';
+import MessageAttachments from './MessageAttachments';
+import { useInlineCidImages } from './useInlineCidImages';
 import PanelResizeHandle, { usePanelWidth } from '../../components/Layout/PanelResizeHandle';
 import EmptyState from '../../components/Common/EmptyState';
 import { sanitizeMailHtml } from '../../utils/sanitizeHtml';
@@ -40,8 +41,6 @@ import {
   AiInstructionInput,
   AiInstructionHint,
   AssignWrap,
-  Attachment,
-  Attachments,
   ClipIcon,
   CloseBtn,
   ComposeBody,
@@ -207,6 +206,9 @@ interface Message {
   delivery_status?: 'pending' | 'sent' | 'delivered' | 'bounced' | 'failed' | 'suppressed' | null;
   delivery_error?: string | null;
   attachments: Array<{ id: number; file_id: number | null; file_name: string; file_size: number; mime_type: string }>;
+  // #215-H — 본문이 cid: 로 참조하는 이미지. 본문은 sandbox iframe srcDoc 이라 cid 를 해석할 수 없어
+  //   인증 다운로드 → data: URI 치환 재료로 서버가 따로 내려준다.
+  inline_images?: Array<{ file_id: number; content_id: string | null; mime_type: string; size_bytes: number | null }>;
 }
 
 interface ThreadDetail extends Thread {
@@ -244,8 +246,34 @@ function toAddrList(list: Array<string | { name?: string; email: string }> | und
   return list.map((x) => (typeof x === 'string' ? x : x?.email)).filter(Boolean) as string[];
 }
 
-function buildMailSrcDoc(id: number, html: string): string {
-  const safe = sanitizeMailHtml(html);
+// #215-H — cidMap: { 정규화된 cid → data: URI }. 본문의 `cid:xxx` 를 실제 이미지로 치환한다.
+//   ★ 제약: sanitizeMailHtml 은 **한 글자도 건드리지 않는다**. 치환은 정화 **이후**의 순수 문자열 연산이다.
+//     이 렌더러는 2026-07-31 에 #226(DOMPurify ALLOWED_URI_REGEXP 가 모든 속성값에 적용되어
+//     align/width/colspan 전멸)·#200(img height 강제)로 막 고친 곳이라, 정화기나 guard CSS 를
+//     건드리면 메일 본문 레이아웃 전체가 무너진다. cidMap 미전달 시 출력은 옛 코드와 완전히 동일해야 한다.
+//   정규식을 쓰지 않는 이유는 cid 에 `.` `$` `+` 가 흔해서다 (services/emailAttachments.js 와 같은 판단).
+function buildMailSrcDoc(id: number, html: string, cidMap?: Record<string, string>): string {
+  let safe = sanitizeMailHtml(html);
+  if (cidMap && Object.keys(cidMap).length > 0) {
+    // 본문의 원문 표기(대소문자)를 찾아 치환한다 — cidMap 의 키는 소문자 정규화된 값.
+    for (const [cid, dataUri] of Object.entries(cidMap)) {
+      // safe 가 매 회차 바뀌므로 소문자 사본도 매번 다시 뜬다 (한 번만 뜨면 2번째 cid 부터 인덱스가 밀린다)
+      const lower = safe.toLowerCase();
+      const needle = 'cid:' + cid;
+      let from = 0;
+      const spans: number[] = [];
+      for (;;) {
+        const at = lower.indexOf(needle, from);
+        if (at === -1) break;
+        spans.push(at);
+        from = at + needle.length;
+      }
+      // 뒤에서부터 잘라 붙여야 앞쪽 인덱스가 밀리지 않는다
+      for (let i = spans.length - 1; i >= 0; i--) {
+        safe = safe.slice(0, spans[i]) + dataUri + safe.slice(spans[i] + needle.length);
+      }
+    }
+  }
   // 높이는 **본문(body) 실제 높이**로 잰다. documentElement.scrollHeight 는 iframe 높이보다 작아질 수
   //   없어서(html 이 뷰포트를 채운다) 짧은 답장도 240px 로 남아 아래가 텅 빈 채 늘어졌다.
   const resize = `<script>(function(){var send=function(){var b=document.body;var h=Math.ceil(Math.max(b.scrollHeight,b.getBoundingClientRect().height,b.offsetHeight));parent.postMessage({planqMailFrame:${id},h:h},'*');};send();window.addEventListener('load',send);if(window.ResizeObserver)new ResizeObserver(send).observe(document.body);setTimeout(send,300);setTimeout(send,1200);})();<\/script>`;
@@ -1258,15 +1286,8 @@ const MailPage: React.FC = () => {
   const ctxNarrow = viewportNarrow;
   const [ctxOverlayOpen, setCtxOverlayOpen] = useState(false);
   useBodyScrollLock(ctxNarrow && ctxOverlayOpen);
-  // 받은 메일 첨부 다운로드 — file_id 로 PlanQ File 인박스에서 인증 blob 다운로드.
-  const downloadAttachment = async (fileId: number | null, name: string) => {
-    if (!fileId || !businessId) return;
-    try {
-      const r = await apiFetch(`/api/files/${businessId}/${fileId}/download`);
-      if (!r.ok) throw new Error('download_failed');
-      await downloadBlob(await r.blob(), name || 'attachment');
-    } catch { /* 조용히 — 목록은 그대로 */ }
-  };
+  // #215-H — 본문 cid: 이미지 → data: URI 맵 (본문 렌더 srcDoc 치환 재료)
+  const msgCidData = useInlineCidImages(detail ? detail.messages : null, businessId);
 
   const closeCompose = () => {
     setComposeOpen(false); setCTo(''); setCSubject(''); setCBody(''); setCUploads([]); setCFileIds([]); setCError(null);
@@ -1880,7 +1901,7 @@ const MailPage: React.FC = () => {
                       <MessageBodyFrame
                         sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
                         style={{ height: `${frameH[m.id] || 120}px` }}
-                        srcDoc={buildMailSrcDoc(m.id, m.body_html)}
+                        srcDoc={buildMailSrcDoc(m.id, m.body_html, msgCidData[m.id])}
                         title={`message-${m.id}`}
                       />
                     ) : (
@@ -1926,22 +1947,7 @@ const MailPage: React.FC = () => {
                     {msgTrans[m.id]?.showing && msgTrans[m.id]?.text && (
                       <TransBody>{msgTrans[m.id]!.text}</TransBody>
                     )}
-                    {m.attachments.length > 0 && (
-                      <Attachments>
-                        {m.attachments.map(a => (
-                          <Attachment
-                            key={a.id}
-                            as="button"
-                            type="button"
-                            onClick={() => downloadAttachment(a.file_id, a.file_name)}
-                            disabled={!a.file_id}
-                            title={a.file_id ? (t('attachment.download', { defaultValue: '내려받기' }) as string) : undefined}
-                          >
-                            <ClipIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></ClipIcon> {a.file_name || (t('attachment.fallback', { defaultValue: '첨부파일' }) as string)}{a.file_size ? ` (${Math.round(a.file_size / 1024)} KB)` : ''}
-                          </Attachment>
-                        ))}
-                      </Attachments>
-                    )}
+                    <MessageAttachments businessId={businessId} attachments={m.attachments} />
                   </MessageCard>
                 ))}
               </MessagesScroll>

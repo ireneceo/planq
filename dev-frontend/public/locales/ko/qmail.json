@@ -415,5 +415,11 @@
   },
   "compose": {
     "fromAddress": "보내는 주소"
+  },
+  "attachment": {
+    "preview": "미리보기",
+    "download": "내려받기",
+    "fallback": "첨부파일",
+    "downloadFailed": "내려받지 못했어요"
   }
 }

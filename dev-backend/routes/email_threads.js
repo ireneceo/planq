@@ -34,6 +34,7 @@ function parseFromAliasId(body) {
   return Number.isFinite(n) ? n : null;
 }
 const { emailsOf, mergeParticipants, selfEmailsForAccount } = require('../services/emailAddress');
+const { isEmbedded, isNoiseAttachment } = require('../services/emailAttachments');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
 
@@ -415,13 +416,30 @@ router.get('/:businessId/email-threads/:id',
             delivery_error: mj.direction === 'outbound' ? (mj.delivery_error || null) : null,
             // inline 이미지(cid)는 본문에 속하므로 첨부 목록에서 제외. 모델 필드명(filename/size_bytes) 정정 +
             //   file_id 를 내려줘야 프론트가 다운로드 가능(여태 file_name/file_size 오필드라 'undefined (NaN KB)' + 다운로드 불가 회귀).
-            attachments: (mj.attachments || []).filter(a => !a.is_inline).map(a => ({
-              id: a.id,
-              file_id: a.file_id,
-              file_name: a.filename,
-              file_size: a.size_bytes,
-              mime_type: a.mime_type,
-            })),
+            // #215 — 판정 권위를 `is_inline` 컬럼에서 **본문 cid 참조**로 옮겼다. 옛 로직은 Content-ID 가 붙었다는
+            //   이유만으로 숨겨서 첨부 66%(부가세 납부서·매입매출장·영수증 포함)가 화면에서 사라져 있었다.
+            //   컬럼을 안 보므로 옛 데이터도 백필 없이 즉시 정상화된다. + 기계 파트(반송 헤더 등) 노이즈 제거.
+            attachments: (mj.attachments || [])
+              .filter(a => !isEmbedded(a.content_id, mj.body_html) && !isNoiseAttachment(a.mime_type))
+              .map(a => ({
+                id: a.id,
+                file_id: a.file_id,
+                file_name: a.filename,
+                file_size: a.size_bytes,
+                mime_type: a.mime_type,
+              })),
+            // #215-H — 본문이 cid 로 참조하는 이미지. 본문은 sandbox iframe srcDoc 이라 `cid:` 를 해석할 수 없어
+            //   여태 깨진 채였다. 프론트가 인증 다운로드 → data: URI 치환에 쓰는 재료.
+            inline_images: (mj.attachments || [])
+              .filter(a => a.file_id
+                && String(a.mime_type || '').startsWith('image/')
+                && isEmbedded(a.content_id, mj.body_html))
+              .map(a => ({
+                file_id: a.file_id,
+                content_id: a.content_id,
+                mime_type: a.mime_type,
+                size_bytes: a.size_bytes,
+              })),
           };
         }),
       });

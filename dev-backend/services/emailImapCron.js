@@ -19,6 +19,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { decrypt } = require('./encryption');
 const { needsReauth } = require('./emailAccountHealth');
+const { isEmbedded, isNoiseAttachment } = require('./emailAttachments');
 const {
   EmailAccount, EmailThread, EmailMessage, EmailAttachment, EmailThreadParticipant,
   Client, File: FileModel, Business,
@@ -171,8 +172,22 @@ async function isKnownContact(businessId, fromEmail) {
   }
 }
 
-async function saveAttachmentAsFile({ businessId, fromEmail, att, accountUserId }) {
+// 첨부를 PlanQ File 로 저장. 반환 = file.id (저장 안 함이면 null).
+//
+// #215-F — **개인 메일 계정의 첨부는 L1(본인만)** 이다.
+//   `email_accounts.owner_user_id` 가 set 이면 개인 계정(모델 주석: "NULL = 회사 공용, set = 개인").
+//   스레드·메시지는 이미 accessibleAccountIds() 가 이 축으로 격리하는데 **파일만 L3 로 새고 있었다** —
+//   개인 메일함 첨부가 워크스페이스 전 멤버의 Q File 에 노출되던 반쪽 상태.
+//   권위 컬럼 `vlevel` 을 legacy `visibility` 와 **동시에** 쓴다 (한쪽만 쓰면 같은 누출이 재발한다).
+// #215-F 결합 — uploader_id 는 계정 주인이어야 한다.
+//   여태 무조건 workspace owner_id 였는데, canAccessFileByLevel 의 L1 은 `uploader_id === userId` 만 통과시킨다.
+//   uploader 교정 없이 L1 만 주면 **개인 계정 주인이 자기 첨부에서 차단되는** 2차 사고가 난다.
+// #215-G — 기계 파트(반송 헤더·AMP 본문)는 File 을 아예 만들지 않는다. 스토리지 쿼터·Q File 오염 차단.
+async function saveAttachmentAsFile({ businessId, att, account, fallbackOwnerId }) {
   try {
+    if (isNoiseAttachment(att.contentType)) return null;
+    const personal = !!(account && account.owner_user_id);
+    const level = personal ? 'L1' : 'L3';
     const ym = new Date().toISOString().slice(0, 7);
     const dir = path.join(UPLOAD_ROOT, String(businessId), 'email', ym);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -183,14 +198,15 @@ async function saveAttachmentAsFile({ businessId, fromEmail, att, accountUserId 
     fs.writeFileSync(fpath, att.content);
     const file = await FileModel.create({
       business_id: businessId,
-      uploader_id: accountUserId || null,
+      uploader_id: (personal ? account.owner_user_id : null) || fallbackOwnerId || null,
       file_name: att.filename || `attachment${ext}`,
       file_path: fpath,
       file_size: att.size || att.content.length,
       mime_type: att.contentType || 'application/octet-stream',
       storage_provider: 'planq',
       project_id: null,
-      visibility: 'L3',
+      visibility: level,
+      vlevel: level,
     });
     return file.id;
   } catch (e) {
@@ -375,9 +391,9 @@ async function syncOne(account, opts = {}) {
           for (const att of parsed.attachments) {
             const fileId = await saveAttachmentAsFile({
               businessId: account.business_id,
-              fromEmail,
               att,
-              accountUserId: ownerId,
+              account,
+              fallbackOwnerId: ownerId,
             });
             await EmailAttachment.create({
               message_id: message.id,
@@ -386,7 +402,10 @@ async function syncOne(account, opts = {}) {
               mime_type: att.contentType || null,
               size_bytes: att.size || (att.content ? att.content.length : null),
               content_id: att.contentId || att.cid || null,
-              is_inline: !!(att.cid || att.contentId),
+              // #215-B — Content-ID 존재가 아니라 **본문이 실제 그 cid 를 참조하는가** 로 판정한다.
+              //   `att.related` 는 쓰지 않는다: mailparser 상 "조상에 multipart/related 가 있다" 일 뿐 본문 참조를
+              //   보장하지 않고, 무엇보다 **백필이 재계산할 수 없어**(원본 MIME 미보관) 쓰기측과 술어가 갈라진다.
+              is_inline: isEmbedded(att.contentId || att.cid, parsed.html),
             });
           }
         }
