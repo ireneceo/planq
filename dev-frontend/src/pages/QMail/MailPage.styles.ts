@@ -544,6 +544,13 @@ export const Attachment = styled.div`
   &:hover:not(:disabled) { border-color: #14B8A6; color: #0F766E; background: #F0FDFA; }
   &:disabled { cursor: default; opacity: 0.7; }
 `;
+// #215-I — 스레드 리스트 1행 우측 메타의 첨부 클립. 정보성 아이콘이라 ThreadTime 과 같은 slate 톤,
+//   강조 칩(하단 위계)과 섞지 않는다. flex-shrink:0 이라 좁은 폭에서도 제목 줄을 먹지 않는다.
+export const ListClip = styled.span`
+  display: inline-flex; align-items: center; flex-shrink: 0;
+  color: #94A3B8;
+  & > svg { width: 13px; height: 13px; }
+`;
 // #215 — 첨부 칩 + 내려받기 아이콘을 한 덩어리로 묶는다 (칩 본체 = 미리보기, 아이콘 = 내려받기).
 export const AttachmentGroup = styled.div`
   display: inline-flex; align-items: center; gap: 4px;

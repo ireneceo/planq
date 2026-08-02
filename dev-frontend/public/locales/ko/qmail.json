@@ -166,7 +166,9 @@
   "thread": {
     "sent": "보낸",
     "awaitingReply_one": "응답 없음 {{count}}일",
-    "awaitingReply_other": "응답 없음 {{count}}일"
+    "awaitingReply_other": "응답 없음 {{count}}일",
+    "attachments_one": "첨부 {{count}}개",
+    "attachments_other": "첨부 {{count}}개"
   },
   "translate": {
     "langLabel": "번역 언어",
