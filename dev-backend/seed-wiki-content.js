@@ -398,6 +398,12 @@ const ARTICLES = [
         'Once you connect a mail account (Settings → Mail accounts), incoming mail collects in the Q Mail inbox. Mail, chat, and tasks appear on one timeline per client.'),
       s('Q Mail 화면에서 메일 스레드를 엽니다.', 'Open a mail thread on the Q Mail screen.'),
       s('답장·전달·임시저장이 대화처럼 동작합니다. 첨부는 Q File에 함께 보관됩니다.', 'Reply, forward, and save drafts like a chat. Attachments are also stored in Q File.'),
+      s('첨부가 있는 메일은 목록에서 제목 옆에 클립 표시가 붙습니다. 열어보기 전에 첨부 유무를 알 수 있어요.',
+        'Threads with attachments show a paperclip in the list, so you can tell before opening.'),
+      s('첨부를 누르면 이미지와 PDF는 바로 미리보기로 열립니다. 이미지는 좌우로 넘겨 볼 수 있고, 내려받을 때는 첨부 오른쪽의 내려받기 아이콘을 누르세요. 그 밖의 형식은 누르면 바로 내려받습니다.',
+        'Click an attachment to preview images and PDFs right away — images can be paged through left and right. Use the download icon beside an attachment to save it; other file types download on click.'),
+      note('개인 메일 계정으로 받은 첨부는 본인만 볼 수 있습니다. 회사 공용 계정의 첨부는 워크스페이스 멤버가 함께 봅니다.',
+        'Attachments from a personal mail account stay private to you. Attachments from a shared company account are visible to workspace members.'),
       note('메일 계정 연결 방법은 "메일 계정 연결하기" 도움말을 참고하세요.', 'See "Connect a mail account" for how to link your mailbox.'),
     ] },
 

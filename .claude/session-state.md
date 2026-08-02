@@ -31,6 +31,9 @@ Content-ID 를 붙인다**. dev 3,221건 중 2,114건(66%)이 화면에서 소�
 | H | 본문 cid 이미지 data: URI 치환. `sanitizeHtml.ts` 무접촉(#226 재발 차단) |
 | I | 리스트 첨부 클립. B+C 로 `is_inline` 이 술어의 **물질화 캐시**가 되어 목록↔상세 정의상 일치 |
 
+**Q위키 갱신(3-1-W 게이트):** `qmail-inbox` 아티클에 리스트 클립·미리보기·내려받기 아이콘 ·
+개인/회사 계정 첨부 가시성 안내 4줄 추가(ko/en). dev + **운영 둘 다 seed 반영**. 커버리지 ✅ 통과.
+
 **신규 파일:** `services/emailAttachments.js` · `scripts/backfill-215-email-attachments.js` ·
 `pages/QMail/MessageAttachments.tsx` · `pages/QMail/useInlineCidImages.ts` ·
 `docs/QMAIL_ATTACHMENT_DESIGN_215.md`(Fable 설계서, §9 = I 항목)

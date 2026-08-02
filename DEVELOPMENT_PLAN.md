@@ -28,6 +28,36 @@
 
 > **[이전] 최종 업데이트:** 2026-07-16 (Opus 4.8, 1M) — **모바일 흰 화면 회귀 차단 + 검사 하니스 강화** — e2e mobile 스위트에 `assertRendered()` **흰 화면(blank) 판정** 신규(키보드 스위트가 "입력 가림"만 봐 페이지 통째 blank도 ⚪ 통과하던 구멍 차단, #173/174/159/178 계열) + `run.js` blank=실패 집계 + mail 시나리오(mail-list·mail-compose) + MailPage `data-testid`·모바일 compose 사이드바 자동접힘 + DetailDrawer 폰 풀스크린(56px 조각 새던 것) + QBill 개요 2열 그리드 반응형 + Insights 기간라벨 i18n. **검증: mobile/crosscut/l1 전 스위트 0 실패 + tsc -b exit 0 + 가드 3축(health 30/30·guard 22/22·tenant 0)**. 다음: `docs/qa/NEXT_SECTION_BACKLOG.md`(Q Mail AI·멀티탭·전수검사 잔여 LOW).
 
+## ✅ 완료: #215 Q Mail 첨부파일 전면 수리 + 피드백 장부 정합 (2026-08-02)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| ★ A 표시 술어 | 권위를 `is_inline` 컬럼 → **본문 cid 참조**로 이전. `services/emailAttachments.js` 단일 술어를 읽기·쓰기·백필 3곳 공용. fail-open(의심되면 보여준다) → 옛 데이터가 백필 없이 즉시 정상화 | ✅ 배포 |
+| B 쓰기측 교정 | `is_inline: isEmbedded(cid, parsed.html)`. `att.related` 는 Fable 이 각하 — 백필이 재계산 불가라 술어가 갈라진다 | ✅ 배포 |
+| C 백필 | is_inline 재계산. dev 2,108 / **운영 454**. dry-run 기본·멱등·`updated_at` 보존·롤백 스냅샷 | ✅ 운영 적용 |
+| D 미리보기 | 이미지=ImageLightbox 갤러리 / PDF=새 탭. **인증 blob→objectURL** (무인증 capability URL 각하 — 대상이 세금계산서). 15MB 캡 + 다운로드 폴백 | ✅ 배포 |
+| E 다운로드 실패 | `catch {}` 침묵 제거 → 칩 옆 인라인 에러 4초 | ✅ 배포 |
+| ★ F 개인메일 격리 | 개인 계정 첨부가 `vlevel='L3'` 라 **전 멤버 노출**. L1 + **uploader 교정**(없으면 계정 주인이 자기 첨부에서 차단되는 2차 사고). dev 370 / **운영 207** | ✅ 배포+백필 |
+| G 노이즈 제외 | 반송 헤더·DSN·AMP 파트 974건 칩 숨김 + 신규 File 생성 skip. 옛 File row 삭제는 각하(사용자 가시 자산) | ✅ 배포 |
+| H 본문 cid 이미지 | data: URI 치환. `sanitizeHtml.ts` **무접촉**(#226 재발 차단), 정화 이후 문자열 치환만 | ✅ 배포 |
+| ★ I 리스트 첨부 표시 | 원문 재확인으로 추가된 요구. `is_inline` = 술어의 물질화 캐시 → 목록 클립 ↔ 상세 칩 정의상 일치 | ✅ 배포 |
+| 피드백 장부 정합 | 운영 원문 직접 조회 — 미처리 27건이 아니라 **32건**. 7-31 배포분 7건이 `pending` 인 채(일괄 정리가 배포보다 먼저 돌았다) → 실물 대조 후 `done`. **32 → 24건** | ✅ 완료 |
+| #217 조사 | 탭 숫자 미갱신 원인 확정(socket↔window 채널 불일치) · 고객 메일은 **묻지 않고 발송 중** · 문안 렌더링해 확인 아티팩트 제출 | 🕐 답변 대기 |
+
+### 수정된 파일
+- 백엔드: `services/emailAttachments.js`(신규) · `services/emailImapCron.js` · `routes/email_threads.js` · `scripts/backfill-215-email-attachments.js`(신규)
+- 프론트: `pages/QMail/MessageAttachments.tsx`(신규) · `useInlineCidImages.ts`(신규) · `MailPage.tsx` · `MailPage.styles.ts`
+- i18n: `public/locales/{ko,en}/qmail.json`
+- 문서: `docs/QMAIL_ATTACHMENT_DESIGN_215.md`(신규, Fable 설계서 — §9 = I 항목)
+
+### 검증·배포
+Fable 게이트 **5라운드**(설계 2 + 구현 3). **FAIL 2건 모두 실제 결함** — PDF `noopener` 이중 동작(설계서 자체 오류), i18n 패리티. 정합 불변식 200건 전수 mismatch 0 · 반증 2건(되돌리면 FAIL 실측) · H 픽스처 신구 출력 1,139B byte-identical · 개인 L1 격리(owner 조차 백도어 없음) · 가드 3축(33/33 · 22/22 · tenant 0) · 빌드 REAL_EXIT 0/TS 0 · 모바일 375px 5/5.
+**운영 배포 `37fb2f0`(210s)** 3점 실측 + **백필 완주**(454+207 apply → 재실행 변경 0 → 실측 `is_inline` 1=2/0=569 · 개인 207 L1 · 회사 364 L3 불변).
+
+---
+
 ## ✅ 완료: 운영 피드백 전수 점검 + 이월 결함 정리 + 4배포 (2026-07-31)
 
 ### 완료된 작업
