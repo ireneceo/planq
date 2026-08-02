@@ -137,8 +137,8 @@ async function login() {
     check('user 16 DENY', !r16);
     check('user 17 DENY', !r17);
     check('회사 파일 84 L3 불변', f84.vlevel === 'L3' && f84.visibility === 'L3', `${f84.vlevel}/${f84.visibility}`);
-    const c3 = await canAccessFileByLevel(16, f84);
-    check('회사 파일 84 멤버 ALLOW 유지', !!c3);
+    const c3 = await canAccessFileByLevel(1000024, f84);   // file 84 = biz 5 — biz 5 의 비업로더 멤버로 판정
+    check('회사 파일 84(biz5 L3) 멤버 ALLOW 유지', !!c3);
     // 회사 계정(owner_user_id NULL) 첨부 파일 L1 오염 0 확인
     const [cnt] = await q(`SELECT COUNT(*) n FROM files f JOIN email_attachments a ON a.file_id=f.id
         JOIN email_messages m ON m.id=a.message_id JOIN email_threads t ON t.id=m.thread_id
