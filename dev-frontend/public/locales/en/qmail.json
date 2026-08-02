@@ -166,7 +166,9 @@
   "thread": {
     "sent": "Sent",
     "awaitingReply_one": "No reply for 1 day",
-    "awaitingReply_other": "No reply for {{count}} days"
+    "awaitingReply_other": "No reply for {{count}} days",
+    "attachments_one": "{{count}} attachment",
+    "attachments_other": "{{count}} attachments"
   },
   "translate": {
     "langLabel": "Translation language",

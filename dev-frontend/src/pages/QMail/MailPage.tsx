@@ -129,6 +129,7 @@ import {
   ThreadPreview,
   ThreadRow1,
   ThreadRow1Right,
+  ListClip,
   ThreadSender,
   ThreadSubject,
   ThreadTime,
@@ -181,6 +182,7 @@ interface Thread {
   is_starred: boolean;
   unread_count: number;
   message_count: number;
+  attachment_count?: number;      // #215-I — 열기 전 첨부 유무 인지 (0 = 없음)
   labels: string[];
   account: { id: number; email: string; display_name?: string | null } | null;
   // 상대방(발신자) — 목록의 "보낸 사람" 자리. 내 메일함 이름(account.display_name)이 아니다.
@@ -1578,6 +1580,14 @@ const MailPage: React.FC = () => {
                         || '(unknown)'}
                     </ThreadSender>
                     <ThreadRow1Right>
+                      {/* #215-I — 첨부 유무. 개수는 그리지 않고 aria/title 로만 (좁은 행 — Gmail 관례) */}
+                      {(mt.attachment_count || 0) > 0 && (
+                        <ListClip role="img" data-testid="mail-thread-attach"
+                          aria-label={t('thread.attachments', { count: mt.attachment_count }) as string}
+                          title={t('thread.attachments', { count: mt.attachment_count }) as string}>
+                          <ClipIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></ClipIcon>
+                        </ListClip>
+                      )}
                       <StarSpan
                         role="button"
                         aria-label={mt.is_starred

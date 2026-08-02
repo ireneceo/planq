@@ -34,7 +34,7 @@ function parseFromAliasId(body) {
   return Number.isFinite(n) ? n : null;
 }
 const { emailsOf, mergeParticipants, selfEmailsForAccount } = require('../services/emailAddress');
-const { isEmbedded, isNoiseAttachment } = require('../services/emailAttachments');
+const { isEmbedded, isNoiseAttachment, NOISE_MIMES } = require('../services/emailAttachments');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
 
@@ -255,6 +255,31 @@ router.get('/:businessId/email-threads',
         for (const m of lastOut) lastOutByThread.set(m.thread_id, { delivery_status: m.delivery_status });
       }
 
+      // #215-I — 첨부 유무 배치 집계 (원문 "첨부파일 있고 없고도 알기 편하게" — 열기 전에 인지).
+      //   목록은 body_html 을 로드하지 않으므로 detail 의 `isEmbedded(cid, body)` 술어를 그대로 쓸 수 없다.
+      //   대신 `is_inline` 컬럼을 쓴다 — B(쓰기측 교정)+C(백필) 이후 이 컬럼은 **같은 술어의 물질화 캐시**라
+      //   목록 클립 ↔ 상세 칩이 정의상 일치한다("클립 보고 열었는데 첨부가 없는" 배신이 구조적으로 불가능).
+      //   ★ 그 대가로 C 백필이 리스트 표시의 데이터 전제가 된다 — 설계 §9-1 이 백필을 배포 완료 조건으로 격상.
+      //   N+1 없음: threadIds 1 쿼리.
+      const attachCountByThread = new Map();
+      if (threadIds.length > 0) {
+        const attRows = await sequelize.query(
+          `SELECT em.thread_id, COUNT(*) AS cnt
+             FROM email_attachments ea
+             JOIN email_messages em ON em.id = ea.message_id
+            WHERE em.business_id = :bid AND em.thread_id IN (:ids)
+              AND ea.is_inline = 0
+              AND ea.file_id IS NOT NULL
+              AND (ea.mime_type IS NULL OR LOWER(ea.mime_type) NOT IN (:noise))
+            GROUP BY em.thread_id`,
+          {
+            replacements: { bid: businessId, ids: threadIds, noise: [...NOISE_MIMES] },
+            type: sequelize.QueryTypes.SELECT,
+          }
+        );
+        for (const r of attRows) attachCountByThread.set(r.thread_id, Number(r.cnt) || 0);
+      }
+
       const data = rows.map(t => {
         const obj = t.toJSON();
         const myAddr = String(obj.EmailAccount?.email || '').toLowerCase();
@@ -278,6 +303,7 @@ router.get('/:businessId/email-threads',
           is_starred: obj.is_starred,
           unread_count: obj.unread_count || 0,
           message_count: obj.message_count || 0,
+          attachment_count: attachCountByThread.get(obj.id) || 0,   // #215-I
           labels: obj.labels || [],
           account: obj.EmailAccount,
           counterpart: other ? { name: other.name || null, email: other.email || null } : null,

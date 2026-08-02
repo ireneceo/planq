@@ -36,6 +36,7 @@
 | **F** 개인메일 프라이버시 | **채택** | 쓰기측 vlevel/visibility='L1' + **uploader_id=계정 주인**(신규 발견분) + 백필 370건. "자산 임의변경 금지"와의 긴장은 §4-3 에서 정면 판정 |
 | **G** 반송헤더 노이즈 | **조건부 채택** | 읽기측 mime denylist 3종 + 쓰기측 File 생성 skip. **옛 974 File row 삭제는 각하** (사용자 가시 자산 삭제 — Irene 별도 승인 필요, 운영 cleanup 옵션으로만 기재) |
 | **H** 본문 cid 이미지 | **조건부 채택 (범위 엄격 제한)** | A 채택의 논리적 귀결 — embedded 는 칩에서도 숨으므로 H 없으면 "어디에도 안 보이는" 구멍. sanitizer(#226)·guard CSS(#200) **무접촉** 치환 방식으로만. §5 |
+| **I** 리스트 첨부 유무 표시 (원문 재확인으로 추가) | **채택** | #215 원문 "첨부파일 있고 없고도 알기 편하게" = 열기 전 인지. `is_inline` 컬럼(=술어 물질화 캐시) 기반 배치 집계 + **C 백필을 배포 세션 필수 단계로 격상**. §9 |
 
 각하 목록 (각하도 설계 결정):
 - **B의 `att.related` 신호** — 위 §0. 술어 분열 유발.
@@ -98,7 +99,12 @@ inline_images: (mj.attachments || [])
 - `:1262 downloadAttachment` — E: `catch` 에서 `setAttachErr(prev => ({...prev, [attId]: true}))` + 4초 후 해제. 조용한 삼킴 제거.
 - [신규 로직, MailPage 내부] `previewAttachment(m, a)`:
   - `image/*` + file_id → 그 메시지의 이미지 칩 전부를 인증 fetch(blob→objectURL) 후 `useImageLightbox().open(items, clickedIdx)`
-  - `application/pdf` + file_id → blob→objectURL→`window.open(url, '_blank', 'noopener')`; 반환 null(팝업 차단) 또는 `isNativeApp()` 이면 `downloadBlob` 폴백
+  - `application/pdf` + file_id → blob→objectURL→새 탭. `isNativeApp()` 이면 새 탭 없이 바로 다운로드.
+    **★ 설계 정정 (2026-08-02, 구현 게이트 FAIL 로 발견):** 초안은 `window.open(url,'_blank','noopener')` 의
+    반환 null 을 팝업 차단 신호로 쓰라고 규정했으나, **`noopener` 를 주면 성공해도 항상 null 이 반환된다**(스펙).
+    그대로 만들면 PDF 를 열 때마다 폴백이 같이 발화해 "새 탭 + 원치 않는 다운로드" 가 된다(Chromium 실측).
+    → `window.open(url,'_blank')` 로 열고 핸들에서 `w.opener = null` 로 끊는다. blob URL 은 우리가 만든
+    same-origin 자산이라 opener 노출 위험이 없다. 이때의 `!w` 만이 진짜 팝업 차단이다.
   - 그 외 → 기존 `downloadAttachment`
   - objectURL 캐시 `useRef<Map<number,string>>`; **revoke 시점**: activeId(스레드) 변경 시 + unmount 시 전량 revoke, PDF 새 탭용은 open 후 60초 지연 revoke
   - per-file 캡: 15MB 초과 이미지·PDF 는 미리보기 대신 다운로드 폴백 (size_bytes 로 사전 판정, fetch 전 차단)
@@ -289,7 +295,124 @@ UPDATE files SET vlevel='L1', visibility='L1', uploader_id=:acctOwner
 1. **uploader_id=biz.owner_id 결함** (§0 신규 발견) — F 를 vlevel 만 고치면 개인 계정 주인이 자기 첨부에서 차단되는 2차 사고. 이 설계는 uploader 교정을 F 의 필수 결합으로 박았다.
 2. **A↔H 결합 구멍** — embedded 판정 + 본문 렌더 실패 시 첨부가 완전 소실. §5 에서 명시 수용(대상이 장식 SVG 뿐임을 실측)했고, 재무 문서류는 본문 미참조라 A 가 칩으로 복원하므로 실피해 0.
 3. **forward 상호작용** — `startForward`(:1289) 가 `m.attachments.length` 를 세므로 G/A 필터 후 개수가 달라진다. 이는 옳은 방향(노이즈·본문 로고를 전달 첨부로 세지 않음)이며 forward 발송 자체는 `attachment_file_ids` 기반이라 무영향. 구현 시 별도 처리 불요 — 인지만.
-4. **thread 목록 라우트는 첨부를 직렬화하지 않음** (grep 실측) — 목록 뱃지류 신설은 이번 범위 밖. C 백필로 컬럼이 정직해졌으므로 향후 필요 시 컬럼 기반 확장이 가능해진 상태.
+4. ~~thread 목록 라우트는 첨부를 직렬화하지 않음 — 목록 뱃지류 신설은 이번 범위 밖~~ → **§9 로 채택 전환.** #215 운영 원문("첨부파일 있고 없고도 알기 편하게") 재확인 결과 리스트 첨부 표시는 요구사항 본문이다. C 백필로 컬럼이 정직해진 것이 §9 의 데이터 전제가 된다.
 5. **G 신규 수신의 file_id NULL 칩** — denylist 로 칩 자체가 숨으므로 사용자 노출 없음. EmailAttachment row 는 남아 원본 재구성 가능성 보존.
 6. **번들·성능** — 신규 의존성 0. H 의 data: URI 는 srcDoc 문자열을 키우지만 메시지당 10MB 캡 + 대상 메시지 1.2%(36/3,005) 라 무시 가능.
 7. **미래 유입 경로** — Microsoft Graph 등 신규 메일 ingestion 이 생기면 `EmailAttachment.create` 시 반드시 `services/emailAttachments.isEmbedded` 를 쓰도록 이 문서를 참조할 것 (술어 분열 금지).
+
+---
+
+## 9. I — 리스트 첨부 유무 표시 (설계 증분, 2026-08-02)
+
+**배경**: 운영 원문(#215, `planq_prod_db.feedback_items`) 재확인으로 드러난 요구 — "**첨부파일 있고 없고도 알기 편하게**" = 메일을 열기 전, 스레드 리스트에서 첨부 유무 인지. §8-4 의 "범위 밖" 판정을 철회하고 채택한다. A~H 구현(재게이트 PASS)은 무변경 — 이 절은 순수 증분이다.
+
+### 9-1. 핵심 판정 — 리스트 술어 = `is_inline` 컬럼 (물질화 캐시), 백필은 배포 세션 필수로 격상
+
+세 후보를 판정했다:
+
+| 후보 | 판정 | 근거 |
+|---|---|---|
+| ① `is_inline=0` 기반 계수 | **채택** | B(쓰기)+C(백필) 이후 `is_inline` 은 **detail 과 동일한 술어 `isEmbedded` 의 물질화 캐시**다 (§3 의 3 착지점이 이걸 위해 설계됨). 리스트 클립 ↔ detail 칩이 **정의상 일치** — 클립 보고 열었는데 칩이 없는 배신이 구조적으로 불가능 |
+| ② fail-open 계수 (`is_inline` 무시) | **각하** | dev 실측: content_id 보유 2,114건의 대부분이 뉴스레터 로고 PNG(2,078). 무시하면 **로고만 든 마케팅 메일 대부분에 클립이 뜬다** → 신호가 소음이 되어 "알기 편하게"라는 요구 자체가 죽는다. fail-open 원칙(§3)은 "문서 소실 방지"용이지 "신호 가치 파괴"까지 정당화하지 않는다 |
+| ③ SQL 에서 body_html cid 참조 실시간 판정 | **각하** | 리스트 요청마다 첨부×본문 LIKE 스캔(뉴스레터 body 수백 KB × 페이지당 수백 첨부) — 목록은 최다 호출 라우트다. 캐시(①)가 정확히 이 비용을 없애려고 존재한다 |
+
+**배포 순서 충돌의 해소 — §6-5 개정**: ① 채택의 대가는 백필 의존이다. 코드 배포~백필 사이 창에서 옛 2,114행이 뱃지 미표시(방향이 #215 의 죄와 동일)가 되므로:
+
+> **§6-5 개정판**: C 백필은 "후속 데이터 정리"가 아니라 **리스트 표시의 데이터 전제**다. 운영 배포 시 ① dry-run 리포트·Irene 확인은 **배포 전** 완료(dev apply 실측 수치 — 2,108행 C + 370행 F — 로 갈음 가능) ② 배포 세션 안에서 **코드 반영 직후 즉시 `--apply` 실행 + 멱등 재실행 0건 확인**을 **배포 완료 조건**에 포함한다. 백필 미실행 상태로 세션을 끝내는 것은 부분 배포다 (memory `feedback_deploy_timeout_partial_state` 계열 — 반드시 완주).
+>
+> 순서가 "코드 먼저"인 이유: 코드 배포 후 창에서 유입되는 신규 메일은 **새 쓰기 로직(B)** 으로 기록되므로 잔여물이 없다. 역순(백필 먼저)이면 창의 유입분이 옛 로직으로 오염되어 재실행이 필요해진다. 남는 창은 "옛 스레드의 뱃지가 수 분간 안 뜸"뿐이며 백필 완주로 해소된다. dev 는 이미 apply 완료 — 리스트 라우트는 즉시 정확하다.
+
+### 9-2. 응답 필드 — `attachment_count: number`
+
+- boolean 이 아니라 **개수**로 내린다: SQL 비용 동일(COUNT), aria-label 에 개수 명시 가능, 향후 확장 여지. **화면에는 숫자를 그리지 않는다** — 좁은 행에서 클립 아이콘만 (Gmail 관례). 개수는 aria-label·title 로만.
+- 집계 술어 = detail 칩 필터의 컬럼 판(§2-1 과 정합):
+  `is_inline = 0 AND file_id IS NOT NULL AND mime ∉ NOISE_MIMES` (mime NULL 은 계수 — fail-open).
+  `file_id IS NOT NULL` 인 이유: file 없는 칩은 detail 에서도 비활성이며, G 신규 노이즈 row 가 file_id NULL 로 남기 때문. 단 **legacy 노이즈 974건은 file_id 가 있으므로** mime 조건이 별도로 필요하다.
+
+### 9-3. 절단면 (백엔드)
+
+**`/opt/planq/dev-backend/routes/email_threads.js`** — 목록 라우트, 기존 배치 집계 선례(`:228-256` lastInbound/lastOut 패턴) 옆에 동일 패턴 추가:
+
+```js
+// #215-I — 첨부 유무 배치 집계. is_inline 은 isEmbedded 술어의 물질화 캐시(설계 §3·§9-1)
+//   — B(쓰기)+C(백필)로 detail 칩 필터와 정의상 일치. N+1 없음 (threadIds 1 쿼리).
+const attachCountByThread = new Map();
+if (threadIds.length > 0) {
+  const attRows = await sequelize.query(
+    `SELECT em.thread_id, COUNT(*) AS cnt
+       FROM email_attachments ea
+       JOIN email_messages em ON em.id = ea.message_id
+      WHERE em.business_id = :bid AND em.thread_id IN (:ids)
+        AND ea.is_inline = 0
+        AND ea.file_id IS NOT NULL
+        AND (ea.mime_type IS NULL OR LOWER(ea.mime_type) NOT IN (:noise))
+      GROUP BY em.thread_id`,
+    { replacements: { bid: businessId, ids: threadIds, noise: [...NOISE_MIMES] }, type: sequelize.QueryTypes.SELECT }
+  );
+  for (const r of attRows) attachCountByThread.set(r.thread_id, Number(r.cnt) || 0);
+}
+```
+- `NOISE_MIMES` 는 `services/emailAttachments.js` 에서 require (§2-1 모듈 — 목록/상세 denylist 분열 금지).
+- `em.business_id = :bid` — 멀티테넌트 이중 잠금 (threadIds 가 이미 acctIds 스코프지만 belt-and-suspenders).
+- 신규 인덱스 불요: `email_attachments_message`(message_id) + email_messages 의 thread_id 경로로 충분. 페이지당 스레드 ≤ limit 이라 상수 규모.
+- `data = rows.map(...)` (`:258-290`) 반환 객체에 1줄: `attachment_count: attachCountByThread.get(obj.id) || 0,`
+
+### 9-4. 절단면 (프론트엔드)
+
+**`/opt/planq/dev-frontend/src/pages/QMail/MailPage.tsx`** — 순증 **약 +7줄** (현재 2,129 / 임계 2,210 — 여유 내):
+- Thread 타입(`:182` 인접)에 `attachment_count: number;` 1줄
+- 리스트 행 `ThreadRow1Right`(`:1580`) — **StarSpan 앞**에 클립 표시 (제목 줄을 안 먹어 좁은 행·모바일에 안전):
+```tsx
+{mt.attachment_count > 0 && (
+  <ListClip
+    role="img"
+    data-testid="mail-thread-attach"
+    aria-label={t('thread.attachments', { count: mt.attachment_count }) as string}
+    title={t('thread.attachments', { count: mt.attachment_count }) as string}
+  ><ClipIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></ClipIcon></ListClip>
+)}
+```
+  (D 절단면에서 첨부 칩 SVG path 를 상수·공용 컴포넌트로 뽑았다면 그걸 재사용 — path 리터럴 2중화 금지.)
+
+**`/opt/planq/dev-frontend/src/pages/QMail/MailPage.styles.ts`** — `ListClip` 신규 (기존 뱃지 위계와 동일 톤, bespoke 금지):
+```ts
+export const ListClip = styled.span`
+  display: inline-flex; align-items: center; flex-shrink: 0;
+  color: #94A3B8;                       /* ThreadTime 과 동일 slate — 정보성 아이콘, 강조 아님 */
+  & > svg { width: 13px; height: 13px; }
+`;
+```
+- 위치·형태 근거: 행은 이미 발신자/별표/시각(1행) + 제목(2행) + 프리뷰 + 상태칩들로 밀도가 높다. 클립은 **1행 우측 메타 영역**(별표 왼쪽)에 13px 회색 — UnreadDot·SentTag·FollowUpChip 등 기존 신호 위계(강조 칩은 하단, 메타는 우상단)와 충돌하지 않는다.
+- 모바일(≤640px, #204 손본 영역): 클립은 `flex-shrink: 0` 13px+gap ≈ 17px 만 차지하고 제목 줄과 무관 — 발신자명(flex 축소 측)만 미세 축소. 검증 §9-6 에서 375px 실측.
+
+**i18n** — `/opt/planq/dev-frontend/public/locales/{ko,en}/qmail.json`:
+- ko: `"thread": { "attachments": "첨부 {{count}}개" }` / en: `"attachments_one": "{{count}} attachment"`, `"attachments_other": "{{count}} attachments"` (i18next plural). 가드 parity 래칫 통과 필수.
+
+**실시간(§16)**: 신규 broadcast 불요 — attachment_count 는 리스트 응답에 실려 오고, 기존 `message:new` → silentLoad 경로가 갱신을 커버한다. 신규 socket 이벤트 추가 금지 (범위 밖).
+
+**god-file 래칫 비상 지침**: I 의 MailPage.tsx 순증은 ~7줄로 여유(80줄) 내다. 만에 하나 A~H 잔여 조정과 합쳐 2,210 을 넘기면 — 래칫 baseline 갱신으로 도망가지 말고 — **리스트 행 블록(`:1560-1693` ThreadItem 전체)을 `src/pages/QMail/MailThreadRow.tsx` 로 추출**한다(props: `mt, active, unread, handled, folder, dismissingId` + 핸들러 5종. 부모 전달 props 는 memory `feedback_props_useMemo` 준수). 추출 경계는 이 블록으로 한정 — 다른 분리 임의 수행 금지.
+
+### 9-5. 명시적 무변경 (I 의 경계)
+
+- detail 라우트·A 술어·백필 스크립트 — 무변경 (I 는 소비자)
+- 목록 화면에 개수 숫자·파일명·mime 아이콘 렌더 — 하지 않는다
+- 신규 인덱스·스키마 변경 — 없음
+- `folderWhere`·검색·페이지네이션 로직 — 무변경
+
+### 9-6. 검증 계획 (I)
+
+실 HTTP (`health-check@planq.kr`, biz 5 — test-215.js 에 시나리오 추가):
+| # | 시나리오 | 기대 |
+|---|---|---|
+| I-1 | GET 목록(folder=all) → att 1222(옛 is_inline=1 PDF, 백필로 0) 소속 스레드 | `attachment_count ≥ 1` — **옛 데이터 sample** 이자 "#215 죄의 역전" 증명 |
+| I-2 | 첨부가 embedded SVG 뿐인 스레드(msg 1376 소속 — SQL 로 사전 선별해 그 스레드의 전 첨부가 embedded/노이즈뿐임을 확인) | `attachment_count = 0` (클립 없음 — 신호 가치 보존) |
+| I-3 | rfc822-headers(legacy, file_id 有)만 있는 스레드 | `attachment_count = 0` (mime denylist 가 legacy 974 를 잡는지) |
+| I-4 | **정합 불변식**: 목록 표본 10개 스레드에 대해 `attachment_count` == 같은 스레드 GET detail 의 `attachments[]` 길이 합 | 전건 일치 — 컬럼 캐시가 술어에서 표류하면 여기서 깨진다 (드리프트 카나리) |
+| I-5 | 경계: mime_type NULL 첨부 | 계수됨 (fail-open) |
+| I-6 | 375px 뷰포트(하니스 mobile suite) — 클립 표시 행 | 시각 잘림·행 높이 변형 없음 (#204 회귀 없음) |
+
+반증 (memory `feedback_guard_must_be_falsified`):
+- I-1 은 **백필 revert 상태(is_inline=1 복원 표본 1행)에서 실행 시 FAIL** 임을 확인 — 백업 JSON 으로 att 1222 한 행만 역적용 → 테스트 FAIL → 재적용 → PASS (백필 의존성이 실재함을 증명).
+- I-2 는 SQL 의 `is_inline=0` 조건을 뺀 변형으로 실행하면 FAIL(뉴스레터에 클립) — 커밋 전 1회 실측.
+
+가드: `guard-invariants.js` 전 카테고리(i18n·parity·god-file 래칫 포함) + `health-check.js` + 프론트 빌드 실 exit 0.
