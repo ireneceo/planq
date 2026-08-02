@@ -544,6 +544,23 @@ export const Attachment = styled.div`
   &:hover:not(:disabled) { border-color: #14B8A6; color: #0F766E; background: #F0FDFA; }
   &:disabled { cursor: default; opacity: 0.7; }
 `;
+// #215 — 첨부 칩 + 내려받기 아이콘을 한 덩어리로 묶는다 (칩 본체 = 미리보기, 아이콘 = 내려받기).
+export const AttachmentGroup = styled.div`
+  display: inline-flex; align-items: center; gap: 4px;
+`;
+export const AttachDownloadBtn = styled.button`
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; padding: 0;
+  border: 1px solid #E2E8F0; border-radius: 8px; background: #F8FAFC;
+  color: #64748B; cursor: pointer; transition: border-color 0.12s, color 0.12s, background 0.12s;
+  & > svg { width: 13px; height: 13px; }
+  &:hover { border-color: #14B8A6; color: #0F766E; background: #F0FDFA; }
+  /* 터치 환경에서 타겟 확보 — 반응형 원칙 2 (아이콘 버튼 최소 36) */
+  @media (hover: none), (max-width: 640px) { width: 36px; height: 36px; }
+`;
+export const AttachErr = styled.span`
+  font-size: 11px; font-weight: 500; color: #B91C1C;
+`;
 // 하단 액션 영역 — 본문과 같은 흰 바탕. 회색/흰 박스를 겹쳐 띄우지 않는다(박스 속 박스 금지).
 export const DetailFooter = styled.div`
   padding: 14px 24px;
