@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import { downloadBlob } from '../../utils/download';
 import { useImageLightbox } from '../../components/Common/ImageLightbox';
+import { isNativeApp } from '../../services/native';
 import { Attachments, Attachment, AttachmentGroup, AttachDownloadBtn, AttachErr, ClipIcon } from './MailPage.styles';
 
 export interface MailAttachment {
@@ -98,8 +99,14 @@ const MessageAttachments: React.FC<Props> = ({ businessId, attachments }) => {
       // PDF — 브라우저 내장 뷰어(별도 origin sandbox). 팝업 차단 시 내려받기로 폴백.
       const url = await fetchObjectUrl(a.file_id);
       if (!url) { flagAttachErr(a.id); return; }
-      const w = window.open(url, '_blank', 'noopener');
-      if (!w) await download(a);
+      // 네이티브 앱 WebView 에는 새 탭이 없다 — 바로 내려받는다.
+      if (isNativeApp()) { await download(a); return; }
+      // ★ `window.open(url, '_blank', 'noopener')` 은 **성공해도 null 을 반환한다**(스펙).
+      //   그 반환값을 팝업 차단 신호로 쓰면 열릴 때마다 폴백이 같이 발화해 "새 탭 + 원치 않는 다운로드" 가 된다.
+      //   blob URL 은 우리가 만든 same-origin 자산이라 opener 위험이 없으므로, feature 대신 핸들에서 끊는다.
+      const w = window.open(url, '_blank');
+      if (w) { try { w.opener = null; } catch { /* 크로스오리진 아님 — 무시 */ } }
+      else await download(a);   // 여기 도달 = 진짜 팝업 차단
     } catch {
       flagAttachErr(a.id);
     }
