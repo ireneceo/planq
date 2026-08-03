@@ -16,6 +16,7 @@ const crypto = require('crypto');
 const { Project, Business, Client, Invoice, InvoiceItem, User, BusinessMember } = require('../models');
 const { sequelize } = require('../config/database');
 const { recurringMetaForProject } = require('./invoiceRecurring');
+const { defaultReceiptTypeFor } = require('./receiptsDue');
 
 // invoice_number 생성 — 동시성 고려 (같은 트랜잭션 / 락 미적용. cron 단일 실행이라 충분)
 // 운영 — robust: INV-YYYY- prefix 전체에서 실제 최대 순번 스캔 (깨진 번호 skip).
@@ -98,6 +99,10 @@ async function billOneProject(project, today = new Date()) {
 
   const shareToken = crypto.randomBytes(24).toString('hex');
 
+  // 증빙 의향 — receiptsDue 단일 원천 술어 (KRW + 한국 사업자 고객)
+  const currency = business.default_currency || 'KRW';
+  const receiptType = defaultReceiptTypeFor(client, currency);
+
   const bankSnapshot = {
     bank_name: business.bank_name || null,
     account_number: business.bank_account_number || null,
@@ -132,6 +137,15 @@ async function billOneProject(project, today = new Date()) {
     grand_total: grandTotal,
     total_amount: subtotal,
     share_token: shareToken,
+    // 증빙 의향 — 등록 고객이 한국 사업자면 세금계산서 대상으로 생성한다.
+    //   여태 이 두 필드가 payload 에 아예 없어 모델 기본값 'none' 으로 떨어졌고, 고객의 사업자
+    //   정보가 DB 에 다 있는데도 화면에 "발행 대상 아님" 이 떴다 (운영 피드백 2026-08-03).
+    //   술어는 receiptsDue 단일 원천 — 목록(증빙 큐)과 상세 표시가 갈라지지 않게.
+    //   'pending' = 발행 의향 표시. 큐 편입은 여전히 paid 게이트라 조기 독촉·큐 오염 없음
+    //   (수동 생성 경로 routes/invoices.js 와 같은 컨벤션).
+    //   receipt_profile 은 **찍지 않는다** — 그 컬럼의 의미는 "고객이 직접 입력·확인한 정보"다.
+    receipt_type: receiptType,
+    tax_invoice_status: receiptType === 'tax_invoice' ? 'pending' : 'none',
     // mode=auto 면 즉시 sent, draft_review 면 draft
     status: isAuto ? 'sent' : 'draft',
     sent_at: isAuto ? new Date() : null,

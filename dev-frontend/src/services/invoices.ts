@@ -122,6 +122,10 @@ export interface ApiInvoice {
   // 결제수단 · 증빙 (2026-06-13)
   payment_method?: 'bank_transfer' | 'card' | 'other';
   receipt_type?: 'none' | 'tax_invoice' | 'cash_receipt';
+  // 서버가 증빙 큐(receiptsDue)와 **같은 술어**로 판정해 내려주는 파생 필드.
+  //   프론트에서 receipt_type/tax_invoice_status 로 자체 판정하면 옛 데이터·정기청구처럼
+  //   receipt_type 이 'none' 인 건에서 큐(대기중)와 상세(발행 대상 아님)가 갈라진다.
+  receipt_kind?: 'tax' | 'cash' | null;
   receipt_profile?: {
     biz_type?: 'business' | 'individual';
     biz_name?: string | null; biz_tax_id?: string | null; biz_ceo?: string | null;

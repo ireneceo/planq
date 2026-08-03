@@ -13,6 +13,7 @@ import {
   markInstallmentTaxInvoice, cancelInstallment, updateInvoiceStatus,
   markInvoiceTaxInvoice, markInvoiceCashReceipt,
   findConversationForClient, deleteInvoice, sendInvoiceReminder, sendInvoicePreview, resendInvoice, downloadInvoicePdf,
+  sendInvoice,
   setInvoiceOverdueNotify,
   listInvoiceCorrections, getInvoiceStatusHistory, getInvoiceTimeline,
   type ApiInvoice, type ApiInstallment, type ApiReceiptCorrection, type ApiInvoiceStatusEvent, type ApiBillEvent,
@@ -287,6 +288,34 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
       onConfirm: () => { setConfirm(null); doCancelInvoice(); },
     });
   };
+  // ── 발송 (draft → sent) ──────────────────────────────────────────────
+  //   여태 발송은 **편집 모달 안에서만** 가능했다 (모달의 "임시저장 아님" 저장 경로).
+  //   그래서 정기청구 draft_review 알림이 "검토 후 발송해주세요" 라며 이 드로어를 열어주는데
+  //   정작 여기엔 발송 버튼이 없어, 보내려면 반드시 편집을 거쳐야 했다 (운영 피드백 2026-08-03).
+  //   권한은 재무 액션 정책대로 owner 만 (서버도 assertInvoiceMutationOwner 로 강제).
+  const [sendBusy, setSendBusy] = useState(false);
+  // 수신처가 없으면 보낼 곳이 없다 — 버튼을 비활성화하고 이유를 붙인다.
+  const canSendTo = !!(invoice.client_id || invoice.recipient_email);
+  const doSendInvoice = async () => {
+    if (sendBusy) return;
+    setSendBusy(true);
+    try {
+      await sendInvoice(invoice.business_id, invoice.id, { send_email: true, send_chat: true });
+      await refresh();
+      onChanged?.();
+    } finally { setSendBusy(false); }
+  };
+  const handleSendInvoice = () => {
+    setConfirm({
+      open: true,
+      title: t('detail.confirm.sendTitle', { defaultValue: '청구서 발송' }) as string,
+      message: t('detail.confirm.sendMsg', {
+        defaultValue: '고객에게 청구서를 보냅니다. 보낸 뒤에는 되돌릴 수 없습니다. 계속할까요?',
+      }) as string,
+      onConfirm: () => { setConfirm(null); doSendInvoice(); },
+    });
+  };
+
   const doMarkInvoicePaid = async () => {
     if (busy) return;
     setBusy(true);
@@ -421,6 +450,22 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
               {invoice.status === 'canceled'
                 ? t('detail.header.actions.editReissue', { defaultValue: '편집·재발행' }) as string
                 : t('detail.header.actions.edit', { defaultValue: '편집' }) as string}
+            </ActionBtn>
+          )}
+          {/* 발송 — draft 를 고객에게 보낸다. 편집을 거치지 않고 여기서 바로. */}
+          {isOwner && invoice.status === 'draft' && (
+            <ActionBtn
+              onClick={handleSendInvoice}
+              disabled={sendBusy || !canSendTo}
+              $primary
+              title={canSendTo
+                ? t('detail.send.hint', { defaultValue: '고객에게 청구서를 발송합니다' }) as string
+                : t('detail.send.noRecipient', { defaultValue: '받는 사람이 없어 발송할 수 없습니다' }) as string}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              {sendBusy
+                ? t('detail.send.sending', { defaultValue: '보내는 중…' }) as string
+                : t('detail.send.action', { defaultValue: '발송' }) as string}
             </ActionBtn>
           )}
           {isOwner && invoice.status === 'draft' && (
@@ -709,8 +754,15 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
         {/* 증빙 — 세금계산서 / 현금영수증 */}
         {(client?.is_business || (invoice.receipt_type && invoice.receipt_type !== 'none') || invoice.receipt_profile) && (() => {
           const rp = invoice.receipt_profile;
-          const isCash = invoice.receipt_type === 'cash_receipt' || rp?.biz_type === 'individual';
-          const status = isCash ? (invoice.cash_receipt_status || 'none') : invoice.tax_invoice_status;
+          // 증빙 종류는 **서버 판정(receipt_kind)** 을 따른다 — 증빙 큐와 같은 단일 원천.
+          //   폴백은 옛 응답(파생 필드 없는 캐시/구버전) 대비용.
+          const isCash = invoice.receipt_kind
+            ? invoice.receipt_kind === 'cash'
+            : (invoice.receipt_type === 'cash_receipt' || rp?.biz_type === 'individual');
+          // 발행 상태. 'none' 인데 서버가 발행 대상(receipt_kind)이라고 판정했으면 **대기중**으로 본다.
+          //   여태 이 분기가 없어 정기 청구서가 "발행 대상 아님" 으로 떴다 (운영 피드백 2026-08-03).
+          const rawStatus = isCash ? (invoice.cash_receipt_status || 'none') : invoice.tax_invoice_status;
+          const status = (rawStatus === 'none' && invoice.receipt_kind) ? 'pending' : rawStatus;
           const issuedNo = isCash ? invoice.cash_receipt_no : invoice.tax_invoice_external_id;
           return (
             <Section>
