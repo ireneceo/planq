@@ -15,7 +15,7 @@ const { User, Business, BusinessMember, OauthConnection, sequelize } = require('
 const googleOauthLogin = require('../services/google_oauth_login');
 // 옛 /login 의 refresh_token cookie 패턴 재사용 (다중 디바이스 + sliding renewal 정합)
 const { helpers } = require('./auth');
-const { createRefreshTokenRow, generateAccessToken, generateRefreshToken, resolveClientKind, TTL_MS_BY_KIND } = helpers;
+const { createRefreshTokenRow, generateAccessToken, generateRefreshToken, resolveClientKind, TTL_MS_BY_KIND, setSessionHint } = helpers;
 
 // connect-confirm token 임시 저장 (5분 만료, in-memory)
 const confirmStash = new Map();
@@ -123,14 +123,17 @@ async function issueSessionCookie(req, res, user) {
   const refreshToken = generateRefreshToken(user, clientKind);
   await createRefreshTokenRow(user, refreshToken, req, null, { clientKind });
   await user.update({ last_login_at: new Date() });
+  const secure = process.env.NODE_ENV === 'production';
   const cookieOpts = {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure,
     sameSite: 'lax',
     path: '/api/auth',
     maxAge: TTL_MS_BY_KIND[clientKind],
   };
   res.cookie('refresh_token', refreshToken, cookieOpts);
+  // #244 — 동반 세션 힌트도 같은 수명으로 (OAuth 로그인 누락 시 그 사용자만 진단 사각지대가 된다).
+  setSessionHint(res, { maxAge: cookieOpts.maxAge, secure });
 }
 
 // 1. Google OAuth 시작

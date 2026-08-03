@@ -161,59 +161,133 @@ const tokenRemainingMs = (): number => {
 };
 
 // 단일 in-flight refresh promise — parallel 요청이 동시에 401 받아도 refresh 호출은 1회만.
-let refreshInflight: Promise<boolean> | null = null;
+let refreshInflight: Promise<RefreshResult> | null = null;
+
+// #244 — refresh 실패 사유. **세션을 끝낼 수 있는 것은 'unauthorized' 뿐이다.**
+//
+//   여태는 boolean 만 돌려줘서 호출자가 "인증이 진짜 끝났다"와 "지금 서버에 못 닿았다"를
+//   구별할 수 없었고, 세 곳(타이머·visibility·session-expired) 모두 실패면 무조건 로그아웃했다.
+//   절전 복귀·오프라인 wake·배포 중 재시작이 일상인 PWA 에서 이 구조는 오탐 로그아웃을 만든다.
+//
+//   'ratelimited'(429) 를 별도로 두는 이유: 옛 코드의 재시도 조건이 `status >= 500` 이라
+//   429 를 포함한 **모든 non-401 4xx 가 즉시 영구 로그아웃**이었다. 공용 IP 사무실에서
+//   한 명이 한도를 채우면 옆 사람이 로그아웃되는 실 발화 경로다.
+export type RefreshFailReason = 'unauthorized' | 'network' | 'server' | 'ratelimited';
+type RefreshResult = { ok: true } | { ok: false; reason: RefreshFailReason; code?: string };
+
+const isTerminal = (r: RefreshResult) => !r.ok && r.reason === 'unauthorized';
+
+// 마지막으로 refresh 가 성공한 시각 — 세션 종결 비콘에 실어 "얼마나 버티다 죽었는지"를 남긴다.
+let lastRefreshSuccessAt: string | null = null;
+
+// #244 (D3) — 세션이 끝나는 그 순간의 클라이언트 상태를 서버에 한 줄 남긴다.
+//   #244 조사에서 서버 로그만으로는 "쿠키가 사라졌다"까지가 한계였고 무엇이 지웠는지 알 수 없었다.
+//   다음 재발 때 원인이 바로 특정되도록 계측한다. keepalive — 곧 페이지가 /login 으로 떠나므로
+//   일반 fetch 는 중간에 취소된다. 실패해도 무시(진단이 사용자 흐름을 막으면 안 된다).
+const reportSessionEnd = (reason: string, code?: string) => {
+  try {
+    const standalone =
+      window.matchMedia?.('(display-mode: standalone)').matches ||
+      (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+    fetch('/api/auth/session-diag', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      keepalive: true,
+      body: JSON.stringify({
+        reason, code,
+        last_success_at: lastRefreshSuccessAt,
+        client_kind: detectClientKind(),
+        standalone: !!standalone,
+      }),
+    }).catch(() => { /* noop */ });
+  } catch { /* noop */ }
+};
+
+// 백오프 상한 — 무한히 촘촘한 재시도로 서버를 두드리지 않되, 복귀는 빠르게.
+const BACKOFF_MS = [5_000, 15_000, 60_000];
+const BACKOFF_MAX_MS = 5 * 60 * 1000;
 
 // Refresh 시도. 동시 호출은 동일 promise 공유.
-//   네트워크 blip / 서버 reload 일시 실패 흡수: 첫 호출 실패 + 응답 status 가 0 (네트워크) 또는
-//   5xx 면 1.5초 뒤 1회 재시도. 401 (인증 만료) 은 즉시 false (재시도 무의미).
-const tryRefresh = (): Promise<boolean> => {
+//   1회 호출의 결과만 돌려준다 — 재시도 정책은 호출자(세션 유지 루프)가 결정한다.
+const tryRefresh = (): Promise<RefreshResult> => {
   if (refreshInflight) return refreshInflight;
-  refreshInflight = (async () => {
-    const callOnce = async (): Promise<{ ok: boolean; networkOrServer: boolean; status?: number }> => {
-      try {
-        const clientKind = detectClientKind();
-        // headers 와 body 양쪽에 client_kind 전달 — CORS 가 헤더 막을 경우 body 가 백업
-        const res = await fetch('/api/auth/refresh', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Client-Kind': clientKind },
-          credentials: 'include',
-          body: JSON.stringify({ client_kind: clientKind }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.data?.token) {
-            setAccessToken(data.data.token);
-            return { ok: true, networkOrServer: false, status: 200 };
-          }
-          return { ok: false, networkOrServer: false, status: res.status };
+  refreshInflight = (async (): Promise<RefreshResult> => {
+    try {
+      const clientKind = detectClientKind();
+      // headers 와 body 양쪽에 client_kind 전달 — CORS 가 헤더 막을 경우 body 가 백업
+      const res = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Client-Kind': clientKind },
+        credentials: 'include',
+        body: JSON.stringify({ client_kind: clientKind }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.data?.token) {
+          setAccessToken(data.data.token);
+          lastRefreshSuccessAt = new Date().toISOString();
+          return { ok: true };
         }
-        // 진단: 401 vs 5xx 구분
-        if (res.status === 401) {
-          console.warn('[auth.refresh] 401 — cookie 가 사라졌거나 refresh token invalid. 자동 logout 진행.');
-        } else if (res.status >= 500) {
-          console.warn('[auth.refresh] 5xx status=' + res.status + ' — 서버 일시 오류, 재시도.');
-        }
-        return { ok: false, networkOrServer: res.status >= 500, status: res.status };
-      } catch (e) {
-        console.warn('[auth.refresh] network error', (e as Error).message);
-        return { ok: false, networkOrServer: true };
+        // 200 인데 형식이 어긋남 — 서버 이상으로 취급(세션 종결 사유 아님)
+        return { ok: false, reason: 'server' };
       }
-    };
-    const first = await callOnce();
-    if (first.ok) return true;
-    if (first.networkOrServer) {
-      await new Promise((r) => setTimeout(r, 1500));
-      const second = await callOnce();
-      if (second.ok) return true;
+      if (res.status === 401) {
+        // 서버가 준 기계판독 code (no_cookie / jwt_invalid / no_row / stale_reuse / expired)
+        let code: string | undefined;
+        try { code = (await res.clone().json())?.code; } catch { /* 본문 없음 */ }
+        console.warn('[auth.refresh] 401 code=' + (code || 'unknown') + ' — 세션 종료.');
+        setAccessToken(null);
+        return { ok: false, reason: 'unauthorized', code };
+      }
+      if (res.status === 429) {
+        console.warn('[auth.refresh] 429 rate limited — 세션 유지하고 재시도.');
+        return { ok: false, reason: 'ratelimited' };
+      }
+      console.warn('[auth.refresh] status=' + res.status + ' — 서버 일시 오류, 재시도.');
+      return { ok: false, reason: 'server' };
+    } catch (e) {
+      console.warn('[auth.refresh] network error', (e as Error).message);
+      return { ok: false, reason: 'network' };
     }
-    setAccessToken(null);
-    return false;
   })();
   // 끝나면 슬롯 비우기 (다음 만료 사이클에서 새로 시도 가능)
   refreshInflight.finally(() => {
     refreshInflight = null;
   });
   return refreshInflight;
+};
+
+// 세션을 지키며 refresh 를 성사시킨다.
+//   - 성공 → true
+//   - 401 → false (진짜 종료. 호출자가 로그아웃 처리)
+//   - 그 외(network/server/429) → 백오프 재시도. `online` 이벤트가 오면 즉시 앞당긴다.
+//     retry 상한은 없다 — 끝낼 수 있는 사유는 401 뿐이라는 원칙 그대로.
+const refreshWithRetry = async (): Promise<boolean> => {
+  let attempt = 0;
+  for (;;) {
+    const r = await tryRefresh();
+    if (r.ok) return true;
+    if (isTerminal(r)) {
+      reportSessionEnd('refresh_unauthorized', (r as { code?: string }).code);
+      return false;
+    }
+    const delay = BACKOFF_MS[Math.min(attempt, BACKOFF_MS.length - 1)] ?? BACKOFF_MAX_MS;
+    attempt += 1;
+    await new Promise<void>((resolve) => {
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        window.removeEventListener('online', finish);
+        resolve();
+      };
+      const timer = setTimeout(finish, Math.min(delay, BACKOFF_MAX_MS));
+      // 네트워크가 돌아오면 백오프를 기다리지 않고 즉시 재시도
+      window.addEventListener('online', finish);
+    });
+  }
 };
 
 // API 호출 헬퍼.
@@ -252,8 +326,8 @@ const apiFetch = async (url: string, options: RequestInit = {}): Promise<Respons
 
   // 401 reactive refresh — 서버가 token_expired/invalid_token 등으로 401 보낸 경우
   if (response.status === 401 && !isAuthEndpoint) {
-    const refreshed = await tryRefresh();
-    if (refreshed) {
+    const r = await tryRefresh();
+    if (r.ok) {
       const retryHeaders = new Headers(options.headers || {});
       retryHeaders.set('Authorization', `Bearer ${accessToken}`);
       return fetch(url, { ...options, headers: retryHeaders, credentials: 'include' });
@@ -262,7 +336,15 @@ const apiFetch = async (url: string, options: RequestInit = {}): Promise<Respons
     //   fetchTodo)가 백엔드 원문("Access token required")을 화면에 렌더해 사용자가 로그인
     //   화면으로 못 가고 영문 에러에 갇힌다. 전역 신호를 발행해 AuthProvider 가 (로그인 세션이
     //   있었을 때만) 정리 후 /login 으로 이동시킨다. 게스트/공개 표면(user 없음)은 gate 에서 무시.
-    try { window.dispatchEvent(new Event('planq:session-expired')); } catch { /* noop */ }
+    //
+    // #244 — **발행측 게이트**. 소비자 3곳만 고치면 여기서 우회된다.
+    //   장기 네트워크 단절 중 access token 이 만료되면 API 가 401 → 여기 reactive refresh 도
+    //   network 실패 → 옛 코드는 그대로 session-expired 를 쏴 로그아웃시켰다.
+    //   세션을 끝낼 수 있는 것은 서버가 401 로 "인증이 끝났다"고 말한 경우뿐이다.
+    if (isTerminal(r)) {
+      reportSessionEnd('api_401_then_refresh_unauthorized', (r as { code?: string }).code);
+      try { window.dispatchEvent(new Event('planq:session-expired')); } catch { /* noop */ }
+    }
   }
 
   // 422 plan quota — 글로벌 이벤트로 LimitReachedDialog 띄움. 호출자는 그대로 응답 받음.
@@ -329,11 +411,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   //  hasRole 이 두 role 을 독립 검사하는 방식으로 재작성됐으므로 제거.)
 
   // Access Token 자동 갱신 타이머 (만료 1분 전 갱신)
+  //   #244 — 실패해도 곧바로 끝내지 않는다. refreshWithRetry 는 401 을 받을 때만 false 를 돌려주고,
+  //   네트워크/서버/429 는 백오프하며 버틴다(네트워크 복귀 시 즉시 재시도). 절전 복귀·배포 중
+  //   재시작 같은 일시 장애로 세션이 죽던 경로를 차단.
   const scheduleRefresh = useCallback(() => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     // 14분 후 갱신 (15분 만료 기준 1분 전)
     refreshTimerRef.current = setTimeout(async () => {
-      const success = await tryRefresh();
+      const success = await refreshWithRetry();
       if (success) {
         scheduleRefresh();
       } else {
@@ -383,8 +468,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           }
         }
 
-        // 일반 경로 (또는 상속 실패) — refresh cookie 로 세션 복원
-        const refreshed = await tryRefresh();
+        // 일반 경로 (또는 상속 실패) — refresh cookie 로 세션 복원.
+        //   부팅은 재시도 루프에 넣지 않는다: 게스트도 여기를 지나가므로(쿠키 없으면 401),
+        //   버티게 하면 로그인 화면 진입이 지연된다. 1회 시도 후 실패하면 그대로 게스트로 부팅하고,
+        //   세션 유지 책임은 로그인 이후의 scheduleRefresh 가 진다.
+        const refreshed = (await tryRefresh()).ok;
         if (refreshed) {
           const res = await apiFetch('/api/auth/me');
           if (res.ok) {
@@ -408,8 +496,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (!accessToken) return;
       const remaining = tokenRemainingMs();
       // 60초 이하 남았으면 즉시 refresh (만료 직후 포함). 0 이면 이미 만료.
+      //   #244 — 여기가 PWA 절전 복귀의 첫 착지점이다. 복귀 직후엔 네트워크가 아직 안 붙어 있는
+      //   경우가 흔해, 1회 실패로 로그아웃시키면 정상 사용자가 죽는다. 401 일 때만 종결.
       if (remaining < 60 * 1000) {
-        const ok = await tryRefresh();
+        const ok = await refreshWithRetry();
         if (ok) {
           scheduleRefresh();
         } else {
