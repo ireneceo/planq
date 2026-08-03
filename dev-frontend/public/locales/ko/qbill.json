@@ -320,7 +320,9 @@
       "cancelInvoiceMsg": "이 청구서를 취소 상태로 변경하시겠습니까?",
       "markPaidTitle": "결제 완료 처리",
       "markPaidMsg": "입금을 확인했다면 이 청구서를 결제 완료로 표시합니다. 계속할까요?",
-      "aria": "청구서 {{number}}"
+      "aria": "청구서 {{number}}",
+      "sendTitle": "청구서 발송",
+      "sendMsg": "고객에게 청구서를 보냅니다. 보낸 뒤에는 되돌릴 수 없습니다. 계속할까요?"
     },
     "markPaid": {
       "action": "결제 완료",
@@ -336,6 +338,12 @@
     "unmarkPaid": {
       "action": "결제 취소",
       "hint": "결제 완료를 취소하고 미결제로 되돌립니다"
+    },
+    "send": {
+      "action": "발송",
+      "sending": "보내는 중…",
+      "hint": "고객에게 청구서를 발송합니다",
+      "noRecipient": "받는 사람이 없어 발송할 수 없습니다"
     }
   },
   "newInvoice": {
