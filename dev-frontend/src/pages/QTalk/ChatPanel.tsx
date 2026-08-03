@@ -1280,7 +1280,10 @@ const ChatPanel: React.FC<Props> = ({
       )}
 
       {/* 메시지 흐름 */}
-      <MessageList ref={messageListRef} onScroll={handleScrollSave}>
+      {/* data-testid — #245 가로 잠금 카나리가 이 영역을 확정적으로 집는다 (CLAUDE.md §17).
+          휴리스틱(가장 큰 스크롤러 등)으로 찾으면 ChatPanel 이 안 뜬 상태에서 좌측 대화 리스트를
+          대신 굴려 **거짓 PASS** 가 난다 — 실제로 그렇게 났다. */}
+      <MessageList ref={messageListRef} data-testid="qtalk-messages" onScroll={handleScrollSave}>
         {/* 과거 메시지 무한 로드 — 상단 로딩 인디케이터 */}
         {loadingOlder && convMessages.length > 0 && (
           <OlderLoadingRow aria-live="polite">
