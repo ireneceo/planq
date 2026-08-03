@@ -1,162 +1,139 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-08-03 11:15 UTC (Opus 5, 1M)
-**작업 상태:** #244·#245 구현 완료 → **Fable 구현 검증 게이트 진행 중** (판정 대기). 미배포.
+**마지막 업데이트:** 2026-08-03 13:20 UTC (Opus 5, 1M)
+**작업 상태:** 중단(Irene 취침). **#244·#245 완료(Fable 게이트 PASS, 미배포)** · 신규①② 구현완료·**Fable 검증 미완** · 총정리 로드맵 Fable 검토완료.
 
-### 진행 중
-- **Fable 구현 검증 게이트** — #244 + #245. 반증 강제(D2 되돌리면 실패 재현 / `overflow-x:hidden` 지우면 카나리 FAIL).
-  - ⚠️ 판정 나오기 전까지 **소스 편집 금지** — `git status` 지문이 바뀌면 검증 무효.
-  - autosave 가 `5d91e82` 로 구현을 이미 커밋함. **비교 기준선 = `48f5f8b`**.
+### 이어서 할 때 첫 할 일
+1. **`/fable-검증` 재실행** — 신규①②(Q Bill 돈·증빙)는 Fable 구현 검증이 **끝나지 않았다**. 직전 실행이 API 529 로 죽었고 재실행분도 세션 종료로 중단됐다. **검증 없이 배포 금지.**
+   - 특히 **`clientSubscriptionBilling.js` 는 Opus 가 코드만 넣고 실행 검증을 안 했다** — 가장 의심스러운 지점.
+2. 그 다음 **#217** (아래 참조 — 원인 이미 특정됨, 소절단면)
 
 ---
 
-## 이번 세션에 한 일
+## 이번 세션 완료
 
-### #244 PWA 세션 증발 (구현 완료, 검증 대기)
+### ✅ #244 PWA 세션 증발 — Fable 게이트 PASS (33 assertion, 미배포)
 
-**Irene 원문:** "planQ 앱모드로 사용하고 있을때, 사용자가 로그아웃 하지 않았는데, 로그인화면으로 돌아가면서 로그아웃됨"
-(user_id=3, Mac Chrome standalone 440×720, 08-03 01:22)
+**Irene 원문:** "planQ 앱모드로 사용하고 있을때, 사용자가 로그아웃 하지 않았는데, 로그인화면으로 돌아가면서 로그아웃됨" (user 3, Mac Chrome standalone 440×720)
 
-**Fable 이 로그 라인 회계로 확정한 것 — Opus 초기 진단을 뒤집음:**
-- 오늘분 error 로그는 392바이트·정확히 3줄. Mac 2줄의 유일하게 정합한 배정 = ①01:21:03 타이머 refresh ②`goLogin()` 후 로그인화면 부팅 refresh.
-- **요청은 서버에 닿았고, 쿠키 없이 닿았다.** → "네트워크 실패 → 로그아웃"(D1)은 **이번 건의 근인이 아니다**.
-- 429·서버측 삭제·백엔드 재시작 전부 반증 (logout 호출 시 `revoked_reason='logout'` 이 남는데 27441 은 NULL / 백엔드 마지막 재시작 08-02 18:09).
-- **만성**: 이 Mac 에서 30일간 재로그인 22회. 07-21 엔 28분 사이 4회. 재발일마다 마지막 토큰이 **미회전 고아**로 방치(26519·25247·27441 동일 서명).
-- **미확정(서버 데이터로 식별 불가)**: 쿠키를 무엇이 지웠는가. 유력 가설 = Mac Chrome **"모든 창을 닫을 때 쿠키 및 사이트 데이터 삭제"** 설정 또는 쿠키 권한 확장. → **Irene 확인 대기**.
+**★ Fable 이 Opus 진단을 뒤집음:** 오늘분 error 로그가 **정확히 3줄**이라는 라인 회계로 "네트워크 실패설"을 반증. **요청은 서버에 닿았고 쿠키 없이 닿았다.** 429·서버측 삭제·백엔드 재시작 전부 배제(logout 이면 `revoked_reason='logout'` 이 남는데 27441 은 NULL).
+**만성:** 이 Mac 에서 30일간 재로그인 22회(07-21 엔 28분 사이 4회). 재발일마다 마지막 토큰이 **미회전 고아**로 방치.
+**미확정:** 쿠키를 무엇이 지웠는가 — 서버 데이터로 식별 불가. 유력 가설 = Mac Chrome "모든 창을 닫을 때 쿠키 및 사이트 데이터 삭제" 또는 확장. **Irene 확인 대기.**
 
-**타임라인 (운영 `refresh_tokens`, user 3):**
-| 시각 | 사건 |
+**구현:** `routes/auth.js` · `auth_oauth.js` · `models/RefreshToken.js`(+`grace_successor_id`) · `middleware/security.js` · `contexts/AuthContext.tsx`
+- **D1** `tryRefresh` → `{ok}|{ok:false, reason}`. **401 일 때만 종결**, network/server/**429** 는 `refreshWithRetry` 백오프(5s→15s→60s, cap 5분, `online` 이벤트 즉시 앞당김). **발행측(apiFetch 의 `planq:session-expired`)도 게이트** — 소비자만 고치면 우회된다.
+- **D2** grace(15분) 창 **쿠키 자가치유** + **stale row 당 1회 캡**(`grace_successor_id`, FK/인덱스 없음 — 64키 회피). 서버는 raw 토큰을 해시로만 보관 → 새 발급이 유일한 치유법. 누적 `stale_reuse` 267건이 물증.
+- **D3** 동반 쿠키 `has_session`(non-HttpOnly, path=/) → **"게스트 부팅"과 "표적 소실" 구분** · 401 기계판독 `code` · 로그 ISO 타임스탬프 · `POST /api/auth/session-diag` 비콘(무인증, IP당 60초 1건)
+- **누락 동시 수정**: apiLimiter `p.id`→`p.userId` (payload 는 `{userId,email}` — **항상 IP 폴백이라 user 버킷이 침묵 사망 중**) / refresh 가 `remember` 무관 `maxAge` 를 붙여 **세션쿠키→영구쿠키 승격**되던 것을 JWT `persist` claim 승계로 차단
+- **비채택**: access token 으로 쿠키 재발급(re-mint) — 보안 확대
+
+**Fable 실측:** D2 반증 완주(치유 분기 무력화→재현→md5 일치 원복) · grace 경계 -16분 조작 → 401 `stale_reuse` → **원복 실측** · rate-limit 버킷 실증(같은 IP·두 계정: A 595 / B 599 / 무인증 IP 579) · 병렬 race 200/200
+
+### ✅ #245 Q Talk 가로 흔들림 — Fable 게이트 PASS (미배포)
+
+**★ Opus 의 `* { max-width: 100vw }` 가설 기각.** 진짜 메커니즘: **`overflow-y:auto` 만 선언하면 반대축 계산값이 visible→auto 로 강제**된다. 트랙패드 가로휠 `deltaX:120` → `scrollLeft` 120 실측. **소스에 `overflow-x` 글자가 없어 grep 으로 영원히 못 잡는다.**
+
+**구현:** `MessageList`(ChatPanel) · `ChatList`(LeftPanel) · `Scroll`(RightPanel) 에 `overflow-x:hidden; overscroll-behavior-x:none` + `TranslatedText`·`CardNote` 줄바꿈 가드(잠복 버그) + `data-testid="qtalk-messages"` + **신규 카나리 `scripts/e2e/canary-qtalk-hlock.js`**(`run.js` 에 `hlock` 등록)
+
+**★ 1차 카나리는 거짓 PASS 였다** — 440px 에서 `/talk` 진입 시 ChatPanel 이 마운트 안 되는데(대화를 클릭해야 열림) 휴리스틱으로 좌측 리스트를 굴리고 있었다. Fable 이 회귀를 라이브 번들에 올려놓고 통과함을 증명. → **testid 확정 지목 + fail-closed** 로 재작성, FAIL→PASS 플립 양쪽 실측.
+
+**미확정:** 흔들릴 때 화면 가장자리 **뒤로가기 화살표(←)** 유무 → 보였으면 히스토리 스와이프 계열 확정. **Irene 확인 대기**(수정은 어느 쪽이든 봉쇄).
+
+### 🔶 신규① 정기청구 세금계산서 "발행 대상 아님" — 구현완료, **Fable 검증 미완**
+
+**Irene 원문:** "계속 정기발행되고 있는 건데 왜 세금계산서 발행 정보가 안들어오고 발행대상이 아니라고 하는 거야? 기율법률사무소 …"
+
+**결함 2개:**
+- (a) **쓰기측** — `recurring_invoice.js`·`clientSubscriptionBilling.js` payload 에 `receipt_type` 부재 → 기본값 `'none'`
+- (b) **표시측** — 드로어가 단일원천 술어를 안 쓰고 `tax_invoice_status` 직독 (**"발행 대상 아님" 표기의 직접 원인**)
+
+**중요:** `receiptsDue.js` 에 레거시 fallback 이 있어 증빙 큐는 이 건을 안 놓친다(paid 게이트). **운영 피해 1건 · 세무 실피해 0.**
+**INV-2026-0004 는 08-03 10:54 Irene 이 직접 발송함**(= 신규② 경로). 편집 모달 `taxOn` 초기값이 고객 사업자정보를 안 봐서 `'none'` 유지 → **①②는 같은 흐름의 결함**.
+
+**구현:** `receiptsDue.js` 에 `defaultReceiptTypeFor(client, currency)` 신설(공유 술어, **`biz_tax_id` 게이트 없음** — 사업자번호는 결제 후 고객이 입력하는 정식 흐름) → 두 엔진이 호출 + `tax_invoice_status='pending'` · `receipt_profile` 미기록 · 개인/외화 `'none'` · `routes/invoices.js` serializer 에 파생 `receipt_kind` · 드로어가 그것을 소비 · **`scripts/backfill-recurring-receipt-type.js`**(dry-run 기본·멱등·`updated_at` 보존·발행완료/취소 제외)
+
+**Opus 자체 실측 18/18 PASS** (dev 정기청구 0건이라 합성 데이터로, 사후 삭제 확인). **Fable 검증 필요.**
+
+### 🔶 신규② 청구서 상세 발송 버튼 — 구현완료, **Fable 검증 미완**
+
+**단순 누락 확정** — 정기 draft_review 알림이 "검토 후 발송해주세요" 로 드로어를 여는데 발송 버튼이 없었다(자기 흐름과 모순).
+**구현:** `isOwner && draft` Primary 버튼 + ConfirmDialog(비가역) + `sendBusy` 가드 + 수신처 부재 시 disabled+힌트 + i18n ko/en + **`POST /send` 에 `broadcastInvoice` 추가**(CLAUDE.md §16 위반이던 것)
+
+### ✅ 총정리 로드맵 — Fable 검토 완료 (CONDITIONAL PASS)
+
+**Fable 이 정정한 Opus 오류 4건:**
+1. **#217 은 답변 대기가 아니다** — 원문 "샘플로 보내줘봐. 내용 확인하고 연결하자" = 개발측 선행. **뱃지 버그 원인 특정: `QBillPage.tsx:54` 가 window 이벤트만 듣고 socket 미청취**(옆 `TaxInvoicesTab` 은 socket 사용)
+2. **이미 구현·장부만 안 닫힌 3건** — **#195**(운영 위키 카테고리 7-21 갱신 완료) · **#222**(email-drafts 자동저장 6-28 `394f4d4`, 잔여=리스트 클릭 이탈) · **#220**(백엔드 `sent_by_user_id` 기록됨, 프론트가 outbound 를 무조건 "나" 표기 `MailPage:1879`)
+3. **#241 은 P1** — `translate_enabled` 컬럼이 있는데 **읽는 코드가 어디에도 없는 죽은 플래그**. 절단면 최소·짜증 반복
+4. **iOS 누락 3건** — **4.8 Sign in with Apple**(Google 로그인 노출 시 요구 가능 → 네이티브에서만 숨기는 게 최저비용) · **2.1 심사용 데모 계정**(없으면 즉시 리젝) · App Store Connect 실무(앱 레코드·개인정보처리방침 URL·App Privacy·연령등급)
+
+**#221 직접 원인:** `MailPage:1972` 가 `triage !== human/unknown` 이면 AI 초안 버튼을 숨긴다. **원문의 부가세 납부 메일·Apple Developer 메일 2통을 회귀 픽스처로 박제할 것.**
+
+**#228 은 Electron 불필요** — `DataTransfer.setData('DownloadURL')` 로 Chrome/Edge(설치형 PWA 포함) 드래그 반출 가능. ⚠️ **`share_token` 재활용 금지**(L4 외부공유 의미 오염) → 드래그 전용 단수명 토큰 별도 설계.
+
+**★ 26건 중 10건이 원문에 "fable이 검토/설계" 를 명시** — 설계 게이트가 Irene 의 지시사항 자체다.
+
+---
+
+## 실행 순서 (확정)
+
+| 순위 | 내용 |
 |---|---|
-| 01:06:58 | 로그인 (27440 — 선행 row 없음 = login 라우트 생성) |
-| 01:07:03 | 정상 refresh (27440→27441) |
-| — | **14분 18초 침묵** (= scheduleRefresh 1주기) |
-| 01:21:21 | **또 로그인** (27445) |
-| 01:22:16 | 피드백 작성 |
-27441 은 만료 2027년인데 한 번도 회전되지 않고 방치 — 서버 토큰은 멀쩡했다.
-
-**구현 (Fable 조건 반영):**
-- **D1** `tryRefresh` → `{ok}|{ok:false, reason}`. **401 일 때만 종결**, network/server/**429** 는 `refreshWithRetry` 백오프(5s→15s→60s, cap 5분, `online` 이벤트 즉시 앞당김).
-  - 옛 코드는 `status>=500` 만 재시도라 **429 포함 모든 non-401 4xx 가 즉시 영구 로그아웃**이었다.
-  - **발행측 게이트 필수** — `apiFetch` 의 `planq:session-expired` 도 terminal 일 때만. 소비자만 고치면 우회된다.
-- **D2** grace(15분) 창 **쿠키 자가치유** — stale 쿠키로 오면 새 토큰 발급 + 쿠키 재설정.
-  - 서버는 raw 토큰을 해시로만 보관 → 후속 토큰 재전송 불가 → 새 발급이 유일한 치유법.
-  - **캡 1회** (`refresh_tokens.grace_successor_id` 신규 컬럼, FK/인덱스 없음 — 64키 한도 회피). 2회차부터 종전 동작.
-  - 누적 `stale_reuse` 267건이 이 구조의 물증.
-- **D3** 동반 쿠키 `has_session`(non-HttpOnly, path=/, refresh_token 과 동일 수명) → **"게스트 부팅"과 "refresh_token 표적 소실" 구분** / 401 기계판독 `code` / 로그 ISO 타임스탬프 / `POST /api/auth/session-diag` 비콘(무인증, IP당 60초 1건).
-- **누락 동시 수정**: `middleware/security.js` apiLimiter `p.id` → `p.userId` (payload 는 `{userId,email}` — **항상 IP 폴백이라 user 버킷이 침묵 사망 중이었다**) / refresh 가 `remember` 무관 `maxAge` 를 붙여 **세션쿠키→영구쿠키 승격**되던 것을 JWT `persist` claim 승계로 차단.
-- **비채택**: access token 으로 쿠키 재발급(re-mint) — 탈취 토큰이 365일 세션으로 승격되는 보안 확대.
-
-**Opus 자체 실HTTP 24/24 PASS** (Fable 이 독립 재현 중). 로그 실물 확인:
-`[auth] refresh grace_reissue user=15 stale_row=12562 new_row=12564` / `grace_cap ... already_reissued_row=12564` / `session_end ... cookies(refresh=false hint=false)`
-
-### #245 Q Talk 모바일 가로 흔들림 (구현 완료, 검증 대기)
-
-**Fable 실측 — Opus 의 `* { max-width: 100vw }` 가설은 기각.**
-- 진짜 메커니즘: `overflow-y: auto` **만** 선언하면 **반대축 계산값이 visible→auto 로 강제**된다. `MessageList` computed `overflow-x:"auto"` 실측. 트랙패드 가로휠 `deltaX:120` → `scrollLeft` 120 실측.
-- **소스에 `overflow-x` 라는 글자가 없어 grep 으로 영원히 못 잡는다** — computed style 을 읽어야만 드러남.
-- `index.css` 는 **무접촉** (앱 셸이 position:fixed/overflow:hidden 이라 문제 자체가 성립 안 하고, N+29/31/63 회귀 이력상 광역 변경은 리스크만).
-- 잠복 버그 발견: `TranslatedText`(pre-wrap 만) · `CardNote`(가드 0) 줄바꿈 부재 → 장토큰 10~62px 오버플로.
-
-**구현**: `MessageList`(ChatPanel) · `ChatList`(LeftPanel) · `Scroll`(RightPanel) 에 `overflow-x:hidden; overscroll-behavior-x:none` + 두 블록에 `word-break/overflow-wrap` + **신규 카나리 `scripts/e2e/canary-qtalk-hlock.js`** (`run.js` 에 `hlock` 등록).
-
-**미확정 잔여**: 흔들릴 때 화면 가장자리에 **뒤로가기 화살표(←)** 가 보였는지 → 보였으면 브라우저 히스토리 스와이프 계열 확정. **Irene 확인 대기** (수정은 어느 쪽이든 봉쇄).
+| **P0 즉시** | #244·#245 **배포** · **iOS 트랙 병렬 착수**(애플 심사 = 통제 불가 외부 리드타임) |
+| **P0 돈(묶음A)** | 신규①②(Fable 게이트) → **#217①②** |
+| **P1** | #221 메일 분류(**실 업무 미스 유일 건**) · #214+#240(묶음C, notify 착지점) · **#241 단독** · #213+#220+#222잔여(묶음B, MailPage) |
+| **P2** | Q Task #236→237→238(태그 선행) · 프로젝트 #229+231 · 파일 #228+232 · #225 · **AI #227→#233→#230 순서 고정**(227 파일 RAG 가 인프라를 만듦, #235 편입) · #239 |
+| **P3** | #208(Fable 기획설계 선행) · #211(Fable 의견서) · #195(확인 후 장부 닫기) |
 
 ---
 
-## 설계 승인 완료 — 구현 대기
+## 네이티브 앱
 
-### 신규 ① 정기청구 세금계산서 "발행 대상 아님" (Fable CONDITIONAL PASS)
+### 데스크탑 방침 — **PWA. 네이티브 안 만든다** (Fable PASS)
+- Q Note 웹회의 탭 오디오 캡처(`getDisplayMedia`)가 데스크탑 Chrome/Edge 전용 → PWA 면 그대로 동작, Electron 이면 재구현
+- 배포=즉시반영 / Electron 은 자동업데이트·코드서명·보안패치 축만 늘고 얻는 게 없음
+- 필요시 Windows=PWABuilder→Microsoft Store, macOS=Mac Catalyst
 
-**결함이 2개다:**
-- (a) **쓰기측** — `services/recurring_invoice.js` payload 에 `receipt_type` 부재 → 모델 기본값 `'none'`. `services/clientSubscriptionBilling.js:197` **동일 결손 확정**.
-- (b) **표시측** — `InvoiceDetailDrawer.tsx:713` 이 단일원천 술어를 안 쓰고 `tax_invoice_status` 직독. **이게 "발행 대상 아님" 표기의 직접 원인.**
+### iOS — 인프라는 거의 완성, 남은 건 자격증명
+**완성:** Capacitor `ios/`·`android/`(Remote URL `app.planq`) · 네이티브 푸시 전 인프라(`PushSubscription.kind`·`device_token`·`subscribe-native`·APNs/FCM 발송·410 정리·프론트 `isNativeApp()` 분기) · `guard-native-release.js` **17/17**
 
-**중요**: `receiptsDue.js:50-58` 에 레거시 fallback 이 있어 `receipt_type='none'` 이어도 한국 사업자면 `'tax'` 판정 → **증빙 큐는 이 건을 놓치지 않는다**(paid 게이트라 지금 안 보이는 게 정상).
+**⚠️ 최대 리스크 — App Store 4.2(웹사이트 재포장).** Remote URL WebView 는 리젝 전형 패턴이고 Capacitor 공식 문서도 스토어 제출용 비권장. **리젝 시 로컬 번들 전환은 싸지 않다**(same-origin 상대경로 + HttpOnly 쿠키 전제라 API base·쿠키·CORS 축이 전부 열림). → 1차는 Remote URL 로 제출하되 심사 노트에 네이티브 푸시·딥링크·오프라인 fallback 명시.
 
-**피해 규모(운영 실측)**: 정기 엔진 생성 & `receipt_type='none'` = **1건**(INV-2026-0004). `paid` 인데 증빙 미발행 = **0건**. **세무 실피해 0.**
+**Irene 액션:** ①APNs `.p8` 발급(Key ID·Team ID·.p8 — 현재 env 3종 EMPTY 라 푸시 `skipped: no_apns_key`) ②Team ID(AASA 치환) ③App Store Connect 앱 레코드 ④Mac Xcode Archive→TestFlight ⑤심사 메타(스크린샷·개인정보처리방침 URL·App Privacy·연령등급·**데모 계정**) ⑥Sign in with Apple 도입 여부 결정
 
-**INV-2026-0004 는 오늘 10:54 Irene 이 직접 draft→sent 발송함**(= ② 경로). 편집 모달 `taxOn` 초기값이 기존 `receipt_type` 만 보고 고객 사업자정보를 안 봐서 `'none'` 유지 → **①과 ②는 같은 흐름에서 맞물린 결함**.
-
-**승인 조건:**
-1. 술어는 `receiptsDue.js` 공유 헬퍼로 단일화 — `KRW && is_business && (country==='KR'||!country)`. **`biz_tax_id` 게이트 금지**(사업자번호는 결제 후 고객이 공개 페이지에서 입력하는 정식 흐름 존재 — 발행 의향과 데이터 완비는 별개 축).
-2. `tax_invoice_status='pending'` 동시 세팅 (수동 경로와 같은 컨벤션. 큐 편입은 paid 게이트라 조기 독촉·오염 없음).
-3. **`receipt_profile` 은 엔진이 찍지 마라** — 그 컬럼의 의미는 "고객이 직접 입력·확인한 정보". 찍으면 의미 오염 + stale 스냅샷.
-4. 개인 고객(`is_business=0`)은 `'none'` 유지 (현금영수증은 cr_identifier 필요 — 엔진 신설은 스코프 확장).
-5. 드로어는 백엔드 파생 `receipt_kind` 소비 (프론트 술어 중복 금지).
-6. 백필은 멱등 조건 UPDATE + 재실행 변경 0 실측. 운영 적용은 /배포 절차로만.
-
-**Irene 결정 대기 1건 (이번 절단면 제외 권장)**: 수동 모달도 KR 사업자 고객 선택 시 `taxOn` 기본 ON 으로 할지.
-
-### 신규 ② 청구서 상세에 발송 버튼 없음 (Fable CONDITIONAL PASS)
-
-- **단순 누락 확정.** 결정적 근거: 정기 draft_review 알림이 **"검토 후 발송해주세요"** 문구로 그 드로어를 여는데 **드로어에 발송 버튼이 없다** — 자기 흐름과 모순. git 이력에도 제거 흔적 없음.
-- **권한 불일치 없음** — `requireMenu` 다음 줄에 `assertInvoiceMutationOwner`(routes/invoices.js:1224). 노출 조건은 기존 `isOwner && status==='draft'`.
-- **부수 발견**: `POST /send` 가 **`broadcastInvoice` 미호출** (CLAUDE.md §16 위반 — 발송해도 다른 탭 목록 갱신 안 됨). 발송 버튼 추가 시 broadcast 1줄 동반 필수.
-- 조건: ConfirmDialog(비가역·고객 메일 발송) · `submitting` 가드 · 수신처 부재 시 disabled+힌트 · i18n ko/en.
-- ①과 **같은 사이클**로 묶되 커밋은 분리.
-
-### #214 알림 발송처 재정리 (Fable CONDITIONAL PASS)
-
-- **"확인권장 - PlanQ" 는 이메일이 아니다** — `email_logs` 0건. mailNotify 가 '확인 권장'에 `skipChannels:['email']`. **push/인앱 title 이 표적**. (운영 실물: notifications id=697, push_logs payload_title, 2디바이스 sent)
-- 발생 지점 `services/mailNotify.js:108` — `확인 권장 — ${sender}`, sender=메일 발신자명. **제목에 "메일" 단서가 없는 문법 자체**가 문제.
-- Opus 집계 13건 MISS → **실제 7건**(notifications.js 4건은 구현부, invoices.js:331·overdue_handler.js:95 는 오탐). 그중 **실수정 2건**(invoices.js:1322, shareExpiryNotify.js:62), 4건은 `[PlanQ]` 가 정답, 1건 무영향.
-- **41곳 고치지 말고 착지점 1곳**: `notify()` 가 `businessId` 로 workspaceName 자체 조회(캐시 5분) + `[PlanQ]` 정답 4곳은 `platformBrand:true` 명시 + **kind 라벨 중앙 부여**(`메일 · 확인 권장 — PlanQ`). push·인앱만, 이메일 subject 제외.
-- push·인앱·이메일 title 이 **`notify()` 단일 원천** 확정 — 한 곳 고치면 3채널 동시 해결.
-- 백엔드 알림 i18n 은 인프라 부재 → **별도 사이클 백로그**(kindLabel 은 `{ko:…}` 구조로 확장 절단면만 남길 것).
+**Opus 액션(대기 없이 가능):** `ITSAppUsesNonExemptEncryption=false` 선반영 · 링크→앱 열기 화이트리스트 정비 · (Team ID 후)AASA 치환 · (.p8 후)dev APNs sandbox 실발송 검증
 
 ---
 
-## 다음 할 일
-
-1. **Fable 판정 확인** → PASS 면 마커 기록, FAIL 이면 지적 수정 후 재검증
-2. 신규 ①② 한 사이클 구현 (검증 시나리오 관통: 정기 draft 생성 → 드로어 발송 → receipt_kind 표시 → mark-paid → 증빙 큐 편입)
-3. #214 구현
-4. 잔여 운영 피드백 (총 26건 — 아래 "운영 피드백" 참조)
-
-### Irene 확인 대기
-- Mac Chrome **"모든 창을 닫을 때 쿠키 및 사이트 데이터 삭제"** 설정/확장 (#244 삭제 주체 확정)
-- #245 흔들릴 때 화면 가장자리 **뒤로가기 화살표(←)** 유무
-- #217 답변 (증빙 발행 알림메일 문안·체크박스 기본값·수신자 없을 때)
-- 수동 모달 `taxOn` 기본 ON 여부 (신규 ① 후속)
-
-### Irene 조치 (코드로 불가)
-- 워프로랩 Google Calendar 재연동 (운영 토큰 스코프가 `userinfo.email openid` 뿐 → #242 Meet 동작 안 함)
-- iOS 앱: **Apple Developer 등록·결제 완료(2026-08-03)** → Mac 의 Xcode 에서 빌드·서명·TestFlight 업로드
-- Google OAuth 검증 제출 (앱 심사 전 필요)
-
-### 데스크탑 앱 방침 (2026-08-03 결정)
-- **PWA 가 정석.** Q Note 웹회의 탭 오디오 캡처(`getDisplayMedia`)가 데스크탑 Chrome/Edge 전용이라 PWA 로 두면 그대로 동작 — Electron 은 이 경로를 재구현해야 함.
-- Windows: 필요시 **PWABuilder → Microsoft Store**. macOS: Chrome/Edge 설치형 또는 Safari 17+ Dock 추가. **Mac App Store 는 PWA 로 불가** → 필요하면 Mac Catalyst.
-- **Electron 비권장** — 자동 업데이트·코드서명·보안 패치 축이 늘어나는데 얻는 것(오프라인·로컬 FS·트레이) 중 필요한 게 없음.
-
----
-
-## 운영 피드백 (원문 기준 26건 미처리)
-
-**코드로 바로**: #213 메일 필터 접기 · #214(설계 승인) · #217(답변 대기) · #220 팀메일 발신자 표시 · #222 새 메일 폼 자동저장 · #225 문서 워드/PDF/엑셀 · #231 프로젝트 개요 자료·핀 · #232 드래그드롭 통일 · #241 음성노트 번역 기본 끄기 · #195 랜딩 도움말 카테고리 · **#244·#245(구현 완료)**
-
-**Fable 설계 선행**: #208 출퇴근·휴가 · #211 B2B 타깃 검토 · #221 메일 분류 재정비 · #227 Cue 우측패널 · #228 파일 드래그 반출 · #229 프로젝트 히스토리 · #230 Today's 브리핑 · #233 통합검색 AI · #235 업무추출 자동화 · #236 업무 태그 · #237 오늘 나의 업무 · #238 Cue 완료 등록 · #239 문서 컨펌 · #240 프로젝트 완료 알림
+## Irene 확인 대기
+1. Mac Chrome **"모든 창을 닫을 때 쿠키 및 사이트 데이터 삭제"** 설정/확장 (#244 삭제 주체)
+2. #245 흔들릴 때 화면 가장자리 **뒤로가기 화살표(←)** 유무
+3. 수동 청구서 모달 `taxOn` 기본 ON 여부 (신규① 후속, 이번 절단면 제외)
+4. Google OAuth 검증 제출 · 워프로랩 Google Calendar 재연동(#242 Meet 선행)
 
 ---
 
 ## 이번 세션에서 배운 것 (재발 방지)
 
-1. **★ 로그 라인 회계로 가설을 죽일 수 있다.** #244 에서 "네트워크 실패설"은 그럴듯했지만, 오늘분 로그가 정확히 3줄이라는 사실 하나로 반증됐다(요청이 서버에 닿았으므로). 로그가 적을 때는 **개수 자체가 증거**다.
-2. **★ 한 축만 `overflow-y:auto` 로 두면 반대축이 auto 로 강제된다.** 소스에 `overflow-x` 글자가 없어 grep 으로 못 잡는다 — computed style 을 읽는 런타임 카나리만이 잡는다.
-3. **★ 사용자 표현을 코드 용어로 번역하지 말 것.** #214 "이메일 알림"은 email 채널이 아니라 **"메일(도착) 알림"** 이었다. email_logs 0건으로 확정. 그대로 믿었으면 엉뚱한 데를 고쳤다.
-4. **★ 전수검사는 파서로.** grep 기반 집계가 13건이라 했지만 실제는 7건 — 구현부/주석이 호출부로 잡히고, 다른 줄에서 전달하는 경우를 놓쳤다. 괄호 균형 파서로 세야 한다.
-5. **★ 백그라운드 대기 조건은 초기 상태를 확인하고 짜라.** `.fable-gate.json` 이 어제 것으로 이미 존재해 대기 루프가 즉시 종료됐다.
-6. **빌드 판정에 `grep -c` 를 마지막에 두지 말 것** — 0건일 때 exit 1 이라 성공한 빌드가 실패로 통보된다. REAL_EXIT 를 따로 찍을 것.
-7. **idle autosave 가 작업 중 파일을 커밋한다** — 임시 테스트 스크립트까지 커밋됐다. Fable 에 diff 기준선을 명시적으로 넘겨야 한다.
+1. **★ 로그 라인 회계로 가설을 죽일 수 있다.** 로그가 적을 때는 **개수 자체가 증거**다(#244).
+2. **★ 한 축만 `overflow-y:auto` 면 반대축이 auto 로 강제된다.** 소스에 `overflow-x` 글자가 없어 grep 불가 — computed style 런타임 카나리만 잡는다.
+3. **★ 가드는 반드시 깨뜨려 확인.** 내가 만든 카나리가 회귀를 라이브에 올려도 통과했다. **검사 대상을 못 찾으면 통과가 아니라 실패(fail-closed)** + 휴리스틱 대신 `data-testid`.
+4. **★ 사용자 표현을 코드 용어로 번역하지 말 것.** #214 "이메일 알림"은 email 채널이 아니라 "메일(도착) 알림"이었다(`email_logs` 0건).
+5. **★ Sequelize 인스턴스 속성은 `updatedAt`(camelCase).** `updated_at` 은 toJSON 출력에만 — snake 로 읽으면 `undefined`→NaN 비교로 **항상 거짓 FAIL**. 여기서 두 번 헛짚었다.
+6. **전수검사는 파서로.** grep 집계 13건이 실제는 7건(구현부·주석이 호출부로 잡힘).
+7. **빌드 판정에 `grep -c` 를 마지막에 두지 말 것** — 0건일 때 exit 1 이라 성공이 실패로 통보된다.
+8. **idle autosave 가 작업 중 파일을 커밋한다** — 임시 테스트 스크립트까지. Fable 에 diff 기준선을 명시할 것.
+9. **백그라운드 대기 조건은 초기 상태 확인 후 작성** — 어제 마커가 남아 있어 루프가 즉시 종료됐다.
 
 ---
 
 ## Git 상태
-- `5d91e82` wip: auto-save 2026-08-03 10:53 — **#244·#245 구현 포함**
-- 기준선(직전 정상 커밋): `48f5f8b`
-- 작업 트리: `dev-backend/test-244.js` 삭제 1건만 (임시 테스트 스크립트 — CLAUDE.md 규칙대로 제거)
-- 운영 배포 커밋: `37fb2f0` (#215) — **이번 변경은 미배포**
+- 최근: `4936b1a` wip auto-save (13:00) / `6af0df5`(12:30) / `9df3c8f`(11:58) — **모두 idle 자동저장**
+- 기준선(직전 정식 커밋): **`48f5f8b`**
+- 작업 트리: 클린
+- 운영 배포 커밋: `37fb2f0` (#215) — **이번 세션 변경 전부 미배포**
+- Fable 게이트 마커: `.claude/.fable-gate.json` — **#244/#245 시점 지문**. 신규①② 변경 후 지문이 달라져 **재검증 필요 상태**
 
 ---
 
