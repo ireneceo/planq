@@ -234,7 +234,11 @@ const setupSecurity = (app) => {
       if (auth && auth.startsWith('Bearer ')) {
         try {
           const p = jwt.verify(auth.slice(7), process.env.JWT_SECRET);
-          if (p && p.id) return `u${p.id}`;
+          // #244 — access token payload 는 `{ userId, email }` 이다. 여태 `p.id` 를 봤기 때문에
+          //   **항상 undefined → 언제나 IP 폴백**이었다. 즉 "user 별 버킷" 설계가 침묵 상태로 죽어
+          //   사무실 공용 IP 한 팀이 600/분 버킷을 통째로 공유하고 있었다 (NAT 충돌 회귀 미해소).
+          //   generateAccessToken(routes/auth.js) 의 payload 와 대조해 확정.
+          if (p && p.userId) return `u${p.userId}`;
         } catch { /* 만료/위조 → IP fallback */ }
       }
       return ipKeyGenerator(req.ip);

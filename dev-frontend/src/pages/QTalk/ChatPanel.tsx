@@ -2430,6 +2430,15 @@ const BannerCloseBtn = styled.button`
 const MessageList = styled.div`
   flex: 1;
   overflow-y: auto;
+  /* #245 — 모바일 "채팅창이 좌우로 흔들린다" 의 메커니즘.
+     CSS 규칙상 한 축만 auto 로 두면 **반대축 계산값이 visible → auto 로 강제**된다.
+     즉 overflow-y:auto 만 선언해도 실제로는 overflow-x 도 auto 가 되어, 콘텐츠가 1px 만
+     넘쳐도 채팅창 전체가 가로로 스크롤된다(트랙패드 가로휠 실측: scrollLeft 0 → 120).
+     세로만 스크롤하면 되는 영역이므로 가로를 명시적으로 잠근다.
+     overscroll-behavior-x:none 은 경계에서 가로 제스처가 부모/브라우저 히스토리 스와이프로
+     번지는 것(elastic overscroll)까지 끊는다. */
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -3071,6 +3080,10 @@ const TranslatedText = styled.div`
   border-radius: 6px;
   line-height: 1.5;
   white-space: pre-wrap;
+  /* #245 — pre-wrap 만으로는 공백 없는 장문 토큰(긴 URL·로그 한 줄)이 안 접힌다.
+     MessageText 는 이 두 줄을 갖고 있는데 여기만 빠져 있었다(잠복). 가로 오버플로 실측 10~62px. */
+  word-break: break-word;
+  overflow-wrap: anywhere;
 `;
 
 // 통합 공유 카드 (사이클 N+4 6차) — task/file/kb_document/calendar_event
@@ -3165,6 +3178,8 @@ const CardNote = styled.div`
   margin-top: 6px; padding: 8px 10px;
   font-size: 13px; color: #334155; line-height: 1.5;
   background: #fff; border-left: 3px solid #14B8A6; border-radius: 0 6px 6px 0;
+  /* #245 — 줄바꿈 가드 부재(잠복). 장문 토큰이 카드를 밀어 가로 오버플로를 만든다. */
+  word-break: break-word; overflow-wrap: anywhere;
 `;
 
 const SourceBox = styled.div`

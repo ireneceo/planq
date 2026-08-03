@@ -85,16 +85,56 @@ const generateAccessToken = (user) => {
   );
 };
 
-const generateRefreshToken = (user, clientKind = 'web') => {
+const generateRefreshToken = (user, clientKind = 'web', persist = true) => {
   // jti (UUID) 추가 — jwt.iat 가 초 단위라 같은 초에 두 번 sign 시 동일 토큰 → token_hash unique 충돌.
   // 다중 탭 동시 refresh / 빠른 연속 login 같은 race 에서 401/409 회귀 차단.
   // expiresIn: pwa=365d (모바일 long-lived) / web=30d (데스크탑). cookie maxAge 와 동일.
+  //
+  // #244 — persist=false (로그인 시 "로그인 상태 유지" 해제, 공용 PC) 면 claim 으로 실어 보낸다.
+  //   여태 refresh 라우트가 remember 와 무관하게 항상 maxAge 를 붙여, 첫 회전에서 세션 쿠키가
+  //   영구 쿠키로 승격됐다 (공용 PC 에서 브라우저를 닫아도 세션이 남는 실질적 보안 결함).
+  //   claim 이 없는 옛 토큰은 persist=true 로 해석 — 기존 동작 무회귀.
+  const payload = { userId: user.id, jti: crypto.randomUUID() };
+  if (persist === false) payload.persist = false;
   return jwt.sign(
-    { userId: user.id, jti: crypto.randomUUID() },
+    payload,
     process.env.JWT_REFRESH_SECRET,
     { expiresIn: jwtExpiresInForKind(clientKind) }
   );
 };
+
+// #244 (D3) — 진단 가능성.
+//
+//   문제: refresh 401 로그가 시각 없이 한 줄만 남고, `no_cookie` 는 **게스트가 로그인 화면을
+//   열 때도 똑같이 찍힌다**(부팅 checkSession 이 무조건 refresh 를 호출한다). 그래서 크롤러·게스트
+//   노이즈에 진짜 "세션 증발"이 묻혀, 사건 조사 때 로그 라인 회계를 간접 추론해야 했다.
+//
+//   해법: (a) 모든 auth 경고에 ISO 시각 (b) 동반 쿠키 has_session 으로 게스트와 표적 소실을 구분.
+const authWarn = (msg, ...args) => console.warn('%s [auth] ' + msg, new Date().toISOString(), ...args);
+
+// 동반 쿠키 — refresh_token(HttpOnly) 과 **같은 수명**으로 함께 살고 함께 죽는 non-HttpOnly 마커.
+//   refresh 요청에 refresh_token 이 없을 때 이 쿠키의 유무가 원인을 갈라준다:
+//     has_session 있음 + refresh_token 없음 → refresh_token 만 표적 삭제됨 (진짜 사고)
+//     둘 다 없음                          → jar 전체 삭제 또는 그냥 게스트 (정상일 수 있음)
+//   프론트도 이 값을 읽어 "세션이 있어야 정상인 상태"를 알 수 있다 (HttpOnly 가 아니므로 읽기 가능).
+//   값에 비밀이 없다 — 인증에 쓰이지 않는 순수 진단 마커다.
+const SESSION_HINT = 'has_session';
+function setSessionHint(res, { maxAge, secure }) {
+  const opts = { httpOnly: false, secure, sameSite: 'lax', path: '/' };
+  if (maxAge != null) opts.maxAge = maxAge;
+  res.cookie(SESSION_HINT, '1', opts);
+}
+
+// refresh 쿠키 한 벌(refresh_token + 동반 힌트)을 내리는 단일 지점.
+//   persist=false 면 둘 다 세션 쿠키 — 브라우저를 닫으면 함께 사라진다(공용 PC 정책 유지).
+//   maxAge 는 새 row 의 expires_at 기준 (DB 만료와 쿠키 만료를 항상 같은 시각으로 묶는다).
+function setRefreshCookies(res, rawToken, row, persist) {
+  const secure = process.env.NODE_ENV === 'production';
+  const opts = { httpOnly: true, secure, sameSite: 'lax', path: '/api/auth' };
+  if (persist) opts.maxAge = Math.max(0, new Date(row.expires_at).getTime() - Date.now());
+  res.cookie('refresh_token', rawToken, opts);
+  setSessionHint(res, { maxAge: opts.maxAge, secure });
+}
 
 // ============================================
 // Helper: 사용자 + 모든 소속 Workspace (멤버 + 고객)
@@ -410,9 +450,13 @@ router.post('/register', async (req, res, next) => {
     //  연결(초대 수락)은 가입 직후 프론트가 /invite/:token 로 redirect → 기존 자동수락이 처리.
 
     // 5. Generate tokens
+    // remember=true (default): pwa=365일 / web=30일 persistent cookie — sliding renewal 로 활동 시 자동 연장
+    // remember=false (공용 PC OFF): session cookie — 브라우저 닫으면 자동 로그아웃
+    //   #244 — remember 를 토큰 발급보다 먼저 읽어 persist claim 에 실어 보낸다 (회전 시 승격 차단).
+    const remember = req.body?.remember !== false;
     const clientKind = resolveClientKind(req);
     const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user, clientKind);
+    const refreshToken = generateRefreshToken(user, clientKind, remember);
 
     // 6. Save refresh token row (다중 디바이스 세션 — 신규 row, 기존 row 영향 X)
     await createRefreshTokenRow(user, refreshToken, req, transaction, { clientKind });
@@ -420,17 +464,11 @@ router.post('/register', async (req, res, next) => {
     await transaction.commit();
 
     // 6. Set refresh token as HttpOnly cookie
-    // remember=true (default): pwa=365일 / web=30일 persistent cookie — sliding renewal 로 활동 시 자동 연장
-    // remember=false (공용 PC OFF): session cookie — 브라우저 닫으면 자동 로그아웃
-    const remember = req.body?.remember !== false;
-    const cookieOpts = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/api/auth',
-    };
+    const secure = process.env.NODE_ENV === 'production';
+    const cookieOpts = { httpOnly: true, secure, sameSite: 'lax', path: '/api/auth' };
     if (remember) cookieOpts.maxAge = TTL_MS_BY_KIND[clientKind];
     res.cookie('refresh_token', refreshToken, cookieOpts);
+    setSessionHint(res, { maxAge: cookieOpts.maxAge, secure });
 
     successResponse(res, {
       token: accessToken,
@@ -530,26 +568,24 @@ router.post('/login', async (req, res, next) => {
     }
 
     // Generate tokens
+    // remember=true (default): pwa=365일 / web=30일 persistent cookie — sliding renewal
+    // remember=false (공용 PC): session cookie — 브라우저 닫으면 자동 로그아웃
+    //   #244 — remember 를 발급 전에 읽어 persist claim 으로 실어 보낸다 (회전 시 영구쿠키 승격 차단).
+    const remember = req.body?.remember !== false;
     const clientKind = resolveClientKind(req);
     const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user, clientKind);
+    const refreshToken = generateRefreshToken(user, clientKind, remember);
 
     // 다중 디바이스 — 신규 row 추가 (기존 디바이스 row 들 영향 X)
     await createRefreshTokenRow(user, refreshToken, req, null, { clientKind });
     await user.update({ last_login_at: new Date() });
 
     // Set refresh token as HttpOnly cookie
-    // remember=true (default): pwa=365일 / web=30일 persistent cookie — sliding renewal
-    // remember=false (공용 PC): session cookie — 브라우저 닫으면 자동 로그아웃
-    const remember = req.body?.remember !== false;
-    const cookieOpts = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/api/auth',
-    };
+    const secure = process.env.NODE_ENV === 'production';
+    const cookieOpts = { httpOnly: true, secure, sameSite: 'lax', path: '/api/auth' };
     if (remember) cookieOpts.maxAge = TTL_MS_BY_KIND[clientKind];
     res.cookie('refresh_token', refreshToken, cookieOpts);
+    setSessionHint(res, { maxAge: cookieOpts.maxAge, secure });
 
     // Get user with business info
     const userData = await getUserWithBusiness(user.id);
@@ -570,9 +606,16 @@ router.post('/refresh', async (req, res, next) => {
   try {
     const refreshToken = req.cookies?.refresh_token;
     if (!refreshToken) {
-      // 진단 로그 — cookie 가 사라진 경우 (iOS Safari ITP / sameSite=strict 호환성 / 브라우저 정리)
-      console.warn('[auth.refresh] 401 no_cookie ua=%s ip=%s', (req.headers['user-agent']||'').slice(0,80), req.ip);
-      return errorResponse(res, 'Refresh token required', 401);
+      // #244 (D3) — 동반 쿠키로 "게스트 부팅"과 "refresh_token 표적 소실"을 갈라 기록한다.
+      //   hint=1 인데 refresh_token 이 없다 = 세션이 있어야 정상인데 사라졌다 → 진짜 사고.
+      //   hint 도 없다 = jar 전체 삭제 또는 그냥 게스트/크롤러 → 정상일 수 있음(노이즈).
+      const hint = req.cookies?.[SESSION_HINT] === '1';
+      authWarn(
+        'refresh 401 no_cookie session_hint=%s ua=%s ip=%s',
+        hint ? 'PRESENT(세션 증발 의심)' : 'absent',
+        (req.headers['user-agent'] || '').slice(0, 80), req.ip
+      );
+      return errorResponse(res, 'Refresh token required', 401, 'no_cookie');
     }
 
     // 1. JWT 시그니처 / 만료 검증
@@ -580,8 +623,8 @@ router.post('/refresh', async (req, res, next) => {
     try {
       decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
     } catch (err) {
-      console.warn('[auth.refresh] 401 jwt_invalid name=%s', err.name);
-      return errorResponse(res, 'Invalid or expired refresh token', 401);
+      authWarn('refresh 401 jwt_invalid name=%s', err.name);
+      return errorResponse(res, 'Invalid or expired refresh token', 401, 'jwt_invalid');
     }
 
     // 2. refresh_tokens row 조회 — token_hash 매칭
@@ -590,8 +633,8 @@ router.post('/refresh', async (req, res, next) => {
 
     // 3. row 없음 또는 user_id 불일치 — 위조/탈취 의심
     if (!tokenRow || tokenRow.user_id !== decoded.userId) {
-      console.warn('[auth.refresh] 401 no_row user=%s row_exists=%s', decoded.userId, !!tokenRow);
-      return errorResponse(res, 'Invalid refresh token', 401);
+      authWarn('refresh 401 no_row user=%s row_exists=%s', decoded.userId, !!tokenRow);
+      return errorResponse(res, 'Invalid refresh token', 401, 'no_row');
     }
 
     // 4. 이미 revoked — 재사용 시도.
@@ -620,42 +663,73 @@ router.post('/refresh', async (req, res, next) => {
       ) {
         const successor = await RefreshToken.findByPk(tokenRow.replaced_by_id);
         if (successor && !successor.revoked_at) {
-          // 정상 race — 후속 row 살아있으면 access token 만 재발급, cookie 그대로
           const user = await User.findByPk(tokenRow.user_id);
           if (user && user.status === 'active' && !user.is_ai) {
-            const accessOnly = generateAccessToken(user);
+            // ── #244 (D2) grace 창 쿠키 자가치유 ──────────────────────────────
+            //
+            //   왜: 여기 도달했다는 건 브라우저가 **이미 회전된 옛 쿠키**를 아직 들고 있다는 뜻이다
+            //   (회전 응답의 Set-Cookie 유실 — 응답 중단·탭 종료·경합). 종전 동작은 access token 만
+            //   주고 쿠키를 고쳐주지 않아, 그 쿠키는 grace 15분이 지나는 순간 **영구히 401** 이 됐다.
+            //   → 사용자는 아무 잘못 없이 강제 로그아웃. 누적 stale_reuse 267건이 그 흔적이다.
+            //   서버는 raw 토큰을 해시로만 보관하므로 후속 토큰을 다시 내려줄 수 없다 →
+            //   **새 토큰을 발급해 쿠키를 고쳐주는 것이 유일한 치유법**이다.
+            //
+            //   캡: stale row 당 1회. 도난된 stale 쿠키 하나로 365일 체인을 반복 분기시키는 것을 막는다.
+            //   2회차부터는 종전 동작(access token 만, 쿠키 미갱신)으로 폴백 — 무회귀.
+            const persist = decoded.persist !== false;
+            const accessTok = generateAccessToken(user);
             const userData = await getUserWithBusiness(user.id);
-            return successResponse(res, { token: accessOnly, user: userData });
+
+            if (!tokenRow.grace_successor_id) {
+              const inheritKind = tokenRow.client_kind || 'web';
+              const healToken = generateRefreshToken(user, inheritKind, persist);
+              const healRow = await createRefreshTokenRow(user, healToken, req, null, { clientKind: inheritKind });
+              await tokenRow.update({ grace_successor_id: healRow.id });
+              setRefreshCookies(res, healToken, healRow, persist);
+              authWarn(
+                'refresh grace_reissue user=%d stale_row=%d new_row=%d revoked_ago_s=%d kind=%s',
+                user.id, tokenRow.id, healRow.id, Math.round(revokedAgo / 1000), inheritKind
+              );
+            } else {
+              // 캡 발동 — 이미 이 stale row 로 한 번 치유했다. 종전 동작 유지.
+              authWarn(
+                'refresh grace_cap user=%d stale_row=%d already_reissued_row=%d',
+                user.id, tokenRow.id, tokenRow.grace_successor_id
+              );
+            }
+            return successResponse(res, { token: accessTok, user: userData });
           }
         }
       }
       // grace 밖 — audit log 만 (chain follow 폐지)
-      console.warn(
-        '[auth.refresh] 401 stale_reuse user=%d row=%d revoked_ago_min=%d reason=%s',
+      authWarn(
+        'refresh 401 stale_reuse user=%d row=%d revoked_ago_min=%d reason=%s',
         tokenRow.user_id, tokenRow.id, Math.round(revokedAgo / 60000), tokenRow.revoked_reason
       );
-      return errorResponse(res, 'Refresh token reuse detected', 401);
+      return errorResponse(res, 'Refresh token reuse detected', 401, 'stale_reuse');
     }
 
     // 5. 만료
     if (tokenRow.expires_at && new Date(tokenRow.expires_at) < new Date()) {
       await tokenRow.update({ revoked_at: new Date(), revoked_reason: 'expired' });
-      return errorResponse(res, 'Expired refresh token', 401);
+      return errorResponse(res, 'Expired refresh token', 401, 'expired');
     }
 
     // 6. user 검증
     const user = await User.findByPk(tokenRow.user_id);
     if (!user || user.status !== 'active' || user.is_ai) {
-      return errorResponse(res, 'Invalid user', 401);
+      return errorResponse(res, 'Invalid user', 401, 'invalid_user');
     }
 
     // 7. Rotate — 옛 row revoke (rotated) + 새 row 생성 + 새 cookie
     //    옛 row 의 replaced_by_id 에 새 row id 저장 (다중 탭 race 흡수에 사용)
     //    client_kind 는 옛 row 그대로 따라감 (PWA 모바일은 365일 유지, 데스크탑은 30일).
     //    sliding renewal — createRefreshTokenRow 가 NOW + TTL_MS_BY_KIND[kind] 로 새 만료 갱신.
+    //    persist 는 최초 로그인의 remember 를 그대로 승계 (#244 — 세션쿠키가 영구쿠키로 승격되던 것 차단).
     const inheritKind = tokenRow.client_kind || 'web';
+    const persist = decoded.persist !== false;
     const newAccessToken = generateAccessToken(user);
-    const newRefreshToken = generateRefreshToken(user, inheritKind);
+    const newRefreshToken = generateRefreshToken(user, inheritKind, persist);
 
     const successorRow = await createRefreshTokenRow(user, newRefreshToken, req, null, { clientKind: inheritKind });
     await tokenRow.update({
@@ -664,26 +738,61 @@ router.post('/refresh', async (req, res, next) => {
       replaced_by_id: successorRow.id,
     });
 
-    // Rolling renewal — DB 새 row 의 expires_at (createRefreshTokenRow 이 NOW+7일 갱신) 과
-    // cookie maxAge 를 동기화. 사용자 활동 기반 7일 유지 (idle timeout 모델).
-    // 회귀 fix: 이전엔 옛 row.expires_at 기준이라 DB(매번 새 7일)와 cookie(점진 감소)가
-    // 불일치 → 7일 안 됐는데도 cookie 만료 → 자주 로그아웃. 새 row 의 만료시각으로 통일.
-    const remainingMs = Math.max(
-      0,
-      new Date(successorRow.expires_at).getTime() - Date.now()
-    );
-    res.cookie('refresh_token', newRefreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: remainingMs,
-      path: '/api/auth',
-    });
+    // Rolling renewal — DB 새 row 의 expires_at 과 cookie maxAge 를 동기화.
+    // 회귀 fix: 이전엔 옛 row.expires_at 기준이라 DB(매번 새로 갱신)와 cookie(점진 감소)가
+    // 불일치 → 만료 전인데도 cookie 가 먼저 사라져 자주 로그아웃. 새 row 의 만료시각으로 통일.
+    setRefreshCookies(res, newRefreshToken, successorRow, persist);
 
     const userData = await getUserWithBusiness(user.id);
     successResponse(res, { token: newAccessToken, user: userData });
   } catch (error) {
     next(error);
+  }
+});
+
+// ============================================
+// POST /api/auth/session-diag  — #244 (D3) 세션 종결 비콘
+// ============================================
+//
+//   왜 필요한가: #244 조사에서 서버 로그만으로는 "쿠키가 사라졌다"까지밖에 못 갔다. 무엇이
+//   지웠는지, 그 순간 클라이언트가 어떤 상태였는지를 알 방법이 전혀 없었다. 다음 재발 때는
+//   원인이 바로 특정되도록, 세션이 끝나는 그 시점의 클라이언트 상태를 한 줄 남긴다.
+//
+//   인증을 요구하지 않는다 — 세션이 끝났다는 사실 자체가 이 요청의 내용이다.
+//   부작용이 없고(로그만) 비용 라우트도 아니지만, 로그 폭주는 그 자체가 사고이므로
+//   IP 당 60초 1건으로 조인다. 본문은 화이트리스트 필드만, 길이도 잘라서 받는다.
+const diagSeen = new Map();   // ip → 마지막 수신 ms
+function diagThrottled(ip) {
+  const now = Date.now();
+  const last = diagSeen.get(ip) || 0;
+  if (now - last < 60 * 1000) return true;
+  diagSeen.set(ip, now);
+  if (diagSeen.size > 500) {  // 무한 증식 방지 — 오래된 항목 정리
+    for (const [k, t] of diagSeen) if (now - t > 10 * 60 * 1000) diagSeen.delete(k);
+  }
+  return false;
+}
+const trunc = (v, n) => String(v == null ? '' : v).slice(0, n);
+
+router.post('/session-diag', (req, res) => {
+  try {
+    if (diagThrottled(req.ip)) return successResponse(res, null);
+    const hint = req.cookies?.[SESSION_HINT] === '1';
+    const hasRefresh = !!req.cookies?.refresh_token;
+    authWarn(
+      'session_end reason=%s code=%s last_success=%s kind=%s standalone=%s ' +
+      'cookies(refresh=%s hint=%s) ua=%s ip=%s',
+      trunc(req.body?.reason, 32),
+      trunc(req.body?.code, 32),
+      trunc(req.body?.last_success_at, 32),
+      trunc(req.body?.client_kind, 16),
+      req.body?.standalone === true ? 'yes' : 'no',
+      hasRefresh, hint,
+      (req.headers['user-agent'] || '').slice(0, 80), req.ip
+    );
+    return successResponse(res, null);
+  } catch {
+    return successResponse(res, null);   // 진단이 사용자 흐름을 막으면 안 된다
   }
 });
 
@@ -706,6 +815,8 @@ router.post('/logout', async (req, res, next) => {
     // Clear cookie — path 정합성 (과거 path='/' 또는 다른 path 로 발급된 쿠키 잔존 방지)
     res.clearCookie('refresh_token', { path: '/api/auth' });
     res.clearCookie('refresh_token', { path: '/' });
+    // 동반 힌트도 같이 — 안 지우면 정상 로그아웃이 "세션 증발"로 오탐 기록된다 (#244 D3).
+    res.clearCookie(SESSION_HINT, { path: '/' });
 
     successResponse(res, null, 'Logged out');
   } catch (error) {
@@ -937,4 +1048,8 @@ module.exports.helpers = {
   generateRefreshToken,
   resolveClientKind,
   TTL_MS_BY_KIND,
+  // #244 — 동반 세션 힌트 쿠키. OAuth 로그인도 같은 한 벌을 내려야
+  //   "세션이 있어야 정상인데 refresh_token 만 사라졌다"는 판정이 성립한다.
+  setSessionHint,
+  SESSION_HINT,
 };

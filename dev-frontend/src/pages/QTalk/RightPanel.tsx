@@ -596,6 +596,9 @@ const IconBtn = styled.button`
 const Scroll = styled.div`
   flex: 1;
   overflow-y: auto;
+  /* #245 — 한 축만 auto 면 반대축 계산값이 auto 로 강제된다(가로 흔들림). 세로만 스크롤. */
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
   &::-webkit-scrollbar { width: 6px; }
   &::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 3px; }
 `;

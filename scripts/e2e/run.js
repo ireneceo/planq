@@ -13,6 +13,7 @@ const SUITES = {
   mailrt: () => require('./canary-mail-realtime'), // #205 실시간 반영 — 한 탭에서 내린 행이 다른 탭에서도 사라지는가
   handles: () => require('./canary-panel-handles'), // 패널 토글 화살표 중복 카나리 (접힘 상태에서만 드러남)
   tabs: () => require('./canary-tabs'),         // ⑥ 멀티탭 트리 스왑(형제 라우터 무크래시·keep-alive·shell 무회귀)
+  hlock: () => require('./canary-qtalk-hlock'), // #245 Q Talk 가로 잠금 — overflow-y:auto 만 두면 반대축이 auto 로 강제(grep 불가)
   // chrome: () => require('./chrome-suppression'),
 };
 

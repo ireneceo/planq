@@ -51,6 +51,21 @@ RefreshToken.init({
     type: DataTypes.INTEGER, allowNull: true,
     references: { model: 'refresh_tokens', key: 'id' },
   },
+  // #244 (D2) — grace 창 안에서 stale 쿠키를 자가치유하며 발급한 새 row 의 id.
+  //
+  //   왜 필요한가: 회전 응답의 Set-Cookie 가 유실되면(응답 중단·탭 종료 등) 서버는 이미 회전을
+  //   커밋했는데 브라우저는 옛 쿠키를 그대로 들고 있다. 서버는 raw 토큰을 해시로만 보관하므로
+  //   후속 토큰을 다시 내려줄 수 없다 → 새 토큰을 발급해 쿠키를 고쳐 주는 것이 유일한 치유법.
+  //
+  //   왜 캡이 필요한가: 무제한 허용하면 도난된 stale 쿠키 하나로 365일짜리 새 체인을 몇 번이고
+  //   분기시킬 수 있다. stale row 당 재발급을 **1회로 제한**한다. 두 번째 호출부터는 종전대로
+  //   access token 만 발급(쿠키 미갱신). 정상 사용자가 캡에 걸리는 경우는 응답 유실이 2연속으로
+  //   난 희귀 케이스뿐이고, 그때도 현행 동작으로 폴백하므로 회귀가 아니다.
+  //
+  //   감사: 이 컬럼이 곧 감사 흔적이다 — 어떤 row 가 grace 재발급으로 태어났는지는
+  //   `SELECT * FROM refresh_tokens WHERE grace_successor_id IS NOT NULL` 로 역추적된다.
+  //   FK/인덱스는 의도적으로 걸지 않는다 (sync alter 의 64키 한도 회피 — 조회는 극소량).
+  grace_successor_id: { type: DataTypes.INTEGER, allowNull: true },
   last_used_at: { type: DataTypes.DATE, allowNull: true },
 }, {
   sequelize,
