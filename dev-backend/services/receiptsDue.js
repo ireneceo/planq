@@ -58,6 +58,34 @@ function receiptKindOf(inv, client) {
   return null;
 }
 
+/**
+ * 청구서 **생성 시점**에 기본으로 넣을 receipt_type 판정 — 정기청구 엔진 전용 단일 원천.
+ *
+ * 왜 필요한가 (운영 피드백, 2026-08-03 Irene):
+ *   정기 청구서는 매달 자동 생성되는데 `recurring_invoice.js` / `clientSubscriptionBilling.js` 의
+ *   payload 에 `receipt_type` 이 아예 없어 모델 기본값 `'none'` 으로 떨어졌다. 고객이 한국 사업자로
+ *   등록돼 있고 사업자번호·세금계산서 이메일까지 DB 에 다 있는데도 화면엔 "발행 대상 아님" 이 떴다.
+ *
+ * 술어를 여기 두는 이유: 위 `receiptKindOf()` 와 **같은 파일·같은 기준**이어야 한다.
+ *   판정이 갈라지면 "목록엔 증빙 대기인데 상세엔 대상 아님" 같은 모순이 생긴다.
+ *
+ * 설계 결정 (Fable 설계 게이트):
+ *   - `biz_tax_id` 는 **게이트에 넣지 않는다.** 사업자번호는 "결제 후 고객이 공개 페이지에서 직접
+ *     입력"하는 정식 흐름이 있다(routes/invoices.js 의 public receipt-request). 발행 의향과
+ *     데이터 완비는 별개 축이다.
+ *   - 개인 고객(is_business=false)은 `'none'`. 현금영수증은 식별번호(휴대폰)가 필요해 고객 제출로만
+ *     세팅된다 — 엔진이 임의로 cash 를 찍으면 안 된다.
+ *   - 외화는 한국 세금계산서 발행 대상이 아니다(수동 모달의 `canTax` 와 동일 기준).
+ *
+ * @returns 'tax_invoice' | 'none'
+ */
+function defaultReceiptTypeFor(client, currency) {
+  if ((currency || 'KRW') !== 'KRW') return 'none';
+  if (!client || !client.is_business) return 'none';
+  if (client.country && client.country !== 'KR') return 'none';
+  return 'tax_invoice';
+}
+
 /** 수취자명 / 식별번호 resolve (receipt_profile → Client → recipient_* 순) */
 function resolveRecipient(inv, client, kind) {
   const p = inv.receipt_profile || null;
@@ -258,4 +286,5 @@ module.exports = {
   cashReceiptDueDate,
   urgencyOf,
   receiptKindOf,
+  defaultReceiptTypeFor,
 };

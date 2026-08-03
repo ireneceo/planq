@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { Invoice, InvoiceItem, InvoiceInstallment, InvoicePayment, Client, User, Business, Post, Conversation, Message, ReceiptCorrection } = require('../models');
 const { resolveRecurringInfo } = require('../services/invoiceRecurring');
+// 증빙 종류 판정 단일 원천 — 증빙 큐(대시보드 인박스·Q Bill 증빙 탭)와 상세 표시가 갈라지지 않게 공용.
+const { receiptKindOf } = require('../services/receiptsDue');
 const { logBillEvent, listBillEvents } = require('../services/billEvents');
 const { isStripeEnabled } = require('../services/stripeService'); // Q Bill 워크스페이스 카드결제 활성 판정
 const { authenticateToken, optionalAuth, checkBusinessAccess } = require('../middleware/auth');
@@ -231,6 +233,11 @@ router.get('/public/:token', optionalAuth, async (req, res, next) => {
       receipt: {
         payment_method: invoice.payment_method,
         receipt_type: invoice.receipt_type,
+        // receipt_kind — 증빙 큐(receiptsDue) 와 **같은 술어**로 서버가 판정해 내려준다.
+        //   프론트가 tax_invoice_status 를 직접 읽어 자체 판정하면, 옛 데이터나 정기청구처럼
+        //   receipt_type 이 'none' 인 건에 대해 큐(대기중)와 상세(발행 대상 아님)가 갈라진다.
+        //   → 표시 판정을 서버 단일 원천으로 통일 (운영 피드백 2026-08-03).
+        receipt_kind: receiptKindOf(invoice, invoice.Client || null),
         tax_invoice_status: invoice.tax_invoice_status,
         cash_receipt_status: invoice.cash_receipt_status,
         requested_at: invoice.receipt_requested_at,
@@ -1422,6 +1429,9 @@ router.post('/:businessId/:id/send', authenticateToken, checkBusinessAccess, req
       chat_conversation_id: (deliver.chat && !deliver.chat.error && deliver.chat.conversation_id) || null,
       chat_title: (deliver.chat && !deliver.chat.error && deliver.chat.title) || null,
     } });
+    // 실시간 반영 (CLAUDE.md §16) — 이 라우트만 broadcast 를 안 불러서, 발송해도 다른 탭·다른
+    //   사용자의 청구서 목록이 갱신되지 않았다. 목록은 이미 'invoice:updated' 를 듣고 있다.
+    broadcastInvoice(req, refreshed, 'invoice:updated');
     successResponse(res, { invoice: refreshed, deliver }, 'Invoice sent');
   } catch (error) { try { await t.rollback(); } catch {} next(error); }
 });

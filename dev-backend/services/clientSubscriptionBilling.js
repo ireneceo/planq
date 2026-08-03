@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const { Op } = require('sequelize');
 const { ClientSubscription, Client, Business, Invoice, InvoiceItem, BusinessMember } = require('../models');
 const { recurringMetaForSub } = require('./invoiceRecurring');
+const { defaultReceiptTypeFor } = require('./receiptsDue');
 const { sequelize } = require('../config/database');
 
 // invoice_number — recurring_invoice 와 동일 포맷 (INV-YYYY-NNNN)
@@ -185,6 +186,13 @@ async function billOneSubscription(sub, today = new Date()) {
     grand_total: grandTotal,
     total_amount: subtotal,
     share_token: shareToken,
+    // 증빙 의향 — 정기 청구 엔진과 동일. receiptsDue 단일 원천 술어.
+    //   여태 이 두 필드가 없어 모델 기본값 'none' 으로 떨어졌다(정기청구와 같은 결손).
+    //   'pending' = 발행 의향. 큐 편입은 paid 게이트라 조기 독촉 없음. receipt_profile 은 미기록.
+    receipt_type: defaultReceiptTypeFor(client, sub.currency || business.default_currency || 'KRW'),
+    tax_invoice_status:
+      defaultReceiptTypeFor(client, sub.currency || business.default_currency || 'KRW') === 'tax_invoice'
+        ? 'pending' : 'none',
     status: isAuto ? 'sent' : 'draft',
     sent_at: isAuto ? new Date() : null,
   });
