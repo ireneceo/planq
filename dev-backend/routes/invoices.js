@@ -676,14 +676,22 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
     const invoices = await Invoice.findAll({
       where,
       include: [
-        { model: Client, attributes: ['id', 'display_name', 'company_name', 'biz_name', 'biz_tax_id', 'is_business'] },
+        // `country` 는 receiptKindOf 술어의 입력이다 — 빼면 비KR 사업자가 `!client.country` 분기로
+        //   흘러 목록만 'tax' 로 판정된다(상세와 불일치). 술어 입력은 전 라우트에서 같아야 한다.
+        { model: Client, attributes: ['id', 'display_name', 'company_name', 'biz_name', 'biz_tax_id', 'is_business', 'country'] },
         { model: InvoiceItem, as: 'items' },
         { model: InvoiceInstallment, as: 'installments', separate: true, order: [['installment_no', 'ASC']] },
         { model: Post, as: 'sourcePost', attributes: ['id', 'category', 'title', 'status', 'share_token'], required: false },
       ],
       order: [['created_at', 'DESC']]
     });
-    successResponse(res, invoices);
+    // 드로어는 목록 행을 initialInvoice 로 먼저 그린다 — 여기에 receipt_kind 가 없으면
+    //   상세 응답이 도착하기 전까지 "발행 대상 아님" 이 깜빡인다. 상세와 같은 술어로 파생.
+    successResponse(res, invoices.map((inv) => {
+      const j = inv.toJSON();
+      j.receipt_kind = receiptKindOf(inv, inv.Client || null);
+      return j;
+    }));
   } catch (error) {
     next(error);
   }
@@ -1061,6 +1069,9 @@ router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async 
     if (!(await canAccessInvoice(req.user.id, invoice, req.scope))) return errorResponse(res, 'forbidden', 403);
     const payload = invoice.toJSON();
     payload.recurring = await resolveRecurringInfo(invoice);   // #92 — 정기 발송 기준
+    // 증빙 종류는 receiptsDue 단일 원천 술어로 파생한다 — 드로어가 `tax_invoice_status` 를 직독하면
+    //   레거시(receipt_type='none' + 한국 사업자) 건에 "발행 대상 아님" 이 뜬다(운영 피드백 2026-08-03).
+    payload.receipt_kind = receiptKindOf(invoice, invoice.Client || null);
     successResponse(res, payload);
   } catch (error) {
     next(error);
