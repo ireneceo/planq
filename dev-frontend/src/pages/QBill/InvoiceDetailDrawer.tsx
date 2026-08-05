@@ -298,12 +298,16 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
   const canSendTo = !!(invoice.client_id || invoice.recipient_email);
   const doSendInvoice = async () => {
     if (sendBusy) return;
-    setSendBusy(true);
+    setSendBusy(true); setRemindNote(null);
     try {
       await sendInvoice(invoice.business_id, invoice.id, { send_email: true, send_chat: true });
       await refresh();
       onChanged?.();
-    } finally { setSendBusy(false); }
+    }
+    // 위 :201 주석의 규칙 — 재무 헬퍼는 throw 한다(403 owner_only·400 invalid_state 등).
+    //   catch 가 없으면 다른 탭이 먼저 발송했을 때 스피너만 풀리고 draft 인 채로 침묵한다.
+    catch (e) { financeErr(e); }
+    finally { setSendBusy(false); }
   };
   const handleSendInvoice = () => {
     setConfirm({
