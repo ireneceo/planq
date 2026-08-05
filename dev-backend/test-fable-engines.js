@@ -70,7 +70,7 @@ function check(name, cond, detail) {
 
   // ── 프로젝트 월정액 → billOneProject (KR사업자 c1) ──
   const p = await Project.create({
-    business_id: BIZ, name: 'FABLEV 월정액프로젝트', created_by: OWNER,
+    business_id: BIZ, name: 'FABLEV 월정액프로젝트', created_by: OWNER, owner_user_id: OWNER,
     billing_type: 'subscription', monthly_fee: 220000, auto_invoice_enabled: true,
     auto_invoice_mode: projDraftMode, invoice_billing_day: new Date().getDate(),
   });
