@@ -279,6 +279,45 @@ function defineInfraTests() {
     if (!r.openai_configured) throw new Error('OPENAI_API_KEY missing');
     return true;
   });
+
+  // ─── PDF 렌더 실호출 (#253 재발 검출) ───
+  //
+  // #253: 운영에만 헤드리스 Chrome 공유 라이브러리가 없어 pdfService(단일 착지점)가 죽었고
+  //   PDF 6개 기능이 동시에 500 이었다. dev 는 라이브러리가 있어 **코드 검증·가드 3축
+  //   어디서도 안 잡히는 계열**. 실제로 1바이트 생성해봐야만 잡힌다.
+  //
+  // 왜 백엔드 HTTP 인가: 운영의 LD_LIBRARY_PATH 는 백엔드 .env 에 있고 dotenv 가
+  //   process.env 에 넣어야 puppeteer 의 chrome 자식 프로세스가 상속한다. PDF 를 실제로
+  //   서빙하는 프로세스 자신이 렌더해야 진짜 상태를 잰다.
+  //
+  // 원격(--host) 모드로는 측정 불가 — nginx 가 /api/internal 을 차단하고, 설령 뚫려도
+  //   dev 의 INTERNAL_API_KEY ≠ 운영 키라 무의미. 운영 커버는 deploy-planq.sh 가
+  //   **운영 호스트 내부에서 자기 키로** 수행한다. 여기서는 조용히 사라지지 않게 명시 출력만.
+  if (!isLocal) {
+    console.log(c.yellow('  ⊘ PDF 렌더 실호출 — 원격 모드에서는 측정 불가 (deploy-planq.sh 가 운영 내부에서 실측)'));
+  } else {
+    test('infra', 'PDF 렌더 실호출 (헤드리스 Chrome, %PDF- 매직)', async () => {
+      // 키를 못 읽으면 skip 이 아니라 FAIL — 안 잡는 가드는 없는 것보다 나쁘다.
+      let key = '';
+      try {
+        const env = fs.readFileSync('/opt/planq/dev-backend/.env', 'utf-8');
+        const m = /^INTERNAL_API_KEY=(.*)$/m.exec(env);
+        key = m ? m[1].trim().replace(/^["']|["']$/g, '') : '';
+      } catch (e) {
+        throw new Error(`.env 읽기 실패 — 거짓 통과 방지 위해 실패 처리: ${e.message}`);
+      }
+      if (!key) throw new Error('INTERNAL_API_KEY 없음 — 거짓 통과 방지 위해 실패 처리');
+
+      const r = await http('GET', `${BACKEND}/api/internal/health/pdf`, {
+        headers: { 'x-internal-api-key': key },
+      });
+      const d = r.data || {};
+      if (!d.magic_ok) throw new Error(`PDF 매직 불일치 (응답: ${JSON.stringify(d).slice(0, 200)})`);
+      if (!(d.bytes > 1000)) throw new Error(`PDF 크기 비정상: ${d.bytes} bytes`);
+      if (opts.verbose) console.log(c.gray(`      ${d.bytes} bytes, %PDF- OK`));
+      return true;
+    });
+  }
 }
 
 // ============================================

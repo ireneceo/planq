@@ -1,8 +1,61 @@
 # 설계서 — ③ 정기청구 PDF 첨부 복구(공용 서비스 추출) + ④ health-check PDF 실호출 항목
 
 - 작성: Opus (2026-08-06)
-- 게이트: **Fable 설계 게이트** (돈·발송 영역 + 가드 신설 → 고위험 2·5 해당)
+- 게이트: **Fable 설계 게이트 → CONDITIONAL PASS (5건 반영 조건)** — 반영 완료, 아래 §정정 참조
 - 배경: `.claude/session-state.md` ③④ / Irene 지시 "③④ 해. 다음 섹션에."
+
+---
+
+## ⚠️ Fable 설계 게이트 정정 (초안의 오류)
+
+### 1. "nginx deny 는 dev·운영 동일" — **거짓이었다**
+
+Fable 이 기능 실측으로 반증:
+
+```
+https://planq.kr/api/internal/qnote/can      → {"success":false,"message":"forbidden"}   ← 백엔드 JSON = Node 도달
+https://dev.planq.kr/api/internal/qnote/can  → nginx HTML 403 Forbidden                  ← dev 만 정상 차단
+```
+
+**운영의 `/api/internal/*` 전체가 인터넷에서 백엔드까지 도달하며, 방어는 `INTERNAL_API_KEY` 단일층뿐이다.**
+repo `scripts/nginx-planq.kr.conf:52` 에는 deny 가 있으나 운영 라이브 파일(root 640)이 갈라져 있다 —
+memory `feedback_nginx_sites_enabled_copy` 재발.
+
+- **이번 변경이 만든 구멍이 아니다.** 기존 internal 라우트 전체(Q Note 과금 포함)에 해당하는 선행 결손
+- 키 검사가 렌더보다 앞이므로 무인증 DoS 는 불가 (신규 `/health/pdf` 도 동일)
+- **root 필요 → Irene 조치 항목.** 반영 전까지는 키 단일층 노출임을 명시
+
+### 2. "PDF 파손은 배포와 무관해 롤백해도 되돌릴 게 없다" — **틀렸다**
+
+재발 경로 1순위가 **배포 중 puppeteer/Chrome 버전 bump 로 인한 라이브러리 재결손**이며
+(session-state 도 "puppeteer 가 Chrome 버전 올리면 재확인 필요" 경고), 이 경우 **롤백이 실제로 복구한다.**
+
+그럼에도 `warn` 이 옳은 이유는 다른 데 있다:
+- 이 스크립트의 `error` 는 자동 롤백 없이 exit 만 한다
+- 메일·공유링크는 degraded 로 계속 동작한다
+- `DEPLOY_EXIT=1` 이 이미 부수 신호로 오염돼 있어(memory `feedback_deploy_exit1_spurious`) hard-fail 은 신호 학습만 망친다
+
+→ `warn` 유지하되 **배너 + Summary 잔존 + 조치 힌트**(puppeteer 버전 변경 확인 포함).
+
+### 3. "순수 이동" 의 실체
+
+모델 import 추가가 **필수 델타**다 — 함수 본문이 `routes/invoices.js` 상단 destructure 에 의존했다.
+diff 대조 시 예상 범위로 기록할 것.
+
+### 4. rate-limit 은 `perUserLimiter` **적용 불가**
+
+internal 라우트엔 `req.user` 가 없다. 고정키 분당 5회 캡으로.
+
+### 5. 엔진 메일 문구가 고객에게 거짓말을 해 왔다
+
+`"결제 안내는 본 메일에 첨부된 청구서를 참고해주세요"`(recurring_invoice.js:210 ·
+clientSubscriptionBilling.js:267) — **첨부가 한 번도 붙은 적 없는 전 기간 동안** 이 문구가 나갔다.
+실패 정책(첨부 없이 발송)을 유지하면 앞으로도 실패 건마다 거짓말한다 → **attachments 유무로 문구 분기.**
+
+### 6. 엔진 PDF 실패 시 `notifyPlatformAdmins` 추가
+
+야간 cron 실패는 `console.warn` 만으론 다음 배포까지 무증상. 이 프로젝트의 침묵 실패 이력상
+로그만으론 부족 (운영 안정성 #8).
 
 ---
 

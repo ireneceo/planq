@@ -438,6 +438,39 @@ verify_deployment() {
   else
     warn "외부 HTTPS 미응답 — DNS propagation 또는 SSL 미발급 (운영 1차 진입 시 정상)"
   fi
+
+  # 3) PDF 렌더 실호출 (#253 재발 검출)
+  #    운영에만 헤드리스 Chrome 공유 라이브러리가 없어 PDF 6개 기능이 동시에 죽었던 계열.
+  #    dev 는 라이브러리가 있어 코드 검증으로는 영원히 안 잡힌다 — 운영에서 1바이트 만들어봐야 안다.
+  #    키는 운영 .env 에서 **운영 호스트 내부에서만** 추출 (dev 로 넘어오지 않게).
+  PDF_OUT=$(ssh $SSH_OPTS "$PROD_HOST" \
+    "K=\$(grep -m1 '^INTERNAL_API_KEY=' $PROD_BE/.env | cut -d= -f2- | tr -d '\"'\\''' | tr -d '\r'); \
+     [ -z \"\$K\" ] && echo 'NOKEY' && exit 0; \
+     curl -s --max-time 45 -H \"x-internal-api-key: \$K\" http://localhost:$PROD_PORT/api/internal/health/pdf" 2>/dev/null || echo "SSHFAIL")
+
+  if echo "$PDF_OUT" | grep -q '"magic_ok":true'; then
+    PDF_BYTES=$(echo "$PDF_OUT" | sed -n 's/.*"bytes":\([0-9]*\).*/\1/p')
+    success "운영 PDF 렌더 OK (${PDF_BYTES} bytes, %PDF-)"
+    PDF_CHECK_RESULT="OK (${PDF_BYTES} bytes)"
+  else
+    # 배포를 중단하지는 않는다 — 코드는 이미 착지했고, 메일·공유링크는 degraded 로 계속 동작한다.
+    # 다만 조용히 넘어가면 #253 처럼 무증상으로 몇 달을 간다 → 배너 + Summary 잔존.
+    echo ""
+    echo -e "${RED}!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!${NC}"
+    echo -e "${RED}  운영 PDF 렌더 실패 — PDF 기능 전체(청구서·문서·보고서·${NC}"
+    echo -e "${RED}  공개 미리보기·Q info·정기청구 메일)가 죽어 있을 수 있음${NC}"
+    echo -e "${RED}!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!${NC}"
+    echo "  응답: $(echo "$PDF_OUT" | head -c 300)"
+    echo ""
+    echo "  조치:"
+    echo "    1) 이번 배포에서 puppeteer/Chrome 버전이 바뀌었는지 확인 (버전 bump = 라이브러리 재결손 1순위 경로)"
+    echo "       ssh $PROD_HOST 'cd $PROD_BE && node -e \"console.log(require(\\\"puppeteer\\\").executablePath())\"'"
+    echo "    2) 결손 라이브러리 점검:  ssh $PROD_HOST 'ldd <chrome 경로> | grep \"not found\"'"
+    echo "    3) LD_LIBRARY_PATH 확인:  ssh $PROD_HOST 'grep LD_LIBRARY_PATH $PROD_BE/.env'"
+    echo "    4) 필요 시 롤백:          $BACKUP_DIR"
+    echo ""
+    PDF_CHECK_RESULT="FAILED — 위 조치 참고"
+  fi
 }
 
 # ──────────────────────────────────────────
@@ -463,6 +496,8 @@ show_summary() {
   echo "  Commit:    $(git rev-parse --short HEAD) — $(git log -1 --format='%s' | head -c 70)"
   echo "  Timestamp: $TIMESTAMP"
   echo "  Backup:    $BACKUP_DIR (on prod)"
+  echo ""
+  echo "  PDF 렌더:  ${PDF_CHECK_RESULT:-미실행}"
   echo ""
   echo "  Production:"
   echo "    https://$PROD_DOMAIN/api/health"

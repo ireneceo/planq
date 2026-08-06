@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { Invoice, InvoiceItem, InvoiceInstallment, InvoicePayment, Client, User, Business, Post, Conversation, Message, ReceiptCorrection } = require('../models');
 const { resolveRecurringInfo } = require('../services/invoiceRecurring');
+// 청구서 PDF 빌더 — 라우트·정기청구 2엔진 공용 단일 착지점 (services/invoicePdf.js).
+const { buildInvoicePdf } = require('../services/invoicePdf');
 // 증빙 종류 판정 단일 원천 — 증빙 큐(대시보드 인박스·Q Bill 증빙 탭)와 상세 표시가 갈라지지 않게 공용.
 const { receiptKindOf } = require('../services/receiptsDue');
 const { logBillEvent, listBillEvents } = require('../services/billEvents');
@@ -88,23 +90,9 @@ function isBotOrScanner(req) {
   return false;
 }
 
-async function buildInvoicePdf(invoiceId) {
-  const invoice = await Invoice.findByPk(invoiceId, {
-    include: [
-      { model: InvoiceItem, as: 'items' },
-      { model: InvoiceInstallment, as: 'installments', separate: true, order: [['installment_no', 'ASC']] },
-      { model: Client, attributes: ['display_name', 'company_name', 'biz_name', 'biz_tax_id', 'biz_ceo', 'biz_address', 'biz_address_en'] },
-    ],
-  });
-  if (!invoice) throw new Error('not_found');
-  const business = await Business.findByPk(invoice.business_id, {
-    attributes: ['name', 'brand_name', 'legal_name', 'legal_name_en', 'tax_id', 'representative', 'address', 'address_en', 'bank_name', 'bank_account_number', 'bank_account_name', 'swift_code', 'bank_name_en', 'bank_account_name_en'],
-  });
-  const { invoicePdfHtml } = require('../services/pdfTemplates');
-  const { renderPdfFromHtml } = require('../services/pdfService');
-  const html = invoicePdfHtml(invoice.toJSON(), business?.toJSON() || {}, invoice.Client?.toJSON() || {});
-  return { pdf: await renderPdfFromHtml(html), invoice };
-}
+// buildInvoicePdf 는 services/invoicePdf.js 로 이관 — 상단에서 import.
+//   라우트 안에만 있어 export 되지 않은 탓에 정기청구 2엔진이 없는 모듈을 require 하고
+//   빈 catch 에 삼켜져 자동 발송 메일 PDF 첨부가 통째로 죽어 있었다.
 
 // 공개 결제 카드 (kind='card', meta.card_type='invoice', meta.invoice_id=:id) 메타 갱신
 // invoice 상태가 바뀔 때 채팅방의 카드도 함께 갱신해서 새로고침 / Socket.IO 동기.
