@@ -117,6 +117,10 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
   const [resendNote, setResendNote] = useState<{ tone: 'ok' | 'warn'; text: string } | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [overdueNotifyBusy, setOverdueNotifyBusy] = useState(false);
+  // 발송(draft → sent) 중복 제출 가드. ★ 훅은 반드시 early return(`if (!invoice) return null`) **위**에
+  //   선언한다 — 이 드로어는 InvoicesTab 에서 invoice={selected|null} 로 **항상 mount** 되므로,
+  //   아래쪽에 두면 열리는 순간 훅 개수가 변해 React #310 으로 드로어 전체가 크래시한다.
+  const [sendBusy, setSendBusy] = useState(false);
 
   const onDownloadPdf = async () => {
     if (!invoice || pdfBusy) return;
@@ -293,7 +297,7 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
   //   그래서 정기청구 draft_review 알림이 "검토 후 발송해주세요" 라며 이 드로어를 열어주는데
   //   정작 여기엔 발송 버튼이 없어, 보내려면 반드시 편집을 거쳐야 했다 (운영 피드백 2026-08-03).
   //   권한은 재무 액션 정책대로 owner 만 (서버도 assertInvoiceMutationOwner 로 강제).
-  const [sendBusy, setSendBusy] = useState(false);
+  //   (sendBusy 훅 선언은 위 useState 블록 — early return 위 — 에 있다)
   // 수신처가 없으면 보낼 곳이 없다 — 버튼을 비활성화하고 이유를 붙인다.
   const canSendTo = !!(invoice.client_id || invoice.recipient_email);
   const doSendInvoice = async () => {
