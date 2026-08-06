@@ -1,146 +1,143 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-08-03 13:20 UTC (Opus 5, 1M)
-**작업 상태:** 중단(Irene 취침). **#244·#245 완료(Fable 게이트 PASS, 미배포)** · 신규①② 구현완료·**Fable 검증 미완** · 총정리 로드맵 Fable 검토완료.
+**마지막 업데이트:** 2026-08-06 01:15 UTC (Opus 5, 1M)
+**작업 상태:** **완료** (`/개발완료` 처리, Irene 외출). **운영 배포 완료 `6321f9d`** + **운영 PDF 전면 복구** + 백필 완주. 다음 섹션 착수분 확정(③④).
 
-### 이어서 할 때 첫 할 일
-1. **`/fable-검증` 재실행** — 신규①②(Q Bill 돈·증빙)는 Fable 구현 검증이 **끝나지 않았다**. 직전 실행이 API 529 로 죽었고 재실행분도 세션 종료로 중단됐다. **검증 없이 배포 금지.**
-   - 특히 **`clientSubscriptionBilling.js` 는 Opus 가 코드만 넣고 실행 검증을 안 했다** — 가장 의심스러운 지점.
-2. 그 다음 **#217** (아래 참조 — 원인 이미 특정됨, 소절단면)
+**완료 처리 시 가드**: health 33/33 · invariants 22/22 · tenant 0 · 위키 커버리지 ⛔0 · Fable 게이트 지문 일치(소스 변경 없음).
+
+### 이어서 할 때 첫 할 일 — Irene 지시 "③④ 해. 다음 섹션에."
+
+**③ 정기청구 메일 PDF 첨부가 처음부터 죽어 있다 (돈·발송 영역 → Fable 3게이트)**
+- `services/recurring_invoice.js:195` · `services/clientSubscriptionBilling.js:257` 이 `require('./pdfBuilder')` 를 호출하는데 **`services/pdfBuilder.js` 는 git 이력 전체에 존재한 적이 없다.**
+- 예외를 `catch { /* pdf 미지원 */ }` 가 삼켜서 **메일은 정상 발송되고 로그도 안 남는다.** → 고객이 받은 정기청구 메일에 **청구서 PDF 가 한 번도 붙은 적 없음**(shareUrl 링크는 들어감).
+- 진짜 구현은 `routes/invoices.js:91 async function buildInvoicePdf(invoiceId)` 인데 **export 되지 않음**(`module.exports = router` 뿐). 라우트 내부 호출부 4곳(632·1047·1382·1467)은 정상 동작 중.
+- **절단면**: `buildInvoicePdf` 를 공용 서비스(`services/invoicePdf.js` 등)로 추출 → 라우트 + 정기청구 2엔진이 공유. `catch` 가 조용히 삼키지 않도록 실패 로그 남기기(빈 catch 금지).
+- 이 프로젝트 반복 패턴: memory `feedback_completed_but_dead_features` · `feedback_apifetch_no_throw_silent_save`.
+
+**④ health-check 에 실제 PDF 1바이트 생성 항목 추가**
+- 이번 #253 은 **운영에만 없는 시스템 의존성**이라 코드 검증·가드 3축 어디서도 안 잡혔다. dev 는 e2e 하니스 때문에 라이브러리가 있어서 통과.
+- `scripts/health-check.js` 에 `renderPdfFromHtml` 실호출 → `%PDF-` 매직 확인 항목 추가. 배포 직후 자동 검출되게.
+- **가드는 반드시 깨뜨려 확인**(memory `feedback_guard_must_be_falsified`) — LD_LIBRARY_PATH 를 일시 제거해 FAIL 나는지 실측 후 채택.
+
+③④ 묶어서 Fable 게이트 → 배포.
 
 ---
 
 ## 이번 세션 완료
 
-### ✅ #244 PWA 세션 증발 — Fable 게이트 PASS (33 assertion, 미배포)
+### ✅ 운영 배포 `6321f9d` (202s) — 3점 실측 통과
+- PM2 uptime 78s(리셋) · 청크 `QBillPage-Cgg41Bez.js` **dev=운영 일치** · health 200
+- 실린 것: **#244**(PWA 세션 증발) · **#245**(Q Talk 가로 흔들림) · **신규①**(정기청구 세금계산서 "발행 대상 아님") · **신규②**(청구서 상세 발송 버튼) · **드로어 React #310 크래시 수정**
+- `DEPLOY_EXIT=1` 은 이 스크립트의 알려진 부수 신호 — Complete 줄 + 3점 실측으로 판정(memory `feedback_deploy_exit1_spurious`)
 
-**Irene 원문:** "planQ 앱모드로 사용하고 있을때, 사용자가 로그아웃 하지 않았는데, 로그인화면으로 돌아가면서 로그아웃됨" (user 3, Mac Chrome standalone 440×720)
+### ✅ 신규①② Fable 게이트 — 2라운드 (FAIL 1회 → PASS)
 
-**★ Fable 이 Opus 진단을 뒤집음:** 오늘분 error 로그가 **정확히 3줄**이라는 라인 회계로 "네트워크 실패설"을 반증. **요청은 서버에 닿았고 쿠키 없이 닿았다.** 429·서버측 삭제·백엔드 재시작 전부 배제(logout 이면 `revoked_reason='logout'` 이 남는데 27441 은 NULL).
-**만성:** 이 Mac 에서 30일간 재로그인 22회(07-21 엔 28분 사이 4회). 재발일마다 마지막 토큰이 **미회전 고아**로 방치.
-**미확정:** 쿠키를 무엇이 지웠는가 — 서버 데이터로 식별 불가. 유력 가설 = Mac Chrome "모든 창을 닫을 때 쿠키 및 사이트 데이터 삭제" 또는 확장. **Irene 확인 대기.**
+**★ 1라운드 FAIL 이 실제 킬러 회귀였다.** `InvoiceDetailDrawer.tsx` 의 `sendBusy` useState 가 `if (!invoice) return null`(171행) **아래**에 선언 → Rules of Hooks 위반. 드로어가 `InvoicesTab.tsx:295` 에서 `invoice={selected|null}` 로 **항상 mount** 되므로 여는 순간 훅 개수가 변해 **React #310 크래시**. 신규② 기능이 죽은 것에 더해 **기존 청구서 상세 전체가 파괴된 상태**였다.
+- **tsc 도 가드 3축도 못 잡는다** — `react-hooks/rules-of-hooks` 린트가 빌드 파이프라인에 없다. Fable 의 **실브라우저 검증만이** 잡았다.
+- 수정: 훅을 early return 위 `*Busy` 블록으로 이동(순수 이동, 로직 0).
+- 2라운드 PASS: 딥링크·행클릭 `{"drawer":true,"crashed":false}` · **반증 실측**(훅 되돌려 재빌드 → #310 재현 → 백업 복원 md5 일치, `git checkout --` 미사용) · 발송 ConfirmDialog·`sendBusy` POST 정확히 1회·수신처 없으면 disabled · 레거시건 "세금계산서 · 발행 필요" · 백엔드 403 `owner_only` · 가드 33/33·22/22·tenant 0 · 빌드 REAL_EXIT 0
 
-**구현:** `routes/auth.js` · `auth_oauth.js` · `models/RefreshToken.js`(+`grace_successor_id`) · `middleware/security.js` · `contexts/AuthContext.tsx`
-- **D1** `tryRefresh` → `{ok}|{ok:false, reason}`. **401 일 때만 종결**, network/server/**429** 는 `refreshWithRetry` 백오프(5s→15s→60s, cap 5분, `online` 이벤트 즉시 앞당김). **발행측(apiFetch 의 `planq:session-expired`)도 게이트** — 소비자만 고치면 우회된다.
-- **D2** grace(15분) 창 **쿠키 자가치유** + **stale row 당 1회 캡**(`grace_successor_id`, FK/인덱스 없음 — 64키 회피). 서버는 raw 토큰을 해시로만 보관 → 새 발급이 유일한 치유법. 누적 `stale_reuse` 267건이 물증.
-- **D3** 동반 쿠키 `has_session`(non-HttpOnly, path=/) → **"게스트 부팅"과 "표적 소실" 구분** · 401 기계판독 `code` · 로그 ISO 타임스탬프 · `POST /api/auth/session-diag` 비콘(무인증, IP당 60초 1건)
-- **누락 동시 수정**: apiLimiter `p.id`→`p.userId` (payload 는 `{userId,email}` — **항상 IP 폴백이라 user 버킷이 침묵 사망 중**) / refresh 가 `remember` 무관 `maxAge` 를 붙여 **세션쿠키→영구쿠키 승격**되던 것을 JWT `persist` claim 승계로 차단
-- **비채택**: access token 으로 쿠키 재발급(re-mint) — 보안 확대
+**백엔드는 1라운드부터 전부 PASS** — 술어 7케이스 × 목록/상세/public 3 serializer 일치 · **`clientSubscriptionBilling.js` 엔진 직접 실행**(Opus 미검증 지점) `tax_invoice/pending/NULL` · 반증으로 결함 재현 후 복원 · socket `invoice:updated` 실수신 · 백필 멱등·`updated_at` 보존.
 
-**Fable 실측:** D2 반증 완주(치유 분기 무력화→재현→md5 일치 원복) · grace 경계 -16분 조작 → 401 `stale_reuse` → **원복 실측** · rate-limit 버킷 실증(같은 IP·두 계정: A 595 / B 599 / 무인증 IP 579) · 병렬 race 200/200
+### ✅ 운영 백필 완주 — `backfill-recurring-receipt-type.js`
+- dry-run 1건 → `--apply` 1건 → **재실행 0건(멱등 실측)**
+- 대상 = Irene 원 신고건 **INV-2026-0004 · 기율 법률사무소**
+- 실측: `receipt_type='tax_invoice'` · `tax_invoice_status='pending'` · `receipt_profile=NULL` · **`updated_at` 2026-08-03 보존**(밀리지 않음)
 
-### ✅ #245 Q Talk 가로 흔들림 — Fable 게이트 PASS (미배포)
+### ✅ #253 운영 PDF 전면 사망 — 복구 완료 (코드 변경 0)
 
-**★ Opus 의 `* { max-width: 100vw }` 가설 기각.** 진짜 메커니즘: **`overflow-y:auto` 만 선언하면 반대축 계산값이 visible→auto 로 강제**된다. 트랙패드 가로휠 `deltaX:120` → `scrollLeft` 120 실측. **소스에 `overflow-x` 글자가 없어 grep 으로 영원히 못 잡는다.**
+**Irene 원문(직원 신고):** "미리보기에서 pdf 다운로드 안돼. 전체 버튼들 작동 안하는 거 못 찾아?" (`/public/posts/847ca8da…`)
 
-**구현:** `MessageList`(ChatPanel) · `ChatList`(LeftPanel) · `Scroll`(RightPanel) 에 `overflow-x:hidden; overscroll-behavior-x:none` + `TranslatedText`·`CardNote` 줄바꿈 가드(잠복 버그) + `data-testid="qtalk-messages"` + **신규 카나리 `scripts/e2e/canary-qtalk-hlock.js`**(`run.js` 에 `hlock` 등록)
+**근본 원인: 운영서버에 헤드리스 Chrome 실행용 공유 라이브러리 12개 결손.** dev 는 e2e 하니스 때문에 있어서 안 드러남.
+```
+Failed to launch the browser process: Code: 127
+libatk-1.0.so.0: cannot open shared object file
+```
+**피해 범위는 미리보기 한 곳이 아니었다** — `services/pdfService.js` 단일 착지점이라 운영의 **모든 PDF** 가 500 이었다: 공개 미리보기(`routes/posts.js:1149`) · 청구서(`routes/invoices.js:104`) · 문서(`routes/docs.js:514`) · Q info(`routes/kb.js:1416`) · 보고서(`services/report_generator.js:143`) · 정기청구 메일(`services/billing.js:528`).
 
-**★ 1차 카나리는 거짓 PASS 였다** — 440px 에서 `/talk` 진입 시 ChatPanel 이 마운트 안 되는데(대화를 클릭해야 열림) 휴리스틱으로 좌측 리스트를 굴리고 있었다. Fable 이 회귀를 라이브 번들에 올려놓고 통과함을 증명. → **testid 확정 지목 + fail-closed** 로 재작성, FAIL→PASS 플립 양쪽 실측.
+**조치 (root 없이 — sudo 는 nginx 명령만 NOPASSWD):**
+1. dev(동일 Ubuntu 24.04)에서 `dpkg -S /usr/lib/x86_64-linux-gnu/<lib>` 로 **패키지명 역추적**(24.04 는 `t64` 접미사 전환이라 추측하면 틀린다)
+2. 운영에서 `apt-get -s install` 로 폐쇄 50개 산출 → `apt-get download`(권한 불필요) → `dpkg -x ~/chrome-deps/root`
+3. 운영 `/opt/planq/backend/.env` 에 `LD_LIBRARY_PATH=/home/irene/chrome-deps/root/usr/lib/x86_64-linux-gnu` 추가(백업 `.env.bak-chromelibs-20260806_005526`). dotenv 가 `process.env` 에 넣으면 puppeteer 가 띄우는 chrome **자식 프로세스가 상속**
+4. `pm2 restart planq-prod-backend --update-env`
 
-**미확정:** 흔들릴 때 화면 가장자리 **뒤로가기 화살표(←)** 유무 → 보였으면 히스토리 스와이프 계열 확정. **Irene 확인 대기**(수정은 어느 쪽이든 봉쇄).
+**실측:** `ldd` 결손 12 → **0** · `renderPdfFromHtml` 직접 호출 28,044B `%PDF-` · **운영 라이브 URL 200 / 207,690B / `%PDF-` / application/pdf**
+**내구성:** 배포 rsync 가 `--exclude=.env --exclude=.env.*` 로 제외 → 다음 배포에도 유지. `~/chrome-deps` 도 배포 무접촉.
+**안전성:** apt 시뮬레이션 `0 to remove, 0 upgraded` — 같은 서버 POS 무영향.
 
-### 🔶 신규① 정기청구 세금계산서 "발행 대상 아님" — 구현완료, **Fable 검증 미완**
+### ✅ 구글 캘린더 2건 — Fable 조사 완료 (구현 미착수)
 
-**Irene 원문:** "계속 정기발행되고 있는 건데 왜 세금계산서 발행 정보가 안들어오고 발행대상이 아니라고 하는 거야? 기율법률사무소 …"
+**★ Fable 이 Opus 진단을 두 번 뒤집었다.**
+- Opus 가설 1 "검증 미승인이라 스코프가 안 붙는다" → **반증.** 같은 구글 앱이 **개인 연동에는 `calendar.events` 를 이미 부여**하고 있다: `irene@irenewp.com`(7-27, +`calendar.readonly`) · **`han.sj.lua@gmail.com`(8-04)**. 미검증 앱도 "확인되지 않은 앱" 경고 통과 시 민감 스코프 동의 가능(제한은 신규 100명 캡).
+- Opus 가설 2 "테스트 사용자 설정 필요" → **불필요.**
+- **로그 라인 회계**: 운영 로그 7-27~8-6 전 구간 `[gcal callback]` **0건** → 워크스페이스 콜백이 code 교환 지점에 **도달한 적 없음**. `business_cloud_tokens` id3 의 `updated_at` 7-31 은 저장이 아니라 **`last_error_at`**(push 실패 기록, 초 단위 일치).
 
-**결함 2개:**
-- (a) **쓰기측** — `recurring_invoice.js`·`clientSubscriptionBilling.js` payload 에 `receipt_type` 부재 → 기본값 `'none'`
-- (b) **표시측** — 드로어가 단일원천 술어를 안 쓰고 `tax_invoice_status` 직독 (**"발행 대상 아님" 표기의 직접 원인**)
+**★ Irene 의 결정적 지적: "구글 캘린더는 직원이 자기 쓰는 걸 연결해야지."**
+- 확인 결과 **Meet 생성은 워크스페이스 토큰만 본다** — `routes/calendar.js:929` · `services/actions/event_actions.js:122` 가 `gcal.getTokenForBusiness(businessId)` 사용. 배너(`NewEventModal.tsx:423-429`)도 워크스페이스 `scope_ok` 만 본다.
+- **직원(lua)은 이미 자기 계정을 연결해 뒀는데(8-04, `calendar.events` 보유) Meet 은 그걸 쳐다보지 않는다.** 신고 내용과 정확히 일치.
+- **다음 절단면(설계 게이트 필요)**: Meet 생성을 **"일정 만든 사람의 개인 연동 우선 → 없으면 워크스페이스 폴백"** 으로. 직원 토큰이 이미 유효해서 **코드만 바뀌면 재연결 없이 즉시 동작**. 정할 것 — 팀 캘린더 동기화는 워크스페이스 유지할지 / 개인 연동 없는 사람 처리 / 배너가 어느 연동을 가리킬지.
 
-**중요:** `receiptsDue.js` 에 레거시 fallback 이 있어 증빙 큐는 이 건을 안 놓친다(paid 게이트). **운영 피해 1건 · 세무 실피해 0.**
-**INV-2026-0004 는 08-03 10:54 Irene 이 직접 발송함**(= 신규② 경로). 편집 모달 `taxOn` 초기값이 고객 사업자정보를 안 봐서 `'none'` 유지 → **①②는 같은 흐름의 결함**.
+**② 구글 → PlanQ 역방향 = 미구현 확정** (버그 아님). `events.watch`/`syncToken` 백엔드 전체 0건. `personalCalendar.listEvents` 는 개인 overlay **표시 전용**(`read_only:true`, DB 미기록).
+- Fable 절단면: Irene 요구는 **에코백**(PlanQ 가 만든 일정을 구글에서 고치면 되돌아오게)이지 완전 양방향이 아니다 → 폴링+`syncToken`(watch 는 무인증 공개 콜백 = 보안 경계 변경) · 충돌은 **이벤트 단위 last-writer-wins** · **에코 루프 차단이 진짜 함정**(링크 row 에 `gcal_etag` 저장, 우리가 push 한 것을 되물어오는 것 skip) · 구글 삭제 시 **원본 삭제 X, 링크 해제 + 목적지 토글 off**(선행 정리: `calendarSync.js:176-179` 의 404 시 재생성이 삭제 의사를 되살린다) · 유입 쓰기 **필드 화이트리스트**(구글발 데이터가 `vlevel`/`visibility`/`business_id` 못 바꾸게). **규모 대** — ① 이후.
 
-**구현:** `receiptsDue.js` 에 `defaultReceiptTypeFor(client, currency)` 신설(공유 술어, **`biz_tax_id` 게이트 없음** — 사업자번호는 결제 후 고객이 입력하는 정식 흐름) → 두 엔진이 호출 + `tax_invoice_status='pending'` · `receipt_profile` 미기록 · 개인/외화 `'none'` · `routes/invoices.js` serializer 에 파생 `receipt_kind` · 드로어가 그것을 소비 · **`scripts/backfill-recurring-receipt-type.js`**(dry-run 기본·멱등·`updated_at` 보존·발행완료/취소 제외)
-
-**Opus 자체 실측 18/18 PASS** (dev 정기청구 0건이라 합성 데이터로, 사후 삭제 확인). **Fable 검증 필요.**
-
-### 🔶 신규② 청구서 상세 발송 버튼 — 구현완료, **Fable 검증 미완**
-
-**단순 누락 확정** — 정기 draft_review 알림이 "검토 후 발송해주세요" 로 드로어를 여는데 발송 버튼이 없었다(자기 흐름과 모순).
-**구현:** `isOwner && draft` Primary 버튼 + ConfirmDialog(비가역) + `sendBusy` 가드 + 수신처 부재 시 disabled+힌트 + i18n ko/en + **`POST /send` 에 `broadcastInvoice` 추가**(CLAUDE.md §16 위반이던 것)
-
-### ✅ 총정리 로드맵 — Fable 검토 완료 (CONDITIONAL PASS)
-
-**Fable 이 정정한 Opus 오류 4건:**
-1. **#217 은 답변 대기가 아니다** — 원문 "샘플로 보내줘봐. 내용 확인하고 연결하자" = 개발측 선행. **뱃지 버그 원인 특정: `QBillPage.tsx:54` 가 window 이벤트만 듣고 socket 미청취**(옆 `TaxInvoicesTab` 은 socket 사용)
-2. **이미 구현·장부만 안 닫힌 3건** — **#195**(운영 위키 카테고리 7-21 갱신 완료) · **#222**(email-drafts 자동저장 6-28 `394f4d4`, 잔여=리스트 클릭 이탈) · **#220**(백엔드 `sent_by_user_id` 기록됨, 프론트가 outbound 를 무조건 "나" 표기 `MailPage:1879`)
-3. **#241 은 P1** — `translate_enabled` 컬럼이 있는데 **읽는 코드가 어디에도 없는 죽은 플래그**. 절단면 최소·짜증 반복
-4. **iOS 누락 3건** — **4.8 Sign in with Apple**(Google 로그인 노출 시 요구 가능 → 네이티브에서만 숨기는 게 최저비용) · **2.1 심사용 데모 계정**(없으면 즉시 리젝) · App Store Connect 실무(앱 레코드·개인정보처리방침 URL·App Privacy·연령등급)
-
-**#221 직접 원인:** `MailPage:1972` 가 `triage !== human/unknown` 이면 AI 초안 버튼을 숨긴다. **원문의 부가세 납부 메일·Apple Developer 메일 2통을 회귀 픽스처로 박제할 것.**
-
-**#228 은 Electron 불필요** — `DataTransfer.setData('DownloadURL')` 로 Chrome/Edge(설치형 PWA 포함) 드래그 반출 가능. ⚠️ **`share_token` 재활용 금지**(L4 외부공유 의미 오염) → 드래그 전용 단수명 토큰 별도 설계.
-
-**★ 26건 중 10건이 원문에 "fable이 검토/설계" 를 명시** — 설계 게이트가 Irene 의 지시사항 자체다.
+**검증 반려 트리거 발견(우리 쪽)**: `locales/{ko,en}/legal.json` 이 "캘린더 일정(**읽기 전용**)" 이라 기술하나 실제는 읽기·쓰기 `calendar.events`. 정확한 접근·사용 공개는 구글 심사 필수 요건 → **ko/en 정정 필요**(미착수).
+**콘솔 쪽(Irene)**: Data Access 요청 스코프를 실사용과 일치시키기(과다 요청 = 반려 사유). 필요한 건 `calendar.events`·`drive.file`·openid/email/profile 뿐.
+**데모 영상**: Fable 이 PlanQ 실화면 기준 8컷 대본 작성 완료(영어 내레이션·YouTube Unlisted). 5·6컷이 워크스페이스 또는 개인연동 Meet 동작을 전제 → 위 절단면 후 촬영 가능.
 
 ---
 
-## 실행 순서 (확정)
+## 다음 우선순위
 
 | 순위 | 내용 |
 |---|---|
-| **P0 즉시** | #244·#245 **배포** · **iOS 트랙 병렬 착수**(애플 심사 = 통제 불가 외부 리드타임) |
-| **P0 돈(묶음A)** | 신규①②(Fable 게이트) → **#217①②** |
-| **P1** | #221 메일 분류(**실 업무 미스 유일 건**) · #214+#240(묶음C, notify 착지점) · **#241 단독** · #213+#220+#222잔여(묶음B, MailPage) |
-| **P2** | Q Task #236→237→238(태그 선행) · 프로젝트 #229+231 · 파일 #228+232 · #225 · **AI #227→#233→#230 순서 고정**(227 파일 RAG 가 인프라를 만듦, #235 편입) · #239 |
-| **P3** | #208(Fable 기획설계 선행) · #211(Fable 의견서) · #195(확인 후 장부 닫기) |
-
----
-
-## 네이티브 앱
-
-### 데스크탑 방침 — **PWA. 네이티브 안 만든다** (Fable PASS)
-- Q Note 웹회의 탭 오디오 캡처(`getDisplayMedia`)가 데스크탑 Chrome/Edge 전용 → PWA 면 그대로 동작, Electron 이면 재구현
-- 배포=즉시반영 / Electron 은 자동업데이트·코드서명·보안패치 축만 늘고 얻는 게 없음
-- 필요시 Windows=PWABuilder→Microsoft Store, macOS=Mac Catalyst
-
-### iOS — 인프라는 거의 완성, 남은 건 자격증명
-**완성:** Capacitor `ios/`·`android/`(Remote URL `app.planq`) · 네이티브 푸시 전 인프라(`PushSubscription.kind`·`device_token`·`subscribe-native`·APNs/FCM 발송·410 정리·프론트 `isNativeApp()` 분기) · `guard-native-release.js` **17/17**
-
-**⚠️ 최대 리스크 — App Store 4.2(웹사이트 재포장).** Remote URL WebView 는 리젝 전형 패턴이고 Capacitor 공식 문서도 스토어 제출용 비권장. **리젝 시 로컬 번들 전환은 싸지 않다**(same-origin 상대경로 + HttpOnly 쿠키 전제라 API base·쿠키·CORS 축이 전부 열림). → 1차는 Remote URL 로 제출하되 심사 노트에 네이티브 푸시·딥링크·오프라인 fallback 명시.
-
-**Irene 액션:** ①APNs `.p8` 발급(Key ID·Team ID·.p8 — 현재 env 3종 EMPTY 라 푸시 `skipped: no_apns_key`) ②Team ID(AASA 치환) ③App Store Connect 앱 레코드 ④Mac Xcode Archive→TestFlight ⑤심사 메타(스크린샷·개인정보처리방침 URL·App Privacy·연령등급·**데모 계정**) ⑥Sign in with Apple 도입 여부 결정
-
-**Opus 액션(대기 없이 가능):** `ITSAppUsesNonExemptEncryption=false` 선반영 · 링크→앱 열기 화이트리스트 정비 · (Team ID 후)AASA 치환 · (.p8 후)dev APNs sandbox 실발송 검증
+| **1** | **③ pdfBuilder 죽은 require + ④ health-check PDF 항목** (Irene 지시) |
+| **2** | **Meet 을 개인 연동 우선으로** (Fable 설계 게이트 → 구현). 직원 즉시 해소 |
+| **3** | `legal.json` 캘린더 "읽기 전용" 문구 정정 (구글 검증 반려 트리거) |
+| **4** | gcal 콜백 조기 return 3경로 로그 + 배너에 워크스페이스/개인 구분 명시 |
+| **5** | 직원 신고 잔여 — #246(공유 후 채팅방 안 열림) · #247/248(보류 버튼 위치, Fable 상의) · #249(업무명 잘림) · #250(업무 태그 미개발) · #251(메일 버튼 전 탭 노출) · #252(문서 임시저장) |
+| **6** | #217(QBillPage socket 미청취) · #221 · #241 · iOS 트랙 |
+| **P2+** | ② 캘린더 에코백 동기화(대규모) |
 
 ---
 
 ## Irene 확인 대기
-1. Mac Chrome **"모든 창을 닫을 때 쿠키 및 사이트 데이터 삭제"** 설정/확장 (#244 삭제 주체)
-2. #245 흔들릴 때 화면 가장자리 **뒤로가기 화살표(←)** 유무
-3. 수동 청구서 모달 `taxOn` 기본 ON 여부 (신규① 후속, 이번 절단면 제외)
-4. Google OAuth 검증 제출 · 워프로랩 Google Calendar 재연동(#242 Meet 선행)
+1. Mac Chrome "모든 창을 닫을 때 쿠키 및 사이트 데이터 삭제" 설정/확장 (#244 삭제 주체)
+2. #245 흔들릴 때 화면 가장자리 뒤로가기 화살표(←) 유무
+3. 수동 청구서 모달 `taxOn` 기본 ON 여부
+4. Google Cloud Console — Data Access 요청 스코프 정리 / 심사팀 반려 메일 원문
 
 ---
 
 ## 이번 세션에서 배운 것 (재발 방지)
 
-1. **★ 로그 라인 회계로 가설을 죽일 수 있다.** 로그가 적을 때는 **개수 자체가 증거**다(#244).
-2. **★ 한 축만 `overflow-y:auto` 면 반대축이 auto 로 강제된다.** 소스에 `overflow-x` 글자가 없어 grep 불가 — computed style 런타임 카나리만 잡는다.
-3. **★ 가드는 반드시 깨뜨려 확인.** 내가 만든 카나리가 회귀를 라이브에 올려도 통과했다. **검사 대상을 못 찾으면 통과가 아니라 실패(fail-closed)** + 휴리스틱 대신 `data-testid`.
-4. **★ 사용자 표현을 코드 용어로 번역하지 말 것.** #214 "이메일 알림"은 email 채널이 아니라 "메일(도착) 알림"이었다(`email_logs` 0건).
-5. **★ Sequelize 인스턴스 속성은 `updatedAt`(camelCase).** `updated_at` 은 toJSON 출력에만 — snake 로 읽으면 `undefined`→NaN 비교로 **항상 거짓 FAIL**. 여기서 두 번 헛짚었다.
-6. **전수검사는 파서로.** grep 집계 13건이 실제는 7건(구현부·주석이 호출부로 잡힘).
-7. **빌드 판정에 `grep -c` 를 마지막에 두지 말 것** — 0건일 때 exit 1 이라 성공이 실패로 통보된다.
-8. **idle autosave 가 작업 중 파일을 커밋한다** — 임시 테스트 스크립트까지. Fable 에 diff 기준선을 명시할 것.
-9. **백그라운드 대기 조건은 초기 상태 확인 후 작성** — 어제 마커가 남아 있어 루프가 즉시 종료됐다.
+1. **★ 훅 위치 위반은 tsc·가드 3축을 전부 통과한다.** `react-hooks/rules-of-hooks` 린트가 빌드 파이프라인에 없어 **실브라우저 검증만이** 잡는다. 항상 mount 되는 드로어에서 early return 아래 훅 = React #310.
+2. **★ dev 에서 되고 운영에서 안 되는 계열은 코드 검증으로 영원히 안 잡힌다.** 시스템 의존성(공유 라이브러리)이 그 전형. 운영 실호출 항목을 health-check 에 넣어야 잡힌다.
+3. **★ 단일 착지점은 피해도 단일이다.** `pdfService.js` 하나가 죽어 PDF 6개 기능이 동시에 죽었다. 신고는 한 곳에서 왔지만 범위는 전부였다 — **호출처 전수 확인 후 범위를 보고**할 것.
+4. **★ 빈 `catch {}` 는 기능을 통째로 지운다.** `require('./pdfBuilder')` 가 없는 모듈인데 catch 가 삼켜 정기청구 메일 PDF 첨부가 **한 번도** 안 붙었다. 로그도 없어 무증상.
+5. **★ 사용자가 "이것 때문에 배포한다" 고 하면 그것부터 끝낸다.** PDF 때문에 배포한다고 했는데 PDF 는 배포로 안 고쳐지는 건이었다. 순서를 거꾸로 해서 Irene 이 화났다.
+6. **★ 내가 할 수 있는 일을 사용자에게 넘기지 말 것.** sudo 가 막혔다고 터미널 명령을 드렸는데, `apt-get download` + `dpkg -x` + `LD_LIBRARY_PATH` 로 **root 없이 내가 할 수 있었다.** 게다가 여러 줄 명령은 복사 시 개행이 깨져 쓰지도 못한다 — 명령을 드려야 하면 **한 줄로**.
+7. **★ 진단은 두 번 뒤집혔다.** "검증 미승인" → 개인 연동이 이미 스코프를 갖고 있어 반증 / "테스트 사용자 설정" → 불필요. **DB 실측이 추론을 이긴다.**
+8. **idle autosave 가 Fable 의 작업 중 테스트 스크립트를 또 커밋했다**(`8dbd67f`). 이번 세션만 2회. Fable 에게 "작업 파일은 `/tmp` 에" 를 매번 명시할 것.
+9. **패키지명은 역추적으로 확정한다.** Ubuntu 24.04 `t64` 접미사 전환 때문에 추측하면 틀린다 — 동작하는 서버에서 `dpkg -S` 로 뽑을 것.
 
 ---
 
 ## Git 상태
-- 최근: `4936b1a` wip auto-save (13:00) / `6af0df5`(12:30) / `9df3c8f`(11:58) — **모두 idle 자동저장**
-- 기준선(직전 정식 커밋): **`48f5f8b`**
+- HEAD: **`6321f9d`** fix(qbill): 청구서 드로어 React #310 크래시 + 증빙 표시·발송 버튼 마무리
+- 직전: `9221835`(임시 스크립트 정리) · `8dbd67f`(idle autosave — Fable 스크립트 오염)
 - 작업 트리: 클린
-- 운영 배포 커밋: `37fb2f0` (#215) — **이번 세션 변경 전부 미배포**
-- Fable 게이트 마커: `.claude/.fable-gate.json` — **#244/#245 시점 지문**. 신규①② 변경 후 지문이 달라져 **재검증 필요 상태**
+- **운영 배포 커밋: `6321f9d`** — 이번 세션 변경 전부 배포 완료
+- 운영 백업: `/opt/planq/backups/20260806_004957` (롤백 경로)
+- Fable 게이트 마커: `.claude/.fable-gate.json` — PASS 기록됨(clean tree 지문)
 
----
+## 운영서버 변경 (코드 외)
+- `/opt/planq/backend/.env` 에 `LD_LIBRARY_PATH` 추가 (백업 `.env.bak-chromelibs-20260806_005526`)
+- `~/chrome-deps/` 신설 — deb 50개 + 추출 라이브러리 73개. 배포 무접촉
+- **puppeteer 가 Chrome 버전을 올리면 라이브러리 재확인 필요**(현재 linux-147.0.7727.57)
 
 ## 복구 가이드
-
 새 Claude 세션 시작 시:
-
 ```
 이전 세션 이어서 작업하고 싶어.
 /opt/planq/.claude/session-state.md 읽어줘.
