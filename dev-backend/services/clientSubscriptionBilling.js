@@ -252,19 +252,31 @@ async function billOneSubscription(sub, today = new Date()) {
         const recipient = client.tax_invoice_email || client.billing_contact_email || client.invite_email;
         if (!recipient) { console.warn('[clientSub email] sub', sub.id, 'no recipient'); return; }
         const shareUrl = `${process.env.APP_URL || 'https://dev.planq.kr'}/public/invoices/${shareToken}`;
+        // PDF 첨부 — 실패해도 메일은 발송(수동 발송 라우트와 동일 정책). 조용히 넘어가지 않는다.
         let attachments = null;
         try {
-          const { buildInvoicePdf } = require('./pdfBuilder');
-          if (typeof buildInvoicePdf === 'function') {
-            const { pdf } = await buildInvoicePdf(invoice.id);
-            attachments = [{ filename: `${invoiceNumber}.pdf`, content: pdf, contentType: 'application/pdf' }];
-          }
-        } catch { /* pdf 미지원 */ }
+          const { buildInvoicePdf } = require('./invoicePdf');
+          const { pdf } = await buildInvoicePdf(invoice.id);
+          attachments = [{ filename: `${invoiceNumber}.pdf`, content: pdf, contentType: 'application/pdf' }];
+        } catch (e) {
+          console.warn('[clientSub pdf] sub', sub.id, 'inv', invoice.id, invoiceNumber, e.message);
+          try {
+            const { notifyPlatformAdmins } = require('./platformNotify');
+            await notifyPlatformAdmins({
+              eventKind: 'feedback',
+              title: '정기 구독 청구 메일 PDF 첨부 실패',
+              body: `청구서 ${invoiceNumber}(id ${invoice.id}, 구독 ${sub.id}) PDF 생성 실패 — 첨부 없이 발송됨: ${String(e.message || '').slice(0, 200)}`,
+            }).catch(() => {});
+          } catch { /* 알림 실패가 발송을 막지 않는다 */ }
+        }
         await sendInvoiceEmail({
           to: recipient, invoiceNumber, title, total: grandTotal, currency: invoice.currency,
           dueDate: invoice.due_date, senderName: business.brand_name || business.name || '',
           workspaceName: business.brand_name || business.name || '',
-          message: '정기 구독 자동 청구 메일입니다. 결제 안내는 첨부된 청구서를 참고해주세요.',
+          // 첨부 유무 분기 — 첨부 없이 "첨부된 청구서" 라고 안내하면 거짓.
+          message: attachments
+            ? '정기 구독 자동 청구 메일입니다. 결제 안내는 첨부된 청구서를 참고해주세요.'
+            : '정기 구독 자동 청구 메일입니다. 아래 버튼으로 청구서를 확인하고 결제 안내를 참고해주세요.',
           shareUrl, attachments,
           fromName: business.mail_from_name || business.brand_name || business.name || null,
           replyTo: business.mail_reply_to || null,

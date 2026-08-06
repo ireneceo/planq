@@ -14,6 +14,7 @@ const { ProjectMember, Project, BusinessMember, QnoteUsage, QnoteUsageEvent } = 
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const planEngine = require('../services/plan');
 const { notifyPlatformAdmins } = require('../services/platformNotify');
+const rateLimit = require('express-rate-limit');
 
 function _currentYearMonth() {
   const now = new Date();
@@ -217,6 +218,47 @@ router.post('/qnote/alert', async (req, res, next) => {
     }).catch(() => {});
     return successResponse(res, { alerted: true });
   } catch (err) { next(err); }
+});
+
+// ─── PDF 렌더 헬스체크 (#253 재발 검출) ───
+//
+// 왜 HTTP 엔드포인트인가:
+//   운영의 헤드리스 Chrome 공유 라이브러리 경로(LD_LIBRARY_PATH)는 백엔드 .env 에 있고,
+//   dotenv 가 process.env 에 넣어야 puppeteer 가 띄우는 chrome **자식 프로세스가 상속**한다.
+//   즉 실제로 PDF 를 서빙하는 **백엔드 프로세스 자신이 렌더해야** 운영 상태를 정확히 잰다.
+//   별도 `node -e` 프로세스로 재면 환경이 달라 거짓 PASS/FAIL 이 난다.
+//
+// #253: 운영에만 라이브러리가 없어 pdfService(단일 착지점) 하나가 죽었고,
+//   공개 미리보기·청구서·문서·Q info·보고서·정기청구 메일 PDF 6개 기능이 동시에 500 이었다.
+//   dev 는 e2e 하니스 때문에 라이브러리가 있어 코드 검증으로는 영원히 안 잡히는 계열.
+//
+// 인증: 파일 상단 router.use(requireInternalKey) 가 자동 적용 (x-internal-api-key).
+// rate-limit: chrome 렌더는 비싸다. internal 라우트엔 req.user 가 없으므로 고정키 캡.
+const pdfHealthLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: () => 'internal-health-pdf',
+  message: { success: false, message: 'too_many_requests' },
+});
+
+// GET /api/internal/health/pdf → 고정 HTML 을 실제로 렌더해 %PDF- 매직 확인
+router.get('/health/pdf', pdfHealthLimiter, async (req, res, next) => {
+  try {
+    const { renderPdfFromHtml } = require('../services/pdfService');
+    const html = '<html><body><h1>PlanQ PDF health</h1><p>renderer alive</p></body></html>';
+    const pdf = await renderPdfFromHtml(html);
+    const buf = Buffer.isBuffer(pdf) ? pdf : Buffer.from(pdf);
+    const magicOk = buf.slice(0, 5).toString('latin1') === '%PDF-';
+    if (!magicOk || buf.length < 1000) {
+      return errorResponse(res, `pdf_invalid — bytes=${buf.length} magic=${buf.slice(0, 5).toString('latin1')}`, 500);
+    }
+    return successResponse(res, { bytes: buf.length, magic_ok: true });
+  } catch (err) {
+    // 렌더 실패는 500 으로 표면화 — 헬스체크가 판정할 수 있어야 한다(조용한 통과 금지).
+    return errorResponse(res, `pdf_render_failed — ${String(err.message || err).slice(0, 300)}`, 500);
+  }
 });
 
 module.exports = router;

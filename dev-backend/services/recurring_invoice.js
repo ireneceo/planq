@@ -190,14 +190,26 @@ async function billOneProject(project, today = new Date()) {
           return;
         }
         const shareUrl = `${process.env.APP_URL || 'https://dev.planq.kr'}/public/invoices/${shareToken}`;
+        // PDF 첨부 — 실패해도 메일 자체는 보낸다(수동 발송 라우트와 동일 정책).
+        //   본문 shareUrl 로 고객이 청구서에 도달할 수 있어, 첨부 실패로 청구를 막으면 수금만 멈춘다.
+        //   단 **조용히 넘어가지 않는다** — 빈 catch 가 이 기능을 통째로 지웠던 전례(pdfBuilder 오타).
         let attachments = null;
         try {
-          const { buildInvoicePdf } = require('./pdfBuilder');
-          if (typeof buildInvoicePdf === 'function') {
-            const { pdf } = await buildInvoicePdf(invoice.id);
-            attachments = [{ filename: `${invoiceNumber}.pdf`, content: pdf, contentType: 'application/pdf' }];
-          }
-        } catch { /* pdf 미지원 — 이메일만 */ }
+          const { buildInvoicePdf } = require('./invoicePdf');
+          const { pdf } = await buildInvoicePdf(invoice.id);
+          attachments = [{ filename: `${invoiceNumber}.pdf`, content: pdf, contentType: 'application/pdf' }];
+        } catch (e) {
+          console.warn('[recurring_invoice pdf] inv', invoice.id, invoiceNumber, e.message);
+          // 야간 cron 실패는 pm2 로그만으로는 무증상 — 운영자에게 표면화 (운영 안정성 #8).
+          try {
+            const { notifyPlatformAdmins } = require('./platformNotify');
+            await notifyPlatformAdmins({
+              eventKind: 'feedback',
+              title: '정기청구 메일 PDF 첨부 실패',
+              body: `청구서 ${invoiceNumber}(id ${invoice.id}) PDF 생성 실패 — 첨부 없이 발송됨: ${String(e.message || '').slice(0, 200)}`,
+            }).catch(() => {});
+          } catch { /* 알림 실패가 발송을 막지 않는다 */ }
+        }
         await sendInvoiceEmail({
           to: recipient,
           invoiceNumber,
@@ -207,7 +219,10 @@ async function billOneProject(project, today = new Date()) {
           dueDate: invoice.due_date,
           senderName: business.brand_name || business.name || '',
           workspaceName: business.brand_name || business.name || '',
-          message: '정기 자동 청구 메일입니다. 결제 안내는 본 메일에 첨부된 청구서를 참고해주세요.',
+          // 첨부 유무에 따라 문구 분기 — 첨부가 없는데 "첨부된 청구서를 참고" 라고 하면 고객에게 거짓 안내.
+          message: attachments
+            ? '정기 자동 청구 메일입니다. 결제 안내는 본 메일에 첨부된 청구서를 참고해주세요.'
+            : '정기 자동 청구 메일입니다. 아래 버튼으로 청구서를 확인하고 결제 안내를 참고해주세요.',
           shareUrl,
           attachments,
           fromName: business.mail_from_name || business.brand_name || business.name || null,
