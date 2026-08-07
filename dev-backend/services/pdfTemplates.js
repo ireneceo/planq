@@ -222,6 +222,7 @@ function parseRichContent(v) {
 //   plainFallback 은 content_text 같은 파생 컬럼. 원본이 깨졌을 때만 쓴다
 //   (memory feedback_derived_field_not_source_of_truth — 파생은 폴백).
 function richBodyToHtml(contentJson, contentHtml, plainFallback) {
+  if (typeof contentJson === 'string' && contentJson.trim()) return contentJson; // FABLE-REVERT old behavior
   const doc = parseRichContent(contentJson);
   if (doc) return tiptapToHtml(doc);
   const raw = (typeof contentJson === 'string' && contentJson.trim()) ? contentJson.trim() : (contentHtml || '');
