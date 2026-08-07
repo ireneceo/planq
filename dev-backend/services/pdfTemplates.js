@@ -17,9 +17,17 @@ function formatMoney(n, currency = 'KRW') {
   return `${currency} ${num.toLocaleString()}`;
 }
 
+// YYYY-MM-DD 로 통일.
+// ⚠️ Sequelize 인스턴스(.toJSON())의 DATE 컬럼은 **Date 객체**로 온다 — 옛 코드의
+//    String(s).slice(0,10) 은 그걸 "Wed Aug 05" 로 잘라 PDF 헤더에 찍었다.
+//    (포스트/문서 PDF 의 created_at·shared_at, 청구서의 issued_at 폴백 created_at 이 해당)
 function fmtDate(s) {
   if (!s) return '—';
-  return String(s).slice(0, 10);
+  if (s instanceof Date) return isNaN(s.getTime()) ? '—' : s.toISOString().slice(0, 10);
+  const str = String(s);
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10);   // ISO 문자열 (기존 동작 보존)
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? str.slice(0, 10) : d.toISOString().slice(0, 10);
 }
 
 const BASE_CSS = `
@@ -297,7 +305,10 @@ function postPdfHtml(post, author, business) {
   // content_json(TEXT 문자열) 파싱 → TipTap 렌더. kb.js 는 content_html 로 넘어온다.
   const bodyHtml = richBodyToHtml(post.content_json, post.content_html, post.content_text);
   const senderName = business?.legal_name || business?.brand_name || business?.name || '—';
-  const dateStr = post.shared_at || post.created_at;
+  // routes/posts.js:buildPostPdf 는 Sequelize **인스턴스**를 넘긴다. 모델이 underscored 라
+  // 인스턴스 속성은 `createdAt` 이고 `created_at` 은 undefined — 그래서 날짜가 '—' 로 찍혔다.
+  // (toJSON() 을 거치는 docs.js 경로는 created_at 이 있다. 양쪽 다 받도록 폴백.)
+  const dateStr = post.shared_at || post.created_at || post.createdAt;
   return `<!DOCTYPE html>
 <html lang="ko">
 <head><meta charset="utf-8"><title>${escapeHtml(post.title || '문서')}</title>
@@ -325,7 +336,7 @@ function documentPdfHtml(doc, business) {
   // body_html 우선. body_json 은 JSON 컬럼이라 보통 객체지만, 문자열로 와도 파싱되게 공용 헬퍼 사용.
   const bodyHtml = doc.body_html ? doc.body_html : richBodyToHtml(doc.body_json, null, null);
   const senderName = business?.legal_name || business?.brand_name || business?.name || '—';
-  const dateStr = doc.updated_at || doc.created_at;
+  const dateStr = doc.updated_at || doc.updatedAt || doc.created_at || doc.createdAt;
   const brand = DOC_KIND_LABEL[doc.kind] || (doc.kind ? String(doc.kind).toUpperCase() : 'DOCUMENT');
   return `<!DOCTYPE html>
 <html lang="ko">
