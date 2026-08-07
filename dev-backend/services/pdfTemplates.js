@@ -53,11 +53,25 @@ const BASE_CSS = `
   .footer-note { margin-top: 24px; font-size: 10px; color: #94A3B8; line-height: 1.6; padding-top: 12px; border-top: 1px solid #E2E8F0; }
   .body-content { font-size: 12px; line-height: 1.75; color: #334155; }
   .body-content h1, .body-content h2, .body-content h3 { color: #0F172A; margin-top: 16px; }
+  .body-content h1 { font-size: 19px; }
+  .body-content h2 { font-size: 15px; color: #0F172A; text-transform: none; letter-spacing: -0.2px; }
+  .body-content h3 { font-size: 13px; font-weight: 700; margin-top: 14px; }
   .body-content p { margin: 6px 0; }
   .body-content table { margin: 10px 0; border: 1px solid #E2E8F0; }
   .body-content table th, .body-content table td { padding: 6px 10px; border: 1px solid #E2E8F0; }
+  .body-content table th { background: #F8FAFC; font-weight: 700; }
   .body-content ul, .body-content ol { margin: 6px 0; padding-left: 22px; }
   .body-content li { margin: 3px 0; }
+  .body-content li > p { margin: 0; }
+  .body-content img { max-width: 100%; height: auto; margin: 10px 0; border-radius: 6px; }
+  .body-content blockquote { margin: 10px 0; padding: 4px 0 4px 14px; border-left: 3px solid #CBD5E1; color: #475569; }
+  .body-content hr { border: 0; border-top: 1px solid #E2E8F0; margin: 16px 0; }
+  .body-content a { color: #0F766E; text-decoration: underline; }
+  .body-content code { background: #F1F5F9; border-radius: 4px; padding: 1px 4px; font-size: 11px; }
+  .body-content pre { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; padding: 10px 12px; overflow-wrap: break-word; white-space: pre-wrap; }
+  .body-content pre code { background: none; padding: 0; }
+  .body-content ul[data-type="taskList"] { list-style: none; padding-left: 4px; }
+  .body-content ul[data-type="taskList"] li { display: flex; gap: 6px; align-items: flex-start; }
 `;
 
 // ─── 청구서 PDF ───
@@ -188,11 +202,52 @@ function invoicePdfHtml(inv, sender, client) {
 }
 
 // ─── 문서(post) PDF — TipTap JSON 또는 HTML 본문 ───
+//
+// ⚠️ posts.content_json 은 **TEXT 컬럼**이라 DB 에서 문자열로 온다(models/Post.js:14).
+//    documents.body_json 만 DataTypes.JSON 이라 객체로 온다. 옛 코드는 "문자열이면 HTML"
+//    로 단정해 TipTap JSON 원문(`{"type":"doc",...}`)을 그대로 PDF 에 찍었다 — 즉 포스트
+//    PDF 는 처음부터 본문이 깨져 있었다. 문자열이면 **먼저 JSON 파싱**을 시도한다.
+function parseRichContent(v) {
+  if (!v) return null;
+  if (typeof v === 'object') return v;
+  const s = String(v).trim();
+  if (!s || (s[0] !== '{' && s[0] !== '[')) return null;   // HTML 본문(kb 등)은 여기서 걸러진다
+  try {
+    const parsed = JSON.parse(s);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch { return null; }
+}
+
+// 본문 HTML 결정 — TipTap JSON > HTML 문자열 > plain text 폴백.
+//   plainFallback 은 content_text 같은 파생 컬럼. 원본이 깨졌을 때만 쓴다
+//   (memory feedback_derived_field_not_source_of_truth — 파생은 폴백).
+function richBodyToHtml(contentJson, contentHtml, plainFallback) {
+  const doc = parseRichContent(contentJson);
+  if (doc) return tiptapToHtml(doc);
+  const raw = (typeof contentJson === 'string' && contentJson.trim()) ? contentJson.trim() : (contentHtml || '');
+  if (raw && /<[a-z][\s\S]*>/i.test(raw)) return raw;      // 진짜 HTML 본문
+  // JSON 도 HTML 도 아님 = 원본 파손. 원문을 날것으로 흘리지 않는다.
+  const plain = (plainFallback || (raw && !/^[[{]/.test(raw) ? raw : '') || '').trim();
+  if (!plain) return '';
+  return plain.split(/\n{2,}/).map(p => `<p>${escapeHtml(p).replace(/\n/g, '<br/>')}</p>`).join('');
+}
+
 function tiptapToHtml(node) {
   if (!node) return '';
   if (typeof node === 'string') return node;
   const arr = Array.isArray(node) ? node : (node.content || []);
   return arr.map(n => nodeToHtml(n)).join('');
+}
+
+// 이미지 src 절대화 — puppeteer setContent 는 base URL 이 없어 상대 경로(`/api/posts/editor-image/…`)
+// 를 못 받는다. 에디터 업로드 이미지는 인증 없는 공개 라우트라 백엔드 자기 자신으로 부르면 된다.
+// 도메인/TLS 에 의존하지 않도록 loopback 사용.
+function absolutizeSrc(src) {
+  const s = String(src || '').trim();
+  if (!s || /^(https?:|data:)/i.test(s)) return s;
+  if (s[0] !== '/') return s;
+  const base = process.env.PDF_ASSET_BASE_URL || `http://127.0.0.1:${process.env.PORT || 3003}`;
+  return base.replace(/\/+$/, '') + s;
 }
 
 function nodeToHtml(n) {
@@ -210,29 +265,37 @@ function nodeToHtml(n) {
     return txt;
   }
   const inner = (n.content || []).map(nodeToHtml).join('');
+  const a = n.attrs || {};
+  // 표 셀 병합 속성 — 웹(generateHTML)은 colspan/rowspan 을 그대로 낸다. 빠지면 표가 어긋난다.
+  const span = `${a.colspan && a.colspan > 1 ? ` colspan="${Number(a.colspan)}"` : ''}${a.rowspan && a.rowspan > 1 ? ` rowspan="${Number(a.rowspan)}"` : ''}`;
   switch (n.type) {
     case 'paragraph': return `<p>${inner}</p>`;
-    case 'heading': return `<h${n.attrs?.level || 2}>${inner}</h${n.attrs?.level || 2}>`;
+    case 'heading': return `<h${a.level || 2}>${inner}</h${a.level || 2}>`;
     case 'bulletList': return `<ul>${inner}</ul>`;
-    case 'orderedList': return `<ol>${inner}</ol>`;
+    case 'orderedList': return `<ol${a.start && a.start !== 1 ? ` start="${Number(a.start)}"` : ''}>${inner}</ol>`;
     case 'listItem': return `<li>${inner}</li>`;
+    // 체크리스트 — RichEditor(업무/메모)에서 넘어온 본문 대비. 없으면 항목이 통째로 사라진다.
+    case 'taskList': return `<ul data-type="taskList">${inner}</ul>`;
+    case 'taskItem': return `<li>${a.checked ? '☑' : '☐'} ${inner}</li>`;
     case 'blockquote': return `<blockquote>${inner}</blockquote>`;
     case 'codeBlock': return `<pre><code>${inner}</code></pre>`;
     case 'horizontalRule': return `<hr/>`;
     case 'hardBreak': return `<br/>`;
     case 'table': return `<table>${inner}</table>`;
     case 'tableRow': return `<tr>${inner}</tr>`;
-    case 'tableCell': return `<td>${inner}</td>`;
-    case 'tableHeader': return `<th>${inner}</th>`;
-    case 'image': return `<img src="${escapeHtml((n.attrs || {}).src || '')}" style="max-width:100%;"/>`;
+    case 'tableCell': return `<td${span}>${inner}</td>`;
+    case 'tableHeader': return `<th${span}>${inner}</th>`;
+    case 'image': {
+      const w = a.width ? ` width="${escapeHtml(String(a.width).replace(/[^0-9a-z%.]/gi, ''))}"` : '';
+      return `<img src="${escapeHtml(absolutizeSrc(a.src))}"${w} alt="${escapeHtml(a.alt || '')}"/>`;
+    }
     default: return inner;
   }
 }
 
 function postPdfHtml(post, author, business) {
-  const bodyHtml = post.content_json
-    ? (typeof post.content_json === 'string' ? post.content_json : tiptapToHtml(post.content_json))
-    : (post.content_html || '');
+  // content_json(TEXT 문자열) 파싱 → TipTap 렌더. kb.js 는 content_html 로 넘어온다.
+  const bodyHtml = richBodyToHtml(post.content_json, post.content_html, post.content_text);
   const senderName = business?.legal_name || business?.brand_name || business?.name || '—';
   const dateStr = post.shared_at || post.created_at;
   return `<!DOCTYPE html>
@@ -259,9 +322,8 @@ const DOC_KIND_LABEL = {
   invoice: 'INVOICE', report: 'REPORT', letter: 'LETTER', other: 'DOCUMENT',
 };
 function documentPdfHtml(doc, business) {
-  const bodyHtml = doc.body_html
-    ? doc.body_html
-    : (doc.body_json ? (typeof doc.body_json === 'string' ? doc.body_json : tiptapToHtml(doc.body_json)) : '');
+  // body_html 우선. body_json 은 JSON 컬럼이라 보통 객체지만, 문자열로 와도 파싱되게 공용 헬퍼 사용.
+  const bodyHtml = doc.body_html ? doc.body_html : richBodyToHtml(doc.body_json, null, null);
   const senderName = business?.legal_name || business?.brand_name || business?.name || '—';
   const dateStr = doc.updated_at || doc.created_at;
   const brand = DOC_KIND_LABEL[doc.kind] || (doc.kind ? String(doc.kind).toUpperCase() : 'DOCUMENT');
