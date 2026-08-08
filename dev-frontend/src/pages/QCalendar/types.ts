@@ -3,7 +3,10 @@ export type EventVisibility = 'personal' | 'business';
 // N+65 — 통합 visibility (VISIBILITY_VOCABULARY.md L1-L4)
 export type EventVlevel = 'L1' | 'L2' | 'L3' | 'L4';
 export type AttendeeResponse = 'pending' | 'accepted' | 'declined' | 'tentative';
-export type MeetingProvider = 'daily' | 'manual';
+// 사이클 N+13 에 Daily.co → Google Meet 으로 전면 교체됐는데 이 타입만 갱신되지 않아,
+// 백엔드가 실제로 저장하는 'google_meet' 이 타입에 없었다(비교하면 TS2367).
+// 'daily' 는 교체 이전 데이터가 남아 있을 수 있어 그대로 둔다.
+export type MeetingProvider = 'google_meet' | 'manual' | 'daily';
 
 export interface CalendarAttendee {
   id: number;

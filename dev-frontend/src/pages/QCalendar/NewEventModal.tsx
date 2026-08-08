@@ -117,8 +117,13 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
   // 사이클 N+13 — Daily.co 완전 교체, Google Meet 자동 생성으로 변경
   const [gcalConfigured, setGcalConfigured] = useState(false);
   const [gcalConnected, setGcalConnected] = useState(false);
-  // #242 — 토큰 존재(gcalConnected)와 쓰기 권한(gcalCanWrite)은 다르다. Meet·팀 동기화는 권한 기준.
+  // #242 — 토큰 존재(gcalConnected)와 쓰기 권한(gcalCanWrite)은 다르다. Meet 은 권한 기준.
+  //   ★ gcalCanWrite 는 Meet 축이라 **개인 연동을 포함**한다. 팀 동기화 토글은 워크스페이스
+  //     전용이므로 workspaceCanWrite 를 쓴다 — 섞으면 워크스페이스 미연결인데 팀 체크박스가 뜬다.
   const [gcalCanWrite, setGcalCanWrite] = useState(false);
+  const [workspaceCanWrite, setWorkspaceCanWrite] = useState(false);
+  // 회의가 어느 계정에 개설되는지 — 'personal' 이면 본인 구글 계정이 호스트가 된다.
+  const [meetSource, setMeetSource] = useState<'personal' | 'workspace' | null>(null);
   const [rrule, setRrule] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -128,8 +133,13 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
         setGcalConfigured(!!s.gcal_configured);
         setGcalConnected(!!s.gcal_connected);
         setGcalCanWrite(!!s.gcal_can_write);
+        setWorkspaceCanWrite(!!s.workspace_can_write);
+        setMeetSource(s.meet_source ?? null);
       })
-      .catch(() => { setGcalConfigured(false); setGcalConnected(false); setGcalCanWrite(false); });
+      .catch(() => {
+        setGcalConfigured(false); setGcalConnected(false); setGcalCanWrite(false);
+        setWorkspaceCanWrite(false); setMeetSource(null);
+      });
   }, [businessId]);
 
   const [datePickerOpen, setDatePickerOpen] = useState(false);
@@ -187,10 +197,12 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
       visibility,  // backend hook 가 vlevel 우선 처리하므로 backward-compat
       project_id: finalProjectId,
       meeting_url: meetingUrl.trim() || null,
-      meeting_provider: autoCreateMeeting && gcalCanWrite
+      // 비공개 전환은 체크 후에도 일어날 수 있다 — 체크박스를 숨기는 것만으로는 부족하고,
+      // 전송 시점에도 걸러야 백엔드 400(일정 생성 전체 실패)을 막는다.
+      meeting_provider: autoCreateMeeting && gcalCanWrite && !isPrivateVis
         ? 'google_meet'
         : (meetingUrl.trim() ? 'manual' : null),
-      auto_create_meeting: autoCreateMeeting && gcalCanWrite,
+      auto_create_meeting: autoCreateMeeting && gcalCanWrite && !isPrivateVis,
       rrule,
       gcal_sync_workspace: gcalSyncWorkspace,
       gcal_sync_personal: gcalSyncPersonal,
@@ -351,10 +363,10 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
           {/* 구글 캘린더 연동 — 팀/개인은 **연결된 구글 계정이 다르다**. 각각 켜고 끈다.
               공개 범위 바로 아래에 둔다 — 어디로 나가는지가 공개 범위에 달렸기 때문.
               (화상 미팅 링크 항목 아래에 두면 회의 기능에 종속돼 보인다 — Irene 지적) */}
-          {(gcalCanWrite || personalCalWritable) && (
+          {(workspaceCanWrite || personalCalWritable) && (
             <Field>
               <Label>{t('form.gcalSection')}</Label>
-              {gcalCanWrite && (
+              {workspaceCanWrite && (
                 <GcalRow $disabled={isPrivateVis}>
                   <input
                     type="checkbox"
@@ -396,7 +408,9 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
             <Label>{t('form.meetingUrl')}</Label>
             {/* Google Meet 자동 생성 — 워크스페이스가 Google Calendar 연결되어 있을 때만 노출.
                 연결 안 됨 + 서버 OAuth 설정은 정상 → "Google 계정 연결하기" CTA 안내. */}
-            {gcalCanWrite && (
+            {/* 비공개(L1/L2) 일정에는 Meet 을 걸 수 없다 — 백엔드가 400 으로 **일정 생성 자체를
+                거부**하므로(유출 차단), 체크할 수 있게 두면 저장이 통째로 실패한다. */}
+            {gcalCanWrite && !isPrivateVis && (
               <AutoMeetingRow>
                 <CheckboxLabel>
                   <input
@@ -406,7 +420,11 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
                   />
                   <AutoMeetingText>
                     <strong>{t('form.autoCreateMeeting')}</strong>
-                    <small>{t('form.autoCreateMeetingHelp')}</small>
+                    <small>
+                      {meetSource === 'personal'
+                        ? t('form.autoCreateMeetingPersonal')
+                        : t('form.autoCreateMeetingHelp')}
+                    </small>
                   </AutoMeetingText>
                 </CheckboxLabel>
               </AutoMeetingRow>

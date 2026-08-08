@@ -122,6 +122,55 @@ async function insertEvent(conn, input) {
   return { id: resp.data.id, htmlLink: resp.data.htmlLink };
 }
 
+/**
+ * Google Meet 회의 발급 (개인 캘린더).
+ *
+ * 왜 필요한가 — 여태 Meet 은 **워크스페이스 토큰으로만** 발급됐다(google_calendar.createMeetingEvent).
+ * 그래서 ① 개인 연동만 한 직원은 Meet 을 아예 못 만들었고 ② 만들어진 회의의 **호스트가 항상 owner**
+ * 였다. 본인이 만든 회의는 본인이 호스트여야 한다.
+ *
+ * 반환 shape 은 google_calendar.createMeetingEvent 와 **동일하게** 맞춘다 — 호출측이 소스에 따라
+ * 분기하지 않게 하기 위해서다(분기가 생기면 한쪽만 고쳐지는 회귀가 반복된다).
+ */
+async function createMeetingEvent(conn, { summary, title, description, location, startAt, endAt, timezone, rrule }) {
+  const auth = await personalOauth.getAuthedClient(conn);
+  const cal = google.calendar({ version: 'v3', auth });
+  // 회의는 시간지정 일정이다 — allDay 는 전달하지 않는다(종일 일정에 Meet 을 걸 이유가 없다).
+  const body = planqBody({
+    title: title || summary || 'PlanQ 회의',
+    description, location, startAt, endAt, allDay: false, timezone, rrule,
+  });
+  const requestId = `planq-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const resp = await cal.events.insert({
+    calendarId: 'primary',
+    conferenceDataVersion: 1,   // ← 필수. 안 보내면 conferenceData 가 통째로 무시된다.
+    sendUpdates: 'none',        // 초대장 메일은 PlanQ 가 자체 발송
+    requestBody: {
+      ...body,
+      conferenceData: { createRequest: { requestId, conferenceSolutionKey: { type: 'hangoutsMeet' } } },
+    },
+  }, { timeout: 15000 });
+  const ev = resp.data;
+  const meetEntry = (ev.conferenceData?.entryPoints || []).find((e) => e.entryPointType === 'video');
+  return {
+    id: ev.id,
+    htmlLink: ev.htmlLink || null,
+    hangoutLink: ev.hangoutLink || null,
+    meetUrl: meetEntry?.uri || ev.hangoutLink || null,
+    conferenceId: ev.conferenceData?.conferenceId || null,
+  };
+}
+
+// 개인 연동의 push 실패 기록 — 워크스페이스의 gcal.recordPushError 와 같은 역할.
+//   컬럼이 다르다(external_connections 는 last_sync_error/fail_count). 조용히 넘기면
+//   "연동했는데 안 된다" 를 사용자도 우리도 알 수 없다.
+async function recordConnError(conn, err) {
+  if (!conn) return;
+  const msg = String(err?.message || err || 'unknown').slice(0, 300);
+  try { await conn.update({ last_sync_error: msg, fail_count: (conn.fail_count || 0) + 1 }); }
+  catch (e) { console.error('[personalCalendar] last_sync_error 기록 실패:', e.message); }
+}
+
 async function updateEvent(conn, gcalEventId, input) {
   const auth = await personalOauth.getAuthedClient(conn);
   const cal = google.calendar({ version: 'v3', auth });
@@ -148,4 +197,5 @@ async function deleteEvent(conn, gcalEventId) {
 module.exports = {
   listEvents, isPlanqOrigin, exclusiveEndToInclusive,
   hasCalendarWrite, insertEvent, updateEvent, deleteEvent, CALENDAR_WRITE_SCOPES,
+  createMeetingEvent, recordConnError,
 };

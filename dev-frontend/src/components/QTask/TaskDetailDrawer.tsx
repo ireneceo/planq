@@ -1504,41 +1504,6 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               )}
             </Section>
 
-            {/* #206 보류 / 외부컨펌 진입 — 전진 액션이 아니므로 Secondary 톤 (UI 3톤 규칙) */}
-            {(holdAvailable || externalAvailable) && (
-              holdFormOpen ? (
-                <RevisionForm>
-                  <RevisionInput
-                    data-testid="task-hold-reason"
-                    placeholder={t('hold.reasonPlaceholder', 'Reason (optional)') as string}
-                    value={holdReason}
-                    maxLength={500}
-                    onChange={e => setHoldReason(e.target.value)}
-                    autoFocus
-                  />
-                  <RevisionRow>
-                    <ActionSecondary onClick={() => { setHoldFormOpen(false); setHoldReason(''); }}>{t('hold.cancel', 'Cancel')}</ActionSecondary>
-                    <ActionPrimary onClick={actHold} disabled={actionBusy} data-testid="task-hold-confirm">
-                      {t('hold.confirm', 'Confirm hold')}
-                    </ActionPrimary>
-                  </RevisionRow>
-                </RevisionForm>
-              ) : (
-                <HoldActionRow>
-                  {holdAvailable && (
-                    <ActionSecondary onClick={() => setHoldFormOpen(true)} disabled={actionBusy} data-testid="task-hold">
-                      {t('hold.action', 'Put on hold')}
-                    </ActionSecondary>
-                  )}
-                  {externalAvailable && (
-                    <ActionSecondary onClick={actExternalReview} disabled={actionBusy} data-testid="task-external">
-                      {t('hold.externalAction', 'Send for external review')}
-                    </ActionSecondary>
-                  )}
-                </HoldActionRow>
-              )
-            )}
-
             {/* 단계 되돌리기 — 하단 액션 영역 앞. 권한·이력은 backend 가 판정. (운영 피드백: 위 제목 옆 X → 액션 앞)
                 #206 — 보류/외부컨펌 중에는 숨긴다. 출구는 [보류 해제] 하나로 단일화(설계 §2-3):
                 되돌리기와 해제가 같이 있으면 어느 쪽이 보류를 푸는지 모호하다. */}
@@ -1552,8 +1517,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               </RevertRow>
             )}
 
-            {/* 액션 섹션 — 항상 마운트 유지 (상태 전환 시 섹션 자체가 사라지며 생기는 깜빡임 방지) */}
-            <Section style={{ display: (assigneeHasAction || reviewerCanAct) ? 'block' : 'none' }}>
+            {/* 액션 섹션 — 항상 마운트 유지 (상태 전환 시 섹션 자체가 사라지며 생기는 깜빡임 방지)
+              * ★ 조건에 hold/external 을 반드시 포함한다. 빼면 워크플로 버튼이 없는 뷰어
+              *   (owner·작성자)에게 보류 진입이 통째로 사라진다. */}
+            <Section style={{ display: (assigneeHasAction || reviewerCanAct || holdAvailable || externalAvailable) ? 'block' : 'none' }}>
               {assigneeHasAction && <ActionCard>
                 <ActionCardTitle>{t('detail.actions.assigneeTitle', 'As assignee')}</ActionCardTitle>
                 {ackAvailable && <ActionPrimary onClick={actAck} disabled={actionBusy}>{t('detail.actions.ack', 'Acknowledge request')}</ActionPrimary>}
@@ -1630,6 +1597,48 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   {myReviewer.reverted_once && <MutedText title={t('detail.actions.revertUsed', 'You already used revert this round.') as string}>{t('detail.actions.revertDisabled', 'Revert used')}</MutedText>}
                 </ActionHintRow>}
               </ActionCard>}
+
+              {/* #206 보류 / 외부컨펌 진입 — 전진 액션이 아니므로 Secondary 톤 (UI 3톤 규칙).
+                * ★ 운영 #247 — 옛 위치는 어떤 Section 에도 안 들어간 Scroll 직속 고아 노드라,
+                *   다른 모든 내용(Section padding 12px 14px)보다 14px 왼쪽으로 튀어나와
+                *   드로어 테두리에 붙어 있었다("위치가 이상하고 틀어진 상태").
+                * #248 의 "내용을 받아야 하니 위가 맞다" 를 살려 워크플로 액션 Section 안으로
+                *   편입한다 — 사유 입력 폼이 화면 중상부에서 펼쳐져 항상 보이고,
+                *   맨 아래(삭제 앞)로 내리면 N+63 에서 이미 겪은 "인라인 확장이 스크롤 밖으로
+                *   나가 안 보이는" 회귀 + 파괴/비파괴 액션 경계 붕괴가 재발한다. */}
+              {(holdAvailable || externalAvailable) && (
+                holdFormOpen ? (
+                  <RevisionForm>
+                    <RevisionInput
+                      data-testid="task-hold-reason"
+                      placeholder={t('hold.reasonPlaceholder', 'Reason (optional)') as string}
+                      value={holdReason}
+                      maxLength={500}
+                      onChange={e => setHoldReason(e.target.value)}
+                      autoFocus
+                    />
+                    <RevisionRow>
+                      <ActionSecondary onClick={() => { setHoldFormOpen(false); setHoldReason(''); }}>{t('hold.cancel', 'Cancel')}</ActionSecondary>
+                      <ActionPrimary onClick={actHold} disabled={actionBusy} data-testid="task-hold-confirm">
+                        {t('hold.confirm', 'Confirm hold')}
+                      </ActionPrimary>
+                    </RevisionRow>
+                  </RevisionForm>
+                ) : (
+                  <HoldActionRow>
+                    {holdAvailable && (
+                      <ActionSecondary onClick={() => setHoldFormOpen(true)} disabled={actionBusy} data-testid="task-hold">
+                        {t('hold.action', 'Put on hold')}
+                      </ActionSecondary>
+                    )}
+                    {externalAvailable && (
+                      <ActionSecondary onClick={actExternalReview} disabled={actionBusy} data-testid="task-external">
+                        {t('hold.externalAction', 'Send for external review')}
+                      </ActionSecondary>
+                    )}
+                  </HoldActionRow>
+                )
+              )}
             </Section>
 
             <Section>
@@ -2152,7 +2161,9 @@ const TitleEditIcon = styled.span`display:inline-flex;align-items:center;justify
 const TitleInput = styled.input`font-size:19px;font-weight:700;color:#0F172A;line-height:1.35;width:100%;padding:4px 8px;margin-left:-6px;margin-bottom:8px;border:1px solid #14B8A6;border-radius:6px;background:#FFF;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
 const Meta = styled.div`display:flex;align-items:center;gap:6px;font-size:11px;color:#64748B;flex-wrap:wrap;`;
 const MetaDate = styled.span`font-size:11px;color:#94A3B8;white-space:nowrap;`;
-const RevertRow = styled.div`display:flex;justify-content:flex-end;padding:4px 0 2px;`;
+// #247 — 이 행도 Section 밖(Scroll 직속)이라 좌우 padding 0 이면 버튼이 드로어 **우측 테두리에
+//   딱 붙는다**. Section 과 같은 14px 인셋을 직접 준다 (보류 버튼과 같은 계열의 "틀어짐").
+const RevertRow = styled.div`display:flex;justify-content:flex-end;padding:4px 14px 2px;`;
 // #206 — 보류/외부컨펌 배너. 색은 STATUS_COLOR(on_hold orange / external_review sky) 와 같은 계열.
 const HoldBanner = styled.div<{ $kind: 'hold' | 'external' }>`
   display:flex;flex-direction:column;align-items:stretch;gap:8px;

@@ -84,8 +84,10 @@ const ClientTimelinePage: React.FC = () => {
 
   const openItem = (it: TItem) => {
     if (it.type === 'chat' && it.conversation_id) navigate(`/talk?conv=${it.conversation_id}`);
-    else if (it.type === 'email' && it.thread_id) navigate(`/qmail?thread=${it.thread_id}`);
-    else if (it.type === 'task') navigate(`/qtask?task=${it.id}`);
+    // 라우트는 /mail · /tasks 다 (App.tsx). /qmail · /qtask 는 존재하지 않아 catch-all 로
+    // 대시보드에 튕겼다 — 고객 타임라인에서 메일·업무 항목 클릭이 통째로 죽어 있었다(#246 동류).
+    else if (it.type === 'email' && it.thread_id) navigate(`/mail?thread=${it.thread_id}`);
+    else if (it.type === 'task') navigate(`/tasks?task=${it.id}`);
     else if (it.type === 'invoice') navigate(`/bills?invoice=${it.id}`);
   };
 

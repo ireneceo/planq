@@ -1968,8 +1968,13 @@ const MailPage: React.FC = () => {
                       {t('reply.button', { defaultValue: '답장하기' }) as string}
                     </ActionButton>
                     {/* AI 답변 초안 — 플랫폼 기능은 'AI' 로 통일한다 (Cue 는 팀원으로 존재할 때만 Cue).
-                        여기서 바로 부르면 작성창이 초안이 채워진 채로 열린다. 자동·마케팅 메일에는 숨김. */}
-                    {(!detail?.triage || detail.triage === 'human' || detail.triage === 'unknown') && (
+                      * 여기서 바로 부르면 작성창이 초안이 채워진 채로 열린다.
+                      * ★ 운영 #251·#221 — 옛 코드는 triage 가 human/unknown 일 때만 노출해서,
+                      *   자동·마케팅으로 분류된 메일에서는 버튼이 사라졌다. 그 결과 사용자에게는
+                      *   "답변 필요 탭에만 나온다" 로 보였다. 분류는 우선순위 힌트이지
+                      *   답장 가능 여부가 아니다 — 오분류된 메일에 답장하려는 순간 도구가 없어진다.
+                      *   Irene: "답변을 어디서든 할 수는 있어야지." → 모든 탭·모든 분류에서 노출. */}
+                    {(
                       <AiActionButton
                         size="md"
                         loading={aiBusy}

@@ -49,6 +49,29 @@ const wantsWorkspace = (e) => (e.gcal_sync_workspace !== false && e.gcal_sync_wo
   && (e.gcal_sync === undefined || (e.gcal_sync !== false && e.gcal_sync !== 0));
 const wantsPersonal = (e) => e.gcal_sync_personal !== false && e.gcal_sync_personal !== 0;
 
+/**
+ * 이 사용자의 개인 Google Calendar 연결 1개를 **결정적으로** 고른다.
+ *
+ * external_connections 의 unique 는 (business_id, owner_scope, user_id, provider, account_email) 라
+ * 한 사용자가 워크스페이스별·계정별로 **여러 row** 를 가질 수 있다. 옛 코드는 정렬 없는 findOne 이라
+ * 어느 것이 잡힐지 DB 순서에 맡겨져 있었다 — 선택이 호출마다 갈리면 링크 키(connection_id)가 표류해
+ * reconcile 이 "빠진 목적지" 로 오판하고 **구글 이벤트를 지운다.**
+ *
+ * 우선순위: 같은 워크스페이스 → is_default → id 오름차순(가장 오래된 연결).
+ * resolveTargets 와 resolveMeetSource 가 **반드시 이 헬퍼를 공유**한다. 갈리면 위 표류가 재발한다.
+ */
+async function pickPersonalConn(userId, businessId) {
+  if (!userId) return null;
+  const rows = await ExternalConnection.findAll({
+    where: { owner_scope: 'user', user_id: userId, provider: 'google_calendar', is_active: true },
+    order: [['is_default', 'DESC'], ['id', 'ASC']],
+  });
+  if (rows.length === 0) return null;
+  // 같은 워크스페이스 연결이 있으면 그것부터. (order 절에 넣으면 dialect 별 표현이 갈려 명시 비교로 둔다)
+  const sameBiz = businessId ? rows.find((r) => Number(r.business_id) === Number(businessId)) : null;
+  return sameBiz || rows[0];
+}
+
 async function resolveTargets(event, { businessId, userId }) {
   const targets = [];
   const isPrivate = gcal.isPrivateForGcal(event);
@@ -62,11 +85,15 @@ async function resolveTargets(event, { businessId, userId }) {
   }
 
   // ── 개인 캘린더 — 일정 소유자 본인 것만. 남의 개인 캘린더에 쓰지 않는다 ──
-  const ownerId = userId || event.created_by;
+  //   ★ created_by 우선. 옛 코드는 `userId || created_by` 였는데 PUT 라우트가 `req.user.id` 를
+  //     넘기므로, **admin 이 남의 일정을 고치면 목적지가 admin 으로 표류**했다 — 작성자 개인
+  //     캘린더에서 일정이 삭제되고 admin 캘린더에 사본이 생겼다. 바로 위 주석이 명시한 의도
+  //     ("일정 소유자 본인 것만")와 코드가 어긋나 있었다. 생성·본인수정 시엔 두 값이 같아 무변화.
+  //     Cue 생성 일정은 actor 가 AI 멤버, created_by 가 위임자라 **위임자 캘린더로 간다** —
+  //     에이전트 권한 모델(위임자 권한으로만 행동)과 정합인 의도된 변화다.
+  const ownerId = event.created_by || userId;
   if (ownerId && wantsPersonal(event)) {
-    const conn = await ExternalConnection.findOne({
-      where: { owner_scope: 'user', user_id: ownerId, provider: 'google_calendar', is_active: true },
-    });
+    const conn = await pickPersonalConn(ownerId, businessId);
     if (conn && conn.sync_enabled !== false && personalCalendar.hasCalendarWrite(conn)) {
       targets.push({ target: 'personal', connection_id: conn.id, user_id: ownerId, token: conn });
     }
@@ -95,6 +122,30 @@ async function updateAt(t, event, gcalEventId, tz) {
     return;
   }
   await personalCalendar.updateEvent(t.token, gcalEventId, input);
+}
+
+/**
+ * 링크만 가지고 내용 갱신 — wanted 에 없는 **보호 링크** 전용.
+ *
+ * 일반 update 루프는 토큰을 wanted 의 target 객체(`t.token`)에서 얻는데, 보호 링크는 wanted 에
+ * 없으므로 그 토큰이 존재하지 않는다. removeAt 과 같은 방식으로 링크에서 토큰을 직접 조회한다.
+ * 권한이 없거나 연결이 사라졌으면 조용히 skip — 갱신 실패가 일정 저장을 막을 이유는 없다(stale 허용).
+ */
+async function updateAtLink(link, event, businessId, tz) {
+  const input = toInput(event, tz);
+  if (link.target === 'workspace') {
+    const token = businessId
+      ? await BusinessCloudToken.findOne({ where: { business_id: businessId, provider: 'gcal' } })
+      : null;
+    if (!token || !gcal.hasWriteScope(token.scope)) return false;
+    const cal = await gcal.getCalendarClient(token);
+    await gcal.updateEvent(cal, link.gcal_event_id, { ...input, summary: event.title });
+    return true;
+  }
+  const conn = await ExternalConnection.findByPk(link.connection_id);
+  if (!conn || !personalCalendar.hasCalendarWrite(conn)) return false;
+  await personalCalendar.updateEvent(conn, link.gcal_event_id, input);
+  return true;
 }
 
 // 회수는 토글이 꺼져 있어도 수행한다 — "동기화 끔" 은 "구글에서 치워라" 라는 뜻이지
@@ -130,10 +181,29 @@ async function reconcile(event, { businessId, userId }) {
 
   const wanted = new Map(targets.map((t) => [keyOf(t), t]));
   const have = new Map(links.map((l) => [`${l.target}:${l.connection_id ?? ''}`, l]));
+  // 회수에서 살아남은 Meet 보유 링크 — wanted 에 없으므로 아래 일반 update 루프가 못 본다.
+  // 내용 갱신은 별도 패스에서 자기 토큰을 직접 조회해 수행한다(stale 사본 방지).
+  const protectedLinks = [];
 
   // 빠진 목적지 — 구글에서 지우고 링크 회수. ("체크 껐는데 구글에 남아 있다" 차단)
+  const isPrivate = gcal.isPrivateForGcal(event);
   for (const [k, link] of have) {
     if (wanted.has(k)) continue;
+    // ── Meet 보유 링크 보호 ──
+    //   회의 링크는 **이미 참석자에게 배포된 자원**이다. 동기화 체크를 끄는 것과 회의를 파괴하는 것은
+    //   다른 의사표시인데, 회수 루프는 그 둘을 구분하지 못했다. 보호 대상은 지우지 않고 내용만 갱신한다.
+    //   실제 삭제는 ① 일정 삭제(removeEverywhere — 무조건) ② Meet 재발급 ③ 아래 비공개 carve-out.
+    //
+    //   ★ carve-out — 팀 캘린더 + 비공개 전환은 **보호를 무시하고 삭제한다.**
+    //     공개 상태에서 워크스페이스 Meet 을 발급받은 뒤 L1/L2/personal 로 바꾸면, 보호를 그대로
+    //     적용할 경우 owner 구글 캘린더에 일정이 남을 뿐 아니라 이후 수정까지 계속 push 된다.
+    //     #126 "팀 캘린더로의 비공개 push 는 영구 금지" 정면 위반이다. 프라이버시가 회의 링크
+    //     보존보다 우선한다 — 이 경우 회의는 죽고, 사용자는 다시 발급할 수 있다.
+    const meetProtected = link.holds_meeting && !(link.target === 'workspace' && isPrivate);
+    if (meetProtected) {
+      protectedLinks.push(link);
+      continue;
+    }
     try {
       await removeAt(link, businessId);
       await link.destroy();
@@ -183,7 +253,115 @@ async function reconcile(event, { businessId, userId }) {
       }
     }
   }
+
+  // 보호된 Meet 링크 — 목적지에서 빠졌지만 살려둔 것들. 내용만 최신으로 맞춘다.
+  //   안 하면 "회의는 살아 있는데 제목·시간이 옛날 그대로" 인 사본이 캘린더에 남는다.
+  for (const link of protectedLinks) {
+    try {
+      if (await updateAtLink(link, event, businessId, tz)) out.updated++;
+    } catch (e) {
+      const code = e && (e.code || e.status);
+      if (code === 404 || code === 410) {
+        // 구글에서 이미 사라짐 — 보호할 대상 자체가 없다. 링크를 걷어야 다음 발급이 깨끗하다.
+        await link.destroy().catch(() => {});
+        out.removed++;
+      } else {
+        out.errors.push({ stage: 'update_protected', target: link.target, message: e.message });
+      }
+    }
+  }
   return out;
+}
+
+/**
+ * Meet 을 발급할 소스 결정 — **개인 연동 우선, 워크스페이스 폴백.**
+ *
+ * 왜 개인 우선인가: Meet 링크의 호스트는 캘린더 소유자다. 여태 워크스페이스 토큰만 봤기 때문에
+ * **직원이 만든 회의의 호스트가 항상 사장(owner)** 이었고, 개인 연동만 한 직원은 Meet 을 아예
+ * 만들 수 없었다(운영 실사례 2026-08-04).
+ *
+ * 일정 단위 토글(gcal_sync_*)·연동 단위 sync_enabled 는 **보지 않는다.** 그것들은 "자동 동기화"
+ * 축이고, Meet 발급은 사용자가 그 자리에서 명시적으로 켠 1회 액션이라 축이 다르다.
+ * 대신 발급된 링크는 holds_meeting 으로 보호되어 회수 루프에 삭제당하지 않는다.
+ *
+ * @returns {{kind:'personal', conn:object}|{kind:'workspace', token:object}|{kind:null, reason:string}}
+ */
+async function resolveMeetSource({ businessId, userId }) {
+  const conn = await pickPersonalConn(userId, businessId);
+  if (conn && personalCalendar.hasCalendarWrite(conn)) return { kind: 'personal', conn };
+  const token = await BusinessCloudToken.findOne({ where: { business_id: businessId, provider: 'gcal' } });
+  if (token && gcal.hasWriteScope(token.scope)) return { kind: 'workspace', token };
+  // 왜 못 하는지를 구분해서 돌려준다 — 프론트가 "연결하기" 와 "다시 연결하기" 로 분기한다.
+  if (conn || token) return { kind: null, reason: 'gcal_scope_missing' };
+  return { kind: null, reason: 'gcal_not_connected' };
+}
+
+/** 소스 종류와 무관하게 같은 shape 을 돌려준다 — 호출측이 분기하지 않게. */
+async function createMeeting(source, input) {
+  if (source.kind === 'personal') return await personalCalendar.createMeetingEvent(source.conn, input);
+  const cal = await gcal.getCalendarClient(source.token);
+  return await gcal.createMeetingEvent(cal, input);
+}
+
+/** Meet 소스의 실패를 연동 레코드에 남긴다 (설정 화면의 "재연결 필요" 근거). */
+async function recordMeetError(source, err) {
+  if (!source || !source.kind) return;
+  if (source.kind === 'personal') return await personalCalendar.recordConnError(source.conn, err);
+  return await gcal.recordPushError(source.token, err);
+}
+
+/**
+ * Meet 으로 만든 구글 이벤트를 링크 테이블에 등록한다.
+ *
+ * ★ 이게 없으면 다음 저장 때 reconcile 이 "이 목적지엔 링크가 없다" 고 판단해 **두 번째 이벤트를
+ *   insert** 한다(구글 캘린더에 Meet 있는 사본 + 없는 사본이 나란히 남고, gcal_event_id 는 Meet
+ *   없는 쪽으로 덮어써져 이후 삭제·재발급이 엉뚱한 이벤트를 잡는다). 실제로 그렇게 동작하고 있었다.
+ *
+ * unique 키가 (event_id, target, connection_id) 인데 workspace 는 connection_id 가 NULL 이라
+ * MySQL unique 가 중복을 막지 못한다 — upsert 대신 findOne + create/update 로 멱등을 직접 만든다.
+ */
+async function linkMeeting(eventId, source, gcalEventId, businessId) {
+  if (!gcalEventId || !source || !source.kind) return null;
+  const target = source.kind === 'personal' ? 'personal' : 'workspace';
+  const connectionId = source.kind === 'personal' ? source.conn.id : null;
+  const userId = source.kind === 'personal' ? source.conn.user_id : null;
+  const existing = await CalendarEventGcalLink.findOne({
+    where: { event_id: eventId, target, connection_id: connectionId },
+  });
+  if (existing) {
+    // ★ 이 목적지에 이미 있던 사본은 새 회의 이벤트로 **교체**된다. 지우지 않으면 그 캘린더에
+    //   일정이 2개 보이고, 링크는 아래에서 새 id 로 재지정되므로 옛 사본은 **어떤 링크·컬럼으로도
+    //   추적되지 않는 영구 고아**가 된다(404 자가치유 경로조차 안 걸린다).
+    //   회의를 들고 있던 링크는 호출 전 clearMeetings 가 이미 걷으므로, 여기 걸리는 건
+    //   reconcile 이 만든 **일반 동기화 사본**이다 — 그 자리를 회의 이벤트가 물려받는다.
+    if (existing.gcal_event_id && existing.gcal_event_id !== gcalEventId) {
+      try { await removeAt(existing, businessId); }
+      catch (e) { console.warn('[linkMeeting 옛 사본 정리]', e.message); }
+    }
+    await existing.update({ gcal_event_id: gcalEventId, user_id: userId, holds_meeting: true });
+    return existing;
+  }
+  return await CalendarEventGcalLink.create({
+    event_id: eventId, target, connection_id: connectionId, user_id: userId,
+    gcal_event_id: gcalEventId, holds_meeting: true,
+  });
+}
+
+/**
+ * 기존 Meet 보유 이벤트를 전부 정리한다 (재발급 전용).
+ * 소스가 바뀌었을 수 있으므로(워크스페이스 → 개인) **소스 불문 전부** 지운다. 안 그러면 옛 Meet
+ * 링크가 팀 캘린더에 살아남아 회의 링크가 두 개 유통된다.
+ * best-effort — 구글 쪽 삭제가 실패해도 링크는 걷는다(다음 reconcile 이 새로 만든다).
+ */
+async function clearMeetings(eventId, businessId) {
+  const links = await CalendarEventGcalLink.findAll({ where: { event_id: eventId, holds_meeting: true } });
+  const cleared = links.map((l) => ({ target: l.target, gcal_event_id: l.gcal_event_id }));
+  for (const link of links) {
+    try { await removeAt(link, businessId); } catch (e) { console.warn('[clearMeetings]', e.message); }
+    await link.destroy().catch(() => {});
+  }
+  // 무엇을 지웠는지 돌려준다 — 호출측이 옛 단일 컬럼(gcal_event_id)을 어떻게 정리할지 판단해야 한다.
+  return cleared;
 }
 
 /** 일정 삭제 시 — 모든 목적지에서 제거. (링크 row 는 FK ON DELETE CASCADE 로도 사라진다) */
@@ -197,4 +375,7 @@ async function removeEverywhere(eventId, businessId) {
   return removed;
 }
 
-module.exports = { reconcile, removeEverywhere, resolveTargets, toInput, wantsWorkspace, wantsPersonal };
+module.exports = {
+  reconcile, removeEverywhere, resolveTargets, toInput, wantsWorkspace, wantsPersonal,
+  pickPersonalConn, resolveMeetSource, createMeeting, recordMeetError, linkMeeting, clearMeetings,
+};

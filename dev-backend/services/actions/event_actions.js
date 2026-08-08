@@ -109,19 +109,23 @@ async function createEvent(actor, params = {}) {
   let finalMeetingProvider = PROVIDER_SET.has(params.meetingProvider) ? params.meetingProvider : null;
   let finalGcalEventId = null;
   let meetWarning = null;
+  //   ★ 소스는 **개인 연동 우선 → 워크스페이스 폴백**(calendarSync.resolveMeetSource).
+  //     옛 코드는 워크스페이스 토큰만 봐서, 개인 연동만 한 직원은 Meet 을 만들 수 없었고
+  //     만들어진 회의의 호스트는 항상 owner 였다.
+  let meetSource = null;
+  let meetGcalEventId = null;
   if (params.autoCreateMeeting) {
-    const gcalToken = await gcal.getTokenForBusiness(businessId);
-    if (!gcalToken) {
-      meetWarning = 'gcal_not_connected';
-    } else if (!gcal.hasWriteScope(gcalToken.scope)) {
+    meetSource = await calendarSync.resolveMeetSource({ businessId, userId: subjectId });
+    if (!meetSource.kind) {
       // 권한이 없는 게 이미 확인되면 구글을 부르지 않는다 — 어차피 403 이고, 헛 왕복만 남는다.
-      meetWarning = 'gcal_scope_missing';
+      meetWarning = meetSource.reason;
     } else {
       try {
-        const cal = await gcal.getCalendarClient(gcalToken);
-        const meeting = await gcal.createMeetingEvent(cal, {
+        const meeting = await calendarSync.createMeeting(meetSource, {
+          title,
           summary: title,
           description: params.description?.trim() || null,
+          location: params.location?.trim() || null,
           startAt: sd,
           endAt: ed,
           rrule: params.rrule?.trim() || null,
@@ -129,11 +133,15 @@ async function createEvent(actor, params = {}) {
         if (meeting?.meetUrl) {
           finalMeetingUrl = meeting.meetUrl;
           finalMeetingProvider = 'google_meet';
-          finalGcalEventId = meeting.id || null;
+          meetGcalEventId = meeting.id || null;
+          // 옛 단일 컬럼(gcal_event_id)은 **워크스페이스 축**이다(calendarSync 가 workspace 링크에만
+          // 채운다). 개인 캘린더에 만든 회의를 여기에 넣으면 삭제·오버레이 경로가 엉뚱한 캘린더를 본다.
+          if (meetSource.kind === 'workspace') finalGcalEventId = meetGcalEventId;
         }
       } catch (e) {
-        console.error('[gcal createMeetingEvent]', e.message);
-        await gcal.recordPushError(gcalToken, e);   // 설정 화면에 재연결 필요 표시
+        console.error('[createMeeting]', e.message);
+        await calendarSync.recordMeetError(meetSource, e);   // 설정 화면에 재연결 필요 표시
+        meetSource = null;
         meetWarning = 'gcal_meeting_create_failed';
       }
     }
@@ -222,18 +230,26 @@ async function createEvent(actor, params = {}) {
   //   best-effort: Google 실패해도 PlanQ 일정은 유지(이미 커밋). gcal_event_id 저장 → 오버레이 중복 차단·수정/삭제 동기화 연결.
   //   #126 보안 — 개인(L1)·팀 비공개(L2)·personal 일정은 push 금지(owner 구글캘린더 유출 차단).
   // 목적지 결정(팀/개인)·토글·권한은 전부 services/calendarSync 단일 착지점에 있다.
-  //   Meet 자동생성으로 이미 워크스페이스 이벤트를 만든 경우는 그쪽이 링크를 쥐고 있으므로 건너뛴다.
-  //   ★ 게이트가 `!autoCreateMeeting` 이 아니라 `!finalGcalEventId` 인 이유: Meet 이 **실패**했을 때도
-  //     옛 조건이면 여기를 건너뛰어 개인 캘린더 push 까지 같이 죽었다(#242 부수 피해). 실제로 구글
-  //     이벤트를 만든 경우에만 건너뛴다.
-  if (!finalGcalEventId) {
+  //
+  // ★ Meet 으로 만든 구글 이벤트를 **링크 테이블에 먼저 등록**한다(event.id 가 필요해 커밋 후).
+  //   등록하면 아래 reconcile 이 그 목적지를 "이미 있음" 으로 보고 insert 대신 update 한다.
+  //   옛 코드는 링크를 안 만들고 `if (!finalGcalEventId)` 로 reconcile 자체를 건너뛰었는데,
+  //   그 결과 ① Meet 을 켜면 **개인 캘린더 동기화가 통째로 죽었고**(워크스페이스에만 올라갔다)
+  //   ② 다음 수정 때 reconcile 이 워크스페이스에 **두 번째 이벤트를 만들어** Meet 사본이 고아가 됐다.
+  //   링크를 만들면 두 문제가 동시에 사라지므로 게이트를 제거하고 항상 reconcile 한다.
+  if (meetSource && meetSource.kind && meetGcalEventId) {
     try {
-      const r = await calendarSync.reconcile(event, { businessId, userId: actor.userId || event.created_by });
-      if (r.errors.length) console.warn('[calendarSync create]', JSON.stringify(r.errors).slice(0, 300));
+      await calendarSync.linkMeeting(event.id, meetSource, meetGcalEventId, businessId);
     } catch (e) {
-      // best-effort: Google 실패해도 PlanQ 일정은 유지(이미 커밋). 조용히 넘기지는 않는다.
-      console.warn('[calendarSync create] reconcile 실패:', e.message);
+      console.warn('[linkMeeting create]', e.message);
     }
+  }
+  try {
+    const r = await calendarSync.reconcile(event, { businessId, userId: actor.userId || event.created_by });
+    if (r.errors.length) console.warn('[calendarSync create]', JSON.stringify(r.errors).slice(0, 300));
+  } catch (e) {
+    // best-effort: Google 실패해도 PlanQ 일정은 유지(이미 커밋). 조용히 넘기지는 않는다.
+    console.warn('[calendarSync create] reconcile 실패:', e.message);
   }
 
   const full = await CalendarEvent.findByPk(event.id, { include: INCLUDE_DETAIL });

@@ -45,6 +45,13 @@ import WeeklyReviewModal from '../../components/QTask/WeeklyReviewModal';
 import WeeklyReviewTab from '../../components/QTask/WeeklyReviewTab';
 import PartnerKindBadge from '../../components/Common/PartnerKindBadge';
 
+// #249 — 우측 패널을 인라인으로 붙여둘 최소 뷰포트 폭.
+//   이보다 좁으면 overlay(기본 닫힘 + 떠 있는 토글 + ⌘/·Ctrl+\)로 전환해 리스트가 전폭을 쓴다.
+//   옛 값 1200 은 "노트북에서 창을 좀 작게 연" 전형(1280~1366)을 못 걸러 업무명이 압사했다.
+//   ★ useIsNarrow 인자와 RightPanel 의 media query 가 **반드시 같은 값**이어야 한다 —
+//     어긋나면 패널이 사라졌는데 토글도 안 나오는 사각지대가 생긴다.
+const RIGHT_PANEL_INLINE_MIN = 1366;
+
 // ─── Types ───
 type Scope = 'mine' | 'workspace';
 type ListTab = 'week' | 'all' | 'requested' | 'weekly-review' | 'workspace-tasks' | 'workspace-weekly' | 'workspace-monthly';
@@ -221,7 +228,7 @@ const QTaskPage:React.FC=()=>{
   const[notes,setNotes]=useState<NoteRow[]>([]);
   const[loading,setLoading]=useState(true);
   const[rightCollapsed,setRightCollapsed]=useState(false);
-  const isNarrow=useIsNarrow(1200);
+  const isNarrow=useIsNarrow(RIGHT_PANEL_INLINE_MIN);
   const[rightOverlayOpen,setRightOverlayOpen]=useState(false);
   useBodyScrollLock(isNarrow&&rightOverlayOpen);
 
@@ -3098,7 +3105,9 @@ const TRow=styled.div<{$done?:boolean;$delayed?:boolean;$selected?:boolean}>`dis
 const TCell=styled.div<{$w?:string;$flex?:boolean;$center?:boolean;$hideBelow?:number;$compactBelow?:number;$wCompact?:string}>`
   box-sizing:border-box;
   ${p=>p.$flex
-    ? 'flex:1 1 0;min-width:180px;display:flex;align-items:center;gap:6px;overflow:hidden;'
+    // #249 — 업무명 셀 최소폭 상향(180→240). 배지들이 shrink 불가라 180px 에서는
+    //   업무명 몫이 20~30px(한글 1~2자)까지 압사했다.
+    ? 'flex:1 1 0;min-width:240px;display:flex;align-items:center;gap:6px;overflow:hidden;'
     : `flex:0 0 ${p.$w||'auto'};width:${p.$w||'auto'};overflow:hidden;`}
   ${p=>p.$center&&'display:flex;justify-content:center;align-items:center;'}
   ${p=>p.$hideBelow?`@media (max-width: ${p.$hideBelow}px){display:none;}`:''}
@@ -3136,7 +3145,11 @@ const TaskCheck=styled.input`accent-color:#0D9488;cursor:pointer;width:15px;heig
 const QTaskInlineAddRow=styled.div`display:flex;align-items:center;gap:8px;padding:6px 12px;background:#F0FDFA;border-bottom:1px solid #F8FAFC;min-width:520px;`;
 const QTaskInlineSpacer=styled.div`width:24px;flex-shrink:0;`;
 const QTaskInlineInput=styled.input`flex:1;min-width:0;padding:4px 8px;height:26px;font-size:13px;color:#0F172A;background:#FFFFFF;border:1px solid #14B8A6;border-radius:6px;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}&::placeholder{color:#94A3B8;}`;
-const TaskTitle=styled.span<{$done?:boolean}>`font-size:14px;font-weight:500;color:#0F172A;cursor:text;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${p=>p.$done&&'text-decoration:line-through;color:#94A3B8;'}&:hover{color:#0F766E;}`;
+// #249 — 업무명이 셀 안에서 **최약자**였다. 같은 셀의 형제(체크·이월배지·반복칩·이름칩·지연배지·
+//   상세버튼)가 전부 flex-shrink:0 이라, 셀이 좁아지면 그것들이 폭을 먼저 다 먹고 업무명에
+//   1~2글자만 남았다("노트북에서 1, 2글자만 보여"). 성장 + 최소폭 바닥을 줘서
+//   "업무명 > 장식 배지" 우선순위를 강제한다 — 셀의 overflow:hidden 이 뒤쪽 배지부터 잘라낸다.
+const TaskTitle=styled.span<{$done?:boolean}>`font-size:14px;font-weight:500;color:#0F172A;cursor:text;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:96px;${p=>p.$done&&'text-decoration:line-through;color:#94A3B8;'}&:hover{color:#0F766E;}`;
 // WORK_FLOW §6 — 이월 배지 (차분·비강조, slate)
 const CarriedBadge=styled.span`flex-shrink:0;display:inline-flex;align-items:center;padding:1px 7px;font-size:10px;font-weight:700;color:#475569;background:#F1F5F9;border-radius:10px;letter-spacing:-0.2px;cursor:help;`;
 // 안 읽은 업무 활동(댓글·변경) 점 (운영 #5)
@@ -3375,7 +3388,7 @@ const RightPanel=styled.aside<{$w?:number;$overlay?:boolean}>`background:#FFF;bo
     @media (prefers-reduced-motion: reduce){animation:none;}
   `:`
     width:${p.$w||420}px;flex-shrink:0;position:relative;
-    @media(max-width:1200px){display:none;}
+    @media(max-width:${RIGHT_PANEL_INLINE_MIN}px){display:none;}
   `}
 `;
 const RightPanelBackdrop=styled.div`position:fixed;inset:0;background:rgba(15, 23, 42, 0.08);-webkit-z-index:45;animation:pqRpFade 0.22s ease-out;@keyframes pqRpFade{from{opacity:0;}to{opacity:1;}}@media (prefers-reduced-motion: reduce){animation:none;}`;

@@ -260,7 +260,9 @@ const PostShareModal: React.FC<Props> = ({ open, onClose, post, onChanged }) => 
                   <SecondaryBtn type="button" onClick={() => { setChatSentInfo(null); setChatTarget(null); }}>
                     {t('share.chat.again', '다른 채팅방에 보내기')}
                   </SecondaryBtn>
-                  <SecondaryBtn type="button" onClick={() => { navigate(`/qtalk?conv=${chatSentInfo.convId}`); onClose(); }}>
+                  {/* 라우트는 /talk 다 — /qtalk 은 App.tsx 에 없어 catch-all(`*`) 로 잡혀
+                      대시보드로 튕겼다(#246). 대화 선택은 path 파라미터 형식을 쓴다. */}
+                  <SecondaryBtn type="button" onClick={() => { navigate(`/talk/${chatSentInfo.convId}`); onClose(); }}>
                     {t('share.chat.goView', '채팅방 가서 보기')}
                   </SecondaryBtn>
                   <PrimaryBtn type="button" onClick={onClose}>{t('common.close', '닫기')}</PrimaryBtn>

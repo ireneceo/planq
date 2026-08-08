@@ -87,6 +87,7 @@
     "colorInherit": "프로젝트 색 상속",
     "autoCreateMeeting": "Google Meet 자동 생성",
     "autoCreateMeetingHelp": "Google Calendar 에 일정이 만들어지면서 Meet 링크가 자동으로 발급됩니다",
+    "autoCreateMeetingPersonal": "연결된 내 Google 계정에 일정이 만들어지고, 내가 회의 호스트가 됩니다",
     "gcalConnectPrompt": "Google 계정 연결하기",
     "gcalConnectHelp": "워크스페이스 설정 → 외부 연동에서 Google Calendar 를 연결하면 자동 Meet 링크를 사용할 수 있습니다",
     "gcalSection": "구글 캘린더 연동",
@@ -161,7 +162,8 @@
     "gcalTeamBlocked": "비공개 일정은 팀 캘린더에 올릴 수 없습니다",
     "gcalNone": "올리지 않음",
     "gcalSync": "Google Calendar",
-    "share": "공유"
+    "share": "공유",
+    "gcalMeetingKept": "회의가 걸린 캘린더 사본은 동기화를 꺼도 유지됩니다 (참석자에게 배포된 링크 보호). 비공개로 바꾸면 팀 사본은 회수됩니다."
   },
   "empty": {
     "month": "이번 달엔 예정된 일정이 없습니다",

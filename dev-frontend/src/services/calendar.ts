@@ -82,9 +82,17 @@ export async function deleteEvent(
 // gcal_connected   해당 워크스페이스가 Google Calendar OAuth 완료했는지
 export async function getVideoStatus(bizId?: number): Promise<{
   gcal_configured: boolean;
+  /** 팀 축 — 팀 캘린더 동기화·"구글 캘린더로 보내기" 는 워크스페이스 연동에서만 가능하다.
+   *  아래 gcal_* 는 Meet 축(개인 연동 포함)으로 의미가 넓으므로, 팀 기능은 반드시 이 값을 봐야 한다. */
+  workspace_connected: boolean;
+  workspace_can_write: boolean;
+  workspace_account_email: string | null;
+  /** Meet 축 — 워크스페이스 **또는** 개인 연동 중 하나라도 연결/발급 가능하면 true. */
   gcal_connected: boolean;
-  /** #242 — 토큰이 있어도 캘린더 쓰기 권한이 없을 수 있다. Meet/동기화 UI 는 이 값으로 게이트한다. */
+  /** #242 — 토큰이 있어도 캘린더 쓰기 권한이 없을 수 있다. Meet UI 는 이 값으로 게이트한다. */
   gcal_can_write: boolean;
+  /** 회의가 실제로 만들어질 계정의 종류 — 'personal' 이면 본인 구글 계정으로 개설된다. */
+  meet_source: 'personal' | 'workspace' | null;
   account_email: string | null;
 }> {
   const qs = bizId ? `?business_id=${bizId}` : '';
