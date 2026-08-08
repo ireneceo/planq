@@ -150,6 +150,14 @@ router.get('/', authenticateToken, async (req, res, next) => {
       baseWhere = postListWhereByLevel(auth.scope);
     }
     const where = { ...baseWhere };
+    // #252 — 임시저장(draft)은 작성자에게만 보인다.
+    //   자동저장이 첫 입력 시점에 draft 를 만들기 때문에, 이 필터가 없으면 **반쯤 쓴 글이
+    //   워크스페이스 전 목록에 즉시 뜬다.** vlevel='L1' 로도 격리되지만 그건 draft 가
+    //   L1 로 생성된 경우에만이라, status 축에서도 한 번 더 막는다(이중 방어).
+    where[Op.and] = [
+      ...(Array.isArray(where[Op.and]) ? where[Op.and] : []),
+      { [Op.or]: [{ status: { [Op.ne]: 'draft' } }, { author_id: req.user.id }] },
+    ];
     if (req.query.project_id === 'null' || req.query.project_id === '') where.project_id = null;
     else if (req.query.project_id) where.project_id = Number(req.query.project_id);
     if (req.query.category) where.category = String(req.query.category);
@@ -278,7 +286,10 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
     if (!allowed) {
       return errorResponse(res, 'forbidden', 403);
     }
-    await post.increment('view_count');
+    // ★ silent — 조회수 증가가 updated_at 을 건드리면 안 된다.
+    //   (a) 문서를 **열기만 해도** updated_at 이 바뀌어 편집 낙관적 잠금(#252)이 즉시 거짓 409 를 낸다
+    //   (b) 목록 정렬이 ['updated_at','DESC'] 라 남이 열어보기만 해도 순서가 뒤바뀐다
+    await post.increment('view_count', { silent: true });
     const result = serialize(post, true);
     // kind='table' 이면 연결된 QRecord 정보도 같이 (그리드 임베드용)
     if (post.kind === 'table' && post.q_record_id) {
@@ -382,7 +393,11 @@ router.post('/', authenticateToken, async (req, res, next) => {
       // 옛: 프로젝트 = L2 / 미연결 = L1 (나만보기) — 사용자 호소 "공유한 문서를 다른 사람이 못 봄"
       // 새: 프로젝트 = L2 / 워크스페이스 = L3 (멤버 모두) — 일반 SaaS 패턴.
       //      L1 원하면 등록 후 "공유 범위 → 나만보기" 변경 (UI 명시 동작).
-      vlevel: req.body.vlevel || (project_id ? 'L2' : 'L3'),
+      // #252 — 임시저장으로 만들어지는 글은 **무조건 L1(작성자 본인만)**.
+      //   자동저장이 첫 입력에 POST 를 쏘므로, 기본 L2/L3 를 그대로 두면 아직 문장도 안 끝난
+      //   글이 프로젝트 멤버·워크스페이스 전원에게 보인다. 명시 저장 시점에 사용자가 고른
+      //   공개 범위로 승격된다(프론트 submit 이 vlevel 을 같이 보낸다).
+      vlevel: status === 'draft' ? 'L1' : (req.body.vlevel || (project_id ? 'L2' : 'L3')),
     });
     const full = await Post.findByPk(post.id, {
       include: [
@@ -392,17 +407,23 @@ router.post('/', authenticateToken, async (req, res, next) => {
         { model: PostAttachment, as: 'attachments', include: [{ model: File, as: 'file' }] },
       ],
     });
-    // Phase D+1: 거래 stage 자동 진행
-    if (post.project_id) {
+    // #252 — 임시저장 단계에서는 부수효과를 일으키지 않는다. 아직 "만들어진 문서" 가 아니라
+    //   타이핑 중인 상태다. stage 진행·감사 기록·전 워크스페이스 broadcast 를 여기서 쏘면
+    //   글 하나 쓰는 동안 거래 단계가 움직이고 남의 화면에 "새 문서" 가 뜬다.
+    //   명시 저장(status='published' 로 승격되는 PUT)에서 전부 발화한다.
+    const isDraft = post.status === 'draft';
+    if (post.project_id && !isDraft) {
       require('../services/projectStageEngine').onPostChanged(post.id).catch(() => null);
     }
-    require('../services/auditService').logAudit(req, {
-      action: 'post.create',
-      targetType: 'post',
-      targetId: post.id,
-      newValue: { title: post.title, category: post.category, status: post.status, project_id: post.project_id },
-    });
-    broadcastPost(req, full, 'post:new');
+    if (!isDraft) {
+      require('../services/auditService').logAudit(req, {
+        action: 'post.create',
+        targetType: 'post',
+        targetId: post.id,
+        newValue: { title: post.title, category: post.category, status: post.status, project_id: post.project_id },
+      });
+      broadcastPost(req, full, 'post:new');
+    }
     successResponse(res, serialize(full, true), 'Post created', 201);
   } catch (err) { next(err); }
 });
@@ -647,6 +668,24 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     if (!isAuthor && !isOwner && !isPlatformAdmin) {
       return errorResponse(res, '작성자 또는 오너만 문서를 수정할 수 있습니다', 403);
     }
+    // #252 낙관적 잠금 — 자동저장이 붙으면 PUT 빈도가 수십 배로 뛴다. 잠금이 없으면
+    //   내 자동저장이 그 사이 남이 저장한 본문을 통째로 덮어쓴다(last-write-wins).
+    //   클라이언트가 편집 시작 시점의 updated_at 을 같이 보내고, 서버 것과 다르면 409.
+    //   프론트는 409 를 받으면 자동저장을 멈추고 배너로 알린다 — 조용히 덮지 않는다.
+    if (req.body.base_updated_at) {
+      const base = new Date(req.body.base_updated_at).getTime();
+      const cur = new Date(post.updated_at || post.updatedAt).getTime();
+      if (Number.isFinite(base) && Number.isFinite(cur) && base < cur) {
+        return res.status(409).json({
+          success: false, code: 'stale_edit',
+          message: '다른 사람이 이 문서를 수정했습니다. 새로고침 후 이어서 작성해 주세요.',
+          data: { current_updated_at: post.updated_at || post.updatedAt },
+        });
+      }
+    }
+    // 자동저장 PUT — 타이핑 중이라는 뜻. 감사 로그·거래 stage 는 명시 저장에서만 발화한다
+    //   (안 그러면 글 하나 쓰는 동안 audit_logs 에 수십 row 가 쌓이고 stage 가 흔들린다).
+    const isAutosave = req.body.autosave === true;
     const patch = {};
     if (req.body.title !== undefined) patch.title = String(req.body.title).slice(0, 200);
     if (req.body.content_json !== undefined) {
@@ -725,14 +764,20 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     }
     patch.editor_id = req.user.id;
     const oldSnapshot = { title: post.title, category: post.category, status: post.status, project_id: post.project_id, is_pinned: post.is_pinned };
+    // draft → published 승격은 사용자 입장에서 "문서를 만든" 순간이다. draft 생성 시점의
+    //   post.create 를 억제했으므로(타이핑 중이었다), 여기서 create 로 기록해야 감사 기록에
+    //   구멍이 안 생긴다 — "모든 CUD 는 AuditLog" 운영 정책.
+    const isPromotion = post.status === 'draft' && patch.status === 'published';
     await post.update(patch);
-    require('../services/auditService').logAudit(req, {
-      action: 'post.update',
-      targetType: 'post',
-      targetId: post.id,
-      oldValue: oldSnapshot,
-      newValue: { ...oldSnapshot, ...patch, content_json: undefined, content_text: undefined },  // 본문은 audit 에 안 담음 (revision 별도)
-    });
+    if (!isAutosave) {
+      require('../services/auditService').logAudit(req, {
+        action: isPromotion ? 'post.create' : 'post.update',
+        targetType: 'post',
+        targetId: post.id,
+        oldValue: oldSnapshot,
+        newValue: { ...oldSnapshot, ...patch, content_json: undefined, content_text: undefined },  // 본문은 audit 에 안 담음 (revision 별도)
+      });
+    }
     const full = await Post.findByPk(post.id, {
       include: [
         { model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] },
@@ -742,9 +787,11 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
         { model: PostAttachment, as: 'attachments', include: [{ model: File, as: 'file' }] },
       ],
     });
-    // Phase D+1: stage 자동 진행 (status/category 변경 가능성)
-    if (full?.project_id) require('../services/projectStageEngine').onPostChanged(full.id).catch(() => null);
-    broadcastPost(req, full, 'post:updated');
+    // Phase D+1: stage 자동 진행 (status/category 변경 가능성). 자동저장은 제외 — 위 주석 참조.
+    if (full?.project_id && !isAutosave) require('../services/projectStageEngine').onPostChanged(full.id).catch(() => null);
+    // draft 는 작성자만 볼 수 있으므로 broadcast 하지 않는다(받는 쪽은 어차피 목록에서 못 본다).
+    //   draft → published 승격 PUT 은 status 가 바뀌었으므로 아래 조건을 통과해 정상 발화한다.
+    if (full?.status !== 'draft') broadcastPost(req, full, 'post:updated');
     successResponse(res, serialize(full, true), 'Post updated');
   } catch (err) { next(err); }
 });
@@ -1213,7 +1260,10 @@ router.get('/public/:token', async (req, res, next) => {
         expired_at: post.share_expires_at,
       });
     }
-    await post.increment('view_count');
+    // ★ silent — 조회수 증가가 updated_at 을 건드리면 안 된다.
+    //   (a) 문서를 **열기만 해도** updated_at 이 바뀌어 편집 낙관적 잠금(#252)이 즉시 거짓 409 를 낸다
+    //   (b) 목록 정렬이 ['updated_at','DESC'] 라 남이 열어보기만 해도 순서가 뒤바뀐다
+    await post.increment('view_count', { silent: true });
     const safe = serialize(post, true);
     // 공유 미리보기 — attachments 의 download_url 을 공개 라우트로 매핑 (인증 없이 다운로드 가능).
     // 사이클 N+9 fix: 옛 download_url 은 /api/files/:bizId/:id/download (인증 필요) — 공개 페이지에선 401.

@@ -616,5 +616,12 @@
   },
   "attach": {
     "newAiHint": "AI writes the document body for you"
+  },
+  "autosave": {
+    "saving": "Saving draft…",
+    "saved": "Draft saved",
+    "failed": "Draft save failed",
+    "stale": "Edited by someone else",
+    "staleHelp": "Someone else edited this document. Refresh and continue writing."
   }
 }

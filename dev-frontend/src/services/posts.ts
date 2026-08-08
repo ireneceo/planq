@@ -158,6 +158,9 @@ export async function createPost(payload: {
   category?: string | null;
   is_pinned?: boolean;
   vlevel?: 'L1' | 'L2' | 'L3' | 'L4';
+  // #252 — 자동저장이 만드는 임시저장 글. 서버가 vlevel 을 L1 으로 강제하고
+  //   broadcast·감사·거래 stage 를 발화시키지 않는다(타이핑 중이므로).
+  status?: 'draft' | 'published';
 }): Promise<PostDetail> {
   const r = await apiFetch('/api/posts', {
     method: 'POST',
@@ -169,16 +172,40 @@ export async function createPost(payload: {
   return j.data as PostDetail;
 }
 
+/** 다른 사람이 먼저 저장해 내 편집 기준이 낡았을 때 (#252 낙관적 잠금 409). */
+export class StaleEditError extends Error {
+  currentUpdatedAt: string | null;
+  constructor(message: string, currentUpdatedAt: string | null) {
+    super(message);
+    this.name = 'StaleEditError';
+    this.currentUpdatedAt = currentUpdatedAt;
+  }
+}
+
 export async function updatePost(id: number, patch: Partial<{
   title: string; content_json: TiptapDoc; category: string | null; status: 'draft' | 'published'; is_pinned: boolean;
   project_id: number | null; conversation_id: number | null;
   linked_post_ids: number[];
+  vlevel: 'L1' | 'L2' | 'L3' | 'L4';
+  // #252 — 편집 시작 시점의 updated_at. 서버 것과 어긋나면 409 (남의 저장을 덮지 않는다).
+  base_updated_at: string | null;
+  // 자동저장 표시 — 서버가 감사 로그·거래 stage 를 건너뛴다.
+  autosave: boolean;
 }>): Promise<PostDetail> {
   const r = await apiFetch(`/api/posts/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(patch),
   });
+  // ★ apiFetch 는 throw 하지 않는다 — 상태 코드를 직접 봐야 실패가 침묵하지 않는다.
+  if (r.status === 409) {
+    // 문구는 서버 메시지를 그대로 쓴다. 서비스 레이어엔 t() 가 없어 여기서 문자열을 만들면
+    //   하드코딩이 되고 영어 사용자에게도 한국어가 나간다 — 비면 호출측(UI)이 t() 로 채운다.
+    let msg = '';
+    let cur: string | null = null;
+    try { const j = await r.json(); msg = j.message || ''; cur = j.data?.current_updated_at ?? null; } catch { /* non-json */ }
+    throw new StaleEditError(msg, cur);
+  }
   const j = await r.json();
   if (!j.success) throw new Error(j.message || 'update failed');
   return j.data as PostDetail;
