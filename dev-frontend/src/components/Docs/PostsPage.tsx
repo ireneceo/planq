@@ -31,7 +31,7 @@ import { TableRow } from '@tiptap/extension-table-row';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { TableHeader } from '@tiptap/extension-table-header';
 import {
-  fetchPosts, fetchPost, createPost, updatePost, deletePost,
+  fetchPosts, fetchPost, createPost, updatePost, deletePost, StaleEditError,
   attachToPost, detachFromPost, fetchPostsMeta,
   createCategory, updatePostVisibility, updatePostSecurityLevel,
   type PostRow, type PostDetail, type PostsMeta,
@@ -191,6 +191,26 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   // 표(table) 편집 모드의 본문 설명 에디터 collapsible — 빈 상태 신규일 때 닫혀 시작, 내용 있으면 열린 상태.
   const [tableDescOpen, setTableDescOpen] = useState<boolean>(false);
   const submittingRef = useRef(false);
+  // ── #252 자동저장 ("문서에 글 쓸 때도 메모처럼 임시저장되면 안되나? 날라갈까봐 불안한데") ──
+  //   메모(MemoView)와 같은 모델: 입력 → debounce → PUT. 성공은 ✓ 뱃지만(토스트 금지, CLAUDE.md).
+  //   신규 글은 첫 입력에 draft 로 POST 해 id 를 확보한 뒤 PUT 으로 이어간다 —
+  //   서버가 draft 를 L1 로 강제하고 broadcast·감사·stage 를 막으므로 남에게 새지 않는다.
+  const [autoState, setAutoState] = useState<'idle' | 'saving' | 'saved' | 'error' | 'stale'>('idle');
+  const [autoErr, setAutoErr] = useState<string | null>(null);
+  const autoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoDirtyRef = useRef(false);
+  const autoBusyRef = useRef(false);
+  // 편집 시작 시점의 updated_at — 낙관적 잠금 기준. 저장 성공마다 갱신한다.
+  const baseUpdatedAtRef = useRef<string | null>(null);
+  // 자동저장이 만든 draft 의 id (신규 모드). 명시 저장·취소가 이걸 보고 승격/삭제한다.
+  const autoDraftIdRef = useRef<number | null>(null);
+  // 편집 진입 시점 스냅샷 — "취소" 가 자동저장된 내용을 되돌리는 근거.
+  const editSnapshotRef = useRef<{ title: string; content: unknown; category: string } | null>(null);
+  // ★ 편집 세션 카운터. 스냅샷 effect 를 `detail?.id` 에 걸면, 첫 자동저장의 setDetail(created) 가
+  //   그 effect 를 재발화시켜 autoDraftIdRef·autoState 를 리셋한다 — 그러면 명시 저장이 승격 대신
+  //   글을 하나 더 만들고, 취소는 draft 를 못 지운다(Fable 실측 BLOCKER). 진입 지점만 이 값을 올린다.
+  const [editEpoch, setEditEpoch] = useState(0);
+  const beginEditSession = useCallback(() => setEditEpoch((n) => n + 1), []);
   const [shareOpen, setShareOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   // 운영 — Q docs AI 재생성: 생성 컨텍스트 보관 + 재생성 busy
@@ -359,7 +379,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const startNew = () => {
     setActiveId(null);
     setDetail(null);
-    setMode('new');
+    setMode('new'); beginEditSession();
     setAiCtx(null);  // 운영 — 빈 새 문서는 AI 재생성 바 숨김
     setTitleDraft('');
     setContentDraft(null);
@@ -424,7 +444,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const startFromAi = ({ title, bodyHtml, aiContext }: { title: string; bodyHtml: string; aiContext?: { kind: string; userInput: string; clientId?: number | null; projectId?: number | null } }) => {
     setActiveId(null);
     setDetail(null);
-    setMode('new');
+    setMode('new'); beginEditSession();
     setTitleDraft(title);
     setContentDraft(bodyHtml as unknown);
     setCategoryDraft(filter.kind === 'category' ? filter.name : '');
@@ -464,7 +484,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     }
     setActiveId(null);
     setDetail(null);
-    setMode('new');
+    setMode('new'); beginEditSession();
     setTitleDraft(tpl.name);
     const html = tpl.body_template ? renderTemplateClient(tpl.body_template) : '';
     setContentDraft(html as unknown);
@@ -481,7 +501,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const handleSlotConfirm = (rendered: { html: string; title: string }) => {
     setActiveId(null);
     setDetail(null);
-    setMode('new');
+    setMode('new'); beginEditSession();
     setTitleDraft(rendered.title);
     setContentDraft(rendered.html as unknown);
     setCategoryDraft(filter.kind === 'category' ? filter.name : '');
@@ -495,7 +515,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
 
   const startEdit = () => {
     if (!detail) return;
-    setMode('edit');
+    setMode('edit'); beginEditSession();
     setAiCtx(null);  // 운영 — 기존 문서 편집은 AI 재생성 바 숨김
     setTitleDraft(detail.title);
     setContentDraft(detail.content_json);
@@ -595,8 +615,128 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     }
   };
 
-  const cancelEdit = () => {
+  // ── #252 편집 진입 스냅샷 ──────────────────────────────────────────
+  // 편집/신규 진입 지점이 5곳(빈 문서·AI·템플릿·슬롯·기존 편집)이라 각각에 손대는 대신
+  //   mode 전환 한 곳에서 잡는다. 스냅샷은 두 가지 역할을 한다:
+  //     ① 자동저장 발화 기준 — 진입 시 세팅된 초안(템플릿·AI 시드)은 "변경" 이 아니다.
+  //        이게 없으면 템플릿만 열고 닫아도 빈 draft 가 쌓인다.
+  //     ② "취소" 의 되돌림 기준 — 자동저장이 이미 서버에 썼으므로, 취소는 이 값으로
+  //        되돌리는 명시 PUT 이어야 한다(안 그러면 취소해도 남는다).
+  useEffect(() => {
+    if (mode === 'edit' || mode === 'new') {
+      editSnapshotRef.current = { title: titleDraft, content: contentDraft, category: categoryDraft };
+      baseUpdatedAtRef.current = detail?.updated_at ?? null;
+      autoDraftIdRef.current = mode === 'new' ? null : (detail?.id ?? null);
+      autoDirtyRef.current = false;
+      setAutoState('idle');
+      setAutoErr(null);
+    } else {
+      editSnapshotRef.current = null;
+      autoDirtyRef.current = false;
+    }
+    // ★ deps 에 detail?.id 를 넣지 않는다 — 자동저장이 detail 을 갱신하면 세션이 리셋된다.
+    //   진입 지점이 beginEditSession() 으로 editEpoch 를 올릴 때만 재초기화한다.
+  }, [mode, editEpoch]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── #252 자동저장 엔진 ────────────────────────────────────────────
+  // debounce 2초 (AutoSaveField 표준. 메모는 1초지만 문서는 본문이 길어 PUT 이 무겁다).
+  const AUTOSAVE_DEBOUNCE_MS = 2000;
+
+  const runAutosave = useCallback(async () => {
+    if (autoBusyRef.current) return;
+    // 제목이 비면 서버가 400 을 준다 — 아직 저장할 단계가 아니다(조용히 대기).
+    if (!titleDraft.trim()) return;
+    autoBusyRef.current = true;
+    setAutoState('saving');
+    try {
+      const categoryVal = categoryDraft.trim() || null;
+      const targetId = detail?.id ?? autoDraftIdRef.current;
+      if (!targetId) {
+        // 신규 — 임시저장으로 만들고 id 를 붙든다. 이후 입력은 전부 PUT.
+        const created = await createPost({
+          business_id: scope.businessId,
+          project_id: scope.type === 'project' ? scope.projectId : projectDraft,
+          title: titleDraft.trim(),
+          content_json: contentDraft as never,
+          category: categoryVal,
+          status: 'draft',
+        });
+        autoDraftIdRef.current = created.id;
+        baseUpdatedAtRef.current = created.updated_at ?? null;
+        setDetail(created);
+      } else {
+        const patched = await updatePost(targetId, {
+          title: titleDraft.trim(),
+          content_json: contentDraft as never,
+          category: categoryVal,
+          base_updated_at: baseUpdatedAtRef.current,
+          autosave: true,
+        });
+        baseUpdatedAtRef.current = patched.updated_at ?? null;
+        // detail 전체를 갈아끼우면 편집 중인 draft 가 서버 값으로 튕긴다 — 메타만 반영.
+        setDetail((prev) => (prev ? { ...prev, updated_at: patched.updated_at } : patched));
+      }
+      autoDirtyRef.current = false;
+      setAutoState('saved');
+      setAutoErr(null);
+    } catch (e) {
+      if (e instanceof StaleEditError) {
+        // 남의 저장을 덮지 않는다 — 자동저장을 멈추고 사용자에게 알린다.
+        setAutoState('stale');
+        setAutoErr(e.message || (t('autosave.staleHelp', '다른 사람이 이 문서를 수정했습니다. 새로고침 후 이어서 작성해 주세요.') as string));
+      } else {
+        setAutoState('error');
+        setAutoErr((e as Error).message || (t('autosave.failed', '임시저장 실패') as string));
+      }
+    } finally {
+      autoBusyRef.current = false;
+    }
+  }, [titleDraft, contentDraft, categoryDraft, detail?.id, projectDraft, scope, t]);
+
+  // 입력 변화 → debounce 예약. stale(충돌) 상태면 더 이상 쏘지 않는다.
+  useEffect(() => {
+    if (!(mode === 'edit' || mode === 'new')) return;
+    if (autoState === 'stale') return;
+    if (!editSnapshotRef.current) return;   // 편집 진입 스냅샷 전에는 발화 금지(초기 세팅이 dirty 로 잡히지 않게)
+    const snap = editSnapshotRef.current;
+    const changed = titleDraft !== snap.title
+      || JSON.stringify(contentDraft ?? null) !== JSON.stringify(snap.content ?? null)
+      || categoryDraft !== snap.category;
+    if (!changed && !autoDirtyRef.current) return;
+    autoDirtyRef.current = true;
+    if (autoTimerRef.current) clearTimeout(autoTimerRef.current);
+    autoTimerRef.current = setTimeout(() => { runAutosave(); }, AUTOSAVE_DEBOUNCE_MS);
+    return () => { if (autoTimerRef.current) clearTimeout(autoTimerRef.current); };
+  }, [titleDraft, contentDraft, categoryDraft, mode, autoState, runAutosave]);
+
+  // 저장 대기 중 이탈 경고 + PWA 자동 reload 차단 (운영 안정성 2번 — body[data-form-dirty]).
+  useEffect(() => {
+    const dirty = (mode === 'edit' || mode === 'new') && (autoDirtyRef.current || autoState === 'saving');
+    if (dirty) document.body.dataset.formDirty = '1';
+    else delete document.body.dataset.formDirty;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!autoDirtyRef.current && autoState !== 'saving') return;
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      delete document.body.dataset.formDirty;
+    };
+  }, [mode, autoState, titleDraft, contentDraft, categoryDraft]);
+
+  // 취소 — ★ 자동저장이 이미 서버에 썼으므로 state 만 되돌리면 "취소했는데 남아있다" 가 된다.
+  //   신규(자동 draft) 는 삭제하고, 기존 문서는 진입 스냅샷으로 되돌리는 명시 PUT 을 쏜다.
+  const cancelEdit = async () => {
+    if (autoTimerRef.current) clearTimeout(autoTimerRef.current);   // 대기 중인 자동저장 취소
+    const snap = editSnapshotRef.current;
     if (mode === 'new') {
+      const draftId = autoDraftIdRef.current;
+      if (draftId) await deletePost(draftId);   // boolean 반환(throw 안 함) — 실패해도 화면은 닫는다
+      autoDraftIdRef.current = null;
+      setActiveId(null);
+      setDetail(null);
       setMode('view');
       setTitleDraft('');
       setContentDraft(null);
@@ -605,13 +745,33 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       setPendingUploads([]);
       setPendingExistingIds([]);
       setPendingExistingMeta({});
+      await load(); await loadMeta();
     } else if (detail) {
+      // 자동저장이 한 번이라도 나갔으면 서버 값이 스냅샷과 다르다 → 되돌리기 PUT.
+      if (autoState !== 'idle' && autoState !== 'stale' && snap) {
+        try {
+          const reverted = await updatePost(detail.id, {
+            title: snap.title,
+            content_json: snap.content as never,
+            category: snap.category.trim() || null,
+            base_updated_at: baseUpdatedAtRef.current,
+          });
+          setDetail(reverted);
+        } catch { /* 되돌리기 실패 — 아래에서 서버 최신본으로 재조회 */
+          const fresh = await fetchPost(detail.id);
+          if (fresh) setDetail(fresh);
+        }
+        await load();
+      }
       setMode('view');
-      setTitleDraft(detail.title);
-      setContentDraft(detail.content_json);
-      setCategoryDraft(detail.category || '');
+      setTitleDraft(snap?.title ?? detail.title);
+      setContentDraft(snap?.content ?? detail.content_json);
+      setCategoryDraft(snap?.category ?? (detail.category || ''));
       setProjectDraft(detail.project_id);
     }
+    setAutoState('idle');
+    setAutoErr(null);
+    autoDirtyRef.current = false;
     setError(null);
   };
 
@@ -619,19 +779,33 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     if (submittingRef.current) return;
     if (!titleDraft.trim()) { setError(t('validation.titleRequired', '제목을 입력하세요') as string); return; }
     submittingRef.current = true;
+    if (autoTimerRef.current) clearTimeout(autoTimerRef.current);   // 대기 중 자동저장과 겹치지 않게
     setSaving(true); setError(null);
     try {
       const categoryVal = categoryDraft.trim() || null;
       if (mode === 'new') {
         // 프로젝트 scope 는 자동 강제, 워크스페이스 scope 면 사용자 선택값
         const projectId = scope.type === 'project' ? scope.projectId : projectDraft;
-        const created = await createPost({
-          business_id: scope.businessId,
-          project_id: projectId,
-          title: titleDraft.trim(),
-          content_json: contentDraft as any,
-          category: categoryVal,
-        });
+        // 자동저장이 이미 draft 를 만들어 뒀으면 **새로 만들지 않고 승격**한다.
+        //   여기서 또 createPost 하면 같은 글이 두 개 생긴다(draft 1 + 정식 1).
+        //   status='published' 로 올라가는 이 PUT 에서 broadcast·감사·stage 가 비로소 발화한다.
+        const created = autoDraftIdRef.current
+          ? await updatePost(autoDraftIdRef.current, {
+            title: titleDraft.trim(),
+            content_json: contentDraft as any,
+            category: categoryVal,
+            status: 'published',
+            // draft 는 L1 로 강제돼 있었다 — 정식 등록 시 기본 공개 범위로 승격.
+            vlevel: projectId ? 'L2' : 'L3',
+            base_updated_at: baseUpdatedAtRef.current,
+          })
+          : await createPost({
+            business_id: scope.businessId,
+            project_id: projectId,
+            title: titleDraft.trim(),
+            content_json: contentDraft as any,
+            category: categoryVal,
+          });
         // 신규 작성 시 예약된 첨부를 한 번에 처리
         const fileIdsToAttach: number[] = [...pendingExistingIds];
         if (pendingUploads.length > 0) {
@@ -663,6 +837,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           content_json: contentDraft as any,
           category: categoryVal,
           linked_post_ids: pendingPostIds,
+          base_updated_at: baseUpdatedAtRef.current,
           // 프로젝트 scope 페이지에선 project_id 변경 막기 (강제 유지)
           ...(scope.type === 'workspace' ? { project_id: projectDraft } : {}),
         });
@@ -670,7 +845,16 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         setMode('view');
         await load(); await loadMeta();
       }
-    } catch (e) { setError((e as Error).message); }
+      // 명시 저장이 끝났으면 자동저장 상태·draft 참조를 비운다.
+      autoDraftIdRef.current = null;
+      autoDirtyRef.current = false;
+      setAutoState('idle');
+      setAutoErr(null);
+    } catch (e) {
+      // 충돌은 "저장 실패" 가 아니라 별도 안내 — 사용자가 새로고침해야 하는 상황이다.
+      if (e instanceof StaleEditError) { setAutoState('stale'); setAutoErr(e.message || (t('autosave.staleHelp', '다른 사람이 이 문서를 수정했습니다. 새로고침 후 이어서 작성해 주세요.') as string)); }
+      setError((e as Error).message);
+    }
     finally { submittingRef.current = false; setSaving(false); }
   };
 
@@ -1060,6 +1244,18 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 />
               </TitleRow>
               <EditActions>
+                {/* #252 임시저장 상태 — 성공은 뱃지만(토스트 금지, CLAUDE.md 자동저장 규칙).
+                    실패·충돌은 반드시 눈에 보여야 한다 — 조용히 죽으면 저장된 줄 알고 창을 닫는다. */}
+                <AutoSaveMark
+                  $tone={autoState === 'error' || autoState === 'stale' ? 'err' : 'ok'}
+                  title={autoErr || undefined}
+                  aria-live="polite"
+                >
+                  {autoState === 'saving' && t('autosave.saving', '임시저장 중…')}
+                  {autoState === 'saved' && `✓ ${t('autosave.saved', '임시저장됨')}`}
+                  {autoState === 'error' && `! ${t('autosave.failed', '임시저장 실패')}`}
+                  {autoState === 'stale' && `! ${t('autosave.stale', '다른 사람이 수정함')}`}
+                </AutoSaveMark>
                 <SecondaryBtn type="button" disabled={saving} onClick={cancelEdit}>{t('cancel', '취소')}</SecondaryBtn>
                 <PrimaryBtn type="button" disabled={saving || !titleDraft.trim()} onClick={submit}>
                   {saving ? t('saving', '저장 중…') : t('save', '저장')}
@@ -1918,8 +2114,14 @@ const TitleInput = styled.input`
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
 `;
 const EditActions = styled.div`
-  display: flex; gap: 8px; flex-wrap: wrap;
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
   @media (max-width: 640px) { gap: 6px; }
+`;
+// #252 임시저장 상태 표시 — AutoSaveField 의 뱃지 톤과 동일 (성공 회색 ✓ / 실패 붉은 !).
+const AutoSaveMark = styled.span<{ $tone: 'ok' | 'err' }>`
+  font-size: 12px; white-space: nowrap;
+  color: ${p => (p.$tone === 'err' ? '#DC2626' : '#94A3B8')};
+  @media (max-width: 640px) { display: none; }
 `;
 // 상세 메타 — 헤더 아래 한 줄 MetaBar. 좌(작성자·날짜·분류·프로젝트) ↔ 우(공개·공유·보안). (Irene)
 // 구분선은 좌우 끝까지(풀폭), 글자만 좌우 24px 안쪽.
