@@ -19,7 +19,9 @@ const ENTITY_LINK: Record<string, (id: string | number) => string> = {
   task: (id) => `/tasks?task=${id}`,
   post: (id) => `/docs?post=${id}`,
   file: (id) => `/files?file=${id}`,
-  invoice: (id) => `/bill?invoice=${id}`,
+  // SPA 라우트는 `/bills` — 옛 `/bill`(단수)은 존재한 적이 없어 catch-all 이 대시보드로
+  //   튕겼다. 즉 청구서 알림 클릭이 전부 죽어 있었다. 백엔드 미러도 같이 교정.
+  invoice: (id) => `/bills?invoice=${id}`,
   signature_request: (id) => `/docs?sig=${id}`,
   calendar_event: (id) => `/calendar?event=${id}`,
   event: (id) => `/calendar?event=${id}`,

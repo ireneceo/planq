@@ -167,7 +167,7 @@ const DashboardPage: React.FC = () => {
           <TileIcon><IconDoc /></TileIcon>
           <TileLabel>{t('quickActions.newDoc', '문서')}</TileLabel>
         </ActionTile>
-        <ActionTile type="button" onClick={navTo('/qbill')}>
+        <ActionTile type="button" onClick={navTo('/bills')}>
           <TileIcon><IconBill /></TileIcon>
           <TileLabel>{t('quickActions.newInvoice', '청구서')}</TileLabel>
         </ActionTile>

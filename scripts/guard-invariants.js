@@ -795,6 +795,139 @@ function checkDocFresh() {
   report('docfresh', '핵심 문서 신선도 60일 (경고만)', stale.length === 0, stale, true);
 }
 
+// ═══════════════════════════════════════════════
+// spalink — 존재하지 않는 SPA 라우트로 보내는 링크 0건 (하드 게이트)
+//
+// 운영 #246 계열: `/qtalk` `/qmail` `/qtask` `/qnote` `/qbill` `/documents/:id` 처럼
+// **라우트 대장에 없는 경로**로 navigate/link 하면 catch-all(`path="*"`) 이 잡아
+// 대시보드로 조용히 튕긴다. 버튼은 눌리는데 아무 일도 안 일어나므로 tsc·기존 가드가
+// 전부 통과하고 사용자만 "안 열려" 라고 신고한다. 메뉴 이름(Q talk)과 라우트(/talk)가
+// 다른 것이 이 실수의 근원 — 사람이 계속 재발시킨다. 기계가 잡아야 한다.
+// (memory feedback_notify_link_must_match_route)
+// ═══════════════════════════════════════════════
+// ── 라우트 대장 → 매칭기 ──────────────────────────
+// 첫 세그먼트만 비교하면 `/memo`(라우트는 `/memo/:id` 뿐) 나 `/documents/3`(라우트 없음, 다만
+//   `documents` 로 시작하는 다른 라우트 존재) 같은 **2단계 이하 오류를 통째로 놓친다.**
+//   실제로 그렇게 새어나간 링크가 있었다. 전체 경로를 패턴에 맞춰 본다.
+function collectRoutePatterns() {
+  const routeFiles = [
+    `${ROOT}/dev-frontend/src/App.tsx`,
+    `${ROOT}/dev-frontend/src/routes/appRoutes.tsx`,
+  ].filter((f) => fs.existsSync(f));
+  const pats = [];
+  for (const f of routeFiles) {
+    // App.tsx 는 JSX `path="/x"`, routes/appRoutes.tsx 는 객체 `path: '/x'` 문법이다.
+    //   후자를 안 읽으면 대장이 반쪽이 되고, 트리를 스왑하는 순간 멀쩡한 링크가 무더기로 잡힌다.
+    const src = read(f);
+    for (const m of src.matchAll(/path="([^"]*)"/g)) pats.push(m[1]);
+    for (const m of src.matchAll(/path:\s*['"`]([^'"`]*)['"`]/g)) pats.push(m[1]);
+  }
+  return pats.filter((p) => p.startsWith('/') || p === '*');
+}
+
+/** react-router 패턴 1개와 실제 경로가 맞는지. `:param` 은 1세그먼트, `*` 는 나머지 전부. */
+function routeMatches(pattern, path) {
+  if (pattern === '*') return false;   // catch-all 은 "라우트 있음" 이 아니다 — 그게 이 가드의 대상이다
+  const ps = pattern.split('/').filter(Boolean);
+  const xs = path.split('/').filter(Boolean);
+  for (let i = 0; i < ps.length; i += 1) {
+    if (ps[i] === '*') return true;
+    if (i >= xs.length) return false;
+    if (ps[i].startsWith(':')) continue;          // 파라미터 — 아무 세그먼트나
+    if (xs[i] === '\u0001') continue;       // 링크쪽 ${...} 보간 — 값을 알 수 없으니 통과
+    if (ps[i] !== xs[i]) return false;
+  }
+  return ps.length === xs.length;
+}
+
+function checkSpaLink() {
+  const patterns = collectRoutePatterns();
+  if (patterns.length === 0) {
+    report('spalink', 'SPA 라우트 링크 정합 (하드 게이트)', false, ['라우트 대장을 읽지 못했다 — App.tsx 확인']);
+    return;
+  }
+  const known = (p) => patterns.some((pat) => routeMatches(pat, p));
+
+  // SPA 라우터가 다루지 않는 경로 — API·정적·외부 프로세스·번역 리소스 등.
+  //   ★ `qnote` 는 여기 있으면 안 된다: `/qnote` 는 실제 죽은 라우트이고 Q Note 페이지는 `/notes` 다.
+  //     프론트 fetch 가 쓰는 것은 `/qnote/api/...` 라 아래 2세그먼트 규칙으로 걸러진다.
+  const SKIP_PREFIX = [
+    '/api/', '/uploads/', '/assets/', '/static/', '/public/', '/locales/',
+    '/qnote/api', '/mcp/', '/socket.io', '/.well-known/', '/favicon', '/icons/', '/images/',
+    // 네이티브 앱 딥링크 — react-router 가 아니라 NativeBridge 가 pathname 으로 가로챈다
+    '/oauth/native-return', '/sounds/',
+  ];
+  const skip = (p) => p === '/' || SKIP_PREFIX.some((s) => p === s.replace(/\/$/, '') || p.startsWith(s));
+
+  const hits = [];
+  // 문자열 리터럴에서 경로 후보를 뽑는다. **호출 문법을 열거하지 않는다** —
+  //   navigate()/Link 만 세던 옛 방식은 `navTo('/qbill')` 같은 래퍼나
+  //   `invoice: (id) => \`/bill?invoice=${id}\`` 같은 매핑 테이블을 통째로 놓쳤다(실사고 2건).
+  const candidates = (line) => {
+    const out = [];
+    for (const m of line.matchAll(/['"`](\/[^'"`\s]*)['"`]/g)) {
+      // 쿼리·해시 제거 후 경로만. `${...}` 보간 세그먼트는 NUL 로 치환해 와일드카드 취급.
+      let p = m[1].split('?')[0].split('#')[0].replace(/\$\{[^}]*\}/g, '\u0001');
+      if (p.length > 1 && p.endsWith('/')) p = p.slice(0, -1);
+      if (p.length <= 1) continue;
+      // SPA 경로의 모양이 아닌 것은 애초에 후보가 아니다.
+      //   - 확장자가 붙으면 정적 자산(`/logo.svg` `/sw.js` `/sounds/x.mp3`)이지 라우트가 아니다
+      //   - 경로 문자 외의 것이 섞였으면 JSX 조각(`/></svg>{t(`) 같은 정규식 아티팩트다
+      if (/\.[a-zA-Z0-9]{2,5}$/.test(p)) continue;
+      if (!/^\/[a-zA-Z0-9_\-/\u0001]*$/.test(p)) continue;
+      out.push({ raw: m[1], path: p, idx: m.index });
+    }
+    return out;
+  };
+  const isComment = (t) => t.startsWith('//') || t.startsWith('*') || t.startsWith('/*') || t.startsWith('{/*');
+
+  // 경로 리터럴이라고 다 네비게이션이 아니다. **판정 방향은 "기본 검출, 명시적 제외"** 로 둔다 —
+  //   네비게이션 문법을 열거하는 반대 방향은 `navTo()` 같은 새 래퍼가 생기는 순간 침묵한다.
+  //   여기 제외되는 것은 "경로를 목적지가 아니라 값으로 쓰는" 용법뿐이다:
+  //     · API 호출 인자          apiFetch('/api/x') · callAction('/hold') · fetch(...)
+  //     · 경로 비교/파싱          pathname.includes('/storage') · startsWith('/memo/') · === '/login'
+  //     · 접두 목록 상수          const NON_TAB_PREFIX = ['/login', ...]
+  const CALL_CTX = /(?<![a-zA-Z0-9_$])(?:apiFetch|callAction|runAction|fetch|axios|get|post|put|patch|del|delete|request)\s*\([^)]*$/;
+  const CMP_CTX = /(?<!location\.)(?<![a-zA-Z0-9_$])(?:includes|startsWith|endsWith|indexOf|lastIndexOf|match|test|split|replace|replaceAll|search)\s*\(\s*$|[=!]==?\s*$/;
+  const PREFIX_LIST_DECL = /(?:PREFIX|PATH|ROUTE|URL)[A-Z_]*\s*=\s*\[/;
+  const isValueUse = (line, idx) => {
+    const before = line.slice(0, idx);
+    return CALL_CTX.test(before) || CMP_CTX.test(before) || PREFIX_LIST_DECL.test(line);
+  };
+
+  // 프론트 — src 전체. 앱 안에서 쓰이는 모든 경로 리터럴이 대상.
+  for (const f of walk(`${ROOT}/dev-frontend/src`, ['.ts', '.tsx'])) {
+    read(f).split('\n').forEach((l, i) => {
+      const t = l.trim();
+      if (isComment(t)) return;
+      // 줄 끝 주석 안의 경로는 코드가 아니다 (`code; // navigate('/x')` 오탐 차단).
+      const code = l.replace(/\/\/.*$/, '');
+      for (const c of candidates(code)) {
+        if (skip(c.path) || known(c.path) || isValueUse(code, c.idx)) continue;
+        hits.push(`${rel(f)}:${i + 1}: ${c.raw} → 라우트 없음`);
+      }
+    });
+  }
+
+  // 백엔드 — 알림·통계가 사용자 브라우저로 내보내는 deep link.
+  //   express 라우트 정의(`router.get('/x')`)와 파일 경로는 SPA 경로가 아니므로 제외한다.
+  const BACKEND_NOISE = /(?:router|app)\s*\.\s*(?:get|post|put|patch|delete|use|all)\s*\(|require\s*\(|path\.(?:join|resolve)|__dirname|createReadStream|writeFileSync|readFileSync|process\.env/;
+  for (const f of [...walk(`${ROOT}/dev-backend/routes`, ['.js']), ...walk(`${ROOT}/dev-backend/services`, ['.js'])]) {
+    read(f).split('\n').forEach((l, i) => {
+      const t = l.trim();
+      if (isComment(t)) return;
+      const code = l.replace(/\/\/.*$/, '');
+      if (BACKEND_NOISE.test(code) || /\/api\/|api\.push\.apple|googleapis|https?:\/\/|':path'|':method'/.test(code)) return;
+      for (const c of candidates(code)) {
+        if (skip(c.path) || known(c.path) || isValueUse(code, c.idx)) continue;
+        hits.push(`${rel(f)}:${i + 1}: ${c.raw} → 라우트 없음`);
+      }
+    });
+  }
+
+  report('spalink', 'SPA 라우트 링크 정합 — 죽은 링크 0건 (하드 게이트)', hits.length === 0, hits);
+}
+
 // ── 메인 ─────────────────────────────────────────
 const CATEGORIES = {
   mock: checkMock,
@@ -814,6 +947,7 @@ const CATEGORIES = {
   cuetools: checkCueTools,
   mcpreadonly: checkMcpReadonly,
   godfile: checkGodfile,
+  spalink: checkSpaLink,
   panelhandle: checkPanelHandle,
   docfresh: checkDocFresh,
 };

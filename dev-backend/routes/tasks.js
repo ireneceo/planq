@@ -2027,7 +2027,8 @@ router.get('/public/by-token/:token/auth-check', authenticateToken, async (req, 
     const canAccess = await canAccessTask(req.user.id, task, scope);
     return successResponse(res, {
       canAccess: !!canAccess,
-      appUrl: canAccess ? `/task?task=${task.id}` : null,
+      // SPA 라우트는 복수형 `/tasks` — 단수 `/task` 는 라우트가 없어 대시보드로 튕겼다
+      appUrl: canAccess ? `/tasks?task=${task.id}` : null,
     });
   } catch (err) { next(err); }
 });

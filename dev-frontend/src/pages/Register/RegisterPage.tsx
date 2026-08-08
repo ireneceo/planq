@@ -449,14 +449,14 @@ const RegisterPage: React.FC = () => {
               <ConsentItem>
                 <input type="checkbox" id="terms-agree" checked={termsAgreed} onChange={e => setTermsAgreed(e.target.checked)} />
                 <label htmlFor="terms-agree">
-                  <Link to="/legal/terms" target="_blank" rel="noopener">{t('register.termsLink', '이용약관')}</Link>
+                  <Link to="/terms" target="_blank" rel="noopener">{t('register.termsLink', '이용약관')}</Link>
                   {t('register.termsAgree', '에 동의합니다 (필수)')}
                 </label>
               </ConsentItem>
               <ConsentItem>
                 <input type="checkbox" id="privacy-agree" checked={privacyAgreed} onChange={e => setPrivacyAgreed(e.target.checked)} />
                 <label htmlFor="privacy-agree">
-                  <Link to="/legal/privacy" target="_blank" rel="noopener">{t('register.privacyLink', '개인정보 처리방침')}</Link>
+                  <Link to="/privacy" target="_blank" rel="noopener">{t('register.privacyLink', '개인정보 처리방침')}</Link>
                   {t('register.privacyAgree', '에 동의합니다 (필수)')}
                 </label>
               </ConsentItem>

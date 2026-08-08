@@ -44,7 +44,8 @@ async function fetchDeliverables(projectId) {
   ]);
   return [
     ...posts.map((p) => ({ kind: 'post', id: p.id, title: p.title, link: `/projects/p/${projectId}?tab=docs&post=${p.id}` })),
-    ...docs.map((d) => ({ kind: 'document', id: d.id, title: d.title, link: `/documents/${d.id}` })),
+    // /documents/:id 뷰어 라우트는 프론트에 없다 — 같은 프로젝트 문서 탭으로 착지(#246 계열)
+    ...docs.map((d) => ({ kind: 'document', id: d.id, title: d.title, link: `/projects/p/${projectId}?tab=docs` })),
   ].slice(0, 12);
 }
 

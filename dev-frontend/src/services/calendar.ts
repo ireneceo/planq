@@ -87,6 +87,10 @@ export async function getVideoStatus(bizId?: number): Promise<{
   workspace_connected: boolean;
   workspace_can_write: boolean;
   workspace_account_email: string | null;
+  /** 개인 축 — 본인 Google 계정 연동. 배너가 "누구의 연동을 고쳐야 하는지" 를 가리키는 근거.
+   *  워크스페이스 연동은 오너만 할 수 있으므로, 직원에게는 이 축만이 실행 가능한 경로다. */
+  personal_connected: boolean;
+  personal_can_write: boolean;
   /** Meet 축 — 워크스페이스 **또는** 개인 연동 중 하나라도 연결/발급 가능하면 true. */
   gcal_connected: boolean;
   /** #242 — 토큰이 있어도 캘린더 쓰기 권한이 없을 수 있다. Meet UI 는 이 값으로 게이트한다. */

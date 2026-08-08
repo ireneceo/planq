@@ -134,7 +134,8 @@ router.get('/public/by-token/:token/auth-check', authenticateToken, async (req, 
     const canAccess = isMemberOrAbove(scope);
     return successResponse(res, {
       canAccess,
-      appUrl: canAccess ? `/file?file=${file.id}` : null,
+      // SPA 라우트는 복수형 `/files` — 단수 `/file` 은 라우트가 없어 대시보드로 튕겼다
+      appUrl: canAccess ? `/files?file=${file.id}` : null,
     });
   } catch (err) { next(err); }
 });

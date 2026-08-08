@@ -16,7 +16,6 @@ const OAuthCallbackPage: React.FC = () => {
     const hash = window.location.hash.replace(/^#/, '');
     const params = new URLSearchParams(hash);
     const token = params.get('token');
-    const next = params.get('next') || 'inbox';
     if (!token) {
       navigate('/login?oauth_error=no_token', { replace: true });
       return;
@@ -25,7 +24,8 @@ const OAuthCallbackPage: React.FC = () => {
       localStorage.setItem('planq_token', token);
       // hash 제거 + redirect
       window.history.replaceState(null, '', '/oauth/callback');
-      const target = next === 'onboarding' ? '/onboarding' : '/inbox';
+      // `/onboarding` 라우트는 존재하지 않는다 — 만들 때 라우트 등록과 함께 되살릴 것.
+      const target = '/inbox';
       window.location.replace(target);
     } catch {
       navigate('/login?oauth_error=storage_failed', { replace: true });

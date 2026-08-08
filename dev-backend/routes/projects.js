@@ -1256,9 +1256,11 @@ router.get('/:id/canvas', authenticateToken, async (req, res, next) => {
         order: [['created_at', 'DESC']], limit: 30,
       }),
     ]);
+    // documents 는 전용 뷰어 라우트(/documents/:id)가 프론트에 없다 — 옛 링크는 catch-all 로
+    //   대시보드에 튕겼다. 같은 프로젝트의 문서 탭으로 착지시킨다(#246 과 같은 계열).
     const deliverables = [
       ...posts.map((p) => ({ kind: 'post', id: p.id, title: p.title, category: p.category, status: p.status, created_at: p.created_at, link: `/projects/p/${project.id}?tab=docs&post=${p.id}` })),
-      ...documents.map((d) => ({ kind: 'document', id: d.id, title: d.title, category: d.kind, status: d.status, created_at: d.created_at, link: `/documents/${d.id}` })),
+      ...documents.map((d) => ({ kind: 'document', id: d.id, title: d.title, category: d.kind, status: d.status, created_at: d.created_at, link: `/projects/p/${project.id}?tab=docs` })),
     ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 30);
 
     // 이해관계자 (프로젝트 멤버 + 부서/팀 · 프로젝트 client + kind)
@@ -1629,9 +1631,11 @@ router.get('/:id/report', authenticateToken, async (req, res, next) => {
       ProjectIssue.findAll({ where: { project_id: project.id }, attributes: ['id', 'body', 'created_at'], order: [['created_at', 'DESC']], limit: 10 }),
       ProjectStage.findAll({ where: { project_id: project.id }, attributes: ['id', 'kind', 'label', 'status', 'order_index'], order: [['order_index', 'ASC']] }),
     ]);
+    // documents 는 전용 뷰어 라우트(/documents/:id)가 프론트에 없다 — 옛 링크는 catch-all 로
+    //   대시보드에 튕겼다. 같은 프로젝트의 문서 탭으로 착지시킨다(#246 과 같은 계열).
     const deliverables = [
       ...posts.map((p) => ({ kind: 'post', id: p.id, title: p.title, category: p.category, created_at: p.created_at, link: `/projects/p/${project.id}?tab=docs&post=${p.id}` })),
-      ...documents.map((d) => ({ kind: 'document', id: d.id, title: d.title, category: d.kind, created_at: d.created_at, link: `/documents/${d.id}` })),
+      ...documents.map((d) => ({ kind: 'document', id: d.id, title: d.title, category: d.kind, created_at: d.created_at, link: `/projects/p/${project.id}?tab=docs` })),
     ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 20);
 
     return successResponse(res, {

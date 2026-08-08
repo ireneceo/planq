@@ -34,6 +34,9 @@ interface Props {
   // 사이클 N+17 hotfix — NewNoteModal 에서 선택한 project/client prefill (신규 메모일 때만)
   prefillProjectId?: number | null;
   prefillClientId?: number | null;
+  // 본문 prefill — 음성 캡처(`/notes?prefill=`)·PWA 공유로 들어온 평문. 신규 메모일 때만.
+  //   이게 없으면 받아쓴 텍스트가 페이지 전환과 함께 버려진다(옛 `/memo?voice=` 의 실제 증상).
+  prefillText?: string | null;
   onCreated: (session: QNoteSession) => void;
   onUpdated: (session: QNoteSession) => void;
   onDelete: (id: number) => void;
@@ -71,11 +74,13 @@ function docToPlainText(doc: unknown): string {
   return lines.join('\n');
 }
 
-const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, prefillClientId, onCreated, onUpdated, onDelete, onClose }) => {
+const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, prefillClientId, prefillText, onCreated, onUpdated, onDelete, onClose }) => {
   // prefillClientId — sessions 컬럼 X. 다음 사이클 source_meta 등에 보존 예정 (props interface 만 받아둠).
   void prefillClientId;
   const { t } = useTranslation('qnote');
-  const [doc, setDoc] = useState<unknown>(() => parseBodyToDoc(session?.body));
+  // 기존 메모면 그 body 가 우선. 신규(session=null)일 때만 prefill 평문을 초기 doc 으로 쓴다 —
+  //   섞으면 저장된 메모를 열었을 때 옛 공유 텍스트가 본문을 덮어쓴다.
+  const [doc, setDoc] = useState<unknown>(() => parseBodyToDoc(session ? session.body : (prefillText || null)));
   const [sessionId, setSessionId] = useState<number | null>(session?.id ?? null);
   const [saveState, setSaveState] = useState<SaveState>(session ? 'saved' : 'idle');
   const [savedAt, setSavedAt] = useState<number | null>(session ? Date.now() : null);
@@ -145,7 +150,11 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
   sessionIdRef.current = sessionId;
 
   // session prop 변경 시 (다른 메모 click) doc 갱신
+  //   ★ 첫 실행은 건너뛴다 — useState 초기화가 이미 doc 을 세웠고, 이 effect 는 mount 시에도
+  //     한 번 도는데 신규 메모(session=null)면 빈 doc 으로 덮어써 **prefill 을 지운다.**
+  const didInitRef = useRef(false);
   useEffect(() => {
+    if (!didInitRef.current) { didInitRef.current = true; return; }
     setDoc(parseBodyToDoc(session?.body));
     setSessionId(session?.id ?? null);
     setSaveState(session ? 'saved' : 'idle');

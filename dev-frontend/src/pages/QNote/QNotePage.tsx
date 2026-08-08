@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback, Suspense } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import HelpDot from '../../components/Common/HelpDot';
 import { type VLevel } from '../../components/Common/VisibilityBadge';
@@ -224,8 +224,26 @@ const QNotePage = () => {
   const [composingMemo, setComposingMemo] = useState(false);
   // 신규 작성 시 prefill 옵션 (NewNoteModal 에서 선택한 project/client)
   const [composingPrefill, setComposingPrefill] = useState<{ project_id: number | null; client_id: number | null }>({ project_id: null, client_id: null });
+  // `/notes?prefill=<평문>` — 음성 캡처(VoiceCaptureSheet)·PWA 공유가 넘긴 본문.
+  //   라우트만 맞춰 놓고 이 소비가 없으면 페이지는 뜨는데 받아쓴 텍스트는 그대로 버려진다.
+  const [composingText, setComposingText] = useState<string | null>(null);
   // 사이클 N+17 hotfix — + 클릭 시 NewNoteModal 열림 (Q docs PostAiModal manual mode 패턴 통일)
   const [newNoteModalOpen, setNewNoteModalOpen] = useState(false);
+  // ?prefill= 소비 — 마운트 시 한 번만. 신규 메모 작성 모드로 열고 URL 에서 파라미터를 걷는다
+  //   (남겨두면 새로고침·뒤로가기마다 같은 텍스트로 빈 메모가 또 열린다).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const prefillAppliedRef = useRef(false);
+  useEffect(() => {
+    if (prefillAppliedRef.current) return;
+    const raw = searchParams.get('prefill');
+    if (!raw) return;
+    prefillAppliedRef.current = true;
+    // VoiceCaptureSheet 은 encodeURIComponent 로 넣지만 useSearchParams 가 이미 디코드해 준다.
+    const text = raw.trim();
+    if (text) { setComposingText(text); setComposingMemo(true); setActiveSession(null); }
+    const next = new URLSearchParams(searchParams); next.delete('prefill');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
   // 사이클 N+22 — + 버튼 드롭다운 (메모 즉시 / 음성 모달) — Irene 요청
   const [newNoteDropdownOpen, setNewNoteDropdownOpen] = useState(false);
   const handleSessionDelete = async (sessionId: number) => {
@@ -2345,7 +2363,8 @@ const QNotePage = () => {
               businessId={businessId ? Number(businessId) : 0}
               prefillProjectId={composingMemo ? composingPrefill.project_id : null}
               prefillClientId={composingMemo ? composingPrefill.client_id : null}
-              onCreated={(s) => { setActiveSession(s); setComposingMemo(false); setComposingPrefill({ project_id: null, client_id: null }); loadSessions(); navigate(`/notes/${s.id}`, { replace: true }); }}
+              prefillText={composingMemo ? composingText : null}
+              onCreated={(s) => { setActiveSession(s); setComposingMemo(false); setComposingText(null); setComposingPrefill({ project_id: null, client_id: null }); loadSessions(); navigate(`/notes/${s.id}`, { replace: true }); }}
               onUpdated={(s) => { setActiveSession(s); setSessions(prev => prev.map(x => x.id === s.id ? { ...x, ...s } : x)); }}
               onDelete={async (id) => {
                 await deleteSession(id);
@@ -2355,7 +2374,7 @@ const QNotePage = () => {
                 setPhase('empty');
                 navigate('/notes', { replace: true });
               }}
-              onClose={() => { setComposingMemo(false); setActiveSession(null); navigate('/notes', { replace: true }); }}
+              onClose={() => { setComposingMemo(false); setComposingText(null); setActiveSession(null); navigate('/notes', { replace: true }); }}
             />
           </Suspense>
         )}

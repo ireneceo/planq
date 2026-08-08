@@ -236,7 +236,9 @@
     "gcal": {
       "scopeMissing": "Calendar permission is missing, so events are not sent to Google — reconnect and check the Calendar item"
     },
-    "syncEnabled": "Auto-sync events"
+    "syncEnabled": "Auto-sync events",
+    "ownerOnly": "Only the workspace owner can connect or disconnect",
+    "ownerOnlyGcal": "Only the workspace owner can connect or disconnect. To use Meet from your own account, connect Google Calendar in My profile → Integrations"
   },
   "brand": {
     "sectionTitle": "Brand",
