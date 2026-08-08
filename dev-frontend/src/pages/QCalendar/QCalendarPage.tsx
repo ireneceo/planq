@@ -94,9 +94,13 @@ const QCalendarPage: React.FC = () => {
   //   이 경고는 조치(재연결)가 필요한 고지라 자동 소거하지 않고 사용자가 닫아야 사라진다.
   const [meetWarnMsg, setMeetWarnMsg] = useState<string | null>(null);
   // 사이클 N+13: Daily.co → Google Meet 교체. 워크스페이스가 Google Calendar 연동되어 있어야 자동 생성 가능.
-  const [gcalConnected, setGcalConnected] = useState(false);
-  // #242 — 토큰 존재 ≠ 캘린더 쓰기 권한. Meet·팀 동기화 UI 는 이 값으로 게이트한다.
+  // #242 — 토큰 존재 ≠ 캘린더 쓰기 권한. Meet UI 는 이 값으로 게이트한다.
+  //   ★ Meet 은 개인 연동 우선이 되면서 이 값이 **개인 연동까지 포함**하는 의미로 넓어졌다.
+  //     팀 캘린더 동기화·"구글 캘린더로 보내기" 는 워크스페이스 전용이므로 아래 workspace* 를 쓴다.
+  //     (옛 gcalConnected state 는 CalendarSyncNotice 가 workspace 축으로 바뀌면서 소비처가 사라졌다.)
   const [gcalCanWrite, setGcalCanWrite] = useState(false);
+  const [workspaceConnected, setWorkspaceConnected] = useState(false);
+  const [workspaceCanWrite, setWorkspaceCanWrite] = useState(false);
   const today = useMemo(() => new Date(), []);
 
   // 업무 상세 드로어 (Q Task 페이지로 이동하지 않고 캘린더 위에 오버레이)
@@ -132,8 +136,14 @@ const QCalendarPage: React.FC = () => {
   useEffect(() => {
     if (!bizId) return;
     getVideoStatus(bizId)
-      .then((s) => { setGcalConnected(!!s.gcal_connected); setGcalCanWrite(!!s.gcal_can_write); })
-      .catch(() => { setGcalConnected(false); setGcalCanWrite(false); });
+      .then((s) => {
+        setGcalCanWrite(!!s.gcal_can_write);
+        setWorkspaceConnected(!!s.workspace_connected); setWorkspaceCanWrite(!!s.workspace_can_write);
+      })
+      .catch(() => {
+        setGcalCanWrite(false);
+        setWorkspaceConnected(false); setWorkspaceCanWrite(false);
+      });
   }, [bizId]);
 
   // 개인 Google 캘린더 연결 여부 (외부 연동 Phase 2) — 연결됐을 때만 overlay 토글 노출
@@ -508,7 +518,9 @@ const QCalendarPage: React.FC = () => {
 
   return (
     <PageShell title={t('title')} actions={headerActions}>
-      <CalendarSyncNotice workspaceConnected={gcalConnected} workspaceCanWrite={gcalCanWrite} personalConnected={personalConnected} personalCanWrite={personalCanWrite} />
+      {/* ★ 이 안내는 **워크스페이스 축**이다. Meet 축으로 넓어진 gcal* 를 먹이면 개인 연동만 한
+        * 사용자에게 "워크스페이스 연동됨" 이 거짓으로 뜨고 workspaceBroken 오판까지 난다. */}
+      <CalendarSyncNotice workspaceConnected={workspaceConnected} workspaceCanWrite={workspaceCanWrite} personalConnected={personalConnected} personalCanWrite={personalCanWrite} />
       <Toolbar>
         <ToolbarLeft>
           {view === 'day' && (
@@ -610,6 +622,7 @@ const QCalendarPage: React.FC = () => {
           onDelete={handleDelete}
           onCreateMeetingRoom={handleCreateMeetingRoom}
           gcalCanWrite={gcalCanWrite}
+          workspaceCanWrite={workspaceCanWrite}
           personalCalWritable={personalConnected && personalCanWrite}
         />
       )}

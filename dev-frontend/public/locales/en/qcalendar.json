@@ -87,6 +87,7 @@
     "colorInherit": "Inherit from project",
     "autoCreateMeeting": "Auto-create Google Meet",
     "autoCreateMeetingHelp": "Creates a Google Calendar event with a Meet link automatically",
+    "autoCreateMeetingPersonal": "The event is created in your connected Google account, and you become the meeting host",
     "gcalConnectPrompt": "Connect Google account",
     "gcalConnectHelp": "Go to workspace settings → Cloud integrations to connect Google Calendar and enable auto Meet links",
     "gcalSection": "Google Calendar",
@@ -161,7 +162,8 @@
     "gcalTeamBlocked": "Private events cannot be added to the team calendar",
     "gcalNone": "Not added",
     "gcalSync": "Google Calendar",
-    "share": "Share"
+    "share": "Share",
+    "gcalMeetingKept": "Calendar copies that hold the meeting are kept even when sync is off (protecting the link already shared with attendees). Switching to private still revokes the team copy."
   },
   "empty": {
     "month": "No events this month",

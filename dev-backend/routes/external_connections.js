@@ -184,6 +184,13 @@ router.delete('/me/external-connections/:id', authenticateToken, async (req, res
     });
     if (!conn) return errorResponse(res, 'not_found', 404);
     if (conn.auth_type === 'oauth') await personalOauth.revokeToken(conn);
+    // 이 연결로 만든 캘린더 링크를 걷는다. 토큰을 이미 revoke 한 뒤라 구글 쪽 이벤트는 지울 수
+    // 없지만(권한 없음), 링크를 남겨두면 connection_id 가 dangling 이 되어 reconcile 이 매 저장마다
+    // 사라진 연결을 헛 조회한다. 연결이 없으면 그 목적지도 없다.
+    try {
+      const { CalendarEventGcalLink } = require('../models');
+      await CalendarEventGcalLink.destroy({ where: { connection_id: conn.id, target: 'personal' } });
+    } catch (e) { console.warn('[ext-conn delete] 캘린더 링크 정리 실패:', e.message); }
     await conn.destroy();
     successResponse(res, null, 'disconnected');
   } catch (err) { next(err); }

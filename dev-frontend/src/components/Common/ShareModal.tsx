@@ -311,7 +311,8 @@ const ShareModal: React.FC<Props> = ({ open, entityType, entityId, entityTitle, 
                   <SuccessLine>{t('share.chat.sent', { defaultValue: '대화방으로 전송됨' }) as string}</SuccessLine>
                   {chatSentConvId && (
                     <GoToChatBtn type="button" onClick={() => {
-                      navigate(`/qtalk?conv=${chatSentConvId}`);
+                      // 라우트는 /talk (App.tsx). /qtalk 은 존재하지 않아 catch-all 로 튕겼다(#246).
+                      navigate(`/talk/${chatSentConvId}`);
                       onClose();
                     }}>
                       {t('share.chat.goToChat', { defaultValue: '대화방 열기' }) as string} →

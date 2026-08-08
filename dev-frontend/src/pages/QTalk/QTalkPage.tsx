@@ -337,12 +337,16 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
   useEffect(() => {
     if (embedded) return;
     const sp = new URLSearchParams(location.search);
-    const c = Number(sp.get('conv')) || null;
+    // ★ 경로 파라미터(/talk/:conversationId)도 같이 본다.
+    //   안 보면 진입 직후 이 effect 가 **아직 비어 있는 location.search** 를 읽어 방금 연 대화를
+    //   해제(null)하고, 위 URL 싱크 effect 가 그걸 다시 /talk 로 되돌리며 두 effect 가 진동한다.
+    //   결과는 "채팅방이 안 열린 빈 화면" — 청구서 발송·공유 후 '채팅방 가서 보기' 가 그랬다(#246).
+    const c = Number(pathConvId) || Number(sp.get('conv')) || null;
     const p = Number(sp.get('project')) || null;
     if (c !== activeConversationId) setActiveConversationId(c);
     if (p !== activeProjectId) setActiveProjectId(p);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.search]);
+  }, [location.search, pathConvId]);
 
   // 캐시 있으면 loading=false (즉시 표시). 캐시 없으면 loading=true → LeftPanel 이 skeleton 렌더.
   // 풀스크린 spinner 게이트는 제거 (사이클 N+15-A): 위치 점프 0 + skeleton 으로 인지 즉시성 확보.

@@ -55,7 +55,11 @@ interface Props {
   // 사이클 N+13: Daily.co → Google Meet 교체. 워크스페이스 Google Calendar 의 **쓰기 권한** 여부.
   //   #242 — 옛 이름 `gcalConnected` 는 "토큰 존재" 로도 읽혀 권한 없는 연결에서 Meet UI 가 노출됐다.
   //   이 값이 게이트하는 것은 전부 쓰기 동작(회의 생성·재발급·팀 동기화 토글)이라 이름을 맞춘다.
+  //   ★ Meet 이 개인 연동 우선이 되면서 이 값은 **개인 연동까지 포함**하는 Meet 축이 됐다.
+  //     팀 캘린더 동기화 토글과 "구글 캘린더로 보내기" 는 워크스페이스 전용이라 아래 값을 써야 한다.
   gcalCanWrite?: boolean;
+  // 팀 축 — 워크스페이스 Google Calendar 쓰기 권한. 팀 동기화·push-to-gcal 전용.
+  workspaceCanWrite?: boolean;
   // 개인 Google Calendar 가 연결 + 쓰기 권한까지 있는가 (NewEventModal 과 같은 기준)
   personalCalWritable?: boolean;
 }
@@ -72,7 +76,7 @@ const mkISO = (dateStr: string, timeStr: string, allDay: boolean, isEnd: boolean
 
 const EventDrawer: React.FC<Props> = ({
   event, instanceDate, projects = [], members = [], clients = [], myUserId, myBusinessRole,
-  onClose, onUpdate, onDelete, onCreateMeetingRoom, gcalCanWrite, personalCalWritable,
+  onClose, onUpdate, onDelete, onCreateMeetingRoom, gcalCanWrite, workspaceCanWrite, personalCalWritable,
 }) => {
   const { t, i18n } = useTranslation('qcalendar');
   const { user } = useAuth();
@@ -528,7 +532,7 @@ const EventDrawer: React.FC<Props> = ({
         {/* 구글 캘린더 — 팀/개인 각각(계정이 다르다). 끄면 구글에 올라간 일정도 삭제 전파.
             ★ 연결되지 않은 목적지는 아예 안 보여준다 — 체크해도 아무 데도 안 가는 토글은 거짓 안내다.
             (NewEventModal 은 이미 같은 기준으로 게이트한다. 드로어만 빠져 있었다 — 2026-07-31 정합) */}
-        {(gcalCanWrite || personalCalWritable) && (
+        {(workspaceCanWrite || personalCalWritable) && (
         <Section>
           <SectionIcon>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -544,7 +548,7 @@ const EventDrawer: React.FC<Props> = ({
               const ev = event as CalendarEvent & { gcal_sync_workspace?: boolean; gcal_sync_personal?: boolean; vlevel?: string | null };
               const priv = ev.vlevel === 'L1' || ev.vlevel === 'L2';
               // 연결된 목적지만 계산에 넣는다 — 안 연결된 쪽은 켜져 있어도 실제로 나가는 데가 없다.
-              const wsOn = !!gcalCanWrite && ev.gcal_sync_workspace !== false && !priv;
+              const wsOn = !!workspaceCanWrite && ev.gcal_sync_workspace !== false && !priv;
               const peOn = !!personalCalWritable && ev.gcal_sync_personal !== false;
               if (!canEdit) {
                 return <Plain>{[wsOn ? t('drawer.gcalTeam') : null, peOn ? t('drawer.gcalPersonal') : null]
@@ -552,7 +556,7 @@ const EventDrawer: React.FC<Props> = ({
               }
               return (
                 <>
-                  {gcalCanWrite && (
+                  {workspaceCanWrite && (
                     <GcalSyncRow $disabled={priv} title={priv ? (t('drawer.gcalTeamBlocked') as string) : undefined}>
                       <input type="checkbox" checked={wsOn} disabled={priv}
                         onChange={(e) => onUpdate({ gcal_sync_workspace: e.target.checked } as unknown as Partial<CalendarEvent>)} />
@@ -565,6 +569,17 @@ const EventDrawer: React.FC<Props> = ({
                         onChange={(e) => onUpdate({ gcal_sync_personal: e.target.checked } as unknown as Partial<CalendarEvent>)} />
                       <span>{t('drawer.gcalPersonal')}</span>
                     </GcalSyncRow>
+                  )}
+                  {/* 회의가 걸린 캘린더 사본은 동기화를 꺼도 지우지 않는다 — 참석자에게 이미 배포된
+                    * 링크가 체크박스 하나로 죽으면 복구할 방법이 없기 때문이다. 다만 "껐는데 구글에
+                    * 남아 있다" 는 옛 호소와 정반대 방향이라, 왜 남는지 여기서 밝힌다.
+                    * (비공개로 바꾸면 팀 사본은 회의가 있어도 회수된다 — 프라이버시가 우선.) */}
+                  {/* 조건은 "연결된 목적지가 꺼져 있을 때" 로 좁힌다. `!(wsOn && peOn)` 로 두면
+                    * 개인 연동이 없는 사용자는 peOn 이 항상 false 라 **모든 회의 일정에 상시 노출**된다
+                    * (보호로 남는 사본이 하나도 없는데도). */}
+                  {ev.meeting_provider === 'google_meet' && ev.meeting_url
+                    && ((workspaceCanWrite && !wsOn) || (personalCalWritable && !peOn)) && (
+                    <MeetingHint>{t('drawer.gcalMeetingKept')}</MeetingHint>
                   )}
                 </>
               );
@@ -691,7 +706,9 @@ const EventDrawer: React.FC<Props> = ({
               <MutedSmall>{t('drawer.gcalSync', 'Google Calendar')}</MutedSmall>
               {event.gcal_event_id ? (
                 <GcalSynced>✓ {t('drawer.gcalSyncedOn', '구글 캘린더에 동기화됨')}</GcalSynced>
-              ) : gcalCanWrite ? (
+              ) : workspaceCanWrite ? (
+                /* push-to-gcal 라우트는 워크스페이스 전용이다 — Meet 축(gcalCanWrite)으로 게이트하면
+                   개인 연동만 한 사용자에게 버튼이 열리고 누르는 순간 400 이 난다. */
                 <>
                   <GcalPushBtn type="button" onClick={handlePushToGcal} disabled={pushingGcal}>
                     {pushingGcal ? t('drawer.gcalPushing', '보내는 중…') : t('drawer.gcalPush', '구글 캘린더로 보내기')}

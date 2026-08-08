@@ -29,6 +29,14 @@ CalendarEventGcalLink.init({
   user_id: { type: DataTypes.INTEGER, allowNull: true },
   gcal_event_id: { type: DataTypes.STRING(255), allowNull: false },
   gcal_calendar_id: { type: DataTypes.STRING(255), allowNull: true, defaultValue: 'primary' },
+  // 이 구글 이벤트가 **Google Meet 회의를 들고 있는가.**
+  //   회수 루프(reconcile)는 목적지가 wanted 에서 빠지면 구글 이벤트를 지운다. 그런데 회의 링크는
+  //   이미 참석자에게 배포된 자원이라, 체크박스 하나로 조용히 파괴되면 복구할 방법이 없다.
+  //   → 이 플래그가 선 링크는 회수 대상에서 제외하고 내용 갱신만 한다.
+  //   ★ 단 하나의 예외: target='workspace' + 비공개 전환(#126) 은 **보호를 무시하고 삭제**한다.
+  //     프라이버시가 회의 링크 보존보다 우선이다 (calendarSync.reconcile 참조).
+  //   uniq_event_target_conn 키에는 들어가지 않는다 — 목적지 정체성은 (event,target,conn) 그대로.
+  holds_meeting: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
 }, {
   sequelize,
   tableName: 'calendar_event_gcal_links',

@@ -3,7 +3,7 @@ const { Op } = require('sequelize');
 const router = express.Router();
 const { sequelize } = require('../config/database');
 const {
-  CalendarEvent, CalendarEventAttendee,
+  CalendarEvent, CalendarEventAttendee, CalendarEventGcalLink,
   BusinessMember, User, Client, Project, ProjectMember,
 } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
@@ -889,25 +889,57 @@ router.put('/by-business/:businessId/:id/attendees/:attendeeId', authenticateTok
 //           gcal_connected:  업로드한 워크스페이스가 OAuth 완료했는지 }
 // 사이클 N+13 — Daily.co 완전 교체. 기존 daily_configured 응답 키는 제거.
 // ============================================
-router.get('/video/status', authenticateToken, async (req, res, next) => {
+//   ★ 멤버십 검사 필수 — 옛 라우트는 검사가 없어 임의 business_id 를 넣으면 남의 워크스페이스
+//     연동 계정 이메일이 읽혔다. 다만 이 라우트는 **business_id 없이도 호출된다**(서버 OAuth 설정
+//     여부만 묻는 용도 — 프론트 getVideoStatus(businessId || undefined)). checkBusinessAccess 를
+//     그냥 붙이면 그 호출이 400 이 되어 "Google 연결하기" CTA 가 사라진다.
+//     → business_id 가 있을 때만 멤버십을 검사한다.
+const videoStatusAccess = (req, res, next) => (
+  req.query?.business_id ? checkBusinessAccess(req, res, next) : next()
+);
+router.get('/video/status', authenticateToken, videoStatusAccess, async (req, res, next) => {
   try {
     const businessId = req.query.business_id ? Number(req.query.business_id) : null;
     const configured = gcal.isConfigured();
-    let connected = false;
-    let canWrite = false;
-    let accountEmail = null;
+    // 워크스페이스 축 — 팀 캘린더 동기화·push-to-gcal 은 여전히 이 축에서만 가능하다.
+    let workspaceConnected = false;
+    let workspaceCanWrite = false;
+    let workspaceEmail = null;
+    // Meet 축 — 개인 연동 우선. 개인만 연동한 직원도 회의를 만들 수 있어야 한다.
+    let meetSourceKind = null;
+    let meetEmail = null;
+    let personalConnected = false;
     if (businessId && configured) {
       const tk = await gcal.getTokenForBusiness(businessId);
-      if (tk) { connected = true; accountEmail = tk.account_email; canWrite = gcal.hasWriteScope(tk.scope); }
+      if (tk) {
+        workspaceConnected = true;
+        workspaceEmail = tk.account_email;
+        workspaceCanWrite = gcal.hasWriteScope(tk.scope);
+      }
+      const personalConn = await calendarSync.pickPersonalConn(req.user.id, businessId);
+      personalConnected = !!personalConn;
+      const src = await calendarSync.resolveMeetSource({ businessId, userId: req.user.id });
+      if (src.kind) {
+        meetSourceKind = src.kind;
+        meetEmail = src.kind === 'personal' ? src.conn.account_email : src.token.account_email;
+      }
     }
     return successResponse(res, {
       gcal_configured: configured,
-      gcal_connected: connected,
+      // ── 팀 축 (신규) — 팀 동기화 체크박스·"구글 캘린더로 보내기" 버튼이 쓴다.
+      //   아래 gcal_* 는 Meet 축으로 의미가 넓어졌으므로, 팀 기능은 반드시 이 두 필드를 봐야 한다.
+      //   안 그러면 개인만 연동한 사용자에게 팀 기능이 열리고 누르는 순간 400 이 난다.
+      workspace_connected: workspaceConnected,
+      workspace_can_write: workspaceCanWrite,
+      workspace_account_email: workspaceEmail,
+      // ── Meet 축 — 워크스페이스 **또는** 개인 연동 중 하나라도 회의를 만들 수 있으면 true.
       // #242 — 토큰이 있어도 캘린더 쓰기 권한(scope)이 없을 수 있다. 옛 응답은 그 구분이 없어
       //   프론트가 Meet 자동생성 체크박스를 켤 수 있게 노출했고, 켜면 일정 생성이 실패했다.
-      //   `gcal_connected` 의 의미는 그대로 두고(연결 CTA 분기가 쓴다) 쓰기 가능 여부를 따로 준다.
-      gcal_can_write: canWrite,
-      account_email: accountEmail,
+      gcal_connected: workspaceConnected || personalConnected,
+      gcal_can_write: !!meetSourceKind,
+      // 회의가 실제로 어느 계정에 만들어지는지 — 프론트가 "내 구글 계정으로 개설" 을 안내한다.
+      meet_source: meetSourceKind,
+      account_email: meetEmail,
     });
   } catch (err) { next(err); }
 });
@@ -926,45 +958,81 @@ router.post('/by-business/:businessId/:id/meeting', authenticateToken, checkBusi
     if (event.created_by !== req.user.id && bm.role !== 'owner' && bm.role !== 'admin') {
       return errorResponse(res, 'only_creator_or_owner', 403);
     }
-    const gcalToken = await gcal.getTokenForBusiness(businessId);
-    if (!gcalToken) return errorResponse(res, 'gcal_not_connected', 400);
-    // #242 — 쓰기 권한 없는 토큰이면 구글을 부르지 않고 명시적으로 거부한다. 옛 코드는 그냥 호출해
+    // ★ 소스는 **일정 소유자의 개인 연동 우선 → 워크스페이스 폴백**.
+    //   축을 actor(req.user.id)가 아니라 event.created_by 로 잡는 이유: admin 이 남의 일정에 회의를
+    //   다시 발급할 때 admin 개인 캘린더에 앉히면, 이후 reconcile 의 개인 목적지(작성자 축)와
+    //   어긋나 회의가 회수 대상이 된다. 목적지 축은 calendarSync.resolveTargets 와 반드시 같아야 한다.
+    const meetSource = await calendarSync.resolveMeetSource({
+      businessId, userId: event.created_by || req.user.id,
+    });
+    // #242 — 쓰기 권한 없는 연동이면 구글을 부르지 않고 명시적으로 거부한다. 옛 코드는 그냥 호출해
     //   502 gcal_meeting_create_failed 로 죽었고 사용자는 이유를 알 수 없었다.
-    //   (push-to-gcal 라우트는 이미 같은 검사를 하고 있었다 — 이 라우트만 빠져 있었다.)
-    if (!gcal.hasWriteScope(gcalToken.scope)) return errorResponse(res, 'gcal_scope_missing', 400, 'gcal_scope_missing');
+    if (!meetSource.kind) {
+      return errorResponse(res, meetSource.reason, 400, meetSource.reason);
+    }
 
     let meeting;
-    let cal;
     try {
-      cal = await gcal.getCalendarClient(gcalToken);
       // N+63 — rrule 전달. N+23 fix 가 신규 생성 (POST /by-business) 에만 적용되어
       // 재발급 라우트가 누락되어 있었음. 정기 회의의 옛 링크 만료 / 다음 회차
       // "회의 없음" 회귀 사용자 self-fix 경로 — 재발급 시에도 정기 정합.
-      meeting = await gcal.createMeetingEvent(cal, {
+      meeting = await calendarSync.createMeeting(meetSource, {
+        title: event.title,
         summary: event.title,
         description: event.description,
+        location: event.location,
         startAt: event.start_at,
         endAt: event.end_at,
         rrule: event.rrule || undefined,
       });
     } catch (e) {
-      console.error('[gcal /:id/meeting]', e.message);
+      console.error('[createMeeting /:id/meeting]', e.message);
+      await calendarSync.recordMeetError(meetSource, e);
       return errorResponse(res, 'gcal_meeting_create_failed', 502);
     }
     if (!meeting?.meetUrl) return errorResponse(res, 'meet_url_not_returned', 502);
 
-    // N+63 — 옛 gcal event cleanup (재발급 시 옛 Google Calendar 이벤트 정리)
-    // 옛 event 가 캘린더에 남아있으면 사용자 혼란 (만료된 Meet 링크 + 새 링크 동시 노출)
-    if (event.gcal_event_id && event.gcal_event_id !== meeting.id) {
-      try { await gcal.deleteEvent(cal, event.gcal_event_id); }
-      catch (e) { console.warn('[gcal cleanup old event]', e.message); }
+    // 옛 회의 정리 — 옛 event 가 캘린더에 남아있으면 사용자 혼란(만료된 Meet 링크 + 새 링크 동시 노출).
+    //   ★ 소스가 바뀌었을 수 있으므로(워크스페이스 → 개인) **소스 불문 기존 Meet 보유 링크 전부** +
+    //     옛 단일 컬럼(gcal_event_id) 양쪽을 정리한다. 한쪽만 지우면 팀 캘린더에 옛 회의가 살아남아
+    //     같은 일정의 회의 링크가 두 개 유통된다.
+    let cleared = [];
+    try { cleared = await calendarSync.clearMeetings(event.id, businessId); }
+    catch (e) { console.warn('[clearMeetings]', e.message); }
+
+    // ★ 옛 단일 컬럼(gcal_event_id) 정리는 **링크가 관리하지 않는 진짜 레거시**에만 한다.
+    //   여기가 함정이었다: reconcile 도 워크스페이스에 일반 사본을 만들면서 이 컬럼을 채운다
+    //   (calendarSync.js 의 add 분기). 그래서 무조건 지우면 **회의와 무관한 팀 동기화 사본**을
+    //   구글에서 삭제해 버린다 — 팀 캘린더에서 일정이 사라지고 링크는 dangling 이 된다.
+    //   회의를 들고 있던 워크스페이스 이벤트는 위 clearMeetings 가 이미 지웠다.
+    const managedWs = await CalendarEventGcalLink.findOne({
+      where: { event_id: event.id, target: 'workspace' },
+    });
+    const legacyOrphan = event.gcal_event_id
+      && event.gcal_event_id !== meeting.id
+      && !cleared.some((c) => c.gcal_event_id === event.gcal_event_id)   // 이미 지운 회의
+      && !(managedWs && managedWs.gcal_event_id === event.gcal_event_id); // reconcile 관할 사본
+    if (legacyOrphan) {
+      try {
+        const oldToken = await gcal.getTokenForBusiness(businessId);
+        if (oldToken && gcal.hasWriteScope(oldToken.scope)) {
+          await gcal.deleteEvent(await gcal.getCalendarClient(oldToken), event.gcal_event_id);
+        }
+      } catch (e) { console.warn('[gcal cleanup old event]', e.message); }
     }
 
     await event.update({
       meeting_url: meeting.meetUrl,
       meeting_provider: 'google_meet',
-      gcal_event_id: meeting.id || null,
+      // 옛 단일 컬럼은 워크스페이스 축이다 — 개인 캘린더 회의를 여기 넣으면 삭제 경로가 엉뚱한
+      // 캘린더를 본다. 개인 소스일 때는 **살아남은 워크스페이스 사본**의 id 를 유지한다
+      // (그 사본은 여전히 팀 캘린더에 있고 reconcile 이 계속 관리한다). 없으면 NULL.
+      gcal_event_id: meetSource.kind === 'workspace'
+        ? (meeting.id || null)
+        : (managedWs ? managedWs.gcal_event_id : null),
     });
+    try { await calendarSync.linkMeeting(event.id, meetSource, meeting.id, businessId); }
+    catch (e) { console.warn('[linkMeeting /:id/meeting]', e.message); }
 
     await createAuditLog({
       user_id: req.user.id,
@@ -1125,6 +1193,20 @@ router.post('/by-business/:businessId/:id/push-to-gcal', authenticateToken, chec
     }
     if (!pushed?.id) return errorResponse(res, 'gcal_push_failed', 502);
     await event.update({ gcal_event_id: pushed.id });
+    // ★ 링크 row 도 같이 만든다. 안 만들면 다음 저장 때 reconcile 이 "워크스페이스 링크 없음" 으로
+    //   보고 **두 번째 이벤트를 insert** 한다(구글 캘린더에 사본 2개, gcal_event_id 는 나중 것으로
+    //   덮어써짐). Meet 경로와 완전히 같은 기전이라 같이 막는다. holds_meeting 은 false —
+    //   이건 일반 일정 backfill 이지 회의가 아니다.
+    try {
+      const link = await CalendarEventGcalLink.findOne({
+        where: { event_id: event.id, target: 'workspace', connection_id: null },
+      });
+      if (link) await link.update({ gcal_event_id: pushed.id });
+      else await CalendarEventGcalLink.create({
+        event_id: event.id, target: 'workspace', connection_id: null,
+        user_id: null, gcal_event_id: pushed.id, holds_meeting: false,
+      });
+    } catch (e) { console.warn('[push-to-gcal link]', e.message); }
 
     require('../services/auditService').logAudit(req, {
       action: 'calendar.push_to_gcal', targetType: 'calendar_event', targetId: event.id,

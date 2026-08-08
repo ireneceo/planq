@@ -151,7 +151,8 @@ const ShareReceivePage: React.FC = () => {
       switch (target) {
         case 'chat':  navigate(`/talk?prefill=${encoded}${attachQuery}`); break;
         case 'task':  navigate(`/tasks?prefill=${encoded}${attachQuery}`); break;
-        case 'note':  navigate(`/qnote?prefill=${encoded}${attachQuery}`); break;
+        // 라우트는 /notes 다 (App.tsx). /qnote 는 존재하지 않아 catch-all 로 대시보드에 튕겼다.
+        case 'note':  navigate(`/notes?prefill=${encoded}${attachQuery}`); break;
         case 'doc':   navigate(`/docs?prefill=${encoded}${attachQuery}`); break;
       }
       // 사이클 N+53 — destination 선택 완료 시 cache 정리 (새로고침 안전망 해제)
