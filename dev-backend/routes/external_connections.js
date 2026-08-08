@@ -22,6 +22,7 @@ const personalOauth = require('../services/personalOauth');
 const personalCalendar = require('../services/personalCalendar');
 const personalDrive = require('../services/personalDrive');
 const { encrypt } = require('../services/encryption');
+const { logOauthFailure } = require('../utils/oauthLog');
 
 // 본인이 해당 워크스페이스 멤버인지 검증 (owner 도 business_members 행 보유 — 확인됨)
 async function assertBusinessMember(req, bizId) {
@@ -229,7 +230,12 @@ router.get('/me/oauth/google/callback', async (req, res) => {
     isNativeFlow = !!(pre && pre.native);
   } catch { /* 파싱 실패 → 웹으로 취급 */ }
 
-  const fail = (msg) => {
+  // 실패 사유를 **헬퍼 안에서 1회** 남긴다. 호출부 7곳에 흩뿌리면 다음에 경로가 하나 늘 때
+  //   또 빠진다 — 연동 실패 신고에 서버 흔적이 없던 것이 애초의 문제였다.
+  //   logCtx 는 파싱이 진행되며 채워진다(초기 실패는 컨텍스트 없이, 그 뒤는 user/business 동반).
+  const logCtx = {};
+  const fail = (msg, reason) => {
+    logOauthFailure('me/oauth callback', reason || 'unknown', { ...logCtx, native: isNativeFlow || undefined });
     if (isNativeFlow) return nativeReturnRedirect(res, { ok: false, provider: null, error: msg });
     return res.status(400).send(personalCallbackHtml({
       ok: false, provider: null, title: '연동 실패',
@@ -242,20 +248,24 @@ router.get('/me/oauth/google/callback', async (req, res) => {
     const friendly = String(oauthError) === 'access_denied'
       ? 'Google 연결이 완료되지 않았습니다. 권한 요청을 취소했거나, PlanQ 의 Google 앱 심사가 끝나기 전이라 이 계정은 아직 원클릭 연동이 제한될 수 있습니다. 메일은 설정의 "계정 추가"에서 앱 비밀번호 방식으로 연결할 수 있습니다.'
       : `Google 에서 거부됨: ${oauthError}`;
-    return fail(friendly);
+    logCtx.error = oauthError;
+    return fail(friendly, String(oauthError) === 'access_denied' ? 'user_denied' : 'oauth_error');
   }
-  if (!code || !state) return fail('잘못된 요청');
+  if (!code || !state) return fail('잘못된 요청', 'missing_code_or_state');
   const parsed = personalOauth.parseState(state);
-  if (!parsed) return fail('보안 검증 실패 (state 만료/위조)');
+  if (!parsed) return fail('보안 검증 실패 (state 만료/위조)', 'bad_state');
   isNativeFlow = !!parsed.native;
+  logCtx.userId = parsed.userId;
+  logCtx.businessId = parsed.businessId;
+  logCtx.provider = parsed.provider;
 
   try {
     // 멤버십 재검증 (state 의 user 가 여전히 그 워크스페이스 멤버인지)
     const bm = await BusinessMember.findOne({ where: { user_id: parsed.userId, business_id: parsed.businessId, removed_at: null } });
-    if (!bm) return fail('워크스페이스 접근 권한 없음');
+    if (!bm) return fail('워크스페이스 접근 권한 없음', 'not_a_member');
 
     const { tokens, email, name, sub } = await personalOauth.exchangeCodeForTokens(code);
-    if (!email) return fail('Google 계정 이메일을 확인할 수 없습니다');
+    if (!email) return fail('Google 계정 이메일을 확인할 수 없습니다', 'no_email_in_token');
 
     // ── Gmail 은 EmailAccount (Q Mail M1 파이프라인) 로 저장 — 기존 IMAP cron 재사용 + owner_user_id 격리 ──
     if (parsed.provider === 'gmail') {
@@ -285,8 +295,10 @@ router.get('/me/oauth/google/callback', async (req, res) => {
       });
       if (!acctCreated) {
         // 같은 워크스페이스에 같은 email 이 이미 있음 — 안전 가드 (회사 공용/타인 개인 덮어쓰기 금지)
-        if (acct.owner_user_id == null) return fail('이 메일은 회사 공용 계정으로 등록되어 있어 개인으로 연결할 수 없습니다');
-        if (acct.owner_user_id !== parsed.userId) return fail('이 메일은 다른 사용자에게 연결되어 있습니다');
+        logCtx.email = email;
+        if (acct.owner_user_id == null) return fail('이 메일은 회사 공용 계정으로 등록되어 있어 개인으로 연결할 수 없습니다', 'conflict_shared_account');
+        if (acct.owner_user_id !== parsed.userId) return fail('이 메일은 다른 사용자에게 연결되어 있습니다', 'conflict_other_owner');
+        delete logCtx.email;   // 충돌 경로에서만 필요 — 이후 실패에까지 이메일을 끌고 가지 않는다
         await acct.update(acctFields);
       }
       return res.send(personalCallbackHtml({

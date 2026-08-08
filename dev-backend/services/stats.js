@@ -472,7 +472,7 @@ async function buildOverviewTab(businessId, period) {
   const insights = [];
   if (overdue > 0) insights.push({
     severity: 'urgent', title: '연체 청구', value: `${overdue.toLocaleString()}원`,
-    hint: '미수금 회수 우선', action_label: '청구서 보기', action_link: '/qbill',
+    hint: '미수금 회수 우선', action_label: '청구서 보기', action_link: '/bills',   // SPA 라우트는 /bills — '/qbill' 은 존재하지 않아 catch-all 로 대시보드에 튕겼다
   });
   if (utilization != null && utilization > 100) insights.push({
     severity: 'warning', title: '가동률 초과', value: `${utilization.toFixed(0)}%`,
@@ -1008,7 +1008,7 @@ async function buildFinanceTab(businessId, period, segment = 'client') {
   if (receivable > 0) insights.push({
     severity: 'warning', title: '미수금', value: `${receivable.toLocaleString()}원`,
     hint: `${overdueInvoices.length}건 미결제`,
-    action_label: '청구서 보기', action_link: '/qbill',
+    action_label: '청구서 보기', action_link: '/bills',   // SPA 라우트는 /bills — '/qbill' 은 존재하지 않아 catch-all 로 대시보드에 튕겼다
   });
   if (expensesByCategory.length > 0) insights.push({
     severity: 'info', title: '지출 1위',

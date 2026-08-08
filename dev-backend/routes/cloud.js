@@ -6,6 +6,7 @@ const { authenticateToken, checkBusinessAccess } = require('../middleware/auth')
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const gdrive = require('../services/gdrive');
 const gcal = require('../services/google_calendar');
+const { logOauthFailure } = require('../utils/oauthLog');
 
 // 사이클 N+16-B — OAuth 콜백 팝업 자동 닫기 + COOP 차단 시 사용자 친화 안내.
 // 옛 버전: 300ms 후 postMessage + 사용자가 직접 "닫기" 클릭 → 일부 브라우저(Chrome/Safari)가
@@ -130,14 +131,19 @@ router.get('/callback/gdrive', async (req, res) => {
   const ok = (title, body) => buildCallbackHtml({ provider: 'gdrive', ok: !title.includes('실패'), title, body });
 
   if (oauthError) {
+    logOauthFailure('gdrive callback', 'oauth_denied', { error: oauthError });
     return res.status(400).send(ok('연동 실패', `<h2>연동 실패</h2><p>Google 에서 거부됨: ${oauthError}</p>`));
   }
   if (!code || !state) {
+    logOauthFailure('gdrive callback', 'missing_code_or_state');
     return res.status(400).send(ok('연동 실패', '<h2>연동 실패</h2><p>잘못된 요청</p>'));
   }
 
   const parsed = gdrive.parseState(state);
-  if (!parsed) return res.status(400).send(ok('연동 실패', '<h2>연동 실패</h2><p>state 검증 실패</p>'));
+  if (!parsed) {
+    logOauthFailure('gdrive callback', 'bad_state');
+    return res.status(400).send(ok('연동 실패', '<h2>연동 실패</h2><p>state 검증 실패</p>'));
+  }
 
   try {
     // 토큰 교환
@@ -228,13 +234,18 @@ router.get('/callback/gcal', async (req, res) => {
   const ok = (title, body) => buildCallbackHtml({ provider: 'gcal', ok: !title.includes('실패'), title, body });
 
   if (oauthError) {
+    logOauthFailure('gcal callback', 'oauth_denied', { error: oauthError });
     return res.status(400).send(ok('연동 실패', `<h2>연동 실패</h2><p>Google 에서 거부됨: ${oauthError}</p>`));
   }
   if (!code || !state) {
+    logOauthFailure('gcal callback', 'missing_code_or_state');
     return res.status(400).send(ok('연동 실패', '<h2>연동 실패</h2><p>잘못된 요청</p>'));
   }
   const parsed = gcal.parseState(state);
-  if (!parsed) return res.status(400).send(ok('연동 실패', '<h2>연동 실패</h2><p>state 검증 실패</p>'));
+  if (!parsed) {
+    logOauthFailure('gcal callback', 'bad_state');
+    return res.status(400).send(ok('연동 실패', '<h2>연동 실패</h2><p>state 검증 실패</p>'));
+  }
 
   try {
     const { tokens, accountEmail } = await gcal.exchangeCodeForTokens(code);
@@ -243,7 +254,9 @@ router.get('/callback/gcal', async (req, res) => {
     // 이때 저장해 버리면 "연동 완료" 로 보이지만 이후 모든 push 가 403 으로 죽는다
     // (2026-07-27 운영 사고). 쓰기 권한 없는 토큰은 저장하지 않고 재연결을 요구한다.
     if (!gcal.hasWriteScope(tokens.scope)) {
-      console.warn('[gcal callback] 캘린더 쓰기 권한 누락 — 저장 거부. granted=%s', tokens.scope || '(none)');
+      logOauthFailure('gcal callback', 'scope_missing_write', {
+        businessId: parsed.businessId, userId: parsed.userId, scope: tokens.scope || '(none)',
+      });
       return res.status(400).send(buildCallbackHtml({
         provider: 'gcal', ok: false, title: '연동 실패',
         body: '<h2>캘린더 권한이 필요합니다</h2><p>Google 동의 화면에서 <strong>"Google 캘린더의 캘린더를 사용하여 이벤트 보기 및 수정"</strong> 항목이 체크되지 않았습니다.<br/>다시 연결하면서 해당 항목을 <strong>체크</strong>해 주세요.</p>',

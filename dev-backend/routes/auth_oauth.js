@@ -107,14 +107,17 @@ async function setupNewWorkspace(user, wantsKo, transaction) {
 }
 
 // 성공/실패 redirect target (CSP 정합 — inline script X)
-function buildRedirectTarget({ ok, error, isNewUser }) {
+function buildRedirectTarget({ ok, error }) {
   if (!ok) {
     const safeErr = encodeURIComponent(error || 'unknown_error');
     return `/login?oauth_error=${safeErr}`;
   }
-  // 신규 사용자 → onboarding, 기존 → inbox
+  // 신규·기존 모두 /inbox. **온보딩 페이지는 아직 없다** — 옛 코드의 `/onboarding` 은
+  //   라우트 대장에 없어 catch-all 이 잡았고, `/` 는 로그인 여부와 무관하게 마케팅 홈이라
+  //   (pages/Landing/RootRoute.tsx) **구글로 막 가입한 사용자가 앱이 아니라 랜딩에 떨어졌다.**
+  //   온보딩을 만들 때 라우트 등록과 이 분기를 같이 되살릴 것.
   // AuthContext mount 시 tryRefresh() 가 자동 호출되어 refresh_token cookie 로 access token 받음
-  return isNewUser ? '/onboarding' : '/inbox';
+  return '/inbox';
 }
 
 // refresh_token cookie 발급 — 옛 login 라우트와 동일

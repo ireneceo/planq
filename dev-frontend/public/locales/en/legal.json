@@ -31,7 +31,8 @@
       "intro": "The Company does not share personal data with third parties without user consent. The following transfers occur only when the user opts in:",
       "items": [
         "Google LLC (USA) — when you connect Google Drive: email, OAuth token. Purpose: storing and managing files created by PlanQ (drive.file scope). Retention: until disconnection.",
-        "Google LLC (USA) — when you connect Google Calendar: email, calendar events (read-only), OAuth token. Purpose: showing your events inside PlanQ Calendar. Retention: until disconnection.",
+        "Google LLC (USA) — when you connect Google Calendar: email, calendar events (read and write — calendar.events scope), OAuth token. Purpose: showing your events inside PlanQ Calendar, syncing events created in PlanQ to your Google Calendar, and generating Google Meet links. Retention: until disconnection.",
+        "Google LLC (USA) — when you connect a Gmail account (Q Mail): email address, mail contents and attachments (mail.google.com scope), OAuth token. Purpose: receiving, displaying, and sending your mail inside the PlanQ inbox. Retention: until disconnection.",
         "PlanQ's access, use, and storage of Google user data complies with the Google API Services User Data Policy, including the Limited Use requirements. Such data is used only to provide the features described above, and is never used for advertising or sold to third parties.",
         "Stripe, Inc. (USA / Malaysia) — global card payments: amount, email. Card details handled by Stripe directly.",
         "When a workspace connects its own Stripe account to receive card payments from its clients (Q Bill), payment data is processed directly between the client and that workspace's Stripe account and does not pass through the Company. The Company stores only the transaction ID and amount for invoice processing; the workspace operator is the data controller for such payments.",

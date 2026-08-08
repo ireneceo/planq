@@ -116,12 +116,17 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
   }, [bizId]);
   // 사이클 N+13 — Daily.co 완전 교체, Google Meet 자동 생성으로 변경
   const [gcalConfigured, setGcalConfigured] = useState(false);
-  const [gcalConnected, setGcalConnected] = useState(false);
-  // #242 — 토큰 존재(gcalConnected)와 쓰기 권한(gcalCanWrite)은 다르다. Meet 은 권한 기준.
+  // #242 — 토큰 존재와 쓰기 권한(gcalCanWrite)은 다르다. Meet 은 권한 기준.
+  //   합산된 gcal_connected 는 더 쓰지 않는다 — 어느 축이 빠졌는지 구분이 안 돼 배너가
+  //   직원에게 오너 전용 경로를 안내하던 원인이었다. 축별로 workspace_*/personal_* 를 쓴다.
   //   ★ gcalCanWrite 는 Meet 축이라 **개인 연동을 포함**한다. 팀 동기화 토글은 워크스페이스
   //     전용이므로 workspaceCanWrite 를 쓴다 — 섞으면 워크스페이스 미연결인데 팀 체크박스가 뜬다.
   const [gcalCanWrite, setGcalCanWrite] = useState(false);
   const [workspaceCanWrite, setWorkspaceCanWrite] = useState(false);
+  // 개인 축 — 배너가 어느 연동을 가리킬지 결정한다. 워크스페이스 연동은 **오너 전용**이라
+  //   (routes/cloud.js requireOwnerForCloud) 직원에게 그 경로를 안내하면 눌러도 403 이다.
+  const [workspaceConnected, setWorkspaceConnected] = useState(false);
+  const [personalConnected, setPersonalConnected] = useState(false);
   // 회의가 어느 계정에 개설되는지 — 'personal' 이면 본인 구글 계정이 호스트가 된다.
   const [meetSource, setMeetSource] = useState<'personal' | 'workspace' | null>(null);
   const [rrule, setRrule] = useState<string | null>(null);
@@ -131,16 +136,27 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
     getVideoStatus(businessId || undefined)
       .then((s) => {
         setGcalConfigured(!!s.gcal_configured);
-        setGcalConnected(!!s.gcal_connected);
         setGcalCanWrite(!!s.gcal_can_write);
         setWorkspaceCanWrite(!!s.workspace_can_write);
+        setWorkspaceConnected(!!s.workspace_connected);
+        setPersonalConnected(!!s.personal_connected);
         setMeetSource(s.meet_source ?? null);
       })
       .catch(() => {
-        setGcalConfigured(false); setGcalConnected(false); setGcalCanWrite(false);
-        setWorkspaceCanWrite(false); setMeetSource(null);
+        setGcalConfigured(false); setGcalCanWrite(false);
+        setWorkspaceCanWrite(false); setWorkspaceConnected(false);
+        setPersonalConnected(false); setMeetSource(null);
       });
   }, [businessId]);
+
+  // 오너 판정은 **이 모달이 다루는 워크스페이스** 기준이어야 한다. user.business_role 은 active
+  //   워크스페이스의 역할이라 멀티 워크스페이스에서 businessId 와 어긋날 수 있다.
+  const isOwnerHere = useMemo(() => {
+    const target = businessId || bizId;
+    if (!target) return false;
+    const ws = user?.workspaces?.find((w) => w.business_id === target);
+    return ws ? ws.role === 'owner' : user?.business_role === 'owner';
+  }, [user, businessId, bizId]);
 
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const dateTriggerRef = useRef<HTMLButtonElement>(null);
@@ -429,22 +445,38 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
                 </CheckboxLabel>
               </AutoMeetingRow>
             )}
-            {!gcalConnected && gcalConfigured && (
-              <AutoMeetingRow as="a" href="/business/settings/storage" style={{ textDecoration: 'none', cursor: 'pointer' }}>
-                <AutoMeetingText>
-                  <strong>{t('form.gcalConnectPrompt')}</strong>
-                  <small>{t('form.gcalConnectHelp')}</small>
-                </AutoMeetingText>
-              </AutoMeetingRow>
-            )}
-            {/* #242 — 토큰은 있는데 캘린더 권한만 없는 상태. 옛 코드는 어느 분기에도 안 걸려 이유를 알 수 없었다(체크박스는 켜진 채로) */}
-            {gcalConnected && !gcalCanWrite && gcalConfigured && (
-              <AutoMeetingRow as="a" href="/business/settings/storage" style={{ textDecoration: 'none', cursor: 'pointer' }}>
-                <AutoMeetingText>
-                  <strong>{t('form.gcalReconnectPrompt')}</strong>
-                  <small>{t('form.gcalReconnectHelp')}</small>
-                </AutoMeetingText>
-              </AutoMeetingRow>
+            {/* Meet 을 못 만드는 상태의 안내 — **그 사용자가 스스로 할 수 있는 행동**만 가리킨다.
+                개인 연동(/profile/integrations)은 누구나 할 수 있고, 워크스페이스 연동
+                (/business/settings/storage)은 오너 전용이다. 옛 코드는 둘 다 워크스페이스로
+                보내서, 직원에게는 눌러도 403 이 나는 죽은 안내였다(#246 과 같은 계열).
+                Meet 은 이미 개인 연동 우선으로 동작하므로 개인 경로가 주 CTA 가 맞다. */}
+            {gcalConfigured && !gcalCanWrite && (
+              <>
+                <AutoMeetingRow as="a" href="/profile/integrations" style={{ textDecoration: 'none', cursor: 'pointer' }}>
+                  <AutoMeetingText>
+                    <strong>
+                      {personalConnected
+                        ? t('form.gcalPersonalReconnectPrompt')
+                        : t('form.gcalPersonalConnectPrompt')}
+                    </strong>
+                    <small>
+                      {personalConnected
+                        ? t('form.gcalPersonalReconnectHelp')
+                        : t('form.gcalPersonalConnectHelp')}
+                    </small>
+                  </AutoMeetingText>
+                </AutoMeetingRow>
+                {/* 오너에게만 — 워크스페이스 연동도 권한이 없으면 그쪽도 고칠 수 있다고 알린다.
+                    오너가 아니면 이 줄은 뜨지 않는다(누를 수 없는 경로를 보여주지 않기 위해). */}
+                {isOwnerHere && workspaceConnected && !workspaceCanWrite && (
+                  <AutoMeetingRow as="a" href="/business/settings/storage" style={{ textDecoration: 'none', cursor: 'pointer' }}>
+                    <AutoMeetingText>
+                      <strong>{t('form.gcalWorkspaceReconnectPrompt')}</strong>
+                      <small>{t('form.gcalWorkspaceReconnectHelp')}</small>
+                    </AutoMeetingText>
+                  </AutoMeetingRow>
+                )}
+              </>
             )}
             <Input
               value={meetingUrl} onChange={(e) => setMeetingUrl(e.target.value)}

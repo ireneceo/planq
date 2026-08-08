@@ -4,7 +4,7 @@ import { startAuthPopup } from '../../services/oauth';
 import { isNativeApp } from '../../services/native';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { apiFetch } from '../../contexts/AuthContext';
+import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import { fetchStorageStatus, formatBytes, type StorageStatus } from '../../services/files';
 
 interface ProviderState {
@@ -26,6 +26,16 @@ interface Props {
 const StorageSettings: React.FC<Props> = ({ businessId }) => {
   const { t } = useTranslation('settings');
   const tr = (k: string, fb?: string) => t(k, (fb ?? '') as string) as unknown as string;
+
+  // 클라우드 연동의 모든 변경(연결·해제·동기화 토글)은 백엔드에서 오너 전용이다
+  //   (routes/cloud.js requireOwnerForCloud). 버튼을 그냥 두면 직원이 눌러도 403 만 난다 —
+  //   누를 수 없는 행동은 처음부터 비활성으로 보여주고 이유를 적는다.
+  const { user } = useAuth();
+  const isOwner = (() => {
+    const ws = user?.workspaces?.find((w) => w.business_id === businessId);
+    if (ws) return ws.role === 'owner';
+    return user?.business_role === 'owner';
+  })();
 
   const [providers, setProviders] = useState<{ gdrive: ProviderState; gcal: ProviderState }>({
     gdrive: { configured: false, connected: false },
@@ -295,7 +305,7 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
         {gdriveConnected && providers.gdrive.needs_reconnect && (
           <CardActions>
             <S3Msg $tone="err">{tr('storage.tokenError', 'Google 인증이 만료되었습니다 — 다시 연결해 주세요')}</S3Msg>
-            <PrimaryBtn type="button" disabled={!!connecting} onClick={() => handleConnect('gdrive')}>
+            <PrimaryBtn type="button" disabled={!isOwner || !!connecting} onClick={() => handleConnect('gdrive')}>
               {connecting === 'gdrive' ? tr('storage.connecting', '연결 중…') : tr('storage.reconnect', '다시 연결')}
             </PrimaryBtn>
           </CardActions>
@@ -308,15 +318,16 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
               <LinkBtn as="a" href={providers.gdrive.root_folder_id ? `https://drive.google.com/drive/folders/${providers.gdrive.root_folder_id}` : '#'} target="_blank" rel="noreferrer">
                 {tr('storage.openInDrive', 'Drive 에서 열기')} ↗
               </LinkBtn>
-              <DangerBtn type="button" onClick={() => setDisconnectTarget('gdrive')}>
+              <DangerBtn type="button" disabled={!isOwner} onClick={() => setDisconnectTarget('gdrive')}>
                 {tr('storage.disconnect', '연결 해제')}
               </DangerBtn>
             </>
           ) : (
-            <PrimaryBtn type="button" disabled={!!connecting} onClick={() => handleConnect('gdrive')}>
+            <PrimaryBtn type="button" disabled={!isOwner || !!connecting} onClick={() => handleConnect('gdrive')}>
               {connecting === 'gdrive' ? tr('storage.connecting', '연결 중…') : tr('storage.connect', '연결하기')}
             </PrimaryBtn>
           )}
+          {!isOwner && providers.gdrive.configured && <InlineHint>{tr('storage.ownerOnly')}</InlineHint>}
         </CardActions>
       </ProviderCard>
 
@@ -402,7 +413,7 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
                 ? tr('storage.gcal.scopeMissing')
                 : tr('storage.tokenError')}
             </S3Msg>
-            <PrimaryBtn type="button" disabled={!!connecting} onClick={() => handleConnect('gcal')}>
+            <PrimaryBtn type="button" disabled={!isOwner || !!connecting} onClick={() => handleConnect('gcal')}>
               {connecting === 'gcal' ? tr('storage.connecting') : tr('storage.reconnect')}
             </PrimaryBtn>
           </CardActions>
@@ -416,20 +427,21 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
                 <input
                   type="checkbox"
                   checked={providers.gcal.sync_enabled !== false}
-                  disabled={syncSaving}
+                  disabled={!isOwner || syncSaving}
                   onChange={(e) => toggleGcalSync(e.target.checked)}
                 />
                 {tr('storage.syncEnabled')}
               </SyncToggleLabel>
-            <DangerBtn type="button" onClick={() => setDisconnectTarget('gcal')}>
+            <DangerBtn type="button" disabled={!isOwner} onClick={() => setDisconnectTarget('gcal')}>
               {tr('storage.disconnect', '연결 해제')}
             </DangerBtn>
             </>
           ) : (
-            <PrimaryBtn type="button" disabled={!!connecting} onClick={() => handleConnect('gcal')}>
+            <PrimaryBtn type="button" disabled={!isOwner || !!connecting} onClick={() => handleConnect('gcal')}>
               {connecting === 'gcal' ? tr('storage.connecting', '연결 중…') : tr('storage.connect', '연결하기')}
             </PrimaryBtn>
           )}
+          {!isOwner && providers.gcal.configured && <InlineHint>{tr('storage.ownerOnlyGcal')}</InlineHint>}
         </CardActions>
       </ProviderCard>
 

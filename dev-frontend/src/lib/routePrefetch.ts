@@ -25,7 +25,7 @@ const ROUTE_PREFETCH: Record<string, () => Promise<unknown>> = {
   '/bills': () => import('../pages/QBill/QBillPage'),
   '/personal-vault': () => import('../pages/PersonalVault/PersonalVaultPage'),
   '/insights': () => import('../pages/Insights/InsightsPage'),
-  '/clients': () => import('../pages/Clients/ClientsPage'),
+  '/business/clients': () => import('../pages/Clients/ClientsPage'),
   '/profile': () => import('../pages/Profile/ProfilePage'),
 };
 

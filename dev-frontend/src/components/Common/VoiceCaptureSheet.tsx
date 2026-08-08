@@ -169,7 +169,12 @@ export default function VoiceCaptureSheet({ onClose }: Props) {
     if (intent.kind === 'task') navigate(`/tasks?create=1&voice=${q}`);
     else if (intent.kind === 'event') navigate(`/calendar?create=1&voice=${q}`);
     else if (intent.kind === 'mail') navigate(`/mail?compose=1&voice=${q}`);
-    else navigate(`/memo?voice=${q}`);   // 메모는 개인 보관함(L1)
+    // 메모는 Q Note 로. `/memo` 는 라우트가 아니다(`/memo/:id` 는 기존 메모의 분리 창) —
+    //   베이스 경로로 보내면 catch-all 이 대시보드로 튕겼다. PWA 공유 수신(ShareReceivePage)과
+    //   같은 `/notes?prefill=` 착지점으로 통일하고, QNotePage 가 그 파라미터를 읽어
+    //   신규 메모 본문으로 심는다(QNotePage 의 prefill effect → MemoView prefillText).
+    //   ★ 라우트만 바꾸고 소비를 안 만들면 페이지는 떠도 받아쓴 텍스트는 그대로 버려진다.
+    else navigate(`/notes?prefill=${q}`);
     onClose();
   };
 

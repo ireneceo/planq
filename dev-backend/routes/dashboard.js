@@ -529,7 +529,8 @@ async function collectSignatures(businessId, userEmail, userRole) {
     for (const sr of rejected) {
       const post = sr.entity_type === 'post' ? rejPostMap[sr.entity_id] : null;
       const subject = post ? post.title : `${sr.entity_type}#${sr.entity_id}`;
-      const link = post && sr.entity_type === 'post' ? `/qdocs?post=${sr.entity_id}` : null;
+      // SPA 라우트는 `/docs` — `/qdocs` 는 존재한 적이 없어 catch-all 로 튕겼다(메뉴명 Q docs 에 끌린 오타)
+      const link = post && sr.entity_type === 'post' ? `/docs?post=${sr.entity_id}` : null;
       items.push({
         id: `sign-rejected-${sr.id}`,
         type: 'signature',

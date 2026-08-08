@@ -40,6 +40,7 @@ const { RRule, rrulestr } = require('rrule');
 // 사이클 N+13: Daily.co 완전 교체 → Google Calendar API (Meet 자동 생성)
 const gcal = require('../services/google_calendar');
 const calendarSync = require('../services/calendarSync');
+const personalCalendar = require('../services/personalCalendar');
 const crypto = require('crypto');
 const { Business } = require('../models');
 const { createEvent } = require('../services/actions/event_actions');
@@ -909,6 +910,7 @@ router.get('/video/status', authenticateToken, videoStatusAccess, async (req, re
     let meetSourceKind = null;
     let meetEmail = null;
     let personalConnected = false;
+    let personalCanWrite = false;
     if (businessId && configured) {
       const tk = await gcal.getTokenForBusiness(businessId);
       if (tk) {
@@ -916,8 +918,12 @@ router.get('/video/status', authenticateToken, videoStatusAccess, async (req, re
         workspaceEmail = tk.account_email;
         workspaceCanWrite = gcal.hasWriteScope(tk.scope);
       }
+      // ★ 개인 축의 원천은 반드시 pickPersonalConn 이다 — Meet 이 실제로 고르는 그 연결.
+      //   GET /me/external-connections 리스트로 계산하면 cross-workspace 폴백 규칙이 달라
+      //   "배너는 연결됐다는데 Meet 은 안 된다" 로 두 화면이 어긋난다.
       const personalConn = await calendarSync.pickPersonalConn(req.user.id, businessId);
       personalConnected = !!personalConn;
+      personalCanWrite = !!(personalConn && personalCalendar.hasCalendarWrite(personalConn));
       const src = await calendarSync.resolveMeetSource({ businessId, userId: req.user.id });
       if (src.kind) {
         meetSourceKind = src.kind;
@@ -932,6 +938,10 @@ router.get('/video/status', authenticateToken, videoStatusAccess, async (req, re
       workspace_connected: workspaceConnected,
       workspace_can_write: workspaceCanWrite,
       workspace_account_email: workspaceEmail,
+      // ── 개인 축 — 배너가 "누구의 연동을 고쳐야 하는지" 를 가리키려면 두 축이 나뉘어야 한다.
+      //   합산된 gcal_connected 만으로는 직원에게 owner 전용 워크스페이스 설정을 안내하게 된다.
+      personal_connected: personalConnected,
+      personal_can_write: personalCanWrite,
       // ── Meet 축 — 워크스페이스 **또는** 개인 연동 중 하나라도 회의를 만들 수 있으면 true.
       // #242 — 토큰이 있어도 캘린더 쓰기 권한(scope)이 없을 수 있다. 옛 응답은 그 구분이 없어
       //   프론트가 Meet 자동생성 체크박스를 켤 수 있게 노출했고, 켜면 일정 생성이 실패했다.

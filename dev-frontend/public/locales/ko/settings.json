@@ -236,7 +236,9 @@
     "gcal": {
       "scopeMissing": "캘린더 권한이 없어 일정이 Google 로 전송되지 않습니다 — 다시 연결하면서 캘린더 항목을 체크해 주세요"
     },
-    "syncEnabled": "일정 자동 동기화"
+    "syncEnabled": "일정 자동 동기화",
+    "ownerOnly": "워크스페이스 오너만 연결·해제할 수 있습니다",
+    "ownerOnlyGcal": "워크스페이스 오너만 연결·해제할 수 있습니다. 내 계정으로 Meet 을 쓰려면 내 프로필 → 외부 연동에서 Google 캘린더를 연결하세요"
   },
   "brand": {
     "sectionTitle": "브랜드",

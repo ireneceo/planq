@@ -88,16 +88,18 @@
     "autoCreateMeeting": "Auto-create Google Meet",
     "autoCreateMeetingHelp": "Creates a Google Calendar event with a Meet link automatically",
     "autoCreateMeetingPersonal": "The event is created in your connected Google account, and you become the meeting host",
-    "gcalConnectPrompt": "Connect Google account",
-    "gcalConnectHelp": "Go to workspace settings → Cloud integrations to connect Google Calendar and enable auto Meet links",
+    "gcalPersonalConnectPrompt": "Connect my Google account",
+    "gcalPersonalConnectHelp": "Connect Google Calendar in My profile → Integrations, and Meet links will be issued from your own account",
+    "gcalPersonalReconnectPrompt": "Reconnect my Google account",
+    "gcalPersonalReconnectHelp": "Your account is connected but lacks calendar permission. Reconnect and check the calendar item",
+    "gcalWorkspaceReconnectPrompt": "The workspace connection also lacks calendar permission",
+    "gcalWorkspaceReconnectHelp": "Reconnect it in Workspace settings → Files & integrations (owner only)",
     "gcalSection": "Google Calendar",
     "gcalTeam": "Add to team Google Calendar",
     "gcalTeamHint": "Goes to the Google account connected to this workspace.",
     "gcalTeamBlocked": "Private events cannot be added to the team calendar.",
     "gcalPersonal": "Add to my Google Calendar",
-    "gcalPersonalHint": "Goes only to the Google account you connected.",
-    "gcalReconnectPrompt": "Google Calendar needs to be reconnected",
-    "gcalReconnectHelp": "The connected account lacks calendar permission, so Meet links and sync are unavailable."
+    "gcalPersonalHint": "Goes only to the Google account you connected."
   },
   "button": {
     "create": "Create event",
