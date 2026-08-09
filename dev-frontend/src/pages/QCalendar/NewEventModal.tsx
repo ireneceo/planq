@@ -15,6 +15,11 @@ import { listWorkspaceClients, type WorkspaceClientRow } from '../../services/qt
 
 interface Props {
   initialStart: Date;
+  // 음성 캡처('말로 추가') 등 외부에서 넘어온 초기값. 미전달이면 기존 동작 그대로(빈 폼).
+  //   모달은 열릴 때 mount 되므로(부모의 `{showNewModal && <NewEventModal .../>}`) useState 초기값으로 1회만 적용된다.
+  initialTitle?: string;
+  initialDescription?: string;
+  initialAllDay?: boolean;
   projects: Array<{ id: number; name: string; color?: string | null }>;
   businessId?: number | null;
   onClose: () => void;
@@ -34,7 +39,7 @@ const TIME_OPTIONS = (() => {
   return arr;
 })();
 
-const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, onClose, onCreate }) => {
+const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDescription, initialAllDay, projects, businessId, onClose, onCreate }) => {
   const { t, i18n } = useTranslation('qcalendar');
   const { user } = useAuth();
   const bizId = user?.business_id || null;
@@ -47,8 +52,8 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
       return parts.find((p) => p.type === 'timeZoneName')?.value || wsTz.split('/').pop() || wsTz;
     } catch { return wsTz.split('/').pop() || wsTz; }
   })();
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
+  const [title, setTitle] = useState(initialTitle || '');
+  const [description, setDescription] = useState(initialDescription || '');
   const [location, setLocation] = useState('');
 
   const [startDate, setStartDate] = useState<string>(toDateKey(initialStart));
@@ -65,7 +70,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, projects, businessId, on
     return `${h}:${m}`;
   });
 
-  const [allDay, setAllDay] = useState(false);
+  const [allDay, setAllDay] = useState(initialAllDay === true);
   const [category, setCategory] = useState<EventCategory>('meeting');
   const [visibility, setVisibility] = useState<EventVisibility>('business');
   // N+66 — 통합 visibility 5단계

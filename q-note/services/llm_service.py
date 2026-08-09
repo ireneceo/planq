@@ -271,9 +271,9 @@ SYSTEM_KO = """당신은 실시간 회의 어시스턴트입니다. 음성인식
   - 의심되면 원본 보존. 과잉 교정이 누락 교정보다 훨씬 나쁨.
   - 어휘 사전이 없으면 고유명사 외에는 거의 교정하지 않는다.
 
-## 2. translation (영어 번역)
+## 2. translation ({translation_lang_name} 번역)
 
-  - formatted_original을 자연스러운 영어로 번역
+  - formatted_original을 자연스러운 {translation_lang_name}(으)로 번역
   - 교정된 고유명사를 그대로 사용
   - 존댓말 → formal, 반말 → casual 유지
   - 의역하지 말고 의미에 충실하게
@@ -365,9 +365,9 @@ Word correction (conservative principle, fix only clear STT mis-hears):
   - When in doubt, preserve the original. Over-correction is far worse than missed correction.
   - Without a vocabulary list, only correct obvious proper-noun mis-hears.
 
-## 2. translation (Korean translation)
+## 2. translation ({translation_lang_name} translation)
 
-  - Translate formatted_original to natural Korean
+  - Translate formatted_original to natural {translation_lang_name}
   - Use corrected proper nouns as-is
   - Match formality: formal English → 존댓말, casual → 반말
   - Faithful to meaning, not word-for-word
@@ -427,7 +427,7 @@ SYSTEM_DEFAULT = """You are a real-time meeting assistant that cleans up speech-
 Given one utterance, respond with 4 JSON fields:
 
 1. **formatted_original** — cleaned-up text: fix spacing, add punctuation, correct obvious mis-recognitions using meeting context. Preserve meaning/tone.
-2. **translation** — translate to the counterpart language (Korean↔English). Mixed → counterpart of dominant language.
+2. **translation** — translate to {translation_lang_name}.
 3. **is_question** — true ONLY if the speaker is asking for specific information they don't know. Default false. Requests, commands, rhetorical questions, suggestions, confirmations, greetings = false. When in doubt, false.
 4. **detected_language** — "ko", "en", or "mixed"
 
@@ -444,9 +444,34 @@ _SYSTEM_MAP: dict[str, str] = {
 }
 
 
-def _build_translate_system(language: Optional[str] = None) -> str:
-  """회의 언어에 맞는 전용 프롬프트 반환."""
-  return _SYSTEM_MAP.get(language or '', SYSTEM_DEFAULT)
+def _build_translate_system(
+  language: Optional[str] = None,
+  translate: bool = True,
+  translate_to: Optional[str] = None,
+) -> str:
+  """회의 언어에 맞는 전용 프롬프트 반환.
+
+  translate/translate_to (#241) — 여태 이 프롬프트들은 번역 목적지를 **문구에 박아** 두고 있었다
+  (SYSTEM_KO 는 "영어 번역", SYSTEM_DEFAULT 는 "Korean↔English"). 그래서 세션에서 무슨 설정을 해도
+  한국어 회의는 항상 영어 번역이 나왔다. 이제 §2 절만 목적지 언어로 치환한다
+  (같은 파일 answer 프롬프트의 {answer_lang_name} 과 동일한 패턴 — 교정·질문감지 문구는 무접촉).
+
+  translate=False 면 §2 를 무시하라는 지시를 덧붙여 **번역 생성 자체를 아낀다**. 다만 정확성은
+  이 지시가 아니라 호출부의 서버측 강제(`translation = ''`)가 보장한다 — LLM 순종에 기대지 않는다.
+  """
+  base = _SYSTEM_MAP.get(language or '', SYSTEM_DEFAULT)
+  base = base.replace('{translation_lang_name}', _lang_name_for_translation(translate_to, language))
+  if not translate:
+    base += '\n\n[중요] 이 요청은 번역이 필요 없다. "translation" 은 위 2번 항목을 무시하고 항상 빈 문자열 ""로 응답한다. 1·3·4번 항목은 그대로 수행한다.\n'
+  return base
+
+
+# 번역 목적지 이름 — 명시 목적지가 없으면 옛 동작(회의 언어의 반대말)을 유지해
+# 프롬프트가 빈 자리로 남지 않게 한다. 실제 번역 여부는 호출부 술어가 정한다.
+def _lang_name_for_translation(translate_to: Optional[str], language: Optional[str]) -> str:
+  if translate_to:
+    return _LANG_NAMES.get(translate_to, translate_to)
+  return 'Korean' if (language or '').startswith('en') else 'English'
 
 
 def _build_stt_correction_prefix(
@@ -539,10 +564,14 @@ async def translate_and_detect_question(
   language: Optional[str] = None,
   vocabulary: Optional[list[str]] = None,
   recent_utterances: Optional[list[str]] = None,
+  translate: bool = True,
+  translate_to: Optional[str] = None,
 ) -> dict:
   """
   Returns: {"formatted_original": str, "translation": str, "is_question": bool, "detected_language": str}
   language: 세션의 meeting_language (ko, en 등). 해당 언어의 질문 판정 규칙 적용.
+  translate: False 면 번역을 만들지 않는다 (#241). 교정·질문감지는 그대로 — 이 호출은 번역 전용이 아니다.
+  translate_to: 번역 목적지 언어 코드. 없으면 옛 동작(회의 언어의 반대말) 문구가 들어간다.
   vocabulary: STT 교정용 어휘 사전 (고유명사/전문용어/외래어).
   recent_utterances: 직전 발화 3개까지 — 주제 문맥 기반 교정에 사용.
   """
@@ -556,7 +585,8 @@ async def translate_and_detect_question(
     if len(chunks) > 1:
       logger.info(f'translate chunking: {len(chunks)} chunks (input={len(text)} chars)')
       results = await asyncio.gather(*[
-        _translate_single(chunk, meeting_context, language, vocabulary, recent_utterances)
+        _translate_single(chunk, meeting_context, language, vocabulary, recent_utterances,
+                          translate=translate, translate_to=translate_to)
         for chunk in chunks
       ])
       return {
@@ -568,7 +598,8 @@ async def translate_and_detect_question(
         'detected_language': results[0].get('detected_language', 'unknown') if results else 'unknown',
       }
 
-  return await _translate_single(text, meeting_context, language, vocabulary, recent_utterances)
+  return await _translate_single(text, meeting_context, language, vocabulary, recent_utterances,
+                                 translate=translate, translate_to=translate_to)
 
 
 async def _translate_single(
@@ -577,6 +608,8 @@ async def _translate_single(
   language: Optional[str] = None,
   vocabulary: Optional[list[str]] = None,
   recent_utterances: Optional[list[str]] = None,
+  translate: bool = True,
+  translate_to: Optional[str] = None,
 ) -> dict:
   """단일 LLM 호출 — 600자 이하 입력 가정. translate_and_detect_question 내부 helper."""
   if not text or not text.strip():
@@ -586,7 +619,7 @@ async def _translate_single(
   system_content = (
     _build_context_prefix(meeting_context)
     + _build_stt_correction_prefix(vocabulary, recent_utterances)
-    + _build_translate_system(language)
+    + _build_translate_system(language, translate=translate, translate_to=translate_to)
   )
   # 동적 max_tokens: 입력 길이 기반. 한국어/CJK 는 char 당 2~3 token, 보수적으로 *4 + json wrapping 200.
   # 긴 발화 (200자+) 일 때도 응답 잘림 방지. 메모리 [feedback_translation_async] 패턴 동일.
@@ -1018,10 +1051,15 @@ Respond ONLY with strict JSON:
 
 
 # ── 언어 코드 → 사람이 읽는 이름 ──
+# 프론트 constants/languages.ts 의 24종과 1:1로 맞춘다 — 목적지 언어명이 프롬프트에 그대로 들어가므로
+# 여기 없는 코드는 "translate to ru" 같은 코드 문자열이 LLM 에게 나간다.
 _LANG_NAMES = {
   'ko': 'Korean', 'en': 'English', 'en-US': 'English', 'en-GB': 'English',
   'ja': 'Japanese', 'zh': 'Chinese', 'es': 'Spanish', 'fr': 'French',
-  'de': 'German', 'pt': 'Portuguese', 'vi': 'Vietnamese', 'th': 'Thai',
+  'de': 'German', 'it': 'Italian', 'pt': 'Portuguese', 'nl': 'Dutch',
+  'ru': 'Russian', 'pl': 'Polish', 'sv': 'Swedish', 'tr': 'Turkish',
+  'uk': 'Ukrainian', 'hi': 'Hindi', 'id': 'Indonesian', 'th': 'Thai',
+  'vi': 'Vietnamese', 'ms': 'Malay', 'ar': 'Arabic', 'he': 'Hebrew',
 }
 
 

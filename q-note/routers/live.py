@@ -250,6 +250,8 @@ async def _enrich_and_persist(
   allowed_languages: list[str] | None,
   session_language: str | None = None,
   vocabulary: list[str] | None = None,
+  translate_enabled: bool = True,
+  translation_language: str | None = None,
 ):
   """
   Background task: translate + question-detect, then update DB and notify client.
@@ -258,17 +260,34 @@ async def _enrich_and_persist(
   """
   try:
     recent = await _load_recent_utterances(session_id, utterance_id)
+    # #241 — 번역 술어(단일 원천). 목적지가 없거나 회의 언어와 같으면 번역하지 않는다.
+    #   여태 이 경로는 프롬프트에 "영어 번역" 이 박혀 있어 **무슨 설정을 해도 영어**가 나왔다.
+    #   ★ 번역을 안 해도 이 호출 자체는 반드시 한다 — 같은 호출이 formatted_original(STT 교정)과
+    #     is_question(질문 카드)도 만든다. 호출을 건너뛰면 그 둘이 같이 죽는다.
+    want_translate = bool(
+      translate_enabled
+      and translation_language
+      and translation_language != (session_language or '')
+    )
     enriched = await translate_and_detect_question(
       text,
       meeting_context=meeting_context,
       language=session_language,
       vocabulary=vocabulary,
       recent_utterances=recent,
+      translate=want_translate,
+      translate_to=translation_language if want_translate else None,
     )
     formatted_original = enriched.get('formatted_original') or text
     translation = enriched.get('translation', '')
     is_question = enriched.get('is_question', False)
     detected_language = enriched.get('detected_language')
+
+    # #241 — 정확성은 프롬프트가 아니라 여기서 보장한다(LLM 이 지시를 무시해도 결과는 옳다).
+    #   또 multi 언어 세션은 연결 시점에 단일 회의 언어가 없어 위 술어가 성립하지 않으므로,
+    #   실제로 감지된 언어가 번역 목적지와 같으면(=자기 언어로의 무의미 번역) 여기서 버린다.
+    if not want_translate or (translation_language and detected_language == translation_language):
+      translation = ''
 
     # 언어 필터: 감지 언어가 선택 언어 밖이면 번역/질문감지 결과 폐기
     out_of_scope = False
@@ -479,7 +498,8 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
     async with db_connect() as db:
       db.row_factory = aiosqlite.Row
       cursor = await db.execute(
-        'SELECT id, business_id, user_id, meeting_languages, brief, participants, pasted_context, capture_mode, keywords '
+        'SELECT id, business_id, user_id, meeting_languages, brief, participants, pasted_context, capture_mode, keywords, '
+        'translate_enabled, translation_language '
         'FROM sessions WHERE id = ?',
         (session_id,)
       )
@@ -500,6 +520,10 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
       dg_language = _resolve_deepgram_language(session['meeting_languages'])
       capture_mode = session['capture_mode'] or 'microphone'
       session_business_id = session['business_id']
+      # #241 — 번역 설정. 연결 시 1회만 읽는다(발화마다 SELECT 하면 스트림이 느려진다).
+      #   회의 도중 설정을 바꾸면 클라이언트가 {"action":"settings:reload"} 를 보내 갱신한다.
+      translate_enabled = bool(session['translate_enabled'])
+      translation_language = session['translation_language'] or None
 
       # 세션의 allowed languages 파싱 (언어 필터용)
       allowed_languages: list[str] | None = None
@@ -779,6 +803,8 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
         session_id, websocket, utterance_id, transcript_text, speaker_row_id,
         meeting_context, allowed_languages, session_language=dg_language,
         vocabulary=session_keywords,
+        translate_enabled=translate_enabled,
+        translation_language=translation_language,
       )
 
     new_task = asyncio.create_task(_delayed_enrich())
@@ -970,6 +996,24 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
           control = json.loads(message['text'])
           if control.get('action') == 'stop':
             break
+          # #241 — 회의 중 번역 설정을 바꾸면 클라이언트가 이 신호를 보낸다.
+          #   설정은 연결 시 1회 캐시라 이게 없으면 "켰는데 안 나온다" 가 된다.
+          if control.get('action') == 'settings:reload':
+            try:
+              async with db_connect() as _db:
+                _db.row_factory = aiosqlite.Row
+                _cur = await _db.execute(
+                  'SELECT translate_enabled, translation_language FROM sessions WHERE id = ?',
+                  (session_id,)
+                )
+                _row = await _cur.fetchone()
+              if _row:
+                translate_enabled = bool(_row['translate_enabled'])
+                translation_language = _row['translation_language'] or None
+                logger.info(f'session={session_id} settings reloaded: '
+                            f'translate={translate_enabled} to={translation_language}')
+            except Exception as _e:
+              logger.warning(f'settings reload failed: {_e}')
         except json.JSONDecodeError:
           pass
   except WebSocketDisconnect:

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
@@ -9,6 +9,8 @@ import InvoicesTab from './InvoicesTab';
 import PaymentsTab from './PaymentsTab';
 import TaxInvoicesTab from './TaxInvoicesTab';
 import { apiFetch } from '../../contexts/AuthContext';
+import { onSocket } from '../../services/socket';
+import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 
 type Tab = 'overview' | 'invoices' | 'payments' | 'tax-invoices';
 
@@ -40,20 +42,41 @@ export default function QBillPage() {
   const [tab, setTab] = useState<Tab>(() => readTab(location.search, TABS));
   // 탭별 할 일 수 (청구서 확인·발행 대기 / 입금 알림 / 증빙 발행)
   const [todoCounts, setTodoCounts] = useState<Record<string, number>>({});
-  useEffect(() => {
-    let alive = true;
-    const load = async () => {
-      try {
-        const r = await apiFetch('/api/dashboard/todo');
-        const j = await r.json();
-        if (alive && j.success) setTodoCounts(j.data?.billTabCounts || {});
-      } catch { /* 뱃지는 부가 — 실패해도 화면은 동작 */ }
-    };
-    load();
-    const onRefresh = () => load();
-    window.addEventListener('inbox:refresh', onRefresh);
-    return () => { alive = false; window.removeEventListener('inbox:refresh', onRefresh); };
+  const aliveRef = useRef(true);
+  // #217 — 증빙 발행 마킹을 해도 이 뱃지 숫자가 안 바뀌던 결함.
+  //   백엔드(routes/invoices.js)는 마킹 4경로 전부 socket 으로 inbox:refresh 를 쏘고 있었는데,
+  //   여기서는 **window CustomEvent 만** 듣고 있었다. 같은 페이지의 TaxInvoicesTab 은 socket 을 들어
+  //   리스트는 갱신되는데 그 위 탭 뱃지만 멈춰 있었다 (CLAUDE.md §16 채널 불일치).
+  const loadCounts = useCallback(async () => {
+    try {
+      const r = await apiFetch('/api/dashboard/todo');
+      const j = await r.json();
+      if (aliveRef.current && j.success) setTodoCounts(j.data?.billTabCounts || {});
+    } catch { /* 뱃지는 부가 — 실패해도 화면은 동작 */ }
   }, []);
+  useEffect(() => {
+    aliveRef.current = true;
+    loadCounts();
+    // socket 과 window 를 **같은 debounce** 로 묶는다 — 둘 다 와도 한 번만 부른다 (§16 (c)(e)).
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const debounced = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(loadCounts, 250);
+    };
+    // business room join 은 필요 없다 — server.js 의 autoJoinUserBusinesses 가 연결 시 이미 넣는다.
+    const offUpdated = onSocket('invoice:updated', debounced);
+    const offInbox = onSocket('inbox:refresh', debounced);
+    const offDeleted = onSocket('invoice:deleted', debounced);   // draft 삭제도 뱃지를 바꾼다
+    window.addEventListener('inbox:refresh', debounced);
+    return () => {
+      aliveRef.current = false;
+      if (timer) clearTimeout(timer);
+      offUpdated(); offInbox(); offDeleted();
+      window.removeEventListener('inbox:refresh', debounced);
+    };
+  }, [loadCounts]);
+  // PWA background → foreground 복귀 시 놓친 이벤트 회복 (§16 (d))
+  useVisibilityRefresh(loadCounts);
 
   useEffect(() => { setTab(readTab(location.search, TABS)); }, [location.search, TABS]);
 

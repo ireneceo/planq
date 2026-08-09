@@ -2425,6 +2425,13 @@ router.get('/workspace/:businessId/all-tasks', authenticateToken, async (req, re
     });
     const rowsJson = rows.map((t) => t.toJSON());
     await applyMemberDisplayName(rowsJson, businessId, ['assignee', 'requester']);
+    // #250 ③청크 — 업무 태그. **멤버에게만 싣는다.**
+    //   ★ 이 라우트는 `serializeTasksForClient`(BLOCKED_FIELDS) 를 태우지 않는다(기존 구조).
+    //     그래서 태그를 무조건 실으면 내부 운영 라벨이 고객 응답에 그대로 나간다 —
+    //     여기서 소스 단계로 막는다. (client 직렬화 미적용 자체는 이 청크 밖의 선행 사안)
+    //   ★ include 가 아니라 task_id IN (...) 배치 2차 쿼리 — 위 findAndCountAll 은 limit + distinct
+    //     조합이라 M:N include 를 끼우면 count 가 조인 행 수로 오염된다.
+    if (bm && bm.role !== 'ai') await require('./task_tags').attachTagsTo(rowsJson, businessId);
     return paginatedResponse(res, rowsJson, count, { limit, page, offset });
   } catch (err) { next(err); }
 });

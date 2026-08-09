@@ -622,6 +622,8 @@
     "saved": "Draft saved",
     "failed": "Draft save failed",
     "stale": "Edited by someone else",
-    "staleHelp": "Someone else edited this document. Refresh and continue writing."
+    "staleHelp": "Someone else edited this document. Refresh and continue writing.",
+    "draftBadge": "Draft",
+    "draftBadgeHint": "Only you can see this draft. Open it and save to publish."
   }
 }

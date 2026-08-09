@@ -1,5 +1,5 @@
-// AI 업무 추가 모달 — /docs (NewDocumentModal) 와 1:1 동일 디자인.
-// Backdrop + Dialog + Header + Body + FormActions 전부 NewDocumentModal 패턴 복제.
+// AI 업무 추가 모달 — /docs (PostAiModal) 와 1:1 동일 디자인.
+// Backdrop + Dialog + Header + Body + FormActions 전부 PostAiModal 패턴 복제.
 // 자연어 한 줄 → AI 가 다중 업무 분해 → 미리보기 → 일괄 확정.
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';

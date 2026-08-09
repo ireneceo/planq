@@ -31,6 +31,9 @@ const BLOCKED_FIELDS = [
   'cue_context_ref',
   'cue_status',
   'created_via',   // Cue 등 내부 생성 경로 provenance — 고객에겐 숨김(멤버 표시 전용)
+  // #250 ③청크 — 업무 태그는 **내부 운영 라벨**이다(예: '재작업', '수금지연'). 고객에게 그대로
+  //   보이면 안 된다. 라우트에서 client 를 막는 것(assertMemberOrAbove)과 이중 방어.
+  'tags',
 ];
 
 // 단일 task plain object 를 고객용으로 정제 (in-place 아님 — 얕은 복사 후 반환).

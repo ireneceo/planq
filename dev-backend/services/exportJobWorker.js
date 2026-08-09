@@ -5,7 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { Op } = require('sequelize');
-const { ExportJob, File, Document, BusinessStorageUsage } = require('../models');
+const { ExportJob, File, Document, Post, BusinessStorageUsage } = require('../models');
 const exportRoutes = require('../routes/export');
 const notifications = require('../routes/notifications');
 const planEngine = require('./plan');
@@ -46,6 +46,105 @@ function qnoteSessionToHtml(s) {
   if (s.body) parts.push(`<h2>메모</h2><p>${esc(s.body).replace(/\n/g, '<br>')}</p>`);
   if (s.transcript_text) parts.push(`<h2>전사</h2><pre style="white-space:pre-wrap">${esc(s.transcript_text)}</pre>`);
   return parts.join('\n');
+}
+
+// ─── Q Note 세션 → TipTap JSON ───
+//   ★ HTML 을 거치지 않는다. 백엔드에 HTML→TipTap 변환기가 없어서 body_html 만 넣은 Post 는
+//     본문이 빈 채로 착지한다. 세션은 이미 구조화 필드를 갖고 있으므로 직접 조립한다.
+//     (zip 다운로드용 `qnoteSessionToHtml` 은 파일 산출이라 별개로 유지)
+function tipHeading(text) {
+  return { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: String(text) }] };
+}
+function tipParagraphs(text) {
+  // 개행은 문단으로 — 파생 평탄화 필드가 아니라 원본 문자열을 그대로 쓴다.
+  return String(text).split(/\n{1,}/).filter(l => l.trim()).map(line => ({
+    type: 'paragraph', content: [{ type: 'text', text: line }],
+  }));
+}
+function qnoteSessionToTiptap(s) {
+  const content = [];
+  if (s.summary_full) { content.push(tipHeading('요약'), ...tipParagraphs(s.summary_full)); }
+  if (Array.isArray(s.summary_key_points) && s.summary_key_points.length) {
+    content.push(tipHeading('핵심 포인트'), {
+      type: 'bulletList',
+      content: s.summary_key_points.map(p => ({
+        type: 'listItem',
+        content: [{ type: 'paragraph', content: [{ type: 'text', text: String(p) }] }],
+      })),
+    });
+  }
+  if (s.body) { content.push(tipHeading('메모'), ...tipParagraphs(s.body)); }
+  if (s.transcript_text) { content.push(tipHeading('전사'), ...tipParagraphs(s.transcript_text)); }
+  return content.length ? { type: 'doc', content } : null;
+}
+
+// ─── 이전 산출물 1건을 Post 로 착지 ───
+//   ★ 세 가지가 동시에 맞아야 사용자가 실제로 볼 수 있다:
+//     ① `content_json` 은 posts 의 **TEXT 컬럼**이다 — 객체를 그대로 넣으면 "[object Object]" 가 저장된다
+//        (Document.body_json 은 JSON 컬럼이라 그냥 넣어도 됐다. ORM 표면 차이)
+//     ② `status:'draft'` 만 주면 모델 hook 이 vlevel 을 L3 로 백필한다 — hook 은 status 를 보지 않는다.
+//        `vlevel:'L1'` 을 **명시**해야 이전 실행 본인에게만 보인다(posts.js 생성 라우트 미러)
+//     ③ `content_text` 는 posts.js 의 extractText 를 재사용 — 사본을 만들면 검색 프리뷰 규칙이 갈린다
+//   본문이 없으면 만들지 않는다 — 열어도 빈 문서인 Post 를 목록에 쌓지 않는다.
+async function createTransferredPost({ targetBiz, userId, title, tiptap, category, securityLevel }) {
+  const { extractText } = require('../routes/posts');
+  const doc = typeof tiptap === 'string' ? safeParse(tiptap) : tiptap;
+  if (!doc) return null;
+  const text = extractText(doc);
+  if (!text) return null;
+  // ★ 재시도 멱등 가드 — job 은 MAX_ATTEMPTS 3 회까지 재시도된다. 파일은 content_hash 로
+  //   'exists' dedup 이 있는데 Post 엔 없어서, 부분 실패 후 재시도가 **같은 글을 중복 생성**한다.
+  //   (제목+본문이 같은 내 글이 타겟에 이미 있으면 그건 앞선 시도의 산출물이다)
+  const dup = await Post.findOne({
+    where: { business_id: targetBiz, author_id: userId, title: String(title || '제목 없음').slice(0, 200), content_text: text },
+    attributes: ['id'],
+  });
+  if (dup) return null;
+  return Post.create({
+    business_id: targetBiz,
+    author_id: userId,
+    title: String(title || '제목 없음').slice(0, 200),
+    content_json: JSON.stringify(doc),          // ★ TEXT 컬럼 — 반드시 문자열
+    content_text: text,
+    category: category ? String(category).slice(0, 40) : null,
+    kind: 'doc',
+    status: 'draft',                            // 본인만 — 확인 후 저장하면 published 승격
+    vlevel: 'L1',                               // ★ 명시 (hook 은 status 로 L1 을 추론하지 않는다)
+    security_level: securityLevel || 'general',
+  });
+}
+function safeParse(v) { try { return JSON.parse(v); } catch { return null; } }
+
+// ─── 이전된 글의 첨부 재링크 ───
+//   본문만 옮기고 첨부를 끊으면 반쪽이다. 같은 job 에서 파일도 복사되므로(본인 L1 첨부라면)
+//   타겟에 같은 `content_hash` 의 내 File 이 이미 있다 — 그걸 찾아 링크만 다시 건다.
+//   타겟에 없는 첨부(남의 파일·L1 아님·쿼터 초과로 미복사)는 조용히 건너뛴다 —
+//   없는 파일을 가리키는 죽은 링크를 만드는 것보다 낫다.
+async function relinkAttachments(sourcePostId, newPostId, targetBiz, userId) {
+  try {
+    const { PostAttachment } = require('../models');
+    const links = await PostAttachment.findAll({
+      where: { post_id: sourcePostId },
+      include: [{ model: File, as: 'file', attributes: ['id', 'content_hash'], required: true }],
+      order: [['sort_order', 'ASC']],
+    });
+    let order = 0;
+    for (const l of links) {
+      if (!l.file?.content_hash) continue;
+      const mine = await File.findOne({
+        where: { business_id: targetBiz, uploader_id: userId, content_hash: l.file.content_hash, deleted_at: null },
+        attributes: ['id'],
+      });
+      if (!mine) continue;
+      await PostAttachment.findOrCreate({
+        where: { post_id: newPostId, file_id: mine.id },
+        defaults: { post_id: newPostId, file_id: mine.id, sort_order: order++ },
+      });
+    }
+  } catch (e) {
+    // 첨부 재링크 실패가 본문 이전을 되돌리게 두지 않는다 — 다만 조용히 넘기지는 않는다.
+    console.warn('[exportWorker] relinkAttachments', sourcePostId, '→', newPostId, e.message);
+  }
 }
 
 // ─── 파일 1건 타겟 복사 (Phase 2 dedup 로직 — content_hash 공유/물리복사) ───
@@ -157,27 +256,44 @@ async function processTransfer(job) {
   }
 
   // 문서 복사 (+ move 면 원본 soft delete)
+  //
+  // ★ 산출물은 **Post** 다 (#250 후속, Fable 설계 게이트 2026-08-08).
+  //   옛 코드는 `Document.create` 했는데, Document 를 여는 화면이 제품에 **존재하지 않는다**
+  //   (DocumentEditorPage/NewDocumentModal 은 한 번도 라우팅된 적 없는 죽은 파일이었다).
+  //   즉 이전을 실행하면 "문서 N건 복사됨" 이라고 보고하면서 **사용자가 영영 못 여는 행**을 만들었다.
+  //   살아있는 문서 표면은 Post(QDocsPage → PostsPage) 하나뿐이라 그쪽으로 착지시킨다.
+  //   운영 documents=0 이라 전환 비용이 0인 시점이다.
   for (const d of docs.slice(0, MAX_ITEMS)) {
-    await Document.create({
-      business_id: targetBiz, created_by: job.user_id,
-      kind: d.kind, title: d.title, body_json: d.body_json, body_html: d.body_html,
-      security_level: d.security_level, status: 'draft',
+    const created = await createTransferredPost({
+      targetBiz, userId: job.user_id,
+      // ★ 소스가 Post 다 — `body_json`/`kind` 를 넘기면 본문이 비고(필드 부재)
+      //   category 가 Post.kind('doc') 로 오염된다.
+      title: d.title, tiptap: d.content_json,
+      category: d.category || null, securityLevel: d.security_level,
     });
+    if (!created) { skipped++; continue; }   // 본문 없거나 이미 복사된 건은 새로 만들지 않는다
     docsCopied++;
-    // Document 는 soft-delete(deleted_at) 미지원 → move 시 원본을 archived 처리 (활성 목록에서 제거, 비파괴).
-    if (job.mode === 'move') { await d.update({ status: 'archived', archived_at: new Date() }).catch(() => {}); docsRemoved++; }
+    await relinkAttachments(d.id, created.id, targetBiz, job.user_id);
+    // ★ move 라도 **문서는 원본을 지우지 않는다**(copy-only).
+    //   Post 는 `archived` status 도 soft-delete 도 없다 — ENUM 은 draft|published 뿐이고 삭제는 hard DELETE 다.
+    //   백그라운드 워커가 사용자 자산을 복구 불가하게 지우는 것은 허용할 수 없고,
+    //   ENUM 밖 값을 쓰면 `.catch(()=>{})` 가 실패를 삼킨 채 카운터만 올라 **거짓 보고**가 된다.
+    //   파일은 `deleted_at` 을 지원하므로 현행대로 move 시 soft delete 유지.
   }
 
   // Q Note 세션 → 문서 (복사만 — 원본 qnote 는 사적 공간이라 move 대상 아님)
+  //   ★ HTML 을 거치지 않는다 — 백엔드에 HTML→TipTap 변환기가 없어서 body_html 로 만든 Post 는
+  //     본문이 빈 채로 착지한다. 구조화 필드에서 TipTap JSON 을 직접 조립한다(Fable 설계 조건 5).
+  //     export zip 의 `qnoteSessionToHtml`(파일 산출) 경로는 그대로 둔다.
   if (job.include_qnote) {
     const sessions = await fetchQnoteSessions(job.business_id, job.user_id);
     for (const s of sessions.slice(0, MAX_ITEMS)) {
-      await Document.create({
-        business_id: targetBiz, created_by: job.user_id,
-        kind: 'meeting_note', title: s.title || 'Q Note',
-        body_html: qnoteSessionToHtml(s), status: 'draft',
+      const created = await createTransferredPost({
+        targetBiz, userId: job.user_id,
+        title: s.title || 'Q Note', tiptap: qnoteSessionToTiptap(s),
+        category: 'meeting_note', securityLevel: null,
       });
-      qnoteCopied++;
+      if (created) qnoteCopied++;
     }
   }
 
@@ -314,4 +430,6 @@ async function cleanupExpiredExports() {
   } catch (e) { console.warn('[exportWorker] cleanup', e.message); return 0; }
 }
 
-module.exports = { runExportJobTick, drainOnce, cleanupExpiredExports, EXPORT_DIR };
+// createTransferredPost 는 동기 `POST /me/transfer`(routes/export.js) 도 쓴다 — 두 경로가
+//   같은 착지 규칙(TEXT 직렬화·vlevel L1 명시·extractText 재사용)을 공유해야 반쪽 전환이 안 된다.
+module.exports = { runExportJobTick, drainOnce, cleanupExpiredExports, createTransferredPost, relinkAttachments, EXPORT_DIR };

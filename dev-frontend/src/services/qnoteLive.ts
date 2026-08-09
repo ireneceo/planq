@@ -134,6 +134,16 @@ export class LiveSession {
     }, isStereo);
   }
 
+  /** #241 — 회의 중 번역 설정을 바꿨을 때 서버 캐시를 갱신시킨다.
+   *  live.py 는 연결 시 1회만 설정을 읽으므로, 이 신호가 없으면 "켰는데 안 나온다" 가 된다. */
+  reloadSettings(): void {
+    try {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ action: 'settings:reload' }));
+      }
+    } catch { /* 녹음이 안 돌고 있으면 무시 — 다음 연결 때 새 설정으로 읽는다 */ }
+  }
+
   stop(): void {
     this.stopped = true;
     try {

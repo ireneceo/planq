@@ -1,5 +1,5 @@
 // PlanQ 표준 모달 액션 버튼 — 단일 소스.
-// 디자인 룰: /docs (PostAiModal · NewDocumentModal) 의 PrimaryBtn / SecondaryBtn 그대로.
+// 디자인 룰: /docs (PostAiModal) 의 PrimaryBtn / SecondaryBtn 그대로.
 //   - variant 'ai': 빨강 그라디언트 + 별 아이콘 (AI 액션 트리거)
 //   - variant 'primary': teal 단색 (일반 저장/생성)
 //   - variant 'secondary': 흰바탕 + 회색 테두리 (취소/뒤로)

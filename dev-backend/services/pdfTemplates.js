@@ -536,4 +536,7 @@ function reportPdfHtml({ period, business, generatedAt, tabs }) {
 </html>`;
 }
 
-module.exports = { invoicePdfHtml, postPdfHtml, documentPdfHtml, reportPdfHtml };
+// richBodyToHtml 은 내보내기 zip(routes/export.js)도 쓴다 — 본문 렌더러를 새로 만들면
+//   "TipTap JSON 원문이 그대로 찍히는" 2026-08-07 포스트 PDF 파손이 zip 에서 재현된다.
+//   ★ 신규 렌더러 작성 금지 — 이 하나를 공유한다.
+module.exports = { invoicePdfHtml, postPdfHtml, documentPdfHtml, reportPdfHtml, richBodyToHtml };

@@ -10,7 +10,9 @@
 
 import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
+import { plainToHtml } from '../../utils/plainToHtml';
+import type { VoiceHandoff } from '../../utils/voiceHandoff';
 import PageShell from '../../components/Layout/PageShell';
 import PanelHeader, { PanelTitle, PanelSubTitle, PanelMetaTitle } from '../../components/Layout/PanelHeader';
 import { PanelGridLayout, CollapsibleSidebar, SidebarBackdrop, Panel } from '../../components/Layout/PanelLayout';
@@ -311,6 +313,7 @@ const MailPage: React.FC = () => {
   const { user } = useAuth();
   const { formatTimeAgo, formatDateTime } = useTimeFormat();
   const [sp, setSp] = useSearchParams();
+  const location = useLocation();
   const businessId = user?.business_id ? Number(user.business_id) : null;
   const myUserId = user?.id ? Number(user.id) : null;
 
@@ -1243,13 +1246,23 @@ const MailPage: React.FC = () => {
   }, [composeOpen, businessId, cAccountId, accounts]);
   // 계정을 바꾸면 이전 계정의 별칭 선택이 남으면 안 된다 (서버가 alias_not_owned 로 거절)
   useEffect(() => { setCFromAliasId(0); }, [cAccountId]);
+  // 음성 캡처가 넘긴 내용. compose=1 effect 안에서 **setSp 전에** 잡아둔다 —
+  //   setSp(replace) 는 state 를 넘기지 않아 그 순간 location.state 가 사라지므로,
+  //   초안 fetch 의 .finally 에서 읽으면 이미 null 이다.
+  const pendingVoiceRef = useRef<VoiceHandoff | null>(null);
+  // 음성 내용을 심은 뒤 **사용자가 실제로 손대기 전까지** 자동저장을 막는 표식.
+  //   막지 않으면, 사용자가 아무것도 안 하고 닫아도 1.5초 뒤 자동저장이
+  //   서버의 단일 초안 row 를 음성 내용으로 영구 재작성한다 (되돌릴 수 없음).
+  const composeVoiceUntouched = useRef(false);
   // #80 — 퀵메뉴 '+메일' 진입 시 작성 모달 자동 오픈
   useEffect(() => {
     if (sp.get('compose') === '1') {
+      const voice = (location.state as { voice?: VoiceHandoff } | null)?.voice ?? null;
+      if (voice) pendingVoiceRef.current = voice;
       setComposeOpen(true);
       const next = new URLSearchParams(sp); next.delete('compose'); setSp(next, { replace: true });
     }
-  }, [sp, setSp]);
+  }, [sp, setSp, location.state]);
   // 임시저장(compose) — 새 메일 모달 열 때 본인 초안 복원 + 입력 시 1.5s 디바운스 자동저장.
   //   forward 모드는 transient 라 제외. 발송 시 sendCompose 가 삭제.
   const composeDraftReady = useRef(false);
@@ -1258,17 +1271,34 @@ const MailPage: React.FC = () => {
     composeDraftReady.current = false;
     apiFetch(`/api/businesses/${businessId}/email-drafts`).then(r => r.json()).then(j => {
       const d = j?.data;
+      let hadSubject = false;
+      let restoredBody = '';
       if (d) {
         if (Array.isArray(d.to_emails) && d.to_emails.length) setCTo(toAddrList(d.to_emails).join(', '));
-        if (d.subject) setCSubject(d.subject);
-        if (d.body_html) setCBody(d.body_html);
+        if (d.subject) { setCSubject(d.subject); hadSubject = true; }
+        if (d.body_html) { setCBody(d.body_html); restoredBody = d.body_html; }
         if (Array.isArray(d.attachment_file_ids) && d.attachment_file_ids.length) setCFileIds(d.attachment_file_ids);
         if (d.account_id) setCAccountId(d.account_id);
+      }
+      // ★ 음성 내용은 초안 복원이 **끝난 뒤** 적용한다 (순서를 안 잡으면 복원이 뒤늦게 도착해 덮어쓴다).
+      //   그리고 기존 초안을 지우지 않는다 — 쓰다 만 메일을 말 한 마디로 날려버리면 안 된다.
+      //   제목은 비어 있을 때만 채우고, 본문은 맨 위에 문단으로 얹고, 받는 사람은 건드리지 않는다.
+      const voice = pendingVoiceRef.current;
+      if (voice) {
+        pendingVoiceRef.current = null;
+        const block = plainToHtml(voice.detail || voice.text || '');
+        if (block) {
+          setCBody(restoredBody && !isEmptyHtml(restoredBody) ? `${block}${restoredBody}` : block);
+          composeVoiceUntouched.current = true;
+        }
+        if (!hadSubject && voice.title) { setCSubject(voice.title); composeVoiceUntouched.current = true; }
       }
     }).catch(() => {}).finally(() => { composeDraftReady.current = true; });
   }, [composeOpen, fwdFromMsgId, businessId]);
   useEffect(() => {
     if (!composeOpen || fwdFromMsgId || !businessId || !composeDraftReady.current) return;
+    // 음성이 심어놓은 상태 그대로면 아직 사용자의 글이 아니다 — 서버 초안을 덮어쓰지 않는다.
+    if (composeVoiceUntouched.current) return;
     if (!cTo.trim() && !cSubject.trim() && isEmptyHtml(cBody) && !cFileIds.length) return;
     const tid = setTimeout(() => {
       apiFetch(`/api/businesses/${businessId}/email-drafts`, {
@@ -1291,9 +1321,13 @@ const MailPage: React.FC = () => {
   // #215-H — 본문 cid: 이미지 → data: URI 맵 (본문 렌더 srcDoc 치환 재료)
   const msgCidData = useInlineCidImages(detail ? detail.messages : null, businessId);
 
+  // 사용자가 컴포저를 실제로 편집했다 — 이 시점부터 자동저장이 정상 동작한다.
+  const markComposeTouched = () => { composeVoiceUntouched.current = false; };
+
   const closeCompose = () => {
     setComposeOpen(false); setCTo(''); setCSubject(''); setCBody(''); setCUploads([]); setCFileIds([]); setCError(null);
     setFwdFromMsgId(null); setFwdAttachCount(0);
+    pendingVoiceRef.current = null; composeVoiceUntouched.current = false;
   };
   // 전달 시작 — compose 모달을 전달 모드로 열고 제목/인용본문 prefill
   const startForward = (m: Message) => {
@@ -1737,7 +1771,7 @@ const MailPage: React.FC = () => {
                     <PlanQSelect
                       size="sm"
                       value={composeAccountOptions.find(o => o.value === cAccountId)}
-                      onChange={(opt: unknown) => { const v = (opt as { value?: number } | null)?.value; if (v) setCAccountId(Number(v)); }}
+                      onChange={(opt: unknown) => { const v = (opt as { value?: number } | null)?.value; if (v) { markComposeTouched(); setCAccountId(Number(v)); } }}
                       options={composeAccountOptions}
                       isSearchable={false}
                       menuPlacement="bottom"
@@ -1755,7 +1789,7 @@ const MailPage: React.FC = () => {
                           ? (cAliases.find(a => a.id === cFromAliasId)?.email || '')
                           : (accounts.find(a => a.id === (cAccountId || accounts[0]?.id))?.email || ''),
                       }}
-                      onChange={(opt) => setCFromAliasId(Number((opt as { value?: number } | null)?.value || 0))}
+                      onChange={(opt) => { markComposeTouched(); setCFromAliasId(Number((opt as { value?: number } | null)?.value || 0)); }}
                       options={[
                         { value: 0, label: accounts.find(a => a.id === (cAccountId || accounts[0]?.id))?.email || '' },
                         ...cAliases.map(a => ({ value: a.id, label: a.email })),
@@ -1767,17 +1801,17 @@ const MailPage: React.FC = () => {
                 )}
                 <ComposeField>
                   <ComposeLabel>{t('compose.to', { defaultValue: '받는 사람' }) as string}</ComposeLabel>
-                  <ComposeInput value={cTo} onChange={(e) => setCTo(e.target.value)} placeholder="name@example.com" inputMode="email" />
+                  <ComposeInput value={cTo} onChange={(e) => { markComposeTouched(); setCTo(e.target.value); }} placeholder="name@example.com" inputMode="email" />
                 </ComposeField>
                 <ComposeField>
                   <ComposeLabel>{t('compose.subject', { defaultValue: '제목' }) as string}</ComposeLabel>
-                  <ComposeInput value={cSubject} onChange={(e) => setCSubject(e.target.value)} placeholder={t('compose.subjectPh', { defaultValue: '제목을 입력하세요' }) as string} />
+                  <ComposeInput value={cSubject} onChange={(e) => { markComposeTouched(); setCSubject(e.target.value); }} placeholder={t('compose.subjectPh', { defaultValue: '제목을 입력하세요' }) as string} />
                 </ComposeField>
-                <RichEditor value={cBody} onChange={setCBody} placeholder={t('compose.bodyPh', { defaultValue: '메일 내용을 입력하세요…' }) as string} />
+                <RichEditor value={cBody} onChange={(v: string) => { markComposeTouched(); setCBody(v); }} placeholder={t('compose.bodyPh', { defaultValue: '메일 내용을 입력하세요…' }) as string} />
                 {fwdFromMsgId && fwdAttachCount > 0 && (
                   <FwdAttachHint><ClipIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></ClipIcon> {t('forward.origAttach', { defaultValue: '원본 첨부 {{n}}개 포함', n: fwdAttachCount }) as string}</FwdAttachHint>
                 )}
-                <AttachmentField businessId={businessId} uploads={cUploads} onUploadsChange={setCUploads} existingFileIds={cFileIds} onExistingFileIdsChange={setCFileIds} />
+                <AttachmentField businessId={businessId} uploads={cUploads} onUploadsChange={(u) => { markComposeTouched(); setCUploads(u); }} existingFileIds={cFileIds} onExistingFileIdsChange={(ids) => { markComposeTouched(); setCFileIds(ids); }} />
                 {cError && <ComposerError>{cError}</ComposerError>}
               </ComposeBody>
               <ComposeFoot>

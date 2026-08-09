@@ -851,6 +851,7 @@
     "retry": "Speak again",
     "editHint": "You can edit it on the next screen.",
     "assignee": "Assignee",
+    "assigneeUnresolved": "{{name}} — not assigned",
     "silent": "Didn't catch that. Please try again.",
     "failed": "Couldn't recognize that. Please try again.",
     "unavailable": "Voice input is unavailable right now. Please try later.",

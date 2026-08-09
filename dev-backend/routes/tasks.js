@@ -163,6 +163,14 @@ router.get('/my-week', authenticateToken, async (req, res, next) => {
 
     const tasksJson = tasks.map(t => t.toJSON());
     await applyMemberDisplayName(tasksJson, businessId, ['assignee']);
+    // #250 ③청크 — 업무 태그. **belongsToMany include 를 쓰지 않는다**(위 findAll 은 이미
+    //   reviewer_count literal 을 달고 있고, M:N include 는 count·subquery 를 오염시킨다).
+    //   task_id IN (...) 배치 2차 쿼리 1회 — routes/task_tags.js 가 정본, 사본 금지.
+    // ★ 멤버에게만 싣는다. 이 라우트는 `assertBusinessAccess` 라 **client 도 통과**하는데
+    //   serializeTasksForClient(BLOCKED_FIELDS) 를 태우지 않는다 — 무조건 실으면 '수금지연' 같은
+    //   내부 운영 라벨이 고객 화면에 그대로 나간다(Fable 실증 F2). all-tasks 와 같은 게이트.
+    const tagScope = await getUserScope(uid, businessId, req.user.platform_role);
+    if (!tagScope.isClient) await require('./task_tags').attachTagsTo(tasksJson, businessId);
     return successResponse(res, {
       week: monday,
       capacity,
@@ -349,7 +357,7 @@ router.patch('/:id/time', authenticateToken, async (req, res, next) => {
       return errorResponse(res, 'forbidden', 403);
     }
 
-    // 시간/진행율은 담당자만 수정 가능 (priority_order/planned_week_start 는 누구나)
+    // 시간/진행율은 담당자만 수정 가능 (planned_week_start 는 누구나)
     const isAssignee = task.assignee_id === req.user.id;
     const wantsHourFields = req.body.estimated_hours !== undefined
       || req.body.actual_hours !== undefined
@@ -367,7 +375,13 @@ router.patch('/:id/time', authenticateToken, async (req, res, next) => {
     }
     if (req.body.progress_percent !== undefined) updates.progress_percent = Math.max(0, Math.min(100, Number(req.body.progress_percent) || 0));
     if (req.body.planned_week_start !== undefined) updates.planned_week_start = req.body.planned_week_start || null;
-    if (req.body.priority_order !== undefined) updates.priority_order = req.body.priority_order;
+    // ★ priority_order 는 여기서 받지 않는다 (#250 ②청크). 유일한 쓰기 경로는
+    //   POST /api/tasks/priority/{toggle,reindex} 다 — 재인덱스가 정본 집합 전체를 원자적으로
+    //   다시 매기는 연산이라, 행 하나만 고치는 문을 남겨두면 프론트 재인덱스가 부활해 단일화가 무의미해진다.
+    //   조용히 무시하지 않고 400 으로 알린다(옛 클라이언트의 침묵 실패 방지).
+    if (req.body.priority_order !== undefined) {
+      return errorResponse(res, 'priority_order 는 /api/tasks/priority/toggle 로만 변경할 수 있습니다', 400);
+    }
 
     // 진행율 100% ↔ status 자동 전환 (사이클 N+6)
     // reviewer 분기:
@@ -1386,6 +1400,12 @@ router.get('/:id/detail', authenticateToken, async (req, res, next) => {
     if (!scope.isClient) {
       json.source_ref = await buildSourceRef(task);
     }
+
+    // #250 ③청크 — 업무 태그. **드로어의 유일한 데이터 소스가 이 라우트다.**
+    //   여기서 tags 를 안 실으면 드로어가 빈 배열을 들고 시작해, 사용자가 태그 하나를 "추가" 하는
+    //   순간 PUT tag_ids 가 기존 태그를 빼고 나가 **소리없이 삭제**된다(Fable 실증 F1 — 데이터 손실).
+    //   client 는 바로 아래 serializeTaskForClient 가 BLOCKED_FIELDS 로 tags 를 걷어낸다.
+    await require('./task_tags').attachTagsTo([json], task.business_id);
 
     // §8.5 — 고객에겐 내부 운영 데이터(공수 시간·예측 출처·일별 스냅샷·Cue 메타) 제거 + shared 댓글만
     if (scope.isClient) json = serializeTaskForClient(json);

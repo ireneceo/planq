@@ -857,6 +857,7 @@ const QNotePage = () => {
           brief: detail.brief || '',
           participants: (detail.participants || []).map((p) => ({ name: p.name, role: p.role || '' })),
           meetingLanguages: detail.meeting_languages || ['ko'],
+          translateEnabled: !!detail.translate_enabled,
           translationLanguage: detail.translation_language || 'ko',
           answerLanguage: detail.answer_language || '',
           pastedContext: detail.pasted_context || '',
@@ -1054,6 +1055,7 @@ const QNotePage = () => {
         brief: activeSession.brief || '',
         participants: (activeSession.participants || []).map((p) => ({ name: p.name, role: p.role || '' })),
         meetingLanguages: activeSession.meeting_languages || ['ko'],
+        translateEnabled: !!activeSession.translate_enabled,
         translationLanguage: activeSession.translation_language || 'ko',
         answerLanguage: activeSession.answer_language || '',
         pastedContext: activeSession.pasted_context || '',
@@ -1281,12 +1283,17 @@ const QNotePage = () => {
           ? cfg.participants.map((p) => ({ name: p.name, role: p.role || null }))
           : undefined,
         meeting_languages: cfg.meetingLanguages,
+        // #241 — 번역 여부를 명시 전송. 안 보내면 서버 기본값에 맡겨져 옛 동작(항상 번역)으로 샌다.
+        translate_enabled: cfg.translateEnabled,
         translation_language: cfg.translationLanguage,
         answer_language: cfg.answerLanguage,
         pasted_context: cfg.pastedContext || undefined,
         meeting_answer_style: cfg.meetingAnswerStyle || undefined,
         meeting_answer_length: cfg.meetingAnswerLength || undefined,
       });
+      // #241 — 녹음 중이면 서버의 번역 설정 캐시를 갱신시킨다.
+      //   live.py 는 연결 시 1회만 읽으므로 이게 없으면 "회의 도중 켰는데 안 나온다" 가 된다.
+      liveRef.current?.reloadSettings();
       // 새로 추가된 Priority Q&A
       for (const pq of cfg.priorityQAs) {
         try {
@@ -1349,6 +1356,8 @@ const QNotePage = () => {
           ? cfg.participants.map((p) => ({ name: p.name, role: p.role || null }))
           : undefined,
         meeting_languages: cfg.meetingLanguages,
+        // #241 — 번역 여부를 명시 전송. 안 보내면 서버 기본값에 맡겨져 옛 동작(항상 번역)으로 샌다.
+        translate_enabled: cfg.translateEnabled,
         translation_language: cfg.translationLanguage,
         answer_language: cfg.answerLanguage,
         pasted_context: cfg.pastedContext || undefined,
@@ -1476,6 +1485,19 @@ const QNotePage = () => {
   }, [phase, reviewBlocks, blocks]);
   const showRecordingUI = phase === 'prepared' || phase === 'recording' || phase === 'paused';
 
+  // #241 — 이 세션이 번역을 쓰는가. 자동 번역 호출과 "번역 중…" 표시를 전부 이 값으로 막는다.
+  //   백엔드만 고치면 번역은 안 오는데 placeholder 가 남아 "영원히 번역 중" 으로 보인다.
+  //   ★ 서버의 wants_translation 과 **같은 3조건**이어야 한다. 하나라도 빠지면 서버는 빈 번역을
+  //     돌려주는데 화면은 기다리는 상태가 되어, 목적지 미지정·같은 언어 세션이 영영 "번역 중" 으로 남는다
+  //     (한국어 회의에 한국어 목적지 = Irene 이 신고한 바로 그 경우).
+  const translateOn = (() => {
+    if (!activeSession?.translate_enabled) return false;
+    const dest = activeSession.translation_language;
+    if (!dest) return false;
+    const contentLang = activeSession.answer_language || (activeSession.meeting_languages || [])[0] || '';
+    return dest !== contentLang;
+  })();
+
   // ── 수동 질문 submit — 사용자가 직접 입력한 질문을 회의언어로 자동 번역 후 답변 생성 ──
   // 정책: 입력 언어 감지 없이 LLM auto-detect + translate to meeting_language.
   // synthetic TranscriptBlock 을 `blocks` 에 직접 push → live 이벤트와 시간 순서로 자연스럽게 혼재.
@@ -1586,8 +1608,8 @@ const QNotePage = () => {
           collapsed: false,
         },
       }));
-      // 답변 번역이 없으면 백그라운드로 가져옴
-      if (result.answer && !result.answer_translation) {
+      // 답변 번역이 없으면 백그라운드로 가져옴 (#241 — 번역 OFF 세션은 부르지 않는다)
+      if (translateOn && result.answer && !result.answer_translation) {
         try {
           const tres = await translateAnswer(sessId, result.answer);
           setAnswerData((prev) => ({
@@ -1833,6 +1855,7 @@ const QNotePage = () => {
       const isEditing = editingQuestionId === questionUttId;
 
       const fetchTranslation = (sessId: number, uttId: number, answerText: string) => {
+        if (!translateOn) return;   // #241 — 번역 OFF 세션은 자동 번역을 부르지 않는다
         translateAnswer(sessId, answerText)
           .then((res) => {
             if (res.translation) {
@@ -1926,6 +1949,7 @@ const QNotePage = () => {
 
       // 질문 텍스트 번역 (편집/합침 시 재계산) — 기존 translate-answer 엔드포인트 재사용
       const retranslateQuestion = async (sessId: number, uttId: number, text: string) => {
+        if (!translateOn) return;   // #241 — OFF 면 질문 편집·합침 때 번역 줄이 되살아나면 안 된다
         try {
           const res = await translateAnswer(sessId, text);
           setAnswerData((prev) => ({
@@ -2063,11 +2087,11 @@ const QNotePage = () => {
                 ad.editedTranslation ? (
                   <QuestionTranslation>{ad.editedTranslation}</QuestionTranslation>
                 ) : null
-              ) : (
+              ) : translateOn ? (
                 <QuestionTranslation style={{ fontStyle: 'italic', color: '#94a3b8' }}>
                   {t('page.question.translating')}
                 </QuestionTranslation>
-              )
+              ) : null
             ) : (hasAny && (
               <QuestionTranslation>
                 {translatedText}
@@ -2082,7 +2106,7 @@ const QNotePage = () => {
                 <AnswerText>{ad.answer}</AnswerText>
                 {ad.answer_translation ? (
                   <AnswerTranslation>{ad.answer_translation}</AnswerTranslation>
-                ) : ad.tier !== 'none' ? (
+                ) : (translateOn && ad.tier !== 'none') ? (
                   <AnswerTranslation style={{ fontStyle: 'italic', color: '#94a3b8' }}>{t('page.question.translating')}</AnswerTranslation>
                 ) : null}
               </AnswerPanel>
@@ -2874,6 +2898,7 @@ const QNotePage = () => {
           brief: activeSession.brief || '',
           participants: (activeSession.participants || []).map((p) => ({ name: p.name, role: p.role || '' })),
           meetingLanguages: activeSession.meeting_languages || [],
+          translateEnabled: !!activeSession.translate_enabled,
           translationLanguage: activeSession.translation_language || '',
           answerLanguage: activeSession.answer_language || '',
           captureMode: (activeSession.capture_mode === 'text' ? 'web_conference' : (activeSession.capture_mode || 'web_conference')),

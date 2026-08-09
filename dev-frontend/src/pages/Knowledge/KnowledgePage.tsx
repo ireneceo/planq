@@ -1868,7 +1868,7 @@ const CsvBtn = styled.button`
   &:disabled { opacity: 0.5; cursor: not-allowed; }
   @media (max-width: 640px) { height: 36px; font-size: 12px; padding: 0 10px; gap: 4px; }
 `;
-// AI 자동 추가 버튼 — 별 아이콘 + teal accent. Q docs NewDocumentModal "AI 로 시작" 패턴 카피.
+// AI 자동 추가 버튼 — 별 아이콘 + teal accent. Q docs PostAiModal "AI 로 시작" 패턴 카피.
 const CsvUploadBtn = styled.button`
   display: inline-flex; align-items: center; gap: 6px;
   height: 32px; padding: 0 12px;

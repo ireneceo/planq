@@ -177,7 +177,10 @@ async def _run_migrations(db):
   # sessions: text 메모 통합 (사이클 N+17) — 음성/텍스트 input_type, 본문 body, 번역 토글, 연결된 음성 세션, 요약 시각
   session_memo_cols = [
     ('input_type', "TEXT NOT NULL DEFAULT 'voice'"),   # 'voice' | 'text'
-    ('translate_enabled', "INTEGER NOT NULL DEFAULT 1"),
+    # #241 — 기본 OFF. 번역이 필요한 회의만 '번역 필요' 를 켠다.
+    #   기존 테이블의 DEFAULT 는 이 목록으로 바뀌지 않지만(ALTER 는 없는 컬럼만 추가),
+    #   쓰기측(routers/sessions.py)이 항상 명시값을 넣으므로 동작은 보장된다.
+    ('translate_enabled', "INTEGER NOT NULL DEFAULT 0"),
     ('linked_voice_session_id', 'INTEGER'),            # text 메모가 음성 세션과 연결될 때
     ('summarized_at', 'TEXT'),                         # AI 요약 마지막 시각
     ('body', 'TEXT'),                                  # text 메모 본문 (TipTap JSON 또는 plain)

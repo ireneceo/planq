@@ -1,8 +1,14 @@
 // Q docs 서비스 — 문서·템플릿 통합 시스템
 // 백엔드: /api/docs/templates · /api/docs/documents
 import { apiFetch } from '../contexts/AuthContext';
-import { downloadBlob } from '../utils/download';
 
+// ★ Document(문서) 엔티티의 CRUD 함수는 제거됐다 (#250 후속, Fable 설계 게이트 2026-08-08).
+//   이유: Document 를 여는 화면이 제품에 **존재한 적이 없다** — DocumentEditorPage/NewDocumentModal 은
+//   한 번도 라우팅되지 않은 채 3개월간 남아 있었고, 운영 documents 는 0행이었다.
+//   살아있는 문서 표면은 **Post**(QDocsPage → components/Docs/PostsPage) 하나뿐이다.
+//   여기 남은 것은 그 Post 화면이 실제로 쓰는 것들뿐 — 템플릿(listTemplates)·AI 생성(aiGenerateDoc)·
+//   종류 라벨(DocKind/KIND_*). 백엔드 routes/docs.js·공개 공유(/public/docs/:token)는 그대로 살아있다.
+//   ⚠️ Document CRUD 를 되살리려면 Post 와 경쟁하는 병행 문서 시스템이 된다 — 설계 결정을 먼저 할 것.
 export type DocKind =
   | 'quote' | 'invoice' | 'tax_invoice' | 'contract' | 'nda'
   | 'proposal' | 'sow' | 'meeting_note' | 'sop' | 'custom';
@@ -69,86 +75,10 @@ export async function listTemplates(businessId: number, kind?: DocKind): Promise
   return j.data;
 }
 
-export async function listDocuments(params: {
-  businessId: number;
-  kind?: DocKind;
-  status?: DocStatus;
-  clientId?: number;
-  projectId?: number;
-  query?: string;
-}): Promise<DocSummary[]> {
-  const qs = new URLSearchParams();
-  qs.set('business_id', String(params.businessId));
-  if (params.kind) qs.set('kind', params.kind);
-  if (params.status) qs.set('status', params.status);
-  if (params.clientId) qs.set('client_id', String(params.clientId));
-  if (params.projectId) qs.set('project_id', String(params.projectId));
-  if (params.query) qs.set('q', params.query);
-  const r = await apiFetch(`/api/docs/documents?${qs}`);
-  const j = await r.json();
-  if (!j.success) throw new Error(j.message || 'Failed');
-  return j.data;
-}
 
-export async function getDocument(id: number): Promise<DocDetail> {
-  const r = await apiFetch(`/api/docs/documents/${id}`);
-  const j = await r.json();
-  if (!j.success) throw new Error(j.message || 'Failed');
-  return j.data;
-}
 
-// 문서 PDF 다운로드 — 인증 blob fetch (authenticateToken 은 Authorization 헤더만 받으므로 window.open 불가).
-export async function downloadDocumentPdf(id: number, title: string): Promise<void> {
-  const r = await apiFetch(`/api/docs/documents/${id}/pdf`);
-  if (!r.ok) {
-    let msg = `HTTP ${r.status}`;
-    try { const j = await r.json(); msg = j.message || msg; } catch { /* binary */ }
-    throw new Error(msg);
-  }
-  const blob = await r.blob();
-  await downloadBlob(blob, `${title || 'document'}.pdf`);
-}
 
-export async function createDocument(payload: {
-  business_id: number;
-  template_id?: number | null;
-  kind: DocKind;
-  title: string;
-  client_id?: number | null;
-  project_id?: number | null;
-  form_data?: Record<string, unknown> | null;
-  body_json?: Record<string, unknown> | null;
-  body_html?: string | null;
-}): Promise<DocDetail> {
-  const r = await apiFetch('/api/docs/documents', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  const j = await r.json();
-  if (!j.success) throw new Error(j.message || 'Failed');
-  return j.data;
-}
 
-export async function updateDocument(id: number, payload: Partial<{
-  title: string;
-  status: DocStatus;
-  form_data: Record<string, unknown> | null;
-  body_json: Record<string, unknown> | null;
-  body_html: string | null;
-  client_id: number | null;
-  project_id: number | null;
-  ai_generated: boolean;
-}>): Promise<DocDetail> {
-  const r = await apiFetch(`/api/docs/documents/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  const j = await r.json();
-  if (!j.success) throw new Error(j.message || 'Failed');
-  return j.data;
-}
 
 export interface AiGenerateResult {
   body_html: string;
@@ -178,11 +108,6 @@ export async function aiGenerateDoc(payload: {
   return j.data;
 }
 
-export async function archiveDocument(id: number): Promise<void> {
-  const r = await apiFetch(`/api/docs/documents/${id}`, { method: 'DELETE' });
-  const j = await r.json();
-  if (!j.success) throw new Error(j.message || 'Failed');
-}
 
 // ─── 사이클 I4 — 문서 revision diff (슬롯 변경 이력) ───
 export interface DocRevision {
@@ -197,41 +122,8 @@ export interface DocRevision {
   changer?: { id: number; name: string } | null;
 }
 
-export async function listDocumentRevisions(id: number): Promise<DocRevision[]> {
-  const r = await apiFetch(`/api/docs/documents/${id}/revisions`);
-  const j = await r.json();
-  if (!j.success) throw new Error(j.message || 'Failed');
-  return j.data as DocRevision[];
-}
 
-export async function shareDocument(id: number, payload: {
-  method?: 'link' | 'email' | 'qtalk';
-  recipient_email?: string;
-  recipient_name?: string;
-  expires_in_days?: number;
-}): Promise<{ share_url: string; share: Record<string, unknown> }> {
-  const r = await apiFetch(`/api/docs/documents/${id}/share`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  const j = await r.json();
-  if (!j.success) throw new Error(j.message || 'Failed');
-  return j.data;
-}
 
-// D4 #62 — 문서 보안등급 변경. 일반 외로 상향 시 외부 공유 링크 무효화.
-export async function updateDocumentSecurityLevel(
-  id: number,
-  level: 'general' | 'internal' | 'confidential',
-): Promise<{ id: number; security_level: 'general' | 'internal' | 'confidential'; revoked_share: boolean }> {
-  const r = await apiFetch(`/api/docs/documents/${id}/security-level`, {
-    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ level }),
-  });
-  const j = await r.json();
-  if (!j.success) throw new Error(j.message || 'security_level_change_failed');
-  return j.data;
-}
 
 export const KIND_LABELS_KO: Record<DocKind, string> = {
   quote: '견적서',
