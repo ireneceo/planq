@@ -64,6 +64,13 @@ Post.init({
     allowNull: false,
     defaultValue: 'general',
   },
+  // #252 — 낙관적 잠금 기준 컬럼이라 **밀리초 정밀도가 필수**다.
+  //   기본 DATETIME(초) 이면 "같은 초 안의 두 저장" 이 base == cur 로 잠금을 통과해
+  //   남이 방금 쓴 본문을 조용히 덮는다(자동저장이 붙어 PUT 빈도가 수십 배로 뛴 뒤엔 실화가 된다).
+  //   created_at 도 같이 올린다 — 목록 정렬 tie 를 줄이고 두 컬럼 타입을 어긋나게 두지 않는다.
+  //   운영 반영: scripts/migrate-posts-datetime-ms.js (멱등 ALTER)
+  createdAt: { type: DataTypes.DATE(3), allowNull: false, field: 'created_at' },
+  updatedAt: { type: DataTypes.DATE(3), allowNull: false, field: 'updated_at' },
 }, {
   sequelize, tableName: 'posts', timestamps: true, underscored: true,
   indexes: [

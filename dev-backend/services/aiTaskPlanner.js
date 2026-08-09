@@ -178,7 +178,11 @@ function clampPriority(p) {
 
 // #90 — 사용자가 명시한 이름 → 멤버 매칭. 워크스페이스 표시명(name) / 계정명(account_name) 둘 다.
 // 정확 일치 우선, 없으면 포함(부분) 일치. 1명 확정 시 user_id, 다수/0명이면 null.
-function matchMemberByName(name, members) {
+//
+// opts.exactOnly — 2) 포함 일치를 건너뛴다. 음성 입력(routes/voice.js)처럼 사용자가 오타를
+//   눈으로 고칠 기회 없이 곧장 해석되는 경로용. 멤버 '김지원' 이 있을 때 "지원팀에 공유" 가
+//   김지원으로 확정되는 오배정을 막는다 (그 배정은 알림 발송까지 이어진다).
+function matchMemberByName(name, members, opts = {}) {
   if (!name || !members || members.length === 0) return null;
   const n = String(name).toLowerCase().trim();
   if (n.length < 2) return null;
@@ -187,6 +191,7 @@ function matchMemberByName(name, members) {
   let hit = members.filter(m => nameOf(m).some(x => x === n));
   if (hit.length === 1) return hit[0].user_id;
   if (hit.length > 1) return null;
+  if (opts.exactOnly) return null;
   // 2) 포함 일치 (이름이 멤버명에 포함되거나 그 반대 — "루아에게" 같은 조사 흡수)
   hit = members.filter(m => nameOf(m).some(x => x.length >= 2 && (n.includes(x) || x.includes(n))));
   if (hit.length === 1) return hit[0].user_id;

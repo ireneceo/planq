@@ -11,6 +11,8 @@ import { formatDate } from '../../utils/dateFormat';
 import CalendarPicker from '../Common/CalendarPicker';
 import SingleDateField from '../Common/SingleDateField';
 import PlanQSelect from '../Common/PlanQSelect';
+import { type TaskTagLite } from './TagChips';
+import TagPicker from './TagPicker';
 import IdentityContext from '../Common/IdentityContext';
 import PartnerKindBadge from '../Common/PartnerKindBadge';
 import { ProvenanceBadge } from '../Common/SourceHint';
@@ -99,6 +101,8 @@ interface CueMeta {
 interface TaskDetail {
   id: number; title: string; description: string | null; body: string | null;
   status: string; priority_order: number | null;
+  // #250 — 서버가 이름 사전순으로 실어 보낸다. 편집은 PUT /api/tasks/:id/tags 전용 경로.
+  tags?: TaskTagLite[] | null;
   start_date: string | null; due_date: string | null;
   estimated_hours: number | null; actual_hours: number; progress_percent: number;
   // 시스템 자동 vs 사용자 입력 시그널 — 'ai'/'auto' 면 회색 italic, 'user' 면 검정 (사이클 N+6)
@@ -343,6 +347,20 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const [deleting, setDeleting] = useState(false);
 
   const [saveStatus, setSaveStatus] = useState<'idle'|'saving'|'saved'|'error'>('idle');
+  // #250 태그 사전 — 자유 입력이 아니라 워크스페이스 사전에서 고른다(오타로 태그가 갈라지지 않게).
+  const [tagDict, setTagDict] = useState<TaskTagLite[]>([]);
+  const [tagSaving, setTagSaving] = useState(false);
+  React.useEffect(() => {
+    if (!bizId) return;
+    let cancelled = false;
+    (async () => {
+      const r = await apiFetch(`/api/tasks/tags?business_id=${bizId}`);
+      if (!r.ok || cancelled) return;   // apiFetch 는 throw 안 함
+      const j = await r.json();
+      if (!cancelled) setTagDict(Array.isArray(j?.data) ? j.data : []);
+    })();
+    return () => { cancelled = true; };
+  }, [bizId]);
   const saveStatusTimerRef = useRef<number | null>(null);
   const setSaveStatusTemp = (s: 'saving'|'saved'|'error') => {
     setSaveStatus(s);
@@ -499,6 +517,26 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       onPatch?.({ id: detailTask.id, [field]: value } as DrawerTaskPatch);
       setSaveStatusTemp('saved');
     } catch { setSaveStatusTemp('error'); }
+  };
+  // #250 태그 저장 — 전용 엔드포인트다(PUT by-business 는 tag_ids 를 받지 않는다).
+  //   응답의 tags 로 state 를 맞춘다 — 서버가 사전순 정렬해 돌려주므로 대표 태그가 [0] 로 고정된다.
+  const saveTags = async (tagIds: number[]) => {
+    if (!detailTask || tagSaving) return;   // 중복 제출 가드 (UI_DESIGN_GUIDE §1.8)
+    setTagSaving(true);
+    setSaveStatusTemp('saving');
+    try {
+      const r = await apiFetch(`/api/tasks/${detailTask.id}/tags`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tag_ids: tagIds }),
+      });
+      if (!r.ok) throw new Error('save_failed');   // apiFetch 는 throw 안 함 — res.ok 필수
+      const j = await r.json();
+      const tags = (j?.data?.tags || []) as TaskTagLite[];
+      setDetailTask(prev => prev ? { ...prev, tags } as TaskDetail : prev);
+      onPatch?.({ id: detailTask.id, tags } as DrawerTaskPatch);
+      setSaveStatusTemp('saved');
+    } catch { setSaveStatusTemp('error'); }
+    finally { setTagSaving(false); }
   };
   const debouncedSave = (field: string, value: unknown, ms = 2000) => {
     if (!detailTask) return;
@@ -938,6 +976,9 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           const canDirectStatus = myWsRole === 'owner' || myWsRole === 'admin' || isPlatformAdmin;
           const tz = user?.workspace_timezone || 'Asia/Seoul';
           const canEditTitle = iAmCreator || iAmAssignee || iAmWsOwner;
+          // #250 — 태그는 "이 업무가 무엇에 관한 것인가" 라 title/category 축(의뢰자+수행자 둘 다).
+          //   백엔드 routes/task_tags.js `PUT /:id/tags` 분기와 미러다.
+          const canEditTags = iAmCreator || iAmAssignee || iAmWsOwner || myWsRole === 'admin';
           const canEditDescription = iAmCreator || iAmWsOwner;
           const canEditBody = iAmAssignee || isPlatformAdmin;
           const canEditRecurrence = iAmCreator || iAmWsOwner;  // 백엔드 FIELD_RULES와 일치
@@ -1221,6 +1262,19 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                       saveField('project_id', pid);
                     }}
                     options={projects.map(p => ({ value: String(p.id), label: p.name }))} />
+                </MetaCell>
+                {/* #250 업무 태그 — 사전에서 고른다(자유 입력 아님). 오타로 태그가 갈라지지 않게. */}
+                <MetaCell>
+                  <MetaLabel>{t('detail.meta.tags', '태그')}
+                    {!canEditTags && <ReadOnlyHint>{t('detail.readOnly', '읽기 전용')}</ReadOnlyHint>}
+                  </MetaLabel>
+                  <TagPicker
+                    bizId={bizId}
+                    dict={tagDict}
+                    value={detailTask.tags || []}
+                    disabled={!canEditTags || tagSaving}
+                    onChange={(ids) => { if (canEditTags) saveTags(ids); }}
+                    onDictAdd={(tag) => setTagDict(prev => (prev.some(p => p.id === tag.id) ? prev : [...prev, tag]))} />
                 </MetaCell>
                 <MetaCell>
                   <MetaLabel>{t('detail.meta.assignee', '담당자')}</MetaLabel>

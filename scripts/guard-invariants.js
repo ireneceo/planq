@@ -144,11 +144,23 @@ function checkI18n() {
   const samples = [];
   for (const f of files) {
     let n = 0;
+    // ★ 여러 줄 주석 **상태**를 추적한다. 옛 코드는 각 줄을 독립 검사해 블록 주석의 **첫 줄만**
+    //   주석으로 인식했다 — 둘째 줄부터 따옴표 안에 한국어를 인용하면(예: 옛 동작을 설명하려고
+    //   "…" 로 옮겨 적을 때) 하드코딩으로 오탐했다. 오탐은 `--update-baseline` 을 부르고,
+    //   그 순간 **진짜 부채가 같이 통과**한다 — 가드가 조용히 죽는 경로다.
+    let inBlock = false;
     read(f).split('\n').forEach((l, i) => {
       const t = l.trim();
-      // JSX 주석 `{/* … */}` 도 주석이다. 여태 이 접두어만 빠져 있어, 주석 안에서 한국어를
-      // 따옴표로 인용하면(예: 버튼이 "취소" 로 바뀐다) 하드코딩으로 오탐했다.
-      if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*') || t.startsWith('{/*')) return;
+      if (inBlock) {
+        if (t.includes('*/')) inBlock = false;
+        return;   // 닫는 줄까지는 주석
+      }
+      // JSX 주석 `{/* … */}` 도 주석이다.
+      if (t.startsWith('//') || t.startsWith('*')) return;
+      if (t.startsWith('/*') || t.startsWith('{/*')) {
+        if (!t.includes('*/')) inBlock = true;   // 같은 줄에서 안 닫히면 블록 진입
+        return;
+      }
       if (!re.test(l)) return;
       // t() 폴백·i18n 키·콘솔로그·주석성 라벨 제외
       if (/\bt\(|i18nKey|defaultValue|console\.(log|warn|error|info)/.test(l)) return;

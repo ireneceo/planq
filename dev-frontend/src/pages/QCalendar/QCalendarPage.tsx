@@ -12,6 +12,7 @@ import EventDrawer from './EventDrawer';
 import PersonalEventDrawer from './PersonalEventDrawer';
 import { responsiveDrawerWidth } from '../../utils/responsiveDrawer';
 import NewEventModal from './NewEventModal';
+import { parseVoiceWhen, type VoiceHandoff } from '../../utils/voiceHandoff';
 import type { CalendarEvent, CalendarViewMode, CalendarScope, CalendarItem, PersonalCalendarEvent } from './types';
 import {
   addDays, addMonths, getWeekDays, startOfDay, startOfMonth, startOfWeek, toDateKey,
@@ -66,14 +67,33 @@ const QCalendarPage: React.FC = () => {
   const [showNewModal, setShowNewModal] = useState(false);
   const [newModalInitial, setNewModalInitial] = useState<Date>(new Date());
   const [calSp, setCalSp] = useSearchParams();
+  // 음성 캡처가 넘긴 제목·설명 (navigate state). 모달 mount 시 초기값으로만 소비된다.
+  const [voiceSeed, setVoiceSeed] = useState<{ title: string; description: string; allDay: boolean } | null>(null);
   // #80 — 퀵메뉴 '+일정' 진입 시 새 일정 모달 자동 오픈
+  //
+  // 음성 캡처('말로 추가')도 같은 트리거로 들어온다. 내용은 URL 이 아니라 navigate state 로 온다.
+  // ★ state 는 `setCalSp` **전에** 읽어야 한다 — setCalSp 는 state 를 넘기지 않아 그 순간 지워진다.
+  //   재적용 방지용 ref 는 두지 않는다: `create=1` 과 state 가 **같이** 사라지므로 재실행은 위 early-return
+  //   에서 끝난다. ref 를 두면 한 번 쓰인 뒤 영구 잠겨 **같은 페이지에서 두 번째로 말한 내용이 통째로 버려진다**
+  //   (시트는 RightDock 소속이라 /calendar→/calendar 이동은 remount 를 일으키지 않는다).
   useEffect(() => {
-    if (calSp.get('create') === '1') {
+    if (calSp.get('create') !== '1') return;
+    const voice = (location.state as { voice?: VoiceHandoff } | null)?.voice ?? null;
+    if (voice) {
+      const when = parseVoiceWhen(voice.when_start);
+      setNewModalInitial(when || new Date());
+      setVoiceSeed({
+        title: voice.title || voice.text || '',
+        description: voice.detail || '',
+        allDay: voice.when_all_day === true,
+      });
+    } else {
       setNewModalInitial(new Date());
-      setShowNewModal(true);
-      const next = new URLSearchParams(calSp); next.delete('create'); setCalSp(next, { replace: true });
+      setVoiceSeed(null);
     }
-  }, [calSp, setCalSp]);
+    setShowNewModal(true);
+    const next = new URLSearchParams(calSp); next.delete('create'); setCalSp(next, { replace: true });
+  }, [calSp, setCalSp, location.state]);
 
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [taskEvents, setTaskEvents] = useState<CalendarItem[]>([]);
@@ -378,7 +398,11 @@ const QCalendarPage: React.FC = () => {
   }, [view]);
 
   // #102 — 타임그리드 빈 시간칸 클릭 → 그 시각으로 새 일정 모달 오픈 (prefill)
+  //   ★ 여는 쪽에서 voiceSeed 를 지운다. 닫는 쪽(onClose)에만 두면 **저장으로 닫힌 경우**
+  //     (handleCreate) 잔재가 남아 다음 '+일정' 이 이전 음성 제목으로 채워진 채 열린다.
+  //     여는 경로마다 초기화하면 닫힘 경로가 늘어나도 같은 결함이 재발하지 않는다.
   const handleCreateAt = useCallback((d: Date) => {
+    setVoiceSeed(null);
     setNewModalInitial(d);
     setShowNewModal(true);
   }, []);
@@ -390,6 +414,7 @@ const QCalendarPage: React.FC = () => {
     // 기본 시작: 지금(시간 부분) 또는 09:00
     if (view === 'day') d.setHours(9, 0, 0, 0);
     else d.setHours(now.getHours() + 1, 0, 0, 0);
+    setVoiceSeed(null);
     setNewModalInitial(d);
     setShowNewModal(true);
   }, [view, anchor]);
@@ -641,9 +666,12 @@ const QCalendarPage: React.FC = () => {
       {showNewModal && (
         <NewEventModal
           initialStart={newModalInitial}
+          initialTitle={voiceSeed?.title}
+          initialDescription={voiceSeed?.description}
+          initialAllDay={voiceSeed?.allDay}
           projects={projects}
           businessId={bizId}
-          onClose={() => setShowNewModal(false)}
+          onClose={() => { setShowNewModal(false); setVoiceSeed(null); }}
           onCreate={handleCreate}
         />
       )}

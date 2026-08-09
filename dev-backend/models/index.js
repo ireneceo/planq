@@ -39,6 +39,8 @@ const ExportJob = require('./ExportJob');
 const TaskStatusHistory = require('./TaskStatusHistory');
 const TaskAttachment = require('./TaskAttachment');
 const TaskLink = require('./TaskLink');
+const TaskTag = require('./TaskTag');
+const TaskTagLink = require('./TaskTagLink');
 const ProjectStatusOption = require('./ProjectStatusOption');
 const ProjectStage = require('./ProjectStage');
 const ProjectWorkstream = require('./ProjectWorkstream');
@@ -451,6 +453,15 @@ TaskLink.belongsTo(Task, { as: 'taskA', foreignKey: 'task_a_id', onDelete: 'CASC
 TaskLink.belongsTo(Task, { as: 'taskB', foreignKey: 'task_b_id', onDelete: 'CASCADE' });
 TaskLink.belongsTo(User, { as: 'creator', foreignKey: 'created_by' });
 
+// TaskTag / TaskTagLink (#250 ③청크 — 업무 태그 M:N)
+//   ★ belongsToMany 를 **선언하지 않는다**. 선언해 두면 다음 사람이 all-tasks(pagination 라우트)에
+//     include 로 끼워 넣어 findAndCountAll 의 count 를 조인 행 수로 오염시킨다.
+//     조회는 routes/task_tags.js `attachTagsTo()` 의 배치 2차 쿼리 하나로만 한다.
+TaskTagLink.belongsTo(Task, { foreignKey: 'task_id', onDelete: 'CASCADE' });
+TaskTagLink.belongsTo(TaskTag, { as: 'tag', foreignKey: 'tag_id', onDelete: 'CASCADE' });
+TaskTag.hasMany(TaskTagLink, { as: 'links', foreignKey: 'tag_id', onDelete: 'CASCADE' });
+TaskTag.belongsTo(User, { as: 'creator', foreignKey: 'created_by' });
+
 // FeedbackItem (P6 — 사용자 → 운영팀 피드백)
 FeedbackItem.belongsTo(User, { as: 'user', foreignKey: 'user_id' });
 FeedbackItem.belongsTo(User, { as: 'responder', foreignKey: 'responded_by' });
@@ -510,6 +521,8 @@ module.exports = {
   TaskStatusHistory,
   TaskAttachment,
   TaskLink,
+  TaskTag,
+  TaskTagLink,
   ProjectStatusOption,
   ProjectStage,
   ProjectWorkstream,

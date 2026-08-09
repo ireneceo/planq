@@ -1,6 +1,12 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-08-07 (Opus 5, 1M) — **포스트 PDF 본문 전면 파손 수정 + 정기청구 PDF 첨부 복구 + health-check/배포 PDF 실측 항목 (Fable 게이트 2라운드 PASS, 운영 2배포 `0281936`·`8754881`)** — ①**★ 공유 문서 PDF 가 본문 대신 TipTap JSON 원문을 찍고 있었다**: Irene 운영 신고("pdf 다운로드는 이제 되는데 내용이 엉망"). 원인은 `models/Post.js:14` 의 `content_json` 이 **TEXT 컬럼**이라 DB 에서 **문자열**로 오는데, `services/pdfTemplates.js:postPdfHtml` 이 `typeof === 'string'` 을 **"HTML 본문"으로 단정**해 그대로 흘린 것. 즉 포스트 PDF 는 **처음부터 전건 파손**이었다(문서는 `Document.body_json` 이 DataTypes.JSON = 객체라 정상 — 이 대조가 진단의 열쇠). `parseRichContent`(문자열이면 JSON 파싱 우선) + `richBodyToHtml`(TipTap JSON > HTML > content_text 평문 폴백, **JSON 원문이 새는 경로 제거**) 신설. 웹(`generateHTML` StarterKit+Link+Image+Table)과 어긋나던 노드도 보강 — taskList/taskItem·셀 colspan/rowspan·ol start·image width/alt, 그리고 **이미지 상대경로 절대화**(puppeteer `setContent` 는 base URL 이 없어 `/api/posts/editor-image/…` 를 못 받는다). ②**★ 같은 PDF 의 날짜가 `Wed Aug 05`**: `fmtDate` 가 `String(s).slice(0,10)` 이라 Sequelize DATE 객체를 요일·영문월로 잘랐다. 게다가 Post 모델이 `underscored` 라 **인스턴스 속성은 `createdAt`** 인데 `buildPostPdf` 가 `toJSON()` 없이 인스턴스를 넘겨 `post.created_at` 이 undefined → **공유 안 된 포스트는 날짜가 `—`**. Date 객체 분기 + `createdAt`/`updatedAt` 폴백. 청구서 PDF 의 DATEONLY(`due_date`) 는 정규식 분기로 Date 변환 자체를 안 타게 해 **하루 밀림 0** 실측. ③**정기청구 메일 PDF 첨부 복구**(전일 설계분 착지): `recurring_invoice.js`·`clientSubscriptionBilling.js` 가 **git 이력에 존재한 적 없는** `./pdfBuilder` 를 require 하고 빈 `catch` 가 삼켜 **자동청구 메일에 청구서 PDF 가 한 번도 붙은 적 없었다**. 진짜 구현을 `services/invoicePdf.js` 로 추출해 라우트·엔진 2개가 공유 + 실패 시 `console.warn` + `notifyPlatformAdmins` + **첨부 유무로 메일 문구 분기**(첨부 없는데 "첨부된 청구서 참고" 는 고객에게 거짓). ④**#253 재발 자동 검출**: `GET /api/internal/health/pdf`(internal key + 분당 5회 캡) 신설 — **백엔드 프로세스 자신이** 렌더해야 `LD_LIBRARY_PATH` 상속 상태를 정확히 잰다(별도 `node -e` 는 환경이 달라 거짓 판정). `health-check.js` 항목 추가(키 못 읽으면 skip 아니라 **FAIL**) + `deploy-planq.sh` 가 배포 직후 **운영 호스트 내부에서** 실측 — 이번 2배포 모두 `운영 PDF 렌더 OK (11821 bytes, %PDF-)` 로 실제 발화. ⑤**★ Fable 게이트가 증명한 것**: 운영 라이브 PDF 를 받아 `pdftotext` 로 **`{"type"` 191건**(신고 재현) → 수정본 **0건** 대조. 반증도 실측(파싱 분기를 옛 동작으로 되돌리니 191건 재출현, 330,808B ≈ 운영 before 330,840B / `fmtDate` 되돌리니 `Sun May 03` 재현) 후 `cp` 백업 md5 복원, **`git checkout --` 미사용**. 회귀 무: Q info 공유 PDF(HTML 본문 경로)·문서 PDF·청구서 PDF·비멤버 403·옛 포스트 샘플. ⑥**운영 2배포 3점 실측**: PM2 uptime 리셋 · health 200 · 신고 문서 라이브 PDF `477,787B`/`%PDF-`/JSON **0건**/헤더 `2026-08-05`. ⑦**★ 배운 것**: 파생/평탄화 컬럼 타입 하나(TEXT vs JSON)가 렌더 경로 전체를 갈랐다 — 같은 템플릿을 쓰는 두 엔티티 중 **한쪽만 깨져 있으면 컬럼 타입부터 대조**할 것. 또 idle autosave 훅이 Fable 의 반증 편집을 커밋해(`c286394`) 원복 커밋이 필요했다 — 이번 세션만 1회, 누적 3회. **다음: Meet 개인연동 우선(설계 게이트) · `legal.json` 캘린더 "읽기 전용" 문구 정정 · 직원 신고 #246~252**
+> **최종 업데이트:** 2026-08-09 (Opus 5, 1M) — **청크 A: #217(a) 증빙 뱃지 실시간 + #241 Q Note 번역 게이트 + PWA 공유 개행 (Fable 설계 REJECT→APPROVED(9) / 구현 FAIL(HIGH 1)→수정, 재검 대기 · 미배포)** — Irene "다 해" 지시로 백로그 #217·#221·#241 을 4청크로 분할, **청크 A 만 구현 완료**. ①**★ #241 의 진짜 원인은 프롬프트에 박힌 영어였다**: `llm_service.py` `SYSTEM_KO` 안에 **`## 2. translation (영어 번역)`**, `SYSTEM_DEFAULT` 는 `"Korean↔English"`. `_build_translate_system` 이 **회의 언어만** 보고 `translation_language`·`translate_enabled` 를 참조하지 않아 **한국어 회의는 어떤 설정을 해도 영어 번역**이 나왔다 — Irene 원문 "다 영어번역이 나와. 기본적으로." 그대로. 게다가 `translate_enabled` 는 **읽는 코드가 0곳인 죽은 플래그**였고 프론트가 `/translate-answer` 를 **자동 호출**해 게이트를 우회했다. **★ 내 1판 설계는 답변 번역만 보고 전사(발화) 번역이라는 주 표면을 통째로 빠뜨려 Fable 이 REJECT** 했다. 프롬프트 §2 절만 `{translation_lang_name}` 인자화(교정·질문감지 문구 무접촉) + `_LANG_NAMES` 12→24종 + **서버측 `translation=''` 강제**(LLM 순종에 의존 X) + `detected_language` 기준 판정(multi 세션) + 술어 단일화 `wants_translation()`(enabled AND 목적지 있음 AND 목적지≠내용언어) + 기본 OFF + 고급설정 "번역 필요" 체크박스 + 회의 중 토글 WS `settings:reload`. 실측 `ko→ja` = `それでは、来週の火曜日にミーティングは可能ですか？`, OFF 에서도 `formatted_original`·`is_question` **10/10 유지**. **반증**: 인자화를 되돌리니 ko→ja 가 **영어로** 나옴(FAIL 4) → 원복 md5 일치. ②**#217(a)**: 백엔드는 마킹 4경로 전부 socket broadcast 를 부르는데 `QBillPage` 가 **window CustomEvent 만** 들어, 같은 페이지의 `TaxInvoicesTab`(socket 청취) 덕에 **리스트는 갱신되는데 그 위 탭 뱃지만 멈춰** 있었다 → socket 3종 + `useVisibilityRefresh` + 회차취소 broadcast 1줄. 실브라우저 2탭에서 새로고침 없이 `증빙1 → 증빙` 실측(테스트 청구서 삭제·잔여 0). ③**PWA 공유 개행**: 평문을 RichEditor(HTML) 에 넣어 개행이 전멸하던 것 `plainToHtml` 적용. ④**★ Fable 구현게이트 FAIL(HIGH)**: 프론트 `translateOn` 이 서버 술어 3조건 중 **1개만** 봐서 목적지 미지정·같은 언어 세션이 번역 대신 **"번역 중…" 으로 영원히** 남았다 — 운영 70세션 중 **22세션(31%)**, 그리고 **한국어/한국어 = Irene 원문 시나리오 그대로**. 3조건으로 정렬해 수정. ⑤**★ 내가 Fable 을 반증한 1건**: 설계 조건 7(`target_language` 제거)을 거부했다 — Fable 은 "호출자 0곳인 죽은 파라미터" 라 했으나 `submitManualQuestion → translateVerified` 가 **수동 질문의 회의언어 2슬롯 렌더링**에 쓰고 있어 제거하면 기능이 죽는다. Fable 이 실HTTP 재확인 후 **자신의 조건이 틀렸음을 인정**. **다음: 청크 A 재검 → 청크 B(#221 메일 5요구) → 청크 C(#217b 세금계산서 메일 — Irene 문안 확인 선행) → 청크 D(음성 컨텍스트→답장)**
+
+> **이전 업데이트:** 2026-08-09 (Opus 5, 1M) — **음성 캡처 `voice=` 3경로(업무·일정·메일) 텍스트 소비 (Fable 게이트 설계 1 + 구현 2라운드, FAIL 1회 → PASS)** — **★ 결함의 실체:** 백로그엔 "voice= 잔여 3경로 미소비" 로 적혀 있었으나, 실측하니 **`?voice=` 파라미터를 읽는 코드가 프론트 전체에 0건**이었다. `VoiceCaptureSheet.confirm()` 이 `/tasks?create=1&voice=…` 로 보내면 세 목적지는 `create=1`/`compose=1` 만 소비해 **빈 폼**을 열었고, 사용자가 말한 내용도 **`/api/voice/capture` 가 LLM 1회를 써서 뽑아낸 구조화 결과(title/detail/assignee/when)도 통째로 버려졌다**(memo 만 지난 사이클에 `/notes?prefill=` 로 살렸다). ①**해석은 서버에서 한 번에** — 프롬프트에 워크스페이스 tz 기준 오늘을 주입해 `when_start`(tz-naive `YYYY-MM-DDTHH:mm`)·`when_all_day` 산출 + 형식/과거/+365일 클램프, 담당자는 `matchMemberByName(…, {exactOnly:true})` 로 확정. **LLM 추가 호출 0회 — 같은 호출의 출력 스키마만 넓혔다**. 부수로 `classifyIntent` 가 토큰을 안 실어 **`cue_usage` 원장이 여태 0 으로만 기록되던 것**도 복구. ②**격리 구멍** — `/capture` 에 멤버십 검사가 없어 남의 `business_id` 로도 통했다. `checkBusinessAccess` 를 **multer 뒤에** 마운트(앞에 두면 `req.body` 가 비어 정상 호출이 전부 400). ③**전달은 URL 이 아니라 navigate state** — 전사문을 주소창·히스토리에 남기지 않는다(§B-5 "오디오를 저장하지 않는다" 와 정합). ★**Fable 이 설계에서 뒤집은 것:** `setSearchParams(next,{replace:true})` 는 **state 를 넘기지 않아 호출 순간 `location.state` 를 같이 지운다**(react-router `chunk-QFMPRPBF.mjs:10517`) → 내가 넣으려던 정리용 두 번째 `navigate(...,{state:null})` 는 불필요할 뿐 아니라 **방금 지운 `create=1` 을 되살렸을 것**이고, 메일은 초안 fetch `.finally` 에서 state 를 읽으면 이미 null 이라 `setSp` **전에** 캡처해야 한다. 또 `matchMemberByName` 2단계 포함 일치가 **실제 오배정 벡터**(멤버 `김지원` + LLM 이 `'지원'` 추출 → 김지원 배정 + **push 발송**)임을 지적. ④**메일 초안 데이터 손실 차단** — compose 는 열 때 서버 초안 복원 + 1.5s 자동저장인데, 음성을 순진하게 넣으면 복원이 뒤늦게 덮거나 **사용자가 아무것도 안 하고 닫아도 단일 초안 row 가 음성 내용으로 영구 재작성**된다 → 복원 후 적용 · 기존 초안 있으면 **본문 맨 위 추가**(제목은 비었을 때만, 받는 사람 무접촉) · **첫 편집 전까지 자동저장 억제**. ⑤평문을 HTML 입력(RichEditor·메일 본문)에 그대로 넣으면 **개행 소실 + 마크업 주입** → `plainToHtml`(이스케이프+문단). ★**Fable 이 구현 1차에서 FAIL 시킨 2건(내가 못 잡은 것):** **D1** 재적용 방지용 `voiceAppliedRef` 가 영구 잠금이라 **같은 페이지에서 두 번째로 말하면 내용이 통째로 소실**(시트는 RightDock 소속이라 `/tasks→/tasks` 는 remount 안 됨) — ref 자체가 불필요했다(위 setSearchParams 성질로 재실행은 이미 차단). **D2** 캘린더 `voiceSeed` 를 `onClose` 에서만 지워 **저장으로 닫은 뒤 다음 '+일정' 이 이전 음성 제목으로 채워진 채 열림** → 닫힘이 아니라 **여는 경로**(`handleCreateAt`/`handleOpenNew`)에서 초기화. 검증: 백엔드 실LLM·실DB·실HTTP 33/33 · 착지 필드 전수 18/18 · 메일 초안 DB 전후 11/11 · D1·D2 회귀 16/16 · 옛 결함 재현(지금도 `?voice=` 는 빈 폼) · 거짓 FAIL 2건 판별(UI 가 `08/12`·`8월 14일 (금)` 로 렌더). **정직한 축소:** 설계문서 §B-3 의 mail "답장 컴포저" 는 시트에 스레드 컨텍스트가 없어 불가 — 새 메일 컴포저 유지, 백로그.
+
+> **이전 업데이트:** 2026-08-08 (Opus 5, 1M) — **#252 문서 자동저장 완결 + #250 3청크(우선순위 백엔드 단일화·업무 태그 신설) + Document 트랙 정리 2청크 (Fable 게이트 7회 통과, 미배포 5덩이·마이그레이션 2건 선행 필요)** — ①**#252 자동저장 잔여 BLOCKER 3건**: draft 재열람 후 저장이 `status` 미전달로 **L1 draft 에 영영 갇히던 것**(사용자는 저장 성공으로 믿음) 승격 처리 · 이탈 시 `leaveEditSession()` 이 debounce flush 하고 **실패하면 이탈 자체를 차단**(조용한 실패 금지) · 목록 "임시저장" 뱃지. **★ 낙관적 잠금 정밀도**: `posts.updated_at` 이 DATETIME(초)라 **같은 초 안의 두 저장이 잠금을 통과해 남의 본문을 덮었다** → DATETIME(3). 처음 시도한 `editor_id` 기반 같은-초 판별은 **스스로 반증해 폐기**(남이 오래전 편집한 문서를 처음 여는 정상 케이스와 상태가 동일 → 모든 타인 문서 편집이 거짓 409). ②**#250 우선순위 백엔드 단일화**: 재인덱스가 프론트에서 task 마다 개별 PUT 을 쏴 비원자적이었고(중간 실패 시 1,2,4,5), 정본 집합의 **남의 업무 행은 403 으로 조용히 부분 실패**했으며, 팝아웃은 읽기 전용이었다 → `services/taskPriority.js`(트랜잭션 1건, UPDATE id ASC 고정 순서) + `routes/task_priority.js`, `PATCH /:id/time` 의 `priority_order` 수용 제거로 **유일 쓰기 경로** 확정. **★ Fable 이 설계에서 잡은 산술 결함**: "부여 = 현재 개수+1" 은 갭이 있으면 틀린다(`{1,2,9}` 에서 4를 주면 정렬 시 옛 9 앞에 서서 3번) → 기존 재인덱스 후 N+1. ③**#250 업무 태그 신설**: `task_tags`(사전)/`task_tag_links`(M:N) 2 테이블 + `routes/task_tags.js`(belongsToMany include 금지 — `findAndCountAll` count 오염 회피, 배치 2차 쿼리) + `TagChips`/`TagPicker`/`TagManageModal`, 메인 3칩+필터·팝아웃 대표 1칩+"태그순으로 보기". **★ 1라운드 FAIL 치명 2건**: `GET /:id/detail` 이 tags 를 안 실어 드로어가 빈 배열로 시작 → 태그 하나 "추가" 하면 **기존 태그 무음 삭제**(데이터 손실) / `my-week` 는 client 통과 라우트인데 태그를 무조건 실어 **고객이 내부 운영 라벨 열람**(all-tasks 엔 같은 게이트를 걸어놓고 my-week 엔 안 걸었다). ④⑤**Document 트랙 정리**: 백로그엔 "뷰어 라우트 부재" 로 적혀 있었으나 실체는 — **워크스페이스 이전이 "문서 N건 복사됨" 이라 보고하면서 여는 화면이 존재한 적 없는 `Document` 를 만들고 있었다**(운영 documents=0, 편집 페어는 3개월간 미라우팅). 산출물을 **Post** 로 전환(`content_json` 은 TEXT 라 `JSON.stringify` 필수 · `vlevel:'L1'` 명시 안 하면 hook 이 L3 로 백필해 타인에게 노출 · Q Note 는 HTML→TipTap 변환기가 없어 **구조화 필드에서 직접 조립**) + 죽은 프론트 3파일 은퇴. 이어 **수집측**도 Post 로(Irene 결정 (a) 개인 자산만 = `draft **OR** L1` — AND 면 "나만보기" 글이 누락) · zip 렌더는 `richBodyToHtml` 재사용(안 하면 JSON 원문 덤프) · zip 이미지가 **사용자 자기 PC 의 localhost 를 찌르던 것** 공개 origin 치환 · **move 는 문서 copy-only 강등**(Post 엔 archived·soft-delete 가 없어 ENUM 밖 값이 `.catch` 에 삼켜지고 카운터만 올라 거짓 보고) + ko/en 문구 정정. 부수: **i18n 가드가 여러 줄 주석의 둘째 줄부터 오탐**하던 버그 수정(오탐은 `--update-baseline` 유인이 되어 진짜 부채를 통과시킨다 — 양방향 반증, 사라진 18건 전원이 오탐·놓치는 신규 0 실증).
+
+> **이전 업데이트:** 2026-08-07 (Opus 5, 1M) — **포스트 PDF 본문 전면 파손 수정 + 정기청구 PDF 첨부 복구 + health-check/배포 PDF 실측 항목 (Fable 게이트 2라운드 PASS, 운영 2배포 `0281936`·`8754881`)** — ①**★ 공유 문서 PDF 가 본문 대신 TipTap JSON 원문을 찍고 있었다**: Irene 운영 신고("pdf 다운로드는 이제 되는데 내용이 엉망"). 원인은 `models/Post.js:14` 의 `content_json` 이 **TEXT 컬럼**이라 DB 에서 **문자열**로 오는데, `services/pdfTemplates.js:postPdfHtml` 이 `typeof === 'string'` 을 **"HTML 본문"으로 단정**해 그대로 흘린 것. 즉 포스트 PDF 는 **처음부터 전건 파손**이었다(문서는 `Document.body_json` 이 DataTypes.JSON = 객체라 정상 — 이 대조가 진단의 열쇠). `parseRichContent`(문자열이면 JSON 파싱 우선) + `richBodyToHtml`(TipTap JSON > HTML > content_text 평문 폴백, **JSON 원문이 새는 경로 제거**) 신설. 웹(`generateHTML` StarterKit+Link+Image+Table)과 어긋나던 노드도 보강 — taskList/taskItem·셀 colspan/rowspan·ol start·image width/alt, 그리고 **이미지 상대경로 절대화**(puppeteer `setContent` 는 base URL 이 없어 `/api/posts/editor-image/…` 를 못 받는다). ②**★ 같은 PDF 의 날짜가 `Wed Aug 05`**: `fmtDate` 가 `String(s).slice(0,10)` 이라 Sequelize DATE 객체를 요일·영문월로 잘랐다. 게다가 Post 모델이 `underscored` 라 **인스턴스 속성은 `createdAt`** 인데 `buildPostPdf` 가 `toJSON()` 없이 인스턴스를 넘겨 `post.created_at` 이 undefined → **공유 안 된 포스트는 날짜가 `—`**. Date 객체 분기 + `createdAt`/`updatedAt` 폴백. 청구서 PDF 의 DATEONLY(`due_date`) 는 정규식 분기로 Date 변환 자체를 안 타게 해 **하루 밀림 0** 실측. ③**정기청구 메일 PDF 첨부 복구**(전일 설계분 착지): `recurring_invoice.js`·`clientSubscriptionBilling.js` 가 **git 이력에 존재한 적 없는** `./pdfBuilder` 를 require 하고 빈 `catch` 가 삼켜 **자동청구 메일에 청구서 PDF 가 한 번도 붙은 적 없었다**. 진짜 구현을 `services/invoicePdf.js` 로 추출해 라우트·엔진 2개가 공유 + 실패 시 `console.warn` + `notifyPlatformAdmins` + **첨부 유무로 메일 문구 분기**(첨부 없는데 "첨부된 청구서 참고" 는 고객에게 거짓). ④**#253 재발 자동 검출**: `GET /api/internal/health/pdf`(internal key + 분당 5회 캡) 신설 — **백엔드 프로세스 자신이** 렌더해야 `LD_LIBRARY_PATH` 상속 상태를 정확히 잰다(별도 `node -e` 는 환경이 달라 거짓 판정). `health-check.js` 항목 추가(키 못 읽으면 skip 아니라 **FAIL**) + `deploy-planq.sh` 가 배포 직후 **운영 호스트 내부에서** 실측 — 이번 2배포 모두 `운영 PDF 렌더 OK (11821 bytes, %PDF-)` 로 실제 발화. ⑤**★ Fable 게이트가 증명한 것**: 운영 라이브 PDF 를 받아 `pdftotext` 로 **`{"type"` 191건**(신고 재현) → 수정본 **0건** 대조. 반증도 실측(파싱 분기를 옛 동작으로 되돌리니 191건 재출현, 330,808B ≈ 운영 before 330,840B / `fmtDate` 되돌리니 `Sun May 03` 재현) 후 `cp` 백업 md5 복원, **`git checkout --` 미사용**. 회귀 무: Q info 공유 PDF(HTML 본문 경로)·문서 PDF·청구서 PDF·비멤버 403·옛 포스트 샘플. ⑥**운영 2배포 3점 실측**: PM2 uptime 리셋 · health 200 · 신고 문서 라이브 PDF `477,787B`/`%PDF-`/JSON **0건**/헤더 `2026-08-05`. ⑦**★ 배운 것**: 파생/평탄화 컬럼 타입 하나(TEXT vs JSON)가 렌더 경로 전체를 갈랐다 — 같은 템플릿을 쓰는 두 엔티티 중 **한쪽만 깨져 있으면 컬럼 타입부터 대조**할 것. 또 idle autosave 훅이 Fable 의 반증 편집을 커밋해(`c286394`) 원복 커밋이 필요했다 — 이번 세션만 1회, 누적 3회. **다음: Meet 개인연동 우선(설계 게이트) · `legal.json` 캘린더 "읽기 전용" 문구 정정 · 직원 신고 #246~252**
 >
 > **[이전] 최종 업데이트:** 2026-08-06 (Opus 5, 1M) — **미배포 4건 운영 배포 `6321f9d` + #253 운영 PDF 전면 복구 + 구글 캘린더 2건 원인 규명 (Fable 게이트 2라운드, FAIL 1회)** — ①**★ Fable 이 킬러 회귀를 실브라우저로 잡았다**: `InvoiceDetailDrawer.tsx` 의 `sendBusy` useState 가 `if (!invoice) return null`(171행) **아래**에 선언돼 Rules of Hooks 위반. 이 드로어는 `InvoicesTab.tsx:295` 에서 `invoice={selected|null}` 로 **항상 mount** 되므로 여는 순간 훅 개수가 변해 **React #310 크래시** — 신규 발송 버튼이 죽은 것에 더해 **기존 청구서 상세 전체가 파괴된 상태**였다. **tsc 도 가드 3축도 못 잡는다**(`react-hooks/rules-of-hooks` 린트가 빌드 파이프라인에 없음). 반증까지 실측(훅 되돌려 재빌드 → #310 재현 → `cp` 백업 복원 md5 일치, `git checkout --` 미사용). ②**#253 운영 PDF 가 전부 죽어 있었다**: 직원 신고는 "미리보기에서 pdf 다운로드 안돼" 한 곳이었으나, `services/pdfService.js` 가 **단일 착지점**이라 공개 미리보기·청구서·문서·Q info·보고서·정기청구 메일 **6개 기능이 동시에 500** 이었다. 원인은 코드가 아니라 **운영서버에 헤드리스 Chrome 공유 라이브러리 12개 결손**(`libatk-1.0.so.0` 외) — dev 는 e2e 하니스 때문에 있어서 **코드 검증으로는 영원히 안 잡히는 계열**. sudo 가 nginx 명령만 NOPASSWD 라 **root 없이** 복구: dev(동일 24.04)에서 `dpkg -S` 로 패키지명 역추적(`t64` 접미사 전환이라 추측하면 틀린다) → 운영에서 `apt-get -s install` 로 폐쇄 50개 산출 → `apt-get download` + `dpkg -x ~/chrome-deps` → 백엔드 `.env` 에 `LD_LIBRARY_PATH`(dotenv 가 `process.env` 에 넣으면 puppeteer 의 chrome **자식 프로세스가 상속**). 운영 라이브 실측 **200 / 207,690B / `%PDF-`**, 배포 rsync 가 `.env` 제외라 내구성 확인, apt 시뮬 `0 to remove` 로 POS 무영향. ③**운영 백필 완주**: `backfill-recurring-receipt-type.js` apply 1건(**INV-2026-0004 기율법률사무소** — Irene 원 신고건) → 재실행 **0건 멱등**, `updated_at 2026-08-03` 보존. ④**★ 구글 캘린더 — Fable 이 Opus 진단을 두 번 뒤집었다**: "검증 미승인이라 스코프가 안 붙는다" 가설을 **개인 연동이 이미 `calendar.events` 를 보유**(irene 7-27 · **lua 8-04**)한 DB 실측으로 반증, "테스트 사용자 설정" 도 불필요 판정. **로그 라인 회계**로 `[gcal callback]` 7-27~8-6 **0건** → 워크스페이스 콜백이 code 교환에 도달한 적 없음 확정(`updated_at` 7-31 은 저장이 아니라 `last_error_at`). **★ Irene 지적 "직원이 자기 쓰는 걸 연결해야지" 가 정곡** — `routes/calendar.js:929`·`event_actions.js:122` 가 `getTokenForBusiness` 만 써서 **Meet 은 워크스페이스 계정만 본다**. 직원이 이미 자기 계정을 연결했는데 쳐다보지도 않던 것. 역방향(구글→PlanQ)은 `events.watch`/`syncToken` 백엔드 전체 0건으로 **미구현 확정**(버그 아님), 에코백 절단면 확보(폴링+`syncToken`·last-writer-wins·`gcal_etag` 에코루프 차단·삭제는 링크해제). ⑤**검증 중 별개 결함 발견(다음 사이클)**: `recurring_invoice.js:195`·`clientSubscriptionBilling.js:257` 이 **git 이력에 존재한 적 없는** `./pdfBuilder` 를 require 하고 예외를 **빈 `catch` 가 삼켜**, 정기청구 자동 발송 메일에 **청구서 PDF 가 한 번도 첨부된 적 없다**(무증상). 진짜 구현 `routes/invoices.js:91 buildInvoicePdf` 는 export 안 됨. **다음: ③ pdfBuilder 공용 서비스 추출 + ④ health-check 에 실제 PDF 생성 항목(운영 의존성 계열 검출) · Meet 개인연동 우선 설계 게이트 · 직원 신고 #246~252**
 
@@ -31,6 +37,110 @@
 > **[이전] 최종 업데이트:** 2026-07-16 밤 (Opus 4.8, 1M) — **자율 밤샘 세션: 백로그 전수 검증 + 기능고장 3건 근본수정** — `docs/qa/NEXT_SECTION_BACKLOG.md` 전수 검증 결과, **genuinely 고장난 것만 실작업**이었고 나머지는 이미 구현됐으나 close 안 된 상태였다. ①**Q Mail AI #153/#164/#179**(`9a293e3`) — 공용 `services/emailBodyClean.js` 신설(인용/전달/서명 정리)로 언어감지 any-char편향 제거·미리보기 헤더조각 제거·추출 무반응 503 표면화. 실HTTP 검증(영어메일→영어답장 ko:0/en:198)·유닛11/11·health30/30. ②**#155 말로추가 iOS 포맷**(`79db3e4`) — isTypeSupported webm↔mp4 분기+파일명 정합+미지원가드+권한시 자동시작. ③**#126 캘린더 배너** 완성. **이미 완료 확인(재작업 안 함): #166·모바일②(a~e)·#163·MyFeedback·#162·#152**(에이전트 오탐 다수 — 반드시 현재코드 검증 후 진행). **남은 미완 ⑤·⑥ = Irene 설계결정 필요** → `docs/qa/BACKLOG_REMAINING_DECISIONS_2026-07-16.md`. 운영 미배포.
 
 > **[이전] 최종 업데이트:** 2026-07-16 (Opus 4.8, 1M) — **모바일 흰 화면 회귀 차단 + 검사 하니스 강화** — e2e mobile 스위트에 `assertRendered()` **흰 화면(blank) 판정** 신규(키보드 스위트가 "입력 가림"만 봐 페이지 통째 blank도 ⚪ 통과하던 구멍 차단, #173/174/159/178 계열) + `run.js` blank=실패 집계 + mail 시나리오(mail-list·mail-compose) + MailPage `data-testid`·모바일 compose 사이드바 자동접힘 + DetailDrawer 폰 풀스크린(56px 조각 새던 것) + QBill 개요 2열 그리드 반응형 + Insights 기간라벨 i18n. **검증: mobile/crosscut/l1 전 스위트 0 실패 + tsc -b exit 0 + 가드 3축(health 30/30·guard 22/22·tenant 0)**. 다음: `docs/qa/NEXT_SECTION_BACKLOG.md`(Q Mail AI·멀티탭·전수검사 잔여 LOW).
+
+## ✅ 완료: 음성 캡처 `voice=` 3경로 텍스트 소비 (2026-08-09)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| **결함 규명** | `?voice=` 를 읽는 코드가 프론트 **전체 0건**. 세 목적지는 빈 폼을 열고 전사문·LLM 구조화 결과를 통째로 버렸다 | ✅ 완료 |
+| **① 서버 해석 일원화** | 프롬프트에 워크스페이스 tz 기준 오늘 주입 → `when_start`/`when_all_day` 산출 + `sanitizeWhenStart` 클램프(형식·과거·+365일) · `resolveAssignee`(정확 일치 전용) + `assignee_display_name`. **LLM 추가 호출 0회** | ✅ 완료 |
+| **② 격리 구멍 차단** | `/capture` 에 멤버십 검사 부재 → `checkBusinessAccess` 를 **multer 뒤**에 마운트 (앞이면 정상 호출 전부 400) | ✅ 완료 |
+| **③ navigate state 전달** | URL 대신 `{ state: { voice } }`. 전사문이 주소창·히스토리에 안 남는다. 정리용 navigate **없음**(있으면 파라미터 부활) | ✅ 완료 |
+| **④ 메일 초안 비파괴** | 복원 후 적용 · 기존 초안 있으면 본문 맨 위 추가(제목은 비었을 때만) · **첫 편집 전 자동저장 억제** | ✅ 완료 |
+| **⑤ 평문→HTML** | `plainToHtml` (이스케이프 + 문단 래핑). 개행 소실·마크업 주입 차단 | ✅ 완료 |
+| **부수: cue_usage 토큰 복구** | `classifyIntent` 가 토큰을 안 실어 원장이 **여태 0 으로만 기록**되던 것 수정 | ✅ 완료 |
+
+### Fable 게이트 (설계 1 + 구현 2)
+| 대상 | 판정 |
+|---|---|
+| 설계 | APPROVED_WITH_CONDITIONS(12) |
+| 구현 1차 | **FAIL (MAJOR 2)** |
+| 구현 2차 | **PASS — 남은 결함 없음** |
+
+### ★ Fable 이 잡은 실결함 (Opus 자체 검증으로는 못 잡았을 것)
+- **설계** `setSearchParams(replace)` 가 **state 를 같이 지운다** → 내 정리용 navigate 는 지운 파라미터를 되살렸을 것이고, 메일은 `.finally` 에서 state 를 못 읽는다
+- **설계** `matchMemberByName` 포함 일치 오배정 — 멤버 `김지원` + LLM 이 `'지원'` 추출 → 배정 + **push 발송**
+- **설계** `checkBusinessAccess` 는 `req.body` 를 읽으므로 multer 뒤여야 한다 (격리 검증을 403 한 방향만 돌리면 이 사고를 통과시킨다)
+- **구현 D1** `voiceAppliedRef` 영구 잠금 → **2회차 음성 통째로 소실**. ref 자체가 불필요했다
+- **구현 D2** `voiceSeed` 를 `onClose` 에서만 정리 → **저장으로 닫은 뒤 다음 '+일정' 에 이전 제목 잔재**
+
+### 수정된 파일 (12)
+- 백엔드: `routes/voice.js` · `services/aiTaskPlanner.js`(`exactOnly` 옵션 — 기존 호출부 무변경)
+- 프론트 신규: `utils/voiceHandoff.ts`(전달 계약 + tz-naive 파서) · `utils/plainToHtml.ts`
+- 프론트: `components/Common/VoiceCaptureSheet.tsx` · `pages/QTask/QTaskPage.tsx` · `pages/QCalendar/{QCalendarPage,NewEventModal}.tsx` · `pages/QMail/MailPage.tsx`
+- i18n: locales ko/en `common.json` (`voice.assigneeUnresolved` 1키)
+- **DB 변경 없음 — 마이그레이션 불필요**
+
+### 검증
+| 스위트 | 결과 |
+|---|---|
+| 백엔드 실LLM·실DB·실HTTP | 33/33 |
+| 실브라우저 착지 필드 전수 | 18/18 |
+| 메일 초안 비파괴 DB 전후 대조 | 11/11 |
+| D1·D2 회귀 (3회차·여는 경로 전수) | 16/16 |
+| `health-check.js` / `guard-invariants.js` | 34/34 · 23/23 |
+| `npm run build` (heap 4096, 실 exit code) | EXIT 0 · error TS 0 · 청크 갱신 실측 |
+
+- **옛 결함 재현** — `?compose=1&voice=` 로 열면 지금도 폼이 빈 채 뜬다(아무도 안 읽음) = 고친 대상 실증
+- **거짓 FAIL 2건 판별** — 날짜 미착지로 보였으나 UI 가 `08/12`·`8월 14일 (금)` 로 렌더한 것. 실제 정상 착지
+- **격리 양방향** — 비멤버 403 / 정상 멤버 200. 첫 실행 FAIL 원인은 **PM2 미재시작**이었고 재시작 후 PASS (가드가 실제로 문다는 증거)
+- 검증이 만든 일정 1건(`FABLE잔존…`) 삭제·잔여 0 확인
+
+### 남은 것 (백로그)
+- 음성 화면 컨텍스트 전달 → mail 을 진짜 "답장" 으로 (설계문서 §B-3 원안)
+- PWA Share Target `?prefill=` 도 평문을 RichEditor 에 넣어 개행이 사라진다 — 같은 계열이나 이번 범위 밖 (`plainToHtml` 은 준비됨)
+- 메일 compose 모달에 `aria-modal="true"` 부재 (CLAUDE.md 17번, 기존 부채 — 하니스 스코핑 방해)
+
+---
+
+## ✅ 완료: #252 문서 자동저장 완결 + #250 3청크 + Document 트랙 정리 (2026-08-08)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| **#252 ① 자동저장 잔여 BLOCKER** | draft 재열람 후 저장 시 `status:'published'` 승격(안 하면 L1 draft 로 갇혀 남에게 영영 안 보임) · `leaveEditSession()` 이탈 flush + **실패 시 이탈 차단** · 목록 "임시저장" 뱃지 · `post:updated` dirty 가드 · 모바일 `AutoSaveMark` 노출 | ✅ 완료 |
+| **#252 낙관적 잠금 정밀도** | `posts.created_at/updated_at` → **DATETIME(3)**. 초 정밀도면 같은 초 두 저장이 잠금 통과해 남의 본문을 덮음. 모델 `DATE(3)` 명시 + 멱등 마이그레이션 | ✅ 완료 |
+| **#250 ② 우선순위 백엔드 단일화** | `services/taskPriority.js`(정본 사슬·트랜잭션 1건·UPDATE id ASC) + `routes/task_priority.js`(체인 최상단 mount) · `PATCH /:id/time` 의 `priority_order` 수용 제거(유일 쓰기 경로) · 팝아웃 `PrioBtn`(RowMain 밖 형제 버튼) | ✅ 완료 |
+| **#250 ③ 업무 태그 신설** | `task_tags`/`task_tag_links` 2 테이블 + `routes/task_tags.js`(배치 2차 쿼리·상한 10/100·AuditLog 4종) + `TagChips`/`TagPicker`/`TagManageModal` · 메인 3칩+필터 · 팝아웃 대표 1칩+태그순 나열 | ✅ 완료 |
+| **④ Document 트랙 청크1** | 이전/Q Note 변환 산출물 `Document.create` → **`Post`**(TEXT 직렬화·vlevel L1 명시·TipTap 직조립) · 죽은 프론트 3파일 은퇴 + `services/docs.ts` 죽은 CRUD 9개 prune | ✅ 완료 |
+| **⑤ Document 트랙 청크2** | 수집측 `collectSelf`(draft **OR** L1)/`collectWorkspace`(published ∖ L1) Post 전환 · zip 렌더 `richBodyToHtml` 재사용 · zip 이미지 공개 origin 치환 · move=copy-only + ko/en 문구 정정 · 첨부 재링크 · 재시도 멱등 가드 | ✅ 완료 |
+| **부수: i18n 가드 오탐 수정** | 여러 줄 주석의 둘째 줄부터 하드코딩으로 오탐하던 버그. 양방향 반증(사라진 18건 전원 오탐·놓치는 신규 0) | ✅ 완료 |
+
+### Fable 게이트 (설계 3 + 구현 4, 총 7회)
+| 대상 | 판정 |
+|---|---|
+| #252 구현 | PASS |
+| #250 ② 설계 → 구현 | APPROVED_WITH_CONDITIONS(11) → PASS |
+| #250 ③ 설계 → 구현 | APPROVED_WITH_CONDITIONS(13) → **FAIL(치명 2)** → 재검 PASS |
+| Document 청크1 설계 → 구현 | APPROVED_WITH_CONDITIONS(12) → PASS |
+| Document 청크2 설계 → 구현 | APPROVED_WITH_CONDITIONS(12) → PASS |
+| 음성 캡처 3경로 설계 | APPROVED_WITH_CONDITIONS(8) — **구현 미착수** |
+
+### ★ Fable 이 잡은 실결함 (Opus 자체 검증으로는 못 잡았을 것)
+- **③ F1 (데이터 손실)** — `GET /:id/detail` 이 tags 미탑재 → 드로어가 빈 배열로 시작 → 태그 "추가" 가 기존 태그 **무음 삭제**
+- **③ F2 (정보 유출)** — `my-week` 는 client 통과 라우트인데 태그 무조건 탑재 → 고객이 내부 운영 라벨 열람
+- **② 설계 산술 결함** — "부여 = count+1" 은 갭에서 틀림(`{1,2,9}` → 신규가 3번). 기존 재인덱스 후 N+1 로 교정
+- **⑤ 과소수집** — `draft AND L1` 이면 `published+L1`("나만보기") 누락 → `OR` 로 교정, AND 로 되돌려 실누락 재현
+- **⑤ Q Note zip 블랭크** — `richBodyToHtml(…, null, …)` 이면 Q Note 문서가 전부 빈 HTML
+
+### 수정된 파일 (40)
+- 백엔드: `models/{Post,TaskTag,TaskTagLink,index}.js` · `routes/{posts,tasks,projects,export,task_priority,task_tags}.js` · `services/{taskPriority,exportJobWorker,pdfTemplates}.js` · `utils/taskClientView.js` · `server.js` · `scripts/{migrate-posts-datetime-ms,migrate-task-tags}.js`
+- 프론트: `components/Docs/PostsPage.tsx` · `components/QTask/{TagChips,TagPicker,TagManageModal,TaskDetailDrawer,TaskPopoutView}.tsx` · `pages/QTask/QTaskPage.tsx` · `services/{docs,posts}.ts` · locales ko/en `{qdocs,qtask,settings}.json`
+- 삭제: `pages/QDocs/{DocumentEditorPage,NewDocumentModal}.tsx` · `components/Docs/RevisionPanel.tsx`
+- 가드: `scripts/guard-invariants.js`
+
+### ⚠️ 배포 시 선행 (미배포)
+```
+1) node dev-backend/scripts/migrate-posts-datetime-ms.js   # posts DATETIME(3)
+2) node dev-backend/scripts/migrate-task-tags.js           # 태그 2 테이블
+3) 백엔드 → 4) 프론트
+```
+둘 다 멱등(재실행 변경 0 실측). 롤백: posts 는 `MODIFY … DATETIME`, 태그는 `DROP TABLE task_tag_links; DROP TABLE task_tags;`(링크 먼저).
+
+---
 
 ## ✅ 완료: 포스트 PDF 본문 파손 수정 + 정기청구 PDF 첨부 복구 + PDF 실측 가드 (2026-08-07)
 

@@ -851,6 +851,7 @@
     "retry": "다시 말하기",
     "editHint": "다음 화면에서 내용을 고칠 수 있어요.",
     "assignee": "담당",
+    "assigneeUnresolved": "{{name}} — 지정 안 됨",
     "silent": "들리지 않았어요. 다시 말해 주세요.",
     "failed": "인식하지 못했어요. 다시 말해 주세요.",
     "unavailable": "음성 인식을 사용할 수 없어요. 잠시 후 다시 시도해 주세요.",

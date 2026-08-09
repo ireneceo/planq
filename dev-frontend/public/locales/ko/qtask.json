@@ -23,7 +23,8 @@
   "filter": {
     "allStatus": "전체 상태",
     "hideCompleted": "완료 가리기",
-    "showCompleted": "완료 업무 보기"
+    "showCompleted": "완료 업무 보기",
+    "allTags": "전체 태그"
   },
   "period": {
     "title": "기간",
@@ -400,7 +401,8 @@
     "save": "저장",
     "cancel": "취소",
     "loadMore": "더 보기",
-    "meSuffix": " (나)"
+    "meSuffix": " (나)",
+    "delete": "삭제"
   },
   "save": {
     "saving": "저장 중",
@@ -472,7 +474,9 @@
       "timeHint": "진행 시작·완료 시 실제 시간이 자동 누적됩니다 (직접 입력하면 확정)",
       "reviewReminder": "진행 100% 도달 — 컨펌자({{count}}명)에게 \"확인 요청 보내기\" 버튼을 눌러 완료 흐름을 시작하세요",
       "createdOn": "작성",
-      "requestedOn": "요청"
+      "requestedOn": "요청",
+      "tags": "태그",
+      "tagsPh": "태그 선택"
     },
     "description": "업무 설명",
     "descriptionSelf": "내가 적은 업무 메모",
@@ -1145,6 +1149,25 @@
       "errGeneric": "처리하지 못했습니다",
       "errNetwork": "연결에 실패했습니다"
     },
-    "priorityN": "우선순위 {{n}}"
+    "priorityN": "우선순위 {{n}}",
+    "prioritySet": "우선순위 지정",
+    "priorityClear": "우선순위 {{n}} — 해제",
+    "sortByTag": "태그순으로 보기",
+    "sortDefault": "기본 순서로 보기"
+  },
+  "tags": {
+    "new": "새 태그",
+    "newPh": "새 태그 이름",
+    "create": "만들기",
+    "creating": "만드는 중…",
+    "createFailed": "태그를 만들지 못했습니다",
+    "manageTitle": "태그 관리",
+    "manageEmpty": "아직 태그가 없습니다. 업무 상세에서 만들 수 있어요.",
+    "rename": "이름 변경",
+    "renameFailed": "이름을 바꾸지 못했습니다",
+    "deleteFailed": "삭제하지 못했습니다",
+    "deleting": "삭제 중…",
+    "usageCount": "업무 {{count}}개",
+    "deleteConfirm": "“{{name}}” 태그를 {{count}}개 업무에서 제거하고 삭제할까요?"
   }
 }

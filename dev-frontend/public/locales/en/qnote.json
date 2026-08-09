@@ -273,6 +273,8 @@
     "advancedShow": "Advanced settings",
     "advancedHide": "Hide advanced settings",
     "translationLanguageLabel": "Translation Language",
+    "translateNeeded": "Translation needed",
+    "translateNeededHint": "Check this to also show speech and answers in another language.",
     "translationLanguagePlaceholder": "Translation display language",
     "translationHint": "Sub-translation below each utterance. Default = your language ({{lang}}).",
     "answerLanguageLabel": "Answer Language",

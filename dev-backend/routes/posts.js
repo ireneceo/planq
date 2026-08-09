@@ -675,6 +675,10 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     if (req.body.base_updated_at) {
       const base = new Date(req.body.base_updated_at).getTime();
       const cur = new Date(post.updated_at || post.updatedAt).getTime();
+      // ★ 밀리초까지 비교된다 — posts.updated_at 은 DATETIME(3) 이다(models/Post.js 참조).
+      //   초 정밀도(DATETIME)면 "같은 초 안의 두 저장" 이 base == cur 로 통과해 남의 글을 덮는다.
+      //   editor_id 로 구분하려던 시도는 틀렸다: 남이 오래 전에 편집한 문서를 처음 여는 정상 케이스와
+      //   구분이 안 돼 모든 타인 문서 편집이 거짓 409 가 된다. 정밀도 자체를 올려야 풀린다.
       if (Number.isFinite(base) && Number.isFinite(cur) && base < cur) {
         return res.status(409).json({
           success: false, code: 'stale_edit',
@@ -1332,3 +1336,6 @@ router.get('/public/:token/attachments/:attId/download', async (req, res, next) 
 });
 
 module.exports = router;
+// #250 후속 — 워크스페이스 이전 워커가 Post 를 만들 때 content_text 를 같은 규칙으로 뽑아야 한다.
+//   사본을 만들면 검색 프리뷰가 두 규칙으로 갈린다(Fable 설계 조건 4).
+module.exports.extractText = extractText;

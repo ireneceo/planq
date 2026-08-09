@@ -182,7 +182,7 @@ class CreateSessionRequest(BaseModel):
   pasted_context: Optional[str] = None
   capture_mode: Optional[str] = None
   input_type: Optional[str] = 'voice'  # 'voice' | 'text'
-  translate_enabled: Optional[bool] = True
+  translate_enabled: Optional[bool] = False   # #241 — 기본 OFF (번역이 필요한 회의만 명시적으로 켠다)
   linked_voice_session_id: Optional[int] = None
   body: Optional[str] = None  # text 메모 본문 (input_type='text' 일 때)
   user_name: Optional[str] = Field(None, max_length=100)
@@ -794,7 +794,7 @@ async def create_session(body: CreateSessionRequest, user: dict = Depends(get_cu
   # text 메모는 STT 단계 X → 'active' 로 바로 진입 (사용자 입력 중)
   # voice 는 기존 그대로 'prepared' → 사용자가 "녹음 시작" 누르면 'recording'
   initial_status = 'active' if is_text else 'prepared'
-  translate_enabled_int = 1 if (body.translate_enabled is None or body.translate_enabled) else 0
+  translate_enabled_int = 1 if body.translate_enabled else 0   # #241 — 미지정이면 OFF
 
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
@@ -1871,7 +1871,11 @@ class QAPairUpdate(BaseModel):
 class FindAnswerRequest(BaseModel):
   question_text: str = Field(..., min_length=1, max_length=2000)
   utterance_id: Optional[int] = None  # 제공되면 detected_questions에 저장/업데이트
-  target_language: Optional[str] = Field(None, max_length=10)  # translate-answer 전용: 목적지 언어 명시 (없으면 세션 translation_language 사용)
+  # target_language — **회의 언어 슬롯 렌더링 전용**. 세션의 번역 설정과는 다른 기능이다.
+  #   수동 질문(QNotePage submitManualQuestion)이 사용자가 타이핑한 질문을 회의 언어 두 슬롯
+  #   (main/sub)으로 보여주려고 목적지를 명시해 부른다 — "번역 필요" 를 껐어도 이건 동작해야 한다.
+  #   #241 게이트는 이 인자가 **없을 때**(= 세션 설정을 따르겠다는 뜻)만 적용된다.
+  target_language: Optional[str] = Field(None, max_length=10)
 
 
 def _strip_qa_blob(row: dict) -> dict:
@@ -2535,14 +2539,19 @@ async def translate_answer_endpoint(
     db.row_factory = aiosqlite.Row
     await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
 
-  from services.answer_service import _get_session_languages
-  answer_lang, translation_lang, meeting_lang = await _get_session_languages(session_id)
+  from services.answer_service import _get_session_languages, wants_translation
+  answer_lang, translation_lang, meeting_lang, translate_enabled = await _get_session_languages(session_id)
   effective_answer_lang = answer_lang or meeting_lang
-  # 명시적 target_language 가 오면 그걸로, 아니면 세션 translation_language 로
+
   if body.target_language:
+    # 호출자가 목적지를 명시했다 = 회의 언어 슬롯 렌더링(수동 질문). 세션 번역 설정과 무관하게 수행한다.
     effective_trans = body.target_language
   else:
-    effective_trans = translation_lang or ('en' if effective_answer_lang == 'ko' else 'ko')
+    # #241 — 목적지를 지어내지 않는다. 옛 코드의 `translation_lang or (반대말)` 폴백이
+    #   "한국어 회의면 무조건 영어" 의 원인 중 하나였다. 세션 설정이 유일한 권위다.
+    if not wants_translation(translate_enabled, translation_lang, effective_answer_lang):
+      return success({'translation': ''})
+    effective_trans = translation_lang
 
   translated = await translate_answer_text(body.question_text.strip(), effective_trans)
   return success({'translation': translated})

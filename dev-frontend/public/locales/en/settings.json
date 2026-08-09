@@ -45,12 +45,12 @@
     "trConfirmMsg": "Copy your personal data to the selected workspace. The original stays intact. Continue?",
     "trDone": "Copied to {{name}}. {{f}} file(s), {{d}} document(s).",
     "trErr": "Something went wrong during transfer. Please try again shortly.",
-    "trDesc2": "Move your personal (private) data to another workspace you belong to. Choose copy (keep original) or move (clean up original). Processed in the background.",
+    "trDesc2": "Move your personal (private) data to another workspace you belong to. Choose copy (keep originals) or move (clean up original files only). Transferred documents arrive as drafts in the target workspace. Processed in the background.",
     "trModeLabel": "Transfer mode",
     "modeCopy": "Copy",
     "modeCopyDesc": "Duplicate, keep the original",
     "modeMove": "Move",
-    "modeMoveDesc": "Transfer then clean up the original",
+    "modeMoveDesc": "Transfer, then clean up original files (documents are copied)",
     "includeQnote": "Include Q Note sessions (summary & transcript as documents)",
     "trActionCopy": "Copy",
     "trActionMove": "Move",
@@ -68,7 +68,7 @@
     "stFailed": "Failed",
     "jobDownload": "Download",
     "moveConfirmTitle": "Move to workspace",
-    "moveConfirmMsg": "Move your personal data to the selected workspace and clean up the originals here (files deleted, documents archived). Continue?",
+    "moveConfirmMsg": "Move your personal data to the selected workspace. Files are removed from here; documents are copied and the originals stay. Continue?",
     "jobDelete": "Remove from list"
   },
   "workManagement": {

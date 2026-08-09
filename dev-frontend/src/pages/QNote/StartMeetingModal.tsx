@@ -56,6 +56,8 @@ export interface StartConfig {
   brief: string;
   participants: Participant[];
   meetingLanguages: string[];
+  // #241 — 번역은 명시적으로 켤 때만. 여태 항상 켜져 있어 "다 영어번역이 나와" 가 됐다.
+  translateEnabled: boolean;
   translationLanguage: string;
   answerLanguage: string;
   captureMode: CaptureMode;
@@ -117,6 +119,8 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
   const [translationLang, setTranslationLang] = useState<string>(effectiveUserLanguage);
   const [answerLang, setAnswerLang] = useState<string>('');
   const [showAdvanced, setShowAdvanced] = useState(false);
+  // #241 — 기본 OFF. 체크해야 번역 언어 셀렉트가 나온다.
+  const [translateEnabled, setTranslateEnabled] = useState(false);
   const [captureMode, setCaptureMode] = useState<CaptureMode>('web_conference');
   const [documents, setDocuments] = useState<File[]>([]);
   // 사이클 O4 — 워크스페이스 파일 link (재업로드 X)
@@ -211,6 +215,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
       setBrief(initialConfig.brief || '');
       setParticipants(initialConfig.participants || []);
       setMeetingLang(initialConfig.meetingLanguages?.[0] || '');
+      setTranslateEnabled(!!initialConfig.translateEnabled);
       setTranslationLang(initialConfig.translationLanguage || effectiveUserLanguage);
       setAnswerLang(initialConfig.answerLanguage || '');
       setShowAdvanced(true);
@@ -260,6 +265,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
         setBrief(d.brief || '');
         setParticipants(Array.isArray(d.participants) ? d.participants : []);
         setMeetingLang(d.meetingLang || effectiveUserLanguage);
+        setTranslateEnabled(!!d.translateEnabled);
         setTranslationLang(d.translationLang || effectiveUserLanguage);
         setAnswerLang(d.answerLang || '');
         setShowAdvanced(!!d.showAdvanced);
@@ -281,6 +287,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
     setBrief('');
     setParticipants([]);
     setMeetingLang(effectiveUserLanguage);
+    setTranslateEnabled(false);
     setTranslationLang(effectiveUserLanguage);
     setAnswerLang('');
     setShowAdvanced(false);
@@ -299,7 +306,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
       try {
         const draft = {
           title, brief, participants,
-          meetingLang, translationLang, answerLang, showAdvanced,
+          meetingLang, translateEnabled, translationLang, answerLang, showAdvanced,
           captureMode, pastedContext, urls,
           priorityQAs, meetingAnswerStyle, meetingAnswerLength,
         };
@@ -320,7 +327,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
     }, 500);
     return () => clearTimeout(handle);
   }, [open, title, brief, participants, meetingLang, translationLang, answerLang,
-      showAdvanced, captureMode, pastedContext, urls, priorityQAs, meetingAnswerStyle, meetingAnswerLength]);
+      showAdvanced, translateEnabled, captureMode, pastedContext, urls, priorityQAs, meetingAnswerStyle, meetingAnswerLength]);
 
   const clearDraft = () => {
     try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
@@ -332,6 +339,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
     setPName('');
     setPRole('');
     setMeetingLang(effectiveUserLanguage);   // 초안 지우기도 공란이 아니라 사용자 언어로 복귀
+    setTranslateEnabled(false);
     setTranslationLang(effectiveUserLanguage);
     setAnswerLang('');
     setShowAdvanced(false);
@@ -616,7 +624,9 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
       brief: brief.trim(),
       participants: finalParticipants,
       meetingLanguages: [meetingLang],
-      translationLanguage: translationLang || (meetingLang === 'ko' ? 'en' : 'ko'),
+      // #241 — 목적지를 지어내지 않는다. 체크 안 했으면 빈 값 그대로 보낸다.
+      translateEnabled,
+      translationLanguage: translateEnabled ? translationLang : '',
       answerLanguage: answerLang || meetingLang,
       captureMode,
       documents,
@@ -773,17 +783,30 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
               <AdvancedToggle onClick={() => setShowAdvanced(false)}>
                 {t('startModal.advancedHide')}
               </AdvancedToggle>
-              <LangRow>
-                <Field>
-                  <Label>{t('startModal.translationLanguageLabel')}</Label>
-                  <PlanQSelect
-                    options={allLangOptions}
-                    value={selectedTranslationOpt}
-                    onChange={(opt: any) => setTranslationLang(opt?.value || effectiveUserLanguage)}
-                    placeholder={t('startModal.translationLanguagePlaceholder')}
+              <Field>
+                <CheckboxLabel>
+                  <input
+                    type="checkbox"
+                    checked={translateEnabled}
+                    onChange={(e) => setTranslateEnabled(e.target.checked)}
                   />
-                  <Hint>{t('startModal.translationHint', { lang: getLanguageLabel(effectiveUserLanguage) })}</Hint>
-                </Field>
+                  <span>{t('startModal.translateNeeded', '번역 필요')}</span>
+                </CheckboxLabel>
+                <Hint>{t('startModal.translateNeededHint', '체크하면 발화와 답변을 다른 언어로 함께 보여줍니다.')}</Hint>
+              </Field>
+              <LangRow>
+                {translateEnabled && (
+                  <Field>
+                    <Label>{t('startModal.translationLanguageLabel')}</Label>
+                    <PlanQSelect
+                      options={allLangOptions}
+                      value={selectedTranslationOpt}
+                      onChange={(opt: any) => setTranslationLang(opt?.value || effectiveUserLanguage)}
+                      placeholder={t('startModal.translationLanguagePlaceholder')}
+                    />
+                    <Hint>{t('startModal.translationHint', { lang: getLanguageLabel(effectiveUserLanguage) })}</Hint>
+                  </Field>
+                )}
                 <Field>
                   <Label>{t('startModal.answerLanguageLabel')}</Label>
                   <PlanQSelect
@@ -1454,6 +1477,11 @@ const AdvancedToggle = styled.button`
   &:hover { color: #64748b; }
 `;
 
+const CheckboxLabel = styled.label`
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  font-size: 13px; color: #334155;
+  input { accent-color: #14B8A6; cursor: pointer; }
+`;
 const LangRow = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;

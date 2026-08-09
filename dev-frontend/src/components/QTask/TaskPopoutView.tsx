@@ -20,6 +20,7 @@ import { joinRoom, leaveRoom, onSocket, getSocket } from '../../services/socket'
 import TaskDetailDrawer, { type DrawerMemberOption } from './TaskDetailDrawer';
 import { STATUS_COLOR, displayStatus, getStatusLabel, type StatusCode } from '../../utils/taskLabel';
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
+import TagChips, { type TaskTagLite } from './TagChips';
 
 interface PopoutTask {
   id: number;
@@ -42,6 +43,8 @@ interface PopoutTask {
   priority_order?: number | null;
   // my-week 가 실어 보낸다. getRoles 가 reviewer 관점을 메인과 같은 근거로 판정하게 하는 용도.
   reviewers?: Array<{ id?: number; user_id: number; state?: string; is_client?: boolean }>;
+  // #250 — my-week 가 배치 2차 쿼리로 실어 보낸다. **이름 사전순 정렬된 상태**라 [0] 이 대표 태그다.
+  tags?: TaskTagLite[] | null;
   Project?: { id: number; name: string } | null;
 }
 
@@ -128,6 +131,8 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   const [error, setError] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [showDone, setShowDone] = useState(false);
+  // #250 — 나열 기준. 'default' = 기존 사슬(우선순위→마감→제목), 'tag' = 대표 태그순.
+  const [sortMode, setSortMode] = useState<'default' | 'tag'>('default');
 
   // 응답 순서 가드 — 늦게 도착한 옛 응답이 새 목록을 덮어쓰지 않게 (#205 패턴)
   const seqRef = useRef(0);
@@ -250,6 +255,28 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   // 리스트 재클릭 토글 (CLAUDE.md UI 규칙)
   const handleRow = (id: number) => setSelectedId((prev) => (prev === id ? null : id));
 
+  // #250 — 팝아웃에서도 우선순위 관리. 재인덱스는 **백엔드가 정본 집합 기준으로 단독 수행**한다
+  //   (services/taskPriority.js). 팝아웃은 이번 주 집합이라 from/to 를 보내지 않는다 —
+  //   서버가 워크스페이스 tz 기준 이번 주 월~일로 계산한다(`/my-week` 과 같은 계산).
+  const [prioBusy, setPrioBusy] = useState(false);
+  const togglePrio = async (taskId: number) => {
+    if (prioBusy) return;   // 더블클릭 = 부여 후 즉시 해제 사고 차단 (UI_DESIGN_GUIDE §1.8)
+    setPrioBusy(true);
+    try {
+      const r = await apiFetch('/api/tasks/priority/toggle', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ business_id: bizId, task_id: taskId }),
+      });
+      if (!r.ok) return;   // apiFetch 는 throw 안 함 — 실패 시 낙관적 적용 금지
+      const j = await r.json();
+      const map = new Map<number, number | null>(
+        ((j?.data?.priorities || []) as Array<{ id: number; priority_order: number | null }>)
+          .map((p) => [p.id, p.priority_order]));
+      setTasks((prev) => prev.map((tk) => (map.has(tk.id) ? { ...tk, priority_order: map.get(tk.id) ?? null } : tk)));
+    } catch { /* 네트워크 실패 — 상태 그대로 (socket/visibility 복귀가 회복) */ }
+    finally { setPrioBusy(false); }
+  };
+
   // 표시용 우선순위 번호 — 메인 QTaskPage 의 displayPriorityMap 과 같은 규칙(연속 재인덱스).
   //   ★ 기준 집합은 **응답 tasks 전체**(완료 포함). visible 로 잡으면 "완료 보기" 토글마다 번호가 출렁이고,
   //     완료 업무도 priority_order 를 그대로 들고 있는 메인 화면과 번호가 어긋난다.
@@ -264,19 +291,41 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
     const doneRank = (tk: PopoutTask) => (CLOSED.includes(tk.status) ? 1 : 0);
     tasks
       .filter((tk) => tk.priority_order != null)
+      // ★ 맨 끝 id 는 서버 services/taskPriority.js byPriorityChain 과 문자 그대로 동일한 절대 tie-break.
+      //   위로 올리면 위 주석의 옛 실버그가 재발한다.
       .sort((a, b) => (a.priority_order! - b.priority_order!)
         || (doneRank(a) - doneRank(b))
         || cmpNullLast(a.due_date, b.due_date)
-        || (a.title || '').localeCompare(b.title || ''))
+        || (a.title || '').localeCompare(b.title || '')
+        || (a.id - b.id))
       .forEach((tk, i) => m.set(tk.id, i + 1));
     return m;
   }, [tasks]);
 
+  // #250 — "태그기준대로 나열". 다대다라 정렬 키가 모호하므로 **대표 태그(사전순 최소)** 1키로 확정한다.
+  //   백엔드 attachTagsTo() 가 이름순 정렬해 보내므로 tags[0] 이 대표다.
+  //   ★ 이건 **행 순서만** 바꾼다. prioMap(우선순위 번호)은 절대 건드리지 않는다 —
+  //     번호의 정본은 서버 재인덱스 집합이고, 보기 옵션이 번호에 닿으면 안 된다
+  //     (QTaskPage 의 weekSet/filtered 분리와 같은 원칙. 이 저장소가 한 번 당한 사고다).
+  //     따라서 태그순에서는 칩 번호가 행 순서와 어긋나 보일 수 있는데, 그게 정상이다.
+  const repTag = (tk: PopoutTask) => (tk.tags && tk.tags.length > 0 ? tk.tags[0].name : null);
+  const byTagRule = (a: PopoutTask, b: PopoutTask): number => {
+    const ta = repTag(a); const tb = repTag(b);
+    if (ta && !tb) return -1;          // 태그 없는 업무는 맨 뒤 (null last)
+    if (!ta && tb) return 1;
+    if (ta && tb) {
+      const c = ta.localeCompare(tb);
+      if (c !== 0) return c;
+    }
+    return bySortRule(a, b);           // 같은 대표 태그 안에서는 기존 사슬 그대로
+  };
+  const sortRule = sortMode === 'tag' ? byTagRule : bySortRule;
   const openTasks = useMemo(
-    () => tasks.filter((tk) => !CLOSED.includes(tk.status)).sort(bySortRule), [tasks]);
+    () => tasks.filter((tk) => !CLOSED.includes(tk.status)).sort(sortRule), [tasks, sortMode]);   // eslint-disable-line react-hooks/exhaustive-deps
   const doneTasks = useMemo(
-    () => tasks.filter((tk) => CLOSED.includes(tk.status)).sort(bySortRule), [tasks]);
+    () => tasks.filter((tk) => CLOSED.includes(tk.status)).sort(sortRule), [tasks, sortMode]);    // eslint-disable-line react-hooks/exhaustive-deps
   const visible = showDone ? [...openTasks, ...doneTasks] : openTasks;
+  const hasAnyTag = useMemo(() => tasks.some((tk) => (tk.tags?.length || 0) > 0), [tasks]);
 
   const fmtDue = (due?: string | null) => (due ? due.slice(5, 10).replace('-', '/') : '');
   const isOverdue = (tk: PopoutTask) =>
@@ -402,26 +451,53 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
                 >
                   <RowInner>
                     <RowLead>{renderQuickAction(tk, qa, busy)}</RowLead>
+                    {/* 우선순위 슬롯 — #250 "우선순위 관리도 여기서도 해야 해".
+                        ★ RowMain(button) **밖 형제**여야 한다. 안에 넣으면 button-in-button 이라
+                          HTML 상 무효이고 브라우저가 클릭 타깃을 임의로 접는다(위 397 주석과 같은 이유).
+                        옛 주석은 "팝아웃 집합은 메인의 부분집합이라 여기서 토글하면 번호가 오염된다" 였다 —
+                          이제 재인덱스를 백엔드가 정본 집합(services/weekTaskSet.myWeekWhere) 기준으로
+                          단독 수행하므로 그 전제가 해소됐다.
+                        완료/취소 행: 번호가 있으면 읽기 전용 칩, 없으면 빈 칸(부여 버튼을 내지 않는다 —
+                          완료 업무에 우선순위를 새로 매기는 것은 무의미하고 메인에도 그 경로가 없다). */}
+                    {CLOSED.includes(tk.status) ? (
+                      <PrioSlot>
+                        {prioMap.has(tk.id) && (
+                          <PrioChip
+                            $dim
+                            aria-label={t('popout.priorityN', '우선순위 {{n}}', { n: prioMap.get(tk.id) }) as string}
+                            title={t('popout.priorityN', '우선순위 {{n}}', { n: prioMap.get(tk.id) }) as string}
+                          >{prioMap.get(tk.id)}</PrioChip>
+                        )}
+                      </PrioSlot>
+                    ) : (
+                      <PrioBtn
+                        type="button"
+                        $on={prioMap.has(tk.id)}
+                        disabled={prioBusy}
+                        data-testid="task-popout-priority"
+                        aria-pressed={prioMap.has(tk.id)}
+                        aria-label={(prioMap.has(tk.id)
+                          ? t('popout.priorityClear', '우선순위 {{n}} — 해제', { n: prioMap.get(tk.id) })
+                          : t('popout.prioritySet', '우선순위 지정')) as string}
+                        title={(prioMap.has(tk.id)
+                          ? t('popout.priorityClear', '우선순위 {{n}} — 해제', { n: prioMap.get(tk.id) })
+                          : t('popout.prioritySet', '우선순위 지정')) as string}
+                        onClick={() => togglePrio(tk.id)}
+                      ><span>{prioMap.get(tk.id) ?? ''}</span></PrioBtn>
+                    )}
                     <RowMain
                       type="button"
                       data-testid="task-popout-row-open"
                       onClick={() => handleRow(tk.id)}
                     >
                       <RowTop>
-                        {/* 우선순위 — 표시 전용(span). 조작은 메인 Q Task 화면이 단일 기록자다:
-                            팝아웃 집합은 메인 filtered 의 부분집합이라 여기서 토글하면 부분집합 기준
-                            재인덱스 write 가 나가 메인의 번호 체계를 오염시킨다. 지정 안 된 행은 칩 없음. */}
-                        {prioMap.has(tk.id) && (
-                          <PrioChip
-                            $dim={CLOSED.includes(tk.status)}
-                            aria-label={t('popout.priorityN', '우선순위 {{n}}', { n: prioMap.get(tk.id) })}
-                            title={t('popout.priorityN', '우선순위 {{n}}', { n: prioMap.get(tk.id) })}
-                          >{prioMap.get(tk.id)}</PrioChip>
-                        )}
                         <Badge $bg={color.bg} $fg={color.fg}>{getStatusLabel(tk, role, todayStr, t as never)}</Badge>
                         <RowTitle>{tk.title}</RowTitle>
                       </RowTop>
                       <RowMeta>
+                        {/* #250 — 팝아웃은 폭 520px 라 **대표 1칩 + `+k`** 만. 행이 한 줄을 넘기면 안 된다.
+                            메인 리스트는 3칩까지 편다(TagChips max prop). */}
+                        <TagChips tags={tk.tags} max={1} />
                         {tk.Project?.name && <MetaChip>{tk.Project.name}</MetaChip>}
                         {tk.due_date && (
                           <MetaDue $overdue={isOverdue(tk)}>
@@ -441,6 +517,21 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
               );
             })}
           </List>
+        )}
+
+        {/* #250 "태그기준대로 나열…도 여기서도 해야 해" — 태그가 하나라도 있을 때만 노출한다
+            (태그를 안 쓰는 워크스페이스에 죽은 컨트롤을 두지 않는다). 기존 ToggleDone 계열 스타일. */}
+        {!loading && !error && hasAnyTag && visible.length > 0 && (
+          <SortToggle
+            type="button"
+            data-testid="task-popout-sort-mode"
+            aria-pressed={sortMode === 'tag'}
+            onClick={() => setSortMode((m) => (m === 'tag' ? 'default' : 'tag'))}
+          >
+            {sortMode === 'tag'
+              ? t('popout.sortDefault', '기본 순서로 보기')
+              : t('popout.sortByTag', '태그순으로 보기')}
+          </SortToggle>
         )}
 
         {!loading && !error && doneTasks.length > 0 && (
@@ -612,7 +703,12 @@ const SendIcon: React.FC = () => (
 const RowTop = styled.div`
   display: flex; align-items: flex-start; gap: 8px;
 `;
-// 우선순위 번호 — 메인 PrioNum 의 색 언어를 그대로(활성 Teal). 단 여기선 클릭 없는 span 이다.
+// 우선순위 슬롯 — 완료/취소 행의 읽기 전용 자리. 부여 버튼과 폭이 같아야 제목 좌측선이 안 흔들린다.
+const PrioSlot = styled.span`
+  width: 28px; height: 36px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+`;
+// 우선순위 번호 — 메인 PrioNum 의 색 언어를 그대로(활성 Teal). 완료 행에서는 읽기 전용 span.
 const PrioChip = styled.span<{ $dim: boolean }>`
   flex-shrink: 0;
   width: 20px; height: 20px;
@@ -621,6 +717,31 @@ const PrioChip = styled.span<{ $dim: boolean }>`
   font-size: 11px; font-weight: 800; line-height: 1;
   background: ${({ $dim }) => ($dim ? '#F1F5F9' : '#14B8A6')};
   color: ${({ $dim }) => ($dim ? '#94A3B8' : '#FFFFFF')};
+`;
+// 우선순위 토글 버튼 — RowMain 밖 형제 버튼(button-in-button 금지). 안의 span 은 유효한 중첩이다.
+//   지정됨 = Teal 원 + 번호 / 미지정 = 점선 빈 원(부여 어포던스).
+const PrioBtn = styled.button<{ $on: boolean }>`
+  width: 28px; height: 36px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0; border: 0; background: transparent;
+  cursor: pointer;
+  &:disabled { cursor: default; opacity: 0.5; }
+  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; border-radius: 50%; }
+
+  > span {
+    width: 20px; height: 20px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 50%;
+    font-size: 11px; font-weight: 800; line-height: 1;
+    background: ${({ $on }) => ($on ? '#14B8A6' : 'transparent')};
+    color: ${({ $on }) => ($on ? '#FFFFFF' : '#CBD5E1')};
+    border: ${({ $on }) => ($on ? '0' : '1px dashed #CBD5E1')};
+    transition: background 0.12s, border-color 0.12s;
+  }
+  &:hover:not(:disabled) > span {
+    border-color: ${({ $on }) => ($on ? 'transparent' : '#14B8A6')};
+    color: ${({ $on }) => ($on ? '#FFFFFF' : '#14B8A6')};
+  }
 `;
 const Badge = styled.span<{ $bg: string; $fg: string }>`
   flex-shrink: 0;
@@ -643,6 +764,16 @@ const MetaChip = styled.span`
 const MetaDue = styled.span<{ $overdue: boolean }>`
   font-weight: ${({ $overdue }) => ($overdue ? 700 : 500)};
   color: ${({ $overdue }) => ($overdue ? '#BE123C' : '#64748B')};
+`;
+// #250 나열 기준 토글 — ToggleDone 과 같은 계열(bespoke 금지). 활성 시 Teal 로 눌린 상태 표시.
+const SortToggle = styled.button`
+  width: 100%; margin-top: 10px;
+  padding: 8px; border: 1px dashed #CBD5E1; border-radius: 8px;
+  background: transparent; cursor: pointer;
+  font-size: 12px; font-weight: 600; color: #64748B;
+  &[aria-pressed='true'] { border-style: solid; border-color: #14B8A6; color: #0F766E; background: #F0FDFA; }
+  &:hover { border-color: #94A3B8; color: #475569; }
+  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
 `;
 const ToggleDone = styled.button`
   width: 100%; margin-top: 10px;

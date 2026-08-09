@@ -322,10 +322,13 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     // N+72 fix — 열린 detail 도 갱신 (저장 직후 실시간 반영 안 됨 호소)
     const refetchOpenDetail = async (postId: number) => {
       try {
-        if (activeId === postId) {
-          const d = await fetchPost(postId);
-          setDetail(d);
-        }
+        if (activeId !== postId) return;
+        // #252 MAJOR-1 — 편집 중이면 남의 저장으로 내 에디터를 갈아끼우지 않는다.
+        //   setDetail 은 스냅샷·base_updated_at 기준까지 흔들어 타이핑 중 글을 날린다.
+        //   충돌은 낙관적 잠금이 409(stale 배지)로 알려준다 — 조용히 덮는 대신 사용자가 판단한다.
+        if (modeRef.current === 'edit' || modeRef.current === 'new') return;
+        const d = await fetchPost(postId);
+        setDetail(d);
       } catch (_) { /* skip */ }
     };
     // 페이지 mount 시 공유 소켓 (services/socket) business room join + listener 3종.
@@ -360,6 +363,10 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         setDetail(d);
         // #96 — 방금 만든 표(?new_table=1)는 바로 편집 화면으로. 그 외는 view.
         const isNewTable = searchParams.get('new_table') === '1' && d?.kind === 'table';
+        // #252 — 이것도 편집 진입이다. beginEditSession() 이 없으면 직전 편집의 스냅샷·
+        //   draft ref 가 그대로 남아(mode 가 이미 'edit' 이면 effect 자체가 재발화하지 않는다)
+        //   취소가 엉뚱한 글을 되돌리고 저장이 엉뚱한 draft 를 승격시킨다.
+        if (isNewTable) beginEditSession();
         setMode(isNewTable ? 'edit' : 'view');
         if (isNewTable) {
           const np = new URLSearchParams(searchParams);
@@ -376,7 +383,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     return () => { cancelled = true; };
   }, [activeId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const startNew = () => {
+  const startNew = async () => {
+    // #252 — 이미 편집 중이었다면 그 세션부터 마무리(마지막 타이핑 flush + 고아 draft 차단)
+    if (!(await leaveEditSession())) return;
     setActiveId(null);
     setDetail(null);
     setMode('new'); beginEditSession();
@@ -441,7 +450,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     return html.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, p) => ctx[p] ?? '');
   };
 
-  const startFromAi = ({ title, bodyHtml, aiContext }: { title: string; bodyHtml: string; aiContext?: { kind: string; userInput: string; clientId?: number | null; projectId?: number | null } }) => {
+  const startFromAi = async ({ title, bodyHtml, aiContext }: { title: string; bodyHtml: string; aiContext?: { kind: string; userInput: string; clientId?: number | null; projectId?: number | null } }) => {
+    if (!(await leaveEditSession())) return;
     setActiveId(null);
     setDetail(null);
     setMode('new'); beginEditSession();
@@ -473,7 +483,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     } finally { setRegenBusy(false); }
   };
 
-  const startFromTemplate = (tpl: DocTemplate) => {
+  const startFromTemplate = async (tpl: DocTemplate) => {
     // 사이클 I2 — schema_json 슬롯이 있으면 SlotFormModal 먼저, 없으면 기존 흐름
     const sj = (tpl as unknown as { schema_json?: unknown }).schema_json;
     const hasSlots = Array.isArray(sj) && sj.length > 0;
@@ -482,6 +492,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       setSlotTplId(tpl.id);
       return;
     }
+    if (!(await leaveEditSession())) return;
     setActiveId(null);
     setDetail(null);
     setMode('new'); beginEditSession();
@@ -498,7 +509,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   };
 
   // 슬롯 폼 완료 시 — 채워진 HTML 로 PostEditor 진입
-  const handleSlotConfirm = (rendered: { html: string; title: string }) => {
+  const handleSlotConfirm = async (rendered: { html: string; title: string }) => {
+    if (!(await leaveEditSession())) return;
     setActiveId(null);
     setDetail(null);
     setMode('new'); beginEditSession();
@@ -642,10 +654,12 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   // debounce 2초 (AutoSaveField 표준. 메모는 1초지만 문서는 본문이 길어 PUT 이 무겁다).
   const AUTOSAVE_DEBOUNCE_MS = 2000;
 
-  const runAutosave = useCallback(async () => {
-    if (autoBusyRef.current) return;
+  // 반환값은 "이탈 flush"(leaveEditSession) 가 성공/실패를 판정하는 근거다 —
+  //   실패했는데 화면을 넘겨버리면 사용자는 저장된 줄 알고 글을 잃는다.
+  const runAutosave = useCallback(async (): Promise<'ok' | 'skip' | 'error' | 'stale'> => {
+    if (autoBusyRef.current) return 'skip';
     // 제목이 비면 서버가 400 을 준다 — 아직 저장할 단계가 아니다(조용히 대기).
-    if (!titleDraft.trim()) return;
+    if (!titleDraft.trim()) return 'skip';
     autoBusyRef.current = true;
     setAutoState('saving');
     try {
@@ -679,19 +693,65 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       autoDirtyRef.current = false;
       setAutoState('saved');
       setAutoErr(null);
+      return 'ok';
     } catch (e) {
       if (e instanceof StaleEditError) {
         // 남의 저장을 덮지 않는다 — 자동저장을 멈추고 사용자에게 알린다.
         setAutoState('stale');
         setAutoErr(e.message || (t('autosave.staleHelp', '다른 사람이 이 문서를 수정했습니다. 새로고침 후 이어서 작성해 주세요.') as string));
-      } else {
-        setAutoState('error');
-        setAutoErr((e as Error).message || (t('autosave.failed', '임시저장 실패') as string));
+        return 'stale';
       }
+      setAutoState('error');
+      setAutoErr((e as Error).message || (t('autosave.failed', '임시저장 실패') as string));
+      return 'error';
     } finally {
       autoBusyRef.current = false;
     }
   }, [titleDraft, contentDraft, categoryDraft, detail?.id, projectDraft, scope, t]);
+
+  // ── #252 BLOCKER-3c — "저장도 취소도 아닌 이탈" 마무리 ─────────────
+  // 편집 중 다른 문서를 클릭하거나 새 문서를 시작하면 지금까지 쓴 글이 갈 곳을 잃는다.
+  //   ① 대기 중인 debounce 를 즉시 flush 한다 — 마지막 2초 타이핑을 버리지 않는다.
+  //   ② flush 가 실패(에러·충돌)하면 false 를 반환해 **이탈 자체를 막는다**.
+  //      실패를 감춘 채 화면을 넘기면 사용자는 저장된 줄 알고 글을 잃는다(조용한 실패 금지).
+  //   ③ 성공하면 세션 ref 를 끊는다. 남은 draft 는 삭제하지 않는다 — 사용자가 쓴 글이고,
+  //      목록에 "임시저장" 뱃지로 보여 다시 열어 이어쓸 수 있다(3a·3b).
+  // 렌더 중 대입은 concurrent 렌더에서 안전하지 않다 — commit 후 effect 로 동기화한다.
+  //   (읽는 쪽이 전부 이벤트 핸들러라 effect 시점이면 충분하다)
+  const runAutosaveRef = useRef(runAutosave);
+  const modeRef = useRef(mode);
+  const autoStateRef = useRef(autoState);
+  useEffect(() => {
+    runAutosaveRef.current = runAutosave;
+    modeRef.current = mode;
+    autoStateRef.current = autoState;
+  });
+
+  const leaveEditSession = useCallback(async (): Promise<boolean> => {
+    if (modeRef.current !== 'edit' && modeRef.current !== 'new') return true;
+    if (autoTimerRef.current) { clearTimeout(autoTimerRef.current); autoTimerRef.current = null; }
+    if (autoDirtyRef.current && autoStateRef.current !== 'stale') {
+      const r = await runAutosaveRef.current();
+      if (r === 'error' || r === 'stale') return false;   // 편집 화면 유지 — 배지에 사유가 떠 있다
+    }
+    autoDirtyRef.current = false;
+    autoDraftIdRef.current = null;
+    editSnapshotRef.current = null;
+    setAutoState('idle');
+    setAutoErr(null);
+    // 편집 모드를 명시적으로 닫는다 — 같은 행 재클릭(activeId=null) 처럼 activeId effect 가
+    //   mode 를 건드리지 않는 경로에서도 세션이 남지 않게.
+    setMode('view');
+    await load();   // 이탈 직후 목록에 임시저장 행이 바로 보이게
+    return true;
+  }, [load]);
+
+  // 목록/카드 클릭 진입점 — 편집 중이면 먼저 세션을 마무리한다(고아 draft·타이핑 유실 차단).
+  //   재클릭 토글(CLAUDE.md UI 규칙)은 호출부에서 id === activeId ? null : id 로 넘긴다.
+  const selectPost = useCallback(async (id: number | null) => {
+    if (!(await leaveEditSession())) return;   // flush 실패 — 편집 화면 유지
+    setActiveId(id);
+  }, [leaveEditSession]);
 
   // 입력 변화 → debounce 예약. stale(충돌) 상태면 더 이상 쏘지 않는다.
   useEffect(() => {
@@ -832,6 +892,11 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         setPendingExistingMeta({});
         await load(); await loadMeta();
       } else if (mode === 'edit' && detail) {
+        // #252 BLOCKER-3b — 임시저장(draft) 을 다시 열어 편집한 뒤 저장하면 **정식 등록**이다.
+        //   status 를 안 보내면 저장은 성공하는데 문서는 draft(L1) 로 남아 남에게 영영 안 보인다.
+        //   사용자는 저장했다고 믿는다 — 신규 승격(위 분기)과 같은 규칙을 적용한다.
+        const targetProjectId = scope.type === 'workspace' ? projectDraft : detail.project_id;
+        const promote = detail.status === 'draft';
         const patched = await updatePost(detail.id, {
           title: titleDraft.trim(),
           content_json: contentDraft as any,
@@ -840,6 +905,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           base_updated_at: baseUpdatedAtRef.current,
           // 프로젝트 scope 페이지에선 project_id 변경 막기 (강제 유지)
           ...(scope.type === 'workspace' ? { project_id: projectDraft } : {}),
+          ...(promote ? { status: 'published' as const, vlevel: (targetProjectId ? 'L2' : 'L3') as 'L2' | 'L3' } : {}),
         });
         setDetail(patched);
         setMode('view');
@@ -1004,11 +1070,18 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               ) : (
                 <AtGrid>
                   {[...filtered].sort((a, b) => projSort === 'name' ? a.title.localeCompare(b.title) : 0).map(r => (
-                    <AtCard key={r.id} $selected={activeId === r.id} onClick={() => setActiveId(r.id)}>
+                    <AtCard key={r.id} $selected={activeId === r.id} onClick={() => { void selectPost(r.id); }}>
                       <RowPinBtn type="button" $on={pinnedIds.includes(r.id)} onClick={(e) => { e.stopPropagation(); togglePin(r.id); }}
                         aria-label={(pinnedIds.includes(r.id) ? t('project.docs.removeFromMenu', '상단 메뉴에서 제거') : t('project.docs.addToMenu', '상단 메뉴에 추가')) as string}
                         title={(pinnedIds.includes(r.id) ? t('project.docs.removeFromMenu', '상단 메뉴에서 제거') : t('project.docs.addToMenu', '상단 메뉴에 추가')) as string}>📌</RowPinBtn>
-                      <AtCardName>{r.title}</AtCardName>
+                      <AtCardName>
+                        {r.status === 'draft' && (
+                          <DraftTag title={t('autosave.draftBadgeHint', '아직 나만 보이는 임시저장 문서입니다. 열어서 저장하면 정식 등록됩니다.') as string}>
+                            {t('autosave.draftBadge', '임시저장')}
+                          </DraftTag>
+                        )}
+                        {r.title}
+                      </AtCardName>
                       <AtCardMeta>
                         <span>{formatDate(r.updated_at)}</span>
                         {r.category && <CategoryMini>#{r.category}</CategoryMini>}
@@ -1186,7 +1259,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 key={r.id}
                 $active={activeId === r.id}
                 $project={isProject}
-                onClick={() => setActiveId(activeId === r.id ? null : r.id)}
+                onClick={() => { void selectPost(activeId === r.id ? null : r.id); }}
               >
                 {isProject && (
                   <RowPinBtn
@@ -1199,6 +1272,12 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 )}
                 <RowTitle>
                   {r.is_pinned && <PinTag>📌</PinTag>}
+                  {/* #252 — 임시저장 행은 나만 보인다. 표시가 없으면 "저장했는데 팀이 못 본다" 가 된다. */}
+                  {r.status === 'draft' && (
+                    <DraftTag title={t('autosave.draftBadgeHint', '아직 나만 보이는 임시저장 문서입니다. 열어서 저장하면 정식 등록됩니다.') as string}>
+                      {t('autosave.draftBadge', '임시저장')}
+                    </DraftTag>
+                  )}
                   {r.title}
                 </RowTitle>
                 {r.content_preview && <RowPreview>{r.content_preview}</RowPreview>}
@@ -1634,8 +1713,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           defaultMode={aiDefaultMode}
           initialBriefText={aiInitialBriefText}
           initialBriefTitle={aiInitialBriefTitle}
-          onTableCreated={(id) => {
+          onTableCreated={async (id) => {
             // #96 — 표 생성 후 in-place 진입 (프로젝트 scope 에서도 페이지 이탈 없이). new_table=1 로 edit 모드.
+            if (!(await leaveEditSession())) return;   // #252 — 편집 중이었으면 먼저 마무리
             setActiveId(id);
             setSearchParams(prev => {
               const sp = new URLSearchParams(prev);
@@ -2121,7 +2201,16 @@ const EditActions = styled.div`
 const AutoSaveMark = styled.span<{ $tone: 'ok' | 'err' }>`
   font-size: 12px; white-space: nowrap;
   color: ${p => (p.$tone === 'err' ? '#DC2626' : '#94A3B8')};
-  @media (max-width: 640px) { display: none; }
+  /* ★ 모바일에서 숨기지 않는다 — 실패·충돌이 안 보이면 저장된 줄 알고 창을 닫는다(조용한 실패 금지).
+     좁은 화면에서는 글자만 줄인다. */
+  @media (max-width: 640px) { font-size: 11px; }
+`;
+// #252 — 목록의 임시저장(draft) 행 표시. 이 행은 작성자에게만 보인다(백엔드 필터).
+const DraftTag = styled.span`
+  display: inline-flex; align-items: center; flex-shrink: 0;
+  margin-right: 6px; padding: 1px 6px;
+  background: #FFF7ED; color: #C2410C; border: 1px solid #FED7AA;
+  border-radius: 999px; font-size: 10px; font-weight: 700; line-height: 16px;
 `;
 // 상세 메타 — 헤더 아래 한 줄 MetaBar. 좌(작성자·날짜·분류·프로젝트) ↔ 우(공개·공유·보안). (Irene)
 // 구분선은 좌우 끝까지(풀폭), 글자만 좌우 24px 안쪽.

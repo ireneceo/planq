@@ -273,6 +273,8 @@
     "advancedShow": "고급 설정",
     "advancedHide": "고급 설정 접기",
     "translationLanguageLabel": "번역 언어",
+    "translateNeeded": "번역 필요",
+    "translateNeededHint": "체크하면 발화와 답변을 다른 언어로 함께 보여줍니다.",
     "translationLanguagePlaceholder": "번역 표시 언어",
     "translationHint": "발화 아래 보조 번역. 기본 = 내 언어({{lang}}).",
     "answerLanguageLabel": "답변 언어",

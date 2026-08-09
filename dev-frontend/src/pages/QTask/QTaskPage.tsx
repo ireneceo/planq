@@ -16,6 +16,8 @@ import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import TaskRowActionMenu from '../../components/QTask/TaskRowActionMenu';
 import { responsiveDrawerWidth } from '../../utils/responsiveDrawer';
+import { plainToHtml } from '../../utils/plainToHtml';
+import type { VoiceHandoff } from '../../utils/voiceHandoff';
 import { identityText } from '../../components/Common/IdentityContext';
 import AiTaskCreateModal from '../../components/QTask/AiTaskCreateModal';
 import TemplateSelectModal from '../../components/QTask/TemplateSelectModal';
@@ -44,6 +46,8 @@ import {
 import WeeklyReviewModal from '../../components/QTask/WeeklyReviewModal';
 import WeeklyReviewTab from '../../components/QTask/WeeklyReviewTab';
 import PartnerKindBadge from '../../components/Common/PartnerKindBadge';
+import TagChips, { type TaskTagLite } from '../../components/QTask/TagChips';
+import TagManageModal from '../../components/QTask/TagManageModal';
 
 // #249 — 우측 패널을 인라인으로 붙여둘 최소 뷰포트 폭.
 //   이보다 좁으면 overlay(기본 닫힘 + 떠 있는 토글 + ⌘/·Ctrl+\)로 전환해 리스트가 전폭을 쓴다.
@@ -71,7 +75,12 @@ interface TaskRow {
   latest_estimation_source?: 'ai' | 'user' | null;
   // actual_hours 출처 — 'auto' (status 전환 자동 누적, 회색) vs 'user' (직접 입력, 검정). 사이클 N+6.
   actual_source?: 'auto' | 'user' | null;
-  planned_week_start: string | null; category: string | null;
+  planned_week_start: string | null;
+  // ★ category 는 **동결** 컬럼이다 (#250 ③청크) — QTask UI 에 노출된 적이 없고, 태그가 그 역할을 맡는다.
+  //   새 UI 에 노출하지 말 것. 태그로의 승격/폐기는 후속 결정 항목 (routes/task_tags.js 헤더 참조).
+  category: string | null;
+  // #250 — 백엔드가 이름 사전순으로 실어 보낸다. [0] 이 대표 태그.
+  tags?: TaskTagLite[] | null;
   completed_at?: string | null;
   assignee_id: number | null; project_id: number | null; created_by: number;
   // Phase 1 워크플로우 필드
@@ -124,7 +133,12 @@ function byPriorityChain(a:TaskRow,b:TaskRow):number{
   if(d!==0)return d;
   const due=cmpNullLastStr(a.due_date,b.due_date);
   if(due!==0)return due;
-  return (a.title||'').localeCompare(b.title||'');
+  const title=(a.title||'').localeCompare(b.title||'');
+  if(title!==0)return title;
+  // ★ 맨 끝 절대 tie-break — 서버 services/taskPriority.js byPriorityChain 과 문자 그대로 동일해야 한다.
+  //   id 를 **위로 올리지 말 것**(옛 실버그: 두 화면 번호가 갈리고 같은 화면 안에서도 행 순서와
+  //   칩 번호가 역전됐다). 여기 맨 끝의 id 는 완전 동률일 때 순서를 결정론적으로 고정할 뿐이다.
+  return a.id-b.id;
 }
 
 // 날짜 범위 셀 — 시작+마감 통합. 클릭 시 캘린더 피커 열림
@@ -262,6 +276,13 @@ const QTaskPage:React.FC=()=>{
   // Filters
   const[search,setSearch]=useState('');
   const[statusFilter,setStatusFilter]=useState('');
+  // #250 — 태그 필터. ★ 이 값은 `filtered`(보기 옵션) 에만 들어간다.
+  //   weekSet / displayPriorityMap / 서버 재인덱스 입력에는 **절대 닿지 않는다** —
+  //   보기 옵션이 우선순위 번호의 정본 집합을 좁히면 필터 밖 업무의 번호와 충돌한다
+  //   (2026-07-28 실사고. inWeekCanonical 주석 참조).
+  const[tagFilter,setTagFilter]=useState<number|null>(null);
+  const[tagDict,setTagDict]=useState<Array<{id:number;name:string;color:string|null;usage_count?:number}>>([]);
+  const[tagManageOpen,setTagManageOpen]=useState(false);
   // 기본 true: 체크박스 = 완료 = 리스트에서 사라짐 (완료 업무 다시 보려면 헤더 체크 해제)
   const[hideCompleted,setHideCompleted]=useState(true);
   // week 탭 — "완료 가리기" (다른 탭과 동일 라벨). 기본 체크 해제 = 완료 보임.
@@ -388,14 +409,34 @@ const QTaskPage:React.FC=()=>{
   // 사이클 N+56 — ?attachFileIds=1,2,3 도 같이 받아 새 task 모달 첨부 prefill.
   const [searchParams, setSearchParams] = useSearchParams();
   // 퀵메뉴 '+업무' 진입 → 일반 업무추가 드로어(일정·메일과 동일한 '추가' 팝업). (Irene — AI 분해모달 아님)
+  //
+  // 음성 캡처('말로 추가')도 같은 트리거로 들어온다. 다만 내용은 URL 이 아니라 **navigate state**
+  // (`{ voice: VoiceHandoff }`) 로 온다 — 전사문을 주소창·히스토리에 남기지 않기 위해서다.
+  // ★ state 는 반드시 이 effect 안에서, `setSearchParams` **전에** 읽어야 한다:
+  //   setSearchParams 는 state 를 넘기지 않아 호출 순간 location.state 가 지워진다.
+  //   (그래서 별도의 정리용 navigate 도 필요 없다 — 넣으면 방금 지운 create=1 이 되살아난다.)
+  //   같은 이유로 재적용 방지용 ref 도 두지 않는다: `create=1` 과 state 가 **같이** 사라지므로 재실행은
+  //   위 early-return 에서 끝난다. ref 를 두면 한 번 쓰인 뒤 영구 잠겨 **같은 페이지에서 두 번째로 말한
+  //   내용이 통째로 버려진다** (시트는 RightDock 소속이라 /tasks→/tasks 이동은 remount 를 안 일으킨다).
   useEffect(() => {
-    if (searchParams.get('create') === '1') {
-      setAddingTask(true);
-      setAddInline(false);
+    if (searchParams.get('create') !== '1') return;
+    const voice = (location.state as { voice?: VoiceHandoff } | null)?.voice ?? null;
+    setAddingTask(true);
+    setAddInline(false);
+    if (voice) {
+      setNewTitle(voice.title || voice.text || '');
+      // detail 은 평문 — RichEditor 는 HTML 을 받는다. 그대로 넣으면 개행이 사라진다.
+      //   비어 있으면 **명시적으로 비운다** — 안 그러면 직전 진입의 설명이 그대로 남는다.
+      setNewDescription(voice.detail ? plainToHtml(voice.detail) : '');
+      // 서버가 워크스페이스 멤버로 확정한 담당자만 쓴다(정확 일치). 확정 실패면 기본 로직대로.
+      if (voice.assignee_user_id) setNewAssignee(voice.assignee_user_id);
+      else setNewAssignee(tab === 'requested' ? null : (myId ?? null));
+      setNewDueDate(voice.when_start ? voice.when_start.slice(0, 10) : '');
+    } else {
       setNewAssignee(tab === 'requested' ? null : (myId ?? null));
-      const next = new URLSearchParams(searchParams); next.delete('create'); setSearchParams(next, { replace: true });
     }
-  }, [searchParams, setSearchParams, tab, myId]);
+    const next = new URLSearchParams(searchParams); next.delete('create'); setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, tab, myId, location.state]);
   const prefillAppliedRef = useRef(false);
   useEffect(() => {
     if (prefillAppliedRef.current) return;
@@ -406,7 +447,9 @@ const QTaskPage:React.FC=()=>{
         const decoded = decodeURIComponent(prefill);
         const lines = decoded.split('\n');
         setNewTitle(lines[0]?.slice(0, 200) || '');
-        if (lines.length > 1) setNewDescription(lines.slice(1).join('\n'));
+        // 공유로 들어온 평문을 RichEditor(HTML) 에 그대로 넣으면 개행이 전부 사라지고
+        //   `<`·`&` 가 마크업으로 해석된다 (음성 경로와 같은 계열).
+        if (lines.length > 1) setNewDescription(plainToHtml(lines.slice(1).join('\n')));
       }
       if (attachFileIds) {
         const ids = attachFileIds.split(',').map(s => Number(s)).filter(n => Number.isFinite(n) && n > 0);
@@ -617,11 +660,24 @@ const QTaskPage:React.FC=()=>{
     });
     // N+93 — 프로젝트명 변경 실시간 반영 (#11). project:updated 수신 시 전체 reload (프로젝트명 갱신).
     const offProj = onSocket('project:updated', () => { load(); });
+    // #250 — 태그 사전 변경(이름/색/삭제)은 전 업무의 칩 표기에 전파된다. 사전만 다시 읽는다.
+    //   업무 자체의 태그 지정 변경은 `task:updated`(payload.tags) 가 위 merge 로 처리한다.
+    const offTag = onSocket('task_tag:updated', () => { loadTagDict(); });
     return () => {
       leaveRoom(`business:${bizId}`);
-      offNew(); offUpd(); offDel(); offProj();
+      offNew(); offUpd(); offDel(); offProj(); offTag();
     };
-  }, [bizId, user?.id]);
+  }, [bizId, user?.id]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  // #250 — 태그 사전(필터 드롭다운의 정본). 업무 목록과 별개 축이라 따로 읽는다.
+  const loadTagDict=useCallback(async()=>{
+    if(!bizId)return;
+    const r=await apiFetch(`/api/tasks/tags?business_id=${bizId}`);
+    if(!r.ok)return;   // apiFetch 는 throw 안 함 — 실패 시 옛 사전 유지
+    const j=await r.json();
+    setTagDict(Array.isArray(j?.data)?j.data:[]);
+  },[bizId]);
+  useEffect(()=>{loadTagDict();},[loadTagDict]);
 
   // 모바일 PWA background 복귀 시 missed events 회복 — socket 재연결 동안 emit 된
   // task:new/updated/deleted 는 영구 손실되므로 load() 로 보정
@@ -844,50 +900,33 @@ const QTaskPage:React.FC=()=>{
     finally{setAddingSubmitting(false);}
   };
 
-  // 우선순위: 이번 주 탭의 filtered 안에서만 1,2,3... 매김.
-  // priority_order 컬럼은 글로벌이라 다른 워크스페이스/주의 task 들이 갭(예: 1,2,9,10,11)을 만들 수 있음.
-  // → 토글 시 filtered 안의 priority task 들을 항상 1,2,3...로 재배치 (잔존 갭 정리).
-  const togglePriority=(taskId:number, autoSort:boolean=true)=>{
+  // 우선순위 토글 — #250 ②청크. **재인덱스는 백엔드가 단독 수행**한다.
+  //   옛 코드는 여기서 낙관적 state 를 만들고 task 마다 개별 PUT 을 쐈다 —
+  //     ① 비원자적이라 중간 실패 시 1,2,4,5 로 깨졌다
+  //     ② 정본 집합에 들어온 **남의 업무**(pending 컨펌자·관여완료 분기)는 PATCH /time 이 403 을 내
+  //        조용히 부분 실패했다
+  //     ③ 팝아웃은 같은 로직이 없어 읽기 전용이었다 (#250 "우선순위 관리도 여기서도 해야 해")
+  //   이제 `POST /api/tasks/priority/toggle` 이 정본 집합을 원자적으로 다시 매기고, 응답의
+  //   priorities 맵으로 state 를 맞춘다. 서버 사슬은 byPriorityChain 과 문자 그대로 동일하다.
+  const [prioBusy,setPrioBusy]=useState(false);   // 중복 제출 가드 (UI_DESIGN_GUIDE §1.8)
+  const togglePriority=async(taskId:number, autoSort:boolean=true)=>{
+    if(prioBusy)return;   // 더블클릭 = 부여 후 즉시 해제 사고 차단
     if(autoSort){
       setSortKey('priority_order');
       setSortDir('asc');
     }
-    setAllTasks(prev=>{
-      const task=prev.find(t=>t.id===taskId);
-      if(!task)return prev;
-      const weekIds=new Set((weekSetRef.current||[]).map(t=>t.id));
-
-      if(task.priority_order){
-        // 해제: 이 task null + filtered 안 priority task 들 1,2,3..로 reindex
-        const updated=prev.map(t=>t.id===taskId?{...t,priority_order:null}:t);
-        const inWeek=updated.filter(t=>weekIds.has(t.id)&&t.priority_order!=null);
-        inWeek.sort(byPriorityChain);
-        saveField(taskId,'priority_order',null);
-        return updated.map(t=>{
-          const idx=inWeek.findIndex(x=>x.id===t.id);
-          if(idx>=0&&t.priority_order!==idx+1){
-            saveField(t.id,'priority_order',idx+1);
-            return{...t,priority_order:idx+1};
-          }
-          return t;
-        });
-      } else {
-        // 부여: filtered 안 priority task 갯수+1. 잔존 갭도 정리.
-        const inWeek=prev.filter(t=>weekIds.has(t.id)&&t.priority_order!=null);
-        inWeek.sort(byPriorityChain);
-        const newP=inWeek.length+1;
-        saveField(taskId,'priority_order',newP);
-        const updated=prev.map(t=>t.id===taskId?{...t,priority_order:newP}:t);
-        return updated.map(t=>{
-          const idx=inWeek.findIndex(x=>x.id===t.id);
-          if(idx>=0&&t.priority_order!==idx+1){
-            saveField(t.id,'priority_order',idx+1);
-            return{...t,priority_order:idx+1};
-          }
-          return t;
-        });
-      }
-    });
+    setPrioBusy(true);
+    try{
+      const r=await apiFetch('/api/tasks/priority/toggle',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({business_id:bizId,task_id:taskId,from:periodFrom,to:periodTo}),
+      });
+      if(!r.ok)return;   // apiFetch 는 throw 안 함 — 실패 시 낙관적 적용 금지(거짓 성공)
+      const j=await r.json();
+      const map=new Map<number,number|null>((j?.data?.priorities||[]).map((p:{id:number;priority_order:number|null})=>[p.id,p.priority_order]));
+      setAllTasks(prev=>prev.map(t=>(map.has(t.id)?{...t,priority_order:map.get(t.id)??null}:t)));
+    }catch{}
+    finally{setPrioBusy(false);}
   };
 
   // ── 상세 드로어 오픈/닫기 (URL 싱크) — 로딩/워크플로우는 TaskDetailDrawer 내부 처리 ──
@@ -1080,6 +1119,8 @@ const QTaskPage:React.FC=()=>{
     }
     if(search){const q=search.toLowerCase();list=list.filter(t=>t.title.toLowerCase().includes(q)||(t.Project?.name||'').toLowerCase().includes(q));}
     if(statusFilter)list=list.filter(t=>t.status===statusFilter);
+    // #250 태그 필터 — 보기 옵션이다. 위 weekSet(정본)에는 관여하지 않는다.
+    if(tagFilter!=null)list=list.filter(t=>(t.tags||[]).some(tg=>tg.id===tagFilter));
     // week 탭은 자체 hideCompletedInWeek 로직을 위 위에서 처리. 다른 탭만 일괄 hideCompleted 적용.
     if(hideCompleted && !(scope==='mine'&&tab==='week'))list=list.filter(t=>t.status!=='completed'&&t.status!=='canceled');
 
@@ -1123,7 +1164,7 @@ const QTaskPage:React.FC=()=>{
       return 0;
     });
     return list;
-  },[allTasks,scope,tab,assigneeFilter,todayStr,myId,search,statusFilter,hideCompleted,sortKey,sortDir,hideCompletedInWeek,periodFrom,periodTo]);
+  },[allTasks,scope,tab,assigneeFilter,todayStr,myId,search,statusFilter,tagFilter,hideCompleted,sortKey,sortDir,hideCompletedInWeek,periodFrom,periodTo]);
 
   // (grouped removed — flat list with project column)
 
@@ -1148,19 +1189,29 @@ const QTaskPage:React.FC=()=>{
     return m;
   },[weekSet,scope,tab]);
 
-  // 페이지 진입 시 갭 자동 정리 (silent) — 사용자가 토글 안 해도 DB가 1,2,3..로 일치
+  // 진입 시 갭 자동 정리 (silent) — 사용자가 토글 안 해도 DB가 1,2,3..로 일치.
+  //   #250 ②청크: 옛 코드는 여기서 task 마다 PUT 을 쐈다. 서버가 정본 집합을 원자적으로
+  //   재인덱스하는 엔드포인트 **1회 호출**로 대체한다(멱등 — 이미 1..N 이면 UPDATE 0건).
+  //   ★ dep 에 weekSet 을 넣지 말 것 — reindex → task:updated N건 → allTasks 갱신 →
+  //     weekSet 재계산 → effect 재발화 → reindex … 무한 사이클이 된다.
+  //     기간/탭/스코프가 바뀔 때만 한 번 돈다. (서버가 changed=0 이면 broadcast 도 안 한다)
   useEffect(()=>{
     if(!(scope==='mine'&&tab==='week'))return;
-    const inWeek=weekSet.filter(t=>t.priority_order!=null);
-    if(inWeek.length===0)return;
-    inWeek.sort(byPriorityChain);
-    const needsReindex=inWeek.some((t,i)=>t.priority_order!==i+1);
-    if(!needsReindex)return;
-    inWeek.forEach((t,i)=>{
-      if(t.priority_order!==i+1)saveField(t.id,'priority_order',i+1);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[weekSet,scope,tab]);   // 본문이 읽는 집합과 dep 를 일치시킨다 (옛 filtered dep 는 지뢰)
+    if(!bizId)return;
+    let cancelled=false;
+    (async()=>{
+      const r=await apiFetch('/api/tasks/priority/reindex',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({business_id:bizId,from:periodFrom,to:periodTo}),
+      });
+      if(!r.ok||cancelled)return;
+      const j=await r.json();
+      if(!j?.data?.changed)return;   // 멱등 — 바뀐 게 없으면 state 도 안 건드린다
+      const map=new Map<number,number|null>((j.data.priorities||[]).map((p:{id:number;priority_order:number|null})=>[p.id,p.priority_order]));
+      setAllTasks(prev=>prev.map(t=>(map.has(t.id)?{...t,priority_order:map.get(t.id)??null}:t)));
+    })();
+    return()=>{cancelled=true;};
+  },[scope,tab,bizId,periodFrom,periodTo]);
 
   // 지연 뱃지 quick chip — outside click + ESC 닫기
   useEffect(()=>{
@@ -1592,6 +1643,25 @@ const QTaskPage:React.FC=()=>{
                 onChange={(v)=>setStatusFilter((v as {value?:string})?.value||'')}
                 options={STATUS_CODES.filter(k=>k!=='task_requested'&&k!=='done_feedback').map(k=>({value:k,label:t(`status.${k}.observer`,k)}))} />
             </div>
+            {/* #250 태그 필터 — isClearable 이 "전체"(CLAUDE.md 필터 규칙). 태그가 없는 워크스페이스엔
+                죽은 컨트롤을 두지 않는다. ★ 보기 옵션이라 우선순위 정본 집합에는 관여하지 않는다. */}
+            {tagDict.length>0&&(
+              <div style={{minWidth:150}}>
+                <PlanQSelect size="sm" isClearable maxMenuHeight={280}
+                  placeholder={t('filter.allTags','전체 태그')}
+                  value={tagFilter==null?null:{value:String(tagFilter),label:tagDict.find(g=>g.id===tagFilter)?.name||'-'}}
+                  onChange={(v)=>setTagFilter((v as {value?:string})?.value?Number((v as {value:string}).value):null)}
+                  options={tagDict.map(g=>({value:String(g.id),label:g.name}))} />
+              </div>
+            )}
+            {/* #250 — 태그 사전 관리(이름 변경·삭제). 필터 옆에 두는 이유: 사용자가 태그 목록을
+                보는 바로 그 자리다. 생성은 업무 상세의 TagPicker 가 담당한다. */}
+            {tagDict.length>0&&(
+              <TagManageBtn type="button" onClick={()=>setTagManageOpen(true)}
+                title={t('tags.manageTitle','태그 관리') as string}>
+                {t('tags.manageTitle','태그 관리')}
+              </TagManageBtn>
+            )}
             {scope==='workspace'&&(
               <div style={{minWidth:160}}>
                 <PlanQSelect size="sm" isClearable maxMenuHeight={280}
@@ -1680,6 +1750,7 @@ const QTaskPage:React.FC=()=>{
                     {tab==='week' && (
                       <TCell $w="30px" $center>
                         <PrioNum $active={!!task.priority_order} $disabled={task.status==='completed'||task.status==='canceled'}
+                          disabled={prioBusy}
                           onClick={e=>{e.stopPropagation();if(task.status!=='completed'&&task.status!=='canceled')togglePriority(task.id);}}>
                           {displayPriorityMap.get(task.id)||<PrioEmpty />}
                         </PrioNum>
@@ -1724,6 +1795,9 @@ const QTaskPage:React.FC=()=>{
                           title={t('list.titleClickEdit','클릭하여 업무명 수정') as string}>
                           {task.title}
                         </TaskTitle>
+                        {/* #250 "리스트에도 태그들 볼 수 있게 하기로 하지 않았어?" — 메인은 3칩 + `+k`.
+                            백엔드가 이름 사전순으로 실어 보내므로 여기서 다시 정렬하지 않는다. */}
+                        <TagChips tags={task.tags} max={3} />
                         {/* WORK_FLOW §6 — 이월 배지: 지난 주에서 넘어온 활성 업무. 과거 이력이 살아있음을 인지시킴. */}
                         {scope==='mine' && tab==='week' && isCarried(task) && (
                           <CarriedBadge title={t('list.carriedHint', { h: formatHours(task.actual_hours), defaultValue: '지난주에 시작한 업무예요. 이미 {{h}}h 투입 — 열면 이력·대화·메모 전부 볼 수 있어요.' }) as string}>
@@ -3015,6 +3089,13 @@ const QTaskPage:React.FC=()=>{
           }}
         />
       )}
+      {/* #250 태그 사전 관리 — 삭제 시 usage_count 를 보여주고 지운다(백엔드 CASCADE). */}
+      <TagManageModal
+        open={tagManageOpen}
+        onClose={()=>setTagManageOpen(false)}
+        dict={tagDict}
+        onChanged={()=>{loadTagDict();load();}}
+      />
       {bizId && (
         <AiTaskCreateModal
           open={aiOpen}
@@ -3084,6 +3165,8 @@ const TabBadge=styled.span<{$active?:boolean}>`display:inline-flex;align-items:c
 const ListScroll=styled.div`flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;&::-webkit-scrollbar{width:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
 const TableHScroll=styled.div`overflow-x:auto;overflow-y:visible;overscroll-behavior-x:contain;&::-webkit-scrollbar{height:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
 const BottomAddLink=styled.button`margin:10px 14px 20px;padding:6px 0;background:transparent;color:#94A3B8;border:none;font-size:13px;font-weight:500;cursor:pointer;text-align:left;display:block;font-family:inherit;&:hover{color:#0F766E;}`;
+// #250 태그 관리 진입 — FilterBar 안의 보조 버튼. 기존 FinalizeBtn 톤을 그대로(bespoke 금지).
+const TagManageBtn=styled.button`flex-shrink:0;height:30px;padding:0 10px;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;font-weight:600;color:#64748B;cursor:pointer;transition:background 0.15s, border-color 0.15s;&:hover{background:#F8FAFC;border-color:#CBD5E1;color:#0F172A;}`;
 const FilterBar=styled.div`display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid #F1F5F9;background:#FFF;flex-wrap:wrap;`;
 
 const ColRow=styled.div`display:flex;align-items:center;gap:6px;padding:6px 14px;border-bottom:1px solid #E2E8F0;background:#F8FAFC;position:sticky;top:0;z-index:1;min-width:520px;`;

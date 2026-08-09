@@ -23,7 +23,8 @@
   "filter": {
     "allStatus": "All status",
     "hideCompleted": "Hide completed",
-    "showCompleted": "Show completed"
+    "showCompleted": "Show completed",
+    "allTags": "All tags"
   },
   "period": {
     "title": "Period",
@@ -400,7 +401,8 @@
     "save": "Save",
     "cancel": "Cancel",
     "loadMore": "Load more",
-    "meSuffix": " (me)"
+    "meSuffix": " (me)",
+    "delete": "Delete"
   },
   "save": {
     "saving": "Saving",
@@ -472,7 +474,9 @@
       "timeHint": "Actual hours are auto-accumulated when you start/finish (enter to confirm)",
       "reviewReminder": "Progress reached 100% — click \"Submit for review\" to ask {{count}} reviewer(s) to start the completion flow",
       "createdOn": "Created",
-      "requestedOn": "Requested"
+      "requestedOn": "Requested",
+      "tags": "Tags",
+      "tagsPh": "Select tags"
     },
     "description": "Description",
     "descriptionSelf": "My work notes",
@@ -1145,6 +1149,25 @@
       "errGeneric": "Could not complete the action",
       "errNetwork": "Connection failed"
     },
-    "priorityN": "Priority {{n}}"
+    "priorityN": "Priority {{n}}",
+    "prioritySet": "Set priority",
+    "priorityClear": "Priority {{n}} — clear",
+    "sortByTag": "Sort by tag",
+    "sortDefault": "Default order"
+  },
+  "tags": {
+    "new": "New tag",
+    "newPh": "New tag name",
+    "create": "Create",
+    "creating": "Creating…",
+    "createFailed": "Could not create the tag",
+    "manageTitle": "Manage tags",
+    "manageEmpty": "No tags yet. You can create one from a task detail.",
+    "rename": "Rename",
+    "renameFailed": "Could not rename the tag",
+    "deleteFailed": "Could not delete the tag",
+    "deleting": "Deleting…",
+    "usageCount": "{{count}} tasks",
+    "deleteConfirm": "Delete “{{name}}” and remove it from {{count}} tasks?"
   }
 }

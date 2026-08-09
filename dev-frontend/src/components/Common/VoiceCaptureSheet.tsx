@@ -11,6 +11,7 @@ import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import ActionButton from './ActionButton';
+import { parseVoiceWhen, type VoiceHandoff, type VoiceKind } from '../../utils/voiceHandoff';
 
 const MAX_SECONDS = 30;
 
@@ -33,21 +34,17 @@ function extForMime(type: string): string {
   return 'audio';
 }
 
-type Kind = 'task' | 'event' | 'memo' | 'mail';
-interface Intent {
-  kind: Kind;
-  title: string;
-  detail: string;
-  assignee_name: string | null;
-  when: string | null;
-  confidence: number;
-}
+// 전달 계약(VoiceHandoff)·시각 파서는 utils/voiceHandoff.ts 에 있다 — 착지 페이지 3곳이
+// 녹음 UI 모듈을 통째로 끌어오지 않도록 분리했다.
+type Kind = VoiceKind;
+// 서버 응답의 intent. text 를 더하면 그대로 VoiceHandoff 가 된다.
+type Intent = Omit<VoiceHandoff, 'text'>;
 type Stage = 'idle' | 'recording' | 'thinking' | 'preview' | 'error';
 
 interface Props { onClose: () => void; }
 
 export default function VoiceCaptureSheet({ onClose }: Props) {
-  const { t } = useTranslation('common');
+  const { t, i18n } = useTranslation('common');
   const { user } = useAuth();
   const navigate = useNavigate();
   const businessId = user?.business_id ? Number(user.business_id) : null;
@@ -166,9 +163,15 @@ export default function VoiceCaptureSheet({ onClose }: Props) {
     if (!intent || busy) return;
     setBusy(true);
     const q = encodeURIComponent(text);
-    if (intent.kind === 'task') navigate(`/tasks?create=1&voice=${q}`);
-    else if (intent.kind === 'event') navigate(`/calendar?create=1&voice=${q}`);
-    else if (intent.kind === 'mail') navigate(`/mail?compose=1&voice=${q}`);
+    // 여는 트리거(`?create=1`/`?compose=1`)는 기존 소비 코드 그대로 두고, **내용은 navigate state** 로 넘긴다.
+    //   URL 에 실으면 제목·본문이 주소창과 히스토리에 남는다 — 오디오를 저장하지 않는다는 원칙(설계 §B-5)과 어긋난다.
+    //   각 페이지는 같은 effect 안에서 state 를 읽어 폼을 채운다. 파라미터를 지우는
+    //   `setSearchParams(..., {replace:true})` 가 **state 까지 같이 소거**하므로 별도 정리 navigate 는 없다
+    //   (react-router 의 setSearchParams 는 state 를 넘기지 않는다 — 넣으면 오히려 지운 파라미터가 되살아난다).
+    const handoff: VoiceHandoff = { ...intent, text };
+    if (intent.kind === 'task') navigate('/tasks?create=1', { state: { voice: handoff } });
+    else if (intent.kind === 'event') navigate('/calendar?create=1', { state: { voice: handoff } });
+    else if (intent.kind === 'mail') navigate('/mail?compose=1', { state: { voice: handoff } });
     // 메모는 Q Note 로. `/memo` 는 라우트가 아니다(`/memo/:id` 는 기존 메모의 분리 창) —
     //   베이스 경로로 보내면 catch-all 이 대시보드로 튕겼다. PWA 공유 수신(ShareReceivePage)과
     //   같은 `/notes?prefill=` 착지점으로 통일하고, QNotePage 가 그 파라미터를 읽어
@@ -176,6 +179,17 @@ export default function VoiceCaptureSheet({ onClose }: Props) {
     //   ★ 라우트만 바꾸고 소비를 안 만들면 페이지는 떠도 받아쓴 텍스트는 그대로 버려진다.
     else navigate(`/notes?prefill=${q}`);
     onClose();
+  };
+
+  // 확정된 시각을 사용자 언어로. 종일이면 날짜만 — 09:00 은 우리가 채운 기본값이지 사용자가 말한 게 아니다.
+  const formatWhen = (it: Intent): string | null => {
+    const d = parseVoiceWhen(it.when_start);
+    if (!d) return null;
+    const locale = i18n.language === 'en' ? 'en-US' : 'ko-KR';
+    const opts: Intl.DateTimeFormatOptions = it.when_all_day
+      ? { month: 'short', day: 'numeric', weekday: 'short' }
+      : { month: 'short', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' };
+    try { return new Intl.DateTimeFormat(locale, opts).format(d); } catch { return it.when_start || null; }
   };
 
   const kindLabel = (k: Kind) => t(`voice.kind.${k}`, {
@@ -242,8 +256,18 @@ export default function VoiceCaptureSheet({ onClose }: Props) {
               <KindChip $kind={intent.kind}>{kindLabel(intent.kind)}</KindChip>
               <CardTitle>{intent.title}</CardTitle>
               <CardMeta>
-                {intent.assignee_name && <Meta>{t('voice.assignee', { defaultValue: '담당' }) as string}: {intent.assignee_name}</Meta>}
-                {intent.when && <Meta>{intent.when}</Meta>}
+                {/* ★ 말한 이름(assignee_name)이 아니라 서버가 **확정한 멤버**를 보여준다.
+                    이름이 지목됐는데 확정되지 않았으면 "지정 안 됨" 으로 명시 — 배정된 줄 알고
+                    넘어가면 그 오해는 다음 화면에서도 안 풀린다. */}
+                {intent.assignee_name && (
+                  <Meta>
+                    {t('voice.assignee', { defaultValue: '담당' }) as string}:{' '}
+                    {intent.assignee_display_name
+                      || (t('voice.assigneeUnresolved', { name: intent.assignee_name, defaultValue: '{{name}} — 지정 안 됨' }) as string)}
+                  </Meta>
+                )}
+                {/* 계산된 시각이 있으면 그것을, 없으면 말한 표현 그대로 */}
+                {(intent.when_start || intent.when) && <Meta>{formatWhen(intent) || intent.when}</Meta>}
               </CardMeta>
               {intent.detail && <CardDetail>{intent.detail}</CardDetail>}
             </Card>

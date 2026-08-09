@@ -2227,6 +2227,10 @@ router.delete('/:businessId/:id/installments/:installId', authenticateToken, che
         amount: inst.amount,
       },
     });
+    // 실시간 반영 (CLAUDE.md §16 (b)) — 이 라우트만 broadcast 를 안 불러서, 회차를 취소해도
+    //   다른 탭·다른 사용자 화면의 청구서 리스트가 그대로 남아 있었다.
+    //   `invoice` 인스턴스로 부른다 — 이 스코프에 갱신본 변수는 없고, broadcastInvoice 는 business_id 만 쓴다.
+    broadcastInvoice(req, invoice, 'invoice:updated');
     successResponse(res, inst, 'Installment canceled');
   } catch (error) { next(error); }
 });

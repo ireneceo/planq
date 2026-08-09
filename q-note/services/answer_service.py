@@ -495,17 +495,40 @@ async def _load_meeting_context(session_id: int) -> Optional[dict]:
     return ctx if ctx else None
 
 
-async def _get_session_languages(session_id: int) -> tuple[Optional[str], Optional[str], Optional[str]]:
+def wants_translation(
+  translate_enabled: bool,
+  translation_language: Optional[str],
+  target_of_content: Optional[str],
+) -> bool:
+  """#241 — 번역 여부의 단일 술어. 전사(live.py)·답변(여기)·translate-answer 가 같은 규칙을 쓴다.
+
+  세 조건을 모두 만족해야 번역한다:
+    1. 세션에서 '번역 필요' 를 켰다
+    2. 목적지 언어가 실제로 지정돼 있다 (없다고 반대말을 지어내지 않는다)
+    3. 목적지가 내용의 언어와 다르다 (ko→ko 같은 무의미 번역 차단)
+  술어가 갈라지면 한쪽만 고쳐진다 — 반드시 이 함수를 거칠 것.
+  """
+  return bool(
+    translate_enabled
+    and translation_language
+    and translation_language != (target_of_content or '')
+  )
+
+
+async def _get_session_languages(
+  session_id: int,
+) -> tuple[Optional[str], Optional[str], Optional[str], bool]:
   import json as _json
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
     cursor = await db.execute(
-      'SELECT answer_language, translation_language, meeting_languages FROM sessions WHERE id = ?',
+      'SELECT answer_language, translation_language, meeting_languages, translate_enabled '
+      'FROM sessions WHERE id = ?',
       (session_id,)
     )
     row = await cursor.fetchone()
     if not row:
-      return None, None, None
+      return None, None, None, False
     meeting_lang = None
     if row['meeting_languages']:
       try:
@@ -514,7 +537,8 @@ async def _get_session_languages(session_id: int) -> tuple[Optional[str], Option
           meeting_lang = langs[0]
       except Exception:
         pass
-    return row['answer_language'], row['translation_language'], meeting_lang
+    return (row['answer_language'], row['translation_language'], meeting_lang,
+            bool(row['translate_enabled']))
 
 
 async def refresh_session_vocabulary(session_id: int, merge: bool = True) -> int:
@@ -672,9 +696,17 @@ async def find_answer(
     answer, answer_translation, confidence, sources, matched_qa_id, _translation_lang
   }
   """
-  answer_lang, translation_lang, meeting_lang = await _get_session_languages(session_id)
+  answer_lang, translation_lang, meeting_lang, translate_enabled = await _get_session_languages(session_id)
   effective_answer_lang = answer_lang or meeting_lang
-  effective_translation_lang = translation_lang or ('en' if effective_answer_lang == 'ko' else 'ko')
+  # #241 — 옛 코드는 목적지가 없으면 `'en' if ko else 'ko'` 로 **지어냈다**. 그래서 한국어 회의는
+  #   설정을 안 건드리면 무조건 영어 번역이 나왔다. 이제 술어를 통과할 때만 목적지를 갖는다.
+  #   ★ 아래 translate_text(ans, effective_answer_lang) 호출들은 이 게이트 대상이 **아니다** —
+  #     그건 번역 기능이 아니라 '등록 Q&A 언어 ≠ 답변 언어' 일 때의 답변 언어 강제다.
+  effective_translation_lang = (
+    translation_lang
+    if wants_translation(translate_enabled, translation_lang, effective_answer_lang)
+    else None
+  )
 
   if not meeting_context:
     meeting_context = await _load_meeting_context(session_id)

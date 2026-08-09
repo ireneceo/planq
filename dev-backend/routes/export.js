@@ -7,7 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { Op } = require('sequelize');
-const { File, Document, BusinessMember, Business, BusinessStorageUsage, ExportJob } = require('../models');
+const { File, Document, Post, BusinessMember, Business, BusinessStorageUsage, ExportJob } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { getUserScope, isMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
@@ -21,11 +21,25 @@ function escapeHtml(s) {
 }
 
 // 문서 → 단독 열람 가능한 HTML 파일
+// zip 안 문서 1건 → HTML.
+//
+// ★ 본문 렌더는 `services/pdfTemplates.js richBodyToHtml` 을 **재사용**한다. 옛 코드는
+//   `body_html` 이 없으면 `<pre>${JSON.stringify(body_json)}</pre>` 로 **JSON 원문을 덤프**했다 —
+//   Post(content_json = TipTap TEXT)로 넘어오면 zip 안 문서가 전부 JSON 덤프가 된다.
+//   2026-08-07 포스트 PDF 파손과 같은 계열이라 그때 만든 렌더러를 그대로 쓴다.
+// ★ 두 번째 인자에 `d.body_html` 을 **반드시 넘긴다** — processExport 의 Q Note 의사-doc 은
+//   content_json 없이 body_html 만 갖는다. null 을 넘기면 Q Note 문서가 전부 빈 HTML 이 된다.
+const PDF_ASSET_BASE = (process.env.PDF_ASSET_BASE_URL || `http://127.0.0.1:${process.env.PORT || 3003}`).replace(/\/+$/, '');
+const PUBLIC_ASSET_BASE = (process.env.APP_URL || 'https://dev.planq.kr').replace(/\/+$/, '');
+
 function renderDocHtml(d) {
   const title = escapeHtml(d.title || 'Untitled');
-  const body = d.body_html
-    ? d.body_html
-    : (d.body_json ? `<pre>${escapeHtml(JSON.stringify(d.body_json, null, 2))}</pre>` : '');
+  let body = require('../services/pdfTemplates').richBodyToHtml(d.content_json, d.body_html, d.content_text);
+  // 이미지 절대화 base 교체 — 렌더러는 puppeteer(서버 자신)용 loopback 을 쓴다. 그대로 두면
+  //   사용자가 자기 PC 에서 연 zip HTML 이 **자기 localhost** 를 찌르고 이미지가 전부 깨진다.
+  if (body && PUBLIC_ASSET_BASE && PDF_ASSET_BASE !== PUBLIC_ASSET_BASE) {
+    body = body.split(PDF_ASSET_BASE).join(PUBLIC_ASSET_BASE);
+  }
   return `<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8">`
     + `<meta name="viewport" content="width=device-width, initial-scale=1">`
     + `<title>${title}</title>`
@@ -88,8 +102,20 @@ async function collectSelf(businessId, userId) {
     },
     order: [['created_at', 'DESC']],
   });
-  const docs = await Document.findAll({
-    where: { business_id: businessId, created_by: userId },
+  // ★ 문서 = **Post** 다 (#250 후속 청크 2). Document 는 제품에 여는 화면이 없어(운영 0행)
+  //   이 수집이 운영에서 실문서를 단 한 건도 잡은 적이 없었다 — 미리보기가 늘 "문서 0" 이었다.
+  //
+  // "내 자료" 정의 (Irene 결정 (a)): **본인이 쓴 개인 자산만**. 본인 작성 published 공개글은
+  //   워크스페이스 공용 자산이라 제외한다.
+  //   ★ 술어는 `draft` **OR** `L1` — AND 로 묶으면 과소수집이다:
+  //     · published + L1 ("나만보기" 로 내린 글, brief 후속 문서) 은 개인 자산인데 빠진다
+  //     · draft 는 posts.js 목록 필터가 작성자에게만 노출하므로 vlevel 과 무관하게 개인 자산이다
+  const docs = await Post.findAll({
+    where: {
+      business_id: businessId,
+      author_id: userId,
+      [Op.or]: [{ status: 'draft' }, { vlevel: 'L1' }],
+    },
     order: [['created_at', 'DESC']],
   });
   return { files, docs };
@@ -110,8 +136,15 @@ async function collectWorkspace(businessId) {
     },
     order: [['created_at', 'DESC']],
   });
-  const docs = await Document.findAll({
-    where: { business_id: businessId },
+  // ★ 문서 = Post. 파일 쪽과 **같은 정책**으로 L1 개인글을 제외한다(사적 공간 보호).
+  //   draft 는 작성자에게만 보이는 개인 자산이라 워크스페이스 백업 대상이 아니다.
+  //   legacy NULL vlevel 은 파일 패턴 그대로 워크스페이스로 간주.
+  const docs = await Post.findAll({
+    where: {
+      business_id: businessId,
+      status: 'published',
+      [Op.or]: [{ vlevel: { [Op.ne]: 'L1' } }, { vlevel: null }],
+    },
     order: [['created_at', 'DESC']],
   });
   return { files, docs };
@@ -257,12 +290,19 @@ router.post('/:businessId/me/transfer', authenticateToken, checkBusinessAccess, 
       bytesAdded += Number(f.file_size) || 0;
     }
 
+    // ★ 산출물은 **Post** 다 (#250 후속). 워커(services/exportJobWorker.js)와 같은 이유·같은 헬퍼 —
+    //   Document 를 여는 화면이 제품에 없어서, 옛 코드는 사용자가 영영 못 여는 행을 만들고
+    //   "문서 N건 복사됨" 이라고 보고했다. 두 경로 중 하나만 고치면 반쪽 전환이 된다.
     for (const d of docs.slice(0, 1000)) {
-      await Document.create({
-        business_id: targetBiz, created_by: req.user.id,
-        kind: d.kind, title: d.title, body_json: d.body_json, body_html: d.body_html,
-        security_level: d.security_level, status: 'draft',
+      const created = await require('../services/exportJobWorker').createTransferredPost({
+        targetBiz, userId: req.user.id,
+        // ★ 소스가 Post 다 — `body_json`/`kind` 를 넘기면 본문이 비고 category 가 Post.kind 로 오염된다
+        title: d.title, tiptap: d.content_json,
+        category: d.category || null, securityLevel: d.security_level,
       });
+      if (!created) { skipped++; continue; }   // 본문 없거나 이미 복사된 건은 새로 만들지 않는다
+      // 첨부 재링크 — 워커와 같은 헬퍼(본문만 옮기고 첨부를 끊으면 반쪽)
+      await require('../services/exportJobWorker').relinkAttachments(d.id, created.id, targetBiz, req.user.id);
       docsCopied++;
     }
 
