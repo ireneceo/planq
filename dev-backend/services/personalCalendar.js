@@ -73,6 +73,9 @@ async function listEvents(conn, { timeMin, timeMax, maxResults = 250, excludeIds
 // 그래서 "개인 캘린더 연동했는데 PlanQ 일정이 안 올라온다"(Irene) 는 고장이 아니라 기능 부재였다.
 // PROVIDER_SCOPES.google_calendar 를 calendar.events 로 올리며 쓰기를 연다.
 
+// 판정은 services/googleScopes.js 단일 원천. 아래는 호출부 호환용 wrapper.
+const googleScopes = require('./googleScopes');
+
 const CALENDAR_WRITE_SCOPES = [
   'https://www.googleapis.com/auth/calendar.events',
   'https://www.googleapis.com/auth/calendar',
@@ -84,8 +87,7 @@ const CALENDAR_WRITE_SCOPES = [
  * 두고 화면이 "다시 연결" 을 안내한다. 강제 해제하면 멀쩡한 읽기까지 잃는다.
  */
 function hasCalendarWrite(conn) {
-  const granted = String((conn && conn.scope) || '').split(/\s+/).filter(Boolean);
-  return CALENDAR_WRITE_SCOPES.some((s) => granted.includes(s));
+  return googleScopes.hasRequired('google_calendar', conn && conn.scope);
 }
 
 // PlanQ 원본 표식 — 되돌아온 자기 일정을 overlay 에 중복으로 그리지 않기 위해 반드시 붙인다.

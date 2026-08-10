@@ -25,13 +25,16 @@ const SCOPES = [
 // 구글 동의 화면은 항목별 체크박스라, 사용자가 캘린더 항목을 체크하지 않아도 code 는 발급된다.
 // granted scope 검사 없이 저장하면 화면에는 "연동 완료" 로 뜨지만 이후 모든 push 가
 // 403 insufficientPermissions 로 죽는다 (2026-07-27 운영 사고 — 03:41 재연결이 openid email 만 받음).
+// 판정은 services/googleScopes.js 단일 원천으로 위임한다. 같은 scope 목록이 여기와
+// personalCalendar.js 두 벌로 있어, 한쪽만 고치면 팀 경로와 개인 경로가 다르게 판정됐다.
+// 아래 상수·함수는 호출부 호환을 위한 얇은 wrapper 로만 남긴다.
+const googleScopes = require('./googleScopes');
+
 const CALENDAR_WRITE_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
 const CALENDAR_FULL_SCOPE = 'https://www.googleapis.com/auth/calendar';
 
 function hasWriteScope(scopeStr) {
-  if (!scopeStr) return false;
-  const granted = String(scopeStr).split(/\s+/).filter(Boolean);
-  return granted.includes(CALENDAR_WRITE_SCOPE) || granted.includes(CALENDAR_FULL_SCOPE);
+  return googleScopes.hasRequired('gcal', scopeStr);
 }
 
 // ── 종일 일정 날짜 변환 (팀·개인 경로 공용 단일 원천) ──────────────────────────
