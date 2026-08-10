@@ -142,7 +142,23 @@ Fable 이 별도 클론에서 실복구까지 확인. `origin/main` 은 `c4362a3
 
 ---
 
-## 🚀 미배포 스택 (전부 `/배포` 대기)
+## 🚀 배포 완료 — 2026-08-10 18:02 UTC (commit `cc35d8f`)
+
+**9커밋 배포 완료.** `519d183`(운영 신고 5건) ~ `cc35d8f`(docs) 전부 운영 반영.
+- 백업: 운영 `/opt/planq/backups/20260810_175853` (롤백은 `backend.tar.gz` 풀고 `pm2 reload`)
+- 반영 3점 검증: PM2 prod 3프로세스 uptime 30s 재기동 · `frontend-build/index.html` 18:02 + 412 asset · `https://planq.kr/api/health` 200 (`node_env=production`)
+- **★ `DEPLOY_EXIT=1` 은 부수 신호다** — `Deployment Complete (237s)` + verify 전항목 OK. 종료코드만 보고 실패로 읽지 말 것.
+- **마이그레이션 2건은 `sync-database.js` 가 이미 처리했다** — 배포 후 수동 실행 시 둘 다 "이미 존재 — skip".
+  `posts.created_at/updated_at = datetime(3)` 실측 확인 (Fable H-1 조건 충족). Fable 의 사전 실측(초 정밀도)은 배포 전 시점이라 맞았다.
+- **청크 B 메일 백필 `--apply` 실행 완료** — 운영 970 스레드 중 **10건 재분류**, 답변필요 해제는 **0건**(놓치는 메일 없음).
+  DB 실측 확인: #375·#1273 `reply_needed=1 triage=human`(학생 문의·지원 요청), Apple Developer 4건 + 대한항공 `status=uncertain`(확인 권장), LinkedIn `marketing`. 전체 `reply_needed=true` 5건.
+
+**★ 배포 후 즉시 해야 할 것 (Irene):** 운영에서 Google 캘린더 **재연결 + 동의 화면의 캘린더 체크박스 클릭**.
+지금 운영 토큰은 `[userinfo.email openid]` 뿐이라 Meet 링크 발급·일정 반영이 여전히 불가하다. 그 뒤 심사 동영상 촬영.
+
+---
+
+## (배포 완료된 옛 스택 기록)
 
 ```
 519d183 운영 신고 5건 → 33c2f13 죽은 SPA 링크·Google 스코프·OAuth 관측성
