@@ -1,71 +1,14 @@
 // 외부 클라우드 (Google Drive) OAuth + 연동 관리 라우트
 const express = require('express');
 const router = express.Router();
-const { BusinessCloudToken, Business, User } = require('../models');
+// Business 는 콜백 전용이 되어 cloud_oauth.js 로 옮겨갔다.
+const { BusinessCloudToken, User } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const gdrive = require('../services/gdrive');
 const gcal = require('../services/google_calendar');
-const { logOauthFailure } = require('../utils/oauthLog');
+// googleScopes · oauthLog 는 콜백 전용이라 cloud_oauth.js 로 함께 옮겼다.
 
-// 사이클 N+16-B — OAuth 콜백 팝업 자동 닫기 + COOP 차단 시 사용자 친화 안내.
-// 옛 버전: 300ms 후 postMessage + 사용자가 직접 "닫기" 클릭 → 일부 브라우저(Chrome/Safari)가
-// Cross-Origin-Opener-Policy 로 window.close() 차단 → 닫기 안 됨.
-// 새 버전:
-//   1) 즉시 postMessage (부모가 상태 갱신)
-//   2) 800ms 뒤 자동 window.close() 시도
-//   3) 1.5s 후에도 살아있으면 안내 화면 ("이 창을 닫으셔도 됩니다") 로 교체
-function buildCallbackHtml({ provider, ok, title, body }) {
-  // provider: 'gdrive' | 'gcal' (postMessage type 분기)
-  const messageType = provider === 'gcal' ? 'gcal:connected' : 'gdrive:connected';
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>
-<style>
-  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#F8FAFC;color:#0F172A;}
-  .box{background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:28px 32px;max-width:420px;text-align:center;box-shadow:0 4px 12px rgba(15,23,42,0.06);}
-  h2{margin:0 0 10px;font-size:18px;color:${ok ? '#0F766E' : '#DC2626'};}
-  p{margin:0 0 16px;font-size:13px;color:#475569;line-height:1.55;}
-  button{height:36px;padding:0 18px;background:#14B8A6;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;}
-  button:hover{background:#0D9488;}
-  .hint{font-size:11.5px;color:#94A3B8;margin-top:6px;}
-  #fallback{display:none;}
-</style></head>
-<body>
-  <div class="box" id="primary">
-    ${body}
-    <button type="button" id="closeBtn">닫기</button>
-    <div class="hint">잠시 후 자동으로 닫힙니다…</div>
-  </div>
-  <div class="box" id="fallback">
-    <h2 style="color:#0F766E;">✓ 완료</h2>
-    <p>이 창을 닫으셔도 됩니다.<br/>브라우저 보안 정책으로 자동 닫기가 막힌 환경입니다.</p>
-  </div>
-  <script>
-    (function(){
-      var TYPE = ${JSON.stringify(messageType)};
-      var OK = ${ok ? 'true' : 'false'};
-      // #224 — 팝업이 accounts.google.com 을 경유하면서 COOP 로 **opener 가 끊긴다.**
-      //   그 결과 (a) postMessage 가 조용히 실패하고 (b) 자기 window.close() 도 거부돼
-      //   "완료 화면에서 창이 영영 안 닫히는" 회귀가 났다(사용자 보고).
-      //   opener 에 의존하지 않는 동일 출처 채널(BroadcastChannel + localStorage)로 완료를 알리고,
-      //   **팝업 핸들을 쥐고 있는 부모가 대신 닫게** 한다. 자기 close 는 되면 좋은 보조 경로로만 둔다.
-      var payload = { type: TYPE, ok: OK, ts: Date.now() };
-      try { var bc = new BroadcastChannel('planq:oauth'); bc.postMessage(payload); bc.close(); } catch(e){}
-      try { localStorage.setItem('planq:oauth:done', JSON.stringify(payload)); } catch(e){}
-      try { window.opener && window.opener.postMessage(payload, '*'); } catch(e){}
-
-      var tryClose = function(){ try { window.close(); } catch(e){} };
-      document.getElementById('closeBtn').addEventListener('click', tryClose);
-      setTimeout(tryClose, 600);
-      // 그래도 살아있으면(=COOP 로 close 거부) 안내 화면으로 교체. 부모의 close 가 이 사이에 먼저 성공하면 이 코드는 실행되지 않는다.
-      setTimeout(function(){
-        var p = document.getElementById('primary');
-        var f = document.getElementById('fallback');
-        if (p && f) { p.style.display = 'none'; f.style.display = 'block'; }
-      }, 1500);
-    })();
-  </script>
-</body></html>`;
-}
 
 // ─── 구성 상태 ───
 router.get('/providers', authenticateToken, async (req, res, next) => {
@@ -126,97 +69,9 @@ router.post('/connect/gdrive/:businessId', authenticateToken, checkBusinessAcces
 
 // ─── OAuth 콜백 ───
 // Google 이 이 엔드포인트로 리디렉트. state 로 사용자 복원.
-router.get('/callback/gdrive', async (req, res) => {
-  const { code, state, error: oauthError } = req.query;
-  const ok = (title, body) => buildCallbackHtml({ provider: 'gdrive', ok: !title.includes('실패'), title, body });
-
-  if (oauthError) {
-    logOauthFailure('gdrive callback', 'oauth_denied', { error: oauthError });
-    return res.status(400).send(ok('연동 실패', `<h2>연동 실패</h2><p>Google 에서 거부됨: ${oauthError}</p>`));
-  }
-  if (!code || !state) {
-    logOauthFailure('gdrive callback', 'missing_code_or_state');
-    return res.status(400).send(ok('연동 실패', '<h2>연동 실패</h2><p>잘못된 요청</p>'));
-  }
-
-  const parsed = gdrive.parseState(state);
-  if (!parsed) {
-    logOauthFailure('gdrive callback', 'bad_state');
-    return res.status(400).send(ok('연동 실패', '<h2>연동 실패</h2><p>state 검증 실패</p>'));
-  }
-
-  try {
-    // 토큰 교환
-    const { tokens, accountEmail } = await gdrive.exchangeCodeForTokens(code);
-
-    // 기존 연동 있으면 업데이트, 없으면 생성
-    const [record] = await BusinessCloudToken.findOrCreate({
-      where: { business_id: parsed.businessId, provider: 'gdrive' },
-      defaults: {
-        business_id: parsed.businessId,
-        provider: 'gdrive',
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
-        expires_at: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
-        scope: tokens.scope,
-        account_email: accountEmail,
-        connected_by: parsed.userId,
-        connected_at: new Date()
-      }
-    });
-    // 기존 레코드면 갱신
-    record.access_token = tokens.access_token;
-    if (tokens.refresh_token) record.refresh_token = tokens.refresh_token;
-    record.expires_at = tokens.expiry_date ? new Date(tokens.expiry_date) : null;
-    record.scope = tokens.scope || record.scope;
-    record.account_email = accountEmail || record.account_email;
-    record.connected_by = parsed.userId;
-    record.connected_at = new Date();
-
-    // 루트 폴더 확보 (없으면)
-    // 사이클 N+19 hotfix — disconnect→reconnect 시 Drive 에 옛 "PlanQ - {bizName}" 폴더가
-    // 남아 있으면 그것을 재사용. drive.file scope 라 PlanQ 가 직접 만든 폴더만 검색 가능.
-    // 같은 이름 폴더 2개 이상이면 createdTime ASC 첫 번째 (가장 오래된 — 진짜 옛 폴더).
-    if (!record.root_folder_id) {
-      const biz = await Business.findByPk(parsed.businessId);
-      const bizName = biz ? biz.name : 'workspace';
-      const targetName = `PlanQ - ${bizName}`;
-      const drive = await gdrive.getDriveClient(record);
-      let folderId = null;
-      try {
-        const list = await drive.files.list({
-          q: `name='${targetName.replace(/'/g, "\\'")}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-          fields: 'files(id, name, createdTime)',
-          orderBy: 'createdTime',
-          pageSize: 1,
-        });
-        if (list.data.files && list.data.files.length > 0) {
-          folderId = list.data.files[0].id;
-          console.log('[gdrive callback] reusing existing root folder for biz=' + parsed.businessId + ' folder=' + folderId);
-        }
-      } catch (e) {
-        console.warn('[gdrive callback] root folder search failed:', e.message);
-      }
-      if (!folderId) {
-        const root = await gdrive.createRootFolder(drive, bizName);
-        folderId = root.id;
-      }
-      record.root_folder_id = folderId;
-    }
-    await record.save();
-
-    return res.send(buildCallbackHtml({
-      provider: 'gdrive', ok: true, title: '연동 완료',
-      body: `<h2>Google Drive 연동 완료</h2><p>계정: <strong>${accountEmail || '(확인 불가)'}</strong><br/>루트 폴더 생성됨.</p>`,
-    }));
-  } catch (e) {
-    console.error('[gdrive callback]', e);
-    return res.status(500).send(buildCallbackHtml({
-      provider: 'gdrive', ok: false, title: '연동 실패',
-      body: `<h2>연동 실패</h2><p>${e.message || '서버 오류'}</p>`,
-    }));
-  }
-});
+//   콜백 본문은 routes/cloud_oauth.js 로 절출했다 (cloud.js 가 라우트 500줄 한도 초과).
+//   여기서 use() 하므로 마운트 경로·라우트 순서는 절출 전과 동일하다.
+router.use(require('./cloud_oauth'));
 
 // ─── Google Calendar OAuth 시작 (Google Meet 자동 생성용) ───
 // 사이클 N+13: Daily.co 완전 교체. 워크스페이스 owner 가 Google 계정 1개 OAuth →
@@ -229,77 +84,6 @@ router.post('/connect/gcal/:businessId', authenticateToken, checkBusinessAccess,
   } catch (error) { next(error); }
 });
 
-router.get('/callback/gcal', async (req, res) => {
-  const { code, state, error: oauthError } = req.query;
-  const ok = (title, body) => buildCallbackHtml({ provider: 'gcal', ok: !title.includes('실패'), title, body });
-
-  if (oauthError) {
-    logOauthFailure('gcal callback', 'oauth_denied', { error: oauthError });
-    return res.status(400).send(ok('연동 실패', `<h2>연동 실패</h2><p>Google 에서 거부됨: ${oauthError}</p>`));
-  }
-  if (!code || !state) {
-    logOauthFailure('gcal callback', 'missing_code_or_state');
-    return res.status(400).send(ok('연동 실패', '<h2>연동 실패</h2><p>잘못된 요청</p>'));
-  }
-  const parsed = gcal.parseState(state);
-  if (!parsed) {
-    logOauthFailure('gcal callback', 'bad_state');
-    return res.status(400).send(ok('연동 실패', '<h2>연동 실패</h2><p>state 검증 실패</p>'));
-  }
-
-  try {
-    const { tokens, accountEmail } = await gcal.exchangeCodeForTokens(code);
-
-    // 동의 화면에서 캘린더 항목 체크박스를 해제한 채 승인해도 code 는 정상 발급된다.
-    // 이때 저장해 버리면 "연동 완료" 로 보이지만 이후 모든 push 가 403 으로 죽는다
-    // (2026-07-27 운영 사고). 쓰기 권한 없는 토큰은 저장하지 않고 재연결을 요구한다.
-    if (!gcal.hasWriteScope(tokens.scope)) {
-      logOauthFailure('gcal callback', 'scope_missing_write', {
-        businessId: parsed.businessId, userId: parsed.userId, scope: tokens.scope || '(none)',
-      });
-      return res.status(400).send(buildCallbackHtml({
-        provider: 'gcal', ok: false, title: '연동 실패',
-        body: '<h2>캘린더 권한이 필요합니다</h2><p>Google 동의 화면에서 <strong>"Google 캘린더의 캘린더를 사용하여 이벤트 보기 및 수정"</strong> 항목이 체크되지 않았습니다.<br/>다시 연결하면서 해당 항목을 <strong>체크</strong>해 주세요.</p>',
-      }));
-    }
-
-    const [record] = await BusinessCloudToken.findOrCreate({
-      where: { business_id: parsed.businessId, provider: 'gcal' },
-      defaults: {
-        business_id: parsed.businessId,
-        provider: 'gcal',
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
-        expires_at: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
-        scope: tokens.scope,
-        account_email: accountEmail,
-        connected_by: parsed.userId,
-        connected_at: new Date(),
-      },
-    });
-    record.access_token = tokens.access_token;
-    if (tokens.refresh_token) record.refresh_token = tokens.refresh_token;
-    record.expires_at = tokens.expiry_date ? new Date(tokens.expiry_date) : null;
-    record.scope = tokens.scope || record.scope;
-    record.account_email = accountEmail || record.account_email;
-    record.connected_by = parsed.userId;
-    record.connected_at = new Date();
-    record.last_error = null;          // 재연결 성공 — 옛 오류 배지 해제
-    record.last_error_at = null;
-    await record.save();
-
-    return res.send(buildCallbackHtml({
-      provider: 'gcal', ok: true, title: '연동 완료',
-      body: `<h2>Google Calendar 연동 완료</h2><p>계정: <strong>${accountEmail || '(확인 불가)'}</strong><br/>화상회의 시 Google Meet 링크가 자동으로 만들어집니다.</p>`,
-    }));
-  } catch (e) {
-    console.error('[gcal callback]', e);
-    return res.status(500).send(buildCallbackHtml({
-      provider: 'gcal', ok: false, title: '연동 실패',
-      body: `<h2>연동 실패</h2><p>${e.message || '서버 오류'}</p>`,
-    }));
-  }
-});
 
 // ─── 연동 해제 ───
 // ─── 동기화 on/off — 연결은 유지한 채 밀어넣기만 멈춘다 (Irene 요구 2026-07-27) ───

@@ -19,6 +19,7 @@ const {
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const personalOauth = require('../services/personalOauth');
+const googleScopes = require('../services/googleScopes');
 const personalCalendar = require('../services/personalCalendar');
 const personalDrive = require('../services/personalDrive');
 const { encrypt } = require('../services/encryption');
@@ -267,6 +268,25 @@ router.get('/me/oauth/google/callback', async (req, res) => {
     const { tokens, email, name, sub } = await personalOauth.exchangeCodeForTokens(code);
     if (!email) return fail('Google 계정 이메일을 확인할 수 없습니다', 'no_email_in_token');
 
+    // ── 승인 스코프 가드 (2026-08-10) ──────────────────────────────────────────
+    // 구글 동의 화면은 항목별 체크박스라, 사용자가 캘린더/Drive/메일 항목을 체크하지 않아도
+    // code 는 정상 발급된다. 그대로 저장하면 화면은 "연동 완료" 인데 이후 모든 호출이 403 이다
+    // (2026-07-27 워크스페이스 캘린더 사고 — 나흘간 아무도 몰랐다).
+    //
+    // ★ 이 검사는 **모든 쓰기보다 먼저** 있어야 하고, 실패 시 **기존 row 를 일절 건드리지 않고**
+    //   리턴해야 한다. 재동의 실패가 동작 중이던 옛 연결을 덮으면 그게 새로운 사고가 된다.
+    // ★ fail() 경유 필수 — 네이티브 앱 복귀와 실패 로깅이 그 안에 있다.
+    if (!googleScopes.hasRequired(parsed.provider, tokens.scope)) {
+      // ★ 키 이름은 반드시 `scope` — oauthLog 의 ALLOWED 화이트리스트에 없는 키는 **조용히 필터**된다.
+      //   (`granted_scope` 로 뒀다가 게이트에서 잡혔다 — 조용한 실패를 없애려던 로그가 조용히 죽어 있었다.)
+      logCtx.scope = tokens.scope || '(none)';
+      return fail(
+        `Google 화면에서 "${googleScopes.providerLabel(parsed.provider)}" 항목이 체크되지 않아 연결하지 못했습니다. `
+        + '다시 연결하면서 해당 항목을 체크해 주세요.',
+        'scope_missing_required',
+      );
+    }
+
     // ── Gmail 은 EmailAccount (Q Mail M1 파이프라인) 로 저장 — 기존 IMAP cron 재사용 + owner_user_id 격리 ──
     if (parsed.provider === 'gmail') {
       const acctFields = {
@@ -277,7 +297,10 @@ router.get('/me/oauth/google/callback', async (req, res) => {
         auth_type: 'google_oauth',
         oauth_access_token_encrypted: tokens.access_token ? encrypt(tokens.access_token) : null,
         oauth_expires_at: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
-        oauth_scope: tokens.scope || personalOauth.PROVIDER_SCOPES.gmail.join(' '),
+        // ★ 폴백 금지 — 여기 있던 `|| PROVIDER_SCOPES.gmail.join(' ')` 은 **우리가 요청한 목록**을
+        //   승인 기록으로 위조했다. 요청 목록은 승인 기록이 아니다. 위 가드가 통과했으므로
+        //   tokens.scope 는 반드시 존재한다(빈 값이면 hasRequired 가 fail-closed 로 막는다).
+        oauth_scope: tokens.scope,
         imap_host: 'imap.gmail.com',
         imap_port: 993,
         imap_username: email,
@@ -307,13 +330,14 @@ router.get('/me/oauth/google/callback', async (req, res) => {
       }));
     }
 
-    const scopeList = personalOauth.PROVIDER_SCOPES[parsed.provider].join(' ');
     const baseFields = {
       auth_type: 'oauth',
       account_email: email,
       account_name: name || null,
       account_external_id: sub || null,
-      scope: tokens.scope || scopeList,
+      // ★ 폴백 금지 — 위 gmail 분기와 같은 이유. `|| scopeList` 는 요청 목록을 승인으로 위조했고,
+      //   hasCalendarWrite 가 그 거짓말을 읽어 "쓰기 가능" 이라 답했다.
+      scope: tokens.scope,
       access_token_encrypted: tokens.access_token ? encrypt(tokens.access_token) : null,
       expires_at: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
       is_active: true,
