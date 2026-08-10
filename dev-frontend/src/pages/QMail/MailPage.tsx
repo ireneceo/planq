@@ -32,13 +32,13 @@ import PanelResizeHandle, { usePanelWidth } from '../../components/Layout/PanelR
 import EmptyState from '../../components/Common/EmptyState';
 import { sanitizeMailHtml } from '../../utils/sanitizeHtml';
 import AiActionButton from '../../components/Common/AiActionButton';
+import ComposeAiRow from './ComposeAiRow';
 import FloatingPanelToggle from '../../components/Common/FloatingPanelToggle';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import {
   AcctFilterRow,
   AcctSelectWrap,
   AddLabelChip,
-  AiGatedHint,
   AiInstructionRow,
   AiInstructionInput,
   AiInstructionHint,
@@ -136,6 +136,7 @@ import {
   ThreadSubject,
   ThreadTime,
   UncertainBadge,
+  ReplyNeededBadge,
   SentTag,
   TransBar,
   TransSelect,
@@ -1324,6 +1325,7 @@ const MailPage: React.FC = () => {
   // 사용자가 컴포저를 실제로 편집했다 — 이 시점부터 자동저장이 정상 동작한다.
   const markComposeTouched = () => { composeVoiceUntouched.current = false; };
 
+
   const closeCompose = () => {
     setComposeOpen(false); setCTo(''); setCSubject(''); setCBody(''); setCUploads([]); setCFileIds([]); setCError(null);
     setFwdFromMsgId(null); setFwdAttachCount(0);
@@ -1654,12 +1656,20 @@ const MailPage: React.FC = () => {
                       </FollowUpChip>
                     )
                   )}
-                  {/* 검토 권장 뱃지는 처리 버튼과 같은 줄에 둔다 — 따로 두면 빈 줄이 생기고 행이 길어진다.
+                  {/* 확인 권장 뱃지는 처리 버튼과 같은 줄에 둔다 — 따로 두면 빈 줄이 생기고 행이 길어진다.
                       확인 권장 폴더가 아닐 때만 단독 표시(그 폴더에선 아래 처리 줄에 함께 나온다). */}
                   {mt.status === 'uncertain' && folder !== 'uncertain' && (
                     <UncertainBadge>
-                      ⚠ {t(`uncertain.${mt.uncertain_reason || 'review'}`, { defaultValue: t('uncertain.review', { defaultValue: '검토 권장' }) }) as string}
+                      ⚠ {t(`uncertain.${mt.uncertain_reason || 'review'}`, { defaultValue: t('uncertain.review', { defaultValue: '확인 권장' }) }) as string}
                     </UncertainBadge>
+                  )}
+                  {/* #221 — 답변 필요도 표시한다. 여태 확인 권장만 뱃지가 있어서 다른 탭에서는
+                      그 메일이 답변 대기 중인지 알 수 없었다. 답변 필요 폴더 안에서는 아래 처리 줄이
+                      이미 그 맥락을 주므로 중복 표시하지 않는다 (확인 권장 뱃지와 같은 규칙). */}
+                  {mt.reply_needed && folder !== 'reply_needed' && (
+                    <ReplyNeededBadge>
+                      {t('replyNeededBadge', { defaultValue: '답변 필요' }) as string}
+                    </ReplyNeededBadge>
                   )}
                   {/* 학습된 규칙으로 자동 분류된 메일임을 밝힌다 — 사용자 모르게 걸러지면 안 된다.
                       규칙은 설정 > 메일 계정 > 메일 분류 규칙에서 확인·삭제할 수 있다. */}
@@ -1708,7 +1718,7 @@ const MailPage: React.FC = () => {
                     <ReplyRow>
                       {mt.status === 'uncertain' && (
                         <UncertainInline>
-                          ⚠ {t(`uncertain.${mt.uncertain_reason || 'review'}`, { defaultValue: t('uncertain.review', { defaultValue: '검토 권장' }) }) as string}
+                          ⚠ {t(`uncertain.${mt.uncertain_reason || 'review'}`, { defaultValue: t('uncertain.review', { defaultValue: '확인 권장' }) }) as string}
                         </UncertainInline>
                       )}
                       <RowBtn
@@ -1807,6 +1817,18 @@ const MailPage: React.FC = () => {
                   <ComposeLabel>{t('compose.subject', { defaultValue: '제목' }) as string}</ComposeLabel>
                   <ComposeInput value={cSubject} onChange={(e) => { markComposeTouched(); setCSubject(e.target.value); }} placeholder={t('compose.subjectPh', { defaultValue: '제목을 입력하세요' }) as string} />
                 </ComposeField>
+                {/* #221 — 새 메일도 AI 로 쓴다. 생성 결과에는 markComposeTouched() 를 부르지 않는다 —
+                    시스템이 채운 값이라, 사용자가 손대지 않고 닫아도 단일 초안 row 가 덮어써진다. */}
+                <ComposeAiRow
+                  businessId={businessId}
+                  to={cTo}
+                  subject={cSubject}
+                  body={cBody}
+                  isEmptyBody={isEmptyHtml(cBody)}
+                  sending={cSending}
+                  onBody={setCBody}
+                  onError={setCError}
+                />
                 <RichEditor value={cBody} onChange={(v: string) => { markComposeTouched(); setCBody(v); }} placeholder={t('compose.bodyPh', { defaultValue: '메일 내용을 입력하세요…' }) as string} />
                 {fwdFromMsgId && fwdAttachCount > 0 && (
                   <FwdAttachHint><ClipIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></ClipIcon> {t('forward.origAttach', { defaultValue: '원본 첨부 {{n}}개 포함', n: fwdAttachCount }) as string}</FwdAttachHint>
@@ -2080,7 +2102,7 @@ const MailPage: React.FC = () => {
                     )}
                     {/* #192 — 초안이 있고 AI 가 허용된 메일이면 수정 요청 입력란 노출. 지시를 넣고
                         AI 초안 다시 생성을 누르면 현재 초안을 그 지시대로 다듬는다. (원샷 생성만 되던 불편 해소) */}
-                    {replyHtml.trim() && (!detail?.triage || detail.triage === 'human' || detail.triage === 'unknown') && (
+                    {replyHtml.trim() && (
                       <AiInstructionRow>
                         <AiInstructionInput
                           value={aiInstruction}
@@ -2099,7 +2121,11 @@ const MailPage: React.FC = () => {
                       <ActionButton tone="primary" size="md" loading={sending} onClick={sendReply}>
                         {t('reply.send', { defaultValue: '보내기' }) as string}
                       </ActionButton>
-                      {(!detail?.triage || detail.triage === 'human' || detail.triage === 'unknown') ? (
+                      {/* ★ #221 — 여기에도 triage 게이트가 남아 있었다. 진입 버튼(위 ReplyBar)만 게이트를
+                          풀어놔서, 자동·마케팅으로 분류된 메일은 **첫 생성은 되는데 답장창 안에서 버튼이
+                          사라져 다시 생성할 수 없었다**. 분류는 우선순위 힌트이지 답장 가능 여부가 아니다.
+                          Irene: "모든 탭에 제대로 나와야 해. 답변을 어디서든 할 수는 있어야지." */}
+                      {(
                         <AiActionButton
                           size="md"
                           loading={aiBusy}
@@ -2112,8 +2138,6 @@ const MailPage: React.FC = () => {
                                 : t('reply.aiSuggest', { defaultValue: 'AI 답변 초안' }) as string)}
                           title={t('reply.aiHint', { defaultValue: 'AI 가 이 메일의 답장 초안을 써줍니다' }) as string}
                         />
-                      ) : (
-                        <AiGatedHint>{t('reply.aiGated', { defaultValue: '자동·마케팅 메일에는 AI 답변을 제안하지 않아요' }) as string}</AiGatedHint>
                       )}
                       <ActionButton tone="secondary" size="md" onClick={() => setReplyOpen(false)} disabled={sending}>
                         {t('reply.cancel', { defaultValue: '취소' }) as string}

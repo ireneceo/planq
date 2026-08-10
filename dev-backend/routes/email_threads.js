@@ -37,6 +37,11 @@ const { emailsOf, mergeParticipants, selfEmailsForAccount } = require('../servic
 const { isEmbedded, isNoiseAttachment, NOISE_MIMES } = require('../services/emailAttachments');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
+// #221 — LLM 라우트 3종 세트(rate-limit + plan 게이트 + 입력 캡) 중 rate-limit.
+//   `ai-suggest` 는 여태 plan 게이트(orchestrator 내부)와 입력 캡만 있고 **per-user rate-limit 이 없었다**
+//   — 사용자 1명이 연타로 LLM 비용을 태울 수 있는 상태. 신규 `ai-compose` 와 **양쪽에** 붙인다.
+const { perUserDaily } = require('../middleware/costGuard');
+const aiDraftLimiter = perUserDaily('mail-ai-draft', { perMin: 10, perDay: 200 });
 
 // 발송 rate-limit (CLAUDE.md 운영안정성 #1 — 외부발송=quota/비용 = per-user 제한).
 // 답장·새메일·전달 공용. user.id 기준(IP NAT 우회), 10분 30건.
@@ -1096,7 +1101,7 @@ router.delete('/:businessId/email-drafts',
 // POST /:biz/email-threads/:id/ai-suggest → { suggestion(html), usage }
 // ─────────────────────────────────────────────
 router.post('/:businessId/email-threads/:id/ai-suggest',
-  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'), ...aiDraftLimiter,
   async (req, res, next) => {
     try {
       const businessId = Number(req.params.businessId);
@@ -1165,6 +1170,52 @@ router.post('/:businessId/email-threads/:id/ai-suggest',
       const html = (out.content || '').trim().split(/\n{2,}/).map(p => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
 
       return successResponse(res, { suggestion: html, usage: out.usage, faq_used: faqSources.length > 0, faq_sources: faqSources });
+    } catch (err) { next(err); }
+  }
+);
+
+// ─────────────────────────────────────────────
+// #221 — **새 메일** AI 작성 (스레드 없음). Irene: "메일 작성폼, 새 메일에서도 ai로 작성할 수 있어야지"
+// POST /:biz/email-threads/ai-compose  { instruction, to?, subject?, current_draft?, language? }
+//   → { suggestion(html), usage }
+//
+//   ai-suggest 와 달리 받은 메일이 없다 — 사용자의 지시가 유일한 근거이므로 지시는 필수다.
+//   라우트 자리: 스레드 자원이 아니지만 Q Mail 권한·격리 축이 같아 이 라우터에 둔다.
+//   ★ 경로가 `email-threads/` 뒤 **한 세그먼트**라, 이 라우터의 POST 들(전부 `:id/...` 2세그먼트 이상
+//     또는 bulk-* 리터럴) 중 어느 것에도 가려지지 않는다. 나중에 `POST /:businessId/email-threads/:id`
+//     같은 한 세그먼트 라우트를 추가한다면 **그보다 위**에 있어야 한다 (Express 는 선언 순서로 매칭).
+// ─────────────────────────────────────────────
+router.post('/:businessId/email-threads/ai-compose',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'), ...aiDraftLimiter,
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      // 입력 캡 (costGuard 원칙) — 지시 1000자 / 초안은 HTML strip 후 4000자
+      const instruction = String((req.body || {}).instruction || '').trim().slice(0, 1000);
+      if (!instruction) return errorResponse(res, 'instruction_required', 400);
+      const to = String((req.body || {}).to || '').trim().slice(0, 300) || null;
+      const subject = String((req.body || {}).subject || '').trim().slice(0, 300) || null;
+      const draftRaw = (req.body || {}).current_draft;
+      const currentDraft = draftRaw
+        ? String(draftRaw).replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 4000) || null
+        : null;
+
+      const biz = await Business.findByPk(businessId, { attributes: ['id', 'name', 'brand_name', 'default_language'] });
+      // 언어는 명시 > 지시문 자체의 언어 > 워크스페이스 기본. 받은 메일이 없으므로 지시문으로 판정한다.
+      const { detectLang } = require('../services/emailBodyClean');
+      const language = (req.body || {}).language || detectLang(instruction, biz?.default_language || 'ko');
+
+      const cueOrch = require('../services/cue_orchestrator');
+      const out = await cueOrch.generateEmailComposeDraft(businessId, {
+        businessName: (biz && (biz.brand_name || biz.name)) || null,
+        instruction, to, subject, language, currentDraft,
+      });
+      if (out.error === 'usage_limit_exceeded') return errorResponse(res, 'cue_usage_limit_exceeded', 429);
+      if (out.error === 'llm_unavailable') return errorResponse(res, 'ai_unavailable', 503);
+
+      const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const html = (out.content || '').trim().split(/\n{2,}/).map(p => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
+      return successResponse(res, { suggestion: html, usage: out.usage });
     } catch (err) { next(err); }
   }
 );

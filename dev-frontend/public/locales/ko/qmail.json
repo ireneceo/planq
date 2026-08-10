@@ -188,8 +188,11 @@
   "uncertain": {
     "billing": "청구/결제 관련",
     "quote": "견적/계약 키워드",
-    "review": "검토 권장"
+    "review": "확인 권장",
+    "automated_relevant": "자동 발송 · 업무 관련",
+    "unclear_intent": "확인 권장"
   },
+  "replyNeededBadge": "답변 필요",
   "actions": {
     "markSpam": "스팸",
     "notSpam": "스팸 해제",
@@ -416,7 +419,13 @@
     "delivered": "전달됨"
   },
   "compose": {
-    "fromAddress": "보내는 주소"
+    "fromAddress": "보내는 주소",
+    "aiInstructionPlaceholder": "AI 에게 요청 (예: 미팅 일정 제안 · 견적 안내 · 정중한 거절)",
+    "aiInstructionLabel": "AI 작성 요청",
+    "aiWrite": "AI 로 작성",
+    "aiRefine": "AI 로 다듬기",
+    "aiHint": "AI 가 요청하신 내용으로 메일 본문을 써줍니다",
+    "aiInstructionRequired": "어떤 메일을 쓸지 알려 주세요."
   },
   "attachment": {
     "preview": "미리보기",

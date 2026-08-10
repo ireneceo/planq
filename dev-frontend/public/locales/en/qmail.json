@@ -188,8 +188,11 @@
   "uncertain": {
     "billing": "Billing/payment",
     "quote": "Quote/contract",
-    "review": "Review suggested"
+    "review": "Review suggested",
+    "automated_relevant": "Automated · business related",
+    "unclear_intent": "Review suggested"
   },
+  "replyNeededBadge": "Reply needed",
   "actions": {
     "markSpam": "Spam",
     "notSpam": "Not spam",
@@ -416,7 +419,13 @@
     "delivered": "Delivered"
   },
   "compose": {
-    "fromAddress": "From address"
+    "fromAddress": "From address",
+    "aiInstructionPlaceholder": "Tell AI what to write (e.g. propose a meeting · send a quote · polite decline)",
+    "aiInstructionLabel": "AI writing request",
+    "aiWrite": "Write with AI",
+    "aiRefine": "Refine with AI",
+    "aiHint": "AI writes the email body from your request",
+    "aiInstructionRequired": "Tell us what the email should say."
   },
   "attachment": {
     "preview": "Preview",

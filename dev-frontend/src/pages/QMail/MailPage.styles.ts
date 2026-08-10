@@ -341,6 +341,15 @@ export const UncertainBadge = styled.span`
   background: rgba(245, 158, 11, 0.13); color: #92400E;
   font-size: 11px; font-weight: 700;
 `;
+// #221 — 확인 권장 뱃지의 대칭. 여태 리스트에는 '확인 권장' 만 있고 '답변 필요' 표시가 없어서,
+//   다른 탭(전체·내 담당 등)에서 보면 그 메일이 답변 대기 중인지 알 수 없었다.
+//   Irene: "그리고 답변필요도 표시해줘야지." 톤만 다르고 자리·형태는 UncertainBadge 와 동일하다.
+export const ReplyNeededBadge = styled.span`
+  display: inline-flex; align-items: center; gap: 3px; align-self: flex-start;
+  margin-top: 4px; padding: 2px 8px; border-radius: 999px;
+  background: rgba(244, 63, 94, 0.12); color: #9F1239;
+  font-size: 11px; font-weight: 700;
+`;
 // #186 — '보낸' 태그 (제목 앞 인라인). 받은 메일과 즉시 구분.
 export const SentTag = styled.span`
   display: inline-flex; align-items: center; flex-shrink: 0;
@@ -620,10 +629,6 @@ export const ComposerHint = styled.div`
 `;
 // AI 답변 제안 — Coral 강조 (AI 감지/액션 컬러)
 // 자동·마케팅 메일 — AI 답변 비노출 안내 (게이트)
-export const AiGatedHint = styled.span`
-  font-size: 12px; color: #94A3B8;
-  display: inline-flex; align-items: center;
-`;
 export const Loading = styled.div`
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   padding: 60px 24px;

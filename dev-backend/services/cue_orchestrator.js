@@ -408,6 +408,39 @@ async function generateEmailReplyDraft(businessId, { businessName, subject, late
   return { content: result.content, usage: await checkUsageLimit(businessId) };
 }
 
+// #221 — **새 메일** 작성 초안 (스레드 없음). Irene: "메일 작성폼, 새 메일에서도 ai로 작성할 수 있어야지"
+//
+//   `generateEmailReplyDraft` 를 재사용하지 않는다 — 그건 "받은 메일에 답한다" 는 전제가 프롬프트에
+//   박혀 있어서(Incoming email / reply body), 스레드 없이 부르면 있지도 않은 원본 메일을 지어낸다.
+//   여기서는 사용자의 지시가 유일한 근거다.
+async function generateEmailComposeDraft(businessId, { businessName, instruction, to = null, subject = null, language = 'ko', currentDraft = null }) {
+  const usage = await checkUsageLimit(businessId);
+  if (usage.over) return { error: 'usage_limit_exceeded', usage };
+  const lang = language === 'en' ? 'English' : 'Korean';
+  let systemPrompt = `You are drafting a NEW outgoing email on behalf of "${businessName || 'our team'}". `
+    + `Write a concise, professional email body in ${lang}. `
+    + `Base it ONLY on the user's instruction — do NOT invent facts, prices, dates, commitments, or a prior conversation `
+    + `that was not described. If a detail is needed but unknown, leave a clearly marked blank like "( )" rather than making it up. `
+    + `Output ONLY the email body text — no subject line, no signature block.`;
+  if (currentDraft) {
+    systemPrompt += `\n\nThe user already has a draft. Revise it according to the instruction, keeping what still applies.`;
+  }
+  let userPrompt = '';
+  if (to) userPrompt += `Recipient: ${String(to).slice(0, 300)}\n`;
+  if (subject) userPrompt += `Subject: ${String(subject).slice(0, 300)}\n`;
+  userPrompt += `\nInstruction from the user:\n${String(instruction || '').slice(0, 1000)}\n`;
+  if (currentDraft) userPrompt += `\nCurrent draft to revise:\n\n${String(currentDraft).slice(0, 4000)}\n`;
+  userPrompt += `\nWrite the email body.`;
+
+  const result = await callLLM(MODEL_MINI, [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: userPrompt },
+  ], { temperature: 0.4, maxTokens: 600 });
+  if (result.fallback) return { error: 'llm_unavailable', fallback: true };
+  await recordUsage(businessId, 'email_compose', MODEL_MINI, result.input_tokens, result.output_tokens);
+  return { content: result.content, usage: await checkUsageLimit(businessId) };
+}
+
 // N+87 Phase C — 메일 스레드 AI 요약. on-demand. 긴 스레드를 3~5줄 핵심으로.
 //   사실만 요약(날조 금지), 결정·요청·다음 액션 위주. 워크스페이스 언어.
 async function summarizeThread(businessId, { subject, threadText, language = 'ko' }) {
@@ -432,6 +465,7 @@ module.exports = {
   generateClientSummary,
   generateDocumentDraft,
   generateEmailReplyDraft,
+  generateEmailComposeDraft,
   summarizeThread,
   checkUsageLimit,
   recordUsage,

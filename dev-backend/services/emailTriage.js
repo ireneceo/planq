@@ -6,80 +6,27 @@
 //   spam 판정은 emailSpamFilter.classify 재사용 (단일 진실원천).
 
 const { classify } = require('./emailSpamFilter');
+// 헤더 읽기·정규화는 공용 모듈 단일 원천 (#221). 인입(mailparser Map)·재판정(평문 객체) 두 경로가
+// 같은 입력으로 수렴한다 — 술어마다 Map 대응을 복붙하던 구조가 실제로 어긋났다 (services/emailHeaders.js 주석).
+const { hget, normalizeHeaders, pickTriageHeaders, TRIAGE_HEADER_KEYS } = require('./emailHeaders');
 
 // noreply / 시스템 발송 / 소셜 알림 발신자 패턴 (사람이 답장할 수 없는 주소)
 const AUTOMATED_SENDER = /(^|[._-])(no-?reply|do-?not-?reply|donotreply|noreply|mailer-daemon|mailer|postmaster|bounce[sd]?|notifications?|alerts?|automated?|auto-?confirm|support\+|system|daemon)([._-]|@)/i;
 const SOCIAL_DOMAIN = /@([^>\s]*\.)?(linkedin|facebook|fb|twitter|instagram|tiktok|youtube|pinterest|reddit|medium|slack|notion|asana|trello|atlassian|zoom|calendly|meetup|eventbrite)\.[a-z.]+/i;
 
-// mailparser headers(Map) 안전 조회 (소문자 키)
-// 헤더 읽기 — 동기화(mailparser)는 Map 을 주고, 재판정 스크립트는 평문 객체를 준다.
-//   Map 만 받으면 평문 객체에서 조용히 null 이 나와 광고 판정이 통째로 죽는다 → 둘 다 받는다.
-function hget(headers, key) {
-  if (!headers) return null;
-  try {
-    let v = null;
-    if (typeof headers.get === 'function') {
-      v = headers.get(key);
-      // mailparser 는 List-* 헤더를 'list' 키 하나로 접는다 — get('list-unsubscribe') 는 **항상 undefined**.
-      //   그래서 광고 판정의 1순위 신호(List-Unsubscribe·List-Id)가 여태 한 번도 발동한 적이 없다.
-      //   Precedence: bulk 를 붙이는 발송기만 걸렸고, List-Unsubscribe 만 붙이는 흔한 뉴스레터는
-      //   전부 그물을 빠져나갔다 (실 mailparser 출력으로 확인).
-      //   접힌 값은 객체다: { unsubscribe: {url, mail}, id: {name, id} }.
-      if (v == null && /^list-/i.test(key)) {
-        const list = headers.get('list');
-        if (list && typeof list === 'object') v = list[key.slice(5).toLowerCase()];
-      }
-    } else if (typeof headers === 'object') {
-      const lower = String(key).toLowerCase();
-      const hit = Object.keys(headers).find((k) => k.toLowerCase() === lower);
-      v = hit ? headers[hit] : null;
-    }
-    if (v == null) return null;
-    if (typeof v === 'string') return v;
-    if (typeof v === 'object') return JSON.stringify(v); // List-Unsubscribe 등은 객체로 파싱될 수 있음
-    return String(v);
-  } catch { return null; }
-}
-
-// ── 판정에 쓰는 헤더 (이것만 저장한다) ─────────────────────────────────────
-//   여태 헤더를 하나도 저장하지 않아서, 수집 시점엔 정확하던 광고·자동발송 판정이 **재판정 경로에선
-//   통째로 눈을 감았다**. 그래서 쇼핑몰 알림이 그물을 빠져나갔고 제목 패턴으로 우회할 수밖에 없었다.
-//   원문 헤더 전부가 아니라 아래 목록만 보관한다 — 판정에 안 쓰는 값까지 쌓을 이유가 없다.
-const TRIAGE_HEADER_KEYS = [
-  'list-unsubscribe', 'list-id', 'precedence',            // 대량 발송 (RFC 2369)
-  'auto-submitted', 'x-auto-response-suppress',           // 자동 발송 (RFC 3834)
-  'feedback-id', 'x-mailgun-sid', 'x-sg-eid', 'x-campaign', 'x-csa-complaints', // ESP(대량발송기)
-];
-
-/** 수집 시점 — mailparser 헤더(Map)에서 판정용 키만 골라 평문 객체로. 없으면 null (빈 객체 X:
- *  "헤더 없는 옛 메일" 과 "헤더를 봤는데 아무 신호도 없던 메일" 은 다른 상태다). */
-function pickTriageHeaders(headers) {
-  if (!headers) return null;
-  const out = {};
-  for (const k of TRIAGE_HEADER_KEYS) {
-    const v = hget(headers, k);
-    if (v != null && v !== '') out[k] = String(v).slice(0, 500);
-  }
-  return out;   // {} 도 유효한 값 — "헤더를 봤고 신호가 없었다"
-}
-
 /** 재판정 시점 — 저장된 메시지 한 통에서 판정용 헤더를 복원한다.
  *  헤더 원문(triage_headers) + 이미 컬럼으로 있던 신호(to_emails · in_reply_to · references_chain)를 합친다.
- *  to_emails 는 [{name,email}] 객체 배열이다 — 그대로 join 하면 "[object Object]" 가 되어
- *  "우리 주소로 직접 왔는가" 판정이 항상 실패한다. */
+ *  정규화는 `normalizeHeaders` 단일 원천 — 인입 경로와 **구조상 같은 객체**가 나와야 두 경로가 안 갈라진다. */
 function headersFromMessage(msg) {
   if (!msg) return { headers: {}, complete: false };
-  const toList = Array.isArray(msg.to_emails)
-    ? msg.to_emails.map((x) => (typeof x === 'string' ? x : (x && x.email) || '')).filter(Boolean)
-    : [];
   const stored = msg.triage_headers && typeof msg.triage_headers === 'object' ? msg.triage_headers : null;
   return {
-    headers: {
-      ...(stored || {}),
-      to: toList.join(', '),
-      ...(msg.in_reply_to ? { 'in-reply-to': msg.in_reply_to } : {}),
-      ...(msg.references_chain ? { references: msg.references_chain } : {}),
-    },
+    headers: normalizeHeaders({
+      headers: stored,
+      toEmails: msg.to_emails,
+      inReplyTo: msg.in_reply_to,
+      references: msg.references_chain,
+    }),
     // complete = 수집 시점과 같은 정보를 갖췄다 → triage 를 처음부터 다시 계산해도 안전하다.
     complete: !!stored,
   };
@@ -224,6 +171,38 @@ function isThreadReply(headers) {
   return !!(headers['in-reply-to'] || headers['In-Reply-To'] || headers.references || headers.References);
 }
 
+/** #221 — 회신 헤더가 **발신자가 자기 도메인으로 지어낸 것**인가.
+ *
+ *  콜드메일 발송기는 답장률을 올리려고 존재하지도 않는 대화에 In-Reply-To/References 를 달고 온다.
+ *  헤더 모양만 보면 그게 전부 "우리 대화에 대한 회신" 이 되어 답변 필요 폴더를 오염시킨다.
+ *
+ *  ★ 판별자는 "우리 DB 에 그 Message-ID 가 있는가" 가 **아니다.** 그렇게 보면 플랫폼이 SMTP 로 보낸
+ *    메일(청구서 안내 등)은 email_messages 에 없으므로, 거기에 온 **정당한 고객 회신이 강등된다**
+ *    (실측: 기율법률사무소의 INV-2026-0003 결제 회신, 링크솔루션 유지보수 회신).
+ *
+ *  진짜 지문은 **자기 참조**다 — 정상 회신은 원 메일을 만든 쪽(우리 또는 우리 메일 제공자)이 발급한
+ *  ID 를 참조하므로 발신자 도메인과 다르다. 조작된 회신은 자기 도메인 ID 를 스스로 지어낸다.
+ *  실측 대조: 정당 3건은 `@irenewp.com`·`@mx.google.com`(우리 Gmail 발송)·`@irenewp.com` /
+ *  콜드메일 2건은 `@prospectmaghub.site`·`@bestfloridabizbrokers.com` (발신자 도메인과 동일).
+ */
+function isForgedReplyRef(headers, fromEmail) {
+  const { referencedMessageIds } = require('./emailHeaders');
+  const ids = referencedMessageIds(headers);
+  if (!ids.length) return false;
+  const senderDomain = String(fromEmail || '').toLowerCase().split('@')[1];
+  if (!senderDomain) return false;
+  const domainOf = (id) => {
+    const at = String(id).toLowerCase().replace(/[<>]/g, '').split('@');
+    return at.length > 1 ? at[at.length - 1] : '';
+  };
+  // 참조된 ID 가 **전부** 발신자 자기 도메인이면 자작으로 본다.
+  //   하나라도 남의 도메인(=원 대화를 만든 쪽)을 가리키면 정상 회신이다.
+  return ids.every((id) => {
+    const d = domainOf(id);
+    return !!d && (d === senderDomain || d.endsWith('.' + senderDomain) || senderDomain.endsWith('.' + d));
+  });
+}
+
 // ── 자동 발송이어도 사람이 확인해야 하는 내용 (Irene: "자동이라고 다 빼면 어떻게 해")
 //   결제·입금·청구·증빙, 보고서, 우리 시스템이 보내는 업무 안내, 계약·서명, 장애·보안 공지 등.
 //   발신 방식(자동)이 아니라 **내용**으로 판단한다 → 확인 권장(uncertain)으로 올린다.
@@ -244,6 +223,14 @@ const BUSINESS_RELEVANT = new RegExp([
   // 계정·운영 사고
   '서비스\\s*(장애|중단)', '보안\\s*(경고|사고|알림)', '개인정보\\s*유출', '비밀번호\\s*(재설정|변경)',
   '\\b(account|password|certificate|domain|card) (expir|suspend)', '\\bsecurity alert\\b', '\\bincident\\b',
+  // #221 — **내가 움직여야 완료되는** 자동 메일. 돈이 오간 것도 사고도 아니라서 위 어느 범주에도
+  //   안 걸렸고, 그래서 Apple Developer 등록 안내("등록 절차를 완료하려면 로그인…")가 자동·마케팅
+  //   폴더에 묻혔다 — Irene: "무조건 확인해야 하는데 확인권장에 안 들어와서 업무 미스 했어."
+  //   답장할 상대는 없으니 답변 필요가 아니라 **확인 권장**까지만 올린다.
+  '등록\\s*(요청|절차|신청|승인)', '가입\\s*(승인|완료|신청)', '멤버십', '승인\\s*(요청|되었|완료)',
+  '(계속|이어서)\\s*진행', '완료하려면', '조치가?\\s*필요', '확인이\\s*필요',
+  '\\benrollment\\b', '\\bmembership\\b', '\\bcomplete your\\b', '\\baction (required|needed)\\b',
+  '\\bcontinue your\\b', '\\bpending (approval|review|action)\\b',
 ].join('|'), 'i');
 
 // 우리 플랫폼이 보낸 알림인가 (PlanQ 업무 안내·컨펌 요청 등) — 자동 발송이지만 우리 일 그 자체다
@@ -279,8 +266,9 @@ function needsReply({ subject, bodyText, fromEmail, headers, ownEmails, isKnownC
   if (isMarketing(headers, subject) || isBulkBody(bodyText)) return false;               // 대량 발송·법정 광고 표기
   if (isTransactionalNotice(subject)) return false;                                      // 주문·배송·결제 알림
 
-  // ① 우리 대화에 온 회신 — 여기까지 왔으면 사람이 쓴 회신이다 (반송·알림은 위에서 빠졌다)
-  if (isThreadReply(headers)) return true;
+  // ① 우리 대화에 온 회신 — 여기까지 왔으면 사람이 쓴 회신이다 (반송·알림은 위에서 빠졌다).
+  //    단 **발신자가 자기 도메인으로 지어낸 회신 헤더**는 제외한다 (콜드메일 위장).
+  if (isThreadReply(headers) && !isForgedReplyRef(headers, fromEmail)) return true;
 
   if (isAutomated(headers, fromEmail, ownEmails)) return false;                          // 자동 발송
 
@@ -315,6 +303,11 @@ const TRANSACTIONAL_NOTICE = new RegExp([
   'out for delivery', 'on the way', 'tracking (number|code)',
   'payment (has been )?(confirmed|received|successful)',
   '주문(이)? (완료|접수|확인)', '배송(이)? (완료|시작|출발)', '결제(가)? (완료|확인)', '발송(이)? (완료|시작)',
+  // #221 — 규칙 ④(우리 주소로 직접 + 물음표)가 살아나면서 새로 노출된 오탐 계열.
+  //   "안내드립니다…변경하시겠습니까?" 처럼 상투적 물음표를 단 통지가 답변 필요로 올라왔다.
+  //   답장할 상대가 없는 통지이므로 여기서 막고 확인 권장으로 보낸다 (내용은 여전히 볼 가치가 있다).
+  '주문\\s*승인', '\\border acknowledgment\\b',
+  '운항\\s*(변경|취소|지연)', '\\bflight status change\\b', '\\bschedule change\\b',
 ].join('|'), 'i');
 
 function isTransactionalNotice(subject) {
@@ -484,8 +477,10 @@ function threadFieldsForInbound({ isNew, thread, tr, replyNeeded, ruleReason, me
 }
 
 module.exports = {
+  // 헤더 유틸은 emailHeaders 단일 원천 — 기존 호출부 호환을 위해 여기서도 그대로 내보낸다.
   TRIAGE_HEADER_KEYS,
   pickTriageHeaders,
+  normalizeHeaders,
   headersFromMessage,
   isBounce,
   isTransactionalNotice,
@@ -500,4 +495,5 @@ module.exports = {
   hasStrongRequest,
   isAddressedToUs,
   isThreadReply,
+  isForgedReplyRef,
   buildOwnEmailSet, triageInbound, triageBySenderOnly, isMarketing, isAutomated };
