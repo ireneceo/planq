@@ -172,6 +172,7 @@ async function isKnownContact(businessId, fromEmail) {
   }
 }
 
+
 // 첨부를 PlanQ File 로 저장. 반환 = file.id (저장 안 함이면 null).
 //
 // #215-F — **개인 메일 계정의 첨부는 L1(본인만)** 이다.
@@ -440,7 +441,18 @@ async function syncOne(account, opts = {}) {
           const { triageInbound } = require('./emailTriage');
           const { applyRules } = require('./mailSenderRules');
           const known = await isKnownContact(account.business_id, fromEmail);
-          const base = triageInbound({ subject: parsed.subject, bodyText: parsed.text, fromEmail, headers: parsed.headers, ownEmails, isKnownContact: known });
+          // ★ #221 — 여태 mailparser 의 **Map** 을 그대로 넘겼다. 대부분 술어는 Map 을 읽지만
+          //   `isAddressedToUs`·`isThreadReply` 는 직접 프로퍼티 접근이라 Map 에서 **항상 false** 였고,
+          //   그 결과 수집 시점에 "우리 주소로 직접 왔는가"·"우리 대화에 대한 회신인가" 판정이
+          //   영구 미발동했다(실측 22 스레드, 그중 11건이 사용자에게 안 보임). 재판정 경로와 같은
+          //   평문 객체로 정규화해 넘긴다 — 이제 두 경로의 입력이 구조상 같다.
+          const trHeaders = require('./emailTriage').normalizeHeaders({
+            headers: parsed.headers,
+            toEmails,
+            inReplyTo: parsed.inReplyTo,
+            references: parsed.references,
+          });
+          const base = triageInbound({ subject: parsed.subject, bodyText: parsed.text, fromEmail, headers: trHeaders, ownEmails, isKnownContact: known });
           // 학습된 발신자 규칙이 휴리스틱보다 우선한다 (사용자가 직접 알려준 정답).
           //   규칙은 분류만 바꾼다 — 원본 메일은 그대로라 규칙 삭제 시 즉시 원상복구.
           const tr = await applyRules(account.business_id, fromEmail, base);

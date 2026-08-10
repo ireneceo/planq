@@ -12,15 +12,21 @@ const QUOTE_PATTERNS = [/견적|estimate|\bquote\b|quotation/i, /계약|contract
 const BILLING_PATTERNS = [/청구|invoice|결제|payment|세금계산서|영수증|receipt/i];
 
 // mailparser headers(Map)에서 spam 점수 추출 (외부 mail server 가 SpamAssassin 등으로 채움)
+// ★ #221 — 여기는 원래 `typeof headers.get !== 'function'` 이면 즉시 null 을 반환하는 **Map 전용**이었다.
+//   그래서 재판정 경로(평문 객체)에선 외부 스팸 점수가 통째로 죽고 자체 규칙 점수만 남았다.
+//   인입 경로까지 평문 객체로 정규화하면서 이 신호가 살아 있는 마지막 경로마저 사라질 뻔했다
+//   → 공용 `hget` 으로 Map·객체 양쪽을 읽는다. (x-spam-* 키는 TRIAGE_HEADER_KEYS 에 함께 보관한다.)
+const { hget } = require('./emailHeaders');
+
 function headerSpamScore(headers) {
-  if (!headers || typeof headers.get !== 'function') return null;
+  if (!headers) return null;
   try {
-    const raw = headers.get('x-spam-score') || headers.get('x-spamd-bar') || headers.get('x-spam-status');
+    const raw = hget(headers, 'x-spam-score') || hget(headers, 'x-spamd-bar') || hget(headers, 'x-spam-status');
     if (raw) {
       const mm = String(raw).match(/-?\d+\.?\d*/);
       if (mm) { const n = parseFloat(mm[0]); if (!Number.isNaN(n)) return n; }
     }
-    const flag = headers.get('x-spam-flag');
+    const flag = hget(headers, 'x-spam-flag');
     if (flag && /yes/i.test(String(flag))) return 6.0;
   } catch { /* ignore */ }
   return null;
