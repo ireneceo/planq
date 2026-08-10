@@ -1,8 +1,8 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-08-10 08:00 UTC (Opus 5, 1M)
-**작업 상태:** 청크 A·B 게이트 PASS · **청크 C 는 커밋됐으나 Fable 구현게이트 진행 중(판정 미도착)** · 전부 미배포
+**마지막 업데이트:** 2026-08-10 18:00 UTC (Opus 5, 1M)
+**작업 상태:** **청크 A·B·C 게이트 전부 PASS** · 전부 미배포 · **`/배포` 대기 중 (Google 심사 선행조건)**
 
 > ## ⚠️ 이 파일이 낡으면 Fable 이 오판한다
 > 지난 세션에서 Fable 이 옛 내용을 읽고 잘못 판정한 전례가 있다. 청크를 끝낼 때마다 갱신할 것.
@@ -17,15 +17,85 @@
 
 ---
 
-## 🟡 진행 중 — 청크 C Fable 구현게이트 (판정 대기)
+## ✅ 청크 C — #217(b) 증빙 발행·정정 알림 메일 (Fable 구현게이트 **PASS**, 2026-08-10 18:00)
 
-**커밋 `6724a98`.** 게이트 결과가 안 왔다. **PASS 확인 전까지 완료로 취급 금지.**
-게이트에 특히 물어둔 것: ①화면 주소 == 실제 발송 주소 ②게이트가 팀 알림을 죽이지 않는가
-③5경로 전수(Opus 는 단건 2경로만 실측, 회차 2 + 정정 1 은 코드로만) ④조건 7 회귀
-⑤커밋본 단독 빌드(worktree) ⑥실발송 0 증명. 반증 2건도 요구했다.
+**커밋 `6724a98`.** 9항목 전부 통과.
+- **5경로 전수 실HTTP 15회** — 발행 4(회차/단건 × 세금계산서/현금영수증) + 정정 1.
+  기본(미전달) `+1` / `notify_customer:false` `0` / `true` `+1` — 5×3 매트릭스 전부 기대대로.
+- **화면 주소 == 발송 주소** — `receipts-due` 응답의 `receipt_notify_email` 과 `email_logs.to_email` 완전 일치.
+- **게이트가 팀 알림을 안 죽인다** — false 일 때도 notifications +3 · bill_events +1 그대로, 고객 메일만 0.
+- **실발송 0** — `EMAIL_SENDING_ENABLED=false`, `emailService.js:352` 가 sendMail **이전** early-return + `status:'skipped'`.
+- **커밋본 worktree 단독 빌드 EXIT=0** (별도 파일 박제), `error TS` 0.
+- 가드 `guard-invariants` 23/23 · `health-check` 34/34.
+- **반증 3건 성립** — 게이트 제거하면 false 무시됨 / 옛 `issued_at` payload 로 발행일이 오늘로 덮임 /
+  헬퍼를 비틀면 화면 주소가 즉시 갈라짐. 전부 `cp` 백업·복원 md5 일치 (`git checkout` 미사용).
+
+**★ 게이트가 잡은 내 절차 결함 (MEDIUM — 코드 아님):** 커밋 메시지의 "검증 데이터 전부 원복(잔여 0)" 이 **거짓**이었다.
+`FableC-*` 청구서 7건(477–483)·회차 4건(94–97)·email_logs 17건이 남아 **health-check 의 billing 원장 가드를
+FAIL 로 깨뜨린 상태**였다. Fable 이 전량 삭제 후 34/34 복구.
+→ **원복 주장은 "지웠다" 가 아니라 정리 후 health-check 재실행으로 증명할 것.**
+
+**남은 LOW (백로그):** `wantsCustomerNotify` (`routes/invoices.js:1924`) 가 boolean `false` 만 인지 —
+문자열 `"false"` 는 발송된다. 현 프론트는 항상 boolean 이라 실해 0. 외부/스크립트 호출 대비 하드닝 후보.
 
 **게이트 마커의 한계(알아둘 것):** 마커 지문은 `git status --porcelain` 해시라 **트리가 깨끗하면 항상 같은 값**이다.
 커밋해 버리면 청크 B-클린과 청크 C-클린을 구분하지 못해 마커 검사가 공허하게 통과한다. 마커만 믿지 말 것.
+
+---
+
+## ✅ #252 문서 자동저장 — 배포 차단 게이트 **PASS** (2026-08-10 18:00)
+
+**`50530ca` 의 "⛔ 배포하면 문서 저장이 깨진다" 경고는 더 이상 유효하지 않다.**
+남아 있던 6항목(BLOCKER-3a/3b/3c · MAJOR-1 · MINOR · `PostsPage.tsx:363`)이 **전부 `eb36680`(청크 A) 안에서 닫혔다.**
+
+**★ 그런데 그게 문제였다.** 청크 A 는 커밋 메시지가 말한 3건(증빙 뱃지·번역·PWA)과 달리 **62파일 2,850줄**이고,
+#252 완성분이 **게이트 범위 밖에서 얹혀 갔다**. 청크 A 게이트는 번역·뱃지를 본 것이라 #252 표면은 미검증이었다.
+→ 배포 직전에 발견해 전용 게이트를 돌렸고 PASS. **교훈: 커밋 메시지가 diff 크기를 대변하지 않는다.
+배포 스택은 커밋 메시지가 아니라 `git show --stat` 으로 훑을 것.**
+
+게이트 증명: 실HTTP 29체크 · 실브라우저 19체크 · 소켓 실측 · 반증 2건.
+- draft 재열람→저장 시 `published`+`vlevel` 승격 실측 (안 되면 사용자는 저장했다고 믿는데 남에게 영영 안 보임)
+- draft 는 작성자 외 목록 미노출 + 단건 403 (status·vlevel 이중 방어, 반증 F1 로 load-bearing 확인)
+- **아무것도 안 건드리고 열었다 닫으면 draft 가 안 생긴다** (편집 진입 스냅샷 게이트)
+- 편집 중 외부 `post:updated` 도착해도 내 입력 안 덮음 (dirty 가드)
+- 열람만으로 `updated_at` 오염 안 됨 → 직후 저장에 거짓 409 없음 (반증 F2)
+- 운영 옛 posts 39건 전부 `status='published'`, draft 0건 → **배포로 사라지거나 노출될 행 없음**
+
+**★ H-1 (배포 필수 동반 조건):** 운영 `posts.created_at/updated_at` 이 `datetime`(초)인데 dev 는 `datetime(3)`(ms).
+#252 낙관적 잠금이 ms 를 전제하므로 **같은 초 안의 두 저장이 잠금을 통과해 남의 글을 조용히 덮는다** — #252 가 막으려던 바로 그 사고.
+`scripts/migrate-posts-datetime-ms.js` · `migrate-task-tags.js` 둘 다 **`deploy-planq.sh` 자동 블록에 미등록** →
+`--auto` 만 돌리면 실행 안 된다. **수동 실행 + 배포 후 `SHOW COLUMNS FROM posts` 로 `datetime(3)` 실측 확인 필수.**
+
+**남은 LOW:** 제목 없이 본문만 쓰고 다른 문서로 이동하면 본문 유실 (#252 이전에도 같아 회귀는 아님). 후속 사이클.
+
+---
+
+## 🔴 Google OAuth 심사 — 운영 실측으로 밝혀진 진짜 막힘 (2026-08-10 18:00)
+
+**캘린더는 절반만 해결이다.**
+- 코드 `6d33587`(Meet 실패가 일정 생성을 죽이던 것)은 **운영에 배포돼 있다** — 운영/dev `google_calendar.js`·`calendar.js` md5 일치로 확인.
+- 그러나 **운영 워크스페이스 토큰에 캘린더 권한이 없다:**
+  ```
+  BusinessCloudToken  biz=1 provider=gcal
+    scope=[https://www.googleapis.com/auth/userinfo.email  openid]   ← calendar.events 없음
+    updated 2026-07-31 00:22
+  OauthConnection  user=3, user=13  scope=(없음)   ← 개인 연동도 쓰기 불가
+  ```
+  구글 동의 화면이 항목별 체크박스라 "캘린더" 를 안 누르면 이렇게 저장된다(코드 주석의 2026-07-27 사고 재현).
+  **Meet 링크 발급·PlanQ→구글 일정 반영 둘 다 현재 불가. 코드로 못 고침 — Irene 이 재연결하며 체크해야 한다.**
+
+**제출 순서(변경 불가):** ①`/배포`(방침 정정 `33c2f13` 이 운영에 없어 방침≠실제스코프 = 반려사유)
+→ ②운영 재연결 + 캘린더 체크 → Meet 발급 확인 → ③동영상 촬영 → ④제출
+
+**심사 대상 스코프는 `calendar.events` 하나.** `drive.file` 은 비민감이라 심사 대상 아님.
+
+**Gmail restricted 는 제외하기로 정했다** (Irene 에게 설명 완료, 반대 없으면 그대로 진행).
+`https://mail.google.com/` 는 restricted → **CASA 유료·매년 갱신**. 운영 실측 사용처는 **딱 1계정**:
+```
+biz=5 withMIN lab / minky3018@gmail.com  → google_oauth (mail.google.com)
+biz=1 help@irenewp.com,  irene@irenewp.com → 앱 비밀번호 ✅ 정상 동기화 중
+```
+Irene 본인 2계정이 이미 앱 비밀번호로 잘 돈다 → withMIN lab 도 앱 비밀번호 이관하면 끊김 0.
 
 ---
 
