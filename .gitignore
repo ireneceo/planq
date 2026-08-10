@@ -21,6 +21,16 @@ __pycache__/
 .claude/.fable-gate.nag
 .claude/.fable-gate-skip
 
+# 일회성 검증 스크립트 — CLAUDE.md 는 `node test-xxx.js` 실행 후 **반드시 rm** 을 명시한다.
+#   추적하지 않는 이유가 두 가지다:
+#     ① idle 자동저장이 검증 도중(30분 초과) 이 파일들을 집어 커밋해 왔다.
+#        2026-08-05·06·08·10 네 세션 반복 (test-fable-*.js · test-tags-fable*.js …).
+#     ② Fable 게이트 Stop 훅은 `git status --porcelain`(미추적 포함)으로 판정한다.
+#        검증 중 만든 스크립트가 매번 "미커밋 소스 변경" 으로 잡혀 게이트가 헛돌았다.
+#   검증 **도구**이지 검증 **대상 소스**가 아니다. 상설 가드는 scripts/e2e/canary-*.js 로 추적한다.
+dev-backend/test-*.js
+q-note/test-*.py
+
 # .env 백업/변형 절대 커밋 금지 (시크릿)
 .env.*
 *.env.bak*
