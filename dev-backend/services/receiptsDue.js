@@ -10,6 +10,7 @@
 //  - 발행은 "입금완료(paid)" 후에만 가능 (입금후발행 정책). 분할은 회차별 paid 기준.
 
 const { Op } = require('sequelize');
+const { resolveReceiptNotifyEmailSync } = require('./receiptNotify');
 
 /** 세금계산서 법정 기한: 결제일이 속한 달의 다음 달 10일 23:59:59 */
 function taxInvoiceDueDate(paidAt) {
@@ -129,6 +130,10 @@ function buildReceiptRows(invoices, corrections = {}) {
       recipient_name,
       tax_id,
       receipt_requested_at: iso(inv.receipt_requested_at),
+      // 발송 함수와 **같은 함수**로 계산한다. 화면이 보여주는 주소와 실제 발송 주소가 갈라지면 안 된다.
+      //   null 이면 화면이 "등록된 수신 주소 없음" 으로 안내하고 발송 체크박스를 잠근다
+      //   (여태는 조용히 안 나가서 사용자가 몰랐다).
+      receipt_notify_email: resolveReceiptNotifyEmailSync(inv, client),
       _canceled: isCanceled,
     };
 
@@ -255,7 +260,10 @@ async function fetchReceiptRows(models, where) {
     include: [
       {
         model: Client,
-        attributes: ['id', 'display_name', 'company_name', 'biz_name', 'biz_tax_id', 'is_business', 'country'],
+        // #217 — 증빙 탭에서 마킹 **전에** "이 메일이 누구에게 가는지" 를 보여주려면 수신자 후보가 필요하다.
+        //   이미 join 하고 있는 Client 라 컬럼만 늘리면 되고 추가 쿼리는 없다.
+        attributes: ['id', 'display_name', 'company_name', 'biz_name', 'biz_tax_id', 'is_business', 'country',
+          'tax_invoice_email', 'billing_contact_email', 'invite_email'],
         required: false,
       },
       { model: InvoiceInstallment, as: 'installments', separate: true, order: [['installment_no', 'ASC']] },

@@ -272,7 +272,9 @@ export async function unmarkInvoicePaid(businessId: number, invoiceId: number): 
 
 export async function markInstallmentTaxInvoice(
   businessId: number, invoiceId: number, installmentId: number,
-  payload: { tax_invoice_no: string; issued_at?: string; file_id?: number }
+  // #217 — 여태 `issued_at` 으로 보냈는데 백엔드 회차 tax 라우트는 `tax_invoice_at` 만 읽는다.
+  //   그래서 **사용자가 고른 발행일이 조용히 버려지고 오늘 날짜로 저장**됐다 (다른 3경로는 원래 맞았다).
+  payload: { tax_invoice_no: string; tax_invoice_at?: string; file_id?: number; notify_customer?: boolean }
 ): Promise<ApiInstallment> {
   const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}/installments/${installmentId}/mark-tax-invoice`, {
     method: 'POST',
@@ -285,7 +287,7 @@ export async function markInstallmentTaxInvoice(
 // 회차별 현금영수증 발행 마킹 (분할 결제 — 회차마다 입금 시점 발급)
 export async function markInstallmentCashReceipt(
   businessId: number, invoiceId: number, installmentId: number,
-  payload: { cash_receipt_no: string; cash_receipt_at?: string; file_id?: number }
+  payload: { cash_receipt_no: string; cash_receipt_at?: string; file_id?: number; notify_customer?: boolean }
 ): Promise<ApiInstallment> {
   const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}/installments/${installmentId}/mark-cash-receipt`, {
     method: 'POST',
@@ -298,7 +300,7 @@ export async function markInstallmentCashReceipt(
 // 단건 청구서 증빙 발행 마킹 (분할 아님) — 세금계산서 / 현금영수증
 export async function markInvoiceTaxInvoice(
   businessId: number, invoiceId: number,
-  payload: { tax_invoice_no: string; tax_invoice_at?: string; file_id?: number }
+  payload: { tax_invoice_no: string; tax_invoice_at?: string; file_id?: number; notify_customer?: boolean }
 ): Promise<ApiInvoice> {
   const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}/mark-tax-invoice`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
@@ -308,7 +310,7 @@ export async function markInvoiceTaxInvoice(
 
 export async function markInvoiceCashReceipt(
   businessId: number, invoiceId: number,
-  payload: { cash_receipt_no: string; cash_receipt_at?: string; file_id?: number }
+  payload: { cash_receipt_no: string; cash_receipt_at?: string; file_id?: number; notify_customer?: boolean }
 ): Promise<ApiInvoice> {
   const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}/mark-cash-receipt`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
@@ -337,6 +339,9 @@ export interface ReceiptDueRow {
   issued_at: string | null;
   due_at: string | null;
   due_kind: 'legal' | 'recommended';
+  /** #217 — 발행 마킹 시 고객에게 통지될 주소. null 이면 등록된 수신 주소가 없어 발송 불가.
+   *  발송 함수와 같은 서버 헬퍼(services/receiptNotify)로 계산된 값이라 화면과 실제가 갈라지지 않는다. */
+  receipt_notify_email?: string | null;
   urgency: 'overdue' | 'soon' | 'normal' | 'done' | 'correction_pending';
   // 정정(수정세금계산서/취소) 유효상태 — RECEIPT_CORRECTION_DESIGN
   effective?: 'pending' | 'issued' | 'corrected' | 'amended' | 'canceled' | 'correction_pending';
@@ -352,6 +357,8 @@ export interface CorrectionPayload {
   written_at?: string;
   amount_delta?: number | null;
   customer_note?: string;
+  /** #217 — 고객 정정 통지 발송 여부. 미전달 = 발송(기존 동작). false 만 끈다. */
+  notify_customer?: boolean;
 }
 
 export async function listReceiptsDue(businessId: number): Promise<ReceiptDueRow[]> {

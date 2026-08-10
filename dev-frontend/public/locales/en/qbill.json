@@ -639,7 +639,10 @@
       "amt": "Amount",
       "supplyAmt": "Supply amount",
       "vat": "VAT",
-      "total": "Total"
+      "total": "Total",
+      "notifyLabel": "Email the customer about this receipt",
+      "notifyTo": "Sends to: {{email}}",
+      "notifyNone": "No registered recipient address, so nothing can be sent. Add a tax-invoice email to the client."
     },
     "empty": {
       "pending": "No receipts pending",
@@ -689,7 +692,8 @@
         "amended": "Amended",
         "canceled": "Canceled",
         "correction_pending": "Correction needed"
-      }
+      },
+      "notifyLabel": "Email the customer about this correction"
     }
   },
   "settings": {

@@ -1830,7 +1830,7 @@ router.post('/:businessId/:id/installments/:installId/mark-tax-invoice', authent
       }).catch((e) => console.warn('[notify tax_invoice]', e.message));
     } catch (e) { console.warn('[tax_invoice notify outer]', e.message); }
 
-    await notifyCustomerReceiptIssued(req, invoice, 'tax', no, at);
+    if (wantsCustomerNotify(req)) await notifyCustomerReceiptIssued(req, invoice, 'tax', no, at);
     // Q Bill 타임라인 — 세금계산서 발행(회차)
     await logBillEvent('invoice', invoice.id, 'tax_issued', { actorUserId: req.user?.id, detail: { kind: 'tax', installment_no: inst.installment_no, label: inst.label, no } });
     successResponse(res, inst, 'Tax invoice marked');
@@ -1881,7 +1881,7 @@ router.post('/:businessId/:id/installments/:installId/mark-cash-receipt', authen
       }).catch((e) => console.warn('[notify cash_receipt]', e.message));
     } catch (e) { console.warn('[cash_receipt notify outer]', e.message); }
 
-    await notifyCustomerReceiptIssued(req, invoice, 'cash', no, at);
+    if (wantsCustomerNotify(req)) await notifyCustomerReceiptIssued(req, invoice, 'cash', no, at);
     // Q Bill 타임라인 — 현금영수증 발행(회차)
     await logBillEvent('invoice', invoice.id, 'tax_issued', { actorUserId: req.user?.id, detail: { kind: 'cash', installment_no: inst.installment_no, label: inst.label, no } });
     successResponse(res, inst, 'Cash receipt marked');
@@ -1916,18 +1916,20 @@ async function notifyReceiptIssued(req, invoice, kindLabel, no) {
 // 증빙 발행 완료 → 고객에게 메일 통지 (신뢰 루프 완성). kind: 'tax'|'cash'.
 //   수신자 우선순위: receipt_profile.tax_email > Client 세금/청구/초대 이메일 > invoice.recipient_email.
 //   형식 검증 통과 + 명시적 수신자만 발송 (미인증 자동메일 금지 — memory feedback_no_automail_unverified).
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// 증빙 통지 수신자·형식 검증은 services/receiptNotify.js 단일 원천 (증빙 큐 화면도 같은 함수를 쓴다).
+const { EMAIL_RE, resolveReceiptNotifyEmail } = require('../services/receiptNotify');
+
+/** 고객 통지 여부 — 프론트가 명시적으로 `false` 를 보낼 때만 끈다.
+ *  미전달은 발송(기존 동작 유지) — 옛 스크립트·외부 호출 호환. */
+function wantsCustomerNotify(req) {
+  return req?.body?.notify_customer !== false;
+}
+
 async function notifyCustomerReceiptIssued(req, invoice, kind, no, issuedAt) {
   try {
-    const { Client, Business } = require('../models');
-    const client = invoice.client_id ? await Client.findByPk(invoice.client_id, {
-      attributes: ['tax_invoice_email', 'billing_contact_email', 'invite_email'],
-    }) : null;
-    const profile = invoice.receipt_profile || null;
-    const to = (profile && profile.tax_email)
-      || (client && (client.tax_invoice_email || client.billing_contact_email || client.invite_email))
-      || invoice.recipient_email || null;
-    if (!to || !EMAIL_RE.test(String(to))) return; // 명시적 수신자 + 형식 검증
+    const { Business } = require('../models');
+    const to = await resolveReceiptNotifyEmail(invoice);
+    if (!to) return; // 명시적 수신자 + 형식 검증
     const biz = await Business.findByPk(invoice.business_id, { attributes: ['name', 'brand_name', 'mail_from_name', 'mail_reply_to'] });
     const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
     const shareUrl = invoice.share_token ? `${APP_URL}/public/invoices/${invoice.share_token}` : null;
@@ -2001,7 +2003,7 @@ router.post('/:businessId/:id/mark-tax-invoice', authenticateToken, checkBusines
     if (io) io.to(`business:${invoice.business_id}`).emit('inbox:refresh', { reason: 'tax_invoice_issued', invoice_id: invoice.id });
     if (invoice?.project_id) require('../services/projectStageEngine').onInvoiceChanged(invoice.id).catch(() => null);
     await notifyReceiptIssued(req, invoice, '세금계산서', no);
-    await notifyCustomerReceiptIssued(req, invoice, 'tax', no, at);
+    if (wantsCustomerNotify(req)) await notifyCustomerReceiptIssued(req, invoice, 'tax', no, at);
     // Q Bill 타임라인 — 세금계산서 발행(단건)
     await logBillEvent('invoice', invoice.id, 'tax_issued', { actorUserId: req.user?.id, detail: { kind: 'tax', no } });
     successResponse(res, invoice, 'Tax invoice marked');
@@ -2025,7 +2027,7 @@ router.post('/:businessId/:id/mark-cash-receipt', authenticateToken, checkBusine
     const io = req.app.get('io');
     if (io) io.to(`business:${invoice.business_id}`).emit('inbox:refresh', { reason: 'cash_receipt_issued', invoice_id: invoice.id });
     await notifyReceiptIssued(req, invoice, '현금영수증', no);
-    await notifyCustomerReceiptIssued(req, invoice, 'cash', no, at);
+    if (wantsCustomerNotify(req)) await notifyCustomerReceiptIssued(req, invoice, 'cash', no, at);
     // Q Bill 타임라인 — 현금영수증 발행(단건)
     await logBillEvent('invoice', invoice.id, 'tax_issued', { actorUserId: req.user?.id, detail: { kind: 'cash', no } });
     successResponse(res, invoice, 'Cash receipt marked');
@@ -2039,14 +2041,8 @@ const CORRECTION_REASONS = ['clerical', 'amount_change', 'return', 'cancel', 'du
 // 고객에게 증빙 정정 통지 (발행 통지와 동일 수신자 우선순위 + 형식검증)
 async function notifyCustomerReceiptCorrected(req, invoice, corr) {
   try {
-    const client = invoice.client_id ? await Client.findByPk(invoice.client_id, {
-      attributes: ['tax_invoice_email', 'billing_contact_email', 'invite_email'],
-    }) : null;
-    const profile = invoice.receipt_profile || null;
-    const to = (profile && profile.tax_email)
-      || (client && (client.tax_invoice_email || client.billing_contact_email || client.invite_email))
-      || invoice.recipient_email || null;
-    if (!to || !EMAIL_RE.test(String(to))) return;
+    const to = await resolveReceiptNotifyEmail(invoice);
+    if (!to) return;
     const biz = await Business.findByPk(invoice.business_id, { attributes: ['name', 'brand_name', 'mail_from_name', 'mail_reply_to'] });
     const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
     const shareUrl = invoice.share_token ? `${APP_URL}/public/invoices/${invoice.share_token}` : null;
@@ -2135,7 +2131,7 @@ async function recordCorrection(req, res, { installmentId }) {
   const io = req.app.get('io');
   if (io) io.to(`business:${invoice.business_id}`).emit('inbox:refresh', { reason: 'receipt_corrected', invoice_id: invoice.id });
   await notifyMembersReceiptCorrected(req, invoice, corr);
-  await notifyCustomerReceiptCorrected(req, invoice, corr);
+  if (wantsCustomerNotify(req)) await notifyCustomerReceiptCorrected(req, invoice, corr);
   // Q Bill 타임라인 — 증빙 정정/취소 (수정세금계산서·현금영수증 취소)
   await logBillEvent('invoice', invoice.id, 'commented', { actorUserId: req.user?.id, detail: { kind: 'correction', correction_kind: kind, reason, corrected_no: correctedNo, installment_no: inst ? inst.installment_no : null } });
   return successResponse(res, corr, 'Correction recorded');
