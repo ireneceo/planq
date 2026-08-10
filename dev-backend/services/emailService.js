@@ -658,7 +658,7 @@ function receiptIssuedEmailHtml({ kind, invoiceNumber, title, receiptNo, issuedA
   const issuedStr = issuedAt ? String(issuedAt).slice(0, 10) : '';
   const body = `
     <div style="font-size:15px;font-weight:700;color:#0F172A;margin-bottom:6px;">${kindLabel}가 발행되었습니다</div>
-    <div style="font-size:14px;color:#64748B;line-height:1.6;">${workspaceName ? escapeHtml(workspaceName) + ' 님이 ' : ''}요청하신 ${kindLabel}를 발행했습니다. 등록하신 정보로 발행 완료되었습니다.</div>
+    <div style="font-size:14px;color:#64748B;line-height:1.6;">요청하신 ${kindLabel}${isCash ? '을' : '를'} ${workspaceName ? escapeHtml(workspaceName) + '에서 ' : ''}발행했습니다. 등록하신 정보로 발행 완료되었습니다.</div>
     <div style="font-size:11px;font-weight:700;color:#64748B;letter-spacing:0.4px;font-family:ui-monospace,monospace;margin-top:12px;">${escapeHtml(invoiceNumber)}</div>
     <div style="font-size:18px;font-weight:700;color:#0F172A;line-height:1.4;margin-top:4px;">${escapeHtml(title)}</div>
     <div style="margin-top:16px;background:#F0FDFA;border:1px solid #99F6E4;border-radius:10px;padding:14px 16px;">
@@ -694,7 +694,7 @@ function receiptCorrectionEmailHtml({ kind, reason, invoiceNumber, title, correc
   const dateStr = writtenAt ? String(writtenAt).slice(0, 10) : '';
   const body = `
     <div style="font-size:15px;font-weight:700;color:#0F172A;margin-bottom:6px;">${headline}</div>
-    <div style="font-size:14px;color:#64748B;line-height:1.6;">${workspaceName ? escapeHtml(workspaceName) + ' 님이 ' : ''}거래 변경에 따라 증빙을 정정했습니다.</div>
+    <div style="font-size:14px;color:#64748B;line-height:1.6;">${workspaceName ? escapeHtml(workspaceName) + '에서 ' : ''}거래 변경에 따라 증빙을 정정했습니다.</div>
     <div style="font-size:11px;font-weight:700;color:#64748B;letter-spacing:0.4px;font-family:ui-monospace,monospace;margin-top:12px;">${escapeHtml(invoiceNumber)}</div>
     <div style="font-size:18px;font-weight:700;color:#0F172A;line-height:1.4;margin-top:4px;">${escapeHtml(title)}</div>
     <div style="margin-top:16px;background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:14px 16px;">

@@ -200,6 +200,9 @@ function IssueModal({ row, onClose, onIssued }: { row: ReceiptDueRow; onClose: (
   const [no, setNo] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [file, setFile] = useState<File | null>(null);
+  // #217 — 고객 통지. Irene 결정: **기본 켬**. 수신 주소가 없으면 켤 수 없다.
+  const notifyEmail = row.receipt_notify_email || null;
+  const [notifyCustomer, setNotifyCustomer] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   // #75 — 세금계산서 발행 내역 (공급자·공급받는자·품목·금액). 홈택스/팝빌 옮겨적기용.
@@ -218,6 +221,8 @@ function IssueModal({ row, onClose, onIssued }: { row: ReceiptDueRow; onClose: (
     if (!no.trim() || busy) return;
     setBusy(true);
     setErr(null);
+    // 수신 주소가 없으면 체크 상태와 무관하게 보내지 않는다 (서버도 같은 판정을 한다)
+    const sendNotify = !!notifyEmail && notifyCustomer;
     try {
       // #77 — 발행 파일(선택) 업로드 → file_id (고객이 공개 페이지에서 다운로드)
       let fileId: number | undefined;
@@ -230,13 +235,13 @@ function IssueModal({ row, onClose, onIssued }: { row: ReceiptDueRow; onClose: (
         fileId = Number(uj.data.id);
       }
       if (isCash && row.installment_id) {
-        await markInstallmentCashReceipt(row.business_id, row.invoice_id, row.installment_id, { cash_receipt_no: no.trim(), cash_receipt_at: date, file_id: fileId });
+        await markInstallmentCashReceipt(row.business_id, row.invoice_id, row.installment_id, { cash_receipt_no: no.trim(), cash_receipt_at: date, file_id: fileId, notify_customer: sendNotify });
       } else if (isCash) {
-        await markInvoiceCashReceipt(row.business_id, row.invoice_id, { cash_receipt_no: no.trim(), cash_receipt_at: date, file_id: fileId });
+        await markInvoiceCashReceipt(row.business_id, row.invoice_id, { cash_receipt_no: no.trim(), cash_receipt_at: date, file_id: fileId, notify_customer: sendNotify });
       } else if (row.installment_id) {
-        await markInstallmentTaxInvoice(row.business_id, row.invoice_id, row.installment_id, { tax_invoice_no: no.trim(), issued_at: date, file_id: fileId });
+        await markInstallmentTaxInvoice(row.business_id, row.invoice_id, row.installment_id, { tax_invoice_no: no.trim(), tax_invoice_at: date, file_id: fileId, notify_customer: sendNotify });
       } else {
-        await markInvoiceTaxInvoice(row.business_id, row.invoice_id, { tax_invoice_no: no.trim(), tax_invoice_at: date, file_id: fileId });
+        await markInvoiceTaxInvoice(row.business_id, row.invoice_id, { tax_invoice_no: no.trim(), tax_invoice_at: date, file_id: fileId, notify_customer: sendNotify });
       }
       onIssued();
     } catch (e) {
@@ -293,6 +298,27 @@ function IssueModal({ row, onClose, onIssued }: { row: ReceiptDueRow; onClose: (
                 onChange={e => setFile(e.target.files?.[0] || null)} />
             </FileRow>
             <FileHint>{t('taxInvoices.issueModal.fileHint', { defaultValue: '첨부하면 고객이 공개 청구서 페이지에서 다운로드할 수 있어요. (PDF·이미지)' }) as string}</FileHint>
+          </ModalField>
+
+          {/* #217 — 여태 마킹하면 고객에게 조건 없이 메일이 나갔다. 보낼지 고르고, 누구에게 가는지 보여준다. */}
+          <ModalField>
+            <NotifyRow>
+              <NotifyCheck
+                type="checkbox"
+                id="receipt-notify-customer"
+                checked={!!notifyEmail && notifyCustomer}
+                disabled={!notifyEmail}
+                onChange={e => setNotifyCustomer(e.target.checked)}
+              />
+              <NotifyLabel htmlFor="receipt-notify-customer" $disabled={!notifyEmail}>
+                {t('taxInvoices.issueModal.notifyLabel', { defaultValue: '고객에게 발행 알림 메일 보내기' }) as string}
+              </NotifyLabel>
+            </NotifyRow>
+            <FileHint>
+              {notifyEmail
+                ? (t('taxInvoices.issueModal.notifyTo', { defaultValue: '받는 곳: {{email}}', email: notifyEmail }) as string)
+                : (t('taxInvoices.issueModal.notifyNone', { defaultValue: '등록된 수신 주소가 없어 발송할 수 없어요. 고객 정보에 세금계산서 이메일을 등록해 주세요.' }) as string)}
+            </FileHint>
           </ModalField>
 
           {/* #75 — 발행 내역 (홈택스/팝빌 옮겨적기용, 세금계산서만) */}
@@ -363,6 +389,9 @@ function CorrectionModal({ row, onClose, onDone }: { row: ReceiptDueRow; onClose
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [delta, setDelta] = useState('');
   const [note, setNote] = useState('');
+  // #217 — 정정 통지도 여태 조건 없이 나갔다(운영 발송 0건이라 지금이 고칠 적기 — Fable 판정).
+  const corrNotifyEmail = row.receipt_notify_email || null;
+  const [corrNotify, setCorrNotify] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -384,6 +413,7 @@ function CorrectionModal({ row, onClose, onDone }: { row: ReceiptDueRow; onClose
         corrected_no: no.trim(), written_at: date,
         amount_delta: delta !== '' ? Number(delta) : undefined,
         customer_note: note.trim() || undefined,
+        notify_customer: !!corrNotifyEmail && corrNotify,
       });
       onDone();
     } catch (e) {
@@ -430,6 +460,25 @@ function CorrectionModal({ row, onClose, onDone }: { row: ReceiptDueRow; onClose
           <ModalField>
             <ModalLabel>{t('taxInvoices.corrections.note', '고객 안내 메모 (선택)')}</ModalLabel>
             <ModalInput value={note} onChange={e => setNote(e.target.value)} placeholder={t('taxInvoices.corrections.notePh', { defaultValue: '예: 계약 해지에 따른 취소' }) as string} />
+          </ModalField>
+          <ModalField>
+            <NotifyRow>
+              <NotifyCheck
+                type="checkbox"
+                id="correction-notify-customer"
+                checked={!!corrNotifyEmail && corrNotify}
+                disabled={!corrNotifyEmail}
+                onChange={e => setCorrNotify(e.target.checked)}
+              />
+              <NotifyLabel htmlFor="correction-notify-customer" $disabled={!corrNotifyEmail}>
+                {t('taxInvoices.corrections.notifyLabel', { defaultValue: '고객에게 정정 알림 메일 보내기' }) as string}
+              </NotifyLabel>
+            </NotifyRow>
+            <FileHint>
+              {corrNotifyEmail
+                ? (t('taxInvoices.issueModal.notifyTo', { defaultValue: '받는 곳: {{email}}', email: corrNotifyEmail }) as string)
+                : (t('taxInvoices.issueModal.notifyNone', { defaultValue: '등록된 수신 주소가 없어 발송할 수 없어요. 고객 정보에 세금계산서 이메일을 등록해 주세요.' }) as string)}
+            </FileHint>
           </ModalField>
           <Hint>
             <KindBadge $cash={isCash} style={{ marginRight: 6 }}>
@@ -572,6 +621,12 @@ const ModalInput = styled.input`
 const Hint = styled.div`font-size: 11px; color: #94A3B8; padding: 8px 10px; background: #F8FAFC; border-radius: 6px; line-height: 1.7;`;
 // #77 — 발행 파일 첨부
 const FileRow = styled.div`display: flex; align-items: center; gap: 8px;`;
+const NotifyRow = styled.div`display: flex; align-items: center; gap: 8px;`;
+const NotifyCheck = styled.input`width: 16px; height: 16px; accent-color: #14B8A6; cursor: pointer;
+  &:disabled { cursor: not-allowed; opacity: 0.5; }`;
+const NotifyLabel = styled.label<{ $disabled?: boolean }>`
+  font-size: 13px; font-weight: 600; cursor: ${p => (p.$disabled ? 'not-allowed' : 'pointer')};
+  color: ${p => (p.$disabled ? '#94A3B8' : '#0F172A')};`;
 const FileBtn = styled.button`
   flex-shrink: 0; padding: 7px 12px; font-size: 12px; font-weight: 600;
   color: #334155; background: #fff; border: 1px solid #E2E8F0; border-radius: 6px; cursor: pointer;

@@ -639,7 +639,10 @@
       "amt": "금액",
       "supplyAmt": "공급가액",
       "vat": "세액 (VAT)",
-      "total": "합계"
+      "total": "합계",
+      "notifyLabel": "고객에게 발행 알림 메일 보내기",
+      "notifyTo": "받는 곳: {{email}}",
+      "notifyNone": "등록된 수신 주소가 없어 발송할 수 없어요. 고객 정보에 세금계산서 이메일을 등록해 주세요."
     },
     "empty": {
       "pending": "발행 대기 중인 증빙이 없습니다",
@@ -689,7 +692,8 @@
         "amended": "수정발행",
         "canceled": "취소발행",
         "correction_pending": "수정 필요"
-      }
+      },
+      "notifyLabel": "고객에게 정정 알림 메일 보내기"
     }
   },
   "settings": {
