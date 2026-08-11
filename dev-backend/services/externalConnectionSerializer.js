@@ -6,6 +6,31 @@
  *                 맞춰 한 목록에 섞어 보여주기 위한 어댑터. 통합 뷰가 두 벌 스키마를 몰라도 되게 한다.
  */
 const personalCalendar = require('./personalCalendar');
+const googleScopes = require('./googleScopes');
+
+// 토큰이 죽었다고 볼 수 있는 오류 문자열 — 워크스페이스 카드(routes/cloud.js:44)와 같은 판정식.
+//   두 화면이 다른 기준으로 "정상/오류" 를 말하면 사용자가 어느 쪽을 믿어야 할지 모른다.
+const AUTH_ERROR_RE = /invalid_grant|unauthorized|invalid_credentials|insufficient/i;
+
+/**
+ * 화면에 보여줄 권한 상태 — 저장된 scope 와 마지막 오류에서 **읽기 시점에 파생**한다.
+ *   'ok'           정상
+ *   'read_only'    옛 calendar.readonly 연결 — 읽기는 실제로 되고 쓰기만 막힘
+ *   'insufficient' 필요한 권한을 아예 승인받지 못함 (동의 화면에서 항목 체크 누락)
+ *   'error'        권한은 충분한데 토큰이 만료·취소됨
+ *   null           우리가 권한 계약을 아는 provider 가 아님 (MS·Apple 등) — 뱃지를 달지 않는다
+ *
+ * ★ 순서가 중요하다. scope 문제가 토큰 오류보다 **구체적인 진단**이라 먼저 본다.
+ *   권한이 없어서 나는 403 을 "만료됐어요" 라고 안내하면 사용자는 재연결만 반복하고
+ *   정작 체크해야 할 동의 항목을 영영 못 찾는다.
+ */
+function permissionStatus(row) {
+  if (!googleScopes.REQUIRED_SCOPES[row.provider]) return null;
+  const scopeStatus = googleScopes.permissionStatus(row.provider, row.scope);
+  if (scopeStatus !== 'ok') return scopeStatus;
+  if (AUTH_ERROR_RE.test(row.last_sync_error || '')) return 'error';
+  return 'ok';
+}
 
 // 응답 sanitize — 비밀번호/토큰 hash 노출 차단
 function sanitize(row) {
@@ -26,6 +51,9 @@ function sanitize(row) {
     // 캘린더 쓰기 가능 여부 — 옛 연결은 calendar.readonly 로 동의해둔 상태라 false.
     //   화면이 "다시 연결" 을 안내하는 근거. 읽기 overlay 는 그대로 두므로 강제 해제는 하지 않는다.
     can_write_calendar: j.provider === 'google_calendar' ? personalCalendar.hasCalendarWrite(j) : null,
+    // provider 를 가리지 않는 권한 상태. can_write_calendar 는 캘린더 전용이라
+    //   Drive 처럼 권한이 빠진 연결이 화면에서 "정상" 으로 보이던 구멍을 못 막았다.
+    permission_status: permissionStatus(j),
     sync_enabled: j.sync_enabled !== false,
   };
 }
@@ -81,4 +109,4 @@ function adaptLegacyEmailAccount(row) {
 }
 
 
-module.exports = { sanitize, adaptLegacyCloudToken, adaptLegacyEmailAccount };
+module.exports = { sanitize, permissionStatus, adaptLegacyCloudToken, adaptLegacyEmailAccount };
