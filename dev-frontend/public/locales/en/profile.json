@@ -240,8 +240,16 @@
     "connectCalendar": "Connect Google Calendar",
     "calendarSub2": "See your Google Calendar events in Q Calendar, and add PlanQ events to your Google Calendar. Private events go only to your own calendar, never the team calendar.",
     "calendarSyncOn": "Add PlanQ events to my Google Calendar",
-    "calendarNeedsReconnect": "Reconnect to enable adding events",
-    "reconnect": "Reconnect"
+    "reconnect": "Reconnect",
+    "permItemCalendar": "Calendar",
+    "permItemDrive": "Google Drive",
+    "permBadgeOk": "Active",
+    "permBadgeReadOnly": "Read-only",
+    "permBadgeInsufficient": "Missing permission",
+    "permBadgeError": "Connection error",
+    "permReadOnly": "Right now events are only pulled in. To push PlanQ events out, reconnect and tick the “Calendar” item.",
+    "permInsufficient": "Connected, but the required permission wasn’t granted. Reconnect and tick the “{{item}}” item on Google’s consent screen.",
+    "permError": "The connection expired or was revoked. Please reconnect."
   },
   "accountDeletion": {
     "title": "Delete account",

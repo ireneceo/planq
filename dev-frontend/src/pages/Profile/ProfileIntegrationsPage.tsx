@@ -30,8 +30,13 @@ interface ExternalConnection {
   created_at: string;
   // 서버 파생 — 옛 calendar.readonly 연결은 false(재동의 필요). 프론트에서 scope 를 재파싱하지 말 것.
   can_write_calendar?: boolean | null;
+  // 서버 파생 권한 상태 (services/externalConnectionSerializer.permissionStatus).
+  //   null = 우리가 권한 계약을 아는 provider 가 아님 → 뱃지 없음.
+  permission_status?: PermissionStatus | null;
   sync_enabled?: boolean;
 }
+
+type PermissionStatus = 'ok' | 'read_only' | 'insufficient' | 'error';
 
 interface OauthConnectionRow {
   id: number;
@@ -83,6 +88,50 @@ const GoogleIcon: React.FC = () => (
     <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
   </GoogleG>
 );
+
+/**
+ * 권한 상태 뱃지 + 안내 + 재연결 CTA — 캘린더·Drive 카드 공용.
+ *
+ * ★ 'read_only' 와 'insufficient' 를 뭉뚱그리면 안 된다.
+ *   읽기 권한조차 없는 연결에 "읽기 전용" 이라 쓰면 읽기는 된다는 거짓 안내가 된다.
+ */
+const PermissionNotice: React.FC<{
+  provider: string;
+  status: PermissionStatus;
+  onReconnect: () => void;
+  busy: boolean;
+}> = ({ provider, status, onReconnect, busy }) => {
+  const { t } = useTranslation('profile');
+  if (status === 'ok') return null;
+  // Google 동의 화면에서 사용자가 체크해야 하는 **항목 이름**. "scope"·"403" 같은 개발 용어는 쓰지 않는다.
+  const itemLabel = provider === 'google_drive'
+    ? t('integrations.permItemDrive', { defaultValue: 'Google Drive' }) as string
+    : t('integrations.permItemCalendar', { defaultValue: '캘린더' }) as string;
+  const message = status === 'read_only'
+    ? t('integrations.permReadOnly', { defaultValue: '지금은 일정을 가져오기만 해요. PlanQ 일정을 올리려면 다시 연결할 때 “캘린더” 항목을 체크해 주세요.' }) as string
+    : status === 'insufficient'
+      ? t('integrations.permInsufficient', { defaultValue: '연결은 됐지만 필요한 권한을 받지 못했어요. 다시 연결하면서 Google 동의 화면의 “{{item}}” 항목을 체크해 주세요.', item: itemLabel }) as string
+      : t('integrations.permError', { defaultValue: '연결이 만료되었거나 취소됐어요. 다시 연결해 주세요.' }) as string;
+  return (
+    <ReconnectHint>
+      <span>{message}</span>
+      <LinkBtnInline type="button" onClick={onReconnect} disabled={busy}>
+        {busy
+          ? t('integrations.connecting', { defaultValue: '연결 중…' }) as string
+          : t('integrations.reconnect', { defaultValue: '다시 연결' }) as string}
+      </LinkBtnInline>
+    </ReconnectHint>
+  );
+};
+
+// 카드 우측 상태 뱃지 — 워크스페이스 카드(StorageSettings)와 같은 톤.
+const PermissionBadge: React.FC<{ status: PermissionStatus }> = ({ status }) => {
+  const { t } = useTranslation('profile');
+  if (status === 'ok') return <PermBadge $kind="ok">{t('integrations.permBadgeOk', { defaultValue: '정상' }) as string}</PermBadge>;
+  if (status === 'read_only') return <PermBadge $kind="warn">{t('integrations.permBadgeReadOnly', { defaultValue: '읽기 전용' }) as string}</PermBadge>;
+  if (status === 'insufficient') return <PermBadge $kind="bad">{t('integrations.permBadgeInsufficient', { defaultValue: '권한 부족' }) as string}</PermBadge>;
+  return <PermBadge $kind="bad">{t('integrations.permBadgeError', { defaultValue: '연결 오류' }) as string}</PermBadge>;
+};
 
 const ProfileIntegrationsPage: React.FC = () => {
   const { t } = useTranslation('profile');
@@ -330,15 +379,19 @@ const ProfileIntegrationsPage: React.FC = () => {
                 <ConnInfo>
                   <ConnTitle>{PROVIDER_LABEL[c.provider]}</ConnTitle>
                   <ConnSub>{c.account_email}</ConnSub>
-                  {/* 쓰기 동의 여부에 따라 갈린다 — 옛 readonly 연결은 재동의해야 올리기가 켜진다 */}
-                  {c.can_write_calendar === false ? (
-                    <ReconnectHint>
-                      {t('integrations.calendarNeedsReconnect') as string}
-                      <LinkBtnInline type="button" onClick={() => connectPersonal('google_calendar')}>
-                        {t('integrations.reconnect') as string}
-                      </LinkBtnInline>
-                    </ReconnectHint>
-                  ) : (
+                  {/* 권한 상태는 서버 파생 단일 원천.
+                      토글을 숨기는 기준은 "상태가 나쁨" 이 아니라 **권한이 없음** 이다 —
+                      read_only·insufficient 는 켜도 조용히 실패하니 감추고,
+                      error 는 권한 자체는 있으므로(토큰만 죽음) 토글을 그대로 둔다. 있던 조작을 뺏지 않는다. */}
+                  {c.permission_status && c.permission_status !== 'ok' && (
+                    <PermissionNotice
+                      provider={c.provider}
+                      status={c.permission_status}
+                      onReconnect={() => connectPersonal('google_calendar')}
+                      busy={connProvider === 'google_calendar'}
+                    />
+                  )}
+                  {(!c.permission_status || c.permission_status === 'ok' || c.permission_status === 'error') && (
                     <SyncToggle>
                       <input
                         type="checkbox"
@@ -349,6 +402,7 @@ const ProfileIntegrationsPage: React.FC = () => {
                     </SyncToggle>
                   )}
                 </ConnInfo>
+                {c.permission_status && <PermissionBadge status={c.permission_status} />}
                 <DangerBtn type="button" onClick={() => onDisconnectPersonal(c.id)}>{t('integrations.disconnect', '해제') as string}</DangerBtn>
               </ConnRow>
             ))}
@@ -411,7 +465,17 @@ const ProfileIntegrationsPage: React.FC = () => {
                 <ConnInfo>
                   <ConnTitle>{PROVIDER_LABEL[c.provider]}</ConnTitle>
                   <ConnSub>{c.account_email}</ConnSub>
+                  {/* Drive 도 권한이 빠진 채 저장될 수 있다 — 캘린더만 보던 옛 화면은 이걸 "정상" 으로 보여줬다 */}
+                  {c.permission_status && c.permission_status !== 'ok' && (
+                    <PermissionNotice
+                      provider={c.provider}
+                      status={c.permission_status}
+                      onReconnect={() => connectPersonal('google_drive')}
+                      busy={connProvider === 'google_drive'}
+                    />
+                  )}
                 </ConnInfo>
+                {c.permission_status && <PermissionBadge status={c.permission_status} />}
                 <DangerBtn type="button" onClick={() => onDisconnectPersonal(c.id)}>{t('integrations.disconnect', '해제') as string}</DangerBtn>
               </ConnRow>
             ))}
@@ -476,8 +540,19 @@ const ConnInfo = styled.div`flex: 1; display: flex; flex-direction: column; gap:
 const ConnTitle = styled.div`font-size: 13px; font-weight: 700; color: #0F172A;`;
 const ConnSub = styled.div`font-size: 12px; color: #475569;`;
 const SyncToggle = styled.label`display:inline-flex;align-items:center;gap:6px;margin-top:4px;font-size:12px;color:#475569;cursor:pointer;`;
-const ReconnectHint = styled.div`display:flex;align-items:center;gap:6px;margin-top:4px;font-size:12px;color:#B45309;`;
-const LinkBtnInline = styled.button`background:none;border:none;padding:0;font-size:12px;font-weight:600;color:#0F766E;cursor:pointer;text-decoration:underline;&:hover{color:#134E4A;}`;
+const ReconnectHint = styled.div`display:flex;align-items:center;gap:6px;margin-top:4px;font-size:12px;color:#B45309;flex-wrap:wrap;`;
+const LinkBtnInline = styled.button`background:none;border:none;padding:0;font-size:12px;font-weight:600;color:#0F766E;cursor:pointer;text-decoration:underline;&:hover{color:#134E4A;}&:disabled{color:#94A3B8;cursor:default;text-decoration:none;}`;
+// 권한 상태 뱃지 — StorageSettings 의 StatusBadge 와 같은 형태(높이·radius·타이포).
+const PermBadge = styled.span<{ $kind: 'ok' | 'warn' | 'bad' }>`
+  flex-shrink: 0;
+  padding: 3px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; white-space: nowrap;
+  ${({ $kind }) => $kind === 'ok'
+    ? 'background:#ECFDF5;color:#047857;'
+    : $kind === 'warn'
+      ? 'background:#FFFBEB;color:#B45309;'
+      : 'background:#FEF2F2;color:#B91C1C;'}
+`;
 const ConnMeta = styled.div`font-size: 11px; color: #94A3B8;`;
 const DangerBtn = styled.button`
   height: 30px; padding: 0 12px;
