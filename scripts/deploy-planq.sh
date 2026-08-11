@@ -77,6 +77,15 @@ confirm() {
 }
 
 # 운영서버에서 명령 실행 (dry-run 시 출력만)
+#
+# ★ 원격 파이프는 종료코드를 가린다 — `| tail`/`| head` 를 쓰는 명령에는 명령 문자열 **맨 앞에**
+#   `set -o pipefail;` 을 직접 붙여야 한다. 이 함수는 `ssh HOST "$1"` 이라 파이프가 **원격 셸에서**
+#   돌고, 이 스크립트 상단의 `set -euo pipefail` 은 거기까지 미치지 않는다.
+#   실측 반증: `ssh HOST 'false | tail -10'` → **exit 0** (실패가 통째로 삼켜진다).
+#             `ssh HOST 'set -o pipefail; false | tail -10'` → exit 1.
+#   이걸 빠뜨리면 마이그레이션·npm ci 가 실패해도 배포가 계속 진행돼, 스키마가 안 바뀐 상태로
+#   새 백엔드가 떠서 `ER_BAD_FIELD_ERROR` 로 기능이 통째로 죽는다.
+#   → **신규 prod_run 에 파이프를 쓰면 pipefail 을 같이 넣을 것.**
 prod_run() {
   if [ "$DRY_RUN" = true ]; then
     dim "  [dry] ssh $PROD_HOST '$1'"
@@ -210,7 +219,7 @@ sync_backend() {
 # ──────────────────────────────────────────
 install_deps() {
   log "Installing backend deps on prod..."
-  prod_run "cd $PROD_BE && npm ci --omit=dev --silent 2>&1 | tail -3"
+  prod_run "set -o pipefail; cd $PROD_BE && npm ci --omit=dev --silent 2>&1 | tail -3"
   success "deps 설치 완료"
 }
 
@@ -224,53 +233,49 @@ sync_database() {
   #   생겨 **껐던 일정이 전부 다시 켜진다.** 그 뒤엔 rename 할 대상이 없어 이 스크립트도 무력하다.
   #   Fable 게이트가 재현으로 확정한 경로다 — 순서를 바꾸지 말 것.
   log "Running pre-sync migrations (rename)..."
-  prod_run "cd $PROD_BE && NODE_ENV=production node scripts/migrate-calendar-sync-split.js 2>&1 | tail -10"
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-calendar-sync-split.js 2>&1 | tail -10"
 
   log "Syncing DB schema on prod..."
-  prod_run "cd $PROD_BE && NODE_ENV=production node sync-database.js 2>&1 | tail -20"
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node sync-database.js 2>&1 | tail -20"
   success "DB sync 완료"
 
   # sync-database(Sequelize alter)가 못 하는 것 — ENUM 확장·NULL 허용 변경·백필.
   # 전부 멱등이라 매 배포 실행해도 안전하다. 순서 중요: 이걸 건너뛴 채 신 모델 코드가
   # 올라가면 push_subscriptions 조회가 Unknown column 으로 죽어 기존 웹푸시까지 전멸한다.
   log "Running idempotent migrations..."
-  prod_run "cd $PROD_BE && NODE_ENV=production node scripts/migrate-push-native.js 2>&1 | tail -10"
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-push-native.js 2>&1 | tail -10"
   # Q Bill 결제 원장 — invoice_payments.installment_id (매출 통계 원천). 코드보다 먼저.
-  prod_run "cd $PROD_BE && NODE_ENV=production node scripts/migrate-invoice-payment-installment.js 2>&1 | tail -10"
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-invoice-payment-installment.js 2>&1 | tail -10"
   # 계정 삭제(회원 탈퇴) 스키마 — users/businesses/business_members 컬럼.
-  prod_run "cd $PROD_BE && NODE_ENV=production node scripts/migrate-account-deletion.js 2>&1 | tail -10"
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-account-deletion.js 2>&1 | tail -10"
   # #203/#207 Q Mail 알림 — notification_prefs/notifications ENUM 확장 + email_accounts.notify_scope.
   #   ★ 순서: 이 ALTER 가 PM2 reload 보다 먼저 끝나야 한다(신 코드가 먼저 뜨면 Data truncated).
-  prod_run "cd $PROD_BE && NODE_ENV=production node scripts/migrate-mail-notify.js 2>&1 | tail -10"
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-mail-notify.js 2>&1 | tail -10"
   # #206 Q Task 보류/외부컨펌 — tasks.status ENUM 에 on_hold/external_review append + hold 컬럼 2개.
   #   ★ 순서: 이 ALTER 가 PM2 reload 보다 먼저 끝나야 한다(신 코드가 먼저 뜨면 Data truncated).
-  prod_run "cd $PROD_BE && NODE_ENV=production node scripts/migrate-task-hold-status.js 2>&1 | tail -10"
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-task-hold-status.js 2>&1 | tail -10"
   # Q Mail 발송 상태 — email_messages.delivery_status ENUM 에 'suppressed' append.
   #   ★ 순서: 이 ALTER 가 PM2 reload 보다 먼저 끝나야 한다(신 코드가 먼저 뜨면 Data truncated).
-  prod_run "cd $PROD_BE && NODE_ENV=production node scripts/migrate-email-delivery-status.js 2>&1 | tail -10"
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-email-delivery-status.js 2>&1 | tail -10"
   # 캘린더 연동 토글 — sync_enabled 2컬럼 + calendar_events.gcal_sync + calendar_event_gcal_links 테이블.
   #   이 스크립트는 sync-database 보다 **뒤에** 돌기 때문에(위 222행), 테이블은 대개 sync 가 먼저 만든다.
   #   그래서 FK 보증은 여기가 아니라 **모델 CalendarEventGcalLink 의 references/onDelete** 가 한다
   #   (모델에 없으면 sync 가 FK 없이 만들고, 이 스크립트는 hasTable 로 skip 해 FK 가 영구 누락된다).
   #   이 스크립트는 컬럼 3개와 "sync 가 손대지 않는 경우" 의 안전망 역할.
-  prod_run "cd $PROD_BE && NODE_ENV=production node scripts/migrate-calendar-sync-toggles.js 2>&1 | tail -10"
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-calendar-sync-toggles.js 2>&1 | tail -10"
   # #242 ② 역방향 동기화 — gcal_sync_token ×2 · last_pushed_etag · calendar_events DATETIME(3).
   #   ★ 반드시 PM2 reload **앞**에서 돈다. 모델이 gcal_sync_token 을 선언하므로 컬럼 없이 새
   #     백엔드가 뜨면 ExternalConnection 조회 전체가 ER_BAD_FIELD_ERROR 로 죽는다(외부연동·캘린더 전멸).
   #   ★ sync-database 에 맡기면 안 된다 — 그쪽은 모델별 alter 실패를 exit 0 으로 삼키고(64키 한도 전례),
   #     DATETIME(3) 정밀도 승격이 반영된다는 보장도 없다. 이 스크립트는 스키마를 재조회해 판정하고
   #     실패 시 exit 1 을 낸다.
-  #   ★ `set -o pipefail;` 을 **원격 명령 문자열 안에** 넣는 이유: prod_run 은 `ssh HOST "$1"` 이라
-  #     `| tail -10` 파이프가 원격 셸에서 돌고, 로컬의 `set -euo pipefail` 은 거기까지 미치지 않는다.
-  #     실측 반증: `ssh HOST 'false | tail -10'` → exit 0 (실패가 가려진다).
-  #     이 마이그레이션은 실패를 삼키면 컬럼 없이 새 백엔드가 떠서 외부연동·캘린더가 전멸하므로
-  #     반드시 fail-closed 여야 한다. (나머지 8건도 같은 구조 결함 — 별도 사이클에서 일괄 정리)
+  #   ★ pipefail 규칙은 아래 "원격 파이프" 주석 참조 — 이 블록의 모든 DB 단계에 일괄 적용돼 있다.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-calendar-reverse-sync.js 2>&1 | tail -10"
   success "마이그레이션 완료 (push native / invoice-payment / account-deletion / mail-notify / task-hold / mail-delivery / calendar-sync / calendar-split / calendar-reverse-sync)"
 
   # 백필 — 마이그레이션 후. 과거 paid invoice/회차에 payment 원장 생성(멱등). 매출 0 복구.
   log "Backfilling invoice payments..."
-  prod_run "cd $PROD_BE && NODE_ENV=production node scripts/backfill-invoice-payments.js 2>&1 | tail -6"
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/backfill-invoice-payments.js 2>&1 | tail -6"
   success "백필 완료 (invoice payments)"
 }
 
