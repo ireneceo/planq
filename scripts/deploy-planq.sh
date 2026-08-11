@@ -271,6 +271,10 @@ sync_database() {
   #     실패 시 exit 1 을 낸다.
   #   ★ pipefail 규칙은 위 prod_run 정의부 주석 참조 — 이 블록의 모든 DB 단계에 일괄 적용돼 있다.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-calendar-reverse-sync.js 2>&1 | tail -10"
+  # #244 수령확인 회전 — refresh_tokens.first_used_at + revoked_reason ENUM 값 추가.
+  #   ★ PM2 reload **앞**이어야 한다. 모델이 first_used_at 을 선언하므로 컬럼 없이 새 백엔드가 뜨면
+  #     RefreshToken 조회 전체가 ER_BAD_FIELD_ERROR → **로그인·세션 갱신 전멸**이다.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-refresh-delivery-confirm.js 2>&1 | tail -10"
   success "마이그레이션 완료 (push native / invoice-payment / account-deletion / mail-notify / task-hold / mail-delivery / calendar-sync / calendar-split / calendar-reverse-sync)"
 
   # 백필 — 마이그레이션 후. 과거 paid invoice/회차에 payment 원장 생성(멱등). 매출 0 복구.

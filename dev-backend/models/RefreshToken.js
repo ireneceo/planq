@@ -42,7 +42,9 @@ RefreshToken.init({
   // revoke 시각 — logout / rotation / 도난 의심. NULL 이면 active.
   revoked_at: { type: DataTypes.DATE, allowNull: true },
   revoked_reason: {
-    type: DataTypes.ENUM('rotated', 'logout', 'reuse_detected', 'admin', 'expired'),
+    // superseded_undelivered — #244. 회전으로 만들어졌지만 **클라이언트에 도달하지 못한** 후속.
+    //   (옛 토큰이 다시 왔고 이 후속은 한 번도 안 쓰였다 = Set-Cookie 유실) 폐기하고 새로 발급한다.
+    type: DataTypes.ENUM('rotated', 'logout', 'reuse_detected', 'admin', 'expired', 'superseded_undelivered'),
     allowNull: true,
   },
   // rotate 시 옛 row 의 후속 row id. 옛 토큰으로 refresh 호출 (다중 탭 race) 시
@@ -67,6 +69,12 @@ RefreshToken.init({
   //   FK/인덱스는 의도적으로 걸지 않는다 (sync alter 의 64키 한도 회피 — 조회는 극소량).
   grace_successor_id: { type: DataTypes.INTEGER, allowNull: true },
   last_used_at: { type: DataTypes.DATE, allowNull: true },
+  // #244 — 이 토큰이 **클라이언트에 실제로 도달했는지**의 증거.
+  //   refresh 로 처음 제시된 시점에만 기록된다(생성 시점이 아니다).
+  //   ★ last_used_at 은 createRefreshTokenRow 가 생성 시 NOW 로 채우므로
+  //     "만들어졌다" 와 "사용됐다" 를 구분하지 못한다 — 그래서 별도 컬럼이다.
+  //   NULL = 아직 한 번도 안 쓰임(= Set-Cookie 가 착지하지 못했을 수 있음).
+  first_used_at: { type: DataTypes.DATE, allowNull: true },
 }, {
   sequelize,
   tableName: 'refresh_tokens',
