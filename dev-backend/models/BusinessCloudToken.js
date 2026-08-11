@@ -100,6 +100,11 @@ BusinessCloudToken.init({
   last_error_at: {
     type: DataTypes.DATE,
     allowNull: true
+  },
+  gcal_sync_token: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: '역방향 동기화(구글→PlanQ) 증분 커서. 410 Gone 시 NULL 로 되돌려 재부트스트랩'
   }
 }, {
   sequelize,

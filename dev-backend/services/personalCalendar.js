@@ -121,7 +121,8 @@ async function insertEvent(conn, input) {
     { calendarId: 'primary', requestBody: planqBody(input) },
     { timeout: 10000 },
   );
-  return { id: resp.data.id, htmlLink: resp.data.htmlLink };
+  // etag — google_calendar.insertEvent 와 같은 shape. 역방향 에코 필터의 1차 근거.
+  return { id: resp.data.id, htmlLink: resp.data.htmlLink, etag: resp.data.etag || null };
 }
 
 /**
@@ -180,7 +181,7 @@ async function updateEvent(conn, gcalEventId, input) {
     { calendarId: 'primary', eventId: gcalEventId, requestBody: planqBody(input) },
     { timeout: 10000 },
   );
-  return { id: resp.data.id };
+  return { id: resp.data.id, etag: resp.data.etag || null };
 }
 
 // 이미 사라진 이벤트(404/410)는 성공으로 친다 — 목적("구글에 없게 한다")이 이미 달성된 상태다.

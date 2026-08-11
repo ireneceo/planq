@@ -103,25 +103,71 @@ async function resolveTargets(event, { businessId, userId }) {
 
 const keyOf = (t) => `${t.target}:${t.connection_id ?? ''}`;
 
+/**
+ * 목적지 실패를 **연동 레코드에** 기록한다 — target 종류를 가리지 않는다.
+ *
+ * ★ 왜 헬퍼인가: 여태 `if (t.target === 'workspace')` 분기만 있어 **개인 연동의 push 실패가
+ *   아무 데도 기록되지 않았다.** 그래서 개인 연동이 죽어도 `last_sync_error` 는 영원히 null 이고,
+ *   화면은 "정상" 이라 말하며, 서버는 그 연결을 계속 목적지로 골랐다.
+ *   분기를 3곳에 복붙하면 또 한 곳이 빠진다 — 단일 헬퍼로 고정한다.
+ */
+async function recordTargetError(t, err) {
+  if (!t) return;
+  try {
+    if (t.target === 'workspace') return await gcal.recordPushError(t.token, err);
+    const conn = t.token || (t.connection_id ? await ExternalConnection.findByPk(t.connection_id) : null);
+    if (conn) return await personalCalendar.recordConnError(conn, err);
+  } catch (e) {
+    console.error('[calendarSync] 실패 기록 자체가 실패:', e.message);
+  }
+}
+
+/**
+ * 목적지 성공 시 이전 오류 표시를 해제한다.
+ *
+ * ★ 이게 없으면 한 번 실패한 연결이 **영영 "연결 오류"** 로 남는다(일시적 네트워크 오류로도).
+ * ★ 무조건 UPDATE 하지 않는다 — reconcile 은 일정 저장마다 도는데 매번 쓰면 쓰기 증폭이 된다.
+ *   지울 것이 실제로 있을 때만 쓴다.
+ */
+async function clearTargetError(t) {
+  if (!t) return;
+  try {
+    if (t.target === 'workspace') {
+      const tok = t.token;
+      if (tok && (tok.last_error || tok.last_error_at)) {
+        await tok.update({ last_error: null, last_error_at: null });
+      }
+      return;
+    }
+    const conn = t.token;
+    if (conn && (conn.last_sync_error || (conn.fail_count || 0) > 0)) {
+      await conn.update({ last_sync_error: null, fail_count: 0, last_sync_at: new Date() });
+    }
+  } catch (e) {
+    console.error('[calendarSync] 오류 해제 실패:', e.message);
+  }
+}
+
 async function pushTo(t, event, tz) {
   const input = toInput(event, tz);
   if (t.target === 'workspace') {
     const cal = await gcal.getCalendarClient(t.token);
     const r = await gcal.insertEvent(cal, { ...input, summary: event.title });
-    return r && r.id;
+    return r && { id: r.id, etag: r.etag || null };
   }
   const r = await personalCalendar.insertEvent(t.token, input);
-  return r && r.id;
+  return r && { id: r.id, etag: r.etag || null };
 }
 
 async function updateAt(t, event, gcalEventId, tz) {
   const input = toInput(event, tz);
   if (t.target === 'workspace') {
     const cal = await gcal.getCalendarClient(t.token);
-    await gcal.updateEvent(cal, gcalEventId, { ...input, summary: event.title });
-    return;
+    const r = await gcal.updateEvent(cal, gcalEventId, { ...input, summary: event.title });
+    return { etag: (r && r.etag) || null };
   }
-  await personalCalendar.updateEvent(t.token, gcalEventId, input);
+  const r = await personalCalendar.updateEvent(t.token, gcalEventId, input);
+  return { etag: (r && r.etag) || null };
 }
 
 /**
@@ -133,18 +179,23 @@ async function updateAt(t, event, gcalEventId, tz) {
  */
 async function updateAtLink(link, event, businessId, tz) {
   const input = toInput(event, tz);
+  let etag = null;
   if (link.target === 'workspace') {
     const token = businessId
       ? await BusinessCloudToken.findOne({ where: { business_id: businessId, provider: 'gcal' } })
       : null;
     if (!token || !gcal.hasWriteScope(token.scope)) return false;
     const cal = await gcal.getCalendarClient(token);
-    await gcal.updateEvent(cal, link.gcal_event_id, { ...input, summary: event.title });
-    return true;
+    const r = await gcal.updateEvent(cal, link.gcal_event_id, { ...input, summary: event.title });
+    etag = (r && r.etag) || null;
+  } else {
+    const conn = await ExternalConnection.findByPk(link.connection_id);
+    if (!conn || !personalCalendar.hasCalendarWrite(conn)) return false;
+    const r = await personalCalendar.updateEvent(conn, link.gcal_event_id, input);
+    etag = (r && r.etag) || null;
   }
-  const conn = await ExternalConnection.findByPk(link.connection_id);
-  if (!conn || !personalCalendar.hasCalendarWrite(conn)) return false;
-  await personalCalendar.updateEvent(conn, link.gcal_event_id, input);
+  // 보호 링크도 우리가 민 것이므로 etag 를 갱신해야 역방향이 자기 변경을 되받지 않는다.
+  if (etag && etag !== link.last_pushed_etag) await link.update({ last_pushed_etag: etag }).catch(() => {});
   return true;
 }
 
@@ -210,6 +261,8 @@ async function reconcile(event, { businessId, userId }) {
       out.removed++;
     } catch (e) {
       out.errors.push({ stage: 'remove', target: link.target, message: e.message });
+      // 구글에서 못 지운 것도 연결 이상 신호다 — 여태 이 경로만 기록이 아예 없었다.
+      await recordTargetError({ target: link.target, connection_id: link.connection_id }, e);
     }
   }
 
@@ -217,20 +270,23 @@ async function reconcile(event, { businessId, userId }) {
   for (const [k, t] of wanted) {
     if (have.has(k)) continue;
     try {
-      const gid = await pushTo(t, event, tz);
-      if (!gid) continue;
+      const r = await pushTo(t, event, tz);
+      if (!r || !r.id) continue;
       await CalendarEventGcalLink.create({
         event_id: event.id, target: t.target, connection_id: t.connection_id,
-        user_id: t.user_id, gcal_event_id: gid,
+        user_id: t.user_id, gcal_event_id: r.id,
+        // insert 시점부터 etag 를 박는다 — 안 박으면 첫 폴링이 자기 insert 를 남의 변경으로 읽는다.
+        last_pushed_etag: r.etag || null,
       });
       if (t.target === 'workspace') {
         // 옛 단일 컬럼도 계속 채운다 — 오버레이 중복 제거·기존 삭제 경로가 이 값을 본다(회귀 0).
-        await event.update({ gcal_event_id: gid }).catch(() => {});
+        await event.update({ gcal_event_id: r.id }).catch(() => {});
       }
+      await clearTargetError(t);
       out.added++;
     } catch (e) {
       out.errors.push({ stage: 'add', target: t.target, message: e.message });
-      if (t.target === 'workspace') await gcal.recordPushError(t.token, e);
+      await recordTargetError(t, e);
     }
   }
 
@@ -239,7 +295,11 @@ async function reconcile(event, { businessId, userId }) {
     const link = have.get(k);
     if (!link) continue;
     try {
-      await updateAt(t, event, link.gcal_event_id, tz);
+      const r = await updateAt(t, event, link.gcal_event_id, tz);
+      if (r && r.etag && r.etag !== link.last_pushed_etag) {
+        await link.update({ last_pushed_etag: r.etag }).catch(() => {});
+      }
+      await clearTargetError(t);
       out.updated++;
     } catch (e) {
       const code = e && (e.code || e.status);
@@ -249,7 +309,7 @@ async function reconcile(event, { businessId, userId }) {
         out.removed++;
       } else {
         out.errors.push({ stage: 'update', target: t.target, message: e.message });
-        if (t.target === 'workspace') await gcal.recordPushError(t.token, e);
+        await recordTargetError(t, e);
       }
     }
   }
@@ -378,4 +438,7 @@ async function removeEverywhere(eventId, businessId) {
 module.exports = {
   reconcile, removeEverywhere, resolveTargets, toInput, wantsWorkspace, wantsPersonal,
   pickPersonalConn, resolveMeetSource, createMeeting, recordMeetError, linkMeeting, clearMeetings,
+  // 역방향 동기화(calendarReverseSync)가 사본 전파에 쓴다 — push 규칙을 두 벌로 만들지 않기 위해
+  // 기존 함수를 그대로 노출한다.
+  updateAtLink, recordTargetError, clearTargetError,
 };

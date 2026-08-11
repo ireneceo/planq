@@ -560,6 +560,9 @@ initReportUnitCron();
 // N+63 — 일정 임박 알림 cron (5분 단위)
 const { initCalendarReminderCron } = require('./services/calendarReminderCron');
 initCalendarReminderCron();
+// #242 ② — 역방향 동기화 cron (구글에서 고친 내용을 PlanQ 로, 5분 단위)
+const { initCalendarReverseSyncCron } = require('./services/calendarReverseSyncCron');
+initCalendarReverseSyncCron(app);
 // Q Mail M1 — IMAP fetch cron (5분 단위)
 const emailImapCron = require('./services/emailImapCron');
 emailImapCron.init();

@@ -61,6 +61,10 @@ ExternalConnection.init({
   last_sync_at: { type: DataTypes.DATE, allowNull: true },
   last_sync_error: { type: DataTypes.TEXT, allowNull: true },
   fail_count: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+  // 역방향 동기화(구글→PlanQ) 증분 커서. events.list 가 돌려주는 nextSyncToken.
+  //   NULL = 아직 부트스트랩 안 됨(다음 폴링이 전체 1회 수행 후 토큰 확보).
+  //   410 Gone 이면 NULL 로 되돌려 재부트스트랩한다 — 토큰은 캐시지 원장이 아니다.
+  gcal_sync_token: { type: DataTypes.TEXT, allowNull: true },
   // provider-specific
   metadata: { type: DataTypes.JSON, allowNull: true },
 }, {

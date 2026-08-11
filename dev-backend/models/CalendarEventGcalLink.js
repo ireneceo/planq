@@ -37,6 +37,12 @@ CalendarEventGcalLink.init({
   //     프라이버시가 회의 링크 보존보다 우선이다 (calendarSync.reconcile 참조).
   //   uniq_event_target_conn 키에는 들어가지 않는다 — 목적지 정체성은 (event,target,conn) 그대로.
   holds_meeting: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  // 우리가 **마지막으로 밀어 넣은** 구글 이벤트 버전의 etag.
+  //   역방향 폴링이 자기가 만든 변경을 되받아 무한 루프를 도는 것을 막는 **1차 필터**다.
+  //   ★ 정본 가드는 아니다 — 구글 etag 는 참석자 응답·리마인더처럼 우리가 안 미는 메타데이터
+  //     변화로도 바뀐다. 그래서 역방향은 etag 로 1차 거른 뒤 **화이트리스트 필드 diff 가 비면
+  //     no-op** 이라는 멱등 가드를 한 겹 더 둔다(calendarReverseSync).
+  last_pushed_etag: { type: DataTypes.STRING(255), allowNull: true },
 }, {
   sequelize,
   tableName: 'calendar_event_gcal_links',
