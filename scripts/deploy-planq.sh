@@ -269,7 +269,7 @@ sync_database() {
   #   ★ sync-database 에 맡기면 안 된다 — 그쪽은 모델별 alter 실패를 exit 0 으로 삼키고(64키 한도 전례),
   #     DATETIME(3) 정밀도 승격이 반영된다는 보장도 없다. 이 스크립트는 스키마를 재조회해 판정하고
   #     실패 시 exit 1 을 낸다.
-  #   ★ pipefail 규칙은 아래 "원격 파이프" 주석 참조 — 이 블록의 모든 DB 단계에 일괄 적용돼 있다.
+  #   ★ pipefail 규칙은 위 prod_run 정의부 주석 참조 — 이 블록의 모든 DB 단계에 일괄 적용돼 있다.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-calendar-reverse-sync.js 2>&1 | tail -10"
   success "마이그레이션 완료 (push native / invoice-payment / account-deletion / mail-notify / task-hold / mail-delivery / calendar-sync / calendar-split / calendar-reverse-sync)"
 
