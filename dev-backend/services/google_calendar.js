@@ -270,7 +270,9 @@ async function insertEvent(cal, { summary, description, location, startAt, endAt
         : undefined,
     },
   });
-  return { id: res.data.id, htmlLink: res.data.htmlLink || null };
+  // etag — 역방향 동기화가 "이 변경은 내가 민 것" 을 알아보는 1차 필터. insert 부터 저장해야
+  //   첫 폴링에서 자기 insert 를 남의 변경으로 오인하지 않는다.
+  return { id: res.data.id, htmlLink: res.data.htmlLink || null, etag: res.data.etag || null };
 }
 
 /**

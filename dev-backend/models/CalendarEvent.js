@@ -91,6 +91,13 @@ CalendarEvent.init({
   share_expires_at: { type: DataTypes.DATE, allowNull: true },
   // provenance(정보성 표시 전용) — 'cue'=Cue 대화형 실행. 권한/전이 로직 무접촉 display-only.
   created_via: { type: DataTypes.STRING(20), allowNull: true, defaultValue: null },
+  // ★ DATETIME(3) — 역방향 동기화(구글→PlanQ)의 충돌 판정 기준 컬럼이다.
+  //   구글의 `updated` 는 밀리초인데 이쪽이 초 정밀도면 **같은 초 안의 두 변경이 동률**이 되어
+  //   "최신 우선" 규칙이 사실상 동전 던지기가 된다. posts 에서 같은 계열의 사고가 이미 있었다
+  //   (같은 초 두 저장이 낙관적 잠금을 통과해 남의 본문을 덮음 → DATETIME(3) 승격으로 해결).
+  //   정밀도 확대라 기존 값은 .000 패딩될 뿐 잘리지 않는다.
+  createdAt: { type: DataTypes.DATE(3), allowNull: false, field: 'created_at' },
+  updatedAt: { type: DataTypes.DATE(3), allowNull: false, field: 'updated_at' },
 }, {
   sequelize,
   tableName: 'calendar_events',

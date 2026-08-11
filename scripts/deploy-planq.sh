@@ -254,7 +254,19 @@ sync_database() {
   #   (모델에 없으면 sync 가 FK 없이 만들고, 이 스크립트는 hasTable 로 skip 해 FK 가 영구 누락된다).
   #   이 스크립트는 컬럼 3개와 "sync 가 손대지 않는 경우" 의 안전망 역할.
   prod_run "cd $PROD_BE && NODE_ENV=production node scripts/migrate-calendar-sync-toggles.js 2>&1 | tail -10"
-  success "마이그레이션 완료 (push native / invoice-payment / account-deletion / mail-notify / task-hold / mail-delivery / calendar-sync / calendar-split)"
+  # #242 ② 역방향 동기화 — gcal_sync_token ×2 · last_pushed_etag · calendar_events DATETIME(3).
+  #   ★ 반드시 PM2 reload **앞**에서 돈다. 모델이 gcal_sync_token 을 선언하므로 컬럼 없이 새
+  #     백엔드가 뜨면 ExternalConnection 조회 전체가 ER_BAD_FIELD_ERROR 로 죽는다(외부연동·캘린더 전멸).
+  #   ★ sync-database 에 맡기면 안 된다 — 그쪽은 모델별 alter 실패를 exit 0 으로 삼키고(64키 한도 전례),
+  #     DATETIME(3) 정밀도 승격이 반영된다는 보장도 없다. 이 스크립트는 스키마를 재조회해 판정하고
+  #     실패 시 exit 1 을 낸다.
+  #   ★ `set -o pipefail;` 을 **원격 명령 문자열 안에** 넣는 이유: prod_run 은 `ssh HOST "$1"` 이라
+  #     `| tail -10` 파이프가 원격 셸에서 돌고, 로컬의 `set -euo pipefail` 은 거기까지 미치지 않는다.
+  #     실측 반증: `ssh HOST 'false | tail -10'` → exit 0 (실패가 가려진다).
+  #     이 마이그레이션은 실패를 삼키면 컬럼 없이 새 백엔드가 떠서 외부연동·캘린더가 전멸하므로
+  #     반드시 fail-closed 여야 한다. (나머지 8건도 같은 구조 결함 — 별도 사이클에서 일괄 정리)
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-calendar-reverse-sync.js 2>&1 | tail -10"
+  success "마이그레이션 완료 (push native / invoice-payment / account-deletion / mail-notify / task-hold / mail-delivery / calendar-sync / calendar-split / calendar-reverse-sync)"
 
   # 백필 — 마이그레이션 후. 과거 paid invoice/회차에 payment 원장 생성(멱등). 매출 0 복구.
   log "Backfilling invoice payments..."

@@ -661,6 +661,10 @@ CalendarEventAttendee.belongsTo(CalendarEvent, { foreignKey: 'event_id', onDelet
 CalendarEventAttendee.belongsTo(User, { as: 'user', foreignKey: 'user_id' });
 CalendarEventAttendee.belongsTo(Client, { as: 'client', foreignKey: 'client_id' });
 CalendarEvent.hasMany(CalendarEventAttendee, { as: 'attendees', foreignKey: 'event_id', onDelete: 'CASCADE' });
+// 역방향 동기화(#242 ②) — 링크 테이블에는 테넌트 축이 없다. business_id 는 CalendarEvent 에만 있으므로
+//   워크스페이스 링크를 business 로 좁히려면 이 조인이 필요하다(격리 없이 세면 남의 링크까지 센다).
+CalendarEventGcalLink.belongsTo(CalendarEvent, { as: 'event', foreignKey: 'event_id', onDelete: 'CASCADE' });
+CalendarEvent.hasMany(CalendarEventGcalLink, { as: 'gcalLinks', foreignKey: 'event_id', onDelete: 'CASCADE' });
 
 ProjectStatusOption.belongsTo(Project, { foreignKey: 'project_id', onDelete: 'CASCADE' });
 Project.hasMany(ProjectStatusOption, { as: 'status_options', foreignKey: 'project_id' });

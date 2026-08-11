@@ -40,6 +40,7 @@ const { RRule, rrulestr } = require('rrule');
 // 사이클 N+13: Daily.co 완전 교체 → Google Calendar API (Meet 자동 생성)
 const gcal = require('../services/google_calendar');
 const calendarSync = require('../services/calendarSync');
+const calendarPermission = require('../services/calendarPermission');
 const personalCalendar = require('../services/personalCalendar');
 const crypto = require('crypto');
 const { Business } = require('../models');
@@ -483,9 +484,11 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
     if (!event) { await t.rollback(); return errorResponse(res, 'event_not_found', 404); }
 
     // 편집 권한: 작성자 또는 owner/admin (N+67 — admin 도 편집 허용. PERMISSION_MATRIX 정합)
-    if (event.created_by !== req.user.id && bm.role !== 'owner' && bm.role !== 'admin') {
+    //   ★ 판정은 services/calendarPermission 단일 원천. 역방향 동기화(구글→PlanQ)가 같은 함수를
+    //     쓴다 — 규칙을 두 벌로 두면 한쪽만 고쳐져 어긋난다.
+    if (!calendarPermission.canEditEvent(event, bm, req.user.id)) {
       await t.rollback();
-      return errorResponse(res, 'only_creator_or_owner', 403);
+      return errorResponse(res, calendarPermission.editDenyReason(event, bm, req.user.id), 403);
     }
 
     // N+63 P2a — 정기일정 scope 분기 (single|future|all). default=all (기존 동작).
@@ -712,8 +715,9 @@ router.delete('/by-business/:businessId/:id', authenticateToken, checkBusinessAc
 
     let event = await CalendarEvent.findOne({ where: { id: req.params.id, business_id: businessId } });
     if (!event) return errorResponse(res, 'event_not_found', 404);
-    if (event.created_by !== req.user.id && bm.role !== 'owner' && bm.role !== 'admin') {
-      return errorResponse(res, 'only_creator_or_owner', 403);
+    // 판정은 services/calendarPermission 단일 원천 (PUT·삭제·Meet 재발급·역방향 동기화 공유)
+    if (!calendarPermission.canEditEvent(event, bm, req.user.id)) {
+      return errorResponse(res, calendarPermission.editDenyReason(event, bm, req.user.id), 403);
     }
 
     // N+63 P2a — scope 분기. master event 일 때만 적용.
@@ -965,8 +969,9 @@ router.post('/by-business/:businessId/:id/meeting', authenticateToken, checkBusi
 
     const event = await CalendarEvent.findOne({ where: { id: req.params.id, business_id: businessId } });
     if (!event) return errorResponse(res, 'event_not_found', 404);
-    if (event.created_by !== req.user.id && bm.role !== 'owner' && bm.role !== 'admin') {
-      return errorResponse(res, 'only_creator_or_owner', 403);
+    // 판정은 services/calendarPermission 단일 원천 (PUT·삭제·Meet 재발급·역방향 동기화 공유)
+    if (!calendarPermission.canEditEvent(event, bm, req.user.id)) {
+      return errorResponse(res, calendarPermission.editDenyReason(event, bm, req.user.id), 403);
     }
     // ★ 소스는 **일정 소유자의 개인 연동 우선 → 워크스페이스 폴백**.
     //   축을 actor(req.user.id)가 아니라 event.created_by 로 잡는 이유: admin 이 남의 일정에 회의를
