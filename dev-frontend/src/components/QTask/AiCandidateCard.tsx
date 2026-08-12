@@ -14,6 +14,8 @@ export interface AiCandidate {
   start_offset_days: number;
   due_offset_days: number;
   priority: string;
+  /** 정기 루틴 — 'none' | 'daily' | 'weekly' | 'monthly'. 마감일이 첫 발생일이 된다. */
+  recurrence?: string;
   assignee_hint: string | null;
   assignee_name?: string | null; // #90 — LLM 이 추출한 이름 (매칭 실패 시 경고 표시용)
   assignee_user_id: number | null;
@@ -102,11 +104,32 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
             onChange={e => onChange({ estimated_hours: Number(e.target.value) || 1 })} />
           <Unit>h</Unit>
         </MetaItem>
+        {/* 정기 루틴 — AI 가 "매일/매주/매월" 을 잡아내면 여기서 확인·수정한다.
+            여태 후보에 반복 개념이 없어서 "매일 …" 이라고 써도 일회성으로만 생성됐다. */}
+        <MetaItem>
+          <RecurSelect
+            value={c.recurrence || 'none'}
+            onChange={e => onChange({ recurrence: e.target.value })}
+            aria-label={t('ai.recurrenceLabel', '반복') as string}
+          >
+            <option value="none">{t('ai.recurNone', '반복 없음')}</option>
+            <option value="daily">{t('ai.recurDaily', '매일')}</option>
+            <option value="weekly">{t('ai.recurWeekly', '매주')}</option>
+            <option value="monthly">{t('ai.recurMonthly', '매월')}</option>
+          </RecurSelect>
+        </MetaItem>
       </CardMetaRow>
     </Card>
   );
 }
 
+const RecurSelect = styled.select`
+  font-size: 11px; font-weight: 500;
+  color: #475569; background: #F8FAFC;
+  border: 1px solid #E2E8F0; border-radius: 6px;
+  padding: 2px 6px; min-height: 22px; cursor: pointer;
+  &:focus-visible { outline: 2px solid #F43F5E; outline-offset: 1px; }
+`;
 const Card = styled.div<{ $disabled: boolean }>`
   padding: 10px 12px;
   background: ${p => p.$disabled ? '#F8FAFC' : '#FFFFFF'};

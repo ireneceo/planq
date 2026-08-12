@@ -137,6 +137,32 @@ async function recalcStatusFromReviewers(task, transaction) {
 //   (통일 유혹 금지: 프론트가 그 차이에 기대고 있다).
 // ─────────────────────────────────────────────
 
+// 프로젝트 기본 담당자 후보를 우선순위대로 반환 — [기본담당자, PM…].
+//   ★ 이 함수가 **단일 원천**이다. 화면(GET /api/projects/:id 의 resolved_default_assignee)과
+//     생성(createTask)이 서로 다른 술어를 쓰면 "미리보기와 실제가 다른" 사고가 난다
+//     (memory feedback_predicate_must_match_both_sides).
+//   PM 은 복수일 수 있으므로 tie-break 를 명시한다 — role 순, 그다음 id 순 (결정적).
+async function resolveProjectDefaultAssignee(projectId, businessId) {
+  const { ProjectMember } = require('../../models');
+  const prj = await Project.findOne({
+    where: { id: projectId, business_id: businessId },
+    attributes: ['id', 'default_assignee_user_id'],
+  });
+  if (!prj) return [];
+  const out = [];
+  if (prj.default_assignee_user_id) out.push(Number(prj.default_assignee_user_id));
+  const pms = await ProjectMember.findAll({
+    where: { project_id: projectId, is_pm: true },
+    attributes: ['user_id', 'role', 'id'],
+    order: [['role', 'ASC'], ['id', 'ASC']],
+  });
+  for (const pm of pms) {
+    const uid = Number(pm.user_id);
+    if (uid && !out.includes(uid)) out.push(uid);
+  }
+  return out;
+}
+
 /** 새 업무를 만든다. 사람도 Cue 도 이 문을 지난다.
  *
  * @param actor   { kind, userId, onBehalfOfUserId?, platformRole?, req? }
@@ -178,8 +204,25 @@ async function createTask(actor, params = {}, opts = {}) {
   // source / request_by 자동 판정: 담당자 ≠ 생성자 → 내부 요청 (생성자가 요청자)
   //   담당자 미지정 → 등록자 본인 (옛 POST /tasks · confirm 동작: `assignee_id || req.user.id`).
   //   단 후보 등록 경로만 '미배정'(명시적 null)을 남길 수 있다 — 옛 registerCandidate 동작.
-  let finalAssignee = params.assigneeId || (opts.allowUnassigned ? null : subjectId);
   const projectId = params.projectId || null;
+  let finalAssignee = params.assigneeId || null;
+
+  // 프로젝트 기본 담당자 체인 (Irene: "기본 담당자 적용된 것도 제대로 안되고 있어. PM은 기본으로 안넣는 거야?")
+  //   여태 담당자 미지정이면 **무조건 생성자**여서, 프로젝트에 설정해 둔 기본 담당자와 PM 이 통째로
+  //   무시됐다. 우선순위: 프로젝트 기본담당자 → PM → 생성자.
+  //   ★ 담당자를 **명시했으면 절대 개입하지 않는다** — 사용자가 고른 값을 덮으면 사고다.
+  //   ★ 배정 불가(탈퇴·타 워크스페이스)면 403 이 아니라 다음 후보로 폴백한다 — 기본값 때문에
+  //     업무 생성 자체가 막히면 안 된다.
+  let assigneeFromChain = false;
+  if (!finalAssignee && projectId && !opts.allowUnassigned) {
+    const chain = await resolveProjectDefaultAssignee(projectId, businessId);
+    for (const cand of chain) {
+      if (!cand || Number(cand) === Number(subjectId)) continue;
+      const chk = await assertAssignable(cand, businessId, projectId);
+      if (chk.ok) { finalAssignee = cand; assigneeFromChain = true; break; }
+    }
+  }
+  if (!finalAssignee) finalAssignee = opts.allowUnassigned ? null : subjectId;
 
   // 멀티테넌트 격리 — project_id·client_id 는 반드시 이 워크스페이스 소속이어야 한다.
   //   여태 workstream 분기에서만 project 소속을 봤고 일반 경로는 무검증이라, 다른 워크스페이스의
@@ -223,9 +266,19 @@ async function createTask(actor, params = {}, opts = {}) {
   //   (담당자가 ack 후 본인 캐파에 맞춰 정한다). 단 담당=Cue 면 예외 — AI 에겐 캐파 협상이 없다.
   const keepEstimate = !isInternalRequest || (opts.keepEstimateForCue && assigneeIsCue);
   const effectiveEstimatedHours = keepEstimate ? (params.estimatedHours || null) : null;
-  const effectiveRecurrenceRule = isInternalRequest ? null : (params.recurrenceRule || null);
-  if (isInternalRequest && (params.estimatedHours || params.recurrenceRule) && !keepEstimate) {
-    console.warn(`[createTask] requester=${subjectId} assignee=${finalAssignee} — 예측시간/반복설정 sanitize (책임선 분리)`);
+
+  // ★ 반복설정은 **체인이 배정한 담당자** 앞에서는 살린다.
+  //   §5.7 의 취지는 "남에게 *요청*하면서 그 사람 캐파(예측시간·반복주기)를 요청자가 정하지 말라"다.
+  //   그런데 프로젝트 기본담당자/PM 은 사용자가 그 업무에 대해 고른 사람이 아니라 **프로젝트 설정**이다.
+  //   여기서까지 반복을 NULL 로 만들면, 사용자가 정기업무로 만든 루틴이 저장 시 조용히 일회성이 된다
+  //   (Irene: "업무반복 기능도 적용이 안되네?"). 담당자를 **명시적으로 남으로 고른** 경우엔 종전대로 sanitize.
+  const recurrenceAllowed = !isInternalRequest || assigneeFromChain;
+  const effectiveRecurrenceRule = recurrenceAllowed ? (params.recurrenceRule || null) : null;
+  if (isInternalRequest && !recurrenceAllowed && params.recurrenceRule) {
+    console.warn(`[createTask] requester=${subjectId} assignee=${finalAssignee} — 반복설정 sanitize (책임선 분리)`);
+  }
+  if (isInternalRequest && params.estimatedHours && !keepEstimate) {
+    console.warn(`[createTask] requester=${subjectId} assignee=${finalAssignee} — 예측시간 sanitize (책임선 분리)`);
   }
 
   // 그룹(워크스트림) 배치 — 그 프로젝트 소속인지 검증 (멀티테넌트·오배치 차단)
@@ -1136,4 +1189,6 @@ module.exports = {
   recalcStatusFromReviewers,
   // 권한 술어 (읽기 라우트가 재사용)
   isAssignee, isRequester, isOwner, canManageReviewers,
+  // 기본 담당자 체인 — 화면(미리보기)과 생성이 같은 술어를 써야 한다
+  resolveProjectDefaultAssignee,
 };
