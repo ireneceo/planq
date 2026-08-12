@@ -6,6 +6,7 @@ const taskSnapshot = require('../services/task_snapshot');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { getUserScope, taskListWhere, canAccessTask, isMemberOrAbove, assertAssignable, assertMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
+const { getProgressBaselines, deltaOf } = require('../services/progressBaseline');
 const { todayInTz, mondayOfDateStr, addDaysStr, mondayOfIsoWeek } = require('../utils/datetime');
 const { rruleFromRecurrence } = require('../services/rruleFromRecurrence');
 // N+34 — 워크스페이스 표시명 helper. BusinessMember.name 우선, User.name fallback.
@@ -1845,14 +1846,17 @@ router.get('/daily-progress', authenticateToken, async (req, res, next) => {
     // WORK_FLOW §6-C — task_ids 로 이번 주 업무 집합 스코핑 (없으면 전체 = 후방호환).
     //   안 좁히면 est_used/act_used 가 그 사용자의 *전체* 업무를 합산해 진척선이 비현실값(153h)으로 박힘.
     //   보안: 클라이언트가 보낸 id 도 본인 소유와 교집합만 인정.
+    //   ★ #254 — 파라미터가 **있으면 빈 값이어도** scoped 다. 옛 코드는 빈 문자열을 "미지정" 으로 보고
+    //     전체 업무로 폴백했는데, 그러면 "이번 주 대상 0건" 인 화면에 그 사용자의 전체 누적이 그려진다.
+    const hasParam = req.query.task_ids != null;
     let ids;
-    if (req.query.task_ids != null && String(req.query.task_ids).trim() !== '') {
+    if (hasParam) {
       const requested = String(req.query.task_ids).split(',').map(Number).filter(Boolean);
-      ids = requested.filter(id => myIdSet.has(id));
+      ids = requested.filter(id => myIdSet.has(id));   // 보안: 본인 소유와 교집합만
     } else {
       ids = [...myIdSet];
     }
-    const scoped = req.query.task_ids != null && String(req.query.task_ids).trim() !== '';
+    const scoped = hasParam;
     const taskIdSet = new Set(ids);
     // 포커스 세션이 있으면 task 없이도(이미 삭제 등) 실측은 보여야 하나, 표준 경로상 ids 기준 충분.
 
@@ -1863,6 +1867,9 @@ router.get('/daily-progress', authenticateToken, async (req, res, next) => {
       byDate.set(cur, { date: cur, est_used: 0, act_used: 0, focus_hours: 0 });
       cur = addDaysStr(cur, 1);
     }
+
+    // 업무별 기준선 (services/progressBaseline 단일 원천 — 보고서·주간보고와 같은 함수)
+    const { baseAct, baseEst } = await getProgressBaselines(ids, from);
 
     // ── 1) 스냅샷 기반 est_used / 수동 actual (포커스 미사용자·완료업무) ──
     if (ids.length > 0) {
@@ -1881,10 +1888,14 @@ router.get('/daily-progress', authenticateToken, async (req, res, next) => {
         const prog = (s.progress_percent || 0) / 100;
         const est = Number(s.estimated_hours) || 0;
         const act = Number(s.actual_hours) || 0;
-        bucket.est_used += est * prog;
+        // ★ #254 — 스냅샷 행은 업무별 **일생 누적**이다. 그대로 더하면 이월 업무가 지난주까지 쌓은
+        //   시간이 이번 주 첫날부터 통째로 실린다(운영 실측: 이번 주 투입 0h 인데 그래프 6.4h).
+        //   기간 시작 이전 최신 행을 기준선으로 빼서 **그 주의 Δ** 만 그린다 — 보고서(#223)와 같은 정의.
+        //   클램프는 업무별. 집계 후 클램프는 한 업무의 하향 정정이 다른 업무의 진척을 잡아먹는다.
+        bucket.est_used += deltaOf(est * prog, baseEst.get(Number(s.task_id)));
         // 실제시간 = 실제 입력시간(actual_hours)만. (예측×진행률 fallback 금지 — 예측 라인과 동일해지는 버그.
         //  실제 미입력이면 actual 라인은 낮게 유지되어 "진척은 됐지만 시간 미입력"을 정직하게 보여줌. Irene 2026-06-16)
-        bucket.act_used += act;
+        bucket.act_used += deltaOf(act, baseAct.get(Number(s.task_id)));
       }
     }
 
@@ -1928,7 +1939,15 @@ router.get('/daily-progress', authenticateToken, async (req, res, next) => {
       delete b.focus_hours;
     }
 
-    return successResponse(res, { days: sorted });
+    // 프론트가 **오늘 라이브 값**도 같은 기준으로 Δ 계산하려면 기준선이 필요하다
+    //   (오늘은 스냅샷이 아침 기준이라 화면이 라이브로 다시 계산한다).
+    const bases = {};
+    for (const id of ids) {
+      const a = baseAct.get(Number(id)) || 0;
+      const e = baseEst.get(Number(id)) || 0;
+      if (a || e) bases[id] = { act: Math.round(a * 100) / 100, est_done: Math.round(e * 100) / 100 };
+    }
+    return successResponse(res, { days: sorted, bases });
   } catch (err) { next(err); }
 });
 

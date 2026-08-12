@@ -1,126 +1,90 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-08-12 (Opus 5, 1M) — 2회차 세션
-**작업 상태:** 업무추가 묶음 + UI/UX 2차 묶음 **운영 배포 완료** (`4afd169`, 백업 `20260812_194520`, 200초)
-Fable 게이트 3라운드 PASS. #255 백필 운영 실행 완료(7건 채움, 재실행 멱등 확인)
+**마지막 업데이트:** 2026-08-12 (Opus 5, 1M) — 2회차 세션 종료 (`/개발완료`)
+**작업 상태:** 배포 완료 + **오늘 탭 Fable 재검증 판정을 못 본 채 종료**
 
 > ## ⚠️ 이 파일이 낡으면 Fable 이 오판한다
-> 지난 세션에서 Fable 이 옛 내용을 읽고 잘못 판정한 전례가 있다. 청크를 끝낼 때마다 갱신할 것.
+> 청크를 끝낼 때마다 갱신할 것.
 
 ---
 
 ## 🔴 다음 세션에서 가장 먼저 볼 것
 
-### 1. ✅ 배포 완료 — 미배포 커밋 없음
-`4afd169` 까지 운영 반영. 백엔드 체인(`f1985f1`·`bb1e9d8`)도 같은 스택으로 함께 나갔다(결합 조건 충족).
-운영 실측: health 200 · PM2 3프로세스 재기동 · 프론트 청크 19:48 갱신 ·
-`pickProjectAssignee`/`resolved_default_assignee` 운영 코드 존재 · `priority` 죽은 코드 0건 ·
-신규 i18n 키(ko/en) 서빙 확인.
+### 1. ★ Fable 재검증 판정을 못 보고 세션이 끝났다
+세션 종료 시점에 **오늘 탭 D1·D2·D3 수정분** 재검증이 실행 중이었다. 판정을 못 봤다.
+→ **다음 세션 첫 할 일: 아래 시나리오로 `/fable-검증` 재실행**
+   - **D1**: 오늘 탭에서 우측 인사이트(기간·주간 가용시간·주간 진척 그래프)가 렌더되고, 값이 **주간 탭과 동일**한가
+   - **D2**: 오늘 탭 완료가리기 체크박스가 **1개**이고 실제로 동작하는가
+   - **D3**: 오늘 탭에서 제목만 넣고 추가 → **그 자리에 바로 보이는가**
+     (DB `due_date`=오늘 · `planned_week_start`=이번주 월요일 · `assignee_id`=본인 확인)
+   - 회귀: 주간/요청/전체 탭 무변경 · workspace 탭 담당자 체인 미리보기 생존
+FAIL 이면 그 위에서 고치면 된다(코드는 커밋돼 있다).
+
+### 2. ✅ 운영 배포 완료 — 운영에는 `4afd169` 까지 반영
+백업 `20260812_194520`. 3점 검증(health 200 · PM2 재기동 · 청크 갱신) + 운영 코드 대조 완료.
+#255 백필도 운영 실행(7건 채움, 재실행 시 0건으로 멱등 반증).
 롤백: `ssh irene@87.106.78.146 'tar -xzf /opt/planq/backups/20260812_194520/backend.tar.gz -C /opt/planq && pm2 reload planq-prod-backend'`
 
-### 2. 버전은 1.48.1 유지 (의도)
-배포 후 올리면 운영 PM2 표시(1.48.1)와 저장소가 어긋난다 — **다음 배포 때 올리는 것이 맞다.**
-Irene 이 올리라고 하면 backend/frontend package.json 동시 패치 + 릴리즈노트.
+### 3. 커밋됐지만 **미배포** — #254 + 오늘 탭 + 팝아웃 2탭
+- **#254 (Fable PASS)** — 진척 그래프 정의 통일. 운영 실측 9/9. 배포 안전 판정 받음
+- **오늘 탭 (판정 미확인)** — 위 1번. **판정 전에는 배포하지 말 것**
+- 팝아웃 2탭 · 태그 그룹 헤더 (1차 PASS)
+마이그레이션 0건. 배포는 Irene 의 `/배포` 명령 필요.
 
-### 3. Irene 확인 필요 (남아 있음)
-- **AI 업무추가 카드가 우선순위를 보여주는데 저장되지 않는다** — `tasks.priority` 컬럼 자체가 없다
-  (`priority_order` 는 주간 랭킹용). 죽은 write 는 이번에 제거했고, **표시를 없앨지 / 컬럼을 만들지**는 미결.
-  Fable 판정: `priority_order` 승격은 비권장(정렬 체계 오염).
-- 운영 프로젝트 10번 "IRENE KIM Operating System" 대체/보존 (지난 세션 이월)
-- 월 루틴 "N주차" → "매월 N번째 X요일" 요일 지정 4건 (지난 세션 이월)
+### 4. 남은 청크 2개 (Fable 설계 완료, 미착수)
+- **청크 3: Cue "완료로 추가"(#237)** — `cue_tools.js` `create_task` 스키마에 `completed` 추가 →
+  생성 후 **행동 계층 `complete()` 호출**(직접 status 쓰기 금지). `aiTaskPlanner`·confirm 라우트도 동일.
+  타인 담당이면 플래그 무시 + 카드 안내. `completed=true` 면 recurrence 는 서버가 null 강제.
+- **청크 4: 팝아웃 핀 재구조화(#258)** — "항상 위 창"(PinHolderView)은 **실측된 물리 제약**의 산물:
+  PiP 는 소유 창이 죽으면 같이 죽고, 팝아웃의 클릭은 메인 창으로 activation 이 전이되지 않는다.
+  해법 = **도크에서 핀 진입**(메인 탭이 PiP 소유) → 홀더 창 불필요.
+  ★ 스파이크 S1(메인 SPA 네비 중 PiP 생존) · S2(F5 시 사망 여부) · S3(PiP iframe 내 window.open) **선행 필수**.
+  S1 실패 시 청크 중단 → 후퇴안(홀더 유지 + 문구를 "항상-위 창을 붙잡는 기술적 지지대" 로 교정).
 
-### 4. 캘린더 / Google 심사 — **영상 촬영 가능** (운영 DB 실측 2026-08-12)
-- 개인 연동 #1 `irene@irenewp.com`: `calendar.events` + `calendar.readonly` + `drive.file` **보유**, 오류 없음
-- 개인 연동 #13 `lua`: `calendar.events`, 역방향 커서 발급됨(폴링 정상)
-- ⚠️ 워크스페이스 gcal 토큰 #3: scope `openid email` 뿐 + `insufficient authentication scopes`
-  → **폴링 제외**. 팀 캘린더 링크 6건 역동기화 안 됨. 오너 재연결 필요(동의화면 "캘린더" 체크)
-- 심사 대상 스코프는 `calendar.events` 하나 → **워크스페이스 재연결을 기다릴 필요 없다**
-- 영상 순서: 동의화면 → PlanQ 일정 생성(구글 반영, `gcal_sync_personal` 기본 ON) → 구글에서 수정 → **5분 내** PlanQ 반영
-  ※ irene 계정은 개인 링크 0건이라 아직 폴링 대상이 아니다. 2번(일정 1건 내보내기) 하는 순간 링크 생겨 그다음 주기부터 역방향 작동
+### 5. Irene 결정 대기 (코드로 못 정함)
+- **AI 업무추가 카드의 우선순위 표시** — `tasks.priority` 컬럼이 **없다**(`priority_order` 는 주간 랭킹용).
+  죽은 write 는 제거했으나 **표시를 없앨지 / 컬럼을 만들지** 미결. Fable: `priority_order` 승격 비권장
+- 운영 프로젝트 10번 "IRENE KIM Operating System" 대체/보존 · 월 루틴 "N주차" → "매월 N번째 X요일" 요일 지정 4건
+- 버전은 **1.48.1 유지** (배포 후 올리면 운영 PM2 표시와 어긋난다 — 다음 배포 때 올릴 것)
 
-### 5. 장부만 pending 인 피드백 5건 (운영 코드 대조로 확인 — Irene 이 닫아야 함, platform_admin 전용)
-`#241`(Q Note 번역 게이트) · `#244`(앱모드 강제 로그아웃, DB 컬럼·ENUM 실측 확인) ·
-`#252`(문서 자동저장, posts datetime(3) 마이그레이션도 운영 반영 확인) ·
-`#257 前`(조회수 silent 증가로 정렬 안 흔들림) · `#262 #263`(지난 세션 배포)
+### 6. 캘린더 / Google 심사 — **영상 촬영 가능** (운영 DB 실측)
+- 개인 연동 #1 `irene@irenewp.com`: `calendar.events` + `calendar.readonly` + `drive.file` 보유, 오류 없음
+- ⚠️ 워크스페이스 gcal 토큰 #3: scope `openid email` 뿐 + `insufficient authentication scopes` → 폴링 제외.
+  팀 캘린더 링크 6건 역동기화 안 됨. **오너 재연결 필요**(동의화면 "캘린더" 체크). 심사에는 불필요
+- 영상 순서: 동의화면 → PlanQ 일정 생성(구글 반영) → 구글에서 수정 → **5분 내** PlanQ 반영
+  ※ irene 계정은 개인 링크 0건이라, 2번(일정 1건 내보내기) 하는 순간 링크가 생겨 그다음 주기부터 역방향 작동
 
----
-
-## ✅ 이번 세션 구현분 (미커밋)
-
-### 업무추가 묶음 (Fable 설계 게이트: A 조건부PASS · B/C PASS · D 조건부PASS)
-- **P3** `TasksTab.tsx` 폼에 workstream select + `RecurrencePicker` 재사용 + 설명(textarea)
-- **`|| myId` / `?? myId` 제거** (TasksTab · QTaskPage workspace 분기) → 서버 체인 위임
-- **`pickProjectAssignee` 절출** (`task_actions.js`) — 선정 루프까지 포함한 단일 술어.
-  `resolveProjectDefaultAssignee` 는 후보 배열만 준다 → 화면이 `[0]` 을 쓰면 미리보기≠실제
-- `GET /api/projects/:id` 에 `resolved_default_assignee {user_id,name,from_chain,is_me}` (+ `taskActions` require 추가)
-- 담당자 placeholder 를 실제 배정자 이름으로 (문구가 거짓이 되는 것 차단)
-- 명시적 타인 담당 시 예측시간·반복 UI 숨김 (서버가 §5.7 로 조용히 버리는 조합)
-- ProjectTaskList 인라인 quick-add 2경로는 `myId` **의도적 유지** + 이유 주석
-- `priority` 죽은 코드 제거 (task_actions create + routes/tasks.js POST·PUT 구조분해)
-- **#256** 생성 시 첨부 `context: 'task'` → `'description_attach'`
-- **#265** `CreateDrawer` 표준 제목(18px/700/-0.2px) — 사용처 6곳 일괄
-- **#266** `DetailDrawer` Panel mediaPhone safe-area 이중 적용 제거
-
-### UI/UX 2차 묶음 (Fable 설계 게이트 통과, 진단 2건은 Fable 이 교정)
-- **#268** 랜딩 태그라인 띄어쓰기 5곳
-- **#272** (a) sent 폴더 `[보낸]` 숨김 (b)(d) **fragment 판별을 정화 전 원문으로** — DOMPurify
-  `WHOLE_DOCUMENT` 라 정화 후 판별은 죽은 코드였다. fragment 에만 sans-serif + 우/하단 padding
-  (c) `MsgChevron` 회전 + 접힌 프리뷰 카드 배경
-- **#270** `utils/linkify.tsx` 신설 → ChatPanel 이관(멘션은 renderSegment 주입) + 댓글 적용 + word-break
-- **#236** ProjectTaskList 업무명 셀 `$flex`(100px) → `$flex2`(240px)
-- **#245** ChatPanel PinnedList 가로 잠금 (MessageList 는 이미 수정돼 있었음)
-- **#264** WorkspaceSwitcher 생성 모달 `createPortal(document.body)` + `--vvh` + safe-area
-  + `useEscapeStack`/`useFocusTrap`. 원인 = 사이드바 `transform` 이 fixed 기준 박스를 바꾼 것
-- **#232** `AttachmentField.hideExistingSearch` prop 신설. 피드백 첨부(CueHelpDrawer) base64 배열 →
-  `File[]` + 드롭존(제출 시 base64 변환, 서버 계약 불변). PostTableGrid 문구 거짓("끌어다 놓으세요"인데
-  drop 없음) 해소. 로고·증빙 2곳 drop 추가. **죽은 파일 삭제**: `Common/FileUpload.tsx`,
-  `Docs/InlineAttachPicker.tsx` + index.ts export 정리
-
-### 가드·구조
-- **`guard-invariants.js` i18n 검사에 번역 함수 별칭 인식 추가** — `const { t: tp } = useTranslation(...)`
-  의 `tp('키','기본값')` 을 하드코딩으로 오탐하던 결함. **카나리로 탐지력 반증 완료**
-  (베이스라인 조이기 전엔 slack 아래 숨었고, 조인 뒤 0→1 로 정확히 FAIL). 베이스라인 426 → 382
-- `ProjectTaskList.tsx` styled 55개 → `ProjectTaskList.styles.ts` 절출 (주석 추가로 god-file 800줄
-  초과 → **주석을 깎지 않고 절출로 해소**)
-- `.claude/settings.json` 편집·조회 권한 allow 추가 (승인창 반복 제거)
+### 7. 피드백 장부 정리 (platform_admin 만 가능 — Irene)
+**해결·배포 완료인데 pending**: #232 #236 #241 #244 #245 #252 #255 #256 #257 #262 #263 #264 #265 #266 #268 #270 #272
+**컨펌 필요해 미착수**: #225 #227 #228 #229 #230 #231 #233 #235 #238 #239 #240 #259 #260 #261 #267 #269 #271 #273 #274
 
 ---
 
 ## 이번 세션에서 배운 것 (재발 방지)
 
-1. **★ 정화기가 입력 형태를 바꾼다.** DOMPurify `WHOLE_DOCUMENT: true` 는 조각도 `<html><body>` 로
-   감싸 돌려준다 — **정화 후 결과로 "조각이냐" 를 판정하면 그 분기는 영원히 안 탄다.** 판별은 원문으로.
-2. **★ 가드 오탐은 진짜 부채를 통과시킨다.** i18n 검사가 별칭 `tp(` 를 몰라 25건을 오탐하고 있었고,
-   그 오탐을 없애자 그만큼 **slack** 이 생겨 진짜 하드코딩 카나리가 통과됐다. 오탐 수정 후에는
-   **반드시 베이스라인을 조이고 다시 카나리로 반증**해야 한다.
-3. **★ 후보 나열 함수 ≠ 선정 함수.** `resolveProjectDefaultAssignee` 는 배열만 준다. 실제 배정은
-   본인 short-circuit + 배정가능 폴백까지 거쳐야 정해지고 **보는 사람마다 다르다.**
-   화면이 `[0]` 을 쓰면 미리보기≠실제 사고.
-4. **★ 라우트 경로를 추측하지 말 것.** task 삭제는 `/api/tasks/:id` 가 아니라
-   `DELETE /api/tasks/by-business/:businessId/:id` 다. 404 를 "삭제됨" 으로 오해하면 검증 데이터가 남는다
-   (이번에 9건 잔재 → 실제 삭제로 정리).
-5. **★ 로그인 응답 필드는 `data.token`** 이다(`accessToken` 아님). 검증 스크립트가 조용히 401 을 냈다.
-6. **주석도 god-file 래칫을 깨뜨린다.** 주석을 깎아 통과시키는 건 속이는 것 — 절출로 해소한다.
-7. **plan 한도가 검증을 막는다.** dev biz6 는 프로젝트 한도 초과라 신규 생성 불가 →
-   기존 프로젝트 설정을 잠시 바꾸고 **원복**하는 방식으로 케이스를 만들었다.
-
----
-
-## 운영 미처리 피드백 (2026-08-12 기준 40건 조회)
-
-이번 세션에서 다룬 것: #232 #236 #245 #256 #264 #265 #266 #268 #270 #272 (+P3)
-**컨펌 필요해 손대지 않은 것**(기능 설계 규모): #227 Cue 우측패널 · #229 프로젝트 히스토리 ·
-#230 Today 브리핑 · #233 통합 검색 · #237/#258 오늘 내 업무 탭·팝아웃 · #239 문서 외부 컨펌 ·
-#240 프로젝트 완료 알림 · #259 채팅방 링크(고객 로그인 없이) · #271 결과물 버전 · #274 고객 청구서 화면
-**대기열**: #254 #255 (주간 진척 그래프 불일치·미표시 — 데이터 정합 버그)
+1. **★ 정화기가 입력 형태를 바꾼다.** DOMPurify `WHOLE_DOCUMENT:true` 는 조각도 `<html><body>` 로 감싸 준다 —
+   **정화 후 결과로 "조각이냐" 를 판정하면 그 분기는 영원히 안 탄다.** 판별은 원문으로.
+2. **★ 가드 오탐은 진짜 부채를 통과시킨다.** i18n 검사가 별칭 `tp(` 를 몰라 25건 오탐 → 오탐을 없애자
+   그만큼 **slack** 이 생겨 진짜 하드코딩 카나리가 통과됐다. **오탐 수정 후엔 베이스라인을 조이고 다시 반증.**
+3. **★ 후보 나열 함수 ≠ 선정 함수.** 실제 배정은 본인 short-circuit + 폴백까지 거쳐야 정해지고
+   **보는 사람마다 다르다.** 화면이 배열 `[0]` 을 쓰면 미리보기≠실제 사고.
+4. **★ 스냅샷 원장은 "일생 누적" 일 수 있다.** 주간 그래프에 그대로 합산하면 이월분이 첫날부터 실린다.
+   기준선(기간 시작 이전 최신 행)을 빼는 정의를 **모든 소비처가 공유**해야 한다(3벌로 갈라져 있었다).
+5. **★ 새 탭을 만들면 "주간 전용" 게이트를 전수 확장해야 한다.** 인사이트 렌더·중복 체크박스·생성 기본값
+   3계열을 놓쳐 **추가한 업무가 즉시 사라지는** 결함이 났다(실브라우저로만 잡힘).
+6. **★ 헤더/본문 정렬은 CSS 분기가 아니라 각 컬럼 prop 이 정한다.** `flex-basis:0`+`border-box` 에서
+   한쪽에만 있는 패딩은 기본 크기로 잡혀 배분 비율까지 틀어진다(2:1 → 1.84:1).
+7. **라우트 경로를 추측하지 말 것.** task 삭제는 `DELETE /api/tasks/by-business/:businessId/:id`.
+   404 를 "삭제됨" 으로 오해하면 검증 데이터가 남는다. 로그인 응답 토큰 필드는 `data.token`.
+8. **주석도 god-file 래칫을 깨뜨린다.** 주석을 깎아 통과시키는 건 속이는 것 — 절출로 해소.
+   절출 시 `keyframes`·아이콘 import 누락이 나기 쉽다(빌드가 잡는다).
 
 ---
 
 ## Git 상태
-- 브랜치 main, `origin/main` 과 동기 (마지막 커밋 `e5a2ffa`)
-- 미커밋: 34 수정 + 2 신규(`ProjectTaskList.styles.ts`, `utils/linkify.tsx`) + 2 삭제
-- 운영 백업: `/opt/planq/backups/20260812_041709`
+- 브랜치 main. 운영 배포 지점 `4afd169` — 그 이후 커밋은 **미배포**
+- 운영 백업: `/opt/planq/backups/20260812_194520`
 
 ## 복구 가이드
 ```

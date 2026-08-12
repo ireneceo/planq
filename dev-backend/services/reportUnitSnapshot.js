@@ -10,6 +10,7 @@ const {
 } = require('../models');
 const { fetchProjectStats } = require('./weeklyReviewSnapshot');
 const { todayInTz, mondayOfDateStr, addDaysStr } = require('../utils/datetime');
+const { getProgressBaselines } = require('./progressBaseline');
 
 const SCHEMA_VERSION = 1;
 // DATEONLY 는 Date 객체로 올 수 있음(memory feedback_recurring_billing_latent_bugs) — Date/문자열 모두 안전 처리.
@@ -154,21 +155,8 @@ async function buildProgressSeries(taskIds, start, end, today = null) {
     order: [['snapshot_date', 'ASC']],
   });
 
-  // 업무별 기준선 — 기간 시작 **이전**의 최신 스냅샷 (원쿼리)
-  const [baseRows] = await sequelize.query(
-    `SELECT p.task_id, p.actual_hours, p.estimated_hours, p.progress_percent
-       FROM task_daily_progress p
-       JOIN (SELECT task_id, MAX(snapshot_date) md FROM task_daily_progress
-              WHERE task_id IN (:ids) AND snapshot_date < :start GROUP BY task_id) m
-         ON m.task_id = p.task_id AND m.md = p.snapshot_date`,
-    { replacements: { ids: taskIds, start } },
-  );
-  const baseAct = new Map();
-  const baseEst = new Map();
-  for (const b of baseRows) {
-    baseAct.set(b.task_id, Number(b.actual_hours) || 0);
-    baseEst.set(b.task_id, (Number(b.estimated_hours) || 0) * ((b.progress_percent || 0) / 100));
-  }
+  // 업무별 기준선 — services/progressBaseline 단일 원천 (라이브 그래프·개인 주간보고가 같은 함수를 쓴다)
+  const { baseAct, baseEst } = await getProgressBaselines(taskIds, start);
 
   // snapshot_date 가 Date 로 역직렬화되면 String 비교가 항상 실패한다 (옛 그래프 빈화면 원인) → 정규화
   const dayKey = (sd) => (sd instanceof Date ? sd.toISOString().slice(0, 10) : String(sd).slice(0, 10));

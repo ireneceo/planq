@@ -10,6 +10,7 @@ import SingleDateField from '../../components/Common/SingleDateField';
 import { PanelLayout, Panel } from '../../components/Layout/PanelLayout';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { todayInTz, mondayOfDateStr, addDaysStr, detectBrowserTz } from '../../utils/timezones';
+import { inTodaySet } from '../../utils/todayTaskSet';
 import { STATUS_CODES, STATUS_COLOR, displayStatus, getStatusLabel, statusOptionsFor, type StatusCode } from '../../utils/taskLabel';
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
 import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
@@ -58,7 +59,7 @@ const RIGHT_PANEL_INLINE_MIN = 1366;
 
 // ─── Types ───
 type Scope = 'mine' | 'workspace';
-type ListTab = 'week' | 'all' | 'requested' | 'weekly-review' | 'workspace-tasks' | 'workspace-weekly' | 'workspace-monthly';
+type ListTab = 'today' | 'week' | 'all' | 'requested' | 'weekly-review' | 'workspace-tasks' | 'workspace-weekly' | 'workspace-monthly';
 type ViewMode = 'list' | 'kanban';
 interface OrgUnitLite { id: number; name: string; name_en?: string | null }
 interface MemberOption { user_id: number; name: string; is_ai?: boolean; department?: OrgUnitLite | null; team?: OrgUnitLite | null; }
@@ -185,7 +186,7 @@ const QTaskPage:React.FC=()=>{
   const[tab,_setTab]=useState<ListTab>(() => {
     const search = typeof window !== 'undefined' ? window.location.search : location.search;
     const v = new URLSearchParams(search).get('tab');
-    const mineTabs: ListTab[] = ['week', 'all', 'requested', 'weekly-review'];
+    const mineTabs: ListTab[] = ['today', 'week', 'all', 'requested', 'weekly-review'];
     const wsTabs: ListTab[] = ['workspace-tasks', 'workspace-weekly', 'workspace-monthly'];
     const isWorkspace = (typeof window !== 'undefined' ? window.location.pathname : location.pathname).endsWith('/tasks/workspace');
     if (!isWorkspace && mineTabs.includes(v as ListTab)) return v as ListTab;
@@ -266,7 +267,19 @@ const QTaskPage:React.FC=()=>{
 
   // 워크스페이스 tz 기준 오늘/월요일 — 모든 업무 경계 계산의 기준
   const wsTz=user?.workspace_timezone||detectBrowserTz();
-  const todayStr=todayInTz(wsTz);
+  // ★ 자정 롤오버 — "오늘" 탭이 생기면서 필요해졌다. 상수로 두면 창을 밤새 열어둔 사용자의
+  //   오늘 목록이 어제에 머문다(주 단위일 땐 주 경계에서만 드러나던 결함).
+  //   60초 타이머 + 탭 복귀(visibility) 시 재평가.
+  const[todayStr,setTodayStr]=useState<string>(()=>todayInTz(wsTz));
+  useEffect(()=>{
+    const sync=()=>setTodayStr(prev=>{const now=todayInTz(wsTz);return now===prev?prev:now;});
+    sync();
+    const id=window.setInterval(sync,60000);
+    const onVis=()=>{if(document.visibilityState==='visible')sync();};
+    document.addEventListener('visibilitychange',onVis);
+    window.addEventListener('focus',onVis);
+    return()=>{window.clearInterval(id);document.removeEventListener('visibilitychange',onVis);window.removeEventListener('focus',onVis);};
+  },[wsTz]);
   const thisMondayStr=mondayOfDateStr(todayStr);
 
   // Period range (기본: 이번 주 월~금)
@@ -373,7 +386,7 @@ const QTaskPage:React.FC=()=>{
   // 담당자 미선택 시 서버 체인(프로젝트 기본담당자→PM→생성자)이 정하는 **실제 배정자** 미리보기.
   //   내 업무(week/all)는 나로 고정, 요청 탭은 선택 필수라 체인이 개입하지 않는다 — 그 두 경우엔 조회 안 함.
   //   ★ 값은 서버가 createTask 와 같은 함수로 계산한다(미리보기 ≠ 실제 방지).
-  const chainApplies = !(scope==='mine'&&(tab==='week'||tab==='all')) && tab!=='requested';
+  const chainApplies = !(scope==='mine'&&(tab==='week'||tab==='today'||tab==='all')) && tab!=='requested';
   const[resolvedAssignee,setResolvedAssignee]=useState<{name:string|null;is_me:boolean}|null>(null);
   useEffect(()=>{
     if(!chainApplies||!newProjectId){setResolvedAssignee(null);return;}
@@ -561,6 +574,9 @@ const QTaskPage:React.FC=()=>{
     return '';
   };
   const[dailyProgress,setDailyProgress]=useState<{date:string;est_used:number;act_used:number}[]>([]);
+  // #254 — 업무별 기준선(기간 시작 이전 최신 스냅샷). 오늘 라이브 값도 같은 기준으로 Δ 를 내야
+  //   과거일(서버 Δ)과 오늘(라이브)이 같은 선 위에 놓인다.
+  const[progressBases,setProgressBases]=useState<Record<string,{act:number;est_done:number}>>({});
 
   const thisMonday=thisMondayStr;
 
@@ -860,7 +876,7 @@ const QTaskPage:React.FC=()=>{
     //   (프로젝트 기본담당자 → PM → 생성자)이 탄다. 여기서 나로 채우면 그 체인은 영영 죽은 코드다.
     //   프로젝트를 안 골랐으면 서버가 생성자로 폴백하므로 종전과 결과가 같다.
     let targetAssignee:number|null;
-    if(scope==='mine'&&(tab==='week'||tab==='all')){
+    if(scope==='mine'&&(tab==='week'||tab==='today'||tab==='all')){
       targetAssignee=myId;
     }else if(tab==='requested'){
       if(!newAssignee)return; // 필수
@@ -868,8 +884,10 @@ const QTaskPage:React.FC=()=>{
     }else{
       targetAssignee=newAssignee;
     }
-    // 이번 주 탭에서는 마감일 기본값 = 오늘 (이번주 범위 안에 들어오도록)
-    const defaultDue=(scope==='mine'&&tab==='week')?todayStr:null;
+    // 이번 주/오늘 탭에서는 마감일 기본값 = 오늘 (그 목록의 범위 안에 들어오도록).
+    //   ★ 오늘 탭에도 필요하다 — 없으면 날짜 없는 not_started 가 backlog flood 차단 규칙에 걸려
+    //     방금 추가한 업무가 목록에서 즉시 사라진다(추가했는데 안 보임).
+    const defaultDue=(scope==='mine'&&(tab==='week'||tab==='today'))?todayStr:null;
     const finalDueDate = newDueDate || defaultDue;
     // 정기업무는 due_date 필수 (백엔드도 검증)
     if (newRecurEnabled && !finalDueDate) return;
@@ -883,7 +901,7 @@ const QTaskPage:React.FC=()=>{
           description:newDescription.trim()||null,
           assignee_id:targetAssignee,
           project_id:newProjectId,
-          planned_week_start:(scope==='mine'&&tab==='week')?thisMonday:null,
+          planned_week_start:(scope==='mine'&&(tab==='week'||tab==='today'))?thisMonday:null,
           start_date:newStartDate||null,
           due_date:finalDueDate,
           estimated_hours:newEstHours?Number(newEstHours):null,
@@ -1134,7 +1152,7 @@ const QTaskPage:React.FC=()=>{
 
   // 우선순위 번호·재인덱스의 정본 집합 (보기 옵션 무관). week 탭 밖에서는 쓰지 않는다.
   const weekSet=useMemo(()=>(
-    scope==='mine'&&tab==='week' ? allTasks.filter(t=>inWeekCanonical(t,true)) : []
+    scope==='mine'&&(tab==='week'||tab==='today') ? allTasks.filter(t=>inWeekCanonical(t,true)) : []
   ),[allTasks,scope,tab,inWeekCanonical]);
 
   // ── Client-side filtering (no reload) ──
@@ -1143,6 +1161,11 @@ const QTaskPage:React.FC=()=>{
     if(scope==='workspace'){
       if(assigneeFilter!=null)list=list.filter(t=>t.assignee_id===assigneeFilter);
     }else{
+      if(tab==='today'){
+        // 오늘 = 이번 주 정본의 부분집합 (utils/todayTaskSet 단일 술어).
+        //   주간 판정을 복사하지 않는다 — 세 번째 미러를 만들면 화면 간 우선순위 번호가 갈린다.
+        list=list.filter(t=>inWeekCanonical(t,!hideCompletedInWeek)&&inTodaySet(t,todayStr,myId,wsTz,!hideCompletedInWeek));
+      }
       if(tab==='week'){
         // 사용자: 기간(periodFrom~periodTo) 기준으로 업무 리스트 + 가용시간 매칭
         // 기간 안에 들어오는 task 중에서 내가 행동해야 하거나 기간 안에 완료한 것.
@@ -1157,7 +1180,7 @@ const QTaskPage:React.FC=()=>{
     // #250 태그 필터 — 보기 옵션이다. 위 weekSet(정본)에는 관여하지 않는다.
     if(tagFilter!=null)list=list.filter(t=>(t.tags||[]).some(tg=>tg.id===tagFilter));
     // week 탭은 자체 hideCompletedInWeek 로직을 위 위에서 처리. 다른 탭만 일괄 hideCompleted 적용.
-    if(hideCompleted && !(scope==='mine'&&tab==='week'))list=list.filter(t=>t.status!=='completed'&&t.status!=='canceled');
+    if(hideCompleted && !(scope==='mine'&&(tab==='week'||tab==='today')))list=list.filter(t=>t.status!=='completed'&&t.status!=='canceled');
 
     // Sort — 기본 복합 정렬: priority_order → due_date → title (nulls-last)
     // 사용자가 특정 컬럼 클릭 시 그 키가 주 정렬, 동률은 priority→due→title 로 tie-break
@@ -1217,7 +1240,7 @@ const QTaskPage:React.FC=()=>{
   // ★ 팝아웃 TaskPopoutView.prioMap 과 같은 결과여야 한다 (같은 집합 + 같은 tie-break).
   const displayPriorityMap=useMemo(()=>{
     const m=new Map<number,number>();
-    if(!(scope==='mine'&&tab==='week'))return m;
+    if(!(scope==='mine'&&(tab==='week'||tab==='today')))return m;
     const inWeek=weekSet.filter(t=>t.priority_order!=null);
     inWeek.sort(byPriorityChain);
     inWeek.forEach((t,i)=>m.set(t.id,i+1));
@@ -1231,7 +1254,7 @@ const QTaskPage:React.FC=()=>{
   //     weekSet 재계산 → effect 재발화 → reindex … 무한 사이클이 된다.
   //     기간/탭/스코프가 바뀔 때만 한 번 돈다. (서버가 changed=0 이면 broadcast 도 안 한다)
   useEffect(()=>{
-    if(!(scope==='mine'&&tab==='week'))return;
+    if(!(scope==='mine'&&(tab==='week'||tab==='today')))return;
     if(!bizId)return;
     let cancelled=false;
     (async()=>{
@@ -1356,11 +1379,16 @@ const QTaskPage:React.FC=()=>{
     }
     return{received,sent,review,receivedList,sentList,reviewList};
   },[allTasks,myId,todayStr]);
+  // 오늘 탭 뱃지 — 오늘 해야 할 **미완료** 건수 (완료분은 세지 않는다: "남은 일" 이 신호다)
+  const todayOpenCount=useMemo(()=>(
+    scope==='mine' ? allTasks.filter(t=>inWeekCanonical(t,false)&&inTodaySet(t,todayStr,myId,wsTz,false)).length : 0
+  ),[allTasks,scope,inWeekCanonical,todayStr,myId,wsTz]);
   const badgeCounts=useMemo(()=>({
+    today: todayOpenCount,
     week: panelCounts.received+panelCounts.sent+panelCounts.review,
     all: candidates.length,
     requested: panelCounts.sent,
-  }),[panelCounts,candidates.length]);
+  }),[panelCounts,candidates.length,todayOpenCount]);
 
 
   // WORK_FLOW §6 — 가용시간 비교는 잔여(remainingTotal) 기반으로 일원화 (전체 예측 totalMyEst 폐기).
@@ -1426,6 +1454,13 @@ const QTaskPage:React.FC=()=>{
     }catch{}
   };
 
+  // ★ #254 — 그래프의 정본 집합. **filtered 파생 금지**: 검색어를 치거나 "완료 가리기" 를 켜면
+  //   그래프가 같이 변해서, 보기 옵션이 사실을 바꾸는 상태였다(weekSet 정본 vs filtered 보기 분리 원칙 위반).
+  //   탭과도 무관하다 — 어느 탭에서 보든 "이번 주 내 투입" 은 한 값이어야 한다.
+  const chartWeekTasks=useMemo(()=>(
+    scope==='mine' ? allTasks.filter(t=>inWeekCanonical(t,true)&&t.assignee_id===myId&&t.status!=='canceled') : []
+  ),[allTasks,scope,myId,inWeekCanonical]);
+
   // 주간 진척 그래프 — 번업(0 → 위로 누적 상승, Irene 스펙 2026-06-29):
   //  - estimated_cumulative = Σ(예측시간 × 진행률) 누적 → 예측 진척 라인 (0→base 로 상승, 100% 시 base 도달).
   //  - actual_cumulative   = Σ(실제 입력시간) 누적 → 실제 투입 라인. 가용시간(가로선) 넘으면 그 위로 솟아 초과 시각화.
@@ -1441,12 +1476,16 @@ const QTaskPage:React.FC=()=>{
       days.push({label:dayNames[dt.getUTCDay()],date:cursor});
       cursor=addDaysStr(cursor,1);
     }
-    // chartTasks = filtered ⋂ 본인담당 ⋂ ¬canceled — 헤더(summary.myEst) 와 동일 단일 출처.
-    const chartTasks=filtered.filter(t=>t.assignee_id===myId&&t.status!=='canceled');
-    // 오늘 라이브 값 (스냅샷은 아침 기준이라 당일 변동 반영 위해 라이브 계산)
-    const liveEstDone=chartTasks.reduce((s,t)=>s+(Number(t.estimated_hours)||0)*((t.progress_percent||0)/100),0);
+    // ★ #254 — 그래프 집합은 정본(chartWeekTasks)이다. filtered 를 쓰면 검색·완료가리기가 사실을 바꾼다.
+    const chartTasks=chartWeekTasks;
+    // 오늘 라이브 값 (스냅샷은 아침 기준이라 당일 변동 반영 위해 라이브 계산).
+    //   ★ 업무별 기준선을 빼서 **이번 주 Δ** 로 낸다 — 과거일(서버 Δ)과 같은 선 위에 놓기 위함.
+    //   이월 업무가 지난주까지 쌓은 시간은 그래프가 아니라 리스트의 실제시간·이월 뱃지가 말한다.
+    const baseOf=(id:number)=>progressBases[String(id)]||{act:0,est_done:0};
+    const dPos=(v:number,b:number)=>Math.max(0,v-b);   // 하향 정정은 음의 노동이 아니다 → 0
+    const liveEstDone=chartTasks.reduce((s,t)=>s+dPos((Number(t.estimated_hours)||0)*((t.progress_percent||0)/100),baseOf(t.id).est_done),0);
     // 실제 = 실제 입력시간(actual_hours)만. 예측×진행률 fallback 금지 (예측 라인과 동일해지는 버그).
-    const liveAct=chartTasks.reduce((s,t)=>s+(Number(t.actual_hours)||0),0);
+    const liveAct=chartTasks.reduce((s,t)=>s+dPos(Number(t.actual_hours)||0,baseOf(t.id).act),0);
     const snapMap=new Map(dailyProgress.map(d=>[d.date.slice(0,10),d]));
     const raw=days.map(d=>{
       let estV=0, actV=0;
@@ -1474,27 +1513,28 @@ const QTaskPage:React.FC=()=>{
         reverted: estReverted||actReverted,
       };
     });
-  },[filtered,myId,periodFrom,periodTo,dailyProgress,todayStr]);
+  },[chartWeekTasks,periodFrom,periodTo,dailyProgress,progressBases,todayStr]);
 
   // weekTotalEst = Σ예측 — chartVerdict(SPI 판정) 전용. 그래프 대각선은 effectiveCapacity(가용) 사용 (2026-07-05, Fable 검토)
-  const weekTotalEst=useMemo(()=>{
-    const ct=filtered.filter(t=>t.assignee_id===myId&&t.status!=='canceled');
-    return Math.round(ct.reduce((s,t)=>s+(Number(t.estimated_hours)||0),0)*10)/10;
-  },[filtered,myId]);
+  const weekTotalEst=useMemo(()=>(
+    Math.round(chartWeekTasks.reduce((s,t)=>s+(Number(t.estimated_hours)||0),0)*10)/10
+  ),[chartWeekTasks]);
 
   // WORK_FLOW §6-C — 그래프 스코핑 키 = 이번 주 차트 대상 업무(내 담당·¬취소) ID 집합(정렬).
   //   ID 집합이 바뀔 때만(주 진입/이탈) 재요청 — 진행률 편집은 같은 집합이라 재요청 안 함.
   const chartTaskIdsKey=useMemo(()=>(
-    filtered.filter(t=>t.assignee_id===myId&&t.status!=='canceled').map(t=>t.id).sort((a,b)=>a-b).join(',')
-  ),[filtered,myId]);
+    chartWeekTasks.map(t=>t.id).sort((a,b)=>a-b).join(',')
+  ),[chartWeekTasks]);
   useEffect(()=>{
     if(!bizId)return;
     (async()=>{
       try{
-        // scope=mine·week 일 때만 이번 주 집합으로 스코핑. 그 외(workspace 등)는 전체(후방호환).
-        const idsParam=(scope==='mine'&&chartTaskIdsKey)?`&task_ids=${chartTaskIdsKey}`:'';
+        // ★ #254 — scope=mine 이면 **항상** 스코핑한다(집합이 비어도 `&task_ids=`).
+        //   빈 값을 안 보내면 서버가 "미지정" 으로 보고 내 전체 업무로 폴백해, 대상 0건인 화면에
+        //   전체 누적이 그려진다.
+        const idsParam=(scope==='mine')?`&task_ids=${chartTaskIdsKey}`:'';
         const r=await(await apiFetch(`/api/tasks/daily-progress?business_id=${bizId}&from=${periodFrom}&to=${periodTo}${idsParam}`)).json();
-        if(r.success)setDailyProgress(r.data?.days||[]);
+        if(r.success){setDailyProgress(r.data?.days||[]);setProgressBases(r.data?.bases||{});}
       }catch{/* ignore */}
     })();
   },[bizId,periodFrom,periodTo,chartTaskIdsKey,scope]);
@@ -1591,6 +1631,10 @@ const QTaskPage:React.FC=()=>{
         {/* Tabs — 내 업무 모드 (이번 주 내 / 내 전체 / 요청하기 / 지난주 내 업무보고) */}
         {scope==='mine'&&(
           <TabBar>
+            <TabBtn type="button" $active={tab==='today'} onClick={()=>setTab('today')}>
+              {t('tab.today','오늘 나의 업무')}
+              {badgeCounts.today>0&&<TabBadge $active={tab==='today'}>{badgeCounts.today}</TabBadge>}
+            </TabBtn>
             <TabBtn type="button" $active={tab==='week'} onClick={()=>setTab('week')}>
               {t('tab.week','이번 주 내 업무')}
               {badgeCounts.week>0&&<TabBadge $active={tab==='week'}>{badgeCounts.week}</TabBadge>}
@@ -1656,7 +1700,7 @@ const QTaskPage:React.FC=()=>{
         )}
 
         {/* Cue에게 말하기 바 — 캐주얼 한마디 → AI 업무 즉시 생성 (리스트 탭에서만, 요청하기 제외) */}
-        {bizId && ((scope==='mine'&&(tab==='week'||tab==='all')) || (scope==='workspace'&&tab==='workspace-tasks')) && (
+        {bizId && ((scope==='mine'&&(tab==='week'||tab==='today'||tab==='all')) || (scope==='workspace'&&tab==='workspace-tasks')) && (
           <CueTaskBar
             businessId={bizId}
             projectId={null}
@@ -1706,8 +1750,8 @@ const QTaskPage:React.FC=()=>{
                   options={members.map(m=>({value:String(m.user_id),label:m.name+(m.user_id===myId?` ${t('common.meSuffix',{defaultValue:'(나)'}) as string}`:'')}))} />
               </div>
             )}
-            {tab!=='week' && <HideCheck><input type="checkbox" checked={hideCompleted} onChange={e=>setHideCompleted(e.target.checked)} />{t('filter.hideCompleted','Hide completed')}</HideCheck>}
-            {tab==='week' && <HideCheck><input type="checkbox" checked={hideCompletedInWeek} onChange={e=>setHideCompletedInWeek(e.target.checked)} />{t('filter.hideCompleted','Hide completed')}</HideCheck>}
+            {tab!=='week' && tab!=='today' && <HideCheck><input type="checkbox" checked={hideCompleted} onChange={e=>setHideCompleted(e.target.checked)} />{t('filter.hideCompleted','Hide completed')}</HideCheck>}
+            {(tab==='week'||tab==='today') && <HideCheck><input type="checkbox" checked={hideCompletedInWeek} onChange={e=>setHideCompletedInWeek(e.target.checked)} />{t('filter.hideCompleted','Hide completed')}</HideCheck>}
             <ChipRow>
               <Chip>{summary.count}{t('summary.unit','개')}</Chip>
               <Chip $teal={!isOverCap} $warn={isOverCap}
@@ -1748,7 +1792,7 @@ const QTaskPage:React.FC=()=>{
           {viewMode==='list'&&(
           <TableHScroll>
           <ColRow>
-            {tab==='week' && <Col $w="30px" $center onClick={()=>handleSort('priority_order')} data-tour="qtask-priority">#{sortIcon('priority_order')}</Col>}
+            {(tab==='week'||tab==='today') && <Col $w="30px" $center onClick={()=>handleSort('priority_order')} data-tour="qtask-priority" title={t('tab.priorityWeeklyHint','주간 우선순위 번호 — 오늘 탭에서는 번호가 건너뛸 수 있어요') as string}>#{sortIcon('priority_order')}</Col>}
             <Col $w="80px" $hideBelow={640} onClick={()=>handleSort('title')}>{t('col.project','Project')}</Col>
             <Col $flex onClick={()=>handleSort('title')}>{t('col.task','Task')} {sortIcon('title')}</Col>
             {scope==='workspace' && <Col $w="90px" $hideBelow={768}>{t('col.assignee','담당자')}</Col>}
@@ -1782,7 +1826,7 @@ const QTaskPage:React.FC=()=>{
                     }}
                     style={{cursor:'pointer'}}>
 
-                    {tab==='week' && (
+                    {(tab==='week'||tab==='today') && (
                       <TCell $w="30px" $center>
                         <PrioNum $active={!!task.priority_order} $disabled={task.status==='completed'||task.status==='canceled'}
                           disabled={prioBusy}
@@ -1834,7 +1878,7 @@ const QTaskPage:React.FC=()=>{
                             백엔드가 이름 사전순으로 실어 보내므로 여기서 다시 정렬하지 않는다. */}
                         <TagChips tags={task.tags} max={3} />
                         {/* WORK_FLOW §6 — 이월 배지: 지난 주에서 넘어온 활성 업무. 과거 이력이 살아있음을 인지시킴. */}
-                        {scope==='mine' && tab==='week' && isCarried(task) && (
+                        {scope==='mine' && (tab==='week'||tab==='today') && isCarried(task) && (
                           <CarriedBadge title={t('list.carriedHint', { h: formatHours(task.actual_hours), defaultValue: '지난주에 시작한 업무예요. 이미 {{h}}h 투입 — 열면 이력·대화·메모 전부 볼 수 있어요.' }) as string}>
                             {t('list.carried','이월')}
                           </CarriedBadge>
@@ -2545,6 +2589,7 @@ const QTaskPage:React.FC=()=>{
             <RightTitle>
               {scope==='workspace'
                 ? t('scope.workspace','전체 업무')
+                : tab==='today' ? t('tab.today','오늘 나의 업무')
                 : tab==='week' ? t('tab.week','이번 주 내 업무')
                 : tab==='requested' ? t('tab.requested','요청하기')
                 : t('tab.all','내 전체업무')}
@@ -2795,7 +2840,7 @@ const QTaskPage:React.FC=()=>{
               </>;
               return <>
             {/* 이번 주: 받은/보낸 업무요청 + 개인 인사이트 — count 0 이면 섹션 자체 숨김 */}
-            {scope==='mine'&&tab==='week'&&<>
+            {scope==='mine'&&(tab==='week'||tab==='today')&&<>
               {panelCounts.received>0&&(
                 <RSection>
                   <RSTitle>{t('right.received','받은 업무요청')} ({panelCounts.received})</RSTitle>

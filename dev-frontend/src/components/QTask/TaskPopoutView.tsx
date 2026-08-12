@@ -12,8 +12,50 @@
 //     (a) business room join  (b) 백엔드 broadcast(기존 task:*)  (c) listener + 250ms debounce silentLoad
 //     (d) useVisibilityRefresh  (+ 같은 창 안전망 window 'inbox:refresh')
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import styled, { keyframes } from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import {
+  Badge,
+  CheckIcon,
+  SendIcon,
+  Body,
+  Center,
+  CheckBtn,
+  EmptyLine,
+  EmptyTitle,
+  ErrText,
+  Head,
+  HeadMeta,
+  HeadRight,
+  HeadTitle,
+  List,
+  MetaChip,
+  MetaDue,
+  PrioBtn,
+  PrioChip,
+  PrioSlot,
+  RetryBtn,
+  Row,
+  RowErr,
+  RowInner,
+  RowLead,
+  RowMain,
+  RowMeta,
+  RowTitle,
+  RowTop,
+  Slot,
+  SortToggle,
+  Spin,
+  SubmitBtn,
+  TabBtn,
+  TabRow,
+  TagGroupHead,
+  ToggleDone,
+  WaitDot,
+  Wrap,
+} from './TaskPopoutView.styles';
+
+import { inTodaySet } from '../../utils/todayTaskSet';
+import { detectBrowserTz } from '../../utils/timezones';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { joinRoom, leaveRoom, onSocket, getSocket } from '../../services/socket';
@@ -118,10 +160,22 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   const { user } = useAuth();
   const bizId = user?.business_id ? Number(user.business_id) : null;
   const myId = user ? Number(user.id) : -1;
-  const todayStr = useMemo(() => {
-    // 로컬 기준 오늘 (toISOString 은 UTC 라 KST 자정 직후 전날로 밀린다)
+  // 로컬 기준 오늘 (toISOString 은 UTC 라 KST 자정 직후 전날로 밀린다).
+  //   ★ 상수로 두면 팝아웃을 밤새 열어둔 사용자의 "오늘" 이 어제에 머문다 — 60초 타이머 + 복귀 시 재평가.
+  const localToday = () => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const [todayStr, setTodayStr] = useState<string>(localToday);
+  // 팝아웃은 워크스페이스 tz 를 따로 안 받는다 — 완료 판정용으로 브라우저 tz 를 쓴다(로컬 오늘과 같은 기준).
+  const tzGuess = useMemo(() => detectBrowserTz(), []);
+  useEffect(() => {
+    const sync = () => setTodayStr((prev) => { const now = localToday(); return now === prev ? prev : now; });
+    const id = window.setInterval(sync, 60000);
+    const onVis = () => { if (document.visibilityState === 'visible') sync(); };
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('focus', onVis);
+    return () => { window.clearInterval(id); document.removeEventListener('visibilitychange', onVis); window.removeEventListener('focus', onVis); };
   }, []);
 
   const [tasks, setTasks] = useState<PopoutTask[]>([]);
@@ -133,6 +187,12 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   const [showDone, setShowDone] = useState(false);
   // #250 — 나열 기준. 'default' = 기존 사슬(우선순위→마감→제목), 'tag' = 대표 태그순.
   const [sortMode, setSortMode] = useState<'default' | 'tag'>('default');
+  // #237·#258 — 오늘/이번 주 2탭. 팝아웃은 "오늘 해야 할 일" 도구로 쓰이므로 기본은 오늘.
+  //   데이터는 /my-week 한 벌을 공유하고 탭은 **클라이언트 필터**다 — 새 요청·새 술어를 만들지 않는다.
+  const [popTab, setPopTab] = useState<'today' | 'week'>(() => {
+    try { return localStorage.getItem('planq:taskPopout:tab') === 'week' ? 'week' : 'today'; } catch { return 'today'; }
+  });
+  useEffect(() => { try { localStorage.setItem('planq:taskPopout:tab', popTab); } catch { /* ignore */ } }, [popTab]);
 
   // 응답 순서 가드 — 늦게 도착한 옛 응답이 새 목록을 덮어쓰지 않게 (#205 패턴)
   const seqRef = useRef(0);
@@ -320,10 +380,14 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
     return bySortRule(a, b);           // 같은 대표 태그 안에서는 기존 사슬 그대로
   };
   const sortRule = sortMode === 'tag' ? byTagRule : bySortRule;
+  // 오늘 탭 = 이번 주 응답(/my-week) 위에 utils/todayTaskSet 술어를 얹은 것. 메인 화면과 **같은 함수**다.
+  const inTab = useCallback((tk: PopoutTask, includeDone: boolean) => (
+    popTab === 'week' ? true : inTodaySet(tk as never, todayStr, myId, tzGuess, includeDone)
+  ), [popTab, todayStr, myId]);   // eslint-disable-line react-hooks/exhaustive-deps
   const openTasks = useMemo(
-    () => tasks.filter((tk) => !CLOSED.includes(tk.status)).sort(sortRule), [tasks, sortMode]);   // eslint-disable-line react-hooks/exhaustive-deps
+    () => tasks.filter((tk) => !CLOSED.includes(tk.status) && inTab(tk, false)).sort(sortRule), [tasks, sortMode, inTab]);   // eslint-disable-line react-hooks/exhaustive-deps
   const doneTasks = useMemo(
-    () => tasks.filter((tk) => CLOSED.includes(tk.status)).sort(sortRule), [tasks, sortMode]);    // eslint-disable-line react-hooks/exhaustive-deps
+    () => tasks.filter((tk) => CLOSED.includes(tk.status) && inTab(tk, true)).sort(sortRule), [tasks, sortMode, inTab]);    // eslint-disable-line react-hooks/exhaustive-deps
   const visible = showDone ? [...openTasks, ...doneTasks] : openTasks;
   const hasAnyTag = useMemo(() => tasks.some((tk) => (tk.tags?.length || 0) > 0), [tasks]);
 
@@ -411,6 +475,17 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
         </HeadRight>
       </Head>
 
+      {/* #237·#258 — 오늘 / 이번 주 2탭. 데이터는 한 벌(/my-week)이고 탭은 클라이언트 필터다. */}
+      <TabRow role="tablist" aria-label={t('popout.tabsLabel', '업무 범위') as string}>
+        <TabBtn type="button" role="tab" aria-selected={popTab === 'today'} $active={popTab === 'today'}
+          data-testid="task-popout-tab-today" onClick={() => setPopTab('today')}>
+          {t('popout.tabToday', '오늘')}
+        </TabBtn>
+        <TabBtn type="button" role="tab" aria-selected={popTab === 'week'} $active={popTab === 'week'}
+          data-testid="task-popout-tab-week" onClick={() => setPopTab('week')}>
+          {t('popout.tabWeek', '이번 주')}
+        </TabBtn>
+      </TabRow>
       <Body>
         {loading && <Center>{t('popout.loading', '불러오는 중…')}</Center>}
 
@@ -432,18 +507,25 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
 
         {!loading && !error && visible.length > 0 && (
           <List role="list" data-testid="task-popout-list">
-            {visible.map((tk) => {
+            {visible.map((tk, vi) => {
+              // #237 "태그(업무방식)별로 시각적으로 제대로 보여야" — 태그순 모드에서만 그룹 헤더를 낸다.
+              //   대표 태그가 바뀌는 지점에 한 줄. 태그 없는 묶음은 맨 뒤라 "태그 없음" 으로 닫힌다.
+              const groupHead = sortMode === 'tag'
+                ? (vi === 0 || repTag(visible[vi - 1]) !== repTag(tk) ? (repTag(tk) || t('popout.noTagGroup', '태그 없음')) : null)
+                : null;
               const code = displayStatus(tk, todayStr) as StatusCode;
               const color = STATUS_COLOR[code] || STATUS_COLOR.not_started;
               const role = primaryPerspective(getRoles(tk, myId));
               const rc = Number(tk.reviewer_count ?? 0) || 0;
               const qa = quickActionFor(tk.status, rc, tk.assignee_id === myId);
               const busy = busyId === tk.id;
+              const groupColor = tk.tags && tk.tags.length > 0 ? tk.tags[0].color : null;
+              // ★ Row 는 div 다. 체크박스 버튼과 본문 버튼은 **형제** — 중첩하면 button-in-button 이 되어
+              //   HTML 상 무효이고 브라우저가 클릭 타깃을 임의로 접는다(stopPropagation 으로 못 막는다).
               return (
-                // ★ Row 는 div 다. 체크박스 버튼과 본문 버튼은 **형제** — 중첩하면 button-in-button 이 되어
-                //   HTML 상 무효이고 브라우저가 클릭 타깃을 임의로 접는다(stopPropagation 으로 못 막는다).
+                <React.Fragment key={`g-${tk.id}`}>
+                {groupHead && <TagGroupHead $color={groupColor || '#CBD5E1'}>{groupHead}</TagGroupHead>}
                 <Row
-                  key={tk.id}
                   role="listitem"
                   data-testid="task-popout-row"
                   $active={selectedId === tk.id}
@@ -514,6 +596,7 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
                     <RowErr role="alert" data-testid="task-popout-row-error">{rowErr.msg}</RowErr>
                   )}
                 </Row>
+                </React.Fragment>
               );
             })}
           </List>
@@ -565,235 +648,3 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
 
 export default TaskPopoutView;
 
-// ===== styled =====
-const Wrap = styled.div`
-  display: flex; flex-direction: column;
-  height: 100%; min-height: 0;
-  background: #F8FAFC;
-`;
-// PageShell/PanelHeader 표준값과 동일 (min-height 60px · padding 14px 20px · 18px/700)
-const Head = styled.div`
-  min-height: 60px; box-sizing: border-box;
-  padding: 14px 20px;
-  display: flex; align-items: center; gap: 10px;
-  background: #FFFFFF; border-bottom: 1px solid #E2E8F0;
-  flex-shrink: 0;
-`;
-const HeadTitle = styled.h1`
-  margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.2px; color: #0F172A;
-`;
-const HeadRight = styled.div`
-  margin-left: auto;
-  display: flex; align-items: center; gap: 10px;
-`;
-const HeadMeta = styled.span`
-  font-size: 12px; color: #64748B; white-space: nowrap;
-`;
-const Body = styled.div`
-  flex: 1; min-height: 0; overflow-y: auto;
-  padding: 12px;
-`;
-const List = styled.div`
-  display: flex; flex-direction: column; gap: 8px;
-`;
-// ★ div 다 — 안에 체크박스 버튼이 들어가므로 button 이면 중첩이 된다.
-const Row = styled.div<{ $active: boolean; $dim: boolean }>`
-  display: flex; flex-direction: column; gap: 6px;
-  padding: 10px 12px;
-  background: #FFFFFF;
-  border: 1px solid ${({ $active }) => ($active ? '#0F766E' : '#E2E8F0')};
-  border-radius: 10px;
-  opacity: ${({ $dim }) => ($dim ? 0.6 : 1)};
-  transition: border-color 0.12s, box-shadow 0.12s;
-  &:hover { box-shadow: 0 2px 10px rgba(15,23,42,0.08); }
-`;
-const RowInner = styled.div`
-  display: flex; align-items: center; gap: 6px;
-`;
-const RowLead = styled.div`
-  flex-shrink: 0;
-`;
-// 본문 클릭영역 — 드로어를 여는 버튼. 카드 테두리는 Row 가 그리므로 여기선 투명.
-const RowMain = styled.button`
-  flex: 1; min-width: 0;
-  text-align: left;
-  display: flex; flex-direction: column; gap: 6px;
-  margin: 0; padding: 0; border: 0; background: transparent;
-  cursor: pointer;
-  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 3px; border-radius: 6px; }
-`;
-// 퀵액션 슬롯 — 분기가 달라도 폭·높이 동일 (터치 타겟 36, CLAUDE.md 반응형 원칙 2)
-const Slot = styled.span`
-  width: 36px; height: 36px; flex-shrink: 0;
-  display: inline-flex; align-items: center; justify-content: center;
-`;
-const CheckBtn = styled.button<{ $checked?: boolean; $locked?: boolean }>`
-  width: 36px; height: 36px; flex-shrink: 0;
-  display: inline-flex; align-items: center; justify-content: center;
-  padding: 0; border: 0; background: transparent;
-  cursor: ${({ $locked }) => ($locked ? 'default' : 'pointer')};
-  &::before {
-    content: ''; position: absolute;
-    width: 20px; height: 20px; border-radius: 6px;
-    box-sizing: border-box;
-    background: ${({ $checked }) => ($checked ? '#0F766E' : 'transparent')};
-    border: 2px solid ${({ $checked }) => ($checked ? '#0F766E' : '#CBD5E1')};
-    transition: border-color 0.12s, background 0.12s;
-  }
-  position: relative;
-  ${({ $locked, $checked }) => ($locked ? `
-    &::before { background: #94A3B8; border-color: #94A3B8; }
-  ` : `
-    &:hover::before { border-color: ${$checked ? '#0D9488' : '#0F766E'}; ${$checked ? 'background:#0D9488;' : ''} }
-  `)}
-  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 0; border-radius: 8px; }
-  &:disabled { cursor: default; opacity: 0.5; }
-  > svg { position: relative; z-index: 1; }
-`;
-const SubmitBtn = styled.button`
-  width: 36px; height: 36px; flex-shrink: 0;
-  display: inline-flex; align-items: center; justify-content: center;
-  padding: 0; border: 0; background: transparent;
-  cursor: pointer; color: #0F766E;
-  &::before {
-    content: ''; position: absolute;
-    width: 24px; height: 24px; border-radius: 50%;
-    border: 1px dashed #99F6E4; box-sizing: border-box;
-    transition: background 0.12s, border-color 0.12s;
-  }
-  position: relative;
-  &:hover::before { background: #F0FDFA; border-color: #0F766E; }
-  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 0; border-radius: 50%; }
-  &:disabled { cursor: default; opacity: 0.5; }
-  > svg { position: relative; z-index: 1; }
-`;
-const pulse = keyframes`
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.35; transform: scale(0.75); }
-`;
-const WaitDot = styled.span`
-  width: 8px; height: 8px; border-radius: 50%;
-  background: #94A3B8;
-  animation: ${pulse} 1.4s ease-in-out infinite;
-`;
-const spin = keyframes`to { transform: rotate(360deg); }`;
-const Spin = styled.span`
-  width: 16px; height: 16px; border-radius: 50%;
-  border: 2px solid #E2E8F0; border-top-color: #0F766E;
-  animation: ${spin} 0.7s linear infinite;
-`;
-const RowErr = styled.div`
-  margin-left: 42px;
-  padding: 4px 8px; border-radius: 6px;
-  background: #FEF2F2; color: #BE123C;
-  font-size: 11.5px; font-weight: 600; line-height: 1.4;
-`;
-const CheckIcon: React.FC = () => (
-  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-    <path d="M2.5 6.2 L4.8 8.5 L9.5 3.6" stroke="#FFFFFF" strokeWidth="2.2"
-      strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-const SendIcon: React.FC = () => (
-  <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-    <path d="M1.6 7 L12.4 2.2 L9.9 11.8 L7.2 8.4 Z" stroke="currentColor" strokeWidth="1.5"
-      strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-const RowTop = styled.div`
-  display: flex; align-items: flex-start; gap: 8px;
-`;
-// 우선순위 슬롯 — 완료/취소 행의 읽기 전용 자리. 부여 버튼과 폭이 같아야 제목 좌측선이 안 흔들린다.
-const PrioSlot = styled.span`
-  width: 28px; height: 36px; flex-shrink: 0;
-  display: inline-flex; align-items: center; justify-content: center;
-`;
-// 우선순위 번호 — 메인 PrioNum 의 색 언어를 그대로(활성 Teal). 완료 행에서는 읽기 전용 span.
-const PrioChip = styled.span<{ $dim: boolean }>`
-  flex-shrink: 0;
-  width: 20px; height: 20px;
-  display: inline-flex; align-items: center; justify-content: center;
-  border-radius: 50%;
-  font-size: 11px; font-weight: 800; line-height: 1;
-  background: ${({ $dim }) => ($dim ? '#F1F5F9' : '#14B8A6')};
-  color: ${({ $dim }) => ($dim ? '#94A3B8' : '#FFFFFF')};
-`;
-// 우선순위 토글 버튼 — RowMain 밖 형제 버튼(button-in-button 금지). 안의 span 은 유효한 중첩이다.
-//   지정됨 = Teal 원 + 번호 / 미지정 = 점선 빈 원(부여 어포던스).
-const PrioBtn = styled.button<{ $on: boolean }>`
-  width: 28px; height: 36px; flex-shrink: 0;
-  display: inline-flex; align-items: center; justify-content: center;
-  padding: 0; border: 0; background: transparent;
-  cursor: pointer;
-  &:disabled { cursor: default; opacity: 0.5; }
-  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; border-radius: 50%; }
-
-  > span {
-    width: 20px; height: 20px;
-    display: inline-flex; align-items: center; justify-content: center;
-    border-radius: 50%;
-    font-size: 11px; font-weight: 800; line-height: 1;
-    background: ${({ $on }) => ($on ? '#14B8A6' : 'transparent')};
-    color: ${({ $on }) => ($on ? '#FFFFFF' : '#CBD5E1')};
-    border: ${({ $on }) => ($on ? '0' : '1px dashed #CBD5E1')};
-    transition: background 0.12s, border-color 0.12s;
-  }
-  &:hover:not(:disabled) > span {
-    border-color: ${({ $on }) => ($on ? 'transparent' : '#14B8A6')};
-    color: ${({ $on }) => ($on ? '#FFFFFF' : '#14B8A6')};
-  }
-`;
-const Badge = styled.span<{ $bg: string; $fg: string }>`
-  flex-shrink: 0;
-  padding: 2px 8px; border-radius: 999px;
-  font-size: 11px; font-weight: 700;
-  background: ${({ $bg }) => $bg}; color: ${({ $fg }) => $fg};
-  white-space: nowrap;
-`;
-const RowTitle = styled.span`
-  font-size: 13.5px; font-weight: 600; color: #0F172A; line-height: 1.4;
-  word-break: break-word;
-`;
-const RowMeta = styled.div`
-  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
-  font-size: 11.5px; color: #64748B;
-`;
-const MetaChip = styled.span`
-  padding: 1px 6px; border-radius: 6px; background: #F1F5F9; color: #475569;
-`;
-const MetaDue = styled.span<{ $overdue: boolean }>`
-  font-weight: ${({ $overdue }) => ($overdue ? 700 : 500)};
-  color: ${({ $overdue }) => ($overdue ? '#BE123C' : '#64748B')};
-`;
-// #250 나열 기준 토글 — ToggleDone 과 같은 계열(bespoke 금지). 활성 시 Teal 로 눌린 상태 표시.
-const SortToggle = styled.button`
-  width: 100%; margin-top: 10px;
-  padding: 8px; border: 1px dashed #CBD5E1; border-radius: 8px;
-  background: transparent; cursor: pointer;
-  font-size: 12px; font-weight: 600; color: #64748B;
-  &[aria-pressed='true'] { border-style: solid; border-color: #14B8A6; color: #0F766E; background: #F0FDFA; }
-  &:hover { border-color: #94A3B8; color: #475569; }
-  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
-`;
-const ToggleDone = styled.button`
-  width: 100%; margin-top: 10px;
-  padding: 8px; border: 1px dashed #CBD5E1; border-radius: 8px;
-  background: transparent; cursor: pointer;
-  font-size: 12px; font-weight: 600; color: #64748B;
-  &:hover { border-color: #94A3B8; color: #475569; }
-  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
-`;
-const Center = styled.div`
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
-  padding: 48px 20px; text-align: center;
-  font-size: 13px; color: #94A3B8;
-`;
-const EmptyTitle = styled.div`font-size: 14px; font-weight: 700; color: #475569;`;
-const EmptyLine = styled.div`font-size: 12.5px; color: #94A3B8;`;
-const ErrText = styled.div`font-size: 13px; color: #BE123C;`;
-const RetryBtn = styled.button`
-  padding: 7px 14px; border: 1px solid #E2E8F0; border-radius: 8px;
-  background: #FFFFFF; cursor: pointer; font-size: 12.5px; font-weight: 600; color: #0F172A;
-  &:hover { border-color: #0F766E; color: #0F766E; }
-  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
-`;
