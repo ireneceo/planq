@@ -217,7 +217,12 @@ async function createTask(actor, params = {}, opts = {}) {
   if (!finalAssignee && projectId && !opts.allowUnassigned) {
     const chain = await resolveProjectDefaultAssignee(projectId, businessId);
     for (const cand of chain) {
-      if (!cand || Number(cand) === Number(subjectId)) continue;
+      if (!cand) continue;
+      // ★ 후보가 **생성자 본인**이면 거기서 끝난다 — 건너뛰면 안 된다.
+      //   `continue` 로 넘기면 "기본담당자 = 나" 인 프로젝트에서 내 업무가 PM 에게 배정되고
+      //   심지어 내부요청으로 둔갑해(자동 컨펌자 + 배정 알림) 엉뚱한 사람에게 알림이 간다.
+      //   본인 배정은 요청이 아니므로 assigneeFromChain 은 세우지 않는다(반복은 어차피 산다).
+      if (Number(cand) === Number(subjectId)) { finalAssignee = subjectId; break; }
       const chk = await assertAssignable(cand, businessId, projectId);
       if (chk.ok) { finalAssignee = cand; assigneeFromChain = true; break; }
     }

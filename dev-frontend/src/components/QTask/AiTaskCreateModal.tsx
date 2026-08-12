@@ -279,6 +279,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
                     members={members}
                     baseDate={baseDate}
                     onChange={(patch) => updateCand(c.idx, patch)}
+                    hasProject={!!selectedProjectId}
                   />
                 ))}
               </CardList>

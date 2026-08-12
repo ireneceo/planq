@@ -42,9 +42,12 @@ interface Props {
   members: AiCardMember[];
   baseDate: string;
   onChange: (patch: Partial<AiCandidate>) => void;
+  /** 프로젝트가 선택돼 있는가 — 담당자 미지정 시 서버가 프로젝트 기본담당자/PM 에게 배정한다.
+   *  이 값에 따라 안내 문구가 달라져야 한다 (틀린 약속 금지). */
+  hasProject?: boolean;
 }
 
-export default function AiCandidateCard({ candidate: c, members, baseDate, onChange }: Props) {
+export default function AiCandidateCard({ candidate: c, members, baseDate, onChange, hasProject = false }: Props) {
   const { t } = useTranslation('qtask');
   const dur = Math.max(1, c.due_offset_days - c.start_offset_days);
   const startDateStr = addDaysISO(baseDate, c.start_offset_days);
@@ -68,7 +71,9 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
           <PlanQSelect
             size="sm"
             isClearable
-            placeholder={t('ai.assigneeUnassigned', '미배정') as string}
+            placeholder={hasProject
+              ? t('ai.assigneeProjectDefault', '프로젝트 기본 담당자') as string
+              : t('ai.assigneeUnassigned', '미배정') as string}
             value={c.assignee_user_id
               ? { value: String(c.assignee_user_id), label: members.find(m => m.user_id === c.assignee_user_id)?.name || `#${c.assignee_user_id}` }
               : null}
@@ -82,7 +87,9 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
       </CardHeader>
       {!c.assignee_user_id && c.assignee_name && (
         <UnmatchedWarn>
-          {t('ai.assigneeUnmatched', '"{{name}}" 을(를) 멤버에서 찾지 못했어요 — 담당자를 직접 선택해 주세요. 그대로 확정하면 내 업무로 만들어집니다.', { name: c.assignee_name }) as string}
+          {hasProject
+            ? t('ai.assigneeUnmatchedProject', '"{{name}}" 을(를) 멤버에서 찾지 못했어요 — 담당자를 직접 선택해 주세요. 그대로 확정하면 프로젝트 기본 담당자에게 배정됩니다.', { name: c.assignee_name }) as string
+            : t('ai.assigneeUnmatched', '"{{name}}" 을(를) 멤버에서 찾지 못했어요 — 담당자를 직접 선택해 주세요. 그대로 확정하면 내 업무로 만들어집니다.', { name: c.assignee_name }) as string}
         </UnmatchedWarn>
       )}
       <CardMetaRow>

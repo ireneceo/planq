@@ -1079,7 +1079,9 @@
     "recurNone": "반복 없음",
     "recurDaily": "매일",
     "recurWeekly": "매주",
-    "recurMonthly": "매월"
+    "recurMonthly": "매월",
+    "assigneeProjectDefault": "프로젝트 기본 담당자",
+    "assigneeUnmatchedProject": "\"{{name}}\" 을(를) 멤버에서 찾지 못했어요 — 담당자를 직접 선택해 주세요. 그대로 확정하면 프로젝트 기본 담당자에게 배정됩니다."
   },
   "bar": {
     "resumeTitle": "이 업무 진행 중",

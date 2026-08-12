@@ -210,6 +210,7 @@ export default function CueTaskBar({ businessId, members, projectId = null, cont
                 members={members}
                 baseDate={baseDate}
                 onChange={(patch) => updateCand(c.idx, patch)}
+                hasProject={!!projectId}
               />
             ))}
           </CardList>

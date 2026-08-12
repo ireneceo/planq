@@ -1079,7 +1079,9 @@
     "recurNone": "No repeat",
     "recurDaily": "Daily",
     "recurWeekly": "Weekly",
-    "recurMonthly": "Monthly"
+    "recurMonthly": "Monthly",
+    "assigneeProjectDefault": "Project default assignee",
+    "assigneeUnmatchedProject": "Could not find \"{{name}}\" among members — pick an assignee. If you confirm as-is, it goes to the project default assignee."
   },
   "bar": {
     "resumeTitle": "In progress",
