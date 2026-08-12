@@ -1074,7 +1074,12 @@
       "use": "Use this template",
       "dismiss": "Dismiss"
     },
-    "assigneeUnmatched": "Could not find \"{{name}}\" among members — please pick an assignee. If confirmed as-is, it becomes your own task."
+    "assigneeUnmatched": "Could not find \"{{name}}\" among members — please pick an assignee. If confirmed as-is, it becomes your own task.",
+    "recurrenceLabel": "Repeat",
+    "recurNone": "No repeat",
+    "recurDaily": "Daily",
+    "recurWeekly": "Weekly",
+    "recurMonthly": "Monthly"
   },
   "bar": {
     "resumeTitle": "In progress",

@@ -7,6 +7,7 @@ const { authenticateToken, checkBusinessAccess } = require('../middleware/auth')
 const { getUserScope, taskListWhere, canAccessTask, isMemberOrAbove, assertAssignable, assertMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { todayInTz, mondayOfDateStr, addDaysStr, mondayOfIsoWeek } = require('../utils/datetime');
+const { rruleFromRecurrence } = require('../services/rruleFromRecurrence');
 // N+34 — 워크스페이스 표시명 helper. BusinessMember.name 우선, User.name fallback.
 // 사용자 호소: "담당자 이름이 워크스페이스 프로필 이름이 아니야" — User.name 직접 사용 회귀 fix.
 const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../services/displayName');
@@ -595,10 +596,15 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
         ...ctxFields,
         title,
         description: c.description ? String(c.description).slice(0, 2000) : null,
-        assigneeId: c.assignee_user_id || req.user.id,
+        // ★ `|| req.user.id` 를 두면 **항상 명시값**이 되어 프로젝트 기본담당자 체인이
+        //   영원히 죽은 코드가 된다. 미지정은 미지정으로 넘기고, 체인(기본담당자→PM→생성자)은
+        //   createTask 가 판단한다 — 사람·AI·Cue 가 같은 규칙을 쓰게 하는 지점이다.
+        assigneeId: c.assignee_user_id || null,
         startDate: startOff !== null ? addDaysStr(todayLocal, startOff) : null,
         dueDate: dueOff !== null ? addDaysStr(todayLocal, dueOff) : null,
         estimatedHours: rawEstimated,
+        // 정기 루틴 — 후보의 recurrence 를 실제 RRULE 로. 마감일이 첫 발생일이므로 없으면 반복 불가.
+        recurrenceRule: dueOff !== null ? rruleFromRecurrence(c.recurrence, addDaysStr(todayLocal, dueOff)) : null,
       }, {
         // 이 경로의 고유 규칙 (통일 금지 — 프론트가 이 차이에 기대고 있다):
         keepEstimateForCue: true,          // 담당=Cue 면 요청 업무여도 예측시간을 남긴다
