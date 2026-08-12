@@ -155,6 +155,11 @@ function findPattern(files, pattern, allowList = []) {
     const content = fs.readFileSync(f, 'utf-8');
     const lines = content.split('\n');
     lines.forEach((line, i) => {
+      // 주석 줄은 코드가 아니다 — 규칙을 **설명하는** 주석("raw <select> 금지" 같은)이
+      //   그 규칙 위반으로 잡히면, 주석을 지우게 만들어 오히려 근거를 없앤다.
+      //   guard-invariants.js 의 i18n 검사와 같은 제외 규칙(//, /* */, *, JSX {/*).
+      const t = line.trim();
+      if (t.startsWith('//') || t.startsWith('/*') || t.startsWith('*') || t.startsWith('{/*')) return;
       if (pattern.test(line)) {
         hits.push(`${f.replace('/opt/planq/', '')}:${i + 1}: ${line.trim().slice(0, 100)}`);
       }
