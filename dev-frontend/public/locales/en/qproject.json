@@ -120,7 +120,13 @@
     "noValue": "—",
     "estLabel": "Est. (h)",
     "drawerTitle": "+ Add Task",
-    "close": "Close"
+    "close": "Close",
+    "workstreamLabel": "Work group",
+    "workstreamNone": "No group",
+    "descLabel": "Description",
+    "descPlaceholder": "What needs doing, and why (optional)",
+    "assigneeResolvedMe": "Assignee: {{name}} (me)",
+    "assigneeResolvedChain": "Assignee: {{name}} (project default)"
   },
   "calHeader": {
     "monthYear": "{{year}}-{{month}}"

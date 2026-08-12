@@ -147,11 +147,14 @@ const Panel = styled.aside<{ $width: number }>`
   /* ≤640px — 문서화된 계약(파일 상단 §)대로 100vw 풀스크린. 여태 min(width,100vw-56)만 있어
      폰에서도 56px 조각이 남아 뒤 화면이 비쳤다(새 일정 드로어 왼쪽 달력 노출). 풀스크린이면
      좌측 border·그림자도 불필요, 하단 safe-area 확보. DetailDrawer 쓰는 모든 드로어에 일괄 적용. */
+  /* ★ 운영 #266 — 여기에 padding-bottom: env(safe-area-inset-bottom) 를 두지 말 것.
+     Body(L~90)와 Footer(L~96), 그리고 공용 DrawerFooter 가 **각자** safe-area 를 이미 보정한다.
+     Panel 에도 주면 iPhone 에서 푸터 아래에 34px 짜리 빈 흰 띠가 한 겹 더 생긴다
+     (Irene: "하단에 푸터부분이 너무 넓어. 여백이 많아"). 하단 보정은 안쪽 요소가 책임진다. */
   ${mediaPhone} {
     width: 100vw;
     border-left: none;
     box-shadow: none;
-    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   @media (prefers-reduced-motion: reduce) { animation: none; }
 `;

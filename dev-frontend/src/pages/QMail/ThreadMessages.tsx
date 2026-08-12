@@ -9,7 +9,7 @@ import type { TFunction } from 'i18next';
 import type { Message, toAddrList as ToAddrList } from './MailPage';
 import MessageAttachments from './MessageAttachments';
 import {
-  MessageCard, MessageHeader, MessageFrom, MessageTo, MsgHeaderRight, MsgCollapsedPreview,
+  MessageCard, MessageHeader, MessageFrom, MessageTo, MsgHeaderRight, MsgCollapsedPreview, MsgChevron,
   MessageTime, MsgForwardBtn, DeliveryChip, MessageBodyFrame, MessageBodyText,
   TransBar, TransSelect, TransBtn, TransLoading, TransErr, TransBody,
 } from './MailPage.styles';
@@ -82,6 +82,12 @@ export default function ThreadMessages(p: Props) {
               )}
             </MessageFrom>
             <MsgHeaderRight>
+              {/* #272 — "접힌상태랑 아닌 상태 구별 안되고 글자가 잘리는 것처럼 보여버려".
+                  아이콘 하나로 상태를 말한다(Gmail 관례). aria-expanded 는 위 MessageFrom 이 이미 갖고 있어
+                  여기서는 장식으로 두고 스크린리더에는 숨긴다 — 같은 상태를 두 번 읽지 않게. */}
+              <MsgChevron $open={open} aria-hidden="true">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
+              </MsgChevron>
               {/* 발송 상태 — 나간 메일만. 'sent'(정상)는 표시하지 않는다(잡음). 문제 있을 때만 드러낸다. */}
               {m.direction === 'outbound' && m.delivery_status && m.delivery_status !== 'sent' && (
                 <DeliveryChip

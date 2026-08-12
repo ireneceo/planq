@@ -18,6 +18,8 @@ const { authenticateToken } = require('../middleware/auth');
 const { createAuditLog } = require('../middleware/audit');
 const taskExtractor = require('../services/task_extractor');
 const cueOrchestrator = require('../services/cue_orchestrator');
+// 업무 생성 술어 재사용 — 기본담당자 미리보기가 실제 배정과 같은 코드를 쓰게 한다
+const taskActions = require('../services/actions/task_actions');
 const { applyMemberDisplayName, applyMemberDisplayNameOne, getMemberNameMap } = require('../services/displayName');
 const { todayInTz, mondayOfDateStr, addDaysStr } = require('../utils/datetime');
 const { fetchProjectStats } = require('../services/weeklyReviewSnapshot');
@@ -332,7 +334,31 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
     const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
     const detail = await loadProjectDetail(project.id);
-    return successResponse(res, { ...detail, my_role_in_project: role });
+    // 업무추가 폼이 "담당자를 비워두면 누가 맡게 되는지" 를 미리 보여주기 위한 값.
+    //   ★ 반드시 createTask 와 **같은 함수**(pickProjectAssignee)로 계산한다 — 후보 배열의 [0] 을
+    //     쓰면 "기본담당자 = 나" 같은 케이스에서 미리보기와 실제 배정이 갈린다.
+    //   ★ 결과는 보는 사람마다 다르다 → 캐시 금지 대상(요청자 기준으로 매번 계산).
+    const resolved = await taskActions.pickProjectAssignee(project.id, project.business_id, req.user.id);
+    const resolvedUserId = resolved.userId || req.user.id;   // 체인 미선정 → 생성자 (createTask 폴백과 동일)
+    let resolvedName = null;
+    if (resolvedUserId) {
+      const u = await User.findByPk(resolvedUserId, { attributes: ['id', 'name', 'name_localized'] });
+      const bm = await BusinessMember.findOne({
+        where: { user_id: resolvedUserId, business_id: project.business_id },
+        attributes: ['name', 'name_localized'],
+      });
+      resolvedName = bm?.name || u?.name || null;   // 워크스페이스 표시명 우선
+    }
+    return successResponse(res, {
+      ...detail,
+      my_role_in_project: role,
+      resolved_default_assignee: {
+        user_id: resolvedUserId,
+        name: resolvedName,
+        from_chain: resolved.fromChain,   // true = 프로젝트 설정이 고른 '타인' (요청으로 기록된다)
+        is_me: Number(resolvedUserId) === Number(req.user.id),
+      },
+    });
   } catch (err) { next(err); }
 });
 

@@ -40,6 +40,10 @@ interface Props {
   disabled?: boolean;
   // 호출부에서 파일 메타가 필요하면 받음 (선택). 안 주면 내부에서 fetch 한 결과로 표시.
   workspaceFiles?: ProjectFile[];
+  /** 워크스페이스 파일/문서 연결 검색을 숨긴다 — 업로드 드롭존만 필요한 화면용.
+   *  (예: 피드백 이미지 첨부. 워크스페이스 파일을 붙일 이유가 없고, 목록 fetch 도 낭비다.)
+   *  true 면 검색 UI 를 렌더하지 않고 파일·문서 목록 fetch 도 하지 않는다. */
+  hideExistingSearch?: boolean;
 }
 
 const AttachmentField: React.FC<Props> = ({
@@ -48,6 +52,7 @@ const AttachmentField: React.FC<Props> = ({
   includePosts = false, existingPostIds = [], onExistingPostIdsChange,
   accept, uploadHint, uploadAcceptHint, searchPlaceholder, disabled,
   workspaceFiles: providedFiles,
+  hideExistingSearch = false,
 }) => {
   // searchPostsPlaceholder is deprecated — 통합 검색에서는 searchPlaceholder 만 사용
   const { t } = useTranslation('common');
@@ -60,21 +65,22 @@ const AttachmentField: React.FC<Props> = ({
 
   useEffect(() => {
     if (providedFiles) return; // 외부 제공이면 fetch 생략
+    if (hideExistingSearch) return; // 연결 검색을 안 쓰는 화면이면 목록도 필요 없다
     let cancelled = false;
     fetchWorkspaceFiles(businessId)
       .then(fs => { if (!cancelled) setInternalFiles(fs.filter(f => f.source === 'direct')); })
       .catch(() => { /* skip */ });
     return () => { cancelled = true; };
-  }, [businessId, providedFiles]);
+  }, [businessId, providedFiles, hideExistingSearch]);
 
   useEffect(() => {
-    if (!includePosts) return;
+    if (!includePosts || hideExistingSearch) return;
     let cancelled = false;
     fetchPosts(businessId, {})
       .then(ps => { if (!cancelled) setPosts(ps); })
       .catch(() => { /* skip */ });
     return () => { cancelled = true; };
-  }, [businessId, includePosts]);
+  }, [businessId, includePosts, hideExistingSearch]);
 
   const fileOptions: PlanQSelectOption[] = useMemo(() =>
     wsFiles.map(f => ({
@@ -149,6 +155,7 @@ const AttachmentField: React.FC<Props> = ({
         </ChipList>
       )}
 
+      {!hideExistingSearch && <>
       <FieldGap />
 
       {/* 통합 검색 — 파일 + (옵션) 문서 한 셀렉트 안에서 같이 검색·선택. 옵션에 [파일]/[문서] 타입 chip 표시. */}
@@ -199,6 +206,7 @@ const AttachmentField: React.FC<Props> = ({
         }}
         noOptionsMessage={() => (t('attach.noResults', '결과 없음') as string)}
       />
+      </>}
     </Wrap>
   );
 };

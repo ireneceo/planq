@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { downloadBlob } from '../../utils/download';
 import { createPortal } from 'react-dom';
 import styled, { css } from 'styled-components';
+import { renderTextWithLinks as linkify } from '../../utils/linkify';
 import { useTranslation } from 'react-i18next';
 import { STATUS_COLOR, type StatusCode } from '../../utils/taskLabel';
 import { useSearchParams } from 'react-router-dom';
@@ -116,9 +117,7 @@ const ChatPanel: React.FC<Props> = ({
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [previewCard, setPreviewCard] = useState<PostCardMeta | null>(null);
 
-  // 메시지 본문 안 URL 자동 링크 — 보안: target=_blank rel="noopener noreferrer"
-  // 정규식: http(s):// + 공백 아닌 문자 (자주 보이는 끝 문자 . , ) ] 등은 trailing 으로 제외하고 링크에 포함 안 함)
-  const LINK_RE = /(https?:\/\/[^\s<>"]+[^\s<>".,;:!?)\]'"])/g;
+  // 메시지 본문 안 URL 자동 링크 — 정규식·앵커는 utils/linkify 단일 원천 (Q Task 댓글과 공유, #270).
   // #68 — 평문 세그먼트에서 @멘션(실제 멤버 이름) 강조
   const highlightSeg = (seg: string, keyBase: string): React.ReactNode[] => {
     if (!seg || !seg.includes('@')) return [seg];
@@ -135,24 +134,9 @@ const ChatPanel: React.FC<Props> = ({
     return out.length > 0 ? out : [seg];
   };
 
-  const renderTextWithLinks = (text: string): React.ReactNode[] => {
-    if (!text) return [text];
-    const parts: React.ReactNode[] = [];
-    let lastIdx = 0;
-    let m: RegExpExecArray | null;
-    LINK_RE.lastIndex = 0;
-    while ((m = LINK_RE.exec(text)) !== null) {
-      if (m.index > lastIdx) parts.push(...highlightSeg(text.slice(lastIdx, m.index), `s-${lastIdx}`));
-      parts.push(
-        <MsgLink key={`l-${m.index}`} href={m[0]} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
-          {m[0]}
-        </MsgLink>
-      );
-      lastIdx = m.index + m[0].length;
-    }
-    if (lastIdx < text.length) parts.push(...highlightSeg(text.slice(lastIdx), `s-${lastIdx}`));
-    return parts.length > 0 ? parts : [text];
-  };
+  // 멘션 강조는 이 화면 고유(멤버 이름 집합이 필요)라 세그먼트 렌더러로 주입한다.
+  const renderTextWithLinks = (text: string): React.ReactNode[] =>
+    linkify(text, { renderSegment: highlightSeg });
 
 
   // candidatesCount 가 변할 때마다 dismiss 리셋 (새 후보가 들어왔으니)
@@ -2862,7 +2846,12 @@ const PinnedList = styled.div`
   padding: 0 8px 8px;
   gap: 4px;
   max-height: 200px;
+  /* #245 — 한 축만 auto 로 두면 반대축이 visible→auto 로 강제돼(CSS overflow 상호작용)
+     1px 초과에도 가로로 흔들린다. MessageList 와 같은 잠금을 여기에도 건다
+     (내부 PinnedItem 에 nowrap 텍스트가 있어 실제로 넘칠 수 있다). */
   overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
 `;
 const PinnedItem = styled.button`
   position: relative;
@@ -3046,14 +3035,7 @@ const CueBadge = styled.span`
 `;
 
 // 메시지 본문 안 URL 자동링크 — Primary teal, hover 시 진하게. word-break 강제 (긴 URL 줄바꿈)
-const MsgLink = styled.a`
-  color: #0D9488;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  word-break: break-all;
-  &:hover { color: #0F766E; text-decoration-thickness: 2px; }
-  &:visited { color: #0F766E; }
-`;
+// (MsgLink 는 utils/linkify 의 AutoLink 로 이관 — 링크 모양이 채팅·댓글에서 갈리지 않게)
 
 const MessageText = styled.div<{ $question: boolean }>`
   font-size: 14px;

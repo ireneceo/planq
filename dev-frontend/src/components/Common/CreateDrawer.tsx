@@ -15,6 +15,7 @@
 // 규칙(UI_DESIGN_GUIDE §1.8): 제출 버튼은 submitting 중 disabled(중복 제출 차단).
 // Enter 단독 저장 금지 — 폼 내부에서 Ctrl/Cmd+Enter 만 onSubmit 에 연결할 것.
 import React from 'react';
+import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import DetailDrawer from './DetailDrawer';
 import DrawerFooter from './DrawerFooter';
@@ -48,7 +49,7 @@ const CreateDrawer: React.FC<CreateDrawerProps> = ({
 
   return (
     <DetailDrawer open={open} onClose={onClose} width={resolvedWidth} ariaLabel={label}>
-      <DetailDrawer.Header onClose={onClose}>{title}</DetailDrawer.Header>
+      <DetailDrawer.Header onClose={onClose}><DrawerTitle>{title}</DrawerTitle></DetailDrawer.Header>
       <DetailDrawer.Body>{children}</DetailDrawer.Body>
       <DrawerFooter left={leftSlot} align={leftSlot ? 'space-between' : 'right'}>
         <ActionButton tone="secondary" size="md" onClick={onClose} disabled={submitting}>
@@ -69,3 +70,16 @@ const CreateDrawer: React.FC<CreateDrawerProps> = ({
 };
 
 export default CreateDrawer;
+
+// 운영 #265 — "제목이 없는데? 이 팝업만 헤더가 달라 보여".
+//   DetailDrawer.Header 의 HeaderContent 에는 타이포그래피가 없다(자체 제목을 넣는 상세 드로어들을
+//   위해 의도적으로 비어 있다). CreateDrawer 는 title 을 **문자열**로 받아 그대로 흘려보내고 있어서
+//   제목이 본문 텍스트 크기로 렌더됐다. 표준값은 페이지 헤더와 같은 18px/700/-0.2px
+//   (CLAUDE.md '페이지 레이아웃 표준' — PageShell·PanelHeader 와 한 몸으로 보이게).
+//   ★ 스타일은 여기(CreateDrawer)에만 둔다 — DetailDrawer 쪽에 넣으면 자체 제목을 가진
+//     십수 개 상세 드로어로 캐스케이드돼 이중 스타일이 된다.
+const DrawerTitle = styled.div`
+  font-size: 18px; font-weight: 700; letter-spacing: -0.2px; color: #0F172A;
+  line-height: 1.35;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+`;

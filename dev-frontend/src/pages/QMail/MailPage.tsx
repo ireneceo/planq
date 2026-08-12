@@ -286,14 +286,26 @@ function buildMailSrcDoc(id: number, html: string, cidMap?: Record<string, strin
   //    상대값은 통과하는데, 그건 URI 가 아닌 속성값(align="center" 등)을 살리기 위한 것이다 — #226.
   //    최신 브라우저는 _blank 에 자동 noopener 적용.)
   const base = '<base target="_blank" rel="noopener noreferrer">';
+  // ★ #272 — 조각(fragment) 판정은 **정화 전 원문**으로 한다.
+  //   sanitizeMailHtml 은 DOMPurify WHOLE_DOCUMENT 라 조각을 넣어도 <html><body>…</body></html> 로
+  //   감싸 돌려준다. 정화 결과로 판정하면 모든 메일이 "문서" 가 되어 아래 분기가 죽은 코드가 된다.
+  const isFragment = !/<body[\s>]/i.test(html);
+  // 조각 = 우리 컴포저에서 나간 답장이나 Gmail 발 답장 본문. 문서가 아니라 <style> 이 없으니
+  //   iframe 기본 serif(명조) 로 렌더되고 여백 없이 가장자리에 붙었다
+  //   (Irene: "이상한 명조체가 답변 내용에 적용", "우측이랑 아래는 여백이 없이 다 들러붙어서").
+  //   ★ 완성 문서(뉴스레터 템플릿)에는 절대 적용하지 않는다 — 발신자 디자인을 덮으면 레이아웃이 깨진다.
+  const fragStyle = isFragment
+    ? "<style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans KR',sans-serif;"
+      + 'font-size:14px;line-height:1.6;color:#0F172A;padding:2px 14px 12px 0;}</style>'
+    : '';
   const hasDoc = /<body[\s>]/i.test(safe);
   if (hasDoc) {
     // <head> 있으면 그 안에, 없으면 최상단에 base 주입
     const withBase = /<head[^>]*>/i.test(safe) ? safe.replace(/<head[^>]*>/i, `$&${base}`) : `${base}${safe}`;
-    if (/<\/body>/i.test(withBase)) return withBase.replace(/<\/body>/i, `${guard}${resize}</body>`);
-    return `${withBase}${guard}${resize}`;
+    if (/<\/body>/i.test(withBase)) return withBase.replace(/<\/body>/i, `${guard}${fragStyle}${resize}</body>`);
+    return `${withBase}${guard}${fragStyle}${resize}`;
   }
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${base}${guard}</head><body>${safe}${resize}</body></html>`;
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${base}${guard}${fragStyle}</head><body>${safe}${resize}</body></html>`;
 }
 
 const MailPage: React.FC = () => {
@@ -1653,8 +1665,12 @@ const MailPage: React.FC = () => {
                   </ThreadRow1>
                   <ThreadSubject $unread={mt.unread_count > 0}>
                     {mt.unread_count > 0 && <UnreadDot />}
-                    {/* #186 — 내가 마지막으로 보낸 스레드는 '보낸' 태그로 받은 메일과 구분 */}
-                    {mt.last_message_direction === 'outbound' && (
+                    {/* #186 — 내가 마지막으로 보낸 스레드는 '보낸' 태그로 받은 메일과 구분.
+                        ★ #272 — 보낸메일함에서는 숨긴다. 이 폴더는 **메시지 단위**로 정의돼(outbound 가
+                        1건이라도 있으면 포함) 상대가 답장한 스레드도 들어오는데, 태그는 *마지막* 메시지
+                        방향을 보므로 같은 폴더 안에서 태그가 붙었다 안 붙었다 했다
+                        (Irene: "왜 [보낸]이란 표시가 있고 없고 달라?"). 전부 보낸 메일인 폴더라 정보량도 0. */}
+                    {folder !== 'sent' && mt.last_message_direction === 'outbound' && (
                       <SentTag>{t('thread.sent', { defaultValue: '보낸' }) as string}</SentTag>
                     )}
                     {mt.subject || '(no subject)'}

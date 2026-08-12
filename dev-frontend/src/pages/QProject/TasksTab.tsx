@@ -6,6 +6,7 @@ import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import CalendarPicker from '../../components/Common/CalendarPicker';
+import RecurrencePicker from '../../components/Common/RecurrencePicker';
 import ProjectTaskList from './ProjectTaskList';
 import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
 import { responsiveDrawerWidth } from '../../utils/responsiveDrawer';
@@ -100,6 +101,11 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
   const [newStart, setNewStart] = useState('');
   const [newDue, setNewDue] = useState('');
   const [newEst, setNewEst] = useState('');
+  // 운영 P3 — "업무그룹도 적용안되고, 업무반복 기능도 적용이 안되네?"
+  //   그룹 섹션 안 인라인 추가는 이미 workstream_id 를 보내는데 이 드로어 폼만 안 보냈다.
+  const [newWorkstreamId, setNewWorkstreamId] = useState<number | null>(null);
+  const [newRecurrence, setNewRecurrence] = useState<string | null>(null);
+  const [newDescription, setNewDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [members, setMembers] = useState<Member[]>([]);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
@@ -133,6 +139,9 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
     setLocalTasks(prev => prev.map(x => x.id === taskId ? { ...x, ...patch } : x));
   };
 
+  // 담당자를 비워두면 실제로 누가 맡는지 — 서버가 createTask 와 **같은 함수**로 계산해 내려준다.
+  //   (후보 배열의 [0] 이 아니다 — "기본담당자 = 나" 케이스에서 미리보기와 실제가 갈린다)
+  const [resolvedAssignee, setResolvedAssignee] = useState<{ name: string | null; is_me: boolean } | null>(null);
   useEffect(() => {
     apiFetch(`/api/projects/${projectId}`).then(r => r.json()).then(j => {
       if (j.success) {
@@ -140,6 +149,8 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
         const ms = (j.data.projectMembers || []).map((m: { user_id: number; User?: { name: string; display_name?: string | null } }) =>
           ({ user_id: m.user_id, name: m.User?.display_name || m.User?.name || `#${m.user_id}` }));
         setMembers(ms);
+        const rd = j.data.resolved_default_assignee as { name: string | null; is_me: boolean } | undefined;
+        setResolvedAssignee(rd ? { name: rd.name, is_me: rd.is_me } : null);
       }
     });
   }, [projectId]);
@@ -177,7 +188,15 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
     return as.localeCompare(bs);
   }), [localTasks]);
 
-  const resetNew = () => { setNewTitle(''); setNewAssignee(null); setNewStart(''); setNewDue(''); setNewEst(''); };
+  const resetNew = () => {
+    setNewTitle(''); setNewAssignee(null); setNewStart(''); setNewDue(''); setNewEst('');
+    setNewWorkstreamId(null); setNewRecurrence(null); setNewDescription('');
+  };
+
+  // 담당자를 **명시적으로 남에게** 지정했는가 — 이때는 서버가 §5.7 로 예측시간·반복을 조용히 버린다
+  //   (남에게 '요청'하는 업무의 캐파는 담당자가 정한다). 버려질 입력을 폼에 두면 사용자는
+  //   저장된 줄 알고 잃는다 → est·반복 UI 를 아예 숨긴다. 미지정(=체인 배정)은 반복이 살아 있으므로 노출.
+  const assignedToOther = newAssignee != null && newAssignee !== myId;
 
   const submit = async () => {
     if (submitting || !newTitle.trim()) return;
@@ -187,7 +206,12 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           business_id: businessId, project_id: projectId, title: newTitle.trim(),
-          assignee_id: newAssignee || myId,
+          // ★ `|| myId` 를 쓰지 않는다. 비워서 보내야 서버의 담당자 체인
+          //   (프로젝트 기본담당자 → PM → 생성자)이 탄다. 여기서 나로 채우면 그 체인은 영영 죽은 코드다.
+          assignee_id: newAssignee,
+          workstream_id: newWorkstreamId,
+          description: newDescription.trim() || null,
+          recurrence_rule: assignedToOther ? null : newRecurrence,
           start_date: newStart || null, due_date: newDue || null,
           estimated_hours: newEst ? Number(newEst) : null,
         }),
@@ -208,7 +232,15 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
         <AddOptField>
           <AddOptLabel>{tp('addTask.assigneeLabel', '담당자')}</AddOptLabel>
           <PlanQSelect size="sm" isClearable
-            placeholder={tp('addTask.assigneePlaceholder', '담당자: 나') as string}
+            placeholder={(
+              // 비워두면 서버 체인이 정한다 — 그 결과를 그대로 보여준다.
+              //   문구를 "담당자: 나" 로 고정해 두면 체인이 타인을 배정하는 프로젝트에서 거짓말이 된다.
+              resolvedAssignee?.name
+                ? (resolvedAssignee.is_me
+                    ? tp('addTask.assigneeResolvedMe', { name: resolvedAssignee.name, defaultValue: '담당자: {{name}} (나)' })
+                    : tp('addTask.assigneeResolvedChain', { name: resolvedAssignee.name, defaultValue: '담당자: {{name}} (프로젝트 기본)' }))
+                : tp('addTask.assigneePlaceholder', '담당자: 나')
+            ) as string}
             value={newAssignee == null ? null : {
               value: String(newAssignee),
               label: members.find(m => m.user_id === newAssignee)?.name
@@ -247,13 +279,43 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
             />
           )}
         </AddOptField>
-        {(newAssignee == null || newAssignee === myId) && (
+        {!assignedToOther && (
           <AddOptField style={{ flex: '0 0 80px' }}>
             <AddOptLabel>{tp('addTask.estLabel', '예측(h)')}</AddOptLabel>
             <AddDateInput type="number" step="0.5" min="0" value={newEst} onChange={e => setNewEst(e.target.value)} />
           </AddOptField>
         )}
       </AddOptRow>
+      <AddOptRow>
+        {/* 업무 그룹(워크스트림) — 그룹 섹션 안 인라인 추가와 같은 값을 보낸다 */}
+        <AddOptField>
+          <AddOptLabel>{tp('addTask.workstreamLabel', '업무 그룹')}</AddOptLabel>
+          <PlanQSelect size="sm" isClearable
+            placeholder={tp('addTask.workstreamNone', '그룹 없음') as string}
+            value={newWorkstreamId == null ? null : {
+              value: String(newWorkstreamId),
+              label: workstreams.find(w => w.id === newWorkstreamId)?.title || String(newWorkstreamId),
+            }}
+            onChange={v => setNewWorkstreamId((v as { value?: string } | null)?.value ? Number((v as { value: string }).value) : null)}
+            options={workstreams.filter(w => w.status === 'active').map(w => ({ value: String(w.id), label: w.title }))} />
+        </AddOptField>
+      </AddOptRow>
+      {/* 정기 루틴 — 공용 RecurrencePicker 재사용(빌더는 utils/recurrence 단일 원천).
+          마감일이 anchor 다. 담당자를 명시적으로 남에게 지정하면 서버가 §5.7 로 버리므로 숨긴다. */}
+      {!assignedToOther && (
+        <RecurSlot>
+          <RecurrencePicker value={newRecurrence} onChange={setNewRecurrence} anchorDate={newDue || null} />
+        </RecurSlot>
+      )}
+      <AddOptField>
+        <AddOptLabel>{tp('addTask.descLabel', '업무 설명')}</AddOptLabel>
+        <AddDescArea
+          value={newDescription}
+          onChange={e => setNewDescription(e.target.value)}
+          placeholder={tp('addTask.descPlaceholder', '무엇을, 왜 해야 하는지 (선택)') as string}
+          rows={3}
+          onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submit(); } }} />
+      </AddOptField>
       <AddBtnRow>
         <CancelBtn type="button" onClick={() => { setAdding(null); resetNew(); }}>{tp('addTask.cancel', '취소')}</CancelBtn>
         <SaveBtn type="button" onClick={submit} disabled={submitting || !newTitle.trim()}>
@@ -514,6 +576,14 @@ const AddOptRow = styled.div`display:contents;`;
 const AddOptField = styled.div`flex:1 1 130px;min-width:120px;display:flex;flex-direction:column;gap:2px;`;
 const AddOptLabel = styled.label`font-size:10px;color:#64748B;font-weight:600;text-transform:uppercase;letter-spacing:0.3px;`;
 const AddDateInput = styled.input`height:32px;padding:0 10px;font-size:13px;color:#0F172A;border:1px solid #E2E8F0;border-radius:6px;background:#FFF;font-family:inherit;&:focus{outline:none;border-color:#14B8A6;}`;
+// 반복 선택기는 자체 배경 카드를 갖고 있어 폼 폭을 통째로 쓴다(행 안에 끼우면 눌린다)
+const RecurSlot = styled.div`flex:1 1 100%;min-width:0;`;
+const AddDescArea = styled.textarea`
+  width:100%;min-width:0;box-sizing:border-box;padding:8px 10px;font-size:13px;line-height:1.5;color:#0F172A;
+  border:1px solid #E2E8F0;border-radius:6px;background:#FFF;font-family:inherit;resize:vertical;
+  &::placeholder{color:#94A3B8;}
+  &:focus{outline:none;border-color:#14B8A6;}
+`;
 const AddBtnRow = styled.div`display:flex;justify-content:flex-end;gap:6px;flex:0 0 auto;`;
 const CancelBtn = styled.button`padding:6px 12px;background:#FFF;color:#64748B;border:1px solid #E2E8F0;border-radius:6px;font-size:13px;cursor:pointer;&:hover{background:#F8FAFC;}`;
 const SaveBtn = styled.button`padding:6px 14px;background:#14B8A6;color:#FFF;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;

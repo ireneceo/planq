@@ -206,7 +206,7 @@ const HomePage: React.FC = () => {
         <CtaRing />
         <CtaInner>
           <CtaLogoImg src="/planQ_white_new.svg" alt="PlanQ" />
-          <CtaHead>{t('finalCta.head', '일이 일이되지 않게, PlanQ')}</CtaHead>
+          <CtaHead>{t('finalCta.head', '일이 일이 되지 않게, PlanQ')}</CtaHead>
           <CtaSub>{t('finalCta.sub', '설치 없이 웹에서 바로 시작하세요.')}</CtaSub>
           <CtaButtons>
             <CtaPrimary to="/register">{t('finalCta.primary', '무료로 시작하기')}</CtaPrimary>
