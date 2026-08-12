@@ -206,7 +206,9 @@
       "errNeedsConfirm": "Needs reviewer approval before completing.",
       "errTask": "Target task not found.",
       "errContent": "A comment is required.",
-      "errClosed": "This task is already closed."
+      "errClosed": "This task is already closed.",
+      "assigneeProjectDefault": "Project default assignee",
+      "assigneeUnresolvedProject": "Could not find \"{{name}}\" — leaving it as-is assigns the project default assignee"
     },
     "backToGuide": "Back to guide",
     "cueEmptyHint": "Answers based on the current workspace's clients, tasks, schedule, and meetings. Other workspaces' data is not used.",
