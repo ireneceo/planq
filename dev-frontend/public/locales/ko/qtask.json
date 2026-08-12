@@ -189,7 +189,9 @@
     "weeklyReviewMine": "나의 업무보고",
     "workspaceTasks": "전체 업무",
     "workspaceWeekly": "전체 주간보고",
-    "workspaceMonthly": "전체 월간보고"
+    "workspaceMonthly": "전체 월간보고",
+    "today": "오늘 나의 업무",
+    "priorityWeeklyHint": "주간 우선순위 번호 — 오늘 탭에서는 번호가 건너뛸 수 있어요"
   },
   "workspace": {
     "assignee": "담당자",
@@ -1162,7 +1164,11 @@
     "prioritySet": "우선순위 지정",
     "priorityClear": "우선순위 {{n}} — 해제",
     "sortByTag": "태그순으로 보기",
-    "sortDefault": "기본 순서로 보기"
+    "sortDefault": "기본 순서로 보기",
+    "tabToday": "오늘",
+    "tabWeek": "이번 주",
+    "tabsLabel": "업무 범위",
+    "noTagGroup": "태그 없음"
   },
   "tags": {
     "new": "새 태그",

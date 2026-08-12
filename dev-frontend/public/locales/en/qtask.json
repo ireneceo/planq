@@ -149,7 +149,9 @@
     "weeklyReviewMine": "My Work Report",
     "workspaceTasks": "All Tasks",
     "workspaceWeekly": "Workspace Weekly",
-    "workspaceMonthly": "Monthly (all)"
+    "workspaceMonthly": "Monthly (all)",
+    "today": "Today",
+    "priorityWeeklyHint": "Weekly priority number — numbers may skip on the Today tab"
   },
   "workspace": {
     "assignee": "Assignee",
@@ -1162,7 +1164,11 @@
     "prioritySet": "Set priority",
     "priorityClear": "Priority {{n}} — clear",
     "sortByTag": "Sort by tag",
-    "sortDefault": "Default order"
+    "sortDefault": "Default order",
+    "tabToday": "Today",
+    "tabWeek": "This week",
+    "tabsLabel": "Task scope",
+    "noTagGroup": "No tag"
   },
   "tags": {
     "new": "New tag",

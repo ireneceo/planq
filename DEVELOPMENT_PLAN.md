@@ -1,5 +1,7 @@
 # PlanQ - 개발 진행 현황
 
+> **최종 업데이트:** 2026-08-12 (Opus 5, 1M) 2회차 — **업무추가 체인·UI/UX 10건 운영 배포 완료(`4afd169`) + #254 진척 그래프 정의 통일 + '오늘 나의 업무' 탭·팝아웃 2탭(검증 중)** — 상세는 아래 2026-08-12 (2) 섹션.
+
 > **최종 업데이트:** 2026-08-12 (Opus 5, 1M) — **Q Mail #262·#263 운영 배포 완료 + AI 업무추가 담당자 체인·반복 (Fable 게이트 5라운드, FAIL 2회)** — ①**★ 운영 보낸메일함이 0건이었다**: `folderWhere('sent')` 가 스레드의 *마지막* 방향(`last_message_direction='outbound'`)으로 정의돼 있어, 상대가 답장하는 순간 내 보낸 메일이 사라졌다. 운영 실측 outbound 6건/5스레드인데 **표시 0건**(3건은 답장으로 뒤집힘, 2건은 archived 제외). **메시지 단위**(outbound 메시지가 1건이라도 있으면 포함, spam 만 제외)로 재정의 → 배포 후 운영 **0→5건** 복구. 정렬·상대·미리보기·시각 전부 내 발송 기준으로 교체. sent ⊄ all 은 의도된 비포함(all 은 archived 를 빼는 안전망). ②**스레드 최신 우선**: 상세가 `sent_at ASC` 고정 + 자동 스크롤 없음이라 방금 보낸 메일이 맨 아래 묻혔다 → 최신 펼침 + 과거 한 줄 접기(접힌 본문의 cid 이미지는 미로드). ③**서명 가시화**: 발송에 실제로 붙을 서명을 **sendMail 과 같은 함수**(`resolveOutgoingIdentity`)로 계산해 컴포저에 노출(별칭/개인/팀 4단계 반증 완료) + 이 메일만 빼기(계정 설정 불변). ④**담당자 `#1` `#2`**: `m.User`(대문자) 오타로 항상 undefined — 백엔드 alias 는 소문자 `user`. **Q Calendar 도 같은 오타**였다(Fable 이 "MailPage 단독"이라 판정했다가 철회). ⑤**AI 업무추가 담당자 체인**: 프로젝트 기본담당자→PM→생성자. `Project.default_assignee_user_id`·`ProjectMember.is_pm` 이 DB 에 있는데 둘 다 무시되고 있었다. 체인은 행동 계층 단일 착지점에. **★ AI confirm 의 `|| req.user.id` 제거** — 그게 있으면 체인이 영원히 죽은 코드. ⑥**★ Fable 이 잡은 BLOCKER 2건**: (a) 체인 루프가 후보==생성자일 때 `continue` 라 **본인을 건너뛰고 PM 에게 오배정 + 내부요청 둔갑 + 오알림** (Irene 의 "본인 프로젝트에 본인이 기본담당자" 패턴이 정확히 이 케이스) (b) Q Mail M2 의 deps 에 `detail` 을 같이 넣어 가드를 자기가 무력화 — silentReload 마다 **사용자가 펼친 메시지가 접히고 스크롤 점프**(남의 메일 도착만으로도). ⑦**§5.7 상호작용**: 체인이 배정한 담당자 앞에서는 **반복을 살린다** — 프로젝트 기본담당자는 그 업무에 대해 고른 사람이 아니라 프로젝트 설정이라, 여기서 NULL 로 만들면 루틴이 조용히 일회성이 된다. Fable 판정 "§5.7 훼손 아님"(매트릭스가 recurrence 편집권을 작성자/요청자에 두므로 생성시 sanitize 는 애초에 PUT 으로 우회 가능한 상징적 가드였다). ⑧**★ `priority` 컬럼은 존재하지 않는다**: `priority_order`(주간 랭킹 int)뿐이라 `createTask` 의 `priority: params.priority` 는 **죽은 코드**. AI 카드가 우선순위를 보여주는데 저장은 0. Fable 이 자기 D8 지적을 철회하고 priority_order 승격은 **비권장**(정렬 체계 오염) 판정. ⑨**god-file 래칫은 절출로**: 주석 감축 금지 원칙대로 `services/mailFolders·mailIdentity·mailSerialize` + `QMail/ThreadMessages·SignatureBadge·useThreadMessageExpansion` 6개 절출. ⑩**가드 자체 결함 2건**: health-check `findPattern` 이 **규칙을 설명하는 주석**을 위반으로 잡았다(주석 제외 + 카나리 반증) / i18n 가드는 `t()` 폴백을 제외하고 패리티는 **존재하는 키만** 비교해서 "어느 네임스페이스에도 없는 키"가 두 검사 사이로 샜다(EN 사용자 한국어 노출). **다음: P1 RecurrencePicker 이관 → P3 프로젝트 업무추가 폼(workstream·반복·설명 + 프론트 `||myId` 제거) → P5 Irene 개인 운영체계 3 프로젝트 → P6 일괄 생성(별도 사이클)**
 
 > **[이전] 최종 업데이트:** 2026-08-10 저녁 (Opus 5, 1M) — **10커밋 운영 배포 완료 + OAuth 스코프 가드(청크 1) 배포** — ①**미배포 9커밋 배포**(`cc35d8f`, 백업 `20260810_175853`): 청크 A·B·C 전부 Fable PASS 후 반영. 반영 3점 검증(PM2 재기동·프론트 18:02/412 asset·헬스 200). **`DEPLOY_EXIT=1` 은 부수 신호** — `Deployment Complete` + verify 전항목 OK 였다. 마이그레이션 2건은 `sync-database.js` 가 이미 처리(수동 실행 시 skip, `posts` 시각 컬럼 `datetime(3)` 실측 — Fable H-1 충족). **청크 B 메일 백필 `--apply`**: 운영 970 스레드 중 10건 재분류, 답변필요 해제 0건(놓치는 메일 없음). ②**★ #252 배포 직전 차단 게이트**: 배포 스택의 `50530ca` 가 "⛔ 배포하면 문서 저장이 깨진다" 를 커밋 메시지에 달고 있었다. 추적 결과 6개 잔여 항목은 **`eb36680`(청크 A) 안에서 이미 닫혀 있었는데**, 청크 A 는 커밋 메시지가 말한 3건과 달리 **62파일 2,850줄**이고 #252 완성분이 **게이트 범위 밖에서 얹혀 갔다**. → 전용 게이트 PASS(실HTTP 29·실브라우저 19·소켓 실측·반증 2). **교훈: 커밋 메시지가 diff 크기를 대변하지 않는다 — 배포 스택은 `git show --stat` 으로 훑을 것.** ③**Google 심사 실측**: `6d33587`(Meet 실패가 일정 생성을 죽이던 것)은 운영 배포 확인(md5 대조). 그러나 **운영 워크스페이스 토큰 scope 가 `[userinfo.email openid]` 뿐**이라 Meet 발급·일정 반영 불가 — 동의 화면 항목별 체크박스를 안 누른 결과라 코드로 못 고치고 **오너 재연결 필요**(`requireOwnerForCloud` — 팀원은 403). 반면 **개인 연동 2건(irene·lua)은 `calendar.events` 보유로 지금도 동작** — 팀원이 개인 계정으로 테스트하는 건 재연결 없이 가능. 심사 대상 스코프는 `calendar.events` 하나(`drive.file` 은 비민감), Gmail restricted 는 제외 방침. ④**OAuth 스코프 가드 청크 1 배포**(`d84bdcc`, 백업 `20260810_190922`): Irene "openid email 만 저장되고 조용히 실패하는 일이 없어야지" → 근본 결함은 `scope: tokens.scope || 요청목록` 폴백이 **승인받지 않은 권한을 승인 기록으로 위조**한 것(4곳 제거). `services/googleScopes.js` 단일 원천 신설(fail-closed·membership). **★ Fable 게이트가 내 회귀 2건을 잡았다** — 절출이 `Business` import 를 빠뜨려 **신규 Drive 연결만** 500+고아 row(실패 분기·재연결은 멀쩡해 내 스모크·문법검사·가드 3축 전부 통과했다), 그리고 내가 넣은 실패 로그 키가 화이트리스트에 없어 **조용히 필터**됐다. **다음: 청크 2(표시 측 — 이미 권한 없이 저장된 연결을 "권한 부족·다시 연결" 로 노출) → 운영 피드백 36건 → Google 심사(Irene 재연결 선행)**
@@ -43,6 +45,58 @@
 > **[이전] 최종 업데이트:** 2026-07-16 밤 (Opus 4.8, 1M) — **자율 밤샘 세션: 백로그 전수 검증 + 기능고장 3건 근본수정** — `docs/qa/NEXT_SECTION_BACKLOG.md` 전수 검증 결과, **genuinely 고장난 것만 실작업**이었고 나머지는 이미 구현됐으나 close 안 된 상태였다. ①**Q Mail AI #153/#164/#179**(`9a293e3`) — 공용 `services/emailBodyClean.js` 신설(인용/전달/서명 정리)로 언어감지 any-char편향 제거·미리보기 헤더조각 제거·추출 무반응 503 표면화. 실HTTP 검증(영어메일→영어답장 ko:0/en:198)·유닛11/11·health30/30. ②**#155 말로추가 iOS 포맷**(`79db3e4`) — isTypeSupported webm↔mp4 분기+파일명 정합+미지원가드+권한시 자동시작. ③**#126 캘린더 배너** 완성. **이미 완료 확인(재작업 안 함): #166·모바일②(a~e)·#163·MyFeedback·#162·#152**(에이전트 오탐 다수 — 반드시 현재코드 검증 후 진행). **남은 미완 ⑤·⑥ = Irene 설계결정 필요** → `docs/qa/BACKLOG_REMAINING_DECISIONS_2026-07-16.md`. 운영 미배포.
 
 > **[이전] 최종 업데이트:** 2026-07-16 (Opus 4.8, 1M) — **모바일 흰 화면 회귀 차단 + 검사 하니스 강화** — e2e mobile 스위트에 `assertRendered()` **흰 화면(blank) 판정** 신규(키보드 스위트가 "입력 가림"만 봐 페이지 통째 blank도 ⚪ 통과하던 구멍 차단, #173/174/159/178 계열) + `run.js` blank=실패 집계 + mail 시나리오(mail-list·mail-compose) + MailPage `data-testid`·모바일 compose 사이드바 자동접힘 + DetailDrawer 폰 풀스크린(56px 조각 새던 것) + QBill 개요 2열 그리드 반응형 + Insights 기간라벨 i18n. **검증: mobile/crosscut/l1 전 스위트 0 실패 + tsc -b exit 0 + 가드 3축(health 30/30·guard 22/22·tenant 0)**. 다음: `docs/qa/NEXT_SECTION_BACKLOG.md`(Q Mail AI·멀티탭·전수검사 잔여 LOW).
+
+
+## ✅ 완료: 2026-08-12 (2) — 업무추가 배포 + 진척 그래프 정의 통일 + 오늘 탭
+
+### 운영 배포 (`4afd169`, 백업 `20260812_194520`, 200초)
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 업무추가 담당자 체인 | 프론트 `\|\| myId` 제거 → 서버 체인(기본담당자→PM→생성자)이 실제로 탄다. `pickProjectAssignee` 절출로 **화면 미리보기와 실제 배정이 같은 술어** | ✅ |
+| P3 프로젝트 업무추가 폼 | 업무그룹(workstream)·반복(공용 RecurrencePicker 재사용)·설명 추가 | ✅ |
+| #256 첨부 위치 | 생성 시 첨부 `context: 'task'` → `'description_attach'` (결과물이 아니라 의뢰 자료) | ✅ |
+| #265 / #266 모바일 | CreateDrawer 표준 제목(6곳 일괄) / DetailDrawer safe-area 이중 적용 제거 | ✅ |
+| #232 첨부 통일 | 6화면 드래그드롭 + `AttachmentField.hideExistingSearch` 신설. 죽은 파일 2개 삭제 | ✅ |
+| #236 / #245 / #264 / #268 / #270 / #272 | 업무명 잘림 · 모바일 채팅 흔들림 · 워크스페이스 모달 portal · 태그라인 · 댓글 링크 · Q Mail 4건 | ✅ |
+| `priority` 죽은 코드 제거 | tasks 에 컬럼이 없다(`priority_order` 만) — Sequelize 가 조용히 버려 저장되는 척만 했다 | ✅ |
+| #255 백필 | 운영 `report_units` 7건 `progress_series` 복원. 재실행 시 0건(멱등 반증) | ✅ |
+
+### #254 — 주간 진척 그래프 정의 통일 (Fable PASS, 운영 실측 9/9)
+
+**Fable 이 운영 DB 로 원인 확정** — `task_daily_progress` 행은 업무별 **일생 누적**인데 라이브 그래프가
+그대로 합산해, 이월 업무가 **지난주**에 쌓은 시간(4.0+2.4=6.4h)이 월요일부터 찍혔다. 신고 시점 이번 주 투입은 0h.
+보고서는 #223 에서 이미 Δ 로 고쳐져 있어 **정의가 3벌**로 갈라진 상태였다.
+
+- `services/progressBaseline.js` **신규** — 기준선 단일 원천(`getProgressBaselines`/`deltaOf`)
+- 보고서(`reportUnitSnapshot`)·라이브(`routes/tasks daily-progress`)·개인 주간보고(`weeklyReviewSnapshot`) **3곳 통일**
+- `task_ids` 파라미터가 있으면 **빈 값이어도 scoped**(전체 폴백 금지). 응답에 `bases` 추가 → 오늘 라이브도 Δ
+- 프론트 그래프 집합을 `filtered` 파생 → **정본**(`chartWeekTasks`)으로: 검색어를 치면 그래프가 변하던 것
+- 운영 실측: lua 그 주 옛 정의 **49.8h → Δ 0.0**, 8/11 은 **3.2**(실투입만), 최초 투입 주는 **값 생존**
+- 박제 불변 확인: 확정 보고서 749건 갱신 **0건**
+
+### '오늘 나의 업무' 탭 + 팝아웃 2탭 (Fable 재검증 중)
+
+- `utils/todayTaskSet.ts` **신규** — 오늘 술어(지연·오늘마감·기간낌·오늘시작·무날짜 진행중·내 컨펌 + 오늘 완료).
+  **오늘 ⊆ 이번 주** 구조로 주간 정본 재사용(세 번째 미러 금지)
+- `completed_at` 은 UTC slice 금지 → **로컬 날짜 변환**(KST 오전 완료가 전날로 밀리던 잠복 결함)
+- **자정 롤오버** — 밤새 열어둔 창의 "오늘" 이 어제에 머물던 것 (60초 + visibility)
+- 팝아웃 **오늘/이번 주 2탭**(기본 오늘, 선택 기억) + **태그 그룹 헤더**. 데이터는 `/my-week` 한 벌 공유
+- Fable 1차 FAIL 3건 수정: 오늘 탭 인사이트 미렌더 / 완료가리기 체크박스 중복 / **추가한 업무가 즉시 사라짐**
+- `TaskPopoutView.styles.tsx` 절출 — 주석을 깎지 않고 god-file 래칫 해소
+
+### 가드 자체 결함 수정
+
+- `guard-invariants.js` i18n 검사가 **번역 함수 별칭**(`const { t: tp }`)을 하드코딩으로 오탐 →
+  별칭 인식 추가. **오탐을 없애자 그만큼 slack 이 생겨 진짜 하드코딩이 통과**되는 것을 카나리로 발견,
+  베이스라인을 조인 뒤 재반증(0→1 FAIL). 426 → 382
+
+### 수정된 파일
+- `dev-backend/services/progressBaseline.js` (신규) · `routes/tasks.js` · `services/reportUnitSnapshot.js` · `services/weeklyReviewSnapshot.js`
+- `dev-frontend/src/utils/todayTaskSet.ts` (신규) · `pages/QTask/QTaskPage.tsx` · `components/QTask/TaskPopoutView.tsx` + `.styles.tsx` (신규)
+- `public/locales/{ko,en}/qtask.json` · `scripts/guard-invariants.js` · `scripts/guards-baseline.json`
+
+---
 
 ## ✅ 완료: 미배포 9커밋 운영 배포 + OAuth 승인 스코프 저장측 가드 (2026-08-10 저녁)
 
