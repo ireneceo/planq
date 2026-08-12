@@ -501,12 +501,27 @@ export const MsgHeaderRight = styled.div`display: flex; align-items: center; gap
 
 // 접힌 메시지의 한 줄 미리보기 (#262 M2) — 스레드를 열면 최신만 펼쳐지고 과거는 이 줄로 남는다.
 export const MsgCollapsedPreview = styled.div`
-  padding: 0 0 12px;
+  /* #272 — 옛 스타일은 회색 한 줄뿐이라 "본문이 잘린 것"처럼 보였다.
+     옅은 카드로 감싸 "이건 접힌 요약" 이라고 형태로 말한다. */
+  margin: 0 0 12px;
+  padding: 7px 10px;
+  background: #F8FAFC;
+  border: 1px solid #EEF2F6;
+  border-radius: 8px;
   font-size: 13px; line-height: 1.5;
   color: #94A3B8;
   cursor: pointer;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  &:hover { color: #64748B; }
+  &:hover { color: #64748B; background: #F1F5F9; }
+`;
+
+// 접힘/펼침 표시 — 헤더 우측. 펼치면 180도 회전.
+export const MsgChevron = styled.span<{ $open: boolean }>`
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #94A3B8; flex-shrink: 0;
+  transform: rotate(${p => (p.$open ? '180deg' : '0deg')});
+  transition: transform 0.18s ease;
+  @media (prefers-reduced-motion: reduce) { transition: none; }
 `;
 
 // 후속 조치 칩 — 스레드 목록에서 "답이 안 왔다 / 애초에 안 나갔다" 를 알린다.

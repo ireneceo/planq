@@ -251,7 +251,9 @@
     "descPlaceholder": "설명 (선택)",
     "save": "추가",
     "saving": "저장 중...",
-    "cancel": "취소"
+    "cancel": "취소",
+    "assigneeResolvedMe": "담당자: {{name}} (나)",
+    "assigneeResolvedChain": "담당자: {{name}} (프로젝트 기본)"
   },
   "recur": {
     "toggle": "반복하기",

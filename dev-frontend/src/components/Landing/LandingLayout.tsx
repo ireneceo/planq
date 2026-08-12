@@ -138,7 +138,7 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
           <FooterCols>
             <FooterCol>
               <FooterLogo src="/planQ_white_new.svg" alt="PlanQ" />
-              <FooterTagline>{t('footer.tagline', '일이 일이되지 않게, 플랜큐')}</FooterTagline>
+              <FooterTagline>{t('footer.tagline', '일이 일이 되지 않게, 플랜큐')}</FooterTagline>
             </FooterCol>
             <FooterCol>
               <FooterTitle>{t('footer.product', 'PRODUCT')}</FooterTitle>

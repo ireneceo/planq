@@ -296,7 +296,8 @@
     "title": "Q helper",
     "toggleHint": "로 언제든 열고 닫기",
     "workspaceFallback": "워크스페이스",
-    "you": "나"
+    "you": "나",
+    "fbAttachNoWorkspace": "워크스페이스에 들어가면 이미지를 첨부할 수 있어요"
   },
   "cue": {
     "title": "Cue 도움말",

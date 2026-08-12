@@ -163,6 +163,35 @@ async function resolveProjectDefaultAssignee(projectId, businessId) {
   return out;
 }
 
+/** 체인에서 **실제로 배정될 1명**을 고른다 — 후보 나열이 아니라 선정까지.
+ *
+ *  ★ resolveProjectDefaultAssignee 는 *후보 배열*만 준다. 실제 배정은 아래 선정 규칙까지
+ *    거쳐야 정해지고, 그 결과는 **보는 사람(subjectId)에 따라 달라진다**(후보가 본인이면 본인에서 끝).
+ *    그래서 화면이 배열의 [0] 을 그냥 보여주면 "미리보기 ≠ 실제" 가 된다.
+ *    createTask 와 GET /api/projects/:id 가 **이 함수 하나**를 공유한다
+ *    (memory feedback_predicate_must_match_both_sides — 게이트 술어는 양쪽이 같아야 한다).
+ *
+ *  @returns {{ userId: number|null, fromChain: boolean }}
+ *    userId=null 이면 체인이 아무도 못 골랐다는 뜻 — 호출측이 생성자로 폴백한다.
+ *    fromChain=false 는 "체인이 고른 타인이 아니다"(본인이거나 미선정) — 요청 둔갑 판정에 쓰인다.
+ */
+async function pickProjectAssignee(projectId, businessId, subjectId) {
+  const chain = await resolveProjectDefaultAssignee(projectId, businessId);
+  for (const cand of chain) {
+    if (!cand) continue;
+    // ★ 후보가 **본인**이면 거기서 끝난다 — 건너뛰면 안 된다.
+    //   `continue` 로 넘기면 "기본담당자 = 나" 인 프로젝트에서 내 업무가 PM 에게 배정되고
+    //   내부요청으로 둔갑해(자동 컨펌자 + 배정 알림) 엉뚱한 사람에게 알림이 간다.
+    //   본인 배정은 요청이 아니므로 fromChain 은 세우지 않는다(반복은 어차피 산다).
+    if (Number(cand) === Number(subjectId)) return { userId: Number(subjectId), fromChain: false };
+    // 배정 불가(탈퇴·타 워크스페이스)면 403 이 아니라 다음 후보로 폴백한다 —
+    //   기본값 때문에 업무 생성 자체가 막히면 안 된다.
+    const chk = await assertAssignable(cand, businessId, projectId);
+    if (chk.ok) return { userId: Number(cand), fromChain: true };
+  }
+  return { userId: null, fromChain: false };
+}
+
 /** 새 업무를 만든다. 사람도 Cue 도 이 문을 지난다.
  *
  * @param actor   { kind, userId, onBehalfOfUserId?, platformRole?, req? }
@@ -213,18 +242,13 @@ async function createTask(actor, params = {}, opts = {}) {
   //   ★ 담당자를 **명시했으면 절대 개입하지 않는다** — 사용자가 고른 값을 덮으면 사고다.
   //   ★ 배정 불가(탈퇴·타 워크스페이스)면 403 이 아니라 다음 후보로 폴백한다 — 기본값 때문에
   //     업무 생성 자체가 막히면 안 된다.
+  //   ★ 선정 규칙은 pickProjectAssignee 단일 원천이다 — 화면 미리보기가 같은 함수를 쓴다.
   let assigneeFromChain = false;
   if (!finalAssignee && projectId && !opts.allowUnassigned) {
-    const chain = await resolveProjectDefaultAssignee(projectId, businessId);
-    for (const cand of chain) {
-      if (!cand) continue;
-      // ★ 후보가 **생성자 본인**이면 거기서 끝난다 — 건너뛰면 안 된다.
-      //   `continue` 로 넘기면 "기본담당자 = 나" 인 프로젝트에서 내 업무가 PM 에게 배정되고
-      //   심지어 내부요청으로 둔갑해(자동 컨펌자 + 배정 알림) 엉뚱한 사람에게 알림이 간다.
-      //   본인 배정은 요청이 아니므로 assigneeFromChain 은 세우지 않는다(반복은 어차피 산다).
-      if (Number(cand) === Number(subjectId)) { finalAssignee = subjectId; break; }
-      const chk = await assertAssignable(cand, businessId, projectId);
-      if (chk.ok) { finalAssignee = cand; assigneeFromChain = true; break; }
+    const picked = await pickProjectAssignee(projectId, businessId, subjectId);
+    if (picked.userId) {
+      finalAssignee = picked.userId;
+      assigneeFromChain = picked.fromChain;
     }
   }
   if (!finalAssignee) finalAssignee = opts.allowUnassigned ? null : subjectId;
@@ -331,7 +355,10 @@ async function createTask(actor, params = {}, opts = {}) {
       start_date: params.startDate || null,
       estimated_hours: effectiveEstimatedHours,
       category: params.category || null,
-      priority: params.priority || undefined,
+      // ※ `priority` 는 tasks 에 **컬럼이 없다**(있는 건 주간 랭킹용 priority_order int).
+      //    Sequelize 는 모델에 없는 속성을 조용히 버리므로 여기에 쓰면 저장되는 척만 하는 죽은 코드다.
+      //    우선순위를 진짜로 저장하려면 컬럼 신설이 필요하고, priority_order 로 대신 쓰면
+      //    주간 랭킹 정렬 체계가 오염된다 — 그래서 '안 쓰는 것'이 확정된 선택이다.
       source_message_id: params.sourceMessageId || null,
       conversation_id: params.conversationId || null,
       email_thread_id: params.emailThreadId || null,
@@ -1194,6 +1221,8 @@ module.exports = {
   recalcStatusFromReviewers,
   // 권한 술어 (읽기 라우트가 재사용)
   isAssignee, isRequester, isOwner, canManageReviewers,
-  // 기본 담당자 체인 — 화면(미리보기)과 생성이 같은 술어를 써야 한다
-  resolveProjectDefaultAssignee,
+  // 기본 담당자 체인 — 화면(미리보기)과 생성이 같은 술어를 써야 한다.
+  //   resolveProjectDefaultAssignee = 후보 나열 / pickProjectAssignee = **실제 배정자 선정**.
+  //   화면은 반드시 후자를 쓴다(전자의 [0] 은 실제 배정과 다를 수 있다).
+  resolveProjectDefaultAssignee, pickProjectAssignee,
 };

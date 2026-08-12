@@ -430,7 +430,7 @@ router.patch('/:id/time', authenticateToken, async (req, res, next) => {
 // ============================================
 router.post('/', authenticateToken, async (req, res, next) => {
   try {
-    const { business_id, project_id, title, description, assignee_id, due_date, priority,
+    const { business_id, project_id, title, description, assignee_id, due_date,
       estimated_hours, category, source_message_id, conversation_id, planned_week_start, start_date,
       cue_kind, cue_context_ref, recurrence_rule, workstream_id } = req.body;
 
@@ -438,7 +438,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
     //   권한·요청자 자동 컨펌자·Cue 실행·socket·알림·감사가 전부 그 안에서 일어난다 — Cue 도 같은 문.
     const result = await taskActions.createTask(actorFrom(req), {
       businessId: business_id, projectId: project_id, title, description,
-      assigneeId: assignee_id, dueDate: due_date, startDate: start_date, priority,
+      assigneeId: assignee_id, dueDate: due_date, startDate: start_date,
       estimatedHours: estimated_hours, category, sourceMessageId: source_message_id,
       conversationId: conversation_id, plannedWeekStart: planned_week_start,
       cueKind: cue_kind, cueContextRef: cue_context_ref,
@@ -816,7 +816,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     const task = await Task.findOne({ where: { id: req.params.id, business_id: businessId } });
     if (!task) return errorResponse(res, 'task_not_found', 404);
 
-    const { title, description, body, assignee_id, status, priority, due_date, start_date, estimated_hours, actual_hours, progress_percent, category, planned_week_start, project_id, recurrence_rule, workstream_id, is_milestone, hold_reason } = req.body;
+    const { title, description, body, assignee_id, status, due_date, start_date, estimated_hours, actual_hours, progress_percent, category, planned_week_start, project_id, recurrence_rule, workstream_id, is_milestone, hold_reason } = req.body;
     const updates = {};
     if (is_milestone !== undefined) updates.is_milestone = !!is_milestone;
     if (title !== undefined) updates.title = title;

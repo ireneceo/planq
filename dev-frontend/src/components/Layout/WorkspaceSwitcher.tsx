@@ -1,10 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useChromeLocation, useChromeNav } from '../../hooks/useChromeNav';
 import { useAuth, apiFetch, type WorkspaceMembership } from '../../contexts/AuthContext';
 import { useUnreadByBusiness } from '../../hooks/useUnreadTotal';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { useEscapeStack } from '../../hooks/useEscapeStack';
 
 /**
  * WorkspaceSwitcher (사이드바 전용)
@@ -58,7 +61,11 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
   const [creating, setCreating] = useState(false);
   const [createErr, setCreateErr] = useState('');
 
+  const createModalRef = useRef<HTMLDivElement>(null);
   useBodyScrollLock(createOpen);
+  // Esc 는 입력에 포커스가 없어도 닫혀야 한다(기존엔 input onKeyDown 에만 걸려 있었다).
+  useEscapeStack(createOpen && !creating, () => setCreateOpen(false));
+  useFocusTrap(createModalRef, createOpen);
 
   useEffect(() => {
     if (!open) return;
@@ -265,9 +272,14 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
         </Menu>
       )}
 
-      {createOpen && (
+      {/* ★ 운영 #264 — 반드시 document.body 로 portal 한다.
+          사이드바는 모바일(≤1024)에서 `transform: translateX(...)` 를 갖는데, transform 은 값이 0 이어도
+          position:fixed 자손의 기준 박스를 자기 자신으로 바꾼다. 그래서 이 오버레이가 사이드바(240px)
+          안에 갇혀 "좌측에 붙고 메뉴만 어두워지는" 상태가 됐다(Irene 원문). Sidebar 의 overflow-x:hidden
+          도 클리핑에 가세한다. portal 로 트리를 벗어나면 원래 의도대로 전체 화면 팝업이 된다. */}
+      {createOpen && createPortal((
         <CreateOverlay onMouseDown={(e) => { if (e.target === e.currentTarget && !creating) setCreateOpen(false); }}>
-          <CreateModal role="dialog" aria-modal="true" aria-labelledby="ws-create-title" onMouseDown={(e) => e.stopPropagation()}>
+          <CreateModal ref={createModalRef} role="dialog" aria-modal="true" aria-labelledby="ws-create-title" onMouseDown={(e) => e.stopPropagation()}>
             <CreateTitle id="ws-create-title">{t('switcher.createWorkspace', '새 워크스페이스 만들기')}</CreateTitle>
             <CreateDesc>{t('switcher.createDesc', '내 소유의 새 워크스페이스를 만듭니다. 14일 무료 체험이 시작됩니다.')}</CreateDesc>
             <CreateInput
@@ -287,7 +299,7 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
             </CreateActions>
           </CreateModal>
         </CreateOverlay>
-      )}
+      ), document.body)}
     </Container>
   );
 };
@@ -552,11 +564,15 @@ const PlusBadge = styled.span`
 `;
 const CreateOverlay = styled.div`
   position: fixed; inset: 0; z-index: 2000;
+  /* 키보드가 올라오면 레이아웃 뷰포트는 그대로인데 보이는 영역만 줄어든다 —
+     --vvh(visual viewport, main.tsx 가 동기화)에 높이를 묶어야 모달이 키보드에 가리지 않는다. */
+  height: var(--vvh, 100vh);
   background: rgba(15,23,42,0.45);
   display: flex; align-items: center; justify-content: center; padding: 16px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
 `;
 const CreateModal = styled.div`
-  max-height: calc(100vh - 40px);
+  max-height: calc(var(--vvh, 100vh) - 40px);
   overflow-y: auto;
   width: 100%; max-width: 380px; background: #FFFFFF; border-radius: 14px;
   padding: 22px 22px 18px; box-shadow: 0 24px 48px -16px rgba(15,23,42,0.4);

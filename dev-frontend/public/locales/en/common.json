@@ -296,7 +296,8 @@
     "title": "Q helper",
     "toggleHint": "to toggle anytime",
     "workspaceFallback": "Workspace",
-    "you": "You"
+    "you": "You",
+    "fbAttachNoWorkspace": "Join a workspace to attach images"
   },
   "cue": {
     "title": "Cue Help",

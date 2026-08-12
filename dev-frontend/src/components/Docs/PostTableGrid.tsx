@@ -680,6 +680,7 @@ const AttachPickerModal: React.FC<{
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose, busy]);
 
+  const [dropOver, setDropOver] = useState(false);
   const handleUpload = async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
     setBusy(true);
@@ -801,7 +802,22 @@ const AttachPickerModal: React.FC<{
           )}
 
           <SectionTitle>📎 {t('attach.uploadSection', { defaultValue: '파일 업로드 (새 파일)' }) as string}</SectionTitle>
-          <DropZone type="button" onClick={() => fileInputRef.current?.click()} disabled={busy}>
+          {/* #232 — 문구는 "끌어다 놓으세요" 인데 실제로는 클릭만 되던 것(문구가 거짓말).
+              drop 핸들러를 붙여 문구대로 동작하게 한다. */}
+          <DropZone
+            type="button"
+            $over={dropOver}
+            onClick={() => fileInputRef.current?.click()}
+            disabled={busy}
+            onDragOver={(e) => { e.preventDefault(); if (!busy) setDropOver(true); }}
+            onDragLeave={() => setDropOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDropOver(false);
+              if (busy) return;
+              handleUpload(e.dataTransfer?.files || null);
+            }}
+          >
             {t('attach.uploadHint', '클릭하거나 파일을 끌어다 놓으세요')}
           </DropZone>
           <input
@@ -1105,9 +1121,10 @@ const RemoveItemBtn = styled.button`
   &:hover { background: #fff; color: #DC2626; }
 `;
 const SectionTitle = styled.div`font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 6px;`;
-const DropZone = styled.button`
-  width: 100%; padding: 14px; border: 1px dashed #CBD5E1; border-radius: 8px;
-  background: #F8FAFC; color: #64748B; font-size: 12px; cursor: pointer;
+const DropZone = styled.button<{ $over?: boolean }>`
+  width: 100%; padding: 14px; border: 1px dashed ${p => (p.$over ? '#14B8A6' : '#CBD5E1')}; border-radius: 8px;
+  background: ${p => (p.$over ? '#F0FDFA' : '#F8FAFC')}; color: ${p => (p.$over ? '#0F766E' : '#64748B')};
+  font-size: 12px; cursor: pointer;
   &:hover:not(:disabled) { border-color: #14B8A6; background: #F0FDFA; color: #0F766E; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;

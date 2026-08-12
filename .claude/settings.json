@@ -14,5 +14,41 @@
         ]
       }
     ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(node scripts/guard-invariants.js)",
+      "Bash(node scripts/guard-invariants.js *)",
+      "Bash(node /opt/planq/scripts/guard-invariants.js)",
+      "Bash(node /opt/planq/scripts/guard-invariants.js *)",
+      "Bash(node scripts/health-check.js)",
+      "Bash(node /opt/planq/scripts/health-check.js)",
+      "Bash(node scripts/e2e/run.js *)",
+      "Bash(npm run build)",
+      "Bash(pm2 list)",
+      "Bash(pm2 list *)",
+      "Bash(pm2 logs *)",
+      "Bash(pm2 status)",
+      "Bash(curl -s http://localhost:3003/api/health*)",
+      "Bash(curl -sf http://localhost:3003/api/health*)",
+      "Bash(curl -s https://planq.kr/api/health*)",
+      "Bash(curl -sf https://planq.kr/api/health*)",
+      "Bash(curl -sI https://planq.kr*)",
+      "Edit(/opt/planq/**)",
+      "Write(/opt/planq/**)",
+      "Read(/opt/planq/**)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(grep *)",
+      "Bash(sed -n *)",
+      "Bash(ls *)",
+      "Bash(wc *)",
+      "Bash(find /opt/planq*)",
+      "Bash(node -e *)",
+      "Bash(pm2 restart planq-dev-backend)",
+      "Bash(cd /opt/planq/dev-frontend && npm run build)"
+    ]
   }
 }

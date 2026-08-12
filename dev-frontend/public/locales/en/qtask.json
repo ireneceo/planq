@@ -211,7 +211,9 @@
     "descPlaceholder": "Description (optional)",
     "save": "Add",
     "saving": "Saving...",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "assigneeResolvedMe": "Assignee: {{name}} (me)",
+    "assigneeResolvedChain": "Assignee: {{name}} (project default)"
   },
   "recur": {
     "toggle": "Repeat",

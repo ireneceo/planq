@@ -149,7 +149,17 @@ function checkI18n() {
     //   "…" 로 옮겨 적을 때) 하드코딩으로 오탐했다. 오탐은 `--update-baseline` 을 부르고,
     //   그 순간 **진짜 부채가 같이 통과**한다 — 가드가 조용히 죽는 경로다.
     let inBlock = false;
-    read(f).split('\n').forEach((l, i) => {
+    const srcAll = read(f);
+    // ★ 번역 함수 **별칭**도 t() 다. `const { t: tp } = useTranslation('qproject')` 처럼 한 파일에서
+    //   여러 네임스페이스를 쓸 때 별칭이 붙는데, 옛 검사는 `t(` 만 알아서 `tp('키','기본값')` 를
+    //   전부 하드코딩으로 셌다. 오탐이 쌓이면 --update-baseline 을 부르고, 그 순간 진짜 부채가
+    //   같이 통과한다 (memory feedback_guard_must_be_falsified). 별칭은 파일에서 읽어 정확히 좁힌다.
+    const aliases = new Set(['t']);
+    for (const m of srcAll.matchAll(/\{\s*t\s*:\s*([A-Za-z_$][\w$]*)\s*\}\s*=\s*useTranslation/g)) {
+      aliases.add(m[1]);
+    }
+    const callRe = new RegExp(`\\b(?:${[...aliases].join('|')})\\(`);
+    srcAll.split('\n').forEach((l, i) => {
       const t = l.trim();
       if (inBlock) {
         if (t.includes('*/')) inBlock = false;
@@ -163,7 +173,7 @@ function checkI18n() {
       }
       if (!re.test(l)) return;
       // t() 폴백·i18n 키·콘솔로그·주석성 라벨 제외
-      if (/\bt\(|i18nKey|defaultValue|console\.(log|warn|error|info)/.test(l)) return;
+      if (callRe.test(l) || /i18nKey|defaultValue|console\.(log|warn|error|info)/.test(l)) return;
       n++;
       if (samples.length < 8) samples.push(`${rel(f)}:${i + 1}: ${t.slice(0, 80)}`);
     });

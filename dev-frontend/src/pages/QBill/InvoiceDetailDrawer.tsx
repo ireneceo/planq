@@ -108,7 +108,8 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
   };
   const [taxModal, setTaxModal] = useState<{ installmentId: number | null; kind?: 'tax' | 'cash' } | null>(null);
   const [taxNoInput, setTaxNoInput] = useState('');
-  const [taxFile, setTaxFile] = useState<File | null>(null); // #77 — 발행 파일 첨부
+  const [taxFile, setTaxFile] = useState<File | null>(null);
+  const [taxFileDropOver, setTaxFileDropOver] = useState(false); // #77 — 발행 파일 첨부
   const [remindBusy, setRemindBusy] = useState(false);
   const [remindNote, setRemindNote] = useState<{ tone: 'ok' | 'warn'; text: string } | null>(null);
   const [previewBusy, setPreviewBusy] = useState(false);
@@ -953,7 +954,13 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
               <TaxModalLabel htmlFor="tax-file-input" style={{ marginTop: 12 }}>
                 {t('detail.tax.fileLabel', { defaultValue: '발행 파일 첨부 (선택)' }) as string}
               </TaxModalLabel>
-              <TaxFileRow>
+              {/* #232 — 버튼만 있던 첨부를 드롭 가능하게. */}
+              <TaxFileRow
+                $over={taxFileDropOver}
+                onDragOver={e => { e.preventDefault(); setTaxFileDropOver(true); }}
+                onDragLeave={() => setTaxFileDropOver(false)}
+                onDrop={e => { e.preventDefault(); setTaxFileDropOver(false); const f = e.dataTransfer?.files?.[0]; if (f) setTaxFile(f); }}
+              >
                 <TaxFileBtn type="button" onClick={() => document.getElementById('tax-file-input')?.click()}>
                   {t('detail.tax.filePick', { defaultValue: '파일 선택' }) as string}
                 </TaxFileBtn>
@@ -1127,7 +1134,13 @@ const TaxModalInput = styled.input`
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
 `;
 // #77 — 발행 파일 첨부
-const TaxFileRow = styled.div`display: flex; align-items: center; gap: 8px; margin-top: 4px;`;
+const TaxFileRow = styled.div<{ $over?: boolean }>`display: flex; align-items: center; gap: 8px; margin-top: 4px;
+  padding: 10px;
+  border: 1px dashed ${p => (p.$over ? '#14B8A6' : '#CBD5E1')};
+  border-radius: 8px;
+  background: ${p => (p.$over ? '#F0FDFA' : '#F8FAFC')};
+  transition: border-color 0.15s, background 0.15s;
+`;
 const TaxFileBtn = styled.button`
   flex-shrink: 0; padding: 7px 12px; font-size: 12px; font-weight: 600;
   color: #334155; background: #fff; border: 1px solid #E2E8F0; border-radius: 6px; cursor: pointer;

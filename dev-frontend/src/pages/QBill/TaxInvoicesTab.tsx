@@ -200,6 +200,7 @@ function IssueModal({ row, onClose, onIssued }: { row: ReceiptDueRow; onClose: (
   const [no, setNo] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [file, setFile] = useState<File | null>(null);
+  const [fileDropOver, setFileDropOver] = useState(false);
   // #217 — 고객 통지. Irene 결정: **기본 켬**. 수신 주소가 없으면 켤 수 없다.
   const notifyEmail = row.receipt_notify_email || null;
   const [notifyCustomer, setNotifyCustomer] = useState(true);
@@ -288,7 +289,13 @@ function IssueModal({ row, onClose, onIssued }: { row: ReceiptDueRow; onClose: (
           </ModalField>
           <ModalField>
             <ModalLabel>{t('taxInvoices.issueModal.fileLabel', { defaultValue: '발행 파일 첨부 (선택)' }) as string}</ModalLabel>
-            <FileRow>
+            {/* #232 — 버튼만 있던 첨부를 드롭 가능하게. 회색 라운드 점선 = 드롭 대상 표시. */}
+            <FileRow
+              $over={fileDropOver}
+              onDragOver={e => { e.preventDefault(); setFileDropOver(true); }}
+              onDragLeave={() => setFileDropOver(false)}
+              onDrop={e => { e.preventDefault(); setFileDropOver(false); const f = e.dataTransfer?.files?.[0]; if (f) setFile(f); }}
+            >
               <FileBtn type="button" onClick={() => document.getElementById('receipt-file-input')?.click()}>
                 {t('taxInvoices.issueModal.filePick', { defaultValue: '파일 선택' }) as string}
               </FileBtn>
@@ -620,7 +627,13 @@ const ModalInput = styled.input`
 `;
 const Hint = styled.div`font-size: 11px; color: #94A3B8; padding: 8px 10px; background: #F8FAFC; border-radius: 6px; line-height: 1.7;`;
 // #77 — 발행 파일 첨부
-const FileRow = styled.div`display: flex; align-items: center; gap: 8px;`;
+const FileRow = styled.div<{ $over?: boolean }>`display: flex; align-items: center; gap: 8px;
+  padding: 10px;
+  border: 1px dashed ${p => (p.$over ? '#14B8A6' : '#CBD5E1')};
+  border-radius: 8px;
+  background: ${p => (p.$over ? '#F0FDFA' : '#F8FAFC')};
+  transition: border-color 0.15s, background 0.15s;
+`;
 const NotifyRow = styled.div`display: flex; align-items: center; gap: 8px;`;
 const NotifyCheck = styled.input`width: 16px; height: 16px; accent-color: #14B8A6; cursor: pointer;
   &:disabled { cursor: not-allowed; opacity: 0.5; }`;

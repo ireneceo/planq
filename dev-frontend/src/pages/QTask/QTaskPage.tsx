@@ -370,6 +370,33 @@ const QTaskPage:React.FC=()=>{
   const[showAttachInline,setShowAttachInline]=useState(false);
   const[showAttachPanel,setShowAttachPanel]=useState(false);
 
+  // 담당자 미선택 시 서버 체인(프로젝트 기본담당자→PM→생성자)이 정하는 **실제 배정자** 미리보기.
+  //   내 업무(week/all)는 나로 고정, 요청 탭은 선택 필수라 체인이 개입하지 않는다 — 그 두 경우엔 조회 안 함.
+  //   ★ 값은 서버가 createTask 와 같은 함수로 계산한다(미리보기 ≠ 실제 방지).
+  const chainApplies = !(scope==='mine'&&(tab==='week'||tab==='all')) && tab!=='requested';
+  const[resolvedAssignee,setResolvedAssignee]=useState<{name:string|null;is_me:boolean}|null>(null);
+  useEffect(()=>{
+    if(!chainApplies||!newProjectId){setResolvedAssignee(null);return;}
+    let cancelled=false;
+    (async()=>{
+      try{
+        const r=await apiFetch(`/api/projects/${newProjectId}`);
+        const j=await r.json();
+        const rd=j?.success?j.data?.resolved_default_assignee:null;
+        if(!cancelled)setResolvedAssignee(rd?{name:rd.name,is_me:rd.is_me}:null);
+      }catch{ if(!cancelled)setResolvedAssignee(null); }
+    })();
+    return()=>{cancelled=true;};
+  },[newProjectId,chainApplies]);
+  // 담당자 셀렉트 placeholder — 동작(체인)이 바뀌었으므로 "담당자: 나" 를 고정 문구로 두면 거짓말이 된다.
+  const assigneePlaceholder = tab==='requested'
+    ? t('add.assigneeRequiredHint','담당자 선택 (필수)')
+    : (resolvedAssignee?.name
+        ? (resolvedAssignee.is_me
+            ? t('add.assigneeResolvedMe',{name:resolvedAssignee.name,defaultValue:'담당자: {{name}} (나)'})
+            : t('add.assigneeResolvedChain',{name:resolvedAssignee.name,defaultValue:'담당자: {{name}} (프로젝트 기본)'}))
+        : t('add.assigneeDefault','담당자: 나'));
+
   // AI 예측 — 제목 (+ 설명) 기반으로 LLM 추천 시간 받아서 newEstHours 채움.
   const handleAiEstimate = useCallback(async () => {
     const title = newTitle.trim();
@@ -827,9 +854,11 @@ const QTaskPage:React.FC=()=>{
     if(addingSubmitting)return; // 중복 방지
     if(!newTitle.trim()||!bizId)return;
     // 담당자 결정
-    // - 내 업무 week/all : 무조건 나 (담당자 선택 UI 없음)
+    // - 내 업무 week/all : 무조건 나 (담당자 선택 UI 없음 — 내 업무 목록이니 나로 고정)
     // - requested : 선택 필수
-    // - workspace : 선택 가능, 미선택이면 나
+    // - workspace : 선택 가능. **미선택이면 null 로 보낸다** — 그래야 서버의 담당자 체인
+    //   (프로젝트 기본담당자 → PM → 생성자)이 탄다. 여기서 나로 채우면 그 체인은 영영 죽은 코드다.
+    //   프로젝트를 안 골랐으면 서버가 생성자로 폴백하므로 종전과 결과가 같다.
     let targetAssignee:number|null;
     if(scope==='mine'&&(tab==='week'||tab==='all')){
       targetAssignee=myId;
@@ -837,7 +866,7 @@ const QTaskPage:React.FC=()=>{
       if(!newAssignee)return; // 필수
       targetAssignee=newAssignee;
     }else{
-      targetAssignee=newAssignee??myId;
+      targetAssignee=newAssignee;
     }
     // 이번 주 탭에서는 마감일 기본값 = 오늘 (이번주 범위 안에 들어오도록)
     const defaultDue=(scope==='mine'&&tab==='week')?todayStr:null;
@@ -877,12 +906,18 @@ const QTaskPage:React.FC=()=>{
           }
         }
         // 2) 모은 fileId 들을 task 에 link (TaskAttachment 생성)
+        //   ★ 운영 #256 — context 는 'description_attach' 다. 업무를 **추가하는 시점**의 첨부는
+        //     의뢰 명세(업무 설명)에 딸린 자료이지 수행자가 낸 결과물이 아니다.
+        //     'task' 로 붙이면 상세 드로어의 **업무 결과물** 아래에 렌더된다
+        //     (Irene: "업무추가할 때 넣은 첨부파일이 업무결과물 넣는 곳 아래로 붙어").
+        //     권한도 이쪽이 맞다 — description_attach 는 작성자/owner/admin 이고 생성자는 곧 작성자다.
+        //     결과물 첨부는 상세 드로어의 TaskAttachments 가 계속 'task' 로 붙인다(무변경).
         if (uploadedFileIds.length > 0) {
           try {
             await apiFetch(`/api/tasks/${newTaskId}/attachments/link`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ file_ids: uploadedFileIds, context: 'task' }),
+              body: JSON.stringify({ file_ids: uploadedFileIds, context: 'description_attach' }),
             });
           } catch (err) { console.warn('[task attach link]', err); }
         }
@@ -2105,7 +2140,7 @@ const QTaskPage:React.FC=()=>{
                 <AddOptField>
                   <AddOptLabel>{t('add.assignee','담당자')}{tab==='requested'&&' *'}</AddOptLabel>
                   <PlanQSelect size="sm" isClearable={tab!=='requested'}
-                    placeholder={tab==='requested'?t('add.assigneeRequiredHint','담당자 선택 (필수)'):t('add.assigneeDefault','담당자: 나')}
+                    placeholder={assigneePlaceholder as string}
                     value={newAssignee==null?null:{
                       value:String(newAssignee),
                       label:(members.find(m=>m.user_id===newAssignee)?.name||addExternals.find(e=>e.user_id===newAssignee)?.name||'-')+(newAssignee===myId?t('detail.meSuffix',' (나)'):''),
@@ -2927,7 +2962,7 @@ const QTaskPage:React.FC=()=>{
                 <AddOptField>
                   <AddOptLabel>{t('add.assignee','담당자')}{tab==='requested'&&' *'}</AddOptLabel>
                   <PlanQSelect size="sm" isClearable={tab!=='requested'}
-                    placeholder={tab==='requested'?t('add.assigneeRequiredHint','담당자 선택 (필수)'):t('add.assigneeDefault','담당자: 나')}
+                    placeholder={assigneePlaceholder as string}
                     value={newAssignee==null?null:{
                       value:String(newAssignee),
                       label:(members.find(m=>m.user_id===newAssignee)?.name||addExternals.find(e=>e.user_id===newAssignee)?.name||'-')+(newAssignee===myId?t('detail.meSuffix',' (나)'):''),

@@ -130,9 +130,15 @@ const LabelHint = styled.span`
   margin-left: 6px;
 `;
 
-const LogoUploadRow = styled.div`
+const LogoUploadRow = styled.div<{ $over?: boolean }>`
   display: flex; align-items: center; gap: 10px;
   margin-bottom: 8px;
+  /* #232 — 드래그드롭 대상임을 형태로 알린다 (회색 라운드 점선, 드래그 중 강조) */
+  padding: 10px;
+  border: 1px dashed ${p => (p.$over ? '#14B8A6' : '#CBD5E1')};
+  border-radius: 8px;
+  background: ${p => (p.$over ? '#F0FDFA' : '#F8FAFC')};
+  transition: border-color 0.15s, background 0.15s;
 `;
 const LogoPreview = styled.img`
   width: 48px; height: 48px;
@@ -649,6 +655,23 @@ export default function WorkspaceSettingsPage() {
   const [brandTagline, setBrandTagline] = useState('');
   const [brandTaglineEn, setBrandTaglineEn] = useState('');
   const [brandLogoUrl, setBrandLogoUrl] = useState('');
+
+  // 로고 업로드 단일 경로 — 파일 선택과 드래그드롭이 같은 코드를 쓴다(#232).
+  const [logoDropOver, setLogoDropOver] = useState(false);
+  const uploadLogoFile = useCallback(async (file?: File | null) => {
+    if (!file || !user?.business_id) return;
+    if (!file.type.startsWith('image/')) return;   // 이미지 외는 무시(로고 자리)
+    // 워크스페이스 심볼 업로드 — 공개 서빙 endpoint (인증 없이 <img> 태그 로드 가능)
+    const fd = new FormData();
+    fd.append('file', file);
+    const r = await apiFetch(`/api/businesses/${user.business_id}/symbol`, { method: 'POST', body: fd });
+    const j = await r.json();
+    if (j.success && j.data?.brand_logo_url) {
+      setBrandLogoUrl(j.data.brand_logo_url);
+      // saveBrand 호출 불필요 — 백엔드가 이미 brand_logo_url 갱신
+    }
+  }, [user?.business_id]);
+
   const [brandColor, setBrandColor] = useState('#F43F5E');
 
   const [legalName, setLegalName] = useState('');
@@ -888,7 +911,19 @@ export default function WorkspaceSettingsPage() {
 
             <Field $full>
               <Label>{t('brand.logoUrl')}</Label>
-              <LogoUploadRow>
+              {/* #232 — 버튼만 있던 것을 드롭 가능하게. 이미지 파일을 이 영역에 떨어뜨려도 업로드된다. */}
+              <LogoUploadRow
+                $over={logoDropOver}
+                onDragOver={(e) => { if (!isAdmin) return; e.preventDefault(); setLogoDropOver(true); }}
+                onDragLeave={() => setLogoDropOver(false)}
+                onDrop={(e) => {
+                  if (!isAdmin) return;
+                  e.preventDefault();
+                  setLogoDropOver(false);
+                  // 실패를 삼키지 않는다 — 네트워크 오류로 unhandled rejection 이 나면 원인이 안 보인다
+                  uploadLogoFile(e.dataTransfer?.files?.[0]).catch(err => console.warn('[logo drop]', err));
+                }}
+              >
                 {brandLogoUrl && <LogoPreview src={brandLogoUrl} alt="logo" />}
                 <UploadLogoBtn
                   type="button"
@@ -913,20 +948,9 @@ export default function WorkspaceSettingsPage() {
                   hidden
                   onChange={async (e) => {
                     const file = e.target.files?.[0];
-                    if (!file || !user?.business_id) return;
-                    try {
-                      // 워크스페이스 심볼 업로드 — 공개 서빙 endpoint (인증 없이 <img> 태그 로드 가능)
-                      const fd = new FormData();
-                      fd.append('file', file);
-                      const r = await apiFetch(`/api/businesses/${user.business_id}/symbol`, { method: 'POST', body: fd });
-                      const j = await r.json();
-                      if (j.success && j.data?.brand_logo_url) {
-                        setBrandLogoUrl(j.data.brand_logo_url);
-                        // saveBrand 호출 불필요 — 백엔드가 이미 brand_logo_url 갱신
-                      }
-                    } finally {
-                      e.target.value = '';
-                    }
+                    try { await uploadLogoFile(file); }
+                    catch (err) { console.warn('[logo upload]', err); }
+                    finally { e.target.value = ''; }
                   }}
                 />
               </LogoUploadRow>

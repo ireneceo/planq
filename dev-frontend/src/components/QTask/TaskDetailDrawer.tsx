@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { renderTextWithLinks as linkify } from '../../utils/linkify';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import { formatDate } from '../../utils/dateFormat';
 import CalendarPicker from '../Common/CalendarPicker';
@@ -1771,7 +1772,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                       </CommentEditActions>
                     </CommentEditWrap>
                   ) : (
-                    c.content && c.content !== '(첨부파일)' && <CommentBody>{c.content}</CommentBody>
+                    c.content && c.content !== '(첨부파일)' && <CommentBody>{linkify(c.content)}</CommentBody>
                   )}
                   {(c.attachments || []).length > 0 && (() => {
                     // 한 댓글 안의 이미지 첨부만 갤러리로 묶음 — 다른 댓글 이미지와는 별개
@@ -2436,7 +2437,8 @@ const CommentHead = styled.div`
   position:relative;display:flex;gap:8px;align-items:baseline;font-size:11px;color:#64748B;margin-bottom:3px;
   & strong{color:#0F172A;font-weight:600;}
 `;
-const CommentBody = styled.div`font-size:12px;color:#1E293B;line-height:1.4;white-space:pre-wrap;`;
+// #270 — 긴 URL 이 드로어 폭을 넘어 레이아웃을 밀던 것. pre-wrap 만으로는 공백 없는 긴 문자열이 안 접힌다.
+const CommentBody = styled.div`font-size:12px;color:#1E293B;line-height:1.4;white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;min-width:0;`;
 const CommentMoreBtn = styled.button.attrs({ className: 'comment-more-btn' })`
   margin-left:auto;width:22px;height:22px;background:transparent;border:none;border-radius:4px;
   display:inline-flex;align-items:center;justify-content:center;color:#94A3B8;cursor:pointer;
