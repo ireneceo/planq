@@ -206,7 +206,9 @@
       "errNeedsConfirm": "컨펌자 승인을 거쳐야 완료할 수 있어요.",
       "errTask": "대상 업무를 찾을 수 없어요.",
       "errContent": "댓글 내용이 필요해요.",
-      "errClosed": "이미 종료된 업무예요."
+      "errClosed": "이미 종료된 업무예요.",
+      "assigneeProjectDefault": "프로젝트 기본 담당자",
+      "assigneeUnresolvedProject": "\"{{name}}\" 을(를) 못 찾았어요 — 그대로 두면 프로젝트 기본 담당자에게 배정됩니다"
     },
     "backToGuide": "안내로 돌아가기",
     "cueEmptyHint": "현재 워크스페이스의 고객·업무·일정·회의를 기반으로 답변합니다. 다른 워크스페이스 데이터는 보지 않습니다.",
