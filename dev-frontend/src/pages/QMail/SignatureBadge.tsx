@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { apiFetch } from '../../contexts/AuthContext';
+import { sanitizeMailHtml } from '../../utils/sanitizeHtml';
 
 export type SignatureSource = 'alias' | 'account' | 'workspace' | 'none' | 'disabled';
 
@@ -88,8 +89,9 @@ export default function SignatureBadge({ businessId, threadId, accountId, fromAl
         {!enabled && hasSig && <Off>{t('signature.excluded', { defaultValue: '이번 발송 제외' }) as string}</Off>}
       </Row>
       {open && hasSig && enabled && (
-        // 서버가 준 서명 HTML — 사용자 워크스페이스가 저장한 자기 콘텐츠이고, 저장 시점에 정화된다.
-        <Preview dangerouslySetInnerHTML={{ __html: ident.signature_html || '' }} />
+        // 서명 HTML 은 **저장측이 정화하지 않는다** (길이 캡만 — routes/businesses.js·email_accounts.js).
+        //   작성자가 owner/admin 이라 난이도는 높지만, 렌더 시점에 정화하는 것이 정석이다.
+        <Preview dangerouslySetInnerHTML={{ __html: sanitizeMailHtml(ident.signature_html) }} />
       )}
     </Wrap>
   );

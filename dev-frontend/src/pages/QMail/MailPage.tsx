@@ -35,6 +35,7 @@ import AiActionButton from '../../components/Common/AiActionButton';
 import ComposeAiRow from './ComposeAiRow';
 import SignatureBadge from './SignatureBadge';
 import ThreadMessages from './ThreadMessages';
+import { useThreadMessageExpansion } from './useThreadMessageExpansion';
 import FloatingPanelToggle from '../../components/Common/FloatingPanelToggle';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import {
@@ -1327,31 +1328,11 @@ const MailPage: React.FC = () => {
   const ctxNarrow = viewportNarrow;
   const [ctxOverlayOpen, setCtxOverlayOpen] = useState(false);
   useBodyScrollLock(ctxNarrow && ctxOverlayOpen);
-  // #262 M2 — 스레드를 열면 **최신 메시지**가 펼쳐진 채 그 위치에서 시작한다.
-  //   여태 전 메시지를 오래된 순으로 다 펼쳐 놓아서, 내가 방금 보낸 최신 메일이 스크롤 맨 아래에
-  //   묻혔다 (Irene: "내가 보낸 메일이 최신인데 가장 아래에 붙어버려서"). 과거 메시지는 접고
-  //   헤더 한 줄만 남긴다 — 클릭하면 펼쳐진다.
-  const [expandedMsgIds, setExpandedMsgIds] = useState<ReadonlySet<number>>(() => new Set());
-  const lastMsgRef = useRef<HTMLDivElement | null>(null);
-  const detailMsgKey = detail ? `${detail.id}:${detail.messages.map(m => m.id).join(',')}` : '';
-  useEffect(() => {
-    if (!detail || !detail.messages.length) { setExpandedMsgIds(new Set()); return; }
-    // 최신 1건만 펼침. 단일 메시지 스레드는 접을 것이 없으므로 그대로 펼침.
-    setExpandedMsgIds(new Set([detail.messages[detail.messages.length - 1].id]));
-  }, [detailMsgKey, detail]);
-  // 레이아웃 phase 에서 즉시 이동 — RAF 지연은 "옛 위치로 한 번 그려진 뒤 점프" 회귀를 만든다
-  //   (CLAUDE.md 운영 안정성 12).
-  useLayoutEffect(() => {
-    if (!detail || !lastMsgRef.current) return;
-    lastMsgRef.current.scrollIntoView({ block: 'start' });
-  }, [detailMsgKey, detail]);
-  const toggleMsg = useCallback((id: number) => {
-    setExpandedMsgIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  }, []);
+  // #262 M2 — 최신 메시지만 펼친 채 시작 (접기 상태·스크롤 앵커). 훅으로 절출.
+  const { expandedMsgIds, toggleMsg, lastMsgRef } = useThreadMessageExpansion(
+    detail ? detail.id : null,
+    detail ? detail.messages : null,
+  );
 
   // #215-H — 본문 cid: 이미지 → data: URI 맵 (본문 렌더 srcDoc 치환 재료).
   //   펼쳐진 메시지만 받는다 — 접힌 본문의 인라인 이미지를 미리 받으면 긴 스레드에서 낭비다.
