@@ -487,12 +487,27 @@ export const MessageCard = styled.div<{ $outbound: boolean }>`
   padding-bottom: 12px;
   &:last-child { border-bottom: none; padding-bottom: 0; }
 `;
-export const MessageHeader = styled.div`
+export const MessageHeader = styled.div<{ $clickable?: boolean }>`
   display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
   padding: 16px 0 8px;
   background: transparent;
+  ${p => p.$clickable && `
+    cursor: pointer;
+    &:hover { background: #F8FAFC; }
+    &:focus-visible { outline: 2px solid #F43F5E; outline-offset: -2px; border-radius: 6px; }
+  `}
 `;
 export const MsgHeaderRight = styled.div`display: flex; align-items: center; gap: 10px; flex-shrink: 0;`;
+
+// 접힌 메시지의 한 줄 미리보기 (#262 M2) — 스레드를 열면 최신만 펼쳐지고 과거는 이 줄로 남는다.
+export const MsgCollapsedPreview = styled.div`
+  padding: 0 0 12px;
+  font-size: 13px; line-height: 1.5;
+  color: #94A3B8;
+  cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  &:hover { color: #64748B; }
+`;
 
 // 후속 조치 칩 — 스레드 목록에서 "답이 안 왔다 / 애초에 안 나갔다" 를 알린다.
 export const FollowUpChip = styled.span<{ $tone: 'warn' | 'err' }>`

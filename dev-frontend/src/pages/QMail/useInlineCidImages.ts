@@ -26,7 +26,15 @@ const normalizeCid = (contentId: string | null): string =>
   String(contentId || '').trim().replace(/^</, '').replace(/>$/, '').trim().toLowerCase();
 
 // 반환: { messageId: { 정규화 cid: data URI } }
-export function useInlineCidImages(messages: MessageLike[] | null, businessId: number | null) {
+//
+// `visibleIds` — 펼쳐진 메시지만 받는다 (#262 M2). 스레드가 접힌 상태에서 전체 메시지의 인라인
+//   이미지를 인증 다운로드하면 긴 스레드에서 보이지도 않는 첨부를 수 MB 씩 받는다.
+//   undefined 면 전부 로드 (옛 동작 유지 — 다른 호출처 무영향).
+export function useInlineCidImages(
+  messages: MessageLike[] | null,
+  businessId: number | null,
+  visibleIds?: ReadonlySet<number>,
+) {
   const [cidData, setCidData] = useState<Record<number, Record<string, string>>>({});
 
   useEffect(() => {
@@ -34,6 +42,7 @@ export function useInlineCidImages(messages: MessageLike[] | null, businessId: n
     let alive = true;
     (async () => {
       for (const m of messages) {
+        if (visibleIds && !visibleIds.has(m.id)) continue;   // 접힌 메시지는 받지 않는다
         const inl = (m.inline_images || []).filter(x => (x.size_bytes || 0) <= MAX_PER_FILE);
         if (!inl.length) continue;
         let budget = MAX_PER_MSG;
@@ -63,7 +72,7 @@ export function useInlineCidImages(messages: MessageLike[] | null, businessId: n
       }
     })();
     return () => { alive = false; };
-  }, [messages, businessId]);
+  }, [messages, businessId, visibleIds]);
 
   return cidData;
 }
