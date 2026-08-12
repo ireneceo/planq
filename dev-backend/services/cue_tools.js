@@ -309,7 +309,7 @@ async function executeTool(actor, businessId, tool, rawParams) {
     r = await createTask(actor, {
       businessId,
       title: p.title,
-      assigneeId: p.assignee_id,          // 없으면 행동 계층이 본인으로 기본 배정
+      assigneeId: p.assignee_id,          // 없으면 행동 계층이 배정 결정 — 프로젝트가 있으면 기본담당자→PM→본인, 없으면 본인
       description: p.description,
       dueDate: p.due_date,
       projectId: p.project_id,

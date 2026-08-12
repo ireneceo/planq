@@ -153,7 +153,14 @@ const CueActionCard: React.FC<Props> = ({ proposal, businessId, onExecuted, onDi
             <Lbl>{t('qhelper.action.assignee', '담당자')}</Lbl>
             {(() => {
               const opts: PlanQSelectOption[] = [
-                { value: '', label: t('qhelper.action.assigneeSelf', '본인') },
+                // 프로젝트가 붙은 제안이면 서버가 프로젝트 기본담당자/PM 에게 배정한다 —
+                //   "본인" 이라고 쓰면 틀린 약속이 된다.
+                {
+                  value: '',
+                  label: params.project_id
+                    ? t('qhelper.action.assigneeProjectDefault', '프로젝트 기본 담당자')
+                    : t('qhelper.action.assigneeSelf', '본인'),
+                },
                 ...members.map((m) => ({ value: m.user_id as number, label: memberLabel(m) })),
               ];
               const cur = opts.find((o) => String(o.value) === String(params.assignee_id ?? '')) || opts[0];
@@ -171,7 +178,9 @@ const CueActionCard: React.FC<Props> = ({ proposal, businessId, onExecuted, onDi
             })()}
           </Field>
           {!params.assignee_id && params.assignee_name ? (
-            <Warn>{t('qhelper.action.assigneeUnresolved', { name: String(params.assignee_name), defaultValue: `"${String(params.assignee_name)}" 을(를) 못 찾아 본인으로 지정했어요` })}</Warn>
+            <Warn>{params.project_id
+              ? t('qhelper.action.assigneeUnresolvedProject', { name: String(params.assignee_name), defaultValue: `"${String(params.assignee_name)}" 을(를) 못 찾았어요 — 그대로 두면 프로젝트 기본 담당자에게 배정됩니다` })
+              : t('qhelper.action.assigneeUnresolved', { name: String(params.assignee_name), defaultValue: `"${String(params.assignee_name)}" 을(를) 못 찾아 본인으로 지정했어요` })}</Warn>
           ) : null}
           <Field>
             <Lbl>{t('qhelper.action.due', '마감')}</Lbl>
