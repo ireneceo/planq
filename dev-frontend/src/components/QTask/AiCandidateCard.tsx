@@ -1,5 +1,6 @@
 // AI 업무 후보 카드 — AiTaskCreateModal(분해 모달)과 CueTaskBar(말 걸기 바) 공유.
 // 제목·마감·예상시간·담당자 인라인 편집 + 모호한 업무명(⚠) 경고. 단일 진실 원천(DRY).
+import { useMemo } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import PlanQSelect from '../Common/PlanQSelect';
@@ -49,6 +50,13 @@ interface Props {
 
 export default function AiCandidateCard({ candidate: c, members, baseDate, onChange, hasProject = false }: Props) {
   const { t } = useTranslation('qtask');
+  // 정기 루틴 선택지 — raw <select> 금지 규칙에 따라 PlanQSelect 로 그린다 (health-check 항목).
+  const recurOptions = useMemo(() => ([
+    { value: 'none', label: t('ai.recurNone', '반복 없음') as string },
+    { value: 'daily', label: t('ai.recurDaily', '매일') as string },
+    { value: 'weekly', label: t('ai.recurWeekly', '매주') as string },
+    { value: 'monthly', label: t('ai.recurMonthly', '매월') as string },
+  ]), [t]);
   const dur = Math.max(1, c.due_offset_days - c.start_offset_days);
   const startDateStr = addDaysISO(baseDate, c.start_offset_days);
   const dueDateStr = addDaysISO(baseDate, c.due_offset_days);
@@ -114,29 +122,22 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
         {/* 정기 루틴 — AI 가 "매일/매주/매월" 을 잡아내면 여기서 확인·수정한다.
             여태 후보에 반복 개념이 없어서 "매일 …" 이라고 써도 일회성으로만 생성됐다. */}
         <MetaItem>
-          <RecurSelect
-            value={c.recurrence || 'none'}
-            onChange={e => onChange({ recurrence: e.target.value })}
-            aria-label={t('ai.recurrenceLabel', '반복') as string}
-          >
-            <option value="none">{t('ai.recurNone', '반복 없음')}</option>
-            <option value="daily">{t('ai.recurDaily', '매일')}</option>
-            <option value="weekly">{t('ai.recurWeekly', '매주')}</option>
-            <option value="monthly">{t('ai.recurMonthly', '매월')}</option>
-          </RecurSelect>
+          <RecurWrap>
+            <PlanQSelect
+              size="sm"
+              value={recurOptions.find(o => o.value === (c.recurrence || 'none')) || recurOptions[0]}
+              onChange={(v) => onChange({ recurrence: String((v as { value?: string })?.value || 'none') })}
+              options={recurOptions}
+              aria-label={t('ai.recurrenceLabel', '반복') as string}
+            />
+          </RecurWrap>
         </MetaItem>
       </CardMetaRow>
     </Card>
   );
 }
 
-const RecurSelect = styled.select`
-  font-size: 11px; font-weight: 500;
-  color: #475569; background: #F8FAFC;
-  border: 1px solid #E2E8F0; border-radius: 6px;
-  padding: 2px 6px; min-height: 22px; cursor: pointer;
-  &:focus-visible { outline: 2px solid #F43F5E; outline-offset: 1px; }
-`;
+const RecurWrap = styled.div`min-width: 104px;`;
 const Card = styled.div<{ $disabled: boolean }>`
   padding: 10px 12px;
   background: ${p => p.$disabled ? '#F8FAFC' : '#FFFFFF'};
