@@ -57,16 +57,20 @@ export default function ThreadMessages(p: Props) {
           $outbound={m.direction === 'outbound'}
           ref={isLast ? lastMsgRef : undefined}
         >
+          {/* 헤더 전체가 클릭 대상이지만 role/tabIndex 는 **발신자 영역에만** 둔다 —
+              헤더 안에 전달 <button> 이 있어서, 헤더를 role="button" 으로 만들면 인터랙티브 중첩이 된다
+              (스크린리더가 버튼 안의 버튼을 온전히 읽지 못한다). */}
           <MessageHeader
             data-testid="mail-message-header"
             $clickable
             onClick={() => toggleMsg(m.id)}
-            role="button"
-            tabIndex={0}
-            aria-expanded={open}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleMsg(m.id); } }}
           >
-            <MessageFrom>
+            <MessageFrom
+              role="button"
+              tabIndex={0}
+              aria-expanded={open}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleMsg(m.id); } }}
+            >
               {m.direction === 'outbound'
                 ? `${t('me', { defaultValue: '나' }) as string} <${accountEmail}>`
                 : `${m.from_name || ''} <${m.from_email || ''}>`}
