@@ -26,13 +26,15 @@ import ActionButton from '../../components/Common/ActionButton';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { uploadMyFile } from '../../services/files';
 import MailContextPanel from './MailContextPanel';
-import MessageAttachments from './MessageAttachments';
 import { useInlineCidImages } from './useInlineCidImages';
+import { displayName, type NameLocalizable } from '../../utils/displayName';
 import PanelResizeHandle, { usePanelWidth } from '../../components/Layout/PanelResizeHandle';
 import EmptyState from '../../components/Common/EmptyState';
 import { sanitizeMailHtml } from '../../utils/sanitizeHtml';
 import AiActionButton from '../../components/Common/AiActionButton';
 import ComposeAiRow from './ComposeAiRow';
+import SignatureBadge from './SignatureBadge';
+import ThreadMessages from './ThreadMessages';
 import FloatingPanelToggle from '../../components/Common/FloatingPanelToggle';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import {
@@ -97,18 +99,8 @@ import {
   LabelChip,
   ListMoreRow,
   Loading,
-  MessageBodyFrame,
-  MessageBodyText,
-  MessageCard,
-  MessageFrom,
-  MessageHeader,
-  MessageTime,
-  MessageTo,
   MessagesScroll,
   MetaChip,
-  MsgForwardBtn,
-  MsgHeaderRight,
-  DeliveryChip,
   FollowUpChip,
   NewLabelInput,
   NoAcctBtn,
@@ -138,12 +130,6 @@ import {
   UncertainBadge,
   ReplyNeededBadge,
   SentTag,
-  TransBar,
-  TransSelect,
-  TransBtn,
-  TransErr,
-  TransLoading,
-  TransBody,
   UncertainInline,
   UnreadDot,
   HeaderActions,
@@ -196,7 +182,7 @@ interface Thread {
   triage?: string | null; // human / automated / marketing / spam / unknown (N+83)
 }
 
-interface Message {
+export interface Message {
   id: number;
   direction: 'inbound' | 'outbound';
   from_email: string | null;
@@ -246,7 +232,7 @@ const FOLDERS: Array<{ key: Folder; defaultLabel: string }> = [
 //   원본에 <html>/<body> 가 있으면 그대로 쓰고(배경·정렬·템플릿 CSS 보존), 조각 HTML 이면 최소 골격만 씌운다.
 //   우리 폰트·여백을 강제하지 않는다 — 강제하면 발신자가 만든 레이아웃이 깨진다.
 // 수신 주소 정규화 — 백엔드는 [{name, email}] 로 준다. 문자열로 다루면 "[object Object]" 가 된다.
-function toAddrList(list: Array<string | { name?: string; email: string }> | undefined | null): string[] {
+export function toAddrList(list: Array<string | { name?: string; email: string }> | undefined | null): string[] {
   if (!Array.isArray(list)) return [];
   return list.map((x) => (typeof x === 'string' ? x : x?.email)).filter(Boolean) as string[];
 }
@@ -725,9 +711,16 @@ const MailPage: React.FC = () => {
     if (!businessId) return;
     try {
       const j = await apiFetch(`/api/businesses/${businessId}/members`).then(r => r.json());
-      if (j.success) setMembers((j.data || []).map((m: { user_id: number; name?: string | null; User?: { name: string } }) => ({ user_id: m.user_id, name: m.name || m.User?.name || `#${m.user_id}` })));
+      // 표시명은 공용 헬퍼가 정본이다 (#263). 백엔드 GET /:businessId/members 는 소문자 alias `user` 에
+      //   워크스페이스 표시명(display_name·display_name_localized)을 enrich 해서 내려준다
+      //   (routes/businesses.js). 여태 대문자 `User` 를 읽어 **항상 undefined** 였고, 워크스페이스
+      //   표시명이 따로 없는 멤버는 전원 `#1` `#2` 로 보였다 — Irene 이 본 "이상한 1, 2" 가 이것이다.
+      //   이 members 는 맥락 패널의 업무 후보 카드·담당자 선택기로 그대로 흐른다.
+      if (j.success) setMembers((j.data || []).map((m: { user_id: number; user?: NameLocalizable | null }) => ({
+        user_id: m.user_id, name: displayName(m.user, i18n.language) || `#${m.user_id}`,
+      })));
     } catch { /* silent */ }
-  }, [businessId]);
+  }, [businessId, i18n.language]);
 
   // 스레드 부분 수정 (스타/라벨/보관) — 낙관적 갱신
   const patchThread = useCallback(async (id: number, patch: Record<string, unknown>) => {
@@ -1036,6 +1029,9 @@ const MailPage: React.FC = () => {
   const [replyHtml, setReplyHtml] = useState('');
   const [replyUploads, setReplyUploads] = useState<File[]>([]);
   const [replyFileIds, setReplyFileIds] = useState<number[]>([]);
+  const [cSignature, setCSignature] = useState(true);
+  // #262 — 이 발송에만 서명 빼기. 계정 설정(signature_enabled)은 건드리지 않는다.
+  const [replySignature, setReplySignature] = useState(true);
   const [sending, setSending] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
   const [aiBusy, setAiBusy] = useState(false);
@@ -1045,10 +1041,21 @@ const MailPage: React.FC = () => {
   // AI 답변 제안 (Cue) — 마지막 inbound 기반 초안 → 컴포저 채움
   const aiSuggest = useCallback(async () => {
     if (!detail || !businessId || aiBusy) return;
-    setAiBusy(true);
-    setReplyError(null);
     // #192 — 수정 요청이 있으면 그 지시 + 현재 초안을 함께 보내 다듬는다(원샷 재생성 대신 refine).
     const instruction = aiInstruction.trim();
+    // #262 — **초안이 있는데 지시가 없으면 재생성하지 않는다.** 옛 동작은 빈 body 를 보내
+    //   원샷 전체 재생성이라, 사용자가 손본 초안이 통째로 날아갔다.
+    //   Irene: "두번째는 ai에게 원하는 요청을 넣게 해줘. 처음 작성한거에서 마음대로 또 바꾸고 바꾸고 해서 뭐해."
+    //   첫 생성(초안 없음)은 그대로 지시 없이 동작한다 — 마찰을 늘리지 않는다.
+    if (!instruction && !isEmptyHtml(replyHtml)) {
+      setReplyError(t('reply.aiInstructionRequired', {
+        defaultValue: '이미 초안이 있어요. 어떻게 고칠지 요청을 적어 주세요.',
+      }) as string);
+      aiInstructionRef.current?.focus();
+      return;
+    }
+    setAiBusy(true);
+    setReplyError(null);
     try {
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${detail.id}/ai-suggest`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1106,6 +1113,7 @@ const MailPage: React.FC = () => {
 
   // 보내는 주소(Send-as) — 이 계정에 등록된 별칭. 주소가 하나뿐이면 셀렉트를 숨긴다
   //   (없는 선택지를 보여주지 않는다).
+  const aiInstructionRef = useRef<HTMLInputElement | null>(null);
   const [aliases, setAliases] = useState<Array<{ id: number; email: string; display_name: string | null; is_default: boolean }>>([]);
   const [fromAliasId, setFromAliasId] = useState<number>(0);   // 0 = 계정 기본 주소
   useEffect(() => {
@@ -1187,7 +1195,7 @@ const MailPage: React.FC = () => {
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${detail.id}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body_html: replyHtml, attachment_file_ids: fileIds, from_alias_id: fromAliasId }),   // 0 = 계정 주소 명시 선택 (undefined 로 바꾸면 서버가 기본별칭으로 덮어쓴다)
+        body: JSON.stringify({ body_html: replyHtml, attachment_file_ids: fileIds, from_alias_id: fromAliasId, signature: replySignature }),   // 0 = 계정 주소 명시 선택 (undefined 로 바꾸면 서버가 기본별칭으로 덮어쓴다)
       });
       const j = await r.json();
       if (!j.success) throw new Error(j.message || (t('reply.sendFailed', { defaultValue: '발송 실패' }) as string));
@@ -1319,8 +1327,35 @@ const MailPage: React.FC = () => {
   const ctxNarrow = viewportNarrow;
   const [ctxOverlayOpen, setCtxOverlayOpen] = useState(false);
   useBodyScrollLock(ctxNarrow && ctxOverlayOpen);
-  // #215-H — 본문 cid: 이미지 → data: URI 맵 (본문 렌더 srcDoc 치환 재료)
-  const msgCidData = useInlineCidImages(detail ? detail.messages : null, businessId);
+  // #262 M2 — 스레드를 열면 **최신 메시지**가 펼쳐진 채 그 위치에서 시작한다.
+  //   여태 전 메시지를 오래된 순으로 다 펼쳐 놓아서, 내가 방금 보낸 최신 메일이 스크롤 맨 아래에
+  //   묻혔다 (Irene: "내가 보낸 메일이 최신인데 가장 아래에 붙어버려서"). 과거 메시지는 접고
+  //   헤더 한 줄만 남긴다 — 클릭하면 펼쳐진다.
+  const [expandedMsgIds, setExpandedMsgIds] = useState<ReadonlySet<number>>(() => new Set());
+  const lastMsgRef = useRef<HTMLDivElement | null>(null);
+  const detailMsgKey = detail ? `${detail.id}:${detail.messages.map(m => m.id).join(',')}` : '';
+  useEffect(() => {
+    if (!detail || !detail.messages.length) { setExpandedMsgIds(new Set()); return; }
+    // 최신 1건만 펼침. 단일 메시지 스레드는 접을 것이 없으므로 그대로 펼침.
+    setExpandedMsgIds(new Set([detail.messages[detail.messages.length - 1].id]));
+  }, [detailMsgKey, detail]);
+  // 레이아웃 phase 에서 즉시 이동 — RAF 지연은 "옛 위치로 한 번 그려진 뒤 점프" 회귀를 만든다
+  //   (CLAUDE.md 운영 안정성 12).
+  useLayoutEffect(() => {
+    if (!detail || !lastMsgRef.current) return;
+    lastMsgRef.current.scrollIntoView({ block: 'start' });
+  }, [detailMsgKey, detail]);
+  const toggleMsg = useCallback((id: number) => {
+    setExpandedMsgIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  // #215-H — 본문 cid: 이미지 → data: URI 맵 (본문 렌더 srcDoc 치환 재료).
+  //   펼쳐진 메시지만 받는다 — 접힌 본문의 인라인 이미지를 미리 받으면 긴 스레드에서 낭비다.
+  const msgCidData = useInlineCidImages(detail ? detail.messages : null, businessId, expandedMsgIds);
 
   // 사용자가 컴포저를 실제로 편집했다 — 이 시점부터 자동저장이 정상 동작한다.
   const markComposeTouched = () => { composeVoiceUntouched.current = false; };
@@ -1369,11 +1404,11 @@ const MailPage: React.FC = () => {
       const r = fwdFromMsgId && activeId
         ? await apiFetch(`/api/businesses/${businessId}/email-threads/${activeId}/forward`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ account_id: accId, message_id: fwdFromMsgId, to, subject: cSubject, body_html: cBody, attachment_file_ids: fileIds, from_alias_id: cFromAliasId }),
+          body: JSON.stringify({ account_id: accId, message_id: fwdFromMsgId, to, subject: cSubject, body_html: cBody, attachment_file_ids: fileIds, from_alias_id: cFromAliasId, signature: cSignature }),
         })
         : await apiFetch(`/api/businesses/${businessId}/email-compose`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ account_id: accId, to, subject: cSubject, body_html: cBody, attachment_file_ids: fileIds, from_alias_id: cFromAliasId }),
+          body: JSON.stringify({ account_id: accId, to, subject: cSubject, body_html: cBody, attachment_file_ids: fileIds, from_alias_id: cFromAliasId, signature: cSignature }),
         });
       const j = await r.json();
       if (!j.success) throw new Error(j.message || (t('compose.sendFailed', { defaultValue: '발송 실패' }) as string));
@@ -1833,6 +1868,13 @@ const MailPage: React.FC = () => {
                 {fwdFromMsgId && fwdAttachCount > 0 && (
                   <FwdAttachHint><ClipIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></ClipIcon> {t('forward.origAttach', { defaultValue: '원본 첨부 {{n}}개 포함', n: fwdAttachCount }) as string}</FwdAttachHint>
                 )}
+                <SignatureBadge
+                  businessId={businessId}
+                  accountId={cAccountId || null}
+                  fromAliasId={cFromAliasId}
+                  enabled={cSignature}
+                  onToggle={setCSignature}
+                />
                 <AttachmentField businessId={businessId} uploads={cUploads} onUploadsChange={(u) => { markComposeTouched(); setCUploads(u); }} existingFileIds={cFileIds} onExistingFileIdsChange={(ids) => { markComposeTouched(); setCFileIds(ids); }} />
                 {cError && <ComposerError>{cError}</ComposerError>}
               </ComposeBody>
@@ -1897,6 +1939,22 @@ const MailPage: React.FC = () => {
                         : t('actions.assignMe', { defaultValue: '내가 담당' }) as string}
                     </CtrlBtn>
                   )}
+                  {/* #263 — 업무추출 진입점. 여태 우측 맥락 패널 안에만 있어서, 패널을 접었거나
+                      폰·태블릿에서 오버레이를 안 열면 진입점이 0개였다 (Irene: "업무추출이 제대로
+                      버튼이 안뜨는 곳이 많아"). 상세 툴바에서 패널을 열고 추출까지 바로 건다. */}
+                  <CtrlBtn
+                    type="button"
+                    $on={false}
+                    data-testid="mail-extract-task"
+                    onClick={() => {
+                      if (ctxNarrow) setCtxOverlayOpen(true);
+                      else if (rightCollapsed) toggleRightCollapsed();
+                      window.dispatchEvent(new CustomEvent('qmail:extract-tasks', { detail: { threadId: detail.id } }));
+                    }}
+                    title={t('actions.extractTasksHint', { defaultValue: '이 메일에서 업무를 뽑아 후보로 만듭니다' }) as string}
+                  >
+                    {t('actions.extractTasks', { defaultValue: '업무 추출' }) as string}
+                  </CtrlBtn>
                   <AssignWrap>
                     <PlanQSelect
                       size="sm"
@@ -1927,95 +1985,28 @@ const MailPage: React.FC = () => {
                 </DetailLabels>
               </DetailToolbar>
               <MessagesScroll>
-                {detail.messages.map(m => (
-                  <MessageCard key={m.id} $outbound={m.direction === 'outbound'}>
-                    <MessageHeader>
-                      <MessageFrom>
-                        {m.direction === 'outbound'
-                          ? `${t('me', { defaultValue: '나' }) as string} <${detail.account?.email || ''}>`
-                          : `${m.from_name || ''} <${m.from_email || ''}>`}
-                        {/* 어느 주소로 온 메일인지 — 여러 도메인을 한 메일함으로 받으면 이게 없으면 답장 주소를 알 수 없다 */}
-                        {toAddrList(m.to_emails).length > 0 && (
-                          <MessageTo>
-                            {t('detail.toAddr', { defaultValue: '받은 주소' }) as string}: {toAddrList(m.to_emails).join(', ')}
-                          </MessageTo>
-                        )}
-                      </MessageFrom>
-                      <MsgHeaderRight>
-                        {/* 발송 상태 — 나간 메일만. 'sent'(정상)는 표시하지 않는다(잡음). 문제 있을 때만 드러낸다. */}
-                        {m.direction === 'outbound' && m.delivery_status && m.delivery_status !== 'sent' && (
-                          <DeliveryChip
-                            $tone={m.delivery_status === 'suppressed' ? 'warn' : 'err'}
-                            title={m.delivery_error || undefined}
-                          >
-                            {t(`delivery.${m.delivery_status}`) as string}
-                          </DeliveryChip>
-                        )}
-                        <MessageTime>{formatTimeAgo(m.sent_at)}</MessageTime>
-                        <MsgForwardBtn type="button" onClick={() => startForward(m)}
-                          title={t('forward.button', { defaultValue: '전달' }) as string}
-                          aria-label={t('forward.button', { defaultValue: '전달' }) as string}>
-                          {t('forward.button', { defaultValue: '전달' }) as string}
-                        </MsgForwardBtn>
-                      </MsgHeaderRight>
-                    </MessageHeader>
-                    {/* 메일 본문은 원본 문서 그대로 보여준다 — 우리 CSS 를 덮어씌우면 가운데 정렬이 풀리고
-                        배경이 사라지고 여백이 잘린다(메일 템플릿은 <style> + table + body bgcolor 로 짜여 있다).
-                        sanitizeMailHtml 이 문서를 통째로 정화(script·on* 제거)하고, sandbox iframe
-                        (allow-scripts 만, same-origin 없음)이 격리한다. 우리가 넣는 스크립트는 높이 보고 한 줄. */}
-                    {m.body_html ? (
-                      <MessageBodyFrame
-                        sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
-                        style={{ height: `${frameH[m.id] || 120}px` }}
-                        srcDoc={buildMailSrcDoc(m.id, m.body_html, msgCidData[m.id])}
-                        title={`message-${m.id}`}
-                      />
-                    ) : (
-                      <MessageBodyText>{m.body_text || '(no content)'}</MessageBodyText>
-                    )}
-                    {/* #184 — 번역하기 / 원본 보기 토글 (언어 선택). 답장 원문 언어는 #153에서 처리됨. */}
-                    <TransBar>
-                      <TransSelect value={transLang} onChange={(e) => setTransLang(e.target.value)}
-                        aria-label={t('translate.langLabel', { defaultValue: '번역 언어' }) as string}>
-                        <option value="ko">{t('translate.lang.ko') as string}</option>
-                        <option value="en">{t('translate.lang.en') as string}</option>
-                        <option value="ja">{t('translate.lang.ja') as string}</option>
-                        <option value="zh">{t('translate.lang.zh') as string}</option>
-                        <option value="es">{t('translate.lang.es') as string}</option>
-                      </TransSelect>
-                      {/* #202 — 로딩 중에는 "취소", 번역이 떠 있으면 "원본 보기", 그 외 "번역하기" 3분기.
-                          로딩 상태에서 버튼을 죽여두면(옛 동작) 긴 번역에 사용자가 갇힌다. */}
-                      {msgTrans[m.id]?.loading ? (
-                        <TransBtn type="button" onClick={() => cancelTranslate(m.id)}>
-                          {t('translate.cancel', { defaultValue: '번역 취소' }) as string}
-                        </TransBtn>
-                      ) : msgTrans[m.id]?.showing ? (
-                        <TransBtn type="button"
-                          onClick={() => setMsgTrans(prev => ({ ...prev, [m.id]: { ...(prev[m.id] || { loading: false }), showing: false } }))}>
-                          {t('translate.showOriginal', { defaultValue: '원본 보기' }) as string}
-                        </TransBtn>
-                      ) : (
-                        <TransBtn type="button"
-                          onClick={() => {
-                            const cached = msgTrans[m.id];
-                            if (cached?.text && cached.lang === transLang) {
-                              setMsgTrans(prev => ({ ...prev, [m.id]: { ...cached, showing: true } }));
-                            } else { translateMsg(m.id, detail.id); }
-                          }}>
-                          {t('translate.translate', { defaultValue: '번역하기' }) as string}
-                        </TransBtn>
-                      )}
-                      {msgTrans[m.id]?.loading && (
-                        <TransLoading>{t('translate.loading', { defaultValue: '번역 중…' }) as string}</TransLoading>
-                      )}
-                      {msgTrans[m.id]?.error && <TransErr>{t('translate.error', { defaultValue: '번역할 수 없습니다' }) as string}</TransErr>}
-                    </TransBar>
-                    {msgTrans[m.id]?.showing && msgTrans[m.id]?.text && (
-                      <TransBody>{msgTrans[m.id]!.text}</TransBody>
-                    )}
-                    <MessageAttachments businessId={businessId} attachments={m.attachments} />
-                  </MessageCard>
-                ))}
+                <ThreadMessages
+                  messages={detail.messages}
+                  threadId={detail.id}
+                  accountEmail={detail.account?.email || ''}
+                  businessId={businessId as number}
+                  expandedMsgIds={expandedMsgIds}
+                  toggleMsg={toggleMsg}
+                  lastMsgRef={lastMsgRef}
+                  frameH={frameH}
+                  msgCidData={msgCidData}
+                  msgTrans={msgTrans}
+                  setMsgTrans={setMsgTrans}
+                  transLang={transLang}
+                  setTransLang={setTransLang}
+                  translateMsg={translateMsg}
+                  cancelTranslate={cancelTranslate}
+                  startForward={startForward}
+                  buildMailSrcDoc={buildMailSrcDoc}
+                  toAddrList={toAddrList}
+                  formatTimeAgo={formatTimeAgo}
+                  t={t}
+                />
               </MessagesScroll>
               <DetailFooter>
                 {!replyOpen ? (
@@ -2105,6 +2096,7 @@ const MailPage: React.FC = () => {
                     {replyHtml.trim() && (
                       <AiInstructionRow>
                         <AiInstructionInput
+                          ref={aiInstructionRef}
                           value={aiInstruction}
                           disabled={aiBusy || sending}
                           onChange={(e) => setAiInstruction(e.target.value)}
@@ -2115,6 +2107,14 @@ const MailPage: React.FC = () => {
                         <AiInstructionHint>{t('reply.aiInstructionHint', { defaultValue: '입력 후 “다시 생성”' }) as string}</AiInstructionHint>
                       </AiInstructionRow>
                     )}
+                    {/* #262 — 이 메일에 실제로 붙을 서명이 무엇인지 보내기 전에 보인다 */}
+                    <SignatureBadge
+                      businessId={businessId}
+                      threadId={detail.id}
+                      fromAliasId={fromAliasId}
+                      enabled={replySignature}
+                      onToggle={setReplySignature}
+                    />
                     {/* 버튼 자리는 고정 — 좌측부터 [보내기] [AI] [취소]. 답장창을 열고 닫아도 좌우가 뒤바뀌지 않는다.
                         (여태 AI 가 왼쪽, 보내기/취소가 오른쪽 끝이라 열 때마다 위치가 바뀌어 보였다) */}
                     <ComposerActions>

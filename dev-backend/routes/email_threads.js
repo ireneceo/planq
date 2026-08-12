@@ -22,7 +22,11 @@ const { requireMenu } = require('../middleware/menu_permission');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { applyMemberDisplayName, getMemberNameMap } = require('../services/displayName');
 const { sendMail, deliveryFromSendResult } = require('../services/emailSend');
-const { followUpState } = require('../services/mailFollowUp');
+// 폴더 정의·정렬은 services/mailFolders 가 단일 원천 (리스트 라우트 + 벌크 처리 공용)
+const { folderWhere, sentOrder, BULK_FOLDERS } = require('../services/mailFolders');
+// accessibleAccountIds 도 여기서 온다 — 프라이버시 격리 정의를 두 벌 두지 않는다
+const { outgoingIdentityFor, accessibleAccountIds } = require('../services/mailIdentity');
+const { serializeThreadRow } = require('../services/mailSerialize');
 
 // 발신 별칭 id 파싱 — **0 은 "계정 주소 명시 선택"이고 미지정이 아니다.**
 //   `from_alias_id || null` 로 뭉개면 서버가 기본별칭으로 덮어써, 화면은 help@ 를 보여주는데
@@ -87,50 +91,7 @@ async function resolveAttachments(fileIds, businessId) {
   return { atts, files };
 }
 
-// 폴더 → where 매핑 (Q_MAIL_SPEC §4.1 폴더 트리 정합)
-function folderWhere(folder, userId) {
-  switch (folder) {
-    case 'reply_needed': return { reply_needed: true, status: { [Op.in]: ['open', 'uncertain'] } };
-    // assigned/following 은 EmailThreadParticipant 조인 필요 → 리스트 라우트에서 thread_id 필터로 처리. 여기선 status 기준만.
-    case 'assigned':
-    case 'following': return { status: { [Op.in]: ['open', 'uncertain'] } };
-    // 확인 권장 = "한 번 보고 판단할 것" — 처리 완료(옛 inbox)를 여기에 합쳤다.
-    //   ① 애매한 메일 (status='uncertain'): 스팸·광고는 아닌데 업무인지 모르겠는 것,
-    //      그리고 자동 발송이지만 내용이 업무인 것(결제 완료·보고서·시스템 업무 안내)
-    //   ② 답변이 끝난 사람 메일 (답장했거나 "답변 완료" 로 넘긴 것)
-    //   두 개가 사실상 같은 성격("답장할 건 아닌데 봐야 하는 것")이라 탭을 나눌 이유가 없다 (Irene).
-    case 'uncertain':
-    case 'inbox':
-      return {
-        [Op.or]: [
-          { status: 'uncertain' },
-          { status: 'open', reply_needed: false, triage: { [Op.notIn]: ['automated', 'marketing'] } },
-        ],
-      };
-    case 'spam': return { status: 'spam' };
-    case 'archived': return { status: 'archived' };
-    // 자동·마케팅 — 광고·뉴스레터·기계 알림. 단, 내용이 업무라 확인 권장으로 올라간 건 제외
-    //   (같은 메일이 두 폴더에 겹쳐 보이면 어느 쪽이 진짜인지 알 수 없다).
-    case 'marketing': return { status: 'open', triage: { [Op.in]: ['automated', 'marketing'] } };
-    // 전체 — 스팸·보관 뺀 모든 메일 (자동·마케팅 포함). "다 어디 갔지" 를 없애는 안전망.
-    case 'all': return { status: { [Op.notIn]: ['spam', 'archived'] } };
-    // #186 — 보낸메일 = 내가 마지막으로 보낸(outbound) 스레드. 스팸·보관 제외.
-    case 'sent': return { last_message_direction: 'outbound', status: { [Op.notIn]: ['spam', 'archived'] } };
-    default:
-      return { status: { [Op.notIn]: ['spam', 'archived'] } };
-  }
-}
 
-// 프라이버시 격리 (외부 연동 Phase 3) — 이 사용자가 볼 수 있는 메일 계정 id 집합:
-//   회사 공용 계정 (owner_user_id NULL, 모든 멤버) + 본인 개인 계정 (owner_user_id = 나).
-//   다른 사람의 개인 메일은 절대 노출 X (admin 도 차단 — 개인정보 보호).
-async function accessibleAccountIds(businessId, userId) {
-  const accts = await EmailAccount.findAll({
-    where: { business_id: businessId, [Op.or]: [{ owner_user_id: null }, { owner_user_id: userId }] },
-    attributes: ['id'],
-  });
-  return accts.map(a => a.id);
-}
 
 // ─────────────────────────────────────────────
 // GET list — 인박스 / 폴더별
@@ -145,7 +106,7 @@ router.get('/:businessId/email-threads',
 
       const where = {
         business_id: businessId,
-        ...folderWhere(folder, req.user.id),
+        ...folderWhere(folder, req.user.id, businessId),
       };
       // 프라이버시 격리 — 접근 가능한 계정으로만 제한 (개인 메일 격리)
       const acctIds = await accessibleAccountIds(businessId, req.user.id);
@@ -220,7 +181,12 @@ router.get('/:businessId/email-threads',
           { model: Client, attributes: ['id', 'display_name', 'company_name'], required: false },
           { model: Project, attributes: ['id', 'name', 'color'], required: false },
         ],
-        order: [['last_message_at', 'DESC']],
+        // 보낸메일함은 **내가 보낸 시각** 순이어야 한다 (#262) — 상대 수신 시각(last_message_at)이
+        //   섞이면 "내가 방금 보낸 메일"이 옛 답장 아래로 내려간다.
+        //   파생 컬럼(last_outbound_at)을 두지 않고 상관 서브쿼리로 푼다: outbound 쓰기 경로가
+        //   reply·compose·forward 3곳 + 향후 IMAP Sent 동기화까지 있어 컬럼은 조용히 어긋난다
+        //   (memory feedback_dual_column_authority_write_side). 인덱스 email_messages_thread_time 이 받쳐 준다.
+        order: folder === 'sent' ? sentOrder() : [['last_message_at', 'DESC']],
         limit, offset,
         distinct: true,
       });
@@ -248,8 +214,11 @@ router.get('/:businessId/email-threads',
         }
         // "응답 없음 N일" 판정용 — 마지막 보낸 메일이 실제로 나갔는지 확인해야 한다.
         //   못 나간 걸 "응답 없음" 으로 표시하면 사용자가 상대를 탓하게 된다.
+        //   #262 — 보낸메일함 행 표시도 이 배치 결과를 쓴다 (수신자·내 발송시각·내 발송 미리보기).
+        //   새 쿼리를 만들지 않고 컬럼만 넓힌다 (N+1 금지).
         const lastOut = await sequelize.query(
-          `SELECT em.thread_id, em.delivery_status
+          `SELECT em.thread_id, em.delivery_status, em.to_emails, em.sent_at,
+                  LEFT(COALESCE(em.body_text, ''), 200) AS preview
              FROM email_messages em
              JOIN (SELECT thread_id, MAX(id) AS mid
                      FROM email_messages
@@ -257,7 +226,14 @@ router.get('/:businessId/email-threads',
                  GROUP BY thread_id) last ON last.mid = em.id`,
           { replacements: { ids: threadIds }, type: sequelize.QueryTypes.SELECT }
         );
-        for (const m of lastOut) lastOutByThread.set(m.thread_id, { delivery_status: m.delivery_status });
+        for (const m of lastOut) {
+          lastOutByThread.set(m.thread_id, {
+            delivery_status: m.delivery_status,
+            to_emails: m.to_emails,
+            sent_at: m.sent_at,
+            preview: m.preview,
+          });
+        }
       }
 
       // #215-I — 첨부 유무 배치 집계 (원문 "첨부파일 있고 없고도 알기 편하게" — 열기 전에 인지).
@@ -285,42 +261,40 @@ router.get('/:businessId/email-threads',
         for (const r of attRows) attachCountByThread.set(r.thread_id, Number(r.cnt) || 0);
       }
 
-      const data = rows.map(t => {
-        const obj = t.toJSON();
-        const myAddr = String(obj.EmailAccount?.email || '').toLowerCase();
-        const parts = Array.isArray(obj.participants) ? obj.participants : [];
-        const fromParts = parts.find(p => p?.email && String(p.email).toLowerCase() !== myAddr) || parts[0] || null;
-        const other = senderByThread.get(obj.id) || (fromParts ? { name: fromParts.name || null, email: fromParts.email || null } : null);
-        return {
-          id: obj.id,
-          subject: obj.subject,
-          last_message_preview: obj.last_message_preview,
-          last_message_at: obj.last_message_at,
-          last_message_direction: obj.last_message_direction,
-          received_at_email: obj.received_at_email || null,   // 별칭별 보기 — 이 대화가 들어온 우리 주소
-          // 읽음 추적 대신 쓰는 결정론적 신호 — services/mailFollowUp 참조
-          follow_up: followUpState(obj, lastOutByThread.get(obj.id) || null),
-          status: obj.status,
-          reply_needed: obj.reply_needed,
-          reply_needed_at: obj.reply_needed_at,
-          reply_needed_reason: obj.reply_needed_reason,
-          rule_id: obj.rule_id || null,        // 학습 규칙으로 분류된 건지 (화면 표시)
-          is_starred: obj.is_starred,
-          unread_count: obj.unread_count || 0,
-          message_count: obj.message_count || 0,
-          attachment_count: attachCountByThread.get(obj.id) || 0,   // #215-I
-          labels: obj.labels || [],
-          account: obj.EmailAccount,
-          counterpart: other ? { name: other.name || null, email: other.email || null } : null,
-          client: obj.Client,
-          project: obj.Project,
-          uncertain_reason: obj.uncertain_reason,
-          spam_score: obj.spam_score,
-          triage: obj.triage,
-        };
-      });
+      const data = rows.map(t => serializeThreadRow(t, {
+        folder, senderByThread, lastOutByThread, attachCountByThread,
+      }));
 
       return paginatedResponse(res, data, count, { limit, page, offset });
+    } catch (err) { next(err); }
+  }
+);
+
+// ─────────────────────────────────────────────
+// GET outgoing-identity — 이 발송에 **실제로** 붙을 발신자·서명 (#262)
+//
+//   Irene: "메일 보낼 때 서명이 팀서명과 개인서명 뭐가 붙는지도 모르고 알 수도 없어."
+//   서명은 발송 시점에 emailSend 가 별칭 > 계정 > 워크스페이스 순으로 고른다 — 화면엔 그 결과가
+//   전혀 안 보였다. 여기서 **sendMail 과 같은 함수**(resolveOutgoingIdentity)로 계산해 내려준다.
+//   같은 함수가 아니면 미리보기와 실발송이 어긋나고, 그건 "표시≠실발신" 사고다.
+//
+//   thread_id 를 받는 이유: 답장은 별칭을 사용자가 고른 게 아니라 **받은 주소**로 자동 결정된다
+//   (resolveSender ②). alias 파라미터만 받으면 답장 미리보기가 실제와 달라진다 (Fable 지적).
+//   :id 충돌 방지 위해 literal 경로 (express literal 우선).
+// ─────────────────────────────────────────────
+router.get('/:businessId/mail-outgoing-identity',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
+  async (req, res, next) => {
+    try {
+      const out = await outgoingIdentityFor({
+        businessId: Number(req.params.businessId),
+        userId: req.user.id,
+        accountId: req.query.account_id ? Number(req.query.account_id) : null,
+        threadId: req.query.thread_id ? Number(req.query.thread_id) : null,
+        fromAliasId: parseFromAliasId(req.query),
+      });
+      if (out.error) return errorResponse(res, out.error, out.status);
+      return successResponse(res, out.data);
     } catch (err) { next(err); }
   }
 );
@@ -649,13 +623,12 @@ router.post('/:businessId/email-threads/:id/dismiss-reply',
 // ─────────────────────────────────────────────
 // 대상 스레드 id 해석 — { all:true, folder } 이면 폴더 전체(folderWhere+스코프, 500 캡), 아니면 thread_ids.
 //   Fable 권고: "모두"가 로드된 페이지만이 아니라 폴더 전체에 진짜로 적용되게.
-const BULK_FOLDERS = new Set(['reply_needed', 'uncertain', 'all']);
 async function resolveBulkTargetIds(body, businessId, userId) {
   const acctIds = await accessibleAccountIds(businessId, userId);
   const acctScope = { [Op.in]: acctIds.length ? acctIds : [0] };
   if (body?.all && BULK_FOLDERS.has(body?.folder)) {
     const rows = await EmailThread.findAll({
-      where: { ...folderWhere(body.folder, userId), business_id: businessId, account_id: acctScope },
+      where: { ...folderWhere(body.folder, userId, businessId), business_id: businessId, account_id: acctScope },
       attributes: ['id'], limit: 500,
     });
     return { ids: rows.map((r) => r.id), acctScope };
@@ -794,6 +767,8 @@ router.post('/:businessId/email-threads/:id/messages',
           //   다른 도메인 주소로 답장이 나가면 사고다 (Send-as: docs/MAIL_ALIAS_AND_VOICE_DESIGN.md §A-4).
           fromAliasId: parseFromAliasId(req.body),
           replyToAddresses: lastInboundTo,
+          // #262 — 이 발송만 서명 끄기. 계정 설정(signature_enabled)은 건드리지 않는다.
+          signature: req.body.signature !== false,
         });
       } catch (e) {
         console.error('[qmail] reply send failed:', e.message);
@@ -918,7 +893,7 @@ router.post('/:businessId/email-compose',
 
       let sendResult;
       try {
-        sendResult = await sendMail(account, { to: toList, cc, bcc, subject: subj, html: body_html, attachments: atts, fromAliasId: parseFromAliasId(req.body) });
+        sendResult = await sendMail(account, { to: toList, cc, bcc, subject: subj, html: body_html, attachments: atts, fromAliasId: parseFromAliasId(req.body), signature: req.body.signature !== false });
       } catch (e) {
         console.error('[qmail] compose send failed:', e.message);
         return errorResponse(res, `send_failed: ${e.message}`, 502);
@@ -993,7 +968,7 @@ router.post('/:businessId/email-threads/:id/forward',
 
       let sendResult;
       try {
-        sendResult = await sendMail(account, { to: toList, cc, bcc, subject: subj, html: body_html, attachments: atts, fromAliasId: parseFromAliasId(req.body) });
+        sendResult = await sendMail(account, { to: toList, cc, bcc, subject: subj, html: body_html, attachments: atts, fromAliasId: parseFromAliasId(req.body), signature: req.body.signature !== false });
       } catch (e) {
         console.error('[qmail] forward send failed:', e.message);
         return errorResponse(res, `send_failed: ${e.message}`, 502);

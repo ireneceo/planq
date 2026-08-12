@@ -197,7 +197,9 @@
     "markSpam": "Spam",
     "notSpam": "Not spam",
     "markHandled": "Reviewed",
-    "handledDone": "Done"
+    "handledDone": "Done",
+    "extractTasks": "Extract tasks",
+    "extractTasksHint": "Pull action items out of this email as candidates"
   },
   "selectWorkspace": "Select a workspace.",
   "selectThread": "Select a thread",
@@ -240,7 +242,8 @@
     "from": "From",
     "addAlias": "Add send-as address",
     "useReceived": "Send from {{addr}} (register)",
-    "dismissHint": "No reply required. It moves to Needs review."
+    "dismissHint": "No reply required. It moves to Needs review.",
+    "aiInstructionRequired": "You already have a draft. Tell AI how to revise it."
   },
   "errors": {
     "loadList": "Failed to load inbox"
@@ -366,7 +369,20 @@
     "on": "Append when sending",
     "off": "Not appended",
     "desc": "Appended to replies, forwards, and new mail sent from this account. Each account can have its own.",
-    "placeholder": "e.g. Jane Doe · Worpro Lab · +82 10-0000-0000"
+    "placeholder": "e.g. Jane Doe · Worpro Lab · +82 10-0000-0000",
+    "label": "Signature",
+    "preview": "Preview",
+    "hide": "Hide",
+    "offOnce": "Skip for this email",
+    "onOnce": "Add back",
+    "excluded": "Excluded this time",
+    "source": {
+      "alias": "Alias signature",
+      "account": "Personal signature",
+      "workspace": "Team signature",
+      "none": "No signature",
+      "disabled": "Signature off"
+    }
   },
   "alias": {
     "title": "Send-as addresses",
@@ -385,7 +401,8 @@
     "providerNote": "To send from Gmail, the address must be verified under Gmail’s \"Send mail as\". Your own mail server usually allows any address on a domain you own."
   },
   "detail": {
-    "toAddr": "Received at"
+    "toAddr": "Received at",
+    "noContent": "(no content)"
   },
   "bulk": {
     "markAllRead": "Mark all read",

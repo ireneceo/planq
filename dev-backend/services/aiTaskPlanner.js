@@ -139,7 +139,7 @@ ${memberLines}
       "depends_on_index": <int or null>
     }
   ],
-  "reasoning": "<1-3 sentence explanation of how you decomposed and why>"
+  "reasoning": "<ONE short phrase (max 30 Korean chars / 60 English chars) naming WHAT was broken out. No justification, no restating the user's request, no meta-commentary about the decomposition itself. Good: \\"계획서 작성 1건으로 정리했어요\\". Bad: \\"사용자의 요청에 따라 ... 단일 작업을 정의했습니다. 이 작업은 ... 필요합니다\\">"
 }`;
 }
 
@@ -308,7 +308,15 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
 
   return {
     candidates,
-    reasoning: String(parsed.reasoning || '').slice(0, 1000),
+    // #263 — 한 줄 캡. Irene: "이런 긴 멘트가 필요해? 언제 읽어?"
+    //   프롬프트를 한 문장으로 조였지만 LLM 이 길게 낼 수 있어 표시 직전 값 자체를 자른다
+    //   (프롬프트만 믿으면 옛 모델·폴백 응답에서 그대로 새어 나온다). 첫 문장만 쓰고 120자 캡.
+    reasoning: (() => {
+      const raw = String(parsed.reasoning || '').replace(/\s+/g, ' ').trim();
+      if (!raw) return '';
+      const first = raw.split(/(?<=[.。!?])\s/)[0] || raw;
+      return first.length > 120 ? `${first.slice(0, 119)}…` : first;
+    })(),
     fallback: result.fallback,
     input_tokens: result.input_tokens,
     output_tokens: result.output_tokens,

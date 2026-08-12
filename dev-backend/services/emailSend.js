@@ -146,7 +146,48 @@ function appendSignature(html, account, aliasSignatureHtml = null, workspaceSign
   return `${body}<br><div ${SIGNATURE_MARK}="1" style="margin-top:16px;color:#334155;font-size:13px;">${sig}</div>`;
 }
 
-async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, references, attachments, fromAliasId = null, replyToAddresses = null }) {
+// 이 발송에 **실제로** 붙을 발신자·서명을 계산한다 (#262).
+//   ★ 화면 미리보기와 실발송이 어긋나면 안 되므로 sendMail 이 쓰는 것과 같은 함수여야 한다.
+//     그래서 sendMail 본문에서 이 계산을 통째로 절출해 양쪽이 공유한다.
+//   source: 어느 층에서 왔는지 — 화면이 "팀 서명인지 개인 서명인지" 를 말해줄 수 있어야 한다
+//     (Irene: "서명이 팀서명과 개인서명 뭐가 붙는지도 모르고 알 수도 없어").
+async function resolveOutgoingIdentity(account, { fromAliasId = null, replyToAddresses = null } = {}) {
+  let fromName = account.display_name || '';
+  let workspaceSignature = null;
+  if (account.business_id) {
+    try {
+      const { Business } = require('../models');
+      const biz = await Business.findByPk(account.business_id, {
+        attributes: ['mail_from_name', 'brand_name', 'name', 'mail_signature_html'],
+      });
+      if (!fromName) fromName = biz?.mail_from_name || biz?.brand_name || biz?.name || '';
+      workspaceSignature = biz?.mail_signature_html || null;
+    } catch (e) { console.warn('[emailSend] workspace 설정 조회 실패', e.message); }
+  }
+  const sender = await resolveSender(account, { fromAliasId, replyToAddresses });
+  if (sender.displayName) fromName = sender.displayName;
+
+  // appendSignature 와 **같은 우선순위**로 어느 층이 이길지 판정한다.
+  const nonEmpty = (v) => !!String(v || '').trim();
+  let source = 'none';
+  let signatureHtml = '';
+  if (account.signature_enabled === false) {
+    source = 'disabled';
+  } else if (nonEmpty(sender.signatureHtml)) {
+    source = 'alias'; signatureHtml = String(sender.signatureHtml).trim();
+  } else if (nonEmpty(account.signature_html)) {
+    source = 'account'; signatureHtml = String(account.signature_html).trim();
+  } else if (nonEmpty(workspaceSignature)) {
+    source = 'workspace'; signatureHtml = String(workspaceSignature).trim();
+  }
+  return {
+    fromName, fromEmail: sender.email,
+    signatureSource: source, signatureHtml,
+    aliasSignatureHtml: sender.signatureHtml || null, workspaceSignature,
+  };
+}
+
+async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, references, attachments, fromAliasId = null, replyToAddresses = null, signature = true }) {
   // 수신자 검증 — 가짜/예약TLD/형식불량 주소 차단 (바운스·평판 보호). emailService 게이트 재사용.
   const { emailBlockReason } = require('./emailService');
   const blocked = emailBlockReason([].concat(to || [], cc || [], bcc || []));
@@ -178,29 +219,18 @@ async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, 
   //   회사 대표 메일 답장이 "IRENE WP" 로 나갔다. 설정을 단일 원천으로 되돌린다.
   //   우선순위: 계정별 발신 이름(명시 override) → 워크스페이스 발신 이름 → 브랜드명 → 워크스페이스명.
   //   개인 계정(owner_user_id)은 본인 이름이 기본이므로 계정 값을 그대로 쓴다.
-  let fromName = account.display_name || '';
-  // 워크스페이스 설정 1회 조회 — 발신 이름과 공통 서명을 같이 가져온다(조회 추가 없음).
-  let workspaceSignature = null;
-  if (account.business_id) {
-    try {
-      const { Business } = require('../models');
-      const biz = await Business.findByPk(account.business_id, {
-        attributes: ['mail_from_name', 'brand_name', 'name', 'mail_signature_html'],
-      });
-      if (!fromName) fromName = biz?.mail_from_name || biz?.brand_name || biz?.name || '';
-      workspaceSignature = biz?.mail_signature_html || null;
-    } catch (e) { console.warn('[emailSend] workspace 설정 조회 실패', e.message); }
-  }
-  // 발신 주소 — 별칭(Send-as) 반영. 별칭에 표시 이름이 있으면 그것이 우선한다.
-  const sender = await resolveSender(account, { fromAliasId, replyToAddresses });
-  if (sender.displayName) fromName = sender.displayName;
-  const from = fromName
-    ? `"${String(fromName).replace(/"/g, '')}" <${sender.email}>`
-    : sender.email;
+  // 발신 이름·주소·서명 — 미리보기 endpoint 와 **같은 함수**로 계산한다 (표시≠실발송 방지).
+  const ident = await resolveOutgoingIdentity(account, { fromAliasId, replyToAddresses });
+  const from = ident.fromName
+    ? `"${String(ident.fromName).replace(/"/g, '')}" <${ident.fromEmail}>`
+    : ident.fromEmail;
 
   // 서명 — 계정마다 다르다. 발송 직전 한 곳에서 붙인다(답장·전달·새 메일 3경로가 모두 여기를 지난다).
   //   이미 서명이 들어간 본문(사용자가 편집한 초안)에는 다시 붙이지 않는다 — 표식으로 판별.
-  const htmlWithSig = appendSignature(html, account, sender.signatureHtml, workspaceSignature);
+  //   `signature: false` 는 **이 발송만** 서명을 끈다 (계정 설정 signature_enabled 는 건드리지 않는다).
+  const htmlWithSig = signature === false
+    ? html
+    : appendSignature(html, account, ident.aliasSignatureHtml, ident.workspaceSignature);
 
   const info = await transport.sendMail({
     from,
@@ -248,4 +278,4 @@ function deliveryFromSendResult(sendResult) {
 
 module.exports = {
   appendSignature,
-  resolveSender, sendMail, buildTransport, deriveSmtpHost, deliveryFromSendResult };
+  resolveSender, resolveOutgoingIdentity, sendMail, buildTransport, deriveSmtpHost, deliveryFromSendResult };

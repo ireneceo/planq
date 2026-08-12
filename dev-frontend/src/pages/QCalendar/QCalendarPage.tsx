@@ -28,6 +28,7 @@ import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
 import { apiFetch } from '../../contexts/AuthContext';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { todayInTz, detectBrowserTz } from '../../utils/timezones';
+import { displayName, type NameLocalizable } from '../../utils/displayName';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { mapApiError } from '../../utils/apiError';
 
@@ -134,8 +135,11 @@ const QCalendarPage: React.FC = () => {
     if (!bizId) return;
     apiFetch(`/api/businesses/${bizId}/members`).then((r) => r.json()).then((j) => {
       if (j.success) {
-        setMembers((j.data || []).map((m: { user_id: number; name?: string | null; User?: { name: string } }) => ({
-          user_id: m.user_id, name: m.name || m.User?.name || `#${m.user_id}`,
+        // 표시명은 공용 헬퍼가 정본이다. 백엔드가 `user` (소문자 alias) 에 워크스페이스 표시명을
+        // enrich 해서 내려준다(businesses.js GET /:businessId/members). 여태 대문자 `User` 를 읽어
+        // **항상 undefined** → 워크스페이스 표시명이 없는 멤버는 전원 `#1` `#2` 로 보였다.
+        setMembers((j.data || []).map((m: { user_id: number; user?: NameLocalizable | null }) => ({
+          user_id: m.user_id, name: displayName(m.user, i18n.language) || `#${m.user_id}`,
         })));
       }
     }).catch(() => {});

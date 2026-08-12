@@ -160,6 +160,18 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
     } finally { setExtractBusy(false); }
   }, [extractBusy, businessId, thread.id, t]);
 
+  // #263 — 상세 툴바의 "업무 추출" 버튼이 패널을 열고 이 이벤트를 쏜다. 같은 탭 안 안전망 패턴
+  //   (CLAUDE.md 운영 안정성 16-e) — 패널이 방금 마운트돼도 이 스레드 것만 처리한다.
+  useEffect(() => {
+    const onExtract = (e: Event) => {
+      const tid = (e as CustomEvent<{ threadId?: number }>).detail?.threadId;
+      if (tid && tid !== thread.id) return;
+      extract();
+    };
+    window.addEventListener('qmail:extract-tasks', onExtract);
+    return () => window.removeEventListener('qmail:extract-tasks', onExtract);
+  }, [thread.id, extract]);
+
   const register = useCallback(async (id: number, overrides: RegisterOverrides) => {
     if (rowBusy) return; setRowBusy(id);
     try {

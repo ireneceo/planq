@@ -197,7 +197,9 @@
     "markSpam": "스팸",
     "notSpam": "스팸 해제",
     "markHandled": "확인 완료",
-    "handledDone": "처리됨"
+    "handledDone": "처리됨",
+    "extractTasks": "업무 추출",
+    "extractTasksHint": "이 메일에서 업무를 뽑아 후보로 만듭니다"
   },
   "selectWorkspace": "워크스페이스를 선택해 주세요.",
   "selectThread": "스레드를 선택해 주세요",
@@ -240,7 +242,8 @@
     "from": "보내는 사람",
     "addAlias": "보내는 주소 추가",
     "useReceived": "{{addr}} 로 보내기 (등록)",
-    "dismissHint": "답장하지 않아도 되는 메일입니다. 확인 권장으로 내려갑니다."
+    "dismissHint": "답장하지 않아도 되는 메일입니다. 확인 권장으로 내려갑니다.",
+    "aiInstructionRequired": "이미 초안이 있어요. 어떻게 고칠지 요청을 적어 주세요."
   },
   "errors": {
     "loadList": "인박스 로딩 실패"
@@ -366,7 +369,20 @@
     "on": "보낼 때 자동 첨부",
     "off": "첨부 안 함",
     "desc": "이 계정으로 보내는 답장·전달·새 메일 끝에 자동으로 붙습니다. 계정마다 다르게 쓸 수 있어요.",
-    "placeholder": "예) 홍길동 · 워프로랩 · 010-0000-0000"
+    "placeholder": "예) 홍길동 · 워프로랩 · 010-0000-0000",
+    "label": "서명",
+    "preview": "미리보기",
+    "hide": "접기",
+    "offOnce": "이 메일만 빼기",
+    "onOnce": "다시 넣기",
+    "excluded": "이번 발송 제외",
+    "source": {
+      "alias": "별칭 서명",
+      "account": "개인 서명",
+      "workspace": "팀 공통 서명",
+      "none": "서명 없음",
+      "disabled": "서명 꺼짐"
+    }
   },
   "alias": {
     "title": "보내는 주소",
@@ -385,7 +401,8 @@
     "providerNote": "Gmail 로 보내는 경우, 그 주소가 Gmail 설정의 \"다른 주소로 메일 보내기\"에 등록·인증돼 있어야 실제로 발송됩니다. 자체 메일 서버는 도메인 소유 주소면 대개 그대로 발송됩니다."
   },
   "detail": {
-    "toAddr": "받은 주소"
+    "toAddr": "받은 주소",
+    "noContent": "(내용 없음)"
   },
   "bulk": {
     "markAllRead": "모두 읽음",
