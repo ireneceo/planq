@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-08-13 (Opus 5, 1M) — **#254 진척 그래프 정의 통일 + '오늘 나의 업무' 탭 + 팝아웃 2탭 + #237 Cue "완료로 추가" 운영 배포 완료(`5ad38c8`, v1.48.2)** — 배포 스택 `4afd169 → 5ad38c8` (2커밋 + docs 1, 25파일 957+/436−), 백업 `20260813_054824`, 207초. 마이그레이션 **변경 0 실측**(pre-sync rename·idempotent 전부 "이미 존재 — skip"). 반영 3점 검증: 운영 PM2 `planq-prod-backend` v1.48.2 online(재기동 확인) · 프론트 청크 05:51 갱신(`version.json built_at 2026-08-13T05:51:39`) · 외부 health 200. `DEPLOY_EXIT=1` 은 알려진 부수 신호(`Deployment Complete` + verify 전항목 OK). **위키 시드는 불필요**(운영 `help_categories` 15 / `help_articles` 42 실측 — 이미 시드됨). 롤백: `ssh irene@87.106.78.146 'tar -xzf /opt/planq/backups/20260813_054824/backend.tar.gz -C /opt/planq && pm2 reload planq-prod-backend'`. **다음: 청크 4 팝아웃 핀 재구조화(#258) — 스파이크 S1·S2·S3 선행 필수 / Irene 결정 대기 3건(AI 카드 우선순위 표시 · 운영 프로젝트 10번 · 월 루틴 요일 지정) / 피드백 장부 정리(해결·배포 완료인데 pending 17건)**
+> **최종 업데이트:** 2026-08-13 (Opus 5, 1M) 2회차 — **Q Calendar 역방향 동기화(구글→PlanQ) 결함 수정 (`d4c1896`, Fable PASS, 미배포)** — 운영 피드백 "구글에서 수정하면 PlanQ 에 반영 안 됨" 이 **해결되지 않은 채 남아 있었다**. 원인은 두 겹이었다. ①**[코드] 최초 부트스트랩이 이미 일어난 구글 수정을 삼켰다** — `collectChanges` 의 `if (!bootstrap) items.push(...)` 가 커서 없는 첫 회차에 변경을 **수집만 하고 버린 뒤 커서만 저장**했다. **연동 직후가 사용자가 반드시 테스트하는 순간**이라 첫 구글 수정이 항상 폐기되고 커서가 그 지점을 지나가 영원히 오지 않았다. 운영 실측이 정확히 그 모습 — 연동 06:18:04 → push 06:18:29 → **구글 수정 06:19:37** → Google `"PlanQ수정1234"` vs PlanQ `"연동 테스트_PlanQ수정"` **영구 불일치**, 증분 폴링 **변경분 0건**(커서가 지나침), `audit_logs action='event.reverse_sync'` **누적 0건**(한 번도 반영된 적 없음). 수정은 부트스트랩도 items 를 적용하는 것 — 버릴 이유였던 "구글 옛 상태로 덮어쓰기" 는 **이미 3겹이 막고 있었다**(링크 없으면 무시 / 화이트리스트 diff 비면 no-op / PlanQ 가 같거나 더 최신이면 skip). 즉 적용은 *구글이 더 최신이고 실제로 다른* 항목에만 일어나며 그게 이 기능의 정의다. 여기에 `linkedGcalIds()` prefilter(전체훑기 DB 폭증 차단 + **남의 사생활 일정 미조회**), truncated 여도 모은 만큼 적용(멱등), `sources===0` 로그(침묵으로 죽음이 가려지던 것)를 얹었다. ②**[권한·코드 밖] 워크스페이스 토큰이 죽었다** — `business_cloud_tokens#3` 의 scope 가 `userinfo.email openid` 뿐(`hasWriteScope=false`)이고 실제 호출은 `invalid_grant`. **운영 링크 8건 중 6건이 이 팀 캘린더 소속**이라 ①을 고쳐도 그 6건은 양방향 모두 죽어 있다 — **오너 재연결 + 동의화면 "캘린더" 체크 필수**(체크 안 해도 연결은 성공한 것처럼 보이는 게 함정). **Fable 게이트**: diff범위(1파일, 이탈 0) · 가드 4축 EXIT 0(health 34/34 · guard 22/22 · e2e tenant 실패 0 · BUILD_EXIT=0, `error TS` 0) · **반증 16/16 — 옛 코드 대조군이 `CTRL-T1 부트스트랩 변경을 삼킨다` 로 FAIL 해 진단 재현 + 탐지기 유효성 증명** · 실HTTP 8/8(401·403·CUD·삭제 후 404 원복) · 배포안전(마이그레이션 0). **★ Fable 이 남긴 것**: etag NULL 백필 링크의 덮어쓰기 위험은 현재 0이며 재연결 후에도 안전(diff no-op + etag 자가치유 + 시각 가드) / >5000건 캘린더는 커서를 영영 못 만들어 매 회차 전체 재훑기(경고 로그로 가시화, 수용된 트레이드오프) / **비-KST 워크스페이스 all-day 왕복은 이 diff 밖의 기존 매핑 이슈로 별도 추적 권장**. **다음: Irene 의 `/배포` → 배포 직후 운영 `external_connections#14.gcal_sync_token=NULL` 리셋(Fable 안전 판정, link#9 실불일치 해소가 '진짜 고쳐졌다' 의 실증) → 워크스페이스 구글 재연결 안내**
+
+> **[이전] 최종 업데이트:** 2026-08-13 (Opus 5, 1M) — **#254 진척 그래프 정의 통일 + '오늘 나의 업무' 탭 + 팝아웃 2탭 + #237 Cue "완료로 추가" 운영 배포 완료(`5ad38c8`, v1.48.2)** — 배포 스택 `4afd169 → 5ad38c8` (2커밋 + docs 1, 25파일 957+/436−), 백업 `20260813_054824`, 207초. 마이그레이션 **변경 0 실측**(pre-sync rename·idempotent 전부 "이미 존재 — skip"). 반영 3점 검증: 운영 PM2 `planq-prod-backend` v1.48.2 online(재기동 확인) · 프론트 청크 05:51 갱신(`version.json built_at 2026-08-13T05:51:39`) · 외부 health 200. `DEPLOY_EXIT=1` 은 알려진 부수 신호(`Deployment Complete` + verify 전항목 OK). **위키 시드는 불필요**(운영 `help_categories` 15 / `help_articles` 42 실측 — 이미 시드됨). 롤백: `ssh irene@87.106.78.146 'tar -xzf /opt/planq/backups/20260813_054824/backend.tar.gz -C /opt/planq && pm2 reload planq-prod-backend'`. **다음: 청크 4 팝아웃 핀 재구조화(#258) — 스파이크 S1·S2·S3 선행 필수 / Irene 결정 대기 3건(AI 카드 우선순위 표시 · 운영 프로젝트 10번 · 월 루틴 요일 지정) / 피드백 장부 정리(해결·배포 완료인데 pending 17건)**
 
 > **[이전] 최종 업데이트:** 2026-08-12 (Opus 5, 1M) 2회차 — **업무추가 체인·UI/UX 10건 운영 배포 완료(`4afd169`) + #254 진척 그래프 정의 통일 + '오늘 나의 업무' 탭·팝아웃 2탭(검증 중)** — 상세는 아래 2026-08-12 (2) 섹션.
 
@@ -48,6 +50,39 @@
 
 > **[이전] 최종 업데이트:** 2026-07-16 (Opus 4.8, 1M) — **모바일 흰 화면 회귀 차단 + 검사 하니스 강화** — e2e mobile 스위트에 `assertRendered()` **흰 화면(blank) 판정** 신규(키보드 스위트가 "입력 가림"만 봐 페이지 통째 blank도 ⚪ 통과하던 구멍 차단, #173/174/159/178 계열) + `run.js` blank=실패 집계 + mail 시나리오(mail-list·mail-compose) + MailPage `data-testid`·모바일 compose 사이드바 자동접힘 + DetailDrawer 폰 풀스크린(56px 조각 새던 것) + QBill 개요 2열 그리드 반응형 + Insights 기간라벨 i18n. **검증: mobile/crosscut/l1 전 스위트 0 실패 + tsc -b exit 0 + 가드 3축(health 30/30·guard 22/22·tenant 0)**. 다음: `docs/qa/NEXT_SECTION_BACKLOG.md`(Q Mail AI·멀티탭·전수검사 잔여 LOW).
 
+
+## ✅ 완료: 2026-08-13 (2) — Q Calendar 역방향 동기화 결함 수정 (Fable PASS · 미배포)
+
+> 커밋 `d4c1896`. 운영 피드백 "구글에서 수정하면 Q Calendar 에 반영 안 됨" 재조사.
+> **1파일 58+/14−** (`dev-backend/services/calendarReverseSync.js`). 마이그레이션 0.
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 근본 원인 규명 | 최초 부트스트랩이 **이미 일어난 구글 수정을 삼킨다** — 수집만 하고 버린 뒤 커서만 저장. 연동 직후가 사용자가 반드시 테스트하는 순간이라 첫 수정이 항상 폐기 | ✅ |
+| 운영 실증 | Google `"PlanQ수정1234"`(06:19:37) vs PlanQ `"연동 테스트_PlanQ수정"`(06:19:24) 영구 불일치 · 증분 폴링 0건 · `event.reverse_sync` 감사로그 **누적 0건** | ✅ |
+| 부트스트랩 적용 | 첫 회차도 items 를 적용. 덮어쓰기 우려는 기존 3겹(링크 없으면 무시 / diff 비면 no-op / PlanQ 최신이면 skip)이 이미 차단 | ✅ |
+| `linkedGcalIds()` prefilter | 전체훑기 시 DB 폭증 차단 + **남의 사생활 일정 미조회**(링크된 것만 본다는 계약과 정합) | ✅ |
+| truncated 구제 | 페이지 상한 초과에도 모은 만큼 적용(멱등) — 버리면 커서를 못 만드는 캘린더에서 역방향 영구 정지 | ✅ |
+| 침묵 제거 | `runAll` 이 `sources===0` 도 로그 — 폴링 대상 0이 "정상"처럼 보여 죽음이 가려지던 것 | ✅ |
+| Fable 게이트 | diff범위 · 가드 4축 EXIT 0 · **반증 16/16(옛 코드 대조군 FAIL 로 탐지기 유효성 증명)** · 실HTTP 8/8 · 배포안전 | ✅ |
+
+### 코드로 못 고치는 것 (Irene 조치 필요)
+
+| 항목 | 실측 | 조치 |
+|------|------|------|
+| 워크스페이스(팀) 캘린더 토큰 | `business_cloud_tokens#3` scope = `userinfo.email openid` 뿐 + 실호출 `invalid_grant`. **운영 링크 8건 중 6건이 여기 소속** | **오너 재연결 + 동의화면 "캘린더" 체크 필수** (체크 안 해도 연결은 성공한 것처럼 보인다) |
+
+### 수정된 파일
+- `dev-backend/services/calendarReverseSync.js`
+
+### 배포 후 필수 조치
+1. `UPDATE external_connections SET gcal_sync_token = NULL WHERE id = 14;` (Fable 안전 판정)
+   → 재부트스트랩이 link#9 실불일치를 해소한다. **이게 "진짜 고쳐졌다" 의 실증.**
+2. 확인: `SELECT title FROM calendar_events WHERE id=31;` + `audit_logs action='event.reverse_sync'` ≥ 1건
+
+---
 
 ## ✅ 완료: 2026-08-12 (2) — 업무추가 배포 + 진척 그래프 정의 통일 + 오늘 탭
 
