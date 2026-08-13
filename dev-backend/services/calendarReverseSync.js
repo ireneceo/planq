@@ -153,19 +153,49 @@ const saveCursor = (source, tokenStr) => (source.kind === 'personal'
   : source.token.update({ gcal_sync_token: tokenStr }));
 
 /**
+ * 이 소스가 실제로 들여다볼 gcal_event_id 집합.
+ *
+ * 부트스트랩은 캘린더 **전체**를 훑으므로(수천 건일 수 있다) 항목마다 DB 를 두드리면 안 된다.
+ * 링크 집합을 먼저 한 번 읽어 메모리에서 거른다 — DB 부하가 링크 수에 비례하고,
+ * **남의 사생활 일정은 조회조차 하지 않는다**(링크 없는 항목은 애초에 손대지 않는다는 계약과 정합).
+ */
+async function linkedGcalIds(source) {
+  const rows = source.kind === 'personal'
+    ? await CalendarEventGcalLink.findAll({
+      where: { target: 'personal', connection_id: source.conn.id }, attributes: ['gcal_event_id'],
+    })
+    : await CalendarEventGcalLink.findAll({
+      where: { target: 'workspace' },
+      attributes: ['gcal_event_id'],
+      include: [{ model: CalendarEvent, as: 'event', required: true, attributes: [], where: { business_id: source.businessId } }],
+    });
+  return new Set(rows.map((r) => r.gcal_event_id));
+}
+
+/**
  * 변경분 수집.
  *
  * ★ `singleEvents: false` 가 계약이다. true 로 두면 정기일정 변경이 **인스턴스 단위로 쏟아져**
  *   PlanQ 의 "rrule 단일 row" 모델과 맞지 않는다. false 면 시리즈 수정은 부모 이벤트 1건으로 오고,
  *   단일 회차 예외는 `recurringEventId` 를 단 별도 이벤트로 와서 링크가 없어 자연히 무시된다.
  *
- * 커서가 없으면 **부트스트랩**: 변경을 적용하지 않고 커서만 확보한다.
- *   적용하면 최초 1회에 구글의 (오래된) 상태로 PlanQ 를 덮을 수 있다 — 되돌릴 수 없는 사고다.
+ * ★ 커서가 없는 첫 회차(**부트스트랩**)도 변경을 **적용한다**. 여기를 버리면 안 된다 —
+ *   2026-08-13 운영 실측: 연동 06:18 → 구글에서 제목 수정 06:19:37 → 첫 cron 회차가 그 변경을
+ *   수집만 하고 버린 채 커서를 저장 → 구글 "PlanQ수정1234" vs PlanQ "연동 테스트_PlanQ수정" 로
+ *   **영구 불일치**(감사로그 `event.reverse_sync` 운영 누적 0건). 연동 직후가 사용자가 반드시
+ *   테스트하는 순간이라, 이 창이 곧 "역방향은 아예 안 된다" 는 경험이었다.
+ *
+ *   버릴 이유였던 "구글의 옛 상태로 PlanQ 를 덮는다" 는 **이미 세 겹이 막고 있다**:
+ *     ① 링크 없는 항목은 손대지 않는다(구글에서 새로 만든 일정은 범위 밖)
+ *     ② 화이트리스트 diff 가 비면 no-op
+ *     ③ 시각 비교 — PlanQ 가 같거나 더 최신이면 skip (구글의 오래된 상태는 여기서 걸린다)
+ *   즉 "적용"은 **구글이 더 최신이고 실제로 다른** 항목에만 일어난다. 그게 이 기능의 정의다.
  */
-async function collectChanges(cal, source) {
+async function collectChanges(cal, source, linkedIds) {
   const syncToken = cursorOf(source);
   const base = { calendarId: 'primary', singleEvents: false, maxResults: PAGE_SIZE, showDeleted: true };
   const items = [];
+  let unlinked = 0;
   let pageToken = null;
   let pages = 0;
   let nextSyncToken = null;
@@ -183,22 +213,27 @@ async function collectChanges(cal, source) {
       if (code === 410) {
         // 커서 만료 — 토큰을 버리고 다음 회차에 재부트스트랩. 토큰은 캐시지 원장이 아니다.
         await saveCursor(source, null);
-        return { items: [], nextSyncToken: null, expired: true, bootstrap };
+        return { items: [], nextSyncToken: null, expired: true, bootstrap, unlinked: 0 };
       }
       throw e;
     }
-    if (!bootstrap) items.push(...(resp.data.items || []));
+    for (const item of (resp.data.items || [])) {
+      if (linkedIds.has(item.id)) items.push(item);
+      else unlinked += 1;
+    }
     pageToken = resp.data.nextPageToken || null;
     nextSyncToken = resp.data.nextSyncToken || nextSyncToken;
     pages += 1;
     if (bootstrap && pages >= BOOTSTRAP_PAGE_CAP && pageToken) {
       // 상한 도달 — 커서를 못 만든 채 끊는다. 조용히 자르지 않고 남긴다.
+      //   ★ 여기까지 모은 항목은 **버리지 않고 적용한다** — 가드가 멱등이라 다음 회차가 다시
+      //     훑어도 같은 결과다. 버리면 커서를 영영 못 만드는 캘린더에서 역방향이 영구 정지한다.
       console.warn(`[reverseSync] 부트스트랩 페이지 상한(${BOOTSTRAP_PAGE_CAP}) 초과 — 커서 미확보, 다음 회차 재시도`);
-      return { items: [], nextSyncToken: null, truncated: true, bootstrap };
+      return { items, nextSyncToken: null, truncated: true, bootstrap, unlinked };
     }
   } while (pageToken);
 
-  return { items, nextSyncToken, bootstrap };
+  return { items, nextSyncToken, bootstrap, unlinked };
 }
 
 /** 이 링크의 소유자가 이 일정을 편집할 수 있는가 — 라우트와 **같은 헬퍼**로 판정한다. */
@@ -237,8 +272,14 @@ async function propagateToOtherLinks(event, businessId, sourceLinkId) {
 async function pollSource(source, { io = null } = {}) {
   const out = { applied: 0, skipped: 0, unlinked: 0, errors: [] };
   const cal = await clientFor(source);
-  const { items, nextSyncToken, expired, truncated, bootstrap } = await collectChanges(cal, source);
-  if (expired || truncated) return { ...out, note: expired ? 'sync_token_expired' : 'bootstrap_truncated' };
+  const linkedIds = await linkedGcalIds(source);
+  const {
+    items, nextSyncToken, expired, truncated, bootstrap, unlinked,
+  } = await collectChanges(cal, source, linkedIds);
+  // 커서 만료는 이번 회차에 볼 게 없다(다음 회차가 재부트스트랩). 상한 초과는 **모은 만큼 적용**하고
+  //   커서만 못 만든 상태이므로 여기서 끊지 않는다.
+  if (expired) return { ...out, note: 'sync_token_expired' };
+  out.unlinked += unlinked;
 
   for (const item of items) {
     try {
@@ -334,7 +375,7 @@ async function pollSource(source, { io = null } = {}) {
   }
 
   if (nextSyncToken) await saveCursor(source, nextSyncToken);
-  return { ...out, bootstrap: !!bootstrap };
+  return { ...out, bootstrap: !!bootstrap, ...(truncated ? { note: 'bootstrap_truncated' } : {}) };
 }
 
 /** cron 진입점 — 전 소스 1회 폴링. 개별 소스 실패는 삼키고 계속한다. */
@@ -363,14 +404,17 @@ async function runAll({ io = null } = {}) {
       console.error(`[reverseSync] ${source.kind} 폴링 실패:`, e.message);
     }
   }
-  if (total.applied || total.errors) {
+  // 폴링 대상이 0 이면 조용히 "정상" 처럼 보인다 — 운영에서 이 침묵 때문에 역방향이 죽은 걸
+  //   감사로그 0건으로야 알았다. 대상 0 은 그 자체가 신호이므로 남긴다(5분 주기, 한 줄).
+  if (total.applied || total.errors || total.sources === 0) {
     console.log(`[reverseSync] 소스 ${total.sources} · 반영 ${total.applied} · 무시 ${total.skipped} · 비링크 ${total.unlinked} · 오류 ${total.errors}`);
   }
   return total;
 }
 
 module.exports = {
-  runAll, pollSource, personalSources, workspaceSources,
-  // 테스트·검증용 — 순수 함수라 실호출 없이 단위 검증할 수 있다
-  toPatch, diffAgainstEvent, toPlanqTimes, toPlanqRrule,
+  runAll, pollSource, personalSources, workspaceSources, linkedGcalIds,
+  // 테스트·검증용 — 순수 함수라 실호출 없이 단위 검증할 수 있다.
+  //   collectChanges 는 구글 클라이언트를 주입받으므로 스텁으로 수집 계약을 반증할 수 있다.
+  collectChanges, toPatch, diffAgainstEvent, toPlanqTimes, toPlanqRrule,
 };

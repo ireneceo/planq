@@ -1,8 +1,8 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-08-13 (Opus 5, 1M) — **운영 배포 v1.48.2 완주 + 끊긴 세션 복구**
-**작업 상태:** **미배포 0** — `5ad38c8` 까지 운영 반영·3점 검증 완료. origin/main push 완료. 다음은 청크 4(#258) 또는 Irene 결정 3건
+**마지막 업데이트:** 2026-08-13 (Opus 5, 1M) — 배포 v1.48.2 완주 + **Q Calendar 역방향 동기화 결함 수정(미커밋·Fable 판정 대기)**
+**작업 상태:** 🔴 **이어서 할 일 = Fable 판정 확인 → 커밋 → `/배포`.** 구현은 끝났고 검증만 남았다 (아래 0번)
 
 > ## ⚠️ 이 파일이 낡으면 Fable 이 오판한다
 > 청크를 끝낼 때마다 갱신할 것.
@@ -10,6 +10,65 @@
 ---
 
 ## 🔴 다음 세션에서 가장 먼저 볼 것
+
+### 0. ✅ Q Calendar 역방향 동기화(구글→PlanQ) 결함 수정 — **Fable PASS · 커밋 완료 · 미배포**
+
+**운영 피드백(Irene, 2026-08-13):** "Q calendar 일정은 구글로 나가는데, **구글에서 수정하면 PlanQ에 안 돌아온다**. 아직 해결 안 됨."
+
+**변경 파일: `dev-backend/services/calendarReverseSync.js` 1개 (58+/14−). 커밋 완료 — 운영에는 미반영.**
+
+#### 원인 ① [코드] 최초 부트스트랩이 "이미 일어난 구글 수정"을 삼킨다 — 이번에 고친 것
+`collectChanges` 의 `if (!bootstrap) items.push(...)` — 커서 없는 첫 회차는 변경을 **수집만 하고 버린 뒤
+커서만 저장**했다. 연동 직후가 사용자가 반드시 테스트하는 순간이라 **첫 구글 수정이 항상 폐기**된다.
+
+**운영 실측 증거 (2026-08-13, 읽기 전용 진단):**
+- 개인연동 conn#14 생성 06:18:04 → PlanQ→구글 push 06:18:29 → **구글에서 제목 수정 06:19:37**
+- 현재 Google `"PlanQ수정1234"` vs PlanQ `"연동 테스트_PlanQ수정"` (link#9 / event#31) — **영구 불일치**
+- 증분 폴링 = **변경분 0건** (커서가 이미 지나감) · 운영 `audit_logs action='event.reverse_sync'` **누적 0건**
+
+**수정 내용:** 부트스트랩도 items 를 적용. "구글 옛 상태로 덮어쓰기" 우려는 이미 3겹이 막는다
+(①링크 없으면 무시 ②화이트리스트 diff 비면 no-op ③PlanQ 가 같거나 더 최신이면 skip).
+추가로 `linkedGcalIds()` prefilter(전체훑기 DB 폭증 차단 + **남의 사생활 일정 미조회**),
+truncated 여도 모은 만큼 적용, `sources===0` 로그(침묵으로 죽음이 가려지던 것), 테스트용 export 2개.
+
+**✅ Fable 게이트 PASS (2026-08-13):**
+- ①diff범위 — 1파일뿐, 절단면 이탈 0. 검증 후 md5 대조로 구현 무변경 확인
+- ②가드 4축 EXIT 0 — health 34/34 · guard 22/22 · e2e tenant 실패 0 · `npm run build` BUILD_EXIT=0(`error TS` 0건, 별도 파일 박제)
+- ③반증 16/16 — 스텁 주입 실동작. **양성 대조군: 옛 코드 사본이 `CTRL-T1 부트스트랩 변경을 삼킨다`로 FAIL** = 진단 재현 + 탐지기 유효성 증명
+- ③실HTTP 8/8 — dev:3003 login→POST 201→PUT→재조회 일치→무토큰 401→타 biz 403→DELETE→404(데이터 원복 증명)
+- ③운영 재확인 — 감사로그 0건 · 구글/PlanQ 제목 불일치 · 증분 0건, **Fable 이 독립 실측**
+- ④배포안전 — 마이그레이션 0(models diff 0), 롤백 = 파일 revert + PM2 restart
+
+**Fable 이 심문한 남은 구멍:**
+- etag NULL 백필 링크(#3~8) 덮어쓰기 위험 = **현재 0, 재연결 후에도 안전** (diff no-op + etag 자가치유 + 시각 가드)
+- 쿼터·소요 = 소스당 최대 20 req/회차, ~10s ≪ 5분 cron. prefilter 는 DB 만 줄인다(API 아님)
+- truncated 재적용 = **멱등**. 단 >5000건 캘린더는 커서를 영영 못 만들어 매 회차 전체 재훑기(경고 로그로 가시화) — 수용된 트레이드오프
+- ⚠️ 비-KST 워크스페이스 all-day 왕복 = **이 diff 밖의 기존 매핑 이슈**, 별도 추적 권장
+
+#### 원인 ② [권한] 워크스페이스(팀) 캘린더 토큰이 죽었다 — **코드로 못 고침, Irene 조치 필요**
+운영 `business_cloud_tokens#3` (biz 1):
+- scope 가 `userinfo.email openid` 뿐 → `hasWriteScope=false`
+- 실제 호출 `invalid_grant` (리프레시 토큰 폐기) · `last_error='Request had insufficient authentication scopes.'`
+- **운영 링크 8건 중 6건이 이 워크스페이스** (`정기미팅`·`지메이트 대표님 미팅`·`구글 캘린더 테스트`·test 3건)
+→ ①을 고쳐도 **이 6건은 양방향 모두 죽은 채**다. **오너가 재연결 + 동의화면 "캘린더" 체크 필수**
+   (체크 안 해도 연결은 성공한 것처럼 보이는 게 함정 — memory `feedback_requested_scope_is_not_granted`).
+
+#### 그 외 운영 실측 메모
+- Irene 개인연동 conn#1: scope·상태 정상인데 **링크 0건** → `personalSources()` 의 `n>0` 에 걸려 **폴링 대상 아님**.
+  그녀가 새 일정을 만들면 개인 캘린더로 push → 링크 생성 → 다음 회차 부트스트랩(수정 후엔 **적용됨**).
+- link#1 은 삭제된 conn#12 를 가리키는 **고아 링크**(`updateAtLink` 가 graceful return 이라 무해, 정리는 미착수).
+
+#### ▶ 다음 세션이 할 일 (순서대로) — **검증은 끝났다. 배포만 남았다**
+1. **Irene 의 `/배포`** — 커밋 완료, 마이그레이션 0. 배포 없이는 운영은 계속 옛 코드다.
+2. **배포 직후 운영 데이터 조치 (Fable 안전 판정 완료 · 권고)** —
+   ```sql
+   UPDATE external_connections SET gcal_sync_token = NULL WHERE id = 14;
+   ```
+   재부트스트랩이 돌아 **link#9 의 실제 불일치가 해소**된다(구글 `"PlanQ수정1234"` → PlanQ 반영).
+   ★ 이게 "진짜 고쳐졌다" 의 실증이다. 리셋 없이는 그 이벤트를 구글에서 다시 건드리기 전까지 불일치 잔존.
+   반영 확인: `SELECT title FROM calendar_events WHERE id=31;` + `audit_logs action='event.reverse_sync'` 1건 이상.
+3. **Irene 에게 워크스페이스 구글 재연결 안내(원인 ②)** — 재연결 전엔 팀 캘린더 6건은 계속 죽어 있다.
+   동의화면에서 **"캘린더" 체크박스를 반드시 누를 것**(안 눌러도 연결은 성공한 것처럼 보인다).
 
 ### 1. ✅ 오늘 탭 Fable 재검증 **PASS** (2026-08-13) — 해소됨
 커밋 `6c833cb` 대상. ①diff 범위(13파일 734+/405−, 범위 밖 0) ②가드 3축(health 34/34 · guard 22/22 · e2e tenant 0실패 · BUILD_EXIT=0, TS 0) ③실호출 ④배포안전 **전부 PASS**.
