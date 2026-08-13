@@ -9,6 +9,7 @@
 // LLM 은 툴을 **제안**할 뿐, actor 는 언제나 사용자 본인(execute-action) 또는 위임자(행동 계층) — 권한은 사람의 것.
 
 const { BusinessMember, User, Business, Task } = require('../models');
+const { todayInTz } = require('../utils/datetime');
 const { getMemberNameMap } = require('./displayName');
 const { resolveAssignees } = require('./task_extractor');
 const { createTask, submitReview, complete, createComment } = require('./actions/task_actions');
@@ -41,6 +42,7 @@ const TOOL_SCHEMAS = [
           description: { type: 'string', description: '업무 상세(의뢰 명세). 선택.' },
           due_date: { type: 'string', description: '마감일 YYYY-MM-DD. "다음주 화요일" 등은 아래 [오늘] 기준으로 계산.' },
           project_id: { type: 'integer', description: '연결할 프로젝트 id (아는 경우만).' },
+          completed: { type: 'boolean', description: '이미 끝난 일을 기록으로 남기는 경우 true. "완료로 추가", "…했어 완료로 넣어줘", "끝난 건데 기록해줘" 처럼 **이미 완료된 사실**을 말할 때만. 앞으로 할 일이면 넣지 않는다.' },
         },
         required: ['title'],
       },
@@ -147,6 +149,9 @@ function validateNormalize(tool, raw = {}) {
         description: clip(raw.description, 5000),
         due_date: due,
         project_id: posInt(raw.project_id),
+        // #237 "완료로 추가" — 이미 끝난 일의 기록. 여기선 **의도만** 정규화하고,
+        //   실제 완료는 executeTool 이 행동 계층 complete() 로 낸다(직접 status 쓰기 금지).
+        completed: raw.completed === true || raw.completed === 'true',
       },
     };
   }
@@ -306,12 +311,20 @@ async function executeTool(actor, businessId, tool, rawParams) {
   let r;
   let entityType;
   if (tool === 'create_task') {
+    // #237 "완료로 추가" — Irene: "완료된 업무로 **오늘 업무날짜로** 리스트에 넣어줘".
+    //   마감을 따로 말하지 않았으면 오늘로 채운다. 그래야 나중에 되살려도 오늘 자리에 남고,
+    //   목록 안착 자체는 completed_at(=지금) 이 책임진다(utils/todayTaskSet ⑧).
+    let dueDate = p.due_date;
+    if (p.completed && !dueDate) {
+      const biz = await Business.findByPk(businessId, { attributes: ['timezone'] });
+      dueDate = todayInTz(biz?.timezone || 'Asia/Seoul');
+    }
     r = await createTask(actor, {
       businessId,
       title: p.title,
       assigneeId: p.assignee_id,          // 없으면 행동 계층이 배정 결정 — 프로젝트가 있으면 기본담당자→PM→본인, 없으면 본인
       description: p.description,
-      dueDate: p.due_date,
+      dueDate,
       projectId: p.project_id,
       source: 'manual',
       createdVia: 'cue',                    // provenance(표시 전용) — source·권한 무관, "Cue로 추가됨" 배지용
@@ -338,12 +351,30 @@ async function executeTool(actor, businessId, tool, rawParams) {
 
   if (!r.ok) return r;   // 행동 계층 거부 계약(code·http) 그대로 올린다
 
+  // #237 "완료로 추가" — 생성된 업무를 **행동 계층 complete() 로** 닫는다.
+  //   ★ createTask 에 status:'completed' 를 넘기지 않는다 — 그러면 completed_at·이력·Focus 종료·
+  //     broadcast·요청자 알림이 전부 빠진 반쪽 완료가 만들어지고, 컨펌 정책도 우회된다.
+  //   실패는 **생성을 되돌리지 않는다** — 업무는 남기고 "완료는 못 했다" 를 카드가 안내한다:
+  //     only_assignee          담당자가 남 (요청 업무는 담당자만 완료할 수 있다)
+  //     not_ready_for_complete 컨펌자가 붙었다 (요청 업무엔 요청자가 자동 컨펌자로 들어간다)
+  let completedSkipped = null;
+  if (tool === 'create_task' && p.completed) {
+    const cr = await complete(r.data.task, actor);
+    if (!cr.ok) completedSkipped = cr.code || 'complete_failed';
+  }
+
   // 엔티티 정규화 — 라우트가 프로비넌스 감사·응답에 쓴다 (경로별 반환 형태 차이를 여기서 흡수)
   const d = r.data || {};
   const entity = entityType === 'task' ? d.task
     : entityType === 'event' ? (d.full || d.event)
     : d.document;
-  return { ok: true, data: { entity_type: entityType, entity_id: entity?.id || null, entity } };
+  return {
+    ok: true,
+    data: {
+      entity_type: entityType, entity_id: entity?.id || null, entity,
+      ...(completedSkipped ? { completed_skipped: completedSkipped } : {}),
+    },
+  };
 }
 
 module.exports = {

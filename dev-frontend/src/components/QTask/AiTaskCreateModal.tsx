@@ -50,6 +50,8 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
   const [reasoning, setReasoning] = useState('');
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // #237 — 에러가 아니라 안내(업무는 만들어졌다). error 와 톤이 달라 별도 상태로 둔다.
+  const [notice, setNotice] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(projectId || null);
   const [baseDate, setBaseDate] = useState<string>(new Date().toISOString().slice(0, 10));
@@ -64,6 +66,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
       setCandidates([]);
       setReasoning('');
       setError(null);
+      setNotice(null);
       setSubmitting(false);
       setSelectedProjectId(projectId || null);
       setBaseDate(new Date().toISOString().slice(0, 10));
@@ -141,6 +144,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
     if (selected.length === 0 || submitting) return;
     setSubmitting(true);
     setError(null);
+    setNotice(null);
     try {
       const r = await apiFetch('/api/tasks/ai-create/confirm', {
         method: 'POST',
@@ -154,8 +158,16 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
       });
       const j = await r.json();
       if (!j.success) throw new Error(j.message || 'failed');
-      const created = (j.data?.created || []) as Array<{ id: number; title: string }>;
+      const created = (j.data?.created || []) as Array<{ id: number; title: string; completed_skipped?: string }>;
       onCreated(created);
+      // #237 — "완료로 추가" 했는데 완료까지 못 간 건이 있으면 **닫지 않고** 알린다.
+      //   그냥 닫으면 사용자는 완료된 줄 알고, 목록에서 미착수로 남은 이유를 알 길이 없다.
+      //   ※ `count` 를 쓰면 i18next 가 복수 접미사 키를 찾는다 — 패리티 가드가 모르는 형태라 `{{n}}` 보간.
+      const skipped = created.filter(c => c.completed_skipped).length;
+      if (skipped > 0) {
+        setNotice(t('ai.completedSkipped', { n: skipped, defaultValue: '{{n}}건은 담당자가 달라 완료 처리하지 않고 업무만 추가했어요' }) as string);
+        return;
+      }
       onClose();
     } catch (e) {
       setError(mapApiError(e, tErr));
@@ -284,6 +296,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
                 ))}
               </CardList>
               {error && <ErrorMsg>{error}</ErrorMsg>}
+              {notice && <NoticeMsg role="status">{notice}</NoticeMsg>}
             </AIForm>
           )}
         </Body>
@@ -299,7 +312,11 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
           {stage === 'loading' && (
             <ModalActionButton variant="secondary" onClick={onClose}>{t('ai.cancel', '취소')}</ModalActionButton>
           )}
-          {stage === 'preview' && (
+          {/* #237 — 이미 생성이 끝난 뒤의 안내 상태. 다시 [추가] 를 누르면 중복 생성되므로 닫기만 남긴다. */}
+          {stage === 'preview' && notice && (
+            <ModalActionButton variant="secondary" onClick={onClose}>{t('ai.close', '닫기')}</ModalActionButton>
+          )}
+          {stage === 'preview' && !notice && (
             <>
               {/* 운영 — AI 재생성 UX 통일: 지시 기반 재생성(인라인). 기존 '입력으로 되돌리기' 대체 */}
               <AiRegenerateBar busy={submitting} onRegenerate={(ins) => generate(ins)} />
@@ -379,6 +396,8 @@ const FieldTextarea = styled.textarea`
   &::placeholder{color:#CBD5E1;}
 `;
 const ErrorMsg = styled.div`font-size:12px;color:#DC2626;background:#FEF2F2;padding:8px 10px;border-radius:6px;`;
+// #237 — 실패가 아니라 안내(업무는 생성됨). 실패와 같은 빨강을 쓰지 않는다.
+const NoticeMsg = styled.div`font-size:12px;color:#B45309;background:#FFFBEB;padding:8px 10px;border-radius:6px;`;
 
 // AI 템플릿 추천 배너 — subtle info 톤 (memory feedback_ai_recommendation_threshold). 강제 아님.
 const RecBanner = styled.div`

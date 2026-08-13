@@ -1085,7 +1085,11 @@
     "recurWeekly": "Weekly",
     "recurMonthly": "Monthly",
     "assigneeProjectDefault": "Project default assignee",
-    "assigneeUnmatchedProject": "Could not find \"{{name}}\" among members — pick an assignee. If you confirm as-is, it goes to the project default assignee."
+    "assigneeUnmatchedProject": "Could not find \"{{name}}\" among members — pick an assignee. If you confirm as-is, it goes to the project default assignee.",
+    "completedAdd": "Add as completed",
+    "completedHint": "Recorded as already finished under today's date — repeat is not applied",
+    "completedSkipped": "{{n}} of them are assigned to someone else, so they were added without being marked complete",
+    "close": "Close"
   },
   "bar": {
     "resumeTitle": "In progress",

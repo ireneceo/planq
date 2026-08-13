@@ -63,6 +63,11 @@ const ActionOpen = styled.button`
   border-radius: 8px; padding: 4px 10px; font-size: 12px; font-weight: 700; cursor: pointer;
   &:hover { background: #ccfbf1; }
 `;
+// #237 — "완료로 추가" 가 완료까지 못 간 경우의 안내 (성공 요약 아래 한 줄)
+const ActionNote = styled.div`
+  margin-top: 5px; font-size: 11px; color: #b45309;
+  background: #fffbeb; border-radius: 6px; padding: 5px 8px;
+`;
 
 /**
  * publicSurface — 랜딩/마케팅/Q위키 등 공개 표면에서 마운트됐는가 (utils/publicSurface).
@@ -694,12 +699,24 @@ const CueHelpDrawer: React.FC<{
                     {/* #81 — Cue 실행 제안 확인 카드 (workspace 모드) */}
                     {mode === 'workspace' && !tn.loading && !tn.error && tn.proposedAction && tn.actionStatus !== 'dismissed' && (
                       tn.actionStatus === 'done' && tn.actionResult ? (
-                        <ActionDone>
-                          <span>✓ {t('qhelper.action.done', '추가됐어요')}</span>
-                          <ActionOpen type="button" onClick={() => { navigate(actionDeepLink(tn.actionResult!)); closeDrawer(); }}>
-                            {t('qhelper.action.open', '열기')} ↗
-                          </ActionOpen>
-                        </ActionDone>
+                        <>
+                          <ActionDone>
+                            <span>✓ {t('qhelper.action.done', '추가됐어요')}</span>
+                            <ActionOpen type="button" onClick={() => { navigate(actionDeepLink(tn.actionResult!)); closeDrawer(); }}>
+                              {t('qhelper.action.open', '열기')} ↗
+                            </ActionOpen>
+                          </ActionDone>
+                          {/* #237 — 업무는 만들었지만 '완료' 까지는 못 간 경우. 조용히 넘기면 사용자는 완료된 줄 안다. */}
+                          {tn.actionResult.completed_skipped && (
+                            <ActionNote>
+                              {tn.actionResult.completed_skipped === 'only_assignee'
+                                ? t('qhelper.action.completedSkipAssignee', '담당자가 다른 분이라 완료 처리는 하지 않았어요 — 업무만 추가했습니다')
+                                : tn.actionResult.completed_skipped === 'not_ready_for_complete'
+                                  ? t('qhelper.action.completedSkipReview', '컨펌자가 있는 업무라 완료 처리는 하지 않았어요 — 업무만 추가했습니다')
+                                  : t('qhelper.action.completedSkipGeneric', '완료 처리는 하지 못했어요 — 업무만 추가했습니다')}
+                            </ActionNote>
+                          )}
+                        </>
                       ) : (
                         <CueActionCard
                           proposal={tn.proposedAction}

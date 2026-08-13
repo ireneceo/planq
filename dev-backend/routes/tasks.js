@@ -591,6 +591,12 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
       const rawEstimated = Number.isFinite(Number(c.estimated_hours)) && Number(c.estimated_hours) > 0
         ? Number(c.estimated_hours) : null;
 
+      // #237 "완료로 추가" — 이미 끝난 일의 기록. Irene: "완료된 업무로 **오늘 업무날짜로**".
+      //   ★ 완료된 일에 다음 회차는 없다 → 반복은 서버가 null 로 끊는다(후보가 뭘 들고 왔든).
+      //     안 끊으면 recurringTaskGenerator 가 닫힌 업무에서 다음 회차를 계속 낳는다.
+      const wantCompleted = c.completed === true || c.completed === 'true';
+      const dueStr = dueOff !== null ? addDaysStr(todayLocal, dueOff) : (wantCompleted ? todayLocal : null);
+
       const result = await taskActions.createTask(actor, {
         businessId: business_id,
         projectId: project_id || null,
@@ -602,10 +608,11 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
         //   createTask 가 판단한다 — 사람·AI·Cue 가 같은 규칙을 쓰게 하는 지점이다.
         assigneeId: c.assignee_user_id || null,
         startDate: startOff !== null ? addDaysStr(todayLocal, startOff) : null,
-        dueDate: dueOff !== null ? addDaysStr(todayLocal, dueOff) : null,
+        dueDate: dueStr,
         estimatedHours: rawEstimated,
         // 정기 루틴 — 후보의 recurrence 를 실제 RRULE 로. 마감일이 첫 발생일이므로 없으면 반복 불가.
-        recurrenceRule: dueOff !== null ? rruleFromRecurrence(c.recurrence, addDaysStr(todayLocal, dueOff)) : null,
+        recurrenceRule: (!wantCompleted && dueOff !== null)
+          ? rruleFromRecurrence(c.recurrence, addDaysStr(todayLocal, dueOff)) : null,
       }, {
         // 이 경로의 고유 규칙 (통일 금지 — 프론트가 이 차이에 기대고 있다):
         keepEstimateForCue: true,          // 담당=Cue 면 요청 업무여도 예측시간을 남긴다
@@ -620,6 +627,16 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
         return errorResponse(res, code, result.http || 400);
       }
 
+      // #237 — 완료로 추가. **행동 계층 complete() 를 지난다** (createTask 에 status:'completed' 를
+      //   넘기면 completed_at·이력·Focus 종료·broadcast·요청자 알림이 빠진 반쪽 완료가 된다).
+      //   실패해도 생성은 되돌리지 않는다 — 업무는 남기고 사유만 실어 보낸다:
+      //     only_assignee / not_ready_for_complete = 담당자가 남이거나 컨펌자가 붙은 요청 업무.
+      let completedSkipped = null;
+      if (wantCompleted) {
+        const cr = await taskActions.complete(result.data.task, actor);
+        if (!cr.ok) completedSkipped = cr.code || 'complete_failed';
+      }
+
       const full = await Task.findByPk(result.data.task.id, {
         include: [
           { model: Project, attributes: ['id', 'name'], required: false },
@@ -629,6 +646,7 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
       });
       const fullJson = full.toJSON();
       await applyMemberDisplayName([fullJson], business_id, ['assignee', 'requester']);
+      if (completedSkipped) fullJson.completed_skipped = completedSkipped;
       created.push(fullJson);
     }
 

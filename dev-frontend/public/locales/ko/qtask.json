@@ -1085,7 +1085,11 @@
     "recurWeekly": "매주",
     "recurMonthly": "매월",
     "assigneeProjectDefault": "프로젝트 기본 담당자",
-    "assigneeUnmatchedProject": "\"{{name}}\" 을(를) 멤버에서 찾지 못했어요 — 담당자를 직접 선택해 주세요. 그대로 확정하면 프로젝트 기본 담당자에게 배정됩니다."
+    "assigneeUnmatchedProject": "\"{{name}}\" 을(를) 멤버에서 찾지 못했어요 — 담당자를 직접 선택해 주세요. 그대로 확정하면 프로젝트 기본 담당자에게 배정됩니다.",
+    "completedAdd": "완료로 추가",
+    "completedHint": "이미 끝낸 일로 오늘 날짜에 기록됩니다 — 반복은 적용되지 않아요",
+    "completedSkipped": "{{n}}건은 담당자가 달라 완료 처리하지 않고 업무만 추가했어요",
+    "close": "닫기"
   },
   "bar": {
     "resumeTitle": "이 업무 진행 중",

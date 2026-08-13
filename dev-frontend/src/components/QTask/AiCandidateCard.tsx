@@ -17,6 +17,8 @@ export interface AiCandidate {
   priority: string;
   /** 정기 루틴 — 'none' | 'daily' | 'weekly' | 'monthly'. 마감일이 첫 발생일이 된다. */
   recurrence?: string;
+  /** #237 "완료로 추가" — 이미 끝난 일의 기록. 서버가 오늘 날짜로 넣고 반복은 끊는다(상호배타). */
+  completed?: boolean;
   assignee_hint: string | null;
   assignee_name?: string | null; // #90 — LLM 이 추출한 이름 (매칭 실패 시 경고 표시용)
   assignee_user_id: number | null;
@@ -120,24 +122,43 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
           <Unit>h</Unit>
         </MetaItem>
         {/* 정기 루틴 — AI 가 "매일/매주/매월" 을 잡아내면 여기서 확인·수정한다.
-            여태 후보에 반복 개념이 없어서 "매일 …" 이라고 써도 일회성으로만 생성됐다. */}
-        <MetaItem>
-          <RecurWrap>
-            <PlanQSelect
-              size="sm"
-              value={recurOptions.find(o => o.value === (c.recurrence || 'none')) || recurOptions[0]}
-              onChange={(v) => onChange({ recurrence: String((v as { value?: string })?.value || 'none') })}
-              options={recurOptions}
-              aria-label={t('ai.recurrenceLabel', '반복') as string}
-            />
-          </RecurWrap>
+            여태 후보에 반복 개념이 없어서 "매일 …" 이라고 써도 일회성으로만 생성됐다.
+            ★ 완료로 추가일 때는 감춘다 — 완료된 일에 다음 회차는 없고(서버가 null 로 끊는다),
+              보이는 채로 두면 화면이 저장되지 않을 값을 약속하게 된다. */}
+        {!c.completed && (
+          <MetaItem>
+            <RecurWrap>
+              <PlanQSelect
+                size="sm"
+                value={recurOptions.find(o => o.value === (c.recurrence || 'none')) || recurOptions[0]}
+                onChange={(v) => onChange({ recurrence: String((v as { value?: string })?.value || 'none') })}
+                options={recurOptions}
+                aria-label={t('ai.recurrenceLabel', '반복') as string}
+              />
+            </RecurWrap>
+          </MetaItem>
+        )}
+        {/* #237 — "완료로 추가". AI 가 오해했으면 사람이 여기서 정정한다. */}
+        <MetaItem as="label">
+          <DoneCheck
+            type="checkbox"
+            checked={!!c.completed}
+            onChange={e => onChange({ completed: e.target.checked })}
+          />
+          <DoneLbl>{t('ai.completedAdd', '완료로 추가')}</DoneLbl>
         </MetaItem>
       </CardMetaRow>
+      {c.completed && (
+        <DoneHint>{t('ai.completedHint', '이미 끝낸 일로 오늘 날짜에 기록됩니다 — 반복은 적용되지 않아요')}</DoneHint>
+      )}
     </Card>
   );
 }
 
 const RecurWrap = styled.div`min-width: 104px;`;
+const DoneCheck = styled.input`width: 15px; height: 15px; flex-shrink: 0; cursor: pointer; accent-color: #0F766E; margin: 0;`;
+const DoneLbl = styled.span`font-size: 12px; color: #475569; cursor: pointer;`;
+const DoneHint = styled.div`font-size: 11px; color: #64748B; padding: 0 2px;`;
 const Card = styled.div<{ $disabled: boolean }>`
   padding: 10px 12px;
   background: ${p => p.$disabled ? '#F8FAFC' : '#FFFFFF'};
