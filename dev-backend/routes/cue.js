@@ -415,6 +415,8 @@ router.post('/execute-action', authenticateToken, ...helpLimiter, async (req, re
 
     return successResponse(res, {
       tool, entity_type: r.data.entity_type, entity_id: r.data.entity_id, entity: r.data.entity,
+      // #237 — "완료로 추가" 를 요청했지만 완료까지는 못 간 경우의 사유(업무는 생성됨). 카드가 안내한다.
+      ...(r.data.completed_skipped ? { completed_skipped: r.data.completed_skipped } : {}),
     }, 'executed', 201);
   } catch (e) { next(e); }
 });

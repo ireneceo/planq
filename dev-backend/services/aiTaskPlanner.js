@@ -99,6 +99,9 @@ Rules:
 - recurrence: set to "daily"/"weekly"/"monthly" ONLY when the task is an explicitly repeating routine
   (예: "매일 논문 읽기", "주간 회고", "매월 뉴스레터"). One-off work → "none". Default "none".
   A recurring task repeats on the anchor date's weekday (weekly) or day-of-month (monthly).
+- completed: true ONLY when the user says the work is ALREADY DONE and just needs to be recorded
+  (예: "완료로 추가해줘", "이건 어제 끝냈어 기록만 해줘"). Anything the user still has to do → false. Default false.
+  A completed task is recorded on today's date. Never combine completed:true with a recurrence.
 - depends_on_index: 0-based index of another task in the SAME response that must complete first. Use this aggressively — most tasks have at least one upstream.
 - assignee_hint: short role keyword (예: "디자이너" / "백엔드 개발자" / "마케터" / "기획자"). Match domain expertise.
 - assignee_name: if the user EXPLICITLY named a specific person to handle this task (예: "루아에게 요청", "민수가 맡아"), set the EXACT member name copied from the Workspace members list below. Otherwise null. Names take priority over assignee_hint.
@@ -138,6 +141,7 @@ ${memberLines}
       "due_offset_days": <int>,
       "priority": "low" | "normal" | "high" | "urgent",
       "recurrence": "none" | "daily" | "weekly" | "monthly",
+      "completed": <true only if the user said it is already finished, else false>,
       "assignee_hint": "<short role keyword or null>",
       "assignee_name": "<exact member name if user named a person, else null>",
       "depends_on_index": <int or null>
@@ -250,8 +254,12 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
     const priority = clampPriority(t.priority);
     // #262 후속 — 정기 루틴은 후보 단계에서부터 반복을 들고 있어야 한다.
     //   여태 후보 스키마에 반복 개념이 아예 없어서, "매일 …" 이라고 써도 일회성 업무로만 생성됐다.
-    const recurrence = ['daily', 'weekly', 'monthly'].includes(String(t.recurrence || '').toLowerCase())
+    const recurrenceRaw = ['daily', 'weekly', 'monthly'].includes(String(t.recurrence || '').toLowerCase())
       ? String(t.recurrence).toLowerCase() : 'none';
+    // #237 "완료로 추가" — 이미 끝난 일의 기록. 완료된 일에 다음 회차는 없으므로 반복과 **상호배타**다
+    //   (여기서 안 끊으면 recurringTaskGenerator 가 닫힌 업무에서 다음 회차를 계속 낳는다).
+    const completed = t.completed === true || t.completed === 'true';
+    const recurrence = completed ? 'none' : recurrenceRaw;
     const assignee_hint = t.assignee_hint ? String(t.assignee_hint).slice(0, 80) : null;
     const assignee_name = t.assignee_name ? String(t.assignee_name).slice(0, 80) : null;
     const depends_on_index = (Number.isInteger(t.depends_on_index) && t.depends_on_index !== idx && t.depends_on_index >= 0)
@@ -269,6 +277,7 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
       due_offset_days,
       priority,
       recurrence,
+      completed,
       assignee_hint,
       assignee_name,
       assignee_user_id,

@@ -24,6 +24,8 @@ export interface CueActionResult {
   tool: string;
   entity_type: string;
   entity_id: number;
+  /** #237 — "완료로 추가" 를 요청했지만 완료까지는 못 간 사유 (업무 자체는 생성됨) */
+  completed_skipped?: string;
 }
 
 interface Props {
@@ -87,7 +89,10 @@ const CueActionCard: React.FC<Props> = ({ proposal, businessId, onExecuted, onDi
         if (res.status === 422) { setError(t('qhelper.action.errQuota', 'Cue 사용 한도를 초과했어요.')); return; }
         setError(mapError(j.code, j.message)); return;
       }
-      onExecuted({ tool: j.data.tool, entity_type: j.data.entity_type, entity_id: j.data.entity_id });
+      onExecuted({
+        tool: j.data.tool, entity_type: j.data.entity_type, entity_id: j.data.entity_id,
+        completed_skipped: j.data.completed_skipped,
+      });
     } catch {
       setError(t('qhelper.action.errGeneric', '실행하지 못했어요. 잠시 후 다시 시도해주세요.'));
     } finally {
@@ -118,7 +123,10 @@ const CueActionCard: React.FC<Props> = ({ proposal, businessId, onExecuted, onDi
     add_task_comment: t('qhelper.action.doComment', '댓글 남기기'),
   };
   const header = HDR[proposal.tool];
-  const addLabel = ADD[proposal.tool];
+  // #237 — 완료로 추가일 때는 버튼이 "무엇이 일어나는지" 를 그대로 말해야 한다 (＋ 업무 추가 ≠ 완료 기록)
+  const addLabel = proposal.tool === 'create_task' && params.completed
+    ? t('qhelper.action.addTaskCompleted', '＋ 완료로 추가')
+    : ADD[proposal.tool];
   // [추가] 활성 조건: 생성=제목 필요, 댓글=내용 필요, 전이(submit/complete)=항상 가능
   const canSubmit = isCreate ? !!title.trim() : isComment ? !!content.trim() : true;
 
@@ -186,6 +194,18 @@ const CueActionCard: React.FC<Props> = ({ proposal, businessId, onExecuted, onDi
             <Lbl>{t('qhelper.action.due', '마감')}</Lbl>
             <SingleDateField value={String(params.due_date || '')} onChange={(d) => set('due_date', d || undefined)} size="sm" />
           </Field>
+          {/* #237 "완료로 추가" — 이미 끝난 일의 기록. Cue 가 오해했을 때 사람이 여기서 정정한다. */}
+          <CheckRow>
+            <input
+              type="checkbox"
+              checked={!!params.completed}
+              onChange={(e) => set('completed', e.target.checked)}
+            />
+            <span>{t('qhelper.action.completedAdd', '완료로 추가 — 이미 끝낸 일로 기록해요')}</span>
+          </CheckRow>
+          {!!params.completed && !params.due_date && (
+            <Hint>{t('qhelper.action.completedToday', '마감을 비워두면 오늘 날짜로 기록됩니다')}</Hint>
+          )}
           <ToggleRow onClick={() => setDescOpen((v) => !v)} type="button">
             {descOpen ? '▾' : '▸'} {t('qhelper.action.description', '설명')}
           </ToggleRow>
@@ -268,6 +288,12 @@ const Textarea = styled.textarea`
 `;
 const ReadVal = styled.div`font-size: 13px; color: #1e293b; padding: 6px 2px;`;
 const Warn = styled.div`font-size: 11px; color: #b45309; background: #fffbeb; border-radius: 6px; padding: 5px 8px;`;
+const Hint = styled.div`font-size: 11px; color: #64748b; padding: 0 2px;`;
+const CheckRow = styled.label`
+  display: flex; align-items: center; gap: 7px; cursor: pointer;
+  font-size: 12px; color: #334155; padding: 2px 0;
+  input { width: 15px; height: 15px; accent-color: #0f766e; cursor: pointer; margin: 0; }
+`;
 const ToggleRow = styled.button`
   border: none; background: none; text-align: left; cursor: pointer; padding: 2px 0;
   font-size: 12px; color: #64748b; font-weight: 600;

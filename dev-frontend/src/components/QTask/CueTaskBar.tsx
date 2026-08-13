@@ -38,6 +38,8 @@ export default function CueTaskBar({ businessId, members, projectId = null, cont
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
+  // #237 — 에러가 아니라 안내(업무는 만들어졌다). error 와 톤이 달라 별도 상태로 둔다.
+  const [notice, setNotice] = useState<string | null>(null);
   const [phIdx, setPhIdx] = useState(0);
   const taRef = useRef<HTMLTextAreaElement | null>(null);
   const baseDate = todayISO();
@@ -125,6 +127,7 @@ export default function CueTaskBar({ businessId, members, projectId = null, cont
     if (selected.length === 0 || submitting) return;
     setSubmitting(true);
     setError(null);
+    setNotice(null);
     try {
       const r = await apiFetch('/api/tasks/ai-create/confirm', {
         method: 'POST',
@@ -133,7 +136,14 @@ export default function CueTaskBar({ businessId, members, projectId = null, cont
       });
       const j = await r.json();
       if (!j.success) throw new Error(j.message || 'failed');
-      const created = (j.data?.created || []) as Array<{ id: number; title: string }>;
+      const created = (j.data?.created || []) as Array<{ id: number; title: string; completed_skipped?: string }>;
+      // #237 — "완료로 추가" 했는데 완료까지 못 간 건이 있으면 알려준다. 조용히 넘기면 완료된 줄 안다.
+      const skipped = created.filter(c => c.completed_skipped).length;
+      // ※ `count` 를 쓰면 i18next 가 복수 접미사 키(_one/_other)를 찾는다 — 패리티 가드가 모르는 형태라
+      //   일부러 평범한 보간 `{{n}}` 을 쓴다.
+      setNotice(skipped > 0
+        ? t('ai.completedSkipped', { n: skipped, defaultValue: '{{n}}건은 담당자가 달라 완료 처리하지 않고 업무만 추가했어요' }) as string
+        : null);
       onCreated?.(created);
       reset();
       setJustAdded(true);
@@ -186,6 +196,7 @@ export default function CueTaskBar({ businessId, members, projectId = null, cont
         <SubHint>{t('ai.bar.hintEnter', 'Enter 로 Cue에게 보내기 · Shift+Enter 줄바꿈')}</SubHint>
       )}
       {stage === 'idle' && error && <ErrorMsg role="alert">{error}</ErrorMsg>}
+      {stage === 'idle' && notice && <NoticeMsg role="status">{notice}</NoticeMsg>}
 
       {stage === 'loading' && (
         <Drop>
@@ -292,6 +303,11 @@ const SubHint = styled.div`
 `;
 const ErrorMsg = styled.div`
   font-size: 12px; color: #DC2626; background: #FEF2F2;
+  padding: 8px 10px; border-radius: 6px; margin-top: 8px;
+`;
+// #237 — 실패가 아니라 안내(업무는 생성됨). 실패와 같은 빨강을 쓰지 않는다.
+const NoticeMsg = styled.div`
+  font-size: 12px; color: #B45309; background: #FFFBEB;
   padding: 8px 10px; border-radius: 6px; margin-top: 8px;
 `;
 const Drop = styled.div`
