@@ -295,12 +295,64 @@ async function propagateToOtherLinks(event, businessId, sourceLinkId) {
   return n;
 }
 
+// ── 소스별 폴링 상태 (in-memory) ────────────────────────────────────────────
+//
+// ★ 왜 여기인가: 겹침 가드가 여태 `calendarReverseSyncCron` 모듈 로컬 `running` 하나였다.
+//   cron 밖에서 폴링을 부르는 경로(수동 "지금 동기화")가 생기면 그 가드를 **우회**해
+//   같은 커서로 동시 폴링 → 감사로그 중복 · etag 경합 · 더 오래된 nextSyncToken 저장이 난다.
+//   그래서 관문을 **폴링 함수 자신**에게 내린다. cron 과 수동 호출이 같은 문을 지난다.
+// ★ 전제: PM2 **fork 모드 · instances 1**. cluster 로 바꾸면 이 in-memory 락은 무효가 되므로
+//   그때는 DB 행 잠금(SELECT … FOR UPDATE)이나 Redis 로 올려야 한다.
+const inFlight = new Set();
+/** 소스별 마지막 "확인" 시각·연속 빈 회차. 사용자에게 보여줄 값이라 반영 시각과 구분한다. */
+const pollState = new Map();   // key → { lastCheckedAt:Date, emptyStreak:number, nextPollAt:number }
+
+const sourceKey = (source) => `${source.kind}:${source.kind === 'personal' ? source.conn.id : source.token.id}`;
+
+/** 백오프 — 기본 1분, 연속 빈 회차 10회부터 5분. 변경·수동호출·화면복귀 시 즉시 1분으로 복귀. */
+const FAST_MS = 60 * 1000;
+const SLOW_MS = 5 * 60 * 1000;
+const EMPTY_STREAK_TO_SLOW = 10;
+
+/** 이 소스를 지금 폴링할 차례인가 (cron 이 매 1분 돌면서 이걸로 거른다). */
+function isDue(source, now = Date.now()) {
+  const st = pollState.get(sourceKey(source));
+  return !st || !st.nextPollAt || st.nextPollAt <= now;
+}
+
+/** 다음 회차를 앞당긴다 — 수동 동기화·화면 복귀·재연결 직후. */
+function markActive(source) {
+  const key = sourceKey(source);
+  const st = pollState.get(key) || { emptyStreak: 0 };
+  st.emptyStreak = 0;
+  st.nextPollAt = 0;
+  pollState.set(key, st);
+}
+
+/** 화면에 보여줄 폴링 상태 — 라우트가 읽는다(“마지막 확인 N분 전”). */
+function getPollState(source) {
+  const st = pollState.get(sourceKey(source));
+  return st ? { last_checked_at: st.lastCheckedAt || null, interval_ms: st.emptyStreak >= EMPTY_STREAK_TO_SLOW ? SLOW_MS : FAST_MS } : null;
+}
+
 /**
  * 한 소스(개인 연결 또는 워크스페이스 토큰)의 변경분을 PlanQ 에 반영한다.
- * @returns {Promise<{applied:number, skipped:number, unlinked:number, errors:Array}>}
+ * @returns {Promise<{applied:number, skipped:number, unlinked:number, errors:Array, busy?:boolean}>}
  */
 async function pollSource(source, { io = null } = {}) {
   const out = { applied: 0, skipped: 0, unlinked: 0, errors: [] };
+  const key = sourceKey(source);
+  // ★ 같은 소스를 두 경로가 동시에 돌지 않게 한다. 잡지 못하면 **조용히 넘기지 않고** busy 로 알린다.
+  if (inFlight.has(key)) return { ...out, busy: true };
+  inFlight.add(key);
+  try {
+    return await pollSourceInner(source, { io, key, out });
+  } finally {
+    inFlight.delete(key);
+  }
+}
+
+async function pollSourceInner(source, { io, key, out }) {
   const cal = await clientFor(source);
   const linkedIds = await linkedGcalIds(source);
   const {
@@ -308,7 +360,7 @@ async function pollSource(source, { io = null } = {}) {
   } = await collectChanges(cal, source, linkedIds);
   // 커서 만료는 이번 회차에 볼 게 없다(다음 회차가 재부트스트랩). 상한 초과는 **모은 만큼 적용**하고
   //   커서만 못 만든 상태이므로 여기서 끊지 않는다.
-  if (expired) return { ...out, note: 'sync_token_expired' };
+  if (expired) return finishPoll(key, { ...out, note: 'sync_token_expired' });
   out.unlinked += unlinked;
 
   for (const item of items) {
@@ -405,13 +457,32 @@ async function pollSource(source, { io = null } = {}) {
   }
 
   if (nextSyncToken) await saveCursor(source, nextSyncToken);
-  return { ...out, bootstrap: !!bootstrap, ...(truncated ? { note: 'bootstrap_truncated' } : {}) };
+  return finishPoll(key, { ...out, bootstrap: !!bootstrap, ...(truncated ? { note: 'bootstrap_truncated' } : {}) });
 }
 
-/** cron 진입점 — 전 소스 1회 폴링. 개별 소스 실패는 삼키고 계속한다. */
-async function runAll({ io = null } = {}) {
+/**
+ * 회차 종료 기록 — "마지막 확인 시각" 과 백오프.
+ * ★ 확인(checked) 과 반영(applied) 을 구분한다. 건강한 워크스페이스는 며칠간 반영이 0인 게 정상인데
+ *   "마지막 반영 5일 전" 만 보여주면 사용자는 고장으로 읽는다(이번 신고의 심리 그대로).
+ */
+function finishPoll(key, result) {
+  const st = pollState.get(key) || { emptyStreak: 0 };
+  st.lastCheckedAt = new Date();
+  const didSomething = (result.applied || 0) > 0 || (result.skipped || 0) > 0;
+  st.emptyStreak = didSomething ? 0 : (st.emptyStreak || 0) + 1;
+  st.nextPollAt = Date.now() + (st.emptyStreak >= EMPTY_STREAK_TO_SLOW ? SLOW_MS : FAST_MS);
+  pollState.set(key, st);
+  return result;
+}
+
+/**
+ * cron 진입점 — 폴링할 차례가 된 소스만 1회 폴링. 개별 소스 실패는 삼키고 계속한다.
+ * @param {boolean} force  차례(백오프)를 무시하고 전부 돈다 — 수동 "지금 동기화" 경로.
+ * @param {function} filter  소스 부분집합만 (수동 호출이 자기 워크스페이스·자기 연결만 돌 때)
+ */
+async function runAll({ io = null, force = false, filter = null } = {}) {
   const total = {
-    sources: 0, applied: 0, skipped: 0, unlinked: 0, errors: 0, excluded: [],
+    sources: 0, applied: 0, skipped: 0, unlinked: 0, errors: 0, busy: 0, deferred: 0, excluded: [],
   };
   let sources = [];
   try {
@@ -423,11 +494,18 @@ async function runAll({ io = null } = {}) {
     return total;
   }
   for (const source of sources) {
+    if (filter && !filter(source)) continue;
+    // 백오프 — 조용한 소스는 1분마다 부르지 않는다(구글 쿼터). 수동 호출은 force 로 건너뛴다.
+    if (!force && !isDue(source)) { total.deferred += 1; continue; }
+    if (force) markActive(source);
     total.sources += 1;
     try {
       const r = await pollSource(source, { io });
+      if (r.busy) { total.busy += 1; continue; }
       total.applied += r.applied; total.skipped += r.skipped;
       total.unlinked += r.unlinked; total.errors += r.errors.length;
+      // 변경이 있었으면 다음 회차를 빠르게 — 사람이 연달아 고치는 중일 가능성이 높다.
+      if (r.applied > 0) markActive(source);
     } catch (e) {
       total.errors += 1;
       // AUTH 계열만 연결에 기록한다 — 일시적 네트워크 오류로 fail_count 가 하루 288 오르면 안 된다.
@@ -448,12 +526,16 @@ async function runAll({ io = null } = {}) {
   const exText = total.excluded.length
     ? ` · 제외 ${total.excluded.length}(${Object.entries(byReason).map(([k, v]) => `${k}:${v}`).join(', ')})`
     : ' · 제외 0';
-  console.log(`[reverseSync] 소스 ${total.sources} · 반영 ${total.applied} · 무시 ${total.skipped} · 비링크 ${total.unlinked} · 오류 ${total.errors}${exText}`);
+  const extra = `${total.deferred ? ` · 대기 ${total.deferred}` : ''}${total.busy ? ` · 중복skip ${total.busy}` : ''}`;
+  console.log(`[reverseSync] 소스 ${total.sources} · 반영 ${total.applied} · 무시 ${total.skipped} · 비링크 ${total.unlinked} · 오류 ${total.errors}${exText}${extra}`);
   return total;
 }
 
 module.exports = {
   runAll, pollSource, linkedGcalIds,
+  // 폴링 상태 — 라우트가 "마지막 확인 N분 전" 을 내려주고, 재연결·화면복귀가 다음 회차를 앞당긴다.
+  getPollState, markActive, sourceKey, isDue,
+  POLL_FAST_MS: FAST_MS, POLL_SLOW_MS: SLOW_MS,
   // ★ health-check 가 이 둘을 **그대로** 재사용한다(설계 C5). 근사 구현을 따로 두지 말 것.
   classifySources, EXCLUSION_REASONS,
   // 테스트·검증용 — 순수 함수라 실호출 없이 단위 검증할 수 있다.

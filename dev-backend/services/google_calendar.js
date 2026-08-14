@@ -37,6 +37,38 @@ function hasWriteScope(scopeStr) {
   return googleScopes.hasRequired('gcal', scopeStr);
 }
 
+/**
+ * 이 토큰이 **사용자 조치(재연결)를 필요로 하는가**.
+ * ★ 이 판정식이 여태 `routes/cloud.js` 안에 인라인으로 한 벌 있었다. 캘린더 화면이 같은 판정을
+ *   필요로 하면서 두 벌이 될 참이었다 — 한쪽만 고치면 설정 화면과 캘린더 화면이 서로 다른 말을 한다.
+ *   판정은 여기 한 곳. 문자열 복붙 금지.
+ */
+const RECONNECT_ERROR_RE = /invalid_grant|unauthorized|invalid_credentials|insufficient/i;
+function needsReconnect(token) {
+  if (!token) return false;
+  return RECONNECT_ERROR_RE.test(token.last_error || '') || !hasWriteScope(token.scope);
+}
+
+/**
+ * PlanQ 가 만든 구글 사본에 박는 표식.
+ * ★ `planq:'1'` 만으로는 **어느 PlanQ 인스턴스가 만들었는지** 알 수 없다. 같은 구글 계정을
+ *   dev 와 운영이 함께 쓰는 경우(이 팀의 일상), 고아 사본 정리가 **다른 인스턴스가 관리 중인
+ *   일정을 지울 수 있다** — 링크 테이블의 "전역 부재" 는 한 DB 안에서만 전역이기 때문이다.
+ *   그래서 env 를 같이 박는다. 정리는 **같은 env 마커가 있는 것만** 일괄 대상으로 삼는다.
+ */
+function planqEnvTag() {
+  try {
+    const base = process.env.APP_URL || process.env.FRONTEND_URL || process.env.GOOGLE_REDIRECT_URI || '';
+    const host = base ? new URL(base).host : '';
+    return (host || 'unknown').slice(0, 60);
+  } catch { return 'unknown'; }
+}
+
+/** 쓰기 경로 3곳(팀 insert·팀 Meet·개인 insert)이 **같은 함수**로 표식을 만든다. */
+function planqMarker() {
+  return { private: { planq: '1', planq_env: planqEnvTag() } };
+}
+
 // ── 종일 일정 날짜 변환 (팀·개인 경로 공용 단일 원천) ──────────────────────────
 //
 // PlanQ 저장 규약: start_at = 시작일 로컬 00:00 / end_at = 종료일 로컬 23:59 (**마지막 날 포함**).
@@ -214,7 +246,7 @@ async function createMeetingEvent(cal, { summary, description, startAt, endAt, a
       ...(recurrence ? { recurrence } : {}),
       // PlanQ 가 만든 일정이라는 표식 — 개인 Google 캘린더 오버레이가 이걸 보고 되돌아온
       // 자기 일정을 걸러낸다 (안 그러면 PlanQ 원본 + 구글 사본이 나란히 떠 이중으로 보인다).
-      extendedProperties: { private: { planq: '1' } },
+      extendedProperties: planqMarker(),
       attendees: Array.isArray(attendeeEmails)
         ? attendeeEmails.filter((e) => e && /@/.test(e)).map((email) => ({ email }))
         : undefined,
@@ -264,7 +296,7 @@ async function insertEvent(cal, { summary, description, location, startAt, endAt
       location: location || null,
       start, end,
       ...(recurrence ? { recurrence } : {}),
-      extendedProperties: { private: { planq: '1' } },
+      extendedProperties: planqMarker(),
       attendees: Array.isArray(attendeeEmails)
         ? attendeeEmails.filter((e) => e && /@/.test(e)).map((email) => ({ email }))
         : undefined,
@@ -345,6 +377,8 @@ async function clearPushError(token) {
 module.exports = {
   isConfigured,
   hasWriteScope,
+  needsReconnect,          // ★ 재연결 필요 판정 단일 원천 (routes/cloud.js·calendar 화면 공유)
+  planqMarker, planqEnvTag,
   localDateStr,
   allDayEndDateStr,
   recordPushError,

@@ -21,6 +21,7 @@ const gdrive = require('../services/gdrive');
 const gcal = require('../services/google_calendar');
 const gscopes = require('../services/googleScopes');
 const { logOauthFailure } = require('../utils/oauthLog');
+const backfill = require('../services/calendarWorkspaceBackfill');   // 재연결 직후 밀린 일정 올리기 (#242)
 
 // 사이클 N+16-B — OAuth 콜백 팝업 자동 닫기 + COOP 차단 시 사용자 친화 안내.
 // 옛 버전: 300ms 후 postMessage + 사용자가 직접 "닫기" 클릭 → 일부 브라우저(Chrome/Safari)가
@@ -257,9 +258,21 @@ router.get('/callback/gcal', async (req, res) => {
     record.last_error_at = null;
     await record.save();
 
+    // ★ 재연결 직후 **밀린 일정을 팀 캘린더로 올린다** (#242, 설계 게이트 치명-5).
+    //   권한이 죽어 있던 기간의 일정은 목적지 목록에서 제외돼 **워크스페이스 링크가 아예 없다** —
+    //   재연결만 하고 두면 사용자가 구글을 열었을 때 비어 있고 "역시 안 되네" 로 끝난다.
+    //   ★ 여기(콜백)에서 돌린다 — 캘린더 배너로 재연결하든 설정 화면으로 하든 **모든 경로가 지난다**.
+    //     응답을 먼저 보내고 뒤에서 돌린다(구글 API 호출이라 팝업을 붙잡아 두면 안 된다).
+    //   broadcast 는 백필 서비스가 한다 — 다른 멤버 화면의 "끊김" 배너를 내리는 유일한 신호다.
+    const io = req.app.get('io');
+    setImmediate(() => {
+      backfill.backfillWorkspace(parsed.businessId, parsed.userId, { io })
+        .catch((e) => console.error('[gcal callback] 백필 실패:', e.message));
+    });
+
     return res.send(buildCallbackHtml({
       provider: 'gcal', ok: true, title: '연동 완료',
-      body: `<h2>Google Calendar 연동 완료</h2><p>계정: <strong>${accountEmail || '(확인 불가)'}</strong><br/>화상회의 시 Google Meet 링크가 자동으로 만들어집니다.</p>`,
+      body: `<h2>Google Calendar 연동 완료</h2><p>계정: <strong>${accountEmail || '(확인 불가)'}</strong><br/>화상회의 시 Google Meet 링크가 자동으로 만들어집니다.<br/>연결이 끊겼던 동안의 일정을 팀 캘린더로 올리는 중입니다.</p>`,
     }));
   } catch (e) {
     console.error('[gcal callback]', e);
