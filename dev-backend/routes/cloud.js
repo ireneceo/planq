@@ -41,8 +41,11 @@ router.get('/status/:businessId', authenticateToken, checkBusinessAccess, async 
         // 동의 화면에서 캘린더 항목 미체크로 연결된 옛 토큰은 여기서 false 로 드러난다.
         sync_enabled: t.sync_enabled !== false,   // 연결 유지 + 동기화만 끔
         scope_ok: t.provider === 'gcal' ? gcal.hasWriteScope(t.scope) : true,
-        needs_reconnect: /invalid_grant|unauthorized|invalid_credentials|insufficient/i.test(t.last_error || '')
-          || (t.provider === 'gcal' && !gcal.hasWriteScope(t.scope))
+        // ★ 판정식은 services/google_calendar.needsReconnect 한 벌. 캘린더 화면도 같은 함수를 쓴다 —
+        //   여기 인라인 정규식으로 두었더니 같은 판정이 두 벌로 갈라질 참이었다.
+        needs_reconnect: t.provider === 'gcal'
+          ? gcal.needsReconnect(t)
+          : /invalid_grant|unauthorized|invalid_credentials|insufficient/i.test(t.last_error || '')
       };
     }
     successResponse(res, statusMap);
@@ -271,3 +274,6 @@ router.post('/watch/stop/:businessId', authenticateToken, checkBusinessAccess, r
 });
 
 module.exports = router;
+// ★ 오너 전용 가드를 export 한다 — 캘린더 쪽 클라우드 조치 라우트(고아 정리·백필)가 **같은 기준**을
+//   써야 한다. 복붙하면 한쪽만 바뀌어 권한선이 갈린다 (PERMISSION_MATRIX §5.5).
+module.exports.requireOwnerForCloud = requireOwnerForCloud;

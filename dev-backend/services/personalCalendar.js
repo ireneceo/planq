@@ -97,7 +97,7 @@ function planqBody({ title, description, location, startAt, endAt, allDay, timez
     summary: title,
     description: description || undefined,
     location: location || undefined,
-    extendedProperties: { private: { planq: '1' } },
+    extendedProperties: gcalDates.planqMarker(),   // 표식은 팀·개인 한 벌 (인스턴스 env 포함)
   };
   if (allDay) {
     // 종일 날짜 변환은 팀 경로와 **같은 함수**를 쓴다 — 규칙이 두 벌이면 한쪽만 고쳐지고 어긋난다.

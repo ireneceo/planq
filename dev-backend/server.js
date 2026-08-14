@@ -395,6 +395,9 @@ app.use('/api/messages', require('./routes/message_reactions'));   // #138 이�
 app.use('/api/tasks', require('./routes/tasks'));
 app.use('/api/tasks', require('./routes/task_workflow'));
 app.use('/api/tasks', require('./routes/task_attachments'));
+// ★ 동기화 조치 라우트를 **먼저** 마운트한다 — calendar.js 에 `/:id/share` 같은 와일드카드 형태가
+//   있어 뒤에 붙이면 경로가 그쪽에 먹힐 위험이 있다(라우트 순서 함정).
+app.use('/api/calendar', require('./routes/calendar_sync'));
 app.use('/api/calendar', require('./routes/calendar'));
 // 통합 공유 시스템 alias — ShareModal 의 /api/calendar-events/:id/share 매칭
 app.use('/api/calendar-events', require('./routes/calendar'));

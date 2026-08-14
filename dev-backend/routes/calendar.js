@@ -4,7 +4,7 @@ const router = express.Router();
 const { sequelize } = require('../config/database');
 const {
   CalendarEvent, CalendarEventAttendee, CalendarEventGcalLink,
-  BusinessMember, User, Client, Project, ProjectMember,
+  BusinessMember, User, Client, Project, ProjectMember, AuditLog,
 } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../services/displayName');
@@ -42,6 +42,7 @@ const gcal = require('../services/google_calendar');
 const calendarSync = require('../services/calendarSync');
 const calendarPermission = require('../services/calendarPermission');
 const personalCalendar = require('../services/personalCalendar');
+const reverseSync = require('../services/calendarReverseSync');   // 폴링 주기·마지막 확인 시각 (#242)
 const crypto = require('crypto');
 const { Business } = require('../models');
 const { createEvent } = require('../services/actions/event_actions');
@@ -915,12 +916,21 @@ router.get('/video/status', authenticateToken, videoStatusAccess, async (req, re
     let meetEmail = null;
     let personalConnected = false;
     let personalCanWrite = false;
+    // ── 동기화 상태 축 (2026-08-14, #242) — 캘린더 화면이 "왜 안 오는지" 를 말할 수 있어야 한다.
+    //   ★ 새 라우트를 만들지 않는다. 프론트가 이미 이 라우트를 쓰고 있는데 sync-status 를 신설하면
+    //     /cloud/status · /video/status · /sync-status 세 벌 판정이 된다(Fable 설계 게이트 치명-1).
+    let workspaceNeedsReconnect = false;
+    let workspaceLastErrorAt = null;
+    let lastCheckedAt = null;
+    let lastReverseSyncAt = null;
     if (businessId && configured) {
       const tk = await gcal.getTokenForBusiness(businessId);
       if (tk) {
         workspaceConnected = true;
         workspaceEmail = tk.account_email;
         workspaceCanWrite = gcal.hasWriteScope(tk.scope);
+        workspaceNeedsReconnect = gcal.needsReconnect(tk);   // 판정 단일 원천(설정 화면과 같은 함수)
+        workspaceLastErrorAt = tk.last_error_at || null;
       }
       // ★ 개인 축의 원천은 반드시 pickPersonalConn 이다 — Meet 이 실제로 고르는 그 연결.
       //   GET /me/external-connections 리스트로 계산하면 cross-workspace 폴백 규칙이 달라
@@ -933,6 +943,30 @@ router.get('/video/status', authenticateToken, videoStatusAccess, async (req, re
         meetSourceKind = src.kind;
         meetEmail = src.kind === 'personal' ? src.conn.account_email : src.token.account_email;
       }
+      // "마지막 **확인**" — 반영(applied)이 아니라 폴링이 돈 시각이다.
+      //   건강한 워크스페이스는 며칠간 반영 0 이 정상인데 "마지막 반영 5일 전" 만 보여주면
+      //   사용자는 그것을 고장으로 읽는다 — 이번 신고의 심리 그대로다(Fable 권고-3).
+      try {
+        const { sources } = await reverseSync.classifySources();
+        for (const s of sources) {
+          const mine = s.kind === 'workspace'
+            ? Number(s.businessId) === Number(businessId)
+            : Number(s.conn.user_id) === Number(req.user.id);
+          if (!mine) continue;
+          const st = reverseSync.getPollState(s);
+          if (st && st.last_checked_at && (!lastCheckedAt || st.last_checked_at > lastCheckedAt)) {
+            lastCheckedAt = st.last_checked_at;
+          }
+        }
+      } catch { /* 상태 표시는 보조 정보 — 실패해도 화면을 막지 않는다 */ }
+      try {
+        const last = await AuditLog.findOne({
+          where: { business_id: businessId, action: 'event.reverse_sync' },
+          order: [['id', 'DESC']],
+          attributes: ['created_at'],
+        });
+        lastReverseSyncAt = last ? (last.get('created_at') || last.createdAt) : null;
+      } catch { /* 위와 같음 */ }
     }
     return successResponse(res, {
       gcal_configured: configured,
@@ -954,6 +988,14 @@ router.get('/video/status', authenticateToken, videoStatusAccess, async (req, re
       // 회의가 실제로 어느 계정에 만들어지는지 — 프론트가 "내 구글 계정으로 개설" 을 안내한다.
       meet_source: meetSourceKind,
       account_email: meetEmail,
+      // ── 동기화 상태 (#242) — 배너가 상태를 말하고 행동(재연결·즉시 동기화)으로 잇는다.
+      workspace_needs_reconnect: workspaceNeedsReconnect,
+      workspace_last_error_at: workspaceLastErrorAt,
+      // 오너만 팀 연동을 고칠 수 있다 — 아니면 배너가 "오너가 해야 한다" 로 말을 바꾼다.
+      can_reconnect_workspace: req.businessRole === 'owner' || req.user.platform_role === 'platform_admin',
+      poll_interval_seconds: Math.round(reverseSync.POLL_FAST_MS / 1000),
+      last_checked_at: lastCheckedAt,
+      last_reverse_sync_at: lastReverseSyncAt,
     });
   } catch (err) { next(err); }
 });

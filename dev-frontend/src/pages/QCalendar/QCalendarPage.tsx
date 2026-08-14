@@ -5,6 +5,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import PageShell from '../../components/Layout/PageShell';
 import CalendarSyncNotice from '../../components/Calendar/CalendarSyncNotice';
+import { useCalendarSyncStatus } from '../../hooks/useCalendarSyncStatus';
 import MonthView from './MonthView';
 import AgendaView from './AgendaView';
 import TimeGridView from './TimeGridView';
@@ -20,7 +21,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import {
   listEvents, createEvent, updateEvent, deleteEvent,
-  getVideoStatus, createMeetingRoom, listTasksForCalendar,
+  createMeetingRoom, listTasksForCalendar,
 } from '../../services/calendar';
 import { listProjects } from '../../services/qtalk';
 import { taskToEvent, isTaskEvent, isPersonalEvent, personalToEvent, TASK_EVENT_ID_OFFSET } from './taskToEvent';
@@ -102,9 +103,7 @@ const QCalendarPage: React.FC = () => {
   const [personalEvents, setPersonalEvents] = useState<PersonalCalendarEvent[]>([]);
   // 개인 Google 일정 상세 (읽기 전용 패널) — 재클릭 시 닫힘 (리스트 재클릭 토글 규칙)
   const [selectedPersonalId, setSelectedPersonalId] = useState<string | null>(null);
-  const [personalConnected, setPersonalConnected] = useState(false);
-  // 개인 연동이 쓰기까지 되는가 — 옛 readonly 동의 연결은 false. 안내 문구가 여기서 갈린다.
-  const [personalCanWrite, setPersonalCanWrite] = useState(false);
+
   const [showPersonal, setShowPersonal] = useState(true);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [loading, setLoading] = useState(false);
@@ -119,9 +118,17 @@ const QCalendarPage: React.FC = () => {
   //   ★ Meet 은 개인 연동 우선이 되면서 이 값이 **개인 연동까지 포함**하는 의미로 넓어졌다.
   //     팀 캘린더 동기화·"구글 캘린더로 보내기" 는 워크스페이스 전용이므로 아래 workspace* 를 쓴다.
   //     (옛 gcalConnected state 는 CalendarSyncNotice 가 workspace 축으로 바뀌면서 소비처가 사라졌다.)
-  const [gcalCanWrite, setGcalCanWrite] = useState(false);
-  const [workspaceConnected, setWorkspaceConnected] = useState(false);
-  const [workspaceCanWrite, setWorkspaceCanWrite] = useState(false);
+  // #242 — 연동 상태 + 구글 당겨오기는 훅 한 곳에 (페이지는 일정 표시가 본업).
+  const {
+    status: syncStatus, gcalCanWrite, workspaceCanWrite,
+    reload: loadSyncStatus, pull: pullSync,
+  } = useCalendarSyncStatus(bizId, () => { void fetchRange(); });
+  // ★ 개인 연동 판정은 **서버 한 곳**(pickPersonalConn 기반 video/status)만 쓴다.
+  //   예전엔 /me/external-connections 목록을 프론트에서 걸러 따로 판정했는데,
+  //   서버는 같은 워크스페이스 연결이 없으면 다른 워크스페이스 연결로 폴백하므로
+  //   두 판정이 어긋나 "배너는 연결됐다는데 화면은 아니라는" 상태가 만들어질 수 있었다.
+  const personalConnected = !!syncStatus?.personal_connected;
+  const personalCanWrite = !!syncStatus?.personal_can_write;
   const today = useMemo(() => new Date(), []);
 
   // 업무 상세 드로어 (Q Task 페이지로 이동하지 않고 캘린더 위에 오버레이)
@@ -156,36 +163,6 @@ const QCalendarPage: React.FC = () => {
   }, [bizId]);
   const wsTz = user?.workspace_timezone || detectBrowserTz();
   const todayStr = todayInTz(wsTz);
-
-  useEffect(() => {
-    if (!bizId) return;
-    getVideoStatus(bizId)
-      .then((s) => {
-        setGcalCanWrite(!!s.gcal_can_write);
-        setWorkspaceConnected(!!s.workspace_connected); setWorkspaceCanWrite(!!s.workspace_can_write);
-      })
-      .catch(() => {
-        setGcalCanWrite(false);
-        setWorkspaceConnected(false); setWorkspaceCanWrite(false);
-      });
-  }, [bizId]);
-
-  // 개인 Google 캘린더 연결 여부 (외부 연동 Phase 2) — 연결됐을 때만 overlay 토글 노출
-  useEffect(() => {
-    if (!bizId) return;
-    apiFetch(`/api/me/external-connections?business_id=${bizId}`)
-      .then((r) => r.json())
-      .then((j) => {
-        if (j.success) {
-          const cals = (j.data || []).filter(
-            (c: { provider?: string; is_active?: boolean }) => c.provider === 'google_calendar' && c.is_active
-          );
-          setPersonalConnected(cals.length > 0);
-          setPersonalCanWrite(cals.some((c: { can_write_calendar?: boolean | null }) => c.can_write_calendar === true));
-        }
-      })
-      .catch(() => {});
-  }, [bizId]);
 
   // ─── 범위 조회: view + anchor 기반 ───
   const fetchRange = useCallback(async () => {
@@ -238,10 +215,26 @@ const QCalendarPage: React.FC = () => {
     }
   }, [bizId, view, anchor, scope, personalConnected, showPersonal]);
 
+  // 구글에서 당겨온 변경이 있으면 화면을 다시 그린다.
+  const pullFromGoogle = useCallback(async () => {
+    if (await pullSync()) await fetchRange();
+  }, [pullSync, fetchRange]);
+
   useEffect(() => { fetchRange(); }, [fetchRange]);
 
   // N+39 — PWA visibility 안전망
-  useVisibilityRefresh(useCallback(() => { void fetchRange(); }, [fetchRange]));
+  useVisibilityRefresh(useCallback(() => {
+    void fetchRange();
+    void pullFromGoogle();
+    loadSyncStatus();   // 배경에 있는 동안 오너가 재연결했을 수 있다 — 배너도 같이 최신화
+  }, [fetchRange, pullFromGoogle, loadSyncStatus]));
+
+  // ★ #242 — 화면에 들어오거나 되돌아오면 **구글 변경분을 우리가 당겨온다.**
+  //   버튼을 눌러야 최신이 되는 것은 사용자에게 떠넘기는 것이다. 신고의 실체가 정확히 이것이었다
+  //   (사용자는 구글에서 고친 직후 캘린더를 보고 "안 반영된다" 고 판단했다 — 다음 폴링을 기다릴 뿐인데).
+  //   실패는 삼킨다: 이건 보조 가속이고, 5분/1분 cron 이 여전히 정본 경로다.
+  //   서버가 분당 상한을 걸고 있어 연타·탭 전환 폭주도 막힌다.
+  useEffect(() => { void pullFromGoogle(); }, [pullFromGoogle]);
 
   // N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
   // 다른 사용자가 일정 추가/수정/삭제 시 본인이 캘린더 열고 있으면 즉시 보임.
@@ -256,6 +249,7 @@ const QCalendarPage: React.FC = () => {
     const offCreated = onSocket('event:created', debouncedReload);
     const offUpdated = onSocket('event:updated', debouncedReload);
     const offDeleted = onSocket('event:deleted', debouncedReload);
+    // 연동 상태 변경(`calendar:sync-changed`) 구독은 useCalendarSyncStatus 안에 있다 — 그 훅의 본업이다.
     return () => {
       if (pending) window.clearTimeout(pending);
       leaveRoom(`business:${bizId}`);
@@ -549,7 +543,12 @@ const QCalendarPage: React.FC = () => {
     <PageShell title={t('title')} actions={headerActions}>
       {/* ★ 이 안내는 **워크스페이스 축**이다. Meet 축으로 넓어진 gcal* 를 먹이면 개인 연동만 한
         * 사용자에게 "워크스페이스 연동됨" 이 거짓으로 뜨고 workspaceBroken 오판까지 난다. */}
-      <CalendarSyncNotice workspaceConnected={workspaceConnected} workspaceCanWrite={workspaceCanWrite} personalConnected={personalConnected} personalCanWrite={personalCanWrite} />
+      <CalendarSyncNotice
+        businessId={bizId ?? null}
+        status={syncStatus}
+        onChanged={fetchRange}
+        onStatusReload={loadSyncStatus}
+      />
       <Toolbar>
         <ToolbarLeft>
           {view === 'day' && (

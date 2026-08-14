@@ -98,9 +98,63 @@ export async function getVideoStatus(bizId?: number): Promise<{
   /** 회의가 실제로 만들어질 계정의 종류 — 'personal' 이면 본인 구글 계정으로 개설된다. */
   meet_source: 'personal' | 'workspace' | null;
   account_email: string | null;
+  /** ── 동기화 상태 (#242) — 배너가 상태를 말하고 행동으로 잇는다. 새 라우트를 만들지 않고 여기에 얹었다. */
+  workspace_needs_reconnect: boolean;
+  workspace_last_error_at: string | null;
+  /** 팀 연동은 오너만 고칠 수 있다 — 아니면 배너가 "오너가 해야 한다" 로 말을 바꾼다. */
+  can_reconnect_workspace: boolean;
+  /** 폴링 주기(초). "최대 N분 내 반영" 문구가 이 값을 쓴다 — 코드와 문구가 갈라지지 않게. */
+  poll_interval_seconds: number;
+  /** 마지막 **확인** 시각. 마지막 반영이 아니다 — 건강해도 반영은 며칠 없을 수 있다. */
+  last_checked_at: string | null;
+  last_reverse_sync_at: string | null;
 }> {
   const qs = bizId ? `?business_id=${bizId}` : '';
   const res = await apiFetch(`/api/calendar/video/status${qs}`);
+  return handle(res);
+}
+
+/** 구글 변경분을 지금 당겨온다. 화면 진입·복귀 시 자동 호출(사용자가 눌러야 최신인 것은 떠넘기기다). */
+export async function syncCalendarNow(bizId: number): Promise<{
+  sources: number; applied: number; skipped: number; busy: number; errors: number;
+  excluded: Array<{ kind: string; id: number; businessId: number; reason: string }>;
+}> {
+  const res = await apiFetch(`/api/calendar/sync-now/${bizId}`, { method: 'POST' });
+  return handle(res);
+}
+
+export interface GcalOrphan {
+  gcal_event_id: string;
+  title: string;
+  start: string | null;
+  html_link: string | null;
+  /** 인스턴스 표식이 없는 옛 사본 — 일괄 삭제 금지, 건별 선택만 허용한다. */
+  legacy: boolean;
+}
+
+/** 구글에 남은 PlanQ 고아 사본 목록 (오너 전용). */
+export async function listGcalOrphans(bizId: number): Promise<{
+  supported: boolean; reason: string | null; scanned: number; orphans: GcalOrphan[]; max_per_call: number;
+}> {
+  const res = await apiFetch(`/api/calendar/gcal-orphans/${bizId}`);
+  return handle(res);
+}
+
+/** 선택된 고아 사본만 구글에서 삭제 (오너 전용). */
+export async function cleanupGcalOrphans(bizId: number, ids: string[]): Promise<{
+  deleted: number; skipped: number; failed: number;
+}> {
+  const res = await apiFetch(`/api/calendar/gcal-orphans/${bizId}/cleanup`, {
+    method: 'POST', body: JSON.stringify({ gcal_event_ids: ids }),
+  });
+  return handle(res);
+}
+
+/** 재연결 직후 — 권한이 죽어 있던 기간의 일정을 팀 캘린더로 올려보낸다 (오너 전용). */
+export async function backfillWorkspaceCalendar(bizId: number): Promise<{
+  eligible: number; pushed: number; failed: number; remaining: number; skipped: string | null;
+}> {
+  const res = await apiFetch(`/api/calendar/workspace-backfill/${bizId}`, { method: 'POST' });
   return handle(res);
 }
 
