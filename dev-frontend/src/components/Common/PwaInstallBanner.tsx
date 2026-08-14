@@ -60,7 +60,11 @@ export default function PwaInstallBanner() {
 
 const BannerRoot = styled.div`
   position: fixed;
-  bottom: 16px;
+  /* ★ 우하단 도크 FAB(RightDock: right 20 / bottom 16 / 52×52) 위로 비켜선다.
+     bottom 16 이면 이 배너(z 8500)가 FAB(z 120)을 통째로 덮어 **모든 페이지에서 도크가 안 눌린다**
+     — 2026-08-14 실측으로 5/5 페이지 도달 0 확인. 80 = FAB top(16+52=68) + gap(12).
+     모바일용 InstallPromptBanner 가 같은 이유로 이미 80 을 쓰고 있었는데 이 배너만 규칙을 못 받았다. */
+  bottom: calc(80px + env(safe-area-inset-bottom, 0px));
   right: 16px;
   z-index: 8500;
   display: grid;
@@ -81,6 +85,12 @@ const BannerRoot = styled.div`
   /* 모바일은 InstallPromptBanner("앱처럼 사용하기") 하나만 노출 — 중복 배너 방지.
      데스크탑(≥769px)에서만 이 배너 표시. */
   @media (max-width: 768px) { display: none; }
+  /* 도크 퀵메뉴를 펼치면 메뉴가 이 자리로 올라온다 — 설치 안내가 그 위를 덮지 않게 비운다.
+     (배너 z 8500 > 메뉴 z 120 이라 안 비우면 딤 배경 위에 배너만 밝게 떠 메뉴를 가린다.) */
+  body[data-dock-open="1"] & { display: none; }
+  /* 모달·드로어가 열린 동안에도 비운다 — 설치 권유가 다이얼로그 하단 버튼을 덮으면 안 된다.
+     RightDock FAB 이 쓰는 것과 같은 계약(useBodyScrollLock 가 토글). */
+  body[data-overlay-open="true"] & { display: none; }
 `;
 const Icon = styled.div`
   width: 36px; height: 36px;
