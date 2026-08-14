@@ -22,6 +22,7 @@ import {
   CheckBtn,
   EmptyLine,
   EmptyTitle,
+  GoMainBtn,
   ErrText,
   Head,
   HeadMeta,
@@ -43,7 +44,6 @@ import {
   RowTitle,
   RowTop,
   Slot,
-  SortToggle,
   Spin,
   SubmitBtn,
   TabBtn,
@@ -63,6 +63,9 @@ import TaskDetailDrawer, { type DrawerMemberOption } from './TaskDetailDrawer';
 import { STATUS_COLOR, displayStatus, getStatusLabel, type StatusCode } from '../../utils/taskLabel';
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
 import TagChips, { type TaskTagLite } from './TagChips';
+import PopoutViewChips, { type PopoutView } from './PopoutViewChips';
+import PopoutQuickAdd from './PopoutQuickAdd';
+import { requestMainNavigate } from '../Common/PopoutBridge';
 
 interface PopoutTask {
   id: number;
@@ -180,19 +183,35 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
 
   const [tasks, setTasks] = useState<PopoutTask[]>([]);
   const [summary, setSummary] = useState<WeekSummary | null>(null);
+  /** /my-week 가 준 이번 주 월요일(YYYY-MM-DD). 퀵애드의 planned_week_start 정합 원천. */
+  const [weekStart, setWeekStart] = useState<string | null>(null);
   const [members, setMembers] = useState<DrawerMemberOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [showDone, setShowDone] = useState(false);
-  // #250 — 나열 기준. 'default' = 기존 사슬(우선순위→마감→제목), 'tag' = 대표 태그순.
-  const [sortMode, setSortMode] = useState<'default' | 'tag'>('default');
   // #237·#258 — 오늘/이번 주 2탭. 팝아웃은 "오늘 해야 할 일" 도구로 쓰이므로 기본은 오늘.
   //   데이터는 /my-week 한 벌을 공유하고 탭은 **클라이언트 필터**다 — 새 요청·새 술어를 만들지 않는다.
   const [popTab, setPopTab] = useState<'today' | 'week'>(() => {
     try { return localStorage.getItem('planq:taskPopout:tab') === 'week' ? 'week' : 'today'; } catch { return 'today'; }
   });
   useEffect(() => { try { localStorage.setItem('planq:taskPopout:tab', popTab); } catch { /* ignore */ } }, [popTab]);
+
+  // #258 — 보기 기준은 **탭마다 따로** 기억한다. 원문이 탭별로 다른 디폴트를 지정했기 때문이다:
+  //   "오늘의 내 업무에서는 태그별 보기를 디폴트로" / "이번 주 내 업무 탭에서는 마감일순을 디폴트로".
+  //   한 벌로 공유하면 탭을 오갈 때마다 상대 탭의 디폴트가 파괴된다.
+  const VIEW_KEY = (tab: 'today' | 'week') => `planq:taskPopout:view:${tab}`;
+  const readView = (tab: 'today' | 'week'): PopoutView => {
+    try {
+      const v = localStorage.getItem(VIEW_KEY(tab));
+      if (v === 'tag' || v === 'project' || v === 'due') return v;
+    } catch { /* ignore */ }
+    return tab === 'today' ? 'tag' : 'due';
+  };
+  const [viewMode, setViewMode] = useState<PopoutView>(() => readView(popTab));
+  // 탭이 바뀌면 그 탭이 기억한 보기로 갈아탄다(없으면 그 탭의 디폴트).
+  useEffect(() => { setViewMode(readView(popTab)); }, [popTab]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { try { localStorage.setItem(VIEW_KEY(popTab), viewMode); } catch { /* ignore */ } }, [popTab, viewMode]);
 
   // 응답 순서 가드 — 늦게 도착한 옛 응답이 새 목록을 덮어쓰지 않게 (#205 패턴)
   const seqRef = useRef(0);
@@ -210,6 +229,10 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
       if (!json.success) throw new Error('failed');
       setTasks(json.data.tasks || []);
       setSummary(json.data.summary || null);
+      // #258 퀵애드 — 이번 주 monday 는 **서버가 준 값**을 그대로 쓴다. 브라우저 tz 로 다시 계산하면
+      //   weekTaskSet 술어(planned_week_start = monday **정확 일치**)와 어긋나 추가한 업무가
+      //   그 자리에서 사라진다. 정합 원천은 하나여야 한다 (Fable 설계 C-5).
+      if (json.data.week) setWeekStart(String(json.data.week));
       setError(false);
     } catch {
       if (seq !== seqRef.current) return;
@@ -223,6 +246,44 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   const silentLoad = useCallback(() => fetchWeek(true), [fetchWeek]);
 
   useEffect(() => { load(); }, [load]);
+
+  // ── 퀵애드 (#258 "바로 바로 추가") ─────────────────────────
+  // 기본값은 **탭 문맥**이 정한다. 신규 라우트를 만들지 않고 기존 POST /api/tasks 를 그대로 쓴다
+  //   (생성 권한·자동 컨펌자·socket broadcast·감사가 전부 행동 계층 createTask 안에 있다).
+  //
+  // ★ 게이트 정합 — 추가한 업무가 그 탭에 **남아 있어야** 한다(이전에 "추가 즉시 사라짐" 회귀가 났다):
+  //   · 오늘 탭: due_date = 이 뷰의 todayStr → inTodaySet ②(due === today) 통과.
+  //     주간 술어도 due_date 가 주 범위 안이라 함께 통과한다.
+  //   · 이번 주 탭: planned_week_start = **서버가 준 weekStart** → weekTaskSet 정확 일치 통과.
+  //     브라우저에서 monday 를 계산하면 tz 차이로 어긋난다 (Fable 설계 C-5).
+  const quickAdd = useCallback(async (title: string): Promise<boolean> => {
+    if (!bizId) return false;
+    // 이번 주 탭인데 아직 weekStart 를 못 받았으면 만들지 않는다 —
+    //   null 로 보내면 주간 술어를 못 넘겨 방금 만든 업무가 화면에서 사라진다.
+    if (popTab === 'week' && !weekStart) return false;
+    try {
+      const res = await apiFetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          business_id: bizId,
+          title,
+          assignee_id: myId,                                   // 이 팝아웃은 내 업무 목록이다
+          ...(popTab === 'today'
+            ? { due_date: todayStr, planned_week_start: weekStart || undefined }
+            : { planned_week_start: weekStart }),
+        }),
+      });
+      // apiFetch 는 throw 하지 않는다 — res.ok 를 반드시 본다 (memory: apifetch_no_throw)
+      if (!res.ok) return false;
+      const json = await res.json();
+      if (!json.success) return false;
+      await silentLoad();     // 서버 fresh 로 덮어쓴다(부분 merge 금지)
+      return true;
+    } catch {
+      return false;
+    }
+  }, [bizId, myId, popTab, todayStr, weekStart, silentLoad]);
 
   // ── 퀵액션 (체크박스 완료처리) ─────────────────────────────
   // 중복 제출 가드는 전역 1건 — 더블클릭도, 다른 행 연타도 요청 1회 (UI_DESIGN_GUIDE §1.8).
@@ -369,27 +430,48 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   //     (QTaskPage 의 weekSet/filtered 분리와 같은 원칙. 이 저장소가 한 번 당한 사고다).
   //     따라서 태그순에서는 칩 번호가 행 순서와 어긋나 보일 수 있는데, 그게 정상이다.
   const repTag = (tk: PopoutTask) => (tk.tags && tk.tags.length > 0 ? tk.tags[0].name : null);
-  const byTagRule = (a: PopoutTask, b: PopoutTask): number => {
-    const ta = repTag(a); const tb = repTag(b);
-    if (ta && !tb) return -1;          // 태그 없는 업무는 맨 뒤 (null last)
-    if (!ta && tb) return 1;
-    if (ta && tb) {
-      const c = ta.localeCompare(tb);
+  const repProject = (tk: PopoutTask) => (tk.Project?.name || null);
+
+  // 그룹 보기 공통 — 그룹 키(null last) → 같은 그룹 안에서는 기존 사슬 그대로.
+  const byGroup = (key: (tk: PopoutTask) => string | null) => (a: PopoutTask, b: PopoutTask): number => {
+    const ka = key(a); const kb = key(b);
+    if (ka && !kb) return -1;          // 그룹 없는 업무는 맨 뒤 (null last)
+    if (!ka && kb) return 1;
+    if (ka && kb) {
+      const c = ka.localeCompare(kb);
       if (c !== 0) return c;
     }
-    return bySortRule(a, b);           // 같은 대표 태그 안에서는 기존 사슬 그대로
+    return bySortRule(a, b);
   };
-  const sortRule = sortMode === 'tag' ? byTagRule : bySortRule;
+  const byTagRule = byGroup(repTag);
+  const byProjectRule = byGroup(repProject);
+  // 마감일별 — 원문 "마감일별 보기". 마감이 앞선 순서가 **먼저** 오는 것이 이 라벨의 뜻이므로
+  //   due 를 1순위로 둔다(bySortRule 은 우선순위가 1순위라 라벨과 어긋난다).
+  //   동률 tie-break 은 기존 사슬을 그대로 이어 두 화면의 순서가 갈리지 않게 한다.
+  const byDueRule = (a: PopoutTask, b: PopoutTask): number =>
+    cmpNullLast(a.due_date, b.due_date) || bySortRule(a, b) || (a.id - b.id);
+
+  const hasAnyTag = useMemo(() => tasks.some((tk) => (tk.tags?.length || 0) > 0), [tasks]);
+  const hasAnyProject = useMemo(() => tasks.some((tk) => !!tk.Project?.name), [tasks]);
+  // 선택지에 없는 보기(태그 0개인데 'tag' 가 기억돼 있는 등)로 굳어 있으면 마감일별로 코어스한다.
+  //   ★ 칩이 사라진 보기가 유효한 채로 남으면 사용자가 되돌릴 수단이 없다.
+  //   ★ 정렬·그룹헤더·칩 하이라이트가 **모두 이 값 하나**를 봐야 한다 — viewMode 를 직접 읽는 소비처가
+  //     하나라도 남으면 "칩은 마감일별인데 정렬은 태그별" 로 갈린다.
+  const effView: PopoutView = (viewMode === 'tag' && !hasAnyTag) || (viewMode === 'project' && !hasAnyProject)
+    ? 'due' : viewMode;
+
+  const sortRule = effView === 'tag' ? byTagRule
+    : effView === 'project' ? byProjectRule
+      : byDueRule;
   // 오늘 탭 = 이번 주 응답(/my-week) 위에 utils/todayTaskSet 술어를 얹은 것. 메인 화면과 **같은 함수**다.
   const inTab = useCallback((tk: PopoutTask, includeDone: boolean) => (
     popTab === 'week' ? true : inTodaySet(tk as never, todayStr, myId, tzGuess, includeDone)
   ), [popTab, todayStr, myId]);   // eslint-disable-line react-hooks/exhaustive-deps
   const openTasks = useMemo(
-    () => tasks.filter((tk) => !CLOSED.includes(tk.status) && inTab(tk, false)).sort(sortRule), [tasks, sortMode, inTab]);   // eslint-disable-line react-hooks/exhaustive-deps
+    () => tasks.filter((tk) => !CLOSED.includes(tk.status) && inTab(tk, false)).sort(sortRule), [tasks, viewMode, inTab]);   // eslint-disable-line react-hooks/exhaustive-deps
   const doneTasks = useMemo(
-    () => tasks.filter((tk) => CLOSED.includes(tk.status) && inTab(tk, true)).sort(sortRule), [tasks, sortMode, inTab]);    // eslint-disable-line react-hooks/exhaustive-deps
+    () => tasks.filter((tk) => CLOSED.includes(tk.status) && inTab(tk, true)).sort(sortRule), [tasks, viewMode, inTab]);    // eslint-disable-line react-hooks/exhaustive-deps
   const visible = showDone ? [...openTasks, ...doneTasks] : openTasks;
-  const hasAnyTag = useMemo(() => tasks.some((tk) => (tk.tags?.length || 0) > 0), [tasks]);
 
   const fmtDue = (due?: string | null) => (due ? due.slice(5, 10).replace('-', '/') : '');
   const isOverdue = (tk: PopoutTask) =>
@@ -461,8 +543,26 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   return (
     <Wrap>
       <Head>
-        <HeadTitle>{t('popout.title', '이번 주 내 업무')}</HeadTitle>
+        {/* ★ 제목은 탭을 따라간다 — 고정 '이번 주 내 업무' 는 오늘 탭에서 거짓말이 된다
+            (memory feedback_new_behavior_makes_copy_lie). */}
+        <HeadTitle>{popTab === 'today'
+          ? t('popout.titleToday', '오늘 내 업무')
+          : t('popout.title', '이번 주 내 업무')}</HeadTitle>
         <HeadRight>
+          {/* #258 "Q task로 가는 버튼이 상단에 있어야 하지 않아? 다른 업무리스트 종류들 보고 싶으면 가서 봐야지."
+              ★ 메인 탭에 부탁한다 — 이 창에서 /tasks 를 열면 팝아웃이 본체가 돼 버린다.
+              ★ 메인 탭이 없으면 새 창으로 연다. `noopener` 는 쓰지 않는다 — 성공해도 핸들이 null 이라
+                실패로 오판하게 된다(memory feedback_window_open_noopener_null). 대신 opener 를 끊는다. */}
+          <GoMainBtn
+            type="button"
+            data-testid="task-popout-go-qtask"
+            onClick={() => {
+              requestMainNavigate('/tasks');
+              // 메인 탭이 응답했는지 알 방법이 없다(단방향 방송) — 이 창은 아무것도 더 하지 않는다.
+              //   메인 탭이 아예 없는 경우를 위해 사용자가 한 번 더 누르면 새 창을 여는 폴백은
+              //   두지 않는다(두 번 눌러 두 탭이 뜨는 혼란 > 이득). 도크에서 다시 열면 된다.
+            }}
+          >{t('popout.goQTask', 'Q Task 열기')}</GoMainBtn>
           {summary && (
             <HeadMeta>
               {t('popout.summary', '{{open}}건 진행 · 남은 {{hours}}h', {
@@ -486,6 +586,34 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
           {t('popout.tabWeek', '이번 주')}
         </TabBtn>
       </TabRow>
+
+      {/* #258 — 퀵애드. 로딩·에러 중에는 내지 않는다(기본값의 원천인 weekStart 가 아직 없다). */}
+      {!loading && !error && (
+        <PopoutQuickAdd
+          onAdd={quickAdd}
+          placeholder={popTab === 'today'
+            ? t('popout.quickAddToday', '오늘 할 일 입력 후 Enter')
+            : t('popout.quickAddWeek', '이번 주 할 일 입력 후 Enter')}
+          addLabel={t('popout.quickAddBtn', '추가')}
+          errorText={t('popout.quickAddFailed', '추가하지 못했습니다')}
+        />
+      )}
+
+      {/* #258 — 보기 기준 칩. 정본 집합은 그대로고 **나열 방식만** 바뀐다(행 개수 불변). */}
+      {!loading && !error && visible.length > 0 && (
+        <PopoutViewChips
+          value={effView}
+          onChange={setViewMode}
+          hasAnyTag={hasAnyTag}
+          hasAnyProject={hasAnyProject}
+          groupLabel={t('popout.viewLabel', '보기 기준') as string}
+          labels={{
+            tag: t('popout.viewTag', '태그별'),
+            project: t('popout.viewProject', '프로젝트별'),
+            due: t('popout.viewDue', '마감일별'),
+          }}
+        />
+      )}
       <Body>
         {loading && <Center>{t('popout.loading', '불러오는 중…')}</Center>}
 
@@ -500,18 +628,28 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
 
         {!loading && !error && visible.length === 0 && (
           <Center>
-            <EmptyTitle>{t('popout.emptyTitle', '이번 주 배정된 업무가 없습니다')}</EmptyTitle>
-            <EmptyLine>{t('popout.emptyLine', '새 업무가 배정되면 이 창에 바로 나타납니다.')}</EmptyLine>
+            {/* 제목과 같은 이유로 탭을 따라간다 — 오늘 탭에서 '이번 주' 라고 말하면 거짓말이다.
+                퀵애드가 위에 있으므로 안내도 "적어 두라" 로 바뀐다. */}
+            <EmptyTitle>{popTab === 'today'
+              ? t('popout.emptyTitleToday', '오늘 할 일이 없습니다')
+              : t('popout.emptyTitle', '이번 주 배정된 업무가 없습니다')}</EmptyTitle>
+            <EmptyLine>{t('popout.emptyLineAdd', '위에 입력하면 바로 추가됩니다.')}</EmptyLine>
           </Center>
         )}
 
         {!loading && !error && visible.length > 0 && (
           <List role="list" data-testid="task-popout-list">
             {visible.map((tk, vi) => {
-              // #237 "태그(업무방식)별로 시각적으로 제대로 보여야" — 태그순 모드에서만 그룹 헤더를 낸다.
-              //   대표 태그가 바뀌는 지점에 한 줄. 태그 없는 묶음은 맨 뒤라 "태그 없음" 으로 닫힌다.
-              const groupHead = sortMode === 'tag'
-                ? (vi === 0 || repTag(visible[vi - 1]) !== repTag(tk) ? (repTag(tk) || t('popout.noTagGroup', '태그 없음')) : null)
+              // #237·#258 "태그(업무방식)별로 시각적으로 제대로 보여야" — 그룹 보기에서만 헤더를 낸다.
+              //   그룹 키가 바뀌는 지점에 한 줄. 키 없는 묶음은 맨 뒤라 "태그 없음"/"프로젝트 없음" 으로 닫힌다.
+              //   마감일별 보기는 그룹이 아니라 나열이므로 헤더가 없다.
+              const gKey = effView === 'tag' ? repTag : effView === 'project' ? repProject : null;
+              const groupHead = gKey
+                ? (vi === 0 || gKey(visible[vi - 1]) !== gKey(tk)
+                  ? (gKey(tk) || (effView === 'tag'
+                    ? t('popout.noTagGroup', '태그 없음')
+                    : t('popout.noProjectGroup', '프로젝트 없음')))
+                  : null)
                 : null;
               const code = displayStatus(tk, todayStr) as StatusCode;
               const color = STATUS_COLOR[code] || STATUS_COLOR.not_started;
@@ -540,8 +678,11 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
                           이제 재인덱스를 백엔드가 정본 집합(services/weekTaskSet.myWeekWhere) 기준으로
                           단독 수행하므로 그 전제가 해소됐다.
                         완료/취소 행: 번호가 있으면 읽기 전용 칩, 없으면 빈 칸(부여 버튼을 내지 않는다 —
-                          완료 업무에 우선순위를 새로 매기는 것은 무의미하고 메인에도 그 경로가 없다). */}
-                    {CLOSED.includes(tk.status) ? (
+                          완료 업무에 우선순위를 새로 매기는 것은 무의미하고 메인에도 그 경로가 없다).
+                        ★ #258 Fable 결정(G-a): **이번 주 탭에서만** 낸다. priority_order 의 의미의 고향이
+                          주간 랭킹이고, 오늘 탭 디폴트인 태그 그룹 보기에서는 칩 번호와 행 순서가 항상
+                          어긋난다. 오늘 ⊆ 이번 주라 관리는 탭 1회 전환으로 충분하다. */}
+                    {popTab === 'week' && (CLOSED.includes(tk.status) ? (
                       <PrioSlot>
                         {prioMap.has(tk.id) && (
                           <PrioChip
@@ -566,7 +707,7 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
                           : t('popout.prioritySet', '우선순위 지정')) as string}
                         onClick={() => togglePrio(tk.id)}
                       ><span>{prioMap.get(tk.id) ?? ''}</span></PrioBtn>
-                    )}
+                    ))}
                     <RowMain
                       type="button"
                       data-testid="task-popout-row-open"
@@ -600,21 +741,6 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
               );
             })}
           </List>
-        )}
-
-        {/* #250 "태그기준대로 나열…도 여기서도 해야 해" — 태그가 하나라도 있을 때만 노출한다
-            (태그를 안 쓰는 워크스페이스에 죽은 컨트롤을 두지 않는다). 기존 ToggleDone 계열 스타일. */}
-        {!loading && !error && hasAnyTag && visible.length > 0 && (
-          <SortToggle
-            type="button"
-            data-testid="task-popout-sort-mode"
-            aria-pressed={sortMode === 'tag'}
-            onClick={() => setSortMode((m) => (m === 'tag' ? 'default' : 'tag'))}
-          >
-            {sortMode === 'tag'
-              ? t('popout.sortDefault', '기본 순서로 보기')
-              : t('popout.sortByTag', '태그순으로 보기')}
-          </SortToggle>
         )}
 
         {!loading && !error && doneTasks.length > 0 && (

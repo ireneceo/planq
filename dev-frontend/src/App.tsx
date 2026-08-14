@@ -23,6 +23,7 @@ const NotificationToaster = lazy(() => import('./components/Common/NotificationT
 const PwaInstallBanner = lazy(() => import('./components/Common/PwaInstallBanner'));
 const OpenInAppBanner = lazy(() => import('./components/Common/OpenInAppBanner'));
 const BuildVersionGuard = lazy(() => import('./components/Common/BuildVersionGuard'));
+const PopoutBridge = lazy(() => import('./components/Common/PopoutBridge'));
 const LimitReachedDialog = lazy(() => import('./components/Common/LimitReachedDialog'));
 const AnnouncementBanner = lazy(() => import('./components/Common/AnnouncementBanner'));
 const TermsReacceptModal = lazy(() => import('./components/Common/TermsReacceptModal'));
@@ -601,6 +602,10 @@ function ShellApp() {
         {/* PWA/웹 전용 안내 배너 — 네이티브 앱에서는 숨김 (MOBILE_APP_DESIGN §6.6) */}
         {!isNativeApp() && <PwaInstallBanner />}
         {!isNativeApp() && <OpenInAppBanner />}
+        {/* #258 — 팝아웃/PiP 가 메인 탭에 보내는 요청의 수신자.
+            ★ hideAppChrome 게이트를 걸지 않는다 — 도크가 언마운트되는 경로에서도 살아 있어야 한다
+              (Fable 설계 C-1). 자기 자신이 팝아웃이면 컴포넌트가 내부에서 스스로 빠진다. */}
+        <PopoutBridge />
         <BuildVersionGuard />
         <LimitReachedDialog />
         {/* #71 — 공지 배너는 워크스페이스 작업 화면에서만. 랜딩·미리보기·팝아웃 제외 */}

@@ -17,6 +17,9 @@ const LimitReachedDialog = lazy(() => import('../Common/LimitReachedDialog'));
 const AnnouncementBanner = lazy(() => import('../Common/AnnouncementBanner'));
 const TermsReacceptModal = lazy(() => import('../Common/TermsReacceptModal'));
 const ImpersonateBanner = lazy(() => import('../Common/ImpersonateBanner'));
+// #258 — 팝아웃/PiP 요청 수신자. 트리 스왑이 데스크탑 기본 경로라 여기 없으면 실사용자에게 수신자가 0 이다.
+//   router-less zone 이므로 useNavigate 대신 tabStore 를 쓰는 chrome 변종을 마운트한다.
+const PopoutBridgeChrome = lazy(() => import('../Common/PopoutBridge').then((m) => ({ default: m.PopoutBridgeChrome })));
 
 export default function ChromeOverlays() {
   return (
@@ -28,6 +31,7 @@ export default function ChromeOverlays() {
       <NativeBridge />
       {!isNativeApp() && <PwaInstallBanner />}
       {!isNativeApp() && <OpenInAppBanner />}
+      <PopoutBridgeChrome />
       <BuildVersionGuard />
       <LimitReachedDialog />
       <AnnouncementBanner />
