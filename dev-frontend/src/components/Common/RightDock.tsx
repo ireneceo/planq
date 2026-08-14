@@ -67,18 +67,22 @@ const RightDock: React.FC = () => {
     };
   }, [expanded]);
 
-  // 펼침 상태를 body 에 알린다 — 우하단 배너(PwaInstallBanner·UpdateBanner)가 이 자리를 비우는 계약.
+  // 펼침 상태를 body 에 알린다 — 우하단 배너(PwaInstallBanner)가 이 자리를 비우는 계약.
   //   ★ 조기 return 위에 둔다(훅 순서 고정). 언마운트 시 반드시 지운다 — 안 지우면 도크가 사라진
   //     경로에서 배너가 영영 숨는다.
+  //   ★ hidden 을 조건·deps 에 같이 둔다. 도크는 숨을 때 **언마운트가 아니라 `return null`** 이라
+  //     cleanup 이 안 돈다 — 메뉴를 펼친 채 /memo·공개 표면으로 이동하면 플래그만 남아
+  //     그 화면에서 배너가 이유 없이 숨는다(외부 클릭 1회로 자가 회복되지만 그때까지 거짓 상태).
+  const hidden = !isBusinessMember || pathHidden;
   useEffect(() => {
     try {
-      if (expanded) document.body.dataset.dockOpen = '1';
+      if (expanded && !hidden) document.body.dataset.dockOpen = '1';
       else delete document.body.dataset.dockOpen;
     } catch { /* noop */ }
     return () => { try { delete document.body.dataset.dockOpen; } catch { /* noop */ } };
-  }, [expanded]);
+  }, [expanded, hidden]);
 
-  if (!isBusinessMember || pathHidden) return null;
+  if (hidden) return null;
 
   // #80 — 빠른 만들기: 해당 페이지로 이동하며 생성 모달 자동 오픈(URL param). "진짜 퀵".
   const handleCreate = (kind: 'task' | 'mail' | 'event') => {

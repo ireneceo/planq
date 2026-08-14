@@ -37,6 +37,15 @@ const path = require('path');
 // ============================================
 // CLI 옵션 파싱
 // ============================================
+// 카테고리 정본 — `--help` 목록과 `test()` 등록이 이 한 벌을 공유한다.
+//   두 벌로 적으면 어긋난다(실사례: calendar·wiki·billing·account 를 추가하고 help 목록만 낡아,
+//   동작하는 필터가 문서상 없는 것처럼 보였다). 새 카테고리는 **여기에 먼저** 적을 것 —
+//   안 적으면 test() 가 등록 시점에 죽는다(fail-closed).
+const CATEGORIES = [
+  'infra', 'auth', 'security', 'qnote', 'voice', 'external',
+  'frontend', 'wiki', 'billing', 'account', 'calendar', 'realtime',
+];
+
 const args = process.argv.slice(2);
 const opts = {
   category: null,
@@ -62,7 +71,7 @@ for (const arg of args) {
   node scripts/health-check.js [options]
 
 Options:
-  --category=NAME    특정 카테고리만 (infra|auth|security|qnote|voice|external|frontend|realtime)
+  --category=NAME    특정 카테고리만 (${CATEGORIES.join('|')})
   --verbose          응답 본문까지 출력
   --quiet            통과 숨기고 실패만
   --host=URL         단일 호스트 (운영 검증: https://dev.planq.kr)
@@ -196,6 +205,9 @@ function pm2Online(name) {
 // ============================================
 const tests = [];
 function test(category, name, fn) {
+  if (!CATEGORIES.includes(category)) {
+    throw new Error(`알 수 없는 카테고리 '${category}' — scripts/health-check.js 의 CATEGORIES 에 먼저 추가할 것`);
+  }
   tests.push({ category, name, fn });
 }
 
