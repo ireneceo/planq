@@ -1,63 +1,57 @@
-// PopoutPinButton — 팝아웃 창 헤더의 핀(항상 위) 토글 (Fable 설계 2026-07-28 → 구현 2026-07-31)
-//   도크(RightDock)에 있던 핀을 팝아웃 창 자신으로 옮겼다. 이유는 utils/pinHost.ts 상단 주석 참조 —
-//   팝아웃의 클릭은 메인 창으로 transient activation 이 전이되지 않아, 핀은 그 창이 직접 눌러야만 작동한다.
-//   normal → 클릭 시 PiP 를 열고 이 창은 홀더로 변신 / pip-content(PiP 안) → 클릭 시 홀더에 해제 요청.
+// PopoutPinButton — **PiP 안 헤더의 핀 해제 버튼**. (2026-08-14 재구조화)
+//   옛 역할(팝아웃 창 헤더에서 핀을 켜는 토글)은 사라졌다 — 핀 진입은 이제 도크에서만 한다.
+//   두 진입점이 공존하면 "PiP 는 브라우저 전역 1개" 축출 프로토콜을 두 벌 유지해야 한다(설계 §2-3).
+//   그래서 이 버튼은 PiP 안에서만 보이고, 하는 일은 하나다: 메인 탭에 해제를 요청한다.
+//
+//   ★ 해제하면 이 도구는 **닫힌다** — 일반 창으로 되돌아가지 않는다. 이유는 utils/pinOwner.unpin 주석 참조.
+//     문구도 그렇게 적는다(되돌아간다고 쓰면 거짓말이 된다).
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import ConfirmDialog from './ConfirmDialog';
-import type { PinHost } from '../../utils/pinHost';
+import type { PinContent } from '../../utils/pinHost';
 
 interface Props {
-  host: PinHost;
+  pin: PinContent;
 }
 
-/** 핀 = 같은 라우트를 PiP 안에 새로 로드 = 이 창의 현재 마운트는 사라진다.
- *  녹음 중이면 마이크가 죽으므로(배포 자동 reload 와 같은 사고 계열) 확인을 받는다.
+/** 해제 = PiP 가 닫히고 이 마운트가 사라진다 = 녹음 중이면 마이크가 죽는다(배포 자동 reload 와 같은 사고 계열).
  *  플래그 계약은 body.dataset.recordingActive — QNotePage 가 녹음 phase 동안만 세운다. */
 function isRecording(): boolean {
   try { return document.body.dataset.recordingActive === '1'; } catch { return false; }
 }
 
-const PopoutPinButton: React.FC<Props> = ({ host }) => {
+const PopoutPinButton: React.FC<Props> = ({ pin }) => {
   const { t } = useTranslation('common');
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  if (!host.canPin) return null;
+  if (!pin.isPip) return null;
 
-  const pinned = host.mode !== 'normal';
-  const label = pinned
-    ? (t('popoutPin.unpin', '핀 해제') as string)
-    : (t('popoutPin.pin', '핀으로 열기 — 항상 위') as string);
+  const label = t('popoutPin.unpin', '고정 해제') as string;
 
-  // 핀도 해제도 "이 창의 현재 마운트가 사라지고 라우트가 새로 로드된다" 는 점이 같다 →
-  //   방향과 무관하게 녹음 중이면 물어본다 (PiP 안에서 녹음 중 해제도 같은 사고다).
   const handleClick = () => {
     if (isRecording()) { setConfirmOpen(true); return; }
-    host.toggle();
+    pin.unpin();
   };
 
   return (
     <>
       <Btn
         type="button"
-        data-testid="popout-pin-toggle"
-        $active={pinned}
-        aria-pressed={pinned}
+        data-testid="pip-unpin"
         aria-label={label}
-        title={label}
+        title={t('popoutPin.unpinHint', '고정을 해제하면 이 창이 닫힙니다. 도크에서 다시 열 수 있습니다.') as string}
         onClick={handleClick}
       >
         <IconPin />
       </Btn>
-      {/* 확인 버튼 클릭 자체가 사용자 제스처 → 그 안에서 requestWindow 를 부른다(활성화 유효) */}
       <ConfirmDialog
         isOpen={confirmOpen}
         onClose={() => setConfirmOpen(false)}
-        onConfirm={() => { setConfirmOpen(false); host.toggle(); }}
+        onConfirm={() => { setConfirmOpen(false); pin.unpin(); }}
         title={t('popoutPin.recordingTitle', '녹음 중입니다') as string}
-        message={t('popoutPin.recordingMessage', '지금 전환하면 이 창이 다시 열리며 녹음이 중단됩니다. 계속할까요?') as string}
-        confirmText={t('popoutPin.recordingConfirm', '녹음을 멈추고 전환') as string}
+        message={t('popoutPin.recordingMessage', '지금 해제하면 이 창이 닫히며 녹음이 중단됩니다. 계속할까요?') as string}
+        confirmText={t('popoutPin.recordingConfirm', '녹음을 멈추고 해제') as string}
         cancelText={t('cancel', '취소') as string}
         variant="warning"
         /* Q Note 팝아웃의 MemoPopup 이 2301 — 기본 2100 이면 확인창이 뒤에 깔려 무반응처럼 보인다(2026-07-31 실측) */
@@ -77,16 +71,16 @@ const IconPin = () => (
 );
 
 // 32×32 — 옆에 서는 헤더 아이콘 버튼(NewChatBtn · MemoPopup HeaderBtn · CueHelpDrawer CloseBtn)이
-//   모두 32 다. 핀은 데스크탑 전용(supportsPin 이 모바일을 배제)이라 터치 타겟 36 규칙 대상이 아니다.
-const Btn = styled.button<{ $active: boolean }>`
+//   모두 32 다. PiP 는 데스크탑 전용이라 터치 타겟 36 규칙 대상이 아니다.
+//   핀이 켜져 있는 상태에서만 보이는 버튼이므로 항상 active 톤이다(눌러서 끄는 버튼).
+const Btn = styled.button`
   flex-shrink: 0;
   width: 32px; height: 32px;
   display: inline-flex; align-items: center; justify-content: center;
   border-radius: 8px; cursor: pointer;
-  background: ${({ $active }) => ($active ? '#0F766E' : 'transparent')};
-  color: ${({ $active }) => ($active ? '#FFFFFF' : '#64748B')};
-  border: 1px solid ${({ $active }) => ($active ? '#0F766E' : 'transparent')};
-  transition: color 0.12s, background 0.12s, border-color 0.12s;
-  &:hover { background: ${({ $active }) => ($active ? '#0F766E' : '#F1F5F9')}; color: ${({ $active }) => ($active ? '#FFFFFF' : '#0F766E')}; }
+  background: #0F766E; color: #FFFFFF;
+  border: 1px solid #0F766E;
+  transition: filter 0.12s;
+  &:hover { filter: brightness(1.08); }
   &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
 `;
