@@ -19,7 +19,8 @@
 //   그래서 수신 로직은 훅 하나로 두고, **이동 수단만 다른** 얇은 컴포넌트 둘을 각 셸에 마운트한다.
 //   두 셸은 ModeGate 에서 배타적으로 렌더되므로 수신자는 언제나 정확히 하나다(중복 navigate 없음).
 //
-// 4단계(핀 재구조화)에서 PiP 소유 상태가 이 자리에 얹힌다.
+// 핀(항상 위) 소유 상태는 같은 이유로 App 레벨이어야 하지만 여기 얹지 않았다 — 모듈 스토어
+//   `utils/pinOwner.ts` 가 더 강한 보장을 준다(컴포넌트가 아니라 애초에 언마운트가 없다).
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { isPopoutWindow } from '../../utils/popout';

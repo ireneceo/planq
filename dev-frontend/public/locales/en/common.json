@@ -894,11 +894,14 @@
     "cue": "Added via Cue"
   },
   "popoutPin": {
-    "pin": "Pin — always on top",
+    "pin": "Keep on top",
     "unpin": "Unpin",
-    "holderNote": "Showing in the always-on-top window",
+    "pinHint": "Shows this tool in a small window above others. No new window opens.",
+    "unpinHint": "Unpinning closes this window. You can reopen it from the dock.",
+    "restore": "Pin again",
+    "lifetimeHint": "Reloading or closing this tab releases the pin.",
     "recordingTitle": "Recording in progress",
-    "recordingMessage": "Switching now reopens this window and stops the recording. Continue?",
-    "recordingConfirm": "Stop recording and switch"
+    "recordingMessage": "Unpinning now closes this window and stops the recording. Continue?",
+    "recordingConfirm": "Stop recording and unpin"
   }
 }
