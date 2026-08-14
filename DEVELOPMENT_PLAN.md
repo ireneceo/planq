@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-08-13 (Opus 5, 1M) 2회차 — **Q Calendar 역방향 동기화(구글→PlanQ) 결함 수정 (`d4c1896`, Fable PASS, 미배포)** — 운영 피드백 "구글에서 수정하면 PlanQ 에 반영 안 됨" 이 **해결되지 않은 채 남아 있었다**. 원인은 두 겹이었다. ①**[코드] 최초 부트스트랩이 이미 일어난 구글 수정을 삼켰다** — `collectChanges` 의 `if (!bootstrap) items.push(...)` 가 커서 없는 첫 회차에 변경을 **수집만 하고 버린 뒤 커서만 저장**했다. **연동 직후가 사용자가 반드시 테스트하는 순간**이라 첫 구글 수정이 항상 폐기되고 커서가 그 지점을 지나가 영원히 오지 않았다. 운영 실측이 정확히 그 모습 — 연동 06:18:04 → push 06:18:29 → **구글 수정 06:19:37** → Google `"PlanQ수정1234"` vs PlanQ `"연동 테스트_PlanQ수정"` **영구 불일치**, 증분 폴링 **변경분 0건**(커서가 지나침), `audit_logs action='event.reverse_sync'` **누적 0건**(한 번도 반영된 적 없음). 수정은 부트스트랩도 items 를 적용하는 것 — 버릴 이유였던 "구글 옛 상태로 덮어쓰기" 는 **이미 3겹이 막고 있었다**(링크 없으면 무시 / 화이트리스트 diff 비면 no-op / PlanQ 가 같거나 더 최신이면 skip). 즉 적용은 *구글이 더 최신이고 실제로 다른* 항목에만 일어나며 그게 이 기능의 정의다. 여기에 `linkedGcalIds()` prefilter(전체훑기 DB 폭증 차단 + **남의 사생활 일정 미조회**), truncated 여도 모은 만큼 적용(멱등), `sources===0` 로그(침묵으로 죽음이 가려지던 것)를 얹었다. ②**[권한·코드 밖] 워크스페이스 토큰이 죽었다** — `business_cloud_tokens#3` 의 scope 가 `userinfo.email openid` 뿐(`hasWriteScope=false`)이고 실제 호출은 `invalid_grant`. **운영 링크 8건 중 6건이 이 팀 캘린더 소속**이라 ①을 고쳐도 그 6건은 양방향 모두 죽어 있다 — **오너 재연결 + 동의화면 "캘린더" 체크 필수**(체크 안 해도 연결은 성공한 것처럼 보이는 게 함정). **Fable 게이트**: diff범위(1파일, 이탈 0) · 가드 4축 EXIT 0(health 34/34 · guard 22/22 · e2e tenant 실패 0 · BUILD_EXIT=0, `error TS` 0) · **반증 16/16 — 옛 코드 대조군이 `CTRL-T1 부트스트랩 변경을 삼킨다` 로 FAIL 해 진단 재현 + 탐지기 유효성 증명** · 실HTTP 8/8(401·403·CUD·삭제 후 404 원복) · 배포안전(마이그레이션 0). **★ Fable 이 남긴 것**: etag NULL 백필 링크의 덮어쓰기 위험은 현재 0이며 재연결 후에도 안전(diff no-op + etag 자가치유 + 시각 가드) / >5000건 캘린더는 커서를 영영 못 만들어 매 회차 전체 재훑기(경고 로그로 가시화, 수용된 트레이드오프) / **비-KST 워크스페이스 all-day 왕복은 이 diff 밖의 기존 매핑 이슈로 별도 추적 권장**. **다음: Irene 의 `/배포` → 배포 직후 운영 `external_connections#14.gcal_sync_token=NULL` 리셋(Fable 안전 판정, link#9 실불일치 해소가 '진짜 고쳐졌다' 의 실증) → 워크스페이스 구글 재연결 안내**
+> **최종 업데이트:** 2026-08-14 (Opus 5, 1M) — **#258 팝아웃 재구조화(1~4단계) + 도크 FAB 겹침 수정 + 캘린더 링크 무결성·관찰성 운영 배포 완료(`dfb76c2`, 백업 `20260814_114510`) + 잔여 정리 3건(`6d983da`, 미배포)** — ①**#258 팝아웃 4단계 완주**: 보기 칩·인라인 퀵애드·Q Task 이동(`e7c550b`) → 핀 재구조화(`3307102`, 홀더 창 제거·메인 탭이 PiP 소유, 설계 C-1/C-2 정면 대응). 2·3단계는 Fable 이 **FAIL 3건**(i18n 래칫·퀵애드 focus 복원 no-op·`PopoutBridge` 가 `ShellApp` 에만 마운트돼 데스크탑 주 경로에서 **수신자 0**)을 잡아내 수정 후 재검증 PASS. ②**설치 배너가 우하단 도크 FAB 을 덮어 모든 페이지에서 도크가 안 눌리던 결함**(`2c96717`) — 하니스 좌표 문제로 보였던 관찰이 실사용자 도달 0 이었다. 카나리 `--suite fab` 신설(중심 침범 축 단독 반증 포함). ③**캘린더 링크 무결성 + 관찰성**(`dfb76c2`) — 고아 링크를 **pre-sync 슬롯에서 정리한 뒤** FK 부착(`sync-database.js` 가 `FOREIGN_KEY_CHECKS=0` 이라 순서를 어기면 "고아 + FK 공존" 최악 상태), 조용히 탈락하던 폴링 소스에 사유 4종(`no_links·no_calendar_scope·sync_error·inactive`)을 붙이고 그 분류 함수를 health-check 가 재사용. 운영 배포 후 마이그레이션 실행·고아 0건까지 확인. ④**잔여 정리 3건**(`6d983da`, **미배포**) — `dockOpen` 플래그 잔류(도크는 `return null` 이라 cleanup 이 안 돌아 `/memo` 이동 시 플래그만 남아 설치 배너가 이유 없이 숨었다. Fable 이 **양성 대조군으로 결함 재현**) · 죽은 `UpdateBanner.tsx` 삭제(N+3 에 시스템째 제거돼 렌더처·이벤트 생산자 0) · health-check `--category` 목록이 두 벌로 갈라져 `wiki·billing·account·calendar` 4개 누락 → `CATEGORIES` 정본 1벌 공유 + **미등록 카테고리는 등록 시점 throw(fail-closed, 반증 2종으로 실효 증명)**. ⑤**🔴 Irene 조치 대기**: 워크스페이스 구글 캘린더 재연결(`business_cloud_tokens#3` scope 가 `userinfo.email openid` 뿐 + `invalid_grant`) — 운영 링크 6건이 이 팀 캘린더라 코드를 고쳐도 죽어 있다. **동의화면에서 "캘린더" 체크 필수**(체크 안 해도 연결은 성공한 것처럼 보이는 게 함정).
+
+> **[이전] 최종 업데이트:** 2026-08-13 (Opus 5, 1M) 2회차 — **Q Calendar 역방향 동기화(구글→PlanQ) 결함 수정 (`d4c1896`, Fable PASS, 미배포)** — 운영 피드백 "구글에서 수정하면 PlanQ 에 반영 안 됨" 이 **해결되지 않은 채 남아 있었다**. 원인은 두 겹이었다. ①**[코드] 최초 부트스트랩이 이미 일어난 구글 수정을 삼켰다** — `collectChanges` 의 `if (!bootstrap) items.push(...)` 가 커서 없는 첫 회차에 변경을 **수집만 하고 버린 뒤 커서만 저장**했다. **연동 직후가 사용자가 반드시 테스트하는 순간**이라 첫 구글 수정이 항상 폐기되고 커서가 그 지점을 지나가 영원히 오지 않았다. 운영 실측이 정확히 그 모습 — 연동 06:18:04 → push 06:18:29 → **구글 수정 06:19:37** → Google `"PlanQ수정1234"` vs PlanQ `"연동 테스트_PlanQ수정"` **영구 불일치**, 증분 폴링 **변경분 0건**(커서가 지나침), `audit_logs action='event.reverse_sync'` **누적 0건**(한 번도 반영된 적 없음). 수정은 부트스트랩도 items 를 적용하는 것 — 버릴 이유였던 "구글 옛 상태로 덮어쓰기" 는 **이미 3겹이 막고 있었다**(링크 없으면 무시 / 화이트리스트 diff 비면 no-op / PlanQ 가 같거나 더 최신이면 skip). 즉 적용은 *구글이 더 최신이고 실제로 다른* 항목에만 일어나며 그게 이 기능의 정의다. 여기에 `linkedGcalIds()` prefilter(전체훑기 DB 폭증 차단 + **남의 사생활 일정 미조회**), truncated 여도 모은 만큼 적용(멱등), `sources===0` 로그(침묵으로 죽음이 가려지던 것)를 얹었다. ②**[권한·코드 밖] 워크스페이스 토큰이 죽었다** — `business_cloud_tokens#3` 의 scope 가 `userinfo.email openid` 뿐(`hasWriteScope=false`)이고 실제 호출은 `invalid_grant`. **운영 링크 8건 중 6건이 이 팀 캘린더 소속**이라 ①을 고쳐도 그 6건은 양방향 모두 죽어 있다 — **오너 재연결 + 동의화면 "캘린더" 체크 필수**(체크 안 해도 연결은 성공한 것처럼 보이는 게 함정). **Fable 게이트**: diff범위(1파일, 이탈 0) · 가드 4축 EXIT 0(health 34/34 · guard 22/22 · e2e tenant 실패 0 · BUILD_EXIT=0, `error TS` 0) · **반증 16/16 — 옛 코드 대조군이 `CTRL-T1 부트스트랩 변경을 삼킨다` 로 FAIL 해 진단 재현 + 탐지기 유효성 증명** · 실HTTP 8/8(401·403·CUD·삭제 후 404 원복) · 배포안전(마이그레이션 0). **★ Fable 이 남긴 것**: etag NULL 백필 링크의 덮어쓰기 위험은 현재 0이며 재연결 후에도 안전(diff no-op + etag 자가치유 + 시각 가드) / >5000건 캘린더는 커서를 영영 못 만들어 매 회차 전체 재훑기(경고 로그로 가시화, 수용된 트레이드오프) / **비-KST 워크스페이스 all-day 왕복은 이 diff 밖의 기존 매핑 이슈로 별도 추적 권장**. **다음: Irene 의 `/배포` → 배포 직후 운영 `external_connections#14.gcal_sync_token=NULL` 리셋(Fable 안전 판정, link#9 실불일치 해소가 '진짜 고쳐졌다' 의 실증) → 워크스페이스 구글 재연결 안내**
 
 > **[이전] 최종 업데이트:** 2026-08-13 (Opus 5, 1M) — **#254 진척 그래프 정의 통일 + '오늘 나의 업무' 탭 + 팝아웃 2탭 + #237 Cue "완료로 추가" 운영 배포 완료(`5ad38c8`, v1.48.2)** — 배포 스택 `4afd169 → 5ad38c8` (2커밋 + docs 1, 25파일 957+/436−), 백업 `20260813_054824`, 207초. 마이그레이션 **변경 0 실측**(pre-sync rename·idempotent 전부 "이미 존재 — skip"). 반영 3점 검증: 운영 PM2 `planq-prod-backend` v1.48.2 online(재기동 확인) · 프론트 청크 05:51 갱신(`version.json built_at 2026-08-13T05:51:39`) · 외부 health 200. `DEPLOY_EXIT=1` 은 알려진 부수 신호(`Deployment Complete` + verify 전항목 OK). **위키 시드는 불필요**(운영 `help_categories` 15 / `help_articles` 42 실측 — 이미 시드됨). 롤백: `ssh irene@87.106.78.146 'tar -xzf /opt/planq/backups/20260813_054824/backend.tar.gz -C /opt/planq && pm2 reload planq-prod-backend'`. **다음: 청크 4 팝아웃 핀 재구조화(#258) — 스파이크 S1·S2·S3 선행 필수 / Irene 결정 대기 3건(AI 카드 우선순위 표시 · 운영 프로젝트 10번 · 월 루틴 요일 지정) / 피드백 장부 정리(해결·배포 완료인데 pending 17건)**
 
@@ -50,6 +52,38 @@
 
 > **[이전] 최종 업데이트:** 2026-07-16 (Opus 4.8, 1M) — **모바일 흰 화면 회귀 차단 + 검사 하니스 강화** — e2e mobile 스위트에 `assertRendered()` **흰 화면(blank) 판정** 신규(키보드 스위트가 "입력 가림"만 봐 페이지 통째 blank도 ⚪ 통과하던 구멍 차단, #173/174/159/178 계열) + `run.js` blank=실패 집계 + mail 시나리오(mail-list·mail-compose) + MailPage `data-testid`·모바일 compose 사이드바 자동접힘 + DetailDrawer 폰 풀스크린(56px 조각 새던 것) + QBill 개요 2열 그리드 반응형 + Insights 기간라벨 i18n. **검증: mobile/crosscut/l1 전 스위트 0 실패 + tsc -b exit 0 + 가드 3축(health 30/30·guard 22/22·tenant 0)**. 다음: `docs/qa/NEXT_SECTION_BACKLOG.md`(Q Mail AI·멀티탭·전수검사 잔여 LOW).
 
+
+## ✅ 완료: 2026-08-14 — #258 팝아웃 재구조화 + FAB 겹침 + 캘린더 링크 무결성 (배포 완료) + 잔여 정리 3건 (미배포)
+
+> 커밋 `e7c550b → 6d983da` 5건. 이 중 `dfb76c2` 까지 **운영 배포 완료**(백업 `20260814_114510`, PM2 11:48 재기동). `6d983da` 는 **미배포**.
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| #258 팝아웃 1~3단계 | 보기 칩(오늘·이번 주·마감일별) · 인라인 퀵애드 · Q Task 이동 버튼 (`e7c550b`) | ✅ 배포 |
+| #258 팝아웃 4단계 | 핀 재구조화 — 홀더 창 제거, 메인 탭이 PiP 소유(설계 C-1·C-2 대응), standalone 4곳 (`3307102`) | ✅ 배포 |
+| 도크 FAB 겹침 | 설치 배너(z 8500)가 FAB(z 120)을 덮어 **모든 페이지에서 도크 도달 0** — bottom 80 으로 비켜세우고 카나리 신설 (`2c96717`) | ✅ 배포 |
+| 캘린더 링크 무결성 | 고아 링크 pre-sync 정리 → FK 부착(순서가 곧 안전성) + 모델 `references` (`dfb76c2`) | ✅ 배포 |
+| 캘린더 관찰성 | 조용히 탈락하던 폴링 소스에 사유 4종 부여 + 분류 함수를 health-check 가 재사용(두 벌 방지) | ✅ 배포 |
+| `dockOpen` 플래그 잔류 | 도크는 `return null` 이라 cleanup 미실행 → `/memo` 이동 시 플래그 잔류로 설치 배너가 이유 없이 숨음. `hidden` 을 effect 조건·deps 에 포함 (`6d983da`) | ✅ 미배포 |
+| 죽은 `UpdateBanner` 삭제 | N+3 에 시스템째 제거돼 렌더처·이벤트 생산자 0. CLAUDE.md 운영 규칙 #2 문구도 현재 정본으로 갱신 | ✅ 미배포 |
+| health-check 카테고리 정본 | `--help` 목록과 `test()` 등록이 갈라져 4개 누락 → `CATEGORIES` 1벌 공유 + 미등록 시 등록 시점 throw | ✅ 미배포 |
+
+### Fable 게이트 (전 커밋 PASS)
+- **2·3단계 FAIL 3건 → 수정 후 재검증 PASS**: i18n 래칫(JSX 여러 줄 주석 둘째 줄) · 퀵애드 focus 복원이 `disabled` DOM 에 걸려 no-op(연속 입력 시 두 번째 업무 **미생성**) · `PopoutBridge` 가 `ShellApp` 에만 마운트돼 데스크탑 기본 트리(`TabAppShell`)에서 **수신자 0**(로직은 건전, 죽은 것은 트리 배치)
+- **정리 3건 검증**: diff 범위 이탈 0 · health 36/36 · guard 22/22 · e2e tenant 실패 0 · BUILD_EXIT=0 / `error TS` 0 · **반증 2종**(미등록 카테고리 주입 EXIT 1, `CATEGORIES` 에서 `calendar` 제거 EXIT 2) · **실브라우저 양성 대조군으로 `dockOpen` 잔류 재현** · FAB 카나리 6/6 도달 · 실HTTP CUD 401/403/404 원복 증명
+
+### 수정된 파일 (정리 3건)
+- `dev-frontend/src/components/Common/RightDock.tsx`
+- `dev-frontend/src/components/Common/UpdateBanner.tsx` (삭제)
+- `scripts/health-check.js`
+- `CLAUDE.md` (운영 안정성 규칙 #2 — 낡은 `<UpdateBanner>` 서술을 `BuildVersionGuard.isReloadSafe()` 정본으로 교체)
+
+### 🔴 Irene 조치 대기 (코드로 못 고침)
+**워크스페이스 구글 캘린더 재연결** — `business_cloud_tokens#3` scope 가 `userinfo.email openid` 뿐 + `invalid_grant`. 운영 링크 6건이 이 팀 캘린더 소속이라 코드를 고쳐도 양방향 모두 죽어 있다. 동의화면에서 **"캘린더" 체크 필수**(체크 안 해도 연결은 성공한 것처럼 보인다). 살아나면 폴링 로그가 `제외 1(no_links:1)` 로 줄고 소스가 2가 된다.
+
+---
 
 ## ✅ 완료: 2026-08-13 (2) — Q Calendar 역방향 동기화 결함 수정 (Fable PASS · 미배포)
 
