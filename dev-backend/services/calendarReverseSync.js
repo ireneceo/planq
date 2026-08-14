@@ -103,29 +103,57 @@ function diffAgainstEvent(event, patch) {
 }
 
 /**
- * 폴링 대상 판정 — 링크가 하나도 없는 연결은 부를 이유가 없다(구글 쿼터·로그 낭비).
- * 죽은 연결도 제외한다 — 5분 cron 이 계속 부딪히면 fail_count 가 하루 288 씩 오른다.
+ * 제외 사유 고정 어휘 — **코드 분기와 1:1**.
+ *
+ * ★ 분기 없는 어휘를 추가하지 말 것. 설계 초안에 `sync_disabled` 가 있었는데 reverse 경로에는
+ *   그 분기가 없었다(`sync_enabled` 는 push 전용 축이다). 어휘만 있고 분기가 없으면 "사유가 다 있다"
+ *   는 착시가 생겨, **이 관찰성 장치가 잡으려던 바로 그 침묵을 스스로 재생산한다**.
  */
-async function personalSources() {
-  const conns = await ExternalConnection.findAll({
-    where: { provider: 'google_calendar', owner_scope: 'user', is_active: true },
-  });
-  const out = [];
-  for (const conn of conns) {
-    if (!personalCalendar.hasCalendarWrite(conn)) continue;   // 권한 없는 연결은 skip
-    if (conn.last_sync_error) continue;                        // 죽은 연결은 skip (오류 폭증 차단)
-    const n = await CalendarEventGcalLink.count({ where: { target: 'personal', connection_id: conn.id } });
-    if (n > 0) out.push({ kind: 'personal', conn, businessId: conn.business_id });
-  }
-  return out;
-}
+const EXCLUSION_REASONS = Object.freeze(['no_links', 'no_calendar_scope', 'sync_error', 'inactive']);
 
-async function workspaceSources() {
+/**
+ * 폴링 대상 **분류** — 포함과 제외를 한 함수가 함께 결정한다.
+ *
+ * 왜 분류인가 (설계 C5): 예전에는 `continue` 로 조용히 빠뜨렸다. 그러면 "소스 ≥1 인데 idle" 이
+ * 무로그라, **정상 idle 과 특정 소스의 조용한 탈락을 구분할 수 없다**. 이번 사고의 본질이 그 침묵이었다
+ * (운영에서 감사로그 0건으로야 역방향이 죽어 있음을 알았다).
+ * if/else 사슬의 **끝만 포함**이라, 사유 없는 제외가 구조상 불가능하다.
+ *
+ * ★ `is_active` 를 쿼리 where 에서 뺐다 — 빼지 않으면 걸러진 연결이 후보 집합에서 사라져
+ *   `inactive` 사유를 애초에 산출할 수 없다(빠진 줄도 모른다). 필터가 아니라 분류로 옮긴 이유다.
+ * ★ 워크스페이스에는 is_active 축이 없다(BusinessCloudToken 에 그 컬럼이 없다) — 비대칭은 의도다.
+ *
+ * 판정 순서는 근본적인 것부터: inactive(연결 자체가 꺼짐) → 권한 → 오류 → 링크 0.
+ *
+ * health-check 가 **이 함수를 그대로 재사용**한다. 별도 근사 구현을 두면 두 벌로 갈라져
+ * 가드가 실제 동작이 아니라 자기 사본을 검사하게 된다.
+ *
+ * @returns {Promise<{sources: Array, excluded: Array<{kind, id, businessId, reason}>}>}
+ */
+async function classifySources() {
+  const sources = [];
+  const excluded = [];
+
+  const conns = await ExternalConnection.findAll({
+    where: { provider: 'google_calendar', owner_scope: 'user' },
+  });
+  for (const conn of conns) {
+    const at = { kind: 'personal', id: conn.id, businessId: conn.business_id };
+    if (!conn.is_active) { excluded.push({ ...at, reason: 'inactive' }); continue; }
+    if (!personalCalendar.hasCalendarWrite(conn)) { excluded.push({ ...at, reason: 'no_calendar_scope' }); continue; }
+    // 죽은 연결은 제외 — 5분 cron 이 계속 부딪히면 fail_count 가 하루 288 씩 오른다.
+    if (conn.last_sync_error) { excluded.push({ ...at, reason: 'sync_error' }); continue; }
+    // 링크가 하나도 없는 연결은 부를 이유가 없다(구글 쿼터·로그 낭비).
+    const n = await CalendarEventGcalLink.count({ where: { target: 'personal', connection_id: conn.id } });
+    if (n === 0) { excluded.push({ ...at, reason: 'no_links' }); continue; }
+    sources.push({ kind: 'personal', conn, businessId: conn.business_id });
+  }
+
   const tokens = await BusinessCloudToken.findAll({ where: { provider: 'gcal' } });
-  const out = [];
   for (const token of tokens) {
-    if (!gcal.hasWriteScope(token.scope)) continue;
-    if (token.last_error) continue;
+    const at = { kind: 'workspace', id: token.id, businessId: token.business_id };
+    if (!gcal.hasWriteScope(token.scope)) { excluded.push({ ...at, reason: 'no_calendar_scope' }); continue; }
+    if (token.last_error) { excluded.push({ ...at, reason: 'sync_error' }); continue; }
     // ★ 반드시 business_id 로 좁힌다. 워크스페이스 링크는 connection_id 가 NULL 이라
     //   `{ target:'workspace' }` 만으로 세면 **다른 워크스페이스의 링크까지 센다** —
     //   링크가 0인 워크스페이스를 남의 데이터 때문에 폴링 대상으로 올리게 된다.
@@ -134,9 +162,11 @@ async function workspaceSources() {
       where: { target: 'workspace' },
       include: [{ model: CalendarEvent, as: 'event', required: true, attributes: [], where: { business_id: token.business_id } }],
     });
-    if (n > 0) out.push({ kind: 'workspace', token, businessId: token.business_id });
+    if (n === 0) { excluded.push({ ...at, reason: 'no_links' }); continue; }
+    sources.push({ kind: 'workspace', token, businessId: token.business_id });
   }
-  return out;
+
+  return { sources, excluded };
 }
 
 async function clientFor(source) {
@@ -380,10 +410,14 @@ async function pollSource(source, { io = null } = {}) {
 
 /** cron 진입점 — 전 소스 1회 폴링. 개별 소스 실패는 삼키고 계속한다. */
 async function runAll({ io = null } = {}) {
-  const total = { sources: 0, applied: 0, skipped: 0, unlinked: 0, errors: 0 };
+  const total = {
+    sources: 0, applied: 0, skipped: 0, unlinked: 0, errors: 0, excluded: [],
+  };
   let sources = [];
   try {
-    sources = [...(await personalSources()), ...(await workspaceSources())];
+    const c = await classifySources();
+    sources = c.sources;
+    total.excluded = c.excluded;
   } catch (e) {
     console.error('[reverseSync] 소스 조회 실패:', e.message);
     return total;
@@ -404,16 +438,24 @@ async function runAll({ io = null } = {}) {
       console.error(`[reverseSync] ${source.kind} 폴링 실패:`, e.message);
     }
   }
-  // 폴링 대상이 0 이면 조용히 "정상" 처럼 보인다 — 운영에서 이 침묵 때문에 역방향이 죽은 걸
-  //   감사로그 0건으로야 알았다. 대상 0 은 그 자체가 신호이므로 남긴다(5분 주기, 한 줄).
-  if (total.applied || total.errors || total.sources === 0) {
-    console.log(`[reverseSync] 소스 ${total.sources} · 반영 ${total.applied} · 무시 ${total.skipped} · 비링크 ${total.unlinked} · 오류 ${total.errors}`);
-  }
+  // ★ **조건 없이 매 회차 남긴다** (설계 Q2 확정).
+  //   변화 시에만 남기면 ①배포마다 PM2 재시작이 기준선을 리셋하고 ②로그 로테이션이 유일한 전이 라인을
+  //   지울 수 있으며 ③무엇보다 **"로그 없음 = 프로세스 죽음" 이라는 판정 불변식이 사라진다**.
+  //   288줄/일은 무시할 수 있는 양이고, 그 대가로 "조용한 정상" 과 "조용한 죽음" 이 구분된다.
+  //   제외를 사유별로 세어 붙인다 — 소스가 2개 이상일 때 한 소스의 죽음이 다시 침묵에 가리지 않도록.
+  const byReason = {};
+  for (const e of total.excluded) byReason[e.reason] = (byReason[e.reason] || 0) + 1;
+  const exText = total.excluded.length
+    ? ` · 제외 ${total.excluded.length}(${Object.entries(byReason).map(([k, v]) => `${k}:${v}`).join(', ')})`
+    : ' · 제외 0';
+  console.log(`[reverseSync] 소스 ${total.sources} · 반영 ${total.applied} · 무시 ${total.skipped} · 비링크 ${total.unlinked} · 오류 ${total.errors}${exText}`);
   return total;
 }
 
 module.exports = {
-  runAll, pollSource, personalSources, workspaceSources, linkedGcalIds,
+  runAll, pollSource, linkedGcalIds,
+  // ★ health-check 가 이 둘을 **그대로** 재사용한다(설계 C5). 근사 구현을 따로 두지 말 것.
+  classifySources, EXCLUSION_REASONS,
   // 테스트·검증용 — 순수 함수라 실호출 없이 단위 검증할 수 있다.
   //   collectChanges 는 구글 클라이언트를 주입받으므로 스텁으로 수집 계약을 반증할 수 있다.
   collectChanges, toPatch, diffAgainstEvent, toPlanqTimes, toPlanqRrule,

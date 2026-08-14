@@ -235,6 +235,12 @@ sync_database() {
   log "Running pre-sync migrations (rename)..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-calendar-sync-split.js 2>&1 | tail -10"
 
+  # ★ 고아 링크 정리 + connection_id FK 도 **pre-sync 여야 한다** (아래 idempotent 슬롯 아님).
+  #   sync-database.js:29 가 SET FOREIGN_KEY_CHECKS=0 으로 alter 를 도는데, FK 검사가 꺼진 상태의
+  #   ADD FOREIGN KEY 는 기존 행을 검증하지 않는다 → 모델 references 를 보고 sync 가 FK 를 붙이면
+  #   **고아가 남은 채 FK 만 공존하는 최악 상태**가 조용히 만들어진다. 정리가 먼저여야 한다.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-gcal-link-fk.js 2>&1 | tail -10"
+
   log "Syncing DB schema on prod..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node sync-database.js 2>&1 | tail -20"
   success "DB sync 완료"
