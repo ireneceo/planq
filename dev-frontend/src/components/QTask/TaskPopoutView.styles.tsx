@@ -20,6 +20,16 @@ export const Head = styled.div`
 export const HeadTitle = styled.h1`
   margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.2px; color: #0F172A;
 `;
+// #258 — 헤더의 "Q Task 열기". 보조 액션이라 3톤 중 Secondary 톤(테두리+무채색)으로 둔다.
+export const GoMainBtn = styled.button`
+  flex-shrink: 0; height: 28px; padding: 0 10px;
+  border: 1px solid #E2E8F0; border-radius: 8px;
+  background: #FFFFFF; color: #475569;
+  font-size: 12px; font-weight: 600; font-family: inherit;
+  cursor: pointer; white-space: nowrap;
+  &:hover { background: #F8FAFC; border-color: #CBD5E1; }
+  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
+`;
 export const HeadRight = styled.div`
   margin-left: auto;
   display: flex; align-items: center; gap: 10px;
@@ -225,15 +235,7 @@ export const MetaDue = styled.span<{ $overdue: boolean }>`
   color: ${({ $overdue }) => ($overdue ? '#BE123C' : '#64748B')};
 `;
 // #250 나열 기준 토글 — ToggleDone 과 같은 계열(bespoke 금지). 활성 시 Teal 로 눌린 상태 표시.
-export const SortToggle = styled.button`
-  width: 100%; margin-top: 10px;
-  padding: 8px; border: 1px dashed #CBD5E1; border-radius: 8px;
-  background: transparent; cursor: pointer;
-  font-size: 12px; font-weight: 600; color: #64748B;
-  &[aria-pressed='true'] { border-style: solid; border-color: #14B8A6; color: #0F766E; background: #F0FDFA; }
-  &:hover { border-color: #94A3B8; color: #475569; }
-  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
-`;
+// (SortToggle 제거 — #258 보기 기준 칩 3종으로 대체됐다. components/QTask/PopoutViewChips.tsx)
 export const ToggleDone = styled.button`
   width: 100%; margin-top: 10px;
   padding: 8px; border: 1px dashed #CBD5E1; border-radius: 8px;
