@@ -67,6 +67,17 @@ const RightDock: React.FC = () => {
     };
   }, [expanded]);
 
+  // 펼침 상태를 body 에 알린다 — 우하단 배너(PwaInstallBanner·UpdateBanner)가 이 자리를 비우는 계약.
+  //   ★ 조기 return 위에 둔다(훅 순서 고정). 언마운트 시 반드시 지운다 — 안 지우면 도크가 사라진
+  //     경로에서 배너가 영영 숨는다.
+  useEffect(() => {
+    try {
+      if (expanded) document.body.dataset.dockOpen = '1';
+      else delete document.body.dataset.dockOpen;
+    } catch { /* noop */ }
+    return () => { try { delete document.body.dataset.dockOpen; } catch { /* noop */ } };
+  }, [expanded]);
+
   if (!isBusinessMember || pathHidden) return null;
 
   // #80 — 빠른 만들기: 해당 페이지로 이동하며 생성 모달 자동 오픈(URL param). "진짜 퀵".

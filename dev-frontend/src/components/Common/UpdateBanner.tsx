@@ -46,7 +46,9 @@ const slideIn = keyframes`
   to { transform: translateY(0); opacity: 1; }
 `;
 const Wrap = styled.div`
-  position: fixed; right: 20px; bottom: 20px; z-index: 1200;
+  /* bottom 80 — 우하단 도크 FAB(52×52 @ bottom 16) 위로. 겹치면 새 빌드 안내가 뜬 동안
+     도크가 통째로 안 눌린다(PwaInstallBanner 와 같은 계열의 겹침). */
+  position: fixed; right: 20px; bottom: calc(80px + env(safe-area-inset-bottom, 0px)); z-index: 1200;
   display: flex; align-items: center; gap: 12px;
   padding: 12px 14px;
   background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px;
@@ -54,9 +56,11 @@ const Wrap = styled.div`
   max-width: calc(100vw - 40px);
   animation: ${slideIn} 0.2s ease-out;
   @media (max-width: 640px) {
-    left: 16px; right: 16px; bottom: 16px;
+    left: 16px; right: 16px; bottom: calc(80px + env(safe-area-inset-bottom, 0px));
     flex-direction: column; align-items: stretch;
   }
+  /* 도크 퀵메뉴가 펼쳐진 동안에는 비운다 — 메뉴가 이 자리로 올라온다. */
+  body[data-dock-open="1"] & { display: none; }
 `;
 const Body = styled.div`display: flex; flex-direction: column; gap: 2px; min-width: 200px;`;
 const Title = styled.div`font-size: 13px; font-weight: 700; color: #0F172A;`;
