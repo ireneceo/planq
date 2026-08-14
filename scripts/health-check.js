@@ -787,6 +787,83 @@ function defineFrontendTests() {
 }
 
 // ============================================
+// ============================================
+// calendar — 역방향 동기화 링크 무결성 + 관찰성 (CALENDAR_LINK_INTEGRITY_DESIGN §5-9 Q1)
+// ============================================
+// 이번 사고의 본질은 **침묵**이었다. 운영에서 역방향이 한 번도 산 적 없다는 걸
+//   audit_logs 0건으로야 알았다. 두 항목으로 그 침묵을 닫는다.
+//   ① 고아 링크 0 — FK 이후엔 구조적으로 0 이지만 회귀 탐지용(FK 가 유실돼도 여기서 드러난다)
+//   ② 사유 없는 제외 0 — 후보 집합이 포함 ∪ 제외로 **빠짐없이 덮이는가**
+//      ★ 실제 서비스의 classifySources 를 그대로 재사용한다(설계 C5). 여기에 근사 구현을 두면
+//        두 벌로 갈라져 가드가 실제 동작이 아니라 자기 사본을 검사하게 된다.
+function defineCalendarLinkTests() {
+  const isLocal = BACKEND.startsWith('http://localhost');
+  if (!isLocal) return;   // DB 직접 조회 — 원격 검증 시 불가
+
+  test('calendar', '고아 캘린더 링크 0건 (connection_id FK)', async () => {
+    const { execSync } = require('child_process');
+    const out = execSync(
+      `node -e "require('dotenv').config();const{sequelize}=require('./config/database');(async()=>{`
+      + `const [r]=await sequelize.query(\\\"SELECT l.id,l.connection_id FROM calendar_event_gcal_links l `
+      + `LEFT JOIN external_connections c ON c.id=l.connection_id `
+      + `WHERE l.connection_id IS NOT NULL AND c.id IS NULL\\\");`
+      + `const [f]=await sequelize.query(\\\"SELECT CONSTRAINT_NAME cn FROM information_schema.KEY_COLUMN_USAGE `
+      + `WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='calendar_event_gcal_links' `
+      + `AND COLUMN_NAME='connection_id' AND REFERENCED_TABLE_NAME='external_connections'\\\");`
+      + `console.log('@@'+JSON.stringify({orphans:r.map(x=>x.id+':conn'+x.connection_id),fk:f.map(x=>x.cn)}));`
+      + `await sequelize.close();})();"`,
+      { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 20000 });
+    const line = out.split('\n').find((l) => l.startsWith('@@'));
+    if (!line) throw new Error('고아 링크 조회 실패 — 거짓 통과 방지 위해 중단');
+    const r = JSON.parse(line.slice(2));
+    const problems = [];
+    if (r.orphans.length) problems.push(`고아 링크 ${r.orphans.length}건: ${r.orphans.join(', ')}`);
+    // FK 부재도 실패로 본다 — 고아가 0 인 것은 "지금" 우연일 수 있고, 구조 보장이 사라지면 다시 쌓인다.
+    if (!r.fk.length) problems.push('connection_id FK 부재 — scripts/migrate-gcal-link-fk.js 미적용');
+    if (problems.length) throw new Error(problems.join(' / '));
+    return true;
+  });
+
+  test('calendar', '역방향 폴링 — 사유 없이 빠진 소스 0건 (관찰성)', async () => {
+    const { execSync } = require('child_process');
+    const out = execSync(
+      `node -e "require('dotenv').config();`
+      + `const rs=require('./services/calendarReverseSync');`
+      + `const{ExternalConnection,BusinessCloudToken}=require('./models');`
+      + `const{sequelize}=require('./config/database');(async()=>{`
+      + `const c=await rs.classifySources();`
+      // ★ 후보 수는 분류 함수와 **독립적으로** 센다. 같은 쿼리를 양쪽에 쓰면 자기모순만 못 잡는다.
+      //   분류가 where 필터를 되살리면(예: is_active:true) 여기서 수가 어긋나 FAIL 이 난다.
+      + `const rp=await ExternalConnection.count({where:{provider:'google_calendar',owner_scope:'user'}});`
+      + `const rw=await BusinessCloudToken.count({where:{provider:'gcal'}});`
+      + `const seen=(k)=>c.sources.filter(s=>s.kind===k).length+c.excluded.filter(e=>e.kind===k).length;`
+      + `console.log('@@'+JSON.stringify({rawPersonal:rp,rawWorkspace:rw,`
+      + `seenPersonal:seen('personal'),seenWorkspace:seen('workspace'),`
+      + `sources:c.sources.length,excluded:c.excluded.map(e=>e.kind+'#'+e.id+':'+e.reason),`
+      + `vocab:rs.EXCLUSION_REASONS,bad:c.excluded.filter(e=>!rs.EXCLUSION_REASONS.includes(e.reason)).map(e=>e.kind+'#'+e.id+':'+e.reason)}));`
+      + `await sequelize.close();})();"`,
+      { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 30000 });
+    const line = out.split('\n').find((l) => l.startsWith('@@'));
+    if (!line) throw new Error('소스 분류 조회 실패 — 거짓 통과 방지 위해 중단');
+    const r = JSON.parse(line.slice(2));
+    const problems = [];
+    // 후보 ≠ 포함+제외 → 어딘가에서 조용히 사라진 것이다. 이 가드가 잡으려는 바로 그 침묵.
+    if (r.rawPersonal !== r.seenPersonal) {
+      problems.push(`개인 연결 ${r.rawPersonal}건 중 ${r.seenPersonal}건만 분류됨 — ${r.rawPersonal - r.seenPersonal}건이 사유 없이 누락`);
+    }
+    if (r.rawWorkspace !== r.seenWorkspace) {
+      problems.push(`워크스페이스 토큰 ${r.rawWorkspace}건 중 ${r.seenWorkspace}건만 분류됨 — ${r.rawWorkspace - r.seenWorkspace}건이 사유 없이 누락`);
+    }
+    if (r.bad.length) problems.push(`고정 어휘 밖 사유: ${r.bad.join(', ')} (허용: ${r.vocab.join('/')})`);
+    if (problems.length) throw new Error(problems.join(' / '));
+    // 사유는 출력에 남긴다 — dev/운영 데이터 차이로 인한 거짓 FAIL 없이 "왜 idle 인지" 를 보여준다.
+    return r.excluded.length
+      ? `소스 ${r.sources} · 제외 ${r.excluded.length}(${r.excluded.join(', ')})`
+      : `소스 ${r.sources} · 제외 0`;
+  });
+}
+
+// ============================================
 // realtime — socket.io 실시간 동기화 가드 (숫자 뱃지 회귀 영구 차단)
 // ============================================
 // 회귀 사례: unread 뱃지 hook(useUnreadTotal) socket 이 business room 에 join 안 해
@@ -931,6 +1008,7 @@ async function runTests(allTests, category) {
   defineWikiTests();
   defineBillingLedgerTests();
   defineAccountDeletionTests();
+  defineCalendarLinkTests();
   defineRealtimeTests();
 
   const allPass = await runTests(tests, opts.category);

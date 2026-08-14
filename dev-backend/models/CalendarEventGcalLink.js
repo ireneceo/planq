@@ -25,7 +25,17 @@ CalendarEventGcalLink.init({
   },
   target: { type: DataTypes.ENUM('workspace', 'personal'), allowNull: false },
   // personal 일 때만 채워진다. workspace 는 워크스페이스당 하나뿐이라 NULL.
-  connection_id: { type: DataTypes.INTEGER, allowNull: true },
+  //   ★ event_id 와 같은 이유로 여기에도 FK 를 둔다(2026-08-14). 옛 스키마는 idx_conn 인덱스만 있어
+  //     연결이 사라져도 링크가 **고아로 살아남았다** — 운영 link#1(conn#12 부재) 실측. 그 링크의
+  //     일정(event#29)은 updateAtLink 가 graceful return 하며 역방향이 영구 정지했다.
+  //     삭제 경로가 셋(라우트·anonymize·CASCADE)인데 앱 코드는 라우트 하나만 정리하고 있었다 —
+  //     경로가 늘 때마다 다시 빠지므로 DB 가 강제하게 한다.
+  //   NULL(=workspace 링크)은 FK 검사를 통과하므로 영향 밖이다.
+  connection_id: {
+    type: DataTypes.INTEGER, allowNull: true,
+    references: { model: 'external_connections', key: 'id' },
+    onDelete: 'CASCADE', onUpdate: 'CASCADE',
+  },
   user_id: { type: DataTypes.INTEGER, allowNull: true },
   gcal_event_id: { type: DataTypes.STRING(255), allowNull: false },
   gcal_calendar_id: { type: DataTypes.STRING(255), allowNull: true, defaultValue: 'primary' },
