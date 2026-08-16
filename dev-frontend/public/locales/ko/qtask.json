@@ -173,7 +173,8 @@
       "addTask": "업무 추가",
       "addTaskPh": "업무 제목 입력 (Enter 추가 / Esc 취소)",
       "addTaskGo": "추가"
-    }
+    },
+    "datesReadOnly": "기간은 요청자·담당자·관리자만 변경할 수 있어요"
   },
   "empty": {
     "title": "업무를 시작해 보세요",
@@ -231,7 +232,8 @@
     "noMembers": "멤버 없음",
     "noAssignee": "— 없음 —",
     "meSuffix": " (나)",
-    "emptyDash": "—"
+    "emptyDash": "—",
+    "datesReadOnly": "기간은 요청자·담당자·관리자만 변경할 수 있어요"
   },
   "add": {
     "placeholder": "업무명 입력 후 Ctrl+Enter 저장",
@@ -480,7 +482,8 @@
       "createdOn": "작성",
       "requestedOn": "요청",
       "tags": "태그",
-      "tagsPh": "태그 선택"
+      "tagsPh": "태그 선택",
+      "datesReadOnly": "기간은 요청자·담당자·관리자만 변경할 수 있어요"
     },
     "description": "업무 설명",
     "descriptionSelf": "내가 적은 업무 메모",

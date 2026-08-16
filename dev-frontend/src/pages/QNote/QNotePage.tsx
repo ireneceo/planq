@@ -281,9 +281,16 @@ const QNotePage = () => {
   const [shareModalOpen, setShareModalOpen] = useState(false);
   // N+42 — 정리하기 분기 모달 (4 액션: 업무/지식/문서/공유)
   const [visibilityError, setVisibilityError] = useState<string | null>(null);
+  // 운영 #283 — 모바일 master-detail. 여태 좁은 화면이면 **선택 여부와 무관하게 무조건 접어서**
+  //   Q Note 에 들어가면 세션 리스트가 아예 안 보였다("큐노트 모바일로 가면 리스트가 안 나와").
+  //   Q Mail 이 같은 문제를 이미 풀어놨다(#204, MailPage.tsx:495-499) — 선택이 없으면 리스트부터 보인다.
+  //   ★ Q Note 의 선택은 쿼리스트링이 아니라 **path param**(`/notes/:sessionId`) 이다.
+  //   ★ breakpoint 도 900 이 아니라 1024 — CollapsibleSidebar 의 오버레이 전환점과 맞춘다
+  //     (900 이면 900~1024 구간에서 판정이 어긋난다).
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') return window.innerWidth < 900;
-    return false;
+    if (typeof window === 'undefined') return false;
+    if (window.innerWidth > 1024) return false;   // 데스크탑은 항상 펼침
+    return !!urlSessionId;                        // 좁은 화면: 세션을 지목해 들어온 경우만 접음
   });
   // 좌측 리스트 폭 — 드래그로 조절 (다른 화면과 같은 방식, localStorage 저장)
   const { width: listWidth, startResize: startListResize } = usePanelWidth('qnote_list_width', 300, 'left');
@@ -294,13 +301,16 @@ const QNotePage = () => {
     return false;
   });
 
+  // #283 — 폭 변화 핸들러가 선택 상태를 봐야 한다. 값이 effect 클로저에 갇히면 안 되므로 ref 경유.
+  const urlSessionIdRef = useRef(urlSessionId);
+  urlSessionIdRef.current = urlSessionId;
   useEffect(() => {
     const mql = window.matchMedia('(max-width: 1024px)');
     const handler = (e: MediaQueryListEvent | MediaQueryList) => {
       const narrow = 'matches' in e ? e.matches : false;
       setViewportNarrow(narrow);
-      if (narrow) setSidebarCollapsed(true);
-      else setSidebarCollapsed(false);
+      // 좁아지면 **무조건 접지 않는다** — 세션을 고른 상태에서만 접어 본문을 보여준다(#283).
+      setSidebarCollapsed(narrow ? !!urlSessionIdRef.current : false);
     };
     if (mql.addEventListener) mql.addEventListener('change', handler as (e: MediaQueryListEvent) => void);
     else mql.addListener(handler as (e: MediaQueryListEvent) => void);
@@ -309,6 +319,15 @@ const QNotePage = () => {
       else mql.removeListener(handler as (e: MediaQueryListEvent) => void);
     };
   }, []);
+
+  // #283 — 좁은 화면의 master-detail 전환: 세션 선택 → 본문(리스트 접기) / 선택 해제 → 리스트 복귀.
+  //   Q Mail 의 setActive/clearSelection(#204) 과 같은 규칙. 데스크탑은 두 패널이 나란히라 건드리지 않는다.
+  //   ★ 녹음 중에는 자동 전개를 보류한다 — 녹음 화면 위로 리스트가 덮이면 안 된다.
+  useEffect(() => {
+    if (!viewportNarrow) return;
+    if (!urlSessionId && phase === 'recording') return;
+    setSidebarCollapsed(!!urlSessionId);
+  }, [urlSessionId, viewportNarrow, phase]);
 
   // ── 준비 상태 (phase='prepared' 일 때 폴링) ──
   type Readiness = {
@@ -2165,7 +2184,9 @@ const QNotePage = () => {
         offsetOpen={`${listWidth}px`}
         ariaLabel={(sidebarCollapsed ? t('page.sidebar.expand', '리스트 열기') : t('page.sidebar.collapse', '리스트 접기')) as string}
       />
-      <CollapsibleSidebar $collapsed={sidebarCollapsed} $w={listWidth}>
+      {/* data-testid — 하니스가 "모바일 진입 시 리스트가 보이는가"(#283)를 판정하는 앵커.
+          CLAUDE.md 운영안정성 §17: 인터랙티브/판정 대상 요소에 testid 부여. */}
+      <CollapsibleSidebar data-testid="qnote-list" $collapsed={sidebarCollapsed} $w={listWidth}>
         <PanelResizeHandle onMouseDown={startListResize} />
         <SidebarHeader>
           <TitleGroup>

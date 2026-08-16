@@ -505,20 +505,24 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   }, [statusOpen]);
 
   // ── Save helpers ──
-  const saveField = async (field: string, value: unknown) => {
+  // 운영 #279 — 여러 필드를 **한 번의 PUT** 으로 보낸다.
+  //   기간(start_date+due_date)을 saveField 로 두 번 쏘면 ①요청이 경쟁하고 ②하나가 403 이면
+  //   절반만 저장된다. 백엔드 PUT 은 원래 여러 필드를 한 번에 받는다.
+  const saveFields = async (patch: Record<string, unknown>) => {
     if (!detailTask) return;
     setSaveStatusTemp('saving');
     try {
       const r = await apiFetch(`/api/tasks/by-business/${bizId}/${detailTask.id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [field]: value }),
+        body: JSON.stringify(patch),
       });
-      if (!r.ok) throw new Error('save_failed');
-      setDetailTask(prev => prev ? { ...prev, [field]: value } as TaskDetail : prev);
-      onPatch?.({ id: detailTask.id, [field]: value } as DrawerTaskPatch);
+      if (!r.ok) throw new Error('save_failed');   // apiFetch 는 throw 안 함 — res.ok 필수
+      setDetailTask(prev => prev ? { ...prev, ...patch } as TaskDetail : prev);
+      onPatch?.({ id: detailTask.id, ...patch } as DrawerTaskPatch);
       setSaveStatusTemp('saved');
     } catch { setSaveStatusTemp('error'); }
   };
+  const saveField = async (field: string, value: unknown) => saveFields({ [field]: value });
   // #250 태그 저장 — 전용 엔드포인트다(PUT by-business 는 tag_ids 를 받지 않는다).
   //   응답의 tags 로 state 를 맞춘다 — 서버가 사전순 정렬해 돌려주므로 대표 태그가 [0] 로 고정된다.
   const saveTags = async (tagIds: number[]) => {
@@ -983,6 +987,11 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           const canEditDescription = iAmCreator || iAmWsOwner;
           const canEditBody = iAmAssignee || isPlatformAdmin;
           const canEditRecurrence = iAmCreator || iAmWsOwner;  // 백엔드 FIELD_RULES와 일치
+          // 운영 #279 — 기간(착수·마감). 여태 이 플래그가 **아예 없어서** 담당자에게 편집 가능한
+          //   UI 를 열어두고 저장 시점에 403 "저장 실패" 만 띄웠다. 백엔드 FIELD_RULES.due_date/
+          //   start_date(담당자/작성자/owner/admin)와 정확히 같은 집합이어야 한다.
+          //   ★ admin 포함 — 안 넣으면 admin 에게 "읽기 전용 UI 인데 실제로는 저장됨" 불일치가 생긴다.
+          const canEditDates = iAmCreator || iAmAssignee || iAmWsOwner || myWsRole === 'admin';
           // 마일스톤(주요 업무) — 백엔드 FIELD_RULES.is_milestone(담당/작성/owner/admin)와 일치
           const canMilestone = iAmCreator || iAmAssignee || canDirectStatus;
           // 프로젝트 이관 = '내 업무 정리' → 담당자·작성자·owner·admin 모두 허용 (운영 #42, 2026-06-16 정책 완화).
@@ -1291,7 +1300,13 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                         return {
                           ...prev,
                           assignee_id: uid,
-                          assignee: uid != null ? { id: uid, name: ext?.name || m?.name || prev.assignee?.name || '-' } : null,
+                          // #277 — 서버 payload 와 같은 모양으로 만든다. members/externals 의 name 은
+                          //   이미 워크스페이스 표시명이므로 display_name 에도 같이 넣어, 이후 어떤
+                          //   소켓 payload 와 spread 병합돼도 표시명이 계정명에 지지 않게 한다.
+                          assignee: uid != null
+                            ? (() => { const nm = ext?.name || m?.name || prev.assignee?.name || '-';
+                              return { id: uid, name: nm, display_name: nm }; })()
+                            : null,
                         } as TaskDetail;
                       });
                       saveField('assignee_id', uid);
@@ -1310,10 +1325,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 <MetaCell>
                   <MetaLabel>{t('detail.meta.period', '기간')}</MetaLabel>
                   <DateRangeCell start={detailTask.start_date} due={detailTask.due_date}
-                    onSave={(s, d) => {
-                      saveField('start_date', s);
-                      saveField('due_date', d);
-                    }} />
+                    readOnly={!canEditDates}
+                    readOnlyHint={t('detail.meta.datesReadOnly', '기간은 요청자·담당자·관리자만 변경할 수 있어요') as string}
+                    onSave={(s, d) => { saveFields({ start_date: s, due_date: d }); }} />
+                  {!canEditDates && <ReadOnlyHint>{t('detail.readOnly', '읽기 전용')}</ReadOnlyHint>}
                 </MetaCell>
                 {detailTask.project_id != null && (
                   <MetaCell>
@@ -2121,11 +2136,15 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
 export default TaskDetailDrawer;
 
 // ─── DateRangeCell (로컬) ───
+// 운영 #279 — readOnly 면 **피커를 아예 열지 않는다**. 저장 실패 토스트를 보여주는 것보다
+//   못 쓰는 입력을 열지 않는 것이 맞다(시간·진행률 셀이 이미 같은 규칙이다).
 const DateRangeCell: React.FC<{
   start: string | null | undefined;
   due: string | null | undefined;
   onSave: (start: string | null, due: string | null) => void;
-}> = ({ start, due, onSave }) => {
+  readOnly?: boolean;
+  readOnlyHint?: string;
+}> = ({ start, due, onSave, readOnly, readOnlyHint }) => {
   const [open, setOpen] = useState(false);
   const anchor = useRef<HTMLButtonElement>(null);
   const s = start?.slice(0, 10) || '';
@@ -2134,8 +2153,9 @@ const DateRangeCell: React.FC<{
   const label = s && d ? (s === d ? fmt(d) : `${fmt(s)} ~ ${fmt(d)}`) : d ? fmt(d) : s ? fmt(s) : '-';
   const hasValue = !!(s || d);
   return (<>
-    <DateTrigger ref={anchor} $empty={!hasValue} onClick={e => { e.stopPropagation(); setOpen(v => !v); }}>{label}</DateTrigger>
-    {open && <CalendarPicker isOpen={open} startDate={s || d} endDate={d || s} anchorRef={anchor}
+    <DateTrigger ref={anchor} $empty={!hasValue} disabled={!!readOnly} title={readOnly ? readOnlyHint : undefined}
+      onClick={e => { e.stopPropagation(); if (readOnly) return; setOpen(v => !v); }}>{label}</DateTrigger>
+    {open && !readOnly && <CalendarPicker isOpen={open} startDate={s || d} endDate={d || s} anchorRef={anchor}
       onRangeSelect={(a, b) => { onSave(a || null, b || null); }} onClose={() => setOpen(false)} />}
   </>);
 };

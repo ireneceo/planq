@@ -18,12 +18,21 @@ const { logAudit } = require('../services/auditService');
 // 변경된 task 를 실시간 반영 (CLAUDE.md 운영 안정성 §16 (b)).
 //   ★ broadcastInboxRefresh 는 호출하지 않는다 — 우선순위는 inbox 카운트와 무관하고,
 //     호출하면 팝아웃이 이중 reload 한다(Fable 설계 조건 9).
-function broadcastChanged(req, tasks) {
+//   ★ #277 — 표시명 직렬화는 **배치**로 한다. reindex 1회에 N건을 emit 하므로 per-task
+//     조회/헬퍼면 드래그 한 번에 쿼리가 폭증한다. serializeTasksForBroadcast 가 조회 1 + 표시명 1.
+async function broadcastChanged(req, tasks) {
   const io = req.app.get('io');
   if (!io || !tasks.length) return;
+  const { serializeTasksForBroadcast } = require('../services/taskBroadcast');
+  const bizId = tasks[0].business_id;
+  let byId = new Map();
+  try {
+    const rows = await serializeTasksForBroadcast(tasks.map((t) => t.id), bizId);
+    byId = new Map(rows.map((r) => [r.id, r]));
+  } catch (e) { console.warn('[task_priority broadcastChanged serialize]', e.message); }
   for (const t of tasks) {
-    const payload = typeof t.toJSON === 'function' ? t.toJSON() : { ...t };
-    payload.actor_user_id = req.user.id;
+    const raw = typeof t.toJSON === 'function' ? t.toJSON() : { ...t };
+    const payload = { ...(byId.get(raw.id) || raw), actor_user_id: req.user.id };
     if (payload.project_id) io.to(`project:${payload.project_id}`).emit('task:updated', payload);
     io.to(`business:${payload.business_id}`).emit('task:updated', payload);
   }
@@ -56,7 +65,7 @@ router.post('/priority/toggle', authenticateToken, async (req, res, next) => {
     // 정본 집합 밖 task 는 거절한다 — 화면에 없는 업무의 번호를 만들 수 있으면 단일화가 무의미하다.
     if (r.error) return errorResponse(res, r.error, 400);
 
-    broadcastChanged(req, r.changed);
+    await broadcastChanged(req, r.changed);
     logAudit(req, {
       action: 'task.priority_toggle',
       targetType: 'task',
@@ -82,7 +91,7 @@ router.post('/priority/reindex', authenticateToken, async (req, res, next) => {
     if (!ctx) return;
     const r = await reindexPriorities(req.user.id, ctx.businessId, ctx.from, ctx.to);
     if (r.changed.length > 0) {
-      broadcastChanged(req, r.changed);
+      await broadcastChanged(req, r.changed);
       logAudit(req, {
         action: 'task.priority_reindex',
         targetType: 'task',

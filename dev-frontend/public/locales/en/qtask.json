@@ -191,7 +191,8 @@
     "noMembers": "No members",
     "noAssignee": "— None —",
     "meSuffix": " (me)",
-    "emptyDash": "—"
+    "emptyDash": "—",
+    "datesReadOnly": "Only the requester, assignee, or an admin can change the dates"
   },
   "add": {
     "placeholder": "Task name (Ctrl+Enter to save)",
@@ -384,7 +385,8 @@
       "addTask": "Add task",
       "addTaskPh": "Task title (Enter to add / Esc to cancel)",
       "addTaskGo": "Add"
-    }
+    },
+    "datesReadOnly": "Only the requester, assignee, or an admin can change the dates"
   },
   "empty": {
     "title": "Start your first task",
@@ -480,7 +482,8 @@
       "createdOn": "Created",
       "requestedOn": "Requested",
       "tags": "Tags",
-      "tagsPh": "Select tags"
+      "tagsPh": "Select tags",
+      "datesReadOnly": "Only the requester, assignee, or an admin can change the dates"
     },
     "description": "Description",
     "descriptionSelf": "My work notes",

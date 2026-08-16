@@ -55,6 +55,14 @@ async function applyMemberDisplayName(items, businessId, paths = ['sender']) {
       if (!m) continue;
       if (m.name) obj.name = m.name;
       if (m.name_localized) obj.name_localized = m.name_localized;
+      // #277 — 정본은 display_name* 한 벌이다.
+      //   프론트 utils/displayName.ts 는 display_name_localized > display_name > name_localized > name
+      //   순으로 읽는다. name 만 덮어쓰면, 이 헬퍼를 안 지나는 payload 가 하나라도 섞이는 순간
+      //   계정명이 그대로 새어나온다(운영 #277: AI 예측 broadcast 가 정상 이름을 계정명으로 덮어썼다).
+      //   여기서 우선순위 필드까지 같이 채워 두면 어느 경로로 합쳐지든 워크스페이스 표시명이 이긴다.
+      //   (routes/businesses.js 의 members 응답과 같은 필드 의미 — 이중 정의 아님)
+      if (m.name) obj.display_name = m.name;
+      if (m.name_localized) obj.display_name_localized = m.name_localized;
     }
   }
   return items;

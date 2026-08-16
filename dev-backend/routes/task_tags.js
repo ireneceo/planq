@@ -260,9 +260,10 @@ router.put('/:id/tags', authenticateToken, async (req, res, next) => {
     // 실시간 (CLAUDE.md §16 b) — 리스트·팝아웃이 태그 칩을 즉시 갱신한다.
     const io = req.app.get('io');
     if (io) {
-      const payload = task.toJSON();
-      payload.tags = row.tags;
-      payload.actor_user_id = req.user.id;
+      // #277 — 표시명 포함 직렬화 단일 지점. tags 는 이 경로 고유 부가 필드라 caller 가 얹는다.
+      const { serializeTaskForBroadcast } = require('../services/taskBroadcast');
+      const base = await serializeTaskForBroadcast(task.id, task.business_id);
+      const payload = { ...(base || task.toJSON()), tags: row.tags, actor_user_id: req.user.id };
       if (task.project_id) io.to(`project:${task.project_id}`).emit('task:updated', payload);
       io.to(`business:${task.business_id}`).emit('task:updated', payload);
     }
