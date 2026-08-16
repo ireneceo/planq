@@ -253,6 +253,11 @@ export const ThreadItem = styled.button<{ $active: boolean; $unread: boolean; $h
   cursor: pointer;
   transition: background 0.1s;
   &:hover { ${p => !p.$active && 'background: #F8FAFC;'} }
+  /* 운영 #283 — "메일은 모바일 리스트가 문서랑 다르게 스타일 안맞고".
+     Q docs 의 RowItem(components/Docs/PostsPage.tsx)이 정본이다: padding 10px **12px**.
+     메일만 좌우 10px 이라 폰에서 두 리스트를 오가면 들여쓰기가 어긋나 보였다.
+     ★ ≤640px 에서만 맞춘다 — 데스크탑 값은 건드리지 않아 회귀 표면을 만들지 않는다. */
+  @media (max-width: 640px) { padding: 10px 12px; }
 `;
 export const ThreadRow1 = styled.div`
   display: flex; justify-content: space-between; align-items: baseline;
@@ -262,6 +267,10 @@ export const ThreadSender = styled.span`
   font-size: 13px; font-weight: 600; color: #0F172A;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   max-width: 70%;
+  /* #283 — 폰에서는 발신자를 **메타 톤**으로 내린다. Q docs 행은 "제목(진한 검정) → 미리보기" 라
+     한 눈에 제목이 먼저 읽히는데, 메일만 발신자가 제일 진하고 제목이 흐려 위계가 반대로 보였다.
+     정보는 그대로 두고 **강조만** 문서 쪽 규칙에 맞춘다. */
+  @media (max-width: 640px) { font-size: 12px; font-weight: 600; color: #64748B; }
 `;
 export const ThreadTime = styled.span`
   font-size: 11px; color: #94A3B8; flex-shrink: 0;
@@ -273,6 +282,11 @@ export const ThreadSubject = styled.div<{ $unread: boolean }>`
   color: #334155;
   margin-bottom: 2px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  /* #283 — Q docs RowTitle 정본값(13px / 700 / #0F172A). 폰에서 제목이 행의 주인공이 된다. */
+  @media (max-width: 640px) {
+    font-weight: ${p => p.$unread ? 700 : 600};
+    color: #0F172A;
+  }
 `;
 export const UnreadDot = styled.span`
   display: inline-block; flex-shrink: 0;
@@ -286,6 +300,8 @@ export const ThreadPreview = styled.div`
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+  /* #283 — Q docs RowPreview 정본값(margin-top 4px / line-height 1.5 / 2줄 clamp). */
+  @media (max-width: 640px) { margin-top: 4px; line-height: 1.5; }
 `;
 // M3-B — 행 별표 + 라벨 칩
 export const ThreadRow1Right = styled.span`
@@ -394,6 +410,30 @@ export const LabelChip = styled.span<{ $color: string; $clickable?: boolean }>`
   background: ${p => p.$color}1A;
   border: 1px solid ${p => p.$color}55;
   cursor: ${p => p.$clickable ? 'pointer' : 'default'};
+`;
+// 상세 헤더 좌측 (목록 열기 + 제목) — PanelHeader 안 왼쪽 슬롯.
+//   운영 #283 — 목록 열기 버튼이 absolute 로 제목 위에 겹쳐 "상단이 잘린" 것처럼 보였다.
+//   ★ PanelHeader 는 ≤640px 에서 flex-direction:column 이라, 버튼과 제목을 이 Row 로 묶지 않으면
+//     폰에서 버튼이 제목 **위에 한 줄**로 쌓인다.
+export const DetailHeaderLeft = styled.div`
+  display: flex; align-items: center; gap: 8px;
+  min-width: 0;   /* 제목 ellipsis 가 살아나려면 필요 */
+  flex: 1 1 auto;
+`;
+// 인라인 목록 열기 — 겹치지 않고 자리를 차지한다.
+//   ★ 시각 크기는 32px 이다. PanelHeader 는 641~1024px 에서 height:60px 고정 + padding:14px 라
+//     콘텐츠 박스가 32px 뿐이어서 40px 버튼은 헤더를 넘친다. 터치 타겟은 pseudo-element 로
+//     40×40 까지 넓혀 반응형 원칙(최소 터치 40)을 시각 정렬을 깨지 않고 만족시킨다.
+export const ExpandBtnInline = styled.button`
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; padding: 0; border-radius: 8px; flex-shrink: 0;
+  border: 1px solid #E2E8F0; background: #fff; color: #64748B; cursor: pointer;
+  &::after { content: ''; position: absolute; top: 50%; left: 50%;
+    width: 40px; height: 40px; transform: translate(-50%, -50%); }
+  &:hover { background: #F8FAFC; color: #0F172A; }
+  &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
+  @media (min-width: 1025px) { display: none; }
 `;
 // 상세 헤더 우측 (메시지 수·고객 칩 + 스팸) — PanelHeader 안 오른쪽 슬롯
 export const DetailHeaderRight = styled.div`

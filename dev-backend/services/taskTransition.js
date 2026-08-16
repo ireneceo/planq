@@ -19,15 +19,30 @@ function getIO() {
 }
 
 // CLAUDE.md §16 (b) — 데이터 변경은 반드시 broadcast. Cue 경로에서도 동일.
-function broadcastTask(task, event = 'task:updated') {
+//
+// #277 — payload 는 serializeTaskForBroadcast 를 지난다. raw toJSON() 은 사람 정보가 없어
+//   프론트의 spread 병합에서 표시명이 유실·역전되는 계열 결함을 만든다.
+//   호출부 13곳은 전부 `broadcastTask(task);` 단독 문장(fire-and-forget)이라 시그니처를 async 로
+//   바꿔도 그대로 둔다 — 대신 **이 함수는 절대 reject 하지 않는다**(내부 try/catch).
+//   직렬화가 실패하면 raw payload 로라도 반드시 emit 한다(알림이 조용히 사라지는 것이 더 나쁘다).
+async function broadcastTask(task, event = 'task:updated') {
   const io = getIO();
   if (!io) return;
-  const data = task.toJSON();
-  if (task.project_id) io.to(`project:${task.project_id}`).emit(event, data);
-  io.to(`business:${task.business_id}`).emit(event, data);
-  io.to(`business:${task.business_id}`).emit('inbox:refresh', {
-    reason: 'task_transition', task_id: task.id, event,
-  });
+  let data;
+  try {
+    const { serializeTaskForBroadcast } = require('./taskBroadcast');
+    data = await serializeTaskForBroadcast(task.id, task.business_id);
+  } catch (e) {
+    console.warn('[broadcastTask serialize]', e.message);
+  }
+  if (!data) data = task.toJSON();
+  try {
+    if (task.project_id) io.to(`project:${task.project_id}`).emit(event, data);
+    io.to(`business:${task.business_id}`).emit(event, data);
+    io.to(`business:${task.business_id}`).emit('inbox:refresh', {
+      reason: 'task_transition', task_id: task.id, event,
+    });
+  } catch (e) { console.warn('[broadcastTask emit]', e.message); }
 }
 
 async function workspaceName(businessId) {

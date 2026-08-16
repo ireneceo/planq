@@ -53,6 +53,58 @@ async function assertMailListVisible(page) {
   return { ok: true, msg: `목록 펼침 · 보이는 행 ${r.rows}` };
 }
 
+// 운영 #283 — "큐노트 모바일로 가면 리스트가 안 나와".
+//   Q Note 는 좁은 화면이면 **선택 여부와 무관하게** 사이드바를 접고 있었다. 이 스위트에 /notes 케이스가
+//   아예 없어서(하니스 사각) exit 0 인 채로 운영까지 나갔다. 불변식은 Q Mail(#204)과 같다:
+//   좁은 화면에서 세션을 지목하지 않고 들어오면 **리스트가 먼저 보여야 한다**.
+async function assertQNoteListVisible(page) {
+  const r = await page.evaluate(() => {
+    const el = document.querySelector('[data-testid="qnote-list"]');
+    if (!el) return { missing: true };
+    const cs = getComputedStyle(el);
+    const bb = el.getBoundingClientRect();
+    return {
+      missing: false,
+      hidden: cs.visibility === 'hidden' || cs.display === 'none',
+      offscreen: bb.right <= 1 || bb.width < 40,
+      w: Math.round(bb.width), left: Math.round(bb.left),
+    };
+  });
+  if (r.missing) return { ok: false, msg: '🔴 qnote-list 앵커를 못 찾음 — 판정 불가(하니스가 거짓 통과할 수 있다)' };
+  if (r.hidden || r.offscreen) {
+    return { ok: false, msg: `🔴 모바일 진입 시 Q Note 세션 목록이 접혀 있음 — 사용자는 빈 본문만 본다 (w=${r.w} left=${r.left})` };
+  }
+  return { ok: true, msg: `목록 펼침 · 폭 ${r.w}px` };
+}
+
+// 운영 #283 — "메일 상세는 상단이 잘려".
+//   목록 열기 버튼이 absolute 로 상세 제목 위에 겹쳐 그려지던 회귀. 불변식: 제목과 버튼의 사각형이
+//   겹치지 않고, 제목의 좌상단이 패널 안에 있어야 한다. (정적 검사로는 안 잡힌다 — 두 파일의 CSS 가
+//   합쳐진 뒤에만 존재하는 겹침이다.)
+async function assertMailDetailHeaderClear(page) {
+  const opened = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('[data-panel-main] ~ * [role="button"], aside button, aside [role="button"], aside li')];
+    const el = rows.find((e) => e.offsetParent !== null && (e.innerText || '').trim().length > 10);
+    if (el) { el.click(); return true; }
+    return false;
+  });
+  if (!opened) return { ok: true, msg: '⚪ 열 수 있는 스레드가 없어 판정 생략(데이터 없음)' };
+  await b.sleep(900);
+  const r = await page.evaluate(() => {
+    const subj = document.querySelector('[data-testid="mail-detail-subject"]');
+    if (!subj) return { missing: true };
+    const btn = document.querySelector('[data-testid="mail-list-expand"]');
+    const s = subj.getBoundingClientRect();
+    const bb = btn ? btn.getBoundingClientRect() : null;
+    const overlap = bb ? !(bb.right <= s.left || bb.left >= s.right || bb.bottom <= s.top || bb.top >= s.bottom) : false;
+    return { missing: false, overlap, clipped: s.top < 0 || s.left < 0, top: Math.round(s.top), left: Math.round(s.left) };
+  });
+  if (r.missing) return { ok: true, msg: '⚪ 상세가 열리지 않아 판정 생략' };
+  if (r.overlap) return { ok: false, msg: `🔴 목록열기 버튼이 상세 제목을 덮는다 — "상단이 잘린" 것처럼 보인다 (top=${r.top} left=${r.left})` };
+  if (r.clipped) return { ok: false, msg: `🔴 상세 제목이 뷰포트 밖으로 잘림 (top=${r.top} left=${r.left})` };
+  return { ok: true, msg: `상세 제목 가림 0 (top=${r.top} left=${r.left})` };
+}
+
 // 시나리오: path + (선택) open 스텝 + (선택) assert 판정. open 후 보이는 입력요소 전부 판정.
 //   create 모달은 URL 파라미터(?create=1 · ?new=1)로 결정론적 오픈 — path 에 쿼리를 넣으면 goto 시 자동 오픈.
 const SCENARIOS = [
@@ -65,6 +117,8 @@ const SCENARIOS = [
   { name: 'inbox', path: '/inbox', open: null },
   { name: 'mail-list', path: '/mail', open: null, assert: assertMailListVisible },  // #173/174/159/178 흰 화면 + #204 목록 접힘 회귀 가드
   { name: 'mail-compose', path: '/mail', open: openMailCompose },       // 작성 풀페이지 입력(받는사람·제목·본문) 키보드 가림
+  { name: 'mail-detail', path: '/mail', open: null, assert: assertMailDetailHeaderClear },  // #283 상세 상단 겹침 회귀 가드
+  { name: 'qnote-list', path: '/notes', open: null, assert: assertQNoteListVisible },       // #283 모바일 리스트 미노출 회귀 가드
   { name: 'calendar-add', path: '/calendar?create=1', open: null },     // 새 일정 모달(URL 자동 오픈)
   { name: 'docs', path: '/docs', open: null },
   { name: 'wiki', path: '/wiki', open: null },

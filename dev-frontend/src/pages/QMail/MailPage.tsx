@@ -69,6 +69,7 @@ import {
   DangerBtn,
   DetailControls,
   DetailFooter,
+  DetailHeaderLeft,
   DetailHeaderRight,
   DetailLabels,
   DetailToolbar,
@@ -78,6 +79,7 @@ import {
   EmptyText,
   ErrorBar,
   ExpandBtn,
+  ExpandBtnInline,
   FaqActions,
   FaqAnswer,
   FaqCount,
@@ -1788,7 +1790,10 @@ const MailPage: React.FC = () => {
         <Panel $grow $relative $last={!detail && !composeOpen} data-panel-main>
           {/* 태블릿 이하 전용 — 그 폭에서는 사이드바가 오버레이 드로어라 경계선 핸들이 없다.
               데스크탑 접기/펼치기는 PanelEdgeHandle 이 담당. */}
-          {sidebarCollapsed && (
+          {/* 운영 #283 — 이 플로팅 버튼은 상세 **제목 위에 겹쳐** 그려져 "메일 상세 상단이 잘린" 것처럼
+              보였다. 상세일 때는 아래 PanelHeader 안 인라인 버튼이 대신하고, 여기서는 작성·빈 상태에서만
+              띄운다(그 두 화면에는 헤더가 없어 목록 복귀 수단이 사라지면 안 된다). */}
+          {sidebarCollapsed && (composeOpen || !detail) && (
             <ExpandBtn
               type="button"
               data-testid="mail-list-expand"
@@ -1908,7 +1913,22 @@ const MailPage: React.FC = () => {
           ) : (
             <>
               <PanelHeader>
-                <PanelSubTitle>{detail.subject || '(no subject)'}</PanelSubTitle>
+                {/* #283 — 버튼과 제목을 한 Row 로 묶는다. PanelHeader 는 ≤640px 에서
+                    flex-direction:column 이라 직계 자식으로 넣으면 제목 **위에 한 줄로 쌓인다**. */}
+                <DetailHeaderLeft>
+                  {sidebarCollapsed && (
+                    <ExpandBtnInline
+                      type="button"
+                      data-testid="mail-list-expand"
+                      onClick={() => setSidebarCollapsed(false)}
+                      title={t('sidebar.expand', { defaultValue: '목록 열기' }) as string}
+                      aria-label={t('sidebar.expand', { defaultValue: '목록 열기' }) as string}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M15 18l-6-6 6-6" /></svg>
+                    </ExpandBtnInline>
+                  )}
+                  <PanelSubTitle data-testid="mail-detail-subject">{detail.subject || '(no subject)'}</PanelSubTitle>
+                </DetailHeaderLeft>
                 <DetailHeaderRight>
                   {detail.message_count > 1 && <MetaChip>{t('messageCount', { defaultValue: '{{n}}개 메시지', n: detail.message_count }) as string}</MetaChip>}
                   {detail.client && <MetaChip>{detail.client.display_name || detail.client.company_name}</MetaChip>}

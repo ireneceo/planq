@@ -143,11 +143,14 @@ function byPriorityChain(a:TaskRow,b:TaskRow):number{
 }
 
 // 날짜 범위 셀 — 시작+마감 통합. 클릭 시 캘린더 피커 열림
+// 운영 #279 — readOnly 면 피커를 열지 않는다 (저장 실패를 보여주는 대신 애초에 못 열게).
 const DateRangeCell:React.FC<{
   start:string|null|undefined; due:string|null|undefined;
   onSave:(start:string|null,due:string|null)=>void;
   dueColor?:string;
-}>=({start,due,onSave,dueColor})=>{
+  readOnly?:boolean;
+  readOnlyHint?:string;
+}>=({start,due,onSave,dueColor,readOnly,readOnlyHint})=>{
   const[open,setOpen]=React.useState(false);
   const anchorRef=React.useRef<HTMLButtonElement>(null);
   const s=start?.slice(0,10)||''; const d=due?.slice(0,10)||'';
@@ -156,10 +159,11 @@ const DateRangeCell:React.FC<{
   const hasValue=!!(s||d);
   return(<>
     <DateTrigger ref={anchorRef} $color={dueColor} $empty={!hasValue}
-      onClick={e=>{e.stopPropagation();setOpen(v=>!v);}}>
+      disabled={!!readOnly} title={readOnly?readOnlyHint:undefined}
+      onClick={e=>{e.stopPropagation();if(readOnly)return;setOpen(v=>!v);}}>
       {label}
     </DateTrigger>
-    {open&&<CalendarPicker isOpen={open} startDate={s||d} endDate={d||s} anchorRef={anchorRef}
+    {open&&!readOnly&&<CalendarPicker isOpen={open} startDate={s||d} endDate={d||s} anchorRef={anchorRef}
       onRangeSelect={(a,b)=>{onSave(a||null,b||null);}} onClose={()=>setOpen(false)} />}
   </>);
 };
@@ -175,6 +179,13 @@ const QTaskPage:React.FC=()=>{
   const myWsRole=(user?.workspaces||[]).find((w)=>w.business_id===bizId)?.role
     ||(user?.business_id===bizId?user?.business_role:null);
   const canManageReports=myWsRole==='owner'||myWsRole==='admin'||user?.platform_role==='platform_admin';
+  // 운영 #279 — 기간(착수·마감) 편집 가능 여부. 백엔드 FIELD_RULES.due_date/start_date 와 같은 집합
+  //   (담당자 OR 작성자 OR owner OR admin). 여태 프론트에 이 판정이 아예 없어 담당자에게 편집 가능한
+  //   셀을 열어두고 저장 시점에 403 → "저장 실패" 만 떴다.
+  const canEditDatesFor=useCallback((t:{created_by?:number|null;assignee_id?:number|null})=>(
+    t.created_by===myId||t.assignee_id===myId
+    ||myWsRole==='owner'||myWsRole==='admin'||user?.platform_role==='platform_admin'
+  ),[myId,myWsRole,user?.platform_role]);
 
   const location=useLocation();
   const navigate=useNavigate();
@@ -1012,14 +1023,16 @@ const QTaskPage:React.FC=()=>{
   },[searchParams]);
 
   // 리스트 타이틀/날짜 편집용 간단 저장 (드로어 내부에도 자체 saveField 존재)
-  const saveTaskField=async(taskId:number,field:string,value:unknown)=>{
+  // 운영 #279 — 여러 필드를 한 번의 PUT 으로. 기간을 두 번 쏘면 경쟁 + 부분 저장이 난다.
+  const saveTaskFields=async(taskId:number,patch:Record<string,unknown>)=>{
     try{
       const r=await apiFetch(`/api/tasks/by-business/${bizId}/${taskId}`,{method:'PUT',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({[field]:value})});
+        body:JSON.stringify(patch)});
       if(!r.ok)return;  // 실패 시 낙관적 적용 금지
-      setAllTasks(prev=>prev.map(t=>t.id===taskId?{...t,[field]:value}:t));
+      setAllTasks(prev=>prev.map(t=>t.id===taskId?{...t,...patch}:t));
     }catch{}
   };
+  const saveTaskField=async(taskId:number,field:string,value:unknown)=>saveTaskFields(taskId,{[field]:value});
 
   const registerCandidate=async(candId:number,overrides?:{title?:string;assignee_id?:number|null;start_date?:string|null;due_date?:string|null})=>{
     try{
@@ -1913,14 +1926,17 @@ const QTaskPage:React.FC=()=>{
                           const days=dueStr?Math.floor((new Date(todayStr).getTime()-new Date(dueStr).getTime())/86400000):0;
                           const severe=days>=7;
                           const label=days>=1?t('status.delayedDays',{d:days}):t('status.delayed','Delayed');
+                          // 운영 #279 — 마감 변경 권한이 없으면 지연 뱃지는 표시만 하고 칩을 열지 않는다.
+                          //   (열어봐야 저장이 403 이라 "저장 실패" 만 보게 된다)
+                          const dueEditable=canEditDatesFor(task);
                           return(
                             <DelayBadgeWrap>
                               <DelayBadge $severe={severe}
-                                onClick={e=>{e.stopPropagation();setDelayChipsForId(prev=>prev===task.id?null:task.id);}}
-                                title={t('status.delayedHint','클릭하여 마감 변경') as string}>
+                                onClick={e=>{e.stopPropagation();if(!dueEditable)return;setDelayChipsForId(prev=>prev===task.id?null:task.id);}}
+                                title={(dueEditable?t('status.delayedHint','클릭하여 마감 변경'):t('list.datesReadOnly','기간은 요청자·담당자·관리자만 변경할 수 있어요')) as string}>
                                 {label}
                               </DelayBadge>
-                              {delayChipsForId===task.id&&(
+                              {dueEditable&&delayChipsForId===task.id&&(
                                 <DelayChipPopover onClick={e=>e.stopPropagation()}>
                                   <DelayChip onClick={e=>{e.stopPropagation();extendDue(task.id,1);}}>{t('status.delayQuick.addDay','+1일')}</DelayChip>
                                   <DelayChip onClick={e=>{e.stopPropagation();extendDue(task.id,7);}}>{t('status.delayQuick.addWeek','+1주')}</DelayChip>
@@ -2070,10 +2086,9 @@ const QTaskPage:React.FC=()=>{
                     <TCell $w="100px" $center>
                       <DateRangeCell start={task.start_date} due={task.due_date}
                         dueColor={dColor}
-                        onSave={(s,d)=>{
-                          saveTaskField(task.id,'start_date',s);
-                          saveTaskField(task.id,'due_date',d);
-                        }} />
+                        readOnly={!canEditDatesFor(task)}
+                        readOnlyHint={t('list.datesReadOnly','기간은 요청자·담당자·관리자만 변경할 수 있어요') as string}
+                        onSave={(s,d)=>{ saveTaskFields(task.id,{start_date:s,due_date:d}); }} />
                     </TCell>
                   </TRow>
                   {addingBelowId === task.id && (

@@ -416,8 +416,12 @@ router.patch('/:id/time', authenticateToken, async (req, res, next) => {
     // 실시간 — 시간/진행률/자동 status 전환이 다른 화면(리스트·드로어·다른 사용자)에 즉시 반영 (운영 #19 #11)
     const io = req.app.get('io');
     if (io) {
-      const payload = task.toJSON();
-      payload.actor_user_id = req.user.id;
+      // #277 — raw toJSON() 은 사람 정보가 없다. 프론트가 spread 병합이라 표시명이 실린 행에
+      //   이 payload 가 도착해도 덮어쓰진 않지만, 규약을 한 벌로 모아 두지 않으면 다음 emit
+      //   지점에서 또 갈라진다. 전 emit 지점을 serializeTaskForBroadcast 경유로 통일.
+      const { serializeTaskForBroadcast } = require('../services/taskBroadcast');
+      const base = await serializeTaskForBroadcast(task.id, task.business_id);
+      const payload = { ...(base || task.toJSON()), actor_user_id: req.user.id };
       if (task.project_id) io.to(`project:${task.project_id}`).emit('task:updated', payload);
       io.to(`business:${task.business_id}`).emit('task:updated', payload);
       broadcastInboxRefresh(io, task.business_id, task.project_id, 'task_time_updated', task.id);
@@ -1013,8 +1017,17 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
       // #206 보류 사유 — 상태를 바꿀 수 있는 사람이 사유도 쓴다 (같은 집합)
       hold_reason: () => isAssignee || isCreator || isOwnerOrAdmin,
       assignee_id: () => isCreator || isOwnerOrAdmin,
-      due_date: () => isCreator || isOwnerOrAdmin,
-      start_date: () => isCreator || isOwnerOrAdmin,
+      // 운영 #279 (2026-08-16) — 담당자 포함. 여태 담당자가 빠져 있어 "요청받은 업무" 의 기간을
+      //   담당자가 잡으려 하면 403 → 화면엔 "저장 실패" 만 떴다. 근본은 규칙이 두 벌이었던 것:
+      //   CLAUDE.md 운영 정책은 "마감 연장은 담당자 이상" 인데 여기 코드와 PERMISSION_MATRIX §5.7 은
+      //   담당자를 뺐다. 담당자가 자기 일의 착수일·마감을 못 잡으면 "마감 책임은 담당자" 라는
+      //   Q Task 의 전제와 모순된다. status·title·project_id 가 이미 isAssignee 를 포함하는 흐름과도 정합.
+      //   발주자 보호는 ①기존 due_change 이력(아래 TaskStatusHistory) ②요청자 알림으로 한다.
+      //   ★ recurrence_rule 은 열지 않는다 — 반복 정의는 의뢰 명세(발주자 영역)다. 그리고
+      //     recurringTaskGenerator 는 next_occurrence_at 만 신뢰하고 그 값은 recurrence_rule 이
+      //     payload 에 있을 때만 재계산되므로, 담당자의 due 단독 변경은 시리즈를 옮기지 않는다.
+      due_date: () => isAssignee || isCreator || isOwnerOrAdmin,
+      start_date: () => isAssignee || isCreator || isOwnerOrAdmin,
       planned_week_start: () => isCreator || isAssignee || isOwnerOrAdmin,
       recurrence_rule: () => isCreator || isOwnerOrAdmin,
       next_occurrence_at: () => isCreator || isOwnerOrAdmin,
@@ -1123,8 +1136,10 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     // actor_user_id — 액션을 수행한 사용자 ID. 토스터가 "본인 액션 알림 자기에게 표시" 차단용.
     const io = req.app.get('io');
     if (io) {
-      const payload = task.toJSON();
-      payload.actor_user_id = req.user.id;
+      // #277 — 표시명 포함 직렬화 단일 지점. 부가 필드(actor·reviewer)는 caller 가 얹는다.
+      const { serializeTaskForBroadcast } = require('../services/taskBroadcast');
+      const base = await serializeTaskForBroadcast(task.id, task.business_id);
+      const payload = { ...(base || task.toJSON()), actor_user_id: req.user.id };
       try {
         const TaskReviewer = require('../models').TaskReviewer;
         const reviewers = await TaskReviewer.findAll({
@@ -1154,6 +1169,23 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
           title: '새 업무가 배정되었습니다', body: `"${task.title}"`,
           link: taskLink, ctaLabel: '업무 보기', workspaceName: wsName,
         }).catch((e) => console.warn('[notify reassign]', e.message));
+      }
+      // 운영 #279 — 기간(마감) 변경 알림.
+      //   담당자에게 마감 편집을 열었으므로, 발주자가 "내가 준 마감이 조용히 밀린" 상태를 겪으면 안 된다.
+      //   이력(TaskStatusHistory event_type='due_change')은 위에서 이미 남는다 — 여기서는 알림만.
+      //   방향: 바꾼 사람이 담당자면 요청자에게, 요청자/owner 면 담당자에게. 본인 제외.
+      if (updates.due_date !== undefined && String(updates.due_date) !== String(prev.due_date)) {
+        const fmt = (d) => (d ? String(d).slice(0, 10) : '—');
+        const requesterId = task.request_by_user_id || task.created_by;
+        const targetId = (req.user.id === task.assignee_id) ? requesterId : task.assignee_id;
+        if (targetId && targetId !== req.user.id) {
+          notify({
+            userId: targetId, businessId: task.business_id, eventKind: 'task',
+            title: '업무 마감일이 변경되었습니다',
+            body: `"${task.title}" — ${fmt(prev.due_date)} → ${fmt(updates.due_date)}`,
+            link: taskLink, ctaLabel: '업무 보기', workspaceName: wsName,
+          }).catch((e) => console.warn('[notify due_change]', e.message));
+        }
       }
       // 상태 변경
       if (updates.status !== undefined && updates.status !== prev.status) {
@@ -1356,7 +1388,11 @@ router.post('/:id/copy', authenticateToken, async (req, res, next) => {
     // socket emit
     const io = req.app.get('io');
     if (io) {
-      const payload = { ...full.toJSON(), actor_user_id: req.user.id };
+      // #277 — include 만 하고 표시명 헬퍼를 빼면 계정명이 실린다. 이미 조회된 인스턴스라
+      //   추가 쿼리 없이 표시명만 입힌다(serializeLoadedTasks).
+      const { serializeLoadedTasks } = require('../services/taskBroadcast');
+      const [baseJson] = await serializeLoadedTasks([full], src.business_id);
+      const payload = { ...(baseJson || full.toJSON()), actor_user_id: req.user.id };
       if (src.project_id) io.to(`project:${src.project_id}`).emit('task:new', payload);
       io.to(`business:${src.business_id}`).emit('task:new', payload);
       broadcastInboxRefresh(io, src.business_id, src.project_id, 'task_copy', full.id);

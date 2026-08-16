@@ -514,16 +514,15 @@ async function aiEstimateInBackground(taskId, businessId, projectId, actorUserId
 
   const io = getIO();
   if (!io) return;
-  const updated = await Task.findByPk(taskId, {
-    include: [
-      { model: Project, attributes: ['id', 'name'], required: false },
-      { model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false },
-      { model: User, as: 'requester', attributes: ['id', 'name', 'name_localized'], required: false },
-    ],
-  });
-  if (!updated) return;
+  // #277 — 여기가 표시명이 새던 자리다. assignee 를 include 만 하고 applyMemberDisplayName 을
+  //   안 태우면, 프론트의 spread 병합({ ...t, ...task })이 화면에 이미 있던 워크스페이스
+  //   표시명('루아')을 계정명('한수정')으로 **덮어쓴다**. 업무 생성 시 autoAiEstimate 가 도는
+  //   행만 플립돼서 "같은 조건 4건 중 1건만 다름" 으로 보였다. serializeTaskForBroadcast 경유.
+  const { serializeTaskForBroadcast } = require('../taskBroadcast');
+  const base = await serializeTaskForBroadcast(taskId, businessId);
+  if (!base) return;
   const payload = {
-    ...updated.toJSON(),
+    ...base,
     latest_estimation_source: 'ai',   // 방금 만든 row — toJSON 만으로는 이 파생 필드가 안 실린다
     actor_user_id: actorUserId,
     ai_estimate: true,

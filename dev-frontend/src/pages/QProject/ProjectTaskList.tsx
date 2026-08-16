@@ -7,7 +7,7 @@ import React, { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import PartnerKindBadge from '../../components/Common/PartnerKindBadge';
-import { apiFetch } from '../../contexts/AuthContext';
+import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import {
   AddGroupBtn,
   AddGroupRow,
@@ -83,8 +83,10 @@ export interface TaskRow {
   status: string; due_date: string | null; start_date: string | null;
   progress_percent: number; priority_order?: number | null;
   workstream_id?: number | null;
-  assignee_id: number | null; assignee?: { id: number; name: string } | null;
-  requester?: { id: number; name: string } | null;
+  // #277 — 표시명 정본은 display_name*. 서버가 applyMemberDisplayName 으로 채워 보내고,
+  //   낙관적 갱신도 같은 모양으로 만든다(둘이 다르면 spread 병합에서 계정명이 이긴다).
+  assignee_id: number | null; assignee?: { id: number; name: string; display_name?: string | null; display_name_localized?: Record<string, string> | null } | null;
+  requester?: { id: number; name: string; display_name?: string | null; display_name_localized?: Record<string, string> | null } | null;
   source?: string; request_by_user_id?: number | null; created_by?: number;
   request_ack_at?: string | null; review_round?: number | null;
   reviewers?: Array<{ id: number; user_id: number; state: 'pending'|'approved'|'revision'; is_client?: boolean }>;
@@ -117,6 +119,11 @@ const ProjectTaskList: React.FC<Props> = ({
   showTimeline, projectStart, projectEnd,
   workstreams, projectId: projectIdProp, onWorkstreamsChanged,
 }) => {
+  // 운영 #279 — 기간 편집 권한 판정에 워크스페이스 역할이 필요하다(prop 에는 myId 만 온다).
+  const { user } = useAuth();
+  const myWsRole = (user?.workspaces || []).find((w) => w.business_id === businessId)?.role
+    || (user?.business_id === businessId ? user?.business_role : null);
+  const isOwnerOrAdmin = myWsRole === 'owner' || myWsRole === 'admin' || user?.platform_role === 'platform_admin';
   const [sortKey, setSortKey] = useState<SortKey>('start_date');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [editingTitle, setEditingTitle] = useState<number | null>(null);
@@ -267,14 +274,22 @@ const ProjectTaskList: React.FC<Props> = ({
   });
   const sorted = sortTasks(tasks);
 
-  const saveField = async (taskId: number, field: string, value: unknown) => {
-    const prevVal = (tasks.find((t) => t.id === taskId) as Record<string, unknown> | undefined)?.[field];
-    onLocalUpdate(taskId, { [field]: value } as Partial<TaskRow>);
-    const r = await apiFetch(`/api/tasks/by-business/${businessId}/${taskId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [field]: value }) });
-    if (!r.ok) { onLocalUpdate(taskId, { [field]: prevVal } as Partial<TaskRow>); return; }  // 실패 시 낙관적 되돌림(assignGroup 패턴)
+  // 운영 #279 — 여러 필드는 한 번의 PUT 으로. 기간을 두 번 쏘면 경쟁 + 부분 저장이 난다.
+  const saveFields = async (taskId: number, patch: Record<string, unknown>) => {
+    const row = tasks.find((t) => t.id === taskId) as Record<string, unknown> | undefined;
+    const prevVals: Record<string, unknown> = {};
+    for (const k of Object.keys(patch)) prevVals[k] = row?.[k];
+    onLocalUpdate(taskId, patch as Partial<TaskRow>);
+    const r = await apiFetch(`/api/tasks/by-business/${businessId}/${taskId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) });
+    if (!r.ok) { onLocalUpdate(taskId, prevVals as Partial<TaskRow>); return; }  // 실패 시 낙관적 되돌림(assignGroup 패턴)
     // #206 — status 전이는 백엔드가 Focus 세션을 전환/종료한다. 위젯 30초 폴링을 기다리지 않게 즉시 동기화.
-    if (field === 'status') { try { window.dispatchEvent(new CustomEvent('focus:refresh')); } catch { /* noop */ } }
+    if (patch.status !== undefined) { try { window.dispatchEvent(new CustomEvent('focus:refresh')); } catch { /* noop */ } }
   };
+  const saveField = async (taskId: number, field: string, value: unknown) => saveFields(taskId, { [field]: value });
+  // 운영 #279 — 백엔드 FIELD_RULES.due_date/start_date 와 같은 집합 (담당자/작성자/owner/admin).
+  const canEditDatesFor = (t: { created_by?: number | null; assignee_id?: number | null }) => (
+    t.created_by === myId || t.assignee_id === myId || isOwnerOrAdmin
+  );
 
   // 업무 → 그룹 이동 (드롭다운·드래그 공용). 실패 시 optimistic 되돌림.
   const assignGroup = async (task: TaskRow, wsId: number | null) => {
@@ -453,13 +468,13 @@ const ProjectTaskList: React.FC<Props> = ({
                 <AssigneeOpt $active={!task.assignee_id} onClick={() => { saveField(task.id, 'assignee_id', null); onLocalUpdate(task.id, { assignee: null }); setAssigneeOpenId(null); }}>{t('listRow.noAssignee', '— 없음 —')}</AssigneeOpt>
                 {members.map(m => (
                   <AssigneeOpt key={m.user_id} $active={task.assignee_id === m.user_id}
-                    onClick={() => { saveField(task.id, 'assignee_id', m.user_id); onLocalUpdate(task.id, { assignee: { id: m.user_id, name: m.name } }); setAssigneeOpenId(null); }}>
+                    onClick={() => { saveField(task.id, 'assignee_id', m.user_id); onLocalUpdate(task.id, { assignee: { id: m.user_id, name: m.name, display_name: m.name } }); setAssigneeOpenId(null); }}>
                     {m.name}{m.user_id === myId ? t('listRow.meSuffix', ' (나)') : ''}
                   </AssigneeOpt>
                 ))}
                 {externalCandidates.map(e => (
                   <AssigneeOpt key={`e-${e.user_id}`} $active={task.assignee_id === e.user_id}
-                    onClick={() => { saveField(task.id, 'assignee_id', e.user_id); onLocalUpdate(task.id, { assignee: { id: e.user_id, name: e.name } }); setAssigneeOpenId(null); }}>
+                    onClick={() => { saveField(task.id, 'assignee_id', e.user_id); onLocalUpdate(task.id, { assignee: { id: e.user_id, name: e.name, display_name: e.name } }); setAssigneeOpenId(null); }}>
                     <AssigneeOptInner><PartnerKindBadge kind={e.kind} size="xs" />{e.name}</AssigneeOptInner>
                   </AssigneeOpt>
                 ))}
@@ -500,7 +515,9 @@ const ProjectTaskList: React.FC<Props> = ({
             <DateTrigger ref={el => { dateRefs.current[task.id] = el; }}
               $color={isDelayed ? 'overdue' : (task.due_date?.slice(0, 10) === today ? 'today' : 'default')}
               $empty={!(task.start_date || task.due_date)}
-              onClick={e => { e.stopPropagation(); setDateOpenId(dateOpenId === task.id ? null : task.id); }}>
+              disabled={!canEditDatesFor(task)}
+              title={canEditDatesFor(task) ? undefined : t('listRow.datesReadOnly', '기간은 요청자·담당자·관리자만 변경할 수 있어요') as string}
+              onClick={e => { e.stopPropagation(); if (!canEditDatesFor(task)) return; setDateOpenId(dateOpenId === task.id ? null : task.id); }}>
               {(() => {
                 const s = task.start_date?.slice(0, 10);
                 const d = task.due_date?.slice(0, 10);
@@ -510,10 +527,10 @@ const ProjectTaskList: React.FC<Props> = ({
                 return fmt(d || s);
               })()}
             </DateTrigger>
-            {dateOpenId === task.id && (
+            {dateOpenId === task.id && canEditDatesFor(task) && (
               <CalendarPicker isOpen anchorRef={{ current: dateRefs.current[task.id] }}
                 startDate={task.start_date?.slice(0, 10) || ''} endDate={task.due_date?.slice(0, 10) || task.start_date?.slice(0, 10) || ''}
-                onRangeSelect={(s, e) => { saveField(task.id, 'start_date', s || null); saveField(task.id, 'due_date', e || null); }}
+                onRangeSelect={(s, e) => { saveFields(task.id, { start_date: s || null, due_date: e || null }); }}
                 onClose={() => setDateOpenId(null)} />
             )}
           </TCell>

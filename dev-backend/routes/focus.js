@@ -92,7 +92,9 @@ async function broadcastTaskUpdate(req, taskId) {
     if (!io) return;
     const t = await Task.findByPk(taskId);
     if (!t) return;
-    const data = t.toJSON();
+    // #277 — 표시명 포함 직렬화 단일 지점 (raw toJSON 은 사람 정보가 없다).
+    const { serializeTaskForBroadcast } = require('../services/taskBroadcast');
+    const data = (await serializeTaskForBroadcast(t.id, t.business_id)) || t.toJSON();
     if (t.project_id) io.to(`project:${t.project_id}`).emit('task:updated', data);
     io.to(`business:${t.business_id}`).emit('task:updated', data);
   } catch (e) { console.warn('[focus broadcastTaskUpdate]', e.message); }
