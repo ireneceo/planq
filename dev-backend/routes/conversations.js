@@ -900,12 +900,22 @@ router.post('/:businessId/:id/cue/trigger', authenticateToken, checkBusinessAcce
     const business = await Business.findByPk(req.params.businessId);
     if (!business) return errorResponse(res, 'Workspace not found', 404);
 
+    // ★ "마지막 고객 메시지" 라고 써 놓고 실제로는 **발화자를 안 가려** 직원 메시지도 집었다.
+    //   그 경우 Cue 컨텍스트가 직원 권한으로 만들어지고, 그 답변은 고객이 보는 대화방에 게시된다
+    //   (= 내부 정보가 고객에게 나가는 경로). 자동 경로(routes/projects.js)와 같은 술어로 맞춘다.
+    //   여기서 한 번, cue_context 의 audience 절단에서 또 한 번 — 두 겹.
+    const staffRows = await BusinessMember.findAll({
+      where: { business_id: conversation.business_id, removed_at: null },
+      attributes: ['user_id'],
+    });
+    const staffIds = staffRows.map((r) => r.user_id).filter(Boolean);
     const lastClientMsg = await Message.findOne({
       where: {
         conversation_id: conversation.id,
         is_ai: false,
         is_internal: false,
-        is_deleted: false
+        is_deleted: false,
+        ...(staffIds.length ? { sender_id: { [Op.notIn]: staffIds } } : {}),
       },
       order: [['created_at', 'DESC']]
     });

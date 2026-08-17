@@ -79,7 +79,10 @@ async function assertBusinessAccess(userId, businessId, platformRole) {
 router.get('/my-week', authenticateToken, async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const businessId = Number(req.user.active_business_id || req.query.business_id);
+    // 요청이 명시한 워크스페이스가 우선, 없을 때만 사용자의 활성 워크스페이스.
+    //   (여태 active 가 req.user 에 실리지 않아 사실상 query 만 동작했다. active 를 싣게 되면서
+    //    순서를 그대로 두면 화면이 지정한 워크스페이스를 active 가 덮어써 목록이 뒤바뀐다.)
+    const businessId = Number(req.query.business_id || req.user.active_business_id);
     if (!businessId) return errorResponse(res, 'business_id required', 400);
     if (!(await assertBusinessAccess(userId, businessId, req.user.platform_role))) {
       return errorResponse(res, 'forbidden', 403);
@@ -195,7 +198,10 @@ router.get('/my-week', authenticateToken, async (req, res, next) => {
 router.get('/my-month', authenticateToken, async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const businessId = Number(req.user.active_business_id || req.query.business_id);
+    // 요청이 명시한 워크스페이스가 우선, 없을 때만 사용자의 활성 워크스페이스.
+    //   (여태 active 가 req.user 에 실리지 않아 사실상 query 만 동작했다. active 를 싣게 되면서
+    //    순서를 그대로 두면 화면이 지정한 워크스페이스를 active 가 덮어써 목록이 뒤바뀐다.)
+    const businessId = Number(req.query.business_id || req.user.active_business_id);
     if (!businessId) return errorResponse(res, 'business_id required', 400);
     if (!(await assertBusinessAccess(userId, businessId, req.user.platform_role))) {
       return errorResponse(res, 'forbidden', 403);
@@ -262,7 +268,10 @@ router.get('/my-month', authenticateToken, async (req, res, next) => {
 router.get('/my-year', authenticateToken, async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const businessId = Number(req.user.active_business_id || req.query.business_id);
+    // 요청이 명시한 워크스페이스가 우선, 없을 때만 사용자의 활성 워크스페이스.
+    //   (여태 active 가 req.user 에 실리지 않아 사실상 query 만 동작했다. active 를 싣게 되면서
+    //    순서를 그대로 두면 화면이 지정한 워크스페이스를 active 가 덮어써 목록이 뒤바뀐다.)
+    const businessId = Number(req.query.business_id || req.user.active_business_id);
     if (!businessId) return errorResponse(res, 'business_id required', 400);
     if (!(await assertBusinessAccess(userId, businessId, req.user.platform_role))) {
       return errorResponse(res, 'forbidden', 403);
@@ -307,7 +316,10 @@ router.get('/my-year', authenticateToken, async (req, res, next) => {
 // ============================================
 router.get('/backlog', authenticateToken, async (req, res, next) => {
   try {
-    const businessId = Number(req.user.active_business_id || req.query.business_id);
+    // 요청이 명시한 워크스페이스가 우선, 없을 때만 사용자의 활성 워크스페이스.
+    //   (여태 active 가 req.user 에 실리지 않아 사실상 query 만 동작했다. active 를 싣게 되면서
+    //    순서를 그대로 두면 화면이 지정한 워크스페이스를 active 가 덮어써 목록이 뒤바뀐다.)
+    const businessId = Number(req.query.business_id || req.user.active_business_id);
     if (!businessId) return errorResponse(res, 'business_id required', 400);
 
     // backlog (미배정 업무) 는 member 이상만 — client 는 본인 task 만 봄

@@ -821,7 +821,8 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
       setImmediate(async () => {
         try {
           const senderIsStaff = await BusinessMember.findOne({
-            where: { business_id: conv.business_id, user_id: fullJson.sender_id },
+            // removed_at 미필터면 **해제된 옛 멤버**까지 스태프로 봐서 Cue 가 영영 응답하지 않는다.
+            where: { business_id: conv.business_id, user_id: fullJson.sender_id, removed_at: null },
             attributes: ['id'],
           });
           if (senderIsStaff) return; // 내부 스태프 발화 → Cue 응답 안 함
