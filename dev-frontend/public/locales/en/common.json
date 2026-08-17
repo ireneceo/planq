@@ -698,7 +698,12 @@
     "register": "Add",
     "merge": "Append",
     "reject": "Delete",
-    "rejectHint": "Removes this candidate for everyone (not a personal decline)"
+    "rejectHint": "Removes this candidate for everyone (not a personal decline)",
+    "state": {
+      "registered": "Registered",
+      "merged": "Merged",
+      "rejected": "Removed"
+    }
   },
   "public": {
     "kb": {

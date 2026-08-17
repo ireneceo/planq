@@ -1046,6 +1046,41 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeConversationId]);
 
+  // ── #298 "이전 후보 보기" 가 아무 일도 안 하던 것 ──
+  //   위 두 effect 는 showHiddenCandidates 를 **읽으면서 deps 에는 넣지 않았다**(게다가
+  //   eslint-disable 로 경고까지 꺼져 있어 정적 검사에도 안 걸렸다). 그래서 토글을 눌러도
+  //   버튼 라벨만 "최근만 보기" 로 바뀌고 목록은 그대로 — 기능이 죽은 것으로 보였다.
+  //   ★ 위 effect 의 deps 에 넣는 방식은 쓰지 않는다: 대화목록·업무·메모·이슈까지 통째로
+  //     다시 불리고 "활성 대화 자동 선택" 까지 재발화해 보고 있던 대화가 튄다.
+  //     토글이 바꾸는 건 후보 목록뿐이므로 **후보만** 다시 부른다.
+  const hiddenToggleMounted = useRef(false);
+  useEffect(() => {
+    // 최초 1회는 위 두 effect 가 이미 같은 값으로 불렀다 — 중복 호출 방지.
+    if (!hiddenToggleMounted.current) { hiddenToggleMounted.current = true; return; }
+    let cancelled = false;
+    (async () => {
+      // 프로젝트에 속한 대화면 프로젝트 스코프가 후보의 주인이다 (위 effect 와 같은 분기).
+      if (activeProjectId && activeProjectId > 0) {
+        const list = await qtalkApi.listProjectCandidates(activeProjectId, showHiddenCandidates).catch(() => null);
+        if (cancelled || !list) return;
+        setCandidates((prev) => [
+          ...prev.filter((c) => c.project_id !== activeProjectId),
+          ...list.map(apiCandidateToMock),
+        ]);
+        return;
+      }
+      if (activeConversationId) {
+        const list = await qtalkApi.listConvCandidates(activeConversationId, showHiddenCandidates).catch(() => null);
+        if (cancelled || !list) return;
+        setCandidates((prev) => [
+          ...prev.filter((c) => c.conversation_id !== activeConversationId),
+          ...list.map(apiCandidateToMock),
+        ]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [showHiddenCandidates, activeProjectId, activeConversationId]);
+
   const toggleLeft = () => {
     setLeftCollapsed((v) => {
       const next = !v;
@@ -1508,10 +1543,13 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
 
   const activeProject = projects.find((p) => p.id === activeProjectId) || null;
   // 후보 scope: 프로젝트 선택 시 project_id, 독립 대화면 conversation_id 로 필터
+  //   #298 — "이전 후보 보기" 켠 동안에는 처리된 후보(등록·병합·반려)도 남긴다.
+  //   여기서 pending 으로 한 번 더 거르고 있어서, 서버에서 status=all 로 받아와도 화면에선 사라졌다.
+  const candidateStatusOk = (c: MockTaskCandidate) => showHiddenCandidates || c.status === 'pending';
   const projectCandidates = activeProject
-    ? candidates.filter((c) => c.project_id === activeProject.id && c.status === 'pending')
+    ? candidates.filter((c) => c.project_id === activeProject.id && candidateStatusOk(c))
     : activeConversationId
-      ? candidates.filter((c) => c.conversation_id === activeConversationId && c.status === 'pending')
+      ? candidates.filter((c) => c.conversation_id === activeConversationId && candidateStatusOk(c))
       : [];
 
   if (!businessId) return <PanelLayout><CenteredHint>{t('page.noBusiness', '워크스페이스가 선택되지 않았습니다.')}</CenteredHint></PanelLayout>;

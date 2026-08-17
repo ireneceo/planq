@@ -14,6 +14,8 @@ export interface CandidateData {
   guessed_assignee?: { user_id: number; name: string } | null;
   guessed_due_date?: string | null;
   similar_task_id?: number | null;
+  // #298 — "이전 후보 보기" 로 함께 내려오는 처리 완료 후보. 없으면(=pending) 기존 편집 카드.
+  status?: 'pending' | 'registered' | 'merged' | 'rejected';
 }
 export interface CandidateMember { user_id: number; name: string }
 export interface RegisterOverrides {
@@ -43,6 +45,7 @@ const TaskCandidateCard: React.FC<Props> = ({ candidate, members, myUserId, onRe
   const [pickerOpen, setPickerOpen] = useState(false);
   const dateAnchorRef = useRef<HTMLButtonElement | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const doneState = candidate.status && candidate.status !== 'pending' ? candidate.status : null;
 
   const assigneeOptions = useMemo(() => {
     const opts: { value: number; label: string }[] = [{ value: NO_ASSIGNEE, label: t('candidate.noAssignee', { defaultValue: '담당 미정' }) as string }];
@@ -77,6 +80,20 @@ const TaskCandidateCard: React.FC<Props> = ({ candidate, members, myUserId, onRe
     if (startDate && dueDate && startDate !== dueDate) return `${fmt(startDate)} ~ ${fmt(dueDate)}`;
     return fmt(dueDate || startDate);
   })();
+
+  // #298 — 이미 처리된 후보(등록·병합·반려)는 **읽기 전용 기록**이다.
+  //   "이전 후보 보기" 로만 나타나며, 다시 등록·삭제할 수 있으면 안 된다(중복 등록·기록 파괴).
+  if (doneState) {
+    return (
+      <Card $muted>
+        <DoneRow>
+          <DoneBadge $state={doneState}>{t(`candidate.state.${doneState}`, { defaultValue: doneState }) as string}</DoneBadge>
+          <DoneTitle>{candidate.title}</DoneTitle>
+        </DoneRow>
+        {candidate.description && <Desc>{candidate.description}</Desc>}
+      </Card>
+    );
+  }
 
   return (
     <Card>
@@ -128,10 +145,27 @@ const TaskCandidateCard: React.FC<Props> = ({ candidate, members, myUserId, onRe
 
 export default TaskCandidateCard;
 
-const Card = styled.div`
-  background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 10px;
-  padding: 12px 14px; display: flex; flex-direction: column; gap: 10px;
+const Card = styled.div<{ $muted?: boolean }>`
+  background: ${p => p.$muted ? '#F8FAFC' : '#FFFFFF'}; border: 1px solid #E2E8F0; border-radius: 10px;
+  padding: 12px 14px; display: flex; flex-direction: column; gap: ${p => p.$muted ? '6px' : '10px'};
   & + & { margin-top: 10px; }
+`;
+// #298 — 처리 완료 후보의 읽기 전용 표시. 상태 색은 뱃지에만 (버튼 3톤 규칙과 충돌 없음).
+const DoneRow = styled.div`display: flex; align-items: center; gap: 8px;`;
+const DONE_TONE: Record<string, { bg: string; fg: string }> = {
+  registered: { bg: '#F0FDFA', fg: '#0F766E' },
+  merged: { bg: '#F0F9FF', fg: '#0284C7' },
+  rejected: { bg: '#F8FAFC', fg: '#64748B' },
+};
+const DoneBadge = styled.span<{ $state: string }>`
+  flex-shrink: 0;
+  font-size: 10px; font-weight: 700; border-radius: 999px; padding: 3px 8px;
+  background: ${p => (DONE_TONE[p.$state] || DONE_TONE.rejected).bg};
+  color: ${p => (DONE_TONE[p.$state] || DONE_TONE.rejected).fg};
+`;
+const DoneTitle = styled.div`
+  font-size: 13px; font-weight: 600; color: #475569; line-height: 1.4;
+  word-break: break-word;
 `;
 const TitleInput = styled.input`
   font-size: 14px; font-weight: 600; color: #0F172A;

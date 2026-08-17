@@ -409,10 +409,12 @@ export async function listProjectIssues(projectId: number): Promise<ApiIssue[]> 
   return handle<ApiIssue[]>(res);
 }
 
-// N+36 옵션 D — includeHidden=true 시 backend 가 hidden_at 무관 모두 반환 ("이전 후보 보기" 토글)
+// "이전 후보 보기" 토글 — 30일 지나 숨겨진 것(hidden_at) + **이미 처리된 것**(등록·병합·반려) 까지.
+//   #298: hidden 만 풀면 대부분의 대화에서 아무 변화가 없다(운영 conv#3 실측 — hidden 0건,
+//   처리된 후보 4건). 사용자가 "이전 후보" 라 부르는 건 지나간 후보 전부다.
+const oldCandidatesQs = (includeOld: boolean) => (includeOld ? '?include_hidden=true&status=all' : '');
 export async function listProjectCandidates(projectId: number, includeHidden = false): Promise<ApiTaskCandidate[]> {
-  const qs = includeHidden ? '?include_hidden=true' : '';
-  const res = await apiFetch(`/api/projects/${projectId}/task-candidates${qs}`);
+  const res = await apiFetch(`/api/projects/${projectId}/task-candidates${oldCandidatesQs(includeHidden)}`);
   return handle<ApiTaskCandidate[]>(res);
 }
 
@@ -427,8 +429,7 @@ export async function listConvIssues(convId: number): Promise<ApiIssue[]> {
 }
 // N+36 옵션 D — includeHidden=true 시 backend 가 hidden_at 무관 모두 반환
 export async function listConvCandidates(convId: number, includeHidden = false): Promise<ApiTaskCandidate[]> {
-  const qs = includeHidden ? '?include_hidden=true' : '';
-  const res = await apiFetch(`/api/projects/conversations/${convId}/task-candidates${qs}`);
+  const res = await apiFetch(`/api/projects/conversations/${convId}/task-candidates${oldCandidatesQs(includeHidden)}`);
   return handle<ApiTaskCandidate[]>(res);
 }
 export async function listConvTasks(convId: number): Promise<ApiTask[]> {
