@@ -126,6 +126,16 @@ async function getUserSnapshot(userId, businessId, businessTimezone, scope) {
     limit: EVENT_LIMIT,
   }) : [];
 
+  // 오늘 일정 — 창이 `지금~+7일` 뿐이라 **이미 시작한 오늘 일정과 0시 시작 종일 일정이
+  // 통째로 빠졌다**(#292 "오늘 내 일정이 뭐야?" 에 답 못 함). 워크스페이스 시간대의 하루 경계로 따로 뽑는다.
+  const dayBounds = todayBounds(businessTimezone);
+  const todayEvents = calBase ? await CalendarEvent.findAll({
+    where: { [Op.and]: [calBase, { start_at: { [Op.between]: [dayBounds.start, dayBounds.end] } }] },
+    attributes: ['id', 'title', 'start_at', 'location'],
+    order: [['start_at', 'ASC']],
+    limit: EVENT_LIMIT * 2,
+  }) : [];
+
   // 받은 업무 요청 (ack 전)
   const inboxTasks = await Task.findAll({
     where: {
@@ -139,7 +149,7 @@ async function getUserSnapshot(userId, businessId, businessTimezone, scope) {
     limit: 5,
   });
 
-  return { myTasks, events, inboxTasks, businessTimezone };
+  return { myTasks, events, todayEvents, inboxTasks, businessTimezone };
 }
 
 // ── 고객 360° 요약 — 이전 결제·서명·기본 정보
@@ -178,23 +188,50 @@ async function getClientSnapshot(clientId, businessId, scope) {
 // ── #61 — 질문 기반 워크스페이스 전방위 검색 (질문자 권한 범위 내)
 //    "모든 곳을 확인하되 권한 기준으로" — access_scope 헬퍼로 격리 보장.
 //    재무(invoice)는 owner/admin 또는 본인 청구(client)만. 일반 member 는 제외(재무 누출 차단).
+// 조사 목록 — **긴 것부터** (최장일치). '에서' 를 '에' 보다 먼저 봐야 "회의에서" → "회의" 가 된다.
+// LIKE OR 총량 상한 — 어절 8 + 변형 8. 2필드면 LIKE 32개로 묶인다(상한 없으면 쿼리가 폭주).
+const TERM_CAP = 16;
+const KO_PARTICLES = ['에서는', '에서도', '으로는', '에게는', '까지는', '부터는',
+  '에서', '에게', '으로', '까지', '부터', '이라', '라고', '이나', '거나',
+  '은', '는', '이', '가', '을', '를', '의', '에', '와', '과', '도', '만', '로'];
+
+// 한국어는 조사가 붙어 어절이 통짜로 안 맞는다 — "고객이", "워프로랩이" 를 그대로 LIKE 하면 영영 0건.
+//   ★ 스트리핑 결과로 **대체하지 않는다**. "회의" → '의' 를 떼면 "회"(1자)가 되어 필터에 걸려
+//     검색어 자체가 사라진다(지금보다 나빠짐). 원어절은 항상 남기고 변형을 **추가**한다.
 function queryTerms(q) {
-  return String(q || '').toLowerCase()
+  const raw = String(q || '').toLowerCase()
     .split(/[\s,.;:!?()[\]{}"'`/\\]+/)
     .map((s) => s.trim())
     .filter((s) => s.length >= 2)
-    .slice(0, 6);
+    .slice(0, 8);                       // 상한은 **원어절 기준** (변형은 별도 상한)
+
+  const out = [];
+  for (const w of raw) {
+    out.push(w);
+    for (const p of KO_PARTICLES) {
+      if (w.length > p.length && w.endsWith(p)) {
+        const stem = w.slice(0, -p.length);
+        if (stem.length >= 2 && !out.includes(stem)) out.push(stem);  // 잔여 2자 이상일 때만
+        break;                          // 최장일치 하나만
+      }
+    }
+  }
+  return out.slice(0, TERM_CAP);
 }
 function likeAny(fields, terms) {
   return { [Op.or]: fields.flatMap((f) => terms.map((t) => ({ [f]: { [Op.like]: `%${t}%` } }))) };
 }
 
-async function getWorkspaceMatches({ businessId, scope, query }) {
+async function getWorkspaceMatches({ businessId, scope, query, audience = 'client_facing' }) {
   const terms = queryTerms(query);
   if (!businessId || !scope || terms.length === 0) return null;
   const isStaff = isMemberOrAbove(scope);
   const isClient = !!scope.isClient;
   if (!isStaff && !isClient) return null;
+  // 수신자 절단 — 질문자 권한만으로는 부족하다. 이 컨텍스트로 만든 답변이 **고객이 보는
+  // 대화방**으로 나가는 경로가 있어(cue_orchestrator), 스태프가 마지막 발화자면 스태프 권한
+  // 컨텍스트가 그대로 고객행 답변 재료가 된다. 실제 가시성 = min(질문자 권한, 수신자 범위).
+  const internal = audience === 'internal';
 
   const out = { tasks: [], projects: [], clients: [], invoices: [] };
 
@@ -225,8 +262,9 @@ async function getWorkspaceMatches({ businessId, scope, query }) {
     });
   } catch (e) { void e; }
 
-  // 고객 — staff 만 (client 는 타 고객 검색 불가)
-  if (isStaff) {
+  // 고객 — staff 만 (client 는 타 고객 검색 불가) + 내부 화면일 때만
+  //   (고객행 답변에 다른 고객 이름이 섞이면 그대로 고객 명단 유출)
+  if (isStaff && internal) {
     try {
       out.clients = await Client.findAll({
         where: { business_id: businessId, ...likeAny(['display_name', 'company_name', 'biz_name'], terms) },
@@ -236,8 +274,11 @@ async function getWorkspaceMatches({ businessId, scope, query }) {
     } catch (e) { void e; }
   }
 
-  // 청구서(재무) — owner/admin/platform_admin 또는 본인 청구(client) 만
-  const canFinance = scope.isOwner || scope.isAdmin || scope.isPlatformAdmin || isClient;
+  // 청구서(재무) — owner/admin/platform_admin 또는 본인 청구(client) 만.
+  //   ★ 여기만 audience 공식이 다르다. client 는 **수신자가 본인**이고 invoiceListWhere 가
+  //     본인 청구로 격리하므로 고객행에서도 안전 — 이걸 같이 막으면 "내 청구서 어떻게 됐어?"
+  //     라는 정상 기능이 죽는다(유출이 아니라 기능 절단). 스태프 권한 재무만 내부 화면 한정.
+  const canFinance = isClient || ((scope.isOwner || scope.isAdmin || scope.isPlatformAdmin) && internal);
   if (canFinance) {
     try {
       const base = await invoiceListWhere(scope.userId, businessId, scope);
@@ -264,13 +305,47 @@ function todayStr(tz) {
   try { return new Date().toLocaleDateString('en-CA', { timeZone: tz || 'Asia/Seoul' }); }
   catch { return new Date().toISOString().slice(0, 10); }
 }
-async function getWorkspaceOverview({ businessId, scope, businessTimezone }) {
+
+// 워크스페이스 시간대 기준 "오늘"의 UTC 경계 [0시, 24시).
+//   start_at 은 UTC 로 저장되므로 서버 로컬 자정으로 자르면 시간대가 다른 워크스페이스에서 하루가 밀린다.
+function todayBounds(tz) {
+  const zone = tz || 'Asia/Seoul';
+  const now = new Date();
+  // 해당 시간대의 오늘 날짜(Y-M-D)
+  const [y, m, d] = todayStr(zone).split('-').map(Number);
+  const guess = Date.UTC(y, m - 1, d, 0, 0, 0);
+  // guess(UTC) 를 그 시간대로 표기했을 때의 편차 = 시간대 offset
+  let offset = 0;
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: zone, hour12: false,
+      year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
+    }).formatToParts(new Date(guess)).reduce((a, p) => { a[p.type] = p.value; return a; }, {});
+    const asZoned = Date.UTC(+parts.year, +parts.month - 1, +parts.day, (+parts.hour) % 24, +parts.minute, +parts.second);
+    offset = asZoned - guess;
+  } catch { offset = 0; }
+  const start = new Date(guess - offset);
+  const end = new Date(start.getTime() + 86400 * 1000 - 1);
+  return { start, end, now };
+}
+async function getWorkspaceOverview({ businessId, scope, businessTimezone, audience = 'client_facing', business = null }) {
   if (!businessId || !scope) return null;
   const isStaff = isMemberOrAbove(scope);
   const isClient = !!scope.isClient;
   if (!isStaff && !isClient) return null;
+  const internal = audience === 'internal';
   const today = todayStr(businessTimezone);
-  const ov = { projects: [], taskCounts: {}, taskTotal: 0, overdue: 0, urgentTasks: [], finance: null };
+  const ov = { identity: null, projects: [], taskCounts: {}, taskTotal: 0, overdue: 0, urgentTasks: [], clients: null, finance: null };
+
+  // 정체성 — "우리 워크스페이스가 무슨 일 하는 곳이야?" 에 답할 근거.
+  //   여태 이름조차 컨텍스트에 없어서 Cue 가 회사 소개를 지어냈다(#294).
+  if (business) {
+    ov.identity = {
+      name: business.brand_name || business.name || null,   // brand_name 이 정본, name 은 legacy
+      tagline: business.brand_tagline || null,
+      legalName: business.legal_name || null,
+    };
+  }
 
   // 활성 프로젝트 — member: 전체 / client: 관여 프로젝트
   try {
@@ -301,8 +376,23 @@ async function getWorkspaceOverview({ businessId, scope, businessTimezone }) {
     }
   } catch (e) { void e; }
 
-  // 재무 요약 — owner/admin/platform_admin
-  if (scope.isOwner || scope.isAdmin || scope.isPlatformAdmin) {
+  // 고객 현황 — #291. 여태 이 블록이 없어서 "고객이 몇 명이야?" 에 근거가 0이었고
+  //   (질문에 고객 **이름**이 들어갔을 때만 검색으로 잡혔다) Cue 가 "고객 정보 없음" 이라 답했다.
+  //   스태프 + 내부 화면에서만 — 고객행 답변에 명단이 실리면 그대로 고객 정보 유출.
+  if (isStaff && internal) {
+    try {
+      const { count, rows } = await Client.findAndCountAll({
+        where: { business_id: businessId },
+        attributes: ['id', 'display_name', 'company_name', 'biz_name', 'status'],
+        order: [['created_at', 'DESC']],
+        limit: 20,
+      });
+      ov.clients = { total: count, rows };
+    } catch (e) { void e; }
+  }
+
+  // 재무 요약 — owner/admin/platform_admin + 내부 화면 한정
+  if ((scope.isOwner || scope.isAdmin || scope.isPlatformAdmin) && internal) {
     try {
       const base = await invoiceListWhere(scope.userId, businessId, scope);
       if (base) {
@@ -329,7 +419,14 @@ function composeMarkdown({ history, project, client, kb, userSnap, matches, over
   // #61 — 워크스페이스 현황 (권한 스코프, 일반 질문 대응). 맨 위에 전체 그림.
   if (overview) {
     const o = overview;
-    const hasAny = (o.projects?.length || o.taskTotal || o.finance);
+    // 정체성은 맨 앞 — "우리가 누구인가" 를 모르면 Cue 가 회사 소개를 지어낸다(#294).
+    if (o.identity?.name) {
+      parts.push('## 이 워크스페이스');
+      parts.push(`- 이름: ${o.identity.name}${o.identity.legalName && o.identity.legalName !== o.identity.name ? ` (사업자명 ${o.identity.legalName})` : ''}`);
+      if (o.identity.tagline) parts.push(`- 소개: ${snip(o.identity.tagline, 200)}`);
+      parts.push('');
+    }
+    const hasAny = (o.projects?.length || o.taskTotal || o.finance || o.clients?.total);
     if (hasAny) {
       parts.push('## 워크스페이스 현황 (질문자 권한 범위 내 — 이 데이터로 답하세요)');
       if (o.projects?.length) {
@@ -345,6 +442,15 @@ function composeMarkdown({ history, project, client, kb, userSnap, matches, over
           const due = t.due_date ? String(t.due_date).slice(0, 10) : '미정';
           const who = t.assignee?.name ? ` · ${t.assignee.name}` : '';
           parts.push(`  · ${t.title} (${t.status}, 진행 ${t.progress_percent || 0}%, 마감 ${due}${who})`);
+        });
+      }
+      // 고객 — 총 수는 그 자체가 답(#291). 목록은 이름·상태 한 줄만 (프롬프트 예산 절약).
+      if (o.clients?.total) {
+        parts.push(`- 등록 고객 총 ${o.clients.total}명${o.clients.rows.length < o.clients.total ? ` (최근 ${o.clients.rows.length}명만 표시)` : ''}:`);
+        o.clients.rows.forEach((c) => {
+          const nm = c.display_name || c.company_name || c.biz_name || `#${c.id}`;
+          const co = c.company_name && c.company_name !== nm ? ` · ${c.company_name}` : '';
+          parts.push(`  · ${nm}${co} (${c.status || '-'})`);
         });
       }
       if (o.finance) {
@@ -365,6 +471,19 @@ function composeMarkdown({ history, project, client, kb, userSnap, matches, over
     if (userSnap.inboxTasks?.length) {
       parts.push(`- 받은 업무 요청 (확인 대기 ${userSnap.inboxTasks.length}건):`);
       userSnap.inboxTasks.forEach(t => parts.push(`  · ${t.title}${t.due_date ? ` (마감 ${String(t.due_date).slice(0,10)})` : ''}`));
+    }
+    // 오늘 일정을 먼저, 별도 라벨로 — "오늘 일정" 질문에 '다가오는 일정' 만 주면 답할 수 없다(#292).
+    {
+      const fmt = (e) => (e.start_at
+        ? new Date(e.start_at).toLocaleString('ko-KR', { timeZone: userSnap.businessTimezone || 'Asia/Seoul', dateStyle: 'short', timeStyle: 'short' })
+        : '미정');
+      if (userSnap.todayEvents?.length) {
+        parts.push(`- 오늘 일정 (${userSnap.todayEvents.length}건):`);
+        userSnap.todayEvents.forEach((e) => parts.push(`  · ${e.title} — ${fmt(e)}${e.location ? ` @ ${e.location}` : ''}`));
+      } else {
+        // "없음" 도 사실이다 — 근거 없이 침묵하면 Cue 가 추측하거나 데이터가 없다고 오해한다.
+        parts.push('- 오늘 일정: 없음 (조회됨 — 데이터 부재가 아니라 실제로 0건)');
+      }
     }
     if (userSnap.events?.length) {
       parts.push(`- 다가오는 일정:`);
@@ -458,7 +577,11 @@ function composeMarkdown({ history, project, client, kb, userSnap, matches, over
 }
 
 // ── 메인 빌더
-async function buildCueContext({ businessId, conversationId, projectId, clientId, userId, query, businessTimezone, scope }) {
+// audience — 이 컨텍스트로 만든 답변을 **누가 읽는가**.
+//   'internal'      : 질문자 본인이 내부 화면에서 읽는다 (Q helper 드로어)
+//   'client_facing' : 고객이 있는 대화방에 게시된다 (Cue 자동응답·수동 트리거)
+//   기본값은 좁은 쪽(client_facing) — 새 호출처가 인자를 빠뜨려도 안전한 쪽으로 떨어지게 한다(fail-closed).
+async function buildCueContext({ businessId, conversationId, projectId, clientId, userId, query, businessTimezone, scope, audience = 'client_facing', business = null }) {
   // 개별 스냅샷 실패가 컨텍스트 전체를 죽이면 안 됨 (memo 컬럼 실사고 재발 방지) — 모두 개별 .catch
   // 1. 대화 히스토리
   const historyP = getConversationHistory(conversationId).catch(() => []);
@@ -485,11 +608,11 @@ async function buildCueContext({ businessId, conversationId, projectId, clientId
     : Promise.resolve({ has_results: false });
   // 6. #61 — 질문 기반 워크스페이스 전방위 검색 (권한 scope 있을 때만)
   const matchesP = (query && scope)
-    ? getWorkspaceMatches({ businessId, scope, query }).catch(() => null)
+    ? getWorkspaceMatches({ businessId, scope, query, audience }).catch(() => null)
     : Promise.resolve(null);
   // 7. #61 — 권한 스코프 워크스페이스 현황 (쿼리 무관, scope 있으면 항상)
   const overviewP = scope
-    ? getWorkspaceOverview({ businessId, scope, businessTimezone }).catch(() => null)
+    ? getWorkspaceOverview({ businessId, scope, businessTimezone, audience, business }).catch(() => null)
     : Promise.resolve(null);
 
   // 8. KNOWLEDGE_LOOP 축1 — 팀이 확정한 워크스페이스 지식 카드 (active 만)
@@ -502,6 +625,8 @@ async function buildCueContext({ businessId, conversationId, projectId, clientId
 }
 
 // 읽기 함수 개별 노출 — MCP 읽기 서버(#D-4)가 재포장한다. 전부 scope 인자로 격리된다.
+//   ⚠️ getWorkspaceOverview / getWorkspaceMatches 의 audience 기본값도 'client_facing' 이다.
+//      재포장하는 쪽이 인자를 안 넘기면 스태프 전용 정보(고객 명단·재무)는 자동으로 빠진다.
 module.exports = {
   buildCueContext,
   getWorkspaceOverview, getWorkspaceMatches, getClientSnapshot, getProjectSnapshot,

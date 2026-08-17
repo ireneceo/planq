@@ -69,6 +69,12 @@ const authenticateToken = async (req, res, next) => {
       email: user.email,
       name: user.name,
       platform_role: user.platform_role,
+      // 활성 워크스페이스 — 여태 여기에 안 실려 `req.user.active_business_id` 를 읽는 라우트가
+      // 전부 undefined 를 받았다(Cue 는 그 탓에 워크스페이스 전환을 못 따라가고 첫 멤버십에 고정).
+      //   ⚠️ 이 값은 "사용자가 마지막으로 고른 워크스페이스" 일 뿐 권한 근거가 아니다.
+      //      switch-workspace 가 저장 시점에 멤버십을 검증하지만 그 뒤 멤버 해제·워크스페이스
+      //      삭제로 stale 이 될 수 있다 → 소비처는 반드시 생존·멤버십을 재확인할 것.
+      active_business_id: user.active_business_id || null,
     };
 
     // ★ 삭제된 워크스페이스 차단 — **인증 요청의 단일 관문** (Fable 치명-4).
@@ -113,6 +119,9 @@ const optionalAuth = async (req, res, next) => {
         email: user.email,
         name: user.name,
         platform_role: user.platform_role,
+        // authenticateToken 과 같은 모양으로 유지 — 두 생성자가 갈라지면
+        // "어느 미들웨어를 탔느냐" 에 따라 라우트 동작이 달라진다.
+        active_business_id: user.active_business_id || null,
       };
     }
   } catch (_) {

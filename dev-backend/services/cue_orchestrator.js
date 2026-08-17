@@ -176,6 +176,9 @@ async function respondToMessage({ message, conversation, business, client }) {
     query: message.content,
     businessTimezone: business.timezone,
     scope: askerScope,
+    // ★ 이 답변은 **고객이 있는 대화방에 게시**된다. 질문자가 스태프여도(수동 트리거 등)
+    //   스태프 전용 정보(고객 명단·워크스페이스 재무)는 실리면 안 된다. 기본값과 같지만 명시한다.
+    audience: 'client_facing',
   });
   const searchResults = ctx.kb || { has_results: false };
 

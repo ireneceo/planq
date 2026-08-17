@@ -38,9 +38,15 @@ PlanQ 는 B2B SaaS — Q talk (대화) · Q task (할일) · Q note (음성·요
 - 본인을 "Cue" 라 부르지 말 것. Cue 는 사용자의 워크스페이스 AI 팀원이고, 너 (Q helper) 와는 별개 페르소나.
 - 워크스페이스 데이터 (고객/업무/회의 등) 질문이 오면: "그 질문은 'Cue' 모드로 전환해서 물어보세요. 저는 PlanQ 사용법 전담입니다."`;
 
-const SYSTEM_PROMPT_WORKSPACE = `너는 Cue, 사용자의 워크스페이스 AI 팀원이야.
+const SYSTEM_PROMPT_WORKSPACE = `너는 Cue. 이 워크스페이스에 **함께 일하는 팀원**이야. 외부 AI 가 아니라 이 팀의 일원으로서 답한다.
 이 워크스페이스의 고객·업무·일정·회의 등 사용자 비즈니스 데이터를 기반으로 답변해.
 다른 워크스페이스 데이터는 절대 모름 — 오직 [컨텍스트] 에 있는 현재 워크스페이스 정보만 사용.
+
+말투 (중요 — #294):
+- [컨텍스트] 의 '이 워크스페이스' 이름을 알고 있고, 그 팀의 구성원으로서 "우리" 라고 말한다
+  (예: "우리 고객은 지금 3명이에요" — "해당 워크스페이스에는" 같은 제3자 화법 금지)
+- 팀원을 돕는 태도로 — 사실을 전한 뒤 다음 할 일이 뻔하면 한 줄 덧붙인다
+- 아부·과장 없이 담백하게. 모르면 모른다고 한다 (지어내지 않는다)
 
 답변 형식 (반드시):
 - 짧은 문단 + 빈 줄 한 칸 (\\n\\n)
@@ -133,6 +139,49 @@ function guestQuestionHash(q) {
   return crypto.createHash('sha256').update(String(q).trim().toLowerCase()).digest('hex').slice(0, 32);
 }
 
+// ─── 활성 워크스페이스 결정 (단일 착지점) ───
+//   여태 `req.user.active_business_id` 가 authenticateToken 에 실리지 않아 항상 undefined 였고,
+//   그래서 Cue 는 **가입 순 첫 멤버십**에 고정돼 있었다(전환해도 옛 워크스페이스를 답함).
+//   이제 값이 실리므로 여기서 유효성을 세 겹으로 확인한다 — active 는 사용자가 고른 값일 뿐
+//   권한 근거가 아니다(멤버 해제·워크스페이스 삭제로 stale 이 된다).
+//     ① 워크스페이스가 살아있을 것 (deleted_at IS NULL)
+//        — switch-workspace 는 쓰기 시점만 막고, cue 라우트는 body 에 business_id 를 안 실어
+//          authenticateToken 의 workspaceAliveCheck 도 걸리지 않는다. 여기가 유일한 관문.
+//     ② 그 워크스페이스에 살아있는 멤버십 또는 활성 Client 자격이 있을 것
+//     ③ 위가 실패하면 첫 멤버십 폴백 — 이 폴백도 삭제본은 제외
+async function resolveBusinessId(req) {
+  const { BusinessMember, Business, Client } = require('../models');
+  const alive = async (bizId) => {
+    if (!bizId) return false;
+    const biz = await Business.findByPk(bizId, { attributes: ['id', 'deleted_at'] });
+    return !!biz && !biz.deleted_at;
+  };
+
+  const active = req.user.active_business_id;
+  if (await alive(active)) {
+    const isMember = await BusinessMember.findOne({
+      where: { user_id: req.user.id, business_id: active, removed_at: null },
+      attributes: ['id'],
+    });
+    const isClient = isMember ? null : await Client.findOne({
+      where: { user_id: req.user.id, business_id: active, status: 'active' },
+      attributes: ['id'],
+    });
+    if (isMember || isClient) return active;
+  }
+
+  // 폴백 — 가장 오래된 멤버십부터, 살아있는 워크스페이스가 나올 때까지
+  const rows = await BusinessMember.findAll({
+    where: { user_id: req.user.id, removed_at: null },
+    order: [['id', 'ASC']],
+    attributes: ['business_id'],
+  });
+  for (const r of rows) {
+    if (await alive(r.business_id)) return r.business_id;
+  }
+  return null;
+}
+
 // KNOWLEDGE_LOOP 축2 — Q helper 질문 로그. 실패해도 응답 흐름은 막지 않는다.
 async function logHelpQuestion(fields) {
   try {
@@ -223,9 +272,11 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
     }
 
     // 플랜 쿼터 — Cue 월간 액션 (workspace 모드에서만 차감, qhelper 는 free)
+    //   ★ 여태 bizId 가 항상 undefined 라 이 게이트는 **한 번도 작동한 적이 없다**.
+    //     resolveBusinessId 로 실제 워크스페이스를 잡으면서 비로소 작동한다.
     const finalModeForGate = mode === 'workspace' ? 'workspace' : 'qhelper';
     if (finalModeForGate === 'workspace') {
-      const bizId = req.user.active_business_id;
+      const bizId = await resolveBusinessId(req);
       if (bizId) {
         const planEngine = require('../services/plan');
         const planCan = await planEngine.can(bizId, 'use_cue', { actions: 1 });
@@ -248,16 +299,7 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
     // workspace 모드만 워크스페이스 데이터 컨텍스트 주입 (격리)
     if (finalMode === 'workspace') {
       try {
-        let businessId = req.user.active_business_id;
-        if (!businessId) {
-          const { BusinessMember } = require('../models');
-          const bm = await BusinessMember.findOne({
-            where: { user_id: req.user.id, removed_at: null },
-            order: [['id', 'ASC']],
-            attributes: ['business_id'],
-          });
-          businessId = bm?.business_id || null;
-        }
+        const businessId = await resolveBusinessId(req);
         if (businessId) {
           const { buildCueContext } = require('../services/cue_context');
           const { getUserScope } = require('../middleware/access_scope');
@@ -266,6 +308,12 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
           const clientMatch = path.match(/\?client=(\d+)/);
           // #61 — 질문자 권한 scope 계산 → 전방위 검색을 권한 범위 내로 격리
           const scope = await getUserScope(req.user.id, businessId, req.user.platform_role);
+          // 워크스페이스 1회 조회 — 정체성(누구의 워크스페이스인가) + 시간대.
+          //   여태 businessTimezone 을 안 넘겨 "오늘/다가오는 일정" 표기가 Asia/Seoul 고정이었다.
+          const { Business } = require('../models');
+          const biz = await Business.findByPk(businessId, {
+            attributes: ['id', 'name', 'brand_name', 'brand_tagline', 'legal_name', 'timezone'],
+          });
           const ctx = await buildCueContext({
             businessId,
             conversationId: null,
@@ -273,6 +321,11 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
             clientId: clientMatch ? Number(clientMatch[1]) : null,
             userId: req.user.id,
             query: q,
+            businessTimezone: biz?.timezone || null,
+            business: biz || null,
+            // 내부 화면(Q helper 드로어)에서 본인이 보는 답변 — 스태프 전용 정보 주입 허용.
+            // 기본값은 좁은 쪽(client_facing)이라 **여기서만 명시적으로 넓힌다**.
+            audience: 'internal',
             scope,
           });
           if (ctx.markdown) ctxBlock += `\n\n# 워크스페이스 현황\n${ctx.markdown}`;
@@ -385,15 +438,8 @@ router.post('/execute-action', authenticateToken, ...helpLimiter, async (req, re
     if (!tool || !cueTools.WRITE_TOOLS.has(tool)) return errorResponse(res, 'unknown_tool', 400);
 
     // businessId 는 인증 컨텍스트에서 서버가 도출 (클라 business_id 불신). 행동 계층이 멤버십 재검증.
-    let businessId = req.user.active_business_id;
-    if (!businessId) {
-      const { BusinessMember } = require('../models');
-      const bm = await BusinessMember.findOne({
-        where: { user_id: req.user.id, removed_at: null },
-        order: [['id', 'ASC']], attributes: ['business_id'],
-      });
-      businessId = bm?.business_id || null;
-    }
+    //   ★ 여태 active 가 안 실려 **첫 멤버십 워크스페이스에 생성·과금**되고 있었다 — 전환해도 그대로.
+    const businessId = await resolveBusinessId(req);
     if (!businessId) return errorResponse(res, 'no_workspace', 400);
 
     // 플랜 쿼터 — 실행이 유일한 계량점(제안 /help 는 무과금)
