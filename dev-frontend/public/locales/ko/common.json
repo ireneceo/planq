@@ -698,7 +698,12 @@
     "register": "등록",
     "merge": "내용 추가",
     "reject": "삭제",
-    "rejectHint": "이 후보를 모두에게서 제거합니다 (개인 거절 아님)"
+    "rejectHint": "이 후보를 모두에게서 제거합니다 (개인 거절 아님)",
+    "state": {
+      "registered": "등록됨",
+      "merged": "병합됨",
+      "rejected": "삭제됨"
+    }
   },
   "public": {
     "kb": {
