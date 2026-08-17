@@ -106,7 +106,8 @@ function sequelizeCategoryWhere(businessId, category) {
 
 async function runKnowledgeMining() {
   const { Business } = require('../models');
-  const bizIds = (await Business.findAll({ attributes: ['id'] })).map((b) => b.id);
+  // 삭제된 워크스페이스는 LLM 루프 대상이 아니다 — 비용이 계속 나간다.
+  const bizIds = (await Business.findAll({ attributes: ['id'], where: { deleted_at: null } })).map((b) => b.id);
   const results = [];
   for (const id of bizIds) {
     try { results.push(await mineWorkPatterns(id)); }

@@ -50,8 +50,13 @@ const isAdmin = (req) =>
 // ─── List businesses for current user ───
 router.get('/', authenticateToken, async (req, res, next) => {
   try {
+    // ★ soft-delete 된 워크스페이스는 목록에서 제외한다.
+    //   access_scope 는 이미 접근을 404 로 막는데(단일 관문) 목록이 안 걸러서,
+    //   삭제한 워크스페이스가 **전환 목록에는 보이는데 열면 404** 인 상태가 됐다.
+    //   화면이 사실과 다르게 말하는 계열 — 삭제는 목록에서 사라지는 것까지가 기능이다.
     if (req.user.platform_role === 'platform_admin') {
       const businesses = await Business.findAll({
+        where: { deleted_at: null },
         include: [{ model: User, as: 'owner', attributes: ['id', 'name', 'email'] }],
         order: [['created_at', 'DESC']]
       });
@@ -62,10 +67,12 @@ router.get('/', authenticateToken, async (req, res, next) => {
       where: { user_id: req.user.id },
       include: [{
         model: Business,
+        where: { deleted_at: null },
+        required: true,
         include: [{ model: User, as: 'owner', attributes: ['id', 'name', 'email'] }]
       }]
     });
-    const businesses = memberships.map(m => m.Business);
+    const businesses = memberships.map(m => m.Business).filter(Boolean);
     successResponse(res, businesses);
   } catch (error) {
     next(error);

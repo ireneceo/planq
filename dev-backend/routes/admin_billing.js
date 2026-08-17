@@ -10,7 +10,7 @@ const router = express.Router();
 const { Op } = require('sequelize');
 const { Business, Subscription, Payment } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
-const { isExemptNow, exemptBusinessIds } = require('../services/billingExemptView');
+const { isExemptNow, exemptBusinessIds, liveBusinessIds } = require('../services/billingExemptView');
 
 // ============================================
 // Subscriptions (플랫폼 → 워크스페이스 PlanQ 구독)
@@ -34,16 +34,20 @@ router.get('/subscriptions', async (req, res, next) => {
 
     const include = [{
       model: Business,
+      // 삭제된 워크스페이스의 구독 이력은 목록·집계에서 뺀다 (행은 DB 에 보존).
+      required: true,
       attributes: ['id', 'name', 'brand_name', 'slug', 'plan', 'subscription_status',
         // 결제 면제 (운영 #275) — 면제 워크스페이스의 옛 강등/연체 구독 행이
         // 현재 상태처럼 보이면 안 된다. 행 단위로 판정 근거를 같이 내려준다.
         'billing_exempt', 'billing_exempt_kind', 'billing_exempt_until'],
-      ...(q ? { where: { [Op.or]: [
-        { name: { [Op.like]: `%${q}%` } },
-        { brand_name: { [Op.like]: `%${q}%` } },
-        { slug: { [Op.like]: `%${q}%` } },
-      ] } } : {}),
-      required: !!q,
+      where: {
+        deleted_at: null,
+        ...(q ? { [Op.or]: [
+          { name: { [Op.like]: `%${q}%` } },
+          { brand_name: { [Op.like]: `%${q}%` } },
+          { slug: { [Op.like]: `%${q}%` } },
+        ] } : {}),
+      },
     }];
 
     const { rows, count } = await Subscription.findAndCountAll({
@@ -118,12 +122,16 @@ router.get('/subscriptions/summary', async (req, res, next) => {
     //   ★ 행 단위 isExemptNow() 와 **같은 술어**로 뽑는다. raw 플래그만 보면 종료일이 지난
     //     워크스페이스가 집계에서만 면제로 빠져 같은 응답 안에서 자기모순이 난다 (Fable M1).
     const exemptIds = await exemptBusinessIds();
+    // 삭제된 워크스페이스의 구독 이력도 집계에서 뺀다 — 목록(required: true)과 숫자가 어긋나면 안 된다.
+    const liveIds = await liveBusinessIds();
 
     const counts = await Subscription.findAll({
       attributes: ['status', [Subscription.sequelize.fn('COUNT', Subscription.sequelize.col('id')), 'count']],
       where: {
         status: { [Op.ne]: 'replaced' },
-        ...(exemptIds.length ? { business_id: { [Op.notIn]: exemptIds } } : {}),
+        business_id: {
+          [Op.in]: liveIds.filter((id) => !exemptIds.includes(id)),
+        },
       },
       group: ['status'],
       raw: true,
@@ -136,7 +144,10 @@ router.get('/subscriptions/summary', async (req, res, next) => {
     // 면제 구독은 숨기지 않고 별도 항목으로 노출한다(숫자가 사라지는 것도 오정보).
     if (exemptIds.length) {
       out.exempt = Number(await Subscription.count({
-        where: { status: { [Op.ne]: 'replaced' }, business_id: { [Op.in]: exemptIds } },
+        where: {
+          status: { [Op.ne]: 'replaced' },
+          business_id: { [Op.in]: exemptIds.filter((id) => liveIds.includes(id)) },
+        },
       }));
       out.total += out.exempt;
     }

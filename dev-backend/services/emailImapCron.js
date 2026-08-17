@@ -25,6 +25,17 @@ const {
   Client, File: FileModel, Business,
 } = require('../models');
 
+
+// 삭제된 워크스페이스의 메일 계정은 폴링·IDLE 대상에서 뺀다.
+// 안 거르면 워크스페이스를 지워도 IMAP 연결이 유지되고 메일이 계속 수집된다.
+// (개인 계정은 business_id 가 없을 수 있어 그 경우는 통과)
+async function liveBusinessIdSet() {
+  try {
+    const { Business } = require('../models');
+    const rows = await Business.findAll({ attributes: ['id'], where: { deleted_at: null }, raw: true });
+    return new Set(rows.map((b) => b.id));
+  } catch { return null; }
+}
 const FETCH_LIMIT_PER_ACCOUNT = 50;
 // 계정을 처음 연결하면 최근 N일 메일을 가져온다 (Irene 결정 2026-07-12).
 //   여태는 "연결 이후 새로 오는 메일만" 가져와서, 방금 연결한 사용자는 빈 화면을 봤다.
@@ -532,7 +543,8 @@ async function syncOne(account, opts = {}) {
 // 전체 cron tick
 async function tick() {
   try {
-    const accounts = await EmailAccount.findAll({
+    const liveBizIds = await liveBusinessIdSet();
+    const accounts = (await EmailAccount.findAll({
       where: { is_active: true },
       // MySQL — NULL 먼저 (한 번도 sync 안 된 계정 우선)
       order: [
@@ -540,7 +552,8 @@ async function tick() {
         ['last_sync_at', 'ASC'],
       ],
       limit: 50,
-    });
+    })).filter((a) => !liveBizIds || !a.business_id || liveBizIds.has(a.business_id));
+
     for (const acc of accounts) {
       // 실시간 IDLE 연결이 살아있는 계정은 이미 즉시 수신 중 — 폴링이 2번째 연결을 열어
       // Gmail 동시연결 제한(15)을 압박하는 것을 막는다. IDLE 이 끊긴(conn=null) 계정만 backstop 폴링.
@@ -755,7 +768,9 @@ function stopIdleForAccount(accountId) {
 // 활성 계정 목록과 IDLE 연결을 맞춘다 — 신규 계정 연결, 제거된 계정 정리.
 async function reconcileIdle() {
   try {
-    const accounts = await EmailAccount.findAll({ where: { is_active: true }, limit: 200 });
+    const liveBizIds2 = await liveBusinessIdSet();
+    const accounts = (await EmailAccount.findAll({ where: { is_active: true }, limit: 200 }))
+      .filter((a) => !liveBizIds2 || !a.business_id || liveBizIds2.has(a.business_id));
     const activeIds = new Set(accounts.map((a) => a.id));
     // 제거/비활성된 계정 IDLE 정리
     for (const id of idleConns.keys()) { if (!activeIds.has(id)) stopIdleForAccount(id); }

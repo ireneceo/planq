@@ -94,9 +94,13 @@ async function canJoinProject(userId, projectId) {
 }
 
 async function canJoinBusiness(userId, businessId) {
-  const { BusinessMember } = getModels();
+  const { BusinessMember, Business } = getModels();
+  // ★ 삭제된 워크스페이스 room 에는 들어갈 수 없다. socket 은 HTTP 와 독립 경로라
+  //   access_scope 게이트가 적용되지 않는다 — 여기서 따로 막아야 실시간 이벤트가 새지 않는다.
+  const alive = await Business.findOne({ where: { id: businessId, deleted_at: null }, attributes: ['id'] });
+  if (!alive) return false;
   const bm = await BusinessMember.findOne({
-    where: { business_id: businessId, user_id: userId },
+    where: { business_id: businessId, user_id: userId, removed_at: null },
     attributes: ['id'],
   });
   return !!bm;
@@ -117,9 +121,12 @@ async function autoJoinUserBusinesses(socket) {
   const { BusinessMember, ConversationParticipant, Conversation } = getModels();
 
   // (1) 멤버 워크스페이스 business room
+  //   ★ 삭제된 워크스페이스·해제된 멤버십은 auto-join 대상이 아니다 (canJoinBusiness 와 같은 기준).
+  const { Business } = getModels();
   const bms = await BusinessMember.findAll({
-    where: { user_id: socket.userId },
+    where: { user_id: socket.userId, removed_at: null },
     attributes: ['business_id'],
+    include: [{ model: Business, required: true, where: { deleted_at: null }, attributes: [] }],
   });
   const memberBizIds = new Set(bms.map((b) => b.business_id).filter(Boolean));
   for (const bid of memberBizIds) socket.join(`business:${bid}`);
@@ -454,7 +461,7 @@ async function runMonthlyReportsIfDay1() {
   if (today.getDate() !== 1) return { skipped: true, reason: 'not_day_1' };
   const { Business, Report } = require('./models');
   const businesses = await Business.findAll({
-    where: { status: 'active' },
+    where: { status: 'active', deleted_at: null },   // 삭제된 워크스페이스 제외
     attributes: ['id'],
   });
   const period = reportGenerator.computePeriod('monthly', today);
