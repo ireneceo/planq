@@ -483,7 +483,8 @@
       "requestedOn": "요청",
       "tags": "태그",
       "tagsPh": "태그 선택",
-      "datesReadOnly": "기간은 요청자·담당자·관리자만 변경할 수 있어요"
+      "datesReadOnly": "기간은 요청자·담당자·관리자만 변경할 수 있어요",
+      "toggle": "상세 정보"
     },
     "description": "업무 설명",
     "descriptionSelf": "내가 적은 업무 메모",

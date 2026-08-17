@@ -483,7 +483,8 @@
       "requestedOn": "Requested",
       "tags": "Tags",
       "tagsPh": "Select tags",
-      "datesReadOnly": "Only the requester, assignee, or an admin can change the dates"
+      "datesReadOnly": "Only the requester, assignee, or an admin can change the dates",
+      "toggle": "Details"
     },
     "description": "Description",
     "descriptionSelf": "My work notes",
