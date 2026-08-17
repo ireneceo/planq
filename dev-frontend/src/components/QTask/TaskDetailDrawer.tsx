@@ -13,6 +13,8 @@ import CalendarPicker from '../Common/CalendarPicker';
 import SingleDateField from '../Common/SingleDateField';
 import PlanQSelect from '../Common/PlanQSelect';
 import { type TaskTagLite } from './TagChips';
+// #290 — 팝아웃 창 식별. 뷰포트 폭으로 나누면 진짜 폰과 구별되지 않는다(폰엔 이 표식이 없다).
+import { isPopoutWindow } from '../../utils/popout';
 import TagPicker from './TagPicker';
 import IdentityContext from '../Common/IdentityContext';
 import PartnerKindBadge from '../Common/PartnerKindBadge';
@@ -263,6 +265,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     return buildPresetRRule(finalPreset, dueDate, end);
   };
   const [statusOpen, setStatusOpen] = useState(false);
+  // #290 — 팝아웃 여부는 창 단위 불변값(sessionStorage). 렌더마다 재계산할 이유가 없다.
+  const [isPopout] = useState(() => isPopoutWindow());
+  // 팝아웃에서 관리 필드 접힘 상태. 펼치면 그 창에서는 유지된다(매번 다시 펼치는 마찰 제거).
+  const [metaOpen, setMetaOpen] = useState(false);
   const [openReviewers, setOpenReviewers] = useState(false);
   const [openHistory, setOpenHistory] = useState(false);
   const [openDaily, setOpenDaily] = useState(false);
@@ -1243,7 +1249,17 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   ) : null)}
                 </HoldBanner>
               )}
-              <MetaGrid>
+              {/* #290 — 팝아웃은 "오늘 내 업무를 체크하는" 용도(Irene). 관리 필드 8칸이 440px 창에서
+                  2열로 쌓여 300px 를 먹는 바람에 정작 업무 내용이 화면 밖으로 밀렸다.
+                  팝아웃에서만 기본 접힘 — 섹션 순서·구성은 메인과 동일하게 두고(두 화면이 갈리면
+                  검증 표면이 두 배가 된다) 펼치면 편집 기능은 전부 그대로다. */}
+              {isPopout && (
+                <MetaToggle type="button" onClick={() => setMetaOpen(v => !v)} aria-expanded={metaOpen}>
+                  <ColArrow $open={metaOpen}>▸</ColArrow>
+                  <span>{t('detail.meta.toggle', '상세 정보')}</span>
+                </MetaToggle>
+              )}
+              <MetaGrid $hidden={isPopout && !metaOpen}>
                 <MetaCell>
                   <MetaLabel>{t('detail.meta.project', '프로젝트')}
                     {!canEditProject && <ReadOnlyHint>{t('detail.readOnly', '읽기 전용')}</ReadOnlyHint>}
@@ -1273,8 +1289,11 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     }}
                     options={projects.map(p => ({ value: String(p.id), label: p.name }))} />
                 </MetaCell>
-                {/* #250 업무 태그 — 사전에서 고른다(자유 입력 아님). 오타로 태그가 갈라지지 않게. */}
-                <MetaCell>
+                {/* #250 업무 태그 — 사전에서 고른다(자유 입력 아님). 오타로 태그가 갈라지지 않게.
+                    #290 — 2열(셀 약 200px)에 멀티 셀렉트 칩을 넣으면 태그 2개부터 세로로 쌓여
+                    "아래로 늘어진다". 전폭 한 줄로 빼면 칩 2~3개가 한 줄에 든다.
+                    팝아웃 전용이 아니라 공통 — 진짜 폰(약 390px)에서도 같은 문제가 난다. */}
+                <MetaCell $full>
                   <MetaLabel>{t('detail.meta.tags', '태그')}
                     {!canEditTags && <ReadOnlyHint>{t('detail.readOnly', '읽기 전용')}</ReadOnlyHint>}
                   </MetaLabel>
@@ -2184,6 +2203,13 @@ const Drawer = styled.aside<{ $w: number }>`
   @media (max-width: 1024px){ top:calc(56px + env(safe-area-inset-top)); height:calc(var(--vvh, 100dvh) - 56px - env(safe-area-inset-top)); }
   /* ≤640 폰 — 풀스크린(여태 min(w,100vw-56)이라 56px 조각으로 뒤 화면이 비쳤다). 좌측 border·그림자 제거. */
   @media (max-width: 640px){ width:100vw; border-left:none; box-shadow:none; }
+  /* #290 — 팝아웃 창(440px)엔 메인 모바일 고정 헤더(56px)가 없다. 위 ≤1024 분기가 그 헤더 자리를
+     비워두는 바람에 팝아웃에선 **아무것도 없는 56px 띠** 아래로 뒤 리스트가 비쳤다.
+     폭으로 분기하면 진짜 폰과 구별되지 않으므로 body[data-popout] 로만 되돌린다(미디어쿼리 뒤 = 우선). */
+  body[data-popout='1'] &{
+    top:env(safe-area-inset-top, 0px);
+    height:calc(var(--vvh, 100dvh) - env(safe-area-inset-top, 0px));
+  }
 `;
 const ResizeHandle = styled.div`
   position:absolute;top:0;left:-4px;width:8px;height:100%;cursor:col-resize;z-index:45;
@@ -2221,8 +2247,11 @@ const PillSpinner = styled.span`
   @keyframes pqspin{to{transform:rotate(360deg);}}
 `;
 const Scroll = styled.div`flex:1;overflow-y:auto;overflow-x:hidden;min-width:0;&>*{min-width:0;max-width:100%;}&::-webkit-scrollbar{width:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
-const Section = styled.div`border-bottom:1px solid #F1F5F9;padding:12px 14px;`;
-const SectionTitle = styled.h4`font-size:12px;font-weight:700;color:#0F172A;margin:0 0 8px;display:flex;align-items:center;gap:8px;`;
+// #290 — 팝아웃(440px)에서만 여백을 조인다. 터치 타겟(MetaValueRow 28px)·헤더 60px 는 안 건드린다.
+const Section = styled.div`border-bottom:1px solid #F1F5F9;padding:12px 14px;
+  body[data-popout='1'] &{padding:10px 12px;}`;
+const SectionTitle = styled.h4`font-size:12px;font-weight:700;color:#0F172A;margin:0 0 8px;display:flex;align-items:center;gap:8px;
+  body[data-popout='1'] &{margin-bottom:6px;}`;
 const ReadOnlyHint = styled.span`font-size:11px;font-weight:500;color:#94A3B8;background:#F1F5F9;border-radius:10px;padding:2px 8px;`;
 const KbSaveBtn = styled.button`
   all:unset;cursor:pointer;margin-left:auto;
@@ -2230,7 +2259,8 @@ const KbSaveBtn = styled.button`
   &:hover{background:#CCFBF1;}
   &:disabled{cursor:default;color:#94A3B8;background:#F8FAFC;border-color:#E2E8F0;}
 `;
-const Title = styled.h3`font-size:19px;font-weight:700;color:#0F172A;margin:0 0 8px;line-height:1.35;cursor:pointer;border-radius:6px;padding:4px 6px;margin-left:-6px;transition:background 0.12s;display:flex;align-items:center;gap:8px;&:hover{background:#F1F5F9;}&:hover > span:last-child{opacity:1;}&:focus{outline:none;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}`;
+const Title = styled.h3`font-size:19px;font-weight:700;color:#0F172A;margin:0 0 8px;line-height:1.35;cursor:pointer;border-radius:6px;padding:4px 6px;margin-left:-6px;transition:background 0.12s;display:flex;align-items:center;gap:8px;&:hover{background:#F1F5F9;}&:hover > span:last-child{opacity:1;}&:focus{outline:none;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}
+  body[data-popout='1'] &{font-size:17px;margin-bottom:6px;}`;
 const TitleText = styled.span`flex:1;min-width:0;`;
 const TitleEditIcon = styled.span`display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;color:#94A3B8;opacity:0;transition:opacity 0.15s, background 0.12s;flex-shrink:0;`;
 const TitleInput = styled.input`font-size:19px;font-weight:700;color:#0F172A;line-height:1.35;width:100%;padding:4px 8px;margin-left:-6px;margin-bottom:8px;border:1px solid #14B8A6;border-radius:6px;background:#FFF;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
@@ -2287,14 +2317,25 @@ const DrawerNameChip = styled.span<{ $type: 'from' | 'to' | 'observer' | 'mine' 
 `;
 // 추가 폼 (QTaskPage 의 AddOptRow / AddOptField / AddOptLabel) 과 동일한 패턴.
 // flex + wrap + 자연 폭. 라벨 위 + 값 아래 (vertical cell).
-const MetaGrid = styled.div`
+// #290 — 팝아웃 접힘 토글. Reviewers/History 의 ColHeader 와 같은 생김새를 쓴다(새 패턴 안 만듦).
+const MetaToggle = styled.button`
+  display:flex;align-items:center;gap:8px;width:100%;padding:8px 0 2px;
+  background:transparent;border:none;font-size:12px;font-weight:700;color:#64748B;
+  cursor:pointer;text-align:left;font-family:inherit;
+  &:hover{color:#0F172A;}
+`;
+const MetaGrid = styled.div<{ $hidden?: boolean }>`
   display: flex; flex-wrap: wrap; align-items: flex-start;
   gap: 8px;
   margin-top: 12px; padding-top: 12px;
   border-top: 1px solid #F1F5F9;
+  /* ★ display:flex 뒤에 와야 이긴다 — 앞에 두면 아래 flex 가 덮어써 접힘이 안 먹는다. */
+  ${p => p.$hidden ? 'display:none;' : ''}
+  /* #290 — 좁은 창에서 항목 간격이 헐렁하게 보인다. 팝아웃에서만 조인다. */
+  body[data-popout='1'] &{ gap:6px; margin-top:8px; padding-top:8px; }
 `;
-const MetaCell = styled.div`
-  flex: 1 1 140px; min-width: 0;
+const MetaCell = styled.div<{ $full?: boolean }>`
+  flex: ${p => p.$full ? '1 1 100%' : '1 1 140px'}; min-width: 0;
   display: flex; flex-direction: column; gap: 3px;
 `;
 const MetaLabel = styled.label`font-size: 11px; color: #64748B; font-weight: 600;`;

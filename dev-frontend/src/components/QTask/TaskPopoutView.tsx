@@ -719,8 +719,11 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
                       </RowTop>
                       <RowMeta>
                         {/* #250 — 팝아웃은 폭 520px 라 **대표 1칩 + `+k`** 만. 행이 한 줄을 넘기면 안 된다.
-                            메인 리스트는 3칩까지 편다(TagChips max prop). */}
-                        <TagChips tags={tk.tags} max={1} />
+                            메인 리스트는 3칩까지 편다(TagChips max prop).
+                            #290 — 태그별 보기에서는 그룹 헤더가 이미 대표 태그를 말한다.
+                            같은 걸 행마다 또 그리면 노이즈다(헤더=tags[0], 칩=tags[0] 으로 100% 중복이었다).
+                            대표만 빼고 나머지는 남긴다 — 전부 숨기면 다중 태그 정보가 사라진다. */}
+                        <TagChips tags={effView === 'tag' ? (tk.tags || []).slice(1) : tk.tags} max={1} />
                         {tk.Project?.name && <MetaChip>{tk.Project.name}</MetaChip>}
                         {tk.due_date && (
                           <MetaDue $overdue={isOverdue(tk)}>

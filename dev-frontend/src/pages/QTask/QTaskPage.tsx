@@ -1900,8 +1900,10 @@ const QTaskPage:React.FC=()=>{
                           {task.title}
                         </TaskTitle>
                         {/* #250 "리스트에도 태그들 볼 수 있게 하기로 하지 않았어?" — 메인은 3칩 + `+k`.
-                            백엔드가 이름 사전순으로 실어 보내므로 여기서 다시 정렬하지 않는다. */}
-                        <TagChips tags={task.tags} max={3} />
+                            백엔드가 이름 사전순으로 실어 보내므로 여기서 다시 정렬하지 않는다.
+                            #290 — 태그로 걸러 보는 중이면 그 태그는 모든 행이 반드시 갖고 있다(필터 술어가 보장).
+                            전 행에 같은 칩이 반복되는 건 정보가 아니라 노이즈 — 그 태그만 빼고 나머지는 남긴다. */}
+                        <TagChips tags={tagFilter != null ? (task.tags || []).filter(tg => tg.id !== tagFilter) : task.tags} max={3} />
                         {/* WORK_FLOW §6 — 이월 배지: 지난 주에서 넘어온 활성 업무. 과거 이력이 살아있음을 인지시킴. */}
                         {scope==='mine' && (tab==='week'||tab==='today') && isCarried(task) && (
                           <CarriedBadge title={t('list.carriedHint', { h: formatHours(task.actual_hours), defaultValue: '지난주에 시작한 업무예요. 이미 {{h}}h 투입 — 열면 이력·대화·메모 전부 볼 수 있어요.' }) as string}>
