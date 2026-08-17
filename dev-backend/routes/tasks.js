@@ -51,16 +51,11 @@ function broadcastInboxRefresh(io, businessId, projectId, reason, taskId) {
   if (projectId) io.to(`project:${projectId}`).emit('inbox:refresh', payload);
 }
 
-// ─── 헬퍼: 멤버 가용시간 조회 ───
-async function getMemberCapacity(userId, businessId) {
-  const bm = await BusinessMember.findOne({ where: { user_id: userId, business_id: businessId } });
-  if (!bm) return { daily: 8, days: 5, rate: 1, holidays: 0, weekly: 40 };
-  const daily = Number(bm.daily_work_hours) || 8;
-  const days = bm.weekly_work_days || 5;
-  const rate = Number(bm.participation_rate) || 1;
-  const holidays = Number(bm.weekly_holidays) || 0;  // 운영 #50
-  return { daily, days, rate, holidays, weekly: Math.round(daily * days * rate * 10) / 10 };
-}
+// ─── 멤버 가용시간 — services/memberCapacity 단일 원천 (#288) ───
+//   여기 있던 사본은 `weekly = daily × days × rate` 라 **휴일을 빼지 않았다**. 화면은 받아서
+//   daily × (days − holidays) × rate 로 다시 계산했고, 보고서 쪽은 또 다른 공식을 썼다(3벌).
+//   이제 공식은 서비스 한 곳뿐이고, weekly 도 화면과 같은 값이 된다.
+const { getMemberCapacity } = require('../services/memberCapacity');
 
 // ─── 헬퍼: business 접근 권한 확인 (platform_admin/owner/member/client 통과) ───
 //  PERMISSION_MATRIX §5/§7 — client 도 자기 task 조회/댓글 가능해야 하므로 통과시킨다.

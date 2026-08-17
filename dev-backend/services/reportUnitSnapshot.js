@@ -11,6 +11,7 @@ const {
 const { fetchProjectStats } = require('./weeklyReviewSnapshot');
 const { todayInTz, mondayOfDateStr, addDaysStr } = require('../utils/datetime');
 const { getProgressBaselines } = require('./progressBaseline');
+const capacityService = require('./memberCapacity');
 
 const SCHEMA_VERSION = 1;
 // DATEONLY 는 Date 객체로 올 수 있음(memory feedback_recurring_billing_latent_bugs) — Date/문자열 모두 안전 처리.
@@ -106,7 +107,11 @@ async function buildProjectSnapshot(businessId, projectId, periodType, periodSta
   return {
     schema_version: SCHEMA_VERSION, scope: 'project', ref_id: project.id,
     period: { type: periodType, start, end },
-    progress_series: await buildProgressSeries(tasks.map((x) => x.id), start, end),
+    // #288 — 멤버 쪽만 today 를 넘기고 있었다(148행 주석의 수리가 여기엔 적용 안 됨).
+    //   안 넘기면 아직 오지 않은 요일까지 평평한 선이 이어져 "이번 주가 벌써 끝난 것처럼" 보인다.
+    //   프로젝트 차트에는 capacity 를 싣지 않는다 — 참여율은 워크스페이스 단위라 프로젝트로 쪼갤 수 없고,
+    //   팀원 캐파를 프로젝트마다 합산하면 같은 사람의 시간이 여러 섹션에 중복 계상된다(Fable 설계).
+    progress_series: await buildProgressSeries(tasks.map((x) => x.id), start, end, today),
     subject: { id: project.id, name: project.name, status: project.status, start_date: ymd(project.start_date), end_date: ymd(project.end_date), owner_user_id: project.owner_user_id },
     strategy: { context: project.strategy_context, key_question: project.strategy_key_question, goal: project.strategy_goal, governing_thought: project.strategy_governing_thought, approach: project.strategy_approach },
     kpi: {
@@ -165,7 +170,13 @@ async function buildProgressSeries(taskIds, start, end, today = null) {
   let maxEst = 0;
   let maxAct = 0;
   while (cursor <= end) {
-    if (today && cursor > today) break;
+    // #288 — 아직 오지 않은 날은 **축에는 남기되 값은 null**. break 로 잘라내면 기간이 짧아 보여
+    //   "이번 주가 벌써 끝난 것처럼" 읽히고, 0 으로 채우면 하지도 않은 날에 0 선이 그려진다.
+    if (today && cursor > today) {
+      out.push({ date: cursor, estimated_cumulative: null, actual_cumulative: null });
+      cursor = addDaysStr(cursor, 1);
+      continue;
+    }
     const day = rows.filter((r) => dayKey(r.snapshot_date) === cursor);
     const est = day.reduce((sum, r) => {
       const v = (Number(r.estimated_hours) || 0) * ((r.progress_percent || 0) / 100);
@@ -229,6 +240,12 @@ async function buildMemberSnapshot(businessId, userId, periodType, periodStart) 
     //   같은 병리를 routes/tasks.js:1855 가 이미 한 번 잡았다("안 좁히면 153h 로 박힌다").
     //   선정은 services/weekTaskSet.js 정본을 쓴다(주간). 월간은 같은 규칙을 월 경계로 적용.
     progress_series: await buildProgressSeries(await periodTaskIds(businessId, userId, start, end), start, end, today),
+    // #288 — "합리적이고 정확한 기준(설정에서 가져와서)". 그 사람의 실제 근무 설정에서 온 값을
+    //   **생성 시점에 박제**한다(확정본은 나중에 설정이 바뀌어도 그때의 기준을 유지해야 한다).
+    //   월간은 주간 캐파를 기간 길이로 환산 — 규칙은 services/memberCapacity.periodHours 한 곳.
+    capacity_hours: capacityService.periodHours(
+      (await capacityService.getMemberCapacity(userId, businessId)).weekly, start, end,
+    ),
     highlights, in_progress, risks, blockers, next,
   };
 }

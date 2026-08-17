@@ -50,7 +50,9 @@ const ReportContent: React.FC<Props> = ({ snap, compact }) => {
       {snap.progress_series != null && (
         <ChartSec>
           <ChartTitle>{t('report.chartTitle', { defaultValue: '진척 그래프' }) as string}</ChartTitle>
-          <ProgressBurnupChart series={snap.progress_series || []} height={compact ? 180 : 240} />
+          {/* #288 — "설정에서 가져온 기준". 개인 보고서만 기준선을 갖는다(스냅샷에 박제된 값).
+              프로젝트 보고서에는 없다 — 팀원 캐파를 프로젝트마다 합산하면 같은 사람 시간이 중복 계상된다. */}
+          <ProgressBurnupChart series={snap.progress_series || []} capacityHours={snap.capacity_hours ?? null} height={compact ? 180 : 240} />
         </ChartSec>
       )}
 

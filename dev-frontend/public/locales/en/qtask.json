@@ -1115,9 +1115,10 @@
     "chartTitle": "Progress chart",
     "chartEstimated": "Progress (planned)",
     "chartActual": "Effort (actual)",
-    "chartCapacity": "Against {{n}}h weekly capacity",
+    "chartCapacity": "Against {{n}}h capacity",
     "chartEmptyTitle": "No progress data for this period",
-    "chartEmptyHint": "Start focusing on tasks or log actual hours and the chart fills in."
+    "chartEmptyHint": "Start focusing on tasks or log actual hours and the chart fills in.",
+    "chartNoIncrement": "No new progress recorded in this period yet"
   },
   "hold": {
     "action": "Put on hold",
