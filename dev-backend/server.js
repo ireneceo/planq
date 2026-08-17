@@ -450,39 +450,10 @@ server.listen(PORT, BIND_HOST, () => {
 const taskSnapshot = require('./services/task_snapshot');
 const billing = require('./services/billing');
 const trial = require('./services/trial');
-const reportGenerator = require('./services/report_generator');
 const recurringInvoice = require('./services/recurring_invoice');
 const recurringTask = require('./services/recurringTaskGenerator');
 const uploadCleanup = require('./services/uploadCleanup');
 const overdueHandler = require('./services/overdue_handler');
-
-async function runMonthlyReportsIfDay1() {
-  const today = new Date();
-  if (today.getDate() !== 1) return { skipped: true, reason: 'not_day_1' };
-  const { Business, Report } = require('./models');
-  const businesses = await Business.findAll({
-    where: { status: 'active', deleted_at: null },   // 삭제된 워크스페이스 제외
-    attributes: ['id'],
-  });
-  const period = reportGenerator.computePeriod('monthly', today);
-  let ok = 0, dup = 0, fail = 0;
-  for (const biz of businesses) {
-    // 동일 기간 monthly 이미 있으면 skip (재시작 안전)
-    const exists = await Report.findOne({
-      where: { business_id: biz.id, kind: 'monthly', period_start: period.from, period_end: period.to },
-      attributes: ['id'],
-    });
-    if (exists) { dup += 1; continue; }
-    try {
-      await reportGenerator.generateReport({ businessId: biz.id, kind: 'monthly', period });
-      ok += 1;
-    } catch (e) {
-      console.warn('[monthly-report] business', biz.id, 'failed', e.message);
-      fail += 1;
-    }
-  }
-  return { ok, dup, fail, period };
-}
 
 function scheduleNextMidnight() {
   const now = new Date();
@@ -502,7 +473,7 @@ function scheduleNextMidnight() {
       console.log('[trial-cron]', r);
     } catch (e) { console.warn('[trial-cron] failed', e.message); }
     try {
-      const r = await runMonthlyReportsIfDay1();
+      const r = await require('./services/monthlyReport').runMonthlyReportsIfDay1();
       if (!r.skipped) console.log('[monthly-report]', r);
     } catch (e) { console.warn('[monthly-report] failed', e.message); }
     try {

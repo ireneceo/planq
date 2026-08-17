@@ -17,6 +17,40 @@ const { isExemptNow, exemptBusinessIds } = require('../services/billingExemptVie
 router.use('/', require('./admin_billing'));
 
 
+
+// ─── 관리자 조작 → 워크스페이스에 안내 (Irene 2026-08-17: "필요한 안내는 해야지") ───
+//
+// 여태 플랜 변경·체험 조정·면제 설정은 **감사 기록만 남기고 아무 안내도 안 갔다.**
+// 특히 **면제 해제는 그 순간부터 돈이 나가기 시작**하는데 당사자가 모른다 — 반드시 알려야 한다.
+//
+// 수신자: 워크스페이스 owner (그 워크스페이스의 결제 책임자).
+// eventKind 'subscription' — 사용자가 알림 설정에서 끌 수 있는 축. 채널은 기본(inbox+email+push).
+// 발송 실패가 관리자 조작 자체를 실패시키면 안 되므로 fire-and-forget + catch.
+async function notifyWorkspaceOwners(businessId, { title, body, ctaLabel = '결제 설정 열기' }) {
+  try {
+    const { notifyMany } = require('./notifications');
+    const biz = await Business.findByPk(businessId, { attributes: ['name', 'brand_name'] });
+    const owners = await BusinessMember.findAll({
+      where: { business_id: businessId, role: 'owner', removed_at: null },
+      attributes: ['user_id'],
+    });
+    const userIds = owners.map((o) => o.user_id).filter(Boolean);
+    if (!userIds.length) return;
+    await notifyMany({
+      userIds,
+      businessId,
+      eventKind: 'subscription',
+      title,
+      body,
+      link: '/business/settings/plan',
+      ctaLabel,
+      workspaceName: biz?.brand_name || biz?.name || null,
+    });
+  } catch (e) {
+    console.warn('[admin notifyWorkspaceOwners]', e.message);
+  }
+}
+
 // ─── 플랫폼 대시보드 집계 (overview) ───
 // GET /api/admin/overview — 워크스페이스·사용자·구독·수익 KPI + 플랜 분포 + 6개월 가입 추이
 router.get('/overview', async (req, res, next) => {
@@ -256,6 +290,16 @@ router.put('/businesses/:id/plan', async (req, res, next) => {
       scheduledPlan: scheduled_plan || null,
     });
 
+    // 안내 — 플랜이 바뀌면 쓸 수 있는 한도가 달라진다. 당사자가 알아야 한다.
+    if (biz.plan !== to_plan) {
+      const planLabel = PLANS[to_plan]?.name_ko || to_plan;
+      setImmediate(() => notifyWorkspaceOwners(id, {
+        title: `요금제가 ${planLabel} 로 변경됐습니다`,
+        body: `워크스페이스 요금제가 변경됐습니다. 사용 한도와 기능이 새 요금제 기준으로 적용됩니다.`,
+        ctaLabel: '요금제 보기',
+      }));
+    }
+
     successResponse(res, { id, plan: to_plan }, 'Plan updated');
   } catch (err) { next(err); }
 });
@@ -351,6 +395,36 @@ router.put('/businesses/:id/billing-exempt', async (req, res, next) => {
     }).catch(() => null);
 
     await biz.reload();
+
+    // 안내 — ON/OFF 는 사용자에게 전혀 다른 사건이다.
+    //   OFF 는 "이제부터 청구가 재개된다" 는 뜻이라 특히 놓치면 안 된다.
+    const KIND_KO = { internal: '내부 이용', tester: '테스터', partner: '파트너' };
+    // ★ 값이 안 바뀌었으면 알리지 않는다 (Fable 중요-1).
+    //   관리자가 모달을 값 변경 없이 재저장할 때마다 owner 에게 같은 안내가 또 간다.
+    const sameAsBefore = oldValue.billing_exempt === on
+      && (oldValue.billing_exempt_kind || null) === (on ? kind : null)
+      && (oldValue.billing_exempt_plan || null) === (on ? (plan || null) : null)
+      && String(oldValue.billing_exempt_until || '') === String(on ? (untilDate || '') : '');
+    if (sameAsBefore) {
+      // 변경 없음 — 안내 생략 (감사 기록은 위에서 이미 남았다)
+    } else if (on) {
+      const untilTxt = untilDate
+        ? `${untilDate.toISOString().slice(0, 10)}까지 적용되며, 그 이후에는 정상 요금제로 돌아갑니다.`
+        : '종료일 없이 적용됩니다.';
+      setImmediate(() => notifyWorkspaceOwners(id, {
+        title: '구독료가 청구되지 않습니다',
+        body: `${KIND_KO[kind] || '면제'} 워크스페이스로 설정되어 구독료 청구·유예·잠금이 모두 멈췄습니다. `
+          + `미결제 청구가 있었다면 함께 취소됐습니다. ${untilTxt}`,
+        ctaLabel: '구독 상태 보기',
+      }));
+    } else if (oldValue.billing_exempt) {
+      setImmediate(() => notifyWorkspaceOwners(id, {
+        title: '구독료 청구가 다시 시작됩니다',
+        body: '결제 면제가 해제되어 다음 결제 주기부터 정상 요금제로 청구됩니다. '
+          + '결제 수단과 청구 정보를 미리 확인해 주세요.',
+      }));
+    }
+
     return successResponse(res, {
       id,
       billing_exempt: !!biz.billing_exempt,
@@ -393,6 +467,21 @@ router.put('/businesses/:id/trial', async (req, res, next) => {
     });
 
     planEngine.invalidateBusinessCache?.(id);
+
+    // 안내 — 체험 기간이 바뀌면 언제까지 무료인지가 달라진다.
+    // 값이 안 바뀌었으면 알리지 않는다 (동일값 재저장 중복 방지).
+    if (String(from || '') !== String(nextDate || '')) setImmediate(() => notifyWorkspaceOwners(id, nextDate
+      ? {
+        title: `체험 기간이 ${String(nextDate.toISOString()).slice(0, 10)} 까지로 조정됐습니다`,
+        body: '체험 종료일이 변경됐습니다. 종료 후에는 요금제 결제가 필요합니다.',
+        ctaLabel: '구독 상태 보기',
+      }
+      : {
+        title: '체험 기간이 해제됐습니다',
+        body: '체험 설정이 해제되어 요금제 기준으로 전환됩니다. 구독 상태를 확인해 주세요.',
+        ctaLabel: '구독 상태 보기',
+      }));
+
     successResponse(res, { id, trial_ends_at: biz.trial_ends_at }, 'Trial updated');
   } catch (err) { next(err); }
 });
