@@ -40,8 +40,110 @@ function getPlanPrice(planCode, cycle, currency = 'KRW') {
   return priceMap?.[currency] ?? 0;
 }
 
+// ─── 결제 면제 (운영 #275) ───
+// 판정은 plan 엔진 것을 그대로 재사용한다 — 여기서 컬럼을 다시 읽어 판정하면 술어가 갈라진다
+// (memory feedback_predicate_must_match_both_sides). plan.js 는 billing.js 를 require 하지 않으므로
+// lazy require 로 순환참조 없음. 설계: docs/BILLING_EXEMPTION_DESIGN.md
+async function isBillingExempt(businessId) {
+  const { exempt } = await require('./plan').getBusinessPlan(businessId);
+  return !!exempt;
+}
+
+function billingExemptError() {
+  const e = new Error('billing_exempt');
+  e.code = 'billing_exempt';
+  return e;
+}
+
+// ─── 면제 워크스페이스 구독 정상화 — 단일 헬퍼 ★ ───
+// cron(①②③)과 admin 면제 토글이 **모두 이 함수 하나만** 호출한다.
+// 복원 로직을 두 곳에 적으면 반드시 갈라진다(Fable 설계 게이트 C4).
+//
+// 단일-active 불변식 보장: 대상 1건을 markPaymentPaid 와 **동일한 FIELD 정렬**로 고르고,
+// 나머지 active/past_due/grace 는 markPaymentPaid:204-214 와 **동일한 where 절**로 replaced 마크.
+//
+// ★ 트랜잭션 소유권 (Fable 재심 M-A): cron 은 t 없이 부른다. 자체 트랜잭션을 열지 않으면
+//   "전부 replaced" 와 "대상 active" 사이 crash 시 active 0건 창이 열린다(단일-active 의 쌍대 위험).
+async function restoreExemptSubscription(businessId, { transaction } = {}) {
+  const owned = !transaction;
+  const t = transaction || await sequelize.transaction();
+  try {
+    const now = new Date();
+    const sub = await Subscription.findOne({
+      where: {
+        business_id: businessId,
+        status: { [Op.in]: ['pending', 'active', 'past_due', 'grace'] },
+      },
+      order: [
+        [sequelize.literal(`FIELD(status, 'active', 'grace', 'past_due', 'pending')`), 'ASC'],
+        ['created_at', 'DESC'],
+      ],
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    let restored = false;
+    if (sub) {
+      // 대상 외 살아있는 구독 전부 정리 — 중복 active 원천 차단
+      await Subscription.update(
+        { status: 'replaced', canceled_at: now },
+        {
+          where: {
+            business_id: businessId,
+            id: { [Op.ne]: sub.id },
+            status: { [Op.in]: ['active', 'past_due', 'grace', 'pending'] },
+          },
+          transaction: t,
+        }
+      );
+
+      // ★ update 전에 캡처한다 — Sequelize 의 update 는 인스턴스를 먼저 변이시키므로
+      //   update 뒤에 sub.status 를 읽으면 항상 'active' 라 술어가 죽는다
+      //   (memory feedback_sequelize_update_mutation). 죽으면 exempt_restored 통계와
+      //   백필 로그가 거짓 보고한다.
+      const wasActive = sub.status === 'active';
+
+      // period_end 가 이미 미래면 연장하지 않는다 — admin 토글 반복 ON 시 매번 +1사이클 되는 것을
+      // 막는 완전 멱등 조건(Fable 재심 권고 5). 과거면 max(now, end) 기준 1사이클만 민다(M3).
+      const curEnd = sub.current_period_end ? new Date(sub.current_period_end) : null;
+      const needsExtend = !curEnd || curEnd <= now;
+      const periodEnd = needsExtend ? addCycle(now, sub.cycle) : curEnd;
+
+      await sub.update({
+        status: 'active',
+        started_at: sub.started_at || now,
+        current_period_start: sub.current_period_start || now,
+        current_period_end: periodEnd,
+        next_billing_at: periodEnd,
+        past_due_at: null, grace_started_at: null, grace_ends_at: null, demoted_at: null,
+      }, { transaction: t });
+      restored = needsExtend || !wasActive;
+    }
+
+    // ★ 구독 row 가 없거나 전부 canceled 인 워크스페이스(biz 4·5 류)에서도 Business 상태는 반드시
+    //   정상화한다. no-op 으로 여기까지 건너뛰면 trial cron 이 매일 재스캔하고 admin 목록이
+    //   자기모순으로 남는다 (Fable 재심 M-C).
+    await Business.update(
+      { subscription_status: 'active', grace_ends_at: null, plan_expires_at: null },
+      { where: { id: businessId }, transaction: t }
+    );
+
+    if (owned) await t.commit();
+    try { require('./plan').invalidateBusinessCache(businessId); } catch { /* noop */ }
+    return { restored, subscriptionId: sub ? sub.id : null };
+  } catch (err) {
+    if (owned) await t.rollback();
+    throw err;
+  }
+}
+
 // ─── 1. 플랜 변경 (사용자 요청) — 신규 Subscription + pending Payment 생성 ───
 async function createPendingSubscription({ businessId, planCode, cycle, userId, currency = 'KRW', taxInvoice = null }) {
+  // ★ 게이트는 라우트가 아니라 여기(서비스)에 있다 — 청구를 만드는 진입점은 체크아웃 라우트와
+  //   services/trial.js 의 cron **둘 다**다. 라우트에만 걸면 cron 이 그대로 지나가 면제
+  //   워크스페이스에 청구서와 입금 안내 메일이 나간다 (Fable 설계 게이트 C2).
+  if (await isBillingExempt(businessId)) throw billingExemptError();
+
   const plan = PLANS.PLANS?.[planCode] || PLANS[planCode];
   if (!plan) throw new Error('invalid_plan_code');
   if (planCode === 'free') {
@@ -176,6 +278,10 @@ async function markPaymentPaid({ paymentId, markedByUserId, payerName, payerMemo
       tax_invoice_status: 'requested',
     } : {};
 
+    // ★ 매출 계상 여부를 결제 확정 시점에 박제한다 (운영 #275).
+    //   조인 판정으로 두면 면제를 끄는 순간 과거 내부결제가 매출로 되살아난다(시점 오염).
+    const isRevenue = !(await isBillingExempt(pay.business_id));
+
     await pay.update({
       status: 'paid',
       paid_at: now,
@@ -185,6 +291,7 @@ async function markPaymentPaid({ paymentId, markedByUserId, payerName, payerMemo
       payer_memo: payerMemo ? String(payerMemo).slice(0, 255) : pay.payer_memo,
       period_start: periodStart,
       period_end: periodEnd,
+      is_revenue: isRevenue,
       ...taxFields,
     }, { transaction: t });
 
@@ -247,7 +354,8 @@ async function markPaymentPaid({ paymentId, markedByUserId, payerName, payerMemo
       const amountStr = pay.currency === 'KRW' ? `${Number(pay.amount).toLocaleString()}원` : `${pay.currency} ${Number(pay.amount).toLocaleString()}`;
       notifyPlatformAdmins({
         eventKind: 'payment',
-        title: `결제 입금 확인 — ${planLabel} ${cycleLabel} (${amountStr})`,
+        // 비매출(내부·테스터)이면 제목에 표기 — admin 이 입금 확인 시점에 바로 인지하게.
+        title: `결제 입금 확인 — ${planLabel} ${cycleLabel} (${amountStr})${isRevenue ? '' : ' · 비매출(내부/테스터)'}`,
         body: `결제 #${pay.id} mark-paid. 워크스페이스 ID ${sub.business_id}, ${pay.payer_name ? `입금자명 ${pay.payer_name}, ` : ''}${pay.payer_memo ? `메모: ${pay.payer_memo}` : ''}`,
         link: `${APP_URL}/admin/payments?id=${pay.id}`,
         ctaLabel: '결제 보기',
@@ -336,6 +444,11 @@ async function downgradeToFree({ businessId, userId, reason = 'expire' }) {
 async function ensureRenewalPayment(sub) {
   if (!sub || sub.plan_code === 'free') return { payment: null, created: false };
 
+  // 면제 워크스페이스에는 갱신 청구를 만들지 않는다 (운영 #275).
+  if (await isBillingExempt(sub.business_id)) {
+    return { payment: null, created: false, skipped: 'billing_exempt' };
+  }
+
   const existing = await Payment.findOne({
     where: { subscription_id: sub.id, status: 'pending' },
     order: [['created_at', 'DESC']],
@@ -415,7 +528,11 @@ async function notifyRenewalDue(sub, pay) {
 // ─── 4. cron — 4단계 (active → past_due → grace → demoted) ───
 async function runDailyBillingCron() {
   const now = new Date();
-  const stats = { active_to_past_due: 0, past_due_to_grace: 0, grace_to_demoted: 0, renewal_payments_created: 0 };
+  const stats = {
+    active_to_past_due: 0, past_due_to_grace: 0, grace_to_demoted: 0, renewal_payments_created: 0,
+    // 면제 관측성 (운영 #275) — 로그로 "면제가 실제로 돌았는가" 를 확인할 수 있어야 한다.
+    exempt_skipped: 0, exempt_restored: 0,
+  };
 
   // 1) active 중 current_period_end 지나간 것 → past_due
   const expiringActive = await Subscription.findAll({
@@ -425,6 +542,13 @@ async function runDailyBillingCron() {
     },
   });
   for (const s of expiringActive) {
+    // 면제 워크스페이스는 만료 전이 대신 무료 연장 — 안 하면 매일 만료 판정에 걸린다.
+    if (await isBillingExempt(s.business_id)) {
+      const { restored } = await restoreExemptSubscription(s.business_id);
+      stats.exempt_skipped += 1;
+      if (restored) stats.exempt_restored += 1;
+      continue;
+    }
     await s.update({
       status: 'past_due',
       past_due_at: now,
@@ -437,6 +561,13 @@ async function runDailyBillingCron() {
     where: { status: 'past_due' },
   });
   for (const s of stalePastDue) {
+    // 면제면 grace 로 떨어뜨리지 않고 정상 복원 — 면제를 켠 순간 화면이 정상으로 돌아온다.
+    if (await isBillingExempt(s.business_id)) {
+      const { restored } = await restoreExemptSubscription(s.business_id);
+      stats.exempt_skipped += 1;
+      if (restored) stats.exempt_restored += 1;
+      continue;
+    }
     const startedAt = s.past_due_at || now;
     const endsAt = new Date(startedAt.getTime() + GRACE_DAYS * 86400 * 1000);
     await s.update({
@@ -461,6 +592,13 @@ async function runDailyBillingCron() {
     },
   });
   for (const s of expiredGrace) {
+    // 면제 워크스페이스는 절대 강등하지 않는다 (운영 #275 — biz 2 가 이미 강등당한 사례).
+    if (await isBillingExempt(s.business_id)) {
+      const { restored } = await restoreExemptSubscription(s.business_id);
+      stats.exempt_skipped += 1;
+      if (restored) stats.exempt_restored += 1;
+      continue;
+    }
     await downgradeToFree({ businessId: s.business_id, reason: 'expire' });
     stats.grace_to_demoted += 1;
   }
@@ -554,4 +692,7 @@ module.exports = {
   buildReceiptPdf,
   getCurrentSubscription,
   getPlanPrice,
+  // 결제 면제 (운영 #275) — 판정/복원 단일 착지점
+  isBillingExempt,
+  restoreExemptSubscription,
 };

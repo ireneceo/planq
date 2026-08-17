@@ -251,5 +251,14 @@
     "close": "Close",
     "error": "Failed to send — please try again"
   },
-  "amountKrw": "₩{{amount}}"
+  "amountKrw": "₩{{amount}}",
+  "exempt": {
+    "title": {
+      "internal": "Internal workspace — no subscription charges",
+      "tester": "Tester workspace — no subscription charges",
+      "partner": "Partner workspace — no subscription charges"
+    },
+    "desc": "You can keep using PlanQ with no payment, grace period, or downgrade. Contact the platform admin if you need higher limits.",
+    "until": "Until {{date}}"
+  }
 }

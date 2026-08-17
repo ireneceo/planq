@@ -19,6 +19,9 @@ type BannerKind = 'past_due' | 'grace' | 'demoted' | null;
 
 function pickBanner(status: PlanStatus | null): BannerKind {
   if (!status) return null;
+  // 결제 면제 워크스페이스(내부·테스터)에는 결제 배너를 띄우지 않는다 (운영 #275).
+  // 백엔드 plan 엔진의 단일 판정을 그대로 따른다 — 여기서 plan/status 조합으로 다시 판정하지 말 것.
+  if (status.exempt) return null;
   // grace: subscription.status='grace' 또는 subscription_status='past_due'
   if (status.subscription?.status === 'grace') return 'grace';
   if (status.subscription?.status === 'past_due') return 'past_due';

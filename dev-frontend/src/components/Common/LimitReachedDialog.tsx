@@ -16,6 +16,8 @@ interface LimitDetail {
   current?: number;
   upgrade_url?: string;
   alternatives?: string[];
+  // 결제 면제 워크스페이스 (운영 #275) — 업그레이드 CTA 가 서버에서 400 이라 막다른 길이 된다.
+  exempt?: boolean;
 }
 
 const CODE_TO_KEY: Record<string, { titleKey: string; descKey: string; addonHintKey?: string }> = {
@@ -77,10 +79,15 @@ const LimitReachedDialog: React.FC = () => {
         <UsageLink type="button" onClick={() => { close(); navigate('/business/settings/plan#usage'); }}>
           {t('limit.usageLink', '이번 달 사용량 자세히 보기 →')}
         </UsageLink>
+        {/* 결제 면제 워크스페이스는 업그레이드가 불가능하므로 한도 조정 경로를 문구로 준다. */}
+        {detail.exempt && (
+          <AddonHint>{t('limit.exemptHint', '이 워크스페이스는 구독료가 면제되어 있습니다. 한도 조정이 필요하면 플랫폼 관리자에게 문의해 주세요.')}</AddonHint>
+        )}
         <Actions>
           <SecondaryBtn type="button" onClick={close}>{t('limit.close', '닫기')}</SecondaryBtn>
-          {/* App Store 3.1.1 — 네이티브에선 구매 유도 CTA 숨김 */}
-          {canPurchaseInApp() && (
+          {/* App Store 3.1.1 — 네이티브에선 구매 유도 CTA 숨김.
+              면제 워크스페이스도 같이 숨긴다 — 눌러도 체크아웃이 400 이라 막다른 길. */}
+          {canPurchaseInApp() && !detail.exempt && (
             <PrimaryBtn type="button" onClick={() => { close(); navigate(upgradeUrl); }}>
               {t('limit.cta', '플랜·Add-on 보기')}
             </PrimaryBtn>

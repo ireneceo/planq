@@ -326,7 +326,7 @@ async function notifyOwnerPaymentNotified(invoice, { label, payerName, ioApp }) 
     await notifyMany({
       userIds,
       businessId: invoice.business_id, eventKind: 'payment',
-      title: '송금 완료 알림 도착',
+      titleSpec: { feature: 'bill', action: 'bill_payment_notice' },
       body: `${invoice.invoice_number}${label ? ` ${label}` : ''} — ${who} 송금 완료를 알렸습니다. 입금 확인 후 처리해주세요.`,
       link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?tab=invoices&invoice=${invoice.id}`,
       ctaLabel: '청구서 보기',
@@ -1325,13 +1325,18 @@ router.post('/:businessId/:id/send', authenticateToken, checkBusinessAccess, req
             const targetIds = parts.map(p => p.user_id).filter(uid => uid && uid !== req.user.id);
             if (targetIds.length) {
               const { notifyMany } = require('./notifications');
+              const bizForChat = await require('../models').Business.findByPk(conv.business_id, { attributes: ['name', 'brand_name'] }).catch(() => null);
+              const wsNameForChat = bizForChat?.brand_name || bizForChat?.name || null;
               await notifyMany({
                 userIds: targetIds,
                 businessId: conv.business_id,
                 eventKind: 'message',
-                title: `[청구서] ${invoice.invoice_number}`,
+                titleSpec: { feature: 'bill', action: 'bill_invoice_sent', subject: invoice.invoice_number },
                 body: `${invoice.title || ''} 청구서가 도착했습니다.`,
                 link: `/talk/${conv.id}`,
+                // #214 — 워크스페이스 업무 알림은 발송처가 [워크스페이스명] 이어야 한다.
+                //   미전달 시 emailService.subjectPrefix 가 [PlanQ] 로 떨어져 출처가 거짓이 된다.
+                workspaceName: wsNameForChat,
               });
             }
           } catch (nErr) { console.warn('[invoice send chat notify]', nErr.message); }
@@ -1821,7 +1826,7 @@ router.post('/:businessId/:id/installments/:installId/mark-tax-invoice', authent
       notifyMany({
         userIds: members.map((m) => m.user_id),
         businessId: invoice.business_id, eventKind: 'tax_invoice',
-        title: '세금계산서 발행 완료',
+        titleSpec: { feature: 'bill', action: 'bill_receipt_issued' },
         body: `${invoice.invoice_number} ${inst.label || ''} 회차 발행번호 ${no}`,
         link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?tab=invoices&invoice=${invoice.id}`,
         ctaLabel: '청구서 보기',

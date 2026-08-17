@@ -766,7 +766,7 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
       if (mentioned.length > 0) {
         notifyMany({
           userIds: mentioned, businessId: conv.business_id, eventKind: 'mention',
-          title: `${senderName} 님이 ${convTitle} 에서 언급`,
+          titleSpec: { feature: 'chat', action: 'chat_mention', subject: convTitle },
           body: previewBody, link, ctaLabel: '대화 보기', workspaceName: wsName,
           tag: `conv:${conv.id}`,
           // N+93 — entity 전달: 토스터 활성방 스킵 (#8a)
@@ -776,7 +776,7 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
       if (plainRecipients.length > 0) {
         notifyMany({
           userIds: plainRecipients, businessId: conv.business_id, eventKind: 'message',
-          title: `${senderName} · ${convTitle}`,
+          titleSpec: { feature: 'chat', action: 'chat_message', subject: `${senderName} · ${convTitle}` },
           body: previewBody, link, ctaLabel: '대화 보기', workspaceName: wsName,
           tag: `conv:${conv.id}`,
           entityType: 'conversation', entityId: conv.id,

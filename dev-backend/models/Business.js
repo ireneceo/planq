@@ -150,6 +150,42 @@ Business.init({
     type: DataTypes.ENUM('active', 'past_due', 'canceled', 'trialing'),
     defaultValue: 'active'
   },
+  // ─── 결제 면제 (운영 #275) ───
+  // 내부 워크스페이스·테스터 고객은 구독료를 청구하지 않는다. 판정 단일 착지점은
+  // services/plan.js getBusinessPlan() 하나뿐 — 라우트·컴포넌트가 따로 판정하지 말 것.
+  // 설계: docs/BILLING_EXEMPTION_DESIGN.md
+  billing_exempt: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false
+  },
+  billing_exempt_kind: {
+    type: DataTypes.ENUM('internal', 'tester', 'partner'),
+    allowNull: true
+  },
+  // 면제 중 부여할 플랜 코드. null 이면 현재 plan 유지.
+  billing_exempt_plan: {
+    type: DataTypes.STRING(32),
+    allowNull: true
+  },
+  // null = 무기한(내부). 날짜 지정 시 그 이후 자동으로 일반 구독 사이클 복귀.
+  billing_exempt_until: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  billing_exempt_note: {
+    type: DataTypes.STRING(255),
+    allowNull: true
+  },
+  billing_exempt_set_by: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: { model: 'users', key: 'id' }
+  },
+  billing_exempt_set_at: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
   // 워크스페이스 soft-delete — 소유자 탈퇴 시 데이터 없는 솔로 워크스페이스 동반 삭제 (ACCOUNT_DELETION_DESIGN 🔴A).
   deleted_at: { type: DataTypes.DATE, allowNull: true },
   // ─── Cue 설정 ───

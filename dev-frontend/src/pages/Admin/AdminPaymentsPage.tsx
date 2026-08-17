@@ -28,6 +28,9 @@ interface PaymentRow {
   paid_at: string | null;
   refunded_at: string | null;
   refund_reason: string | null;
+  cancel_reason: string | null;
+  // 매출 계상 여부 (운영 #275) — false = 내부·테스터 워크스페이스의 결제 테스트
+  is_revenue: boolean;
   created_at: string;
   // Day 8/10 — addon / 세금계산서
   kind: 'plan' | 'addon';
@@ -42,6 +45,9 @@ interface PaymentRow {
 interface Summary {
   pending: number; paid: number; failed: number; refunded: number; canceled: number; total: number;
   month_revenue: number;
+  // 운영 #275 — 내부·테스터 결제는 매출에서 빠진다. 숨기지 않고 분리 노출.
+  month_nonrevenue?: number;
+  nonrevenue_paid?: number;
 }
 
 const STATUS_TABS: PayStatus[] = ['all', 'paid', 'pending', 'failed', 'refunded'];
@@ -163,10 +169,16 @@ const AdminPaymentsPage = () => {
             <Kpi>
               <KpiLabel>{t('payments.monthRevenue', '이번 달 수익 (확정)')}</KpiLabel>
               <KpiValue>KRW {fmtKRW(summary.month_revenue)}</KpiValue>
+              {!!summary.month_nonrevenue && (
+                <KpiSub>{t('payments.nonRevenue', '비매출(내부·테스터) {{amount}}', { amount: `KRW ${fmtKRW(summary.month_nonrevenue)}` })}</KpiSub>
+              )}
             </Kpi>
             <Kpi>
               <KpiLabel>{t('payments.totalPaid', '누적 완료')}</KpiLabel>
               <KpiValue>{summary.paid}</KpiValue>
+              {!!summary.nonrevenue_paid && (
+                <KpiSub>{t('payments.nonRevenueCount', '중 비매출 {{n}}건', { n: summary.nonrevenue_paid })}</KpiSub>
+              )}
             </Kpi>
             <Kpi>
               <KpiLabel>{t('payments.totalPending', '대기')}</KpiLabel>
@@ -211,6 +223,10 @@ const AdminPaymentsPage = () => {
                     <RowTop>
                       <BizName>{p.business?.name || `(workspace ${p.business?.id})`}</BizName>
                       <StatusBadge $bg={c.bg} $fg={c.fg}>{statusLabel(p.status)}</StatusBadge>
+                      {/* 비매출(내부·테스터) 행 표시 — 합계와 목록이 대조되게 (운영 #275) */}
+                      {p.is_revenue === false && (
+                        <StatusBadge $bg="#F0FDFA" $fg="#0F766E">{t('payments.nonRevenueBadge', '비매출')}</StatusBadge>
+                      )}
                     </RowTop>
                     <RowMeta>
                       <Tag>{p.subscription?.plan_code} · {p.cycle === 'monthly' ? t('subs.monthly', '월간') : t('subs.yearly', '연간')}</Tag>
@@ -224,6 +240,7 @@ const AdminPaymentsPage = () => {
                       {p.payer_name && <span>{t('payments.payer', '입금자')}: {p.payer_name}</span>}
                     </RowDates>
                     {p.refund_reason && <Reason>{p.refund_reason}</Reason>}
+                    {p.cancel_reason && <Reason>{p.cancel_reason}</Reason>}
                   </RowLeft>
                   <RowRight>
                     {p.status === 'pending' && (
@@ -288,6 +305,8 @@ const Kpi = styled.div`
 `;
 const KpiLabel = styled.div`font-size: 12px; color: #64748B; font-weight: 600;`;
 const KpiValue = styled.div`font-size: 20px; font-weight: 700; color: #0F172A;`;
+// 비매출(내부·테스터) 보조 라인 — 운영 #275. AdminDashboardPage 의 KpiSub 와 같은 규격.
+const KpiSub = styled.div`font-size: 11px; color: #94A3B8; font-weight: 500; line-height: 1.4;`;
 const TabBar = styled.div`
   display: flex; gap: 4px; padding: 0 4px;
   border-bottom: 1px solid #E2E8F0;

@@ -79,15 +79,27 @@ async function workspaceName(businessId) {
 }
 
 // CLAUDE.md §13 — status 전이는 notify 강제. 라우트가 아니라 행동 계층이 부른다 → Cue 경로에서도 발송된다.
-function notifyTask({ userId, task, title, body, ctaLabel, wsName, excludeUserId }) {
+// #281 — `action` 을 주면 제목 규약(`Q Task · {행위} · {업무명}`)으로 **수신자 언어에 맞춰** 만든다.
+//   title 을 직접 주는 옛 호출부도 그대로 동작한다(점진 전환).
+function notifyTask({ userId, task, title, action, body, ctaLabel, wsName, excludeUserId }) {
   if (!userId || (excludeUserId && userId === excludeUserId)) return;
   const { notify } = require('../../routes/notifications');
-  notify({
-    userId, businessId: task.business_id, eventKind: 'task',
-    title, body: body || `"${task.title}"`,
-    link: taskLink(task.id), ctaLabel: ctaLabel || '업무 보기',
-    workspaceName: wsName, tag: `task:${task.id}`,
-  }).catch((e) => console.warn('[task_actions notify]', e.message));
+  (async () => {
+    let finalTitle = title;
+    if (action) {
+      const { buildTitle, recipientLang } = require('../notifyTitle');
+      finalTitle = buildTitle({
+        feature: 'task', action, subject: `"${task.title}"`,
+        lang: await recipientLang(userId),
+      });
+    }
+    return notify({
+      userId, businessId: task.business_id, eventKind: 'task',
+      title: finalTitle, body: body || `"${task.title}"`,
+      link: taskLink(task.id), ctaLabel: ctaLabel || '업무 보기',
+      workspaceName: wsName, tag: `task:${task.id}`,
+    });
+  })().catch((e) => console.warn('[task_actions notify]', e.message));
 }
 
 function audit(actor, entry) {
@@ -452,11 +464,16 @@ async function afterCreate({ task, businessId, projectId, subjectId, actor, isIn
   // 알림 — 담당자 ≠ 생성자 일 때만 (본인이 본인에게 만든 업무는 noise)
   if (isInternalRequest && task.assignee_id) {
     const { notify } = require('../../routes/notifications');
+    const { buildTitle, recipientLang } = require('../notifyTitle');
     notify({
       userId: task.assignee_id,
       businessId,
       eventKind: 'task',
-      title: '새 업무가 배정되었습니다',
+      // #281 — 제목 규약. 수신자 언어로 발송 시점 해석 (DB 박제 + push payload 라 프론트 t() 불가).
+      title: buildTitle({
+        feature: 'task', action: 'task_assigned', subject: `"${task.title}"`,
+        lang: await recipientLang(task.assignee_id),
+      }),
       body: `"${task.title}"${task.due_date ? ` · 마감 ${String(task.due_date).slice(0, 10)}` : ''}`,
       link: taskLink(task.id),
       ctaLabel: '업무 보기',
@@ -592,7 +609,9 @@ async function notifyComment({ task, comment, subjectId, actor, io }) {
   if (mentioned.length > 0) {
     notifyMany({
       userIds: mentioned, businessId: task.business_id, eventKind: 'comment_mention',
-      title: `업무 댓글에서 언급됨 — ${task.title}`,
+      // #281 — notifyMany 는 수신자마다 언어가 다르므로 titleSpec 으로 넘긴다.
+      //   notify() 가 1인씩 부를 때 수신자 언어로 해석한다.
+      titleSpec: { feature: 'task', action: 'task_comment_mention', subject: `"${task.title}"` },
       body: preview, link, ctaLabel: '댓글 보기', workspaceName: wsName,
       actorUserId: actor.userId, entityType: 'task', entityId: task.id, ioApp: io,
     }).catch((e) => console.warn('[notify comment_mention task]', e.message));
@@ -614,7 +633,8 @@ async function notifyComment({ task, comment, subjectId, actor, io }) {
   const authorName = author?.email?.split('@')[0] || '누군가';
   notifyMany({
     userIds: [...recipients], businessId: task.business_id, eventKind: 'task',
-    title: `${authorName} 님이 업무 댓글을 남김 — ${task.title}`,
+    // #281 — `Q Task · 새 댓글 · {작성자} · "{업무명}"`. 첫 토큰이 기능명이라 출처가 먼저 읽힌다.
+    titleSpec: { feature: 'task', action: 'task_comment', subject: `${authorName} · "${task.title}"` },
     body: preview, link, ctaLabel: '댓글 보기', workspaceName: wsName,
     actorUserId: actor.userId, entityType: 'task', entityId: task.id, ioApp: io,
   }).catch((e) => console.warn('[notify task comment]', e.message));
@@ -676,11 +696,11 @@ async function ack(task, actor) {
     await t.commit();
   } catch (e) { await t.rollback(); throw e; }
 
-  broadcastTask(task);
+  broadcastTask(task, 'task:updated', actor.userId);
   notifyTask({
     userId: task.request_by_user_id || task.created_by,
     task, wsName: await workspaceName(task.business_id), excludeUserId: actor.userId,
-    title: '담당자가 요청을 확인했습니다',
+    action: 'task_ack',
     ctaLabel: '업무 보기',
   });
   return done(task);
@@ -743,12 +763,12 @@ async function complete(task, actor) {
 
   // 완료 → 담당자 Focus 세션 종료 (안 하면 좌측 배너 "포커스 중" 이 남는다)
   await syncFocusOnTaskStatus(task, fromStatus, 'completed');
-  broadcastTask(task);
+  broadcastTask(task, 'task:updated', actor.userId);
 
   notifyTask({
     userId: task.request_by_user_id || task.created_by,
     task, wsName: await workspaceName(task.business_id), excludeUserId: actor.userId,
-    title: '요청한 업무가 완료되었습니다',
+    action: 'task_completed',
     ctaLabel: '결과 확인',
   });
   return done(task);
@@ -792,19 +812,31 @@ async function approve(task, actor, { note = null } = {}) {
   } catch (e) { await t.rollback(); throw e; }
 
   await task.reload();
-  broadcastTask(task);
+  broadcastTask(task, 'task:updated', actor.userId);
 
   const wsName = await workspaceName(task.business_id);
   if (task.status === 'completed') {
     notifyTask({
       userId: task.request_by_user_id || task.created_by,
       task, wsName, excludeUserId: actor.userId,
-      title: '요청한 업무가 완료되었습니다', ctaLabel: '결과 확인',
+      action: 'task_completed', ctaLabel: '결과 확인',
+    });
+    // 운영 #282 — Irene: "완료처리는 승인한 후 담당자가 승인한 걸 인지하고 해야 하는 건데".
+    //   여태 이 분기는 **요청자에게만** 알리고 담당자에게는 아무것도 안 갔다. 승인 한 번으로
+    //   업무가 닫히는데(review_policy='any') 정작 일한 사람이 그 사실을 모르는 상태였다.
+    //   자동 완료 자체는 유지한다 — 2026-04-25 에 done_feedback 단계를 폐지하며 내린 결정이고,
+    //   되돌리면 "승인했는데 담당자가 완료를 또 눌러야 하는" 이중 단계가 부활한다.
+    //   대신 담당자가 **인지**할 경로를 만든다. 승인자==담당자면 excludeUserId 로 걸러진다.
+    notifyTask({
+      userId: task.assignee_id, task, wsName, excludeUserId: actor.userId,
+      action: 'task_approved',
+      body: `"${task.title}" — 컨펌이 끝나 완료 처리됐습니다`,
+      ctaLabel: '업무 보기',
     });
   } else {
     notifyTask({
       userId: task.assignee_id, task, wsName, excludeUserId: actor.userId,
-      title: '컨펌자가 승인했습니다',
+      action: 'task_approved',
       body: `"${task.title}" — 다른 컨펌자 대기 중`,
       ctaLabel: '업무 보기',
     });
@@ -841,12 +873,12 @@ async function requestRevision(task, actor, { note } = {}) {
   } catch (e) { await t.rollback(); throw e; }
 
   await task.reload();
-  broadcastTask(task);
+  broadcastTask(task, 'task:updated', actor.userId);
 
   notifyTask({
     userId: task.assignee_id,
     task, wsName: await workspaceName(task.business_id), excludeUserId: actor.userId,
-    title: '업무 수정 요청',
+    action: 'task_revision',
     body: text.length > 140 ? text.slice(0, 140) + '…' : text,
     ctaLabel: '수정 시작',
   });
@@ -890,7 +922,7 @@ async function revertReviewerState(task, actor) {
   } catch (e) { await t.rollback(); throw e; }
 
   await task.reload();
-  broadcastTask(task);
+  broadcastTask(task, 'task:updated', actor.userId);
   return done(task);
 }
 
@@ -939,11 +971,11 @@ async function revertStatus(task, actor) {
   catch (e) { console.warn('[task_actions revert focusSync]', e.message); }
 
   await task.reload();
-  broadcastTask(task);
+  broadcastTask(task, 'task:updated', userId);
   if (task.assignee_id && task.assignee_id !== userId) {
     notifyTask({
       userId: task.assignee_id, task,
-      title: '업무 단계가 되돌려졌어요',
+      action: 'task_review_canceled',
       wsName: await workspaceName(task.business_id), excludeUserId: userId,
     });
   }
@@ -968,13 +1000,13 @@ async function canChangeStatus(task, actor) {
 }
 
 // 보류/해제의 관심 당사자 = 담당자 + 의뢰자. 둘이 같은 사람이면 1통만 (중복 알림 차단).
-function notifyStatusAudience(task, actor, { title, body, wsName }) {
+function notifyStatusAudience(task, actor, { title, action, body, wsName }) {
   const ids = [task.assignee_id, task.request_by_user_id || task.created_by];
   const seen = new Set();
   for (const userId of ids) {
     if (!userId || seen.has(userId)) continue;
     seen.add(userId);
-    notifyTask({ userId, task, wsName, excludeUserId: actor.userId, title, body });
+    notifyTask({ userId, task, wsName, excludeUserId: actor.userId, title, action, body });
   }
 }
 
@@ -1017,12 +1049,12 @@ async function hold(task, actor, { reason = null } = {}) {
   catch (e) { console.warn('[task_actions hold focusSync]', e.message); }
 
   await task.reload();
-  broadcastTask(task);
+  broadcastTask(task, 'task:updated', actor.userId);
 
   // CLAUDE.md §13 — 전이 라우트는 notify 강제. 보류는 담당자·의뢰자 양쪽의 관심사다.
   const wsName = await workspaceName(task.business_id);
   notifyStatusAudience(task, actor, {
-    title: '업무가 보류되었습니다',
+    action: 'task_hold',
     body: cleanReason ? `"${task.title}" — ${cleanReason}` : undefined,
     wsName,
   });
@@ -1076,11 +1108,11 @@ async function resume(task, actor) {
   catch (e) { console.warn('[task_actions resume focusSync]', e.message); }
 
   await task.reload();
-  broadcastTask(task);
+  broadcastTask(task, 'task:updated', actor.userId);
 
   const wsName = await workspaceName(task.business_id);
-  const title = fromStatus === 'external_review' ? '외부 컨펌이 끝났습니다' : '보류가 해제되었습니다';
-  notifyStatusAudience(task, actor, { title, wsName });
+  const action = fromStatus === 'external_review' ? 'task_external_review_done' : 'task_resumed';
+  notifyStatusAudience(task, actor, { action, wsName });
 
   audit(actor, {
     action: 'task.resume', targetType: 'task', targetId: task.id, businessId: task.business_id,
@@ -1130,12 +1162,13 @@ async function addReviewer(task, actor, { userId } = {}) {
   const full = await TaskReviewer.findByPk(rev.id, {
     include: [{ model: User, as: 'user', attributes: ['id', 'name', 'name_localized'] }],
   });
-  broadcastTask(task);
+  broadcastTask(task, 'task:updated', actor.userId);
 
   const isActive = inReviewRound(task);
   notifyTask({
     userId, task, wsName: await workspaceName(task.business_id), excludeUserId: actor.userId,
-    title: isActive ? '업무 검토 요청' : '업무 컨펌자로 추가되었습니다',
+    // #281 — 제목 규약. 지금 검토 라운드면 '컨펌 요청', 아니면 '컨펌자 지정'.
+    action: isActive ? 'task_review_request' : 'task_reviewer_added',
     body: isActive ? `"${task.title}" 검토를 요청받았습니다` : `"${task.title}"`,
     ctaLabel: isActive ? '검토하기' : '업무 보기',
   });
@@ -1170,7 +1203,7 @@ async function removeReviewer(task, actor, { userId } = {}) {
   } catch (e) { await t.rollback(); throw e; }
 
   await task.reload();
-  broadcastTask(task);
+  broadcastTask(task, 'task:updated', actor.userId);
   audit(actor, {
     action: 'task.reviewer_remove', targetType: 'task', targetId: task.id, businessId: task.business_id,
     oldValue: { reviewer_user_id: rev.user_id, is_client: rev.is_client },
@@ -1198,7 +1231,7 @@ async function setPolicy(task, actor, { policy } = {}) {
   } catch (e) { await t.rollback(); throw e; }
 
   await task.reload();
-  broadcastTask(task);
+  broadcastTask(task, 'task:updated', actor.userId);
   audit(actor, {
     action: 'task.policy_change', targetType: 'task', targetId: task.id, businessId: task.business_id,
     oldValue: { review_policy: fromPolicy },

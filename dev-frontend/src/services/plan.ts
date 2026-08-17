@@ -130,6 +130,11 @@ export interface PlanStatus {
   plan_expires_at: string | null;
   scheduled_plan: PlanCode | null;
   subscription_status: string | null;
+  // 결제 면제 (운영 #275) — 내부 워크스페이스·테스터 고객.
+  // 결제 유도 UI(배너·CTA·잠금 안내)는 plan/status 조합으로 자체 판정하지 말고 이 필드만 볼 것.
+  exempt: boolean;
+  exempt_kind: 'internal' | 'tester' | 'partner' | null;
+  exempt_until: string | null;
   subscription: SubscriptionInfo | null;
   pending_payment: PendingPayment | null;
   recent_payments: PaymentRecord[];

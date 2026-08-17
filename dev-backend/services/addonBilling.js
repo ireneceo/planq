@@ -42,6 +42,13 @@ function prorateAmount(unitPriceKRW, quantity, daysRemaining) {
 
 // 사용자가 add-on 신청 — 일할 청구서 발행 + 한도 즉시 적용
 async function requestAddon({ businessId, addonCode, quantity = 1, userId, taxInvoice = null }) {
+  // ★ 결제 면제 워크스페이스는 애드온 청구도 만들지 않는다 (운영 #275).
+  //   게이트는 라우트가 아니라 서비스에 둔다 — pending Payment 를 만드는 3경로 중 하나다
+  //   (Fable 재심 M-B). 면제 워크스페이스 한도 부여는 admin 전용 apply 경로로만.
+  if (await require('./billing').isBillingExempt(businessId)) {
+    const e = new Error('billing_exempt'); e.code = 'billing_exempt'; throw e;
+  }
+
   const addon = getAddon(addonCode);
   if (!addon) throw new Error('invalid_addon_code');
   const qty = Math.max(1, Math.min(100, Number(quantity) || 1));
@@ -146,6 +153,10 @@ async function markAddonPaid({ paymentId, markedByUserId, payerName, payerMemo, 
       },
       tax_invoice_status: 'requested',
     } : {};
+    // ★ 매출 계상 여부를 결제 확정 시점에 박제 — markPaymentPaid 와 동일 규칙 (운영 #275).
+    //   여기가 status:'paid' 를 쓰는 두 번째(그리고 마지막) 지점이다 (Fable 설계 게이트 C1).
+    const isRevenue = !(await require('./billing').isBillingExempt(pay.business_id));
+
     await pay.update({
       status: 'paid',
       paid_at: now,
@@ -153,6 +164,7 @@ async function markAddonPaid({ paymentId, markedByUserId, payerName, payerMemo, 
       marked_at: now,
       payer_name: payerName ? String(payerName).slice(0, 80) : pay.payer_name,
       payer_memo: payerMemo ? String(payerMemo).slice(0, 255) : pay.payer_memo,
+      is_revenue: isRevenue,
       ...taxFields,
     }, { transaction: t });
 

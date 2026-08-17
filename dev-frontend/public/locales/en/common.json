@@ -581,7 +581,8 @@
     "projects": "Active projects",
     "storage": "Storage",
     "cue": "Cue monthly actions",
-    "qnote": "Q Note monthly minutes"
+    "qnote": "Q Note monthly minutes",
+    "subtitleOverExempt": "New items are blocked while over the limit. Contact the platform admin to adjust limits."
   },
   "limit": {
     "current": "Current",
@@ -637,7 +638,8 @@
     "generic": {
       "title": "Limit reached",
       "desc": "You've reached a plan limit."
-    }
+    },
+    "exemptHint": "This workspace is exempt from subscription charges. Contact the platform admin if you need higher limits."
   },
   "trialBanner": {
     "trial": {

@@ -687,7 +687,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
           const startStr = event.start_at ? new Date(event.start_at).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' }) : '';
           notifyMany({
             userIds: newMemberIds, businessId, eventKind: 'event',
-            title: '일정 초대', body: `"${event.title}"${startStr ? ` · ${startStr}` : ''}`,
+            titleSpec: { feature: 'calendar', action: 'calendar_invite', subject: event.title }, body: `"${event.title}"${startStr ? ` · ${startStr}` : ''}`,
             link: `${process.env.APP_URL || 'https://dev.planq.kr'}/calendar?event=${event.id}`,
             ctaLabel: '일정 보기', workspaceName: wsName,
             actorUserId: req.user.id, entityType: 'calendar_event', entityId: event.id, ioApp: req.app,

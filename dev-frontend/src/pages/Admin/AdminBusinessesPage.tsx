@@ -12,6 +12,12 @@ import PageShell from '../../components/Layout/PageShell';
 import SearchBox from '../../components/Common/SearchBox';
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import CalendarPicker from '../../components/Common/CalendarPicker';
+import BillingExemptModal from './BillingExemptModal';
+import {
+  ModalOverlay, Dialog, DTitle, DBody, DDesc, DFooter, DError, FSpacer,
+  Field, FLabel, FValue, FHelp, PlanOptions, PlanOption,
+  DateTrigger, DatePH, TextArea, PrimaryBtn, SecondaryBtn, ExemptBadge,
+} from './adminModalKit';
 import {
   fetchAdminBusinesses,
   fetchAdminBusinessDetail,
@@ -24,6 +30,14 @@ import {
   type AdminPlanHistoryItem,
 } from '../../services/admin';
 import type { PlanCode, PlanDef } from '../../services/plan';
+
+// 면제가 **지금** 유효한가 — 백엔드 services/plan.js getBusinessPlan 의 exemptActive 와 같은 술어.
+// raw 플래그만 보면 종료일이 지나 정상 과금 중인데도 목록에 면제 뱃지가 남는다(Fable 권고 3).
+function isExemptNow(b: { billing_exempt?: boolean; billing_exempt_until?: string | null }): boolean {
+  if (!b.billing_exempt) return false;
+  if (!b.billing_exempt_until) return true;
+  return new Date(b.billing_exempt_until).getTime() > Date.now();
+}
 
 const PLAN_ORDER: PlanCode[] = ['free', 'starter', 'basic', 'pro', 'enterprise'];
 const PLAN_COLOR: Record<PlanCode, { bg: string; fg: string }> = {
@@ -66,6 +80,9 @@ export default function AdminBusinessesPage() {
   const [detailLoading, setDetailLoading] = useState(false);
 
   // 모달 상태
+  // 결제 면제 (운영 #275) — 모달 본체는 BillingExemptModal 로 절출했다(god-file 래칫).
+  const [exemptOpen, setExemptOpen] = useState(false);
+
   const [planModal, setPlanModal] = useState<{ open: boolean; toPlan: PlanCode; note: string; expires: string; submitting: boolean; error: string | null }>(
     { open: false, toPlan: 'free', note: '', expires: '', submitting: false, error: null }
   );
@@ -231,6 +248,9 @@ export default function AdminBusinessesPage() {
                 <PlanBadge $code={row.plan}>
                   {t(`list.planBadge.${row.plan}`)}
                 </PlanBadge>
+                {isExemptNow(row) && (
+                  <ExemptBadge>{t(`exemptKind.${row.billing_exempt_kind || 'internal'}`)}</ExemptBadge>
+                )}
                 {row.scheduled_plan && row.scheduled_plan !== row.plan && (
                   <StateBadge $tone="info">
                     {t('list.scheduled', { plan: t(`list.planBadge.${row.scheduled_plan}`) })}
@@ -310,6 +330,48 @@ export default function AdminBusinessesPage() {
                   <KLabel>{t('detail.trialEndsAt')}</KLabel>
                   <KValue>{detail.trial_ends_at ? formatDateTime(detail.trial_ends_at) : <Dim>{t('detail.notSet')}</Dim>}</KValue>
                 </KV>
+              </Section>
+
+              {/* 결제 면제 (운영 #275) — 내부 워크스페이스·테스터 고객은 구독료를 청구하지 않는다. */}
+              <Section>
+                <SectionHead>
+                  <SectionTitle>{t('detail.exemptSection', '결제 면제')}</SectionTitle>
+                  <SecondaryBtn type="button" onClick={() => setExemptOpen(true)}>{t('actions.setExempt', '면제 설정')}</SecondaryBtn>
+                </SectionHead>
+                <KV>
+                  <KLabel>{t('detail.exemptStatus', '상태')}</KLabel>
+                  <KValue>
+                    {isExemptNow(detail)
+                      ? <ExemptBadge>{t(`exemptKind.${detail.billing_exempt_kind || 'internal'}`)}</ExemptBadge>
+                      : <Dim>{t('detail.exemptOff', '면제 아님 (정상 과금)')}</Dim>}
+                  </KValue>
+                </KV>
+                {detail.billing_exempt && (
+                  <>
+                    <KV>
+                      <KLabel>{t('detail.exemptPlan', '면제 플랜')}</KLabel>
+                      <KValue>
+                        {detail.billing_exempt_plan
+                          ? <PlanBadge $code={detail.billing_exempt_plan}>{t(`list.planBadge.${detail.billing_exempt_plan}`)}</PlanBadge>
+                          : <Dim>{t('detail.exemptPlanKeep', '현재 플랜 유지')}</Dim>}
+                      </KValue>
+                    </KV>
+                    <KV>
+                      <KLabel>{t('detail.exemptUntil', '면제 종료일')}</KLabel>
+                      <KValue>
+                        {detail.billing_exempt_until
+                          ? <>{formatDateTime(detail.billing_exempt_until)}{!isExemptNow(detail) && <Dim> · {t('detail.exemptExpired')}</Dim>}</>
+                          : <Dim>{t('detail.exemptForever')}</Dim>}
+                      </KValue>
+                    </KV>
+                    {detail.billing_exempt_note && (
+                      <KV>
+                        <KLabel>{t('detail.exemptNote', '사유')}</KLabel>
+                        <KValue>{detail.billing_exempt_note}</KValue>
+                      </KV>
+                    )}
+                  </>
+                )}
               </Section>
 
               <Section>
@@ -511,6 +573,17 @@ export default function AdminBusinessesPage() {
           </Dialog>
         </ModalOverlay>
       )}
+
+      {/* 결제 면제 모달 — 별도 컴포넌트로 절출 (god-file 래칫) */}
+      {exemptOpen && detail && (
+        <BillingExemptModal
+          detail={detail}
+          planCodes={catalog.length ? catalog.map(pl => pl.code) : PLAN_ORDER}
+          renderPlanBadge={(code) => <PlanBadge $code={code}>{t(`list.planBadge.${code}`)}</PlanBadge>}
+          onClose={() => setExemptOpen(false)}
+          onSaved={async () => { await loadList(); if (detail) await loadDetail(detail.id); }}
+        />
+      )}
     </PageShell>
   );
 }
@@ -644,75 +717,6 @@ const HistMeta = styled.div`font-size: 11px; color: #94A3B8; margin-top: 2px;`;
 const HistNote = styled.div`font-size: 12px; color: #475569; margin-top: 4px; padding: 6px 10px; background: #F8FAFC; border-radius: 6px;`;
 
 // Modal
-const ModalOverlay = styled.div`
-  position: fixed; inset: 0; z-index: 90;
-  background: rgba(15,23,42,0.28);
-  display: flex; align-items: center; justify-content: center; padding: 20px;
-  @media (max-width: 640px) { padding: 0; align-items: stretch; }
-`;
-const Dialog = styled.div`
-  background: #fff; border-radius: 14px; width: 100%; max-width: 460px;
-  box-shadow: 0 20px 50px rgba(15,23,42,0.2);
-  display: flex; flex-direction: column; overflow: hidden;
-  max-height: calc(100vh - 40px);
-  @media (max-width: 640px) {
-    max-width: none; border-radius: 0;
-    margin-top: 60px; max-height: calc(100vh - 60px); max-height: calc(100dvh - 60px);
-  }
-`;
-const DTitle = styled.div`padding: 18px 20px 8px; font-size: 15px; font-weight: 700; color: #0F172A;`;
-const DBody = styled.div`padding: 0 20px 16px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto;`;
-const DDesc = styled.p`font-size: 13px; color: #475569; line-height: 1.5; margin: 0;`;
-const DFooter = styled.div`
-  padding: 12px 20px; border-top: 1px solid #E2E8F0;
-  display: flex; gap: 8px; justify-content: flex-end; align-items: center;
-`;
-const DError = styled.div`font-size: 12px; color: #DC2626; background: #FEF2F2; padding: 8px 10px; border-radius: 6px;`;
-const FSpacer = styled.div`flex: 1;`;
-
-const Field = styled.div`display: flex; flex-direction: column; gap: 6px;`;
-const FLabel = styled.label`font-size: 12px; font-weight: 600; color: #475569;`;
-const FValue = styled.div`font-size: 13px; color: #0F172A;`;
-const FHelp = styled.div`font-size: 11px; color: #94A3B8; line-height: 1.4;`;
-
-const PlanOptions = styled.div`display: flex; gap: 6px; flex-wrap: wrap;`;
-const PlanOption = styled.button<{ $active: boolean }>`
-  all: unset; cursor: pointer; padding: 6px 4px; border-radius: 8px;
-  border: 1px solid ${p => p.$active ? '#14B8A6' : '#E2E8F0'};
-  background: ${p => p.$active ? '#F0FDFA' : '#fff'};
-  transition: all 0.15s;
-  &:hover { border-color: #CBD5E1; }
-  &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
-`;
-
-const DateTrigger = styled.button`
-  height: 34px; padding: 0 10px; border: 1px solid #CBD5E1; border-radius: 8px;
-  font-size: 13px; color: #0F172A; font-family: inherit; background: #fff;
-  text-align: left; cursor: pointer; display: inline-flex; align-items: center;
-  &:hover { border-color: #94A3B8; }
-  &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
-`;
-const DatePH = styled.span`color: #94A3B8;`;
-const TextArea = styled.textarea`
-  padding: 8px 10px; border: 1px solid #CBD5E1; border-radius: 8px;
-  font-size: 13px; color: #0F172A; font-family: inherit; resize: vertical; min-height: 60px;
-  &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
-`;
-
-const PrimaryBtn = styled.button`
-  height: 34px; padding: 0 16px; background: #14B8A6; color: #fff; border: none; border-radius: 8px;
-  font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.15s;
-  &:hover:not(:disabled){ background: #0D9488; }
-  &:disabled { opacity: 0.5; cursor: not-allowed; }
-  &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
-`;
-const SecondaryBtn = styled.button`
-  height: 30px; padding: 0 12px; background: #fff; color: #0F172A;
-  border: 1px solid #CBD5E1; border-radius: 8px; font-size: 12px; font-weight: 600;
-  cursor: pointer;
-  &:hover:not(:disabled){ background: #F8FAFC; }
-  &:disabled { opacity: 0.5; cursor: not-allowed; }
-`;
 const DangerBtn = styled.button`
   height: 34px; padding: 0 14px; background: #fff; color: #DC2626;
   border: 1px solid #FCA5A5; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;

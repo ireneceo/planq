@@ -80,6 +80,14 @@ Payment.init({
   paid_at: { type: DataTypes.DATE, allowNull: true },
   refunded_at: { type: DataTypes.DATE, allowNull: true },
   refund_reason: { type: DataTypes.STRING(500), allowNull: true },
+  // 취소 사유 (status='canceled'). refund_reason 은 refunded 전용이라 별개 컬럼.
+  cancel_reason: { type: DataTypes.STRING(255), allowNull: true },
+
+  // ─── 매출 계상 여부 (운영 #275) ───
+  // false = 내부/테스터 워크스페이스의 결제 테스트. 플랫폼 매출로 집계하지 않는다.
+  // ★ 결제 확정 시점(markPaymentPaid / markAddonPaid)에 그때의 billing_exempt 로 박제한다.
+  //   Business 플래그로 조인 판정하면 면제를 끄는 순간 과거 내부결제가 매출로 되살아난다(시점 오염).
+  is_revenue: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
 
   // 영수증
   receipt_url: { type: DataTypes.STRING(500), allowNull: true },

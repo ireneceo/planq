@@ -22,27 +22,35 @@ function getIO() {
 //
 // #277 — payload 는 serializeTaskForBroadcast 를 지난다. raw toJSON() 은 사람 정보가 없어
 //   프론트의 spread 병합에서 표시명이 유실·역전되는 계열 결함을 만든다.
-//   호출부 13곳은 전부 `broadcastTask(task);` 단독 문장(fire-and-forget)이라 시그니처를 async 로
-//   바꿔도 그대로 둔다 — 대신 **이 함수는 절대 reject 하지 않는다**(내부 try/catch).
+//   호출부 13곳은 전부 await 없는 단독 문장(fire-and-forget)이라 시그니처를 async 로 바꿔도
+//   그대로 둔다 — 대신 **이 함수는 절대 reject 하지 않는다**(본문 전체 try/catch).
 //   직렬화가 실패하면 raw payload 로라도 반드시 emit 한다(알림이 조용히 사라지는 것이 더 나쁘다).
-async function broadcastTask(task, event = 'task:updated') {
-  const io = getIO();
-  if (!io) return;
-  let data;
+// 운영 #278·#282 — actorUserId 를 반드시 싣는다.
+//   프론트 NotificationToaster 는 `task.actor_user_id === me` 로 **본인이 한 액션의 토스터**를 거른다.
+//   이 함수만 그 값을 안 실어서 필터가 영구 무력이었고, 그래서 "내가 승인했는데 나한테 완료 알림이
+//   온다"(#282)·"같은 알림이 2개"(#278) 가 났다. 액션 계층 전 전이가 이 함수를 지나므로 여기가 급소다.
+async function broadcastTask(task, event = 'task:updated', actorUserId = null) {
+  // ★ 본문 전체를 감싼다 — 호출부 13곳이 await 없이 부르므로(fire-and-forget) 여기서 reject 하면
+  //   unhandled rejection 이 된다. getIO()·task.toJSON() 이 try 밖에 있으면 위 주석의
+  //   "절대 reject 하지 않는다" 가 거짓이 된다. 부분 try/catch 로는 그 보장이 성립하지 않는다.
   try {
-    const { serializeTaskForBroadcast } = require('./taskBroadcast');
-    data = await serializeTaskForBroadcast(task.id, task.business_id);
-  } catch (e) {
-    console.warn('[broadcastTask serialize]', e.message);
-  }
-  if (!data) data = task.toJSON();
-  try {
+    const io = getIO();
+    if (!io) return;
+    let data;
+    try {
+      const { serializeTaskForBroadcast } = require('./taskBroadcast');
+      data = await serializeTaskForBroadcast(task.id, task.business_id);
+    } catch (e) {
+      console.warn('[broadcastTask serialize]', e.message);
+    }
+    if (!data) data = typeof task.toJSON === 'function' ? task.toJSON() : { ...task };
+    if (actorUserId != null) data = { ...data, actor_user_id: actorUserId };
     if (task.project_id) io.to(`project:${task.project_id}`).emit(event, data);
     io.to(`business:${task.business_id}`).emit(event, data);
     io.to(`business:${task.business_id}`).emit('inbox:refresh', {
       reason: 'task_transition', task_id: task.id, event,
     });
-  } catch (e) { console.warn('[broadcastTask emit]', e.message); }
+  } catch (e) { console.warn('[broadcastTask]', e.message); }
 }
 
 async function workspaceName(businessId) {
@@ -165,7 +173,7 @@ async function submitForReview({
   catch (e) { console.warn('[taskTransition focusSync]', e.message); }
 
   await task.reload();
-  broadcastTask(task);
+  broadcastTask(task, 'task:updated', actorUserId);
 
   // CLAUDE.md §13 — status 전이 라우트는 notify 강제
   const reviewerIds = reviewers.map((r) => r.user_id).filter((id) => id && id !== actorUserId);
@@ -176,7 +184,7 @@ async function submitForReview({
       userIds: reviewerIds,
       businessId: task.business_id,
       eventKind: 'task',
-      title: '업무 검토 요청',
+      titleSpec: { feature: 'task', action: 'task_review_request', subject: `"${task.title}"` },
       body: `"${task.title}" 검토를 요청받았습니다`,
       link: taskLink(task.id),
       ctaLabel: '검토하기',
@@ -223,7 +231,7 @@ async function cancelReview({ task, actorUserId, actorRole = 'assignee' }) {
   catch (e) { console.warn('[taskTransition focusSync]', e.message); }
 
   await task.reload();
-  broadcastTask(task);
+  broadcastTask(task, 'task:updated', actorUserId);
 
   const reviewerIds = reviewers.map((r) => r.user_id).filter((id) => id && id !== actorUserId);
   if (reviewerIds.length > 0) {
@@ -233,7 +241,7 @@ async function cancelReview({ task, actorUserId, actorRole = 'assignee' }) {
       userIds: reviewerIds,
       businessId: task.business_id,
       eventKind: 'task',
-      title: '검토 요청이 취소되었습니다',
+      titleSpec: { feature: 'task', action: 'task_review_canceled', subject: `"${task.title}"` },
       body: `"${task.title}"`,
       link: taskLink(task.id),
       ctaLabel: '업무 보기',

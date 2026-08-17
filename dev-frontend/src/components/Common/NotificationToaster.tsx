@@ -271,7 +271,31 @@ export default function NotificationToaster() {
     const id = `t-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const next: Toast = { ...toast, id, ts: Date.now() };
     // 자동 페이드 제거: X 닫기 / 클릭 이동 시만 닫힘. MAX_VISIBLE 만 유지.
-    setToasts(prev => [...prev, next].slice(-MAX_VISIBLE));
+    //
+    // 운영 #278 — "알림이 2개 왔는데 같은 알림이 따로 오는 거 아니야?"
+    //   토스터에는 소스가 둘이다: ①raw socket event(task:*, message:new …) ②notification:new row.
+    //
+    // ★ 이 dedup 이 실제로 잡는 것 = **같은 payload 가 두 번 수신되는 경우**
+    //   (소켓 재연결 시 같은 task:updated 재수신 등). 실측으로 확인된 형태다.
+    // ★ 잡지 못하는 것 = **소스가 다른 같은 사건**. 두 소스의 제목이 구조적으로 다르기 때문이다
+    //   (raw 는 프론트 t() 문구, notification:new 는 서버 제목 규약 `Q Task · …`).
+    //   그 방향은 위쪽 notification:new 핸들러의 contextKey 병합이 담당하고,
+    //   백엔드가 broadcast 를 notify 보다 먼저 emit 하므로 역전 빈도는 낮다.
+    //   — 실효 범위를 넘겨 적지 말 것. 주석이 과대하면 다음 사람이 고쳐야 할 것을 안 고친다.
+    //
+    // ★ body 까지 비교한다 — 같은 방에서 연속으로 온 채팅 2통은 제목·contextKey 가 같고
+    //   본문만 다르다. body 를 안 보면 진짜 두 번째 메시지가 조용히 삼켜진다.
+    const DEDUP_MS = 5000;
+    setToasts(prev => {
+      if (next.contextKey) {
+        const dup = prev.find(t => t.contextKey === next.contextKey
+          && t.title === next.title
+          && t.body === next.body
+          && next.ts - t.ts < DEDUP_MS);
+        if (dup) return prev;   // 동일 payload 재수신 — 버린다
+      }
+      return [...prev, next].slice(-MAX_VISIBLE);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

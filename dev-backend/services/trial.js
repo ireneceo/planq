@@ -53,7 +53,13 @@ async function safeNotify(biz, kind) {
 
 async function runDailyTrialCron() {
   const now = new Date();
-  const stats = { pre_billed: 0, expired: 0, locked: 0, recovered: 0, errors: 0 };
+  const stats = { pre_billed: 0, expired: 0, locked: 0, recovered: 0, errors: 0, exempt_skipped: 0 };
+
+  // ★ 결제 면제 판정 (운영 #275). billing.createPendingSubscription 이 면제면 throw 하지만,
+  //   그 throw 가 아래 per-biz catch 에 잡히면 stats.errors 로 오염되고 "왜 안 도는지" 가 로그에
+  //   errors 로만 남는다. 여기서 **먼저 명시적으로 skip** 해 관측 가능하게 한다
+  //   (Fable 설계 게이트 C2). 판정은 plan 엔진 단일 착지점을 재사용한다.
+  const { isBillingExempt } = billing;
 
   // 1) D-7 사전 청구서 발행 (trial_ends_at 가 향후 7일 이내) — 한 번만
   const upcomingExpiry = new Date(now.getTime() + TRIAL_PRE_BILL_DAYS_BEFORE * 86400 * 1000);
@@ -66,6 +72,12 @@ async function runDailyTrialCron() {
   });
   for (const biz of upcomingTrials) {
     try {
+      // 면제 워크스페이스에는 사전 청구서도 입금 안내 메일도 만들지 않는다.
+      if (await isBillingExempt(biz.id)) {
+        await billing.restoreExemptSubscription(biz.id);
+        stats.exempt_skipped += 1;
+        continue;
+      }
       const existing = await Subscription.findOne({
         where: {
           business_id: biz.id,
@@ -97,6 +109,12 @@ async function runDailyTrialCron() {
   });
   for (const biz of expiredTrials) {
     try {
+      // 면제면 체험 만료로 past_due 에 떨어뜨리지 않고 정상 상태로 복원한다.
+      if (await isBillingExempt(biz.id)) {
+        await billing.restoreExemptSubscription(biz.id);
+        stats.exempt_skipped += 1;
+        continue;
+      }
       const trialEnd = biz.trial_ends_at || now;
       const graceEndsAt = new Date(trialEnd.getTime() + GRACE_DAYS * 86400 * 1000);
       await biz.update({
@@ -133,6 +151,12 @@ async function runDailyTrialCron() {
   });
   for (const biz of expiredGrace) {
     try {
+      // 면제 워크스페이스는 절대 잠그지 않는다 (운영 #275).
+      if (await isBillingExempt(biz.id)) {
+        await billing.restoreExemptSubscription(biz.id);
+        stats.exempt_skipped += 1;
+        continue;
+      }
       const activeSub = await Subscription.findOne({
         where: { business_id: biz.id, status: 'active' },
       });
