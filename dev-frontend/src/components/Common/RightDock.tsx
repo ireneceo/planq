@@ -107,6 +107,9 @@ const RightDock: React.FC = () => {
     //   일반 창이다. 도구별 고유 창 이름(pq-${tool})이라 넷 다 동시에 떠 있고,
     //   화상회의 화면공유 중에도 사라지지 않는다. "항상 위"는 이 옆의 고정 버튼(handlePin)이 담당한다 —
     //   그쪽은 창을 새로 열지 않고 이 탭이 PiP 를 소유한다(#258).
+    // #286 역방향 — 이미 고정(PiP)된 도구를 "열기" 로 또 열면 역시 창이 2개가 된다.
+    //   고정을 먼저 놓고 일반 창으로 옮긴다(도구당 창 1개 불변식은 양방향이어야 성립한다).
+    if (pinned === tool) pinOwner.unpin();
     window.open(POPOUT_PATH[tool], `pq-${tool}`, popoutFeatures(tool));
   };
 
