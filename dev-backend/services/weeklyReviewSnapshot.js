@@ -19,6 +19,8 @@
 
 const { myAssignedWeekWhere } = require('./weekTaskSet');
 const { getProgressBaselines, deltaOf } = require('./progressBaseline');
+// #288 — 가용시간 공식 단일 원천. 이 파일 안에만 사본이 2벌 있었다(참여율·휴일 무시).
+const capacityService = require('./memberCapacity');
 const { Op } = require('sequelize');
 const {
   Task, Project, TaskDailyProgress, BusinessMember, ProjectIssue,
@@ -577,7 +579,7 @@ async function fetchMemberUtilization(businessId, monday, sunday) {
   const members = await BusinessMember.findAll({
     where: { business_id: businessId, removed_at: null },
     include: [{ model: User, as: 'user', attributes: ['id', 'name'] }],
-    attributes: ['user_id', 'name', 'daily_work_hours', 'weekly_work_days'],
+    attributes: ['user_id', 'name', 'daily_work_hours', 'weekly_work_days', 'participation_rate', 'weekly_holidays'],
   });
   // 멤버 task 의 daily_progress 의 actual_hours 합산
   const memberStats = [];
@@ -597,9 +599,11 @@ async function fetchMemberUtilization(businessId, monday, sunday) {
       });
       actual_hours = Number(sumRow) || 0;
     }
-    const capacity_hours = Math.round(
-      (Number(m.daily_work_hours) || 8) * (Number(m.weekly_work_days) || 5)
-    );
+    // #288 — 세 번째 사본이었다(같은 파일 안에서도 공식이 갈렸다). 서비스 공식으로 통일.
+    const capacity_hours = capacityService.weeklyHours({
+      daily: m.daily_work_hours, days: m.weekly_work_days,
+      rate: m.participation_rate, holidays: m.weekly_holidays,
+    });
     const utilization_pct = capacity_hours > 0 ? Math.round((actual_hours / capacity_hours) * 100) : 0;
     const today = new Date().toISOString().slice(0, 10);
     const completed_tasks = tasks.filter(t => t.status === 'completed').length;
@@ -704,21 +708,16 @@ async function fetchDecisionsRequired(businessId, monday) {
 // ─────────────────────────────────────────────────────────────
 // 사용자 capacity (개인본)
 // ─────────────────────────────────────────────────────────────
+// #288 — 여기 있던 사본은 `daily × days` 로 **참여율·휴일을 무시**해, 같은 사람의 가용시간이
+//   화면(30h)과 보고서(40h)에서 다르게 나왔다. 공식은 services/memberCapacity 한 곳뿐이다.
 async function getUserCapacity(userId, businessId) {
   try {
-    const member = await BusinessMember.findOne({
-      where: { user_id: userId, business_id: businessId },
-      attributes: ['daily_work_hours', 'weekly_work_days'],
-    });
-    if (member) {
-      const daily = Number(member.daily_work_hours) || 8;
-      const days = Number(member.weekly_work_days) || 5;
-      return Math.round(daily * days);
-    }
+    const { weekly } = await capacityService.getMemberCapacity(userId, businessId);
+    return weekly;
   } catch (e) {
     console.error('[weeklyReviewSnapshot] getUserCapacity error:', e.message);
+    return 40;
   }
-  return 40;
 }
 
 module.exports = {

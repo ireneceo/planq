@@ -13,13 +13,14 @@ import { useMemo } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import {
-  ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine,
 } from 'recharts';
 
 export interface ProgressPoint {
   date: string;
-  estimated_cumulative: number;
-  actual_cumulative: number;
+  /** 아직 오지 않은 날은 null — 0 과 구분해야 한다(안 한 날 vs 0시간 한 날) */
+  estimated_cumulative: number | null;
+  actual_cumulative: number | null;
 }
 
 interface Props {
@@ -32,15 +33,21 @@ interface Props {
 export default function ProgressBurnupChart({ series, capacityHours = null, height = 240 }: Props) {
   const { t } = useTranslation('qtask');
 
+  // ★ null 통과 필수 — 아직 오지 않은 날은 백엔드가 null 을 준다.
+  //   `Number(x) || 0` 으로 뭉개면 미래 요일에 0 선이 그어져 "안 한 날" 이 "0시간 한 날" 로 보인다.
   const data = useMemo(() => series.map((p) => ({
     label: p.date.slice(5).replace('-', '/'),
-    estimated: Number(p.estimated_cumulative) || 0,
-    actual: Number(p.actual_cumulative) || 0,
+    estimated: p.estimated_cumulative == null ? null : Number(p.estimated_cumulative) || 0,
+    actual: p.actual_cumulative == null ? null : Number(p.actual_cumulative) || 0,
   })), [series]);
 
-  const hasAny = data.some((d) => d.estimated > 0 || d.actual > 0);
+  // #288 — "이 기간에 증가가 0" 과 "그릴 데이터가 아예 없다" 는 **다른 상태**인데 여태 같은 화면을 냈다.
+  //   무대에 오른 업무가 있으면(시리즈가 있으면) 0 이어도 그린다 — 가용시간 기준선이 있는 0 은
+  //   "아직 0h" 라는 정보다. 반면 빈 문구는 "고장" 으로 읽힌다(#288 "왜 다 없는 거야").
+  //   진짜 빈 상태는 시리즈 자체가 없을 때뿐(그 기간 무대 업무 0건).
+  const hasAny = data.some((d) => (d.estimated ?? 0) > 0 || (d.actual ?? 0) > 0);
 
-  if (!series.length || !hasAny) {
+  if (!series.length) {
     return (
       <Empty>
         <EmptyTitle>{t('report.chartEmptyTitle', { defaultValue: '이 기간의 진척 데이터가 없어요' }) as string}</EmptyTitle>
@@ -62,6 +69,16 @@ export default function ProgressBurnupChart({ series, capacityHours = null, heig
             formatter={(v) => `${v}h`}
           />
           <Legend wrapperStyle={{ fontSize: 11 }} />
+          {/* #288 — "설정에서 가져온 기준". 캡션 한 줄로만 있던 것을 차트 위 실제 기준선으로 올린다.
+              0 만 있는 주에도 "가용 Nh 프레임에 아직 0h" 라는 읽을거리가 생긴다. */}
+          {capacityHours ? (
+            // ★ ifOverflow 기본값은 'discard' — 기준선이 데이터 범위 밖이면 **선을 통째로 버린다**.
+            //   그런데 이 기준선이 필요한 대표 상황이 바로 "아직 0h" 인 주다(도메인 0~1.6 vs 기준선 40).
+            //   즉 기본값이면 필요할 때마다 정확히 안 그려진다 — 캡션만 남고 죽은 코드가 된다.
+            //   extendDomain: y축을 기준선까지 넓혀 0 도 "가용 Nh 프레임 안" 에서 읽히게 한다.
+            <ReferenceLine y={capacityHours} ifOverflow="extendDomain" stroke="#CBD5E1" strokeDasharray="5 4"
+              label={{ value: `${capacityHours}h`, position: 'right', fontSize: 10, fill: '#94A3B8' }} />
+          ) : null}
           <Line
             type="monotone" dataKey="estimated" name={t('report.chartEstimated', { defaultValue: '진척(예측 기준)' }) as string}
             stroke="#94A3B8" strokeWidth={2} strokeDasharray="4 3" dot={false} isAnimationActive={false}
@@ -72,8 +89,13 @@ export default function ProgressBurnupChart({ series, capacityHours = null, heig
           />
         </LineChart>
       </ResponsiveContainer>
+      {/* #288 — 기간 내 증가가 0 이면 그 사실을 말한다. 차트를 숨기면 "고장" 으로 읽힌다.
+          ★ 이월 누적치는 여기 쓰지 않는다 — 리스트에 없는 숫자를 그래프 옆에 들이는 것이 #254 의 재료였다. */}
+      {!hasAny && (
+        <Cap as="div">{t('report.chartNoIncrement', { defaultValue: '이 기간에 새로 기록된 진행이 아직 없어요' }) as string}</Cap>
+      )}
       {capacityHours ? (
-        <Cap>{t('report.chartCapacity', { n: capacityHours, defaultValue: '주간 가용시간 {{n}}h 기준' }) as string}</Cap>
+        <Cap>{t('report.chartCapacity', { n: capacityHours, defaultValue: '가용시간 {{n}}h 기준' }) as string}</Cap>
       ) : null}
     </Box>
   );
