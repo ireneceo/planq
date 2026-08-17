@@ -8,7 +8,12 @@
 import styled from 'styled-components';
 
 export const ModalOverlay = styled.div`
-  position: fixed; inset: 0; z-index: 90;
+  /* ★ 드로어(DetailDrawer: 백드롭 125 / 패널 130) **위**여야 한다.
+     이 모달들은 전부 드로어 상세 안에서 열린다 — z-index 가 드로어보다 낮으면
+     팝업이 뒤에 깔려 보이지도 않고 닫기 버튼도 못 누른다. 그러면 open 상태가 계속 남아
+     드로어를 열 때마다 다시 뜬다(운영 신고: "팝업이 뒤로 뜨고 닫을 수가 없어").
+     RightDock FAB 120 · 드로어 130 · 이 모달 200 · 전역 LimitReachedDialog 9999 순서. */
+  position: fixed; inset: 0; z-index: 200;
   background: rgba(15,23,42,0.28);
   display: flex; align-items: center; justify-content: center; padding: 20px;
   @media (max-width: 640px) { padding: 0; align-items: stretch; }

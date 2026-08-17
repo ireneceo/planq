@@ -165,7 +165,10 @@
     },
     "notified": "Paid (notified)",
     "notifiedAt": "Notified",
-    "payer": "Payer"
+    "payer": "Payer",
+    "exempt": "Exempt",
+    "pastRecord": "past record",
+    "exemptNotice": "{{n}} billing-exempt workspace(s) are excluded from the overdue / grace / downgraded counts. Change exemptions in Workspace management."
   },
   "platform": {
     "title": "Platform settings",
