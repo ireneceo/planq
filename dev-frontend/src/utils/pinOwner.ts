@@ -20,7 +20,7 @@
 import { useSyncExternalStore } from 'react';
 import {
   PIN_CHANNEL, POPOUT_PATH, POPOUT_SIZE,
-  type PinTool, type PinMsg, type PinIntentMsg, type PinAckMsg,
+  type PinTool, type PinMsg, type PinIntentMsg, type PinAckMsg, type PinEngagedMsg,
 } from './pinHost';
 
 /** 선공지 ack 대기 상한. transient activation(약 5초) 안이라 requestWindow 는 그대로 성공한다. */
@@ -222,6 +222,13 @@ async function pin(tool: PinTool, title: string): Promise<void> {
   pipWin = win;
   markPipActive(true);
   openChannel();
+  // #286 — 고정이 **성사된 뒤에만** 알린다. 열려 있던 같은 도구의 일반 팝아웃 창이 스스로 닫혀
+  //   "창 2개" 가 되지 않는다. requestWindow 실패·취소 시에는 여기 도달하지 않으므로 팝아웃도 그대로 산다.
+  try {
+    const ch = new BroadcastChannel(PIN_CHANNEL);
+    ch.postMessage({ type: 'pin-engaged', tool } as PinEngagedMsg);
+    ch.close();
+  } catch { /* 미지원 — 사용자가 팝아웃을 직접 닫으면 된다 */ }
   // 창 동일성 확인 후에만 — 옛 창의 뒤늦은 pagehide 가 새 PiP 를 철거하지 못하게 한다.
   win.addEventListener('pagehide', () => { if (pipWin === win) onPipGone(); });
   // 축출(다른 도구가 PiP 를 가져감)은 pagehide 가 없다 → 폴링이 유일한 감지 수단

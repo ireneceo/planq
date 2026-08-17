@@ -909,6 +909,10 @@
     "lifetimeHint": "Reloading or closing this tab releases the pin.",
     "recordingTitle": "Recording in progress",
     "recordingMessage": "Unpinning now closes this window and stops the recording. Continue?",
-    "recordingConfirm": "Stop recording and unpin"
+    "recordingConfirm": "Stop recording and unpin",
+    "guideTitle": "Keep on top",
+    "guideHint": "Keep on top — how",
+    "guideAction": "Go to main window",
+    "guideBody": "Your browser doesn't allow this window to stay on top by itself. Press the pin in the bottom-right menu of the main PlanQ window — a small always-on-top window will replace this one, and this window closes automatically so you never end up with two. If a recording is in progress, this window stays open to protect it."
   }
 }
