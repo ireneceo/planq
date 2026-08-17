@@ -1362,12 +1362,11 @@ const QTaskPage:React.FC=()=>{
     };
   },[filtered,myId,scope]);
 
-  // 탭 뱃지 카운트 — "내 할 일" 기준
+  // 우측 "이번 주 마무리" 패널 카운트 — "내 할 일(action-pending)" 기준
   // - 받은 업무요청에서 내 할 일: assignee=me && action-pending (task_requested 미ack 또는 revision_requested)
   // - 보낸 업무요청에서 내 할 일: request_by=me && status=reviewing && 내 reviewer pending (내가 컨펌해야 함)
-  // week = 받은 + 보낸 합산
-  // all = From Q Talk 후보 수 (candidates)
-  // requested = 보낸
+  // ※ 탭 뱃지는 여기가 아니라 badgeCounts 가 만든다 — 뱃지는 "그 탭 목록의 크기" 라는 다른 잣대다(#297).
+  //    이 값들을 탭 뱃지로 재사용하면 오늘(목록 크기) 과 이번 주(액션 수) 가 다른 자를 쓰게 된다.
   const panelCounts=useMemo(()=>{
     let received=0,sent=0,review=0;
     const receivedList:TaskRow[]=[], sentList:TaskRow[]=[], reviewList:TaskRow[]=[];
@@ -1392,16 +1391,29 @@ const QTaskPage:React.FC=()=>{
     }
     return{received,sent,review,receivedList,sentList,reviewList};
   },[allTasks,myId,todayStr]);
-  // 오늘 탭 뱃지 — 오늘 해야 할 **미완료** 건수 (완료분은 세지 않는다: "남은 일" 이 신호다)
-  const todayOpenCount=useMemo(()=>(
-    scope==='mine' ? allTasks.filter(t=>inWeekCanonical(t,false)&&inTodaySet(t,todayStr,myId,wsTz,false)).length : 0
-  ),[allTasks,scope,inWeekCanonical,todayStr,myId,wsTz]);
-  const badgeCounts=useMemo(()=>({
-    today: todayOpenCount,
-    week: panelCounts.received+panelCounts.sent+panelCounts.review,
-    all: candidates.length,
-    requested: panelCounts.sent,
-  }),[panelCounts,candidates.length,todayOpenCount]);
+  // 탭 뱃지 = **그 탭 목록의 미완료 건수** (완료분 제외: "남은 일" 이 신호다).
+  //
+  // #297 "오늘 나의 업무가 15인데 어떻게 이번 주 나의 업무가 1이야?"
+  //   오늘 뱃지만 목록 크기였고, 나머지는 "내 할 일(action-pending)" 이라는 **다른 잣대**를 쓰고 있었다
+  //   (week=받은+보낸+컨펌 합, all=Q Talk 추출 후보 수). 오늘 ⊆ 이번 주 인데 15 vs 1 이 나와
+  //   사용자는 "지연 업무가 주간 탭에서 빠지나?" 로 읽었다 — 목록은 멀쩡했고 **뱃지가 딴 걸 세고 있었다**.
+  //   (#237 로 오늘 탭이 들어올 때 기존 탭의 잣대를 같이 훑지 않아 생긴 어긋남.)
+  //   이제 네 탭 모두 자기 목록을 센다 → 오늘 ≤ 이번 주 ≤ 내 전체 가 항상 성립한다.
+  //   action-pending 신호(panelCounts)는 "이번 주 마무리" 패널에 그대로 있고, 추출 후보 수도
+  //   우측 "추출된 업무 (N)" 섹션에 이미 있다 — 신호가 사라지는 게 아니라 제자리로 간다.
+  const isOpen=useCallback((t:TaskRow)=>t.status!=='completed'&&t.status!=='canceled',[]);
+  const badgeCounts=useMemo(()=>{
+    if(scope!=='mine')return{today:0,week:0,all:0,requested:0};
+    const week=allTasks.filter(t=>inWeekCanonical(t,false));
+    return{
+      today: week.filter(t=>inTodaySet(t,todayStr,myId,wsTz,false)).length,
+      week: week.length,
+      // 내 전체업무 탭 목록과 같은 술어 (담당자=나 또는 내가 컨펌자)
+      all: allTasks.filter(t=>isOpen(t)&&(t.assignee_id===myId||(t.reviewers||[]).some(rv=>rv.user_id===myId))).length,
+      // 요청하기 탭 목록과 같은 술어 (내가 의뢰했거나, 내가 만들어 남에게 맡긴 것)
+      requested: allTasks.filter(t=>isOpen(t)&&((t.request_by_user_id===myId)||(t.created_by===myId&&t.assignee_id!=null&&t.assignee_id!==myId))).length,
+    };
+  },[allTasks,scope,inWeekCanonical,todayStr,myId,wsTz,isOpen]);
 
 
   // WORK_FLOW §6 — 가용시간 비교는 잔여(remainingTotal) 기반으로 일원화 (전체 예측 totalMyEst 폐기).
