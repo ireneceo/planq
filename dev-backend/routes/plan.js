@@ -7,6 +7,16 @@ const { successResponse, errorResponse } = require('../middleware/errorHandler')
 const planEngine = require('../services/plan');
 const { PLANS, PLAN_ORDER, ADDONS, toPublicJson, planAtLeast, getAddon, listAddonsForPlan } = require('../config/plans');
 
+// ─── 결제 면제 워크스페이스 진입 차단 (운영 #275) ───
+// 진짜 게이트는 서비스(createPendingSubscription / requestAddon)에 있다 — cron 도 지나가야 하므로.
+// 여기 라우트 가드는 사용자에게 500 대신 명확한 400 을 주기 위한 앞단이다.
+// 판정은 plan 엔진 단일 착지점을 재사용한다(자체 판정 금지).
+async function blockIfExempt(businessId, res) {
+  const { exempt } = await planEngine.getBusinessPlan(businessId);
+  if (exempt) { errorResponse(res, 'billing_exempt', 400); return true; }
+  return false;
+}
+
 // ─── 카탈로그 (공개) ───
 router.get('/catalog', authenticateToken, async (req, res, next) => {
   try {
@@ -43,7 +53,7 @@ router.get('/:businessId/status', authenticateToken, checkBusinessAccess, async 
     const SubscriptionModel = require('../models').Subscription;
     const PaymentModel = require('../models').Payment;
 
-    const [{ plan, biz, active, inTrial, inGrace, trialEndsAt, graceEndsAt }, usage, historyRows, subscription, pendingPayment, recentPayments] = await Promise.all([
+    const [{ plan, biz, active, inTrial, inGrace, trialEndsAt, graceEndsAt, exempt, exemptKind, exemptUntil }, usage, historyRows, subscription, pendingPayment, recentPayments] = await Promise.all([
       planEngine.getBusinessPlan(businessId),
       planEngine.getUsage(businessId),
       BusinessPlanHistory.findAll({
@@ -83,6 +93,12 @@ router.get('/:businessId/status', authenticateToken, checkBusinessAccess, async 
       plan_expires_at: biz ? biz.plan_expires_at : null,
       scheduled_plan: biz ? biz.scheduled_plan : null,
       subscription_status: biz ? biz.subscription_status : null,
+      // ─── 결제 면제 (운영 #275) ───
+      // 프론트(배너·PlanSettings·쿼터 다이얼로그)는 이 필드만 보고 결제 유도 UI 를 접는다.
+      // 컴포넌트가 plan/status 조합으로 자체 판정하지 말 것 — 술어가 갈라진다.
+      exempt: !!exempt,
+      exempt_kind: exemptKind || null,
+      exempt_until: exemptUntil || null,
       // P-2 자체 결제 정보
       subscription: subscription ? {
         id: subscription.id,
@@ -93,7 +109,9 @@ router.get('/:businessId/status', authenticateToken, checkBusinessAccess, async 
         next_billing_at: subscription.next_billing_at,
         grace_ends_at: subscription.grace_ends_at,
       } : null,
-      pending_payment: pendingPayment ? {
+      // 면제 워크스페이스에는 미결제 안내를 노출하지 않는다 — 면제를 켜기 전에 남아 있던
+      // 잔여 pending 이 화면에 "결제하세요" 로 계속 뜨는 것을 막는다 (백필이 취소하기 전에도).
+      pending_payment: (pendingPayment && !exempt) ? {
         id: pendingPayment.id,
         subscription_id: pendingPayment.subscription_id,
         method: pendingPayment.method,
@@ -168,6 +186,7 @@ router.post('/:businessId/start-trial', authenticateToken, checkBusinessAccess, 
       return errorResponse(res, 'owner_only', 403);
     }
     const businessId = Number(req.params.businessId);
+    if (await blockIfExempt(businessId, res)) return;
     const { plan_code } = req.body || {};
     if (!plan_code || !['starter', 'basic', 'pro'].includes(plan_code)) {
       return errorResponse(res, 'invalid_plan_code', 400);
@@ -346,6 +365,7 @@ router.post('/:businessId/checkout', authenticateToken, checkBusinessAccess, asy
     if (!plan_code || !PLANS[plan_code]) return errorResponse(res, 'invalid_plan_code', 400);
     if (!['monthly', 'yearly'].includes(cycle)) return errorResponse(res, 'invalid_cycle', 400);
     if (plan_code === 'free') return errorResponse(res, 'use_downgrade_for_free', 400);
+    if (await blockIfExempt(businessId, res)) return;
 
     const result = await billing.createPendingSubscription({
       businessId, planCode: plan_code, cycle, userId: req.user.id, currency,
@@ -387,6 +407,7 @@ router.post('/:businessId/payments/:paymentId/stripe-checkout', authenticateToke
     }
     const businessId = Number(req.params.businessId);
     const paymentId = Number(req.params.paymentId);
+    if (await blockIfExempt(businessId, res)) return;
     // 소유권 확인 — 다른 워크스페이스의 Payment 로 결제 세션 열지 못하도록 business 스코프 강제.
     const pay = await Payment.findOne({ where: { id: paymentId, business_id: businessId } });
     if (!pay) return errorResponse(res, 'payment_not_found', 404);
@@ -588,6 +609,7 @@ router.post('/:businessId/addons/request', authenticateToken, checkBusinessAcces
       return errorResponse(res, 'owner_only', 403);
     }
     const businessId = Number(req.params.businessId);
+    if (await blockIfExempt(businessId, res)) return;
     const { addon_code, quantity = 1, tax_invoice } = req.body || {};
     const addonBilling = require('../services/addonBilling');
     try {

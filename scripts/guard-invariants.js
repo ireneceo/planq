@@ -360,6 +360,61 @@ function checkBroadcast() {
 }
 
 // ═══════════════════════════════════════════════
+// 6-b. broadcastactor — task broadcast payload 에 actor_user_id 잠금 (운영 #278·#282)
+//
+//   왜 있는가 — 프론트 NotificationToaster 는 `task.actor_user_id === me` 로 **본인이 한 액션의
+//   토스터**를 거른다. 그런데 액션 계층의 broadcastTask() 만 그 값을 안 실어서 필터가 영구 무력이었고,
+//   "내가 승인했는데 나한테 완료 알림이 온다"(#282) · "같은 알림이 2개"(#278) 가 났다.
+//   emit 지점이 늘어날 때마다 같은 결함이 재발하므로 정적으로 못박는다.
+//
+//   판정: broadcastTask 정의가 actorUserId 파라미터를 갖고 payload 에 반영하는가 +
+//         호출부가 actor 를 넘기는가 (인자 2개 이하로 부르면 누락).
+// ═══════════════════════════════════════════════
+function checkBroadcastActor() {
+  const detail = [];
+  const defFile = path.join(ROOT, 'dev-backend/services/taskTransition.js');
+  if (!fs.existsSync(defFile)) {
+    detail.push('services/taskTransition.js 없음 (이동했으면 이 가드 갱신)');
+  } else {
+    const src = read(defFile);
+    if (!/function broadcastTask\([^)]*actorUserId/.test(src)) {
+      detail.push('taskTransition.broadcastTask 시그니처에 actorUserId 없음 — 토스터 자기필터 무력화 회귀');
+    }
+    // ★ 반드시 **broadcastTask 함수 본문 안**에서만 찾는다.
+    //   파일 전체를 보면 TaskStatusHistory.create 의 `actor_user_id: actorUserId` (감사 이력)에
+    //   걸려 거짓 통과한다 — 실제로 payload 대입을 지워도 가드가 못 잡는 것을 반증으로 확인했다
+    //   (같은 파일에 같은 키 이름이 3번 나온다). 가드는 깨뜨려 확인해야 한다.
+    const bodyStart = src.indexOf('async function broadcastTask(');
+    if (bodyStart === -1) {
+      detail.push('broadcastTask 정의를 찾지 못함 — 이름이 바뀌었으면 이 가드 갱신');
+    } else {
+      // 다음 최상위 선언(`\nasync function` / `\nfunction`) 직전까지를 본문으로 본다.
+      const rest = src.slice(bodyStart + 1);
+      const nextDecl = rest.search(/\n(async )?function \w/);
+      const body = nextDecl === -1 ? rest : rest.slice(0, nextDecl);
+      if (!/actor_user_id:\s*actorUserId/.test(body)) {
+        detail.push('broadcastTask payload 에 actor_user_id 미반영 — 파라미터만 있고 안 실린다');
+      }
+    }
+  }
+  // 호출부 — actor 인자 없이 부르면 그 경로만 조용히 자기알림이 살아난다.
+  for (const f of ['dev-backend/services/actions/task_actions.js', 'dev-backend/services/taskTransition.js']) {
+    const full = path.join(ROOT, f);
+    if (!fs.existsSync(full)) continue;
+    read(full).split('\n').forEach((line, i) => {
+      // 주석 줄 제외 — 설명문 안의 `broadcastTask(task);` 예시를 호출부로 오인하면 거짓 FAIL 이 난다.
+      if (/^\s*(\/\/|\*|\/\*)/.test(line)) return;
+      const m = line.match(/(?<!function )broadcastTask\(([^)]*)\)/);
+      if (!m) return;
+      if (/^\s*(async )?function/.test(line)) return;         // 정의부 제외
+      const args = m[1].split(',').map((s) => s.trim()).filter(Boolean);
+      if (args.length < 3) detail.push(`${f}:${i + 1} broadcastTask 호출에 actor 인자 누락 — ${line.trim().slice(0, 70)}`);
+    });
+  }
+  report('broadcastactor', 'task broadcast actor_user_id 잠금 (#278·#282 자기알림 재발 차단)', detail.length === 0, detail);
+}
+
+// ═══════════════════════════════════════════════
 // 7. finance — invoices.js owner_only 가드 잠금 (PERMISSION_MATRIX §5.10)
 //    send / mark-paid / unmark-paid / mark-tax-invoice / delete 5개 라우트 보호.
 // ═══════════════════════════════════════════════
@@ -959,6 +1014,7 @@ const CATEGORIES = {
   pagination: checkPagination,
   notify: checkNotify,
   broadcast: checkBroadcast,
+  broadcastactor: checkBroadcastActor,
   finance: checkFinance,
   cuefinance: checkCueFinance,
   cueauth: checkCueAuth,

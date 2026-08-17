@@ -95,9 +95,35 @@ router.isAllowed = isAllowed;
 //
 // 시스템 메일 (인증 OTP, 비밀번호 재설정) 도 매트릭스 무관 —
 //   전용 helper (sendVerificationCodeEmail / sendSignatureOtpEmail) 사용.
-async function notify({ userId, businessId, eventKind, title, body, link, ctaLabel, workspaceName, tag, actorUserId, entityType, entityId, ioApp, skipChannels }) {
+// 운영 #281 — `titleSpec: { feature, action, subject }` 을 주면 제목 규약
+//   (`Q Mail · 답변 필요 · 홍길동`)으로 **수신자 언어에 맞춰** 여기서 만든다.
+//   왜 여기인가: notifyMany 는 여러 명에게 같은 제목을 보내므로 호출부에서는 수신자별 언어를
+//   맞출 수 없다. notifyMany 가 notify 를 1인씩 부르므로 이 지점이 유일한 공통 착지점이다.
+//   ★ title 은 notifications.title 에 문자열로 박제되고 push payload 로 그대로 나간다 —
+//     프론트 t() 로는 번역할 수 없어서 발송 시점 해석이 유일한 방법이다.
+//   titleSpec 없이 title 만 주는 옛 호출부는 그대로 동작한다(점진 전환).
+async function notify({ userId, businessId, eventKind, title, titleSpec, body, link, ctaLabel, workspaceName, tag, actorUserId, entityType, entityId, ioApp, skipChannels }) {
   if (!userId || !eventKind) return { inbox: false, email: false, push: false };
   const results = { inbox: false, email: false, push: false };
+  if (titleSpec && titleSpec.feature && titleSpec.action) {
+    try {
+      const { buildTitle, recipientLang, FEATURES, ACTIONS } = require('../services/notifyTitle');
+      // ★ buildTitle 은 미지 feature/action 에 **throw 하지 않고 빈 문자열**을 돌려준다.
+      //   그대로 대입하면 오타 하나로 제목 없는 알림이 조용히 나간다(catch 로는 못 잡는다).
+      //   그래서 ① 표에 있는지 먼저 확인하고 ② 결과가 비면 기존 title 을 지키고 ③ 오타를 로그로 드러낸다.
+      if (!FEATURES[titleSpec.feature] || !ACTIONS[titleSpec.action]) {
+        // ★ 둘 중 하나만 미등록이어도 대입하지 않는다. feature 만 맞으면 buildTitle 이
+        //   `Q Task · 대상` 처럼 **행위 라벨이 빠진 열화 제목**을 돌려주는데, 비어 있지 않아서
+        //   `if (built)` 가드는 이걸 통과시킨다 — 폴백 title 이 열화본에 덮인다(Fable 실측).
+        //   비었는지가 아니라 **키가 등록됐는지**로 판정해야 폴백 보장이 성립한다.
+        console.warn('[notify titleSpec] 미등록 키 — services/notifyTitle.js 표에 추가할 것:',
+          titleSpec.feature, titleSpec.action, '→ 기존 title 유지');
+      } else {
+        const built = buildTitle({ ...titleSpec, lang: await recipientLang(userId) });
+        if (built && built.trim()) title = built;
+      }
+    } catch (e) { console.warn('[notify titleSpec]', e.message); }   // 실패해도 기존 title 로 진행
+  }
   // #203 — 호출자가 특정 채널만 끌 수 있다(사용자 설정과 별개). 메일 알림은 '확인 권장' 을
   //   이메일로 보내지 않는다 — 하루 수십 건이 메일함으로 되돌아오면 그게 스팸이다.
   const skip = new Set(Array.isArray(skipChannels) ? skipChannels : []);
@@ -238,10 +264,10 @@ async function notify({ userId, businessId, eventKind, title, body, link, ctaLab
 }
 
 // 멀티 수신자용 (워크스페이스 멤버 N 명에게 한 번에)
-async function notifyMany({ userIds, businessId, eventKind, title, body, link, ctaLabel, workspaceName, excludeUserId, tag, actorUserId, entityType, entityId, ioApp, skipChannels }) {
+async function notifyMany({ userIds, businessId, eventKind, title, titleSpec, body, link, ctaLabel, workspaceName, excludeUserId, tag, actorUserId, entityType, entityId, ioApp, skipChannels }) {
   const filtered = (userIds || []).filter((id) => id && id !== excludeUserId);
   const results = await Promise.all(
-    filtered.map((uid) => notify({ userId: uid, businessId, eventKind, title, body, link, ctaLabel, workspaceName, tag, actorUserId, entityType, entityId, ioApp, skipChannels }))
+    filtered.map((uid) => notify({ userId: uid, businessId, eventKind, title, titleSpec, body, link, ctaLabel, workspaceName, tag, actorUserId, entityType, entityId, ioApp, skipChannels }))
   );
   return results;
 }

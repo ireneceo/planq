@@ -27,6 +27,13 @@ async function runShareExpiryNotify(ioApp) {
   const warnUntil = new Date(now.getTime() + WARN_DAYS * 86400 * 1000);
 
   const { Post, File, KbDocument, CalendarEvent, Notification } = require('../models');
+  // #214 — 발송처 표기용 워크스페이스명 캐시. 알림 1건마다 조회하면 cron 이 N+1 이 된다.
+  const { Business } = require('../models');
+  const wsNameById = new Map();
+  try {
+    const bizRows = await Business.findAll({ attributes: ['id', 'name', 'brand_name'] });
+    for (const b of bizRows) wsNameById.set(b.id, b.brand_name || b.name || null);
+  } catch (e) { console.warn('[share-expiry-notify wsName]', e.message); }
 
   const targets = [
     { model: Post, entity_type: 'post', authorField: 'author_id', titleField: 'title' },
@@ -63,7 +70,10 @@ async function runShareExpiryNotify(ioApp) {
           userId: authorId,
           businessId: row.business_id,
           eventKind: 'share_expiry',  // N+74-B 신규 event_kind — NotificationPref 매트릭스에서 사용자가 별도 토글 가능
-          title: `[공유 링크 만료 임박] ${row[titleField] || '(제목 없음)'}`,
+          // #281 — 제목 규약(`Q docs · 공유 링크 만료 임박 · {제목}`). 수신자 언어 해석은 notify() 가.
+          titleSpec: { feature: 'docs', action: 'share_expiry_soon', subject: row[titleField] || '(제목 없음)' },
+          // #214 — 워크스페이스 자원 알림이므로 발송처는 [워크스페이스명]. 미전달 시 [PlanQ] 로 떨어진다.
+          workspaceName: wsNameById.get(row.business_id) || null,
           body: `외부 공유 링크가 ${daysLeft}일 후 만료됩니다. 갱신하려면 다시 공유해주세요.`,
           entityType: entity_type,
           entityId: row.id,

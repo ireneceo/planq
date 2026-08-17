@@ -189,6 +189,23 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
 
   return (
     <Wrap>
+      {/* 결제 면제 안내 (운영 #275) — 내부 워크스페이스·테스터 고객.
+          결제 CTA 를 그냥 숨기기만 하면 "왜 결제가 안 되지" 가 되므로 이유를 명시하고,
+          한도 조정 경로(관리자 문의)를 같이 준다 — 쿼터 초과 시 막다른 길 방지. */}
+      {status.exempt && (
+        <ExemptCard role="status">
+          <ExemptTitle>
+            {t(`exempt.title.${status.exempt_kind || 'internal'}`, {
+              defaultValue: t('exempt.title.internal', '내부 이용 워크스페이스 — 구독료가 청구되지 않습니다'),
+            })}
+          </ExemptTitle>
+          <ExemptDesc>
+            {t('exempt.desc', '결제·유예·강등 없이 계속 사용할 수 있습니다. 한도 조정이 필요하면 플랫폼 관리자에게 문의해 주세요.')}
+            {status.exempt_until && ` · ${t('exempt.until', { date: formatDate(status.exempt_until) })}`}
+          </ExemptDesc>
+        </ExemptCard>
+      )}
+
       {/* 미결제 청구 — 입금 통보 진입점. 통보 후엔 "입금 확인 대기중" 상태로 전환 (관리자 확인 후 활성화). */}
       {status.pending_payment && (() => {
         const notified = !!status.pending_payment.notify_paid_at;
@@ -405,8 +422,10 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
                 </FeatureList>
 
                 <ColCta>
-                  {/* App Store 3.1.1 — 네이티브 앱에선 구매 표면 미노출 (utils/purchase). 현재 플랜만 표시 */}
-                  {!canPurchaseInApp() ? (
+                  {/* App Store 3.1.1 — 네이티브 앱에선 구매 표면 미노출 (utils/purchase). 현재 플랜만 표시.
+                      결제 면제 워크스페이스(운영 #275)도 같은 경로로 구매 표면을 접는다 — 체크아웃이
+                      서버에서 400 billing_exempt 라 버튼을 살려두면 막다른 길이 된다. */}
+                  {(!canPurchaseInApp() || status.exempt) ? (
                     isCurrent ? <BtnGhost type="button" disabled>{t('comparison.current')}</BtnGhost> : null
                   ) : isCurrent ? (
                     <BtnGhost type="button" disabled>{t('comparison.current')}</BtnGhost>
@@ -704,6 +723,16 @@ const SkCard = styled(SkBar)`height:140px;margin-bottom:16px;border-radius:12px;
 const Wrap = styled.div`display:flex;flex-direction:column;gap:20px;`;
 
 // 미결제 청구 카드 — 결제 진행 진입점 (배너 → ?pay=1)
+// 결제 면제 안내 (운영 #275) — 경고가 아니라 상태 고지라 teal 계열. PayDueCard 규격 재사용.
+const ExemptCard = styled.div`
+  background:#F0FDFA;
+  border:1px solid #5EEAD4;
+  border-radius:14px;padding:20px 24px;
+  display:flex;flex-direction:column;gap:6px;
+`;
+const ExemptTitle = styled.div`font-size:14px;font-weight:700;color:#0F766E;letter-spacing:-0.1px;`;
+const ExemptDesc = styled.div`font-size:12px;color:#64748B;line-height:1.5;`;
+
 const PayDueCard = styled.div<{ $notified?: boolean }>`
   background:${p => p.$notified ? '#F0FDFA' : '#FEF2F2'};
   border:1px solid ${p => p.$notified ? '#5EEAD4' : '#FCA5A5'};

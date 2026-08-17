@@ -39,6 +39,8 @@ const UsageWarningCard: React.FC<Props> = ({ businessId }) => {
   const { t } = useTranslation('common');
   const [usage, setUsage] = useState<UsageBlock | null>(null);
   const [limits, setLimits] = useState<PlanLimits | null>(null);
+  // 결제 면제 (운영 #275) — 면제 워크스페이스는 체크아웃이 400 이라 업그레이드 CTA 가 막다른 길.
+  const [exempt, setExempt] = useState(false);
 
   useEffect(() => {
     if (!businessId) return;
@@ -49,6 +51,7 @@ const UsageWarningCard: React.FC<Props> = ({ businessId }) => {
         if (!mounted || !j?.success) return;
         setUsage(j.data.usage);
         setLimits(j.data.plan?.limits);
+        setExempt(!!j.data.exempt);
       })
       .catch(() => {});
     return () => { mounted = false; };
@@ -86,13 +89,18 @@ const UsageWarningCard: React.FC<Props> = ({ businessId }) => {
               : t('usageWarn.title', '한도가 거의 찼습니다')}
           </Title>
           {anyOver && (
-            <Subtitle>{t('usageWarn.subtitleOver', '초과 상태에선 신규 추가가 차단됩니다. 플랜을 올리거나 기존 항목을 정리하세요.')}</Subtitle>
+            <Subtitle>
+              {exempt
+                ? t('usageWarn.subtitleOverExempt', '초과 상태에선 신규 추가가 차단됩니다. 한도 조정은 플랫폼 관리자에게 문의해 주세요.')
+                : t('usageWarn.subtitleOver', '초과 상태에선 신규 추가가 차단됩니다. 플랜을 올리거나 기존 항목을 정리하세요.')}
+            </Subtitle>
           )}
         </TitleArea>
         <CtaGroup>
           <CtaLink to="/business/settings/plan#usage">{t('usageWarn.detail', '사용량 자세히')}</CtaLink>
-          {/* App Store 3.1.1 — 네이티브에선 구매 유도 CTA 숨김. 사용량 확인 링크는 정보라 유지 */}
-          {canPurchaseInApp() && (
+          {/* App Store 3.1.1 — 네이티브에선 구매 유도 CTA 숨김. 사용량 확인 링크는 정보라 유지.
+              결제 면제 워크스페이스도 같이 숨긴다 — 눌러도 체크아웃이 400 billing_exempt 다. */}
+          {canPurchaseInApp() && !exempt && (
             <CtaPrimary to="/business/settings/plan" $danger={anyOver}>
               {anyOver
                 ? t('usageWarn.ctaUpgrade', '지금 업그레이드')

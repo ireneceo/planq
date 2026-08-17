@@ -581,7 +581,8 @@
     "projects": "진행중 프로젝트",
     "storage": "스토리지",
     "cue": "Cue 월간 액션",
-    "qnote": "Q Note 월간 시간"
+    "qnote": "Q Note 월간 시간",
+    "subtitleOverExempt": "초과 상태에선 신규 추가가 차단됩니다. 한도 조정은 플랫폼 관리자에게 문의해 주세요."
   },
   "limit": {
     "current": "현재",
@@ -637,7 +638,8 @@
     "generic": {
       "title": "한도 도달",
       "desc": "플랜 한도에 도달했습니다."
-    }
+    },
+    "exemptHint": "이 워크스페이스는 구독료가 면제되어 있습니다. 한도 조정이 필요하면 플랫폼 관리자에게 문의해 주세요."
   },
   "trialBanner": {
     "trial": {

@@ -14,7 +14,8 @@
       "ofTotal": "of {{n}} total",
       "pending": "{{n}} awaiting payment",
       "paidOnly": "Paid only",
-      "pendingHint": "Awaiting deposit"
+      "pendingHint": "Awaiting deposit",
+      "nonRevenue": "Non-revenue (internal/tester) {{amount}}"
     },
     "signups": {
       "title": "Workspace signups",
@@ -121,7 +122,10 @@
       "card": "Card",
       "portone": "PortOne",
       "manual_adjust": "Manual"
-    }
+    },
+    "nonRevenue": "Non-revenue (internal/tester) {{amount}}",
+    "nonRevenueCount": "{{n}} non-revenue",
+    "nonRevenueBadge": "Non-revenue"
   },
   "subs": {
     "title": "Subscriptions",
@@ -225,7 +229,16 @@
       "actions": "{{n}} calls",
       "minutes": "{{n}} min"
     },
-    "infinite": "Unlimited"
+    "infinite": "Unlimited",
+    "exemptSection": "Billing exemption",
+    "exemptStatus": "Status",
+    "exemptOff": "Not exempt (billed normally)",
+    "exemptPlan": "Exempt plan",
+    "exemptPlanKeep": "Keep current plan",
+    "exemptUntil": "Exempt until",
+    "exemptForever": "No end date",
+    "exemptNote": "Reason",
+    "exemptExpired": "Expired (billed normally)"
   },
   "actions": {
     "changePlan": "Change plan",
@@ -234,7 +247,8 @@
     "cancel": "Cancel",
     "save": "Save",
     "saving": "Saving…",
-    "saved": "Saved"
+    "saved": "Saved",
+    "setExempt": "Set exemption"
   },
   "modal": {
     "datePlaceholder": "Select date",
@@ -260,7 +274,21 @@
       "confirmClear": "This ends the trial immediately.",
       "success": "Trial settings updated"
     },
-    "error": "Error: {{msg}}"
+    "error": "Error: {{msg}}",
+    "exempt": {
+      "title": "Billing exemption",
+      "desc": "While exempt, subscription charges, grace periods, and downgrades all stop, and this workspace’s payments are excluded from revenue.",
+      "toggle": "Exemption",
+      "off": "Billed normally",
+      "on": "Exempt",
+      "kind": "Type",
+      "plan": "Plan granted while exempt",
+      "planKeep": "Keep current",
+      "until": "Exempt until (blank = no end date)",
+      "untilHelp": "After this date the workspace returns to normal billing automatically.",
+      "note": "Reason",
+      "notePlaceholder": "e.g. Our internal workspace / tester customer"
+    }
   },
   "history": {
     "empty": "No history yet",
@@ -313,5 +341,10 @@
       "title": "No email logs",
       "message": "All emails sent by the system will appear here."
     }
+  },
+  "exemptKind": {
+    "internal": "Internal",
+    "tester": "Tester",
+    "partner": "Partner"
   }
 }

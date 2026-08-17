@@ -40,14 +40,42 @@ async function getBusinessPlan(businessId) {
       'id', 'plan', 'subscription_status', 'plan_expires_at', 'trial_ends_at', 'grace_ends_at',
       // Add-on 슬롯 — plan.limits 위에 더해짐
       'addon_members', 'addon_clients', 'addon_qnote_minutes', 'addon_cue_actions', 'addon_storage_bytes',
+      // 결제 면제 (운영 #275) — 판정은 아래 exemptActive 한 곳에서만.
+      'billing_exempt', 'billing_exempt_kind', 'billing_exempt_plan', 'billing_exempt_until',
     ],
   });
   if (!biz) {
-    const result = { plan: getPlan('free'), biz: null, active: false };
+    const result = { plan: getPlan('free'), biz: null, active: false, exempt: false, exemptKind: null, exemptUntil: null };
     _cacheSet(_planCache, key, result);
     return result;
   }
   const now = new Date();
+
+  // ─── 결제 면제 (운영 #275) — 면제 판정의 단일 착지점 ★ ───
+  // 내부 워크스페이스·테스터 고객은 만료/유예/강등 사이클을 아예 타지 않는다.
+  // 여기서 active=true 로 확정하면 can() 의 `if (!active) subscription_inactive` 가 자동 해소되어
+  // 업로드·멤버추가·Cue 등 모든 게이트가 통과한다. 라우트마다 따로 판정하지 말 것
+  // (memory feedback_predicate_must_match_both_sides). 설계: docs/BILLING_EXEMPTION_DESIGN.md
+  const exemptActive = !!biz.billing_exempt
+    && (!biz.billing_exempt_until || new Date(biz.billing_exempt_until) > now);
+  if (exemptActive) {
+    const exemptCode = biz.billing_exempt_plan || biz.plan || 'free';
+    const exemptResult = {
+      plan: getPlan(exemptCode),
+      biz,
+      active: true,
+      inTrial: false,
+      inGrace: false,
+      trialEndsAt: null,
+      graceEndsAt: null,
+      exempt: true,
+      exemptKind: biz.billing_exempt_kind || 'internal',
+      exemptUntil: biz.billing_exempt_until || null,
+    };
+    _cacheSet(_planCache, key, exemptResult);
+    return exemptResult;
+  }
+
   const expired = biz.plan_expires_at && new Date(biz.plan_expires_at) < now;
   const inGrace = biz.grace_ends_at && new Date(biz.grace_ends_at) > now;
   const inTrial = biz.trial_ends_at && new Date(biz.trial_ends_at) > now;
@@ -65,6 +93,10 @@ async function getBusinessPlan(businessId) {
     inGrace: expired && inGrace,
     trialEndsAt: biz.trial_ends_at,
     graceEndsAt: biz.grace_ends_at,
+    // 비면제 경로 — 소비처가 exempt 를 항상 같은 모양으로 받게 명시 false.
+    exempt: false,
+    exemptKind: null,
+    exemptUntil: null,
   };
   _cacheSet(_planCache, key, result);
   return result;
@@ -209,7 +241,19 @@ async function getQnoteMinutesThisMonth(businessId) {
  * 권한 체크 — can(businessId, action, ctx)
  * 반환: { ok: boolean, reason?: string, limit?, current? }
  */
+// ─── 공개 can() — 실패 결과에 exempt 를 얹는 얇은 래퍼 ───
+// 결제 면제 워크스페이스에서 한도를 넘으면 "업그레이드하세요" 가 막다른 길이 된다
+// (체크아웃이 서버에서 400 billing_exempt). 실패 결과에 exempt 를 실어 보내
+// buildQuotaError → LimitReachedDialog 가 관리자 문의로 안내하게 한다 (Fable M6).
+// ★ 여기서 exempt 를 다시 판정하지 않고 getBusinessPlan 이 준 값을 그대로 나른다.
 async function can(businessId, action, ctx = {}) {
+  const result = await canInner(businessId, action, ctx);
+  if (result && result.ok) return result;
+  const { exempt } = await getBusinessPlan(businessId);
+  return { ...result, exempt: !!exempt };
+}
+
+async function canInner(businessId, action, ctx = {}) {
   const { plan, biz, active } = await getBusinessPlan(businessId);
   if (!biz) return { ok: false, reason: 'business_not_found' };
   if (!active) return { ok: false, reason: 'subscription_inactive' };
@@ -376,6 +420,8 @@ function buildQuotaError(checkResult, businessId) {
     current: checkResult.current,
     upgrade_url: `/business/settings/plan`,
     alternatives: m.alternatives || [],
+    // 결제 면제 워크스페이스 — 프론트가 업그레이드 CTA 대신 관리자 문의를 안내한다 (운영 #275).
+    exempt: !!checkResult.exempt,
   };
 }
 

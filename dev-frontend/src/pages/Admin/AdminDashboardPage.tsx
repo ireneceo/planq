@@ -12,7 +12,8 @@ interface Overview {
   businesses: { total: number; new_30d: number };
   users: { total: number; new_30d: number };
   subscriptions: { active: number; grace: number; pending: number; total: number; by_plan: Record<string, number> };
-  revenue: { month_paid: number; pending_amount: number };
+  // month_nonrevenue = 내부·테스터 워크스페이스 결제 (운영 #275). 숨기지 않고 분리 표시한다.
+  revenue: { month_paid: number; month_nonrevenue?: number; pending_amount: number };
   signups: { month: string; count: number }[];
 }
 
@@ -69,7 +70,12 @@ const AdminDashboardPage: React.FC = () => {
             <Kpi $accent>
               <KpiLabel>{t('dashboard.kpi.monthRevenue', '이번 달 수익')}</KpiLabel>
               <KpiValue>{fmtKRW(data.revenue.month_paid)}</KpiValue>
-              <KpiSub>{t('dashboard.kpi.paidOnly', '결제 완료 기준')}</KpiSub>
+              <KpiSub>
+                {t('dashboard.kpi.paidOnly', '결제 완료 기준')}
+                {!!data.revenue.month_nonrevenue && (
+                  <> · {t('dashboard.kpi.nonRevenue', '비매출(내부·테스터) {{amount}}', { amount: fmtKRW(data.revenue.month_nonrevenue) })}</>
+                )}
+              </KpiSub>
             </Kpi>
             <Kpi>
               <KpiLabel>{t('dashboard.kpi.pendingAmount', '미수금')}</KpiLabel>

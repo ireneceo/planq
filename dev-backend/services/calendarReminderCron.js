@@ -75,7 +75,7 @@ async function runCalendarReminderCron() {
           userIds: memberIds,
           businessId: ev.business_id,
           eventKind: 'event',
-          title: `곧 시작: ${ev.title}`,
+          titleSpec: { feature: 'calendar', action: 'calendar_soon', subject: ev.title },
           body: `${startLocal} (${ev.reminder_minutes}분 전 알림)${ev.location ? ` · ${ev.location}` : ''}`,
           link: `${appUrl}/calendar?event=${ev.id}`,
           ctaLabel: '일정 보기',

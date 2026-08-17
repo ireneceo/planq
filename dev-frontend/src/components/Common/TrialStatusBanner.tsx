@@ -8,7 +8,7 @@
 //   - canceled      → 잠금 안내 + 결제 복구 CTA (danger red)
 //
 // 클릭 → /business/settings/plan
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -23,6 +23,9 @@ interface PlanStatus {
   trial_ends_at: string | null;
   grace_ends_at: string | null;
   subscription_status: string | null;
+  // 결제 면제 (운영 #275). services/plan.ts 의 PlanStatus 와 같은 필드 — 이 컴포넌트가
+  // 로컬 타입을 따로 쓰므로 양쪽에 있어야 한다.
+  exempt?: boolean;
 }
 
 type Tone = 'info' | 'warn' | 'danger';
@@ -40,17 +43,34 @@ const TrialStatusBanner: React.FC<Props> = ({ businessId }) => {
   const { t } = useTranslation('common');
   const [status, setStatus] = useState<PlanStatus | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     if (!businessId) return;
-    let active = true;
     apiFetch(`/api/plan/${businessId}/status`)
       .then(r => r.json())
-      .then(j => { if (active && j?.success) setStatus(j.data); })
+      .then(j => { if (j?.success) setStatus(j.data); })
       .catch(() => {});
-    return () => { active = false; };
   }, [businessId]);
 
+  useEffect(() => { load(); }, [load]);
+
+  // ★ 결제·입금확인·면제 설정이 이 페이지를 열어둔 채 일어나면 mount 1회 조회로는 stale 이다.
+  //   그 상태로 두면 "면제 켰는데 잠금 배너가 그대로" 가 된다 — 고친 사실이 화면에 도달하지 못한다
+  //   (memory feedback_fixed_but_unreachable). WorkspaceBillingBanner 와 같은 패턴.
+  useEffect(() => {
+    const onFocus = () => load();
+    const onVis = () => { if (document.visibilityState === 'visible') load(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [load]);
+
   if (!status || !businessId) return null;
+
+  // 결제 면제 워크스페이스(내부·테스터)에는 체험/잠금/결제 안내를 띄우지 않는다 (운영 #275).
+  if (status.exempt) return null;
 
   // active 정상 사용 중 → 배너 미노출
   if (status.subscription_status === 'active' && !status.in_trial) return null;

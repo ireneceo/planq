@@ -1166,7 +1166,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
           && updates.assignee_id && updates.assignee_id !== req.user.id) {
         notify({
           userId: updates.assignee_id, businessId: task.business_id, eventKind: 'task',
-          title: '새 업무가 배정되었습니다', body: `"${task.title}"`,
+          titleSpec: { feature: 'task', action: 'task_assigned', subject: `"${task.title}"` }, body: `"${task.title}"`,
           link: taskLink, ctaLabel: '업무 보기', workspaceName: wsName,
         }).catch((e) => console.warn('[notify reassign]', e.message));
       }
@@ -1181,7 +1181,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
         if (targetId && targetId !== req.user.id) {
           notify({
             userId: targetId, businessId: task.business_id, eventKind: 'task',
-            title: '업무 마감일이 변경되었습니다',
+            titleSpec: { feature: 'task', action: 'task_due_changed', subject: `"${task.title}"` },
             body: `"${task.title}" — ${fmt(prev.due_date)} → ${fmt(updates.due_date)}`,
             link: taskLink, ctaLabel: '업무 보기', workspaceName: wsName,
           }).catch((e) => console.warn('[notify due_change]', e.message));
@@ -1196,7 +1196,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
           if (requesterId && requesterId !== req.user.id) {
             notify({
               userId: requesterId, businessId: task.business_id, eventKind: 'task',
-              title: '요청한 업무가 완료되었습니다', body: `"${task.title}"`,
+              titleSpec: { feature: 'task', action: 'task_completed', subject: `"${task.title}"` }, body: `"${task.title}"`,
               link: taskLink, ctaLabel: '결과 확인', workspaceName: wsName,
             }).catch((e) => console.warn('[notify completed]', e.message));
           }
@@ -1208,7 +1208,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
           });
           notifyMany({
             userIds: reviewers.map((r) => r.user_id), businessId: task.business_id, eventKind: 'task',
-            title: '업무 검토 요청', body: `"${task.title}" 검토를 요청받았습니다.`,
+            titleSpec: { feature: 'task', action: 'task_review_request', subject: `"${task.title}"` }, body: `"${task.title}" 검토를 요청받았습니다.`,
             link: taskLink, ctaLabel: '검토하기', workspaceName: wsName,
             excludeUserId: req.user.id,
           }).catch((e) => console.warn('[notify reviewing]', e.message));
@@ -1217,26 +1217,27 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
         if (newStatus === 'revision_requested' && task.assignee_id && task.assignee_id !== req.user.id) {
           notify({
             userId: task.assignee_id, businessId: task.business_id, eventKind: 'task',
-            title: '업무 수정 요청', body: `"${task.title}"` ,
+            titleSpec: { feature: 'task', action: 'task_revision', subject: `"${task.title}"` }, body: `"${task.title}"` ,
             link: taskLink, ctaLabel: '수정 시작', workspaceName: wsName,
           }).catch((e) => console.warn('[notify revision]', e.message));
         }
         // #206 보류 / 외부컨펌 / 해제 → 담당자 + 의뢰자 (§13. 드롭다운 경로도 알림이 나가야 한다)
-        const HOLD_TITLES = {
-          on_hold: '업무가 보류되었습니다',
-          external_review: '외부 컨펌 대기로 전환되었습니다',
+        // #281 — 제목은 문자열이 아니라 행위 코드로 넘긴다. 수신자 언어 해석은 notify() 가 한다.
+        const HOLD_ACTIONS = {
+          on_hold: 'task_hold',
+          external_review: 'task_external_review',
         };
-        const holdTitle = HOLD_TITLES[newStatus]
+        const holdAction = HOLD_ACTIONS[newStatus]
           || (['on_hold', 'external_review'].includes(prev.status)
-            ? (prev.status === 'external_review' ? '외부 컨펌이 끝났습니다' : '보류가 해제되었습니다')
+            ? (prev.status === 'external_review' ? 'task_external_review_done' : 'task_resumed')
             : null);
-        if (holdTitle) {
+        if (holdAction) {
           const audience = [...new Set(
             [task.assignee_id, task.request_by_user_id || task.created_by].filter(Boolean)
           )];
           notifyMany({
             userIds: audience, businessId: task.business_id, eventKind: 'task',
-            title: holdTitle,
+            titleSpec: { feature: 'task', action: holdAction, subject: `"${task.title}"` },
             body: task.hold_reason ? `"${task.title}" — ${task.hold_reason}` : `"${task.title}"`,
             link: taskLink, ctaLabel: '업무 보기', workspaceName: wsName,
             excludeUserId: req.user.id,

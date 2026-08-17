@@ -13,7 +13,22 @@ export interface AdminBusinessRow {
   grace_ends_at: string | null;
   scheduled_plan: PlanCode | null;
   member_count: number;
+  // 결제 면제 (운영 #275) — 내부 워크스페이스·테스터 고객
+  billing_exempt: boolean;
+  billing_exempt_kind: BillingExemptKind | null;
+  billing_exempt_plan: PlanCode | null;
+  billing_exempt_until: string | null;
   created_at: string;
+}
+
+export type BillingExemptKind = 'internal' | 'tester' | 'partner';
+
+export interface BillingExemptPayload {
+  exempt: boolean;
+  kind?: BillingExemptKind | null;
+  plan?: PlanCode | null;
+  until?: string | null;
+  note?: string | null;
 }
 
 export interface AdminUsage {
@@ -31,6 +46,8 @@ export interface AdminBusinessDetail extends AdminBusinessRow {
   timezone: string | null;
   effective_plan: PlanDef;
   usage: AdminUsage;
+  billing_exempt_note: string | null;
+  billing_exempt_set_at: string | null;
 }
 
 export interface AdminPlanHistoryItem {
@@ -87,6 +104,18 @@ export async function adminUpdateTrial(id: number, trial_ends_at: string | null)
   });
   const j = await r.json();
   if (!j.success) throw new Error(j.message || 'trial update failed');
+}
+
+// 결제 면제 설정 (운영 #275) — platform_admin 전용.
+// 면제 ON 시 서버가 구독 정상화 + 잔여 미결제 취소까지 한 트랜잭션으로 처리한다.
+export async function adminUpdateBillingExempt(id: number, payload: BillingExemptPayload): Promise<void> {
+  const r = await apiFetch(`/api/admin/businesses/${id}/billing-exempt`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'billing exemption update failed');
 }
 
 export async function fetchAdminPlanCatalog(): Promise<PlanDef[]> {

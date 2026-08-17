@@ -45,10 +45,26 @@ router.get('/overview', async (req, res, next) => {
     for (const r of planRows) by_plan[r.plan_code || 'unknown'] = Number(r.count);
 
     // 수익 — 이번 달 결제완료 합계 + 미수금(pending)
-    const [monthRev, pendingAmt] = await Promise.all([
-      Payment.sum('amount', { where: { status: 'paid', paid_at: { [Op.gte]: monthStart } } }),
-      Payment.sum('amount', { where: { status: 'pending' } }),
+    // ★ 내부·테스터 워크스페이스의 결제 테스트는 매출이 아니다 (운영 #275). 숨기지 않고 **분리**한다 —
+    //   금액이 통째로 사라지면 그것도 오정보라서 month_nonrevenue 로 같이 내려준다.
+    //   pending 은 확정 전이라 is_revenue 가 아직 default(1) 이다. 그래서 여기서는 면제 워크스페이스
+    //   자체를 제외한다 (Fable 재심 M4 — is_revenue 필터는 pending 에서 아무것도 거르지 못한다).
+    const exemptBizIds = (await Business.findAll({
+      attributes: ['id'], where: { billing_exempt: true }, raw: true,
+    })).map(b => b.id);
+    const [monthRev, monthNonRev, pendingAmt] = await Promise.all([
+      Payment.sum('amount', { where: { status: 'paid', is_revenue: true, paid_at: { [Op.gte]: monthStart } } }),
+      Payment.sum('amount', { where: { status: 'paid', is_revenue: false, paid_at: { [Op.gte]: monthStart } } }),
+      Payment.sum('amount', {
+        where: {
+          status: 'pending',
+          ...(exemptBizIds.length ? { business_id: { [Op.notIn]: exemptBizIds } } : {}),
+        },
+      }),
     ]);
+
+    // 면제 워크스페이스 수 — 활성 구독 KPI 가 유료처럼 보이지 않게 분리 노출
+    const exemptActive = exemptBizIds.length;
 
     // 가입 추이 — 최근 6개월 워크스페이스 생성 수
     const signups = [];
@@ -62,8 +78,12 @@ router.get('/overview', async (req, res, next) => {
     return successResponse(res, {
       businesses: { total: bizTotal, new_30d: bizNew },
       users: { total: userTotal, new_30d: userNew },
-      subscriptions: { ...subscriptions, by_plan },
-      revenue: { month_paid: Number(monthRev || 0), pending_amount: Number(pendingAmt || 0) },
+      subscriptions: { ...subscriptions, by_plan, exempt_active: exemptActive },
+      revenue: {
+        month_paid: Number(monthRev || 0),
+        month_nonrevenue: Number(monthNonRev || 0),
+        pending_amount: Number(pendingAmt || 0),
+      },
       signups,
     });
   } catch (err) { next(err); }
@@ -77,7 +97,8 @@ router.get('/businesses', async (req, res, next) => {
     const where = q ? { name: { [Op.like]: `%${q}%` } } : {};
     const items = await Business.findAll({
       where,
-      attributes: ['id', 'name', 'slug', 'plan', 'subscription_status', 'plan_expires_at', 'trial_ends_at', 'grace_ends_at', 'scheduled_plan', 'created_at'],
+      attributes: ['id', 'name', 'slug', 'plan', 'subscription_status', 'plan_expires_at', 'trial_ends_at', 'grace_ends_at', 'scheduled_plan', 'created_at',
+        'billing_exempt', 'billing_exempt_kind', 'billing_exempt_plan', 'billing_exempt_until'],
       order: [['id', 'ASC']]
     });
 
@@ -99,6 +120,11 @@ router.get('/businesses', async (req, res, next) => {
       grace_ends_at: b.grace_ends_at,
       scheduled_plan: b.scheduled_plan,
       member_count: memberMap.get(b.id) || 0,
+      // 결제 면제 (운영 #275) — 목록 뱃지용
+      billing_exempt: !!b.billing_exempt,
+      billing_exempt_kind: b.billing_exempt_kind,
+      billing_exempt_plan: b.billing_exempt_plan,
+      billing_exempt_until: b.billing_exempt_until,
       created_at: b.created_at,
     })));
   } catch (err) { next(err); }
@@ -129,6 +155,13 @@ router.get('/businesses/:id', async (req, res, next) => {
       scheduled_plan: biz.scheduled_plan,
       timezone: biz.timezone,
       created_at: biz.created_at,
+      // 결제 면제 (운영 #275)
+      billing_exempt: !!biz.billing_exempt,
+      billing_exempt_kind: biz.billing_exempt_kind,
+      billing_exempt_plan: biz.billing_exempt_plan,
+      billing_exempt_until: biz.billing_exempt_until,
+      billing_exempt_note: biz.billing_exempt_note,
+      billing_exempt_set_at: biz.billing_exempt_set_at,
       effective_plan: toPublicJson(plan.code),
       usage: {
         members: usage.members,
@@ -192,6 +225,108 @@ router.put('/businesses/:id/plan', async (req, res, next) => {
     });
 
     successResponse(res, { id, plan: to_plan }, 'Plan updated');
+  } catch (err) { next(err); }
+});
+
+// ─── 결제 면제 설정 (운영 #275) ───
+// PUT /api/admin/businesses/:id/billing-exempt
+// body: { exempt: bool, kind: 'internal'|'tester'|'partner', plan: <플랜코드|null>,
+//         until: ISO|null, note: string|null }
+//
+// 이 라우터는 파일 상단에서 authenticateToken + requireRole('platform_admin') 뒤에 마운트된다
+// → 워크스페이스 owner 가 스스로 면제를 켜는 경로는 없다(권한 상승 = 무료 사용 차단).
+//
+// ★ 면제 ON 시 cron 을 기다리지 않고 **즉시** 정상화한다. 안 그러면 "설정했는데 배너 그대로" 가 되어
+//   사용자는 고쳐진 사실에 도달하지 못한다 (memory feedback_fixed_but_unreachable).
+router.put('/businesses/:id/billing-exempt', async (req, res, next) => {
+  const { sequelize } = require('../config/database');
+  try {
+    const id = Number(req.params.id);
+    const { exempt, kind = null, plan = null, until = null, note = null } = req.body || {};
+
+    const biz = await Business.findByPk(id);
+    if (!biz) return errorResponse(res, 'Business not found', 404);
+
+    const on = !!exempt;
+    if (on) {
+      if (!['internal', 'tester', 'partner'].includes(kind)) {
+        return errorResponse(res, 'invalid_kind', 400);
+      }
+      // ★ 플랜 코드는 PLANS 키만 — ADDONS 코드(member, clients_10 …)가 섞이면 getPlan 이 깨진다.
+      if (plan !== null && plan !== '' && !Object.keys(PLANS).includes(plan)) {
+        return errorResponse(res, 'invalid_plan_code', 400);
+      }
+    }
+    const untilDate = until ? new Date(until) : null;
+    if (until && isNaN(untilDate.getTime())) return errorResponse(res, 'invalid_until', 400);
+
+    const oldValue = {
+      billing_exempt: !!biz.billing_exempt,
+      billing_exempt_kind: biz.billing_exempt_kind,
+      billing_exempt_plan: biz.billing_exempt_plan,
+      billing_exempt_until: biz.billing_exempt_until,
+      billing_exempt_note: biz.billing_exempt_note,
+    };
+
+    const t = await sequelize.transaction();
+    try {
+      await biz.update({
+        billing_exempt: on,
+        billing_exempt_kind: on ? kind : null,
+        billing_exempt_plan: on ? (plan || null) : null,
+        billing_exempt_until: on ? untilDate : null,
+        billing_exempt_note: on ? (note ? String(note).slice(0, 255) : null) : null,
+        billing_exempt_set_by: req.user.id,
+        billing_exempt_set_at: new Date(),
+      }, { transaction: t });
+
+      // ★ 캐시 무효화는 commit 뒤에만 한다 (아래). 커밋 전에 비우면 동시 요청이 미커밋(구) 값을
+      //   다시 캐시에 채워 넣는 창이 열린다. restoreExemptSubscription 은 isBillingExempt 를
+      //   부르지 않으므로 여기서 미리 비울 이유도 없다.
+      if (on) {
+        const billing = require('../services/billing');
+        // 구독·워크스페이스 상태 정상화 (단일 헬퍼 — cron 과 같은 것을 쓴다)
+        await billing.restoreExemptSubscription(id, { transaction: t });
+        // 잔여 미결제 청구 취소 — 면제인데 "결제하세요" 가 남아 있으면 안 된다.
+        await Payment.update(
+          { status: 'canceled', cancel_reason: 'billing_exempt' },
+          { where: { business_id: id, status: 'pending' }, transaction: t }
+        );
+      }
+
+      await t.commit();
+    } catch (e) {
+      await t.rollback();
+      throw e;
+    }
+    planEngine.invalidateBusinessCache(id);
+
+    const { AuditLog } = require('../models');
+    await AuditLog.create({
+      user_id: req.user.id,
+      business_id: id,
+      action: 'business.billing_exempt',
+      target_type: 'business',
+      target_id: id,
+      old_value: oldValue,
+      new_value: {
+        billing_exempt: on,
+        billing_exempt_kind: on ? kind : null,
+        billing_exempt_plan: on ? (plan || null) : null,
+        billing_exempt_until: on ? untilDate : null,
+        billing_exempt_note: on ? note : null,
+      },
+    }).catch(() => null);
+
+    await biz.reload();
+    return successResponse(res, {
+      id,
+      billing_exempt: !!biz.billing_exempt,
+      billing_exempt_kind: biz.billing_exempt_kind,
+      billing_exempt_plan: biz.billing_exempt_plan,
+      billing_exempt_until: biz.billing_exempt_until,
+      billing_exempt_note: biz.billing_exempt_note,
+    }, 'Billing exemption updated');
   } catch (err) { next(err); }
 });
 
@@ -724,6 +859,9 @@ router.get('/payments', async (req, res, next) => {
       paid_at: p.paid_at,
       refunded_at: p.refunded_at,
       refund_reason: p.refund_reason,
+      cancel_reason: p.cancel_reason,
+      // 매출 계상 여부 (운영 #275) — 행 단위로도 식별 가능해야 합계와 목록이 대조된다.
+      is_revenue: p.is_revenue !== false,
       created_at: p.created_at,
       // Day 8 — addon / 세금계산서 신규 필드
       kind: p.kind,
@@ -750,13 +888,19 @@ router.get('/payments/summary', async (req, res, next) => {
       out[c.status] = Number(c.count);
       out.total += Number(c.count);
     }
-    // 이번 달 수익 (paid 만)
+    // 비매출(내부·테스터) 결제 건수 — 위 status 카운트에 섞여 있으므로 따로 노출한다.
+    // 숨기지 않고 분리한다: admin 이 합계와 목록을 대조할 때 숫자가 안 맞아 보이면 안 된다.
+    out.nonrevenue_paid = Number(await Payment.count({ where: { status: 'paid', is_revenue: false } }));
+
+    // 이번 달 수익 (paid 중 실매출만) + 비매출 분리 (운영 #275)
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const monthRev = await Payment.sum('amount', {
-      where: { status: 'paid', paid_at: { [Op.gte]: monthStart } },
-    });
+    const [monthRev, monthNonRev] = await Promise.all([
+      Payment.sum('amount', { where: { status: 'paid', is_revenue: true, paid_at: { [Op.gte]: monthStart } } }),
+      Payment.sum('amount', { where: { status: 'paid', is_revenue: false, paid_at: { [Op.gte]: monthStart } } }),
+    ]);
     out.month_revenue = Number(monthRev || 0);
+    out.month_nonrevenue = Number(monthNonRev || 0);
     return successResponse(res, out);
   } catch (err) { next(err); }
 });

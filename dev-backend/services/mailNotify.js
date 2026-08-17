@@ -72,12 +72,42 @@ function seenRecently(userId, messageId, now) {
   return false;
 }
 
+// 운영 #278·#214 — **PlanQ 가 보낸 알림 메일이 되돌아와 다시 알림이 되던 루프**를 끊는다.
+//
+//   증상: "확인 권장 — PlanQ" 라는 알림이 업무 알림과 나란히 도착. 사용자는 같은 사건에 대한
+//   알림을 2개로 겪는다. 실제로 운영 notifications 에 이 제목이 계속 쌓이고 있었다.
+//   기전: 알림 메일이 사용자의 **연결된 메일함**으로 들어오고, emailTriage 가 플랫폼 발신 메일을
+//   일부러 '확인 권장'(uncertain)으로 올린다. 그런데 알림 계층엔 발신자 차단이 없었다.
+//   (기존 루프 가드는 email 채널만 막아서 인앱·푸시로 그대로 샜다.)
+//
+//   ★ 주소만 보고 막으면 안 된다 — SMTP_FROM 은 noreply 가 아니라 **사람이 쓰는 지원 사서함**
+//     (help@irenewp.com)이다. 그 주소에서 사람이 보낸 진짜 메일의 알림까지 삼키면 더 나쁘다.
+//     그래서 `주소 정확일치 AND 자동발송 판정(triage='automated')` 이중 조건으로 가른다.
+//     사람이 보낸 메일엔 Auto-Submitted 헤더가 없어 triage 가 automated 로 안 떨어진다.
+//   ★ 도메인 서픽스 매치(isFromOurPlatform)를 재사용하면 안 된다 — irene@irenewp.com 같은
+//     같은 도메인의 사람 주소까지 전부 잡힌다.
+//   ★ 메일 자체는 막지 않는다. **그 메일에 대한 알림만** 만들지 않는다
+//     (알림을 지운 사용자가 메일함에서 다시 찾을 수 있어야 한다).
+function isSelfSentPlatformMail(fromEmail, triage) {
+  const platformFrom = String(process.env.SMTP_FROM || '').trim().toLowerCase();
+  if (!platformFrom) return false;
+  const from = String(fromEmail || '').trim().toLowerCase();
+  return from === platformFrom && triage === 'automated';
+}
+
 async function notifyInboundMail({ account, thread, fromName, fromEmail, subject, messageId, fields = {}, ioApp }) {
   if (!account || !thread) return { sent: 0, reason: 'no_target' };
 
   const replyNeeded = fields.reply_needed !== undefined ? !!fields.reply_needed : !!thread.reply_needed;
   const status = fields.status || thread.status;
   const triage = fields.triage || thread.triage;
+
+  // #278·#214 — 우리가 보낸 알림 메일이면 알림을 만들지 않는다 (자기수신 루프 차단).
+  //   scope='all' 계정도 여기서 걸린다 — 아래 allowedByScope 보다 **먼저** 판정한다.
+  if (isSelfSentPlatformMail(fromEmail, triage)) {
+    return { sent: 0, reason: 'self_sent_platform_mail' };
+  }
+
   const kind = classify({ replyNeeded, status, triage });
   const scope = account.notify_scope || 'recommended';
   if (!allowedByScope(kind, scope)) return { sent: 0, reason: `scope_${scope}_skip_${kind}` };
@@ -105,9 +135,9 @@ async function notifyInboundMail({ account, thread, fromName, fromEmail, subject
 
   const sender = fromName || (fromEmail || '').split('@')[0] || 'unknown';
   const subj = String(subject || '(제목 없음)').slice(0, 120);
-  const title = kind === 'reply'
-    ? `답변 필요 — ${sender}`
-    : `확인 권장 — ${sender}`;
+  // #281 — 제목 첫 토큰이 기능명이어야 "채팅인지 메일인지" 가 바로 읽힌다.
+  //   제목은 수신자별 언어로 만들어야 하므로 아래 루프 안에서 buildTitle 을 호출한다.
+  const titleAction = kind === 'reply' ? 'mail_reply_needed' : 'mail_review';
   const body = subj;                                     // 제목까지만 (본문 미포함)
   const link = `/mail?thread=${thread.id}`;
 
@@ -136,6 +166,14 @@ async function notifyInboundMail({ account, thread, fromName, fromEmail, subject
       } catch { skipChannels.push('email'); }
     }
     try {
+      // #281 — 제목은 **수신자 언어로 발송 시점에** 만든다.
+      //   notifications.title 은 DB 에 문자열로 박제되고 push payload 로 그대로 나가므로
+      //   프론트 t() 로는 번역할 수 없다 (Fable 게이트 치명-3).
+      const { buildTitle, recipientLang } = require('./notifyTitle');
+      const title = buildTitle({
+        feature: 'mail', action: titleAction, subject: sender,
+        lang: await recipientLang(uid),
+      });
       await notify({
         userId: uid,
         businessId: account.business_id,

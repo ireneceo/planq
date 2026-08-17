@@ -713,7 +713,7 @@ router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope
       if (mentioned.length > 0) {
         notifyMany({
           userIds: mentioned, businessId: Number(req.params.businessId), eventKind: 'mention',
-          title: `${senderName} 님이 ${convTitle} 에서 언급`,
+          titleSpec: { feature: 'chat', action: 'chat_mention', subject: convTitle },
           body: previewBody, link, ctaLabel: '대화 보기', workspaceName: wsName,
           tag: `conv:${conversation.id}`,
           // N+93 — entity 전달: 토스터가 contextKey 'conv:X' 로 활성방 스킵 (#8a). 옛 코드는 entity 누락 → 보고있는 방에도 토스터.
@@ -723,7 +723,7 @@ router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope
       if (messageRecipients.length > 0) {
         notifyMany({
           userIds: messageRecipients, businessId: Number(req.params.businessId), eventKind: 'message',
-          title: `${senderName} · ${convTitle}`,
+          titleSpec: { feature: 'chat', action: 'chat_message', subject: `${senderName} · ${convTitle}` },
           body: previewBody, link, ctaLabel: '대화 보기', workspaceName: wsName,
           tag: `conv:${conversation.id}`,
           entityType: 'conversation', entityId: conversation.id,
