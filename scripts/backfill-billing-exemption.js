@@ -15,8 +15,18 @@
 //
 // 설계: docs/BILLING_EXEMPTION_DESIGN.md
 // node_modules 와 .env 는 백엔드 쪽에 있다 — scripts/migrate-qrecord-to-post.js 와 같은 패턴.
+// ★ 백엔드 디렉터리 이름이 dev(=dev-backend)와 운영(=backend)에서 다르다. 운영에서 돌려야 하는
+//   스크립트이므로 둘 다 찾는다 — 하드코딩하면 운영에서 MODULE_NOT_FOUND 로 죽는다.
 const path = require('path');
-const BE = path.join(__dirname, '..', 'dev-backend');
+const fs = require('fs');
+const BE = ['dev-backend', 'backend']
+  .map((d) => path.join(__dirname, '..', d))
+  .find((p) => fs.existsSync(path.join(p, 'models')));
+if (!BE) {
+  console.error('ERR 백엔드 디렉터리를 찾지 못했습니다 (../dev-backend 또는 ../backend)');
+  process.exit(1);
+}
+console.log(`(backend: ${BE})`);
 process.chdir(BE);
 require(path.join(BE, 'node_modules', 'dotenv')).config();
 

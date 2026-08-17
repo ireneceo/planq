@@ -1,6 +1,6 @@
 {
   "_comment": "래칫 베이스라인 — guard-invariants.js --update-baseline 으로만 갱신. 수동 편집 금지.",
-  "_updated": "2026-08-12",
+  "_updated": "2026-08-17",
   "i18n": {
     "dev-frontend/src/components/Common/CalendarPicker.tsx": 1,
     "dev-frontend/src/components/Common/CueHelpDrawer.tsx": 1,
@@ -71,7 +71,7 @@
   },
   "parity_keys": {},
   "tenant": {
-    "dev-backend/routes/admin.js": 5,
+    "dev-backend/routes/admin.js": 2,
     "dev-backend/routes/auth.js": 1,
     "dev-backend/routes/businesses.js": 2,
     "dev-backend/routes/feedback.js": 2,
@@ -79,7 +79,8 @@
     "dev-backend/routes/project_process.js": 2,
     "dev-backend/routes/projects.js": 13,
     "dev-backend/routes/push.js": 2,
-    "dev-backend/routes/task_attachments.js": 1
+    "dev-backend/routes/task_attachments.js": 1,
+    "dev-backend/routes/admin_billing.js": 1
   },
   "pagination": {
     "dev-backend/routes/account_deletion.js": 1,
@@ -102,7 +103,7 @@
     "dev-backend/routes/users.js": 1
   },
   "godfile": {
-    "dev-backend/routes/admin.js": 1006,
+    "dev-backend/routes/admin.js": 784,
     "dev-backend/routes/auth.js": 1029,
     "dev-backend/routes/businesses.js": 1527,
     "dev-backend/routes/calendar.js": 1235,

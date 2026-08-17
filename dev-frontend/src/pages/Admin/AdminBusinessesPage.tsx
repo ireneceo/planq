@@ -8,6 +8,8 @@ import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import PageShell from '../../components/Layout/PageShell';
 import SearchBox from '../../components/Common/SearchBox';
 import DetailDrawer from '../../components/Common/DetailDrawer';
@@ -148,12 +150,33 @@ export default function AdminBusinessesPage() {
   const closeDrawer = () => {
     params.delete('workspace');
     setParams(params, { replace: true });
+    // ★ 드로어 안에서 열린 모달의 open 상태를 같이 내린다.
+    //   안 내리면 사용자가 모달을 못 닫은 채 드로어를 닫았을 때(뒤에 깔려 버튼이 안 눌리는 등)
+    //   다음에 드로어를 열 때마다 그 모달이 계속 따라 뜬다 — 실제 운영 신고.
+    setPlanModal(p => (p.open ? { ...p, open: false } : p));
+    setTrialModal(t => (t.open ? { ...t, open: false } : t));
+    setExemptOpen(false);
+    // ★ 날짜 픽커 open state 도 같이 내린다 (Fable M3).
+    //   모달만 닫고 픽커 state 를 남기면, 다음에 모달을 열 때 픽커가 **저절로 펼쳐진 채** 뜬다.
+    setPlanExpiresPickerOpen(false);
+    setTrialDatePickerOpen(false);
   };
+
+  // 모달을 닫는 모든 경로(취소·Esc·백드롭·저장 성공)에서 픽커도 같이 닫는다.
+  const closePlanModal = () => { setPlanModal(p => ({ ...p, open: false })); setPlanExpiresPickerOpen(false); };
+  const closeTrialModal = () => { setTrialModal(t => ({ ...t, open: false })); setTrialDatePickerOpen(false); };
 
   // DetailDrawer 내부가 Esc 스택을 처리하므로 별도 훅 불필요.
   // 모달 Esc 는 아래에서 스택에 등록 — 최상단(모달)이 먼저 닫힘.
-  useEscapeStack(planModal.open, () => setPlanModal(p => ({ ...p, open: false })));
-  useEscapeStack(trialModal.open, () => setTrialModal(t => ({ ...t, open: false })));
+  // CLAUDE.md 모달 3훅 — 드로어 위에 열리므로 trap 이 없으면 Shift+Tab 이 드로어로 새어나간다
+  // (Fable M4 실측: 모달 안에서 Shift+Tab → 드로어의 '면제 설정' 버튼으로 포커스 탈취).
+  const planDialogRef = useRef<HTMLDivElement>(null);
+  const trialDialogRef = useRef<HTMLDivElement>(null);
+  useBodyScrollLock(planModal.open || trialModal.open);
+  useFocusTrap(planDialogRef, planModal.open);
+  useFocusTrap(trialDialogRef, trialModal.open);
+  useEscapeStack(planModal.open, closePlanModal);
+  useEscapeStack(trialModal.open, closeTrialModal);
 
   const filtered = useMemo(() => rows, [rows]);
 
@@ -187,6 +210,7 @@ export default function AdminBusinessesPage() {
         plan_expires_at: planModal.expires ? planModal.expires : null,
       });
       setPlanModal({ open: false, toPlan: 'free', note: '', expires: '', submitting: false, error: null });
+      setPlanExpiresPickerOpen(false);
       await loadList();
       await loadDetail(detail.id);
     } catch (e) {
@@ -206,6 +230,7 @@ export default function AdminBusinessesPage() {
     try {
       await adminUpdateTrial(detail.id, clear ? null : (trialModal.date || null));
       setTrialModal({ open: false, date: '', submitting: false, error: null });
+      setTrialDatePickerOpen(false);
       await loadList();
       await loadDetail(detail.id);
     } catch (e) {
@@ -291,7 +316,7 @@ export default function AdminBusinessesPage() {
               <Section>
                 <SectionHead>
                   <SectionTitle>{t('detail.planSection')}</SectionTitle>
-                  <SecondaryBtn type="button" onClick={openPlanModal}>{t('actions.changePlan')}</SecondaryBtn>
+                  <SecondaryBtn type="button" data-testid="admin-biz-change-plan" onClick={openPlanModal}>{t('actions.changePlan')}</SecondaryBtn>
                 </SectionHead>
                 <KV>
                   <KLabel>{t('detail.plan')}</KLabel>
@@ -324,7 +349,7 @@ export default function AdminBusinessesPage() {
               <Section>
                 <SectionHead>
                   <SectionTitle>{t('detail.trialSection')}</SectionTitle>
-                  <SecondaryBtn type="button" onClick={openTrialModal}>{t('actions.extendTrial')}</SecondaryBtn>
+                  <SecondaryBtn type="button" data-testid="admin-biz-extend-trial" onClick={openTrialModal}>{t('actions.extendTrial')}</SecondaryBtn>
                 </SectionHead>
                 <KV>
                   <KLabel>{t('detail.trialEndsAt')}</KLabel>
@@ -336,7 +361,7 @@ export default function AdminBusinessesPage() {
               <Section>
                 <SectionHead>
                   <SectionTitle>{t('detail.exemptSection', '결제 면제')}</SectionTitle>
-                  <SecondaryBtn type="button" onClick={() => setExemptOpen(true)}>{t('actions.setExempt', '면제 설정')}</SecondaryBtn>
+                  <SecondaryBtn type="button" data-testid="admin-biz-set-exempt" onClick={() => setExemptOpen(true)}>{t('actions.setExempt', '면제 설정')}</SecondaryBtn>
                 </SectionHead>
                 <KV>
                   <KLabel>{t('detail.exemptStatus', '상태')}</KLabel>
@@ -455,8 +480,8 @@ export default function AdminBusinessesPage() {
 
       {/* 플랜 변경 모달 */}
       {planModal.open && detail && (
-        <ModalOverlay onMouseDown={e => { if (e.target === e.currentTarget) setPlanModal(p => ({ ...p, open: false })); }}>
-          <Dialog role="dialog" aria-modal="true" aria-label={t('modal.changePlan.title') as string}>
+        <ModalOverlay onMouseDown={e => { if (e.target === e.currentTarget) closePlanModal(); }}>
+          <Dialog ref={planDialogRef} role="dialog" aria-modal="true" aria-label={t('modal.changePlan.title') as string}>
             <DTitle>{t('modal.changePlan.title')}</DTitle>
             <DBody>
               <DDesc>{t('modal.changePlan.desc')}</DDesc>
@@ -517,7 +542,7 @@ export default function AdminBusinessesPage() {
               {planModal.error && <DError>{planModal.error}</DError>}
             </DBody>
             <DFooter>
-              <SecondaryBtn type="button" disabled={planModal.submitting} onClick={() => setPlanModal(p => ({ ...p, open: false }))}>
+              <SecondaryBtn type="button" disabled={planModal.submitting} onClick={closePlanModal}>
                 {t('actions.cancel')}
               </SecondaryBtn>
               <PrimaryBtn type="button" disabled={planModal.submitting} onClick={submitPlan}>
@@ -530,8 +555,8 @@ export default function AdminBusinessesPage() {
 
       {/* 체험 모달 */}
       {trialModal.open && detail && (
-        <ModalOverlay onMouseDown={e => { if (e.target === e.currentTarget) setTrialModal(p => ({ ...p, open: false })); }}>
-          <Dialog role="dialog" aria-modal="true" aria-label={t('modal.trial.title') as string}>
+        <ModalOverlay onMouseDown={e => { if (e.target === e.currentTarget) closeTrialModal(); }}>
+          <Dialog ref={trialDialogRef} role="dialog" aria-modal="true" aria-label={t('modal.trial.title') as string}>
             <DTitle>{t('modal.trial.title')}</DTitle>
             <DBody>
               <DDesc>{t('modal.trial.desc')}</DDesc>
@@ -563,7 +588,7 @@ export default function AdminBusinessesPage() {
                 {t('modal.trial.clearDate')}
               </DangerBtn>
               <FSpacer />
-              <SecondaryBtn type="button" disabled={trialModal.submitting} onClick={() => setTrialModal(tt => ({ ...tt, open: false }))}>
+              <SecondaryBtn type="button" disabled={trialModal.submitting} onClick={closeTrialModal}>
                 {t('actions.cancel')}
               </SecondaryBtn>
               <PrimaryBtn type="button" disabled={trialModal.submitting || !trialModal.date} onClick={() => submitTrial(false)}>

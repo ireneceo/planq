@@ -27,7 +27,12 @@ interface PendingPayment {
 
 interface SubscriptionRow {
   id: number;
-  business: { id: number; name: string; slug: string; plan: string; subscription_status: string | null } | null;
+  business: {
+    id: number; name: string; slug: string; plan: string; subscription_status: string | null;
+    // 결제 면제 (운영 #275) — 면제 워크스페이스의 옛 강등/연체 행이 현재 상태처럼 보이면 안 된다.
+    billing_exempt?: boolean;
+    billing_exempt_kind?: 'internal' | 'tester' | 'partner' | null;
+  } | null;
   plan_code: string;
   cycle: 'monthly' | 'yearly';
   status: 'pending' | 'active' | 'past_due' | 'grace' | 'demoted' | 'canceled' | 'replaced';
@@ -46,6 +51,8 @@ interface SubscriptionRow {
 
 interface Summary {
   active: number; pending: number; past_due: number; grace: number; demoted: number; canceled: number; total: number;
+  // 면제 워크스페이스의 구독 — 연체/유예/강등 집계에서 빠지고 여기로 모인다.
+  exempt?: number;
 }
 
 const STATUS_TABS: SubStatus[] = ['all', 'active', 'pending', 'past_due', 'grace', 'demoted'];
@@ -145,6 +152,14 @@ const AdminSubscriptionsPage = () => {
       actions={<SearchBox value={search} onChange={setSearch} placeholder={t('subs.searchPh', '워크스페이스명 검색') as string} />}
     >
       <Wrap>
+        {/* 면제 워크스페이스 안내 — 탭 카운트에서 빠진 이유를 화면에서 알 수 있어야 한다.
+            숫자를 조용히 빼면 "왜 숫자가 안 맞지" 가 된다 (숨기지 않고 분리한다). */}
+        {!!summary?.exempt && (
+          <ExemptNotice role="status">
+            {t('subs.exemptNotice', '결제 면제 워크스페이스 {{n}}건은 연체·유예·강등 집계에서 제외했습니다. 면제 설정은 워크스페이스 관리에서 변경합니다.', { n: summary.exempt })}
+          </ExemptNotice>
+        )}
+
         <TabBar role="tablist">
           {STATUS_TABS.map((s) => {
             const tabLabels: Record<SubStatus, string> = {
@@ -175,13 +190,24 @@ const AdminSubscriptionsPage = () => {
             {items.map((s) => {
               const c = statusColor(s.status);
               const notified = !!s.pending_payment?.notify_paid_at;
+              const exempt = !!s.business?.billing_exempt;
               return (
                 <Row key={s.id} $notified={notified}>
                   <RowLeft>
                     <BizName>{s.business?.name || `(workspace ${s.business?.id})`}</BizName>
                     <RowMeta>
                       <PlanBadge>{s.plan_code} · {s.cycle === 'monthly' ? t('subs.monthly', '월간') : t('subs.yearly', '연간')}</PlanBadge>
-                      <StatusBadge $bg={c.bg} $fg={c.fg}>{statusLabel(s.status)}</StatusBadge>
+                      {/* 면제 워크스페이스는 옛 상태 라벨(강등/연체)이 **현재 사실이 아니다**.
+                          라벨은 이력이라 지우지 않고 흐리게 두되, 면제 뱃지를 앞에 세워
+                          "지금은 면제 중" 이 먼저 읽히게 한다 (운영 신고: "왜 이거 강등으로 나와?"). */}
+                      {exempt && (
+                        <ExemptBadge>
+                          {t(`exemptKind.${s.business?.billing_exempt_kind || 'internal'}`)} · {t('subs.exempt', '면제')}
+                        </ExemptBadge>
+                      )}
+                      <StatusBadge $bg={c.bg} $fg={c.fg} $muted={exempt}>
+                        {statusLabel(s.status)}{exempt ? ` (${t('subs.pastRecord', '지난 기록')})` : ''}
+                      </StatusBadge>
                       <Price>{s.currency} {fmtKRW(s.price)}</Price>
                       {notified && <NotifyBadge>{t('subs.notified', '입금 통보')}</NotifyBadge>}
                     </RowMeta>
@@ -204,7 +230,9 @@ const AdminSubscriptionsPage = () => {
                         {t('subs.markPaid', '입금 확인')}
                       </PrimaryBtn>
                     )}
-                    {(s.status === 'active' || s.status === 'past_due' || s.status === 'grace') && (
+                    {/* 면제 중에는 강등 버튼을 숨긴다 — 누르면 면제와 모순되는 상태가 된다.
+                        해제하려면 워크스페이스 관리에서 면제를 먼저 끄는 것이 정합이다. */}
+                    {!exempt && (s.status === 'active' || s.status === 'past_due' || s.status === 'grace') && (
                       <DangerBtn type="button" disabled={busyId === s.id}
                         onClick={() => setConfirm({ kind: 'demote', sub: s })}>
                         {t('subs.demote', '강등')}
@@ -288,9 +316,10 @@ const PlanBadge = styled.span`
   padding: 2px 8px; font-size: 11px; font-weight: 600;
   background: #F0FDFA; color: #0F766E; border-radius: 4px;
 `;
-const StatusBadge = styled.span<{ $bg: string; $fg: string }>`
+const StatusBadge = styled.span<{ $bg: string; $fg: string ; $muted?: boolean }>`
   padding: 2px 8px; font-size: 11px; font-weight: 700;
   background: ${p => p.$bg}; color: ${p => p.$fg}; border-radius: 4px;
+  opacity: ${p => (p.$muted ? 0.45 : 1)};
 `;
 const Price = styled.span`font-size: 12px; color: #64748B; font-weight: 500;`;
 const RowDates = styled.div`
@@ -319,4 +348,18 @@ const Skeleton = styled.div`
   border-radius: 10px;
   animation: shimmer 1.5s infinite;
   @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+`;
+
+// 결제 면제 뱃지 — adminModalKit 과 같은 규격(teal). 상태 뱃지보다 앞에 선다.
+const ExemptBadge = styled.span`
+  display:inline-flex;align-items:center;
+  padding:2px 8px;border-radius:999px;
+  background:#F0FDFA;color:#0F766E;border:1px solid #5EEAD4;
+  font-size:11px;font-weight:700;letter-spacing:-0.1px;white-space:nowrap;
+`;
+
+const ExemptNotice = styled.div`
+  padding: 10px 14px; border-radius: 10px;
+  background: #F0FDFA; border: 1px solid #5EEAD4; color: #0F766E;
+  font-size: 12px; font-weight: 600; line-height: 1.5;
 `;

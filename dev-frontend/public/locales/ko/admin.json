@@ -165,7 +165,10 @@
     },
     "notified": "입금 통보",
     "notifiedAt": "입금 통보",
-    "payer": "입금자"
+    "payer": "입금자",
+    "exempt": "면제",
+    "pastRecord": "지난 기록",
+    "exemptNotice": "결제 면제 워크스페이스 {{n}}건은 연체·유예·강등 집계에서 제외했습니다. 면제 설정은 워크스페이스 관리에서 변경합니다."
   },
   "platform": {
     "title": "플랫폼 설정",
