@@ -107,6 +107,10 @@ const CueHelpDrawer: React.FC<{
   const dockManaged = !!user?.business_id && ['owner', 'admin', 'member'].includes(user.business_role || '');
   const [open, setOpen] = useState(standalone); // standalone(/help-popout)은 항상 열림으로 시작
   const [mode, setMode] = useState<Mode>('workspace'); // N+93 — 첫 탭(워크스페이스 안내)이 디폴트 (Irene)
+  // #293 — 피드백에서 "안내로 돌아가기" 는 **왔던 탭**으로 돌아가야 한다.
+  //   여태 무조건 qhelper(Q위키) 로 보내서, Cue 에서 들어간 사용자는 "Q위키로 갔는데
+  //   화면엔 아까 Cue 에게 물어본 대화가 남아있는" 상태를 봤다(대화는 정상, 탭이 틀렸던 것).
+  const [preFeedbackMode, setPreFeedbackMode] = useState<Mode>('workspace');
   const [input, setInput] = useState('');
   const [turns, setTurns] = useState<Turn[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -296,6 +300,8 @@ const CueHelpDrawer: React.FC<{
     const turn: Turn = { q, a: '', loading: true };
     setTurns(prev => [...prev.slice(-4), turn]); // 최근 5턴 유지
     setInput('');
+    // #296 — 전송 후 auto-grow 로 늘어난 높이를 1줄로 되돌린다 (안 하면 빈 입력창이 계속 두껍게 남는다).
+    if (inputRef.current) inputRef.current.style.height = '';
     try {
       // 게스트는 auth 없는 public 라우트 (마케팅 비용 — 워크스페이스 사용량 미차감)
       // 로그인 사용자는 apiFetch (토큰 자동 추가 + 401 시 refresh)
@@ -532,13 +538,13 @@ const CueHelpDrawer: React.FC<{
           <HeaderActions>
             {/* N+93 — 피드백 보내기는 상단 빨간 버튼으로 유지 (Irene). 탭은 3개(워크스페이스/PlanQ안내/문의). */}
             {!guestView && mode !== 'feedback' && (
-              <FeedbackEnter type="button" onClick={() => setMode('feedback')}>
+              <FeedbackEnter type="button" onClick={() => { setPreFeedbackMode(mode); setMode('feedback'); }}>
                 {t('qhelper.openFeedbackBtn', '피드백 보내기')}
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
               </FeedbackEnter>
             )}
             {!guestView && mode === 'feedback' && (
-              <BackToGuide type="button" onClick={() => setMode('qhelper')}>
+              <BackToGuide type="button" onClick={() => setMode(preFeedbackMode === 'feedback' ? 'qhelper' : preFeedbackMode)}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
                 {t('qhelper.backToGuide', '안내로 돌아가기')}
               </BackToGuide>
@@ -582,6 +588,21 @@ const CueHelpDrawer: React.FC<{
               {tw('drawer.tabInquiry')}
             </ModeBtn>
           </ModeSwitch>
+        )}
+        {/* #295 — 탭 이름만으로는 Cue(내 워크스페이스) 와 Q위키(PlanQ 사용법) 를 구분하기 어렵다.
+            지금 선택된 탭이 **무엇을 다루는지** 한 줄로 상시 표시한다.
+            (tabCueSub/tabWikiSub 는 ko/en 양쪽에 이미 있었는데 어디서도 안 쓰이고 있었다) */}
+        {mode !== 'feedback' && (
+          <ModeHint>
+            <ModeDot $variant={mode === 'workspace' ? 'cue' : mode === 'inquiry' ? 'inquiry' : 'wiki'} />
+            <span>
+              {mode === 'workspace'
+                ? tw('drawer.tabCueSub')
+                : mode === 'inquiry'
+                  ? tw('drawer.tabInquirySub')
+                  : tw('drawer.tabWikiSub')}
+            </span>
+          </ModeHint>
         )}
         {mode === 'qhelper' && turns.length === 0 && (
           <WikiPanel>
@@ -901,7 +922,14 @@ const CueHelpDrawer: React.FC<{
                   : guestView
                     ? t('qhelper.guestInputPh', 'PlanQ 에 대해 무엇이든 물어보세요 (Enter 로 보내기)') as string
                     : t('qhelper.inputPh', '질문을 입력하세요 (Enter 로 보내기, Shift+Enter 줄바꿈)') as string}
-                onChange={e => setInput(e.target.value)}
+                onChange={e => {
+                  setInput(e.target.value);
+                  // #296 — 1줄로 시작해 내용만큼만 늘어난다. 고정 2줄이면 Q위키 팝업처럼
+                  //   세로가 빠듯한 화면에서 입력창이 아래에 두껍게 붙어 답답해 보인다.
+                  const el = e.currentTarget;
+                  el.style.height = 'auto';
+                  el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+                }}
                 onKeyDown={e => {
                   // Q Talk 과 동일한 입력 동작: Enter 전송 / Shift+Enter 줄바꿈.
                   // IME 한글 조합 중 Enter 는 조합 확정이므로 전송 안 함 (isComposing / keyCode 229 가드).
@@ -911,7 +939,7 @@ const CueHelpDrawer: React.FC<{
                     submit();
                   }
                 }}
-                rows={2}
+                rows={1}
               />
               <SendBtn type="button" onClick={submit} disabled={submitting || !input.trim()}
                 title={t('qhelper.send', '보내기') as string} aria-label={t('qhelper.send', '보내기') as string}>
@@ -1166,6 +1194,14 @@ const ModeBtn = styled.button<{ $active: boolean; $variant: 'qhelper' | 'workspa
   ${p => p.$active && p.$variant === 'workspace' && 'background: #FFFFFF; color: #9F1239; border-color: #F43F5E;'}
   ${p => !p.$active && 'background: transparent; color: #64748B;'}
   &:hover { background: ${p => p.$active ? '#FFFFFF' : '#FFFFFF99'}; }
+`;
+// #295 — 선택된 탭이 무엇을 다루는지 알려주는 한 줄. 탭 바로 아래, 본문 위.
+const ModeHint = styled.div`
+  flex-shrink: 0;
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 14px 8px;
+  font-size: 11.5px; font-weight: 500; color: #64748B;
+  line-height: 1.3;
 `;
 const DOT_COLOR: Record<string, string> = { cue: '#F43F5E', wiki: '#14B8A6', inquiry: '#94A3B8' };
 const ModeDot = styled.span<{ $variant: 'cue' | 'wiki' | 'inquiry' }>`
