@@ -42,4 +42,15 @@ async function exemptBusinessIds() {
   return rows.map((b) => b.id);
 }
 
-module.exports = { isExemptNow, exemptWhere, exemptBusinessIds };
+/**
+ * 살아있는(soft-delete 안 된) 워크스페이스 id 배열.
+ * 목록은 `required: true` + `where deleted_at` 로 거르는데 집계는 조인이 없으므로,
+ * 같은 기준을 여기서 한 벌로 제공한다 — 목록과 숫자가 어긋나면 화면이 거짓말한다.
+ */
+async function liveBusinessIds() {
+  const { Business } = require('../models');
+  const rows = await Business.findAll({ attributes: ['id'], where: { deleted_at: null }, raw: true });
+  return rows.map((b) => b.id);
+}
+
+module.exports = { isExemptNow, exemptWhere, exemptBusinessIds, liveBusinessIds };

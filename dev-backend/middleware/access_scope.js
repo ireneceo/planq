@@ -43,9 +43,21 @@ async function getUserScope(userId, businessId, platformRole) {
   }
   if (!userId || !businessId) return scope;
 
-  // 1) BusinessMember
+  // ★ soft-delete 된 워크스페이스는 **여기서** 전부 차단한다 (Fable 치명-4).
+  //   attachWorkspaceScope 미들웨어에만 게이트를 두었더니, 그걸 안 거치고
+  //   getUserScope/assertMemberOrAbove 만 쓰는 라우트(records·weekly-reviews·search·posts·
+  //   docs·org·insights 등 40여 개)가 삭제된 워크스페이스를 **읽고 쓸 수 있었다**
+  //   (실측: work-hours PATCH 200 쓰기 성공). 권한 판정의 뿌리에서 막아야 전 경로가 닫힌다.
+  //   platform_admin 은 위에서 이미 반환됐다 — 복구·감사 목적으로 통과(설계 유지).
+  const bizAlive = await Business.findOne({
+    where: { id: businessId, deleted_at: null },
+    attributes: ['id'],
+  });
+  if (!bizAlive) return scope;   // 모든 권한 false → 호출부가 403/404 로 거절
+
+  // 1) BusinessMember — 해제된 멤버십(removed_at)은 권한이 없다.
   const bm = await BusinessMember.findOne({
-    where: { user_id: userId, business_id: businessId },
+    where: { user_id: userId, business_id: businessId, removed_at: null },
     attributes: ['role'],
   });
   if (bm) {

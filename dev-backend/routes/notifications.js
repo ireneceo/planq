@@ -104,6 +104,16 @@ router.isAllowed = isAllowed;
 //   titleSpec 없이 title 만 주는 옛 호출부는 그대로 동작한다(점진 전환).
 async function notify({ userId, businessId, eventKind, title, titleSpec, body, link, ctaLabel, workspaceName, tag, actorUserId, entityType, entityId, ioApp, skipChannels }) {
   if (!userId || !eventKind) return { inbox: false, email: false, push: false };
+  // ★ 삭제된 워크스페이스로는 아무것도 발송하지 않는다 (Fable 중요 — 중앙 fan-out 무검사).
+  //   여기 한 곳이 알림·메일·푸시의 공통 착지점이라, 여기서 막으면 발송 계열이 전부 닫힌다.
+  //   businessId 가 없는 플랫폼 알림(가입·문의 등)은 대상이 아니므로 통과.
+  if (businessId) {
+    try {
+      const { Business } = require('../models');
+      const alive = await Business.findOne({ where: { id: businessId, deleted_at: null }, attributes: ['id'] });
+      if (!alive) return { inbox: false, email: false, push: false, skipped: 'workspace_deleted' };
+    } catch (e) { console.warn('[notify workspace check]', e.message); }
+  }
   const results = { inbox: false, email: false, push: false };
   if (titleSpec && titleSpec.feature && titleSpec.action) {
     try {

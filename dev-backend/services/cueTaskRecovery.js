@@ -18,7 +18,7 @@ async function runCueTaskRecovery(opts = {}) {
 
   const [rows] = await sequelize.query(`
     SELECT t.id
-    FROM tasks t JOIN businesses b ON b.id = t.business_id
+    FROM tasks t JOIN businesses b ON b.id = t.business_id AND b.deleted_at IS NULL
     WHERE t.assignee_id = b.cue_user_id
       AND t.status IN ('not_started','waiting')
       AND (t.body IS NULL OR LENGTH(t.body) = 0)

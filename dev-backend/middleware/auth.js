@@ -71,6 +71,26 @@ const authenticateToken = async (req, res, next) => {
       platform_role: user.platform_role,
     };
 
+    // ★ 삭제된 워크스페이스 차단 — **인증 요청의 단일 관문** (Fable 치명-4).
+    //   워크스페이스 접근 판정이 attachWorkspaceScope / getUserScope / 라우트 인라인
+    //   `BusinessMember.findOne` 세 갈래로 갈라져 있어, 인라인 쪽(40여 파일)이 삭제된
+    //   워크스페이스를 계속 읽고 썼다(실측: work-hours PATCH 200 쓰기 성공).
+    //   라우트를 하나씩 고치면 새 라우트마다 같은 구멍이 다시 나므로 여기서 한 번에 막는다.
+    //   platform_admin 은 통과 — 복구·감사 목적(access_scope 설계와 동일).
+    try {
+      const { workspaceAliveCheck } = require('./workspaceAlive');
+      const blocked = await workspaceAliveCheck(req);
+      if (blocked) {
+        return res.status(404).json({
+          success: false,
+          message: 'Workspace not found',
+          code: 'workspace_deleted',
+        });
+      }
+    } catch (e) {
+      console.warn('[authenticateToken workspaceAlive]', e.message);   // 판정 실패로 정상 트래픽을 막지 않는다
+    }
+
     next();
   } catch (error) {
     return next(error);

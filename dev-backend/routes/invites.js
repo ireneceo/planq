@@ -24,13 +24,26 @@ function isExpired(invitedAt) {
   return Date.now() - new Date(invitedAt).getTime() > INVITE_EXPIRY_DAYS * 86400000;
 }
 
+// 삭제된 워크스페이스의 초대는 무효다.
+//   초대 토큰은 **비인증 공개 라우트**(GET /:token)로 조회되므로 authenticateToken 안의
+//   단일 관문(workspaceAlive)을 타지 않는다. 그리고 워크스페이스 id 가 요청이 아니라
+//   **토큰에서** 나오므로 그 관문이 애초에 찾지 못한다.
+//   안 막으면 삭제한 워크스페이스의 stale 초대가 계속 조회·수락되어 **삭제된 곳에 새 멤버십이 생긴다**.
+//   토큰 해석이 두 라우트(조회·수락)의 공통 착지점이라 여기서 한 번에 막는다.
+async function isBizAlive(businessId) {
+  if (!businessId) return true;   // 워크스페이스가 특정되지 않는 형태는 판정 대상 아님
+  const row = await Business.findOne({ where: { id: businessId, deleted_at: null }, attributes: ['id'] });
+  return !!row;
+}
+
 async function resolveToken(token) {
   // 1) 프로젝트 고객 초대
   const pc = await ProjectClient.findOne({ where: { invite_token: token } });
   if (pc) {
     const project = await Project.findByPk(pc.project_id, {
-      include: [{ model: Business, attributes: ['id', 'brand_name', 'name'] }],
+      include: [{ model: Business, attributes: ['id', 'brand_name', 'name', 'deleted_at'] }],
     });
+    if (project?.Business?.deleted_at) return null;   // 삭제된 워크스페이스 초대는 무효
     return {
       type: 'project_client',
       record: pc,
@@ -48,6 +61,7 @@ async function resolveToken(token) {
   // 2) 워크스페이스 고객 초대
   const client = await Client.findOne({ where: { invite_token: token } });
   if (client) {
+    if (!(await isBizAlive(client.business_id))) return null;
     const biz = await Business.findByPk(client.business_id, { attributes: ['id', 'brand_name', 'name'] });
     return {
       type: 'workspace_client',
@@ -65,6 +79,7 @@ async function resolveToken(token) {
   // 3) 워크스페이스 멤버 초대 (청크3에서 구현)
   const bm = await BusinessMember.findOne({ where: { invite_token: token } });
   if (bm) {
+    if (!(await isBizAlive(bm.business_id))) return null;
     const biz = await Business.findByPk(bm.business_id, { attributes: ['id', 'brand_name', 'name'] });
     return {
       type: 'workspace_member',

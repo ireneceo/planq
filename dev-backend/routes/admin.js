@@ -26,8 +26,8 @@ router.get('/overview', async (req, res, next) => {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
     const [bizTotal, bizNew, userTotal, userNew] = await Promise.all([
-      Business.count(),
-      Business.count({ where: { createdAt: { [Op.gte]: d30 } } }),
+      Business.count({ where: { deleted_at: null } }),
+      Business.count({ where: { deleted_at: null, createdAt: { [Op.gte]: d30 } } }),
       User.count(),
       User.count({ where: { createdAt: { [Op.gte]: d30 } } }),
     ]);
@@ -77,7 +77,7 @@ router.get('/overview', async (req, res, next) => {
     for (let i = 5; i >= 0; i--) {
       const s = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const e = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
-      const count = await Business.count({ where: { createdAt: { [Op.gte]: s, [Op.lt]: e } } });
+      const count = await Business.count({ where: { deleted_at: null, createdAt: { [Op.gte]: s, [Op.lt]: e } } });
       signups.push({ month: `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, '0')}`, count });
     }
 
@@ -100,16 +100,19 @@ router.get('/overview', async (req, res, next) => {
 router.get('/businesses', async (req, res, next) => {
   try {
     const q = (req.query.q || '').trim();
+    // 삭제된 워크스페이스는 관리자 목록에서도 숨긴다 (DB 행은 보존 — 복구는 deleted_at=NULL).
+    const notDeleted = { deleted_at: null };
     // ★ 화면 placeholder 가 "이름 · 슬러그 검색" 이므로 실제로 둘 다 찾아야 한다 (Fable M5).
     //   이름만 찾으면 문구가 거짓말이 된다 — 실측: q='warpro-lab' → 0건.
     //   brand_name 도 포함한다(목록에 표시되는 이름이 brand_name 이면 그걸로 찾는 게 자연스럽다).
     const where = q ? {
+      ...notDeleted,
       [Op.or]: [
         { name: { [Op.like]: `%${q}%` } },
         { brand_name: { [Op.like]: `%${q}%` } },
         { slug: { [Op.like]: `%${q}%` } },
       ],
-    } : {};
+    } : { ...notDeleted };
     const items = await Business.findAll({
       where,
       attributes: ['id', 'name', 'slug', 'plan', 'subscription_status', 'plan_expires_at', 'trial_ends_at', 'grace_ends_at', 'scheduled_plan', 'created_at',

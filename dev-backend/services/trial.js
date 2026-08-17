@@ -65,6 +65,7 @@ async function runDailyTrialCron() {
   const upcomingExpiry = new Date(now.getTime() + TRIAL_PRE_BILL_DAYS_BEFORE * 86400 * 1000);
   const upcomingTrials = await Business.findAll({
     where: {
+      deleted_at: null,   // 삭제된 워크스페이스 제외
       subscription_status: 'trialing',
       trial_ends_at: { [Op.gte]: now, [Op.lte]: upcomingExpiry },
       plan: { [Op.ne]: 'free' },  // free deprecated
@@ -103,6 +104,7 @@ async function runDailyTrialCron() {
   // 2) D+0 trial 종료 → past_due + grace 7일
   const expiredTrials = await Business.findAll({
     where: {
+      deleted_at: null,   // 삭제된 워크스페이스 제외
       subscription_status: 'trialing',
       trial_ends_at: { [Op.lt]: now },
     },
@@ -145,6 +147,7 @@ async function runDailyTrialCron() {
   // 3) D+7 grace 종료 → canceled (잠금) — 단, 입금 확인됐으면 active 복구
   const expiredGrace = await Business.findAll({
     where: {
+      deleted_at: null,   // 삭제된 워크스페이스 제외
       subscription_status: 'past_due',
       grace_ends_at: { [Op.lt]: now },
     },

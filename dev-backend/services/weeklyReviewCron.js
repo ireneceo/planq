@@ -59,9 +59,17 @@ async function runWeeklyReviewCron() {
       // 1. 활성 멤버 순회 — BusinessMember 는 active 컬럼 없음. removed_at NULL 이 활성.
       // 사이클 N+26: 워크스페이스 단위 weekly_finalize_dow/hour/enabled 설정에 따라 트리거.
       // weekly_finalize_enabled=false 인 워크스페이스는 자동 확정 자체 skip.
+      // ★ soft-delete 된 워크스페이스는 대상에서 제외한다.
+      //   안 거르면 삭제한 워크스페이스에 주간보고가 계속 쌓인다(실측: 데이터 0건인 워크스페이스에
+      //   13건 누적). 화면에선 안 보이는데 DB 만 커지는 계열.
       const members = await BusinessMember.findAll({
         where: { removed_at: null },
-        include: [{ model: Business, attributes: ['id', 'timezone', 'weekly_finalize_dow', 'weekly_finalize_hour', 'weekly_finalize_enabled'] }],
+        include: [{
+          model: Business,
+          required: true,
+          where: { deleted_at: null },
+          attributes: ['id', 'timezone', 'weekly_finalize_dow', 'weekly_finalize_hour', 'weekly_finalize_enabled'],
+        }],
       });
 
       let processed = 0;

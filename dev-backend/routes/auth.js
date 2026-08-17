@@ -56,17 +56,33 @@ const getUserWithBusiness = async (userId) => {
   if (!user) return null;
 
   // 1) 멤버십 (owner / member) — name/name_localized 도 가져와서 워크스페이스별 표시명 fallback 으로
+  // ★ 삭제된 워크스페이스·해제된 멤버십은 제외한다 (Fable 치명-1).
+  //   여기가 **워크스페이스 전환기의 실제 데이터 원천**이다 — 프론트 WorkspaceSwitcher 는
+  //   /api/businesses 가 아니라 로그인·me 응답의 user.workspaces 를 렌더한다.
+  //   여기를 안 거르면 삭제한 워크스페이스가 스위처에 남아 누르면 404 가 나는,
+  //   바로 그 "목록엔 보이는데 열리지 않는" 상태가 된다.
+  //   removed_at 도 같이 건다 — 여태 select 만 하고 쓰지 않아 제거된 멤버십이 남아 있었다.
   const memberships = await BusinessMember.findAll({
-    where: { user_id: userId },
+    where: { user_id: userId, removed_at: null },
     attributes: ['business_id', 'role', 'name', 'name_localized', 'removed_at'],
-    include: [{ model: Business, attributes: ['id', 'name', 'slug', 'plan', 'brand_name', 'brand_logo_url', 'timezone', 'reference_timezones', 'owner_id'] }]
+    include: [{
+      model: Business,
+      required: true,
+      where: { deleted_at: null },
+      attributes: ['id', 'name', 'slug', 'plan', 'brand_name', 'brand_logo_url', 'timezone', 'reference_timezones', 'owner_id'],
+    }]
   });
 
   // 2) 고객 (client) — 활성 상태만. display_name 도 가져와 표시명 fallback
   const clientRows = await Client.findAll({
     where: { user_id: userId, status: 'active' },
     attributes: ['id', 'business_id', 'display_name', 'display_name_localized'],
-    include: [{ model: Business, attributes: ['id', 'name', 'slug', 'plan', 'brand_name', 'brand_logo_url', 'timezone', 'reference_timezones'] }]
+    include: [{
+      model: Business,
+      required: true,
+      where: { deleted_at: null },
+      attributes: ['id', 'name', 'slug', 'plan', 'brand_name', 'brand_logo_url', 'timezone', 'reference_timezones'],
+    }]
   });
 
   // 3) workspaces 배열 빌드 — 같은 business 에 둘 다 있으면 멤버십 우선
@@ -111,6 +127,8 @@ const getUserWithBusiness = async (userId) => {
   const workspaces = Array.from(map.values()).sort((a, b) => a.business_id - b.business_id);
 
   // 4) active workspace 결정
+  //   ★ active_business_id 가 삭제된 워크스페이스를 가리키면 map 에 없으므로 첫 워크스페이스로
+  //     떨어진다(위에서 걸렀기 때문). 안 거르면 로그인 직후 삭제본에 착지해 화면 전체가 404 가 된다.
   let activeId = user.active_business_id;
   if (!activeId || !map.has(activeId)) {
     activeId = workspaces[0]?.business_id || null;
@@ -840,8 +858,17 @@ router.post('/switch-workspace', authenticateToken, async (req, res, next) => {
       return errorResponse(res, 'business_id is required', 400);
     }
 
-    // 권한 체크: 멤버 또는 활성 클라이언트
-    const isMember = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id: targetId } });
+    // ★ 삭제된 워크스페이스로는 전환할 수 없다 (Fable 치명-3).
+    //   안 막으면 스위처를 우회한 직접 호출로 삭제본이 active 가 되어 로그인 후 계속 그리로 착지한다.
+    const targetBiz = await Business.findByPk(targetId, { attributes: ['id', 'deleted_at'] });
+    if (!targetBiz || targetBiz.deleted_at) {
+      return errorResponse(res, 'Workspace not found', 404);
+    }
+
+    // 권한 체크: 멤버(해제되지 않은) 또는 활성 클라이언트
+    const isMember = await BusinessMember.findOne({
+      where: { user_id: req.user.id, business_id: targetId, removed_at: null },
+    });
     const isClient = isMember ? null : await Client.findOne({
       where: { user_id: req.user.id, business_id: targetId, status: 'active' }
     });

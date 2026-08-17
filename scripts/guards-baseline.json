@@ -71,7 +71,7 @@
   },
   "parity_keys": {},
   "tenant": {
-    "dev-backend/routes/admin.js": 2,
+    "dev-backend/routes/admin.js": 3,
     "dev-backend/routes/auth.js": 1,
     "dev-backend/routes/businesses.js": 2,
     "dev-backend/routes/feedback.js": 2,
