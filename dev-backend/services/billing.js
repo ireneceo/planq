@@ -525,6 +525,79 @@ async function notifyRenewalDue(sub, pay) {
   }
 }
 
+// ─── 면제 종료 사전 안내 (운영 #275) ───
+// 면제에 종료일을 걸어두면 그날 이후 **아무 말 없이 청구가 재개**된다.
+// 결제 요구가 갑자기 뜨는 것이 이번 사이클의 원래 신고였다 — 같은 일을 우리가 만들면 안 된다.
+// D-7 에 한 번, 만료 당일에 한 번 알린다. 중복 발송은 notifications 조회로 막는다(멱등).
+const EXEMPT_NOTICE_DAYS_BEFORE = 7;
+
+async function notifyExemptExpiring() {
+  const { Op } = require('sequelize');
+  const { Notification, BusinessMember } = require('../models');
+  const now = new Date();
+  const soon = new Date(now.getTime() + EXEMPT_NOTICE_DAYS_BEFORE * 86400 * 1000);
+  const stats = { warned: 0, expired_notified: 0 };
+
+  const rows = await Business.findAll({
+    where: {
+      deleted_at: null,
+      billing_exempt: true,
+      billing_exempt_until: { [Op.ne]: null, [Op.lte]: soon },
+    },
+    attributes: ['id', 'name', 'brand_name', 'billing_exempt_until'],
+  });
+
+  for (const biz of rows) {
+    const until = new Date(biz.billing_exempt_until);
+    const past = until <= now;
+    // ★ 멱등 키는 **실재하는 컬럼**으로 잡는다. Notification 에 `tag` 컬럼은 없다
+    //   (entity_type/entity_id 가 실물). 없는 컬럼으로 조회하면 매 실행 throw 하고
+    //   catch 에 삼켜져 "안내가 영영 안 가는" 상태가 된다 — 이 사이클에서 월간 보고서 cron 이
+    //   정확히 그렇게 죽어 있었다. 같은 실수를 반복하지 않는다.
+    // ★ 멱등 키에 **종료일**을 넣는다 (Fable 중요-2).
+    //   business_id 만으로 잡으면 알림 행이 남아 있는 한 **일생 1회**다 —
+    //   면제를 다시 걸거나 종료일을 연장하면 두 번째 사이클의 안내가 영영 안 나간다.
+    //   같은 조용한 결손 계열이므로 종료일을 키에 포함해 사이클마다 새로 알린다.
+    const untilKey = until.toISOString().slice(0, 10).replace(/-/g, '');   // YYYYMMDD
+    const entityType = past ? 'exempt_expired' : 'exempt_expiring';
+    try {
+      const sent = await Notification.findOne({
+        where: { business_id: biz.id, entity_type: entityType, entity_id: Number(untilKey) },
+        attributes: ['id'],
+      });
+      if (sent) continue;
+
+      const owners = await BusinessMember.findAll({
+        where: { business_id: biz.id, role: 'owner', removed_at: null },
+        attributes: ['user_id'],
+      });
+      const userIds = owners.map((o) => o.user_id).filter(Boolean);
+      if (!userIds.length) continue;
+
+      const dateTxt = until.toISOString().slice(0, 10);
+      const { notifyMany } = require('../routes/notifications');
+      await notifyMany({
+        userIds,
+        businessId: biz.id,
+        eventKind: 'subscription',
+        title: past ? '무료 이용 기간이 끝났습니다' : `무료 이용이 ${dateTxt} 에 종료됩니다`,
+        body: past
+          ? '결제 면제 기간이 종료되어 다음 결제 주기부터 정상 요금제로 청구됩니다.'
+          : `종료일 이후에는 정상 요금제로 청구됩니다. 결제 정보를 미리 확인해 주세요.`,
+        link: '/business/settings/plan',
+        ctaLabel: '구독 상태 보기',
+        workspaceName: biz.brand_name || biz.name || null,
+        entityType,
+        entityId: Number(untilKey),
+      });
+      if (past) stats.expired_notified += 1; else stats.warned += 1;
+    } catch (e) {
+      console.warn('[exempt-notice]', biz.id, e.message);
+    }
+  }
+  return stats;
+}
+
 // ─── 4. cron — 4단계 (active → past_due → grace → demoted) ───
 async function runDailyBillingCron() {
   const now = new Date();
@@ -613,6 +686,14 @@ async function runDailyBillingCron() {
     if (created) stats.renewal_payments_created += 1;
   }
 
+  // 5) 면제 종료 사전·당일 안내 — 종료일 이후 아무 말 없이 청구가 재개되는 것을 막는다.
+  //    ★ 이 호출이 없으면 함수가 아무리 건강해도 **영영 돌지 않는다**(Fable 치명: 배선 누락).
+  try {
+    const notice = await notifyExemptExpiring();
+    stats.exempt_expiring_warned = notice.warned;
+    stats.exempt_expired_notified = notice.expired_notified;
+  } catch (e) { console.warn('[billing cron exempt-notice]', e.message); }
+
   return stats;
 }
 
@@ -695,4 +776,5 @@ module.exports = {
   // 결제 면제 (운영 #275) — 판정/복원 단일 착지점
   isBillingExempt,
   restoreExemptSubscription,
+  notifyExemptExpiring,
 };
