@@ -106,8 +106,11 @@ async function resolvePostShare(token, settings) {
 async function resolveSignShare(token, settings) {
   try {
     const { SignatureRequest, Post, Document } = require('../models');
+    // ★ 이 테이블의 공개 토큰 컬럼명은 `share_token` 이 아니라 `token` 이다.
+    //   틀린 컬럼이라 매번 throw → catch 가 삼켜 **서명 공유 링크의 미리보기가 통째로 안 떴다**.
+    //   (guard-invariants schemacol 이 첫 실행에서 잡아낸 실결함)
     const sr = await SignatureRequest.findOne({
-      where: { share_token: token },
+      where: { token },
       attributes: ['entity_type', 'entity_id'],
     });
     if (!sr) return null;
@@ -167,7 +170,8 @@ async function resolveTypedShare(type, token, settings) {
         return r ? ogPack(baseTitle, r.title || r.file_name, '지식', null, settings) : null;
       }
       case 'kb-bundle': {
-        const r = await M.KbShareBundle.findOne({ where: { share_token: token }, attributes: ['title'] });
+        // kb_share_bundles 도 컬럼명이 `token` 이다 (위 SignatureRequest 와 같은 계열 결함).
+        const r = await M.KbShareBundle.findOne({ where: { token }, attributes: ['title'] });
         return r ? ogPack(baseTitle, r.title, '지식 모음', null, settings) : null;
       }
       case 'calendar': {
