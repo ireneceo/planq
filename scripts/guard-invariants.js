@@ -1006,6 +1006,150 @@ function checkSpaLink() {
 }
 
 // ── 메인 ─────────────────────────────────────────
+
+// ═══════════════════════════════════════════════
+// N. schemacol — 코드가 참조하는 컬럼이 DB 에 실재하는가 (하드 게이트)
+//
+//   왜 있는가 (2026-08-17 — 한 사이클에 같은 계열 2건)
+//     · `server.js` 의 `where: { status: 'active' }` — `businesses.status` 는 **없다**.
+//       매번 throw 했고 호출부 catch 가 삼켜, 월간 보고서가 **한 번도 생성되지 않았는데
+//       아무도 몰랐다**(운영 reports 0행).
+//     · 새 멱등 키 `Notification.tag` — 그 컬럼도 없었다. 실호출에서야 드러났다.
+//   둘 다 로그에도 화면에도 안 남는다. **정적 검사로만 잡힌다.**
+//
+//   ★ 정본은 모델 파일이 아니라 **DB 스키마 스냅샷**(`scripts/schema-snapshot.json`)이다.
+//     Sequelize 는 연관관계로 `project_id`·`business_id` 같은 FK 를 자동 생성하는데
+//     그건 모델 파일 어디에도 안 적혀 있다 — 모델만 보면 멀쩡한 코드가 대량 오탐된다(실측).
+//     스키마를 바꿨으면 `node scripts/dump-schema.js` 로 스냅샷을 갱신할 것.
+//
+//   보수적으로 본다 — 거짓 FAIL 이 가드를 죽이는 것이 더 나쁘다:
+//     · `include` 안의 where 는 **다른 모델의 것**이라 건너뛴다(옵션 객체 depth 1 의 where 만)
+//     · Op 심볼·문자열 키·`$중첩$`·주석은 건너뛴다
+//     · 스냅샷에 테이블이 없거나 모델의 tableName 을 못 읽으면 검사 대상에서 제외
+//
+//   ★ 사각지대 (Fable 실측 — **이 가드를 과신하지 말 것**):
+//     · `[Op.or]: [{ badcol: 1 }]` 중첩 내부 키 · shorthand `where: { badcol }`(콜론 없음)
+//     · `update({ badcol: 1 }, ...)` 의 **SET 값 객체**(where 만 본다)
+//     · `where: 변수/함수()` (원리상 정적 불가 — 실측 검사대상의 2%)
+//     · 별칭 모델(`ClientM` 등 tableName 매핑 실패 ~16호출) · `Model.scope(...)` ·
+//       `create`/`findOrCreate` 값 객체 · raw `sequelize.query`
+//     실측 커버리지: 모델 호출 ~1442 중 1426 매핑(99%), 리터럴 where 1310건(92%) 검사.
+//     ★ 스냅샷 미갱신 시 방향: 컬럼 추가 = 거짓 FAIL(시끄러움·안전) /
+//       **테이블 누락·컬럼 drop = 미탐(조용함·위험)** → 스키마 변경 후 dump-schema 재실행 필수.
+// ═══════════════════════════════════════════════
+function modelTableMap() {
+  const map = {};
+  for (const f of walk(`${ROOT}/dev-backend/models`, ['.js'])) {
+    const src = read(f);
+    const mi = src.match(/(\w+)\.init\(/);
+    const tn = src.match(/tableName:\s*'([^']+)'/);
+    if (mi && tn) map[mi[1]] = tn[1];
+  }
+  return map;
+}
+
+/** 옵션 객체 문자열에서 **depth 1** 의 `where: { ... }` 본문만 뽑는다 (include 안의 것 제외). */
+function topLevelWhereBody(optionsSrc) {
+  const open = optionsSrc.indexOf('{');
+  if (open === -1) return null;
+  let depth = 0;
+  for (let i = open; i < optionsSrc.length; i++) {
+    const ch = optionsSrc[i];
+    if (ch === '{' || ch === '[') depth++;
+    else if (ch === '}' || ch === ']') depth--;
+    else if (depth === 1 && optionsSrc.startsWith('where:', i)) {
+      // ★ `where: scopeWhere` / `where: myWeekWhere(...)` 처럼 **객체 리터럴이 아니면** 검사하지 않는다.
+      //   여기서 다음 `{` 를 무작정 잡으면 뒤따르는 include·attributes 블록을 where 로 오인해
+      //   `where.model`·`where.include` 같은 거짓 FAIL 이 난다(실측).
+      let k = i + 'where:'.length;
+      while (k < optionsSrc.length && /\s/.test(optionsSrc[k])) k++;
+      if (optionsSrc[k] !== '{') return null;
+      const ws = k;
+      let d = 0;
+      for (let j = ws; j < optionsSrc.length; j++) {
+        if (optionsSrc[j] === '{') d++;
+        else if (optionsSrc[j] === '}') { d--; if (d === 0) return optionsSrc.slice(ws + 1, j); }
+      }
+      return null;
+    }
+  }
+  return null;
+}
+
+function checkSchemaCol() {
+  const snapPath = `${ROOT}/scripts/schema-snapshot.json`;
+  if (!fs.existsSync(snapPath)) {
+    report('schemacol', '모델에 없는 컬럼 참조 (스냅샷 없음 — node scripts/dump-schema.js)', true, [], true);
+    return;
+  }
+  const snap = JSON.parse(read(snapPath));
+  const tables = snap.tables || {};
+  const m2t = modelTableMap();
+  const METHODS = 'findOne|findAll|findAndCountAll|count|update|destroy|sum|max|min';
+  const current = {};
+  const samples = [];
+  const targets = [
+    ...walk(`${ROOT}/dev-backend/routes`, ['.js']),
+    ...walk(`${ROOT}/dev-backend/services`, ['.js']),
+    ...walk(`${ROOT}/dev-backend/middleware`, ['.js']),
+    `${ROOT}/dev-backend/server.js`,
+  ].filter((f) => fs.existsSync(f));
+
+  for (const f of targets) {
+    const src = read(f);
+    const re = new RegExp(`\\b([A-Z]\\w+)\\.(${METHODS})\\s*\\(`, 'g');
+    let m; let n = 0;
+    while ((m = re.exec(src)) !== null) {
+      const table = m2t[m[1]];
+      const cols = table && tables[table];
+      if (!cols) continue;                       // 매핑·스냅샷 없으면 검사 안 함
+      const open = src.indexOf('(', m.index + m[0].length - 1);
+      let depth = 0, close = -1;
+      for (let i = open; i < Math.min(src.length, open + 6000); i++) {
+        if (src[i] === '(') depth++;
+        else if (src[i] === ')') { depth--; if (depth === 0) { close = i; break; } }
+      }
+      if (close === -1) continue;
+      const body = topLevelWhereBody(src.slice(open, close));
+      if (!body) continue;
+      const known = new Set(cols);
+      // ★ 줄 단위가 아니라 **최상위 쉼표 단위**로 키를 뽑는다.
+      //   `where: { token, nonexistent_col: 1 }` 처럼 한 줄에 여러 키가 있으면
+      //   줄 파싱은 첫 키만 보고 나머지를 놓친다(실측 — 반증에서 안 잡혔다).
+      const segments = [];
+      let d2 = 0, cur = '';
+      for (const ch of body) {
+        if (ch === '{' || ch === '[' || ch === '(') d2++;
+        else if (ch === '}' || ch === ']' || ch === ')') d2--;
+        if (ch === ',' && d2 === 0) { segments.push(cur); cur = ''; } else cur += ch;
+      }
+      segments.push(cur);
+      for (const seg of segments) {
+        // 주석 줄 제거 후 첫 토큰만 본다
+        const t = seg.split('\n').map((l) => l.trim())
+          .filter((l) => l && !l.startsWith('//') && !l.startsWith('*')).join(' ').trim();
+        if (!t || t.startsWith('...')) continue;
+        const km = t.match(/^([a-z_][a-zA-Z0-9_]*)\s*:/);
+        if (!km) continue;
+        // Sequelize `underscored: true` — 코드의 camelCase 는 DB 의 snake_case 로 매핑된다
+        //   (`createdAt` → `created_at`). 둘 다 실재로 인정한다.
+        const snake = km[1].replace(/[A-Z]/g, (ch) => `_${ch.toLowerCase()}`);
+        if (!known.has(km[1]) && !known.has(snake)) {
+          n++;
+          if (samples.length < 12) {
+            const ln = src.slice(0, m.index).split('\n').length;
+            samples.push(`${rel(f)}:${ln}: ${m[1]}.${m[2]}() where.${km[1]} — ${table} 에 없는 컬럼`);
+          }
+        }
+      }
+    }
+    if (n > 0) current[rel(f)] = n;
+  }
+  const r = ratchet('schemacol', current);
+  const detail = r.fails.length ? [...r.fails, ...samples] : (opts.verbose ? samples : []);
+  report('schemacol', `DB 에 없는 컬럼 참조 래칫 (현재 ${r.curTotal} / 베이스 ${r.baseTotal})`, r.fails.length === 0, detail);
+}
+
 const CATEGORIES = {
   mock: checkMock,
   i18n: checkI18n,
@@ -1028,6 +1172,7 @@ const CATEGORIES = {
   spalink: checkSpaLink,
   panelhandle: checkPanelHandle,
   docfresh: checkDocFresh,
+  schemacol: checkSchemaCol,
 };
 
 try {
