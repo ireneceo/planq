@@ -7,6 +7,7 @@ import React from 'react';
 import type { TFunction } from 'i18next';
 // 타입 정본은 MailPage — type-only import 라 런타임 순환이 생기지 않는다
 import type { Message, toAddrList as ToAddrList } from './MailPage';
+import MailBodyFullscreen from './MailBodyFullscreen';
 import MessageAttachments from './MessageAttachments';
 import {
   MessageCard, MessageHeader, MessageFrom, MessageTo, MsgHeaderRight, MsgCollapsedPreview, MsgChevron,
@@ -21,6 +22,10 @@ interface Props {
   messages: Message[];
   threadId: number;
   accountEmail: string;
+  /** #260 — 전체 화면 읽기 헤더에 쓸 스레드 제목 */
+  subject?: string;
+  /** #220 — 로그인한 본인 user id. 팀메일에서 "나" vs 팀원 이름을 가르는 기준. */
+  myUserId: number | null;
   businessId: number;
   expandedMsgIds: ReadonlySet<number>;
   toggleMsg: (id: number) => void;
@@ -42,10 +47,13 @@ interface Props {
 
 export default function ThreadMessages(p: Props) {
   const {
-    messages, threadId, accountEmail, businessId, expandedMsgIds, toggleMsg, lastMsgRef,
+    messages, threadId, accountEmail, subject, myUserId, businessId, expandedMsgIds, toggleMsg, lastMsgRef,
     frameH, msgCidData, msgTrans, setMsgTrans, transLang, setTransLang,
     translateMsg, cancelTranslate, startForward, buildMailSrcDoc, toAddrList, formatTimeAgo, t,
   } = p;
+  // 운영 #260 — 좁은 패널에서 읽기 답답한 메일을 화면 전체로 펼쳐 읽는다.
+  const [fullMsgId, setFullMsgId] = React.useState<number | null>(null);
+  const fullMsg = messages.find((x) => x.id === fullMsgId) || null;
   return (
     <>
       {messages.map((m, mi) => {
@@ -71,8 +79,13 @@ export default function ThreadMessages(p: Props) {
               aria-expanded={open}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleMsg(m.id); } }}
             >
+              {/* 운영 #220 — 팀 주소는 여러 사람이 함께 쓴다. 전부 "나" 로 보이면 누가 답했는지 알 수 없다.
+                  내가 보낸 것만 "나", 다른 팀원이 보냈으면 그 사람 표시명을 적는다(워크스페이스 프로필 우선).
+                  옛 데이터처럼 발신자 기록이 없으면 종전대로 "나". */}
               {m.direction === 'outbound'
-                ? `${t('me', { defaultValue: '나' }) as string} <${accountEmail}>`
+                ? `${(m.sent_by_user_id && myUserId && m.sent_by_user_id !== myUserId && m.sent_by_name)
+                    ? m.sent_by_name
+                    : (t('me', { defaultValue: '나' }) as string)} <${accountEmail}>`
                 : `${m.from_name || ''} <${m.from_email || ''}>`}
               {/* 어느 주소로 온 메일인지 — 여러 도메인을 한 메일함으로 받으면 이게 없으면 답장 주소를 알 수 없다 */}
               {toAddrList(m.to_emails).length > 0 && (
@@ -99,6 +112,12 @@ export default function ThreadMessages(p: Props) {
               )}
               <MessageTime>{formatTimeAgo(m.sent_at)}</MessageTime>
               {/* 헤더 클릭 = 접기/펼치기라, 안쪽 버튼은 전파를 끊어야 한다 */}
+              {/* 운영 #260 — 본문만 화면 전체로. 목록·상세가 좁아 답답하다는 지적. */}
+              <MsgForwardBtn type="button" onClick={(e) => { e.stopPropagation(); setFullMsgId(m.id); }}
+                title={t('detail.fullView', { defaultValue: '전체 화면으로 보기' }) as string}
+                aria-label={t('detail.fullView', { defaultValue: '전체 화면으로 보기' }) as string}>
+                {t('detail.fullViewShort', { defaultValue: '전체보기' }) as string}
+              </MsgForwardBtn>
               <MsgForwardBtn type="button" onClick={(e) => { e.stopPropagation(); startForward(m); }}
                 title={t('forward.button', { defaultValue: '전달' }) as string}
                 aria-label={t('forward.button', { defaultValue: '전달' }) as string}>
@@ -173,6 +192,19 @@ export default function ThreadMessages(p: Props) {
         </MessageCard>
         );
       })}
+      {/* 운영 #260 — 본문 srcDoc 을 그대로 재사용한다(본문을 두 벌 만들지 않는다). */}
+      <MailBodyFullscreen
+        open={!!fullMsg}
+        onClose={() => setFullMsgId(null)}
+        title={subject || ''}
+        subtitle={fullMsg
+          ? (fullMsg.direction === 'outbound'
+            ? `${(fullMsg.sent_by_user_id && myUserId && fullMsg.sent_by_user_id !== myUserId && fullMsg.sent_by_name) ? fullMsg.sent_by_name : (t('me', { defaultValue: '나' }) as string)} <${accountEmail}>`
+            : `${fullMsg.from_name || ''} <${fullMsg.from_email || ''}>`)
+          : undefined}
+        srcDoc={fullMsg && fullMsg.body_html ? buildMailSrcDoc(fullMsg.id, fullMsg.body_html, msgCidData[fullMsg.id]) : undefined}
+        text={fullMsg ? fullMsg.body_text : null}
+      />
     </>
   );
 }

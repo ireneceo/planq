@@ -389,11 +389,31 @@ async function changePlan(businessId, { toPlan, reason, changedBy = null, note =
 /**
  * 플랜 쿼터 초과 에러 응답 생성 헬퍼 — 표준 포맷
  */
+// 운영 #267 — "왜 비디오는 못해?" 실제로는 형식 제한이 아니라 **파일당 용량 한도**에 걸린 것이었다.
+//   그런데 안내가 "파일이 너무 큽니다" 뿐이라 한도도 내 파일 크기도 알 수 없어, 사용자는
+//   "동영상은 안 되는 기능" 으로 읽는다. 숫자를 적어 준다.
+function fmtMB(bytes) {
+  const n = Number(bytes);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n >= 1024 * 1024 * 1024
+    ? `${Math.round((n / (1024 * 1024 * 1024)) * 10) / 10}GB`
+    : `${Math.round(n / (1024 * 1024))}MB`;
+}
+
 function buildQuotaError(checkResult, businessId) {
+  const lim = fmtMB(checkResult.limit);
+  const cur = fmtMB(checkResult.current);
+  const sizeDetail = lim
+    ? (cur ? ` (올리신 파일 ${cur} · 현재 플랜 한도 ${lim})` : ` (현재 플랜 한도 ${lim})`)
+    : '';
+  const sizeDetailEn = lim
+    ? (cur ? ` (your file ${cur} · plan limit ${lim})` : ` (plan limit ${lim})`)
+    : '';
   const MESSAGE_MAP = {
     file_size_exceeded: {
-      message: '파일이 너무 큽니다. Google Drive 를 연결하면 영상 같은 큰 파일도 업로드할 수 있어요.',
-      message_en: 'File too large. Connect Google Drive to upload videos and large files.',
+      // 형식 때문이 아니라는 점을 먼저 말한다 — 오해가 이 문장에서 생겼다.
+      message: `파일 형식은 제한이 없어요. 용량이 한도를 넘었습니다${sizeDetail}. Google Drive 를 연결하면 영상 같은 큰 파일도 올릴 수 있어요.`,
+      message_en: `Any file type is allowed — this file just exceeds the size limit${sizeDetailEn}. Connect Google Drive to upload videos and large files.`,
       alternatives: ['Google Drive 연결 → 5GB 까지 업로드 가능'],
     },
     storage_quota_exceeded: {

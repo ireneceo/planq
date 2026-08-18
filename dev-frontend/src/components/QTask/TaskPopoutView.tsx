@@ -50,6 +50,7 @@ import {
   TabRow,
   TagGroupHead,
   ToggleDone,
+  PrioGapHint,
   WaitDot,
   Wrap,
 } from './TaskPopoutView.styles';
@@ -59,6 +60,7 @@ import { detectBrowserTz } from '../../utils/timezones';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { joinRoom, leaveRoom, onSocket, getSocket } from '../../services/socket';
+import { buildPriorityMap, hiddenPriorityNumbers } from './popoutPriority';
 import TaskDetailDrawer, { type DrawerMemberOption } from './TaskDetailDrawer';
 import { STATUS_COLOR, displayStatus, getStatusLabel, type StatusCode } from '../../utils/taskLabel';
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
@@ -398,30 +400,8 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
     finally { setPrioBusy(false); }
   };
 
-  // 표시용 우선순위 번호 — 메인 QTaskPage 의 displayPriorityMap 과 같은 규칙(연속 재인덱스).
-  //   ★ 기준 집합은 **응답 tasks 전체**(완료 포함). visible 로 잡으면 "완료 보기" 토글마다 번호가 출렁이고,
-  //     완료 업무도 priority_order 를 그대로 들고 있는 메인 화면과 번호가 어긋난다.
-  //   ★ tie-break 를 명시한다 — DB 에 중복값(1,1,2,3,3,8)이 실재해 stable sort 의 입력 순서에 기대면
-  //     서버 정렬(due asc)로 들어오는 팝아웃과 메인의 번호가 갈린다.
-  //   ★ 동률일 때의 순서는 메인과 **완전히 같은 사슬**이어야 한다. 메인의 displayPriorityMap 은
-  //     priority 만으로 stable sort 하므로 동률의 실제 순서는 그 입력(filtered)이 결정한다 —
-  //     즉 완료 뒤로 → due(null last) → title. id tie-break 을 쓰면 두 화면의 번호가 갈릴 뿐 아니라
-  //     같은 팝아웃 안에서도 행 순서(bySortRule = title tie-break)와 칩 번호가 역전됐다.
-  const prioMap = useMemo(() => {
-    const m = new Map<number, number>();
-    const doneRank = (tk: PopoutTask) => (CLOSED.includes(tk.status) ? 1 : 0);
-    tasks
-      .filter((tk) => tk.priority_order != null)
-      // ★ 맨 끝 id 는 서버 services/taskPriority.js byPriorityChain 과 문자 그대로 동일한 절대 tie-break.
-      //   위로 올리면 위 주석의 옛 실버그가 재발한다.
-      .sort((a, b) => (a.priority_order! - b.priority_order!)
-        || (doneRank(a) - doneRank(b))
-        || cmpNullLast(a.due_date, b.due_date)
-        || (a.title || '').localeCompare(b.title || '')
-        || (a.id - b.id))
-      .forEach((tk, i) => m.set(tk.id, i + 1));
-    return m;
-  }, [tasks]);
+  // 번호 규칙의 정본은 popoutPriority.ts 에 있다(god-file 분리 + 규칙 한곳 모음).
+  const prioMap = useMemo(() => buildPriorityMap(tasks, CLOSED), [tasks]);
 
   // #250 — "태그기준대로 나열". 다대다라 정렬 키가 모호하므로 **대표 태그(사전순 최소)** 1키로 확정한다.
   //   백엔드 attachTagsTo() 가 이름순 정렬해 보내므로 tags[0] 이 대표다.
@@ -472,6 +452,9 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   const doneTasks = useMemo(
     () => tasks.filter((tk) => CLOSED.includes(tk.status) && inTab(tk, true)).sort(sortRule), [tasks, viewMode, inTab]);    // eslint-disable-line react-hooks/exhaustive-deps
   const visible = showDone ? [...openTasks, ...doneTasks] : openTasks;
+
+  // 운영 #280 — 번호가 건너뛰어 보이는 이유(완료로 접힘·다른 탭)를 목록 아래에서 설명한다.
+  const hiddenPrioNums = useMemo(() => hiddenPriorityNumbers(prioMap, visible.map((tk) => tk.id)), [visible, prioMap]);
 
   const fmtDue = (due?: string | null) => (due ? due.slice(5, 10).replace('-', '/') : '');
   const isOverdue = (tk: PopoutTask) =>
@@ -744,6 +727,15 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
               );
             })}
           </List>
+        )}
+
+        {!loading && !error && visible.length > 0 && hiddenPrioNums.length > 0 && (
+          <PrioGapHint>
+            {t('popout.prioGap', {
+              nums: hiddenPrioNums.join('·'),
+              defaultValue: '우선순위 {{nums}} 번은 지금 목록에 없어요 — 완료했거나 다른 탭의 업무입니다. 번호는 전체 기준이라 그대로 둡니다.',
+            })}
+          </PrioGapHint>
         )}
 
         {!loading && !error && doneTasks.length > 0 && (

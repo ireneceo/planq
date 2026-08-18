@@ -402,7 +402,9 @@
   },
   "detail": {
     "toAddr": "Received at",
-    "noContent": "(no content)"
+    "noContent": "(no content)",
+    "fullView": "Open full screen",
+    "fullViewShort": "Full view"
   },
   "bulk": {
     "markAllRead": "Mark all read",
@@ -442,7 +444,9 @@
     "aiWrite": "Write with AI",
     "aiRefine": "Refine with AI",
     "aiHint": "AI writes the email body from your request",
-    "aiInstructionRequired": "Tell us what the email should say."
+    "aiInstructionRequired": "Tell us what the email should say.",
+    "draftSaveFailed": "Could not save your draft, so the form stayed open. Try again in a moment, or copy your text somewhere safe.",
+    "forwardBlocksNav": "Forwarded mail is not auto-saved. Send or close it before opening another message."
   },
   "attachment": {
     "preview": "Preview",

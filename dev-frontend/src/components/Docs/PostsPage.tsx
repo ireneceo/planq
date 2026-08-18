@@ -33,7 +33,7 @@ import { TableHeader } from '@tiptap/extension-table-header';
 import {
   fetchPosts, fetchPost, createPost, updatePost, deletePost, StaleEditError,
   attachToPost, detachFromPost, fetchPostsMeta,
-  createCategory, updatePostVisibility, updatePostSecurityLevel,
+  createCategory, updatePostVisibility, updatePostSecurityLevel, downloadPostPdf,
   type PostRow, type PostDetail, type PostsMeta,
 } from '../../services/posts';
 import VisibilityChangeModal from '../Common/VisibilityChangeModal';
@@ -246,6 +246,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const [saveTplDesc, setSaveTplDesc] = useState('');
   const [saveTplBusy, setSaveTplBusy] = useState(false);
   const [saveTplError, setSaveTplError] = useState<string | null>(null);
+  const [pdfBusy, setPdfBusy] = useState(false);   // #225 — PDF 생성 중 중복 클릭 차단
 
   // content_json → HTML 변환 (TipTap headless)
   const renderContentToHtml = useCallback((contentJson: unknown): string => {
@@ -1073,7 +1074,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                     <AtCard key={r.id} $selected={activeId === r.id} onClick={() => { void selectPost(r.id); }}>
                       <RowPinBtn type="button" $on={pinnedIds.includes(r.id)} onClick={(e) => { e.stopPropagation(); togglePin(r.id); }}
                         aria-label={(pinnedIds.includes(r.id) ? t('project.docs.removeFromMenu', '상단 메뉴에서 제거') : t('project.docs.addToMenu', '상단 메뉴에 추가')) as string}
-                        title={(pinnedIds.includes(r.id) ? t('project.docs.removeFromMenu', '상단 메뉴에서 제거') : t('project.docs.addToMenu', '상단 메뉴에 추가')) as string}>📌</RowPinBtn>
+                        title={(pinnedIds.includes(r.id) ? t('project.docs.removeFromMenu', '상단 메뉴에서 제거') : t('project.docs.addToMenu', '상단 메뉴에 추가')) as string}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.7-2.6a2 2 0 0 1-.3-1.1V7a2 2 0 0 1 2-2H5a2 2 0 0 1 2 2v6.3a2 2 0 0 1-.3 1.1L5 17z"/></svg></RowPinBtn>
                       <AtCardName>
                         {r.status === 'draft' && (
                           <DraftTag title={t('autosave.draftBadgeHint', '아직 나만 보이는 임시저장 문서입니다. 열어서 저장하면 정식 등록됩니다.') as string}>
@@ -1268,10 +1269,10 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                     onClick={(e) => { e.stopPropagation(); togglePin(r.id); }}
                     aria-label={(pinnedIds.includes(r.id) ? t('project.docs.removeFromMenu', '상단 메뉴에서 제거') : t('project.docs.addToMenu', '상단 메뉴에 추가')) as string}
                     title={(pinnedIds.includes(r.id) ? t('project.docs.removeFromMenu', '상단 메뉴에서 제거') : t('project.docs.addToMenu', '상단 메뉴에 추가')) as string}
-                  >📌</RowPinBtn>
+                  ><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.7-2.6a2 2 0 0 1-.3-1.1V7a2 2 0 0 1 2-2H5a2 2 0 0 1 2 2v6.3a2 2 0 0 1-.3 1.1L5 17z"/></svg></RowPinBtn>
                 )}
                 <RowTitle>
-                  {r.is_pinned && <PinTag>📌</PinTag>}
+                  {r.is_pinned && <PinTag aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.7-2.6a2 2 0 0 1-.3-1.1V7a2 2 0 0 1 2-2H5a2 2 0 0 1 2 2v6.3a2 2 0 0 1-.3 1.1L5 17z"/></svg></PinTag>}
                   {/* #252 — 임시저장 행은 나만 보인다. 표시가 없으면 "저장했는데 팀이 못 본다" 가 된다. */}
                   {r.status === 'draft' && (
                     <DraftTag title={t('autosave.draftBadgeHint', '아직 나만 보이는 임시저장 문서입니다. 열어서 저장하면 정식 등록됩니다.') as string}>
@@ -1504,6 +1505,24 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 </IconBtn>
                 <IconBtn type="button" onClick={() => { setSaveTplName(detail.title); setSaveTplDesc(''); setSaveTplError(null); setSaveTplOpen(true); }} title={t('actions.saveAsTemplate', '템플릿으로 저장 — 다음 새 글 작성 시 검색해서 사용') as string} aria-label={t('actions.saveAsTemplate', '템플릿으로 저장') as string}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                </IconBtn>
+                {/* 운영 #225 — 서버 PDF 생성(GET /api/posts/:id/pdf)과 프론트 헬퍼(downloadPostPdf)가 이미 있는데
+                    **호출부가 한 곳도 없어** 화면에는 window.print() 만 있었다. 완성된 기능이 도달하지 못한 경우. */}
+                <IconBtn type="button" disabled={pdfBusy}
+                  onClick={async () => {
+                    if (pdfBusy) return;            // 중복 제출 가드 (UI_DESIGN_GUIDE §1.8)
+                    setPdfBusy(true); setError(null);
+                    try { await downloadPostPdf(detail.id, detail.title); }
+                    catch (e) {
+                      // 서버가 보낸 사유가 있으면 그대로, 없으면 이 동작의 문구로. (apiFetch 는 throw 하지 않으므로
+                      //  downloadPostPdf 안에서 res.ok 를 보고 던진 Error 가 여기로 온다.)
+                      const msg = (e as Error)?.message;
+                      setError(msg && !/^HTTP \d+$/.test(msg) ? msg : (t('actions.pdfError', 'PDF 생성 실패') as string));
+                    }
+                    finally { setPdfBusy(false); }
+                  }}
+                  title={t('actions.downloadPdf', 'PDF 로 내려받기') as string} aria-label={t('actions.downloadPdf', 'PDF 로 내려받기') as string}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 </IconBtn>
                 <IconBtn type="button" onClick={() => window.print()} title={t('actions.print', 'PDF / 인쇄 (저장하려면 ‘대상: PDF로 저장’ 선택)') as string} aria-label={t('actions.print', 'PDF / 인쇄') as string}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
@@ -2105,10 +2124,15 @@ const RowPinBtn = styled.button<{ $on: boolean }>`
   &:hover { background: #F0FDFA; filter: none; }
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
 `;
+// 운영 #257 — 제목이 길어도 1줄로 잘려 읽기 어려웠다(특히 프로젝트 > 문서).
+//   2줄까지 보여주고 그 다음부터 말줄임. 뱃지(고정·임시저장)는 제목과 같은 흐름에 놓아
+//   짧은 제목일 때 빈 줄이 생기지 않게 한다(높이는 내용만큼만).
+//   ★ 이 컴포넌트는 Q docs 와 프로젝트 > 문서 탭이 함께 쓴다 — 한 번 고치면 두 화면에 같이 적용된다.
 const RowTitle = styled.div`
   font-size: 13px; font-weight: 700; color: #0F172A;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  display: flex; align-items: center; gap: 4px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; overflow-wrap: anywhere; line-height: 1.45;
+  > * { vertical-align: middle; margin-right: 4px; }
 `;
 const RowPreview = styled.div`
   margin-top: 4px; font-size: 12px; color: #64748B; line-height: 1.5;
@@ -2223,7 +2247,8 @@ const MetaLeft = styled.div`display: flex; align-items: center; gap: 8px; flex-w
 const MetaRight = styled.div`display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex-shrink: 0;`;
 // D4 #62 — 보안등급 선택 행 (DocsTab files 패턴 정합)
 // 태그
-const PinTag = styled.span`font-size: 12px;`;
+// 이모지 금지(UI_DESIGN_GUIDE §1.5) — feather 계열 stroke 아이콘으로 교체.
+const PinTag = styled.span`display: inline-flex; align-items: center; color: #0D9488;`;
 const ProjectTag = styled.span<{ $color: string }>`
   display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px;
   background: #F1F5F9; color: #475569; border-radius: 999px; font-size: 10px; font-weight: 600;

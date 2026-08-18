@@ -317,13 +317,19 @@ const AdminWikiPage = () => {
                       <Knob $on={blog.published} />
                     </Toggle>
                     <div>
-                      <ToggleLabel>{t('adminWiki.blogToggle', '랜딩 인사이트(/insights)에 발행') as string}</ToggleLabel>
-                      <ToggleHint>{t('adminWiki.blogHint', '공개(public) + 발행됨 글만 가능 · 발행 시 planq.kr/insights 에 즉시 노출') as string}</ToggleHint>
+                      {/* 운영 #289 — 'updates' 는 목적지가 랜딩 인사이트가 아니라 앱 안 "새로운 소식" 이다.
+                          같은 토글을 쓰되 문구는 목적지를 따라간다 (동작이 다른데 문구가 같으면 거짓말이 된다). */}
+                      <ToggleLabel>{blog.category === 'updates'
+                        ? t('adminWiki.blogToggleUpdates', '제품 업데이트 내역으로 발행') as string
+                        : t('adminWiki.blogToggle', '랜딩 인사이트(/insights)에 발행') as string}</ToggleLabel>
+                      <ToggleHint>{blog.category === 'updates'
+                        ? t('adminWiki.blogHintUpdates', '공개(public) + 발행됨 글만 가능 · 발행 시 앱 안 "새로운 소식" 에 즉시 노출 (랜딩 인사이트에는 안 나갑니다)') as string
+                        : t('adminWiki.blogHint', '공개(public) + 발행됨 글만 가능 · 발행 시 planq.kr/insights 에 즉시 노출') as string}</ToggleHint>
                     </div>
                     <SelWrapSm>
                       <PlanQSelect size="sm" isClearable={false} isSearchable={false}
                         value={{ value: blog.category, label: t(`adminWiki.blogCat.${blog.category}`, blog.category) as string }}
-                        options={['guide-video', 'brand-video', 'how-to', 'insights', 'cases'].map((c) => ({ value: c, label: t(`adminWiki.blogCat.${c}`, c) as string }))}
+                        options={['guide-video', 'brand-video', 'how-to', 'insights', 'cases', 'updates'].map((c) => ({ value: c, label: t(`adminWiki.blogCat.${c}`, c) as string }))}
                         onChange={(o) => {
                           const cat = ((o as PlanQSelectOption)?.value as string) || 'insights';
                           if (blog.published) setBlogState(true, cat);

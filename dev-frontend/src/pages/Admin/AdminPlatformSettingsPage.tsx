@@ -230,7 +230,8 @@ const AdminPlatformSettingsPage = () => {
       </Card>
 
       <Card>
-        <SectionTitle>{t('platform.announcementSection', '공지 배너')}</SectionTitle>
+        {/* 운영 #289 — 대시보드 빠른 이동(#announcement)의 착지점. */}
+        <SectionTitle id="announcement">{t('platform.announcementSection', '공지 배너')}</SectionTitle>
         <SectionHint>{t('platform.announcementHint', '입력하면 모든 사용자 사이드바 상단에 노출됩니다. 비우면 숨김.')}</SectionHint>
         <Field>
           <Label>{t('platform.announcement_text', '공지 내용')}</Label>

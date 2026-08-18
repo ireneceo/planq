@@ -40,6 +40,10 @@ import FloatingPanelToggle from '../../components/Common/FloatingPanelToggle';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import {
   AcctFilterRow,
+  FilterToggleRow,
+  FilterToggleBtn,
+  FilterChevron,
+  FilterCount,
   AcctSelectWrap,
   AddLabelChip,
   AiInstructionRow,
@@ -198,6 +202,9 @@ export interface Message {
   is_read: boolean;
   // outbound 만 채워진다. 'delivered' 는 DSN 없이는 알 수 없어 서버가 만들지 않는다.
   delivery_status?: 'pending' | 'sent' | 'delivered' | 'bounced' | 'failed' | 'suppressed' | null;
+  // 운영 #220 — 팀메일함에서 이 메일을 실제로 보낸 사람. inbound 면 null.
+  sent_by_user_id?: number | null;
+  sent_by_name?: string | null;
   delivery_error?: string | null;
   attachments: Array<{ id: number; file_id: number | null; file_name: string; file_size: number; mime_type: string }>;
   // #215-H — 본문이 cid: 로 참조하는 이미지. 본문은 sandbox iframe srcDoc 이라 cid 를 해석할 수 없어
@@ -313,6 +320,10 @@ function buildMailSrcDoc(id: number, html: string, cidMap?: Record<string, strin
 const MailPage: React.FC = () => {
   const { t, i18n } = useTranslation('qmail');
   const { user } = useAuth();
+  // 운영 #213 — 필터 접기. 기본 닫힘(Irene: "그냥 닫혀있게"), 사용자가 연 상태는 기억한다.
+  const [filtersOpen, setFiltersOpen] = useState<boolean>(() => {
+    try { return localStorage.getItem('planq.mail.filtersOpen') === '1'; } catch { return false; }
+  });
   const { formatTimeAgo, formatDateTime } = useTimeFormat();
   const [sp, setSp] = useSearchParams();
   const location = useLocation();
@@ -456,6 +467,8 @@ const MailPage: React.FC = () => {
   const [members, setMembers] = useState<MailMember[]>([]);
   // 메일 검색 (제목·미리보기·본문) — 300ms 디바운스
   const [searchQ, setSearchQ] = useState('');
+  // #213 — 접힌 상태에서도 "지금 뭐가 걸려 있는지" 는 알려야 한다. 검색어는 접힘 밖(검색줄)이라 세지 않는다.
+  const activeFilterCount = (accountFilter ? 1 : 0) + (labelFilter ? 1 : 0) + (projectFilter ? 1 : 0);
   const [qDebounced, setQDebounced] = useState('');
   useEffect(() => { const id = window.setTimeout(() => setQDebounced(searchQ.trim()), 300); return () => window.clearTimeout(id); }, [searchQ]);
   // M4 — FAQ 자동 클러스터링 제안
@@ -510,7 +523,9 @@ const MailPage: React.FC = () => {
     return () => mql.removeEventListener('change', handler);
   }, []);
 
-  const setActive = (id: number | null) => {
+  // 스레드 선택의 실제 이동 — compose 처리와 분리했다. 저장이 끝난 **뒤에도** 같은 이동을 해야 하므로
+  //   한 곳에 두지 않으면 "폼은 닫혔는데 스레드가 안 열리는" 반쪽 동작이 된다.
+  const navigateToThread = (id: number | null) => {
     const nsp = new URLSearchParams(sp);
     const deselect = id === null || activeId === id;   // 재클릭 토글 해제 (공통 UX 규칙)
     if (deselect) nsp.delete('thread');
@@ -520,6 +535,49 @@ const MailPage: React.FC = () => {
     //   본문이 보이고, 선택을 풀면 다시 목록으로 돌아와야 한다. 데스크탑은 두 패널이 나란히
     //   놓이므로 건드리지 않는다.
     if (viewportNarrow) setSidebarCollapsed(!deselect);
+  };
+
+  const setActive = (id: number | null) => {
+    // 운영 #222 — 새 메일 폼이 열려 있으면 본문 자리를 그 폼이 차지하고 있어서, 목록을 눌러도
+    //   아무 일도 안 일어나는 것처럼 보였다("밖에 리스트 누르면 안나가져").
+    //   초안은 1.5초 자동저장 + 다음에 열 때 복원되므로, 확정 저장 후 닫고 보내주면 된다.
+    if (composeOpen && id !== null) {
+      const hasContent = !!(cTo.trim() || cSubject.trim() || !isEmptyHtml(cBody) || cFileIds.length);
+      // 전달(forward) 모드는 초안 자동저장 대상이 아니다 — 닫으면 쓴 내용이 그대로 사라진다.
+      //   말없이 버리지 않는다: 쓴 게 있으면 이동을 막고 이유를 알린다.
+      if (fwdFromMsgId) {
+        if (hasContent) {
+          setCError(t('compose.forwardBlocksNav', { defaultValue: '전달 메일은 임시저장되지 않습니다. 보내거나 닫은 뒤에 다른 메일로 이동해 주세요.' }) as string);
+          return;
+        }
+        setComposeOpen(false);
+        navigateToThread(id);
+        return;
+      }
+      if (businessId && hasContent) {
+        // ★ apiFetch 는 throw 하지 않는다 — res.ok 를 봐야 실패를 안다.
+        //   이 저장이 실패하면 최근 1.5초분(자동저장 주기)이 날아간다. 조용히 닫지 않는다.
+        apiFetch(`/api/businesses/${businessId}/email-drafts`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to_emails: cTo.split(/[,;\s]+/).map(x => x.trim()).filter(Boolean),
+            subject: cSubject, body_html: cBody, attachment_file_ids: cFileIds, account_id: cAccountId,
+          }),
+        }).then((r) => {
+          if (!r.ok) {
+            setCError(t('compose.draftSaveFailed', { defaultValue: '작성 중인 내용을 저장하지 못해 폼을 닫지 않았습니다. 잠시 후 다시 시도하거나 내용을 복사해 두세요.' }) as string);
+            return;
+          }
+          setComposeOpen(false);
+          navigateToThread(id);
+        }).catch(() => {
+          setCError(t('compose.draftSaveFailed', { defaultValue: '작성 중인 내용을 저장하지 못해 폼을 닫지 않았습니다. 잠시 후 다시 시도하거나 내용을 복사해 두세요.' }) as string);
+        });
+        return;   // 저장 결과를 본 뒤에 닫고 이동한다
+      }
+      setComposeOpen(false);
+    }
+    navigateToThread(id);
   };
   // 선택 해제 — 현재 URL 기준(함수형 업데이트라 stale 안전). 상세 패널 닫힘(activeId 파생).
   const clearSelection = useCallback(() => {
@@ -1482,8 +1540,32 @@ const MailPage: React.FC = () => {
             <SearchClear type="button" onClick={() => setSearchQ('')} aria-label={t('search.clear', { defaultValue: '검색 지우기' }) as string}>×</SearchClear>
           )}
         </SearchRow>
-        {/* 계정(이메일주소) 선택 + 폴더 맥락 일괄버튼(그 탭에 항목 있을 때만) — 같은 줄. */}
-        {accounts.length >= 1 && (
+        {/* 운영 #213 — 필터가 상시 펼쳐져 세로 공간을 크게 먹고 있었다. 기본 접힘 + 토글.
+            ★ 접었을 때 적용 중인 필터가 몇 개인지 반드시 보여준다 — 안 보이면 "왜 목록이 이상하지" 가 된다.
+            ★ 일괄 액션(모두 확인완료 등)은 필터가 아니므로 접힘 밖에 둔다. 같이 숨기면 기능이 사라진다. */}
+        <FilterToggleRow>
+          <FilterToggleBtn type="button" aria-expanded={filtersOpen}
+            onClick={() => { const v = !filtersOpen; setFiltersOpen(v); try { localStorage.setItem('planq.mail.filtersOpen', v ? '1' : '0'); } catch { /* private mode */ } }}>
+            <FilterChevron $open={filtersOpen} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></FilterChevron>
+            {t('filters.toggle', { defaultValue: '필터' }) as string}
+            {activeFilterCount > 0 && <FilterCount>{activeFilterCount}</FilterCount>}
+          </FilterToggleBtn>
+          {bulkAction && folderCounts[folder] > 0 && (
+            <BulkAction type="button" $confirm={bulkConfirm} disabled={bulkBusy} title={bulkAction.label}
+              onClick={bulkConfirm ? doBulk : armBulk}>
+              {!bulkBusy && (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+              )}
+              <span>{bulkBusy
+                ? (t('bulk.working', { defaultValue: '처리 중…' }) as string)
+                : bulkConfirm
+                  ? (t('bulk.confirmN', { defaultValue: '{{n}}개 처리?', n: folderCounts[folder] }) as string)
+                  : bulkAction.label}</span>
+            </BulkAction>
+          )}
+        </FilterToggleRow>
+        {/* 계정(이메일주소) 선택 — 같은 줄. */}
+        {filtersOpen && accounts.length >= 1 && (
           <AcctFilterRow>
             <AcctSelectWrap>
               <PlanQSelect
@@ -1512,23 +1594,10 @@ const MailPage: React.FC = () => {
                 ]}
               />
             </AcctSelectWrap>
-            {bulkAction && folderCounts[folder] > 0 && (
-              <BulkAction type="button" $confirm={bulkConfirm} disabled={bulkBusy} title={bulkAction.label}
-                onClick={bulkConfirm ? doBulk : armBulk}>
-                {!bulkBusy && (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                )}
-                <span>{bulkBusy
-                  ? (t('bulk.working', { defaultValue: '처리 중…' }) as string)
-                  : bulkConfirm
-                    ? (t('bulk.confirmN', { defaultValue: '{{n}}개 처리?', n: folderCounts[folder] }) as string)
-                    : bulkAction.label}</span>
-              </BulkAction>
-            )}
           </AcctFilterRow>
         )}
         {/* 마지막 줄 — 태그 + 프로젝트 필터. */}
-        {(labelMaster.length > 0 || projectOpts.length > 0) && (
+        {filtersOpen && (labelMaster.length > 0 || projectOpts.length > 0) && (
           <AcctFilterRow>
             {labelMaster.length > 0 && (
               <AcctSelectWrap>
@@ -2006,6 +2075,8 @@ const MailPage: React.FC = () => {
                   messages={detail.messages}
                   threadId={detail.id}
                   accountEmail={detail.account?.email || ''}
+                  subject={detail.subject || ''}
+                  myUserId={user ? Number(user.id) : null}
                   businessId={businessId as number}
                   expandedMsgIds={expandedMsgIds}
                   toggleMsg={toggleMsg}

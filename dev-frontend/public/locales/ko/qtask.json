@@ -209,7 +209,8 @@
     "remainCapOver": "남은 {{rem}}h / 가용 {{cap}}h · {{over}}h 초과",
     "overCapHint": "남은 예측이 가용시간을 {{over}}h 초과 — 마감 조정·위임·기간 재배분을 검토하세요.",
     "workspacePredict": "예측 {{est}}h",
-    "actual": "실제 {{act}}h"
+    "actual": "실제 {{act}}h",
+    "actualHint": "내 업무 실제 시간의 합계(누적) — 지난주부터 이어온 시간까지 포함합니다. 우측 그래프의 \"투입\" 은 이번 주에 늘어난 만큼만 그려서 더 작을 수 있어요."
   },
   "col": {
     "project": "프로젝트",
@@ -257,7 +258,8 @@
     "saving": "저장 중...",
     "cancel": "취소",
     "assigneeResolvedMe": "담당자: {{name}} (나)",
-    "assigneeResolvedChain": "담당자: {{name}} (프로젝트 기본)"
+    "assigneeResolvedChain": "담당자: {{name}} (프로젝트 기본)",
+    "tags": "태그"
   },
   "recur": {
     "toggle": "반복하기",
@@ -352,8 +354,8 @@
   },
   "chart": {
     "weekly": "주간 업무 진척",
-    "est": "예측",
-    "act": "실제",
+    "est": "진척",
+    "act": "투입",
     "weekStart": "시작",
     "over": "가용 초과 +{{h}}h",
     "overTip": "이번 주 실제 투입이 가용시간({{base}}h)을 {{h}}h 넘었어요.",
@@ -383,7 +385,11 @@
       }
     },
     "reverted": "되돌림",
-    "revertedTip": "이 날 진척이 일부 되돌려졌어요 (완료 취소·진행률 하향). 그래프 선은 최고치를 유지합니다."
+    "revertedTip": "이 날 진척이 일부 되돌려졌어요 (완료 취소·진행률 하향). 그래프 선은 최고치를 유지합니다.",
+    "estTip": "해낸 예측시간의 누적 — 업무별 (예측 × 진행률) 을 더한 값입니다. 왼쪽 목록의 \"남은 …h\" 는 반대쪽(예측 × 남은 비율)이라 두 값을 더하면 이번 주 예측 총합이 됩니다.",
+    "actTip": "이번 주에 늘어난 실제 투입시간만 그립니다. 지난주부터 이어온 업무가 그때까지 쌓은 시간은 빼고 셉니다 — 왼쪽 목록의 \"실제 …h\" 는 그 이월분까지 포함한 누적이라 더 큽니다.",
+    "scopeHint": "이번 주 · 내가 담당자인 업무 기준. 검색어·완료 가리기 같은 보기 설정에는 영향받지 않습니다.",
+    "noData": "이 기간의 진척 데이터가 없어요"
   },
   "projects": {
     "title": "프로젝트 진척률"
@@ -525,7 +531,8 @@
       "revertUsed": "이번 라운드에서 이미 한 번 취소했습니다.",
       "revertDisabled": "취소 사용함",
       "approvedOf": "{{total}}명 중 {{n}}명 승인",
-      "approvePlaceholder": "담당자에게 남길 코멘트가 있나요? (선택)"
+      "approvePlaceholder": "담당자에게 남길 코멘트가 있나요? (선택)",
+      "submitNotePlaceholder": "컨펌자에게 남길 말이 있나요? (선택 — 댓글로도 남습니다)"
     },
     "delete": {
       "button": "업무 삭제",
@@ -1130,7 +1137,8 @@
     "cancel": "취소",
     "banner": "보류 중",
     "externalBanner": "외부 컨펌 대기 중",
-    "completeBlocked": "보류 해제 후 완료 처리할 수 있어요"
+    "completeBlocked": "보류 해제 후 완료 처리할 수 있어요",
+    "externalLockedHint": "진행 중인 업무만 외부 컨펌으로 보낼 수 있어요. 업무를 시작하면 열립니다."
   },
   "weekHold": {
     "chip": "보류 {{n}}",
@@ -1187,7 +1195,8 @@
     "quickAddFailed": "추가하지 못했습니다",
     "goQTask": "Q Task 열기",
     "emptyTitleToday": "오늘 할 일이 없습니다",
-    "emptyLineAdd": "위에 입력하면 바로 추가됩니다."
+    "emptyLineAdd": "위에 입력하면 바로 추가됩니다.",
+    "prioGap": "우선순위 {{nums}} 번은 지금 목록에 없어요 — 완료했거나 다른 탭의 업무입니다. 번호는 전체 기준이라 그대로 둡니다."
   },
   "tags": {
     "new": "새 태그",

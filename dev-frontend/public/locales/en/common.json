@@ -828,13 +828,16 @@
     "addCategory": "Add category",
     "blogToggle": "Publish to landing Insights (/insights)",
     "blogHint": "Public + published articles only · appears on planq.kr/insights immediately",
+    "blogToggleUpdates": "Publish as a product update",
+    "blogHintUpdates": "Public + published articles only · appears in the in-app \"What’s new\" immediately (not shown on landing Insights)",
     "blogRequiresPublic": "Only \"public + published\" articles can go to the blog. Save those settings first.",
     "blogCat": {
       "guide-video": "Guide videos",
       "brand-video": "Brand videos",
       "how-to": "How-to guides",
       "insights": "Automation insights",
-      "cases": "Customer stories"
+      "cases": "Customer stories",
+      "updates": "Product updates"
     }
   },
   "aiRegen": {

@@ -124,6 +124,30 @@ export const SearchClear = styled.button`
   color: #94A3B8; font-size: 18px; line-height: 1; padding: 0 2px;
   &:hover { color: #0F172A; }
 `;
+// 운영 #213 — 필터 접기 토글 줄. 일괄 액션은 필터가 아니므로 접힘 밖인 이 줄에 함께 둔다.
+export const FilterToggleRow = styled.div`
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 4px 12px 6px;
+`;
+export const FilterToggleBtn = styled.button`
+  display: inline-flex; align-items: center; gap: 5px;
+  min-height: 28px; padding: 4px 9px;
+  background: transparent; border: 1px solid #E2E8F0; border-radius: 7px;
+  font-size: 12px; font-weight: 600; color: #64748B; cursor: pointer;
+  &:hover { border-color: #CBD5E1; color: #475569; }
+  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
+`;
+export const FilterChevron = styled.svg<{ $open: boolean }>`
+  width: 13px; height: 13px;
+  transition: transform 0.15s;
+  transform: rotate(${p => (p.$open ? 90 : 0)}deg);
+`;
+export const FilterCount = styled.span`
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 16px; height: 16px; padding: 0 4px;
+  background: #0D9488; color: #fff; border-radius: 8px;
+  font-size: 10px; font-weight: 700;
+`;
 export const AcctFilterRow = styled.div`
   display: flex; align-items: center; gap: 8px;
   padding: 0 16px 10px;

@@ -311,7 +311,14 @@ async function syncOne(account, opts = {}) {
     }
     const fetchOptions = { bodies: [''], markSeen: false, struct: true };
     const results = await conn.search(searchCriteria, fetchOptions);
-    const limited = results.slice(-fetchCap);   // 백필은 최신 것 우선
+    // 운영 #261 — 증분 수집은 **오래된 것부터** 잘라야 한다.
+    //   커서(imap_last_uid)는 이번 tick 에서 처리한 uid 의 최댓값으로 전진한다(:531).
+    //   최신 쪽(slice(-cap))을 집으면 한 tick 에 cap 을 넘는 순간, 처리하지 않은 오래된 메일 위로
+    //   커서가 뛰어넘어 **다음 tick 의 검색 범위(UID cursor+1:*) 밖으로 영영 나간다** = 조용한 영구 유실.
+    //   오래된 것부터 집으면 커서가 연속으로 전진해 초과분은 다음 tick 이 이어받는다.
+    //   백필은 커서 연속성이 아니라 "최근 N일" 이 기준이라 최신 우선이 맞다(의도적 상한).
+    results.sort((a, b) => (a.attributes.uid || 0) - (b.attributes.uid || 0));
+    const limited = isBackfill ? results.slice(-fetchCap) : results.slice(0, fetchCap);
 
     let maxUid = account.imap_last_uid;
 

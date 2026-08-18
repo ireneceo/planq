@@ -16,10 +16,15 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { notificationRowToToastLink, type NotificationFullRow } from '../../utils/notificationLink';
+import NotificationTypeIcon from './NotificationTypeIcon';
 
 interface Toast {
   id: string;
   type: 'message' | 'task' | 'invoice' | 'signature' | 'event' | 'system';
+  // 운영 #287 — 실제 Notification.event_kind. type 은 색·채널정책용 6분류라 종류를 다 담지 못한다
+  //   (mail·invite·payment… 12종이 전부 'system' 으로 접혀 아이콘이 'i' 하나였다).
+  //   아이콘은 이 값으로 그린다. 없으면 type 에서 역매핑.
+  kind?: string;
   title: string;
   body?: string;
   link?: string;            // 클릭 시 이동 (resolveNotificationLink 통과한 값)
@@ -27,6 +32,12 @@ interface Toast {
   notificationId?: number;  // N+73 — DB Notification.id (있으면 닫기/클릭 시 mark-read 호출)
   ts: number;
 }
+
+// toast.type(6분류) → event_kind 역매핑. raw socket event 로 만든 toast 는 event_kind 가 없다.
+const TYPE_FALLBACK_KIND: Record<string, string> = {
+  message: 'message', task: 'task', invoice: 'invoice',
+  signature: 'signature', event: 'event', system: 'system',
+};
 
 const MAX_VISIBLE = 3;
 // 자동 페이드 제거 (2026-05-08 Irene 정책): X 버튼 / 클릭 이동 시만 닫힘. 사용자 인지 시간 보장.
@@ -365,6 +376,7 @@ export default function NotificationToaster() {
       if (!didMatch) {
         add({
           type: toastType,
+          kind: row.event_kind,
           title: row.title,
           body: row.body || undefined,
           link,
@@ -550,12 +562,7 @@ export default function NotificationToaster() {
           role="alert"
         >
           <ToastIcon $type={toast.type}>
-            {toast.type === 'message' && '💬'}
-            {toast.type === 'task' && '✓'}
-            {toast.type === 'invoice' && '$'}
-            {toast.type === 'signature' && '✎'}
-            {toast.type === 'event' && '📅'}
-            {toast.type === 'system' && 'i'}
+            <NotificationTypeIcon kind={toast.kind || TYPE_FALLBACK_KIND[toast.type]} size={16} />
           </ToastIcon>
           <ToastBody>
             <ToastTitle>{toast.title}</ToastTitle>

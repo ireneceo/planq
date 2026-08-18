@@ -236,6 +236,12 @@ export const MetaDue = styled.span<{ $overdue: boolean }>`
 `;
 // #250 나열 기준 토글 — ToggleDone 과 같은 계열(bespoke 금지). 활성 시 Teal 로 눌린 상태 표시.
 // (SortToggle 제거 — #258 보기 기준 칩 3종으로 대체됐다. components/QTask/PopoutViewChips.tsx)
+// 운영 #280 — 우선순위 번호가 건너뛰어 보이는 이유를 목록 아래에서 설명한다.
+export const PrioGapHint = styled.div`
+  margin-top: 10px; padding: 7px 9px;
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
+  font-size: 11px; line-height: 1.5; color: #64748B;
+`;
 export const ToggleDone = styled.button`
   width: 100%; margin-top: 10px;
   padding: 8px; border: 1px dashed #CBD5E1; border-radius: 8px;

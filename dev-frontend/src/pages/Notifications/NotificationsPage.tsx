@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import PageShell from '../../components/Layout/PageShell';
 import { useNotifications, type NotificationItem } from '../../hooks/useNotifications';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
+import NotificationTypeIcon from '../../components/Common/NotificationTypeIcon';
 
 const NotificationsPage: React.FC = () => {
   const { t } = useTranslation('layout');
@@ -54,6 +55,8 @@ const NotificationsPage: React.FC = () => {
         <List>
           {items.map(it => (
             <Item key={it.id} type="button" onClick={() => handleClick(it)} $unread={!it.read_at}>
+              {/* 운영 #287 — 종류 아이콘 (드롭다운·토스터와 같은 단일 원천). */}
+              <ItemIcon aria-hidden="true"><NotificationTypeIcon kind={it.event_kind} size={16} /></ItemIcon>
               <ItemBody>
                 <ItemTitle $unread={!it.read_at}>{it.title}</ItemTitle>
                 {it.body && <ItemDesc>{it.body}</ItemDesc>}
@@ -108,6 +111,11 @@ const Item = styled.button<{ $unread: boolean }>`
   cursor: pointer; text-align: left;
   transition: background 0.12s, border-color 0.12s;
   &:hover { background: ${p => p.$unread ? '#CCFBF1' : '#F8FAFC'}; }
+`;
+const ItemIcon = styled.span`
+  width: 30px; height: 30px; flex-shrink: 0; margin-top: 1px;
+  display: flex; align-items: center; justify-content: center;
+  background: #F1F5F9; color: #475569; border-radius: 8px;
 `;
 const ItemBody = styled.div` flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; `;
 const ItemTitle = styled.div<{ $unread: boolean }>`
