@@ -1,6 +1,6 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-08-17 (2) (Opus 5, 1M) — **운영 피드백 신규 15건 중 12건 처리 (커밋 7개 · 30파일 · 운영 3회 배포)** — 이번 사이클의 주제는 **"만들어졌는데 화면에 도달하지 못한 것"** 이었다. ①**Cue 가 워크스페이스를 못 보고 있었다**(#291·#292·#294) — `authenticateToken` 이 `req.user` 에 `active_business_id` 를 안 실어 항상 `undefined` → **가입 순 첫 워크스페이스 고정**. 전환해도 옛 워크스페이스를 답했고(실측: active=7 인데 biz6 응답), `execute-action` 쓰기도 그리로 갔으며, `/help` 플랜 쿼터 게이트는 **한 번도 작동한 적이 없었다**. 컨텍스트에는 고객이 아예 없었고(고객 9명인데 "정보 없음"), 회사 이름조차 없어 소개를 지어냈다. 여기서 **수신자(audience) 절단**을 신설했다 — Cue 답변은 고객 대화방으로도 나가는데 수동 트리거가 "마지막 고객 메시지" 라면서 발화자를 안 가려 **직원 권한 컨텍스트가 고객행 답변 재료**가 되고 있었다(기존 결함). 기본값을 좁은 쪽으로 둬 인자를 빠뜨린 호출처가 자동으로 안전해진다. Fable 이 내 수정안에서 **고객 본인 청구 조회를 죽이는 회귀**를 잡아냈다(막으면 유출 방지가 아니라 "내 청구서 어떻게 됐어?" 라는 정상 기능의 절단). ②**Q helper 3건**(#293·#295·#296) — 복귀 탭이 Q위키로 하드코딩(대화는 정상, 탭이 틀렸다), 탭 부제 문구가 **ko/en 양쪽에 이미 있는데 어디서도 안 쓰이고** 있었다. ③**탭 뱃지가 저마다 다른 것을 세고 있었다**(#297) — 오늘만 목록 크기, 이번 주는 액션 수, 전체는 **Q Talk 추출 후보 수**. 오늘 ⊆ 이번 주인데 15 vs 1 이 나왔다. ④**"이전 후보 보기" 가 아무 일도 안 했다**(#298) — effect deps 에 상태가 빠졌고 eslint 예외로 경고까지 꺼져 있었다. 게다가 고쳐도 신고자 화면엔 hidden 0건이라 무반응 — 정의를 "지나간 후보 전부" 로 넓혔다(처리분은 읽기 전용). ⑤**440px 팝아웃 상세**(#290) — 리스트는 경량 전용인데 상세는 메인과 같은 2,598줄 드로어. Fable 이 **죽은 56px 띠**(없는 헤더 자리)를 찾아냈다. AI 요약은 만들지 않았다 — 관리 필드를 접으니 원래 내용이 위로 올라왔다(비용 0). ⑥**팝아웃 핀 세 번째 신고**(#286) — 원하는 형태가 웹에서 **원리적으로 불가능**함을 스펙으로 확인(PiP 는 opener 문서보다 오래 못 산다). 창 1개 불변식을 양방향으로 세우고, 핀이 아예 없던 헤더에 **방법을 안내하는 핀**을 되살렸다. ⑦**진척 그래프가 "다 없던" 것**(#288) — 데이터는 매일 쌓이는데 **기간 초에는 증가분이 0이라 구조적으로 빈다**(통합 보고서 12섹션 중 11개). "증가 0" 과 "데이터 없음" 을 갈랐고, 그 과정에서 **가용시간 공식이 3벌로 갈라져 화면 30h·보고서 40h** 인 것을 통합했다. **Fable 게이트가 FAIL 3회** — 전부 배포하면 안 되는 것이었다(고객 청구 기능 절단 · #286 이 "새로고침한 창에서만 되는" 상태 · 진척 기준선이 한 번도 렌더된 적 없는 죽은 코드).
+> **최종 업데이트:** 2026-08-18 (3) (Opus 5, 1M) — **운영 피드백 2차 배치: #240·#274·#239 (커밋 3 · 미배포) + 메일 트리아지 근본원인 확정** — 이번 사이클의 주제는 **"장부와 현실이 어긋나 있던 것"** 이었다. ①**장부 자체가 크게 틀려 있었다** — 열린 피드백 67건 중 **29건이 이미 고쳐져 배포까지 끝난 상태**였고, 그래서 같은 것이 반복 신고됐다(팝아웃 핀은 #258→#280→#286 으로 **세 번**). 67건 전부에 답글을 쓰고 28건을 닫았다. 고친 사실이 사용자에게 **도달**해야 처리된 것이다 — 그 도달을 자동화한 것이 `scripts/close-deployed-feedback.js`(#276)이고, **답글이 있는 건만 닫는다**(답글 없이 닫으면 무시당한 것과 같다). ②**로그인한 고객이 draft 청구서를 보고 있었다**(#274, 🔴보안) — `/bills` 에 역할 제한이 없고 CLIENT_TABS 에 invoices 가 있었다. Fable 이 내 1차 수정을 **`?status=draft` 로 뚫었다** — `where.status = req.query.status` 가 보안 술어를 통째로 덮어썼다. 술어를 **`[Op.and]` 심볼 키**로 옮겨 대입으로 지울 수 없게 만들었다. 발행자 버튼 8개 중 3개(재발송·독촉·취소)가 고객 화면에 그대로 떠 있었고, 버튼마다 `isOwner &&` 를 흩뿌리던 구조라 다음 버튼에서 또 빠질 것이었다 — 판정을 `invoiceCaps.ts` 한 곳에 모으고 **블록 단위**로 잘랐다(Fable 이 여기서 2회 더 FAIL: 세금계산서 입력행·분할 회차 ⋮ 메뉴가 남아 있었다). ③**직원 시급이 전원에게 노출되고 있었다**(값이 전부 NULL 이라 실피해는 없었으나, 시급 입력 기능을 켜는 순간 켜질 유출) — `GET /members` 응답에서 제거하고 owner 전용 API 신설. 수익성 화면의 `hours * 50000` 하드코딩을 실 시급으로 교체하고, **시급 미입력 멤버는 인건비에서 제외 + 경고 표시**(Irene 결정). ④**#239 문서 외부 확인** — 외부 고객이 서명급 절차 없이 "확인했습니다"·의견만 남기는 경로. Fable 게이트가 **3회 FAIL**: 만료 토큰이 `/confirm` 을 통과했고(`status='expired'` 마킹은 GET 이 하므로 GET 을 안 거치면 영영 안 붙는다), **확인했는데 알림이 "서명 거절됨" 으로 나갔으며**, 대시보드의 의견 분기는 **한 번도 발화할 수 없었다**(거절은 `rejected_at`, 의견은 `comment_at` 에 찍히는데 둘 다 `rejected_at` 으로 걸렀다). god-file 분리 중 **내가 만든 회귀**도 실호출로만 잡혔다 — `routes/`→`services/` 이동으로 `require('./notifications')` 가 깨졌는데 fire-and-forget `.catch` 가 삼켜 **HTTP 200 뒤에 묻혔고, 기존 서명·거절 알림까지 죽어 있었다**. ⑤**메일 '답변 필요' 분류 결손**(#221 재발) — 명백한 요청 메일이 '확인 권장' 으로 떨어진 원인은 판정 기준이 아니라 **시스템이 아는 "우리 주소"가 현실의 1/3** 이었다는 것. `buildOwnEmailSet` 이 별칭 테이블을 아예 안 읽고, 같은 값의 공식이 **3벌**로 갈라져 있었다. 실제 도착 주소는 최소 9개(irene@irenecompany.com **361건** 등). Fable 이 "강한 요청이면 주소게이트 skip" 안을 **실측 오탐 2건**으로 기각했다.
 
 > **이전 업데이트:** 2026-08-17 (Opus 5, 1M) — **접속 끊김 복구 → 결제 면제 · 알림 전수정리 · 워크스페이스 삭제 안전성 · 죽어 있던 cron 수리 · 컬럼 가드 신설 (커밋 6개 · 83파일 · 운영 4회 배포 완료, v1.48.3)** — 세션 내내 반복된 주제는 **"만들어졌는데 조용히 죽어 있던 것"** 이었다. ①**#275 결제 면제** — 내부 워크스페이스·테스터가 구독 사이클을 타 결제 요구·강등이 뜨던 것. 판정 단일 착지점은 `services/plan.js getBusinessPlan()` 하나, 매출 여부는 **결제 확정 시점에 `payments.is_revenue` 로 박제**(조인 판정이면 면제를 끄는 순간 과거 내부결제가 매출로 되살아난다). Fable 1차 FAIL 이 결정적이었다 — 청구를 만드는 진입점이 체크아웃 라우트 **하나가 아니라** `services/trial.js` cron 도 있어서 **게이트를 라우트가 아니라 서비스로 내렸다**. `status:'paid'` 쓰기도 2곳(애드온 누락 직전). `payments.cancel_reason` 은 **존재하지 않는 컬럼**이었다. 운영 백필로 워프로랩 2곳 internal(pro), **내부결제 6건 155,800원 비매출 분리 → 실매출 0원**(사실 그대로). ②**테스터는 추론하지 않는다** — 가입 후 trial 만료된 3곳을 테스터로 백필했다가 Irene 지적("테스터는 관리자가 지정해야지")으로 제거. 관리자 화면에서 지정하는 구조로 확정(유피트는 Irene 이 직접 tester/enterprise 지정, 정상 동작 확인). ③**#278·#281·#282·#214 알림 전수정리** — 제목이 20여 파일 30종으로 갈라져 있던 것을 `services/notifyTitle.js` 규약 1벌로(`Q Task · 컨펌 요청 · "로고 수정"`, 수신자 언어로 발송 시점 해석). "확인 권장 — PlanQ" 의 정체는 **PlanQ 알림 메일이 메일함으로 되돌아와 다시 알림이 되던 루프**였다. `broadcastTask` 에 actor 를 실어 자기알림 필터 복구. ④**관리자 화면 결함 7건** — 모달 z-index 90 < 드로어 130 이라 **팝업이 뒤에 깔려 클릭이 드로어 백드롭에 닿아 패널이 닫히고, 못 닫으니 열 때마다 재출현**. 잘못된 날짜 입력 시 **raw SQL 에러 유출**. 검색 placeholder 가 "이름 · 슬러그" 인데 이름만 찾던 것. `routes/admin.js` 1183줄 god-file 파열은 베이스라인 상향 대신 `admin_billing.js` 절출(→761줄). ⑤**워크스페이스 삭제를 삭제답게** — 빈 워크스페이스 1개 지우려다 **soft-delete 가 access_scope 한 곳만 보고 목록·발송·실시간·cron·공개 링크 어디에도 반영돼 있지 않다**는 것이 드러났다. Fable 이 두 번 FAIL: 첫째 **내가 엉뚱한 API 를 고쳤다**(전환기는 `/api/businesses` 가 아니라 login·me 응답의 `user.workspaces` 를 쓴다), 둘째 인라인 `BusinessMember.findOne` 40여 라우트가 **삭제된 워크스페이스를 읽고 썼다**(work-hours PATCH 200 실측) → 라우트별 수리 대신 **`authenticateToken` 안 단일 관문**(`middleware/workspaceAlive.js`). notify·socket·cron 6곳·공개 초대까지 차단 후 운영 biz#2 삭제. ⑥**월간 보고서 cron 이 한 번도 돈 적이 없었다** — `businesses.status` 라는 **없는 컬럼**을 참조해 매번 throw, catch 가 삼켜 운영 `reports` **0행**. 검증 가능하도록 `services/monthlyReport.js` 로 절출(한 달에 하루만 도는 코드는 export 도 안 돼 있어 검증 자체가 불가능했다). 좀비 행이 재생성을 영구 차단하던 것(Fable 치명)도 수리. ⑦**관리자 조작 시 고객 안내 신설**(Irene: "필요한 안내는 해야지") — 면제 ON/OFF·플랜·체험 변경 + **면제 종료 D-7/당일 사전 안내**(갑작스러운 청구 재개 방지). 여기서도 **"cron 에 편입했다" 고 보고했는데 실제 배선이 안 돼 있었다**(Fable 치명, 같은 병의 재발). ⑧**`schemacol` 가드 신설** — 위 결함 계열(없는 컬럼 참조)을 정적으로 잡는다. 모델 파일이 아니라 **DB 스키마 스냅샷**이 정본(연관관계 자동 생성 FK 때문에 모델만 보면 대량 오탐). 첫 실행에서 **서명 공유·지식 모음 링크의 미리보기(OG 메타)가 깨져 있던 실결함 2건**을 잡았다(`share_token` → 실제는 `token`). 사각지대 8종을 주석에 명시(과신 방지). **Fable 게이트 9라운드 · FAIL 5회** — 전부 배포하면 안 되는 것이었다(화면 미반영·게이트 파열·삭제 시 로그인 파손·좀비 영구결손·배선 누락). **운영 피드백 9건 답변·정리**(pending 72→63).
 
@@ -57,6 +57,60 @@
 > **[이전] 최종 업데이트:** 2026-07-16 밤 (Opus 4.8, 1M) — **자율 밤샘 세션: 백로그 전수 검증 + 기능고장 3건 근본수정** — `docs/qa/NEXT_SECTION_BACKLOG.md` 전수 검증 결과, **genuinely 고장난 것만 실작업**이었고 나머지는 이미 구현됐으나 close 안 된 상태였다. ①**Q Mail AI #153/#164/#179**(`9a293e3`) — 공용 `services/emailBodyClean.js` 신설(인용/전달/서명 정리)로 언어감지 any-char편향 제거·미리보기 헤더조각 제거·추출 무반응 503 표면화. 실HTTP 검증(영어메일→영어답장 ko:0/en:198)·유닛11/11·health30/30. ②**#155 말로추가 iOS 포맷**(`79db3e4`) — isTypeSupported webm↔mp4 분기+파일명 정합+미지원가드+권한시 자동시작. ③**#126 캘린더 배너** 완성. **이미 완료 확인(재작업 안 함): #166·모바일②(a~e)·#163·MyFeedback·#162·#152**(에이전트 오탐 다수 — 반드시 현재코드 검증 후 진행). **남은 미완 ⑤·⑥ = Irene 설계결정 필요** → `docs/qa/BACKLOG_REMAINING_DECISIONS_2026-07-16.md`. 운영 미배포.
 
 > **[이전] 최종 업데이트:** 2026-07-16 (Opus 4.8, 1M) — **모바일 흰 화면 회귀 차단 + 검사 하니스 강화** — e2e mobile 스위트에 `assertRendered()` **흰 화면(blank) 판정** 신규(키보드 스위트가 "입력 가림"만 봐 페이지 통째 blank도 ⚪ 통과하던 구멍 차단, #173/174/159/178 계열) + `run.js` blank=실패 집계 + mail 시나리오(mail-list·mail-compose) + MailPage `data-testid`·모바일 compose 사이드바 자동접힘 + DetailDrawer 폰 풀스크린(56px 조각 새던 것) + QBill 개요 2열 그리드 반응형 + Insights 기간라벨 i18n. **검증: mobile/crosscut/l1 전 스위트 0 실패 + tsc -b exit 0 + 가드 3축(health 30/30·guard 22/22·tenant 0)**. 다음: `docs/qa/NEXT_SECTION_BACKLOG.md`(Q Mail AI·멀티탭·전수검사 잔여 LOW).
+
+
+## ✅ 완료: 2026-08-18 (3) — 운영 피드백 2차 배치 #240·#274·#239 (커밋 3 · **미배포**)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| **#240** 대화 lifecycle | 보관 상태가 `status='archived'` / `archived_at` **두 축으로 갈라져** 프로젝트 완료 대화가 활성목록·보관함 **어디서도 도달 불가**였다. `services/conversationLifecycle.js` 단일원천. 고객이 쓰면 자동 재개, 직원만 읽기전용 | ✅ 완료 |
+| posts/meta 500 | `PostCategory.findAll` 에 Post 용 `scopeWhere`(vlevel 포함)를 넘겨 없는 컬럼 참조로 500 | ✅ 완료 |
+| **#274** 청구서 고객화면 🔴 | 로그인 고객에게 **draft 청구서 노출**. 발행자 버튼 3개(재발송·독촉·취소)가 고객에게 보임. `invoiceCaps.ts` 판정 단일착지 + `[Op.and]` 심볼키로 `?status=` 우회 차단 | ✅ 완료 |
+| 시급 노출 차단 | `GET /members`·비즈니스 상세에서 `hourly_rate`/`monthly_salary` 제거. owner 전용 API 신설(AuditLog 포함) | ✅ 완료 |
+| 고객사별 수익성 | `hours * 50000` 하드코딩 → 실 시급(`services/memberCost.js`). 시급 미입력 멤버는 **인건비 제외 + 경고**(Irene 결정). 진행 중 업무 시간도 원가 포함 | ✅ 완료 |
+| **#239** 문서 외부 확인 | 서명 없이 "확인했습니다"·의견. `kind ENUM('sign','confirm')` + confirmed_at/comment/comment_at + status ENUM +2. 킬스위치·rate limit·양방향 kind 가드 | ✅ 완료 |
+| **#276** 장부 닫기 | `close-deployed-feedback.js` — 배포 커밋에서 `#번호` 추출 → **답글 있는 건만** done. dry-run 기본 | ✅ 완료 |
+| **메일 트리아지** | 근본원인 확정 + Fable 판정 완료. **구현은 다음 세션** (session-state.md 에 지시 박제) | 🔄 설계완료 |
+
+### Fable 게이트에서 잡힌 것 (배포하면 안 됐던 것)
+
+| # | FAIL 사유 |
+|:-:|---|
+| 1 | `?status=draft` 로 보안 술어 우회 — 라우트의 `where.status =` 대입이 술어를 통째로 덮어씀 |
+| 2 | 게이트 도는 중 다른 작업을 같은 트리에 얹어 커밋 범위 오염 |
+| 3 | 세금계산서 입력행·분할 회차 ⋮ 메뉴가 고객 화면에 잔존 (액션바만 막았다) |
+| 4 | "발행 예정" 라벨 아래 발행자 지시 문구가 그대로 + 독촉 메일에 payerCode 누락 |
+| 5 | **만료 토큰이 `/confirm` 통과** — status 문자열만 봄. 'expired' 마킹은 GET 이 한다 |
+| 6 | **확인했는데 알림이 "서명 거절됨"** — 문구 2분기인데 사건이 4개가 됨 |
+| 7 | **대시보드 의견 분기 도달 불가** — 거절은 `rejected_at`, 의견은 `comment_at` 인데 둘 다 `rejected_at` 으로 필터 |
+
+### 내가 만들었다가 실호출로만 잡힌 회귀
+`routes/` → `services/` 이동 시 `require('./notifications')` 가 깨졌는데 호출부가 fire-and-forget `.catch` 라
+**HTTP 200 뒤에 묻혔다.** 확인 알림뿐 아니라 **기존 서명·거절 알림도 죽어 있었다.** 문법검사·가드·빌드 전부 통과.
+
+### 수정된 파일 (주요)
+- `dev-backend/services/conversationLifecycle.js` · `memberCost.js` · `signatureCore.js` (신규)
+- `dev-backend/routes/signature_confirm.js` · `scripts/migrate-doc-external-confirm.js` (신규)
+- `dev-backend/middleware/access_scope.js` · `routes/invoices.js` · `routes/businesses.js` · `routes/dashboard.js` · `routes/signatures.js` · `services/stats.js` · `services/projectStageEngine.js`
+- `dev-frontend/src/pages/QBill/invoiceCaps.ts` · `QDocs/PublicSignPage.styles.ts` (신규)
+- `dev-frontend/src/pages/QBill/InvoiceDetailDrawer.tsx` · `InvoicesTab.tsx` · `TaxInvoicesTab.tsx`
+- `scripts/close-deployed-feedback.js` (신규) · `scripts/guard-invariants.js` · `scripts/deploy-planq.sh`
+
+### god-file 분리 (래칫 동결 준수, 베이스라인 상향 안 함)
+`routes/signatures.js` 803→622 · `PublicSignPage.tsx` 809→553
+
+### 검증
+Fable 3게이트 PASS(FAIL 7회 수정 후) · 가드 24/24 · health 36/36 · e2e tenant 0실패 · build EXIT 0 (TS 0)
+실HTTP 45+12판정 · 만료/권한/정렬 **음성 대조군 포함** · 테스트 행 COUNT 원복 확인
+
+### ⚠️ 배포 시 주의
+`deploy-planq.sh` 에 `migrate-doc-external-confirm.js` 가 sync-database **뒤**, PM2 reload **앞**에 삽입돼 있다.
+이 순서가 깨지면 신 코드가 컬럼 없이 떠서 `Data truncated` 로 확인 기능이 통째로 죽는다.
+롤백은 **코드만**. 컬럼·ENUM 은 남긴다 — 모델 선언까지 revert 하면 `sync alter` 가 컬럼을 DROP 한다.
+
+---
 
 
 ## ✅ 완료: 2026-08-17 (2) — 운영 신규 피드백 12건 · "만들어졌는데 도달 못 한 것" (커밋 7 · 배포 완료)
