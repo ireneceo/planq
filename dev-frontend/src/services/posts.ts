@@ -423,6 +423,8 @@ export interface SignatureRequest {
 
 export async function requestSignatures(postId: number, payload: {
   signers: Array<{ email: string; name?: string }>;
+  /** #239 — 'confirm' 이면 확인 요청(OTP 없음), 미지정/'sign' 이면 기존 서명 요청 */
+  kind?: 'sign' | 'confirm';
   note?: string;
   expires_in_days?: number;
   send_chat?: boolean;

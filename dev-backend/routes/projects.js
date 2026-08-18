@@ -1958,7 +1958,8 @@ router.get('/:id/transactions', authenticateToken, async (req, res, next) => {
     const sigs = postIds.length
       ? await SignatureRequest.findAll({
           where: { entity_type: 'post', entity_id: { [Op.in]: postIds } },
-          attributes: ['id', 'entity_id', 'signer_email', 'signer_name', 'status', 'signed_at', 'rejected_at'],
+          // #239 — kind 노출(라벨 구분용). 필터는 걸지 않는다 — 문서 진행 표시엔 확인도 보여야 한다.
+          attributes: ['id', 'entity_id', 'signer_email', 'signer_name', 'status', 'signed_at', 'rejected_at', 'kind', 'confirmed_at'],
           order: [['created_at', 'ASC']],
         })
       : [];

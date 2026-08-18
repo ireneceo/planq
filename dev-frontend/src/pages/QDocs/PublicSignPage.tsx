@@ -11,16 +11,26 @@
 // 상태별 화면: 진행 / 이미 서명 / 거절됨 / 만료 / 취소
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import PostEditor from '../../components/Docs/PostEditor';
+import {
+  ActionRow, Brand, Canvas, CanvasClear, CanvasPlaceholder, CanvasWrap, ConfirmActions, ConfirmTextArea,
+  ConfirmedComment, ConsentBox, ConsentHint, ConsentLabel, ConsentTitle, Content, DocBody, ErrorBox,
+  ErrorCenter, ErrorHint, ErrorIcon, ErrorTitle, InlineSpinner, LoadingCenter, NoteBox, OtpActions, OtpInput,
+  OtpRow, Page, PrimaryBtn, ProgressBar, ProjectChip, RejectActions, RejectBackdrop, RejectBtn, RejectDialog,
+  ResendBtn, ResultCard, ResultHint, ResultIcon, ResultMeta, ResultTitle, SecondaryBtn, Section, SectionDesc,
+  SectionTitle, SignatureSnap, Spinner, Step, Textarea, TopMeta, Topbar,
+} from './PublicSignPage.styles';
 
 interface PublicSignData {
   token: string;
+  kind?: 'sign' | 'confirm';
+  confirmed_at?: string | null;
+  comment?: string | null;
   signer_email: string;
   signer_name: string | null;
-  status: 'pending' | 'sent' | 'viewed' | 'signed' | 'rejected' | 'expired' | 'canceled';
+  status: 'pending' | 'sent' | 'viewed' | 'signed' | 'rejected' | 'expired' | 'canceled' | 'confirmed' | 'commented';
   expires_at: string;
   otp_verified: boolean;
   signed_at: string | null;
@@ -35,7 +45,9 @@ interface PublicSignData {
   };
 }
 
-type Phase = 'review' | 'otp' | 'sign' | 'done' | 'rejected_done';
+// #239 — 확인 요청(kind='confirm')은 OTP·서명 캔버스를 **아예 타지 않는다**.
+//   'confirm' 뷰와 'confirmed_done' 을 별도 phase 로 둬, 서명 경로와 코드가 섞이지 않게 한다.
+type Phase = 'review' | 'otp' | 'sign' | 'done' | 'rejected_done' | 'confirm' | 'confirmed_done';
 
 const PublicSignPage: React.FC = () => {
   const { t } = useTranslation('qdocs');
@@ -53,6 +65,11 @@ const PublicSignPage: React.FC = () => {
   const [otpVerifying, setOtpVerifying] = useState(false);
   const [otpError, setOtpError] = useState<string | null>(null);
   const otpRefs = useRef<Array<HTMLInputElement | null>>([]);
+
+  // #239 확인
+  const [confirmComment, setConfirmComment] = useState('');
+  const [confirmBusy, setConfirmBusy] = useState(false);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
 
   // 서명
   const [consent, setConsent] = useState(false);
@@ -80,7 +97,10 @@ const PublicSignPage: React.FC = () => {
       } else {
         setDoc(j.data);
         // 초기 phase 결정
-        if (j.data.status === 'signed') setPhase('done');
+        // #239 — 확인 요청이면 서명 경로(OTP/캔버스)로 절대 들어가지 않는다.
+        if ((j.data.kind || 'sign') === 'confirm') {
+          setPhase(j.data.confirmed_at ? 'confirmed_done' : 'confirm');
+        } else if (j.data.status === 'signed') setPhase('done');
         else if (j.data.status === 'rejected') setPhase('rejected_done');
         else if (j.data.otp_verified) setPhase('sign');
         else setPhase('review');
@@ -239,6 +259,33 @@ const PublicSignPage: React.FC = () => {
   };
 
   // ─── 서명 / 거절 ───
+  // #239 — 확인 / 의견. apiFetch 가 아니라 공개 라우트라 fetch 직접. **res.ok 를 반드시 본다.**
+  const postConfirm = async (path: 'confirm' | 'comment') => {
+    if (confirmBusy) return;
+    setConfirmBusy(true); setConfirmError(null);
+    try {
+      const r = await fetch(`/api/sign/${token}/${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comment: confirmComment.trim() || undefined }),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.success) {
+        setConfirmError(j?.message === 'already_confirmed'
+          ? (t('publicSign.confirm.already', { defaultValue: '이미 확인하셨습니다.' }) as string)
+          : (t('publicSign.confirm.failed', { defaultValue: '처리하지 못했습니다. 잠시 후 다시 시도해 주세요.' }) as string));
+        return;
+      }
+      if (path === 'confirm') setPhase('confirmed_done');
+      else setConfirmComment('');
+      setDoc((d) => (d ? { ...d, comment: j.data?.comment ?? d.comment, confirmed_at: path === 'confirm' ? new Date().toISOString() : d.confirmed_at } : d));
+    } catch {
+      setConfirmError(t('publicSign.confirm.failed', { defaultValue: '처리하지 못했습니다. 잠시 후 다시 시도해 주세요.' }) as string);
+    } finally {
+      setConfirmBusy(false);
+    }
+  };
+
   const submitSign = async () => {
     if (signing) return;
     setSignError(null);
@@ -306,7 +353,8 @@ const PublicSignPage: React.FC = () => {
         <TopMeta>{doc.signer_email}</TopMeta>
       </Topbar>
 
-      {!signedAlready && !rejectedAlready && (
+      {/* #239 — 확인 요청은 '본인 확인 → 서명' 단계가 없다. 3단계 표시는 거짓말이 된다. */}
+      {!signedAlready && !rejectedAlready && phase !== 'confirm' && phase !== 'confirmed_done' && (
         <ProgressBar>
           <Step $active={phase === 'review'} $done={phase !== 'review'}>1. {t('publicSign.step1', '문서 검토')}</Step>
           <Step $active={phase === 'otp'} $done={phase === 'sign' || phase === 'done'}>2. {t('publicSign.step2', '본인 확인')}</Step>
@@ -356,6 +404,42 @@ const PublicSignPage: React.FC = () => {
                 <PostEditor value={doc.entity.content_json} onChange={() => {}} editable={false} />
               </DocBody>
             </Section>
+
+            {/* #239 확인 요청 — OTP·서명 캔버스를 타지 않는다. 확인 버튼 + 의견 두 가지뿐. */}
+            {phase === 'confirm' && (
+              <Section>
+                <SectionTitle>{t('publicSign.confirm.title', { defaultValue: '문서를 확인해 주세요' }) as string}</SectionTitle>
+                <SectionDesc>
+                  {t('publicSign.confirm.desc', { defaultValue: '내용을 보신 뒤 아래 버튼을 눌러 주세요. 의견이 있으면 함께 남기실 수 있습니다.' }) as string}
+                </SectionDesc>
+                <ConfirmTextArea
+                  value={confirmComment}
+                  onChange={(e) => setConfirmComment(e.target.value.slice(0, 2000))}
+                  maxLength={2000}
+                  rows={4}
+                  placeholder={t('publicSign.confirm.placeholder', { defaultValue: '의견 (선택)' }) as string}
+                />
+                <ConfirmActions>
+                  <PrimaryBtn type="button" onClick={() => postConfirm('confirm')} disabled={confirmBusy}>
+                    {confirmBusy ? <><InlineSpinner />{t('publicSign.confirm.sending', { defaultValue: '보내는 중…' }) as string}</>
+                      : t('publicSign.confirm.action', { defaultValue: '확인했습니다' }) as string}
+                  </PrimaryBtn>
+                  <SecondaryBtn type="button" onClick={() => postConfirm('comment')} disabled={confirmBusy || !confirmComment.trim()}>
+                    {t('publicSign.confirm.commentOnly', { defaultValue: '의견만 보내기' }) as string}
+                  </SecondaryBtn>
+                </ConfirmActions>
+                {confirmError && <ErrorBox>{confirmError}</ErrorBox>}
+              </Section>
+            )}
+            {phase === 'confirmed_done' && (
+              <Section>
+                <SectionTitle>{t('publicSign.confirm.doneTitle', { defaultValue: '확인해 주셔서 감사합니다' }) as string}</SectionTitle>
+                <SectionDesc>
+                  {t('publicSign.confirm.doneDesc', { defaultValue: '확인 사실이 담당자에게 전달되었습니다. 이 페이지는 닫으셔도 됩니다.' }) as string}
+                </SectionDesc>
+                {doc.comment && <ConfirmedComment>{doc.comment}</ConfirmedComment>}
+              </Section>
+            )}
 
             {/* Step 2: OTP */}
             {(phase === 'review' || phase === 'otp') && (
@@ -467,250 +551,3 @@ const PublicSignPage: React.FC = () => {
 };
 
 export default PublicSignPage;
-
-// ─── styled ───
-const Page = styled.div`
-  min-height: 100vh; background: #F8FAFC; color: #0F172A;
-  display: flex; flex-direction: column;
-  font-family: inherit;
-`;
-const Topbar = styled.header`
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 20px;
-  background: #fff; border-bottom: 1px solid #E2E8F0;
-  position: sticky; top: 0; z-index: 10;
-`;
-const Brand = styled.img`display:block;width:120px;height:auto;user-select:none;`;
-const TopMeta = styled.span`font-size:12px;color:#64748B;`;
-
-const ProgressBar = styled.nav`
-  display: flex; gap: 0; padding: 0; background: #fff;
-  border-bottom: 1px solid #E2E8F0;
-  overflow-x: auto;
-  &::-webkit-scrollbar { display: none; }
-`;
-const Step = styled.div<{ $active: boolean; $done: boolean }>`
-  flex: 1; min-width: 100px; padding: 12px 16px;
-  font-size: 12px; font-weight: 600;
-  text-align: center; white-space: nowrap;
-  color: ${p => p.$active ? '#0F766E' : p.$done ? '#14B8A6' : '#94A3B8'};
-  border-bottom: 2px solid ${p => p.$active ? '#14B8A6' : 'transparent'};
-  position: relative;
-  &:not(:last-child)::after {
-    content: '›'; position: absolute; right: 0; top: 50%; transform: translateY(-50%);
-    color: #CBD5E1; font-weight: 400;
-  }
-`;
-
-const Content = styled.main`
-  flex: 1; max-width: 760px; width: 100%;
-  margin: 0 auto; padding: 24px 20px 40px;
-  display: flex; flex-direction: column; gap: 20px;
-  @media (max-width: 640px) { padding: 16px 12px 32px; gap: 16px; }
-`;
-
-const Section = styled.section`
-  background: #fff; border: 1px solid #E2E8F0; border-radius: 14px;
-  padding: 24px;
-  @media (max-width: 640px) { padding: 16px; border-radius: 12px; }
-`;
-const SectionTitle = styled.h2`
-  font-size: 18px; font-weight: 700; color: #0F172A; margin: 0 0 8px 0; line-height: 1.4;
-`;
-const SectionDesc = styled.p`
-  font-size: 13px; color: #64748B; margin: 0 0 16px 0; line-height: 1.55;
-`;
-const NoteBox = styled.div`
-  margin: 8px 0 16px; padding: 12px 14px;
-  font-size: 13px; color: #334155; line-height: 1.55;
-  background: #F8FAFC; border-left: 3px solid #14B8A6; border-radius: 0 8px 8px 0;
-  white-space: pre-wrap;
-`;
-const ProjectChip = styled.div`
-  display: inline-flex; align-items: center; gap: 6px;
-  margin: 0 0 12px;
-  padding: 4px 10px;
-  font-size: 12px; font-weight: 600; color: #0F766E;
-  background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 999px;
-`;
-const DocBody = styled.div`
-  margin-top: 12px; padding-top: 16px;
-  border-top: 1px solid #E2E8F0;
-`;
-
-// OTP
-const OtpRow = styled.div`
-  display: flex; gap: 8px; margin: 8px 0 12px;
-  @media (max-width: 480px) { gap: 4px; }
-`;
-const OtpInput = styled.input`
-  width: 52px; height: 56px;
-  text-align: center;
-  font-size: 22px; font-weight: 700; color: #0F172A;
-  border: 1px solid #CBD5E1; border-radius: 10px; background: #fff;
-  font-variant-numeric: tabular-nums;
-  transition: border-color 0.15s, box-shadow 0.15s;
-  &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
-  @media (max-width: 480px) { width: 44px; height: 52px; font-size: 20px; }
-`;
-const OtpActions = styled.div`display: flex; gap: 8px; align-items: center; flex-wrap: wrap;`;
-const ResendBtn = styled.button`
-  height: 36px; padding: 0 14px;
-  font-size: 12px; font-weight: 600; color: #475569;
-  background: transparent; border: 1px solid transparent; border-radius: 8px; cursor: pointer;
-  &:hover:not(:disabled) { color: #0F766E; }
-  &:disabled { color: #94A3B8; cursor: not-allowed; }
-`;
-
-// 캔버스
-const CanvasWrap = styled.div`
-  position: relative;
-  border: 2px dashed #CBD5E1; border-radius: 12px;
-  background: #FAFBFC;
-  height: 200px;
-  display: flex; flex-direction: column;
-  overflow: hidden;
-  &:hover { border-color: #14B8A6; }
-`;
-const Canvas = styled.canvas`
-  flex: 1; width: 100%; touch-action: none;
-  cursor: crosshair;
-`;
-const CanvasPlaceholder = styled.div`
-  position: absolute; inset: 0;
-  display: flex; align-items: center; justify-content: center;
-  pointer-events: none;
-  font-size: 14px; color: #CBD5E1;
-`;
-const CanvasClear = styled.button`
-  position: absolute; top: 8px; right: 8px;
-  height: 36px; padding: 0 14px;
-  font-size: 11px; font-weight: 600; color: #64748B;
-  background: rgba(255,255,255,0.95); border: 1px solid #E2E8F0; border-radius: 999px; cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-  &:hover:not(:disabled) { background: #FEF2F2; color: #DC2626; border-color: #FCA5A5; }
-  &:disabled { opacity: 0.4; cursor: not-allowed; }
-`;
-
-// 동의
-const ConsentBox = styled.div`
-  display: flex; align-items: flex-start; gap: 10px;
-  margin: 16px 0 8px;
-  padding: 12px 14px;
-  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px;
-  & input[type="checkbox"] { width: 16px; height: 16px; margin-top: 2px; accent-color: #14B8A6; cursor: pointer; }
-`;
-const ConsentLabel = styled.label`flex: 1; cursor: pointer;`;
-const ConsentTitle = styled.div`font-size:13px;font-weight:600;color:#0F172A;line-height:1.5;`;
-const ConsentHint = styled.div`font-size:11px;color:#94A3B8;margin-top:2px;line-height:1.5;`;
-
-// 액션
-const ActionRow = styled.div`
-  display: flex; gap: 8px; justify-content: flex-end;
-  margin-top: 16px;
-  @media (max-width: 480px) { flex-direction: column-reverse; & button { width: 100%; } }
-`;
-const PrimaryBtn = styled.button`
-  display: inline-flex; align-items: center; justify-content: center;
-  height: 44px; padding: 0 18px;
-  font-size: 14px; font-weight: 700; color: #fff;
-  background: #14B8A6; border: none; border-radius: 10px; cursor: pointer;
-  transition: background 0.15s, transform 0.15s;
-  &:hover:not(:disabled) { background: #0D9488; transform: translateY(-1px); }
-  &:disabled { background: #CBD5E1; cursor: not-allowed; }
-`;
-const SecondaryBtn = styled.button`
-  height: 44px; padding: 0 16px;
-  font-size: 14px; font-weight: 600; color: #334155;
-  background: #fff; border: 1px solid #E2E8F0; border-radius: 10px; cursor: pointer;
-  &:hover:not(:disabled) { background: #F8FAFC; border-color: #CBD5E1; }
-`;
-const RejectBtn = styled.button`
-  display: inline-flex; align-items: center; justify-content: center;
-  height: 44px; padding: 0 16px;
-  font-size: 14px; font-weight: 600; color: #DC2626;
-  background: #fff; border: 1px solid #EF4444; border-radius: 10px; cursor: pointer;
-  &:hover:not(:disabled) { background: #FEF2F2; }
-  &:disabled { opacity: 0.5; cursor: not-allowed; }
-`;
-
-const ErrorBox = styled.div`
-  font-size: 12px; color: #DC2626; background: #FEF2F2;
-  padding: 10px 12px; border-radius: 8px; margin-top: 8px; line-height: 1.5;
-`;
-
-// 거절 모달
-const RejectBackdrop = styled.div`
-  position: fixed; inset: 0; background: rgba(15,23,42,0.5);
-  display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px;
-`;
-const RejectDialog = styled.div`
-  background: #fff; border-radius: 14px; max-width: 460px; width: 100%;
-  padding: 24px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-  & h3 { margin: 0 0 8px; font-size: 17px; font-weight: 700; color: #0F172A; }
-  & p { margin: 0 0 14px; font-size: 13px; color: #64748B; line-height: 1.55; }
-`;
-const Textarea = styled.textarea`
-  width: 100%; padding: 10px 12px;
-  font-size: 13px; color: #0F172A; line-height: 1.55;
-  border: 1px solid #E2E8F0; border-radius: 8px; background: #fff;
-  resize: vertical; font-family: inherit;
-  &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
-`;
-const RejectActions = styled.div`display: flex; justify-content: flex-end; gap: 6px; margin-top: 14px;`;
-
-// 결과
-const ResultCard = styled.section<{ $tone: 'ok' | 'reject' }>`
-  background: #fff; border: 1px solid ${p => p.$tone === 'ok' ? '#14B8A6' : '#EF4444'};
-  border-radius: 14px; padding: 36px 24px;
-  display: flex; flex-direction: column; align-items: center; gap: 12px;
-  text-align: center;
-`;
-const ResultIcon = styled.div<{ $tone: 'ok' | 'reject' }>`
-  width: 64px; height: 64px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  background: ${p => p.$tone === 'ok' ? '#F0FDFA' : '#FEF2F2'};
-  color: ${p => p.$tone === 'ok' ? '#0F766E' : '#DC2626'};
-  border: 1px solid ${p => p.$tone === 'ok' ? '#14B8A6' : '#EF4444'};
-  animation: pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
-  @keyframes pop { 0% { transform: scale(0.6); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-`;
-const ResultTitle = styled.h2`font-size:20px;font-weight:700;color:#0F172A;margin:0;`;
-const ResultMeta = styled.div`font-size:13px;color:#64748B;`;
-const ResultHint = styled.p`font-size:13px;color:#475569;margin:8px 0 0;line-height:1.55;max-width:480px;`;
-const SignatureSnap = styled.div`
-  margin-top: 12px; padding: 10px 14px;
-  background: #FAFBFC; border: 1px solid #E2E8F0; border-radius: 10px;
-  & img { max-width: 240px; max-height: 100px; display: block; }
-`;
-
-// 로딩 / 에러
-const LoadingCenter = styled.div`
-  flex: 1; display: flex; align-items: center; justify-content: center; gap: 10px;
-  color: #64748B; font-size: 14px;
-`;
-const ErrorCenter = styled.div`
-  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
-  padding: 40px 20px;
-`;
-const ErrorIcon = styled.div`
-  width: 64px; height: 64px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  background: #FEF2F2; color: #DC2626; border: 1px solid #FECACA;
-`;
-const ErrorTitle = styled.h2`font-size:17px;font-weight:700;color:#0F172A;margin:0;text-align:center;`;
-const ErrorHint = styled.p`font-size:13px;color:#64748B;margin:0;text-align:center;`;
-
-const Spinner = styled.span`
-  width: 16px; height: 16px;
-  border: 2px solid #CBD5E1; border-top-color: #14B8A6;
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-  @keyframes spin { to { transform: rotate(360deg); } }
-`;
-const InlineSpinner = styled.span`
-  width: 12px; height: 12px; margin-right: 6px;
-  border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff;
-  border-radius: 50%; animation: spin 0.7s linear infinite;
-`;

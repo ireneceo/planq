@@ -315,7 +315,19 @@
     "doneAt": "Signed at {{at}}",
     "doneHint": "When all parties sign, the sender is notified automatically. You may close this window.",
     "rejectedTitle": "Signature rejected",
-    "rejectedHint": "The sender is notified automatically. Please reply separately for further discussion."
+    "rejectedHint": "The sender is notified automatically. Please reply separately for further discussion.",
+    "confirm": {
+      "title": "Please review this document",
+      "desc": "After reading it, tap the button below. You can leave a comment too.",
+      "placeholder": "Comment (optional)",
+      "action": "I've reviewed it",
+      "commentOnly": "Send comment only",
+      "sending": "Sending…",
+      "doneTitle": "Thank you for confirming",
+      "doneDesc": "Your confirmation has been sent to the requester. You can close this page.",
+      "already": "You have already confirmed.",
+      "failed": "Could not process. Please try again in a moment."
+    }
   },
   "sign": {
     "button": "Get signatures",
@@ -349,7 +361,13 @@
     "doneChat": "Card sent to chat",
     "doneExpiry": "Track progress in the document detail",
     "again": "Add more",
-    "goChat": "Open chat"
+    "goChat": "Open chat",
+    "kindLabel": "Request type",
+    "kindSign": "Signature request",
+    "kindConfirm": "Confirmation request",
+    "confirmers": "Who should confirm",
+    "kindSignHint": "The recipient verifies by email code (6 digits), then signs. Use for contracts and anything that needs weight.",
+    "kindConfirmHint": "The recipient opens the link and taps the review button, or leaves a comment. No extra verification, so it stays light."
   },
   "ai": {
     "btn": "AI",

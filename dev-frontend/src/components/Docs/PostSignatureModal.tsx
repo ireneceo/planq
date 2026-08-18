@@ -32,6 +32,9 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent }) =>
   const navigate = useNavigate();
   const { t } = useTranslation('qdocs');
   const [signers, setSigners] = useState<SignerRow[]>([{ id: nextRowId++, email: '', name: '' }]);
+  // 운영 #239 — 서명 요청 vs 확인 요청. 확인은 OTP·서명 캔버스 없이 "확인했습니다 / 의견" 만.
+  //   무거운 확인이 필요하면 서명 요청을 쓰면 된다 — 이 선택이 곧 인증 수위 선택이다.
+  const [kind, setKind] = useState<'sign' | 'confirm'>('sign');
   const [note, setNote] = useState('');
   const [expiryPick, setExpiryPick] = useState<7 | 14 | 30 | 'custom'>(14);
   const [customExpiry, setCustomExpiry] = useState<string>('');
@@ -177,6 +180,7 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent }) =>
     try {
       const r = await requestSignatures(post.id, {
         signers: validSigners.map(s => ({ email: s.email.trim().toLowerCase(), name: s.name.trim() || undefined })),
+        kind,
         note: note.trim() || undefined,
         expires_in_days: expiresInDays,
         send_chat: sendChat && !!convId,
@@ -240,7 +244,21 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent }) =>
         ) : (
           <Body>
             <Section>
-              <SectionLabel>{t('sign.signers', '서명자')}</SectionLabel>
+              {/* #239 — 요청 종류. 라벨이 아래 섹션 문구까지 바꾼다(서명자 vs 확인 요청 대상). */}
+              <KindRow role="radiogroup" aria-label={t('sign.kindLabel', { defaultValue: '요청 종류' }) as string}>
+                <KindBtn type="button" role="radio" aria-checked={kind === 'sign'} $on={kind === 'sign'} onClick={() => setKind('sign')}>
+                  {t('sign.kindSign', { defaultValue: '서명 요청' }) as string}
+                </KindBtn>
+                <KindBtn type="button" role="radio" aria-checked={kind === 'confirm'} $on={kind === 'confirm'} onClick={() => setKind('confirm')}>
+                  {t('sign.kindConfirm', { defaultValue: '확인 요청' }) as string}
+                </KindBtn>
+              </KindRow>
+              <SectionHint>{kind === 'confirm'
+                ? t('sign.kindConfirmHint', { defaultValue: '받는 분이 링크를 열어 "확인했습니다" 를 누르거나 의견을 남깁니다. 별도 인증 절차가 없어 가볍습니다.' }) as string
+                : t('sign.kindSignHint', { defaultValue: '받는 분이 이메일 인증(6자리 코드) 후 서명합니다. 계약처럼 무게가 필요한 문서에 씁니다.' }) as string}</SectionHint>
+              <SectionLabel>{kind === 'confirm'
+                ? t('sign.confirmers', { defaultValue: '확인 요청 받는 분' }) as string
+                : t('sign.signers', '서명자')}</SectionLabel>
               <SectionHint>{t('sign.signersHintV2', { defaultValue: '멤버·고객을 검색해 빠르게 추가하거나, 아래에 이메일을 직접 입력하세요. Enter 로 새 행 추가.' }) as string}</SectionHint>
               {contactOptions.length > 0 && (
                 <ContactPickWrap>
@@ -552,4 +570,18 @@ const DoneList = styled.ul`
 `;
 const DoneActions = styled.div`
   display: flex; gap: 6px; margin-top: 8px;
+`;
+
+// #239 — 요청 종류 세그먼트. 이 선택이 곧 인증 수위 선택이다(확인=토큰만 / 서명=OTP).
+const KindRow = styled.div`
+  display: inline-flex; gap: 0; margin-bottom: 8px;
+  border: 1px solid #E2E8F0; border-radius: 8px; overflow: hidden;
+`;
+const KindBtn = styled.button<{ $on: boolean }>`
+  padding: 7px 16px; border: none; cursor: pointer;
+  font-size: 12.5px; font-weight: 600;
+  background: ${p => (p.$on ? '#0F766E' : '#fff')};
+  color: ${p => (p.$on ? '#fff' : '#64748B')};
+  &:hover { background: ${p => (p.$on ? '#0F766E' : '#F8FAFC')}; }
+  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: -2px; }
 `;

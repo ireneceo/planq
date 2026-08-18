@@ -103,7 +103,9 @@
       "mark_paid": "Mark paid",
       "issue_tax": "Issue tax invoice",
       "issue": "Issue",
-      "reply": "Reply due"
+      "reply": "Reply due",
+      "doc_confirm": "Confirmation requested",
+      "doc_commented": "Comment on document"
     },
     "relTime": {
       "now": "Just now",

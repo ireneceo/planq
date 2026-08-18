@@ -40,6 +40,17 @@ SignatureRequest.init({
   },
   entity_id: { type: DataTypes.INTEGER, allowNull: false },
 
+  // 운영 #239 — 서명 요청(sign) vs 확인 요청(confirm).
+  //   확인은 "그냥 확인했다 / 의견 남기기" 로, 서명(OTP·캔버스·법적 무게)과 절차가 다르다.
+  //   같은 테이블을 쓰는 이유: 토큰·만료·멱등 재발송·수신함·워크스페이스 격리가 90% 동일하다.
+  //   ★ 옛 행은 DEFAULT 'sign' 으로 채워진다 — 기존 서명 플로우는 무변화.
+  //   ★ 이 선언을 **되돌리지 마라.** Sequelize alter:true 는 모델에 없는 컬럼을 DROP 한다
+  //     (롤백 정책: scripts/migrate-doc-external-confirm.js 헤더 참조).
+  kind: {
+    type: DataTypes.ENUM('sign', 'confirm'),
+    allowNull: false, defaultValue: 'sign',
+  },
+
   // 워크스페이스 격리
   business_id: {
     type: DataTypes.INTEGER, allowNull: false,
@@ -78,9 +89,17 @@ SignatureRequest.init({
   rejected_at: { type: DataTypes.DATE, allowNull: true },
   rejected_reason: { type: DataTypes.STRING(500), allowNull: true },
 
+  // #239 확인(confirm) 결과 — 서명과 달리 이미지·동의체크가 없다. 누가 언제 확인했고 뭐라 했는지만.
+  confirmed_at: { type: DataTypes.DATE, allowNull: true },
+  comment: { type: DataTypes.TEXT, allowNull: true },
+  comment_at: { type: DataTypes.DATE, allowNull: true },
+
   // 진행
   status: {
-    type: DataTypes.ENUM('pending', 'sent', 'viewed', 'signed', 'rejected', 'expired', 'canceled'),
+    // #239 — 'confirmed','commented' 는 **끝에 append**. ENUM 은 내부적으로 순번 저장이라
+    //   앞쪽 순서를 건드리면 기존 행의 의미가 통째로 뒤바뀐다.
+    type: DataTypes.ENUM('pending', 'sent', 'viewed', 'signed', 'rejected', 'expired', 'canceled',
+      'confirmed', 'commented'),
     allowNull: false, defaultValue: 'pending',
   },
   viewed_at: { type: DataTypes.DATE, allowNull: true },

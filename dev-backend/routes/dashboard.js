@@ -1,5 +1,5 @@
 const express = require('express');
-const { Op } = require('sequelize');
+const { Op, literal } = require('sequelize');
 const router = express.Router();
 const {
   Task, TaskReviewer,
@@ -473,7 +473,9 @@ async function collectSignatures(businessId, userEmail, userRole) {
         signer_email: userEmail,
         status: { [Op.in]: ['sent', 'viewed'] },
       },
-      attributes: ['id', 'token', 'signer_email', 'signer_name', 'status', 'expires_at', 'entity_type', 'entity_id', 'business_id', 'createdAt'],
+      // #239 — kind 를 실어야 화면이 "서명 요청" 과 "확인 요청" 을 구분해 라벨링한다.
+      //   여기는 **필터가 아니다** — 받은 확인 요청도 이 목록에 나와야 한다.
+      attributes: ['id', 'token', 'signer_email', 'signer_name', 'status', 'expires_at', 'entity_type', 'entity_id', 'business_id', 'kind', 'createdAt'],
       order: [['expires_at', 'ASC']],
       limit: 30,
     });
@@ -496,7 +498,10 @@ async function collectSignatures(businessId, userEmail, userRole) {
         id: `sign-recv-${sr.id}`,
         type: 'signature',
         priority,
-        verb: 'sign',
+        // 확인 요청은 서명이 아니다. verb 를 갈라야 화면이 "확인 요청" 으로 라벨링한다 —
+        //   조회만 하고 버리면 받은 확인 요청이 '서명 요청' 으로 표시된다(Fable 실측 지적).
+        verb: (sr.kind === 'confirm') ? 'doc_confirm' : 'sign',   // 'confirm' 은 이미 업무 '승인 대기' 라 겹친다
+        kind: sr.kind || 'sign',
         subject,
         context: expiresAt ? `만료: ${formatDateShort(expiresAt)}` : null,
         dueAt: safeToIso(expiresAt),
@@ -514,11 +519,21 @@ async function collectSignatures(businessId, userEmail, userRole) {
     const rejected = await SignatureRequest.findAll({
       where: {
         business_id: businessId,
-        status: 'rejected',
-        rejected_at: { [Op.gte]: sevenDaysAgo },
+        // #239 — 확인 요청의 '의견 남김'(commented)도 사람이 읽어야 하는 신호다.
+        //   거절과 같은 자리에 모은다 — 둘 다 "상대가 뭔가 말했다" 이고 놓치면 안 된다.
+        //
+        // ★ 상태마다 **시각 컬럼이 다르다.** 거절은 rejected_at, 의견은 comment_at 에 찍힌다.
+        //   전에는 둘 다 `rejected_at >= 7일` 로 걸러서 commented 행이 **한 번도 걸리지 않았다**
+        //   (comment 경로는 rejected_at 을 영영 안 쓴다 — Fable 이 실측으로 0건 증명).
+        //   상태별로 자기 시각 컬럼을 보게 갈라 둔다. 새 상태를 추가하면 여기도 같이 늘린다.
+        [Op.or]: [
+          { status: 'rejected', rejected_at: { [Op.gte]: sevenDaysAgo } },
+          { status: 'commented', comment_at: { [Op.gte]: sevenDaysAgo } },
+        ],
       },
-      attributes: ['id', 'token', 'signer_email', 'signer_name', 'status', 'rejected_at', 'rejected_reason', 'entity_type', 'entity_id'],
-      order: [['rejected_at', 'DESC']],
+      attributes: ['id', 'token', 'signer_email', 'signer_name', 'status', 'rejected_at', 'rejected_reason', 'entity_type', 'entity_id', 'kind', 'comment', 'comment_at'],
+      // 두 컬럼이 섞이므로 정렬도 합쳐서 본다 — rejected_at 만으로 정렬하면 의견 건이 항상 맨 뒤로 밀린다.
+      order: [[literal('COALESCE(rejected_at, comment_at)'), 'DESC']],
       limit: 10,
     });
     const rejPostIds = [...new Set(rejected.filter(r => r.entity_type === 'post').map(r => r.entity_id))];
@@ -531,15 +546,22 @@ async function collectSignatures(businessId, userEmail, userRole) {
       const subject = post ? post.title : `${sr.entity_type}#${sr.entity_id}`;
       // SPA 라우트는 `/docs` — `/qdocs` 는 존재한 적이 없어 catch-all 로 튕겼다(메뉴명 Q docs 에 끌린 오타)
       const link = post && sr.entity_type === 'post' ? `/docs?post=${sr.entity_id}` : null;
+      // 의견 남김을 '거절' 로 적지 않는다. 상대는 거절한 적이 없다 —
+      //   같은 계열의 거짓 문구가 알림에서 한 번 잡혔고, 이 표면에도 남아 있었다.
+      const isComment = sr.status === 'commented';
+      const at = isComment ? sr.comment_at : sr.rejected_at;
+      const who = sr.signer_name || sr.signer_email;
+      const excerpt = isComment ? sr.comment : sr.rejected_reason;
       items.push({
         id: `sign-rejected-${sr.id}`,
         type: 'signature',
         priority: 'today',
-        verb: 'sign_rejected',
+        verb: isComment ? 'doc_commented' : 'sign_rejected',
+        kind: sr.kind || 'sign',
         subject,
-        context: `${sr.signer_name || sr.signer_email} 거절${sr.rejected_reason ? ` — ${String(sr.rejected_reason).slice(0, 40)}` : ''}`,
-        dueAt: safeToIso(sr.rejected_at),
-        createdAt: safeToIso(sr.rejected_at),
+        context: `${who} ${isComment ? '의견' : '거절'}${excerpt ? ` — ${String(excerpt).slice(0, 40)}` : ''}`,
+        dueAt: safeToIso(at),
+        createdAt: safeToIso(at),
         actor: { name: sr.signer_name || sr.signer_email },
         link,
       });

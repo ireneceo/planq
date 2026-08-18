@@ -31,7 +31,11 @@ export type TodoVerb =
   | 'issue_tax'
   | 'issue'
   | 'candidate_other'
-  | 'sign_rejected';
+  | 'sign_rejected'
+  // #239 — 받은 문서 확인 요청. 업무 승인 verb(confirm)와 뜻이 달라 갈라 둔다.
+  | 'doc_confirm'
+  // #239 — 외부인이 문서에 의견을 남김. 거절이 아니다.
+  | 'doc_commented';
 
 export interface TodoWorkspace {
   business_id: number;
@@ -44,6 +48,8 @@ export interface TodoItem {
   type: TodoType;
   priority: TodoPriority;
   verb: TodoVerb;                // i18n 키의 verb 파트
+  // #239 서명 항목의 요청 종류. 라벨은 verb 가 만들지만, 화면이 더 갈라야 할 때의 근거값.
+  kind?: 'sign' | 'confirm';
   subject: string;               // 액션 대상: "워프로랩 3월 로고 시안 A안"
   context?: string;              // 추가 설명: "요청: Acme, 3시간 전"
   dueAt?: string | null;         // ISO string
