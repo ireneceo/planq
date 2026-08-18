@@ -367,7 +367,15 @@
       "transferBtn": "Transfer ownership",
       "transferring": "Transferring...",
       "transferConfirm": "Transfer workspace ownership to this member. You become an admin, and owner-only actions (billing, deletion) move to them. To reverse, the new owner must transfer back.",
-      "errTransferOwnerOnly": "Only the owner can transfer."
+      "errTransferOwnerOnly": "Only the owner can transfer.",
+      "rate": "Rate (for profitability)",
+      "rateHint": "Only admins can view or edit this. Used for labor cost in Stats › Profitability. If left empty, that member’s hours are excluded from labor cost and shown as “partial”.",
+      "hourlyRate": "Hourly rate",
+      "monthlySalary": "Monthly salary",
+      "perHour": "per h",
+      "perMonth": "per mo",
+      "rateOrder": "The hourly rate is used when set. Otherwise the monthly salary is converted as salary ÷ (weekly capacity × 4.33).",
+      "rateSaveFailed": "Could not save the rate. Please check the value."
     },
     "roleAdmin": "Admin",
     "roleMember": "Member",

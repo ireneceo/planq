@@ -624,6 +624,45 @@ export default function WorkspaceSettingsPage() {
     } catch { /* silent */ }
   };
 
+  // 운영 #211 — 멤버 단가. 수익성 탭의 인건비를 실제 원가로 계산하는 재료다.
+  //   ★ owner 전용 라우트(`/members/:userId/rate`)를 쓴다 — 기존 members 목록에는 단가를 싣지 않는다
+  //     (그 라우트는 member 도 부르므로 얹으면 전 직원 급여가 샌다).
+  //   ★ apiFetch 는 throw 하지 않는다 — res.ok 를 봐야 실패를 안다.
+  const [rateMap, setRateMap] = useState<Record<number, { hourly_rate: number | null; monthly_salary: number | null }>>({});
+  const [rateError, setRateError] = useState<string | null>(null);
+  const loadRates = useCallback(async () => {
+    if (!businessId || !isAdmin) return;
+    try {
+      const res = await apiFetch(`/api/businesses/${businessId}/members/rates`);
+      if (!res.ok) return;                       // member 면 403 — 조용히 지나간다(화면에 섹션 자체가 없다)
+      const j = await res.json();
+      const m: Record<number, { hourly_rate: number | null; monthly_salary: number | null }> = {};
+      for (const r of (j.data || [])) {
+        if (r.user_id) m[r.user_id] = { hourly_rate: r.hourly_rate, monthly_salary: r.monthly_salary };
+      }
+      setRateMap(m);
+    } catch { /* silent */ }
+  }, [businessId, isAdmin]);
+  useEffect(() => { loadRates(); }, [loadRates]);
+
+  const saveRate = async (userId: number, payload: { hourly_rate?: number | null; monthly_salary?: number | null }) => {
+    if (!businessId) return;
+    setRateError(null);
+    try {
+      const res = await apiFetch(`/api/businesses/${businessId}/members/${userId}/rate`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        setRateError(t('members.drawer.rateSaveFailed', '단가를 저장하지 못했습니다. 값을 확인해 주세요.') as string);
+        return;
+      }
+      const j = await res.json();
+      setRateMap((prev) => ({ ...prev, [userId]: { hourly_rate: j.data?.hourly_rate ?? null, monthly_salary: j.data?.monthly_salary ?? null } }));
+    } catch {
+      setRateError(t('members.drawer.rateSaveFailed', '단가를 저장하지 못했습니다. 값을 확인해 주세요.') as string);
+    }
+  };
+
   const sendMemberInvite = async () => {
     if (!businessId || !inviteEmail.trim()) return;
     setInviteBusy(true);
@@ -1461,6 +1500,47 @@ export default function WorkspaceSettingsPage() {
                             </WorkHoursField>
                           </WorkHoursForm>
                         </DrawerSection>
+
+                        {/* 운영 #211 — 단가(민감정보). **owner 만** 보이고 편집한다.
+                            본인이라도 자기 단가는 못 바꾼다(원가 조작 방지) — 서버도 403 으로 막는다. */}
+                        {isAdmin && target.role !== 'ai' && target.user_id != null && (
+                          <DrawerSection>
+                            <DrawerSectionTitle>{t('members.drawer.rate', '단가 (수익성 계산용)')}</DrawerSectionTitle>
+                            <DrawerSectionHint>
+                              {t('members.drawer.rateHint', '관리자만 보고 수정할 수 있습니다. 통계 > 수익성의 인건비 계산에 쓰입니다. 비워 두면 그 멤버의 시간은 인건비에서 제외되고 "일부 제외" 로 표시됩니다.')}
+                            </DrawerSectionHint>
+                            <WorkHoursForm>
+                              <WorkHoursField>
+                                <WorkHoursLabel>{t('members.drawer.hourlyRate', '시간당 단가')}</WorkHoursLabel>
+                                <WorkHoursNumber
+                                  type="number" min="0" step="1000"
+                                  defaultValue={rateMap[target.user_id]?.hourly_rate ?? ''}
+                                  onBlur={(e) => {
+                                    const v = e.target.value.trim();
+                                    saveRate(target.user_id as number, { hourly_rate: v === '' ? null : Number(v) });
+                                  }}
+                                />
+                                <WorkHoursUnit>{t('members.drawer.perHour', '원/h')}</WorkHoursUnit>
+                              </WorkHoursField>
+                              <WorkHoursField>
+                                <WorkHoursLabel>{t('members.drawer.monthlySalary', '월급')}</WorkHoursLabel>
+                                <WorkHoursNumber
+                                  type="number" min="0" step="100000"
+                                  defaultValue={rateMap[target.user_id]?.monthly_salary ?? ''}
+                                  onBlur={(e) => {
+                                    const v = e.target.value.trim();
+                                    saveRate(target.user_id as number, { monthly_salary: v === '' ? null : Number(v) });
+                                  }}
+                                />
+                                <WorkHoursUnit>{t('members.drawer.perMonth', '원/월')}</WorkHoursUnit>
+                              </WorkHoursField>
+                            </WorkHoursForm>
+                            <DrawerSectionHint>
+                              {t('members.drawer.rateOrder', '시간당 단가가 있으면 그 값을 씁니다. 없고 월급만 있으면 월급 ÷ (주간 가용시간 × 4.33) 으로 환산합니다.')}
+                            </DrawerSectionHint>
+                            {rateError && <DrawerSectionHint style={{ color: '#B91C1C' }}>{rateError}</DrawerSectionHint>}
+                          </DrawerSection>
+                        )}
                       </>
                     )}
 
