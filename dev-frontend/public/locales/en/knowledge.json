@@ -186,5 +186,8 @@
     "uploadFiles": "Upload new files",
     "attachExistingFiles": "Link existing files",
     "attachExistingPosts": "Link existing docs"
+  },
+  "csvIngest": {
+    "drop": "Drag a CSV file here, or click to choose"
   }
 }
