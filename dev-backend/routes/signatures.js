@@ -31,6 +31,11 @@ const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../middleware/audit');
 const { sendSignatureRequestEmail, sendSignatureOtpEmail } = require('../services/emailService');
+// 서명·확인 공용 조각 (services/signatureCore.js). 판정을 두 벌로 두지 않기 위해 여기서만 가져온다.
+const {
+  loadByToken, confirmLimiter, docConfirmEnabled, assertKind,
+  isExpiredNow, notifyWorkspaceMembersOnSignature,
+} = require('../services/signatureCore');
 
 const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
 const TOKEN_BYTES = 32;
@@ -122,6 +127,13 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
     const sender = await User.findByPk(req.user.id, { attributes: ['name'], transaction: t });
     const business = await Business.findByPk(post.business_id, { attributes: ['name'], transaction: t });
 
+    // #239 — 서명 요청(sign) vs 확인 요청(confirm). 모르는 값이면 sign 으로 떨어진다(fail-safe:
+    //   기존 클라이언트가 kind 를 안 보내도 종전과 똑같이 동작).
+    const kind = req.body?.kind === 'confirm' ? 'confirm' : 'sign';
+    if (kind === 'confirm' && String(process.env.FEATURE_DOC_CONFIRM || 'on').toLowerCase() === 'off') {
+      await t.rollback(); return errorResponse(res, 'feature_disabled', 503);
+    }
+
     // 멱등 처리: 같은 (entity, signer_email) 의 pending/sent/viewed 가 있으면 그것 갱신
     const created = [];
     for (const s of signers) {
@@ -132,6 +144,9 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
         where: {
           entity_type: 'post', entity_id: post.id, business_id: post.business_id,
           signer_email: email,
+          // #239 — kind 를 조건에 넣는다. 같은 사람에게 서명 요청과 확인 요청을 각각 보낼 수 있어야
+          //   하는데, 빼면 먼저 보낸 쪽이 재발송으로 덮어써져 한 종류만 존재하게 된다.
+          kind,
           status: { [Op.in]: ['pending', 'sent', 'viewed'] },
         },
         transaction: t,
@@ -153,6 +168,7 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
           requester_user_id: req.user.id,
           signer_email: email, signer_name: name,
           token: genToken(),
+          kind,
           note, expires_at: expiresAt, status: 'sent',
         }, { transaction: t });
       }
@@ -207,12 +223,12 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
     }
 
     // Audit
-    await createAuditLog({
+    createAuditLog({
       userId: req.user.id, businessId: post.business_id,
       action: 'signature.request',
       targetType: 'Post', targetId: post.id,
       metadata: { signers: created.map(c => c.signer_email), expires_at: expiresAt },
-    }).catch(() => null);
+    });
 
     // 확인필요 갱신 — 발행 워크스페이스 (서명자 측은 다른 워크스페이스에 있을 수 있어 따로 관리)
     const io = req.app.get('io');
@@ -263,10 +279,10 @@ router.delete('/signatures/:id', authenticateToken, async (req, res, next) => {
       return errorResponse(res, 'already_finalized', 400);
     }
     await sr.update({ status: 'canceled' });
-    await createAuditLog({
+    createAuditLog({
       userId: req.user.id, businessId: sr.business_id, action: 'signature.cancel',
       targetType: 'SignatureRequest', targetId: sr.id,
-    }).catch(() => null);
+    });
     return successResponse(res, { canceled: true });
   } catch (err) { next(err); }
 });
@@ -375,11 +391,6 @@ router.get('/signatures/received', authenticateToken, async (req, res, next) => 
 // 공개 라우트 (토큰 기반, 인증 없음)
 // ════════════════════════════════════════════════════════════
 
-async function loadByToken(token) {
-  if (!token || typeof token !== 'string' || token.length !== 64) return null;
-  return await SignatureRequest.findOne({ where: { token } });
-}
-
 // GET /api/sign/:token — 토큰 페이지 진입 (문서 본문 + 진행 상태)
 router.get('/sign/:token', async (req, res, next) => {
   try {
@@ -403,7 +414,11 @@ router.get('/sign/:token', async (req, res, next) => {
       signer_name: sr.signer_name,
       status: sr.status,
       expires_at: sr.expires_at,
-      otp_verified: !!sr.otp_verified_at,
+      kind: sr.kind || 'sign',   // #239 — 공개 페이지가 확인 뷰/서명 뷰를 가르는 값
+    confirmed_at: sr.confirmed_at,
+    comment: sr.comment,
+    comment_at: sr.comment_at,
+    otp_verified: !!sr.otp_verified_at,
       signed_at: sr.signed_at,
       signature_image_b64: sr.signature_image_b64,  // 서명 후 미리보기
       note: sr.note,
@@ -423,6 +438,8 @@ router.post('/sign/:token/otp', otpSendLimiter, async (req, res, next) => {
   try {
     const sr = await loadByToken(req.params.token);
     if (!sr) return errorResponse(res, 'not_found', 404);
+    // #239 — 역방향 가드: 확인 요청(confirm)은 OTP 경로를 타지 않는다.
+    if (!assertKind(sr, 'sign', res)) return;
     if (sr.status !== 'sent' && sr.status !== 'viewed') return errorResponse(res, 'invalid_state', 400);
     if (sr.otp_locked_until && sr.otp_locked_until > new Date()) {
       return errorResponse(res, 'locked', 423);
@@ -452,6 +469,8 @@ router.post('/sign/:token/verify', otpVerifyLimiter, async (req, res, next) => {
     if (!/^\d{6}$/.test(code)) return errorResponse(res, 'invalid_code_format', 400);
     const sr = await loadByToken(req.params.token);
     if (!sr) return errorResponse(res, 'not_found', 404);
+    // #239 — 역방향 가드 (위 /otp 와 같은 이유)
+    if (!assertKind(sr, 'sign', res)) return;
     if (sr.otp_locked_until && sr.otp_locked_until > new Date()) return errorResponse(res, 'locked', 423);
     if (!sr.otp_code_hash || !sr.otp_expires_at || sr.otp_expires_at < new Date()) {
       return errorResponse(res, 'otp_expired', 410);
@@ -479,12 +498,14 @@ router.post('/sign/:token/sign', async (req, res, next) => {
   try {
     const sr = await loadByToken(req.params.token);
     if (!sr) { await t.rollback(); return errorResponse(res, 'not_found', 404); }
+    // #239 — 역방향 가드: 확인 요청(confirm)이 서명 경로로 들어오면 안 된다.
+    if (!assertKind(sr, 'sign', res)) { await t.rollback(); return; }
     if (sr.status === 'signed') { await t.rollback(); return errorResponse(res, 'already_signed', 409); }
-    if (sr.status === 'rejected' || sr.status === 'canceled' || sr.status === 'expired') {
+    if (isExpiredNow(sr)) { await t.rollback(); return errorResponse(res, 'expired', 410); }
+    if (sr.status === 'rejected' || sr.status === 'canceled') {
       await t.rollback(); return errorResponse(res, 'invalid_state', 400);
     }
     if (!sr.otp_verified_at) { await t.rollback(); return errorResponse(res, 'otp_required', 400); }
-    if (sr.expires_at && sr.expires_at < new Date()) { await t.rollback(); return errorResponse(res, 'expired', 410); }
     const consent = !!req.body?.consent;
     if (!consent) { await t.rollback(); return errorResponse(res, 'consent_required', 400); }
     const sig = String(req.body?.signature_image_b64 || '');
@@ -506,11 +527,11 @@ router.post('/sign/:token/sign', async (req, res, next) => {
     await maybeUpdateEntityStatus(sr.entity_type, sr.entity_id, sr.business_id, t);
     await t.commit();
 
-    await createAuditLog({
+    createAuditLog({
       userId: null, businessId: sr.business_id, action: 'signature.sign',
       targetType: 'SignatureRequest', targetId: sr.id,
       metadata: { signer: sr.signer_email, ip },
-    }).catch(() => null);
+    });
 
     const io = req.app.get('io');
     if (io) io.to(`business:${sr.business_id}`).emit('inbox:refresh', { reason: 'signature_signed', entity_type: sr.entity_type, entity_id: sr.entity_id });
@@ -528,36 +549,6 @@ router.post('/sign/:token/sign', async (req, res, next) => {
   }
 });
 
-// 워크스페이스 멤버에 서명 진행 알림 (signed/rejected)
-async function notifyWorkspaceMembersOnSignature(sr, kind, signerName) {
-  const { Business, BusinessMember, Post } = require('../models');
-  const { notifyMany } = require('./notifications');
-  const biz = await Business.findByPk(sr.business_id, { attributes: ['name', 'brand_name'] });
-  const wsName = biz?.brand_name || biz?.name || null;
-  let entityTitle = '';
-  if (sr.entity_type === 'post') {
-    const p = await Post.findByPk(sr.entity_id, { attributes: ['title'] });
-    entityTitle = p?.title || '';
-  }
-  const members = await BusinessMember.findAll({
-    where: { business_id: sr.business_id, removed_at: null, role: { [require('sequelize').Op.in]: ['owner', 'admin', 'member'] } },
-    attributes: ['user_id'],
-  });
-  const userIds = members.map((m) => m.user_id);
-  // 요청자 본인은 제외 (이미 자신의 액션)
-  const excludeUserId = sr.requester_user_id;
-  const title = kind === 'signed' ? '서명 완료' : '서명 거절됨';
-  const body = `${signerName || sr.signer_email}${kind === 'signed' ? ' 님이 서명을 완료했습니다.' : ' 님이 서명을 거절했습니다.'}${entityTitle ? `\n문서: ${entityTitle}` : ''}`;
-  const link = sr.entity_type === 'post'
-    ? `${process.env.APP_URL || 'https://dev.planq.kr'}/posts/${sr.entity_id}`
-    : `${process.env.APP_URL || 'https://dev.planq.kr'}/docs/${sr.entity_id}`;
-  await notifyMany({
-    userIds, businessId: sr.business_id, eventKind: 'signature',
-    title, body, link, ctaLabel: '확인하기',
-    workspaceName: wsName, excludeUserId,
-  });
-}
-
 // POST /api/sign/:token/reject — 거절
 // body: { reason?, consent: true }
 router.post('/sign/:token/reject', async (req, res, next) => {
@@ -565,6 +556,8 @@ router.post('/sign/:token/reject', async (req, res, next) => {
   try {
     const sr = await loadByToken(req.params.token);
     if (!sr) { await t.rollback(); return errorResponse(res, 'not_found', 404); }
+    // #239 — 역방향 가드: 확인 요청(confirm)이 서명 경로로 들어오면 안 된다.
+    if (!assertKind(sr, 'sign', res)) { await t.rollback(); return; }
     if (sr.status === 'signed' || sr.status === 'rejected') {
       await t.rollback(); return errorResponse(res, 'already_finalized', 409);
     }
@@ -579,11 +572,11 @@ router.post('/sign/:token/reject', async (req, res, next) => {
     await maybeUpdateEntityStatus(sr.entity_type, sr.entity_id, sr.business_id, t);
     await t.commit();
 
-    await createAuditLog({
+    createAuditLog({
       userId: null, businessId: sr.business_id, action: 'signature.reject',
       targetType: 'SignatureRequest', targetId: sr.id,
       metadata: { signer: sr.signer_email, reason, ip },
-    }).catch(() => null);
+    });
 
     const io = req.app.get('io');
     if (io) io.to(`business:${sr.business_id}`).emit('inbox:refresh', { reason: 'signature_rejected', entity_type: sr.entity_type, entity_id: sr.entity_id });
@@ -598,12 +591,11 @@ router.post('/sign/:token/reject', async (req, res, next) => {
     next(err);
   }
 });
-
-// ─── Serializer ───
 function serialize(sr) {
   return {
     id: sr.id,
     entity_type: sr.entity_type, entity_id: sr.entity_id,
+    kind: sr.kind || 'sign',   // #239 — 화면이 "서명 요청" vs "확인 요청" 을 구분하는 근거
     business_id: sr.business_id,
     requester_user_id: sr.requester_user_id,
     signer_email: sr.signer_email, signer_name: sr.signer_name,
@@ -611,6 +603,9 @@ function serialize(sr) {
     sign_url: `${APP_URL}/sign/${sr.token}`,
     status: sr.status,
     viewed_at: sr.viewed_at,
+    confirmed_at: sr.confirmed_at,
+    comment: sr.comment,
+    comment_at: sr.comment_at,
     otp_verified: !!sr.otp_verified_at,
     signed_at: sr.signed_at,
     signed_ip: sr.signed_ip,

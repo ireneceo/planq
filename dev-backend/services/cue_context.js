@@ -179,7 +179,8 @@ async function getClientSnapshot(clientId, businessId, scope) {
   const totalPaid = recentInvoices.reduce((s, i) => s + Number(i.paid_amount || 0), 0);
 
   const recentSigs = canFinance ? await SignatureRequest.count({
-    where: { business_id: businessId, status: { [Op.in]: ['signed', 'sent', 'viewed'] } },
+    // #239 — 이 수치는 Cue 컨텍스트에서 "서명" 으로 불린다. 확인 요청이 섞이면 숫자가 거짓말이 된다.
+    where: { business_id: businessId, kind: 'sign', status: { [Op.in]: ['signed', 'sent', 'viewed'] } },
   }) : 0;
 
   return { client, recentInvoices, totalSent, totalPaid, totalSigs: recentSigs };

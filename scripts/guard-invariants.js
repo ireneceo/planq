@@ -322,7 +322,10 @@ const NOTIFY_LOCKED = [
   'dev-backend/services/taskTransition.js',
   'dev-backend/routes/tasks.js',
   'dev-backend/routes/invoices.js',
-  'dev-backend/routes/signatures.js',
+  // 서명·확인의 notify 는 #239 분리 후 **공용 코어**에 있다 (routes/signatures.js 와
+  //   routes/signature_confirm.js 가 같은 문을 지난다). 위 task_actions 와 같은 이유로 코어를 잠근다 —
+  //   라우트만 잠그면 확인 경로가 우회한다.
+  'dev-backend/services/signatureCore.js',
   'dev-backend/routes/calendar.js',
 ];
 function checkNotify() {

@@ -281,7 +281,13 @@ sync_database() {
   #   ★ PM2 reload **앞**이어야 한다. 모델이 first_used_at 을 선언하므로 컬럼 없이 새 백엔드가 뜨면
   #     RefreshToken 조회 전체가 ER_BAD_FIELD_ERROR → **로그인·세션 갱신 전멸**이다.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-refresh-delivery-confirm.js 2>&1 | tail -10"
-  success "마이그레이션 완료 (push native / invoice-payment / account-deletion / mail-notify / task-hold / mail-delivery / calendar-sync / calendar-split / calendar-reverse-sync)"
+  # #239 문서 외부 컨펌 — signature_requests.kind/confirmed_at/comment/comment_at + status ENUM 2값.
+  #   ★ PM2 reload **앞**이어야 한다. 신 코드가 kind='confirm'·status='confirmed' 를 쓰므로
+  #     컬럼/ENUM 없이 새 백엔드가 뜨면 Data truncated 로 확인 기능이 통째로 죽는다.
+  #   ★ 롤백은 **코드만 revert**. 컬럼·ENUM 은 남긴다(옛 코드에 무해). 단 models/SignatureRequest.js 의
+  #     컬럼 선언은 revert 금지 — sync alter 가 모델에 없는 컬럼을 DROP 한다. (스크립트 헤더 참조)
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-doc-external-confirm.js 2>&1 | tail -10"
+  success "마이그레이션 완료 (push native / invoice-payment / account-deletion / mail-notify / task-hold / mail-delivery / calendar-sync / calendar-split / calendar-reverse-sync / doc-confirm)"
 
   # 백필 — 마이그레이션 후. 과거 paid invoice/회차에 payment 원장 생성(멱등). 매출 0 복구.
   log "Backfilling invoice payments..."

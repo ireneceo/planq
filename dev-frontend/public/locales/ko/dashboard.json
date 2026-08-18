@@ -103,7 +103,9 @@
       "mark_paid": "입금 확인",
       "issue_tax": "세금계산서 발행",
       "issue": "발행하기",
-      "reply": "답장 대기"
+      "reply": "답장 대기",
+      "doc_confirm": "확인 요청",
+      "doc_commented": "문서 의견 등록"
     },
     "relTime": {
       "now": "방금",

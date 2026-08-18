@@ -424,6 +424,8 @@ app.use('/api/docs', require('./routes/docs'));
 app.use('/api/api-tokens', require('./routes/api_tokens'));   // #D-4 — MCP 외부 토큰 관리
 // 서명 — /api/posts/:id/signatures, /api/signatures/:id, /api/sign/:token/* (공개)
 app.use('/api', require('./routes/signatures'));
+// 문서 외부 확인 — /api/sign/:token/confirm · /comment (공개). #239 로 signatures.js 에서 분리.
+app.use('/api', require('./routes/signature_confirm'));
 app.use('/api/inquiries', require('./routes/inquiries'));
 app.use('/api', require('./routes/kb'));
 app.use('/api/weekly-reviews', require('./routes/weekly_reviews'));
