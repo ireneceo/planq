@@ -4,6 +4,7 @@ const path = require('path');
 const { Op } = require('sequelize');
 const router = express.Router();
 const { sequelize } = require('../config/database');
+const { archivePatch, unarchivePatch } = require('../services/conversationLifecycle');
 const {
   Project, ProjectMember, ProjectClient,
   ProjectNote, ProjectIssue, TaskCandidate,
@@ -440,11 +441,81 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     const prevName = project.name;
     await project.update(patch);
     // 프로젝트 'closed' 전환 시 연결 대화 자동 archived (cascade, soft). 데이터는 보존.
+    //   Irene 결정(2026-08-18): **삭제하지 않는다.** 업무 정보가 쌓이는 게 이 제품의 핵심 가치인데
+    //   삭제는 그걸 스스로 버리는 것이다. 목록에서만 내려가고 내용은 그대로 열람 가능하다.
     if (patch.status === 'closed' && prevStatus !== 'closed') {
+      // #240 — **두 축을 함께** 세운다. status 만 세팅하면 활성 목록에서도 빠지고
+      //   보관함 목록(archived_at IS NOT NULL)에도 안 잡혀 **어디서도 도달 불가**가 된다.
       await Conversation.update(
-        { status: 'archived' },
-        { where: { project_id: project.id, status: 'active' } },
+        archivePatch(req.user.id),
+        // 멀티테넌트 — project_id 만으로도 사실상 한정되지만 business_id 를 명시한다(CLAUDE.md 격리 규칙).
+        { where: { business_id: project.business_id, project_id: project.id, status: 'active' } },
       );
+
+      // 운영 #240 — "프로젝트 완료하면 완료된 시점에 안내 알림이랑 메일이 가야지.
+      //   고객사에게 맞게 보내고, 내부/외부 업무담당자들에게."
+      //   여태 완료 전이에 알림이 **하나도 없었다** — 관계자는 프로젝트가 끝난 걸 알 방법이 없었다.
+      //   CLAUDE.md §13: status 전이 라우트는 notify 호출 강제.
+      //   ★ 전이는 이미 커밋됐다. 알림 실패가 완료 처리를 되돌리지 않는다(fire-and-forget + 로그).
+      setImmediate(async () => {
+        try {
+          const { notifyMany } = require('./notifications');
+          const [members, clients] = await Promise.all([
+            ProjectMember.findAll({ where: { project_id: project.id }, attributes: ['user_id'], raw: true }),
+            ProjectClient.findAll({ where: { project_id: project.id }, attributes: ['contact_user_id'], raw: true }),
+          ]);
+          const staffIds = members.map((m) => m.user_id).filter(Boolean);
+          const clientIds = clients.map((c) => c.contact_user_id).filter(Boolean);
+
+          // 내부·외부 담당자 — 업무 관점 문구
+          if (staffIds.length) {
+            await notifyMany({
+              userIds: staffIds,
+              businessId: project.business_id,
+              eventKind: 'system',
+              title: `프로젝트 완료 — ${project.name}`,
+              body: '연결된 대화방은 보관함으로 옮겨졌어요. 내용은 그대로 볼 수 있습니다.',
+              link: `/projects/p/${project.id}`,
+              ctaLabel: '프로젝트 보기',
+              entityType: 'project', entityId: project.id,
+              actorUserId: req.user.id,
+              excludeUserId: req.user.id,   // 완료를 누른 본인에게는 보내지 않는다
+              ioApp: req.app,
+            });
+          }
+          // 고객사 — 같은 사건이라도 받는 사람이 다르면 문구가 달라야 한다.
+          //   내부 운영 사정(보관함 이동)은 고객에게 의미 없는 정보다.
+          if (clientIds.length) {
+            await notifyMany({
+              userIds: clientIds,
+              businessId: project.business_id,
+              eventKind: 'system',
+              title: `프로젝트가 완료되었습니다 — ${project.name}`,
+              body: '그동안 함께해 주셔서 감사합니다. 지난 기록은 계속 확인하실 수 있어요.',
+              link: `/projects/p/${project.id}`,
+              ctaLabel: '프로젝트 보기',
+              entityType: 'project', entityId: project.id,
+              actorUserId: req.user.id,
+              excludeUserId: req.user.id,
+              ioApp: req.app,
+            });
+          }
+        } catch (e) {
+          console.warn('[project close notify]', e.message);
+        }
+      });
+    }
+    // #240 — 프로젝트를 **다시 열면** 닫을 때 보관한 대화도 돌아와야 한다.
+    //   이게 없으면 "재개 가능" 이 반쪽이다(프로젝트만 살고 대화는 보관함에 남는다).
+    if (prevStatus === 'closed' && patch.status && patch.status !== 'closed') {
+      await Conversation.update(
+        unarchivePatch(),
+        { where: { business_id: project.business_id, project_id: project.id, status: 'archived' } },
+      );
+      try {
+        const io = req.app.get('io') || global.__planqIo;
+        if (io) io.to(`business:${project.business_id}`).emit('conversation:updated', { project_id: project.id, status: 'active' });
+      } catch (e) { console.warn('[project reopen emit]', e.message); }
     }
     // 사이클 N+21 — Project 상태 전이 history 박제
     if (patch.status && patch.status !== prevStatus) {
@@ -521,9 +592,11 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
     if (!isPlatformAdmin && role !== 'owner') return errorResponse(res, 'owner_only', 403);
     await project.update({ status: 'closed' });
     // cascade: 대화 archived
+    // #240 — 두 축을 함께 (위 PUT cascade 와 같은 규칙)
     await Conversation.update(
-      { status: 'archived' },
-      { where: { project_id: project.id, status: 'active' } },
+      archivePatch(req.user.id),
+      // 멀티테넌트 — project_id 만으로도 사실상 한정되지만 business_id 를 명시한다(CLAUDE.md 격리 규칙).
+        { where: { business_id: project.business_id, project_id: project.id, status: 'active' } },
     );
     return successResponse(res, { id: project.id, status: 'closed' });
   } catch (err) { next(err); }
@@ -693,6 +766,33 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
         return errorResponse(res, 'forbidden_channel', 403);
       }
     }
+    // 운영 #240 (Fable 판정) — 보관된 대화 쓰기. conversations.js 와 **같은 헬퍼**를 쓴다.
+    //   두 라우트에 술어를 인라인 복제하면 다음에 한쪽만 고쳐져 갈라진다.
+    {
+      const { decideArchivedWrite, unarchivePatch } = require('../services/conversationLifecycle');
+      let isClient = false;
+      if (conv.project_id) {
+        const { role } = await loadProjectOrForbidden(conv.project_id, req.user.id);
+        isClient = role === 'client';
+      }
+      const d = decideArchivedWrite(conv, { isClient });
+      if (d.action === 'block') return errorResponse(res, d.message, 409, d.code);
+      if (d.action === 'reactivate') {
+        await conv.update(unarchivePatch());
+        try {
+          const { logAudit } = require('../services/auditService');
+          logAudit(req, {
+            action: 'conversation.reactivate', targetType: 'conversation', targetId: conv.id,
+            businessId: conv.business_id, newValue: { reason: 'client_message', status: 'active' },
+          });
+        } catch (e) { console.warn('[conv reactivate audit]', e.message); }
+        try {
+          const io = req.app.get('io') || global.__planqIo;
+          if (io) io.to(`business:${conv.business_id}`).emit('conversation:updated', { id: conv.id, status: 'active' });
+        } catch (e) { console.warn('[conv reactivate emit]', e.message); }
+      }
+    }
+
     const { content, reply_to_message_id, kind } = req.body || {};
     // content 빈 값 허용 — 이미지/파일만 첨부한 메시지 (post-link 형태) 가능.
     // 단, content 와 첨부가 모두 비어 있으면 useless 이지만 그건 클라이언트 책임.
