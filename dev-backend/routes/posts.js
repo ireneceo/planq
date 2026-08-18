@@ -242,9 +242,19 @@ router.get('/meta', authenticateToken, async (req, res, next) => {
       if (p.author_id === req.user.id) myCount++;
     }
 
-    // 마스터 카테고리 테이블 (빈 카테고리 포함) — scope 와 일치하는 것만
+    // 마스터 카테고리 테이블 (빈 카테고리 포함)
+    //   🔴 운영 실버그(Fable 발견 2026-08-18) — 여기에 `scopeWhere` 를 그대로 넘기고 있었다.
+    //   scopeWhere 는 **Post 의 가시성 술어**(vlevel·visibility·target_member_ids …)를 담는데
+    //   `post_categories` 엔 그런 컬럼이 없다 → member/client 요청이 통째로 500
+    //   (`Unknown column 'PostCategory.vlevel'`). owner 는 술어가 단순해 우연히 통과했다.
+    //   카테고리는 **가시성 대상이 아니라 마스터 목록**이다 — 워크스페이스/프로젝트 축만 쓴다.
+    //   (memory: feedback_column_reference_must_exist — 없는 컬럼 참조는 catch 에 삼켜져 안 보인다)
+    const catWhere = { business_id: businessId };
+    if (Object.prototype.hasOwnProperty.call(scopeWhere, 'project_id')) {
+      catWhere.project_id = scopeWhere.project_id;
+    }
     const masterCats = await PostCategory.findAll({
-      where: scopeWhere,
+      where: catWhere,
       order: [['sort_order', 'ASC'], ['name', 'ASC']],
     });
     for (const mc of masterCats) {

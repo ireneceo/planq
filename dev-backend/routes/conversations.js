@@ -639,6 +639,32 @@ router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope
     // Client 는 internal 메모 작성 금지
     const internalFlag = req.scope?.isClient ? false : !!is_internal;
 
+    // 운영 #240 (Fable 판정) — 보관된 대화에 쓰기.
+    //   고객은 절대 막지 않는다 — 쓰는 순간 **자동 재개**되어 목록으로 돌아온다.
+    //   (막으면 그 글이 어느 목록에도 안 뜨는 조용한 유실이 되거나, 고객을 차단하게 된다.)
+    //   직원은 409 로 막는다 — '보관' 라벨이 붙은 방에 내부 잡담이 계속 쌓이면 아카이브가 무의미해진다.
+    {
+      const { decideArchivedWrite, unarchivePatch } = require('../services/conversationLifecycle');
+      const d = decideArchivedWrite(conversation, { isClient: !!req.scope?.isClient });
+      if (d.action === 'block') return errorResponse(res, d.message, 409, d.code);
+      if (d.action === 'reactivate') {
+        await conversation.update(unarchivePatch());
+        try {
+          const { logAudit } = require('../services/auditService');
+          logAudit(req, {
+            action: 'conversation.reactivate', targetType: 'conversation', targetId: conversation.id,
+            businessId: Number(req.params.businessId),
+            newValue: { reason: 'client_message', status: 'active' },
+          });
+        } catch (e) { console.warn('[conv reactivate audit]', e.message); }
+        // §16 실시간 — 목록으로 돌아온 사실을 열려 있는 화면들이 즉시 알아야 한다.
+        try {
+          const io = req.app.get('io') || global.__planqIo;
+          if (io) io.to(`business:${req.params.businessId}`).emit('conversation:updated', { id: conversation.id, status: 'active' });
+        } catch (e) { console.warn('[conv reactivate emit]', e.message); }
+      }
+    }
+
     const msg = await Message.create({
       conversation_id: conversation.id,
       sender_id: req.user.id,
@@ -1157,7 +1183,9 @@ router.post('/:businessId/:id/archive', authenticateToken, checkBusinessAccess, 
       return errorResponse(res, 'workspace_owner_or_project_owner_required', 403);
     }
 
-    await conv.update({ archived_at: new Date(), archived_by_user_id: req.user.id });
+    // #240 — 두 축을 함께. archived_at 만 세우면 활성 목록(status:'active' 필터)에는 계속 남는다.
+    const { archivePatch } = require('../services/conversationLifecycle');
+    await conv.update(archivePatch(req.user.id));
     require('../services/auditService').logAudit(req, {
       action: 'conversation.archive',
       targetType: 'conversation',
@@ -1196,9 +1224,13 @@ router.post('/:businessId/:id/unarchive', authenticateToken, checkBusinessAccess
     }
     const conv = await Conversation.findOne({ where: { id: req.params.id, business_id: businessId } });
     if (!conv) return errorResponse(res, 'conversation_not_found', 404);
-    if (!conv.archived_at) return errorResponse(res, 'not_archived', 400);
+    // #240 — 두 축 중 하나라도 서 있으면 보관으로 본다(옛 데이터는 status 만 세팅돼 있다).
+    const { isArchived, unarchivePatch } = require('../services/conversationLifecycle');
+    if (!isArchived(conv)) return errorResponse(res, 'not_archived', 400);
     const oldArchivedAt = conv.archived_at;
-    await conv.update({ archived_at: null, archived_by_user_id: null });
+    // ★ status 도 함께 되돌린다. 여태 archived_at 만 지워서 status='archived' 가 잔류했고,
+    //   그러면 보관함에서는 사라지는데 활성 목록에도 안 나오는 림보가 됐다.
+    await conv.update(unarchivePatch());
     require('../services/auditService').logAudit(req, {
       action: 'conversation.unarchive',
       targetType: 'conversation',
