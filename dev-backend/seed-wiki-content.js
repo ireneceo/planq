@@ -302,6 +302,23 @@ const ARTICLES = [
         'Received signatures collect in the inbox, and every step is recorded in the audit log.'),
     ] },
 
+  { cat: 'qdocs', slug: 'request-confirmation', visibility: 'authenticated', linked_route: '/docs', est: 2,
+    title: t('확인 요청 보내기 (서명 없이)', 'Request a confirmation (no signature)'),
+    summary: t('서명까지는 필요 없을 때, 상대가 눌러서 확인하거나 의견만 남기게 하기',
+      'When a signature is overkill: let the recipient just confirm, or leave a comment'),
+    body: [
+      p('계약처럼 서명이 필요한 문서가 아니라 "한 번 봐 주세요" 인 문서가 있습니다. 이럴 때는 서명 요청 대신 확인 요청을 보냅니다.',
+        'Some documents only need a look, not a signature. Send a confirmation request instead of a signature request.'),
+      s('문서에서 요청을 만들 때 "확인 요청" 을 고르고 상대 이메일을 입력합니다.',
+        'When creating the request on a document, choose "Confirmation request" and enter the recipient email.'),
+      s('상대는 받은 링크에서 "확인했습니다" 를 누르거나, 의견만 남길 수 있습니다.',
+        'From the link, the recipient can click "Confirmed" or just leave a comment.'),
+      s('확인·의견이 오면 워크스페이스 멤버에게 알림이 가고, 인박스에도 쌓입니다.',
+        'Confirmations and comments notify workspace members and collect in the inbox.'),
+      note('서명 요청과 달리 OTP 인증 단계가 없습니다. 신원은 사람마다 다른 링크가 담보하므로, 이 링크는 받는 분에게만 전달하세요. 여러 사람이 함께 보는 공개 공유 링크에는 이 버튼이 나타나지 않습니다.',
+        'Unlike a signature request, there is no OTP step. Identity rests on the per-person link, so send it only to that person. This action never appears on a public share link that anyone can open.'),
+    ] },
+
   // ── 파일·자료 ──
   { cat: 'qfile', slug: 'upload-share-file', visibility: 'authenticated', linked_route: '/files', est: 2,
     title: t('파일 올리고 공유하기', 'Upload and share files'),
