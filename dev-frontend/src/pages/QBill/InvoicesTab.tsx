@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useAuth } from '../../contexts/AuthContext';
+import { invoiceViewerOf } from './invoiceCaps';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import {
@@ -16,6 +17,9 @@ import { ChipBar, Chip, ChipCount } from '../../components/QBill/FilterChips';
 type Filter = InvoiceStatus | 'all';
 
 const FILTER_KEYS: Filter[] = ['all', 'draft', 'sent', 'partially_paid', 'paid', 'overdue', 'canceled'];
+// 운영 #274 — 고객에게 'draft' 칩은 **항상 빈 목록**을 내는 죽은 컨트롤이다(백엔드가 draft 를 숨긴다).
+//   빈 화면은 사용자에게 고장으로 읽힌다 — 아예 보여주지 않는다.
+const RECIPIENT_FILTER_KEYS: Filter[] = FILTER_KEYS.filter((k) => k !== 'draft');
 
 export default function InvoicesTab() {
   const { t } = useTranslation('qbill');
@@ -24,6 +28,9 @@ export default function InvoicesTab() {
   const { user } = useAuth();
   const businessId = user?.business_id ? Number(user.business_id) : null;
   const isClient = user?.business_role === 'client';
+  // #274 — 뷰어 판정은 invoiceCaps 단일 착지점(이 화면은 이미 isClient 를 쓰고 있어 그것과 일치).
+  const isRecipient = invoiceViewerOf(user) === 'recipient';
+  const filterKeys = isRecipient ? RECIPIENT_FILTER_KEYS : FILTER_KEYS;
 
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
@@ -171,7 +178,7 @@ export default function InvoicesTab() {
 
       {/* 상태 chip */}
       <ChipBar role="tablist">
-        {FILTER_KEYS.map(k => {
+        {filterKeys.map(k => {
           const cnt = counts[k] || 0;
           const active = filter === k;
           return (
@@ -296,7 +303,8 @@ export default function InvoicesTab() {
         invoice={selectedInvoice}
         onClose={closeDetail}
         onChanged={reload}
-        onEdit={(id) => { closeDetail(); setEditInvoiceId(id); setShowNew(true); }}
+        // #274 — 고객에겐 편집 진입점을 아예 넘기지 않는다(드로어 caps 게이트와 이중 안전).
+        onEdit={isRecipient ? undefined : (id) => { closeDetail(); setEditInvoiceId(id); setShowNew(true); }}
       />
 
       {/* 발행 / 편집 모달 */}

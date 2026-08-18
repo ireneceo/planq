@@ -246,7 +246,9 @@
       "fileLabel": "Attach issued file (optional)",
       "filePick": "Choose file",
       "fileNone": "No file selected",
-      "fileHint": "If attached, the customer can download it from the public invoice page."
+      "fileHint": "If attached, the customer can download it from the public invoice page.",
+      "willIssue": "To be issued",
+      "willIssueDesc": "We will issue it once your payment is confirmed."
     },
     "bank": {
       "title": "Bank info",
@@ -256,7 +258,8 @@
       "copy": "Copy",
       "copied": "Copied",
       "payerMemo": "Payer memo",
-      "payerMemoHelp": "Include this as the sender memo"
+      "payerMemoHelp": "Use the short code below as the sender name — banks truncate long names, so we kept it short.",
+      "payerMemoNote": "After transferring, tap 'I've sent the payment' on the payment page so we can confirm faster."
     },
     "events": {
       "title": "Activity",
@@ -344,6 +347,11 @@
       "sending": "Sending…",
       "hint": "Send this invoice to the client",
       "noRecipient": "No recipient — cannot send"
+    },
+    "recipient": {
+      "openPayPage": "Open payment page",
+      "pdf": "Download PDF",
+      "chat": "Ask the manager"
     }
   },
   "newInvoice": {
@@ -577,7 +585,9 @@
     },
     "info": {
       "title": "Receipts are issued externally (Hometax/Popbill) — only marked here",
-      "desc": "Pending tax invoices and cash receipts for paid invoices. Items with approaching or passed deadlines are sorted to the top."
+      "desc": "Pending tax invoices and cash receipts for paid invoices. Items with approaching or passed deadlines are sorted to the top.",
+      "recipientTitle": "Receipts you will receive",
+      "recipientDesc": "Issuing status of tax invoices and cash receipts for invoices you paid. You can check here once issued."
     },
     "overdueBanner": "{{count}} receipt(s) have passed their issuance deadline. Issue them first to avoid penalties.",
     "kind": {
@@ -694,6 +704,10 @@
         "correction_pending": "Correction needed"
       },
       "notifyLabel": "Email the customer about this correction"
+    },
+    "recipient": {
+      "issued": "Issued",
+      "willIssue": "To be issued"
     }
   },
   "settings": {

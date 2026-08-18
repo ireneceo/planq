@@ -568,7 +568,7 @@ async function sendSignatureOtpEmail({ to, docTitle, code }) {
 // ═══════════════════════════════════════════════════════════════
 // 5. 청구서 발송 (외부 client)
 // ═══════════════════════════════════════════════════════════════
-function invoiceEmailHtml({ invoiceNumber, title, total, currency, dueDate, senderName, workspaceName, workspaceContact, message, shareUrl }) {
+function invoiceEmailHtml({ invoiceNumber, title, total, currency, dueDate, senderName, workspaceName, workspaceContact, message, shareUrl, payerCode, willIssueTax }) {
   const totalStr = currency === 'KRW'
     ? `${Number(total).toLocaleString('ko-KR')}원`
     : `${currency} ${Number(total).toLocaleString('en-US')}`;
@@ -584,6 +584,8 @@ function invoiceEmailHtml({ invoiceNumber, title, total, currency, dueDate, send
       <div style="font-size:24px;font-weight:800;color:#0F172A;letter-spacing:-0.3px;margin-top:2px;">${totalStr}</div>
       ${dueStr ? `<div style="font-size:12px;color:#92400E;margin-top:6px;font-weight:500;">결제 기한 ${dueStr}</div>` : ''}
     </div>
+    ${payerCode ? `<div style="margin-top:10px;font-size:13px;color:#334155;line-height:1.6;">입금자명(보내는 분 표시)에 <b style="font-family:ui-monospace,monospace;">${escapeHtml(payerCode)}</b> 를 적어 주시면 확인이 빠릅니다.<br><span style="font-size:12px;color:#64748B;">은행에 따라 글자 수가 제한되어 짧게 만들었습니다.</span></div>` : ''}
+    ${willIssueTax ? `<div style="margin-top:8px;font-size:12px;color:#64748B;line-height:1.6;">입금이 확인되면 세금계산서를 발행해 드립니다.</div>` : ''}
     ${quoteBlock(message)}
     <div style="margin-top:20px;text-align:center;">
       ${ctaButton(shareUrl, '청구서 보기 · 입금 안내')}
@@ -592,21 +594,21 @@ function invoiceEmailHtml({ invoiceNumber, title, total, currency, dueDate, send
   return emailWrap({ title: `청구서 — ${title}`, body, preheader: `청구서 ${invoiceNumber} — ${totalStr}${dueStr ? `, 결제 기한 ${dueStr}` : ''}`, footerOptions: { workspaceName, workspaceContact } });
 }
 
-async function sendInvoiceEmail({ to, invoiceNumber, title, total, currency, dueDate, senderName, workspaceName, message, shareUrl, attachments, fromName, replyTo }) {
+async function sendInvoiceEmail({ to, invoiceNumber, title, total, currency, dueDate, senderName, workspaceName, message, shareUrl, attachments, fromName, replyTo, payerCode, willIssueTax }) {
   if (!to) return false;
   const subject = `${subjectPrefix(workspaceName)} 청구서 — ${invoiceNumber} ${title}`;
   // 워크스페이스 회신처(mail_reply_to) 가 있으면 푸터에 "문의·회신" 으로 노출 — 보낸 주체의 기본 연락처
   const workspaceContact = replyTo && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(replyTo).trim()) ? String(replyTo).trim() : null;
   return sendEmail({
     to, subject,
-    html: invoiceEmailHtml({ invoiceNumber, title, total, currency, dueDate, senderName, workspaceName, workspaceContact, message, shareUrl }),
+    html: invoiceEmailHtml({ invoiceNumber, title, total, currency, dueDate, senderName, workspaceName, workspaceContact, message, shareUrl, payerCode, willIssueTax }),
     attachments, fromName, replyTo,
     template: 'invoice', relatedEntityType: 'invoice',
   });
 }
 
 // 결제 독촉(리마인더) — 운영자가 미결제 청구서에 수동으로 발송. overdue_handler 자동 단계와 별개.
-function paymentReminderEmailHtml({ invoiceNumber, title, total, currency, dueDate, daysOverdue, workspaceName, message, shareUrl }) {
+function paymentReminderEmailHtml({ invoiceNumber, title, total, currency, dueDate, daysOverdue, workspaceName, message, shareUrl, payerCode }) {
   const totalStr = currency === 'KRW'
     ? `${Number(total).toLocaleString('ko-KR')}원`
     : `${currency} ${Number(total).toLocaleString('en-US')}`;
@@ -628,6 +630,7 @@ function paymentReminderEmailHtml({ invoiceNumber, title, total, currency, dueDa
       <div style="font-size:24px;font-weight:800;color:#0F172A;letter-spacing:-0.3px;margin-top:2px;">${totalStr}</div>
       ${dueLine}
     </div>
+    ${payerCode ? `<div style="margin-top:10px;font-size:13px;color:#334155;line-height:1.6;">입금자명(보내는 분 표시)에 <b style="font-family:ui-monospace,monospace;">${escapeHtml(payerCode)}</b> 를 적어 주시면 확인이 빠릅니다.<br><span style="font-size:12px;color:#64748B;">은행에 따라 글자 수가 제한되어 짧게 만들었습니다.</span></div>` : ''}
     ${quoteBlock(message)}
     <div style="margin-top:20px;text-align:center;">
       ${ctaButton(shareUrl, '청구서 보기 · 입금하기')}
@@ -636,13 +639,13 @@ function paymentReminderEmailHtml({ invoiceNumber, title, total, currency, dueDa
   return emailWrap({ title: `결제 안내 — ${title}`, body, preheader: `청구서 ${invoiceNumber} — ${totalStr}${daysOverdue > 0 ? `, ${daysOverdue}일 연체` : dueStr ? `, 결제 기한 ${dueStr}` : ''}`, footerOptions: { workspaceName } });
 }
 
-async function sendPaymentReminderEmail({ to, invoiceNumber, title, total, currency, dueDate, daysOverdue, workspaceName, message, shareUrl, fromName, replyTo, businessId, invoiceId }) {
+async function sendPaymentReminderEmail({ to, invoiceNumber, title, total, currency, dueDate, daysOverdue, workspaceName, message, shareUrl, fromName, replyTo, businessId, invoiceId, payerCode }) {
   if (!to) return false;
   const overdue = Number(daysOverdue) > 0;
   const subject = `${subjectPrefix(workspaceName)} ${overdue ? '결제 기한 안내' : '결제 안내'} — ${invoiceNumber} ${title}`;
   return sendEmail({
     to, subject,
-    html: paymentReminderEmailHtml({ invoiceNumber, title, total, currency, dueDate, daysOverdue, workspaceName, message, shareUrl }),
+    html: paymentReminderEmailHtml({ invoiceNumber, title, total, currency, dueDate, daysOverdue, workspaceName, message, shareUrl, payerCode }),
     fromName, replyTo,
     template: 'payment_reminder', relatedEntityType: 'invoice', relatedEntityId: invoiceId,
     businessId,
