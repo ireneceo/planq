@@ -658,8 +658,16 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
   try {
     const baseWhere = await invoiceListWhere(req.user.id, Number(req.params.businessId), req.scope);
     if (!baseWhere) return errorResponse(res, 'forbidden', 403);
+    // 운영 #274 — 사용자 필터를 **교집합**으로 얹는다. `where.status = ...` 로 대입하면
+    //   invoiceListWhere 가 심은 가시성 술어(고객에게 draft 숨김)를 통째로 덮어써서
+    //   `?status=draft` 한 방으로 우회된다(Fable 게이트 실측 유출). 접근 제어는 항상 AND 다.
+    // 운영 #274 — 사용자 필터는 **교집합**으로 얹는다. `where.status = ...` 대입은
+    //   가시성 술어를 덮어써 `?status=draft` 우회를 만든다(Fable 게이트 실측).
+    //   술어 자체도 Op.and 안에 있어 대입으로는 지워지지 않지만, 여기서도 AND 로 얹어 이중으로 막는다.
     const where = { ...baseWhere };
-    if (req.query.status) where.status = req.query.status;
+    if (req.query.status) {
+      where[Op.and] = [...(where[Op.and] || []), { status: String(req.query.status) }];
+    }
 
     const invoices = await Invoice.findAll({
       where,

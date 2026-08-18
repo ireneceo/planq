@@ -37,6 +37,7 @@ const KbCsvIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved }) => 
   const [parsing, setParsing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);   // #232 드롭존 하이라이트
 
   const handleFile = useCallback((file: File) => {
     const reader = new FileReader();
@@ -118,12 +119,27 @@ const KbCsvIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved }) => 
                   </svg>
                   {t('csvIngest.sample', '샘플 다운로드')}
                 </SecondaryBtn>
-                <FileInputLabel>
-                  <input type="file" accept=".csv,text/csv" hidden
-                    onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
-                  {t('csvIngest.upload', '파일 선택')}
-                </FileInputLabel>
               </Row>
+
+              {/* 운영 #232 — "버튼 형식은 다 찾아서 바꿔줘. 전체 통일되게 드래그드롭 회색 라운드박스."
+                  버튼만 있던 자리를 드롭존으로 교체한다(클릭도 그대로 된다 — label 이 input 을 감싼다). */}
+              <DropZone
+                $over={dragOver}
+                onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={e => {
+                  e.preventDefault(); setDragOver(false);
+                  const f = e.dataTransfer.files?.[0];
+                  if (f) handleFile(f);
+                }}
+              >
+                <input type="file" accept=".csv,text/csv" hidden
+                  onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
+                <DropIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
+                </DropIcon>
+                <DropText>{t('csvIngest.drop', 'CSV 파일을 끌어다 놓거나 클릭해 선택하세요')}</DropText>
+              </DropZone>
 
               <Field>
                 <Label>{t('csvIngest.text', 'CSV 내용')}</Label>
@@ -260,12 +276,6 @@ const TextArea = styled.textarea`
   resize: vertical;
   &:focus { outline: none; border-color: #14B8A6; }
 `;
-const FileInputLabel = styled.label`
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 8px 14px; background: #FFFFFF; color: #475569;
-  border: 1px solid #E2E8F0; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
-  &:hover { border-color: #14B8A6; color: #0F766E; }
-`;
 const ErrorBox = styled.div`
   padding: 10px 12px; background: #FEF2F2; border: 1px solid #FECACA;
   border-radius: 8px; font-size: 13px; color: #B91C1C;
@@ -302,3 +312,17 @@ const SecondaryBtn = styled.button`
   &:hover:not(:disabled) { border-color: #14B8A6; color: #0F766E; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
+
+// 운영 #232 — 첨부 표면 공통 형태(회색 라운드 점선 박스). AttachmentField 와 같은 계열.
+const DropZone = styled.label<{ $over: boolean }>`
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  padding: 20px 16px; cursor: pointer;
+  background: ${p => (p.$over ? '#F0FDFA' : '#F8FAFC')};
+  border: 1.5px dashed ${p => (p.$over ? '#14B8A6' : '#CBD5E1')};
+  border-radius: 10px;
+  color: ${p => (p.$over ? '#0F766E' : '#64748B')};
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  &:hover { border-color: #94A3B8; }
+`;
+const DropIcon = styled.svg` width: 22px; height: 22px; `;
+const DropText = styled.div` font-size: 12.5px; font-weight: 600; text-align: center; `;

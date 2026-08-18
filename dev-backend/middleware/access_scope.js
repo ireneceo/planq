@@ -310,12 +310,49 @@ async function fileListWhere(userId, businessId, scope) {
 // ─────────────────────────────────────────────
 // Invoice
 // ─────────────────────────────────────────────
+//
+// 운영 #274 — **고객에게 보이면 안 되는 청구서**의 단일 원천.
+//   여태 client 분기에 status 조건이 아예 없어서, 로그인 고객이 **발행 전 draft** 를
+//   목록·상세·PDF 로 그대로 볼 수 있었다. 공개 결제 페이지는 draft 를 404 로 막는데
+//   (routes/invoices.js) 로그인 경로만 뚫려 있었다 — 확정 전 금액·항목이 실시간 노출.
+//
+//   ★ 조건을 여기 한 곳에만 둔다. 목록(invoiceListWhere)과 상세(canAccessInvoice)가
+//     같은 술어를 쓰지 않으면 "목록엔 없는데 URL 로 열면 보이는" 상태가 된다.
+//   ★ member/owner 분기는 건드리지 않는다 — draft 는 그들이 만드는 것이다.
+//   ★ 보낸 적 있는 canceled 는 **남긴다**(고객이 이미 받아본 청구서가 흔적 없이 사라지면
+//     "그 청구서 어떻게 됐냐" 는 문의가 된다). 한 번도 안 보낸 canceled 만 감춘다.
+const CLIENT_HIDDEN_INVOICE_STATUSES = ['draft'];
+
+// ★ 조건을 **심볼 키(Op.and) 안에** 넣는다. 평범한 `status:` 키로 두면 라우트가
+//   `where.status = req.query.status` 로 대입하는 순간 통째로 덮여 `?status=draft` 로 우회된다
+//   (Fable 게이트 실측 유출). 접근 제어 술어는 사용자 필터가 **지울 수 없는 자리**에 있어야 한다.
+function clientVisibleInvoiceCond() {
+  return {
+    [Op.and]: [
+      { status: { [Op.notIn]: CLIENT_HIDDEN_INVOICE_STATUSES } },
+      { [Op.not]: { status: 'canceled', sent_at: null } },
+    ],
+  };
+}
+
+/** 인스턴스 하나가 고객에게 보여도 되는지 — where 조건과 같은 규칙의 JS 판정. */
+function isInvoiceVisibleToClient(invoice) {
+  if (!invoice) return false;
+  if (CLIENT_HIDDEN_INVOICE_STATUSES.includes(invoice.status)) return false;
+  if (invoice.status === 'canceled' && !invoice.sent_at) return false;
+  return true;
+}
+
 async function invoiceListWhere(userId, businessId, scope) {
   if (!scope) scope = await getUserScope(userId, businessId);
   if (isMemberOrAbove(scope)) return { business_id: businessId };
   if (!scope.isClient) return null;
   if (scope.clientIds.length === 0) return { business_id: businessId, id: { [Op.in]: [-1] } };
-  return { business_id: businessId, client_id: { [Op.in]: scope.clientIds } };
+  return {
+    business_id: businessId,
+    client_id: { [Op.in]: scope.clientIds },
+    ...clientVisibleInvoiceCond(),
+  };
 }
 
 // ─────────────────────────────────────────────
@@ -377,6 +414,8 @@ async function canAccessInvoice(userId, invoice, scope) {
   if (!scope) scope = await getUserScope(userId, invoice.business_id);
   if (isMemberOrAbove(scope)) return true;
   if (!scope.isClient) return false;
+  // #274 — 목록과 **같은 술어**. 여기가 빠지면 "목록엔 없는데 URL 로는 열리는" 상태가 된다.
+  if (!isInvoiceVisibleToClient(invoice)) return false;
   return scope.clientIds.includes(invoice.client_id);
 }
 
@@ -666,6 +705,7 @@ module.exports = {
   canAccessProject,
   fileListWhere,
   invoiceListWhere,
+  isInvoiceVisibleToClient,   // #274 — PDF·정정·증빙 등 다른 소비처가 같은 술어를 쓰게
   calendarListWhere,
   canAccessInvoice,
   postListWhere,

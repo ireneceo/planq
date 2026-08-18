@@ -326,14 +326,19 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
 
   return {
     candidates,
-    // #263 — 한 줄 캡. Irene: "이런 긴 멘트가 필요해? 언제 읽어?"
-    //   프롬프트를 한 문장으로 조였지만 LLM 이 길게 낼 수 있어 표시 직전 값 자체를 자른다
-    //   (프롬프트만 믿으면 옛 모델·폴백 응답에서 그대로 새어 나온다). 첫 문장만 쓰고 120자 캡.
+    // 운영 #263 — "이런 긴 멘트가 필요해? 언제 읽어?"
+    //   프롬프트는 "30자 이내 · 메타설명 금지" 를 요구하는데 여기 캡은 120자였다. 계약이 4배 어긋나
+    //   장황한 첫 문장이 그대로 통과했다(Irene 실측: "사용자의 요청에 따라 … 단일 작업을 정의했습니다.").
+    //   ★ LLM 순종에 의존하지 않고 서버에서 강제한다(#241 번역 강제와 같은 방식).
+    //   ★ 길면 **자르지 않고 버린다** — 한도를 넘었다는 건 애초에 요구한 "한 구절" 이 아니라는 뜻이라,
+    //     잘린 문장을 보여주느니 없는 게 낫다. 프론트에 기본 문구가 이미 있다(CueTaskBar 'ai.bar.organized').
     reasoning: (() => {
       const raw = String(parsed.reasoning || '').replace(/\s+/g, ' ').trim();
       if (!raw) return '';
-      const first = raw.split(/(?<=[.。!?])\s/)[0] || raw;
-      return first.length > 120 ? `${first.slice(0, 119)}…` : first;
+      const first = (raw.split(/(?<=[.。!?])\s/)[0] || raw).trim();
+      const hasHangul = /[가-힣]/.test(first);
+      const limit = hasHangul ? 40 : 80;   // 프롬프트 계약(30/60)에 약간의 여유
+      return first.length > limit ? '' : first;
     })(),
     fallback: result.fallback,
     input_tokens: result.input_tokens,
