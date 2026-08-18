@@ -1,197 +1,86 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-08-18 (2) (Opus 5, 1M)
-**작업 상태:** 🔄 **진행 중** — 1차 배포 완료(commit `6b3f4590`, 18건 운영 반영). 2차 배치 Fable 재검증 중.
+**마지막 업데이트:** 2026-08-18 (3) (Opus 5, 1M)
+**작업 상태:** 🔄 **진행 중** — #239 커밋 완료(`382f2ffc`). **미배포 3커밋 대기.** 다음은 #228.
 
-### 1차 배포 (완료) — 2026-08-18 11:33, commit `6b3f4590`
-운영 3점 검증 통과: 헬스 ok · PM2 uptime 갱신 · 프론트 청크 11:36 · **locale/백엔드 실내용 대조 확인**.
-배포 스크립트 exit 1 이 떴으나 "Deployment Complete" + 3점 검증으로 **부수 신호 확정**(전례 일치).
-백업 `/opt/planq/backups/20260818_113247`.
-
-### 2차 배치 (미커밋, 검증 중)
-- **🔴 #274 보안** — 로그인 고객의 **draft 청구서 노출** 차단. `middleware/access_scope.js`
-  `clientVisibleInvoiceCond()` + `isInvoiceVisibleToClient()` 단일 술어를 목록·상세가 공유.
-  규칙 = draft 제외 + 미발송 canceled 제외(발송 이력 있는 canceled 는 남긴다).
-  **★ Fable 1차 FAIL — `?status=draft` 로 우회됐다.** `routes/invoices.js` 의
-  `where.status = req.query.status` 가 술어를 통째로 덮어썼다. → 술어를 **`[Op.and]` 심볼 키**로 옮겨
-  대입으로 지울 수 없게 + 라우트도 교집합 merge. 재반증 6/6 통과, 재검증 진행 중.
-- **#263** — reasoning 서버 캡이 120자인데 프롬프트는 30자 요구(계약 4배 어긋남). 한도 초과 시
-  **자르지 않고 버림**(프론트 기본 문구 폴백). 거짓 옛 주석 제거.
-- **#232** — KB CSV 업로드 드롭존화. (업무첨부·프로젝트자료·문서표는 이미 드래그드롭이었다)
-
-> ## ⚠️ 이 파일이 낡으면 Fable 이 오판한다
-> 청크를 끝낼 때마다 갱신할 것.
+> ## ⚠️ 이 파일이 낡으면 Fable 이 오판한다 — 청크를 끝낼 때마다 갱신할 것.
 
 ---
 
-## Irene 지시 (2026-08-18)
-"A군 다 해. 다하고 B군 상의하면서 하자. 우선순위도 나중에 바꿔야 해"
-→ A군(자율 실행) 전부 처리 후 B군(판단 필요) 상의 → **네이티브 앱 iOS/Android 등록**이 종착점.
+## Irene 지시 (유효)
+1. "A군 다 해. 다하고 B군 상의하면서 하자" → A군(자율) 전부 → B군(판단 필요) 상의 → **네이티브 앱 iOS/Android 등록**이 종착점
+2. **"모든 판단은 너가 하지 말고 fable이 해"** (2026-08-18) — 추천안 제시도 Fable 몫. Opus 는 사실조사·구현·실행·보고만
+3. "3,4,5 먼저 끝내고 게이트 통과하면 배포해" → 3(#239) 완료. **4(#228) → 5(#258/#276 완료) → 배포**
+4. 배포는 **명시 `/배포` 명령이 있을 때만**
 
 ---
 
-## 이번 세션 전제 (Fable 2회 독립 판정)
-
-1. **트리아지** — 운영 열린 피드백 67건을 A군 14청크 / B군 5건으로 분해.
-2. **완결 검증** — "커밋은 있는데 pending" 17건을 실코드 경로 + 운영 실측으로 검증 → **17/17 RESOLVED**.
-   (#254·#255 는 검증 제외 = 미해결 확정. #300 이 그 반례였다.)
-
-**핵심 발견: 장부가 크게 어긋나 있었다.** 67건 중 **29건이 이미 고쳐져 배포까지 끝난 상태**였는데
-장부에 pending 으로 남아 있었다. 그래서 같은 신고가 반복됐다(팝아웃 핀 #258→#280→#286 **3회**).
-
----
-
-## 완료한 것
-
-### C0 — 장부·답글 전수 정합 (#276) ✅ 운영 DB 반영 완료
-- 열린 67건 **전부에 답글 작성**, 28건 done 처리, 39건은 진행 계획을 적고 열어 둠
-- 라우트(PUT /api/feedback/:id)를 **일부러 우회** — 건당 알림을 쏘므로 66건이면 알림 폭주.
-  대신 요약 알림 1건씩(Irene·lua) 발송
-- 롤백 스냅샷: 운영 `/tmp/feedback-c0-snapshot.json` (67건 이전 status/admin_response)
-- 스크립트: 로컬 scratchpad `replies.js` / 운영 `/tmp/fb-c0.js`
-
-### C2 — 메일 수신 (#261) ✅ 일부
-- **`services/emailImapCron.js`** — 증분 수집이 `results.slice(-cap)` 로 **최신 50건만** 집으면서
-  커서(`imap_last_uid`)는 그 최댓값으로 전진 → 초과분이 다음 검색 범위 밖으로 나가 **영구 유실**.
-  → uid 오름차순 정렬 후 `slice(0, cap)`(오래된 것부터). 백필은 종전대로 최신 우선(의도적 상한).
-- **#261 의 "안 들어온 메일" 은 유실이 아니었다** — Rose Mazlimi 메일(8/5)은 운영 DB `email_messages#1376`,
-  `thread 375` 에 실재. 신고자가 그 스레드를 보면서 신고. 분류/표시 문제 → 후속 필요
-- 미처리: ② INBOX 1폴더 한정 ③ `business_id + message_id` 중복검사가 타 계정 메일 흡수
-
-### C3 — 주간 시간 수치 (#300·#254·#255) ✅
-- **계산은 옳았다.** 두 숫자가 서로 다른 질문에 답하는데 이름이 같았던 것:
-  그래프 예측선 = Σ(예측×진행률)="해낸 몫" / 목록 칩 = Σ(예측×남은비율)="남은 몫" (합 = Σ예측)
-  그래프 실제선 = 이번 주 Δ(이월 차감) / 목록 = 일생 누적
-- **공식 되돌리기 금지** — Δ 는 #254 를 고친 결과다. 이름만 갈랐다:
-  `chart.est` 예측→**진척**, `chart.act` 실제→**투입**, 각 툴팁 + `ChartScopeHint`(집합·기간 명시)
-  + `summary.actualHint`(누적임을 설명) + `chart.noData` 한국어(영문 폴백이 새고 있었다)
-
-### C4 — 팝아웃·태그·외부컨펌 ✅
-- **#280 우선순위 건너뜀** — 번호는 전체 집합 기준 연속번호라 옳다. 2번 업무가 완료/타탭이라 안 보였던 것.
-  **번호 재인덱스 금지**(화면 필터로 번호를 바꾸면 메인과 갈린다) → `hiddenPrioNums` 로 **이유를 적어준다**
-  (`TaskPopoutView.tsx` + `PrioGapHint` styled)
-- **#236·#250 태그 발견성** — 태그가 0개면 필터·관리 UI 가 통째로 숨어 "미개발" 로 보였다.
-  → **업무 추가 폼에 TagPicker 추가**(`QTaskPage.tsx`, `newTagIds` → 생성 후 PUT `/api/tasks/:id/tags`).
-  필터·관리 버튼은 계속 숨긴다(고를 게 없으면 죽은 컨트롤 — 역할이 다르다)
-- **#273 외부컨펌** — 권한이 아니라 **상태 전제**(in_progress 전용). 조건 미달이면 버튼이 아예 안 그려져
-  "없는 기능" 으로 보였다 → `externalLocked` 로 **비활성 + 사유 툴팁**. Section 표시 술어에도 추가
-
-### C5 — 알림 아이콘 (#287) ✅
-- 토스터가 18종 중 6종만 아이콘, 나머지는 전부 `'i'`. **가장 많은 종류가 mail(운영 537건)인데 'i'**.
-  드롭다운·전체 알림 페이지는 아이콘 **아예 없음**
-- **`components/Common/NotificationTypeIcon.tsx` 신설**(18종 feather SVG 단일 원천)
-  → 토스터(이모지 6종 제거)·`NotificationDropdown`·`NotificationsPage` 3표면 배선
-- `Toast.kind` 추가(event_kind 보존), `TYPE_FALLBACK_KIND` 로 raw socket toast 역매핑
-
-### C6 — Q Mail ✅ 일부
-- **#213 필터 접기** — 기본 닫힘 + localStorage 기억. **일괄 액션은 접힘 밖으로 분리**(같이 숨기면 기능 소실).
-  접힌 상태에서 `activeFilterCount` 뱃지로 적용 중인 필터 수 표시
-- **#220 팀메일 발신자** — `sent_by_user_id` 는 기록돼 있는데 직렬화에서 빠져 화면에 도달한 적 없음.
-  `routes/email_threads.js` 에 `sent_by_user_id`/`sent_by_name` 추가(워크스페이스 표시명 우선),
-  `ThreadMessages` 가 본인 아니면 팀원 이름 표시(`myUserId` prop)
-- **#222 새 메일 폼 이탈** — 목록 클릭 시 `setActive` 가 **초안 확정 저장 후 compose 닫음**
-- 미처리: #260 본문 풀버전 · #261a 주소 클릭 액션 · #263 잔여
-
-### C8 — 문서·파일 ✅ 일부
-- **#225 PDF** — 백엔드 `GET /api/posts/:id/pdf` + 프론트 `downloadPostPdf` 가 **호출부 0건**이었다(죽은 기능).
-  `PostsPage` 에 다운로드 버튼 배선(+중복 클릭 가드). i18n `actions.downloadPdf`·`pdfError` 도 **이미 있었다**
-  **실호출 검증 PASS**: post#185 → HTTP 200 `application/pdf` 143,624 bytes `%PDF-`
-- **#267 동영상 첨부** — 형식 제한이 아니었다(multer 에 fileFilter 없음). **파일당 용량 한도**(플랜 5~200MB).
-  `services/plan.js buildQuotaError` 가 숫자 없이 "파일이 너무 큽니다" 만 말해 "동영상은 안 되는 기능" 으로 읽혔다
-  → "형식 제한 없음 + 내 파일 118MB · 플랜 한도 50MB" 로 구체화(ko/en)
-- **#257 문서 제목** — 정렬은 **이미 최근 수정순**이고 조회는 순서를 안 건드린다(`increment(silent:true)`).
-  제목만 2줄 클램프(`RowTitle`). Q docs·프로젝트>문서가 같은 컴포넌트라 동시 적용
-- 이모지 📌 3곳 → feather SVG 교체(UI_DESIGN_GUIDE §1.5)
-
-### C9 — 공지·업데이트 (#289) ✅
-- 공지 배너는 존재하나 "플랫폼 설정" 안에 묻혀 발견 불가 / **What's New 는 뷰어만 완성이고
-  작성 카테고리(`updates`)가 선택 목록에서 빠져 글을 만들 수 없었다**
-- `AdminWikiPage` 카테고리에 `updates` 추가 + **목적지가 다르므로 문구 분기**(`blogToggleUpdates`/`blogHintUpdates`)
-- `routes/blog.js` 에 `BLOG_EXCLUDED_CATEGORIES=['updates']` — 랜딩 인사이트 오염 차단.
-  **NULL 안전**(`NOT IN` 은 NULL 을 거짓으로 만들어 카테고리 미지정 글을 통째로 숨긴다)
-- 관리자 대시보드 QuickLinks 에 "공지 배너"(#announcement 앵커)·"제품 업데이트 발행"
-
-### C1 — 한글 IME (#299①) ✅ 조사 완료, **우리 결함 아님**
-- 피드백 textarea 는 값 미가공 표준 controlled 패턴 (module-scope styled, key churn 없음, focus trap 없음)
-- **운영 데이터 반증**: Irene 피드백 250건 중 자모 섞임 **#299 단 1건**. 채팅 0건, 업무 제목 0건
-- 결정적: 같은 현상이 **Claude Code 터미널 입력에서도 발생**("우선순위ㅗㄷ") — 우리 코드가 닿지 않는 곳
-- → #299 답글을 근거와 함께 갱신하고 **기기·키보드 조합**을 물었다. 특정 화면 재현되면 즉시 재개봉
-
----
-
-## Irene 결정 (2026-08-18, 전부 Fable 추천안 채택)
-1. 휴가 승인 = owner/admin 만 · 2. presence 뱃지만 공개 · 3. 메뉴명 "근태"
-4. 게스트 링크 만료 30일 기본(최대 180) · 5. 게스트 이름 = 본인 입력 · 6. 게스트 메시지에 Cue 미발화
-7. 게스트에게 카드 제목만 · 8. 열람전용 토글 v1 제외 (횟수 제한도 v1 제외 — Fable 판단)
-+ **수익성**: 단가 미입력 멤버는 **인건비에서 제외 + 경고 표시**(기본단가 채우기 기각) ·
-  **진행 중 업무 시간도 원가에 포함**
-
-## 설계 문서 (구현 대기)
-| 문서 | 대상 |
+## 🚀 미배포 커밋 3건 (다음 /배포 대상)
+| 커밋 | 내용 |
 |---|---|
-| `docs/ATTENDANCE_LEAVE_DESIGN.md` | 출퇴근·휴가 (#208·#285) — **설계된 적이 없었다**가 사실 |
-| `docs/GUEST_LINK_DESIGN.md` | 무로그인 게스트 링크 (#259) |
-| `docs/design/INVOICE_CLIENT_SURFACE_DESIGN.md` | 청구서 고객 표면 (#274) — 보안분만 착수, 화면 재구성 남음 |
-| `docs/design/PROFITABILITY_REAL_COST_DESIGN.md` | 수익성 실원가 (#211 후속) |
-| `docs/design/B2B_AGENCY_FIT_REVIEW.md` | B2B 제언 보고서 (#211) — **완료** |
+| `dcdc1563` | 대화 lifecycle 단일원천(#240) + posts/meta 500 |
+| `0e0cf323` | #274 청구서 고객 화면 (draft 노출 보안 포함) |
+| `382f2ffc` | **#239 문서 외부 확인** + #276 장부 스크립트 |
 
-> **★ 수익성 화면은 이미 있었다**(`/insights` 수익성 탭, `services/stats.js:510 buildProfitTab`).
-> 문제는 화면이 아니라 숫자였다 — `stats.js:577` 이 `hours * 50000` 으로 **전원 시간당 5만원 고정**.
-> 주석은 "hourly_rate 컬럼 추후" 인데 **그 컬럼은 이미 있다**(`BusinessMember.hourly_rate`·`monthly_salary`).
-> 다만 **읽는 API·쓰는 API·입력 화면이 전부 없어서** 단가 입력 경로를 같이 만들어야 한다.
-
-## 남은 A군
-
-| 청크 | 남은 것 | 규모 |
-|---|---|---|
-| C2 | ② IMAP 폴더 확장(Gmail 라벨) ③ 계정별 중복검사 | 중 (설계 판단) |
-| C6 | #260 본문 풀버전 · #261a 주소 클릭 액션 · #263 잔여 | 중 |
-| C7 | #274 청구서 고객 표면 정돈 | **돈 — Fable 3단 게이트 필수** |
-| C8 | #228 파일 드래그 반출 | 소~중 |
-| C10 | #271 확인요청 코멘트 + 결과물 버전 | 중 |
-| C11 | #239 문서 웹미리보기 컨펌 | 중 (공개 라우트 — 보안 게이트) |
-| C12 | #229·#231·#240a·#269 프로젝트 묶음 | **대** |
-| C13 | #284 Info 거점화 | 중~대 |
-| C14 | #233·#227·#230·#235 Cue·검색 | **대** (설계 게이트 선행) |
-
-> C12·C14 는 한 세션에 끝낼 수 있는 크기가 아니다 — 설계를 먼저 올리고 승인 후 구현.
-
-## B군 (Irene 결정 대기)
-1. 노션/슬랙 임포트 범위 (#299②) — 추천: 노션만 1차
-2. 게스트 링크 쓰기 허용 여부 (#259) — 추천: 작성까지
-3. 출퇴근·휴가 1차 범위 (#285·#208) — **설계 문서가 없다**(구현이 밀린 게 아님)
-4. 프로젝트 완료 시 채팅방 (#240b) — 추천: 읽기전용 아카이브
-5. B2B 제언 보고서 수령 여부 (#211)
-
-## 네이티브 앱 (마지막 단계)
-`node scripts/guard-native-release.js --release` → **17 통과 / 2 실패**.
-실패 2건 = Apple Team ID · Android 서명 SHA-256 **placeholder** — 전부 Irene 계정 작업 대기.
-- Apple: 멤버십 구입 마무리(#221 메일에 "등록 수락" 상태) → Team ID → APNs .p8 → Xcode 서명 → TestFlight
-- Google: Play Console $25 → Firebase/FCM 키 → 첫 빌드 후 앱 서명 SHA-256
+**★ 배포 시 필수:** `deploy-planq.sh` 에 `migrate-doc-external-confirm.js` 가 이미 삽입돼 있다
+(sync-database 뒤 → PM2 reload 앞). 이 순서가 깨지면 신 코드가 컬럼 없이 떠서 Data truncated 로 죽는다.
+배포 후 `scripts/close-deployed-feedback.js --range <배포범위> ` → 운영에서 `--ids ... --apply` 로 장부 닫기.
 
 ---
 
-## ⚠️ 이번 세션에서 배운 것
+## ▶ 다음에 할 일 (순서대로)
 
-1. **★ 장부가 어긋나면 같은 신고가 반복된다.** 29건이 고쳐졌는데 pending 이라 3번까지 다시 신고됐다.
-   **배포 직후 장부·답글을 같이 닫는다** — 이게 C0 를 최우선에 둔 이유.
-2. **★ "안 들어온다" 가 데이터 유실이 아닐 수 있다.** #261 의 그 메일은 DB 에 있었다.
-   유실을 고치기 전에 **정말 없는지 먼저 확인**한다. (그 과정에서 진짜 유실 구조를 따로 찾았다.)
-3. **★ 숫자가 다르다 = 계산 오류가 아니라 이름 충돌일 수 있다.** #300 은 두 값이 상보 지표였다.
-   목록에 맞춰 공식을 되돌렸다면 #254 가 재발했다.
-4. **★ 완성됐는데 도달 못 한 기능이 또 나왔다** — PDF 버튼(호출부 0건), What's New 작성 카테고리(선택지 누락),
-   팀메일 발신자(직렬화 누락), 탭 부제 문구(지난 세션). **만들기 전에 있는지부터 본다.**
-5. **★ 사용자가 "안 되는 기능" 이라 한 것의 절반은 조건 미달을 안 알려준 것**(#273 외부컨펌, #280 우선순위,
-   #250 태그, #267 동영상). **막을 때는 왜 막혔는지 같이 말한다.**
-6. **★ 사용자의 원인 지목을 그대로 믿지 않는다** — #299 는 "여기 입력창 오류야" 였지만
-   250건 중 1건 + 타 프로그램 재현으로 반증됐다. 잘못 짚으면 고쳐도 계속 겪는다.
+### 1. #228 드래그 아웃 (설계 승인됨 — 5분 서명 URL)
+- **제약 실측 완료**: 인증 다운로드(`routes/files.js` `/:businessId/:id/download`)는 `authenticateToken`
+  헤더 필요. OS 드래그(`DownloadURL`)는 헤더 없이 가져간다. 기존 `share-link` 는 **최소 7일 공개 토큰**이라
+  드래그용으로 쓰면 파일이 영구 공개된다 → 그래서 5분 서명 URL 이 맞다.
+- 프론트 드래그 선례: `ProcessPartsTab.tsx:73` · `ProjectTaskList.tsx:385` · `TabStrip.tsx:78`
+
+### 2. 메일 트리아지 '답변 필요' 결손 (Fable 판정 완료 — 구현만 남음)
+**신고**: 링크솔루션 메일(명백한 요청)이 '확인 권장'으로 떨어짐. **#221 재발.**
+**근본원인**: `isAddressedToUs` 게이트에서 잘림. `hasStrongRequest` 는 true 였다.
+- 메일은 `help@wor-pro.com` 수신인데 등록 계정은 3개뿐(`help@irenewp.com`·`irene@irenewp.com`·`minky3018@gmail.com`)
+- **`buildOwnEmailSet` 이 별칭 테이블을 아예 안 읽는다** → 별칭 등록만으로는 못 고친다
+- **"우리 주소" 공식이 3벌**: `emailTriage.buildOwnEmailSet`(별칭X) / `scripts/retriage-mail.js` 자체맵(별칭X·SMTP_FROM도X) / `emailImapCron.js:376`(별칭O)
+- **결손 규모**: 실제 도착 주소 — irene@irenecompany.com **361건** · help@irenecompany.com 91 · help@wor-pro.com 56 · help@k-bizhub.com 23 · gitconsulting 9. 시스템은 9개 중 3개만 안다
+
+**Fable 판정 — 기각안**: "수신 계정을 근거로" = 변화 0건(그 계정은 이미 등록됨, To 에 없는 게 문제).
+"강한 요청이면 주소게이트 skip" = 25건 실측 결과 TP 1 : **FP 2**(삼성생명 "보내주시는", 인증서광고 "전자세금계산서") + 콜드메일 방벽 재개방.
+
+**Fable 채택안 (구현 지시)**:
+1. `services/emailTriage.js buildOwnEmailSet(businessId)` — `EmailAccountAlias`(account_id IN ...) 합류. try/catch 유지
+2. `scripts/retriage-mail.js` — 수제 `ownEmailsByBiz` 제거 → `buildOwnEmailSet` 호출 (공식 3벌→1벌)
+3. 별칭 등록 6개 (`routes/mail_aliases.js` API 경유, **관측 기반 자동등록 금지** — BCC 스팸 오염):
+   help@wor-pro.com(acc3·acc5 양쪽) · irene@irenecompany.com · help@irenecompany.com(acc5) ·
+   help@k-bizhub.com · irene@gitconsulting.group · help@gitconsulting.group (착지 계정 확인 후)
+4. health-check 커버리지 항목: 최근 90일 도착 To 중 ≥10건인데 ownEmails 미포함이면 경보
+5. **백필**: 새 스크립트 만들지 말 것 — `scripts/retriage-mail.js` 가 정본(멱등·dismissed/handled 존중).
+   절차: 코드수정 → dev검증 → /배포 → 운영 preview → 원장 JSON 덤프 → apply. 예상 diff **th1725 1건**
+
+**반증 테스트(필수)**: 별칭 row 를 **지우면 다시 false 로 돌아와야** 한다(가드는 깨뜨려 확인).
+음성 대조군 = To 가 제3자 주소면 uncertain 유지.
+
+**#221 유출 이유**: 검증 표본이 전부 등록 계정 주소였다. "ownEmails ⊇ 실제 도착 주소" 불변식이 검증 항목에 없었다.
+
+### 3. 남은 A군
+#259 게스트 링크(2세션) · #285 근태(2세션) · #229/#231/#269 · #284 · #233 · #227 · #230 · #235
+
+### 4. B군 (Irene 판단 필요) → 그 다음 네이티브 앱 등록
+Apple: 멤버십 결제 → Team ID → APNs .p8 / Google: Play Console → FCM 키 → SHA-256 (Irene 계정 작업)
 
 ---
 
-## 복구 가이드
+## 이번 세션에서 배운 것 (재발 방지)
 
-```
-이전 세션 이어서 작업하고 싶어.
-/opt/planq/.claude/session-state.md 읽어줘.
-```
+- **코드 이동은 성공 경로를 태워야 한다** — `routes/`→`services/` 이동으로 `require('./notifications')` 가
+  깨졌는데 fire-and-forget `.catch` 가 삼켜 **HTTP 200 뒤에 묻혔다**. 확인 알림뿐 아니라 기존 서명·거절
+  알림까지 죽어 있었다. 문법검사·가드·빌드 전부 통과했다. **알림은 DB 행 증가로 실측할 것.**
+- **알림 검증은 실행 직전 max(id) 를 기록하고 그 이후 행만 세라** — 옛 행을 보고 오판했다.
+- **워크스페이스 멤버 1명이면 알림 0건이 정상** — 검증이 무의미해진다. 2명 이상에서 테스트.
+- **상태마다 시각 컬럼이 다르면 WHERE 도 갈라야 한다** — commented 를 rejected_at 으로 걸러 도달 불가였다.
+- **주석 안 따옴표에 한국어를 넣으면 i18n 가드가 하드코딩으로 읽는다** (트레일링 주석은 제외 대상 아님).
+- **`sequelize.literal` 은 import 없이 쓰면 런타임에만 죽는다.**
+- **`pkill -f` 는 자기 셸을 죽인다** — 이번에도 당했다. PID 로 kill 할 것.
+- **빌드 백그라운드 2개가 같은 로그 파일을 쓰면 EXIT 이 오염된다** — 고유 경로 + 단일 실행.
+- **`grep -c` 는 0건일 때 exit 1** — 체인 끝에 두면 "실패"로 보고된다.
