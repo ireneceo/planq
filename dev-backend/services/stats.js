@@ -5,6 +5,7 @@
 
 const { Op, fn, col, literal } = require('sequelize');
 const { Task, TaskEstimation, sequelize } = require('../models');
+const { getMemberCostMap, computeLaborCost } = require('./memberCost');
 
 // MAPE = mean of |est - actual| / actual (0 < actual)
 // 단일값 0 div 가드, 그 외 task 평균
@@ -547,17 +548,36 @@ async function buildProfitTab(businessId, period, segment = 'client') {
   }
 
   // 프로젝트별 actual_hours
+  //   운영 #211 후속 (Irene 승인 2026-08-18) — 두 가지가 바뀌었다:
+  //   ① **완료된 업무만 세던 것을 취소 제외 전체로** 넓힌다. 진행 중 업무에 이미 들어간 시간도 원가다
+  //      ("이미 쓴 시간은 돌아오지 않는다"). 장기 프로젝트일수록 옛 방식은 이익을 좋게 보이게 했다.
+  //   ② **담당자별로 집계**한다(assignee_id). 인건비를 사람별 실제 단가로 계산하려면 필요하다.
+  //      여태 프로젝트 단위로만 합산해 전원 시간당 5만원 고정을 쓸 수밖에 없었다.
   const tasks = await Task.findAll({
-    where: { business_id: businessId, project_id: { [Op.in]: projectIds }, status: 'completed' },
-    attributes: ['project_id', 'actual_hours', 'estimated_hours'],
+    where: {
+      business_id: businessId,
+      project_id: { [Op.in]: projectIds },
+      status: { [Op.ne]: 'canceled' },   // 취소된 업무의 시간은 원가로 보지 않는다
+    },
+    attributes: ['project_id', 'assignee_id', 'actual_hours', 'estimated_hours'],
   });
   const hoursByProject = {};
   const estHoursByProject = {};
+  const hoursByProjectUser = {};   // project_id → Map<user_id|0, hours>
   for (const t of tasks) {
     if (!t.project_id) continue;
-    hoursByProject[t.project_id] = (hoursByProject[t.project_id] || 0) + Number(t.actual_hours || 0);
+    const h = Number(t.actual_hours || 0);
+    hoursByProject[t.project_id] = (hoursByProject[t.project_id] || 0) + h;
     estHoursByProject[t.project_id] = (estHoursByProject[t.project_id] || 0) + Number(t.estimated_hours || 0);
+    if (h > 0) {
+      if (!hoursByProjectUser[t.project_id]) hoursByProjectUser[t.project_id] = new Map();
+      const m = hoursByProjectUser[t.project_id];
+      const key = t.assignee_id || 0;   // 0 = 담당자 미지정 → 단가를 붙일 수 없다(미입력으로 센다)
+      m.set(key, (m.get(key) || 0) + h);
+    }
   }
+  // 멤버별 시간당 원가 — services/memberCost.js 단일 원천 (월급 환산도 거기서, memberCapacity 재사용)
+  const costMap = await getMemberCostMap(businessId);
 
   // 직접비 (ProjectExpense)
   const expenses = await ProjectExpense.findAll({
@@ -574,7 +594,10 @@ async function buildProfitTab(businessId, period, segment = 'client') {
     const revenue = revenueByProject[p.id] || 0;
     const hours = hoursByProject[p.id] || 0;
     const estHours = estHoursByProject[p.id] || 0;
-    const laborCost = hours * 50000; // 가정: 시간당 5만원 (hourly_rate 컬럼 추후)
+    // 실제 단가로 계산한다. **단가 미입력 멤버의 시간은 합산하지 않고 따로 센다** (Irene 결정):
+    //   기본단가로 채우면 그럴듯한 가짜 숫자가 되고, 그게 지금까지의 문제였다.
+    const lab = computeLaborCost(hoursByProjectUser[p.id] || new Map(), costMap);
+    const laborCost = lab.cost;
     const directCost = directCostByProject[p.id] || 0;
     const totalCost = laborCost + directCost;
     const profit = revenue - totalCost;
@@ -595,6 +618,11 @@ async function buildProfitTab(businessId, period, segment = 'client') {
       hours: Number(hours.toFixed(1)),
       est_hours: Number(estHours.toFixed(1)),
       profit_per_hour: profitPerHour == null ? null : Math.round(profitPerHour),
+      // #211 — 이 행의 인건비가 완전한가. 화면이 "일부 제외" 를 표시하는 근거.
+      uncosted_hours: lab.uncostedHours,
+      uncosted_member_count: lab.uncostedUserIds.length,
+      labor_cost_complete: lab.uncostedHours === 0,
+      _uncosted_user_ids: lab.uncostedUserIds,   // 워크스페이스 합산용(응답에서 제거)
     };
   });
 
@@ -674,6 +702,74 @@ async function buildProfitTab(businessId, period, segment = 'client') {
     value: '프로젝트 수금·비용 기록 후 표시', hint: '청구서·비용 입력하시면 분석 시작',
   });
 
+  // ── 고객사 단위 집계 (#211) ──────────────────────────────────────
+  //   프로젝트 행만 있으면 "이 고객사가 남는 장사인가" 를 눈으로 합산해야 한다.
+  //   기존 table(프로젝트)은 그대로 두고 by_client 를 **추가**한다 — 기존 소비처 무변경.
+  const byClientMap = new Map();
+  for (const r of clientRows) {
+    const key = r.client || '—';
+    if (!byClientMap.has(key)) {
+      byClientMap.set(key, {
+        client: key, project_count: 0, revenue: 0, labor_cost: 0, direct_cost: 0,
+        hours: 0, est_hours: 0, uncosted_hours: 0, _uncosted: new Set(),
+      });
+    }
+    const g = byClientMap.get(key);
+    g.project_count += 1;
+    g.revenue += r.revenue;
+    g.labor_cost += r.labor_cost;
+    g.direct_cost += r.direct_cost;
+    g.hours += r.hours;
+    g.est_hours += r.est_hours;
+    g.uncosted_hours += r.uncosted_hours;
+    (r._uncosted_user_ids || []).forEach((id) => g._uncosted.add(id));
+  }
+  const byClient = [...byClientMap.values()].map((g) => {
+    const profit = g.revenue - (g.labor_cost + g.direct_cost);
+    return {
+      client: g.client,
+      project_count: g.project_count,
+      revenue: Math.round(g.revenue),
+      labor_cost: Math.round(g.labor_cost),
+      direct_cost: Math.round(g.direct_cost),
+      profit: Math.round(profit),
+      margin_pct: g.revenue > 0 ? Number(((profit / g.revenue) * 100).toFixed(1)) : null,
+      hours: Number(g.hours.toFixed(1)),
+      est_hours: Number(g.est_hours.toFixed(1)),
+      profit_per_hour: g.hours > 0 ? Math.round(profit / g.hours) : null,
+      uncosted_hours: Number(g.uncosted_hours.toFixed(1)),
+      uncosted_member_count: g._uncosted.size,
+      labor_cost_complete: g.uncosted_hours === 0,
+    };
+  // 적자 고객사가 맨 위로 — 이 화면을 보는 이유가 그것이다.
+  }).sort((a, b) => a.profit - b.profit);
+
+  // ── 인건비 완전성 요약 (#211) ────────────────────────────────────
+  //   단가 미입력이 있으면 이익이 실제보다 좋게 보인다. 화면이 그 사실을 말할 수 있게 올려준다.
+  const allUncosted = new Set();
+  let totalUncostedHours = 0;
+  for (const r of rows) {
+    (r._uncosted_user_ids || []).forEach((id) => allUncosted.add(id));
+    totalUncostedHours += r.uncosted_hours || 0;
+  }
+  const laborCostCoverage = {
+    uncosted_member_count: allUncosted.size,
+    uncosted_hours: Number(totalUncostedHours.toFixed(1)),
+    complete: totalUncostedHours === 0,
+  };
+  if (!laborCostCoverage.complete) {
+    insights.unshift({
+      severity: 'warning',
+      title: '인건비가 불완전합니다',
+      value: `${laborCostCoverage.uncosted_hours}h 제외`,
+      hint: `단가가 입력되지 않은 멤버 ${laborCostCoverage.uncosted_member_count}명의 시간이 인건비에서 빠졌습니다. 실제 이익은 이보다 낮습니다.`,
+      action_label: '단가 입력', action_link: '/business/members',
+    });
+  }
+
+  // 내부 계산용 필드는 응답에서 제거 (user id 유출 방지)
+  for (const r of rows) delete r._uncosted_user_ids;
+
   // 수익성 KPI·버블·표는 고객 프로젝트 기준(내부 제외). 'all' 이어도 수익성은 고객만 의미.
   const pnlRows = clientRows;
   const hasForeignPnl = clientRows.some((r) => r.has_foreign_currency);
@@ -682,6 +778,8 @@ async function buildProfitTab(businessId, period, segment = 'client') {
     segment,
     home_currency: home,
     has_foreign_currency: hasForeignPnl,
+    by_client: byClient,                      // #211 — 고객사 단위 집계 (적자 순)
+    labor_cost_coverage: laborCostCoverage,   // #211 — 단가 미입력 경고 재료
     kpis: {
       active_projects: { value: pnlRows.filter((r) => r.status === 'active').length, prev: null, delta_pct: null },
       negative_margin: { value: negativeMargin, prev: null, delta_pct: null },
@@ -720,6 +818,9 @@ function emptyProfitTab(period, segment = 'client') {
       total_profit: { value: 0 }, total_hours: { value: 0 },
     },
     bubble: [], table: [],
+    // #211 — shape 를 본 응답과 맞춘다. 없으면 프론트가 undefined 를 만난다.
+    by_client: [],
+    labor_cost_coverage: { uncosted_member_count: 0, uncosted_hours: 0, complete: true },
     insights: [{ severity: 'info', title: '프로젝트 없음', value: '신규 프로젝트 등록 후 분석 시작' }],
   };
 }

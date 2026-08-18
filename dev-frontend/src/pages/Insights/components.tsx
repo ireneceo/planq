@@ -200,6 +200,14 @@ export const CurrencyBreakdown = ({ map, label }: { map?: Record<string, number>
 };
 
 // P&L 표/버블에서 외화 매출이 있는 행 표시 — revenue 0 으로 조용히 사라지는 오정보 차단.
+// 운영 #211 — 인건비가 불완전한 행 표시(단가 미입력 멤버의 시간이 빠짐).
+//   숫자만 보면 "비용이 적다 = 이익이 크다" 로 오독한다. 그 옆에서 사실을 말해야 한다.
+export const PartialBadge = styled.span`
+  display: inline-flex; align-items: center; padding: 1px 6px; margin-left: 6px;
+  font-size: 10px; font-weight: 600; color: #B45309;
+  background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 10px;
+  vertical-align: middle; cursor: help;
+`;
 export const ForeignBadge = styled.span`
   display: inline-flex; align-items: center; padding: 1px 6px; margin-left: 6px;
   font-size: 10px; font-weight: 600; color: #F43F5E;

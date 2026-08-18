@@ -1,8 +1,24 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-08-18 (Opus 5, 1M)
-**작업 상태:** 🔄 **진행 중** — 운영 피드백 A군 14청크 중 C0·C2·C3·C4·C5·C6·C8·C9 처리. 미커밋 있음, **배포 안 함**
+**마지막 업데이트:** 2026-08-18 (2) (Opus 5, 1M)
+**작업 상태:** 🔄 **진행 중** — 1차 배포 완료(commit `6b3f4590`, 18건 운영 반영). 2차 배치 Fable 재검증 중.
+
+### 1차 배포 (완료) — 2026-08-18 11:33, commit `6b3f4590`
+운영 3점 검증 통과: 헬스 ok · PM2 uptime 갱신 · 프론트 청크 11:36 · **locale/백엔드 실내용 대조 확인**.
+배포 스크립트 exit 1 이 떴으나 "Deployment Complete" + 3점 검증으로 **부수 신호 확정**(전례 일치).
+백업 `/opt/planq/backups/20260818_113247`.
+
+### 2차 배치 (미커밋, 검증 중)
+- **🔴 #274 보안** — 로그인 고객의 **draft 청구서 노출** 차단. `middleware/access_scope.js`
+  `clientVisibleInvoiceCond()` + `isInvoiceVisibleToClient()` 단일 술어를 목록·상세가 공유.
+  규칙 = draft 제외 + 미발송 canceled 제외(발송 이력 있는 canceled 는 남긴다).
+  **★ Fable 1차 FAIL — `?status=draft` 로 우회됐다.** `routes/invoices.js` 의
+  `where.status = req.query.status` 가 술어를 통째로 덮어썼다. → 술어를 **`[Op.and]` 심볼 키**로 옮겨
+  대입으로 지울 수 없게 + 라우트도 교집합 merge. 재반증 6/6 통과, 재검증 진행 중.
+- **#263** — reasoning 서버 캡이 120자인데 프롬프트는 30자 요구(계약 4배 어긋남). 한도 초과 시
+  **자르지 않고 버림**(프론트 기본 문구 폴백). 거짓 옛 주석 제거.
+- **#232** — KB CSV 업로드 드롭존화. (업무첨부·프로젝트자료·문서표는 이미 드래그드롭이었다)
 
 > ## ⚠️ 이 파일이 낡으면 Fable 이 오판한다
 > 청크를 끝낼 때마다 갱신할 것.
@@ -103,6 +119,27 @@
 - → #299 답글을 근거와 함께 갱신하고 **기기·키보드 조합**을 물었다. 특정 화면 재현되면 즉시 재개봉
 
 ---
+
+## Irene 결정 (2026-08-18, 전부 Fable 추천안 채택)
+1. 휴가 승인 = owner/admin 만 · 2. presence 뱃지만 공개 · 3. 메뉴명 "근태"
+4. 게스트 링크 만료 30일 기본(최대 180) · 5. 게스트 이름 = 본인 입력 · 6. 게스트 메시지에 Cue 미발화
+7. 게스트에게 카드 제목만 · 8. 열람전용 토글 v1 제외 (횟수 제한도 v1 제외 — Fable 판단)
++ **수익성**: 단가 미입력 멤버는 **인건비에서 제외 + 경고 표시**(기본단가 채우기 기각) ·
+  **진행 중 업무 시간도 원가에 포함**
+
+## 설계 문서 (구현 대기)
+| 문서 | 대상 |
+|---|---|
+| `docs/ATTENDANCE_LEAVE_DESIGN.md` | 출퇴근·휴가 (#208·#285) — **설계된 적이 없었다**가 사실 |
+| `docs/GUEST_LINK_DESIGN.md` | 무로그인 게스트 링크 (#259) |
+| `docs/design/INVOICE_CLIENT_SURFACE_DESIGN.md` | 청구서 고객 표면 (#274) — 보안분만 착수, 화면 재구성 남음 |
+| `docs/design/PROFITABILITY_REAL_COST_DESIGN.md` | 수익성 실원가 (#211 후속) |
+| `docs/design/B2B_AGENCY_FIT_REVIEW.md` | B2B 제언 보고서 (#211) — **완료** |
+
+> **★ 수익성 화면은 이미 있었다**(`/insights` 수익성 탭, `services/stats.js:510 buildProfitTab`).
+> 문제는 화면이 아니라 숫자였다 — `stats.js:577` 이 `hours * 50000` 으로 **전원 시간당 5만원 고정**.
+> 주석은 "hourly_rate 컬럼 추후" 인데 **그 컬럼은 이미 있다**(`BusinessMember.hourly_rate`·`monthly_salary`).
+> 다만 **읽는 API·쓰는 API·입력 화면이 전부 없어서** 단가 입력 경로를 같이 만들어야 한다.
 
 ## 남은 A군
 

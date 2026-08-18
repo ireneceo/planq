@@ -175,7 +175,13 @@
       "hours": "Hours",
       "pph": "Profit/Hr"
     },
-    "foreignNote": "Foreign-currency revenue is excluded from the home-currency P&L (marked \"FX\"). See the Overview tab for a per-currency breakdown."
+    "foreignNote": "Foreign-currency revenue is excluded from the home-currency P&L (marked \"FX\"). See the Overview tab for a per-currency breakdown.",
+    "byClient": {
+      "title": "P&L by client",
+      "projects": "Projects"
+    },
+    "partial": "partial",
+    "partialHint": "{{h}}h from {{n}} member(s) without a rate is excluded from labor cost — real cost is higher."
   },
   "team": {
     "kpi": {

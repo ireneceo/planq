@@ -10,7 +10,7 @@ import {
   SectionLabel, SectionRow, DownloadBtn, DownloadIcon, ChartCard, ChartEmpty,
   TableWrap, Table, Tr, Th, Td,
   SkeletonGrid, SkeletonCard, ErrorBanner,
-  fmtMoney, fmtNum, ForeignBadge,
+  fmtMoney, fmtNum, ForeignBadge, PartialBadge,
 } from '../components';
 import { downloadRowsAsCsv } from '../csvUtils';
 
@@ -19,6 +19,15 @@ interface Row {
   revenue: number; labor_cost: number; direct_cost: number; profit: number;
   margin_pct: number | null; hours: number; est_hours: number; profit_per_hour: number | null;
   has_foreign_currency?: boolean;
+  // #211 — 이 행의 인건비가 완전한가(단가 미입력 멤버의 시간이 빠졌는가)
+  uncosted_hours?: number; uncosted_member_count?: number; labor_cost_complete?: boolean;
+}
+// #211 — 고객사 단위 집계. "이 고객사가 남는 장사인가" 를 한 줄로 본다.
+interface ClientRow {
+  client: string; project_count: number;
+  revenue: number; labor_cost: number; direct_cost: number; profit: number;
+  margin_pct: number | null; hours: number; profit_per_hour: number | null;
+  uncosted_hours: number; uncosted_member_count: number; labor_cost_complete: boolean;
 }
 interface InternalRow {
   project_id: number; name: string; status: string;
@@ -32,6 +41,8 @@ interface Data {
   kpis: Record<string, { value: number | null }>;
   bubble?: { project_id: number; name: string; hours: number; revenue: number; profit: number; margin_pct: number | null; has_foreign_currency?: boolean }[];
   table: Row[] | InternalRow[];
+  by_client?: ClientRow[];
+  labor_cost_coverage?: { uncosted_member_count: number; uncosted_hours: number; complete: boolean };
   internal_investment?: { project_count: number; total_hours: number; total_cost: number };
   insights: { severity: string; title: string; value: string; hint?: string; action_label?: string; action_link?: string }[];
 }
@@ -185,6 +196,62 @@ const ProfitTab: React.FC<{ businessId: number; range: RangePreset; segment?: St
         )}
       </ChartCard>
 
+      {/* #211 — 고객사 단위 집계. 프로젝트 표보다 **위**에 둔다: 대행업에서 먼저 보는 단위가 고객사다.
+          적자 고객사가 맨 위로 오도록 서버가 profit 오름차순으로 보낸다. */}
+      {(data.by_client?.length || 0) > 0 && (
+        <>
+          <SectionRow style={{ marginTop: 24 }}>
+            <SectionLabel>{t('profit.byClient.title', '고객사별 손익')}</SectionLabel>
+            <DownloadBtn type="button"
+              onClick={() => downloadRowsAsCsv(`profit_by_client_${data.period.from}_${data.period.to}.csv`, data.by_client || [], [
+                { key: 'client', header: t('profit.col.client', '고객') as string },
+                { key: 'project_count', header: t('profit.byClient.projects', '프로젝트') as string },
+                { key: 'revenue', header: t('profit.col.revenue', '매출') as string },
+                { key: 'labor_cost', header: t('profit.col.laborCost', '노동비') as string },
+                { key: 'direct_cost', header: t('profit.col.directCost', '직접비') as string },
+                { key: 'profit', header: t('profit.col.profit', '이익') as string },
+                { key: 'margin_pct', header: t('profit.col.margin', '마진') as string },
+                { key: 'hours', header: t('profit.col.hours', '시간') as string },
+              ])}>
+              <DownloadIcon /> {t('download.csv', 'CSV (Excel)')}
+            </DownloadBtn>
+          </SectionRow>
+          <TableWrap>
+            <Table>
+              <thead>
+                <Tr>
+                  <Th>{t('profit.col.client', '고객')}</Th>
+                  <Th $num>{t('profit.byClient.projects', '프로젝트')}</Th>
+                  <Th $num>{t('profit.col.revenue', '매출')}</Th>
+                  <Th $num>{t('profit.col.cost', '비용')}</Th>
+                  <Th $num>{t('profit.col.profit', '이익')}</Th>
+                  <Th $num>{t('profit.col.margin', '마진')}</Th>
+                  <Th $num>{t('profit.col.hours', '시간')}</Th>
+                  <Th $num>{t('profit.col.pph', 'Profit/Hr')}</Th>
+                </Tr>
+              </thead>
+              <tbody>
+                {(data.by_client || []).map((c) => (
+                  <Tr key={c.client}>
+                    <Td>{c.client}</Td>
+                    <Td $num>{c.project_count}</Td>
+                    <Td $num>{fmtMoney(c.revenue, home)}</Td>
+                    <Td $num>
+                      {fmtMoney(c.labor_cost + c.direct_cost, home)}
+                      {!c.labor_cost_complete && <PartialBadge title={t('profit.partialHint', { h: c.uncosted_hours, n: c.uncosted_member_count, defaultValue: '단가 미입력 {{n}}명의 {{h}}h 가 인건비에서 빠졌습니다 — 실제 비용은 이보다 큽니다.' }) as string}>{t('profit.partial', '일부 제외')}</PartialBadge>}
+                    </Td>
+                    <Td $num style={{ color: c.profit < 0 ? '#B91C1C' : '#0F172A' }}>{fmtMoney(c.profit, home)}</Td>
+                    <Td $num>{c.margin_pct == null ? '—' : `${c.margin_pct.toFixed(1)}%`}</Td>
+                    <Td $num>{fmtNum(c.hours, 'h')}</Td>
+                    <Td $num>{c.profit_per_hour == null ? '—' : `${fmtMoney(c.profit_per_hour, home)}/h`}</Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          </TableWrap>
+        </>
+      )}
+
       <SectionRow style={{ marginTop: 24 }}>
         <SectionLabel>{t('profit.table.title', '프로젝트 손익 상세')}</SectionLabel>
         <DownloadBtn type="button" disabled={pnlRows.length === 0}
@@ -226,7 +293,10 @@ const ProfitTab: React.FC<{ businessId: number; range: RangePreset; segment?: St
                   <Td>{r.name}{r.has_foreign_currency && <ForeignBadge>{t('foreignLabel', '외화')}</ForeignBadge>}</Td>
                   <Td>{r.client}</Td>
                   <Td $num>{fmtMoney(r.revenue, home)}</Td>
-                  <Td $num>{fmtMoney(r.labor_cost + r.direct_cost, home)}</Td>
+                  <Td $num>
+                    {fmtMoney(r.labor_cost + r.direct_cost, home)}
+                    {r.labor_cost_complete === false && <PartialBadge title={t('profit.partialHint', { h: r.uncosted_hours, n: r.uncosted_member_count, defaultValue: '단가 미입력 {{n}}명의 {{h}}h 가 인건비에서 빠졌습니다 — 실제 비용은 이보다 큽니다.' }) as string}>{t('profit.partial', '일부 제외')}</PartialBadge>}
+                  </Td>
                   <Td $num style={{ color: r.profit < 0 ? '#B91C1C' : '#0F172A' }}>{fmtMoney(r.profit, home)}</Td>
                   <Td $num>{r.margin_pct == null ? '—' : `${r.margin_pct.toFixed(1)}%`}</Td>
                   <Td $num>{fmtNum(r.hours, 'h')}</Td>

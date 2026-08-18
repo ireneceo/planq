@@ -152,6 +152,13 @@ router.get('/:businessId', authenticateToken, checkBusinessAccess, async (req, r
         {
           model: BusinessMember,
           as: 'members',
+          // 🔴 운영 #211 검증 중 발견 — attributes 를 지정하지 않으면 전 컬럼이 실려
+          //   **단가·월급이 이 응답으로도 샜다**(member 도 부르는 라우트다).
+          //   include 는 화이트리스트로 못박는다 — 컬럼이 늘어도 자동으로 새지 않게.
+          attributes: [
+            'id', 'business_id', 'user_id', 'role', 'name', 'name_localized',
+            'department_id', 'team_id', 'job_title', 'created_at',
+          ],
           include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email', 'avatar_url', 'is_ai'] }]
         }
       ]
@@ -797,6 +804,114 @@ router.post('/:businessId/members/invite', authenticateToken, checkBusinessAcces
   } catch (error) { next(error); }
 });
 
+// ─── 멤버 단가 (민감정보) ──────────────────────────────────────────
+//
+// 운영 #211 후속 — 수익성 탭의 인건비를 실제 원가로 계산하려면 단가가 필요한데,
+//   `BusinessMember.hourly_rate` · `monthly_salary` 는 컬럼만 있고 **읽는 API·쓰는 API·화면이 전부 없었다**.
+//   그래서 `services/stats.js` 가 전 직원 시간당 5만원 하드코딩을 쓰고 있었다.
+//
+// ★ 이 값은 **절대 `GET /:businessId/members` 응답에 싣지 않는다.** 그 라우트는 member 도 부르므로
+//   단가를 얹는 순간 전 직원 급여가 통째로 샌다. 그래서 전용 라우트로 분리한다.
+// ★ 권한 계약(모델 주석): **owner 만 조회/편집. 본인 단가 조회는 허용.**
+const RATE_MAX = 10000000;   // 시간당 1천만 — 오타(0 하나 더) 방어 상한
+
+async function loadRateActor(req, businessId) {
+  const isPlatformAdmin = req.user.platform_role === 'platform_admin';
+  const me = await BusinessMember.findOne({ where: { business_id: businessId, user_id: req.user.id } });
+  return { isPlatformAdmin, isOwner: !!me && me.role === 'owner' };
+}
+
+// 전 멤버 단가 목록 — owner 전용
+router.get('/:businessId/members/rates', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const { isPlatformAdmin, isOwner } = await loadRateActor(req, businessId);
+    if (!isPlatformAdmin && !isOwner) return errorResponse(res, 'owner_only', 403);
+    const rows = await BusinessMember.findAll({
+      where: { business_id: businessId, removed_at: null },
+      attributes: ['id', 'user_id', 'name', 'role', 'hourly_rate', 'monthly_salary'],
+      include: [{ model: User, as: 'user', attributes: ['id', 'name'], required: false }],
+    });
+    return successResponse(res, rows.map((m) => ({
+      member_id: m.id,
+      user_id: m.user_id,
+      name: m.name || m.user?.name || null,
+      role: m.role,
+      hourly_rate: m.hourly_rate == null ? null : Number(m.hourly_rate),
+      monthly_salary: m.monthly_salary == null ? null : Number(m.monthly_salary),
+    })));
+  } catch (err) { next(err); }
+});
+
+// 단건 조회 — owner 또는 **본인**
+router.get('/:businessId/members/:userId/rate', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const targetUserId = Number(req.params.userId);
+    const { isPlatformAdmin, isOwner } = await loadRateActor(req, businessId);
+    const isSelf = targetUserId === req.user.id;
+    if (!isPlatformAdmin && !isOwner && !isSelf) return errorResponse(res, 'forbidden', 403);
+    const m = await BusinessMember.findOne({
+      where: { business_id: businessId, user_id: targetUserId, removed_at: null },
+      attributes: ['user_id', 'hourly_rate', 'monthly_salary'],
+    });
+    if (!m) return errorResponse(res, 'member_not_found', 404);
+    return successResponse(res, {
+      user_id: m.user_id,
+      hourly_rate: m.hourly_rate == null ? null : Number(m.hourly_rate),
+      monthly_salary: m.monthly_salary == null ? null : Number(m.monthly_salary),
+    });
+  } catch (err) { next(err); }
+});
+
+// 단가 수정 — owner 전용. 본인이라도 **자기 단가를 스스로 못 바꾼다**(원가 조작 방지).
+router.put('/:businessId/members/:userId/rate', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const targetUserId = Number(req.params.userId);
+    const { isPlatformAdmin, isOwner } = await loadRateActor(req, businessId);
+    if (!isPlatformAdmin && !isOwner) return errorResponse(res, 'owner_only', 403);
+
+    const m = await BusinessMember.findOne({ where: { business_id: businessId, user_id: targetUserId, removed_at: null } });
+    if (!m) return errorResponse(res, 'member_not_found', 404);
+
+    const patch = {};
+    for (const key of ['hourly_rate', 'monthly_salary']) {
+      if (!Object.prototype.hasOwnProperty.call(req.body, key)) continue;
+      const raw = req.body[key];
+      if (raw === null || raw === '') { patch[key] = null; continue; }
+      const n = Number(raw);
+      if (!Number.isFinite(n) || n < 0) return errorResponse(res, `invalid_${key}`, 400);
+      // 상한은 시간당 기준. 월급은 그 자리에서 시간당으로 환산되므로 넉넉히 둔다.
+      if (key === 'hourly_rate' && n > RATE_MAX) return errorResponse(res, 'hourly_rate_too_large', 400);
+      if (key === 'monthly_salary' && n > RATE_MAX * 200) return errorResponse(res, 'monthly_salary_too_large', 400);
+      patch[key] = n;
+    }
+    if (Object.keys(patch).length === 0) return errorResponse(res, 'nothing_to_update', 400);
+
+    const before = { hourly_rate: m.hourly_rate, monthly_salary: m.monthly_salary };
+    await m.update(patch);
+    // 급여는 감사 대상이다 — 누가 언제 바꿨는지 반드시 남긴다.
+    try {
+      const { logAudit } = require('../services/auditService');
+      logAudit(req, {
+        action: 'member.rate.update',
+        targetType: 'business_member',
+        targetId: m.id,
+        businessId,
+        oldValue: before,
+        newValue: patch,
+      });
+    } catch (e) { console.warn('[rate audit]', e.message); }
+
+    return successResponse(res, {
+      user_id: m.user_id,
+      hourly_rate: m.hourly_rate == null ? null : Number(m.hourly_rate),
+      monthly_salary: m.monthly_salary == null ? null : Number(m.monthly_salary),
+    }, 'Updated');
+  } catch (err) { next(err); }
+});
+
 // ─── 멤버 목록 (Cue 포함) ───
 router.get('/:businessId/members', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
@@ -822,6 +937,12 @@ router.get('/:businessId/members', authenticateToken, checkBusinessAccess, async
     //   계정명(한수정) 대신 워크스페이스 표시명(루아)을 쓰도록. displayName() 헬퍼 자동 적용 대상.
     const out = members.map((m) => {
       const o = m.toJSON();
+      // 🔴 운영 #211 검증 중 발견 — `toJSON()` 이 전 컬럼을 그대로 내보내 **단가·월급이 여기로 새고 있었다.**
+      //   이 라우트는 member 도 부르므로(멤버 선택자·담당자 picker 등) 전 직원 급여가 팀 전체에 노출된다.
+      //   모델 주석의 계약은 "owner 만 조회/편집" 이다 → 조회 전용 라우트(`/members/rates`)로만 나간다.
+      //   ★ 다른 필드는 건드리지 않는다 — 여기서 더 걷어내면 멤버 선택자·표시명이 조용히 깨진다.
+      delete o.hourly_rate;
+      delete o.monthly_salary;
       if (o.user) { o.user.display_name = m.name || null; o.user.display_name_localized = m.name_localized || null; }
       return o;
     });
