@@ -208,13 +208,19 @@ const PublicInvoicePage: React.FC = () => {
     return s.biz_name || s.name || '';
   }, [invoice]);
 
+  // 운영 #274 — 입금자명은 **서버 계산(payer_code)** 을 그대로 쓴다.
+  //   여태 이 화면만 수신처 라벨을 하나 더 붙여 드로어·메일과 문자열이 이미 달랐다.
+  //   은행 "받는 분 통장 표시" 는 한글 5~8자에서 잘리는데 옛 값은 번호만 13자였다.
+  //   분할 회차가 선택돼 있으면 회차를 붙인다(0042-2홍길동).
   const payerGuide = useMemo(() => {
     if (!invoice) return '';
-    const num = invoice.invoice_number;
-    const recip = recipientLine || '';
-    if (notifyTarget) return `${num} ${recip} ${notifyTarget.label}`.replace(/\s+/g, ' ').trim();
-    return `${num} ${recip}`.replace(/\s+/g, ' ').trim();
-  }, [invoice, recipientLine, notifyTarget]);
+    const base = (invoice as { payer_code?: string | null }).payer_code || '';
+    if (!base) return String(invoice.invoice_number || '');   // 서버가 아직 안 내려줄 때만
+    const no = notifyTarget?.installment_no;
+    if (!no) return base;
+    // 0042홍길동 → 0042-2홍길동 (숫자 머리 뒤에 회차)
+    return base.replace(/^(\d+)/, `$1-${no}`);
+  }, [invoice, notifyTarget]);
 
   const copy = async (text: string, key: string) => {
     try {

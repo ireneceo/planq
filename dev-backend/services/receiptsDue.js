@@ -296,3 +296,32 @@ module.exports = {
   receiptKindOf,
   defaultReceiptTypeFor,
 };
+
+// ─────────────────────────────────────────────
+// 운영 #274 — 입금자명에 넣을 **입금 코드** 단일 원천
+//
+// 왜 서버에서 만드나: 이 문자열을 드로어·공개 결제 페이지·발송 메일 **세 곳이 각자 조립**하고 있었고
+//   이미 서로 달랐다(공개 페이지만 수신처 라벨이 하나 더 붙었다). 같은 값의 공식이 여러 벌이면
+//   반드시 갈라진다 — 서버가 한 번 계산해 내려주고 세 표면이 그대로 쓴다.
+//
+// 형식 `0042홍길동` (순번 끝 4자리 + 고객 표시명, 분할이면 `0042-2홍길동`):
+//   국내 은행 "받는 분 통장 표시" 는 통상 한글 5~8자에서 **뒷부분이 잘린다**.
+//   현행 `INV-2026-0042 상호명` 은 번호만 13자라 **이름이 나오기도 전에 잘렸다**.
+//   절단이 꼬리에서 일어나므로 식별번호를 **선두**에 둔다 — 한글 7자로 잘려도 `0042홍길` 까지 남아
+//   어느 청구서인지 특정된다. 순번 4자리는 연도 내 유일(generateInvoiceNumber, INV-YYYY-순번).
+//   정확 매칭의 정본은 어차피 '송금 완료 알림' 이며 문구가 그 채널을 함께 안내한다.
+// ─────────────────────────────────────────────
+function payerCodeOf(invoice, client, installmentNo = null) {
+  if (!invoice) return '';
+  const num = String(invoice.invoice_number || '');
+  // INV-2026-0042 → 0042. 형식이 달라져도 숫자 꼬리 4자리로 떨어진다.
+  const m = /-(\d+)$/.exec(num);
+  const seq = m ? m[1] : num.replace(/\D/g, '').slice(-4);
+  const head = installmentNo ? `${seq}-${installmentNo}` : seq;
+  const name = String(
+    client?.display_name || client?.company_name || client?.biz_name || ''
+  ).trim();
+  return `${head}${name}`;
+}
+
+module.exports.payerCodeOf = payerCodeOf;

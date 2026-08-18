@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
+import { invoiceViewerOf } from './invoiceCaps';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import {
@@ -21,7 +22,11 @@ type Tab = 'pending' | 'issued' | 'all';
 
 export default function TaxInvoicesTab() {
   const { t } = useTranslation('qbill');
+  // 운영 #274 — 이 탭은 고객(recipient)도 연다(QBillPage CLIENT_TABS 에 포함).
+  //   고객에게 "홈택스에서 발행하고 번호만 마킹" 같은 **발행자 운영 안내**와 가산세 배너,
+  //   발행/수정취소 버튼이 그대로 보이고 있었다. 고객에겐 '받을 증빙' 만 보여준다.
   const { user } = useAuth();
+  const isRecipient = invoiceViewerOf(user) === 'recipient';
   const businessId = user?.business_id ? Number(user.business_id) : null;
   const [tab, setTab] = useState<Tab>('pending');
   const [issuingFor, setIssuingFor] = useState<ReceiptDueRow | null>(null);
@@ -79,12 +84,17 @@ export default function TaxInvoicesTab() {
       <InfoBox>
         <InfoIcon>ⓘ</InfoIcon>
         <div>
-          <InfoTitle>{t('taxInvoices.info.title', '증빙은 외부(홈택스/팝빌)에서 발행하고 발행번호만 마킹합니다')}</InfoTitle>
-          <InfoDesc>{t('taxInvoices.info.desc', '입금 완료된 청구서의 세금계산서·현금영수증 발행 대기 목록입니다. 발행기한이 임박하거나 지난 건이 위로 정렬됩니다.')}</InfoDesc>
+          <InfoTitle>{isRecipient
+            ? t('taxInvoices.info.recipientTitle', { defaultValue: '받으실 증빙 내역입니다' }) as string
+            : t('taxInvoices.info.title', '증빙은 외부(홈택스/팝빌)에서 발행하고 발행번호만 마킹합니다')}</InfoTitle>
+          <InfoDesc>{isRecipient
+            ? t('taxInvoices.info.recipientDesc', { defaultValue: '결제하신 청구서의 세금계산서·현금영수증 발행 상태입니다. 발행이 완료되면 여기에서 확인하실 수 있어요.' }) as string
+            : t('taxInvoices.info.desc', '입금 완료된 청구서의 세금계산서·현금영수증 발행 대기 목록입니다. 발행기한이 임박하거나 지난 건이 위로 정렬됩니다.')}</InfoDesc>
         </div>
       </InfoBox>
 
-      {overdueCount > 0 && (
+      {/* 가산세는 **발행 의무자(우리)** 의 사정이다 — 고객에게 보일 이유가 없다. */}
+      {!isRecipient && overdueCount > 0 && (
         <OverdueBanner>
           {t('taxInvoices.overdueBanner', { count: overdueCount, defaultValue: '발행기한이 지난 증빙이 {{count}}건 있습니다. 가산세가 발생할 수 있으니 우선 발행해주세요.' }) as string}
         </OverdueBanner>
@@ -148,13 +158,19 @@ export default function TaxInvoicesTab() {
                     : r.issued_no ? <IssueNo>{r.issued_no}</IssueNo> : <Pending>{t('taxInvoices.misc.pending', '대기')}</Pending>}
               </Cell>
               <Cell style={{ width: 92, textAlign: 'right' }}>
-                {r.status === 'pending' && (
+                {/* 발행·정정은 발행자 액션이다. 고객에겐 상태 문구만 보여준다. */}
+                {isRecipient && (
+                  <RecipientState>{r.status === 'issued'
+                    ? t('taxInvoices.recipient.issued', { defaultValue: '발행 완료' }) as string
+                    : t('taxInvoices.recipient.willIssue', { defaultValue: '발행 예정' }) as string}</RecipientState>
+                )}
+                {!isRecipient && r.status === 'pending' && (
                   <ActionBtn type="button" $primary onClick={() => setIssuingFor(r)}>{t('taxInvoices.actions.issue')}</ActionBtn>
                 )}
-                {r.effective === 'correction_pending' && (
+                {!isRecipient && r.effective === 'correction_pending' && (
                   <ActionBtn type="button" $danger onClick={() => setCorrectingFor(r)}>{t('taxInvoices.corrections.action', '수정·취소')}</ActionBtn>
                 )}
-                {r.status === 'issued' && r.effective === 'issued' && (
+                {!isRecipient && r.status === 'issued' && r.effective === 'issued' && (
                   <ActionBtn type="button" onClick={() => setCorrectingFor(r)}>{t('taxInvoices.corrections.action', '수정·취소')}</ActionBtn>
                 )}
               </Cell>
@@ -677,4 +693,11 @@ const SecondaryBtn = styled.button`
   padding: 8px 14px; font-size: 13px; font-weight: 600; color: #334155;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 6px; cursor: pointer;
   &:hover { background: #F8FAFC; }
+`;
+
+// #274 — 고객에게 보이는 증빙 상태(발행 예정/완료). 발행자 액션 버튼 자리를 대신한다.
+const RecipientState = styled.span`
+  display: inline-flex; align-items: center; padding: 2px 8px;
+  font-size: 11px; font-weight: 600; color: #475569;
+  background: #F1F5F9; border: 1px solid #E2E8F0; border-radius: 999px;
 `;

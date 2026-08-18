@@ -5,7 +5,7 @@ const { resolveRecurringInfo } = require('../services/invoiceRecurring');
 // 청구서 PDF 빌더 — 라우트·정기청구 2엔진 공용 단일 착지점 (services/invoicePdf.js).
 const { buildInvoicePdf } = require('../services/invoicePdf');
 // 증빙 종류 판정 단일 원천 — 증빙 큐(대시보드 인박스·Q Bill 증빙 탭)와 상세 표시가 갈라지지 않게 공용.
-const { receiptKindOf } = require('../services/receiptsDue');
+const { receiptKindOf, payerCodeOf } = require('../services/receiptsDue');
 const { logBillEvent, listBillEvents } = require('../services/billEvents');
 const { isStripeEnabled } = require('../services/stripeService'); // Q Bill 워크스페이스 카드결제 활성 판정
 const { authenticateToken, optionalAuth, checkBusinessAccess } = require('../middleware/auth');
@@ -181,6 +181,9 @@ router.get('/public/:token', optionalAuth, async (req, res, next) => {
     const safe = {
       id: invoice.id,
       invoice_number: invoice.invoice_number,
+      // #274 — 입금 코드는 **서버가 한 번** 계산한다(드로어·공개페이지·메일이 각자 조립하면 갈라진다).
+      //   결제 안내 값이므로 증빙(receipt) 안이 아니라 최상위에 둔다 — 목록·상세 응답과 같은 위치.
+      payer_code: payerCodeOf(invoice, invoice.Client || null),
       title: invoice.title,
       status: invoice.status,
       installment_mode: invoice.installment_mode,
@@ -686,6 +689,7 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
     successResponse(res, invoices.map((inv) => {
       const j = inv.toJSON();
       j.receipt_kind = receiptKindOf(inv, inv.Client || null);
+      j.payer_code = payerCodeOf(inv, inv.Client || null);   // #274
       return j;
     }));
   } catch (error) {
@@ -1068,6 +1072,7 @@ router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async 
     // 증빙 종류는 receiptsDue 단일 원천 술어로 파생한다 — 드로어가 `tax_invoice_status` 를 직독하면
     //   레거시(receipt_type='none' + 한국 사업자) 건에 "발행 대상 아님" 이 뜬다(운영 피드백 2026-08-03).
     payload.receipt_kind = receiptKindOf(invoice, invoice.Client || null);
+    payload.payer_code = payerCodeOf(invoice, invoice.Client || null);   // #274
     successResponse(res, payload);
   } catch (error) {
     next(error);
@@ -1390,7 +1395,14 @@ router.post('/:businessId/:id/send', authenticateToken, checkBusinessAccess, req
             console.warn('[invoice send] PDF attach failed:', pdfErr.message);
           }
 
+          // #274 — Client 가 include 안 된 경로 대비. 이미 실려 있으면 재조회하지 않는다.
+          const mailClient = invoice.Client || (invoice.client_id ? await Client.findByPk(invoice.client_id) : null);
           const ok = await sendInvoiceEmail({
+      // #274 — 입금 코드·세금계산서 예고는 서버 단일 원천에서 계산해 넘긴다(메일도 같은 값).
+      //   ★ 이 라우트들은 Invoice 를 Client include 없이 로드하는 곳이 있다 — `invoice.Client` 만
+      //     믿으면 코드가 조용히 빈 문자열이 된다(만들어놓고 안 나오는 전형). 없으면 직접 읽는다.
+      payerCode: payerCodeOf(invoice, invoice.Client || mailClient),
+      willIssueTax: receiptKindOf(invoice, invoice.Client || mailClient) === 'tax' && invoice.tax_invoice_status !== 'issued',
             to: recipient,
             invoiceNumber: invoice.invoice_number,
             title: invoice.title,
@@ -1469,7 +1481,14 @@ router.post('/:businessId/:id/send-preview', authenticateToken, checkBusinessAcc
       attachments = [{ filename: `${invoice.invoice_number || 'invoice'}-preview.pdf`, content: pdf, contentType: 'application/pdf' }];
     } catch (pdfErr) { console.warn('[invoice send-preview] PDF attach failed:', pdfErr.message); }
     const { sendInvoiceEmail } = require('../services/emailService');
+    // #274 — Client 가 include 안 된 경로 대비. 이미 실려 있으면 재조회하지 않는다.
+    const mailClient = invoice.Client || (invoice.client_id ? await Client.findByPk(invoice.client_id) : null);
     const ok = await sendInvoiceEmail({
+      // #274 — 입금 코드·세금계산서 예고는 서버 단일 원천에서 계산해 넘긴다(메일도 같은 값).
+      //   ★ 이 라우트들은 Invoice 를 Client include 없이 로드하는 곳이 있다 — `invoice.Client` 만
+      //     믿으면 코드가 조용히 빈 문자열이 된다(만들어놓고 안 나오는 전형). 없으면 직접 읽는다.
+      payerCode: payerCodeOf(invoice, invoice.Client || mailClient),
+      willIssueTax: receiptKindOf(invoice, invoice.Client || mailClient) === 'tax' && invoice.tax_invoice_status !== 'issued',
       to: me.email,
       invoiceNumber: invoice.invoice_number,
       title: `[미리보기] ${invoice.title || ''}`,
@@ -1533,7 +1552,10 @@ router.post('/:businessId/:id/send-reminder', authenticateToken, reminderLimiter
     const customMsg = req.body?.message ? String(req.body.message).slice(0, 1000) : '';
 
     const { sendPaymentReminderEmail } = require('../services/emailService');
+    // #274 — 독촉 메일이야말로 입금자명 코드가 필요하다(Fable 재게이트 지적).
+    //   이 라우트는 client 를 이미 로드해 두므로 폴백 불요.
     const sent = await sendPaymentReminderEmail({
+      payerCode: payerCodeOf(invoice, invoice.Client || client || null),
       to: recipient,
       invoiceNumber: invoice.invoice_number,
       title: invoice.title,
@@ -1629,7 +1651,14 @@ router.post('/:businessId/:id/resend', authenticateToken, reminderLimiter, check
       attachments = [{ filename: `${invoice.invoice_number || 'invoice'}.pdf`, content: pdf, contentType: 'application/pdf' }];
     } catch (pdfErr) { console.warn('[invoice resend] PDF attach failed:', pdfErr.message); }
     const { sendInvoiceEmail } = require('../services/emailService');
+    // #274 — Client 가 include 안 된 경로 대비. 이미 실려 있으면 재조회하지 않는다.
+    const mailClient = invoice.Client || (invoice.client_id ? await Client.findByPk(invoice.client_id) : null);
     const ok = await sendInvoiceEmail({
+      // #274 — 입금 코드·세금계산서 예고는 서버 단일 원천에서 계산해 넘긴다(메일도 같은 값).
+      //   ★ 이 라우트들은 Invoice 를 Client include 없이 로드하는 곳이 있다 — `invoice.Client` 만
+      //     믿으면 코드가 조용히 빈 문자열이 된다(만들어놓고 안 나오는 전형). 없으면 직접 읽는다.
+      payerCode: payerCodeOf(invoice, invoice.Client || mailClient),
+      willIssueTax: receiptKindOf(invoice, invoice.Client || mailClient) === 'tax' && invoice.tax_invoice_status !== 'issued',
       to: recipient,
       invoiceNumber: invoice.invoice_number,
       title: invoice.title,

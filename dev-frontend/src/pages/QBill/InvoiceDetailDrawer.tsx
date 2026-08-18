@@ -6,6 +6,7 @@ import styled from 'styled-components';
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
+import { invoiceViewerOf, invoiceCapsOf, payerCodeOf } from './invoiceCaps';
 import { CheckIcon } from '../../components/Common/Icons';
 import {
   formatMoney, invoiceStatusColor, installmentStatusColor,
@@ -69,8 +70,12 @@ function billEventMeta(type: ApiBillEvent['event_type'], detail: Record<string, 
 export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, onChanged, onEdit }: Props) {
   const { t } = useTranslation('qbill');
   const { user } = useAuth();
+  // 운영 #274 — 권한 판정은 invoiceCaps 단일 착지점에서만. 버튼마다 조건을 흩뿌리면
+  //   다음에 추가되는 버튼이 또 빠진다(실제로 8개 중 3개가 빠져 고객 화면에 노출됐다).
+  const viewer = invoiceViewerOf(user);
+  const caps = invoiceCapsOf(viewer);
   // #91 — 결제 완료 마킹(상태 변경)은 백엔드에서 owner/platform_admin 전용
-  const isOwner = user?.business_role === 'owner' || user?.platform_role === 'platform_admin';
+  const isOwner = caps.canMarkPaid;
   const navigate = useNavigate();
   const [copiedAcct, setCopiedAcct] = useState(false);
   const [copiedMemo, setCopiedMemo] = useState(false);
@@ -152,14 +157,18 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
       listInvoiceCorrections(initialInvoice.business_id, initialInvoice.id)
         .then(setCorrections)
         .catch(() => setCorrections([]));
-      // 상태 변경 이력 (기본 히스토리) — best-effort
-      getInvoiceStatusHistory(initialInvoice.business_id, initialInvoice.id)
-        .then(setStatusHistory)
-        .catch(() => setStatusHistory([]));
-      // Q Bill 이벤트 타임라인 (생애주기) — best-effort
-      getInvoiceTimeline(initialInvoice.business_id, initialInvoice.id)
-        .then(setTimeline)
-        .catch(() => setTimeline([]));
+      // 운영 #274 — 상태이력·타임라인은 **내부 정보**다. 고객에게는 백엔드가 403 을 주므로
+      //   호출 자체를 하지 않는다(무의미한 403 을 매번 만들지 않는다).
+      if (caps.canViewInternalHistory) {
+        // 상태 변경 이력 (기본 히스토리) — best-effort
+        getInvoiceStatusHistory(initialInvoice.business_id, initialInvoice.id)
+          .then(setStatusHistory)
+          .catch(() => setStatusHistory([]));
+        // Q Bill 이벤트 타임라인 (생애주기) — best-effort
+        getInvoiceTimeline(initialInvoice.business_id, initialInvoice.id)
+          .then(setTimeline)
+          .catch(() => setTimeline([]));
+      }
       // 발송된 청구서면 연결된 채팅방 자동 검색 (best-effort)
       if (initialInvoice.client_id && (initialInvoice.status === 'sent' || initialInvoice.status === 'partially_paid' || initialInvoice.status === 'paid' || initialInvoice.status === 'overdue')) {
         findConversationForClient(initialInvoice.business_id, initialInvoice.client_id, initialInvoice.project_id || undefined)
@@ -167,7 +176,9 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
           .catch(() => {/* noop */});
       }
     }
-  }, [initialInvoice?.id, initialInvoice?.client_id, initialInvoice?.project_id, initialInvoice?.status]);
+    // ★ caps.canViewInternalHistory 를 조건으로 썼으므로 deps 에도 넣는다.
+    //   가드 변수를 만들고 deps 를 안 좁히면 스스로 무력화된다(박제된 함정).
+  }, [initialInvoice?.id, initialInvoice?.client_id, initialInvoice?.project_id, initialInvoice?.status, caps.canViewInternalHistory]);
 
   if (!invoice) return null;
   const client = invoice.Client || invoice.client;
@@ -451,7 +462,10 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
         {invoice.notes && <HeaderSub>{invoice.notes}</HeaderSub>}
         <RecurringBillingNote recurring={invoice.recurring} />
 
-        {/* 액션 바 */}
+        {/* 액션 바 — 운영 #274: **블록 단위** 분기.
+            버튼 단위로 조건을 달면 다음에 추가되는 버튼이 또 새 나간다.
+            고객(recipient)에게는 이 블록을 통째로 그리지 않고 아래 수신자 액션바를 대신 그린다. */}
+        {caps.showIssuerActions && (<>
         <ActionRow>
           {(invoice.status === 'draft' || invoice.status === 'canceled') && onEdit && (
             <ActionBtn onClick={() => { const id = invoice.id; onClose(); onEdit(id); }}>
@@ -573,6 +587,31 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
                 : t('detail.overdueNotify.turnOff', { defaultValue: '알림 끄기' })}
             </LinkBtn>
           </OverdueNotifyRow>
+        )}
+        </>)}
+
+        {/* 운영 #274 — 수신자(고객) 액션바. 발행자 액션과 **다른 블록**이라 서로 섞이지 않는다. */}
+        {viewer === 'recipient' && (
+          <ActionRow>
+            {shareUrl && (
+              // ★ 공개 결제 페이지 URL 은 위에서 이미 만든 shareUrl 정본을 쓴다.
+              //   여기서 경로를 다시 조립하면(`/pay/...`) 라우트가 바뀔 때 조용히 죽는 링크가 된다.
+              <ActionBtn onClick={() => window.open(shareUrl, '_blank', 'noopener')}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                {t('detail.recipient.openPayPage', { defaultValue: '결제 안내 페이지 열기' }) as string}
+              </ActionBtn>
+            )}
+            <ActionBtn onClick={onDownloadPdf} disabled={pdfBusy}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              {t('detail.recipient.pdf', { defaultValue: 'PDF 내려받기' }) as string}
+            </ActionBtn>
+            {chatConvId && (
+              <ActionBtn onClick={() => { onClose(); navigate(`/talk?conv=${chatConvId}`); }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                {t('detail.recipient.chat', { defaultValue: '담당자에게 문의' }) as string}
+              </ActionBtn>
+            )}
+          </ActionRow>
         )}
       </DrawerHeader>
 
@@ -722,6 +761,9 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
                   onUnmarkPaid={handleUnmarkPaid}
                   onMarkTax={handleMarkTax}
                   onCancel={handleCancelInst}
+                  // #274 — 회차 ⋮ 메뉴(결제완료·발행 마킹·결제취소·회차취소)는 전부 발행자 액션이다.
+                  //   분할 청구서를 받은 고객에게 "결제 완료로 표시" 가 보이면 안 된다.
+                  canManage={caps.canMarkPaid}
                 />
               ))}
             </InstallmentList>
@@ -751,11 +793,16 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
               <BankKey>{t('detail.bank.holder')}</BankKey>
               <BankVal>{bank.account_holder || '—'}</BankVal>
             </BankRow>
+            {/* 운영 #274 — 은행 "받는 분 통장 표시" 는 한글 5~8자에서 뒷부분이 잘린다.
+                옛 문자열(`INV-2026-0042 상호명`)은 번호만 13자라 이름이 나오기도 전에 잘렸다.
+                식별번호를 선두에 둔 짧은 코드로 바꾸고, 값은 **서버 계산(payer_code)** 을 쓴다
+                — 드로어·공개페이지·메일이 각자 조립하면 갈라진다. */}
             <PayerHint>
-              <PayerHintTitle>{t('detail.bank.payerMemoHelp')}</PayerHintTitle>
+              <PayerHintTitle>{t('detail.bank.payerMemoHelp', { defaultValue: '입금자명(보내는 분 표시)에 아래 코드를 넣어 주세요. 은행에 따라 글자 수가 제한되어 짧게 만들었습니다.' }) as string}</PayerHintTitle>
               <PayerCode>
-                <code>{`${invoice.invoice_number} ${client?.display_name || client?.biz_name || ''}`}</code>
+                <code>{payerCodeOf(invoice, client?.display_name || client?.company_name || client?.biz_name || '')}</code>
               </PayerCode>
+              <PayerHintNote>{t('detail.bank.payerMemoNote', { defaultValue: '입금 후 결제 안내 페이지에서 \'송금 완료 알림\'을 보내면 더 빨리 확인됩니다.' }) as string}</PayerHintNote>
             </PayerHint>
           </BankCard>
         </Section>
@@ -803,15 +850,28 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
                 </TaxIcon>
                 <TaxBody>
                   <TaxLabel>
+                    {/* 운영 #274 — 같은 상태라도 **받는 사람에겐 다른 말**이어야 한다.
+                        "발행 필요" 는 발행 의무자(우리)의 할 일이지 고객이 알 바가 아니다.
+                        고객에겐 "발행 예정" 으로 — 무엇을 받게 되는지를 말한다. */}
                     {status === 'issued' ? (issuedNo ? t('detail.tax.issuedNo', { no: issuedNo, defaultValue: `발행완료 · ${issuedNo}` }) : t('detail.tax.issued')) :
-                     status === 'pending' ? t('detail.tax.required') :
+                     status === 'pending' ? (viewer === 'recipient'
+                       ? t('detail.tax.willIssue', { defaultValue: '발행 예정' }) as string
+                       : t('detail.tax.required')) :
                      t('detail.tax.notRequired')}
                   </TaxLabel>
-                  {status === 'pending' && <TaxDesc>{t('detail.tax.issuePromptDesc')}</TaxDesc>}
+                  {/* 운영 #274 — 이 설명은 **발행자용 작업 지시**다("외부에서 발행한 후 발행번호를 입력하세요").
+                    라벨만 "발행 예정" 으로 갈고 이 줄을 놓쳐서, 고객이 바로 아래에서 그대로 읽고 있었다.
+                    고객에겐 무엇을 받게 되는지만 말한다. */}
+                {status === 'pending' && (viewer === 'recipient'
+                  ? <TaxDesc>{t('detail.tax.willIssueDesc', { defaultValue: '입금이 확인되면 발행해 드립니다.' }) as string}</TaxDesc>
+                  : <TaxDesc>{t('detail.tax.issuePromptDesc')}</TaxDesc>)}
                 </TaxBody>
               </TaxBox>
-              {/* 단건 청구서 발행 마킹 (분할은 회차별로) */}
-              {!isSplit && status !== 'issued' && (
+              {/* 단건 청구서 발행 마킹 (분할은 회차별로)
+                  운영 #274 — **발행자 액션이다.** 액션바만 막고 여기를 놓쳐서, 한국 사업자 고객이
+                  "세금계산서 발행번호 입력" 버튼을 그대로 보고 있었다(Fable 게이트 적발).
+                  member 도 백엔드에서 403 이므로 owner 에게만 보인다. */}
+              {caps.canMarkReceipt && !isSplit && status !== 'issued' && (
                 <ReceiptMarkRow>
                   <ReceiptMarkBtn type="button" onClick={() => handleMarkInvoiceReceipt('tax')}>
                     {t('detail.tax.markTaxBtn', { defaultValue: '세금계산서 발행번호 입력' })}
@@ -929,7 +989,9 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
           onClose={() => setConfirm(null)}
         />
       )}
-      {taxModal && (
+      {/* #274 — 오프너(증빙 마킹 버튼·회차 ⋮)가 이미 게이트돼 있지만 모달 자체에도 건다.
+          "오프너가 막혀 있으니 안전" 은 이번 사건에서 두 번 틀린 가정이다(fail-closed). */}
+      {caps.canMarkReceipt && taxModal && (
         <TaxModalBackdrop onClick={() => setTaxModal(null)}>
           <TaxModalDialog onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('detail.tax.issuePromptTitle') as string}>
             <TaxModalHead>
@@ -993,8 +1055,10 @@ interface InstallmentRowProps {
   onUnmarkPaid: (id: number) => void;
   onMarkTax: (id: number) => void;
   onCancel: (id: number) => void;
+  /** #274 — 발행자 액션(⋮ 메뉴)을 그릴지. 고객·member 는 false. 없으면 **안 그리는 쪽**이 기본(fail-closed). */
+  canManage?: boolean;
 }
-function InstallmentRow({ ins, currency, busy, onMarkPaid, onUnmarkPaid, onMarkTax, onCancel }: InstallmentRowProps) {
+function InstallmentRow({ ins, currency, busy, onMarkPaid, onUnmarkPaid, onMarkTax, onCancel, canManage = false }: InstallmentRowProps) {
   const { t } = useTranslation('qbill');
   const sc = installmentStatusColor(ins.status);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -1018,6 +1082,8 @@ function InstallmentRow({ ins, currency, busy, onMarkPaid, onUnmarkPaid, onMarkT
         <StatusDot $color={sc.dot} />
         {t(`detail.installments.status.${ins.status}`)}
       </InstStatus>
+      {/* #274 — ⋮ 메뉴 전체가 발행자 액션이다. 고객에게는 메뉴 버튼조차 그리지 않는다. */}
+      {canManage && (
       <InstMenuWrap>
         <InstMenuBtn type="button" onClick={() => setMenuOpen(o => !o)} aria-label="actions" disabled={busy}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="6" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="18" r="1.5"/></svg>
@@ -1051,6 +1117,7 @@ function InstallmentRow({ ins, currency, busy, onMarkPaid, onUnmarkPaid, onMarkT
           </>
         )}
       </InstMenuWrap>
+      )}
     </InstRowWrap>
   );
 }
@@ -1524,6 +1591,10 @@ const PayerHint = styled.div`
 `;
 const PayerHintTitle = styled.div`
   font-size: 11px; font-weight: 700; color: #92400E; margin-bottom: 6px;
+`;
+// #274 — 입금자명을 못 바꾸는 은행도 있다. 그 경우의 대안을 같이 말해준다.
+const PayerHintNote = styled.div`
+  margin-top: 6px; font-size: 11px; line-height: 1.5; color: #A16207;
 `;
 const PayerCode = styled.div`
   display: flex; align-items: center; gap: 8px; justify-content: space-between;
