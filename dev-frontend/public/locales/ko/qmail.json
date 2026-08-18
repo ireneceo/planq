@@ -402,7 +402,9 @@
   },
   "detail": {
     "toAddr": "받은 주소",
-    "noContent": "(내용 없음)"
+    "noContent": "(내용 없음)",
+    "fullView": "전체 화면으로 보기",
+    "fullViewShort": "전체보기"
   },
   "bulk": {
     "markAllRead": "모두 읽음",
@@ -442,7 +444,9 @@
     "aiWrite": "AI 로 작성",
     "aiRefine": "AI 로 다듬기",
     "aiHint": "AI 가 요청하신 내용으로 메일 본문을 써줍니다",
-    "aiInstructionRequired": "어떤 메일을 쓸지 알려 주세요."
+    "aiInstructionRequired": "어떤 메일을 쓸지 알려 주세요.",
+    "draftSaveFailed": "작성 중인 내용을 저장하지 못해 폼을 닫지 않았습니다. 잠시 후 다시 시도하거나 내용을 복사해 두세요.",
+    "forwardBlocksNav": "전달 메일은 임시저장되지 않습니다. 보내거나 닫은 뒤에 다른 메일로 이동해 주세요."
   },
   "attachment": {
     "preview": "미리보기",

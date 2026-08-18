@@ -8,6 +8,7 @@ import ChromeLink from '../Tab/ChromeLink';
 import { useNotifications, type NotificationItem } from '../../hooks/useNotifications';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { resolveNotificationLink } from '../../utils/notificationLink';
+import NotificationTypeIcon from './NotificationTypeIcon';
 
 interface Props {
   open: boolean;
@@ -76,6 +77,8 @@ const NotificationDropdown: React.FC<Props> = ({ open, onClose, anchorRef }) => 
         ) : (
           items.map(it => (
             <Item key={it.id} type="button" onClick={() => handleClick(it)} $unread={!it.read_at}>
+              {/* 운영 #287 — 종류 아이콘. 여태 이 목록엔 아이콘이 아예 없어 메일·채팅·업무가 구분되지 않았다. */}
+              <ItemIcon aria-hidden="true"><NotificationTypeIcon kind={it.event_kind} size={14} /></ItemIcon>
               <ItemBody>
                 <ItemTitle $unread={!it.read_at}>{it.title}</ItemTitle>
                 {it.body && <ItemDesc>{it.body.slice(0, 100)}</ItemDesc>}
@@ -131,6 +134,11 @@ const Item = styled.button<{ $unread: boolean }>`
   border: none; cursor: pointer; text-align: left;
   transition: background 0.12s;
   &:hover { background: ${p => p.$unread ? '#CCFBF1' : '#F8FAFC'}; }
+`;
+const ItemIcon = styled.span`
+  width: 24px; height: 24px; flex-shrink: 0; margin-top: 1px;
+  display: flex; align-items: center; justify-content: center;
+  background: #F1F5F9; color: #475569; border-radius: 6px;
 `;
 const ItemBody = styled.div` flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; `;
 const ItemTitle = styled.div<{ $unread: boolean }>`

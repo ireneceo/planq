@@ -31,7 +31,9 @@
       "users": "사용자",
       "subscriptions": "구독",
       "payments": "결제",
-      "audit": "감사 로그"
+      "audit": "감사 로그",
+      "announcement": "공지 배너",
+      "updates": "제품 업데이트 발행"
     }
   },
   "billing": {

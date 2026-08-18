@@ -168,7 +168,8 @@
     "remainCapOver": "Left {{rem}}h / Cap {{cap}}h · {{over}}h over",
     "overCapHint": "Remaining estimate exceeds capacity by {{over}}h — consider adjusting deadlines, delegating, or rebalancing dates.",
     "workspacePredict": "Est {{est}}h",
-    "actual": "Act {{act}}h"
+    "actual": "Act {{act}}h",
+    "actualHint": "Total actual hours on my tasks (cumulative), including time carried over from previous weeks. The chart’s \"Logged\" line counts only what was added this week, so it can be smaller."
   },
   "col": {
     "project": "Project",
@@ -216,7 +217,8 @@
     "saving": "Saving...",
     "cancel": "Cancel",
     "assigneeResolvedMe": "Assignee: {{name}} (me)",
-    "assigneeResolvedChain": "Assignee: {{name}} (project default)"
+    "assigneeResolvedChain": "Assignee: {{name}} (project default)",
+    "tags": "Tags"
   },
   "recur": {
     "toggle": "Repeat",
@@ -311,8 +313,8 @@
   },
   "chart": {
     "weekly": "Weekly Progress",
-    "est": "Estimated",
-    "act": "Actual",
+    "est": "Progress",
+    "act": "Logged",
     "weekStart": "Start",
     "over": "Over cap +{{h}}h",
     "overTip": "Actual time this week is {{h}}h over the {{base}}h capacity.",
@@ -342,7 +344,11 @@
       }
     },
     "reverted": "Reverted",
-    "revertedTip": "Progress was partly reverted on this day (un-completed or progress lowered). The line keeps the peak value."
+    "revertedTip": "Progress was partly reverted on this day (un-completed or progress lowered). The line keeps the peak value.",
+    "estTip": "Cumulative estimated hours earned — the sum of (estimate × progress) per task. The \"Left …h\" chip on the left is the other half (estimate × remaining), so the two add up to this week’s total estimate.",
+    "actTip": "Only the hours logged during this week. Time a carried-over task accumulated before this week is subtracted — the \"Act …h\" chip on the left includes that carry-over, so it can be larger.",
+    "scopeHint": "This week · tasks assigned to me. Not affected by view options such as search or hide-completed.",
+    "noData": "No progress data in this period"
   },
   "projects": {
     "title": "Project Progress"
@@ -525,7 +531,8 @@
       "revertUsed": "You already used revert this round.",
       "revertDisabled": "Revert used",
       "approvedOf": "{{n}} of {{total}} approved",
-      "approvePlaceholder": "Any comment for the assignee? (optional)"
+      "approvePlaceholder": "Any comment for the assignee? (optional)",
+      "submitNotePlaceholder": "Anything to tell the reviewer? (optional — also posted as a comment)"
     },
     "delete": {
       "button": "Delete task",
@@ -1130,7 +1137,8 @@
     "cancel": "Cancel",
     "banner": "On hold",
     "externalBanner": "Awaiting external confirmation",
-    "completeBlocked": "Resume the task before completing"
+    "completeBlocked": "Resume the task before completing",
+    "externalLockedHint": "Only tasks in progress can be sent for external confirmation. Start the task to unlock this."
   },
   "weekHold": {
     "chip": "On hold {{n}}",
@@ -1187,7 +1195,8 @@
     "quickAddFailed": "Could not add the task",
     "goQTask": "Open Q Task",
     "emptyTitleToday": "Nothing due today",
-    "emptyLineAdd": "Type above to add one right away."
+    "emptyLineAdd": "Type above to add one right away.",
+    "prioGap": "Priority {{nums}} isn’t in this list — those tasks are completed or on another tab. Numbers stay on the full set, so they don’t get renumbered."
   },
   "tags": {
     "new": "New tag",

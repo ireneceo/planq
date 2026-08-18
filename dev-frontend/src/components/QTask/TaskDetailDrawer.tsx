@@ -342,6 +342,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   //   소비되지 않은 플래그가 남아 **다음에 연 다른 업무의 포커스를 훔친다**.
   //   틱 state 는 그 자체가 새 커밋을 만들므로 배너 커밋 이후 실행이 보장되고 잔존 상태도 없다.
   const [approveNote, setApproveNote] = useState('');
+  // 운영 #271 — 확인 요청에도 메시지를 같이 남긴다. 승인 폼(#112c)과 같은 인라인 확장 패턴.
+  //   비워도 그대로 요청된다(선택 입력).
+  const [submitOpen, setSubmitOpen] = useState(false);
+  const [submitNote, setSubmitNote] = useState('');
   // #112 — 수정요청에 참고 파일 첨부 (일반 댓글 첨부와 동일 인프라: context='comment')
   const [revisionFiles, setRevisionFiles] = useState<File[]>([]);
   const [revisionPickerOpen, setRevisionPickerOpen] = useState(false);
@@ -725,7 +729,12 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     } finally { setActionBusy(false); }
   };
   const actAck = () => callAction('/ack');
-  const actSubmitReview = () => callAction('/submit-review');
+  // #271 — 메시지를 곁들인 확인 요청. 백엔드가 note 를 이력 + 댓글 양쪽에 남긴다.
+  const submitReviewWithNote = async () => {
+    const note = submitNote.trim();
+    const r = await callAction('/submit-review', 'POST', note ? { note } : undefined);
+    if (r?.success) { setSubmitOpen(false); setSubmitNote(''); }
+  };
   const actCancelReview = () => callAction('/cancel-review');
   const actComplete = () => callAction('/complete');
   // #112c — 승인에도 코멘트를 남길 수 있다 (백엔드는 이미 note 를 받아 system_approve 댓글을 만든다).
@@ -1022,6 +1031,13 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           const holdAvailable = canChangeStatus && !isOnHold
             && !['completed', 'canceled'].includes(detailTask.status);
           const externalAvailable = canChangeStatus && detailTask.status === 'in_progress';
+          // 운영 #273 — "내가 요청받은 것도 외부컨펌을 쓸 수 있어야 하는데."
+          //   실은 권한이 아니라 **상태 전제** 였다: 외부컨펌은 진행 중일 때만 연다(설계 의도).
+          //   그런데 조건이 어긋나면 버튼이 아예 렌더되지 않아, 사용자에겐 "없는 기능" 으로 보인다.
+          //   → 쓸 수 있는 사람에게는 **비활성 상태로 보여주고 왜 잠겼는지 말한다.**
+          //     (게이트를 조이면 대기 상태도 같이 손봐야 한다 — 안 그러면 "영영 안 되는 기능" 이 된다.)
+          const externalLocked = canChangeStatus && !externalAvailable && !isExternalReview && !isOnHold
+            && !['completed', 'canceled'].includes(detailTask.status);
           const assigneeHasAction = ackAvailable || startAvailable || submitAvailable || cancelReviewAvailable || completeSimple || completeFinal || (detailTask.status === 'reviewing' && reviewers.length > 0 && reviewPolicy === 'all');
           const reviewerCanAct = iAmReviewer && (detailTask.status === 'reviewing' || detailTask.status === 'revision_requested');
           const approvedCount = reviewers.filter(rv => rv.state === 'approved').length;
@@ -1609,12 +1625,33 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
             {/* 액션 섹션 — 항상 마운트 유지 (상태 전환 시 섹션 자체가 사라지며 생기는 깜빡임 방지)
               * ★ 조건에 hold/external 을 반드시 포함한다. 빼면 워크플로 버튼이 없는 뷰어
               *   (owner·작성자)에게 보류 진입이 통째로 사라진다. */}
-            <Section style={{ display: (assigneeHasAction || reviewerCanAct || holdAvailable || externalAvailable) ? 'block' : 'none' }}>
+            <Section style={{ display: (assigneeHasAction || reviewerCanAct || holdAvailable || externalAvailable || externalLocked) ? 'block' : 'none' }}>
               {assigneeHasAction && <ActionCard>
                 <ActionCardTitle>{t('detail.actions.assigneeTitle', 'As assignee')}</ActionCardTitle>
                 {ackAvailable && <ActionPrimary onClick={actAck} disabled={actionBusy}>{t('detail.actions.ack', 'Acknowledge request')}</ActionPrimary>}
                 {startAvailable && <ActionPrimary onClick={actStart} disabled={actionBusy}>{resumeFromRevision ? t('detail.actions.resume', 'Resume work') : t('detail.actions.start', 'Start working')}</ActionPrimary>}
-                {submitAvailable && <ActionPrimary onClick={actSubmitReview} disabled={actionBusy}>{detailTask.status === 'revision_requested' ? t('detail.actions.resubmitReview', 'Resubmit after revision') : t('detail.actions.submitReview', 'Submit for review')}</ActionPrimary>}
+                {submitAvailable && (submitOpen ? (
+                  <RevisionForm>
+                    <RevisionInput
+                      data-testid="task-submit-note"
+                      placeholder={t('detail.actions.submitNotePlaceholder', '컨펌자에게 남길 말이 있나요? (선택 — 댓글로도 남습니다)') as string}
+                      value={submitNote}
+                      maxLength={2000}
+                      onChange={e => setSubmitNote(e.target.value)}
+                      autoFocus
+                    />
+                    <RevisionRow>
+                      <ActionSecondary onClick={() => { setSubmitOpen(false); setSubmitNote(''); }}>{t('common.cancel', 'Cancel')}</ActionSecondary>
+                      <ActionPrimary onClick={submitReviewWithNote} disabled={actionBusy} data-testid="task-submit-confirm">
+                        {detailTask.status === 'revision_requested' ? t('detail.actions.resubmitReview', 'Resubmit after revision') : t('detail.actions.submitReview', 'Submit for review')}
+                      </ActionPrimary>
+                    </RevisionRow>
+                  </RevisionForm>
+                ) : (
+                  <ActionPrimary onClick={() => setSubmitOpen(true)} disabled={actionBusy}>
+                    {detailTask.status === 'revision_requested' ? t('detail.actions.resubmitReview', 'Resubmit after revision') : t('detail.actions.submitReview', 'Submit for review')}
+                  </ActionPrimary>
+                ))}
                 {cancelReviewAvailable && <ActionSecondary onClick={actCancelReview} disabled={actionBusy}>{t('detail.actions.cancelReview', 'Cancel review request')}</ActionSecondary>}
                 {completeSimple && <ActionPrimary onClick={actComplete} disabled={actionBusy}>{t('detail.actions.completeSimple', 'Mark complete')}</ActionPrimary>}
                 {completeFinal && <ActionPrimary onClick={actComplete} disabled={actionBusy}>{t('detail.actions.complete', 'Finalize')}</ActionPrimary>}
@@ -1695,7 +1732,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 *   편입한다 — 사유 입력 폼이 화면 중상부에서 펼쳐져 항상 보이고,
                 *   맨 아래(삭제 앞)로 내리면 N+63 에서 이미 겪은 "인라인 확장이 스크롤 밖으로
                 *   나가 안 보이는" 회귀 + 파괴/비파괴 액션 경계 붕괴가 재발한다. */}
-              {(holdAvailable || externalAvailable) && (
+              {(holdAvailable || externalAvailable || externalLocked) && (
                 holdFormOpen ? (
                   <RevisionForm>
                     <RevisionInput
@@ -1722,6 +1759,12 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     )}
                     {externalAvailable && (
                       <ActionSecondary onClick={actExternalReview} disabled={actionBusy} data-testid="task-external">
+                        {t('hold.externalAction', 'Send for external review')}
+                      </ActionSecondary>
+                    )}
+                    {externalLocked && (
+                      <ActionSecondary disabled data-testid="task-external-locked"
+                        title={t('hold.externalLockedHint', '진행 중인 업무만 외부 컨펌으로 보낼 수 있어요. 업무를 시작하면 열립니다.') as string}>
                         {t('hold.externalAction', 'Send for external review')}
                       </ActionSecondary>
                     )}

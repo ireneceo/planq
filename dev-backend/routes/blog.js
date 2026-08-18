@@ -6,10 +6,20 @@ const { Op } = require('sequelize');
 const HelpArticle = require('../models/HelpArticle');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 
+// 운영 #289 — 'updates'(제품 업데이트 내역)는 같은 help_articles 를 쓰지만 **랜딩 인사이트가 아니다**.
+//   What's New 드로어(routes/whats_new.js)가 그 카테고리를 단독으로 읽는다.
+//   여기서 빼지 않으면 카테고리 미지정 목록(/insights)에 업데이트 공지가 섞여 나간다.
+const BLOG_EXCLUDED_CATEGORIES = ['updates'];
+
 const BLOG_WHERE = {
   blog_published_at: { [Op.ne]: null },
   is_published: true,
   visibility: 'public',
+  // NULL 안전 — `NOT IN` 은 NULL 에 대해 NULL(=거짓)이라, 그냥 쓰면 카테고리 미지정 글이 통째로 사라진다.
+  [Op.or]: [
+    { blog_category: null },
+    { blog_category: { [Op.notIn]: BLOG_EXCLUDED_CATEGORIES } },
+  ],
 };
 
 function serializeCard(a) {
@@ -29,7 +39,12 @@ function serializeCard(a) {
 router.get('/posts', async (req, res, next) => {
   try {
     const where = { ...BLOG_WHERE };
-    if (req.query.category && req.query.category !== 'all') where.blog_category = String(req.query.category).slice(0, 40);
+    if (req.query.category && req.query.category !== 'all') {
+      const cat = String(req.query.category).slice(0, 40);
+      // 제외 카테고리를 직접 지정해도 열리지 않는다 (기본 where 를 덮어쓰지 않게).
+      if (BLOG_EXCLUDED_CATEGORIES.includes(cat)) return successResponse(res, []);
+      where.blog_category = cat;
+    }
     const rows = await HelpArticle.findAll({
       where,
       order: [['blog_published_at', 'DESC']],

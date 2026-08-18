@@ -723,6 +723,26 @@ async function submitReview(task, actor, { note = null } = {}) {
     actingForUserId: actor.onBehalfOfUserId || null, note,
   });
   if (!r.ok) return fail(r.reason);
+
+  // 운영 #271 — "확인요청을 할 때도 원하면 댓글이 남겨지는 메시지 입력이 되게 해야 할 것 같아."
+  //   note 는 여태 TaskStatusHistory 에만 들어가서 '이력' 탭에만 보였다. 컨펌자가 실제로 읽는 곳은
+  //   대화(댓글) 흐름이라, 승인(system_approve)·반려(system_revision)와 같은 방식으로 댓글로도 남긴다.
+  //   ★ kind 는 'user' 를 쓴다 — 새 ENUM 값을 넣으면 운영 DB ALTER 가 필요한데,
+  //     이 글은 실제로 담당자가 쓴 말이라 시스템 댓글로 분류할 이유도 없다.
+  //   ★ 전이는 이미 커밋됐다. 댓글 생성이 실패해도 전이를 되돌리지 않는다(보조 기록) — 대신 로그를 남긴다.
+  if (note) {
+    try {
+      await TaskComment.create({
+        task_id: task.id,
+        user_id: actor.userId,
+        content: note,
+        visibility: 'internal',
+        kind: 'user',
+      });
+    } catch (e) {
+      console.warn('[submitReview note comment]', e.message);
+    }
+  }
   return done(task);
 }
 

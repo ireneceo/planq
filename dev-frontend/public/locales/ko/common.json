@@ -828,13 +828,16 @@
     "addCategory": "카테고리 추가",
     "blogToggle": "랜딩 인사이트(/insights)에 발행",
     "blogHint": "공개(public) + 발행됨 글만 가능 · 발행 시 planq.kr/insights 에 즉시 노출",
+    "blogToggleUpdates": "제품 업데이트 내역으로 발행",
+    "blogHintUpdates": "공개(public) + 발행됨 글만 가능 · 발행 시 앱 안 \"새로운 소식\" 에 즉시 노출 (랜딩 인사이트에는 안 나갑니다)",
     "blogRequiresPublic": "블로그 발행은 \"공개(public) + 발행됨\" 글만 가능합니다. 위 설정을 먼저 저장하세요.",
     "blogCat": {
       "guide-video": "가이드 영상",
       "brand-video": "홍보 영상",
       "how-to": "사용 가이드",
       "insights": "자동화 인사이트",
-      "cases": "고객 사례"
+      "cases": "고객 사례",
+      "updates": "제품 업데이트"
     }
   },
   "aiRegen": {

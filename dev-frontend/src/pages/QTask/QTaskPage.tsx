@@ -48,6 +48,7 @@ import WeeklyReviewModal from '../../components/QTask/WeeklyReviewModal';
 import WeeklyReviewTab from '../../components/QTask/WeeklyReviewTab';
 import PartnerKindBadge from '../../components/Common/PartnerKindBadge';
 import TagChips, { type TaskTagLite } from '../../components/QTask/TagChips';
+import TagPicker from '../../components/QTask/TagPicker';
 import TagManageModal from '../../components/QTask/TagManageModal';
 
 // #249 — 우측 패널을 인라인으로 붙여둘 최소 뷰포트 폭.
@@ -306,6 +307,10 @@ const QTaskPage:React.FC=()=>{
   //   (2026-07-28 실사고. inWeekCanonical 주석 참조).
   const[tagFilter,setTagFilter]=useState<number|null>(null);
   const[tagDict,setTagDict]=useState<Array<{id:number;name:string;color:string|null;usage_count?:number}>>([]);
+  // 운영 #236/#250 — 업무 **추가 폼**의 태그. 여태 태그를 만들 수 있는 자리가 상세 드로어뿐이라,
+  //   태그가 0개인 워크스페이스에서는 필터·관리 버튼이 모두 숨어 "개발 안 된 기능" 으로 보였다.
+  //   생성 시점에 고르고 만들 수 있게 하면 그 막힌 고리가 풀린다.
+  const[newTagIds,setNewTagIds]=useState<number[]>([]);
   const[tagManageOpen,setTagManageOpen]=useState(false);
   // 기본 true: 체크박스 = 완료 = 리스트에서 사라짐 (완료 업무 다시 보려면 헤더 체크 해제)
   const[hideCompleted,setHideCompleted]=useState(true);
@@ -862,6 +867,7 @@ const QTaskPage:React.FC=()=>{
     setNewUploads([]);setNewExistingFileIds([]);setNewExistingPostIds([]);
     setShowAttachInline(false);setShowAttachPanel(false);
     setAiEstReason('');
+    setNewTagIds([]);
   };
 
   // 현재 폼 상태 → RRULE 문자열 (없으면 null).
@@ -949,6 +955,18 @@ const QTaskPage:React.FC=()=>{
               body: JSON.stringify({ file_ids: uploadedFileIds, context: 'description_attach' }),
             });
           } catch (err) { console.warn('[task attach link]', err); }
+        }
+        // 2-B) 태그 붙이기 (#236/#250) — 실패해도 업무 생성은 이미 성공이라 되돌리지 않는다.
+        //   ★ apiFetch 는 throw 하지 않는다 — res.ok 를 직접 본다(안 보면 실패가 조용히 삼켜진다).
+        if (newTagIds.length > 0) {
+          try {
+            const tagRes = await apiFetch(`/api/tasks/${newTaskId}/tags`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ tag_ids: newTagIds }),
+            });
+            if (!tagRes.ok) console.warn('[task tags] HTTP', tagRes.status);
+          } catch (err) { console.warn('[task tags]', err); }
         }
         // 3) Q docs(post) 카드 — 본문에 reference 표기 (현재는 description 끝에 링크 추가)
         if (newExistingPostIds.length > 0 && newDescription) {
@@ -1789,7 +1807,7 @@ const QTaskPage:React.FC=()=>{
                     ? t('summary.remainCapOver', { rem: formatHours(remainingTotal), cap: formatHours(effectiveCapacity), over: formatHours(overCapHours), defaultValue: '남은 {{rem}}h / 가용 {{cap}}h · {{over}}h 초과' })
                     : t('summary.remainCap', { rem: formatHours(remainingTotal), cap: formatHours(effectiveCapacity), defaultValue: '남은 {{rem}}h / 가용 {{cap}}h' })}
               </Chip>
-              <Chip $coral>{t('summary.actual', { act: formatHours(summary.act) })}</Chip>
+              <Chip $coral title={t('summary.actualHint','') as string}>{t('summary.actual', { act: formatHours(summary.act) })}</Chip>
               {/* #206 V1 — 보류하면 주간 목록에서 사라진다. 사라졌다는 사실 자체를 여기서 말해주지 않으면
                   사용자는 업무가 없어졌다고 느낀다. 클릭하면 전체 탭 + 보류 필터로 착지. */}
               {tab==='week'&&myHoldCount>0&&(
@@ -2260,6 +2278,22 @@ const QTaskPage:React.FC=()=>{
                     {aiEstReason && <AddEstReason title={aiEstReason}>{aiEstReason}</AddEstReason>}
                   </AddOptField>
                 )}
+                {/* 운영 #236/#250 — 태그를 여기서 고르고 새로 만든다. 사전이 비어 있어도 항상 보인다:
+                    이 자리가 유일한 진입점이므로 숨기면 태그 기능 전체가 발견 불가가 된다.
+                    (필터·관리 버튼은 고를 게 없으면 죽은 컨트롤이라 계속 숨긴다 — 여기와 역할이 다르다.) */}
+                <AddOptField style={{flex:'1 1 220px',minWidth:200}}>
+                  <AddOptLabel>{t('add.tags','태그')}</AddOptLabel>
+                  <TagPicker
+                    bizId={bizId}
+                    dict={tagDict}
+                    value={tagDict.filter(g=>newTagIds.includes(g.id))}
+                    onChange={setNewTagIds}
+                    onDictAdd={(tag)=>setTagDict(prev=>prev.some(g=>g.id===tag.id)
+                      ? prev
+                      // TagPicker 의 TaskTagLite 는 color 가 optional — 사전 state 는 필수라 정규화한다.
+                      : [...prev,{id:tag.id,name:tag.name,color:tag.color??null}])}
+                  />
+                </AddOptField>
               </AddOptRow>
               {/* 반복 토글 + 옵션 — 요청 탭에서는 숨김 (담당자가 ack 후 정함).
                   요청은 일시적, 정기성은 담당자 권한. */}
@@ -2848,15 +2882,20 @@ const QTaskPage:React.FC=()=>{
                     );
                   })()}
                   <Legend>
-                    <LI><Dot $c="#14B8A6"/>{t('chart.est','예측')}</LI>
-                    <LI><Dot $c="#F43F5E"/>{t('chart.act','실제')}</LI>
+                    {/* 운영 #300/#254 — 이 두 선은 왼쪽 목록의 칩과 **다른 질문에 답한다**.
+                        진척 = Σ(예측×진행률) = 해낸 몫 / 목록의 "남은 …h" = Σ(예측×남은비율) = 남은 몫 (둘을 더하면 Σ예측).
+                        투입 = 이번 주 Δ(이월 차감) / 목록의 "실제 …h" = 일생 누적.
+                        공식은 #254 를 고친 결과라 되돌리면 안 된다 — 같은 이름으로 부르던 것을 이름으로 가른다. */}
+                    <LI title={t('chart.estTip','') as string}><Dot $c="#14B8A6"/>{t('chart.est','진척')}</LI>
+                    <LI title={t('chart.actTip','') as string}><Dot $c="#F43F5E"/>{t('chart.act','투입')}</LI>
                     <LI><DashDot $c="#94A3B8"/>{t('chart.ideal','가용 페이스')}</LI>
                     <LI><DashDot $c="#F59E0B"/>{t('chart.capacity','가용시간')}</LI>
                     {computedBurndown.some(p=>p.reverted)&&(
                       <LI><RevertTri/>{t('chart.reverted','되돌림')}</LI>
                     )}
                   </Legend>
-                  {computedBurndown.every(p=>p.estimated_cumulative===0&&p.actual_cumulative===0)&&<EmptyChart>{t('chart.noData','No data in this period')}</EmptyChart>}
+                  <ChartScopeHint>{t('chart.scopeHint','이번 주 · 내가 담당자인 업무 기준. 검색어·완료 가리기 같은 보기 설정에는 영향받지 않습니다.')}</ChartScopeHint>
+                  {computedBurndown.every(p=>p.estimated_cumulative===0&&p.actual_cumulative===0)&&<EmptyChart>{t('chart.noData','이 기간의 진척 데이터가 없어요')}</EmptyChart>}
                 </RSection>
                 {projectProgressNode}
                 {issuesNode}
@@ -3623,6 +3662,9 @@ const CapBreakItem=styled.span`display:inline-flex;align-items:center;gap:5px;fo
 const CapBreakDot=styled.span<{$carried?:boolean}>`width:7px;height:7px;border-radius:2px;background:${p=>p.$carried?'#94A3B8':'#14B8A6'};`;
 const ChartSVG=styled.svg`width:100%;height:160px;display:block;`;
 const EmptyChart=styled.div`padding:16px;text-align:center;color:#CBD5E1;font-size:11px;`;
+// 운영 #300 — 그래프가 어느 집합·어느 기간을 그리는지 화면에 적는다.
+//   이게 없으면 왼쪽 목록 숫자와 다를 때 사용자는 고장으로 읽는다(실제로 그렇게 신고됐다).
+const ChartScopeHint=styled.div`margin-top:6px;font-size:10.5px;line-height:1.45;color:#94A3B8;`;
 const Legend=styled.div`display:flex;gap:12px;margin-top:6px;`;
 const LI=styled.div`display:flex;align-items:center;gap:3px;font-size:10px;color:#64748B;font-weight:600;`;
 const Dot=styled.span<{$c:string}>`width:7px;height:7px;border-radius:50%;background:${p=>p.$c};`;

@@ -31,7 +31,9 @@
       "users": "Users",
       "subscriptions": "Subscriptions",
       "payments": "Payments",
-      "audit": "Audit log"
+      "audit": "Audit log",
+      "announcement": "Announcement banner",
+      "updates": "Publish product update"
     }
   },
   "billing": {

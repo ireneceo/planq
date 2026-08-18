@@ -368,6 +368,17 @@ router.get('/:businessId/email-threads/:id',
         }],
         order: [['sent_at', 'ASC'], ['id', 'ASC']],
       });
+      // 운영 #220 — "팀메일이면 다른 담당자가 보내도 [나] 라고만 나오는데 누가 보냈는지 알 수 없어?"
+      //   sent_by_user_id 는 처음부터 기록돼 있었는데 직렬화에서 빠져 화면에 도달한 적이 없다.
+      //   표시명은 워크스페이스 프로필 우선(BusinessMember.name → User.name) — 목록 표시명 규칙과 동일.
+      const senderIds = [...new Set(messages.map(m => m.sent_by_user_id).filter(Boolean))];
+      const senderMap = new Map();
+      if (senderIds.length) {
+        const users = await User.findAll({ where: { id: senderIds }, attributes: ['id', 'name'], raw: true });
+        const shells = users.map(u => ({ user_id: u.id, sender: { id: u.id, name: u.name, name_localized: null } }));
+        await applyMemberDisplayName(shells, businessId, ['sender']);
+        for (const sh of shells) senderMap.set(sh.user_id, sh.sender);
+      }
 
       // M3-B — 담당/팔로우 상태 (EmailThreadParticipant)
       const parts = await EmailThreadParticipant.findAll({
@@ -415,6 +426,10 @@ router.get('/:businessId/email-threads/:id',
             body_text: mj.body_text,
             sent_at: mj.sent_at,
             is_read: mj.is_read,
+            // #220 — 이 메일을 우리 쪽에서 누가 보냈는지. inbound 면 null.
+            sent_by_user_id: mj.direction === 'outbound' ? (mj.sent_by_user_id || null) : null,
+            sent_by_name: mj.direction === 'outbound' && mj.sent_by_user_id
+              ? ((senderMap.get(mj.sent_by_user_id) || {}).name || null) : null,
             // 발송 상태 — outbound 만 의미 있다. 'sent' 는 SMTP 250 accept 까지이고
             //   수신자 메일함 도착 보증이 아니다. 'suppressed'(서버 발송 정지)를 'sent' 로 뭉개지 않는다.
             delivery_status: mj.direction === 'outbound' ? mj.delivery_status : null,
