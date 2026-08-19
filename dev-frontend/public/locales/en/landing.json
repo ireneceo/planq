@@ -19,7 +19,8 @@
     "headline2": "— your profitability engine",
     "sub1": "Conversations, tasks, files, meetings, billing —",
     "sub2": "every workflow runs in one place.",
-    "cta": "Start free"
+    "cta": "Start free",
+    "purpose": "PlanQ is a business management and collaboration platform that helps teams manage work, projects, schedules, and business operations in one place. Users can connect Google Calendar to synchronize their schedules between PlanQ and Google Calendar."
   },
   "problem": {
     "tag": "Problem",
