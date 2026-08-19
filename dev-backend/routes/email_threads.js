@@ -22,6 +22,8 @@ const { requireMenu } = require('../middleware/menu_permission');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { applyMemberDisplayName, getMemberNameMap } = require('../services/displayName');
 const { sendMail, deliveryFromSendResult } = require('../services/emailSend');
+const { inlineMailTableStyles } = require('../services/emailHtmlInline');
+const { buildQuote } = require('../services/emailQuote');
 // 폴더 정의·정렬은 services/mailFolders 가 단일 원천 (리스트 라우트 + 벌크 처리 공용)
 const { folderWhere, sentOrder, BULK_FOLDERS } = require('../services/mailFolders');
 // accessibleAccountIds 도 여기서 온다 — 프라이버시 격리 정의를 두 벌 두지 않는다
@@ -772,11 +774,41 @@ router.post('/:businessId/email-threads/:id/messages',
         if (lastIn) lastInboundTo = emailsOf(lastIn.to_emails);
       } catch (e) { console.warn('[qmail] lastInboundTo', e.message); }
 
+      // 표 인라인 — 저장본과 발송본 **양쪽**에 같은 값을 쓴다(보낸메일함도 같이 고쳐진다).
+      //   우리 에디터가 만든 표(pq-table)만 손댄다 — 전달된 남의 표는 건드리지 않는다.
+      const bodyHtmlOut = inlineMailTableStyles(body_html);
+
+      // 답장 인용 — 받은 메일을 붙여 수신자가 무슨 메일에 대한 답인지 알게 한다.
+      //   **보내는 편지에만** 붙는다(저장본은 인용 없이 기록 — 스레드 화면은 이미 맥락을 보여준다).
+      let quote = null;
+      try {
+        const qSrc = await EmailMessage.findOne({
+          where: { thread_id: thread.id, direction: 'inbound' },
+          order: [['sent_at', 'DESC']],
+          attributes: ['sent_at', 'subject', 'from_name', 'from_email', 'body_html', 'body_text'],
+        });
+        if (qSrc) {
+          // 인용 머리말 언어 — 기본값은 **받은 메일의 언어**다. 영어 고객에게 한국어 머리말이
+          //   붙으면 그 자체가 사고라, 'ko' 하드코딩을 쓰지 않는다(#153 detectLang 재사용).
+          //   프론트가 quote_locale 을 보내면 그것이 우선(사용자가 답장 언어를 바꾼 경우).
+          const { detectLang, cleanVisibleBody } = require('../services/emailBodyClean');
+          const asked = String(req.body?.quote_locale || '').toLowerCase();
+          const locale = (asked === 'en' || asked === 'ko')
+            ? asked
+            : detectLang(cleanVisibleBody(qSrc.body_text, qSrc.body_html), 'ko', qSrc.subject || '');
+          quote = buildQuote({
+            date: qSrc.sent_at, fromName: qSrc.from_name, fromEmail: qSrc.from_email,
+            bodyHtml: qSrc.body_html, bodyText: qSrc.body_text,
+            locale: locale === 'en' ? 'en' : 'ko',
+          });
+        }
+      } catch (e) { console.warn('[qmail] buildQuote', e.message); }
+
       // 발송 (실패 시 502 — outbound row 안 만듦. 프론트는 작성 내용 유지)
       let sendResult;
       try {
         sendResult = await sendMail(account, {
-          to: toList, cc, bcc, subject, html: body_html,
+          to: toList, cc, bcc, subject, html: bodyHtmlOut, quote,
           inReplyTo, references, attachments: atts,
           // 발신 주소 — 사용자가 고른 별칭이 있으면 그것, 없으면 "이 메일이 온 주소" 로 답한다.
           //   다른 도메인 주소로 답장이 나가면 사고다 (Send-as: docs/MAIL_ALIAS_AND_VOICE_DESIGN.md §A-4).
@@ -809,7 +841,7 @@ router.post('/:businessId/email-threads/:id/messages',
         cc_emails: (Array.isArray(cc) && cc.length) ? cc : null,
         bcc_emails: (Array.isArray(bcc) && bcc.length) ? bcc : null,
         subject,
-        body_html,
+        body_html: bodyHtmlOut,
         body_text: preview,
         sent_by_user_id: req.user.id,
         is_read: true,
@@ -907,10 +939,12 @@ router.post('/:businessId/email-compose',
 
       const { atts, files } = await resolveAttachments(attachment_file_ids, businessId);
       const subj = String(subject || '').trim() || '(제목 없음)';
+      const bodyHtmlOut2 = inlineMailTableStyles(body_html);
 
       let sendResult;
       try {
-        sendResult = await sendMail(account, { to: toList, cc, bcc, subject: subj, html: body_html, attachments: atts, fromAliasId: parseFromAliasId(req.body), signature: req.body.signature !== false });
+        // 표 인라인 — 저장본과 발송본에 같은 값 (전달은 인용을 붙이지 않는다: 원문이 이미 본문에 있다)
+        sendResult = await sendMail(account, { to: toList, cc, bcc, subject: subj, html: bodyHtmlOut2, attachments: atts, fromAliasId: parseFromAliasId(req.body), signature: req.body.signature !== false });
       } catch (e) {
         console.error('[qmail] compose send failed:', e.message);
         return errorResponse(res, `send_failed: ${e.message}`, 502);
@@ -938,7 +972,7 @@ router.post('/:businessId/email-compose',
         to_emails: toList,
         cc_emails: (Array.isArray(cc) && cc.length) ? cc : null,
         bcc_emails: (Array.isArray(bcc) && bcc.length) ? bcc : null,
-        subject: subj, body_html, body_text: preview,
+        subject: subj, body_html: bodyHtmlOut2, body_text: preview,
         sent_by_user_id: req.user.id, is_read: true, ...deliveryFromSendResult(sendResult), sent_at: now,
       });
       for (const f of files) {
@@ -982,10 +1016,12 @@ router.post('/:businessId/email-threads/:id/forward',
       const userFileIds = Array.isArray(attachment_file_ids) ? attachment_file_ids : [];
       const { atts, files } = await resolveAttachments([...origFileIds, ...userFileIds], businessId);
       const subj = String(subject || '').trim() || `Fwd: ${srcMsg.subject || ''}`;
+      const bodyHtmlOut2 = inlineMailTableStyles(body_html);
 
       let sendResult;
       try {
-        sendResult = await sendMail(account, { to: toList, cc, bcc, subject: subj, html: body_html, attachments: atts, fromAliasId: parseFromAliasId(req.body), signature: req.body.signature !== false });
+        // 표 인라인 — 저장본과 발송본에 같은 값 (전달은 인용을 붙이지 않는다: 원문이 이미 본문에 있다)
+        sendResult = await sendMail(account, { to: toList, cc, bcc, subject: subj, html: bodyHtmlOut2, attachments: atts, fromAliasId: parseFromAliasId(req.body), signature: req.body.signature !== false });
       } catch (e) {
         console.error('[qmail] forward send failed:', e.message);
         return errorResponse(res, `send_failed: ${e.message}`, 502);
@@ -1016,7 +1052,7 @@ router.post('/:businessId/email-threads/:id/forward',
         to_emails: toList,
         cc_emails: (Array.isArray(cc) && cc.length) ? cc : null,
         bcc_emails: (Array.isArray(bcc) && bcc.length) ? bcc : null,
-        subject: subj, body_html, body_text: preview,
+        subject: subj, body_html: bodyHtmlOut2, body_text: preview,
         sent_by_user_id: req.user.id, is_read: true, ...deliveryFromSendResult(sendResult), sent_at: now,
       });
       for (const f of files) {
