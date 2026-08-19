@@ -378,9 +378,9 @@
     "onOnce": "Add back",
     "excluded": "Excluded this time",
     "source": {
-      "alias": "Alias signature",
-      "account": "Personal signature",
-      "workspace": "Team signature",
+      "alias": "address signature",
+      "account": "default signature",
+      "workspace": "workspace signature",
       "none": "No signature",
       "disabled": "Signature off"
     },

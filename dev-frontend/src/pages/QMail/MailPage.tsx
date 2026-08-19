@@ -1286,7 +1286,7 @@ const MailPage: React.FC = () => {
   const [composeOpen, setComposeOpen] = useState(false);
   const [cAccountId, setCAccountId] = useState<number | null>(null);
   // 컴포저(새 메일·전달)용 별칭 — 답장(detail.account)과 계정이 다를 수 있어 따로 로딩한다.
-  const [cAliases, setCAliases] = useState<Array<{ id: number; email: string; display_name: string | null; is_default: boolean }>>([]);
+  const [cAliases, setCAliases] = useState<Array<{ id: number; email: string; display_name: string | null; is_default: boolean; account_id: number }>>([]);
   const [cFromAliasId, setCFromAliasId] = useState<number>(0);   // 0 = 계정 기본 주소
   const [cTo, setCTo] = useState('');
   const [cSubject, setCSubject] = useState('');
@@ -1302,21 +1302,27 @@ const MailPage: React.FC = () => {
   useEffect(() => {
     if (composeOpen && cAccountId == null && accounts.length) setCAccountId(accounts[0].id);
   }, [composeOpen, cAccountId, accounts]);
+  // ★ 보낼 수 있는 **모든 주소**를 한 목록으로 모은다 (Irene: "그냥 보내는 주소 정하면 알아서
+  //   보내는 계정 정해지는 거 아니야?"). 여태 화면이 `보내는 계정` / `보내는 주소` 두 칸이었는데,
+  //   그건 우리 저장 구조(계정 → 별칭)일 뿐 사용자에게는 "내가 보낼 수 있는 주소" 하나의 목록이다.
+  //   개인 메일함은 별칭이 아니라 **별개 계정**이라 주소 칸에 영영 안 나왔다 — 그것이 신고 내용.
+  //   그래서 계정별 별칭을 **전부** 모아 평평한 목록으로 만들고, 고르면 계정이 따라 정해진다.
   useEffect(() => {
-    const accId = cAccountId || accounts[0]?.id;
-    if (!composeOpen || !businessId || !accId) { setCAliases([]); return; }
+    if (!composeOpen || !businessId || !accounts.length) { setCAliases([]); return; }
     let alive = true;
     (async () => {
-      try {
-        const r = await apiFetch(`/api/businesses/${businessId}/email-accounts/${accId}/aliases`);
-        const j = await r.json();
-        if (alive && j.success) setCAliases(j.data || []);
-      } catch { /* 별칭은 부가 — 실패해도 계정 주소로 보낸다 */ }
+      const all = [];
+      for (const acc of accounts) {
+        try {
+          const r = await apiFetch(`/api/businesses/${businessId}/email-accounts/${acc.id}/aliases`);
+          const j = await r.json();
+          if (j.success) for (const a of (j.data || [])) all.push({ ...a, account_id: acc.id });
+        } catch { /* 별칭은 부가 — 실패해도 계정 주소로 보낸다 */ }
+      }
+      if (alive) setCAliases(all);
     })();
     return () => { alive = false; };
-  }, [composeOpen, businessId, cAccountId, accounts]);
-  // 계정을 바꾸면 이전 계정의 별칭 선택이 남으면 안 된다 (서버가 alias_not_owned 로 거절)
-  useEffect(() => { setCFromAliasId(0); }, [cAccountId]);
+  }, [composeOpen, businessId, accounts]);
   // 음성 캡처가 넘긴 내용. compose=1 effect 안에서 **setSp 전에** 잡아둔다 —
   //   setSp(replace) 는 state 를 넘기지 않아 그 순간 location.state 가 사라지므로,
   //   초안 fetch 의 .finally 에서 읽으면 이미 null 이다.
@@ -1380,10 +1386,25 @@ const MailPage: React.FC = () => {
     return () => clearTimeout(tid);
   }, [composeOpen, fwdFromMsgId, businessId, cTo, cSubject, cBody, cFileIds, cAccountId]);
 
-  const composeAccountOptions = useMemo(
-    () => accounts.map(a => ({ value: a.id, label: `${a.display_name || a.email}${a.is_personal ? ` (${t('account.personal', { defaultValue: '개인' })})` : ''}` })),
-    [accounts, t],
-  );
+  // 보낼 수 있는 주소 = (계정 기본 주소 + 그 계정의 별칭) 을 계정마다 이어붙인 것.
+  //   값은 `${accountId}:${aliasId}` — 하나만 고르면 계정과 별칭이 동시에 정해진다.
+  //   라벨은 **표시 이름과 주소를 같이** 보여준다 (Irene: "메일주소는 메일주소랑 표시이름 같이 보여줘야지").
+  const composeFromOptions = useMemo(() => {
+    const label = (name: string | null | undefined, email: string, personal: boolean) => {
+      const who = String(name || '').trim();
+      const base = who ? `${who} <${email}>` : email;
+      return personal ? `${base} · ${t('account.personal', { defaultValue: '개인' }) as string}` : base;
+    };
+    const out: Array<{ value: string; label: string }> = [];
+    for (const acc of accounts) {
+      out.push({ value: `${acc.id}:0`, label: label(acc.display_name, acc.email, !!acc.is_personal) });
+      for (const al of cAliases.filter(x => x.account_id === acc.id)) {
+        out.push({ value: `${acc.id}:${al.id}`, label: label(al.display_name, al.email, !!acc.is_personal) });
+      }
+    }
+    return out;
+  }, [accounts, cAliases, t]);
+  const composeFromValue = `${cAccountId || accounts[0]?.id || 0}:${cFromAliasId || 0}`;
   // 모바일·태블릿(≤1024px) — 작업대는 오버레이 드로어로 연다.
   //   여태 $hideTablet 으로 통째로 숨겨서, 폰에서는 메일의 업무·메모·연결을 아예 쓸 수 없었다.
   const ctxNarrow = viewportNarrow;
@@ -1888,35 +1909,23 @@ const MailPage: React.FC = () => {
                 <CloseBtn type="button" onClick={closeCompose} aria-label={t('common.close', { defaultValue: '닫기' }) as string}>✕</CloseBtn>
               </ComposeHead>
               <ComposeBody>
-                {accounts.length > 1 && (
-                  <ComposeField>
-                    <ComposeLabel>{t('compose.from', { defaultValue: '보내는 계정' }) as string}</ComposeLabel>
-                    <PlanQSelect
-                      size="sm"
-                      value={composeAccountOptions.find(o => o.value === cAccountId)}
-                      onChange={(opt: unknown) => { const v = (opt as { value?: number } | null)?.value; if (v) { markComposeTouched(); setCAccountId(Number(v)); } }}
-                      options={composeAccountOptions}
-                      isSearchable={false}
-                      menuPlacement="bottom"
-                    />
-                  </ComposeField>
-                )}
-                {cAliases.length > 0 && (
+                {composeFromOptions.length > 1 && (
                   <ComposeField>
                     <ComposeLabel>{t('compose.fromAddress') as string}</ComposeLabel>
                     <PlanQSelect
                       size="sm"
-                      value={{
-                        value: cFromAliasId,
-                        label: cFromAliasId
-                          ? (cAliases.find(a => a.id === cFromAliasId)?.email || '')
-                          : (accounts.find(a => a.id === (cAccountId || accounts[0]?.id))?.email || ''),
+                      value={composeFromOptions.find(o => o.value === composeFromValue) || composeFromOptions[0]}
+                      onChange={(opt: unknown) => {
+                        const v = (opt as { value?: string } | null)?.value;
+                        if (!v) return;
+                        markComposeTouched();
+                        const [accId, aliasId] = v.split(':').map(Number);
+                        // 순서 주의 — 계정을 먼저 바꾸면 별칭 초기화 effect 가 선택을 지운다.
+                        //   그래서 계정 변경 effect 를 없애고 여기서 둘을 함께 정한다.
+                        setCAccountId(accId);
+                        setCFromAliasId(aliasId);
                       }}
-                      onChange={(opt) => { markComposeTouched(); setCFromAliasId(Number((opt as { value?: number } | null)?.value || 0)); }}
-                      options={[
-                        { value: 0, label: accounts.find(a => a.id === (cAccountId || accounts[0]?.id))?.email || '' },
-                        ...cAliases.map(a => ({ value: a.id, label: a.email })),
-                      ]}
+                      options={composeFromOptions}
                       isSearchable={false}
                       menuPlacement="bottom"
                     />
@@ -2146,19 +2155,34 @@ const MailPage: React.FC = () => {
                               value: fromAliasId ?? 0,
                               // 미지정(null)이면 **서버가 실제로 쓸 주소**를 보여준다 — 화면과 실발송이 어긋나면
                               //   그 자체가 사고다. 아직 못 받았으면 받은 주소, 그것도 없으면 계정 주소.
-                              label: fromAliasId
-                                ? (aliases.find(a => a.id === fromAliasId)?.email || '')
-                                : (fromAliasId === null
-                                  ? (outgoingFrom || receivedAt || detail.account?.email || '')
-                                  : (detail.account?.email || '')),
+                              label: (() => {
+                                const withName = (n: string | null | undefined, e: string) =>
+                                  (n && String(n).trim()) ? `${n} <${e}>` : e;
+                                if (fromAliasId) {
+                                  const a = aliases.find(x => x.id === fromAliasId);
+                                  return a ? withName(a.display_name, a.email) : '';
+                                }
+                                if (fromAliasId === null) {
+                                  const e = outgoingFrom || receivedAt || detail.account?.email || '';
+                                  const a = aliases.find(x => String(x.email).toLowerCase() === String(e).toLowerCase());
+                                  if (a) return withName(a.display_name, a.email);
+                                  return withName(detail.account?.display_name, e);
+                                }
+                                return withName(detail.account?.display_name, detail.account?.email || '');
+                              })(),
                             }}
                             onChange={(opt) => {
                               fromAliasTouched.current = true;   // 사용자가 직접 골랐다 — 자동 계산이 못 덮게
                               setFromAliasId(Number((opt as { value?: number } | null)?.value || 0));
                             }}
+                            // 표시 이름과 주소를 같이 — 새 메일 쪽 목록과 같은 형식
                             options={[
-                              { value: 0, label: detail.account?.email || '' },
-                              ...aliases.map(a => ({ value: a.id, label: a.email })),
+                              { value: 0, label: detail.account?.display_name
+                                ? `${detail.account.display_name} <${detail.account.email}>` : (detail.account?.email || '') },
+                              ...aliases.map(a => ({
+                                value: a.id,
+                                label: a.display_name ? `${a.display_name} <${a.email}>` : a.email,
+                              })),
                             ]}
                             menuPlacement="top"
                           />
