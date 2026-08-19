@@ -243,7 +243,8 @@
     "addAlias": "Add send-as address",
     "useReceived": "Send from {{addr}} (register)",
     "dismissHint": "No reply required. It moves to Needs review.",
-    "aiInstructionRequired": "You already have a draft. Tell AI how to revise it."
+    "aiInstructionRequired": "You already have a draft. Tell AI how to revise it.",
+    "aliasHelp": "This customer wrote to {{addr}}. Your reply will also be sent from that address."
   },
   "errors": {
     "loadList": "Failed to load inbox"

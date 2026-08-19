@@ -101,12 +101,19 @@ const CloseBtn = styled.button`
   &:hover { background: #F1F5F9; color: #0F172A; }
   &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
 `;
-const Body = styled.div` flex: 1; min-height: 0; overflow: auto; background: #fff; `;
+// 본문이 패널 가장자리에 붙지 않게 **바깥 컨테이너**가 여백을 준다.
+//   iframe 안(srcDoc 의 guard)은 건드리지 않는다 — 거기 margin:0 은 뉴스레터 템플릿 디자인을
+//   보존하려고 일부러 넣은 것이라, 안쪽을 고치면 발신자 레이아웃이 깨진다.
+const Body = styled.div`
+  flex: 1; min-height: 0; overflow: auto; background: #fff;
+  padding: 20px 24px;
+  @media (max-width: 768px) { padding: 12px; }
+`;
 // 전체 화면에서는 iframe 이 영역을 꽉 채우고 **자기 안에서** 스크롤한다.
 //   바깥 Body 스크롤과 겹치면 두 겹 스크롤이 되어 읽기가 더 나빠진다.
 const Frame = styled.iframe` width: 100%; height: 100%; border: none; display: block; background: #fff; `;
 const PlainText = styled.pre`
-  margin: 0; padding: 20px;
+  margin: 0; padding: 0;   /* 여백은 Body 가 담당 — 여기에도 주면 이중이 된다 */
   font: inherit; font-size: 14px; line-height: 1.7; color: #0F172A;
   white-space: pre-wrap; word-break: break-word;
 `;

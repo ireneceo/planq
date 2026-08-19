@@ -573,7 +573,8 @@ async function extractEmailTaskCandidates({ emailThreadId, userId, businessId })
   }
   const participantNote = `Email thread (subject: ${thread.subject || ''}). Inbound = customer's request, outbound = our team. When the customer requests a deliverable, the assignee is one of OUR team members above (never the customer). When our team promises something, that sender is the assignee.`;
 
-  const language = detectLang(messagesText); // ko/en 지배 비율 — any-char 편향 제거(#153 계열)
+  // 제목도 함께 본다 — 한글 제목 + 영문 템플릿 본문에서 업무 제목이 영어로 나오던 것을 막는다.
+  const language = detectLang(messagesText, 'ko', thread.subject);
   try { const usage = await checkUsageLimit(businessId); if (usage.over) return { candidates: [], skipped: 'usage_limit_exceeded' }; } catch { /* best-effort */ }
 
   const prompt = buildExtractionPrompt(messagesText, memberNames, language, participantNote);
@@ -657,7 +658,7 @@ async function extractNoteTaskCandidates({ text, title, qnoteSessionId, userId, 
   const note = `Q Note session "${title || ''}" (personal meeting/memo notes). Extract concrete deliverable-based tasks the note-taker needs to act on. Assignee is one of OUR team members above; default to the note-taker when ambiguous.`;
 
   const messagesText = clean.slice(0, 8000);
-  const language = detectLang(messagesText); // ko/en 지배 비율 — any-char 편향 제거(#153 계열)
+  const language = detectLang(messagesText, 'ko', title);
   try { const usage = await checkUsageLimit(businessId); if (usage.over) return { candidates: [], skipped: 'usage_limit_exceeded' }; } catch { /* best-effort */ }
 
   const prompt = buildExtractionPrompt(messagesText, memberNames, language, note);

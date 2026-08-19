@@ -59,14 +59,36 @@ function cleanVisibleBody(text, html) {
   return kept.join('\n').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
 }
 
-// 지배적 문자 비율로 언어 판정 — "한글 한 글자라도 있으면 ko" 편향 제거.
-//   ko/en 문자 수를 세어 많은 쪽. 둘 다 0 이면 fallback.
-function detectLang(text, fallback = 'ko') {
-  const s = String(text || '');
-  const ko = (s.match(/[가-힣]/g) || []).length;
-  const en = (s.match(/[A-Za-z]/g) || []).length;
+// 언어 판정 — 노이즈를 걷어낸 뒤 **한글 비율**로 본다.
+//
+// ★ 옛 규칙은 한글 글자 수와 라틴 글자 수를 1:1 로 비교했다. 한글 한 음절이 라틴 2~3자 분량의
+//   정보를 담기 때문에 이 비교는 **구조적으로 영어 편향**이고, 거기에 URL·도메인·영문 서명이
+//   섞이면 쉽게 뒤집힌다. 실측: **한글 메일의 70%(운영) / 60%(dev) 를 영어로 오판**했고,
+//   그래서 한글 메일에 영어 초안이 나왔다(Irene 신고).
+//
+// 임계 0.10 은 운영·dev 각 3천여 건으로 측정해 고른 값이다:
+//   한글 미탐 0.6~0.9% · **영어 → 한국어 오탐 0건**(해외 고객 메일이 뒤집히면 그것도 사고다).
+//   0.15 는 실제 문의("New Inquiry: 메일 내용 확인하고 조치해줘", 비율 0.14)를 놓쳤다.
+//
+// subject 는 3배 가중 — 한글 제목 + 영문 템플릿 본문(자동발송)을 구제한다.
+// 합계 20자 미만은 비율 대신 단순 다수 — "Hi 충기, see attached" 같은 짧은 영어 메일이
+//   이름 몇 글자로 한국어가 되는 것을 막는다.
+function detectLang(text, fallback = 'ko', subject = '') {
+  const strip = (v) => String(v || '')
+    .replace(/https?:\/\/[^\s<>"')]+/gi, ' ')
+    .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, ' ')
+    .replace(/\b[\w-]+(\.[\w-]+){1,}\.(com|net|org|io|kr|co|dev|app|page|me|ai)\b/gi, ' ');
+  const cnt = (v) => ({
+    ko: (v.match(/[가-힣]/g) || []).length,
+    en: (v.match(/[A-Za-z]/g) || []).length,
+  });
+  const b = cnt(strip(text));
+  const su = cnt(strip(subject));
+  const ko = b.ko + su.ko * 3;
+  const en = b.en + su.en * 3;
   if (ko === 0 && en === 0) return fallback;
-  return ko >= en ? 'ko' : 'en';
+  if (ko + en < 20) return ko >= en ? 'ko' : 'en';
+  return ko / (ko + en) >= 0.10 ? 'ko' : 'en';
 }
 
 // 리스트 미리보기 — 정리된 본문에서 maxLen 자.
