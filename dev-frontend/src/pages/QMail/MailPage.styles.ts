@@ -247,9 +247,12 @@ export const ComposeInput = styled.input`
   &::placeholder { color: #94A3B8; }
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.12); }
 `;
+// 버튼 자리는 **좌측 고정** — 답장 컴포저(ComposerActions)와 같은 규칙이다.
+//   우측 끝에 두면 전역 채팅(Cue) 플로팅 버튼이 그 위에 깔려 보내기 버튼을 가린다(Irene 신고).
+//   FAB 을 숨기거나 z-index 를 만지는 건 전역 도구를 훼손하는 임시방편이라 하지 않는다.
 export const ComposeFoot = styled.div`
   padding: 12px 20px; border-top: 1px solid #E2E8F0;
-  display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+  display: flex; align-items: center; justify-content: flex-start; gap: 8px;
   flex-shrink: 0;
 `;
 // Q Talk ChatList 와 동일 — 둥근 행이 측면 여백 갖도록 padding
