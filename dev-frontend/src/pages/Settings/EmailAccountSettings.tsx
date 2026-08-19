@@ -161,27 +161,6 @@ const EmailAccountSettings: React.FC = () => {
             {acc.fail_count > 0 && <ErrorBadge>{t('settings.failCount', '{{n}}회 실패', { n: acc.fail_count }) as string}</ErrorBadge>}
           </MetaRow>
           {acc.last_sync_error && <ErrorMsg>⚠️ {acc.last_sync_error}</ErrorMsg>}
-          {/* 보내는 주소(Send-as) — 여러 도메인을 쓰는 메일함 */}
-          <MailAliasSection
-            businessId={businessId}
-            accountId={acc.id}
-            accountEmail={acc.email}
-          />
-
-          {/* #207 — 알림 범위. 계정 연결 직후 여기서 바로 고르게 한다 (기본 = 답변필요+확인권장) */}
-          <MailNotifyScopeSection
-            businessId={businessId}
-            accountId={acc.id}
-            initialScope={acc.notify_scope || 'recommended'}
-          />
-
-          {/* 서명 — 계정마다 등록 (발송 시 백엔드가 본문 끝에 붙인다) */}
-          <MailSignatureSection
-            businessId={businessId}
-            accountId={acc.id}
-            initialHtml={acc.signature_html ?? null}
-            initialEnabled={acc.signature_enabled !== false}
-          />
           {/* 재인증 안내 — 판정은 서버(needs_reconnect) 단일 원천. 근거: services/emailAccountHealth.js */}
           {acc.needs_reconnect && (
             <FixHint>
@@ -243,6 +222,33 @@ const EmailAccountSettings: React.FC = () => {
           </DangerActionBtn>
         </CardActions>
       </CardHeader>
+
+      {/* ★ 이 세 섹션은 원래 CardHeader **안쪽 왼쪽 칸**에 있었다. 헤더는 좌우 2단(정보 | 버튼)이라
+          긴 내용이 왼쪽 절반에 갇히고, 버튼 두 개뿐인 오른쪽 칸이 카드 높이만큼 빈 채로 남았다
+          (1600px 화면 실측: 카드 920px 중 내용이 455px, 오른쪽 380px 공백).
+          Irene: "버튼들 있는 아래에 내용이 안 나오고 우측에 여백이 너무 많이 생겨".
+          카드 직계 자식으로 내려 **전체 폭**을 쓰게 한다. */}
+        {/* 보내는 주소(Send-as) — 여러 도메인을 쓰는 메일함 */}
+        <MailAliasSection
+          businessId={businessId}
+          accountId={acc.id}
+          accountEmail={acc.email}
+        />
+
+        {/* #207 — 알림 범위. 계정 연결 직후 여기서 바로 고르게 한다 (기본 = 답변필요+확인권장) */}
+        <MailNotifyScopeSection
+          businessId={businessId}
+          accountId={acc.id}
+          initialScope={acc.notify_scope || 'recommended'}
+        />
+
+        {/* 서명 — 계정마다 등록 (발송 시 백엔드가 본문 끝에 붙인다) */}
+        <MailSignatureSection
+          businessId={businessId}
+          accountId={acc.id}
+          initialHtml={acc.signature_html ?? null}
+          initialEnabled={acc.signature_enabled !== false}
+        />
     </AccountCard>
   );
 
