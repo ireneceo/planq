@@ -59,7 +59,11 @@ export default function MailSignatureSection({ businessId, accountId, initialHtm
   return (
     <Wrap>
       <Head>
-        <Title>{t('signature.title', { defaultValue: '서명' }) as string}</Title>
+        {/* ★ 주소별 서명(위 "보내는 주소")이 생기면서 이 섹션이 무엇인지 모호해졌다.
+            이름을 **기본 서명** 으로 바꿔 두 섹션을 같은 단어로 잇는다 —
+            별칭 행의 "기본 서명 사용" 배지가 이 제목을 가리킨다.
+            (Irene: "이 부분은 기본계정에 붙는 거지? … 좀 혼란스러운데") */}
+        <Title>{t('signature.title', { defaultValue: '기본 서명' }) as string}</Title>
         <Right>
           {saved && <Badge $ok>{t('signature.saved', { defaultValue: '저장됨' }) as string}</Badge>}
           {err && <Badge>{t('signature.failed', { defaultValue: '저장 실패' }) as string}</Badge>}
@@ -73,11 +77,16 @@ export default function MailSignatureSection({ businessId, accountId, initialHtm
             <Knob $on={enabled} />
           </Toggle>
           <ToggleText>{enabled
-            ? t('signature.on', { defaultValue: '보낼 때 자동 첨부' }) as string
-            : t('signature.off', { defaultValue: '첨부 안 함' }) as string}</ToggleText>
+            ? t('signature.on', { defaultValue: '서명 사용' }) as string
+            : t('signature.off', { defaultValue: '서명 안 씀' }) as string}</ToggleText>
         </Right>
       </Head>
-      <Desc>{t('signature.desc', { defaultValue: '이 계정으로 보내는 답장·전달·새 메일 끝에 자동으로 붙습니다. 계정마다 다르게 쓸 수 있어요.' }) as string}</Desc>
+      <Desc>{t('signature.desc', { defaultValue: '위 "보내는 주소"에 전용 서명이 없는 주소로 보낼 때 이 서명이 붙습니다. 답장·전달·새 메일 끝에 자동으로 들어가요.' }) as string}</Desc>
+      {/* ★ 이 토글은 **메일함 전체 스위치**다 — 끄면 주소별 전용 서명까지 안 붙는다.
+          "자동 첨부" 라고만 적혀 있어 주소별 스위치로 읽혔다. 그 사실을 문장으로 드러낸다. */}
+      <ScopeNote>{enabled
+        ? t('signature.scopeOn', { defaultValue: '이 스위치는 메일함 전체에 적용돼요. 끄면 주소별 전용 서명도 붙지 않습니다.' }) as string
+        : t('signature.scopeOff', { defaultValue: '지금은 주소별 전용 서명을 포함해 어떤 서명도 붙지 않습니다.' }) as string}</ScopeNote>
       <EditorBox $dim={!enabled}>
         <RichEditor
           value={html}
@@ -117,6 +126,11 @@ const Knob = styled.span<{ $on: boolean }>`
 `;
 const ToggleText = styled.span`font-size: 11px; color: #64748B;`;
 const Desc = styled.p`margin: 0; font-size: 12px; color: #94A3B8; line-height: 1.6;`;
+const ScopeNote = styled.p`
+  margin: 0; padding: 6px 10px; border-radius: 8px;
+  background: #F8FAFC; border: 1px solid #E2E8F0;
+  font-size: 11px; color: #64748B; line-height: 1.6;
+`;
 const EditorBox = styled.div<{ $dim: boolean }>`
   opacity: ${(p) => (p.$dim ? 0.55 : 1)};
   transition: opacity 0.15s ease;
