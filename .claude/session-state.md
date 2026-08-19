@@ -1,109 +1,95 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-08-18 (3) (Opus 5, 1M)
-**작업 상태:** ✅ **세션 완료** — Fable 게이트 PASS · 커밋 완료. **미배포 3커밋 대기.** 다음 세션은 #228 부터.
+**마지막 업데이트:** 2026-08-19 (Opus 5, 1M)
+**작업 상태:** 진행 중 — 커밋 4건 완료(전부 Fable 게이트 PASS). **미배포 7커밋.** A군 #229/#231/#269 설계 게이트 진행 중.
 
-### 완료된 작업 (이번 세션)
-- **#240** 대화 lifecycle 단일원천 (보관이 두 축으로 갈라져 완료 프로젝트 대화가 도달 불가였던 것)
-- **posts/meta 500** — PostCategory 에 Post 용 scopeWhere(vlevel) 를 넘겨 없는 컬럼 참조
-- **#274 🔴** 청구서 고객 화면 — draft 노출 차단 + 발행자 액션 분리 (`invoiceCaps.ts`)
-- **시급 노출 차단** + owner 전용 시급 API + 고객사별 수익성 실 시급 반영 (`services/memberCost.js`)
-- **#239** 문서 외부 확인 (서명 없이 확인·의견) + 멱등 마이그레이션 + Q위키 아티클 `request-confirmation`
-- **#276** 배포 피드백 장부 자동 닫기 (`scripts/close-deployed-feedback.js`)
-- **메일 트리아지** 근본원인 확정 + Fable 판정 (구현은 다음 세션 — 아래 2번)
-- god-file 분리: `signatures.js` 803→622 · `PublicSignPage.tsx` 809→553
+### 완료된 작업 (이번 세션) — 전부 Fable 게이트 PASS
+- **#228 파일 드래그 아웃** (`c81e404b`) — 5분 서명 URL(JWT_SECRET 도메인 분리 파생 HMAC, DB 쓰기 0),
+  권한 술어 `canDownloadFile` 단일 원천 추출, 상환 시점 재검사. **Chromium 계열 한정**(DownloadURL 표준 한계)
+- **메일 '답변 필요' 결손 #221 재발** (`c81e404b`) — `buildOwnEmailSet` 이 별칭 테이블을 **아예 안 읽고 있었다**.
+  공식 3벌→1벌. F1 위조회신 하드스톱(①에서 배제한 콜드메일이 ④에서 부활하고 있었다)
+- **`/api/files` 429 선재 결함** (`c81e404b`) — `app.use('/api/files', uploadLimiter)` 가 조회·다운로드까지
+  IP 10회/분으로 막고 있었다(실측: 인증 다운로드 11번째 429). 업로드 라우트 per-user 로 이관(30/분+1500/일)
+- **메일 별칭 → 도메인 규칙** (`7495e7de`) — `email_domain_rules` 신규. 도메인 1회 등록 = 그 도메인 전 주소 인식.
+  ★ 수신 축과 발신 축 분리(도메인이 발신 축으로 새면 우리 도메인 동료 문의가 자기발신으로 강등된다)
+- **개인 캘린더 수정** (`667a65fb`) — `read_only` 하드코딩 해소 + `patchPersonalOriginEvent`(표식 없음) 신설.
+  ★ 옛 updateEvent 재사용 시 PlanQ 표식이 찍혀 ①화면에서 사라지고 ②고아정리가 구글에서 삭제할 수 있었다
+- **공개 공유 링크 AI·미리보기** (`b85a31f5`) — AI 크롤러 13종 + 본문 전문 SSR + 색인차단 3중.
+  ★ 🔴 만료된 공유 링크 내용이 크롤러에 계속 나가고 있던 것 같이 수정(8종+서명요청)
 
-### 진행 중인 작업
-- 없음 (다음 세션은 아래 "▶ 다음에 할 일" 1번부터)
-
-> ## ⚠️ 이 파일이 낡으면 Fable 이 오판한다 — 청크를 끝낼 때마다 갱신할 것.
+### 진행 중
+- **A군 #229(프로젝트 히스토리) · #231(개요 자료+AI요약+핀) · #269(AI 초안 근거)** — Fable 설계 게이트 대기.
+  브리프: `/tmp/.../scratchpad/project-history-design.md` (세션 종료 시 소실 — 필요하면 재작성)
 
 ---
 
 ## Irene 지시 (유효)
-1. "A군 다 해. 다하고 B군 상의하면서 하자" → A군(자율) 전부 → B군(판단 필요) 상의 → **네이티브 앱 iOS/Android 등록**이 종착점
-2. **"모든 판단은 너가 하지 말고 fable이 해"** (2026-08-18) — 추천안 제시도 Fable 몫. Opus 는 사실조사·구현·실행·보고만
-3. "3,4,5 먼저 끝내고 게이트 통과하면 배포해" → 3(#239) 완료. **4(#228) → 5(#258/#276 완료) → 배포**
-4. 배포는 **명시 `/배포` 명령이 있을 때만**
+1. **"모든 판단은 너가 하지 말고 fable이 해"** — 추천안 제시도 Fable 몫. Opus 는 사실조사·구현·실행·보고만
+2. **"메일 다하고 캘린더 하자. 그리고 메일, 캘린더 하면 아까 하던거 다시 하고"** (2026-08-19)
+   → 메일 ✅ · 캘린더 ✅ · 지금 A군 복귀 중
+3. 배포는 **명시 `/배포` 명령이 있을 때만**
+4. A군(자율) 전부 → B군(판단 필요) 상의 → **네이티브 앱 iOS/Android 등록**이 종착점
 
 ---
 
-## 🚀 미배포 커밋 3건 (다음 /배포 대상)
+## 🚀 미배포 7커밋
 | 커밋 | 내용 |
 |---|---|
 | `dcdc1563` | 대화 lifecycle 단일원천(#240) + posts/meta 500 |
-| `0e0cf323` | #274 청구서 고객 화면 (draft 노출 보안 포함) |
-| `382f2ffc` | **#239 문서 외부 확인** + #276 장부 스크립트 |
+| `0e0cf323` | #274 청구서 고객 화면 (draft 노출 보안) |
+| `382f2ffc` | #239 문서 외부 확인 + #276 장부 스크립트 |
+| `c81e404b` | #228 드래그 아웃 + 메일 결손 + /api/files 429 |
+| `7495e7de` | 메일 도메인 규칙 |
+| `667a65fb` | 개인 캘린더 수정 |
+| `b85a31f5` | 공유 링크 AI·미리보기 |
 
-**★ 배포 시 필수:** `deploy-planq.sh` 에 `migrate-doc-external-confirm.js` 가 이미 삽입돼 있다
-(sync-database 뒤 → PM2 reload 앞). 이 순서가 깨지면 신 코드가 컬럼 없이 떠서 Data truncated 로 죽는다.
-배포 후 `scripts/close-deployed-feedback.js --range <배포범위> ` → 운영에서 `--ids ... --apply` 로 장부 닫기.
+**★ 배포 시 필수:** `deploy-planq.sh` 의 `migrate-doc-external-confirm.js` 가 sync-database 뒤 → PM2 reload 앞.
+`email_domain_rules` 는 신규 테이블뿐이라 sync-database 로 충분(ALTER·백필 0).
+
+### 배포 후 해야 하는 것 (순서 중요)
+1. **메일 도메인 등록** — 운영에서 90일 To 집계를 다시 뽑아 대조 후 UI/API 로 등록 →
+   `node scripts/retriage-mail.js --apply`. **등록 전까지 health-check 커버리지 항목은 의도적으로 FAIL**
+   (ACK_GAPS 를 비웠으므로 — 래칫이 등록을 강제하는 정상 동작. 고장으로 오독하지 말 것)
+2. **운영 nginx (lua, root 필요)** — `/public/`·`/sign/` 을 `proxy_pass http://127.0.0.1:3004` 로 +
+   dev 의 SNS 봇 UA map 이식. **반드시 코드 배포 뒤에** — 먼저 하면 사용자가 "Cannot GET" 을 본다
+3. Irene: 카카오·슬랙에 공유 링크 붙여넣어 미리보기 확인
 
 ---
 
-## ▶ 다음에 할 일 (순서대로)
+## ▶ 다음에 할 일
+1. **A군 #229/#231/#269** — Fable 설계 판정 대기 중. 판정대로 첫 사이클만 구현
+2. 남은 A군: #259 게스트 링크(2세션) · #285 근태(2세션) · #284 · #233 · #227 · #230 · #235
+3. B군 (Irene 판단) → 네이티브 앱 등록 (Apple 멤버십·Team ID·APNs .p8 / Play Console·FCM·SHA-256)
 
-### 1. #228 드래그 아웃 (설계 승인됨 — 5분 서명 URL)
-- **제약 실측 완료**: 인증 다운로드(`routes/files.js` `/:businessId/:id/download`)는 `authenticateToken`
-  헤더 필요. OS 드래그(`DownloadURL`)는 헤더 없이 가져간다. 기존 `share-link` 는 **최소 7일 공개 토큰**이라
-  드래그용으로 쓰면 파일이 영구 공개된다 → 그래서 5분 서명 URL 이 맞다.
-- 프론트 드래그 선례: `ProcessPartsTab.tsx:73` · `ProjectTaskList.tsx:385` · `TabStrip.tsx:78`
+---
 
-### 2. 메일 트리아지 '답변 필요' 결손 (Fable 판정 완료 — 구현만 남음)
-**신고**: 링크솔루션 메일(명백한 요청)이 '확인 권장'으로 떨어짐. **#221 재발.**
-**근본원인**: `isAddressedToUs` 게이트에서 잘림. `hasStrongRequest` 는 true 였다.
-- 메일은 `help@wor-pro.com` 수신인데 등록 계정은 3개뿐(`help@irenewp.com`·`irene@irenewp.com`·`minky3018@gmail.com`)
-- **`buildOwnEmailSet` 이 별칭 테이블을 아예 안 읽는다** → 별칭 등록만으로는 못 고친다
-- **"우리 주소" 공식이 3벌**: `emailTriage.buildOwnEmailSet`(별칭X) / `scripts/retriage-mail.js` 자체맵(별칭X·SMTP_FROM도X) / `emailImapCron.js:376`(별칭O)
-- **결손 규모**: 실제 도착 주소 — irene@irenecompany.com **361건** · help@irenecompany.com 91 · help@wor-pro.com 56 · help@k-bizhub.com 23 · gitconsulting 9. 시스템은 9개 중 3개만 안다
-
-**Fable 판정 — 기각안**: "수신 계정을 근거로" = 변화 0건(그 계정은 이미 등록됨, To 에 없는 게 문제).
-"강한 요청이면 주소게이트 skip" = 25건 실측 결과 TP 1 : **FP 2**(삼성생명 "보내주시는", 인증서광고 "전자세금계산서") + 콜드메일 방벽 재개방.
-
-**Fable 채택안 (구현 지시)**:
-1. `services/emailTriage.js buildOwnEmailSet(businessId)` — `EmailAccountAlias`(account_id IN ...) 합류. try/catch 유지
-2. `scripts/retriage-mail.js` — 수제 `ownEmailsByBiz` 제거 → `buildOwnEmailSet` 호출 (공식 3벌→1벌)
-3. 별칭 등록 6개 (`routes/mail_aliases.js` API 경유, **관측 기반 자동등록 금지** — BCC 스팸 오염):
-   help@wor-pro.com(acc3·acc5 양쪽) · irene@irenecompany.com · help@irenecompany.com(acc5) ·
-   help@k-bizhub.com · irene@gitconsulting.group · help@gitconsulting.group (착지 계정 확인 후)
-4. health-check 커버리지 항목: 최근 90일 도착 To 중 ≥10건인데 ownEmails 미포함이면 경보
-5. **백필**: 새 스크립트 만들지 말 것 — `scripts/retriage-mail.js` 가 정본(멱등·dismissed/handled 존중).
-   절차: 코드수정 → dev검증 → /배포 → 운영 preview → 원장 JSON 덤프 → apply. 예상 diff **th1725 1건**
-
-**반증 테스트(필수)**: 별칭 row 를 **지우면 다시 false 로 돌아와야** 한다(가드는 깨뜨려 확인).
-음성 대조군 = To 가 제3자 주소면 uncertain 유지.
-
-**#221 유출 이유**: 검증 표본이 전부 등록 계정 주소였다. "ownEmails ⊇ 실제 도착 주소" 불변식이 검증 항목에 없었다.
-
-### 3. 남은 A군
-#259 게스트 링크(2세션) · #285 근태(2세션) · #229/#231/#269 · #284 · #233 · #227 · #230 · #235
-
-### 4. B군 (Irene 판단 필요) → 그 다음 네이티브 앱 등록
-Apple: 멤버십 결제 → Team ID → APNs .p8 / Google: Play Console → FCM 키 → SHA-256 (Irene 계정 작업)
+## Irene 이 알아야 하는 것 (미해결)
+- **`irene@irenewp.com` 개인 메일 계정** — 도메인 규칙으로 해소됐으나, 계정 자체는 개인 계정이라
+  별칭은 여전히 본인만 등록 가능(설계 의도). 회사 공용 전환은 **하지 말 것** — 팀원이 개인 메일을 보게 된다
+- **Gmail Send-as** — 별칭 주소로 실제 발신하려면 Gmail 설정에 그 주소가 인증돼 있어야 한다.
+  워크스페이스 별칭 도메인이면 이미 등록돼 있을 가능성이 높다
+- **DKIM/DMARC 미설정** — 7개 도메인 전부 DKIM 없음. 특히 **`wor-pro.com` 은 `p=quarantine` 엄격 모드인데
+  DKIM 이 없어 지금도 스팸함행 위험**. 자체 발송(Phase 2) 전에 이것부터 (Irene 콘솔 + Cafe24 TXT)
 
 ---
 
 ## 이번 세션에서 배운 것 (재발 방지)
-
-- **코드 이동은 성공 경로를 태워야 한다** — `routes/`→`services/` 이동으로 `require('./notifications')` 가
-  깨졌는데 fire-and-forget `.catch` 가 삼켜 **HTTP 200 뒤에 묻혔다**. 확인 알림뿐 아니라 기존 서명·거절
-  알림까지 죽어 있었다. 문법검사·가드·빌드 전부 통과했다. **알림은 DB 행 증가로 실측할 것.**
-- **알림 검증은 실행 직전 max(id) 를 기록하고 그 이후 행만 세라** — 옛 행을 보고 오판했다.
-- **워크스페이스 멤버 1명이면 알림 0건이 정상** — 검증이 무의미해진다. 2명 이상에서 테스트.
-- **상태마다 시각 컬럼이 다르면 WHERE 도 갈라야 한다** — commented 를 rejected_at 으로 걸러 도달 불가였다.
-- **주석 안 따옴표에 한국어를 넣으면 i18n 가드가 하드코딩으로 읽는다** (트레일링 주석은 제외 대상 아님).
-- **`sequelize.literal` 은 import 없이 쓰면 런타임에만 죽는다.**
-- **`pkill -f` 는 자기 셸을 죽인다** — 이번에도 당했다. PID 로 kill 할 것.
-- **빌드 백그라운드 2개가 같은 로그 파일을 쓰면 EXIT 이 오염된다** — 고유 경로 + 단일 실행.
-- **`grep -c` 는 0건일 때 exit 1** — 체인 끝에 두면 "실패"로 보고된다.
+- **`module.exports.X = f` 를 `module.exports = router` 앞에 두면 통째로 덮인다** — undefined 가 되고
+  문법검사·빌드는 전부 통과한다. 실제 require 해서 typeof 확인해야 잡힌다
+- **`res.sendFile()` 은 반환값이 없다** — `if (send(res)) return;` 패턴이 항상 거짓이 되어 응답 뒤에도 next() 실행
+- **`ownEmails` 처럼 한 집합이 두 의미로 쓰이면 확장 시 갈라진다** — 수신 축(우리에게 왔나)과
+  발신 축(우리가 보냈나)을 같이 넓히면 우리 도메인 동료의 문의가 자기발신으로 강등된다
+- **검증 스크립트가 중간에 죽으면 테스트 데이터가 남는다** — file 87 이 deleted_at 채로 남아 다음 실행이 전건 404.
+  catch 에서도 원복할 것
+- **가드가 새 파일을 잡으면 베이스라인을 올리지 말고 실제로 분리** — 그 과정에서 진짜 결함이 나온다
+  (CalendarEvent 전체 기간 조회, `/api/files` IP 리미터)
+- **리미터 테스트는 앞선 호출을 세라** — 루프 번호만 보면 "리미터가 과하다" 로 오판한다
+- **판정 기계를 먼저 의심** — SPA index.html 에도 og:title 이 있어 `og:title` 유무로는 봇 응답과 SPA 를 구분 못 한다
 
 ---
 
 ## 복구 가이드
-
-새 Claude 세션 시작 시 아래 내용을 붙여넣으세요:
-
 ```
 이전 세션 이어서 작업하고 싶어.
 /opt/planq/.claude/session-state.md 읽어줘.
