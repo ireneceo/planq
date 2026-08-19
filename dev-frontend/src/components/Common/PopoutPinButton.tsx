@@ -6,16 +6,19 @@
 //   ★ 해제하면 이 도구는 **닫힌다** — 일반 창으로 되돌아가지 않는다. 이유는 utils/pinOwner.unpin 주석 참조.
 //     문구도 그렇게 적는다(되돌아간다고 쓰면 거짓말이 된다).
 //
-// ★ 2026-08-19 — 일반 팝아웃 창의 핀이 **1클릭으로 동작한다** (#258·#280·#286, 설계 docs/POPOUT_PIN_DESIGN.md).
-//   여태 "브라우저 규칙상 불가" 라고 판단해 안내 문단을 띄웠는데 **그 판단이 틀렸다**.
-//   Fable 실측: 팝아웃 → postMessage → **메인 창**이 requestWindow() 는 성공한다(메인 창이 배경 탭이고
-//   8초간 제스처가 없어도). Chrome 이 사용자 활성화를 같은 출처의 오프너 체인에 전파하기 때문이다.
-//   동기 직접 호출(window.opener.documentPictureInPicture.requestWindow())만 거부된다.
+// ★ 2026-08-19 실측 결론 (#258·#280·#286) — **1클릭은 브라우저가 막는다.**
+//   팝아웃에서 실제 클릭으로 메시지를 보내도 메인 창의 requestWindow() 는
+//   `NotAllowedError: Document PiP requires user activation` 으로 거부된다(즉시 호출·협상 후 호출 모두).
+//   사용자 조작은 창을 건너 전달되지 않는다. (한때 전달된다는 측정이 있었으나 자동화 도구가
+//   메인 창에도 가짜 조작을 심은 오염이었다 — 실클릭 재현으로 반증됐다.)
+//   그래서 **마지막 한 번의 클릭은 메인 창에서** 해야 한다. 대신 팝아웃이 자리를 다 만들어 준다:
+//   메인 창을 앞으로 가져오고, 도크를 펼치고, 그 도구의 핀을 깜빡이게 해서 **바로 누를 수 있게** 한다.
+//   문단으로 설명하지 않는다 — 다음 동작 한 줄만 말한다.
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import ConfirmDialog from './ConfirmDialog';
-import type { PinContent } from '../../utils/pinHost';
+import { PIN_CHANNEL, type PinContent, type PinArmMsg } from '../../utils/pinHost';
 
 interface Props {
   pin: PinContent;
@@ -30,8 +33,7 @@ function isRecording(): boolean {
 const PopoutPinButton: React.FC<Props> = ({ pin }) => {
   const { t } = useTranslation('common');
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [pending, setPending] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [armed, setArmed] = useState(false);
 
   // #286 — 일반 팝아웃 창에서는 여태 **핀이 아예 없었다**. 그래서 "왜 여기선 고정이 안 되지?" 가
   //   세 번(#258·#280·#286) 신고됐다. 브라우저 규칙상 이 창 자체를 고정할 수는 없지만(고정되는 창은
@@ -42,20 +44,17 @@ const PopoutPinButton: React.FC<Props> = ({ pin }) => {
     //   막는 대신 이유를 한 줄로 말한다(예전처럼 문단으로 설명하지 않는다).
     const recording = isRecording();
     const requestPin = () => {
-      if (recording || pending) return;
-      const opener = (() => { try { return window.opener as Window | null; } catch { return null; } })();
-      if (!opener || opener.closed) { setFailed(true); return; }
-      setPending(true); setFailed(false);
+      if (recording) return;
+      // 메인 창 도크의 해당 핀을 "누를 준비" 상태로 만든다(깜빡임). 창을 건너 고정할 수는 없다.
       try {
-        // ★ 클릭 즉시 보낸다 — 사용자 활성화 창(약 5초) 안에 메인 창의 requestWindow 가 돌아야 한다.
-        opener.postMessage({ type: 'planq:pin-request', tool: pin.tool, title: document.title }, window.location.origin);
-      } catch { setPending(false); setFailed(true); return; }
-      // 성사되면 이 창은 pin-engaged 를 받아 **스스로 닫힌다**(utils/pinHost).
-      //   3초 안에 안 닫히면 실패로 보고 다음 동작만 한 줄로 안내한다 — 창은 그대로 산다.
-      window.setTimeout(() => {
-        setPending(false); setFailed(true);
-        try { opener.focus(); } catch { /* 이미 닫힘 */ }
-      }, 3000);
+        const ch = new BroadcastChannel(PIN_CHANNEL);
+        ch.postMessage({ type: 'pin-arm', tool: pin.tool } as PinArmMsg);
+        ch.close();
+      } catch { /* 미지원 — 아래 포커스만으로도 사용자가 찾을 수 있다 */ }
+      try { (window.opener as Window | null)?.focus(); } catch { /* opener 없음 */ }
+      setArmed(true);
+      // 고정이 성사되면 이 창은 pin-engaged 를 받아 스스로 닫힌다(utils/pinHost).
+      window.setTimeout(() => setArmed(false), 30000);
     };
     return (
       <>
@@ -67,16 +66,17 @@ const PopoutPinButton: React.FC<Props> = ({ pin }) => {
             ? t('popoutPin.recordingBlocks', '녹음 중에는 고정할 수 없어요 — 녹음이 끝나면 눌러 주세요') as string
             : t('popoutPin.pinLabel', '항상 위 고정') as string}
           onClick={requestPin}
-          disabled={recording || pending}
-          $muted={recording}
+          disabled={recording}
+          /* ★ 팝아웃 창의 핀은 **아직 고정 안 된 상태**다 — 채움(청록)은 "지금 고정됨" 을 뜻하므로
+             여기서는 항상 윤곽선이어야 한다. 채움으로 두면 사용자가 이미 켜진 것으로 읽는다
+             (Irene: "팝아웃 그냥 오픈하면 핀이 눌린상태라서"). 이 파일 Btn 주석의 규칙 그대로. */
+          $muted
         >
           <IconPin />
         </Btn>
-        {(pending || failed) && (
+        {armed && (
           <HintLine role="status" aria-live="polite">
-            {pending
-              ? t('popoutPin.pinning', '고정하는 중…') as string
-              : t('popoutPin.pressMainPin', '메인 창에서 핀을 한 번 더 눌러 주세요') as string}
+            {t('popoutPin.pressMainPin', '메인 창에서 깜빡이는 핀을 누르면 여기로 고정돼요') as string}
           </HintLine>
         )}
       </>
@@ -141,6 +141,7 @@ const Btn = styled.button<{ $muted?: boolean }>`
   transition: filter 0.12s, border-color 0.12s, color 0.12s;
   &:hover { ${p => p.$muted ? 'border-color:#94A3B8;color:#0F172A;' : 'filter: brightness(1.08);'} }
   &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
+  &:disabled { opacity: 0.45; cursor: not-allowed; }
 `;
 // #286 안내 카드 — 팝아웃 헤더 우측 아래에 떠서 "왜 여기선 고정이 안 되는지 + 어떻게 하는지" 를 말한다.
 // 한 줄 힌트 — 예전의 안내 문단(GuideCard)을 대체한다. 제약을 설명하지 않고 **다음 동작만** 말한다.
