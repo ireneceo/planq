@@ -7,8 +7,11 @@
 //   (이미지는 확대도, 다시 그리기도 못 한다. 데이터는 남는다).
 //
 // 정의(Q Task 라이브 그래프와 동일):
-//   진척(예측) = Σ(예측시간 × 진행률) 누적 — 0 에서 위로 올라간다
-//   투입(실제) = Σ(실제시간) 누적 — 가용시간을 넘으면 그 위로 솟는다
+//   한 일(예상시간) = Σ(예측시간 × 진행률) 누적 — 0 에서 위로 올라간다
+//   실제 업무시간   = Σ(실제 입력시간) 누적 — 가용시간을 넘으면 그 위로 솟는다
+//   ★ 이름이 중요하다. 둘 다 "시간" 이지만 **하나는 예측 기준, 하나는 실제 기록**이다.
+//     옛 이름("진척"/"투입")은 그 차이를 말하지 않아, 실제 시간이 0 인 것을 그래프 고장으로 읽었다
+//     (Irene: "투입은 뭐야? 왜 움직이지 않아?").
 import { useMemo } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -46,11 +49,15 @@ export default function ProgressBurnupChart({ series, capacityHours = null, heig
   //   "아직 0h" 라는 정보다. 반면 빈 문구는 "고장" 으로 읽힌다(#288 "왜 다 없는 거야").
   //   진짜 빈 상태는 시리즈 자체가 없을 때뿐(그 기간 무대 업무 0건).
   const hasAny = data.some((d) => (d.estimated ?? 0) > 0 || (d.actual ?? 0) > 0);
+  // ★ "한 일은 있는데 **실제 업무시간만** 0" 은 또 다른 상태다. 위 hasAny 는 true 라 침묵하는데,
+  //   사용자는 선 하나가 바닥에 붙은 것을 보고 그래프가 고장났다고 읽는다
+  //   (Irene: "투입은 뭐야? 왜 움직이지 않아?"). 실제 시간은 직접 기록해야 쌓인다는 사실을 말한다.
+  const noActual = hasAny && data.every((d) => (d.actual ?? 0) === 0);
 
   if (!series.length) {
     return (
       <Empty>
-        <EmptyTitle>{t('report.chartEmptyTitle', { defaultValue: '이 기간의 진척 데이터가 없어요' }) as string}</EmptyTitle>
+        <EmptyTitle>{t('report.chartEmptyTitle', { defaultValue: '이 기간에 기록된 업무 시간이 없어요' }) as string}</EmptyTitle>
         <EmptyHint>{t('report.chartEmptyHint', { defaultValue: '업무를 진행(포커스)하거나 실제 시간을 입력하면 그래프가 채워집니다.' }) as string}</EmptyHint>
       </Empty>
     );
@@ -80,11 +87,11 @@ export default function ProgressBurnupChart({ series, capacityHours = null, heig
               label={{ value: `${capacityHours}h`, position: 'right', fontSize: 10, fill: '#94A3B8' }} />
           ) : null}
           <Line
-            type="monotone" dataKey="estimated" name={t('report.chartEstimated', { defaultValue: '진척(예측 기준)' }) as string}
+            type="monotone" dataKey="estimated" name={t('report.chartEstimated', { defaultValue: '한 일 (예상시간)' }) as string}
             stroke="#94A3B8" strokeWidth={2} strokeDasharray="4 3" dot={false} isAnimationActive={false}
           />
           <Line
-            type="monotone" dataKey="actual" name={t('report.chartActual', { defaultValue: '투입(실제 시간)' }) as string}
+            type="monotone" dataKey="actual" name={t('report.chartActual', { defaultValue: '실제 업무시간' }) as string}
             stroke="#14B8A6" strokeWidth={2.5} dot={{ r: 2.5 }} isAnimationActive={false}
           />
         </LineChart>
@@ -93,6 +100,9 @@ export default function ProgressBurnupChart({ series, capacityHours = null, heig
           ★ 이월 누적치는 여기 쓰지 않는다 — 리스트에 없는 숫자를 그래프 옆에 들이는 것이 #254 의 재료였다. */}
       {!hasAny && (
         <Cap as="div">{t('report.chartNoIncrement', { defaultValue: '이 기간에 새로 기록된 진행이 아직 없어요' }) as string}</Cap>
+      )}
+      {noActual && (
+        <Cap as="div">{t('report.chartNoActual', { defaultValue: '실제 업무시간은 직접 기록된 시간입니다 — 업무를 "진행 중"으로 진행하거나 실제 시간을 입력하면 채워져요' }) as string}</Cap>
       )}
       {capacityHours ? (
         <Cap>{t('report.chartCapacity', { n: capacityHours, defaultValue: '가용시간 {{n}}h 기준' }) as string}</Cap>

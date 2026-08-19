@@ -1120,12 +1120,13 @@
   },
   "report": {
     "chartTitle": "Progress chart",
-    "chartEstimated": "Progress (planned)",
-    "chartActual": "Effort (actual)",
+    "chartEstimated": "Work done (estimated hours)",
+    "chartActual": "Actual hours worked",
     "chartCapacity": "Against {{n}}h capacity",
-    "chartEmptyTitle": "No progress data for this period",
+    "chartEmptyTitle": "No work hours recorded in this period",
     "chartEmptyHint": "Start focusing on tasks or log actual hours and the chart fills in.",
-    "chartNoIncrement": "No new progress recorded in this period yet"
+    "chartNoIncrement": "No new progress recorded in this period yet",
+    "chartNoActual": "Actual hours are time you recorded — it fills in when you move a task to \"In progress\" or enter the hours yourself"
   },
   "hold": {
     "action": "Put on hold",

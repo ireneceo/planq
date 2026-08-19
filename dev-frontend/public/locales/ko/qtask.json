@@ -1120,12 +1120,13 @@
   },
   "report": {
     "chartTitle": "진척 그래프",
-    "chartEstimated": "진척(예측 기준)",
-    "chartActual": "투입(실제 시간)",
+    "chartEstimated": "한 일 (예상시간)",
+    "chartActual": "실제 업무시간",
     "chartCapacity": "가용시간 {{n}}h 기준",
-    "chartEmptyTitle": "이 기간의 진척 데이터가 없어요",
+    "chartEmptyTitle": "이 기간에 기록된 업무 시간이 없어요",
     "chartEmptyHint": "업무를 진행(포커스)하거나 실제 시간을 입력하면 그래프가 채워집니다.",
-    "chartNoIncrement": "이 기간에 새로 기록된 진행이 아직 없어요"
+    "chartNoIncrement": "이 기간에 새로 기록된 진행이 아직 없어요",
+    "chartNoActual": "실제 업무시간은 직접 기록된 시간입니다 — 업무를 \"진행 중\"으로 진행하거나 실제 시간을 입력하면 채워져요"
   },
   "hold": {
     "action": "보류",
