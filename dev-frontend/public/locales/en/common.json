@@ -940,8 +940,7 @@
     "recordingMessage": "Unpinning now closes this window and stops the recording. Continue?",
     "recordingConfirm": "Stop recording and unpin",
     "pinLabel": "Keep on top",
-    "pinning": "Pinning…",
-    "pressMainPin": "Press the pin once more in the main window",
+    "pressMainPin": "Press the flashing pin in the main window to pin this here",
     "recordingBlocks": "Cannot pin while recording — try again after recording ends"
   }
 }

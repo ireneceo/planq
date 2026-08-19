@@ -18,7 +18,6 @@
 //   2. 복원 힌트 — sessionStorage 에 마지막 도구를 남겨 도크가 "복원" 칩을 띄운다. **자동 재열기는 불가능**하다
 //      (requestWindow 는 사용자 제스처를 요구한다) — 자동 복원을 약속하는 문구를 쓰지 말 것.
 import { useSyncExternalStore } from 'react';
-import { isPopoutWindow } from './popout';
 import {
   PIN_CHANNEL, POPOUT_PATH, POPOUT_SIZE,
   type PinTool, type PinMsg, type PinIntentMsg, type PinAckMsg, type PinEngagedMsg,
@@ -66,24 +65,6 @@ if (typeof window !== 'undefined') {
   window.addEventListener('pagehide', () => { unloading = true; });
   window.addEventListener('pageshow', () => { unloading = false; });
 
-  // ★ 팝아웃 창의 핀 요청을 받는 **상시 리스너** (#258·#280·#286).
-  //   여태 이 창은 `openChannel()` 이 **pin 성공 후에만** 열려서, 아무것도 고정 안 한 메인 창은
-  //   팝아웃의 요청을 들을 방법이 아예 없었다. 그래서 팝아웃 핀이 "안내 문단" 으로 답하고 있었다.
-  //
-  //   ★ BroadcastChannel 이 아니라 **postMessage** 로 받는다. Chrome 은 사용자 활성화를
-  //     **같은 출처의 오프너 체인 창**에 전파한다 — 그 덕에 여기서 requestWindow() 가 통과한다
-  //     (Fable 실측: 메인 창이 배경 탭이고 8초간 제스처가 없어도 성공. 동기 직접 호출만 실패).
-  //     광역 방송으로 받으면 전파 보장 밖의 다른 탭이 받을 수 있고, 수신자 선출 문제도 생긴다.
-  window.addEventListener('message', (ev: MessageEvent) => {
-    if (ev.origin !== window.location.origin) return;          // 타 오리진 거부
-    const m = ev.data as { type?: string; tool?: string; title?: string } | null;
-    if (!m || m.type !== 'planq:pin-request') return;
-    // 팝아웃·PiP 창 자신은 처리하지 않는다 — 고정 창을 여는 주체는 메인 탭이어야 한다.
-    if (isPopoutWindow()) return;
-    const tool = asPinTool(m.tool || null);
-    if (!tool) return;
-    void pin(tool, String(m.title || ''));
-  });
 }
 
 function readRestore(): PinTool | null {
@@ -216,6 +197,9 @@ function announceIntent(tool: PinTool): Promise<void> {
 
 /** 핀 진입. ★ 반드시 사용자 클릭 핸들러 안에서 부를 것 — requestWindow 는 transient activation 을 요구한다.
  *  (선공지 250ms 대기가 끼지만 activation 수명 약 5초 안이라 그대로 성립한다.) */
+// ★ 창을 건너 고정할 수는 없다 — Document PiP 는 **이 창 자신의 사용자 조작**을 요구하고
+//   조작은 창 간에 전달되지 않는다(2026-08-19 실측: NotAllowedError "requires user activation",
+//   즉시 호출·협상 후 호출 모두 거부). 그래서 팝아웃은 arm 신호만 보내고 마지막 클릭은 여기서 난다.
 async function pin(tool: PinTool, title: string): Promise<void> {
   const api = pipApi();
   if (!api) return;
@@ -224,8 +208,8 @@ async function pin(tool: PinTool, title: string): Promise<void> {
     teardown(true);
     setState({ pinned: null });
   }
-  await announceIntent(tool);
 
+  await announceIntent(tool);
   let win: Window;
   try {
     win = await api.requestWindow(POPOUT_SIZE[tool]);

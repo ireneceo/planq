@@ -16,6 +16,7 @@ import { isPublicSurfacePath } from '../../utils/publicSurface';
 import { isPopoutWindow } from '../../utils/popout';
 import { POPOUT_PATH, popoutFeatures, supportsPin, type PinTool } from '../../utils/pinHost';
 import { pinOwner, usePinOwner } from '../../utils/pinOwner';
+import { PIN_CHANNEL } from '../../utils/pinHost';
 import VoiceCaptureSheet from './VoiceCaptureSheet';
 
 /** 도크가 여는 도구 = 핀 가능한 도구. 두 곳에 따로 적으면 갈라진다(경로·크기 원천은 pinHost). */
@@ -35,6 +36,25 @@ const RightDock: React.FC = () => {
   const location = useChromeLocation();
   const navigate = useChromeNav();
   const [expanded, setExpanded] = useState(false);
+  // ★ 팝아웃이 보낸 "핀 누를 준비" 신호 (#258·#280·#286).
+  //   팝아웃 창은 스스로 고정할 수 없다 — Document PiP 는 **그 창 자신의 사용자 조작**을 요구하고
+  //   조작은 창을 건너 전달되지 않는다(실측). 그래서 마지막 한 번의 클릭만 여기서 받는다:
+  //   도크를 펼치고 그 도구의 핀을 깜빡여 **바로 누를 수 있는 자리**로 만든다.
+  const [armedTool, setArmedTool] = useState<DockTool | null>(null);
+  useEffect(() => {
+    if (isPopoutWindow()) return;              // 팝아웃 자신은 수신자가 아니다
+    let ch: BroadcastChannel | null = null;
+    try { ch = new BroadcastChannel(PIN_CHANNEL); } catch { return; }
+    const onMsg = (ev: MessageEvent) => {
+      const m = ev.data as { type?: string; tool?: DockTool } | null;
+      if (!m || m.type !== 'pin-arm' || !m.tool) return;
+      setArmedTool(m.tool);
+      setExpanded(true);                        // 핀이 보이는 상태로 열어 준다
+      window.setTimeout(() => setArmedTool((cur) => (cur === m.tool ? null : cur)), 30000);
+    };
+    ch.addEventListener('message', onMsg);
+    return () => { try { ch?.removeEventListener('message', onMsg); ch?.close(); } catch { /* noop */ } };
+  }, []);
   const fabRef = useRef<HTMLDivElement>(null);
   // 핀(항상 위) — #258 재구조화(2026-08-14). 진입은 **여기 버튼 하나뿐**이고, 소유 상태와 프로토콜은
   //   utils/pinOwner.ts(모듈 싱글턴)에 있다. 도크는 공개 표면·/memo 에서 언마운트되므로
@@ -117,6 +137,7 @@ const RightDock: React.FC = () => {
   //   ★ 반드시 이 클릭 핸들러 안에서 동기적으로 시작해야 한다 — requestWindow 는 transient activation 을 요구한다.
   //     (내부의 축출 선공지 250ms 대기는 activation 수명 약 5초 안이라 그대로 성립한다.)
   const handlePin = (tool: DockTool) => {
+    setArmedTool(null);                                  // 눌렀으면 깜빡임은 끝난다
     if (pinned === tool) { pinOwner.unpin(); return; }   // 같은 도구 재클릭 = 해제(리스트 재클릭 토글 규칙)
     void pinOwner.pin(tool, t(`dock.${tool}`, tool) as string);
     setExpanded(false);
@@ -176,6 +197,7 @@ const RightDock: React.FC = () => {
                   role="menuitem"
                   data-testid={`dock-pin-${tool}`}
                   $active={pinned === tool}
+                  $armed={armedTool === tool && pinned !== tool}
                   aria-pressed={pinned === tool}
                   aria-label={(pinned === tool
                     ? t('popoutPin.unpin', '고정 해제')
@@ -327,7 +349,7 @@ const MenuItem = styled.button<{ $create?: boolean; $grow?: boolean }>`
 const ToolRow = styled.div`
   display: flex; align-items: stretch; gap: 6px; width: 100%;
 `;
-const PinBtn = styled.button<{ $active: boolean }>`
+const PinBtn = styled.button<{ $active: boolean; $armed?: boolean }>`
   flex-shrink: 0; width: 40px;
   display: inline-flex; align-items: center; justify-content: center;
   border-radius: 12px; cursor: pointer;
@@ -338,6 +360,15 @@ const PinBtn = styled.button<{ $active: boolean }>`
   transition: transform 0.12s, color 0.12s, border-color 0.12s;
   &:hover { transform: translateY(-1px); ${({ $active }) => ($active ? '' : 'color: #0F766E; border-color: #99F6E4;')} }
   &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
+  /* 팝아웃에서 "여기로 고정" 을 부탁받은 상태 — 사용자가 다음에 누를 자리를 가리킨다. */
+  ${({ $armed }) => ($armed ? `
+    border-color: #F43F5E; color: #F43F5E;
+    animation: pqPinArm 1.1s ease-in-out infinite;
+  ` : '')}
+  @keyframes pqPinArm {
+    0%, 100% { box-shadow: 0 4px 14px rgba(15,23,42,0.12); }
+    50% { box-shadow: 0 0 0 5px rgba(244,63,94,0.28), 0 4px 14px rgba(15,23,42,0.12); }
+  }
 `;
 const RestoreChip = styled.button`
   width: 100%;
