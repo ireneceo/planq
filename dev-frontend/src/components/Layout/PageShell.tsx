@@ -22,6 +22,11 @@ type Props = {
   actions?: ReactNode;              // 헤더 우측 영역 (검색·버튼 등)
   children: ReactNode;
   bodyPadding?: string;             // 본문 padding 커스터마이즈가 필요할 때만
+  /** 본문 최대 폭(px). 설정·프로필처럼 폼/섹션 카드가 쌓이는 페이지에서만 켠다 —
+   *  넓은 화면에서 글이 왼쪽에 붙어 읽기 어려워진다(Irene: "레이아웃이 왜 좌측으로 쏠려있어?").
+   *  ★ 전역으로 두지 않는 이유: 목록·테이블 페이지는 풀폭이 정답이라 켜면 그쪽이 회귀한다.
+   *  미지정 시 렌더 출력은 종전과 완전히 동일하다. */
+  maxContentWidth?: number;
   embedded?: boolean;               // N+30 — PageShell-in-PageShell 회귀 차단. true 면 헤더/Page wrap 없이 children 만 렌더. PersonalVaultPage 같은 부모 PageShell 안에서 KnowledgePage 등 자체 PageShell 컴포넌트 마운트 시 사용.
 };
 
@@ -32,6 +37,7 @@ export default function PageShell({
   actions,
   children,
   bodyPadding,
+  maxContentWidth,
   embedded,
 }: Props) {
   // N+30 — embedded 모드: 부모 PageShell 안에서 마운트되는 경우 헤더 + Page wrapping skip.
@@ -53,7 +59,7 @@ export default function PageShell({
         </HeaderRight>
       </Header>
       <Body style={bodyPadding ? { padding: bodyPadding } : undefined}>
-        {children}
+        {maxContentWidth ? <ContentCap $w={maxContentWidth}>{children}</ContentCap> : children}
       </Body>
     </Page>
   );
@@ -139,6 +145,13 @@ const HeaderRight = styled.div`
     gap: 8px;
     flex-shrink: 1;
   }
+`;
+
+// 본문 폭 캡 — maxContentWidth 를 준 페이지에만 한 겹 감싼다.
+const ContentCap = styled.div<{ $w: number }>`
+  max-width: ${(p) => p.$w}px;
+  width: 100%;
+  margin: 0 auto;
 `;
 
 const Body = styled.div`

@@ -399,7 +399,12 @@
     "errExists": "That address is already registered.",
     "errSame": "That's the account's own address.",
     "errFailed": "Could not add it.",
-    "providerNote": "To send from Gmail, the address must be verified under Gmail’s \"Send mail as\". Your own mail server usually allows any address on a domain you own."
+    "providerNote": "To send from Gmail, the address must be verified under Gmail’s \"Send mail as\". Your own mail server usually allows any address on a domain you own.",
+    "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
+    "noName": "No display name",
+    "errSaveFailed": "Could not save."
   },
   "detail": {
     "toAddr": "Received at",
@@ -467,7 +472,13 @@
     "errPublic": "Public mail domains such as gmail.com can't be registered — the whole domain would count as ours.",
     "errExists": "That domain is already registered.",
     "errAdmin": "Only workspace admins can change this.",
-    "errFailed": "Couldn't complete that."
+    "errFailed": "Couldn't complete that.",
+    "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
+    "errSaveFailed": "Could not save.",
+    "appliesTo": "This rule applies only to mailboxes in this workspace: {{list}}",
+    "appliesNone": "No company mailbox is connected in this workspace. Register the domain in the workspace that has the mailbox."
   },
   "quoteFold": {
     "show": "⋯ Show previous conversation",

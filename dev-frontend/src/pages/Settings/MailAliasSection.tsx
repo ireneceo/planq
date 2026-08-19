@@ -30,6 +30,13 @@ export default function MailAliasSection({ businessId, accountId, accountEmail }
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // 인라인 편집 — 여태 추가·삭제만 있어서 표시 이름을 고치려면 지웠다 다시 넣어야 했는데,
+  //   같은 주소 재등록은 "이미 등록된 주소예요" 로 막혀 **막다른 길**이었다
+  //   (Irene: "표시이름 선택한거 다시 추가를 못해. 등록한거 수정은 못해?").
+  //   서버 PUT 은 이미 display_name·email 을 받고 있었다 — 화면만 안 부르고 있었다.
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editEmail, setEditEmail] = useState('');
+  const [editName, setEditName] = useState('');
 
   const base = `/api/businesses/${businessId}/email-accounts/${accountId}/aliases`;
 
@@ -76,6 +83,38 @@ export default function MailAliasSection({ businessId, accountId, accountEmail }
     } finally { setBusy(false); }
   };
 
+  const startEdit = (a: MailAlias) => {
+    setErr(null);
+    setEditId(a.id);
+    setEditEmail(a.email);
+    setEditName(a.display_name || '');
+  };
+  const cancelEdit = () => { setEditId(null); setEditEmail(''); setEditName(''); };
+
+  const saveEdit = async (id: number) => {
+    const addr = editEmail.trim().toLowerCase();
+    if (!addr || busy) return;
+    setBusy(true); setErr(null);
+    try {
+      const r = await apiFetch(`${base}/${id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: addr, display_name: editName.trim() || null }),
+      });
+      const j = await r.json().catch(() => ({}));
+      // ★ apiFetch 는 throw 하지 않는다 — r.ok 를 안 보면 실패해도 성공한 척 닫힌다.
+      if (!r.ok || !j.success) {
+        const map: Record<string, string> = {
+          invalid_email: t('alias.errInvalid', { defaultValue: '이메일 주소 형식을 확인해 주세요.' }) as string,
+          alias_exists: t('alias.errExists', { defaultValue: '이미 등록된 주소예요.' }) as string,
+        };
+        setErr(map[j.message] || (t('alias.errSaveFailed', { defaultValue: '저장하지 못했어요.' }) as string));
+        return;
+      }
+      cancelEdit();
+      await load();
+    } finally { setBusy(false); }
+  };
+
   const setDefault = async (id: number) => {
     setBusy(true);
     try {
@@ -101,11 +140,36 @@ export default function MailAliasSection({ businessId, accountId, accountEmail }
           <Addr>{accountEmail}</Addr>
           <Tag>{t('alias.accountAddr', { defaultValue: '계정 기본' }) as string}</Tag>
         </Row>
-        {aliases.map((a) => (
+        {aliases.map((a) => (editId === a.id ? (
+          <Row key={a.id}>
+            <Input
+              type="email"
+              value={editEmail}
+              disabled={busy}
+              onChange={(e) => setEditEmail(e.target.value)}
+              aria-label={t('alias.emailPh', { defaultValue: 'hello@another-domain.com' }) as string}
+            />
+            <InputSm
+              type="text"
+              value={editName}
+              disabled={busy}
+              onChange={(e) => setEditName(e.target.value)}
+              placeholder={t('alias.namePh', { defaultValue: '표시 이름 (선택)' }) as string}
+            />
+            <LinkBtn type="button" onClick={() => saveEdit(a.id)} disabled={busy || !editEmail.trim()}>
+              {t('alias.save', { defaultValue: '저장' }) as string}
+            </LinkBtn>
+            <LinkBtn type="button" onClick={cancelEdit} disabled={busy}>
+              {t('alias.cancel', { defaultValue: '취소' }) as string}
+            </LinkBtn>
+          </Row>
+        ) : (
           <Row key={a.id}>
             <Addr>
               {a.email}
-              {a.display_name && <Who>{a.display_name}</Who>}
+              {a.display_name
+                ? <Who>{a.display_name}</Who>
+                : <WhoEmpty>{t('alias.noName', { defaultValue: '표시 이름 없음' }) as string}</WhoEmpty>}
             </Addr>
             {a.is_default
               ? <Tag $on>{t('alias.default', { defaultValue: '기본' }) as string}</Tag>
@@ -114,11 +178,14 @@ export default function MailAliasSection({ businessId, accountId, accountEmail }
                   {t('alias.setDefault', { defaultValue: '기본으로' }) as string}
                 </LinkBtn>
               )}
+            <LinkBtn type="button" onClick={() => startEdit(a)} disabled={busy}>
+              {t('alias.edit', { defaultValue: '수정' }) as string}
+            </LinkBtn>
             <LinkBtn type="button" $danger onClick={() => remove(a.id)} disabled={busy}>
               {t('alias.remove', { defaultValue: '삭제' }) as string}
             </LinkBtn>
           </Row>
-        ))}
+        )))}
       </List>
 
       <AddRow>
@@ -165,6 +232,9 @@ const Row = styled.div<{ $muted?: boolean }>`
 `;
 const Addr = styled.div`flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 12px; color: #334155; word-break: break-all;`;
 const Who = styled.span`font-size: 11px; color: #94A3B8;`;
+// 표시 이름이 비어 있다는 사실을 드러낸다 — 옛 등록분은 전부 비어 있는데 화면에 아무것도 안 뜨면
+//   "설정할 게 없다" 로 읽힌다.
+const WhoEmpty = styled.span`font-size: 11px; color: #CBD5E1; font-style: italic;`;
 const Tag = styled.span<{ $on?: boolean }>`
   flex-shrink: 0; padding: 1px 7px; border-radius: 999px;
   font-size: 10px; font-weight: 700;

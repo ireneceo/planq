@@ -1337,7 +1337,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                           to="/business/settings/mail-accounts"
                           $active={location.pathname.includes('/mail-accounts') && !accountScope}
                         >
-                          <IconInbox /> {t('nav.companyMail', '회사 메일')}
+                          <IconInbox /> {t('nav.companyMail', '회사 메일함')}
                         </AccordionItem>
                       )}
                       {hasBiz('owner') && (
@@ -1345,7 +1345,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                           to="/business/settings/email"
                           $active={location.pathname.includes('/email')}
                         >
-                          <IconMail /> {t('nav.email', '발신 이메일')}
+                          <IconMail /> {t('nav.email', '자동 발송 메일')}
                         </AccordionItem>
                       )}
                       {hasBiz('owner') && (
@@ -1678,7 +1678,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                 to="/business/settings/mail-accounts"
                 $active={location.pathname.includes('/mail-accounts') && !accountScope}
               >
-                <IconInbox /> {t('nav.companyMail', '회사 메일')}
+                <IconInbox /> {t('nav.companyMail', '회사 메일함')}
               </SecondaryNavItem>
             )}
             {hasBiz('owner') && (
@@ -1686,7 +1686,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                 to="/business/settings/email"
                 $active={location.pathname.includes('/email')}
               >
-                <IconMail /> {t('nav.email', '발신 이메일')}
+                <IconMail /> {t('nav.email', '자동 발송 메일')}
               </SecondaryNavItem>
             )}
             {hasBiz('owner') && (

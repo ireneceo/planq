@@ -35,6 +35,19 @@ const REQUIRED_SCOPES = {
 
 const CALENDAR_READONLY_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
 
+// ★ 새 동의를 **요청하면 안 되는** provider (2026-08-19, Irene 결정).
+//   Google OAuth 검증을 캘린더만으로 제출하기로 하면서 Cloud Console 에서
+//   `https://mail.google.com/`(RESTRICTED)를 뺀다. Console 에 없는 scope 로 동의 화면을 띄우면
+//   사용자는 "액세스 차단됨: 승인되지 않은 요청" 만 보고 원인을 알 수 없다.
+//   ★ 기존 연결은 건드리지 않는다 — 이미 받은 토큰의 갱신·수신은 그대로 동작한다.
+//     막는 것은 **새 동의 요청(initiate)** 뿐이다. 대체 경로는 앱 비밀번호(IMAP/SMTP) 연결.
+const OAUTH_CONSENT_DISABLED = new Set(['gmail']);
+
+/** 이 provider 로 새 동의 화면을 띄워도 되는가. 막힌 것이면 true. */
+function isConsentDisabled(provider) {
+  return OAUTH_CONSENT_DISABLED.has(String(provider || ''));
+}
+
 // 사용자에게 보여줄 이름 — Google 동의 화면의 실제 항목을 가리켜야 사용자가 찾을 수 있다.
 //   "scope" · "403" 같은 개발 용어는 화면에 절대 노출하지 않는다.
 const PROVIDER_LABELS = {
@@ -88,6 +101,8 @@ function providerLabel(provider, lang = 'ko') {
 module.exports = {
   REQUIRED_SCOPES,
   CALENDAR_READONLY_SCOPE,
+  OAUTH_CONSENT_DISABLED,
+  isConsentDisabled,
   parseGranted,
   hasRequired,
   hasCalendarReadOnly,

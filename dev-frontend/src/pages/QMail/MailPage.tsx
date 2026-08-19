@@ -1941,7 +1941,7 @@ const MailPage: React.FC = () => {
                   onBody={setCBody}
                   onError={setCError}
                 />
-                <RichEditor value={cBody} onChange={(v: string) => { markComposeTouched(); setCBody(v); }} placeholder={t('compose.bodyPh', { defaultValue: '메일 내용을 입력하세요…' }) as string} />
+                <RichEditor value={cBody} onChange={(v: string) => { markComposeTouched(); setCBody(v); }} toolbar placeholder={t('compose.bodyPh', { defaultValue: '메일 내용을 입력하세요…' }) as string} />
                 {fwdFromMsgId && fwdAttachCount > 0 && (
                   <FwdAttachHint><ClipIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></ClipIcon> {t('forward.origAttach', { defaultValue: '원본 첨부 {{n}}개 포함', n: fwdAttachCount }) as string}</FwdAttachHint>
                 )}
@@ -2189,6 +2189,7 @@ const MailPage: React.FC = () => {
                     <RichEditor
                       value={replyHtml}
                       onChange={setReplyHtml}
+                      toolbar
                       placeholder={t('reply.placeholder', { defaultValue: '답장 내용을 입력하세요…' }) as string}
                     />
                     <AttachmentField

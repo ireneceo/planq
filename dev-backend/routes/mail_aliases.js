@@ -165,6 +165,38 @@ router.post('/:businessId/email-domain-rules', authenticateToken, checkBusinessA
   } catch (err) { next(err); }
 });
 
+// 도메인 수정 — 오타 정정용. 여태 추가·삭제만 있어서 한 글자 틀리면 지웠다 다시 넣어야 했다
+//   (Irene: "등록한거 수정은 못해?"). 판정 규칙은 POST 와 **같은 함수**를 쓴다 — 한쪽만 고치면
+//   추가는 막히는 값이 수정으로는 들어간다.
+router.put('/:businessId/email-domain-rules/:ruleId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    if (!isAdmin(req)) return errorResponse(res, 'admin_required', 403);
+    const businessId = Number(req.params.businessId);
+    const rule = await EmailDomainRule.findOne({
+      where: { id: Number(req.params.ruleId), business_id: businessId },
+    });
+    if (!rule) return errorResponse(res, 'rule_not_found', 404);
+    const patch = {};
+    if (req.body?.domain !== undefined) {
+      const domain = normalizeDomain(req.body.domain);
+      if (!DOMAIN_RE.test(domain)) return errorResponse(res, 'invalid_domain', 400, 'invalid_domain');
+      if (PUBLIC_MAIL_DOMAINS.has(domain)) {
+        return errorResponse(res, 'public_domain_not_allowed', 400, 'public_domain_not_allowed');
+      }
+      if (domain !== rule.domain) {
+        const dup = await EmailDomainRule.findOne({ where: { business_id: businessId, domain } });
+        if (dup) return errorResponse(res, 'rule_exists', 409);
+      }
+      patch.domain = domain;
+    }
+    if (req.body?.note !== undefined) {
+      patch.note = req.body.note ? String(req.body.note).slice(0, 200) : null;
+    }
+    if (Object.keys(patch).length) await rule.update(patch);
+    return successResponse(res, rule.toJSON());
+  } catch (err) { next(err); }
+});
+
 router.delete('/:businessId/email-domain-rules/:ruleId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     if (!isAdmin(req)) return errorResponse(res, 'admin_required', 403);

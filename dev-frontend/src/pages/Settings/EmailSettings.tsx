@@ -75,6 +75,9 @@ const EmailSettings: React.FC<Props> = ({ businessId, isOwner }) => {
     <Wrap>
       {/* SMTP 상태 */}
       <Section>
+        {/* 두 화면이 헷갈린다는 지적(Irene) — 이 화면이 다루는 범위를 첫 줄에 못 박는다.
+            "자동 발송 메일"(여기) vs "회사 메일함"(고객과 직접 주고받는 곳). */}
+        <ScopeHint>{t('email.emailScopeHint', { defaultValue: '여기는 PlanQ 가 대신 보내는 메일입니다 — 청구서·서명 요청·문서 공유. 고객 메일을 직접 주고받는 곳은 "회사 메일함" 입니다.' }) as string}</ScopeHint>
         <SectionTitle>{t('email.system.title', '메일 발송 시스템')}</SectionTitle>
         <SectionDesc>{t('email.system.desc', 'PlanQ 가 시스템 메일 서버를 통해 청구서·서명 요청·문서 공유 메일을 발송합니다')}</SectionDesc>
         <StatusBox $ok={config.smtp_configured}>
@@ -191,3 +194,14 @@ const PreviewLabel = styled.div`font-size: 10px; font-weight: 700; color: #94A3B
 const PreviewBox = styled.div`background: #F8FAFC; border-radius: 8px; padding: 10px 12px; font-family: ui-monospace, monospace;`;
 const PreviewFrom = styled.div`font-size: 11px; color: #475569;`;
 const PreviewSubject = styled.div`font-size: 12px; color: #0F172A; margin-top: 2px;`;
+
+const ScopeHint = styled.p`
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #F0FDFA;
+  border: 1px solid #CCFBF1;
+  font-size: 12px;
+  color: #0F766E;
+  line-height: 1.6;
+`;
