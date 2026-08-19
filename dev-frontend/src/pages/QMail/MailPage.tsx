@@ -1189,7 +1189,15 @@ const MailPage: React.FC = () => {
   //   (없는 선택지를 보여주지 않는다).
   const aiInstructionRef = useRef<HTMLInputElement | null>(null);
   const [aliases, setAliases] = useState<Array<{ id: number; email: string; display_name: string | null; is_default: boolean }>>([]);
-  const [fromAliasId, setFromAliasId] = useState<number>(0);   // 0 = 계정 기본 주소
+  // 3상태: null = 미지정(서버가 "받은 주소로" 자동 결정) / 0 = 계정 주소 **명시 선택** / N = 별칭 명시.
+  //   ★ 여태 미지정과 명시선택이 둘 다 0 이었다. 별칭 목록이 아직 안 실렸거나 매칭이 빗나가면 0 이 나갔고,
+  //     서버는 그걸 "사용자가 계정 주소를 골랐다" 로 존중해 받은 주소 자동 선택을 건너뛰었다.
+  //     그래서 별칭을 등록해 두고도 답장이 계정 주소로 나갔다(운영 실사례).
+  const [fromAliasId, setFromAliasId] = useState<number | null>(null);
+  // 사용자가 셀렉트를 직접 건드렸는가 — 건드렸으면 자동 계산이 덮지 않는다.
+  const fromAliasTouched = useRef(false);
+  // 서버가 실제로 쓸 발신 주소 — SignatureBadge 가 이미 조회하는 값을 받아 표시에 쓴다(중복 조회 없음).
+  const [outgoingFrom, setOutgoingFrom] = useState<string>('');
   useEffect(() => {
     const accId = detail?.account?.id;
     if (!businessId || !accId) { setAliases([]); return; }
@@ -1231,14 +1239,19 @@ const MailPage: React.FC = () => {
     } catch { /* 실패해도 계정 주소로는 보낼 수 있다 */ }
   }, [businessId, detail?.account?.id, receivedAt]);
 
-  // 답장 기본 발신 주소 = 이 메일이 온 주소 (백엔드도 같은 규칙 — 여기선 화면 표시용)
+  // 답장 기본 발신 주소 — 화면 **표시**용 계산. 못 찾으면 null(미지정)로 두어 서버가 결정하게 한다.
+  //   0 으로 떨어뜨리면 그 순간 서버의 자동 선택이 죽는다.
   useEffect(() => {
-    if (!detail) { setFromAliasId(0); return; }
+    if (!detail) { setFromAliasId(null); fromAliasTouched.current = false; return; }
+    if (fromAliasTouched.current) return;   // 사용자가 고른 값을 목록 재로딩이 덮지 않게
     const lastInbound = [...detail.messages].reverse().find(m => m.direction === 'inbound');
     const to = toAddrList(lastInbound?.to_emails).map((x) => x.toLowerCase());
     const hit = aliases.find(a => to.includes(a.email.toLowerCase()));
-    setFromAliasId(hit ? hit.id : 0);
+    setFromAliasId(hit ? hit.id : null);
   }, [detail, aliases]);
+
+  // 스레드를 바꾸면 사용자 선택 흔적을 지운다 (다음 스레드는 다시 자동 결정)
+  useEffect(() => { fromAliasTouched.current = false; }, [activeId]);
 
   // 답장 받는 사람 힌트 (마지막 inbound 발신자)
   const replyToHint = useMemo(() => {
@@ -1269,7 +1282,9 @@ const MailPage: React.FC = () => {
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${detail.id}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body_html: replyHtml, attachment_file_ids: fileIds, from_alias_id: fromAliasId, signature: replySignature }),   // 0 = 계정 주소 명시 선택 (undefined 로 바꾸면 서버가 기본별칭으로 덮어쓴다)
+        // 3상태 — null 이면 **키를 생략**해 서버가 "받은 주소로" 결정하게 한다(JSON.stringify 가 undefined 키를 뺀다).
+        //   0 은 사용자가 계정 주소를 직접 고른 경우에만 나간다.
+        body: JSON.stringify({ body_html: replyHtml, attachment_file_ids: fileIds, from_alias_id: fromAliasId === null ? undefined : fromAliasId, signature: replySignature }),
       });
       const j = await r.json();
       if (!j.success) throw new Error(j.message || (t('reply.sendFailed', { defaultValue: '발송 실패' }) as string));
@@ -1399,6 +1414,10 @@ const MailPage: React.FC = () => {
   // 모바일·태블릿(≤1024px) — 작업대는 오버레이 드로어로 연다.
   //   여태 $hideTablet 으로 통째로 숨겨서, 폰에서는 메일의 업무·메모·연결을 아예 쓸 수 없었다.
   const ctxNarrow = viewportNarrow;
+  // 맥락(우측) 패널을 쓸 수 있는 상태인가 — **한 술어로 4곳이 같이 움직여야 한다.**
+  //   여태 grid 컬럼만 `!composeOpen` 으로 접고 토글은 안 접어서, 새 메일 쓰기를 열면
+  //   패널은 없는데 세로바+화살표만 허공에 떠 있었다(Irene 신고). 분기마다 낱개로 끼워넣으면 또 어긋난다.
+  const ctxAvailable = !!detail && !!businessId && !composeOpen;
   const [ctxOverlayOpen, setCtxOverlayOpen] = useState(false);
   useBodyScrollLock(ctxNarrow && ctxOverlayOpen);
   // #262 M2 — 최신 메시지만 펼친 채 시작 (접기 상태·스크롤 앵커). 훅으로 절출.
@@ -1486,7 +1505,7 @@ const MailPage: React.FC = () => {
       $cols={[
         sidebarCollapsed ? '0px' : `${listWidth}px`,
         '1fr',
-        (detail && businessId && !rightCollapsed && !composeOpen) ? `${rightWidth}px` : '0px',
+        (ctxAvailable && !rightCollapsed) ? `${rightWidth}px` : '0px',
       ].join(' ')}
     >
       {/* #130 — 좌측 리스트: 300px 접이식 (여태 340px 고정·접기 없음이라 Q mail 만 다른 화면처럼 보였다) */}
@@ -1951,11 +1970,12 @@ const MailPage: React.FC = () => {
                 {cError && <ComposerError>{cError}</ComposerError>}
               </ComposeBody>
               <ComposeFoot>
-                <ActionButton tone="secondary" size="md" onClick={closeCompose} disabled={cSending}>
-                  {t('compose.cancel', { defaultValue: '취소' }) as string}
-                </ActionButton>
+                {/* 좌측부터 [보내기][취소] — 답장 컴포저와 같은 자리. 화면마다 순서가 다르면 손이 헷갈린다. */}
                 <ActionButton tone="primary" size="md" loading={cSending} onClick={sendCompose}>
                   {t('compose.send', { defaultValue: '보내기' }) as string}
+                </ActionButton>
+                <ActionButton tone="secondary" size="md" onClick={closeCompose} disabled={cSending}>
+                  {t('compose.cancel', { defaultValue: '취소' }) as string}
                 </ActionButton>
               </ComposeFoot>
             </ComposeFull>
@@ -2132,12 +2152,19 @@ const MailPage: React.FC = () => {
                             size="sm"
                             isSearchable={aliases.length > 5}
                             value={{
-                              value: fromAliasId,
+                              value: fromAliasId ?? 0,
+                              // 미지정(null)이면 **서버가 실제로 쓸 주소**를 보여준다 — 화면과 실발송이 어긋나면
+                              //   그 자체가 사고다. 아직 못 받았으면 받은 주소, 그것도 없으면 계정 주소.
                               label: fromAliasId
                                 ? (aliases.find(a => a.id === fromAliasId)?.email || '')
-                                : (detail.account?.email || ''),
+                                : (fromAliasId === null
+                                  ? (outgoingFrom || receivedAt || detail.account?.email || '')
+                                  : (detail.account?.email || '')),
                             }}
-                            onChange={(opt) => setFromAliasId(Number((opt as { value?: number } | null)?.value || 0))}
+                            onChange={(opt) => {
+                              fromAliasTouched.current = true;   // 사용자가 직접 골랐다 — 자동 계산이 못 덮게
+                              setFromAliasId(Number((opt as { value?: number } | null)?.value || 0));
+                            }}
                             options={[
                               { value: 0, label: detail.account?.email || '' },
                               ...aliases.map(a => ({ value: a.id, label: a.email })),
@@ -2211,6 +2238,7 @@ const MailPage: React.FC = () => {
                       fromAliasId={fromAliasId}
                       enabled={replySignature}
                       onToggle={setReplySignature}
+                      onIdentity={(id) => setOutgoingFrom(id?.from_email || '')}
                     />
                     {/* 버튼 자리는 고정 — 좌측부터 [보내기] [AI] [취소]. 답장창을 열고 닫아도 좌우가 뒤바뀌지 않는다.
                         (여태 AI 가 왼쪽, 보내기/취소가 오른쪽 끝이라 열 때마다 위치가 바뀌어 보였다) */}
@@ -2250,7 +2278,7 @@ const MailPage: React.FC = () => {
 
         {/* 우측 맥락 패널 접기 — 공통 FloatingPanelToggle(뷰포트 오른쪽 변 플로팅). 데스크탑·태블릿 컬럼용
             (좁은 폭 오버레이는 아래 ctxNarrow 분기가 담당 — 둘은 상호배타). (⌘/ · Ctrl+\) */}
-        {detail && businessId && !ctxNarrow && (
+        {ctxAvailable && !ctxNarrow && (
           <FloatingPanelToggle
             side="right"
             open={!rightCollapsed}
@@ -2260,17 +2288,17 @@ const MailPage: React.FC = () => {
           />
         )}
         {/* 작업대 — 데스크탑은 우측 컬럼, 태블릿·폰은 오버레이 드로어 (Q Task 와 같은 패턴) */}
-        {detail && businessId && ctxNarrow && ctxOverlayOpen && (
+        {ctxAvailable && ctxNarrow && ctxOverlayOpen && (
           <CtxBackdrop onClick={() => setCtxOverlayOpen(false)} />
         )}
-        {detail && businessId && ctxNarrow && (
+        {ctxAvailable && ctxNarrow && (
           <FloatingPanelToggle
             open={ctxOverlayOpen}
             onToggle={() => setCtxOverlayOpen((v) => !v)}
             ariaLabel={t('context.panelTitle', { defaultValue: '맥락' }) as string}
           />
         )}
-        {detail && businessId && ((!ctxNarrow && !rightCollapsed) || (ctxNarrow && ctxOverlayOpen)) && (
+        {ctxAvailable && ((!ctxNarrow && !rightCollapsed) || (ctxNarrow && ctxOverlayOpen)) && (
           <Panel $width={rightWidth} $last $relative $overlay={ctxNarrow}>
             {!ctxNarrow && <CtxResizeHandle onMouseDown={startRightResize} />}
             <PanelHeader>

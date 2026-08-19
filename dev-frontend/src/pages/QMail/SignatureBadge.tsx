@@ -3,7 +3,7 @@
 // 서명은 발송 시점에 서버가 별칭 > 계정 > 워크스페이스 순으로 고른다. 화면엔 그 결과가 전혀 없었다.
 // 여기서 서버의 **같은 함수**가 계산한 결과(GET mail-outgoing-identity)를 그대로 보여준다 —
 // 프론트가 우선순위를 재구현하면 실발송과 어긋나므로 절대 계산하지 않는다.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { apiFetch } from '../../contexts/AuthContext';
@@ -28,15 +28,21 @@ interface Props {
   /** 이 발송에만 서명을 붙일지 */
   enabled: boolean;
   onToggle: (next: boolean) => void;
+  /** 계산된 발신 정체성을 상위로 — 발신 주소 표시를 실발송과 같은 값으로 맞추기 위해.
+   *  여기서 이미 한 번 조회하므로 상위가 따로 부르지 않게 한다(중복 호출 금지). */
+  onIdentity?: (ident: Identity | null) => void;
 }
 
-export default function SignatureBadge({ businessId, threadId, accountId, fromAliasId, enabled, onToggle }: Props) {
+export default function SignatureBadge({ businessId, threadId, accountId, fromAliasId, enabled, onToggle, onIdentity }: Props) {
   const { t } = useTranslation('qmail');
   const [ident, setIdent] = useState<Identity | null>(null);
+  // 콜백을 deps 에 넣으면 상위 렌더마다 재조회된다 — ref 로 최신 값만 참조한다.
+  const onIdentityRef = useRef(onIdentity);
+  onIdentityRef.current = onIdentity;
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    if (!businessId) { setIdent(null); return; }
+    if (!businessId) { setIdent(null); onIdentityRef.current?.(null); return; }
     let alive = true;
     const qs = new URLSearchParams();
     if (threadId) qs.set('thread_id', String(threadId));
@@ -45,10 +51,10 @@ export default function SignatureBadge({ businessId, threadId, accountId, fromAl
     (async () => {
       try {
         const r = await apiFetch(`/api/businesses/${businessId}/mail-outgoing-identity?${qs.toString()}`);
-        if (!r.ok) { if (alive) setIdent(null); return; }
+        if (!r.ok) { if (alive) { setIdent(null); onIdentityRef.current?.(null); } return; }
         const j = await r.json();
-        if (alive) setIdent(j.success ? j.data : null);
-      } catch { if (alive) setIdent(null); }
+        if (alive) { const v = j.success ? j.data : null; setIdent(v); onIdentityRef.current?.(v); }
+      } catch { if (alive) { setIdent(null); onIdentityRef.current?.(null); } }
     })();
     return () => { alive = false; };
   }, [businessId, threadId, accountId, fromAliasId]);

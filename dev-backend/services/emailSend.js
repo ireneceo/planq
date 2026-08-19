@@ -201,6 +201,15 @@ async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, 
   //   **실제 고객에게 진짜 메일이 나갔다** (.env 는 EMAIL_SENDING_ENABLED=false 인데도).
   //   발송만 멈추고 나머지 흐름(outbound 기록·스레드 갱신·규칙 해제)은 그대로 둔다 — dev 에서 답장
   //   흐름을 끝까지 검증할 수 있어야 하기 때문이다. 운영은 미설정(기본 ON)이라 영향 없다.
+  // 발신 이름·주소·서명 — 미리보기 endpoint 와 **같은 함수**로 계산한다 (표시≠실발송 방지).
+  //   ★ 발송정지 게이트보다 **앞**에서 계산한다. 라우트가 outbound row 에 기록할 From 을
+  //     이 결과에서 가져가야 하는데, 게이트 뒤에 두면 dev(발송정지)에서는 값이 없어
+  //     "실발송은 별칭인데 보낸메일함은 계정 주소" 가 된다(같은 종류의 표시≠실발신).
+  const ident = await resolveOutgoingIdentity(account, { fromAliasId, replyToAddresses });
+  const from = ident.fromName
+    ? `"${String(ident.fromName).replace(/"/g, '')}" <${ident.fromEmail}>`
+    : ident.fromEmail;
+
   if (String(process.env.EMAIL_SENDING_ENABLED ?? 'true').toLowerCase() === 'false') {
     const recipients = [].concat(to || []).map((v) => String(v));
     console.warn(`[emailSend] 발송 정지(이 서버는 발송 안 함): to=${recipients.join(', ')}, subject=${subject}`);
@@ -209,21 +218,16 @@ async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, 
       accepted: [],
       rejected: [],
       suppressed: true,
+      fromEmail: ident.fromEmail,
+      fromName: ident.fromName || null,
     };
   }
 
   const transport = await buildTransport(account);
 
-  // 발신 이름 — 원래 기준은 워크스페이스 메일 설정(businesses.mail_from_name, /business/settings/email).
-  //   Q Mail 계정이 그걸 안 보고 자기 display_name(Gmail 연결 시 박힌 구글 프로필 이름)만 쓰는 바람에
-  //   회사 대표 메일 답장이 "IRENE WP" 로 나갔다. 설정을 단일 원천으로 되돌린다.
-  //   우선순위: 계정별 발신 이름(명시 override) → 워크스페이스 발신 이름 → 브랜드명 → 워크스페이스명.
-  //   개인 계정(owner_user_id)은 본인 이름이 기본이므로 계정 값을 그대로 쓴다.
-  // 발신 이름·주소·서명 — 미리보기 endpoint 와 **같은 함수**로 계산한다 (표시≠실발송 방지).
-  const ident = await resolveOutgoingIdentity(account, { fromAliasId, replyToAddresses });
-  const from = ident.fromName
-    ? `"${String(ident.fromName).replace(/"/g, '')}" <${ident.fromEmail}>`
-    : ident.fromEmail;
+  // 발신 이름 기준: 계정별 발신 이름 → 워크스페이스 발신 이름 → 브랜드명 → 워크스페이스명.
+  //   (개인 계정(owner_user_id)은 본인 이름이 기본이라 계정 값을 그대로 쓴다.)
+  //   실제 계산은 위 게이트 앞의 resolveOutgoingIdentity 한 번뿐이다.
 
   // 서명 — 계정마다 다르다. 발송 직전 한 곳에서 붙인다(답장·전달·새 메일 3경로가 모두 여기를 지난다).
   //   이미 서명이 들어간 본문(사용자가 편집한 초안)에는 다시 붙이지 않는다 — 표식으로 판별.
@@ -249,6 +253,10 @@ async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, 
     messageId: info.messageId,
     accepted: info.accepted || [],
     rejected: info.rejected || [],
+    // 라우트가 outbound row 에 **실제 나간 주소**를 기록하도록 돌려준다.
+    //   여태 라우트가 account.email 을 하드코딩해, 별칭으로 나간 메일도 보낸메일함엔 계정 주소로 남았다.
+    fromEmail: ident.fromEmail,
+    fromName: ident.fromName || null,
   };
 }
 
