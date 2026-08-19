@@ -5,6 +5,12 @@
 //
 //   ★ 해제하면 이 도구는 **닫힌다** — 일반 창으로 되돌아가지 않는다. 이유는 utils/pinOwner.unpin 주석 참조.
 //     문구도 그렇게 적는다(되돌아간다고 쓰면 거짓말이 된다).
+//
+// ★ 2026-08-19 — 일반 팝아웃 창의 핀이 **1클릭으로 동작한다** (#258·#280·#286, 설계 docs/POPOUT_PIN_DESIGN.md).
+//   여태 "브라우저 규칙상 불가" 라고 판단해 안내 문단을 띄웠는데 **그 판단이 틀렸다**.
+//   Fable 실측: 팝아웃 → postMessage → **메인 창**이 requestWindow() 는 성공한다(메인 창이 배경 탭이고
+//   8초간 제스처가 없어도). Chrome 이 사용자 활성화를 같은 출처의 오프너 체인에 전파하기 때문이다.
+//   동기 직접 호출(window.opener.documentPictureInPicture.requestWindow())만 거부된다.
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -24,38 +30,54 @@ function isRecording(): boolean {
 const PopoutPinButton: React.FC<Props> = ({ pin }) => {
   const { t } = useTranslation('common');
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [guideOpen, setGuideOpen] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   // #286 — 일반 팝아웃 창에서는 여태 **핀이 아예 없었다**. 그래서 "왜 여기선 고정이 안 되지?" 가
   //   세 번(#258·#280·#286) 신고됐다. 브라우저 규칙상 이 창 자체를 고정할 수는 없지만(고정되는 창은
   //   별도 종류이고, 그 창은 자기를 연 창이 살아 있어야만 유지된다 — 그래서 예전엔 창이 2개가 됐다),
   //   **부재로 답하지 않고 방법으로 답한다**. 아이콘은 그대로 두고 누르면 안내를 연다.
   if (!pin.isPip) {
+    // 녹음 중에는 고정하지 않는다 — 고정이 성사되면 이 창이 닫히고 마이크가 죽는다.
+    //   막는 대신 이유를 한 줄로 말한다(예전처럼 문단으로 설명하지 않는다).
+    const recording = isRecording();
+    const requestPin = () => {
+      if (recording || pending) return;
+      const opener = (() => { try { return window.opener as Window | null; } catch { return null; } })();
+      if (!opener || opener.closed) { setFailed(true); return; }
+      setPending(true); setFailed(false);
+      try {
+        // ★ 클릭 즉시 보낸다 — 사용자 활성화 창(약 5초) 안에 메인 창의 requestWindow 가 돌아야 한다.
+        opener.postMessage({ type: 'planq:pin-request', tool: pin.tool, title: document.title }, window.location.origin);
+      } catch { setPending(false); setFailed(true); return; }
+      // 성사되면 이 창은 pin-engaged 를 받아 **스스로 닫힌다**(utils/pinHost).
+      //   3초 안에 안 닫히면 실패로 보고 다음 동작만 한 줄로 안내한다 — 창은 그대로 산다.
+      window.setTimeout(() => {
+        setPending(false); setFailed(true);
+        try { opener.focus(); } catch { /* 이미 닫힘 */ }
+      }, 3000);
+    };
     return (
       <>
         <Btn
           type="button"
-          data-testid="popout-pin-guide"
-          aria-label={t('popoutPin.guideTitle', '항상 위 고정') as string}
-          title={t('popoutPin.guideHint', '항상 위 고정 — 방법 보기') as string}
-          onClick={() => setGuideOpen(v => !v)}
-          $muted
+          data-testid="popout-pin"
+          aria-label={t('popoutPin.pinLabel', '항상 위 고정') as string}
+          title={recording
+            ? t('popoutPin.recordingBlocks', '녹음 중에는 고정할 수 없어요 — 녹음이 끝나면 눌러 주세요') as string
+            : t('popoutPin.pinLabel', '항상 위 고정') as string}
+          onClick={requestPin}
+          disabled={recording || pending}
+          $muted={recording}
         >
           <IconPin />
         </Btn>
-        {guideOpen && (
-          <GuideCard role="dialog" aria-label={t('popoutPin.guideTitle', '항상 위 고정') as string}>
-            <GuideTitle>{t('popoutPin.guideTitle', '항상 위 고정')}</GuideTitle>
-            <GuideBody>
-              {t('popoutPin.guideBody', '브라우저 규칙상 이 창을 그대로 고정할 수는 없어요. PlanQ 메인 창 오른쪽 아래 메뉴에서 핀을 누르면 작은 고정 창이 대신 뜨고, 이 창은 자동으로 닫혀요 — 창이 2개가 되지 않아요. 녹음 중일 때는 녹음을 지키려고 이 창을 그대로 둬요.')}
-            </GuideBody>
-            <GuideAction
-              type="button"
-              onClick={() => { try { window.opener?.focus(); } catch { /* opener 없음 */ } setGuideOpen(false); }}
-            >
-              {t('popoutPin.guideAction', '메인 창으로 이동')}
-            </GuideAction>
-          </GuideCard>
+        {(pending || failed) && (
+          <HintLine role="status" aria-live="polite">
+            {pending
+              ? t('popoutPin.pinning', '고정하는 중…') as string
+              : t('popoutPin.pressMainPin', '메인 창에서 핀을 한 번 더 눌러 주세요') as string}
+          </HintLine>
         )}
       </>
     );
@@ -121,21 +143,10 @@ const Btn = styled.button<{ $muted?: boolean }>`
   &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
 `;
 // #286 안내 카드 — 팝아웃 헤더 우측 아래에 떠서 "왜 여기선 고정이 안 되는지 + 어떻게 하는지" 를 말한다.
-const GuideCard = styled.div`
-  /* fixed — 이 버튼은 여러 팝아웃 헤더에 꽂히는 슬롯이라, absolute 면 부모가 position 을
-     갖는지에 따라 위치가 제각각이 된다. 창 기준으로 못박는다. */
-  position: fixed; top: 52px; right: 10px; z-index: 2500;
-  width: min(300px, calc(100vw - 24px));
-  padding: 12px 14px;
-  background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 10px;
-  box-shadow: 0 12px 28px rgba(15,23,42,0.16);
-  text-align: left;
-`;
-const GuideTitle = styled.div`font-size: 13px; font-weight: 700; color: #0F172A; margin-bottom: 6px;`;
-const GuideBody = styled.p`margin: 0 0 10px; font-size: 12px; line-height: 1.55; color: #475569;`;
-const GuideAction = styled.button`
-  width: 100%; height: 32px; border-radius: 8px; cursor: pointer;
-  background: #14B8A6; color: #FFFFFF; border: none;
-  font-size: 12px; font-weight: 700; font-family: inherit;
-  &:hover { background: #0D9488; }
+// 한 줄 힌트 — 예전의 안내 문단(GuideCard)을 대체한다. 제약을 설명하지 않고 **다음 동작만** 말한다.
+const HintLine = styled.div`
+  position: absolute; top: 100%; right: 0; margin-top: 6px; z-index: 20;
+  padding: 5px 9px; border-radius: 8px; white-space: nowrap;
+  background: #0F172A; color: #F8FAFC; font-size: 11px; font-weight: 600;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.2);
 `;

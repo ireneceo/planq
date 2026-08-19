@@ -23,7 +23,7 @@
 //   `utils/pinOwner.ts` 가 더 강한 보장을 준다(컴포넌트가 아니라 애초에 언마운트가 없다).
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { isPopoutWindow } from '../../utils/popout';
+import { isPopoutWindow, markPopoutWindow } from '../../utils/popout';
 import { tabStore } from '../../stores/tabStore';
 
 export const POPOUT_CHANNEL = 'planq:popout';
@@ -52,6 +52,13 @@ export function requestMainNavigate(to: string): boolean {
 function usePopoutNavigateListener(go: (to: string) => void) {
   useEffect(() => {
     // 팝아웃 창·PiP iframe 은 응답자가 아니다.
+    // ★ markPopoutWindow() 를 먼저 부른다 — 표식은 이 함수가 심는데, **처음 열린 팝아웃 창에서는
+    //   아직 심기 전**이라 isPopoutWindow() 가 false 였다. 그래서 팝아웃이 자기 요청을 자기가 받아
+    //   **팝아웃이 이동해 버리고**(Irene: "왜 팝아웃이 바뀌고"), 메인 탭도 같이 이동해
+    //   같은 화면이 두 곳에 뜨는 것처럼 보였다.
+    //   (BroadcastChannel 은 **같은 창의 다른 채널 객체**에도 배달된다 — 보낸 창이라고 빠지지 않는다.)
+    //   utils/pinHost 가 같은 함정을 이미 겪고 고친 곳이다. 판정 술어는 popout.ts 한 곳에 그대로 둔다.
+    markPopoutWindow();
     if (isPopoutWindow() || inFrame()) return;
     let ch: BroadcastChannel | null = null;
     try { ch = new BroadcastChannel(POPOUT_CHANNEL); } catch { return; }
@@ -79,13 +86,16 @@ const PopoutBridge: React.FC = () => {
   return null;
 };
 
-/** TabAppShell(router-less)용 수신자 — 활성 탭의 경로를 바꾼다(새 탭 X, ChromeLink 와 같은 수단). */
+/** TabAppShell(router-less)용 수신자 — **새 탭으로 연다**.
+ *  ★ 여태 활성 탭의 경로를 갈아치웠다(navigateActive). 그러면 사용자가 보던 화면이 사라진다 —
+ *    팝아웃에서 "Q Task 열기" 를 누른 건 **거기로 가겠다는 뜻**이지 보던 탭을 버리겠다는 뜻이 아니다
+ *    (Irene: "기존 열려있는 메인창에서 새 탭으로 열려야지"). */
 export const PopoutBridgeChrome: React.FC = () => {
   usePopoutNavigateListener(chromeGo);
   return null;
 };
 
 // 훅 deps 안정성을 위해 모듈 스코프에 고정(매 렌더 새 함수 → 채널 재구독 방지).
-function chromeGo(to: string) { tabStore.navigateActive(to); }
+function chromeGo(to: string) { tabStore.newTab(to); }
 
 export default PopoutBridge;

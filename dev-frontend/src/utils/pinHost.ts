@@ -39,7 +39,24 @@ export const POPOUT_SIZE: Record<PinTool, { width: number; height: number }> = {
 /** window.open 용 features 문자열 (같은 크기에서 파생) */
 export function popoutFeatures(tool: PinTool): string {
   const { width, height } = POPOUT_SIZE[tool];
-  return `width=${width},height=${height},menubar=no,toolbar=no,location=no,status=no`;
+  // ★ 위치를 안 주면 브라우저가 **좌측 상단**에 띄운다 — 작업 중인 PlanQ 창을 가린다
+  //   (Irene: "팝아웃 열리는 위치가 우측 상단으로 하던가 해야지 좌측 상단은 이상해").
+  //   ★ screen.* 이 아니라 **현재 창 기준**(screenX + outerWidth)으로 잡는다 —
+  //     듀얼 모니터에서 screen 기준으로 잡으면 엉뚱한 화면에 뜬다.
+  //   화면 밖으로 나가지 않게 하한 0 으로 클램프한다.
+  let pos = '';
+  try {
+    if (typeof window !== 'undefined') {
+      const MARGIN = 24;
+      const baseX = window.screenX ?? window.screenLeft ?? 0;
+      const baseY = window.screenY ?? window.screenTop ?? 0;
+      const ownW = window.outerWidth || window.innerWidth || width;
+      const left = Math.max(0, Math.round(baseX + ownW - width - MARGIN));
+      const top = Math.max(0, Math.round(baseY + MARGIN));
+      pos = `,left=${left},top=${top}`;
+    }
+  } catch { pos = ''; }
+  return `width=${width},height=${height}${pos},menubar=no,toolbar=no,location=no,status=no`;
 }
 
 export interface PinIntentMsg { type: 'pin-intent'; id: string; tool: PinTool }
@@ -72,6 +89,8 @@ export function supportsPin(): boolean {
 }
 
 export interface PinContent {
+  /** 어느 도구인가 — 팝아웃에서 메인 창에 고정을 요청할 때 실어 보낸다 */
+  tool: PinTool;
   /** 이 마운트가 PiP 안 iframe 인가 — 해제 버튼은 이때만 그린다 */
   isPip: boolean;
   /** 메인 탭에 해제를 요청한다. PiP 가 닫히고 이 마운트는 사라진다. */
@@ -120,5 +139,5 @@ export function usePinContent(tool: PinTool): PinContent {
       ch.close();
     } catch { /* BroadcastChannel 미지원 — 사용자가 PiP 를 직접 닫으면 폴링이 정리한다 */ }
   }, [tool]);
-  return { isPip, unpin };
+  return { tool, isPip, unpin };
 }
