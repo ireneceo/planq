@@ -7,3 +7,31 @@ Allow: /terms
 Disallow: /api/
 
 Sitemap: https://planq.kr/sitemap.xml
+
+# ── AI 크롤러 정책 ───────────────────────────────────────────────
+# 사용자가 링크를 AI 에게 직접 읽히는 것(즉시조회)은 허용한다 — ChatGPT-User·OAI-SearchBot·
+# Claude-User·Perplexity-User 는 별도 규칙을 두지 않는다(= 허용).
+# 반면 **모델 학습 코퍼스 편입**은 막는다. 공유 링크는 고객 문서라 학습 데이터가 되면 안 된다.
+# (공유 페이지 자체는 응답 헤더·meta 의 noindex 로 검색 색인도 막는다 — Disallow 로 막으면
+#  크롤러가 noindex 를 못 읽어 URL 만 색인되는 역효과가 난다.)
+
+User-agent: GPTBot
+Disallow: /public/
+Disallow: /sign/
+
+User-agent: Google-Extended
+Disallow: /public/
+Disallow: /sign/
+
+User-agent: ClaudeBot
+Disallow: /public/
+Disallow: /sign/
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: meta-externalagent
+Disallow: /

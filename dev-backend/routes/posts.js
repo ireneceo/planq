@@ -79,6 +79,49 @@ function extractText(json) {
   } catch { return ''; }
 }
 
+// 블록 구조를 살린 본문 추출 — 문단·제목·목록 경계에서 줄을 나눈다.
+//
+// 위 extractText 와 용도가 다르다. 그건 **검색·미리보기용 파생값**이라 공백을 전부 뭉개고 5000자에서
+// 자른다 — 개행이 애초에 없다. 공유 페이지에서 사람이나 AI 가 읽을 본문을 그걸로 만들면 한 덩어리
+// 문장이 되고 장문은 잘린다. 원본(content_json)에서 다시 뽑는 이유다.
+//
+// 추출 로직의 소재지는 이 파일 한 곳으로 둔다 — 같은 값을 뽑는 코드가 두 벌이면 반드시 갈라진다.
+const BLOCK_TYPES = new Set([
+  'paragraph', 'heading', 'listItem', 'blockquote', 'codeBlock', 'tableRow', 'taskItem',
+]);
+
+function extractBlockText(json, { maxChars = 100000 } = {}) {
+  if (!json) return [];
+  try {
+    const obj = typeof json === 'string' ? JSON.parse(json) : json;
+    const blocks = [];
+    let cur = [];
+    const flush = () => {
+      const t = cur.join('').replace(/[ \t]+/g, ' ').trim();
+      if (t) blocks.push(t);
+      cur = [];
+    };
+    const walk = (n) => {
+      if (!n) return;
+      if (n.type === 'hardBreak') { cur.push('\n'); return; }
+      if (n.text) cur.push(n.text);
+      if (Array.isArray(n.content)) n.content.forEach(walk);
+      if (BLOCK_TYPES.has(n.type)) flush();
+    };
+    walk(obj);
+    flush();
+    // 총량 캡 — 비정상적으로 긴 문서가 응답을 부풀리지 않게 한다.
+    const out = [];
+    let used = 0;
+    for (const b of blocks) {
+      if (used + b.length > maxChars) { out.push(b.slice(0, Math.max(0, maxChars - used))); break; }
+      out.push(b);
+      used += b.length;
+    }
+    return out.filter(Boolean);
+  } catch { return []; }
+}
+
 function serialize(p, withContent = false) {
   return {
     id: p.id,
@@ -1346,6 +1389,10 @@ router.get('/public/:token/attachments/:attId/download', async (req, res, next) 
 });
 
 module.exports = router;
+// ogMeta 가 공유 페이지 본문 SSR 에 쓴다 — 추출 로직을 복사하지 말고 이걸 가져다 쓸 것.
+//   ★ 반드시 `module.exports = router` **뒤**에 둘 것. 앞에 두면 그 대입에 통째로 덮여
+//     조용히 undefined 가 된다 (문법검사·빌드는 전부 통과한다).
+module.exports.extractBlockText = extractBlockText;
 // #250 후속 — 워크스페이스 이전 워커가 Post 를 만들 때 content_text 를 같은 규칙으로 뽑아야 한다.
 //   사본을 만들면 검색 프리뷰가 두 규칙으로 갈린다(Fable 설계 조건 4).
 module.exports.extractText = extractText;
