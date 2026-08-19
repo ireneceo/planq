@@ -12,8 +12,8 @@
     "legal": "법인 정보",
     "language": "언어·타임존",
     "billing": "청구 설정",
-    "email": "발신 이메일",
-    "mailAccounts": "메일 계정 연결",
+    "email": "자동 발송 메일",
+    "mailAccounts": "회사 메일함",
     "notifications": "알림",
     "storage": "파일·외부 연동",
     "plan": "구독 플랜",
@@ -118,7 +118,8 @@
       "label": "회사 공통 메일 서명",
       "placeholder": "모든 회사 메일 하단에 붙일 서명을 작성하세요",
       "hint": "메일 계정에 개별 서명이 없으면 이 서명이 붙습니다. 계정·별칭에 서명을 따로 넣으면 그쪽이 우선합니다."
-    }
+    },
+    "emailScopeHint": "여기는 PlanQ 가 대신 보내는 메일입니다 — 청구서·서명 요청·문서 공유. 고객 메일을 직접 주고받는 곳은 \"회사 메일함\" 입니다."
   },
   "notifications": {
     "title": "알림 받기",
@@ -234,7 +235,9 @@
     "tokenError": "Google 인증이 만료되었습니다 — 다시 연결해 주세요",
     "reconnect": "다시 연결",
     "gcal": {
-      "scopeMissing": "캘린더 권한이 없어 일정이 Google 로 전송되지 않습니다 — 다시 연결하면서 캘린더 항목을 체크해 주세요"
+      "scopeMissing": "캘린더 권한이 없어 일정이 Google 로 전송되지 않습니다 — 다시 연결하면서 캘린더 항목을 체크해 주세요",
+      "title": "Google Calendar",
+      "desc": "PlanQ 일정을 회사 Google 캘린더에 만들고 수정·삭제까지 반영하며, 화상 미팅에는 Google Meet 링크를 자동으로 발급합니다."
     },
     "syncEnabled": "일정 자동 동기화",
     "ownerOnly": "워크스페이스 오너만 연결·해제할 수 있습니다",

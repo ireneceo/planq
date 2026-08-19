@@ -11,6 +11,7 @@ import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
+import Underline from '@tiptap/extension-underline';
 // 표 (#151) — 여태 RichEditor 에는 표 확장이 없어서 업무 본문·메일·지식에 표를 **넣을 수도 볼 수도** 없었다.
 // (문서 에디터 PostEditor 에는 있었다 — 같은 앱인데 화면마다 되고 안 됐다.)
 import { Table } from '@tiptap/extension-table';
@@ -18,7 +19,7 @@ import { TableRow } from '@tiptap/extension-table-row';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { TableHeader } from '@tiptap/extension-table-header';
 import { handleMarkdownPaste } from '../../utils/markdownPaste';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { apiFetch } from '../../contexts/AuthContext';
@@ -50,6 +51,10 @@ type Props = {
   uploadUrl?: string;
   readOnly?: boolean;
   minHeight?: number;
+  /** 상단 고정 툴바 노출 (기본 false — 기존 사용처는 렌더 출력이 그대로다).
+   *  메일 작성처럼 "다른 메일 서비스만큼은 돼야 하는" 화면에서 켠다. 슬래시 커맨드·버블 메뉴는
+   *  그대로 남는다 — 아는 사람은 계속 쓰고, 모르는 사람은 버튼을 본다. */
+  toolbar?: boolean;
 };
 
 export default function RichEditor({
@@ -60,9 +65,12 @@ export default function RichEditor({
   uploadUrl,
   readOnly = false,
   minHeight = 180,
+  toolbar = false,
 }: Props) {
   const { t } = useTranslation('common');
   const effectivePlaceholder = placeholder ?? t('editor.placeholder');
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [linkValue, setLinkValue] = useState('');
   const currentValueRef = useRef(value);
   const uploadUrlRef = useRef(uploadUrl);
   useEffect(() => { uploadUrlRef.current = uploadUrl; }, [uploadUrl]);
@@ -80,7 +88,13 @@ export default function RichEditor({
       }),
       TaskList,
       TaskItem.configure({ nested: true }),
-      Table.configure({ resizable: true }),
+      Underline,
+      // ★ class 'pq-table' 는 장식이 아니라 **계약**이다.
+      //   메일 발송 시 services/emailHtmlInline.js 가 이 클래스가 붙은 표에만 테두리를 인라인으로
+      //   심는다(메일 클라이언트는 <style> 을 대부분 버린다). 클래스가 없으면 그 코드가 걸릴
+      //   대상이 없어 **조용히 아무 일도 하지 않는다** — 실제로 그 상태였다(2026-08-19 발견).
+      //   전달된 남의 표에는 이 클래스가 없으므로 우리가 손대지 않는다는 구분도 이 클래스가 만든다.
+      Table.configure({ resizable: true, HTMLAttributes: { class: 'pq-table' } }),
       TableRow,
       TableHeader,
       TableCell,
@@ -148,17 +162,20 @@ export default function RichEditor({
     } catch { /* silent */ }
   };
 
-  const setLink = () => {
+  // 링크 입력 — window.prompt 는 금지(CLAUDE.md 절대 금지 사항)라 인라인 입력줄로 받는다.
+  const openLinkInput = () => {
     if (!editor) return;
-    const prev = editor.getAttributes('link').href;
-    const url = window.prompt(t('editor.linkPrompt'), prev || '');
-    if (url === null) return;
-    if (url === '') {
-      editor.chain().focus().extendMarkRange('link').unsetLink().run();
-      return;
-    }
-    editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+    setLinkValue(editor.getAttributes('link').href || '');
+    setLinkOpen(true);
   };
+  const applyLink = () => {
+    if (!editor) return;
+    const url = linkValue.trim();
+    if (!url) editor.chain().focus().extendMarkRange('link').unsetLink().run();
+    else editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+    setLinkOpen(false); setLinkValue('');
+  };
+  const setLink = openLinkInput;
 
   if (!editor) return <EditorShell $mh={minHeight}><PlainFallback /></EditorShell>;
 
@@ -186,6 +203,97 @@ export default function RichEditor({
 
   return (
     <EditorShell $mh={minHeight} onClick={handleWrapperClick}>
+      {/* 상단 고정 툴바 (opt-in). 디자인·동작은 문서 에디터(PostEditor)와 같은 계열로 맞춘다 —
+          같은 앱에서 화면마다 다른 편집기처럼 보이지 않게. */}
+      {toolbar && !readOnly && (
+        <Toolbar>
+          <TGroup>
+            <ToolBtn type="button" $active={editor.isActive('bold')} title={t('editor.bold', { defaultValue: '굵게' }) as string}
+              onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBold().run(); }}>B</ToolBtn>
+            <ToolBtn type="button" $active={editor.isActive('italic')} style={{ fontStyle: 'italic' }} title={t('editor.italic', { defaultValue: '기울임' }) as string}
+              onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleItalic().run(); }}>I</ToolBtn>
+            <ToolBtn type="button" $active={editor.isActive('underline')} style={{ textDecoration: 'underline' }} title={t('editor.underline', { defaultValue: '밑줄' }) as string}
+              onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleUnderline().run(); }}>U</ToolBtn>
+            <ToolBtn type="button" $active={editor.isActive('strike')} style={{ textDecoration: 'line-through' }} title={t('editor.strike', { defaultValue: '취소선' }) as string}
+              onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleStrike().run(); }}>S</ToolBtn>
+          </TGroup>
+          <TSep />
+          <TGroup>
+            <ToolBtn type="button" $active={editor.isActive('heading', { level: 1 })} title={t('editor.heading1', { defaultValue: '제목 1' }) as string}
+              onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleHeading({ level: 1 }).run(); }}>H1</ToolBtn>
+            <ToolBtn type="button" $active={editor.isActive('heading', { level: 2 })} title={t('editor.heading2', { defaultValue: '제목 2' }) as string}
+              onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleHeading({ level: 2 }).run(); }}>H2</ToolBtn>
+          </TGroup>
+          <TSep />
+          <TGroup>
+            <ToolBtn type="button" $active={editor.isActive('bulletList')} title={t('editor.bulletList', { defaultValue: '글머리 기호' }) as string}
+              onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBulletList().run(); }}>•</ToolBtn>
+            <ToolBtn type="button" $active={editor.isActive('orderedList')} title={t('editor.orderedList', { defaultValue: '번호 매기기' }) as string}
+              onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleOrderedList().run(); }}>1.</ToolBtn>
+            <ToolBtn type="button" $active={editor.isActive('blockquote')} title={t('editor.blockquote', { defaultValue: '인용' }) as string}
+              onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().toggleBlockquote().run(); }}>❝</ToolBtn>
+            <ToolBtn type="button" title={t('editor.horizontalRule', { defaultValue: '구분선' }) as string}
+              onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().setHorizontalRule().run(); }}>—</ToolBtn>
+          </TGroup>
+          <TSep />
+          <TGroup>
+            <ToolBtn type="button" $active={editor.isActive('link')} title={t('editor.link', { defaultValue: '링크' }) as string}
+              onMouseDown={(e) => { e.preventDefault(); openLinkInput(); }}>🔗</ToolBtn>
+            <ToolBtn type="button" title={t('editor.insertTable', { defaultValue: '표 삽입 (3x3, 헤더 포함)' }) as string}
+              aria-label={t('editor.insertTableAria', { defaultValue: '표 삽입' }) as string}
+              onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/>
+                <line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/>
+              </svg>
+            </ToolBtn>
+          </TGroup>
+          {editor.isActive('table') && (
+            <>
+              <TSep />
+              <TGroup>
+                <ToolBtn type="button" title={t('editor.addColumnAfter', { defaultValue: '오른쪽에 열 추가' }) as string}
+                  onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().addColumnAfter().run(); }}>+{t('editor.colShort', { defaultValue: '열' }) as string}</ToolBtn>
+                <ToolBtn type="button" title={t('editor.deleteColumn', { defaultValue: '열 삭제' }) as string}
+                  onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().deleteColumn().run(); }}>−{t('editor.colShort', { defaultValue: '열' }) as string}</ToolBtn>
+                <ToolBtn type="button" title={t('editor.addRowAfter', { defaultValue: '아래에 행 추가' }) as string}
+                  onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().addRowAfter().run(); }}>+{t('editor.rowShort', { defaultValue: '행' }) as string}</ToolBtn>
+                <ToolBtn type="button" title={t('editor.deleteRow', { defaultValue: '행 삭제' }) as string}
+                  onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().deleteRow().run(); }}>−{t('editor.rowShort', { defaultValue: '행' }) as string}</ToolBtn>
+                <ToolBtn type="button" style={{ color: '#DC2626' }} title={t('editor.deleteTable', { defaultValue: '표 삭제' }) as string}
+                  onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().deleteTable().run(); }}>{t('editor.tableShort', { defaultValue: '표' }) as string}✕</ToolBtn>
+              </TGroup>
+            </>
+          )}
+          <TSep />
+          <TGroup>
+            <ToolBtn type="button" title={t('editor.undo', { defaultValue: '실행 취소' }) as string}
+              onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().undo().run(); }}>↶</ToolBtn>
+            <ToolBtn type="button" title={t('editor.redo', { defaultValue: '다시 실행' }) as string}
+              onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().redo().run(); }}>↷</ToolBtn>
+          </TGroup>
+        </Toolbar>
+      )}
+      {linkOpen && !readOnly && (
+        <LinkBar>
+          <LinkInput
+            autoFocus
+            value={linkValue}
+            placeholder={t('editor.linkPh', { defaultValue: 'https://example.com (비우고 적용하면 링크 해제)' }) as string}
+            onChange={(e) => setLinkValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') { e.preventDefault(); applyLink(); }
+              if (e.key === 'Escape') { e.preventDefault(); setLinkOpen(false); }
+            }}
+          />
+          <ToolBtn type="button" onMouseDown={(e) => { e.preventDefault(); applyLink(); }}>
+            {t('editor.linkApply', { defaultValue: '적용' }) as string}
+          </ToolBtn>
+          <ToolBtn type="button" onMouseDown={(e) => { e.preventDefault(); setLinkOpen(false); }}>
+            {t('editor.linkCancel', { defaultValue: '취소' }) as string}
+          </ToolBtn>
+        </LinkBar>
+      )}
       {!readOnly && (
         <>
           <BubbleMenu editor={editor} shouldShow={({ editor: ed }) => ed.isActive('image')}>
@@ -218,6 +326,35 @@ export default function RichEditor({
 }
 
 const PlainFallback = styled.div`min-height:80px;`;
+
+// 툴바 — 문서 에디터(PostEditor)와 같은 계열. 좁은 화면에서는 한 줄 가로 스크롤.
+const Toolbar = styled.div`
+  display:flex;align-items:center;gap:2px;padding:6px 8px;flex-wrap:wrap;
+  background:#F8FAFC;border-bottom:1px solid #E2E8F0;border-radius:10px 10px 0 0;
+  position:sticky;top:0;z-index:5;
+  @media (max-width:640px){flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;padding:4px 6px;}
+`;
+const TGroup = styled.div`display:inline-flex;gap:2px;`;
+const TSep = styled.div`width:1px;height:18px;background:#E2E8F0;margin:0 4px;flex-shrink:0;`;
+const ToolBtn = styled.button<{ $active?: boolean }>`
+  all:unset;cursor:pointer;min-width:28px;height:28px;padding:0 8px;
+  display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
+  font-size:12px;font-weight:700;border-radius:6px;
+  color:${p => (p.$active ? '#0F766E' : '#475569')};
+  background:${p => (p.$active ? '#F0FDFA' : 'transparent')};
+  &:hover{background:${p => (p.$active ? '#CCFBF1' : '#E2E8F0')};color:#0F172A;}
+  &:focus-visible{outline:2px solid #14B8A6;outline-offset:1px;}
+`;
+// 링크 입력줄 — window.prompt 대체 (CLAUDE.md 금지)
+const LinkBar = styled.div`
+  display:flex;align-items:center;gap:6px;padding:6px 8px;
+  background:#FFFFFF;border-bottom:1px solid #E2E8F0;
+`;
+const LinkInput = styled.input`
+  flex:1;min-width:0;height:28px;padding:0 10px;
+  border:1px solid #E2E8F0;border-radius:6px;font-size:12px;color:#334155;
+  &:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,.15);}
+`;
 
 const EditorShell = styled.div<{ $mh: number }>`
   border:1px solid #E2E8F0;border-radius:10px;background:#FFF;display:flex;flex-direction:column;

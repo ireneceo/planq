@@ -348,7 +348,13 @@ const EmailAccountSettings: React.FC = () => {
       )}
 
       {/* 우리 도메인 — 워크스페이스 단위 수신 인식 규칙. 계정별 별칭(발신)과 다른 축이라 밖에 둔다. */}
-      {!personalView && <MailDomainRuleSection businessId={businessId} canEdit={isAdmin} />}
+      {!personalView && (
+        <MailDomainRuleSection
+          businessId={businessId}
+          canEdit={isAdmin}
+          accountEmails={teamAccounts.map(a => a.email)}
+        />
+      )}
 
       {/* 메일 분류 규칙 (학습형) — 워크스페이스 단위. 투명성 화면. */}
       {!personalView && <MailRulesSection businessId={businessId} />}

@@ -12,8 +12,8 @@
     "legal": "Legal Info",
     "language": "Language & Region",
     "billing": "Billing",
-    "email": "Sending email",
-    "mailAccounts": "Connect mail account",
+    "email": "Automated emails",
+    "mailAccounts": "Company mailbox",
     "notifications": "Notifications",
     "storage": "Storage & Integrations",
     "plan": "Subscription",
@@ -118,7 +118,8 @@
       "label": "Workspace email signature",
       "placeholder": "Signature appended to outgoing company email",
       "hint": "Used when a mail account has no signature of its own. Account and alias signatures take precedence."
-    }
+    },
+    "emailScopeHint": "This page covers email PlanQ sends on your behalf — invoices, signature requests, document shares. To read and reply to customer email, go to \"Company mailbox\"."
   },
   "notifications": {
     "title": "Notifications",
@@ -234,7 +235,9 @@
     "tokenError": "Google authorization expired — please reconnect",
     "reconnect": "Reconnect",
     "gcal": {
-      "scopeMissing": "Calendar permission is missing, so events are not sent to Google — reconnect and check the Calendar item"
+      "scopeMissing": "Calendar permission is missing, so events are not sent to Google — reconnect and check the Calendar item",
+      "title": "Google Calendar",
+      "desc": "Creates PlanQ events in your company Google Calendar and keeps edits and deletions in sync, and automatically issues a Google Meet link for video meetings."
     },
     "syncEnabled": "Auto-sync events",
     "ownerOnly": "Only the workspace owner can connect or disconnect",

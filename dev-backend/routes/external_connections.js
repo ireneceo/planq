@@ -207,6 +207,8 @@ router.post('/me/oauth/google/initiate', authenticateToken, async (req, res, nex
     const provider = String((req.body || {}).provider || '');
     const bizId = parseInt((req.body || {}).business_id, 10);
     if (!PERSONAL_PROVIDERS.includes(provider)) return errorResponse(res, 'unsupported_provider', 400);
+    // Console 에 등록되지 않은 scope 로 동의 화면을 띄우지 않는다 (services/googleScopes 단일 원천).
+    if (googleScopes.isConsentDisabled(provider)) return errorResponse(res, 'oauth_disabled_for_provider', 400);
     if (!bizId) return errorResponse(res, 'business_id_required', 400);
     if (!(await assertBusinessMember(req, bizId))) return errorResponse(res, 'no_business_access', 403);
     // #125a — 네이티브 앱에서 시작하면 콜백이 "자동으로 닫힙니다" HTML 대신 앱 딥링크로 복귀해야 한다.

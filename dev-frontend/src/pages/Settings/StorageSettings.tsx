@@ -203,6 +203,13 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
     await load();
   };
 
+  // ★ 훅은 early return **위**에 있어야 한다. 아래에 두면 로딩 중(훅 개수 N) → 로딩 완료(N+1) 로
+  //   훅 순서가 달라져 React #310 으로 화면 전체가 죽는다 — 실제로 이 화면이 그 상태였다
+  //   (설정 → 파일·외부 연동 진입 시 "문제가 발생했습니다"). tsc·가드·빌드는 전부 통과하고
+  //   실브라우저에서만 드러난다 (memory feedback_hooks_after_early_return).
+  //   동기화 on/off — 연결은 유지한 채 밀어넣기만 멈춘다. 해제(disconnect)와 다른 축이다.
+  const [syncSaving, setSyncSaving] = useState(false);
+
   if (loading) return <Skeleton />;
 
   const gdriveConnected = providers.gdrive.connected;
@@ -210,8 +217,6 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
   // 둘 다 "연동 완료" 로만 보이던 것이 2026-07-27 운영 사고의 원인이었다.
   const gcalBroken = providers.gcal.scope_ok === false || !!providers.gcal.needs_reconnect;
 
-  // 동기화 on/off — 연결은 유지한 채 밀어넣기만 멈춘다. 해제(disconnect)와 다른 축이다.
-  const [syncSaving, setSyncSaving] = useState(false);
   const toggleGcalSync = async (next: boolean) => {
     if (syncSaving) return;
     setSyncSaving(true);
@@ -395,11 +400,16 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
             </svg>
           </CardIcon>
           <CardTitleWrap>
-            <CardTitle>{tr('storage.gcal.title', 'Google Calendar (Meet 자동 생성)')}</CardTitle>
+            {/* ★ 문구 규칙 — 여기는 Google OAuth 심사자가 직접 보는 화면이다.
+                ① "scope" 같은 개발 용어를 쓰지 않는다(옛 문구에 `(calendar.events scope)` 가 노출돼 있었다)
+                ② 요청하는 권한(일정 보기·수정)보다 좁게 설명하지 않는다 — Meet 링크만 적어 두면
+                   왜 쓰기 권한이 필요한지 화면에서 확인할 수 없다
+                ③ 기본값이 한국어라 ko/en 키가 반드시 있어야 한다(없으면 영어 사용자에게 한국어가 뜬다) */}
+            <CardTitle>{tr('storage.gcal.title', 'Google Calendar')}</CardTitle>
             <CardSub>
               {providers.gcal.connected
                 ? `${tr('storage.connected', '연결됨')} · ${providers.gcal.account_email || ''}`
-                : tr('storage.gcal.desc', '화상 미팅 일정 만들 때 Google Meet 링크가 자동으로 발급됩니다 (calendar.events scope)')}
+                : tr('storage.gcal.desc', 'PlanQ 일정을 회사 Google 캘린더에 만들고 수정·삭제까지 반영하며, 화상 미팅에는 Google Meet 링크를 자동으로 발급합니다.')}
             </CardSub>
           </CardTitleWrap>
           {providers.gcal.connected && (gcalBroken

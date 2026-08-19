@@ -834,10 +834,10 @@ export default function WorkspaceSettingsPage() {
       case 'permissions': return t('tabs.permissions') as string;
       case 'cue':         return t('tabs.cue') as string;
       case 'billing':     return t('tabs.billing', '청구') as string;
-      case 'email':       return t('tabs.email', '발신 이메일') as string;
+      case 'email':       return t('tabs.email', '자동 발송 메일') as string;
       case 'mail-accounts': return isPersonalScope
         ? t('tabs.myMailAccount', '내 메일 계정') as string
-        : t('tabs.mailAccounts', '메일 계정') as string;
+        : t('tabs.mailAccounts', '회사 메일함') as string;
       case 'notifications': return isPersonalScope
         ? t('tabs.myNotifications', '내 알림') as string
         : t('tabs.notificationSettings', '알림 설정') as string;
@@ -852,7 +852,7 @@ export default function WorkspaceSettingsPage() {
 
   if (loading) {
     return (
-      <PageShell title={pageTitle}>
+      <PageShell title={pageTitle} maxContentWidth={920}>
         <Card>Loading...</Card>
       </PageShell>
     );
@@ -860,14 +860,14 @@ export default function WorkspaceSettingsPage() {
 
   if (!businessId || !ws) {
     return (
-      <PageShell title={pageTitle}>
+      <PageShell title={pageTitle} maxContentWidth={920}>
         <Card>{error || 'No workspace'}</Card>
       </PageShell>
     );
   }
 
   return (
-    <PageShell title={pageTitle}>
+    <PageShell title={pageTitle} maxContentWidth={920}>
       {error && <ErrorBanner>{error}</ErrorBanner>}
       {/* mail-accounts 탭은 멤버도 개인 메일을 관리할 수 있어 admin 안내 배너 숨김 */}
       {!isAdmin && tab !== 'mail-accounts' && <InfoBanner>{t('messages.adminRequired')}</InfoBanner>}

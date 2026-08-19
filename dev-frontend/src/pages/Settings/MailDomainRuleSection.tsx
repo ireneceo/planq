@@ -20,14 +20,20 @@ export interface MailDomainRule {
 interface Props {
   businessId: number;
   canEdit: boolean;
+  /** 이 규칙이 실제로 적용되는 메일함 주소들 — 규칙은 워크스페이스 단위라, 다른 워크스페이스에
+   *  등록하면 아무 일도 일어나지 않는다. 화면이 그 사실을 말하지 않아 "추가해도 이상해" 가 됐다. */
+  accountEmails?: string[];
 }
 
-export default function MailDomainRuleSection({ businessId, canEdit }: Props) {
+export default function MailDomainRuleSection({ businessId, canEdit, accountEmails = [] }: Props) {
   const { t } = useTranslation('qmail');
   const [rules, setRules] = useState<MailDomainRule[]>([]);
   const [domain, setDomain] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // 인라인 편집 — 오타 하나에 지웠다 다시 넣게 하지 않는다 (Irene: "등록한거 수정은 못해?")
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editDomain, setEditDomain] = useState('');
 
   const base = `/api/businesses/${businessId}/email-domain-rules`;
 
@@ -67,6 +73,36 @@ export default function MailDomainRuleSection({ businessId, canEdit }: Props) {
     } finally { setBusy(false); }
   };
 
+  const errText = (code: string) => {
+    const map: Record<string, string> = {
+      invalid_domain: t('domainRule.errInvalid', { defaultValue: '도메인만 넣어 주세요 (예: wor-pro.com).' }) as string,
+      public_domain_not_allowed: t('domainRule.errPublic', { defaultValue: 'gmail.com 처럼 누구나 쓰는 메일 도메인은 등록할 수 없어요. 그 도메인 전체가 우리 주소로 잡혀 버립니다.' }) as string,
+      rule_exists: t('domainRule.errExists', { defaultValue: '이미 등록된 도메인이에요.' }) as string,
+      admin_required: t('domainRule.errAdmin', { defaultValue: '워크스페이스 관리자만 바꿀 수 있어요.' }) as string,
+    };
+    return map[code] || (t('domainRule.errSaveFailed', { defaultValue: '저장하지 못했어요.' }) as string);
+  };
+
+  const startEdit = (r: MailDomainRule) => { setErr(null); setEditId(r.id); setEditDomain(r.domain); };
+  const cancelEdit = () => { setEditId(null); setEditDomain(''); };
+
+  const saveEdit = async (id: number) => {
+    const d = editDomain.trim().toLowerCase().replace(/^@/, '');
+    if (!d || busy) return;
+    setBusy(true); setErr(null);
+    try {
+      const r = await apiFetch(`${base}/${id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain: d }),
+      });
+      const j = await r.json().catch(() => ({}));
+      // ★ apiFetch 는 throw 하지 않는다 — r.ok 를 안 보면 실패가 조용히 성공으로 보인다.
+      if (!r.ok || !j.success) { setErr(errText(j.message)); return; }
+      cancelEdit();
+      await load();
+    } finally { setBusy(false); }
+  };
+
   const remove = async (id: number) => {
     setBusy(true); setErr(null);
     try {
@@ -91,18 +127,52 @@ export default function MailDomainRuleSection({ businessId, canEdit }: Props) {
         {t('domainRule.desc', { defaultValue: '이 도메인으로 온 메일은 주소가 무엇이든 우리에게 온 것으로 인식합니다. 도메인을 한 번 등록하면 help@·문의@ 처럼 앞부분이 달라도 따로 등록할 필요가 없어요.' }) as string}
       </Desc>
 
+      {/* 규칙은 워크스페이스 단위다. 어느 메일함에 걸리는지 적지 않으면, 다른 워크스페이스에
+          등록해 놓고 "추가해도 아무 일이 없다" 고 느낀다 (실제 신고). */}
+      <AppliesTo>
+        {accountEmails.length > 0
+          ? (t('domainRule.appliesTo', {
+              defaultValue: '이 규칙은 이 워크스페이스의 메일함에만 적용돼요: {{list}}',
+              list: accountEmails.join(', '),
+            }) as string)
+          : (t('domainRule.appliesNone', {
+              defaultValue: '이 워크스페이스에는 연결된 회사 메일함이 없어요. 메일함이 있는 워크스페이스에서 등록해야 적용됩니다.',
+            }) as string)}
+      </AppliesTo>
+
       {rules.length > 0 && (
         <List>
-          {rules.map((r) => (
+          {rules.map((r) => (editId === r.id ? (
+            <Row key={r.id}>
+              <Input
+                type="text"
+                value={editDomain}
+                disabled={busy}
+                onChange={(e) => setEditDomain(e.target.value)}
+                aria-label={t('domainRule.ph', { defaultValue: 'wor-pro.com' }) as string}
+              />
+              <LinkBtn type="button" onClick={() => saveEdit(r.id)} disabled={busy || !editDomain.trim()}>
+                {t('domainRule.save', { defaultValue: '저장' }) as string}
+              </LinkBtn>
+              <LinkBtn type="button" onClick={cancelEdit} disabled={busy}>
+                {t('domainRule.cancel', { defaultValue: '취소' }) as string}
+              </LinkBtn>
+            </Row>
+          ) : (
             <Row key={r.id}>
               <Addr>@{r.domain}</Addr>
+              {canEdit && (
+                <LinkBtn type="button" onClick={() => startEdit(r)} disabled={busy}>
+                  {t('domainRule.edit', { defaultValue: '수정' }) as string}
+                </LinkBtn>
+              )}
               {canEdit && (
                 <LinkBtn type="button" $danger onClick={() => remove(r.id)} disabled={busy}>
                   {t('domainRule.remove', { defaultValue: '삭제' }) as string}
                 </LinkBtn>
               )}
             </Row>
-          ))}
+          )))}
         </List>
       )}
 
@@ -136,6 +206,11 @@ const Wrap = styled.div`
 const Head = styled.div`display: flex; align-items: center; justify-content: space-between;`;
 const Title = styled.div`font-size: 13px; font-weight: 700; color: #0F172A;`;
 const Desc = styled.p`margin: 0; font-size: 12px; color: #94A3B8; line-height: 1.6;`;
+const AppliesTo = styled.p`
+  margin: 0; padding: 6px 10px; border-radius: 8px;
+  background: #F0FDFA; border: 1px solid #CCFBF1;
+  font-size: 11px; color: #0F766E; line-height: 1.6; word-break: break-all;
+`;
 const List = styled.div`display: flex; flex-direction: column; gap: 4px;`;
 const Row = styled.div`
   display: flex; align-items: center; gap: 8px;
