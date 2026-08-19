@@ -4,6 +4,11 @@
 //   필터도 나열도 무의미해진다. 대신 사전에 없으면 여기서 바로 만들 수 있게 해야 한다.
 //   만들 경로가 없으면 기능이 통째로 죽는다("완료인데 죽어있던 기능" 계열 회귀).
 //
+//   ★ 2026-08-19 — "새 태그" 를 **입력창 안에서** 만든다. 옛 방식은 셀렉트 아래 별도 링크와
+//     별도 입력줄이라 사용자가 두 곳을 오갔고 세로로도 길어졌다
+//     (Irene: "새태그는 왜 만들기 따로 나와? 문서 카테고리처럼 나와야 하는 거 아니야?").
+//     문서 카테고리와 같은 감각 — 치면 후보가 좁혀지고, 없으면 '만들기' 항목이 그 자리에 뜬다.
+//
 //   TaskDetailDrawer(2,5xx줄) 안에 인라인으로 넣지 않고 분리한 이유는 god-file 래칫 +
 //   다른 표면(향후 업무 추가 폼 등)에서 그대로 재사용하기 위함이다.
 import React, { useState } from 'react';
@@ -28,13 +33,12 @@ interface Props {
 
 const TagPicker: React.FC<Props> = ({ bizId, dict, value, disabled, onChange, onDictAdd }) => {
   const { t } = useTranslation('qtask');
-  const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const create = async () => {
-    const name = draft.trim();
+  const create = async (raw?: string) => {
+    const name = String(raw ?? draft).trim().slice(0, 30);
     if (!name || busy || !bizId) return;
     setBusy(true); setErr(null);
     try {
@@ -49,43 +53,26 @@ const TagPicker: React.FC<Props> = ({ bizId, dict, value, disabled, onChange, on
       const tag = j.data as TaskTagLite;
       onDictAdd(tag);
       onChange([...value.map(v => v.id), tag.id]);   // 만들자마자 이 업무에 붙인다
-      setDraft(''); setCreating(false);
+      setDraft('');
     } finally { setBusy(false); }
   };
 
   return (
     <>
       <PlanQSelect size="sm" isMulti isClearable isSearchable
-        isDisabled={disabled}
+        creatable
+        isDisabled={disabled || busy}
+        isLoading={busy}
         placeholder={t('detail.meta.tagsPh', '태그 선택') as string}
         value={value.map(tg => ({ value: String(tg.id), label: tg.name }))}
         onChange={(v) => {
           const arr = (Array.isArray(v) ? v : []) as Array<{ value: string }>;
-          onChange(arr.map(o => Number(o.value)));
+          // 만들기로 생긴 임시 항목은 create() 가 서버 id 로 바꿔 넣는다 — 여기서는 숫자 id 만 넘긴다.
+          onChange(arr.map(o => Number(o.value)).filter(n => Number.isFinite(n)));
         }}
+        onCreateOption={(input: string) => { setDraft(input); void create(input); }}
+        formatCreateLabel={(input: string) => t('tags.createNamed', { defaultValue: '\'{{name}}\' 태그 만들기', name: input }) as string}
         options={dict.map(g => ({ value: String(g.id), label: g.name }))} />
-      {!disabled && (creating ? (
-        <CreateRow>
-          <CreateInput
-            autoFocus
-            value={draft}
-            maxLength={30}
-            placeholder={t('tags.newPh', '새 태그 이름') as string}
-            onChange={(e) => { setDraft(e.target.value); setErr(null); }}
-            /* Enter 단독 저장 허용 — 한 줄 입력이라 UI_DESIGN_GUIDE §1.8 의 "본문 폼" 제약 대상이 아니다 */
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') { e.preventDefault(); create(); }
-              if (e.key === 'Escape') { setCreating(false); setDraft(''); setErr(null); }
-            }} />
-          <CreateBtn type="button" disabled={busy || !draft.trim()} onClick={create}>
-            {busy ? t('tags.creating', '만드는 중…') : t('tags.create', '만들기')}
-          </CreateBtn>
-        </CreateRow>
-      ) : (
-        <AddLink type="button" onClick={() => setCreating(true)}>
-          + {t('tags.new', '새 태그')}
-        </AddLink>
-      ))}
       {err && <ErrText role="alert">{err}</ErrText>}
     </>
   );
@@ -93,25 +80,6 @@ const TagPicker: React.FC<Props> = ({ bizId, dict, value, disabled, onChange, on
 
 export default TagPicker;
 
-const CreateRow = styled.div`
-  display: flex; align-items: center; gap: 6px; margin-top: 6px;
-`;
-const CreateInput = styled.input`
-  flex: 1; min-width: 0; height: 30px; padding: 0 8px;
-  border: 1px solid #E2E8F0; border-radius: 6px; font-size: 12px; color: #0F172A;
-  &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
-`;
-const CreateBtn = styled.button`
-  flex-shrink: 0; height: 30px; padding: 0 10px;
-  border: 0; border-radius: 6px; background: #14B8A6; color: #fff;
-  font-size: 12px; font-weight: 700; cursor: pointer;
-  &:disabled { background: #CBD5E1; cursor: default; }
-`;
-const AddLink = styled.button`
-  margin-top: 6px; padding: 0; border: 0; background: transparent;
-  font-size: 11px; font-weight: 600; color: #0F766E; cursor: pointer;
-  &:hover { text-decoration: underline; }
-`;
 const ErrText = styled.div`
   margin-top: 4px; font-size: 11px; color: #DC2626;
 `;

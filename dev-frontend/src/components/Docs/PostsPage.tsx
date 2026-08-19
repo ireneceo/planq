@@ -1344,13 +1344,19 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             </PanelHeader>
             <Body>
               <MetaRow>
-                <CategoryCombobox
-                  value={categoryDraft}
-                  onChange={setCategoryDraft}
-                  options={meta.categories.map(c => c.name)}
-                  placeholder={t('categoryPlaceholder', '카테고리 (예: 매뉴얼, 가이드, 회의록)') as string}
-                />
+                {/* ★ 카테고리 입력은 width:100% 라 행을 통째로 먹었고, 그래서 혼자 한 줄을 차지했다
+                    (Irene: "카테고리 창이 너무 심하게 길어. 혼자 있을 이유가 없는데").
+                    폭을 묶어 프로젝트·형태·공개·보안과 **한 줄**에 서게 한다. 좁아지면 자연히 접힌다. */}
+                <MetaField $basis={240}>
+                  <CategoryCombobox
+                    value={categoryDraft}
+                    onChange={setCategoryDraft}
+                    options={meta.categories.map(c => c.name)}
+                    placeholder={t('categoryPlaceholder', '카테고리 (예: 매뉴얼, 가이드)') as string}
+                  />
+                </MetaField>
                 {scope.type === 'workspace' && (
+                  <MetaField $basis={200}>
                   <PlanQSelect
                     size="sm"
                     options={projectOptions}
@@ -1360,6 +1366,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                     isClearable
                     isSearchable
                   />
+                  </MetaField>
                 )}
                 {/* N+72-7 — 문서 ↔ 표 타입 toggle (편집 모드에서 변경 가능). 표→문서: 데이터 있으면 confirm 모달 */}
                 {mode === 'edit' && detail && (
@@ -1380,7 +1387,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                     <VisibilityChip type="button" onClick={() => setVisModalOpen(true)} title={t('visibility.change', { defaultValue: '공개 범위 변경' }) as string}>
                       {t('visibility.label', { defaultValue: '공개' }) as string}: {visLabel(detail.vlevel)}
                     </VisibilityChip>
-                    <div style={{ minWidth: 150 }}>
+                    <MetaField $basis={160}>
                       <PlanQSelect
                         size="sm" isClearable={false} isSearchable={false}
                         value={{ value: detail.security_level || 'general', label: secLabel(detail.security_level || 'general') }}
@@ -1393,7 +1400,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                           } catch { /* keep current on error */ }
                         }}
                       />
-                    </div>
+                    </MetaField>
                   </>
                 )}
               </MetaRow>
@@ -2200,7 +2207,10 @@ const Body = styled.div`
   flex: 1; min-height: 0;
   /* 좌우 0 — 에디터 툴바·구분선이 좌우 끝까지 풀폭. 글자 안쪽 여백은 아래 규칙으로 통일(Irene).
      에디터(.pq-fullbleed)만 풀폭 유지(자체 본문 여백), 그 외 모든 섹션은 좌우 24px. */
-  padding: 20px 0;
+  /* 위 여백과 sticky 기준을 **한 변수에서** 파생시킨다 — 따로 적으면 언젠가 갈라져 툴바가 다시 뜬다 */
+  --pq-body-pad-top: 20px;
+  --pq-sticky-top: calc(var(--pq-body-pad-top) * -1);
+  padding: var(--pq-body-pad-top) 0 20px;
   overflow-y: auto;
   background: #fff;
   display: flex; flex-direction: column; gap: 16px;
@@ -2262,11 +2272,20 @@ const CategoryTag = styled.button`
   &:hover { background: #CCFBF1; }
 `;
 // 편집 메타 — 한 줄(카테고리·프로젝트·형태·공개·보안). 좁으면 wrap. (Irene: 한 줄로)
+// 한 줄에 서는 입력/셀렉트 칸 — 폭을 묶어 카테고리가 행을 독점하지 않게. 좁아지면 함께 줄고 접힌다.
+//   ★ MetaRow 보다 **먼저** 선언해야 한다 — 아래에서 컴포넌트 선택자(`${MetaField}`)로 참조한다.
+const MetaField = styled.div<{ $basis: number }>`
+  flex: 1 1 ${(p) => p.$basis}px;
+  min-width: 150px;
+  max-width: ${(p) => p.$basis + 80}px;
+  @media (max-width: 640px) { flex-basis: 100%; max-width: none; }
+`;
 // 구분선 풀폭, 글자만 좌우 24px 안쪽.
 const MetaRow = styled.div`
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 0;
   padding-bottom: 12px; border-bottom: 1px solid #F1F5F9;
-  & > * { flex-shrink: 0; }
+  /* ★ 칩·토글은 줄어들면 글자가 잘리므로 고정. 입력·셀렉트는 MetaField 가 스스로 줄어든다. */
+  & > *:not(${MetaField}) { flex-shrink: 0; }
 `;
 // N+67 — visibility chip (PostsPage detail meta row)
 const VisibilityChip = styled.button`

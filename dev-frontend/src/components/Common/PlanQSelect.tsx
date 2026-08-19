@@ -19,6 +19,9 @@
  *   />
  */
 import Select, { components } from 'react-select';
+// 새 값을 그 자리에서 만들 수 있는 변형 — 태그처럼 "사전에서 고르되 없으면 즉시 추가" 하는 곳에 쓴다.
+//   별도 "+ 새 태그" 버튼을 옆에 두면 사용자가 두 곳을 오간다(Irene: "새태그는 왜 만들기 따로 나와?").
+import CreatableSelect from 'react-select/creatable';
 import type { StylesConfig, Props as ReactSelectProps, GroupBase } from 'react-select';
 import { useTranslation } from 'react-i18next';
 
@@ -60,6 +63,13 @@ interface PlanQSelectProps<IsMulti extends boolean = false>
     'styles' | 'theme' | 'classNamePrefix'
   > {
   size?: 'sm' | 'md' | 'lg';
+  /** 목록에 없는 값을 입력창에서 바로 만들 수 있게 한다 (onCreateOption 과 함께 사용) */
+  creatable?: boolean;
+  /** creatable 전용 — 입력값으로 새 항목을 만들 때. react-select/creatable 의 props 라
+   *  기본 Select 타입에는 없다. 여기서 열어주지 않으면 호출측이 tsc 에서 막힌다. */
+  onCreateOption?: (inputValue: string) => void;
+  /** creatable 전용 — 목록 안 '만들기' 항목 문구 */
+  formatCreateLabel?: (inputValue: string) => React.ReactNode;
   hasError?: boolean;
   /** 옵션 간격 — 시간 리스트처럼 옵션 많을 때 'compact' 사용. 기본 'comfortable'. */
   density?: 'comfortable' | 'compact';
@@ -259,11 +269,12 @@ const SingleValue = (props: any) => {
 function PlanQSelect<IsMulti extends boolean = false>(
   props: PlanQSelectProps<IsMulti>
 ) {
-  const { size = 'md', hasError = false, density = 'comfortable', ...rest } = props;
+  const { size = 'md', hasError = false, density = 'comfortable', creatable = false, ...rest } = props;
   const { t } = useTranslation('common');
+  const Cmp = (creatable ? CreatableSelect : Select) as typeof Select;
 
   return (
-    <Select
+    <Cmp
       {...rest}
       styles={buildStyles(size, hasError, density) as any}
       components={{ Option, SingleValue, ...(rest.components || {}) }}

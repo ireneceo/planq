@@ -350,7 +350,8 @@
     "suggest": "최근 {{weeks}}주 실측 {{pct}}%",
     "suggestApply": "적용",
     "suggestHint": "최근 {{weeks}}주 포커스 실측 {{focus}}h 기준. 포커스를 주 업무 추적에 쓸 때 정확합니다.",
-    "available": "이번 주 가용"
+    "available": "이번 주 가용",
+    "doneWork": "진척"
   },
   "chart": {
     "weekly": "주간 업무 진척",
@@ -1120,7 +1121,7 @@
   },
   "report": {
     "chartTitle": "진척 그래프",
-    "chartEstimated": "한 일 (예상시간)",
+    "chartEstimated": "진척 (예상시간)",
     "chartActual": "실제 업무시간",
     "chartCapacity": "가용시간 {{n}}h 기준",
     "chartEmptyTitle": "이 기간에 기록된 업무 시간이 없어요",
@@ -1206,12 +1207,13 @@
     "creating": "만드는 중…",
     "createFailed": "태그를 만들지 못했습니다",
     "manageTitle": "태그 관리",
-    "manageEmpty": "아직 태그가 없습니다. 업무 상세에서 만들 수 있어요.",
+    "manageEmpty": "아직 태그가 없습니다. 위에서 첫 태그를 만들어 보세요.",
     "rename": "이름 변경",
     "renameFailed": "이름을 바꾸지 못했습니다",
     "deleteFailed": "삭제하지 못했습니다",
     "deleting": "삭제 중…",
     "usageCount": "업무 {{count}}개",
-    "deleteConfirm": "“{{name}}” 태그를 {{count}}개 업무에서 제거하고 삭제할까요?"
+    "deleteConfirm": "“{{name}}” 태그를 {{count}}개 업무에서 제거하고 삭제할까요?",
+    "createNamed": "'{{name}}' 태그 만들기"
   }
 }

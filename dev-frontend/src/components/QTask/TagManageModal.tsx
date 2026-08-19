@@ -1,6 +1,6 @@
-// TagManageModal — 업무 태그 사전 관리(이름 변경·삭제) (#250 ③청크, Fable 구현 게이트 F4)
+// TagManageModal — 업무 태그 사전 관리(추가·이름 변경·삭제) (#250 ③청크, Fable 구현 게이트 F4)
 //
-//   왜 필요한가: 생성만 있고 수정·삭제가 없으면 오타 태그를 지울 길이 없고, 워크스페이스 100개
+//   왜 필요한가: 수정·삭제가 없으면 오타 태그를 지울 길이 없고, 워크스페이스 100개
 //   상한과 결합해 사전이 쓰레기로 잠긴다. `PUT/DELETE /api/tasks/tags/:id` 는 그 전까지
 //   호출자가 없는 **죽은 표면**이었다.
 //
@@ -22,18 +22,39 @@ export interface TagDictEntry extends TaskTagLite {
 interface Props {
   open: boolean;
   onClose: () => void;
+  /** 새 태그를 만들 워크스페이스 */
+  bizId: number | null;
   dict: TagDictEntry[];
   /** 사전이 바뀌면 호출측이 다시 읽는다 (소켓 task_tag:updated 도 오지만 본인 창은 즉시) */
   onChanged: () => void;
 }
 
-const TagManageModal: React.FC<Props> = ({ open, onClose, dict, onChanged }) => {
+const TagManageModal: React.FC<Props> = ({ open, onClose, bizId, dict, onChanged }) => {
   const { t } = useTranslation('qtask');
   const [editingId, setEditingId] = useState<number | null>(null);
   const [draft, setDraft] = useState('');
   const [confirmId, setConfirmId] = useState<number | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [newName, setNewName] = useState('');
+  const [adding, setAdding] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  const addTag = async () => {
+    const name = newName.trim();
+    if (!name || adding || !bizId) return;
+    setAdding(true); setErr(null);
+    try {
+      const r = await apiFetch('/api/tasks/tags', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ business_id: bizId, name }),
+      });
+      const j = await r.json().catch(() => null);
+      // apiFetch 는 throw 하지 않는다 — 중복(409)·상한(400) 을 그대로 보여준다.
+      if (!r.ok || !j?.success) { setErr(j?.message || (t('tags.createFailed', '태그를 만들지 못했습니다') as string)); return; }
+      setNewName('');
+      onChanged();
+    } finally { setAdding(false); }
+  };
 
   const rename = async (tag: TagDictEntry) => {
     const name = draft.trim();
@@ -65,6 +86,19 @@ const TagManageModal: React.FC<Props> = ({ open, onClose, dict, onChanged }) => 
 
   return (
     <StandardModal open={open} onClose={onClose} size="sm" title={t('tags.manageTitle', '태그 관리') as string}>
+      {/* ★ 추가가 없어 "여기선 아무것도 못 한다" 로 읽혔다 (Irene: "추가도 삭제도 못하게 할 게 아니라
+          그냥 없거나 문서 리스트처럼 다되게 하거나"). 이름 변경·삭제는 원래 있었고 추가만 없었다.
+          업무 상세에서도 만들 수 있지만, 관리 화면에서 못 만드는 게 더 이상하다. */}
+      <AddRow>
+        <NameInput
+          value={newName} maxLength={30}
+          placeholder={t('tags.newPh', '새 태그 이름') as string}
+          onChange={(e) => { setNewName(e.target.value); setErr(null); }}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void addTag(); } }} />
+        <SmallBtn type="button" $tone="primary" disabled={adding || !newName.trim()} onClick={() => void addTag()}>
+          {adding ? t('tags.creating', '만드는 중…') : t('tags.create', '만들기')}
+        </SmallBtn>
+      </AddRow>
       {dict.length === 0 ? (
         <Empty>{t('tags.manageEmpty', '아직 태그가 없습니다. 업무 상세에서 만들 수 있어요.')}</Empty>
       ) : (
@@ -147,6 +181,10 @@ const SmallBtn = styled.button<{ $tone?: 'primary' | 'danger' }>`
   color: ${({ $tone }) => ($tone === 'primary' ? '#fff' : $tone === 'danger' ? '#DC2626' : '#475569')};
   &:disabled { opacity: 0.5; cursor: default; }
   &:hover:not(:disabled) { border-color: ${({ $tone }) => ($tone === 'danger' ? '#DC2626' : '#94A3B8')}; }
+`;
+const AddRow = styled.div`
+  display: flex; align-items: center; gap: 6px; margin-bottom: 10px;
+  padding-bottom: 10px; border-bottom: 1px solid #F1F5F9;
 `;
 const Empty = styled.div`padding: 24px 8px; text-align: center; font-size: 13px; color: #94A3B8;`;
 const ErrText = styled.div`margin-top: 10px; font-size: 12px; color: #DC2626;`;

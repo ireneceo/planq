@@ -1306,10 +1306,11 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     options={projects.map(p => ({ value: String(p.id), label: p.name }))} />
                 </MetaCell>
                 {/* #250 업무 태그 — 사전에서 고른다(자유 입력 아님). 오타로 태그가 갈라지지 않게.
-                    #290 — 2열(셀 약 200px)에 멀티 셀렉트 칩을 넣으면 태그 2개부터 세로로 쌓여
-                    "아래로 늘어진다". 전폭 한 줄로 빼면 칩 2~3개가 한 줄에 든다.
-                    팝아웃 전용이 아니라 공통 — 진짜 폰(약 390px)에서도 같은 문제가 난다. */}
-                <MetaCell $full>
+                    ★ 프로젝트와 **같은 행 2열**로 둔다 (Irene: "이 2가지 항목이 쓸데없이 길어").
+                      옛 전폭 배치는 태그 칩이 줄바꿈되는 것을 피하려던 것인데(#290), 그 대가로
+                      두 줄을 먹어 상세가 세로로 길어졌다. 칩이 많으면 셀 안에서 줄바꿈되게 두고,
+                      "새 태그" 별도 줄이 사라져(입력창 안 만들기) 실제 높이는 오히려 줄었다. */}
+                <MetaCell>
                   <MetaLabel>{t('detail.meta.tags', '태그')}
                     {!canEditTags && <ReadOnlyHint>{t('detail.readOnly', '읽기 전용')}</ReadOnlyHint>}
                   </MetaLabel>
