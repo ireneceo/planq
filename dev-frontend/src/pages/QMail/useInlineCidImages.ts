@@ -45,28 +45,44 @@ export function useInlineCidImages(
         if (visibleIds && !visibleIds.has(m.id)) continue;   // 접힌 메시지는 받지 않는다
         const inl = (m.inline_images || []).filter(x => (x.size_bytes || 0) <= MAX_PER_FILE);
         if (!inl.length) continue;
-        let budget = MAX_PER_MSG;
         const map: Record<string, string> = {};
+        // 예산 검사는 **착수 전에** size_bytes 로 끝낸다 — 그래야 병렬로 받아도 결과가 순서에
+        //   의존하지 않는다(옛 순차 코드와 같은 집합을 고른다).
+        let budget = MAX_PER_MSG;
+        const queue: Array<{ cid: string; fileId: number }> = [];
         for (const im of inl) {
           const size = im.size_bytes || 0;
           if (size > budget) continue;          // 캡 초과분은 skip — 현상 유지(깨진 이미지)
           const cid = normalizeCid(im.content_id);
           if (!cid) continue;
-          try {
-            const r = await apiFetch(`/api/files/${businessId}/${im.file_id}/download`);
-            if (!r.ok) continue;
-            const blob = await r.blob();
-            const dataUri = await new Promise<string>((resolve, reject) => {
-              const fr = new FileReader();
-              fr.onload = () => resolve(String(fr.result || ''));
-              fr.onerror = () => reject(new Error('read_failed'));
-              fr.readAsDataURL(blob);
-            });
-            if (!dataUri.startsWith('data:image/')) continue;
-            map[cid] = dataUri;
-            budget -= size;
-          } catch { /* 이 이미지만 포기 — 본문은 그대로 렌더된다 */ }
+          budget -= size;
+          queue.push({ cid, fileId: im.file_id });
         }
+        // ★ 2R-1 — 순차 await 는 이미지가 3장만 돼도 왕복이 그대로 쌓여 본문이 늦게 완성됐다.
+        //   동시성 4 로 받는다(무제한 병렬은 인증 다운로드 라우트를 때린다).
+        const CONCURRENCY = 4;
+        let cursor = 0;
+        const worker = async () => {
+          for (;;) {
+            const idx = cursor++;
+            if (idx >= queue.length || !alive) return;
+            const { cid, fileId } = queue[idx];
+            try {
+              const r = await apiFetch(`/api/files/${businessId}/${fileId}/download`);
+              if (!r.ok) continue;
+              const blob = await r.blob();
+              const dataUri = await new Promise<string>((resolve, reject) => {
+                const fr = new FileReader();
+                fr.onload = () => resolve(String(fr.result || ''));
+                fr.onerror = () => reject(new Error('read_failed'));
+                fr.readAsDataURL(blob);
+              });
+              if (!dataUri.startsWith('data:image/')) continue;
+              map[cid] = dataUri;
+            } catch { /* 이 이미지만 포기 — 본문은 그대로 렌더된다 */ }
+          }
+        };
+        await Promise.all(Array.from({ length: Math.min(CONCURRENCY, queue.length) }, worker));
         if (!alive) return;
         if (Object.keys(map).length) setCidData(prev => ({ ...prev, [m.id]: { ...(prev[m.id] || {}), ...map } }));
       }

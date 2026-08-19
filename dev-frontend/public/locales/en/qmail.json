@@ -436,7 +436,8 @@
     "failed": "Send failed",
     "bounced": "Bounced",
     "pending": "Pending",
-    "delivered": "Delivered"
+    "delivered": "Delivered",
+    "sending": "Sending…"
   },
   "compose": {
     "fromAddress": "From address",
@@ -467,5 +468,9 @@
     "errExists": "That domain is already registered.",
     "errAdmin": "Only workspace admins can change this.",
     "errFailed": "Couldn't complete that."
+  },
+  "quoteFold": {
+    "show": "⋯ Show previous conversation",
+    "hide": "Hide previous conversation"
   }
 }
