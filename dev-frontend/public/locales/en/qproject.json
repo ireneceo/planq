@@ -195,7 +195,8 @@
     "processEditHint": "Double-click to rename",
     "renameHint": "Rename",
     "details": "Details",
-    "settings": "Settings"
+    "settings": "Settings",
+    "history": "History"
   },
   "tx": {
     "summary": {
@@ -698,5 +699,27 @@
   },
   "strategy": {
     "editInOverview": "Edit in Overview"
+  },
+  "history": {
+    "loading": "Loading…",
+    "empty": "Nothing here yet. Tasks, documents and files will gather here in order.",
+    "loadFailed": "Couldn't load the history.",
+    "memberOnly": "Only project members can see this.",
+    "more": "Show more",
+    "monthLabel": "{{month}}/{{year}}",
+    "kind": {
+      "project.created": "Project started",
+      "project.paused": "Project paused",
+      "project.closed": "Project closed",
+      "project.active": "Moved to active",
+      "task.created": "Task added",
+      "task.completed": "Task completed",
+      "task.canceled": "Task canceled",
+      "post.created": "Document written",
+      "file.uploaded": "File uploaded",
+      "note.created": "Note",
+      "invoice.sent": "Invoice sent",
+      "invoice.paid": "Payment received"
+    }
   }
 }

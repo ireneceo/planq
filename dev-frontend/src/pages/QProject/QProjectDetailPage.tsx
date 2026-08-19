@@ -17,6 +17,7 @@ const DocsTab = React.lazy(() => import('./DocsTab'));
 const PostsPage = React.lazy(() => import('../../components/Docs/PostsPage'));
 const TransactionsTab = React.lazy(() => import('./TransactionsTab'));
 const ProjectReportTab = React.lazy(() => import('./ProjectReportTab'));
+const HistoryTab = React.lazy(() => import('./HistoryTab'));
 const ProjectKnowledgeTab = React.lazy(() => import('./ProjectKnowledgeTab'));
 const PostEditor = React.lazy(() => import('../../components/Docs/PostEditor'));
 const PostTableGrid = React.lazy(() => import('../../components/Docs/PostTableGrid')); // 표 문서 뷰(추가탭에서도 문서탭과 동일 렌더)
@@ -25,6 +26,7 @@ import PlanQSelect from '../../components/Common/PlanQSelect';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import { PROJECT_COLOR_PALETTE } from '../../utils/projectColors';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
+import { usePinnedDocTabs } from './usePinnedDocTabs';
 import {
   PinnedDocCard,
   PinnedDocHeader,
@@ -132,9 +134,9 @@ const PROJECT_COLORS = PROJECT_COLOR_PALETTE.map(p => p.value);
 // 사이클 N+14 — 'info' 의미 분리:
 //   'details' = 프로젝트 메타데이터 편집 (옛 'info' 폼). 라벨 "상세정보".
 //   'info'    = Q info (KbDocument scope='project'). 라벨 "정보". 문서 다음 위치.
-type TabKey = 'dashboard' | 'tasks' | 'details' | 'settings' | 'info' | 'clients' | 'files' | 'docs' | 'transactions' | 'report' | `doc-${number}`;
+type TabKey = 'dashboard' | 'tasks' | 'details' | 'settings' | 'info' | 'clients' | 'files' | 'docs' | 'transactions' | 'report' | 'history' | `doc-${number}`;
 // 고객(client)에게 숨기는 탭 — 내부 캔버스(전략·403)·고객목록·거래(청구)·보고서·상세메타. 고객은 협업 탭(업무·파일·문서·정보)만.
-const CLIENT_HIDDEN_TABS: TabKey[] = ['dashboard', 'clients', 'transactions', 'report', 'details', 'settings'];
+const CLIENT_HIDDEN_TABS: TabKey[] = ['dashboard', 'clients', 'transactions', 'report', 'details', 'settings', 'history'];
 
 interface BizMember { id: number; user_id: number; user?: { id: number; name: string; email?: string; is_ai?: boolean; display_name?: string | null } }
 
@@ -220,7 +222,7 @@ const QProjectDetailPage: React.FC = () => {
   const projectId = id ? Number(id) : 0;
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const validTabs: TabKey[] = ['dashboard', 'tasks', 'info', 'clients', 'files', 'docs', 'transactions', 'report'];
+  const validTabs: TabKey[] = ['dashboard', 'tasks', 'info', 'clients', 'files', 'docs', 'transactions', 'report', 'history'];
   const rawTab = searchParams.get('tab');
   // 이전 ?tab=process 진입 호환 — docs 로 fallback
   // doc-:id 도 허용 (사용자가 메뉴에 추가한 특정 문서)
@@ -231,31 +233,9 @@ const QProjectDetailPage: React.FC = () => {
     : 'dashboard');
   const [tab, setTabState] = useState<TabKey>(initialTab);
 
-  // 메뉴에 추가한 문서 (문서 탭 PostsPage 의 📌 토글) — TabBar 에 추가 탭으로 등장
-  const PIN_KEY = `qproject_pinned_docs_${projectId}`;
-  const readPinnedIds = (): number[] => {
-    try { const raw = localStorage.getItem(PIN_KEY); if (raw) return JSON.parse(raw); } catch { /* ignore */ }
-    return [];
-  };
-  const [pinnedDocIds, setPinnedDocIds] = useState<number[]>(readPinnedIds);
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const ce = e as CustomEvent<{ projectId?: number }>;
-      if (!ce.detail || ce.detail.projectId === projectId) setPinnedDocIds(readPinnedIds());
-    };
-    window.addEventListener('qproject-pinned-changed', handler);
-    return () => window.removeEventListener('qproject-pinned-changed', handler);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId]);
+  // 메뉴에 추가한 문서(📌) 탭 — 상태·라벨 조회는 훅으로 분리
+  const { pinnedDocIds, pinnedDocLabels } = usePinnedDocTabs(projectId);
 
-  // 메뉴 탭 라벨 캐시 — pinned id → post title
-  const [pinnedDocLabels, setPinnedDocLabels] = useState<Record<number, string>>({});
-  useEffect(() => {
-    const missing = pinnedDocIds.filter(id => !pinnedDocLabels[id]);
-    if (missing.length === 0) return;
-    Promise.all(missing.map(id => apiFetch(`/api/posts/${id}`).then(r => r.json()).then(j => [id, j?.data?.title || `#${id}`] as [number, string]).catch(() => [id, `#${id}`] as [number, string])))
-      .then(rows => setPinnedDocLabels(prev => ({ ...prev, ...Object.fromEntries(rows) })));
-  }, [pinnedDocIds, pinnedDocLabels]);
   const setTab = (k: TabKey) => {
     setTabState(k);
     const sp = new URLSearchParams(searchParams);
@@ -603,7 +583,7 @@ const QProjectDetailPage: React.FC = () => {
       <TabBar>
         {/* 탭 순서 (사이클 N+14): 문서 다음에 정보(Q info), 상세정보(메타)는 마지막 */}
         {/* 고객(client)은 협업 탭만 — 캔버스(내부 전략·403)·고객목록·거래·보고서·상세는 숨김 (권한 매트릭스 detail-only) */}
-        {(['dashboard', 'tasks', 'clients', 'files', 'docs', 'info', 'transactions', 'report', 'details', 'settings'] as TabKey[])
+        {(['dashboard', 'tasks', 'clients', 'files', 'docs', 'info', 'transactions', 'report', 'history', 'details', 'settings'] as TabKey[])
           .filter((k) => !(isClient && CLIENT_HIDDEN_TABS.includes(k)))
           .map((k) => (
           <Tab key={k} $active={tab === k} onClick={() => setTab(k)}>
@@ -1139,6 +1119,7 @@ const QProjectDetailPage: React.FC = () => {
       )}
       {tab === 'transactions' && <TransactionsTab projectId={projectId} />}
       {tab === 'report' && <ProjectReportTab businessId={project.business_id} projectId={projectId} />}
+      {tab === 'history' && <HistoryTab projectId={projectId} />}
 
       {/* 메뉴에 추가된 문서 탭 (doc-:id) — PostEditor read-only + 편집 진입 */}
       {isDocTabKey(tab) && (
