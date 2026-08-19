@@ -594,13 +594,22 @@ function defineExternalTests() {
     const r = spawnSync('node', ['-e', `
       const { EmailMessage, EmailAccount } = require('./models');
       const { Op } = require('sequelize');
-      const { buildOwnEmailSet } = require('./services/emailTriage');
+      const { buildOwnAddressMatcher } = require('./services/emailTriage');
       (async () => {
         const since = new Date(Date.now() - 90*24*60*60*1000);
         const bizIds = [...new Set((await EmailAccount.findAll({ attributes: ['business_id'] })).map(a => a.business_id))];
         const gaps = [];
         for (const bizId of bizIds) {
-          const own = await buildOwnEmailSet(bizId);
+          // 판정은 수신 인식과 **같은 매처**로 한다 — 정확 주소만 보면 도메인 규칙으로 커버된
+          //   주소가 영구 결손으로 잡혀 ACK_GAPS 가 비대해지고 #221 감시가 무뎌진다.
+          const m = await buildOwnAddressMatcher(bizId);
+          const own = {
+            has: (e) => {
+              if (m.emails.some((x) => String(x).toLowerCase() === e)) return true;
+              const at = e.lastIndexOf('@');
+              return at > 0 && m.domains.includes(e.slice(at + 1));
+            },
+          };
           const msgs = await EmailMessage.findAll({
             where: { business_id: bizId, direction: 'inbound', sent_at: { [Op.gte]: since } },
             attributes: ['to_emails'],
@@ -635,12 +644,10 @@ function defineExternalTests() {
     //   신규 결손이 가려지지 않는다.
     //   규율: 별칭을 등록하면 여기서 항목을 지운다(래칫 조임). "우리 주소가 아니다" 로 결론나면
     //         사유를 '기각' 으로 바꿔 영구 존치한다 — 그래야 올바른 결정에도 green 경로가 있다.
-    const ACK_GAPS = {
-      '3:irene@irenecompany.com': '개인계정 ACC32 — 소유자 본인만 별칭 등록 가능 (2026-08-19)',
-      '3:help@irenecompany.com': '개인계정 ACC32 — 소유자 본인만 별칭 등록 가능 (2026-08-19)',
-      '3:help@wor-pro.com': '개인계정 ACC32 — 소유자 본인만 별칭 등록 가능 (2026-08-19)',
-      '3:help@k-bizhub.com': '개인계정 ACC32 — 소유자 본인만 별칭 등록 가능 (2026-08-19)',
-    };
+    //   (2026-08-19 도메인 규칙 도입으로 biz3 4건은 실제로 해소돼 목록을 비웠다 — 래칫 조임.
+    //    개인 계정이라 별칭을 못 붙이던 결손이, 워크스페이스 도메인 등록으로 개인 계정을
+    //    건드리지 않고 풀렸다.)
+    const ACK_GAPS = {};
     const fresh = gaps.filter(g => !ACK_GAPS[`${g.bizId}:${g.email}`]);
     if (fresh.length > 0) {
       const desc = fresh.map(g => `${g.email}(${g.n}건/biz${g.bizId})`).join(', ');

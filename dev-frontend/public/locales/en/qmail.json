@@ -453,5 +453,18 @@
     "download": "Download",
     "fallback": "Attachment",
     "downloadFailed": "Download failed"
+  },
+  "domainRule": {
+    "title": "Our domains",
+    "desc": "Mail sent to this domain counts as mail to us, whatever the address is. Register a domain once and you no longer need to add help@, sales@ and the rest one by one.",
+    "ph": "wor-pro.com",
+    "add": "Add",
+    "remove": "Remove",
+    "note": "Only register domains you own. Adding someone else's domain means bulk mail blasted at that domain also counts as \"sent to us\". Sending addresses are managed separately under \"Sending addresses\".",
+    "errInvalid": "Enter the domain only (e.g. wor-pro.com).",
+    "errPublic": "Public mail domains such as gmail.com can't be registered — the whole domain would count as ours.",
+    "errExists": "That domain is already registered.",
+    "errAdmin": "Only workspace admins can change this.",
+    "errFailed": "Couldn't complete that."
   }
 }

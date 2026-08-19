@@ -108,6 +108,7 @@ const CueKnowledge = require('./CueKnowledge');
 // ─── Q Mail (Phase 9 — M1) ───
 const EmailAccount = require('./EmailAccount');
 const EmailAccountAlias = require('./EmailAccountAlias');
+const EmailDomainRule = require('./EmailDomainRule');
 const EmailThread = require('./EmailThread');
 const EmailMessage = require('./EmailMessage');
 const EmailAttachment = require('./EmailAttachment');
@@ -479,6 +480,7 @@ EmailAccountAlias.belongsTo(EmailAccount, { foreignKey: 'account_id', as: 'accou
 
 module.exports = {
   EmailAccountAlias,
+  EmailDomainRule,
   MessageReaction,
   MailSenderRule,
   User,

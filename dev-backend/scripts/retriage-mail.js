@@ -11,7 +11,7 @@ require('dotenv').config();
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
 const { EmailThread, EmailMessage, EmailAccount, EmailThreadParticipant } = require('../models');
-const { retriageStored, headersFromMessage, buildOwnEmailSet } = require('../services/emailTriage');
+const { retriageStored, headersFromMessage, buildOwnEmailSet, buildOwnAddressMatcher } = require('../services/emailTriage');
 const { applyRules } = require('../services/mailSenderRules');
 const { isKnownContact } = require('../services/emailImapCron');
 
@@ -24,8 +24,10 @@ const APPLY = process.argv.includes('--apply');
   //   별칭(email_account_aliases)도 SMTP_FROM 도 몰라서, 동기화 경로와 재판정 경로가 서로 다른
   //   판정을 내렸다(같은 메일이 실시간엔 답변 필요, 재판정 후엔 확인 권장). buildOwnEmailSet 이 정본.
   const ownEmailsByBiz = new Map();
+  const ownMatcherByBiz = new Map();
   for (const bizId of new Set(accounts.map(a => a.business_id))) {
     ownEmailsByBiz.set(bizId, [...(await buildOwnEmailSet(bizId))]);
+    ownMatcherByBiz.set(bizId, await buildOwnAddressMatcher(bizId));
   }
 
   // 사람이 이미 처리한 스레드는 제외 — reply_needed_reason 이 'rule'/'backfill' 이거나
@@ -93,6 +95,7 @@ const APPLY = process.argv.includes('--apply');
       headers,
       headersComplete: complete,
       ownEmails: ownEmailsByBiz.get(acc.business_id) || [],
+      ownMatcher: ownMatcherByBiz.get(acc.business_id) || null,
       isKnownContact: known,
     });
     if (complete) withHeaders++;
