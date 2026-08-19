@@ -364,6 +364,34 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
 });
 
 // ─── 상태 변경 이력 (기본 히스토리 — active/paused/closed 전이 타임라인) ───
+// GET /:id/history — 프로젝트 히스토리 (#229)
+//   Irene: "히스토리는 날짜 연도 기준으로 최신이 위에 과거가 아래로 … 날짜, 요약 내용, 업무 등
+//           텍스트로 알려주고, 파일이나 노트, 문서도 아이콘으로 붙어서 연결"
+//
+// 프로젝트 **멤버 전용**. 고객(client)은 403 — 소스 6종 각각에 고객 안전 필터를 정확히 깔아야 하는데
+//   그건 별개 작업이고, 그 전에 열면 내부 노트·내부 문서가 샌다. 프론트도 같은 술어로 탭을 숨긴다.
+//
+// 커서 페이징 — 여러 원장을 병합한 스트림이라 offset/count 가 정확할 수 없다.
+//   `?before=ISO` 이전 것만 소스별로 뽑아 병합한다. has_more 는 "가득 찼는가" 로만 판단한다.
+router.get('/:id/history', authenticateToken, async (req, res, next) => {
+  try {
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    if (role === 'client') return errorResponse(res, 'member_only', 403, 'member_only');
+
+    const { getProjectStream } = require('../services/event_stream');
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
+    const events = await getProjectStream(project, req.user.id, {
+      before: req.query.before || null,
+      // 같은 시각 묶음이 경계에 걸릴 때를 위한 tie-break — 마지막 이벤트의 id 를 같이 받는다.
+      beforeId: req.query.before_id || null,
+      limit,
+      kinds: req.query.kinds ? String(req.query.kinds).split(',').map((x) => x.trim()).filter(Boolean) : null,
+    });
+    return successResponse(res, { events, has_more: events.length === limit });
+  } catch (err) { next(err); }
+});
+
 router.get('/:id/status-history', authenticateToken, async (req, res, next) => {
   try {
     const { project, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
@@ -371,7 +399,8 @@ router.get('/:id/status-history', authenticateToken, async (req, res, next) => {
     const { ProjectStatusHistory, User } = require('../models');
     const { applyMemberDisplayName } = require('../services/displayName');
     const rows = await ProjectStatusHistory.findAll({
-      where: { project_id: project.id },
+      // 프로젝트 접근은 위에서 검증됐지만, 조회 자체에도 워크스페이스를 건다 (다중 방어).
+      where: { project_id: project.id, business_id: project.business_id },
       include: [{ model: User, as: 'changer', attributes: ['id', 'name', 'name_localized'] }],
       order: [['created_at', 'ASC']],
     });

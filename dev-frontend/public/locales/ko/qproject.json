@@ -195,7 +195,8 @@
     "processEditHint": "더블클릭하여 이름 변경",
     "renameHint": "이름 변경",
     "details": "상세정보",
-    "settings": "설정"
+    "settings": "설정",
+    "history": "히스토리"
   },
   "tx": {
     "summary": {
@@ -698,5 +699,27 @@
   },
   "strategy": {
     "editInOverview": "개요에서 편집"
+  },
+  "history": {
+    "loading": "불러오는 중…",
+    "empty": "아직 기록이 없어요. 업무·문서·파일이 쌓이면 여기 시간순으로 모입니다.",
+    "loadFailed": "히스토리를 불러오지 못했어요.",
+    "memberOnly": "프로젝트 멤버만 볼 수 있어요.",
+    "more": "더보기",
+    "monthLabel": "{{year}}년 {{month}}월",
+    "kind": {
+      "project.created": "프로젝트 시작",
+      "project.paused": "프로젝트 보류",
+      "project.closed": "프로젝트 종료",
+      "project.active": "진행 중으로 변경",
+      "task.created": "업무 추가",
+      "task.completed": "업무 완료",
+      "task.canceled": "업무 취소",
+      "post.created": "문서 작성",
+      "file.uploaded": "파일 업로드",
+      "note.created": "메모",
+      "invoice.sent": "청구서 발행",
+      "invoice.paid": "입금 확인"
+    }
   }
 }
