@@ -396,6 +396,22 @@ export function extOf(name: string): string {
   return m ? m[1].toLowerCase() : '';
 }
 
+// ─── #228 파일 드래그 아웃 — 5분 서명 URL 발급 ───
+//
+// OS 로 파일을 빼내려면 dragstart 에서 dataTransfer 에 'DownloadURL' 을 넣어야 하는데, 브라우저는 그
+// URL 을 **인증 헤더 없이** 따로 가져간다. 그래서 인증 다운로드 URL 은 쓸 수 없고, 5분짜리 서명 URL 을
+// 서버에서 받아 쓴다. 발급은 자체 스토리지의 'direct' 파일만 (backend 가 다시 한 번 막는다).
+export async function issueDragUrl(businessId: number, fileId: string): Promise<string | null> {
+  const parsed = parseFileId(fileId);
+  if (!parsed || parsed.source !== 'direct') return null;
+  const r = await apiFetch(`/api/files/${businessId}/${parsed.id}/drag-url`, { method: 'POST' });
+  // apiFetch 는 실패해도 throw 하지 않는다 — res.ok 를 안 보면 실패가 성공인 척 지나간다.
+  if (!r.ok) return null;
+  const j = await r.json();
+  if (!j.success || !j.data?.url) return null;
+  return j.data.url as string;
+}
+
 // 브라우저가 직접 렌더 가능한 이미지 확장자만 — heic/heif/raw/tiff 등은 미리보기 X, 파일 카드로.
 // 사이클 N+23: HEIC(iPhone 기본) 업로드 시 깨진 이미지 아이콘 노출 회귀 차단.
 const RENDERABLE_IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif', 'bmp', 'ico']);

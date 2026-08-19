@@ -16,6 +16,40 @@ const { authenticateToken, checkBusinessAccess } = require('../middleware/auth')
 const { attachWorkspaceScope, fileListWhereByLevel, canAccessFileByLevel, isMemberOrAbove, getUserScope } = require('../middleware/access_scope');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../services/displayName');
+const { perUserLimiter, perUserDaily } = require('../middleware/costGuard');
+
+// ─── #228 파일 드래그 아웃 — 5분 서명 URL ───
+//
+// OS 로 파일을 빼내는 유일한 웹 표준 경로는 dataTransfer 의 'DownloadURL' 인데, 브라우저가 그 URL 을
+// **인증 헤더 없이** 따로 가져간다. 그래서 authenticateToken 다운로드 라우트로는 드래그가 불가능하다.
+// 공유 링크(share_token)는 최소 7일 공개 + 컬럼을 덮어써 사용자의 진짜 공유 링크를 무효화하므로 부적합.
+//
+// 대신 **무상태 HMAC 서명 + 300초 수명** 을 쓴다. DB 쓰기 0. 서명은 파일 1개에 묶여서, URL 이 드롭
+// 대상(악성 페이지·타 앱 로그)에 남아도 폭발 반경이 그 파일 하나로 닫힌다.
+//
+// 서명 키는 JWT_SECRET 에서 **도메인 분리 파생** 한다 — 운영 .env 에 키를 추가하지 않아 배포 시 env
+// 누락 사고가 원천 차단되고, JWT 와 서명을 서로 대입할 수 없다.
+const DRAG_TTL_SEC = 300;
+const DRAG_SIGN_KEY = crypto.createHmac('sha256', String(process.env.JWT_SECRET || ''))
+  .update('planq-file-drag-v1').digest();
+
+function dragSig(businessId, fileId, userId, exp) {
+  return crypto.createHmac('sha256', DRAG_SIGN_KEY)
+    .update(`v1.${Number(businessId)}.${Number(fileId)}.${Number(userId)}.${Number(exp)}`)
+    .digest('hex');
+}
+
+// 다운로드 권한 술어 — **단일 원천**. 인증 다운로드 / 드래그 발급 / 드래그 상환 세 곳이 같은 함수를 부른다.
+//   같은 판정을 여러 벌로 복제하면 반드시 갈라진다(한 곳만 고쳐진 채 남는다).
+async function canDownloadFile(scope, userId, file) {
+  if (!file) return false;
+  // Client: 자기 참여 프로젝트 파일 또는 본인 업로드만
+  if (scope && scope.isClient) {
+    const inMyProject = !!file.project_id && (scope.projectClientProjectIds || []).includes(file.project_id);
+    return inMyProject || file.uploader_id === userId;
+  }
+  return await canAccessFileByLevel(userId, file, scope);
+}
 
 // s3 독립 서버 파일이면 presign(또는 public URL)로 redirect. 처리하면 true 반환 (운영 #29).
 async function _s3Redirect(file, res) {
@@ -216,6 +250,54 @@ router.get('/public/:token/download', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/files/drag/:businessId/:id?u=&exp=&sig=   (#228 드래그 아웃 상환 — **무인증 공개**)
+// ⚠️ 라우트 순서: 첫 세그먼트가 리터럴 'drag' 라 /:businessId/:id/download 와 충돌하지 않지만,
+//    공개 라우트는 이 블록에 모아 둔다 (인증 라우트 사이에 흩어지면 다음 사람이 못 본다).
+//
+// 서명만으로 통과시키지 않는다 — **상환 시점에 권한을 다시 본다**. 발급 후 5분 안에 권한이 회수되거나
+// 파일이 삭제되면 그 즉시 막힌다(fail-closed). 서명은 "누가 요청했는지" 만 증명한다.
+router.get('/drag/:businessId/:id', perUserLimiter('file-drag-redeem', { windowMs: 60 * 1000, max: 60 }), async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const fileId = Number(req.params.id);
+    const userId = Number(req.query.u);
+    const exp = Number(req.query.exp);
+    const sig = String(req.query.sig || '');
+    // 형식 가드 — timingSafeEqual 은 길이가 다르면 throw 한다(500 크래시 경로).
+    if (!/^[a-f0-9]{64}$/.test(sig)) return errorResponse(res, 'invalid_signature', 403);
+    if (!Number.isInteger(businessId) || !Number.isInteger(fileId) || !Number.isInteger(userId) || !Number.isInteger(exp)) {
+      return errorResponse(res, 'invalid_signature', 403);
+    }
+    const expected = dragSig(businessId, fileId, userId, exp);
+    if (!crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'))) {
+      return errorResponse(res, 'invalid_signature', 403);
+    }
+    if (exp * 1000 < Date.now()) return errorResponse(res, 'link_expired', 410);
+
+    const file = await File.findOne({
+      where: { id: fileId, business_id: businessId, deleted_at: null, storage_provider: 'planq' },
+    });
+    if (!file) return errorResponse(res, 'file_not_found', 404);
+    // 외부 노출 게이트 — 공유 링크와 같은 술어 (일반 등급만 무인증 URL 발급 대상)
+    if (file.security_level && file.security_level !== 'general') {
+      return errorResponse(res, 'security_level_blocks_drag', 403, 'security_level_blocks_drag');
+    }
+    // users 에 is_active 같은 컬럼은 없다 — 계정 상태는 status ENUM('active','suspended','deleted').
+    //   없는 컬럼으로 가드를 쓰면 undefined 라 항상 통과해서, 가드가 있는 것처럼 보이지만 죽어 있다.
+    const user = await User.findByPk(userId);
+    if (!user || user.status !== 'active') return errorResponse(res, 'forbidden', 403);
+    const scope = await getUserScope(userId, businessId, user.platform_role);
+    if (!(await canDownloadFile(scope, userId, file))) return errorResponse(res, 'forbidden', 403);
+
+    if (!fs.existsSync(file.file_path)) return errorResponse(res, 'physical_file_missing', 410);
+    // 무인증 URL 이므로 inline 렌더는 절대 허용하지 않는다 (HTML/SVG inline = XSS 벡터).
+    res.setHeader('Content-Disposition', buildContentDisposition(file.file_name));
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    if (file.mime_type) res.setHeader('Content-Type', file.mime_type);
+    return res.sendFile(path.resolve(file.file_path));
+  } catch (err) { next(err); }
+});
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const dir = path.join(uploadDir, String(req.params.businessId), new Date().toISOString().slice(0, 7));
@@ -333,7 +415,12 @@ router.get('/:businessId/storage', authenticateToken, checkBusinessAccess, async
 
 // ─── Upload (쿼터 + SHA-256 dedup) ───
 
-router.post('/:businessId', authenticateToken, checkBusinessAccess, upload.single('file'), async (req, res, next) => {
+// 업로드 rate-limit — 옛 app.use('/api/files', 10/분·IP) 를 여기로 이관 (#228).
+//   서브트리 마운트는 조회·다운로드까지 같이 막았고 IP 버킷이라 NAT 을 한 통에 담았다.
+//   30/분은 드롭존 다중 파일 일괄 업로드를 통과시키는 값. 실비용(디스크) 가드는 이 핸들러 안의
+//   플랜 스토리지 쿼터 검사가 계속 담당한다 — 리미터는 해머링 방지 역할만 한다.
+router.post('/:businessId', authenticateToken, ...perUserDaily('file-upload', { perMin: 30, perDay: 1500 }),
+  checkBusinessAccess, upload.single('file'), async (req, res, next) => {
   let tempPath = req.file && req.file.path;
   try {
     if (!req.file) return errorResponse(res, 'No file uploaded', 400);
@@ -865,12 +952,8 @@ router.get('/:businessId/:id/download', authenticateToken, attachWorkspaceScope(
     });
     if (!file) return errorResponse(res, 'File not found', 404);
     // 사이클 N+9: 옵션 A — visibility 단계별 권한 (L1 본인만 / L2 프로젝트 멤버 / L3 워크스페이스)
-    // Client: 자기 참여 프로젝트 파일 또는 본인 업로드만 다운로드 가능 (별도 분기)
-    if (req.scope?.isClient) {
-      const inMyProject = file.project_id && req.scope.projectClientProjectIds.includes(file.project_id);
-      const mineUpload = file.uploader_id === req.user.id;
-      if (!inMyProject && !mineUpload) return errorResponse(res, 'forbidden', 403);
-    } else if (!(await canAccessFileByLevel(req.user.id, file, req.scope))) {
+    // Client 분기 포함 판정은 canDownloadFile 단일 원천 (#228 에서 추출 — 동작 무변경)
+    if (!(await canDownloadFile(req.scope, req.user.id, file))) {
       return errorResponse(res, 'forbidden', 403);
     }
     if (await _s3Redirect(file, res)) return;
@@ -886,6 +969,38 @@ router.get('/:businessId/:id/download', authenticateToken, attachWorkspaceScope(
     next(error);
   }
 });
+
+// ─── #228 드래그 아웃 서명 URL 발급 ───
+// POST /api/files/:businessId/:id/drag-url  →  { url, expires_at }
+// 인증 필수. 다운로드와 **같은 권한 술어**(canDownloadFile)를 통과해야만 발급한다.
+router.post('/:businessId/:id/drag-url', authenticateToken, attachWorkspaceScope(),
+  perUserLimiter('file-drag-url', { windowMs: 60 * 1000, max: 60 }), async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const file = await File.findOne({
+        where: { id: req.params.id, business_id: businessId, deleted_at: null },
+      });
+      if (!file) return errorResponse(res, 'File not found', 404);
+      if (!(await canDownloadFile(req.scope, req.user.id, file))) {
+        return errorResponse(res, 'forbidden', 403);
+      }
+      // 외부 노출 게이트 — 공유 링크 발급과 같은 기준 (D4 #62)
+      if (file.security_level && file.security_level !== 'general') {
+        return errorResponse(res, 'security_level_blocks_drag', 403, 'security_level_blocks_drag');
+      }
+      // 외부 스토리지(gdrive/s3)는 바이트를 우리가 쥐고 있지 않다 — 리다이렉트 대상의 Content-Disposition
+      // 을 보장할 수 없어 드래그 결과물이 뷰어 HTML 이 될 수 있다. 드래그 대상에서 제외한다.
+      if (file.storage_provider !== 'planq') {
+        return errorResponse(res, 'external_file_not_draggable', 400, 'external_file_not_draggable');
+      }
+      const exp = Math.floor(Date.now() / 1000) + DRAG_TTL_SEC;
+      const sig = dragSig(businessId, file.id, req.user.id, exp);
+      return successResponse(res, {
+        url: `/api/files/drag/${businessId}/${file.id}?u=${req.user.id}&exp=${exp}&sig=${sig}`,
+        expires_at: new Date(exp * 1000).toISOString(),
+      });
+    } catch (err) { next(err); }
+  });
 
 // ─── 공유 링크 생성 ───
 // POST /api/files/:businessId/:id/share-link  body: { expires_days?: 7|14|30|90 }

@@ -290,13 +290,10 @@ const setupSecurity = (app) => {
   });
   app.use('/api/auth/forgot-password', forgotPasswordLimiter);
 
-  // Rate Limiting — 파일 업로드
-  const uploadLimiter = rateLimit({
-    windowMs: 1 * 60 * 1000, // 1분
-    max: 10,
-    message: { success: false, message: 'Too many upload requests' }
-  });
-  app.use('/api/files', uploadLimiter);
+  // 파일 업로드 rate-limit 은 routes/files.js POST /:businessId 라우트 내부 per-user 로 이관 (#228).
+  //   여기 있던 app.use('/api/files', 10/분·IP) 는 **서브트리 전체**에 걸려서 업로드가 아닌
+  //   조회·다운로드·미리보기까지 막고 있었다 (실측: 인증 다운로드 11번째에 429). IP 버킷이라
+  //   사무실 NAT 을 한 통에 담았다. 인증 SPA 는 user 버킷 + 여유 캡이 표준이다.
   // message/task 첨부 업로드 rate-limit 은 각 라우트 파일 내부에서 per-user 로 적용한다.
   //   (옛 '/api/messages/*/attachments' 경로 패턴은 실제 마운트('/api/message-attachments')와 불일치해
   //    어떤 요청과도 매칭 안 되는 죽은 코드였음 — 비용폭탄 H3/H4에서 라우트 내부 limiter 로 대체.)

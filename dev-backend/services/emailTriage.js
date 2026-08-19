@@ -11,7 +11,7 @@ const { classify } = require('./emailSpamFilter');
 const { hget, normalizeHeaders, pickTriageHeaders, TRIAGE_HEADER_KEYS } = require('./emailHeaders');
 
 // noreply / 시스템 발송 / 소셜 알림 발신자 패턴 (사람이 답장할 수 없는 주소)
-const AUTOMATED_SENDER = /(^|[._-])(no-?reply|do-?not-?reply|donotreply|noreply|mailer-daemon|mailer|postmaster|bounce[sd]?|notifications?|alerts?|automated?|auto-?confirm|support\+|system|daemon)([._-]|@)/i;
+const AUTOMATED_SENDER = /(^|[._-])(no-?reply|do-?not-?reply|donotreply|noreply|mailer-daemon|mailer|postmaster|bounce[sd]?|notifications?|alerts?|automated?|auto-?confirm|support\+|system|daemon|no_?return)([._-]|@)/i;
 const SOCIAL_DOMAIN = /@([^>\s]*\.)?(linkedin|facebook|fb|twitter|instagram|tiktok|youtube|pinterest|reddit|medium|slack|notion|asana|trello|atlassian|zoom|calendly|meetup|eventbrite)\.[a-z.]+/i;
 
 /** 재판정 시점 — 저장된 메시지 한 통에서 판정용 헤더를 복원한다.
@@ -78,20 +78,39 @@ function isAutomated(headers, fromEmail, ownEmails) {
   return false;
 }
 
-// 이 워크스페이스가 "우리 주소" 로 인정할 집합 — 연결된 메일 계정 + 플랫폼 발신 주소
+// 이 워크스페이스가 "우리 주소" 로 인정할 집합 — 연결된 메일 계정 + **발신 별칭** + 플랫폼 발신 주소
+//
+// ★ 이 집합이 현실보다 작으면 조용히 기능이 죽는다. isAddressedToUs 가 여기 없는 주소로 온 메일을
+//   "우리에게 온 게 아님" 으로 읽어 **명백한 요청이 확인 권장으로 강등된다** (#221 · 재발 신고).
+//   한 메일함이 여러 도메인 주소를 받는 것이 정상 운영이고(help@ 를 여러 브랜드로 운영), 그 주소들은
+//   email_account_aliases 에 등록된다. 여태 별칭 테이블을 **아예 읽지 않아서** 별칭을 등록해도
+//   판정이 달라지지 않았다 — 실측상 실제 도착 주소 9개 중 계정 3개만 알고 있었다.
+//   (관측된 To 를 자동 등록하지는 않는다 — BCC 대량발송의 남의 주소가 섞여 집합이 오염된다.)
 async function buildOwnEmailSet(businessId) {
   const set = new Set();
   const platformFrom = (process.env.SMTP_FROM || '').toLowerCase().trim();
   if (platformFrom) set.add(platformFrom);
   try {
-    const { EmailAccount } = require('../models');
+    const { EmailAccount, EmailAccountAlias } = require('../models');
     const accs = await EmailAccount.findAll({
       where: { business_id: businessId },
-      attributes: ['email'],
+      attributes: ['id', 'email'],
     });
     for (const a of accs) {
       const e = String(a.email || '').toLowerCase().trim();
       if (e) set.add(e);
+    }
+    // 별칭은 **계정 소속으로** 조회한다 — alias.business_id 를 믿지 않는다(계정 이관 시 어긋날 수 있다).
+    const accIds = accs.map(a => a.id);
+    if (accIds.length > 0) {
+      const aliases = await EmailAccountAlias.findAll({
+        where: { account_id: accIds },
+        attributes: ['email'],
+      });
+      for (const al of aliases) {
+        const e = String(al.email || '').toLowerCase().trim();
+        if (e) set.add(e);
+      }
     }
   } catch (e) { console.warn('[emailTriage] buildOwnEmailSet', e.message); }
   return set;
@@ -268,7 +287,12 @@ function needsReply({ subject, bodyText, fromEmail, headers, ownEmails, isKnownC
 
   // ① 우리 대화에 온 회신 — 여기까지 왔으면 사람이 쓴 회신이다 (반송·알림은 위에서 빠졌다).
   //    단 **발신자가 자기 도메인으로 지어낸 회신 헤더**는 제외한다 (콜드메일 위장).
-  if (isThreadReply(headers) && !isForgedReplyRef(headers, fromEmail)) return true;
+  //    ★ 배제로 끝내면 안 된다 — 여기서 빠진 위조 회신이 아래 ④(우리 주소 + 물음표)에서 그대로
+  //      부활한다. 실측: 콜드메일 발송기 2곳(주석에 위조 실사례로 박제된 바로 그 도메인)이 ④로
+  //      승격됐다. 위조가 증명된 발송기에 물음표 하나로 답변 필요를 줄 이유가 없다 → 하드스톱.
+  if (isThreadReply(headers)) {
+    return !isForgedReplyRef(headers, fromEmail);
+  }
 
   if (isAutomated(headers, fromEmail, ownEmails)) return false;                          // 자동 발송
 
@@ -308,6 +332,9 @@ const TRANSACTIONAL_NOTICE = new RegExp([
   //   답장할 상대가 없는 통지이므로 여기서 막고 확인 권장으로 보낸다 (내용은 여전히 볼 가치가 있다).
   '주문\\s*승인', '\\border acknowledgment\\b',
   '운항\\s*(변경|취소|지연)', '\\bflight status change\\b', '\\bschedule change\\b',
+  // PG 영수증 계열 — "결제하신 내역"·"이용내역 안내". 답장 상대가 없다.
+  //   ('안내'·'확인' 전체를 잡으면 진짜 문의까지 강등되므로 '내역' 에만 건다.)
+  '(결제|이용|거래)하?신?\\s*내역',
 ].join('|'), 'i');
 
 function isTransactionalNotice(subject) {
