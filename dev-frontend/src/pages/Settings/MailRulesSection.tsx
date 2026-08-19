@@ -160,7 +160,8 @@ const Title = styled.h3`margin: 0 0 6px; font-size: 15px; font-weight: 700; colo
 const Desc = styled.p`margin: 0; font-size: 13px; line-height: 1.6; color: #64748B;`;
 const AddRow = styled.div`display: flex; align-items: center; gap: 8px; flex-wrap: wrap;`;
 const PatternInput = styled.input`
-  flex: 1; min-width: 220px; height: 36px; padding: 0 12px;
+  /* 넓은 화면에서 한 줄 입력이 1,150px 까지 늘어나던 것 — 다른 설정 입력과 같은 상한. */
+  flex: 1; max-width: 420px; min-width: 220px; height: 36px; padding: 0 12px;
   border: 1px solid #E2E8F0; border-radius: 8px; font-size: 13px; color: #334155;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,.15); }
 `;

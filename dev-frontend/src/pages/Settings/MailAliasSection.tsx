@@ -291,7 +291,9 @@ const LinkBtn = styled.button<{ $danger?: boolean }>`
 `;
 const AddRow = styled.div`display: flex; align-items: center; gap: 6px; flex-wrap: wrap;`;
 const Input = styled.input`
-  flex: 1; min-width: 200px; height: 32px; padding: 0 10px;
+  /* 넓은 화면에서 한 줄 입력이 1,380px 까지 늘어나던 것 — 이메일·도메인 한 줄에 그 폭은 과하다.
+     설정 본문 폭 제한을 걷어내면서(다른 화면과 여백 통일) 대신 입력칸에 상한을 둔다. */
+  flex: 1; min-width: 200px; max-width: 420px; height: 32px; padding: 0 10px;
   border: 1px solid #E2E8F0; border-radius: 8px; font-size: 12px; color: #334155;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,.15); }
 `;

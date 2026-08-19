@@ -869,7 +869,7 @@ export default function WorkspaceSettingsPage() {
 
   if (loading) {
     return (
-      <PageShell title={pageTitle} maxContentWidth={920}>
+      <PageShell title={pageTitle}>
         <Card>Loading...</Card>
       </PageShell>
     );
@@ -877,14 +877,14 @@ export default function WorkspaceSettingsPage() {
 
   if (!businessId || !ws) {
     return (
-      <PageShell title={pageTitle} maxContentWidth={920}>
+      <PageShell title={pageTitle}>
         <Card>{error || 'No workspace'}</Card>
       </PageShell>
     );
   }
 
   return (
-    <PageShell title={pageTitle} maxContentWidth={920} actions={headerActions}>
+    <PageShell title={pageTitle} actions={headerActions}>
       <SettingsHeaderActionProvider value={publishHeaderAction}>
       {error && <ErrorBanner>{error}</ErrorBanner>}
       {/* mail-accounts 탭은 멤버도 개인 메일을 관리할 수 있어 admin 안내 배너 숨김 */}

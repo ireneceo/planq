@@ -171,7 +171,8 @@ const Desc = styled.p`margin:0;font-size:12px;color:#94A3B8;line-height:1.6;`;
 const Row = styled.div`display:flex;align-items:center;gap:6px;flex-wrap:wrap;`;
 const SelectWrap = styled.div`flex:0 1 220px;min-width:160px;`;
 const Input = styled.input`
-  flex:1;min-width:180px;height:32px;padding:0 10px;
+  /* 넓은 화면에서 한 줄 입력이 1,150px 까지 늘어나던 것 — 다른 설정 입력과 같은 상한. */
+  flex:1;min-width:180px;max-width:420px;height:32px;padding:0 10px;
   border:1px solid #E2E8F0;border-radius:8px;font-size:12px;color:#334155;
   &:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,.15);}
 `;
