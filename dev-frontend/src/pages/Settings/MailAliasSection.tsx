@@ -192,7 +192,7 @@ export default function MailAliasSection({ businessId, accountId, accountEmail }
               minHeight={110}
               placeholder={t('alias.signaturePh', { defaultValue: '예) 워프로랩 · 홍길동 · 010-0000-0000' }) as string}
             />
-            <SigHint>{t('alias.signatureHint', { defaultValue: '비워 두면 이 메일함의 공통 서명이 대신 붙습니다.' }) as string}</SigHint>
+            <SigHint>{t('alias.signatureHint', { defaultValue: '비워 두면 아래 "기본 서명"이 대신 붙습니다.' }) as string}</SigHint>
           </SigBox>
           </React.Fragment>
         ) : (
@@ -205,7 +205,7 @@ export default function MailAliasSection({ businessId, accountId, accountEmail }
               {/* 주소별 서명이 있는지 한눈에 — 없으면 계정 공통 서명이 붙는다 */}
               {a.signature_html && !isEmptyHtml(a.signature_html)
                 ? <Who>· {t('alias.hasSignature', { defaultValue: '전용 서명' }) as string}</Who>
-                : <WhoEmpty>· {t('alias.noSignature', { defaultValue: '공통 서명' }) as string}</WhoEmpty>}
+                : <WhoEmpty>· {t('alias.noSignature', { defaultValue: '기본 서명 사용' }) as string}</WhoEmpty>}
             </Addr>
             {a.is_default
               ? <Tag $on>{t('alias.default', { defaultValue: '새 메일 기본' }) as string}</Tag>

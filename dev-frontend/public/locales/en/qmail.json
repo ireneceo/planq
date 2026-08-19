@@ -364,12 +364,12 @@
     "toggle": "Filters"
   },
   "signature": {
-    "title": "Signature",
+    "title": "Default signature",
     "saved": "Saved",
     "failed": "Save failed",
-    "on": "Append when sending",
-    "off": "Not appended",
-    "desc": "Appended to replies, forwards, and new mail sent from this account. Each account can have its own.",
+    "on": "Signature on",
+    "off": "Signature off",
+    "desc": "This signature is used when you send from an address that has no signature of its own (see \"Sending addresses\" above). It is appended to replies, forwards and new mail.",
     "placeholder": "e.g. Jane Doe · Worpro Lab · +82 10-0000-0000",
     "label": "Signature",
     "preview": "Preview",
@@ -383,7 +383,9 @@
       "workspace": "Team signature",
       "none": "No signature",
       "disabled": "Signature off"
-    }
+    },
+    "scopeOn": "This switch applies to the whole mailbox. Turning it off also stops per-address signatures.",
+    "scopeOff": "No signature is attached right now — including per-address signatures."
   },
   "alias": {
     "title": "Send-as addresses",
@@ -407,9 +409,9 @@
     "errSaveFailed": "Could not save.",
     "signature": "Signature used when sending from this address",
     "signaturePh": "e.g. WOR-PRO Lab · John Doe · +82 10-0000-0000",
-    "signatureHint": "Leave empty to use this mailbox’s shared signature instead.",
+    "signatureHint": "Leave empty to use the \"Default signature\" below.",
     "hasSignature": "own signature",
-    "noSignature": "shared signature"
+    "noSignature": "uses default"
   },
   "detail": {
     "toAddr": "Received at",
