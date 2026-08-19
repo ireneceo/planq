@@ -583,6 +583,77 @@ function defineExternalTests() {
     return true;
   });
 
+  // 메일 "우리 주소" 커버리지 — buildOwnEmailSet 이 현실의 도착 주소를 덮고 있는가.
+  //   집합이 현실보다 작으면 isAddressedToUs 가 거짓이 되어 **명백한 요청이 확인 권장으로 강등된다**
+  //   (#221 → 재발). 그때 유출된 이유는 "ownEmails ⊇ 실제 도착 주소" 불변식이 검증 항목에
+  //   없었기 때문이다. 여기서 그 불변식을 상시 감시한다.
+  //   기준: 최근 90일 inbound 의 To 주소 중 10건 이상 도착했는데 ownEmails 에 없는 주소가 있으면 실패.
+  //   (별칭 등록으로 해소한다 — 관측 주소를 자동 등록하지는 않는다. BCC 대량발송이 집합을 오염시킨다.)
+  test('external', '메일 ownEmails 가 실제 도착 주소를 덮는가', async () => {
+    const { spawnSync } = require('child_process');
+    const r = spawnSync('node', ['-e', `
+      const { EmailMessage, EmailAccount } = require('./models');
+      const { Op } = require('sequelize');
+      const { buildOwnEmailSet } = require('./services/emailTriage');
+      (async () => {
+        const since = new Date(Date.now() - 90*24*60*60*1000);
+        const bizIds = [...new Set((await EmailAccount.findAll({ attributes: ['business_id'] })).map(a => a.business_id))];
+        const gaps = [];
+        for (const bizId of bizIds) {
+          const own = await buildOwnEmailSet(bizId);
+          const msgs = await EmailMessage.findAll({
+            where: { business_id: bizId, direction: 'inbound', sent_at: { [Op.gte]: since } },
+            attributes: ['to_emails'],
+          });
+          const counts = new Map();
+          for (const m of msgs) {
+            const list = Array.isArray(m.to_emails) ? m.to_emails : [];
+            // 한 메일의 같은 주소는 1회만 센다
+            const seen = new Set();
+            for (const x of list) {
+              const e = String((x && x.email) || x || '').toLowerCase().trim();
+              if (!e || seen.has(e)) continue;
+              seen.add(e);
+              counts.set(e, (counts.get(e) || 0) + 1);
+            }
+          }
+          for (const [e, n] of counts) {
+            if (n >= 10 && !own.has(e)) gaps.push({ bizId, email: e, n });
+          }
+        }
+        gaps.sort((a, b) => b.n - a.n);
+        process.stdout.write('@@' + JSON.stringify({ gaps: gaps.slice(0, 10) }));
+        process.exit(0);
+      })().catch(e => { process.stderr.write(e.message); process.exit(1); });
+    `], { cwd: '/opt/planq/dev-backend', encoding: 'utf-8', timeout: 30000 });
+    if (r.status !== 0) throw new Error('child process failed: ' + (r.stderr || 'unknown'));
+    const match = String(r.stdout || '').match(/@@(\{.*\})/s);
+    if (!match) throw new Error('parse failed: ' + (r.stdout || '').slice(0, 200));
+    const { gaps } = JSON.parse(match[1]);
+    // 인지된 결손 — 실행자가 해소할 수 없는 것만 여기 둔다. 목록에 없는 결손은 그대로 FAIL 이라
+    //   #221 재발 신호는 계속 하드하게 잡힌다. 키에 bizId 를 포함해야 같은 주소의 **다른 워크스페이스**
+    //   신규 결손이 가려지지 않는다.
+    //   규율: 별칭을 등록하면 여기서 항목을 지운다(래칫 조임). "우리 주소가 아니다" 로 결론나면
+    //         사유를 '기각' 으로 바꿔 영구 존치한다 — 그래야 올바른 결정에도 green 경로가 있다.
+    const ACK_GAPS = {
+      '3:irene@irenecompany.com': '개인계정 ACC32 — 소유자 본인만 별칭 등록 가능 (2026-08-19)',
+      '3:help@irenecompany.com': '개인계정 ACC32 — 소유자 본인만 별칭 등록 가능 (2026-08-19)',
+      '3:help@wor-pro.com': '개인계정 ACC32 — 소유자 본인만 별칭 등록 가능 (2026-08-19)',
+      '3:help@k-bizhub.com': '개인계정 ACC32 — 소유자 본인만 별칭 등록 가능 (2026-08-19)',
+    };
+    const fresh = gaps.filter(g => !ACK_GAPS[`${g.bizId}:${g.email}`]);
+    if (fresh.length > 0) {
+      const desc = fresh.map(g => `${g.email}(${g.n}건/biz${g.bizId})`).join(', ');
+      throw new Error(`90일간 10건 이상 도착했는데 "우리 주소" 에 없는 주소: ${desc} — 별칭 등록 필요`);
+    }
+    const acked = gaps.filter(g => ACK_GAPS[`${g.bizId}:${g.email}`]);
+    if (acked.length > 0) {
+      console.log(`      ⚠ 인지된 결손 ${acked.length}건 (통과): ` +
+        acked.map(g => `${g.email}/biz${g.bizId} — ${ACK_GAPS[`${g.bizId}:${g.email}`]}`).join(' · '));
+    }
+    return true;
+  });
+
   // business_members.role ENUM 에 'admin' 유지 검사 — sync-database 가 모델보다 뒤처지면
   // admin 이 다시 벗겨져 "관리자로" 승격 라우트가 500 나던 회귀(2026-07-10 근본수정) 재발 감시.
   test('external', "business_members.role ENUM 에 'admin' 유지", async () => {

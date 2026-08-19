@@ -11,7 +11,7 @@ require('dotenv').config();
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
 const { EmailThread, EmailMessage, EmailAccount, EmailThreadParticipant } = require('../models');
-const { retriageStored, headersFromMessage } = require('../services/emailTriage');
+const { retriageStored, headersFromMessage, buildOwnEmailSet } = require('../services/emailTriage');
 const { applyRules } = require('../services/mailSenderRules');
 const { isKnownContact } = require('../services/emailImapCron');
 
@@ -20,12 +20,13 @@ const APPLY = process.argv.includes('--apply');
 (async () => {
   const accounts = await EmailAccount.findAll({ where: { is_active: true }, attributes: ['id', 'business_id', 'email'] });
   const accMap = new Map(accounts.map(a => [a.id, a]));
+  // "우리 주소" 공식은 **한 벌만 존재해야 한다** — 여기서 손으로 계정 email 만 모으던 옛 코드는
+  //   별칭(email_account_aliases)도 SMTP_FROM 도 몰라서, 동기화 경로와 재판정 경로가 서로 다른
+  //   판정을 내렸다(같은 메일이 실시간엔 답변 필요, 재판정 후엔 확인 권장). buildOwnEmailSet 이 정본.
   const ownEmailsByBiz = new Map();
-  accounts.forEach(a => {
-    const list = ownEmailsByBiz.get(a.business_id) || [];
-    list.push(String(a.email).toLowerCase());
-    ownEmailsByBiz.set(a.business_id, list);
-  });
+  for (const bizId of new Set(accounts.map(a => a.business_id))) {
+    ownEmailsByBiz.set(bizId, [...(await buildOwnEmailSet(bizId))]);
+  }
 
   // 사람이 이미 처리한 스레드는 제외 — reply_needed_reason 이 'rule'/'backfill' 이거나
   // 담당자가 지정된 건 사용자의 판단이므로 그대로 둔다.

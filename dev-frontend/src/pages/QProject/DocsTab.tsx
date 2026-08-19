@@ -25,6 +25,7 @@ import VisibilityField, { serializeVisibility, parseVisibility, type VisibilityV
 import { listProjects, listWorkspaceClients, type ApiProject, type WorkspaceClientRow } from '../../services/qtalk';
 import { apiFetch } from '../../contexts/AuthContext';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
+import { useFileDragOut } from '../../hooks/useFileDragOut';
 
 export type DocScope =
   | { type: 'project'; projectId: number; businessId: number }
@@ -57,6 +58,8 @@ const DocsTab: React.FC<Props> = (props) => {
   const isPersonal = scope.type === 'personal';   // N+30 개인 보관함 모드
   const projectId = scope.type === 'project' ? scope.projectId : 0;
   const businessId = scope.businessId;
+  // #228 — 파일을 OS 로 끌어내기 (자체 스토리지 일반등급 파일만)
+  const { getDragProps } = useFileDragOut(businessId);
   const { t } = useTranslation('qproject');
   const tr: (k: string, fb?: string) => string = (k, fb) => t(k, (fb ?? '') as string) as unknown as string;
   const { formatDate } = useTimeFormat();
@@ -620,6 +623,7 @@ const DocsTab: React.FC<Props> = (props) => {
                 const checked = selectedIds.has(f.id);
                 return (
                   <Card key={f.id} $selected={checked}
+                    {...(selectMode ? {} : getDragProps(f))}
                     onClick={e => selectMode ? toggleSelect(f.id, e) : setPreview(f)}>
                     {selectMode && (
                       <CardCheck onClick={e => e.stopPropagation()}>
@@ -664,6 +668,7 @@ const DocsTab: React.FC<Props> = (props) => {
                 return (
                   <ListRow key={f.id} $selected={checked}
                     $selectMode={selectMode}
+                    {...(selectMode ? {} : getDragProps(f))}
                     onClick={() => selectMode ? toggleSelect(f.id) : setPreview(f)}>
                     {selectMode && <RowChk onClick={e => e.stopPropagation()}>
                       <input type="checkbox" checked={checked} onChange={() => toggleSelect(f.id)} disabled={!f.deletable} />
