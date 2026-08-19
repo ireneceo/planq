@@ -1116,7 +1116,8 @@ router.post('/:businessId/email-threads/:id/ai-suggest',
       const biz = await Business.findByPk(businessId, { attributes: ['id', 'name', 'brand_name', 'default_language'] });
       // #153 — 답장은 받은 메일의 언어로. 정리된 본문의 ko/en 지배 비율로 판정(인용된 옛 한글 답장·
       //   한글 서명 한 글자에 ko 로 끌려가던 편향 제거). 워크스페이스 default 는 둘 다 0 일 때만. 명시 override 최우선.
-      const detectedLang = detectLang(cleaned || latestInboundText, biz?.default_language || 'ko');
+      //   제목도 함께 본다(3배 가중) — 한글 제목 + 영문 템플릿 본문인 자동발송 메일을 구제한다.
+      const detectedLang = detectLang(cleaned || latestInboundText, biz?.default_language || 'ko', thread.subject);
       const language = (req.body || {}).language || detectedLang;
 
       // M4 — 등록된 FAQ 활용: 들어온 질문과 강하게 매칭되는 FAQ(KbDocument category=faq)를

@@ -38,6 +38,7 @@ import ThreadMessages from './ThreadMessages';
 import { useThreadMessageExpansion } from './useThreadMessageExpansion';
 import FloatingPanelToggle from '../../components/Common/FloatingPanelToggle';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import HelpDot from '../../components/Common/HelpDot';
 import {
   AcctFilterRow,
   FilterToggleRow,
@@ -2144,6 +2145,14 @@ const MailPage: React.FC = () => {
                             menuPlacement="top"
                           />
                         </FromSelect>
+                        {receivedAt && receivedAt !== String(detail?.account?.email || '').toLowerCase() && (
+                          <HelpDot>
+                            {t('reply.aliasHelp', {
+                              defaultValue: '이 고객은 {{addr}} 주소로 메일을 보냈습니다. 답장도 그 주소에서 발송됩니다.',
+                              addr: receivedAt,
+                            }) as string}
+                          </HelpDot>
+                        )}
                         {unknownReceived ? (
                           <FromManage type="button" onClick={addReceivedAsAlias}>
                             {t('reply.useReceived', { defaultValue: '{{addr}} 로 보내기 (등록)', addr: receivedAt }) as string}

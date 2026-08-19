@@ -243,7 +243,8 @@
     "addAlias": "보내는 주소 추가",
     "useReceived": "{{addr}} 로 보내기 (등록)",
     "dismissHint": "답장하지 않아도 되는 메일입니다. 확인 권장으로 내려갑니다.",
-    "aiInstructionRequired": "이미 초안이 있어요. 어떻게 고칠지 요청을 적어 주세요."
+    "aiInstructionRequired": "이미 초안이 있어요. 어떻게 고칠지 요청을 적어 주세요.",
+    "aliasHelp": "이 고객은 {{addr}} 주소로 메일을 보냈습니다. 답장도 그 주소에서 발송됩니다."
   },
   "errors": {
     "loadList": "인박스 로딩 실패"
