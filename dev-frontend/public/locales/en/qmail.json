@@ -483,5 +483,27 @@
   "quoteFold": {
     "show": "⋯ Show previous conversation",
     "hide": "Hide previous conversation"
+  },
+  "authDiag": {
+    "title": "Domain authentication (sending reputation)",
+    "desc": "For your outgoing mail to avoid spam folders, your domain needs SPF, DKIM, and DMARC. This checks live DNS right now.",
+    "domainLabel": "Domain to check",
+    "selectorPh": "DKIM selector (optional — enter if you know it)",
+    "run": "Check",
+    "ok": "Verified",
+    "missing": "Not found",
+    "unknown": "Cannot determine",
+    "conflict": "Duplicate — receivers treat this as an error",
+    "lookupFailed": "Lookup failed",
+    "wildcardNote": "This domain answers even for names that do not exist (wildcard DNS). So the mere existence of a name is not evidence — we judge only by record content.",
+    "dkimWildcard": "This domain answers any name you ask for (wildcard DNS), so DNS alone cannot prove whether DKIM exists. Enter the selector from your mail provider below to check that specific value.",
+    "dkimUnknown": "None of the common selectors matched. Without knowing the selector, DNS cannot prove absence — enter the selector from your mail provider below.",
+    "spfMissing": "Add the SPF record your mail provider gives you as a TXT record in your domain DNS.",
+    "spfConflict": "There is more than one SPF record. They must be merged into one — receivers treat multiple records as an error.",
+    "dmarcMissing": "Add a TXT record under _dmarc. Starting with p=none (monitor only) is the safe first step.",
+    "lookupFailedHint": "DNS did not answer. That means we could not check — not that the record is missing. Please try again shortly.",
+    "errRate": "Please try again shortly. (Per-minute lookup limit)",
+    "errFailed": "Could not run the check.",
+    "note": "PlanQ does not change DNS for you. Add records in the DNS management screen of wherever your domain is registered. Results are cached for 10 minutes, then re-checked."
   }
 }

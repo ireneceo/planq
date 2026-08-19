@@ -12,6 +12,7 @@
 //   conferenceDataVersion=1 헤더 필수 (안 보내면 conferenceData 무시됨)
 
 const { google } = require('googleapis');
+const cloudTokenCrypto = require('./cloudTokenCrypto');
 const { BusinessCloudToken } = require('../models');
 
 // 사이클 N+16-B — openid email 추가 (id_token 에 email claim 받기 위해).
@@ -187,16 +188,18 @@ async function exchangeCodeForTokens(code) {
 
 async function getCalendarClient(token) {
   const client = newOAuth2Client();
+  // 저장은 암호화. 옛 평문 행은 읽는 순간 암호문으로 재저장된다(지연 백필).
+  const { accessToken, refreshToken } = await cloudTokenCrypto.readTokenPair(token);
   client.setCredentials({
-    access_token: token.access_token,
-    refresh_token: token.refresh_token,
+    access_token: accessToken,
+    refresh_token: refreshToken,
     expiry_date: token.expires_at ? new Date(token.expires_at).getTime() : null,
   });
   client.on('tokens', async (fresh) => {
     try {
       const update = {};
-      if (fresh.access_token) update.access_token = fresh.access_token;
-      if (fresh.refresh_token) update.refresh_token = fresh.refresh_token;
+      if (fresh.access_token) update.access_token = cloudTokenCrypto.writeSecret(fresh.access_token);
+      if (fresh.refresh_token) update.refresh_token = cloudTokenCrypto.writeSecret(fresh.refresh_token);
       if (fresh.expiry_date) update.expires_at = new Date(fresh.expiry_date);
       if (Object.keys(update).length > 0) await token.update(update);
     } catch (e) { console.error('[gcal] token refresh save failed:', e.message); }

@@ -113,6 +113,11 @@ router.delete('/disconnect/:provider/:businessId', authenticateToken, checkBusin
   try {
     const { provider, businessId } = req.params;
     if (!['gdrive', 'gcal'].includes(provider)) return errorResponse(res, 'unknown provider', 400);
+    // ★ Google 쪽 승인도 함께 해제한다 (개인 연동과 같은 기준). 여태 행만 지워서, 사용자의
+    //   Google 계정 "액세스 권한" 목록에 PlanQ 가 남아 "해제했는데 안 된" 것처럼 보였다.
+    //   revoke 실패해도 행 삭제는 진행한다 — 사용자 입장에서 해제는 되어야 한다.
+    const row = await BusinessCloudToken.findOne({ where: { business_id: businessId, provider } });
+    if (row) await require('../services/cloudTokenCrypto').revokeCloudToken(row);
     await BusinessCloudToken.destroy({ where: { business_id: businessId, provider } });
     // 주의: 외부 클라우드의 실제 파일/이벤트는 그대로 남음 (의도된 동작)
     // 사이클 N+21 — audit

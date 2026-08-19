@@ -483,5 +483,27 @@
   "quoteFold": {
     "show": "⋯ 이전 대화 보기",
     "hide": "이전 대화 숨기기"
+  },
+  "authDiag": {
+    "title": "도메인 인증 (발신 신뢰도)",
+    "desc": "보내는 메일이 스팸으로 분류되지 않으려면 도메인에 SPF·DKIM·DMARC 가 설정돼 있어야 해요. 지금 실제 DNS 를 조회해 상태를 보여줍니다.",
+    "domainLabel": "진단할 도메인",
+    "selectorPh": "DKIM selector (선택 — 알면 입력)",
+    "run": "진단",
+    "ok": "확인됨",
+    "missing": "없음",
+    "unknown": "판별 불가",
+    "conflict": "중복 — 수신 서버가 오류로 처리",
+    "lookupFailed": "조회 실패",
+    "wildcardNote": "이 도메인은 존재하지 않는 이름에도 응답합니다(와일드카드 DNS). 그래서 \"이름이 있다\"는 사실은 증거가 되지 않고, 레코드 내용으로만 판정합니다.",
+    "dkimWildcard": "이 도메인은 어떤 이름을 물어도 응답하도록 설정돼 있어(와일드카드 DNS), DNS 만으로는 DKIM 유무를 증명할 수 없어요. 메일 제공자 관리 화면의 selector 를 아래에 넣으면 그 값으로 확인합니다.",
+    "dkimUnknown": "흔히 쓰는 selector 로는 찾지 못했어요. selector 를 모르면 DNS 로 \"없다\"는 것을 증명할 수 없습니다 — 메일 제공자 관리 화면의 selector 를 아래에 넣어 확인해 주세요.",
+    "spfMissing": "메일 제공자가 안내하는 SPF 레코드를 도메인 DNS 에 TXT 로 추가하세요.",
+    "spfConflict": "SPF 레코드가 두 개 이상입니다. 하나로 합쳐야 합니다 — 수신 서버는 이 경우 검사를 오류로 처리합니다.",
+    "dmarcMissing": "_dmarc 하위에 TXT 레코드를 추가하세요. 처음에는 관찰만 하는 p=none 으로 시작하는 것이 안전합니다.",
+    "lookupFailedHint": "DNS 응답이 없었습니다. 없다는 뜻이 아니라 확인하지 못했다는 뜻이에요 — 잠시 후 다시 시도해 주세요.",
+    "errRate": "잠시 후 다시 시도해 주세요. (분당 조회 횟수 제한)",
+    "errFailed": "조회하지 못했어요.",
+    "note": "PlanQ 는 DNS 를 대신 바꿔주지 않습니다. 레코드 추가는 도메인을 등록한 곳(가비아·후이즈·Cloudflare 등)의 DNS 관리 화면에서 해요. 결과는 10분간 보관되며, 그 뒤 다시 조회합니다."
   }
 }

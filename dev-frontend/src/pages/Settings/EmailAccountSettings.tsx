@@ -20,6 +20,7 @@ import MailSignatureSection from './MailSignatureSection';
 import MailNotifyScopeSection from './MailNotifyScopeSection';
 import MailAliasSection from './MailAliasSection';
 import MailDomainRuleSection from './MailDomainRuleSection';
+import MailAuthDiagSection from './MailAuthDiagSection';
 
 // Gmail 원클릭(OAuth) 연결 버튼 — Google 앱 심사(mail.google.com 제한 scope) 통과 전까지 숨긴다.
 // 심사 완료 시 true 로만 바꾸면 됨. 그 전에도 Gmail 을 포함한 모든 메일이 "앱 비밀번호" 방식으로 정상 연결된다.
@@ -355,6 +356,10 @@ const EmailAccountSettings: React.FC = () => {
           accountEmails={teamAccounts.map(a => a.email)}
         />
       )}
+
+      {/* 도메인 인증(발신 축) — "우리 도메인"(수신 축) 과 다른 축이라 옆에 나란히 둔다.
+          여기는 "우리가 보낸 메일을 상대 서버가 믿어주는가" 다. */}
+      {!personalView && <MailAuthDiagSection businessId={businessId} />}
 
       {/* 메일 분류 규칙 (학습형) — 워크스페이스 단위. 투명성 화면. */}
       {!personalView && <MailRulesSection businessId={businessId} />}

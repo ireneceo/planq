@@ -365,6 +365,7 @@ app.use('/api/businesses', require('./routes/email_accounts'));
 app.use('/api/businesses', require('./routes/email_threads'));
 app.use('/api/businesses', require('./routes/mail_rules'));   // 메일 발신자 분류 규칙(학습형)
 app.use('/api/businesses', require('./routes/mail_aliases'));  // 발신 별칭 (Send-as)
+app.use('/api/businesses', require('./routes/email_auth_diag'));  // 발신 도메인 인증 진단 (SPF/DKIM/DMARC)
 app.use('/api/voice', require('./routes/voice'));              // 말로 추가 (음성 → 의도 → 미리보기)
 // N+88 — Q Note ↔ Q Task 브릿지 (cross-DB 업무 추출/등록)
 app.use('/api/businesses', require('./routes/qnote_bridge'));
