@@ -35,7 +35,16 @@ function normalize(ev, conn) {
     all_day: allDay,
     html_link: ev.htmlLink || null,
     organizer_email: (ev.organizer && ev.organizer.email) || null,
-    read_only: true,
+    // 구글 원본 일정을 PlanQ 에서 고치기 위한 필드들.
+    //   합성 id(`gcal-{connId}-{eventId}`)를 프론트가 파싱해 쓰지 않도록 원본 값을 그대로 내려준다.
+    gcal_event_id: ev.id,
+    etag: ev.etag || null,                                   // 동시 수정 충돌 감지 (If-Match)
+    recurring_event_id: ev.recurringEventId || null,         // 있으면 반복 일정의 한 회차
+    // 주최자가 아니면 구글이 어차피 수정을 거부한다 — 화면에서 미리 알린다.
+    is_organizer: ev.organizer ? !!(ev.organizer.self || ev.organizer.email === conn.account_email) : true,
+    // ★ 여태 무조건 true 였다. 그래서 쓰기 권한(calendar.events)에 동의한 사용자도 화면에서
+    //   "읽기 전용" 을 보고 있었다 — 권한이 아니라 문구가 옛 동작을 서술하고 있던 것.
+    read_only: !hasCalendarWrite(conn),
   };
 }
 
@@ -184,6 +193,85 @@ async function updateEvent(conn, gcalEventId, input) {
   return { id: resp.data.id, etag: resp.data.etag || null };
 }
 
+// ── 구글 원본 개인 일정 수정 (2026-08-19 신설) ─────────────────────────────
+//
+// ★ 위의 updateEvent 와 **절대 섞지 말 것.** 용도가 반대다.
+//   · updateEvent      = PlanQ 가 만든 일정을 구글로 밀어넣는 경로. planqBody 가 PlanQ 표식을
+//                        붙이며, 그 표식은 **반드시 유지돼야** 한다 (되돌아온 사본 중복 차단).
+//   · 이 함수          = 사용자가 구글에서 직접 만든 개인 일정을 PlanQ 화면에서 고치는 경로.
+//                        표식을 붙이면 두 가지 사고가 난다:
+//                          ① listEvents 의 isPlanqOrigin 필터에 걸려 **일정이 화면에서 사라진다**
+//                          ② calendarOrphanCleanup 이 'planq=1' 로 훑어 링크 없는 것을 고아로
+//                             올린다 → 사용자가 정리를 실행하면 **개인 일정이 구글에서 삭제된다**
+//   그래서 여기서는 extendedProperties 키를 **아예 넣지 않는다** (patch 미언급 = 원본 보존).
+//   null 로 지우는 것도 금지 — PlanQ 와 무관한 확장 속성까지 날아간다.
+//
+// recurrence·attendees 도 넣지 않는다. 반복 일정의 한 회차(인스턴스 id)에 patch 하면 구글이
+// 그 회차의 예외를 만들어 준다 — "이 일정만 수정" 이 별도 API 없이 지원된다.
+//
+// patch 값 규약이 planqBody 와 다르다: **null = 값 삭제**, 미포함 = 보존.
+// (planqBody 는 undefined 로 보존을 표현한다 — 두 규약을 헷갈리면 사용자의 설명이 지워진다.)
+// 오프셋 없는 로컬 날짜/시각 문자열이면 앞 10글자(YYYY-MM-DD)를 그대로 돌려준다.
+//   Date 파싱을 거치지 않는 것이 요점 — 파싱하는 순간 서버 시간대가 끼어들어 날짜가 밀린다.
+function plainDate(v) {
+  const m = /^(\d{4}-\d{2}-\d{2})(?:[T ][\d:.]*)?$/.exec(String(v || ''));
+  return m ? m[1] : null;
+}
+
+// 구글 종일 end 는 배타적 — 마지막 날 다음 날. 월·연 경계는 Date.UTC 가 처리한다.
+function nextDay(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
+}
+
+async function patchPersonalOriginEvent(conn, gcalEventId, patch, { etag = null } = {}) {
+  const auth = await personalOauth.getAuthedClient(conn);
+  const cal = google.calendar({ version: 'v3', auth });
+  const tz = patch.timezone || 'Asia/Seoul';
+  const body = {};
+  if (patch.title !== undefined) body.summary = patch.title || '';
+  if (patch.description !== undefined) body.description = patch.description || null;
+  if (patch.location !== undefined) body.location = patch.location || null;
+
+  // 시각을 바꿀 때는 start/end 를 **완전한 객체**로, 반대 변형을 명시 null 로 보낸다.
+  //   구글 patch 는 start/end 하위 필드를 병합하므로, null 을 안 주면 종일 ↔ 시간지정 전환 시
+  //   date 와 dateTime 이 공존해 400 이 난다.
+  if (patch.startAt !== undefined || patch.endAt !== undefined || patch.allDay !== undefined) {
+    const startAt = patch.startAt;
+    const endAt = patch.endAt || patch.startAt;
+    if (patch.allDay) {
+      // ★ 종일은 **날짜 문자열을 그대로** 쓴다. `2026-08-17T23:59:59` 처럼 오프셋 없는 문자열을
+      //   Date 로 파싱하면 서버 시간대(UTC)로 읽혀 KST 기준 하루가 밀린다 — 실측: end 가
+      //   08-18 이어야 하는데 08-19 로 나갔다. 화면이 아는 것은 애초에 '날짜'다.
+      //   (오프셋이 붙은 값이나 Date 객체가 들어오면 기존 단일 원천 함수로 되돌린다.)
+      body.start = { date: plainDate(startAt) || gcalDates.localDateStr(startAt, tz), dateTime: null };
+      const endDate = plainDate(endAt);
+      body.end = { date: endDate ? nextDay(endDate) : gcalDates.allDayEndDateStr(endAt, tz), dateTime: null };
+    } else {
+      body.start = { dateTime: new Date(startAt).toISOString(), timeZone: tz, date: null };
+      body.end = { dateTime: new Date(endAt).toISOString(), timeZone: tz, date: null };
+    }
+  }
+
+  const params = { calendarId: 'primary', eventId: gcalEventId, requestBody: body };
+  // 참석자가 있는 회의의 시간이 바뀌었는데 참석자가 모르면 그게 사고다 (구글 UI 기본 동작과 동일).
+  params.sendUpdates = 'all';
+  const opts = { timeout: 10000 };
+  // 동시 수정 충돌 — 구글에서 이미 바뀐 일정을 PlanQ 화면의 옛 값으로 덮어쓰지 않는다.
+  if (etag) opts.headers = { 'If-Match': etag };
+
+  const resp = await cal.events.patch(params, opts);
+  return resp.data;
+}
+
+// 충돌(412) 시 최신본을 다시 읽어 화면에 돌려주기 위한 단건 조회.
+async function getEvent(conn, gcalEventId) {
+  const auth = await personalOauth.getAuthedClient(conn);
+  const cal = google.calendar({ version: 'v3', auth });
+  const resp = await cal.events.get({ calendarId: 'primary', eventId: gcalEventId }, { timeout: 10000 });
+  return resp.data;
+}
+
 // 이미 사라진 이벤트(404/410)는 성공으로 친다 — 목적("구글에 없게 한다")이 이미 달성된 상태다.
 async function deleteEvent(conn, gcalEventId) {
   const auth = await personalOauth.getAuthedClient(conn);
@@ -200,5 +288,6 @@ async function deleteEvent(conn, gcalEventId) {
 module.exports = {
   listEvents, isPlanqOrigin, exclusiveEndToInclusive,
   hasCalendarWrite, insertEvent, updateEvent, deleteEvent, CALENDAR_WRITE_SCOPES,
+  patchPersonalOriginEvent, getEvent, normalize,
   createMeetingEvent, recordConnError,
 };

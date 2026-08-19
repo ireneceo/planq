@@ -226,7 +226,20 @@
     "account": "Account",
     "description": "Description",
     "readOnlyHint": "This event lives in your personal calendar, so PlanQ does not edit it. Only you can see it.",
-    "openInGoogle": "Open in Google Calendar"
+    "openInGoogle": "Open in Google Calendar",
+    "badgeEditable": "Personal calendar",
+    "titlePh": "Event title",
+    "locationPh": "Location (optional)",
+    "descriptionPh": "Description (optional)",
+    "editableHint": "Only you can see this. Edits go straight to your Google Calendar.",
+    "needReconnect": "This connection only has read access. Reconnect it in settings to edit here.",
+    "notOrganizer": "The organizer manages this event, so it can't be edited here.",
+    "recurringNote": "This is a recurring event. Editing here changes this occurrence only. To change the whole series, open it in Google Calendar.",
+    "conflict": "This event already changed in Google. We've loaded the latest version.",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "deleteConfirm": "This deletes the event from your Google Calendar.",
+    "deleteConfirmRecurring": "This deletes only this occurrence from your Google Calendar."
   },
   "meetLinkFailed": "Event saved, but the Google Meet link could not be created. Please reconnect Google Calendar in Settings > Files & Integrations."
 }
