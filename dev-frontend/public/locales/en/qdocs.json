@@ -608,7 +608,7 @@
   "validation": {
     "titleRequired": "Title is required"
   },
-  "categoryPlaceholder": "Category (e.g. Manual, Guide, Minutes)",
+  "categoryPlaceholder": "Category (e.g. Manual, Guide)",
   "filter": {
     "basic": "Basic",
     "byProject": "Project",

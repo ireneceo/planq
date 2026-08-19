@@ -331,7 +331,8 @@ const PlainFallback = styled.div`min-height:80px;`;
 const Toolbar = styled.div`
   display:flex;align-items:center;gap:2px;padding:6px 8px;flex-wrap:wrap;
   background:#F8FAFC;border-bottom:1px solid #E2E8F0;border-radius:10px 10px 0 0;
-  position:sticky;top:0;z-index:5;
+  /* top 은 스크롤 컨테이너가 --pq-sticky-top 으로 정한다 (PostEditor 주석 참조) */
+  position:sticky;top:var(--pq-sticky-top,0px);z-index:5;
   @media (max-width:640px){flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;padding:4px 6px;}
 `;
 const TGroup = styled.div`display:inline-flex;gap:2px;`;

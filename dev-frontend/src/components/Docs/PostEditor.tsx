@@ -313,8 +313,12 @@ const Toolbar = styled.div<{ $compact?: boolean }>`
   display: flex; align-items: center; gap: 2px; padding: 6px 8px;
   background: #F8FAFC; border-bottom: 1px solid #E2E8F0;
   /* 스크롤해도 툴바가 상단에 따라오게 sticky. borderless(풀모드)는 Wrap overflow:visible 라
-     바깥 스크롤 컨테이너 상단에 고정 — 문서·메모 편집 중 서식 버튼 항상 접근. */
-  position: sticky; top: 0; z-index: 5;
+     바깥 스크롤 컨테이너 상단에 고정 — 문서·메모 편집 중 서식 버튼 항상 접근.
+     ★ top 은 스크롤 컨테이너가 정한다(--pq-sticky-top). sticky 는 스크롤 컨테이너의 **콘텐츠 박스**
+       상단을 기준으로 멈추므로, 컨테이너에 padding-top 이 있으면 그 높이만큼 아래에 붙는다.
+       그 틈이 비어 보이고 본문이 그 사이로 지나가 "안 붙는다"로 읽혔다(Irene). 여백을 가진
+       컨테이너가 자기 여백만큼 음수 값을 넘겨 화면 맨 위에 딱 붙인다. */
+  position: sticky; top: var(--pq-sticky-top, 0px); z-index: 5;
   /* 사이클 N+17 — compact (메모 popup) 는 한 줄 강제 + 가로 스크롤. wrap 으로 3줄 차지 회피.
      자식 ToolBtn 강제 축소 + Sep 마진 축소 — 같은 컴포넌트 재사용하면서 compact 모드만 다른 size 적용. */
   ${p => p.$compact ? `

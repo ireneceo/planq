@@ -132,26 +132,15 @@ router.get('/my-week', authenticateToken, async (req, res, next) => {
     // 가용시간
     const capacity = await getMemberCapacity(userId, businessId);
 
-    // 번다운 데이터 (일별 예측 vs 실제 누적) — 워크스페이스 tz 기준 날짜
-    const { dateStrInTz } = require('../utils/datetime');
-    const burndown = [];
-    let estCum = 0, actCum = 0;
-    for (let i = 0; i < 5; i++) {
-      const dateStr = addDaysStr(monday, i);
-      const dayLabel = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'][i];
-
-      // 이 날까지 완료된 업무의 시간 합산 — completed_at 은 UTC, 워크스페이스 tz 날짜로 변환
-      const completedByDay = mine.filter(t =>
-        t.status === 'completed' && t.completed_at && dateStrInTz(t.completed_at, tz) <= dateStr
-      );
-      const estDay = completedByDay.reduce((s, t) => s + (Number(t.estimated_hours) || 0), 0);
-      const actDay = completedByDay.reduce((s, t) => s + (Number(t.actual_hours) || 0), 0);
-      estCum += estDay;
-      actCum += actDay;
-
-      burndown.push({ date: dateStr, label: dayLabel, estimated_cumulative: estCum, actual_cumulative: actCum });
-    }
-
+    // ★ 번다운 계산을 제거했다 (2026-08-19).
+    //   ① 계산이 틀려 있었다 — `completedByDay` 가 이미 "그날까지 누적" 인데 `estCum += estDay` 로
+    //      다시 누적해 화요일에 월요일 분이 재차 더해졌다(삼각 인플레). actCum 도 같은 구조.
+    //   ② 더 중요한 건 **소비처가 0** 이었다는 것이다. 화면의 그래프는 /daily-progress 기반
+    //      라이브 계산과 services/weeklyReviewSnapshot.buildBurndownData(Δ-기준선) 를 쓴다.
+    //      즉 이건 같은 값의 **세 번째 공식**이었고 정의 자체도 정본과 달랐다
+    //      (완료 시점 예측 raw 합, 이월 기준선 없음).
+    //   틀린 공식을 고쳐서 살려두면 다음 사람이 그걸 정본으로 읽는다 — 필요해지면
+    //   buildBurndownData 를 호출할 것.
     // 집계 — mine 기준 (위 주석 참조)
     const totalEstimated = mine.reduce((s, t) => s + (Number(t.estimated_hours) || 0), 0);
     const totalActual = mine.reduce((s, t) => s + (Number(t.actual_hours) || 0), 0);
@@ -180,7 +169,6 @@ router.get('/my-week', authenticateToken, async (req, res, next) => {
         total_actual: Math.round(totalActual * 10) / 10,
         total_remaining: Math.round(totalRemaining * 10) / 10,
       },
-      burndown,
       tasks: tasksJson,
     });
   } catch (err) { next(err); }

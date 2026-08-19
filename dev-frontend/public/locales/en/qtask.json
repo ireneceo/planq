@@ -309,7 +309,8 @@
     "suggest": "Measured {{pct}}% (last {{weeks}}w)",
     "suggestApply": "Apply",
     "suggestHint": "Based on {{focus}}h of focus tracked over the last {{weeks}} weeks. Accurate when you track most work with focus.",
-    "available": "Available this week"
+    "available": "Available this week",
+    "doneWork": "Progress"
   },
   "chart": {
     "weekly": "Weekly Progress",
@@ -1120,7 +1121,7 @@
   },
   "report": {
     "chartTitle": "Progress chart",
-    "chartEstimated": "Work done (estimated hours)",
+    "chartEstimated": "Progress (estimated hours)",
     "chartActual": "Actual hours worked",
     "chartCapacity": "Against {{n}}h capacity",
     "chartEmptyTitle": "No work hours recorded in this period",
@@ -1206,12 +1207,13 @@
     "creating": "Creating…",
     "createFailed": "Could not create the tag",
     "manageTitle": "Manage tags",
-    "manageEmpty": "No tags yet. You can create one from a task detail.",
+    "manageEmpty": "No tags yet. Create your first one above.",
     "rename": "Rename",
     "renameFailed": "Could not rename the tag",
     "deleteFailed": "Could not delete the tag",
     "deleting": "Deleting…",
     "usageCount": "{{count}} tasks",
-    "deleteConfirm": "Delete “{{name}}” and remove it from {{count}} tasks?"
+    "deleteConfirm": "Delete “{{name}}” and remove it from {{count}} tasks?",
+    "createNamed": "Create tag '{{name}}'"
   }
 }

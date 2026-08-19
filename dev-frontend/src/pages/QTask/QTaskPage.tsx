@@ -1558,6 +1558,18 @@ const QTaskPage:React.FC=()=>{
     });
   },[chartWeekTasks,periodFrom,periodTo,dailyProgress,progressBases,todayStr]);
 
+  // ★ 가용시간 바가 **채우는** 값 = 그래프 "진척(예상시간)" 선의 오늘 점.
+  //   여태 바는 `남은 일 / 가용시간` 이라 **완료할수록 줄었다** — 24h 는 이번 주에 채워야 할
+  //   계획인데 일을 하면 비어가는 셈이었다(Irene: "완료하면 시간이 줄어들어버리면 안되지").
+  //   ★ 새 공식을 만들지 않는다 — 차트가 이미 쓰는 정의(Σ예측×진행률의 이번 주 Δ)를 그대로 읽는다.
+  //     그래서 **바의 끝점 = 그래프 오늘 점**이 되어 두 화면이 한 이야기를 한다.
+  //     (`가용 − 남은 일` 은 여유(headroom)와 같은 수라 계획을 적게 세운 주에 "이미 했다" 는
+  //      거짓 표시가 되고, 오버커밋 주엔 음수가 되어 초과 경고와 충돌한다 — Fable 판정으로 기각.)
+  const weekDoneHours=useMemo(()=>{
+    const past=computedBurndown.filter(p=>!p.isFuture&&p.estimated_cumulative!=null);
+    return past.length?Math.round(Number(past[past.length-1].estimated_cumulative)*10)/10:0;
+  },[computedBurndown]);
+
   // weekTotalEst = Σ예측 — chartVerdict(SPI 판정) 전용. 그래프 대각선은 effectiveCapacity(가용) 사용 (2026-07-05, Fable 검토)
   const weekTotalEst=useMemo(()=>(
     Math.round(chartWeekTasks.reduce((s,t)=>s+(Number(t.estimated_hours)||0),0)*10)/10
@@ -2699,18 +2711,27 @@ const QTaskPage:React.FC=()=>{
                     const status = utilizationStatus(pct);
                     const color = UTIL_COLOR[status];
                     const headroom = effectiveCapacity - remainingTotal;
+                    const donePct = effectiveCapacity > 0
+                      ? Math.max(0, Math.round((weekDoneHours / effectiveCapacity) * 100)) : 0;
                     return (
                       <CapDashboard>
                         <CapHeadline>
                           <CapBigNum>
-                            <CapTinyLabel>{t('capacity.remainingWork', '남은 일')}</CapTinyLabel>
-                            <CapUsed style={{color: color.text}}>{formatHours(remainingTotal)}</CapUsed>
+                            <CapTinyLabel>{t('capacity.doneWork', '진척')}</CapTinyLabel>
+                            <CapUsed style={{color: '#0F766E'}}>{formatHours(weekDoneHours)}</CapUsed>
                             <CapSep>/</CapSep>
                             <CapTotal>{formatHours(effectiveCapacity)}h</CapTotal>
                           </CapBigNum>
-                          <CapPctChip style={{background: color.bg, color: color.text}}>{pct}%</CapPctChip>
+                          {/* ★ 퍼센트·바 색은 **소화율 고정색**이다. 잔여 기반 경고색(UTIL_COLOR)을 그대로
+                              물리면 "많이 할수록 빨강" 으로 의미가 뒤집힌다 — 경고는 아래 여유/초과 행이 맡는다. */}
+                          <CapPctChip style={{background: '#F0FDFA', color: '#0F766E'}}>{donePct}%</CapPctChip>
                         </CapHeadline>
-                        <CapBar><CapBarFill style={{background: color.bar, width: `${Math.min(100, pct)}%`}}/></CapBar>
+                        <CapBar><CapBarFill style={{background: '#14B8A6', width: `${Math.min(100, donePct)}%`}}/></CapBar>
+                        {/* 남은 일은 없앤 게 아니라 보조 줄로 내렸다 — 지금 형태가 좋다는 Irene 의견 반영 */}
+                        <CapRemainingRow>
+                          <CapRemainingLabel>{t('capacity.remainingWork', '남은 일')}</CapRemainingLabel>
+                          <CapRemainingValue style={{color: color.text}}>{formatHours(remainingTotal)}h</CapRemainingValue>
+                        </CapRemainingRow>
                         <CapRemainingRow>
                           <CapRemainingLabel>{headroom < 0 ? t('capacity.over', '초과') : t('capacity.headroom', '여유')}</CapRemainingLabel>
                           <CapRemainingValue style={{color: color.text}}>
@@ -3239,6 +3260,7 @@ const QTaskPage:React.FC=()=>{
       )}
       {/* #250 태그 사전 관리 — 삭제 시 usage_count 를 보여주고 지운다(백엔드 CASCADE). */}
       <TagManageModal
+        bizId={bizId}
         open={tagManageOpen}
         onClose={()=>setTagManageOpen(false)}
         dict={tagDict}
