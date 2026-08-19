@@ -20,6 +20,8 @@ const { BusinessCloudToken, Business } = require('../models');
 const gdrive = require('../services/gdrive');
 const gcal = require('../services/google_calendar');
 const gscopes = require('../services/googleScopes');
+// 워크스페이스 토큰도 개인 연동과 같은 기준으로 암호화해 저장한다 (2026-08-19).
+const cloudTokenCrypto = require('../services/cloudTokenCrypto');
 const { logOauthFailure } = require('../utils/oauthLog');
 const backfill = require('../services/calendarWorkspaceBackfill');   // 재연결 직후 밀린 일정 올리기 (#242)
 
@@ -130,8 +132,8 @@ router.get('/callback/gdrive', async (req, res) => {
       defaults: {
         business_id: parsed.businessId,
         provider: 'gdrive',
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
+        access_token: cloudTokenCrypto.writeSecret(tokens.access_token),
+        refresh_token: cloudTokenCrypto.writeSecret(tokens.refresh_token),
         expires_at: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
         scope: tokens.scope,
         account_email: accountEmail,
@@ -140,8 +142,8 @@ router.get('/callback/gdrive', async (req, res) => {
       }
     });
     // 기존 레코드면 갱신
-    record.access_token = tokens.access_token;
-    if (tokens.refresh_token) record.refresh_token = tokens.refresh_token;
+    record.access_token = cloudTokenCrypto.writeSecret(tokens.access_token);
+    if (tokens.refresh_token) record.refresh_token = cloudTokenCrypto.writeSecret(tokens.refresh_token);
     record.expires_at = tokens.expiry_date ? new Date(tokens.expiry_date) : null;
     // ★ 폴백 금지 — `|| record.scope` 는 이번 동의에서 승인받지 못한 옛 값을 남겨,
     //   권한이 빠진 재연결을 "여전히 권한 있음" 으로 보이게 했다. 위 가드를 통과했으므로
@@ -235,8 +237,8 @@ router.get('/callback/gcal', async (req, res) => {
       defaults: {
         business_id: parsed.businessId,
         provider: 'gcal',
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
+        access_token: cloudTokenCrypto.writeSecret(tokens.access_token),
+        refresh_token: cloudTokenCrypto.writeSecret(tokens.refresh_token),
         expires_at: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
         scope: tokens.scope,
         account_email: accountEmail,
@@ -244,8 +246,8 @@ router.get('/callback/gcal', async (req, res) => {
         connected_at: new Date(),
       },
     });
-    record.access_token = tokens.access_token;
-    if (tokens.refresh_token) record.refresh_token = tokens.refresh_token;
+    record.access_token = cloudTokenCrypto.writeSecret(tokens.access_token);
+    if (tokens.refresh_token) record.refresh_token = cloudTokenCrypto.writeSecret(tokens.refresh_token);
     record.expires_at = tokens.expiry_date ? new Date(tokens.expiry_date) : null;
     // ★ 폴백 금지 — gdrive 와 같은 규칙. 위 hasWriteScope 가드를 통과했으므로 tokens.scope 는
     //   반드시 존재한다(현재는 사실상 죽은 폴백이지만, 옛 값을 남기는 코드를 옆에 두면

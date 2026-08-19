@@ -1,6 +1,7 @@
 // Google Drive OAuth + API 래퍼
 // drive.file scope — 앱이 만든 파일/폴더만 접근
 const { google } = require('googleapis');
+const cloudTokenCrypto = require('./cloudTokenCrypto');
 const { BusinessCloudToken } = require('../models');
 
 const SCOPES = ['https://www.googleapis.com/auth/drive.file'];
@@ -93,17 +94,19 @@ async function exchangeCodeForTokens(code) {
  */
 async function getDriveClient(token) {
   const client = newOAuth2Client();
+  // 저장은 암호화. 옛 평문 행은 읽는 순간 암호문으로 재저장된다(지연 백필).
+  const { accessToken, refreshToken } = await cloudTokenCrypto.readTokenPair(token);
   client.setCredentials({
-    access_token: token.access_token,
-    refresh_token: token.refresh_token,
-    expiry_date: token.expires_at ? new Date(token.expires_at).getTime() : null
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    expiry_date: token.expires_at ? new Date(token.expires_at).getTime() : null,
   });
   // 자동 토큰 갱신 감지 → DB 업데이트
   client.on('tokens', async (fresh) => {
     try {
       const update = {};
-      if (fresh.access_token) update.access_token = fresh.access_token;
-      if (fresh.refresh_token) update.refresh_token = fresh.refresh_token;
+      if (fresh.access_token) update.access_token = cloudTokenCrypto.writeSecret(fresh.access_token);
+      if (fresh.refresh_token) update.refresh_token = cloudTokenCrypto.writeSecret(fresh.refresh_token);
       if (fresh.expiry_date) update.expires_at = new Date(fresh.expiry_date);
       if (Object.keys(update).length > 0) await token.update(update);
     } catch (e) { console.error('[gdrive] token refresh save failed:', e.message); }
