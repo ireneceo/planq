@@ -30,11 +30,11 @@ import { useInlineCidImages } from './useInlineCidImages';
 import { displayName, type NameLocalizable } from '../../utils/displayName';
 import PanelResizeHandle, { usePanelWidth } from '../../components/Layout/PanelResizeHandle';
 import EmptyState from '../../components/Common/EmptyState';
-import { sanitizeMailHtml } from '../../utils/sanitizeHtml';
 import AiActionButton from '../../components/Common/AiActionButton';
 import ComposeAiRow from './ComposeAiRow';
 import SignatureBadge from './SignatureBadge';
 import ThreadMessages from './ThreadMessages';
+import { makePendingMessage, nextTempId, insertPending, removePending, replacePending } from './optimisticOutbound';
 import { useThreadMessageExpansion } from './useThreadMessageExpansion';
 import FloatingPanelToggle from '../../components/Common/FloatingPanelToggle';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
@@ -107,6 +107,9 @@ import {
   LabelChip,
   ListMoreRow,
   Loading,
+  DetailSkeleton,
+  SkelLine,
+  SkelCard,
   MessagesScroll,
   MetaChip,
   FollowUpChip,
@@ -202,7 +205,9 @@ export interface Message {
   sent_at: string;
   is_read: boolean;
   // outbound 만 채워진다. 'delivered' 는 DSN 없이는 알 수 없어 서버가 만들지 않는다.
-  delivery_status?: 'pending' | 'sent' | 'delivered' | 'bounced' | 'failed' | 'suppressed' | null;
+  // 서버 ENUM + 'sending' — 'sending' 은 **화면 전용**(2R-2 낙관 카드)이라 DB 에 저장되지 않는다.
+  //   서버 ENUM 에 넣지 않는 이유: 저장된 적 없는 상태가 통계·필터에 섞이면 그 자체가 오염이다.
+  delivery_status?: 'pending' | 'sent' | 'delivered' | 'bounced' | 'failed' | 'suppressed' | 'sending' | null;
   // 운영 #220 — 팀메일함에서 이 메일을 실제로 보낸 사람. inbound 면 null.
   sent_by_user_id?: number | null;
   sent_by_name?: string | null;
@@ -248,75 +253,6 @@ export function toAddrList(list: Array<string | { name?: string; email: string }
   return list.map((x) => (typeof x === 'string' ? x : x?.email)).filter(Boolean) as string[];
 }
 
-// #215-H — cidMap: { 정규화된 cid → data: URI }. 본문의 `cid:xxx` 를 실제 이미지로 치환한다.
-//   ★ 제약: sanitizeMailHtml 은 **한 글자도 건드리지 않는다**. 치환은 정화 **이후**의 순수 문자열 연산이다.
-//     이 렌더러는 2026-07-31 에 #226(DOMPurify ALLOWED_URI_REGEXP 가 모든 속성값에 적용되어
-//     align/width/colspan 전멸)·#200(img height 강제)로 막 고친 곳이라, 정화기나 guard CSS 를
-//     건드리면 메일 본문 레이아웃 전체가 무너진다. cidMap 미전달 시 출력은 옛 코드와 완전히 동일해야 한다.
-//   정규식을 쓰지 않는 이유는 cid 에 `.` `$` `+` 가 흔해서다 (services/emailAttachments.js 와 같은 판단).
-function buildMailSrcDoc(id: number, html: string, cidMap?: Record<string, string>): string {
-  let safe = sanitizeMailHtml(html);
-  if (cidMap && Object.keys(cidMap).length > 0) {
-    // 본문의 원문 표기(대소문자)를 찾아 치환한다 — cidMap 의 키는 소문자 정규화된 값.
-    for (const [cid, dataUri] of Object.entries(cidMap)) {
-      // safe 가 매 회차 바뀌므로 소문자 사본도 매번 다시 뜬다 (한 번만 뜨면 2번째 cid 부터 인덱스가 밀린다)
-      const lower = safe.toLowerCase();
-      const needle = 'cid:' + cid;
-      let from = 0;
-      const spans: number[] = [];
-      for (;;) {
-        const at = lower.indexOf(needle, from);
-        if (at === -1) break;
-        spans.push(at);
-        from = at + needle.length;
-      }
-      // 뒤에서부터 잘라 붙여야 앞쪽 인덱스가 밀리지 않는다
-      for (let i = spans.length - 1; i >= 0; i--) {
-        safe = safe.slice(0, spans[i]) + dataUri + safe.slice(spans[i] + needle.length);
-      }
-    }
-  }
-  // 높이는 **본문(body) 실제 높이**로 잰다. documentElement.scrollHeight 는 iframe 높이보다 작아질 수
-  //   없어서(html 이 뷰포트를 채운다) 짧은 답장도 240px 로 남아 아래가 텅 빈 채 늘어졌다.
-  const resize = `<script>(function(){var send=function(){var b=document.body;var h=Math.ceil(Math.max(b.scrollHeight,b.getBoundingClientRect().height,b.offsetHeight));parent.postMessage({planqMailFrame:${id},h:h},'*');};send();window.addEventListener('load',send);if(window.ResizeObserver)new ResizeObserver(send).observe(document.body);setTimeout(send,300);setTimeout(send,1200);})();<\/script>`;
-  // 가로 넘침만 최소 보정 (고정폭 템플릿이 패널보다 넓을 때 잘리지 않고 스크롤되게)
-  // 최상위 고정폭 블록(뉴스레터 table/div/center)을 가운데 정렬 — Gmail 등 타 클라이언트와 동일.
-  //   width 없는(=full) 콘텐츠는 margin:auto 영향 없이 그대로 풀폭. 고정폭만 중앙으로 모인다(Irene).
-  // ★ img 규칙 — 전역 `height:auto` 는 발신자가 지정한 HTML height 속성(presentational hint)을 무효화해서,
-  //   보낸 사람이 썸네일 크기로 줄여 넣은 이미지가 원본 크기로 부풀어 올랐다(#200). Gmail 은 이런 override 를
-  //   하지 않는다. 크기 지정이 **없는** 이미지에만 height:auto 를 주고, 지정된 것은 발신자 의도를 존중한다.
-  //   추가로 초대형 원본이 화면을 삼키지 않게 max-height 캡만 둔다(링크는 새 탭에서 원본).
-  const guard = '<style>html,body{margin:0;padding:0;height:auto;}body{overflow-x:auto;display:flow-root;}'
-    + 'img{max-width:100%;max-height:60vh;object-fit:contain;}'
-    + 'img:not([height]):not([width]):not([style*="height"]):not([style*="width"]){height:auto;}'
-    + 'body>table,body>div,body>center,body>a{margin-left:auto;margin-right:auto;}</style>';
-  // 메일 본문 링크는 iframe 안이 아니라 **새 브라우저 탭**으로 — Gmail 등 타 클라이언트와 동일.
-  //   <base target="_blank"> 로 모든 <a> 가 새 탭. sandbox 에 allow-popups(+escape) 를 줘야 실제로 열린다.
-  //   (sanitizeMailHtml 이 **위험 스킴**(javascript:·vbscript:·data:text/html 등)을 차단한다. 스킴 없는
-  //    상대값은 통과하는데, 그건 URI 가 아닌 속성값(align="center" 등)을 살리기 위한 것이다 — #226.
-  //    최신 브라우저는 _blank 에 자동 noopener 적용.)
-  const base = '<base target="_blank" rel="noopener noreferrer">';
-  // ★ #272 — 조각(fragment) 판정은 **정화 전 원문**으로 한다.
-  //   sanitizeMailHtml 은 DOMPurify WHOLE_DOCUMENT 라 조각을 넣어도 <html><body>…</body></html> 로
-  //   감싸 돌려준다. 정화 결과로 판정하면 모든 메일이 "문서" 가 되어 아래 분기가 죽은 코드가 된다.
-  const isFragment = !/<body[\s>]/i.test(html);
-  // 조각 = 우리 컴포저에서 나간 답장이나 Gmail 발 답장 본문. 문서가 아니라 <style> 이 없으니
-  //   iframe 기본 serif(명조) 로 렌더되고 여백 없이 가장자리에 붙었다
-  //   (Irene: "이상한 명조체가 답변 내용에 적용", "우측이랑 아래는 여백이 없이 다 들러붙어서").
-  //   ★ 완성 문서(뉴스레터 템플릿)에는 절대 적용하지 않는다 — 발신자 디자인을 덮으면 레이아웃이 깨진다.
-  const fragStyle = isFragment
-    ? "<style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans KR',sans-serif;"
-      + 'font-size:14px;line-height:1.6;color:#0F172A;padding:2px 14px 12px 0;}</style>'
-    : '';
-  const hasDoc = /<body[\s>]/i.test(safe);
-  if (hasDoc) {
-    // <head> 있으면 그 안에, 없으면 최상단에 base 주입
-    const withBase = /<head[^>]*>/i.test(safe) ? safe.replace(/<head[^>]*>/i, `$&${base}`) : `${base}${safe}`;
-    if (/<\/body>/i.test(withBase)) return withBase.replace(/<\/body>/i, `${guard}${fragStyle}${resize}</body>`);
-    return `${withBase}${guard}${fragStyle}${resize}`;
-  }
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${base}${guard}${fragStyle}</head><body>${safe}${resize}</body></html>`;
-}
 
 const MailPage: React.FC = () => {
   const { t, i18n } = useTranslation('qmail');
@@ -996,7 +932,10 @@ const MailPage: React.FC = () => {
         // 자동 읽음 처리 (unread_count 있을 때만)
         if (j.data.unread_count > 0) {
           await apiFetch(`/api/businesses/${businessId}/email-threads/${id}/mark-read`, { method: 'POST' });
-          loadList();
+          // ★ 2R-1 — silent 로 부른다. 일반 loadList 는 좌측 목록을 로딩 상태로 되돌려,
+          //   **미읽음 메일을 클릭할 때마다** 목록이 깜빡이고 스크롤이 리셋됐다
+          //   (Irene: "리스트에서 다른 이메일 클릭하면 계속 제대로 안나와").
+          loadList({ silent: true });
           loadCounts();
         }
       }
@@ -1041,8 +980,12 @@ const MailPage: React.FC = () => {
   useEffect(() => { loadMembers(); }, [loadMembers]);
   useEffect(() => { loadFaqSuggestions(); }, [loadFaqSuggestions]);
   useEffect(() => {
+    // ★ 2R-1 — 옛 스레드 내용을 **즉시** 지운다. 여태는 새 데이터가 도착할 때까지 옛 본문이
+    //   그대로 떠 있어서 클릭해도 화면이 안 바뀌는 것처럼 보였다
+    //   (Irene: "리스트 클릭해도 상세내용이 너무 늦게 나와"). silentReload 는 이 effect 를
+    //   타지 않으므로 열려 있는 화면이 깜빡이지 않는다.
+    setDetail(null);
     if (activeId) loadDetail(activeId);
-    else setDetail(null);
   }, [activeId, loadDetail]);
 
   const onMarkSpam = async () => {
@@ -1271,6 +1214,22 @@ const MailPage: React.FC = () => {
     }
     setSending(true);
     setReplyError(null);
+    // ★ 2R-2 — 클릭 즉시 임시 카드를 넣고 컴포저를 닫는다. 운영의 POST 는 실 SMTP 왕복을 포함해
+    //   수 초가 걸리는데, 그동안 보낸 메일이 어디에도 없으면 사용자는 발송 자체를 의심한다
+    //   (Irene: "메일 보낸 후 보낸 내용이 바로 화면 안바뀌고 늦어").
+    //   작성 내용(replyHtml)은 **성공할 때까지 지우지 않는다** — 실패 시 그대로 돌려주기 위해.
+    const threadId = detail.id;
+    const tempId = nextTempId();
+    const pending = makePendingMessage({
+      tempId,
+      bodyHtml: replyHtml,
+      bodyText: replyHtml.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(),
+      toEmails: replyToHint ? [replyToHint] : [],
+      subject: detail.subject || '',
+      myUserId: user ? Number(user.id) : null,
+    });
+    setDetail((prev) => insertPending(prev, pending));
+    setReplyOpen(false);
     try {
       // 새 업로드 먼저 올려 file id 확보 → 기존 선택 파일과 합침
       const fileIds = [...replyFileIds];
@@ -1279,7 +1238,7 @@ const MailPage: React.FC = () => {
         if (up.success && up.file) fileIds.push(Number(String(up.file.id).replace('direct-', '')));
         else throw new Error(up.message || (t('reply.uploadFailed', { defaultValue: '첨부 업로드 실패' }) as string));
       }
-      const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${detail.id}/messages`, {
+      const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${threadId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // 3상태 — null 이면 **키를 생략**해 서버가 "받은 주소로" 결정하게 한다(JSON.stringify 가 undefined 키를 뺀다).
@@ -1288,13 +1247,26 @@ const MailPage: React.FC = () => {
       });
       const j = await r.json();
       if (!j.success) throw new Error(j.message || (t('reply.sendFailed', { defaultValue: '발송 실패' }) as string));
-      // 성공 — 답장 초안 삭제 + 컴포저 닫고 갱신 (성공 토스트 금지)
-      apiFetch(`/api/businesses/${businessId}/email-drafts?thread_id=${detail.id}`, { method: 'DELETE' }).catch(() => {});
-      setReplyOpen(false); setReplyHtml(''); setReplyUploads([]); setReplyFileIds([]);
-      await loadDetail(detail.id);
+      // 성공 — 임시 카드를 서버가 확정한 값으로 **치환**(추가하면 같은 메일이 두 장이 된다).
+      //   응답은 평면 객체(id·delivery_status·sent_at…)라 임시 카드 위에 덮어쓴다.
+      //   본문 정본(서명·표 인라인이 반영된 저장본)은 뒤따르는 loadDetail 이 가져온다.
+      setDetail((prev) => replacePending(prev, tempId, {
+        ...pending,
+        id: Number(j.data?.id ?? tempId),
+        delivery_status: j.data?.delivery_status ?? 'sent',
+        delivery_error: j.data?.delivery_error ?? null,
+        sent_at: j.data?.sent_at ?? pending.sent_at,
+      }));
+      apiFetch(`/api/businesses/${businessId}/email-drafts?thread_id=${threadId}`, { method: 'DELETE' }).catch(() => {});
+      setReplyHtml(''); setReplyUploads([]); setReplyFileIds([]);
+      // 권위 동기화(서명·표 인라인 반영)는 배경에서 — 화면을 막지 않는다.
+      loadDetail(threadId);
       loadList();
       loadCounts();
     } catch (e) {
+      // 실패 — 임시 카드를 걷어내고 컴포저를 다시 연다. 작성 내용은 그대로 남아 있다.
+      setDetail((prev) => removePending(prev, tempId));
+      setReplyOpen(true);
       setReplyError((e as Error).message);
     } finally {
       setSending(false);
@@ -1421,10 +1393,24 @@ const MailPage: React.FC = () => {
   const [ctxOverlayOpen, setCtxOverlayOpen] = useState(false);
   useBodyScrollLock(ctxNarrow && ctxOverlayOpen);
   // #262 M2 — 최신 메시지만 펼친 채 시작 (접기 상태·스크롤 앵커). 훅으로 절출.
-  const { expandedMsgIds, toggleMsg, lastMsgRef } = useThreadMessageExpansion(
+  const { expandedMsgIds, toggleMsg, scrollRef } = useThreadMessageExpansion(
     detail ? detail.id : null,
     detail ? detail.messages : null,
+    folder,
   );
+
+  // 2R-1 — 화면 표시는 **최신이 위**. 서버 응답(detail.messages)은 오름차순 정본 그대로 두고
+  //   여기서만 뒤집는다 — 답장 인용 원본·references 체인이 오름차순을 전제하기 때문.
+  const displayMessages = useMemo(
+    () => (detail ? [...detail.messages].reverse() : []),
+    [detail],
+  );
+  // 인용 접기 토글 문구 — iframe 안에서는 t() 를 쓸 수 없어 문자열로 넘긴다.
+  //   객체 신원이 매 렌더 바뀌면 srcDoc memo 가 깨지므로 useMemo 로 고정한다.
+  const foldLabels = useMemo(() => ({
+    show: t('quoteFold.show', { defaultValue: '⋯ 이전 대화 보기' }) as string,
+    hide: t('quoteFold.hide', { defaultValue: '이전 대화 숨기기' }) as string,
+  }), [t]);
 
   // #215-H — 본문 cid: 이미지 → data: URI 맵 (본문 렌더 srcDoc 치환 재료).
   //   펼쳐진 메시지만 받는다 — 접힌 본문의 인라인 이미지를 미리 받으면 긴 스레드에서 낭비다.
@@ -1980,7 +1966,12 @@ const MailPage: React.FC = () => {
               </ComposeFoot>
             </ComposeFull>
           ) : detailLoading && !detail ? (
-            <Loading><Spinner /></Loading>
+            /* 2R-1 — 스레드 전환 즉시 나타나는 스켈레톤. 옛 스레드 잔상을 지운 자리를 채운다. */
+            <DetailSkeleton aria-busy="true" aria-live="polite">
+              <SkelLine $w="62%" $h={18} />
+              <SkelCard><SkelLine $w="38%" /><SkelLine /><SkelLine $w="86%" /></SkelCard>
+              <SkelCard><SkelLine $w="44%" /><SkelLine /><SkelLine $w="72%" /></SkelCard>
+            </DetailSkeleton>
           ) : !detail ? (
             /* 빈 상태 — Q docs·Q Note·Q Talk 와 같은 공통 EmptyState (여태 Q mail 만 13px 회색 한 줄) */
             <EmptyState
@@ -2091,9 +2082,9 @@ const MailPage: React.FC = () => {
                   />
                 </DetailLabels>
               </DetailToolbar>
-              <MessagesScroll>
+              <MessagesScroll ref={scrollRef}>
                 <ThreadMessages
-                  messages={detail.messages}
+                  messages={displayMessages}
                   threadId={detail.id}
                   accountEmail={detail.account?.email || ''}
                   subject={detail.subject || ''}
@@ -2101,7 +2092,6 @@ const MailPage: React.FC = () => {
                   businessId={businessId as number}
                   expandedMsgIds={expandedMsgIds}
                   toggleMsg={toggleMsg}
-                  lastMsgRef={lastMsgRef}
                   frameH={frameH}
                   msgCidData={msgCidData}
                   msgTrans={msgTrans}
@@ -2111,7 +2101,7 @@ const MailPage: React.FC = () => {
                   translateMsg={translateMsg}
                   cancelTranslate={cancelTranslate}
                   startForward={startForward}
-                  buildMailSrcDoc={buildMailSrcDoc}
+                  foldLabels={foldLabels}
                   toAddrList={toAddrList}
                   formatTimeAgo={formatTimeAgo}
                   t={t}

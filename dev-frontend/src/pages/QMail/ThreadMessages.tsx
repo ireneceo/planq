@@ -1,17 +1,23 @@
 // #262 M2 — 스레드 상세의 메시지 목록. MailPage.tsx 에서 절출 (god-file 래칫).
 //
-// 스레드를 열면 **최신 메시지**가 펼쳐진 채 그 위치에서 시작하고, 과거 메시지는 헤더 한 줄로 접힌다
-// (Irene: "내가 보낸 메일이 최신인데 가장 아래에 붙어버려서"). 접기 상태·스크롤 앵커는 부모가 쥔다 —
-// 스레드 전환 시 초기화 타이밍이 부모의 detail 로드와 같은 phase 여야 하기 때문.
+// 스레드를 열면 **최신 메시지**가 펼쳐진 채 맨 위에서 시작하고, 과거 메시지는 헤더 한 줄로 접힌다
+// (Irene: "내가 보낸 메일이 최신인데 가장 아래에 붙어버려서").
+//
+// ★ 2R-1 — `messages` 는 **최신이 위(내림차순)** 로 정렬돼 들어온다. 서버 API 는 오름차순 그대로다
+//   (답장 인용 원본·references 체인이 오름차순 전제). 뒤집는 것은 화면 표시뿐이고, 그래서
+//   "맨 위로" 가 항상 정답이라 스크롤 앵커 계산 자체가 없다 (Irene: "최신이 위여야 하는데").
+//   접기 상태는 부모가 쥔다 — 스레드 전환 초기화가 부모의 detail 로드와 같은 phase 여야 하므로.
 import React from 'react';
 import type { TFunction } from 'i18next';
 // 타입 정본은 MailPage — type-only import 라 런타임 순환이 생기지 않는다
 import type { Message, toAddrList as ToAddrList } from './MailPage';
 import MailBodyFullscreen from './MailBodyFullscreen';
 import MessageAttachments from './MessageAttachments';
+import MailMessageBody from './MailMessageBody';
+import { buildMailSrcDoc, type QuoteFoldLabels } from './mailSrcDoc';
 import {
   MessageCard, MessageHeader, MessageFrom, MessageTo, MsgHeaderRight, MsgCollapsedPreview, MsgChevron,
-  MessageTime, MsgForwardBtn, DeliveryChip, MessageBodyFrame, MessageBodyText,
+  MessageTime, MsgForwardBtn, DeliveryChip, MessageBodyText,
   TransBar, TransSelect, TransBtn, TransLoading, TransErr, TransBody,
 } from './MailPage.styles';
 
@@ -29,7 +35,6 @@ interface Props {
   businessId: number;
   expandedMsgIds: ReadonlySet<number>;
   toggleMsg: (id: number) => void;
-  lastMsgRef: React.MutableRefObject<HTMLDivElement | null>;
   frameH: Record<number, number>;
   msgCidData: Record<number, Record<string, string>>;
   msgTrans: Record<number, MsgTransState>;
@@ -39,7 +44,8 @@ interface Props {
   translateMsg: (msgId: number, threadId: number) => void;
   cancelTranslate: (msgId: number) => void;
   startForward: (m: Message) => void;
-  buildMailSrcDoc: (id: number, html: string, cid?: Record<string, string>) => string;
+  /** 인용 접기 토글 문구 (iframe 안이라 t() 를 쓸 수 없어 문자열로 넘긴다) */
+  foldLabels: QuoteFoldLabels;
   toAddrList: typeof ToAddrList;
   formatTimeAgo: (v: string) => string;
   t: TFunction;
@@ -47,29 +53,31 @@ interface Props {
 
 export default function ThreadMessages(p: Props) {
   const {
-    messages, threadId, accountEmail, subject, myUserId, businessId, expandedMsgIds, toggleMsg, lastMsgRef,
+    messages, threadId, accountEmail, subject, myUserId, businessId, expandedMsgIds, toggleMsg,
     frameH, msgCidData, msgTrans, setMsgTrans, transLang, setTransLang,
-    translateMsg, cancelTranslate, startForward, buildMailSrcDoc, toAddrList, formatTimeAgo, t,
+    translateMsg, cancelTranslate, startForward, foldLabels, toAddrList, formatTimeAgo, t,
   } = p;
   // 운영 #260 — 좁은 패널에서 읽기 답답한 메일을 화면 전체로 펼쳐 읽는다.
   const [fullMsgId, setFullMsgId] = React.useState<number | null>(null);
   const fullMsg = messages.find((x) => x.id === fullMsgId) || null;
   return (
     <>
-      {messages.map((m, mi) => {
-        const isLast = mi === messages.length - 1;
+      {messages.map((m) => {
         const open = expandedMsgIds.has(m.id);
         return (
         <MessageCard
           key={m.id}
           $outbound={m.direction === 'outbound'}
-          ref={isLast ? lastMsgRef : undefined}
         >
           {/* 헤더 전체가 클릭 대상이지만 role/tabIndex 는 **발신자 영역에만** 둔다 —
               헤더 안에 전달 <button> 이 있어서, 헤더를 role="button" 으로 만들면 인터랙티브 중첩이 된다
               (스크린리더가 버튼 안의 버튼을 온전히 읽지 못한다). */}
           <MessageHeader
             data-testid="mail-message-header"
+            /* 하니스가 표시 순서·펼침 대상을 기계적으로 검증하는 근거 (CLAUDE.md 운영 안정성 17) */
+            data-message-id={m.id}
+            data-direction={m.direction}
+            data-expanded={open ? '1' : '0'}
             $clickable
             onClick={() => toggleMsg(m.id)}
           >
@@ -104,7 +112,7 @@ export default function ThreadMessages(p: Props) {
               {/* 발송 상태 — 나간 메일만. 'sent'(정상)는 표시하지 않는다(잡음). 문제 있을 때만 드러낸다. */}
               {m.direction === 'outbound' && m.delivery_status && m.delivery_status !== 'sent' && (
                 <DeliveryChip
-                  $tone={m.delivery_status === 'suppressed' ? 'warn' : 'err'}
+                  $tone={m.delivery_status === 'sending' ? 'info' : (m.delivery_status === 'suppressed' ? 'warn' : 'err')}
                   title={m.delivery_error || undefined}
                 >
                   {t(`delivery.${m.delivery_status}`) as string}
@@ -138,11 +146,13 @@ export default function ThreadMessages(p: Props) {
               sanitizeMailHtml 이 문서를 통째로 정화(script·on* 제거)하고, sandbox iframe
               (allow-scripts 만, same-origin 없음)이 격리한다. 우리가 넣는 스크립트는 높이 보고 한 줄. */}
           {m.body_html ? (
-            <MessageBodyFrame
-              sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
-              style={{ height: `${frameH[m.id] || 120}px` }}
-              srcDoc={buildMailSrcDoc(m.id, m.body_html, msgCidData[m.id])}
-              title={`message-${m.id}`}
+            <MailMessageBody
+              id={m.id}
+              bodyHtml={m.body_html}
+              bodyText={m.body_text}
+              cidMap={msgCidData[m.id]}
+              measuredH={frameH[m.id]}
+              foldLabels={foldLabels}
             />
           ) : (
             <MessageBodyText>{m.body_text || '(no content)'}</MessageBodyText>
@@ -202,7 +212,7 @@ export default function ThreadMessages(p: Props) {
             ? `${(fullMsg.sent_by_user_id && myUserId && fullMsg.sent_by_user_id !== myUserId && fullMsg.sent_by_name) ? fullMsg.sent_by_name : (t('me', { defaultValue: '나' }) as string)} <${accountEmail}>`
             : `${fullMsg.from_name || ''} <${fullMsg.from_email || ''}>`)
           : undefined}
-        srcDoc={fullMsg && fullMsg.body_html ? buildMailSrcDoc(fullMsg.id, fullMsg.body_html, msgCidData[fullMsg.id]) : undefined}
+        srcDoc={fullMsg && fullMsg.body_html ? buildMailSrcDoc(fullMsg.id, fullMsg.body_html, msgCidData[fullMsg.id], foldLabels) : undefined}
         text={fullMsg ? fullMsg.body_text : null}
       />
     </>

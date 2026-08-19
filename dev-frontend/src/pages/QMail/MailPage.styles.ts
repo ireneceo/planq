@@ -602,13 +602,19 @@ export const FollowUpChip = styled.span<{ $tone: 'warn' | 'err' }>`
 `;
 
 // 발송 상태 칩 — 읽기 전용 상태 표시(버튼 아님)라 상태 색을 쓴다. UI_DESIGN_GUIDE §1.7 3톤 규칙은 액션 버튼 한정.
-export const DeliveryChip = styled.span<{ $tone: 'warn' | 'err' }>`
+// 2R-2 — 'info' 는 낙관 반영 중인 "발송 중…" 카드용. 아직 실패가 아니므로 빨강/노랑을 쓰지 않는다.
+const CHIP_TONE = {
+  warn: { bg: '#FFFBEB', fg: '#D97706', bd: '#FDE68A' },
+  err: { bg: '#FEF2F2', fg: '#DC2626', bd: '#FECACA' },
+  info: { bg: '#F1F5F9', fg: '#475569', bd: '#CBD5E1' },
+} as const;
+export const DeliveryChip = styled.span<{ $tone: 'warn' | 'err' | 'info' }>`
   display: inline-flex; align-items: center;
   padding: 2px 8px; border-radius: 10px;
   font-size: 11px; font-weight: 600; white-space: nowrap;
-  background: ${p => (p.$tone === 'warn' ? '#FFFBEB' : '#FEF2F2')};
-  color: ${p => (p.$tone === 'warn' ? '#D97706' : '#DC2626')};
-  border: 1px solid ${p => (p.$tone === 'warn' ? '#FDE68A' : '#FECACA')};
+  background: ${p => CHIP_TONE[p.$tone].bg};
+  color: ${p => CHIP_TONE[p.$tone].fg};
+  border: 1px solid ${p => CHIP_TONE[p.$tone].bd};
 `;
 export const MsgForwardBtn = styled.button`
   background: transparent; border: 1px solid #E2E8F0; color: #475569;
@@ -813,4 +819,26 @@ export const BulkAction = styled.button<{ $confirm?: boolean }>`
   }
   &:disabled { opacity: 0.55; cursor: not-allowed; }
   &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
+`;
+
+// 2R-1 — 스레드 전환 스켈레톤. 옛 스레드 내용을 즉시 지우고 이 고스트를 띄운다
+//   (Irene: "리스트 클릭해도 상세내용이 너무 늦게 나와"). 스피너 하나보다 "무엇이 올지"가 보여
+//   체감 대기가 짧다. 실제 카드와 같은 여백을 써서 도착 시 레이아웃이 튀지 않는다.
+export const DetailSkeleton = styled.div`
+  padding: 16px 20px;
+  display: flex; flex-direction: column; gap: 14px;
+`;
+export const SkelLine = styled.div<{ $w?: string; $h?: number }>`
+  width: ${(p) => p.$w || '100%'};
+  height: ${(p) => p.$h || 12}px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 37%, #F1F5F9 63%);
+  background-size: 400% 100%;
+  animation: pqShimmer 1.2s ease-in-out infinite;
+  @keyframes pqShimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+`;
+export const SkelCard = styled.div`
+  border: 1px solid #E2E8F0; border-radius: 10px; background: #fff;
+  padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 10px;
 `;

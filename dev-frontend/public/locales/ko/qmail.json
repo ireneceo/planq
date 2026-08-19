@@ -436,7 +436,8 @@
     "failed": "발송 실패",
     "bounced": "반송됨",
     "pending": "발송 대기",
-    "delivered": "전달됨"
+    "delivered": "전달됨",
+    "sending": "발송 중…"
   },
   "compose": {
     "fromAddress": "보내는 주소",
@@ -467,5 +468,9 @@
     "errExists": "이미 등록된 도메인이에요.",
     "errAdmin": "워크스페이스 관리자만 바꿀 수 있어요.",
     "errFailed": "처리하지 못했어요."
+  },
+  "quoteFold": {
+    "show": "⋯ 이전 대화 보기",
+    "hide": "이전 대화 숨기기"
   }
 }
