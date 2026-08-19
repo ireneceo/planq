@@ -10,7 +10,10 @@ import { useState, useEffect } from 'react';
 import { apiFetch } from '../../contexts/AuthContext';
 
 export interface InlineImage {
-  file_id: number;
+  /** 첨부로 저장된 이미지. 본문에서 떼어낸 base64 이미지는 null 이다. */
+  file_id: number | null;
+  /** 본문에서 떼어낸 base64 이미지의 순번. 첨부 기반이면 undefined. */
+  embedded_index?: number;
   content_id: string | null;
   mime_type: string;
   size_bytes: number | null;
@@ -34,6 +37,7 @@ export function useInlineCidImages(
   messages: MessageLike[] | null,
   businessId: number | null,
   visibleIds?: ReadonlySet<number>,
+  threadId?: number | null,
 ) {
   const [cidData, setCidData] = useState<Record<number, Record<string, string>>>({});
 
@@ -49,14 +53,19 @@ export function useInlineCidImages(
         // 예산 검사는 **착수 전에** size_bytes 로 끝낸다 — 그래야 병렬로 받아도 결과가 순서에
         //   의존하지 않는다(옛 순차 코드와 같은 집합을 고른다).
         let budget = MAX_PER_MSG;
-        const queue: Array<{ cid: string; fileId: number }> = [];
+        const queue: Array<{ cid: string; url: string }> = [];
         for (const im of inl) {
           const size = im.size_bytes || 0;
           if (size > budget) continue;          // 캡 초과분은 skip — 현상 유지(깨진 이미지)
           const cid = normalizeCid(im.content_id);
           if (!cid) continue;
           budget -= size;
-          queue.push({ cid, fileId: im.file_id });
+          // 첨부 기반이면 파일 다운로드, 본문에서 떼어낸 것이면 스레드 메시지 경로.
+          const url = (im.embedded_index != null && threadId)
+            ? `/api/businesses/${businessId}/email-threads/${threadId}/messages/${m.id}/embedded/${im.embedded_index}`
+            : (im.file_id != null ? `/api/files/${businessId}/${im.file_id}/download` : null);
+          if (!url) continue;
+          queue.push({ cid, url });
         }
         // ★ 2R-1 — 순차 await 는 이미지가 3장만 돼도 왕복이 그대로 쌓여 본문이 늦게 완성됐다.
         //   동시성 4 로 받는다(무제한 병렬은 인증 다운로드 라우트를 때린다).
@@ -66,9 +75,9 @@ export function useInlineCidImages(
           for (;;) {
             const idx = cursor++;
             if (idx >= queue.length || !alive) return;
-            const { cid, fileId } = queue[idx];
+            const { cid, url } = queue[idx];
             try {
-              const r = await apiFetch(`/api/files/${businessId}/${fileId}/download`);
+              const r = await apiFetch(url);
               if (!r.ok) continue;
               const blob = await r.blob();
               const dataUri = await new Promise<string>((resolve, reject) => {
@@ -88,7 +97,7 @@ export function useInlineCidImages(
       }
     })();
     return () => { alive = false; };
-  }, [messages, businessId, visibleIds]);
+  }, [messages, businessId, visibleIds, threadId]);
 
   return cidData;
 }
