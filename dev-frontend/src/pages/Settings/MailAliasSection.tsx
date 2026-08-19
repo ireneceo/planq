@@ -3,10 +3,11 @@
 // Gmail·Outlook 의 "다른 주소로 메일 보내기" 와 같다. PlanQ 는 주소를 등록해 두고 고르게 하고,
 // 그 주소로 보낼 권한 자체는 메일 제공자에서 인증돼 있어야 한다 — 그 사실을 화면에 밝힌다
 // (여기서 등록만 하면 다 되는 것처럼 보이면 발송 실패의 원인을 사용자가 찾을 수 없다).
-import { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import ActionButton from '../../components/Common/ActionButton';
+import RichEditor from '../../components/Common/RichEditor';
 import { apiFetch } from '../../contexts/AuthContext';
 
 export interface MailAlias {
@@ -23,6 +24,10 @@ interface Props {
   accountEmail: string;
 }
 
+// 에디터가 만드는 <p></p> 같은 껍데기를 "비어 있음" 으로 본다 — 안 그러면 빈 서명이 저장돼
+//   계정 서명으로 내려가지 않는다.
+const isEmptyHtml = (h: string) => !String(h || '').replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim();
+
 export default function MailAliasSection({ businessId, accountId, accountEmail }: Props) {
   const { t } = useTranslation('qmail');
   const [aliases, setAliases] = useState<MailAlias[]>([]);
@@ -37,6 +42,11 @@ export default function MailAliasSection({ businessId, accountId, accountEmail }
   const [editId, setEditId] = useState<number | null>(null);
   const [editEmail, setEditEmail] = useState('');
   const [editName, setEditName] = useState('');
+  // 주소마다 다른 서비스라 서명도 주소마다 달라야 한다 (Irene).
+  //   백엔드는 처음부터 별칭 서명을 지원했다 — 발송 시 우선순위가
+  //   **별칭 서명 → 계정 서명 → 워크스페이스 서명** (services/emailSend.js).
+  //   화면에서 입력할 방법만 없어서 그 컬럼이 늘 비어 있었을 뿐이다.
+  const [editSignature, setEditSignature] = useState('');
 
   const base = `/api/businesses/${businessId}/email-accounts/${accountId}/aliases`;
 
@@ -88,8 +98,9 @@ export default function MailAliasSection({ businessId, accountId, accountEmail }
     setEditId(a.id);
     setEditEmail(a.email);
     setEditName(a.display_name || '');
+    setEditSignature(a.signature_html || '');
   };
-  const cancelEdit = () => { setEditId(null); setEditEmail(''); setEditName(''); };
+  const cancelEdit = () => { setEditId(null); setEditEmail(''); setEditName(''); setEditSignature(''); };
 
   const saveEdit = async (id: number) => {
     const addr = editEmail.trim().toLowerCase();
@@ -98,7 +109,12 @@ export default function MailAliasSection({ businessId, accountId, accountEmail }
     try {
       const r = await apiFetch(`${base}/${id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: addr, display_name: editName.trim() || null }),
+        // 서명이 비면 null — 그래야 이 주소로 보낼 때 계정 서명으로 자연스럽게 내려간다.
+        body: JSON.stringify({
+          email: addr,
+          display_name: editName.trim() || null,
+          signature_html: isEmptyHtml(editSignature) ? null : editSignature,
+        }),
       });
       const j = await r.json().catch(() => ({}));
       // ★ apiFetch 는 throw 하지 않는다 — r.ok 를 안 보면 실패해도 성공한 척 닫힌다.
@@ -132,16 +148,21 @@ export default function MailAliasSection({ businessId, accountId, accountEmail }
         <Title>{t('alias.title', { defaultValue: '보내는 주소' }) as string}</Title>
       </Head>
       <Desc>
-        {t('alias.desc', { defaultValue: '이 메일함으로 여러 도메인 주소를 쓰는 경우, 보낼 때 고를 수 있게 등록해 두세요. 답장은 그 메일이 온 주소로 자동 선택됩니다.' }) as string}
+        {t('alias.desc', { defaultValue: '이 메일함으로 여러 도메인 주소를 쓰는 경우, 보낼 때 고를 수 있게 등록해 두세요. 답장은 그 메일이 온 주소로 자동 선택되고, "새 메일 기본"은 새로 쓰는 메일에서 처음 선택되는 주소입니다.' }) as string}
       </Desc>
 
       <List>
+        {/* ★ 이 줄은 "기본값" 이 아니라 **메일함 자체의 주소**다. 바꿀 수 있는 설정이 아니다.
+            옛 문구가 "계정 기본" 이라 아래 "새 메일 기본" 배지와 같은 것으로 읽혔고,
+            별칭을 기본으로 바꿔도 이 줄이 안 바뀐다고 오해를 샀다(Irene). */}
         <Row $muted>
           <Addr>{accountEmail}</Addr>
-          <Tag>{t('alias.accountAddr', { defaultValue: '계정 기본' }) as string}</Tag>
+          <Tag>{t('alias.accountAddr', { defaultValue: '이 메일함 주소' }) as string}</Tag>
         </Row>
         {aliases.map((a) => (editId === a.id ? (
-          <Row key={a.id}>
+          // 편집 중에는 한 줄(주소·표시이름·저장/취소) 아래에 서명 편집기가 함께 열린다
+          <React.Fragment key={a.id}>
+          <Row>
             <Input
               type="email"
               value={editEmail}
@@ -163,6 +184,17 @@ export default function MailAliasSection({ businessId, accountId, accountEmail }
               {t('alias.cancel', { defaultValue: '취소' }) as string}
             </LinkBtn>
           </Row>
+          <SigBox>
+            <SigLabel>{t('alias.signature', { defaultValue: '이 주소로 보낼 때 붙는 서명' }) as string}</SigLabel>
+            <RichEditor
+              value={editSignature}
+              onChange={setEditSignature}
+              minHeight={110}
+              placeholder={t('alias.signaturePh', { defaultValue: '예) 워프로랩 · 홍길동 · 010-0000-0000' }) as string}
+            />
+            <SigHint>{t('alias.signatureHint', { defaultValue: '비워 두면 이 메일함의 공통 서명이 대신 붙습니다.' }) as string}</SigHint>
+          </SigBox>
+          </React.Fragment>
         ) : (
           <Row key={a.id}>
             <Addr>
@@ -170,12 +202,16 @@ export default function MailAliasSection({ businessId, accountId, accountEmail }
               {a.display_name
                 ? <Who>{a.display_name}</Who>
                 : <WhoEmpty>{t('alias.noName', { defaultValue: '표시 이름 없음' }) as string}</WhoEmpty>}
+              {/* 주소별 서명이 있는지 한눈에 — 없으면 계정 공통 서명이 붙는다 */}
+              {a.signature_html && !isEmptyHtml(a.signature_html)
+                ? <Who>· {t('alias.hasSignature', { defaultValue: '전용 서명' }) as string}</Who>
+                : <WhoEmpty>· {t('alias.noSignature', { defaultValue: '공통 서명' }) as string}</WhoEmpty>}
             </Addr>
             {a.is_default
-              ? <Tag $on>{t('alias.default', { defaultValue: '기본' }) as string}</Tag>
+              ? <Tag $on>{t('alias.default', { defaultValue: '새 메일 기본' }) as string}</Tag>
               : (
                 <LinkBtn type="button" onClick={() => setDefault(a.id)} disabled={busy}>
-                  {t('alias.setDefault', { defaultValue: '기본으로' }) as string}
+                  {t('alias.setDefault', { defaultValue: '새 메일 기본으로' }) as string}
                 </LinkBtn>
               )}
             <LinkBtn type="button" onClick={() => startEdit(a)} disabled={busy}>
@@ -235,6 +271,12 @@ const Who = styled.span`font-size: 11px; color: #94A3B8;`;
 // 표시 이름이 비어 있다는 사실을 드러낸다 — 옛 등록분은 전부 비어 있는데 화면에 아무것도 안 뜨면
 //   "설정할 게 없다" 로 읽힌다.
 const WhoEmpty = styled.span`font-size: 11px; color: #CBD5E1; font-style: italic;`;
+const SigBox = styled.div`
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 10px; margin: -2px 0 4px; border: 1px solid #E2E8F0; border-radius: 8px; background: #F8FAFC;
+`;
+const SigLabel = styled.div`font-size: 11px; font-weight: 700; color: #334155;`;
+const SigHint = styled.div`font-size: 11px; color: #94A3B8; line-height: 1.6;`;
 const Tag = styled.span<{ $on?: boolean }>`
   flex-shrink: 0; padding: 1px 7px; border-radius: 999px;
   font-size: 10px; font-weight: 700;

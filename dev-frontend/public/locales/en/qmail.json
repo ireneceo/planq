@@ -387,10 +387,10 @@
   },
   "alias": {
     "title": "Send-as addresses",
-    "desc": "If this mailbox receives several domains, register the addresses so you can pick one when sending. Replies default to the address the mail arrived at.",
-    "accountAddr": "Account default",
-    "default": "Default",
-    "setDefault": "Make default",
+    "desc": "If this mailbox receives several domains, register the addresses so you can pick one when sending. Replies always go out from the address the mail arrived at; \"Default for new mail\" is the address preselected when you compose a new message.",
+    "accountAddr": "This mailbox",
+    "default": "Default for new mail",
+    "setDefault": "Use for new mail",
     "remove": "Remove",
     "add": "Add",
     "emailPh": "hello@another-domain.com",
@@ -404,7 +404,12 @@
     "save": "Save",
     "cancel": "Cancel",
     "noName": "No display name",
-    "errSaveFailed": "Could not save."
+    "errSaveFailed": "Could not save.",
+    "signature": "Signature used when sending from this address",
+    "signaturePh": "e.g. WOR-PRO Lab · John Doe · +82 10-0000-0000",
+    "signatureHint": "Leave empty to use this mailbox’s shared signature instead.",
+    "hasSignature": "own signature",
+    "noSignature": "shared signature"
   },
   "detail": {
     "toAddr": "Received at",
