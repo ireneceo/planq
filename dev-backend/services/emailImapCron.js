@@ -281,8 +281,11 @@ async function syncOne(account, opts = {}) {
 
   // "우리 주소" 집합 — 우리가 보낸 메일(플랫폼 알림·워크스페이스 발송)이 되돌아온 것은
   // 사람 문의가 아니다. 이게 없어서 운영 "답변 필요" 116건 중 93건이 자기 알림이었다.
-  const { buildOwnEmailSet } = require('./emailTriage');
+  const { buildOwnEmailSet, buildOwnAddressMatcher } = require('./emailTriage');
   const ownEmails = await buildOwnEmailSet(account.business_id);
+  // 수신 인식 전용 매처 — 정확 주소 + 워크스페이스 도메인 규칙.
+  //   ownEmails 는 발신 축(자기발신·자동발송 판정)에 그대로 쓰인다. 두 축을 섞지 않는다.
+  const ownMatcher = await buildOwnAddressMatcher(account.business_id);
 
   // 참여자 제외 집합 — 이 계정 주소 + 별칭. 동기화 1회당 한 번만 조회한다.
   //   ownEmails(비즈니스 전체)와 다르다: 같은 워크스페이스의 다른 계정끼리 주고받은 메일에서
@@ -470,7 +473,7 @@ async function syncOne(account, opts = {}) {
             inReplyTo: parsed.inReplyTo,
             references: parsed.references,
           });
-          const base = triageInbound({ subject: parsed.subject, bodyText: parsed.text, fromEmail, headers: trHeaders, ownEmails, isKnownContact: known });
+          const base = triageInbound({ subject: parsed.subject, bodyText: parsed.text, fromEmail, headers: trHeaders, ownEmails, ownMatcher, isKnownContact: known });
           // 학습된 발신자 규칙이 휴리스틱보다 우선한다 (사용자가 직접 알려준 정답).
           //   규칙은 분류만 바꾼다 — 원본 메일은 그대로라 규칙 삭제 시 즉시 원상복구.
           const tr = await applyRules(account.business_id, fromEmail, base);

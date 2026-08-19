@@ -6,7 +6,7 @@
 const express = require('express');
 const { Op } = require('sequelize');
 const router = express.Router();
-const { EmailAccount, EmailAccountAlias, BusinessMember } = require('../models');
+const { EmailAccount, EmailAccountAlias, EmailDomainRule, BusinessMember } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 
@@ -106,5 +106,76 @@ router.delete('/:businessId/email-accounts/:id/aliases/:aliasId', authenticateTo
   } catch (err) { next(err); }
 });
 
+
+// ─────────────────────────────────────────────
+// 우리 도메인 규칙 (email_domain_rules) — **수신 인식 전용**
+//
+// 도메인을 등록하면 그 도메인의 모든 로컬파트가 "우리에게 온 메일" 로 인식된다.
+// 발신(From)은 위의 별칭이 계속 담당한다 — 제공자가 주소 단위로만 발신을 인증해 주고,
+// 표시 이름·서명도 주소별이라 규칙으로 대체할 수 없다.
+// ─────────────────────────────────────────────
+
+// 공용 메일 도메인 — 등록을 막는다. 이걸 열면 그 제공자의 **모든 발신자**가 우리 주소로 보이고,
+//   숨은참조 대량발송이 전부 "우리에게 온 메일" 이 된다 (도메인 규칙을 만든 이유를 스스로 무너뜨림).
+//   해당 제공자의 개인 계정 자체는 email_accounts.email 로 이미 우리 주소에 포함돼 있어 규칙이 불필요하다.
+const PUBLIC_MAIL_DOMAINS = new Set([
+  'gmail.com', 'googlemail.com', 'naver.com', 'daum.net', 'hanmail.net', 'kakao.com',
+  'outlook.com', 'hotmail.com', 'live.com', 'yahoo.com', 'icloud.com', 'me.com',
+  'protonmail.com', 'proton.me', 'nate.com',
+]);
+const DOMAIN_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
+
+/** 입력 정규화 — '@wor-pro.com' · 'WOR-PRO.com' 같은 관용 입력을 받아준다. 이메일 전체·와일드카드는 거부. */
+function normalizeDomain(raw) {
+  return String(raw || '').trim().toLowerCase().replace(/^@/, '');
+}
+
+router.get('/:businessId/email-domain-rules', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const { limit, page, offset } = parsePagination(req, { defaultLimit: 50, maxLimit: 100 });
+    const { rows, count } = await EmailDomainRule.findAndCountAll({
+      where: { business_id: businessId },
+      order: [['domain', 'ASC']],
+      limit, offset,
+    });
+    return paginatedResponse(res, rows.map((r) => r.toJSON()), count, { limit, page, offset });
+  } catch (err) { next(err); }
+});
+
+router.post('/:businessId/email-domain-rules', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    // 워크스페이스의 "우리 주소" 정의는 워크스페이스 관리 권한이다 (개인 계정 소유자라도 admin 이 아니면 불가).
+    if (!isAdmin(req)) return errorResponse(res, 'admin_required', 403);
+    const businessId = Number(req.params.businessId);
+    const domain = normalizeDomain(req.body?.domain);
+    if (!DOMAIN_RE.test(domain)) return errorResponse(res, 'invalid_domain', 400, 'invalid_domain');
+    if (PUBLIC_MAIL_DOMAINS.has(domain)) {
+      return errorResponse(res, 'public_domain_not_allowed', 400, 'public_domain_not_allowed');
+    }
+    const dup = await EmailDomainRule.findOne({ where: { business_id: businessId, domain } });
+    if (dup) return errorResponse(res, 'rule_exists', 409);
+    const rule = await EmailDomainRule.create({
+      business_id: businessId,
+      domain,
+      note: req.body?.note ? String(req.body.note).slice(0, 200) : null,
+      created_by: req.user.id,
+    });
+    return successResponse(res, rule.toJSON(), 'created', 201);
+  } catch (err) { next(err); }
+});
+
+router.delete('/:businessId/email-domain-rules/:ruleId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    if (!isAdmin(req)) return errorResponse(res, 'admin_required', 403);
+    const rule = await EmailDomainRule.findOne({
+      where: { id: Number(req.params.ruleId), business_id: Number(req.params.businessId) },
+    });
+    if (!rule) return errorResponse(res, 'rule_not_found', 404);
+    // 삭제해도 이미 저장된 분류는 그대로다 — 되돌리려면 scripts/retriage-mail.js 를 돌린다.
+    await rule.destroy();
+    return successResponse(res, { id: rule.id, deleted: true });
+  } catch (err) { next(err); }
+});
 
 module.exports = router;

@@ -117,6 +117,42 @@ async function buildOwnEmailSet(businessId) {
 }
 
 
+// 수신 인식용 주소 매처 — 정확 주소 + **우리 도메인 규칙**.
+//
+// ★ buildOwnEmailSet 을 넓히지 않고 별도 함수로 둔 이유가 핵심이다. ownEmails 는 두 가지 의미로
+//   쓰인다:
+//     · 수신 축 — isAddressedToUs("우리 주소로 왔는가")
+//     · 발신 축 — isSelfSender / isAutomated("우리가 보낸 것인가" → 답변 필요에서 강등)
+//   도메인을 그냥 합치면 발신 축까지 넓어져서, **우리 도메인의 미등록 동료**(예: PlanQ 에 연결 안 된
+//   sales@irenewp.com)가 보낸 진짜 문의가 "우리가 보낸 것" 으로 강등된다. 조용히 사라지는 미스다.
+//   그래서 도메인은 **수신 축에만** 들어간다.
+//
+// 반환은 plain object 로 고정한다 — Set 을 넘기다 재판정 경로에서 한 번 어긋난 전례가 있다.
+async function buildOwnAddressMatcher(businessId) {
+  const emails = [...(await buildOwnEmailSet(businessId))];
+  let domains = [];
+  try {
+    const { EmailDomainRule } = require('../models');
+    const rows = await EmailDomainRule.findAll({ where: { business_id: businessId }, attributes: ['domain'] });
+    domains = rows.map((r) => String(r.domain || '').toLowerCase().trim()).filter(Boolean);
+  } catch (e) { console.warn('[emailTriage] buildOwnAddressMatcher', e.message); }
+  return { emails, domains };
+}
+
+// To/CC 헤더 문자열에서 실제 주소만 뽑는다.
+//   부분 문자열 검사로는 도메인 경계를 지킬 수 없다 — '@wor-pro.com' 부분 일치는
+//   evil@wor-pro.com.attacker.com 에도 걸린다.
+function extractAddresses(headerValue) {
+  const out = [];
+  const re = /[^\s<>,;"']+@[^\s<>,;"']+/g;
+  let m;
+  while ((m = re.exec(String(headerValue || ''))) !== null) {
+    const a = m[0].toLowerCase().replace(/[.,;:>]+$/, '');
+    if (a.includes('@')) out.push(a);
+  }
+  return out;
+}
+
 // ── 업무 신호 (LLM 0) — Irene 정의:
 //     답변 필요 = 업무 처리가 필요한 것 · 문의 · 기존 일과 연결되는 것 · 고객이 보낸 것
 //     확인 권장 = 스팸·광고는 아닌데 업무인지 애매한 것
@@ -172,15 +208,29 @@ function hasStrongRequest(subject, bodyText) {
 }
 
 // 우리 주소가 To 에 직접 있는가 (참조·숨은참조·대량발송 목록이 아니라)
-function isAddressedToUs(headers, ownEmails) {
-  // ownEmails 는 동기화 경로에선 Set, 재판정 스크립트에선 배열로 들어온다 — 둘 다 받는다.
-  //   (Set 에 .map 을 부르다 동기화가 조용히 실패했다)
-  const list = ownEmails instanceof Set ? [...ownEmails] : (Array.isArray(ownEmails) ? ownEmails : []);
-  const own = new Set(list.map((e) => String(e).toLowerCase()));
-  if (own.size === 0) return false;
-  const to = String((headers && (headers.to || headers.To)) || '').toLowerCase();
+//   own 은 세 형태를 받는다: Set / 배열(둘 다 옛 emails-only) / { emails, domains }(도메인 규칙 포함).
+//   호출부가 섞여 있어서 형태를 좁히면 한쪽 경로가 조용히 죽는다.
+function isAddressedToUs(headers, own) {
+  let emails = [];
+  let domains = [];
+  if (own instanceof Set) emails = [...own];
+  else if (Array.isArray(own)) emails = own;
+  else if (own && typeof own === 'object') {
+    emails = Array.isArray(own.emails) ? own.emails : [];
+    domains = Array.isArray(own.domains) ? own.domains : [];
+  }
+  const ownSet = new Set(emails.map((e) => String(e).toLowerCase().trim()).filter(Boolean));
+  const domSet = new Set(domains.map((d) => String(d).toLowerCase().trim()).filter(Boolean));
+  if (ownSet.size === 0 && domSet.size === 0) return false;
+  const to = (headers && (headers.to || headers.To)) || '';
   if (!to) return false;
-  for (const e of own) { if (to.includes(e)) return true; }
+  for (const addr of extractAddresses(to)) {
+    if (ownSet.has(addr)) return true;
+    // 도메인은 **정확 등가만** — 서브도메인 suffix 매치는 하지 않는다(fail-closed).
+    //   help@mail.wor-pro.com 이 필요하면 그 도메인을 따로 등록한다.
+    const at = addr.lastIndexOf('@');
+    if (at > 0 && domSet.has(addr.slice(at + 1))) return true;
+  }
   return false;
 }
 
@@ -276,7 +326,7 @@ function hasBusinessRelevance(subject, bodyText) {
 //     ③ 아는 상대(고객·멤버·전에 우리가 답장한 상대)가 직접 쓴 메일 → 답변 필요.
 //     ④ 모르는 상대 → 우리 주소로 직접 왔고 명확한 요청·질문이 있을 때만.
 //   그 외는 스팸·광고가 아니어도 확인 권장 — 사람이 한 번 보고 판단한다.
-function needsReply({ subject, bodyText, fromEmail, headers, ownEmails, isKnownContact }) {
+function needsReply({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact }) {
   // ② 답장할 상대가 없는 메일 — 관계(아는 상대)보다, 회신 여부보다 **먼저** 걸러낸다.
   //    여태 isKnownContact 가 맨 앞에 있어서 고객사가 보낸 뉴스레터·우리 시스템의 자동 안내가
   //    전부 "답변 필요" 로 올라왔다. 메일의 성격이 관계보다 먼저다.
@@ -301,7 +351,9 @@ function needsReply({ subject, bodyText, fromEmail, headers, ownEmails, isKnownC
 
   // ④ 모르는 상대 — 우리 주소로 직접 왔고 명확한 요청·질문이 있을 때만.
   //    본문 창을 앞부분으로 좁힌다 — 사람의 용건은 앞에 오고, 뒤쪽 상투구("Need help?")가 아니다.
-  if (!isAddressedToUs(headers, ownEmails)) return false;
+  // ★ 수신 축만 matcher(도메인 규칙 포함). 위의 isSelfSender/isAutomated 는 ownEmails(정확 주소)를
+  //   그대로 쓴다 — 도메인이 발신 축으로 새면 우리 도메인 동료의 문의가 자기발신으로 강등된다.
+  if (!isAddressedToUs(headers, ownMatcher || ownEmails)) return false;
   const body = plainText(bodyText).slice(0, 1200);
   return hasStrongRequest(subject, body) || hasQuestion(`${subject || ''}\n${body}`);
 }
@@ -359,7 +411,7 @@ function isBulkBody(bodyText) {
 
 // 메인 — { triage, reply_needed, spam_score, status, uncertain_reason }
 //   status/spam_score/uncertain_reason 은 classify 결과 그대로 통과 (호환 유지).
-function triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, isKnownContact = false }) {
+function triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact = false }) {
   const c = classify({ subject, bodyText, fromEmail, headers });
 
   let triage;
@@ -392,7 +444,7 @@ function triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, isKno
     //              ② 우리 대화에 대한 회신 (기존 일과 연결)
     //              ③ 우리 주소로 직접 온 메일 + 명확한 요청 문장 (문의·견적·회신 부탁…)
     //   그 외는 스팸·광고가 아니어도 확인 권장 — 사람이 한 번 보고 판단한다.
-    const sure = needsReply({ subject, bodyText, fromEmail, headers, ownEmails, isKnownContact });
+    const sure = needsReply({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact });
     if (sure) {
       reply_needed = true;
     } else {
@@ -429,10 +481,10 @@ function triageBySenderOnly({ subject, bodyText, fromEmail, ownEmails }) {
 //   headersComplete=false — 헤더가 없는 옛 메일. 저장된 triage 를 신뢰하고 status/reply_needed 만 다시 센다.
 //                           헤더 없이 triage 를 다시 계산하면 광고가 사람 메일로 뒤집힌다
 //                           (실제로 그랬다 — 109건이 human 으로 뒤집혀 백업에서 복원했다).
-function retriageStored({ triage, subject, bodyText, fromEmail, headers, ownEmails, isKnownContact = false, headersComplete = false }) {
+function retriageStored({ triage, subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact = false, headersComplete = false }) {
   // 헤더가 있으면 동기화와 같은 문을 그대로 지난다 — 판정 로직이 두 벌로 갈라지지 않는다.
   if (headersComplete) {
-    return triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, isKnownContact });
+    return triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact });
   }
 
   if (triage === 'spam') return { triage, status: 'spam', reply_needed: false, uncertain_reason: null };
@@ -455,7 +507,7 @@ function retriageStored({ triage, subject, bodyText, fromEmail, headers, ownEmai
   //   ③ 우리 주소로 직접 온 메일 + (명확한 요청 || 질문). 사람이 물어봤으면 답해야 한다 —
   //      "…폐쇄를 진행하면 될까요?" 처럼 요청 단어 없이 질문만 있는 메일이 확인 권장에 갇혔다.
   //      광고·뉴스레터는 이미 자동·마케팅으로 빠지므로(triage) 여기 human 경로엔 오지 않는다.
-  const sure = needsReply({ subject, bodyText, fromEmail, headers, ownEmails, isKnownContact });
+  const sure = needsReply({ subject, bodyText, fromEmail, headers, ownEmails, ownMatcher, isKnownContact });
   return sure
     ? { triage, status: 'open', reply_needed: true, uncertain_reason: null }
     : { triage, status: 'uncertain', reply_needed: false, uncertain_reason: 'unclear_intent' };
@@ -523,4 +575,5 @@ module.exports = {
   isAddressedToUs,
   isThreadReply,
   isForgedReplyRef,
-  buildOwnEmailSet, triageInbound, triageBySenderOnly, isMarketing, isAutomated };
+  buildOwnEmailSet, buildOwnAddressMatcher,
+  triageInbound, triageBySenderOnly, isMarketing, isAutomated };

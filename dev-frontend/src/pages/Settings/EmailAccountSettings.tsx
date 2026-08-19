@@ -19,6 +19,7 @@ import MailRulesSection from './MailRulesSection';
 import MailSignatureSection from './MailSignatureSection';
 import MailNotifyScopeSection from './MailNotifyScopeSection';
 import MailAliasSection from './MailAliasSection';
+import MailDomainRuleSection from './MailDomainRuleSection';
 
 // Gmail 원클릭(OAuth) 연결 버튼 — Google 앱 심사(mail.google.com 제한 scope) 통과 전까지 숨긴다.
 // 심사 완료 시 true 로만 바꾸면 됨. 그 전에도 Gmail 을 포함한 모든 메일이 "앱 비밀번호" 방식으로 정상 연결된다.
@@ -345,6 +346,9 @@ const EmailAccountSettings: React.FC = () => {
           </ConfirmCard>
         </ConfirmBackdrop>
       )}
+
+      {/* 우리 도메인 — 워크스페이스 단위 수신 인식 규칙. 계정별 별칭(발신)과 다른 축이라 밖에 둔다. */}
+      {!personalView && <MailDomainRuleSection businessId={businessId} canEdit={isAdmin} />}
 
       {/* 메일 분류 규칙 (학습형) — 워크스페이스 단위. 투명성 화면. */}
       {!personalView && <MailRulesSection businessId={businessId} />}
