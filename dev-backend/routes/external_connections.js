@@ -379,55 +379,6 @@ router.get('/me/oauth/google/callback', async (req, res) => {
   }
 });
 
-// ─── Phase 2 — 개인 Google Calendar overlay ──────────────
-// GET /api/me/calendar/events?business_id=&start=&end=
-// → 본인 연결된 개인 Google 캘린더 일정 (정규화). Q Calendar 가 violet overlay 로 표시.
-router.get('/me/calendar/events', authenticateToken, async (req, res, next) => {
-  try {
-    const bizId = parseInt(req.query.business_id, 10);
-    if (!bizId) return errorResponse(res, 'business_id_required', 400);
-    if (!(await assertBusinessMember(req, bizId))) return errorResponse(res, 'no_business_access', 403);
-
-    const DAY = 24 * 3600 * 1000;
-    const timeMin = req.query.start ? new Date(req.query.start).toISOString() : new Date(Date.now() - 31 * DAY).toISOString();
-    const timeMax = req.query.end ? new Date(req.query.end).toISOString() : new Date(Date.now() + 62 * DAY).toISOString();
-
-    const conns = await ExternalConnection.findAll({
-      where: {
-        owner_scope: 'user', user_id: req.user.id, business_id: bizId,
-        provider: 'google_calendar', is_active: true,
-      },
-    });
-    if (!conns.length) return successResponse(res, { events: [], connections: [] });
-
-    // PlanQ 가 구글에 밀어 넣은 일정 id — 오버레이에서 제외한다 (PlanQ 원본 + 구글 사본 = 이중 표시).
-    //   신규 일정은 구글쪽 표식(extendedProperties.planq)으로도 걸러지지만, 표식이 없던 옛 일정은
-    //   여기서 넘기는 id 집합으로만 걸러낼 수 있다.
-    const pushed = await CalendarEvent.findAll({
-      where: { business_id: bizId, gcal_event_id: { [Op.ne]: null } },
-      attributes: ['gcal_event_id'],
-    });
-    const excludeIds = new Set(pushed.map((e) => String(e.gcal_event_id)));
-
-    const events = [];
-    const connections = [];
-    for (const conn of conns) {
-      try {
-        const evs = await personalCalendar.listEvents(conn, { timeMin, timeMax, excludeIds });
-        events.push(...evs);
-        connections.push({ id: conn.id, account_email: conn.account_email, ok: true });
-        if (conn.last_sync_error || conn.fail_count) await conn.update({ last_sync_error: null, fail_count: 0, last_sync_at: new Date() });
-        else await conn.update({ last_sync_at: new Date() });
-      } catch (e) {
-        console.error('[me/calendar/events] fetch failed conn=' + conn.id, e.message);
-        connections.push({ id: conn.id, account_email: conn.account_email, ok: false, error: e.message });
-        await conn.update({ last_sync_error: e.message, fail_count: (conn.fail_count || 0) + 1 }).catch(() => {});
-      }
-    }
-    successResponse(res, { events, connections });
-  } catch (err) { next(err); }
-});
-
 // ─── Phase 3 — 개인 메일 계정 (Gmail) ──────────────────────
 // GET /api/me/email-accounts?business_id= — 본인 개인 메일 계정 (owner_user_id=me)
 router.get('/me/email-accounts', authenticateToken, async (req, res, next) => {

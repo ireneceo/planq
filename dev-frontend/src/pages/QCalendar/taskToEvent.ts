@@ -19,6 +19,12 @@ interface PersonalRaw {
   all_day: boolean;
   html_link?: string | null;
   account_email?: string | null;
+  read_only?: boolean;
+  connection_id?: number;
+  gcal_event_id?: string;
+  etag?: string | null;
+  recurring_event_id?: string | null;
+  is_organizer?: boolean;
 }
 export const personalToEvent = (raw: PersonalRaw, untitledLabel = '(제목 없음)'): PersonalCalendarEvent => ({
   id: raw.id,
@@ -32,7 +38,14 @@ export const personalToEvent = (raw: PersonalRaw, untitledLabel = '(제목 없�
   color: '#14B8A6',
   html_link: raw.html_link ?? null,
   account_email: raw.account_email ?? null,
-  read_only: true,
+  // 어댑터가 서버 판정을 버리면 화면이 다시 "무조건 읽기 전용" 으로 돌아간다.
+  //   서버가 값을 안 주는 옛 응답이면 안전한 쪽(읽기 전용)으로 떨어뜨린다.
+  read_only: raw.read_only ?? true,
+  connection_id: raw.connection_id ?? 0,
+  gcal_event_id: raw.gcal_event_id ?? '',
+  etag: raw.etag ?? null,
+  recurring_event_id: raw.recurring_event_id ?? null,
+  is_organizer: raw.is_organizer ?? true,
 });
 
 // Q Task API 응답 형태 (/api/tasks/by-business/:bizId)

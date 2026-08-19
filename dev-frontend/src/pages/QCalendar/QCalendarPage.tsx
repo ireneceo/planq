@@ -10,7 +10,7 @@ import MonthView from './MonthView';
 import AgendaView from './AgendaView';
 import TimeGridView from './TimeGridView';
 import EventDrawer from './EventDrawer';
-import PersonalEventDrawer from './PersonalEventDrawer';
+import PersonalEventDrawerHost from './PersonalEventDrawerHost';
 import { responsiveDrawerWidth } from '../../utils/responsiveDrawer';
 import NewEventModal from './NewEventModal';
 import { parseVoiceWhen, type VoiceHandoff } from '../../utils/voiceHandoff';
@@ -249,11 +249,14 @@ const QCalendarPage: React.FC = () => {
     const offCreated = onSocket('event:created', debouncedReload);
     const offUpdated = onSocket('event:updated', debouncedReload);
     const offDeleted = onSocket('event:deleted', debouncedReload);
+    // 개인 캘린더는 사적 공간이라 business room 이 아니라 **본인 room** 으로만 온다
+    //   (다중 기기 — 데스크탑에서 고치면 모바일도 따라온다).
+    const offPersonal = onSocket('personal_calendar:changed', debouncedReload);
     // 연동 상태 변경(`calendar:sync-changed`) 구독은 useCalendarSyncStatus 안에 있다 — 그 훅의 본업이다.
     return () => {
       if (pending) window.clearTimeout(pending);
       leaveRoom(`business:${bizId}`);
-      offCreated(); offUpdated(); offDeleted();
+      offCreated(); offUpdated(); offDeleted(); offPersonal();
     };
   }, [bizId, fetchRange]);
 
@@ -655,16 +658,13 @@ const QCalendarPage: React.FC = () => {
         />
       )}
 
-      {selectedPersonalId && (() => {
-        const p = personalEvents.find((e) => e.id === selectedPersonalId);
-        if (!p) return null;
-        return (
-          <PersonalEventDrawer
-            event={p}
-            onClose={() => setSelectedPersonalId(null)}
-          />
-        );
-      })()}
+      <PersonalEventDrawerHost
+        selectedId={selectedPersonalId}
+        events={personalEvents}
+        businessId={bizId}
+        onClose={() => setSelectedPersonalId(null)}
+        setEvents={setPersonalEvents}
+      />
 
       {showNewModal && (
         <NewEventModal

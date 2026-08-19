@@ -72,7 +72,8 @@ export interface TaskAsEvent extends CalendarEvent {
   _task_assignee_name?: string | null;
 }
 
-// 개인 Google 캘린더 일정 (읽기 전용 overlay) — GET /api/me/calendar/events
+// 개인 Google 캘린더 일정 overlay — GET /api/me/calendar/events
+//   쓰기 권한(calendar.events)에 동의한 연결이면 PlanQ 안에서 바로 수정·삭제할 수 있다.
 export interface PersonalCalendarEvent {
   id: string;            // 'gcal-{connId}-{eventId}'
   _source: 'personal_google';
@@ -85,7 +86,13 @@ export interface PersonalCalendarEvent {
   color: string;         // violet #14B8A6 (회사 일정과 색 분리)
   html_link: string | null;
   account_email: string | null;
-  read_only: true;
+  // ★ 여태 리터럴 true 였다 — 쓰기 권한이 있어도 화면은 읽기 전용이라고 말하고 있었다.
+  read_only: boolean;
+  connection_id: number;
+  gcal_event_id: string;
+  etag: string | null;                  // 동시 수정 충돌 감지
+  recurring_event_id: string | null;    // 있으면 반복 일정의 한 회차
+  is_organizer: boolean;                // 주최자가 아니면 구글이 수정을 거부한다
 }
 
 export type CalendarItem = CalendarEvent | TaskAsEvent | PersonalCalendarEvent;
