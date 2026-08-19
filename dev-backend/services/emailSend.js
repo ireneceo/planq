@@ -123,6 +123,12 @@ async function resolveSender(account, { fromAliasId = null, replyToAddresses = n
 
 // 서명 붙이기 — data-planq-signature 표식으로 중복 삽입을 막는다.
 //   서명이 비었거나 계정에서 껐으면 그대로 둔다.
+// wire 의 text 파트용 — 인용 머리말이 줄 맨 앞에 오도록 본문을 텍스트로 만든다.
+function htmlToTextForWire(html) {
+  const { htmlToText } = require('./emailBodyClean');
+  return String(htmlToText(html) || '').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 const SIGNATURE_MARK = 'data-planq-signature';
 // 우선순위: 별칭 서명 > 계정 서명 > **워크스페이스 공통 서명** > 없음.
 //   여태 워크스페이스 층이 아예 없어서, 팀 공통 서명을 한 곳에서 관리할 방법이 없었다
@@ -187,7 +193,7 @@ async function resolveOutgoingIdentity(account, { fromAliasId = null, replyToAdd
   };
 }
 
-async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, references, attachments, fromAliasId = null, replyToAddresses = null, signature = true }) {
+async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, references, attachments, fromAliasId = null, replyToAddresses = null, signature = true, quote = null }) {
   // 수신자 검증 — 가짜/예약TLD/형식불량 주소 차단 (바운스·평판 보호). emailService 게이트 재사용.
   const { emailBlockReason } = require('./emailService');
   const blocked = emailBlockReason([].concat(to || [], cc || [], bcc || []));
@@ -236,14 +242,26 @@ async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, 
     ? html
     : appendSignature(html, account, ident.aliasSignatureHtml, ident.workspaceSignature);
 
+  // 표 인라인 — 서명 안의 표까지 덮는다(서명도 같은 에디터로 쓴다). 멱등이라 라우트에서 이미
+  //   한 번 처리했어도 안전하다.
+  const { inlineMailTableStyles } = require('./emailHtmlInline');
+  const htmlInlined = inlineMailTableStyles(htmlWithSig);
+
+  // 인용은 **보내는 편지에만** 붙인다 — 저장본은 라우트가 인용 없이 따로 기록한다.
+  //   text 파트를 같이 만들어야 수신측이 본문을 정리할 때 인용 머리말이 줄 맨 앞에 온다.
+  const wireHtml = quote ? `${htmlInlined}${quote.html}` : htmlInlined;
+  const wireText = quote
+    ? `${htmlToTextForWire(htmlInlined)}${quote.text}`
+    : (text || undefined);
+
   const info = await transport.sendMail({
     from,
     to: joinAddrs(to),
     ...(joinAddrs(cc) ? { cc: joinAddrs(cc) } : {}),
     ...(joinAddrs(bcc) ? { bcc: joinAddrs(bcc) } : {}),
     subject: subject || '(제목 없음)',
-    html: htmlWithSig,
-    ...(text ? { text } : {}),
+    html: wireHtml,
+    ...(wireText ? { text: wireText } : {}),
     ...(inReplyTo ? { inReplyTo } : {}),
     ...(references && references.length ? { references } : {}),
     ...(attachments && attachments.length ? { attachments } : {}),
