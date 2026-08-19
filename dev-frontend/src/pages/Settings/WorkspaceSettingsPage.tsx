@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useParams, useSearchParams } from 'react-router-dom';
@@ -20,6 +20,8 @@ import { mapApiError } from '../../utils/apiError';
 import { displayName as memberDisplayName } from '../../utils/displayName';
 import TimezoneSelector from '../../components/Common/TimezoneSelector';
 import PageShell from '../../components/Layout/PageShell';
+import ActionButton from '../../components/Common/ActionButton';
+import { SettingsHeaderActionProvider, type SettingsHeaderAction } from './settingsHeaderAction';
 import { useTimezones } from '../../hooks/useTimezones';
 import { cityFromTz, offsetFromTz, formatTimeInTz } from '../../utils/timezones';
 import {
@@ -825,6 +827,21 @@ export default function WorkspaceSettingsPage() {
 
   // URL 기반 페이지 타이틀 — Secondary 메뉴 항목과 1:1 매칭
   const isPersonalScope = searchParams.get('scope') === 'personal';
+
+  // 탭이 올린 헤더 액션. ★ 핸들러는 ref 에만 담는다 — state 에 담으면 자식이 onClick 을 매 렌더
+  //   새로 만들 때마다 부모가 재렌더되고 자식이 다시 등록해 순환이 생긴다.
+  const headerActionRef = useRef<(() => void) | null>(null);
+  const [headerActionLabel, setHeaderActionLabel] = useState<string | null>(null);
+  const publishHeaderAction = useCallback((a: SettingsHeaderAction | null) => {
+    headerActionRef.current = a ? a.onClick : null;
+    const next = a ? a.label : null;
+    setHeaderActionLabel((prev) => (prev === next ? prev : next));
+  }, []);
+  const headerActions = headerActionLabel ? (
+    <ActionButton tone="primary" size="sm" onClick={() => headerActionRef.current?.()}>
+      {headerActionLabel}
+    </ActionButton>
+  ) : undefined;
   const pageTitle = useMemo<string>(() => {
     if (isMembersMode) return t('membersPage.title') as string;
     switch (tab) {
@@ -867,7 +884,8 @@ export default function WorkspaceSettingsPage() {
   }
 
   return (
-    <PageShell title={pageTitle} maxContentWidth={920}>
+    <PageShell title={pageTitle} maxContentWidth={920} actions={headerActions}>
+      <SettingsHeaderActionProvider value={publishHeaderAction}>
       {error && <ErrorBanner>{error}</ErrorBanner>}
       {/* mail-accounts 탭은 멤버도 개인 메일을 관리할 수 있어 admin 안내 배너 숨김 */}
       {!isAdmin && tab !== 'mail-accounts' && <InfoBanner>{t('messages.adminRequired')}</InfoBanner>}
@@ -1755,6 +1773,7 @@ export default function WorkspaceSettingsPage() {
           )}
         </>
       )}
+      </SettingsHeaderActionProvider>
     </PageShell>
   );
 }
