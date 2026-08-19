@@ -387,10 +387,10 @@
   },
   "alias": {
     "title": "보내는 주소",
-    "desc": "이 메일함으로 여러 도메인 주소를 쓰는 경우, 보낼 때 고를 수 있게 등록해 두세요. 답장은 그 메일이 온 주소로 자동 선택됩니다.",
-    "accountAddr": "계정 기본",
-    "default": "기본",
-    "setDefault": "기본으로",
+    "desc": "이 메일함으로 여러 도메인 주소를 쓰는 경우, 보낼 때 고를 수 있게 등록해 두세요. 답장은 그 메일이 온 주소로 자동 선택되고, \"새 메일 기본\"은 새로 쓰는 메일에서 처음 선택되는 주소입니다.",
+    "accountAddr": "이 메일함 주소",
+    "default": "새 메일 기본",
+    "setDefault": "새 메일 기본으로",
     "remove": "삭제",
     "add": "추가",
     "emailPh": "hello@another-domain.com",
@@ -404,7 +404,12 @@
     "save": "저장",
     "cancel": "취소",
     "noName": "표시 이름 없음",
-    "errSaveFailed": "저장하지 못했어요."
+    "errSaveFailed": "저장하지 못했어요.",
+    "signature": "이 주소로 보낼 때 붙는 서명",
+    "signaturePh": "예) 워프로랩 · 홍길동 · 010-0000-0000",
+    "signatureHint": "비워 두면 이 메일함의 공통 서명이 대신 붙습니다.",
+    "hasSignature": "전용 서명",
+    "noSignature": "공통 서명"
   },
   "detail": {
     "toAddr": "받은 주소",
