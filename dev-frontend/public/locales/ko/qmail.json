@@ -378,9 +378,9 @@
     "onOnce": "다시 넣기",
     "excluded": "이번 발송 제외",
     "source": {
-      "alias": "별칭 서명",
-      "account": "개인 서명",
-      "workspace": "팀 공통 서명",
+      "alias": "이 주소 전용 서명",
+      "account": "기본 서명",
+      "workspace": "워크스페이스 서명",
       "none": "서명 없음",
       "disabled": "서명 꺼짐"
     },

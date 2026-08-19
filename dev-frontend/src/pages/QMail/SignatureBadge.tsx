@@ -64,10 +64,14 @@ export default function SignatureBadge({ businessId, threadId, accountId, fromAl
   if (!ident) return null;
 
   // 폴백 문구는 t() 안에 직접 둔다 — 객체 리터럴로 빼면 i18n 가드가 하드코딩으로 읽는다.
+  // ★ 'account' 는 "그 **메일함**의 서명" 이라는 뜻이다. 회사 메일함이면 회사 서명이다.
+  //   이걸 "개인 서명" 이라고 적어놔서, 회사 주소로 보내는데 "개인 서명" 이라 표시되고
+  //   미리보기에는 회사 서명이 나오는 모순이 생겼다(Irene 신고).
+  //   설정 화면의 계층 이름("기본 서명")과 같은 말을 쓴다 — 화면끼리 말이 달라지면 또 헷갈린다.
   const srcLabel = ({
-    alias: () => t('signature.source.alias', { defaultValue: '별칭 서명' }),
-    account: () => t('signature.source.account', { defaultValue: '개인 서명' }),
-    workspace: () => t('signature.source.workspace', { defaultValue: '팀 공통 서명' }),
+    alias: () => t('signature.source.alias', { defaultValue: '이 주소 전용 서명' }),
+    account: () => t('signature.source.account', { defaultValue: '기본 서명' }),
+    workspace: () => t('signature.source.workspace', { defaultValue: '워크스페이스 서명' }),
     none: () => t('signature.source.none', { defaultValue: '서명 없음' }),
     disabled: () => t('signature.source.disabled', { defaultValue: '서명 꺼짐' }),
   })[ident.signature_source]() as string;
@@ -78,6 +82,9 @@ export default function SignatureBadge({ businessId, threadId, accountId, fromAl
       <Row>
         <Label>{t('signature.label', { defaultValue: '서명' }) as string}</Label>
         <Src $muted={!hasSig}>{srcLabel}</Src>
+        {/* 어느 주소 기준으로 고른 서명인지 같이 보여준다 — 출처 이름만으로는
+            "왜 이 서명이 붙는지" 를 알 수 없어 회사/개인을 오해하게 된다. */}
+        {ident.from_email && <SrcAddr>· {ident.from_email}</SrcAddr>}
         {hasSig && (
           <>
             <LinkBtn type="button" onClick={() => setOpen(v => !v)} aria-expanded={open}>
@@ -111,6 +118,7 @@ const Src = styled.span<{ $muted: boolean }>`
   color: ${p => (p.$muted ? '#94A3B8' : '#0F172A')};
   background: #F1F5F9; border-radius: 10px; padding: 2px 8px;
 `;
+const SrcAddr = styled.span`font-size: 11px; color: #94A3B8; word-break: break-all;`;
 const LinkBtn = styled.button`
   background: none; border: none; padding: 2px 4px; cursor: pointer;
   font-size: 11px; font-weight: 600; color: #64748B; text-decoration: underline;
