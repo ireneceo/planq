@@ -20,6 +20,7 @@ if (!process.env.JWT_SECRET) {
 }
 
 const express = require('express');
+const compression = require('compression');
 const http = require('http');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
@@ -264,6 +265,19 @@ global.__planqIo = io;
 // 워크스페이스별(Q Bill) webhook 먼저 — 더 구체적 경로. business webhook secret 으로 서명검증.
 app.use('/api/stripe/webhook/ws/:businessId', express.raw({ type: 'application/json' }), require('./routes/stripeWorkspaceWebhook'));
 app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }), require('./routes/stripeWebhook'));
+
+// 응답 압축 — ★ 이게 없어서 API 가 **압축 없이** 나가고 있었다.
+//   nginx 는 `gzip on` 이지만 `gzip_types`(기본 text/html 뿐)와 `gzip_proxied` 가 주석 처리돼 있어
+//   프록시된 JSON 이 하나도 압축되지 않았다. 메일 상세는 스레드당 최대 2MB(운영 실측, 단일 메시지
+//   최대 8MB)라 그대로 회선을 탔고, 그것이 "리스트 클릭하면 상세가 느려 터진다" 의 실체였다.
+//   여기(앱)에서 처리하면 nginx 설정·sudo 없이 dev·운영이 같이 고쳐지고 배포 파이프라인에 실린다.
+//   Stripe webhook 은 위에서 raw 로 이미 처리돼 이 미들웨어를 지나지 않는다(서명 검증 무영향).
+app.use(compression({
+  // 작은 응답은 압축 비용이 이득보다 크다. 1KB 미만은 그대로 보낸다.
+  threshold: 1024,
+  // 클라이언트가 명시적으로 원치 않으면(x-no-compression) 건너뛴다 — 디버깅용 탈출구.
+  filter: (req, res) => (req.headers['x-no-compression'] ? false : compression.filter(req, res)),
+}));
 
 // Body parser + Cookie parser — rate limiter skip 함수가 req.body 에 접근하므로 security 보다 먼저 파싱되어야 함
 app.use(express.json({ limit: '10mb' }));

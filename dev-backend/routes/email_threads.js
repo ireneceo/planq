@@ -20,6 +20,7 @@ const { EmailThread, EmailMessage, EmailAttachment, EmailAccount, EmailThreadPar
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { requireMenu } = require('../middleware/menu_permission');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
+const { stripEmbeddedImages, extractEmbeddedImage } = require('../services/emailInlineData');
 const { applyMemberDisplayName, getMemberNameMap } = require('../services/displayName');
 const { sendMail, deliveryFromSendResult } = require('../services/emailSend');
 const { inlineMailTableStyles } = require('../services/emailHtmlInline');
@@ -416,6 +417,11 @@ router.get('/:businessId/email-threads/:id',
         project: tj.Project,
         messages: messages.map(m => {
           const mj = m.toJSON();
+          // ★ 본문에 박힌 base64 이미지를 떼어낸다. DB 는 그대로 두고 **응답에서만** 바꾼다.
+          //   메일 본문의 97~100% 가 이 덩어리라(실측), 이걸 빼면 스레드 응답이 2MB → 수십 KB 가 된다.
+          //   실제 바이트는 프론트가 **펼친 메시지 것만** 따로 받아간다(useInlineCidImages 경로 재사용).
+          const strip = stripEmbeddedImages(mj.body_html);
+          const bodyOut = strip.html;
           return {
             id: mj.id,
             direction: mj.direction,
@@ -424,7 +430,7 @@ router.get('/:businessId/email-threads/:id',
             to_emails: mj.to_emails,
             cc_emails: mj.cc_emails,
             subject: mj.subject,
-            body_html: mj.body_html,
+            body_html: bodyOut,
             body_text: mj.body_text,
             sent_at: mj.sent_at,
             is_read: mj.is_read,
@@ -452,16 +458,26 @@ router.get('/:businessId/email-threads/:id',
               })),
             // #215-H — 본문이 cid 로 참조하는 이미지. 본문은 sandbox iframe srcDoc 이라 `cid:` 를 해석할 수 없어
             //   여태 깨진 채였다. 프론트가 인증 다운로드 → data: URI 치환에 쓰는 재료.
-            inline_images: (mj.attachments || [])
-              .filter(a => a.file_id
-                && String(a.mime_type || '').startsWith('image/')
-                && isEmbedded(a.content_id, mj.body_html))
-              .map(a => ({
-                file_id: a.file_id,
-                content_id: a.content_id,
-                mime_type: a.mime_type,
-                size_bytes: a.size_bytes,
+            inline_images: [
+              ...(mj.attachments || [])
+                .filter(a => a.file_id
+                  && String(a.mime_type || '').startsWith('image/')
+                  && isEmbedded(a.content_id, mj.body_html))
+                .map(a => ({
+                  file_id: a.file_id,
+                  content_id: a.content_id,
+                  mime_type: a.mime_type,
+                  size_bytes: a.size_bytes,
+                })),
+              // 본문에서 떼어낸 base64 이미지 — file_id 가 없고 embedded_index 로 받아간다.
+              ...strip.embedded.map(e => ({
+                file_id: null,
+                embedded_index: e.index,
+                content_id: e.content_id,
+                mime_type: e.mime_type,
+                size_bytes: e.size_bytes,
               })),
+            ],
           };
         }),
       });
@@ -915,6 +931,44 @@ router.post('/:businessId/email-threads/:id/messages',
     } catch (err) { next(err); }
   }
 );
+
+// ─────────────────────────────────────────────
+// 본문에서 떼어낸 base64 이미지 1개 (GET /:biz/email-threads/:id/messages/:messageId/embedded/:index)
+//   상세 응답에서 뺀 바이트를 여기서 준다. 프론트는 **펼친 메시지 것만** 요청한다.
+//   ★ 인덱스 계산 규칙은 services/emailInlineData 의 stripEmbeddedImages 와 같은 함수쌍이라
+//     한쪽만 바뀌면 엉뚱한 이미지가 나간다 — 두 함수는 같이 고칠 것.
+// ─────────────────────────────────────────────
+router.get('/:businessId/email-threads/:id/messages/:messageId/embedded/:index',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const threadId = Number(req.params.id);
+      const index = Number(req.params.index);
+      if (!Number.isInteger(index) || index < 0 || index > 200) return errorResponse(res, 'invalid_index', 400);
+      // 멀티테넌트 — 스레드 접근 권한을 상세 라우트와 같은 기준으로 다시 검사한다.
+      const acctIds = await accessibleAccountIds(businessId, req.user.id);
+      const thread = await EmailThread.findOne({
+        where: { id: threadId, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } },
+        attributes: ['id'],
+      });
+      if (!thread) return errorResponse(res, 'thread_not_found', 404);
+      const msg = await EmailMessage.findOne({
+        where: { id: Number(req.params.messageId), thread_id: threadId, business_id: businessId },
+        attributes: ['id', 'body_html'],
+      });
+      if (!msg) return errorResponse(res, 'message_not_found', 404);
+      const found = extractEmbeddedImage(msg.body_html, index);
+      if (!found) return errorResponse(res, 'image_not_found', 404);
+      // 메일 본문은 불변이라 강하게 캐시해도 안전하다 — 같은 이미지를 두 번 받지 않는다.
+      res.setHeader('Cache-Control', 'private, max-age=604800, immutable');
+      res.setHeader('Content-Type', found.mime);
+      res.setHeader('Content-Length', String(found.buffer.length));
+      // 본문 이미지는 문서가 아니다 — 브라우저가 그대로 렌더하지 않도록 스니핑을 막는다.
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      return res.end(found.buffer);
+    } catch (err) { next(err); }
+  });
 
 // ─────────────────────────────────────────────
 // 새 메일 작성/발송 (compose) — 새 스레드 + outbound 메시지 + SMTP 발송

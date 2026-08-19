@@ -215,7 +215,8 @@ export interface Message {
   attachments: Array<{ id: number; file_id: number | null; file_name: string; file_size: number; mime_type: string }>;
   // #215-H — 본문이 cid: 로 참조하는 이미지. 본문은 sandbox iframe srcDoc 이라 cid 를 해석할 수 없어
   //   인증 다운로드 → data: URI 치환 재료로 서버가 따로 내려준다.
-  inline_images?: Array<{ file_id: number; content_id: string | null; mime_type: string; size_bytes: number | null }>;
+  // file_id 는 첨부 기반, embedded_index 는 본문에서 떼어낸 base64 이미지 (둘 중 하나만 채워진다)
+  inline_images?: Array<{ file_id: number | null; embedded_index?: number; content_id: string | null; mime_type: string; size_bytes: number | null }>;
 }
 
 interface ThreadDetail extends Thread {
@@ -1414,7 +1415,7 @@ const MailPage: React.FC = () => {
 
   // #215-H — 본문 cid: 이미지 → data: URI 맵 (본문 렌더 srcDoc 치환 재료).
   //   펼쳐진 메시지만 받는다 — 접힌 본문의 인라인 이미지를 미리 받으면 긴 스레드에서 낭비다.
-  const msgCidData = useInlineCidImages(detail ? detail.messages : null, businessId, expandedMsgIds);
+  const msgCidData = useInlineCidImages(detail ? detail.messages : null, businessId, expandedMsgIds, detail ? detail.id : null);
 
   // 사용자가 컴포저를 실제로 편집했다 — 이 시점부터 자동저장이 정상 동작한다.
   const markComposeTouched = () => { composeVoiceUntouched.current = false; };
