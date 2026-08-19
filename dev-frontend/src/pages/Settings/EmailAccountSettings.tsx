@@ -21,6 +21,7 @@ import MailNotifyScopeSection from './MailNotifyScopeSection';
 import MailAliasSection from './MailAliasSection';
 import MailDomainRuleSection from './MailDomainRuleSection';
 import MailAuthDiagSection from './MailAuthDiagSection';
+import { useSettingsHeaderAction } from './settingsHeaderAction';
 
 // Gmail 원클릭(OAuth) 연결 버튼 — Google 앱 심사(mail.google.com 제한 scope) 통과 전까지 숨긴다.
 // 심사 완료 시 true 로만 바꾸면 됨. 그 전에도 Gmail 을 포함한 모든 메일이 "앱 비밀번호" 방식으로 정상 연결된다.
@@ -34,6 +35,14 @@ const EmailAccountSettings: React.FC = () => {
   // 스코프 뷰 — ?scope=personal (내 메일 계정) vs 회사 공용(회사 메일). 메뉴 진입로가 범위를 결정.
   const [searchParams, setSearchParams] = useSearchParams();
   const personalView = searchParams.get('scope') === 'personal';
+
+  // 화면의 주요 액션은 PageShell 헤더 우측이 정본 자리다(페이지 레이아웃 표준).
+  //   ★ 권한 술어(personalView || isAdmin)는 여기 한 곳에만 둔다 — 부모의 isAdmin 은
+  //     'admin' 역할이 빠져 있어 부모가 그리면 워크스페이스 admin 이 버튼을 못 본다.
+  const openNewAccount = useCallback(() => setEditing('new'), []);
+  const canAddAccount = personalView || isAdmin;
+  const addLabel = `+ ${t('settings.add', '계정 추가') as string}`;
+  useSettingsHeaderAction(canAddAccount ? { label: addLabel, onClick: openNewAccount } : null);
   // Gmail OAuth 콜백 실패 (?gmail_error=) — 심사 전 거부를 사용자가 인지하게 배너 표시
   const gmailError = searchParams.get('gmail_error');
   const dismissGmailError = () => setSearchParams((prev) => {
@@ -261,6 +270,9 @@ const EmailAccountSettings: React.FC = () => {
     <Wrap>
       <Toolbar>
         {(personalView || isAdmin) ? (
+          // "+ 계정 추가" 는 PageShell 헤더 우측으로 올라갔다(화면 표준). 여기 남는 것은
+          //   Gmail 원클릭뿐이고 그건 지금 꺼져 있으므로, 켜져 있을 때만 줄을 만든다.
+          GMAIL_ONECLICK_ENABLED ? (
           <ActionsRow>
             {GMAIL_ONECLICK_ENABLED && (
               <GoogleConnectBtn type="button" onClick={connectGmail}>
@@ -273,8 +285,8 @@ const EmailAccountSettings: React.FC = () => {
                 {t('settings.connectGmail', 'Gmail 로 연결') as string}
               </GoogleConnectBtn>
             )}
-            <AddBtn type="button" onClick={() => setEditing('new')}>+ {t('settings.add', '계정 추가') as string}</AddBtn>
           </ActionsRow>
+          ) : null
         ) : (
           // 회사 뷰의 비관리자 — 회사 공용 추가 불가. 개인 메일은 내 계정으로 안내.
           <MemberHint>
