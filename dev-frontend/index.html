@@ -30,11 +30,11 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <title>PlanQ</title>
     <!-- 기본 메타 (SEO + SNS 카드) — 공유 페이지의 동적 OG 는 backend SSR 라우트가 별도 처리 (운영 nginx 가 /public/* 을 backend 로 proxy 할 때) -->
-    <meta name="description" content="PlanQ — 일이 일이 되지 않게. 업무·프로젝트·사람·시간·고객·청구를 하나로 연결해 시간을 돈으로 바꾸는 수익성 엔진." />
+    <meta name="description" content="PlanQ는 업무, 프로젝트, 일정 등 기업의 업무 운영을 하나의 공간에서 관리할 수 있는 비즈니스 업무관리 및 협업 플랫폼입니다. Google Calendar를 연결하면 PlanQ의 일정과 Google Calendar 일정을 연동하여 관리할 수 있습니다. | PlanQ is a business management and collaboration platform that helps teams manage work, projects, schedules, and business operations in one place, with Google Calendar sync." />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="PlanQ" />
     <meta property="og:title" content="PlanQ — 일이 일이 되지 않게" />
-    <meta property="og:description" content="업무·프로젝트·사람·시간·고객·청구를 하나로 연결해 시간을 돈으로 바꾸는 수익성 엔진." />
+    <meta property="og:description" content="업무, 프로젝트, 일정 등 기업의 업무 운영을 하나의 공간에서 관리하는 비즈니스 업무관리 및 협업 플랫폼. Google Calendar 연동을 지원합니다." />
     <!-- 사이클 N+23: OG 썸네일 1200×630 (SNS 표준). icon-512 정사각형 → 슬로건 박힌 og-default.png.
          페이지별 OG 는 backend ogMetaMiddleware 가 share bot UA 감지 시 동적 교체. -->
     <meta property="og:image" content="https://planq.kr/og-default.png" />
@@ -47,6 +47,14 @@
     <meta name="twitter:image" content="https://planq.kr/og-default.png" />
   </head>
   <body>
+    <!-- 자바스크립트를 실행하지 않고 받아가는 클라이언트(검색·검수 도구 등)를 위한 최소 본문.
+         화면에는 나오지 않는다 — 앱이 정상 로드되면 <div id="root"> 가 그린다. -->
+    <noscript>
+      <h1>PlanQ</h1>
+      <p>PlanQ는 업무, 프로젝트, 일정 등 기업의 업무 운영을 하나의 공간에서 관리할 수 있는 비즈니스 업무관리 및 협업 플랫폼입니다. Google Calendar를 연결하면 PlanQ의 일정과 Google Calendar 일정을 연동하여 관리할 수 있습니다.</p>
+      <p>PlanQ is a business management and collaboration platform that helps teams manage work, projects, schedules, and business operations in one place. Users can connect Google Calendar to synchronize their schedules between PlanQ and Google Calendar.</p>
+      <p><a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms of Service</a></p>
+    </noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
