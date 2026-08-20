@@ -310,6 +310,46 @@ function isFromOurPlatform(fromEmail) {
   return !!domain && f.endsWith('@' + domain);
 }
 
+// ── 로그인·인증 코드 / 계정 보안 통지 (Irene 2026-08-20) ──
+//   신고: 넷플릭스 로그인 코드 메일이 **전체**로 들어갔다. "이런 이메일 인증은 확인권장으로 들어가야
+//   하는 거 아니야?" — 내가 요청한 코드면 지나치면 되지만, **요청한 적 없는 코드는 계정 탈취 신호**라
+//   반드시 한 번은 봐야 한다.
+//
+//   ★ 왜 BUSINESS_RELEVANT 와 따로 두는가 (Fable 실측 반증):
+//     처음엔 BUSINESS_RELEVANT 에 넣었는데 **발화하지 않았다**. 넷플릭스·Dropbox·OpenAI 같은 대형
+//     발송사는 로그인 코드 메일에도 List-Unsubscribe·Feedback-ID 를 달아 보내서 isMarketing 이
+//     먼저 참이 되고, BUSINESS_RELEVANT 분기는 triage === 'automated' 에서만 돌기 때문이다.
+//     실측: 이 계열 11건 중 9건이 marketing — 대상의 대부분이 규칙에 도달조차 못 했다.
+//   → 그래서 이 술어는 **triage 와 무관하게**(스팸 제외) 확인 권장으로 올린다.
+//   ★ '코드' 단독 금지 — "문서에서 코드 기능", "코드 리뷰" 같은 업무 메일이 걸린다. 짝으로만 본다.
+const SECURITY_CODE = new RegExp([
+  '인증\\s*(코드|번호)',
+  '확인\\s*코드',
+  '로그인\\s*(코드|번호|링크|알림|시도)',
+  '일회용\\s*(비밀번호|번호)',
+  '\\botp\\b',
+  '2단계\\s*인증',
+  '이중\\s*인증',
+  '새(로운)?\\s*(기기|디바이스)(에서)?\\s*(로그인|접속)',
+  '\\bverification code\\b',
+  '\\bverify your (email|account|identity)\\b',
+  '\\blogin code\\b',
+  '\\bsign[- ]?in code\\b',
+  '\\bsecurity code\\b',
+  '\\bone[- ]?time (code|password|passcode|pin)\\b',
+  '\\btwo[- ]?factor\\b',
+  '\\bnew (device|sign[- ]?in)\\b',
+  '\\baccess code\\b',
+  '로그인[\\s\\S]{0,30}코드',
+  '코드[\\s\\S]{0,30}로그인',
+  '인증[\\s\\S]{0,20}코드',
+  '코드[\\s\\S]{0,20}인증',
+].join('|'), 'i');
+
+function isSecurityNotice(subject, bodyText) {
+  return SECURITY_CODE.test(`${subject || ''}\n${String(bodyText || '').slice(0, 1500)}`);
+}
+
 function hasBusinessRelevance(subject, bodyText) {
   const head = `${subject || ''}\n${String(bodyText || '').slice(0, 1500)}`;
   return BUSINESS_RELEVANT.test(head);
@@ -438,6 +478,15 @@ function triageInbound({ subject, bodyText, fromEmail, headers, ownEmails, ownMa
     reply_needed = false;
   }
 
+  // 로그인·인증 코드 — **marketing 이든 automated 든 human 이든** 확인 권장까지 올린다.
+  //   대형 발송사가 수신거부 헤더를 달아 보내 marketing 으로 먼저 분류되는 것이 이 계열의 정상이라,
+  //   triage 로 게이트하면 대상 대부분을 놓친다(SECURITY_CODE 주석의 실측).
+  //   답장할 상대는 없으니 답변 필요는 아니다 — human 경로에서 본문 상투구("요청이 아니라면")가
+  //   요청 문장으로 잡혀 답변 필요로 오승격되던 것도 여기서 같이 막힌다.
+  if (triage !== 'spam' && status === 'open' && isSecurityNotice(subject, bodyText)) {
+    return { triage, reply_needed: false, spam_score: c.spam_score, status: 'uncertain', uncertain_reason: 'security_code' };
+  }
+
   if (triage === 'human' && c.status === 'open') {
     // Irene 정책: "확인 권장을 많이 쓰고, 답변 필요는 확실히 답해야 하는 것만."
     //   답변 필요 = ① 아는 상대(고객·멤버·전에 우리가 답장한 상대) — 관계가 가장 확실한 신호
@@ -488,6 +537,11 @@ function retriageStored({ triage, subject, bodyText, fromEmail, headers, ownEmai
   }
 
   if (triage === 'spam') return { triage, status: 'spam', reply_needed: false, uncertain_reason: null };
+
+  // 로그인·인증 코드 — triage 무관 승격(triageInbound 와 같은 규칙. 두 경로가 갈라지면 안 된다).
+  if (isSecurityNotice(subject, bodyText)) {
+    return { triage, status: 'uncertain', reply_needed: false, uncertain_reason: 'security_code' };
+  }
 
   // #200 — 헤더가 없어도 법정 광고 표기(제목 맨 앞 `(광고)`)는 확실하다. 이 한 가지만 triage 를 고쳐준다.
   //   "헤더 없이 triage 재계산 금지" 규칙의 취지는 **광고가 사람 메일로 뒤집히는 것**을 막는 것이라
