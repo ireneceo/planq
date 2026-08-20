@@ -52,6 +52,11 @@ interface Props {
   loadingOlder?: boolean;
   /** N+93 — 팝아웃/분리 창 embedded 모드: 헤더 1줄 유지, 모바일 전용 UI 숨김 */
   embedded?: boolean;
+  /** 팝아웃 창의 핀(항상 위) 버튼. **좁은 폭에서만** 그린다 —
+   *  넓은 폭에서는 리스트 헤더(LeftPanel)에 이미 있어 둘로 보인다.
+   *  ★ 이게 없으면 520px 팝아웃에서 대화를 열자마자 리스트가 숨어 **핀이 사라진다**
+   *    (Fable 검증 중 발견: "창을 1024 넘게 넓혀야 핀이 나온다"). */
+  pinSlot?: React.ReactNode;
 }
 
 // 채널 표시명 — 제목이 "{프로젝트명} 고객/내부" 로 저장돼 헤더의 "소속: {프로젝트명}" 과 중복.
@@ -80,7 +85,7 @@ const ChatPanel: React.FC<Props> = ({
   project, conversations, messages, activeConversationId, onSelectConversation,
   onSendMessage, onCueDraftSend, onCueDraftReject, onRenameConversation, onOpenSettings,
   candidatesCount,
-  onOpenNewChat, onMobileBack, mobileHidden = false,
+  onOpenNewChat, onMobileBack, mobileHidden = false, pinSlot,
   onLoadOlder, hasMoreOlder = false, loadingOlder = false, embedded = false,
 }) => {
   const { t } = useTranslation('qtalk');
@@ -1161,6 +1166,8 @@ const ChatPanel: React.FC<Props> = ({
           </HeaderTitleBlock>
         </HeaderLeft>
         <HeaderRight>
+          {/* 좁은 폭(단일 컬럼)에서만 — 리스트가 숨어도 핀에 닿을 수 있어야 한다 */}
+          {pinSlot && <NarrowPinSlot>{pinSlot}</NarrowPinSlot>}
           {/* 같은 프로젝트의 다른 채널 빠른 전환 — breadcrumb 대체 */}
           {channels.length > 1 && (
             <ChannelQuickSwitch>
@@ -2171,6 +2178,12 @@ const HeaderBar = styled.div`
     gap: 8px;
     min-height: 56px;
   }
+`;
+
+// 좁은 폭 전용 핀 자리 — 넓은 폭에서는 리스트 헤더의 핀과 중복되므로 숨긴다.
+const NarrowPinSlot = styled.span`
+  display: none;
+  ${mediaTablet} { display: inline-flex; align-items: center; }
 `;
 
 const HeaderTitleBlock = styled.div<{ $embedded?: boolean }>`

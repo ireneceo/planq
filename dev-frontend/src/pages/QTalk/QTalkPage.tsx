@@ -1612,6 +1612,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
       />
       <ChatPanel
         embedded={embedded}
+        pinSlot={pinSlot}
         project={activeProject}
         conversations={conversations}
         messages={messages}

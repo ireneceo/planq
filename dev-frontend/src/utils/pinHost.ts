@@ -37,7 +37,7 @@ export const PIN_CHANNEL = 'planq:pin';
 //     "작게" 가 아니라 "고정창 사각형 **안쪽**에" 두는 것이 숨김의 근거다.
 export const HOLDER_W = 160;
 export const HOLDER_H = 90;
-/** 고정창 좌상단에서 안쪽으로 밀어 넣는 여백 — 창 테두리·그림자에 삐져나오지 않게 */
+/** 고정창 좌상단에서 안쪽으로 밀어 넣는 여백 — 좌표를 못 읽을 때의 폴백에서만 쓴다 */
 const HIDE_INSET = 12;
 
 /** 도구별 팝아웃 라우트 단일 원천 — 도크가 여는 일반 창이 이 경로를 쓴다. */
@@ -86,9 +86,17 @@ function workArea(): { left: number; top: number; width: number; height: number 
   };
 }
 
-/** 창 전체가 작업 영역 안에 들어오도록 좌표를 민다. 폭·높이를 같이 봐야 오른쪽/아래로 삐져나오지 않는다. */
+/** 창 전체가 작업 영역 안에 들어오도록 좌표를 민다. 폭·높이를 같이 봐야 오른쪽/아래로 삐져나오지 않는다.
+ *
+ *  ★ **다른 모니터로 가는 좌표는 가두지 않는다.** `screen.*` 은 **이 창이 지금 있는 모니터**만 알려준다.
+ *    그래서 옆 모니터 좌표(예: x=2400)를 이 화면 기준으로 클램프하면 제자리로 되돌려져
+ *    **홀더가 고정창을 따라 모니터를 못 넘어간다**(Irene 2026-08-20 신고: "다른 모니터로 가는데
+ *    안 따라가"). 목표가 이 화면 범위 밖이면 그대로 둔다 — 옆 모니터에도 화면은 있다.
+ *    (이 화면 안의 좌표일 때만 가장자리 삐져나옴을 막는다. 해제 복원의 "창 유실 방지" 목적은 그대로.) */
 export function clampToScreen(x: number, y: number, w: number, h: number): { x: number; y: number } {
   const a = workArea();
+  const onThisScreen = x >= a.left - 1 && x < a.left + a.width;
+  if (!onThisScreen) return { x: Math.round(x), y: Math.round(y) };
   return {
     x: Math.round(Math.min(Math.max(a.left, x), Math.max(a.left, a.left + a.width - w))),
     y: Math.round(Math.min(Math.max(a.top, y), Math.max(a.top, a.top + a.height - h))),
@@ -165,8 +173,13 @@ export type PinMsg = PinIntentMsg | PinAckMsg | UnpinRequestMsg;
 
 /** 선공지 ack 대기 상한. transient activation(약 5초) 안이라 requestWindow 는 그대로 성립한다. */
 const ACK_TIMEOUT_MS = 250;
-/** 축출은 pagehide 를 발화시키지 않는다 → 폴링이 유일한 감지 수단 */
-const POLL_MS = 500;
+// 축출은 pagehide 를 발화시키지 않는다 → 폴링이 유일한 감지 수단.
+//   ★ 주기가 곧 **따라가기 지연**이다. 500ms 였을 때 고정창을 끌면 홀더가 뒤늦게 쫓아오며
+//     그 틈에 삐져나왔다(Irene: "나왔다 들어갔다 해"). 좌표 비교는 값 하나 읽는 것이라 비용이 없고,
+//     안 움직였으면 moveTo 를 아예 건너뛴다.
+const POLL_MS = 120;
+/** 고정창이 자리를 잡을 때까지 (0,0) 을 무시해 주는 시간. 이 뒤에는 (0,0) 도 진짜 좌표로 본다. */
+const SETTLE_MS = 1500;
 
 interface PipApi {
   requestWindow: (o: { width: number; height: number }) => Promise<Window>;
@@ -258,6 +271,8 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
   const chanRef = useRef<BroadcastChannel | null>(null);
   /** 고정창의 마지막 위치 — 해제할 때 원래 창을 그 자리에 되돌려 놓는다(엉뚱한 곳에서 튀어나오지 않게) */
   const lastPipPosRef = useRef<{ x: number; y: number } | null>(null);
+  /** 이번 고정에서 (0,0) 을 "아직 자리 안 잡음" 으로 봐줄 마감 시각. 지나면 진짜 좌표로 인정한다. */
+  const settleUntilRef = useRef(0);
 
   const stopPoll = useCallback(() => {
     if (pollRef.current != null) { clearInterval(pollRef.current); pollRef.current = null; }
@@ -284,6 +299,10 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
       //   복원된 520px 창이 화면 밖으로 밀려 사용자가 창을 잃는다.
       const at = pos ? clampToScreen(pos.x, pos.y, width, height) : popoutPosition(tool, 0);
       window.moveTo(at.x, at.y);
+      // ★ 반드시 앞으로 끌어온다. 홀더는 고정창 뒤에 **숨어 있던 창**이라 한 번도 앞에 선 적이 없다.
+      //   크기·자리를 되돌려도 다른 창(메인 브라우저) 뒤에 깔린 채라 사용자에게는 **창이 안 열린 것**으로
+      //   보인다 — Irene 2026-08-20 신고: "핀을 다시 누르면 고정창이 닫혀버리는데 일반창이 안 열려."
+      window.focus();
     } catch { /* noop */ }
     lastPipPosRef.current = null;
     setMode('normal');
@@ -338,6 +357,20 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
   /** 홀더를 고정창 사각형 **안쪽**으로 옮겨 가린다. 고정창은 항상 맨 위라 그대로 안 보이게 된다.
    *  ★ 좌표를 못 읽거나 moveTo 가 거부되는 창이면 조용히 포기한다 — 그때는 홀더가 보이지만
    *    화면에 그대로 남는 편이 창이 화면 밖으로 사라지는 것보다 낫다(PinHolderView 가 자기를 설명한다). */
+  /** 홀더가 숨을 목표 좌표 — 고정창의 **한가운데**.
+   *  ★ 모서리(+12,+12)에 두면 고정창이 조금만 움직여도 반대쪽으로 삐져나온다. 가운데에 두면
+   *    고정창 폭·높이의 절반 가까이(≈180px) 움직여도 여전히 덮인다 — 따라가기 지연이 눈에 안 띈다. */
+  const hideTarget = useCallback((pip: Window, x: number, y: number): { x: number; y: number } => {
+    let w = 0; let h = 0;
+    try { w = pip.outerWidth || 0; h = pip.outerHeight || 0; } catch { /* 접근 거부 */ }
+    if (!w || !h) return clampToScreen(x + HIDE_INSET, y + HIDE_INSET, HOLDER_W, HOLDER_H);
+    return clampToScreen(
+      x + Math.round((w - HOLDER_W) / 2),
+      y + Math.round((h - HOLDER_H) / 2),
+      HOLDER_W, HOLDER_H,
+    );
+  }, []);
+
   const hideBehind = useCallback((pip: Window) => {
     try {
       const x = pip.screenX ?? pip.screenLeft;
@@ -345,15 +378,17 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
       if (typeof x !== 'number' || typeof y !== 'number') return;
       // ★ 갓 열린 고정창은 좌표가 (0,0) 으로 읽히는 순간이 있다. 그대로 믿으면 숨은 창이 **좌측 상단으로
       //   튀었다가** 다음 폴링에 돌아온다 — 사용자에게 그 왕복이 보인다(Irene 2026-08-20 신고).
-      //   자리를 잡기 전에는 건드리지 않는다. 진짜 (0,0) 에 놓인 창이면 다음 틱에 정상 처리된다.
-      if (x === 0 && y === 0) return;
+      //   ★ 단 **열린 직후 잠깐만** 봐준다. 무기한 무시하면, 고정창이 계속 (0,0) 으로 읽히는 상황에서
+      //     따라가기가 영영 멈춰 숨어야 할 창이 그대로 보인다(Irene 재신고: "일반창 했다 다시 고정창
+      //     하면 위에 있는게 안 따라다녀"). 가드가 기능을 죽이는 쪽이 더 나쁘다.
+      if (x === 0 && y === 0 && Date.now() < settleUntilRef.current) return;
       const last = lastPipPosRef.current;
       if (last && last.x === x && last.y === y) return;   // 안 움직였으면 건드리지 않는다(깜빡임 방지)
       lastPipPosRef.current = { x, y };
-      const at = clampToScreen(x + HIDE_INSET, y + HIDE_INSET, HOLDER_W, HOLDER_H);
+      const at = hideTarget(pip, x, y);
       window.moveTo(at.x, at.y);
     } catch { /* 좌표 접근 거부 — 숨기기는 포기하고 기능은 그대로 */ }
-  }, []);
+  }, [hideTarget]);
 
   /** 고정창의 현재 좌표. 아직 자리를 안 잡아 (0,0) 으로 읽히면 이 창(팝아웃) 위치로 폴백한다. */
   const pipAnchor = useCallback((pip: Window): { x: number; y: number } => {
@@ -392,7 +427,11 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
       iframe.name = `pq-${tool}-pip`;
       // ★ 라우트 상수가 아니라 **지금 이 창의 URL** 을 싣는다 — Q Talk 에서 대화를 바꾼 뒤 고정하면
       //   고정창도 그 대화로 열려야 한다(최초 진입 대화로 되돌아가면 안 된다).
-      iframe.src = window.location.pathname + window.location.search;
+      // ★ 홀더(이 창)의 이름을 같이 실어 보낸다. 해제할 때 **고정창 쪽에서** 이 이름으로 홀더를
+      //   앞으로 끌어올려야 한다 — 홀더 자신은 사용자 조작이 없어 focus() 가 무시될 수 있다.
+      const sep = window.location.search ? '&' : '?';
+      const holderName = window.name ? `${sep}_holder=${encodeURIComponent(window.name)}` : '';
+      iframe.src = window.location.pathname + window.location.search + holderName;
       iframe.setAttribute('allow', 'microphone; camera; display-capture; autoplay; clipboard-write');
       iframe.style.cssText = 'border:0;width:100%;height:100vh;display:block;';
       body.appendChild(iframe);
@@ -428,16 +467,25 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
     //    ★ 줄이기 **전에** 목표 좌표를 정해 두고 한 번에 옮긴다 — 줄인 뒤 좌표를 다시 읽으면
     //      그 사이 상태가 화면에 한 프레임 노출된다.
     lastPipPosRef.current = anchor;
+    settleUntilRef.current = Date.now() + SETTLE_MS;
     try {
       window.resizeTo(HOLDER_W, HOLDER_H);
-      const at = clampToScreen(anchor.x + HIDE_INSET, anchor.y + HIDE_INSET, HOLDER_W, HOLDER_H);
+      const at = hideTarget(win, anchor.x, anchor.y);
       window.moveTo(at.x, at.y);
     } catch { /* noop */ }
     setMode('holder');
-  }, [pipContent, tool, title, width, height, onPipGone, pipAnchor]);
+  }, [pipContent, tool, title, width, height, onPipGone, pipAnchor, hideTarget]);
 
   const unpin = useCallback(() => {
     if (pipContent) {
+      // ★ 이 클릭은 **고정창 안의 사용자 조작**이다. 여기서 홀더 창을 이름으로 지목해 앞으로 끌어온다.
+      //   (빈 URL 로 여는 window.open 은 같은 이름의 창이 있으면 **그 창을 그대로 앞세운다**.)
+      //   홀더 쪽 focus() 만으로는 조작 없는 창이라 브라우저가 무시할 수 있다 — 그러면 사용자에게는
+      //   "고정창은 닫혔는데 일반창이 안 열린다" 로 보인다(Irene 2026-08-20 신고).
+      try {
+        const holder = new URLSearchParams(window.location.search).get('_holder');
+        if (holder) window.open('', holder);
+      } catch { /* 실패해도 아래 방송은 그대로 나간다 */ }
       // 이 iframe 은 자기를 담은 PiP 창을 닫을 수 없다(소유자는 홀더 창이다) → 방송으로 부탁한다.
       try {
         const ch = chanRef.current || new BroadcastChannel(PIN_CHANNEL);
