@@ -1,4 +1,4 @@
-import { popoutFeatures } from '../../utils/pinHost';
+import { openPopout } from '../../utils/pinHost';
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { downloadBlob } from '../../utils/download';
 import { createPortal } from 'react-dom';
@@ -70,18 +70,10 @@ function channelLabel(name: string, projectName?: string | null): string {
 //   여기 features 문자열을 따로 적어두던 것이 "팝아웃마다 위치가 제각각" 의 원인이었다
 //   (옛 값: 480×760, 위치 지정 없음 → 브라우저가 좌상단에 띄움).
 //   여러 대화방을 동시에 빼면 계단식으로 어긋나게 연다(창 이름이 대화방별이라 겹칠 수 있다).
-let convPopoutSeq = 0;
-/** 이 탭에서 이미 창을 낸 대화방 — 같은 방을 다시 누르면 **그 창을 재사용**하므로 계단을 소비하지 않는다
- *  (소비하면 다음에 여는 다른 방이 이유 없이 아래로 밀린다). */
-const convPopoutSlots = new Map<number, number>();
+// 대화방별 분리 창 — 자리 규칙은 utils/pinHost.openPopout 단일 진입점.
+//   창 이름이 대화방별이라 여러 방을 빼면 계단으로 어긋난다(같은 방 재클릭은 그 창 재사용).
 function openConvPopout(convId: number) {
-  const seq = convPopoutSlots.get(convId) ?? convPopoutSeq;
-  const w = window.open(
-    `/talk-popout?conv=${convId}`,
-    `pq-talk-${convId}`,
-    popoutFeatures('qtalk', seq),
-  );
-  if (w && !convPopoutSlots.has(convId)) { convPopoutSlots.set(convId, seq); convPopoutSeq += 1; }
+  openPopout('qtalk', { url: `/talk-popout?conv=${convId}`, name: `pq-talk-${convId}` });
 }
 
 const ChatPanel: React.FC<Props> = ({

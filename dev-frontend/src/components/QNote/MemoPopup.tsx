@@ -12,7 +12,7 @@
 //
 // 사용:
 //   <MemoPopup open={open} onClose={close} businessId={biz} existingSessionId={id?} />
-import { popoutFeatures } from '../../utils/pinHost';
+import { openPopout } from '../../utils/pinHost';
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import { createPortal } from 'react-dom';
 import styled, { keyframes, css } from 'styled-components';
@@ -606,7 +606,7 @@ const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSession
 
     // 일반 창 — 크기·자리는 utils/pinHost 단일 원천(모니터 우측 상단 Q Note 자리).
     //   옛 값은 left=200,top=120 고정이라 팝아웃마다 자리가 제각각이었다.
-    const opened = window.open(url, `planq-memo-${id}`, popoutFeatures('qnote'));
+    const opened = openPopout('qnote', { url, name: `planq-memo-${id}` });
     if (opened) onClose();
   };
 
