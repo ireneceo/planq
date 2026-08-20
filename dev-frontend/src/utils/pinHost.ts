@@ -209,6 +209,20 @@ export function supportsPin(): boolean {
   return !!pipApi();
 }
 
+/** 다른 모니터로 창을 옮기려면 **창 관리 권한**이 필요하다.
+ *  ★ 권한이 없으면 크롬은 `moveTo` 를 **현재 모니터 안으로 강제 클램프**한다 — 좌표를 아무리 정확히
+ *    계산해도 홀더가 옆 모니터로 못 따라간다(Irene 2026-08-20: "모니터 이동할 때 안 따라가").
+ *  ★ 반드시 **사용자 클릭 핸들러 안에서** 부른다(권한 요청은 제스처를 요구한다). 이미 허용돼 있으면
+ *    창이 뜨지 않고 조용히 통과한다. 거부해도 기능은 그대로 — 같은 모니터 안에서만 숨는다.
+ *  ★ 실패를 삼키되 로그는 남기지 않는다(거부는 정상 경로다). */
+async function ensureWindowPlacement(): Promise<void> {
+  try {
+    const w = window as unknown as { getScreenDetails?: () => Promise<unknown> };
+    if (typeof w.getScreenDetails !== 'function') return;      // 미지원 브라우저
+    await w.getScreenDetails();
+  } catch { /* 사용자가 거부했거나 미지원 — 단일 모니터 동작으로 남는다 */ }
+}
+
 function markPipActive(on: boolean) {
   try {
     if (on) document.body.dataset.pipActive = '1';
@@ -426,6 +440,9 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
       const last = lastPipPosRef.current;
       if (last && last.x === x && last.y === y) return;   // 안 움직였으면 건드리지 않는다(깜빡임 방지)
       lastPipPosRef.current = { x, y };
+      // ★ 고정창이 옮겨지면 **그 자리를 기준점으로 갱신**한다. 안 하면 다음에 여는 팝아웃이 옛 자리에서
+      //   열려 핀을 누를 때 창이 튄다(Irene: "핀을 눌렀다 취소했다 할 때 위치가 동일하지 않아").
+      rememberOrigin(x, y);
       const at = hideTarget(pip, x, y);
       window.moveTo(at.x, at.y);
     } catch { /* 좌표 접근 거부 — 숨기기는 포기하고 기능은 그대로 */ }
@@ -445,6 +462,10 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
     if (pipContent || pipRef.current) return;
     const api = pipApi();
     if (!api) return;
+
+    // 0) 창 관리 권한 — 없으면 홀더가 옆 모니터로 못 따라간다(크롬이 moveTo 를 현재 화면에 가둔다).
+    //    ★ requestWindow 보다 **먼저** 부른다. 뒤에 두면 PiP 가 뜬 뒤 권한창이 겹쳐 뜬다.
+    await ensureWindowPlacement();
 
     // 1) 선공지 — 다른 창이 붙잡고 있으면 먼저 자리를 비우게 한다(축출은 감지 불가한 죽음이다).
     await announceIntent(chanRef.current, tool);
