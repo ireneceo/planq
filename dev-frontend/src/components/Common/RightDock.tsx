@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import { isPublicSurfacePath } from '../../utils/publicSurface';
 import { isPopoutWindow } from '../../utils/popout';
-import { POPOUT_PATH, popoutFeatures, type PinTool } from '../../utils/pinHost';
+import { openPopout, type PinTool } from '../../utils/pinHost';
 import VoiceCaptureSheet from './VoiceCaptureSheet';
 
 /** 여기서 여는 도구 = 핀 가능한 도구. 두 곳에 따로 적으면 갈라진다(경로·크기 원천은 pinHost). */
@@ -90,7 +90,8 @@ const RightDock: React.FC = () => {
   };
 
   const openPlain = (tool: DockTool) => {
-    window.open(POPOUT_PATH[tool], `pq-${tool}`, popoutFeatures(tool));
+    // 자리 규칙은 utils/pinHost.openPopout 단일 진입점에 있다(고정창이 뜨는 자리 기준 + 계단).
+    openPopout(tool);
   };
 
   const handlePick = (tool: DockTool) => {

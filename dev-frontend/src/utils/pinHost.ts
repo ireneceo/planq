@@ -58,18 +58,22 @@ export const POPOUT_SIZE: Record<PinTool, { width: number; height: number }> = {
   qhelper: { width: 440, height: 720 },
 };
 
-// ─── 팝아웃 자리 규칙 (Irene 2026-08-20: "첫번째 두번째 등등 기준이 있어야지") ───
-//   ① 기준점은 **모니터 우측 상단**. 브라우저 창 위치와 무관하다(창이 화면 가운데 있으면
-//      팝아웃도 가운데 뜨던 것이 옛 동작이었다 — 기준이 '현재 창' 이었다).
-//   ② 도구마다 **자리가 고정**이다. Q Talk 은 늘 첫 자리, Q Task 는 그 왼쪽… 그래서 몇 번을 열어도
-//      항상 같은 곳에서 열리고 서로 겹치지 않는다. 창 이름도 도구별로 고정이라 자리와 1:1 이다.
-//   ③ 한 줄에 다 못 들어가면 아랫줄로 접는다.
-//   ④ 같은 종류 창이 여러 개일 때(대화방별 채팅 창·메모 창)는 cascade 로 계단식으로 어긋난다.
-//   ⑤ 마지막에 **작업 영역 안으로 클램프** — 어떤 경우에도 창이 화면 밖에서 열리지 않는다.
-const SLOT_ORDER: PinTool[] = ['qtalk', 'qtask', 'qnote', 'qhelper'];
-const EDGE = 24;      // 화면 가장자리 여백
-const GAP = 12;       // 창 사이 간격
-const CASCADE = 28;   // 같은 종류 창이 여러 개일 때 계단 간격
+// ─── 팝아웃 자리 규칙 (Irene 2026-08-20) ───
+//   요구: "일반 팝아웃에서 핀 누르면 **그 자리 그대로** 고정창이 생기게 해달라."
+//
+//   어긋나던 이유: 두 창을 **다른 주체가** 배치한다. 일반 팝아웃은 우리가(우측 상단), 고정창은
+//   **크롬이** 놓는다(작업영역 우하단 16px 여백). 그리고 고정창은 스크립트로 못 옮긴다(실측 확정).
+//   → 그래서 **반대로** 맞춘다: 고정창이 뜨는 자리를 기준점으로 삼아 **일반 팝아웃을 거기서 연다.**
+//
+//   기준점(origin) 구하는 순서:
+//     ① 지난번 고정창이 실제로 떴던 좌표(localStorage 기억) — 가장 정확
+//     ② 없으면 크롬 기본 배치를 계산: 작업영역 **우하단 16px**
+//   여러 창을 동시에 열면 그대로 포개지므로 **살아 있는 창 수만큼 28px 계단**으로 어긋뜨린다.
+//   (도구별 지정석은 폐기 — 지정석을 쓰면 핀을 누르는 순간 반드시 어긋난다. 겹침을 감수하더라도
+//    "핀 눌러도 안 움직인다" 를 택한 것이 Irene 의 결정이다.)
+const EDGE = 16;      // 크롬이 고정창을 놓을 때 쓰는 화면 가장자리 여백 (실측)
+const CASCADE = 28;   // 동시에 열린 창끼리 어긋나는 간격
+const ORIGIN_KEY = 'planq:popout:origin';
 
 /** 현재 모니터의 작업 영역(작업표시줄 제외). availLeft/availTop 은 비표준이라 없으면 0 으로 본다. */
 function workArea(): { left: number; top: number; width: number; height: number } {
@@ -91,35 +95,32 @@ export function clampToScreen(x: number, y: number, w: number, h: number): { x: 
   };
 }
 
-/** 도구의 지정석 좌표. cascade > 0 이면 그만큼 왼쪽·아래로 계단식 이동(같은 종류 창이 여럿일 때).
- *
- *  규칙: **모니터 우측 상단부터 왼쪽으로 나란히**, 화면에 안 들어가는 것부터 **계단식**으로 어긋뜨린다.
- *  ★ 앞 슬롯들의 **실제 폭을 누적**해야 한다. 자기 폭 × 칸수로 계산하면 도구마다 폭이 달라
- *    (520/520/480/440) 뒤 창이 앞 창을 침범한다 — 실측 반증: qtask×qnote 68px, qnote×qhelper 108px 겹침.
- *  ★ 넘치는 창은 겹칠 수밖에 없다: 1920 화면에서 네 창 폭 합이 1996 이라 물리적으로 안 들어간다.
- *    줄을 바꿔 내리는 것도 답이 아니다(창 높이 780 + 720 > 1080). 그래서 겹치되 **계단식으로 어긋뜨려**
- *    제목줄과 왼쪽 모서리가 드러나게 한다 — 완전히 가려진 창이 없어야 집을 수 있다.
- */
+/** 지난번 고정창이 실제로 떴던 자리. 창 하나만 열었을 때 핀을 눌러도 안 움직이게 하는 근거. */
+function readOrigin(): { x: number; y: number } | null {
+  try {
+    const raw = localStorage.getItem(ORIGIN_KEY);
+    if (!raw) return null;
+    const v = JSON.parse(raw) as { x?: unknown; y?: unknown };
+    if (typeof v.x !== 'number' || typeof v.y !== 'number') return null;
+    return { x: v.x, y: v.y };
+  } catch { return null; }
+}
+/** 고정창이 뜬 좌표를 기억한다 — 다음부터 일반 팝아웃이 이 자리에서 열린다. */
+export function rememberOrigin(x: number, y: number) {
+  try { localStorage.setItem(ORIGIN_KEY, JSON.stringify({ x, y })); } catch { /* 시크릿 모드 등 */ }
+}
+
+/** 팝아웃 좌표. cascade > 0 이면 그만큼 왼쪽·아래로 계단식 이동. */
 export function popoutPosition(tool: PinTool, cascade = 0): { x: number; y: number } {
   const { width, height } = POPOUT_SIZE[tool];
   const a = workArea();
-  const slot = Math.max(0, SLOT_ORDER.indexOf(tool));
-  const usable = a.width - EDGE * 2;
-  let used = 0;        // 이번 줄에서 이미 찬 폭(간격 포함)
-  let overflow = 0;    // 나란히 놓을 자리가 없어 계단으로 밀린 순번
-  for (let i = 0; i < slot; i += 1) {
-    const w = POPOUT_SIZE[SLOT_ORDER[i]].width;
-    if (overflow > 0) { overflow += 1; continue; }   // 이미 계단 구간 — 뒤는 전부 계단
-    used += w + GAP;
-    if (used + width > usable) { overflow = 1; used = 0; }
-  }
-  const stagger = (overflow + cascade) * CASCADE;
-  const x = a.left + a.width - EDGE - used - width - stagger;
-  const y = a.top + EDGE + stagger;
-  return clampToScreen(x, y, width, height);
+  const learned = readOrigin();
+  // ② 폴백 — 크롬이 고정창을 놓는 방식과 같은 계산(우하단 여백 16). 첫 사용에도 어긋남이 최소가 된다.
+  const base = learned || { x: a.left + a.width - width - EDGE, y: a.top + a.height - height - EDGE };
+  return clampToScreen(base.x - cascade * CASCADE, base.y + cascade * CASCADE, width, height);
 }
 
-/** window.open 용 features 문자열 — 크기·자리 모두 여기서 나온다(세 곳이 따로 적으면 갈라진다). */
+/** window.open 용 features 문자열 — 크기·자리 모두 여기서 나온다(여러 곳이 따로 적으면 갈라진다). */
 export function popoutFeatures(tool: PinTool, cascade = 0): string {
   const { width, height } = POPOUT_SIZE[tool];
   let pos = '';
@@ -130,6 +131,30 @@ export function popoutFeatures(tool: PinTool, cascade = 0): string {
     }
   } catch { pos = ''; }
   return `width=${width},height=${height}${pos},menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes`;
+}
+
+// ─── 팝아웃 여는 단일 진입점 ───
+//   여는 곳이 여러 군데라(실행 버튼·채팅방 ⧉·메모 ⧉) 각자 window.open 하면 자리 규칙이 갈라진다.
+//   여기 하나로 모아 **살아 있는 창 수**로 계단 번호를 정한다(닫힌 창은 자리를 비운다).
+const livePopouts = new Map<string, { win: Window; cascade: number }>();
+
+export function openPopout(tool: PinTool, opts?: { url?: string; name?: string }): Window | null {
+  for (const [k, v] of livePopouts) {
+    try { if (!v.win || v.win.closed) livePopouts.delete(k); } catch { livePopouts.delete(k); }
+  }
+  const name = opts?.name || `pq-${tool}`;
+  const known = livePopouts.get(name);
+  // 이미 열려 있는 창을 다시 여는 것이면 그 창의 계단 번호를 그대로 쓴다(자리가 튀지 않게).
+  //   ★ 새 창의 번호는 창 **개수**가 아니라 **비어 있는 가장 작은 번호**다. 개수로 정하면
+  //     가운데 창을 닫은 뒤 새로 열 때 생존 창과 **완전히 같은 좌표**로 겹친다(Fable 실측).
+  const taken = new Set<number>();
+  for (const v of livePopouts.values()) taken.add(v.cascade);
+  let free = 0;
+  while (taken.has(free)) free += 1;
+  const cascade = known ? known.cascade : free;
+  const win = window.open(opts?.url || POPOUT_PATH[tool], name, popoutFeatures(tool, cascade));
+  if (win) livePopouts.set(name, { win, cascade });
+  return win;
 }
 
 export interface PinIntentMsg { type: 'pin-intent'; id: string; tool: PinTool }
@@ -384,6 +409,9 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
     //   정확히 읽힌다(실측 3회). 팝아웃 자리를 기준으로 잡으면 홀더가 옛 자리에 0.5초 노출됐다가
     //   폴링 첫 틱에 점프하는 것이 사용자에게 보인다.
     const anchor = pipAnchor(win);
+    // ★ 고정창이 실제로 뜬 자리를 기억한다 — 다음부터 **일반 팝아웃이 이 자리에서** 열려서
+    //   핀을 눌러도 창이 움직이지 않는다(Irene: "그 자리 그대로 고정팝아웃 생기게 해달라고 했잖아").
+    rememberOrigin(anchor.x, anchor.y);
 
     pipRef.current = win;
     markPipActive(true);
