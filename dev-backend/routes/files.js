@@ -215,6 +215,11 @@ router.get('/public-image/:storedName', async (req, res, next) => {
 
     const file = looksLocal
       ? await File.findOne({ where: { file_path: { [Op.like]: `%${stored}` }, deleted_at: null, storage_provider: 'planq' } })
+        // ★ LIKE 는 **접미사** 매칭이라 `e.png`·`8.png` 같은 짧은 값으로도 아무 이미지가 걸린다 —
+        //   토큰을 몰라도 **타 워크스페이스 이미지가 무인증으로 열렸다**(2026-08-20 Fable 실측 200 반환).
+        //   추측 불가능성이 이 경로의 유일한 방벽이므로, 파일명 전체와 정확히 같을 때만 인정한다.
+        //   (message_attachments 의 같은 결함은 이미 같은 방식으로 막았다 — 규칙을 갈라 두지 말 것.)
+        .then((row) => (row && require('path').basename(row.file_path) === stored ? row : null))
       : await File.findOne({ where: { external_id: stored, deleted_at: null, storage_provider: 'gdrive' } });
     if (!file) return errorResponse(res, 'not_found', 404);
     // image/* 만 — HTML/JS 를 inline 으로 흘리면 XSS 가 된다 (기존 계약 유지)
