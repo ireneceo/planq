@@ -331,7 +331,9 @@
     "newTask": "Task",
     "newMail": "Mail",
     "newEvent": "Event",
-    "voice": "Add by voice"
+    "voice": "Add by voice",
+    "opensPinned": "Opens on top of your other windows",
+    "opensWindow": "Opens in a new window"
   },
   "saving": "Saving…",
   "loading": "Loading…",
@@ -930,17 +932,13 @@
     "cue": "Added via Cue"
   },
   "popoutPin": {
-    "pin": "Keep on top",
     "unpin": "Unpin",
-    "pinHint": "Shows this tool in a small window above others. No new window opens.",
     "unpinHint": "Unpinning closes this window. You can reopen it from the dock.",
     "restore": "Pin again",
     "lifetimeHint": "Reloading or closing this tab releases the pin.",
     "recordingTitle": "Recording in progress",
     "recordingMessage": "Unpinning now closes this window and stops the recording. Continue?",
     "recordingConfirm": "Stop recording and unpin",
-    "pinLabel": "Keep on top",
-    "pressMainPin": "Press the flashing pin in the main window to pin this here",
-    "recordingBlocks": "Cannot pin while recording — try again after recording ends"
+    "slotBusy": "The browser allows only one always-on-top window — other tools open as regular windows"
   }
 }

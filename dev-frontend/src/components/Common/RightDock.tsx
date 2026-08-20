@@ -16,7 +16,6 @@ import { isPublicSurfacePath } from '../../utils/publicSurface';
 import { isPopoutWindow } from '../../utils/popout';
 import { POPOUT_PATH, popoutFeatures, supportsPin, type PinTool } from '../../utils/pinHost';
 import { pinOwner, usePinOwner } from '../../utils/pinOwner';
-import { PIN_CHANNEL } from '../../utils/pinHost';
 import VoiceCaptureSheet from './VoiceCaptureSheet';
 
 /** 도크가 여는 도구 = 핀 가능한 도구. 두 곳에 따로 적으면 갈라진다(경로·크기 원천은 pinHost). */
@@ -37,24 +36,6 @@ const RightDock: React.FC = () => {
   const navigate = useChromeNav();
   const [expanded, setExpanded] = useState(false);
   // ★ 팝아웃이 보낸 "핀 누를 준비" 신호 (#258·#280·#286).
-  //   팝아웃 창은 스스로 고정할 수 없다 — Document PiP 는 **그 창 자신의 사용자 조작**을 요구하고
-  //   조작은 창을 건너 전달되지 않는다(실측). 그래서 마지막 한 번의 클릭만 여기서 받는다:
-  //   도크를 펼치고 그 도구의 핀을 깜빡여 **바로 누를 수 있는 자리**로 만든다.
-  const [armedTool, setArmedTool] = useState<DockTool | null>(null);
-  useEffect(() => {
-    if (isPopoutWindow()) return;              // 팝아웃 자신은 수신자가 아니다
-    let ch: BroadcastChannel | null = null;
-    try { ch = new BroadcastChannel(PIN_CHANNEL); } catch { return; }
-    const onMsg = (ev: MessageEvent) => {
-      const m = ev.data as { type?: string; tool?: DockTool } | null;
-      if (!m || m.type !== 'pin-arm' || !m.tool) return;
-      setArmedTool(m.tool);
-      setExpanded(true);                        // 핀이 보이는 상태로 열어 준다
-      window.setTimeout(() => setArmedTool((cur) => (cur === m.tool ? null : cur)), 30000);
-    };
-    ch.addEventListener('message', onMsg);
-    return () => { try { ch?.removeEventListener('message', onMsg); ch?.close(); } catch { /* noop */ } };
-  }, []);
   const fabRef = useRef<HTMLDivElement>(null);
   // 핀(항상 위) — #258 재구조화(2026-08-14). 진입은 **여기 버튼 하나뿐**이고, 소유 상태와 프로토콜은
   //   utils/pinOwner.ts(모듈 싱글턴)에 있다. 도크는 공개 표면·/memo 에서 언마운트되므로
@@ -123,24 +104,22 @@ const RightDock: React.FC = () => {
       else openDockTool(tool);
       return;
     }
-    // 데스크탑 — 도구를 각각 독립 창으로 팝아웃 (운영 #43/#45, 2026-06-16 결정).
-    //   일반 창이다. 도구별 고유 창 이름(pq-${tool})이라 넷 다 동시에 떠 있고,
-    //   화상회의 화면공유 중에도 사라지지 않는다. "항상 위"는 이 옆의 고정 버튼(handlePin)이 담당한다 —
-    //   그쪽은 창을 새로 열지 않고 이 탭이 PiP 를 소유한다(#258).
-    // #286 역방향 — 이미 고정(PiP)된 도구를 "열기" 로 또 열면 역시 창이 2개가 된다.
-    //   고정을 먼저 놓고 일반 창으로 옮긴다(도구당 창 1개 불변식은 양방향이어야 성립한다).
-    if (pinned === tool) pinOwner.unpin();
+    // 데스크탑 — **여는 클릭이 곧 "항상 위"** 다 (Fable 설계 판정 2026-08-20, 운영 #26·#43·#258·#280·#286).
+    //   핀은 별도 버튼이 아니다. #26 이 요청한 것부터가 "다른 브라우저나 프로그램 뒤로 넘어가서
+    //   사용하는게 불편해" 였으니, 여는 순간 위에 떠 있으면 핀이라는 행위 자체가 필요 없다.
+    //   ★ 반드시 이 클릭 핸들러 안에서 동기적으로 시작한다 — requestWindow 는 **이 창의** 사용자 조작을 요구한다.
+    //     (팝아웃 안에서 눌러 이 탭에 부탁하는 방향은 물리적으로 막혀 있다. 팝아웃이 직접 열 수는 있지만
+    //      그때는 팝아웃 창이 소유자로 계속 살아 있어야 해 #258 의 "창 하나 더" 가 재발한다 — 둘 다 실측됨.)
+    //   ★ 한 제스처에서 window.open 과 requestWindow 를 **같이** 부르지 않는다(팝업 차단).
+    if (pinned === tool) { pinOwner.focus(); return; }        // 이미 고정 — 또 열지 않고 앞으로만
+    if (canPin && !pinned) {
+      void pinOwner.pin(tool, t(`dock.${tool}`, tool) as string);
+      return;
+    }
+    // 고정 자리가 이미 **다른 도구**로 차 있거나(브라우저는 항상 위 창을 1개만 허용) 미지원 브라우저 →
+    //   일반 창으로 연다. ★ 기존 고정창을 자동으로 닫지 않는다 — 자동 축출은 Irene 이 기각했다
+    //   ("다른 창 열면 기존 팝아웃 닫히잖아"). 도구별 고유 창 이름이라 넷 다 동시에 떠 있을 수 있다(#43).
     window.open(POPOUT_PATH[tool], `pq-${tool}`, popoutFeatures(tool));
-  };
-
-  // 핀 = 이 탭이 PiP 를 열고 그 안에 도구를 싣는다. 창은 늘지 않는다.
-  //   ★ 반드시 이 클릭 핸들러 안에서 동기적으로 시작해야 한다 — requestWindow 는 transient activation 을 요구한다.
-  //     (내부의 축출 선공지 250ms 대기는 activation 수명 약 5초 안이라 그대로 성립한다.)
-  const handlePin = (tool: DockTool) => {
-    setArmedTool(null);                                  // 눌렀으면 깜빡임은 끝난다
-    if (pinned === tool) { pinOwner.unpin(); return; }   // 같은 도구 재클릭 = 해제(리스트 재클릭 토글 규칙)
-    void pinOwner.pin(tool, t(`dock.${tool}`, tool) as string);
-    setExpanded(false);
   };
 
   return (
@@ -178,40 +157,35 @@ const RightDock: React.FC = () => {
               ★ 자동 재열기는 물리적으로 불가능하다(requestWindow 는 사용자 제스처를 요구한다).
                 "자동으로 복원됩니다" 같은 문구를 쓰지 말 것. */}
           {canPin && restore && !pinned && (
-            <RestoreChip type="button" role="menuitem" data-testid="dock-pin-restore" onClick={() => handlePin(restore)}>
+            <RestoreChip type="button" role="menuitem" data-testid="dock-pin-restore" onClick={() => handlePick(restore)}>
               <IconPin />
               <span>{t('popoutPin.restore', '고정 다시 켜기')} · {t(`dock.${restore}`, restore)}</span>
             </RestoreChip>
           )}
           {OPEN_TOOLS.map(({ tool, bg, testid, Icon }) => (
-            // ★ 행은 div 다. 열기 버튼과 핀 버튼은 **형제** — 중첩하면 button-in-button 이 되어
-            //   HTML 상 무효이고 브라우저가 클릭 타깃을 임의로 접는다.
-            <ToolRow key={tool}>
-              <MenuItem $grow data-testid={testid} role="menuitem" type="button" onClick={() => handlePick(tool)}>
-                <ItemIcon $bg={bg}><Icon /></ItemIcon>
-                <span>{t(`dock.${tool}`, tool)}</span>
-              </MenuItem>
-              {canPin && (
-                <PinBtn
-                  type="button"
-                  role="menuitem"
-                  data-testid={`dock-pin-${tool}`}
-                  $active={pinned === tool}
-                  $armed={armedTool === tool && pinned !== tool}
-                  aria-pressed={pinned === tool}
-                  aria-label={(pinned === tool
-                    ? t('popoutPin.unpin', '고정 해제')
-                    : t('popoutPin.pin', '항상 위로 고정')) as string}
-                  title={(pinned === tool
-                    ? t('popoutPin.unpinHint', '고정을 해제하면 이 창이 닫힙니다. 도크에서 다시 열 수 있습니다.')
-                    : t('popoutPin.pinHint', '다른 창 위에 작게 띄웁니다. 새 창은 열리지 않습니다.')) as string}
-                  onClick={() => handlePin(tool)}
-                >
-                  <IconPin />
-                </PinBtn>
-              )}
-            </ToolRow>
+            // ★ 행 옆 핀 아이콘은 없앴다 (Irene: "채팅 누르면 나오는 버튼들 옆에 핀아이콘 안쓸거라고").
+            //   고정은 별도 버튼이 아니라 **이 행을 누르는 것** 자체다(handlePick 주석).
+            <MenuItem
+              key={tool}
+              data-testid={testid}
+              role="menuitem"
+              type="button"
+              title={(canPin && !pinned
+                ? t('dock.opensPinned', '다른 창 위에 항상 보이게 엽니다')
+                : t('dock.opensWindow', '새 창으로 엽니다')) as string}
+              onClick={() => handlePick(tool)}
+            >
+              <ItemIcon $bg={bg}><Icon /></ItemIcon>
+              <span>{t(`dock.${tool}`, tool)}</span>
+            </MenuItem>
           ))}
+          {/* 항상 위 자리가 차 있을 때 — 왜 이 도구는 일반 창으로 열리는지 한 줄로. 문단 금지.
+              브라우저 한계라 숨기지 않는다(숨기면 "왜 어떤 건 고정이고 어떤 건 아니야" 가 남는다). */}
+          {canPin && pinned && (
+            <PinHint data-testid="dock-pin-slot-busy">
+              {t('popoutPin.slotBusy', '항상 위 창은 브라우저에서 1개만 열 수 있어요 — 다음 도구는 일반 창으로 열려요')}
+            </PinHint>
+          )}
           {/* C-4 정직한 문구 — F5 만 적으면 거짓말이다. 탭을 닫거나 로그아웃해도 같이 사라진다. */}
           {canPin && pinned && (
             <PinHint data-testid="dock-pin-hint">
@@ -345,31 +319,6 @@ const MenuItem = styled.button<{ $create?: boolean; $grow?: boolean }>`
   span { white-space: nowrap; }
 `;
 
-// 핀 — "열기"(새 창)와 "고정"(PiP)은 서로 다른 결과라 한 행에 두 버튼으로 나란히 둔다.
-const ToolRow = styled.div`
-  display: flex; align-items: stretch; gap: 6px; width: 100%;
-`;
-const PinBtn = styled.button<{ $active: boolean; $armed?: boolean }>`
-  flex-shrink: 0; width: 40px;
-  display: inline-flex; align-items: center; justify-content: center;
-  border-radius: 12px; cursor: pointer;
-  background: ${({ $active }) => ($active ? '#0F766E' : '#FFFFFF')};
-  color: ${({ $active }) => ($active ? '#FFFFFF' : '#94A3B8')};
-  border: 1px solid ${({ $active }) => ($active ? '#0F766E' : '#E2E8F0')};
-  box-shadow: 0 4px 14px rgba(15,23,42,0.12);
-  transition: transform 0.12s, color 0.12s, border-color 0.12s;
-  &:hover { transform: translateY(-1px); ${({ $active }) => ($active ? '' : 'color: #0F766E; border-color: #99F6E4;')} }
-  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
-  /* 팝아웃에서 "여기로 고정" 을 부탁받은 상태 — 사용자가 다음에 누를 자리를 가리킨다. */
-  ${({ $armed }) => ($armed ? `
-    border-color: #F43F5E; color: #F43F5E;
-    animation: pqPinArm 1.1s ease-in-out infinite;
-  ` : '')}
-  @keyframes pqPinArm {
-    0%, 100% { box-shadow: 0 4px 14px rgba(15,23,42,0.12); }
-    50% { box-shadow: 0 0 0 5px rgba(244,63,94,0.28), 0 4px 14px rgba(15,23,42,0.12); }
-  }
-`;
 const RestoreChip = styled.button`
   width: 100%;
   display: inline-flex; align-items: center; gap: 8px;

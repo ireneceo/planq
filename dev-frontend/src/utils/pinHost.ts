@@ -67,12 +67,7 @@ export interface UnpinRequestMsg { type: 'unpin-request'; tool: PinTool }
  *  ★ requestWindow **성공 후**에만 보낸다 — 사용자가 고정을 취소했는데 팝아웃만 사라지면 도구를 통째로 잃는다.
  *  창 핸들을 보관하는 대신 방송을 쓰는 이유: 메인 탭이 새로고침되면 핸들은 사라지지만 방송은 그대로 닿는다. */
 export interface PinEngagedMsg { type: 'pin-engaged'; tool: PinTool }
-/** 팝아웃 → 메인 탭: "이 도구 핀을 누를 준비를 해 달라".
- *  ★ 팝아웃이 직접 고정할 수는 없다 — Document PiP 는 **그 창 자신의 사용자 조작**을 요구하고,
- *    조작은 창을 건너 전달되지 않는다(실측: NotAllowedError "requires user activation").
- *    그래서 팝아웃은 자리를 만들어 주고, 마지막 한 번의 클릭만 사용자가 메인 창에서 한다. */
-export interface PinArmMsg { type: 'pin-arm'; tool: PinTool }
-export type PinMsg = PinIntentMsg | PinAckMsg | UnpinRequestMsg | PinEngagedMsg | PinArmMsg;
+export type PinMsg = PinIntentMsg | PinAckMsg | UnpinRequestMsg | PinEngagedMsg;
 
 /** PiP 문서 안의 iframe 으로 로드된 인스턴스인가 (팝아웃 라우트는 이 경우에만 iframe 안에서 돈다) */
 export function isPipContent(): boolean {
