@@ -29,9 +29,16 @@ export type PinMode = 'normal' | 'holder' | 'pip-content';
 /** 핀·축출·해제 요청이 오가는 채널. 창(팝아웃·PiP iframe)을 가로지른다. */
 export const PIN_CHANNEL = 'planq:pin';
 
-/** 홀더 창 크기 — "이 도구는 항상 위에 떠 있다" 와 해제 버튼만 담는 최소 크기 */
-export const HOLDER_W = 360;
-export const HOLDER_H = 132;
+// 홀더 창 크기 — **고정창 뒤에 완전히 숨기는 것이 목적**이라 최소로 줄인다.
+//   Irene 2026-08-20: "이 창이 남잖아. 왜 남기는 거야? 너무 이상하다니까."
+//   닫을 수는 없다(닫으면 고정창도 죽는다). 대신 고정창이 **항상 맨 위**라는 성질을 이용해
+//   홀더를 고정창 좌상단 안쪽으로 옮겨 완전히 가려지게 한다 → 화면에는 고정창 하나만 보인다.
+//   ★ 브라우저가 강제하는 최소 창 크기(플랫폼별 100~150px)보다 작게는 못 줄인다. 그래서
+//     "작게" 가 아니라 "고정창 사각형 **안쪽**에" 두는 것이 숨김의 근거다.
+export const HOLDER_W = 160;
+export const HOLDER_H = 90;
+/** 고정창 좌상단에서 안쪽으로 밀어 넣는 여백 — 창 테두리·그림자에 삐져나오지 않게 */
+const HIDE_INSET = 12;
 
 /** 도구별 팝아웃 라우트 단일 원천 — 도크가 여는 일반 창이 이 경로를 쓴다. */
 export const POPOUT_PATH: Record<PinTool, string> = {
@@ -51,27 +58,78 @@ export const POPOUT_SIZE: Record<PinTool, { width: number; height: number }> = {
   qhelper: { width: 440, height: 720 },
 };
 
-/** window.open 용 features 문자열 (같은 크기에서 파생) */
-export function popoutFeatures(tool: PinTool): string {
+// ─── 팝아웃 자리 규칙 (Irene 2026-08-20: "첫번째 두번째 등등 기준이 있어야지") ───
+//   ① 기준점은 **모니터 우측 상단**. 브라우저 창 위치와 무관하다(창이 화면 가운데 있으면
+//      팝아웃도 가운데 뜨던 것이 옛 동작이었다 — 기준이 '현재 창' 이었다).
+//   ② 도구마다 **자리가 고정**이다. Q Talk 은 늘 첫 자리, Q Task 는 그 왼쪽… 그래서 몇 번을 열어도
+//      항상 같은 곳에서 열리고 서로 겹치지 않는다. 창 이름도 도구별로 고정이라 자리와 1:1 이다.
+//   ③ 한 줄에 다 못 들어가면 아랫줄로 접는다.
+//   ④ 같은 종류 창이 여러 개일 때(대화방별 채팅 창·메모 창)는 cascade 로 계단식으로 어긋난다.
+//   ⑤ 마지막에 **작업 영역 안으로 클램프** — 어떤 경우에도 창이 화면 밖에서 열리지 않는다.
+const SLOT_ORDER: PinTool[] = ['qtalk', 'qtask', 'qnote', 'qhelper'];
+const EDGE = 24;      // 화면 가장자리 여백
+const GAP = 12;       // 창 사이 간격
+const CASCADE = 28;   // 같은 종류 창이 여러 개일 때 계단 간격
+
+/** 현재 모니터의 작업 영역(작업표시줄 제외). availLeft/availTop 은 비표준이라 없으면 0 으로 본다. */
+function workArea(): { left: number; top: number; width: number; height: number } {
+  const s = window.screen as Screen & { availLeft?: number; availTop?: number };
+  return {
+    left: typeof s.availLeft === 'number' ? s.availLeft : 0,
+    top: typeof s.availTop === 'number' ? s.availTop : 0,
+    width: s.availWidth || window.innerWidth,
+    height: s.availHeight || window.innerHeight,
+  };
+}
+
+/** 창 전체가 작업 영역 안에 들어오도록 좌표를 민다. 폭·높이를 같이 봐야 오른쪽/아래로 삐져나오지 않는다. */
+export function clampToScreen(x: number, y: number, w: number, h: number): { x: number; y: number } {
+  const a = workArea();
+  return {
+    x: Math.round(Math.min(Math.max(a.left, x), Math.max(a.left, a.left + a.width - w))),
+    y: Math.round(Math.min(Math.max(a.top, y), Math.max(a.top, a.top + a.height - h))),
+  };
+}
+
+/** 도구의 지정석 좌표. cascade > 0 이면 그만큼 왼쪽·아래로 계단식 이동(같은 종류 창이 여럿일 때).
+ *
+ *  규칙: **모니터 우측 상단부터 왼쪽으로 나란히**, 화면에 안 들어가는 것부터 **계단식**으로 어긋뜨린다.
+ *  ★ 앞 슬롯들의 **실제 폭을 누적**해야 한다. 자기 폭 × 칸수로 계산하면 도구마다 폭이 달라
+ *    (520/520/480/440) 뒤 창이 앞 창을 침범한다 — 실측 반증: qtask×qnote 68px, qnote×qhelper 108px 겹침.
+ *  ★ 넘치는 창은 겹칠 수밖에 없다: 1920 화면에서 네 창 폭 합이 1996 이라 물리적으로 안 들어간다.
+ *    줄을 바꿔 내리는 것도 답이 아니다(창 높이 780 + 720 > 1080). 그래서 겹치되 **계단식으로 어긋뜨려**
+ *    제목줄과 왼쪽 모서리가 드러나게 한다 — 완전히 가려진 창이 없어야 집을 수 있다.
+ */
+export function popoutPosition(tool: PinTool, cascade = 0): { x: number; y: number } {
   const { width, height } = POPOUT_SIZE[tool];
-  // ★ 위치를 안 주면 브라우저가 **좌측 상단**에 띄운다 — 작업 중인 PlanQ 창을 가린다
-  //   (Irene: "팝아웃 열리는 위치가 우측 상단으로 하던가 해야지 좌측 상단은 이상해").
-  //   ★ screen.* 이 아니라 **현재 창 기준**(screenX + outerWidth)으로 잡는다 —
-  //     듀얼 모니터에서 screen 기준으로 잡으면 엉뚱한 화면에 뜬다.
-  //   화면 밖으로 나가지 않게 하한 0 으로 클램프한다.
+  const a = workArea();
+  const slot = Math.max(0, SLOT_ORDER.indexOf(tool));
+  const usable = a.width - EDGE * 2;
+  let used = 0;        // 이번 줄에서 이미 찬 폭(간격 포함)
+  let overflow = 0;    // 나란히 놓을 자리가 없어 계단으로 밀린 순번
+  for (let i = 0; i < slot; i += 1) {
+    const w = POPOUT_SIZE[SLOT_ORDER[i]].width;
+    if (overflow > 0) { overflow += 1; continue; }   // 이미 계단 구간 — 뒤는 전부 계단
+    used += w + GAP;
+    if (used + width > usable) { overflow = 1; used = 0; }
+  }
+  const stagger = (overflow + cascade) * CASCADE;
+  const x = a.left + a.width - EDGE - used - width - stagger;
+  const y = a.top + EDGE + stagger;
+  return clampToScreen(x, y, width, height);
+}
+
+/** window.open 용 features 문자열 — 크기·자리 모두 여기서 나온다(세 곳이 따로 적으면 갈라진다). */
+export function popoutFeatures(tool: PinTool, cascade = 0): string {
+  const { width, height } = POPOUT_SIZE[tool];
   let pos = '';
   try {
     if (typeof window !== 'undefined') {
-      const MARGIN = 24;
-      const baseX = window.screenX ?? window.screenLeft ?? 0;
-      const baseY = window.screenY ?? window.screenTop ?? 0;
-      const ownW = window.outerWidth || window.innerWidth || width;
-      const left = Math.max(0, Math.round(baseX + ownW - width - MARGIN));
-      const top = Math.max(0, Math.round(baseY + MARGIN));
-      pos = `,left=${left},top=${top}`;
+      const { x, y } = popoutPosition(tool, cascade);
+      pos = `,left=${x},top=${y}`;
     }
   } catch { pos = ''; }
-  return `width=${width},height=${height}${pos},menubar=no,toolbar=no,location=no,status=no`;
+  return `width=${width},height=${height}${pos},menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes`;
 }
 
 export interface PinIntentMsg { type: 'pin-intent'; id: string; tool: PinTool }
@@ -173,6 +231,8 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
   const pipRef = useRef<Window | null>(null);
   const pollRef = useRef<number | null>(null);
   const chanRef = useRef<BroadcastChannel | null>(null);
+  /** 고정창의 마지막 위치 — 해제할 때 원래 창을 그 자리에 되돌려 놓는다(엉뚱한 곳에서 튀어나오지 않게) */
+  const lastPipPosRef = useRef<{ x: number; y: number } | null>(null);
 
   const stopPoll = useCallback(() => {
     if (pollRef.current != null) { clearInterval(pollRef.current); pollRef.current = null; }
@@ -186,14 +246,28 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
     pipRef.current = null;
     markPipActive(false);
     // 스크립트로 열린 창이 아니면(주소창에 직접 친 탭) 브라우저가 무시한다 — 그래도 mode 는 돌아온다.
-    try { window.resizeTo(width, height); } catch { /* noop */ }
+    //   ★ 되돌아오는 창은 **고정창이 있던 자리**에 놓는다. 숨어 있던 좌표(고정창 안쪽)에서 그대로
+    //     커지면 화면 밖으로 밀려 보이지 않는 사고가 난다.
+    try {
+      const pos = lastPipPosRef.current;
+      // ★ window.open 의 features width/height 는 **콘텐츠(inner)** 크기인데 resizeTo 는 **창(outer)** 크기다.
+      //   그대로 넣으면 복원된 창이 브라우저 크롬 높이만큼(≈34px) 작아진다(실측). 차이를 더해 맞춘다.
+      const chromeW = Math.max(0, window.outerWidth - window.innerWidth);
+      const chromeH = Math.max(0, window.outerHeight - window.innerHeight);
+      window.resizeTo(width + chromeW, height + chromeH);
+      // ★ 폭·높이까지 보고 클램프한다. 좌표만 0 으로 막으면 고정창이 화면 **오른쪽 끝**에 있었을 때
+      //   복원된 520px 창이 화면 밖으로 밀려 사용자가 창을 잃는다.
+      const at = pos ? clampToScreen(pos.x, pos.y, width, height) : popoutPosition(tool, 0);
+      window.moveTo(at.x, at.y);
+    } catch { /* noop */ }
+    lastPipPosRef.current = null;
     setMode('normal');
-  }, [stopPoll, width, height]);
+  }, [stopPoll, width, height, tool]);
 
   /** 우리가 PiP 를 놓는다 (핀 토글 해제 · 축출 선공지 수신). 우리 손으로 닫고 일반 창으로 복귀. */
   const releasePip = useCallback(() => {
     const w = pipRef.current;
-    pipRef.current = null;      // ★ 가장 먼저 비운다 — 폴링/pagehide 가 이 해제를 "사용자가 닫음" 으로 재진입하지 않게
+    pipRef.current = null;      // ★ 가장 먼저 비운다 — 폴링/pagehide 가 이 해제를 〈사용자가 닫음〉 으로 재진입하지 않게
     if (w) { try { w.close(); } catch { /* 이미 닫혔을 수 있다 */ } }
     backToNormal();
   }, [backToNormal]);
@@ -236,6 +310,21 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
 
   useEffect(() => () => stopPoll(), [stopPoll]);
 
+  /** 홀더를 고정창 사각형 **안쪽**으로 옮겨 가린다. 고정창은 항상 맨 위라 그대로 안 보이게 된다.
+   *  ★ 좌표를 못 읽거나 moveTo 가 거부되는 창이면 조용히 포기한다 — 그때는 홀더가 보이지만
+   *    화면에 그대로 남는 편이 창이 화면 밖으로 사라지는 것보다 낫다(PinHolderView 가 자기를 설명한다). */
+  const hideBehind = useCallback((pip: Window) => {
+    try {
+      const x = pip.screenX ?? pip.screenLeft;
+      const y = pip.screenY ?? pip.screenTop;
+      if (typeof x !== 'number' || typeof y !== 'number') return;
+      const last = lastPipPosRef.current;
+      if (last && last.x === x && last.y === y) return;   // 안 움직였으면 건드리지 않는다(깜빡임 방지)
+      lastPipPosRef.current = { x, y };
+      window.moveTo(Math.max(0, x + HIDE_INSET), Math.max(0, y + HIDE_INSET));
+    } catch { /* 좌표 접근 거부 — 숨기기는 포기하고 기능은 그대로 */ }
+  }, []);
+
   const pin = useCallback(async () => {
     if (pipContent || pipRef.current) return;
     const api = pipApi();
@@ -276,15 +365,18 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
     markPipActive(true);
     // 창 동일성 확인 후에만 — 옛 창의 뒤늦은 pagehide 가 방금 연 PiP 를 철거하지 못하게 한다.
     win.addEventListener('pagehide', () => { if (pipRef.current === win) onPipGone(); });
-    // 축출(다른 도구가 자리를 가져감)은 pagehide 가 없다 → 폴링이 유일한 감지 수단
+    // 축출(다른 도구가 자리를 가져감)은 pagehide 가 없다 → 폴링이 유일한 감지 수단.
+    //   같은 틱에서 홀더를 고정창 뒤로 따라 옮긴다(사용자가 고정창을 옮겨도 계속 숨어 있게).
     pollRef.current = window.setInterval(() => {
-      if (!pipRef.current || pipRef.current.closed) onPipGone();
+      if (!pipRef.current || pipRef.current.closed) { onPipGone(); return; }
+      hideBehind(pipRef.current);
     }, POLL_MS);
 
-    // 2) 이 창은 홀더로 변신한다 (window.open 0회 → 팝업 차단 계열 결함이 통째로 없다)
+    // 2) 이 창은 홀더로 변신해 **고정창 뒤에 숨는다** (window.open 0회 → 팝업 차단 계열 결함이 없다)
     try { window.resizeTo(HOLDER_W, HOLDER_H); } catch { /* noop */ }
+    hideBehind(win);
     setMode('holder');
-  }, [pipContent, tool, title, width, height, onPipGone]);
+  }, [pipContent, tool, title, width, height, onPipGone, hideBehind]);
 
   const unpin = useCallback(() => {
     if (pipContent) {

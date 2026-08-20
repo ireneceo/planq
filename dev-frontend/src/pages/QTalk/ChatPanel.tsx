@@ -1,3 +1,4 @@
+import { popoutFeatures } from '../../utils/pinHost';
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { downloadBlob } from '../../utils/download';
 import { createPortal } from 'react-dom';
@@ -62,6 +63,25 @@ function channelLabel(name: string, projectName?: string | null): string {
     return rest || name;
   }
   return name;
+}
+
+
+// 대화방별 분리 창 — 크기·자리는 utils/pinHost 단일 원천을 쓴다.
+//   여기 features 문자열을 따로 적어두던 것이 "팝아웃마다 위치가 제각각" 의 원인이었다
+//   (옛 값: 480×760, 위치 지정 없음 → 브라우저가 좌상단에 띄움).
+//   여러 대화방을 동시에 빼면 계단식으로 어긋나게 연다(창 이름이 대화방별이라 겹칠 수 있다).
+let convPopoutSeq = 0;
+/** 이 탭에서 이미 창을 낸 대화방 — 같은 방을 다시 누르면 **그 창을 재사용**하므로 계단을 소비하지 않는다
+ *  (소비하면 다음에 여는 다른 방이 이유 없이 아래로 밀린다). */
+const convPopoutSlots = new Map<number, number>();
+function openConvPopout(convId: number) {
+  const seq = convPopoutSlots.get(convId) ?? convPopoutSeq;
+  const w = window.open(
+    `/talk-popout?conv=${convId}`,
+    `pq-talk-${convId}`,
+    popoutFeatures('qtalk', seq),
+  );
+  if (w && !convPopoutSlots.has(convId)) { convPopoutSlots.set(convId, seq); convPopoutSeq += 1; }
 }
 
 const ChatPanel: React.FC<Props> = ({
@@ -1168,7 +1188,7 @@ const ChatPanel: React.FC<Props> = ({
           {window.location.pathname !== '/talk-popout' && (
             <PopoutBtn
               type="button"
-              onClick={() => window.open(`/talk-popout?conv=${activeConv.id}`, `pq-talk-${activeConv.id}`, 'width=480,height=760,menubar=no,toolbar=no,location=no,status=no')}
+              onClick={() => openConvPopout(activeConv.id)}
               title={t('chat.popout', '새 창으로 분리') as string}
               aria-label={t('chat.popout', '새 창으로 분리') as string}
             >
