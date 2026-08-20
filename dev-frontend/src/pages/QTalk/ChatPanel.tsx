@@ -1615,17 +1615,19 @@ const ChatPanel: React.FC<Props> = ({
               {!isDeleted && m.attachments && m.attachments.length > 0 && (() => {
                 // 같은 메시지의 이미지 첨부만 갤러리로 묶음 — 한 이미지 클릭 후 ← → 로 이동 가능
                 const imgAttachs = (m.attachments || []).filter(a => isRenderableImage(a.mime_type || '', a.file_name));
-                const lightboxItems = imgAttachs.map(a => ({
-                  src: `/api/message-attachments/${a.id}/raw`,
-                  alt: a.file_name,
-                }));
+                // ★ 주소는 **서버가 준 preview_url** 만 쓴다. id 로 조립하던 옛 경로(`/:id/raw`)는
+                //   무인증 + 순차 정수 id 라 번호만 바꾸면 타 워크스페이스 이미지가 열렸다(삭제됨).
+                const lightboxItems = imgAttachs
+                  .filter(a => !!a.preview_url)
+                  .map(a => ({ src: a.preview_url as string, alt: a.file_name }));
                 return (
                 <AttachRow>
                   {m.attachments.map((a) => {
                     // 사이클 N+23: HEIC/HEIF/TIFF 같이 브라우저 미지원 포맷은 isRenderableImage=false
                     //   → 파일 카드. 깨진 이미지 아이콘 노출 차단. <img onError> 도 같은 fallback.
-                    const isImg = isRenderableImage(a.mime_type || '', a.file_name);
-                    const imgSrc = `/api/message-attachments/${a.id}/raw?w=800`; // #97 — 채팅 표시는 리사이즈본, 라이트박스는 원본
+                    // preview_url 이 없으면(비이미지·서빙 불가) 파일 카드로 떨어진다.
+                    const isImg = isRenderableImage(a.mime_type || '', a.file_name) && !!a.preview_url;
+                    const imgSrc = `${a.preview_url}?w=800`; // #97 — 채팅 표시는 리사이즈본, 라이트박스는 원본
                     return isImg ? (
                       <AttachImageBtn
                         key={a.id}

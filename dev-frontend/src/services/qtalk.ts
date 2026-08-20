@@ -287,6 +287,10 @@ export interface ApiMessageAttachment {
   file_name: string;
   file_size: number;
   mime_type?: string | null;
+  /** 서버가 계산해 내려주는 미리보기 주소(이미지일 때만).
+   *  ★ 프론트에서 id 로 URL 을 조립하지 말 것 — 옛 `/api/message-attachments/:id/raw` 는
+   *    무인증 + 순차 정수 id 라 번호만 바꿔가며 **타 워크스페이스 채팅 이미지**가 열렸다. */
+  preview_url?: string | null;
 }
 
 export interface ApiTask {

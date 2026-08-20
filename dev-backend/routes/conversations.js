@@ -6,6 +6,7 @@ const { sequelize } = require('../config/database');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { attachWorkspaceScope, conversationListWhere, canAccessConversation } = require('../middleware/access_scope');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
+const { serializeMessageAttachments } = require('../services/filePreview');
 const { createAuditLog } = require('../middleware/audit');
 const cueOrchestrator = require('../services/cue_orchestrator');
 const kbService = require('../services/kb_service');
@@ -610,6 +611,9 @@ router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async 
       Number(req.params.businessId),
       ['sender']
     );
+    // 첨부 미리보기 URL — 서버가 계산해 내려준다. 프론트가 `/:id/raw`(무인증 순차 id) 를 쓰던 것이
+    //   타 워크스페이스 채팅 이미지 열람 경로였다. 규칙은 services/filePreview 단일 원천.
+    serializeMessageAttachments(result.messages);
     if (Array.isArray(result.participants)) {
       // participants[i].User 로 nested 됨 → path 'User'
       await applyMemberDisplayName(result.participants, Number(req.params.businessId), ['User']);
@@ -684,6 +688,7 @@ router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope
     let emitMsg = null;
     if (fullMsg) {
       emitMsg = fullMsg.toJSON();
+      serializeMessageAttachments(emitMsg);
       await applyMemberDisplayNameOne(emitMsg, Number(req.params.businessId), ['sender']);
     }
     const io = req.app.get('io');
@@ -902,12 +907,15 @@ router.get('/:businessId/:id/pinned', authenticateToken, attachWorkspaceScope(),
       where: { conversation_id: conv.id, pinned_at: { [Op.ne]: null }, is_deleted: false },
       include: [
         { model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] },
-        { model: MessageAttachment, as: 'attachments', attributes: ['id', 'file_name', 'file_size', 'mime_type'], required: false },
+        // file_path·storage_provider·external_id 는 미리보기 토큰 계산에 필요하다 —
+        //   serializeMessageAttachments 가 응답에서 다시 제거한다(저장 경로를 내보내지 않는다).
+        { model: MessageAttachment, as: 'attachments', attributes: ['id', 'file_name', 'file_size', 'mime_type', 'file_path', 'storage_provider', 'external_id'], required: false },
       ],
       order: [['pinned_at', 'DESC']],
       limit: 50,
     });
     const payload = list.map(m => m.toJSON());
+    serializeMessageAttachments(payload);
     await applyMemberDisplayName(payload, Number(businessId), ['sender']);
     return successResponse(res, payload);
   } catch (err) { next(err); }
