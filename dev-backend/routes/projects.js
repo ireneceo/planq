@@ -3113,13 +3113,14 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
       for (const a of chatFiles) {
         const conv = convMap.get(a.Message.conversation_id);
         const proj = conv ? projMap.get(conv.project_id) : null;
-        // 채팅 첨부 미리보기 — Drive 저장분은 basename 경로가 통하지 않는다(file_path 가 Drive ID).
-        //   채팅 화면(ChatPanel)이 이미 쓰는 `/:id/raw`(서버 프록시)를 목록에서도 그대로 쓴다.
+        // 채팅 첨부 미리보기 — 로컬은 UUID 파일명, Drive 는 Drive 파일 ID.
+        //   ★ 순차 정수 id 경로(`/:id/raw`)는 쓰지 않는다 — 무인증 + 1,2,3… 열거가 가능하다(Fable 실측).
+        //   둘 다 `/public/:token` 한 경로로 보낸다(추측 불가능한 토큰 계약).
         const isImage = a.mime_type && a.mime_type.startsWith('image/');
-        const previewUrl = !isImage ? undefined
-          : a.storage_provider === 'gdrive' ? `/api/message-attachments/${a.id}/raw`
-          : a.file_path ? `/api/message-attachments/${path.basename(a.file_path)}`.replace('/api/message-attachments/', '/api/message-attachments/public/')
-          : undefined;
+        const chatToken = a.storage_provider === 'gdrive' ? a.file_path
+          : a.file_path ? path.basename(a.file_path) : null;
+        const previewUrl = (isImage && chatToken)
+          ? `/api/message-attachments/public/${chatToken}` : undefined;
         results.push({
           id: `chat-${a.id}`,
           source: 'chat',
@@ -3322,9 +3323,8 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
           uploader_name: a.Message.sender ? a.Message.sender.name : null,
           uploaded_at: (a.createdAt || a.created_at || new Date()).toISOString ? (a.createdAt || a.created_at).toISOString() : new Date().toISOString(),
           download_url: a.file_path ? `/uploads/${path.relative(path.join(__dirname, '..', 'uploads'), a.file_path)}` : null,
-          preview_url: !(a.mime_type && a.mime_type.startsWith('image/')) ? undefined
-            : a.storage_provider === 'gdrive' ? `/api/message-attachments/${a.id}/raw`
-            : a.file_path ? `/api/message-attachments/public/${path.basename(a.file_path)}`
+          preview_url: (a.mime_type && a.mime_type.startsWith('image/') && a.file_path)
+            ? `/api/message-attachments/public/${a.storage_provider === 'gdrive' ? a.file_path : path.basename(a.file_path)}`
             : undefined,
           context: conv ? { kind: 'conversation', id: conv.id, label: conv.title || '대화방' } : undefined,
           folder_id: null,

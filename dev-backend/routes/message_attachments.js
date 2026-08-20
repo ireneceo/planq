@@ -315,24 +315,55 @@ router.get('/:id/raw', async (req, res, next) => {
 router.get('/public/:storedName', async (req, res, next) => {
   try {
     const stored = String(req.params.storedName || '');
-    if (!/^[a-z0-9-]+\.[a-z0-9]+$/i.test(stored)) {
-      return errorResponse(res, 'invalid_filename', 400);
-    }
-    const att = await MessageAttachment.findOne({
-      where: { file_path: { [require('sequelize').Op.like]: `%${stored}` } },
-    });
+    // ★ 두 종류의 **추측 불가능한** 토큰을 받는다 (files.js public-image 와 같은 계약):
+    //     · 로컬 저장분 — UUID 파일명 `xxxxxxxx-....png`
+    //     · Drive 저장분 — Drive 파일 ID (점이 없다. file_path 에 이 ID 가 들어 있다)
+    //   ★ 왜 `/:id/raw` 를 안 쓰는가: 그 경로는 **순차 정수 id + 무인증** 이라 1,2,3… 으로 훑을 수 있다
+    //     (Fable 실측: 타 워크스페이스 채팅 이미지 열람 가능). 목록·미리보기는 전부 이 경로로 보낸다.
+    const looksLocal = /^[a-z0-9-]+\.[a-z0-9]+$/i.test(stored);
+    const looksDriveId = /^[A-Za-z0-9_-]{20,200}$/.test(stored);
+    if (!looksLocal && !looksDriveId) return errorResponse(res, 'invalid_filename', 400);
+
+    const { Op } = require('sequelize');
+    const att = looksLocal
+      ? await MessageAttachment.findOne({ where: { file_path: { [Op.like]: `%${stored}` }, storage_provider: 'planq' } })
+      : await MessageAttachment.findOne({ where: { file_path: stored, storage_provider: 'gdrive' } });
     if (!att) return errorResponse(res, 'not_found', 404);
-    if (!att.mime_type || !att.mime_type.startsWith('image/')) {
+    if (!require('../services/filePreview').isRenderableImage(att.mime_type)) {
       return errorResponse(res, 'not_public_image', 403);
     }
-    const abs = path.isAbsolute(att.file_path) ? att.file_path : path.join(__dirname, '..', att.file_path);
-    if (!fs.existsSync(abs)) return errorResponse(res, 'file_missing', 410);
-    if (await require('../services/imageResize').maybeServeResized(req, res, abs, att.mime_type)) return; // #97 ?w= 리사이즈
+
+    // 저장소 단일 원천. Drive 는 서버가 워크스페이스 토큰으로 받아서 흘려준다.
+    //   MessageAttachment 에는 business_id 가 없어 대화방을 거쳐 찾는다(‥/:id/raw 와 같은 경로).
+    let businessId = null;
+    if (att.storage_provider === 'gdrive') {
+      const { Conversation } = require('../models');
+      const msg = await Message.findByPk(att.message_id, { attributes: ['conversation_id'] });
+      const conv = msg && await Conversation.findByPk(msg.conversation_id, { attributes: ['business_id'] });
+      if (!conv) return errorResponse(res, 'conversation_not_found', 404);
+      businessId = conv.business_id;
+    }
+    const body = await require('../services/attachmentStorage').readAttachmentBody({
+      storage_provider: att.storage_provider,
+      file_path: att.file_path,
+      external_id: att.file_path,     // Drive 저장분은 file_path 가 곧 Drive 파일 ID 다
+      business_id: businessId,
+    });
+    if (!body.ok) return errorResponse(res, body.msg, body.code);
+    if (body.redirect) return res.redirect(body.redirect);
+    // ?w= 리사이즈는 로컬 파일일 때만 (Drive 스트림은 원본 그대로)
+    if (body.abs && await require('../services/imageResize').maybeServeResized(req, res, body.abs, att.mime_type)) return;
+
     res.setHeader('Content-Type', att.mime_type);
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Disposition', 'inline');
     res.setHeader('Cache-Control', 'private, max-age=3600');
-    fs.createReadStream(abs).pipe(res);
+    body.stream.on('error', (e) => {
+      console.error('[message_attachments] public image stream error:', e.message);
+      if (!res.headersSent) errorResponse(res, 'stream_failed', 502);
+      else res.destroy();
+    });
+    body.stream.pipe(res);
   } catch (err) { next(err); }
 });
 
