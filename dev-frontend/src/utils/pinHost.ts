@@ -73,6 +73,9 @@ export const POPOUT_SIZE: Record<PinTool, { width: number; height: number }> = {
 //    "핀 눌러도 안 움직인다" 를 택한 것이 Irene 의 결정이다.)
 const EDGE = 16;      // 크롬이 고정창을 놓을 때 쓰는 화면 가장자리 여백 (실측)
 const CASCADE = 28;   // 동시에 열린 창끼리 어긋나는 간격
+/** 고정창의 테두리·제목줄 두께(실측). 첫 고정 자리를 예측할 때만 쓰고, 이후는 실좌표를 학습한다. */
+const PIP_CHROME_W = 8;
+const PIP_CHROME_H = 38;
 const ORIGIN_KEY = 'planq:popout:origin';
 
 /** 현재 모니터의 작업 영역(작업표시줄 제외). availLeft/availTop 은 비표준이라 없으면 0 으로 본다. */
@@ -123,8 +126,15 @@ export function popoutPosition(tool: PinTool, cascade = 0): { x: number; y: numb
   const { width, height } = POPOUT_SIZE[tool];
   const a = workArea();
   const learned = readOrigin();
-  // ② 폴백 — 크롬이 고정창을 놓는 방식과 같은 계산(우하단 여백 16). 첫 사용에도 어긋남이 최소가 된다.
-  const base = learned || { x: a.left + a.width - width - EDGE, y: a.top + a.height - height - EDGE };
+  // ② 폴백 — 크롬이 고정창을 놓는 방식과 **같은 계산**: 작업영역 우하단 EDGE(16) 여백.
+  //   ★ 기준이 **바깥(outer) 크기**다. 안쪽(inner) 크기로 계산하면 첫 고정 때 창이 (-8,-20) 만큼
+  //     튄다(Fable 실측: 예상 1384,266 vs 실제 1376,246). 고정창 테두리·제목줄 두께를 더해야 맞다.
+  //     실측값(528-520=8, 818-780=38)을 상수로 둔다 — 브라우저가 바뀌어 어긋나도 **첫 고정 직후
+  //     rememberOrigin 이 실좌표를 학습**해 다음부터는 정확해진다(이 상수는 첫 1회용 추정치다).
+  const base = learned || {
+    x: a.left + a.width - (width + PIP_CHROME_W) - EDGE,
+    y: a.top + a.height - (height + PIP_CHROME_H) - EDGE,
+  };
   return clampToScreen(base.x - cascade * CASCADE, base.y + cascade * CASCADE, width, height);
 }
 
@@ -169,7 +179,12 @@ export interface PinIntentMsg { type: 'pin-intent'; id: string; tool: PinTool }
 export interface PinAckMsg { type: 'pin-ack'; id: string }
 /** PiP 안 iframe → **자기 홀더 창**: 이 핀을 놓아 달라 (iframe 은 자기를 담은 PiP 를 닫을 권한이 없다) */
 export interface UnpinRequestMsg { type: 'unpin-request'; tool: PinTool }
-export type PinMsg = PinIntentMsg | PinAckMsg | UnpinRequestMsg;
+/** 고정창 안 iframe → 자기 홀더: 고정창이 여기로 움직였다.
+ *  ★ 왜 고정창이 알려주나: **가려진 창은 브라우저가 타이머를 늦춘다**. 홀더가 스스로 폴링하면
+ *    아무리 주기를 줄여도 실제로는 늦게 돌아 움직일 때 삐져나온다(Irene: "움직일 때 보여").
+ *    고정창은 항상 맨 위라 늦춰지지 않는다 — 그쪽에서 좌표를 밀어준다. 홀더 폴링은 backstop 으로만 남긴다. */
+export interface PipMovedMsg { type: 'pip-moved'; tool: PinTool; x: number; y: number; w: number; h: number }
+export type PinMsg = PinIntentMsg | PinAckMsg | UnpinRequestMsg | PipMovedMsg;
 
 /** 선공지 ack 대기 상한. transient activation(약 5초) 안이라 requestWindow 는 그대로 성립한다. */
 const ACK_TIMEOUT_MS = 250;
@@ -365,6 +380,23 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
         }
         return;
       }
+      if (m.type === 'pip-moved' && m.tool === tool) {
+        // 고정창이 밀어준 좌표 — 폴링을 기다리지 않고 곧바로 붙는다.
+        if (!pipRef.current) return;
+        const last = lastPipPosRef.current;
+        if (last && last.x === m.x && last.y === m.y) return;
+        lastPipPosRef.current = { x: m.x, y: m.y };
+        rememberOrigin(m.x, m.y);
+        try {
+          const at = clampToScreen(
+            m.x + Math.round((m.w - HOLDER_W) / 2),
+            m.y + Math.round((m.h - HOLDER_H) / 2),
+            HOLDER_W, HOLDER_H,
+          );
+          window.moveTo(at.x, at.y);
+        } catch { /* noop */ }
+        return;
+      }
       if (m.type === 'unpin-request' && m.tool === tool) {
         // PiP 안 iframe 의 핀 토글이 자기 홀더에게 보낸 해제 요청
         releasePip();
@@ -537,6 +569,33 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
     } catch { /* noop */ }
     setMode('holder');
   }, [pipContent, tool, title, width, height, onPipGone, pipAnchor, hideTarget]);
+
+  // ── 고정창 안에서: 자기 창이 움직이면 홀더에게 좌표를 밀어준다 (위 PipMovedMsg 주석 참조) ──
+  useEffect(() => {
+    if (!pipContent) return;
+    let ch: BroadcastChannel | null = null;
+    try { ch = new BroadcastChannel(PIN_CHANNEL); } catch { return; }
+    let lastX = NaN; let lastY = NaN;
+    let raf = 0;
+    const tick = () => {
+      try {
+        const x = window.screenX ?? 0;
+        const y = window.screenY ?? 0;
+        if (x !== lastX || y !== lastY) {
+          lastX = x; lastY = y;
+          const w = window.outerWidth || window.innerWidth || 0;
+          const h = window.outerHeight || window.innerHeight || 0;
+          ch?.postMessage({ type: 'pip-moved', tool, x, y, w, h } as PipMovedMsg);
+        }
+      } catch { /* noop */ }
+      raf = window.requestAnimationFrame(tick);
+    };
+    raf = window.requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(raf);
+      try { ch?.close(); } catch { /* noop */ }
+    };
+  }, [pipContent, tool]);
 
   const unpin = useCallback(() => {
     if (pipContent) {
