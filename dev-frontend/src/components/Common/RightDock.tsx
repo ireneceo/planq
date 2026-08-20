@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import { isPublicSurfacePath } from '../../utils/publicSurface';
 import { isPopoutWindow } from '../../utils/popout';
+import ConfirmDialog from './ConfirmDialog';
 import { POPOUT_PATH, popoutFeatures, supportsPin, type PinTool } from '../../utils/pinHost';
 import { pinOwner, usePinOwner } from '../../utils/pinOwner';
 import VoiceCaptureSheet from './VoiceCaptureSheet';
@@ -36,6 +37,10 @@ const RightDock: React.FC = () => {
   const navigate = useChromeNav();
   const [expanded, setExpanded] = useState(false);
   // ★ 팝아웃이 보낸 "핀 누를 준비" 신호 (#258·#280·#286).
+  // ★ 고정 자리가 차 있을 때 **말없이 일반 창으로 넘기지 않는다** (Irene 2026-08-20:
+  //   "다른 팝아웃 고정창이 있어서 닫혀야 하면 미리 알림 표시"). 무엇이 닫히는지 먼저 말하고 고른다.
+  //   확인 버튼 클릭 자체가 이 탭의 사용자 조작이라 그 자리에서 requestWindow 가 성립한다.
+  const [swapTool, setSwapTool] = useState<DockTool | null>(null);
   const fabRef = useRef<HTMLDivElement>(null);
   // 핀(항상 위) — #258 재구조화(2026-08-14). 진입은 **여기 버튼 하나뿐**이고, 소유 상태와 프로토콜은
   //   utils/pinOwner.ts(모듈 싱글턴)에 있다. 도크는 공개 표면·/memo 에서 언마운트되므로
@@ -93,6 +98,10 @@ const RightDock: React.FC = () => {
     else navigate('/calendar?create=1');
   };
 
+  const openPlain = (tool: DockTool) => {
+    window.open(POPOUT_PATH[tool], `pq-${tool}`, popoutFeatures(tool));
+  };
+
   const handlePick = (tool: DockTool) => {
     setExpanded(false);
     const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
@@ -116,10 +125,11 @@ const RightDock: React.FC = () => {
       void pinOwner.pin(tool, t(`dock.${tool}`, tool) as string);
       return;
     }
-    // 고정 자리가 이미 **다른 도구**로 차 있거나(브라우저는 항상 위 창을 1개만 허용) 미지원 브라우저 →
-    //   일반 창으로 연다. ★ 기존 고정창을 자동으로 닫지 않는다 — 자동 축출은 Irene 이 기각했다
-    //   ("다른 창 열면 기존 팝아웃 닫히잖아"). 도구별 고유 창 이름이라 넷 다 동시에 떠 있을 수 있다(#43).
-    window.open(POPOUT_PATH[tool], `pq-${tool}`, popoutFeatures(tool));
+    // 고정 자리가 이미 **다른 도구**로 차 있으면(브라우저는 항상 위 창을 1개만 허용) 먼저 묻는다.
+    //   ★ 자동 축출은 금지다 — "다른 창 열면 기존 팝아웃 닫히잖아"(Irene). 닫는 건 사용자가 고른 뒤에만.
+    if (canPin && pinned) { setSwapTool(tool); return; }
+    // 미지원 브라우저 — 일반 창. 도구별 고유 창 이름이라 넷 다 동시에 떠 있을 수 있다(#43).
+    openPlain(tool);
   };
 
   return (
@@ -207,6 +217,28 @@ const RightDock: React.FC = () => {
       </Fab>
     </FabWrap>
       {voiceOpen && <VoiceCaptureSheet onClose={() => setVoiceOpen(false)} />}
+      {/* 항상 위 자리 교체 — 무엇이 닫히는지 먼저 말한다. 세 갈래를 다 준다:
+          바꾸기 / 그냥 일반 창으로 / 취소. 둘 중 하나만 물으면 "동시에 여러 개 열기"(#43)를 잃는다. */}
+      <ConfirmDialog
+        isOpen={!!swapTool}
+        onClose={() => setSwapTool(null)}
+        title={t('popoutPin.swapTitle', '항상 위 창은 1개만 열 수 있어요') as string}
+        message={t('popoutPin.swapMessage', {
+          defaultValue: '지금 고정된 {{current}} 창이 닫히고 {{next}} 가 고정됩니다.',
+          current: t(`dock.${pinned || 'qtalk'}`, pinned || '') as string,
+          next: t(`dock.${swapTool || 'qtalk'}`, swapTool || '') as string,
+        }) as string}
+        confirmText={t('popoutPin.swapConfirm', '고정 바꾸기') as string}
+        secondaryText={t('popoutPin.swapPlain', '일반 창으로 열기') as string}
+        onSecondary={() => { const tool = swapTool; setSwapTool(null); if (tool) openPlain(tool); }}
+        onConfirm={() => {
+          const tool = swapTool; setSwapTool(null);
+          // ★ 이 클릭이 곧 사용자 조작이다 — 여기서 동기적으로 시작해야 requestWindow 가 성립한다.
+          if (tool) void pinOwner.pin(tool, t(`dock.${tool}`, tool) as string);
+        }}
+        cancelText={t('cancel', '취소') as string}
+        variant="warning"
+      />
     </>
   );
 };

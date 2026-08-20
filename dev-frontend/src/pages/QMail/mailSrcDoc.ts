@@ -154,8 +154,17 @@ export function buildMailSrcDoc(
       for (;;) {
         const at = lower.indexOf(needle, from);
         if (at === -1) break;
-        spans.push(at);
         from = at + needle.length;
+        // ★ 경계 검사 — 단순 substring 이면 `cid:planq-embed-1` 이 `cid:planq-embed-10` 의
+        //   **접두어**로 걸린다. 그러면 이미지 10번부터 엉뚱한 그림이 붙거나 깨진다.
+        //   (Fable A-1 검증에서 잡힌 잠복 버그. 지금 실데이터는 메시지당 최대 8장이라 미발현이었다.)
+        //   cid 는 토큰이므로 바로 뒤에 이어질 수 있는 문자는 cid 문자가 아니어야 한다.
+        const next = lower.charCodeAt(from);
+        const isCidChar = (next >= 48 && next <= 57)      // 0-9
+          || (next >= 97 && next <= 122)                  // a-z (lower 사본이라 소문자만)
+          || next === 45 || next === 46 || next === 95;    // - . _
+        if (isCidChar) continue;                           // 더 긴 cid 의 일부다 — 건너뛴다
+        spans.push(at);
       }
       // 뒤에서부터 잘라 붙여야 앞쪽 인덱스가 밀리지 않는다
       for (let i = spans.length - 1; i >= 0; i--) {
