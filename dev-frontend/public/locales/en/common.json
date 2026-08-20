@@ -454,7 +454,8 @@
       "knowledge": "Knowledge",
       "clients": "Client",
       "projects": "Project"
-    }
+    },
+    "recent": "Recent"
   },
   "attach": {
     "uploadHint": "Drag files here or click to browse",

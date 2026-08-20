@@ -63,41 +63,67 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
   const [query, setQuery] = useState('');
   const [result, setResult] = useState<SearchResult>({});
   const [loading, setLoading] = useState(false);
+  // #305 — "검색이랑 상단 탭 열 때 최신글이나 문서 등 이런거 보여주는 거 기본 아니야? 검색 전에."
+  //   빈 검색창은 아무것도 못 하는 화면이었다. 열자마자 최근에 손댄 것을 보여준다.
+  const [recent, setRecent] = useState<SearchResult>({});
 
   useBodyScrollLock(open);
   useEscapeStack(open, onClose);
 
   useEffect(() => { if (open) setTimeout(() => inputRef.current?.focus(), 50); }, [open]);
   useEffect(() => { if (!open) { setQuery(''); setResult({}); } }, [open]);
+  useEffect(() => {
+    if (!open || !businessId) return;
+    let alive = true;
+    (async () => {
+      const r = await apiFetch(`/api/search/recent?business_id=${businessId}&limit=5`);
+      // apiFetch 는 throw 하지 않는다 — res.ok 를 본다. 실패하면 조용히 빈 상태(옛 안내 문구)로 둔다.
+      if (!r.ok) return;
+      const j = await r.json().catch(() => null);
+      if (alive && j?.success) setRecent(j.data || {});
+    })();
+    return () => { alive = false; };
+  }, [open, businessId]);
 
   // debounce 검색
+  // #301 — "글자 하나 하나 넣을 때 바로 바로 검색 결과가 자동으로 되어야" .
+  //   ① debounce 250 → 120ms ② **이전 결과를 지우지 않는다**(지우면 글자마다 화면이 비워졌다 채워져
+  //   깜빡인다) ③ 늦게 도착한 옛 응답이 새 결과를 덮어쓰지 않게 세대 번호로 차단.
+  const reqSeq = useRef(0);
   useEffect(() => {
-    if (!query.trim()) { setResult({}); return; }
+    if (!query.trim()) { setResult({}); setLoading(false); return; }
     setLoading(true);
+    const seq = ++reqSeq.current;
     const timer = setTimeout(async () => {
-      try {
-        const r = await apiFetch(`/api/search?business_id=${businessId}&q=${encodeURIComponent(query)}&limit=8`);
-        const j = await r.json();
-        if (j.success) setResult(j.data || {});
-      } finally { setLoading(false); }
-    }, 250);
+      const r = await apiFetch(`/api/search?business_id=${businessId}&q=${encodeURIComponent(query)}&limit=8`);
+      if (seq !== reqSeq.current) return;        // 더 새로운 요청이 이미 나갔다 — 이 응답은 버린다
+      if (!r.ok) { setLoading(false); return; }  // apiFetch 는 throw 하지 않는다
+      const j = await r.json().catch(() => null);
+      if (seq !== reqSeq.current) return;
+      if (j?.success) setResult(j.data || {});
+      setLoading(false);
+    }, 120);
     return () => clearTimeout(timer);
   }, [query, businessId]);
 
-  const allHits: Hit[] = useMemo(() => {
+  // ★ 검색 결과와 '최근 항목' 은 **같은 변환기**를 쓴다. 두 벌로 만들면 한쪽만 링크가 바뀌어
+  //   "검색으로 열면 되는데 최근에서 열면 안 되는" 상태가 된다.
+  const toHits = React.useCallback((r: SearchResult): Hit[] => {
     const h: Hit[] = [];
-    // #206 — status 를 raw 로 내보내면 `on_hold` 같은 snake_case 가 사용자에게 그대로 노출된다
-    //   (신규 2값만의 문제가 아니라 기존 전 상태가 그랬다 — 일괄 라벨화).
-    (result.tasks || []).forEach(x => h.push({ id: x.id, title: x.title, sub: x.status ? t(`qtask:status.${x.status}.observer`, { defaultValue: x.status }) as string : undefined, to: `/tasks?task=${x.id}`, type: 'tasks' }));
-    (result.posts || []).forEach(x => h.push({ id: x.id, title: x.title, sub: x.category || undefined, to: `/docs?post=${x.id}`, type: 'posts' }));
-    (result.records || []).forEach(x => h.push({ id: x.id, title: x.name, sub: x.category || undefined, to: `/records/${x.id}`, type: 'records' }));
-    (result.files || []).forEach(x => h.push({ id: x.id, title: x.file_name, sub: x.mime_type || undefined, to: `/files?file=${x.id}`, type: 'files' }));
-    (result.conversations || []).forEach(x => h.push({ id: x.id, title: x.display_name || x.title || `#${x.id}`, to: `/talk?conv=${x.id}`, type: 'conversations' }));
-    (result.knowledge || []).forEach(x => h.push({ id: x.id, title: x.title, sub: x.category || undefined, to: `/knowledge?doc=${x.id}`, type: 'knowledge' }));
-    (result.clients || []).forEach(x => h.push({ id: x.id, title: x.display_name || x.company_name || `#${x.id}`, sub: x.email || undefined, to: `/business/clients?client=${x.id}`, type: 'clients' }));
-    (result.projects || []).forEach(x => h.push({ id: x.id, title: x.name, sub: x.status, to: `/projects/p/${x.id}`, type: 'projects' }));
+    // #206 — status 를 raw 로 내보내면 `on_hold` 같은 snake_case 가 사용자에게 그대로 노출된다.
+    (r.tasks || []).forEach(x => h.push({ id: x.id, title: x.title, sub: x.status ? t(`qtask:status.${x.status}.observer`, { defaultValue: x.status }) as string : undefined, to: `/tasks?task=${x.id}`, type: 'tasks' }));
+    (r.posts || []).forEach(x => h.push({ id: x.id, title: x.title, sub: x.category || undefined, to: `/docs?post=${x.id}`, type: 'posts' }));
+    (r.records || []).forEach(x => h.push({ id: x.id, title: x.name, sub: x.category || undefined, to: `/records/${x.id}`, type: 'records' }));
+    (r.files || []).forEach(x => h.push({ id: x.id, title: x.file_name, sub: x.mime_type || undefined, to: `/files?file=${x.id}`, type: 'files' }));
+    (r.conversations || []).forEach(x => h.push({ id: x.id, title: x.display_name || x.title || `#${x.id}`, to: `/talk?conv=${x.id}`, type: 'conversations' }));
+    (r.knowledge || []).forEach(x => h.push({ id: x.id, title: x.title, sub: x.category || undefined, to: `/knowledge?doc=${x.id}`, type: 'knowledge' }));
+    (r.clients || []).forEach(x => h.push({ id: x.id, title: x.display_name || x.company_name || `#${x.id}`, sub: x.email || undefined, to: `/business/clients?client=${x.id}`, type: 'clients' }));
+    (r.projects || []).forEach(x => h.push({ id: x.id, title: x.name, sub: x.status, to: `/projects/p/${x.id}`, type: 'projects' }));
     return h;
-  }, [result, t]);   // #206 — 상태 라벨 i18n 사용 → 언어 전환 시 재계산
+  }, [t]);   // #206 — 상태 라벨 i18n → 언어 전환 시 재계산
+
+  const allHits: Hit[] = useMemo(() => toHits(result), [result, toHits]);
+  const recentHits: Hit[] = useMemo(() => toHits(recent), [recent, toHits]);   // #206 — 상태 라벨 i18n 사용 → 언어 전환 시 재계산
 
   // #210 — 메뉴(페이지) 이동 결과. 검색어가 없으면 전체 메뉴 목록(= '+' 로 새 탭 열 때 메뉴 고르기),
   //         있으면 메뉴 이름·별칭·경로 매칭. 사이드바와 같은 역할 조건(config/navMenus)을 쓴다.
@@ -159,7 +185,22 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
           )}
 
           {!query.trim() ? (
-            menuHits.length > 0
+            /* #305 — 검색 전에도 할 일이 있어야 한다. 최근에 손댄 것을 바로 연다. */
+            recentHits.length > 0 ? (
+              <>
+                <GroupTitle>{t('search.recent', { defaultValue: '최근 항목' }) as string}</GroupTitle>
+                {recentHits.map(h => (
+                  <Hit key={`recent-${h.type}-${h.id}`} type="button" onClick={() => goto(h.to)}>
+                    <TypeBadge $color={CAT_BADGE_COLOR[h.type]}>{t(`search.cat.${h.type}`, { defaultValue: CAT_LABEL_KO[h.type] })}</TypeBadge>
+                    <HitMain>
+                      <HitTitle>{h.title}</HitTitle>
+                      {h.sub && <HitSub>{h.sub}</HitSub>}
+                    </HitMain>
+                  </Hit>
+                ))}
+                <FootHint>{t('search.hint', '검색어를 입력하세요. ⌘K 또는 Ctrl+\\ 로도 열 수 있습니다.')}</FootHint>
+              </>
+            ) : menuHits.length > 0
               ? <FootHint>{t('search.hint', '검색어를 입력하세요. ⌘K 또는 Ctrl+\\ 로도 열 수 있습니다.')}</FootHint>
               : <Hint>{t('search.hint', '검색어를 입력하세요. ⌘K 또는 Ctrl+\\ 로도 열 수 있습니다.')}</Hint>
           ) : allHits.length === 0 ? (
