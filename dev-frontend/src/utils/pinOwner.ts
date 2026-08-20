@@ -254,9 +254,17 @@ function unpin() {
   setState({ pinned: null, restore: null });
 }
 
+/** 이미 고정된 도구를 도크에서 또 누른 경우 — 새로 열지 않고 그 창을 앞으로 가져온다.
+ *  창을 또 여는 것이 #258·#280·#286 "왜 하나 더 열려?" 의 정체였다. */
+function focus(): boolean {
+  try { if (pipWin && !pipWin.closed) { pipWin.focus(); return true; } } catch { /* 이미 사라진 창 */ }
+  return false;
+}
+
 export const pinOwner = {
   pin,
   unpin,
+  focus,
   getSnapshot: (): PinOwnerState => state,
   subscribe: (cb: () => void) => { listeners.add(cb); return () => { listeners.delete(cb); }; },
 };
