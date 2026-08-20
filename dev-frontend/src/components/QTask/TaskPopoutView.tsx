@@ -496,13 +496,18 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
           ><CheckIcon /></CheckBtn>
         );
       case 'submit':
+        // ★ 여기서 **바로 보내지 않는다** (운영 #280: "팝아웃 테스크에 나오는 보내는 아이콘은 뭐야?
+        //   기존 Q task 리스트에 없는 기능은 따로 추가하기에 통일성이나 혼란이 있어서 조심해야 할 것
+        //   같아. 그냥 패널열고 보내면 될 것 같은데").
+        //   아이콘은 남긴다 — "이 업무는 확인 요청이 필요하다" 는 **신호**는 목록에서 보여야 한다.
+        //   다만 누르면 상세를 열고, 보내는 것은 메인 Q task 와 같은 자리(상세)에서 한다.
         return (
           <SubmitBtn
             type="button" disabled={locked}
             data-testid="task-popout-submit-review"
-            aria-label={t('popout.act.submit', '확인 요청 보내기')}
-            title={t('popout.act.submit', '확인 요청 보내기')}
-            onClick={() => runAction(tk.id, '/submit-review')}
+            aria-label={t('popout.act.needSubmit', '확인 요청이 필요해요 — 눌러서 상세에서 보내기')}
+            title={t('popout.act.needSubmit', '확인 요청이 필요해요 — 눌러서 상세에서 보내기')}
+            onClick={() => handleRow(tk.id)}
           ><SendIcon /></SubmitBtn>
         );
       case 'reviewing':
