@@ -1,11 +1,14 @@
-// PinHolderView — 고정 중일 때 남는 작은 창 (360×132).
+// PinHolderView — 고정 중일 때 남는 작은 창의 내용.
 //
 //   팝아웃 위의 핀을 누르면 고정창이 뜨고, **이 창이 그 고정창의 주인**으로 남는다.
 //   없앨 수가 없다: 고정창(Document PiP)은 자기를 연 창이 살아 있는 동안만 유지되고,
-//   이 창을 닫으면 고정창도 같이 죽는다(실측). 그래서 최소 크기로 줄여 뒤로 물러나 있는다.
+//   이 창을 닫으면 고정창도 같이 죽는다(실측). 그래서 최소 크기로 줄여 고정창 뒤에 숨는다.
 //
-//   여기서 핀을 풀면 고정창이 닫히고 **이 창이 다시 원래 팝아웃 창 크기로 커진다**(도구는 안 사라진다).
-//   이 창을 사용자가 직접 닫으면 고정창도 같이 닫힌다 — "도구를 닫았다" 로 읽히는 자연스러운 동작이다.
+//   ★ 이 화면은 **평소에 안 보이는 것이 정상**이다. 창을 끄는 순간이나 모니터를 넘는 순간처럼
+//     어쩌다 드러날 때만 눈에 띈다 — 그때 어수선해 보이지 않게 **한 줄만** 둔다
+//     (Irene 2026-08-20: "작은 창 글자까지 들러붙게 하지는 말자. 어쩌다 보이면 보기 이상하잖아").
+//     아이콘·설명문·테두리를 걷어내고 도구 이름 한 줄 + 조용한 해제 링크만 남긴다.
+//   여기서 핀을 풀면 고정창이 닫히고 이 창이 다시 원래 팝아웃 크기로 커진다(도구는 안 사라진다).
 //   aria-modal 금지(검사 하니스가 [aria-modal] 로 모달을 스코핑한다 — CLAUDE.md §17).
 import React from 'react';
 import styled from 'styled-components';
@@ -22,50 +25,34 @@ const PinHolderView: React.FC<Props> = ({ host, label }) => {
   const { t } = useTranslation('common');
   return (
     <Holder data-testid="pin-holder" role="status">
-      <TitleRow>
-        <IconPin />
-        <Name>{label}</Name>
-      </TitleRow>
-      <Note>{t('popoutPin.holderNote', '고정창에서 보고 있습니다')}</Note>
-      <UnpinBtn type="button" data-testid="pin-holder-unpin" onClick={() => host.unpin()}>
+      <Name>{label}</Name>
+      <UnpinLink type="button" data-testid="pin-holder-unpin" onClick={() => host.unpin()}>
         {t('popoutPin.unpin', '고정 해제')}
-      </UnpinBtn>
+      </UnpinLink>
     </Holder>
   );
 };
 
 export default PinHolderView;
 
-const IconPin = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0F766E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <line x1="12" y1="17" x2="12" y2="22" />
-    <path d="M5 17h14l-1.7-2.6A2 2 0 0 1 17 13.3V7h1a1 1 0 0 0 0-2H6a1 1 0 0 0 0 2h1v6.3a2 2 0 0 1-.3 1.1z" />
-  </svg>
-);
-
 const Holder = styled.div`
   height: 100%; min-height: 0; width: 100%;
   box-sizing: border-box;
-  display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px;
-  padding: 14px 16px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  padding: 10px 12px;
   background: #FFFFFF;
-`;
-const TitleRow = styled.div`
-  display: flex; align-items: center; gap: 6px;
+  /* 글자가 창 폭을 넘지 않게 — 잘려서 삐져나온 것처럼 보이지 않는다 */
+  overflow: hidden;
 `;
 const Name = styled.span`
-  font-size: 15px; font-weight: 700; letter-spacing: -0.2px; color: #0F172A;
+  max-width: 100%;
+  font-size: 13px; font-weight: 600; letter-spacing: -0.2px; color: #0F172A;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
-const Note = styled.p`
-  margin: 0; font-size: 12px; line-height: 1.4; color: #64748B;
-`;
-const UnpinBtn = styled.button`
-  margin-top: 2px;
-  height: 32px; padding: 0 12px;
-  display: inline-flex; align-items: center; justify-content: center;
-  font-size: 13px; font-weight: 600;
-  color: #0F172A; background: #FFFFFF;
-  border: 1px solid #CBD5E1; border-radius: 8px; cursor: pointer;
-  &:hover { border-color: #94A3B8; }
+const UnpinLink = styled.button`
+  padding: 2px 4px;
+  font-size: 12px; line-height: 1.2;
+  color: #64748B; background: none; border: 0; cursor: pointer;
+  &:hover { color: #0F172A; text-decoration: underline; }
   &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
 `;
