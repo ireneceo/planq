@@ -1176,7 +1176,8 @@
       "errNothingToRevert": "되돌릴 이력이 없습니다",
       "errForbiddenRevert": "되돌릴 권한이 없습니다",
       "errGeneric": "처리하지 못했습니다",
-      "errNetwork": "연결에 실패했습니다"
+      "errNetwork": "연결에 실패했습니다",
+      "needSubmit": "확인 요청이 필요해요 — 눌러서 상세에서 보내기"
     },
     "priorityN": "우선순위 {{n}}",
     "prioritySet": "우선순위 지정",

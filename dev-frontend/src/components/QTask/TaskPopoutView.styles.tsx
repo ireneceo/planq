@@ -46,7 +46,9 @@ export const TagGroupHead = styled.div<{ $color: string }>`
 `;
 // 오늘/이번 주 세그먼트 — 팝아웃 폭(≈520px)에서 한 줄. 헤더 아래 고정.
 export const TabRow = styled.div`
-  display: flex; gap: 4px; padding: 6px 10px 0;
+  /* ★ 좌우 12px — 아래 보기 칩(8px 12px 0)·목록(12px) 과 **같은 축**에 서야 한다.
+     10px 이면 탭만 2px 씩 밖으로 나가 "우측으로 너무 나가버린다"(운영 #280). */
+  display: flex; gap: 4px; padding: 6px 12px 0;
   flex-shrink: 0;
 `;
 export const TabBtn = styled.button<{ $active: boolean }>`

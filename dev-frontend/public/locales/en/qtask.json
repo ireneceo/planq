@@ -1176,7 +1176,8 @@
       "errNothingToRevert": "There is no history to revert to",
       "errForbiddenRevert": "You don't have permission to revert",
       "errGeneric": "Could not complete the action",
-      "errNetwork": "Connection failed"
+      "errNetwork": "Connection failed",
+      "needSubmit": "Needs a review request — tap to open details and send"
     },
     "priorityN": "Priority {{n}}",
     "prioritySet": "Set priority",
