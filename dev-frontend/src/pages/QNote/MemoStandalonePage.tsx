@@ -9,6 +9,9 @@ import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import MemoPopup from '../../components/QNote/MemoPopup';
+import PopoutPinButton from '../../components/Common/PopoutPinButton';
+import PinHolderView from '../../components/Common/PinHolderView';
+import { usePinHost } from '../../utils/pinHost';
 import { getSession } from '../../services/qnote';
 import { useAuth } from '../../contexts/AuthContext';
 import { markPopoutWindow } from '../../utils/popout';
@@ -20,6 +23,9 @@ const MemoStandalonePage: React.FC = () => {
   const { id: idParam } = useParams<{ id: string }>();
   const sessionId = idParam ? Number(idParam) : null;
   const { user } = useAuth();
+  // 열린 메모 창도 다른 팝아웃과 똑같이 핀이 있어야 한다 (Irene 2026-08-20: "왜 메모는 핀 기능이 없는 거야").
+  //   고정창은 이 창의 현재 URL(/memo/:id)을 그대로 싣는다 — 보고 있던 그 메모가 고정된다.
+  const pin = usePinHost({ tool: 'qnote', title: 'Q Note' });
 
   const [businessId, setBusinessId] = useState<number | null>(user?.business_id ?? null);
   const [loadError, setLoadError] = useState(false);
@@ -50,6 +56,8 @@ const MemoStandalonePage: React.FC = () => {
     return <CenterMsg>{t('memoPopup.searchEmpty') as string}</CenterMsg>;
   }
 
+  if (pin.mode === 'holder') return <PinHolderView host={pin} label="Q Note" />;
+
   return (
     <MemoPopup
       open={true}
@@ -57,6 +65,7 @@ const MemoStandalonePage: React.FC = () => {
       businessId={businessId}
       existingSessionId={sessionId}
       standalone
+      pinSlot={<PopoutPinButton host={pin} />}
     />
   );
 };

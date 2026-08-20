@@ -7,19 +7,17 @@
 //   분리 창(/*-popout, /memo/*) 안에서는 자기 안에 자기 뜨는 혼란 방지 위해 숨김.
 //   공개 표면(랜딩·Q위키)에서도 숨김 — 비회원 트래픽 영역에 워크스페이스 런처가 뜨면 안 된다.
 //   App.tsx 가 이미 hideAppChrome 로 언마운트하지만, 마운트 경로가 늘어도 새지 않게 여기서도 방어.
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useChromeLocation, useChromeNav } from '../../hooks/useChromeNav';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import { isPublicSurfacePath } from '../../utils/publicSurface';
 import { isPopoutWindow } from '../../utils/popout';
-import ConfirmDialog from './ConfirmDialog';
-import { POPOUT_PATH, popoutFeatures, supportsPin, type PinTool } from '../../utils/pinHost';
-import { pinOwner, usePinOwner } from '../../utils/pinOwner';
+import { POPOUT_PATH, popoutFeatures, type PinTool } from '../../utils/pinHost';
 import VoiceCaptureSheet from './VoiceCaptureSheet';
 
-/** 도크가 여는 도구 = 핀 가능한 도구. 두 곳에 따로 적으면 갈라진다(경로·크기 원천은 pinHost). */
+/** 여기서 여는 도구 = 핀 가능한 도구. 두 곳에 따로 적으면 갈라진다(경로·크기 원천은 pinHost). */
 export type DockTool = PinTool;
 
 /** 모바일 in-app 폴백 — MemoFab / CueHelpDrawer 가 듣는 전역 오픈 이벤트 */
@@ -36,17 +34,10 @@ const RightDock: React.FC = () => {
   const location = useChromeLocation();
   const navigate = useChromeNav();
   const [expanded, setExpanded] = useState(false);
-  // ★ 팝아웃이 보낸 "핀 누를 준비" 신호 (#258·#280·#286).
-  // ★ 고정 자리가 차 있을 때 **말없이 일반 창으로 넘기지 않는다** (Irene 2026-08-20:
-  //   "다른 팝아웃 고정창이 있어서 닫혀야 하면 미리 알림 표시"). 무엇이 닫히는지 먼저 말하고 고른다.
-  //   확인 버튼 클릭 자체가 이 탭의 사용자 조작이라 그 자리에서 requestWindow 가 성립한다.
-  const [swapTool, setSwapTool] = useState<DockTool | null>(null);
   const fabRef = useRef<HTMLDivElement>(null);
-  // 핀(항상 위) — #258 재구조화(2026-08-14). 진입은 **여기 버튼 하나뿐**이고, 소유 상태와 프로토콜은
-  //   utils/pinOwner.ts(모듈 싱글턴)에 있다. 도크는 공개 표면·/memo 에서 언마운트되므로
-  //   상태를 여기 두면 그 순간 PiP 가 고아가 된다(설계 C-1). 이 컴포넌트는 구독만 한다.
-  const { pinned, restore } = usePinOwner();
-  const canPin = useMemo(() => supportsPin(), []);
+  // ★ 여기서 여는 것은 **언제나 그냥 일반 창**이다 (Irene 지시 2026-08-20:
+  //   "그냥 열리는 건 그냥 열리는 거야"). 자동 고정도, 확인 팝업도 없다.
+  //   고정은 팝아웃 창 위의 핀 아이콘이 한다(utils/pinHost.usePinHost).
   const isBusinessMember = !!user?.business_id && ['owner', 'admin', 'member'].includes(user.business_role || '');
   const pathHidden = FAB_HIDDEN_PREFIXES.some((p) => location.pathname === p || location.pathname.startsWith(`${p}/`))
     || (typeof document !== 'undefined' && document.body.dataset.popout === '1')
@@ -113,22 +104,8 @@ const RightDock: React.FC = () => {
       else openDockTool(tool);
       return;
     }
-    // 데스크탑 — **여는 클릭이 곧 "항상 위"** 다 (Fable 설계 판정 2026-08-20, 운영 #26·#43·#258·#280·#286).
-    //   핀은 별도 버튼이 아니다. #26 이 요청한 것부터가 "다른 브라우저나 프로그램 뒤로 넘어가서
-    //   사용하는게 불편해" 였으니, 여는 순간 위에 떠 있으면 핀이라는 행위 자체가 필요 없다.
-    //   ★ 반드시 이 클릭 핸들러 안에서 동기적으로 시작한다 — requestWindow 는 **이 창의** 사용자 조작을 요구한다.
-    //     (팝아웃 안에서 눌러 이 탭에 부탁하는 방향은 물리적으로 막혀 있다. 팝아웃이 직접 열 수는 있지만
-    //      그때는 팝아웃 창이 소유자로 계속 살아 있어야 해 #258 의 "창 하나 더" 가 재발한다 — 둘 다 실측됨.)
-    //   ★ 한 제스처에서 window.open 과 requestWindow 를 **같이** 부르지 않는다(팝업 차단).
-    if (pinned === tool) { pinOwner.focus(); return; }        // 이미 고정 — 또 열지 않고 앞으로만
-    if (canPin && !pinned) {
-      void pinOwner.pin(tool, t(`dock.${tool}`, tool) as string);
-      return;
-    }
-    // 고정 자리가 이미 **다른 도구**로 차 있으면(브라우저는 항상 위 창을 1개만 허용) 먼저 묻는다.
-    //   ★ 자동 축출은 금지다 — "다른 창 열면 기존 팝아웃 닫히잖아"(Irene). 닫는 건 사용자가 고른 뒤에만.
-    if (canPin && pinned) { setSwapTool(tool); return; }
-    // 미지원 브라우저 — 일반 창. 도구별 고유 창 이름이라 넷 다 동시에 떠 있을 수 있다(#43).
+    // 데스크탑 — 일반 창. 도구별 고유 창 이름이라 넷 다 동시에 떠 있을 수 있다(#43).
+    //   고정하고 싶으면 그 창 위의 핀 아이콘을 누른다. 여기서는 아무것도 묻지 않는다.
     openPlain(tool);
   };
 
@@ -163,45 +140,21 @@ const RightDock: React.FC = () => {
           </MenuItem>
           <MenuDivider />
           <GroupLabel>{t('dock.openLabel', '열기') as string}</GroupLabel>
-          {/* 새로고침으로 핀을 잃었을 때 — 어느 도구였는지 알려주고 1클릭으로 되돌린다.
-              ★ 자동 재열기는 물리적으로 불가능하다(requestWindow 는 사용자 제스처를 요구한다).
-                "자동으로 복원됩니다" 같은 문구를 쓰지 말 것. */}
-          {canPin && restore && !pinned && (
-            <RestoreChip type="button" role="menuitem" data-testid="dock-pin-restore" onClick={() => handlePick(restore)}>
-              <IconPin />
-              <span>{t('popoutPin.restore', '고정 다시 켜기')} · {t(`dock.${restore}`, restore)}</span>
-            </RestoreChip>
-          )}
           {OPEN_TOOLS.map(({ tool, bg, testid, Icon }) => (
-            // ★ 행 옆 핀 아이콘은 없앴다 (Irene: "채팅 누르면 나오는 버튼들 옆에 핀아이콘 안쓸거라고").
-            //   고정은 별도 버튼이 아니라 **이 행을 누르는 것** 자체다(handlePick 주석).
+            // ★ 행 옆 핀 아이콘은 없다 (Irene: "채팅 누르면 나오는 버튼들 옆에 핀아이콘 안쓸거라고").
+            //   고정은 열린 팝아웃 창 위의 핀 아이콘이 한다 — 여는 것과 고정하는 것은 별개다.
             <MenuItem
               key={tool}
               data-testid={testid}
               role="menuitem"
               type="button"
-              title={(canPin && !pinned
-                ? t('dock.opensPinned', '다른 창 위에 항상 보이게 엽니다')
-                : t('dock.opensWindow', '새 창으로 엽니다')) as string}
+              title={t('dock.opensWindow', '새 창으로 엽니다') as string}
               onClick={() => handlePick(tool)}
             >
               <ItemIcon $bg={bg}><Icon /></ItemIcon>
               <span>{t(`dock.${tool}`, tool)}</span>
             </MenuItem>
           ))}
-          {/* 항상 위 자리가 차 있을 때 — 왜 이 도구는 일반 창으로 열리는지 한 줄로. 문단 금지.
-              브라우저 한계라 숨기지 않는다(숨기면 "왜 어떤 건 고정이고 어떤 건 아니야" 가 남는다). */}
-          {canPin && pinned && (
-            <PinHint data-testid="dock-pin-slot-busy">
-              {t('popoutPin.slotBusy', '항상 위 창은 브라우저에서 1개만 열 수 있어요 — 다음 도구는 일반 창으로 열려요')}
-            </PinHint>
-          )}
-          {/* C-4 정직한 문구 — F5 만 적으면 거짓말이다. 탭을 닫거나 로그아웃해도 같이 사라진다. */}
-          {canPin && pinned && (
-            <PinHint data-testid="dock-pin-hint">
-              {t('popoutPin.lifetimeHint', '이 탭을 새로고침하거나 닫으면 고정이 풀립니다.')}
-            </PinHint>
-          )}
         </Menu>
       )}
       <Fab
@@ -217,28 +170,6 @@ const RightDock: React.FC = () => {
       </Fab>
     </FabWrap>
       {voiceOpen && <VoiceCaptureSheet onClose={() => setVoiceOpen(false)} />}
-      {/* 항상 위 자리 교체 — 무엇이 닫히는지 먼저 말한다. 세 갈래를 다 준다:
-          바꾸기 / 그냥 일반 창으로 / 취소. 둘 중 하나만 물으면 "동시에 여러 개 열기"(#43)를 잃는다. */}
-      <ConfirmDialog
-        isOpen={!!swapTool}
-        onClose={() => setSwapTool(null)}
-        title={t('popoutPin.swapTitle', '항상 위 창은 1개만 열 수 있어요') as string}
-        message={t('popoutPin.swapMessage', {
-          defaultValue: '지금 고정된 {{current}} 창이 닫히고 {{next}} 가 고정됩니다.',
-          current: t(`dock.${pinned || 'qtalk'}`, pinned || '') as string,
-          next: t(`dock.${swapTool || 'qtalk'}`, swapTool || '') as string,
-        }) as string}
-        confirmText={t('popoutPin.swapConfirm', '고정 바꾸기') as string}
-        secondaryText={t('popoutPin.swapPlain', '일반 창으로 열기') as string}
-        onSecondary={() => { const tool = swapTool; setSwapTool(null); if (tool) openPlain(tool); }}
-        onConfirm={() => {
-          const tool = swapTool; setSwapTool(null);
-          // ★ 이 클릭이 곧 사용자 조작이다 — 여기서 동기적으로 시작해야 requestWindow 가 성립한다.
-          if (tool) void pinOwner.pin(tool, t(`dock.${tool}`, tool) as string);
-        }}
-        cancelText={t('cancel', '취소') as string}
-        variant="warning"
-      />
     </>
   );
 };
@@ -268,12 +199,6 @@ const IconHelp = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
 );
 
-const IconPin = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <line x1="12" y1="17" x2="12" y2="22" />
-    <path d="M5 17h14l-1.7-2.6A2 2 0 0 1 17 13.3V7h1a1 1 0 0 0 0-2H6a1 1 0 0 0 0 2h1v6.3a2 2 0 0 1-.3 1.1z" />
-  </svg>
-);
 
 // "열기" 그룹 — 순서 = 사이드바 순서(Q Talk → Q Task → Q Note → Q helper).
 //   아이콘 상수보다 뒤에 선언해야 한다 (모듈 평가 시 TDZ).
@@ -351,21 +276,6 @@ const MenuItem = styled.button<{ $create?: boolean; $grow?: boolean }>`
   span { white-space: nowrap; }
 `;
 
-const RestoreChip = styled.button`
-  width: 100%;
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 7px 12px;
-  background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 12px;
-  color: #0F766E; font-size: 12px; font-weight: 700; font-family: inherit;
-  cursor: pointer; text-align: left;
-  &:hover { background: #CCFBF1; }
-  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
-  span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-`;
-const PinHint = styled.p`
-  margin: 0; padding: 0 6px;
-  font-size: 11px; line-height: 1.4; color: #94A3B8; text-align: right;
-`;
 
 const ItemIcon = styled.span<{ $bg: string }>`
   width: 32px; height: 32px; border-radius: 50%;

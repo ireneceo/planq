@@ -332,7 +332,6 @@
     "newMail": "Mail",
     "newEvent": "Event",
     "voice": "Add by voice",
-    "opensPinned": "Opens on top of your other windows",
     "opensWindow": "Opens in a new window"
   },
   "saving": "Saving…",
@@ -933,17 +932,13 @@
     "cue": "Added via Cue"
   },
   "popoutPin": {
+    "pin": "Keep on top",
+    "pinHint": "Keeps this window on top of your other windows.",
     "unpin": "Unpin",
-    "unpinHint": "Unpinning closes this window. You can reopen it from the dock.",
-    "restore": "Pin again",
-    "lifetimeHint": "Reloading or closing this tab releases the pin.",
+    "unpinHint": "Unpinning brings this back to a regular window.",
+    "holderNote": "Showing in the pinned window",
     "recordingTitle": "Recording in progress",
-    "recordingMessage": "Unpinning now closes this window and stops the recording. Continue?",
-    "recordingConfirm": "Stop recording and unpin",
-    "slotBusy": "The browser allows only one always-on-top window — other tools open as regular windows",
-    "swapTitle": "Only one always-on-top window is allowed",
-    "swapMessage": "The pinned {{current}} window will close and {{next}} will be pinned.",
-    "swapConfirm": "Switch pin",
-    "swapPlain": "Open as regular window"
+    "recordingMessage": "Unpinning now closes the pinned window and stops the recording. Continue?",
+    "recordingConfirm": "Stop recording and unpin"
   }
 }

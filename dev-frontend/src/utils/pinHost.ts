@@ -1,25 +1,39 @@
-// 팝아웃 핀(항상 위) — **공유 프리미티브**. 소유 로직은 utils/pinOwner.ts 에 있다.
+// 팝아웃 핀(항상 위) — **팝아웃 창이 자기 PiP 를 소유하는 홀더 방식**.
 //
-// [옛 구조 · 2026-07-31] 도크 → window.open(팝아웃 창) → 팝아웃 헤더의 핀 → 팝아웃이 자기 PiP 를 열고
-//   자신은 360×132 홀더 창으로 축소. 결과적으로 **창이 2개** 남아 사용자가 호소했다(#258).
-// [현 구조 · 2026-08-14] 도크의 핀 버튼 → **메인 탭이** PiP 를 열고 그 안 iframe 에 팝아웃 라우트를 싣는다.
-//   창은 1개. 홀더 없음. 해제 버튼은 PiP 안 헤더에 있다.
+// [Irene 지시 2026-08-20] "그냥 열리는 건 그냥 열리는 거야. 핀 기능은 쓰고 싶은 사람만 일반 창에서 고른다."
+//   → 도크에서 여는 클릭은 **일반 창일 뿐**이다(자동 고정 없음·확인 팝업 없음, RightDock.handlePick).
+//   → 고정은 팝아웃 헤더의 핀 아이콘 **토글**이다. 켜면 고정창이 뜨고, 다시 누르면 **일반 창으로 돌아온다**.
 //
-// ★ 옛 주석이 "팝아웃의 클릭은 메인 창으로 transient activation 이 전이되지 않는다" 고 못박아 뒀는데,
-//   그 물리는 지금도 참이다. 다만 그것이 막는 것은 **팝아웃이 메인에게 PiP 를 열어달라고 부탁하는** 방향이다.
-//   새 구조에는 그 부탁이 없다 — 도크 클릭은 메인 탭 자신의 제스처라 requestWindow 가 그대로 성립한다.
-//   (S1 실측: PiP 소유 창이 SPA 네비게이션을 해도 PiP 는 생존한다 → 메인 탭이 소유자가 될 수 있는 근거.)
+// 브라우저 물리 3가지 (실측 확정, 재검증 불필요):
+//   1. "항상 위" 창은 Document PiP 하나뿐이고 **브라우저 전역 1개**다.
+//   2. PiP 는 **그것을 연 창이 살아 있는 동안만** 산다. 연 창이 닫히거나 새로고침되면 같이 죽는다.
+//   3. requestWindow 는 **그 창 자신의 사용자 조작**을 요구한다. 팝아웃의 클릭은 메인 탭으로 전이되지
+//      않는다(2026-08-19 실측: NotAllowedError "requires user activation" — 즉시 호출·협상 후 호출 모두).
+//   2 + 3 → 팝아웃 안에서 핀을 누르려면 **그 팝아웃 창이 소유자로 남아야** 한다. 그래서 이 창은
+//   사라지지 않고 작은 **홀더**로 줄어든다. 없앨 방법이 없다(없애면 고정창이 같이 죽는다).
 //
-// PiP 는 브라우저 전역 1개다 → 축출 선공지(pin-intent/pin-ack) 프로토콜은 그대로 유지한다(pinOwner.ts).
-import { useCallback, useEffect, useMemo } from 'react';
-import { isPopoutWindow, markPopoutWindow } from './popout';
+// ★ 되돌리기(Irene 지시의 핵심): 고정을 끄면 **홀더가 원래 팝아웃 창 크기로 다시 커진다.**
+//   옛 구현은 여기서 창을 닫아버렸다("취소했더니 창이 사라짐"). 어떤 경로로 고정이 풀리든
+//   — 핀 토글 · PiP 를 X 로 닫음 · 다른 도구가 자리를 가져감 — 착지점은 **언제나 일반 창**이다.
+//
+// PiP 는 전역 1개라 다른 도구를 고정하면 우리 것이 축출되는데 그 죽음에는 아무 신호가 없다.
+//   → 새로 고정하는 창이 BroadcastChannel 로 **선공지(pin-intent)** 하고, 붙잡고 있던 창이 스스로
+//     놓고(=일반 창 복귀) ack 한다. 그래서 사용자가 고를 것이 없다 — 먼저 고정돼 있던 도구는
+//     닫히지 않고 그냥 일반 창으로 돌아간다.
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 export type PinTool = 'qtalk' | 'qtask' | 'qnote' | 'qhelper';
+/** normal = 평범한 팝아웃 창 / holder = PiP 를 소유한 작은 창 / pip-content = PiP 안 iframe */
+export type PinMode = 'normal' | 'holder' | 'pip-content';
 
-/** 핀·축출·해제 요청이 오가는 채널. 창(탭·PiP iframe)을 가로지른다. */
+/** 핀·축출·해제 요청이 오가는 채널. 창(팝아웃·PiP iframe)을 가로지른다. */
 export const PIN_CHANNEL = 'planq:pin';
 
-/** 도구별 팝아웃 라우트 단일 원천 — 도크의 일반 창과 PiP 안 iframe 이 같은 경로를 쓴다. */
+/** 홀더 창 크기 — "이 도구는 항상 위에 떠 있다" 와 해제 버튼만 담는 최소 크기 */
+export const HOLDER_W = 360;
+export const HOLDER_H = 132;
+
+/** 도구별 팝아웃 라우트 단일 원천 — 도크가 여는 일반 창이 이 경로를 쓴다. */
 export const POPOUT_PATH: Record<PinTool, string> = {
   qtalk: '/talk-popout',
   qtask: '/task-popout',
@@ -27,7 +41,8 @@ export const POPOUT_PATH: Record<PinTool, string> = {
   qhelper: '/help-popout',
 };
 
-/** 도구별 창 크기 단일 원천 — 도크가 여는 일반 창과 PiP 크기가 모두 이 값이다. */
+/** 도구별 창 크기 단일 원천 — 도크가 여는 일반 창 · PiP · 핀 해제 복귀 크기가 모두 이 값이다.
+ *  (따로 적혀 있으면 해제할 때 창이 다른 크기로 돌아온다.) */
 export const POPOUT_SIZE: Record<PinTool, { width: number; height: number }> = {
   qtalk: { width: 520, height: 780 },
   // qtask — 리스트 + 상세 드로어(오버레이)가 함께 뜨므로 Q Talk 와 같은 폭·높이
@@ -61,13 +76,24 @@ export function popoutFeatures(tool: PinTool): string {
 
 export interface PinIntentMsg { type: 'pin-intent'; id: string; tool: PinTool }
 export interface PinAckMsg { type: 'pin-ack'; id: string }
-/** PiP 안 iframe → **메인 탭**: 이 핀을 놓아 달라 (iframe 은 자기를 담은 PiP 창을 닫을 권한이 없다) */
+/** PiP 안 iframe → **자기 홀더 창**: 이 핀을 놓아 달라 (iframe 은 자기를 담은 PiP 를 닫을 권한이 없다) */
 export interface UnpinRequestMsg { type: 'unpin-request'; tool: PinTool }
-/** 메인 탭 → 열려 있는 **일반 팝아웃 창**: 이 도구가 방금 고정됐으니 너는 닫혀라 (#286).
- *  ★ requestWindow **성공 후**에만 보낸다 — 사용자가 고정을 취소했는데 팝아웃만 사라지면 도구를 통째로 잃는다.
- *  창 핸들을 보관하는 대신 방송을 쓰는 이유: 메인 탭이 새로고침되면 핸들은 사라지지만 방송은 그대로 닿는다. */
-export interface PinEngagedMsg { type: 'pin-engaged'; tool: PinTool }
-export type PinMsg = PinIntentMsg | PinAckMsg | UnpinRequestMsg | PinEngagedMsg;
+export type PinMsg = PinIntentMsg | PinAckMsg | UnpinRequestMsg;
+
+/** 선공지 ack 대기 상한. transient activation(약 5초) 안이라 requestWindow 는 그대로 성립한다. */
+const ACK_TIMEOUT_MS = 250;
+/** 축출은 pagehide 를 발화시키지 않는다 → 폴링이 유일한 감지 수단 */
+const POLL_MS = 500;
+
+interface PipApi {
+  requestWindow: (o: { width: number; height: number }) => Promise<Window>;
+}
+
+function pipApi(): PipApi | null {
+  if (typeof window === 'undefined') return null;
+  const w = window as unknown as { documentPictureInPicture?: PipApi };
+  return w.documentPictureInPicture || null;
+}
 
 /** PiP 문서 안의 iframe 으로 로드된 인스턴스인가 (팝아웃 라우트는 이 경우에만 iframe 안에서 돈다) */
 export function isPipContent(): boolean {
@@ -84,60 +110,198 @@ export function isPipContent(): boolean {
 export function supportsPin(): boolean {
   if (typeof window === 'undefined') return false;
   if (window.matchMedia('(hover: none), (pointer: coarse)').matches) return false;
-  const w = window as unknown as { documentPictureInPicture?: unknown };
-  return !!w.documentPictureInPicture;
+  return !!pipApi();
 }
 
-export interface PinContent {
-  /** 어느 도구인가 — 팝아웃에서 메인 창에 고정을 요청할 때 실어 보낸다 */
-  tool: PinTool;
-  /** 이 마운트가 PiP 안 iframe 인가 — 해제 버튼은 이때만 그린다 */
-  isPip: boolean;
-  /** 메인 탭에 해제를 요청한다. PiP 가 닫히고 이 마운트는 사라진다. */
+function markPipActive(on: boolean) {
+  try {
+    if (on) document.body.dataset.pipActive = '1';
+    else delete document.body.dataset.pipActive;
+  } catch { /* noop */ }
+}
+
+/** 선공지 → ack 또는 250ms. 붙잡고 있는 창이 없으면 그냥 타임아웃으로 진행한다. */
+function announceIntent(ch: BroadcastChannel | null, tool: PinTool): Promise<void> {
+  return new Promise((resolve) => {
+    if (!ch) { resolve(); return; }
+    const id = `${tool}-${Math.random().toString(36).slice(2, 10)}`;
+    let done = false;
+    let timer = 0;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      try { ch.removeEventListener('message', onMsg); } catch { /* noop */ }
+      resolve();
+    };
+    const onMsg = (ev: MessageEvent) => {
+      const m = ev.data as PinMsg | null;
+      if (m && m.type === 'pin-ack' && m.id === id) finish();
+    };
+    ch.addEventListener('message', onMsg);
+    timer = window.setTimeout(finish, ACK_TIMEOUT_MS);
+    try { ch.postMessage({ type: 'pin-intent', id, tool } as PinIntentMsg); } catch { finish(); }
+  });
+}
+
+export interface PinHost {
+  mode: PinMode;
+  /** 핀 버튼을 그릴 것인가 (모바일·미지원 브라우저는 false) */
+  canPin: boolean;
+  /** ★ 반드시 사용자 클릭 핸들러 안에서 호출할 것 — requestWindow 는 transient activation 을 요구한다 */
+  pin: () => Promise<void>;
   unpin: () => void;
+  toggle: () => void;
+}
+
+export interface UsePinHostOptions {
+  tool: PinTool;
+  /** PiP 문서 제목 */
+  title: string;
 }
 
 /**
- * **팝아웃 라우트 쪽** 훅. 소유 상태를 갖지 않는다 — 알아야 할 것은 "내가 PiP 안인가" 뿐이다.
- * 핀 진입(소유)은 메인 탭의 도크가 담당한다(utils/pinOwner.ts).
+ * 팝아웃 창 하나가 자기 핀 상태를 관리한다. **팝아웃 라우트 컴포넌트에서만** 호출할 것.
+ * mode === 'holder' 면 호출부는 도구 본문 대신 PinHolderView 를 그린다.
  */
-export function usePinContent(tool: PinTool): PinContent {
-  const isPip = useMemo(() => isPipContent(), []);
+export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
+  const pipContent = useMemo(() => isPipContent(), []);
+  const canPin = useMemo(() => (pipContent ? true : supportsPin()), [pipContent]);
+  const [mode, setMode] = useState<PinMode>(() => (pipContent ? 'pip-content' : 'normal'));
+  const { width, height } = POPOUT_SIZE[tool];
 
-  // #286 "팝아웃이 2개가 열려서" — 일반 팝아웃 창이 떠 있는데 도크에서 핀을 켜면 고정 창이
-  //   따로 열려 둘이 됐다. 고정이 성사되는 순간 **일반 창 쪽이 스스로 물러난다**.
-  //   (팝아웃은 script-opened 창이라 자기 자신을 닫을 수 있다. PiP 안 iframe 은 대상이 아니다.)
+  const pipRef = useRef<Window | null>(null);
+  const pollRef = useRef<number | null>(null);
+  const chanRef = useRef<BroadcastChannel | null>(null);
+
+  const stopPoll = useCallback(() => {
+    if (pollRef.current != null) { clearInterval(pollRef.current); pollRef.current = null; }
+  }, []);
+
+  /** 일반 창으로 되돌린다 — **모든 해제 경로의 유일한 착지점**.
+   *  ★ 여기서 window.close() 를 부르지 말 것. 고정을 끄면 도구가 사라지는 것이 아니라
+   *    원래 팝아웃 창으로 돌아와야 한다(Irene 2026-08-20). 창을 닫는 것은 사용자만 한다. */
+  const backToNormal = useCallback(() => {
+    stopPoll();
+    pipRef.current = null;
+    markPipActive(false);
+    // 스크립트로 열린 창이 아니면(주소창에 직접 친 탭) 브라우저가 무시한다 — 그래도 mode 는 돌아온다.
+    try { window.resizeTo(width, height); } catch { /* noop */ }
+    setMode('normal');
+  }, [stopPoll, width, height]);
+
+  /** 우리가 PiP 를 놓는다 (핀 토글 해제 · 축출 선공지 수신). 우리 손으로 닫고 일반 창으로 복귀. */
+  const releasePip = useCallback(() => {
+    const w = pipRef.current;
+    pipRef.current = null;      // ★ 가장 먼저 비운다 — 폴링/pagehide 가 이 해제를 "사용자가 닫음" 으로 재진입하지 않게
+    if (w) { try { w.close(); } catch { /* 이미 닫혔을 수 있다 */ } }
+    backToNormal();
+  }, [backToNormal]);
+
+  /** PiP 가 우리 뜻과 무관하게 사라졌다 (사용자가 X 로 닫음 · 선공지 없는 축출).
+   *  ★ 옛 구현은 여기서 홀더를 자살시켰다 → "고정 취소했더니 창이 통째로 사라짐". 이제는 일반 창으로 돌아온다. */
+  const onPipGone = useCallback(() => {
+    if (!pipRef.current) return;  // releasePip 이 이미 처리했다
+    backToNormal();
+  }, [backToNormal]);
+
+  // 축출 선공지 수신 + PiP 안에서 온 해제 요청 수신
   useEffect(() => {
-    if (isPip) return;                        // PiP 내용물은 자기-닫기 대상 아님 (자기가 자길 닫는 사고 차단)
-    // ★ 여기서 markPopoutWindow() 를 먼저 부른다 — 순서 레이스 때문이다(Fable 반증).
-    //   이 훅의 effect 는 standalone 페이지가 markPopoutWindow() 를 부르는 effect **보다 먼저** 돈다.
-    //   그래서 sessionStorage 표식만 보면 **처음 연 창에서는 항상 false** 라 구독이 영영 안 생겼다
-    //   (새로고침한 창에서만 동작 — "되는 것처럼 보이는" 가장 나쁜 형태).
-    //   markPopoutWindow 는 opener/window.name 가드가 내장된 멱등 함수라 여기서 불러도 안전하고,
-    //   판정 술어는 그대로 popout.ts 한 곳에 남는다(술어를 복사하면 두 벌이 된다).
-    markPopoutWindow();
-    if (!isPopoutWindow()) return;            // 일반 탭 — 자기-닫기 대상 아님
-    let ch: BroadcastChannel;
+    let ch: BroadcastChannel | null = null;
     try { ch = new BroadcastChannel(PIN_CHANNEL); } catch { return; }
-    const onMsg = (e: MessageEvent<PinMsg>) => {
-      const m = e.data;
-      if (!m || m.type !== 'pin-engaged' || m.tool !== tool) return;
-      // Q Note 녹음 중이면 닫지 않는다 — 창 하나 더 뜨는 것보다 녹음 소실이 훨씬 나쁘다.
-      //   (PopoutPinButton 의 해제 확인과 같은 계약: body.dataset.recordingActive)
-      try { if (document.body.dataset.recordingActive === '1') return; } catch { /* noop */ }
-      try { window.close(); } catch { /* 사용자가 직접 닫으면 된다 */ }
+    chanRef.current = ch;
+    const onMsg = (ev: MessageEvent) => {
+      const m = ev.data as PinMsg | null;
+      if (!m || typeof m !== 'object') return;
+      if (m.type === 'pin-intent') {
+        // 다른 창이 자리를 가져간다. 붙잡고 있을 때만 놓고 ack 한다
+        // (아무나 ack 하면 요청자가 진짜 소유자보다 먼저 출발한다).
+        if (pipRef.current) {
+          releasePip();       // ← 우리 도구는 닫히지 않는다. 일반 창으로 돌아갈 뿐이다.
+          try { ch?.postMessage({ type: 'pin-ack', id: m.id } as PinAckMsg); } catch { /* noop */ }
+        }
+        return;
+      }
+      if (m.type === 'unpin-request' && m.tool === tool) {
+        // PiP 안 iframe 의 핀 토글이 자기 홀더에게 보낸 해제 요청
+        releasePip();
+      }
     };
     ch.addEventListener('message', onMsg);
-    return () => { try { ch.removeEventListener('message', onMsg); ch.close(); } catch { /* noop */ } };
-  }, [isPip, tool]);
+    return () => {
+      try { ch?.removeEventListener('message', onMsg); ch?.close(); } catch { /* noop */ }
+      chanRef.current = null;
+    };
+  }, [tool, releasePip]);
+
+  useEffect(() => () => stopPoll(), [stopPoll]);
+
+  const pin = useCallback(async () => {
+    if (pipContent || pipRef.current) return;
+    const api = pipApi();
+    if (!api) return;
+
+    // 1) 선공지 — 다른 창이 붙잡고 있으면 먼저 자리를 비우게 한다(축출은 감지 불가한 죽음이다).
+    await announceIntent(chanRef.current, tool);
+
+    let win: Window;
+    try {
+      win = await api.requestWindow({ width, height });
+    } catch {
+      return; // 사용자가 취소했거나 브라우저가 거부 → 이 창은 그대로 **일반 팝아웃으로 남는다**
+    }
+
+    try {
+      win.document.title = title;
+      const body = win.document.body;
+      body.style.margin = '0';
+      body.style.overflow = 'hidden';
+      const iframe = win.document.createElement('iframe');
+      // ★ name 필수 — utils/popout.ts markPopoutWindow() 의 realPopout 가드가
+      //   window.opener || /^pq-/.test(window.name) 를 요구한다. PiP iframe 은 opener 가 없어
+      //   name 을 안 주면 팝아웃 마킹이 실패하고 그 안에서 우하단 FAB 가 되살아난다.
+      iframe.name = `pq-${tool}-pip`;
+      // ★ 라우트 상수가 아니라 **지금 이 창의 URL** 을 싣는다 — Q Talk 에서 대화를 바꾼 뒤 고정하면
+      //   고정창도 그 대화로 열려야 한다(최초 진입 대화로 되돌아가면 안 된다).
+      iframe.src = window.location.pathname + window.location.search;
+      iframe.setAttribute('allow', 'microphone; camera; display-capture; autoplay; clipboard-write');
+      iframe.style.cssText = 'border:0;width:100%;height:100vh;display:block;';
+      body.appendChild(iframe);
+    } catch {
+      try { win.close(); } catch { /* noop */ }
+      return; // 빈 PiP 를 남기지 않는다
+    }
+
+    pipRef.current = win;
+    markPipActive(true);
+    // 창 동일성 확인 후에만 — 옛 창의 뒤늦은 pagehide 가 방금 연 PiP 를 철거하지 못하게 한다.
+    win.addEventListener('pagehide', () => { if (pipRef.current === win) onPipGone(); });
+    // 축출(다른 도구가 자리를 가져감)은 pagehide 가 없다 → 폴링이 유일한 감지 수단
+    pollRef.current = window.setInterval(() => {
+      if (!pipRef.current || pipRef.current.closed) onPipGone();
+    }, POLL_MS);
+
+    // 2) 이 창은 홀더로 변신한다 (window.open 0회 → 팝업 차단 계열 결함이 통째로 없다)
+    try { window.resizeTo(HOLDER_W, HOLDER_H); } catch { /* noop */ }
+    setMode('holder');
+  }, [pipContent, tool, title, width, height, onPipGone]);
 
   const unpin = useCallback(() => {
-    // 이 iframe 은 자기를 담은 PiP 창을 닫을 수 없다(그 창의 소유자는 메인 탭이다) → 방송으로 부탁한다.
-    try {
-      const ch = new BroadcastChannel(PIN_CHANNEL);
-      ch.postMessage({ type: 'unpin-request', tool } as UnpinRequestMsg);
-      ch.close();
-    } catch { /* BroadcastChannel 미지원 — 사용자가 PiP 를 직접 닫으면 폴링이 정리한다 */ }
-  }, [tool]);
-  return { tool, isPip, unpin };
+    if (pipContent) {
+      // 이 iframe 은 자기를 담은 PiP 창을 닫을 수 없다(소유자는 홀더 창이다) → 방송으로 부탁한다.
+      try {
+        const ch = chanRef.current || new BroadcastChannel(PIN_CHANNEL);
+        ch.postMessage({ type: 'unpin-request', tool } as UnpinRequestMsg);
+      } catch { /* 미지원 — 사용자가 PiP 를 직접 닫으면 폴링이 홀더를 일반 창으로 되돌린다 */ }
+      return;
+    }
+    releasePip();
+  }, [pipContent, tool, releasePip]);
+
+  const toggle = useCallback(() => {
+    if (mode === 'normal') { void pin(); return; }
+    unpin();
+  }, [mode, pin, unpin]);
+
+  return { mode, canPin, pin, unpin, toggle };
 }
