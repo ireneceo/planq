@@ -125,7 +125,17 @@ export function rememberOrigin(x: number, y: number) {
 export function popoutPosition(tool: PinTool, cascade = 0): { x: number; y: number } {
   const { width, height } = POPOUT_SIZE[tool];
   const a = workArea();
-  const learned = readOrigin();
+  // ★ 기억한 자리는 **지금 쓰는 모니터 안일 때만** 쓴다.
+  //   고정창을 2번 모니터로 옮기면 그 좌표가 기억되는데, 그대로 쓰면 다음 팝아웃이 2번 모니터에서
+  //   멀리 열린다. 반면 고정창은 크롬이 자기 규칙대로(대개 1번 모니터에) 다시 놓기 때문에
+  //   **열 때와 고정할 때가 서로 다른 화면**이 된다 — Irene 2026-08-20: "다른 모니터에서 멀리
+  //   열리더니 고정하니까 기존 모니터 우측 상단, 이랬다 저랬다 해."
+  //   지금 화면 밖 좌표면 버리고 이 화면의 계산값으로 연다(그 화면에서 다시 고정하면 곧 재학습된다).
+  const remembered = readOrigin();
+  const learned = remembered
+    && remembered.x >= a.left - 1 && remembered.x < a.left + a.width
+    && remembered.y >= a.top - 1 && remembered.y < a.top + a.height
+    ? remembered : null;
   // ② 폴백 — 크롬이 고정창을 놓는 방식과 **같은 계산**: 작업영역 우하단 EDGE(16) 여백.
   //   ★ 기준이 **바깥(outer) 크기**다. 안쪽(inner) 크기로 계산하면 첫 고정 때 창이 (-8,-20) 만큼
   //     튄다(Fable 실측: 예상 1384,266 vs 실제 1376,246). 고정창 테두리·제목줄 두께를 더해야 맞다.
