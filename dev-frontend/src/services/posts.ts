@@ -175,10 +175,14 @@ export async function createPost(payload: {
 /** 다른 사람이 먼저 저장해 내 편집 기준이 낡았을 때 (#252 낙관적 잠금 409). */
 export class StaleEditError extends Error {
   currentUpdatedAt: string | null;
-  constructor(message: string, currentUpdatedAt: string | null) {
+  /** 마지막으로 저장한 사람이 **나** 인가. 내 저장으로 서버가 앞서 나간 것이면 충돌이 아니라
+   *  내 기준이 낡은 것이다 — 호출측이 기준을 갱신하고 한 번 재시도하면 된다. */
+  byMe: boolean;
+  constructor(message: string, currentUpdatedAt: string | null, byMe = false) {
     super(message);
     this.name = 'StaleEditError';
     this.currentUpdatedAt = currentUpdatedAt;
+    this.byMe = byMe;
   }
 }
 
@@ -203,8 +207,14 @@ export async function updatePost(id: number, patch: Partial<{
     //   하드코딩이 되고 영어 사용자에게도 한국어가 나간다 — 비면 호출측(UI)이 t() 로 채운다.
     let msg = '';
     let cur: string | null = null;
-    try { const j = await r.json(); msg = j.message || ''; cur = j.data?.current_updated_at ?? null; } catch { /* non-json */ }
-    throw new StaleEditError(msg, cur);
+    let byMe = false;
+    try {
+      const j = await r.json();
+      msg = j.message || '';
+      cur = j.data?.current_updated_at ?? null;
+      byMe = !!j.data?.by_me;
+    } catch { /* non-json */ }
+    throw new StaleEditError(msg, cur, byMe);
   }
   const j = await r.json();
   if (!j.success) throw new Error(j.message || 'update failed');

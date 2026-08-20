@@ -733,10 +733,20 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
       //   editor_id 로 구분하려던 시도는 틀렸다: 남이 오래 전에 편집한 문서를 처음 여는 정상 케이스와
       //   구분이 안 돼 모든 타인 문서 편집이 거짓 409 가 된다. 정밀도 자체를 올려야 풀린다.
       if (Number.isFinite(base) && Number.isFinite(cur) && base < cur) {
+        // ★ **마지막으로 저장한 사람이 누구인지 같이 준다.**
+        //   이 잠금은 "남의 저장을 덮지 않는다" 가 목적인데, 실제로는 **혼자 쓰는 중에도** 자주 터졌다
+        //   (Irene 2026-08-20 운영 신고: "나만 수정중인데"). 내 저장으로 서버가 앞서 나간 것이면
+        //   충돌이 아니라 **내 기준이 낡은 것**이므로, 클라이언트가 기준을 갱신하고 한 번 재시도하면 된다.
+        //   판정 근거를 서버가 주지 않으면 클라이언트는 "남" 과 "나" 를 구별할 수 없어 막힌다.
+        const lastEditor = post.editor_id || post.author_id;
         return res.status(409).json({
           success: false, code: 'stale_edit',
           message: '다른 사람이 이 문서를 수정했습니다. 새로고침 후 이어서 작성해 주세요.',
-          data: { current_updated_at: post.updated_at || post.updatedAt },
+          data: {
+            current_updated_at: post.updated_at || post.updatedAt,
+            last_editor_id: lastEditor,
+            by_me: lastEditor === req.user.id,
+          },
         });
       }
     }

@@ -191,6 +191,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   // 표(table) 편집 모드의 본문 설명 에디터 collapsible — 빈 상태 신규일 때 닫혀 시작, 내용 있으면 열린 상태.
   const [tableDescOpen, setTableDescOpen] = useState<boolean>(false);
   const submittingRef = useRef(false);
+  /** 명시 저장 재시도 1회 가드 (내가 낸 충돌만) */
+  const saveRetriedRef = useRef(false);
   // ── #252 자동저장 ("문서에 글 쓸 때도 메모처럼 임시저장되면 안되나? 날라갈까봐 불안한데") ──
   //   메모(MemoView)와 같은 모델: 입력 → debounce → PUT. 성공은 ✓ 뱃지만(토스트 금지, CLAUDE.md).
   //   신규 글은 첫 입력에 draft 로 POST 해 id 를 확보한 뒤 PUT 으로 이어간다 —
@@ -202,6 +204,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const autoBusyRef = useRef(false);
   // 편집 시작 시점의 updated_at — 낙관적 잠금 기준. 저장 성공마다 갱신한다.
   const baseUpdatedAtRef = useRef<string | null>(null);
+  /** 자동저장 재시도 1회 가드 — 내가 낸 충돌만, 무한 재시도 금지 */
+  const autoRetriedRef = useRef(false);
   // 자동저장이 만든 draft 의 id (신규 모드). 명시 저장·취소가 이걸 보고 승격/삭제한다.
   const autoDraftIdRef = useRef<number | null>(null);
   // 편집 진입 시점 스냅샷 — "취소" 가 자동저장된 내용을 되돌리는 근거.
@@ -697,6 +701,16 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       return 'ok';
     } catch (e) {
       if (e instanceof StaleEditError) {
+        // ★ **내 저장으로 서버가 앞서 나간 것이면 충돌이 아니다** — 기준만 갱신하고 한 번 재시도한다.
+        //   혼자 쓰는데도 "다른 사람이 수정했습니다" 가 뜨던 것의 정체가 이것이다(운영 신고 2026-08-20).
+        //   재시도는 1회만 — 진짜 충돌이면 두 번째에 다시 409 가 나고 그때는 배너로 알린다.
+        if (e.byMe && e.currentUpdatedAt && !autoRetriedRef.current) {
+          autoRetriedRef.current = true;
+          baseUpdatedAtRef.current = e.currentUpdatedAt;
+          const again = (await runAutosaveRef.current?.()) ?? 'stale';
+          autoRetriedRef.current = false;
+          return again;
+        }
         // 남의 저장을 덮지 않는다 — 자동저장을 멈추고 사용자에게 알린다.
         setAutoState('stale');
         setAutoErr(e.message || (t('autosave.staleHelp', '다른 사람이 이 문서를 수정했습니다. 새로고침 후 이어서 작성해 주세요.') as string));
@@ -817,10 +831,11 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             category: snap.category.trim() || null,
             base_updated_at: baseUpdatedAtRef.current,
           });
+          baseUpdatedAtRef.current = reverted.updated_at ?? null;
           setDetail(reverted);
         } catch { /* 되돌리기 실패 — 아래에서 서버 최신본으로 재조회 */
           const fresh = await fetchPost(detail.id);
-          if (fresh) setDetail(fresh);
+          if (fresh) { baseUpdatedAtRef.current = fresh.updated_at ?? null; setDetail(fresh); }
         }
         await load();
       }
@@ -908,6 +923,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           ...(scope.type === 'workspace' ? { project_id: projectDraft } : {}),
           ...(promote ? { status: 'published' as const, vlevel: (targetProjectId ? 'L2' : 'L3') as 'L2' | 'L3' } : {}),
         });
+        // ★ 기준 시각 갱신 — 이게 없어서 저장 버튼을 누른 뒤 이어서 쓰면 **다음 자동저장이 반드시
+        //   409** 였다(혼자 쓰는데도 "다른 사람이 수정했습니다"). 자동저장 경로에만 있던 갱신을 여기에도.
+        baseUpdatedAtRef.current = patched.updated_at ?? null;
         setDetail(patched);
         setMode('view');
         await load(); await loadMeta();
@@ -918,8 +936,20 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       setAutoState('idle');
       setAutoErr(null);
     } catch (e) {
-      // 충돌은 "저장 실패" 가 아니라 별도 안내 — 사용자가 새로고침해야 하는 상황이다.
-      if (e instanceof StaleEditError) { setAutoState('stale'); setAutoErr(e.message || (t('autosave.staleHelp', '다른 사람이 이 문서를 수정했습니다. 새로고침 후 이어서 작성해 주세요.') as string)); }
+      if (e instanceof StaleEditError) {
+        // ★ 내 저장으로 서버가 앞서 나간 것이면 충돌이 아니다 — 기준만 갱신하고 한 번 더 저장한다.
+        //   (자동저장과 같은 규칙. 여기서 막히면 사용자는 쓴 글을 저장할 방법이 없다.)
+        if (e.byMe && e.currentUpdatedAt && !saveRetriedRef.current) {
+          saveRetriedRef.current = true;
+          baseUpdatedAtRef.current = e.currentUpdatedAt;
+          submittingRef.current = false;
+          try { await submit(); } finally { saveRetriedRef.current = false; }
+          return;
+        }
+        // 충돌은 "저장 실패" 가 아니라 별도 안내 — 사용자가 새로고침해야 하는 상황이다.
+        setAutoState('stale');
+        setAutoErr(e.message || (t('autosave.staleHelp', '다른 사람이 이 문서를 수정했습니다. 새로고침 후 이어서 작성해 주세요.') as string));
+      }
       setError((e as Error).message);
     }
     finally { submittingRef.current = false; setSaving(false); }
