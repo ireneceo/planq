@@ -1,4 +1,5 @@
 const express = require('express');
+const { previewUrlForFile } = require('../services/filePreview');
 const crypto = require('crypto');
 const path = require('path');
 const { Op } = require('sequelize');
@@ -3064,13 +3065,9 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
     });
     for (const f of directFiles) {
       const proj = projMap.get(f.project_id);
-      // 이미지면 public-image 엔드포인트로 썸네일 노출 (<img src> 호환).
-      // 비이미지나 외부저장(gdrive)은 preview_url 생략.
-      const isImage = f.mime_type && f.mime_type.startsWith('image/');
-      const isPlanQ = f.storage_provider === 'planq' || !f.storage_provider;
-      const previewUrl = (isImage && isPlanQ && f.file_path)
-        ? `/api/files/public-image/${require('path').basename(f.file_path)}`
-        : undefined;
+      // 미리보기 규칙은 services/filePreview 단일 원천 (Drive 저장분 포함).
+      // 미리보기 규칙은 services/filePreview 단일 원천 — Drive 저장분도 여기서 처리된다.
+      const previewUrl = previewUrlForFile(f);
       results.push({
         id: `direct-${f.id}`,
         source: 'direct',
@@ -3116,9 +3113,12 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
       for (const a of chatFiles) {
         const conv = convMap.get(a.Message.conversation_id);
         const proj = conv ? projMap.get(conv.project_id) : null;
+        // 채팅 첨부 미리보기 — Drive 저장분은 basename 경로가 통하지 않는다(file_path 가 Drive ID).
+        //   채팅 화면(ChatPanel)이 이미 쓰는 `/:id/raw`(서버 프록시)를 목록에서도 그대로 쓴다.
         const isImage = a.mime_type && a.mime_type.startsWith('image/');
-        const previewUrl = (isImage && a.file_path)
-          ? `/api/message-attachments/public/${path.basename(a.file_path)}`
+        const previewUrl = !isImage ? undefined
+          : a.storage_provider === 'gdrive' ? `/api/message-attachments/${a.id}/raw`
+          : a.file_path ? `/api/message-attachments/${path.basename(a.file_path)}`.replace('/api/message-attachments/', '/api/message-attachments/public/')
           : undefined;
         results.push({
           id: `chat-${a.id}`,
@@ -3217,10 +3217,7 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
             ? (f.createdAt || f.created_at).toISOString() : new Date().toISOString(),
           download_url: f.storage_provider === 'gdrive' && f.external_url
             ? f.external_url : `/api/files/${bizId}/${f.id}/download`,
-          preview_url: (f.mime_type && f.mime_type.startsWith('image/')
-            && (f.storage_provider === 'planq' || !f.storage_provider) && f.file_path)
-            ? `/api/files/public-image/${path.basename(f.file_path)}`
-            : undefined,
+          preview_url: previewUrlForFile(f),
           external_id: f.external_id, external_url: f.external_url,
           context: post ? { kind: 'post', id: post.id, label: post.title } : undefined,
           project_context: proj ? { id: proj.id, name: proj.name, color: proj.color } : null,
@@ -3274,10 +3271,7 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
       order: [['created_at', 'DESC']]
     });
     for (const f of directFiles) {
-      // 이미지면 public-image 엔드포인트로 썸네일 노출 (all-files 와 동일 규칙).
-      // 비이미지나 외부저장(gdrive)은 preview_url 생략.
-      const isImage = f.mime_type && f.mime_type.startsWith('image/');
-      const isPlanQ = f.storage_provider === 'planq' || !f.storage_provider;
+      // 미리보기 규칙은 services/filePreview 단일 원천 (Drive 저장분 포함).
       results.push({
         id: `direct-${f.id}`,
         source: 'direct',
@@ -3290,9 +3284,7 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
         download_url: f.storage_provider === 'gdrive' && f.external_url
           ? f.external_url
           : `/api/files/${bizId}/${f.id}/download`,
-        preview_url: (isImage && isPlanQ && f.file_path)
-          ? `/api/files/public-image/${path.basename(f.file_path)}`
-          : undefined,
+        preview_url: previewUrlForFile(f),
         external_id: f.external_id,
         external_url: f.external_url,
         folder_id: f.folder_id,
@@ -3330,8 +3322,9 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
           uploader_name: a.Message.sender ? a.Message.sender.name : null,
           uploaded_at: (a.createdAt || a.created_at || new Date()).toISOString ? (a.createdAt || a.created_at).toISOString() : new Date().toISOString(),
           download_url: a.file_path ? `/uploads/${path.relative(path.join(__dirname, '..', 'uploads'), a.file_path)}` : null,
-          preview_url: (a.mime_type && a.mime_type.startsWith('image/') && a.file_path)
-            ? `/api/message-attachments/public/${path.basename(a.file_path)}`
+          preview_url: !(a.mime_type && a.mime_type.startsWith('image/')) ? undefined
+            : a.storage_provider === 'gdrive' ? `/api/message-attachments/${a.id}/raw`
+            : a.file_path ? `/api/message-attachments/public/${path.basename(a.file_path)}`
             : undefined,
           context: conv ? { kind: 'conversation', id: conv.id, label: conv.title || '대화방' } : undefined,
           folder_id: null,

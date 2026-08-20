@@ -204,28 +204,41 @@ router.get('/public/by-token/:token/download', async (req, res, next) => {
 router.get('/public-image/:storedName', async (req, res, next) => {
   try {
     const stored = String(req.params.storedName || '');
-    if (!/^[a-z0-9-]+\.[a-z0-9]+$/i.test(stored)) {
-      return errorResponse(res, 'invalid_filename', 400);
-    }
-    const file = await File.findOne({
-      where: {
-        file_path: { [Op.like]: `%${stored}` },
-        deleted_at: null,
-        storage_provider: 'planq',
-      },
-    });
+    // ★ 두 종류의 토큰을 받는다 (둘 다 추측 불가능한 값이라는 전제는 동일):
+    //     · 로컬 저장분 — UUID 파일명 `xxxxxxxx-....png`
+    //     · Drive 저장분 — Drive 파일 ID (점이 없다). file_path 에는 로컬 경로가 아니라 이 ID 가 들어 있다.
+    //   여태 `storage_provider: 'planq'` 를 하드코딩해서 **Drive 이미지는 어느 화면에서도 미리보기가 없었다**
+    //   (운영 실측 33건). task 첨부(#134)는 이미 readAttachmentBody 로 같은 문제를 고쳐 뒀다 — 그 계약을 따른다.
+    const looksLocal = /^[a-z0-9-]+\.[a-z0-9]+$/i.test(stored);
+    const looksDriveId = /^[A-Za-z0-9_-]{10,200}$/.test(stored);
+    if (!looksLocal && !looksDriveId) return errorResponse(res, 'invalid_filename', 400);
+
+    const file = looksLocal
+      ? await File.findOne({ where: { file_path: { [Op.like]: `%${stored}` }, deleted_at: null, storage_provider: 'planq' } })
+      : await File.findOne({ where: { external_id: stored, deleted_at: null, storage_provider: 'gdrive' } });
     if (!file) return errorResponse(res, 'not_found', 404);
-    if (!file.mime_type || !file.mime_type.startsWith('image/')) {
+    // image/* 만 — HTML/JS 를 inline 으로 흘리면 XSS 가 된다 (기존 계약 유지)
+    if (!require('../services/filePreview').isRenderableImage(file.mime_type)) {
       return errorResponse(res, 'not_public_image', 403);
     }
-    const abs = path.isAbsolute(file.file_path) ? file.file_path : path.join(__dirname, '..', file.file_path);
-    if (!fs.existsSync(abs)) return errorResponse(res, 'file_missing', 410);
-    if (await require('../services/imageResize').maybeServeResized(req, res, abs, file.mime_type)) return; // #97 ?w= 리사이즈
+
+    // 저장소 단일 원천 — 로컬이면 로컬, Drive 면 서버가 워크스페이스 토큰으로 받아서 흘려준다.
+    const body = await require('../services/attachmentStorage').readAttachmentBody(file);
+    if (!body.ok) return errorResponse(res, body.msg, body.code);
+    if (body.redirect) return res.redirect(body.redirect);
+    // ?w= 리사이즈는 로컬 파일일 때만 (Drive 스트림은 원본 그대로) — task 첨부와 같은 규칙
+    if (body.abs && await require('../services/imageResize').maybeServeResized(req, res, body.abs, file.mime_type)) return;
+
     res.setHeader('Content-Type', file.mime_type);
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Disposition', 'inline');
     res.setHeader('Cache-Control', 'private, max-age=3600');
-    fs.createReadStream(abs).pipe(res);
+    body.stream.on('error', (e) => {
+      console.error('[files] public image stream error:', e.message);
+      if (!res.headersSent) errorResponse(res, 'stream_failed', 502);
+      else res.destroy();
+    });
+    body.stream.pipe(res);
   } catch (err) { next(err); }
 });
 
@@ -655,9 +668,7 @@ router.post('/:businessId', authenticateToken, ...perUserDaily('file-upload', { 
       tempPath = null;
       // 응답: 이미지면 RichEditor 호환 preview_url 같이 노출 (TipTap 이미지 인라인 삽입용).
       const isImage = file.mime_type && file.mime_type.startsWith('image/');
-      const previewUrl = (isImage && file.file_path)
-        ? `/api/files/public-image/${path.basename(file.file_path)}`
-        : null;
+      const previewUrl = require('../services/filePreview').previewUrlForFile(file) || null;
       broadcastFile(req, file, 'file:new');
       // GDrive 미러 — 워크스페이스 연결 시 로컬 저장 파일을 Drive 사본으로 (best-effort, 응답 블로킹 X).
       //   storage_provider 는 planq 유지 → 서빙 무영향. 실패해도 파일은 로컬에 안전. L1 개인은 owner 본인만.
