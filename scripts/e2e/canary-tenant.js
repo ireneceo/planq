@@ -68,6 +68,11 @@ async function run() {
   const SURFACES = [
     ['tasks by-business search', `/api/tasks/by-business/${myBiz}/search?q=x`, `/api/tasks/by-business/${foreign.id}/search?q=x`],
     ['files storage', `/api/files/${myBiz}/storage`, `/api/files/${foreign.id}/storage`],
+    // ★ 2026-08-20 추가 — 이 표면이 없어서 통합 검색의 cross-tenant 누출을 카나리가 못 잡았다.
+    //   비멤버가 `/api/search?business_id=타 biz` 로 다른 워크스페이스의 업무·대화를 받아갔는데
+    //   카나리는 계속 초록이었다. **안 잡는 가드는 없는 것보다 나쁘다** — 표면에 넣는다.
+    ['search (통합 검색)', `/api/search?business_id=${myBiz}&q=a`, `/api/search?business_id=${foreign.id}&q=a`],
+    ['search recent (검색 전 최근)', `/api/search/recent?business_id=${myBiz}`, `/api/search/recent?business_id=${foreign.id}`],
   ];
 
   for (const [name, minePath, foreignPath] of SURFACES) {
