@@ -318,11 +318,26 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
       const x = pip.screenX ?? pip.screenLeft;
       const y = pip.screenY ?? pip.screenTop;
       if (typeof x !== 'number' || typeof y !== 'number') return;
+      // ★ 갓 열린 고정창은 좌표가 (0,0) 으로 읽히는 순간이 있다. 그대로 믿으면 숨은 창이 **좌측 상단으로
+      //   튀었다가** 다음 폴링에 돌아온다 — 사용자에게 그 왕복이 보인다(Irene 2026-08-20 신고).
+      //   자리를 잡기 전에는 건드리지 않는다. 진짜 (0,0) 에 놓인 창이면 다음 틱에 정상 처리된다.
+      if (x === 0 && y === 0) return;
       const last = lastPipPosRef.current;
       if (last && last.x === x && last.y === y) return;   // 안 움직였으면 건드리지 않는다(깜빡임 방지)
       lastPipPosRef.current = { x, y };
-      window.moveTo(Math.max(0, x + HIDE_INSET), Math.max(0, y + HIDE_INSET));
+      const at = clampToScreen(x + HIDE_INSET, y + HIDE_INSET, HOLDER_W, HOLDER_H);
+      window.moveTo(at.x, at.y);
     } catch { /* 좌표 접근 거부 — 숨기기는 포기하고 기능은 그대로 */ }
+  }, []);
+
+  /** 고정창의 현재 좌표. 아직 자리를 안 잡아 (0,0) 으로 읽히면 이 창(팝아웃) 위치로 폴백한다. */
+  const pipAnchor = useCallback((pip: Window): { x: number; y: number } => {
+    try {
+      const x = pip.screenX ?? pip.screenLeft;
+      const y = pip.screenY ?? pip.screenTop;
+      if (typeof x === 'number' && typeof y === 'number' && !(x === 0 && y === 0)) return { x, y };
+    } catch { /* 좌표 접근 거부 */ }
+    return { x: window.screenX ?? 0, y: window.screenY ?? 0 };
   }, []);
 
   const pin = useCallback(async () => {
@@ -361,6 +376,15 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
       return; // 빈 PiP 를 남기지 않는다
     }
 
+    // ★ 고정창의 **자리는 우리가 못 정한다** (2026-08-20 실측 확정).
+    //   `win.moveTo(...)` 는 에러도 없이 무시된다 — 크롬이 PiP 창의 스크립트 이동을 차단한다
+    //   (같은 환경에서 일반 window.open 팝업은 moveTo 가 정상 동작하는 것으로 대조 확인).
+    //   그래서 "고정창을 팝아웃이 있던 자리에 띄운다" 는 어떤 코드로도 불가능하다. 시도하지 말 것.
+    //   대신 **홀더를 고정창 실좌표로 곧장 보낸다** — PiP 좌표는 requestWindow 직후 t=0 에 이미
+    //   정확히 읽힌다(실측 3회). 팝아웃 자리를 기준으로 잡으면 홀더가 옛 자리에 0.5초 노출됐다가
+    //   폴링 첫 틱에 점프하는 것이 사용자에게 보인다.
+    const anchor = pipAnchor(win);
+
     pipRef.current = win;
     markPipActive(true);
     // 창 동일성 확인 후에만 — 옛 창의 뒤늦은 pagehide 가 방금 연 PiP 를 철거하지 못하게 한다.
@@ -373,10 +397,16 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
     }, POLL_MS);
 
     // 2) 이 창은 홀더로 변신해 **고정창 뒤에 숨는다** (window.open 0회 → 팝업 차단 계열 결함이 없다)
-    try { window.resizeTo(HOLDER_W, HOLDER_H); } catch { /* noop */ }
-    hideBehind(win);
+    //    ★ 줄이기 **전에** 목표 좌표를 정해 두고 한 번에 옮긴다 — 줄인 뒤 좌표를 다시 읽으면
+    //      그 사이 상태가 화면에 한 프레임 노출된다.
+    lastPipPosRef.current = anchor;
+    try {
+      window.resizeTo(HOLDER_W, HOLDER_H);
+      const at = clampToScreen(anchor.x + HIDE_INSET, anchor.y + HIDE_INSET, HOLDER_W, HOLDER_H);
+      window.moveTo(at.x, at.y);
+    } catch { /* noop */ }
     setMode('holder');
-  }, [pipContent, tool, title, width, height, onPipGone, hideBehind]);
+  }, [pipContent, tool, title, width, height, onPipGone, pipAnchor]);
 
   const unpin = useCallback(() => {
     if (pipContent) {
