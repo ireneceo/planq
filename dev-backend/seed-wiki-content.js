@@ -197,6 +197,22 @@ const ARTICLES = [
         'Tasks with reviewers show "request review" instead of a checkbox, so the confirmation round is never skipped.'),
     ] },
 
+  { cat: 'qtask', slug: 'popout-pin', visibility: 'authenticated', linked_route: '/tasks', est: 2,
+    title: t('팝아웃 창을 항상 위에 고정하기', 'Keep a popout window on top'),
+    summary: t('채팅·업무·메모 창을 다른 프로그램 위에 띄워두고 일하기', 'Float chat, tasks, or notes above your other apps'),
+    body: [
+      p('우하단 바로 열기 버튼에서 도구를 누르면 새 창으로 열립니다. 그 창 위의 핀 아이콘을 누르면 다른 프로그램 위에 항상 보이는 고정창이 됩니다.',
+        'Open a tool from the launcher at the bottom right and it opens in its own window. Click the pin icon in that window to keep it above your other apps.'),
+      s('핀을 다시 누르면 고정이 풀리고 원래 창으로 돌아옵니다.', 'Click the pin again to unpin — it returns to a regular window.'),
+      s('고정창의 X 를 누르면 그 도구가 완전히 닫힙니다.', 'Closing the pinned window with X closes the tool entirely.'),
+      note('처음 고정할 때 브라우저가 창 관리 권한을 묻습니다. 허용한 뒤 핀을 한 번 더 눌러 주세요 — 이 권한이 있어야 모니터를 옮겨도 창이 따라갑니다. 다음부터는 묻지 않습니다.',
+        'The first time you pin, the browser asks for window management permission. Allow it and click the pin once more — this permission is what lets the window follow you across monitors. You won\'t be asked again.'),
+      note('고정할 수 있는 창은 브라우저당 하나입니다. 다른 도구를 고정하면 먼저 고정돼 있던 도구는 닫히지 않고 일반 창으로 돌아갑니다.',
+        'Only one window can stay on top at a time. Pinning another tool returns the previous one to a regular window — it is not closed.'),
+      note('고정 중에는 원래 창이 작게 줄어 고정창 뒤에 숨습니다. 브라우저가 고정창을 유지하려면 그 창이 살아 있어야 하기 때문입니다. 고정을 풀면 원래 크기로 돌아옵니다.',
+        'While pinned, the original window shrinks and hides behind the pinned one — the browser needs it alive to keep the pinned window open. It returns to full size when you unpin.'),
+    ] },
+
   // ── Q Bill ──
   { cat: 'qbill', slug: 'issue-invoice', visibility: 'authenticated', linked_route: '/bills', est: 3,
     title: t('청구서 발행하기', 'Issue an invoice'),
