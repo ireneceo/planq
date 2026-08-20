@@ -15,6 +15,7 @@ const { v4: uuidv4 } = require('uuid');
 const { Conversation, Message, MessageAttachment, File: FileModel } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { serializeMessageAttachment } = require('../services/filePreview');
 const { canAccessConversation } = require('../middleware/access_scope');
 const { decodeOriginalName } = require('../services/filename');
 const { perUserLimiter } = require('../middleware/costGuard');
@@ -158,22 +159,13 @@ router.post('/:conversationId/:messageId',
       if (io) {
         io.to(`conv:${req._conversation.id}`).emit('message:attachment', {
           message_id: msg.id,
-          attachment: {
-            id: created.id,
-            file_name: created.file_name,
-            file_size: created.file_size,
-            mime_type: created.mime_type,
-          },
+          attachment: serializeMessageAttachment(created),
         });
       }
 
-      successResponse(res, {
-        id: created.id,
-        message_id: created.message_id,
-        file_name: created.file_name,
-        file_size: created.file_size,
-        mime_type: created.mime_type,
-      }, 'Attachment uploaded', 201);
+      // ★ 미리보기 URL 을 처음부터 같이 준다 — 프론트가 id 로 URL 을 조립하면
+      //   무인증·순차 id 경로가 되살아난다(services/filePreview 주석 참조).
+      successResponse(res, serializeMessageAttachment(created), 'Attachment uploaded', 201);
     } catch (err) { next(err); }
   }
 );
@@ -226,18 +218,11 @@ router.post('/:conversationId/:messageId/link-existing',
       if (io) {
         io.to(`conv:${req._conversation.id}`).emit('message:attachment', {
           message_id: msg.id,
-          attachment: {
-            id: created.id, file_name: created.file_name, file_size: created.file_size,
-            mime_type: created.mime_type, file_id: created.file_id,
-          },
+          attachment: serializeMessageAttachment(created),
         });
       }
 
-      successResponse(res, {
-        id: created.id, message_id: created.message_id,
-        file_name: created.file_name, file_size: created.file_size,
-        mime_type: created.mime_type, file_id: created.file_id,
-      }, 'Existing file linked', 201);
+      successResponse(res, serializeMessageAttachment(created), 'Existing file linked', 201);
     } catch (err) { next(err); }
   }
 );
@@ -265,49 +250,12 @@ router.get('/:id/download', authenticateToken, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ─── GET raw — <img src> 호환 (인증 헤더 못 실음). UUID stored_name 으로 redirect. ───
-//   인증 X — id 노출 자체는 task_attachments 와 동일한 패턴.
-//   /public/:storedName 이 image MIME only 게이트.
-router.get('/:id/raw', async (req, res, next) => {
-  try {
-    const att = await MessageAttachment.findByPk(req.params.id);
-    if (!att) return errorResponse(res, 'not_found', 404);
-
-    // 사이클 N+16-E — storage_provider 별 분기.
-    //   planq (자체) — /public 으로 redirect (옛 동작).
-    //   gdrive — 서버 프록시 (drive.file scope 로 PlanQ 가 만든 파일만 접근). file_path 가 Drive file_id.
-    if (att.storage_provider === 'gdrive') {
-      try {
-        const gdrive = require('../services/gdrive');
-        const { Conversation } = require('../models');
-        const msg = await Message.findByPk(att.message_id, { attributes: ['conversation_id'] });
-        if (!msg) return errorResponse(res, 'message_not_found', 404);
-        const conv = await Conversation.findByPk(msg.conversation_id, { attributes: ['business_id'] });
-        if (!conv) return errorResponse(res, 'conversation_not_found', 404);
-        const token = await gdrive.getTokenForBusiness(conv.business_id);
-        if (!token) return errorResponse(res, 'gdrive_token_missing', 410);
-        const drive = await gdrive.getDriveClient(token);
-        if (att.mime_type && att.mime_type.startsWith('image/')) {
-          res.setHeader('Content-Type', att.mime_type);
-          res.setHeader('X-Content-Type-Options', 'nosniff');
-          res.setHeader('Content-Disposition', 'inline');
-          res.setHeader('Cache-Control', 'private, max-age=3600');
-          const stream = await gdrive.getFileStream(drive, att.file_path);
-          return stream.pipe(res);
-        }
-        // 비이미지: drive 의 webViewLink 로 redirect (사용자가 클릭 다운로드)
-        return res.redirect(302, att.external_url || '/');
-      } catch (e) {
-        console.error('[message-attachments] gdrive raw failed:', e.message);
-        return errorResponse(res, 'gdrive_stream_failed', 502);
-      }
-    }
-
-    const stored = path.basename(att.file_path);
-    const w = parseInt(req.query.w, 10); // #97 — 리사이즈 파라미터 redirect 에 보존
-    return res.redirect(302, `/api/message-attachments/public/${stored}${w > 0 ? `?w=${w}` : ''}`);
-  } catch (err) { next(err); }
-});
+// ─── GET /:id/raw — **삭제됨 (2026-08-20 보안)** ───
+//   무인증 + 순차 정수 id 라 1,2,3… 열거만으로 **타 워크스페이스 채팅 이미지**가 열렸다
+//   (Fable 이 통제 데이터로 크로스테넌트 실증: 다른 워크스페이스 대화방의 첨부를 토큰 없이 200 으로 획득).
+//   planq 분기는 UUID 로 302 리다이렉트했는데, 그게 곧 **추측 불가능한 토큰을 순차 id 로 알려주는** 경로였다.
+//   대체: 첨부 응답에 서버가 `preview_url` 을 계산해 담는다(services/filePreview.serializeMessageAttachment).
+//   되살리지 말 것 — <img> 는 Authorization 헤더를 못 실으므로 인증을 붙일 수도 없다.
 
 // ─── GET public — UUID 기반 공개 (image MIME only). ───
 //   <img src> 가 가져갈 수 있는 최종 경로.
@@ -325,9 +273,16 @@ router.get('/public/:storedName', async (req, res, next) => {
     if (!looksLocal && !looksDriveId) return errorResponse(res, 'invalid_filename', 400);
 
     const { Op } = require('sequelize');
+    // Drive 저장분의 정본 토큰은 **external_id** 다. file_path 에 Drive ID 를 넣던 옛 행이 있어
+    //   폴백으로 같이 찾는다(그 행들은 external_id 가 비어 있다). services/filePreview 와 같은 규칙.
     const att = looksLocal
       ? await MessageAttachment.findOne({ where: { file_path: { [Op.like]: `%${stored}` }, storage_provider: 'planq' } })
-      : await MessageAttachment.findOne({ where: { file_path: stored, storage_provider: 'gdrive' } });
+        // ★ LIKE 는 **접미사** 매칭이라 `8.png` 같은 짧은 값으로도 아무 이미지가 걸린다.
+        //   토큰이 파일명 전체와 정확히 같을 때만 인정한다(추측 불가능성이 이 경로의 유일한 방벽이다).
+        .then((row) => (row && path.basename(row.file_path) === stored ? row : null))
+      : await MessageAttachment.findOne({
+          where: { storage_provider: 'gdrive', [Op.or]: [{ external_id: stored }, { file_path: stored }] },
+        });
     if (!att) return errorResponse(res, 'not_found', 404);
     if (!require('../services/filePreview').isRenderableImage(att.mime_type)) {
       return errorResponse(res, 'not_public_image', 403);
@@ -346,7 +301,7 @@ router.get('/public/:storedName', async (req, res, next) => {
     const body = await require('../services/attachmentStorage').readAttachmentBody({
       storage_provider: att.storage_provider,
       file_path: att.file_path,
-      external_id: att.file_path,     // Drive 저장분은 file_path 가 곧 Drive 파일 ID 다
+      external_id: att.external_id || att.file_path,   // 정본은 external_id, 옛 행은 file_path 에 Drive ID
       business_id: businessId,
     });
     if (!body.ok) return errorResponse(res, body.msg, body.code);

@@ -16,6 +16,7 @@ const {
   ProjectWorkstream, Post, Document, Department, Team, TaskLink, ProjectStage, ProjectLink,
 } = require('../models');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
+const { serializeMessageAttachments } = require('../services/filePreview');
 const { authenticateToken } = require('../middleware/auth');
 const { createAuditLog } = require('../middleware/audit');
 const taskExtractor = require('../services/task_extractor');
@@ -845,6 +846,7 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
       include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] }],
     });
     const fullJson = full.toJSON();
+    serializeMessageAttachments(fullJson);
     await applyMemberDisplayNameOne(fullJson, conv.business_id, ['sender']);
 
     // Socket.IO broadcast — 메시지 즉시 발송 (번역 기다리지 않음)
@@ -974,6 +976,7 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
             });
             if (io && cueMsg) {
               const payload = cueMsg.toJSON();
+              serializeMessageAttachments(payload);
               await applyMemberDisplayNameOne(payload, conv.business_id, ['sender']);
               payload.ai_mode_used = cueResult.mode; // draft / auto
               io.to(`conv:${conv.id}`).emit('message:new', payload);
@@ -1139,7 +1142,9 @@ router.get('/conversations/:id/messages', authenticateToken, async (req, res, ne
           { model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] },
           // 첨부 — 페이지 새로고침/재진입 시 채팅 이미지·파일이 사라지지 않도록 필수.
           // association alias 'attachments' (models/index.js:119)
-          { model: MessageAttachment, as: 'attachments', attributes: ['id', 'file_name', 'file_size', 'mime_type', 'file_id'], required: false },
+          // file_path·storage_provider·external_id 는 미리보기 토큰 계산용 —
+          //   serializeMessageAttachments 가 응답에서 다시 제거한다(저장 경로를 내보내지 않는다).
+          { model: MessageAttachment, as: 'attachments', attributes: ['id', 'file_name', 'file_size', 'mime_type', 'file_id', 'file_path', 'storage_provider', 'external_id'], required: false },
           // #138 — 리액션 동봉 (conversations.js 와 동일)
           { model: require('../models').MessageReaction, as: 'reactions', attributes: ['id', 'user_id', 'emoji'], required: false },
         ],
@@ -1170,6 +1175,7 @@ router.get('/conversations/:id/messages', authenticateToken, async (req, res, ne
       json.other_count = others;
       return json;
     });
+    serializeMessageAttachments(result);
     await applyMemberDisplayName(result, conv.business_id, ['sender']);
     // data 는 기존과 동일하게 메시지 배열 (호출처 무변경). has_more 만 추가 (무한 스크롤 업 판별용).
     return res.json({ success: true, data: result, has_more: hasMore });

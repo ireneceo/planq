@@ -568,7 +568,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
 
     // 메시지 첨부 추가 (메시지 생성 직후 link-existing / 업로드 직후 emit)
     //   message:new 가 첨부 비어있는 상태로 먼저 도착하므로, 이 이벤트로 attachments 배열에 append.
-    on('message:attachment', (data: { message_id: number; attachment: { id: number; file_name: string; file_size: number; mime_type?: string | null; file_id?: number } }) => {
+    on('message:attachment', (data: { message_id: number; attachment: { id: number; file_name: string; file_size: number; mime_type?: string | null; file_id?: number; preview_url?: string | null } }) => {
       setMessages((prev) => {
         const next: typeof prev = {};
         let touched = false;

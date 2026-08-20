@@ -43,4 +43,59 @@ function previewUrlForFile(f) {
   return undefined;
 }
 
-module.exports = { previewUrlForFile, isRenderableImage };
+/**
+ * 채팅 첨부(MessageAttachment)가 <img> 로 쓸 수 있는 URL. **단일 원천.**
+ *
+ * ★ 왜 서버가 계산해서 내려주나: 프론트가 `/api/message-attachments/:id/raw` 를 쓰고 있었는데
+ *   그 경로는 **무인증 + 순차 정수 id** 라 1,2,3… 열거만으로 **타 워크스페이스 채팅 이미지**가
+ *   열렸다(통제 데이터로 크로스테넌트 실증). 접근 제어를 "추측 불가능한 토큰" 하나로 통일한다.
+ *
+ * 토큰 규칙:
+ *   planq  — UUID 파일명 (file_path 의 basename)
+ *   gdrive — Drive 파일 ID. **external_id 가 정본**이다. file_path 에 Drive ID 를 넣던 옛 행이
+ *            있어 폴백을 둔다(옛 행은 external_id 가 비어 있다).
+ */
+function messageAttachmentToken(att) {
+  if (!att) return null;
+  const provider = att.storage_provider || 'planq';
+  if (provider === 'gdrive') return att.external_id || att.file_path || null;
+  return att.file_path ? path.basename(att.file_path) : null;
+}
+
+function previewUrlForMessageAttachment(att) {
+  if (!att || !isRenderableImage(att.mime_type)) return undefined;
+  const token = messageAttachmentToken(att);
+  return token ? `/api/message-attachments/public/${token}` : undefined;
+}
+
+/**
+ * 응답에 실을 채팅 첨부 한 건. **원본 저장 정보(file_path·external_id·storage_provider)는 빼고**
+ * 미리보기 URL 만 내려준다 — 프론트가 토큰을 조립할 필요가 없고, 저장 경로도 새지 않는다.
+ */
+function serializeMessageAttachment(att) {
+  if (!att) return att;
+  const a = typeof att.toJSON === 'function' ? att.toJSON() : { ...att };
+  const preview_url = previewUrlForMessageAttachment(a);
+  delete a.file_path;
+  delete a.external_id;
+  delete a.storage_provider;
+  return preview_url ? { ...a, preview_url } : a;
+}
+
+/** 메시지 배열(평문 JSON)의 attachments 를 일괄 직렬화. 메시지 응답 경로 어디서나 이 함수만 부른다. */
+function serializeMessageAttachments(messages) {
+  const list = Array.isArray(messages) ? messages : [messages];
+  for (const m of list) {
+    if (m && Array.isArray(m.attachments)) m.attachments = m.attachments.map(serializeMessageAttachment);
+  }
+  return messages;
+}
+
+module.exports = {
+  previewUrlForFile,
+  isRenderableImage,
+  messageAttachmentToken,
+  previewUrlForMessageAttachment,
+  serializeMessageAttachment,
+  serializeMessageAttachments,
+};
