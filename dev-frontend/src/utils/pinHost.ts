@@ -316,12 +316,23 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
     backToNormal();
   }, [backToNormal]);
 
-  /** PiP 가 우리 뜻과 무관하게 사라졌다 (사용자가 X 로 닫음 · 선공지 없는 축출).
-   *  ★ 옛 구현은 여기서 홀더를 자살시켰다 → "고정 취소했더니 창이 통째로 사라짐". 이제는 일반 창으로 돌아온다. */
+  /** 고정창이 우리 뜻과 무관하게 사라졌다 = **사용자가 X 로 닫았다**.
+   *  ★ 이때는 도구를 통째로 닫는다 (Irene 2026-08-20: "핀을 취소하면 일반창이 나오는 거지만,
+   *    우측 X 를 누르면 그냥 다 닫혀야지"). X 는 "닫겠다" 는 뜻이지 "일반 창으로 돌리겠다" 가 아니다.
+   *  ★ 핀 토글 해제(releasePip)와 다른 도구에 자리를 뺏기는 축출(pin-intent)은 **여기로 오지 않는다** —
+   *    둘 다 releasePip 이 pipRef 를 먼저 비우고 일반 창으로 되돌린다. 구분은 그 경로 차이로 성립한다.
+   *  ★ close 가 거부되는 창(주소창에 직접 친 탭)도 있다 — 그때는 갇히지 않도록 일반 창으로 되돌린다. */
   const onPipGone = useCallback(() => {
     if (!pipRef.current) return;  // releasePip 이 이미 처리했다
-    backToNormal();
-  }, [backToNormal]);
+    stopPoll();
+    pipRef.current = null;
+    markPipActive(false);
+    try { window.close(); } catch { /* 거부될 수 있다 */ }
+    window.setTimeout(() => {
+      if (window.closed) return;
+      backToNormal();
+    }, 200);
+  }, [backToNormal, stopPoll]);
 
   // 축출 선공지 수신 + PiP 안에서 온 해제 요청 수신
   useEffect(() => {
@@ -353,6 +364,36 @@ export function usePinHost({ tool, title }: UsePinHostOptions): PinHost {
   }, [tool, releasePip]);
 
   useEffect(() => () => stopPoll(), [stopPoll]);
+
+  // ── 홀더 잔재 자가 치유 (Irene 2026-08-20 신고) ──
+  //   "앱을 닫았다가 다시 열었더니 쪼그만한 게 팝아웃 여니까 같이 열려. 고정창도 없는데."
+  //   고정 중이던 창(160×90 홀더)을 브라우저가 **세션 복원**으로 되살리면, 고정창은 이미 죽었는데
+  //   창만 홀더 크기로 남는다. 게다가 복원된 창은 window.name 을 잃는 경우가 있어 새로 여는 팝아웃과
+  //   합쳐지지도 않는다 → 쓸모없는 작은 창이 하나 더 뜬 것처럼 보인다.
+  //   ★ 그래서 **고정 상태가 아닌데 창이 홀더 크기이면** 스스로 원래 팝아웃 크기로 되돌린다.
+  //     (닫지는 않는다 — 사용자 창을 우리가 닫는 것은 이 파일의 금지 사항이다.)
+  useEffect(() => {
+    if (pipContent) return;                       // 고정창 안 iframe 은 대상 아님
+    if (pipRef.current) return;                   // 지금 우리가 고정 중이면 홀더가 맞다
+    // ★ 이름을 되찾아 준다. 세션 복원된 창은 window.name 을 잃는 경우가 있고, 이름이 없으면
+    //   도크에서 같은 도구를 열 때 **이 창을 재사용하지 못해 창이 둘로 늘어난다**(신고의 "같이 열려").
+    //   대화방별·메모별 창은 고유 이름이 따로 있으므로 **기본 팝아웃 경로일 때만** 붙인다.
+    try {
+      const bare = window.location.pathname === POPOUT_PATH[tool]
+        && !new URLSearchParams(window.location.search).get('conv');
+      if (!window.name && bare) window.name = `pq-${tool}`;
+    } catch { /* noop */ }
+    try {
+      if (window.innerWidth > HOLDER_W + 40) return;   // 이미 정상 크기
+      const chromeW = Math.max(0, window.outerWidth - window.innerWidth);
+      const chromeH = Math.max(0, window.outerHeight - window.innerHeight);
+      window.resizeTo(width + chromeW, height + chromeH);
+      const at = popoutPosition(tool, 0);
+      window.moveTo(at.x, at.y);
+    } catch { /* 스크립트로 열린 창이 아니면 무시된다 */ }
+    // 마운트 1회 — 이후 크기 변경은 사용자 몫이다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /** 홀더를 고정창 사각형 **안쪽**으로 옮겨 가린다. 고정창은 항상 맨 위라 그대로 안 보이게 된다.
    *  ★ 좌표를 못 읽거나 moveTo 가 거부되는 창이면 조용히 포기한다 — 그때는 홀더가 보이지만
