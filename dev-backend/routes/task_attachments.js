@@ -356,15 +356,14 @@ async function serveAttachment(req, res, next, asDownload) {
     body.stream.pipe(res);
   } catch (err) { next(err); }
 }
-// 레거시 URL 호환 — 과거 본문(body)에 저장된 `/raw` URL 은 `<img>` 에서 Authorization 헤더를 보낼 수 없어 401.
-// stored_name 이 이미 UUID 기반 접근제어이므로 공개 경로로 302 리다이렉트. 신규 업로드는 이미 /public/attach 경로.
-router.get('/attachments/:id/raw', async (req, res, next) => {
-  try {
-    const att = await TaskAttachment.findByPk(req.params.id);
-    if (!att) return errorResponse(res, 'attachment_not_found', 404);
-    return res.redirect(302, `/api/tasks/public/attach/${att.stored_name}`);
-  } catch (err) { next(err); }
-});
+// ─── GET /attachments/:id/raw — **삭제됨 (2026-08-20 보안)** ───
+//   무인증 + 순차 정수 id 로 `findByPk` 후 stored_name(UUID) 공개 경로로 302 했다. 즉 **열거 가능한
+//   정수 id → 추측 불가능한 토큰으로 가는 다리**라, 1,2,3… 훑는 것만으로 타 워크스페이스 업무 이미지의
+//   토큰을 수확할 수 있었다(message_attachments 에서 같은 계열을 통제 데이터로 크로스테넌트 실증).
+//   남겨 뒀던 유일한 이유는 "옛 본문에 이 URL 이 박제돼 있다" 였는데, **dev·운영 양쪽 DB 의 텍스트
+//   컬럼 184개를 전수 스캔한 결과 0건**이었다(2026-08-20). 코드 참조도 이 정의 하나뿐이었다.
+//   되살리지 말 것 — <img> 는 Authorization 헤더를 못 실으므로 인증을 붙일 수도 없다.
+//   미리보기는 응답의 `preview_url`(= /api/tasks/public/attach/:stored_name)만 쓴다.
 router.get('/attachments/:id/download', authenticateToken, (req, res, next) => serveAttachment(req, res, next, true));
 
 // ============================================
