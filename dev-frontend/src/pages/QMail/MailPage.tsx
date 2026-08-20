@@ -1355,7 +1355,12 @@ const MailPage: React.FC = () => {
         if (d.subject) { setCSubject(d.subject); hadSubject = true; }
         if (d.body_html) { setCBody(d.body_html); restoredBody = d.body_html; }
         if (Array.isArray(d.attachment_file_ids) && d.attachment_file_ids.length) setCFileIds(d.attachment_file_ids);
-        if (d.account_id) setCAccountId(d.account_id);
+        // ★ 계정이 바뀌면 **별칭도 같이 초기화**한다. 초안에는 계정만 저장되는데, 화면에 남아 있던
+        //   별칭이 다른 계정 것이면 서버가 `alias_not_owned` 로 502 를 낸다 — 사용자는 이유 모를 실패를 본다.
+        //   (주소 한 칸 통합 때 별칭 초기화 effect 를 없앴고, 이 복원 경로가 그 빈틈이다. Fable B-1 지적.)
+        if (d.account_id) {
+          setCAccountId((prev) => { if (prev !== d.account_id) setCFromAliasId(0); return d.account_id; });
+        }
       }
       // ★ 음성 내용은 초안 복원이 **끝난 뒤** 적용한다 (순서를 안 잡으면 복원이 뒤늦게 도착해 덮어쓴다).
       //   그리고 기존 초안을 지우지 않는다 — 쓰다 만 메일을 말 한 마디로 날려버리면 안 된다.
