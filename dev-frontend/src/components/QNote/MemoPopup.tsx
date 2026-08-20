@@ -12,6 +12,7 @@
 //
 // 사용:
 //   <MemoPopup open={open} onClose={close} businessId={biz} existingSessionId={id?} />
+import { popoutFeatures } from '../../utils/pinHost';
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import { createPortal } from 'react-dom';
 import styled, { keyframes, css } from 'styled-components';
@@ -603,9 +604,9 @@ const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSession
     // 옛 /notes/{id}?detached=1 은 풀 페이지로 떴음. /memo/{id} 가 사이드바 없이 popup 형태.
     const url = `${window.location.origin}/memo/${id}`;
 
-    // 일반 창 — popup window. 위치/크기 hint (일부 브라우저는 무시하고 새 탭)
-    const features = `width=${layout.w},height=${layout.h},left=200,top=120,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes`;
-    const opened = window.open(url, `planq-memo-${id}`, features);
+    // 일반 창 — 크기·자리는 utils/pinHost 단일 원천(모니터 우측 상단 Q Note 자리).
+    //   옛 값은 left=200,top=120 고정이라 팝아웃마다 자리가 제각각이었다.
+    const opened = window.open(url, `planq-memo-${id}`, popoutFeatures('qnote'));
     if (opened) onClose();
   };
 
