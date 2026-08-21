@@ -73,7 +73,11 @@
     "copy": "Copy",
     "copied": "Copied",
     "copyHint": "Click to copy",
-    "saveFailed": "Save failed — please try again"
+    "saveFailed": "Save failed — please try again",
+    "reveal": "Show",
+    "hide": "Hide",
+    "edit": "Edit",
+    "multilineHint": "Multi-line · ⌘/Ctrl+Enter to save"
   },
   "status": {
     "pending": "Pending",
@@ -81,7 +85,9 @@
     "indexingShort": "Processing",
     "failedShort": "Failed",
     "ready": "Ready",
-    "failed": "Failed"
+    "failed": "Failed",
+    "readyNoChunks": "Not searchable by Cue",
+    "readyNoChunksHint": "No content index yet, so Cue does not use this. Saving the body will re-index it."
   },
   "drawer": {
     "title": "Knowledge detail",
@@ -103,7 +109,8 @@
     "close": "Close",
     "catSaveErr": "Failed to save category",
     "removeColumn": "Remove item",
-    "newColumn": "New item"
+    "newColumn": "New item",
+    "colType": "Field type"
   },
   "row": {
     "delete": "Delete"

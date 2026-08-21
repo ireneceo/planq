@@ -47,6 +47,16 @@ import AiActionButton from '../../components/Common/AiActionButton';
 
 // N+64 — 옛 ENUM 6 (i18n cat.{key} 라벨 보유, fallback 표시용). 자유 카테고리는 string 그대로.
 const CATEGORIES: KbCategory[] = [...LEGACY_KB_CATEGORIES];
+
+// #326 — 카테고리 라벨. **자유 카테고리는 번역키가 없다.**
+//   여태 t(`cat.${c}`) 를 그대로 써서 "cat.계정정보" 처럼 번역키가 화면에 찍혔다
+//   (i18next 는 키가 없으면 키 문자열을 그대로 돌려준다).
+//   LEGACY 6종만 번역하고 나머지는 이름을 그대로 보여준다.
+function catLabel(t: (k: string, o?: Record<string, unknown>) => unknown, c: string): string {
+  return LEGACY_KB_CATEGORIES.includes(c as typeof LEGACY_KB_CATEGORIES[number])
+    ? (t(`cat.${c}`) as string)
+    : c;
+}
 const SCOPES: KbScope[] = ['workspace', 'project', 'client'];
 // 사용자 정의 항목 타입
 const COL_TYPE_DEFAULT_LABEL: Record<string, string> = {
@@ -320,12 +330,29 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
     (Array.isArray(d.categories) && d.categories.length > 0) ? d.categories : [d.category];
 
   // ─── 카테고리 탭 (0 카운트 숨김) — 한 자료가 여러 카테고리에 속하면 모두 카운트 ───
+  // #325 — 카테고리 집계를 **문서에 실제로 붙어 있는 값** 기준으로 만든다.
+  //   여태 LEGACY 6종(policy/manual/incident/faq/about/pricing)만 세어서,
+  //   사용자가 만든 카테고리(계정정보·워프로·결제·GIT …)는 DB 에 정상으로 들어가 있는데도
+  //   좌측 트리·칩에 아예 나오지 않았다("전체 62 / 매뉴얼" 만 보임).
   const categoryCounts = useMemo(() => {
     const c: Record<string, number> = { all: docs.length };
-    for (const cat of CATEGORIES) c[cat] = docs.filter(d => docCats(d).includes(cat)).length;
+    for (const d of docs) {
+      for (const cat of docCats(d)) {
+        if (!cat) continue;
+        c[cat] = (c[cat] || 0) + 1;
+      }
+    }
     return c;
   }, [docs]);
-  const visibleCategories = useMemo(() => CATEGORIES.filter(cat => categoryCounts[cat] > 0), [categoryCounts]);
+  const visibleCategories = useMemo(() => {
+    // LEGACY 를 앞에, 사용자 카테고리를 뒤에 — 둘 다 실제 건수가 있는 것만.
+    const legacy = CATEGORIES.filter(cat => (categoryCounts[cat] || 0) > 0) as string[];
+    const seen = new Set<string>(legacy);
+    const custom = Object.keys(categoryCounts)
+      .filter(k => k !== 'all' && !seen.has(k) && (categoryCounts[k] || 0) > 0)
+      .sort((a, b) => a.localeCompare(b));
+    return [...legacy, ...custom];
+  }, [categoryCounts]);
 
   const filtered = useMemo(() => {
     let arr = activeCat === 'all' ? docs : docs.filter(d => docCats(d).includes(activeCat));
@@ -698,7 +725,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
             {visibleCategories.length > 0 && <TreeDivider />}
             {visibleCategories.map(cat => (
               <TreeRow key={cat} $selected={activeCat === cat} onClick={() => setActiveCat(cat)}>
-                <TreeName>{t(`cat.${cat}`)}</TreeName>
+                <TreeName>{catLabel(t, cat)}</TreeName>
                 <TreeCount>{categoryCounts[cat] || 0}</TreeCount>
               </TreeRow>
             ))}
@@ -781,7 +808,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
 
                    {/* 카테고리 chip + 메타 */}
                    <ColMeta>
-                     {docCats(d).map(c => <CategoryChip key={c}>{t(`cat.${c}`)}</CategoryChip>)}
+                     {docCats(d).map(c => <CategoryChip key={c}>{catLabel(t, c)}</CategoryChip>)}
                      <MetaText>{renderRowMeta(d)}</MetaText>
                    </ColMeta>
 
@@ -954,7 +981,18 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                   </MetaEditWrap>
                   {/* N+65 — read_policy 옛 2 select 제거. visibility 에 통합됨. */}
                   <MetaLabel>{t('drawer.status')}</MetaLabel>
-                  <MetaValue>{t(`status.${detail.status}`)}</MetaValue>
+                  {/* #333 — status 만 보고 "사용 가능" 을 찍으면 거짓말이 된다.
+                      Cue 검색은 청크(KbChunk)를 훑는다. 청크가 0 이면 status 가 ready 여도 검색에 안 잡힌다.
+                      운영 실측 2026-08-20: ready·청크 있음 5건 / ready·청크 0 **82건** 이 전부 "사용 가능" 으로 보였다. */}
+                  <MetaValue
+                    title={detail.status === 'ready' && !(Number(detail.chunk_count) > 0)
+                      ? (t('status.readyNoChunksHint', '본문 색인이 아직 만들어지지 않아 Cue 답변에 쓰이지 않습니다. 본문을 저장하면 다시 색인됩니다.') as string)
+                      : undefined}
+                  >
+                    {detail.status === 'ready' && !(Number(detail.chunk_count) > 0)
+                      ? (t('status.readyNoChunks', 'Cue 검색 미반영') as string)
+                      : (t(`status.${detail.status}`) as string)}
+                  </MetaValue>
                   <MetaLabel>{t('drawer.createdAt')}</MetaLabel>
                   <MetaValue>{formatDateSafe(detail.created_at ?? (detail as { createdAt?: string }).createdAt)}</MetaValue>
                   <MetaLabel>{t('drawer.updatedAt')}</MetaLabel>
@@ -993,16 +1031,55 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                     <DrawerCustomList>
                       {cols.map((col, idx) => (
                         <DrawerCustomRow key={col.id}>
-                          <DrawerColNameInput
-                            defaultValue={col.name}
-                            placeholder={t('modal.colNamePh', '항목명') as string}
-                            onBlur={(e) => {
-                              const name = e.target.value.trim();
-                              if (name === col.name) return;
-                              const next = cols.map((c, i) => i === idx ? { ...c, name } : c);
-                              saveCols(next);
-                            }}
-                          />
+                          <DrawerColHeadRow>
+                            <DrawerColNameInput
+                              defaultValue={col.name}
+                              placeholder={t('modal.colNamePh', '항목명') as string}
+                              onBlur={(e) => {
+                                const name = e.target.value.trim();
+                                if (name === col.name) return;
+                                const next = cols.map((c, i) => i === idx ? { ...c, name } : c);
+                                saveCols(next);
+                              }}
+                            />
+                            {/* #327 — 타입을 상세에서도 바꿀 수 있어야 한다. 등록 모달에만 있으면
+                                이미 만든 항목을 '긴 텍스트' 로 바꿀 방법이 화면에 없다. */}
+                            <DrawerColTypeSel title={t('drawer.colType', '항목 형식') as string}>
+                              <PlanQSelect
+                                size="sm" isClearable={false} isSearchable={false}
+                                aria-label={t('drawer.colType', '항목 형식') as string}
+                                value={{
+                                  value: col.type,
+                                  label: COL_TYPE_DEFAULT_LABEL[col.type]
+                                    ? (t(`colType.${col.type}`, { defaultValue: COL_TYPE_DEFAULT_LABEL[col.type] }) as string)
+                                    : col.type,
+                                }}
+                                options={Object.entries(COL_TYPE_DEFAULT_LABEL).map(([v, l]) => ({
+                                  value: v, label: t(`colType.${v}`, { defaultValue: l }) as string,
+                                }))}
+                                onChange={(opt) => {
+                                  const type = ((opt as PlanQSelectOption | null)?.value as string) || 'text';
+                                  const next = cols.map((c, i) => i === idx ? { ...c, type } : c);
+                                  saveCols(next);
+                                }}
+                              />
+                            </DrawerColTypeSel>
+                            {/* #328 — 리스트 표시 토글이 등록 모달에만 있어서, 한 번 만든 항목의
+                                리스트 노출 여부를 나중에 바꿀 방법이 화면에 없었다. */}
+                            <ShowInListToggle
+                              type="button"
+                              $on={!!col.show_in_list}
+                              onClick={() => {
+                                const next = cols.map((c, i) => i === idx ? { ...c, show_in_list: !c.show_in_list } : c);
+                                saveCols(next);
+                              }}
+                              title={t('modal.showInListHint', '리스트에 항상 표시') as string}
+                              aria-label={t('modal.showInListHint', '리스트에 항상 표시') as string}
+                              aria-pressed={col.show_in_list}
+                            >
+                              {col.show_in_list ? '◉' : '○'}
+                            </ShowInListToggle>
+                          </DrawerColHeadRow>
                           <DrawerColValueRow>
                             <InlineCellEdit
                               docId={detail.id}
@@ -1714,6 +1791,9 @@ const DrawerCustomRow = styled.div`
   &:last-child { border-bottom: none; }
 `;
 // #187 — 상세 드로어에서 항목명 직접 편집 (blur 시 저장)
+const DrawerColHeadRow = styled.div`display: flex; align-items: center; gap: 6px;`;
+// 프로젝트 규칙: raw <select> 금지 — PlanQSelect 로 통일 (health-check frontend 항목).
+const DrawerColTypeSel = styled.div`flex-shrink: 0; min-width: 96px;`;
 const DrawerColNameInput = styled.input`
   font-size: 12px; font-weight: 600; color: #334155;
   border: 1px solid transparent; border-radius: 6px;
@@ -1739,10 +1819,13 @@ const DrawerColValueRow = styled.div`
 const CopyCell: React.FC<{ value: string | undefined; colType: string }> = ({ value, colType }) => {
   const { t } = useTranslation('knowledge');
   const [copied, setCopied] = React.useState(false);
-  if (colType === 'secret') return <CustomValue>{value ? '••••••' : ''}</CustomValue>;
+  // #330 — secret 은 기본은 가리되 **본인이 눌러서 볼 수 있어야** 한다.
+  //   여태 ●●●●●● 로만 보이고 꺼낼 방법이 없어, 넣는 사람이 "리스트에서 항목을 빼는" 식으로 우회했다.
+  const [revealed, setRevealed] = React.useState(false);
 
   const text = value == null || value === '' ? '' : String(value);
-  if (!text) return <CustomValue>—</CustomValue>;
+  const isSecret = colType === 'secret';
+  if (!text) return <CustomValue>{isSecret ? '' : '—'}</CustomValue>;
 
   const copy = async (e: React.MouseEvent) => {
     e.stopPropagation();                       // 행 클릭(드로어 열기)과 겹치지 않게
@@ -1752,6 +1835,38 @@ const CopyCell: React.FC<{ value: string | undefined; colType: string }> = ({ va
       window.setTimeout(() => setCopied(false), 1200);
     } catch { /* 클립보드 권한 없음 — 값은 그대로 보인다 */ }
   };
+
+  if (isSecret) {
+    return (
+      <SecretRow onClick={(e) => e.stopPropagation()}>
+        <SecretText $masked={!revealed}>{revealed ? text : '••••••'}</SecretText>
+        <SecretBtn
+          type="button"
+          onClick={(e) => { e.stopPropagation(); setRevealed(v => !v); }}
+          title={(revealed ? t('inline.hide', '가리기') : t('inline.reveal', '보기')) as string}
+        >
+          {revealed ? t('inline.hide', '가리기') : t('inline.reveal', '보기')}
+        </SecretBtn>
+        <SecretBtn type="button" onClick={copy} title={t('inline.copy', '복사') as string}>
+          {copied ? t('inline.copied', '복사됨') : t('inline.copy', '복사')}
+        </SecretBtn>
+      </SecretRow>
+    );
+  }
+
+  // #331 — URL 이면 링크로. 여태 클릭하면 복사만 돼서, 사이트로 가려면 주소창에 붙여야 했다.
+  //   타입이 url 이 아니어도 값 자체가 http(s) 로 시작하면 링크로 본다(사용자가 타입을 안 고른 경우가 많다).
+  const isUrl = colType === 'url' || /^https?:\/\//i.test(text);
+  if (isUrl) {
+    return (
+      <LinkRow onClick={(e) => e.stopPropagation()}>
+        <ValueLink href={text} target="_blank" rel="noopener noreferrer" title={text}>{text}</ValueLink>
+        <SecretBtn type="button" onClick={copy} title={t('inline.copy', '복사') as string}>
+          {copied ? t('inline.copied', '복사됨') : t('inline.copy', '복사')}
+        </SecretBtn>
+      </LinkRow>
+    );
+  }
 
   return (
     <CopyValue type="button" onClick={copy} title={t('inline.copyHint', '클릭해서 복사') as string}>
@@ -1774,6 +1889,8 @@ const InlineCellEdit: React.FC<{
   const [draft, setDraft] = React.useState(initialValue == null ? '' : String(initialValue));
   const [saving, setSaving] = React.useState(false);
   const [saveErr, setSaveErr] = React.useState(false);
+  const [secretShown, setSecretShown] = React.useState(false);   // #330
+  const [secretCopied, setSecretCopied] = React.useState(false);
 
   React.useEffect(() => { if (!editing) setDraft(initialValue == null ? '' : String(initialValue)); }, [initialValue, editing]);
 
@@ -1799,17 +1916,80 @@ const InlineCellEdit: React.FC<{
     finally { setSaving(false); }
   };
 
-  if (colType === 'secret') {
-    return <CustomValue>{initialValue ? '••••••' : ''}</CustomValue>;
-  }
-  if (!editing) {
-    const v = initialValue == null || initialValue === '' ? '—' : String(initialValue);
+  // #330 — secret 도 본인이 눌러서 보고 복사할 수 있어야 한다. 편집은 클릭하면 그대로.
+  if (colType === 'secret' && !editing) {
     return (
+      <SecretEditRow>
+        <SecretValueBtn
+          type="button"
+          onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+          title={t('inline.editHint', '클릭해서 편집') as string}
+        >
+          {initialValue ? (secretShown ? String(initialValue) : '••••••') : '—'}
+        </SecretValueBtn>
+        {initialValue ? (
+          <>
+            <SecretBtn type="button" onClick={(e) => { e.stopPropagation(); setSecretShown(v => !v); }}>
+              {secretShown ? t('inline.hide', '가리기') : t('inline.reveal', '보기')}
+            </SecretBtn>
+            <SecretBtn
+              type="button"
+              onClick={async (e) => {
+                e.stopPropagation();
+                try { await navigator.clipboard.writeText(String(initialValue)); setSecretCopied(true); window.setTimeout(() => setSecretCopied(false), 1200); } catch { /* 권한 없음 */ }
+              }}
+            >
+              {secretCopied ? t('inline.copied', '복사됨') : t('inline.copy', '복사')}
+            </SecretBtn>
+          </>
+        ) : null}
+      </SecretEditRow>
+    );
+  }
+
+  if (!editing) {
+    const raw = initialValue == null || initialValue === '' ? '' : String(initialValue);
+    // #331 — URL 이면 링크. 타입이 url 이 아니어도 http(s) 로 시작하면 링크로 본다.
+    if (raw && (colType === 'url' || /^https?:\/\//i.test(raw))) {
+      return (
+        <LinkRow onClick={(e) => e.stopPropagation()}>
+          <ValueLink href={raw} target="_blank" rel="noopener noreferrer" title={raw}>{raw}</ValueLink>
+          <SecretBtn type="button" onClick={(e) => { e.stopPropagation(); setEditing(true); }}>
+            {t('inline.edit', '편집')}
+          </SecretBtn>
+        </LinkRow>
+      );
+    }
+    return (
+      // #327 · #329 — 줄바꿈을 보존(white-space: pre-wrap)하고 폭 상한(200px)을 없앤다.
+      //   여태 여러 줄 접속정보가 한 줄로 이어지고, 200px 넘는 값은 …으로 잘려 뒤를 볼 수 없었다.
       <InlineValue onClick={(e) => { e.stopPropagation(); setEditing(true); }} title={t('inline.editHint', '클릭해서 편집') as string}>
-        {v}
+        {raw || '—'}
       </InlineValue>
     );
   }
+
+  // #327 — 긴 텍스트는 여러 줄 입력기로. 한 줄 input 으로 편집하면 저장된 줄바꿈이 **영구 소실**됐다.
+  //   Enter 는 줄바꿈이어야 하므로 저장은 Ctrl/⌘+Enter 또는 포커스 아웃으로 한다.
+  if (colType === 'longtext') {
+    return (
+      <InlineTextarea
+        autoFocus
+        $err={saveErr}
+        title={saveErr ? (t('inline.saveFailed', '저장 실패 — 다시 시도해주세요') as string) : (t('inline.multilineHint', '줄바꿈 가능 · ⌘/Ctrl+Enter 로 저장') as string)}
+        value={draft}
+        rows={Math.min(12, Math.max(3, draft.split('\n').length + 1))}
+        onChange={(e) => { setDraft(e.target.value); if (saveErr) setSaveErr(false); }}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) (e.target as HTMLTextAreaElement).blur();
+          if (e.key === 'Escape') { setDraft(initialValue == null ? '' : String(initialValue)); setEditing(false); }
+        }}
+        onClick={(e) => e.stopPropagation()}
+      />
+    );
+  }
+
   return (
     <InlineInput
       autoFocus
@@ -1828,15 +2008,61 @@ const InlineCellEdit: React.FC<{
   );
 };
 
+// #327 · #329 — 줄바꿈 보존 + 폭 상한 제거.
+//   옛 값: max-width 200px + overflow hidden + ellipsis → 패널을 넓혀도 값이 중간에서 잘렸고
+//   여러 줄 값이 한 줄로 이어져 보였다(그 상태로 편집하면 줄바꿈이 영구 소실).
 const InlineValue = styled.span`
-  display: inline-block;
+  display: block;
   color: #334155; font-weight: 500;
-  max-width: 200px; overflow: hidden; text-overflow: ellipsis;
+  max-width: 100%;
+  white-space: pre-wrap;      /* 줄바꿈 유지 */
+  overflow-wrap: anywhere;    /* 긴 토큰(키·URL)도 칸 안에서 접힌다 */
   cursor: text;
   padding: 2px 8px; min-height: 22px;
   border: 1px dashed transparent; border-radius: 4px;
   transition: all 0.12s;
   &:hover { background: #F0FDFA; color: #0F766E; border-color: #CCFBF1; }
+`;
+
+// #327 — 긴 텍스트 편집기(여러 줄). 한 줄 input 으로 편집하면 줄바꿈이 사라진다.
+const InlineTextarea = styled.textarea<{ $err?: boolean }>`
+  width: 100%; box-sizing: border-box;
+  font-family: inherit; font-size: 13px; line-height: 1.6; color: #0F172A;
+  padding: 6px 8px; border-radius: 4px; resize: vertical;
+  border: 1px solid ${p => (p.$err ? '#F43F5E' : '#14B8A6')};
+  background: #fff;
+  &:focus { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,0.25); }
+`;
+
+// #330 · #331 — 값 옆 보조 동작(보기/가리기/복사/편집) 공통 버튼.
+const SecretBtn = styled.button`
+  flex-shrink: 0;
+  background: none; border: 1px solid #E2E8F0; border-radius: 4px;
+  padding: 1px 6px; font-size: 11px; font-weight: 600; font-family: inherit;
+  color: #64748B; cursor: pointer; transition: all 0.12s;
+  &:hover { background: #F0FDFA; color: #0F766E; border-color: #CCFBF1; }
+  &:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,0.3); }
+`;
+const SecretRow = styled.div`display: inline-flex; align-items: center; gap: 6px; max-width: 100%;`;
+const SecretEditRow = styled.div`display: flex; align-items: center; gap: 6px; max-width: 100%;`;
+const SecretText = styled.span<{ $masked: boolean }>`
+  color: #334155; font-weight: 500; font-size: 13px;
+  letter-spacing: ${p => (p.$masked ? '1px' : 'normal')};
+  overflow-wrap: anywhere; min-width: 0;
+`;
+const SecretValueBtn = styled.button`
+  flex: 1; min-width: 0; text-align: left;
+  background: none; border: 1px dashed transparent; border-radius: 4px;
+  padding: 2px 8px; font-family: inherit; font-size: 13px; font-weight: 500; color: #334155;
+  cursor: text; overflow-wrap: anywhere;
+  &:hover { background: #F0FDFA; color: #0F766E; border-color: #CCFBF1; }
+`;
+const LinkRow = styled.div`display: flex; align-items: center; gap: 6px; max-width: 100%; min-width: 0;`;
+const ValueLink = styled.a`
+  flex: 1; min-width: 0;
+  color: #0F766E; font-weight: 500; font-size: 13px; text-decoration: none;
+  overflow-wrap: anywhere;
+  &:hover { text-decoration: underline; }
 `;
 const InlineInput = styled.input<{ $err?: boolean }>`
   height: 22px; padding: 0 6px;

@@ -1,0 +1,149 @@
+# Fable 검증 대기 큐 — 2026-08-21 사이클
+
+Irene 지시로 이 사이클은 **Fable 없이** 진행했다(`fable 쓰지 말고`). 전부 **Opus 자체 검증**이다.
+아래는 나중에 Fable 이 독립 검증할 때 바로 착수할 수 있도록 남기는 인수인계다.
+
+> 읽는 순서: **§1 고위험(먼저)** → §2 일반 → §3 미해결·결정대기 → §4 재현·검증 방법
+
+---
+
+## 0. 이 사이클의 커밋
+
+| 커밋 | 범위 | 운영 배포 |
+|---|---|---|
+| `660990f7` | 자동저장 루프 · IMAP 크래시(#357) · 정기업무 #351/#348/#350 · Q docs 첨부(#365) · OG(#362) · 검색(#366) · 네이밍 주석(#359) | ✅ `20260821_063416` |
+| `e684ad59` | 편집 중 자동 새로고침 차단 (문서) | ✅ |
+| `d991207b` | 편집 중 자동 새로고침 차단 (메모) | ✅ |
+| `4a65f831` | 채팅 고객 참여 · @목록 · 방 이름 | ✅ |
+| `88e08206` | 에디터 #341/#337/#304 + 정렬 #363 | ✅ |
+| (진행 중) | Q info #327/#329/#330/#331/#326/#325/#328/#333/#332 | ❌ 미배포 |
+
+운영 배포 백업: `/opt/planq/backups/20260821_063416` (롤백 명령은 배포 로그 참조)
+
+---
+
+## 1. 고위험 — Fable 이 먼저 볼 것
+
+### 1-A. `routes/conversations.js` — 고객을 대화 참여자로 자동 추가 (보안 경계)
+
+```js
+if (client_id) {
+  const cli = await Client.findOne({ where: { id: client_id, business_id: req.params.businessId }, ... });
+  if (cli && cli.user_id && cli.user_id !== req.user.id) { ConversationParticipant.findOrCreate({ ... role: 'client' }) }
+}
+```
+
+**검증 포인트**
+- 멀티테넌트: `business_id` 조건으로 타 워크스페이스 고객이 붙지 않는가 (WHERE 절 대조)
+- 초대 미수락 고객(`clients.user_id` NULL)은 건너뛰는가 — 계정이 없는데 참여자로 넣으면 유령 행
+- `findOrCreate` 멱등 — 같은 요청 반복 시 중복 행 0
+- **대화 접근 판정(`conversationListWhere`)이 role='client' 참여자를 어떻게 읽는지** — 참여자가 늘어난 만큼 열람 범위가 넓어진 것이므로 이 축을 반드시 대조
+- Opus 자체 검증 범위: dev 실호출로 "수정 전 참여자 1명 → 후 2명(고객 포함)" 확인. **접근 판정 축은 미검증.**
+
+### 1-B. `routes/kb.js` — 항목만 있는 정보 등록 허용 + secret 색인 제외 (#332 / #318 인접)
+
+두 겹의 게이트를 모두 넓혔다: `body_or_attachments_required` → `custom_values` 도 인정,
+`no_indexable_content` → 항목에서 색인 텍스트 합성.
+
+**secret 처리 규칙(핵심)**: 색인 본문에 secret 항목은 **라벨만** 넣고 **값은 넣지 않는다.**
+
+**검증 포인트**
+- 반증: secret 값이 `kb_documents.body` / `kb_chunks.content` 어디에도 없는가
+  (Opus 실측: 값 `SUPERSECRET123` → body `"제목\n아이디: tester\n비밀번호"`, 청크 1개, 값 미포함)
+- **번역 경로(`auto_translate` 기본 true)도 body 를 쓰는가** — body 에 secret 이 없으면 안전하지만 경로 확인 필요
+- 사용자가 **본문 텍스트에 직접** 비밀번호를 쓰는 경우는 여전히 색인·번역으로 나간다 → **#318 미해결**(§3)
+- 게이트를 넓혔으므로 **빈 문서가 새로 들어오지 않는지** 역방향 확인 (제목만 있고 항목·본문·첨부 전무 → 여전히 400 이어야 함. Opus 실측 400 확인)
+
+### 1-C. `services/emailImapCron.js` — 프로세스 크래시 차단 (#357)
+
+`removeAllListeners()` 직후 no-op error 리스너 재부착 + 끊긴 연결에 `end()` 생략.
+
+**검증 포인트**
+- 리스너를 떼는 지점 **전수**가 커버됐는가 (현재 4곳 + 폴링 경로 1곳)
+- no-op 리스너가 **진짜 오류까지 삼키지 않는가** — 재연결 예약 로직(`scheduleReconnect`)이 그대로 동작하는지
+- Gmail 동시연결 누수(과거 사고) 재발 없는지 — 계정별 active 연결 1개 유지
+- 운영 근거: 8/21 error 로그의 유일한 Error 가 이 EPIPE 12건, 부팅 경고 25회(=재시작 횟수)
+- **배포 후 관찰 필요**: 운영 error 로그에서 EPIPE 스택과 부팅 경고가 사라졌는지 (하루치)
+
+### 1-D. `routes/og.js` — 공개 라우트 신규 추가 (보안 경계)
+
+`/insights/:slug`, `/public/posts/:token`, `/public/docs/:token` 을 `/api` **밖**에 마운트.
+
+**검증 포인트**
+- 노출 범위: 제목 수준만. 금액·본문·첨부는 넣지 않았는가
+- 대상 미존재 시 기본 index.html 그대로 (존재 여부 유출 없음) — Opus 실측 확인
+- HTML 이스케이프 — Opus 반증 완료(제목에 `"` `<script>` 삽입 → 원문 유출 0)
+- **라우터 마운트 순서** — `app.use('/', ...)` 가 마지막이라 기존 라우트를 가리지 않는지
+- share_token 만료(`share_expires_at`) 를 OG 가 **무시**하고 있다 → 만료된 링크도 제목이 나갈 수 있다. **미확인 사항**
+
+---
+
+## 2. 일반 — 자체 검증 근거가 있는 것
+
+| 건 | 파일 | Opus 자체 검증 |
+|---|---|---|
+| 자동저장 무한 루프 | `PostsPage.tsx` | 시뮬레이션 반증: 12회+무한 → 1회 후 정지 |
+| 편집 중 새로고침 | `BuildVersionGuard.tsx` · `PostsPage` · `MemoView` · `MemoPopup` | 반증: reload 함 → 안 함 → 편집 닫으면 다시 적용 |
+| #341 문서 중복 생성 | `PostsPage.tsx` | 시뮬레이션 반증: 2개 → 1개 |
+| #351 캐치업 · #348 상속 · #350 다이제스트 | `recurringTaskGenerator.js` | 실DB 18/18 PASS · 되돌려 FAIL 11건 반증 |
+| #348 백필 | `scripts/backfill-recurring-inheritance.js` | dev 15건 · 운영 3건 반영, 재실행 변경 0(멱등) |
+| #365 Q docs 첨부 | `PostsPage.tsx` · `services/files.ts` | 실HTTP: 영상 첨부 → 재조회 1건 |
+| #366 검색 정렬 | `routes/search.js` | 실HTTP 200 + 정렬 확인 |
+| #337 #304 #363 | `PostEditor.tsx` | 빌드 산출물에 반영 확인 (기능 실브라우저 검증 X) |
+| #327 #329 #330 #331 #326 #325 #328 #333 | `KnowledgePage.tsx` | 코드 수정 + 빌드. **실브라우저 검증 X** |
+
+**공통 가드**: `health-check 37/37` · `guard-invariants 25/25` · i18n 래칫 381(기준 382) · `npm run build` exit 0 / error TS 0
+
+> 가드가 실제로 잡은 자체 실수 1건: 정렬 라벨을 `t()` 밖에 둬 한국어 하드코딩 래칫 384 FAIL → `defaultValue` 로 이동해 381 복구.
+
+---
+
+## 3. 미해결 · 결정 대기 (Fable 판단이 필요할 수 있는 것)
+
+| # | 내용 | 막고 있는 것 |
+|---|---|---|
+| **#356** | 운영 `EMAIL_ENCRYPTION_KEY` 미설정 → JWT_SECRET 파생 fallback. 이미 `decrypt failed` 2회 | 키 교체 전 **기존 암호문 재암호화 마이그레이션** 설계 필요. 운영 .env 변경 = Irene |
+| **#318** | 사용자가 본문에 직접 쓴 자격증명은 여전히 임베딩·번역으로 외부 LLM 에 나감 | 색인 정책 결정 (문서 단위 opt-out? security_level 연동?) |
+| **#317** | AI·CSV 일괄 저장이 항상 워크스페이스 공개(L3) | 공개범위 기본값 정책 |
+| **#334** | 통합검색이 `custom_values` 를 통째 CAST 해 secret 값까지 매칭 | 검색 대상에서 secret 제외 규칙 |
+| **#362** | OG 서버 렌더는 됐으나 **nginx 라우팅 미적용** (root 권한) | `docs/OG_PREVIEW_NGINX.md` 적용 |
+| **#359** | "Q record" 사용자 표기 존폐 | Irene 결정 |
+| **#363** 일부 | "표 좌우 폭" (= #311 표 열 너비) | 미착수 |
+| #316 #319 #320 #321 #322 | Q info AI·CSV 가져오기 파이프라인 | 미착수 |
+
+---
+
+## 4. 재현·검증 방법 (Fable 용)
+
+```bash
+# 가드 3축
+node /opt/planq/scripts/health-check.js
+node /opt/planq/scripts/guard-invariants.js
+cd /opt/planq/dev-frontend && NODE_OPTIONS=--max-old-space-size=4096 npm run build; echo "exit=$?"
+#   ★ 파이프(| tail) 뒤에서 종료코드가 가려진다 — 반드시 별도로 $? 를 본다
+
+# 정기업무 (실DB)
+#   테스트 스크립트는 규칙대로 삭제했다. 필요하면 아래 시나리오로 재작성:
+#   parent(FREQ=DAILY, next_occurrence_at=today-8, workstream·태그·start~due 있음) 생성
+#   → generateOneSeries 1회 → 회차 16건(today-8 ~ today+7) · workstream/태그 상속 · start_date offset 유지
+#   → 재실행 시 증가 0 · COUNT=3 종료조건
+
+# 고객 참여 (실HTTP, dev)
+#   POST /api/conversations/:businessId {title, client_id} → GET .../:id/participants
+#   기대: role='client' 참여자 1명 포함
+
+# secret 색인 반증 (실DB, dev)
+#   POST /api/businesses/:id/kb/documents {title, custom_columns:[{type:'secret'}], custom_values:{...}}
+#   → kb_documents.body / kb_chunks.content 에 secret 값 미포함, 라벨만 존재
+
+# 운영 관찰 (배포 후 하루)
+ssh 87.106.78.146 'grep -ac "This socket has been ended" ~/.pm2/logs/planq-prod-backend-error__$(date +%%Y-%%m-%%d)_00-00-00.log'
+ssh 87.106.78.146 'grep -ac "EMAIL_ENCRYPTION_KEY 미설정" ~/.pm2/logs/planq-prod-backend-error__*.log'   # = 재시작 횟수
+```
+
+### 함정 (이 사이클에서 실제로 밟은 것)
+
+- **DATEONLY 는 Date 객체로 온다** — `String(v).slice(0,10)` 하면 `"Thu Aug 13"` 이 나와 **거짓 FAIL**. 정규화 함수를 쓸 것
+- **`PostEditor` 청크가 두 개다** — 29KB 본체 + 66바이트 스텁. 스텁을 grep 하면 "수정이 안 들어갔다" 는 **거짓 판정**이 난다
+- **/tmp 에서 node 실행 시 MODULE_NOT_FOUND** — `require('dotenv')` 가 해석 안 된다. `/opt/planq/backend` 안에서 실행할 것
+- **배포 스크립트가 exit 1 을 내도 완주했을 수 있다** — 로그의 `Deployment Complete` + PM2 uptime + 청크 md5 대조 3점으로 판정

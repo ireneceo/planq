@@ -73,7 +73,11 @@
     "copy": "복사",
     "copied": "복사됨",
     "copyHint": "클릭해서 복사",
-    "saveFailed": "저장 실패 — 다시 시도해주세요"
+    "saveFailed": "저장 실패 — 다시 시도해주세요",
+    "reveal": "보기",
+    "hide": "가리기",
+    "edit": "편집",
+    "multilineHint": "줄바꿈 가능 · ⌘/Ctrl+Enter 로 저장"
   },
   "status": {
     "pending": "대기",
@@ -81,7 +85,9 @@
     "indexingShort": "처리중",
     "failedShort": "실패",
     "ready": "사용 가능",
-    "failed": "실패"
+    "failed": "실패",
+    "readyNoChunks": "Cue 검색 미반영",
+    "readyNoChunksHint": "본문 색인이 아직 만들어지지 않아 Cue 답변에 쓰이지 않습니다. 본문을 저장하면 다시 색인됩니다."
   },
   "drawer": {
     "title": "정보 상세",
@@ -103,7 +109,8 @@
     "close": "닫기",
     "catSaveErr": "카테고리 저장 실패",
     "removeColumn": "항목 삭제",
-    "newColumn": "새 항목"
+    "newColumn": "새 항목",
+    "colType": "항목 형식"
   },
   "row": {
     "delete": "삭제"
