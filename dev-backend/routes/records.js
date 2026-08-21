@@ -54,7 +54,9 @@ router.get('/', authenticateToken, async (req, res, next) => {
     if (req.query.project_id) where.project_id = Number(req.query.project_id);
     if (req.query.category) where.category = req.query.category;
 
-    // 사이클 N+50 — pagination. Q Records (Q info) 누적 가능 — default 200 / max 500
+    // 사이클 N+50 — pagination. 행 누적 가능 — default 200 / max 500
+    // ⚠️ 여기의 q_records 는 **Q info 가 아니다**. Q docs 문서 안의 '표'(posts.kind='table') 저장소다.
+    //    Q info 화면(/info)은 kb_documents 다. 이 주석이 두 기능을 동일시해서 실제로 오등록이 났다(#359).
     const { parsePagination, paginatedResponse } = require('../middleware/errorHandler');
     const { limit, page, offset } = parsePagination(req, { defaultLimit: 200, maxLimit: 500 });
     const { rows: records, count } = await QRecord.findAndCountAll({

@@ -1,6 +1,10 @@
 {
-  "page": { "title": "Q record" },
-  "search": { "ph": "Search by name" },
+  "page": {
+    "title": "Q record"
+  },
+  "search": {
+    "ph": "Search by name"
+  },
   "actions": {
     "new": "New table",
     "addRow": "Add row",
@@ -10,20 +14,33 @@
     "cancel": "Cancel",
     "delete": "Delete"
   },
-  "cat": { "all": "All" },
-  "stat": { "columns": "columns", "rows": "rows" },
-  "view": { "aria": "View mode", "grid": "Grid", "list": "List" },
+  "cat": {
+    "all": "All"
+  },
+  "stat": {
+    "columns": "columns",
+    "rows": "rows"
+  },
+  "view": {
+    "aria": "View mode",
+    "grid": "Grid",
+    "list": "List"
+  },
   "list": {
-    "name": "Name", "category": "Category", "scope": "Scope",
-    "cols": "Cols", "rows": "Rows", "updated": "Updated",
+    "name": "Name",
+    "category": "Category",
+    "scope": "Scope",
+    "cols": "Cols",
+    "rows": "Rows",
+    "updated": "Updated",
     "workspace": "Workspace"
   },
   "create": {
     "title": "New table",
     "nameLabel": "Table name",
-    "namePh": "e.g. Accounts / Assets / Contacts",
+    "namePh": "e.g. Progress log / Cost breakdown / Checklist",
     "catLabel": "Category (optional)",
-    "catPh": "e.g. Security / HR / Ops",
+    "catPh": "e.g. Ops / Planning / Billing",
     "failed": "Failed to create table"
   },
   "detail": {
@@ -57,7 +74,9 @@
     "empty": "Empty %",
     "filled": "Filled %"
   },
-  "row": { "deleteHint": "Delete row" },
+  "row": {
+    "deleteHint": "Delete row"
+  },
   "cell": {
     "reveal": "Show",
     "secretPh": "Enter value (masked on save)",

@@ -1,4 +1,10 @@
-// Q record — 동적 테이블 (Notion DB 패턴) 메타.
+// Q docs 문서 안의 '표' — 동적 테이블 (Notion DB 패턴) 메타.
+//
+// ⚠️ 이름 주의 (#359): 테이블명은 q_records 지만 **Q info 와 다른 기능이다.**
+//    - Q info  = kb_documents  (화면 /info · 정보 1건 = 항목 여러 개)
+//    - 이 모델 = q_records     (Q docs 문서 kind='table' 의 행 저장소, posts.q_record_id 로 연결)
+//    옛 이름 'Q record' 가 남아 있어 사람도 AI 도 두 기능을 헷갈린다. 새 코드는 Q info 를 여기 넣지 말 것.
+//
 // project_id NULL = 워크스페이스 전역, NOT NULL = 프로젝트 소속.
 // columns JSON — 사용자 정의 컬럼 배열. 각: { id, name, type, options?, order }.
 const { DataTypes, Model } = require('sequelize');

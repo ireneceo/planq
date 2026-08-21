@@ -220,6 +220,26 @@ export async function moveFile(businessId: number, fileId: string, folderId: num
   return !!j.success;
 }
 
+// 업로드 응답 안전 파싱.
+//   nginx 의 413(Request Entity Too Large)은 **HTML 페이지**로 온다 — r.json() 이 SyntaxError 를 던진다.
+//   호출부(문서 저장 등)가 그 예외를 삼키지 못하면 "파일 하나 때문에 글 저장 전체가 실패" 로 번진다.
+//   실제 신고(#365): Q docs 에 영상을 첨부하면 문서 저장이 안 됐다.
+//
+//   message 는 **코드**만 돌려준다 (사용자 문구는 화면에서 t() 로 만든다).
+async function readUploadResponse(r: Response): Promise<{ ok: true; data: any } | { ok: false; message: string }> {
+  let j: any = null;
+  try {
+    j = await r.json();
+  } catch {
+    // JSON 이 아니다 = 프록시/서버가 낸 오류 페이지 (대표적으로 nginx 413)
+    return { ok: false, message: r.status === 413 ? 'file_size_exceeded' : `upload_failed_${r.status}` };
+  }
+  if (!r.ok || !j?.success || !j?.data) {
+    return { ok: false, message: j?.message || `upload_failed_${r.status}` };
+  }
+  return { ok: true, data: j.data };
+}
+
 export async function uploadProjectFile(
   businessId: number,
   projectId: number,
@@ -232,10 +252,10 @@ export async function uploadProjectFile(
   if (options?.folderId != null) fd.append('folder_id', String(options.folderId));
 
   const r = await apiFetch(`/api/files/${businessId}`, { method: 'POST', body: fd });
-  const j = await r.json();
-  if (!j.success || !j.data) return { success: false, message: j.message };
+  const parsed = await readUploadResponse(r);
+  if (!parsed.ok) return { success: false, message: parsed.message };
 
-  const f = j.data;
+  const f = parsed.data;
   return {
     success: true,
     file: {
@@ -269,9 +289,9 @@ export async function uploadMyFile(
   if (opts?.conversationId) fd.append('conversation_id', String(opts.conversationId));
   if (opts?.projectId) fd.append('project_id', String(opts.projectId));
   const r = await apiFetch(`/api/files/${businessId}`, { method: 'POST', body: fd });
-  const j = await r.json();
-  if (!j.success || !j.data) return { success: false, message: j.message };
-  const f = j.data;
+  const parsed = await readUploadResponse(r);
+  if (!parsed.ok) return { success: false, message: parsed.message };
+  const f = parsed.data;
   return {
     success: true,
     file: {

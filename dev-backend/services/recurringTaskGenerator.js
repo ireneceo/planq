@@ -12,12 +12,29 @@
 //   4) parent.next_occurrence_at 을 rrule.after 로 다음 occurrence 로 advance
 //   5) 종료 조건 (COUNT/UNTIL) 도달 시 next_occurrence_at = null → 시리즈 종결
 //
+// ★ 캐치업 (피드백 #351) — 4) 는 **cutoff 를 넘을 때까지 반복**한다.
+//   한 번의 실행에서 회차를 1건만 만들면, 서버가 며칠 멈췄다 재개됐을 때 밀린 회차가
+//   하루 1건씩만 따라잡히고 새 회차도 하루 1건씩 쌓여 **밀림이 영구 고정**된다
+//   (회차 due 가 항상 며칠 과거 → 시스템이 스스로 지연 문턱을 채운다).
+//   시리즈당 상한 MAX_CATCHUP_PER_RUN 으로 폭주만 막는다. 멱등 체크가 이미 있어 중복은 없다.
+//
+// ★ 상속 (피드백 #348) — 회차는 parent 의 workstream_id·태그(task_tag_links)·
+//   start~due 기간 offset 을 물려받는다. 없으면 캔버스 영역별 뷰에서 실제 회차가 전부 미분류로 떨어진다.
+//   task_links 는 의도적으로 복사하지 않는다 (링크 행 폭증 — 회차 화면에서 parent 의 관련 업무를 조회 병합).
+//
+// ★ 알림 (피드백 #350) — 회차마다 1건씩 보내면 데일리·주간·월간이 겹치는 날 자정에 4~6건이 연속 발송된다.
+//   실행 단위로 (사용자 × 워크스페이스) 로 모아 **다이제스트 1건**만 보낸다. 1건이면 기존 문구 그대로.
+//
 // 멱등: 같은 날 여러 번 호출돼도 인스턴스 중복 생성 없음
 // 안전: 한 시리즈 실패해도 다른 시리즈 계속 (try/catch per parent)
 
 const { Op } = require('sequelize');
 const { RRule } = require('rrule');
-const { Task, TaskReviewer } = require('../models');
+const { Task, TaskReviewer, TaskTagLink } = require('../models');
+
+// 시리즈 하나가 한 번의 실행에서 만들 수 있는 회차 상한.
+// 밀린 회차 캐치업용 — 일간 시리즈가 한 달 밀려도 한 번에 따라잡되, 잘못된 RRULE 폭주는 막는다.
+const MAX_CATCHUP_PER_RUN = 31;
 
 // YYYY-MM-DD string → UTC midnight Date (DATEONLY 비교용)
 function dateOnlyToUTC(dateStr) {
@@ -60,23 +77,23 @@ function computeNextOccurrence(ruleStr, lastOccurrenceDateStr, generatedCount) {
   return nextDate;
 }
 
-// io: socket.io Server instance (server.js 에서 주입). 없으면 broadcast 스킵 (단위 테스트 안전).
-async function generateOneSeries(parent, today = new Date(), io = null) {
-  if (!parent.next_occurrence_at) {
-    return { parent_id: parent.id, skipped: 'series_ended' };
-  }
+// parent 의 start~due 기간(일수)을 유지한 회차 시작일 (#348 ③).
+// parent 가 start_date 를 갖는 기간형 업무(월간·분기)에서 무조건 null 로 리셋하면 시작일이 소실된다.
+function inheritedStartDate(parent, nextDueStr) {
+  if (!parent.start_date || !parent.due_date) return null;
+  const ps = dateOnlyToUTC(parent.start_date);
+  const pd = dateOnlyToUTC(parent.due_date);
+  if (!ps || !pd) return null;
+  const offsetDays = Math.round((pd.getTime() - ps.getTime()) / 86400000);
+  if (!Number.isFinite(offsetDays) || offsetDays < 0) return null;
+  const nd = dateOnlyToUTC(nextDueStr);
+  nd.setUTCDate(nd.getUTCDate() - offsetDays);
+  return toDateOnlyStr(nd);
+}
 
-  const nextDateStr = typeof parent.next_occurrence_at === 'string'
-    ? parent.next_occurrence_at.slice(0, 10)
-    : toDateOnlyStr(parent.next_occurrence_at);
-  const nextDate = dateOnlyToUTC(nextDateStr);
-  const cutoff = new Date(today);
-  cutoff.setDate(today.getDate() + 7);
-
-  if (nextDate > cutoff) {
-    return { parent_id: parent.id, skipped: 'not_due_yet', next: nextDateStr };
-  }
-
+// 회차 1건 생성 (멱등). 이미 같은 due_date 회차가 있으면 null 반환.
+// notifyBucket: (사용자 × 워크스페이스) 알림 다이제스트 수집기 (#350). null 이면 알림 수집 생략.
+async function createOccurrence(parent, nextDateStr, io = null, notifyBucket = null) {
   // 멱등 체크 — 같은 parent + 같은 due_date 인스턴스 있는지
   const existing = await Task.findOne({
     where: { recurrence_parent_id: parent.id, due_date: nextDateStr, id: { [Op.ne]: parent.id } },
@@ -107,7 +124,8 @@ async function generateOneSeries(parent, today = new Date(), io = null) {
       request_by_user_id: parent.request_by_user_id,
       request_ack_at: null,
       priority_order: parent.priority_order,
-      start_date: null,
+      // #348 ③ — parent 가 start~due 기간을 가지면 그 일수를 유지해 새 due 기준으로 재계산
+      start_date: inheritedStartDate(parent, nextDateStr),
       due_date: nextDateStr,
       completed_at: null,
       estimated_hours: parent.estimated_hours,
@@ -115,6 +133,10 @@ async function generateOneSeries(parent, today = new Date(), io = null) {
       progress_percent: 0,
       planned_week_start: null,
       category: parent.category,
+      // #348 ① — 업무그룹(워크스트림) 상속. 누락 시 캔버스 영역별 뷰에서 실제 회차가 전부 미분류로 떨어진다
+      // (운영 실측: 반복 인스턴스 28건 전부 workstream NULL). project_id 와 같은 누락-고아 계열.
+      workstream_id: parent.workstream_id,
+      is_milestone: parent.is_milestone,
       created_by: parent.created_by,
       from_candidate_id: null,
       recurrence_rule: null,
@@ -142,6 +164,20 @@ async function generateOneSeries(parent, today = new Date(), io = null) {
       console.warn('[recurringTask] reviewer copy failed', inst.id, e.message);
     }
 
+    // #348 ② 태그(task_tag_links) 복사 — reviewer 복사와 동일 패턴.
+    // 태그 기준으로 회차를 찾는 사용자에게 parent 만 걸리고 실제 회차가 안 걸리는 것을 막는다.
+    try {
+      const parentTags = await TaskTagLink.findAll({ where: { task_id: parent.id }, attributes: ['tag_id'] });
+      if (parentTags.length) {
+        await TaskTagLink.bulkCreate(
+          parentTags.map((tl) => ({ task_id: inst.id, tag_id: tl.tag_id })),
+          { ignoreDuplicates: true },
+        );
+      }
+    } catch (e) {
+      console.warn('[recurringTask] tag copy failed', inst.id, e.message);
+    }
+
     // 실시간 동기화 — 새 인스턴스가 다른 사용자/디바이스에 즉시 보이도록.
     // CLAUDE.md "운영 안정성 16번" — 모든 task 생성 라우트는 broadcast 강제.
     if (io) {
@@ -165,41 +201,138 @@ async function generateOneSeries(parent, today = new Date(), io = null) {
       }
     }
 
-    // #90 계열 — 정기 업무 새 회차 생성 시 담당자 알림 (cron 자동 발생이라 actor 없음, self-noise 무관)
-    if (parent.assignee_id) {
-      try {
-        const { notify } = require('../routes/notifications');
-        const Business = require('../models/Business');
-        const bizR = await Business.findByPk(parent.business_id, { attributes: ['name', 'brand_name'] });
-        notify({
-          userId: parent.assignee_id, businessId: parent.business_id, eventKind: 'task',
-          title: '정기 업무가 생성되었습니다',
-          body: `"${parent.title}" · 마감 ${nextDateStr}`,
-          link: `${process.env.APP_URL || 'https://dev.planq.kr'}/tasks?task=${inst.id}`,
-          ctaLabel: '업무 보기', workspaceName: bizR?.brand_name || bizR?.name || null,
-          entityType: 'task', entityId: inst.id, ioApp: io || null,
-        }).catch((e) => console.warn('[notify recurring]', e.message));
-      } catch (e) { console.warn('[notify recurring outer]', e.message); }
+    // #90 계열 — 정기 업무 새 회차 생성 시 담당자 알림.
+    // #350: 회차마다 즉시 보내지 않고 실행 단위 다이제스트로 모은다 (자정 4~6건 연속 발송 차단).
+    if (parent.assignee_id && notifyBucket) {
+      const key = `${parent.assignee_id}:${parent.business_id}`;
+      let entry = notifyBucket.get(key);
+      if (!entry) {
+        entry = { userId: parent.assignee_id, businessId: parent.business_id, items: [] };
+        notifyBucket.set(key, entry);
+      }
+      entry.items.push({ taskId: inst.id, title: parent.title, dueDate: nextDateStr });
     }
   }
 
-  // parent.next_occurrence_at advance
-  const total = await Task.count({
-    where: {
-      [Op.or]: [{ id: parent.id }, { recurrence_parent_id: parent.id }],
-    },
+  return createdId;
+}
+
+// 모아둔 회차 생성 알림을 (사용자 × 워크스페이스) 당 1건으로 발송한다 (#350).
+// 1건이면 기존 문구를 그대로 써서 해당 업무로 바로 들어가게 하고, 2건 이상이면 다이제스트로.
+async function flushRecurringNotifications(notifyBucket, io = null) {
+  if (!notifyBucket || notifyBucket.size === 0) return 0;
+  const appUrl = process.env.APP_URL || 'https://dev.planq.kr';
+  let sent = 0;
+  for (const entry of notifyBucket.values()) {
+    if (!entry.items.length) continue;
+    try {
+      const { notify } = require('../routes/notifications');
+      const Business = require('../models/Business');
+      const bizR = await Business.findByPk(entry.businessId, { attributes: ['name', 'brand_name'] });
+      const workspaceName = bizR?.brand_name || bizR?.name || null;
+
+      let payload;
+      if (entry.items.length === 1) {
+        const it = entry.items[0];
+        payload = {
+          title: '정기 업무가 생성되었습니다',
+          body: `"${it.title}" · 마감 ${it.dueDate}`,
+          link: `${appUrl}/tasks?task=${it.taskId}`,
+          entityType: 'task', entityId: it.taskId,
+        };
+      } else {
+        // 같은 시리즈가 여러 회차 생성되는 것이 정상이라 제목이 반복된다 — 업무명 기준으로 중복 제거.
+        const titles = [...new Set(entry.items.map((it) => it.title))];
+        const preview = titles.slice(0, 3).join(', ');
+        const rest = Math.max(0, titles.length - 3);
+        payload = {
+          title: `오늘의 정기 업무 ${entry.items.length}건이 준비됐어요`,
+          body: rest > 0 ? `${preview} 외 ${rest}건` : preview,
+          link: `${appUrl}/tasks`,
+          entityType: 'task', entityId: entry.items[0].taskId,
+        };
+      }
+
+      await notify({
+        userId: entry.userId, businessId: entry.businessId, eventKind: 'task',
+        ...payload,
+        ctaLabel: '업무 보기', workspaceName, ioApp: io || null,
+      }).catch((e) => console.warn('[notify recurring]', e.message));
+      sent += 1;
+    } catch (e) {
+      console.warn('[notify recurring outer]', e.message);
+    }
+  }
+  return sent;
+}
+
+// io: socket.io Server instance (server.js 에서 주입). 없으면 broadcast 스킵 (단위 테스트 안전).
+// notifyBucket: 실행 단위 알림 다이제스트 수집기 (#350). 없으면 이 함수가 자체 수집 후 바로 flush.
+async function generateOneSeries(parent, today = new Date(), io = null, notifyBucket = null) {
+  if (!parent.next_occurrence_at) {
+    return { parent_id: parent.id, skipped: 'series_ended' };
+  }
+
+  const ownBucket = notifyBucket ? null : new Map();
+  const bucket = notifyBucket || ownBucket;
+
+  const cutoff = new Date(today);
+  cutoff.setDate(today.getDate() + 7);
+
+  let nextDateStr = typeof parent.next_occurrence_at === 'string'
+    ? parent.next_occurrence_at.slice(0, 10)
+    : toDateOnlyStr(parent.next_occurrence_at);
+
+  if (dateOnlyToUTC(nextDateStr) > cutoff) {
+    return { parent_id: parent.id, skipped: 'not_due_yet', next: nextDateStr };
+  }
+
+  // 이미 만들어진 occurrence 수 (parent 1 + 인스턴스). COUNT 종료조건 판정 기준 — 루프 안에서 증가시킨다.
+  let generated = await Task.count({
+    where: { [Op.or]: [{ id: parent.id }, { recurrence_parent_id: parent.id }] },
   });
-  const nextNext = computeNextOccurrence(parent.recurrence_rule, nextDateStr, total);
-  await parent.update({
-    next_occurrence_at: nextNext ? toDateOnlyStr(nextNext) : null,
-  });
+
+  const createdIds = [];
+  const dueDates = [];
+  let nextNextStr = null;
+  let rounds = 0;
+
+  // ★ 캐치업 루프 (#351) — cutoff 를 넘거나 시리즈가 끝날 때까지 계속 만든다.
+  while (rounds < MAX_CATCHUP_PER_RUN) {
+    rounds += 1;
+
+    const createdId = await createOccurrence(parent, nextDateStr, io, bucket);
+    if (createdId) {
+      createdIds.push(createdId);
+      generated += 1;
+    }
+    dueDates.push(nextDateStr);
+
+    const nextNext = computeNextOccurrence(parent.recurrence_rule, nextDateStr, generated);
+    nextNextStr = nextNext ? toDateOnlyStr(nextNext) : null;
+    await parent.update({ next_occurrence_at: nextNextStr });
+
+    if (!nextNextStr) break;                                   // 종료조건 도달 (COUNT/UNTIL)
+    if (dateOnlyToUTC(nextNextStr) > cutoff) break;            // cutoff 밖 — 다음 실행에서
+    nextDateStr = nextNextStr;
+  }
+
+  if (rounds >= MAX_CATCHUP_PER_RUN && nextNextStr && dateOnlyToUTC(nextNextStr) <= cutoff) {
+    // 상한에 걸렸다 = 남은 밀린 회차가 있다. 다음 실행에서 이어서 따라잡는다 (멱등이라 안전).
+    console.warn('[recurringTask] parent', parent.id, 'catch-up capped at', MAX_CATCHUP_PER_RUN, 'next', nextNextStr);
+  }
+
+  if (ownBucket) await flushRecurringNotifications(ownBucket, io);
 
   return {
     parent_id: parent.id,
-    instance_id: createdId,
-    due_date: nextDateStr,
-    next: nextNext ? toDateOnlyStr(nextNext) : null,
-    series_ended: !nextNext,
+    instance_id: createdIds[0] || null,   // 하위호환 — 첫 회차 id
+    instance_ids: createdIds,
+    created_count: createdIds.length,
+    due_date: dueDates[0] || null,
+    due_dates: dueDates,
+    next: nextNextStr,
+    series_ended: !nextNextStr,
   };
 }
 
@@ -218,11 +351,15 @@ async function runDailyRecurringTaskGen(today = new Date(), io = null) {
     },
   });
 
-  const out = { ok: 0, skip: 0, fail: 0, results: [] };
+  // #350 — 실행 전체에서 알림을 모았다가 (사용자 × 워크스페이스) 당 1건만 보낸다.
+  const notifyBucket = new Map();
+
+  const out = { ok: 0, skip: 0, fail: 0, created: 0, notified: 0, results: [] };
   for (const p of parents) {
     try {
-      const r = await generateOneSeries(p, today, io);
-      if (r.instance_id) out.ok += 1;
+      const r = await generateOneSeries(p, today, io, notifyBucket);
+      const n = r.created_count || 0;
+      if (n > 0) { out.ok += 1; out.created += n; }
       else out.skip += 1;
       out.results.push(r);
     } catch (e) {
@@ -231,11 +368,15 @@ async function runDailyRecurringTaskGen(today = new Date(), io = null) {
       out.results.push({ parent_id: p.id, error: e.message });
     }
   }
+
+  out.notified = await flushRecurringNotifications(notifyBucket, io);
   return out;
 }
 
 module.exports = {
   runDailyRecurringTaskGen,
   generateOneSeries,
+  createOccurrence,
+  flushRecurringNotifications,
   computeNextOccurrence,
 };

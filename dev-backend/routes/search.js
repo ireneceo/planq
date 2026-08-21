@@ -26,6 +26,14 @@ const {
 //   **전 워크스페이스 전 행**을 내준다. 거부가 전체 공개로 뒤집히는 것이다.
 //   (2026-08-20 Fable 검증에서 실제 cross-tenant 누출로 확인됐다 — 신규 /recent 뿐 아니라
 //    **기존 / 검색도 같은 구멍이었다.** 아래 게이트로 1차 차단하고, 이 함수로 2차 차단한다.)
+// #366 — 검색·최근 목록에서 **끝난 업무는 아래로**.
+//   완료/취소가 최신 수정 시각을 이유로 위를 차지하면, 지금 해야 할 업무가 limit 밖으로 밀린다.
+//   (숨기지는 않는다 — 사용자 요청은 "아래로 내리던가" 였다.)
+const TASK_ORDER = [
+  [sequelize.literal("CASE WHEN `Task`.`status` IN ('completed','canceled') THEN 1 ELSE 0 END"), 'ASC'],
+  ['updated_at', 'DESC'],
+];
+
 function deny(where) {
   return where || { id: { [Op.in]: [-1] } };
 }
@@ -66,7 +74,7 @@ router.get('/recent', authenticateToken, async (req, res, next) => {
       }).catch(() => []),
       Task.findAll({
         where: w.taskWhere, attributes: ['id', 'title', 'status', 'project_id'],
-        limit, order: [['updated_at', 'DESC']],
+        limit, order: TASK_ORDER,
       }).catch(() => []),
       File.findAll({
         where: { ...w.fileWhere, deleted_at: null }, attributes: ['id', 'file_name', 'file_size', 'mime_type'],
@@ -138,7 +146,7 @@ router.get('/', authenticateToken, async (req, res, next) => {
       Task.findAll({
         where: { ...taskWhere, [Op.and]: [{ [Op.or]: [{ title: like }, { description: like }] }] },
         attributes: ['id', 'title', 'status', 'project_id'],
-        limit, order: [['updated_at', 'DESC']],
+        limit, order: TASK_ORDER,
       }).catch(() => []),
       // Post: 기본 (title/content/category) + table kind 면 q_record_rows.values 도 매치
       (async () => {
