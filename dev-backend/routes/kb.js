@@ -225,10 +225,14 @@ router.post('/businesses/:businessId/kb/documents', authenticateToken, checkBusi
     } = req.body;
     if (!title) return errorResponse(res, 'title required', 400);
 
-    // 본문 또는 첨부 중 하나는 필수
+    // 본문 · 첨부 · **항목(custom_values)** 중 하나는 있어야 한다.
+    //   #332 — 여태 항목을 뺐다. 그런데 계정 목록·접속정보처럼 **항목 위주로 정리하는 자료가
+    //   Q info 의 핵심 용도**다. 그런 자료를 넣으려면 본문에 아무 글자나 억지로 채워야 했다.
     const fileIds = Array.isArray(attached_file_ids) ? attached_file_ids.map(Number).filter(Boolean) : [];
     const postIds = Array.isArray(attached_post_ids) ? attached_post_ids.map(Number).filter(Boolean) : [];
-    if (!body && fileIds.length === 0 && postIds.length === 0) {
+    const hasCustomValues = custom_values && typeof custom_values === 'object'
+      && Object.values(custom_values).some((v) => v != null && String(v).trim() !== '');
+    if (!body && fileIds.length === 0 && postIds.length === 0 && !hasCustomValues) {
       return errorResponse(res, 'body_or_attachments_required', 400);
     }
 
@@ -296,6 +300,24 @@ router.post('/businesses/:businessId/kb/documents', authenticateToken, checkBusi
         }
         if (text.trim()) mergedBody += `\n\n--- ${p.title} ---\n${text}`;
       }
+    }
+
+    // #332 — 항목만 있는 정보도 등록되어야 한다. 색인 텍스트를 항목에서 합성한다.
+    //   ★ secret 타입 항목의 **값은 절대 넣지 않는다** — 색인 본문은 임베딩·번역 API 로 나간다(#318).
+    //     항목명(라벨)만 남겨 "이 정보에 비밀번호 항목이 있다" 까지는 검색되게 한다.
+    if (!mergedBody.trim() && custom_values && typeof custom_values === 'object') {
+      const cols = Array.isArray(custom_columns) ? custom_columns : [];
+      const lines = [];
+      for (const c of cols) {
+        if (!c || !c.id) continue;
+        const raw = custom_values[c.id];
+        if (raw == null || String(raw).trim() === '') continue;
+        const label = String(c.name || c.id).trim();
+        if (c.type === 'secret') lines.push(label);            // 라벨만 — 값 제외
+        else lines.push(`${label}: ${String(raw).trim()}`);
+      }
+      // 항목이 전부 secret 이어도 제목만으로 색인해 등록은 가능하게 한다.
+      if (lines.length > 0) mergedBody = `${String(title).trim()}\n${lines.join('\n')}`;
     }
 
     if (!mergedBody.trim()) return errorResponse(res, 'no_indexable_content', 400);
