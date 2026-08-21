@@ -4,6 +4,7 @@
 // 공개 범위를 고를 수 있다. 화면마다 한 줄 입력 + [추가] 버튼으로 제각각 만들면 같은 기능이
 // 다른 물건처럼 보인다(Q mail 이 그랬다). 디자인 원본은 Q Talk RightPanel 의 메모 — 그대로 박제.
 import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useDraftText } from '../../hooks/useLocalDraft';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 
@@ -30,14 +31,25 @@ interface Props {
   placeholder?: string;
   /** 메타 줄에 덧붙일 것 (예: Q Talk 의 출처 대화 태그) */
   renderMeta?: (note: NoteItemData) => ReactNode;
+  /**
+   * 운영 #367 — 쓰다 만 메모의 보존 키. 대상(대화·스레드)마다 달라야 하고 사용자별로 갈라야 한다.
+   * 넘기지 않으면 보존하지 않는다(기존 동작).
+   */
+  draftKey?: string | null;
 }
 
 export default function NoteThread({
   notes, myUserId, canChooseVisibility = true, busy,
-  onAdd, onDelete, formatTime, emptyText, placeholder, renderMeta,
+  onAdd, onDelete, formatTime, emptyText, placeholder, renderMeta, draftKey,
 }: Props) {
   const { t } = useTranslation('common');
-  const [text, setText] = useState('');
+  // 운영 #367 — 대상이 바뀌어도(다른 대화·다른 스레드) 쓰던 글은 그 대상에 남아 있다가 돌아오면 되살아난다.
+  // ★ 훅은 조건 없이 **항상** 부른다. draftKey 유무로 훅 호출을 가르면 그 prop 이 바뀌는 순간
+  //   훅 순서가 어긋나 상세 전체가 죽는다(React #310 — 정적 검사로는 안 잡힌다).
+  const draft = useDraftText(draftKey ?? null);
+  const [localText, setLocalText] = useState('');
+  const text = draftKey ? draft.text : localText;
+  const setText = draftKey ? draft.setText : setLocalText;
   const [shared, setShared] = useState(true);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -45,7 +57,7 @@ export default function NoteThread({
     const body = text.trim();
     if (!body || busy) return;
     await onAdd(body, shared ? 'internal' : 'personal');
-    setText('');
+    if (draftKey) draft.clear(); else setLocalText('');
     requestAnimationFrame(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; });
   };
 

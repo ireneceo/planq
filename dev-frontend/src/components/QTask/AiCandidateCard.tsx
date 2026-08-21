@@ -21,6 +21,13 @@ export interface AiCandidate {
   completed?: boolean;
   assignee_hint: string | null;
   assignee_name?: string | null; // #90 — LLM 이 추출한 이름 (매칭 실패 시 경고 표시용)
+  /**
+   * 운영 #263 — 서버가 **실제로 고른 멤버의 표시 이름**. assignee_name(LLM 추출 원문)과 다르다.
+   *   화면의 멤버 목록은 맥락에 따라 좁다(프로젝트 화면 = 프로젝트 멤버만). 서버는 워크스페이스
+   *   전체에서 고르므로, 그 차집합이 뽑히면 목록에서 id 로 이름을 못 찾아 `#2` 가 떴다.
+   *   고른 쪽이 이름을 같이 보내 그 구멍을 없앤다.
+   */
+  assignee_display_name?: string | null;
   assignee_user_id: number | null;
   depends_on_index: number | null;
   vague: boolean;
@@ -53,6 +60,21 @@ interface Props {
 export default function AiCandidateCard({ candidate: c, members, baseDate, onChange, hasProject = false }: Props) {
   const { t } = useTranslation('qtask');
   // 정기 루틴 선택지 — raw <select> 금지 규칙에 따라 PlanQSelect 로 그린다 (health-check 항목).
+  // 운영 #263 — 담당자 이름 해석의 단일 규칙.
+  //   ① 이 화면 멤버 목록 → ② 서버가 고르며 실어 보낸 표시 이름 → ③ 사람 말 폴백.
+  //   날 id(`#2`)는 어떤 경우에도 내보내지 않는다 — 사용자에게 숫자는 아무 뜻이 없다.
+  const unknownLabel = t('ai.assigneeUnknown', '알 수 없는 담당자') as string;
+  const assigneeLabel = (uid: number) =>
+    members.find(m => m.user_id === uid)?.name || c.assignee_display_name || unknownLabel;
+  // 서버가 고른 사람이 이 화면 목록 밖이면 옵션에도 넣는다(보이는 것 = 고를 수 있는 것).
+  const assigneeOptions = useMemo(() => {
+    const opts = members.map(m => ({ value: String(m.user_id), label: m.name || unknownLabel }));
+    if (c.assignee_user_id && !members.some(m => m.user_id === c.assignee_user_id)) {
+      opts.unshift({ value: String(c.assignee_user_id), label: c.assignee_display_name || unknownLabel });
+    }
+    return opts;
+  }, [members, c.assignee_user_id, c.assignee_display_name, unknownLabel]);
+
   const recurOptions = useMemo(() => ([
     { value: 'none', label: t('ai.recurNone', '반복 없음') as string },
     { value: 'daily', label: t('ai.recurDaily', '매일') as string },
@@ -84,14 +106,21 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
             placeholder={hasProject
               ? t('ai.assigneeProjectDefault', '프로젝트 기본 담당자') as string
               : t('ai.assigneeUnassigned', '미배정') as string}
+            /* 운영 #263 — "담당자로 내가 안나오고 이상한 1, 2 라고 표시되는데."
+               목록에 없는 id 가 오면 여태 `#2` 같은 날 id 를 그렸다. 사용자에게 숫자는 아무 뜻이 없다.
+               (근본 원인인 "후보 풀 ≠ 표시 목록" 은 routes/tasks.js 에서 기준을 맞춰 막았고,
+                여기는 그래도 어긋났을 때의 마지막 방어선이다 — 숫자 대신 사람 말로.) */
             value={c.assignee_user_id
-              ? { value: String(c.assignee_user_id), label: members.find(m => m.user_id === c.assignee_user_id)?.name || `#${c.assignee_user_id}` }
+              ? { value: String(c.assignee_user_id), label: assigneeLabel(c.assignee_user_id) }
               : null}
             onChange={(v) => {
               const val = (v as { value?: string })?.value;
               onChange({ assignee_user_id: val ? Number(val) : null });
             }}
-            options={members.map(m => ({ value: String(m.user_id), label: m.name || `#${m.user_id}` }))}
+            /* ★ 값만 있고 옵션에 없으면 react-select 는 라벨은 그려도 **다시 고를 수가 없다**
+               (드롭다운을 열면 그 사람이 목록에 없다). 서버가 고른 사람이 이 화면 목록 밖이면
+               옵션에도 끼워 넣는다 — 보이는 것과 고를 수 있는 것을 같게. */
+            options={assigneeOptions}
           />
         </AssigneeInline>
       </CardHeader>

@@ -18,7 +18,7 @@
 //   - member util:       capacity vs Σ TaskDailyProgress.actual_hours (해당 주차)
 
 const { myAssignedWeekWhere } = require('./weekTaskSet');
-const { getProgressBaselines, deltaOf } = require('./progressBaseline');
+const { getProgressBaselines, deltaOf, estDoneOf } = require('./progressBaseline');
 // #288 — 가용시간 공식 단일 원천. 이 파일 안에만 사본이 2벌 있었다(참여율·휴일 무시).
 const capacityService = require('./memberCapacity');
 const { Op } = require('sequelize');
@@ -165,14 +165,15 @@ async function buildBurndownData(taskIds, monday) {
   const dayKey = (sd) => (sd instanceof Date) ? sd.toISOString().slice(0, 10) : String(sd).slice(0, 10);
   // ★ #254 — 업무별 기준선을 빼고 **그 주의 Δ** 만 그린다. 스냅샷 행은 일생 누적이라 그대로 합산하면
   //   이월 업무의 지난주 투입이 월요일부터 실린다. 라이브 그래프·보고서와 같은 함수를 쓴다(정의 1벌).
-  const { baseAct, baseEst } = await getProgressBaselines(taskIds, monday);
+  const { baseAct, baseEst, estNow } = await getProgressBaselines(taskIds, monday);
   const result = [];
   for (let i = 0; i < 7; i++) {
     const date = addDaysStr(monday, i);
     const dayProgs = progresses.filter(p => dayKey(p.snapshot_date) === date);
     // 예측 라인 = Σ(예측시간 × 진행률) — 진행률만큼 예측시간이 "완료"된 누적 (Irene 스펙 2026-06-16).
     //   (옛: 예측시간 raw 합 → 진행률 무관 flat. 라이브 그래프 est_used 와 동일 정의로 통일.)
-    const estimated_cumulative = dayProgs.reduce((s, p) => s + deltaOf((Number(p.estimated_hours) || 0) * ((p.progress_percent || 0) / 100), baseEst.get(Number(p.task_id))), 0);
+    // 예측 정정 면역 — 지금 예측 × 그날 진행률 (기준선과 같은 축). progressBaseline 정본.
+    const estimated_cumulative = dayProgs.reduce((s, p) => s + deltaOf(estDoneOf(estNow, p.task_id, p.progress_percent, p.estimated_hours), baseEst.get(Number(p.task_id))), 0);
     const actual_cumulative = dayProgs.reduce((s, p) => s + deltaOf(Number(p.actual_hours) || 0, baseAct.get(Number(p.task_id))), 0);
     result.push({
       date,

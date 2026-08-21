@@ -4,7 +4,7 @@
     "subtitle": "See the latest PlanQ updates",
     "loading": "Loading…",
     "new": "New",
-    "viewAll": "View all updates",
+    "viewAll": "See all updates",
     "empty": {
       "title": "No updates yet",
       "desc": "We'll share new features and improvements here."
@@ -438,7 +438,7 @@
   },
   "search": {
     "title": "Global search",
-    "placeholder": "Search menus · tasks · docs · records · files · clients",
+    "placeholder": "Search menus · tasks · docs · · files · clients",
     "hint": "Type to search. Open with ⌘K or Ctrl+\\.",
     "searching": "Searching...",
     "noResults": "No results",
@@ -447,7 +447,6 @@
     "cat": {
       "tasks": "Task",
       "posts": "Doc",
-      "records": "Record",
       "files": "File",
       "conversations": "Chat",
       "knowledge": "Knowledge",

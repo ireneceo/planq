@@ -77,3 +77,101 @@ export function useLocalDraft<T>(opts: UseLocalDraftOptions<T>): LocalDraft<T> {
 
   return { restored, clear };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 운영 #367 — "댓글이나 채팅 같은 거 쓰다가 다른 곳 가면 저장되어 있을 수 없어? 돌아가면 다시 나오게"
+//
+// 위 useLocalDraft 는 **한 번 열리고 닫히는 폼**(새 문서 작성 등)을 위한 것이라, 복원값을 마운트
+// 시점에 한 번만 읽는다. 댓글·메모는 다르다 — 컴포넌트는 계속 떠 있고 **대상만 바뀐다**
+// (다른 업무 클릭 / 다른 스레드 클릭). 그래서 key 가 바뀔 때마다 다시 읽어야 하고,
+// 더 중요하게는 **바뀌기 직전 값을 옛 key 로 먼저 확정 저장**해야 한다.
+// 안 그러면 "쓰다가 debounce 안에 다른 업무를 누르면 그 글이 사라지는" 원래 증상이 그대로 남는다.
+const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+function readDraftText(key: string): string {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return '';
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed.savedAt !== 'number') return '';
+    if (Date.now() - parsed.savedAt > DRAFT_TTL_MS) { localStorage.removeItem(key); return ''; }
+    return typeof parsed.value === 'string' ? parsed.value : '';
+  } catch { return ''; }
+}
+
+function writeDraftText(key: string, text: string) {
+  try {
+    if (!text.trim()) { localStorage.removeItem(key); return; }
+    localStorage.setItem(key, JSON.stringify({ value: text, savedAt: Date.now() }));
+  } catch { /* quota — 무시 */ }
+}
+
+export interface DraftText {
+  text: string;
+  setText: (v: string) => void;
+  /** 발송·저장 성공 후 호출 — 입력칸과 저장본을 함께 비운다 */
+  clear: () => void;
+}
+
+/**
+ * 대상이 전환되는 한 칸짜리 입력(댓글·메모·채팅)의 초안 보존.
+ * @param key   null 이면 보존하지 않는다 (대상 미선택 등)
+ * @param debounceMs 기본 400ms
+ */
+export function useDraftText(key: string | null, debounceMs = 400): DraftText {
+  const [text, setTextState] = useState<string>(() => (key ? readDraftText(key) : ''));
+  const keyRef = useRef(key);
+  const textRef = useRef(text);
+  const timerRef = useRef<number | null>(null);
+
+  const flush = () => {
+    if (timerRef.current) { window.clearTimeout(timerRef.current); timerRef.current = null; }
+    if (keyRef.current) writeDraftText(keyRef.current, textRef.current);
+  };
+
+  // key 전환 — 옛 key 로 확정 저장한 뒤 새 key 의 초안을 읽어 넣는다.
+  useEffect(() => {
+    if (keyRef.current === key) return;
+    flush();
+    keyRef.current = key;
+    const next = key ? readDraftText(key) : '';
+    textRef.current = next;
+    setTextState(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  // 입력 debounce 저장
+  useEffect(() => {
+    if (!key) return;
+    if (timerRef.current) window.clearTimeout(timerRef.current);
+    timerRef.current = window.setTimeout(() => {
+      timerRef.current = null;
+      writeDraftText(key, textRef.current);
+    }, debounceMs);
+    return () => { if (timerRef.current) { window.clearTimeout(timerRef.current); timerRef.current = null; } };
+  }, [key, text, debounceMs]);
+
+  // 언마운트·탭 이탈 — debounce 를 기다리지 않고 확정 저장한다.
+  //   (드로어를 닫거나 페이지를 떠나는 것이 바로 이 기능이 구제해야 할 순간이다)
+  useEffect(() => {
+    const onHide = () => flush();
+    window.addEventListener('pagehide', onHide);
+    document.addEventListener('visibilitychange', onHide);
+    return () => {
+      window.removeEventListener('pagehide', onHide);
+      document.removeEventListener('visibilitychange', onHide);
+      flush();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const setText = (v: string) => { textRef.current = v; setTextState(v); };
+  const clear = () => {
+    textRef.current = '';
+    setTextState('');
+    if (timerRef.current) { window.clearTimeout(timerRef.current); timerRef.current = null; }
+    if (key) { try { localStorage.removeItem(key); } catch { /* ignore */ } }
+  };
+
+  return { text, setText, clear };
+}

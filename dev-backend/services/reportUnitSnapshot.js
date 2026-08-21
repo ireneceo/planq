@@ -10,7 +10,7 @@ const {
 } = require('../models');
 const { fetchProjectStats } = require('./weeklyReviewSnapshot');
 const { todayInTz, mondayOfDateStr, addDaysStr } = require('../utils/datetime');
-const { getProgressBaselines } = require('./progressBaseline');
+const { getProgressBaselines, estDoneOf } = require('./progressBaseline');
 const capacityService = require('./memberCapacity');
 
 const SCHEMA_VERSION = 1;
@@ -161,7 +161,7 @@ async function buildProgressSeries(taskIds, start, end, today = null) {
   });
 
   // 업무별 기준선 — services/progressBaseline 단일 원천 (라이브 그래프·개인 주간보고가 같은 함수를 쓴다)
-  const { baseAct, baseEst } = await getProgressBaselines(taskIds, start);
+  const { baseAct, baseEst, estNow } = await getProgressBaselines(taskIds, start);
 
   // snapshot_date 가 Date 로 역직렬화되면 String 비교가 항상 실패한다 (옛 그래프 빈화면 원인) → 정규화
   const dayKey = (sd) => (sd instanceof Date ? sd.toISOString().slice(0, 10) : String(sd).slice(0, 10));
@@ -179,7 +179,8 @@ async function buildProgressSeries(taskIds, start, end, today = null) {
     }
     const day = rows.filter((r) => dayKey(r.snapshot_date) === cursor);
     const est = day.reduce((sum, r) => {
-      const v = (Number(r.estimated_hours) || 0) * ((r.progress_percent || 0) / 100);
+      // 예측 정정 면역 — 지금 예측 × 그날 진행률 (기준선과 같은 축). progressBaseline 정본.
+      const v = estDoneOf(estNow, r.task_id, r.progress_percent, r.estimated_hours);
       return sum + Math.max(0, v - (baseEst.get(r.task_id) || 0));
     }, 0);
     const act = day.reduce((sum, r) => {

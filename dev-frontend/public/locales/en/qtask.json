@@ -266,7 +266,19 @@
     "everyNDays": "Every {{count}} days",
     "everyNWeeks": "Every {{count}} weeks",
     "everyNMonths": "Every {{count}} months",
-    "everyNYears": "Every {{count}} years"
+    "everyNYears": "Every {{count}} years",
+    "weekdays": "Every weekday",
+    "quarterly": "Every quarter",
+    "monthlyLastWeekday": "Last weekday of the month",
+    "presetMonthlyNth": "Nth weekday of month",
+    "nthLabel": "Which weekday",
+    "nthLast": "Last",
+    "nthN": "{{n}}th",
+    "monthlyNth": "{{n}}th {{day}} of every month",
+    "monthlyLastNamed": "Last {{day}} of every month",
+    "weeklyMulti": "Weekly on {{days}}",
+    "advancedBadge": "Custom rule",
+    "advancedHint": "This repeat rule is kept as is. It changes only when you pick another option below."
   },
   "backlog": {
     "title": "Unassigned",
@@ -349,7 +361,9 @@
     "estTip": "Cumulative estimated hours earned — the sum of (estimate × progress) per task. The \"Left …h\" chip on the left is the other half (estimate × remaining), so the two add up to this week’s total estimate.",
     "actTip": "Only the hours logged during this week. Time a carried-over task accumulated before this week is subtracted — the \"Act …h\" chip on the left includes that carry-over, so it can be larger.",
     "scopeHint": "This week · tasks assigned to me. Not affected by view options such as search or hide-completed.",
-    "noData": "No progress data in this period"
+    "noData": "No progress data in this period",
+    "revertedFlat": "Progress dropped below this week’s baseline, so there is no increase. The line keeps its peak.",
+    "noIncrement": "No new progress has been recorded in this period yet"
   },
   "projects": {
     "title": "Project Progress"
@@ -634,7 +648,8 @@
     "kbSave": "Save to KB",
     "kbSaving": "Saving…",
     "kbSaved": "Saved to KB ✓",
-    "kbSaveHint": "Save this deliverable to the workspace knowledge base — Cue uses it when answering"
+    "kbSaveHint": "Save this deliverable to the workspace knowledge base — Cue uses it when answering",
+    "recurDescHint": "This description is copied into every occurrence. Write each occurrence’s output in its own body."
   },
   "weeklyReview": {
     "finalize": "Wrap Up Week",
@@ -860,6 +875,8 @@
       "auto": "Auto",
       "confirm": "Confirm",
       "reopen": "Reopen",
+      "confirmPartial": "Only {{n}} of {{total}} days are recorded so far. Confirming now freezes it that way.",
+      "confirmAnyway": "Confirm with {{n}} day(s)",
       "narrative": "Owner comment",
       "narrativePh": "Summarize key results, issues, and next plans for this period (auto-saved)",
       "noNarrative": "No comment yet",
@@ -1101,7 +1118,8 @@
     "completedAdd": "Add as completed",
     "completedHint": "Recorded as already finished under today's date — repeat is not applied",
     "completedSkipped": "{{n}} of them are assigned to someone else, so they were added without being marked complete",
-    "close": "Close"
+    "close": "Close",
+    "assigneeUnknown": "Unknown assignee"
   },
   "bar": {
     "resumeTitle": "In progress",
@@ -1121,6 +1139,9 @@
   },
   "report": {
     "chartTitle": "Progress chart",
+    "confirmedCap": "Record as of {{when}}, when this report was confirmed",
+    "confirmedCapPartial": "Record as of {{when}}, when this report was confirmed — {{n}} of {{total}} days",
+    "confirmedCapReopen": "Reopen and confirm again to capture the whole period.",
     "chartEstimated": "Progress (estimated hours)",
     "chartActual": "Actual hours worked",
     "chartCapacity": "Against {{n}}h capacity",
