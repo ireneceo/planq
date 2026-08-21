@@ -21,9 +21,9 @@ const expectedDays = (p?: { start?: string; end?: string } | null, fallback = 0)
   return Math.round((b - a) / 86400000) + 1;
 };
 
-interface Props { snap: ReportSnapshot; compact?: boolean; confirmedAt?: string | null; }
+interface Props { snap: ReportSnapshot; compact?: boolean; confirmedAt?: string | null; canReopen?: boolean; }
 
-const ReportContent: React.FC<Props> = ({ snap, compact, confirmedAt }) => {
+const ReportContent: React.FC<Props> = ({ snap, compact, confirmedAt, canReopen }) => {
   const { t } = useTranslation('qtask');
   const navigate = useNavigate();
   const isProject = snap.scope === 'project';
@@ -72,11 +72,18 @@ const ReportContent: React.FC<Props> = ({ snap, compact, confirmedAt }) => {
             const filled = pts.filter((x) => x.estimated_cumulative != null).length;
             const total = expectedDays(snap.period, pts.length);
             const when = String(confirmedAt).slice(0, 16).replace('T', ' ');
+            const partial = filled > 0 && filled < total;
             return (
               <ChartCap>
-                {filled > 0 && filled < total
+                {partial
                   ? t('report.confirmedCapPartial', { when, n: filled, total, defaultValue: `${when} 확정 시점의 기록입니다 — ${filled}/${total}일치` }) as string
                   : t('report.confirmedCap', { when, defaultValue: `${when} 확정 시점의 기록입니다` }) as string}
+                {/* 잘린 그래프를 보여주기만 하면 "고장" 으로 읽힌다. 되돌릴 수 있는 사람에게는
+                    **어떻게 전체 기간을 담는지** 까지 말한다 — 사람이 따로 안내해야 하는 일을
+                    화면이 스스로 하게 만든다(Fable 권고: 백필 금지, reopen 경로가 정답). */}
+                {partial && canReopen && (
+                  <CapHint>{t('report.confirmedCapReopen', { defaultValue: '되돌리기 후 다시 확정하면 기간 전체가 담깁니다.' }) as string}</CapHint>
+                )}
               </ChartCap>
             );
           })()}
@@ -175,4 +182,7 @@ const ChartSec = styled.div`display: flex; flex-direction: column; gap: 6px;`;
 const ChartTitle = styled.div`font-size: 12px; font-weight: 700; color: #0F172A;`;
 const ChartCap = styled.div`
   font-size: 11px; color: #94A3B8; margin: -2px 0 6px;
+`;
+const CapHint = styled.span`
+  display: block; color: #B45309; margin-top: 2px;
 `;

@@ -150,7 +150,7 @@ const ReportUnitView: React.FC<Props> = ({ businessId, scope, refId, periodType 
       </Section>
 
       {/* 실제 업무 내용 */}
-      <ReportContent snap={snap} confirmedAt={confirmed ? data.confirmed_at : null} />
+      <ReportContent snap={snap} confirmedAt={confirmed ? data.confirmed_at : null} canReopen={confirmed && data.can_edit} />
     </Wrap>
   );
 };
