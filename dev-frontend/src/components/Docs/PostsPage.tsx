@@ -240,6 +240,11 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const [knowledgeMsg, setKnowledgeMsg] = useState<string | null>(null);
   const [signReloadKey, setSignReloadKey] = useState(0);
   const [projectDraft, setProjectDraft] = useState<number | null>(null);
+  // #336 — 방금 만든 표는 바로 편집 화면으로 열려야 한다.
+  //   여태 URL 의 ?new_table=1 만 보고 판정했는데, setActiveId 와 setSearchParams 가
+  //   **다른 커밋에 떨어지면** activeId effect 가 옛 searchParams 를 읽어 보기 모드로 연다.
+  //   타이밍에 따라 되기도 하고 안 되기도 해서 "이상하다" 로 보였다. ref 로 확정 신호를 남긴다.
+  const pendingNewTableRef = useRef<number | null>(null);
   const [projects, setProjects] = useState<ApiProject[]>([]);
   // 템플릿 모달 — 새 글 작성 시 시드 5종 중 선택해서 본문 prefill
   const [tplModalOpen, setTplModalOpen] = useState(false);
@@ -373,7 +378,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       if (!cancelled) {
         setDetail(d);
         // #96 — 방금 만든 표(?new_table=1)는 바로 편집 화면으로. 그 외는 view.
-        const isNewTable = searchParams.get('new_table') === '1' && d?.kind === 'table';
+        const flaggedNewTable = pendingNewTableRef.current === activeId;
+        const isNewTable = (flaggedNewTable || searchParams.get('new_table') === '1') && d?.kind === 'table';
+        if (flaggedNewTable) pendingNewTableRef.current = null;   // 1회성 신호
         // #252 — 이것도 편집 진입이다. beginEditSession() 이 없으면 직전 편집의 스냅샷·
         //   draft ref 가 그대로 남아(mode 가 이미 'edit' 이면 effect 자체가 재발화하지 않는다)
         //   취소가 엉뚱한 글을 되돌리고 저장이 엉뚱한 draft 를 승격시킨다.
@@ -473,6 +480,11 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     setPendingExistingIds([]);
     setPendingExistingMeta({});
     setPendingPostIds([]);
+    // #310 — AI 모달에서 고른 프로젝트를 새 문서에 그대로 잇는다.
+    //   여태 aiContext 에 projectId 가 담겨 오는데도 초안에 반영하지 않아,
+    //   "AI 로 문서 만들 때 프로젝트 연결했는데 새 문서에 동기화가 안 된다" 는 신고가 났다.
+    //   페이지가 프로젝트 스코프면 그 프로젝트가 우선(그 화면에서는 소속이 고정이다).
+    setProjectDraft(scope.type === 'project' ? scope.projectId : (aiContext?.projectId ?? null));
     setAiCtx(aiContext || null);  // 운영 — 재생성용 컨텍스트
     setError(null);
     setAiOpen(false);
@@ -1826,6 +1838,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           onTableCreated={async (id) => {
             // #96 — 표 생성 후 in-place 진입 (프로젝트 scope 에서도 페이지 이탈 없이). new_table=1 로 edit 모드.
             if (!(await leaveEditSession())) return;   // #252 — 편집 중이었으면 먼저 마무리
+            pendingNewTableRef.current = id;           // #336 — URL 반영 타이밍과 무관하게 편집 모드로
             setActiveId(id);
             setSearchParams(prev => {
               const sp = new URLSearchParams(prev);
