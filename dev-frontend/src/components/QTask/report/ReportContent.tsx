@@ -9,6 +9,18 @@ import { STATUS_COLOR, type StatusCode } from '../../../utils/taskLabel';
 import type { ReportSnapshot, TaskBrief } from '../../../services/reportUnit';
 import ProgressBurnupChart from '../ProgressBurnupChart';
 
+// 기간이 며칠짜리인가 — **시리즈 길이로 세면 안 된다.**
+//   운영 실측(id111·122): 옛 빌더가 미래 날을 null 로 채우지 않고 `break` 로 배열을 잘랐다.
+//   그래서 월요일에 확정된 주간보고의 시리즈는 길이가 **1** 이다 — `filled < series.length` 로 재면
+//   1 < 1 = false 가 되어, 정작 이 기능이 겨냥한 케이스에서 아무 말도 못 한다.
+//   기간(period.start~end)에서 기대 일수를 뽑아야 잘린 배열도 "1/7" 로 읽힌다.
+const expectedDays = (p?: { start?: string; end?: string } | null, fallback = 0) => {
+  if (!p?.start || !p?.end) return fallback;
+  const a = Date.parse(`${p.start}T00:00:00Z`); const b = Date.parse(`${p.end}T00:00:00Z`);
+  if (!Number.isFinite(a) || !Number.isFinite(b) || b < a) return fallback;
+  return Math.round((b - a) / 86400000) + 1;
+};
+
 interface Props { snap: ReportSnapshot; compact?: boolean; confirmedAt?: string | null; }
 
 const ReportContent: React.FC<Props> = ({ snap, compact, confirmedAt }) => {
@@ -58,11 +70,12 @@ const ReportContent: React.FC<Props> = ({ snap, compact, confirmedAt }) => {
           {confirmedAt && (() => {
             const pts = snap.progress_series || [];
             const filled = pts.filter((x) => x.estimated_cumulative != null).length;
+            const total = expectedDays(snap.period, pts.length);
             const when = String(confirmedAt).slice(0, 16).replace('T', ' ');
             return (
               <ChartCap>
-                {filled > 0 && filled < pts.length
-                  ? t('report.confirmedCapPartial', { when, n: filled, total: pts.length, defaultValue: `${when} 확정 시점의 기록입니다 — ${filled}/${pts.length}일치` }) as string
+                {filled > 0 && filled < total
+                  ? t('report.confirmedCapPartial', { when, n: filled, total, defaultValue: `${when} 확정 시점의 기록입니다 — ${filled}/${total}일치` }) as string
                   : t('report.confirmedCap', { when, defaultValue: `${when} 확정 시점의 기록입니다` }) as string}
               </ChartCap>
             );
