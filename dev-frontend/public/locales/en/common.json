@@ -438,7 +438,7 @@
   },
   "search": {
     "title": "Global search",
-    "placeholder": "Search menus · tasks · docs · records · files · clients",
+    "placeholder": "Search menus · tasks · docs · · files · clients",
     "hint": "Type to search. Open with ⌘K or Ctrl+\\.",
     "searching": "Searching...",
     "noResults": "No results",
@@ -447,7 +447,6 @@
     "cat": {
       "tasks": "Task",
       "posts": "Doc",
-      "records": "Record",
       "files": "File",
       "conversations": "Chat",
       "knowledge": "Knowledge",

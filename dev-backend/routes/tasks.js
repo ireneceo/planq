@@ -6,7 +6,7 @@ const taskSnapshot = require('../services/task_snapshot');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { getUserScope, taskListWhere, canAccessTask, isMemberOrAbove, assertAssignable, assertMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
-const { getProgressBaselines, deltaOf } = require('../services/progressBaseline');
+const { getProgressBaselines, deltaOf, estDoneOf } = require('../services/progressBaseline');
 const { todayInTz, mondayOfDateStr, addDaysStr, mondayOfIsoWeek } = require('../utils/datetime');
 const { rruleFromRecurrence } = require('../services/rruleFromRecurrence');
 // N+34 — 워크스페이스 표시명 helper. BusinessMember.name 우선, User.name fallback.
@@ -1930,7 +1930,7 @@ router.get('/daily-progress', authenticateToken, async (req, res, next) => {
     }
 
     // 업무별 기준선 (services/progressBaseline 단일 원천 — 보고서·주간보고와 같은 함수)
-    const { baseAct, baseEst } = await getProgressBaselines(ids, from);
+    const { baseAct, baseEst, estNow } = await getProgressBaselines(ids, from);
 
     // ── 1) 스냅샷 기반 est_used / 수동 actual (포커스 미사용자·완료업무) ──
     if (ids.length > 0) {
@@ -1953,7 +1953,9 @@ router.get('/daily-progress', authenticateToken, async (req, res, next) => {
         //   시간이 이번 주 첫날부터 통째로 실린다(운영 실측: 이번 주 투입 0h 인데 그래프 6.4h).
         //   기간 시작 이전 최신 행을 기준선으로 빼서 **그 주의 Δ** 만 그린다 — 보고서(#223)와 같은 정의.
         //   클램프는 업무별. 집계 후 클램프는 한 업무의 하향 정정이 다른 업무의 진척을 잡아먹는다.
-        bucket.est_used += deltaOf(est * prog, baseEst.get(Number(s.task_id)));
+        // ★ 예측 정정 면역 — 스냅샷에 박제된 옛 예측(est) 대신 **지금 예측**으로 환산한다.
+        //   기준선(baseEst)도 같은 축이라 Δ = est_now × (그날 진행률 − 기준 진행률) 이 된다.
+        bucket.est_used += deltaOf(estDoneOf(estNow, s.task_id, s.progress_percent, est), baseEst.get(Number(s.task_id)));
         // 실제시간 = 실제 입력시간(actual_hours)만. (예측×진행률 fallback 금지 — 예측 라인과 동일해지는 버그.
         //  실제 미입력이면 actual 라인은 낮게 유지되어 "진척은 됐지만 시간 미입력"을 정직하게 보여줌. Irene 2026-06-16)
         bucket.act_used += deltaOf(act, baseAct.get(Number(s.task_id)));
@@ -2265,7 +2267,7 @@ router.delete('/:id/links/:targetId', authenticateToken, async (req, res, next) 
 router.get('/by-business/:businessId/search', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
-    const q = String(req.query.q || '').trim();
+    const q = String(req.query.q || '').normalize('NFC').trim();   // #364 검색어 조합형 통일
     const excludeId = req.query.exclude_id ? Number(req.query.exclude_id) : null;
     const excludeIds = String(req.query.exclude_ids || '').split(',').map((s) => Number(s)).filter((n) => !isNaN(n));
     const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 20));

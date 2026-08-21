@@ -507,6 +507,69 @@ verify_deployment() {
 }
 
 # ──────────────────────────────────────────
+# 장부 닫기 (운영 #276) — **배포와 같은 실행 안에서** 끝낸다.
+#
+# 왜 배포에 붙이는가: 나중에 사람이 따로 닫기로 하면 안 닫힌다. 2026-08-18 실측으로 운영 피드백
+#   67건 중 29건이 "이미 고쳐 배포까지 끝났는데 pending" 이었고, 그래서 같은 것이 세 번까지
+#   재신고됐다(팝아웃 핀 #258 → #280 → #286). 사용자에겐 "말해도 반응이 없다" 이다.
+#   고친 사실이 **도달**해야 처리된 것이므로, 도달하는 시점(배포)에 장부도 같이 닫는다.
+#
+# 안전장치는 close-deployed-feedback.js 안에 있다 — **답글 없는 건은 닫지 않고**, 이미 done 이면
+#   건너뛴다(멱등). 여기서는 이번에 나가는 커밋들의 `#번호` 만 넘긴다.
+#   실패해도 배포를 되돌리지 않는다 — 코드는 이미 정상 반영된 상태다.
+# ──────────────────────────────────────────
+close_feedback() {
+  log "Closing deployed feedback in ledger..."
+  cd /opt/planq
+
+  if [ -z "${LAST_REMOTE:-}" ]; then
+    dim "  (first deploy — 범위가 없어 건너뜀)"
+    return 0
+  fi
+
+  # ★ 본문의 `#숫자` 를 긁으면 **안 된다.** 실측 반증(2026-08-21): 이 브랜치 5커밋에서 그렇게 뽑으니
+  #   123,167,180,213,…,258,274,280,286,288,300 이 나왔다 — #123·#167·#180·#274 는 근거로 인용한
+  #   **업무 번호**이고 #258·#280·#286 은 주석에 든 옛 사례 번호다. 그대로 닫았으면 고치지도 않은
+  #   사용자 신고가 done 으로 바뀐다(장부 어긋남의 반대 방향 사고).
+  #   → **명시적 트레일러만** 인정한다:  `Feedback-Closes: 213, 220`
+  #   인용은 자유롭게 하되, 닫으려면 그 줄을 의도적으로 적어야 한다.
+  #   grep 무매치는 exit 1 이라 || true 필수 — set -euo pipefail 아래서 배포 전체가 중단된다.
+  local RANGE_IDS BACKLOG_IDS IDS
+  RANGE_IDS=$( { git log --format=%B "${LAST_REMOTE}..HEAD" 2>/dev/null || true; } \
+               | grep -iE '^[[:space:]]*Feedback-Closes:' \
+               | grep -oE '[0-9]{2,5}' || true )
+
+  # 이미 배포가 끝난 옛 커밋의 번호는 위 범위에 **영영 안 들어온다** — 그런 잔여분을 담는 자리.
+  #   (2026-08-21 실측: #213 #220 #222 #232 #257 #260 #287 이 6b3f4590·41158147 에서 나가
+  #    운영에 도달했는데 장부는 pending 이었다.) 닫힌 뒤 다시 실려도 스크립트가 건너뛴다(멱등).
+  BACKLOG_IDS=$( { grep -oE '^[[:space:]]*[0-9]{3,4}\b' /opt/planq/scripts/feedback-close-backlog.txt 2>/dev/null || true; } \
+                 | tr -d ' \t' || true )
+
+  IDS=$( printf '%s\n%s\n' "$RANGE_IDS" "$BACKLOG_IDS" | grep -E '^[0-9]+$' | sort -un | paste -sd, - || true )
+
+  if [ -z "$IDS" ]; then
+    dim "  (커밋 메시지에 피드백 번호가 없어 건너뜀)"
+    return 0
+  fi
+  echo "  대상 번호: $IDS"
+
+  if [ "$DRY_RUN" = true ]; then
+    dim "  [dry] scp scripts/close-deployed-feedback.js → $PROD_HOST:/tmp/cdf.js"
+    dim "  [dry] ssh $PROD_HOST 'cd $PROD_BE && node /tmp/cdf.js --ids $IDS --apply'"
+    return 0
+  fi
+
+  # 운영에는 git 저장소도 scripts/ 도 없다(rsync 는 dev-backend 만 보낸다) → 실행 직전에 실어 보낸다.
+  if ! scp $SSH_OPTS /opt/planq/scripts/close-deployed-feedback.js "$PROD_HOST:/tmp/cdf.js" > /dev/null 2>&1; then
+    warn "장부 스크립트 전송 실패 — 장부는 수동으로 닫아야 합니다 (배포 자체는 정상)"
+    return 0
+  fi
+  prod_run "cd $PROD_BE && node /tmp/cdf.js --ids $IDS --apply" \
+    || warn "장부 닫기 실패 — 수동 확인 필요 (배포 자체는 정상)"
+  prod_run "rm -f /tmp/cdf.js" > /dev/null 2>&1 || true
+}
+
+# ──────────────────────────────────────────
 # Update record (.last-deployed-commit)
 # ──────────────────────────────────────────
 update_record() {
@@ -577,6 +640,7 @@ main() {
   restart_server
   reload_nginx
   verify_deployment
+  close_feedback
   show_summary
   update_record
 
