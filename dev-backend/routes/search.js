@@ -261,8 +261,17 @@ router.get('/', authenticateToken, async (req, res, next) => {
         return merged.slice(0, limit);
       })().catch(() => []),
       Client.findAll({
-        where: { ...clientWhere, [Op.and]: [{ [Op.or]: [...likeAny('display_name'), ...likeAny('company_name'), { email: like }] }] },
-        attributes: ['id', 'display_name', 'company_name', 'email'],
+        // 멀티테넌트 — clientWhere 는 위에서 구성되지만 호출 지점에도 명시한다
+        //   (검색 블록이 길어지며 조건이 눈에서 멀어졌다. 중복이지만 실제 제약이라 안전하다).
+        // ★ `email` 컬럼은 clients 에 없다(invite_email / billing_contact_email 이다).
+        //   없는 컬럼을 where·attributes 에 쓰면 쿼리가 통째로 throw 하는데, 아래 .catch(()=>[]) 가
+        //   그걸 삼켜 **고객 검색이 늘 "결과 없음"** 이었다. 조용한 죽음 — 화면에도 로그에도 안 남는다.
+        //   (2026-08-21 발견. 실측: Unknown column 'Client.email' in 'where clause')
+        where: { ...clientWhere, business_id: businessId, [Op.and]: [{ [Op.or]: [
+          ...likeAny('display_name'), ...likeAny('company_name'),
+          { invite_email: like }, { billing_contact_email: like },
+        ] }] },
+        attributes: ['id', 'display_name', 'company_name', 'invite_email', 'billing_contact_email'],
         limit, order: [relevance('display_name'), ['updated_at', 'DESC']],
       }).catch(() => []),
       Project.findAll({
