@@ -161,7 +161,7 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
           <SearchInput
             ref={inputRef} type="text" value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder={t('search.placeholder', '메뉴·업무·문서·레코드·파일·고객 모두 검색') as string}
+            placeholder={t('search.placeholder', '메뉴·업무·문서·파일·고객 모두 검색') as string}
           />
           {loading && <Spinner size={14} color="muted" />}
           <Kbd onClick={onClose}>Esc</Kbd>
