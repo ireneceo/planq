@@ -409,6 +409,25 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, 
       });
     }
 
+    // ★ 고객을 참여자로 넣는다 (운영 신고 2026-08-21: "고객을 넣어서 만들었는데도 고객이 안 들어와 있어").
+    //   여태 client_id 를 conversations 행에만 기록하고 conversation_participants 에는 넣지 않았다.
+    //   그래서 고객은 그 대화를 열 수도, @ 로 부를 수도 없었다 — 고객 채널인데 고객이 없는 방.
+    //   실호출 확인(dev 2026-08-21): client_id 를 주고 만든 대화의 참여자가 owner 1명뿐이었다.
+    //   초대를 아직 수락하지 않은 고객(user_id 없음)은 계정이 없으므로 건너뛴다
+    //   (참여자 패널의 pending_clients 안내와 같은 규칙).
+    if (client_id) {
+      const cli = await Client.findOne({
+        where: { id: client_id, business_id: req.params.businessId },   // 멀티테넌트 — 타 워크스페이스 고객 차단
+        attributes: ['id', 'user_id'],
+      });
+      if (cli && cli.user_id && cli.user_id !== req.user.id) {
+        await ConversationParticipant.findOrCreate({
+          where: { conversation_id: conversation.id, user_id: cli.user_id },
+          defaults: { conversation_id: conversation.id, user_id: cli.user_id, role: 'client' },
+        });
+      }
+    }
+
     // participant_user_ids 우선, 없으면 participant_ids 호환
     const rawParticipants = Array.isArray(participant_user_ids)
       ? participant_user_ids
