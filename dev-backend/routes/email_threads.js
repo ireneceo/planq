@@ -20,7 +20,7 @@ const { EmailThread, EmailMessage, EmailAttachment, EmailAccount, EmailThreadPar
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { requireMenu } = require('../middleware/menu_permission');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
-const { stripEmbeddedImages, extractEmbeddedImage } = require('../services/emailInlineData');
+const { stripEmbeddedImages, extractEmbeddedImage, restoreEmbeddedImages } = require('../services/emailInlineData');
 const { applyMemberDisplayName, getMemberNameMap } = require('../services/displayName');
 const { sendMail, deliveryFromSendResult } = require('../services/emailSend');
 const { inlineMailTableStyles } = require('../services/emailHtmlInline');
@@ -137,6 +137,7 @@ router.get('/:businessId/email-threads',
       if (client_id) where.client_id = Number(client_id);
       if (project_id) where.project_id = Number(project_id);
       // 라벨(태그) 필터 — labels 는 JSON 배열. 사용자 입력이라 이스케이프 후 JSON_CONTAINS.
+      let relevanceOrder = null;   // 검색어가 있을 때만 세팅 (관련도 우선 정렬)
       if (label && String(label).trim()) {
         const lb = String(label).trim().slice(0, 50);
         where[Op.and] = [
@@ -150,35 +151,79 @@ router.get('/:businessId/email-threads',
       // #212 — 공백은 토큰 구분자. "wordpress org" 는 두 토큰이 각각 어딘가에 있으면 매칭(AND).
       //        옛 동작(공백 포함 단일 LIKE)은 "wordpress.org" 같은 실제 문자열을 못 찾았다.
       if (q && String(q).trim()) {
-        const tokens = String(q).trim().slice(0, 100).split(/\s+/)
-          .map(s => s.trim()).filter(Boolean).slice(0, 4);
+        const rawQuery = String(q).trim().slice(0, 100);
+        const tokens = rawQuery.split(/\s+/).map(s => s.trim()).filter(Boolean).slice(0, 4);
         const andConds = [];
         // 사용자 입력의 LIKE 와일드카드(% _ \)는 리터럴로 — 검색어 "50%" 가 전건 매칭되지 않게
         const esc = (s) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
-        for (const raw of tokens) {
-          const tk = esc(raw);
-          // 토큰별 메시지 매칭 thread id (접근 가능 계정 스코프 내) — 제목/미리보기에 없어도 내용·발신자로 검색
+        // 띄어쓰기 무시 매칭용 — 검색어와 대상 양쪽에서 공백을 지우고 비교한다.
+        //   운영 요청: "띄어쓰기 해도 같이 검색되어야 하는 거 아냐?"
+        //   ① 검색어에 공백 없음 / 대상에 있음 ("워드프레스" → "워드 프레스") : REPLACE(대상,' ','') 로 해결
+        //   ② 검색어에 공백 있음 / 대상에 없음 ("워드 프레스" → "워드프레스") : 아래 squashed OR 로 해결
+        const squashed = esc(rawQuery.replace(/\s+/g, ''));
+
+        // 토큰별 메시지 매칭 (접근 가능 계정 스코프 내) — 제목/미리보기에 없어도 내용·발신자로 검색
+        const msgTidsFor = async (needle) => {
           const [msgRows] = await sequelize.query(
             `SELECT DISTINCT thread_id FROM email_messages
               WHERE business_id = :bid
                 AND thread_id IN (SELECT id FROM email_threads WHERE business_id = :bid AND account_id IN (:acctIds))
-                AND (body_text LIKE :kw OR subject LIKE :kw OR from_name LIKE :kw OR from_email LIKE :kw)
+                AND (body_text LIKE :kw OR subject LIKE :kw OR from_name LIKE :kw OR from_email LIKE :kw
+                     OR REPLACE(subject, ' ', '') LIKE :kw
+                     OR REPLACE(COALESCE(from_name, ''), ' ', '') LIKE :kw)
               LIMIT 1000`,
-            { replacements: { bid: businessId, kw: `%${tk}%`, acctIds: acctIds.length ? acctIds : [0] } }
+            { replacements: { bid: businessId, kw: `%${needle}%`, acctIds: acctIds.length ? acctIds : [0] } }
           );
-          const msgTids = msgRows.map(r => r.thread_id);
-          const orConds = [
-            { subject: { [Op.like]: `%${tk}%` } },
-            { last_message_preview: { [Op.like]: `%${tk}%` } },
+          return msgRows.map(r => r.thread_id);
+        };
+
+        const threadOr = (needle) => {
+          const conds = [
+            { subject: { [Op.like]: `%${needle}%` } },
+            { last_message_preview: { [Op.like]: `%${needle}%` } },
+            sequelize.literal(`REPLACE(\`EmailThread\`.\`subject\`, ' ', '') LIKE ${sequelize.escape(`%${needle}%`)}`),
           ];
+          return conds;
+        };
+
+        for (const raw of tokens) {
+          const tk = esc(raw);
+          const msgTids = await msgTidsFor(tk);
+          const orConds = threadOr(tk);
           if (msgTids.length) orConds.push({ id: { [Op.in]: msgTids } });
           andConds.push({ [Op.or]: orConds });
         }
-        if (andConds.length) where[Op.and] = [...(where[Op.and] || []), ...andConds];
+
+        // ② 검색어에 공백이 있고 대상은 붙어 있는 경우 — 토큰 AND 와 **OR** 로 묶는다.
+        let searchCond = andConds.length ? { [Op.and]: andConds } : null;
+        if (tokens.length > 1 && squashed) {
+          const sqTids = await msgTidsFor(squashed);
+          const sqOr = threadOr(squashed);
+          if (sqTids.length) sqOr.push({ id: { [Op.in]: sqTids } });
+          searchCond = { [Op.or]: [searchCond, { [Op.or]: sqOr }] };
+        }
+        if (searchCond) where[Op.and] = [...(where[Op.and] || []), searchCond];
+
+        // 관련도 정렬 — 제목 > 보낸사람(참여자) > 그 외. 같은 등급이면 최신순.
+        //   운영 요청: "제목에서나 보내는 사람 등의 키워드에 있는 게 우선시되고 제대로 나와야지".
+        //   여태 무조건 최신순이라, 제목에 정확히 있는 메일이 한참 아래에 묻혔다.
+        const likeFull = sequelize.escape(`%${esc(rawQuery)}%`);
+        const likeSquashed = sequelize.escape(`%${squashed}%`);
+        const firstTk = tokens.length ? sequelize.escape(`%${esc(tokens[0])}%`) : likeFull;
+        relevanceOrder = sequelize.literal(`(
+          CASE WHEN \`EmailThread\`.\`subject\` LIKE ${likeFull} THEN 400
+               WHEN REPLACE(\`EmailThread\`.\`subject\`, ' ', '') LIKE ${likeSquashed} THEN 380
+               WHEN \`EmailThread\`.\`subject\` LIKE ${firstTk} THEN 300
+               WHEN JSON_SEARCH(\`EmailThread\`.\`participants\`, 'one', ${likeFull}) IS NOT NULL THEN 200
+               WHEN JSON_SEARCH(\`EmailThread\`.\`participants\`, 'one', ${firstTk}) IS NOT NULL THEN 180
+               ELSE 0 END
+        ) DESC`);
       }
 
       const { rows, count } = await EmailThread.findAndCountAll({
-        where,
+        // 멀티테넌트 — where 는 위에서 business_id 로 구성되지만 호출 지점에도 명시한다.
+        //   검색 블록이 길어지며 조건이 눈에서 멀어졌다(가드가 잡았다). 중복이지만 실제 제약이라 안전하다.
+        where: { ...where, business_id: businessId },
         include: [
           { model: EmailAccount, attributes: ['id', 'email', 'display_name'], required: false },
           { model: Client, attributes: ['id', 'display_name', 'company_name'], required: false },
@@ -189,7 +234,9 @@ router.get('/:businessId/email-threads',
         //   파생 컬럼(last_outbound_at)을 두지 않고 상관 서브쿼리로 푼다: outbound 쓰기 경로가
         //   reply·compose·forward 3곳 + 향후 IMAP Sent 동기화까지 있어 컬럼은 조용히 어긋난다
         //   (memory feedback_dual_column_authority_write_side). 인덱스 email_messages_thread_time 이 받쳐 준다.
-        order: folder === 'sent' ? sentOrder() : [['last_message_at', 'DESC']],
+        order: relevanceOrder
+          ? [relevanceOrder, ...(folder === 'sent' ? sentOrder() : [['last_message_at', 'DESC']])]
+          : (folder === 'sent' ? sentOrder() : [['last_message_at', 'DESC']]),
         limit, offset,
         distinct: true,
       });
@@ -1070,7 +1117,11 @@ router.post('/:businessId/email-threads/:id/forward',
       const userFileIds = Array.isArray(attachment_file_ids) ? attachment_file_ids : [];
       const { atts, files } = await resolveAttachments([...origFileIds, ...userFileIds], businessId);
       const subj = String(subject || '').trim() || `Fwd: ${srcMsg.subject || ''}`;
-      const bodyHtmlOut2 = inlineMailTableStyles(body_html);
+      // ★ 상세 응답이 base64 이미지를 `cid:planq-embed-N` 으로 바꿔 내려주므로, 클라가 되돌려 준
+      //   본문에는 그 자리표시자가 그대로 들어 있다. 원본에서 실제 데이터를 다시 채워 넣지 않으면
+      //   받는 쪽에서 이미지가 통째로 사라진다 — 본문 대부분이 이미지인 메일은 "내용이 없어진" 것으로 보인다.
+      const bodyRestored = restoreEmbeddedImages(body_html, srcMsg.body_html);
+      const bodyHtmlOut2 = inlineMailTableStyles(bodyRestored);
 
       let sendResult;
       try {
@@ -1082,7 +1133,7 @@ router.post('/:businessId/email-threads/:id/forward',
       }
 
       const now = new Date();
-      const preview = htmlToPreview(body_html);
+      const preview = htmlToPreview(bodyRestored);
       // #200(b') — 전달도 수신자를 참여자로 박제한다.
       //   한계: 전달 스레드 제목은 `Fwd: ...` 접두를 정규화 없이 저장하는데(위 subj),
       //   findOrCreateThread step3 는 정규화 제목 완전일치라 참여자를 채워도 이 스레드에는

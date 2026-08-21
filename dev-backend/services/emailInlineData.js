@@ -70,4 +70,27 @@ function extractEmbeddedImage(html, wantIndex, { minBytes = 4096 } = {}) {
   return null;
 }
 
-module.exports = { stripEmbeddedImages, extractEmbeddedImage, decodedSize };
+/**
+ * stripEmbeddedImages 로 떼어낸 자리표시자를 **원본 데이터로 되돌린다.**
+ *
+ * 왜 필요한가: 스레드 상세 응답은 base64 이미지를 `cid:planq-embed-N` 으로 바꿔 내려준다(응답 크기).
+ *   화면은 실제 바이트를 따로 받아 보여주므로 사용자는 이미지를 본다.
+ *   그런데 **전달·답장은 그 자리표시자가 든 본문을 그대로 되돌려 보낸다.**
+ *   받는 쪽에는 존재하지 않는 cid 라 이미지가 통째로 사라진다 —
+ *   본문의 대부분이 이미지인 메일(뉴스레터·스크린샷)은 "내용이 없어진" 것으로 보인다.
+ *   운영 신고 2026-08-21: "이메일 전달기능이 제대로 작동 안해. 이상하게 내용이 없어져."
+ *
+ * ★ 인덱스 규칙은 stripEmbeddedImages / extractEmbeddedImage 와 **반드시 같아야** 한다.
+ *   (같은 정규식·같은 minBytes·같은 image/ 필터) — 하나만 달라지면 엉뚱한 이미지가 박힌다.
+ */
+function restoreEmbeddedImages(html, sourceHtml, { minBytes = 4096 } = {}) {
+  const src = String(html || '');
+  if (!src.includes('cid:planq-embed-')) return src;
+  return src.replace(/cid:planq-embed-(\d+)/g, (whole, n) => {
+    const got = extractEmbeddedImage(sourceHtml, Number(n), { minBytes });
+    if (!got) return whole;      // 원본을 못 찾으면 손대지 않는다 (깨진 문자열을 만들지 않는다)
+    return `data:${got.mime};base64,${got.buffer.toString('base64')}`;
+  });
+}
+
+module.exports = { stripEmbeddedImages, extractEmbeddedImage, restoreEmbeddedImages, decodedSize };

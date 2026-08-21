@@ -113,7 +113,31 @@ router.get('/', authenticateToken, async (req, res, next) => {
     if (!w) return errorResponse(res, 'forbidden', 403);
     const { scope, isClient } = w;
 
-    const like = { [Op.like]: `%${q}%` };
+    // 사용자 입력의 LIKE 와일드카드(% _ \)는 리터럴로 — "%" 하나로 전건이 매칭되던 것 차단.
+    //   (Q Mail 검색은 이미 이 방어가 있었는데 통합검색에는 없었다.)
+    const escLike = (v) => String(v).replace(/[\\%_]/g, (c) => `\\${c}`);
+    const qEsc = escLike(q);
+    // 띄어쓰기 무시 매칭 — "워드 프레스" ↔ "워드프레스" 를 서로 찾게 한다(운영 요청).
+    const qSquashed = escLike(q.replace(/\s+/g, ''));
+    const like = { [Op.like]: `%${qEsc}%` };
+
+    // 한 컬럼에 대해 [일반 LIKE, 공백제거 LIKE] 두 조건을 만든다.
+    //   ★ 공백 없는 검색어일 때도 반드시 넣는다 — 그게 정작 필요한 경우다
+    //     ("먼미래" 로 "먼 미래" 를 찾는 방향). 예전에 qSquashed !== qEsc 로 걸었다가
+    //     이 방향이 통째로 죽어 양성 대조군에서 0건이 나왔다.
+    const likeAny = (col) => {
+      const conds = [{ [col]: { [Op.like]: `%${qEsc}%` } }];
+      if (qSquashed) {
+        conds.push(sequelize.literal(`REPLACE(\`${col}\`, ' ', '') LIKE ${sequelize.escape(`%${qSquashed}%`)}`));
+      }
+      return conds;
+    };
+    // 관련도 — 제목(이름)에 키워드가 있으면 위로. 같은 등급이면 기존 정렬(최신순) 유지.
+    //   운영 요청: "제목이나 보내는 사람 등 키워드에 있는 게 우선시되고 제대로 나와야지".
+    const relevance = (col) => sequelize.literal(`(CASE
+      WHEN \`${col}\` LIKE ${sequelize.escape(`%${qEsc}%`)} THEN 2
+      WHEN REPLACE(\`${col}\`, ' ', '') LIKE ${sequelize.escape(`%${qSquashed}%`)} THEN 1
+      ELSE 0 END) DESC`);
 
     // 권한별 where 조건 — client 는 자기 데이터만, member/owner 는 워크스페이스 + 본인 프로젝트
     // 사이클 N+9: file/post 는 옵션 A (visibility/vlevel 단계별) 적용
@@ -144,17 +168,17 @@ router.get('/', authenticateToken, async (req, res, next) => {
     // 병렬 검색 — 각 where 에 keyword 추가
     const [tasks, posts, records, files, conversations, knowledge, clients, projects] = await Promise.all([
       Task.findAll({
-        where: { ...taskWhere, [Op.and]: [{ [Op.or]: [{ title: like }, { description: like }] }] },
+        where: { ...taskWhere, [Op.and]: [{ [Op.or]: [...likeAny('title'), { description: like }] }] },
         attributes: ['id', 'title', 'status', 'project_id'],
-        limit, order: TASK_ORDER,
+        limit, order: [relevance('title'), ...TASK_ORDER],
       }).catch(() => []),
       // Post: 기본 (title/content/category) + table kind 면 q_record_rows.values 도 매치
       (async () => {
         // 1) 기본 매치
         const basicMatches = await Post.findAll({
-          where: { ...postWhere, [Op.and]: [{ [Op.or]: [{ title: like }, { content_text: like }, { category: like }] }] },
+          where: { ...postWhere, [Op.and]: [{ [Op.or]: [...likeAny('title'), { content_text: like }, { category: like }] }] },
           attributes: ['id', 'title', 'category', 'project_id', 'kind'],
-          limit, order: [['updated_at', 'DESC']],
+          limit, order: [relevance('title'), ['updated_at', 'DESC']],
         }).catch(() => []);
         // 2) 표 셀 검색 — kind='table' 인 post 의 연결 q_record_rows.values 에서 LIKE
         const { QRecord, QRecordRow } = require('../models');
@@ -165,7 +189,7 @@ router.get('/', authenticateToken, async (req, res, next) => {
           'AND LOWER(CAST(r.`values` AS CHAR)) LIKE LOWER(:like) ' +
           `ORDER BY p.updated_at DESC LIMIT ${Number(limit)}`;
         const tableMatches = await sequelize.query(tableSql,
-          { replacements: { bid: businessId, like: `%${q}%` }, type: sequelize.QueryTypes.SELECT }
+          { replacements: { bid: businessId, like: `%${qEsc}%` }, type: sequelize.QueryTypes.SELECT }
         ).catch(err => { console.error('[search] table cell match err:', err.message); return []; });
         // 합치기 (id 기준 dedup)
         const seen = new Set(basicMatches.map(m => m.id));
@@ -174,26 +198,26 @@ router.get('/', authenticateToken, async (req, res, next) => {
         return merged.slice(0, limit);
       })().catch(() => []),
       QRecord.findAll({
-        where: { ...recordWhere, [Op.and]: [{ [Op.or]: [{ name: like }, { category: like }, { description: like }] }] },
+        where: { ...recordWhere, [Op.and]: [{ [Op.or]: [...likeAny('name'), { category: like }, { description: like }] }] },
         attributes: ['id', 'name', 'category', 'project_id'],
-        limit, order: [['updated_at', 'DESC']],
+        limit, order: [relevance('name'), ['updated_at', 'DESC']],
       }).catch(() => []),
       File.findAll({
-        where: { ...fileWhere, [Op.and]: [{ file_name: like }, { deleted_at: null }] },
+        where: { ...fileWhere, [Op.and]: [{ [Op.or]: likeAny('file_name') }, { deleted_at: null }] },
         attributes: ['id', 'file_name', 'file_size', 'mime_type'],
-        limit, order: [['created_at', 'DESC']],
+        limit, order: [relevance('file_name'), ['created_at', 'DESC']],
       }).catch(() => []),
       Conversation.findAll({
-        where: { ...convWhere, [Op.and]: [{ [Op.or]: [{ title: like }, { display_name: like }] }] },
+        where: { ...convWhere, [Op.and]: [{ [Op.or]: [...likeAny('title'), ...likeAny('display_name')] }] },
         attributes: ['id', 'title', 'display_name', 'project_id'],
-        limit, order: [['last_message_at', 'DESC']],
+        limit, order: [relevance('title'), ['last_message_at', 'DESC']],
       }).catch(() => []),
       // KbDocument (Q info) — title/body + custom_values JSON 매치
       (async () => {
         const baseHits = await KbDocument.findAll({
-          where: { ...kbWhere, [Op.and]: [{ [Op.or]: [{ title: like }, { body: like }] }] },
+          where: { ...kbWhere, [Op.and]: [{ [Op.or]: [...likeAny('title'), { body: like }] }] },
           attributes: ['id', 'title', 'category', 'scope'],
-          limit, order: [['updated_at', 'DESC']],
+          limit, order: [relevance('title'), ['updated_at', 'DESC']],
         }).catch(() => []);
         if (isClient) return baseHits;
         const valHits = await sequelize.query(
@@ -201,7 +225,7 @@ router.get('/', authenticateToken, async (req, res, next) => {
           'WHERE business_id = :bid ' +
           'AND (custom_values IS NOT NULL AND LOWER(CAST(custom_values AS CHAR)) LIKE LOWER(:like)) ' +
           `ORDER BY updated_at DESC LIMIT ${Number(limit)}`,
-          { replacements: { bid: businessId, like: `%${q}%` }, type: sequelize.QueryTypes.SELECT }
+          { replacements: { bid: businessId, like: `%${qEsc}%` }, type: sequelize.QueryTypes.SELECT }
         ).catch(err => { console.error('[search] kb val err:', err.message); return []; });
         const seen = new Set(baseHits.map(m => m.id));
         const merged = [...baseHits.map(m => m.toJSON ? m.toJSON() : m)];
@@ -209,14 +233,14 @@ router.get('/', authenticateToken, async (req, res, next) => {
         return merged.slice(0, limit);
       })().catch(() => []),
       Client.findAll({
-        where: { ...clientWhere, [Op.and]: [{ [Op.or]: [{ display_name: like }, { company_name: like }, { email: like }] }] },
+        where: { ...clientWhere, [Op.and]: [{ [Op.or]: [...likeAny('display_name'), ...likeAny('company_name'), { email: like }] }] },
         attributes: ['id', 'display_name', 'company_name', 'email'],
-        limit, order: [['updated_at', 'DESC']],
+        limit, order: [relevance('display_name'), ['updated_at', 'DESC']],
       }).catch(() => []),
       Project.findAll({
-        where: { ...projectWhere, [Op.and]: [{ name: like }] },
+        where: { ...projectWhere, [Op.and]: [{ [Op.or]: likeAny('name') }] },
         attributes: ['id', 'name', 'status'],
-        limit, order: [['updated_at', 'DESC']],
+        limit, order: [relevance('name'), ['updated_at', 'DESC']],
       }).catch(() => []),
     ]);
 
