@@ -22,7 +22,7 @@
     "allClients": "전체 고객",
     "tagFilter": "태그",
     "clearTag": "태그 필터 해제",
-    "aiIngestHint": "AI 가 문서·링크에서 지식을 자동으로 정리해 추가합니다"
+    "aiIngestHint": "붙여넣은 내용이나 텍스트 파일을 AI 가 토픽별로 정리해 추가합니다"
   },
   "help": {
     "body": "Cue·AI 작성·Q note 답변 찾기가 참조하는 회사 정보 DB.\n\n• 카테고리: 정책 / 매뉴얼 / 사고·이슈 / FAQ / 소개 / 가격\n• 적용 범위: 워크스페이스 / 특정 프로젝트 / 특정 고객\n• 좁은 스코프일수록 답변 정확도 ↑",
@@ -206,6 +206,13 @@
     }
   },
   "aiIngest": {
-    "truncated": "{{total}}건 중 {{returned}}건만 가져왔습니다 (한 번에 최대 {{limit}}건)."
+    "truncated": "{{total}}건 중 {{returned}}건만 가져왔습니다 (한 번에 최대 {{limit}}건).",
+    "file": "파일에서 가져오기 (선택)",
+    "fileHint": "텍스트·마크다운·CSV·JSON·HTML 파일을 떨어뜨리면 내용을 입력칸에 채웁니다",
+    "fileLoaded": "{{count}}개 파일을 불러왔습니다.",
+    "fileUnsupported": "{{names}} 은(는) 아직 읽지 못합니다. 텍스트·마크다운·CSV·JSON·HTML 만 지원합니다 — 내용을 복사해 붙여넣어 주세요."
+  },
+  "csv": {
+    "secretMasked": "(비밀값 — 내보내지 않음)"
   }
 }

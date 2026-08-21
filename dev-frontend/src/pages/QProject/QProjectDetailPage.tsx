@@ -41,6 +41,7 @@ import {
   TabFallback,
   Tab,
   InfoBody,
+  OverviewDesc,
   ProjectDocsWrap,
   EditGrid,
   EditField,
@@ -209,7 +210,9 @@ const ProjectDescriptionEditor = ({ projectId, initial, onSave }: {
   useEffect(() => { setDraft(initial); }, [projectId, initial]);
   return (
     <AutoSaveField onSave={async () => { await onSave(draft.trim()); }}>
-      <EditTextarea rows={3} value={draft} onChange={(e) => setDraft(e.target.value)} />
+      {/* 운영 #339 — "칸이라도 넓게 해". 프로젝트 설명은 한두 줄로 끝나지 않는다(배경·범위·주의사항).
+          3줄 상자에 긴 글을 넣으면 자기가 쓴 글을 못 본다. */}
+      <EditTextarea rows={8} value={draft} onChange={(e) => setDraft(e.target.value)} />
     </AutoSaveField>
   );
 };
@@ -604,7 +607,15 @@ const QProjectDetailPage: React.FC = () => {
       <Suspense fallback={<TabFallback>{t('common.loading', '불러오는 중…')}</TabFallback>}>
       {/* #167 — 개요 탭은 보기 전용. 편집(전략·지표·추진과제·프로젝트 연결)은 상세정보 탭 한 곳. */}
       {tab === 'dashboard' && !isClient && (
-        <ProjectCanvas projectId={projectId} businessId={project.business_id} readOnly />
+        <>
+          {/* 운영 #339 — "그리고 개요에 표시되게 하고". 설명은 설정 안에만 있어서, 정작 프로젝트를
+              열었을 때 "이게 무슨 일인지" 가 어디에도 안 보였다. 편집은 종전대로 설정 한 곳(단일 원천),
+              여기서는 읽기 전용으로 보여주기만 한다. 비어 있으면 아무것도 그리지 않는다. */}
+          {!!(project.description || '').trim() && (
+            <OverviewDesc>{project.description}</OverviewDesc>
+          )}
+          <ProjectCanvas projectId={projectId} businessId={project.business_id} readOnly />
+        </>
       )}
 
       {tab === 'tasks' && (

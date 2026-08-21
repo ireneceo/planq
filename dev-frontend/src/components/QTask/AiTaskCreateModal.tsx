@@ -100,11 +100,17 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
 
   if (!open) return null;
 
+  // 운영 #312 — "다시 만들기" 로 준 지시를 누적한다. 마지막 한 줄만 보내면 앞서 시킨 것이 풀려
+  //   결과가 처음으로 되돌아간다. 직전 후보 목록도 같이 넘겨 "고쳐 쓰기" 가 되게 한다.
+  const [aiInstructions, setAiInstructions] = useState<string[]>([]);
+
   const generate = async (instruction?: string) => {
     if (!prompt.trim() || submitting) return;
     setSubmitting(true);
     setError(null);
     setStage('loading');
+    const nextInstructions = [...aiInstructions, ...(instruction ? [instruction] : [])];
+    const baseCandidates = candidates.map((c) => ({ title: c.title, description: c.description }));
     try {
       const r = await apiFetch('/api/tasks/ai-create', {
         method: 'POST',
@@ -113,7 +119,8 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
           business_id: businessId,
           project_id: selectedProjectId,
           prompt: prompt.trim(),
-          instruction: instruction || undefined,  // 운영 — 재생성 지시
+          instructions: nextInstructions.length ? nextInstructions : undefined,
+          base_candidates: baseCandidates.length ? baseCandidates : undefined,
         }),
       });
       const j = await r.json();
@@ -125,6 +132,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
         return;
       }
       setCandidates(list);
+      setAiInstructions(nextInstructions);   // ★ 성공했을 때만 누적 확정 (실패한 지시는 쌓지 않는다)
       setReasoning(j.data?.reasoning || '');
       setStage('preview');
     } catch (e) {

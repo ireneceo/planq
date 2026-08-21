@@ -117,6 +117,7 @@ const RootRoute = lazy(() => import('./pages/Landing/RootRoute'));
 const DashboardPage = lazy(() => import('./pages/Dashboard/DashboardPage'));
 const TodoPage = lazy(() => import('./pages/Todo/TodoPage'));
 const NotificationsPage = lazy(() => import('./pages/Notifications/NotificationsPage'));
+const WhatsNewPage = lazy(() => import('./pages/WhatsNew/WhatsNewPage'));
 const QBillPage = lazy(() => import('./pages/QBill/QBillPage'));
 const KnowledgePage = lazy(() => import('./pages/Knowledge/KnowledgePage'));
 // Q record 메뉴는 폐지 — Q docs 의 표 kind 로 흡수. /records → /docs redirect.
@@ -230,6 +231,13 @@ function ShellApp() {
         <Route path="/notifications" element={
           <ProtectedRoute>
             <MainLayout><NotificationsPage /></MainLayout>
+          </ProtectedRoute>
+        } />
+        {/* 운영 #306 — 새 소식 전체 보기. 알림(/notifications)과 같은 자리·같은 모양의 인앱 페이지.
+            (여태 "전체 보기" 는 마케팅 블로그를 새 탭으로 열어 앱 밖으로 나갔다) */}
+        <Route path="/whats-new" element={
+          <ProtectedRoute>
+            <MainLayout><WhatsNewPage /></MainLayout>
           </ProtectedRoute>
         } />
 

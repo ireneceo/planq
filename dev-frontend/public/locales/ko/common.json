@@ -4,7 +4,7 @@
     "subtitle": "PlanQ 업데이트 소식을 확인하세요",
     "loading": "불러오는 중…",
     "new": "새 소식",
-    "viewAll": "모든 소식 보기",
+    "viewAll": "새 소식 모두 보기",
     "empty": {
       "title": "아직 새 소식이 없어요",
       "desc": "새로운 기능과 개선 소식을 이곳에서 알려드릴게요."
@@ -438,7 +438,7 @@
   },
   "search": {
     "title": "통합 검색",
-    "placeholder": "메뉴·업무·문서·레코드·파일·고객 모두 검색",
+    "placeholder": "메뉴·업무·문서·파일·고객 모두 검색",
     "hint": "검색어를 입력하세요. ⌘K 또는 Ctrl+\\ 로도 열 수 있습니다.",
     "searching": "검색 중...",
     "noResults": "결과 없음",
@@ -447,7 +447,6 @@
     "cat": {
       "tasks": "업무",
       "posts": "문서",
-      "records": "레코드",
       "files": "파일",
       "conversations": "대화",
       "knowledge": "지식",

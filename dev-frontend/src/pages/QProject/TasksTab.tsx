@@ -146,8 +146,10 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
     apiFetch(`/api/projects/${projectId}`).then(r => r.json()).then(j => {
       if (j.success) {
         // ProjectMember.User 에 백엔드가 display_name (워크스페이스 표시명) enrich 함
+        // 운영 #263 — 폴백이 `#${user_id}` 라 이름 없는 멤버가 목록에 **날 id 로** 떴다.
+        //   사용자에게 숫자는 아무 뜻이 없다. 사람 말로 바꾼다.
         const ms = (j.data.projectMembers || []).map((m: { user_id: number; User?: { name: string; display_name?: string | null } }) =>
-          ({ user_id: m.user_id, name: m.User?.display_name || m.User?.name || `#${m.user_id}` }));
+          ({ user_id: m.user_id, name: m.User?.display_name || m.User?.name || (tp('members.unknown', '알 수 없는 멤버') as string) }));
         setMembers(ms);
         const rd = j.data.resolved_default_assignee as { name: string | null; is_me: boolean } | undefined;
         setResolvedAssignee(rd ? { name: rd.name, is_me: rd.is_me } : null);

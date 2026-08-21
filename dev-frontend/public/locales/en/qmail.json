@@ -199,7 +199,9 @@
     "markHandled": "Reviewed",
     "handledDone": "Done",
     "extractTasks": "Extract tasks",
-    "extractTasksHint": "Pull action items out of this email as candidates"
+    "extractTasksHint": "Pull action items out of this email as candidates",
+    "markReplyNeeded": "Needs reply",
+    "markReplyNeededHint": "Move to Needs reply. You can continue handling it in the Needs reply tab."
   },
   "selectWorkspace": "Select a workspace.",
   "selectThread": "Select a thread",

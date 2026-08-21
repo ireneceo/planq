@@ -22,7 +22,7 @@
     "allClients": "All clients",
     "tagFilter": "Tag",
     "clearTag": "Clear tag filter",
-    "aiIngestHint": "AI organizes knowledge from documents and links for you"
+    "aiIngestHint": "AI organizes pasted content or a text file into topics and adds them"
   },
   "help": {
     "body": "Company knowledge DB referenced by Cue, AI writing, and Q note answer-finding.\n\n• Categories: Policy / Manual / Incident / FAQ / About / Pricing\n• Scope: Workspace / Project / Client\n• Narrower scope = higher answer precision",
@@ -206,6 +206,13 @@
     }
   },
   "aiIngest": {
-    "truncated": "Imported {{returned}} of {{total}} items (max {{limit}} at a time)."
+    "truncated": "Imported {{returned}} of {{total}} items (max {{limit}} at a time).",
+    "file": "Import from file (optional)",
+    "fileHint": "Drop a text, Markdown, CSV, JSON or HTML file to fill the box with its contents",
+    "fileLoaded": "Loaded {{count}} file(s).",
+    "fileUnsupported": "{{names}} cannot be read yet. Only text, Markdown, CSV, JSON and HTML are supported — please paste the contents instead."
+  },
+  "csv": {
+    "secretMasked": "(secret — not exported)"
   }
 }

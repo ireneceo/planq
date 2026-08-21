@@ -436,7 +436,8 @@
     "remove": "Remove",
     "cancel": "Cancel",
     "owner": "Owner",
-    "noCandidates": "No workspace members available to add"
+    "noCandidates": "No workspace members available to add",
+    "unknown": "Unknown member"
   },
   "docs": {
     "drop": {

@@ -224,18 +224,35 @@ function matchMemberByHint(hint, members) {
 }
 
 // 메인 — 미리보기 후보 생성
-async function planTasksFromPrompt({ prompt, businessId, projectContext, members = [], targetDate = null, todayLocal, language = 'ko', mode = null, instruction = null }) {
+async function planTasksFromPrompt({ prompt, businessId, projectContext, members = [], targetDate = null, todayLocal, language = 'ko', mode = null, instruction = null, instructions = null, baseCandidates = null }) {
   if (!prompt || !String(prompt).trim()) {
     return { candidates: [], reasoning: '', fallback: true, error: 'empty_prompt' };
   }
   let systemPrompt = buildSystemPrompt(language, members, projectContext, targetDate, todayLocal, mode);
   // KNOWLEDGE_LOOP 축1 — 워크스페이스 카테고리별 실측 소요시간 통계 주입 (estimated_hours 정확도 ↑)
   try { systemPrompt += await require('./cueKnowledge').getWorkPatternPromptBlock(businessId); } catch { /* noop */ }
-  // 운영 — 재생성/재수정 지시 (AI 재생성 UX 통일). 사용자가 결과를 보고 "이렇게 고쳐줘" 한 것.
+  // 운영 #312 — 재생성은 "처음부터 다시 분해" 가 아니라 **"직전 결과를 고쳐 쓰기"** 다.
+  //   여태 지시를 한 줄만 붙여 매번 백지에서 다시 분해했고, 그래서 두 번째 지시를 주면
+  //   첫 번째 지시가 통째로 풀렸다 (Irene: "히스토리 날리고 수정하면 의미가 있어?").
+  //   → ① 지시를 누적해서 순서대로 넘기고 ② 직전 후보 목록을 원본으로 같이 넘긴다.
   let userPrompt = String(prompt).trim();
-  if (instruction && String(instruction).trim()) {
-    const label = language === 'en' ? '\n\n[Revision instruction — regenerate accordingly]\n' : '\n\n[재생성 지시 — 아래 요구에 맞춰 다시 분해]\n';
-    userPrompt += label + String(instruction).trim().slice(0, 1000);
+  const insList = (Array.isArray(instructions) ? instructions : (instruction ? [instruction] : []))
+    .map(x => String(x || '').trim()).filter(Boolean).slice(-10).map(x => x.slice(0, 1000));
+  if (Array.isArray(baseCandidates) && baseCandidates.length) {
+    const brief = baseCandidates.slice(0, 30).map((c, i) => {
+      const t = String(c.title || '').slice(0, 120);
+      const d = String(c.description || '').slice(0, 200);
+      return `${i + 1}. ${t}${d ? ` — ${d}` : ''}`;
+    }).join('\n');
+    userPrompt += (language === 'en'
+      ? '\n\n[Current task list — revise THIS list. Keep items the instructions do not mention, unchanged]\n'
+      : '\n\n[현재 업무 목록 — 이 목록을 **고쳐서** 낸다. 지시가 언급하지 않은 항목은 그대로 유지]\n') + brief;
+  }
+  if (insList.length) {
+    const label = language === 'en'
+      ? '\n\n[Revision instructions — cumulative, oldest first. Apply ALL of them; later ones win on conflict]\n'
+      : '\n\n[수정 지시 — 앞에서 뒤로 누적된 요구다. **모두** 반영한다. 충돌하면 뒤엣것을 따른다]\n';
+    userPrompt += label + insList.map((x, i) => `${i + 1}. ${x}`).join('\n');
   }
   const result = await callOpenAi(systemPrompt, userPrompt);
 
@@ -281,6 +298,15 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
       assignee_hint,
       assignee_name,
       assignee_user_id,
+      // 운영 #263 — "담당자로 내가 안나오고 이상한 1, 2 라고 표시되는데."
+      //   여기서 고른 사람의 **표시 이름을 같이 내려준다.** 화면이 id 로 이름을 되찾으려 하면
+      //   실패한다 — 프로젝트 화면의 담당자 목록은 **프로젝트 멤버만**인데(TasksTab), 이 매칭은
+      //   **워크스페이스 전체**에서 이뤄지기 때문이다(dev 실측: 전 프로젝트가 1~4명 vs 5명 불일치).
+      //   그 차집합에 해당하는 사람이 뽑히면 화면엔 `#2` 같은 날 id 만 남았다.
+      //   고른 쪽이 이름을 아는데 보는 쪽이 못 찾는 구조 자체가 문제다 — 고른 쪽이 말한다.
+      assignee_display_name: assignee_user_id
+        ? ((members.find(m => m.user_id === assignee_user_id)?.name) || null)
+        : null,
       depends_on_index,
       vague,
     };
@@ -313,6 +339,9 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
       for (const c of unassigned) {
         c.assignee_user_id = m.user_id;
         if (!c.assignee_name) c.assignee_name = m.name || m.account_name || null;
+        // 운영 #263 — 이 안전망도 담당자를 **채우는** 경로다. 여기서 표시 이름을 안 실으면
+        //   위 정규화에서 붙인 것과 어긋나 이 경로로 배정된 후보만 화면에 `#id` 로 뜬다.
+        c.assignee_display_name = m.name || m.account_name || null;
       }
     }
   }

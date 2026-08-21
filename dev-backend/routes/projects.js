@@ -979,7 +979,14 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
               serializeMessageAttachments(payload);
               await applyMemberDisplayNameOne(payload, conv.business_id, ['sender']);
               payload.ai_mode_used = cueResult.mode; // draft / auto
-              io.to(`conv:${conv.id}`).emit('message:new', payload);
+              // 운영 #368 — 승인 전 초안은 **고객에게 가면 안 된다**.
+              //   `conv:<id>` 룸에는 고객이 같이 있어서, 여태 초안이 만들어지는 즉시 고객 화면에
+              //   떴다가 새로고침하면 사라졌다(목록 API 는 거른다 — 실시간 경로만 새고 있었다).
+              //   직원 전용 하위 룸으로 보낸다. 승인되면 승인 라우트가 conv 룸으로 다시 쏜다.
+              const room = cueResult.mode === 'draft'
+                ? `conv:${conv.id}:staff`
+                : `conv:${conv.id}`;
+              io.to(room).emit('message:new', payload);
             }
           }
         } catch (err) {
@@ -1036,6 +1043,11 @@ router.post('/messages/:id/approve-draft', authenticateToken, async (req, res, n
 
     const io = req.app.get('io');
     if (io) {
+      // 운영 #368 — 초안은 직원 룸에만 갔으므로 **고객은 이 메시지를 아직 한 번도 못 받았다**.
+      //   updated 만 쏘면 고객 화면엔 새로고침 전까지 아무것도 안 뜬다("승인했는데 안 보인다").
+      //   → 대화 룸에 new 로 보낸다(직원 쪽은 id 중복이라 무시된다) + 직원 룸에 updated 로
+      //     승인 상태·수정된 본문을 반영한다. 게이트를 조이면 대기 상태도 같이 손봐야 한다.
+      io.to(`conv:${msg.conversation_id}`).emit('message:new', fullJson);
       io.to(`conv:${msg.conversation_id}`).emit('message:updated', fullJson);
     }
 
@@ -1157,7 +1169,20 @@ router.get('/conversations/:id/messages', authenticateToken, async (req, res, ne
       }),
     ]);
     const hasMore = msgsDesc.length > limit;
-    const msgs = msgsDesc.slice(0, limit).reverse(); // 화면 표시용 시간순(ASC) 복원
+    let msgs = msgsDesc.slice(0, limit).reverse(); // 화면 표시용 시간순(ASC) 복원
+    // 운영 #368 — Client 는 내부 메시지·미승인 Cue 초안을 보면 안 된다 (PERMISSION_MATRIX §7).
+    //   같은 규칙이 routes/conversations.js:620 에는 있고 **여기에는 없었다** — 프로젝트 대화를
+    //   여는 고객에게는 그대로 노출됐다. 게이트 술어는 두 표면이 같아야 한다.
+    {
+      const { getUserScope } = require('../middleware/access_scope');
+      const viewer = await getUserScope(req.user.id, conv.business_id).catch(() => null);
+      if (viewer?.isClient) {
+        msgs = msgs.filter((m) =>
+          !m.is_internal &&
+          !(m.is_ai && m.ai_mode_used === 'draft' && m.ai_draft_approved !== true)
+        );
+      }
+    }
     // 사이클 N+15-C — 메시지마다 read_by_count + other_count 부착.
     // read_by_count: sender 외 참여자 중 last_read_at >= m.created_at 인 수.
     // other_count: sender 외 참여자 총수 (1:1 ↔ 그룹 판별용).
