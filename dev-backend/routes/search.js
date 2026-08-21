@@ -220,13 +220,41 @@ router.get('/', authenticateToken, async (req, res, next) => {
           limit, order: [relevance('title'), ['updated_at', 'DESC']],
         }).catch(() => []);
         if (isClient) return baseHits;
-        const valHits = await sequelize.query(
-          'SELECT id, title, category, scope FROM kb_documents ' +
+        // #334 — 항목 값 검색. custom_values JSON 을 통째로 CAST 해 LIKE 하면
+        //   **비밀번호·API 키 문자열로 검색해도 그 정보가 결과에 뜬다.**
+        //   SQL 로 후보만 좁히고, 어떤 항목에서 맞았는지는 여기서 판정한다 —
+        //   secret 타입 항목에서만 맞은 문서는 **결과에서 뺀다**(값을 아는 사람에게만 뜨는 것도 노출이다).
+        const rawValHits = await sequelize.query(
+          'SELECT id, title, category, scope, custom_columns, custom_values FROM kb_documents ' +
           'WHERE business_id = :bid ' +
           'AND (custom_values IS NOT NULL AND LOWER(CAST(custom_values AS CHAR)) LIKE LOWER(:like)) ' +
-          `ORDER BY updated_at DESC LIMIT ${Number(limit)}`,
+          `ORDER BY updated_at DESC LIMIT ${Number(limit) * 3}`,
           { replacements: { bid: businessId, like: `%${qEsc}%` }, type: sequelize.QueryTypes.SELECT }
         ).catch(err => { console.error('[search] kb val err:', err.message); return []; });
+
+        const asObj = (v) => {
+          if (!v) return null;
+          if (typeof v === 'object') return v;
+          try { return JSON.parse(v); } catch { return null; }
+        };
+        const needle = q.toLowerCase();
+        const needleSquashed = q.replace(/\s+/g, '').toLowerCase();
+        const valHits = rawValHits.filter((row) => {
+          const cols = asObj(row.custom_columns) || [];
+          const vals = asObj(row.custom_values) || {};
+          const secretIds = new Set(
+            (Array.isArray(cols) ? cols : []).filter((c) => c && c.type === 'secret').map((c) => String(c.id)),
+          );
+          // 비밀 아닌 항목 중 하나라도 맞으면 통과. 전부 secret 에서만 맞았으면 제외.
+          for (const [colId, raw] of Object.entries(vals)) {
+            if (secretIds.has(String(colId))) continue;
+            const v = String(raw == null ? '' : raw).toLowerCase();
+            if (!v) continue;
+            if (v.includes(needle)) return true;
+            if (needleSquashed && v.replace(/\s+/g, '').includes(needleSquashed)) return true;
+          }
+          return false;
+        }).map(({ custom_columns: _c, custom_values: _v, ...rest }) => rest);
         const seen = new Set(baseHits.map(m => m.id));
         const merged = [...baseHits.map(m => m.toJSON ? m.toJSON() : m)];
         for (const m of valHits) if (!seen.has(m.id)) { merged.push(m); seen.add(m.id); }
