@@ -1125,6 +1125,7 @@
     "chartTitle": "Progress chart",
     "confirmedCap": "Record as of {{when}}, when this report was confirmed",
     "confirmedCapPartial": "Record as of {{when}}, when this report was confirmed — {{n}} of {{total}} days",
+    "confirmedCapReopen": "Reopen and confirm again to capture the whole period.",
     "chartEstimated": "Progress (estimated hours)",
     "chartActual": "Actual hours worked",
     "chartCapacity": "Against {{n}}h capacity",

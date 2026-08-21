@@ -1125,6 +1125,7 @@
     "chartTitle": "진척 그래프",
     "confirmedCap": "{{when}} 확정 시점의 기록입니다",
     "confirmedCapPartial": "{{when}} 확정 시점의 기록입니다 — {{n}}/{{total}}일치",
+    "confirmedCapReopen": "되돌리기 후 다시 확정하면 기간 전체가 담깁니다.",
     "chartEstimated": "진척 (예상시간)",
     "chartActual": "실제 업무시간",
     "chartCapacity": "가용시간 {{n}}h 기준",
