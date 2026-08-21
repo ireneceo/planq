@@ -195,6 +195,17 @@
     "attachExistingPosts": "기존 문서 연결"
   },
   "csvIngest": {
-    "drop": "CSV 파일을 끌어다 놓거나 클릭해 선택하세요"
+    "drop": "CSV 파일을 끌어다 놓거나 클릭해 선택하세요",
+    "truncated": "{{total}}건 중 {{returned}}건만 표시됩니다 (한 번에 최대 {{limit}}건). 나머지는 파일을 나눠 올려주세요.",
+    "fieldColumns": "다음 열이 항목으로 만들어집니다",
+    "onDuplicate": "제목이 같은 정보가 이미 있으면",
+    "dupSkip": "건너뛰기",
+    "dupCreate": "새로 추가",
+    "col": {
+      "fields": "항목"
+    }
+  },
+  "aiIngest": {
+    "truncated": "{{total}}건 중 {{returned}}건만 가져왔습니다 (한 번에 최대 {{limit}}건)."
   }
 }
