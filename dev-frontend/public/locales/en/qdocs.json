@@ -542,7 +542,10 @@
       "delTable": "Delete table",
       "table": "Table"
     },
-    "origin": "Origin"
+    "origin": "Origin",
+    "alignLeft": "Align left",
+    "alignCenter": "Align center",
+    "alignRight": "Align right"
   },
   "tab": {
     "title": "Docs",

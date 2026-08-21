@@ -914,6 +914,15 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     submittingRef.current = true;
     if (autoTimerRef.current) clearTimeout(autoTimerRef.current);   // 대기 중 자동저장과 겹치지 않게
     setSaving(true); setError(null);
+    // ★ #341 — 이미 **날아가고 있는** 자동저장이 있으면 끝날 때까지 기다린다.
+    //   타이머만 끄면 in-flight 요청은 그대로 간다. 그 사이 저장을 누르면
+    //   autoDraftIdRef 가 아직 null 이라 아래 분기가 createPost 로 빠져
+    //   **임시저장본(자동) + 저장본(수동) 두 개**가 만들어진다.
+    //   운영 신고: "임시저장 남고 저장이 따로 되는 경우가 자꾸 생긴다".
+    //   무한 대기 방지로 상한을 둔다 — 넘어가면 아래 분기가 알아서 처리한다(멱등은 아니지만 멈추진 않는다).
+    for (let waited = 0; autoBusyRef.current && waited < 8000; waited += 50) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
     try {
       const categoryVal = categoryDraft.trim() || null;
       if (mode === 'new') {

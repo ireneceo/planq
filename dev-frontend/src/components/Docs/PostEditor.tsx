@@ -15,6 +15,7 @@ import { TableRow } from '@tiptap/extension-table-row';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { TableHeader } from '@tiptap/extension-table-header';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
+import TextAlign from '@tiptap/extension-text-align';
 import { handleMarkdownPaste } from '../../utils/markdownPaste';
 import { createLowlight, common } from 'lowlight';
 import { apiFetch } from '../../contexts/AuthContext';
@@ -23,6 +24,20 @@ import { codeBlockNodeView } from '../Common/CodeBlockNodeView';
 
 // 사이클 N+16 — 노션 스타일 코드 블록. lowlight + common 언어팩 (30개+: js/ts/python/go/rust/sql/bash 등).
 const lowlight = createLowlight(common);
+
+// #363 정렬 버튼 — 아이콘은 텍스트 줄을 형상화한 SVG (이모지 금지 규칙).
+const alignIcon = (lines: Array<[number, number]>) => (
+  <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden focusable="false">
+    {lines.map(([x, w], i) => (
+      <rect key={i} x={x} y={2 + i * 3.2} width={w} height="1.6" rx="0.8" fill="currentColor" />
+    ))}
+  </svg>
+);
+const ALIGNS = [
+  { key: 'left', icon: alignIcon([[2, 12], [2, 8], [2, 12], [2, 6]]) },
+  { key: 'center', icon: alignIcon([[2, 12], [4, 8], [2, 12], [5, 6]]) },
+  { key: 'right', icon: alignIcon([[2, 12], [6, 8], [2, 12], [8, 6]]) },
+] as const;
 const PqCodeBlock = CodeBlockLowlight.configure({ lowlight, defaultLanguage: 'plaintext' })
   .extend({ addNodeView: codeBlockNodeView });
 
@@ -78,6 +93,10 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
       Placeholder.configure({ placeholder: placeholder || t('editor.placeholder', { defaultValue: '본문을 작성하세요…' }) }),
       Link.configure({ openOnClick: false, HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' } }),
       ResizableImage.configure({ inline: false, allowBase64: false, HTMLAttributes: { class: 'editor-image' } }),
+      // #363 — 정렬(좌/가운데/우). 문단과 제목에만 적용한다.
+      //   목록·인용·코드블록은 정렬을 걸면 구조가 깨져 보이므로 대상에서 뺀다.
+      //   렌더는 style="text-align:..." — 저장 JSON 에 textAlign attr 로 들어간다.
+      TextAlign.configure({ types: ['heading', 'paragraph'], defaultAlignment: null }),
       Table.configure({ resizable: true, HTMLAttributes: { class: 'editor-table' } }),
       TableRow,
       TableHeader,
@@ -88,8 +107,27 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
     onUpdate: ({ editor }) => onChange(editor.getJSON()),
     editorProps: {
       handlePaste: (view, event) => {
-        // 1) 이미지 붙여넣기 — 옛 동작 그대로
-        const items = event.clipboardData?.items;
+        // ★ #337 — 엑셀·구글시트·웹 표를 복사하면 클립보드에 **표(text/html)와 그림(image/png)이 같이** 담긴다.
+        //   아래 이미지 분기가 무조건 먼저 돌아서, 표를 붙여넣으면 그림으로 박혀 편집이 불가능해졌다
+        //   (운영 신고: "엑셀을 복사해서 붙이면 왜 이미지로 들어가? 표로 들어가야 하는 거 아니야?").
+        //   표가 들어있으면 이미지 분기를 건너뛴다 → markdownPaste 가 false 를 돌려주고
+        //   ProseMirror 기본 HTML 파서가 <table> 을 진짜 표 노드로 만든다(Table 확장 등록되어 있음).
+        //   웹페이지의 이미지 복사(html 에 <img> 만 있는 경우)는 영향 없다 — <table> 이 있을 때만 양보한다.
+        // ★ #304 — 코드 블록 안에서는 **어떤 변환도 하지 않는다.**
+        //   여태 markdownPaste 가 먼저 돌아서, 붙여넣은 소스의 들여쓰기(4칸)를 마크다운의
+        //   "들여쓰기 코드블록" 으로 읽고 조각조각 잘랐다 → 코드박스가 여러 개로 쪼개짐
+        //   (운영 신고: "붙이기 한 건 하나의 코드박스에 다 들어가야 하는데 코드박스가 다 나눠져").
+        //   false 를 돌려주면 ProseMirror 기본 동작이 줄바꿈을 유지한 채 그대로 넣는다.
+        try {
+          const { $from } = view.state.selection;
+          if ($from.parent.type.name === 'codeBlock') return false;
+        } catch { /* 선택 영역을 못 읽으면 아래 기본 경로로 */ }
+
+        const pastedHtml = event.clipboardData?.getData('text/html') || '';
+        const hasTable = /<table[\s>]/i.test(pastedHtml);
+
+        // 1) 이미지 붙여넣기 — 옛 동작 그대로 (단, 표가 같이 온 경우는 제외)
+        const items = hasTable ? null : event.clipboardData?.items;
         if (items) {
           for (let i = 0; i < items.length; i++) {
             const item = items[i];
@@ -192,6 +230,33 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
             <ToolBtn type="button" $active={isActive('orderedList')} onClick={() => editor.chain().focus().toggleOrderedList().run()} title={t('editor.orderedList', { defaultValue: '번호 매기기' })}>1.</ToolBtn>
             <ToolBtn type="button" $active={isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()} title={t('editor.blockquote', { defaultValue: '인용' })}>❝</ToolBtn>
             <ToolBtn type="button" $active={isActive('codeBlock')} onClick={() => editor.chain().focus().toggleCodeBlock().run()} title={t('editor.codeBlock', { defaultValue: '코드 블록 (syntax 색상 + 복사 버튼)' })} style={{ fontFamily: 'monospace' }}>{ '</>' }</ToolBtn>
+          </Group>
+          <Sep />
+          {/* #363 정렬 — 같은 값을 다시 누르면 해제(기본 정렬로 복귀) */}
+          <Group>
+            {ALIGNS.map(({ key, icon }) => {
+              const label = key === 'left'
+                ? (t('editor.alignLeft', { defaultValue: '왼쪽 정렬' }) as string)
+                : key === 'center'
+                  ? (t('editor.alignCenter', { defaultValue: '가운데 정렬' }) as string)
+                  : (t('editor.alignRight', { defaultValue: '오른쪽 정렬' }) as string);
+              return (
+                <ToolBtn
+                  key={key}
+                  type="button"
+                  $active={editor.isActive({ textAlign: key })}
+                  onClick={() => {
+                    const chain = editor.chain().focus();
+                    if (editor.isActive({ textAlign: key })) chain.unsetTextAlign().run();
+                    else chain.setTextAlign(key).run();
+                  }}
+                  title={label}
+                  aria-label={label}
+                >
+                  {icon}
+                </ToolBtn>
+              );
+            })}
           </Group>
           <Sep />
           <Group>
