@@ -507,6 +507,56 @@ verify_deployment() {
 }
 
 # ──────────────────────────────────────────
+# 장부 닫기 (운영 #276) — **배포와 같은 실행 안에서** 끝낸다.
+#
+# 왜 배포에 붙이는가: 나중에 사람이 따로 닫기로 하면 안 닫힌다. 2026-08-18 실측으로 운영 피드백
+#   67건 중 29건이 "이미 고쳐 배포까지 끝났는데 pending" 이었고, 그래서 같은 것이 세 번까지
+#   재신고됐다(팝아웃 핀 #258 → #280 → #286). 사용자에겐 "말해도 반응이 없다" 이다.
+#   고친 사실이 **도달**해야 처리된 것이므로, 도달하는 시점(배포)에 장부도 같이 닫는다.
+#
+# 안전장치는 close-deployed-feedback.js 안에 있다 — **답글 없는 건은 닫지 않고**, 이미 done 이면
+#   건너뛴다(멱등). 여기서는 이번에 나가는 커밋들의 `#번호` 만 넘긴다.
+#   실패해도 배포를 되돌리지 않는다 — 코드는 이미 정상 반영된 상태다.
+# ──────────────────────────────────────────
+close_feedback() {
+  log "Closing deployed feedback in ledger..."
+  cd /opt/planq
+
+  if [ -z "${LAST_REMOTE:-}" ]; then
+    dim "  (first deploy — 범위가 없어 건너뜀)"
+    return 0
+  fi
+
+  # 이번 배포에 실린 커밋 메시지에서 번호 추출. 3자리 이상만 — `#1` 같은 이슈번호 오탐 방지
+  # (close-deployed-feedback.js 의 정규식과 같은 규칙). grep 무매치는 exit 1 이라 || true 필수 —
+  # set -euo pipefail 아래서 배포 전체가 중단된다.
+  local IDS
+  IDS=$( { git log --format=%B "${LAST_REMOTE}..HEAD" 2>/dev/null || true; } \
+         | grep -oE '#[0-9]{3,4}\b' | tr -d '#' | sort -un | paste -sd, - || true )
+
+  if [ -z "$IDS" ]; then
+    dim "  (커밋 메시지에 피드백 번호가 없어 건너뜀)"
+    return 0
+  fi
+  echo "  대상 번호: $IDS"
+
+  if [ "$DRY_RUN" = true ]; then
+    dim "  [dry] scp scripts/close-deployed-feedback.js → $PROD_HOST:/tmp/cdf.js"
+    dim "  [dry] ssh $PROD_HOST 'cd $PROD_BE && node /tmp/cdf.js --ids $IDS --apply'"
+    return 0
+  fi
+
+  # 운영에는 git 저장소도 scripts/ 도 없다(rsync 는 dev-backend 만 보낸다) → 실행 직전에 실어 보낸다.
+  if ! scp $SSH_OPTS /opt/planq/scripts/close-deployed-feedback.js "$PROD_HOST:/tmp/cdf.js" > /dev/null 2>&1; then
+    warn "장부 스크립트 전송 실패 — 장부는 수동으로 닫아야 합니다 (배포 자체는 정상)"
+    return 0
+  fi
+  prod_run "cd $PROD_BE && node /tmp/cdf.js --ids $IDS --apply" \
+    || warn "장부 닫기 실패 — 수동 확인 필요 (배포 자체는 정상)"
+  prod_run "rm -f /tmp/cdf.js" > /dev/null 2>&1 || true
+}
+
+# ──────────────────────────────────────────
 # Update record (.last-deployed-commit)
 # ──────────────────────────────────────────
 update_record() {
@@ -577,6 +627,7 @@ main() {
   restart_server
   reload_nginx
   verify_deployment
+  close_feedback
   show_summary
   update_record
 
