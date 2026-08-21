@@ -527,12 +527,25 @@ close_feedback() {
     return 0
   fi
 
-  # 이번 배포에 실린 커밋 메시지에서 번호 추출. 3자리 이상만 — `#1` 같은 이슈번호 오탐 방지
-  # (close-deployed-feedback.js 의 정규식과 같은 규칙). grep 무매치는 exit 1 이라 || true 필수 —
-  # set -euo pipefail 아래서 배포 전체가 중단된다.
-  local IDS
-  IDS=$( { git log --format=%B "${LAST_REMOTE}..HEAD" 2>/dev/null || true; } \
-         | grep -oE '#[0-9]{3,4}\b' | tr -d '#' | sort -un | paste -sd, - || true )
+  # ★ 본문의 `#숫자` 를 긁으면 **안 된다.** 실측 반증(2026-08-21): 이 브랜치 5커밋에서 그렇게 뽑으니
+  #   123,167,180,213,…,258,274,280,286,288,300 이 나왔다 — #123·#167·#180·#274 는 근거로 인용한
+  #   **업무 번호**이고 #258·#280·#286 은 주석에 든 옛 사례 번호다. 그대로 닫았으면 고치지도 않은
+  #   사용자 신고가 done 으로 바뀐다(장부 어긋남의 반대 방향 사고).
+  #   → **명시적 트레일러만** 인정한다:  `Feedback-Closes: 213, 220`
+  #   인용은 자유롭게 하되, 닫으려면 그 줄을 의도적으로 적어야 한다.
+  #   grep 무매치는 exit 1 이라 || true 필수 — set -euo pipefail 아래서 배포 전체가 중단된다.
+  local RANGE_IDS BACKLOG_IDS IDS
+  RANGE_IDS=$( { git log --format=%B "${LAST_REMOTE}..HEAD" 2>/dev/null || true; } \
+               | grep -iE '^[[:space:]]*Feedback-Closes:' \
+               | grep -oE '[0-9]{2,5}' || true )
+
+  # 이미 배포가 끝난 옛 커밋의 번호는 위 범위에 **영영 안 들어온다** — 그런 잔여분을 담는 자리.
+  #   (2026-08-21 실측: #213 #220 #222 #232 #257 #260 #287 이 6b3f4590·41158147 에서 나가
+  #    운영에 도달했는데 장부는 pending 이었다.) 닫힌 뒤 다시 실려도 스크립트가 건너뛴다(멱등).
+  BACKLOG_IDS=$( { grep -oE '^[[:space:]]*[0-9]{3,4}\b' /opt/planq/scripts/feedback-close-backlog.txt 2>/dev/null || true; } \
+                 | tr -d ' \t' || true )
+
+  IDS=$( printf '%s\n%s\n' "$RANGE_IDS" "$BACKLOG_IDS" | grep -E '^[0-9]+$' | sort -un | paste -sd, - || true )
 
   if [ -z "$IDS" ]; then
     dim "  (커밋 메시지에 피드백 번호가 없어 건너뜀)"
