@@ -406,6 +406,12 @@ router.post('/ai-generate', authenticateToken, async (req, res, next) => {
 
     const systemPrompt = `당신은 한국어 비즈니스 문서 작성 전문가입니다. 30년 경력 컨설팅 펌 수준의 결과물을 만듭니다.
 
+[고쳐 쓰기]
+- 사용자 프롬프트에 [현재 문서] 블록이 있으면 **그 문서를 고쳐서** 낸다. 백지에서 다시 쓰지 않는다.
+- [수정 지시] 와 무관한 문단·표·수치는 **한 글자도 바꾸지 않는다** (사용자가 직접 손댄 결과다).
+- 지시가 없는 부분을 "더 좋게" 다듬지 않는다. 요청한 것만 바꾼다.
+- 출력은 언제나 **문서 전체**다 (바뀐 부분만 내지 않는다).
+
 [출력 규칙]
 - 의미적 HTML 만 사용: h1, h2, h3, p, ul, ol, li, table > tbody > tr > th/td.
 - table 은 항상 <table><tbody><tr>... 구조로. <thead> 사용 금지.
@@ -446,20 +452,57 @@ ${guidance}`;
     if (['quote', 'proposal', 'contract', 'sow'].includes(kind)) ctxLines.push(`유효일/완료 목표: ${ctx.valid_until}`);
 
     const aiPromptTpl = referenceTpl?.ai_prompt_template || '';
-    // 운영 — 재생성/재수정 지시 (AI 재생성 UX 통일). 결과를 보고 "이렇게 고쳐줘" 한 것.
-    const instruction = req.body.instruction;
-    const refineLine = (instruction && String(instruction).trim())
-      ? `\n\n[재생성 지시 — 아래 요구에 맞춰 다시 작성]\n${String(instruction).trim().slice(0, 1000)}`
+
+    // 운영 #312 — "다시 만들기 하면 기존 요청내용 다시 리셋하고 처음처럼 만들어 버려.
+    //   이렇게 히스토리 날리고 수정하면 의미가 있어? 수정한 것들까지 다 날리고 …
+    //   완성도 높일 수 있는 방식으로 잡아줘. 이거 모든 ai 작성에 제대로."
+    //
+    //   여태 재생성은 **매번 백지에서 다시 쓰는 것**이었다 — 지시 한 줄만 덧붙일 뿐,
+    //   ① 사용자가 손으로 고친 본문과 ② 앞서 준 지시들이 요청에 담기지 않았다.
+    //   그래서 3번 다듬을수록 결과가 처음으로 되돌아갔다.
+    //
+    //   → 재생성은 "다시 쓰기" 가 아니라 **"고쳐 쓰기"** 로 바꾼다:
+    //     base_html(지금 화면의 문서) 이 오면 그것을 원본으로 주고, 누적 지시를 순서대로 넘긴다.
+    //     base_html 이 없으면(첫 생성) 종전과 같이 백지 생성.
+    const rawInstructions = Array.isArray(req.body.instructions)
+      ? req.body.instructions
+      : (req.body.instruction ? [req.body.instruction] : []);
+    const instructions = rawInstructions
+      .map(x => String(x || '').trim())
+      .filter(Boolean)
+      .slice(-10)                       // 너무 길어지면 앞선 것부터 버린다 (토큰 보호)
+      .map(x => x.slice(0, 1000));
+
+    // 본문은 토큰을 크게 먹는다 — 상한을 두되, 잘렸다는 사실을 모델에게 알린다(조용히 자르면 뒤를 지어낸다).
+    const BASE_CAP = 24000;
+    const rawBase = String(req.body.base_html || '').trim();
+    const baseHtml = rawBase.length > BASE_CAP
+      ? `${rawBase.slice(0, BASE_CAP)}\n<!-- (이하 생략됨 — 생략된 뒷부분은 그대로 유지한다고 가정하고 이어서 작성) -->`
+      : rawBase;
+
+    const baseBlock = baseHtml
+      ? `\n\n[현재 문서 — 이것을 **고쳐서** 내라. 지시와 무관한 부분은 사용자가 손댄 결과이므로 그대로 보존한다]\n${baseHtml}`
       : '';
+    const refineLine = instructions.length
+      ? `\n\n[수정 지시 — 앞에서 뒤로 누적된 요구다. **모두** 반영한다. 뒤엣것이 앞엣것과 충돌하면 뒤엣것을 따른다]\n`
+        + instructions.map((x, i) => `${i + 1}. ${x}`).join('\n')
+      : '';
+
     const userPrompt = `[컨텍스트]
 ${ctxLines.join('\n')}
 
 [사용자 추가 요구사항]
-${user_input || '(없음 — 가이드의 표준 양식으로 작성)'}` + (aiPromptTpl ? `\n\n[참고 프롬프트]\n${aiPromptTpl}` : '') + refineLine;
+${user_input || '(없음 — 가이드의 표준 양식으로 작성)'}` + (aiPromptTpl ? `\n\n[참고 프롬프트]\n${aiPromptTpl}` : '') + baseBlock + refineLine;
 
     // 무거운 종류는 더 많은 토큰
     const HEAVY_KINDS = ['proposal', 'contract', 'sow'];
-    const maxTokens = HEAVY_KINDS.includes(kind) ? 4000 : 2500;
+    //   ★ #312 — 고쳐 쓰기는 **원본 길이 이상**을 다시 내야 한다. 기존 상한 그대로 두면
+    //     긴 문서가 중간에서 잘려 나가 "고쳐 달랬더니 뒤가 사라졌다" 가 된다.
+    const baseTokenGuess = baseHtml ? Math.ceil(baseHtml.length / 2.5) : 0;
+    const maxTokens = Math.min(
+      8000,
+      Math.max(HEAVY_KINDS.includes(kind) ? 4000 : 2500, baseTokenGuess + 800),
+    );
 
     const r = await cue.generateDocumentDraft(business_id, { systemPrompt, userPrompt, maxTokens });
     if (r.error === 'usage_limit_exceeded') {

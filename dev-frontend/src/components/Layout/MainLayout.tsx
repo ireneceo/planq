@@ -23,7 +23,7 @@ import { useAdminInboxCounts } from '../../hooks/useAdminInboxCounts';
 import { useNotificationCount } from '../../hooks/useNotifications';
 import NotificationDropdown from '../Common/NotificationDropdown';
 import { useWhatsNew } from '../../hooks/useWhatsNew';
-import WhatsNewDrawer from '../Common/WhatsNewDrawer';
+import WhatsNewDropdown from '../Common/WhatsNewDropdown';
 import { useUnreadTotal } from '../../hooks/useUnreadTotal';
 import { useGlobalBadge } from '../../hooks/useGlobalBadge';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
@@ -772,7 +772,16 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
   // #194 — 제품 공지/체인지로그 "새 소식" (사이드바 메가폰 + 드로어)
   const { items: whatsNewItems, unreadCount: whatsNewUnread, loading: whatsNewLoading, markSeen: markWhatsNewSeen } = useWhatsNew();
   const [whatsNewOpen, setWhatsNewOpen] = useState(false);
-  const openWhatsNew = () => { setWhatsNewOpen(true); markWhatsNewSeen(); };
+  // 운영 #306 — 드롭다운은 아이콘 아래에 뜬다. 바깥 클릭 판정에 그 아이콘이 필요하다.
+  const megaphoneRef = useRef<HTMLButtonElement>(null);
+  // 재클릭 토글 (공통 UI 규칙) — 알림 종과 같은 동작. 열 때만 "봤다" 로 표시한다.
+  const openWhatsNew = () => {
+    setWhatsNewOpen((prev) => {
+      if (prev) return false;
+      markWhatsNewSeen();
+      return true;
+    });
+  };
   const talkUnreadCount = useUnreadTotal(user?.business_id ? Number(user.business_id) : null);
   // OS app badge (데스크탑 dock / 모바일 홈스크린 아이콘) — 인박스 + 채팅 합산 단일 적용.
   // 둘 중 하나라도 > 0 이면 표시. 사용자가 실제로 봐서 둘 다 0 될 때까지 안 사라짐.
@@ -857,7 +866,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
       {/* N+63 — 알림 dropdown (사이드바 종 모양 trigger) */}
       <NotificationDropdown open={notifOpen} onClose={() => setNotifOpen(false)} anchorRef={bellRef} />
       {/* #194 — 제품 공지/체인지로그 새 소식 드로어 (사이드바 메가폰 trigger) */}
-      <WhatsNewDrawer open={whatsNewOpen} onClose={() => setWhatsNewOpen(false)} items={whatsNewItems} loading={whatsNewLoading} />
+      {/* 운영 #306 — 우측 상세 드로어 → 알림과 같은 popover 드롭다운 */}
+      <WhatsNewDropdown open={whatsNewOpen} onClose={() => setWhatsNewOpen(false)} anchorRef={megaphoneRef}
+        items={whatsNewItems} loading={whatsNewLoading} />
       <MobileHeader>
         <HamburgerButton onClick={() => setSidebarOpen(true)} aria-label={t('nav.expandSidebar')}>
           <IconHamburger />
@@ -884,6 +895,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
               <Logo src="/planQ_white_new.svg" alt="PlanQ" />
               <HeaderActions>
                 <BellButton
+                  ref={megaphoneRef}
                   type="button"
                   onClick={openWhatsNew}
                   aria-label={t('whatsNew.title', '새 소식') as string}

@@ -413,6 +413,7 @@ const RightPanel: React.FC<Props> = ({
                 canChooseVisibility={!isClient}
                 formatTime={formatTimeAgo}
                 onAdd={(body, visibility) => onAddNote(body, visibility)}
+                draftKey={`planq:draft:qtalk-note:${myUserId}:${project ? `p${project.id}` : `c${activeConversationId || 0}`}`}
                 emptyText={t('right.notes.empty', '아직 메모가 없습니다') as string}
                 placeholder={t('right.notes.placeholder', '메모 작성... (⌘/Ctrl+Enter 저장)') as string}
                 renderMeta={(n) => {

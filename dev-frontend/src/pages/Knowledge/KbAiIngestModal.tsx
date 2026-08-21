@@ -5,6 +5,7 @@ import React, { useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
+import AttachmentField from '../../components/Common/AttachmentField';
 import { SparkleIcon } from '../../components/Common/Icons';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
 import { mapApiError } from '../../utils/apiError';
@@ -34,6 +35,9 @@ interface Props {
 
 const CATEGORIES: Category[] = ['policy', 'manual', 'incident', 'faq', 'about', 'pricing'];
 
+const FileNote = styled.div`
+  margin-top: 6px; font-size: 11.5px; line-height: 1.5; color: #64748B;
+`;
 const TruncBox = styled.div`
   margin: 8px 0; padding: 8px 12px; border-radius: 6px;
   background: #FFF7ED; border: 1px solid #FED7AA; color: #9A3412;
@@ -54,6 +58,55 @@ const KbAiIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved }) => {
   const [analyzing, setAnalyzing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 운영 #315 — "AI 추가 할 때도 파일이나 내용 아무거나 올리면 분석해서 적용이 안되는 것 같아."
+  //   원인: 이 모달은 **텍스트 붙여넣기 전용**이었다. 파일을 받을 자리가 아예 없는데
+  //   진입 버튼 설명은 "문서·링크에서 …" 라고 약속하고 있었다 — 사용자는 "되는데 안 먹는다" 로 읽는다.
+  //
+  //   ★ 서버가 URL 을 가져오는 방식(링크 수집)은 넣지 않는다 — SSRF 표면이 새로 생긴다.
+  //   ★ PDF·워드·엑셀은 파서 의존성이 이 프로젝트에 **하나도 없다**(pdf-parse 미설치).
+  //     그래서 조용히 빈 결과를 내는 대신, **무엇이 되고 무엇이 안 되는지 그 자리에서 말한다.**
+  //     파일은 브라우저에서 읽어 입력칸에 채운다 — 분석 전에 사용자가 내용을 눈으로 확인할 수 있다.
+  const TEXT_EXT = ['txt', 'md', 'markdown', 'csv', 'tsv', 'json', 'log', 'html', 'htm', 'xml', 'yml', 'yaml'];
+  const [fileNote, setFileNote] = useState<string | null>(null);
+
+  const stripHtml = (raw: string) => raw
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .trim();
+
+  const ingestFiles = useCallback(async (files: File[]) => {
+    if (!files.length) return;
+    const parts: string[] = [];
+    const rejected: string[] = [];
+    for (const f of files) {
+      const ext = (f.name.split('.').pop() || '').toLowerCase();
+      if (!TEXT_EXT.includes(ext)) { rejected.push(f.name); continue; }
+      try {
+        const raw = await f.text();
+        const body = (ext === 'html' || ext === 'htm' || ext === 'xml') ? stripHtml(raw) : raw;
+        if (body.trim()) parts.push(`--- ${f.name} ---\n${body.trim()}`);
+      } catch { rejected.push(f.name); }
+    }
+    if (parts.length) {
+      setText((prev) => {
+        const merged = prev.trim() ? `${prev.trim()}\n\n${parts.join('\n\n')}` : parts.join('\n\n');
+        return merged.slice(0, 50000);   // 입력 상한과 같은 규칙 — 잘림은 아래에서 고지한다
+      });
+    }
+    const notes: string[] = [];
+    if (parts.length) notes.push(t('aiIngest.fileLoaded', { count: parts.length, defaultValue: '{{count}}개 파일을 불러왔습니다.' }) as string);
+    if (rejected.length) {
+      notes.push(t('aiIngest.fileUnsupported', {
+        names: rejected.join(', '),
+        defaultValue: '{{names}} 은(는) 아직 읽지 못합니다. 텍스트·마크다운·CSV·JSON·HTML 만 지원합니다 — 내용을 복사해 붙여넣어 주세요.',
+      }) as string);
+    }
+    setFileNote(notes.join(' ') || null);
+  }, [t]);
 
   const analyze = useCallback(async () => {
     if (!text.trim() || analyzing) return;
@@ -153,6 +206,24 @@ const KbAiIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved }) => {
                   maxLength={50000}
                 />
                 <CharCount>{text.length} / 50,000</CharCount>
+              </Field>
+
+              {/* 운영 #315 · #232 — 첨부는 드래그드롭 회색 라운드박스로 통일 */}
+              <Field>
+                <Label>{t('aiIngest.file', '파일에서 가져오기 (선택)')}</Label>
+                {/* ★ 파일을 워크스페이스에 올리지 않는다 — 브라우저에서 읽어 입력칸에 채우고 곧바로 비운다.
+                    (여기서 필요한 건 "내용" 이지 "저장된 파일" 이 아니다. 저장하면 지식 목록이 오염된다.) */}
+                <AttachmentField
+                  businessId={businessId}
+                  uploads={[]}
+                  onUploadsChange={(fs) => { void ingestFiles(fs); }}
+                  existingFileIds={[]}
+                  onExistingFileIdsChange={() => {}}
+                  hideExistingSearch
+                  accept=".txt,.md,.markdown,.csv,.tsv,.json,.log,.html,.htm,.xml,.yml,.yaml"
+                  uploadHint={t('aiIngest.fileHint', '텍스트·마크다운·CSV·JSON·HTML 파일을 떨어뜨리면 내용을 입력칸에 채웁니다') as string}
+                />
+                {fileNote && <FileNote>{fileNote}</FileNote>}
               </Field>
 
               <Row>

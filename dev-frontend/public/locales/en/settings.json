@@ -412,7 +412,9 @@
     "planFree": "Free",
     "planBasic": "Basic",
     "planPro": "Pro",
-    "planEnterprise": "Enterprise"
+    "planEnterprise": "Enterprise",
+    "loadFailed": "Could not load Cue settings. Please try again in a moment.",
+    "loading": "Loading…"
   },
   "messages": {
     "adminRequired": "Only admins can edit",

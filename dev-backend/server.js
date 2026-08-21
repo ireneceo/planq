@@ -199,11 +199,29 @@ io.on('connection', (socket) => {
   }
 
   // 대화방 room 참가 — 소유권 재검증 필수 (인증만으로는 부족)
+  //
+  // 운영 #368 — `conv:<id>` 룸에는 **고객과 직원이 함께** 들어 있다. 그래서 이 룸으로 쏘는 것은
+  //   전부 고객에게도 간다. 승인 전 Cue 초안처럼 "직원만 봐야 하는 것" 을 보낼 자리가 없었다
+  //   (신고: "고객이 Cue 답변을 받기 전에 뭔가 떠. 내가 보내기를 눌러야 하는 상황에서").
+  //   → 같은 대화의 **직원 전용 하위 룸**을 만든다. 워크스페이스 멤버일 때만 들어간다.
+  //     고객은 BusinessMember 가 아니므로 구조적으로 들어올 수 없다.
   socket.on('join:conversation', async (conversationId) => {
     if (!conversationId) return;
     try {
       if (await canJoinConversation(socket.userId, conversationId)) {
         socket.join(`conv:${conversationId}`);
+        // 직원 여부 판정 — 이 대화가 속한 워크스페이스의 현직 멤버인가
+        // ★ BusinessMember 는 이 스코프에 없다 — 모듈 최상단에 없고 함수마다 getModels() 로 꺼내 쓴다.
+        //   바로 참조하면 이 분기만 조용히 죽고(ReferenceError → catch) 문법검사·빌드는 전부 통과한다.
+        const { Conversation: Conv, BusinessMember: BM } = getModels();
+        const cv = await Conv.findByPk(conversationId, { attributes: ['business_id'] });
+        if (cv?.business_id) {
+          const bm = await BM.findOne({
+            where: { business_id: cv.business_id, user_id: socket.userId, removed_at: null },
+            attributes: ['id'],
+          });
+          if (bm) socket.join(`conv:${conversationId}:staff`);
+        }
       }
     } catch (e) {
       console.warn('[socket] join:conversation check failed', e.message);
@@ -211,7 +229,10 @@ io.on('connection', (socket) => {
   });
 
   socket.on('leave:conversation', (conversationId) => {
-    if (conversationId) socket.leave(`conv:${conversationId}`);
+    if (conversationId) {
+      socket.leave(`conv:${conversationId}`);
+      socket.leave(`conv:${conversationId}:staff`);
+    }
   });
 
   socket.on('join:project', async (projectId) => {
