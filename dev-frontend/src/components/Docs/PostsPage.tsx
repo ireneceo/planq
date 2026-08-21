@@ -803,9 +803,15 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
 
   // 저장 대기 중 이탈 경고 + PWA 자동 reload 차단 (운영 안정성 2번 — body[data-form-dirty]).
   useEffect(() => {
-    const dirty = (mode === 'edit' || mode === 'new') && (autoDirtyRef.current || autoState === 'saving');
+    const editing = mode === 'edit' || mode === 'new';
+    const dirty = editing && (autoDirtyRef.current || autoState === 'saving');
     if (dirty) document.body.dataset.formDirty = '1';
     else delete document.body.dataset.formDirty;
+    // ★ 편집 화면이 열려 있는 동안은 저장이 끝났어도 자동 reload 를 막는다.
+    //   formDirty 만으로는 **자동저장이 끝나는 순간** 플래그가 꺼져, 그 틈에 새 빌드가 감지되면
+    //   글을 쓰는 중에 페이지가 새로고침돼 편집이 닫혔다(운영 신고 2026-08-21).
+    if (editing) document.body.dataset.editingActive = '1';
+    else delete document.body.dataset.editingActive;
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       if (!autoDirtyRef.current && autoState !== 'saving') return;
       e.preventDefault();
@@ -815,6 +821,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     return () => {
       window.removeEventListener('beforeunload', onBeforeUnload);
       delete document.body.dataset.formDirty;
+      delete document.body.dataset.editingActive;
     };
   }, [mode, autoState, titleDraft, contentDraft, categoryDraft]);
 
