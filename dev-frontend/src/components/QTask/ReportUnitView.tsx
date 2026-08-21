@@ -12,6 +12,18 @@ import {
   type ReportScope, type ReportPeriodType, type ReportUnitData,
 } from '../../services/reportUnit';
 
+// 기간이 며칠짜리인가 — **시리즈 길이로 세면 안 된다.**
+//   운영 실측(id111·122): 옛 빌더가 미래 날을 null 로 채우지 않고 `break` 로 배열을 잘랐다.
+//   그래서 월요일에 확정된 주간보고의 시리즈는 길이가 **1** 이다 — `filled < series.length` 로 재면
+//   1 < 1 = false 가 되어, 정작 이 기능이 겨냥한 케이스에서 아무 말도 못 한다.
+//   기간(period.start~end)에서 기대 일수를 뽑아야 잘린 배열도 "1/7" 로 읽힌다.
+const expectedDays = (p?: { start?: string; end?: string } | null, fallback = 0) => {
+  if (!p?.start || !p?.end) return fallback;
+  const a = Date.parse(`${p.start}T00:00:00Z`); const b = Date.parse(`${p.end}T00:00:00Z`);
+  if (!Number.isFinite(a) || !Number.isFinite(b) || b < a) return fallback;
+  return Math.round((b - a) / 86400000) + 1;
+};
+
 interface Props { businessId: number; scope: ReportScope; refId: number; periodType: ReportPeriodType; }
 
 const ReportUnitView: React.FC<Props> = ({ businessId, scope, refId, periodType }) => {
@@ -82,7 +94,8 @@ const ReportUnitView: React.FC<Props> = ({ businessId, scope, refId, periodType 
   //   사후 데이터를 확정본에 주입하는 건 증언 훼손이라 못 한다(Fable 판정) → **확정 전에 말해준다.**
   const series = snap.progress_series || [];
   const filledDays = series.filter((x) => x.estimated_cumulative != null).length;
-  const partial = filledDays > 0 && filledDays < series.length;
+  const totalDays = expectedDays(snap.period, series.length);
+  const partial = filledDays > 0 && filledDays < totalDays;
   //   수요일 전(=2일치 이하)에만 한 번 되묻는다. 금요일 확정까지 붙잡으면 잔소리가 된다.
   const askBeforeConfirm = partial && filledDays <= 2;
   const name = (snap.subject?.name as string) || '';
@@ -99,7 +112,7 @@ const ReportUnitView: React.FC<Props> = ({ businessId, scope, refId, periodType 
           ? <ActionButton tone="secondary" size="sm" loading={busy} onClick={doReopen}>{t('weeklyReview.unit.reopen', { defaultValue: '되돌리기' })}</ActionButton>
           : (confirmAsk
             ? <>
-                <AskText role="status">{t('weeklyReview.unit.confirmPartial', { n: filledDays, total: series.length, defaultValue: `이번 기간은 아직 ${filledDays}/${series.length}일치입니다. 지금 확정하면 그 상태로 박제됩니다.` })}</AskText>
+                <AskText role="status">{t('weeklyReview.unit.confirmPartial', { n: filledDays, total: totalDays, defaultValue: `이번 기간은 아직 ${filledDays}/${totalDays}일치입니다. 지금 확정하면 그 상태로 박제됩니다.` })}</AskText>
                 <ActionButton tone="secondary" size="sm" onClick={() => setConfirmAsk(false)}>{t('common:cancel', { defaultValue: '취소' })}</ActionButton>
                 <ActionButton tone="primary" size="sm" loading={busy} onClick={doConfirm}>{t('weeklyReview.unit.confirmAnyway', { n: filledDays, defaultValue: `${filledDays}일치로 확정` })}</ActionButton>
               </>
