@@ -10,6 +10,7 @@
 // TaskPopoutView 가 크므로 여기로 절출했다(god-file 래칫).
 import React, { useRef, useState } from 'react';
 import styled from 'styled-components';
+import PlanQSelect from '../Common/PlanQSelect';
 
 const Wrap = styled.form`
   display: flex; gap: 6px; align-items: center;
@@ -27,6 +28,10 @@ const Input = styled.input`
   /* 제출 중 표시. disabled 가 아니라 readonly 다 — 아래 submit() 주석의 포커스 유지 이유. */
   &[readonly] { background: #F8FAFC; color: #94A3B8; }
 `;
+/* 입력이 주인공이라 셀렉터는 좁게 둔다. 고정폭 대신 상한만 걸어 좁은 팝아웃에서도 줄어든다. */
+const OptWrap = styled.div`
+  flex: 0 1 auto; min-width: 84px; max-width: 40%;
+`;
 const AddBtn = styled.button`
   flex-shrink: 0; height: 34px; padding: 0 12px;
   border: 1px solid #99F6E4; border-radius: 8px;
@@ -42,15 +47,29 @@ const Err = styled.div`
   font-size: 12px; color: #DC2626;
 `;
 
+/** #309 — 지금 보고 있는 기준(태그·프로젝트)에 맞는 선택지. 없으면 안 그린다. */
+export interface QuickAddOption {
+  /** 선택지 목록. 빈 배열이면 셀렉터를 숨긴다(고를 게 없는데 빈 상자를 두지 않는다). */
+  choices: Array<{ value: string; label: string }>;
+  value: string;                 // '' = 미지정
+  onChange: (v: string) => void;
+  /** 미지정 상태의 표시 문구 (예: "태그 없음") */
+  placeholder: string;
+  ariaLabel: string;
+}
+
 export interface PopoutQuickAddProps {
   /** 제목으로 업무를 만든다. 성공하면 true. (기본값 결정은 호출측 = 탭 문맥의 몫) */
   onAdd: (title: string) => Promise<boolean>;
   placeholder: string;
   addLabel: string;
   errorText: string;
+  /** #309 — "태그별로 되어 있으면 태그선택을 옵션으로, 프로젝트별이면 프로젝트를".
+      보기 기준이 바뀌면 호출측이 다른 option 을 넘긴다. 여기서는 그리기만 한다. */
+  option?: QuickAddOption | null;
 }
 
-const PopoutQuickAdd: React.FC<PopoutQuickAddProps> = ({ onAdd, placeholder, addLabel, errorText }) => {
+const PopoutQuickAdd: React.FC<PopoutQuickAddProps> = ({ onAdd, placeholder, addLabel, errorText, option }) => {
   const [value, setValue] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -101,6 +120,21 @@ const PopoutQuickAdd: React.FC<PopoutQuickAddProps> = ({ onAdd, placeholder, add
             void submit();
           }}
         />
+        {option && option.choices.length > 0 && (
+          <OptWrap>
+            <PlanQSelect
+              size="sm"
+              isClearable
+              aria-label={option.ariaLabel}
+              placeholder={option.placeholder}
+              value={option.value
+                ? { value: option.value, label: option.choices.find((c) => c.value === option.value)?.label || option.value }
+                : null}
+              onChange={(v) => option.onChange((v as { value?: string } | null)?.value || '')}
+              options={option.choices}
+            />
+          </OptWrap>
+        )}
         <AddBtn type="submit" disabled={submitting || !value.trim()} data-testid="task-popout-quickadd-submit">
           {addLabel}
         </AddBtn>

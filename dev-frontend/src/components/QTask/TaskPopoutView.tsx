@@ -258,6 +258,11 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   //     주간 술어도 due_date 가 주 범위 안이라 함께 통과한다.
   //   · 이번 주 탭: planned_week_start = **서버가 준 weekStart** → weekTaskSet 정확 일치 통과.
   //     브라우저에서 monday 를 계산하면 tz 차이로 어긋난다 (Fable 설계 C-5).
+  // #309 — "할일 입력할 때 태그/프로젝트도 같이 고를 수 있게".
+  //   보기 기준이 바뀌면 고르는 대상도 바뀐다(태그별↔태그 / 프로젝트별↔프로젝트).
+  //   기준이 바뀌면 이전 선택은 의미가 없으므로 아래 effect 에서 비운다.
+  const [quickPick, setQuickPick] = useState('');
+
   const quickAdd = useCallback(async (title: string): Promise<boolean> => {
     if (!bizId) return false;
     // 이번 주 탭인데 아직 weekStart 를 못 받았으면 만들지 않는다 —
@@ -274,18 +279,34 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
           ...(popTab === 'today'
             ? { due_date: todayStr, planned_week_start: weekStart || undefined }
             : { planned_week_start: weekStart }),
+          // #309 — 프로젝트별로 보고 있으면 그 프로젝트로 바로 만든다.
+          ...(viewMode === 'project' && quickPick ? { project_id: Number(quickPick) } : {}),
         }),
       });
       // apiFetch 는 throw 하지 않는다 — res.ok 를 반드시 본다 (memory: apifetch_no_throw)
       if (!res.ok) return false;
       const json = await res.json();
       if (!json.success) return false;
+      // #309 — 태그는 생성 API 가 안 받는다. 전용 경로로 이어 붙인다(QTaskPage 와 같은 계약).
+      //   ★ 태그 부여가 실패해도 업무는 이미 만들어졌다 — 되돌리지 않고 목록만 갱신한다.
+      //     (apiFetch 는 throw 하지 않으므로 res.ok 를 본다.)
+      const newId = json.data?.id;
+      if (viewMode === 'tag' && quickPick && newId) {
+        try {
+          const tagRes = await apiFetch(`/api/tasks/${newId}/tags`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tag_ids: [Number(quickPick)] }),
+          });
+          if (!tagRes.ok) console.warn('[popout quickadd tags] HTTP', tagRes.status);
+        } catch (err) { console.warn('[popout quickadd tags]', err); }
+      }
       await silentLoad();     // 서버 fresh 로 덮어쓴다(부분 merge 금지)
       return true;
     } catch {
       return false;
     }
-  }, [bizId, myId, popTab, todayStr, weekStart, silentLoad]);
+  }, [bizId, myId, popTab, todayStr, weekStart, silentLoad, viewMode, quickPick]);
 
   // ── 퀵액션 (체크박스 완료처리) ─────────────────────────────
   // 중복 제출 가드는 전역 1건 — 더블클릭도, 다른 행 연타도 요청 1회 (UI_DESIGN_GUIDE §1.8).
@@ -440,6 +461,28 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   const effView: PopoutView = (viewMode === 'tag' && !hasAnyTag) || (viewMode === 'project' && !hasAnyProject)
     ? 'due' : viewMode;
 
+  // #309 — 지금 보고 있는 기준에 맞는 선택지를 퀵애드에 넘긴다.
+  //   · 태그별  → 지금 목록에 등장하는 태그
+  //   · 프로젝트별 → 지금 목록에 등장하는 프로젝트
+  //   · 마감별  → 날짜는 탭이 이미 정한다(오늘 탭 = 오늘 / 이번 주 탭 = 그 주) → 선택지 없음
+  //   목록에 없는 것을 고르게 하면 추가하자마자 화면에서 사라진다(게이트 불일치). 그래서 등장한 것만 준다.
+  const quickChoices = useMemo(() => {
+    if (effView === 'tag') {
+      const m = new Map<string, string>();
+      tasks.forEach((tk) => (tk.tags || []).forEach((tg) => m.set(String(tg.id), tg.name)));
+      return [...m].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
+    }
+    if (effView === 'project') {
+      const m = new Map<string, string>();
+      tasks.forEach((tk) => { if (tk.Project) m.set(String(tk.Project.id), tk.Project.name); });
+      return [...m].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
+    }
+    return [];
+  }, [effView, tasks]);
+
+  // 기준이 바뀌면 이전 선택은 뜻이 달라진다(태그 id 를 프로젝트로 쓸 수 없다) → 비운다.
+  useEffect(() => { setQuickPick(''); }, [effView]);
+
   const sortRule = effView === 'tag' ? byTagRule
     : effView === 'project' ? byProjectRule
       : byDueRule;
@@ -584,6 +627,17 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
             : t('popout.quickAddWeek', '이번 주 할 일 입력 후 Enter')}
           addLabel={t('popout.quickAddBtn', '추가')}
           errorText={t('popout.quickAddFailed', '추가하지 못했습니다')}
+          option={quickChoices.length > 0 ? {
+            choices: quickChoices,
+            value: quickPick,
+            onChange: setQuickPick,
+            placeholder: effView === 'tag'
+              ? (t('popout.quickAddTagPh', '태그 선택') as string)
+              : (t('popout.quickAddProjectPh', '프로젝트 선택') as string),
+            ariaLabel: effView === 'tag'
+              ? (t('popout.quickAddTagAria', '추가할 업무의 태그') as string)
+              : (t('popout.quickAddProjectAria', '추가할 업무의 프로젝트') as string),
+          } : null}
         />
       )}
 
