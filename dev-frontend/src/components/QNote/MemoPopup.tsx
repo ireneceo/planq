@@ -348,6 +348,16 @@ const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSession
   const closeRef = useRef<() => void>(() => onClose());
   useEscapeStack(open && !searchOpen, useCallback(() => closeRef.current(), []));
 
+  // ★ 메모 팝업이 열려 있는 동안 새 빌드 자동 새로고침 보류 (BuildVersionGuard 계약).
+  //   자동저장이 끝나면 "미저장 없음" 이 되어 reload 가 열리는 구멍 — 문서 편집에서 실제로 화면이
+  //   닫혔다(운영 신고 2026-08-21). 빠른 캡처 중에 날아가면 더 치명적이라 팝업에도 같이 건다.
+  useEffect(() => {
+    if (!open) return;
+    document.body.dataset.editingActive = '1';
+    return () => { delete document.body.dataset.editingActive; };
+  }, [open]);
+
+
   // ─── layout persist ───
   useEffect(() => { saveLayout(layout); }, [layout]);
 
