@@ -2724,14 +2724,17 @@ const QTaskPage:React.FC=()=>{
                     const pct = utilizationPercent(remainingTotal, effectiveCapacity);
                     const status = utilizationStatus(pct);
                     const color = UTIL_COLOR[status];
-                    const headroom = effectiveCapacity - remainingTotal;
+                    // 여유(가용 − 남은 일) 행은 삭제했다 (Irene 지시, 2026-08-21).
+                    //   이미 쓴 시간을 빼지 않아 "20h 일하고 남은 일 13h" 인 주에도 여유 11h 로 나왔다.
+                    //   위 진척 줄이 초과를 말하는데 아래에서 여유가 있다고 해 서로 어긋났다.
+                    //   오버커밋 경고는 상단 요약 칩(summary.remainCapOver)이 계속 맡는다.
                     const donePct = effectiveCapacity > 0
                       ? Math.max(0, Math.round((weekDoneHours / effectiveCapacity) * 100)) : 0;
                     return (
                       <CapDashboard>
                         <CapHeadline>
                           <CapBigNum>
-                            <CapTinyLabel>{t('capacity.doneWork', '진척')}</CapTinyLabel>
+                            <CapTinyLabel>{t('capacity.doneWork', '진척 (예상시간)')}</CapTinyLabel>
                             <CapUsed style={{color: '#0F766E'}}>{formatHours(weekDoneHours)}</CapUsed>
                             <CapSep>/</CapSep>
                             <CapTotal>{formatHours(effectiveCapacity)}h</CapTotal>
@@ -2745,13 +2748,6 @@ const QTaskPage:React.FC=()=>{
                         <CapRemainingRow>
                           <CapRemainingLabel>{t('capacity.remainingWork', '남은 일')}</CapRemainingLabel>
                           <CapRemainingValue style={{color: color.text}}>{formatHours(remainingTotal)}h</CapRemainingValue>
-                        </CapRemainingRow>
-                        <CapRemainingRow>
-                          <CapRemainingLabel>{headroom < 0 ? t('capacity.over', '초과') : t('capacity.headroom', '여유')}</CapRemainingLabel>
-                          <CapRemainingValue style={{color: color.text}}>
-                            {headroom < 0 ? '−' : ''}{formatHours(Math.abs(headroom))}h
-                            {status === 'over' && <CapOverHint>⚠</CapOverHint>}
-                          </CapRemainingValue>
                         </CapRemainingRow>
                         {remainingTotal > 0 && (
                           <CapBreakdown>
@@ -2921,8 +2917,8 @@ const QTaskPage:React.FC=()=>{
                         진척 = Σ(예측×진행률) = 해낸 몫 / 목록의 "남은 …h" = Σ(예측×남은비율) = 남은 몫 (둘을 더하면 Σ예측).
                         투입 = 이번 주 Δ(이월 차감) / 목록의 "실제 …h" = 일생 누적.
                         공식은 #254 를 고친 결과라 되돌리면 안 된다 — 같은 이름으로 부르던 것을 이름으로 가른다. */}
-                    <LI title={t('chart.estTip','') as string}><Dot $c="#14B8A6"/>{t('chart.est','진척')}</LI>
-                    <LI title={t('chart.actTip','') as string}><Dot $c="#F43F5E"/>{t('chart.act','투입')}</LI>
+                    <LI title={t('chart.estTip','') as string}><Dot $c="#14B8A6"/>{t('chart.est','진척 (예상시간)')}</LI>
+                    <LI title={t('chart.actTip','') as string}><Dot $c="#F43F5E"/>{t('chart.act','실제 업무시간')}</LI>
                     <LI><DashDot $c="#94A3B8"/>{t('chart.ideal','가용 페이스')}</LI>
                     <LI><DashDot $c="#F59E0B"/>{t('chart.capacity','가용시간')}</LI>
                     {computedBurndown.some(p=>p.reverted)&&(
@@ -3670,7 +3666,6 @@ const CapBarFill=styled.div`height:100%;border-radius:4px;transition:width 0.25s
 const CapRemainingRow=styled.div`display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#F8FAFC;border-radius:8px;`;
 const CapRemainingLabel=styled.span`font-size:11px;color:#64748B;font-weight:600;`;
 const CapRemainingValue=styled.span`font-size:15px;font-weight:700;letter-spacing:-0.2px;`;
-const CapOverHint=styled.span`margin-left:6px;padding:1px 6px;font-size:10px;font-weight:700;background:#FFE4E6;color:#9F1239;border-radius:6px;`;
 const CapSettingsRow=styled.div`display:flex;flex-wrap:wrap;gap:6px;`;
 const CapSettingsField=styled.div`flex:1;min-width:56px;`;
 const CapFormulaHint=styled.div`margin-top:8px;font-size:11px;color:#94A3B8;font-weight:500;text-align:center;letter-spacing:-0.2px;`;

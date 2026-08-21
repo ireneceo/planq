@@ -67,6 +67,7 @@ import { getRoles, primaryPerspective } from '../../utils/taskRoles';
 import TagChips, { type TaskTagLite } from './TagChips';
 import PopoutViewChips, { type PopoutView } from './PopoutViewChips';
 import PopoutQuickAdd from './PopoutQuickAdd';
+import { bySortRule, buildQuickChoices, cmpNullLast } from './popoutSort';
 import { requestMainNavigate } from '../Common/PopoutBridge';
 
 interface PopoutTask {
@@ -93,29 +94,6 @@ interface PopoutTask {
   // #250 — my-week 가 배치 2차 쿼리로 실어 보낸다. **이름 사전순 정렬된 상태**라 [0] 이 대표 태그다.
   tags?: TaskTagLite[] | null;
   Project?: { id: number; name: string } | null;
-}
-
-// null 은 항상 뒤로. (서버 order 의 `due_date ASC` 는 MySQL NULL-first 라 마감 없는 업무가 맨 위로 온다 —
-//  메인 QTaskPage 는 null-last 라서 두 화면의 순서가 갈렸다. 여기서 메인 규칙으로 맞춘다.)
-function cmpNullLast(a?: string | null, b?: string | null): number {
-  if (!a && !b) return 0;
-  if (!a) return 1;
-  if (!b) return -1;
-  return a < b ? -1 : a > b ? 1 : 0;
-}
-
-// 메인 QTaskPage 기본 정렬과 동일: priority_order(null last) → due_date(null last) → title
-function bySortRule(a: PopoutTask, b: PopoutTask): number {
-  const pa = a.priority_order ?? null;
-  const pb = b.priority_order ?? null;
-  if (pa !== pb) {
-    if (pa === null) return 1;
-    if (pb === null) return -1;
-    return pa - pb;
-  }
-  const d = cmpNullLast(a.due_date, b.due_date);
-  if (d !== 0) return d;
-  return (a.title || '').localeCompare(b.title || '');
 }
 
 // 행 퀵액션 분기 — Fable 설계 확정본(2026-07-28)의 5분기. **raw status 로만 판정**한다
@@ -461,24 +439,8 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   const effView: PopoutView = (viewMode === 'tag' && !hasAnyTag) || (viewMode === 'project' && !hasAnyProject)
     ? 'due' : viewMode;
 
-  // #309 — 지금 보고 있는 기준에 맞는 선택지를 퀵애드에 넘긴다.
-  //   · 태그별  → 지금 목록에 등장하는 태그
-  //   · 프로젝트별 → 지금 목록에 등장하는 프로젝트
-  //   · 마감별  → 날짜는 탭이 이미 정한다(오늘 탭 = 오늘 / 이번 주 탭 = 그 주) → 선택지 없음
-  //   목록에 없는 것을 고르게 하면 추가하자마자 화면에서 사라진다(게이트 불일치). 그래서 등장한 것만 준다.
-  const quickChoices = useMemo(() => {
-    if (effView === 'tag') {
-      const m = new Map<string, string>();
-      tasks.forEach((tk) => (tk.tags || []).forEach((tg) => m.set(String(tg.id), tg.name)));
-      return [...m].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
-    }
-    if (effView === 'project') {
-      const m = new Map<string, string>();
-      tasks.forEach((tk) => { if (tk.Project) m.set(String(tk.Project.id), tk.Project.name); });
-      return [...m].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
-    }
-    return [];
-  }, [effView, tasks]);
+  // #309 — 선택지 계산은 popoutSort 로 절출(순수 함수). 규칙 설명도 그 파일에 있다.
+  const quickChoices = useMemo(() => buildQuickChoices(effView, tasks), [effView, tasks]);
 
   // 기준이 바뀌면 이전 선택은 뜻이 달라진다(태그 id 를 프로젝트로 쓸 수 없다) → 비운다.
   useEffect(() => { setQuickPick(''); }, [effView]);
