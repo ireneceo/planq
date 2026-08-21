@@ -59,14 +59,17 @@ interface Props {
   pinSlot?: React.ReactNode;
 }
 
-// 채널 표시명 — 제목이 "{프로젝트명} 고객/내부" 로 저장돼 헤더의 "소속: {프로젝트명}" 과 중복.
-// 프로젝트 컨텍스트가 있으면 채널명에서 프로젝트 prefix 를 떼어 "고객"/"내부" 만 간결히 표시.
-function channelLabel(name: string, projectName?: string | null): string {
-  if (!name || !projectName || name === projectName) return name;
-  if (name.startsWith(projectName)) {
-    const rest = name.slice(projectName.length).replace(/^[\s/·∙・–—-]+/, '').trim();
-    return rest || name;
-  }
+// 채널 표시명 — **가공하지 않는다.**
+//
+// 옛 동작: 제목이 프로젝트명으로 시작하면 그 prefix 를 떼어 "고객"/"내부" 만 표시했다.
+//   자동 생성 제목("{프로젝트명} 내부")의 중복을 줄이려는 의도였는데,
+//   **사용자가 직접 입력한 제목도 똑같이 잘라먹었다.**
+//   운영 실측 2026-08-21: conv 18 title="K-DINE 고객", project 6 name="K-DINE"
+//   → 헤더에 "고객" 만 표시. 사용자 신고: "나는 K-DINE 고객이라고 채팅방 이름 넣었는데".
+//   자동 생성분과 사용자 입력분은 문자열로 구분할 수 없다(둘 다 "{프로젝트명} 고객" 형태).
+//   중복 표기보다 **이름이 틀리게 나오는 쪽이 훨씬 나쁘다** — 저장된 이름을 그대로 보여준다.
+//   (프로젝트는 아래 "소속: {프로젝트명}" 줄에서 따로 링크로 보여준다.)
+function channelLabel(name: string): string {
   return name;
 }
 
@@ -205,7 +208,8 @@ const ChatPanel: React.FC<Props> = ({
   // textarea ref — 채팅방 진입 시 자동 포커스 + 입력 시 auto-resize (2줄 가려짐 방지)
   const textInputRef = React.useRef<HTMLTextAreaElement | null>(null);
 
-  // #68 — 워크스페이스 멤버 로드 (자동완성 후보 + 하이라이트 검증용). 1회.
+  // #68 — 워크스페이스 멤버 로드. **하이라이트 검증 전용** (지난 메시지의 @이름 강조).
+  //   자동완성 후보로는 쓰지 않는다 — 아래 참여자 목록이 후보의 정본이다.
   const mentionBizId = (user as { business_id?: number } | null)?.business_id || null;
   useEffect(() => {
     if (!mentionBizId) return;
@@ -223,17 +227,44 @@ const ChatPanel: React.FC<Props> = ({
     return () => { cancelled = true; };
   }, [mentionBizId]);
 
-  // 멤버 이름 set (하이라이트 — 실제 멤버 @name 만 강조). 백엔드 토큰 charset 과 일치.
-  const mentionNameSet = useMemo(() => new Set(mentionMembers.map((m) => m.name)), [mentionMembers]);
+  // ★ 자동완성 후보 = **이 대화의 참여자** (운영 신고 2026-08-21).
+  //   여태 워크스페이스 멤버 전체를 띄웠다. 그래서
+  //     · 이 대화에 없는 사람이 후보로 나오고(신고: "넣지도 않은 한수정이 표시돼")
+  //     · 정작 참여 중인 **고객은 후보에 없었다** (고객은 BusinessMember 가 아니다).
+  //   운영 실측: conv 18 참여자 = irene(owner) · Cue(ai) · Kate(client) 인데
+  //             @ 목록은 irene · 한수정 이었다.
+  const [mentionParticipants, setMentionParticipants] = useState<Array<{ user_id: number; name: string }>>([]);
+  useEffect(() => {
+    if (!mentionBizId || !activeConversationId) { setMentionParticipants([]); return; }
+    let cancelled = false;
+    import('../../services/qtalk')
+      .then(({ fetchParticipantPanel }) => fetchParticipantPanel(mentionBizId, activeConversationId))
+      .then((panel) => {
+        if (cancelled) return;
+        const arr = (panel?.participants || [])
+          .filter((pt) => pt.user_id && pt.name && !pt.is_ai)   // Cue 는 @ 대상 아님
+          .map((pt) => ({ user_id: pt.user_id, name: pt.name }));
+        setMentionParticipants(arr);
+      })
+      .catch(() => { setMentionParticipants([]); });   // 실패 시 후보 없음 — 멤버 전체로 새지 않게
+    return () => { cancelled = true; };
+  }, [mentionBizId, activeConversationId]);
+
+  // 하이라이트용 이름 set — 참여자 + 워크스페이스 멤버 합집합.
+  //   지난 메시지에는 지금 나간 사람의 @이름도 남아 있어서, 참여자만 보면 옛 멘션 강조가 풀린다.
+  const mentionNameSet = useMemo(
+    () => new Set([...mentionMembers, ...mentionParticipants].map((m) => m.name)),
+    [mentionMembers, mentionParticipants],
+  );
 
   // 자동완성 후보 — 현재 query 로 필터 (최대 6)
   const mentionCandidates = useMemo(() => {
     if (!mentionActive) return [];
     const q = mentionQuery.toLowerCase();
-    return mentionMembers
+    return mentionParticipants
       .filter((m) => !q || m.name.toLowerCase().includes(q))
       .slice(0, 6);
-  }, [mentionActive, mentionQuery, mentionMembers]);
+  }, [mentionActive, mentionQuery, mentionParticipants]);
 
   // 커서 직전 "@토큰" 컨텍스트 감지 — @ 앞이 공백/줄머리이고 토큰에 허용문자만.
   const detectMention = (value: string, caret: number) => {
@@ -1120,7 +1151,7 @@ const ChatPanel: React.FC<Props> = ({
                   title={!isClient ? t('chat.rename', '클릭해서 이름 수정') : undefined}
                   $editable={!isClient}
                 >
-                  {channelLabel(activeConv.name, project?.name)}
+                  {channelLabel(activeConv.name)}
                 </ChatName>
                 {/* '내부' 는 default 라 라벨 X — '고객' 만 강조 (B2B 시각 패턴).
                     고객이 연결돼 있으면 이름을 눌러 그 고객의 통합 타임라인(채팅·메일·업무·청구)으로 간다. */}
@@ -1157,7 +1188,7 @@ const ChatPanel: React.FC<Props> = ({
                     <QuickHash $type={c.channel_type}>
                       {c.channel_type === 'customer' ? '#' : '·'}
                     </QuickHash>
-                    {channelLabel(c.name, project?.name)}
+                    {channelLabel(c.name)}
                     {c.unread_count > 0 && <QuickBadge>{c.unread_count}</QuickBadge>}
                   </QuickSwitchBtn>
                 ))}
@@ -1176,7 +1207,7 @@ const ChatPanel: React.FC<Props> = ({
                   <QuickHash $type={c.channel_type}>
                     {c.channel_type === 'customer' ? '#' : '·'}
                   </QuickHash>
-                  {channelLabel(c.name, project?.name)}
+                  {channelLabel(c.name)}
                   {c.unread_count > 0 && <QuickBadge>{c.unread_count}</QuickBadge>}
                 </QuickSwitchBtn>
               ))}
