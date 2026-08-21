@@ -87,6 +87,15 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
   const [tick, setTick] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+
+  // ★ 메모를 쓰는 동안은 새 빌드 자동 새로고침을 막는다 (BuildVersionGuard 계약).
+  //   메모도 자동저장이라, 저장이 끝나는 순간 "미저장 없음" 이 되어 reload 가 열린다.
+  //   문서 편집에서 실제로 그렇게 화면이 닫혔다(운영 신고 2026-08-21) — 같은 구멍을 여기서도 막는다.
+  useEffect(() => {
+    document.body.dataset.editingActive = '1';
+    return () => { delete document.body.dataset.editingActive; };
+  }, []);
+
   // N+88 — 메모 요약 (body 기반, 영속). session.summary_* 로 표시.
   const navigate = useNavigate();
   const [summarizing, setSummarizing] = useState(false);
