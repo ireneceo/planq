@@ -75,15 +75,45 @@ function emit() { for (const l of listeners) l(); }
 function subscribe(cb: () => void) { listeners.add(cb); return () => { listeners.delete(cb); }; }
 function getSnapshot(): TabState { return state; }
 
+// 운영 #340 — "데스크탑앱이든 다른 앱이든 삭제했다 다시 열면 모든 탭이 그대로 열리게 할 수 있어?
+//   마지막 있던 곳으로 바로 들어가고."
+//
+//   여태 탭 상태는 sessionStorage 에만 있었다 — **앱/브라우저를 닫는 순간 지워지는 저장소**다.
+//   그래서 다시 열면 언제나 빈 탭이었다.
+//
+//   그렇다고 localStorage 로 통째로 옮기면 안 된다: localStorage 는 창끼리 공유되므로
+//   PlanQ 를 두 창에 띄운 사람은 두 창이 서로의 탭 목록을 덮어써 싸운다.
+//   → 이중 저장. 살아있는 상태는 창별(sessionStorage), **복원용 스냅샷만** 공유(localStorage).
+//     새로 켠 창은 sessionStorage 가 비어 있으므로 그때만 스냅샷을 씨앗으로 쓴다.
+const RESTORE_KEY = `${STORAGE_KEY}_restore`;
+
 function persist() {
-  try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ tabs: state.tabs, activeId: state.activeId })); } catch { /* quota·비허용 무시 */ }
+  const payload = JSON.stringify({ tabs: state.tabs, activeId: state.activeId });
+  try { sessionStorage.setItem(STORAGE_KEY, payload); } catch { /* quota·비허용 무시 */ }
+  // 복원 스냅샷 — 마지막으로 쓴 창의 것이 남는다(last-writer-wins). "지난번 그대로" 에는 충분하다.
+  try { localStorage.setItem(RESTORE_KEY, payload); } catch { /* quota·비허용 무시 */ }
 }
 function load(): TabState {
+  // ① 이 창의 살아있는 상태 (새로고침·같은 창 내 이동)
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY);
     if (raw) {
       const j = JSON.parse(raw);
       if (Array.isArray(j.tabs)) return { tabs: j.tabs, activeId: j.activeId ?? null, mirror: true };
+    }
+  } catch { /* 무시 */ }
+  // ② 앱을 새로 켠 경우 — 지난번 스냅샷으로 복원한다(#340).
+  //    alive 는 되살리지 않는다: 한 번에 전 탭을 마운트하면 첫 화면이 느려지고 LRU 도 즉시 터진다.
+  //    활성 탭만 살아나고 나머지는 suspend 상태로 서 있다가 누르면 깨어난다(기존 LRU 동작 그대로).
+  try {
+    const raw = localStorage.getItem(RESTORE_KEY);
+    if (raw) {
+      const j = JSON.parse(raw);
+      if (Array.isArray(j.tabs) && j.tabs.length) {
+        const activeId = j.activeId ?? null;
+        const tabs = j.tabs.map((tb: Tab) => ({ ...tb, alive: tb.id === activeId }));
+        return { tabs, activeId, mirror: true };
+      }
     }
   } catch { /* 무시 */ }
   return { tabs: [], activeId: null, mirror: true };

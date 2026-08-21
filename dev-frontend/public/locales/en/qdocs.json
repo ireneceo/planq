@@ -540,7 +540,9 @@
       "delRow": "Delete row",
       "row": "Row",
       "delTable": "Delete table",
-      "table": "Table"
+      "table": "Table",
+      "evenCols": "Even cols",
+      "evenColsHint": "Make all columns the same width (you can still drag to resize)"
     },
     "origin": "Origin",
     "alignLeft": "Align left",
@@ -649,5 +651,8 @@
     "staleHelp": "Someone else edited this document. Refresh and continue writing.",
     "draftBadge": "Draft",
     "draftBadgeHint": "Only you can see this draft. Open it and save to publish."
+  },
+  "toc": {
+    "title": "Contents"
   }
 }

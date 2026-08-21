@@ -436,7 +436,8 @@
     "remove": "제거",
     "cancel": "취소",
     "owner": "오너",
-    "noCandidates": "추가 가능한 워크스페이스 멤버가 없습니다"
+    "noCandidates": "추가 가능한 워크스페이스 멤버가 없습니다",
+    "unknown": "알 수 없는 멤버"
   },
   "docs": {
     "drop": {

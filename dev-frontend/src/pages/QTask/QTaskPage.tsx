@@ -41,9 +41,10 @@ import { friendlyDeleteError } from '../../utils/taskDeleteError';
 import TaskCandidateCard from '../../components/Common/TaskCandidateCard';
 import i18nClient from '../../i18n';
 import {
-  buildPresetRRule, buildCustomRRule, formatRRuleLabel,
+  buildPresetRRule, buildCustomRRule, formatRRuleLabel, presetLabelMap, SELECTABLE_PRESETS,
   type RecurEndType, type RecurPreset, type RecurCustomUnit,
 } from '../../utils/recurrence';
+import type { TFunction } from 'i18next';
 import WeeklyReviewModal from '../../components/QTask/WeeklyReviewModal';
 import WeeklyReviewTab from '../../components/QTask/WeeklyReviewTab';
 import PartnerKindBadge from '../../components/Common/PartnerKindBadge';
@@ -881,6 +882,9 @@ const QTaskPage:React.FC=()=>{
     if (newRecurPreset === 'custom') {
       return buildCustomRRule(Number(newRecurCustomEvery) || 1, newRecurCustomUnit, end);
     }
+    // 운영 #347 — 새로 만드는 폼에서는 'advanced' 가 나올 수 없지만, 타입상 가능하므로 명시적으로 막는다
+    //   (여기서 재빌드하면 규칙이 축소된다 — 상세 드로어에서 났던 회귀와 같은 종류).
+    if (newRecurPreset === 'advanced') return null;
     return buildPresetRRule(newRecurPreset, dueDate, end);
   };
   const addTask=async()=>{
@@ -1533,11 +1537,15 @@ const QTaskPage:React.FC=()=>{
     const raw=days.map(d=>{
       let estV=0, actV=0;
       const isFuture=d.date>todayStr;
+      // ★ "그날 값이 0" 과 "그날 기록이 아예 없다" 는 다른 상태다. 아래 되돌림 판정이 이 둘을
+      //   구분해야 한다 — 안 그러면 스냅샷이 빠진 날을 되돌림으로 오탐하거나(옛 게이트가 막던 것),
+      //   반대로 진짜 0 으로 떨어진 날을 놓친다(지금 고치는 것).
+      let hasData=false;
       // 오늘 actual = max(라이브 actual_hours 합, 백엔드 포커스 누적 라이브) — 진행중 active 포커스도 즉시 반영(운영 #57/#58).
-      if(d.date===todayStr){ estV=liveEstDone; actV=Math.max(liveAct, Number(snapMap.get(todayStr)?.act_used||0)); }
-      else if(d.date<todayStr){ const s=snapMap.get(d.date); if(s){ estV=Number(s.est_used)||0; actV=Number(s.act_used)||0; } }
+      if(d.date===todayStr){ estV=liveEstDone; actV=Math.max(liveAct, Number(snapMap.get(todayStr)?.act_used||0)); hasData=true; }
+      else if(d.date<todayStr){ const s=snapMap.get(d.date); if(s){ estV=Number(s.est_used)||0; actV=Number(s.act_used)||0; hasData=true; } }
       // 미래 = 라인 그리지 않음 (잘림). 주는 "가는 중" 이므로 오늘까지만.
-      return{label:d.label,date:d.date,isFuture,est:Math.round(estV*10)/10,act:Math.round(actV*10)/10};
+      return{label:d.label,date:d.date,isFuture,hasData,est:Math.round(estV*10)/10,act:Math.round(actV*10)/10};
     });
     // 누적(단조증가) 강제 — 진척·실제는 줄지 않음. 미래는 null (라인 잘림).
     // WORK_FLOW §6 (U4) — 단조완화: 진척이 되돌려진 날(완료→재오픈 등 progress 하락)을 ↓마커로 표면화.
@@ -1545,9 +1553,13 @@ const QTaskPage:React.FC=()=>{
     let mE=0,mA=0;
     return raw.map(p=>{
       let estReverted=false, actReverted=false;
-      if(!p.isFuture){
-        if(p.est>0){ if(p.est<mE-0.05)estReverted=true; mE=Math.max(mE,p.est); }
-        if(p.act>0){ if(p.act<mA-0.05)actReverted=true; mA=Math.max(mA,p.act); }
+      if(!p.isFuture && p.hasData){
+        // 되돌림 판정은 **기록이 있는 날**에만. 값이 0 이어도 앞서 쌓인 피크보다 낮으면 되돌림이다.
+        //   ★ 옛 조건은 `p.est>0` 이었다 — 그래서 하락 폭이 커서 그 주가 통째로 0 으로 클램프되면
+        //     ↓마커도 안내 문구도 뜨지 않고 **아무 설명 없는 평평한 0 선**만 남았다.
+        //     사용자에겐 "그래프가 죽었다" 로 읽힌다("증가 0" 과 "데이터 없음" 이 같은 화면을 내면 안 된다).
+        if(p.est<mE-0.05)estReverted=true; mE=Math.max(mE,p.est);
+        if(p.act<mA-0.05)actReverted=true; mA=Math.max(mA,p.act);
       }
       return{
         label:p.label, date:p.date, isFuture:p.isFuture,
@@ -1557,6 +1569,27 @@ const QTaskPage:React.FC=()=>{
       };
     });
   },[chartWeekTasks,periodFrom,periodTo,dailyProgress,progressBases,todayStr]);
+
+  // 운영 #254/#300 후속 — 그래프가 평평한 0 일 때 **왜** 그런지 가른다.
+  //   여태 문구가 "이 기간의 진척 데이터가 없어요" 하나뿐이라, 업무도 있고 기록도 있는데
+  //   그 주 증가가 0 인 경우까지 "없다" 고 말했다. 사용자는 그걸 고장으로 읽는다
+  //   (#288 "왜 다 없는 거야" 와 같은 계열 — "증가 0" 과 "데이터 없음" 은 다른 상태다).
+  //
+  //   특히 진행률이 기준(그 주 시작 시점)보다 **내려간** 업무는 Δ 가 0 으로 클램프되어
+  //   피크가 아예 안 올라가고, 그래서 되돌림 ↓마커조차 뜨지 않는다 — 설명 없는 평평한 선만 남는다.
+  const chartEmptyKind = useMemo<'none'|'noTasks'|'reverted'|'noIncrement'>(()=>{
+    const flat = computedBurndown.length>0
+      && computedBurndown.every(p=>(p.estimated_cumulative??0)===0 && (p.actual_cumulative??0)===0);
+    if(!flat) return 'none';
+    if(chartWeekTasks.length===0) return 'noTasks';
+    // 지금 진척(예측×진행률)이 그 주 기준선보다 낮은 업무가 있으면 = 진행률이 내려가 클램프된 것
+    const baseOf=(id:number)=>progressBases[String(id)]||{act:0,est_done:0};
+    const anyBelowBase = chartWeekTasks.some(t=>{
+      const now=(Number(t.estimated_hours)||0)*((t.progress_percent||0)/100);
+      return now < (baseOf(t.id).est_done||0) - 0.05;
+    });
+    return anyBelowBase ? 'reverted' : 'noIncrement';
+  },[computedBurndown,chartWeekTasks,progressBases]);
 
   // ★ 가용시간 바가 **채우는** 값 = 그래프 "진척(예상시간)" 선의 오늘 점.
   //   여태 바는 `남은 일 / 가용시간` 이라 **완료할수록 줄었다** — 24h 는 이번 주에 채워야 할
@@ -2323,19 +2356,8 @@ const QTaskPage:React.FC=()=>{
               {tab!=='requested' && newRecurEnabled && newDueDate && (
                 <InlineRecurRow>
                   <PlanQSelect size="sm"
-                    value={(()=>{
-                      const d = new Date(newDueDate + 'T00:00:00Z');
-                      const dayLabel = t(`recur.weekday.${['SU','MO','TU','WE','TH','FR','SA'][d.getUTCDay()]}`,'');
-                      const labels: Record<RecurPreset,string> = {
-                        daily: t('recur.presetDaily','매일'),
-                        weekly: t('recur.presetWeekly',{day:dayLabel,defaultValue:`매주 ${dayLabel}`}),
-                        biweekly: t('recur.presetBiweekly',{day:dayLabel,defaultValue:`격주 ${dayLabel}`}),
-                        monthly: t('recur.presetMonthly',{day:String(d.getUTCDate()),defaultValue:`매월 ${d.getUTCDate()}일`}),
-                        yearly: t('recur.presetYearly',{month:String(d.getUTCMonth()+1),day:String(d.getUTCDate()),defaultValue:`매년 ${d.getUTCMonth()+1}월 ${d.getUTCDate()}일`}),
-                        custom: t('recur.presetCustom','사용자 지정...'),
-                      };
-                      return { value: newRecurPreset, label: labels[newRecurPreset] };
-                    })()}
+                    // 운영 #347 — 라벨은 utils/recurrence 단일 원천 (프리셋 추가 시 여기 고칠 일 없음)
+                    value={{ value: newRecurPreset, label: presetLabelMap(t as unknown as TFunction, newDueDate)[newRecurPreset] }}
                     onChange={(v)=>{
                       const p=(v as {value?:string})?.value as RecurPreset|undefined;
                       if(!p) return;
@@ -2343,16 +2365,8 @@ const QTaskPage:React.FC=()=>{
                       else{setNewRecurPreset(p);}
                     }}
                     options={(()=>{
-                      const d = new Date(newDueDate + 'T00:00:00Z');
-                      const dayLabel = t(`recur.weekday.${['SU','MO','TU','WE','TH','FR','SA'][d.getUTCDay()]}`,'');
-                      return [
-                        { value:'daily', label:t('recur.presetDaily','매일') },
-                        { value:'weekly', label:t('recur.presetWeekly',{day:dayLabel,defaultValue:`매주 ${dayLabel}`}) },
-                        { value:'biweekly', label:t('recur.presetBiweekly',{day:dayLabel,defaultValue:`격주 ${dayLabel}`}) },
-                        { value:'monthly', label:t('recur.presetMonthly',{day:String(d.getUTCDate()),defaultValue:`매월 ${d.getUTCDate()}일`}) },
-                        { value:'yearly', label:t('recur.presetYearly',{month:String(d.getUTCMonth()+1),day:String(d.getUTCDate()),defaultValue:`매년 ${d.getUTCMonth()+1}월 ${d.getUTCDate()}일`}) },
-                        { value:'custom', label:t('recur.presetCustom','사용자 지정...') },
-                      ];
+                      const labels = presetLabelMap(t as unknown as TFunction, newDueDate);
+                      return SELECTABLE_PRESETS.map((k)=>({ value:k, label:labels[k] }));
                     })()} />
                   <PlanQSelect size="sm"
                     value={{
@@ -2916,7 +2930,15 @@ const QTaskPage:React.FC=()=>{
                     )}
                   </Legend>
                   <ChartScopeHint>{t('chart.scopeHint','이번 주 · 내가 담당자인 업무 기준. 검색어·완료 가리기 같은 보기 설정에는 영향받지 않습니다.')}</ChartScopeHint>
-                  {computedBurndown.every(p=>p.estimated_cumulative===0&&p.actual_cumulative===0)&&<EmptyChart>{t('chart.noData','이 기간의 진척 데이터가 없어요')}</EmptyChart>}
+                  {chartEmptyKind!=='none'&&(
+                    <EmptyChart>
+                      {chartEmptyKind==='noTasks'
+                        ? t('chart.noData','이 기간의 진척 데이터가 없어요')
+                        : chartEmptyKind==='reverted'
+                          ? t('chart.revertedFlat','이번 주에는 진행률이 기준보다 내려가 진척 증가가 없어요. 그래프는 최고치를 유지합니다.')
+                          : t('chart.noIncrement','이 기간에 새로 기록된 진행이 아직 없어요')}
+                    </EmptyChart>
+                  )}
                 </RSection>
                 {projectProgressNode}
                 {issuesNode}
@@ -3152,19 +3174,8 @@ const QTaskPage:React.FC=()=>{
                 {newRecurEnabled && newDueDate && (
                   <RecurOptions>
                     <PlanQSelect size="sm"
-                      value={(()=>{
-                        const d = new Date(newDueDate + 'T00:00:00Z');
-                        const dayLabel = t(`recur.weekday.${['SU','MO','TU','WE','TH','FR','SA'][d.getUTCDay()]}`,'');
-                        const labels: Record<RecurPreset,string> = {
-                          daily: t('recur.presetDaily','매일'),
-                          weekly: t('recur.presetWeekly',{day:dayLabel,defaultValue:`매주 ${dayLabel}`}),
-                          biweekly: t('recur.presetBiweekly',{day:dayLabel,defaultValue:`격주 ${dayLabel}`}),
-                          monthly: t('recur.presetMonthly',{day:String(d.getUTCDate()),defaultValue:`매월 ${d.getUTCDate()}일`}),
-                          yearly: t('recur.presetYearly',{month:String(d.getUTCMonth()+1),day:String(d.getUTCDate()),defaultValue:`매년 ${d.getUTCMonth()+1}월 ${d.getUTCDate()}일`}),
-                          custom: t('recur.presetCustom','사용자 지정...'),
-                        };
-                        return { value: newRecurPreset, label: labels[newRecurPreset] };
-                      })()}
+                      // 운영 #347 — 라벨은 utils/recurrence 단일 원천 (프리셋 추가 시 여기 고칠 일 없음)
+                      value={{ value: newRecurPreset, label: presetLabelMap(t as unknown as TFunction, newDueDate)[newRecurPreset] }}
                       onChange={(v)=>{
                         const p=(v as {value?:string})?.value as RecurPreset|undefined;
                         if(!p) return;
@@ -3172,16 +3183,8 @@ const QTaskPage:React.FC=()=>{
                         else{setNewRecurPreset(p);}
                       }}
                       options={(()=>{
-                        const d = new Date(newDueDate + 'T00:00:00Z');
-                        const dayLabel = t(`recur.weekday.${['SU','MO','TU','WE','TH','FR','SA'][d.getUTCDay()]}`,'');
-                        return [
-                          { value:'daily', label:t('recur.presetDaily','매일') },
-                          { value:'weekly', label:t('recur.presetWeekly',{day:dayLabel,defaultValue:`매주 ${dayLabel}`}) },
-                          { value:'biweekly', label:t('recur.presetBiweekly',{day:dayLabel,defaultValue:`격주 ${dayLabel}`}) },
-                          { value:'monthly', label:t('recur.presetMonthly',{day:String(d.getUTCDate()),defaultValue:`매월 ${d.getUTCDate()}일`}) },
-                          { value:'yearly', label:t('recur.presetYearly',{month:String(d.getUTCMonth()+1),day:String(d.getUTCDate()),defaultValue:`매년 ${d.getUTCMonth()+1}월 ${d.getUTCDate()}일`}) },
-                          { value:'custom', label:t('recur.presetCustom','사용자 지정...') },
-                        ];
+                        const labels = presetLabelMap(t as unknown as TFunction, newDueDate);
+                        return SELECTABLE_PRESETS.map((k)=>({ value:k, label:labels[k] }));
                       })()} />
                     <RecurEndBox>
                       <PlanQSelect size="sm"

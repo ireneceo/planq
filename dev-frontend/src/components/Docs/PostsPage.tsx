@@ -20,6 +20,7 @@ import EmptyState from '../Common/EmptyState';
 import { uploadMyFile, uploadProjectFile } from '../../services/files';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import PostEditor from './PostEditor';
+import DocToc from './DocToc';
 import PostTableGrid from './PostTableGrid';
 import { mapApiError } from '../../utils/apiError';
 import { generateHTML } from '@tiptap/core';
@@ -224,7 +225,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const [shareOpen, setShareOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   // 운영 — Q docs AI 재생성: 생성 컨텍스트 보관 + 재생성 busy
-  const [aiCtx, setAiCtx] = useState<{ kind: string; userInput: string; clientId?: number | null; projectId?: number | null } | null>(null);
+  // 운영 #312 — instructions: "다시 만들기" 로 준 지시를 **누적** 보관한다. 매번 마지막 한 줄만
+  //   보내면 앞서 시킨 것이 전부 풀려 결과가 처음으로 되돌아간다("히스토리 날리고").
+  const [aiCtx, setAiCtx] = useState<{ kind: string; userInput: string; clientId?: number | null; projectId?: number | null; instructions?: string[] } | null>(null);
   const [regenBusy, setRegenBusy] = useState(false);
   const [aiIntent, setAiIntent] = useState<'manual' | 'ai'>('manual');
   // 사이클 N+22 — + 버튼 드롭다운 (빈 문서 즉시 / 표는 모달 default table) + 모달 default tab
@@ -262,6 +265,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const [saveTplBusy, setSaveTplBusy] = useState(false);
   const [saveTplError, setSaveTplError] = useState<string | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);   // #225 — PDF 생성 중 중복 클릭 차단
+  // 운영 #338 — 목차가 이동할 대상(렌더된 본문 컨테이너). 목차는 여기서 h1~h3 을 찾는다.
+  const docBodyRef = useRef<HTMLDivElement>(null);
 
   // content_json → HTML 변환 (TipTap headless)
   const renderContentToHtml = useCallback((contentJson: unknown): string => {
@@ -494,13 +499,24 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const regenerateDoc = async (instruction: string) => {
     if (!aiCtx || regenBusy) return;
     setRegenBusy(true); setError(null);
+    // 운영 #312 — 재생성은 "다시 쓰기" 가 아니라 "고쳐 쓰기" 다.
+    //   ① 지금 화면의 본문(사용자가 손으로 고친 것 포함)을 원본으로 넘기고
+    //   ② 지금까지 준 지시를 전부 누적해 넘긴다.
+    //   ★ 지시 누적은 **성공했을 때만** 확정한다 — 실패한 요청까지 쌓이면 다음 재생성이
+    //     한 번도 반영된 적 없는 지시를 들고 간다.
+    const nextInstructions = [...(aiCtx.instructions || []), ...(instruction ? [instruction] : [])];
+    // contentDraft 는 사용자가 편집하는 순간 TipTap JSON 이 된다(AI 직후엔 HTML 문자열).
+    //   둘 다 HTML 로 맞춰 보낸다 — 모델에게는 HTML 이 원본이다.
+    const baseHtml = typeof contentDraft === 'string' ? contentDraft : renderContentToHtml(contentDraft);
     try {
       const r = await aiGenerateDoc({
         business_id: scope.businessId, kind: aiCtx.kind as DocKind, title: titleDraft.trim() || (t('ai.untitledDoc', { defaultValue: '문서' }) as string),
         user_input: aiCtx.userInput, client_id: aiCtx.clientId, project_id: aiCtx.projectId,
-        instruction: instruction || undefined,
+        base_html: baseHtml || undefined,
+        instructions: nextInstructions.length ? nextInstructions : undefined,
       });
       setContentDraft(r.body_html as unknown);
+      setAiCtx((prev) => (prev ? { ...prev, instructions: nextInstructions } : prev));
     } catch (e) {
       setError((e as Error).message || (t('ai.regenFailed', '재생성 실패. 잠시 후 다시 시도해 주세요.') as string));
     } finally { setRegenBusy(false); }
@@ -1680,7 +1696,11 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 </MetaRight>
               </ViewMeta>
               {/* 보안등급 상시노출 SecurityRow 제거 — 뷰는 MetaBar chip(일반 자동숨김), 변경은 편집 모드 메타에서(Irene) */}
-              <div data-print-area className="pq-fullbleed" style={{ marginTop: -16 }}>
+              {/* 운영 #338 — 긴 문서의 목차. 본문에서 파생하므로 옛 문서에서도 바로 뜬다.
+                  제목이 2개 미만이면 스스로 아무것도 그리지 않는다. 인쇄에는 넣지 않는다
+                  (data-print-area 밖 — 종이에서는 클릭 이동이 의미가 없다). */}
+              <DocToc content={detail.content_json} containerRef={docBodyRef} />
+              <div data-print-area className="pq-fullbleed" style={{ marginTop: -16 }} ref={docBodyRef}>
                 <PrintOnlyTitle>{detail.title}</PrintOnlyTitle>
                 {detail.kind === 'table' && detail.q_record_id ? (
                   // 표 kind — 본문 설명(있으면) + Q record 그리드 (보기 모드: read-only)

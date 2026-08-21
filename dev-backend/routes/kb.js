@@ -200,7 +200,8 @@ router.get('/businesses/:businessId/kb/documents', authenticateToken, checkBusin
     }
     if (req.query.project_id) where.project_id = parseInt(req.query.project_id, 10) || null;
     if (req.query.client_id) where.client_id = parseInt(req.query.client_id, 10) || null;
-    if (req.query.q) where.title = { [Op.like]: `%${String(req.query.q).slice(0,80)}%` };
+    // #364 — 검색어 조합형 통일 (저장측 NFC 와 같은 축)
+    if (req.query.q) where.title = { [Op.like]: `%${String(req.query.q).normalize('NFC').slice(0, 80)}%` };
 
     // N+67 — 권한 query refactor. L1/L2-members 등 visibility 권한 검증.
     // owner/admin = 모든 row 노출. member = L1 (본인) / L2 (참여 프로젝트 또는 target_member_ids) / L3 / L4.

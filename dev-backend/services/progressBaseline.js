@@ -21,14 +21,17 @@ const { sequelize } = require('../config/database');
 /**
  * @param {number[]} taskIds  대상 업무
  * @param {string}   start    'YYYY-MM-DD' — 기간 시작 (이 날 **이전**의 최신 행이 기준선)
- * @returns {{ baseAct: Map<number,number>, baseEst: Map<number,number> }}
+ * @returns {{ baseAct: Map, baseEst: Map, baseProg: Map, estNow: Map }}
  *   기준 행이 없는 업무(기간 중 생성)는 Map 에 없다 → 호출측에서 0 으로 읽으면 된다.
  *   "처음부터 쌓인 것" 이 맞으므로 기준 0 이 정답이다.
+ *   baseProg = 기준 시점 진행률(0~1), estNow = 지금 예측시간. 아래 estDoneOf 와 짝이다.
  */
 async function getProgressBaselines(taskIds, start) {
   const baseAct = new Map();
   const baseEst = new Map();
-  if (!taskIds || taskIds.length === 0) return { baseAct, baseEst };
+  const baseProg = new Map();
+  const estNow = new Map();
+  if (!taskIds || taskIds.length === 0) return { baseAct, baseEst, baseProg, estNow };
 
   // 기준선은 `start - 1일` 고정이 아니라 **`snapshot_date < start` 의 업무별 최신 행**이다.
   //   하루 고정이면 cron 이 그 하루를 걸렀을 때 그 업무의 일생 누적이 Δ 로 재유입된다(뒷문).
@@ -40,14 +43,41 @@ async function getProgressBaselines(taskIds, start) {
          ON m.task_id = p.task_id AND m.md = p.snapshot_date`,
     { replacements: { ids: taskIds, start } },
   );
+  // 지금 예측시간 — 기준선 환산과 Δ 계산이 **같은 예측**을 쓰게 하는 축.
+  const [curRows] = await sequelize.query(
+    'SELECT id, estimated_hours FROM tasks WHERE id IN (:ids)',
+    { replacements: { ids: taskIds } },
+  );
+  for (const c of curRows) estNow.set(Number(c.id), Number(c.estimated_hours) || 0);
+
   for (const b of rows) {
-    baseAct.set(Number(b.task_id), Number(b.actual_hours) || 0);
-    baseEst.set(Number(b.task_id), (Number(b.estimated_hours) || 0) * ((b.progress_percent || 0) / 100));
+    const id = Number(b.task_id);
+    const p = (b.progress_percent || 0) / 100;
+    baseAct.set(id, Number(b.actual_hours) || 0);
+    baseProg.set(id, p);
+    // ★ 예측은 도중에 정정된다(운영 실측: 스냅샷 보유 189건 중 48건이 예측 변경 이력 보유).
+    //   옛 예측으로 만든 기준선을 새 예측 기준값에서 빼면 **같은 축의 두 수가 아니다.**
+    //   실사례 #123 — 8/19 까지 16h×35%=5.6 이던 업무를 8/20 에 "예측 1h · 진행률 90%" 로 정정하자
+    //   그 주 Δ 가 max(0, 1×0.9 − 5.6) = 0 이 되어, 55%p 올린 실제 진척이 그래프에서 사라졌다.
+    //   반대로 예측을 올리면 일하지 않아도 Δ 가 부풀어 "리스트 2h인데 그래프 4.5h"(#300)가 된다.
+    //   → 기준선도 **지금 예측**으로 환산한다. Δ = est_now × (p − p_base) 가 되어 예측 정정에 면역.
+    baseEst.set(id, (estNow.has(id) ? estNow.get(id) : (Number(b.estimated_hours) || 0)) * p);
   }
-  return { baseAct, baseEst };
+  return { baseAct, baseEst, baseProg, estNow };
 }
 
 /** 업무별 Δ — 음수는 0 으로 눕힌다(하향 정정은 *과거 기록의 수정*이지 음의 노동이 아니다). */
 const deltaOf = (value, base) => Math.max(0, (Number(value) || 0) - (Number(base) || 0));
 
-module.exports = { getProgressBaselines, deltaOf };
+/**
+ * 스냅샷 한 행의 "해낸 예측시간" — **지금 예측 × 그 날 진행률**.
+ * 스냅샷에 박제된 옛 예측을 쓰면 기준선(지금 예측 환산)과 축이 어긋난다. 둘은 반드시 짝으로 쓴다.
+ * estNow 에 없는 업무(삭제 등)만 스냅샷의 옛 예측으로 폴백한다.
+ */
+const estDoneOf = (estNow, taskId, progressPercent, snapshotEst) => {
+  const id = Number(taskId);
+  const est = (estNow && estNow.has(id)) ? estNow.get(id) : (Number(snapshotEst) || 0);
+  return (Number(est) || 0) * ((Number(progressPercent) || 0) / 100);
+};
+
+module.exports = { getProgressBaselines, deltaOf, estDoneOf };

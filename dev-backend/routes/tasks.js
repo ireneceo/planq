@@ -6,7 +6,7 @@ const taskSnapshot = require('../services/task_snapshot');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { getUserScope, taskListWhere, canAccessTask, isMemberOrAbove, assertAssignable, assertMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
-const { getProgressBaselines, deltaOf } = require('../services/progressBaseline');
+const { getProgressBaselines, deltaOf, estDoneOf } = require('../services/progressBaseline');
 const { todayInTz, mondayOfDateStr, addDaysStr, mondayOfIsoWeek } = require('../utils/datetime');
 const { rruleFromRecurrence } = require('../services/rruleFromRecurrence');
 // N+34 — 워크스페이스 표시명 helper. BusinessMember.name 우선, User.name fallback.
@@ -470,7 +470,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
 const aiCreateLimiter = require('../middleware/costGuard').perUserDaily('ai-create', { perMin: 6, perDay: 60, message: 'AI 업무 추가를 너무 자주 호출했습니다. 잠시 후 다시 시도하세요.' });
 router.post('/ai-create', authenticateToken, ...aiCreateLimiter, async (req, res, next) => {
   try {
-    const { business_id, project_id, prompt, target_date, language, mode, instruction } = req.body;
+    const { business_id, project_id, prompt, target_date, language, mode, instruction, instructions, base_candidates } = req.body;
     if (!business_id) return errorResponse(res, 'business_id required', 400);
     if (!prompt || !String(prompt).trim()) return errorResponse(res, 'prompt required', 400);
     if (String(prompt).length > 4000) return errorResponse(res, 'prompt_too_long', 400);
@@ -490,19 +490,27 @@ router.post('/ai-create', authenticateToken, ...aiCreateLimiter, async (req, res
     // 담당자 후보 풀 — Cue(AI) 포함. "Cue 에게 시켜줘" 는 정상 기능이다.
     //   (앞서 좀비 업무를 막으려고 풀에서 뺐었는데, 정석은 confirm 에 실행 트리거를 붙이는 것 —
     //    아래 executeForTask. 기능을 빼는 게 아니라 빠진 트리거를 채운다.)
+    // 운영 #263 — "ai로 업무추가하면 담당자로 내가 안나오고 이상한 1, 2 라고 표시되는데."
+    //   원인은 **후보 풀과 표시 목록의 기준이 달랐던 것**이다. 여기서는 해제된 멤버(removed_at)와
+    //   아직 수락 안 한 초대행(user_id NULL)까지 후보로 넘겼는데, 화면의 멤버 목록은 그것들을 뺀다.
+    //   그래서 매칭된 user_id 를 화면이 못 찾아 이름 자리에 `#2` 같은 날 id 가 떴다.
+    //   (이름이 빈 행은 LLM 프롬프트에도 `  - ` 로 들어가 매칭을 오염시킨다.)
+    //   → 양쪽 기준을 같게 만든다: 현직 멤버 + user_id 있는 행 + 이름 있는 행만.
     const memberRows = await BusinessMember.findAll({
-      where: { business_id },
+      where: { business_id, removed_at: null, user_id: { [Op.ne]: null } },
       attributes: ['user_id', 'role', 'job_title', 'expertise', 'name'],
       include: [{ model: User, as: 'user', attributes: ['id', 'name'] }],
     });
-    const members = memberRows.map(m => ({
-      user_id: m.user_id,
-      name: m.name || m.user?.name || '',
-      account_name: m.user?.name || '',   // #90 — 이름 지정 매칭(워크스페이스명/계정명 둘 다)
-      job_title: m.job_title || '',
-      expertise: m.expertise || '',
-      role: m.role || '',
-    }));
+    const members = memberRows
+      .map(m => ({
+        user_id: m.user_id,
+        name: m.name || m.user?.name || '',
+        account_name: m.user?.name || '',   // #90 — 이름 지정 매칭(워크스페이스명/계정명 둘 다)
+        job_title: m.job_title || '',
+        expertise: m.expertise || '',
+        role: m.role || '',
+      }))
+      .filter(m => m.name.trim());   // 이름 없는 후보는 고를 수도, 보여줄 수도 없다
 
     let projectContext = '';
     if (project_id) {
@@ -523,7 +531,10 @@ router.post('/ai-create', authenticateToken, ...aiCreateLimiter, async (req, res
       todayLocal,
       language: language || (req.user.language === 'en' ? 'en' : 'ko'),
       mode: mode === 'quick' ? 'quick' : null,
-      instruction: instruction || null,  // 운영 — 재생성 지시
+      instruction: instruction || null,  // 운영 — 재생성 지시 (단건 — 옛 호출 호환)
+      // 운영 #312 — 누적 지시 + 직전 후보. 안 넘기면 재생성이 매번 처음으로 되돌아간다.
+      instructions: Array.isArray(instructions) ? instructions : null,
+      baseCandidates: Array.isArray(base_candidates) ? base_candidates.slice(0, 30) : null,
     });
 
     return successResponse(res, {
@@ -1919,7 +1930,7 @@ router.get('/daily-progress', authenticateToken, async (req, res, next) => {
     }
 
     // 업무별 기준선 (services/progressBaseline 단일 원천 — 보고서·주간보고와 같은 함수)
-    const { baseAct, baseEst } = await getProgressBaselines(ids, from);
+    const { baseAct, baseEst, estNow } = await getProgressBaselines(ids, from);
 
     // ── 1) 스냅샷 기반 est_used / 수동 actual (포커스 미사용자·완료업무) ──
     if (ids.length > 0) {
@@ -1942,7 +1953,9 @@ router.get('/daily-progress', authenticateToken, async (req, res, next) => {
         //   시간이 이번 주 첫날부터 통째로 실린다(운영 실측: 이번 주 투입 0h 인데 그래프 6.4h).
         //   기간 시작 이전 최신 행을 기준선으로 빼서 **그 주의 Δ** 만 그린다 — 보고서(#223)와 같은 정의.
         //   클램프는 업무별. 집계 후 클램프는 한 업무의 하향 정정이 다른 업무의 진척을 잡아먹는다.
-        bucket.est_used += deltaOf(est * prog, baseEst.get(Number(s.task_id)));
+        // ★ 예측 정정 면역 — 스냅샷에 박제된 옛 예측(est) 대신 **지금 예측**으로 환산한다.
+        //   기준선(baseEst)도 같은 축이라 Δ = est_now × (그날 진행률 − 기준 진행률) 이 된다.
+        bucket.est_used += deltaOf(estDoneOf(estNow, s.task_id, s.progress_percent, est), baseEst.get(Number(s.task_id)));
         // 실제시간 = 실제 입력시간(actual_hours)만. (예측×진행률 fallback 금지 — 예측 라인과 동일해지는 버그.
         //  실제 미입력이면 actual 라인은 낮게 유지되어 "진척은 됐지만 시간 미입력"을 정직하게 보여줌. Irene 2026-06-16)
         bucket.act_used += deltaOf(act, baseAct.get(Number(s.task_id)));
@@ -2254,7 +2267,7 @@ router.delete('/:id/links/:targetId', authenticateToken, async (req, res, next) 
 router.get('/by-business/:businessId/search', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
-    const q = String(req.query.q || '').trim();
+    const q = String(req.query.q || '').normalize('NFC').trim();   // #364 검색어 조합형 통일
     const excludeId = req.query.exclude_id ? Number(req.query.exclude_id) : null;
     const excludeIds = String(req.query.exclude_ids || '').split(',').map((s) => Number(s)).filter((n) => !isNaN(n));
     const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 20));
