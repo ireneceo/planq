@@ -99,7 +99,10 @@ router.get('/recent', authenticateToken, async (req, res, next) => {
 router.get('/', authenticateToken, async (req, res, next) => {
   try {
     const businessId = Number(req.query.business_id);
-    const q = String(req.query.q || '').trim();
+    // ★ #364 — 검색어도 조합형(NFC)으로 통일한다. 맥에서 복사한 검색어는 분해형(NFD)이라
+    //   눈에는 같아 보여도 저장값과 바이트가 달라 LIKE 가 한 건도 못 찾는다(조용한 실패).
+    //   저장측은 services/filename.js 가 NFC 로 통일한다 — 양쪽 축을 맞춰야 의미가 있다.
+    const q = String(req.query.q || '').normalize('NFC').trim();
     const limit = Math.min(20, Math.max(1, Number(req.query.limit) || 8));
     if (!businessId) return errorResponse(res, 'business_id required', 400);
     if (!q) return successResponse(res, { tasks: [], posts: [], records: [], files: [], conversations: [], knowledge: [], clients: [], projects: [] });
