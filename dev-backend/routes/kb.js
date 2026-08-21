@@ -76,6 +76,52 @@ function pickLegacyCategoryEnum(categories) {
   return match || 'manual';
 }
 // 새 categories 가 들어오면 KbCategory 마스터 row 자동 upsert (사용자가 자유 추가한 카테고리도 마스터에 박제 → 다음 등록 시 추천)
+// #316 — 후보(AI·CSV)의 임의 필드를 Q info 항목(custom_columns / custom_values)으로 정규화한다.
+//
+//   AI 는 { fields: {서비스명: "...", 링크: "..."} } 또는 { custom_values: {...} } 로 낸다.
+//   CSV 는 title/body 외 남은 열이 그대로 항목이 된다(#319).
+//   여태 이 배관이 없어 표형 자료가 body 덩어리로 뭉쳤다.
+//
+//   타입 추론은 보수적으로 — 값 모양만 보고 url/email 을 잡고, 비밀번호성 이름이면 secret 으로.
+//   secret 으로 잡히면 색인 본문에서 값이 제외된다(문서 생성 경로의 규칙과 같다).
+const SECRET_NAME_RE = /(비밀번호|패스워드|password|passwd|pw|secret|api[\s_-]?key|token|토큰|시크릿|인증키)/i;
+function inferColumnType(name, value) {
+  const v = String(value == null ? '' : value).trim();
+  if (SECRET_NAME_RE.test(String(name || ''))) return 'secret';
+  if (/^https?:\/\//i.test(v)) return 'url';
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return 'email';
+  if (v.includes('\n')) return 'longtext';
+  return 'text';
+}
+function normalizeCandidateFields(c) {
+  const src = (c && typeof c === 'object')
+    ? (c.custom_values && typeof c.custom_values === 'object' ? c.custom_values
+      : (c.fields && typeof c.fields === 'object' ? c.fields : null))
+    : null;
+  if (!src) return { columns: [], values: {} };
+
+  // 후보가 columns 를 같이 주면 그 이름·타입을 존중한다.
+  const given = Array.isArray(c.custom_columns) ? c.custom_columns : [];
+  const byName = new Map(given.filter(g => g && g.name).map(g => [String(g.name), g]));
+
+  const columns = [];
+  const values = {};
+  let i = 0;
+  for (const [rawName, rawVal] of Object.entries(src)) {
+    const name = String(rawName || '').trim().slice(0, 60);
+    if (!name) continue;
+    if (rawVal == null || String(rawVal).trim() === '') continue;
+    if (columns.length >= 30) break;                 // 항목 폭주 방지
+    i += 1;
+    const g = byName.get(name);
+    const id = (g && g.id) ? String(g.id) : `c${i}`;
+    const type = (g && g.type) ? String(g.type) : inferColumnType(name, rawVal);
+    columns.push({ id, name, type, show_in_list: g ? g.show_in_list !== false : columns.length < 4 });
+    values[id] = String(rawVal).slice(0, 5000);
+  }
+  return { columns, values };
+}
+
 async function upsertKbCategories(businessId, categories) {
   if (!Array.isArray(categories) || categories.length === 0) return;
   for (const name of categories) {
@@ -1145,22 +1191,40 @@ router.post('/businesses/:businessId/kb/ai-ingest', authenticateToken, checkBusi
       return errorResponse(res, 'llm_invalid_response', 502);
     }
 
-    // 후보 정규화 — title/body/category/tags 만 통과
-    const ALLOWED_CAT = ['policy', 'manual', 'incident', 'faq', 'about', 'pricing'];
+    // 후보 정규화.
+    //   #316 — **항목(custom_columns/custom_values)을 통과시킨다.** 여태 title/body/category/tags 4개만
+    //          남겨서, 표형 자료를 넣어도 항목이 만들어지지 않고 body 덩어리로 뭉쳤다.
+    //   #320 — 카테고리를 legacy ENUM 6종으로 강제하지 않는다(자유 문자열 40자). 저장 시 마스터 upsert.
+    const AI_MAX = 20;
+    const parsedTotal = candidates.filter(c => c && typeof c === 'object' && c.title).length;
     const normalized = candidates
-      .filter(c => c && typeof c === 'object' && c.title && c.body)
-      .map(c => ({
-        title: String(c.title).slice(0, 300),
-        body: String(c.body).slice(0, 50000),
-        category: ALLOWED_CAT.includes(c.category) ? c.category : 'manual',
-        tags: Array.isArray(c.tags) ? c.tags.slice(0, 8).map(String) : [],
-      }))
-      .slice(0, 20);  // 한 번에 최대 20 후보
+      // body 없이 항목만 있는 후보도 살린다 (#332 와 같은 이유 — 항목 위주 자료가 핵심 용도)
+      .filter(c => c && typeof c === 'object' && c.title && (c.body || c.custom_values || c.fields))
+      .map(c => {
+        const { columns, values } = normalizeCandidateFields(c);
+        return {
+          title: String(c.title).slice(0, 300),
+          body: c.body ? String(c.body).slice(0, 50000) : '',
+          categories: sanitizeCategories(c.categories) ?? (c.category ? [String(c.category).trim().slice(0, 40)] : []),
+          tags: Array.isArray(c.tags) ? c.tags.slice(0, 8).map(String) : [],
+          custom_columns: columns.length ? columns : null,
+          custom_values: columns.length ? values : null,
+        };
+      })
+      .slice(0, AI_MAX);
 
     // cue_usage 차감
     try { await planEngine.consume(businessId, 'cue', 1); } catch { /* noop */ }
 
-    return successResponse(res, { candidates: normalized, llm_usage: llmUsage });
+    // #322 — 잘렸으면 **잘렸다고 알린다.** 여태 조용히 slice 해서 사용자가 나중에 발견했다.
+    return successResponse(res, {
+      candidates: normalized,
+      total_parsed: parsedTotal,
+      returned: normalized.length,
+      truncated: parsedTotal > normalized.length,
+      limit: AI_MAX,
+      llm_usage: llmUsage,
+    });
   } catch (err) { next(err); }
 });
 
@@ -1175,29 +1239,64 @@ router.post('/businesses/:businessId/kb/csv-ingest', authenticateToken, checkBus
     const rows = parseCsv(String(csv).trim());
     if (rows.length < 2) return errorResponse(res, 'csv_empty_or_no_header', 400);
 
-    const header = rows[0].map(h => String(h).trim().toLowerCase());
-    const ALLOWED_CAT = ['policy', 'manual', 'incident', 'faq', 'about', 'pricing'];
-    const titleIdx = header.indexOf('title');
+    const rawHeader = rows[0].map(h => String(h == null ? '' : h).trim());
+    const header = rawHeader.map(h => h.toLowerCase());
+
+    // #319 — 예약 열(title/body/category/tags/…) 외의 **남은 열은 전부 항목(custom_columns)** 이 된다.
+    //   여태 title·body 두 열만 읽고 나머지를 조용히 버려서,
+    //   "서비스명, 링크, 아이디, 비밀번호, 분류, 라이선스, 비고" 같은 실제 업무 CSV 를 못 올렸다.
+    //   필수 열도 **title 하나로 완화**한다(없으면 첫 열을 제목으로). body 는 선택.
+    const RESERVED = new Set(['title', 'body', 'category', 'categories', 'tags', 'source_language', 'auto_translate']);
+    let titleIdx = header.indexOf('title');
+    if (titleIdx < 0) titleIdx = 0;                       // 제목 열이 없으면 첫 열을 제목으로
     const bodyIdx = header.indexOf('body');
     const catIdx = header.indexOf('category');
+    const catsIdx = header.indexOf('categories');
     const tagsIdx = header.indexOf('tags');
     const langIdx = header.indexOf('source_language');
     const transIdx = header.indexOf('auto_translate');
-    if (titleIdx < 0 || bodyIdx < 0) return errorResponse(res, 'csv_missing_required_columns', 400);
+    const fieldIdxs = header
+      .map((h, i) => ({ h, i }))
+      .filter(({ h, i }) => i !== titleIdx && !RESERVED.has(h) && rawHeader[i])
+      .slice(0, 30);
 
-    const candidates = rows.slice(1)
-      .filter(r => r[titleIdx] && r[bodyIdx])
-      .map(r => ({
-        title: String(r[titleIdx] || '').slice(0, 300),
-        body: String(r[bodyIdx] || '').slice(0, 50000),
-        category: ALLOWED_CAT.includes(r[catIdx]) ? r[catIdx] : 'manual',
-        tags: r[tagsIdx] ? String(r[tagsIdx]).split(',').map(s => s.trim()).filter(Boolean).slice(0, 8) : [],
-        source_language: r[langIdx] === 'en' ? 'en' : 'ko',
-        auto_translate: r[transIdx] !== 'false',
-      }))
-      .slice(0, 500);  // CSV 최대 500 행
+    const CSV_MAX = 500;
+    const dataRows = rows.slice(1).filter(r => r && String(r[titleIdx] || '').trim());
+    const candidates = dataRows
+      .slice(0, CSV_MAX)
+      .map(r => {
+        const fields = {};
+        for (const { i } of fieldIdxs) {
+          const v = r[i];
+          if (v == null || String(v).trim() === '') continue;
+          fields[rawHeader[i]] = String(v);
+        }
+        const { columns, values } = normalizeCandidateFields({ fields });
+        const catCell = catsIdx >= 0 ? r[catsIdx] : (catIdx >= 0 ? r[catIdx] : null);
+        return {
+          title: String(r[titleIdx] || '').slice(0, 300),
+          body: bodyIdx >= 0 ? String(r[bodyIdx] || '').slice(0, 50000) : '',
+          // #320 — legacy ENUM 강제 폐기. 사용자 카테고리를 그대로 살린다(쉼표 다중 허용).
+          categories: sanitizeCategories(
+            catCell ? String(catCell).split(',').map(x => x.trim()).filter(Boolean) : null,
+          ) ?? [],
+          tags: r[tagsIdx] ? String(r[tagsIdx]).split(',').map(s => s.trim()).filter(Boolean).slice(0, 8) : [],
+          source_language: r[langIdx] === 'en' ? 'en' : 'ko',
+          auto_translate: r[transIdx] !== 'false',
+          custom_columns: columns.length ? columns : null,
+          custom_values: columns.length ? values : null,
+        };
+      });
 
-    return successResponse(res, { candidates });
+    // #322 — 잘렸으면 알린다.
+    return successResponse(res, {
+      candidates,
+      total_parsed: dataRows.length,
+      returned: candidates.length,
+      truncated: dataRows.length > candidates.length,
+      limit: CSV_MAX,
+      field_columns: fieldIdxs.map(({ i }) => rawHeader[i]),   // 미리보기에서 "이 열들이 항목이 됩니다" 안내용
+    });
   } catch (err) { next(err); }
 });
 
@@ -1235,14 +1334,31 @@ router.post('/businesses/:businessId/kb/documents/batch', authenticateToken, che
     if (!Array.isArray(items) || items.length === 0) return errorResponse(res, 'items_required', 400);
     if (items.length > 500) return errorResponse(res, 'too_many_items', 400);
 
-    const ALLOWED_CAT = ['policy','manual','incident','faq','about','pricing'];
     const ALLOWED_SCOPE = ['private','workspace','project','client'];
     const ALLOWED_VIS = ['translate','show_original','hide_other'];
     const finalScope = ALLOWED_SCOPE.includes(scope) ? scope : (project_id ? 'project' : (client_id ? 'client' : 'private'));
     const finalAutoTranslate = auto_translate !== false;
     const finalVisibility = ALLOWED_VIS.includes(translation_visibility) ? translation_visibility : 'translate';
 
+    // #321 — 중복 검사. 여태 무조건 create 라 같은 CSV 를 두 번 올리면 그대로 2배가 됐다.
+    //   기본 키는 **제목**(+ 같은 워크스페이스). on_duplicate: 'create'(기본·종전동작) | 'skip' | 'update'
+    const DUP_MODES = ['create', 'skip', 'update'];
+    const dupMode = DUP_MODES.includes(req.body?.on_duplicate) ? req.body.on_duplicate : 'create';
+    let existingByTitle = new Map();
+    if (dupMode !== 'create') {
+      const titles = items.map(it => String(it?.title || '').slice(0, 300)).filter(Boolean);
+      if (titles.length) {
+        const rows = await KbDocument.findAll({
+          where: { business_id: businessId, title: titles },
+          attributes: ['id', 'title'],
+        });
+        existingByTitle = new Map(rows.map(r => [r.title, r.id]));
+      }
+    }
+
     const created = [];
+    const skipped = [];
+    const updated = [];
     const errors = [];
 
     // 다중 포스트 분리 식별 — items.length > 1 이면 첫 ID 가 parent_doc_id (자기참조 + 나머지)
@@ -1251,20 +1367,54 @@ router.post('/businesses/:businessId/kb/documents/batch', authenticateToken, che
     for (let idx = 0; idx < items.length; idx++) {
       const it = items[idx];
       try {
-        const cat = ALLOWED_CAT.includes(it.category) ? it.category : 'manual';
+        const title = String(it.title || '').slice(0, 300);
+        if (!title) { errors.push({ index: idx, error: 'title_required' }); continue; }
+
+        // #321 — 중복 처리
+        const dupId = existingByTitle.get(title);
+        if (dupId && dupMode === 'skip') { skipped.push({ index: idx, title, existing_id: dupId }); continue; }
+
+        // #320 — 사용자 카테고리를 살린다. 여태 legacy ENUM 6종으로 뭉개 사실상 전부 'manual' 이 됐다.
+        const itemCats = sanitizeCategories(it.categories)
+          ?? (it.category ? [String(it.category).trim().slice(0, 40)] : []);
+        const finalCategories = itemCats.length > 0 ? itemCats : ['manual'];
+        const cat = pickLegacyCategoryEnum(finalCategories);
+
         const itemSrcLang = (it.source_language === 'en' || it.source_language === 'ko')
           ? it.source_language
           : (source_language === 'en' ? 'en' : 'ko');
         const itemAutoTrans = it.auto_translate !== undefined ? it.auto_translate !== false : finalAutoTranslate;
 
-        const doc = await KbDocument.create({
+        // #316 — 항목(custom_columns/values) 저장. 없으면 종전대로 null.
+        const cols = Array.isArray(it.custom_columns) ? it.custom_columns.slice(0, 30) : null;
+        const vals = (it.custom_values && typeof it.custom_values === 'object') ? it.custom_values : null;
+
+        // 색인 본문 — 본문이 없으면 항목에서 합성한다(문서 생성 경로와 같은 규칙).
+        //   ★ secret 항목은 라벨만, 값은 제외 (색인·번역은 외부 API 로 나간다).
+        let indexBody = String(it.body || '').slice(0, 50000);
+        if (!indexBody.trim() && cols && vals) {
+          const lines = [];
+          for (const c of cols) {
+            if (!c || !c.id) continue;
+            const raw = vals[c.id];
+            if (raw == null || String(raw).trim() === '') continue;
+            const label = String(c.name || c.id).trim();
+            lines.push(c.type === 'secret' ? label : `${label}: ${String(raw).trim()}`);
+          }
+          if (lines.length) indexBody = `${title}\n${lines.join('\n')}`;
+        }
+        if (!indexBody.trim()) { errors.push({ index: idx, error: 'no_indexable_content' }); continue; }
+
+        const payload = {
           business_id: businessId,
-          title: String(it.title).slice(0, 300),
-          body: String(it.body).slice(0, 50000),
+          title,
+          body: indexBody,
           source_type: 'manual',
           category: cat,
-          categories: [cat],
+          categories: finalCategories,
           tags: Array.isArray(it.tags) ? it.tags.slice(0, 8).map(String) : null,
+          custom_columns: cols,
+          custom_values: vals,
           scope: finalScope,
           project_id: finalScope === 'project' ? (parseInt(project_id, 10) || null) : null,
           client_id: finalScope === 'client' ? (parseInt(client_id, 10) || null) : null,
@@ -1274,7 +1424,21 @@ router.post('/businesses/:businessId/kb/documents/batch', authenticateToken, che
           auto_translate: itemAutoTrans,
           translation_visibility: finalVisibility,
           parent_doc_id: parentDocId,
-        });
+        };
+
+        // 자유 카테고리를 마스터에 등록 — 단건 생성 경로와 같은 헬퍼. 안 하면 칩·필터에서 사라진다.
+        upsertKbCategories(businessId, finalCategories).catch(() => {});
+
+        let doc;
+        if (dupId && dupMode === 'update') {
+          doc = await KbDocument.findByPk(dupId);
+          if (!doc) { errors.push({ index: idx, error: 'existing_not_found' }); continue; }
+          const { business_id: _b, parent_doc_id: _p, uploaded_by: _u, ...updatable } = payload;
+          await doc.update(updatable);
+          updated.push({ id: doc.id, title: doc.title });
+        } else {
+          doc = await KbDocument.create(payload);
+        }
 
         // 첫 번째 = parent. 두 번째부터 parent_doc_id 로 연결
         if (idx === 0 && items.length > 1) parentDocId = doc.id;
@@ -1286,13 +1450,19 @@ router.post('/businesses/:businessId/kb/documents/batch', authenticateToken, che
           }
         } catch { /* noop */ }
 
-        created.push({ id: doc.id, title: doc.title, source_language: doc.source_language });
+        if (!(dupId && dupMode === 'update')) {
+          created.push({ id: doc.id, title: doc.title, source_language: doc.source_language });
+        }
       } catch (e) {
         errors.push({ index: idx, error: e.message });
       }
     }
 
-    return successResponse(res, { created, errors, count: created.length });
+    return successResponse(res, {
+      created, updated, skipped, errors,
+      count: created.length,
+      on_duplicate: dupMode,
+    });
   } catch (err) { next(err); }
 });
 
