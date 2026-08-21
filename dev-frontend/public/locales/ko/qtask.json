@@ -874,6 +874,8 @@
       "auto": "자동",
       "confirm": "확정하기",
       "reopen": "되돌리기",
+      "confirmPartial": "이번 기간은 아직 {{n}}/{{total}}일치입니다. 지금 확정하면 그 상태로 박제됩니다.",
+      "confirmAnyway": "{{n}}일치로 확정",
       "narrative": "책임자 코멘트",
       "narrativePh": "이번 기간 핵심 성과·이슈·다음 계획을 적어주세요 (자동 저장)",
       "noNarrative": "작성된 코멘트가 없습니다",
@@ -1121,6 +1123,8 @@
   },
   "report": {
     "chartTitle": "진척 그래프",
+    "confirmedCap": "{{when}} 확정 시점의 기록입니다",
+    "confirmedCapPartial": "{{when}} 확정 시점의 기록입니다 — {{n}}/{{total}}일치",
     "chartEstimated": "진척 (예상시간)",
     "chartActual": "실제 업무시간",
     "chartCapacity": "가용시간 {{n}}h 기준",
