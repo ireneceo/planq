@@ -7,7 +7,7 @@ const router = express.Router();
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
 const {
-  Task, Post, File, QRecord, Conversation, KbDocument, Client, Project,
+  Task, Post, File, Conversation, KbDocument, Client, Project,
 } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
@@ -146,14 +146,8 @@ router.get('/', authenticateToken, async (req, res, next) => {
     // 사이클 N+9: file/post 는 옵션 A (visibility/vlevel 단계별) 적용
     const { taskWhere, fileWhere, postWhere, convWhere } = w;
 
-    // Q record 권한 — 워크스페이스 멤버 모두 read 가능. read_policy='owner' 면 owner+admin 만.
-    // client 는 일단 차단 (PERMISSION_MATRIX §7).
-    const recordWhere = isClient
-      ? { id: -1 } // 매치 안 되도록
-      : {
-          business_id: businessId,
-          ...(scope.role === 'member' ? { read_policy: 'all' } : {}),
-        };
+    // (#359 — 옛 Q record 검색 분기를 걷어내면서 recordWhere 도 함께 제거. 죽은 권한식을 남기면
+    //  다음 사람이 "레코드 검색이 있다" 고 읽는다.)
 
     // KB — client 는 차단 (memory project_client_permission_matrix)
     const kbWhere = isClient ? { id: -1 } : { business_id: businessId };
@@ -200,11 +194,14 @@ router.get('/', authenticateToken, async (req, res, next) => {
         for (const m of tableMatches) if (!seen.has(m.id)) { merged.push(m); seen.add(m.id); }
         return merged.slice(0, limit);
       })().catch(() => []),
-      QRecord.findAll({
-        where: { ...recordWhere, [Op.and]: [{ [Op.or]: [...likeAny('name'), { category: like }, { description: like }] }] },
-        attributes: ['id', 'name', 'category', 'project_id'],
-        limit, order: [relevance('name'), ['updated_at', 'DESC']],
-      }).catch(() => []),
+      // #359 — 폐지된 "Q record" 잔재. 검색에서 뺀다.
+      //   Q record 메뉴는 이미 폐지돼 Q docs 의 표(kind='table')로 흡수됐다(App.tsx:122, /records → /docs).
+      //   그런데 검색만 옛 그룹을 계속 냈다. 운영 실측(2026-08-21): q_records 6건 중 5건은 이미 post 로
+      //   흡수돼 **같은 것이 "문서" 와 "레코드" 두 번** 뜨고, 나머지 1건은 연결된 post 가 없어 클릭하면
+      //   그 항목이 아니라 문서 목록으로 떨어진다. 사용자에겐 "이게 뭔지 모르겠는 중복 결과" 다(#359 원문).
+      //   표 안의 셀 내용 검색은 위 posts 분기가 q_record_rows 조인으로 이미 담당한다 — 잃는 기능이 없다.
+      //   응답 키는 빈 배열로 남긴다: 옛 프론트 번들이 아직 살아 있을 수 있어 undefined 로 깨뜨리지 않는다.
+      Promise.resolve([]),
       File.findAll({
         where: { ...fileWhere, [Op.and]: [{ [Op.or]: likeAny('file_name') }, { deleted_at: null }] },
         attributes: ['id', 'file_name', 'file_size', 'mime_type'],
