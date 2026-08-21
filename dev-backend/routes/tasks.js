@@ -2256,7 +2256,7 @@ router.delete('/:id/links/:targetId', authenticateToken, async (req, res, next) 
 router.get('/by-business/:businessId/search', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
-    const q = String(req.query.q || '').trim();
+    const q = String(req.query.q || '').normalize('NFC').trim();   // #364 검색어 조합형 통일
     const excludeId = req.query.exclude_id ? Number(req.query.exclude_id) : null;
     const excludeIds = String(req.query.exclude_ids || '').split(',').map((s) => Number(s)).filter((n) => !isNaN(n));
     const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 20));

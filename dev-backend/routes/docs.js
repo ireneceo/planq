@@ -227,7 +227,8 @@ router.get('/documents', authenticateToken, async (req, res, next) => {
     if (req.query.status) where.status = req.query.status;
     if (req.query.client_id) where.client_id = parseInt(req.query.client_id, 10);
     if (req.query.project_id) where.project_id = parseInt(req.query.project_id, 10);
-    if (req.query.q) where.title = { [Op.like]: `%${req.query.q}%` };
+    // #364 — 검색어 조합형 통일 (저장측 NFC 와 같은 축)
+    if (req.query.q) where.title = { [Op.like]: `%${String(req.query.q).normalize('NFC')}%` };
     const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
     const offset = parseInt(req.query.offset, 10) || 0;
     const list = await Document.findAll({

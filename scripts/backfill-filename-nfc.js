@@ -25,8 +25,15 @@ require(`${base}/node_modules/dotenv`).config({ path: `${base}/.env` });
 const { sequelize } = require(`${base}/config/database`);
 
 // 검사 대상 — (테이블, 컬럼). 파일명 외에도 사람이 입력/업로드로 넣는 이름 계열을 같이 훑는다.
+// ★ 채팅·업무 첨부는 File 과 **별도로 자기 컬럼에 이름 사본**을 갖는다. files 만 고치면
+//   그 사본은 영영 자모분리로 남는다 — 운영 실측(2026-08-21, Fable 검증에서 발견):
+//     message_attachments.file_name  35건 중 NFD 13건
+//     task_attachments.original_name  5건 중 NFD  2건
+//   "업로드 5경로가 한 함수를 지난다" 는 쓰기측 이야기일 뿐, 이미 쌓인 사본과는 무관하다.
 const TARGETS = [
   ['files', 'file_name'],
+  ['message_attachments', 'file_name'],
+  ['task_attachments', 'original_name'],
   ['kb_documents', 'title'],
   ['posts', 'title'],
   ['tasks', 'title'],
