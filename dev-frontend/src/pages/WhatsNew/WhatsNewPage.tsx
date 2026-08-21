@@ -1,0 +1,143 @@
+// 운영 #306 — "모두보기 하면 어딘가에 페이지가 있어야지. 알림처럼."
+//   여태 새 소식의 "전체 보기" 는 마케팅 블로그(/changelog)를 **새 탭으로** 열었다 — 앱 밖으로
+//   나가버려서 알림(/notifications)과 동작이 달랐다. 같은 자리에 같은 모양의 인앱 페이지를 둔다.
+//   레이아웃은 NotificationsPage 를 그대로 따른다 (PageShell + 목록 + 빈 상태).
+import React, { useEffect, useState } from 'react';
+import styled from 'styled-components';
+import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
+import PageShell from '../../components/Layout/PageShell';
+import { useWhatsNew, type WhatsNewBlock } from '../../hooks/useWhatsNew';
+
+const WhatsNewPage: React.FC = () => {
+  const { t, i18n } = useTranslation('common');
+  const lang = (i18n.language || 'ko').slice(0, 2) === 'en' ? 'en' : 'ko';
+  const { items, loading, markSeen } = useWhatsNew();
+  const [sp, setSp] = useSearchParams();
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  // 페이지를 여는 것 자체가 "봤다" 다 — 메가폰 배지를 여기서도 내린다(드롭다운과 같은 규칙).
+  useEffect(() => { markSeen(); }, [markSeen]);
+
+  // 드롭다운에서 특정 글을 눌러 들어온 경우 그 글을 펼친 상태로 시작한다.
+  //   ★ 펼침 상태만 세팅하고 ?post= 는 지우지 않는다 — 새로고침·공유 시 같은 글이 열려야 한다.
+  const focusSlug = sp.get('post');
+  useEffect(() => {
+    if (focusSlug) setExpanded((p) => ({ ...p, [focusSlug]: true }));
+  }, [focusSlug]);
+
+  const blockText = (b: WhatsNewBlock) => (lang === 'en' ? b.text_en : b.text_ko) || b.text_ko || b.text_en || '';
+  const blockCap = (b: WhatsNewBlock) => (lang === 'en' ? b.caption_en : b.caption_ko) || b.caption_ko || b.caption_en || '';
+  const fmtDate = (d: string) =>
+    new Date(d).toLocaleDateString(lang === 'en' ? 'en-US' : 'ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+
+  const renderBody = (body: WhatsNewBlock[] | null) => (body || []).map((b, i) => {
+    if (b.type === 'heading') return <BH key={i}>{blockText(b)}</BH>;
+    if (b.type === 'callout') return <BCallout key={i}>{blockText(b)}</BCallout>;
+    if (b.type === 'step') return <BStep key={i}><em>{i + 1}</em><span>{blockText(b)}</span></BStep>;
+    if (b.type === 'image') {
+      return b.file_id ? (
+        <BFigure key={i}>
+          <img src={`/api/wiki/image/${b.file_id}`} alt={blockCap(b)} loading="lazy" />
+          {blockCap(b) && <figcaption>{blockCap(b)}</figcaption>}
+        </BFigure>
+      ) : null;
+    }
+    return <BP key={i}>{blockText(b)}</BP>;
+  });
+
+  const toggle = (slug: string) => {
+    setExpanded((p) => ({ ...p, [slug]: !p[slug] }));
+    // 접었으면 ?post= 도 같이 내린다 — URL 이 화면과 어긋나면 새로고침에 되살아난다.
+    if (focusSlug === slug && expanded[slug]) {
+      const n = new URLSearchParams(sp); n.delete('post'); setSp(n, { replace: true });
+    }
+  };
+
+  return (
+    <PageShell title={t('whatsNew.title', '새 소식') as string} count={items.length}>
+      {loading && items.length === 0 ? (
+        <Loading>{t('whatsNew.loading', '불러오는 중…')}</Loading>
+      ) : items.length === 0 ? (
+        <Empty>
+          <EmptyIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+            <path d="M3 11l18-5v12L3 14v-3z" />
+            <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
+          </EmptyIcon>
+          <EmptyTitle>{t('whatsNew.empty.title', '아직 새 소식이 없어요')}</EmptyTitle>
+          <EmptyHint>{t('whatsNew.empty.desc', '새로운 기능과 개선 소식을 이곳에서 알려드릴게요.')}</EmptyHint>
+        </Empty>
+      ) : (
+        <List>
+          {items.map((it) => {
+            const isOpen = !!expanded[it.slug];
+            return (
+              <Card key={it.slug}>
+                <CardHead type="button" onClick={() => toggle(it.slug)} aria-expanded={isOpen}>
+                  <CardTop>
+                    <DateRow>
+                      {it.is_new && <NewDot aria-label={t('whatsNew.new', '새 소식') as string} />}
+                      <span>{fmtDate(it.published_at)}</span>
+                    </DateRow>
+                    <Chevron $open={isOpen} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                      <polyline points="6 9 12 15 18 9" />
+                    </Chevron>
+                  </CardTop>
+                  <CardTitle>{it.title}</CardTitle>
+                  {it.summary && <CardSummary>{it.summary}</CardSummary>}
+                </CardHead>
+                {isOpen && it.body && it.body.length > 0 && <CardBody>{renderBody(it.body)}</CardBody>}
+              </Card>
+            );
+          })}
+        </List>
+      )}
+    </PageShell>
+  );
+};
+
+export default WhatsNewPage;
+
+const Loading = styled.div` padding: 60px 16px; text-align: center; color: #94A3B8; font-size: 13px; `;
+const Empty = styled.div`
+  padding: 80px 16px; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+`;
+const EmptyIcon = styled.svg` width: 44px; height: 44px; color: #CBD5E1; `;
+const EmptyTitle = styled.div` font-size: 14px; font-weight: 600; color: #334155; `;
+const EmptyHint = styled.div` font-size: 12px; color: #94A3B8; line-height: 1.5; `;
+const List = styled.div` display: flex; flex-direction: column; gap: 12px; max-width: 760px; `;
+const Card = styled.div` background: #fff; border: 1px solid #E2E8F0; border-radius: 12px; overflow: hidden; `;
+const CardHead = styled.button`
+  display: block; width: 100%; text-align: left; padding: 14px 16px;
+  background: transparent; border: none; cursor: pointer;
+  &:hover { background: #F8FAFC; }
+`;
+const CardTop = styled.div` display: flex; align-items: center; justify-content: space-between; `;
+const DateRow = styled.div` display: flex; align-items: center; gap: 6px; font-size: 11px; color: #94A3B8; `;
+const NewDot = styled.span` width: 6px; height: 6px; border-radius: 50%; background: #F43F5E; flex-shrink: 0; `;
+const Chevron = styled.svg<{ $open: boolean }>`
+  width: 16px; height: 16px; color: #94A3B8; flex-shrink: 0;
+  transition: transform 0.15s; transform: rotate(${p => (p.$open ? 180 : 0)}deg);
+`;
+const CardTitle = styled.div` margin-top: 4px; font-size: 14px; font-weight: 700; color: #0F172A; `;
+const CardSummary = styled.div` margin-top: 3px; font-size: 12px; color: #64748B; line-height: 1.5; `;
+const CardBody = styled.div` padding: 4px 16px 16px; border-top: 1px solid #F1F5F9; `;
+const BP = styled.p` margin: 10px 0 0; font-size: 13px; line-height: 1.7; color: #334155; `;
+const BH = styled.h4` margin: 16px 0 0; font-size: 13px; font-weight: 700; color: #0F172A; `;
+const BCallout = styled.div`
+  margin: 12px 0 0; padding: 10px 12px; background: #F0FDFA; border-left: 3px solid #14B8A6;
+  border-radius: 0 8px 8px 0; font-size: 12.5px; line-height: 1.6; color: #0F766E;
+`;
+const BStep = styled.div`
+  margin: 8px 0 0; display: flex; gap: 8px; align-items: flex-start;
+  font-size: 13px; line-height: 1.6; color: #334155;
+  em { flex-shrink: 0; width: 18px; height: 18px; margin-top: 1px; border-radius: 50%;
+       background: #14B8A6; color: #fff; font-style: normal; font-size: 11px; font-weight: 700;
+       display: flex; align-items: center; justify-content: center; }
+`;
+const BFigure = styled.figure`
+  margin: 12px 0 0;
+  img { display: block; width: 100%; border: 1px solid #E2E8F0; border-radius: 8px; }
+  figcaption { margin-top: 5px; font-size: 11px; color: #94A3B8; text-align: center; }
+`;

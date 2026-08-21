@@ -27,15 +27,9 @@ const attachUploadLimiter = perUserLimiter('msg-attach', { windowMs: 60 * 1000, 
 const UPLOAD_ROOT = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(UPLOAD_ROOT)) fs.mkdirSync(UPLOAD_ROOT, { recursive: true });
 
-const ALLOWED_EXT = new Set([
-  '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg',
-  '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
-  '.zip', '.txt', '.md', '.csv',
-  // 영상 — Drive 연동 시 5GB 까지, 자체 스토리지 시 플랜 한도까지
-  '.mp4', '.mov', '.webm', '.avi', '.mkv', '.m4v',
-  // 음성
-  '.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac',
-]);
+// 운영 #267 — 허용 확장자는 services/uploadPolicy 한 곳이 정본이다.
+//   여기 사본을 두면 화면마다 되는 형식이 달라진다(업무 첨부만 영상이 막혀 있던 것이 그 사례).
+const { ATTACHMENT_EXT: ALLOWED_EXT } = require('../services/uploadPolicy');
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {

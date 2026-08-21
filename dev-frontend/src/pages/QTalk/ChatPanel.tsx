@@ -25,6 +25,11 @@ import { useImageLightbox } from '../../components/Common/ImageLightbox';
 import { useNavigate } from 'react-router-dom';
 import MessageReactions from './MessageReactions';   // #138 이모지 리액션
 
+// 운영 #367 — 작성 중 메시지 초안의 저장 키. **사용자별로 갈라야 한다** — 한 브라우저를 둘이
+//   나눠 쓰면(공용 PC·로그아웃 후 재로그인) 앞사람이 쓰다 만 글이 뒷사람 입력칸에 그대로 떴다.
+const draftKey = (userId: string | number | undefined, convId: number | null | undefined) =>
+  `qtalk_draft_${userId || 0}_${convId}`;
+
 interface Props {
   project: MockProject | null;
   conversations: MockConversation[];
@@ -288,7 +293,7 @@ const ChatPanel: React.FC<Props> = ({
     const next = `${input.slice(0, start)}@${member.name} ${input.slice(caret)}`;
     setInput(next);
     if (activeConversationId) {
-      try { localStorage.setItem(`qtalk_draft_${activeConversationId}`, next); } catch { /* quota */ }
+      try { localStorage.setItem(draftKey(user?.id, activeConversationId), next); } catch { /* quota */ }
     }
     closeMention();
     // 삽입 위치 뒤로 커서 이동 + 포커스 유지
@@ -374,7 +379,7 @@ const ChatPanel: React.FC<Props> = ({
     setActiveToolbarMsgId(null); // N+93 — 대화 전환 시 tap-to-reveal 툴바 해제
     if (!activeConversationId) { setInput(''); return; }
     let d = '';
-    try { d = localStorage.getItem(`qtalk_draft_${activeConversationId}`) || ''; } catch { /* quota/unavailable */ }
+    try { d = localStorage.getItem(draftKey(user?.id, activeConversationId)) || ''; } catch { /* quota/unavailable */ }
     setInput(d);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeConversationId]);
@@ -667,7 +672,7 @@ const ChatPanel: React.FC<Props> = ({
     );
     setInput('');
     // 전송 완료 → 해당 대화 draft 제거
-    if (activeConversationId) { try { localStorage.removeItem(`qtalk_draft_${activeConversationId}`); } catch { /* */ } }
+    if (activeConversationId) { try { localStorage.removeItem(draftKey(user?.id, activeConversationId)); } catch { /* */ } }
     setStagedExistingIds([]);
     setStagedExistingMeta({});
     setStagedPostIds([]);
@@ -2022,7 +2027,7 @@ const ChatPanel: React.FC<Props> = ({
               refreshMention(v, e.target.selectionStart ?? v.length);
               // 임시저장 — 입력하는 즉시 현재 대화 draft 갱신 (비면 삭제)
               if (activeConversationId) {
-                try { v ? localStorage.setItem(`qtalk_draft_${activeConversationId}`, v) : localStorage.removeItem(`qtalk_draft_${activeConversationId}`); } catch { /* quota */ }
+                try { v ? localStorage.setItem(draftKey(user?.id, activeConversationId), v) : localStorage.removeItem(draftKey(user?.id, activeConversationId)); } catch { /* quota */ }
               }
             }}
             onKeyDown={handleKeyDown}

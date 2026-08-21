@@ -5,6 +5,8 @@ import React, { useCallback, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useEditor, EditorContent } from '@tiptap/react';
+import type { Editor } from '@tiptap/core';
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { BubbleMenu } from '@tiptap/react/menus';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -75,6 +77,51 @@ async function uploadEditorImage(file: File, businessId?: number): Promise<strin
   return j.data.url as string;
 }
 
+
+// 운영 #311 — "빈 문서에 표를 만들 때 좌우 길이를 모든 표를 고정할 수도 있어야 하는데
+//   내용에 따라 가로 길이가 다 다르니까 정돈되지 않아 보일 때가 많아서
+//   지금처럼 자유롭게도 되고 고정으로 어떤 위치를 맞출 수도 있어야지."
+//
+//   TipTap 의 resizable 표는 셀마다 colwidth 를 들고 다닌다. 사용자가 손으로 끌면 그 값이 제각각
+//   남아 문서마다·표마다 열 폭이 어긋난다. "고정" = 그 표의 모든 열을 **같은 폭**으로 맞추는 것.
+//   자유 조절은 그대로 둔다(끌면 다시 달라진다) — 둘 다 되어야 한다는 것이 요청이다.
+//
+//   ★ colwidth 는 **행마다** 들어 있다. 첫 행만 고치면 다른 행이 옛 폭을 들고 있어 브라우저가
+//     colgroup 을 첫 행 기준으로 잡아도 저장 JSON 이 어긋난 채 남는다 → 전 행을 같이 고친다.
+//   ★ colspan 이 걸린 셀은 그 칸 수만큼 곱해 준다. 안 그러면 병합된 표가 찌그러진다.
+const EVEN_COL_WIDTH = 160;   // px — 표 하나 안에서 같기만 하면 되는 기준 폭
+
+function distributeTableColumnsEvenly(editor: Editor): boolean {
+  const { state } = editor;
+  const { $from } = state.selection;
+  // 커서에서 위로 올라가며 table 노드를 찾는다
+  let tablePos = -1;
+  let tableNode: ProseMirrorNode | null = null;
+  for (let d = $from.depth; d > 0; d -= 1) {
+    const n = $from.node(d);
+    if (n.type.name === 'table') { tableNode = n; tablePos = $from.before(d); break; }
+  }
+  if (!tableNode || tablePos < 0) return false;
+
+  const tr = state.tr;
+  let changed = false;
+  tableNode.forEach((row, rowOffset) => {
+    row.forEach((cell, cellOffset) => {
+      const span = Number(cell.attrs.colspan) || 1;
+      const next = Array.from({ length: span }, () => EVEN_COL_WIDTH);
+      const cur = cell.attrs.colwidth as number[] | null;
+      if (cur && cur.length === span && cur.every((w, i) => w === next[i])) return;
+      // +1: table -> row 진입, +1: row -> cell 진입
+      const cellPos = tablePos + 1 + rowOffset + 1 + cellOffset;
+      tr.setNodeMarkup(cellPos, undefined, { ...cell.attrs, colwidth: next });
+      changed = true;
+    });
+  });
+  if (!changed) return false;
+  editor.view.dispatch(tr);
+  return true;
+}
+
 const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = true, businessId, borderless = false, compact = false }) => {
   const { t } = useTranslation('qdocs');
   const fileRef = useRef<HTMLInputElement>(null);
@@ -143,7 +190,49 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
             }
           }
         }
-        // 2) 마크다운 텍스트 붙여넣기 → 제목·표·목록으로 변환 (#151)
+        // 2) 운영 #342 — "다른 웹이나 편집툴, 노션 같은 곳에서 복사를 하면 이미지는 미리보기 형태로
+        //    제대로 안붙어."
+        //
+        //    원인: 노션·워드·웹페이지는 클립보드 HTML 안에 이미지를 `data:image/...;base64,...` 로
+        //    싣는다. 그런데 Image 확장이 `allowBase64: false` 라 그 <img> 를 **통째로 버린다**
+        //    → 글은 붙는데 그림만 사라진다.
+        //
+        //    ★ allowBase64 를 켜는 것은 오답이다. 수 MB 짜리 base64 가 content_json 에 그대로 박혀
+        //      문서가 무거워지고, 메일 전달 때 본문이 사라지던 사고(자리표시자 치환)와 같은 계열의
+        //      문제를 다시 만든다. **붙여넣는 순간 우리 스토리지로 올려 URL 로 바꾼다.**
+        //    ★ 서버가 원격 URL 을 대신 가져오는 방식(외부 이미지 재호스팅)은 여기 넣지 않는다 —
+        //      임의 URL fetch 는 SSRF 표면이라 별도 설계가 필요하다. https 원격 이미지는 CSP 가
+        //      이미 허용하므로 지금도 그대로 보인다(원본이 사라지면 같이 사라진다는 한계는 남는다).
+        const dataImgRe = /<img\b[^>]*?\bsrc\s*=\s*["'](data:image\/[a-zA-Z0-9.+-]+;base64,[^"']+)["'][^>]*>/gi;
+        const dataUrls = [...new Set([...pastedHtml.matchAll(dataImgRe)].map((m) => m[1]))];
+        if (dataUrls.length) {
+          event.preventDefault();
+          (async () => {
+            let html = pastedHtml;
+            let replaced = 0;
+            for (const [i, dataUrl] of dataUrls.entries()) {
+              try {
+                const blob = await (await fetch(dataUrl)).blob();
+                const ext = (blob.type.split('/')[1] || 'png').replace(/[^a-z0-9]/gi, '');
+                const file = new File([blob], `pasted-${i + 1}.${ext}`, { type: blob.type });
+                const url = await uploadEditorImage(file, businessId);
+                if (!url) continue;
+                // 같은 data URL 이 여러 번 나올 수 있다 — 전부 바꾼다. split/join 은 정규식 이스케이프가 불필요.
+                html = html.split(dataUrl).join(url);
+                replaced += 1;
+              } catch { /* 이 한 장만 건너뛴다 — 나머지는 살린다 */ }
+            }
+            if (!replaced) {
+              // 한 장도 못 올렸으면 종전 동작(그림 없이 글만)으로 떨어진다 — 회귀는 만들지 않는다.
+              editor?.chain().focus().insertContent(pastedHtml).run();
+              return;
+            }
+            editor?.chain().focus().insertContent(html).run();
+          })();
+          return true;
+        }
+
+        // 3) 마크다운 텍스트 붙여넣기 → 제목·표·목록으로 변환 (#151)
         return handleMarkdownPaste(view, event);
       },
       handleDrop: (_view, event) => {
@@ -336,6 +425,12 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
                 onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().addRowBefore().run(); }}>＋{t('editor.table.rowAbove', '행↑')}</TableBubbleBtn>
               <TableBubbleBtn type="button" title={t('editor.table.addRowBelow', '아래에 행 추가') as string}
                 onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().addRowAfter().run(); }}>＋{t('editor.table.rowBelow', '행↓')}</TableBubbleBtn>
+            </TableBubbleGroup>
+            <TableBubbleSep />
+            <TableBubbleGroup>
+              {/* 운영 #311 — 열 폭 고정(균등). 자유 조절은 그대로 — 끌면 다시 달라진다. */}
+              <TableBubbleBtn type="button" title={t('editor.table.evenColsHint', '모든 열을 같은 너비로 맞춥니다 (드래그로 다시 조절 가능)') as string}
+                onMouseDown={(e) => { e.preventDefault(); distributeTableColumnsEvenly(editor); }}>⇹{t('editor.table.evenCols', '열 균등')}</TableBubbleBtn>
             </TableBubbleGroup>
             <TableBubbleSep />
             <TableBubbleGroup>

@@ -687,6 +687,8 @@ export default function WorkspaceSettingsPage() {
     }
   };
   const [cue, setCue] = useState<CueInfo | null>(null);
+  // 운영 #303 — Cue 설정 조회 실패 여부. 빈 화면 대신 이유를 말하기 위한 것.
+  const [cueLoadFailed, setCueLoadFailed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -743,12 +745,17 @@ export default function WorkspaceSettingsPage() {
         const [w, m, c] = await Promise.all([
           getWorkspace(businessId),
           listMembers(businessId).catch(() => []),
-          getCueInfo(businessId).catch(() => null),
+          // 운영 #303 — "설정이 안보이는데 어떻게 된건지 알려줘."
+          //   여기서 실패를 삼키면 cue 가 null 로 남고, 아래 `tab === 'cue' && cue` 게이트가
+          //   **탭을 통째로 빈 화면**으로 만든다. 사용자에겐 "기능이 사라진 것" 으로 보인다.
+          //   실패 사실을 남겨 화면이 이유를 말하게 한다.
+          getCueInfo(businessId).catch(() => 'error' as const),
         ]);
         if (cancelled) return;
         setWs(w);
         setMembers(m);
-        setCue(c);
+        setCue(c === 'error' ? null : c);
+        setCueLoadFailed(c === 'error');
         setBrandName(w.brand_name || w.name || '');
         setBrandNameEn(w.brand_name_en || '');
         setBrandTagline(w.brand_tagline || '');
@@ -1672,6 +1679,17 @@ export default function WorkspaceSettingsPage() {
       )}
 
       {/* ─── CUE ─── */}
+      {/* 운영 #303 — 조회가 실패해도 화면이 사라지지 않는다. 왜 안 보이는지 말하고 다시 시도할 문을 준다. */}
+      {tab === 'cue' && !cue && (
+        <Card>
+          <SectionTitle>{t('cue.sectionTitle')}</SectionTitle>
+          <SectionDesc>
+            {cueLoadFailed
+              ? t('cue.loadFailed', 'Cue 설정을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
+              : t('cue.loading', '불러오는 중…')}
+          </SectionDesc>
+        </Card>
+      )}
       {tab === 'cue' && cue && (
         <>
           <Card>

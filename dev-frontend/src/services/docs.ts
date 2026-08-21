@@ -93,6 +93,11 @@ export async function aiGenerateDoc(payload: {
   project_id?: number | null;
   template_id?: number | null;
   instruction?: string;  // 운영 — AI 재생성/재수정 지시 (에디터 레벨 재생성 시 사용)
+  // 운영 #312 — 재생성은 "다시 쓰기" 가 아니라 "고쳐 쓰기" 다.
+  //   base_html: 지금 화면의 본문(사용자가 손으로 고친 것 포함) — 이걸 원본으로 고친다
+  //   instructions: 지금까지 준 지시 전부 (누적). 안 보내면 매번 처음으로 되돌아간다.
+  base_html?: string;
+  instructions?: string[];
 }): Promise<AiGenerateResult> {
   const r = await apiFetch('/api/docs/ai-generate', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },

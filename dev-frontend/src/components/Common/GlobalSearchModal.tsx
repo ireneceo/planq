@@ -19,7 +19,9 @@ interface Props {
   onNavigate?: (to: string) => void;
 }
 
-type Category = 'tasks' | 'posts' | 'records' | 'files' | 'conversations' | 'knowledge' | 'clients' | 'projects';
+// #359 — 'records' 제거. Q record 는 폐지돼 Q docs 의 표로 흡수됐다(App.tsx:122).
+//   백엔드도 이제 빈 배열만 낸다 — 같은 항목이 '문서' 와 '레코드' 로 두 번 뜨던 중복을 없앤다.
+type Category = 'tasks' | 'posts' | 'files' | 'conversations' | 'knowledge' | 'clients' | 'projects';
 
 interface Hit {
   id: number;
@@ -32,7 +34,6 @@ interface Hit {
 interface SearchResult {
   tasks?: Array<{ id: number; title: string; status?: string; project_id?: number | null }>;
   posts?: Array<{ id: number; title: string; category?: string | null; project_id?: number | null }>;
-  records?: Array<{ id: number; name: string; category?: string | null; project_id?: number | null }>;
   files?: Array<{ id: number; file_name: string; file_size?: number; mime_type?: string | null }>;
   conversations?: Array<{ id: number; title?: string; display_name?: string; project_id?: number | null }>;
   knowledge?: Array<{ id: number; title: string; category?: string | null; scope?: string }>;
@@ -42,12 +43,12 @@ interface SearchResult {
 
 // 카테고리 라벨 i18n fallback (ko) — 표시는 t('search.cat.<key>') 로
 const CAT_LABEL_KO: Record<Category, string> = {
-  tasks: '업무', posts: '문서', records: '레코드', files: '파일',
+  tasks: '업무', posts: '문서', files: '파일',
   conversations: '대화', knowledge: '지식', clients: '고객', projects: '프로젝트',
 };
 
 const CAT_BADGE_COLOR: Record<Category, string> = {
-  tasks: '#0EA5E9', posts: '#F43F5E', records: '#14B8A6',
+  tasks: '#0EA5E9', posts: '#F43F5E',
   files: '#64748B', conversations: '#14B8A6', knowledge: '#0D9488', clients: '#F59E0B', projects: '#10B981',
 };
 
@@ -113,7 +114,6 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
     // #206 — status 를 raw 로 내보내면 `on_hold` 같은 snake_case 가 사용자에게 그대로 노출된다.
     (r.tasks || []).forEach(x => h.push({ id: x.id, title: x.title, sub: x.status ? t(`qtask:status.${x.status}.observer`, { defaultValue: x.status }) as string : undefined, to: `/tasks?task=${x.id}`, type: 'tasks' }));
     (r.posts || []).forEach(x => h.push({ id: x.id, title: x.title, sub: x.category || undefined, to: `/docs?post=${x.id}`, type: 'posts' }));
-    (r.records || []).forEach(x => h.push({ id: x.id, title: x.name, sub: x.category || undefined, to: `/records/${x.id}`, type: 'records' }));
     (r.files || []).forEach(x => h.push({ id: x.id, title: x.file_name, sub: x.mime_type || undefined, to: `/files?file=${x.id}`, type: 'files' }));
     (r.conversations || []).forEach(x => h.push({ id: x.id, title: x.display_name || x.title || `#${x.id}`, to: `/talk?conv=${x.id}`, type: 'conversations' }));
     (r.knowledge || []).forEach(x => h.push({ id: x.id, title: x.title, sub: x.category || undefined, to: `/knowledge?doc=${x.id}`, type: 'knowledge' }));
@@ -161,7 +161,7 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
           <SearchInput
             ref={inputRef} type="text" value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder={t('search.placeholder', '메뉴·업무·문서·레코드·파일·고객 모두 검색') as string}
+            placeholder={t('search.placeholder', '메뉴·업무·문서·파일·고객 모두 검색') as string}
           />
           {loading && <Spinner size={14} color="muted" />}
           <Kbd onClick={onClose}>Esc</Kbd>

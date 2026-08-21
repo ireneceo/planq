@@ -26,10 +26,12 @@ import ActionButton from '../Common/ActionButton';
 import AutoSaveField from '../Common/AutoSaveField';
 import { StatusGlyph } from '../Common/Icons';
 import {
-  buildPresetRRule, buildCustomRRule, parseRRule,
+  buildPresetRRule, buildCustomRRule, parseRRule, presetLabelMap, SELECTABLE_PRESETS,
   type RecurPreset, type RecurEndType, type RecurCustomUnit,
 } from '../../utils/recurrence';
+import type { TFunction } from 'i18next';
 import AttachmentField from '../Common/AttachmentField';
+import { useDraftText } from '../../hooks/useLocalDraft';
 import CueTip from '../Common/CueTip';
 import { useImageLightbox } from '../Common/ImageLightbox';
 import TaskFocusBar from '../Focus/TaskFocusBar';
@@ -262,6 +264,9 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       until: finalEndType === 'until' ? finalEndUntil : undefined,
     };
     if (finalPreset === 'custom') return buildCustomRRule(Number(recurCustomEvery) || 1, recurCustomUnit, end);
+    // 운영 #347 — 화면이 표현 못 하는 규칙(advanced)은 다시 만들지 않고 현재 규칙을 그대로 둔다.
+    //   여기서 재빌드하면 BYSETPOS·다중 BYDAY 가 통째로 날아간다.
+    if (finalPreset === 'advanced') return detailTask?.recurrence_rule || null;
     return buildPresetRRule(finalPreset, dueDate, end);
   };
   const [statusOpen, setStatusOpen] = useState(false);
@@ -273,7 +278,11 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const [openHistory, setOpenHistory] = useState(false);
   const [openDaily, setOpenDaily] = useState(false);
 
-  const [newComment, setNewComment] = useState('');
+  // 운영 #367 — 쓰다 만 댓글은 업무별로 남는다. 드로어를 닫거나 다른 업무로 옮겨도
+  //   그 업무로 돌아오면 되살아난다. (업무가 아직 안 정해졌으면 보존 대상 아님)
+  const commentDraft = useDraftText(detailTask ? `planq:draft:task-comment:${user?.id || 0}:${detailTask.id}` : null);
+  const newComment = commentDraft.text;
+  const setNewComment = commentDraft.setText;
   const [commentFiles, setCommentFiles] = useState<File[]>([]);
   const [commentPickerOpen, setCommentPickerOpen] = useState(false);
   const [commentExistingFileIds, setCommentExistingFileIds] = useState<number[]>([]);
@@ -444,7 +453,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     setReviewers([]); setHistory([]);
     setEditingTitle(false); setStatusOpen(false);
     setOpenReviewers(false); setOpenHistory(false); setOpenDaily(false);
-    setNewComment(''); setCommentFiles([]);
+    // ★ 운영 #367 — 여기서 댓글 입력을 비우면 **떠나는 업무의 초안이 지워진다**.
+    //   (이 시점의 초안 키는 아직 옛 업무 것이다) 초안 훅이 업무 전환을 스스로 처리한다 —
+    //   옛 키로 확정 저장하고 새 키의 초안을 읽어 넣는다. 여기서 건드리지 않는다.
+    setCommentFiles([]);
     setCommentExistingFileIds([]); setCommentExistingPostIds([]); setCommentPickerOpen(false);
     setRevisionOpen(false); setRevisionNote('');
     setAddReviewerOpen(false); setPendingReviewerAdd(null);
@@ -926,7 +938,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         }
       }
       setDetailTask(prev => prev ? { ...prev, comments: [...(prev.comments || []), { ...comment, attachments: attached }] } : prev);
-      setNewComment(''); setCommentFiles([]);
+      commentDraft.clear(); setCommentFiles([]);
       setCommentExistingFileIds([]); setCommentExistingPostIds([]); setCommentPickerOpen(false);
     } finally { setCommentSending(false); }
   };
@@ -1538,16 +1550,8 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                       setDetailTask(prev => prev ? { ...prev, recurrence_rule: rule } : prev);
                     }
                   };
-                  const due = new Date(detailTask.due_date + 'T00:00:00Z');
-                  const dayLabel = t(`recur.weekday.${['SU','MO','TU','WE','TH','FR','SA'][due.getUTCDay()]}`, '');
-                  const presetLabels: Record<RecurPreset, string> = {
-                    daily: t('recur.presetDaily', '매일') as string,
-                    weekly: t('recur.presetWeekly', { day: dayLabel, defaultValue: `매주 ${dayLabel}` }) as string,
-                    biweekly: t('recur.presetBiweekly', { day: dayLabel, defaultValue: `격주 ${dayLabel}` }) as string,
-                    monthly: t('recur.presetMonthly', { day: String(due.getUTCDate()), defaultValue: `매월 ${due.getUTCDate()}일` }) as string,
-                    yearly: t('recur.presetYearly', { month: String(due.getUTCMonth()+1), day: String(due.getUTCDate()), defaultValue: `매년 ${due.getUTCMonth()+1}월 ${due.getUTCDate()}일` }) as string,
-                    custom: t('recur.presetCustom', '사용자 지정...') as string,
-                  };
+                  // 운영 #347 — 라벨은 utils/recurrence 의 단일 원천에서 온다(3벌 하드코딩 제거).
+                  const presetLabels = presetLabelMap(t as unknown as TFunction, detailTask.due_date);
                   return (
                     <MetaRecurOptions>
                       <PlanQSelect size="sm"
@@ -1561,13 +1565,12 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                           // setState 비동기 우회 — 새 값을 직접 전달
                           saveRule({ preset: p });
                         }}
-                        options={[
-                          { value: 'daily', label: presetLabels.daily },
-                          { value: 'weekly', label: presetLabels.weekly },
-                          { value: 'biweekly', label: presetLabels.biweekly },
-                          { value: 'monthly', label: presetLabels.monthly },
-                          { value: 'yearly', label: presetLabels.yearly },
-                        ]} />
+                        // 운영 #347 — 목록도 단일 원천. custom 은 이 인라인 셀렉트에서 제외한다
+                        //   (별도 모달이 필요하고, 위 onChange 가 이미 무시한다 — 목록에 두면 눌러도
+                        //    아무 일도 안 일어나는 죽은 옵션이 된다).
+                        options={SELECTABLE_PRESETS
+                          .filter((k) => k !== 'custom')
+                          .map((k) => ({ value: k, label: presetLabels[k] }))} />
                       <PlanQSelect size="sm"
                         isDisabled={!canEditRecurrence}
                         value={{
@@ -1784,6 +1787,14 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   : t('detail.description', '업무 설명')}
                 {!canEditDescription && <ReadOnlyHint>{t('detail.readOnly', '읽기 전용')}</ReadOnlyHint>}
               </SectionTitle>
+              {/* 운영 #352 — "지침은 설명, 결과물은 본문" 이 내부 규칙일 뿐 화면 어디에도 없었다.
+                  본문(body)에 실행 지침을 쓰면 회차 생성 때 리셋되어 조용히 사라진다.
+                  반복 시리즈(부모)에서만, 저장 규칙을 그 자리에서 말한다. */}
+              {detailTask.recurrence_rule && !detailTask.recurrence_parent_id && (
+                <RecurDescHint>
+                  {t('detail.recurDescHint', '이 설명은 매 회차에 함께 생성됩니다. 회차별 결과물은 각 회차의 본문에 작성하세요.')}
+                </RecurDescHint>
+              )}
               <DescEditorWrap>
                 <RichEditor
                   value={detailTask.description || ''}
@@ -2507,6 +2518,11 @@ const DateTrigger = styled.button<{ $empty?: boolean }>`
 `;
 // 이중 박스 제거 — RichEditor(EditorShell)가 자체 border/radius 를 가지므로 wrap 은 박스를 두지 않는다.
 // 결과물(body) 에디터와 동일하게 단일 박스로 보이게. (Irene — 업무설명 라운드박스 2개 회귀 fix)
+const RecurDescHint = styled.div`
+  margin: 0 0 8px; padding: 7px 10px;
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
+  font-size: 11.5px; line-height: 1.5; color: #64748B;
+`;
 const DescEditorWrap = styled.div``;
 
 // Actions

@@ -9,9 +9,21 @@ import { STATUS_COLOR, type StatusCode } from '../../../utils/taskLabel';
 import type { ReportSnapshot, TaskBrief } from '../../../services/reportUnit';
 import ProgressBurnupChart from '../ProgressBurnupChart';
 
-interface Props { snap: ReportSnapshot; compact?: boolean; }
+// 기간이 며칠짜리인가 — **시리즈 길이로 세면 안 된다.**
+//   운영 실측(id111·122): 옛 빌더가 미래 날을 null 로 채우지 않고 `break` 로 배열을 잘랐다.
+//   그래서 월요일에 확정된 주간보고의 시리즈는 길이가 **1** 이다 — `filled < series.length` 로 재면
+//   1 < 1 = false 가 되어, 정작 이 기능이 겨냥한 케이스에서 아무 말도 못 한다.
+//   기간(period.start~end)에서 기대 일수를 뽑아야 잘린 배열도 "1/7" 로 읽힌다.
+const expectedDays = (p?: { start?: string; end?: string } | null, fallback = 0) => {
+  if (!p?.start || !p?.end) return fallback;
+  const a = Date.parse(`${p.start}T00:00:00Z`); const b = Date.parse(`${p.end}T00:00:00Z`);
+  if (!Number.isFinite(a) || !Number.isFinite(b) || b < a) return fallback;
+  return Math.round((b - a) / 86400000) + 1;
+};
 
-const ReportContent: React.FC<Props> = ({ snap, compact }) => {
+interface Props { snap: ReportSnapshot; compact?: boolean; confirmedAt?: string | null; canReopen?: boolean; }
+
+const ReportContent: React.FC<Props> = ({ snap, compact, confirmedAt, canReopen }) => {
   const { t } = useTranslation('qtask');
   const navigate = useNavigate();
   const isProject = snap.scope === 'project';
@@ -50,6 +62,31 @@ const ReportContent: React.FC<Props> = ({ snap, compact }) => {
       {snap.progress_series != null && (
         <ChartSec>
           <ChartTitle>{t('report.chartTitle', { defaultValue: '진척 그래프' }) as string}</ChartTitle>
+          {/* 확정본은 **확정 시점의 기록**이다(reports.js:241 — confirm 시 fresh 박제, 이후 재계산 없음).
+              그래서 기간 도중에 확정하면 그래프가 거기서 끊긴 채 남는다. 운영 실측: member 주간보고 2건이
+              그 주 월요일 아침에 확정돼 시리즈가 1점이었다 — 손상이 아니라 그 시점의 진실인데,
+              말해주지 않으면 "그래프가 깨졌다" 로 읽힌다(#288 "왜 다 없는 거야" 와 같은 계열).
+              → 확정본에는 언제 기준인지, 며칠치인지 캡션으로 밝힌다. 더 보려면 되돌리기 후 재확정. */}
+          {confirmedAt && (() => {
+            const pts = snap.progress_series || [];
+            const filled = pts.filter((x) => x.estimated_cumulative != null).length;
+            const total = expectedDays(snap.period, pts.length);
+            const when = String(confirmedAt).slice(0, 16).replace('T', ' ');
+            const partial = filled > 0 && filled < total;
+            return (
+              <ChartCap>
+                {partial
+                  ? t('report.confirmedCapPartial', { when, n: filled, total, defaultValue: `${when} 확정 시점의 기록입니다 — ${filled}/${total}일치` }) as string
+                  : t('report.confirmedCap', { when, defaultValue: `${when} 확정 시점의 기록입니다` }) as string}
+                {/* 잘린 그래프를 보여주기만 하면 "고장" 으로 읽힌다. 되돌릴 수 있는 사람에게는
+                    **어떻게 전체 기간을 담는지** 까지 말한다 — 사람이 따로 안내해야 하는 일을
+                    화면이 스스로 하게 만든다(Fable 권고: 백필 금지, reopen 경로가 정답). */}
+                {partial && canReopen && (
+                  <CapHint>{t('report.confirmedCapReopen', { defaultValue: '되돌리기 후 다시 확정하면 기간 전체가 담깁니다.' }) as string}</CapHint>
+                )}
+              </ChartCap>
+            );
+          })()}
           {/* #288 — "설정에서 가져온 기준". 개인 보고서만 기준선을 갖는다(스냅샷에 박제된 값).
               프로젝트 보고서에는 없다 — 팀원 캐파를 프로젝트마다 합산하면 같은 사람 시간이 중복 계상된다. */}
           <ProgressBurnupChart series={snap.progress_series || []} capacityHours={snap.capacity_hours ?? null} height={compact ? 180 : 240} />
@@ -143,3 +180,9 @@ const PName = styled.span`font-size:12px;font-weight:700;color:#0F172A;`;
 
 const ChartSec = styled.div`display: flex; flex-direction: column; gap: 6px;`;
 const ChartTitle = styled.div`font-size: 12px; font-weight: 700; color: #0F172A;`;
+const ChartCap = styled.div`
+  font-size: 11px; color: #94A3B8; margin: -2px 0 6px;
+`;
+const CapHint = styled.span`
+  display: block; color: #B45309; margin-top: 2px;
+`;
