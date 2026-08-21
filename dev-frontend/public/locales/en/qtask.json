@@ -169,7 +169,7 @@
     "overCapHint": "Remaining estimate exceeds capacity by {{over}}h — consider adjusting deadlines, delegating, or rebalancing dates.",
     "workspacePredict": "Est {{est}}h",
     "actual": "Act {{act}}h",
-    "actualHint": "Total actual hours on my tasks (cumulative), including time carried over from previous weeks. The chart’s \"Logged\" line counts only what was added this week, so it can be smaller."
+    "actualHint": "Total actual hours on my tasks (cumulative), including time carried over from previous weeks. The chart’s \"Actual hours worked\" line counts only what was added this week, so it can be smaller."
   },
   "col": {
     "project": "Project",
@@ -322,12 +322,12 @@
     "suggestApply": "Apply",
     "suggestHint": "Based on {{focus}}h of focus tracked over the last {{weeks}} weeks. Accurate when you track most work with focus.",
     "available": "Available this week",
-    "doneWork": "Progress"
+    "doneWork": "Progress (est. hours)"
   },
   "chart": {
     "weekly": "Weekly Progress",
-    "est": "Progress",
-    "act": "Logged",
+    "est": "Progress (est. hours)",
+    "act": "Actual hours worked",
     "weekStart": "Start",
     "over": "Over cap +{{h}}h",
     "overTip": "Actual time this week is {{h}}h over the {{base}}h capacity.",
