@@ -235,7 +235,7 @@ router.get('/', authenticateToken, async (req, res, next) => {
       { model: Conversation, attributes: ['id', 'title', 'display_name'], required: false },
     ];
     if (req.query.q) {
-      const qStr = String(req.query.q);
+      const qStr = String(req.query.q).normalize('NFC');   // #364 검색어 조합형 통일
       const like = `%${qStr}%`;
       // 프로젝트명 매칭 위해 project id 미리 조회 — 이름에 q 가 포함된 프로젝트 id 들
       const projectsByName = await Project.findAll({

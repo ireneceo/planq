@@ -117,7 +117,7 @@ router.get('/:businessId/files', authenticateToken, attachWorkspaceScope(), asyn
 
     const limit = Math.min(Number(req.query.limit) || 50, 200);
     const offset = Number(req.query.offset) || 0;
-    const q = (req.query.q || '').trim();
+    const q = String(req.query.q || '').normalize('NFC').trim();   // #364 검색어 조합형 통일
 
     const where = vaultFilesWhere(scope);
     if (q) where.file_name = { [Op.like]: `%${q}%` };
@@ -149,7 +149,7 @@ router.get('/:businessId/posts', authenticateToken, attachWorkspaceScope(), asyn
 
     const limit = Math.min(Number(req.query.limit) || 50, 200);
     const offset = Number(req.query.offset) || 0;
-    const q = (req.query.q || '').trim();
+    const q = String(req.query.q || '').normalize('NFC').trim();   // #364 검색어 조합형 통일
     const kind = req.query.kind;
 
     const where = vaultPostsWhere(scope);

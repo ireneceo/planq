@@ -20,6 +20,7 @@ const crypto = require('crypto');
 const { decrypt } = require('./encryption');
 const { needsReauth } = require('./emailAccountHealth');
 const { isEmbedded, isNoiseAttachment } = require('./emailAttachments');
+const { toNFC } = require('./filename');   // #364 — 첨부 파일명 조합형 통일 (업로드 관문과 같은 축)
 const {
   EmailAccount, EmailThread, EmailMessage, EmailAttachment, EmailThreadParticipant,
   Client, File: FileModel, Business,
@@ -211,7 +212,10 @@ async function saveAttachmentAsFile({ businessId, att, account, fallbackOwnerId 
     const file = await FileModel.create({
       business_id: businessId,
       uploader_id: (personal ? account.owner_user_id : null) || fallbackOwnerId || null,
-      file_name: att.filename || `attachment${ext}`,
+      // #364 — 메일 첨부는 업로드 관문(services/filename decodeOriginalName)을 안 지난다.
+      //   맥에서 보낸 한글 첨부는 분해형(NFD)이라 그대로 넣으면 검색이 조용히 실패한다
+      //   (사용자가 "스크린샷" 을 쳐도 0건). 여기서도 조합형으로 통일한다.
+      file_name: toNFC(att.filename || `attachment${ext}`),
       file_path: fpath,
       file_size: att.size || att.content.length,
       mime_type: att.contentType || 'application/octet-stream',
@@ -420,7 +424,7 @@ async function syncOne(account, opts = {}) {
             await EmailAttachment.create({
               message_id: message.id,
               file_id: fileId,
-              filename: att.filename || 'attachment',
+              filename: toNFC(att.filename || 'attachment'),   // #364 — 위 file_name 과 같은 축
               mime_type: att.contentType || null,
               size_bytes: att.size || (att.content ? att.content.length : null),
               content_id: att.contentId || att.cid || null,
