@@ -860,6 +860,8 @@
       "auto": "Auto",
       "confirm": "Confirm",
       "reopen": "Reopen",
+      "confirmPartial": "Only {{n}} of {{total}} days are recorded so far. Confirming now freezes it that way.",
+      "confirmAnyway": "Confirm with {{n}} day(s)",
       "narrative": "Owner comment",
       "narrativePh": "Summarize key results, issues, and next plans for this period (auto-saved)",
       "noNarrative": "No comment yet",
@@ -1121,6 +1123,8 @@
   },
   "report": {
     "chartTitle": "Progress chart",
+    "confirmedCap": "Record as of {{when}}, when this report was confirmed",
+    "confirmedCapPartial": "Record as of {{when}}, when this report was confirmed — {{n}} of {{total}} days",
     "chartEstimated": "Progress (estimated hours)",
     "chartActual": "Actual hours worked",
     "chartCapacity": "Against {{n}}h capacity",

@@ -24,6 +24,8 @@ const ReportUnitView: React.FC<Props> = ({ businessId, scope, refId, periodType 
   const [genBusy, setGenBusy] = useState(false);
   const [genErr, setGenErr] = useState(false);
   const [narrativeKey, setNarrativeKey] = useState(0);
+  // 조기 확정 되물음 — 아래 partial 주석 참조. 기간을 옮기면 되물음 상태는 버린다.
+  const [confirmAsk, setConfirmAsk] = useState(false);
   const narrativeRef = useRef('');
 
   const load = useCallback(async (silent = false) => {
@@ -32,6 +34,7 @@ const ReportUnitView: React.FC<Props> = ({ businessId, scope, refId, periodType 
     catch { setData(null); } finally { setLoading(false); }
   }, [businessId, scope, refId, periodType, periodStart]);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { setConfirmAsk(false); }, [periodStart, periodType]);
 
   const loadRef = useRef(load); loadRef.current = load;
   useEffect(() => {
@@ -57,7 +60,7 @@ const ReportUnitView: React.FC<Props> = ({ businessId, scope, refId, periodType 
       }
     } catch { setGenErr(true); } finally { setGenBusy(false); }
   };
-  const doConfirm = async () => { if (!data || busy) return; setBusy(true); try { setData(await confirmReportUnit(businessId, data.id)); } catch { /* */ } finally { setBusy(false); } };
+  const doConfirm = async () => { if (!data || busy) return; setBusy(true); setConfirmAsk(false); try { setData(await confirmReportUnit(businessId, data.id)); } catch { /* */ } finally { setBusy(false); } };
   const doReopen = async () => { if (!data || busy) return; setBusy(true); try { setData(await reopenReportUnit(businessId, data.id)); } catch { /* */ } finally { setBusy(false); } };
 
   const periodLabel = (() => {
@@ -72,6 +75,16 @@ const ReportUnitView: React.FC<Props> = ({ businessId, scope, refId, periodType 
   const snap = data.snapshot || {};
   const kpi = snap.kpi || {};
   const confirmed = data.status === 'confirmed';
+  // ★ 확정은 되돌릴 수 있지만 **그 시점 스냅샷을 박제**한다(routes/reports.js:241 — confirm 시 fresh 저장,
+  //   이후 GET 재계산 없음). 그래서 기간 초반에 확정하면 하루치 그래프가 그대로 굳는다.
+  //   운영 실측: member 주간보고 2건(2026-08-03·08-10)이 **그 주 월요일 아침 10시대에 확정**돼
+  //   진척 시리즈가 1점만 남았다 — 2주 연속 같은 패턴이라 우연이 아니다.
+  //   사후 데이터를 확정본에 주입하는 건 증언 훼손이라 못 한다(Fable 판정) → **확정 전에 말해준다.**
+  const series = snap.progress_series || [];
+  const filledDays = series.filter((x) => x.estimated_cumulative != null).length;
+  const partial = filledDays > 0 && filledDays < series.length;
+  //   수요일 전(=2일치 이하)에만 한 번 되묻는다. 금요일 확정까지 붙잡으면 잔소리가 된다.
+  const askBeforeConfirm = partial && filledDays <= 2;
   const name = (snap.subject?.name as string) || '';
 
   return (
@@ -84,7 +97,13 @@ const ReportUnitView: React.FC<Props> = ({ businessId, scope, refId, periodType 
         <StatusChip $on={confirmed}>{confirmed ? (data.finalized_by === 'auto' ? t('weeklyReview.integrated.autoConfirmed', { defaultValue: '자동 확정' }) : t('weeklyReview.unit.confirmed', { defaultValue: '확정됨' })) : t('weeklyReview.unit.draft', { defaultValue: '작성 중' })}</StatusChip>
         {data.can_edit && (confirmed
           ? <ActionButton tone="secondary" size="sm" loading={busy} onClick={doReopen}>{t('weeklyReview.unit.reopen', { defaultValue: '되돌리기' })}</ActionButton>
-          : <ActionButton tone="primary" size="sm" loading={busy} onClick={doConfirm}>{t('weeklyReview.unit.confirm', { defaultValue: '확정하기' })}</ActionButton>)}
+          : (confirmAsk
+            ? <>
+                <AskText role="status">{t('weeklyReview.unit.confirmPartial', { n: filledDays, total: series.length, defaultValue: `이번 기간은 아직 ${filledDays}/${series.length}일치입니다. 지금 확정하면 그 상태로 박제됩니다.` })}</AskText>
+                <ActionButton tone="secondary" size="sm" onClick={() => setConfirmAsk(false)}>{t('common:cancel', { defaultValue: '취소' })}</ActionButton>
+                <ActionButton tone="primary" size="sm" loading={busy} onClick={doConfirm}>{t('weeklyReview.unit.confirmAnyway', { n: filledDays, defaultValue: `${filledDays}일치로 확정` })}</ActionButton>
+              </>
+            : <ActionButton tone="primary" size="sm" loading={busy} onClick={() => { if (askBeforeConfirm) setConfirmAsk(true); else doConfirm(); }}>{t('weeklyReview.unit.confirm', { defaultValue: '확정하기' })}</ActionButton>))}
       </Nav>
 
       <Head>
@@ -118,7 +137,7 @@ const ReportUnitView: React.FC<Props> = ({ businessId, scope, refId, periodType 
       </Section>
 
       {/* 실제 업무 내용 */}
-      <ReportContent snap={snap} />
+      <ReportContent snap={snap} confirmedAt={confirmed ? data.confirmed_at : null} />
     </Wrap>
   );
 };
@@ -131,6 +150,9 @@ const NavBtn = styled.button`width:28px;height:28px;border:1px solid #E2E8F0;bac
 const PLabel = styled.span`font-size:13px;font-weight:700;color:#0F172A;min-width:120px;text-align:center;`;
 const Spacer = styled.div`flex:1;`;
 const StatusChip = styled.span<{ $on: boolean }>`font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;background:${(p) => (p.$on ? '#14B8A6' : '#E2E8F0')};color:${(p) => (p.$on ? '#fff' : '#475569')};`;
+const AskText = styled.span`
+  font-size: 12px; color: #B45309; line-height: 1.35; margin-right: 2px;
+`;
 const Head = styled.div`display:flex;flex-direction:column;gap:4px;padding-bottom:10px;border-bottom:1px solid #F1F5F9;`;
 const HName = styled.h2`font-size:18px;font-weight:700;color:#0F172A;margin:0;display:flex;align-items:center;gap:8px;`;
 const DeptTag = styled.span`font-size:11px;font-weight:700;color:#475569;background:#E2E8F0;border-radius:999px;padding:2px 9px;`;

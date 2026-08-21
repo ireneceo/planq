@@ -9,9 +9,9 @@ import { STATUS_COLOR, type StatusCode } from '../../../utils/taskLabel';
 import type { ReportSnapshot, TaskBrief } from '../../../services/reportUnit';
 import ProgressBurnupChart from '../ProgressBurnupChart';
 
-interface Props { snap: ReportSnapshot; compact?: boolean; }
+interface Props { snap: ReportSnapshot; compact?: boolean; confirmedAt?: string | null; }
 
-const ReportContent: React.FC<Props> = ({ snap, compact }) => {
+const ReportContent: React.FC<Props> = ({ snap, compact, confirmedAt }) => {
   const { t } = useTranslation('qtask');
   const navigate = useNavigate();
   const isProject = snap.scope === 'project';
@@ -50,6 +50,23 @@ const ReportContent: React.FC<Props> = ({ snap, compact }) => {
       {snap.progress_series != null && (
         <ChartSec>
           <ChartTitle>{t('report.chartTitle', { defaultValue: '진척 그래프' }) as string}</ChartTitle>
+          {/* 확정본은 **확정 시점의 기록**이다(reports.js:241 — confirm 시 fresh 박제, 이후 재계산 없음).
+              그래서 기간 도중에 확정하면 그래프가 거기서 끊긴 채 남는다. 운영 실측: member 주간보고 2건이
+              그 주 월요일 아침에 확정돼 시리즈가 1점이었다 — 손상이 아니라 그 시점의 진실인데,
+              말해주지 않으면 "그래프가 깨졌다" 로 읽힌다(#288 "왜 다 없는 거야" 와 같은 계열).
+              → 확정본에는 언제 기준인지, 며칠치인지 캡션으로 밝힌다. 더 보려면 되돌리기 후 재확정. */}
+          {confirmedAt && (() => {
+            const pts = snap.progress_series || [];
+            const filled = pts.filter((x) => x.estimated_cumulative != null).length;
+            const when = String(confirmedAt).slice(0, 16).replace('T', ' ');
+            return (
+              <ChartCap>
+                {filled > 0 && filled < pts.length
+                  ? t('report.confirmedCapPartial', { when, n: filled, total: pts.length, defaultValue: `${when} 확정 시점의 기록입니다 — ${filled}/${pts.length}일치` }) as string
+                  : t('report.confirmedCap', { when, defaultValue: `${when} 확정 시점의 기록입니다` }) as string}
+              </ChartCap>
+            );
+          })()}
           {/* #288 — "설정에서 가져온 기준". 개인 보고서만 기준선을 갖는다(스냅샷에 박제된 값).
               프로젝트 보고서에는 없다 — 팀원 캐파를 프로젝트마다 합산하면 같은 사람 시간이 중복 계상된다. */}
           <ProgressBurnupChart series={snap.progress_series || []} capacityHours={snap.capacity_hours ?? null} height={compact ? 180 : 240} />
@@ -143,3 +160,6 @@ const PName = styled.span`font-size:12px;font-weight:700;color:#0F172A;`;
 
 const ChartSec = styled.div`display: flex; flex-direction: column; gap: 6px;`;
 const ChartTitle = styled.div`font-size: 12px; font-weight: 700; color: #0F172A;`;
+const ChartCap = styled.div`
+  font-size: 11px; color: #94A3B8; margin: -2px 0 6px;
+`;
