@@ -210,6 +210,12 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const autoDraftIdRef = useRef<number | null>(null);
   // 편집 진입 시점 스냅샷 — "취소" 가 자동저장된 내용을 되돌리는 근거.
   const editSnapshotRef = useRef<{ title: string; content: unknown; category: string } | null>(null);
+  // ★ 자동저장 발화 기준은 "마지막으로 서버에 쓴 값" 이어야 한다 (편집 진입 스냅샷이 아니라).
+  //   진입 스냅샷만 보면, 한 글자만 고쳐도 그 뒤로 **영원히 changed=true** 라
+  //   저장이 끝나 autoState 가 바뀔 때마다 effect 가 다시 2초 타이머를 걸어 **자동저장이 자기를 재예약**한다.
+  //   → 타이핑을 멈춰도 2초마다 PUT 이 계속 나간다(운영 신고: "갑자기 갑자기 저장이 돼").
+  //   진입 스냅샷은 '취소' 되돌림 기준이라 건드리면 안 되므로 **기준을 둘로 분리**한다.
+  const lastSavedRef = useRef<{ title: string; content: unknown; category: string } | null>(null);
   // ★ 편집 세션 카운터. 스냅샷 effect 를 `detail?.id` 에 걸면, 첫 자동저장의 setDetail(created) 가
   //   그 effect 를 재발화시켜 autoDraftIdRef·autoState 를 리셋한다 — 그러면 명시 저장이 승격 대신
   //   글을 하나 더 만들고, 취소는 draft 를 못 지운다(Fable 실측 BLOCKER). 진입 지점만 이 값을 올린다.
@@ -642,6 +648,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   useEffect(() => {
     if (mode === 'edit' || mode === 'new') {
       editSnapshotRef.current = { title: titleDraft, content: contentDraft, category: categoryDraft };
+      lastSavedRef.current = null;
       baseUpdatedAtRef.current = detail?.updated_at ?? null;
       autoDraftIdRef.current = mode === 'new' ? null : (detail?.id ?? null);
       autoDirtyRef.current = false;
@@ -649,6 +656,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       setAutoErr(null);
     } else {
       editSnapshotRef.current = null;
+      lastSavedRef.current = null;
       autoDirtyRef.current = false;
     }
     // ★ deps 에 detail?.id 를 넣지 않는다 — 자동저장이 detail 을 갱신하면 세션이 리셋된다.
@@ -667,6 +675,10 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     if (!titleDraft.trim()) return 'skip';
     autoBusyRef.current = true;
     setAutoState('saving');
+    // 이 저장이 실제로 보낸 값 — 성공 후 자동저장 발화 기준(lastSavedRef)이 된다.
+    //   await 도중 사용자가 더 타이핑하면 draft 가 바뀌므로 **호출 시점 값**으로 고정해야 한다
+    //   (안 그러면 방금 친 글자가 "이미 저장됨" 으로 처리돼 마지막 타이핑이 유실된다).
+    const sentSnapshot = { title: titleDraft, content: contentDraft, category: categoryDraft };
     try {
       const categoryVal = categoryDraft.trim() || null;
       const targetId = detail?.id ?? autoDraftIdRef.current;
@@ -696,6 +708,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         setDetail((prev) => (prev ? { ...prev, updated_at: patched.updated_at } : patched));
       }
       autoDirtyRef.current = false;
+      lastSavedRef.current = sentSnapshot;   // ★ 이게 없으면 자동저장이 2초마다 자기를 재예약한다
       setAutoState('saved');
       setAutoErr(null);
       return 'ok';
@@ -772,8 +785,12 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   useEffect(() => {
     if (!(mode === 'edit' || mode === 'new')) return;
     if (autoState === 'stale') return;
+    // 저장이 날아가는 중이면 예약하지 않는다 — 끝나면 기준(lastSavedRef)이 갱신되고,
+    // 그 사이 사용자가 더 쳤으면 'saved' 로 바뀌는 순간 이 effect 가 다시 돌아 예약한다(유실 없음).
+    if (autoState === 'saving') return;
     if (!editSnapshotRef.current) return;   // 편집 진입 스냅샷 전에는 발화 금지(초기 세팅이 dirty 로 잡히지 않게)
-    const snap = editSnapshotRef.current;
+    // 마지막 저장분이 있으면 그것과 비교한다 — 없으면(아직 한 번도 저장 안 함) 진입 스냅샷과 비교.
+    const snap = lastSavedRef.current || editSnapshotRef.current;
     const changed = titleDraft !== snap.title
       || JSON.stringify(contentDraft ?? null) !== JSON.stringify(snap.content ?? null)
       || categoryDraft !== snap.category;
@@ -851,6 +868,39 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     setError(null);
   };
 
+  // 예약된 첨부(신규 업로드 + 기존 파일 선택)를 post 에 반영한다.
+  //   신규 작성·편집 **양쪽이 같은 경로**를 쓴다 — 한쪽에만 있어서 편집 모드 첨부가 통째로 유실됐다(#365).
+  //   업로드가 실패해도 **본문 저장은 되돌리지 않는다**. 파일 하나 때문에 쓴 글을 잃게 하지 않는다.
+  const persistAttachments = async (postId: number): Promise<{ changed: boolean; hasFailure: boolean }> => {
+    const fileIds: number[] = [...pendingExistingIds];
+    const failedFiles: File[] = [];
+    const failedLabels: string[] = [];
+    for (const f of pendingUploads) {
+      const result = scope.type === 'project'
+        ? await uploadProjectFile(scope.businessId, scope.projectId, f)
+        : await uploadMyFile(scope.businessId, f);
+      if (result.success && result.file) {
+        const fid = Number(result.file.id.replace(/^direct-/, ''));
+        if (fid) fileIds.push(fid);
+      } else {
+        const reason = result.message === 'file_size_exceeded'
+          ? t('attach.tooLarge', '용량 한도 초과')
+          : t('attach.uploadFailed', '업로드 실패');
+        failedFiles.push(f);
+        failedLabels.push(`${f.name} (${reason})`);
+      }
+    }
+    if (fileIds.length > 0) await attachToPost(postId, fileIds);
+    // 성공분만 비우고 **실패분은 남긴다** — 사용자가 무엇이 안 올라갔는지 보고 다시 시도할 수 있게.
+    setPendingUploads(failedFiles);
+    setPendingExistingIds([]);
+    setPendingExistingMeta({});
+    if (failedLabels.length > 0) {
+      setError(t('attach.someFailed', '문서는 저장했습니다. 다음 파일은 올리지 못했습니다: {{files}}', { files: failedLabels.join(', ') }) as string);
+    }
+    return { changed: fileIds.length > 0, hasFailure: failedLabels.length > 0 };
+  };
+
   const submit = async () => {
     if (submittingRef.current) return;
     if (!titleDraft.trim()) { setError(t('validation.titleRequired', '제목을 입력하세요') as string); return; }
@@ -882,30 +932,13 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             content_json: contentDraft as any,
             category: categoryVal,
           });
-        // 신규 작성 시 예약된 첨부를 한 번에 처리
-        const fileIdsToAttach: number[] = [...pendingExistingIds];
-        if (pendingUploads.length > 0) {
-          for (const f of pendingUploads) {
-            const result = scope.type === 'project'
-              ? await uploadProjectFile(scope.businessId, scope.projectId, f)
-              : await uploadMyFile(scope.businessId, f);
-            if (result.success && result.file) {
-              const fid = Number(result.file.id.replace(/^direct-/, ''));
-              if (fid) fileIdsToAttach.push(fid);
-            }
-          }
-        }
-        let final = created;
-        if (fileIdsToAttach.length > 0) {
-          await attachToPost(created.id, fileIdsToAttach);
-          final = (await fetchPost(created.id)) || created;
-        }
+        // 예약된 첨부 처리 — 편집 모드와 **같은 경로**를 쓴다 (#365)
+        const attachRes = await persistAttachments(created.id);
+        const final = attachRes.changed ? ((await fetchPost(created.id)) || created) : created;
         setDetail(final);
         setActiveId(final.id);
-        setMode('view');
-        setPendingUploads([]);
-        setPendingExistingIds([]);
-        setPendingExistingMeta({});
+        // 업로드 실패가 있으면 편집 화면에 머문다 — 보기 모드로 넘어가면 안내가 사라진다.
+        setMode(attachRes.hasFailure ? 'edit' : 'view');
         await load(); await loadMeta();
       } else if (mode === 'edit' && detail) {
         // #252 BLOCKER-3b — 임시저장(draft) 을 다시 열어 편집한 뒤 저장하면 **정식 등록**이다.
@@ -926,8 +959,13 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         // ★ 기준 시각 갱신 — 이게 없어서 저장 버튼을 누른 뒤 이어서 쓰면 **다음 자동저장이 반드시
         //   409** 였다(혼자 쓰는데도 "다른 사람이 수정했습니다"). 자동저장 경로에만 있던 갱신을 여기에도.
         baseUpdatedAtRef.current = patched.updated_at ?? null;
-        setDetail(patched);
-        setMode('view');
+        // ★ #365 — 편집 모드에서는 첨부가 **한 번도 저장되지 않았다**.
+        //   attachToPost 호출이 신규 작성 분기에만 있어서, 이미 저장된 문서에 파일을 올려도
+        //   조용히 사라졌다("첨부한 영상이 보이지 않아요"). 영상 한정이 아니라 전 파일 공통이었다.
+        const attachResEdit = await persistAttachments(patched.id);
+        const finalEdit = attachResEdit.changed ? ((await fetchPost(patched.id)) || patched) : patched;
+        setDetail(finalEdit);
+        setMode(attachResEdit.hasFailure ? 'edit' : 'view');
         await load(); await loadMeta();
       }
       // 명시 저장이 끝났으면 자동저장 상태·draft 참조를 비운다.

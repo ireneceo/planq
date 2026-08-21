@@ -544,6 +544,8 @@ async function syncOne(account, opts = {}) {
       fail_count: 0,
     });
   } finally {
+    // #357 — 폴링 연결도 같은 함정. end() 가 비동기 EPIPE 를 던지면 리스너가 없어 프로세스가 죽는다.
+    silenceLateErrors(conn && conn.imap);
     try { await conn.end(); } catch (_) { /* ignore */ }
   }
 
@@ -654,6 +656,18 @@ async function tick() {
 //   · conn(truthy) = 실시간 IDLE 연결 살아있음. drop 되면 conn=null 로 표시(엔트리는 유지 → backstop 폴링 대상).
 //   · connecting = 연결 시도 중(플레이스홀더). 동시 connect 로 Gmail 동시연결 제한(15) 초과 방지.
 const idleConns = new Map();     // accountId → { conn, raw, stopped, connecting }
+// #357 ② — 계정별 재연결 발생 시각(최근 1시간). 임계치를 넘을 때만 error 로 승격한다.
+// 소켓 종료 자체는 IMAP 에서 정상 이벤트라 error 로 남기면 진짜 오류가 묻힌다.
+const RECONNECT_ALERT_PER_HOUR = 5;
+const reconnectTimes = new Map(); // accountId → number[] (epoch ms)
+function noteReconnect(accountId) {
+  const now = Date.now();
+  const arr = (reconnectTimes.get(accountId) || []).filter((t) => now - t < 3600000);
+  arr.push(now);
+  reconnectTimes.set(accountId, arr);
+  return arr.length;
+}
+
 const idleBackoff = new Map();   // accountId → 다음 재연결 지연(ms)
 const reconnectTimers = new Map(); // accountId → setTimeout 핸들 (재연결 중복 예약 차단)
 const syncBusy = new Set();      // accountId 동기화 진행 중 (self-overlap 방지)
@@ -684,13 +698,37 @@ function clearReconnect(id) {
   if (t) { clearTimeout(t); reconnectTimers.delete(id); }
 }
 
+// ★ 끊긴 연결에 남는 **늦은 error 이벤트를 흡수**한다 (피드백 #357 의 진짜 원인).
+//
+//   EventEmitter 는 'error' 리스너가 하나도 없으면 그 에러를 **throw** 한다.
+//   removeAllListeners() 로 리스너를 떼어낸 뒤 소켓에서 error 가 한 번 더 올라오면
+//   → uncaughtException → **프로세스 재시작**. 로그의 Error 스택은 그 흔적이었다.
+//   운영 실측(2026-08-21 error log): 그날 찍힌 Error 는 이 EPIPE 12건이 전부였고
+//   부팅 경고는 25회 — 즉 하루 12회 크래시·재시작하고 있었다.
+//
+//   리스너를 떼는 것 자체는 재연결 재유발 차단에 필요하므로, 떼는 즉시 no-op error 리스너를 다시 건다.
+function silenceLateErrors(raw) {
+  if (!raw) return;
+  try { raw.on('error', () => { /* 해체된 연결의 늦은 에러 — 흡수 */ }); } catch { /* */ }
+  try {
+    const sock = raw._sock;
+    if (sock && typeof sock.on === 'function') sock.on('error', () => { /* 동상 */ });
+  } catch { /* */ }
+}
+
 // 연결 해체 — end() 전에 리스너를 먼저 떼어 우리가 부른 end() 가 drop 핸들러(재연결)를 재트리거하지 않게 한다.
 //   (Gmail 동시연결 누수의 핵심 원인: 의도적 end() → close/end 이벤트 → 또 다른 재연결 → 고아 연결 누적)
 function teardownConn(entry) {
   if (!entry) return;
   const raw = entry.raw || (entry.conn && entry.conn.imap);
   try { if (raw) raw.removeAllListeners(); } catch { /* */ }
-  try { entry.conn && entry.conn.end(); } catch { /* */ }
+  silenceLateErrors(raw);
+  // 이미 끊긴 소켓에 end() 를 부르면 writeAfterFIN → EPIPE 가 **비동기로** 올라온다.
+  // 아래 try/catch 로는 못 잡는다(동기 throw 가 아니다) — 상태를 보고 아예 부르지 않는다.
+  try {
+    if (raw && raw.state === 'disconnected') return;
+    entry.conn && entry.conn.end();
+  } catch { /* */ }
 }
 
 function scheduleReconnect(account) {
@@ -725,7 +763,7 @@ async function startIdleForAccount(account) {
     await conn.openBox(account.imap_folder || 'INBOX');
   } catch (e) {
     // 연결 실패 — 플레이스홀더 정리(단, 그 사이 stop 요청 왔으면 존중) 후 재연결 예약
-    if (conn) { try { conn.end(); } catch { /* */ } }
+    if (conn) { silenceLateErrors(conn.imap); try { conn.end(); } catch { /* */ } }
     const cur = idleConns.get(id);
     if (cur && cur.stopped) { idleConns.delete(id); return; }
     idleConns.delete(id);
@@ -736,7 +774,7 @@ async function startIdleForAccount(account) {
 
   // 연결 도중 stop 요청이 들어왔으면 즉시 정리
   const cur = idleConns.get(id);
-  if (cur && cur.stopped) { try { conn.end(); } catch { /* */ } idleConns.delete(id); return; }
+  if (cur && cur.stopped) { silenceLateErrors(conn.imap); try { conn.end(); } catch { /* */ } idleConns.delete(id); return; }
 
   const raw = conn.imap;
   const entry = { conn, raw, stopped: false, connecting: false };
@@ -756,9 +794,15 @@ async function startIdleForAccount(account) {
     if (dropped) return;
     dropped = true;
     try { raw.removeAllListeners(); } catch { /* */ }
+    silenceLateErrors(raw);   // 리스너 0 상태에서 늦은 error 가 오면 프로세스가 죽는다 (#357)
     const e = idleConns.get(id);
     if (e && e.stopped) return;
     if (e) { e.conn = null; e.raw = null; }  // 연결 끊김 표시 → backstop 폴링이 커버 가능
+    // #357 ② — 정상 재연결은 한 줄 warn. 같은 계정이 시간당 임계치를 넘을 때만 error 로 올린다.
+    const perHour = noteReconnect(id);
+    if (perHour > RECONNECT_ALERT_PER_HOUR) {
+      console.error(`[emailIdle] account #${id} 재연결이 잦습니다 (최근 1시간 ${perHour}회) — 계정/네트워크 점검 필요`);
+    }
     console.warn(`[emailIdle] account #${id} ${label}${err ? ': ' + err.message : ''} — 재연결 예약`);
     scheduleReconnect(account);
   };

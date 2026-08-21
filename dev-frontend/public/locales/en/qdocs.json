@@ -633,7 +633,10 @@
     "dismiss": "Dismiss"
   },
   "attach": {
-    "newAiHint": "AI writes the document body for you"
+    "newAiHint": "AI writes the document body for you",
+    "tooLarge": "Exceeds size limit",
+    "uploadFailed": "Upload failed",
+    "someFailed": "The document was saved, but these files could not be uploaded: {{files}}"
   },
   "autosave": {
     "saving": "Saving draft…",

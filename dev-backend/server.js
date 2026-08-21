@@ -452,6 +452,11 @@ app.use('/api/personal-vault', require('./routes/personal_vault'));
 // Internal API — Q Note ↔ Node 통신 (사이클 N+14 visibility 검사)
 app.use('/api/internal', require('./routes/internal'));
 
+// SNS 링크 미리보기(OG) 서버 렌더 — #362. **/api 밖 경로**라 마지막에 둔다.
+//   nginx 가 /insights/:slug · /public/posts/:token · /public/docs/:token 만 이쪽으로 넘긴다.
+//   응답은 빌드된 index.html + og 태그 치환 — SPA 부팅은 그대로다.
+app.use('/', require('./routes/og'));
+
 // Error handler
 app.use(errorHandler);
 

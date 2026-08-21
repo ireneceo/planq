@@ -2,7 +2,9 @@
   "page": {
     "title": "Q record"
   },
-  "search": { "ph": "테이블 이름 검색" },
+  "search": {
+    "ph": "테이블 이름 검색"
+  },
   "actions": {
     "new": "새 테이블",
     "addRow": "행 추가",
@@ -12,20 +14,33 @@
     "cancel": "취소",
     "delete": "삭제"
   },
-  "cat": { "all": "전체" },
-  "stat": { "columns": "컬럼", "rows": "행" },
-  "view": { "aria": "보기 모드", "grid": "그리드", "list": "리스트" },
+  "cat": {
+    "all": "전체"
+  },
+  "stat": {
+    "columns": "컬럼",
+    "rows": "행"
+  },
+  "view": {
+    "aria": "보기 모드",
+    "grid": "그리드",
+    "list": "리스트"
+  },
   "list": {
-    "name": "이름", "category": "카테고리", "scope": "스코프",
-    "cols": "컬럼", "rows": "행", "updated": "수정일",
+    "name": "이름",
+    "category": "카테고리",
+    "scope": "스코프",
+    "cols": "컬럼",
+    "rows": "행",
+    "updated": "수정일",
     "workspace": "워크스페이스"
   },
   "create": {
     "title": "새 테이블",
     "nameLabel": "테이블 이름",
-    "namePh": "예: 계정 정보 / 자산 목록 / 연락처",
+    "namePh": "예: 진행 현황 / 비용 내역 / 체크리스트",
     "catLabel": "카테고리 (선택)",
-    "catPh": "예: 보안 / 인사 / 운영",
+    "catPh": "예: 운영 / 기획 / 정산",
     "failed": "테이블 생성 실패"
   },
   "detail": {
@@ -59,7 +74,9 @@
     "empty": "비어있는 비율",
     "filled": "채워진 비율"
   },
-  "row": { "deleteHint": "행 삭제" },
+  "row": {
+    "deleteHint": "행 삭제"
+  },
   "cell": {
     "reveal": "보기",
     "secretPh": "값 입력 (저장 시 마스킹)",
