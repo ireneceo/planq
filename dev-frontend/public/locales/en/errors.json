@@ -43,5 +43,6 @@
   "audio_not_supported": "This browser does not support audio features",
   "gcal_meeting_create_failed": "Could not create the Google Meet link. Please check your Google Calendar connection.",
   "gcal_not_connected": "Workspace Google Calendar is not connected.",
-  "gcal_scope_missing": "Google Calendar write permission is missing. Reconnect it in Settings > Files & Integrations."
+  "gcal_scope_missing": "Google Calendar write permission is missing. Reconnect it in Settings > Files & Integrations.",
+  "post_edit_forbidden": "You don't have permission to edit this document. Check its visibility setting."
 }
