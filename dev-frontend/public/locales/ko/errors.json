@@ -43,5 +43,6 @@
   "audio_not_supported": "이 브라우저는 음성 기능을 지원하지 않습니다",
   "gcal_meeting_create_failed": "Google Meet 링크를 만들지 못했습니다. Google 캘린더 연결 상태를 확인해 주세요.",
   "gcal_not_connected": "워크스페이스 Google 캘린더가 연결되어 있지 않습니다.",
-  "gcal_scope_missing": "Google 캘린더 쓰기 권한이 없습니다. 설정 > 파일·외부 연동에서 다시 연결해 주세요."
+  "gcal_scope_missing": "Google 캘린더 쓰기 권한이 없습니다. 설정 > 파일·외부 연동에서 다시 연결해 주세요.",
+  "post_edit_forbidden": "이 문서를 수정할 권한이 없습니다. 공개 범위를 확인해 주세요."
 }

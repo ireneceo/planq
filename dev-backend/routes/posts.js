@@ -63,6 +63,28 @@ async function assertWorkspaceOrClient(userId, businessId, platformRole) {
   return { ok: false, scope: null };
 }
 
+// 문서 편집 권한 — **공개 범위와 같은 축**을 쓴다 (2026-08-21).
+//
+//   여태 편집은 작성자·owner·platform_admin 만이었다. 공개 범위를 워크스페이스로 열어도
+//   **읽기만 열리고 편집은 안 열려서**, 같이 문서를 만들어가는 것이 불가능했다
+//   (운영: "내가 작성한 문서는 다른 직원이 수정 못해? 같이 화이트보드처럼 업데이트해야 하는데").
+//
+//   새 규칙: **볼 수 있으면 고칠 수 있다.** 단 아래는 그대로 둔다.
+//     · L1(개인) 문서 — 작성자만. 공개하지 않은 글을 남이 고치면 안 된다.
+//     · 고객(Client) — assertMember 에서 이미 막힌다. 읽기·컨펌만.
+//     · 삭제 — 편집과 다른 축이다. 파괴적이고 되돌릴 수 없어 작성자·owner 로 유지한다.
+async function canEditPost(userId, post, platformRole) {
+  if (platformRole === 'platform_admin') return true;
+  if (post.author_id === userId) return true;
+  // L1 = 개인 문서. 작성자 외에는 owner/admin 도 편집하지 않는다(읽기도 안 되는 등급이다).
+  if (post.vlevel === 'L1') {
+    const scope0 = await getUserScope(userId, post.business_id, platformRole);
+    return !!(scope0.isOwner || scope0.isAdmin);
+  }
+  const scope = await getUserScope(userId, post.business_id, platformRole);
+  return canAccessPostByLevel(userId, post, scope);
+}
+
 // Plain text 추출 — Tiptap JSON → 검색/프리뷰용 plain string
 function extractText(json) {
   if (!json) return '';
@@ -711,15 +733,9 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
       return errorResponse(res, 'forbidden', 403);
     }
-    const isPlatformAdmin = req.user.platform_role === 'platform_admin';
-    const isAuthor = post.author_id === req.user.id;
-    let isOwner = false;
-    if (!isAuthor && !isPlatformAdmin) {
-      const bm = await BusinessMember.findOne({ where: { business_id: post.business_id, user_id: req.user.id }, attributes: ['role'] });
-      isOwner = bm?.role === 'owner';
-    }
-    if (!isAuthor && !isOwner && !isPlatformAdmin) {
-      return errorResponse(res, '작성자 또는 오너만 문서를 수정할 수 있습니다', 403);
+    // 볼 수 있으면 고칠 수 있다 — 공개 범위와 같은 축. (L1 개인 문서는 예외: 작성자·owner 만)
+    if (!(await canEditPost(req.user.id, post, req.user.platform_role))) {
+      return errorResponse(res, 'post_edit_forbidden', 403);
     }
     // #252 낙관적 잠금 — 자동저장이 붙으면 PUT 빈도가 수십 배로 뛴다. 잠금이 없으면
     //   내 자동저장이 그 사이 남이 저장한 본문을 통째로 덮어쓴다(last-write-wins).
