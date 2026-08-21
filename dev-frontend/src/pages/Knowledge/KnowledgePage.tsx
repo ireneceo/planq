@@ -521,14 +521,51 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
   };
 
   // ─── CSV export (현재 필터 결과) ───
+  //
+  // 운영 #315 — "CSV 업로드 / CSV 다운로드 이 기능들이 제대로 되는 거야?"
+  //   확인해 보니 두 가지가 어긋나 있었다.
+  //   ① **항목 값이 통째로 빠졌다.** CSV 로 올린 계정정보를 다시 내려받으면 제목·메타만 나오고
+  //      정작 올린 값(아이디·담당자·만료일 …)이 없다 — 왕복이 안 되니 백업으로 못 쓴다.
+  //   ② **이스케이프가 없었다.** 제목만 따옴표로 감싸고 나머지는 그대로 이어 붙여서,
+  //      카테고리·값에 쉼표나 줄바꿈이 하나만 있어도 열이 밀려 파일이 깨졌다.
+  //
+  //   ★ secret 항목의 값은 내보내지 않는다. 가리기(#330)·검색 제외(#334)와 같은 정책이다 —
+  //     파일은 시스템 밖으로 나가므로 여기서 풀면 앞의 두 조치가 무의미해진다.
+  const csvCell = (v: unknown): string => {
+    const raw = v == null ? '' : String(v);
+    // 쉼표·따옴표·줄바꿈이 있으면 감싸고, 안의 따옴표는 두 번 쓴다 (RFC 4180)
+    return /[",\n\r]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw;
+  };
   const handleExportCsv = () => {
     if (!filtered.length) return;
-    const header = ['id', 'title', 'category', 'scope', 'project_id', 'client_id', 'status', 'chunk_count', 'updated_at'];
-    const rows = filtered.map(d => [
-      d.id, JSON.stringify(d.title), d.category, d.scope, d.project_id ?? '', d.client_id ?? '',
-      d.status, d.chunk_count, d.updated_at,
-    ]);
-    const csv = [header.join(','), ...rows.map(r => r.join(','))].join('\n');
+    // 항목 열 — 지금 목록에 있는 문서들이 쓰는 항목 이름의 합집합(순서는 처음 등장 순).
+    const colNames: string[] = [];
+    const secretNames = new Set<string>();
+    for (const d of filtered) {
+      for (const c of (d.custom_columns || [])) {
+        if (!c?.name) continue;
+        if (!colNames.includes(c.name)) colNames.push(c.name);
+        if (c.type === 'secret') secretNames.add(c.name);
+      }
+    }
+    const header = [
+      'id', 'title', 'category', 'scope', 'project_id', 'client_id', 'status', 'chunk_count', 'updated_at',
+      ...colNames,
+    ];
+    const rows = filtered.map(d => {
+      const byName = new Map<string, unknown>();
+      for (const c of (d.custom_columns || [])) {
+        if (c?.name) byName.set(c.name, (d.custom_values || {})[c.id]);
+      }
+      return [
+        d.id, d.title, d.category, d.scope, d.project_id ?? '', d.client_id ?? '',
+        d.status, d.chunk_count, d.updated_at,
+        ...colNames.map(n => (secretNames.has(n)
+          ? (byName.get(n) ? (t('csv.secretMasked', '(비밀값 — 내보내지 않음)') as string) : '')
+          : (byName.get(n) ?? ''))),
+      ];
+    });
+    const csv = [header, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n');
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
     void downloadBlob(blob, `knowledge-${new Date().toISOString().slice(0,10)}.csv`);
   };
@@ -590,7 +627,9 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
           <AiActionButton
             onClick={() => setAiIngestOpen(true)}
             label={t('page.aiIngest') as string}
-            title={t('page.aiIngestHint', { defaultValue: 'AI 가 문서·링크에서 지식을 자동으로 정리해 추가합니다' }) as string}
+            /* 운영 #315 — 옛 문구는 "문서·링크에서" 라고 했는데 링크 수집 기능은 없고 파일도 못 받았다.
+               문구가 없는 기능을 약속하면 사용자는 "되는데 안 먹는다" 로 읽는다. 되는 것만 적는다. */
+            title={t('page.aiIngestHint', { defaultValue: '붙여넣은 내용이나 텍스트 파일을 AI 가 토픽별로 정리해 추가합니다' }) as string}
           />
           <NewBtn type="button" onClick={() => setModalOpen(true)}>{t('page.new')}</NewBtn>
         </>

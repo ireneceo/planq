@@ -29,7 +29,7 @@ const { buildQuote } = require('../services/emailQuote');
 const { folderWhere, sentOrder, BULK_FOLDERS } = require('../services/mailFolders');
 // accessibleAccountIds 도 여기서 온다 — 프라이버시 격리 정의를 두 벌 두지 않는다
 const { outgoingIdentityFor, accessibleAccountIds } = require('../services/mailIdentity');
-const { serializeThreadRow } = require('../services/mailSerialize');
+const { serializeThreadRow, resolveRecipientNames } = require('../services/mailSerialize');
 
 // 발신 별칭 id 파싱 — **0 은 "계정 주소 명시 선택"이고 미지정이 아니다.**
 //   `from_alias_id || null` 로 뭉개면 서버가 기본별칭으로 덮어써, 화면은 help@ 를 보여주는데
@@ -48,6 +48,7 @@ const { ipKeyGenerator } = require('express-rate-limit');
 //   `ai-suggest` 는 여태 plan 게이트(orchestrator 내부)와 입력 캡만 있고 **per-user rate-limit 이 없었다**
 //   — 사용자 1명이 연타로 LLM 비용을 태울 수 있는 상태. 신규 `ai-compose` 와 **양쪽에** 붙인다.
 const { perUserDaily } = require('../middleware/costGuard');
+const { createAuditLog } = require('../middleware/audit');
 const aiDraftLimiter = perUserDaily('mail-ai-draft', { perMin: 10, perDay: 200 });
 
 // 발송 rate-limit (CLAUDE.md 운영안정성 #1 — 외부발송=quota/비용 = per-user 제한).
@@ -286,6 +287,11 @@ router.get('/:businessId/email-threads',
         }
       }
 
+      // 운영 #324 — 보낸메일함의 "받는 사람" 표시이름 해석.
+      //   outbound 의 to_emails 에는 주소 문자열만 들어 있어, 워크스페이스가 이미 아는 이름으로
+      //   해석해 줘야 받은메일함과 같은 이름이 뜬다. 규칙·쿼리는 services/mailSerialize 에 있다.
+      const nameByEmail = await resolveRecipientNames({ folder, lastOutByThread, businessId });
+
       // #215-I — 첨부 유무 배치 집계 (원문 "첨부파일 있고 없고도 알기 편하게" — 열기 전에 인지).
       //   목록은 body_html 을 로드하지 않으므로 detail 의 `isEmbedded(cid, body)` 술어를 그대로 쓸 수 없다.
       //   대신 `is_inline` 컬럼을 쓴다 — B(쓰기측 교정)+C(백필) 이후 이 컬럼은 **같은 술어의 물질화 캐시**라
@@ -312,7 +318,7 @@ router.get('/:businessId/email-threads',
       }
 
       const data = rows.map(t => serializeThreadRow(t, {
-        folder, senderByThread, lastOutByThread, attachCountByThread,
+        folder, senderByThread, lastOutByThread, attachCountByThread, nameByEmail,
       }));
 
       return paginatedResponse(res, data, count, { limit, page, offset });
@@ -693,6 +699,51 @@ router.post('/:businessId/email-threads/:id/dismiss-reply',
 
       broadcastMail(req, businessId, 'mail:updated', { id: thread.id, reply_needed: false });
       return successResponse(res, { id: thread.id, reply_needed: false, learned });
+    } catch (err) { next(err); }
+  }
+);
+
+// ─────────────────────────────────────────────
+// POST mark-reply-needed — 운영 #314
+//   "다른 메일 탭에서 답변필요로 보낼 수도 있어야 할 것 같아. 내가 판단할 때 나중에 답변해야
+//    한다고 판단하면 말이지."
+//   여태 reply_needed 는 **끄는 문만 셋(handled·dismissed·replied)** 이고 켜는 문이 없었다 —
+//   자동 분류가 놓친 메일은 사용자가 어느 탭에서 봐도 답변필요로 올릴 방법이 없었다.
+//
+//   ★ 플래그만 켜면 안 된다. 답변필요 폴더의 정의가 `status IN ('open','uncertain')` 이라
+//     archived/spam 스레드는 플래그를 켜도 **그 탭에 나타나지 않는다**. 사용자에겐 "눌렀는데
+//     아무 일도 안 일어남" 이 된다 → 상태도 'open' 으로 같이 돌린다.
+//     (게이트를 조이면 대기 상태도 같이 손봐야 한다 — 같은 계열의 실수를 반복하지 않는다.)
+// ─────────────────────────────────────────────
+router.post('/:businessId/email-threads/:id/mark-reply-needed',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const acctIds = await accessibleAccountIds(businessId, req.user.id);
+      const thread = await EmailThread.findOne({
+        where: { id: req.params.id, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } },
+      });
+      if (!thread) return errorResponse(res, 'thread_not_found', 404);
+
+      const prevStatus = thread.status;
+      await thread.update({
+        reply_needed: true,
+        reply_needed_at: new Date(),
+        reply_needed_reason: 'manual',
+        // 답변필요 폴더에 실제로 보이게 한다. uncertain 은 그대로 둔다(폴더 정의가 포함한다).
+        status: prevStatus === 'uncertain' ? 'uncertain' : 'open',
+        uncertain_reason: prevStatus === 'uncertain' ? thread.uncertain_reason : null,
+      });
+
+      broadcastMail(req, businessId, 'mail:updated', { id: thread.id, reply_needed: true });
+      await createAuditLog({
+        userId: req.user.id, businessId,
+        action: 'mail.mark_reply_needed', targetType: 'email_thread', targetId: thread.id,
+        oldValue: { reply_needed: false, status: prevStatus },
+        newValue: { reply_needed: true, status: thread.status },
+      });
+      return successResponse(res, { id: thread.id, reply_needed: true, status: thread.status });
     } catch (err) { next(err); }
   }
 );

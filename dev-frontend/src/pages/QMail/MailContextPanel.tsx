@@ -361,6 +361,7 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
           formatTime={formatTimeAgo}
           onAdd={addIssue}
           onDelete={deleteIssue}
+          draftKey={`planq:draft:mail-issue:${myUserId || 0}:${thread.id}`}
           emptyText={t('context.issuesEmpty', { defaultValue: '아직 이슈가 없습니다' }) as string}
           placeholder={t('context.issuePh', { defaultValue: '이슈 작성... (⌘/Ctrl+Enter 저장)' }) as string}
         />
@@ -381,6 +382,7 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
           formatTime={formatTimeAgo}
           onAdd={addNote}
           onDelete={deleteNote}
+          draftKey={`planq:draft:mail-note:${myUserId || 0}:${thread.id}`}
           emptyText={t('context.notesEmpty', { defaultValue: '아직 메모가 없습니다' }) as string}
           placeholder={t('context.notePh', { defaultValue: '메모 작성... (⌘/Ctrl+Enter 저장)' }) as string}
         />

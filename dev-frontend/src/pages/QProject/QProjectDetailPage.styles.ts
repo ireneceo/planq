@@ -47,7 +47,12 @@ export const PinnedDocInfo = styled.div`
 // ───────── Dashboard Timeline (공용 GanttTrack) ─────────
 // ───────── styled ─────────
 export const BackBtn = styled.button`padding:6px 12px;background:#FFF;color:#334155;border:1px solid #CBD5E1;border-radius:8px;font-size:12px;cursor:pointer;&:hover{background:#F8FAFC;border-color:#94A3B8;}`;
-export const TabBar = styled.div`display:flex;gap:4px;border-bottom:1px solid #E2E8F0;background:#FFF;padding:0 20px;margin:-20px -20px 20px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;&::-webkit-scrollbar{display:none;}`;
+// 운영 #313 — "스크롤을 끝까지 내려도 상단에 서브페이지 제목이 있고 그 옆에 헤더들 모두 고정되어야
+//   하는데 탭 부분이 고정되고 움직여서 올라가 버려."
+//   PageShell 은 헤더를 고정하고 Body 만 스크롤시키는데, 이 탭 줄은 그 Body **안에** 있어서 같이
+//   밀려 올라갔다. 아래로 내려갈수록 지금 어느 탭인지 알 수 없어진다.
+//   → 스크롤 컨테이너(Body) 안에서 sticky. 배경(#FFF)이 이미 있어 뒤 내용이 비쳐 보이지 않는다.
+export const TabBar = styled.div`display:flex;gap:4px;border-bottom:1px solid #E2E8F0;background:#FFF;padding:0 20px;margin:-20px -20px 20px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;position:sticky;top:0;z-index:5;&::-webkit-scrollbar{display:none;}`;
 export const TabFallback = styled.div`padding:40px 24px;text-align:center;font-size:13px;color:#94A3B8;`;
 export const Tab = styled.button<{$active:boolean}>`
   padding:12px 14px;background:transparent;border:none;color:${p=>p.$active?'#0F766E':'#64748B'};
@@ -239,4 +244,13 @@ export const HeaderBtn = styled.button`
   background: #F0FDFA; border: 1px solid #99F6E4;
   &:hover { background: #CCFBF1; }
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+`;
+
+// 운영 #339 — 개요 탭 상단의 프로젝트 설명(읽기 전용). 편집은 설정 탭 한 곳이 단일 원천이다.
+//   줄바꿈을 그대로 살린다 — 사용자가 문단으로 쓴 글을 한 덩어리로 뭉치면 못 읽는다.
+export const OverviewDesc = styled.div`
+  margin: 0 0 12px; padding: 14px 16px;
+  background: #fff; border: 1px solid #E2E8F0; border-radius: 12px;
+  font-size: 13px; line-height: 1.7; color: #334155;
+  white-space: pre-wrap; word-break: break-word;
 `;

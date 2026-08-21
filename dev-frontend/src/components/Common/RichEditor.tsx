@@ -124,7 +124,35 @@ export default function RichEditor({
             return true;
           }
         }
-        // 2) 마크다운 텍스트 붙여넣기 → 제목·표·목록으로 변환 (#151)
+        // 2) 운영 #342 — 노션·워드·웹에서 복사하면 이미지가 클립보드 HTML 안에 data: base64 로 온다.
+        //    Image 확장이 allowBase64: false 라 그 <img> 를 통째로 버려서 "그림만 안 붙는" 상태였다.
+        //    붙여넣는 순간 우리 스토리지로 올려 URL 로 바꾼다 (base64 를 본문에 박지 않는다).
+        //    PostEditor 와 같은 규칙 — 두 에디터가 다르게 동작하면 사용자는 화면마다 다른 제품으로 읽는다.
+        if (uploadUrlRef.current) {
+          const pastedHtml = event.clipboardData?.getData('text/html') || '';
+          const dataImgRe = /<img\b[^>]*?\bsrc\s*=\s*["'](data:image\/[a-zA-Z0-9.+-]+;base64,[^"']+)["'][^>]*>/gi;
+          const dataUrls = [...new Set([...pastedHtml.matchAll(dataImgRe)].map((m) => m[1]))];
+          if (dataUrls.length) {
+            event.preventDefault();
+            (async () => {
+              let html = pastedHtml;
+              let replaced = 0;
+              for (const [i, dataUrl] of dataUrls.entries()) {
+                try {
+                  const blob = await (await fetch(dataUrl)).blob();
+                  const ext = (blob.type.split('/')[1] || 'png').replace(/[^a-z0-9]/gi, '');
+                  const src = await uploadImageForUrl(new File([blob], `pasted-${i + 1}.${ext}`, { type: blob.type }));
+                  if (!src) continue;
+                  html = html.split(dataUrl).join(src);
+                  replaced += 1;
+                } catch { /* 이 한 장만 건너뛴다 */ }
+              }
+              editor?.chain().focus().insertContent(replaced ? html : pastedHtml).run();
+            })();
+            return true;
+          }
+        }
+        // 3) 마크다운 텍스트 붙여넣기 → 제목·표·목록으로 변환 (#151)
         return handleMarkdownPaste(view, event);
       },
       handleDrop: (_view, event) => {
@@ -148,18 +176,25 @@ export default function RichEditor({
     currentValueRef.current = value;
   }, [value, editor]);
 
-  const uploadAndInsertImage = async (file: File) => {
+  // 업로드만 하고 **URL 을 돌려준다** — 삽입 위치가 다른 호출부(#342 base64 치환)가 재사용한다.
+  const uploadImageForUrl = async (file: File): Promise<string | null> => {
     const url = uploadUrlRef.current;
-    if (!editor || !url) return;
+    if (!url) return null;
     try {
       const fd = new FormData();
       fd.append('file', file, file.name);
       const r = await apiFetch(url, { method: 'POST', body: fd });
+      // ★ apiFetch 는 throw 하지 않는다 — res.ok 를 봐야 실패를 안다.
+      if (!r.ok) return null;
       const j = await r.json();
-      if (j.success && j.data?.preview_url) {
-        editor.chain().focus().setImage({ src: j.data.preview_url, alt: file.name }).run();
-      }
-    } catch { /* silent */ }
+      return (j.success && j.data?.preview_url) ? String(j.data.preview_url) : null;
+    } catch { return null; }
+  };
+
+  const uploadAndInsertImage = async (file: File) => {
+    if (!editor) return;
+    const src = await uploadImageForUrl(file);
+    if (src) editor.chain().focus().setImage({ src, alt: file.name }).run();
   };
 
   // 링크 입력 — window.prompt 는 금지(CLAUDE.md 절대 금지 사항)라 인라인 입력줄로 받는다.

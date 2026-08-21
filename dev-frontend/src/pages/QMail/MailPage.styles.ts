@@ -801,19 +801,24 @@ export const FromManage = styled.button`
 `;
 
 // 폴더 맥락 일괄 액션 버튼 — Secondary(ghost). $confirm 이면 2단계 확인(Coral 강조).
+// 운영 #308 — "모두 읽음 버튼이 혼자 큰데... 회색 버튼으로 하거나 뭔가 조치를 취해서 버튼 역할이라고
+//   알 수 있게만 하고 사이즈는 필터랑 같게." 같은 줄에 선 FilterToggleBtn 은 28px/7px/투명인데
+//   이것만 36px/8px/흰배경이라 줄이 어그러져 보였다. 치수는 필터와 **같은 값**을 쓰고
+//   (min-height 28 · padding 4px 9px · radius 7 · font 12/600), 대신 배경을 회색으로 채워
+//   "누를 수 있는 것" 임을 형태로 알린다(필터 토글은 투명 — 둘이 구분된다).
 export const BulkAction = styled.button<{ $confirm?: boolean }>`
   flex-shrink: 0; align-self: center;
   display: inline-flex; align-items: center; gap: 5px;
-  height: 36px; padding: 0 12px; margin-left: 6px;
-  border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
+  min-height: 28px; padding: 4px 9px; margin-left: auto;
+  border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer;
   white-space: nowrap;
   & > svg { flex-shrink: 0; }
-  background: ${(p) => (p.$confirm ? '#FFF1F2' : '#FFFFFF')};
+  background: ${(p) => (p.$confirm ? '#FFF1F2' : '#F1F5F9')};
   color: ${(p) => (p.$confirm ? '#E11D48' : '#475569')};
   border: 1px solid ${(p) => (p.$confirm ? '#FDA4AF' : '#E2E8F0')};
   transition: background 0.15s, color 0.15s, border-color 0.15s;
   &:hover:not(:disabled) {
-    background: ${(p) => (p.$confirm ? '#FFE4E6' : '#F1F5F9')};
+    background: ${(p) => (p.$confirm ? '#FFE4E6' : '#E2E8F0')};
     border-color: ${(p) => (p.$confirm ? '#FB7185' : '#CBD5E1')};
     color: ${(p) => (p.$confirm ? '#BE123C' : '#0F172A')};
   }

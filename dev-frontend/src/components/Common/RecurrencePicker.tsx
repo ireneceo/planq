@@ -65,9 +65,15 @@ const RecurrencePicker: React.FC<Props> = ({ value, onChange, anchorDate, disabl
       count: next.endCount,
       until: next.endUntil || undefined,
     };
+    // 운영 #347 — 화면이 표현 못 하는 규칙(advanced)은 **원문을 그대로 돌려준다**.
+    //   여기서 다시 만들면 BYSETPOS·다중 BYDAY 가 통째로 날아간다(옛 회귀의 정확한 지점).
+    if (next.preset === 'advanced') {
+      onChange(next.rawRule || null);
+      return;
+    }
     const rrule = next.preset === 'custom'
       ? buildCustomRRule(next.customEvery, next.customUnit, end)
-      : buildPresetRRule(next.preset, anchorDate, end);
+      : buildPresetRRule(next.preset, anchorDate, end, { nthPos: next.nthPos, nthDay: next.nthDay });
     onChange(rrule);
   };
 
@@ -91,14 +97,31 @@ const RecurrencePicker: React.FC<Props> = ({ value, onChange, anchorDate, disabl
     ? formatRRuleLabel(value, anchorDate, t as unknown as TFunction)
     : '';
 
+  // 운영 #347 — 실제로 많이 쓰는 규칙(평일 매일·분기·매월 n번째 요일)을 화면에서 만들 수 있게 한다.
+  //   'advanced' 는 목록에 넣지 않는다 — 사용자가 고르는 값이 아니라, 화면이 표현 못 하는 규칙을
+  //   **보존하는 상태**다(아래 안내 뱃지로만 노출).
   const presetOptions: { value: RecurPreset; label: string }[] = [
     { value: 'daily', label: t('recur.presetDaily', '매일') },
+    { value: 'weekdays', label: t('recur.weekdays', '평일 매일') },
     { value: 'weekly', label: t('recur.presetWeekly', { day: '', defaultValue: '매주' }) as string },
     { value: 'biweekly', label: t('recur.presetBiweekly', { day: '', defaultValue: '격주' }) as string },
     { value: 'monthly', label: t('recur.presetMonthly', { day: '', defaultValue: '매월' }) as string },
+    { value: 'monthlyNthWeekday', label: t('recur.presetMonthlyNth', '매월 n번째 요일') },
+    { value: 'monthlyLastWeekday', label: t('recur.monthlyLastWeekday', '매월 마지막 평일') },
+    { value: 'quarterly', label: t('recur.quarterly', '분기마다') },
     { value: 'yearly', label: t('recur.presetYearly', { month: '', day: '', defaultValue: '매년' }) as string },
     { value: 'custom', label: t('recur.presetCustom', '사용자 지정') },
   ];
+
+  const nthPosOptions = [1, 2, 3, 4, -1].map((n) => ({
+    value: n,
+    label: n === -1
+      ? (t('recur.nthLast', '마지막') as string)
+      : (t('recur.nthN', { n, defaultValue: `${n}번째` }) as string),
+  }));
+  const nthDayOptions = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'].map((c) => ({
+    value: c, label: t(`recur.weekday.${c}`, c) as string,
+  }));
 
   const unitOptions: { value: RecurCustomUnit; label: string }[] = [
     { value: 'day', label: t('recur.customUnitDay', '일') },
@@ -140,12 +163,24 @@ const RecurrencePicker: React.FC<Props> = ({ value, onChange, anchorDate, disabl
 
       {state.enabled && !noAnchor && (
         <>
+          {/* 운영 #347 — 화면이 표현하지 못하는 규칙. 규칙은 그대로 살아 있고, 여기서 프리셋을
+              **직접 고를 때만** 바뀐다는 사실을 말한다. 여태 이 상태가 조용히 'custom' 으로
+              떨어져 다른 필드만 고쳐 저장해도 규칙이 축소됐다. */}
+          {state.preset === 'advanced' && (
+            <AdvancedNotice>
+              <AdvancedBadge>{t('recur.advancedBadge', '사용자 지정 규칙')}</AdvancedBadge>
+              <span>{t('recur.advancedHint', '이 반복 규칙은 그대로 유지됩니다. 아래에서 다른 주기를 고르면 그때 바뀝니다.')}</span>
+            </AdvancedNotice>
+          )}
           <Field>
             <FieldLabel>{t('recur.presetLabel', '반복 주기')}</FieldLabel>
             <PlanQSelect
               size="sm"
               isDisabled={disabled}
-              value={presetOptions.find(o => o.value === state.preset) || presetOptions[1]}
+              placeholder={state.preset === 'advanced'
+                ? (t('recur.advancedBadge', '사용자 지정 규칙') as string)
+                : undefined}
+              value={presetOptions.find(o => o.value === state.preset) || null}
               onChange={(v) => {
                 const p = (v as { value?: RecurPreset })?.value;
                 if (p) update({ preset: p });
@@ -153,6 +188,35 @@ const RecurrencePicker: React.FC<Props> = ({ value, onChange, anchorDate, disabl
               options={presetOptions}
             />
           </Field>
+
+          {/* 운영 #347 — 매월 n번째 X요일 (BYSETPOS). 여태 화면에서 만들 수 없어 API 로만 넣을 수 있었다. */}
+          {state.preset === 'monthlyNthWeekday' && (
+            <Field>
+              <FieldLabel>{t('recur.nthLabel', '몇 번째 무슨 요일')}</FieldLabel>
+              <Inline>
+                <PlanQSelect
+                  size="sm"
+                  isDisabled={disabled}
+                  value={nthPosOptions.find(o => o.value === state.nthPos) || nthPosOptions[0]}
+                  onChange={(v) => {
+                    const n = (v as { value?: number })?.value;
+                    if (n != null) update({ nthPos: n });
+                  }}
+                  options={nthPosOptions}
+                />
+                <PlanQSelect
+                  size="sm"
+                  isDisabled={disabled}
+                  value={nthDayOptions.find(o => o.value === state.nthDay) || nthDayOptions[0]}
+                  onChange={(v) => {
+                    const d = (v as { value?: string })?.value;
+                    if (d) update({ nthDay: d });
+                  }}
+                  options={nthDayOptions}
+                />
+              </Inline>
+            </Field>
+          )}
 
           {state.preset === 'custom' && (
             <Field>
@@ -285,4 +349,15 @@ const Preview = styled.div`
   font-size: 12px; color: #475569; padding: 6px 10px;
   background: #FFF; border: 1px dashed #CBD5E1; border-radius: 6px;
   strong { color: #0F766E; font-weight: 700; }
+`;
+
+const AdvancedNotice = styled.div`
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 10px; padding: 8px 10px;
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
+  font-size: 11.5px; line-height: 1.5; color: #64748B;
+`;
+const AdvancedBadge = styled.span`
+  flex-shrink: 0; padding: 2px 7px; border-radius: 999px;
+  background: #E2E8F0; color: #475569; font-size: 10.5px; font-weight: 700;
 `;

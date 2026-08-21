@@ -796,6 +796,21 @@ const MailPage: React.FC = () => {
     finally { setDismissingId(null); }
   }, [businessId, afterTriage]);
 
+  // 운영 #314 — "다른 메일 탭에서 답변필요로 보낼 수도 있어야 할 것 같아. 내가 판단할 때
+  //   나중에 답변해야 한다고 판단하면 말이지." 탭을 옮기는 게 아니라 **보고 있는 자리에서** 올린다.
+  //   서버가 상태까지 같이 되돌린다(archived 는 플래그만 켜면 답변필요 탭에 안 뜬다).
+  const markReplyNeeded = useCallback(async (e: React.MouseEvent, threadId: number) => {
+    e.stopPropagation();
+    if (!businessId) return;
+    setDismissingId(threadId);
+    try {
+      const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${threadId}/mark-reply-needed`, { method: 'POST' });
+      if (!r.ok) throw new Error('mark_reply_needed_failed');
+      afterTriage(threadId);
+    } catch { /* 실패 시 목록 유지 — 다음 로드에서 복원 */ }
+    finally { setDismissingId(null); }
+  }, [businessId, afterTriage]);
+
   // 스팸으로 (리스트에서 바로) — 광고·스팸은 여기서 끝낸다
   const markSpamRow = useCallback(async (e: React.MouseEvent, threadId: number) => {
     e.stopPropagation();
@@ -1865,6 +1880,16 @@ const MailPage: React.FC = () => {
                       >
                         {t('actions.markHandled', { defaultValue: '확인 완료' }) as string}
                       </RowBtn>
+                      {/* 운영 #314 — 확인 권장에서 "이건 나중에 답해야 한다" 로 올리는 문 */}
+                      <RowBtn
+                        type="button"
+                        data-testid="mail-row-reply-needed"
+                        disabled={dismissingId === mt.id}
+                        title={t('actions.markReplyNeededHint', { defaultValue: '답변 필요로 올립니다. 답변 필요 탭에서 이어서 처리할 수 있습니다.' }) as string}
+                        onClick={(e) => markReplyNeeded(e, mt.id)}
+                      >
+                        {t('actions.markReplyNeeded', { defaultValue: '답변 필요' }) as string}
+                      </RowBtn>
                       <RowBtn
                         type="button"
                         $danger
@@ -1872,6 +1897,21 @@ const MailPage: React.FC = () => {
                         onClick={(e) => markSpamRow(e, mt.id)}
                       >
                         {t('actions.markSpam', { defaultValue: '스팸' }) as string}
+                      </RowBtn>
+                    </ReplyRow>
+                  )}
+                  {/* 운영 #314 — 확인 권장·답변 필요 말고 **어느 탭에서도** 답변 필요로 올릴 수 있어야 한다.
+                      (전체·자동/마케팅·보관·보낸메일·스팸 …) 이미 답변 필요인 건 다시 올릴 이유가 없다. */}
+                  {folder !== 'uncertain' && folder !== 'reply_needed' && !mt.reply_needed && !handledIds.has(mt.id) && (
+                    <ReplyRow>
+                      <RowBtn
+                        type="button"
+                        data-testid="mail-row-reply-needed"
+                        disabled={dismissingId === mt.id}
+                        title={t('actions.markReplyNeededHint', { defaultValue: '답변 필요로 올립니다. 답변 필요 탭에서 이어서 처리할 수 있습니다.' }) as string}
+                        onClick={(e) => markReplyNeeded(e, mt.id)}
+                      >
+                        {t('actions.markReplyNeeded', { defaultValue: '답변 필요' }) as string}
                       </RowBtn>
                     </ReplyRow>
                   )}
