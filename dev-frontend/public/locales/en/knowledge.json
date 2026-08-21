@@ -195,6 +195,17 @@
     "attachExistingPosts": "Link existing docs"
   },
   "csvIngest": {
-    "drop": "Drag a CSV file here, or click to choose"
+    "drop": "Drag a CSV file here, or click to choose",
+    "truncated": "Showing {{returned}} of {{total}} rows (max {{limit}} at a time). Split the file to upload the rest.",
+    "fieldColumns": "These columns become fields",
+    "onDuplicate": "If a record with the same title exists",
+    "dupSkip": "Skip",
+    "dupCreate": "Add anyway",
+    "col": {
+      "fields": "Fields"
+    }
+  },
+  "aiIngest": {
+    "truncated": "Imported {{returned}} of {{total}} items (max {{limit}} at a time)."
   }
 }

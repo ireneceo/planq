@@ -13,11 +13,16 @@ type Lang = 'ko' | 'en';
 type Category = 'policy' | 'manual' | 'incident' | 'faq' | 'about' | 'pricing';
 type Visibility = 'translate' | 'show_original' | 'hide_other';
 
+interface KbColumn { id: string; name: string; type: string; show_in_list: boolean }
 interface Candidate {
   title: string;
   body: string;
   category: Category;
+  // #316/#320 — 백엔드가 자유 카테고리 배열과 항목을 함께 내려준다. 그대로 batch 로 넘긴다.
+  categories?: string[];
   tags: string[];
+  custom_columns?: KbColumn[] | null;
+  custom_values?: Record<string, string> | null;
   excluded?: boolean;
 }
 
@@ -29,6 +34,12 @@ interface Props {
 
 const CATEGORIES: Category[] = ['policy', 'manual', 'incident', 'faq', 'about', 'pricing'];
 
+const TruncBox = styled.div`
+  margin: 8px 0; padding: 8px 12px; border-radius: 6px;
+  background: #FFF7ED; border: 1px solid #FED7AA; color: #9A3412;
+  font-size: 12px; line-height: 1.5;
+`;
+
 const KbAiIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved }) => {
   const { t } = useTranslation('knowledge');
   const { t: tErr } = useTranslation('errors');
@@ -38,6 +49,7 @@ const KbAiIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved }) => {
   const [autoTranslate, setAutoTranslate] = useState(true);
   const [visibility, setVisibility] = useState<Visibility>('translate');
   const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [truncNote, setTruncNote] = useState<string | null>(null);   // #322
   const [skipReview, setSkipReview] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -56,6 +68,12 @@ const KbAiIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved }) => {
       const j = await r.json();
       if (!r.ok || !j.success) throw new Error(j.message || 'analysis_failed');
       const list = (j.data?.candidates || []) as Candidate[];
+      // #322 — 잘렸으면 알린다.
+      if (j.data?.truncated) {
+        setTruncNote(t('aiIngest.truncated', '{{total}}건 중 {{returned}}건만 가져왔습니다 (한 번에 최대 {{limit}}건).', {
+          total: j.data.total_parsed, returned: j.data.returned, limit: j.data.limit,
+        }) as string);
+      } else setTruncNote(null);
       if (list.length === 0) throw new Error(t('aiIngest.errEmpty', '추출된 항목이 없습니다. 입력 내용을 확인해주세요.') as string);
       setCandidates(list);
       // 검수 스킵 토글이 켜져 있으면 즉시 저장
@@ -207,6 +225,8 @@ const KbAiIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved }) => {
                 {t('aiIngest.reviewHint', 'AI 가 추출한 항목입니다. 수정·제외 후 일괄 저장합니다.')}
                 <ReviewCount>{candidates.filter(c => !c.excluded).length} / {candidates.length}</ReviewCount>
               </Hint>
+              {/* #322 — 초과분이 조용히 잘리지 않게 */}
+              {truncNote && <TruncBox>{truncNote}</TruncBox>}
               <ReviewList>
                 {candidates.map((c, idx) => (
                   <ReviewCard key={idx} $excluded={!!c.excluded}>

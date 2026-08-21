@@ -19,14 +19,41 @@ interface Props {
   onSaved: () => void;
 }
 
+interface KbColumn { id: string; name: string; type: string; show_in_list: boolean }
 interface CsvCandidate {
   title: string;
   body: string;
-  category: string;
+  category?: string;
+  categories?: string[];
   tags: string[];
   source_language: 'ko' | 'en';
   auto_translate: boolean;
+  // #316/#319 — title/body 외 남은 열이 항목으로 들어온다. 그대로 batch 로 넘긴다.
+  custom_columns?: KbColumn[] | null;
+  custom_values?: Record<string, string> | null;
 }
+
+const WarnBox = styled.div`
+  margin: 8px 0; padding: 8px 12px; border-radius: 6px;
+  background: #FFF7ED; border: 1px solid #FED7AA; color: #9A3412;
+  font-size: 12px; line-height: 1.5;
+`;
+const InfoBox = styled.div`
+  margin: 8px 0; padding: 8px 12px; border-radius: 6px;
+  background: #F0FDFA; border: 1px solid #CCFBF1; color: #0F766E;
+  font-size: 12px; line-height: 1.5;
+  strong { font-weight: 700; }
+`;
+const DupRow = styled.div`display: flex; align-items: center; gap: 8px; margin: 8px 0;`;
+const DupLabel = styled.span`font-size: 12px; color: #64748B;`;
+const DupChoice = styled.button<{ $on: boolean }>`
+  padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; font-family: inherit;
+  cursor: pointer; transition: all 0.12s;
+  border: 1px solid ${p => (p.$on ? '#14B8A6' : '#E2E8F0')};
+  background: ${p => (p.$on ? '#F0FDFA' : '#fff')};
+  color: ${p => (p.$on ? '#0F766E' : '#64748B')};
+  &:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,0.3); }
+`;
 
 const KbCsvIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved }) => {
   const { t } = useTranslation('knowledge');
@@ -38,6 +65,10 @@ const KbCsvIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved }) => 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);   // #232 드롭존 하이라이트
+  // #322 — 초과분이 잘렸는지 / #319 — 어떤 열이 항목이 되는지 사용자에게 보여준다.
+  const [parseInfo, setParseInfo] = useState<{ total: number; returned: number; truncated: boolean; limit: number; fieldColumns: string[] } | null>(null);
+  // #321 — 같은 CSV 재업로드 시 처리 방식. 기본은 건너뛰기(중복 폭증이 실제 신고였다).
+  const [onDuplicate, setOnDuplicate] = useState<'skip' | 'create'>('skip');
 
   const handleFile = useCallback((file: File) => {
     const reader = new FileReader();
@@ -64,6 +95,13 @@ const KbCsvIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved }) => 
       const list = (j.data?.candidates || []) as CsvCandidate[];
       if (list.length === 0) throw new Error(t('csvIngest.errEmpty', '파싱된 행이 없습니다. 헤더와 데이터를 확인해주세요.') as string);
       setCandidates(list);
+      setParseInfo({
+        total: Number(j.data?.total_parsed) || list.length,
+        returned: Number(j.data?.returned) || list.length,
+        truncated: !!j.data?.truncated,
+        limit: Number(j.data?.limit) || list.length,
+        fieldColumns: Array.isArray(j.data?.field_columns) ? j.data.field_columns : [],
+      });
       setStep('preview');
     } catch (e) {
       setError(mapApiError(e, tErr));
@@ -82,6 +120,7 @@ const KbCsvIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved }) => 
         body: JSON.stringify({
           items: candidates,
           scope: 'workspace',
+          on_duplicate: onDuplicate,   // #321
         }),
       });
       const j = await r.json();
@@ -93,7 +132,7 @@ const KbCsvIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved }) => 
     } finally {
       setSaving(false);
     }
-  }, [candidates, saving, businessId, onSaved, onClose]);
+  }, [candidates, saving, businessId, onSaved, onClose, onDuplicate, tErr]);
 
   return (
     <Backdrop onClick={onClose}>
@@ -161,6 +200,35 @@ const KbCsvIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved }) => 
                 {t('csvIngest.previewHint', '파싱된 항목 미리보기. 일괄 저장하면 임베딩과 번역이 백그라운드로 처리됩니다.')}
                 <PreviewCount>{candidates.length} {t('csvIngest.rows', '행')}</PreviewCount>
               </Hint>
+
+              {/* #322 — 잘렸으면 반드시 알린다. 여태 조용히 잘려서 나중에 발견했다. */}
+              {parseInfo?.truncated && (
+                <WarnBox>
+                  {t('csvIngest.truncated', '{{total}}건 중 {{returned}}건만 표시됩니다 (한 번에 최대 {{limit}}건). 나머지는 파일을 나눠 올려주세요.', {
+                    total: parseInfo.total, returned: parseInfo.returned, limit: parseInfo.limit,
+                  })}
+                </WarnBox>
+              )}
+
+              {/* #319 — 어떤 열이 항목이 되는지 미리 보여준다. */}
+              {parseInfo && parseInfo.fieldColumns.length > 0 && (
+                <InfoBox>
+                  {t('csvIngest.fieldColumns', '다음 열이 항목으로 만들어집니다')}: <strong>{parseInfo.fieldColumns.join(', ')}</strong>
+                </InfoBox>
+              )}
+
+              {/* #321 — 같은 파일을 다시 올렸을 때의 처리 */}
+              <DupRow>
+                <DupLabel>{t('csvIngest.onDuplicate', '제목이 같은 정보가 이미 있으면')}</DupLabel>
+                <DupChoice
+                  type="button" $on={onDuplicate === 'skip'}
+                  onClick={() => setOnDuplicate('skip')}
+                >{t('csvIngest.dupSkip', '건너뛰기')}</DupChoice>
+                <DupChoice
+                  type="button" $on={onDuplicate === 'create'}
+                  onClick={() => setOnDuplicate('create')}
+                >{t('csvIngest.dupCreate', '새로 추가')}</DupChoice>
+              </DupRow>
               <PreviewTable>
                 <thead>
                   <tr>
@@ -168,6 +236,7 @@ const KbCsvIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved }) => 
                     <Th>{t('csvIngest.col.category', '카테고리')}</Th>
                     <Th>{t('csvIngest.col.lang', '언어')}</Th>
                     <Th>{t('csvIngest.col.translate', '번역')}</Th>
+                    <Th>{t('csvIngest.col.fields', '항목')}</Th>
                     <Th>{t('csvIngest.col.tags', '태그')}</Th>
                   </tr>
                 </thead>
@@ -175,9 +244,10 @@ const KbCsvIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved }) => 
                   {candidates.slice(0, 50).map((c, i) => (
                     <tr key={i}>
                       <Td>{c.title}</Td>
-                      <Td>{c.category}</Td>
+                      <Td>{(c.categories && c.categories.length ? c.categories.join(', ') : c.category) || '—'}</Td>
                       <Td>{c.source_language.toUpperCase()}</Td>
                       <Td>{c.auto_translate ? 'ON' : 'OFF'}</Td>
+                      <Td>{(c.custom_columns || []).map(col => col.name).join(', ') || '—'}</Td>
                       <Td>{(c.tags || []).join(', ')}</Td>
                     </tr>
                   ))}
