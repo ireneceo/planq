@@ -87,8 +87,18 @@ class ErrorBoundary extends React.Component<Props, State> {
       return <React.Fragment key={resetKey}>{this.props.children}</React.Fragment>;
     }
 
-    // ChunkLoadError → componentDidCatch 가 곧 reload. 사용자에게 에러 화면 보여주지 않음.
-    if (silentReload) return null;
+    // ChunkLoadError → componentDidCatch 가 곧 reload.
+    //   ★ 여기서 null 을 돌려주면 그 사이 화면이 **완전히 비어** 보인다. reload 가 즉시 안 되거나
+    //     (SW 가 옛 파일을 계속 물고 있는 경우) 사용자에게는 "눌렀는데 아무것도 없다" 로 남는다.
+    //     짧은 순간이라도 무슨 일이 일어나는지 말해준다 — 빈 화면은 고장으로 읽힌다.
+    if (silentReload) {
+      const ko = !(typeof navigator !== 'undefined' && navigator.language?.startsWith('en'));
+      return (
+        <div role="status" style={{ padding: '40px 20px', textAlign: 'center', color: '#64748B', fontSize: 13 }}>
+          {ko ? '새 버전을 불러오는 중입니다…' : 'Loading the new version…'}
+        </div>
+      );
+    }
 
     if (this.props.fallback) return this.props.fallback(error, this.reset);
 

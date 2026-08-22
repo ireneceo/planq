@@ -97,7 +97,7 @@ const AttendanceWidget: React.FC<Props> = ({ variant = 'sidebar', isCollapsed, e
           되돌릴 수 있을 때만 되돌리기를 준다(사용자가 이미 뭔가 눌렀으면 그건 정정의 영역이다). */}
       {a.autoNotice && (
         <Notice $dark={dark} role="status">
-          <NoticeText>{t('widget.autoClockedIn')}</NoticeText>
+          <NoticeText title={t('widget.autoClockedIn') as string}>{t('widget.autoClockedIn')}</NoticeText>
           {a.autoNotice.can_undo && (
             <NoticeLink type="button" onClick={a.undoAuto} $dark={dark}>
               {t('widget.undoAuto')}
@@ -204,6 +204,10 @@ const Notice = styled.div<{ $dark: boolean }>`
 const NoticeText = styled.span`
   flex: 1; min-width: 0; font-size: 11px; line-height: 1.35;
   color: inherit; opacity: 0.9;
+  /* 짧은 화면에서 두 줄이 되면 카드가 커져 메뉴를 밀어낸다 — 한 줄로 자른다(전문은 title 로). */
+  @media (max-height: 820px) {
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
 `;
 const NoticeLink = styled.button<{ $dark: boolean }>`
   flex-shrink: 0; background: none; border: none; padding: 0; cursor: pointer;

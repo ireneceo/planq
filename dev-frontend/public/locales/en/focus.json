@@ -5,7 +5,8 @@
       "idle": "Idle",
       "active": "Focusing",
       "paused": "Paused",
-      "idle_detected": "Away detected"
+      "idle_detected": "Away detected",
+      "break": "On break"
     },
     "idleHint": "Click \"Start\" on any task in Q Task — time will track automatically.",
     "gotoTasks": "Go to my tasks",

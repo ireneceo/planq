@@ -23,6 +23,8 @@ const KnowledgePage = lazy(() => import('../pages/Knowledge/KnowledgePage'));
 const QProjectPage = lazy(() => import('../pages/QProject/QProjectPage'));
 const QProjectDetailPage = lazy(() => import('../pages/QProject/QProjectDetailPage'));
 const QCalendarPage = lazy(() => import('../pages/QCalendar/QCalendarPage'));
+const AttendancePage = lazy(() => import('../pages/Attendance/AttendancePage'));
+const WhatsNewPage = lazy(() => import('../pages/WhatsNew/WhatsNewPage'));
 const QNotePage = lazy(() => import('../pages/QNote/QNotePage'));
 const QFilePage = lazy(() => import('../pages/QFile/QFilePage'));
 const PersonalVaultPage = lazy(() => import('../pages/PersonalVault/PersonalVaultPage'));
@@ -65,6 +67,8 @@ export const APP_ROUTES: AppRouteDef[] = [
   { path: '/dashboard', element: <DashboardPage /> },
   { path: '/inbox', element: <TodoPage /> },
   { path: '/notifications', element: <NotificationsPage /> },
+  // 드리프트 가드가 찾아낸 누락 — 탭 모드에서는 빈 화면이 될 자리였다(#306 과 같은 계열).
+  { path: '/whats-new', element: <WhatsNewPage /> },
   { path: '/share-receive', element: <ShareReceivePage /> },
   { path: '/business/settings/notifications', roles: ['business_owner', 'business_member', 'client'], element: <WorkspaceSettingsPage /> },
   { path: '/business/settings', roles: BIZ, element: <WorkspaceSettingsPage /> },
@@ -83,6 +87,9 @@ export const APP_ROUTES: AppRouteDef[] = [
   { path: '/projects/p/:id', element: <QProjectDetailPage /> },
   { path: '/projects/:view', element: <QProjectPage /> },
   { path: '/calendar', element: <QCalendarPage /> },
+  // ★ 이 표에 없으면 탭 모드에서 **빈 화면**이 된다. App.tsx 에만 등록하면 탭에서는 안 열린다
+  //   (운영 2026-08-22: 근태 메뉴를 눌러도 아무것도 안 나왔다 — 원인이 정확히 이것이었다).
+  { path: '/attendance', roles: BIZ, element: <AttendancePage /> },
   { path: '/notes', element: <QNotePage /> },
   { path: '/notes/:sessionId', element: <QNotePage /> },
   { path: '/files', element: <QFilePage /> },

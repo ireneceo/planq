@@ -7,6 +7,7 @@ import { useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import PageShell from '../../components/Layout/PageShell';
+import ErrorBoundary from '../../components/Common/ErrorBoundary';
 import ActionButton from '../../components/Common/ActionButton';
 import AttendanceWidget from '../../components/Attendance/AttendanceWidget';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
@@ -318,7 +319,20 @@ const AttendancePage: React.FC = () => {
   );
 };
 
-export default AttendancePage;
+// ★ 렌더 중 오류가 나면 **흰 화면**이 남는다 — 사용자에게는 "메뉴를 눌렀는데 아무것도 없다" 이고,
+//   무엇이 잘못됐는지 단서가 하나도 없다(운영 2026-08-22, 원인 추적에 반나절이 갔다).
+//   경계로 감싸 오류 내용을 화면에 남긴다. 고치는 것보다 **보이게 하는 것이 먼저**다.
+export default function AttendancePageBoundary() {
+  // ★ 렌더 중 오류가 나면 흰 화면이 남는다 — 사용자에게는 "메뉴를 눌렀는데 아무것도 없다" 이고
+  //   무엇이 잘못됐는지 단서가 하나도 없다(운영 2026-08-22, 원인 추적에 반나절이 갔다).
+  //   ErrorBoundary 의 기본 화면이 오류 메시지까지 보여주므로 따로 만들지 않는다 —
+  //   같은 것을 두 벌 만들면 한쪽만 고쳐지는 날이 온다.
+  return (
+    <ErrorBoundary>
+      <AttendancePage />
+    </ErrorBoundary>
+  );
+}
 
 // ─── styled ─────────────────────────────────────────────────────
 const Tabs = styled.div` display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid #E2E8F0; `;

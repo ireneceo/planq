@@ -5,7 +5,8 @@
       "idle": "쉬는 중",
       "active": "포커스 중",
       "paused": "잠시 멈춤",
-      "idle_detected": "자리 비움 감지"
+      "idle_detected": "자리 비움 감지",
+      "break": "휴게 중"
     },
     "idleHint": "Q Task 에서 \"진행 시작\"을 누르면 시간이 자동 추적돼요.",
     "gotoTasks": "내 업무로 가기",
