@@ -244,9 +244,11 @@ async function buildMemberSnapshot(businessId, userId, periodType, periodStart) 
     // #288 — "합리적이고 정확한 기준(설정에서 가져와서)". 그 사람의 실제 근무 설정에서 온 값을
     //   **생성 시점에 박제**한다(확정본은 나중에 설정이 바뀌어도 그때의 기준을 유지해야 한다).
     //   월간은 주간 캐파를 기간 길이로 환산 — 규칙은 services/memberCapacity.periodHours 한 곳.
-    capacity_hours: capacityService.periodHours(
-      (await capacityService.getMemberCapacity(userId, businessId)).weekly, start, end,
-    ),
+    //   #208 — 그 기간에 승인된 휴가는 가용시간에서 뺀다(휴가 없으면 종전 값과 동일).
+    capacity_hours: await (async () => {
+      const cap = await capacityService.getMemberCapacity(userId, businessId);
+      return capacityService.periodHoursWithLeave(userId, businessId, cap.weekly, cap.daily, cap.rate, start, end);
+    })(),
     highlights, in_progress, risks, blockers, next,
   };
 }

@@ -38,6 +38,11 @@ const FeedbackItem = require('./FeedbackItem');
 const ExportJob = require('./ExportJob');
 const TaskStatusHistory = require('./TaskStatusHistory');
 const TaskDeliverableVersion = require('./TaskDeliverableVersion');
+// 근태·휴가 (#208·#285) — docs/ATTENDANCE_LEAVE_DESIGN.md
+const AttendanceDay = require('./AttendanceDay');
+const AttendanceEvent = require('./AttendanceEvent');
+const LeaveGrant = require('./LeaveGrant');
+const LeaveRequest = require('./LeaveRequest');
 const TaskAttachment = require('./TaskAttachment');
 const TaskLink = require('./TaskLink');
 const TaskTag = require('./TaskTag');
@@ -433,6 +438,19 @@ PushSubscription.belongsTo(Business, { foreignKey: 'business_id' });
 // PushLog — admin 모니터링용 (사이클 N+3)
 PushLog.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
 
+// 근태·휴가 (#208·#285)
+AttendanceDay.belongsTo(Business, { foreignKey: 'business_id' });
+AttendanceDay.belongsTo(User, { foreignKey: 'user_id' });
+AttendanceDay.hasMany(AttendanceEvent, { as: 'events', foreignKey: 'attendance_day_id' });
+AttendanceEvent.belongsTo(AttendanceDay, { as: 'day', foreignKey: 'attendance_day_id', onDelete: 'CASCADE' });
+AttendanceEvent.belongsTo(User, { as: 'actor', foreignKey: 'actor_user_id' });
+LeaveGrant.belongsTo(Business, { foreignKey: 'business_id' });
+LeaveGrant.belongsTo(User, { foreignKey: 'user_id' });
+LeaveGrant.belongsTo(User, { as: 'granter', foreignKey: 'granted_by' });
+LeaveRequest.belongsTo(Business, { foreignKey: 'business_id' });
+LeaveRequest.belongsTo(User, { foreignKey: 'user_id' });
+LeaveRequest.belongsTo(User, { as: 'decider', foreignKey: 'decided_by' });
+
 // TaskDeliverableVersion (#271·#307) — 회차별 결과물 박제
 TaskDeliverableVersion.belongsTo(Task, { foreignKey: 'task_id', onDelete: 'CASCADE' });
 Task.hasMany(TaskDeliverableVersion, { as: 'deliverableVersions', foreignKey: 'task_id' });
@@ -485,6 +503,7 @@ EmailAccount.hasMany(EmailAccountAlias, { foreignKey: 'account_id', as: 'aliases
 EmailAccountAlias.belongsTo(EmailAccount, { foreignKey: 'account_id', as: 'account' });
 
 module.exports = {
+  AttendanceDay, AttendanceEvent, LeaveGrant, LeaveRequest,
   TaskDeliverableVersion,
   EmailAccountAlias,
   EmailDomainRule,

@@ -39,6 +39,7 @@ NotificationPref.init({
       'share_expiry',     // 외부 공유 링크 만료 임박 (여태 이 ENUM 에만 빠져 '끌 수 없는 알림' 이었다)
       'mail',             // #203 — Q Mail 새 메일 (범위는 email_accounts.notify_scope)
       'system',           // 메일 계정 sync 실패 등 시스템 경고
+      'leave',            // #208 — 휴가 신청·승인·반려 (ENUM 은 반드시 끝에 append)
     ),
     allowNull: false,
   },

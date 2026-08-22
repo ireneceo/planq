@@ -48,4 +48,70 @@ function periodHours(weekly, startYmd, endYmd) {
   return Math.round((w * days / 7) * 10) / 10;
 }
 
-module.exports = { getMemberCapacity, weeklyHours, periodHours };
+// ─── 휴가 차감 (#208 · #285) ─────────────────────────────────────
+// ★ 여기에 붙이는 이유: 가용시간 공식은 이 파일 **한 벌**이다(위 주석의 병리 참조).
+//   휴가 차감을 소비처마다 따로 빼면 그 순간 네 번째 사본이 생기고, 화면과 보고서가 또 갈라진다.
+// 수학적 동치: weekly − daily×rate×L === daily×(days − holidays − L)×rate
+//   — 즉 "휴가는 휴일과 같은 방식으로 근무일에서 빠진다".
+
+/** 기간 [start,end] 과 겹치는 승인 휴가의 차감일 합. 휴가가 없으면 0 → 기존 값과 diff 0. */
+async function getLeaveDaysInRange(userId, businessId, startYmd, endYmd) {
+  if (!userId || !businessId || !startYmd || !endYmd) return 0;
+  const { Op } = require('sequelize');
+  const { LeaveRequest } = require('../models');
+  const rows = await LeaveRequest.findAll({
+    where: {
+      business_id: businessId, user_id: userId, status: 'approved',
+      start_date: { [Op.lte]: endYmd }, end_date: { [Op.gte]: startYmd },
+    },
+    attributes: ['unit', 'start_date', 'end_date', 'days_charged'],
+  });
+  const { ymd } = require('../utils/datetime');
+  const dayNum = (v) => Math.floor(Date.parse(`${ymd(v)}T00:00:00Z`) / 86400000);
+  let total = 0;
+  for (const r of rows) {
+    const charged = Number(r.days_charged || 0);
+    if (r.unit !== 'full_day') { total += charged; continue; }   // 반차·시간은 하루짜리다
+    // 기간 휴가가 조회 구간에 걸쳐 있으면 **겹친 만큼만** 센다.
+    //   안 그러면 2주짜리 휴가가 두 주 모두에서 전체 일수로 빠져 이중 차감된다.
+    const s = Math.max(dayNum(r.start_date), dayNum(startYmd));
+    const e = Math.min(dayNum(r.end_date), dayNum(endYmd));
+    const overlap = Math.max(0, e - s + 1);
+    const span = Math.max(1, dayNum(r.end_date) - dayNum(r.start_date) + 1);
+    total += charged * (overlap / span);
+  }
+  return Math.round(total * 10) / 10;
+}
+
+function addDays(ymd, n) {
+  const d = new Date(`${ymd}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * 그 주의 실질 가용시간. 기존 키(weekly 등)는 그대로 두고 키만 **추가**한다 —
+ * 아직 안 고친 소비처가 있어도 값이 변하지 않는다(회귀 0).
+ */
+async function getMemberCapacityForWeek(userId, businessId, weekStartYmd) {
+  const cap = await getMemberCapacity(userId, businessId);
+  if (!weekStartYmd) return { ...cap, leave_days: 0, leave_deduction: 0, weekly_effective: cap.weekly };
+  const leaveDays = await getLeaveDaysInRange(userId, businessId, weekStartYmd, addDays(weekStartYmd, 6));
+  const deduction = Math.round(cap.daily * cap.rate * leaveDays * 10) / 10;
+  const weekly_effective = Math.max(0, Math.round((cap.weekly - deduction) * 10) / 10);
+  return { ...cap, leave_days: leaveDays, leave_deduction: deduction, weekly_effective };
+}
+
+/** 기간 가용시간에서 휴가를 뺀 값 — 월간·보고서용. 0 아래로는 내려가지 않는다. */
+async function periodHoursWithLeave(userId, businessId, weekly, daily, rate, startYmd, endYmd) {
+  const base = periodHours(weekly, startYmd, endYmd);
+  const leaveDays = await getLeaveDaysInRange(userId, businessId, startYmd, endYmd);
+  if (!leaveDays) return base;
+  const deduction = (Number(daily) || 0) * (Number(rate) || 0) * leaveDays;
+  return Math.max(0, Math.round((base - deduction) * 10) / 10);
+}
+
+module.exports = {
+  getMemberCapacity, weeklyHours, periodHours,
+  getLeaveDaysInRange, getMemberCapacityForWeek, periodHoursWithLeave,
+};

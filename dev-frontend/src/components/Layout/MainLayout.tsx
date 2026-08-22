@@ -13,6 +13,7 @@ import GlobalSearchModal from '../Common/GlobalSearchModal';
 import WorkspaceBillingBanner from './WorkspaceBillingBanner';
 import SidebarClock from './SidebarClock';
 import FocusWidget from '../Focus/FocusWidget';
+import AttendanceWidget from '../Attendance/AttendanceWidget';   // #208 출퇴근
 import PanelHeader, { PanelTitle } from './PanelHeader';
 import TabStrip from '../Tab/TabStrip';
 import { TABSTRIP_H } from '../../theme/layout';
@@ -1131,6 +1132,15 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                     <NavLabel $isCollapsed={isCollapsed}>{t('nav.calendar')}</NavLabel>
                   </NavItem>
                   {hasBiz('owner', 'member') && (
+                    <NavItem to="/attendance" $isCollapsed={isCollapsed} $active={isActive('/attendance')}
+                      title={isCollapsed ? t('nav.attendance', '근태') : undefined}>
+                      <NavIcon $isCollapsed={isCollapsed}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+                      </NavIcon>
+                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.attendance', '근태')}</NavLabel>
+                    </NavItem>
+                  )}
+                  {hasBiz('owner', 'member') && (
                     <NavItem to="/notes" $isCollapsed={isCollapsed} $active={isActive('/notes')}
                       title={isCollapsed ? t('nav.note') : undefined}>
                       <NavIcon $isCollapsed={isCollapsed}><IconNote /></NavIcon>
@@ -1479,6 +1489,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                 locale={(i18n.language === 'ko' ? 'ko' : 'en')}
                 isWorkspaceAdmin={hasRole('business_owner', 'platform_admin')}
               />
+              {/* #208 출퇴근 — 업무 흐름 위젯 위. 하루의 시작·끝이 몰입시간보다 상위 개념이다 */}
+              <AttendanceWidget variant="sidebar" />
               {/* 업무 흐름 위젯 — focus_enabled=true 인 사용자에게만 렌더 (zero overhead) */}
               <FocusWidget isCollapsed={false} />
               {/* N+63 — UserMenu 통합: avatar+이름 1줄 + 클릭 popover (Language + 프로필 + 로그아웃).
@@ -1521,6 +1533,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
           )}
           {isCollapsed && (
             <>
+              <AttendanceWidget variant="sidebar" isCollapsed />
               <FocusWidget isCollapsed />
               <CollapsedAvatarButton
                 onClick={() => navigate('/profile')}

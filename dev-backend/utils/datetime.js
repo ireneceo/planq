@@ -49,8 +49,23 @@ function mondayOfIsoWeek(isoWeek) {
   return mondayOfWeek1.toISOString().slice(0, 10);
 }
 
+/**
+ * DATEONLY 값을 'YYYY-MM-DD' 문자열로 통일한다.
+ *
+ * ★ 함정: Sequelize DATEONLY 는 이 프로젝트에서 **Date 객체**로 돌아온다(전역 toJSON override 영향).
+ *   그래서 `new Date(`${row.start_date}T00:00:00Z`)` 같은 관용구가 조용히 NaN 이 되고,
+ *   날짜 계산 결과가 0 으로 나온다 — 에러도 안 나고 화면엔 그냥 "0일" 로 찍힌다(#208 실측).
+ *   DATEONLY 는 UTC 자정으로 들고 있으므로 ISO 앞 10자가 그 날짜다.
+ */
+function ymd(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return String(value).slice(0, 10);
+}
+
 module.exports = {
   dateStrInTz,
+  ymd,
   todayInTz,
   mondayOfDateStr,
   addDaysStr,

@@ -24,6 +24,7 @@ Notification.init({
       'inquiry', 'signup', 'payment', 'subscription', 'trial', 'feedback',
       'mail',             // #203 — Q Mail 새 메일
       'system',           // 시스템 경고 (메일 sync 실패 등)
+      'leave',            // #208 — 휴가 신청·승인·반려 (ENUM 은 끝에 append)
     ),
     allowNull: false,
   },
