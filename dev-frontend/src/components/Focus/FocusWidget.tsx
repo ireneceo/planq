@@ -281,11 +281,19 @@ const FocusWidget: React.FC<Props> = ({ isCollapsed, embedded }) => {
 
   return (
     <Wrap $embedded={embedded} aria-live="polite">
-      <WidgetHeader>
-        <Dot $state={isIdle ? 'idle_detected' : isPaused ? 'paused' : 'active'} />
-        <Label>{t(`widget.state.${isIdle ? 'idle_detected' : isPaused ? 'paused' : 'active'}`)}</Label>
-        <ElapsedMini>{formatStartTime(session.started_at, t)}</ElapsedMini>
-      </WidgetHeader>
+      {/* ★ 한 카드 안(embedded)에서는 점·상태 라벨을 그리지 않는다.
+          위 근태 줄이 이미 "근무중" 을 말하고 있어서, 여기 또 점을 찍으면 상태가 두 개로 읽힌다
+          (운영: "상태표시도 같이 나열할 수 있지 않아? 근무중이고 업무를 이걸 진행중인건데").
+          대신 잠시 멈춤·자리비움처럼 **근태와 다른 상태일 때만** 작은 꼬리표를 남긴다. */}
+      {!embedded ? (
+        <WidgetHeader>
+          <Dot $state={isIdle ? 'idle_detected' : isPaused ? 'paused' : 'active'} />
+          <Label>{t(`widget.state.${isIdle ? 'idle_detected' : isPaused ? 'paused' : 'active'}`)}</Label>
+          <ElapsedMini>{formatStartTime(session.started_at, t)}</ElapsedMini>
+        </WidgetHeader>
+      ) : (isPaused || isIdle) && (
+        <PausedTag>{t(`widget.state.${isIdle ? 'idle_detected' : 'paused'}`)}</PausedTag>
+      )}
       {session.task ? (
         <TaskTitle as="button" type="button" $clickable title={session.task.title} onClick={onView}>
           {session.task.title}
@@ -300,8 +308,9 @@ const FocusWidget: React.FC<Props> = ({ isCollapsed, embedded }) => {
           </SecondaryBtn>
         </>
       )}
-      <Counter aria-label={t('widget.elapsedAria', { seconds: liveSeconds }) as string}>
-        {formatDuration(liveSeconds)}
+      <Counter aria-label={t('widget.elapsedAria', { seconds: liveSeconds }) as string} $embedded={embedded}>
+        {/* 한 카드 안에서는 위 '근무 3:42' 와 나란히 놓이므로 무엇의 시간인지 밝힌다. */}
+        {embedded ? (t('widget.taskFor', { time: formatDuration(liveSeconds) }) as string) : formatDuration(liveSeconds)}
       </Counter>
       <Actions>
         {/* N+49 hotfix — Stop(DangerBtn) 제거. N+32 옵션 B 박제: 종료는 task status 가 책임 (in_progress 이탈 시 자동 stop).
@@ -312,8 +321,10 @@ const FocusWidget: React.FC<Props> = ({ isCollapsed, embedded }) => {
             <SvgPlay /> {t('widget.resume')}
           </PrimaryBtn>
         ) : (
-          <SecondaryBtn type="button" onClick={onPause} disabled={submitting} title={t('widget.pause') as string} aria-label={t('widget.pause') as string}>
-            <SvgPause />
+          <SecondaryBtn type="button" onClick={onPause} disabled={submitting} title={t('widget.pause') as string}>
+            {/* 아이콘만 두면 무엇을 멈추는지 알 수 없다 — 옆의 근태 버튼들은 글자가 있어서 더 어긋나 보인다
+                (운영: "업무는 일시정지만 왜 아이콘만 나와? 글도 말해야 하는 거 아니야?"). */}
+            <SvgPause /> {t('widget.pause')}
           </SecondaryBtn>
         )}
         {session.task && (
@@ -368,6 +379,13 @@ const breath = keyframes`0% { transform: scale(1); } 50% { transform: scale(1.15
 const pulseAlert = keyframes`0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.25); opacity: 0.6; } 100% { transform: scale(1); opacity: 1; }`;
 
 // ─── styled (사이드바 어두운 bg 위) ─────────────────────────────
+// 한 카드 안에서 "이 업무" 임을 알리는 꼬리표 — 근태와 상태가 어긋날 때만 뜬다.
+const PausedTag = styled.span`
+  align-self: flex-start;
+  padding: 1px 7px; border-radius: 999px;
+  background: rgba(252, 211, 77, 0.18); color: #FCD34D;
+  font-size: 10px; font-weight: 700;
+`;
 const Wrap = styled.div<{ $embedded?: boolean }>`
   display: flex; flex-direction: column; gap: 6px;
   ${p => p.$embedded ? css`
@@ -431,12 +449,14 @@ const TaskTitle = styled.div<{ $clickable?: boolean }>`
     &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; border-radius: 4px; }
   `}
 `;
-const Counter = styled.div`
+const Counter = styled.div<{ $embedded?: boolean }>`
   font-size: 12px; font-weight: 600;
   color: rgba(255, 255, 255, 0.75);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0;
   min-width: 6ch;
+  /* 한 카드 안에서는 위 '근무 3:42' 와 같은 급으로 — 큰 카운터가 두 개면 무엇이 주인지 흐려진다. */
+  ${p => p.$embedded && css`font-size: 12px; letter-spacing: 0;`}
 `;
 const Actions = styled.div`
   display: flex; gap: 6px; margin-top: 2px;
