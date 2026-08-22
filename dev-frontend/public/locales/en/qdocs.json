@@ -653,6 +653,9 @@
     "draftBadgeHint": "Only you can see this draft. Open it and save to publish."
   },
   "toc": {
-    "title": "Contents"
+    "title": "Contents",
+    "show": "Show contents",
+    "hide": "Hide",
+    "hideHint": "Hides the contents in this browser. You can turn it back on."
   }
 }
