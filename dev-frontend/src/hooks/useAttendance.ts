@@ -62,6 +62,12 @@ export function useAttendance(businessId: number | null) {
 
   useEffect(() => { void load(); }, [load]);
 
+  // 근태 상태를 카드 안의 업무 위젯이 알아야 한다(멈춤 사유를 "휴게" 로 적기 위해).
+  //   훅을 한 벌 더 띄우는 대신 상태만 흘린다 — 소켓·요청이 늘지 않는다.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('attendance:state', { detail: { state } }));
+  }, [state]);
+
   // 다른 사람·다른 기기의 변경
   useEffect(() => {
     if (!businessId) return;
@@ -102,6 +108,10 @@ export function useAttendance(businessId: number | null) {
       setState(j.data.state);
       baseRef.current = { work: j.data.work_sec, brk: j.data.break_sec, at: Date.now() };
       window.dispatchEvent(new CustomEvent(ATTENDANCE_REFRESH_EVENT));
+      // ★ 근태 액션은 업무 세션도 바꾼다(퇴근→종료, 휴게→일시정지). 그런데 업무 위젯은
+      //   30초 폴링이라 그때까지 옛 상태가 남는다 — 사용자에게는 "퇴근했는데 업무는 그대로" 다.
+      //   같은 카드 안에 있으니 즉시 같이 움직여야 한다.
+      window.dispatchEvent(new CustomEvent('focus:refresh'));
       return { ok: true };
     } catch { return { error: 'network' }; }
     finally { setSubmitting(false); }

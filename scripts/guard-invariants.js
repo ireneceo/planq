@@ -784,6 +784,23 @@ function checkMcpReadonly() {
 }
 
 // ═══════════════════════════════════════════════
+// routedrift — shell(App.tsx) ↔ pane(appRoutes.tsx) 라우트 일치
+//   ★ 이 대조 스크립트(scripts/guard-app-routes.js)는 예전부터 있었는데 **어느 게이트에도
+//     붙어 있지 않아 아무도 실행하지 않았다.** 그 사이 /attendance 가 pane 표에서 빠져
+//     탭 모드에서 메뉴를 눌러도 빈 화면이 나왔다(운영 2026-08-22, 원인 추적에 반나절).
+//     안 부르는 가드는 없는 가드다 — 여기에 묶는다.
+function checkRouteDrift() {
+  const { execFileSync } = require('child_process');
+  try {
+    execFileSync(process.execPath, [`${ROOT}/scripts/guard-app-routes.js`], { stdio: 'pipe' });
+    report('routedrift', 'shell(App.tsx) ↔ pane(appRoutes.tsx) 라우트 일치', true, []);
+  } catch (e) {
+    const out = `${e.stdout || ''}${e.stderr || ''}`.trim().split('\n').filter(Boolean);
+    report('routedrift', 'shell(App.tsx) ↔ pane(appRoutes.tsx) 라우트 일치', false, out.slice(0, 10));
+  }
+}
+
+// ═══════════════════════════════════════════════
 // 9. godfile — 신규 god-file 차단 래칫 (기존 초과분은 동결, 15% 이상 추가 성장도 실패)
 // ═══════════════════════════════════════════════
 function checkGodfile() {
@@ -1176,6 +1193,7 @@ const CATEGORIES = {
   panelhandle: checkPanelHandle,
   docfresh: checkDocFresh,
   schemacol: checkSchemaCol,
+  routedrift: checkRouteDrift,
 };
 
 try {

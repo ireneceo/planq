@@ -1131,18 +1131,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                     <NavIcon $isCollapsed={isCollapsed}><IconCalendar /></NavIcon>
                     <NavLabel $isCollapsed={isCollapsed}>{t('nav.calendar')}</NavLabel>
                   </NavItem>
-                  {/* #208 — 근태는 **업무 메뉴**다. 내 출퇴근만 있는 게 아니라 휴가 신청·승인과
-                      팀 관리가 붙어 있어서, 개인 보관함 옆에 두면 그 기능들이 있는 줄 모른다.
-                      시간을 다루는 캘린더 바로 다음이 자리다. */}
-                  {hasBiz('owner', 'member') && (
-                    <NavItem to="/attendance" $isCollapsed={isCollapsed} $active={isActive('/attendance')}
-                      title={isCollapsed ? t('nav.attendance', '근태') : undefined}>
-                      <NavIcon $isCollapsed={isCollapsed}>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
-                      </NavIcon>
-                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.attendance', '근태')}</NavLabel>
-                    </NavItem>
-                  )}
                   {hasBiz('owner', 'member') && (
                     <NavItem to="/notes" $isCollapsed={isCollapsed} $active={isActive('/notes')}
                       title={isCollapsed ? t('nav.note') : undefined}>
@@ -1222,6 +1210,19 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
               {hasBiz('owner', 'member') && (
                 <NavSection>
                   <NavTitle $isCollapsed={isCollapsed}>{t('nav.sectionManage', '관리')}</NavTitle>
+                  {/* #208 — 근태는 **Q 시리즈 제품이 아니다.** Q talk·task·bill 옆에 두면
+                      "또 하나의 Q 기능" 으로 읽히는데, 실제로는 사람·시간을 관리하는 기능이라
+                      고객·멤버·조직·설정과 같은 묶음이 맞다(운영: "Q 시리즈 업무관리에 이게 왜 들어가냐고").
+                      개인 섹션도 아니다 — 휴가 승인과 팀 관리가 붙어 있다. */}
+                  {hasBiz('owner', 'member') && (
+                    <NavItem to="/attendance" $isCollapsed={isCollapsed} $active={isActive('/attendance')}
+                      title={isCollapsed ? t('nav.attendance', '근태') : undefined}>
+                      <NavIcon $isCollapsed={isCollapsed}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+                      </NavIcon>
+                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.attendance', '근태')}</NavLabel>
+                    </NavItem>
+                  )}
                   <NavItem
                     to="/stats/overview"
                     onClick={handleSecondaryNavClick('reports')}
@@ -1869,6 +1870,13 @@ const SkelRow = styled.div<{ $w: string }>`
 
 // #208 — 근무 상태 한 덩어리 (근태 + 업무 흐름)
 const WorkBlock = styled.div`
+  /* ★ 세로가 짧은 화면(노트북 720p 등)에서는 이 카드가 커질수록 **메뉴가 스크롤 밖으로 밀린다**.
+     실측(운영 2026-08-22): 1280×720 에서 근태·설정 메뉴가 fold 밖으로 나가 안 보였다.
+     카드는 상시 노출이 목적이지 자리를 차지하는 게 목적이 아니므로, 짧은 화면에서는 줄인다. */
+  @media (max-height: 820px) {
+    margin-bottom: 8px; padding: 7px 10px;
+    font-size: 11px;
+  }
   /* ★ 안이 비면 아예 안 그린다 — Focus 를 꺼두고 아직 출근 전이면 두 자식이 모두 null 이라
      빈 테두리 상자만 남는다(사용자에게는 고장으로 보인다). */
   &:empty { display: none; }

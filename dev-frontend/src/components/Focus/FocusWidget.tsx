@@ -32,12 +32,18 @@ interface FocusSession {
 
 interface Props {
   isCollapsed?: boolean;
-  /** #208 — 근태 위젯과 한 카드에 들어갈 때. 자체 테두리를 벗고 위에 구분선만 남긴다.
-   *  "오늘 근무" 아래에 "지금 이 업무" 가 들여쓰기로 붙어야 둘의 관계가 설명 없이 읽힌다. */
+  /** #208 — 근태 위젯과 한 카드에 들어갈 때. 자체 테두리를 벗고 위에 구분선만 남긴다. */
   embedded?: boolean;
 }
 
 const FocusWidget: React.FC<Props> = ({ isCollapsed, embedded }) => {
+  // 근태가 휴게 중인지 — useAttendance 가 상태를 이벤트로 흘린다(훅 중복 없이).
+  const [attnOnBreak, setAttnOnBreak] = useState(false);
+  useEffect(() => {
+    const h = (e: Event) => setAttnOnBreak((e as CustomEvent).detail?.state === 'on_break');
+    window.addEventListener('attendance:state', h);
+    return () => window.removeEventListener('attendance:state', h);
+  }, []);
   const { t } = useTranslation('focus');
   // useAuth 제거 — N+49 hotfix 로 onStart 제거 후 user 미사용
   const navigate = useChromeNav();
@@ -292,7 +298,9 @@ const FocusWidget: React.FC<Props> = ({ isCollapsed, embedded }) => {
           <ElapsedMini>{formatStartTime(session.started_at, t)}</ElapsedMini>
         </WidgetHeader>
       ) : (isPaused || isIdle) && (
-        <PausedTag>{t(`widget.state.${isIdle ? 'idle_detected' : 'paused'}`)}</PausedTag>
+        // ★ 휴게로 멈춘 것을 "자리 비움" 으로 적으면 사용자가 한 행동을 시스템이 오해한 것처럼 보인다.
+        //   근태가 휴게 중이면 그렇게 말한다.
+        <PausedTag>{t(`widget.state.${attnOnBreak ? 'break' : isIdle ? 'idle_detected' : 'paused'}`)}</PausedTag>
       )}
       {session.task ? (
         <TaskTitle as="button" type="button" $clickable title={session.task.title} onClick={onView}>
@@ -390,7 +398,8 @@ const Wrap = styled.div<{ $embedded?: boolean }>`
   display: flex; flex-direction: column; gap: 6px;
   ${p => p.$embedded ? css`
     /* 한 카드 안 — 위 근태 줄과 구분선으로만 나눈다. 들여쓰기가 "이 업무는 오늘 안에 있다" 를 말한다. */
-    margin: 8px 0 0; padding: 8px 0 0 10px;
+    /* 들여쓰기로 포함 관계를 보이려 했으나 위 줄과 좌측이 어긋나 보인다(운영 지적). 선만 남긴다. */
+    margin: 8px 0 0; padding: 8px 0 0;
     border-top: 1px solid rgba(255, 255, 255, 0.12);
   ` : css`
     margin: -2px -4px 12px;
@@ -482,7 +491,11 @@ const PrimaryBtn = styled.button`
 `;
 const SecondaryBtn = styled.button`
   ${baseBtn}
-  width: 28px; padding: 0;
+  /* ★ 옛 값은 폭 28px 고정 + padding 0 — 아이콘만 있던 시절 크기다. 글자를 넣자 4줄로 래핑되며
+     버튼 밖으로 삐져나왔다(운영: "버튼이 제대로 안 나오고 틀어져"). 내용에 맞춰 늘어나게 한다.
+     (styled 템플릿 안에서는 주석에도 백틱을 쓰지 말 것 — 문자열이 거기서 끊긴다.) */
+  flex: 1; min-width: 0; padding: 0 10px; gap: 5px;
+  white-space: nowrap;
   background: rgba(255, 255, 255, 0.1); color: #FFFFFF;
   &:hover:not(:disabled) { background: rgba(255, 255, 255, 0.18); }
 `;
