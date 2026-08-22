@@ -35,6 +35,8 @@ async function todayFor(businessId, at = new Date()) {
 //   저장된 누계 + 진행 중 경과를 그 순간 더한다(§5.1 today). 저장값에 미완 스팬을 섞으면
 //   두 번 세거나, 재계산할 때마다 값이 흔들린다.
 function foldEvents(events) {
+  // 무효 처리된 기록은 계산에서 뺀다(행은 남아 있다 — models/AttendanceEvent.superseded_at 주석).
+  events = (events || []).filter((e) => !e.superseded_at);
   let work = 0, brk = 0;
   let workOpen = null, breakOpen = null;
   let firstIn = null, lastOut = null;
@@ -74,7 +76,7 @@ async function recomputeDay(dayId, t = null) {
   if (!day) return null;
   const events = await AttendanceEvent.findAll({
     // 스코프: attendance_day_id 는 이미 한 워크스페이스·한 사람의 하루에 묶인 자식이다(격리 상위 보장).
-    where: { attendance_day_id: dayId },
+    where: { attendance_day_id: dayId, superseded_at: null },
     order: [['at', 'ASC'], ['id', 'ASC']],
     transaction: t,
   });
@@ -101,7 +103,7 @@ async function liveTotals(day, now = Date.now()) {
   if (day.state === 'done') return base;
   const events = await AttendanceEvent.findAll({
     // 스코프: attendance_day_id 자체가 한 워크스페이스·한 사람의 하루다(상위에서 격리 검사됨).
-    where: { attendance_day_id: day.id },
+    where: { attendance_day_id: day.id, superseded_at: null },
     order: [['at', 'ASC'], ['id', 'ASC']],
   });
   const f = foldEvents(events);
@@ -260,13 +262,30 @@ async function applyAdminFix({ dayId, events, fixReason, actorUserId }) {
     const day = await AttendanceDay.findByPk(dayId, { transaction: t, lock: t.LOCK.UPDATE });
     if (!day) throw new AttendanceError('not_found', 404);
     const before = { work_total_sec: day.work_total_sec, break_total_sec: day.break_total_sec, state: day.state };
+
+    // 제출된 것은 **그날의 확정 타임라인**이다. 덧붙이기가 아니다 —
+    //   잘못 찍힌 퇴근을 무를 방법이 없으면 정정이라는 말이 성립하지 않는다.
+    const parsed = [];
     for (const e of events) {
       if (!['clock_in', 'break_start', 'break_end', 'clock_out'].includes(e.kind)) {
         throw new AttendanceError('invalid_kind');
       }
       const at = new Date(e.at);
       if (Number.isNaN(at.getTime())) throw new AttendanceError('invalid_at');
-      await appendEvent({ day, kind: e.kind, at, source: 'admin_fix', actorUserId, fixReason }, t);
+      parsed.push({ kind: e.kind, at });
+    }
+    parsed.sort((a, b) => a.at - b.at);
+    // 하루는 출근으로 시작해야 한다 — 출근 없는 타임라인은 근무 스팬이 열리지 않아 0h 가 된다.
+    //   조용히 0 을 만들지 말고 거절해서, 관리자가 무엇이 빠졌는지 알게 한다.
+    if (parsed[0].kind !== 'clock_in') throw new AttendanceError('timeline_must_start_with_clock_in');
+
+    // 기존 기록은 지우지 않고 무효로 표시한다(무엇이 원래였는지 남는다).
+    await AttendanceEvent.update(
+      { superseded_at: new Date() },
+      { where: { attendance_day_id: day.id, superseded_at: null }, transaction: t },
+    );
+    for (const e of parsed) {
+      await appendEvent({ day, kind: e.kind, at: e.at, source: 'admin_fix', actorUserId, fixReason }, t);
     }
     await day.update({ admin_fixed: true }, { transaction: t });
     await recomputeDay(day.id, t);

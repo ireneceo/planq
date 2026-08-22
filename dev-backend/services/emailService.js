@@ -1037,4 +1037,6 @@ module.exports = {
   getPlanqBankInfo,
   invalidatePlatformCache,  // admin 라우트가 PUT 후 호출
   emailBlockReason,         // Q Mail 발송(emailSend) 수신자 검증 재사용
+  getLogoAttachment,        // #370 — 수신 첨부가 '우리 로고인지' 판정할 때 바이트 수 원천으로 쓴다
+  LOGO_CID,
 };

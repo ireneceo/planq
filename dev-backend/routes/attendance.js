@@ -207,9 +207,137 @@ router.get('/days/:id/events', authenticateToken, async (req, res, next) => {
       // 스코프: 위에서 day 의 business_id 로 멤버십을 확인했다(canAccess 상위 검사).
       where: { attendance_day_id: day.id },
       order: [['at', 'ASC'], ['id', 'ASC']],
-      attributes: ['id', 'kind', 'at', 'source', 'actor_user_id', 'fix_reason'],
+      attributes: ['id', 'kind', 'at', 'source', 'actor_user_id', 'fix_reason', 'superseded_at'],
     });
     return successResponse(res, events);
+  } catch (err) { next(err); }
+});
+
+// ─── GET /stats — 월별 통계 (§8.1) ──────────────────────────────
+// owner/admin 은 전원, member 는 본인만. member 가 남의 수치를 보는 길은 여기에도 없다.
+//
+// ★ overtime 은 **참고치**다. 법정 연장근로가 아니라 "그날 기준시간을 얼마나 넘겼나" 일 뿐이고,
+//   유연근무라 어떤 날은 넘고 어떤 날은 모자란 것이 정상이다. 화면 라벨에도 그렇게 적는다.
+router.get('/stats', authenticateToken, async (req, res, next) => {
+  try {
+    const businessId = Number(req.query.business_id);
+    const scope = await requireMember(req, res, businessId);
+    if (!scope) return;
+    const month = /^\d{4}-\d{2}$/.test(String(req.query.month || ''))
+      ? String(req.query.month)
+      : (await A.todayFor(businessId)).slice(0, 7);
+    const from = `${month}-01`;
+    const to = (() => {
+      const [y, m] = month.split('-').map(Number);
+      const d = new Date(Date.UTC(y, m, 0));     // 그 달의 마지막 날
+      return d.toISOString().slice(0, 10);
+    })();
+
+    const manager = isManager(scope);
+    const where = { business_id: businessId, work_date: { [Op.between]: [from, to] } };
+    if (!manager) where.user_id = req.user.id;
+
+    const days = await AttendanceDay.findAll({
+      where,
+      attributes: ['user_id', 'work_date', 'clock_in_at', 'clock_out_at', 'work_total_sec', 'break_total_sec', 'auto_closed'],
+    });
+
+    // 근무 기준시간·부서는 멤버 설정에서 온다 — 초과 판정의 분모다.
+    const memberWhere = { business_id: businessId, removed_at: null };
+    if (!manager) memberWhere.user_id = req.user.id;
+    const members = await BusinessMember.findAll({
+      where: memberWhere,
+      attributes: ['user_id', 'daily_work_hours', 'department_id'],
+    });
+    const byUser = new Map(members.map((m) => [m.user_id, m]));
+
+    // 승인된 휴가 — 유급·무급을 나눠 센다(무급은 잔여를 깎지 않는다).
+    const leaveWhere = {
+      business_id: businessId, status: 'approved',
+      start_date: { [Op.lte]: to }, end_date: { [Op.gte]: from },
+    };
+    if (!manager) leaveWhere.user_id = req.user.id;
+    const leaves = await LeaveRequest.findAll({
+      where: leaveWhere,
+      attributes: ['user_id', 'leave_type', 'days_charged'],
+    });
+
+    const acc = new Map();
+    const row = (uid) => {
+      if (!acc.has(uid)) {
+        acc.set(uid, {
+          user_id: uid, work_days: 0, work_sec: 0, break_sec: 0,
+          overtime_sec: 0, auto_closed_count: 0,
+          in_minutes: [], out_minutes: [],
+          leave_used_paid: 0, leave_used_unpaid: 0,
+          department_id: byUser.get(uid)?.department_id || null,
+        });
+      }
+      return acc.get(uid);
+    };
+    const minutesOf = (dt) => {
+      if (!dt) return null;
+      const d = new Date(dt);
+      return d.getHours() * 60 + d.getMinutes();
+    };
+    for (const d of days) {
+      const r = row(d.user_id);
+      r.work_days += 1;
+      r.work_sec += Number(d.work_total_sec || 0);
+      r.break_sec += Number(d.break_total_sec || 0);
+      if (d.auto_closed) r.auto_closed_count += 1;
+      const dailySec = (Number(byUser.get(d.user_id)?.daily_work_hours) || 8) * 3600;
+      r.overtime_sec += Math.max(0, Number(d.work_total_sec || 0) - dailySec);
+      const mi = minutesOf(d.clock_in_at);
+      if (mi !== null) r.in_minutes.push(mi);
+      const mo = minutesOf(d.clock_out_at);
+      if (mo !== null) r.out_minutes.push(mo);
+    }
+    for (const l of leaves) {
+      const r = row(l.user_id);
+      if (l.leave_type === 'paid') r.leave_used_paid += Number(l.days_charged || 0);
+      else r.leave_used_unpaid += Number(l.days_charged || 0);
+    }
+
+    const avg = (arr) => {
+      if (!arr.length) return null;
+      const m = Math.round(arr.reduce((s, v) => s + v, 0) / arr.length);
+      return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+    };
+    const round1 = (n) => Math.round(n * 10) / 10;
+    const out = [...acc.values()].map((r) => ({
+      user_id: r.user_id,
+      department_id: r.department_id,
+      work_days: r.work_days,
+      work_hours: round1(r.work_sec / 3600),
+      break_hours: round1(r.break_sec / 3600),
+      overtime_hours: round1(r.overtime_sec / 3600),
+      avg_clock_in: avg(r.in_minutes),
+      avg_clock_out: avg(r.out_minutes),
+      auto_closed_count: r.auto_closed_count,
+      leave_used_paid: round1(r.leave_used_paid),
+      leave_used_unpaid: round1(r.leave_used_unpaid),
+    })).sort((a, b) => b.work_hours - a.work_hours);
+
+    // 부서 롤업 — 부서가 없는 멤버는 묶지 않는다(없는 소속을 만들어내지 않는다).
+    const deptAcc = new Map();
+    for (const r of out) {
+      if (!r.department_id) continue;
+      const d = deptAcc.get(r.department_id) || { department_id: r.department_id, members: 0, work_hours: 0, overtime_hours: 0, leave_used_paid: 0 };
+      d.members += 1;
+      d.work_hours += r.work_hours;
+      d.overtime_hours += r.overtime_hours;
+      d.leave_used_paid += r.leave_used_paid;
+      deptAcc.set(r.department_id, d);
+    }
+    const departments = [...deptAcc.values()].map((d) => ({
+      ...d,
+      work_hours: round1(d.work_hours),
+      overtime_hours: round1(d.overtime_hours),
+      leave_used_paid: round1(d.leave_used_paid),
+    }));
+
+    return successResponse(res, { month, from, to, scope: manager ? 'team' : 'me', members: out, departments });
   } catch (err) { next(err); }
 });
 

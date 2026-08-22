@@ -78,6 +78,8 @@ async function run() {
     ['attendance presence', `/api/attendance/presence?business_id=${myBiz}`, `/api/attendance/presence?business_id=${foreign.id}`],
     ['leave balance (휴가 잔여)', `/api/leave/balance?business_id=${myBiz}`, `/api/leave/balance?business_id=${foreign.id}`],
     ['leave requests (휴가 신청)', `/api/leave/requests?business_id=${myBiz}`, `/api/leave/requests?business_id=${foreign.id}`],
+    // #261 — 주소 목록에는 거래처·고객 메일 주소가 그대로 담긴다. 새 표면은 만든 날 올린다.
+    ['email addresses (메일 주소)', `/api/businesses/${myBiz}/email-addresses`, `/api/businesses/${foreign.id}/email-addresses`],
   ];
 
   for (const [name, minePath, foreignPath] of SURFACES) {

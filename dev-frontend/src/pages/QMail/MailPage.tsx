@@ -98,6 +98,10 @@ import {
   FaqSuggestBox,
   FaqSuggestHead,
   FaqUsedBadge,
+  AddressBanner,
+  AddressBannerText,
+  AddressBannerHint,
+  AddressBannerClose,
   FolderTab,
   FolderTabs,
   FromLbl,
@@ -415,6 +419,14 @@ const MailPage: React.FC = () => {
   const [faqExpandId, setFaqExpandId] = useState<number | null>(null);
   const [faqBusyId, setFaqBusyId] = useState<number | null>(null);
 
+  // #261 — ?address= 가 있으면 그 주소와 오간 메일만 본다(보관 포함).
+  const addressMode = sp.get('address');
+  const clearAddressMode = () => {
+    const nsp = new URLSearchParams(sp);
+    nsp.delete('address');
+    setSp(nsp, { replace: true });
+  };
+
   const setFolder = (f: Folder) => {
     const nsp = new URLSearchParams(sp);
     nsp.set('folder', f);
@@ -602,7 +614,12 @@ const MailPage: React.FC = () => {
       const acctQ = accountFilter ? `&account_id=${accountFilter}` : '';
       const qP = qDebounced ? `&q=${encodeURIComponent(qDebounced)}` : '';
       const fP = filterQuery();
-      const r = await apiFetch(`/api/businesses/${businessId}/email-threads?folder=${folder}&limit=${PAGE_SIZE * pages}&page=1${acctQ}${qP}${fP}`);
+      // #261 — 주소 모드: 그 사람과 오간 메일을 **보관까지 포함해** 모아 본다.
+      //   폴더 목록으로는 못 찾는다 — '전체' 도 보관을 빼기 때문이다. 신고된 "안 들어온 메일" 이
+      //   실제로는 보관함에 있었던 건이라, 이 경로가 없으면 같은 일이 반복된다.
+      const r = addressMode
+        ? await apiFetch(`/api/businesses/${businessId}/email-addresses/${encodeURIComponent(addressMode)}/threads?limit=${PAGE_SIZE * pages}&page=1`)
+        : await apiFetch(`/api/businesses/${businessId}/email-threads?folder=${folder}&limit=${PAGE_SIZE * pages}&page=1${acctQ}${qP}${fP}`);
       const j = await r.json();
       if (seq !== listSeqRef.current) return;   // 더 최신 요청이 떠 있다 — 이 응답은 버린다
       if (!j.success) { setErrorMsg(j.message || (t('errors.loadList', { defaultValue: '인박스 로딩 실패' }) as string)); return; }
@@ -625,7 +642,7 @@ const MailPage: React.FC = () => {
     } finally {
       if (!silent) setListLoading(false);
     }
-  }, [businessId, folder, accountFilter, qDebounced, filterQuery, captureAnchor, t]);
+  }, [businessId, folder, addressMode, accountFilter, qDebounced, filterQuery, captureAnchor, t]);
 
   // 무한스크롤 — 다음 페이지 append
   const loadMore = useCallback(async () => {
@@ -1301,6 +1318,36 @@ const MailPage: React.FC = () => {
   const [cAliases, setCAliases] = useState<Array<{ id: number; email: string; display_name: string | null; is_default: boolean; account_id: number }>>([]);
   const [cFromAliasId, setCFromAliasId] = useState<number>(0);   // 0 = 계정 기본 주소
   const [cTo, setCTo] = useState('');
+
+  // #261 — 주소를 누르면 할 수 있는 일들. 행동의 주인은 이 페이지다(메뉴는 표시만 한다).
+  //   "이 주소의 메일 보기" 는 **보관된 것도 포함**해서 찾는다 — 운영에서 못 찾은 메일이
+  //   실은 보관함에 있었기 때문이다(#261 실측).
+  const addressActions = React.useMemo(() => ({
+    onViewMail: (email: string) => {
+      const nsp = new URLSearchParams(window.location.search);
+      nsp.set('address', email);
+      nsp.delete('thread');
+      setSp(nsp, { replace: false });
+    },
+    onCompose: (email: string) => {
+      setCTo(email);
+      setComposeOpen(true);
+    },
+    onSaveClient: (email: string, name?: string | null) => {
+      // 고객 등록 화면으로 넘긴다 — 여기서 조용히 만들지 않는다.
+      //   고객은 청구·프로젝트가 붙는 자산이라 사용자가 내용을 보고 확정해야 한다.
+      navigate(`/clients?new=1&email=${encodeURIComponent(email)}${name ? `&name=${encodeURIComponent(name)}` : ''}`);
+    },
+    onBlock: async (email: string) => {
+      if (!businessId) return;
+      const r = await apiFetch(`/api/businesses/${businessId}/mail-rules`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pattern: email, verdict: 'spam', source: 'manual' }),
+      });
+      if (r.ok) await loadList({ silent: true });
+    },
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [businessId]);
   const [cSubject, setCSubject] = useState('');
   const [cBody, setCBody] = useState('');
   const [cUploads, setCUploads] = useState<File[]>([]);
@@ -1605,6 +1652,17 @@ const MailPage: React.FC = () => {
           </HeaderActions>
         </PanelHeader>
         <FolderTabs>
+          {addressMode && (
+            <AddressBanner role="status">
+              <AddressBannerText>
+                {t('address.viewing', { email: addressMode, defaultValue: '{{email}} 와(과) 오간 메일' }) as string}
+                <AddressBannerHint>{t('address.includesArchived', { defaultValue: '보관한 메일도 함께 보입니다' }) as string}</AddressBannerHint>
+              </AddressBannerText>
+              <AddressBannerClose type="button" onClick={clearAddressMode}>
+                {t('address.exit', { defaultValue: '나가기' }) as string}
+              </AddressBannerClose>
+            </AddressBanner>
+          )}
           {FOLDERS.map(({ key, defaultLabel }) => (
             <FolderTab key={key} type="button" $active={folder === key} onClick={() => setFolder(key)}>
               {t(`folders.${key}`, { defaultValue: defaultLabel }) as string}
@@ -2184,6 +2242,7 @@ const MailPage: React.FC = () => {
                   subject={detail.subject || ''}
                   myUserId={user ? Number(user.id) : null}
                   businessId={businessId as number}
+                  addressActions={addressActions}
                   expandedMsgIds={expandedMsgIds}
                   toggleMsg={toggleMsg}
                   frameH={frameH}

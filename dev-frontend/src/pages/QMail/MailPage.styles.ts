@@ -847,3 +847,25 @@ export const SkelCard = styled.div`
   padding: 14px 16px;
   display: flex; flex-direction: column; gap: 10px;
 `;
+
+// #261 — 주소 모드 배너. 지금 무엇을 보고 있는지와 **빠져나가는 길**을 같이 보여준다.
+//   들어가는 길만 있고 나오는 길이 없으면 사용자는 갇힌 것으로 느낀다.
+export const AddressBanner = styled.div`
+  display: flex; align-items: center; gap: 10px;
+  margin: 0 0 8px; padding: 8px 12px;
+  background: #EEF2FF; border: 1px solid #C7D2FE; border-radius: 8px;
+`;
+export const AddressBannerText = styled.div`
+  flex: 1; min-width: 0;
+  font-size: 12px; font-weight: 600; color: #3730A3;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+`;
+export const AddressBannerHint = styled.div`
+  font-size: 11px; font-weight: 400; color: #6366F1; margin-top: 1px;
+`;
+export const AddressBannerClose = styled.button`
+  flex-shrink: 0; padding: 4px 10px; min-height: 28px;
+  background: #fff; border: 1px solid #C7D2FE; border-radius: 6px; cursor: pointer;
+  font-size: 12px; font-weight: 600; color: #4338CA;
+  &:hover { background: #E0E7FF; }
+`;

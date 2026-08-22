@@ -399,6 +399,7 @@ app.use('/api/businesses', require('./routes/email_accounts'));
 // N+75-D — Q Mail M2 인박스 read-only API (email_threads list/detail/mark-read/mark-spam)
 app.use('/api/businesses', require('./routes/email_threads'));
 app.use('/api/businesses', require('./routes/mail_rules'));   // 메일 발신자 분류 규칙(학습형)
+app.use('/api/businesses/:businessId/email-addresses', require('./routes/email_addresses'));   // #261 주소 기준 보기
 app.use('/api/businesses', require('./routes/mail_aliases'));  // 발신 별칭 (Send-as)
 app.use('/api/businesses', require('./routes/email_auth_diag'));  // 발신 도메인 인증 진단 (SPF/DKIM/DMARC)
 app.use('/api/voice', require('./routes/voice'));              // 말로 추가 (음성 → 의도 → 미리보기)

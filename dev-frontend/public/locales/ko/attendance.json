@@ -1,7 +1,13 @@
 {
   "menu": "근태",
-  "page": { "title": "근태" },
-  "tabs": { "my": "내 기록", "leave": "휴가", "team": "팀 관리" },
+  "page": {
+    "title": "근태"
+  },
+  "tabs": {
+    "my": "내 기록",
+    "leave": "휴가",
+    "team": "팀 관리"
+  },
   "widget": {
     "title": "근태",
     "notStarted": "미출근",
@@ -16,7 +22,12 @@
     "todayTotal": "오늘 {{hours}}",
     "onLeaveToday": "오늘 휴가"
   },
-  "state": { "working": "근무중", "on_break": "휴게중", "done": "퇴근", "none": "미출근" },
+  "state": {
+    "working": "근무중",
+    "on_break": "휴게중",
+    "done": "퇴근",
+    "none": "미출근"
+  },
   "my": {
     "weekSummary": "이번 주 {{work}} · 휴게 {{brk}} · 휴가 {{leave}}일",
     "empty": "아직 기록이 없습니다. 근무를 시작하면 여기에 쌓입니다.",
@@ -56,7 +67,12 @@
     "submit": "신청",
     "cancel": "취소",
     "empty": "신청한 휴가가 없습니다.",
-    "status": { "pending": "대기", "approved": "승인", "rejected": "반려", "canceled": "취소됨" },
+    "status": {
+      "pending": "대기",
+      "approved": "승인",
+      "rejected": "반려",
+      "canceled": "취소됨"
+    },
     "chargedDays": "{{days}}일 차감",
     "decideNote": "메모",
     "approve": "승인",
@@ -86,6 +102,47 @@
     "insufficient_leave_balance": "남은 휴가가 부족합니다.",
     "already_started": "이미 시작된 휴가는 관리자만 취소할 수 있습니다.",
     "forbidden": "권한이 없습니다.",
-    "generic": "처리하지 못했습니다. 잠시 후 다시 시도해 주세요."
+    "generic": "처리하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+    "fix_reason_required": "정정 사유를 입력해 주세요.",
+    "events_required": "추가할 시각을 하나 이상 넣어 주세요.",
+    "invalid_at": "시각 형식이 올바르지 않습니다.",
+    "timeline_must_start_with_clock_in": "출근 시각이 있어야 합니다. 확정 기록은 출근으로 시작합니다."
+  },
+  "stats": {
+    "title": "팀 통계",
+    "workDays": "출근일",
+    "workHours": "근무",
+    "breakHours": "휴게",
+    "overtime": "기준 초과",
+    "avgIn": "평균 출근",
+    "avgOut": "평균 퇴근",
+    "leaveUsed": "휴가 사용",
+    "autoClosed": "자동마감",
+    "empty": "이 달에는 기록이 없습니다.",
+    "overtimeHint": "‘기준 초과’는 각자의 1일 기준시간을 넘긴 합계입니다. 유연근무라 어떤 날은 넘고 어떤 날은 모자란 것이 정상이며, 법정 연장근로 수치가 아닙니다."
+  },
+  "fix": {
+    "open": "정정",
+    "title": "근태 정정",
+    "current": "현재 기록",
+    "appendOnlyHint": "기존 기록은 지워지지 않습니다. 아래에서 바로잡으면 옛 기록은 이력으로 남고 근무시간이 다시 계산됩니다.",
+    "add": "시각 추가",
+    "reason": "정정 사유",
+    "reasonPlaceholder": "예: 퇴근 도장을 잊어 실제 퇴근 시각으로 정정",
+    "submit": "정정 반영",
+    "kind": {
+      "clock_in": "출근",
+      "break_start": "휴게 시작",
+      "break_end": "휴게 종료",
+      "clock_out": "퇴근"
+    },
+    "source": {
+      "auto_focus": "자동 출근",
+      "auto_close": "자동 마감",
+      "admin_fix": "정정"
+    },
+    "timeline": "이 날의 확정 기록",
+    "timelineHint": "여기에 남긴 것이 이 날의 기록이 됩니다. 잘못 찍힌 시각은 고치거나 지우세요 — 원래 기록은 이력으로 남습니다.",
+    "superseded": "무효"
   }
 }
