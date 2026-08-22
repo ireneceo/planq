@@ -16,7 +16,7 @@ function isTransientLockError(e) {
   return code === 'ER_LOCK_DEADLOCK' || code === 'ER_LOCK_WAIT_TIMEOUT';
 }
 
-async function _attemptReserve(businessId, bytes) {
+async function _attemptReserve(businessId, bytes, force = false) {
   const t = await sequelize.transaction();
   try {
     await BusinessStorageUsage.findOrCreate({
@@ -30,7 +30,10 @@ async function _attemptReserve(businessId, bytes) {
       transaction: t,
     });
     const limit = await planEngine.getLimit(businessId, 'storage_bytes');
-    if (limit !== Infinity && Number(usage.bytes_used) + bytes > limit) {
+    // force = 이미 도착한 것(수신 메일 첨부 등). 쿼터로 **거절할 수 없는** 유입이다 —
+    //   거절하면 사용자에게 온 자료가 사라진다. 한도를 넘겨도 **집계는 정확히** 한다
+    //   (안 세면 카운터가 실제와 벌어져 쿼터 자체가 무의미해진다 — #372 가 그 상태였다).
+    if (!force && limit !== Infinity && Number(usage.bytes_used) + bytes > limit) {
       await t.rollback();
       return { ok: false, reason: 'storage_quota_exceeded', limit, current: Number(usage.bytes_used) };
     }
@@ -50,12 +53,13 @@ async function _attemptReserve(businessId, bytes) {
 //   반환: { ok: true } | { ok: false, reason: 'storage_quota_exceeded', limit, current }
 //   호출측은 반드시 물리 파일 저장/DB 레코드 생성 "직전"에 호출하고, ok:false 면 임시파일 정리.
 //   throw 도 발생 가능(재시도 소진 등) → 호출측은 try/catch 로 임시파일 정리 후 재던짐.
-async function reservePlanqUpload(businessId, sizeBytes) {
+async function reservePlanqUpload(businessId, sizeBytes, opts = {}) {
   const bytes = Number(sizeBytes || 0);
+  const force = !!opts.force;
   // 최초 행 INSERT 경합은 재시도 시 이미 행이 존재해 락 얽힘이 해소된다. 최대 3회.
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      return await _attemptReserve(businessId, bytes);
+      return await _attemptReserve(businessId, bytes, force);
     } catch (e) {
       if (isTransientLockError(e) && attempt < 2) {
         await new Promise((r) => setTimeout(r, 40 * (attempt + 1)));

@@ -20,6 +20,7 @@ const crypto = require('crypto');
 const { decrypt } = require('./encryption');
 const { needsReauth } = require('./emailAccountHealth');
 const { isEmbedded, isNoiseAttachment } = require('./emailAttachments');
+const { reservePlanqUpload } = require('./storageUsage');
 const { toNFC } = require('./filename');   // #364 — 첨부 파일명 조합형 통일 (업로드 관문과 같은 축)
 const {
   EmailAccount, EmailThread, EmailMessage, EmailAttachment, EmailThreadParticipant,
@@ -196,9 +197,31 @@ async function isKnownContact(businessId, fromEmail) {
 //   여태 무조건 workspace owner_id 였는데, canAccessFileByLevel 의 L1 은 `uploader_id === userId` 만 통과시킨다.
 //   uploader 교정 없이 L1 만 주면 **개인 계정 주인이 자기 첨부에서 차단되는** 2차 사고가 난다.
 // #215-G — 기계 파트(반송 헤더·AMP 본문)는 File 을 아예 만들지 않는다. 스토리지 쿼터·Q File 오염 차단.
+// ── #370 저장 게이트 ──
+//   워프로랩 Q File 의 52%(524건·20.5MB)가 planq-logo.png 였다. 우리 알림메일의 인라인 로고가
+//   첨부로 들어와 **매번 물리 파일 + File row** 로 저장된 결과다(하루 ~15건, 전부 39,196B 동일 바이트).
+//
+//   ★ 표시 술어(emailAttachments.isEmbedded)는 **손대지 않는다.** 그건 #215 가 "본문이 참조하지 않으면
+//     보여준다" 는 fail-open 으로 둔 것이고, 세금계산서 같은 진짜 첨부가 숨는 사고를 막는 장치다.
+//     저장 여부는 그것과 축이 다르다 — 여기 저장 단계에 게이트를 따로 둔다.
+//   ★ 수신 서버가 cid: 를 data:base64 로 치환해 배달하기 때문에 "본문이 cid 를 참조하는가" 로는
+//     로고를 못 잡는다(실측: inbound 2,274건 중 cid 참조 9건 vs data:image 684건). 그래서
+//     **첨부 자신의 contentId** 로 본다 — 치환돼도 첨부의 cid 는 그대로 남는다.
+const PLATFORM_LOGO_CID = 'planq-logo@platform';
+function isPlatformLogo(att) {
+  const cid = String(att?.contentId || att?.cid || '').replace(/[<>]/g, '').toLowerCase();
+  if (cid === PLATFORM_LOGO_CID) return true;
+  // cid 가 유실된 경우의 보조 판정 — 이름·타입·크기가 전부 맞을 때만(오탐 방지).
+  const name = String(att?.filename || '').toLowerCase();
+  const size = att?.size || (att?.content ? att.content.length : 0);
+  return name === 'planq-logo.png' && String(att?.contentType || '').startsWith('image/') && size < 200 * 1024;
+}
+
 async function saveAttachmentAsFile({ businessId, att, account, fallbackOwnerId }) {
   try {
     if (isNoiseAttachment(att.contentType)) return null;
+    // 플랫폼 로고는 사용자의 자료가 아니다 — 파일 목록에 쌓이면 진짜 자료를 덮는다.
+    if (isPlatformLogo(att)) return null;
     const personal = !!(account && account.owner_user_id);
     const level = personal ? 'L1' : 'L3';
     const ym = new Date().toISOString().slice(0, 7);
@@ -208,6 +231,13 @@ async function saveAttachmentAsFile({ businessId, att, account, fallbackOwnerId 
     const uuid = crypto.randomBytes(16).toString('hex');
     const fname = `${uuid}${ext}`;
     const fpath = path.join(dir, fname);
+    const bytes = att.size || att.content.length;
+    // #372 — 메일첨부가 스토리지 카운터를 아예 안 올리고 있었다(집계 14건/53MB vs 실제 961건/183MB).
+    //   카운터가 실제와 벌어지면 쿼터가 아무것도 못 막는다. force=true — 이미 도착한 메일이라
+    //   한도를 넘겨도 거절할 수 없다(거절하면 사용자에게 온 자료가 사라진다). 세는 것이 목적이다.
+    //   ⚠ storageUsage 는 자체 트랜잭션을 연다 — 여기는 트랜잭션 밖이라 안전하다.
+    try { await reservePlanqUpload(businessId, bytes, { force: true }); }
+    catch (e) { console.warn('[emailImapCron] storage usage 집계 실패:', e.message); }
     fs.writeFileSync(fpath, att.content);
     const file = await FileModel.create({
       business_id: businessId,
@@ -217,7 +247,7 @@ async function saveAttachmentAsFile({ businessId, att, account, fallbackOwnerId 
       //   (사용자가 "스크린샷" 을 쳐도 0건). 여기서도 조합형으로 통일한다.
       file_name: toNFC(att.filename || `attachment${ext}`),
       file_path: fpath,
-      file_size: att.size || att.content.length,
+      file_size: bytes,
       mime_type: att.contentType || 'application/octet-stream',
       storage_provider: 'planq',
       project_id: null,
@@ -328,6 +358,7 @@ async function syncOne(account, opts = {}) {
     const limited = isBackfill ? results.slice(-fetchCap) : results.slice(0, fetchCap);
 
     let maxUid = account.imap_last_uid;
+    let skippedSelfNotice = 0;   // #371 — 이번 회차에 건너뛴 자기발신 알림 수
 
     // workspace owner_id 가져옴 (file uploader_id 용)
     const biz = await Business.findByPk(account.business_id, { attributes: ['owner_id'] });
@@ -357,6 +388,28 @@ async function syncOne(account, opts = {}) {
         const fromAddr = parsed.from && parsed.from.value && parsed.from.value[0];
         const fromEmail = (fromAddr && fromAddr.address) ? fromAddr.address.toLowerCase() : '';
         const fromName = (fromAddr && fromAddr.name) ? fromAddr.name : '';
+
+        // ── #371 자기발신 알림메일 수집 차단 ──
+        //   PlanQ 가 보낸 알림메일(SMTP_FROM)이 그대로 Q Mail 로 다시 수집되고 있었다.
+        //   운영 실측 2026-08-22: inbound 2,274건 중 **826건(36%)**. 건당 body_html ~58KB(대부분 로고
+        //   base64)라 매일 용량이 불고, 로고 File 524건 누적(#370)의 상위 원인이기도 하다.
+        //   사용자는 같은 내용을 이미 앱 알림으로 받는다 — 메일함에 또 쌓을 이유가 없다.
+        //
+        //   ★ 판정은 **두 조건을 모두** 만족할 때만이다. 주소만 보면 사람이 그 주소로 보낸 진짜 메일까지
+        //     삼킨다(help@ 는 실제 고객 응대 주소다). 자동발송 헤더는 우리가 붙인 것이라 위조 위험이 없다.
+        //   ★ 되돌리려면 QMAIL_KEEP_SELF_NOTICE=1 만 켜면 된다 — 배포 없이 수집을 되살릴 수 있게.
+        //     ("알림도 메일함에서 보고 싶다" 는 요구가 나오면 그때 이 스위치로 즉시 복구)
+        const selfFrom = String(process.env.SMTP_FROM || '').toLowerCase().trim();
+        if (selfFrom && fromEmail === selfFrom && process.env.QMAIL_KEEP_SELF_NOTICE !== '1') {
+          const autoHdr = String(
+            (parsed.headers && (parsed.headers.get ? parsed.headers.get('auto-submitted') : parsed.headers['auto-submitted'])) || ''
+          ).toLowerCase();
+          if (autoHdr && autoHdr !== 'no') {
+            skippedSelfNotice += 1;
+            maxUid = Math.max(maxUid, uid);
+            continue;   // 저장하지 않는다 — 첨부(로고) File 도 따라서 생기지 않는다
+          }
+        }
 
         // thread 매칭
         const { thread, isNew } = await findOrCreateThread({
@@ -551,6 +604,12 @@ async function syncOne(account, opts = {}) {
     // #357 — 폴링 연결도 같은 함정. end() 가 비동기 EPIPE 를 던지면 리스너가 없어 프로세스가 죽는다.
     silenceLateErrors(conn && conn.imap);
     try { await conn.end(); } catch (_) { /* ignore */ }
+  }
+
+  // #371 — 건너뛴 수를 남긴다. 안 남기면 "정말 걸러지고 있는가" 를 확인할 방법이 로그에 없다
+  //   (조용히 도는 필터는 나중에 죽어도 아무도 모른다).
+  if (skippedSelfNotice > 0) {
+    console.log(`[emailImapCron] account #${account.id} — 자기발신 알림 ${skippedSelfNotice}건 수집 건너뜀 (#371)`);
   }
 
   return newCount;
