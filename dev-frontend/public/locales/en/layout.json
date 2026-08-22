@@ -145,7 +145,8 @@
       "me-work-env": "my settings",
       "me-notifications": "notification,push",
       "me-data": "my data,export"
-    }
+    },
+    "attendance": "Attendance"
   },
   "user": {
     "profile": "My Profile",

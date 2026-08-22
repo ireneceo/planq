@@ -171,6 +171,12 @@ router.post('/start', authenticateToken, startStopLimiter, async (req, res, next
         new_value: { task_id: session.task_id, switched_from: existing?.id || null },
       }).catch(() => null);
 
+      // #208 연동 A — 업무를 시작하면 출근도 같이 찍는다(오늘 기록이 아예 없을 때만).
+      //   실패해도 무시한다: 근태 때문에 업무 시작이 막히면 부가 기능이 본 기능을 죽이는 꼴이다.
+      await require('../services/attendanceTransition')
+        .autoClockInOnFocus({ businessId: session.business_id, userId: req.user.id })
+        .catch(() => null);
+
       const taskInfo = await loadTaskInfo(session.task_id);
       const taskAccum = await sumStoppedFocusSeconds(session.task_id, req.user.id, session.id);
       return successResponse(res, serializeSession(session, taskInfo, taskAccum));

@@ -73,6 +73,11 @@ async function run() {
     //   카나리는 계속 초록이었다. **안 잡는 가드는 없는 것보다 나쁘다** — 표면에 넣는다.
     ['search (통합 검색)', `/api/search?business_id=${myBiz}&q=a`, `/api/search?business_id=${foreign.id}&q=a`],
     ['search recent (검색 전 최근)', `/api/search/recent?business_id=${myBiz}`, `/api/search/recent?business_id=${foreign.id}`],
+    // #208 — 근태·휴가는 남의 근무시간과 휴가 사유가 담긴다. 새 표면은 만든 날 카나리에 올린다.
+    ['attendance today (근태)', `/api/attendance/today?business_id=${myBiz}`, `/api/attendance/today?business_id=${foreign.id}`],
+    ['attendance presence', `/api/attendance/presence?business_id=${myBiz}`, `/api/attendance/presence?business_id=${foreign.id}`],
+    ['leave balance (휴가 잔여)', `/api/leave/balance?business_id=${myBiz}`, `/api/leave/balance?business_id=${foreign.id}`],
+    ['leave requests (휴가 신청)', `/api/leave/requests?business_id=${myBiz}`, `/api/leave/requests?business_id=${foreign.id}`],
   ];
 
   for (const [name, minePath, foreignPath] of SURFACES) {

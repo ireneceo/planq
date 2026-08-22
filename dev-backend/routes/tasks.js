@@ -55,7 +55,7 @@ function broadcastInboxRefresh(io, businessId, projectId, reason, taskId) {
 //   여기 있던 사본은 `weekly = daily × days × rate` 라 **휴일을 빼지 않았다**. 화면은 받아서
 //   daily × (days − holidays) × rate 로 다시 계산했고, 보고서 쪽은 또 다른 공식을 썼다(3벌).
 //   이제 공식은 서비스 한 곳뿐이고, weekly 도 화면과 같은 값이 된다.
-const { getMemberCapacity } = require('../services/memberCapacity');
+const { getMemberCapacity, getMemberCapacityForWeek } = require('../services/memberCapacity');
 
 // ─── 헬퍼: business 접근 권한 확인 (platform_admin/owner/member/client 통과) ───
 //  PERMISSION_MATRIX §5/§7 — client 도 자기 task 조회/댓글 가능해야 하므로 통과시킨다.
@@ -129,8 +129,10 @@ router.get('/my-week', authenticateToken, async (req, res, next) => {
     //   (인사이트 카드와 팝아웃 헤더가 동시에 오염). 목록만 넓히고 계산은 그대로.
     const mine = tasks.filter(t => t.assignee_id === uid);
 
-    // 가용시간
-    const capacity = await getMemberCapacity(userId, businessId);
+    // 가용시간 — #208: 그 주에 승인된 휴가만큼 실질 가용시간이 줄어든다.
+    //   기존 키(weekly 등)는 그대로 두고 weekly_effective/leave_days 를 **더한다**.
+    //   휴가가 없으면 weekly_effective === weekly 라 기존 화면과 값이 같다.
+    const capacity = await getMemberCapacityForWeek(userId, businessId, monday);
 
     // ★ 번다운 계산을 제거했다 (2026-08-19).
     //   ① 계산이 틀려 있었다 — `completedByDay` 가 이미 "그날까지 누적" 인데 `estCum += estDay` 로
@@ -231,7 +233,15 @@ router.get('/my-month', authenticateToken, async (req, res, next) => {
       cursor = addDaysStr(wMonday, 7);
     }
 
+    // #208 — 월간도 같은 정의를 쓴다. 주마다 휴가가 다르므로 주 단위로 실질치를 얹는다
+    //   (월 전체를 한 번에 빼면 어느 주가 비었는지 화면이 알 수 없다).
     const capacity = await getMemberCapacity(userId, businessId);
+    for (const w of weeks) {
+      const c = await getMemberCapacityForWeek(userId, businessId, w.week_start);
+      w.capacity = c.weekly;
+      w.capacity_effective = c.weekly_effective;
+      w.leave_days = c.leave_days;
+    }
 
     const tasksJson = tasks.map(t => t.toJSON());
     await applyMemberDisplayName(tasksJson, businessId, ['assignee']);
@@ -794,6 +804,8 @@ router.get('/by-business/:businessId/participation-suggestion', authenticateToke
     if (!(await assertBusinessAccess(req.user.id, businessId, req.user.platform_role))) {
       return errorResponse(res, 'forbidden', 403);
     }
+    // #208 — 여기만 휴가 차감을 **하지 않는다**(의도적). 참여율 추천의 분모는 명목 근무시간이라,
+    //   휴가로 분모를 줄이면 "쉰 주" 가 참여율을 인위적으로 끌어올린다. 4주 창이라 영향도 작다.
     const cap = await getMemberCapacity(req.user.id, businessId);
     const nominalPerWeek = cap.daily * Math.max(0, cap.days - cap.holidays); // rate 제외 — 측정 대상이 rate 자체
     const WEEKS = 4;

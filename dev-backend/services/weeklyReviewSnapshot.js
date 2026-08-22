@@ -75,7 +75,7 @@ async function buildSnapshot(userId, businessId, weekStart) {
   const total = tasks.length;
   const estimated_total = tasks.reduce((s, t) => s + (Number(t.estimated_hours) || 0), 0);
   const actual_total = tasks.reduce((s, t) => s + (Number(t.actual_hours) || 0), 0);
-  const capacity_hours = await getUserCapacity(userId, businessId);
+  const capacity_hours = await getUserCapacity(userId, businessId, monday);   // #208 그 주 휴가 반영
   const utilization_pct = capacity_hours > 0 ? Math.round((actual_total / capacity_hours) * 100) : 0;
 
   // 3) burndown (기존)
@@ -601,10 +601,17 @@ async function fetchMemberUtilization(businessId, monday, sunday) {
       actual_hours = Number(sumRow) || 0;
     }
     // #288 — 세 번째 사본이었다(같은 파일 안에서도 공식이 갈렸다). 서비스 공식으로 통일.
-    const capacity_hours = capacityService.weeklyHours({
+    const capacity_hours_nominal = capacityService.weeklyHours({
       daily: m.daily_work_hours, days: m.weekly_work_days,
       rate: m.participation_rate, holidays: m.weekly_holidays,
     });
+    // #208 — 그 주 승인된 휴가만큼 실제 가용시간이 준다. 안 빼면 휴가 간 사람이 매번
+    //   'underloaded' 로 찍혀 "쉬었는데 일 안 했다" 는 보고서가 된다.
+    const leave_days = await capacityService.getLeaveDaysInRange(m.user_id, businessId, monday, sunday);
+    const capacity_hours = leave_days
+      ? Math.max(0, Math.round((capacity_hours_nominal
+          - (Number(m.daily_work_hours) || 8) * (Number(m.participation_rate) || 1) * leave_days) * 10) / 10)
+      : capacity_hours_nominal;
     const utilization_pct = capacity_hours > 0 ? Math.round((actual_hours / capacity_hours) * 100) : 0;
     const today = new Date().toISOString().slice(0, 10);
     const completed_tasks = tasks.filter(t => t.status === 'completed').length;
@@ -617,7 +624,8 @@ async function fetchMemberUtilization(businessId, monday, sunday) {
     memberStats.push({
       user_id: m.user_id,
       name: pickMemberName(m.user, m),
-      capacity_hours, actual_hours: Math.round(actual_hours * 10) / 10,
+      capacity_hours, capacity_hours_nominal, leave_days,
+      actual_hours: Math.round(actual_hours * 10) / 10,
       utilization_pct, completed_tasks, overdue_tasks, status,
     });
   }
@@ -711,10 +719,14 @@ async function fetchDecisionsRequired(businessId, monday) {
 // ─────────────────────────────────────────────────────────────
 // #288 — 여기 있던 사본은 `daily × days` 로 **참여율·휴일을 무시**해, 같은 사람의 가용시간이
 //   화면(30h)과 보고서(40h)에서 다르게 나왔다. 공식은 services/memberCapacity 한 곳뿐이다.
-async function getUserCapacity(userId, businessId) {
+async function getUserCapacity(userId, businessId, weekStart = null) {
   try {
-    const { weekly } = await capacityService.getMemberCapacity(userId, businessId);
-    return weekly;
+    // #208 — 주가 주어지면 그 주의 휴가를 뺀 실질치. 안 주어지면 종전과 같은 명목치
+    //   (호출부를 한 번에 다 못 고쳐도 값이 안 변하도록 기본값을 종전으로 둔다).
+    const cap = weekStart
+      ? await capacityService.getMemberCapacityForWeek(userId, businessId, weekStart)
+      : await capacityService.getMemberCapacity(userId, businessId);
+    return weekStart ? cap.weekly_effective : cap.weekly;
   } catch (e) {
     console.error('[weeklyReviewSnapshot] getUserCapacity error:', e.message);
     return 40;

@@ -52,6 +52,9 @@ User.init({
   focus_idle_min: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 15, comment: '유휴 감지 임계 (분)' },
   focus_auto_pause_min: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 30, comment: '자동 일시정지 시간 (분)' },
   focus_daily_prompt: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, comment: '아침 시작 안내 모달 (focus_enabled=true 시만 효과)' },
+  // #208 — 업무를 시작하면 출근도 같이 찍는다. 출근 도장을 따로 누르게 하면
+  //   유연근무에서 자꾸 잊고, "어제 출근이 없다" 는 정정 요청만 늘어난다.
+  auto_clock_in_on_focus: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, comment: '업무 시작 시 자동 출근 (#208)' },
   focus_prompt_last_dismissed_date: { type: DataTypes.DATEONLY, allowNull: true, comment: '"오늘 다시 보지 않기" 누른 날짜' },
   username: {
     type: DataTypes.STRING(50),

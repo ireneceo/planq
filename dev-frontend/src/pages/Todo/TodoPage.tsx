@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import PageShell from '../../components/Layout/PageShell';
+import AttendanceWidget from '../../components/Attendance/AttendanceWidget';
 import HelpDot from '../../components/Common/HelpDot';
 import InsightCards from '../../components/Common/InsightCards';
 import TodoList from '../../components/Dashboard/TodoList';
@@ -259,6 +260,9 @@ const TodoPage: React.FC = () => {
         </HelpDot>
       }
     >
+      {/* #208 — 모바일에서는 사이드바가 접히므로 출퇴근을 첫 화면 최상단에 둔다.
+          앱 열기 → 1탭으로 출근이 목표라 데스크탑에서는 감춘다(사이드바 위젯과 중복). */}
+      <MobileAttendance><AttendanceWidget variant="card" /></MobileAttendance>
       {/* 카테고리 탭 — 전체 default + 업무·서명·청구 카운트 분리 */}
       {(() => {
         const items = data?.items || [];
@@ -411,4 +415,10 @@ const ArchiveLink = styled(Link)`
   color: #0F766E;
   text-decoration: none;
   &:hover { text-decoration: underline; }
+`;
+
+// #208 — 폰·태블릿 세로에서만. 데스크탑은 사이드바 위젯이 같은 일을 한다.
+const MobileAttendance = styled.div`
+  display: none;
+  @media (max-width: 1024px) { display: block; margin-bottom: 12px; }
 `;

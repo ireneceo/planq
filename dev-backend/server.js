@@ -425,6 +425,8 @@ app.use('/api/stats', require('./routes/stats'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/push', require('./routes/push'));
 app.use('/api/focus', require('./routes/focus'));
+app.use('/api/attendance', require('./routes/attendance'));   // #208 출퇴근
+app.use('/api/leave', require('./routes/leave'));               // #208 휴가
 // ★ /api/tasks 체인 최상단 — 리터럴 `/priority/*` 가 뒤쪽 라우터의 파라미터 패턴에 먹히지 않게.
 //   (현재는 세그먼트 수가 달라 충돌 없지만, 미래 라우트 추가에 대한 방어선을 위치로 못박는다)
 app.use('/api/tasks', require('./routes/task_priority'));
@@ -585,6 +587,10 @@ initReportUnitCron();
 // N+63 — 일정 임박 알림 cron (5분 단위)
 const { initCalendarReminderCron } = require('./services/calendarReminderCron');
 initCalendarReminderCron();
+
+// #208 — 퇴근 안 누른 어제 기록 자동 마감
+const { initAttendanceAutoClose } = require('./services/attendanceAutoClose');
+initAttendanceAutoClose();
 // #242 ② — 역방향 동기화 cron (구글에서 고친 내용을 PlanQ 로, 5분 단위)
 const { initCalendarReverseSyncCron } = require('./services/calendarReverseSyncCron');
 initCalendarReverseSyncCron(app);

@@ -116,6 +116,7 @@ const LandingBlogPost = lazy(() => import('./pages/Landing/BlogPostPage'));
 const RootRoute = lazy(() => import('./pages/Landing/RootRoute'));
 const DashboardPage = lazy(() => import('./pages/Dashboard/DashboardPage'));
 const TodoPage = lazy(() => import('./pages/Todo/TodoPage'));
+const AttendancePage = lazy(() => import('./pages/Attendance/AttendancePage'));
 const NotificationsPage = lazy(() => import('./pages/Notifications/NotificationsPage'));
 const WhatsNewPage = lazy(() => import('./pages/WhatsNew/WhatsNewPage'));
 const QBillPage = lazy(() => import('./pages/QBill/QBillPage'));
@@ -318,6 +319,12 @@ function ShellApp() {
         <Route path="/tasks/:scope" element={
           <ProtectedRoute>
             <MainLayout><QTaskPage /></MainLayout>
+          </ProtectedRoute>
+        } />
+
+        <Route path="/attendance" element={
+          <ProtectedRoute>
+            <MainLayout><AttendancePage /></MainLayout>
           </ProtectedRoute>
         } />
 
