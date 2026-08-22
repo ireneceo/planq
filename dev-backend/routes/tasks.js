@@ -845,7 +845,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     const task = await Task.findOne({ where: { id: req.params.id, business_id: businessId } });
     if (!task) return errorResponse(res, 'task_not_found', 404);
 
-    const { title, description, body, assignee_id, status, due_date, start_date, estimated_hours, actual_hours, progress_percent, category, planned_week_start, project_id, recurrence_rule, workstream_id, is_milestone, hold_reason } = req.body;
+    const { title, description, body, assignee_id, status, due_date, start_date, estimated_hours, actual_hours, progress_percent, category, planned_week_start, project_id, recurrence_rule, workstream_id, is_milestone, hold_reason, miss_policy } = req.body;
     const updates = {};
     if (is_milestone !== undefined) updates.is_milestone = !!is_milestone;
     if (title !== undefined) updates.title = title;
@@ -863,6 +863,12 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     if (progress_percent !== undefined) updates.progress_percent = progress_percent;
     if (category !== undefined) updates.category = category;
     if (planned_week_start !== undefined) updates.planned_week_start = planned_week_start;
+    // #349 — 미수행 회차 정책. 시리즈 부모에만 의미가 있다(회차 인스턴스는 자기 정책을 갖지 않는다).
+    //   값 검증은 여기서 한다 — ENUM 밖 값이 오면 DB 가 에러를 내고 그 에러는 사용자에게 안 보인다.
+    if (miss_policy !== undefined && ['carry', 'auto_skip'].includes(miss_policy)) {
+      updates.miss_policy = miss_policy;
+    }
+
     // 정기업무 — recurrence_rule 갱신: null 로 보내면 해제, RRULE 문자열이면 검증 후 next_occurrence_at 재계산
     if (recurrence_rule !== undefined) {
       if (recurrence_rule === null || recurrence_rule === '') {
@@ -969,10 +975,13 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
 
     // #206 — 드롭다운으로 직접 status 를 바꾸는 경로에서도 보류 필드를 정합하게 유지한다.
     //   on_hold 진입: 복귀 목적지 저장 / on_hold 이탈: 초기화 (액션 계층 hold·resume 과 같은 규칙)
+    //   ★ 외부컨펌(external_review)도 같은 장치를 쓴다 — 컨펌 대기(reviewing) 중에 고객 확인을
+    //     받으러 나갔다가 **그 라운드로 돌아와야** 한다(#302). 복귀 지점을 안 남기면 resume 이
+    //     in_progress 로 떨어뜨려 컨펌 라운드가 사라진다.
     if (status !== undefined && status !== task.status) {
-      if (status === 'on_hold') {
+      if (status === 'on_hold' || status === 'external_review') {
         updates.hold_prev_status = task.status;
-      } else if (task.status === 'on_hold') {
+      } else if (['on_hold', 'external_review'].includes(task.status)) {
         updates.hold_prev_status = null;
         updates.hold_reason = null;
       }

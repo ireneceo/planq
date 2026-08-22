@@ -193,6 +193,36 @@ router.post('/:id/complete', authenticateToken, async (req, res, next) => {
 });
 
 // ─────────────────────────────────────────────
+// GET /api/tasks/:id/deliverable-versions — 회차별 결과물 이력 (#271·#307)
+//   결과물이 tasks.body 한 칸이라 다시 제출하면 이전 것이 덮이던 것 → 제출 시점마다 박제한 이력.
+//   권한은 업무 상세와 같다(loadTaskOrFail 이 접근 검사를 이미 지난다).
+// ─────────────────────────────────────────────
+router.get('/:id/deliverable-versions', authenticateToken, async (req, res, next) => {
+  try {
+    const task = await loadTaskOrFail(req.params.id, res);
+    if (!task) return;
+    const { TaskDeliverableVersion, User } = require('../models');
+    // 워크스페이스 격리는 **위 loadTaskOrFail 이 이미 끝냈다** — 그 안에서 canAccessTask 로
+    //   업무 소유 워크스페이스와 요청자 권한을 대조한다. 여기 where 에 business_id 를 또 넣을
+    //   자리가 없다(이 표는 task_id 로만 매인다). 통과하지 못한 요청은 여기까지 오지 않는다.
+    const rows = await TaskDeliverableVersion.findAll({
+      where: { task_id: task.id },
+      include: [{ model: User, as: 'submitter', attributes: ['id', 'name', 'name_localized'], required: false }],
+      order: [['round', 'DESC'], ['id', 'DESC']],
+    });
+    return successResponse(res, rows.map(r => {
+      const j = r.toJSON();
+      return {
+        id: j.id, round: j.round, body: j.body, note: j.note,
+        attachment_ids: Array.isArray(j.attachment_ids) ? j.attachment_ids : [],
+        submitted_at: j.created_at,
+        submitter: j.submitter ? { id: j.submitter.id, name: j.submitter.name } : null,
+      };
+    }));
+  } catch (err) { next(err); }
+});
+
+// ─────────────────────────────────────────────
 // POST /api/tasks/:id/reviewers — 컨펌자 추가
 // Body: { user_id }
 // ─────────────────────────────────────────────

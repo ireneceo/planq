@@ -30,7 +30,7 @@
 
 const { Op } = require('sequelize');
 const { RRule } = require('rrule');
-const { Task, TaskReviewer, TaskTagLink } = require('../models');
+const { Task, TaskReviewer, TaskTagLink, TaskStatusHistory } = require('../models');
 
 // 시리즈 하나가 한 번의 실행에서 만들 수 있는 회차 상한.
 // 밀린 회차 캐치업용 — 일간 시리즈가 한 달 밀려도 한 번에 따라잡되, 잘못된 RRULE 폭주는 막는다.
@@ -268,9 +268,58 @@ async function flushRecurringNotifications(notifyBucket, io = null) {
 
 // io: socket.io Server instance (server.js 에서 주입). 없으면 broadcast 스킵 (단위 테스트 안전).
 // notifyBucket: 실행 단위 알림 다이제스트 수집기 (#350). 없으면 이 함수가 자체 수집 후 바로 flush.
+/**
+ * #349 — 시리즈의 **지난 미수행 회차를 자동 마감**한다 (miss_policy='auto_skip' 일 때만).
+ *
+ * 루틴은 "그날 안 하면 넘어가는" 성격인데, 안 한 회차가 not_started 로 남으면 지연으로 쌓여
+ *   인사이트 경고 + 프로젝트 health red 를 만든다(평일 데일리면 하루만 놓쳐도 문턱에 닿는다).
+ *   사용자가 매주 금요일에 손으로 취소하던 일을 여기서 대신한다.
+ *
+ * ★ **생성 여부와 무관하게 돈다.** 처음엔 회차 생성 루프 안에 뒀는데, 다음 회차가 아직 멀면
+ *   (주간·월간 시리즈) `not_due_yet` 으로 조기 반환돼 **정리가 영영 실행되지 않았다**(실측).
+ *   정리는 생성의 곁가지가 아니라 독립된 일이다.
+ * ★ 대상은 **지난 회차 중 손도 안 댄 것(not_started)** 뿐이다. 진행 중·컨펌 중·보류는
+ *   사람이 이미 손을 댄 일이라 건드리지 않는다.
+ * ★ 이력을 남긴다 — 남기지 않으면 사용자에겐 "업무가 조용히 사라진" 것으로 보인다.
+ */
+async function skipMissedOccurrences(parent, today = new Date()) {
+  if (parent.miss_policy !== 'auto_skip') return [];
+  const todayStr = toDateOnlyStr(today);
+  const stale = await Task.findAll({
+    where: {
+      recurrence_parent_id: parent.id,
+      status: 'not_started',
+      due_date: { [Op.lt]: todayStr },
+    },
+    attributes: ['id'],
+  });
+  const skippedIds = [];
+  for (const inst of stale) {
+    await inst.update({ status: 'canceled', completed_at: null });
+    try {
+      await TaskStatusHistory.create({
+        task_id: inst.id,
+        event_type: 'status_change',
+        from_status: 'not_started',
+        to_status: 'canceled',
+        actor_user_id: null,
+        note: '미수행 회차 자동 마감 (시리즈 설정: 지난 회차 자동 넘김)',
+      });
+    } catch (e) { console.warn('[recurringTask] skip history', e.message); }
+    skippedIds.push(inst.id);
+  }
+  if (skippedIds.length) {
+    console.log('[recurringTask] parent', parent.id, '미수행 회차 자동 마감', skippedIds.length, '건');
+  }
+  return skippedIds;
+}
+
 async function generateOneSeries(parent, today = new Date(), io = null, notifyBucket = null) {
+  // ★ 정리를 **먼저** 한다 — 아래 조기 반환(series_ended · not_due_yet)에 걸려도 실행되도록.
+  const skippedIds = await skipMissedOccurrences(parent, today);
+
   if (!parent.next_occurrence_at) {
-    return { parent_id: parent.id, skipped: 'series_ended' };
+    return { parent_id: parent.id, skipped: 'series_ended', skipped_ids: skippedIds, skipped_count: skippedIds.length };
   }
 
   const ownBucket = notifyBucket ? null : new Map();
@@ -284,7 +333,7 @@ async function generateOneSeries(parent, today = new Date(), io = null, notifyBu
     : toDateOnlyStr(parent.next_occurrence_at);
 
   if (dateOnlyToUTC(nextDateStr) > cutoff) {
-    return { parent_id: parent.id, skipped: 'not_due_yet', next: nextDateStr };
+    return { parent_id: parent.id, skipped: 'not_due_yet', next: nextDateStr, skipped_ids: skippedIds, skipped_count: skippedIds.length };
   }
 
   // 이미 만들어진 occurrence 수 (parent 1 + 인스턴스). COUNT 종료조건 판정 기준 — 루프 안에서 증가시킨다.
@@ -333,6 +382,8 @@ async function generateOneSeries(parent, today = new Date(), io = null, notifyBu
     due_dates: dueDates,
     next: nextNextStr,
     series_ended: !nextNextStr,
+    skipped_ids: skippedIds,
+    skipped_count: skippedIds.length,
   };
 }
 

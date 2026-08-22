@@ -37,6 +37,7 @@ const PushLog = require('./PushLog');
 const FeedbackItem = require('./FeedbackItem');
 const ExportJob = require('./ExportJob');
 const TaskStatusHistory = require('./TaskStatusHistory');
+const TaskDeliverableVersion = require('./TaskDeliverableVersion');
 const TaskAttachment = require('./TaskAttachment');
 const TaskLink = require('./TaskLink');
 const TaskTag = require('./TaskTag');
@@ -432,6 +433,11 @@ PushSubscription.belongsTo(Business, { foreignKey: 'business_id' });
 // PushLog — admin 모니터링용 (사이클 N+3)
 PushLog.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
 
+// TaskDeliverableVersion (#271·#307) — 회차별 결과물 박제
+TaskDeliverableVersion.belongsTo(Task, { foreignKey: 'task_id', onDelete: 'CASCADE' });
+Task.hasMany(TaskDeliverableVersion, { as: 'deliverableVersions', foreignKey: 'task_id' });
+TaskDeliverableVersion.belongsTo(User, { as: 'submitter', foreignKey: 'submitted_by' });
+
 // TaskStatusHistory
 TaskStatusHistory.belongsTo(Task, { foreignKey: 'task_id', onDelete: 'CASCADE' });
 TaskStatusHistory.belongsTo(User, { as: 'actor', foreignKey: 'actor_user_id' });
@@ -479,6 +485,7 @@ EmailAccount.hasMany(EmailAccountAlias, { foreignKey: 'account_id', as: 'aliases
 EmailAccountAlias.belongsTo(EmailAccount, { foreignKey: 'account_id', as: 'account' });
 
 module.exports = {
+  TaskDeliverableVersion,
   EmailAccountAlias,
   EmailDomainRule,
   MessageReaction,

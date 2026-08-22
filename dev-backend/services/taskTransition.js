@@ -9,7 +9,7 @@
 // P1 '행동 계층(Action Layer)' 의 첫 절단면 — 나머지 전이도 점진적으로 이 파일로 모은다.
 
 const { sequelize } = require('../config/database');
-const { Task, TaskReviewer, TaskStatusHistory, Business } = require('../models');
+const { Task, TaskReviewer, TaskStatusHistory, Business, TaskAttachment, TaskDeliverableVersion } = require('../models');
 const { syncFocusOnTaskStatus } = require('./focusSync');
 
 // 라우트(req.app.get('io'))가 없는 실행 경로(Cue·cron)에서도 broadcast 하기 위한 global ref.
@@ -71,13 +71,19 @@ const REVIEW_STATUSES = ['reviewing', 'revision_requested'];
 
 // #206 진입 매트릭스 — 여기가 단일 원천. PUT·액션 계층·revert-status 가 전부 이 함수를 지난다.
 //   보류(on_hold)는 활성 상태 어디서든. completed/canceled 는 "닫힌 일"이라 보류 대상이 아니다.
-//   외부컨펌(external_review)은 in_progress 에서만 — 내부 컨펌 라운드(reviewing)와 축이 다르므로
-//   컨펌 라운드 중에 외부로 빠지는 경로를 열지 않는다 (라운드 상태 오염 차단).
+//   외부컨펌(external_review)은 **활성 상태 어디서든** — 옛 규칙은 in_progress 에서만 열었다.
+//   ★ 그 제한의 이유는 "컨펌 라운드 중 외부로 빠지면 라운드가 오염된다" 였는데, 실제로 오염시킨 것은
+//     진입이 아니라 **복귀**였다: resume 이 외부컨펌을 무조건 in_progress 로 되돌려 컨펌 라운드가
+//     사라졌다. 복귀를 hold_prev_status(보류가 이미 쓰는 장치)로 바꾸면 라운드가 그대로 보존되므로
+//     진입을 막을 이유가 없어진다.
+//   운영 #302 — "요청을 받은 상태에서 외부컨펌을 추가로 진행해야 할 일도 있어. 내가 승인하거나
+//     수정요청하기 전에 고객에게 컨펌을 요청해서 기다리기를 해야 할 수 있어." 컨펌 대기 중에
+//     고객 확인을 받는 것은 정상 업무 흐름이다.
 const HOLD_FROM = [
   'not_started', 'waiting', 'in_progress',
   'reviewing', 'revision_requested', 'external_review',
 ];
-const EXTERNAL_FROM = ['in_progress', 'external_review'];
+const EXTERNAL_FROM = ['in_progress', 'reviewing', 'revision_requested', 'external_review'];
 
 // opts: { fromStatus, transaction }
 //   fromStatus 를 넘기면 on_hold/external_review 진입 가능 여부까지 검사한다.
@@ -93,7 +99,7 @@ async function canEnterStatus(taskId, toStatus, opts = {}) {
   }
   if (toStatus === 'external_review') {
     if (fromStatus && !EXTERNAL_FROM.includes(fromStatus)) {
-      return { ok: false, reason: 'external_review_from_in_progress_only' };
+      return { ok: false, reason: 'external_review_from_active_only' };
     }
     return { ok: true };
   }
@@ -161,6 +167,29 @@ async function submitForReview({
       actor_role: actorRole,
       round: newRound,
       note,
+    }, { transaction: t });
+    // ── #271·#307 결과물 박제 ──
+    //   결과물은 tasks.body 한 칸이라 다시 제출하면 이전 것이 덮인다. 그래서 사람들이 댓글에
+    //   결과물을 붙여 왔고 무엇이 최신인지·무엇이 반려된 버전인지 알 수 없었다.
+    //   ★ 제출 = 버전. 저장할 때마다 박제하면 버전이 수십 개가 되어 "무엇이 제출본인가" 가 다시 흐려진다.
+    //   ★ 같은 트랜잭션 안에서 — 전이는 됐는데 버전이 없는 상태가 생기면 이력이 거짓말을 한다.
+    //   ★ 첨부는 id 만 담는다(파일 복제 X). 파일이 지워지면 그 버전에서도 자연히 빠진다.
+    const bodySnapshot = (bodyUpdates && bodyUpdates.body !== undefined) ? bodyUpdates.body : task.body;
+    let attachmentIds = null;
+    try {
+      const atts = await TaskAttachment.findAll({
+        where: { task_id: task.id, context: 'task' },
+        attributes: ['id'], transaction: t,
+      });
+      attachmentIds = atts.map(a => a.id);
+    } catch (e) { /* 첨부 조회 실패가 제출을 막지 않는다 — 본문 박제가 본질이다 */ }
+    await TaskDeliverableVersion.create({
+      task_id: task.id,
+      round: newRound,
+      body: bodySnapshot ?? null,
+      attachment_ids: attachmentIds,
+      submitted_by: actorUserId || null,
+      note: note ? String(note).slice(0, 1000) : null,
     }, { transaction: t });
     await t.commit();
   } catch (e) {
