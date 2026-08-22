@@ -278,7 +278,9 @@
     "monthlyLastNamed": "Last {{day}} of every month",
     "weeklyMulti": "Weekly on {{days}}",
     "advancedBadge": "Custom rule",
-    "advancedHint": "This repeat rule is kept as is. It changes only when you pick another option below."
+    "advancedHint": "This repeat rule is kept as is. It changes only when you pick another option below.",
+    "missCarry": "Keep missed occurrences",
+    "missSkip": "Skip missed occurrences automatically"
   },
   "backlog": {
     "title": "Unassigned",

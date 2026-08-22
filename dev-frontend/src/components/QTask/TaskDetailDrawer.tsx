@@ -131,6 +131,8 @@ interface TaskDetail {
   comments?: CommentRow[];
   daily_progress?: { snapshot_date: string; progress_percent: number; actual_hours: number; estimated_hours: number | null }[];
   recurrence_rule?: string | null;
+  /** #349 — 미수행 회차 정책. carry(기본) = 남긴다 / auto_skip = 지난 회차 자동 마감 */
+  miss_policy?: 'carry' | 'auto_skip' | null;
   recurrence_parent_id?: number | null;
 }
 
@@ -1042,7 +1044,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           const isExternalReview = detailTask.status === 'external_review';
           const holdAvailable = canChangeStatus && !isOnHold
             && !['completed', 'canceled'].includes(detailTask.status);
-          const externalAvailable = canChangeStatus && detailTask.status === 'in_progress';
+          // #302 — 컨펌 대기(reviewing)·수정요청 중에도 외부컨펌을 건다. 승인·수정요청 전에 고객
+          //   확인을 받아야 하는 일이 실제로 있다. 해제하면 **그 라운드로 돌아온다**(hold_prev_status).
+          const externalAvailable = canChangeStatus
+            && ['in_progress', 'reviewing', 'revision_requested'].includes(detailTask.status);
           // 운영 #273 — "내가 요청받은 것도 외부컨펌을 쓸 수 있어야 하는데."
           //   실은 권한이 아니라 **상태 전제** 였다: 외부컨펌은 진행 중일 때만 연다(설계 의도).
           //   그런데 조건이 어긋나면 버튼이 아예 렌더되지 않아, 사용자에겐 "없는 기능" 으로 보인다.
@@ -1609,6 +1614,29 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     </MetaRecurOptions>
                   );
                 })()}
+              {/* #349 — 못 한 회차를 어떻게 할지. 루틴은 원래 "그날 안 하면 넘어가는" 성격인데,
+                  안 한 회차가 남아 지연으로 쌓이면 프로젝트가 상시 경고 상태가 된다. 기본은 종전대로 남긴다. */}
+              {recurEnabled && detailTask.due_date && (
+                <MetaRecurOptions>
+                  {(() => {
+                    const missOpts = [
+                      { value: 'carry', label: t('recur.missCarry', '못 한 회차는 그대로 남기기') as string },
+                      { value: 'auto_skip', label: t('recur.missSkip', '못 한 회차는 자동으로 넘기기') as string },
+                    ];
+                    const cur = detailTask.miss_policy || 'carry';
+                    return (
+                      <PlanQSelect size="sm"
+                        isDisabled={!canEditRecurrence}
+                        value={missOpts.find(o => o.value === cur) || missOpts[0]}
+                        onChange={(v) => {
+                          const val = (v as { value?: string } | null)?.value;
+                          if (canEditRecurrence && val) saveField('miss_policy', val);
+                        }}
+                        options={missOpts} />
+                    );
+                  })()}
+                </MetaRecurOptions>
+              )}
               </MetaRecurRow>
               )}
             </Section>

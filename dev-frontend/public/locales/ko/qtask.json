@@ -319,7 +319,9 @@
     "monthlyLastNamed": "매월 마지막 {{day}}요일",
     "weeklyMulti": "매주 {{days}}",
     "advancedBadge": "사용자 지정 규칙",
-    "advancedHint": "이 반복 규칙은 그대로 유지됩니다. 아래에서 다른 주기를 고르면 그때 바뀝니다."
+    "advancedHint": "이 반복 규칙은 그대로 유지됩니다. 아래에서 다른 주기를 고르면 그때 바뀝니다.",
+    "missCarry": "못 한 회차는 그대로 남기기",
+    "missSkip": "못 한 회차는 자동으로 넘기기"
   },
   "backlog": {
     "title": "미배정 업무",

@@ -1089,8 +1089,13 @@ async function hold(task, actor, { reason = null } = {}) {
 
 /**
  * 보류/외부컨펌을 해제한다.
- *   on_hold        → hold_prev_status 복귀 (없거나 진입 불가면 in_progress fallback)
- *   external_review → in_progress 고정 복귀
+ *   on_hold · external_review → **둘 다** hold_prev_status 복귀 (없거나 진입 불가면 in_progress fallback)
+ *
+ * ★ 옛 코드는 external_review 를 in_progress 로 **고정** 복귀시켰다. 그래서 컨펌 대기(reviewing)
+ *   중에 외부컨펌을 걸면 라운드가 통째로 사라졌고, 그것이 "컨펌 라운드 중 외부컨펌 금지" 라는
+ *   진입 제한의 근거였다(#302). 복귀를 고치면 진입을 막을 이유가 사라진다 — 원인은 진입이 아니라
+ *   복귀였다. 옛 데이터(hold_prev_status 가 비어 있는 외부컨펌 건)는 in_progress fallback 으로
+ *   종전과 똑같이 동작한다.
  */
 async function resume(task, actor) {
   if (!(await canChangeStatus(task, actor))) return fail('forbidden_fields:status', 403);
@@ -1098,11 +1103,9 @@ async function resume(task, actor) {
 
   const fromStatus = task.status;
   const prevStatus = task.hold_prev_status;   // reload 후엔 NULL 이므로 여기서 잡아둔다 (audit 용)
-  let target = fromStatus === 'external_review'
-    ? 'in_progress'
-    : (prevStatus || 'in_progress');
+  let target = prevStatus || 'in_progress';
 
-  // 보류 사이에 컨펌자가 전원 빠졌다면 reviewing 복귀가 불가능하다 → in_progress fallback.
+  // 보류·외부컨펌 사이에 컨펌자가 전원 빠졌다면 reviewing 복귀가 불가능하다 → in_progress fallback.
   const gate = await canEnterStatus(task.id, target, { fromStatus });
   if (!gate.ok) target = 'in_progress';
 

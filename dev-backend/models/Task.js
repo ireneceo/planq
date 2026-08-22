@@ -236,6 +236,16 @@ Task.init({
   },
   // 시리즈 parent task id. 본인이 parent 면 자기 id, 자동 생성된 인스턴스면 parent id.
   // 시리즈 추적 + "이 시리즈의 모든 향후 인스턴스 수정/삭제" 동작 지원.
+  // #349 — 시리즈의 **미수행 회차 정책**. 루틴은 원래 "그날 안 하면 넘어가는" 성격인데,
+  //   안 한 회차가 not_started 로 남아 지연으로 쌓이면 인사이트 경고 + 프로젝트 health red 가 된다
+  //   (평일 데일리 2~3건이면 하루만 놓쳐도 문턱에 닿는다). 그 정리를 사람이 매주 손으로 하고 있었다.
+  //   carry(기본) = 현행 그대로 남긴다 / auto_skip = 다음 회차를 만들 때 지난 미수행 회차를 자동 마감.
+  //   ★ 기본값을 carry 로 두는 이유: 기존 시리즈의 동작을 바꾸지 않기 위해서다(옵트인).
+  miss_policy: {
+    type: DataTypes.ENUM('carry', 'auto_skip'),
+    allowNull: false,
+    defaultValue: 'carry',
+  },
   recurrence_parent_id: {
     type: DataTypes.INTEGER,
     allowNull: true,
