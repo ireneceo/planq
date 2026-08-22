@@ -92,6 +92,20 @@ const AttendanceWidget: React.FC<Props> = ({ variant = 'sidebar', isCollapsed, e
           </Secondary>
         )}
       </Actions>
+      {/* #208 — 시스템이 대신 바꾼 상태는 **말없이 두지 않는다.**
+          나중에 기록을 보고 "내가 언제 출근을 눌렀지?" 가 되면 그 기록 전체를 못 믿게 된다.
+          되돌릴 수 있을 때만 되돌리기를 준다(사용자가 이미 뭔가 눌렀으면 그건 정정의 영역이다). */}
+      {a.autoNotice && (
+        <Notice $dark={dark} role="status">
+          <NoticeText>{t('widget.autoClockedIn')}</NoticeText>
+          {a.autoNotice.can_undo && (
+            <NoticeLink type="button" onClick={a.undoAuto} $dark={dark}>
+              {t('widget.undoAuto')}
+            </NoticeLink>
+          )}
+          <NoticeClose type="button" onClick={a.dismissNotice} aria-label={t('widget.dismiss') as string} $dark={dark}>×</NoticeClose>
+        </Notice>
+      )}
     </Wrap>
   );
 };
@@ -178,4 +192,26 @@ const Secondary = styled.button<{ $dark: boolean; $card: boolean }>`
     background: #FFFFFF; color: #334155; border: 1px solid #CBD5E1;
     &:hover:not(:disabled) { border-color: #94A3B8; background: #F8FAFC; }
   `}
+`;
+
+// 자동 변경 안내 — 눈에 띄되 흐름을 막지 않는다(모달이 아니라 한 줄).
+const Notice = styled.div<{ $dark: boolean }>`
+  display: flex; align-items: center; gap: 6px; margin-top: 2px;
+  padding: 6px 8px; border-radius: 7px;
+  background: ${p => (p.$dark ? 'rgba(94, 234, 212, 0.12)' : '#F0FDFA')};
+  border: 1px solid ${p => (p.$dark ? 'rgba(94, 234, 212, 0.25)' : '#99F6E4')};
+`;
+const NoticeText = styled.span`
+  flex: 1; min-width: 0; font-size: 11px; line-height: 1.35;
+  color: inherit; opacity: 0.9;
+`;
+const NoticeLink = styled.button<{ $dark: boolean }>`
+  flex-shrink: 0; background: none; border: none; padding: 0; cursor: pointer;
+  font-size: 11px; font-weight: 700; text-decoration: underline;
+  color: ${p => (p.$dark ? '#5EEAD4' : '#0F766E')};
+`;
+const NoticeClose = styled.button<{ $dark: boolean }>`
+  flex-shrink: 0; background: none; border: none; padding: 0 2px; cursor: pointer;
+  font-size: 14px; line-height: 1;
+  color: ${p => (p.$dark ? 'rgba(255,255,255,0.5)' : '#94A3B8')};
 `;

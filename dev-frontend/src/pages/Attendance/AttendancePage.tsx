@@ -175,7 +175,16 @@ const AttendancePage: React.FC = () => {
     await silentLoad();
   };
 
-  if (!bizId) return null;
+  // ★ **아무것도 안 그리는 분기를 두지 않는다.** 워크스페이스가 아직 안 잡혔을 때 null 을 돌려주면
+  //   사용자에게는 메뉴를 눌렀는데 빈 화면이 뜬 것으로 보인다(운영: "근태 메뉴 누르면 아무것도 없는데").
+  //   무슨 상황인지 말해주는 화면을 대신 그린다.
+  if (!bizId) {
+    return (
+      <PageShell title={t('page.title')}>
+        <Empty>{t('noWorkspace', { defaultValue: '워크스페이스를 먼저 선택해 주세요.' }) as string}</Empty>
+      </PageShell>
+    );
+  }
 
   return (
     <PageShell title={t('page.title')}>

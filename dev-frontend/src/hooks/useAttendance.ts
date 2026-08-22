@@ -25,11 +25,16 @@ export interface AttendanceDay {
   note: string | null;
 }
 
+/** 시스템이 대신 상태를 바꿨을 때 화면에 알릴 재료 (#208) */
+export interface AutoNotice { source: 'auto_focus'; at: string; can_undo: boolean }
+
 export const ATTENDANCE_REFRESH_EVENT = 'attendance:refresh';
 
 export function useAttendance(businessId: number | null) {
   const [day, setDay] = useState<AttendanceDay | null>(null);
   const [state, setState] = useState<AttendanceState>(null);
+  const [autoNotice, setAutoNotice] = useState<AutoNotice | null>(null);
+  const [noticeDismissed, setNoticeDismissed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   // 초 카운터의 기준점 — 서버에서 받은 값과 그 시각. 매초 state 를 갱신하지 않고
@@ -47,6 +52,7 @@ export function useAttendance(businessId: number | null) {
       if (!j.success) return;
       setDay(j.data?.day || null);
       setState(j.data?.state || null);
+      setAutoNotice(j.data?.auto_notice || null);
       baseRef.current = j.data?.day
         ? { work: j.data.day.work_sec, brk: j.data.day.break_sec, at: Date.now() }
         : null;
@@ -111,8 +117,24 @@ export function useAttendance(businessId: number | null) {
     return { work: b.work, brk: b.brk };
   })();
 
+  /** 자동 출근을 취소하고 미출근으로 되돌린다. 되돌릴 수 있을 때만 화면이 부른다. */
+  const undoAuto = useCallback(async () => {
+    if (!businessId) return;
+    const r = await apiFetch('/api/attendance/undo-auto-clock-in', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ business_id: businessId }),
+    });
+    if (!r.ok) return;
+    setNoticeDismissed(false);
+    await load();
+    window.dispatchEvent(new CustomEvent(ATTENDANCE_REFRESH_EVENT));
+  }, [businessId, load]);
+
   return {
     day, state, loading, submitting, live, reload: load,
+    autoNotice: noticeDismissed ? null : autoNotice,
+    dismissNotice: () => setNoticeDismissed(true),
+    undoAuto,
     clockIn: () => act('clock-in'),
     breakStart: () => act('break-start'),
     breakEnd: () => act('break-end'),

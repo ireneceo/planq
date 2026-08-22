@@ -355,10 +355,80 @@ async function autoClockInOnFocus({ businessId, userId }) {
   }
 }
 
+/** 되돌릴 수 있는 창 — 30분. 그 뒤엔 이미 하루의 일부라 정정(관리자)의 영역이다. */
+const AUTO_UNDO_WINDOW_MS = 30 * 60 * 1000;
+
+/**
+ * "업무를 시작해서 출근으로 기록했다" 를 화면에 알릴 재료.
+ * 되돌릴 수 있는지까지 같이 판정한다 — 버튼을 띄울지 화면이 다시 계산하지 않게.
+ */
+async function autoClockInNotice(day) {
+  try {
+    const events = await AttendanceEvent.findAll({
+      // 스코프: attendance_day_id 는 한 워크스페이스·한 사람의 하루다(상위에서 격리 검사됨).
+      where: { attendance_day_id: day.id, superseded_at: null },
+      order: [['at', 'ASC'], ['id', 'ASC']],
+      attributes: ['id', 'kind', 'at', 'source'],
+    });
+    if (!events.length) return null;
+    const last = events[events.length - 1];
+    if (last.kind !== 'clock_in' || last.source !== 'auto_focus') return null;
+    const age = Date.now() - new Date(last.at).getTime();
+    return {
+      source: 'auto_focus',
+      at: last.at,
+      // 되돌리기는 **자동 출근 하나뿐일 때**만. 사용자가 휴게·퇴근을 눌렀다면 그건 되돌리기가 아니다.
+      can_undo: events.length === 1 && age <= AUTO_UNDO_WINDOW_MS,
+    };
+  } catch (e) {
+    console.warn('[attendance auto notice]', e.message);
+    return null;
+  }
+}
+
+/**
+ * 자동 출근 취소. 하루 기록 자체를 지워 '미출근' 으로 되돌린다(미출근 = row 없음).
+ * ★ 지운 사실은 AuditLog 에 남긴다 — 원장이 사라지므로 여기에라도 흔적이 있어야
+ *   나중에 "그날 왜 비어 있나" 를 설명할 수 있다.
+ */
+async function undoAutoClockIn({ businessId, userId }) {
+  const workDate = await todayFor(businessId);
+  const day = await AttendanceDay.findOne({
+    where: { business_id: businessId, user_id: userId, work_date: workDate },
+  });
+  if (!day) throw new AttendanceError('not_found', 404);
+  const notice = await autoClockInNotice(day);
+  if (!notice || !notice.can_undo) throw new AttendanceError('cannot_undo');
+
+  const snapshot = { work_date: ymd(day.work_date), clock_in_at: day.clock_in_at, source: 'auto_focus' };
+  await AttendanceEvent.destroy({ where: { attendance_day_id: day.id } });
+  await day.destroy();
+  try {
+    await AuditLog.create({
+      user_id: userId,
+      business_id: businessId,
+      action: 'attendance.undo_auto_clock_in',
+      target_type: 'attendance_day',
+      target_id: day.id,
+      old_value: snapshot,
+      new_value: null,
+    });
+  } catch (e) { console.warn('[attendance undo audit]', e.message); }
+  // 화면(다른 기기 포함)이 즉시 미출근으로 돌아가게.
+  const io = getIO();
+  if (io) {
+    try {
+      io.to(`business:${businessId}`).emit('attendance:updated', { user_id: userId, work_date: workDate, state: null });
+    } catch { /* broadcast 실패가 되돌리기를 무르지는 않는다 */ }
+  }
+  return day;
+}
+
 module.exports = {
   AttendanceError,
   clockIn, breakStart, breakEnd, clockOut, applyAdminFix,
   recomputeDay, foldEvents, liveTotals,
   autoClockInOnFocus, stopActiveFocus, pauseActiveFocus,
+  autoClockInNotice, undoAutoClockIn,
   todayFor, workspaceTz, getIO,
 };
