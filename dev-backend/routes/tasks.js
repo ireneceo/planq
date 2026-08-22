@@ -1045,6 +1045,10 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
       start_date: () => isAssignee || isCreator || isOwnerOrAdmin,
       planned_week_start: () => isCreator || isAssignee || isOwnerOrAdmin,
       recurrence_rule: () => isCreator || isOwnerOrAdmin,
+      // #349 — 반복 규칙과 **같은 축**이다. 빠뜨리면 담당자가 아닌 멤버는 물론 client 까지
+      //   (assertBusinessAccess 는 client 도 통과시킨다) 남의 시리즈를 auto_skip 으로 바꿔
+      //   cron 이 타인의 회차를 자동 취소하게 만들 수 있다(Fable 실측 200). 규칙을 나란히 둔다.
+      miss_policy: () => isCreator || isOwnerOrAdmin,
       next_occurrence_at: () => isCreator || isOwnerOrAdmin,
       // 운영 #42 (정책 완화, 2026-06-16) — 프로젝트 이관은 '내 업무 정리'로 보고 담당자·작성자도 허용.
       //   기존엔 owner/admin 전용(#37)이라 PM(member)이 본인 담당 업무도 못 옮겨 막힘 호소.

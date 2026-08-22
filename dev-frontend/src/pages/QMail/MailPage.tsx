@@ -1368,12 +1368,21 @@ const MailPage: React.FC = () => {
     isEmpty: (v) => !v.to.trim() && !v.subject.trim() && isEmptyHtml(v.body) && !v.fileIds.length,
   });
   // 전달 폼을 다시 열면 쓰던 내용을 되살린다. 값이 있는 필드만 덮는다.
+  //   ★ `fwdDraft.restored` 를 쓰면 안 된다 — 그 값은 **훅이 마운트될 때의 키**로 한 번만 읽는다.
+  //     전달 모드는 화면이 뜬 뒤 버튼 클릭으로만 들어오므로 마운트 시점 키는 언제나
+  //     'qmail-fwd-none' 이고, 따라서 restored 는 **영원히 null** 이다(Fable 실측).
+  //     그러면 이탈 차단(보호막)만 없어지고 복원은 안 되는, 가장 나쁜 조합이 된다.
+  //     → 폼이 **열리는 시점의 실제 키**로 localStorage 를 직접 읽는다.
   const fwdRestoredRef = useRef<string>('');
   useEffect(() => {
     if (!composeOpen || !fwdDraftKey || fwdRestoredRef.current === fwdDraftKey) return;
     fwdRestoredRef.current = fwdDraftKey;
-    const r = fwdDraft.restored;
-    if (!r) return;
+    let r: { value: { to: string; subject: string; body: string; fileIds: number[]; accountId: number | null } } | null = null;
+    try {
+      const raw = localStorage.getItem(fwdDraftKey);
+      if (raw) r = JSON.parse(raw);
+    } catch { /* 손상된 값 — 복원하지 않는다(빈 폼이 낫다) */ }
+    if (!r || !r.value) return;
     const v = r.value;
     if (v.to) setCTo(v.to);
     if (v.subject) setCSubject(v.subject);
