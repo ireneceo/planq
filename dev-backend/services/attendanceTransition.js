@@ -340,9 +340,14 @@ async function autoClockInOnFocus({ businessId, userId }) {
     const existing = await AttendanceDay.findOne({
       where: { business_id: businessId, user_id: userId, work_date: workDate },
     });
-    // 이미 오늘 기록이 있으면(근무중·휴게중·퇴근) 손대지 않는다. 퇴근한 사람을 자동 재출근시키면
-    //   "퇴근을 눌렀는데 또 근무중" 이 된다 — 자동은 **미출근일 때만** 개입한다.
-    if (existing) return null;
+    // 이미 근무중·휴게중이면 할 일이 없다.
+    if (existing && (existing.state === 'working' || existing.state === 'on_break')) return null;
+    // ★ 퇴근한 뒤라도 **다시 일을 시작하면 근무중이 된다.**
+    //   처음엔 "퇴근을 눌렀는데 업무 하나 건드렸다고 되살아나면 안 된다" 고 막아뒀는데,
+    //   그 결과 업무를 진행 중인데 화면은 '퇴근' 인 모순이 남았다
+    //   (운영: "업무중인데 그냥 퇴근상태 그대로고, 근무한걸로 나와야지").
+    //   일을 하고 있다는 사실이 도장보다 강한 신호다 — 유연근무라 저녁 재근무도 정상이고,
+    //   재출근은 원장에 clock_in 으로 남아 나중에 무슨 일이 있었는지 그대로 읽힌다.
     return await clockIn({ businessId, userId, actorUserId: userId, source: 'auto_focus' });
   } catch (e) {
     console.warn('[attendance auto clock-in]', e.message);

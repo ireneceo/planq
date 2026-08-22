@@ -45,8 +45,10 @@ const AttendanceWidget: React.FC<Props> = ({ variant = 'sidebar', isCollapsed, e
       <Head>
         <Dot $state={state} />
         <Label $dark={dark}>{label}</Label>
+        {/* 아래 줄에 업무 시간이 또 나오므로 무엇의 시간인지 밝힌다 — 숫자 두 개가 라벨 없이
+            위아래로 놓이면 어느 것이 무엇인지 알 수 없다. */}
         {(state === 'working' || state === 'on_break') && (
-          <Elapsed $dark={dark}>{formatHm(elapsed)}</Elapsed>
+          <Elapsed $dark={dark}>{t('widget.workedFor', { time: formatHm(elapsed) })}</Elapsed>
         )}
         {state === 'done' && (
           <Elapsed $dark={dark}>{t('widget.todayTotal', { hours: formatHours(a.live.work) })}</Elapsed>
@@ -86,7 +88,7 @@ const AttendanceWidget: React.FC<Props> = ({ variant = 'sidebar', isCollapsed, e
         {state === 'done' && (
           <Secondary $dark={dark} $card={variant === 'card'} type="button" data-testid="attn-clock-in"
             onClick={a.clockIn} disabled={a.submitting}>
-            <SvgPlay /> {t('widget.resumeWork')}
+            <SvgPlay /> {t('widget.startAgain')}
           </Secondary>
         )}
       </Actions>

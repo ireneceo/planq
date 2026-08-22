@@ -18,9 +18,10 @@
     "break": "Break",
     "resume": "Resume",
     "clockOut": "Clock out",
-    "resumeWork": "Work again",
     "todayTotal": "Today {{hours}}",
-    "onLeaveToday": "On leave today"
+    "onLeaveToday": "On leave today",
+    "startAgain": "Start work",
+    "workedFor": "Worked {{time}}"
   },
   "state": {
     "working": "Working",

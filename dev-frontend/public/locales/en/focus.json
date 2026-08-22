@@ -22,7 +22,8 @@
     "idleDetectedTitle": "Stepped away?",
     "idleDetectedDesc": "No activity for {{min}} minutes",
     "idleDiscard": "Discard idle time",
-    "idleKeep": "Keep running"
+    "idleKeep": "Keep running",
+    "taskFor": "Task {{time}}"
   },
   "candidateModal": {
     "title": "Task candidate action",

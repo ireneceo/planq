@@ -18,9 +18,10 @@
     "break": "휴게",
     "resume": "재개",
     "clockOut": "퇴근",
-    "resumeWork": "재개 근무",
     "todayTotal": "오늘 {{hours}}",
-    "onLeaveToday": "오늘 휴가"
+    "onLeaveToday": "오늘 휴가",
+    "startAgain": "근무 시작",
+    "workedFor": "근무 {{time}}"
   },
   "state": {
     "working": "근무중",
