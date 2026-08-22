@@ -149,5 +149,8 @@
     "timelineHint": "What you leave here becomes the record for this day. Fix or remove wrong times — the originals are kept as history.",
     "superseded": "voided"
   },
-  "noWorkspace": "Choose a workspace first."
+  "noWorkspace": "Choose a workspace first.",
+  "admin": {
+    "desc": "Approve leave, see team status, and review monthly stats. Your own clock-in and leave requests live under “Attendance” on the left."
+  }
 }

@@ -12,11 +12,9 @@ import ActionButton from '../../components/Common/ActionButton';
 import AttendanceWidget from '../../components/Attendance/AttendanceWidget';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { ATTENDANCE_REFRESH_EVENT, formatHours, type AttendanceDay } from '../../hooks/useAttendance';
-import { TeamTab } from './TeamTab';
-import { AdminFixDrawer } from './AdminFixDrawer';
 import { LeaveRequestDrawer } from './LeaveRequestDrawer';
 import {
-  type LeaveRequestRow, type Balance, type PresenceRow, type StatRow,
+  type LeaveRequestRow, type Balance,
   hhmm, unitKey,
   Empty, TableWrap, Table, Th, Td, Muted, Badge,
   List, Row, RowMain, RowTitle, RowMeta, ErrorBar,
@@ -24,7 +22,7 @@ import {
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 
-type Tab = 'my' | 'leave' | 'team';
+type Tab = 'my' | 'leave';
 
 
 const AttendancePage: React.FC = () => {
@@ -35,26 +33,16 @@ const AttendancePage: React.FC = () => {
   const tab = (params.get('tab') as Tab) || 'my';
 
   // 관리자 여부 — /team 을 실제로 호출해서 판정하지 않고, 서버가 준 역할로 본다.
-  const isManager = user?.business_role === 'owner' || user?.business_role === 'admin' || user?.platform_role === 'platform_admin';
 
   const [days, setDays] = useState<AttendanceDay[]>([]);
   const [requests, setRequests] = useState<LeaveRequestRow[]>([]);
-  const [allRequests, setAllRequests] = useState<LeaveRequestRow[]>([]);
   const [balance, setBalance] = useState<Balance | null>(null);
-  const [presence, setPresence] = useState<PresenceRow[]>([]);
-  const [teamDays, setTeamDays] = useState<AttendanceDay[]>([]);
-  const [members, setMembers] = useState<{ user_id: number; name: string }[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [stats, setStats] = useState<StatRow[]>([]);
-  const [fixTarget, setFixTarget] = useState<AttendanceDay | null>(null);
-  const [statMonth, setStatMonth] = useState(() => new Date().toISOString().slice(0, 7));
   // #208 — 근태 설정의 집은 근태 화면이다. 처음엔 '업무 흐름' 카드 안에 뒀는데,
   //   그 카드는 focus_enabled 가 꺼져 있으면 통째로 안 보여서 설정이 영영 닿지 않았다.
   const [autoClockIn, setAutoClockIn] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const year = new Date().getFullYear();
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const [teamDate, setTeamDate] = useState(todayStr);
 
   const setTab = (next: Tab) => {
     const p = new URLSearchParams(params);
@@ -78,19 +66,7 @@ const AttendancePage: React.FC = () => {
     if (d) setDays(d);
     if (req) setRequests(req);
     if (bal) setBalance(bal);
-    const st = await get(`/api/attendance/stats?business_id=${bizId}&month=${statMonth}`);
-    if (st) setStats(st.members || []);
-    if (isManager) {
-      const [pres, all, team] = await Promise.all([
-        get(`/api/attendance/presence?business_id=${bizId}`),
-        get(`/api/leave/requests?business_id=${bizId}&scope=all&limit=200`),
-        get(`/api/attendance/team?business_id=${bizId}&date=${teamDate}`),
-      ]);
-      if (pres) setPresence(pres);
-      if (all) setAllRequests(all);
-      if (team) setTeamDays(team);
-    }
-  }, [bizId, year, isManager, teamDate, statMonth]);
+  }, [bizId, year]);
 
   useEffect(() => { void silentLoad(); }, [silentLoad]);
 
@@ -135,20 +111,7 @@ const AttendancePage: React.FC = () => {
     };
   }, [bizId, silentLoad]);
 
-  // 멤버 이름 — 팀 화면에서 user_id 만 보여줄 수는 없다.
-  useEffect(() => {
-    if (!bizId || !isManager) return;
-    (async () => {
-      const r = await apiFetch(`/api/businesses/${bizId}/members`);
-      if (!r.ok) return;
-      const j = await r.json().catch(() => null);
-      if (!j?.success) return;
-      const list = (j.data || []) as { user_id: number; name?: string; user?: { name?: string } }[];
-      setMembers(list.map((m) => ({ user_id: m.user_id, name: m.name || m.user?.name || `#${m.user_id}` })));
-    })();
-  }, [bizId, isManager]);
 
-  const nameOf = useCallback((uid: number) => members.find((m) => m.user_id === uid)?.name || `#${uid}`, [members]);
 
   const weekSummary = useMemo(() => {
     const monday = (() => {
@@ -192,7 +155,7 @@ const AttendancePage: React.FC = () => {
       <Tabs role="tablist">
         <TabBtn role="tab" $on={tab === 'my'} onClick={() => setTab('my')}>{t('tabs.my')}</TabBtn>
         <TabBtn role="tab" $on={tab === 'leave'} onClick={() => setTab('leave')}>{t('tabs.leave')}</TabBtn>
-        {isManager && <TabBtn role="tab" $on={tab === 'team'} onClick={() => setTab('team')}>{t('tabs.team')}</TabBtn>}
+
       </Tabs>
 
       {error && <ErrorBar role="alert">{t(`error.${error}`, { defaultValue: t('error.generic') as string }) as string}</ErrorBar>}
@@ -294,22 +257,6 @@ const AttendancePage: React.FC = () => {
           )}
         </>
       )}
-
-      {tab === 'team' && isManager && (
-        <TeamTab
-          presence={presence} teamDays={teamDays} allRequests={allRequests}
-          nameOf={nameOf} members={members} bizId={bizId} year={year}
-          teamDate={teamDate} setTeamDate={setTeamDate}
-          stats={stats} statMonth={statMonth} setStatMonth={setStatMonth}
-          onFix={setFixTarget}
-          onDecide={decide} onReload={silentLoad}
-        />
-      )}
-
-      <AdminFixDrawer
-        day={fixTarget} onClose={() => setFixTarget(null)}
-        nameOf={nameOf} onDone={silentLoad}
-      />
 
       <LeaveRequestDrawer
         open={drawerOpen} onClose={() => setDrawerOpen(false)}

@@ -1202,6 +1202,15 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                     </NavIcon>
                     <NavLabel $isCollapsed={isCollapsed}>{t('nav.receivedSignatures', '받은 서명')}</NavLabel>
                   </NavItem>
+                  {/* #208 — 내 출퇴근·내 휴가는 **개인** 것이다. 승인·팀 현황·통계는
+                      설정 > 근태 관리(관리자)로 따로 나갔다 — 성격이 다른 둘을 한 화면에 묶지 않는다. */}
+                  <NavItem to="/attendance" $isCollapsed={isCollapsed} $active={isActive('/attendance')}
+                    title={isCollapsed ? t('nav.attendance', '근태') : undefined}>
+                    <NavIcon $isCollapsed={isCollapsed}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+                    </NavIcon>
+                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.attendance', '근태')}</NavLabel>
+                  </NavItem>
                 </NavSection>
               )}
 
@@ -1210,19 +1219,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
               {hasBiz('owner', 'member') && (
                 <NavSection>
                   <NavTitle $isCollapsed={isCollapsed}>{t('nav.sectionManage', '관리')}</NavTitle>
-                  {/* #208 — 근태는 **Q 시리즈 제품이 아니다.** Q talk·task·bill 옆에 두면
-                      "또 하나의 Q 기능" 으로 읽히는데, 실제로는 사람·시간을 관리하는 기능이라
-                      고객·멤버·조직·설정과 같은 묶음이 맞다(운영: "Q 시리즈 업무관리에 이게 왜 들어가냐고").
-                      개인 섹션도 아니다 — 휴가 승인과 팀 관리가 붙어 있다. */}
-                  {hasBiz('owner', 'member') && (
-                    <NavItem to="/attendance" $isCollapsed={isCollapsed} $active={isActive('/attendance')}
-                      title={isCollapsed ? t('nav.attendance', '근태') : undefined}>
-                      <NavIcon $isCollapsed={isCollapsed}>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
-                      </NavIcon>
-                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.attendance', '근태')}</NavLabel>
-                    </NavItem>
-                  )}
                   <NavItem
                     to="/stats/overview"
                     onClick={handleSecondaryNavClick('reports')}
@@ -1289,6 +1285,15 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                           $active={location.pathname.includes('/plan')}
                         >
                           <IconCreditCard /> {t('nav.plan', '구독 플랜')}
+                        </AccordionItem>
+                      )}
+                      {hasBiz('owner') && (
+                        <AccordionItem
+                          to="/business/settings/attendance"
+                          $active={location.pathname.includes('/business/settings/attendance')}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+                          {t('nav.attendanceAdmin', '근태 관리')}
                         </AccordionItem>
                       )}
                       {hasBiz('owner', 'member') && (

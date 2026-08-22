@@ -9,6 +9,7 @@ import StorageSettings from './StorageSettings';
 import ApiTokenSection from './ApiTokenSection';
 import PlanSettings from './PlanSettings';
 import PermissionsSettings from './PermissionsSettings';
+import AttendanceAdminSettings from './AttendanceAdminSettings';   // #208 근태 팀 관리
 import BillingSettings from './BillingSettings';
 import EmailSettings from './EmailSettings';
 import EmailAccountSettings from './EmailAccountSettings';
@@ -40,7 +41,7 @@ import {
   type CueInfo,
 } from '../../services/workspace';
 
-type TabKey = 'brand' | 'legal' | 'language' | 'work-env' | 'storage' | 'plan' | 'permissions' | 'members' | 'cue' | 'billing' | 'email' | 'mail-accounts' | 'notifications' | 'work-flow' | 'data-export';
+type TabKey = 'attendance' | 'brand' | 'legal' | 'language' | 'work-env' | 'storage' | 'plan' | 'permissions' | 'members' | 'cue' | 'billing' | 'email' | 'mail-accounts' | 'notifications' | 'work-flow' | 'data-export';
 
 // ─────────────────────────────────────────────
 // Styled
@@ -512,7 +513,7 @@ export default function WorkspaceSettingsPage() {
   // /business/settings/{language|timezone|storage|plan|cue} → 해당 섹션
   const isMembersMode = location.pathname.includes('/business/members');
   const visibleTabs = useMemo<TabKey[]>(() => (
-    isMembersMode ? ['members'] : ['brand', 'legal', 'work-env', 'plan', 'permissions', 'billing', 'mail-accounts', 'email', 'storage', 'cue', 'notifications', 'data-export']
+    isMembersMode ? ['members'] : ['brand', 'legal', 'work-env', 'attendance', 'plan', 'permissions', 'billing', 'mail-accounts', 'email', 'storage', 'cue', 'notifications', 'data-export']
   ), [isMembersMode]);
 
   const tabFromUrl = useMemo<TabKey>(() => {
@@ -853,6 +854,7 @@ export default function WorkspaceSettingsPage() {
     if (isMembersMode) return t('membersPage.title') as string;
     switch (tab) {
       case 'work-env':    return t('tabs.workEnv', '업무 환경') as string;
+      case 'attendance':  return t('tabs.attendance', '근태 관리') as string;
       case 'storage':     return t('tabs.storage') as string;
       case 'plan':        return t('tabs.plan') as string;
       case 'permissions': return t('tabs.permissions') as string;
@@ -1267,6 +1269,11 @@ export default function WorkspaceSettingsPage() {
       )}
 
       {/* ─── PERMISSIONS (워크스페이스 권한 토글 3축) ─── */}
+      {/* #208 — 휴가 승인·팀 현황·통계는 **워크스페이스 관리자 영역**이다.
+          내 출퇴근·내 휴가(개인)와 성격이 달라 한 페이지에 탭으로 묶으면 둘 다 어정쩡해진다. */}
+      {tab === 'attendance' && businessId && (
+        <AttendanceAdminSettings businessId={businessId} />
+      )}
       {tab === 'permissions' && businessId && (
         <PermissionsSettings businessId={businessId} isOwner={isAdmin} />
       )}
