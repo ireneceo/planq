@@ -23,7 +23,11 @@ const ROUTES = [
   '/dashboard', '/inbox', '/tasks', '/talk', '/calendar', '/notes', '/docs',
   '/files', '/bills', '/insights', '/wiki', '/info', '/signatures/received',
   '/business/clients', '/business/members', '/business/org',
+  '/attendance',
 ];
+
+// 빈 화면 검사 — "메뉴를 눌렀는데 아무것도 없다"(운영 2026-08-22) 를 잡는다.
+//   표시명 누출만 보던 이 크롤은 페이지가 통째로 비어도 초록이었다.
 
 async function run() {
   const u = await m.User.findOne({ where: { email: EMAIL } });
@@ -67,14 +71,22 @@ async function run() {
           // 본인 계정명 + (있으면) 제2 멤버 계정명 — 어느 쪽이든 렌더되면 표시명 헬퍼 누락이다.
           const selfLeak = txt.indexOf(acct) >= 0;
           const otherLeak = !!otherAcct && txt.indexOf(otherAcct) >= 0;
+          // 빈 화면 판정 — 이 앱에는 <main> 이 없고(실측 2026-08-22) 사이드바 글자가 수백 자라
+          //   본문 길이로는 못 가른다. **페이지 자신의 제목(h1~h3)** 이 있는지로 본다:
+          //   PageShell·PanelHeader 를 쓰는 모든 화면은 제목을 그리고, 사이드바는 제목을 그리지 않는다.
+          //   컴포넌트가 null 을 돌려주면 제목이 0 개가 된다 = 사용자가 보는 "아무것도 없음".
+          const headCount = document.querySelectorAll('h1, h2, h3').length;
           return {
+            headCount,
             leaked: selfLeak || otherLeak,
             hasCanary: txt.includes(can),
             snippet: selfLeak ? snip(acct) : (otherLeak ? snip(otherAcct) : null),
             who: selfLeak ? 'self' : (otherLeak ? 'other-member' : null),
           };
         }, accountName, CANARY, other ? CANARY_OTHER_ACCT : null);
-        results.push({ route, ...r });
+        // ★ blank 는 여기서 붙여야 한다. 아래 standalone 출력 블록은 run.js 로 돌 때 실행되지 않아,
+        //   거기서만 판정하면 게이트에 영영 반영되지 않는다(2026-08-22 실측으로 확인).
+        results.push({ route, ...r, blank: r.headCount === 0 });
       } catch (e) { results.push({ route, error: e.message.slice(0, 60) }); }
     }
   } finally {
@@ -91,16 +103,19 @@ module.exports = { run, name: 'canary-crawl' };
 if (require.main === module) {
   run().then((res) => {
     let leaks = 0;
-    console.log('\n=== 표시명 카나리 크롤 (계정명 누출 = FAIL) ===');
+    let blanks = 0;
+    console.log('\n=== 표시명 카나리 크롤 (계정명 누출 = FAIL) + 빈 화면 검사 ===');
     console.log(`(카나리 워크스페이스 표시명="${CANARY}" 심음 → 이게 보여야 정상, 계정명 보이면 누출)\n`);
     for (const r of res) {
       if (r.skip) { console.log(`⚪ ${r.route} — ${r.skip}`); continue; }
       if (r.error) { console.log(`⚠️ ${r.route} — ERROR ${r.error}`); continue; }
-      const status = r.leaked ? '❌ 누출' : (r.hasCanary ? '✅' : '·');
-      console.log(`${status} ${r.route}${r.leaked ? `  → "${r.snippet}"` : ''}`);
+      const blank = !!r.blank;
+      const status = r.leaked ? '❌ 누출' : blank ? '❌ 빈 화면' : (r.hasCanary ? '✅' : '·');
+      console.log(`${status} ${r.route}${r.leaked ? `  → "${r.snippet}"` : ''}${blank ? '  (페이지 제목 0개)' : ''}`);
       if (r.leaked) leaks++;
+      if (blank) blanks++;
     }
-    console.log(`\n총 누출 라우트: ${leaks}`);
-    process.exit(leaks > 0 ? 1 : 0);
+    console.log(`\n총 누출 라우트: ${leaks} · 빈 화면 라우트: ${blanks}`);
+    process.exit(leaks + blanks > 0 ? 1 : 0);
   }).catch((e) => { console.error('FATAL', e.message); process.exit(2); });
 }

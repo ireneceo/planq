@@ -1131,6 +1131,18 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                     <NavIcon $isCollapsed={isCollapsed}><IconCalendar /></NavIcon>
                     <NavLabel $isCollapsed={isCollapsed}>{t('nav.calendar')}</NavLabel>
                   </NavItem>
+                  {/* #208 — 근태는 **업무 메뉴**다. 내 출퇴근만 있는 게 아니라 휴가 신청·승인과
+                      팀 관리가 붙어 있어서, 개인 보관함 옆에 두면 그 기능들이 있는 줄 모른다.
+                      시간을 다루는 캘린더 바로 다음이 자리다. */}
+                  {hasBiz('owner', 'member') && (
+                    <NavItem to="/attendance" $isCollapsed={isCollapsed} $active={isActive('/attendance')}
+                      title={isCollapsed ? t('nav.attendance', '근태') : undefined}>
+                      <NavIcon $isCollapsed={isCollapsed}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+                      </NavIcon>
+                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.attendance', '근태')}</NavLabel>
+                    </NavItem>
+                  )}
                   {hasBiz('owner', 'member') && (
                     <NavItem to="/notes" $isCollapsed={isCollapsed} $active={isActive('/notes')}
                       title={isCollapsed ? t('nav.note') : undefined}>
@@ -1179,16 +1191,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
               {hasBiz('owner', 'member') && (
                 <NavSection>
                   <NavTitle $isCollapsed={isCollapsed}>{t('nav.sectionPersonal', '개인')}</NavTitle>
-                  {/* #208 — 내 출퇴근·휴가는 **개인** 것이다. 워크스페이스 메뉴(Q Talk·Task…)에 두면
-                      팀 자산처럼 보이는데, 실제로는 남이 못 보는 내 기록이고 관리 화면만 탭 하나로 붙어 있다.
-                      VISIBILITY_VOCABULARY §5 의 개인 영역이 맞는 자리다. */}
-                  <NavItem to="/attendance" $isCollapsed={isCollapsed} $active={isActive('/attendance')}
-                    title={isCollapsed ? t('nav.attendance', '근태') : undefined}>
-                    <NavIcon $isCollapsed={isCollapsed}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
-                    </NavIcon>
-                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.attendance', '근태')}</NavLabel>
-                  </NavItem>
                   <NavItem to="/personal-vault" $isCollapsed={isCollapsed} $active={isActive('/personal-vault')}
                     title={isCollapsed ? t('nav.personalVault', '개인 보관함') : undefined}>
                     <NavIcon $isCollapsed={isCollapsed}>

@@ -70,7 +70,14 @@ router.get('/today', authenticateToken, async (req, res, next) => {
     });
     if (!day) return successResponse(res, { work_date: workDate, state: null, day: null });
     const live = await A.liveTotals(day);
-    return successResponse(res, { work_date: workDate, state: day.state, day: serializeDay(day, live) });
+    // #208 — 자동으로 출근 처리된 경우 그 사실을 화면에 알린다.
+    //   시스템이 사용자 대신 상태를 바꿨으면 **말없이 두지 않는다** — 나중에 기록을 보고
+    //   "내가 언제 출근을 눌렀지?" 가 되면 그 기록 전체를 믿지 못하게 된다.
+    //   되돌릴 수 있는 조건(아래 undo-auto)까지 같이 내려서, 화면이 버튼을 띄울지 스스로 정한다.
+    const auto = await A.autoClockInNotice(day);
+    return successResponse(res, {
+      work_date: workDate, state: day.state, day: serializeDay(day, live), auto_notice: auto,
+    });
   } catch (err) { next(err); }
 });
 
@@ -339,6 +346,23 @@ router.get('/stats', authenticateToken, async (req, res, next) => {
 
     return successResponse(res, { month, from, to, scope: manager ? 'team' : 'me', members: out, departments });
   } catch (err) { next(err); }
+});
+
+// ─── POST /undo-auto-clock-in — 자동 출근 되돌리기 ─────────────
+//   업무를 시작해서 자동으로 출근 처리됐는데 그게 아니었을 때(잘못 눌렀다·남의 업무를 정리했다 등).
+//   ★ 사용자가 스스로 한 행동이 하나라도 섞여 있으면 되돌리지 않는다 — 그건 되돌리기가 아니라
+//     기록 삭제다. 그 경우는 관리자 정정으로 간다.
+router.post('/undo-auto-clock-in', authenticateToken, clockLimiter, async (req, res, next) => {
+  try {
+    const businessId = Number(req.body.business_id);
+    const scope = await requireMember(req, res, businessId);
+    if (!scope) return;
+    const day = await A.undoAutoClockIn({ businessId, userId: req.user.id });
+    return successResponse(res, { undone: !!day });
+  } catch (err) {
+    if (err instanceof A.AttendanceError) return errorResponse(res, err.code, err.status || 400);
+    next(err);
+  }
 });
 
 // ─── GET/PUT /settings — 개인 설정 ─────────────────────────────

@@ -21,7 +21,10 @@
     "todayTotal": "Today {{hours}}",
     "onLeaveToday": "On leave today",
     "startAgain": "Start work",
-    "workedFor": "Worked {{time}}"
+    "workedFor": "Worked {{time}}",
+    "autoClockedIn": "Clocked you in because you started work",
+    "undoAuto": "Undo",
+    "dismiss": "Dismiss"
   },
   "state": {
     "working": "Working",
@@ -145,5 +148,6 @@
     "timeline": "Corrected record for this day",
     "timelineHint": "What you leave here becomes the record for this day. Fix or remove wrong times — the originals are kept as history.",
     "superseded": "voided"
-  }
+  },
+  "noWorkspace": "Choose a workspace first."
 }
