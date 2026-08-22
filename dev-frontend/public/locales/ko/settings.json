@@ -21,7 +21,8 @@
     "members": "멤버",
     "cue": "Cue",
     "workFlow": "업무 관리",
-    "dataExport": "데이터 내보내기"
+    "dataExport": "데이터 내보내기",
+    "attendance": "근태 관리"
   },
   "dataExport": {
     "intro": "내 개인 자료 또는 워크스페이스 자료를 ZIP 파일로 내보냅니다. 파일은 원본 그대로, 문서는 HTML로 저장됩니다.",

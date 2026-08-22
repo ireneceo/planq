@@ -146,7 +146,8 @@
       "me-notifications": "notification,push",
       "me-data": "my data,export"
     },
-    "attendance": "Attendance"
+    "attendance": "Attendance",
+    "attendanceAdmin": "Attendance"
   },
   "user": {
     "profile": "My Profile",

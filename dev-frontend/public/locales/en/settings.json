@@ -21,7 +21,8 @@
     "members": "Members",
     "cue": "Cue",
     "workFlow": "Work Management",
-    "dataExport": "Data Export"
+    "dataExport": "Data Export",
+    "attendance": "Attendance"
   },
   "dataExport": {
     "intro": "Export your personal data or workspace data as a ZIP file. Files are kept as-is and documents are saved as HTML.",

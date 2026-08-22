@@ -146,7 +146,8 @@
       "me-notifications": "알림,푸시",
       "me-data": "내 데이터,내보내기"
     },
-    "attendance": "근태"
+    "attendance": "근태",
+    "attendanceAdmin": "근태 관리"
   },
   "user": {
     "profile": "내 프로필",
