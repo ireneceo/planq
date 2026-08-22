@@ -341,11 +341,12 @@
       "no_reply": "답장 불필요",
       "always_reply": "항상 답변 필요",
       "marketing": "마케팅",
-      "spam": "스팸"
+      "spam": "스팸",
+      "review": "확인 권장"
     },
     "kind": {
-      "address": "이 주소만",
-      "domain": "도메인 전체"
+      "address": "보낸 사람으로",
+      "keyword": "문구로"
     },
     "evidence": {
       "manual": "직접 추가함",
@@ -358,7 +359,17 @@
       "body": "같은 발신자를 두 번 \"답변 불필요\" 하면 자동으로 규칙이 만들어집니다. 직접 추가할 수도 있습니다."
     },
     "applied": "규칙으로 자동 분류됨",
-    "appliedHint": "설정 > 메일 계정 > 메일 분류 규칙에서 확인하고 지울 수 있습니다"
+    "appliedHint": "설정 > 메일 계정 > 메일 분류 규칙에서 확인하고 지울 수 있습니다",
+    "field": {
+      "from": "보낸 주소",
+      "subject": "제목",
+      "body": "본문",
+      "any": "제목·본문"
+    },
+    "placeholderKeyword": "예: 계약서, 세금계산서, 견적",
+    "addFailedKeyword": "두 글자 이상 입력해 주세요. 너무 짧으면 관계없는 메일까지 걸립니다.",
+    "markImportant": "이 규칙에 걸리면 별표(중요) 표시",
+    "importantTag": "중요"
   },
   "filters": {
     "allLabels": "태그 전체",

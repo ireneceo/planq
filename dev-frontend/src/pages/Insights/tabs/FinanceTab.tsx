@@ -11,7 +11,7 @@ import {
   SkeletonGrid, SkeletonCard, ErrorBanner,
   fmtMoney, fmtPct, CurrencyBreakdown,
 } from '../components';
-import { downloadRowsAsCsv } from '../csvUtils';
+import { downloadRowsAsCsv } from '../../../utils/csv';
 
 interface Data {
   period: { from: string; to: string; label: string };

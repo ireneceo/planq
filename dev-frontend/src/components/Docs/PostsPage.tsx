@@ -35,6 +35,7 @@ import {
   fetchPosts, fetchPost, createPost, updatePost, deletePost, StaleEditError,
   attachToPost, detachFromPost, fetchPostsMeta,
   createCategory, updatePostVisibility, updatePostSecurityLevel, downloadPostPdf,
+  downloadPostDocx,
   type PostRow, type PostDetail, type PostsMeta,
 } from '../../services/posts';
 import VisibilityChangeModal from '../Common/VisibilityChangeModal';
@@ -264,7 +265,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const [saveTplDesc, setSaveTplDesc] = useState('');
   const [saveTplBusy, setSaveTplBusy] = useState(false);
   const [saveTplError, setSaveTplError] = useState<string | null>(null);
-  const [pdfBusy, setPdfBusy] = useState(false);   // #225 — PDF 생성 중 중복 클릭 차단
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [docxBusy, setDocxBusy] = useState(false);   // #225 — 워드 생성 중 중복 클릭 차단
   // 운영 #338 — 목차가 이동할 대상(렌더된 본문 컨테이너). 목차는 여기서 h1~h3 을 찾는다.
   const docBodyRef = useRef<HTMLDivElement>(null);
 
@@ -1642,6 +1644,22 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   }}
                   title={t('actions.downloadPdf', 'PDF 로 내려받기') as string} aria-label={t('actions.downloadPdf', 'PDF 로 내려받기') as string}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                </IconBtn>
+                {/* #225 — 워드. "워드, pdf, 엑셀 … 기본적으로 다운로드" 중 없던 것이 워드였다.
+                    같은 본문을 같은 권한으로 형식만 바꿔 준다. */}
+                <IconBtn type="button" disabled={docxBusy}
+                  onClick={async () => {
+                    if (docxBusy) return;
+                    setDocxBusy(true); setError(null);
+                    try { await downloadPostDocx(detail.id, detail.title); }
+                    catch (e) {
+                      const msg = (e as Error)?.message;
+                      setError(msg && !/^HTTP \d+$/.test(msg) ? msg : (t('actions.docxError', '워드 파일 생성 실패') as string));
+                    }
+                    finally { setDocxBusy(false); }
+                  }}
+                  title={t('actions.downloadDocx', '워드(.docx) 로 내려받기') as string} aria-label={t('actions.downloadDocx', '워드로 내려받기') as string}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13l1.5 5L12 14l2.5 4L16 13"/></svg>
                 </IconBtn>
                 <IconBtn type="button" onClick={() => window.print()} title={t('actions.print', 'PDF / 인쇄 (저장하려면 ‘대상: PDF로 저장’ 선택)') as string} aria-label={t('actions.print', 'PDF / 인쇄') as string}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>

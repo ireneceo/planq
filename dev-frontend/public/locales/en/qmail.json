@@ -341,11 +341,12 @@
       "no_reply": "No reply needed",
       "always_reply": "Always needs reply",
       "marketing": "Marketing",
-      "spam": "Spam"
+      "spam": "Spam",
+      "review": "Needs a look"
     },
     "kind": {
-      "address": "This address only",
-      "domain": "Whole domain"
+      "address": "By sender",
+      "keyword": "By wording"
     },
     "evidence": {
       "manual": "Added manually",
@@ -358,7 +359,17 @@
       "body": "Mark the same sender \"Replied\" twice and a rule is created automatically. You can also add one yourself."
     },
     "applied": "Sorted by a rule",
-    "appliedHint": "You can review and delete this rule in Settings → Mail accounts → Mail sorting rules"
+    "appliedHint": "You can review and delete this rule in Settings → Mail accounts → Mail sorting rules",
+    "field": {
+      "from": "Sender address",
+      "subject": "Subject",
+      "body": "Body",
+      "any": "Subject or body"
+    },
+    "placeholderKeyword": "e.g. contract, invoice, quote",
+    "addFailedKeyword": "Enter at least two characters — shorter terms catch unrelated mail.",
+    "markImportant": "Star (mark important) when this rule matches",
+    "importantTag": "Important"
   },
   "filters": {
     "allLabels": "All tags",

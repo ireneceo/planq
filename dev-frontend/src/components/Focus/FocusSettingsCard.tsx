@@ -18,7 +18,6 @@ interface Settings {
 
 const FocusSettingsCard: React.FC = () => {
   const { t } = useTranslation('focus');
-  const { t: tAttn } = useTranslation('attendance');   // #208 자동 출근 토글
   const [s, setS] = useState<Settings | null>(null);
   const [savingKey, setSavingKey] = useState<string | null>(null);
 
@@ -41,30 +40,6 @@ const FocusSettingsCard: React.FC = () => {
     })();
     return () => { cancelled = true; };
   }, []);
-
-  // #208 — "업무를 시작하면 자동 출근". 근태 설정이지만 여기가 사용자의 머릿속과 맞는 자리다
-  //   (업무 시작이 방아쇠라서). 저장 대상은 근태 엔드포인트로 분리 — 두 도메인을 한 PUT 에 섞지 않는다.
-  const [autoClockIn, setAutoClockIn] = useState<boolean | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const r = await apiFetch('/api/attendance/settings');
-      if (!r.ok || cancelled) return;
-      const j = await r.json().catch(() => null);
-      if (j?.success) setAutoClockIn(!!j.data.auto_clock_in_on_focus);
-    })();
-    return () => { cancelled = true; };
-  }, []);
-  const saveAutoClockIn = async (next: boolean) => {
-    setSavingKey('autoclockin');
-    try {
-      const r = await apiFetch('/api/attendance/settings', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ auto_clock_in_on_focus: next }),
-      });
-      if (r.ok) setAutoClockIn(next);
-    } finally { setSavingKey(null); }
-  };
 
   const save = async (patch: Partial<Settings>, key: string) => {
     setSavingKey(key);
@@ -162,23 +137,6 @@ const FocusSettingsCard: React.FC = () => {
             </Switch>
           </ToggleRow>
 
-          {autoClockIn !== null && (
-            <ToggleRow>
-              <ToggleBody>
-                <ToggleLabel>{tAttn('settings.autoClockIn')}</ToggleLabel>
-                <ToggleHint>{tAttn('settings.autoClockInHint')}</ToggleHint>
-              </ToggleBody>
-              <Switch
-                role="switch" aria-checked={autoClockIn}
-                $active={autoClockIn}
-                onClick={() => saveAutoClockIn(!autoClockIn)}
-                disabled={savingKey === 'autoclockin'}
-                type="button"
-              >
-                <SwitchKnob $active={autoClockIn} />
-              </Switch>
-            </ToggleRow>
-          )}
         </SubOptions>
       )}
     </Card>

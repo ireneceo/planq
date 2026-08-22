@@ -207,7 +207,9 @@
     "saveAsTemplate": "Save as template",
     "sendToKnowledge": "Send to Q info — Cue will reference it",
     "sendToKnowledgeOk": "Added to Q info — Cue will use it after indexing",
-    "sendToKnowledgeErr": "Add failed: {{msg}}"
+    "sendToKnowledgeErr": "Add failed: {{msg}}",
+    "downloadDocx": "Download as Word (.docx)",
+    "docxError": "Could not create the Word file"
   },
   "project": {
     "docs": {

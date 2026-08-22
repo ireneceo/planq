@@ -221,5 +221,20 @@
   "clients": {
     "resentCount": "재발송 {{count}}회",
     "resentTitle": "초대 메일 재발송 횟수"
+  },
+  "csv": {
+    "button": "엑셀",
+    "download": "엑셀(CSV) 로 내려받기",
+    "name": "이름",
+    "company": "회사",
+    "kind": "구분",
+    "status": "상태",
+    "bizName": "상호",
+    "taxId": "사업자번호",
+    "billingName": "청구 담당",
+    "billingEmail": "청구 이메일",
+    "billingPhone": "연락처",
+    "projects": "프로젝트",
+    "invitedAt": "초대일"
   }
 }

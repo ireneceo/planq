@@ -30,9 +30,14 @@ interface FocusSession {
   task: { id: number; title: string; status: string; project_id: number | null } | null;
 }
 
-interface Props { isCollapsed?: boolean; }
+interface Props {
+  isCollapsed?: boolean;
+  /** #208 — 근태 위젯과 한 카드에 들어갈 때. 자체 테두리를 벗고 위에 구분선만 남긴다.
+   *  "오늘 근무" 아래에 "지금 이 업무" 가 들여쓰기로 붙어야 둘의 관계가 설명 없이 읽힌다. */
+  embedded?: boolean;
+}
 
-const FocusWidget: React.FC<Props> = ({ isCollapsed }) => {
+const FocusWidget: React.FC<Props> = ({ isCollapsed, embedded }) => {
   const { t } = useTranslation('focus');
   // useAuth 제거 — N+49 hotfix 로 onStart 제거 후 user 미사용
   const navigate = useChromeNav();
@@ -256,7 +261,7 @@ const FocusWidget: React.FC<Props> = ({ isCollapsed }) => {
   // 위젯에서 직접 Start X. 안내 + Q Task 진입점 link (옵션 B — 사용자 학습 + 진입).
   if (!session) {
     return (
-      <Wrap>
+      <Wrap $embedded={embedded}>
         <WidgetHeader>
           <Dot $state="idle" />
           <Label>{t('widget.title')}</Label>
@@ -275,7 +280,7 @@ const FocusWidget: React.FC<Props> = ({ isCollapsed }) => {
   const isIdle = session.auto_paused;
 
   return (
-    <Wrap aria-live="polite">
+    <Wrap $embedded={embedded} aria-live="polite">
       <WidgetHeader>
         <Dot $state={isIdle ? 'idle_detected' : isPaused ? 'paused' : 'active'} />
         <Label>{t(`widget.state.${isIdle ? 'idle_detected' : isPaused ? 'paused' : 'active'}`)}</Label>
@@ -363,15 +368,21 @@ const breath = keyframes`0% { transform: scale(1); } 50% { transform: scale(1.15
 const pulseAlert = keyframes`0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.25); opacity: 0.6; } 100% { transform: scale(1); opacity: 1; }`;
 
 // ─── styled (사이드바 어두운 bg 위) ─────────────────────────────
-const Wrap = styled.div`
-  margin: -2px -4px 12px;
-  padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
+const Wrap = styled.div<{ $embedded?: boolean }>`
   display: flex; flex-direction: column; gap: 6px;
-  transition: background 0.15s, border-color 0.15s;
-  &:hover { background: rgba(255, 255, 255, 0.08); }
+  ${p => p.$embedded ? css`
+    /* 한 카드 안 — 위 근태 줄과 구분선으로만 나눈다. 들여쓰기가 "이 업무는 오늘 안에 있다" 를 말한다. */
+    margin: 8px 0 0; padding: 8px 0 0 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+  ` : css`
+    margin: -2px -4px 12px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    transition: background 0.15s, border-color 0.15s;
+    &:hover { background: rgba(255, 255, 255, 0.08); }
+  `}
 `;
 const WidgetHeader = styled.div`
   display: flex; align-items: center; gap: 6px;

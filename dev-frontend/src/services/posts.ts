@@ -149,6 +149,18 @@ export async function downloadPostPdf(id: number, title: string): Promise<void> 
   await downloadBlob(blob, `${title || 'document'}.pdf`);
 }
 
+/** #225 — 워드(.docx) 내려받기. PDF 와 같은 접근 검사를 서버가 한다. */
+export async function downloadPostDocx(id: number, title: string): Promise<void> {
+  const r = await apiFetch(`/api/posts/${id}/docx`);
+  if (!r.ok) {
+    let msg = `HTTP ${r.status}`;
+    try { const j = await r.json(); msg = j.message || msg; } catch { /* binary */ }
+    throw new Error(msg);
+  }
+  const blob = await r.blob();
+  await downloadBlob(blob, `${title || 'document'}.docx`);
+}
+
 export async function createPost(payload: {
   business_id: number;
   project_id?: number | null;

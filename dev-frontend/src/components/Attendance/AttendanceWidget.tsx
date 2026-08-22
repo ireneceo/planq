@@ -12,9 +12,12 @@ import { useAttendance, formatHm, formatHours } from '../../hooks/useAttendance'
 interface Props {
   variant?: 'sidebar' | 'card';
   isCollapsed?: boolean;
+  /** 업무 흐름 위젯과 한 카드 안에 들어갈 때 — 자체 테두리·배경을 벗는다.
+   *  근무중인지와 무슨 업무 중인지는 사용자에게 한 덩어리다(운영 지적). */
+  embedded?: boolean;
 }
 
-const AttendanceWidget: React.FC<Props> = ({ variant = 'sidebar', isCollapsed }) => {
+const AttendanceWidget: React.FC<Props> = ({ variant = 'sidebar', isCollapsed, embedded }) => {
   const { t } = useTranslation('attendance');
   const { user } = useAuth();
   const bizId = user?.business_id ? Number(user.business_id) : null;
@@ -38,7 +41,7 @@ const AttendanceWidget: React.FC<Props> = ({ variant = 'sidebar', isCollapsed })
   const elapsed = state === 'on_break' ? a.live.brk : a.live.work;
 
   return (
-    <Wrap $dark={dark} $card={variant === 'card'} aria-live="polite">
+    <Wrap $dark={dark} $card={variant === 'card'} $embedded={!!embedded} aria-live="polite">
       <Head>
         <Dot $state={state} />
         <Label $dark={dark}>{label}</Label>
@@ -104,9 +107,11 @@ const breath = keyframes`0%{transform:scale(1)}50%{transform:scale(1.15)}100%{tr
 type S = 'working' | 'on_break' | 'done' | null;
 const DOT: Record<string, string> = { working: '#5EEAD4', on_break: '#FCD34D', done: '#94A3B8', none: '#CBD5E1' };
 
-const Wrap = styled.div<{ $dark: boolean; $card: boolean }>`
+const Wrap = styled.div<{ $dark: boolean; $card: boolean; $embedded?: boolean }>`
   display: flex; flex-direction: column; gap: 8px;
-  ${p => p.$dark ? css`
+  ${p => p.$embedded ? css`
+    margin: 0; padding: 0; background: none; border: none;
+  ` : p.$dark ? css`
     margin: -2px -4px 10px; padding: 10px 12px;
     background: rgba(255,255,255,0.06);
     border: 1px solid rgba(255,255,255,0.1); border-radius: 10px;

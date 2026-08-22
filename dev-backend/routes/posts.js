@@ -1300,6 +1300,28 @@ router.get('/:id/pdf', authenticateToken, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ─── 워드(.docx) 다운로드 (#225) ───
+//   접근 검사는 위 PDF 와 같다 — 같은 내용을 다른 형식으로 줄 뿐이다.
+router.get('/:id/docx', authenticateToken, async (req, res, next) => {
+  try {
+    const post = await Post.findByPk(req.params.id, {
+      include: [{ model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] }],
+    });
+    if (!post) return errorResponse(res, 'not_found', 404);
+    if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    const { buildDocx, sendDocx } = require('../services/docxService');
+    const buf = await buildDocx({
+      title: post.title,
+      subtitle: post.author?.name ? `${post.author.name}` : '',
+      content: post.content_json,
+      plain: post.content_text || '',
+    });
+    return sendDocx(res, buf, post.title);
+  } catch (err) { next(err); }
+});
+
 // ─── PDF 다운로드 (익명 — share_token) ───
 router.get('/public/:token/pdf', async (req, res, next) => {
   try {

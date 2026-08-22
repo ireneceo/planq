@@ -47,6 +47,9 @@ const AttendancePage: React.FC = () => {
   const [stats, setStats] = useState<StatRow[]>([]);
   const [fixTarget, setFixTarget] = useState<AttendanceDay | null>(null);
   const [statMonth, setStatMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  // #208 — 근태 설정의 집은 근태 화면이다. 처음엔 '업무 흐름' 카드 안에 뒀는데,
+  //   그 카드는 focus_enabled 가 꺼져 있으면 통째로 안 보여서 설정이 영영 닿지 않았다.
+  const [autoClockIn, setAutoClockIn] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const year = new Date().getFullYear();
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -89,6 +92,26 @@ const AttendancePage: React.FC = () => {
   }, [bizId, year, isManager, teamDate, statMonth]);
 
   useEffect(() => { void silentLoad(); }, [silentLoad]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const r = await apiFetch('/api/attendance/settings');
+      if (!r.ok || cancelled) return;
+      const j = await r.json().catch(() => null);
+      if (j?.success) setAutoClockIn(!!j.data.auto_clock_in_on_focus);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const saveAutoClockIn = async (next: boolean) => {
+    setAutoClockIn(next);                       // 즉시 반영 — 토글은 기다림이 없어야 한다
+    const r = await apiFetch('/api/attendance/settings', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ auto_clock_in_on_focus: next }),
+    });
+    if (!r.ok) setAutoClockIn(!next);           // 실패하면 되돌린다(거짓 성공 금지)
+  };
   useVisibilityRefresh(silentLoad);
 
   // 다른 사람이 출근하거나 휴가를 신청하면 새로고침 없이 반영된다(CLAUDE.md §16).
@@ -205,6 +228,19 @@ const AttendancePage: React.FC = () => {
               </Table>
             </TableWrap>
           )}
+          {autoClockIn !== null && (
+            <SettingRow>
+              <SettingCheck
+                type="checkbox" id="attn-auto-clockin"
+                checked={autoClockIn}
+                onChange={(e) => saveAutoClockIn(e.target.checked)}
+              />
+              <SettingText htmlFor="attn-auto-clockin">
+                <b>{t('settings.autoClockIn')}</b>
+                <span>{t('settings.autoClockInHint')}</span>
+              </SettingText>
+            </SettingRow>
+          )}
         </>
       )}
 
@@ -311,3 +347,18 @@ const StatusBadge = styled.span<{ $s: string }>`
   color: ${p => ({ pending: '#92400E', approved: '#166534', rejected: '#991B1B', canceled: '#64748B' }[p.$s] || '#64748B')};
 `;
 
+
+// #208 — 근태 설정. 페이지 안에 두어 "설정이 어디 있지" 가 없게 한다.
+const SettingRow = styled.div`
+  display: flex; align-items: flex-start; gap: 8px;
+  margin-top: 16px; padding: 12px 14px;
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px;
+`;
+const SettingCheck = styled.input`
+  width: 16px; height: 16px; margin-top: 2px; accent-color: #F43F5E; cursor: pointer; flex-shrink: 0;
+`;
+const SettingText = styled.label`
+  display: flex; flex-direction: column; gap: 2px; cursor: pointer;
+  b { font-size: 13px; font-weight: 600; color: #0F172A; }
+  span { font-size: 11px; color: #64748B; line-height: 1.45; }
+`;
