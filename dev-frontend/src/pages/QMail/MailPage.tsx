@@ -28,6 +28,7 @@ import { uploadMyFile } from '../../services/files';
 import MailContextPanel from './MailContextPanel';
 import { useInlineCidImages } from './useInlineCidImages';
 import { displayName, type NameLocalizable } from '../../utils/displayName';
+import { useLocalDraft } from '../../hooks/useLocalDraft';
 import PanelResizeHandle, { usePanelWidth } from '../../components/Layout/PanelResizeHandle';
 import EmptyState from '../../components/Common/EmptyState';
 import AiActionButton from '../../components/Common/AiActionButton';
@@ -481,13 +482,9 @@ const MailPage: React.FC = () => {
     //   초안은 1.5초 자동저장 + 다음에 열 때 복원되므로, 확정 저장 후 닫고 보내주면 된다.
     if (composeOpen && id !== null) {
       const hasContent = !!(cTo.trim() || cSubject.trim() || !isEmptyHtml(cBody) || cFileIds.length);
-      // 전달(forward) 모드는 초안 자동저장 대상이 아니다 — 닫으면 쓴 내용이 그대로 사라진다.
-      //   말없이 버리지 않는다: 쓴 게 있으면 이동을 막고 이유를 알린다.
+      // 전달(forward) 은 이 브라우저에 초안이 남는다(위 fwdDraft) → **이동을 막지 않는다.**
+      //   옛 동작은 쓴 게 있으면 이탈 자체를 차단했다 — 사용자에겐 "안 나가져" 로 보였다.
       if (fwdFromMsgId) {
-        if (hasContent) {
-          setCError(t('compose.forwardBlocksNav', { defaultValue: '전달 메일은 임시저장되지 않습니다. 보내거나 닫은 뒤에 다른 메일로 이동해 주세요.' }) as string);
-          return;
-        }
         setComposeOpen(false);
         navigateToThread(id);
         return;
@@ -1355,8 +1352,39 @@ const MailPage: React.FC = () => {
       const next = new URLSearchParams(sp); next.delete('compose'); setSp(next, { replace: true });
     }
   }, [sp, setSp, location.state]);
+  // ── 전달(forward) 초안 — **이 브라우저에 보존** ──
+  //   서버 초안(email_drafts)에는 "어느 메일을 전달 중인지" 를 담을 자리가 없다(in_reply_to 만 있다).
+  //   그래서 전달은 초안 저장에서 통째로 빠져 있었고, 쓴 게 있으면 **이동 자체를 막았다**
+  //   ("밖에 리스트 누르면 안나가져" 의 남은 절반). 컬럼을 늘리는 대신 로컬에 남긴다 —
+  //   스키마 변경 없이 이탈 차단을 없애고 다시 열면 복원된다.
+  //   ★ 한계: 이 브라우저에만 남는다(서버 초안처럼 다른 기기로 따라가지 않는다). 전달은 원본 메일이
+  //     있는 자리에서 이어 쓰는 흐름이라 수용 가능한 절충으로 본다.
+  const fwdDraftKey = fwdFromMsgId && user?.id ? `qmail-fwd-${user.id}-${fwdFromMsgId}` : '';
+  const fwdDraft = useLocalDraft({
+    key: fwdDraftKey || 'qmail-fwd-none',
+    value: { to: cTo, subject: cSubject, body: cBody, fileIds: cFileIds, accountId: cAccountId },
+    debounceMs: 800,
+    enabled: !!fwdDraftKey && composeOpen,
+    isEmpty: (v) => !v.to.trim() && !v.subject.trim() && isEmptyHtml(v.body) && !v.fileIds.length,
+  });
+  // 전달 폼을 다시 열면 쓰던 내용을 되살린다. 값이 있는 필드만 덮는다.
+  const fwdRestoredRef = useRef<string>('');
+  useEffect(() => {
+    if (!composeOpen || !fwdDraftKey || fwdRestoredRef.current === fwdDraftKey) return;
+    fwdRestoredRef.current = fwdDraftKey;
+    const r = fwdDraft.restored;
+    if (!r) return;
+    const v = r.value;
+    if (v.to) setCTo(v.to);
+    if (v.subject) setCSubject(v.subject);
+    if (v.body && !isEmptyHtml(v.body)) setCBody(v.body);
+    if (Array.isArray(v.fileIds) && v.fileIds.length) setCFileIds(v.fileIds);
+    if (v.accountId) setCAccountId(v.accountId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [composeOpen, fwdDraftKey]);
+
   // 임시저장(compose) — 새 메일 모달 열 때 본인 초안 복원 + 입력 시 1.5s 디바운스 자동저장.
-  //   forward 모드는 transient 라 제외. 발송 시 sendCompose 가 삭제.
+  //   forward 는 위 로컬 초안이 담당한다(서버 초안 대상 아님). 발송 시 sendCompose 가 삭제.
   const composeDraftReady = useRef(false);
   useEffect(() => {
     if (!composeOpen || fwdFromMsgId || !businessId) { composeDraftReady.current = false; return; }
@@ -1513,8 +1541,10 @@ const MailPage: React.FC = () => {
         });
       const j = await r.json();
       if (!j.success) throw new Error(j.message || (t('compose.sendFailed', { defaultValue: '발송 실패' }) as string));
-      // 발송 성공 — 새 메일 초안 삭제 (forward 는 초안 없음)
-      if (!fwdFromMsgId) apiFetch(`/api/businesses/${businessId}/email-drafts`, { method: 'DELETE' }).catch(() => {});
+      // 발송 성공 — 초안 삭제. 새 메일은 서버 초안, 전달은 이 브라우저의 로컬 초안이다.
+      //   보낸 뒤에도 남아 있으면 다음에 전달 폼을 열 때 보낸 내용이 되살아난다.
+      if (fwdFromMsgId) fwdDraft.clear();
+      else apiFetch(`/api/businesses/${businessId}/email-drafts`, { method: 'DELETE' }).catch(() => {});
       closeCompose();
       loadList(); loadCounts(); loadAccounts();
       if (j.data?.thread_id) setActive(j.data.thread_id);
