@@ -14,6 +14,7 @@ import type { Message, toAddrList as ToAddrList } from './MailPage';
 import MailBodyFullscreen from './MailBodyFullscreen';
 import MessageAttachments from './MessageAttachments';
 import MailMessageBody from './MailMessageBody';
+import AddressMenu from '../../components/Mail/AddressMenu';   // #261 주소 클릭 메뉴
 import { buildMailSrcDoc, type QuoteFoldLabels } from './mailSrcDoc';
 import {
   MessageCard, MessageHeader, MessageFrom, MessageTo, MsgHeaderRight, MsgCollapsedPreview, MsgChevron,
@@ -48,11 +49,19 @@ interface Props {
   foldLabels: QuoteFoldLabels;
   toAddrList: typeof ToAddrList;
   formatTimeAgo: (v: string) => string;
+  /** #261 — 주소 클릭 메뉴 동작. 상위(MailPage)가 실제 행동을 소유한다. */
+  addressActions?: {
+    onViewMail: (email: string) => void;
+    onCompose: (email: string) => void;
+    onSaveClient: (email: string, name?: string | null) => void;
+    onBlock: (email: string) => void;
+  };
   t: TFunction;
 }
 
 export default function ThreadMessages(p: Props) {
   const {
+    addressActions,
     messages, threadId, accountEmail, subject, myUserId, businessId, expandedMsgIds, toggleMsg,
     frameH, msgCidData, msgTrans, setMsgTrans, transLang, setTransLang,
     translateMsg, cancelTranslate, startForward, foldLabels, toAddrList, formatTimeAgo, t,
@@ -94,7 +103,28 @@ export default function ThreadMessages(p: Props) {
                 ? `${(m.sent_by_user_id && myUserId && m.sent_by_user_id !== myUserId && m.sent_by_name)
                     ? m.sent_by_name
                     : (t('me', { defaultValue: '나' }) as string)} <${accountEmail}>`
-                : `${m.from_name || ''} <${m.from_email || ''}>`}
+                : (
+                  // #261 — 발신 주소는 누르면 무엇이든 할 수 있어야 한다(모아보기·복사·새 메일·고객 저장·차단).
+                  //   주소 자체가 진입점이 아니면 사람을 기준으로 메일을 되찾을 방법이 없다.
+                  <>
+                    {m.from_name ? `${m.from_name} ` : ''}
+                    {m.from_email && addressActions ? (
+                      <>
+                        {'<'}
+                        <AddressMenu
+                          email={m.from_email}
+                          name={m.from_name}
+                          businessId={businessId}
+                          onViewMail={addressActions.onViewMail}
+                          onCompose={addressActions.onCompose}
+                          onSaveClient={addressActions.onSaveClient}
+                          onBlock={addressActions.onBlock}
+                        />
+                        {'>'}
+                      </>
+                    ) : `<${m.from_email || ''}>`}
+                  </>
+                )}
               {/* 어느 주소로 온 메일인지 — 여러 도메인을 한 메일함으로 받으면 이게 없으면 답장 주소를 알 수 없다 */}
               {toAddrList(m.to_emails).length > 0 && (
                 <MessageTo>

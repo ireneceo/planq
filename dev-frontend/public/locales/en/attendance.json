@@ -1,7 +1,13 @@
 {
   "menu": "Attendance",
-  "page": { "title": "Attendance" },
-  "tabs": { "my": "My records", "leave": "Leave", "team": "Team" },
+  "page": {
+    "title": "Attendance"
+  },
+  "tabs": {
+    "my": "My records",
+    "leave": "Leave",
+    "team": "Team"
+  },
   "widget": {
     "title": "Attendance",
     "notStarted": "Not clocked in",
@@ -16,7 +22,12 @@
     "todayTotal": "Today {{hours}}",
     "onLeaveToday": "On leave today"
   },
-  "state": { "working": "Working", "on_break": "On break", "done": "Clocked out", "none": "Not clocked in" },
+  "state": {
+    "working": "Working",
+    "on_break": "On break",
+    "done": "Clocked out",
+    "none": "Not clocked in"
+  },
   "my": {
     "weekSummary": "This week {{work}} · break {{brk}} · leave {{leave}}d",
     "empty": "No records yet. They will appear once you start work.",
@@ -56,7 +67,12 @@
     "submit": "Request",
     "cancel": "Cancel",
     "empty": "No leave requests yet.",
-    "status": { "pending": "Pending", "approved": "Approved", "rejected": "Rejected", "canceled": "Canceled" },
+    "status": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "canceled": "Canceled"
+    },
     "chargedDays": "{{days}}d charged",
     "decideNote": "Note",
     "approve": "Approve",
@@ -86,6 +102,47 @@
     "insufficient_leave_balance": "Not enough leave remaining.",
     "already_started": "Leave that has already started can only be canceled by an admin.",
     "forbidden": "You do not have permission.",
-    "generic": "Could not complete. Please try again."
+    "generic": "Could not complete. Please try again.",
+    "fix_reason_required": "Please enter a reason for the correction.",
+    "events_required": "Add at least one time.",
+    "invalid_at": "That time is not valid.",
+    "timeline_must_start_with_clock_in": "A clock-in time is required — the corrected record must start with one."
+  },
+  "stats": {
+    "title": "Team stats",
+    "workDays": "Days",
+    "workHours": "Worked",
+    "breakHours": "Break",
+    "overtime": "Over baseline",
+    "avgIn": "Avg in",
+    "avgOut": "Avg out",
+    "leaveUsed": "Leave used",
+    "autoClosed": "Auto-closed",
+    "empty": "No records this month.",
+    "overtimeHint": "‘Over baseline’ totals time past each person's daily baseline. With flexible hours some days run over and others under — this is not a legal overtime figure."
+  },
+  "fix": {
+    "open": "Correct",
+    "title": "Correct attendance",
+    "current": "Current record",
+    "appendOnlyHint": "Nothing is erased. Correct the times below; the originals stay as history and the totals are recalculated.",
+    "add": "Add a time",
+    "reason": "Reason",
+    "reasonPlaceholder": "e.g. Forgot to clock out; correcting to actual time",
+    "submit": "Apply correction",
+    "kind": {
+      "clock_in": "In",
+      "break_start": "Break start",
+      "break_end": "Break end",
+      "clock_out": "Out"
+    },
+    "source": {
+      "auto_focus": "Auto clock-in",
+      "auto_close": "Auto-closed",
+      "admin_fix": "Corrected"
+    },
+    "timeline": "Corrected record for this day",
+    "timelineHint": "What you leave here becomes the record for this day. Fix or remove wrong times — the originals are kept as history.",
+    "superseded": "voided"
   }
 }

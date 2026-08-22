@@ -207,14 +207,38 @@ async function isKnownContact(businessId, fromEmail) {
 //   ★ 수신 서버가 cid: 를 data:base64 로 치환해 배달하기 때문에 "본문이 cid 를 참조하는가" 로는
 //     로고를 못 잡는다(실측: inbound 2,274건 중 cid 참조 9건 vs data:image 684건). 그래서
 //     **첨부 자신의 contentId** 로 본다 — 치환돼도 첨부의 cid 는 그대로 남는다.
-const PLATFORM_LOGO_CID = 'planq-logo@platform';
+// 값은 emailService 가 원천 — 여기서 다시 적으면 한쪽만 바뀌는 날이 온다(운영 #370 지적).
+//   로드 순서 문제를 피하려고 지연 require + 실패 시 알려진 값으로 폴백한다.
+const PLATFORM_LOGO_CID = (() => {
+  try { return String(require('./emailService').LOGO_CID || '').toLowerCase() || 'planq-logo@platform'; }
+  catch { return 'planq-logo@platform'; }
+})();
 function isPlatformLogo(att) {
   const cid = String(att?.contentId || att?.cid || '').replace(/[<>]/g, '').toLowerCase();
   if (cid === PLATFORM_LOGO_CID) return true;
-  // cid 가 유실된 경우의 보조 판정 — 이름·타입·크기가 전부 맞을 때만(오탐 방지).
+  // cid 가 유실된 경우의 보조 판정.
+  //   ★ 이름만 보면 안 된다 — 외부에서 **실제로 보낸** 동명 이미지가 운영에 존재한다
+  //     (jwchoi@kiyul.co.kr 의 Gmail 인라인, content_id 가 다르다). 이름으로 지우면 남의 자료를 버린다.
+  //   그래서 **우리 로고 파일의 바이트 수와 정확히 같을 때만** 로고로 본다. 크기가 1바이트라도
+  //   다르면 다른 그림이다. (같은 바이트라면 그건 우리 로고가 맞다.)
   const name = String(att?.filename || '').toLowerCase();
+  if (name !== 'planq-logo.png') return false;
   const size = att?.size || (att?.content ? att.content.length : 0);
-  return name === 'planq-logo.png' && String(att?.contentType || '').startsWith('image/') && size < 200 * 1024;
+  const known = platformLogoBytes();
+  return !!known && size === known;
+}
+
+// 우리 로고의 실제 바이트 수 — emailService 가 붙이는 그 파일에서 직접 읽는다(하드코딩 금지).
+let logoBytesCache = null;
+function platformLogoBytes() {
+  if (logoBytesCache !== null) return logoBytesCache;
+  try {
+    const { getLogoAttachment } = require('./emailService');
+    const att = getLogoAttachment();
+    const p = att && (att.path || att.filename && att.path);
+    logoBytesCache = p && fs.existsSync(p) ? fs.statSync(p).size : 0;
+  } catch { logoBytesCache = 0; }
+  return logoBytesCache;
 }
 
 async function saveAttachmentAsFile({ businessId, att, account, fallbackOwnerId }) {
@@ -232,13 +256,34 @@ async function saveAttachmentAsFile({ businessId, att, account, fallbackOwnerId 
     const fname = `${uuid}${ext}`;
     const fpath = path.join(dir, fname);
     const bytes = att.size || att.content.length;
+
+    // #370-B — 같은 바이트를 다시 저장하지 않는다.
+    //   업로드 경로(routes/files.js)는 예전부터 content_hash 로 중복제거를 하는데
+    //   **메일첨부만 그 관문을 안 지나서** 반복 첨부(거래처 서명 이미지·뉴스레터 배너 등)가
+    //   물리 파일로 무한히 쌓였다. 같은 워크스페이스 안에서만 합친다 — 테넌트 경계를 넘지 않는다.
+    //   ★ 로고 차단(A)이 선행돼야 의미가 있다. B 만 하면 물리 파일은 1개가 되지만
+    //     File row 는 그대로 생겨 목록에는 여전히 524건이 보인다.
+    const hash = crypto.createHash('sha256').update(att.content).digest('hex');
+    const twin = await FileModel.findOne({
+      where: { business_id: businessId, content_hash: hash, deleted_at: null, storage_provider: 'planq' },
+      order: [['id', 'ASC']],
+    });
+
     // #372 — 메일첨부가 스토리지 카운터를 아예 안 올리고 있었다(집계 14건/53MB vs 실제 961건/183MB).
     //   카운터가 실제와 벌어지면 쿼터가 아무것도 못 막는다. force=true — 이미 도착한 메일이라
     //   한도를 넘겨도 거절할 수 없다(거절하면 사용자에게 온 자료가 사라진다). 세는 것이 목적이다.
     //   ⚠ storageUsage 는 자체 트랜잭션을 연다 — 여기는 트랜잭션 밖이라 안전하다.
-    try { await reservePlanqUpload(businessId, bytes, { force: true }); }
-    catch (e) { console.warn('[emailImapCron] storage usage 집계 실패:', e.message); }
-    fs.writeFileSync(fpath, att.content);
+    //   ★ 중복이면 새 바이트를 쓰지 않으므로 사용량도 늘지 않는다 — 집계도 건너뛴다.
+    if (!twin) {
+      try { await reservePlanqUpload(businessId, bytes, { force: true }); }
+      catch (e) { console.warn('[emailImapCron] storage usage 집계 실패:', e.message); }
+      fs.writeFileSync(fpath, att.content);
+    } else {
+      // 물리 파일은 원본을 함께 쓴다. 삭제 경로(routes/files.js)가 ref_count 0 일 때만
+      // 실제로 지우므로, 한쪽을 지워도 다른 메일의 첨부가 깨지지 않는다.
+      await twin.increment('ref_count');
+    }
+
     const file = await FileModel.create({
       business_id: businessId,
       uploader_id: (personal ? account.owner_user_id : null) || fallbackOwnerId || null,
@@ -246,10 +291,11 @@ async function saveAttachmentAsFile({ businessId, att, account, fallbackOwnerId 
       //   맥에서 보낸 한글 첨부는 분해형(NFD)이라 그대로 넣으면 검색이 조용히 실패한다
       //   (사용자가 "스크린샷" 을 쳐도 0건). 여기서도 조합형으로 통일한다.
       file_name: toNFC(att.filename || `attachment${ext}`),
-      file_path: fpath,
+      file_path: twin ? twin.file_path : fpath,
       file_size: bytes,
       mime_type: att.contentType || 'application/octet-stream',
       storage_provider: 'planq',
+      content_hash: hash,
       project_id: null,
       visibility: level,
       vlevel: level,
@@ -309,6 +355,11 @@ async function buildImapConfig(account, { onIdle = false } = {}) {
 }
 
 async function syncOne(account, opts = {}) {
+  // #371 — 이번 회차에 건너뛴 자기발신 알림 수.
+  //   ★ try 안에서 선언하면 아래 finally **바깥**의 로그 지점에서 ReferenceError 가 난다
+  //     (let 은 블록 스코프다). 그 예외는 메일을 다 저장한 뒤 마지막에 터져서
+  //     "동기화가 실패했다" 로만 보이고 원인은 안 보였다 — 운영 실측 16회. 함수 스코프에 둔다.
+  let skippedSelfNotice = 0;
   const imapConfig = await buildImapConfig(account);
 
   const conn = await imaps.connect({ imap: imapConfig });
@@ -358,7 +409,6 @@ async function syncOne(account, opts = {}) {
     const limited = isBackfill ? results.slice(-fetchCap) : results.slice(0, fetchCap);
 
     let maxUid = account.imap_last_uid;
-    let skippedSelfNotice = 0;   // #371 — 이번 회차에 건너뛴 자기발신 알림 수
 
     // workspace owner_id 가져옴 (file uploader_id 용)
     const biz = await Business.findByPk(account.business_id, { attributes: ['owner_id'] });
@@ -910,4 +960,6 @@ function init() {
 }
 
 //   findOrCreateThread 는 검증용으로도 노출한다 — 스레드 매칭(step1~3)은 IMAP 없이 검증할 수 있어야 한다.
-module.exports = { init, tick, syncOne, isKnownContact, reconcileIdle, startIdleForAccount, stopIdleForAccount, findOrCreateThread };
+module.exports = { init, tick, syncOne, isKnownContact, reconcileIdle, startIdleForAccount, stopIdleForAccount, findOrCreateThread,
+  // 검증 전용 — 첨부 저장 게이트(#370)를 실제로 태워보기 위해 노출한다.
+  __testSaveAttachment: saveAttachmentAsFile };

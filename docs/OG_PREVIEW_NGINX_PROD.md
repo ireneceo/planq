@@ -45,6 +45,12 @@ sudo nginx -t && sudo systemctl reload nginx
 ### 3. 확인
 
 ```bash
+# ★ 사람이 아니라 **크롤러** UA 로 확인해야 한다 — 미리보기를 만드는 쪽이 크롤러다.
+#   사람 UA 로만 확인하다가 #362 가 절반만 된 것을 못 봤다(#373).
+curl -s -A 'Kakaotalk-scrap' https://planq.kr/insights/create-workspace | grep og:title
+```
+
+```bash
 # 실제 글 제목이 나와야 한다
 curl -s https://planq.kr/insights/create-workspace | grep -E '<title>|og:title|og:description'
 
@@ -57,6 +63,21 @@ curl -s https://planq.kr/insights/does-not-exist-zzz | grep og:title
 ## 되돌리기
 
 블록을 지우고 `sudo nginx -t && sudo systemctl reload nginx`. 백엔드는 건드리지 않았으므로 그것만으로 원상복구된다.
+
+## 운영에서 추가로 필요한 env — **없음** (2026-08-22 코드 수정 후)
+
+이 절을 남기는 이유: 처음 이 문서는 "코드는 이미 배포돼 있다, 남은 것은 nginx 한 블록뿐" 이라고 적었는데
+**실제로는 운영 `.env` 항목이 하나 더 필요했다.** `routes/og.js` 가 SPA index 경로를 `dev-frontend-build` 로
+하드코딩하고 있어서, nginx 가 그 경로를 백엔드로 넘긴 순간 `/insights/:slug` 가 사람·크롤러 모두 404 로 죽었다(#374).
+설정 한 줄이 기능 추가가 아니라 페이지 다운이 된 것이다.
+
+지금은 `routes/og.js` 가 후보 경로를 순서대로 찾고(`SPA_INDEX_PATH` → `FRONTEND_INDEX_HTML` →
+`frontend-build` → `dev-frontend-build`), 어느 것도 없으면 404 대신 `next()` 로 정적 서빙에 넘긴다.
+따라서 **운영에 env 를 넣지 않아도 동작하고, env 누락이 장애가 되지 않는다.**
+운영 `.env` 에 이미 들어가 있는 `SPA_INDEX_PATH` 는 그대로 둬도 무해하다(첫 후보로 쓰인다).
+
+> dev→운영 인계 문서를 쓸 때는 **운영에서만 다른 경로·포트·env** 를 항상 한 절로 따로 적을 것.
+> 이번 건은 "포트 3004" 는 적었지만 빌드 디렉토리 차이를 적지 않아 장애가 났다.
 
 ## 주의
 

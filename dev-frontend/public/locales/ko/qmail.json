@@ -514,5 +514,17 @@
     "errRate": "잠시 후 다시 시도해 주세요. (분당 조회 횟수 제한)",
     "errFailed": "조회하지 못했어요.",
     "note": "PlanQ 는 DNS 를 대신 바꿔주지 않습니다. 레코드 추가는 도메인을 등록한 곳(가비아·후이즈·Cloudflare 등)의 DNS 관리 화면에서 해요. 결과는 10분간 보관되며, 그 뒤 다시 조회합니다."
+  },
+  "address": {
+    "viewMail": "이 주소의 메일 보기",
+    "copy": "주소 복사",
+    "copied": "복사됨",
+    "compose": "이 주소로 새 메일",
+    "saveClient": "고객으로 저장",
+    "block": "스팸으로 분류",
+    "blockHint": "원본은 남습니다. 규칙 설정에서 되돌릴 수 있어요.",
+    "viewing": "{{email}} 와(과) 오간 메일",
+    "includesArchived": "보관한 메일도 함께 보입니다",
+    "exit": "나가기"
   }
 }

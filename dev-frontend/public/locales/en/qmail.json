@@ -514,5 +514,17 @@
     "errRate": "Please try again shortly. (Per-minute lookup limit)",
     "errFailed": "Could not run the check.",
     "note": "PlanQ does not change DNS for you. Add records in the DNS management screen of wherever your domain is registered. Results are cached for 10 minutes, then re-checked."
+  },
+  "address": {
+    "viewMail": "See mail with this address",
+    "copy": "Copy address",
+    "copied": "Copied",
+    "compose": "New mail to this address",
+    "saveClient": "Save as client",
+    "block": "Mark as spam",
+    "blockHint": "The original stays. You can undo this in rule settings.",
+    "viewing": "Mail with {{email}}",
+    "includesArchived": "Archived mail is included",
+    "exit": "Exit"
   }
 }

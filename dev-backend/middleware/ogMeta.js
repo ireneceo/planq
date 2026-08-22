@@ -63,7 +63,10 @@ function escapeHtml(s) {
 // bodyParagraphs 가 있으면 본문 전문을 <article> 로 싣는다.
 //   meta description 은 200자를 유지한다 — 그건 미리보기 카드용이고, 길면 카드가 지저분해진다.
 //   본문은 별도 축이다 (사람이 스크립트 꺼진 채로 읽거나, AI 가 읽는 용도).
-function buildHtml({ url, title, description, image, siteName, bodyParagraphs }) {
+// indexable: 기본은 false — 이 함수가 만드는 HTML 은 대부분 **공유 토큰 페이지**이고,
+//   그런 링크가 색인되면 의도치 않은 영구 공개가 된다. 찾아오라고 발행한 공개 글(인사이트)만
+//   호출부가 true 를 준다.
+function buildHtml({ url, title, description, image, siteName, bodyParagraphs, indexable }) {
   const t = escapeHtml(title || 'PlanQ');
   const d = escapeHtml(description || '');
   const img = escapeHtml(image || '');
@@ -89,8 +92,7 @@ function buildHtml({ url, title, description, image, siteName, bodyParagraphs })
 <meta name="twitter:description" content="${d}">
 <meta name="twitter:image" content="${img}">
 <link rel="canonical" href="${u}">
-<meta name="robots" content="noindex, nofollow">
-</head><body>
+${indexable ? '' : '<meta name="robots" content="noindex, nofollow">\n'}</head><body>
 <p>${t}</p>
 <p>${d}</p>
 ${article}<p><a href="${u}">${u}</a></p>
@@ -328,6 +330,30 @@ async function ogMetaMiddleware(req, res, next) {
       res.set('Content-Type', 'text/html; charset=utf-8');
       return res.send(buildHtml({ url: `https://planq.kr${pathOnly}`, ...data }));
     }
+  }
+  // 2c) 랜딩 인사이트(블로그) `/insights/:slug` — #373
+  //   ★ 이 케이스가 없어서 #362 가 절반만 동작했다. nginx 가 경로를 넘겨도, 봇 요청은 아래 3)
+  //     catch-all 이 next() 없이 소진해버려 **크롤러용으로 만든 routes/og.js 에 크롤러가 영영 못 닿았다**
+  //     (사람 요청만 그쪽으로 갔다). 봇 렌더의 소유자는 이 미들웨어 하나로 유지하고 케이스를 더한다.
+  m = pathOnly.match(/^\/insights\/([A-Za-z0-9_-]+)$/);
+  if (m) {
+    const article = await require('../services/ogSources').resolveInsight(m[1]);
+    if (article) {
+      // ★ 여기만 noindex 를 걸지 않는다. noindex 는 **공유 토큰이 영구 공개되는 것**을 막으려는 장치인데,
+      //   인사이트는 애초에 찾아오라고 발행한 공개 글이다. 색인을 막으면 발행 목적과 정면으로 어긋난다.
+      res.set('Content-Type', 'text/html; charset=utf-8');
+      return res.send(buildHtml({
+        indexable: true,
+        url: `https://planq.kr${pathOnly}`,
+        title: `${article.title} · ${(settings && settings.brand) || 'PlanQ'}`,
+        description: article.description
+          ? String(article.description).replace(/\s+/g, ' ').trim().slice(0, 200)
+          : (settings && settings.seo_description) || undefined,
+        image: (settings && settings.og_image_url) || `${process.env.APP_URL || 'https://planq.kr'}/og-default.png`,
+        siteName: (settings && settings.brand) || 'PlanQ',
+      }));
+    }
+    // 못 찾으면 아래 기본 OG 로 떨어진다 — 존재 여부를 흘리지 않는다.
   }
   // 3) 그 외 = 기본 (랜딩) OG
   const base = settings || {};
