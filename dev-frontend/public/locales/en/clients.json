@@ -221,5 +221,20 @@
   "clients": {
     "resentCount": "Resent {{count}}×",
     "resentTitle": "Invite email resend count"
+  },
+  "csv": {
+    "button": "Excel",
+    "download": "Download as Excel (CSV)",
+    "name": "Name",
+    "company": "Company",
+    "kind": "Type",
+    "status": "Status",
+    "bizName": "Legal name",
+    "taxId": "Tax ID",
+    "billingName": "Billing contact",
+    "billingEmail": "Billing email",
+    "billingPhone": "Phone",
+    "projects": "Projects",
+    "invitedAt": "Invited"
   }
 }

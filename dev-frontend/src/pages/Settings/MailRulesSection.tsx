@@ -20,6 +20,7 @@ const VERDICT_TONE: Record<MailSenderRule['verdict'], { bg: string; fg: string }
   always_reply: { bg: '#F0FDFA', fg: '#0F766E' },
   marketing: { bg: '#FEF9C3', fg: '#A16207' },
   spam: { bg: '#FEE2E2', fg: '#B91C1C' },
+  review: { bg: '#EEF2FF', fg: '#4338CA' },
 };
 
 export default function MailRulesSection({ businessId }: Props) {
@@ -29,6 +30,11 @@ export default function MailRulesSection({ businessId }: Props) {
   const [busy, setBusy] = useState(false);
   const [pattern, setPattern] = useState('');
   const [verdict, setVerdict] = useState<MailSenderRule['verdict']>('no_reply');
+  // #344 — 주소 규칙과 문구 규칙은 성격이 달라 입력 자체를 나눈다.
+  //   주소: "이 사람이 보낸 것" · 문구: "제목·본문에 이 말이 들어간 것"
+  const [kind, setKind] = useState<'address' | 'keyword'>('address');
+  const [matchField, setMatchField] = useState<MailSenderRule['match_field']>('subject');
+  const [markImportant, setMarkImportant] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -43,11 +49,15 @@ export default function MailRulesSection({ businessId }: Props) {
     if (!p || busy) return;
     setBusy(true); setErr(null);
     try {
-      await addMailRule(businessId, p, verdict);
+      await addMailRule(businessId, p, verdict, kind === 'keyword'
+        ? { pattern_type: 'keyword', match_field: matchField, mark_important: markImportant }
+        : { mark_important: markImportant });
       setPattern('');
       await load();
     } catch {
-      setErr(t('rules.addFailed', { defaultValue: '주소나 도메인 형식을 확인해 주세요 (예: noreply@company.com 또는 company.com)' }) as string);
+      setErr(kind === 'keyword'
+        ? t('rules.addFailedKeyword', { defaultValue: '두 글자 이상 입력해 주세요. 너무 짧으면 관계없는 메일까지 걸립니다.' }) as string
+        : t('rules.addFailed', { defaultValue: '주소나 도메인 형식을 확인해 주세요 (예: noreply@company.com 또는 company.com)' }) as string);
     } finally { setBusy(false); }
   };
 
@@ -59,7 +69,10 @@ export default function MailRulesSection({ businessId }: Props) {
   };
 
   const verdictLabel = (v: MailSenderRule['verdict']) => t(`rules.verdict.${v}`, {
-    defaultValue: { no_reply: '답장 불필요', always_reply: '항상 답변 필요', marketing: '마케팅', spam: '스팸' }[v],
+    defaultValue: { no_reply: '답장 불필요', always_reply: '항상 답변 필요', marketing: '마케팅', spam: '스팸', review: '확인 권장' }[v],
+  }) as string;
+  const fieldLabel = (f: MailSenderRule['match_field']) => t(`rules.field.${f}`, {
+    defaultValue: { from: '보낸 주소', subject: '제목', body: '본문', any: '제목·본문' }[f],
   }) as string;
 
   const evidenceText = (r: MailSenderRule) => {
@@ -90,27 +103,60 @@ export default function MailRulesSection({ businessId }: Props) {
         </div>
       </Head>
 
+      <KindTabs role="tablist">
+        <KindTab role="tab" type="button" $on={kind === 'address'} onClick={() => setKind('address')}>
+          {t('rules.kind.address', { defaultValue: '보낸 사람으로' }) as string}
+        </KindTab>
+        <KindTab role="tab" type="button" $on={kind === 'keyword'} onClick={() => setKind('keyword')}>
+          {t('rules.kind.keyword', { defaultValue: '문구로' }) as string}
+        </KindTab>
+      </KindTabs>
+
       <AddRow>
         <PatternInput
           type="text"
           value={pattern}
           onChange={(e) => setPattern(e.target.value)}
-          placeholder={t('rules.placeholder', { defaultValue: 'noreply@company.com 또는 company.com' }) as string}
+          placeholder={(kind === 'keyword'
+            ? t('rules.placeholderKeyword', { defaultValue: '예: 계약서, 세금계산서, 견적' })
+            : t('rules.placeholder', { defaultValue: 'noreply@company.com 또는 company.com' })) as string}
           disabled={busy}
         />
+        {kind === 'keyword' && (
+          <SelectWrap>
+            <PlanQSelect
+              size="sm"
+              isSearchable={false}
+              value={{ value: matchField, label: fieldLabel(matchField) }}
+              onChange={(opt) => setMatchField(((opt as PlanQSelectOption | null)?.value as MailSenderRule['match_field']) || 'subject')}
+              options={(['subject', 'body', 'any'] as const).map((f) => ({ value: f, label: fieldLabel(f) }))}
+            />
+          </SelectWrap>
+        )}
         <SelectWrap>
           <PlanQSelect
             size="sm"
             isSearchable={false}
             value={{ value: verdict, label: verdictLabel(verdict) }}
             onChange={(opt) => setVerdict(((opt as PlanQSelectOption | null)?.value as MailSenderRule['verdict']) || 'no_reply')}
-            options={(['no_reply', 'always_reply', 'marketing', 'spam'] as const).map((v) => ({ value: v, label: verdictLabel(v) }))}
+            options={(['no_reply', 'always_reply', 'review', 'marketing', 'spam'] as const).map((v) => ({ value: v, label: verdictLabel(v) }))}
           />
         </SelectWrap>
         <ActionButton tone="secondary" size="sm" onClick={onAdd} loading={busy} disabled={!pattern.trim()}>
           {t('rules.add', { defaultValue: '규칙 추가' })}
         </ActionButton>
       </AddRow>
+      {/* #344 — 중요 표시는 분류와 다른 축이다. 답변 필요이면서 중요할 수도 있다. */}
+      <ImportantRow>
+        <ImportantCheck
+          type="checkbox" id="rule-important"
+          checked={markImportant}
+          onChange={(e) => setMarkImportant(e.target.checked)}
+        />
+        <ImportantLabel htmlFor="rule-important">
+          {t('rules.markImportant', { defaultValue: '이 규칙에 걸리면 별표(중요) 표시' }) as string}
+        </ImportantLabel>
+      </ImportantRow>
       {err && <ErrText>{err}</ErrText>}
 
       {loading ? (
@@ -127,7 +173,12 @@ export default function MailRulesSection({ businessId }: Props) {
             return (
               <Row key={r.id}>
                 <Main>
-                  <PatternText>{r.pattern}</PatternText>
+                  <PatternText>
+                    {r.pattern_type === 'keyword'
+                      ? `“${r.pattern}” · ${fieldLabel(r.match_field)}`
+                      : r.pattern}
+                    {r.mark_important && <ImportantTag>{t('rules.importantTag', { defaultValue: '중요' }) as string}</ImportantTag>}
+                  </PatternText>
                   <Meta>
                     <Chip $bg={tone.bg} $fg={tone.fg}>{verdictLabel(r.verdict)}</Chip>
                     <Kind>{r.pattern_type === 'domain'
@@ -182,3 +233,21 @@ const Chip = styled.span<{ $bg: string; $fg: string }>`
 `;
 const Kind = styled.span`font-size: 11px; color: #94A3B8;`;
 const Evidence = styled.div`font-size: 12px; color: #64748B;`;
+
+// #344 — 주소 규칙 / 문구 규칙 입력 전환
+const KindTabs = styled.div` display: flex; gap: 4px; margin-bottom: 10px; `;
+const KindTab = styled.button<{ $on: boolean }>`
+  padding: 6px 12px; min-height: 32px;
+  background: ${p => (p.$on ? '#0F172A' : '#fff')};
+  color: ${p => (p.$on ? '#fff' : '#475569')};
+  border: 1px solid ${p => (p.$on ? '#0F172A' : '#CBD5E1')};
+  border-radius: 999px; cursor: pointer; font-size: 12px; font-weight: 600;
+  &:hover { border-color: #94A3B8; }
+`;
+const ImportantRow = styled.div` display: flex; align-items: center; gap: 6px; margin: 8px 0 4px; `;
+const ImportantCheck = styled.input` width: 16px; height: 16px; accent-color: #F43F5E; cursor: pointer; `;
+const ImportantLabel = styled.label` font-size: 12px; color: #475569; cursor: pointer; `;
+const ImportantTag = styled.span`
+  margin-left: 6px; padding: 1px 6px; border-radius: 999px;
+  background: #FFE4E6; color: #BE123C; font-size: 10px; font-weight: 700;
+`;

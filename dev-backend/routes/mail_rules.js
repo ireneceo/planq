@@ -52,8 +52,28 @@ router.post('/:businessId/mail-rules',
 
       const raw = String(req.body?.pattern || '').trim().toLowerCase();
       const verdict = String(req.body?.verdict || '');
-      if (!['no_reply', 'always_reply', 'marketing', 'spam'].includes(verdict)) {
+      if (!['no_reply', 'always_reply', 'marketing', 'spam', 'review'].includes(verdict)) {
         return errorResponse(res, 'invalid_verdict', 400);
+      }
+      // #344 — 문구 규칙. 주소가 아니라 제목·본문에서 찾을 말이다.
+      const wantKeyword = String(req.body?.pattern_type || '') === 'keyword';
+      const matchField = ['from', 'subject', 'body', 'any'].includes(String(req.body?.match_field || ''))
+        ? String(req.body.match_field) : (wantKeyword ? 'any' : 'from');
+      const markImportant = !!req.body?.mark_important;
+      if (wantKeyword) {
+        // 너무 짧은 말은 아무 메일이나 잡는다 — 규칙이 아니라 사고가 된다.
+        if (raw.length < 2) return errorResponse(res, 'keyword_too_short', 400);
+        const created = await MailSenderRule.create({
+          business_id: businessId,
+          pattern: raw.slice(0, 255),
+          pattern_type: 'keyword',
+          match_field: matchField,
+          verdict,
+          mark_important: markImportant,
+          source: 'manual',
+          evidence: { added_by: req.user.id, added_at: new Date() },
+        });
+        return successResponse(res, { id: created.id, pattern: created.pattern, pattern_type: 'keyword', match_field: matchField, verdict, mark_important: markImportant }, null, 201);
       }
       // 주소 또는 도메인
       const addr = rules.normalizeEmail(raw);

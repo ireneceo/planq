@@ -12,7 +12,7 @@ import {
   SkeletonGrid, SkeletonCard, ErrorBanner,
   fmtMoney, fmtNum, ForeignBadge, PartialBadge,
 } from '../components';
-import { downloadRowsAsCsv } from '../csvUtils';
+import { downloadRowsAsCsv } from '../../../utils/csv';
 
 interface Row {
   project_id: number; name: string; client: string; status: string;

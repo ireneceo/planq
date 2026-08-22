@@ -12,7 +12,7 @@ import {
   SkeletonGrid, SkeletonCard, ErrorBanner,
   fmtMoney, fmtNum, fmtPct,
 } from '../components';
-import { downloadRowsAsCsv } from '../csvUtils';
+import { downloadRowsAsCsv } from '../../../utils/csv';
 import DetailDrawer from '../../../components/Common/DetailDrawer';
 
 interface CategoryRow {

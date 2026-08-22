@@ -583,7 +583,8 @@ async function syncOne(account, opts = {}) {
           const base = triageInbound({ subject: parsed.subject, bodyText: parsed.text, fromEmail, headers: trHeaders, ownEmails, ownMatcher, isKnownContact: known });
           // 학습된 발신자 규칙이 휴리스틱보다 우선한다 (사용자가 직접 알려준 정답).
           //   규칙은 분류만 바꾼다 — 원본 메일은 그대로라 규칙 삭제 시 즉시 원상복구.
-          const tr = await applyRules(account.business_id, fromEmail, base);
+          // #344 — 문구 규칙(제목·본문·키워드)을 보려면 규칙 엔진에 그 내용을 같이 줘야 한다.
+          const tr = await applyRules(account.business_id, fromEmail, base, { subject: parsed.subject, bodyText: parsed.text });
           const ruleReason = tr.rule_applied ? 'rule' : 'inbound';
           // 백필(과거 메일)은 읽기만 — 이미 다른 데서 처리했을 가능성이 높다. 수백 건이 한꺼번에
           //   "답변 필요" 로 들어오면 그 폴더가 무용지물이 된다 (Irene 결정).

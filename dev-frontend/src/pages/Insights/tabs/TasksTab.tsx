@@ -17,7 +17,7 @@ import {
   SkeletonGrid, SkeletonCard, ErrorBanner,
   fmtNum, fmtPct,
 } from '../components';
-import { downloadRowsAsCsv } from '../csvUtils';
+import { downloadRowsAsCsv } from '../../../utils/csv';
 import { STATUS_COLOR, type StatusCode } from '../../../utils/taskLabel';
 
 const TasksTab: React.FC<{ businessId: number; range: RangePreset }> = ({ businessId, range }) => {

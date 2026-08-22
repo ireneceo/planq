@@ -136,8 +136,12 @@ export const MAIL_PRESETS: MailPreset[] = [
 export interface MailSenderRule {
   id: number;
   pattern: string;
-  pattern_type: 'address' | 'domain';
-  verdict: 'no_reply' | 'always_reply' | 'marketing' | 'spam';
+  pattern_type: 'address' | 'domain' | 'keyword';
+  /** #344 — keyword 규칙이 어디를 보는가 (address·domain 규칙에는 의미 없음) */
+  match_field: 'from' | 'subject' | 'body' | 'any';
+  verdict: 'no_reply' | 'always_reply' | 'marketing' | 'spam' | 'review';
+  /** #344 — 분류와 별개 축. 켜면 그 메일에 별표(중요)가 자동으로 붙는다 */
+  mark_important: boolean;
   source: 'learned' | 'manual';
   evidence: { signal?: string; subjects?: string[]; addresses?: string[]; learned_at?: string } | null;
   hit_count: number;
@@ -154,11 +158,12 @@ export async function listMailRules(businessId: number): Promise<MailSenderRule[
 
 export async function addMailRule(
   businessId: number, pattern: string, verdict: MailSenderRule['verdict'],
+  opts: { pattern_type?: 'address' | 'domain' | 'keyword'; match_field?: MailSenderRule['match_field']; mark_important?: boolean } = {},
 ): Promise<MailSenderRule> {
   const r = await apiFetch(`/api/businesses/${businessId}/mail-rules`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ pattern, verdict }),
+    body: JSON.stringify({ pattern, verdict, ...opts }),
   });
   const j = await r.json();
   if (!j.success) throw new Error(j.message || 'failed');

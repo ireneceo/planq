@@ -1516,12 +1516,31 @@ router.post('/:businessId/email-threads/:id/follow',
 );
 
 // ─── 라벨 마스터 (businesses.email_labels JSON — 별도 테이블 X) ───
+// #345 — 처음 쓰는 사람에게 줄 **제안** 태그. 저장된 것이 아니라 고르면 만들어지는 후보다.
+//   Irene: "기본태그를 해놓을까?" — 빈 화면을 주면 무엇을 적어야 할지 몰라 아무도 안 쓴다.
+//   ★ 자동으로 만들어 두지는 않는다. 워크스페이스마다 일하는 말이 달라서,
+//     안 쓰는 태그가 미리 깔려 있으면 그것대로 방해가 된다. 고르는 순간에만 생긴다.
+const SUGGESTED_LABELS = [
+  { name: '계약', color: '#0EA5E9' },
+  { name: '견적', color: '#14B8A6' },
+  { name: '청구', color: '#F59E0B' },
+  { name: '문의', color: '#8B5CF6' },
+  { name: '채용', color: '#EC4899' },
+  { name: '보관', color: '#64748B' },
+];
+
 router.get('/:businessId/email-labels',
   authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
   async (req, res, next) => {
     try {
       const biz = await Business.findByPk(req.params.businessId, { attributes: ['id', 'email_labels'] });
-      return successResponse(res, (biz && biz.email_labels) || []);
+      const labels = (biz && biz.email_labels) || [];
+      // 이미 쓰고 있는 것과 겹치지 않는 제안만 같이 내려준다.
+      const used = new Set(labels.map((l) => l.name));
+      const suggested = SUGGESTED_LABELS.filter((l) => !used.has(l.name));
+      // data 는 기존대로 **배열**을 유지한다(프론트가 그대로 쓴다). 제안은 형제 키로 얹는다
+      //   — pagination 을 얹는 방식과 같다. 기존 호출은 무변경으로 동작한다.
+      return res.json({ success: true, data: labels, suggested });
     } catch (err) { next(err); }
   }
 );

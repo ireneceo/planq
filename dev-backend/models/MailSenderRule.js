@@ -20,13 +20,31 @@ MailSenderRule.init({
 
   // 주소 단위(person@corp.com) 또는 도메인 단위(corp.com)
   pattern: { type: DataTypes.STRING(255), allowNull: false },
-  pattern_type: { type: DataTypes.ENUM('address', 'domain'), allowNull: false, defaultValue: 'address' },
+  //   keyword — 주소가 아니라 **문구**로 잡는다 (#344: "같은 제목, 같은 내용, 어떤 키워드").
+  //     ENUM 은 반드시 끝에 append — 중간에 끼우면 기존 row 의 값이 통째로 밀린다.
+  pattern_type: { type: DataTypes.ENUM('address', 'domain', 'keyword'), allowNull: false, defaultValue: 'address' },
+
+  //   #344 — keyword 규칙이 **어디를** 볼지. from 규칙에는 의미가 없다(주소를 본다).
+  match_field: {
+    type: DataTypes.ENUM('from', 'subject', 'body', 'any'),
+    allowNull: false, defaultValue: 'from',
+  },
 
   //   no_reply     — 답장 불필요 (자동 알림·영수증 등). "답변 필요" 에서 제외
   //   always_reply — 항상 답변 필요 (자동화 헤더가 붙어도 사람이 챙길 메일)
   //   marketing    — 마케팅으로 분류
   //   spam         — 스팸으로 분류
-  verdict: { type: DataTypes.ENUM('no_reply', 'always_reply', 'marketing', 'spam'), allowNull: false },
+  //   review       — 확인 권장으로 올린다 (답장까지는 아니지만 눈으로 봐야 하는 것)
+  verdict: { type: DataTypes.ENUM('no_reply', 'always_reply', 'marketing', 'spam', 'review'), allowNull: false },
+
+  /**
+   * #344 — "무조건 중요하게 관리" . 분류(verdict)와 **다른 축**이다:
+   *   답변 필요이면서 중요할 수도, 확인 권장이면서 중요할 수도 있다.
+   * ★ 중요 표시는 새 컬럼을 만들지 않고 기존 `email_threads.is_starred` 를 그대로 쓴다 —
+   *   사용자가 손으로 누르던 그 별표가 곧 중요 표시다. 두 벌로 두면 "별표는 없는데 중요"
+   *   같은 상태가 생기고, 화면마다 다른 것을 보게 된다.
+   */
+  mark_important: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
 
   //   learned — 사용자의 반복 행동에서 자동 학습
   //   manual  — 설정 화면에서 직접 추가

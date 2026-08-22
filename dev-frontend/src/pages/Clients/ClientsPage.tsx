@@ -17,6 +17,7 @@ import SearchBox from '../../components/Common/SearchBox';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import CreateDrawer from '../../components/Common/CreateDrawer';
 import PartnerKindBadge, { usePartnerKindLabel } from '../../components/Common/PartnerKindBadge';
+import { downloadRowsAsCsv } from '../../utils/csv';   // #225
 import PageShell from '../../components/Layout/PageShell';
 import AutoSaveField from '../../components/Common/AutoSaveField';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
@@ -357,6 +358,32 @@ export default function ClientsPage() {
               </FilterSegBtn>
             ))}
           </FilterSeg>
+          {/* #225 — 지금 보고 있는 목록(검색·필터 적용본)을 그대로 내보낸다.
+              화면과 다른 집합이 나가면 사용자는 무엇을 받은 건지 알 수 없다. */}
+          <ExportBtn type="button" data-testid="clients-export-csv" disabled={filtered.length === 0}
+            onClick={() => downloadRowsAsCsv(
+              `clients_${new Date().toISOString().slice(0, 10)}.csv`,
+              filtered,
+              [
+                { key: 'display_name', header: t('csv.name', { defaultValue: '이름' }) as string },
+                { key: 'company_name', header: t('csv.company', { defaultValue: '회사' }) as string },
+                { key: 'kind', header: t('csv.kind', { defaultValue: '구분' }) as string },
+                { key: 'status', header: t('csv.status', { defaultValue: '상태' }) as string },
+                { key: 'biz_name', header: t('csv.bizName', { defaultValue: '상호' }) as string },
+                { key: 'biz_tax_id', header: t('csv.taxId', { defaultValue: '사업자번호' }) as string },
+                { key: 'billing_contact_name', header: t('csv.billingName', { defaultValue: '청구 담당' }) as string },
+                { key: 'billing_contact_email', header: t('csv.billingEmail', { defaultValue: '청구 이메일' }) as string },
+                { key: 'billing_contact_phone', header: t('csv.billingPhone', { defaultValue: '연락처' }) as string },
+                { key: 'project_count', header: t('csv.projects', { defaultValue: '프로젝트' }) as string },
+                { key: 'invited_at', header: t('csv.invitedAt', { defaultValue: '초대일' }) as string,
+                  format: (r) => (r.invited_at ? String(r.invited_at).slice(0, 10) : '') },
+              ],
+            )}
+            title={t('csv.download', { defaultValue: '엑셀(CSV) 로 내려받기' }) as string}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            {t('csv.button', { defaultValue: '엑셀' }) as string}
+          </ExportBtn>
           {isAdmin && (
             <InviteBtn data-testid="clients-invite-open" type="button" onClick={() => setInviteOpen(true)}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
@@ -973,3 +1000,14 @@ const NotesEditor = ({ clientId, initial, disabled, placeholder, onSave }: {
     </AutoSaveField>
   );
 };
+
+// #225 — 목록 내보내기 버튼. 초대(Primary) 옆에 서므로 보조 톤으로 둔다.
+const ExportBtn = styled.button`
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 36px; padding: 0 12px;
+  background: #FFFFFF; color: #334155;
+  border: 1px solid #CBD5E1; border-radius: 8px; cursor: pointer;
+  font-size: 13px; font-weight: 600;
+  &:hover:not(:disabled) { border-color: #94A3B8; background: #F8FAFC; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;

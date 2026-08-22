@@ -581,8 +581,12 @@ function retriageStored({ triage, subject, bodyText, fromEmail, headers, ownEmai
 // @returns 스레드에 그대로 update 할 필드
 function threadFieldsForInbound({ isNew, thread, tr, replyNeeded, ruleReason, messageDate }) {
   const at = messageDate || new Date();
+  // #344 — 규칙이 "무조건 중요" 라고 했으면 별표를 켠다.
+  //   ★ 끄지는 않는다. 사용자가 손으로 켠 별표를 규칙이 지우면, 사용자가 한 일이 사라진다.
+  const important = tr.mark_important ? { is_starred: true } : {};
   if (isNew) {
     return {
+      ...important,
       status: tr.status,
       spam_score: tr.spam_score,
       uncertain_reason: tr.uncertain_reason,
@@ -598,6 +602,7 @@ function threadFieldsForInbound({ isNew, thread, tr, replyNeeded, ruleReason, me
   const reopen = thread.status === 'archived'
     ? { status: tr.status, uncertain_reason: tr.uncertain_reason, reply_needed_reason: null }
     : {};
+  Object.assign(reopen, important);
 
   if (replyNeeded) {
     return { ...reopen, reply_needed: true, reply_needed_at: at, reply_needed_reason: ruleReason, rule_id: tr.rule_applied?.id || null };

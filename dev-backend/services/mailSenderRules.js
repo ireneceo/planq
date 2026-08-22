@@ -34,23 +34,48 @@ function domainOf(email) {
  * 이 발신자에 적용되는 규칙 (주소 규칙 우선, 없으면 도메인 규칙).
  * @returns {Promise<MailSenderRule|null>}
  */
-async function findRuleFor(businessId, fromEmail) {
+async function findRuleFor(businessId, fromEmail, ctx = {}) {
+  if (!businessId) return null;
   const addr = normalizeEmail(fromEmail);
-  if (!businessId || !addr) return null;
-  const dom = domainOf(addr);
+  const dom = addr ? domainOf(addr) : null;
 
+  // 주소·도메인 규칙과 문구 규칙을 한 번에 읽는다(#344).
+  //   문구 규칙은 pattern 이 주소가 아니라 **찾을 말**이라 DB 로 못 좁힌다 — 워크스페이스 규칙은
+  //   많아야 수십 개라 전부 읽어 여기서 판정하는 편이 단순하고 빠르다.
   const rules = await MailSenderRule.findAll({
     where: {
       business_id: businessId,
       [Op.or]: [
-        { pattern_type: 'address', pattern: addr },
+        ...(addr ? [{ pattern_type: 'address', pattern: addr }] : []),
         ...(dom ? [{ pattern_type: 'domain', pattern: dom }] : []),
+        { pattern_type: 'keyword' },
       ],
     },
   });
   if (rules.length === 0) return null;
-  // 더 구체적인 것(주소)이 도메인보다 우선
-  return rules.find((r) => r.pattern_type === 'address') || rules[0];
+
+  const subject = String(ctx.subject || '').toLowerCase();
+  const body = String(ctx.bodyText || '').toLowerCase();
+  const hitsKeyword = (r) => {
+    const needle = String(r.pattern || '').toLowerCase().trim();
+    if (!needle) return false;
+    switch (r.match_field) {
+      case 'subject': return subject.includes(needle);
+      case 'body': return body.includes(needle);
+      case 'any': return subject.includes(needle) || body.includes(needle);
+      // from 인데 keyword 타입 — 주소 문자열 안에 그 말이 들어가는가(예: 'noreply')
+      default: return String(fromEmail || '').toLowerCase().includes(needle);
+    }
+  };
+
+  // 구체적인 것이 먼저다: 주소 → 문구 → 도메인.
+  //   문구가 도메인보다 앞인 이유는, 도메인 규칙은 "이 회사 메일 전반" 이라는 넓은 붓이고
+  //   문구는 사용자가 콕 집어 지정한 것이기 때문이다(#344 "무조건 중요하게").
+  const byAddr = rules.find((r) => r.pattern_type === 'address');
+  if (byAddr) return byAddr;
+  const byKeyword = rules.filter((r) => r.pattern_type === 'keyword').find(hitsKeyword);
+  if (byKeyword) return byKeyword;
+  return rules.find((r) => r.pattern_type === 'domain') || null;
 }
 
 /** 규칙 적중 기록 (통계·투명성용, best-effort) */
@@ -65,13 +90,13 @@ async function recordHit(rule) {
  * @param {object} triaged - emailTriage.triageInbound 결과
  * @returns {Promise<object>} { ...triaged, rule_applied?: {id, pattern, verdict} }
  */
-async function applyRules(businessId, fromEmail, triaged) {
+async function applyRules(businessId, fromEmail, triaged, ctx = {}) {
   // 규칙 조회가 실패해도 기본 분류(휴리스틱)는 살려야 한다 — 규칙만 skip (fail-open).
   //   옛 구조는 여기서 throw 하면 cron 의 catch 가 triage 결과를 통째로 버려, 규칙 DB 오류 하나가
   //   메일 분류 전체를 무효화했다 (Fable 경고 4).
   let rule = null;
   try {
-    rule = await findRuleFor(businessId, fromEmail);
+    rule = await findRuleFor(businessId, fromEmail, ctx);
   } catch (e) {
     console.warn('[mailSenderRules] 규칙 조회 실패 — 기본 분류 유지:', e.message);
     return triaged;
@@ -79,6 +104,8 @@ async function applyRules(businessId, fromEmail, triaged) {
   if (!rule) return triaged;
 
   const out = { ...triaged, rule_applied: { id: rule.id, pattern: rule.pattern, verdict: rule.verdict } };
+  // #344 — 중요 표시는 분류와 별개 축이다. 표시는 기존 별표(is_starred)를 그대로 쓴다.
+  if (rule.mark_important) out.mark_important = true;
   switch (rule.verdict) {
     case 'no_reply':
       out.triage = triaged.triage === 'spam' ? 'spam' : 'automated';
@@ -97,6 +124,13 @@ async function applyRules(businessId, fromEmail, triaged) {
       out.triage = 'spam';
       out.status = 'spam';
       out.reply_needed = false;
+      break;
+    case 'review':
+      // #344 — "확인 권장에 오게". 답장까지 요구하지는 않지만 눈으로 봐야 하는 것.
+      out.triage = out.triage === 'spam' ? 'uncertain' : out.triage;
+      out.status = 'uncertain';
+      out.reply_needed = false;
+      out.uncertain_reason = 'rule';
       break;
     default:
       break;

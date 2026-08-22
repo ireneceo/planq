@@ -1118,6 +1118,20 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
       }
     }
 
+    // #208 — **업무가 진행중이면 그게 근무중이다.** 따로 출근을 누르게 하지 않는다.
+    //   ★ 이 블록이 위 focus 블록과 분리돼 있어야 하는 이유:
+    //     ① 근태는 Focus 기능과 무관하다. `focus_enabled=false` 인 사람도 출퇴근은 기록해야 하는데,
+    //        위 게이트 안에 두면 그 사람은 업무를 시작해도 영영 '미출근' 으로 남는다.
+    //     ② 이 경로는 FocusSession 을 직접 만들고 `/api/focus/start` 라우트를 거치지 않는다 —
+    //        그 라우트에만 훅을 걸어두면 화면에서 진행 시작을 눌러도 근태가 모른다
+    //        (운영 지적: "업무를 시작하고 진행중이면 근무중 아니야?", "서로 동기화가 안되고 있네").
+    //   미출근일 때만 개입한다. 퇴근한 사람을 자동 재출근시키지는 않는다.
+    if (updates.status === 'in_progress' && prev.status !== 'in_progress' && task.assignee_id === req.user.id) {
+      await require('../services/attendanceTransition')
+        .autoClockInOnFocus({ businessId: task.business_id, userId: req.user.id })
+        .catch(() => null);
+    }
+
     // 단계이동·주요 필드 변경 history 기록 (워크플로우 외 직접 PUT 도 추적)
     try {
       const actorId = req.user.id;

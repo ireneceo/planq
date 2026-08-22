@@ -1132,15 +1132,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                     <NavLabel $isCollapsed={isCollapsed}>{t('nav.calendar')}</NavLabel>
                   </NavItem>
                   {hasBiz('owner', 'member') && (
-                    <NavItem to="/attendance" $isCollapsed={isCollapsed} $active={isActive('/attendance')}
-                      title={isCollapsed ? t('nav.attendance', '근태') : undefined}>
-                      <NavIcon $isCollapsed={isCollapsed}>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
-                      </NavIcon>
-                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.attendance', '근태')}</NavLabel>
-                    </NavItem>
-                  )}
-                  {hasBiz('owner', 'member') && (
                     <NavItem to="/notes" $isCollapsed={isCollapsed} $active={isActive('/notes')}
                       title={isCollapsed ? t('nav.note') : undefined}>
                       <NavIcon $isCollapsed={isCollapsed}><IconNote /></NavIcon>
@@ -1188,6 +1179,16 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
               {hasBiz('owner', 'member') && (
                 <NavSection>
                   <NavTitle $isCollapsed={isCollapsed}>{t('nav.sectionPersonal', '개인')}</NavTitle>
+                  {/* #208 — 내 출퇴근·휴가는 **개인** 것이다. 워크스페이스 메뉴(Q Talk·Task…)에 두면
+                      팀 자산처럼 보이는데, 실제로는 남이 못 보는 내 기록이고 관리 화면만 탭 하나로 붙어 있다.
+                      VISIBILITY_VOCABULARY §5 의 개인 영역이 맞는 자리다. */}
+                  <NavItem to="/attendance" $isCollapsed={isCollapsed} $active={isActive('/attendance')}
+                    title={isCollapsed ? t('nav.attendance', '근태') : undefined}>
+                    <NavIcon $isCollapsed={isCollapsed}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+                    </NavIcon>
+                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.attendance', '근태')}</NavLabel>
+                  </NavItem>
                   <NavItem to="/personal-vault" $isCollapsed={isCollapsed} $active={isActive('/personal-vault')}
                     title={isCollapsed ? t('nav.personalVault', '개인 보관함') : undefined}>
                     <NavIcon $isCollapsed={isCollapsed}>
@@ -1489,10 +1490,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                 locale={(i18n.language === 'ko' ? 'ko' : 'en')}
                 isWorkspaceAdmin={hasRole('business_owner', 'platform_admin')}
               />
-              {/* #208 출퇴근 — 업무 흐름 위젯 위. 하루의 시작·끝이 몰입시간보다 상위 개념이다 */}
-              <AttendanceWidget variant="sidebar" />
-              {/* 업무 흐름 위젯 — focus_enabled=true 인 사용자에게만 렌더 (zero overhead) */}
-              <FocusWidget isCollapsed={false} />
+              {/* #208 — 근태와 업무 흐름을 **한 카드**로 묶는다.
+                  둘을 따로 두면 사용자에게는 "시간이 흐르는 상자" 두 개일 뿐이라 구별이 안 된다.
+                  위=오늘 근무(하루의 경계, 관리자도 봄) / 아래=지금 이 업무(나만 봄).
+                  들여쓰기와 구분선이 "업무 시간은 근무 시간 안에 있다" 를 설명 없이 전달한다. */}
+              <WorkBlock>
+                <AttendanceWidget variant="sidebar" embedded />
+                <FocusWidget isCollapsed={false} embedded />
+              </WorkBlock>
               {/* N+63 — UserMenu 통합: avatar+이름 1줄 + 클릭 popover (Language + 프로필 + 로그아웃).
                   옛 3블록 (LanguageSelector + UserInfo + LogoutButton) 합쳐 공간 절약 (모바일 호소 fix). */}
               <UserMenuWrap ref={userMenuRef}>
@@ -1858,4 +1863,18 @@ const SkelRow = styled.div<{ $w: string }>`
   background-size: 200% 100%;
   animation: planqSkel 1.2s ease-in-out infinite;
   @media (prefers-reduced-motion: reduce) { animation: none; }
+`;
+
+// #208 — 근무 상태 한 덩어리 (근태 + 업무 흐름)
+const WorkBlock = styled.div`
+  /* ★ 안이 비면 아예 안 그린다 — Focus 를 꺼두고 아직 출근 전이면 두 자식이 모두 null 이라
+     빈 테두리 상자만 남는다(사용자에게는 고장으로 보인다). */
+  &:empty { display: none; }
+  margin: -2px -4px 12px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  transition: background 0.15s, border-color 0.15s;
+  &:hover { background: rgba(255, 255, 255, 0.08); }
 `;

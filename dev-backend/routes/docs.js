@@ -577,6 +577,30 @@ router.get('/documents/:id/pdf', authenticateToken, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// GET /api/docs/documents/:id/docx — 워드 내려받기 (#225)
+//   접근 검사는 PDF 경로와 **완전히 같다** — 형식만 다를 뿐 같은 내용이라,
+//   한쪽만 느슨하면 그쪽이 우회로가 된다.
+router.get('/documents/:id/docx', authenticateToken, async (req, res, next) => {
+  try {
+    const doc = await Document.findByPk(req.params.id);
+    if (!doc) return errorResponse(res, 'not_found', 404);
+    const auth = await assertReadAccess(req.user.id, doc.business_id, req.user.platform_role);
+    if (!auth.ok) return errorResponse(res, 'forbidden', 403);
+    if (auth.scope?.isClient) {
+      const okClient = doc.client_id && auth.scope.clientIds.includes(doc.client_id);
+      const okProject = doc.project_id && auth.scope.projectClientProjectIds.includes(doc.project_id);
+      if (!okClient && !okProject) return errorResponse(res, 'forbidden', 403);
+    }
+    const { buildDocx, sendDocx } = require('../services/docxService');
+    const buf = await buildDocx({
+      title: doc.title,
+      content: doc.body_json,
+      plain: doc.body_html ? String(doc.body_html).replace(/<[^>]+>/g, ' ') : '',
+    });
+    return sendDocx(res, buf, doc.title);
+  } catch (e) { next(e); }
+});
+
 // PUT /api/docs/documents/:id — 폼/본문 업데이트 + revision 기록
 router.put('/documents/:id', authenticateToken, async (req, res, next) => {
   try {

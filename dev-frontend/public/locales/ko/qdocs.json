@@ -207,7 +207,9 @@
     "saveAsTemplate": "템플릿으로 저장",
     "sendToKnowledge": "Q info 로 보내기 — Cue 가 답변 시 참조",
     "sendToKnowledgeOk": "Q info 에 추가됐습니다 — 인덱싱 후 Cue 답변에 활용됩니다",
-    "sendToKnowledgeErr": "추가 실패: {{msg}}"
+    "sendToKnowledgeErr": "추가 실패: {{msg}}",
+    "downloadDocx": "워드(.docx) 로 내려받기",
+    "docxError": "워드 파일 생성 실패"
   },
   "project": {
     "docs": {
