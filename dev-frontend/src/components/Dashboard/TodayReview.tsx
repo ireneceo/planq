@@ -22,6 +22,9 @@ interface ReviewCounts {
 interface ReviewChange {
   kind: 'task' | 'email' | 'chat' | 'event';
   id: number; title: string; detail_key: string;
+  subject_label?: string | null;   // 고객·프로젝트 — 문장의 주어
+  preview?: string | null;         // 실제 내용 한 줄 (메일 본문·마지막 발언·전이 사유)
+  speaker?: string | null;         // 말한 사람 / 상태를 바꾼 사람
   from?: string | null; to?: string | null; count?: number;
   at: string; start_at?: string; link: string;
 }
@@ -114,13 +117,7 @@ const TodayReview: React.FC<Props> = ({ businessId, refreshKey }) => {
             <Section>
               <SecTitle>{t('review.blk.inbound', '고객·외부에서 온 것')}</SecTitle>
               <List>
-                {b.inbound.map((ch) => (
-                  <Row key={`in-${ch.kind}-${ch.id}`}>
-                    <KindTag $kind={ch.kind}>{t(`review.kind.${ch.kind}`, ch.kind)}</KindTag>
-                    <RowLink to={ch.link}>{ch.title}</RowLink>
-                    <RowWhy>{changeText(ch)}</RowWhy>
-                  </Row>
-                ))}
+                {b.inbound.map((ch) => <ContextRow key={`in-${ch.kind}-${ch.id}`} ch={ch} label={t(`review.kind.${ch.kind}`, ch.kind) as string} why={changeText(ch)} />)}
               </List>
             </Section>
           )}
@@ -163,13 +160,7 @@ const TodayReview: React.FC<Props> = ({ businessId, refreshKey }) => {
             <Section>
               <SecTitle>{t('review.blk.moved', '그 사이 움직인 것')}</SecTitle>
               <List>
-                {b.moved.map((ch) => (
-                  <Row key={`m-${ch.kind}-${ch.id}`}>
-                    <KindTag $kind={ch.kind}>{t(`review.kind.${ch.kind}`, ch.kind)}</KindTag>
-                    <RowLink to={ch.link}>{ch.title}</RowLink>
-                    <RowWhy>{changeText(ch)}</RowWhy>
-                  </Row>
-                ))}
+                {b.moved.map((ch) => <ContextRow key={`m-${ch.kind}-${ch.id}`} ch={ch} label={t(`review.kind.${ch.kind}`, ch.kind) as string} why={changeText(ch)} />)}
               </List>
             </Section>
           )}
@@ -182,6 +173,25 @@ const TodayReview: React.FC<Props> = ({ businessId, refreshKey }) => {
     </Wrap>
   );
 };
+
+// 한 줄이 아니라 **두 줄**이다 — 윗줄은 "누가/무엇에 대해", 아랫줄은 **실제 내용**.
+//   제목만 있으면 결국 할 일 목록이 된다(Irene 2026-08-24: "실제 내용이나 현상을 파악해서 리뷰해달라는 것").
+const ContextRow: React.FC<{ ch: ReviewChange; label: string; why: string }> = ({ ch, label, why }) => (
+  <CtxRow>
+    <CtxTop>
+      <KindTag $kind={ch.kind}>{label}</KindTag>
+      {ch.subject_label && <Subject>{ch.subject_label}</Subject>}
+      <RowLink to={ch.link}>{ch.title}</RowLink>
+      <RowWhy>{why}</RowWhy>
+    </CtxTop>
+    {ch.preview && (
+      <CtxBody>
+        {ch.speaker && <Speaker>{ch.speaker}</Speaker>}
+        {ch.preview}
+      </CtxBody>
+    )}
+  </CtxRow>
+);
 
 export default TodayReview;
 
@@ -212,6 +222,21 @@ const Body = styled.div`padding:0 14px 14px; border-top:1px solid #F1F5F9;`;
 const Section = styled.div`margin-top:12px;`;
 const SecTitle = styled.div`font-size:12px; font-weight:700; color:#64748B; margin-bottom:6px;`;
 const List = styled.div`display:flex; flex-direction:column; gap:4px;`;
+const CtxRow = styled.div`
+  display:flex; flex-direction:column; gap:2px;
+  padding:6px 0; border-bottom:1px solid #F8FAFC;
+  &:last-child { border-bottom:none; }
+`;
+const CtxTop = styled.div`display:flex; align-items:center; gap:8px; min-width:0;`;
+const CtxBody = styled.div`
+  padding-left:2px; font-size:12px; color:#64748B; line-height:1.5;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+`;
+const Subject = styled.span`
+  flex-shrink:0; font-size:12px; font-weight:700; color:#0F766E;
+  max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+`;
+const Speaker = styled.span`font-weight:600; color:#334155; margin-right:5px;`;
 const Row = styled.div`
   display:flex; align-items:center; gap:8px; min-width:0;
   padding:5px 0; border-bottom:1px solid #F8FAFC;

@@ -126,12 +126,24 @@ router.get('/today-review', authenticateToken, async (req, res, next) => {
         task_id: { [Op.in]: literal(`(SELECT id FROM tasks WHERE business_id IN (${bizIds.join(',')}) AND (assignee_id = ${Number(userId)} OR created_by = ${Number(userId)} OR id IN (SELECT task_id FROM task_reviewers WHERE user_id = ${Number(userId)})))`) },
       },
       order: [['created_at', 'DESC']], limit: 40,
-      attributes: ['task_id', 'from_status', 'to_status', 'created_at', 'actor_user_id'],
+      // note = 전이 시 남긴 사유(반려 사유 등). "상태가 바뀌었어요" 보다 **왜 바뀌었는지**가 리뷰다.
+      attributes: ['task_id', 'from_status', 'to_status', 'created_at', 'actor_user_id', 'note'],
     });
     if (hist.length) {
       const tids = [...new Set(hist.map((h) => h.task_id))];
       const tasks = await Task.findAll({ where: { id: { [Op.in]: tids } }, attributes: ['id', 'title', 'business_id', 'project_id'] });
       const tmap = new Map(tasks.map((t) => [t.id, t]));
+      const actorIds = [...new Set(hist.map((h) => h.actor_user_id).filter(Boolean))];
+      // 위와 같은 이유 — User 는 전역이고, 이 id 는 내가 관여한 업무의 이력에서 나왔다(scope 근거).
+      const actors = actorIds.length
+        ? await User.findAll({ where: { id: { [Op.in]: actorIds } }, attributes: ['id', 'name'] }) : [];
+      const amap = new Map(actors.map((u) => [u.id, u.name]));
+      const projIds = [...new Set(tasks.map((t) => t.project_id).filter(Boolean))];
+      const projs = projIds.length
+        ? await Project.findAll({
+          where: { id: { [Op.in]: projIds }, business_id: { [Op.in]: bizIds } }, attributes: ['id', 'name'],
+        }) : [];
+      const pmap = new Map(projs.map((p) => [p.id, p.name]));
       const seen = new Set();
       for (const h of hist) {
         if (seen.has(h.task_id)) continue;      // 업무당 최신 1건만 — 같은 업무의 연쇄 전이는 노이즈
@@ -140,6 +152,9 @@ router.get('/today-review', authenticateToken, async (req, res, next) => {
         if (!t) continue;
         changes.push({
           kind: 'task', id: t.id, title: t.title,
+          subject_label: pmap.get(t.project_id) || null,
+          speaker: amap.get(h.actor_user_id) || null,
+          preview: snippet(h.note),
           detail_key: 'status', from: h.from_status, to: h.to_status,
           at: h.created_at, link: `/tasks?task=${t.id}`,
         });
@@ -158,16 +173,23 @@ router.get('/today-review', authenticateToken, async (req, res, next) => {
       if (accIds.length) {
         const threads = await EmailThread.findAll({
           where: {
+            business_id: { [Op.in]: bizIds },   // 계정 스코프에 더해 워크스페이스도 명시(이중 격리)
             account_id: { [Op.in]: accIds },
             last_message_at: { [Op.gte]: since },
             status: { [Op.ne]: 'archived' },
             [Op.or]: [{ reply_needed: true }, { status: 'uncertain' }],
           },
           order: [['last_message_at', 'DESC']], limit: 10,
-          attributes: ['id', 'subject', 'last_message_at', 'reply_needed', 'status'],
+          // ★ 제목만 뽑으면 "할 일 목록" 이 된다 — **누구에게서 무슨 내용이 왔는지**가 있어야 리뷰다.
+          //   client_id/project_id 로 주체를, last_message_preview 로 내용을 붙인다(Irene 2026-08-24).
+          attributes: ['id', 'subject', 'last_message_at', 'reply_needed', 'status',
+            'client_id', 'project_id', 'last_message_preview'],
         });
+        const subjMap = await subjectLabels(threads, bizIds);
         threads.forEach((th) => changes.push({
           kind: 'email', id: th.id, title: th.subject || '(제목 없음)',
+          subject_label: subjMap.get(`${th.client_id || 0}:${th.project_id || 0}`) || null,
+          preview: snippet(th.last_message_preview),
           detail_key: th.reply_needed ? 'reply_needed' : 'uncertain',
           at: th.last_message_at, link: `/mail?thread=${th.id}`,
         }));
@@ -186,15 +208,40 @@ router.get('/today-review', authenticateToken, async (req, res, next) => {
           group: ['conversation_id'], order: [[literal('last_at'), 'DESC']], limit: 6, raw: true,
         });
         if (rows.length) {
+          const cids = rows.map((r) => r.conversation_id);
           const convs = await Conversation.findAll({
-            where: { id: { [Op.in]: rows.map((r) => r.conversation_id) } }, attributes: ['id', 'title'],
+            where: { id: { [Op.in]: cids }, business_id: { [Op.in]: bizIds } },
+            attributes: ['id', 'title', 'client_id', 'project_id'],
           });
-          const cmap = new Map(convs.map((c) => [c.id, c.title]));
-          rows.forEach((r) => changes.push({
-            kind: 'chat', id: r.conversation_id, title: cmap.get(r.conversation_id) || '대화',
-            detail_key: 'new_messages', count: Number(r.n) || 0,
-            at: r.last_at, link: `/talk?conv=${r.conversation_id}`,
-          }));
+          const cmap = new Map(convs.map((c) => [c.id, c]));
+          // 마지막 발언 한 줄 — "새 메시지 3건" 보다 **무슨 말이 오갔는지**가 리뷰다.
+          // convIds = 내가 참여자인 대화만(위 ConversationParticipant 조회) — scope 근거는 그것이다.
+          const lasts = await Message.findAll({
+            where: { conversation_id: { [Op.in]: cids }, created_at: { [Op.gte]: since }, sender_id: { [Op.ne]: userId } },
+            order: [['created_at', 'DESC']], limit: 60,
+            attributes: ['conversation_id', 'content', 'created_at', 'sender_id'],
+          });
+          const lastMap = new Map();
+          for (const m of lasts) if (!lastMap.has(m.conversation_id)) lastMap.set(m.conversation_id, m);
+          const senderIds = [...new Set([...lastMap.values()].map((m) => m.sender_id).filter(Boolean))];
+          // User 는 워크스페이스 소속 엔티티가 아니다(전역 계정) — business_id 컬럼 자체가 없다.
+          //   여기 id 는 **내가 참여한 대화**의 발신자라 이미 내 접근 범위 안이다(scope 근거).
+          const senders = senderIds.length
+            ? await User.findAll({ where: { id: { [Op.in]: senderIds } }, attributes: ['id', 'name'] }) : [];
+          const smap = new Map(senders.map((u) => [u.id, u.name]));
+          const subjMap = await subjectLabels(convs, bizIds);
+          rows.forEach((r) => {
+            const c = cmap.get(r.conversation_id);
+            const m = lastMap.get(r.conversation_id);
+            changes.push({
+              kind: 'chat', id: r.conversation_id, title: (c && c.title) || '대화',
+              subject_label: c ? (subjMap.get(`${c.client_id || 0}:${c.project_id || 0}`) || null) : null,
+              speaker: m ? (smap.get(m.sender_id) || null) : null,
+              preview: snippet(m && m.content),
+              detail_key: 'new_messages', count: Number(r.n) || 0,
+              at: r.last_at, link: `/talk?conv=${r.conversation_id}`,
+            });
+          });
         }
       }
     } catch (e) { /* 대화 없음 */ }
@@ -289,6 +336,39 @@ router.get('/today-review', authenticateToken, async (req, res, next) => {
     });
   } catch (err) { next(err); }
 });
+
+// 내용 한 줄 — HTML·개행을 걷어내고 자른다. 리뷰는 읽는 글이라 원문 덩어리를 그대로 붙이면 안 된다.
+function snippet(v, max = 90) {
+  const t = String(v || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!t) return null;
+  return t.length > max ? `${t.slice(0, max)}…` : t;
+}
+
+/** 고객·프로젝트 이름을 한 번에 읽어 `clientId:projectId` 키로 돌려준다 (문장의 주어가 된다). */
+async function subjectLabels(rows, bizIds) {
+  const clientIds = [...new Set(rows.map((r) => r.client_id).filter(Boolean))];
+  const projectIds = [...new Set(rows.map((r) => r.project_id).filter(Boolean))];
+  // ★ id 를 이미 스코프된 행에서 뽑았더라도 **business_id 를 다시 건다** — 그 전제가 어느 날 깨지면
+  //   남의 워크스페이스 고객·프로젝트 이름이 리뷰에 찍힌다. 이름 노출도 유출이다.
+  const [clients, projects] = await Promise.all([
+    clientIds.length ? Client.findAll({
+      where: { id: { [Op.in]: clientIds }, business_id: { [Op.in]: bizIds } },
+      attributes: ['id', 'display_name', 'company_name'],
+    }) : [],
+    projectIds.length ? Project.findAll({
+      where: { id: { [Op.in]: projectIds }, business_id: { [Op.in]: bizIds } },
+      attributes: ['id', 'name'],
+    }) : [],
+  ]);
+  const cm = new Map(clients.map((c) => [c.id, c.display_name || c.company_name]));
+  const pm = new Map(projects.map((p) => [p.id, p.name]));
+  const out = new Map();
+  rows.forEach((r) => {
+    const label = cm.get(r.client_id) || pm.get(r.project_id) || null;
+    out.set(`${r.client_id || 0}:${r.project_id || 0}`, label);
+  });
+  return out;
+}
 
 function emptyCounts() {
   return { projects_active: 0, today_tasks: 0, approvals: 0, due_soon: 0, changes: 0 };
