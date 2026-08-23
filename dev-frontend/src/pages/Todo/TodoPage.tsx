@@ -8,6 +8,7 @@ import HelpDot from '../../components/Common/HelpDot';
 import InsightCards from '../../components/Common/InsightCards';
 import TodoList from '../../components/Dashboard/TodoList';
 import TodayReview from '../../components/Dashboard/TodayReview';
+import OpenTaskPopoutButton from '../../components/QTask/OpenTaskPopoutButton';
 import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
 import DailyStartModal from '../../components/Focus/DailyStartModal';
 import CandidateActionModal from '../../components/Focus/CandidateActionModal';
@@ -258,6 +259,7 @@ const TodoPage: React.FC = () => {
     <PageShell
       title={t('todo.title')}
       count={data?.total}
+      actions={<OpenTaskPopoutButton />}
       helpDot={
         <HelpDot askCue={t('todo.help.cuePrefill') as string} topic="todo">
           {t('todo.help.body')}

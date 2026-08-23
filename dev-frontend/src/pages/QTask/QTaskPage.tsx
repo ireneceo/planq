@@ -51,6 +51,7 @@ import PartnerKindBadge from '../../components/Common/PartnerKindBadge';
 import { type TaskTagLite } from '../../components/QTask/TagChips';
 import TagPicker from '../../components/QTask/TagPicker';
 import RowTags from '../../components/QTask/RowTags';
+import OpenTaskPopoutButton from '../../components/QTask/OpenTaskPopoutButton';
 import TagManageModal from '../../components/QTask/TagManageModal';
 
 // #249 — 우측 패널을 인라인으로 붙여둘 최소 뷰포트 폭.
@@ -1846,6 +1847,8 @@ const QTaskPage:React.FC=()=>{
             )}
             {/* #250 — 태그 사전 관리(이름 변경·삭제). 필터 옆에 두는 이유: 사용자가 태그 목록을
                 보는 바로 그 자리다. 생성은 업무 상세의 TagPicker 가 담당한다. */}
+            {/* 팝아웃 열기 — 여태 우하단 도크에만 있어서 정작 업무 화면에서 여는 길이 없었다 (Irene) */}
+            <OpenTaskPopoutButton />
             {/* 헤더의 '태그 관리' 버튼은 제거했다 (Irene 2026-08-24) — 행의 + 메뉴 하단에서 연다.
                 + 는 "이 업무에 붙이기", 관리는 "사전 자체(이름 변경·삭제)" 로 하는 일이 다르지만
                 둘 다 태그 일이라 한 자리에 모으는 편이 헤더도 가볍고 찾기도 쉽다. */}

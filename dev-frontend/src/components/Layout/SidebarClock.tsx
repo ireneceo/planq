@@ -58,12 +58,14 @@ const Row = styled.button<{ $interactive?: boolean }>`
   `}
 `;
 
+// ★ 2026-08-24 (Irene) — **워크스페이스 시간이 가장 잘 보여야 한다.** 모든 시간 조건(마감·주간·통계)이
+//   워크스페이스 tz 로 계산되므로 그게 기준선이고, 본인 시간은 참고다. 여태 반대였다.
 const City = styled.span<{ $variant: 'workspace' | 'you' | 'reference' }>`
   color: ${(p) =>
-    p.$variant === 'you'
+    p.$variant === 'workspace'
       ? '#FFFFFF'
-      : p.$variant === 'workspace'
-      ? 'rgba(204, 251, 241, 0.75)'
+      : p.$variant === 'you'
+      ? 'rgba(204, 251, 241, 0.7)'
       : 'rgba(204, 251, 241, 0.5)'};
   font-weight: 500;
   font-size: 12px;
@@ -76,10 +78,10 @@ const City = styled.span<{ $variant: 'workspace' | 'you' | 'reference' }>`
 
 const Time = styled.span<{ $variant: 'workspace' | 'you' | 'reference' }>`
   color: ${(p) =>
-    p.$variant === 'you'
+    p.$variant === 'workspace'
       ? '#FFFFFF'
-      : p.$variant === 'workspace'
-      ? 'rgba(240, 253, 250, 0.85)'
+      : p.$variant === 'you'
+      ? 'rgba(240, 253, 250, 0.7)'
       : 'rgba(240, 253, 250, 0.55)'};
   font-weight: 600;
   font-size: 12px;
@@ -196,7 +198,7 @@ export default function SidebarClock({
         <Row
           $interactive={workspaceInteractive}
           title={tooltipFor(workspaceTz, workspaceLabel || t('clock.workspace'))}
-          onClick={workspaceInteractive ? () => navigate('/business/settings') : undefined}
+          onClick={workspaceInteractive ? () => navigate('/business/settings/timezone') : undefined}
           type="button"
           disabled={!workspaceInteractive}
         >
@@ -210,7 +212,7 @@ export default function SidebarClock({
           <Row
             $interactive
             title={tooltipFor(userTz, t('clock.you'))}
-            onClick={() => navigate('/profile')}
+            onClick={() => navigate('/profile#timezone')}
             type="button"
           >
             <City $variant="you">{cityFromTz(userTz)}</City>
@@ -220,7 +222,7 @@ export default function SidebarClock({
         {/* user 시계 안 보일 때 (명시 안 했거나 workspace tz 와 같을 때) — 설정 안내.
             subtle 톤. 클릭 시 프로필로. */}
         {!userTzExplicit && (
-          <SetupHint type="button" onClick={() => navigate('/profile')}
+          <SetupHint type="button" onClick={() => navigate('/profile#timezone')}
             title={t('clock.userSetupHintTitle', { defaultValue: '본인 시간대를 다르게 설정하면 두 줄로 표시됩니다' }) as string}>
             <span aria-hidden="true">+</span>
             {t('clock.userSetupHint', { defaultValue: '본인 시간대 설정' })}
@@ -236,7 +238,7 @@ export default function SidebarClock({
                 key={tz}
                 $interactive
                 title={tooltipFor(tz, t('clock.reference'))}
-                onClick={() => navigate('/profile')}
+                onClick={() => navigate('/profile#timezone')}
                 type="button"
               >
                 <City $variant="reference">{cityFromTz(tz)}</City>

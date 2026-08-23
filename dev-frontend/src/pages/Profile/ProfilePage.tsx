@@ -90,6 +90,15 @@ export default function ProfilePage() {
   // 계정 이름 (users.name) — 회원가입 시 받은 본 이름. 모든 워크스페이스 공통.
   const [accountName, setAccountName] = useState<string>(user?.name || '');
   useEffect(() => { setAccountName(user?.name || ''); }, [user?.name]);
+  // `#timezone` 해시로 들어오면 그 카드까지 스크롤 — 사이드바 시계 클릭의 착지점.
+  //   렌더 직후엔 아직 카드가 없을 수 있어 한 틱 뒤에 찾는다.
+  useEffect(() => {
+    if (window.location.hash !== '#timezone') return;
+    const id = window.setTimeout(() => {
+      document.getElementById('section-timezone')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 120);
+    return () => window.clearTimeout(id);
+  }, []);
   const [usernameStatus, setUsernameStatus] = useState<{ available: boolean | null; reason?: string }>({ available: null });
   const usernameCheckTimer = useRef<number | null>(null);
   const [emailModalOpen, setEmailModalOpen] = useState(false);
@@ -1802,7 +1811,9 @@ export function UserTimezoneSection() {
         <TzUserTime>{formatTimeInTz(now, userTz)}</TzUserTime>
       </TzUserCard>
 
-      <Card>
+      {/* 사이드바 시계에서 `/profile#timezone` 으로 들어온다 — 그 항목까지 데려다 놓는다
+          (페이지 최상단에 떨구면 "이상한 곳으로 갔다" 가 된다, Irene 2026-08-24). */}
+      <Card id="section-timezone">
         <SectionTitle>{t('timezone.primaryTitle')}</SectionTitle>
         <Description>{t('timezone.primaryDesc')}</Description>
         <FieldRow>

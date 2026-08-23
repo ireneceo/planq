@@ -1236,7 +1236,9 @@
     "emptyTitleToday": "오늘 할 일이 없습니다",
     "emptyLineAdd": "위에 입력하면 바로 추가됩니다.",
     "prioGap": "우선순위 {{nums}} 번은 지금 목록에 없어요 — 완료했거나 다른 탭의 업무입니다. 번호는 전체 기준이라 그대로 둡니다.",
-    "hideDoneFilter": "완료 가리기 ({{count}})"
+    "hideDoneFilter": "완료 가리기 ({{count}})",
+    "openBtn": "팝아웃",
+    "openBtnHint": "오늘·이번 주 내 업무를 별도 창으로 — 옆에 띄워 두고 씁니다"
   },
   "tags": {
     "new": "새 태그",

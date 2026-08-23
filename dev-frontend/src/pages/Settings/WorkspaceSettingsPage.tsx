@@ -533,6 +533,17 @@ export default function WorkspaceSettingsPage() {
   const [tab, setTab] = useState<TabKey>(tabFromUrl);
   useEffect(() => { setTab(tabFromUrl); }, [tabFromUrl]);
 
+  // /business/settings/timezone 진입 시 시간대 섹션까지 스크롤 (work-env 탭으로 리다이렉트되므로
+  //   탭 상단에 떨어뜨리면 "이상한 곳으로 갔다" 가 된다 — Irene 2026-08-24, 사이드바 시계 클릭 착지점).
+  useEffect(() => {
+    if (tab !== 'work-env') return;
+    if (!location.pathname.endsWith('/timezone')) return;
+    const t0 = setTimeout(() => {
+      document.getElementById('section-timezone')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 120);
+    return () => clearTimeout(t0);
+  }, [tab, location.pathname]);
+
   // /business/settings/legal 진입 시 법인 정보 섹션 자동 스크롤 + 강조
   useEffect(() => {
     if (tab !== 'legal') return;
@@ -1993,7 +2004,7 @@ function WorkspaceTimezoneSection({
 
   return (
     <>
-      <TzCallout>
+      <TzCallout id="section-timezone">
         <TzCalloutIcon aria-hidden>i</TzCalloutIcon>
         <TzCalloutBody>{t('timezone.calloutBody')}</TzCalloutBody>
       </TzCallout>
