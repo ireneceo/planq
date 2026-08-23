@@ -175,6 +175,13 @@ export const RowTop = styled.div`
   display: flex; align-items: flex-start; gap: 8px;
 `;
 // 우선순위 슬롯 — 완료/취소 행의 읽기 전용 자리. 부여 버튼과 폭이 같아야 제목 좌측선이 안 흔들린다.
+// 태그 슬롯 — RowMain(button) **밖 형제**. 안에 넣으면 button-in-button 이라 HTML 상 무효이고
+//   브라우저가 클릭 타깃을 임의로 접는다(위 RowMain 주석과 같은 이유 — 실제로 그렇게 넣었다가
+//   팝아웃에서만 태그 버튼이 안 눌렸다, Irene 2026-08-23).
+export const TagSlot = styled.span`
+  flex-shrink: 0;
+  display: inline-flex; align-items: center;
+`;
 export const PrioSlot = styled.span`
   width: 28px; height: 36px; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;

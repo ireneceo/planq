@@ -1,8 +1,11 @@
-// RowTags — 리스트 한 행의 태그 표시 + 편집. 메인 리스트(QTaskPage)와 팝아웃(TaskPopoutView) **공용**.
+// RowTags — 리스트 한 행의 태그 표시 + 편집(칩 + 붙이기 메뉴)를 한 벌로 묶는다. 메인 리스트(QTaskPage)용.
 //
-//   TagChips 는 보여주기만, TagQuickMenu 는 붙이고 떼기만 한다. 두 화면이 각자 이 둘을 조립하면
-//   권한 판정·표시 규칙이 갈린다(TagChips 상단 주석의 "두 화면이 각자 칩을 그리면" 과 같은 이유).
-//   여기서 한 벌로 묶어 두 곳이 같은 것을 쓴다.
+//   TagChips 는 보여주기만, TagQuickMenu 는 붙이고 떼기만 한다.
+//
+//   ★ 팝아웃(TaskPopoutView)은 이 조합을 **쓸 수 없다** — 거기선 칩이 행 본문 버튼(RowMain) 안에 있어,
+//     같은 자리에 버튼인 메뉴 트리거를 넣으면 button-in-button 이 되어 클릭이 행 열기로 접힌다
+//     (실제로 그렇게 넣었다가 팝아웃에서만 태그 버튼이 안 눌렸다 — Irene 2026-08-23).
+//     그래서 팝아웃은 칩만 RowMeta 안에 두고 트리거는 RowMain 형제(TagSlot)로 뺀다.
 //
 //   ★ editable=false 면 칩만 — 권한 없는 사용자에게 눌러도 403 나는 버튼을 내밀지 않는다.
 import React from 'react';

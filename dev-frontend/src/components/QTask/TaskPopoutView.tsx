@@ -49,6 +49,7 @@ import {
   TabBtn,
   TabRow,
   TagGroupHead,
+  TagSlot,
   ToggleDone,
   PrioGapHint,
   WaitDot,
@@ -64,8 +65,8 @@ import { buildPriorityMap, hiddenPriorityNumbers } from './popoutPriority';
 import TaskDetailDrawer, { type DrawerMemberOption } from './TaskDetailDrawer';
 import { STATUS_COLOR, displayStatus, getStatusLabel, type StatusCode } from '../../utils/taskLabel';
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
-import { type TaskTagLite } from './TagChips';
-import RowTags from './RowTags';
+import TagChips, { type TaskTagLite } from './TagChips';
+import TagQuickMenu from './TagQuickMenu';
 import { quickActionFor, type QuickAction } from './popoutQuickAction';
 import { useTaskTagDict } from './useTaskTagDict';
 import PopoutViewChips, { type PopoutView } from './PopoutViewChips';
@@ -118,6 +119,16 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   const { user } = useAuth();
   const bizId = user?.business_id ? Number(user.business_id) : null;
   const myId = user ? Number(user.id) : -1;
+  // 태그 편집 권한 — 백엔드 PUT /api/tasks/:id/tags 의 canEdit 와 **같은 집합**이어야 한다
+  //   (담당자 OR 작성자 OR owner OR admin OR platform_admin).
+  //   여태 팝아웃은 담당자·작성자만 봐서, owner 인데도 "내가 컨펌자로 들어간 남의 업무" 행에는
+  //   버튼이 아예 안 떴다 — 백엔드는 허용하는데 화면이 막고 있던 것(Irene 2026-08-23 "팝아웃에서
+  //   여전히 안되는데"). 메인 리스트(canEditDatesFor)는 이미 owner/admin 을 포함하고 있었다.
+  const canEditTagsFor = useCallback((t: { created_by?: number | null; assignee_id?: number | null }) => (
+    t.created_by === myId || t.assignee_id === myId
+    || user?.business_role === 'owner' || user?.business_role === 'admin'
+    || user?.platform_role === 'platform_admin'
+  ), [myId, user?.business_role, user?.platform_role]);
   // 로컬 기준 오늘 (toISOString 은 UTC 라 KST 자정 직후 전날로 밀린다).
   //   ★ 상수로 두면 팝아웃을 밤새 열어둔 사용자의 "오늘" 이 어제에 머문다 — 60초 타이머 + 복귀 시 재평가.
   const localToday = () => {
@@ -703,16 +714,7 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
                             #290 — 태그별 보기에서는 그룹 헤더가 이미 대표 태그를 말한다.
                             같은 걸 행마다 또 그리면 노이즈다(헤더=tags[0], 칩=tags[0] 으로 100% 중복이었다).
                             대표만 빼고 나머지는 남긴다 — 전부 숨기면 다중 태그 정보가 사라진다. */}
-                        {/* Irene 2026-08-23 — 리스트에서도 태그를 붙이고 뗀다(메인 리스트와 같은 RowTags).
-                            권한은 백엔드 PUT /:id/tags 의 canEdit 집합(담당자·작성자·owner·admin)과 같은 축. */}
-                        <RowTags
-                          taskId={tk.id} bizId={bizId} max={1}
-                          shownTags={effView === 'tag' ? (tk.tags || []).slice(1) : tk.tags}
-                          allTags={tk.tags}
-                          editable={tk.assignee_id === myId || tk.created_by === myId}
-                          dict={tagDict} onDictAdd={addTagToDict}
-                          onSaved={(tags) => setTasks((prev) => prev.map((x) => (x.id === tk.id ? { ...x, tags } : x)))}
-                        />
+                        <TagChips tags={effView === 'tag' ? (tk.tags || []).slice(1) : tk.tags} max={1} />
                         {tk.Project?.name && <MetaChip>{tk.Project.name}</MetaChip>}
                         {tk.due_date && (
                           <MetaDue $overdue={isOverdue(tk)}>
@@ -724,6 +726,19 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
                         )}
                       </RowMeta>
                     </RowMain>
+                    {/* Irene 2026-08-23 — 리스트에서도 태그를 붙이고 뗀다.
+                        ★ RowMain(button) **밖 형제**여야 한다. 안에 넣으면 button-in-button 이라
+                          클릭이 행 열기로 접혀 버튼이 죽는다(위 PrioSlot·RowLead 와 같은 이유).
+                        권한은 백엔드 PUT /:id/tags 의 canEdit 집합과 같은 축. */}
+                    {canEditTagsFor(tk) && (
+                      <TagSlot>
+                        <TagQuickMenu
+                          taskId={tk.id} bizId={bizId} dict={tagDict} value={tk.tags || []}
+                          onDictAdd={addTagToDict}
+                          onSaved={(tags) => setTasks((prev) => prev.map((x) => (x.id === tk.id ? { ...x, tags } : x)))}
+                        />
+                      </TagSlot>
+                    )}
                   </RowInner>
                   {rowErr?.id === tk.id && (
                     <RowErr role="alert" data-testid="task-popout-row-error">{rowErr.msg}</RowErr>
