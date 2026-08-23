@@ -2,6 +2,7 @@
 // GET /api/search?business_id=X&q=... → 도메인별 결과 (tasks/posts/records/files/...).
 // 좌측 카테고리 (필터) + 우측 결과. Notion / Linear / Slack 패턴.
 import React, { useEffect, useState, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useChromeNav } from '../../hooks/useChromeNav';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -150,7 +151,14 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
 
   if (!open) return null;
 
-  return (
+  // ★ document.body 로 포탈 — 부모의 stacking context 안에 갇히지 않게.
+  //   여기를 그냥 제자리에 렌더하면 **부모가 z-index 를 가진 순간 이 모달의 z-index 1100 은
+  //   그 부모 안에서만 유효**해진다. 실제로 탭바(TabStrip: position:fixed·z-index 95)가 이 모달을
+  //   자식으로 렌더하고 있어서, 탭 + 버튼으로 연 검색창이 앱 사이드바(z 100)·패널 접기 화살표(z 900)
+  //   **아래로** 깔렸다(Irene 신고: "화살표 버튼이 검색창 위로 나와"). 사이드바 검색(⌘K)은 같은
+  //   컴포넌트인데도 부모가 stacking context 가 아니라 멀쩡했다 — 그래서 한쪽만 이상해 보였다.
+  //   집을 옮기지 않고 z-index 만 올리면 다음 부모에서 같은 일이 반복된다.
+  const node = (
     <Backdrop onClick={onClose}>
       <Dialog onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('search.title', '통합 검색') as string}>
         <SearchHeader>
@@ -225,6 +233,8 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
       </Dialog>
     </Backdrop>
   );
+
+  return typeof document !== 'undefined' ? createPortal(node, document.body) : node;
 };
 
 export default GlobalSearchModal;

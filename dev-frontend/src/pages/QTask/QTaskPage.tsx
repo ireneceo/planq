@@ -48,8 +48,9 @@ import type { TFunction } from 'i18next';
 import WeeklyReviewModal from '../../components/QTask/WeeklyReviewModal';
 import WeeklyReviewTab from '../../components/QTask/WeeklyReviewTab';
 import PartnerKindBadge from '../../components/Common/PartnerKindBadge';
-import TagChips, { type TaskTagLite } from '../../components/QTask/TagChips';
+import { type TaskTagLite } from '../../components/QTask/TagChips';
 import TagPicker from '../../components/QTask/TagPicker';
+import RowTags from '../../components/QTask/RowTags';
 import TagManageModal from '../../components/QTask/TagManageModal';
 
 // #249 — 우측 패널을 인라인으로 붙여둘 최소 뷰포트 폭.
@@ -1823,7 +1824,10 @@ const QTaskPage:React.FC=()=>{
             )}
             {/* #250 — 태그 사전 관리(이름 변경·삭제). 필터 옆에 두는 이유: 사용자가 태그 목록을
                 보는 바로 그 자리다. 생성은 업무 상세의 TagPicker 가 담당한다. */}
-            {tagDict.length>0&&(
+            {/* Irene 2026-08-23 "추가하고 삭제하고 다 불편해" — 여태 태그가 0개면 이 버튼도 숨어서
+                사전에 첫 태그를 만들 진입로가 아예 없었다(업무 상세를 열어야만 만들 수 있었다).
+                필터는 고를 게 없으면 죽은 컨트롤이라 그대로 숨기고, 관리 버튼만 상시 노출한다. */}
+            {!isClient&&(
               <TagManageBtn type="button" onClick={()=>setTagManageOpen(true)}
                 title={t('tags.manageTitle','태그 관리') as string}>
                 {t('tags.manageTitle','태그 관리')}
@@ -1966,7 +1970,22 @@ const QTaskPage:React.FC=()=>{
                             백엔드가 이름 사전순으로 실어 보내므로 여기서 다시 정렬하지 않는다.
                             #290 — 태그로 걸러 보는 중이면 그 태그는 모든 행이 반드시 갖고 있다(필터 술어가 보장).
                             전 행에 같은 칩이 반복되는 건 정보가 아니라 노이즈 — 그 태그만 빼고 나머지는 남긴다. */}
-                        <TagChips tags={tagFilter != null ? (task.tags || []).filter(tg => tg.id !== tagFilter) : task.tags} max={3} />
+                        {/* Irene 2026-08-23 — "리스트에서도 태그는 추가되어야 하지 않을까?"
+                            여태 리스트의 태그는 읽기 전용 칩이라 하나 붙이려면 업무를 열어야 했다.
+                            권한 집합은 백엔드 PUT /:id/tags 의 canEdit(담당자·작성자·owner·admin)과 같다
+                            — canEditDatesFor 가 이미 그 집합이라 판정을 두 벌로 만들지 않는다.
+                            ★ shownTags 는 필터 중인 태그를 뺀 **표시용**, allTags 가 저장 기준이다. */}
+                        <RowTags
+                          taskId={task.id} bizId={bizId} max={3}
+                          shownTags={tagFilter != null ? (task.tags || []).filter(tg => tg.id !== tagFilter) : task.tags}
+                          allTags={task.tags}
+                          editable={!isClient && canEditDatesFor(task)}
+                          dict={tagDict}
+                          onSaved={(tags)=>setAllTasks(prev=>prev.map(x=>x.id===task.id?{...x,tags}:x))}
+                          onDictAdd={(tag)=>setTagDict(prev=>prev.some(g=>g.id===tag.id)
+                            ? prev
+                            : [...prev,{id:tag.id,name:tag.name,color:tag.color??null}].sort((a,b)=>a.name.localeCompare(b.name)))}
+                        />
                         {/* WORK_FLOW §6 — 이월 배지: 지난 주에서 넘어온 활성 업무. 과거 이력이 살아있음을 인지시킴. */}
                         {scope==='mine' && (tab==='week'||tab==='today') && isCarried(task) && (
                           <CarriedBadge title={t('list.carriedHint', { h: formatHours(task.actual_hours), defaultValue: '지난주에 시작한 업무예요. 이미 {{h}}h 투입 — 열면 이력·대화·메모 전부 볼 수 있어요.' }) as string}>

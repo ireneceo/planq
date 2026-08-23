@@ -1242,6 +1242,11 @@
     "deleting": "Deleting…",
     "usageCount": "{{count}} tasks",
     "deleteConfirm": "Delete “{{name}}” and remove it from {{count}} tasks?",
-    "createNamed": "Create tag '{{name}}'"
+    "createNamed": "Create tag '{{name}}'",
+    "quickTitle": "Add tags",
+    "quickPh": "Search or create a tag",
+    "quickEmpty": "No tags yet. Type a name to create one.",
+    "saveFailed": "Could not save tags",
+    "maxPerTask": "Up to {{count}} tags per task"
   }
 }

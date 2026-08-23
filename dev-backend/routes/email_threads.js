@@ -183,6 +183,11 @@ router.get('/:businessId/email-threads',
             { subject: { [Op.like]: `%${needle}%` } },
             { last_message_preview: { [Op.like]: `%${needle}%` } },
             sequelize.literal(`REPLACE(\`EmailThread\`.\`subject\`, ' ', '') LIKE ${sequelize.escape(`%${needle}%`)}`),
+            // 라벨도 검색 대상 (Irene 2026-08-23: "라벨 붙이면 그것도 검색되어야 하는데 안되네").
+            //   labels 는 JSON 문자열 배열 — JSON_SEARCH 로 부분 일치. NULL 이면 NULL 이라 자동 제외.
+            //   needle 은 위 esc() 로 LIKE 와일드카드가 escape 된 상태이고, JSON_SEARCH 의 기본
+            //   escape 문자도 백슬래시라 그대로 통한다.
+            sequelize.literal(`JSON_SEARCH(\`EmailThread\`.\`labels\`, 'one', ${sequelize.escape(`%${needle}%`)}) IS NOT NULL`),
           ];
           return conds;
         };

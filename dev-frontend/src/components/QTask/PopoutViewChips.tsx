@@ -12,8 +12,12 @@ import styled from 'styled-components';
 export type PopoutView = 'tag' | 'project' | 'due';
 
 const Row = styled.div`
-  display: flex; gap: 6px; padding: 8px 12px 0;
+  /* ★ 아래 여백 8px — 이 줄은 목록 스크롤 밖에 고정돼 있다(sticky 처럼). 여백이 0 이면
+     목록을 조금만 올려도 첫 행이 칩에 딱 붙어 "고정된 줄" 로 안 읽힌다(Irene 2026-08-23).
+     아래 Body(목록)의 padding-top 은 **스크롤과 함께 밀려 올라가므로** 그 몫을 대신하지 못한다. */
+  display: flex; gap: 6px; padding: 8px 12px;
   flex-shrink: 0;
+  border-bottom: 1px solid #F1F5F9;
 `;
 const Chip = styled.button<{ $active: boolean }>`
   height: 28px; padding: 0 10px;

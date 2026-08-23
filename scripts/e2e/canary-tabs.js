@@ -137,6 +137,52 @@ async function run() {
       } catch (e) { mic.detail = e.message; }
     }
     results.push({ name: 'tabs:마이크 track-alive(숨은탭 스트림 유지)', fail: mic.ok ? 0 : 1, fatal: 0, details: mic.ok ? [] : [mic.detail] });
+
+    // 7) 탭바가 렌더하는 오버레이(통합검색)가 진짜 최상위인가 — stacking context 함정.
+    //   탭바(Strip)는 position:fixed + z-index:95 라 **자기 안에 stacking context 를 만든다**.
+    //   그 자식으로 모달을 렌더하면 모달의 z-index 1100 은 그 안에서만 유효 → 앱 사이드바(z100)·
+    //   패널 접기 화살표(z900) 가 검색창 위로 올라온다(Irene 신고 2026-08-23).
+    //   z-index 숫자만 보는 정적 검사로는 절대 안 잡힌다 — 실브라우저 elementFromPoint 로만 드러난다.
+    let zt = { ok: false, detail: '__pqTab 훅 없음' };
+    if (await page.evaluate(() => !!window.__pqTab)) {
+      try {
+        await page.evaluate(() => window.__pqTab.navigateActive('/mail'));
+        // 접기 화살표(z900)가 뜰 때까지 대기 — 목록 렌더 후 등장한다(늦으면 그 케이스만 판정 제외)
+        const hasHandle = () => page.evaluate(() => Array.from(document.querySelectorAll('button'))
+          .some((b) => getComputedStyle(b).zIndex === '900'));
+        for (let i = 0; i < 10 && !(await hasHandle()); i++) await new Promise((r) => setTimeout(r, 2000));
+        await page.click('[data-testid="tabstrip-new"]');
+        await new Promise((r) => setTimeout(r, 1200));
+        const probe = await page.evaluate(() => {
+          const dlg = document.querySelector('[role="dialog"][aria-modal="true"]');
+          if (!dlg) return { open: false };
+          const backdrop = dlg.parentElement;
+          const inStack = (el) => { let n = el; while (n) { if (n === backdrop) return true; n = n.parentElement; } return false; };
+          const covered = (el) => {
+            if (!el) return null;                      // 없으면 판정 제외(있을 때만 요구)
+            const r = el.getBoundingClientRect();
+            if (!r.width || !r.height) return null;
+            const hit = document.elementFromPoint(Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2));
+            return hit ? inStack(hit) : false;
+          };
+          const handle = Array.from(document.querySelectorAll('button')).find((b) => {
+            const cs = getComputedStyle(b); const r = b.getBoundingClientRect();
+            return cs.position === 'fixed' && cs.zIndex === '900' && r.width > 0 && r.width <= 30 && r.height > 40;
+          });
+          return {
+            open: true,
+            handle: covered(handle),                                            // 패널 접기 화살표(z900)
+            sidebar: covered(document.querySelector('a[href="/inbox"], a[href="/dashboard"]')), // 앱 사이드바(z100)
+          };
+        });
+        await page.keyboard.press('Escape').catch(() => null);
+        // null = 그 요소가 화면에 없었다(판정 제외). false 가 하나라도 있으면 검색창이 아래 깔린 것.
+        const bad = ['handle', 'sidebar'].filter((k) => probe[k] === false);
+        zt.ok = probe.open === true && bad.length === 0;
+        zt.detail = probe.open ? `가려지지 않은 요소: ${bad.join(',') || '없음'} (handle=${probe.handle} sidebar=${probe.sidebar})` : '검색 모달이 열리지 않음';
+      } catch (e) { zt.detail = e.message; }
+    }
+    results.push({ name: 'tabs:탭+ 통합검색이 최상위(stacking context 함정)', fail: zt.ok ? 0 : 1, fatal: 0, details: zt.ok ? [] : [zt.detail] });
   } finally {
     await browser.close();
   }
