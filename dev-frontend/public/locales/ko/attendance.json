@@ -24,7 +24,10 @@
     "workedFor": "근무 {{time}}",
     "autoClockedIn": "업무를 시작해서 출근으로 기록했어요",
     "undoAuto": "취소",
-    "dismiss": "닫기"
+    "dismiss": "닫기",
+    "autoClockedInTitle": "출근으로 기록했어요",
+    "autoUndoHint": "잘못 기록됐다면 지금 되돌릴 수 있어요.",
+    "autoOk": "확인"
   },
   "state": {
     "working": "근무중",

@@ -8,6 +8,11 @@ import styled, { css, keyframes } from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAttendance, formatHm, formatHours } from '../../hooks/useAttendance';
+import StandardModal from '../Common/StandardModal';
+import ActionButton from '../Common/ActionButton';
+
+// 확인한 자동 기록의 시각을 박제 — 새로고침해도 같은 건으로 다시 뜨지 않게(다음 건은 at 이 달라 다시 뜬다)
+const AUTO_SEEN_KEY = 'planq.attn.autoSeen';
 
 interface Props {
   variant?: 'sidebar' | 'card';
@@ -22,6 +27,21 @@ const AttendanceWidget: React.FC<Props> = ({ variant = 'sidebar', isCollapsed, e
   const { user } = useAuth();
   const bizId = user?.business_id ? Number(user.business_id) : null;
   const a = useAttendance(bizId);
+
+  // ★ 이 세 줄은 **early return 앞**이어야 한다 — 아래 `return null` 뒤에 훅을 두면
+  //   위젯이 로딩 중일 때와 아닐 때 훅 개수가 달라져 React #310 으로 화면이 통째로 죽는다.
+  const autoAt = a.autoNotice?.at || null;
+  const [seenAt, setSeenAt] = React.useState<string | null>(() => {
+    try { return localStorage.getItem(AUTO_SEEN_KEY); } catch { return null; }
+  });
+  const showAutoModal = !!autoAt && seenAt !== autoAt;
+  const closeAutoNotice = () => {
+    if (autoAt) {
+      try { localStorage.setItem(AUTO_SEEN_KEY, autoAt); } catch { /* 사파리 프라이빗 등 */ }
+      setSeenAt(autoAt);
+    }
+    a.dismissNotice();
+  };
 
   if (!bizId || a.loading) return null;
 
@@ -94,18 +114,36 @@ const AttendanceWidget: React.FC<Props> = ({ variant = 'sidebar', isCollapsed, e
       </Actions>
       {/* #208 — 시스템이 대신 바꾼 상태는 **말없이 두지 않는다.**
           나중에 기록을 보고 "내가 언제 출근을 눌렀지?" 가 되면 그 기록 전체를 못 믿게 된다.
-          되돌릴 수 있을 때만 되돌리기를 준다(사용자가 이미 뭔가 눌렀으면 그건 정정의 영역이다). */}
-      {a.autoNotice && (
-        <Notice $dark={dark} role="status">
-          <NoticeText title={t('widget.autoClockedIn') as string}>{t('widget.autoClockedIn')}</NoticeText>
-          {a.autoNotice.can_undo && (
-            <NoticeLink type="button" onClick={a.undoAuto} $dark={dark}>
-              {t('widget.undoAuto')}
-            </NoticeLink>
+          ★ 2026-08-24 (Irene) — 옛 방식은 사이드바에 **계속 남는 인라인 배너**였다.
+            "이런 멘트가 계속 좌측메뉴에 남아있을 필요가 있어? 그냥 팝업으로 알리고 확인하고 닫게 해야지."
+            근무시간 계산에 관계된 변경이라 **한 번은 반드시 보게** 하되, 확인하면 사라져야 한다.
+            → 모달로 한 번 알리고, 확인한 회차는 localStorage 에 박제해 새로고침해도 다시 뜨지 않는다
+              (컴포넌트 state 만으로는 새로고침마다 되살아났다). */}
+      <StandardModal
+        open={showAutoModal}
+        onClose={closeAutoNotice}
+        title={t('widget.autoClockedInTitle', { defaultValue: '출근으로 기록했어요' }) as string}
+        size="sm"
+        footer={(
+          <AutoModalFooter>
+            {a.autoNotice?.can_undo && (
+              <ActionButton tone="secondary" size="sm" onClick={() => { void a.undoAuto(); closeAutoNotice(); }}>
+                {t('widget.undoAuto')}
+              </ActionButton>
+            )}
+            <ActionButton tone="primary" size="sm" onClick={closeAutoNotice} data-testid="attn-auto-ok">
+              {t('widget.autoOk', { defaultValue: '확인' }) as string}
+            </ActionButton>
+          </AutoModalFooter>
+        )}
+      >
+        <AutoModalBody>
+          <div>{t('widget.autoClockedIn')}</div>
+          {a.autoNotice?.can_undo && (
+            <AutoModalHint>{t('widget.autoUndoHint', { defaultValue: '잘못 기록됐다면 지금 되돌릴 수 있어요.' }) as string}</AutoModalHint>
           )}
-          <NoticeClose type="button" onClick={a.dismissNotice} aria-label={t('widget.dismiss') as string} $dark={dark}>×</NoticeClose>
-        </Notice>
-      )}
+        </AutoModalBody>
+      </StandardModal>
     </Wrap>
   );
 };
@@ -118,6 +156,9 @@ const SvgPause = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="cur
 const SvgStop = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1.5" /></svg>;
 
 // ─── styled ─────────────────────────────────────────────────────
+const AutoModalBody = styled.div`font-size:14px;color:#0F172A;line-height:1.6;`;
+const AutoModalHint = styled.div`margin-top:8px;font-size:12px;color:#64748B;`;
+const AutoModalFooter = styled.div`display:flex;gap:8px;justify-content:flex-end;`;
 const breath = keyframes`0%{transform:scale(1)}50%{transform:scale(1.15)}100%{transform:scale(1)}`;
 
 type S = 'working' | 'on_break' | 'done' | null;
@@ -195,27 +236,3 @@ const Secondary = styled.button<{ $dark: boolean; $card: boolean }>`
 `;
 
 // 자동 변경 안내 — 눈에 띄되 흐름을 막지 않는다(모달이 아니라 한 줄).
-const Notice = styled.div<{ $dark: boolean }>`
-  display: flex; align-items: center; gap: 6px; margin-top: 2px;
-  padding: 6px 8px; border-radius: 7px;
-  background: ${p => (p.$dark ? 'rgba(94, 234, 212, 0.12)' : '#F0FDFA')};
-  border: 1px solid ${p => (p.$dark ? 'rgba(94, 234, 212, 0.25)' : '#99F6E4')};
-`;
-const NoticeText = styled.span`
-  flex: 1; min-width: 0; font-size: 11px; line-height: 1.35;
-  color: inherit; opacity: 0.9;
-  /* 짧은 화면에서 두 줄이 되면 카드가 커져 메뉴를 밀어낸다 — 한 줄로 자른다(전문은 title 로). */
-  @media (max-height: 820px) {
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-`;
-const NoticeLink = styled.button<{ $dark: boolean }>`
-  flex-shrink: 0; background: none; border: none; padding: 0; cursor: pointer;
-  font-size: 11px; font-weight: 700; text-decoration: underline;
-  color: ${p => (p.$dark ? '#5EEAD4' : '#0F766E')};
-`;
-const NoticeClose = styled.button<{ $dark: boolean }>`
-  flex-shrink: 0; background: none; border: none; padding: 0 2px; cursor: pointer;
-  font-size: 14px; line-height: 1;
-  color: ${p => (p.$dark ? 'rgba(255,255,255,0.5)' : '#94A3B8')};
-`;

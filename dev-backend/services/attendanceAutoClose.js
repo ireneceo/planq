@@ -22,7 +22,12 @@ async function guessCloseAt(day) {
   let best = lastEvent ? new Date(lastEvent.at) : new Date(day.clock_in_at);
   // ★ Focus 시각은 **마감 시각 추정에만** 쓰고 어디에도 노출하지 않는다.
   //   본인 기록을 닫기 위한 계산이라 프라이버시 계약(§6 FocusSession 은 관리자도 못 봄)을 깨지 않는다.
-  const dayStart = new Date(`${day.work_date}T00:00:00`);
+  // ★ work_date 는 DATEONLY 지만 **Date 객체로 온다**(이 프로젝트의 알려진 함정).
+  //   그대로 템플릿에 넣으면 `"Sat Aug 22 2026 00:00:00 GMT+0000 (…)T00:00:00"` 가 되어
+  //   Invalid Date → MySQL 에 'Invalid date' 로 나가 쿼리가 통째로 실패한다.
+  //   운영 실측(2026-08-24): `[attendanceAutoClose] error: Incorrect DATETIME value: 'Invalid date'`
+  //   가 매 tick 반복돼 **자동 마감이 한 번도 동작한 적이 없었다.** 정규화 함수를 쓴다.
+  const dayStart = new Date(`${ymd(day.work_date)}T00:00:00Z`);
   const dayEnd = new Date(dayStart.getTime() + 36 * 3600 * 1000);
   const focus = await FocusSession.findOne({
     where: {

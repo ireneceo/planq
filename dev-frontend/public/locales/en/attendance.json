@@ -24,7 +24,10 @@
     "workedFor": "Worked {{time}}",
     "autoClockedIn": "Clocked you in because you started work",
     "undoAuto": "Undo",
-    "dismiss": "Dismiss"
+    "dismiss": "Dismiss",
+    "autoClockedInTitle": "Clocked you in",
+    "autoUndoHint": "If this is wrong, you can undo it now.",
+    "autoOk": "OK"
   },
   "state": {
     "working": "Working",
