@@ -7,7 +7,7 @@ const { authenticateToken, checkBusinessAccess } = require('../middleware/auth')
 const { getUserScope, taskListWhere, canAccessTask, isMemberOrAbove, assertAssignable, assertMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { getProgressBaselines, deltaOf, estDoneOf } = require('../services/progressBaseline');
-const { todayInTz, mondayOfDateStr, addDaysStr, mondayOfIsoWeek } = require('../utils/datetime');
+const { todayInTz, mondayOfDateStr, addDaysStr, mondayOfIsoWeek, tzOffsetOf } = require('../utils/datetime');
 const { rruleFromRecurrence } = require('../services/rruleFromRecurrence');
 // N+34 — 워크스페이스 표시명 helper. BusinessMember.name 우선, User.name fallback.
 // 사용자 호소: "담당자 이름이 워크스페이스 프로필 이름이 아니야" — User.name 직접 사용 회귀 fix.
@@ -107,7 +107,9 @@ router.get('/my-week', authenticateToken, async (req, res, next) => {
     //   "날짜 없는 backlog 가 모든 과거 주에 소급 포함" · "주 스코프 없이 전체 업무 합산" 결함을
     //   냈다(#223). 여기와 그쪽이 같은 함수를 쓰게 해서 정의가 다시 갈라지지 않게 한다.
     const tasks = await Task.findAll({
-      where: myWeekWhere(uid, businessId, monday, sunday),
+      // ★ tzOffset 을 넘겨야 completed_at(UTC 저장)이 **워크스페이스 주간 경계**와 같은 축에서 비교된다.
+      //   안 넘기면 KST 새벽 완료분이 전날로 계산돼 이번 주에서 사라진다(2026-08-24 운영 실측).
+      where: myWeekWhere(uid, businessId, monday, sunday, { tzOffset: tzOffsetOf(tz) }),
       // 컨펌자 수 — 팝아웃/리스트의 퀵액션 분기(체크 완료 vs 컨펌 요청)가 이 값으로 갈린다.
       //   ★ attributes 는 반드시 { include: [...] } 형태 — 배열로 나열하면 전 컬럼이 날아간다.
       attributes: {

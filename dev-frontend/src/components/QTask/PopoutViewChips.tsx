@@ -19,6 +19,7 @@ const Row = styled.div`
   flex-shrink: 0;
   border-bottom: 1px solid #F1F5F9;
 `;
+const Trailing = styled.span`margin-left:auto; display:inline-flex; align-items:center;`;
 const Chip = styled.button<{ $active: boolean }>`
   height: 28px; padding: 0 10px;
   font-size: 12px; font-weight: ${p => (p.$active ? 700 : 600)};
@@ -40,10 +41,12 @@ export interface PopoutViewChipsProps {
   hasAnyProject: boolean;
   labels: Record<PopoutView, string>;
   groupLabel: string;
+  /** 줄 오른쪽에 붙일 것(완료 가리기 체크박스 등). 칩이 없어도 이것만 있으면 줄은 그린다. */
+  trailing?: React.ReactNode;
 }
 
 const PopoutViewChips: React.FC<PopoutViewChipsProps> = ({
-  value, onChange, hasAnyTag, hasAnyProject, labels, groupLabel,
+  value, onChange, hasAnyTag, hasAnyProject, labels, groupLabel, trailing,
 }) => {
   const opts: PopoutView[] = [
     ...(hasAnyTag ? ['tag' as const] : []),
@@ -51,10 +54,11 @@ const PopoutViewChips: React.FC<PopoutViewChipsProps> = ({
     'due',
   ];
   // 선택지가 'due' 하나뿐이면 고를 것이 없다 — 죽은 컨트롤을 내지 않는다.
-  if (opts.length < 2) return null;
+  //   단 trailing(완료 가리기)이 있으면 그건 별개 컨트롤이라 줄을 유지한다.
+  if (opts.length < 2 && !trailing) return null;
   return (
     <Row role="group" aria-label={groupLabel}>
-      {opts.map((o) => (
+      {(opts.length >= 2 ? opts : []).map((o) => (
         <Chip
           key={o}
           type="button"
@@ -64,6 +68,7 @@ const PopoutViewChips: React.FC<PopoutViewChipsProps> = ({
           onClick={() => onChange(o)}
         >{labels[o]}</Chip>
       ))}
+      {trailing && <Trailing>{trailing}</Trailing>}
     </Row>
   );
 };

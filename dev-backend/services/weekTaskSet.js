@@ -30,6 +30,23 @@ const { Op, literal } = require('sequelize');
  * @param opts.createdBefore  이 시각까지 존재했던 업무만 (과거 주 재구성 시 phantom 봉쇄).
  *                            지나간 주를 뒤늦게 스냅샷할 때 필수 — 없으면 오늘 만든 업무가 섞인다.
  */
+// ★ 2026-08-24 — `completed_at` 은 **서버(UTC) 시각**으로 저장되는데 주간 경계(monday~sunday)는
+//   **워크스페이스 tz** 로 계산된다. 두 축을 그대로 비교하면 KST 00:00~09:00 에 완료한 업무가
+//   UTC 로는 전날이라 **한 주 밀려 사라진다**.
+//   운영 실측(2026-08-24): 사용자가 방금 완료한 #123·#220·#121 의 completed_at 이 UTC 8/23 이라
+//   이번 주(8/24~8/30) 집합에서 빠졌다 — "완료한 게 안 나온다" 의 정체.
+//   → 비교 시 completed_at 을 워크스페이스 tz 로 환산한다. tzOffset 미지정이면 옛 동작 유지(무해).
+function completedInWeek(monday, sunday, tzOffset) {
+  if (!tzOffset) return { completed_at: { [Op.between]: [`${monday} 00:00:00`, `${sunday} 23:59:59`] } };
+  const off = String(tzOffset).replace(/'/g, '');   // '+09:00' 형태만 허용(인젝션 차단)
+  if (!/^[+-]\d{2}:\d{2}$/.test(off)) return { completed_at: { [Op.between]: [`${monday} 00:00:00`, `${sunday} 23:59:59`] } };
+  return {
+    [Op.and]: literal(
+      `DATE(CONVERT_TZ(\`completed_at\`, '+00:00', '${off}')) BETWEEN '${monday}' AND '${sunday}'`,
+    ),
+  };
+}
+
 function myAssignedWeekWhere(uid, monday, sunday, opts = {}) {
   const id = Number(uid);
   const branch = {
@@ -37,7 +54,7 @@ function myAssignedWeekWhere(uid, monday, sunday, opts = {}) {
     [Op.or]: [
       {
         status: { [Op.in]: ['completed', 'canceled'] },
-        completed_at: { [Op.between]: [`${monday} 00:00:00`, `${sunday} 23:59:59`] },
+        ...completedInWeek(monday, sunday, opts.tzOffset),
       },
       {
         status: 'not_started',
@@ -77,7 +94,7 @@ function myWeekWhere(uid, businessId, monday, sunday, opts = {}) {
       // 내가 관여한 이번 주 완료 — 의뢰자/작성자/리뷰어(state 무관). 메인의 involved 분기 미러.
       {
         status: { [Op.in]: ['completed', 'canceled'] },
-        completed_at: { [Op.between]: [`${monday} 00:00:00`, `${sunday} 23:59:59`] },
+        ...completedInWeek(monday, sunday, opts.tzOffset),
         [Op.or]: [
           { request_by_user_id: id },
           { created_by: id },
@@ -88,4 +105,4 @@ function myWeekWhere(uid, businessId, monday, sunday, opts = {}) {
   };
 }
 
-module.exports = { myAssignedWeekWhere, myWeekWhere };
+module.exports = { myAssignedWeekWhere, myWeekWhere, completedInWeek };

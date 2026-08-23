@@ -253,9 +253,6 @@ export const PrioGapHint = styled.div`
 `;
 // 완료 가리기 — Q Task 리스트의 HideCheck 와 같은 감각(작은 체크박스 + 라벨).
 //   보기 칩 줄 위에 놓아 "무엇을 보여줄지" 를 먼저 정하고 "어떻게 나열할지" 로 넘어가게 한다.
-export const DoneFilterRow = styled.div`
-  display:flex; align-items:center; padding:8px 12px 0; flex-shrink:0;
-`;
 export const DoneFilterLabel = styled.label`
   display:inline-flex; align-items:center; gap:6px; cursor:pointer;
   font-size:12px; font-weight:600; color:#64748B; user-select:none;

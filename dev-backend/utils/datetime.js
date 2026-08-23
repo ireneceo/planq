@@ -63,8 +63,29 @@ function ymd(value) {
   return String(value).slice(0, 10);
 }
 
+/**
+ * IANA tz → MySQL CONVERT_TZ 가 받는 `'+09:00'` 형태 오프셋.
+ *   서버에 tz 테이블이 없어도 동작하도록 이름 대신 **오프셋**을 만든다.
+ *   DST 가 있는 지역은 "지금" 기준 오프셋이다 — 주간 경계 판정 용도라 그 정도면 충분하다.
+ */
+function tzOffsetOf(tz, at = new Date()) {
+  try {
+    const dtf = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz, hour12: false,
+      year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
+    });
+    const p = Object.fromEntries(dtf.formatToParts(at).filter((x) => x.type !== 'literal').map((x) => [x.type, x.value]));
+    const asUTC = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second);
+    const diffMin = Math.round((asUTC - at.getTime()) / 60000);
+    const sign = diffMin < 0 ? '-' : '+';
+    const a = Math.abs(diffMin);
+    return `${sign}${String(Math.floor(a / 60)).padStart(2, '0')}:${String(a % 60).padStart(2, '0')}`;
+  } catch { return '+00:00'; }
+}
+
 module.exports = {
   dateStrInTz,
+  tzOffsetOf,
   ymd,
   todayInTz,
   mondayOfDateStr,

@@ -50,7 +50,6 @@ import {
   TabRow,
   TagGroupHead,
   TagSlot,
-  DoneFilterRow,
   DoneFilterLabel,
   PrioGapHint,
   WaitDot,
@@ -598,24 +597,22 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
         />
       )}
 
-      {/* 완료 가리기 — 보기 칩이 없는 워크스페이스에서도 나와야 하므로 별도로 그린다. */}
-      {!loading && !error && (openTasks.length > 0 || doneTasks.length > 0) && (
-        <DoneFilterRow>
-          <DoneFilterLabel>
-            <input type="checkbox" checked={hideDone} data-testid="task-popout-hide-done"
-              onChange={(e) => setHideDone(e.target.checked)} />
-            {t('popout.hideDoneFilter', { count: doneTasks.length, defaultValue: '완료 가리기 ({{count}})' })}
-          </DoneFilterLabel>
-        </DoneFilterRow>
-      )}
       {/* #258 — 보기 기준 칩. 정본 집합은 그대로고 **나열 방식만** 바뀐다(행 개수 불변). */}
-      {!loading && !error && visible.length > 0 && (
+      {!loading && !error && (visible.length > 0 || doneTasks.length > 0) && (
         <PopoutViewChips
           value={effView}
           onChange={setViewMode}
           hasAnyTag={hasAnyTag}
           hasAnyProject={hasAnyProject}
           groupLabel={t('popout.viewLabel', '보기 기준') as string}
+          /* 완료 가리기 — 태그별·마감일별 칩과 **같은 줄** 오른쪽 끝 (Irene 2026-08-24) */
+          trailing={(openTasks.length > 0 || doneTasks.length > 0) ? (
+            <DoneFilterLabel>
+              <input type="checkbox" checked={hideDone} data-testid="task-popout-hide-done"
+                onChange={(e) => setHideDone(e.target.checked)} />
+              {t('popout.hideDoneFilter', { count: doneTasks.length, defaultValue: '완료 가리기 ({{count}})' })}
+            </DoneFilterLabel>
+          ) : null}
           labels={{
             tag: t('popout.viewTag', '태그별'),
             project: t('popout.viewProject', '프로젝트별'),
