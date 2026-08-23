@@ -10,6 +10,7 @@
 // ★ 확정 트리거: 콤마 · 세미콜론 · Enter · 붙여넣기 · 포커스 이탈. 지우기: Backspace(입력칸이 빈 상태)
 // ★ 형식이 틀린 주소도 **버리지 않고** 빨간 칩으로 남긴다 — 조용히 사라지는 것이 가장 나쁘다.
 import React, { useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 
 interface Props {
@@ -24,6 +25,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const splitAll = (s: string) => s.split(/[,;\s]+/).map((x) => x.trim()).filter(Boolean);
 
 const RecipientInput: React.FC<Props> = ({ value, onChange, placeholder, disabled, ...rest }) => {
+  const { t } = useTranslation('qmail');
   const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const chips = useMemo(() => splitAll(value), [value]);
@@ -46,9 +48,9 @@ const RecipientInput: React.FC<Props> = ({ value, onChange, placeholder, disable
   return (
     <Box $disabled={!!disabled} onClick={() => inputRef.current?.focus()} data-testid={rest['data-testid']}>
       {chips.map((c, i) => (
-        <Chip key={`${c}-${i}`} $bad={!EMAIL_RE.test(c)} title={EMAIL_RE.test(c) ? c : `${c} — 형식이 이메일이 아닙니다`}>
+        <Chip key={`${c}-${i}`} $bad={!EMAIL_RE.test(c)} title={EMAIL_RE.test(c) ? c : (t('compose.badEmail', { addr: c, defaultValue: '{{addr}} — 형식이 이메일이 아닙니다' }) as string)}>
           {c}
-          <Del type="button" tabIndex={-1} aria-label={`${c} 삭제`}
+          <Del type="button" tabIndex={-1} aria-label={t('compose.removeRecipient', { addr: c, defaultValue: '{{addr}} 삭제' }) as string}
             onClick={(e) => { e.stopPropagation(); removeAt(i); }}>×</Del>
         </Chip>
       ))}

@@ -473,7 +473,9 @@
     "aiHint": "AI writes the email body from your request",
     "aiInstructionRequired": "Tell us what the email should say.",
     "draftSaveFailed": "Could not save your draft, so the form stayed open. Try again in a moment, or copy your text somewhere safe.",
-    "forwardBlocksNav": "Forwarded mail is not auto-saved. Send or close it before opening another message."
+    "forwardBlocksNav": "Forwarded mail is not auto-saved. Send or close it before opening another message.",
+    "badEmail": "{{addr}} — not a valid email",
+    "removeRecipient": "Remove {{addr}}"
   },
   "attachment": {
     "preview": "Preview",
