@@ -50,7 +50,8 @@ import {
   TabRow,
   TagGroupHead,
   TagSlot,
-  ToggleDone,
+  DoneFilterRow,
+  DoneFilterLabel,
   PrioGapHint,
   WaitDot,
   Wrap,
@@ -156,7 +157,12 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [showDone, setShowDone] = useState(false);
+  // ★ 2026-08-24 (Irene) — 기본은 **완료도 보이되 아래로**. Q Task 리스트와 같은 방식이다.
+  //   옛 기본(숨김)에서는 완료를 누르는 순간 행이 통째로 사라져 "없어져버린다" 로 읽혔다
+  //   (목록 맨 아래 '완료 n건 보기' 버튼은 눈에 띄지 않는다).
+  //   숨기고 싶으면 상단 '완료 가리기' 체크박스로 명시적으로 숨긴다.
+  const [hideDone, setHideDone] = useState(false);
+  const showDone = !hideDone;
   // #237·#258 — 오늘/이번 주 2탭. 팝아웃은 "오늘 해야 할 일" 도구로 쓰이므로 기본은 오늘.
   //   데이터는 /my-week 한 벌을 공유하고 탭은 **클라이언트 필터**다 — 새 요청·새 술어를 만들지 않는다.
   const [popTab, setPopTab] = useState<'today' | 'week'>(() => {
@@ -594,6 +600,17 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
         />
       )}
 
+      {/* 완료 가리기 — Q Task 리스트와 같은 문구·같은 동작. 기본은 꺼짐(완료도 보이되 아래로).
+          보기 칩이 없는 워크스페이스(태그·프로젝트 0)에서도 이 줄은 나와야 하므로 별도로 그린다. */}
+      {!loading && !error && (openTasks.length > 0 || doneTasks.length > 0) && (
+        <DoneFilterRow>
+          <DoneFilterLabel>
+            <input type="checkbox" checked={hideDone} data-testid="task-popout-hide-done"
+              onChange={(e) => setHideDone(e.target.checked)} />
+            {t('popout.hideDoneFilter', { count: doneTasks.length, defaultValue: '완료 가리기 ({{count}})' })}
+          </DoneFilterLabel>
+        </DoneFilterRow>
+      )}
       {/* #258 — 보기 기준 칩. 정본 집합은 그대로고 **나열 방식만** 바뀐다(행 개수 불변). */}
       {!loading && !error && visible.length > 0 && (
         <PopoutViewChips
@@ -763,17 +780,6 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
           </PrioGapHint>
         )}
 
-        {!loading && !error && doneTasks.length > 0 && (
-          <ToggleDone
-            type="button"
-            data-testid="task-popout-toggle-done"
-            onClick={() => setShowDone((v) => !v)}
-          >
-            {showDone
-              ? t('popout.hideDone', '완료 숨기기')
-              : t('popout.showDone', '완료 {{count}}건 보기', { count: doneTasks.length })}
-          </ToggleDone>
-        )}
       </Body>
 
       {selectedId !== null && (

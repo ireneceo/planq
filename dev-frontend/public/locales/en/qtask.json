@@ -1235,7 +1235,8 @@
     "goQTask": "Open Q Task",
     "emptyTitleToday": "Nothing due today",
     "emptyLineAdd": "Type above to add one right away.",
-    "prioGap": "Priority {{nums}} isn’t in this list — those tasks are completed or on another tab. Numbers stay on the full set, so they don’t get renumbered."
+    "prioGap": "Priority {{nums}} isn’t in this list — those tasks are completed or on another tab. Numbers stay on the full set, so they don’t get renumbered.",
+    "hideDoneFilter": "Hide completed ({{count}})"
   },
   "tags": {
     "new": "New tag",
