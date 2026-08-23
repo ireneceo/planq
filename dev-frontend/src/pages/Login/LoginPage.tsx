@@ -338,9 +338,15 @@ const Divider = styled.div`
   background: #E2E8F0;
   margin: 24px 0;
 `;
-// Google 로그인(OAuth) — 앱 심사 통과 전까지 버튼 숨김. 일반 고객이 눌러 "액세스 차단됨"을 맞지 않게.
-// 심사 완료 + 사용 가능해지면 이 한 줄만 true 로 바꾼다. (이메일 로그인은 그대로 작동)
-const GOOGLE_LOGIN_ENABLED = false;
+// Google 로그인(OAuth) — 앱 심사 통과 전까지 버튼을 숨겨 뒀다. 일반 고객이 눌러 "액세스 차단됨" 을
+// 맞지 않게 하기 위한 스위치다. (이메일 로그인은 이 값과 무관하게 그대로 작동)
+//
+// 2026-08-24 — **켠다.** Google 이 프로젝트 765630237305(planq-494017) 의 OAuth 검증을 승인했다.
+//   로그인이 쓰는 scope 는 `openid email profile` 뿐이라 원래 민감 범위가 아니지만, 동의 화면이
+//   심사 중(Testing) 이면 테스트 사용자 외에는 차단되므로 그때까지 버튼을 숨겨 둔 것이었다.
+//   검증은 게시 상태(프로덕션)에서만 진행되므로 승인 = 게시 완료다.
+//   백엔드는 이미 열려 있었다 — 운영 `GET /api/auth/google/initiate` 302 확인(2026-08-24).
+const GOOGLE_LOGIN_ENABLED = true;
 
 // N+70 — OAuth 로그인 (Google)
 const OAuthDivider = styled.div`
