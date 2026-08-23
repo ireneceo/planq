@@ -210,7 +210,9 @@
     "overCapHint": "남은 예측이 가용시간을 {{over}}h 초과 — 마감 조정·위임·기간 재배분을 검토하세요.",
     "workspacePredict": "예측 {{est}}h",
     "actual": "실제 {{act}}h",
-    "actualHint": "내 업무 실제 시간의 합계(누적) — 지난주부터 이어온 시간까지 포함합니다. 우측 그래프의 \"실제 업무시간\" 은 이번 주에 늘어난 만큼만 그려서 더 작을 수 있어요."
+    "actualHint": "내 업무 실제 시간의 합계(누적) — 지난주부터 이어온 시간까지 포함합니다. 우측 그래프의 \"실제 업무시간\" 은 이번 주에 늘어난 만큼만 그려서 더 작을 수 있어요.",
+    "planCap": "계획 {{plan}}h / 가용 {{cap}}h · 남은 {{rem}}h",
+    "planCapOver": "계획 {{plan}}h / 가용 {{cap}}h · 남은 {{rem}}h · {{over}}h 초과"
   },
   "col": {
     "project": "프로젝트",
@@ -365,7 +367,11 @@
     "suggestApply": "적용",
     "suggestHint": "최근 {{weeks}}주 포커스 실측 {{focus}}h 기준. 포커스를 주 업무 추적에 쓸 때 정확합니다.",
     "available": "이번 주 가용",
-    "doneWork": "진척 (예상시간)"
+    "doneWork": "진척 (예상시간)",
+    "doneThisWeek": "이번 주 새로 {{h}}h",
+    "doneCarried": "이월 진척 {{h}}h",
+    "plannedWork": "계획 (예상시간)",
+    "overBy": "{{h}}h 초과"
   },
   "chart": {
     "weekly": "주간 업무 진척",

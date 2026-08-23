@@ -417,15 +417,11 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   const byDueRule = (a: PopoutTask, b: PopoutTask): number =>
     cmpNullLast(a.due_date, b.due_date) || bySortRule(a, b) || (a.id - b.id);
 
-  // '태그별' 칩 노출 기준 = **워크스페이스에 태그가 있는가**(사전 기준). 지금 목록에 태그 달린 행이
-  //   있는가로 재면, 태그 붙은 업무가 완료되거나 오늘 집합에서 빠지는 순간 칩이 통째로 사라져
-  //   "기능이 없어졌다" 로 읽힌다(Irene 2026-08-23 — 태그 붙은 업무 2건이 completed 되자 사라졌다).
-  //   행에서 바로 태그를 붙일 수 있게 된 지금은 목록이 비어도 살아있는 컨트롤이다.
-  //   사전 로드 전(빈 배열)엔 옛 기준으로라도 살아 있게 OR 로 둔다.
-  const hasAnyTag = useMemo(
-    () => tagDict.length > 0 || tasks.some((tk) => (tk.tags?.length || 0) > 0),
-    [tagDict.length, tasks],
-  );
+  // '태그별' 노출 기준 = **워크스페이스 태그 사전**. 목록 기준으로 재면 태그 붙은 업무가 완료되는
+  //   순간 칩이 사라져 "기능이 없어졌다" 로 읽힌다(Irene 2026-08-23). 행에서 바로 붙일 수 있는 지금은
+  //   목록이 비어도 살아있는 컨트롤이다. 사전 로드 전엔 옛 기준으로 OR.
+  const hasAnyTag = useMemo(() => tagDict.length > 0 || tasks.some((tk) => (tk.tags?.length || 0) > 0),
+    [tagDict.length, tasks]);
   const hasAnyProject = useMemo(() => tasks.some((tk) => !!tk.Project?.name), [tasks]);
   // 선택지에 없는 보기(태그 0개인데 'tag' 가 기억돼 있는 등)로 굳어 있으면 마감일별로 코어스한다.
   //   ★ 칩이 사라진 보기가 유효한 채로 남으면 사용자가 되돌릴 수단이 없다.

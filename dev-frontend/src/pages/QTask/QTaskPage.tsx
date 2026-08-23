@@ -1466,21 +1466,34 @@ const QTaskPage:React.FC=()=>{
   ),[periodFrom]);
   // 부하 구성 — 내 활성 업무의 잔여를 이월/이번주 신규로 분해 (가용시간 인지 핵심)
   const loadBreakdown=useMemo(()=>{
-    let carried=0, fresh=0;
+    let carried=0, fresh=0, done=0, doneCarried=0, plan=0;
     for(const t of filtered){
       if(t.assignee_id!==myId) continue;
       if(t.status==='canceled'||t.status==='completed') continue;
+      // 진척(누적) — 남은 일과 **같은 집합·같은 기준**이어야 한다. 분모(남은 일)는 이월을 포함하는데
+      //   분자(진척)만 "이번 주 증가분" 이면 한 카드 안에서 자가 두 개가 된다
+      //   (Irene 2026-08-24: 주가 바뀌자 진척만 0 이 됐다 — "지연된 업무도 예상시간이 다 들어가야").
+      const est=Number(t.estimated_hours)||0;
+      plan+=est;                       // 계획 = 모든 예측시간 (완료분 포함) — 카드의 기준선
+      const d=Math.max(0, est*((t.progress_percent||0)/100));
+      if(d>0){ done+=d; if(isCarried(t)) doneCarried+=d; }
       const rem=taskRemaining(t); if(rem<=0) continue;
       if(isCarried(t)) carried+=rem; else fresh+=rem;
     }
     carried=Math.round(carried*10)/10; fresh=Math.round(fresh*10)/10;
-    return { carried, fresh, total:Math.round((carried+fresh)*10)/10 };
+    return {
+      carried, fresh, total:Math.round((carried+fresh)*10)/10,
+      done:Math.round(done*10)/10, doneCarried:Math.round(doneCarried*10)/10,
+      plan:Math.round(plan*10)/10,
+    };
   },[filtered,myId,taskRemaining,isCarried]);
   const remainingTotal=loadBreakdown.total;
   // #100 — 남은 예측(Σ예측×미완료)이 가용시간을 넘으면 오버커밋 → 칩을 경고색+초과분 표시.
   //   "가용시간 인지"(§6) 핵심: 계획이 캐파를 초과했음을 즉시 알려 마감 지연 예방.
-  const overCapHours=Math.round((remainingTotal-effectiveCapacity)*10)/10;
-  const isOverCap=scope!=='workspace'&&effectiveCapacity>0&&overCapHours>0;
+  // ★ 2026-08-24 (Irene) — 초과 판정 축을 **계획(Σ예측)** 으로. 카드와 상단 칩이 같은 기준을 쓴다.
+  //   남은 일 기준이면 진행률을 올리는 것만으로 초과 경고가 사라져 "계획이 캐파를 넘었다" 는 사실이 가려진다.
+  const planOverHours=Math.round((loadBreakdown.plan-effectiveCapacity)*10)/10;
+  const isOverCap=scope!=='workspace'&&effectiveCapacity>0&&planOverHours>0;
 
   const saveCapacity=async(field:string,value:number)=>{
     if(!bizId)return;
@@ -1592,14 +1605,23 @@ const QTaskPage:React.FC=()=>{
     return anyBelowBase ? 'reverted' : 'noIncrement';
   },[computedBurndown,chartWeekTasks,progressBases]);
 
-  // ★ 가용시간 바가 **채우는** 값 = 그래프 "진척(예상시간)" 선의 오늘 점.
+  // ★ 2026-08-24 (Irene) — 바가 읽는 값을 **그래프 오늘 점(이번 주 Δ)** 에서
+  //   **이번 주 집합의 누적 진척(Σ예측×진행률)** 으로 바꿨다.
+  //   주가 바뀌는 순간 Δ 는 구조적으로 0 이 되는데 같은 카드의 '남은 일' 은 이월을 포함한 누적이라,
+  //   분자만 리셋되고 분모는 안 되는 상태였다(운영 실측: 남은 57.7h · 실제 13.5h 인데 진척 0.0).
+  //   이제 카드 안 세 수가 한 기준이다 — 진척 + 남은 일 = 그 집합의 Σ예측.
+  //   그래프는 그대로 Δ(번업) 를 그린다. 이월분을 그래프에 다시 실으면 지난 주 시간이 이번 주 선에
+  //   실리던 #254 회귀다 — 두 화면은 **다른 질문**에 답한다(카드=지금 어디까지 / 그래프=이번 주에 얼마나).
+  // (옛 주석) 가용시간 바가 **채우는** 값 = 그래프 "진척(예상시간)" 선의 오늘 점.
   //   여태 바는 `남은 일 / 가용시간` 이라 **완료할수록 줄었다** — 24h 는 이번 주에 채워야 할
   //   계획인데 일을 하면 비어가는 셈이었다(Irene: "완료하면 시간이 줄어들어버리면 안되지").
   //   ★ 새 공식을 만들지 않는다 — 차트가 이미 쓰는 정의(Σ예측×진행률의 이번 주 Δ)를 그대로 읽는다.
   //     그래서 **바의 끝점 = 그래프 오늘 점**이 되어 두 화면이 한 이야기를 한다.
   //     (`가용 − 남은 일` 은 여유(headroom)와 같은 수라 계획을 적게 세운 주에 "이미 했다" 는
   //      거짓 표시가 되고, 오버커밋 주엔 음수가 되어 초과 경고와 충돌한다 — Fable 판정으로 기각.)
-  const weekDoneHours=useMemo(()=>{
+  // 진척(누적, 이월 포함)은 loadBreakdown.done 이 정본이다 — 카드 보조 줄이 그걸 그대로 읽는다.
+  // 그래프 오늘 점(이번 주 Δ) — 카드에서 "이번 주 새로 쌓인 분" 보조 표기에 쓴다.
+  const weekDeltaHours=useMemo(()=>{
     const past=computedBurndown.filter(p=>!p.isFuture&&p.estimated_cumulative!=null);
     return past.length?Math.round(Number(past[past.length-1].estimated_cumulative)*10)/10:0;
   },[computedBurndown]);
@@ -1848,13 +1870,13 @@ const QTaskPage:React.FC=()=>{
               <Chip>{summary.count}{t('summary.unit','개')}</Chip>
               <Chip $teal={!isOverCap} $warn={isOverCap}
                 title={(isOverCap
-                  ? t('summary.overCapHint', { over: formatHours(overCapHours), defaultValue: '남은 예측이 가용시간을 {{over}}h 초과 — 마감 조정·위임·기간 재배분을 검토하세요.' })
+                  ? t('summary.overCapHint', { over: formatHours(planOverHours), defaultValue: '계획한 예상시간이 가용시간을 {{over}}h 초과 — 마감 조정·위임·기간 재배분을 검토하세요.' })
                   : t('summary.remainCapHint','내가 담당자인 활성 업무의 남은 일(예측×미완료) / 주간 가용시간')) as string}>
                 {scope==='workspace'
                   ? t('summary.workspacePredict', { est: formatHours(summary.myEst) })
                   : isOverCap
-                    ? t('summary.remainCapOver', { rem: formatHours(remainingTotal), cap: formatHours(effectiveCapacity), over: formatHours(overCapHours), defaultValue: '남은 {{rem}}h / 가용 {{cap}}h · {{over}}h 초과' })
-                    : t('summary.remainCap', { rem: formatHours(remainingTotal), cap: formatHours(effectiveCapacity), defaultValue: '남은 {{rem}}h / 가용 {{cap}}h' })}
+                    ? t('summary.planCapOver', { plan: formatHours(loadBreakdown.plan), cap: formatHours(effectiveCapacity), rem: formatHours(remainingTotal), over: formatHours(planOverHours), defaultValue: '계획 {{plan}}h / 가용 {{cap}}h · 남은 {{rem}}h · {{over}}h 초과' })
+                    : t('summary.planCap', { plan: formatHours(loadBreakdown.plan), cap: formatHours(effectiveCapacity), rem: formatHours(remainingTotal), defaultValue: '계획 {{plan}}h / 가용 {{cap}}h · 남은 {{rem}}h' })}
               </Chip>
               <Chip $coral title={t('summary.actualHint','') as string}>{t('summary.actual', { act: formatHours(summary.act) })}</Chip>
               {/* #206 V1 — 보류하면 주간 목록에서 사라진다. 사라졌다는 사실 자체를 여기서 말해주지 않으면
@@ -2747,27 +2769,49 @@ const QTaskPage:React.FC=()=>{
                     //   이미 쓴 시간을 빼지 않아 "20h 일하고 남은 일 13h" 인 주에도 여유 11h 로 나왔다.
                     //   위 진척 줄이 초과를 말하는데 아래에서 여유가 있다고 해 서로 어긋났다.
                     //   오버커밋 경고는 상단 요약 칩(summary.remainCapOver)이 계속 맡는다.
-                    const donePct = effectiveCapacity > 0
-                      ? Math.max(0, Math.round((weekDoneHours / effectiveCapacity) * 100)) : 0;
+                    // ★ 2026-08-24 (Irene 지시) — 카드의 큰 수 = **계획(모든 예측시간)** / 가용.
+                    //   "계획된 예상시간이라고 해서 모든 예측시간이 나와야 해. 이 시간과 기준이 되는
+                    //    가용시간을 맞춰야 하고 00h 초과 경고" — 초과 판정 축이 진척이 아니라 계획이다.
+                    //   바는 **남은/계획** 이라 100% 에서 시작해 완료할수록 줄어든다
+                    //   ("100% 계획된 시간에서 점점 완료하면서 시간이 주는 거야").
+                    //   진척(계획−남은)은 아래 보조 줄에서 말한다.
+                    const planTotal = loadBreakdown.plan;
+                    const planOver = Math.round((planTotal - effectiveCapacity) * 10) / 10;
+                    const planIsOver = effectiveCapacity > 0 && planOver > 0;
+                    const remainPct = planTotal > 0
+                      ? Math.max(0, Math.min(100, Math.round((remainingTotal / planTotal) * 100))) : 0;
                     return (
                       <CapDashboard>
                         <CapHeadline>
                           <CapBigNum>
-                            <CapTinyLabel>{t('capacity.doneWork', '진척 (예상시간)')}</CapTinyLabel>
-                            <CapUsed style={{color: '#0F766E'}}>{formatHours(weekDoneHours)}</CapUsed>
+                            <CapTinyLabel>{t('capacity.plannedWork', '계획 (예상시간)')}</CapTinyLabel>
+                            <CapUsed style={{color: planIsOver ? '#DC2626' : '#0F766E'}}>{formatHours(planTotal)}</CapUsed>
                             <CapSep>/</CapSep>
                             <CapTotal>{formatHours(effectiveCapacity)}h</CapTotal>
                           </CapBigNum>
-                          {/* ★ 퍼센트·바 색은 **소화율 고정색**이다. 잔여 기반 경고색(UTIL_COLOR)을 그대로
-                              물리면 "많이 할수록 빨강" 으로 의미가 뒤집힌다 — 경고는 아래 여유/초과 행이 맡는다. */}
-                          <CapPctChip style={{background: '#F0FDFA', color: '#0F766E'}}>{donePct}%</CapPctChip>
+                          {planIsOver ? (
+                            <CapPctChip style={{background: '#FEE2E2', color: '#B91C1C'}}>
+                              {t('capacity.overBy', { h: formatHours(planOver), defaultValue: '{{h}}h 초과' })}
+                            </CapPctChip>
+                          ) : (
+                            <CapPctChip style={{background: '#F0FDFA', color: '#0F766E'}}>{pct}%</CapPctChip>
+                          )}
                         </CapHeadline>
-                        <CapBar><CapBarFill style={{background: '#14B8A6', width: `${Math.min(100, donePct)}%`}}/></CapBar>
-                        {/* 남은 일은 없앤 게 아니라 보조 줄로 내렸다 — 지금 형태가 좋다는 Irene 의견 반영 */}
+                        {/* 남은/계획 — 완료할수록 줄어드는 바 */}
+                        <CapBar><CapBarFill style={{background: planIsOver ? '#EF4444' : '#14B8A6', width: `${remainPct}%`}}/></CapBar>
                         <CapRemainingRow>
                           <CapRemainingLabel>{t('capacity.remainingWork', '남은 일')}</CapRemainingLabel>
                           <CapRemainingValue style={{color: color.text}}>{formatHours(remainingTotal)}h</CapRemainingValue>
                         </CapRemainingRow>
+                        {/* 진척(계획−남은)은 보조 줄. 이월 업무가 이미 쌓아 둔 분까지 포함한 누적이다. */}
+                        {loadBreakdown.done > 0 && (
+                          <CapDoneNote>
+                            {t('capacity.doneWork', '진척 (예상시간)')} {formatHours(loadBreakdown.done)}h
+                            {weekDeltaHours > 0 && (
+                              <> · {t('capacity.doneThisWeek', { h: formatHours(weekDeltaHours), defaultValue: '이번 주 새로 {{h}}h' })}</>
+                            )}
+                          </CapDoneNote>
+                        )}
                         {remainingTotal > 0 && (
                           <CapBreakdown>
                             {loadBreakdown.carried > 0 && <CapBreakItem><CapBreakDot $carried/>{t('capacity.carriedLoad', { h: formatHours(loadBreakdown.carried), defaultValue: '이월 {{h}}h' })}</CapBreakItem>}
@@ -3682,6 +3726,9 @@ const CapTotal=styled.span`font-size:15px;color:#64748B;font-weight:600;`;
 const CapPctChip=styled.span`padding:3px 10px;font-size:11px;font-weight:700;border-radius:999px;`;
 const CapBar=styled.div`height:8px;background:#F1F5F9;border-radius:4px;overflow:hidden;`;
 const CapBarFill=styled.div`height:100%;border-radius:4px;transition:width 0.25s ease,background 0.15s;`;
+const CapDoneNote=styled.div`
+  margin-top:4px; font-size:11px; color:#94A3B8; line-height:1.4;
+`;
 const CapRemainingRow=styled.div`display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#F8FAFC;border-radius:8px;`;
 const CapRemainingLabel=styled.span`font-size:11px;color:#64748B;font-weight:600;`;
 const CapRemainingValue=styled.span`font-size:15px;font-weight:700;letter-spacing:-0.2px;`;
