@@ -8,6 +8,15 @@
 // ★ 저장하지 않는다. 날짜별 이력도 남기지 않는다(Irene: "계속 저장되면서 날짜별로 남길 필요도 없잖아").
 //   매 호출마다 지금 상태로 계산한다 — 스냅샷 테이블이 없으므로 정합성이 갈릴 일도 없다.
 //
+// ★★ 2026-08-24 교정 (Irene: "아래 전체 나오는 알림이랑 뭐가 달라?") — 처음 만든 것은 **알림 목록 한 벌
+//   더**였다. 리뷰는 할 일을 리스트업하는 자리가 아니라 **업무 대응에 필요한 맥락**을 정리하는 자리다:
+//     · 고객·외부와의 소통에서 생긴 이슈 (메일·채팅)
+//     · 지금 빠르게 움직여야 하는 것 (마감 임박·지연) — **왜 급한지**까지
+//     · 내가 막고 있는 것 / 내가 기다리는 것 (컨펌)
+//   그래서 응답을 **엔티티 종류별 목록**(task/email/chat/event)이 아니라 **맥락 블록**으로 낸다.
+//   같은 고객·프로젝트에서 온 것은 묶어서 한 줄로 말한다 — 한 줄에 "누가·무엇을·그래서 뭘 해야" 가 있어야
+//   대표가 메일함을 다시 열지 않는다.
+//
 // ★ 집합 술어는 새로 만들지 않는다. 이번 주/오늘 판정은 `services/weekTaskSet` 단일 원천을 쓴다
 //   (사본을 만들면 Q Task 화면과 리뷰의 숫자가 갈라진다 — 이 저장소가 여러 번 겪은 실패다).
 const express = require('express');
@@ -243,6 +252,24 @@ router.get('/today-review', authenticateToken, async (req, res, next) => {
       }));
     }
 
+    // ── 맥락 블록으로 재편 ──────────────────────────────────
+    //   ① 밖에서 온 것 — 고객·외부와의 소통(메일·채팅). "누가 무엇을 말했나"
+    //   ② 지금 급한 것 — 마감 임박·지연. **왜 급한지**(며칠 지났는지/오늘인지)까지 준다
+    //   ③ 내가 막고 있는 것 — 나를 기다리는 컨펌. 남의 일이 내 손에서 멈춰 있다
+    //   블록이 비면 프론트가 그 블록을 아예 안 그린다 — 빈 제목만 늘어놓지 않는다.
+    const inbound = topChanges.filter((c) => c.kind === 'email' || c.kind === 'chat');
+    const moved = topChanges.filter((c) => c.kind === 'task' || c.kind === 'event');
+
+    const urgent = focus
+      .filter((f) => f.why !== 'approval')
+      .map((f) => {
+        const d = f.due_date ? ymd(f.due_date) : null;
+        const overdueDays = d && d < today
+          ? Math.round((new Date(`${today}T00:00:00Z`) - new Date(`${d}T00:00:00Z`)) / 86400000) : 0;
+        return { ...f, overdue_days: overdueDays };
+      });
+    const blocking = focus.filter((f) => f.why === 'approval');
+
     return successResponse(res, {
       counts: {
         projects_active: projectsActive,
@@ -251,8 +278,12 @@ router.get('/today-review', authenticateToken, async (req, res, next) => {
         due_soon: dueSoon,
         changes: changes.length,
       },
-      changes: topChanges,
-      focus,
+      blocks: {
+        inbound,      // 밖에서 온 것 (메일·채팅)
+        urgent,       // 지금 급한 것 (지연·오늘 마감) + overdue_days
+        blocking,     // 나를 기다리는 컨펌
+        moved,        // 그 사이 움직인 것 (업무 상태·일정) — 참고
+      },
       today,
       generated_at: new Date(),
     });

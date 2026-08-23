@@ -157,6 +157,16 @@
       "approval": "Awaiting approval",
       "overdue": "Overdue",
       "dueToday": "Due today"
-    }
+    },
+    "blk": {
+      "inbound": "From clients & outside",
+      "urgent": "Move on these now",
+      "blocking": "Waiting on you",
+      "moved": "Moved since yesterday"
+    },
+    "overdueDays": "{{n}} days past due",
+    "dueTodayShort": "due today",
+    "blockingWhy": "Blocked until you approve",
+    "nothing": "No new context since yesterday"
   }
 }

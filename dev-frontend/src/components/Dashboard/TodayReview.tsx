@@ -25,8 +25,9 @@ interface ReviewChange {
   from?: string | null; to?: string | null; count?: number;
   at: string; start_at?: string; link: string;
 }
-interface ReviewFocus { id: number; title: string; why: string; due_date?: string | null; link: string; }
-interface ReviewData { counts: ReviewCounts; changes: ReviewChange[]; focus: ReviewFocus[]; today?: string; }
+interface ReviewFocus { id: number; title: string; why: string; due_date?: string | null; link: string; overdue_days?: number; }
+interface ReviewBlocks { inbound: ReviewChange[]; urgent: ReviewFocus[]; blocking: ReviewFocus[]; moved: ReviewChange[]; }
+interface ReviewData { counts: ReviewCounts; blocks: ReviewBlocks; today?: string; }
 
 interface Props { businessId: number | null; refreshKey?: number; }
 
@@ -61,6 +62,7 @@ const TodayReview: React.FC<Props> = ({ businessId, refreshKey }) => {
   };
 
   const c = data?.counts;
+  const b = data?.blocks;
   const summary: Array<{ key: string; label: string; n: number }> = c ? [
     { key: 'projects', label: t('review.projects', '진행 프로젝트') as string, n: c.projects_active },
     { key: 'today', label: t('review.todayTasks', '오늘 처리 필요') as string, n: c.today_tasks },
@@ -105,38 +107,76 @@ const TodayReview: React.FC<Props> = ({ businessId, refreshKey }) => {
 
       {open && (
         <Body>
-          <Section>
-            <SecTitle>{t('review.changesTitle', '주요 변경')}</SecTitle>
-            {(data?.changes || []).length === 0 ? (
-              <Quiet>{t('review.noChanges', '어제 이후 바뀐 것이 없어요')}</Quiet>
-            ) : (
+          {/* ★ 2026-08-24 교정 (Irene: "아래 전체 나오는 알림이랑 뭐가 달라?")
+              엔티티 종류별 목록이 아니라 **맥락 블록**이다. 각 줄은 "무엇이 있었고 그래서 뭘 봐야 하나" 를
+              한 줄로 말한다. 비어 있는 블록은 아예 그리지 않는다 — 빈 제목만 늘어놓으면 목록이 된다. */}
+          {b && b.inbound.length > 0 && (
+            <Section>
+              <SecTitle>{t('review.blk.inbound', '고객·외부에서 온 것')}</SecTitle>
               <List>
-                {(data?.changes || []).map((ch) => (
-                  <Row key={`${ch.kind}-${ch.id}`}>
+                {b.inbound.map((ch) => (
+                  <Row key={`in-${ch.kind}-${ch.id}`}>
                     <KindTag $kind={ch.kind}>{t(`review.kind.${ch.kind}`, ch.kind)}</KindTag>
                     <RowLink to={ch.link}>{ch.title}</RowLink>
                     <RowWhy>{changeText(ch)}</RowWhy>
                   </Row>
                 ))}
               </List>
-            )}
-          </Section>
+            </Section>
+          )}
 
-          <Section>
-            <SecTitle>{t('review.focusTitle', '오늘 집중')}</SecTitle>
-            {(data?.focus || []).length === 0 ? (
-              <Quiet>{t('review.noFocus', '오늘 마감이나 승인 대기가 없어요')}</Quiet>
-            ) : (
+          {b && b.urgent.length > 0 && (
+            <Section>
+              <SecTitle>{t('review.blk.urgent', '지금 움직여야 하는 것')}</SecTitle>
               <List>
-                {(data?.focus || []).map((f) => (
-                  <Row key={`f-${f.id}`}>
+                {b.urgent.map((f) => (
+                  <Row key={`u-${f.id}`}>
                     <WhyTag $why={f.why}>{whyText(f.why)}</WhyTag>
                     <RowLink to={f.link}>{f.title}</RowLink>
+                    <RowWhy>
+                      {(f.overdue_days || 0) > 0
+                        ? t('review.overdueDays', { n: f.overdue_days, defaultValue: '{{n}}일 지났어요' })
+                        : t('review.dueTodayShort', { defaultValue: '오늘까지' })}
+                    </RowWhy>
                   </Row>
                 ))}
               </List>
-            )}
-          </Section>
+            </Section>
+          )}
+
+          {b && b.blocking.length > 0 && (
+            <Section>
+              <SecTitle>{t('review.blk.blocking', '나를 기다리는 것')}</SecTitle>
+              <List>
+                {b.blocking.map((f) => (
+                  <Row key={`b-${f.id}`}>
+                    <WhyTag $why="approval">{whyText('approval')}</WhyTag>
+                    <RowLink to={f.link}>{f.title}</RowLink>
+                    <RowWhy>{t('review.blockingWhy', { defaultValue: '내가 컨펌해야 진행돼요' })}</RowWhy>
+                  </Row>
+                ))}
+              </List>
+            </Section>
+          )}
+
+          {b && b.moved.length > 0 && (
+            <Section>
+              <SecTitle>{t('review.blk.moved', '그 사이 움직인 것')}</SecTitle>
+              <List>
+                {b.moved.map((ch) => (
+                  <Row key={`m-${ch.kind}-${ch.id}`}>
+                    <KindTag $kind={ch.kind}>{t(`review.kind.${ch.kind}`, ch.kind)}</KindTag>
+                    <RowLink to={ch.link}>{ch.title}</RowLink>
+                    <RowWhy>{changeText(ch)}</RowWhy>
+                  </Row>
+                ))}
+              </List>
+            </Section>
+          )}
+
+          {b && !b.inbound.length && !b.urgent.length && !b.blocking.length && !b.moved.length && (
+            <Section><Quiet>{t('review.nothing', '어제 이후 새로 볼 맥락이 없어요')}</Quiet></Section>
+          )}
         </Body>
       )}
     </Wrap>

@@ -157,6 +157,16 @@
       "approval": "승인 대기",
       "overdue": "지연",
       "dueToday": "오늘 마감"
-    }
+    },
+    "blk": {
+      "inbound": "고객·외부에서 온 것",
+      "urgent": "지금 움직여야 하는 것",
+      "blocking": "나를 기다리는 것",
+      "moved": "그 사이 움직인 것"
+    },
+    "overdueDays": "{{n}}일 지났어요",
+    "dueTodayShort": "오늘까지",
+    "blockingWhy": "내가 컨펌해야 진행돼요",
+    "nothing": "어제 이후 새로 볼 맥락이 없어요"
   }
 }
