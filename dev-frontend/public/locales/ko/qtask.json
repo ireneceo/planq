@@ -212,7 +212,9 @@
     "actual": "실제 {{act}}h",
     "actualHint": "내 업무 실제 시간의 합계(누적) — 지난주부터 이어온 시간까지 포함합니다. 우측 그래프의 \"실제 업무시간\" 은 이번 주에 늘어난 만큼만 그려서 더 작을 수 있어요.",
     "planCap": "계획 {{plan}}h / 가용 {{cap}}h · 남은 {{rem}}h",
-    "planCapOver": "계획 {{plan}}h / 가용 {{cap}}h · 남은 {{rem}}h · {{over}}h 초과"
+    "planCapOver": "계획 {{plan}}h / 가용 {{cap}}h · 남은 {{rem}}h · {{over}}h 초과",
+    "planCap2": "계획 {{plan}}h / 가용 {{cap}}h",
+    "planCapOver2": "계획 {{plan}}h / 가용 {{cap}}h · {{over}}h 초과"
   },
   "col": {
     "project": "프로젝트",
@@ -371,7 +373,8 @@
     "doneThisWeek": "이번 주 새로 {{h}}h",
     "doneCarried": "이월 진척 {{h}}h",
     "plannedWork": "계획 (예상시간)",
-    "overBy": "{{h}}h 초과"
+    "overBy": "{{h}}h 초과",
+    "remainingEst": "남은 예상시간"
   },
   "chart": {
     "weekly": "주간 업무 진척",

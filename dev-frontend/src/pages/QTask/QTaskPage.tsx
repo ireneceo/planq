@@ -1869,8 +1869,8 @@ const QTaskPage:React.FC=()=>{
                 {scope==='workspace'
                   ? t('summary.workspacePredict', { est: formatHours(summary.myEst) })
                   : isOverCap
-                    ? t('summary.planCapOver', { plan: formatHours(loadBreakdown.plan), cap: formatHours(effectiveCapacity), rem: formatHours(remainingTotal), over: formatHours(planOverHours), defaultValue: '계획 {{plan}}h / 가용 {{cap}}h · 남은 {{rem}}h · {{over}}h 초과' })
-                    : t('summary.planCap', { plan: formatHours(loadBreakdown.plan), cap: formatHours(effectiveCapacity), rem: formatHours(remainingTotal), defaultValue: '계획 {{plan}}h / 가용 {{cap}}h · 남은 {{rem}}h' })}
+                    ? t('summary.planCapOver2', { plan: formatHours(loadBreakdown.plan), cap: formatHours(effectiveCapacity), over: formatHours(planOverHours), defaultValue: '계획 {{plan}}h / 가용 {{cap}}h · {{over}}h 초과' })
+                    : t('summary.planCap2', { plan: formatHours(loadBreakdown.plan), cap: formatHours(effectiveCapacity), defaultValue: '계획 {{plan}}h / 가용 {{cap}}h' })}
               </Chip>
               <Chip $coral title={t('summary.actualHint','') as string}>{t('summary.actual', { act: formatHours(summary.act) })}</Chip>
               {/* #206 V1 — 보류하면 주간 목록에서 사라진다. 사라졌다는 사실 자체를 여기서 말해주지 않으면
@@ -2774,29 +2774,31 @@ const QTaskPage:React.FC=()=>{
                     const planTotal = loadBreakdown.plan;
                     const planOver = Math.round((planTotal - effectiveCapacity) * 10) / 10;
                     const planIsOver = effectiveCapacity > 0 && planOver > 0;
-                    const remainPct = planTotal > 0
-                      ? Math.max(0, Math.min(100, Math.round((remainingTotal / planTotal) * 100))) : 0;
+                    // ★ 2026-08-24 (Irene) — 100% = 계획(예상시간). 그 안에서 **진척이 차오르고**
+                    //   남은(계획−진척)이 줄어든다. 색은 초과여도 포인트 민트 고정 —
+                    //   "많이 계획할수록 빨강" 은 진척 지표의 의미를 뒤집는다. 초과는 옆 배지가 말한다.
+                    const donePct = planTotal > 0
+                      ? Math.max(0, Math.min(100, Math.round((loadBreakdown.done / planTotal) * 100))) : 0;
                     return (
                       <CapDashboard>
                         <CapHeadline>
                           <CapBigNum>
                             <CapTinyLabel>{t('capacity.plannedWork', '계획 (예상시간)')}</CapTinyLabel>
-                            <CapUsed style={{color: planIsOver ? '#DC2626' : '#0F766E'}}>{formatHours(planTotal)}</CapUsed>
+                            <CapUsed style={{color: '#0F766E'}}>{formatHours(planTotal)}</CapUsed>
                             <CapSep>/</CapSep>
                             <CapTotal>{formatHours(effectiveCapacity)}h</CapTotal>
                           </CapBigNum>
-                          {planIsOver ? (
-                            <CapPctChip style={{background: '#FEE2E2', color: '#B91C1C'}}>
+                          <CapPctChip style={{background: '#F0FDFA', color: '#0F766E'}}>{donePct}%</CapPctChip>
+                          {planIsOver && (
+                            <CapOverChip>
                               {t('capacity.overBy', { h: formatHours(planOver), defaultValue: '{{h}}h 초과' })}
-                            </CapPctChip>
-                          ) : (
-                            <CapPctChip style={{background: '#F0FDFA', color: '#0F766E'}}>{pct}%</CapPctChip>
+                            </CapOverChip>
                           )}
                         </CapHeadline>
-                        {/* 남은/계획 — 완료할수록 줄어드는 바 */}
-                        <CapBar><CapBarFill style={{background: planIsOver ? '#EF4444' : '#14B8A6', width: `${remainPct}%`}}/></CapBar>
+                        {/* 계획 100% 안에서 진척이 차오른다 — 빈 부분이 곧 남은 예상시간 */}
+                        <CapBar><CapBarFill style={{background: '#14B8A6', width: `${donePct}%`}}/></CapBar>
                         <CapRemainingRow>
-                          <CapRemainingLabel>{t('capacity.remainingWork', '남은 일')}</CapRemainingLabel>
+                          <CapRemainingLabel>{t('capacity.remainingEst', '남은 예상시간')}</CapRemainingLabel>
                           <CapRemainingValue style={{color: color.text}}>{formatHours(remainingTotal)}h</CapRemainingValue>
                         </CapRemainingRow>
                         {/* 진척(계획−남은)은 보조 줄. 이월 업무가 이미 쌓아 둔 분까지 포함한 누적이다. */}
@@ -3723,6 +3725,10 @@ const CapTotal=styled.span`font-size:15px;color:#64748B;font-weight:600;`;
 const CapPctChip=styled.span`padding:3px 10px;font-size:11px;font-weight:700;border-radius:999px;`;
 const CapBar=styled.div`height:8px;background:#F1F5F9;border-radius:4px;overflow:hidden;`;
 const CapBarFill=styled.div`height:100%;border-radius:4px;transition:width 0.25s ease,background 0.15s;`;
+const CapOverChip=styled.span`
+  flex-shrink:0;padding:2px 8px;border-radius:10px;
+  font-size:11px;font-weight:700;color:#B91C1C;background:#FEE2E2;
+`;
 const CapDoneNote=styled.div`
   margin-top:4px; font-size:11px; color:#94A3B8; line-height:1.4;
 `;
