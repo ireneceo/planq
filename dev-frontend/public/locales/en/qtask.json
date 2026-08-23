@@ -674,7 +674,12 @@
       "save": "Save",
       "cancel": "Cancel",
       "alreadyExists": "A review already exists for this week. Overwrite with current snapshot?",
-      "overwrite": "Overwrite"
+      "overwrite": "Overwrite",
+      "existing": "You already have this week's report. Loaded it below.",
+      "openReport": "Open report",
+      "editReport": "Update report",
+      "writeReport": "Write report",
+      "saved": "Report saved. You can find it in My reports."
     },
     "tab": {
       "empty": "No saved reviews yet",

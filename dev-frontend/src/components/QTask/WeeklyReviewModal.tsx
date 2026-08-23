@@ -24,7 +24,6 @@ const WeeklyReviewModal: React.FC<Props> = ({ businessId, wsTz, onClose, onSaved
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [existingReview, setExistingReview] = useState<WeeklyReview | null>(null);
-  const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
 
   // 현재 주 계산
   const today = todayInTz(wsTz);
@@ -50,7 +49,15 @@ const WeeklyReviewModal: React.FC<Props> = ({ businessId, wsTz, onClose, onSaved
     (async () => {
       try {
         const latest = await getLatestWeeklyReview(businessId);
-        if (latest && latest.week_start === monday) {
+        // ★ 2026-08-24 — **형식이 다른 두 값을 그대로 비교하고 있었다.**
+        //   POST 응답의 week_start 는 `"2026-08-24"` 인데 GET /latest 는 `"2026-08-24T00:00:00.000Z"` 로 온다
+        //   (DATEONLY 가 경로에 따라 문자열/Date 로 갈리는 이 저장소의 알려진 함정).
+        //   `===` 로 재면 **영원히 false** 라 기존 보고서를 절대 못 찾았고, 그래서
+        //     ① 이미 쓴 내용이 안 불러와지고 ② 저장 시 서버가 409 를 내며 그 원문
+        //     (`Weekly review already exists for this week`)이 사용자 화면에 그대로 떴다.
+        //   Irene 신고("또 하려니까 already exists 라고 나온다")의 실제 원인이 이것이다.
+        const latestWeek = latest ? String(latest.week_start).slice(0, 10) : null;
+        if (latest && latestWeek === monday) {
           setExistingReview(latest);
           setRetroNote(latest.retro_note || '');
         }
@@ -64,11 +71,10 @@ const WeeklyReviewModal: React.FC<Props> = ({ businessId, wsTz, onClose, onSaved
     if (saving) return;
     setError(null);
 
-    // 기존 row 있는데 overwrite false면 확인 다이얼로그
-    if (existingReview && !overwrite && !showOverwriteConfirm) {
-      setShowOverwriteConfirm(true);
-      return;
-    }
+    // ★ 2026-08-24 (Irene) — 기존 보고서가 있어도 **확인창을 띄우지 않는다.**
+    //   버튼이 이미 '보고서 수정' 이고 본문에 기존 내용이 채워져 있어 의도가 분명하다.
+    //   여태는 여기서 확인창이 뜨고, 실패 경로에서는 서버 원문(`Weekly review already exists…`)이
+    //   그대로 보였다 — 사용자에게는 "왜 안 되지" 로만 읽힌다.
 
     setSaving(true);
     try {
@@ -83,7 +89,18 @@ const WeeklyReviewModal: React.FC<Props> = ({ businessId, wsTz, onClose, onSaved
       setTimeout(() => onSaved(review), 800);
     } catch (e: any) {
       if (e.message?.includes('already_exists')) {
-        setShowOverwriteConfirm(true);
+        // 이미 있다는 건 오류가 아니라 상태다 — 사용자에게 서버 원문을 보여주는 대신 그대로 수정 저장한다.
+        try {
+          const review = await createWeeklyReview({
+            business_id: businessId, week_start: monday,
+            retro_note: retroNote.trim() || undefined, overwrite: true,
+          });
+          setSaved(true);
+          setTimeout(() => onSaved(review), 800);
+          return;
+        } catch (e2: any) {
+          setError(e2.message || (t('weeklyReview.modal.saveError', { defaultValue: '저장 실패. 잠시 후 다시 시도하세요.' }) as string));
+        }
       } else {
         setError(e.message || (t('weeklyReview.modal.saveError', { defaultValue: '저장 실패. 잠시 후 다시 시도하세요.' }) as string));
       }
@@ -105,26 +122,21 @@ const WeeklyReviewModal: React.FC<Props> = ({ businessId, wsTz, onClose, onSaved
         {saved ? (
           <ConfirmBody>
             <SavedIcon>✓</SavedIcon>
-            <ConfirmText>{t('weeklyReview.modal.saved', { defaultValue: '저장 완료. 결산 목록에서 확인하세요.' }) as string}</ConfirmText>
+            <ConfirmText>{t('weeklyReview.modal.saved', { defaultValue: '보고서가 저장됐어요. 나의 업무보고에서 볼 수 있어요.' }) as string}</ConfirmText>
           </ConfirmBody>
-        ) : showOverwriteConfirm ? (
-          <>
-            <ConfirmBody>
-              <ConfirmText>{t('weeklyReview.modal.alreadyExists', '이번 주 결산이 이미 있어요. 지금 시점으로 덮어쓸까요?')}</ConfirmText>
-              {error && <ErrorMsg>{error}</ErrorMsg>}
-            </ConfirmBody>
-            <DrawerFooter align="right" size="sm">
-              <ActionButton tone="secondary" size="sm" onClick={() => { setShowOverwriteConfirm(false); setError(null); }} disabled={saving}>
-                {t('common.cancel', '취소') as string}
-              </ActionButton>
-              <ActionButton tone="primary" size="sm" loading={saving} onClick={() => handleSave(true)}>
-                {t('weeklyReview.modal.overwrite', '덮어쓰기') as string}
-              </ActionButton>
-            </DrawerFooter>
-          </>
         ) : (
           <>
             <Body>
+              {/* 이미 쓴 보고서가 있으면 **그 사실과 다음 행동**을 먼저 말한다. 아래 메모칸에는 그 내용이
+                  이미 채워져 있다(위 useEffect) — 사용자는 이어서 고치면 된다. */}
+              {existingReview && (
+                <ExistingBar>
+                  <span>{t('weeklyReview.modal.existing', { defaultValue: '이번 주 보고서가 이미 있어요. 내용을 불러왔습니다.' }) as string}</span>
+                  <LinkBtn type="button" data-testid="weekly-review-open" onClick={() => onSaved(existingReview)}>
+                    {t('weeklyReview.modal.openReport', { defaultValue: '보고서 보기' }) as string}
+                  </LinkBtn>
+                </ExistingBar>
+              )}
               <NoteLabel>{t('weeklyReview.modal.noteLabel', '한 주 메모')}:</NoteLabel>
               <NoteInput
                 value={retroNote}
@@ -139,7 +151,9 @@ const WeeklyReviewModal: React.FC<Props> = ({ businessId, wsTz, onClose, onSaved
                 {t('weeklyReview.modal.cancel', '취소') as string}
               </ActionButton>
               <ActionButton tone="primary" size="sm" loading={saving} onClick={() => handleSave()}>
-                {t('weeklyReview.modal.save', '저장') as string}
+                {existingReview
+                  ? (t('weeklyReview.modal.editReport', { defaultValue: '보고서 수정' }) as string)
+                  : (t('weeklyReview.modal.writeReport', { defaultValue: '보고서 작성' }) as string)}
               </ActionButton>
             </DrawerFooter>
           </>
@@ -152,6 +166,17 @@ const WeeklyReviewModal: React.FC<Props> = ({ businessId, wsTz, onClose, onSaved
 export default WeeklyReviewModal;
 
 // ─── Styles ───
+const ExistingBar = styled.div`
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  margin-bottom:10px; padding:8px 10px; border-radius:8px;
+  background:#F0FDFA; border:1px solid #99F6E4;
+  font-size:12px; color:#0F766E; line-height:1.5;
+`;
+const LinkBtn = styled.button`
+  margin-left:auto; padding:0; background:none; border:none; cursor:pointer;
+  font-size:12px; font-weight:700; color:#0F766E; text-decoration:underline; font-family:inherit;
+  &:hover { color:#0D9488; }
+`;
 const Overlay = styled.div`
   position: fixed;
   inset: 0;

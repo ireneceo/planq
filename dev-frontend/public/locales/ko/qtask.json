@@ -674,7 +674,12 @@
       "save": "저장",
       "cancel": "취소",
       "alreadyExists": "이번 주 결산이 이미 있어요. 지금 시점으로 덮어쓸까요?",
-      "overwrite": "덮어쓰기"
+      "overwrite": "덮어쓰기",
+      "existing": "이번 주 보고서가 이미 있어요. 내용을 불러왔습니다.",
+      "openReport": "보고서 보기",
+      "editReport": "보고서 수정",
+      "writeReport": "보고서 작성",
+      "saved": "보고서가 저장됐어요. 나의 업무보고에서 볼 수 있어요."
     },
     "tab": {
       "empty": "아직 저장된 결산이 없습니다",

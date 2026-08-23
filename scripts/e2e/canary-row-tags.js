@@ -75,8 +75,10 @@ async function run() {
     const page = await browser.newPage();
     await page.setViewport({ width: 1400, height: 900 });
     await page.setCookie({ name: 'refresh_token', value: refresh, domain: new URL(FRONT).hostname, path: '/', httpOnly: true, secure: FRONT.startsWith('https') });
-    await page.goto(`${FRONT}/login`, { waitUntil: 'networkidle2', timeout: 30000 });
-    await new Promise((r) => setTimeout(r, 2500));
+    // ★ /login 을 먼저 열면 안 된다 — 세션 쿠키가 이미 있으면 LoginPage 의 effect 가 **/dashboard 로
+    //   navigate** 하고, 그 이동이 뒤따르는 goto 를 덮어써 검사가 엉뚱한 화면에서 돈다.
+    //   이 카나리가 단독 실행은 통과하고 연속 실행에서만 실패하던(flaky) 진짜 원인이 이것이다.
+    //   목적지로 바로 간다 — refresh 쿠키가 그 화면에서 세션을 복원한다. (2026-08-24 실측)
 
     results.push(await checkSurface(page, 'rowtags:메인 리스트 태그 버튼이 눌린다', '/tasks?tab=all'));
     await page.setViewport({ width: 520, height: 780 });
