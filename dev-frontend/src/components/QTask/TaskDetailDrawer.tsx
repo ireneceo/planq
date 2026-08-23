@@ -1162,22 +1162,6 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   </TitleEditIcon>}
                 </Title>
               )}
-              {/* Irene 2026-08-24 — "리스트에 표시처럼 매주 월·수·금, 평일 매일 등등 상세에 정확히
-                  제대로 안 보인다. 리스트처럼 제목 아래 상단에 표시하자."
-                  아래 반복 셀렉트는 규칙을 **고치는** 자리고, 여기는 지금 규칙이 무엇인지 **읽는** 자리다.
-                  화면이 표현 못 하는 규칙(BYDAY 다중 등)도 원문 그대로 문장으로 나온다. */}
-              {(detailTask.recurrence_rule || detailTask.recurrence_parent_id) && (
-                <TitleRecurRow>
-                  <RecurBadge title={detailTask.recurrence_rule
-                    ? (formatRRuleLabel(detailTask.recurrence_rule, detailTask.due_date, t as unknown as TFunction) as string)
-                    : (t('recur.instance', { defaultValue: '정기업무에서 자동 생성된 1회분' }) as string)}>
-                    <span aria-hidden="true">↻</span>
-                    {detailTask.recurrence_rule
-                      ? formatRRuleLabel(detailTask.recurrence_rule, detailTask.due_date, t as unknown as TFunction)
-                      : t('recur.instance', { defaultValue: '정기업무에서 자동 생성된 1회분' })}
-                  </RecurBadge>
-                </TitleRecurRow>
-              )}
               <Meta>
                 <StatusBadgeWrap>
                   {/* 단계 badge — owner/admin 만 직접 변경(드롭다운), 그 외는 읽기전용. 전이는 하단 워크플로 버튼으로. */}
@@ -1208,6 +1192,20 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                         );
                       })}
                     </StatusDropdown>
+                  )}
+                  {/* Irene 2026-08-24 — 반복 표시는 혼자 한 줄을 쓰지 않고 **단계 배지 다음**에 붙인다
+                      ("업무단계표시 진행대기, 진행중 같은 표시 다음에 나오게. 한 줄로 다 나올 수 있는데").
+                      아래 반복 셀렉트는 규칙을 **고치는** 자리고, 이 배지는 지금 규칙을 **읽는** 자리다.
+                      화면 프리셋이 표현 못 하는 규칙(BYDAY 다중 등)도 문장으로 그대로 나온다. */}
+                  {(detailTask.recurrence_rule || detailTask.recurrence_parent_id) && (
+                    <RecurBadge title={detailTask.recurrence_rule
+                      ? (formatRRuleLabel(detailTask.recurrence_rule, detailTask.due_date, t as unknown as TFunction) as string)
+                      : (t('recur.instance', { defaultValue: '정기업무에서 자동 생성된 1회분' }) as string)}>
+                      <span aria-hidden="true">↻</span>
+                      {detailTask.recurrence_rule
+                        ? formatRRuleLabel(detailTask.recurrence_rule, detailTask.due_date, t as unknown as TFunction)
+                        : t('recur.instance', { defaultValue: '정기업무에서 자동 생성된 1회분' })}
+                    </RecurBadge>
                   )}
                 </StatusBadgeWrap>
                 {detailTask.Project?.name && <ProjTag>{detailTask.Project.name}</ProjTag>}
@@ -2368,7 +2366,6 @@ const Title = styled.h3`font-size:19px;font-weight:700;color:#0F172A;margin:0 0 
   body[data-popout='1'] &{font-size:17px;margin-bottom:6px;}`;
 const TitleText = styled.span`flex:1;min-width:0;`;
 const TitleEditIcon = styled.span`display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;color:#94A3B8;opacity:0;transition:opacity 0.15s, background 0.12s;flex-shrink:0;`;
-const TitleRecurRow = styled.div`display:flex;align-items:center;gap:6px;margin:-2px 0 8px;`;
 const RecurBadge = styled.span`
   display:inline-flex;align-items:center;gap:4px;
   padding:2px 8px;border-radius:10px;
