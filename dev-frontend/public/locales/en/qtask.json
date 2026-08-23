@@ -1242,8 +1242,8 @@
     "emptyLineAdd": "Type above to add one right away.",
     "prioGap": "Priority {{nums}} isn’t in this list — those tasks are completed or on another tab. Numbers stay on the full set, so they don’t get renumbered.",
     "hideDoneFilter": "Hide completed ({{count}})",
-    "openBtn": "Pop out",
-    "openBtnHint": "Open my today/this-week tasks in a separate window"
+    "openBtn": "My tasks today",
+    "openBtnHint": "Open my today/this-week tasks in a separate window — pin it inside to keep it on top"
   },
   "tags": {
     "new": "New tag",

@@ -13,8 +13,8 @@ import { openPopout } from '../../utils/pinHost';
 
 const OpenTaskPopoutButton: React.FC<{ className?: string }> = ({ className }) => {
   const { t } = useTranslation('qtask');
-  const label = t('popout.openBtn', { defaultValue: '팝아웃' }) as string;
-  const hint = t('popout.openBtnHint', { defaultValue: '오늘·이번 주 내 업무를 별도 창으로 — 옆에 띄워 두고 씁니다' }) as string;
+  const label = t('popout.openBtn', { defaultValue: '오늘 내 업무' }) as string;
+  const hint = t('popout.openBtnHint', { defaultValue: '오늘·이번 주 내 업무를 별도 창으로 — 창 안의 핀을 누르면 항상 위로 고정됩니다' }) as string;
   return (
     <Btn type="button" className={className} data-testid="open-task-popout"
       onClick={() => openPopout('qtask')} title={hint} aria-label={hint}>

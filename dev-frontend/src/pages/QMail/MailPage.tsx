@@ -26,6 +26,7 @@ import ActionButton from '../../components/Common/ActionButton';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { uploadMyFile } from '../../services/files';
 import MailContextPanel from './MailContextPanel';
+import RecipientInput from './RecipientInput';
 import { useInlineCidImages } from './useInlineCidImages';
 import { displayName, type NameLocalizable } from '../../utils/displayName';
 import { useLocalDraft } from '../../hooks/useLocalDraft';
@@ -2075,7 +2076,14 @@ const MailPage: React.FC = () => {
                 )}
                 <ComposeField>
                   <ComposeLabel>{t('compose.to', { defaultValue: '받는 사람' }) as string}</ComposeLabel>
-                  <ComposeInput value={cTo} onChange={(e) => { markComposeTouched(); setCTo(e.target.value); }} placeholder="name@example.com" inputMode="email" />
+                  {/* 칩 입력 — 콤마·엔터로 하나씩 확정. 바깥 계약은 그대로 콤마 문자열이다
+                      (cTo 를 읽는 6곳이 전부 split 으로 쓴다 — 배열로 바꾸면 한 곳만 놓쳐도 주소가 사라진다) */}
+                  <RecipientInput
+                    data-testid="compose-to"
+                    value={cTo}
+                    onChange={(next) => { markComposeTouched(); setCTo(next); }}
+                    placeholder="name@example.com"
+                  />
                 </ComposeField>
                 <ComposeField>
                   <ComposeLabel>{t('compose.subject', { defaultValue: '제목' }) as string}</ComposeLabel>
