@@ -126,5 +126,37 @@
       "mine": "내 할일",
       "waiting": "대기 중"
     }
+  },
+  "review": {
+    "title": "오늘의 업무 리뷰",
+    "projects": "진행 프로젝트",
+    "todayTasks": "오늘 처리 필요",
+    "approvals": "승인 필요",
+    "dueSoon": "기한 임박",
+    "changes": "주요 변경",
+    "allClear": "오늘 새로 볼 것은 없어요",
+    "changesTitle": "주요 변경",
+    "noChanges": "어제 이후 바뀐 것이 없어요",
+    "focusTitle": "오늘 집중",
+    "noFocus": "오늘 마감이나 승인 대기가 없어요",
+    "kind": {
+      "task": "업무",
+      "email": "메일",
+      "chat": "채팅",
+      "event": "일정"
+    },
+    "ch": {
+      "task": "상태가 바뀌었어요",
+      "mailReply": "답장이 필요해요",
+      "mailCheck": "확인이 필요해요",
+      "chat": "새 메시지 {{count}}건",
+      "eventNew": "일정이 잡혔어요",
+      "eventChanged": "일정이 바뀌었어요"
+    },
+    "why": {
+      "approval": "승인 대기",
+      "overdue": "지연",
+      "dueToday": "오늘 마감"
+    }
   }
 }

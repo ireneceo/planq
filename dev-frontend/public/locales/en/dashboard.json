@@ -126,5 +126,37 @@
       "mine": "Mine",
       "waiting": "Waiting"
     }
+  },
+  "review": {
+    "title": "Today's review",
+    "projects": "Active projects",
+    "todayTasks": "Due today",
+    "approvals": "Needs approval",
+    "dueSoon": "Due soon",
+    "changes": "Changes",
+    "allClear": "Nothing new to review today",
+    "changesTitle": "What changed",
+    "noChanges": "Nothing changed since yesterday",
+    "focusTitle": "Focus today",
+    "noFocus": "No deadlines or approvals today",
+    "kind": {
+      "task": "Task",
+      "email": "Mail",
+      "chat": "Chat",
+      "event": "Event"
+    },
+    "ch": {
+      "task": "Status changed",
+      "mailReply": "Needs a reply",
+      "mailCheck": "Needs a look",
+      "chat": "{{count}} new messages",
+      "eventNew": "New event",
+      "eventChanged": "Event changed"
+    },
+    "why": {
+      "approval": "Awaiting approval",
+      "overdue": "Overdue",
+      "dueToday": "Due today"
+    }
   }
 }

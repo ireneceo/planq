@@ -449,6 +449,9 @@ app.use('/api/calendar', require('./routes/calendar'));
 // 통합 공유 시스템 alias — ShareModal 의 /api/calendar-events/:id/share 매칭
 app.use('/api/calendar-events', require('./routes/calendar'));
 app.use('/api/dashboard', require('./routes/dashboard'));
+// 오늘의 업무 리뷰(Context Center) — dashboard.js 가 이미 1,000줄대라 별도 파일로 둔다(god-file 래칫).
+//   같은 마운트 경로를 공유하므로 경로는 /api/dashboard/today-review 그대로다.
+app.use('/api/dashboard', require('./routes/today_review'));
 app.use('/api/files', require('./routes/files'));
 app.use('/api/export', require('./routes/export'));
 app.use('/api/folders', require('./routes/file_folders'));

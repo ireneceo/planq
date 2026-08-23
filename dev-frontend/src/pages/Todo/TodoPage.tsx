@@ -7,6 +7,7 @@ import AttendanceWidget from '../../components/Attendance/AttendanceWidget';
 import HelpDot from '../../components/Common/HelpDot';
 import InsightCards from '../../components/Common/InsightCards';
 import TodoList from '../../components/Dashboard/TodoList';
+import TodayReview from '../../components/Dashboard/TodayReview';
 import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
 import DailyStartModal from '../../components/Focus/DailyStartModal';
 import CandidateActionModal from '../../components/Focus/CandidateActionModal';
@@ -86,7 +87,10 @@ const TodoPage: React.FC = () => {
       .finally(() => { if (!opts?.silent) setLoading(false); });
   }, []);
 
-  const silentLoad = useCallback(() => load({ silent: true }), [load]);
+  // 오늘의 업무 리뷰도 같은 신호로 갱신한다 — 리스트만 새로 그리고 리뷰가 옛 숫자를 들고 있으면
+  //   같은 화면에서 두 숫자가 어긋난다(CLAUDE.md §16 실시간 반영).
+  const [reviewTick, setReviewTick] = useState(0);
+  const silentLoad = useCallback(() => { setReviewTick((v) => v + 1); return load({ silent: true }); }, [load]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -263,6 +267,9 @@ const TodoPage: React.FC = () => {
       {/* #208 — 모바일에서는 사이드바가 접히므로 출퇴근을 첫 화면 최상단에 둔다.
           앱 열기 → 1탭으로 출근이 목표라 데스크탑에서는 감춘다(사이드바 위젯과 중복). */}
       <MobileAttendance><AttendanceWidget variant="card" /></MobileAttendance>
+      {/* 오늘의 업무 리뷰 (Context Center) — Irene 2026-08-24.
+          아래 목록이 "행동" 이라면 이건 "맥락" 이다. 접힌 채로 시작하고, 접혀 있어도 요약 숫자는 보인다. */}
+      <TodayReview businessId={bizId} refreshKey={reviewTick} />
       {/* 카테고리 탭 — 전체 default + 업무·서명·청구 카운트 분리 */}
       {(() => {
         const items = data?.items || [];
