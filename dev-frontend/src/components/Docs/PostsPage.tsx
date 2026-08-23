@@ -201,6 +201,11 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   //   서버가 draft 를 L1 로 강제하고 broadcast·감사·stage 를 막으므로 남에게 새지 않는다.
   const [autoState, setAutoState] = useState<'idle' | 'saving' | 'saved' | 'error' | 'stale'>('idle');
   const [autoErr, setAutoErr] = useState<string | null>(null);
+  // ★ 2026-08-24 — 자동저장이 실패/충돌이면 leaveEditSession() 이 false 를 돌려 **이동을 막는다**.
+  //   그 자체는 옳다(저장 안 된 글을 잃지 않는다). 문제는 **아무 말도 안 한다**는 것이었다 —
+  //   문서를 클릭해도, 새 문서를 눌러도 반응이 없어 화면이 먹통으로 보인다(작은 배지에만 사유가 있다).
+  //   막힌 순간을 명시적으로 알린다.
+  const [leaveBlocked, setLeaveBlocked] = useState(false);
   const autoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoDirtyRef = useRef(false);
   const autoBusyRef = useRef(false);
@@ -790,11 +795,12 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     if (autoTimerRef.current) { clearTimeout(autoTimerRef.current); autoTimerRef.current = null; }
     if (autoDirtyRef.current && autoStateRef.current !== 'stale') {
       const r = await runAutosaveRef.current();
-      if (r === 'error' || r === 'stale') return false;   // 편집 화면 유지 — 배지에 사유가 떠 있다
+      if (r === 'error' || r === 'stale') { setLeaveBlocked(true); return false; }   // 편집 화면 유지 + 사유 노출
     }
     autoDirtyRef.current = false;
     autoDraftIdRef.current = null;
     editSnapshotRef.current = null;
+    setLeaveBlocked(false);
     setAutoState('idle');
     setAutoErr(null);
     // 편집 모드를 명시적으로 닫는다 — 같은 행 재클릭(activeId=null) 처럼 activeId effect 가
@@ -1450,6 +1456,11 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   {autoState === 'error' && `! ${t('autosave.failed', '임시저장 실패')}`}
                   {autoState === 'stale' && `! ${t('autosave.stale', '다른 사람이 수정함')}`}
                 </AutoSaveMark>
+                {leaveBlocked && (
+                  <LeaveBlockedNote role="alert">
+                    {t('autosave.leaveBlocked', '저장하지 못한 변경이 있어 이동하지 못했습니다. 저장하거나 취소해 주세요.')}
+                  </LeaveBlockedNote>
+                )}
                 <SecondaryBtn type="button" disabled={saving} onClick={cancelEdit}>{t('cancel', '취소')}</SecondaryBtn>
                 <PrimaryBtn type="button" disabled={saving || !titleDraft.trim()} onClick={submit}>
                   {saving ? t('saving', '저장 중…') : t('save', '저장')}
@@ -1608,6 +1619,14 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               <EditActions>
                 {/* N+72-7 — 30년차 UX 재구성. 공개=visibility, 공유=share (외부). 자주 안 쓰는 액션은 IconBtn + 툴팁. */}
                 {/* 공개 chip 은 헤더에서 제거 — 아래 MetaBar 로 단일화(중복 제거, Irene). 헤더는 제목+액션 전용. */}
+                {/* ★ 2026-08-24 (Irene: "편집을 할 수 없다") — 편집은 여기서 **가장 자주 쓰는 액션**인데
+                    아이콘만이라 눈에 띄지 않았다. 공유·서명 받기는 글자 버튼인데 편집만 아이콘이었다.
+                    글자 버튼으로 올리고 맨 앞에 둔다. */}
+                <EditBtn type="button" data-testid="post-edit" onClick={startEdit}
+                  title={t('edit', '편집') as string} aria-label={t('edit', '편집') as string}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  {t('edit', '편집')}
+                </EditBtn>
                 {/* Primary 액션 — 자주 쓰는 것 */}
                 <PrimaryBtn type="button" onClick={() => setShareOpen(true)} title={t('share.headerHint', '외부 사람과 공유 — 링크 / 이메일 / 만료') as string}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
@@ -1618,9 +1637,6 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   {t('sign.button', '서명 받기')}
                 </SignBtn>
                 {/* 3) IconBtn + 툴팁 — 가끔 쓰는 것 */}
-                <IconBtn type="button" onClick={startEdit} title={t('edit', '편집') as string} aria-label={t('edit', '편집') as string}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                </IconBtn>
                 <IconBtn type="button" onClick={() => sendToKnowledge(detail)} title={t('actions.sendToKnowledge', 'Q knowledge 로 보내기 — Cue 가 답변 시 참조') as string} aria-label={t('actions.sendToKnowledge', 'Q knowledge 로 보내기') as string} disabled={knowledgeBusy}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 6.253v13"/><path d="M12 6.253C10.832 5.477 9.246 5 7.5 5 5.754 5 4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253"/><path d="M12 6.253C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18s-3.332.477-4.5 1.253"/></svg>
                 </IconBtn>
@@ -2503,6 +2519,16 @@ const PrimaryBtn = styled.button`
   &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
+// 편집 — 문서 화면에서 가장 자주 쓰는 액션이라 글자 버튼(중립 톤). 공유(Primary teal)와 색으로 구분한다.
+const EditBtn = styled.button`
+  height: 32px; padding: 0 14px;
+  display: inline-flex; align-items: center; white-space: nowrap;
+  font-size: 13px; font-weight: 600; color: #334155;
+  background: #FFFFFF; border: 1px solid #CBD5E1; border-radius: 8px; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  &:hover:not(:disabled) { background: #F8FAFC; border-color: #94A3B8; color: #0F172A; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+`;
 const SignBtn = styled.button`
   height: 32px; padding: 0 14px;
   display: inline-flex; align-items: center; white-space: nowrap;
@@ -2511,6 +2537,12 @@ const SignBtn = styled.button`
   transition: background 0.15s, color 0.15s, transform 0.15s;
   &:hover:not(:disabled) { background: #14B8A6; color: #fff; transform: translateY(-1px); }
   &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
+`;
+const LeaveBlockedNote = styled.span`
+  display:inline-flex; align-items:center; max-width:340px;
+  padding:4px 10px; border-radius:8px;
+  font-size:12px; font-weight:600; line-height:1.4;
+  color:#B91C1C; background:#FEE2E2; border:1px solid #FCA5A5;
 `;
 const SecondaryBtn = styled.button`
   height: 32px; padding: 0 14px; background: #fff; color: #0F172A; white-space: nowrap;

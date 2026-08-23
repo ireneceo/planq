@@ -104,7 +104,14 @@ const Handle = styled.button<{ $open: boolean; $pulse: boolean; $side: 'left' | 
     : css`left: ${$open
         ? `calc(var(--pq-content-left, 0px) + ${$openDist})`
         : 'var(--pq-content-left, 0px)'}; border-radius: 0 6px 6px 0;`)}
-  z-index: 900;
+  /* ★ 2026-08-24 (Irene: "제발 모든 팝업과 우측패널이 세로 화살표보다 위로 올라오게 해")
+     이 핸들은 **페이지 층의 장치**다. 그 위에 뜨는 것(드로어·모달·우측 패널)은 전부 핸들을 덮어야 한다.
+     여태 900 이라 공용 프리미티브 DetailDrawer(125/130)·TaskDetailDrawer(125/130)·RightDock(119/120)
+     은 물론 모달 backdrop(100~300) 까지 전부 핸들 **아래**로 깔렸다 — 화살표가 패널 위에 떠 있었다.
+     오버레이 15곳을 각각 올리는 대신 핸들을 내린다: 한 줄이고, 앞으로 생길 오버레이도 자동으로 덮는다.
+     90 인 이유 — 앱 사이드바(100)·모바일 헤더(99)보다 낮아 그것들에도 가리고(모바일에서 나브가
+     오버레이로 덮을 때 정상), 페이지 본문(z-index 없음)보다는 위라 제 역할은 그대로다. */
+  z-index: 90;
   transition: right 0.28s cubic-bezier(0.22, 1, 0.36, 1),
               left 0.28s cubic-bezier(0.22, 1, 0.36, 1),
               background 0.15s ease,

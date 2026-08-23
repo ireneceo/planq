@@ -25,10 +25,14 @@ async function getRefreshCookie() {
 // 로그인 복원이 /dashboard 로 되돌릴 때가 있다 — 목적지에 닿을 때까지 다시 간다.
 async function goto(page, path) {
   const base = path.split('?')[0];
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 8; i++) {
     await page.goto(`${FRONT}${path}`, { waitUntil: 'networkidle2', timeout: 40000 });
-    await new Promise((r) => setTimeout(r, 5000));
-    // 세션 복원이 늦게 /dashboard 로 되돌리는 창이 있다 — 한 번 더 확인하고 재시도한다.
+    // 세션 복원이 **늦게** /dashboard 로 되돌리는 창이 있다. 도착 직후 한 번 보고 끝내면
+    //   되돌려지기 전 순간을 "도착" 으로 읽어 뒤 검사가 엉뚱한 화면에서 돈다.
+    //   그래서 5초 뒤에 다시 확인하고, 그때도 목적지면 도착으로 친다.
+    await new Promise((r) => setTimeout(r, 4000));
+    if (!page.url().includes(base)) continue;
+    await new Promise((r) => setTimeout(r, 3000));
     if (page.url().includes(base)) return true;
   }
   return false;
@@ -37,8 +41,12 @@ async function goto(page, path) {
 async function checkSurface(page, name, path) {
   const arrived = await goto(page, path);
   if (!arrived) return { name, fail: 1, details: [`${path} 에 도달 못함 (현재 ${page.url()})`] };
-  await page.waitForSelector('[data-testid^="task-tag-quick-"]', { timeout: 20000 }).catch(() => null);
-  const trig = await page.$('[data-testid^="task-tag-quick-"]');
+  // 목록 렌더가 느린 회차가 있다 — 버튼이 나타날 때까지 폴링(없으면 판정 제외로 떨어진다)
+  let trig = null;
+  for (let i = 0; i < 12 && !trig; i++) {
+    trig = await page.$('[data-testid^="task-tag-quick-"]');
+    if (!trig) await new Promise((r) => setTimeout(r, 2500));
+  }
   // 태그 편집 권한이 있는 행이 하나도 없으면 판정 제외(⚪ 대신 통과로 두되 사유를 남긴다)
   if (!trig) return { name, fail: 0, details: ['태그 버튼이 있는 행 없음 — 판정 제외'] };
 
