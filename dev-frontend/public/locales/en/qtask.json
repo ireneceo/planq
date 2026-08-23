@@ -1253,6 +1253,7 @@
     "quickPh": "Search or create a tag",
     "quickEmpty": "No tags yet. Type a name to create one.",
     "saveFailed": "Could not save tags",
-    "maxPerTask": "Up to {{count}} tags per task"
+    "maxPerTask": "Up to {{count}} tags per task",
+    "manageHint": "Rename · delete"
   }
 }

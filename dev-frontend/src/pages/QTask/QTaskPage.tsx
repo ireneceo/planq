@@ -1846,15 +1846,9 @@ const QTaskPage:React.FC=()=>{
             )}
             {/* #250 — 태그 사전 관리(이름 변경·삭제). 필터 옆에 두는 이유: 사용자가 태그 목록을
                 보는 바로 그 자리다. 생성은 업무 상세의 TagPicker 가 담당한다. */}
-            {/* Irene 2026-08-23 "추가하고 삭제하고 다 불편해" — 여태 태그가 0개면 이 버튼도 숨어서
-                사전에 첫 태그를 만들 진입로가 아예 없었다(업무 상세를 열어야만 만들 수 있었다).
-                필터는 고를 게 없으면 죽은 컨트롤이라 그대로 숨기고, 관리 버튼만 상시 노출한다. */}
-            {!isClient&&(
-              <TagManageBtn type="button" onClick={()=>setTagManageOpen(true)}
-                title={t('tags.manageTitle','태그 관리') as string}>
-                {t('tags.manageTitle','태그 관리')}
-              </TagManageBtn>
-            )}
+            {/* 헤더의 '태그 관리' 버튼은 제거했다 (Irene 2026-08-24) — 행의 + 메뉴 하단에서 연다.
+                + 는 "이 업무에 붙이기", 관리는 "사전 자체(이름 변경·삭제)" 로 하는 일이 다르지만
+                둘 다 태그 일이라 한 자리에 모으는 편이 헤더도 가볍고 찾기도 쉽다. */}
             {scope==='workspace'&&(
               <div style={{minWidth:160}}>
                 <PlanQSelect size="sm" isClearable maxMenuHeight={280}
@@ -2003,6 +1997,7 @@ const QTaskPage:React.FC=()=>{
                           allTags={task.tags}
                           editable={!isClient && canEditDatesFor(task)}
                           dict={tagDict}
+                          onManage={()=>setTagManageOpen(true)}
                           onSaved={(tags)=>setAllTasks(prev=>prev.map(x=>x.id===task.id?{...x,tags}:x))}
                           onDictAdd={(tag)=>setTagDict(prev=>prev.some(g=>g.id===tag.id)
                             ? prev
@@ -3398,7 +3393,6 @@ const ListScroll=styled.div`flex:1;overflow-y:auto;overflow-x:hidden;-webkit-ove
 const TableHScroll=styled.div`overflow-x:auto;overflow-y:visible;overscroll-behavior-x:contain;&::-webkit-scrollbar{height:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
 const BottomAddLink=styled.button`margin:10px 14px 20px;padding:6px 0;background:transparent;color:#94A3B8;border:none;font-size:13px;font-weight:500;cursor:pointer;text-align:left;display:block;font-family:inherit;&:hover{color:#0F766E;}`;
 // #250 태그 관리 진입 — FilterBar 안의 보조 버튼. 기존 FinalizeBtn 톤을 그대로(bespoke 금지).
-const TagManageBtn=styled.button`flex-shrink:0;height:30px;padding:0 10px;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;font-weight:600;color:#64748B;cursor:pointer;transition:background 0.15s, border-color 0.15s;&:hover{background:#F8FAFC;border-color:#CBD5E1;color:#0F172A;}`;
 const FilterBar=styled.div`display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid #F1F5F9;background:#FFF;flex-wrap:wrap;`;
 
 const ColRow=styled.div`display:flex;align-items:center;gap:6px;padding:6px 14px;border-bottom:1px solid #E2E8F0;background:#F8FAFC;position:sticky;top:0;z-index:1;min-width:520px;`;

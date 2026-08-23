@@ -1253,6 +1253,7 @@
     "quickPh": "태그 검색 · 새로 만들기",
     "quickEmpty": "아직 태그가 없습니다. 이름을 입력해 만들어 보세요.",
     "saveFailed": "태그를 저장하지 못했습니다",
-    "maxPerTask": "업무당 태그는 최대 {{count}}개입니다"
+    "maxPerTask": "업무당 태그는 최대 {{count}}개입니다",
+    "manageHint": "이름 변경 · 삭제"
   }
 }

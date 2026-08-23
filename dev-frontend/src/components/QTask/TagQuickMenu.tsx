@@ -28,11 +28,14 @@ interface Props {
   onSaved: (tags: TaskTagLite[]) => void;
   /** 새 태그가 사전에 추가됨 — 호출측 사전 갱신 */
   onDictAdd: (tag: TaskTagLite) => void;
+  /** 사전 관리(이름 변경·삭제) 열기. 주면 메뉴 하단에 진입 항목이 생긴다.
+   *  헤더의 '태그 관리' 버튼을 없애는 대신 여기로 모았다 — 태그 일은 한 곳에서 끝난다(Irene 2026-08-24). */
+  onManage?: () => void;
 }
 
 const MAX_TAGS_PER_TASK = 10;   // 백엔드 task_tags.js 와 같은 값
 
-const TagQuickMenu: React.FC<Props> = ({ taskId, bizId, dict, value, disabled, onSaved, onDictAdd }) => {
+const TagQuickMenu: React.FC<Props> = ({ taskId, bizId, dict, value, disabled, onSaved, onDictAdd, onManage }) => {
   const { t } = useTranslation('qtask');
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
@@ -163,6 +166,12 @@ const TagQuickMenu: React.FC<Props> = ({ taskId, bizId, dict, value, disabled, o
             )}
           </ScrollArea>
           {err && <ErrText role="alert">{err}</ErrText>}
+          {onManage && (
+            <ManageRow type="button" onClick={() => { setOpen(false); onManage(); }}>
+              {t('tags.manageTitle', '태그 관리')}
+              <ManageHint>{t('tags.manageHint', '이름 변경 · 삭제')}</ManageHint>
+            </ManageRow>
+          )}
         </Menu>,
         document.body,
       )}
@@ -225,6 +234,16 @@ const Name = styled.span`
 const Check = styled.svg`width: 12px; height: 12px; flex-shrink: 0;`;
 const Empty = styled.div`
   padding: 10px 8px; font-size: 11px; color: #94A3B8; line-height: 1.5;
+`;
+const ManageRow = styled.button`
+  display: flex; align-items: center; gap: 6px; width: 100%;
+  margin-top: 6px; padding: 7px 8px; min-height: 32px;
+  background: transparent; border: none; border-top: 1px solid #F1F5F9; border-radius: 0 0 6px 6px;
+  font-size: 12px; font-family: inherit; color: #475569; cursor: pointer; text-align: left;
+  &:hover { background: #F8FAFC; color: #0F172A; }
+`;
+const ManageHint = styled.span`
+  margin-left: auto; font-size: 11px; color: #94A3B8;
 `;
 const ErrText = styled.div`
   margin-top: 6px; font-size: 11px; color: #DC2626; line-height: 1.4;

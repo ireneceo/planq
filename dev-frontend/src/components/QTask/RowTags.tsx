@@ -25,9 +25,11 @@ interface Props {
   dict: TaskTagLite[];
   onSaved: (tags: TaskTagLite[]) => void;
   onDictAdd: (tag: TaskTagLite) => void;
+  /** 사전 관리 열기 — 헤더 버튼 대신 메뉴 안에서 연다 */
+  onManage?: () => void;
 }
 
-const RowTags: React.FC<Props> = ({ taskId, bizId, shownTags, allTags, max, editable, dict, onSaved, onDictAdd }) => (
+const RowTags: React.FC<Props> = ({ taskId, bizId, shownTags, allTags, max, editable, dict, onSaved, onDictAdd, onManage }) => (
   <>
     <TagChips tags={shownTags} max={max} />
     {editable && (
@@ -38,6 +40,7 @@ const RowTags: React.FC<Props> = ({ taskId, bizId, shownTags, allTags, max, edit
         value={allTags || []}
         onSaved={onSaved}
         onDictAdd={onDictAdd}
+        onManage={onManage}
       />
     )}
   </>
