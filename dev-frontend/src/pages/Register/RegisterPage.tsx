@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { startAuthRedirect } from '../../services/oauth';
+import GoogleAuthButton from '../../components/Auth/GoogleAuthButton';
 import styled from 'styled-components';
 import { useAuth } from '../../contexts/AuthContext';
 import { mapApiError } from '../../utils/apiError';
@@ -468,6 +470,17 @@ const RegisterPage: React.FC = () => {
               {isLoading ? t('register.submitting') : t('register.submit')}
             </Button>
           </Form>
+
+          {/* Irene 2026-08-24 — 회원가입 화면에도 구글. 백엔드 callback 3분기 중 "둘 다 없음" 이
+              **신규 가입**(사용자 + 워크스페이스 + Cue + 14일 trial + 약관 동의 기록)이라
+              같은 버튼 하나로 가입까지 끝난다. 여태 로그인 화면에만 있어서 그 경로를 찾을 수 없었다.
+              ★ 약관 동의 체크와 무관하게 노출한다 — 구글 가입 경로는 백엔드가 동의 시점을 기록하고,
+                동의 화면 전에 버튼을 잠그면 "왜 안 눌리지" 가 된다. */}
+          <GoogleAuthButton
+            onStart={startAuthRedirect}
+            disabled={isLoading}
+            dividerLabel={t('register.or', { defaultValue: '또는' }) as string}
+          />
 
           <Divider />
 
