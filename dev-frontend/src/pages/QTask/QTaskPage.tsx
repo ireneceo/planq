@@ -2788,15 +2788,19 @@ const QTaskPage:React.FC=()=>{
                             <CapSep>/</CapSep>
                             <CapTotal>{formatHours(effectiveCapacity)}h</CapTotal>
                           </CapBigNum>
-                          <CapPctChip style={{background: '#F0FDFA', color: '#0F766E'}}>{donePct}%</CapPctChip>
                           {planIsOver && (
                             <CapOverChip>
                               {t('capacity.overBy', { h: formatHours(planOver), defaultValue: '{{h}}h 초과' })}
                             </CapOverChip>
                           )}
                         </CapHeadline>
-                        {/* 계획 100% 안에서 진척이 차오른다 — 빈 부분이 곧 남은 예상시간 */}
-                        <CapBar><CapBarFill style={{background: '#14B8A6', width: `${donePct}%`}}/></CapBar>
+                        {/* 계획 100% 안에서 진척이 차오른다 — 빈 부분이 곧 남은 예상시간.
+                            % 는 헤드라인이 아니라 **바 바로 옆**에 둔다 — 무엇의 퍼센트인지가 붙어 있어야 읽힌다
+                            (Irene 2026-08-24: "%표시가 그래프에 있어야 하는데 이상한 위치에 있어서 이상해"). */}
+                        <CapBarRow>
+                          <CapBar><CapBarFill style={{background: '#14B8A6', width: `${donePct}%`}}/></CapBar>
+                          <CapBarPct>{donePct}%</CapBarPct>
+                        </CapBarRow>
                         <CapRemainingRow>
                           <CapRemainingLabel>{t('capacity.remainingEst', '남은 예상시간')}</CapRemainingLabel>
                           <CapRemainingValue style={{color: color.text}}>{formatHours(remainingTotal)}h</CapRemainingValue>
@@ -3722,8 +3726,9 @@ const CapTinyLabel=styled.span`font-size:11px;color:#94A3B8;font-weight:600;`;
 const CapUsed=styled.span`font-size:24px;font-weight:800;letter-spacing:-0.4px;`;
 const CapSep=styled.span`font-size:18px;color:#CBD5E1;font-weight:600;`;
 const CapTotal=styled.span`font-size:15px;color:#64748B;font-weight:600;`;
-const CapPctChip=styled.span`padding:3px 10px;font-size:11px;font-weight:700;border-radius:999px;`;
-const CapBar=styled.div`height:8px;background:#F1F5F9;border-radius:4px;overflow:hidden;`;
+const CapBarRow=styled.div`display:flex;align-items:center;gap:8px;`;
+const CapBar=styled.div`flex:1;min-width:0;height:8px;background:#F1F5F9;border-radius:4px;overflow:hidden;`;
+const CapBarPct=styled.span`flex-shrink:0;font-size:11px;font-weight:700;color:#0F766E;min-width:30px;text-align:right;`;
 const CapBarFill=styled.div`height:100%;border-radius:4px;transition:width 0.25s ease,background 0.15s;`;
 const CapOverChip=styled.span`
   flex-shrink:0;padding:2px 8px;border-radius:10px;
