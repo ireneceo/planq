@@ -1901,13 +1901,13 @@ const QTaskPage:React.FC=()=>{
           <TableHScroll>
           <ColRow>
             {(tab==='week'||tab==='today') && <Col $w="30px" $center onClick={()=>handleSort('priority_order')} data-tour="qtask-priority" title={t('tab.priorityWeeklyHint','주간 우선순위 번호 — 오늘 탭에서는 번호가 건너뛸 수 있어요') as string}>#{sortIcon('priority_order')}</Col>}
-            <Col $w="80px" $hideBelow={640} onClick={()=>handleSort('title')}>{t('col.project','Project')}</Col>
+            <Col $w="64px" $hideBelow={640} onClick={()=>handleSort('title')}>{t('col.project','Project')}</Col>
             <Col $flex onClick={()=>handleSort('title')}>{t('col.task','Task')} {sortIcon('title')}</Col>
             {scope==='workspace' && <Col $w="90px" $hideBelow={768}>{t('col.assignee','담당자')}</Col>}
             <Col $w="68px" $center onClick={()=>handleSort('status')}>{t('col.status','Status')} {sortIcon('status')}</Col>
             <Col $w="62px" $center $hideBelow={900} onClick={()=>handleSort('estimated_hours')}>{t('col.est','Est(h)')} {sortIcon('estimated_hours')}</Col>
             <Col $w="62px" $center $hideBelow={900} onClick={()=>handleSort('actual_hours')}>{t('col.act','Act(h)')} {sortIcon('actual_hours')}</Col>
-            <Col $w="130px" $center $hideBelow={1024} $compactBelow={1280} $wCompact="52px" onClick={()=>handleSort('progress_percent')}>{t('col.progress','Progress')} {sortIcon('progress_percent')}</Col>
+            <Col $w="96px" $center $hideBelow={1024} $compactBelow={1280} $wCompact="46px" onClick={()=>handleSort('progress_percent')}>{t('col.progress','Progress')} {sortIcon('progress_percent')}</Col>
             <Col $w="100px" $center onClick={()=>handleSort('due_date')}>{t('col.dates','기간')} {sortIcon('due_date')}</Col>
           </ColRow>
 
@@ -2010,14 +2010,15 @@ const QTaskPage:React.FC=()=>{
                           </CarriedBadge>
                         )}
                         {task.recurrence_rule && (
-                          <RecurChip title={formatRRuleLabel(task.recurrence_rule, task.due_date, t, { short: true })}>
-                            {/* "반복 ·" 접두 제거 — "매주 토" 자체로 반복 의미 충분 (Slack/Notion 패턴) */}
+                          /* Irene 2026-08-24 — 리스트에서는 **아이콘만**. "평일 매일"·"매주 월·수·금" 같은
+                             문구가 제목 줄을 밀어 반복 표시가 통째로 아래 줄로 떨어졌다. 규칙 전문은
+                             hover(title)와 업무 상세에서 본다. */
+                          <RecurChip $iconOnly title={formatRRuleLabel(task.recurrence_rule, task.due_date, t, { short: false })}>
                             <RecurIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                               <polyline points="23 4 23 10 17 10"/>
                               <polyline points="1 20 1 14 7 14"/>
                               <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
                             </RecurIcon>
-                            {formatRRuleLabel(task.recurrence_rule, task.due_date, t, { short: true })}
                           </RecurChip>
                         )}
                         {(() => {
@@ -2178,7 +2179,7 @@ const QTaskPage:React.FC=()=>{
                         </TCell>
                       </>);
                     })()}
-                    <TCell $w="130px" $hideBelow={1024} $compactBelow={1280} $wCompact="52px">
+                    <TCell $w="96px" $hideBelow={1024} $compactBelow={1280} $wCompact="46px">
                       {(() => {
                         const progEditable = task.assignee_id===myId;
                         return (
@@ -3551,14 +3552,16 @@ const NumInput=styled.input<{$ai?:boolean}>`
 `;
 
 const SliderWrap=styled.div<{$disabled?:boolean}>`
-  display:flex;align-items:center;gap:6px;width:100%;position:relative;
+  /* gap 6→3: 그래프와 % 를 더 붙여 폭을 줄인다 (Irene 2026-08-24) */
+  display:flex;align-items:center;gap:3px;width:100%;position:relative;
   ${p=>p.$disabled && `opacity:0.5;cursor:not-allowed;`}
 `;
 // #78 — 좁은 화면(≤1280px)에선 가로 라인그래프·슬라이더 숨기고 % 만 남겨 업무명 공간 확보
 const SliderTrack=styled.div`flex:1;height:6px;background:#F1F5F9;border-radius:3px;overflow:hidden;@media (max-width:1280px){display:none;}`;
 const SliderFill=styled.div<{$w:number;$color:string}>`height:100%;width:${p=>p.$w}%;background:${p=>p.$color};border-radius:3px;`;
-const SliderRange=styled.input`position:absolute;left:0;top:-4px;width:calc(100% - 40px);height:18px;opacity:0;cursor:pointer;&:disabled{cursor:not-allowed;}@media (max-width:1280px){display:none;}`;
-const SliderPct=styled.span`font-size:12px;font-weight:700;color:#475569;min-width:32px;text-align:right;@media (max-width:1280px){min-width:0;width:100%;text-align:center;}`;
+const SliderRange=styled.input`position:absolute;left:0;top:-4px;width:calc(100% - 29px);height:18px;opacity:0;cursor:pointer;&:disabled{cursor:not-allowed;}@media (max-width:1280px){display:none;}`;
+// % 는 입력 필드가 아니라 표시값이라 작게 — 남는 폭은 업무명·담당자로 간다 (Irene 2026-08-24)
+const SliderPct=styled.span`font-size:11px;font-weight:700;color:#475569;min-width:26px;text-align:right;@media (max-width:1280px){min-width:0;width:100%;text-align:center;}`;
 
 const DateTrigger=styled.button<{$color?:string;$empty?:boolean}>`
   width:100%;padding:4px 6px;font-size:12px;font-weight:600;
@@ -3604,7 +3607,7 @@ const RecurToggleLabel=styled.label`display:inline-flex;align-items:center;gap:8
 const RecurHint=styled.span`font-size:12px;color:#94A3B8;margin-left:6px;`;
 const RecurOptions=styled.div`display:flex;gap:8px;flex-wrap:wrap;align-items:center;`;
 const RecurEndBox=styled.div`display:inline-flex;gap:6px;align-items:center;`;
-const RecurChip=styled.span`display:inline-flex;align-items:center;gap:4px;padding:2px 8px;font-size:11px;font-weight:600;color:#0F766E;background:#CCFBF1;border-radius:10px;line-height:1.5;`;
+const RecurChip=styled.span<{$iconOnly?:boolean}>`display:inline-flex;align-items:center;gap:4px;padding:${p=>p.$iconOnly?'2px 4px':'2px 8px'};font-size:11px;font-weight:600;color:#0F766E;background:#CCFBF1;border-radius:10px;line-height:1.5;flex-shrink:0;`;
 // 반복 아이콘 — "매주 토" 라벨 앞 (텍스트 "반복" 대신 회전 화살표 아이콘)
 const RecurIcon=styled.svg`width:11px;height:11px;flex-shrink:0;`;
 // Custom recurrence modal

@@ -27,6 +27,7 @@ import AutoSaveField from '../Common/AutoSaveField';
 import { StatusGlyph } from '../Common/Icons';
 import {
   buildPresetRRule, buildCustomRRule, parseRRule, presetLabelMap, SELECTABLE_PRESETS,
+  formatRRuleLabel,
   type RecurPreset, type RecurEndType, type RecurCustomUnit,
 } from '../../utils/recurrence';
 import type { TFunction } from 'i18next';
@@ -1161,6 +1162,22 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   </TitleEditIcon>}
                 </Title>
               )}
+              {/* Irene 2026-08-24 — "리스트에 표시처럼 매주 월·수·금, 평일 매일 등등 상세에 정확히
+                  제대로 안 보인다. 리스트처럼 제목 아래 상단에 표시하자."
+                  아래 반복 셀렉트는 규칙을 **고치는** 자리고, 여기는 지금 규칙이 무엇인지 **읽는** 자리다.
+                  화면이 표현 못 하는 규칙(BYDAY 다중 등)도 원문 그대로 문장으로 나온다. */}
+              {(detailTask.recurrence_rule || detailTask.recurrence_parent_id) && (
+                <TitleRecurRow>
+                  <RecurBadge title={detailTask.recurrence_rule
+                    ? (formatRRuleLabel(detailTask.recurrence_rule, detailTask.due_date, t as unknown as TFunction) as string)
+                    : (t('recur.instance', { defaultValue: '정기업무에서 자동 생성된 1회분' }) as string)}>
+                    <span aria-hidden="true">↻</span>
+                    {detailTask.recurrence_rule
+                      ? formatRRuleLabel(detailTask.recurrence_rule, detailTask.due_date, t as unknown as TFunction)
+                      : t('recur.instance', { defaultValue: '정기업무에서 자동 생성된 1회분' })}
+                  </RecurBadge>
+                </TitleRecurRow>
+              )}
               <Meta>
                 <StatusBadgeWrap>
                   {/* 단계 badge — owner/admin 만 직접 변경(드롭다운), 그 외는 읽기전용. 전이는 하단 워크플로 버튼으로. */}
@@ -1561,7 +1578,14 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     <MetaRecurOptions>
                       <PlanQSelect size="sm"
                         isDisabled={!canEditRecurrence}
-                        value={{ value: recurPreset, label: presetLabels[recurPreset] }}
+                        /* advanced/custom 은 화면 옵션에 없는 규칙이라 generic 라벨('사용자 지정 규칙')만
+                           나와 "선택된 게 표시가 안 된다" 로 읽혔다 — 실제 규칙 문장을 그대로 보여준다. */
+                        value={{
+                          value: recurPreset,
+                          label: (recurPreset === 'advanced' || recurPreset === 'custom') && detailTask.recurrence_rule
+                            ? (formatRRuleLabel(detailTask.recurrence_rule, detailTask.due_date, t as unknown as TFunction) as string)
+                            : presetLabels[recurPreset],
+                        }}
                         onChange={(v) => {
                           if (!canEditRecurrence) return;
                           const p = (v as { value?: string })?.value as RecurPreset | undefined;
@@ -1611,13 +1635,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                           width={140}
                         />
                       )}
-                    </MetaRecurOptions>
-                  );
-                })()}
-              {/* #349 — 못 한 회차를 어떻게 할지. 루틴은 원래 "그날 안 하면 넘어가는" 성격인데,
-                  안 한 회차가 남아 지연으로 쌓이면 프로젝트가 상시 경고 상태가 된다. 기본은 종전대로 남긴다. */}
-              {recurEnabled && detailTask.due_date && (
-                <MetaRecurOptions>
+                      {/* #349 — 못 한 회차를 어떻게 할지. 루틴은 원래 "그날 안 하면 넘어가는" 성격인데,
+                          안 한 회차가 남아 지연으로 쌓이면 프로젝트가 상시 경고 상태가 된다. 기본은 종전대로 남긴다.
+                          ★ 별도 줄이 아니라 **같은 행**에 둔다 — 세 셀렉트가 한 이야기(반복 규칙)라
+                            줄을 나누면 우측 패널 폭에서 2열로 갈라져 읽기 나빠진다(Irene 2026-08-24). */}
                   {(() => {
                     const missOpts = [
                       { value: 'carry', label: t('recur.missCarry', '못 한 회차는 그대로 남기기') as string },
@@ -1635,8 +1656,9 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                         options={missOpts} />
                     );
                   })()}
-                </MetaRecurOptions>
-              )}
+                    </MetaRecurOptions>
+                  );
+                })()}
               </MetaRecurRow>
               )}
             </Section>
@@ -2346,6 +2368,13 @@ const Title = styled.h3`font-size:19px;font-weight:700;color:#0F172A;margin:0 0 
   body[data-popout='1'] &{font-size:17px;margin-bottom:6px;}`;
 const TitleText = styled.span`flex:1;min-width:0;`;
 const TitleEditIcon = styled.span`display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;color:#94A3B8;opacity:0;transition:opacity 0.15s, background 0.12s;flex-shrink:0;`;
+const TitleRecurRow = styled.div`display:flex;align-items:center;gap:6px;margin:-2px 0 8px;`;
+const RecurBadge = styled.span`
+  display:inline-flex;align-items:center;gap:4px;
+  padding:2px 8px;border-radius:10px;
+  font-size:11px;font-weight:600;color:#0F766E;background:#CCFBF1;
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+`;
 const TitleInput = styled.input`font-size:19px;font-weight:700;color:#0F172A;line-height:1.35;width:100%;padding:4px 8px;margin-left:-6px;margin-bottom:8px;border:1px solid #14B8A6;border-radius:6px;background:#FFF;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
 const Meta = styled.div`display:flex;align-items:center;gap:6px;font-size:11px;color:#64748B;flex-wrap:wrap;`;
 const MetaDate = styled.span`font-size:11px;color:#94A3B8;white-space:nowrap;`;
