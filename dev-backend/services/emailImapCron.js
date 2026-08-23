@@ -355,11 +355,6 @@ async function buildImapConfig(account, { onIdle = false } = {}) {
 }
 
 async function syncOne(account, opts = {}) {
-  // #371 — 이번 회차에 건너뛴 자기발신 알림 수.
-  //   ★ try 안에서 선언하면 아래 finally **바깥**의 로그 지점에서 ReferenceError 가 난다
-  //     (let 은 블록 스코프다). 그 예외는 메일을 다 저장한 뒤 마지막에 터져서
-  //     "동기화가 실패했다" 로만 보이고 원인은 안 보였다 — 운영 실측 16회. 함수 스코프에 둔다.
-  let skippedSelfNotice = 0;
   const imapConfig = await buildImapConfig(account);
 
   const conn = await imaps.connect({ imap: imapConfig });
@@ -449,18 +444,13 @@ async function syncOne(account, opts = {}) {
         //     삼킨다(help@ 는 실제 고객 응대 주소다). 자동발송 헤더는 우리가 붙인 것이라 위조 위험이 없다.
         //   ★ 되돌리려면 QMAIL_KEEP_SELF_NOTICE=1 만 켜면 된다 — 배포 없이 수집을 되살릴 수 있게.
         //     ("알림도 메일함에서 보고 싶다" 는 요구가 나오면 그때 이 스위치로 즉시 복구)
-        const selfFrom = String(process.env.SMTP_FROM || '').toLowerCase().trim();
-        if (selfFrom && fromEmail === selfFrom && process.env.QMAIL_KEEP_SELF_NOTICE !== '1') {
-          const autoHdr = String(
-            (parsed.headers && (parsed.headers.get ? parsed.headers.get('auto-submitted') : parsed.headers['auto-submitted'])) || ''
-          ).toLowerCase();
-          if (autoHdr && autoHdr !== 'no') {
-            skippedSelfNotice += 1;
-            maxUid = Math.max(maxUid, uid);
-            continue;   // 저장하지 않는다 — 첨부(로고) File 도 따라서 생기지 않는다
-          }
-        }
-
+        // ★ 2026-08-24 (Irene 신고: "내 아이디로 이 이메일이 발송되었는데 플랜큐 메일엔 안 나오고
+        //   다른 메일 솔루션들에 나와") — 여기서 **자기발신 알림을 통째로 버리던 분기를 제거했다.**
+        //   #371 의 목적은 "답변 필요" 가 우리 알림으로 오염되는 것을 막는 것이었는데, 그 목적은
+        //   triage 가 이미 달성한다 — `auto-submitted` 헤더가 있으면 emailTriage 가 automated 로
+        //   분류하고 automated 는 reply_needed 를 켜지 않는다. 저장까지 막을 이유가 없었다.
+        //   버리면 사용자는 **다른 메일 클라이언트에는 있는 메일이 PlanQ 에만 없는** 상태를 본다.
+        //   (로고 첨부가 File 로 쌓이는 문제는 별개 가드 `isPlatformLogo` 가 이미 막는다 — 248행)
         // thread 매칭
         const { thread, isNew } = await findOrCreateThread({
           businessId: account.business_id,
@@ -659,9 +649,6 @@ async function syncOne(account, opts = {}) {
 
   // #371 — 건너뛴 수를 남긴다. 안 남기면 "정말 걸러지고 있는가" 를 확인할 방법이 로그에 없다
   //   (조용히 도는 필터는 나중에 죽어도 아무도 모른다).
-  if (skippedSelfNotice > 0) {
-    console.log(`[emailImapCron] account #${account.id} — 자기발신 알림 ${skippedSelfNotice}건 수집 건너뜀 (#371)`);
-  }
 
   return newCount;
 }
