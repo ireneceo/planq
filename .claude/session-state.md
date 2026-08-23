@@ -30,6 +30,16 @@
 5. **#375** 외부컨펌 걸면 내 업무에서 사라짐
 6. **시간대 규약 전면 적용 + 가드** (오늘 세 건이 같은 뿌리)
 
+### 📱 iOS 네이티브 앱 (오늘은 착수 안 함 — Irene 지시 2026-08-24)
+- **Apple Developer $99 결제·등록 완료** (다시 묻지 말 것)
+- **서버 추가 없음** — Capacitor Remote URL(`server.url = planq.kr`). 운영서버 하나 그대로, 웹 코드 변경 0.
+  Irene 아이맥은 **빌드 도구**(리눅스에서 `.ipa` 불가)
+- 착수 시 순서: ①앱에서 결제 진입 숨기기(3.1.1 리젝 방지, `isNativeApp()` 분기 이미 있음)
+  ②Irene 이 APNs `.p8` 발급 → 파일 전달 ③운영 `.env` `APNS_*` 반영·발송 검증 ④Xcode 빌드·제출
+- **A안 확정**: 앱에서는 결제 UI 숨김, 결제는 웹. **승인 후 다시 열면 안 된다**(재심사·제거 대상).
+  외부 결제 유도 링크·문구도 3.1.1 대상 — 안내 링크조차 두지 않는다
+- 절차: `docs/APPSTORE_SUBMISSION_PREP.md` · 배경: memory `project_native_app_capacitor_plan`
+
 ### Irene 조치 대기
 - **Google Drive 재연동** (`invalid_grant` — 첨부 열기·업로드 실패 중)
 - Project Brief MVP 승인 여부 / Fable 예산 회복 시 소급 게이트
