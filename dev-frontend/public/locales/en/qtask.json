@@ -173,7 +173,8 @@
     "planCap": "Planned {{plan}}h / capacity {{cap}}h · {{rem}}h left",
     "planCapOver": "Planned {{plan}}h / capacity {{cap}}h · {{rem}}h left · {{over}}h over",
     "planCap2": "Planned {{plan}}h / capacity {{cap}}h",
-    "planCapOver2": "Planned {{plan}}h / capacity {{cap}}h · {{over}}h over"
+    "planCapOver2": "Planned {{plan}}h / capacity {{cap}}h · {{over}}h over",
+    "taskReqCount": "{{n}} tasks, {{r}} requests"
   },
   "col": {
     "project": "Project",
@@ -1243,7 +1244,8 @@
     "prioGap": "Priority {{nums}} isn’t in this list — those tasks are completed or on another tab. Numbers stay on the full set, so they don’t get renumbered.",
     "hideDoneFilter": "Hide completed ({{count}})",
     "openBtn": "My tasks today",
-    "openBtnHint": "Open my today/this-week tasks in a separate window — pin it inside to keep it on top"
+    "openBtnHint": "Open my today/this-week tasks in a separate window — pin it inside to keep it on top",
+    "countSummary": "{{n}} tasks, {{r}} requests"
   },
   "tags": {
     "new": "New tag",

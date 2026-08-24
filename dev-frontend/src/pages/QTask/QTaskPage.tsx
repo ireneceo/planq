@@ -1415,8 +1415,15 @@ const QTaskPage:React.FC=()=>{
         }
       }
     }
+    // ★ 2026-08-24 (Irene) — "업무 00건, 요청 00건" 으로 표시.
+    //   업무 = 담당자가 나 / 요청 = 담당자가 내가 아닌데 목록에 있는 것(= 내가 컨펌해야 할 확인 요청.
+    //   utils/todayTaskSet ⑦ 분기가 그것만 끌어온다). 둘의 합이 화면에 보이는 행 수와 같아야
+    //   "리스트는 13개인데 헤더는 10건" 같은 어긋남이 생기지 않는다.
+    const mineCount = filtered.filter(t=>t.assignee_id===myId).length;
+    const reqCount = filtered.length - mineCount;
     return {
       count: filtered.length,
+      mineCount, reqCount,
       myEst: Math.round(est*10)/10,
       reqEst: 0,
       est: Math.round(est*10)/10,
@@ -1925,6 +1932,14 @@ const QTaskPage:React.FC=()=>{
             {tab!=='week' && tab!=='today' && <HideCheck><input type="checkbox" checked={hideCompleted} onChange={e=>setHideCompleted(e.target.checked)} />{t('filter.hideCompleted','Hide completed')}</HideCheck>}
             {(tab==='week'||tab==='today') && <HideCheck><input type="checkbox" checked={hideCompletedInWeek} onChange={e=>setHideCompletedInWeek(e.target.checked)} />{t('filter.hideCompleted','Hide completed')}</HideCheck>}
             <ChipRow>
+              {/* ★ 2026-08-24 (Irene) — 오늘 탭은 건수만. 계획/가용/초과는 **주간 개념**이라
+                  (loadBreakdown.plan = 주간 Σ예측, effectiveCapacity = 1일×영업일) 오늘 탭에 붙으면
+                  "오늘의 가용" 으로 읽혀 거짓말이 된다. 이번 주 탭은 종전 그대로 둔다(동결 영역). */}
+              {tab==='today' ? (
+                <Chip data-testid="qtask-today-count">
+                  {t('summary.taskReqCount', { n: summary.mineCount, r: summary.reqCount, defaultValue: '업무 {{n}}건, 요청 {{r}}건' })}
+                </Chip>
+              ) : (<>
               <Chip>{summary.count}{t('summary.unit','개')}</Chip>
               <Chip $teal={!isOverCap} $warn={isOverCap}
                 title={(isOverCap
@@ -1937,6 +1952,7 @@ const QTaskPage:React.FC=()=>{
                     : t('summary.planCap2', { plan: formatHours(loadBreakdown.plan), cap: formatHours(effectiveCapacity), defaultValue: '계획 {{plan}}h / 가용 {{cap}}h' })}
               </Chip>
               <Chip $coral title={t('summary.actualHint','') as string}>{t('summary.actual', { act: formatHours(summary.act) })}</Chip>
+              </>)}
               {/* #206 V1 — 보류하면 주간 목록에서 사라진다. 사라졌다는 사실 자체를 여기서 말해주지 않으면
                   사용자는 업무가 없어졌다고 느낀다. 클릭하면 전체 탭 + 보류 필터로 착지. */}
               {tab==='week'&&myHoldCount>0&&(
@@ -2096,7 +2112,10 @@ const QTaskPage:React.FC=()=>{
                             권한 집합은 백엔드 PUT /:id/tags 의 canEdit(담당자·작성자·owner·admin)과 같다
                             — canEditDatesFor 가 이미 그 집합이라 판정을 두 벌로 만들지 않는다.
                             ★ shownTags 는 필터 중인 태그를 뺀 **표시용**, allTags 가 저장 기준이다. */}
+                        {/* ★ 2026-08-24 (Irene) — 칩만 여기. 붙이기 + 는 행 끝 > 화살표 **바로 앞**으로 뺀다.
+                            칩 바로 뒤에 두면 칩 개수에 따라 + 의 가로 위치가 행마다 달라져 정신없다. */}
                         <RowTags
+                          only="chips"
                           taskId={task.id} bizId={bizId} max={3}
                           shownTags={tagFilter != null ? (task.tags || []).filter(tg => tg.id !== tagFilter) : task.tags}
                           allTags={task.tags}
@@ -2165,6 +2184,20 @@ const QTaskPage:React.FC=()=>{
                             </DelayBadgeWrap>
                           );
                         })()}
+                        {/* 태그 붙이기 — 항상 > 화살표 바로 앞 고정 자리 (위 only="chips" 주석 참조) */}
+                        <RowTags
+                          only="menu"
+                          taskId={task.id} bizId={bizId} max={3}
+                          shownTags={task.tags}
+                          allTags={task.tags}
+                          editable={!isClient && canEditDatesFor(task)}
+                          dict={tagDict}
+                          onManage={()=>setTagManageOpen(true)}
+                          onSaved={(tags)=>setAllTasks(prev=>prev.map(x=>x.id===task.id?{...x,tags}:x))}
+                          onDictAdd={(tag)=>setTagDict(prev=>prev.some(g=>g.id===tag.id)
+                            ? prev
+                            : [...prev,{id:tag.id,name:tag.name,color:tag.color??null}].sort((a,b)=>a.name.localeCompare(b.name)))}
+                        />
                         <DetailBtn
                           $active={detailTaskId===task.id}
                           onClick={e=>{e.stopPropagation();if(detailTaskId===task.id)closeDetail();else openDetail(task.id);}}

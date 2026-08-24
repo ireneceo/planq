@@ -101,12 +101,6 @@ interface PopoutTask {
   Project?: { id: number; name: string } | null;
 }
 
-interface WeekSummary {
-  total_tasks: number;
-  total_estimated: number;
-  total_actual: number;
-  total_remaining: number;
-}
 
 const CLOSED = ['completed', 'canceled'];
 
@@ -151,7 +145,6 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
 
   const [tasks, setTasks] = useState<PopoutTask[]>([]);
   const { dict: tagDict, add: addTagToDict } = useTaskTagDict(bizId);
-  const [summary, setSummary] = useState<WeekSummary | null>(null);
   /** /my-week 가 준 이번 주 월요일(YYYY-MM-DD). 퀵애드의 planned_week_start 정합 원천. */
   const [weekStart, setWeekStart] = useState<string | null>(null);
   const [members, setMembers] = useState<DrawerMemberOption[]>([]);
@@ -200,7 +193,6 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
       if (seq !== seqRef.current) return;   // stale 응답 폐기
       if (!json.success) throw new Error('failed');
       setTasks(json.data.tasks || []);
-      setSummary(json.data.summary || null);
       // #258 퀵애드 — 이번 주 monday 는 **서버가 준 값**을 그대로 쓴다. 브라우저 tz 로 다시 계산하면
       //   weekTaskSet 술어(planned_week_start = monday **정확 일치**)와 어긋나 추가한 업무가
       //   그 자리에서 사라진다. 정합 원천은 하나여야 한다 (Fable 설계 C-5).
@@ -419,6 +411,9 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   const doneTasks = useMemo(
     () => tasks.filter((tk) => CLOSED.includes(tk.status) && inTab(tk, true)).sort(sortRule), [tasks, viewMode, inTab]);    // eslint-disable-line react-hooks/exhaustive-deps
   const visible = showDone ? [...openTasks, ...doneTasks] : openTasks;
+  // 헤더 카운트 — 보이는 행을 담당자 기준으로 가른다(메인 리스트 summary 와 같은 정의).
+  const mineCount = useMemo(() => visible.filter((tk) => tk.assignee_id === myId).length, [visible, myId]);
+  const reqCount = visible.length - mineCount;
 
   // 운영 #280 — 번호가 건너뛰어 보이는 이유(완료로 접힘·다른 탭)를 목록 아래에서 설명한다.
   const hiddenPrioNums = useMemo(() => hiddenPriorityNumbers(prioMap, visible.map((tk) => tk.id)), [visible, prioMap]);
@@ -508,6 +503,16 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
           ? t('popout.titleToday', '오늘 내 업무')
           : t('popout.title', '이번 주 내 업무')}</HeadTitle>
         <HeadRight>
+          {/* ★ 2026-08-24 (Irene) — 요약이 먼저, 'Q Task 열기' 는 뒤로 보내 핀 아이콘 옆에 붙인다.
+              버튼이 요약 앞에 있으면 요약 폭에 따라 핀과의 간격이 매번 달라져 눈에 걸린다. */}
+          {/* ★ 2026-08-24 (Irene) — 두 탭 모두 "업무 N건, 요청 M건".
+              옛 표시는 "N건 진행 · 남은 Nh" 였는데, 왼쪽은 탭 필터를 타고 오른쪽(total_remaining)은
+              **주간 전체** 값이라 오늘 탭에서 한 줄 안에 오늘 숫자와 주간 숫자가 섞여 있었다.
+              업무 = 담당자가 나 / 요청 = 내가 컨펌해야 하는 남의 업무(todayTaskSet ⑦).
+              합이 화면에 보이는 행 수와 같아 메인 리스트와 어긋나지 않는다. */}
+          <HeadMeta data-testid="task-popout-count">
+            {t('popout.countSummary', { n: mineCount, r: reqCount, defaultValue: '업무 {{n}}건, 요청 {{r}}건' })}
+          </HeadMeta>
           {/* #258 "Q task로 가는 버튼이 상단에 있어야 하지 않아? 다른 업무리스트 종류들 보고 싶으면 가서 봐야지."
               ★ 메인 탭에 부탁한다 — 이 창에서 /tasks 를 열면 팝아웃이 본체가 돼 버린다.
               ★ 메인 탭이 없으면 새 창으로 연다. `noopener` 는 쓰지 않는다 — 성공해도 핸들이 null 이라
@@ -522,14 +527,6 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
               //   두지 않는다(두 번 눌러 두 탭이 뜨는 혼란 > 이득). 도크에서 다시 열면 된다.
             }}
           >{t('popout.goQTask', 'Q Task 열기')}</GoMainBtn>
-          {summary && (
-            <HeadMeta>
-              {t('popout.summary', '{{open}}건 진행 · 남은 {{hours}}h', {
-                open: openTasks.length,
-                hours: Math.round((summary.total_remaining || 0) * 10) / 10,
-              })}
-            </HeadMeta>
-          )}
           {pinSlot}
         </HeadRight>
       </Head>

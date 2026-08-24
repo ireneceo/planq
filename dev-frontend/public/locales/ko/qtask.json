@@ -215,7 +215,8 @@
     "planCap": "계획 {{plan}}h / 가용 {{cap}}h · 남은 {{rem}}h",
     "planCapOver": "계획 {{plan}}h / 가용 {{cap}}h · 남은 {{rem}}h · {{over}}h 초과",
     "planCap2": "계획 {{plan}}h / 가용 {{cap}}h",
-    "planCapOver2": "계획 {{plan}}h / 가용 {{cap}}h · {{over}}h 초과"
+    "planCapOver2": "계획 {{plan}}h / 가용 {{cap}}h · {{over}}h 초과",
+    "taskReqCount": "업무 {{n}}건, 요청 {{r}}건"
   },
   "col": {
     "project": "프로젝트",
@@ -1243,7 +1244,8 @@
     "prioGap": "우선순위 {{nums}} 번은 지금 목록에 없어요 — 완료했거나 다른 탭의 업무입니다. 번호는 전체 기준이라 그대로 둡니다.",
     "hideDoneFilter": "완료 가리기 ({{count}})",
     "openBtn": "오늘 내 업무",
-    "openBtnHint": "오늘·이번 주 내 업무를 별도 창으로 — 창 안의 핀을 누르면 항상 위로 고정됩니다"
+    "openBtnHint": "오늘·이번 주 내 업무를 별도 창으로 — 창 안의 핀을 누르면 항상 위로 고정됩니다",
+    "countSummary": "업무 {{n}}건, 요청 {{r}}건"
   },
   "tags": {
     "new": "새 태그",

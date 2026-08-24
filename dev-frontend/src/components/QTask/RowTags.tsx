@@ -27,12 +27,20 @@ interface Props {
   onDictAdd: (tag: TaskTagLite) => void;
   /** 사전 관리 열기 — 헤더 버튼 대신 메뉴 안에서 연다 */
   onManage?: () => void;
+  /**
+   * 칩과 붙이기 버튼을 **떨어진 자리에** 그릴 때 쓴다 (Irene 2026-08-24:
+   * "태그추가하는 + 가 > 화살표 앞에 붙자. 위치가 막 다르니까 이상해").
+   * 칩 바로 뒤에 두면 칩 개수에 따라 + 의 가로 위치가 행마다 달라져 눈이 어지럽다.
+   * → 메인 리스트는 칩은 제목 옆, + 는 행 끝 화살표 바로 앞에 고정으로 둔다.
+   * 생략하면 종전대로 둘 다 그린다.
+   */
+  only?: 'chips' | 'menu';
 }
 
-const RowTags: React.FC<Props> = ({ taskId, bizId, shownTags, allTags, max, editable, dict, onSaved, onDictAdd, onManage }) => (
+const RowTags: React.FC<Props> = ({ taskId, bizId, shownTags, allTags, max, editable, dict, onSaved, onDictAdd, onManage, only }) => (
   <>
-    <TagChips tags={shownTags} max={max} />
-    {editable && (
+    {only !== 'menu' && <TagChips tags={shownTags} max={max} />}
+    {only !== 'chips' && editable && (
       <TagQuickMenu
         taskId={taskId}
         bizId={bizId}
