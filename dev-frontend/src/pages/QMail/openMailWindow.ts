@@ -47,9 +47,15 @@ export function openMailWindow(opts: {
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .sub{margin-top:3px;font-size:12px;color:#64748B;
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  main{flex:1;min-height:0;background:#fff}
+  /* ★ 2026-08-24 (Irene) — "전체보기 누르면 메일 내용이 위아래좌우 여백 없이 다 들러붙어서
+     보기 안 좋아." 앱 안 전체보기(MailBodyFullscreen)는 바깥 컨테이너가 20px 24px 을 준다.
+     새 창만 그게 없어서 본문이 창 벽에 닿았다 — 같은 여백을 여기서도 바깥이 준다.
+     iframe 안(srcDoc)은 건드리지 않는다: 거기 margin:0 은 발신자 템플릿 보존용이다. */
+  main{flex:1;min-height:0;background:#fff;padding:20px 24px;overflow:hidden}
+  @media (max-width:768px){ main{padding:12px} }
   iframe{width:100%;height:100%;border:0;display:block;background:#fff}
-  .plain{margin:0;padding:20px;white-space:pre-wrap;word-break:break-word;
+  /* 여백은 main 이 담당 — 여기에도 주면 이중이 된다 */
+  .plain{margin:0;padding:0;height:100%;overflow:auto;white-space:pre-wrap;word-break:break-word;
     font-family:inherit;font-size:14px;line-height:1.7}
 </style></head>
 <body>

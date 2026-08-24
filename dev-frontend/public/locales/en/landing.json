@@ -9,7 +9,8 @@
     "login": "Sign in",
     "signup": "Start free",
     "toApp": "My workspace",
-    "menu": "Menu"
+    "menu": "Menu",
+    "service": "Services"
   },
   "hero": {
     "slogan": "WORK, JUST WORK",
@@ -751,12 +752,237 @@
       "sending": "Sending…",
       "ok": "Got it. We'll be in touch shortly.",
       "errRequired": "Please fill in name, email, and message."
-    }
+    },
+    "quoteTitle": "Request a quote",
+    "quoteSub": "Ask for a quote on a work system audit, design or build. We scope it with you first, then quote.",
+    "company": "Company",
+    "phone": "Phone",
+    "scope": "Scope you are interested in",
+    "scopeAudit": "Work system audit",
+    "scopeDesign": "Work system design",
+    "scopeAutomation": "Workflow automation",
+    "scopeBuild": "Platform development",
+    "scopeImprove": "Continuous improvement",
+    "quoteMessage": "Your situation and what you want",
+    "quotePlaceholder": "Team size, the tools you use today, and the biggest pain point — the more you tell us, the more accurate the quote.",
+    "quoteSubmit": "Send quote request",
+    "scopeLine": "Scope of interest"
   },
   "blogPost": {
     "back": "Back to insights",
     "loading": "Loading…",
     "notFound": "Post not found.",
     "ctaTitle": "Trying it beats reading about it"
+  },
+  "servicePage": {
+    "eyebrow": "SERVICE",
+    "titleTop": "Work System Design & Implementation",
+    "title": "We design how you work first,\nthen build the system on top",
+    "sub": "Growth starts with a better operating system, not more tools. We design people, work, information, decisions, AI and systems into one operating system — and then actually build it.",
+    "cta": "Request a work system audit",
+    "ctaSecondary": "Request a quote",
+    "by": "Work system design and implementation are delivered by WOR-PRO Lab Studio.",
+    "why": {
+      "title": "Why design the work system first?",
+      "p0": "When something breaks, most companies buy another program. But most problems start in the operating system, not in the software.",
+      "p1": "If the work itself is unclear, AI adds nothing, automation stalls halfway, and even a great tool ends up unused.",
+      "p2": "A tool will not decide how you work for you.",
+      "p3": "So we design before we build. First we make explicit how the company actually works — then we put the system on top of it."
+    },
+    "layers": {
+      "title": "What we design",
+      "sub": "An operating system has six layers. We design all six together.",
+      "structure": {
+        "name": "Business Structure",
+        "en": "Business Structure",
+        "desc": "We start with how the company makes money. We lay out the core work and value chain to find where value is created and where it leaks.",
+        "tags": "Core work · Value chain · Bottlenecks · Roles"
+      },
+      "workflow": {
+        "name": "Workflow",
+        "en": "Workflow",
+        "desc": "We design so work does not stall when it crosses people. The path from request to completion, approval points, waiting states and handovers become one flow.",
+        "tags": "Workflow · Approvals · Task links · Collaboration"
+      },
+      "information": {
+        "name": "Information",
+        "en": "Information",
+        "desc": "We remove the time spent looking for things. Documents, customer data and know-how get a structure: where they accumulate, who takes them out and when.",
+        "tags": "Documents · Customer data · Knowledge · Data flow"
+      },
+      "decision": {
+        "name": "Decision",
+        "en": "Decision",
+        "desc": "Not every decision should land on the founder. We set who decides what and how far, so the system judges instead of a person.",
+        "tags": "Authority · Accountability · Approvals · Criteria"
+      },
+      "automation": {
+        "name": "Automation",
+        "en": "Automation",
+        "desc": "We automate only work that is already clear. Repetitive tasks and data movement go to AI, APIs and workflows, so people are left with judgment.",
+        "tags": "AI · Workflow · API · Integrations"
+      },
+      "platform": {
+        "name": "Platform",
+        "en": "Platform",
+        "desc": "A design is finished only when it runs. We build the designed operating system on groupware, web, app and POS.",
+        "tags": "PlanQ groupware · WordPress · Web · App · POS"
+      }
+    },
+    "services": {
+      "title": "Services",
+      "sub": "It starts with an audit and continues through design, build and improvement. You can start at whichever stage you need.",
+      "audit": {
+        "name": "Work System Audit",
+        "en": "Operating System Audit",
+        "lead": "First we see exactly how the company runs today.",
+        "desc": "We observe the actual work and turn time, information, roles and flow into data that shows where things are blocked.",
+        "output": "Audit report · Bottleneck analysis · Time analysis · Automation opportunities · Quick wins"
+      },
+      "design": {
+        "name": "Work System Design",
+        "en": "Work System Design",
+        "lead": "We make the new operating system executable, not just a document.",
+        "desc": "Workflows, roles, information structure and where AI belongs are rebuilt to fit the company.",
+        "output": "Workflow · SOP · Operating system · Role definitions · Information architecture · AI strategy"
+      },
+      "automation": {
+        "name": "Workflow Automation",
+        "en": "Workflow Automation",
+        "lead": "We take the designed work off people's hands.",
+        "desc": "Repetitive processing, notifications, data movement and document generation are automated with AI and integrations.",
+        "output": "AI · API · Workflow · Integrations · PlanQ"
+      },
+      "build": {
+        "name": "Platform Development",
+        "en": "Platform Development",
+        "lead": "We turn the designed operating system into a system people actually use.",
+        "desc": "From groupware rollout to web, app and POS development, ERP integration and operations dashboards.",
+        "output": "Web · App · POS · ERP integration · Dashboards"
+      },
+      "improve": {
+        "name": "Continuous Improvement",
+        "en": "Continuous Improvement",
+        "lead": "An operating system is never finished in one pass.",
+        "desc": "We watch real operating data, find the next bottleneck, and keep refining flow and automation.",
+        "output": "Monthly operations support · Regular reviews · Improvement backlog"
+      },
+      "outputLabel": "Deliverables"
+    },
+    "process": {
+      "title": "How we work",
+      "sub": "Five stages. It starts with observation and ends in improvement.",
+      "s0": {
+        "en": "Discover",
+        "title": "We observe the company.",
+        "desc": "We look at the work that actually happens, not the work written in documents. Interviews and work records capture how you work today, as it is."
+      },
+      "s1": {
+        "en": "Diagnose",
+        "title": "We analyse bottlenecks.",
+        "desc": "We diagnose along four axes — time, information, roles and workflow — to pinpoint where work stops and where time disappears."
+      },
+      "s2": {
+        "en": "Design",
+        "title": "We design the new operating system.",
+        "desc": "Workflows and SOPs, roles and permissions, information structure and the points where AI applies are designed to fit the company."
+      },
+      "s3": {
+        "en": "Build",
+        "title": "We build the real system.",
+        "desc": "We implement the design with PlanQ groupware, web, app and AI automation — and stay until the team actually starts using it."
+      },
+      "s4": {
+        "en": "Improve",
+        "title": "We keep improving with operating data.",
+        "desc": "After rollout we watch the metrics, find the next bottleneck and improve. The operating system grows with the company."
+      }
+    },
+    "outputs": {
+      "title": "What you get",
+      "sub": "It does not end in talk. It is delivered as assets that stay with the company.",
+      "o0": {
+        "name": "Work system audit report",
+        "desc": "Your current state, organised as data"
+      },
+      "o1": {
+        "name": "Workflow blueprint",
+        "desc": "The design of how work flows"
+      },
+      "o2": {
+        "name": "SOP",
+        "desc": "Standard operating procedures"
+      },
+      "o3": {
+        "name": "Operations manual",
+        "desc": "Standards that survive staff changes"
+      },
+      "o4": {
+        "name": "Decision framework",
+        "desc": "Authority, accountability and approvals"
+      },
+      "o5": {
+        "name": "Information architecture",
+        "desc": "How documents and data accumulate"
+      },
+      "o6": {
+        "name": "Automation blueprint",
+        "desc": "What to automate, and how far"
+      },
+      "o7": {
+        "name": "AI workflow",
+        "desc": "Where AI actually attaches"
+      },
+      "o8": {
+        "name": "Execution roadmap",
+        "desc": "What happens when"
+      },
+      "o9": {
+        "name": "PlanQ workspace",
+        "desc": "A collaboration space that actually runs"
+      },
+      "o10": {
+        "name": "Knowledge structure",
+        "desc": "A system that holds your know-how"
+      },
+      "o11": {
+        "name": "Operations dashboard",
+        "desc": "Operations seen through metrics"
+      }
+    },
+    "fit": {
+      "title": "A good fit if",
+      "f0": "Work and decisions all converge on the founder",
+      "f1": "Work stops when a person changes",
+      "f2": "You adopted AI but saw no effect",
+      "f3": "Too much time goes into repetitive work",
+      "f4": "You are about to start automating",
+      "f5": "You are growing fast and work is getting tangled",
+      "f6": "You want to redesign your operating system from scratch"
+    },
+    "faq": {
+      "title": "Frequently asked questions",
+      "q0": "Nothing is organised here at all. Can we still start?",
+      "a0": "That state is normal. We do not assume an organised company. Observing the unorganised state is exactly where the audit starts. Begin with the work system audit.",
+      "q1": "Can we take only the design and build it ourselves?",
+      "a1": "Yes. The design deliverables are your asset and are not locked to a specific tool. We hand them over in a form your own team or another partner can implement directly.",
+      "q2": "Do we have to throw away the systems we use now?",
+      "a2": "No. We first look at connecting the ERP, groupware and accounting systems you already use. We propose replacement only when replacing is clearly better.",
+      "q3": "What about cost and timeline?",
+      "a3": "We start with the work system audit. The design and build quote comes after the audit fixes the scope, so you never have to commit to a large amount up front. Work proceeds under a contract that states scope, schedule and deliverables."
+    },
+    "why2": {
+      "title": "Why WOR-PRO",
+      "lead": "We are not simply a development company. We design how a company works.",
+      "p0title": "Development is the result, not the goal.",
+      "p0": "Good systems are built on a good operating system, and companies grow on good systems.",
+      "p1title": "We do not design and leave.",
+      "p1": "We build what we designed ourselves, and after it goes live we keep refining it with you, using the data."
+    },
+    "final": {
+      "title": "Does your company have\nan operating system that can carry growth?",
+      "sub": "Start with the work system audit. We organise how your company runs today, as data.",
+      "cta": "Request a work system audit"
+    }
   }
 }

@@ -109,6 +109,7 @@ const MailPage = lazy(() => import('./pages/QMail/MailPage'));
 // Landing — 비로그인 외부 트래픽이 보는 영역 (HomePage 는 RootRoute 에서 직접 import)
 const LandingFeatures = lazy(() => import('./pages/Landing/FeaturesPage'));
 const LandingPricing = lazy(() => import('./pages/Landing/PricingPage'));
+const LandingService = lazy(() => import('./pages/Landing/ServicePage'));
 const LandingAbout = lazy(() => import('./pages/Landing/AboutPage'));
 const LandingContact = lazy(() => import('./pages/Landing/ContactPage'));
 const LandingBlog = lazy(() => import('./pages/Landing/BlogPage'));
@@ -580,6 +581,8 @@ function ShellApp() {
         <Route path="/" element={isNativeApp() ? <NativeMarketingRedirect /> : <RootRoute />} />
         <Route path="/features" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingFeatures />} />
         <Route path="/pricing" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingPricing />} />
+        {/* 서비스 — 업무체계 설계·시스템 구축 (2026-08-24) */}
+        <Route path="/service" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingService />} />
         <Route path="/insights" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingBlog />} />
         <Route path="/insights/:slug" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingBlogPost />} />
         {/* 옛 /blog URL → /insights 영구 이전 (SEO·외부 링크 보존) */}

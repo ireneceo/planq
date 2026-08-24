@@ -22,6 +22,7 @@ interface CompanyInfo {
 const NAV_ITEMS: { to: string; key: string }[] = [
   { to: '/features', key: 'nav.features' },
   { to: '/pricing', key: 'nav.pricing' },
+  { to: '/service', key: 'nav.service' },   // 업무체계 설계·구축 서비스 (2026-08-24)
   { to: '/insights', key: 'nav.blog' },
   { to: '/about', key: 'nav.about' },
   { to: '/contact', key: 'nav.contact' },
@@ -144,6 +145,7 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
               <FooterTitle>{t('footer.product', 'PRODUCT')}</FooterTitle>
               <FooterLink to="/features">{t('nav.features')}</FooterLink>
               <FooterLink to="/pricing">{t('nav.pricing')}</FooterLink>
+              <FooterLink to="/service">{t('nav.service')}</FooterLink>
               <FooterLink to="/insights">{t('nav.blog')}</FooterLink>
               <FooterLink to="/wiki">{t('nav.help')}</FooterLink>{/* F7 — Q위키 도움말 */}
             </FooterCol>

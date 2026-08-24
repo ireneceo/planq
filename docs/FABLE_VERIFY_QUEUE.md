@@ -351,3 +351,39 @@ ssh 87.106.78.146 'grep -ac "EMAIL_ENCRYPTION_KEY 미설정" ~/.pm2/logs/planq-p
 - `restoreEmbeddedImages(body_html, srcMsg.body_html)` 와 새 경로의 상호작용.
 - 실발송 검증: 표·이미지가 있는 실제 메일로 **받는 쪽에서** 원문이 보존되는지 (Gmail/Outlook 수신 확인).
 - 해제 절차: 프론트 플래그 + 서버 env 를 같이 켜고, 실발송 1건으로 증명한 뒤 배포.
+
+---
+
+## §6. Gmail 스팸함 메일이 PlanQ 에 영영 안 들어온다 (2026-08-24 신고, 설계 판단 필요)
+
+### 신고
+> "또 메일이 안오는데? 이 메일이 irene@irenecompany.com으로 온건데 irene@irenewp.com 별칭이거든
+>  그런데 안들어왔어. Hi irene_have, Someone tried to log in to your Instagram profile… 642605"
+
+### 조사 결과 (운영 IMAP 실측, 읽기 전용)
+- **별칭은 정상이다.** `email_account_aliases` #6 = `irene@irenecompany.com` (account #5) 등록됨.
+  최근 5일 `Delivered-To: irene@irenecompany.com` 메일 **49건이 INBOX 에 정상 도착 + PlanQ 수집 완료.**
+  → memory `feedback_mail_own_address_set_incomplete` 계열의 별칭 결손이 **아니다.**
+- **그 메일은 Gmail [Gmail]/Spam 에 있다.**
+  `uid=6038 · from="Instagram" <security@mail.instagram.com> · to=irene@irenecompany.com ·
+   subj="Verify your profile" · 본문에 642605` — INBOX·All Mail 에는 없음.
+- **PlanQ 는 `account.imap_folder`(=INBOX) 한 폴더만 연다** (`services/emailImapCron.js:378`).
+  따라서 Gmail 이 스팸으로 분류한 메일은 **구조적으로 영원히 수집되지 않는다.**
+  사용자에게는 "메일이 안 왔다" 로만 보이고, PlanQ 안에서는 원인을 확인할 방법이 없다.
+
+### 왜 Opus 가 임의로 고치지 않았나 (스키마 절단면)
+- 커서 `email_accounts.imap_last_uid` 는 **계정당 한 개**다. IMAP UID 는 **폴더마다 별개 공간**이라
+  폴더를 하나 더 돌면 두 커서가 한 컬럼을 번갈아 덮어써 **양쪽 다 유실**된다
+  (memory `feedback_sync_cursor_bootstrap_swallows` 계열 사고의 정확한 재료).
+  → 컬럼 추가/분리 = 스키마 마이그레이션 = 고위험 게이트.
+- PlanQ 에는 이미 스팸 축이 다 있다: 폴더 `spam`, 분류기 `services/emailSpamFilter.js`,
+  `mark-spam`/`mark-not-spam`. 즉 **새 개념이 아니라 수집원만 늘리는 문제**다.
+
+### Fable 이 판단·검증할 것
+1. Gmail/Naver 스팸함을 수집원에 넣을지. 넣는다면 들어온 메일은 무조건 PlanQ `spam` 폴더로만 —
+   `reply_needed` 로는 절대 올라가지 않아야 한다(스팸이 답변필요를 오염시키면 기능이 죽는다).
+2. 커서 설계: 폴더별 커서 테이블 vs `imap_last_uid_spam` 컬럼 추가 vs 스팸은 UID 커서 없이
+   "최근 N일 재조회 + message_id 중복검사"(이미 중복검사가 :425 에 있다).
+3. 볼륨: 이 계정 스팸함 UIDNEXT 6039 — 수집량·스토리지·첨부 다운로드 비용 영향.
+4. 폴더명 이식성: `[Gmail]/Spam` 은 Gmail 전용. Naver·Outlook 은 다르다 → SPECIAL-USE `\Junk` 탐지.
+5. 대안(경량): 수집하지 않고 **"스팸함에 N건 있음" 배지 + Gmail 웹 링크**만 노출.

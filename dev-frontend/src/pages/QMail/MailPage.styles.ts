@@ -549,7 +549,13 @@ export const MessagesScroll = styled.div`
 export const MessageCard = styled.div<{ $outbound: boolean }>`
   background: ${p => p.$outbound ? '#F8FDFC' : 'transparent'};
   border-left: ${p => p.$outbound ? '3px solid #5EEAD4' : 'none'};
+  /* ★ 2026-08-24 (Irene) — "답변한 거 우측 여백은 박스 안으로 안 잡혀. 끝까지 붙어서 이상해."
+     보낸 메일은 배경색이 달라 박스로 읽힌다. 그런데 안쪽 여백이 왼쪽에만 있어서
+     글이 박스 오른쪽 벽에 그대로 닿았다. 색이 있는 영역은 **양쪽 대칭**이어야 박스로 보인다.
+     받은 메일(투명)은 여백을 주지 않는다 — 배경이 없어 들여쓰기만 생겨 어긋나 보인다. */
   padding-left: ${p => p.$outbound ? '13px' : '0'};
+  padding-right: ${p => p.$outbound ? '13px' : '0'};
+  border-radius: ${p => p.$outbound ? '0 8px 8px 0' : '0'};
   border-bottom: 1px solid #E2E8F0;
   padding-bottom: 12px;
   &:last-child { border-bottom: none; padding-bottom: 0; }

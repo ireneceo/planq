@@ -1,5 +1,15 @@
 // 문의 페이지 — 연락처 카드 + 문의 폼 (백엔드 /api/inquiries 기존 라우트 사용).
+//
+// ★ 2026-08-24 — 이 폼은 **한 건도 접수되지 않고 있었다.**
+//   프론트가 { name, email, reason } 을 보내는데 라우트는 { from_name, from_email } 을 요구해
+//   모든 제출이 400 `name_required` 로 떨어졌다(실호출로 재현). 필드명을 라우트 계약에 맞춘다.
+//   `reason` 은 DB 컬럼이 없다 — 스키마를 늘리는 대신 이미 있는 자유형 `source` 에 실어 보낸다
+//   (admin 이 유입 경로별로 구분할 수 있어야 하므로 버리지 않는다).
+//
+// 견적 문의(`?type=quote`)는 별도 폼을 만들지 않고 이 폼의 모드로 처리한다 —
+//   접수 경로가 둘로 갈라지면 admin 장부도 둘로 갈라진다.
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import LandingLayout from '../../components/Landing/LandingLayout';
@@ -15,11 +25,28 @@ const Reveal: React.FC<{ children: React.ReactNode; as?: React.ElementType }> = 
 type Reason = 'sales' | 'support' | 'partnership' | 'other';
 const REASONS: Reason[] = ['sales', 'support', 'partnership', 'other'];
 
+// 견적 문의에서 고르는 서비스 범위 — ServicePage 의 SERVICES 와 같은 축.
+const SCOPES = ['audit', 'design', 'automation', 'build', 'improve'] as const;
+type Scope = typeof SCOPES[number];
+const SCOPE_LABEL_KEY: Record<Scope, string> = {
+  audit: 'scopeAudit', design: 'scopeDesign', automation: 'scopeAutomation',
+  build: 'scopeBuild', improve: 'scopeImprove',
+};
+
 const ContactPage: React.FC = () => {
   const { t } = useTranslation('landing');
   const { t: tErr } = useTranslation('errors');
+  const [params] = useSearchParams();
+  // 견적 문의 모드 — /service 의 CTA 가 이 쿼리로 들어온다.
+  const isQuote = params.get('type') === 'quote';
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [company, setCompany] = useState('');
+  const [phone, setPhone] = useState('');
+  const [scopes, setScopes] = useState<Scope[]>(() => {
+    const s0 = params.get('scope');
+    return (SCOPES as readonly string[]).includes(String(s0)) ? [s0 as Scope] : [];
+  });
   const [reason, setReason] = useState<Reason>('sales');
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -36,15 +63,29 @@ const ContactPage: React.FC = () => {
     }
     setSubmitting(true); setResult('idle'); setErrMsg(null);
     try {
+      // 견적 문의는 고른 범위를 본문 끝에 붙인다 — 전용 컬럼을 만들지 않고도 admin 이 그대로 읽는다.
+      const scopeLine = (isQuote && scopes.length)
+        ? `\n\n[${t('contactPage.scopeLine', '관심 범위')}] ${scopes.map(sc => t(`contactPage.${SCOPE_LABEL_KEY[sc]}`)).join(', ')}`
+        : '';
       const r = await fetch('/api/inquiries', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, reason, message }),
+        body: JSON.stringify({
+          // 라우트 계약 그대로 — 필드명이 어긋나면 전건 400 이다.
+          kind: isQuote ? 'enterprise' : 'landing',
+          source: isQuote ? 'landing_service_quote' : `landing_contact:${reason}`,
+          from_name: name,
+          from_email: email,
+          from_company: company || undefined,
+          from_phone: phone || undefined,
+          message: message + scopeLine,
+        }),
       });
       const j = await r.json();
       if (!r.ok || !j.success) throw new Error(j.message || 'submit_failed');
       setResult('ok');
       setName(''); setEmail(''); setMessage(''); setReason('sales');
+      setCompany(''); setPhone(''); setScopes([]);
     } catch (err) {
       setResult('err');
       setErrMsg(mapApiError(err, tErr));
@@ -58,8 +99,12 @@ const ContactPage: React.FC = () => {
       <SubHero>
         <Container>
           <Eyebrow>{t('contactPage.eyebrow', 'CONTACT')}</Eyebrow>
-          <Title>{t('contactPage.title', '편하게 연락 주세요')}</Title>
-          <Sub>{t('contactPage.sub', '도입 문의·기술 지원·제휴 어떤 주제든 환영합니다. 24시간 안에 답변드립니다.')}</Sub>
+          <Title>{isQuote
+            ? t('contactPage.quoteTitle', '견적 문의')
+            : t('contactPage.title', '편하게 연락 주세요')}</Title>
+          <Sub>{isQuote
+            ? t('contactPage.quoteSub', '')
+            : t('contactPage.sub', '도입 문의·기술 지원·제휴 어떤 주제든 환영합니다. 24시간 안에 답변드립니다.')}</Sub>
         </Container>
       </SubHero>
 
@@ -88,7 +133,9 @@ const ContactPage: React.FC = () => {
 
             <Reveal>
               <FormCard onSubmit={handleSubmit}>
-                <FormTitle>{t('contactPage.form.title', '메시지 보내기')}</FormTitle>
+                <FormTitle>{isQuote
+                  ? t('contactPage.quoteTitle', '견적 문의')
+                  : t('contactPage.form.title', '메시지 보내기')}</FormTitle>
                 <Field>
                   <FieldLabel htmlFor="contact-name">{t('contactPage.form.name', '이름')}</FieldLabel>
                   <FieldInput id="contact-name" type="text" value={name} onChange={e => setName(e.target.value)} required maxLength={60} />
@@ -97,23 +144,58 @@ const ContactPage: React.FC = () => {
                   <FieldLabel htmlFor="contact-email">{t('contactPage.form.email', '이메일')}</FieldLabel>
                   <FieldInput id="contact-email" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
                 </Field>
+                {isQuote ? (
+                  <>
+                    <Field>
+                      <FieldLabel htmlFor="contact-company">{t('contactPage.company', '회사명')}</FieldLabel>
+                      <FieldInput id="contact-company" type="text" value={company}
+                        onChange={e => setCompany(e.target.value)} maxLength={100} />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="contact-phone">{t('contactPage.phone', '연락처')}</FieldLabel>
+                      <FieldInput id="contact-phone" type="tel" value={phone}
+                        onChange={e => setPhone(e.target.value)} maxLength={40} />
+                    </Field>
+                    <Field>
+                      <FieldLabel>{t('contactPage.scope', '관심 있는 범위')}</FieldLabel>
+                      <ReasonGroup role="group">
+                        {SCOPES.map(sc => (
+                          <ReasonChip key={sc} type="button" $active={scopes.includes(sc)}
+                            aria-pressed={scopes.includes(sc)}
+                            onClick={() => setScopes(prev => (
+                              prev.includes(sc) ? prev.filter(x => x !== sc) : [...prev, sc]
+                            ))}>
+                            {t(`contactPage.${SCOPE_LABEL_KEY[sc]}`)}
+                          </ReasonChip>
+                        ))}
+                      </ReasonGroup>
+                    </Field>
+                  </>
+                ) : (
+                  <Field>
+                    <FieldLabel>{t('contactPage.form.reason', '문의 유형')}</FieldLabel>
+                    <ReasonGroup role="radiogroup">
+                      {REASONS.map(r => (
+                        <ReasonChip key={r} type="button" $active={reason === r} onClick={() => setReason(r)}>
+                          {t(`contactPage.form.reasons.${r}`)}
+                        </ReasonChip>
+                      ))}
+                    </ReasonGroup>
+                  </Field>
+                )}
                 <Field>
-                  <FieldLabel>{t('contactPage.form.reason', '문의 유형')}</FieldLabel>
-                  <ReasonGroup role="radiogroup">
-                    {REASONS.map(r => (
-                      <ReasonChip key={r} type="button" $active={reason === r} onClick={() => setReason(r)}>
-                        {t(`contactPage.form.reasons.${r}`)}
-                      </ReasonChip>
-                    ))}
-                  </ReasonGroup>
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="contact-message">{t('contactPage.form.message', '메시지')}</FieldLabel>
-                  <FieldTextarea id="contact-message" rows={6} value={message} onChange={e => setMessage(e.target.value)} required maxLength={2000} />
+                  <FieldLabel htmlFor="contact-message">{isQuote
+                    ? t('contactPage.quoteMessage', '회사 상황과 원하시는 것')
+                    : t('contactPage.form.message', '메시지')}</FieldLabel>
+                  <FieldTextarea id="contact-message" rows={6} value={message}
+                    placeholder={isQuote ? (t('contactPage.quotePlaceholder', '') as string) : undefined}
+                    onChange={e => setMessage(e.target.value)} required maxLength={2000} />
                 </Field>
                 <SubmitRow>
                   <SubmitBtn type="submit" disabled={submitting}>
-                    {submitting ? t('contactPage.form.sending', '보내는 중…') : t('contactPage.form.submit', '문의 보내기')}
+                    {submitting
+                      ? t('contactPage.form.sending', '보내는 중…')
+                      : (isQuote ? t('contactPage.quoteSubmit', '견적 문의 보내기') : t('contactPage.form.submit', '문의 보내기'))}
                   </SubmitBtn>
                   {result === 'ok' && <ResultOk>{t('contactPage.form.ok', '메시지를 받았습니다. 곧 연락드리겠습니다.')}</ResultOk>}
                   {result === 'err' && <ResultErr>{errMsg}</ResultErr>}
