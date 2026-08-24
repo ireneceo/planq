@@ -241,3 +241,41 @@ ssh 87.106.78.146 'grep -ac "EMAIL_ENCRYPTION_KEY 미설정" ~/.pm2/logs/planq-p
 - **`PostEditor` 청크가 두 개다** — 29KB 본체 + 66바이트 스텁. 스텁을 grep 하면 "수정이 안 들어갔다" 는 **거짓 판정**이 난다
 - **/tmp 에서 node 실행 시 MODULE_NOT_FOUND** — `require('dotenv')` 가 해석 안 된다. `/opt/planq/backend` 안에서 실행할 것
 - **배포 스크립트가 exit 1 을 내도 완주했을 수 있다** — 로그의 `Deployment Complete` + PM2 uptime + 청크 md5 대조 3점으로 판정
+
+---
+
+## §3 — 2026-08-24 사이클 소급 검토 요청 (Irene 지시)
+
+이번 사이클은 Fable 게이트 없이 Opus 가 설계·구현·검증했다(Irene 판단). **배포 후 소급 검토 요청.**
+
+### 3-A. 그래프 두 선 재정의 + 기준선 차감 폐기 (구조적 결정)
+- 진척 = Σ(예측시간 × 진행률) / 실제 = Σ(실제시간 × 진행률). 두 선이 같은 축.
+- **기준선 차감(Δ) 폐기** — 하향 정정이 `max(0, 1−5)=0` 으로 영구 클램프되던 구멍(#385).
+- 정의 정본 `services/progressBaseline.js`(estDoneOf/actDoneOf)를 **4개 표면**이 공유:
+  라이브 그래프(routes/tasks daily-progress) · 보고서(reportUnitSnapshot) ·
+  개인 주간보고(weeklyReviewSnapshot) · 프론트 오늘 점(QTaskPage).
+- **검토 포인트:** ①Δ 폐기로 이월분이 이번 주 선에 실린다 — #254 회귀와의 경계 ②과거 보고서
+  수치가 소급 변경된다(스냅샷 재해석) ③포커스 실측을 진행률로 환산한 것의 타당성.
+
+### 3-B. Task afterSave 훅 — 같은 날 스냅샷 갱신 (쓰기 경로 신설)
+- `services/task_snapshot.js touchTodaySnapshot` + `models/index.js` 훅 등록.
+- D 일자 행의 의미를 "D 00:00 사진" → "D 에 대해 알려진 최신 상태" 로 변경.
+- **검토 포인트:** ①모든 task 쓰기에 쿼리 2~3개 추가 — 대량 업데이트 경로의 부하
+  ②과거 날짜 행 불변 보장 ③멱등성(재실행 created=0 확인했음).
+
+### 3-C. 계획·진척에 완료 업무 포함 (카드 수치 변경)
+- `loadBreakdown` 이 완료를 걸러 **계획 55.5h·진척 0.3h** 로 과소 표기하던 것을 완료 포함
+  (**계획 75.0h·진척 19.1h**)으로. 대각선 종점과 카드가 같은 수가 된다.
+- **검토 포인트:** 계획이 완료해도 줄지 않는다는 원칙(2026-08-21)과 `진척+남은=계획` 항등식 정합.
+
+### 3-D. 쓰기 실패 표면화 (P0-1)
+- `saveField`/`changeStatus` 가 `if(!r.ok) return` 으로 침묵하던 것을 인라인 배너 + 서버 재조회로.
+- **검토 포인트:** 남은 침묵 지점 전수(다른 페이지의 동일 관용구) · 401 창에서 쓰기 유실 대책.
+
+### 3-E. 완료 해제 시 진행률 0 (전이 규칙 변경)
+- `revertStatus` 가 `fromStatus==='completed'` 이면 `progress_percent=0`.
+- **검토 포인트:** 컨펌 반려(revision) 경로와의 충돌 여부 · 되돌림 마커/이력 정합.
+
+### 3-F. 보안 경계 — daily-prompt-items 스코프 신설
+- 무스코프 `assignee_id` 조회 → `business_id` 필수 + 403 게이트(양·음성 반증 완료).
+- **검토 포인트:** 같은 형태의 무스코프 조회 잔존분(TENANT 가드 base 26).

@@ -596,6 +596,20 @@ const QTaskPage:React.FC=()=>{
   // #254 — 업무별 기준선(기간 시작 이전 최신 스냅샷). 오늘 라이브 값도 같은 기준으로 Δ 를 내야
   //   과거일(서버 Δ)과 오늘(라이브)이 같은 선 위에 놓인다.
   const[progressBases,setProgressBases]=useState<Record<string,{act:number;est_done:number}>>({});
+  const myMemberIdRef=useRef<number|null>(null);   // 가용시간 저장용 member row id (왕복 절약)
+  // ★ P0-1 (Irene 승인 2026-08-24) — 쓰기 실패를 **절대 침묵시키지 않는다.**
+  //   운영 실측 #228: 10시간·100% 를 넣었는데 요청이 실패했고 화면은 아무 말도 하지 않았다
+  //   (`if(!r.ok) return;` + uncontrolled input 이 타이핑한 값을 붙들고 있어 "저장됨" 으로 보인다).
+  //   그래서 "그래프가 틀렸다" 는 신고가 반복됐다 — 그래프는 맞았고 데이터가 안 들어갔다.
+  const[saveErr,setSaveErr]=useState<string|null>(null);
+  const saveErrTimer=useRef<number|undefined>(undefined);
+  const reportSaveFail=useCallback((what:string,status?:number)=>{
+    setSaveErr(status===401||status===403
+      ? t('save.failAuth',{ defaultValue: '{{what}} 을(를) 저장하지 못했어요 — 로그인이 만료되었을 수 있어요. 새로고침 후 다시 시도해 주세요.', what })as string
+      : t('save.fail',{ defaultValue: '{{what}} 을(를) 저장하지 못했어요. 값이 서버에 반영되지 않았습니다.', what })as string);
+    if(saveErrTimer.current)window.clearTimeout(saveErrTimer.current);
+    saveErrTimer.current=window.setTimeout(()=>setSaveErr(null),8000);
+  },[t]);
 
   const thisMonday=thisMondayStr;
 
@@ -632,11 +646,14 @@ const QTaskPage:React.FC=()=>{
               team:m.team||null,
             }));
           setMembers(opts);
+          // 가용시간 저장 때 쓸 내 member row id — 저장할 때마다 목록을 다시 받지 않기 위해.
+          const mine=(mr.data||[]).find((m:{user_id:number|null;id:number})=>m.user_id===myId);
+          if(mine) myMemberIdRef.current=mine.id;
         }
       }catch{}
     }catch{}
     setLoading(false);
-  },[bizId]);
+  },[bizId,myId]);   // myId — members 매핑에서 내 member row id 를 잡는다
 
   useEffect(()=>{load();},[load]);
 
@@ -799,7 +816,14 @@ const QTaskPage:React.FC=()=>{
   const saveField=async(taskId:number,field:string,value:unknown)=>{
     try{
       const r=await apiFetch(`/api/tasks/${taskId}/time`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({[field]:value})});
-      if(!r.ok)return;  // apiFetch 는 throw 안 함 — 403(비담당자 시간편집) 등에 낙관적 적용 금지(거짓 성공)
+      if(!r.ok){
+        // ★ 침묵 금지 — 사유를 말하고, 서버 값으로 되돌려 화면이 거짓말하지 않게 한다.
+        reportSaveFail(field==='actual_hours'?t('col.act','실제시간') as string
+          :field==='estimated_hours'?t('col.est','예상시간') as string
+          :field==='progress_percent'?t('col.progress','진행률') as string:field, r.status);
+        load();
+        return;
+      }
       setAllTasks(prev=>prev.map(t=>{
         if(t.id!==taskId)return t;
         const u={...t,[field]:value};
@@ -1095,19 +1119,25 @@ const QTaskPage:React.FC=()=>{
     return t(`status.${status}.${role}`,t(`status.${status}.observer`,status)) as string;
   };
 
-  const changeStatus=async(taskId:number,newStatus:string)=>{
+  const changeStatus=async(taskId:number,newStatus:string,opts?:{resetProgress?:boolean})=>{
     try{
-      await apiFetch(`/api/tasks/${taskId}/time`,{method:'PATCH',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({progress_percent:newStatus==='completed'?100:undefined})});
+      const nextProg=newStatus==='completed'?100:(opts?.resetProgress?0:undefined);
+      if(nextProg!==undefined){
+        const pr=await apiFetch(`/api/tasks/${taskId}/time`,{method:'PATCH',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({progress_percent:nextProg})});
+        if(!pr.ok){ reportSaveFail(t('col.progress','진행률') as string, pr.status); load(); return; }
+      }
       // Use the existing PUT route for status
       const sr=await apiFetch(`/api/tasks/by-business/${bizId}/${taskId}`,{method:'PUT',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({status:newStatus})});
       // status 전이는 reviewer 가드(no_reviewers 400)·권한(403)으로 거절될 수 있다 — 성공 시에만 낙관적 적용(거짓 성공 방지)
+      if(!sr.ok){ reportSaveFail(t('col.status','상태') as string, sr.status); load(); }
       if(sr.ok){
         setAllTasks(prev=>prev.map(t=>{
           if(t.id!==taskId)return t;
           const u={...t,status:newStatus};
           if(newStatus==='completed'){u.progress_percent=100;}
+          if(opts?.resetProgress){u.progress_percent=0;}
           return u;
         }));
         // 완료 시 우선순위 해제
@@ -1124,7 +1154,8 @@ const QTaskPage:React.FC=()=>{
     // #206 — 보류/외부컨펌 중엔 완료로 못 간다(백엔드 가드와 미러). 체크박스는 disabled 지만
     //   프로그램적 호출 경로까지 막아 우회를 원천 차단한다.
     if(task.status==='on_hold'||task.status==='external_review')return;
-    if(task.status==='completed')changeStatus(task.id,'in_progress');
+    // ★ Irene 2026-08-24 — "체크 다시 해제하면 진행률 0이 되어야 한다". 리스트·팝아웃 공통 규칙.
+    if(task.status==='completed')changeStatus(task.id,'in_progress',{resetProgress:true});
     else changeStatus(task.id,'completed');
   };
   const completeBlocked=(status?:string)=>status==='on_hold'||status==='external_review';
@@ -1472,11 +1503,25 @@ const QTaskPage:React.FC=()=>{
     && (t.createdAt||'').slice(0,10) < periodFrom
   ),[periodFrom]);
   // 부하 구성 — 내 활성 업무의 잔여를 이월/이번주 신규로 분해 (가용시간 인지 핵심)
+  // ★ 집합 = 이번 주 정본 ∩ **담당자=나** (Irene 2026-08-24 명시: "담당자=나 당연하지.
+  //   리스트에 담당자 나 아닌 걸 왜 내 업무정보에 넣어"). 내 시간·내 진척이므로 남의 담당 업무는
+  //   컨펌자로 관여해도 이 수치에 넣지 않는다. 이 조건을 제거하지 말 것.
+  const chartWeekTasks=useMemo(()=>(
+    scope==='mine' ? allTasks.filter(t=>inWeekCanonical(t,true)&&t.assignee_id===myId&&t.status!=='canceled') : []
+  ),[allTasks,scope,myId,inWeekCanonical]);
+
+  // ★ 카드도 **그래프와 같은 집합**(chartWeekTasks = 이번 주 정본 ∩ 담당자=나)을 읽는다.
+  //   옛 코드는 `filtered`(보기 옵션 반영)를 써서 대각선 종점(계획=Σ예상시간)과 카드의 '계획' 이
+  //   서로 다른 수가 됐다. 같은 이름의 값은 한 집합에서 나와야 한다.
   const loadBreakdown=useMemo(()=>{
     let carried=0, fresh=0, done=0, doneCarried=0, plan=0;
-    for(const t of filtered){
-      if(t.assignee_id!==myId) continue;
-      if(t.status==='canceled'||t.status==='completed') continue;
+    for(const t of chartWeekTasks){
+      // ★ 2026-08-24 — 완료 업무를 여기서 걸러 **계획·진척에서 통째로 빠뜨리고 있었다.**
+      //   운영 실측(irene): 계획 완료포함 75.0h vs 제외 55.5h · 진척 19.1h vs 0.3h — 완료 6건이 사라졌다.
+      //   그래서 카드(55.5)와 그래프 대각선(75.0)이 갈라졌고, "완료했는데 진척이 안 오른다" 로 보였다.
+      //   계획은 완료해도 줄지 않는다(Irene 2026-08-21: "완료하면 시간이 줄어들어버리면 안되지").
+      //   완료 제외는 **남은 일** 계산에만 적용한다(완료는 남은 일이 아니다).
+      if(t.status==='canceled') continue;
       // 진척(누적) — 남은 일과 **같은 집합·같은 기준**이어야 한다. 분모(남은 일)는 이월을 포함하는데
       //   분자(진척)만 "이번 주 증가분" 이면 한 카드 안에서 자가 두 개가 된다
       //   (Irene 2026-08-24: 주가 바뀌자 진척만 0 이 됐다 — "지연된 업무도 예상시간이 다 들어가야").
@@ -1484,6 +1529,7 @@ const QTaskPage:React.FC=()=>{
       plan+=est;                       // 계획 = 모든 예측시간 (완료분 포함) — 카드의 기준선
       const d=Math.max(0, est*((t.progress_percent||0)/100));
       if(d>0){ done+=d; if(isCarried(t)) doneCarried+=d; }
+      if(t.status==='completed') continue;   // 남은 일에서만 제외
       const rem=taskRemaining(t); if(rem<=0) continue;
       if(isCarried(t)) carried+=rem; else fresh+=rem;
     }
@@ -1493,7 +1539,7 @@ const QTaskPage:React.FC=()=>{
       done:Math.round(done*10)/10, doneCarried:Math.round(doneCarried*10)/10,
       plan:Math.round(plan*10)/10,
     };
-  },[filtered,myId,taskRemaining,isCarried]);
+  },[chartWeekTasks,taskRemaining,isCarried]);
   const remainingTotal=loadBreakdown.total;
   // #100 — 남은 예측(Σ예측×미완료)이 가용시간을 넘으면 오버커밋 → 칩을 경고색+초과분 표시.
   //   "가용시간 인지"(§6) 핵심: 계획이 캐파를 초과했음을 즉시 알려 마감 지연 예방.
@@ -1502,32 +1548,40 @@ const QTaskPage:React.FC=()=>{
   const planOverHours=Math.round((loadBreakdown.plan-effectiveCapacity)*10)/10;
   const isOverCap=scope!=='workspace'&&effectiveCapacity>0&&planOverHours>0;
 
+  // ★ 2026-08-24 (Irene: "바꾸자마자 저장해서 바로 반영이 안되고 느려. 실시간 반영 부탁해")
+  //   옛 흐름은 **왕복 2회**(멤버목록 조회 → PATCH)를 모두 기다린 뒤에야 숫자를 바꿨다.
+  //   → ①내 member row id 는 load 에서 이미 받아 캐시했으므로 목록 재조회를 없앤다
+  //     ②화면은 **즉시** 바꾸고(낙관적), 저장이 실패하면 되돌린다. 자동저장 규약(성공 토스트 금지)과 정합.
+  const applyCapacity=(field:string,value:number)=>{
+    if(field==='daily_work_hours')setCapacity(prev=>({...prev,daily:value,weekly:Math.round(value*prev.days*prev.rate*10)/10}));
+    if(field==='weekly_work_days')setCapacity(prev=>({...prev,days:value,weekly:Math.round(prev.daily*value*prev.rate*10)/10}));
+    if(field==='participation_rate')setCapacity(prev=>({...prev,rate:value,weekly:Math.round(prev.daily*prev.days*value*10)/10}));
+    if(field==='weekly_holidays')setHolidayDays(value);
+  };
   const saveCapacity=async(field:string,value:number)=>{
     if(!bizId)return;
+    const prevCap={...capacity}, prevHol=holidayDays;
+    applyCapacity(field,value);                     // ① 즉시 반영 — 기다리지 않는다
     try{
-      // Find my member id
-      const mr=await(await apiFetch(`/api/businesses/${bizId}/members`)).json();
-      const me=mr.data?.find((m:{user_id:number})=>m.user_id===myId);
-      if(!me)return;
-      const r=await apiFetch(`/api/businesses/${bizId}/members/${me.id}/work-hours`,{
+      let memberId=myMemberIdRef.current;
+      if(!memberId){                                // 캐시가 없을 때만 1회 조회
+        const mr=await(await apiFetch(`/api/businesses/${bizId}/members`)).json();
+        const me=mr.data?.find((m:{user_id:number;id:number})=>m.user_id===myId);
+        if(!me){ setCapacity(prevCap); setHolidayDays(prevHol); return; }
+        memberId=me.id; myMemberIdRef.current=me.id;
+      }
+      const r=await apiFetch(`/api/businesses/${bizId}/members/${memberId}/work-hours`,{
         method:'PATCH',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({[field]:value}),
       });
-      if(!r.ok)return;  // 실패 시 낙관적 capacity 적용 금지
-      // Update local state
-      if(field==='daily_work_hours')setCapacity(prev=>({...prev,daily:value,weekly:Math.round(value*(prev.days)*prev.rate*10)/10}));
-      if(field==='weekly_work_days')setCapacity(prev=>({...prev,days:value,weekly:Math.round(prev.daily*value*prev.rate*10)/10}));
-      if(field==='participation_rate')setCapacity(prev=>({...prev,rate:value,weekly:Math.round(prev.daily*prev.days*value*10)/10}));  // 실작업률(%) — 백엔드 participation_rate(0~1)
-      if(field==='weekly_holidays')setHolidayDays(value);  // 운영 #50 — 휴일도 백엔드 저장 + 로컬 반영
-    }catch{}
+      // ★ apiFetch 는 throw 하지 않는다 — res.ok 를 봐야 실패를 안다(memory: apifetch_no_throw).
+      if(!r.ok){ setCapacity(prevCap); setHolidayDays(prevHol); }
+    }catch{ setCapacity(prevCap); setHolidayDays(prevHol); }
   };
 
   // ★ #254 — 그래프의 정본 집합. **filtered 파생 금지**: 검색어를 치거나 "완료 가리기" 를 켜면
   //   그래프가 같이 변해서, 보기 옵션이 사실을 바꾸는 상태였다(weekSet 정본 vs filtered 보기 분리 원칙 위반).
   //   탭과도 무관하다 — 어느 탭에서 보든 "이번 주 내 투입" 은 한 값이어야 한다.
-  const chartWeekTasks=useMemo(()=>(
-    scope==='mine' ? allTasks.filter(t=>inWeekCanonical(t,true)&&t.assignee_id===myId&&t.status!=='canceled') : []
-  ),[allTasks,scope,myId,inWeekCanonical]);
 
   // 주간 진척 그래프 — 번업(0 → 위로 누적 상승, Irene 스펙 2026-06-29):
   //  - estimated_cumulative = Σ(예측시간 × 진행률) 누적 → 예측 진척 라인 (0→base 로 상승, 100% 시 base 도달).
@@ -1906,6 +1960,16 @@ const QTaskPage:React.FC=()=>{
             }}>+ {scope==='mine'&&tab==='requested'?t('add.reqBtn','요청 추가'):t('add.btn','업무 추가')}</HeaderAddBtn>
           </FilterBar>
 
+          {/* ★ P0-1 — 저장 실패를 여기서 말한다. 침묵하면 사용자는 "저장됨" 으로 읽는다(#228). */}
+          {saveErr&&(
+            <SaveErrorBar role="alert" data-testid="qtask-save-error">
+              <SaveErrorMark aria-hidden="true">!</SaveErrorMark>
+              <span>{saveErr}</span>
+              <SaveErrorClose type="button" onClick={()=>setSaveErr(null)}
+                aria-label={t('common.close','닫기') as string}>×</SaveErrorClose>
+            </SaveErrorBar>
+          )}
+
           {/* Column headers (sortable) */}
           {viewMode==='list'&&(
           <TableHScroll>
@@ -1975,9 +2039,14 @@ const QTaskPage:React.FC=()=>{
                           return { ok: true };
                         }}
                       />
+                      {/* ★ 행 onClick(상세 열기)과 겹쳐 체크가 먹지 않았다 — 클릭을 여기서 끊는다.
+                          (mousedown 까지 끊어야 행의 드래그/선택 처리에 삼켜지지 않는다) */}
                       <TaskCheck type="checkbox" checked={task.status==='completed'}
                         disabled={completeBlocked(task.status)}
+                        data-testid="task-row-check"
                         title={completeBlocked(task.status)?t('hold.completeBlocked','보류 해제 후 완료 처리할 수 있어요') as string:undefined}
+                        onClick={e=>e.stopPropagation()}
+                        onMouseDown={e=>e.stopPropagation()}
                         onChange={()=>toggleComplete(task)} />
                       {isEditing?(
                         <TitleInput autoFocus value={titleDraft} onChange={e=>setTitleDraft(e.target.value)}
@@ -3492,6 +3561,23 @@ const DelayChip=styled.button`
   &:hover{background:#E2E8F0;color:#0F172A;}
 `;
 const TaskCheck=styled.input`accent-color:#0D9488;cursor:pointer;width:15px;height:15px;flex-shrink:0;`;
+// 저장 실패 배너 — UI_DESIGN_GUIDE §1.3 (에러는 인라인, alert 금지)
+const SaveErrorBar=styled.div`
+  display:flex;align-items:center;gap:8px;
+  margin:0 12px 8px;padding:8px 12px;
+  background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;
+  font-size:12px;color:#991B1B;line-height:1.5;
+`;
+const SaveErrorMark=styled.span`
+  flex-shrink:0;width:16px;height:16px;border-radius:50%;
+  background:#DC2626;color:#fff;font-size:11px;font-weight:800;
+  display:inline-flex;align-items:center;justify-content:center;
+`;
+const SaveErrorClose=styled.button`
+  margin-left:auto;flex-shrink:0;background:none;border:none;cursor:pointer;
+  font-size:16px;line-height:1;color:#991B1B;padding:0 2px;
+  &:hover{color:#7F1D1D;}
+`;
 const QTaskInlineAddRow=styled.div`display:flex;align-items:center;gap:8px;padding:6px 12px;background:#F0FDFA;border-bottom:1px solid #F8FAFC;min-width:520px;`;
 const QTaskInlineSpacer=styled.div`width:24px;flex-shrink:0;`;
 const QTaskInlineInput=styled.input`flex:1;min-width:0;padding:4px 8px;height:26px;font-size:13px;color:#0F172A;background:#FFFFFF;border:1px solid #14B8A6;border-radius:6px;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}&::placeholder{color:#94A3B8;}`;

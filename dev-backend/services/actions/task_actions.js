@@ -977,9 +977,15 @@ async function revertStatus(task, actor) {
   if (target === 'on_hold') holdFields.hold_prev_status = fromStatus;
   else if (fromStatus === 'on_hold') { holdFields.hold_prev_status = null; holdFields.hold_reason = null; }
 
+  // ★ Irene 2026-08-24 — "체크 다시 해제하면 진행률 0이 되어야 한다."
+  //   완료를 되돌리는 것은 "안 한 일로 되돌린다" 는 뜻이므로 진행률도 0 으로 내린다.
+  //   리스트 체크박스(PATCH /time)와 팝아웃 체크(POST /revert-status)가 **같은 결과**가 되게
+  //   여기(단일 착지점)에서 처리한다 — 표면마다 다르게 구현하면 또 갈라진다.
+  const progFields = (fromStatus === 'completed') ? { progress_percent: 0 } : {};
+
   const t = await sequelize.transaction();
   try {
-    await task.update({ status: target, ...holdFields }, { transaction: t });
+    await task.update({ status: target, ...holdFields, ...progFields }, { transaction: t });
     await logHistory({
       taskId: task.id, eventType: 'revert',
       fromStatus, toStatus: target, actorUserId: userId, transaction: t,
