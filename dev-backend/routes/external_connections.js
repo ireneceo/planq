@@ -62,14 +62,26 @@ function personalCallbackHtml({ ok, provider, title, body }) {
     <button type="button" id="closeBtn">닫기</button>
     <div class="hint">잠시 후 자동으로 닫힙니다…</div>
   </div>
-  <div class="box" id="fallback"><h2 style="color:#0F766E;">✓ 완료</h2><p>이 창을 닫으셔도 됩니다.</p></div>
+  <div class="box" id="fallback"><h2 style="color:#0F766E;">✓ 연동이 끝났습니다</h2>
+    <p><strong>이 창을 닫아 주세요.</strong> (탭 닫기 또는 ⌘W / Ctrl+W)<br/>
+    구글 로그인을 거친 창은 브라우저 보안 정책상 <b>자동으로 닫을 수 없습니다.</b><br/>
+    원래 화면에는 이미 연동이 반영돼 있습니다.</p></div>
   <script>
     (function(){
-      try { window.opener && window.opener.postMessage({ type: 'personal:connected', provider: ${JSON.stringify(provider || null)}, ok: ${ok ? 'true' : 'false'} }, '*'); } catch(e){}
+      var payload = { type: 'personal:connected', provider: ${JSON.stringify(provider || null)}, ok: ${ok ? 'true' : 'false'}, ts: Date.now() };
+      // opener 는 COOP 로 끊겨 있을 수 있다 — 동일 출처 채널도 같이 쏜다 (cloud_oauth 와 같은 계약).
+      try { var bc = new BroadcastChannel('planq:oauth'); bc.postMessage(payload); bc.close(); } catch(e){}
+      try { localStorage.setItem('planq:oauth:done', JSON.stringify(payload)); } catch(e){}
+      try { window.opener && window.opener.postMessage(payload, '*'); } catch(e){}
+      var showFallback = function(){
+        var p=document.getElementById('primary'), f=document.getElementById('fallback');
+        if (p && f && f.style.display !== 'block') { p.style.display='none'; f.style.display='block'; }
+      };
       var tryClose = function(){ try { window.close(); } catch(e){} };
-      document.getElementById('closeBtn').addEventListener('click', tryClose);
+      // 닫기를 눌러도 아무 반응이 없으면 고장으로 읽힌다 — 닫히지 않으면 곧바로 안내로 바꾼다.
+      document.getElementById('closeBtn').addEventListener('click', function(){ tryClose(); setTimeout(showFallback, 200); });
       setTimeout(tryClose, 800);
-      setTimeout(function(){ if(!document.hidden){ var p=document.getElementById('primary'),f=document.getElementById('fallback'); if(p&&f){p.style.display='none';f.style.display='block';} } }, 1500);
+      setTimeout(showFallback, 1500);
     })();
   </script>
 </body></html>`;

@@ -19,6 +19,7 @@ import MessageAttachments from './MessageAttachments';
 import MailMessageBody from './MailMessageBody';
 import AddressMenu from '../../components/Mail/AddressMenu';   // #261 주소 클릭 메뉴
 import { buildMailSrcDoc, type QuoteFoldLabels } from './mailSrcDoc';
+import { openMailWindow } from './openMailWindow';
 import {
   MessageCard, MessageHeader, MessageFrom, MessageTo, MsgHeaderRight, MsgCollapsedPreview, MsgChevron,
   MessageTime, MsgForwardBtn, DeliveryChip, MessageBodyText,
@@ -154,7 +155,22 @@ export default function ThreadMessages(p: Props) {
               <MessageTime>{formatTimeAgo(m.sent_at)}</MessageTime>
               {/* 헤더 클릭 = 접기/펼치기라, 안쪽 버튼은 전파를 끊어야 한다 */}
               {/* 운영 #260 — 본문만 화면 전체로. 목록·상세가 좁아 답답하다는 지적. */}
-              <MsgForwardBtn type="button" onClick={(e) => { e.stopPropagation(); setFullMsgId(m.id); }}
+              {/* ★ 2026-08-24 (Irene) — "전체보기는 웹 미리보기처럼 새 창으로 열려야지."
+                  앱 안 모달은 아무리 키워도 앱 창을 못 벗어난다. 진짜 창으로 연다.
+                  팝업이 차단되면 기존 모달로 폴백해 기능이 죽지 않게 한다. */}
+              <MsgForwardBtn type="button" onClick={(e) => {
+                e.stopPropagation();
+                const sub = m.direction === 'outbound'
+                  ? `${(m.sent_by_user_id && myUserId && m.sent_by_user_id !== myUserId && m.sent_by_name) ? m.sent_by_name : (t('me', { defaultValue: '나' }) as string)} <${accountEmail}>`
+                  : `${m.from_name || ''} <${m.from_email || ''}>`;
+                const opened = openMailWindow({
+                  title: subject || '',
+                  subtitle: sub,
+                  srcDoc: m.body_html ? buildMailSrcDoc(m.id, m.body_html, msgCidData[m.id], foldLabels) : undefined,
+                  text: m.body_text,
+                });
+                if (!opened) setFullMsgId(m.id);
+              }}
                 title={t('detail.fullView', { defaultValue: '전체 화면으로 보기' }) as string}
                 aria-label={t('detail.fullView', { defaultValue: '전체 화면으로 보기' }) as string}>
                 {t('detail.fullViewShort', { defaultValue: '전체보기' }) as string}
