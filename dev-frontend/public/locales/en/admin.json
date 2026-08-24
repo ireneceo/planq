@@ -367,9 +367,13 @@
     "save": "Update baseline",
     "saving": "Saving…",
     "topup": "Top up",
-    "hint": "Enter the new balance after topping up — that is what keeps the estimate accurate.",
+    "hint": "Enter the new balance after topping up to keep the estimate accurate. From the second entry on, the real rate is calculated automatically.",
     "loadFailed": "Could not load credit status.",
     "saveFailed": "Could not save. Please try again shortly.",
-    "invalidBalance": "Enter the balance as a number."
+    "invalidBalance": "Enter the balance as a number.",
+    "rate": "Per-minute rate",
+    "rateCalibrated": "measured",
+    "rateEstimated": "estimated",
+    "learned": "Learned the real rate — {{m}} min used, ${{u}} charged → ${{r}}/min"
   }
 }

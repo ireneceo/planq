@@ -25,7 +25,11 @@ interface ProviderStatus {
   topup_url: string | null;
   block_on_empty: boolean;
   blocked: boolean;
+  unit_price_usd: number | null;
+  rate_source: 'calibrated' | 'estimated' | 'ledger';
 }
+
+interface Calibration { applied: boolean; rate?: number; minutes?: number; spentUsd?: number; reason?: string }
 
 // 남은 일수 → 색 톤. 경보 단계(서버 ALERT_DAYS)와 같은 눈금을 쓴다.
 const toneOf = (s: ProviderStatus): 'ok' | 'warn' | 'danger' => {
@@ -44,6 +48,8 @@ const ProviderCreditCard = () => {
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // 단가를 스스로 알아냈을 때 그 사실을 말해준다 — 사용자가 가격표를 찾지 않아도 되는 이유다.
+  const [learned, setLearned] = useState<Record<string, Calibration>>({});
 
   const load = useCallback(async () => {
     try {
@@ -74,6 +80,9 @@ const ProviderCreditCard = () => {
       });
       // apiFetch 는 throw 하지 않는다 — res.ok 를 안 보면 실패가 성공한 척한다.
       if (!r.ok) throw new Error('save_failed');
+      const j = await r.json();
+      const calib: Calibration | undefined = j.data?.calibration;
+      setLearned(p => ({ ...p, [provider]: calib || { applied: false } }));
       setDraft(p => ({ ...p, [provider]: '' }));
       await load();
     } catch {
@@ -121,6 +130,19 @@ const ProviderCreditCard = () => {
                   <K>{t('credit.baseAt', '기준 시점')}</K>
                   <V>{s.balance_start_at ? String(s.balance_start_at).slice(0, 10) : '—'}</V>
                 </Stat>
+                {s.unit_price_usd != null && (
+                  <Stat>
+                    <K>{t('credit.rate', '분당 단가')}</K>
+                    <V>
+                      ${Number(s.unit_price_usd).toFixed(4)}
+                      <RateTag $ok={s.rate_source === 'calibrated'}>
+                        {s.rate_source === 'calibrated'
+                          ? t('credit.rateCalibrated', '실측')
+                          : t('credit.rateEstimated', '추정')}
+                      </RateTag>
+                    </V>
+                  </Stat>
+                )}
               </Stats>
             )}
 
@@ -141,7 +163,13 @@ const ProviderCreditCard = () => {
                 </TopupLink>
               )}
             </Form>
-            <Hint>{t('credit.hint', '충전한 뒤 새 잔액을 다시 입력해야 추정이 정확해집니다.')}</Hint>
+            {learned[s.provider]?.applied ? (
+              <Learned>
+                {/* 기본값은 t() 와 같은 줄에 둔다 — 줄을 나누면 i18n 가드가 t() 폴백임을 못 알아본다 */}
+                {t('credit.learned', '실단가를 자동으로 계산했습니다', { m: learned[s.provider].minutes, u: learned[s.provider].spentUsd, r: learned[s.provider].rate })}
+              </Learned>
+            ) : null}
+            <Hint>{t('credit.hint', '충전한 뒤 새 잔액을 다시 입력해야 추정이 정확해집니다. 두 번째 입력부터는 실단가를 자동으로 계산합니다.')}</Hint>
           </Row>
         );
       })}
@@ -199,4 +227,15 @@ const TopupLink = styled.a`
   font-size: 13px; font-weight: 600; color: #0F766E; text-decoration: none;
   &:hover { background: #F0FDFA; }
 `;
-const Hint = styled.div`font-size: 11px; color: #94A3B8;`;
+const Hint = styled.div`font-size: 11px; color: #94A3B8; line-height: 1.5; word-break: keep-all;`;
+const RateTag = styled.span<{ $ok: boolean }>`
+  margin-left: 6px; padding: 1px 6px; border-radius: 999px;
+  font-size: 10px; font-weight: 700;
+  background: ${p => (p.$ok ? '#CCFBF1' : '#F1F5F9')};
+  color: ${p => (p.$ok ? '#0F766E' : '#64748B')};
+`;
+const Learned = styled.div`
+  font-size: 12px; font-weight: 600; color: #0F766E;
+  background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 8px;
+  padding: 8px 10px; line-height: 1.5; word-break: keep-all;
+`;

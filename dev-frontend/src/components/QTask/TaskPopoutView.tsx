@@ -68,6 +68,7 @@ import { getRoles, primaryPerspective } from '../../utils/taskRoles';
 import TagChips, { type TaskTagLite } from './TagChips';
 import TagQuickMenu from './TagQuickMenu';
 import { quickActionFor, type QuickAction } from './popoutQuickAction';
+import { useQuickAction } from './useQuickAction';   // 행 퀵액션 실행(낙관 반영·행 단위 잠금)
 import { useTaskTagDict } from './useTaskTagDict';
 import PopoutViewChips, { type PopoutView } from './PopoutViewChips';
 import PopoutQuickAdd from './PopoutQuickAdd';
@@ -281,43 +282,7 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
 
   // ── 퀵액션 (체크박스 완료처리) ─────────────────────────────
   // 중복 제출 가드는 전역 1건 — 더블클릭도, 다른 행 연타도 요청 1회 (UI_DESIGN_GUIDE §1.8).
-  const [busyId, setBusyId] = useState<number | null>(null);
-  const [rowErr, setRowErr] = useState<{ id: number; msg: string } | null>(null);
-
-  const actErrMsg = useCallback((raw?: string) => {
-    // 백엔드는 에러 코드를 message 로 그대로 내보낸다(계약). 일부 코드는 뒤에 설명이 붙어 온다.
-    const code = String(raw || '').split(' ')[0];
-    const map: Record<string, string> = {
-      only_assignee: t('popout.act.errOnlyAssignee', '담당자만 처리할 수 있습니다'),
-      task_closed: t('popout.act.errClosed', '이미 종료된 업무입니다'),
-      task_on_hold: t('popout.act.errOnHold', '보류 중인 업무입니다'),
-      not_ready_for_complete: t('popout.act.errNeedsReview', '컨펌을 거쳐야 완료됩니다'),
-      no_reviewers_add_first: t('popout.act.errNoReviewers', '컨펌자를 먼저 지정하세요'),
-      nothing_to_revert: t('popout.act.errNothingToRevert', '되돌릴 이력이 없습니다'),
-      forbidden_revert: t('popout.act.errForbiddenRevert', '되돌릴 권한이 없습니다'),
-    };
-    return map[code] || t('popout.act.errGeneric', '처리하지 못했습니다');
-  }, [t]);
-
-  const runAction = useCallback(async (id: number, path: string) => {
-    if (busyId !== null) return;
-    setBusyId(id);
-    setRowErr(null);
-    try {
-      const r = await apiFetch(`/api/tasks/${id}${path}`, { method: 'POST' });
-      // apiFetch 는 throw 하지 않는다 — res.ok 를 반드시 본다 (memory: apifetch_no_throw)
-      if (!r.ok) {
-        const j = await r.json().catch(() => ({}));
-        setRowErr({ id, msg: actErrMsg(j?.message) });
-      }
-      // 성공·실패 무관 서버 진실로 재동기. 다른 창이 먼저 바꿨다면 이 행은 여기서 사라진다.
-      await silentLoad();
-    } catch {
-      setRowErr({ id, msg: t('popout.act.errNetwork', '연결에 실패했습니다') });
-    } finally {
-      setBusyId(null);
-    }
-  }, [busyId, silentLoad, actErrMsg, t]);
+  const { busyIds, rowErr, runAction } = useQuickAction({ setTasks, silentLoad });
 
   // 드로어에 필요한 멤버 목록
   useEffect(() => {
@@ -464,9 +429,13 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
 
   // 행 왼쪽 24px 슬롯 — 분기별로 렌더가 다르지만 폭은 항상 같다 (제목 좌측선 정렬 유지).
   const renderQuickAction = (tk: PopoutTask, qa: QuickAction, busy: boolean) => {
-    if (busy) return <Slot aria-hidden="true"><Spin /></Slot>;
+    // 체크/해제는 낙관적으로 이미 뒤집혀 있다 — 스피너로 덮으면 **즉시 반영을 도로 감춘다**.
+    //   나머지(제출 등)는 서버 판정을 기다려야 하므로 종전대로 스피너를 보인다.
+    if (busy && qa !== 'complete' && qa !== 'uncheck') return <Slot aria-hidden="true"><Spin /></Slot>;
     // 중복 제출 가드 (UI_DESIGN_GUIDE §1.8) — 처리 중엔 다른 행의 퀵액션도 잠근다.
-    const locked = busyId !== null;
+    // 이 행만 잠근다. 옛 전역 잠금은 한 행을 누르면 목록 전체가 굳어 버렸고,
+    //   그것이 느리다는 체감의 절반이었다.
+    const locked = busy;
     switch (qa) {
       case 'complete':
         return (
@@ -665,7 +634,7 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
               const role = primaryPerspective(getRoles(tk, myId));
               const rc = Number(tk.reviewer_count ?? 0) || 0;
               const qa = quickActionFor(tk.status, rc, tk.assignee_id === myId);
-              const busy = busyId === tk.id;
+              const busy = busyIds.has(tk.id);
               const groupColor = tk.tags && tk.tags.length > 0 ? tk.tags[0].color : null;
               // ★ Row 는 div 다. 체크박스 버튼과 본문 버튼은 **형제** — 중첩하면 button-in-button 이 되어
               //   HTML 상 무효이고 브라우저가 클릭 타깃을 임의로 접는다(stopPropagation 으로 못 막는다).

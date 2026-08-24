@@ -2,6 +2,7 @@ import React, { Fragment, useState, useEffect, useCallback, useMemo, useRef } fr
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { quickActionFor } from '../../components/QTask/popoutQuickAction';   // 체크박스 노출 규칙 — 팝아웃과 단일 원천
 import { useAuth } from '../../contexts/AuthContext';
 import { joinRoom, leaveRoom, onSocket, getSocket } from '../../services/socket';
 import { apiFetch } from '../../contexts/AuthContext';
@@ -2041,13 +2042,38 @@ const QTaskPage:React.FC=()=>{
                       />
                       {/* ★ 행 onClick(상세 열기)과 겹쳐 체크가 먹지 않았다 — 클릭을 여기서 끊는다.
                           (mousedown 까지 끊어야 행의 드래그/선택 처리에 삼켜지지 않는다) */}
-                      <TaskCheck type="checkbox" checked={task.status==='completed'}
-                        disabled={completeBlocked(task.status)}
-                        data-testid="task-row-check"
-                        title={completeBlocked(task.status)?t('hold.completeBlocked','보류 해제 후 완료 처리할 수 있어요') as string:undefined}
-                        onClick={e=>e.stopPropagation()}
-                        onMouseDown={e=>e.stopPropagation()}
-                        onChange={()=>toggleComplete(task)} />
+                      {/* ★ 2026-08-24 (Irene) — "확인요청·컨펌·요청받은 업무는 리스트에서 완료 체크박스가
+                          없어야 하는 거 아니야? 내가 마음대로 완료하면 안 되잖아."
+                          팝아웃은 이미 quickActionFor 로 판정하고 있었는데 메인 리스트만 전부 체크박스를
+                          내주고 있었다. **같은 순수 함수를 공유**한다 — 규칙이 두 벌이면 반드시 갈린다.
+                            · 담당자가 아니면        → 체크박스 없음 (컨펌은 상세에서)
+                            · reviewer 가 있고 완료  → 잠긴 ☑ (컨펌으로 완료된 건은 여기서 못 되돌린다)
+                            · reviewing / 제출 대기  → 체크박스 없음 (재제출은 승인을 리셋한다)
+                          자리는 항상 차지한다 — 안 그리면 제목 좌측선이 행마다 어긋난다. */}
+                      {(()=>{
+                        const qa=quickActionFor(task.status,(task.reviewers||[]).length,task.assignee_id===myId);
+                        if(qa==='complete'||qa==='uncheck'){
+                          return (
+                            <TaskCheck type="checkbox" checked={task.status==='completed'}
+                              disabled={completeBlocked(task.status)}
+                              data-testid="task-row-check"
+                              title={completeBlocked(task.status)?t('hold.completeBlocked','보류 해제 후 완료 처리할 수 있어요') as string:undefined}
+                              onClick={e=>e.stopPropagation()}
+                              onMouseDown={e=>e.stopPropagation()}
+                              onChange={()=>toggleComplete(task)} />
+                          );
+                        }
+                        if(qa==='checked_locked'){
+                          return (
+                            <TaskCheck type="checkbox" checked readOnly disabled
+                              data-testid="task-row-check-locked"
+                              title={t('list.checkLocked',{defaultValue:'컨펌으로 완료됨 — 되돌리기는 상세에서'}) as string}
+                              onClick={e=>e.stopPropagation()}
+                              onMouseDown={e=>e.stopPropagation()} />
+                          );
+                        }
+                        return <CheckSpacer aria-hidden="true" />;
+                      })()}
                       {isEditing?(
                         <TitleInput autoFocus value={titleDraft} onChange={e=>setTitleDraft(e.target.value)}
                           onClick={e=>e.stopPropagation()}
@@ -3561,6 +3587,8 @@ const DelayChip=styled.button`
   &:hover{background:#E2E8F0;color:#0F172A;}
 `;
 const TaskCheck=styled.input`accent-color:#0D9488;cursor:pointer;width:15px;height:15px;flex-shrink:0;`;
+// 체크박스를 내주지 않는 행의 자리 유지 — 안 그리면 제목 좌측선이 행마다 어긋난다.
+const CheckSpacer=styled.span`width:15px;height:15px;flex-shrink:0;display:inline-block;`;
 // 저장 실패 배너 — UI_DESIGN_GUIDE §1.3 (에러는 인라인, alert 금지)
 const SaveErrorBar=styled.div`
   display:flex;align-items:center;gap:8px;

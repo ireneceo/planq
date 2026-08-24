@@ -46,6 +46,19 @@ router.put('/provider-credits/:provider', async (req, res, next) => {
       where: { provider },
       defaults: { provider, balance_start_usd: 0, balance_start_at: new Date() },
     });
+    // ★ 단가 자동 보정 — 잔액을 새로 입력하는 이 순간이 유일하게 "실제 청구액"을 아는 시점이다.
+    //   (이전 잔액 − 지금 잔액) ÷ 그 사이 사용한 분 = 제공사가 실제로 청구한 분당 단가.
+    //   덮어쓰기 **전에** 이전 값으로 계산해야 한다.
+    const calib = await providerCredit.calibrateRate(provider, row, balance);
+    if (calib.applied) {
+      // ★ 순서가 중요하다. 단가를 **먼저 저장하고 캐시를 비운 뒤에** 기준선 누적을 계산해야 한다.
+      //   옛 단가로 기준선을 잡고 새 단가로 현재 누적을 재면 두 식이 갈려 **즉시 유령 소비**가 생긴다
+      //   (자체 반증: 200분 원장에서 단가가 0.0077→0.009 로 바뀌자 $0.26 이 허공에서 생겼다).
+      row.unit_price_usd = calib.rate;
+      await row.save();
+      providerCredit.invalidateRateCache();
+    }
+
     row.balance_start_usd = balance;
     // 기준 시점은 서버가 정한다 — 클라가 과거 시각을 보내면 그만큼 소비가 이중 차감된다.
     row.balance_start_at = new Date();
@@ -68,7 +81,9 @@ router.put('/provider-credits/:provider', async (req, res, next) => {
       new_value: JSON.stringify({ provider, balance_start_usd: balance }),
     }).catch(() => null);
 
-    return successResponse(res, await providerCredit.status(provider));
+    // 보정 결과를 같이 돌려준다 — 화면이 "실단가를 배웠다"를 사용자에게 말할 수 있게.
+    const st = await providerCredit.status(provider);
+    return successResponse(res, { ...st, calibration: calib });
   } catch (err) { next(err); }
 });
 

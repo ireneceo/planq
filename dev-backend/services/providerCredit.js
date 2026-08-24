@@ -12,9 +12,33 @@
 //   누적 오차가 리셋되므로, 충전할 때마다 새 잔액을 넣는 것이 정상 운용이다.
 const { Op, fn, col, literal } = require('sequelize');
 
-// Deepgram 스트리밍 단가(USD/분). 실제 청구서를 보고 조정 — env 로 뺀 이유가 그것.
+// Deepgram 스트리밍 단가(USD/분) — **초기 추정값**. nova-3 스트리밍 기준.
 //   ※ 우리는 스테레오를 2배로 과금 집계하므로(CLAUDE.md Q Note STT), 원장의 seconds 는 이미 billed 초다.
+//
+// ★ 이 값을 사람이 찾아 넣게 만들지 않는다 (Irene: "단가 확인하는 곳이 없는데?").
+//   관리자가 콘솔 잔액을 **두 번째로** 입력하는 순간 실제 단가가 산수로 나온다:
+//     실단가 = (이전 잔액 − 지금 잔액) ÷ (그 사이 사용한 분)
+//   우리 원장에 그 구간의 billed 초가 정확히 있으므로 나눗셈만 하면 된다 → calibrateRate().
+//   보정된 값은 provider_credits.unit_price_usd 에 저장되고 이후 계산은 그것을 쓴다.
 const DEEPGRAM_USD_PER_MIN = Number(process.env.DEEPGRAM_USD_PER_MIN || 0.0077);
+
+// 단가 캐시 — 초당 수십 번 호출되는 경로(STT 세그먼트 기록)에서 매번 DB 를 치지 않게.
+let _rateCache = { at: 0, val: null };
+const RATE_CACHE_MS = 60_000;
+
+/** 현재 유효 Deepgram 단가(USD/분). 보정값이 있으면 그것, 없으면 env 기본값. */
+async function getDeepgramRate() {
+  if (_rateCache.val != null && Date.now() - _rateCache.at < RATE_CACHE_MS) return _rateCache.val;
+  let val = DEEPGRAM_USD_PER_MIN;
+  try {
+    const { ProviderCredit } = models();
+    const row = await ProviderCredit.findOne({ where: { provider: 'deepgram' }, attributes: ['unit_price_usd'] });
+    if (row && row.unit_price_usd != null && Number(row.unit_price_usd) > 0) val = Number(row.unit_price_usd);
+  } catch { /* DB 미가용이면 기본값 — 감시 장치가 서비스를 막으면 안 된다 */ }
+  _rateCache = { at: Date.now(), val };
+  return val;
+}
+const invalidateRateCache = () => { _rateCache = { at: 0, val: null }; };
 
 // 경보 단계 — 남은 일수. 큰 것부터 검사해 "처음 걸리는" 단계를 쓴다.
 const ALERT_DAYS = [30, 14, 7, 3, 1, 0];
@@ -33,12 +57,16 @@ const models = () => (_m || (_m = require('../models')));
 const num = (v) => Number(v || 0);
 
 /** Deepgram: 원장(qnote_usage_events)의 billed 초 → USD. since 없으면 전체 누적. */
-async function deepgramSpent(since, until) {
+async function deepgramSeconds(since, until) {
   const { QnoteUsageEvent } = models();
   const where = {};
   if (since) { where.created_at = { [Op.gte]: since }; if (until) where.created_at[Op.lt] = until; }
-  const secs = num(await QnoteUsageEvent.sum('seconds', { where }));
-  return { usd: (secs / 60) * DEEPGRAM_USD_PER_MIN, seconds: secs };
+  return num(await QnoteUsageEvent.sum('seconds', { where }));
+}
+
+async function deepgramSpent(since, until) {
+  const [secs, rate] = await Promise.all([deepgramSeconds(since, until), getDeepgramRate()]);
+  return { usd: (secs / 60) * rate, seconds: secs };
 }
 
 /** OpenAI: cue_usage 전체 누적 (월 rollup 이라 시간으로 자를 수 없다 — 누적만 신뢰한다). */
@@ -113,8 +141,13 @@ async function status(provider) {
   const remaining = Math.max(0, start - spent);
   // 소비가 없으면 남은 일수는 무한 — null 로 두고 화면에서 '—' 로 표시한다(0 으로 쓰면 경보가 오발한다).
   const daysLeft = rate > 0 ? remaining / rate : null;
+  // 화면이 "이 숫자를 얼마나 믿어도 되는가" 를 말할 수 있게 단가 출처를 같이 내려준다.
+  const rateUsed = provider === 'deepgram' ? await getDeepgramRate() : null;
+  const rateSource = provider !== 'deepgram' ? 'ledger'
+    : (row.unit_price_usd != null && Number(row.unit_price_usd) > 0 ? 'calibrated' : 'estimated');
   return {
     provider, label: meta.label, configured: true,
+    unit_price_usd: rateUsed, rate_source: rateSource,
     balance_start_usd: start, balance_start_at: row.balance_start_at,
     spent_usd: Number(spent.toFixed(4)), spent_seconds: seconds,
     remaining_usd: Number(remaining.toFixed(4)),
@@ -229,8 +262,49 @@ async function runCreditAlerts() {
   return out;
 }
 
+
+/**
+ * 실단가 자동 보정 — 관리자가 콘솔 잔액을 새로 입력할 때 호출.
+ *
+ * 원리: 이전 기준선 이후 실제로 빠져나간 돈 = (이전 잔액 − 지금 잔액).
+ *       그 구간에 우리가 쓴 분 = 원장의 billed 초 / 60.
+ *       두 값을 나누면 **제공사가 실제로 청구한 분당 단가**가 나온다.
+ *       → 사람이 가격표를 찾아 넣을 필요가 없다.
+ *
+ * 보정을 건너뛰는 경우(모두 "나눗셈이 의미 없는" 상황):
+ *   · 이전 기준선이 없다 (첫 입력)
+ *   · 잔액이 늘었다 = 그 사이 충전했다 → 소비만으로 설명되지 않는다
+ *   · 구간 사용량이 너무 적다 (5분 미만) → 반올림·최소과금 노이즈가 단가를 왜곡한다
+ *   · 계산 결과가 상식 범위(0.0005~0.10 USD/분) 밖 → 잘못된 입력으로 보고 버린다
+ *
+ * @returns {{applied:boolean, rate?:number, reason?:string, minutes?:number, spentUsd?:number}}
+ */
+async function calibrateRate(provider, prevRow, newBalanceUsd) {
+  if (provider !== 'deepgram') return { applied: false, reason: 'not_supported' };
+  try {
+    if (!prevRow || prevRow.balance_start_usd == null) return { applied: false, reason: 'no_previous_baseline' };
+    const prevBalance = num(prevRow.balance_start_usd);
+    if (prevBalance <= 0) return { applied: false, reason: 'no_previous_baseline' };
+    const spentUsd = prevBalance - Number(newBalanceUsd);
+    if (spentUsd <= 0) return { applied: false, reason: 'topped_up' };
+
+    const secs = await deepgramSeconds(new Date(prevRow.balance_start_at));
+    const minutes = secs / 60;
+    if (minutes < 5) return { applied: false, reason: 'not_enough_usage', minutes };
+
+    const rate = spentUsd / minutes;
+    if (!Number.isFinite(rate) || rate < 0.0005 || rate > 0.10) {
+      return { applied: false, reason: 'out_of_range', rate, minutes };
+    }
+    return { applied: true, rate: Number(rate.toFixed(6)), minutes: Number(minutes.toFixed(1)), spentUsd: Number(spentUsd.toFixed(4)) };
+  } catch (e) {
+    return { applied: false, reason: 'error:' + e.message };
+  }
+}
+
 module.exports = {
   DEEPGRAM_USD_PER_MIN, ALERT_DAYS, PROVIDER_META,
   status, statusAll, allow, dailyRate, todaySpent, spentSince, cumulativeSpent,
+  getDeepgramRate, invalidateRateCache, deepgramSeconds, calibrateRate,
   alertStageFor, runCreditAlerts,
 };

@@ -418,7 +418,8 @@
       "addTaskPh": "Task title (Enter to add / Esc to cancel)",
       "addTaskGo": "Add"
     },
-    "datesReadOnly": "Only the requester, assignee, or an admin can change the dates"
+    "datesReadOnly": "Only the requester, assignee, or an admin can change the dates",
+    "checkLocked": "Completed via approval — revert from the detail panel"
   },
   "empty": {
     "title": "Start your first task",

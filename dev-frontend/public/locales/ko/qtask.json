@@ -174,7 +174,8 @@
       "addTaskPh": "업무 제목 입력 (Enter 추가 / Esc 취소)",
       "addTaskGo": "추가"
     },
-    "datesReadOnly": "기간은 요청자·담당자·관리자만 변경할 수 있어요"
+    "datesReadOnly": "기간은 요청자·담당자·관리자만 변경할 수 있어요",
+    "checkLocked": "컨펌으로 완료됨 — 되돌리기는 상세에서"
   },
   "empty": {
     "title": "업무를 시작해 보세요",

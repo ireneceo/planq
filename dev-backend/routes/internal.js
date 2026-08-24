@@ -177,8 +177,9 @@ async function _attemptRecordUsage(args) {
     // ★ 2026-08-24 — 여태 cost_usd 는 0 으로 **초기화만** 되고 누적이 없었다.
     //   초는 세는데 돈은 안 세서, 원장을 봐도 STT 가 공짜처럼 보였다(운영 실측: 44분 사용 / $0.00).
     //   seconds 는 이미 billed 초(스테레오 2배 반영)라 그대로 분 환산해 곱한다.
-    const { DEEPGRAM_USD_PER_MIN } = require('../services/providerCredit');
-    row.cost_usd = Number(Number(row.cost_usd || 0) + (secs / 60) * DEEPGRAM_USD_PER_MIN).toFixed(4);
+    //   단가는 보정된 실단가를 우선 쓴다(60초 캐시라 세그먼트마다 DB 를 치지 않는다).
+    const _rate = await require('../services/providerCredit').getDeepgramRate();
+    row.cost_usd = Number(Number(row.cost_usd || 0) + (secs / 60) * _rate).toFixed(4);
     if (seq === 0) row.session_count = Number(row.session_count || 0) + 1;  // 연결 최초 세그먼트 = 새 녹음 1건
     await row.save({ transaction: t });
     await t.commit();
