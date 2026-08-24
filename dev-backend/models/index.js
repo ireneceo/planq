@@ -61,6 +61,7 @@ const OpsCapacityLog = require('./OpsCapacityLog');
 const BusinessCloudToken = require('./BusinessCloudToken');
 const QnoteUsage = require('./QnoteUsage');
 const QnoteUsageEvent = require('./QnoteUsageEvent');
+const ProviderCredit = require('./ProviderCredit');   // 외부 API 선불 크레딧 잔액 추적
 const BusinessPlanHistory = require('./BusinessPlanHistory');
 const Post = require('./Post');
 const PostAttachment = require('./PostAttachment');
@@ -503,6 +504,7 @@ EmailAccount.hasMany(EmailAccountAlias, { foreignKey: 'account_id', as: 'aliases
 EmailAccountAlias.belongsTo(EmailAccount, { foreignKey: 'account_id', as: 'account' });
 
 module.exports = {
+  ProviderCredit,
   AttendanceDay, AttendanceEvent, LeaveGrant, LeaveRequest,
   TaskDeliverableVersion,
   EmailAccountAlias,

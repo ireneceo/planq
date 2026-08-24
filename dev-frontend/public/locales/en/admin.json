@@ -351,5 +351,25 @@
     "internal": "Internal",
     "tester": "Tester",
     "partner": "Partner"
+  },
+  "credit": {
+    "section": "External API credits",
+    "desc": "When credit runs out, that feature stops. Platform admins are emailed as the remaining days fall (30/14/7/3/1).",
+    "remaining": "Estimated balance",
+    "spent": "Used since baseline",
+    "perDay": "Daily average",
+    "baseAt": "Baseline date",
+    "daysLeft": "{{d}} days left",
+    "exhausted": "Exhausted",
+    "noBurn": "No usage",
+    "notSet": "Not set",
+    "placeholder": "Balance shown in console (USD)",
+    "save": "Update baseline",
+    "saving": "Saving…",
+    "topup": "Top up",
+    "hint": "Enter the new balance after topping up — that is what keeps the estimate accurate.",
+    "loadFailed": "Could not load credit status.",
+    "saveFailed": "Could not save. Please try again shortly.",
+    "invalidBalance": "Enter the balance as a number."
   }
 }

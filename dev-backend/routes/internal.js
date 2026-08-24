@@ -125,6 +125,16 @@ router.get('/qnote/can', async (req, res, next) => {
     const bizId = Number(req.query.business_id);
     const seconds = req.query.seconds != null ? Number(req.query.seconds) : 1;
     if (!bizId) return errorResponse(res, 'invalid_business_id', 400);
+    // ★ 마지막 안전망 — 플랫폼 선불 크레딧이 마르면 Deepgram 이 우리 요청을 거절한다.
+    //   그때 사용자가 보는 것은 원인 모를 접속 실패다. 그 전에 **사유를 갖고** 막는다.
+    //   (진짜 대응은 소진 전 충전 경보 — services/providerCredit.runCreditAlerts)
+    //   기준선 미설정이거나 판정 실패면 fail-open 이라 이 줄이 서비스를 죽이지 않는다.
+    const credit = await require('../services/providerCredit').allow('deepgram');
+    if (!credit.ok) {
+      return successResponse(res, {
+        ok: false, reason: 'platform_credit_exhausted', limit: null, current: null,
+      });
+    }
     const r = await planEngine.can(bizId, 'use_qnote', { seconds });
     return successResponse(res, r);
   } catch (err) { next(err); }
@@ -164,6 +174,11 @@ async function _attemptRecordUsage(args) {
     const newSeconds = Number(row.seconds_used || 0) + secs;
     row.seconds_used = newSeconds;
     row.minutes_used = Math.floor(newSeconds / 60);
+    // ★ 2026-08-24 — 여태 cost_usd 는 0 으로 **초기화만** 되고 누적이 없었다.
+    //   초는 세는데 돈은 안 세서, 원장을 봐도 STT 가 공짜처럼 보였다(운영 실측: 44분 사용 / $0.00).
+    //   seconds 는 이미 billed 초(스테레오 2배 반영)라 그대로 분 환산해 곱한다.
+    const { DEEPGRAM_USD_PER_MIN } = require('../services/providerCredit');
+    row.cost_usd = Number(Number(row.cost_usd || 0) + (secs / 60) * DEEPGRAM_USD_PER_MIN).toFixed(4);
     if (seq === 0) row.session_count = Number(row.session_count || 0) + 1;  // 연결 최초 세그먼트 = 새 녹음 1건
     await row.save({ transaction: t });
     await t.commit();

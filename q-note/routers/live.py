@@ -586,9 +586,15 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
       return
     _quota = await check_quota(session_business_id, seconds=1)
     if _quota is not None and _quota.get('ok') is False:
+      # 사유가 다르면 안내도 달라야 한다 — "우리 플랜 한도 초과"와 "플랫폼 크레딧 소진"은
+      #   사용자가 할 수 있는 일이 정반대다(전자는 플랜 조정, 후자는 기다리는 것뿐).
+      #   프론트는 message 로 문구를 고르므로 message 자체를 갈라 보낸다.
+      _msg = ('platform_credit_exhausted'
+              if _quota.get('reason') == 'platform_credit_exhausted'
+              else 'qnote_quota_exceeded')
       try:
         await websocket.send_json({
-          'type': 'error', 'message': 'qnote_quota_exceeded',
+          'type': 'error', 'message': _msg,
           'reason': _quota.get('reason'), 'limit': _quota.get('limit'), 'current': _quota.get('current'),
         })
       except Exception:

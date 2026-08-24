@@ -351,5 +351,25 @@
     "internal": "내부",
     "tester": "테스터",
     "partner": "파트너"
+  },
+  "credit": {
+    "section": "외부 API 크레딧",
+    "desc": "소진되면 해당 기능이 중단됩니다. 남은 일수가 줄면 플랫폼 관리자에게 메일로 알립니다(30·14·7·3·1일).",
+    "remaining": "예상 잔액",
+    "spent": "기준 이후 사용",
+    "perDay": "하루 평균",
+    "baseAt": "기준 시점",
+    "daysLeft": "{{d}}일 남음",
+    "exhausted": "소진됨",
+    "noBurn": "사용 없음",
+    "notSet": "미설정",
+    "placeholder": "콘솔에서 본 잔액 (USD)",
+    "save": "기준 잔액 갱신",
+    "saving": "저장 중…",
+    "topup": "충전하러 가기",
+    "hint": "충전한 뒤 새 잔액을 다시 입력해야 추정이 정확해집니다.",
+    "loadFailed": "크레딧 현황을 불러오지 못했습니다.",
+    "saveFailed": "저장하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+    "invalidBalance": "잔액을 숫자로 입력해 주세요."
   }
 }

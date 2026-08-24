@@ -905,6 +905,8 @@ const QNotePage = () => {
   const liveErrorText = useCallback((msg: string): string => {
     const map: Record<string, string> = {
       qnote_quota_exceeded: 'page.errors.quotaExceeded',
+      // 플랫폼 선불 크레딧 소진 — 사용자가 플랜을 올려도 해결되지 않는다. 안내를 갈라야 하는 이유.
+      platform_credit_exhausted: 'page.errors.creditExhausted',
       not_workspace_member: 'page.errors.notMember',
       too_many_active_recordings: 'page.errors.tooManyRecordings',
       session_time_limit: 'page.errors.sessionTimeLimit',

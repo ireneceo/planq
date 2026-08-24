@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import PageShell from '../../components/Layout/PageShell';
 import AutoSaveField from '../../components/Common/AutoSaveField';
 import { apiFetch } from '../../contexts/AuthContext';
+import ProviderCreditCard from './ProviderCreditCard';   // 외부 API 선불 크레딧 현황·충전 경보
 
 interface BillingSettings {
   bank_name: string | null;
@@ -176,6 +177,9 @@ const AdminBillingSettingsPage = () => {
     <PageShell title={t('billing.title', '결제 설정')}>
       <Wrap>
         {/* ① 현황 — 무엇이 켜져 있고 무엇이 부족한지 */}
+        {/* 우리 원가는 고객 결제 설정보다 먼저 눈에 띄어야 한다 — 마르면 기능이 선다. */}
+        <ProviderCreditCard />
+
         <Card>
           <SectionTitle>{t('billing.statusSection', '결제 수단 현황')}</SectionTitle>
 

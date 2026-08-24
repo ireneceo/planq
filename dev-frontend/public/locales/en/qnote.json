@@ -192,7 +192,8 @@
       "quotaExceeded": "You've used up this month's Q Note minutes. Upgrade your plan to keep recording.",
       "notMember": "You're not a member of this workspace, so recording isn't allowed.",
       "tooManyRecordings": "A recording is already in progress elsewhere. Please stop it first.",
-      "sessionTimeLimit": "Recording stopped — the maximum session length (4 hours) was reached."
+      "sessionTimeLimit": "Recording stopped — the maximum session length (4 hours) was reached.",
+      "creditExhausted": "Speech recognition is temporarily unavailable. Please contact your administrator. (All other features continue to work.)"
     },
     "tasks": {
       "title": "Tasks",

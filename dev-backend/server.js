@@ -458,6 +458,8 @@ app.use('/api/folders', require('./routes/file_folders'));
 app.use('/api/cloud', require('./routes/cloud'));
 app.use('/api/plan', require('./routes/plan'));
 app.use('/api/admin', require('./routes/admin'));
+// 외부 API 선불 크레딧 — 같은 /api/admin 아래. admin.js god-file 분리본.
+app.use('/api/admin', require('./routes/admin_credits'));
 app.use('/api/posts', require('./routes/posts'));
 app.use('/api/records', require('./routes/records'));
 app.use('/api/search', require('./routes/search'));
@@ -522,6 +524,12 @@ function scheduleNextMidnight() {
       const r = await trial.runDailyTrialCron();
       console.log('[trial-cron]', r);
     } catch (e) { console.warn('[trial-cron] failed', e.message); }
+    // 외부 API 선불 크레딧 — 소진 **전에** 충전하도록 알린다(남은 일수 기준 30/14/7/3/1일 + 0).
+    //   경보가 서비스를 죽이면 안 되므로 실패는 로그만 남기고 다음 작업으로 넘어간다.
+    try {
+      const r = await require('./services/providerCredit').runCreditAlerts();
+      console.log('[credit-alert]', JSON.stringify(r));
+    } catch (e) { console.warn('[credit-alert] failed', e.message); }
     try {
       const r = await require('./services/monthlyReport').runMonthlyReportsIfDay1();
       if (!r.skipped) console.log('[monthly-report]', r);
