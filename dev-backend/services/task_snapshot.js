@@ -107,9 +107,15 @@ async function backfillPeriod(fromDate, toDate) {
 //   cron 이 아침에 행을 만들고(그 시점엔 전날 마감값이 맞다), 그 날 안의 변경이 같은 행을 갱신한다.
 //   과거 날짜 행은 건드리지 않는다 — 지나간 날의 기록은 그대로 둔다.
 const tzCache = new Map();   // business_id → timezone (프로세스 수명 캐시. 워크스페이스 tz 는 거의 안 바뀐다)
-async function touchTodaySnapshot(task) {
+async function touchTodaySnapshot(task, options = {}) {
   try {
     if (!task || !task.id || !task.business_id) return;
+    // ★ 2026-08-24 — **바깥 트랜잭션에 반드시 합류한다.**
+    //   afterSave 훅은 호출자의 트랜잭션 **안에서** 실행되는데, 여기서 transaction 을 넘기지 않으면
+    //   별도 커넥션이 열려 바깥 트랜잭션이 이미 쥔 행을 잠그려 한다 → innodb_lock_wait_timeout(50초)
+    //   을 꽉 채우고 실패한다. 실측: POST /api/tasks 가 매번 50,053ms(운영 동일 증상).
+    //   catch 가 삼켜서 로그에만 남고 화면엔 "그냥 느림" 으로만 보였다.
+    const transaction = options.transaction || undefined;
     const { TaskDailyProgress, Business } = models();
     let tz = tzCache.get(task.business_id);
     if (!tz) {
@@ -127,8 +133,9 @@ async function touchTodaySnapshot(task) {
     const [row, isNew] = await TaskDailyProgress.findOrCreate({
       where: { task_id: task.id, snapshot_date: date },
       defaults: values,
+      transaction,
     });
-    if (!isNew) await row.update(values);
+    if (!isNew) await row.update(values, { transaction });
   } catch (e) {
     // 스냅샷 갱신 실패가 업무 저장 자체를 깨뜨리면 안 된다 — 기록만 남기고 삼킨다.
     console.error('[taskSnapshot] touchTodaySnapshot failed:', task && task.id, e.message);
@@ -137,11 +144,12 @@ async function touchTodaySnapshot(task) {
 
 /** Task 모델에 afterSave 훅을 건다 — 진척·시간·상태가 바뀐 저장에만 반응(단일 착지점). */
 function registerTaskSnapshotHook(Task) {
-  Task.addHook('afterSave', 'touchTodaySnapshot', async (instance) => {
+  Task.addHook('afterSave', 'touchTodaySnapshot', async (instance, options) => {
     const watched = ['progress_percent', 'actual_hours', 'estimated_hours', 'status'];
     // 신규 생성이거나, 지켜보는 필드가 실제로 바뀐 저장일 때만.
     if (!instance.isNewRecord && !watched.some(f => instance.changed(f))) return;
-    await touchTodaySnapshot(instance);
+    // options 를 그대로 넘긴다 — 여기에 바깥 transaction 이 들어 있다(위 주석 참조).
+    await touchTodaySnapshot(instance, options || {});
   });
 }
 
