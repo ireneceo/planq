@@ -66,15 +66,17 @@ APNs 검증 완료: 가짜 토큰에 `BadDeviceToken`(400) = 애플이 우리 �
 
 ## 다음 할 일
 1. **iOS 베타 빌드·업로드** (위 노트북 절차) → 내부 테스터로 실기기 검증 6항목
-2. **운영 nginx AASA Content-Type** — Irene 이 `sudo bash /tmp/planq-aasa-nginx.sh` 실행
-   내용은 이미 정상 배포됨(`appIDs: H2HW8BHXNW.app.planq` 확인). **남은 건 Content-Type 하나** —
-   지금 `application/octet-stream` 이라 iOS 가 도메인 검증을 못 한다(dev 는 `application/json` 정상)
-3. **운영 크레딧 잔액 입력** — `planq.kr/admin/billing-settings` → Deepgram `185.54` / OpenAI `15.76`
-   (운영 DB 는 dev 와 별개라 0행. 넣어야 경보가 굴러간다)
-4. Fable 큐 `docs/FABLE_VERIFY_QUEUE.md` — §6 Gmail 스팸함 수집(커서 스키마), §5 메일 전달 기능(차단 중)
+2. Fable 큐 `docs/FABLE_VERIFY_QUEUE.md` — §6 Gmail 스팸함 수집(커서 스키마), §5 메일 전달 기능(차단 중)
+
+### ✅ 2026-08-24 저녁 — 대기 3건 전부 해소
+- Dropbox `.p8` 공유 링크 삭제 (Irene)
+- **운영 nginx Universal Links 완료** — `application/json` + `Cache-Control` 확인, `appIDs H2HW8BHXNW.app.planq`
+  ※ 1차 스크립트가 파일의 **첫 `listen 443`**(= www.planq.kr 리다이렉트 블록)에 넣어 실패했다.
+    2차는 `server_name planq.kr;` 뒤에 넣어 성공. **운영 설정을 못 읽는 상태에서 위치를 추측하지 말 것** —
+    구조(`grep -nE "server_name|listen"`)를 먼저 받고 스크립트를 짠다
+- **운영 크레딧 잔액 입력 완료** — Deepgram $185.54 / OpenAI $15.76 (Claude 가 직접 반영)
 
 ### Irene 조치 대기
-- **Dropbox 의 `.p8` 공유 링크 삭제** — PlanQ 이름으로 푸시를 보낼 수 있는 키다
 - Google Drive 재연동 (`invalid_grant`)
 
 ---
