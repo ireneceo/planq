@@ -69,7 +69,9 @@ export function useInlineCidImages(
           // 첨부 기반이면 파일 다운로드, 본문에서 떼어낸 것이면 스레드 메시지 경로.
           const url = (im.embedded_index != null && threadId)
             ? `/api/businesses/${businessId}/email-threads/${threadId}/messages/${m.id}/embedded/${im.embedded_index}`
-            : (im.file_id != null ? `/api/files/${businessId}/${im.file_id}/download` : null);
+            // ?w=1024 — 본문 표시용 리사이즈본(webp). 원본 2.4MB 를 그대로 받던 것이 지연의 큰 몫이었다.
+            //   서버가 못 만들면 자동으로 원본을 준다(imageResize 폴백).
+            : (im.file_id != null ? `/api/files/${businessId}/${im.file_id}/download?w=1024` : null);
           if (!url) continue;
           queue.push({ cid, url });
         }

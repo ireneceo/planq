@@ -348,17 +348,25 @@ build_frontend() {
 deploy_frontend() {
   log "Deploying frontend (rsync)..."
 
-  RSYNC_FLAGS="-az --delete"
+  # ★ 2026-08-24 사고 — `--delete` 로 옛 청크를 즉시 지웠다가 운영 화면이 깨졌다.
+  #   빌드마다 파일명 해시가 바뀌므로 새 산출물은 새 파일로 올라온다. 그런데 옛 파일을 지우면,
+  #   **이미 옛 번들을 로드한 브라우저**가 참조하는 lazy 청크가 404 가 되어 그 순간부터
+  #   모든 요청이 `Failed to fetch` 로 죽는다(메일 전송·AI 초안·목록 갱신 전부).
+  #   자동 새로고침 가드(BuildVersionGuard.isReloadSafe)는 입력 중이면 reload 를 미루므로,
+  #   작업 중인 사용자일수록 정확히 이 함정에 빠진다.
+  #   → 옛 청크는 지우지 않고 남긴다. index.html 은 no-cache 라 새로고침하면 새 번들로 간다.
+  #   정리는 별도 주기 작업으로 (예: 30일 지난 assets 삭제) — 배포 시점에 지우지 않는다.
+  RSYNC_FLAGS="-az"
 
   if [ "$DRY_RUN" = true ]; then
     dim "  [dry] rsync $RSYNC_FLAGS $DEV_FE_BUILD/ $PROD_HOST:$PROD_FE_BUILD/"
     if [ -d "$DEV_FE_BUILD" ]; then
-      rsync -azn --delete -e "$RSYNC_SSH" "$DEV_FE_BUILD/" "$PROD_HOST:$PROD_FE_BUILD/" | head -10
+      rsync -azn -e "$RSYNC_SSH" "$DEV_FE_BUILD/" "$PROD_HOST:$PROD_FE_BUILD/" | head -10
     fi
   else
     [ -d "$DEV_FE_BUILD" ] || { error "$DEV_FE_BUILD 없음 — build 먼저"; exit 1; }
     rsync $RSYNC_FLAGS -e "$RSYNC_SSH" "$DEV_FE_BUILD/" "$PROD_HOST:$PROD_FE_BUILD/"
-    success "frontend 배포 완료"
+    success "frontend 배포 완료 (옛 청크 보존 — 사용 중 사용자의 화면이 깨지지 않게)"
   fi
 }
 

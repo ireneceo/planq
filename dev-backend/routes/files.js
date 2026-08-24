@@ -978,9 +978,17 @@ router.get('/:businessId/:id/download', authenticateToken, attachWorkspaceScope(
       return errorResponse(res, 'External file has no URL', 400);
     }
     if (!fs.existsSync(file.file_path)) return errorResponse(res, 'Physical file missing', 410);
+    const absPath = path.resolve(file.file_path);
+    // ★ 2026-08-24 (Irene: "이메일에 이미지가 첨부된게 너무 늦게 떠")
+    //   ?w= 가 붙은 이미지 요청은 리사이즈본(webp)을 준다 — 원본 2.4MB 를 그대로 내려주던 것이
+    //   메일 본문 인라인 이미지가 늦게 뜨는 직접 원인이었다.
+    //   services/imageResize 는 이미 문서 에디터(#97)가 쓰는 공용 구현 — 디스크 캐시 + 허용 폭 스냅 +
+    //   실패 시 원본 폴백(false 반환)까지 포함이라 여기 붙이는 것은 추가 위험이 없다.
+    //   ?w= 없는 기존 호출(내려받기 등)은 **완전히 그대로** 원본을 받는다.
+    if (await require('../services/imageResize').maybeServeResized(req, res, absPath, file.mime_type)) return;
     res.setHeader('Content-Disposition', buildContentDisposition(file.file_name));
     if (file.mime_type) res.setHeader('Content-Type', file.mime_type);
-    return res.sendFile(path.resolve(file.file_path));
+    return res.sendFile(absPath);
   } catch (error) {
     next(error);
   }
