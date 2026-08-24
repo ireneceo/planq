@@ -5,7 +5,15 @@
 **작업 상태:** 완료 — 단, **iOS 베타는 노트북(맥)에서 이어서 진행 중**
 
 ### 진행 중인 작업
-- **iOS TestFlight 베타** — 애플 쪽 관문은 전부 통과. 남은 것은 **맥에서 빌드·업로드**뿐
+- **iOS TestFlight 베타** — 애플 쪽 관문은 전부 통과. 남은 것은 **맥(노트북)에서 빌드·업로드**뿐
+
+### 🔴 오늘 마지막에 잡은 회귀 (배포 완료)
+**업무 저장이 매번 50초** — 내가 오늘 넣은 `afterSave` 스냅샷 훅이 `options.transaction` 을
+넘기지 않아 별도 커넥션으로 같은 행을 잠그려 했고, 바깥 트랜잭션이 쥔 락을 기다리다
+`innodb_lock_wait_timeout`(50초)를 매번 꽉 채웠다.
+- 운영 실측 **50,107ms → 82ms** (커밋 `2b7b2fa9`, 배포 18:43)
+- 두 겹으로 숨었다: 훅 `catch` 가 삼켜 로그에만 남고, 저장은 성공해 "그냥 느림" 으로만 보였다
+- 교훈 박제: memory `feedback_hook_must_join_transaction`
 
 ### 완료된 작업 (이번 세션)
 - 랜딩 **서비스 페이지 `/service`** + 견적문의(`/contact?type=quote`) — ko/en
@@ -59,11 +67,11 @@ APNs 검증 완료: 가짜 토큰에 `BadDeviceToken`(400) = 애플이 우리 �
 ## 다음 할 일
 1. **iOS 베타 빌드·업로드** (위 노트북 절차) → 내부 테스터로 실기기 검증 6항목
 2. **운영 nginx AASA Content-Type** — Irene 이 `sudo bash /tmp/planq-aasa-nginx.sh` 실행
-   (지금 `application/octet-stream` 이라 Universal Links 가 죽어 있다. dev 는 정상)
+   내용은 이미 정상 배포됨(`appIDs: H2HW8BHXNW.app.planq` 확인). **남은 건 Content-Type 하나** —
+   지금 `application/octet-stream` 이라 iOS 가 도메인 검증을 못 한다(dev 는 `application/json` 정상)
 3. **운영 크레딧 잔액 입력** — `planq.kr/admin/billing-settings` → Deepgram `185.54` / OpenAI `15.76`
    (운영 DB 는 dev 와 별개라 0행. 넣어야 경보가 굴러간다)
-4. **Team ID 반영분 배포 대기** — AASA 커밋됨(`1b53555c`), 운영 반영은 `/배포` 필요
-5. Fable 큐 `docs/FABLE_VERIFY_QUEUE.md` — §6 Gmail 스팸함 수집(커서 스키마), §5 메일 전달 기능(차단 중)
+4. Fable 큐 `docs/FABLE_VERIFY_QUEUE.md` — §6 Gmail 스팸함 수집(커서 스키마), §5 메일 전달 기능(차단 중)
 
 ### Irene 조치 대기
 - **Dropbox 의 `.p8` 공유 링크 삭제** — PlanQ 이름으로 푸시를 보낼 수 있는 키다
