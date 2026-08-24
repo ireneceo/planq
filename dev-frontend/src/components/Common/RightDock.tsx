@@ -15,6 +15,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { isPublicSurfacePath } from '../../utils/publicSurface';
 import { isPopoutWindow } from '../../utils/popout';
 import { openPopout, type PinTool } from '../../utils/pinHost';
+import { tabStore } from '../../stores/tabStore';
 import VoiceCaptureSheet from './VoiceCaptureSheet';
 
 /** 여기서 여는 도구 = 핀 가능한 도구. 두 곳에 따로 적으면 갈라진다(경로·크기 원천은 pinHost). */
@@ -82,11 +83,19 @@ const RightDock: React.FC = () => {
   if (hidden) return null;
 
   // #80 — 빠른 만들기: 해당 페이지로 이동하며 생성 모달 자동 오픈(URL param). "진짜 퀵".
+  // ★ Irene 2026-08-24 — "+업무 / +메일 / +일정 은 클릭하면 새 탭으로 열려야 하지 않을까?"
+  //   옛 동작은 `navigate()` = **활성 탭의 경로를 갈아치움**. 채팅을 보다가 +업무를 누르면
+  //   보고 있던 채팅 탭이 /tasks 로 바뀌어 사라졌다. 브라우저 탭 모델에서 "빠른 만들기" 가
+  //   지금 보던 것을 없애는 것은 맞지 않다 → 새 탭으로 연다(tabStore.newTab).
+  //   모바일은 탭 모델이 아니므로 기존처럼 인앱 이동(아래 handlePick 의 모바일 분기와 같은 기준).
   const handleCreate = (kind: 'task' | 'mail' | 'event') => {
     setExpanded(false);
-    if (kind === 'task') navigate('/tasks?create=1');
-    else if (kind === 'mail') navigate('/mail?compose=1');
-    else navigate('/calendar?create=1');
+    const path = kind === 'task' ? '/tasks?create=1'
+      : kind === 'mail' ? '/mail?compose=1'
+        : '/calendar?create=1';
+    const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
+    if (isMobile) { navigate(path); return; }
+    tabStore.newTab(path);
   };
 
   const openPlain = (tool: DockTool) => {

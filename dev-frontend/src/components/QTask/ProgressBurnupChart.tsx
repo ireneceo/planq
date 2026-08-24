@@ -7,7 +7,7 @@
 //   (이미지는 확대도, 다시 그리기도 못 한다. 데이터는 남는다).
 //
 // 정의(Q Task 라이브 그래프와 동일):
-//   진척(예상시간) = Σ(예측시간 × 진행률) 누적 — 0 에서 위로 올라간다
+//   진척(예측시간) = Σ(예측시간 × 진행률) 누적 — 0 에서 위로 올라간다
 //   실제 업무시간   = Σ(실제 입력시간) 누적 — 가용시간을 넘으면 그 위로 솟는다
 //   ★ 이름이 중요하다. 둘 다 "시간" 이지만 **하나는 예측 기준, 하나는 실제 기록**이다.
 //     옛 이름("진척"/"투입")은 그 차이를 말하지 않아, 실제 시간이 0 인 것을 그래프 고장으로 읽었다
@@ -87,7 +87,7 @@ export default function ProgressBurnupChart({ series, capacityHours = null, heig
               label={{ value: `${capacityHours}h`, position: 'right', fontSize: 10, fill: '#94A3B8' }} />
           ) : null}
           <Line
-            type="monotone" dataKey="estimated" name={t('report.chartEstimated', { defaultValue: '진척 (예상시간)' }) as string}
+            type="monotone" dataKey="estimated" name={t('report.chartEstimated', { defaultValue: '진척 (예측시간)' }) as string}
             stroke="#94A3B8" strokeWidth={2} strokeDasharray="4 3" dot={false} isAnimationActive={false}
           />
           <Line

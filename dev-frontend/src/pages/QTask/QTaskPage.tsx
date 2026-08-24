@@ -819,7 +819,7 @@ const QTaskPage:React.FC=()=>{
       if(!r.ok){
         // ★ 침묵 금지 — 사유를 말하고, 서버 값으로 되돌려 화면이 거짓말하지 않게 한다.
         reportSaveFail(field==='actual_hours'?t('col.act','실제시간') as string
-          :field==='estimated_hours'?t('col.est','예상시간') as string
+          :field==='estimated_hours'?t('col.est','예측시간') as string
           :field==='progress_percent'?t('col.progress','진행률') as string:field, r.status);
         load();
         return;
@@ -1511,7 +1511,7 @@ const QTaskPage:React.FC=()=>{
   ),[allTasks,scope,myId,inWeekCanonical]);
 
   // ★ 카드도 **그래프와 같은 집합**(chartWeekTasks = 이번 주 정본 ∩ 담당자=나)을 읽는다.
-  //   옛 코드는 `filtered`(보기 옵션 반영)를 써서 대각선 종점(계획=Σ예상시간)과 카드의 '계획' 이
+  //   옛 코드는 `filtered`(보기 옵션 반영)를 써서 대각선 종점(계획=Σ예측시간)과 카드의 '계획' 이
   //   서로 다른 수가 됐다. 같은 이름의 값은 한 집합에서 나와야 한다.
   const loadBreakdown=useMemo(()=>{
     let carried=0, fresh=0, done=0, doneCarried=0, plan=0;
@@ -1524,7 +1524,7 @@ const QTaskPage:React.FC=()=>{
       if(t.status==='canceled') continue;
       // 진척(누적) — 남은 일과 **같은 집합·같은 기준**이어야 한다. 분모(남은 일)는 이월을 포함하는데
       //   분자(진척)만 "이번 주 증가분" 이면 한 카드 안에서 자가 두 개가 된다
-      //   (Irene 2026-08-24: 주가 바뀌자 진척만 0 이 됐다 — "지연된 업무도 예상시간이 다 들어가야").
+      //   (Irene 2026-08-24: 주가 바뀌자 진척만 0 이 됐다 — "지연된 업무도 예측시간이 다 들어가야").
       const est=Number(t.estimated_hours)||0;
       plan+=est;                       // 계획 = 모든 예측시간 (완료분 포함) — 카드의 기준선
       const d=Math.max(0, est*((t.progress_percent||0)/100));
@@ -1602,7 +1602,7 @@ const QTaskPage:React.FC=()=>{
     const chartTasks=chartWeekTasks;
     // 오늘 라이브 값 (스냅샷은 아침 기준이라 당일 변동 반영 위해 라이브 계산).
     //   ★ 2026-08-24 (Irene 확정) — 두 선은 **같은 축(진행률)** 위에 있다:
-    //       진척(예상시간) = 예측시간 × 진행률   /   실제 업무시간 = 실제시간 × 진행률
+    //       진척(예측시간) = 예측시간 × 진행률   /   실제 업무시간 = 실제시간 × 진행률
     //     기준선 차감(Δ)은 걷어냈다 — 실제시간을 아래로 정정하면 Δ 가 0 으로 클램프되어
     //     진행률 100% 인 업무가 그 주 내내 0 만 기여했다(운영 실측 #385).
     //     서버(routes/tasks.js daily-progress)·보고서와 **같은 공식**이다.
@@ -1673,7 +1673,7 @@ const QTaskPage:React.FC=()=>{
   //   이제 카드 안 세 수가 한 기준이다 — 진척 + 남은 일 = 그 집합의 Σ예측.
   //   그래프는 그대로 Δ(번업) 를 그린다. 이월분을 그래프에 다시 실으면 지난 주 시간이 이번 주 선에
   //   실리던 #254 회귀다 — 두 화면은 **다른 질문**에 답한다(카드=지금 어디까지 / 그래프=이번 주에 얼마나).
-  // (옛 주석) 가용시간 바가 **채우는** 값 = 그래프 "진척(예상시간)" 선의 오늘 점.
+  // (옛 주석) 가용시간 바가 **채우는** 값 = 그래프 "진척(예측시간)" 선의 오늘 점.
   //   여태 바는 `남은 일 / 가용시간` 이라 **완료할수록 줄었다** — 24h 는 이번 주에 채워야 할
   //   계획인데 일을 하면 비어가는 셈이었다(Irene: "완료하면 시간이 줄어들어버리면 안되지").
   //   ★ 새 공식을 만들지 않는다 — 차트가 이미 쓰는 정의(Σ예측×진행률의 이번 주 Δ)를 그대로 읽는다.
@@ -1687,7 +1687,7 @@ const QTaskPage:React.FC=()=>{
     return past.length?Math.round(Number(past[past.length-1].estimated_cumulative)*10)/10:0;
   },[computedBurndown]);
 
-  // weekTotalEst = Σ예측 = **계획(예상시간)**. chartVerdict(SPI 판정) + 그래프 페이스 대각선의 종점 (Irene 2026-08-24)
+  // weekTotalEst = Σ예측 = **계획(예측시간)**. chartVerdict(SPI 판정) + 그래프 페이스 대각선의 종점 (Irene 2026-08-24)
   const weekTotalEst=useMemo(()=>(
     Math.round(chartWeekTasks.reduce((s,t)=>s+(Number(t.estimated_hours)||0),0)*10)/10
   ),[chartWeekTasks]);
@@ -1927,7 +1927,7 @@ const QTaskPage:React.FC=()=>{
               <Chip>{summary.count}{t('summary.unit','개')}</Chip>
               <Chip $teal={!isOverCap} $warn={isOverCap}
                 title={(isOverCap
-                  ? t('summary.overCapHint', { over: formatHours(planOverHours), defaultValue: '계획한 예상시간이 가용시간을 {{over}}h 초과 — 마감 조정·위임·기간 재배분을 검토하세요.' })
+                  ? t('summary.overCapHint', { over: formatHours(planOverHours), defaultValue: '계획한 예측시간이 가용시간을 {{over}}h 초과 — 마감 조정·위임·기간 재배분을 검토하세요.' })
                   : t('summary.remainCapHint','내가 담당자인 활성 업무의 남은 일(예측×미완료) / 주간 가용시간')) as string}>
                 {scope==='workspace'
                   ? t('summary.workspacePredict', { est: formatHours(summary.myEst) })
@@ -2847,7 +2847,7 @@ const QTaskPage:React.FC=()=>{
                     //   위 진척 줄이 초과를 말하는데 아래에서 여유가 있다고 해 서로 어긋났다.
                     //   오버커밋 경고는 상단 요약 칩(summary.remainCapOver)이 계속 맡는다.
                     // ★ 2026-08-24 (Irene 지시) — 카드의 큰 수 = **계획(모든 예측시간)** / 가용.
-                    //   "계획된 예상시간이라고 해서 모든 예측시간이 나와야 해. 이 시간과 기준이 되는
+                    //   "계획된 예측시간이라고 해서 모든 예측시간이 나와야 해. 이 시간과 기준이 되는
                     //    가용시간을 맞춰야 하고 00h 초과 경고" — 초과 판정 축이 진척이 아니라 계획이다.
                     //   바는 **남은/계획** 이라 100% 에서 시작해 완료할수록 줄어든다
                     //   ("100% 계획된 시간에서 점점 완료하면서 시간이 주는 거야").
@@ -2855,7 +2855,7 @@ const QTaskPage:React.FC=()=>{
                     const planTotal = loadBreakdown.plan;
                     const planOver = Math.round((planTotal - effectiveCapacity) * 10) / 10;
                     const planIsOver = effectiveCapacity > 0 && planOver > 0;
-                    // ★ 2026-08-24 (Irene) — 100% = 계획(예상시간). 그 안에서 **진척이 차오르고**
+                    // ★ 2026-08-24 (Irene) — 100% = 계획(예측시간). 그 안에서 **진척이 차오르고**
                     //   남은(계획−진척)이 줄어든다. 색은 초과여도 포인트 민트 고정 —
                     //   "많이 계획할수록 빨강" 은 진척 지표의 의미를 뒤집는다. 초과는 옆 배지가 말한다.
                     const donePct = planTotal > 0
@@ -2864,7 +2864,7 @@ const QTaskPage:React.FC=()=>{
                       <CapDashboard>
                         <CapHeadline>
                           <CapBigNum>
-                            <CapTinyLabel>{t('capacity.plannedWork', '계획 (예상시간)')}</CapTinyLabel>
+                            <CapTinyLabel>{t('capacity.plannedWork', '계획 (예측시간)')}</CapTinyLabel>
                             <CapUsed style={{color: '#0F766E'}}>{formatHours(planTotal)}</CapUsed>
                             <CapSep>/</CapSep>
                             <CapTotal>{formatHours(effectiveCapacity)}h</CapTotal>
@@ -2875,7 +2875,7 @@ const QTaskPage:React.FC=()=>{
                             </CapOverChip>
                           )}
                         </CapHeadline>
-                        {/* 계획 100% 안에서 진척이 차오른다 — 빈 부분이 곧 남은 예상시간.
+                        {/* 계획 100% 안에서 진척이 차오른다 — 빈 부분이 곧 남은 예측시간.
                             % 는 헤드라인이 아니라 **바 바로 옆**에 둔다 — 무엇의 퍼센트인지가 붙어 있어야 읽힌다
                             (Irene 2026-08-24: "%표시가 그래프에 있어야 하는데 이상한 위치에 있어서 이상해"). */}
                         <CapBarRow>
@@ -2883,13 +2883,13 @@ const QTaskPage:React.FC=()=>{
                           <CapBarPct>{donePct}%</CapBarPct>
                         </CapBarRow>
                         <CapRemainingRow>
-                          <CapRemainingLabel>{t('capacity.remainingEst', '남은 예상시간')}</CapRemainingLabel>
+                          <CapRemainingLabel>{t('capacity.remainingEst', '남은 예측시간')}</CapRemainingLabel>
                           <CapRemainingValue style={{color: color.text}}>{formatHours(remainingTotal)}h</CapRemainingValue>
                         </CapRemainingRow>
                         {/* 진척(계획−남은)은 보조 줄. 이월 업무가 이미 쌓아 둔 분까지 포함한 누적이다. */}
                         {loadBreakdown.done > 0 && (
                           <CapDoneNote>
-                            {t('capacity.doneWork', '진척 (예상시간)')} {formatHours(loadBreakdown.done)}h
+                            {t('capacity.doneWork', '진척 (예측시간)')} {formatHours(loadBreakdown.done)}h
                             {weekDeltaHours > 0 && (
                               <> · {t('capacity.doneThisWeek', { h: formatHours(weekDeltaHours), defaultValue: '이번 주 새로 {{h}}h' })}</>
                             )}
@@ -2982,7 +2982,7 @@ const QTaskPage:React.FC=()=>{
                     const cw=W-PL-PR, ch=H-PT-PB;
                     // 번업(Irene 스펙 2026-06-29): 0 에서 위로 누적 상승. i=0 = 시작 앵커(월요일 앞, 0h), i=1.. = 영업일.
                     //   실제 투입이 가용시간(가로선)을 넘으면 라인이 그 위로 솟구쳐 시각적으로 초과를 알린다.
-                    // ★ 2026-08-24 (Irene 확정) — 페이스 대각선은 **계획(Σ예상시간)** 에 맞춰 올라간다.
+                    // ★ 2026-08-24 (Irene 확정) — 페이스 대각선은 **계획(Σ예측시간)** 에 맞춰 올라간다.
                     //   종점이 가로 가용선과 만나는 지점은 주마다 다를 수 있다(계획이 가용보다 많거나 적다).
                     //   옛 정의는 종점을 가용시간에 **고정**해, 계획이 가용과 다른 주에도 늘 같은 각도로 그려졌다.
                     //   계획 미설정(Σ예측 0) 시에만 가용으로 폴백 — 대각선이 통째로 사라지는 회귀 방지.
@@ -3034,7 +3034,7 @@ const QTaskPage:React.FC=()=>{
                             </text>
                           </>
                         )}
-                        {/* 페이스 대각선 — 시작 0 → 계획(Σ예상시간). 종점이 가용선과 만나는 지점은 주마다 다르다 (Irene 2026-08-24) */}
+                        {/* 페이스 대각선 — 시작 0 → 계획(Σ예측시간). 종점이 가용선과 만나는 지점은 주마다 다르다 (Irene 2026-08-24) */}
                         {base>0 && N>1 && (
                           <line x1={xPos(0)} y1={yPos(0)} x2={xPos(N-1)} y2={yPos(base)}
                             stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="4,4" />
@@ -3083,9 +3083,9 @@ const QTaskPage:React.FC=()=>{
                   })()}
                   <Legend>
                     {/* ★ 2026-08-24 (Irene 확정) — 두 선은 같은 축(진행률) 위에 있고, 재는 자만 다르다.
-                        진척(예상시간) = Σ(예측시간 × 진행률)  /  실제 업무시간 = Σ(실제시간 × 진행률)
+                        진척(예측시간) = Σ(예측시간 × 진행률)  /  실제 업무시간 = Σ(실제시간 × 진행률)
                         목록의 "남은 …h" = Σ(예측×남은비율) 이라 진척과 더하면 Σ예측이 된다(같은 축). */}
-                    <LI title={t('chart.estTip','') as string}><Dot $c="#14B8A6"/>{t('chart.est','진척 (예상시간)')}</LI>
+                    <LI title={t('chart.estTip','') as string}><Dot $c="#14B8A6"/>{t('chart.est','진척 (예측시간)')}</LI>
                     <LI title={t('chart.actTip','') as string}><Dot $c="#F43F5E"/>{t('chart.act','실제 업무시간')}</LI>
                     <LI><DashDot $c="#94A3B8"/>{t('chart.pace','계획 페이스')}</LI>
                     <LI><DashDot $c="#F59E0B"/>{t('chart.capacity','가용시간')}</LI>
