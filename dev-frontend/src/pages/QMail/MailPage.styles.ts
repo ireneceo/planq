@@ -687,6 +687,11 @@ export const DetailFooter = styled.div`
   background: #FFFFFF;
   max-height: 55vh;
   overflow-y: auto;
+  /* ★ 2026-08-24 (Irene: "에디터 영역 위로 비어서 스크롤 내리면 내용이 지저분하게 비치잖아.
+     스티키할 때 위로 바짝 붙여") — sticky 의 기준선은 스크롤 컨테이너의 **콘텐츠 박스**라
+     위 padding 만큼 아래에서 멈춘다. 그 틈으로 본문이 지나가 비쳤다.
+     padding 만큼 음수를 주면 위에 바짝 붙는다 (Q docs PostsPage 가 쓰는 것과 같은 방식). */
+  --pq-sticky-top: -14px;
 `;
 export const ReplyBar = styled.div`
   display: flex; align-items: center; justify-content: flex-start; gap: 8px;
@@ -694,6 +699,9 @@ export const ReplyBar = styled.div`
 `;
 export const Composer = styled.div`
   display: flex; flex-direction: column; gap: 10px;
+  /* ★ 에디터는 좌우 풀 폭 (Irene 2026-08-24 "에디터는 그냥 좌우 풀로 넣어야 하는 거 아니야?").
+     메일 본문은 넓게 쓰는 영역인데 컴포저 여백에 눌려 있었다. 에디터만 DetailFooter 여백을 되민다. */
+  & > .pq-rich-editor { margin-left: -24px; margin-right: -24px; border-radius: 0; border-left: 0; border-right: 0; }
 `;
 export const ComposerTo = styled.div`
   font-size: 12px; color: #64748B;
@@ -706,9 +714,20 @@ export const ComposerError = styled.div`
   font-size: 12px;
 `;
 // 좌측 정렬 고정 — [보내기] [AI] [취소]. 버튼이 좌우로 튀지 않게 space-between 을 쓰지 않는다.
+// ★ 2026-08-24 (Irene: "보내기 버튼 있는 곳만 푸터로 붙어야 하지 않아? 버튼 안보여서 한참 헤맸어")
+//   본문이 길어지면 이 줄이 화면 밖으로 밀려 보내기 버튼을 찾을 수 없었다 — 버튼을 못 찾으면
+//   기능이 없는 것과 같다. 스크롤 컨테이너 바닥에 붙여 항상 보이게 한다.
+//   배경을 불투명하게 깔지 않으면 본문이 버튼 뒤로 비쳐 지저분해진다.
 export const ComposerActions = styled.div`
   display: flex; align-items: center; justify-content: flex-start; gap: 8px;
   flex-wrap: wrap;
+  position: sticky; bottom: 0; z-index: 4;
+  background: #FFFFFF;
+  border-top: 1px solid #E2E8F0;
+  /* 스크롤 컨테이너는 DetailFooter (padding 14px 24px) — 그 여백을 되밀어 끝까지 덮는다.
+     안 덮으면 좌우 틈으로 본문이 비쳐 지저분하다. 아래도 -14px 로 바닥에 정확히 붙인다. */
+  margin: 4px -24px -14px;
+  padding: 10px 24px calc(14px + env(safe-area-inset-bottom));
 `;
 // #192 — AI 초안 수정 요청 입력. 초안이 있을 때만 노출. 지시를 넣고 "다시 생성" 하면 refine.
 export const AiInstructionRow = styled.div`

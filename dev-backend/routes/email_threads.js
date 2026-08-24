@@ -73,11 +73,8 @@ function htmlToPreview(html) {
     .slice(0, 480);
 }
 
-// 실시간 broadcast (CLAUDE.md 16번 — 모든 mutation 라우트 필수)
-function broadcastMail(req, businessId, event, payload) {
-  const io = req.app.get('io');
-  if (io) io.to(`business:${businessId}`).emit(event, payload);
-}
+// 실시간 broadcast — services/mailBroadcast 가 정본 (뱃지 갱신 신호까지 한 곳에서).
+const { broadcastMail } = require('../services/mailBroadcast');
 
 // attachment_file_ids → nodemailer attachments + 검증된 File rows (멀티테넌트 + 물리 존재)
 async function resolveAttachments(fileIds, businessId) {
@@ -661,7 +658,8 @@ router.post('/:businessId/email-threads/:id/mark-handled',
         { is_read: true },
         { where: { thread_id: thread.id, is_read: false } },
       ).catch(() => {});
-      broadcastMail(req, businessId, 'mail:updated', { thread_id: thread.id, handled: true, unread: 0 });
+      // reply_needed:false 를 실어야 위 헬퍼가 뱃지 갱신까지 쏜다 (답변 완료 = 답변필요 해제).
+      broadcastMail(req, businessId, 'mail:updated', { thread_id: thread.id, handled: true, unread: 0, reply_needed: false });
       return successResponse(res, { id: thread.id, status: 'archived', unread_count: 0 });
     } catch (err) { next(err); }
   }

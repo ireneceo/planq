@@ -212,7 +212,8 @@ export default function RichEditor({
   };
   const setLink = openLinkInput;
 
-  if (!editor) return <EditorShell $mh={minHeight}><PlainFallback /></EditorShell>;
+  // 바깥에서 폭·여백을 조정할 수 있게 안정된 클래스를 준다 (메일 컴포저가 풀 폭으로 되민다).
+  if (!editor) return <EditorShell className="pq-rich-editor" $mh={minHeight}><PlainFallback /></EditorShell>;
 
   // 이미지 사이즈 토글 — editor 가 image 선택 시 BubbleMenu 노출
   const setImageWidth = (w: string | null) => {
@@ -237,7 +238,7 @@ export default function RichEditor({
   };
 
   return (
-    <EditorShell $mh={minHeight} onClick={handleWrapperClick}>
+    <EditorShell className="pq-rich-editor" $mh={minHeight} onClick={handleWrapperClick}>
       {/* 상단 고정 툴바 (opt-in). 디자인·동작은 문서 에디터(PostEditor)와 같은 계열로 맞춘다 —
           같은 앱에서 화면마다 다른 편집기처럼 보이지 않게. */}
       {toolbar && !readOnly && (
