@@ -17,6 +17,9 @@ const path = require('path');
 const { BusinessCloudToken } = require('../models');
 const gdrive = require('./gdrive');
 
+// 워크스페이스별 "Drive 인증이 죽어 있는 동안" 창 — 같은 실패를 구글까지 반복해서 묻지 않는다.
+const driveDownUntil = new Map();
+
 async function readAttachmentBody(att) {
   // 자체 저장(planq) — 로컬 파일
   if (!att.storage_provider || att.storage_provider === 'planq') {
@@ -29,6 +32,9 @@ async function readAttachmentBody(att) {
 
   // 구글 드라이브 — 워크스페이스 토큰으로 서버가 받아서 흘려준다
   if (att.storage_provider === 'gdrive' && att.external_id) {
+    // 토큰이 죽은 직후엔 구글을 다시 때리지 않는다 (아래 catch 에서 세운 창).
+    const downUntil = driveDownUntil.get(att.business_id) || 0;
+    if (downUntil > Date.now()) return { ok: false, code: 409, msg: 'drive_reconnect_required' };
     const cloudToken = await BusinessCloudToken.findOne({
       where: { business_id: att.business_id, provider: 'gdrive' },
     });
@@ -38,6 +44,12 @@ async function readAttachmentBody(att) {
       const stream = await gdrive.getFileStream(drive, att.external_id);
       return { ok: true, stream };
     } catch (e) {
+      // ★ 2026-08-24 — 토큰이 죽으면(invalid_grant) 모든 첨부가 502 가 되고, 화면이 그걸 계속
+      //   재시도해 브라우저 자원이 고갈됐다(ERR_INSUFFICIENT_RESOURCES 폭주). 실패를 짧게 기억해
+      //   같은 워크스페이스의 뒤이은 요청은 **구글까지 가지 않고** 바로 돌려준다.
+      //   토큰이 재연결되면 60초 뒤 자동으로 다시 시도한다(수동 개입 불필요).
+      const isAuth = /invalid_grant|unauthorized|invalid_credentials/i.test(e.message || '');
+      if (isAuth) driveDownUntil.set(att.business_id, Date.now() + 60_000);
       console.error('[attachmentStorage] drive stream failed:', e.message);
       gdrive.recordTokenError(cloudToken, e);
       return { ok: false, code: 502, msg: 'drive_fetch_failed' };

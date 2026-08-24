@@ -298,7 +298,48 @@ const refreshWithRetry = async (): Promise<boolean> => {
 //   4) 단일 in-flight refresh 로 thundering herd 방지
 const PROACTIVE_REFRESH_MS = 30 * 1000;
 
+// ★ 2026-08-24 운영 사고 — 콘솔이 `net::ERR_INSUFFICIENT_RESOURCES` 로 뒤덮였다.
+//   이건 서버 문제가 아니라 **브라우저가 같은 요청을 폭주시켜 자원이 고갈된 것**이다.
+//   시작점은 Google Drive 토큰 만료(invalid_grant) → 첨부 라우트 502 → 그 실패를 계속 재시도하는
+//   화면 로직이었다. 폭주가 연결 슬롯을 다 먹어 **멀쩡한 요청까지 전부 실패**했고,
+//   사용자에게는 "여기저기 Failed to fetch" 로만 보였다(서버는 30ms 로 정상 응답 중이었다).
+//
+//   어느 화면이 범인이든 **폭주 자체를 여기서 끊는다.** 같은 URL 이 짧은 시간에 반복 실패하면
+//   잠시 차단하고, **범인 URL 을 콘솔에 이름으로 남긴다**(다음에 바로 잡을 수 있게).
+//   정상 재시도(사용자 조작)는 쿨다운이 지나면 다시 나간다 — 기능을 죽이지 않는다.
+const FAIL_WINDOW_MS = 10_000;   // 이 창 안의 반복 실패를 센다
+const FAIL_TRIP = 8;             // 8회 연속 실패면 폭주로 본다
+const COOLDOWN_MS = 30_000;      // 차단 유지 시간
+const failLog = new Map<string, { n: number; first: number; until: number }>();
+
+function circuitKey(url: string): string {
+  try { return new URL(url, window.location.origin).pathname; } catch { return url.split('?')[0]; }
+}
+/** 차단 중이면 true (요청을 내보내지 않는다) */
+function circuitOpen(url: string): boolean {
+  const e = failLog.get(circuitKey(url));
+  return !!e && e.until > Date.now();
+}
+function noteFailure(url: string): void {
+  const key = circuitKey(url);
+  const now = Date.now();
+  const e = failLog.get(key);
+  if (!e || now - e.first > FAIL_WINDOW_MS) { failLog.set(key, { n: 1, first: now, until: 0 }); return; }
+  e.n += 1;
+  if (e.n >= FAIL_TRIP && e.until <= now) {
+    e.until = now + COOLDOWN_MS;
+    // ★ 이 한 줄이 다음 사고의 범인을 알려준다 — 어떤 경로가 폭주했는지 이름으로 남는다.
+    console.error(`[apiFetch] 요청 폭주 차단: ${key} — ${e.n}회 연속 실패. ${COOLDOWN_MS / 1000}초 대기.`);
+  }
+}
+function noteSuccess(url: string): void { failLog.delete(circuitKey(url)); }
+
 const apiFetch = async (url: string, options: RequestInit = {}): Promise<Response> => {
+  // 폭주 차단 중 — 네트워크로 내보내지 않고 즉시 실패 응답을 만든다(호출부는 !r.ok 로 처리).
+  if (circuitOpen(url)) {
+    return new Response(JSON.stringify({ success: false, message: 'request_throttled' }),
+      { status: 503, headers: { 'Content-Type': 'application/json' } });
+  }
   const isAuthEndpoint =
     url.includes('/api/auth/refresh') ||
     url.includes('/api/auth/login') ||
@@ -318,11 +359,19 @@ const apiFetch = async (url: string, options: RequestInit = {}): Promise<Respons
     headers.set('Authorization', `Bearer ${accessToken}`);
   }
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-    credentials: 'include', // HttpOnly cookie 전송
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers,
+      credentials: 'include', // HttpOnly cookie 전송
+    });
+  } catch (e) {
+    noteFailure(url);          // 네트워크 자체 실패(ERR_INSUFFICIENT_RESOURCES 등)도 폭주 신호다
+    throw e;
+  }
+  if (response.ok) noteSuccess(url);
+  else if (response.status >= 500) noteFailure(url);   // 5xx 반복 = 서버가 못 주는 것 — 계속 때리지 않는다
 
   // 401 reactive refresh — 서버가 token_expired/invalid_token 등으로 401 보낸 경우
   if (response.status === 401 && !isAuthEndpoint) {
