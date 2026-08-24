@@ -268,7 +268,7 @@ const MailPage: React.FC = () => {
   const [filtersOpen, setFiltersOpen] = useState<boolean>(() => {
     try { return localStorage.getItem('planq.mail.filtersOpen') === '1'; } catch { return false; }
   });
-  const { formatTimeAgo, formatDateTime } = useTimeFormat();
+  const { formatTimeAgo } = useTimeFormat();   // formatDateTime — 전달 인용 헤더를 서버가 만들면서 미사용
   const [sp, setSp] = useSearchParams();
   const location = useLocation();
   const businessId = user?.business_id ? Number(user.business_id) : null;
@@ -1555,26 +1555,24 @@ const MailPage: React.FC = () => {
   const startForward = (m: Message) => {
     const baseSubj = detail?.subject || '';
     const subj = /^fwd:/i.test(baseSubj.trim()) ? baseSubj : `Fwd: ${baseSubj}`;
-    const fromLabel = m.direction === 'outbound'
-      ? `${t('me', { defaultValue: '나' })} <${detail?.account?.email || ''}>`
-      : `${m.from_name || ''} <${m.from_email || ''}>`;
-    const header = `<br><br><div style="border-top:1px solid #E2E8F0;padding-top:10px;color:#64748B;font-size:13px">`
-      + `---------- ${t('forward.quotedHeader', { defaultValue: '전달된 메시지' })} ----------<br>`
-      + `${t('forward.from', { defaultValue: '보낸사람' })}: ${fromLabel}<br>`
-      + `${t('forward.date', { defaultValue: '날짜' })}: ${formatDateTime(m.sent_at)}<br>`
-      + `${t('forward.to', { defaultValue: '받는사람' })}: ${(m.to_emails || []).join(', ')}<br>`
-      + `${t('forward.subject', { defaultValue: '제목' })}: ${baseSubj}</div><br>`;
+    // 인용 헤더는 **서버가** 만든다(원문과 같은 자리에서 붙어야 하므로). 여기서는 만들지 않는다.
     setFwdFromMsgId(m.id);
     setFwdAttachCount((m.attachments || []).length);
     setCTo(''); setCError(null);
     setCSubject(subj);
-    setCBody(header + (m.body_html || m.body_text || ''));
+    // ★ 2026-08-24 (Irene) — 원문을 **에디터에 넣지 않는다.**
+    //   리치 에디터(TipTap)는 메일의 <table>·인라인 스타일을 자기 노드로 재해석해 표를 박스로 만들고
+    //   align/width/colspan 을 떨어뜨린다("이상한 라운드 박스가 죄다 생기네"). cid: 참조도 함께 유실돼
+    //   이미지가 사라졌다. 원문은 서버가 include_original 로 **손대지 않고** 이어붙인다.
+    //   컴포저에는 사용자가 덧붙일 말만 쓴다(비워 두고 보내도 된다).
+    setCBody('');
     setComposeOpen(true);
   };
   const sendCompose = async () => {
     if (!businessId || cSending) return;
     if (!cTo.trim()) { setCError(t('compose.toRequired', { defaultValue: '받는 사람을 입력해 주세요' }) as string); return; }
-    if (isEmptyHtml(cBody)) { setCError(t('compose.bodyRequired', { defaultValue: '내용을 입력해 주세요' }) as string); return; }
+    // 전달은 원문이 서버에서 붙으므로 덧붙일 말이 없어도 보낼 수 있다.
+    if (!fwdFromMsgId && isEmptyHtml(cBody)) { setCError(t('compose.bodyRequired', { defaultValue: '내용을 입력해 주세요' }) as string); return; }
     const accId = cAccountId || accounts[0]?.id;
     if (!accId) { setCError(t('compose.noAccount', { defaultValue: '보낼 메일 계정이 없어요' }) as string); return; }
     setCSending(true); setCError(null);
@@ -1589,7 +1587,7 @@ const MailPage: React.FC = () => {
       const r = fwdFromMsgId && activeId
         ? await apiFetch(`/api/businesses/${businessId}/email-threads/${activeId}/forward`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ account_id: accId, message_id: fwdFromMsgId, to, subject: cSubject, body_html: cBody, attachment_file_ids: fileIds, from_alias_id: cFromAliasId, signature: cSignature }),
+          body: JSON.stringify({ account_id: accId, message_id: fwdFromMsgId, to, subject: cSubject, body_html: cBody, include_original: true, attachment_file_ids: fileIds, from_alias_id: cFromAliasId, signature: cSignature }),
         })
         : await apiFetch(`/api/businesses/${businessId}/email-compose`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -2101,6 +2099,9 @@ const MailPage: React.FC = () => {
                   onError={setCError}
                 />
                 <RichEditor value={cBody} onChange={(v: string) => { markComposeTouched(); setCBody(v); }} toolbar placeholder={t('compose.bodyPh', { defaultValue: '메일 내용을 입력하세요…' }) as string} />
+                {fwdFromMsgId && (
+                  <FwdAttachHint>{t('forward.originalIncluded', { defaultValue: '원본 메일이 아래에 그대로 붙어 전달됩니다 — 위에 덧붙일 말만 쓰시면 돼요 (비워도 됩니다)' }) as string}</FwdAttachHint>
+                )}
                 {fwdFromMsgId && fwdAttachCount > 0 && (
                   <FwdAttachHint><ClipIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></ClipIcon> {t('forward.origAttach', { defaultValue: '원본 첨부 {{n}}개 포함', n: fwdAttachCount }) as string}</FwdAttachHint>
                 )}

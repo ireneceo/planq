@@ -44,11 +44,17 @@ export function useInlineCidImages(
   useEffect(() => {
     if (!messages || !businessId) { setCidData({}); return; }
     let alive = true;
+    // ★ 2026-08-24 (Irene: "이메일에 이미지가 첨부된게 너무 늦게 떠")
+    //   옛 흐름은 두 겹으로 늦었다:
+    //   ① 메시지 단위 **순차** — 펼친 메시지가 여럿이면 앞 것이 끝나야 다음이 시작
+    //   ② 한 메시지 안에서도 `await Promise.all` 로 **전량 대기** 후에야 setCidData —
+    //      이미지 4장이면 4장을 다 받아야 1장도 안 떴다.
+    //   → 메시지는 병렬로, 이미지는 **받는 즉시 한 장씩** 반영한다. 첫 장이 곧바로 뜬다.
     (async () => {
-      for (const m of messages) {
-        if (visibleIds && !visibleIds.has(m.id)) continue;   // 접힌 메시지는 받지 않는다
+      await Promise.all(messages.map(async (m) => {
+        if (visibleIds && !visibleIds.has(m.id)) return;   // 접힌 메시지는 받지 않는다
         const inl = (m.inline_images || []).filter(x => (x.size_bytes || 0) <= MAX_PER_FILE);
-        if (!inl.length) continue;
+        if (!inl.length) return;
         const map: Record<string, string> = {};
         // 예산 검사는 **착수 전에** size_bytes 로 끝낸다 — 그래야 병렬로 받아도 결과가 순서에
         //   의존하지 않는다(옛 순차 코드와 같은 집합을 고른다).
@@ -88,13 +94,13 @@ export function useInlineCidImages(
               });
               if (!dataUri.startsWith('data:image/')) continue;
               map[cid] = dataUri;
+              // ★ 받는 즉시 반영 — 나머지를 기다리지 않는다.
+              if (alive) setCidData(prev => ({ ...prev, [m.id]: { ...(prev[m.id] || {}), [cid]: dataUri } }));
             } catch { /* 이 이미지만 포기 — 본문은 그대로 렌더된다 */ }
           }
         };
         await Promise.all(Array.from({ length: Math.min(CONCURRENCY, queue.length) }, worker));
-        if (!alive) return;
-        if (Object.keys(map).length) setCidData(prev => ({ ...prev, [m.id]: { ...(prev[m.id] || {}), ...map } }));
-      }
+      }));
     })();
     return () => { alive = false; };
   }, [messages, businessId, visibleIds, threadId]);

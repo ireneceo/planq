@@ -1155,7 +1155,11 @@ router.post('/:businessId/email-threads/:id/forward',
       const businessId = Number(req.params.businessId);
       const threadId = Number(req.params.id);
       const { account_id, message_id, to, cc, bcc, subject, body_html, attachment_file_ids } = req.body || {};
-      if (!body_html || !String(body_html).trim()) return errorResponse(res, 'body_required', 400);
+      // ★ include_original (Irene 2026-08-24 "이메일 그대로 전달이 안돼") — 원문을 리치 에디터에
+      //   통과시키면 <table>·인라인 스타일이 에디터 노드로 재해석돼 레이아웃이 깨지고 cid: 도 유실된다.
+      //   사용자는 덧붙일 말만 쓰고, 원문은 서버가 srcMsg.body_html 을 손대지 않고 이어붙인다.
+      const includeOriginal = req.body?.include_original === true;
+      if (!includeOriginal && !String(body_html || '').trim()) return errorResponse(res, 'body_required', 400);
       const toList = (Array.isArray(to) ? to : [to]).map(s => String(s || '').trim()).filter(Boolean);
       if (!toList.length) return errorResponse(res, 'recipient_required', 400);
 
@@ -1176,7 +1180,21 @@ router.post('/:businessId/email-threads/:id/forward',
       // ★ 상세 응답이 base64 이미지를 `cid:planq-embed-N` 으로 바꿔 내려주므로, 클라가 되돌려 준
       //   본문에는 그 자리표시자가 그대로 들어 있다. 원본에서 실제 데이터를 다시 채워 넣지 않으면
       //   받는 쪽에서 이미지가 통째로 사라진다 — 본문 대부분이 이미지인 메일은 "내용이 없어진" 것으로 보인다.
-      const bodyRestored = restoreEmbeddedImages(body_html, srcMsg.body_html);
+      let composedHtml = String(body_html || '');
+      if (includeOriginal) {
+        const esc = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const when = srcMsg.sent_at ? new Date(srcMsg.sent_at).toISOString().replace('T', ' ').slice(0, 16) : '';
+        const toLabel = esc((Array.isArray(srcMsg.to_emails) ? srcMsg.to_emails : []).join(', '));
+        const header = '<div style="border-top:1px solid #e2e8f0;padding-top:10px;margin-top:16px;color:#64748b;font-size:13px;line-height:1.6">'
+          + '---------- Forwarded message ----------<br>'
+          + `From: ${esc(srcMsg.from_name || '')} &lt;${esc(srcMsg.from_email || '')}&gt;<br>`
+          + (when ? `Date: ${esc(when)}<br>` : '')
+          + `Subject: ${esc(srcMsg.subject || '')}<br>`
+          + (toLabel ? `To: ${toLabel}` : '') + '</div>';
+        // 원문은 가공 없이 붙인다 — sanitize/에디터를 통과시키면 원문 보존이 깨진다.
+        composedHtml = composedHtml + header + String(srcMsg.body_html || srcMsg.body_text || '');
+      }
+      const bodyRestored = restoreEmbeddedImages(composedHtml, srcMsg.body_html);
       const bodyHtmlOut2 = inlineMailTableStyles(bodyRestored);
 
       let sendResult;
