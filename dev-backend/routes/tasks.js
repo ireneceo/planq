@@ -6,7 +6,7 @@ const taskSnapshot = require('../services/task_snapshot');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { getUserScope, taskListWhere, canAccessTask, isMemberOrAbove, assertAssignable, assertMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
-const { getProgressBaselines, deltaOf, estDoneOf } = require('../services/progressBaseline');
+const { getProgressBaselines, deltaOf, estDoneOf, actDoneOf } = require('../services/progressBaseline');
 const { todayInTz, mondayOfDateStr, addDaysStr, mondayOfIsoWeek, tzOffsetOf } = require('../utils/datetime');
 const { rruleFromRecurrence } = require('../services/rruleFromRecurrence');
 // N+34 — 워크스페이스 표시명 helper. BusinessMember.name 우선, User.name fallback.
@@ -166,6 +166,11 @@ router.get('/my-week', authenticateToken, async (req, res, next) => {
     if (!tagScope.isClient) await require('./task_tags').attachTagsTo(tasksJson, businessId);
     return successResponse(res, {
       week: monday,
+      // ★ 2026-08-24 (Irene: "모든 시간은 워크스페이스 시간이야. 절대 미스 없게") —
+      //   "오늘" 과 타임존을 **서버가 정본으로 내려준다.** 팝아웃이 브라우저 tz 를 추측해 쓰던 것을
+      //   없애기 위한 축이다(다른 tz 기기에서 팝아웃의 '오늘' 이 하루 어긋났다).
+      timezone: tz,
+      today: require('../utils/datetime').todayInTz(tz),
       capacity,
       summary: {
         total_tasks: mine.length,
@@ -1990,16 +1995,14 @@ router.get('/daily-progress', authenticateToken, async (req, res, next) => {
         const prog = (s.progress_percent || 0) / 100;
         const est = Number(s.estimated_hours) || 0;
         const act = Number(s.actual_hours) || 0;
-        // ★ #254 — 스냅샷 행은 업무별 **일생 누적**이다. 그대로 더하면 이월 업무가 지난주까지 쌓은
-        //   시간이 이번 주 첫날부터 통째로 실린다(운영 실측: 이번 주 투입 0h 인데 그래프 6.4h).
-        //   기간 시작 이전 최신 행을 기준선으로 빼서 **그 주의 Δ** 만 그린다 — 보고서(#223)와 같은 정의.
-        //   클램프는 업무별. 집계 후 클램프는 한 업무의 하향 정정이 다른 업무의 진척을 잡아먹는다.
-        // ★ 예측 정정 면역 — 스냅샷에 박제된 옛 예측(est) 대신 **지금 예측**으로 환산한다.
-        //   기준선(baseEst)도 같은 축이라 Δ = est_now × (그날 진행률 − 기준 진행률) 이 된다.
-        bucket.est_used += deltaOf(estDoneOf(estNow, s.task_id, s.progress_percent, est), baseEst.get(Number(s.task_id)));
-        // 실제시간 = 실제 입력시간(actual_hours)만. (예측×진행률 fallback 금지 — 예측 라인과 동일해지는 버그.
-        //  실제 미입력이면 actual 라인은 낮게 유지되어 "진척은 됐지만 시간 미입력"을 정직하게 보여줌. Irene 2026-06-16)
-        bucket.act_used += deltaOf(act, baseAct.get(Number(s.task_id)));
+        // ★ 2026-08-24 (Irene 확정) — 두 선은 **같은 축(진행률)** 위에 있다:
+        //     진척(예상시간) = 예측시간 × 진행률   /   실제 업무시간 = 실제시간 × 진행률
+        //   기준선 차감(Δ)은 두 선에서 걷어냈다 — 실제시간을 아래로 정정하면 Δ 가 0 으로 클램프되어
+        //   진행률 100% 인 업무가 그 주 내내 0 만 기여했다(운영 실측 #385). 정의는
+        //   services/progressBaseline.js 가 정본이고 보고서·주간보고가 같은 함수를 쓴다.
+        // ★ 예측 정정 면역은 유지 — 스냅샷에 박제된 옛 예측(est) 대신 **지금 예측**으로 환산한다.
+        bucket.est_used += estDoneOf(estNow, s.task_id, s.progress_percent, est);
+        bucket.act_used += actDoneOf(act, s.progress_percent);
       }
     }
 
@@ -2009,6 +2012,17 @@ router.get('/daily-progress', authenticateToken, async (req, res, next) => {
     // FocusSession 실측값을 시작일(워크스페이스 tz) 에 귀속해 일별 합산. active 세션은 라이브(지금까지).
     // 누적(focusCum) 으로 만들어 프론트의 단조증가 actual 라인과 정합. snapshot actual 과 max → 포커스/수동 둘 다 보존.
     const { FocusSession } = require('../models');
+    // ★ 2026-08-24 — 실제선이 `실제시간 × 진행률` 이 되었으므로 포커스 실측도 **같은 축으로 환산**한다.
+    //   raw 시간을 그대로 더하면 오늘 점만 다른 단위가 섞여 선이 튄다.
+    const progNow = new Map();
+    if (ids.length > 0) {
+      // business_id 를 같이 건다 — ids 는 이미 본인 소유와 교집합이지만 테넌트 스코프는 명시한다.
+      const prRows = await Task.findAll({
+        where: { id: ids, business_id: businessId },
+        attributes: ['id', 'progress_percent'],
+      });
+      for (const r of prRows) progNow.set(Number(r.id), Number(r.progress_percent) || 0);
+    }
     const focusSessions = await FocusSession.findAll({
       where: { user_id: req.user.id, business_id: businessId },
       // last_activity_at — #94 방치 캡(computeActualSeconds) 정확 적용 / task_id — §6-C 주별 스코핑.
@@ -2022,7 +2036,7 @@ router.get('/daily-progress', authenticateToken, async (req, res, next) => {
       const sec = typeof s.computeActualSeconds === 'function' ? s.computeActualSeconds() : 0;
       if (sec <= 0) continue;
       if (!byDate.has(wd)) byDate.set(wd, { date: wd, est_used: 0, act_used: 0, focus_hours: 0 });
-      byDate.get(wd).focus_hours += sec / 3600;
+      byDate.get(wd).focus_hours += (sec / 3600) * ((progNow.get(Number(s.task_id)) || 0) / 100);
     }
 
     // ── 3) actual 라인 계산 (정렬된 날짜 순) ──
@@ -2043,8 +2057,8 @@ router.get('/daily-progress', authenticateToken, async (req, res, next) => {
       delete b.focus_hours;
     }
 
-    // 프론트가 **오늘 라이브 값**도 같은 기준으로 Δ 계산하려면 기준선이 필요하다
-    //   (오늘은 스냅샷이 아침 기준이라 화면이 라이브로 다시 계산한다).
+    // 기준선은 **선 계산에서 빠졌다**(2026-08-24 Irene 정의). 여기 남는 이유는 하나 —
+    //   프론트가 "진행률이 그 주 시작보다 내려갔다(되돌림)" 를 판정하는 데 쓴다.
     const bases = {};
     for (const id of ids) {
       const a = baseAct.get(Number(id)) || 0;

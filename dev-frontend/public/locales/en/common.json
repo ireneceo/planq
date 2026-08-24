@@ -666,7 +666,11 @@
       "title": "Limit reached",
       "desc": "You've reached a plan limit."
     },
-    "exemptHint": "This workspace is exempt from subscription charges. Contact the platform admin if you need higher limits."
+    "exemptHint": "This workspace is exempt from subscription charges. Contact the platform admin if you need higher limits.",
+    "needsDrive": {
+      "title": "Large files like video go to Google Drive",
+      "desc": "Files over 50MB can’t be stored in PlanQ’s own storage. Connect Google Drive in Settings › Files & integrations to upload video directly."
+    }
   },
   "trialBanner": {
     "trial": {

@@ -2082,12 +2082,17 @@ const SecretBtn = styled.button`
   &:hover { background: #F0FDFA; color: #0F766E; border-color: #CCFBF1; }
   &:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,0.3); }
 `;
-const SecretRow = styled.div`display: inline-flex; align-items: center; gap: 6px; max-width: 100%;`;
+const SecretRow = styled.div`
+  display: flex; align-items: center; gap: 6px;
+  width: 100%; max-width: 100%; min-width: 0;
+  & > button:last-child { margin-left: auto; }
+`;
 const SecretEditRow = styled.div`display: flex; align-items: center; gap: 6px; max-width: 100%;`;
 const SecretText = styled.span<{ $masked: boolean }>`
+  flex: 1; min-width: 0;
   color: #334155; font-weight: 500; font-size: 13px;
   letter-spacing: ${p => (p.$masked ? '1px' : 'normal')};
-  overflow-wrap: anywhere; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 `;
 const SecretValueBtn = styled.button`
   flex: 1; min-width: 0; text-align: left;
@@ -2096,11 +2101,19 @@ const SecretValueBtn = styled.button`
   cursor: text; overflow-wrap: anywhere;
   &:hover { background: #F0FDFA; color: #0F766E; border-color: #CCFBF1; }
 `;
-const LinkRow = styled.div`display: flex; align-items: center; gap: 6px; max-width: 100%; min-width: 0;`;
+/* 운영(Irene 2026-08-24) — "항목에 링크가 들어가면 줄지어 레이아웃을 넘어가.
+   복사버튼은 해당 열 맨 끝에 나와야 해."
+   원인: 값이 `overflow-wrap: anywhere` 라 긴 URL 이 폭 제한 없이 번지고, 그 뒤를 따라가던
+   복사 버튼이 열 밖으로 밀려났다. → 값은 **한 줄 말줄임**, 버튼은 `margin-left:auto` 로 열 맨 끝 고정. */
+const LinkRow = styled.div`
+  display: flex; align-items: center; gap: 6px;
+  width: 100%; max-width: 100%; min-width: 0;
+  & > button:last-child { margin-left: auto; }
+`;
 const ValueLink = styled.a`
   flex: 1; min-width: 0;
   color: #0F766E; font-weight: 500; font-size: 13px; text-decoration: none;
-  overflow-wrap: anywhere;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   &:hover { text-decoration: underline; }
 `;
 const InlineInput = styled.input<{ $err?: boolean }>`
@@ -2318,6 +2331,7 @@ const CustomItem = styled.span`
   display: inline-flex; align-items: center; gap: 4px;
   white-space: nowrap; font-size: 12px;
   min-width: 0; max-width: 260px;  /* #187 — 개별 항목 폭 제한 (라벨+값이 옆 컬럼 침범 방지) */
+  overflow: hidden;                /* 링크 값이 제 폭을 넘어 흘러나오던 것 차단 (Irene 2026-08-24) */
 `;
 const CustomLabel = styled.span`color: #94A3B8; font-weight: 500;`;
 const CustomValue = styled.span`color: #334155; font-weight: 500;
@@ -2434,16 +2448,16 @@ const RowBodyPreview = styled.div`
 `;
 /* 값 셀 — 클릭하면 복사 (#143). "DB 저장소처럼 꺼내 쓰는" 화면. */
 const CopyValue = styled.button`
-  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  display: flex; align-items: center; gap: 6px; width: 100%; max-width: 100%; min-width: 0;
   padding: 2px 8px; border: 1px dashed transparent; border-radius: 4px;
   background: none; font-family: inherit; font-size: 13px; font-weight: 500;
   color: #334155; text-align: left; cursor: pointer; transition: all 0.12s;
-  & > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  & > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   &:hover { background: #F0FDFA; border-color: #CCFBF1; }
   &:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,0.3); }
 `;
 const CopyMark = styled.span<{ $on: boolean }>`
-  flex-shrink: 0; font-size: 11px; font-weight: 600;
+  flex-shrink: 0; margin-left: auto; font-size: 11px; font-weight: 600;
   color: ${p => (p.$on ? '#0F766E' : '#94A3B8')};
   opacity: ${p => (p.$on ? 1 : 0)};
   transition: opacity 0.12s;

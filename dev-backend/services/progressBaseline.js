@@ -80,4 +80,23 @@ const estDoneOf = (estNow, taskId, progressPercent, snapshotEst) => {
   return (Number(est) || 0) * ((Number(progressPercent) || 0) / 100);
 };
 
-module.exports = { getProgressBaselines, deltaOf, estDoneOf };
+/**
+ * 스냅샷 한 행의 "해낸 실제시간" — **그 날 실제시간 × 그 날 진행률**.
+ *
+ * ★ 2026-08-24 (Irene 확정) — 두 선의 정의를 한 문장으로 못박는다:
+ *     진척(예상시간) = 예측시간 × 진행률   ← 예측 기준으로 한 만큼
+ *     실제 업무시간   = 실제시간 × 진행률   ← 실제 기록 기준으로 한 만큼
+ *   즉 **두 선이 같은 축(진행률)** 위에 있고, 재는 자만 예측/실제로 다르다.
+ *   옛 정의는 실제선만 raw 누적이라 축이 서로 달랐다.
+ *
+ * ★ 같은 개정에서 **기준선 차감(Δ)을 두 선에서 걷어냈다.** 아래 getProgressBaselines 의
+ *   baseAct/baseEst 는 더 이상 선 계산에 쓰지 않는다(estNow 만 쓴다).
+ *   이유(운영 실측 #385, lua/워프로랩): 실제시간을 **아래로 정정**하면 Δ = max(0, 1 − 5) = 0 이 되어
+ *   진행률 100% 인 업무가 그 주 내내 실제선에 0 만 기여했다. 정정은 과거 기록의 수정이지
+ *   노동의 취소가 아니다. 그래프가 리스트(절대값)와 같은 축을 갖게 되는 부수 효과도 있다.
+ */
+const actDoneOf = (actualHours, progressPercent) => (
+  (Number(actualHours) || 0) * ((Number(progressPercent) || 0) / 100)
+);
+
+module.exports = { getProgressBaselines, deltaOf, estDoneOf, actDoneOf };

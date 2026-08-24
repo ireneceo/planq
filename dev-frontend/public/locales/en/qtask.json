@@ -342,7 +342,7 @@
     "weekStart": "Start",
     "over": "Over cap +{{h}}h",
     "overTip": "Actual time this week is {{h}}h over the {{base}}h capacity.",
-    "ideal": "Capacity pace",
+    "pace": "Plan pace",
     "capacity": "Capacity",
     "capacityLine": "Cap {{h}}h",
     "verdict": {
@@ -363,14 +363,14 @@
         "detail": "Below the week-end target line (earned {{ev}}h · spent {{ac}}h)"
       },
       "behindPace": {
-        "label": "A little behind pace",
+        "label": "A little behind plan pace",
         "detail": "Still mid-week — you can catch up in the days left (earned {{ev}}h · spent {{ac}}h)"
       }
     },
     "reverted": "Reverted",
     "revertedTip": "Progress was partly reverted on this day (un-completed or progress lowered). The line keeps the peak value.",
     "estTip": "Cumulative estimated hours earned — the sum of (estimate × progress) per task. The \"Left …h\" chip on the left is the other half (estimate × remaining), so the two add up to this week’s total estimate.",
-    "actTip": "Only the hours logged during this week. Time a carried-over task accumulated before this week is subtracted — the \"Act …h\" chip on the left includes that carry-over, so it can be larger.",
+    "actTip": "Cumulative actual hours earned — the sum of (actual hours × progress) per task. It shares the same axis (progress) as the progress line, so reading them side by side shows estimated vs actual effort.",
     "scopeHint": "This week · tasks assigned to me. Not affected by view options such as search or hide-completed.",
     "noData": "No progress data in this period",
     "revertedFlat": "Progress dropped below this week’s baseline, so there is no increase. The line keeps its peak.",

@@ -602,7 +602,10 @@ const QTaskPage:React.FC=()=>{
   // ── Load ALL data once ──
   // 1단계: 리스트(전체 업무) + 멤버 — 즉시 렌더를 위한 최소 로드
   const load=useCallback(async()=>{
-    if(!bizId)return;
+    // ★ 워크스페이스가 아직 안 잡혔으면 **대기 상태도 같이 끝낸다.**
+    //   그냥 return 하면 loading 초기값 true 가 그대로 남아 화면이 영원히 "Loading..." 이다
+    //   (memory: feedback_predicate_must_match_both_sides — 안 하기를 추가하는 변경은 대기 상태도 손봐야).
+    if(!bizId){ setLoading(false); return; }
     setLoading(true);
     try{
       // 사이클 N+55 — auto-paginate. 워크스페이스 task 1000+ 누적 시 5000 까지 자동 누적
@@ -1222,8 +1225,11 @@ const QTaskPage:React.FC=()=>{
     // Sort — 기본 복합 정렬: priority_order → due_date → title (nulls-last)
     // 사용자가 특정 컬럼 클릭 시 그 키가 주 정렬, 동률은 priority→due→title 로 tie-break
     list=[...list].sort((a,b)=>{
-      // [week 탭 only] 완료/취소는 항상 맨 아래 (사용자: 완료업무는 맨 아래)
-      if(scope==='mine'&&tab==='week'){
+      // 완료/취소는 항상 맨 아래 (Irene: "완료업무는 맨 아래")
+      //   ★ 2026-08-24 — 옛 조건은 week 탭만이라 **오늘 탭에서는 완료가 리스트 사이사이에 끼어** 있었다
+      //     (Irene: "완료가 왜 리스트 사이사이에 나와. 맨 아래로 빠져야지").
+      //     두 탭 모두 같은 규칙이다 — 완료는 읽을 순서의 끝이다.
+      if(scope==='mine'&&(tab==='week'||tab==='today')){
         const aDone=a.status==='completed'||a.status==='canceled';
         const bDone=b.status==='completed'||b.status==='canceled';
         if(aDone&&!bDone)return 1;
@@ -1541,13 +1547,13 @@ const QTaskPage:React.FC=()=>{
     // ★ #254 — 그래프 집합은 정본(chartWeekTasks)이다. filtered 를 쓰면 검색·완료가리기가 사실을 바꾼다.
     const chartTasks=chartWeekTasks;
     // 오늘 라이브 값 (스냅샷은 아침 기준이라 당일 변동 반영 위해 라이브 계산).
-    //   ★ 업무별 기준선을 빼서 **이번 주 Δ** 로 낸다 — 과거일(서버 Δ)과 같은 선 위에 놓기 위함.
-    //   이월 업무가 지난주까지 쌓은 시간은 그래프가 아니라 리스트의 실제시간·이월 뱃지가 말한다.
-    const baseOf=(id:number)=>progressBases[String(id)]||{act:0,est_done:0};
-    const dPos=(v:number,b:number)=>Math.max(0,v-b);   // 하향 정정은 음의 노동이 아니다 → 0
-    const liveEstDone=chartTasks.reduce((s,t)=>s+dPos((Number(t.estimated_hours)||0)*((t.progress_percent||0)/100),baseOf(t.id).est_done),0);
-    // 실제 = 실제 입력시간(actual_hours)만. 예측×진행률 fallback 금지 (예측 라인과 동일해지는 버그).
-    const liveAct=chartTasks.reduce((s,t)=>s+dPos(Number(t.actual_hours)||0,baseOf(t.id).act),0);
+    //   ★ 2026-08-24 (Irene 확정) — 두 선은 **같은 축(진행률)** 위에 있다:
+    //       진척(예상시간) = 예측시간 × 진행률   /   실제 업무시간 = 실제시간 × 진행률
+    //     기준선 차감(Δ)은 걷어냈다 — 실제시간을 아래로 정정하면 Δ 가 0 으로 클램프되어
+    //     진행률 100% 인 업무가 그 주 내내 0 만 기여했다(운영 실측 #385).
+    //     서버(routes/tasks.js daily-progress)·보고서와 **같은 공식**이다.
+    const liveEstDone=chartTasks.reduce((s,t)=>s+(Number(t.estimated_hours)||0)*((t.progress_percent||0)/100),0);
+    const liveAct=chartTasks.reduce((s,t)=>s+(Number(t.actual_hours)||0)*((t.progress_percent||0)/100),0);
     const snapMap=new Map(dailyProgress.map(d=>[d.date.slice(0,10),d]));
     const raw=days.map(d=>{
       let estV=0, actV=0;
@@ -1583,7 +1589,7 @@ const QTaskPage:React.FC=()=>{
         reverted: estReverted||actReverted,
       };
     });
-  },[chartWeekTasks,periodFrom,periodTo,dailyProgress,progressBases,todayStr]);
+  },[chartWeekTasks,periodFrom,periodTo,dailyProgress,todayStr]);
 
   // 운영 #254/#300 후속 — 그래프가 평평한 0 일 때 **왜** 그런지 가른다.
   //   여태 문구가 "이 기간의 진척 데이터가 없어요" 하나뿐이라, 업무도 있고 기록도 있는데
@@ -1627,7 +1633,7 @@ const QTaskPage:React.FC=()=>{
     return past.length?Math.round(Number(past[past.length-1].estimated_cumulative)*10)/10:0;
   },[computedBurndown]);
 
-  // weekTotalEst = Σ예측 — chartVerdict(SPI 판정) 전용. 그래프 대각선은 effectiveCapacity(가용) 사용 (2026-07-05, Fable 검토)
+  // weekTotalEst = Σ예측 = **계획(예상시간)**. chartVerdict(SPI 판정) + 그래프 페이스 대각선의 종점 (Irene 2026-08-24)
   const weekTotalEst=useMemo(()=>(
     Math.round(chartWeekTasks.reduce((s,t)=>s+(Number(t.estimated_hours)||0),0)*10)/10
   ),[chartWeekTasks]);
@@ -1888,6 +1894,7 @@ const QTaskPage:React.FC=()=>{
               )}
             </ChipRow>
             <AiActionButton
+              testId="qtask-ai-open"
               onClick={()=>setAiOpen(true)}
               label={t('ai.btnShort','AI')}
               title={t('ai.btnHint','자연어 한 줄로 여러 업무 자동 생성') as string}
@@ -2176,7 +2183,9 @@ const QTaskPage:React.FC=()=>{
                               onBlur={ev=>{const v=Number(ev.target.value);if(!isNaN(v)&&editable){saveField(task.id,'actual_hours',v);(ev.target as HTMLInputElement).value=formatHours(v);}}}
                               onKeyDown={ev=>{if(ev.key==='Enter')(ev.target as HTMLInputElement).blur();}} />
                             {task.status==='in_progress' && (
-                              <InProgressDotMini title={t('list.inProgressDot', { defaultValue: '진행 중' }) as string} aria-hidden="true" />
+                              <InProgressDotMini role="img"
+                                title={t('list.inProgressDot', { defaultValue: '진행 중 — 지금 이 업무의 시간이 쌓이고 있어요' }) as string}
+                                aria-label={t('list.inProgressDot', { defaultValue: '진행 중 — 지금 이 업무의 시간이 쌓이고 있어요' }) as string} />
                             )}
                           </ActWrap>
                         </TCell>
@@ -2829,20 +2838,36 @@ const QTaskPage:React.FC=()=>{
                   <CapSettingsRow>
                     <CapSettingsField>
                       <CapFieldLabel>{t('capacity.daily','하루')}</CapFieldLabel>
-                      <CapFieldInput type="number" step="0.5" min="1" max="24" defaultValue={capacity.daily||8}
-                        onBlur={e=>saveCapacity('daily_work_hours',Number(e.target.value))}
+                      {/* ★ 운영(Irene 2026-08-24) — "루아는 4시간인데 8시간으로 바뀌어 버려".
+                          원인: defaultValue 는 **최초 mount 때만** 반영되는 uncontrolled input 인데,
+                          capacity 초기 state 가 8 이고 실제 값(4)은 /api/tasks/my-week 로 **나중에** 온다.
+                          그래서 칸은 영원히 8. 같은 줄 4칸 중 key 가 있던 휴일·실작업률만 갱신됐고,
+                          key 가 없던 이 둘(하루·영업일)이 정확히 신고된 칸이다 → 값 기반 key 로 재mount.
+                          ★ 더 심각했던 것: onBlur 은 값을 안 바꿔도 발화한다 — 8 이 찍힌 칸을 클릭했다
+                          나가기만 해도 DB 의 4 를 8 로 **덮어썼다**. 그래서 실제 변경일 때만 저장한다. */}
+                      <CapFieldInput key={`daily-${capacity.daily}`} type="number" step="0.5" min="1" max="24"
+                        defaultValue={capacity.daily||8}
+                        onBlur={e=>{const v=Number(e.target.value);
+                          if(!Number.isFinite(v)||v<=0){(e.target as HTMLInputElement).value=String(capacity.daily||8);return;}
+                          if(v===capacity.daily)return;   // 안 바꿨으면 저장하지 않는다
+                          saveCapacity('daily_work_hours',v);}}
                         onKeyDown={e=>{if(e.key==='Enter')(e.target as HTMLInputElement).blur();}} />
                     </CapSettingsField>
                     <CapSettingsField>
                       <CapFieldLabel>{t('capacity.days','영업일')}</CapFieldLabel>
-                      <CapFieldInput type="number" step="1" min="1" max="7" defaultValue={capacity.days||5}
-                        onBlur={e=>saveCapacity('weekly_work_days',Number(e.target.value))}
+                      <CapFieldInput key={`days-${capacity.days}`} type="number" step="1" min="1" max="7"
+                        defaultValue={capacity.days||5}
+                        onBlur={e=>{const v=Number(e.target.value);
+                          if(!Number.isFinite(v)||v<=0){(e.target as HTMLInputElement).value=String(capacity.days||5);return;}
+                          if(v===capacity.days)return;
+                          saveCapacity('weekly_work_days',v);}}
                         onKeyDown={e=>{if(e.key==='Enter')(e.target as HTMLInputElement).blur();}} />
                     </CapSettingsField>
                     <CapSettingsField>
                       <CapFieldLabel>{t('capacity.holidays','휴일')}</CapFieldLabel>
                       <CapFieldInput key={`hol-${holidayDays}`} type="number" step="1" min="0" max="5" defaultValue={holidayDays}
-                        onBlur={e=>saveCapacity('weekly_holidays',Math.max(0,Number(e.target.value)||0))}
+                        onBlur={e=>{const v=Math.max(0,Number(e.target.value)||0);
+                          if(v===holidayDays)return; saveCapacity('weekly_holidays',v);}}
                         onKeyDown={e=>{if(e.key==='Enter')(e.target as HTMLInputElement).blur();}} />
                     </CapSettingsField>
                     {/* 실작업률 — 근무시간 중 회의·잡무 제외하고 실제 업무에 쓰는 비율(%). 백엔드 participation_rate(0~1). */}
@@ -2851,7 +2876,10 @@ const QTaskPage:React.FC=()=>{
                       <CapFieldInput key={`rate-${capacity.rate}`} type="number" step="5" min="10" max="100"
                         defaultValue={Math.round((capacity.rate||1)*100)}
                         title={t('capacity.participationHint','회의·잡무를 뺀, 근무시간 중 실제 업무에 쓰는 비율. 예: 회의가 많으면 85') as string}
-                        onBlur={e=>{const v=Math.max(10,Math.min(100,Math.round(Number(e.target.value)||100)));saveCapacity('participation_rate',v/100);(e.target as HTMLInputElement).value=String(v);}}
+                        onBlur={e=>{const v=Math.max(10,Math.min(100,Math.round(Number(e.target.value)||100)));
+                          (e.target as HTMLInputElement).value=String(v);
+                          if(Math.abs(v/100-(capacity.rate||1))<0.0001)return;   // 안 바꿨으면 저장 안 함
+                          saveCapacity('participation_rate',v/100);}}
                         onKeyDown={e=>{if(e.key==='Enter')(e.target as HTMLInputElement).blur();}} />
                     </CapSettingsField>
                   </CapSettingsRow>
@@ -2885,9 +2913,11 @@ const QTaskPage:React.FC=()=>{
                     const cw=W-PL-PR, ch=H-PT-PB;
                     // 번업(Irene 스펙 2026-06-29): 0 에서 위로 누적 상승. i=0 = 시작 앵커(월요일 앞, 0h), i=1.. = 영업일.
                     //   실제 투입이 가용시간(가로선)을 넘으면 라인이 그 위로 솟구쳐 시각적으로 초과를 알린다.
-                    // 목표 대각선 = 가용시간 페이스 (Irene 2026-07-05, Fable 검토). 종점이 가로 가용선과 만남.
-                    //   가용 미설정(휴일=영업일 등으로 0) 시 Σ예측 fallback — 대각선이 통째로 사라지는 회귀 방지.
-                    const base=effectiveCapacity>0?effectiveCapacity:(weekTotalEst||0);
+                    // ★ 2026-08-24 (Irene 확정) — 페이스 대각선은 **계획(Σ예상시간)** 에 맞춰 올라간다.
+                    //   종점이 가로 가용선과 만나는 지점은 주마다 다를 수 있다(계획이 가용보다 많거나 적다).
+                    //   옛 정의는 종점을 가용시간에 **고정**해, 계획이 가용과 다른 주에도 늘 같은 각도로 그려졌다.
+                    //   계획 미설정(Σ예측 0) 시에만 가용으로 폴백 — 대각선이 통째로 사라지는 회귀 방지.
+                    const base=weekTotalEst>0?weekTotalEst:(effectiveCapacity||0);
                     const days=computedBurndown;
                     const N=days.length+1;
                     const step=N>1?cw/(N-1):0;
@@ -2896,7 +2926,9 @@ const QTaskPage:React.FC=()=>{
                     const maxEst=Math.max(0,...days.map(p=>p.estimated_cumulative==null?0:p.estimated_cumulative));
                     // base(=가용)로 y축 기준. Σ예측 선제 인플레 제거. 그려진 실데이터(maxAct/maxEst)는
                     //   잘림 방지 위해 유지 — 가용 초과 시 그때만 y축 확장(초과 솟구침 의도 유지).
-                    const yMaxBase=Math.max(base, maxAct, maxEst, 1);
+                    //   y축에는 가용선도 반드시 포함 — 계획이 가용보다 작은 주에 가로 가용선이 잘리면
+                    //   "계획이 가용을 넘었는지" 를 눈으로 못 읽는다.
+                    const yMaxBase=Math.max(base, effectiveCapacity, maxAct, maxEst, 1);
                     const yMax=Math.ceil(yMaxBase/5)*5||5;
                     const yTicks=[0,yMax/2,yMax];
                     const xPos=(i:number)=>PL+i*step;
@@ -2933,7 +2965,7 @@ const QTaskPage:React.FC=()=>{
                             </text>
                           </>
                         )}
-                        {/* 기준선 — 시작 0 → 가용시간(base) 페이스 대각선. 종점이 가로 가용선과 만남 (Irene 2026-07-05) */}
+                        {/* 페이스 대각선 — 시작 0 → 계획(Σ예상시간). 종점이 가용선과 만나는 지점은 주마다 다르다 (Irene 2026-08-24) */}
                         {base>0 && N>1 && (
                           <line x1={xPos(0)} y1={yPos(0)} x2={xPos(N-1)} y2={yPos(base)}
                             stroke="#94A3B8" strokeWidth="1.5" strokeDasharray="4,4" />
@@ -2981,13 +3013,12 @@ const QTaskPage:React.FC=()=>{
                     );
                   })()}
                   <Legend>
-                    {/* 운영 #300/#254 — 이 두 선은 왼쪽 목록의 칩과 **다른 질문에 답한다**.
-                        진척 = Σ(예측×진행률) = 해낸 몫 / 목록의 "남은 …h" = Σ(예측×남은비율) = 남은 몫 (둘을 더하면 Σ예측).
-                        투입 = 이번 주 Δ(이월 차감) / 목록의 "실제 …h" = 일생 누적.
-                        공식은 #254 를 고친 결과라 되돌리면 안 된다 — 같은 이름으로 부르던 것을 이름으로 가른다. */}
+                    {/* ★ 2026-08-24 (Irene 확정) — 두 선은 같은 축(진행률) 위에 있고, 재는 자만 다르다.
+                        진척(예상시간) = Σ(예측시간 × 진행률)  /  실제 업무시간 = Σ(실제시간 × 진행률)
+                        목록의 "남은 …h" = Σ(예측×남은비율) 이라 진척과 더하면 Σ예측이 된다(같은 축). */}
                     <LI title={t('chart.estTip','') as string}><Dot $c="#14B8A6"/>{t('chart.est','진척 (예상시간)')}</LI>
                     <LI title={t('chart.actTip','') as string}><Dot $c="#F43F5E"/>{t('chart.act','실제 업무시간')}</LI>
-                    <LI><DashDot $c="#94A3B8"/>{t('chart.ideal','가용 페이스')}</LI>
+                    <LI><DashDot $c="#94A3B8"/>{t('chart.pace','계획 페이스')}</LI>
                     <LI><DashDot $c="#F59E0B"/>{t('chart.capacity','가용시간')}</LI>
                     {computedBurndown.some(p=>p.reverted)&&(
                       <LI><RevertTri/>{t('chart.reverted','되돌림')}</LI>
@@ -3512,13 +3543,21 @@ const EstWrap=styled.span<{$flash?:boolean}>`
   @keyframes estFlash{0%{background:#A7F3D0;}100%{background:transparent;}}
 `;
 // 실제시간 셀 wrap — 진행 중 dot 표시용
-const ActWrap=styled.span`position:relative;display:inline-flex;align-items:center;`;
+const ActWrap=styled.span`position:relative;display:inline-flex;align-items:center;gap:5px;min-width:0;`;
 // 진행 중 라이브 dot — 작업 중 (status=in_progress) 일 때 actual_hours 옆 (Apple Watch 스톱워치 패턴)
+//
+// ★ 운영 신고(Irene 2026-08-24) — "실제 시간 옆에 잘려서 보이지 않는 빨강색 깜빡이는 뭐야? 보이지도 않아."
+//   원인 둘:
+//   ① `position:absolute; right:-6px` 로 **부모 박스 밖**에 찍혀, 열의 overflow 에 그대로 잘렸다.
+//      → 흐름 안(inline-flex 형제)으로 넣고 부모 gap 으로 띄운다. 잘릴 자리가 없어진다.
+//   ② `aria-hidden="true"` + 6px 점이라 **무엇을 뜻하는지 알 방법이 없었다.**
+//      → aria-hidden 제거 + role/aria-label 부여. 마우스를 올리면 "진행 중" 이라고 말한다.
 const InProgressDotMini=styled.span`
-  position:absolute;right:-6px;top:50%;transform:translateY(-50%);
-  width:6px;height:6px;border-radius:50%;background:#DC2626;
-  animation:actPulse 1.4s ease-in-out infinite;pointer-events:none;
-  @keyframes actPulse{0%,100%{opacity:1;transform:translateY(-50%) scale(1);}50%{opacity:0.4;transform:translateY(-50%) scale(0.8);}}
+  flex-shrink:0;
+  width:7px;height:7px;border-radius:50%;background:#DC2626;
+  animation:actPulse 1.4s ease-in-out infinite;
+  @keyframes actPulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.45;transform:scale(0.78);}}
+  @media (prefers-reduced-motion: reduce){animation:none;}
 `;
 const AiSparkBtn=styled.button`
   position:absolute;right:-2px;top:50%;transform:translateY(-50%);

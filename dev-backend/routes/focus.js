@@ -16,10 +16,18 @@ const { Op } = require('sequelize');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../utils/response');
 const {
-  FocusSession, User, Task, TaskReviewer, AuditLog,
+  FocusSession, User, Task, TaskReviewer, AuditLog, Business,
 } = require('../models');
 const { sequelize } = require('../config/database');
 const { recomputeActualHours } = require('../services/taskActualHours');
+const { getUserScope } = require('../middleware/access_scope');
+
+// 워크스페이스 접근 확인 — tasks.js 와 같은 술어(owner/member/admin/client).
+async function assertBusinessAccess(userId, businessId, platformRole) {
+  if (platformRole === 'platform_admin') return true;
+  const scope = await getUserScope(userId, businessId, platformRole);
+  return scope.isOwner || scope.isMember || scope.isAdmin || scope.isClient;
+}
 
 // ─── 헬퍼 ────────────────────────────────────────────────────────
 const startStopLimiter = rateLimit({
@@ -315,17 +323,37 @@ router.post('/idle-discard', authenticateToken, async (req, res, next) => {
 // ─── GET /daily-prompt-items ─────────────────────────────────────
 // 오늘 시작 모달용 — 오늘마감 + 확인요청 + 지연된 업무 (담당자=me)
 // 사용자가 진입 시 한 번 호출하여 모달 본문 채움.
+//
+// ★ 운영 신고(Irene 2026-08-24) — "선택하면 좌측메뉴 업무상태가 엄청 늦게 바뀌고 콘텐츠는 계속 Loading".
+//   원인: 이 라우트가 `business_id` 없이 `assignee_id` 만으로 조회해 **모든 워크스페이스**의 업무를
+//   섞어 내려줬다. 다른 워크스페이스 업무를 고르면 포커스는 그 워크스페이스에서 시작되는데
+//   화면은 **현재 워크스페이스**의 /tasks 로 이동해 그 업무를 못 찾고 영원히 Loading 이 된다.
+//   → `business_id` 필수 + 멤버십 확인. 팝업이 제시하는 업무는 지금 보고 있는 워크스페이스 것만이다.
+//   (멀티테넌트 격리 관점에서도 무스코프 조회는 원칙 위반이다 — CLAUDE.md 보안 §멀티테넌트 격리.)
+//
+// ★ 날짜 경계는 **워크스페이스 타임존** 기준이다 (Irene: "모든 시간은 워크스페이스 시간").
+//   서버 로컬 setHours 는 tz 가 다른 워크스페이스에서 하루가 밀린다.
 router.get('/daily-prompt-items', authenticateToken, async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
-    const yesterday = new Date(); yesterday.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+    const businessId = Number(req.query.business_id || 0);
+    if (!businessId) return errorResponse(res, 'business_id required', 400);
+    if (!(await assertBusinessAccess(userId, businessId, req.user.platform_role))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    const { todayInTz } = require('../utils/datetime');
+    const biz = await Business.findByPk(businessId, { attributes: ['timezone'] });
+    const tz = biz?.timezone || 'Asia/Seoul';
+    // due_date 는 DATEONLY 다 — 워크스페이스 tz 의 '오늘' 문자열로 비교하면 tz 왜곡이 없다.
+    //   (옛 코드는 서버 로컬 setHours 로 Date 를 만들어 tz 가 다른 워크스페이스에서 하루가 밀렸다.)
+    const todayStr = todayInTz(tz);
+    const today = todayStr;        // due_date <= 오늘
+    const yesterday = todayStr;    // due_date >= 오늘  (오늘 마감 구간의 하한)
 
     // 1) 오늘 마감 (담당자=me, due_date <= 오늘, 미완료)
     const todayDue = await Task.findAll({
       where: {
+        business_id: businessId,
         assignee_id: userId,
         status: { [Op.in]: ['not_started', 'waiting', 'in_progress', 'revision_requested'] },
         due_date: { [Op.lte]: today, [Op.gte]: yesterday },
@@ -339,7 +367,7 @@ router.get('/daily-prompt-items', authenticateToken, async (req, res, next) => {
       where: { user_id: userId, state: 'pending' },
       include: [{
         model: Task,
-        where: { status: { [Op.in]: ['reviewing', 'revision_requested'] } },
+        where: { business_id: businessId, status: { [Op.in]: ['reviewing', 'revision_requested'] } },
         attributes: ['id', 'title', 'status', 'due_date', 'progress_percent', 'business_id', 'project_id'],
         required: true,
       }],
@@ -349,6 +377,7 @@ router.get('/daily-prompt-items', authenticateToken, async (req, res, next) => {
     // 3) 지연된 업무 (담당자=me, due_date < 오늘 시작, 미완료)
     const overdue = await Task.findAll({
       where: {
+        business_id: businessId,
         assignee_id: userId,
         status: { [Op.in]: ['not_started', 'waiting', 'in_progress', 'revision_requested'] },
         due_date: { [Op.lt]: yesterday },

@@ -18,7 +18,7 @@
 //   - member util:       capacity vs Σ TaskDailyProgress.actual_hours (해당 주차)
 
 const { myAssignedWeekWhere } = require('./weekTaskSet');
-const { getProgressBaselines, deltaOf, estDoneOf } = require('./progressBaseline');
+const { getProgressBaselines, estDoneOf, actDoneOf } = require('./progressBaseline');
 // #288 — 가용시간 공식 단일 원천. 이 파일 안에만 사본이 2벌 있었다(참여율·휴일 무시).
 const capacityService = require('./memberCapacity');
 const { Op } = require('sequelize');
@@ -163,18 +163,18 @@ async function buildBurndownData(taskIds, monday) {
   // snapshot_date 가 Date 객체로 역직렬화돼 String() 비교가 항상 실패하던 버그 fix (저장 주간보고 그래프 빈화면 원인).
   //   'YYYY-MM-DD' 로 정규화해 비교 (tasks.js /daily-progress 와 동일 처리).
   const dayKey = (sd) => (sd instanceof Date) ? sd.toISOString().slice(0, 10) : String(sd).slice(0, 10);
-  // ★ #254 — 업무별 기준선을 빼고 **그 주의 Δ** 만 그린다. 스냅샷 행은 일생 누적이라 그대로 합산하면
-  //   이월 업무의 지난주 투입이 월요일부터 실린다. 라이브 그래프·보고서와 같은 함수를 쓴다(정의 1벌).
-  const { baseAct, baseEst, estNow } = await getProgressBaselines(taskIds, monday);
+  // ★ 2026-08-24 (Irene 확정) — 두 선은 같은 축(진행률) 위에 있고 기준선 차감(Δ)은 걷어냈다.
+  //   estNow 만 쓴다(예측 정정 면역). 정의 정본은 services/progressBaseline.js —
+  //   라이브 그래프·보고서가 같은 함수를 쓴다(정의 1벌).
+  const { estNow } = await getProgressBaselines(taskIds, monday);
   const result = [];
   for (let i = 0; i < 7; i++) {
     const date = addDaysStr(monday, i);
     const dayProgs = progresses.filter(p => dayKey(p.snapshot_date) === date);
-    // 예측 라인 = Σ(예측시간 × 진행률) — 진행률만큼 예측시간이 "완료"된 누적 (Irene 스펙 2026-06-16).
-    //   (옛: 예측시간 raw 합 → 진행률 무관 flat. 라이브 그래프 est_used 와 동일 정의로 통일.)
-    // 예측 정정 면역 — 지금 예측 × 그날 진행률 (기준선과 같은 축). progressBaseline 정본.
-    const estimated_cumulative = dayProgs.reduce((s, p) => s + deltaOf(estDoneOf(estNow, p.task_id, p.progress_percent, p.estimated_hours), baseEst.get(Number(p.task_id))), 0);
-    const actual_cumulative = dayProgs.reduce((s, p) => s + deltaOf(Number(p.actual_hours) || 0, baseAct.get(Number(p.task_id))), 0);
+    // 진척(예상시간) = Σ(예측시간 × 진행률) / 실제 업무시간 = Σ(실제시간 × 진행률).
+    // 예측 정정 면역 — 스냅샷의 옛 예측 대신 지금 예측으로 환산. progressBaseline 정본.
+    const estimated_cumulative = dayProgs.reduce((s, p) => s + estDoneOf(estNow, p.task_id, p.progress_percent, p.estimated_hours), 0);
+    const actual_cumulative = dayProgs.reduce((s, p) => s + actDoneOf(p.actual_hours, p.progress_percent), 0);
     result.push({
       date,
       estimated_cumulative: Math.round(estimated_cumulative * 10) / 10,

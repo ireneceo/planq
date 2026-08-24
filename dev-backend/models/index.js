@@ -895,6 +895,11 @@ User.hasMany(ExternalConnection, { as: 'externalConnections', foreignKey: 'user_
 WorkspaceStorageConfig.belongsTo(Business, { foreignKey: 'business_id', onDelete: 'CASCADE' });
 Business.hasOne(WorkspaceStorageConfig, { as: 'storageConfig', foreignKey: 'business_id' });
 
+// ─── 진척 스냅샷 — 같은 날 정정 반영 훅 (2026-08-24) ────────────────────────
+//   D 일자 행을 "D 00:00 의 사진" 이 아니라 "D 에 대해 알려진 최신 상태" 로 유지한다.
+//   상세 이유는 services/task_snapshot.js 의 touchTodaySnapshot 주석 참조.
+require('../services/task_snapshot').registerTaskSnapshotHook(Task);
+
 // ─── Q위키 (Q Wiki) — associations ──────────────────────────────────
 HelpArticle.belongsTo(HelpCategory, { as: 'category', foreignKey: 'category_id', onDelete: 'CASCADE' });
 HelpCategory.hasMany(HelpArticle, { as: 'articles', foreignKey: 'category_id', onDelete: 'CASCADE' });

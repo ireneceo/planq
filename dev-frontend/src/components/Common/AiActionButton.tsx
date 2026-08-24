@@ -17,10 +17,11 @@ interface Props {
   loading?: boolean;      // 생성 중 — 별 자리에 스피너 + 클릭 차단
   size?: 'sm' | 'md';
   className?: string;
+  testId?: string;        // CLAUDE.md §17 — 모달/드로어 오프너는 data-testid 필수 (하니스 안정성)
 }
 
 export default function AiActionButton({
-  onClick, label, title, disabled, loading, size = 'sm', className,
+  onClick, label, title, disabled, loading, size = 'sm', className, testId,
 }: Props) {
   return (
     <Btn
@@ -30,6 +31,7 @@ export default function AiActionButton({
       disabled={disabled || loading}
       $size={size}
       className={className}
+      data-testid={testId}
     >
       {loading ? (
         <Spinner aria-hidden="true" />

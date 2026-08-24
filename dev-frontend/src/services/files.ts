@@ -226,6 +226,22 @@ export async function moveFile(businessId: number, fileId: string, folderId: num
 //   실제 신고(#365): Q docs 에 영상을 첨부하면 문서 저장이 안 됐다.
 //
 //   message 는 **코드**만 돌려준다 (사용자 문구는 화면에서 t() 로 만든다).
+// ★ 영상 등 큰 파일 정책 (Irene 확정 2026-08-24)
+//   "영상은 Drive 에만 업로드되는 걸로 안내하고, 기준 이상은 Drive 를 연결해야 한다고 안내하고,
+//    연결되어 있으면 Drive 에만 올리면 되지 않아?"
+//
+//   자체 스토리지 경로는 앞단 nginx `client_max_body_size` 와 플랜 파일당 한도에 걸린다.
+//   그 한도를 넘는 파일은 **외부 클라우드(Drive)로만** 올릴 수 있다 — 백엔드 plan.can('upload_file')
+//   이 이미 `ctx.external` 이면 플랜 한도·쿼터를 건너뛰고 5GB 까지 허용한다.
+//   여기서 올리기 **전에** 걸러 사용자에게 이유와 다음 행동을 말한다.
+//   (여태는 nginx 가 413 HTML 을 돌려주고 화면은 아무 말도 못 해 "그냥 안 됨" 으로 보였다.)
+export const SELF_STORAGE_MAX_BYTES = 50 * 1024 * 1024;   // nginx client_max_body_size 와 같은 축
+
+/** 자체 스토리지로 올릴 수 없는 크기인가 — 넘으면 Drive 연결이 필요하다. */
+export function needsDriveForSize(bytes: number): boolean {
+  return Number(bytes || 0) > SELF_STORAGE_MAX_BYTES;
+}
+
 async function readUploadResponse(r: Response): Promise<{ ok: true; data: any } | { ok: false; message: string }> {
   let j: any = null;
   try {
@@ -246,6 +262,7 @@ export async function uploadProjectFile(
   file: File,
   options?: { folderId?: number | null; onProgress?: (pct: number) => void }
 ): Promise<UploadResult> {
+  if (needsDriveForSize(file.size)) return { success: false, message: 'needs_drive_for_large_file' };
   const fd = new FormData();
   fd.append('file', file);
   fd.append('project_id', String(projectId));
@@ -284,6 +301,7 @@ export async function uploadMyFile(
   file: File,
   opts?: { conversationId?: number | null; projectId?: number | null }
 ): Promise<UploadResult> {
+  if (needsDriveForSize(file.size)) return { success: false, message: 'needs_drive_for_large_file' };
   const fd = new FormData();
   fd.append('file', file);
   if (opts?.conversationId) fd.append('conversation_id', String(opts.conversationId));

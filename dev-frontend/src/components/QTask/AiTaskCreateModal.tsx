@@ -72,6 +72,9 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
       setBaseDate(new Date().toISOString().slice(0, 10));
       setRecMatch(null);
       setRecDismissed(false);
+      // #312 누적 지시도 같이 초기화 — 안 하면 지난 번 프롬프트에 준 지시가 새 세션에 얹혀
+      //   엉뚱한 결과가 나온다(모달이 언마운트되지 않고 open prop 으로만 여닫히기 때문).
+      setAiInstructions([]);
       // autoFocus 제거 — 모달이 길면 textarea 위치로 스크롤 점프해서 헤더/탭이 안 보임
     }
   }, [open, projectId]);
@@ -98,11 +101,16 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
     return () => { clearTimeout(timer); ctrl.abort(); };
   }, [open, prompt, businessId, selectedProjectId, onUseTemplate, recDismissed]);
 
-  if (!open) return null;
-
+  // ★ 훅은 전부 early return **위**에 있어야 한다. 아래에 두면 닫힘(15개) → 열림(16개) 으로
+  //   훅 개수가 달라져 React 가 "Rendered more hooks than during the previous render"
+  //   (프로덕션 빌드 React #310) 로 크래시한다 — 버튼을 누르는 순간 모달이 죽는다.
+  //   운영 신고 "AI 추가 버튼 에러나"(2026-08-24) 의 원인. tsc·가드 3축은 이걸 못 잡는다.
+  //   memory: feedback_hooks_after_early_return
   // 운영 #312 — "다시 만들기" 로 준 지시를 누적한다. 마지막 한 줄만 보내면 앞서 시킨 것이 풀려
   //   결과가 처음으로 되돌아간다. 직전 후보 목록도 같이 넘겨 "고쳐 쓰기" 가 되게 한다.
   const [aiInstructions, setAiInstructions] = useState<string[]>([]);
+
+  if (!open) return null;
 
   const generate = async (instruction?: string) => {
     if (!prompt.trim() || submitting) return;

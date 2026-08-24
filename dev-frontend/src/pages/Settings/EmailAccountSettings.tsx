@@ -74,6 +74,12 @@ const EmailAccountSettings: React.FC = () => {
 
   useEffect(() => { load(); }, [load]);
 
+  // ★ 훅은 전부 early return **위**에. 아래에 두면 businessId 가 늦게 잡히는 렌더(새로고침 직후)
+  //   다음에 훅이 7→8 개로 늘어 React 가 "Rendered more hooks than during the previous render"
+  //   (프로덕션 React #310) 로 페이지를 통째로 죽인다. AiTaskCreateModal 과 같은 종류 —
+  //   tsc·가드는 못 잡고 eslint `react-hooks/rules-of-hooks` 만 잡는다.
+  const [connErr, setConnErr] = useState<string | null>(null);
+
   if (!businessId) {
     return <Empty>{t('settings.noWorkspace', '워크스페이스를 먼저 선택하세요') as string}</Empty>;
   }
@@ -130,7 +136,6 @@ const EmailAccountSettings: React.FC = () => {
     return d.toLocaleDateString();
   };
 
-  const [connErr, setConnErr] = useState<string | null>(null);
   const connectGmail = async () => {
     // #82/#72 — apiFetch(Bearer) 로 auth_url 받아 이동. 옛 window.location 직접진입은
     // 브라우저 네비게이션이 토큰 미전달 → 401 "Access token required".

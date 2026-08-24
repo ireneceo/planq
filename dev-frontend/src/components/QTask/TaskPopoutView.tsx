@@ -57,7 +57,7 @@ import {
 } from './TaskPopoutView.styles';
 
 import { inTodaySet } from '../../utils/todayTaskSet';
-import { detectBrowserTz } from '../../utils/timezones';
+import { detectBrowserTz, dateStrInTz } from '../../utils/timezones';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { joinRoom, leaveRoom, onSocket, getSocket } from '../../services/socket';
@@ -136,16 +136,17 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
   const [todayStr, setTodayStr] = useState<string>(localToday);
-  // 팝아웃은 워크스페이스 tz 를 따로 안 받는다 — 완료 판정용으로 브라우저 tz 를 쓴다(로컬 오늘과 같은 기준).
-  const tzGuess = useMemo(() => detectBrowserTz(), []);
+  const [wsTz, setWsTz] = useState<string | null>(null);  // 시간 기준 = 워크스페이스 tz (/my-week 정본, Irene 2026-08-24)
+  const tzGuess = useMemo(() => detectBrowserTz(), []);   // 첫 렌더 폴백. 훅은 무조건 호출(조건부 금지)
+  const effTz = wsTz || tzGuess;
   useEffect(() => {
-    const sync = () => setTodayStr((prev) => { const now = localToday(); return now === prev ? prev : now; });
+    const sync = () => setTodayStr((p) => { const n = wsTz ? dateStrInTz(new Date(), wsTz) : localToday(); return n === p ? p : n; });
     const id = window.setInterval(sync, 60000);
     const onVis = () => { if (document.visibilityState === 'visible') sync(); };
     document.addEventListener('visibilitychange', onVis);
     window.addEventListener('focus', onVis);
     return () => { window.clearInterval(id); document.removeEventListener('visibilitychange', onVis); window.removeEventListener('focus', onVis); };
-  }, []);
+  }, [wsTz]);
 
   const [tasks, setTasks] = useState<PopoutTask[]>([]);
   const { dict: tagDict, add: addTagToDict } = useTaskTagDict(bizId);
@@ -203,6 +204,8 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
       //   weekTaskSet 술어(planned_week_start = monday **정확 일치**)와 어긋나 추가한 업무가
       //   그 자리에서 사라진다. 정합 원천은 하나여야 한다 (Fable 설계 C-5).
       if (json.data.week) setWeekStart(String(json.data.week));
+      if (json.data.timezone) setWsTz(String(json.data.timezone));   // 워크스페이스 시간·오늘 정본
+      if (json.data.today) setTodayStr(String(json.data.today));
       setError(false);
     } catch {
       if (seq !== seqRef.current) return;
@@ -444,8 +447,8 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
       : byDueRule;
   // 오늘 탭 = 이번 주 응답(/my-week) 위에 utils/todayTaskSet 술어를 얹은 것. 메인 화면과 **같은 함수**다.
   const inTab = useCallback((tk: PopoutTask, includeDone: boolean) => (
-    popTab === 'week' ? true : inTodaySet(tk as never, todayStr, myId, tzGuess, includeDone)
-  ), [popTab, todayStr, myId]);   // eslint-disable-line react-hooks/exhaustive-deps
+    popTab === 'week' ? true : inTodaySet(tk as never, todayStr, myId, effTz, includeDone)
+  ), [popTab, todayStr, myId, effTz]);
   const openTasks = useMemo(
     () => tasks.filter((tk) => !CLOSED.includes(tk.status) && inTab(tk, false)).sort(sortRule), [tasks, viewMode, inTab]);   // eslint-disable-line react-hooks/exhaustive-deps
   const doneTasks = useMemo(

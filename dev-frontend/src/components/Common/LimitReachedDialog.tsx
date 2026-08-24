@@ -27,6 +27,8 @@ const CODE_TO_KEY: Record<string, { titleKey: string; descKey: string; addonHint
   conversations_quota_exceeded: { titleKey: 'limit.conv.title',      descKey: 'limit.conv.desc' },
   storage_quota_exceeded:       { titleKey: 'limit.storage.title',   descKey: 'limit.storage.desc',   addonHintKey: 'limit.storage.addon' },
   file_size_exceeded:           { titleKey: 'limit.fileSize.title',  descKey: 'limit.fileSize.desc' },
+  // 영상 등 큰 파일 — 자체 스토리지 한도를 넘으면 Drive 연결이 필요하다 (Irene 확정 2026-08-24)
+  needs_drive_for_large_file:   { titleKey: 'limit.needsDrive.title', descKey: 'limit.needsDrive.desc' },
   cue_quota_exceeded:           { titleKey: 'limit.cue.title',       descKey: 'limit.cue.desc',       addonHintKey: 'limit.cue.addon' },
   qnote_quota_exceeded:         { titleKey: 'limit.qnote.title',     descKey: 'limit.qnote.desc',     addonHintKey: 'limit.qnote.addon' },
   feature_not_in_plan:          { titleKey: 'limit.feature.title',   descKey: 'limit.feature.desc' },

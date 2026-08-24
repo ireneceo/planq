@@ -15,6 +15,7 @@ const SUITES = {
   tabs: () => require('./canary-tabs'),         // ⑥ 멀티탭 트리 스왑(형제 라우터 무크래시·keep-alive·shell 무회귀)
   hlock: () => require('./canary-qtalk-hlock'), // #245 Q Talk 가로 잠금 — overflow-y:auto 만 두면 반대축이 auto 로 강제(grep 불가)
   fab: () => require('./canary-fab-reach'),
+  aiopen: () => require('./canary-ai-open'),    // AI 진입 모달이 **눌러서 뜨는가** (early return 아래 훅 = React #310, 런타임에만 드러남)
   rowtags: () => require('./canary-row-tags'),  // 행 태그 버튼이 **눌리는가** (존재 검사로는 button-in-button 을 못 잡는다)     // 우하단 도크 FAB 도달성 — 겹침은 두 파일 CSS 가 합쳐진 뒤에만 존재(정적 검사 불가)
   // chrome: () => require('./chrome-suppression'),
 };

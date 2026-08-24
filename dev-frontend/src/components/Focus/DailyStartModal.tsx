@@ -14,7 +14,7 @@ import styled from 'styled-components';
 import { createPortal } from 'react-dom';
 import { useChromeNav } from '../../hooks/useChromeNav';
 import { useTranslation } from 'react-i18next';
-import { apiFetch } from '../../contexts/AuthContext';
+import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
@@ -41,6 +41,9 @@ const todayDateStr = () => new Date().toISOString().slice(0, 10);
 const DailyStartModal: React.FC = () => {
   const { t } = useTranslation('focus');
   const navigate = useChromeNav();
+  // 이 팝업이 제시하는 업무는 **지금 보고 있는 워크스페이스** 것만이다 (아래 fetch 스코프).
+  const { user } = useAuth();
+  const bizId = user?.business_id || null;
   const dialogRef = useRef<HTMLDivElement>(null);
 
   const [open, setOpen] = useState(false);
@@ -57,6 +60,7 @@ const DailyStartModal: React.FC = () => {
   useEffect(() => {
     if (checkedOnceRef.current) return;
     checkedOnceRef.current = true;
+    if (!bizId) { checkedOnceRef.current = false; return; }   // 워크스페이스 확정 후 다시 판단
 
     (async () => {
       try {
@@ -75,7 +79,9 @@ const DailyStartModal: React.FC = () => {
         if (cJ.data) return;
 
         // 3) daily-prompt-items
-        const dR = await apiFetch('/api/focus/daily-prompt-items');
+        // ★ 워크스페이스 스코프 필수 — 안 넘기면 서버가 모든 워크스페이스 업무를 섞어 내려주고,
+        //   다른 워크스페이스 업무를 고르면 /tasks 가 그 업무를 못 찾아 영원히 Loading 이 된다.
+        const dR = await apiFetch(`/api/focus/daily-prompt-items?business_id=${bizId}`);
         const dJ = await dR.json();
         if (!dJ.success) return;
         const total = (dJ.data.today?.length || 0) + (dJ.data.review?.length || 0) + (dJ.data.overdue?.length || 0);
@@ -84,7 +90,7 @@ const DailyStartModal: React.FC = () => {
         setOpen(true);
       } catch { /* noop */ }
     })();
-  }, []);
+  }, [bizId]);
 
   const startWith = useCallback(async (item: TaskItem) => {
     if (submitting) return;
@@ -96,6 +102,11 @@ const DailyStartModal: React.FC = () => {
       });
       if (r.ok) {
         setOpen(false);
+        // ★ 사이드바 FocusWidget 은 30초 폴링 + `focus:refresh` listener 를 이미 갖고 있는데,
+        //   이 팝업만 그 이벤트를 **쏘지 않아** 최대 30초 뒤에야 바뀌었다
+        //   (Irene: "좌측메뉴에서 업무상태 엄청 늦게 바뀌고"). 새 이벤트를 만들지 않고 기존 계약을 쓴다.
+        //   memory: feedback_notify_trigger_required — broadcast 는 수신부까지가 기능이다.
+        window.dispatchEvent(new CustomEvent('focus:refresh'));
         // /tasks?task=:id — TaskDetailDrawer URL sync 의 표준 (project_id 무관)
         // 옛: project_id 있으면 /projects/:pid?task=:id 였는데 QProjectPage 가 ?task= 처리 안 함 → 프로젝트만 열림 회귀
         navigate(`/tasks?task=${item.id}`);

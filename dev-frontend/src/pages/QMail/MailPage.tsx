@@ -352,10 +352,9 @@ const MailPage: React.FC = () => {
   }, [allUnread, folderCounts]);
   const [accounts, setAccounts] = useState<MailAccount[]>([]);
   // 좌측 리스트 폭 — 우측 패널처럼 드래그로 조절 (제목이 길면 300px 는 답답하다)
-  const { width: listWidth, startListResize } = (() => {
-    const { width, startResize } = usePanelWidth('qmail_list_width', 300, 'left');
-    return { width, startListResize: startResize };
-  })();
+  // 훅은 콜백(IIFE) 안에서 부르지 않는다 — 동작은 같지만 eslint rules-of-hooks 위반이고,
+  //   나중에 그 IIFE 에 조건이 붙는 순간 훅 순서가 깨진다(React #310). 직접 호출로 편다.
+  const { width: listWidth, startResize: startListResize } = usePanelWidth('qmail_list_width', 300, 'left');
   const [labelMaster, setLabelMaster] = useState<MailLabel[]>([]);
   // 라벨(태그)·프로젝트 필터 — 태그는 스레드에 붙는 진짜 태그이고, 여기서 리스트 필터로도 쓴다.
   // 프로젝트/채팅방 연결은 우측 맥락 패널에서 걸고, 이 셀렉트로 "그 프로젝트 메일만" 볼 수 있다.
