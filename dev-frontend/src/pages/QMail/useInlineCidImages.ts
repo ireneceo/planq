@@ -45,65 +45,64 @@ export function useInlineCidImages(
     if (!messages || !businessId) { setCidData({}); return; }
     let alive = true;
     // ★ 2026-08-24 (Irene: "이메일에 이미지가 첨부된게 너무 늦게 떠")
-    //   옛 흐름은 두 겹으로 늦었다:
-    //   ① 메시지 단위 **순차** — 펼친 메시지가 여럿이면 앞 것이 끝나야 다음이 시작
-    //   ② 한 메시지 안에서도 `await Promise.all` 로 **전량 대기** 후에야 setCidData —
-    //      이미지 4장이면 4장을 다 받아야 1장도 안 떴다.
-    //   → 메시지는 병렬로, 이미지는 **받는 즉시 한 장씩** 반영한다. 첫 장이 곧바로 뜬다.
-    (async () => {
-      await Promise.all(messages.map(async (m) => {
-        if (visibleIds && !visibleIds.has(m.id)) return;   // 접힌 메시지는 받지 않는다
-        const inl = (m.inline_images || []).filter(x => (x.size_bytes || 0) <= MAX_PER_FILE);
-        if (!inl.length) return;
-        const map: Record<string, string> = {};
-        // 예산 검사는 **착수 전에** size_bytes 로 끝낸다 — 그래야 병렬로 받아도 결과가 순서에
-        //   의존하지 않는다(옛 순차 코드와 같은 집합을 고른다).
-        let budget = MAX_PER_MSG;
-        const queue: Array<{ cid: string; url: string }> = [];
-        for (const im of inl) {
-          const size = im.size_bytes || 0;
-          if (size > budget) continue;          // 캡 초과분은 skip — 현상 유지(깨진 이미지)
-          const cid = normalizeCid(im.content_id);
-          if (!cid) continue;
-          budget -= size;
-          // 첨부 기반이면 파일 다운로드, 본문에서 떼어낸 것이면 스레드 메시지 경로.
-          const url = (im.embedded_index != null && threadId)
-            ? `/api/businesses/${businessId}/email-threads/${threadId}/messages/${m.id}/embedded/${im.embedded_index}`
-            // ?w=1024 — 본문 표시용 리사이즈본(webp). 원본 2.4MB 를 그대로 받던 것이 지연의 큰 몫이었다.
-            //   서버가 못 만들면 자동으로 원본을 준다(imageResize 폴백).
-            : (im.file_id != null ? `/api/files/${businessId}/${im.file_id}/download?w=1024` : null);
-          if (!url) continue;
-          queue.push({ cid, url });
-        }
-        // ★ 2R-1 — 순차 await 는 이미지가 3장만 돼도 왕복이 그대로 쌓여 본문이 늦게 완성됐다.
-        //   동시성 4 로 받는다(무제한 병렬은 인증 다운로드 라우트를 때린다).
-        const CONCURRENCY = 4;
-        let cursor = 0;
-        const worker = async () => {
-          for (;;) {
-            const idx = cursor++;
-            if (idx >= queue.length || !alive) return;
-            const { cid, url } = queue[idx];
-            try {
-              const r = await apiFetch(url);
-              if (!r.ok) continue;
-              const blob = await r.blob();
-              const dataUri = await new Promise<string>((resolve, reject) => {
-                const fr = new FileReader();
-                fr.onload = () => resolve(String(fr.result || ''));
-                fr.onerror = () => reject(new Error('read_failed'));
-                fr.readAsDataURL(blob);
-              });
-              if (!dataUri.startsWith('data:image/')) continue;
-              map[cid] = dataUri;
-              // ★ 받는 즉시 반영 — 나머지를 기다리지 않는다.
-              if (alive) setCidData(prev => ({ ...prev, [m.id]: { ...(prev[m.id] || {}), [cid]: dataUri } }));
-            } catch { /* 이 이미지만 포기 — 본문은 그대로 렌더된다 */ }
-          }
-        };
-        await Promise.all(Array.from({ length: Math.min(CONCURRENCY, queue.length) }, worker));
-      }));
-    })();
+    //   옛 흐름은 두 겹으로 늦었다: ①메시지 단위 순차 ②한 메시지 안에서도 전량 대기 후에야 반영
+    //   (이미지 4장이면 4장을 다 받아야 1장도 안 떴다).
+    //
+    // ★ 그런데 "메시지 병렬 × 메시지당 4" 로 고치면 동시성이 **곱해진다** — 펼친 메시지 5개면
+    //   동시 요청 20개 + 서버 sharp 리사이즈 20개. 큰 스레드 하나가 서버를 물 수 있다.
+    //   → **전역 큐 하나 + 상한 있는 워커**로 바꾼다. 빠르기(즉시 표시·메시지 병렬)는 그대로 두고
+    //     동시 요청 수만 묶는다. 큐는 화면 순서대로 쌓이므로 위 메시지부터 먼저 채워진다.
+    const queue: Array<{ msgId: number; cid: string; url: string }> = [];
+    for (const m of messages) {
+      if (visibleIds && !visibleIds.has(m.id)) continue;   // 접힌 메시지는 받지 않는다
+      const inl = (m.inline_images || []).filter(x => (x.size_bytes || 0) <= MAX_PER_FILE);
+      if (!inl.length) continue;
+      // 예산 검사는 **착수 전에** size_bytes 로 끝낸다 — 병렬로 받아도 고르는 집합이 같아진다.
+      let budget = MAX_PER_MSG;
+      for (const im of inl) {
+        const size = im.size_bytes || 0;
+        if (size > budget) continue;          // 캡 초과분은 skip — 현상 유지(깨진 이미지)
+        const cid = normalizeCid(im.content_id);
+        if (!cid) continue;
+        budget -= size;
+        // 첨부 기반이면 파일 다운로드, 본문에서 떼어낸 것이면 스레드 메시지 경로.
+        const url = (im.embedded_index != null && threadId)
+          ? `/api/businesses/${businessId}/email-threads/${threadId}/messages/${m.id}/embedded/${im.embedded_index}`
+          // ?w=1024 — 본문 표시용 리사이즈본(webp). 원본 2.4MB 를 그대로 받던 것이 지연의 큰 몫이었다.
+          //   서버가 못 만들면 자동으로 원본을 준다(imageResize 폴백).
+          : (im.file_id != null ? `/api/files/${businessId}/${im.file_id}/download?w=1024` : null);
+        if (!url) continue;
+        queue.push({ msgId: m.id, cid, url });
+      }
+    }
+    if (!queue.length) return () => { alive = false; };
+
+    // 스레드 전체 기준 상한. 브라우저의 호스트당 동시 연결(≈6)과도 맞아 큐잉 지연이 없다.
+    const MAX_INFLIGHT = 6;
+    let cursor = 0;
+    const worker = async () => {
+      for (;;) {
+        const idx = cursor++;
+        if (idx >= queue.length || !alive) return;
+        const { msgId, cid, url } = queue[idx];
+        try {
+          const r = await apiFetch(url);
+          if (!r.ok) continue;
+          const blob = await r.blob();
+          const dataUri = await new Promise<string>((resolve, reject) => {
+            const fr = new FileReader();
+            fr.onload = () => resolve(String(fr.result || ''));
+            fr.onerror = () => reject(new Error('read_failed'));
+            fr.readAsDataURL(blob);
+          });
+          if (!dataUri.startsWith('data:image/')) continue;
+          // ★ 받는 즉시 반영 — 나머지를 기다리지 않는다.
+          if (alive) setCidData(prev => ({ ...prev, [msgId]: { ...(prev[msgId] || {}), [cid]: dataUri } }));
+        } catch { /* 이 이미지만 포기 — 본문은 그대로 렌더된다 */ }
+      }
+    };
+    void Promise.all(Array.from({ length: Math.min(MAX_INFLIGHT, queue.length) }, worker));
+
     return () => { alive = false; };
   }, [messages, businessId, visibleIds, threadId]);
 

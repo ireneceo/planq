@@ -1158,6 +1158,8 @@ router.post('/:businessId/email-threads/:id/forward',
       // ★ include_original (Irene 2026-08-24 "이메일 그대로 전달이 안돼") — 원문을 리치 에디터에
       //   통과시키면 <table>·인라인 스타일이 에디터 노드로 재해석돼 레이아웃이 깨지고 cid: 도 유실된다.
       //   사용자는 덧붙일 말만 쓰고, 원문은 서버가 srcMsg.body_html 을 손대지 않고 이어붙인다.
+      // ★ 전달 일시 차단 (Irene 2026-08-24). 버튼만 숨기면 옛 번들·직접 호출이 남는다. 해제는 FABLE_VERIFY_QUEUE §5.
+      if (process.env.QMAIL_FORWARD_ENABLED !== '1') return errorResponse(res, 'forward_temporarily_disabled', 503, 'forward_temporarily_disabled');
       const includeOriginal = req.body?.include_original === true;
       if (!includeOriginal && !String(body_html || '').trim()) return errorResponse(res, 'body_required', 400);
       const toList = (Array.isArray(to) ? to : [to]).map(s => String(s || '').trim()).filter(Boolean);
@@ -1177,9 +1179,7 @@ router.post('/:businessId/email-threads/:id/forward',
       const userFileIds = Array.isArray(attachment_file_ids) ? attachment_file_ids : [];
       const { atts, files } = await resolveAttachments([...origFileIds, ...userFileIds], businessId);
       const subj = String(subject || '').trim() || `Fwd: ${srcMsg.subject || ''}`;
-      // ★ 상세 응답이 base64 이미지를 `cid:planq-embed-N` 으로 바꿔 내려주므로, 클라가 되돌려 준
-      //   본문에는 그 자리표시자가 그대로 들어 있다. 원본에서 실제 데이터를 다시 채워 넣지 않으면
-      //   받는 쪽에서 이미지가 통째로 사라진다 — 본문 대부분이 이미지인 메일은 "내용이 없어진" 것으로 보인다.
+      // 상세 응답이 base64 이미지를 `cid:planq-embed-N` 자리표시자로 바꿔 내려주므로 원본에서 되채운다.
       let composedHtml = String(body_html || '');
       if (includeOriginal) {
         const esc = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

@@ -4,7 +4,9 @@
 //     2) 입력 중이 아니면 즉시 hard reload, 입력 중이면 다음 navigation 까지 보류 (폼 데이터 보호)
 //   폴링: 5분 인터벌 + focus/visibility 복귀 시 즉시 (오래 켜둔 탭도 빠르게 최신화).
 //   운영: 알림 미수신이 "옛 SW 캐시"로 밝혀진 사고 (2026-06-15) → SW 강제 update 추가.
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import styled, { keyframes } from 'styled-components';
+import { useTranslation } from 'react-i18next';
 import { useChromeLocation } from '../../hooks/useChromeNav';
 
 const POLL_MS = 5 * 60 * 1000;  // 5분
@@ -46,9 +48,18 @@ async function forceSwUpdate(): Promise<void> {
 }
 
 const BuildVersionGuard: React.FC = () => {
+  const { t } = useTranslation('common');
   const location = useChromeLocation();
   const initialRef = useRef<string | null>(null);
   const pendingReloadRef = useRef(false);
+  // ★ 2026-08-24 (Irene: "새로고침하면 알아서 반영되게 업데이트 해야지. 고객이면 어쩌려고")
+  //   여태 이 컴포넌트는 새 빌드를 감지하고도 **화면에 아무것도 띄우지 않았다**(return null).
+  //   reload 는 ①탭이 숨겨졌을 때 ②앱 안에서 화면을 이동할 때만 일어난다 —
+  //   한 화면에서 계속 작업하면 영영 옛 코드에 머문다. 게다가 **PWA 에는 새로고침 버튼이 없다**
+  //   (운영 로그 kind=pwa). 그 상태에서 옛 번들이 지워진 청크를 부르면 Failed to fetch 가 난다.
+  //   → 감지되면 **눈에 보이는 배너 + 직접 누르는 새로고침**을 준다. 작업을 끊지 않는 안내이고,
+  //     사용자가 누르는 시점이라 입력 손실도 없다. 자동 reload 경로는 그대로 둔다.
+  const [updateReady, setUpdateReady] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -62,6 +73,7 @@ const BuildVersionGuard: React.FC = () => {
         if (initialRef.current == null) { initialRef.current = v; return; }
         if (initialRef.current !== v) {
           pendingReloadRef.current = true;
+          setUpdateReady(true);
           // 새 빌드 → 옛 SW 잔존 차단 위해 강제 최신화 (sw.js no-cache + skipWaiting → 즉시 새 SW)
           await forceSwUpdate();
           // 화면을 안 보고 있을 때(hidden)만 즉시 reload — 보고 있으면 다음 navigation 때 조용히 적용.
@@ -88,7 +100,53 @@ const BuildVersionGuard: React.FC = () => {
     if (pendingReloadRef.current && isReloadSafe()) window.location.reload();
   }, [location.pathname]);
 
-  return null;
+  if (!updateReady) return null;
+
+  return (
+    <Bar role="status" data-testid="build-update-bar">
+      <Dot aria-hidden="true" />
+      <Msg>{t('update.ready', { defaultValue: '새 버전이 준비됐어요' }) as string}</Msg>
+      <ReloadBtn type="button" onClick={() => { void forceSwUpdate().finally(() => window.location.reload()); }}>
+        {t('update.reload', { defaultValue: '지금 새로고침' }) as string}
+      </ReloadBtn>
+      <CloseBtn type="button" onClick={() => setUpdateReady(false)}
+        aria-label={t('update.later', { defaultValue: '나중에' }) as string}
+        title={t('update.later', { defaultValue: '나중에' }) as string}>×</CloseBtn>
+    </Bar>
+  );
 };
+
+const pulse = keyframes`0%,100%{opacity:1}50%{opacity:0.35}`;
+// 하단 중앙 — 작업을 가리지 않는 자리. 자동저장/작업 흐름을 끊지 않는 안내다.
+const Bar = styled.div`
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  z-index: 2147483000;
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px 8px 14px;
+  background: #0F172A; color: #F8FAFC;
+  border-radius: 999px; box-shadow: 0 8px 24px rgba(15,23,42,0.28);
+  font-size: 13px; line-height: 1;
+  max-width: calc(100vw - 32px);
+  @media (max-width: 640px) { bottom: calc(72px + env(safe-area-inset-bottom)); }
+`;
+const Dot = styled.span`
+  width: 7px; height: 7px; border-radius: 50%; background: #14B8A6; flex-shrink: 0;
+  animation: ${pulse} 1.6s ease-in-out infinite;
+  @media (prefers-reduced-motion: reduce) { animation: none; }
+`;
+const Msg = styled.span`white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
+const ReloadBtn = styled.button`
+  flex-shrink: 0; border: 0; cursor: pointer;
+  padding: 6px 12px; border-radius: 999px;
+  background: #14B8A6; color: #fff; font-size: 12px; font-weight: 700; font-family: inherit;
+  &:hover { background: #0D9488; }
+  &:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,0.45); }
+`;
+const CloseBtn = styled.button`
+  flex-shrink: 0; border: 0; background: none; cursor: pointer;
+  color: #94A3B8; font-size: 16px; line-height: 1; padding: 0 4px;
+  &:hover { color: #F8FAFC; }
+`;
 
 export default BuildVersionGuard;

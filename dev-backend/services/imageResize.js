@@ -7,6 +7,23 @@ const fs = require('fs');
 const crypto = require('crypto');
 
 const ALLOWED_WIDTHS = [200, 400, 800, 1024, 1600];
+
+// ★ 2026-08-24 — 리사이즈 생성은 CPU 작업이다(sharp/libvips). 메일 스레드 하나를 열 때 이미지가
+//   여러 장 동시에 오면 그만큼 동시에 인코딩이 돌아 서버를 문다(이 서버는 RAM 7.7GB).
+//   생성은 **동시 2개**로 묶는다. 캐시 적중(대다수)은 이 문을 통과하지 않으므로 느려지지 않는다.
+//   문이 막혀도 요청은 버리지 않고 순서를 기다린다 — 사용자에겐 조금 늦게 뜰 뿐이다.
+const MAX_CONCURRENT_ENCODE = 2;
+let encoding = 0;
+const encodeWaiters = [];
+function acquireEncode() {
+  if (encoding < MAX_CONCURRENT_ENCODE) { encoding += 1; return Promise.resolve(); }
+  return new Promise((resolve) => encodeWaiters.push(resolve));
+}
+function releaseEncode() {
+  const next = encodeWaiters.shift();
+  if (next) next();            // 대기자에게 자리를 넘긴다 (encoding 카운트 유지)
+  else encoding = Math.max(0, encoding - 1);
+}
 const CACHE_ROOT = path.join(__dirname, '..', 'uploads', '.cache');
 const RESIZABLE = /^image\/(jpeg|png|webp|avif|tiff?)$/i;
 
@@ -27,11 +44,17 @@ async function maybeServeResized(req, res, absPath, mimeType) {
 
   try {
     if (!fs.existsSync(cachePath)) {
-      fs.mkdirSync(cacheDir, { recursive: true });
-      const sharp = require('sharp');
-      const tmp = `${cachePath}.tmp-${process.pid}`;
-      await sharp(absPath).rotate().resize({ width, withoutEnlargement: true }).webp({ quality: 80 }).toFile(tmp);
-      fs.renameSync(tmp, cachePath); // 동시 요청 대비 원자적 교체
+      await acquireEncode();
+      try {
+        // 대기 중에 다른 요청이 이미 만들었을 수 있다 — 다시 확인하고 중복 인코딩을 피한다.
+        if (!fs.existsSync(cachePath)) {
+          fs.mkdirSync(cacheDir, { recursive: true });
+          const sharp = require('sharp');
+          const tmp = `${cachePath}.tmp-${process.pid}-${Date.now()}`;
+          await sharp(absPath).rotate().resize({ width, withoutEnlargement: true }).webp({ quality: 80 }).toFile(tmp);
+          fs.renameSync(tmp, cachePath); // 동시 요청 대비 원자적 교체
+        }
+      } finally { releaseEncode(); }
     }
     res.setHeader('Content-Type', 'image/webp');
     res.setHeader('X-Content-Type-Options', 'nosniff');

@@ -943,5 +943,10 @@
     "recordingTitle": "Recording in progress",
     "recordingMessage": "Unpinning now closes the pinned window and stops the recording. Continue?",
     "recordingConfirm": "Stop recording and unpin"
+  },
+  "update": {
+    "ready": "A new version is ready",
+    "reload": "Refresh now",
+    "later": "Later"
   }
 }

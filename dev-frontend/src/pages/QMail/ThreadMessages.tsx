@@ -12,6 +12,9 @@ import type { TFunction } from 'i18next';
 // 타입 정본은 MailPage — type-only import 라 런타임 순환이 생기지 않는다
 import type { Message, toAddrList as ToAddrList } from './MailPage';
 import MailBodyFullscreen from './MailBodyFullscreen';
+
+// 전달 기능 일시 차단 스위치 (Irene 지시 2026-08-24). Fable 이 원문 보존 구조를 확정·검증한 뒤 true.
+const FORWARD_ENABLED = false;
 import MessageAttachments from './MessageAttachments';
 import MailMessageBody from './MailMessageBody';
 import AddressMenu from '../../components/Mail/AddressMenu';   // #261 주소 클릭 메뉴
@@ -156,11 +159,20 @@ export default function ThreadMessages(p: Props) {
                 aria-label={t('detail.fullView', { defaultValue: '전체 화면으로 보기' }) as string}>
                 {t('detail.fullViewShort', { defaultValue: '전체보기' }) as string}
               </MsgForwardBtn>
-              <MsgForwardBtn type="button" onClick={(e) => { e.stopPropagation(); startForward(m); }}
-                title={t('forward.button', { defaultValue: '전달' }) as string}
-                aria-label={t('forward.button', { defaultValue: '전달' }) as string}>
-                {t('forward.button', { defaultValue: '전달' }) as string}
-              </MsgForwardBtn>
+              {/* ★ 2026-08-24 (Irene 지시) — 전달 기능 **일시 차단**.
+                  원문 HTML 을 리치 에디터에 통과시키는 구조라 표·인라인 스타일이 재해석되어
+                  레이아웃이 깨지고(라운드 박스) cid: 이미지가 유실된다. 서버가 원문을 그대로
+                  이어붙이는 경로(include_original)를 넣었으나 **실사용으로 검증되지 않았다**
+                  (신고 시점까지 실제 발송 0건 — 요청이 서버에 도달하지 않았다).
+                  "엉망인 기능을 고객이 보면 안 된다" — 오픈 전까지 진입을 막고 Fable 이 설계·검증한다.
+                  되살릴 때: 이 블록의 FORWARD_ENABLED 를 true 로. 근거는 FABLE_VERIFY_QUEUE §5. */}
+              {FORWARD_ENABLED && (
+                <MsgForwardBtn type="button" onClick={(e) => { e.stopPropagation(); startForward(m); }}
+                  title={t('forward.button', { defaultValue: '전달' }) as string}
+                  aria-label={t('forward.button', { defaultValue: '전달' }) as string}>
+                  {t('forward.button', { defaultValue: '전달' }) as string}
+                </MsgForwardBtn>
+              )}
             </MsgHeaderRight>
           </MessageHeader>
           {/* 접힌 메시지 — 한 줄 미리보기만. 클릭하면 펼쳐진다. */}
