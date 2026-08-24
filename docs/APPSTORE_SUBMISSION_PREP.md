@@ -16,6 +16,8 @@
 **서버는 하나도 더 필요 없다.** 앱은 `planq.kr` 을 그대로 띄우는 방식(Remote URL)이고,
 푸시도 우리 백엔드가 APNs 로 직접 쏜다. 중계 서버 없음, 서버 비용 증가 0.
 
+> **베타(TestFlight) 실행 순서는 `docs/IOS_BETA_RUNBOOK.md` 를 따른다.** 이 문서는 정식 등록 준비용이다.
+
 ### 맥에서 첫 실행
 ```bash
 git clone git@github-planq:ireneceo/planq.git
@@ -34,14 +36,19 @@ npm run cap:open:ios      # Xcode 열림 → 기기 선택 → ▶︎ Run
 ## 1. ⚠️ 심사 리스크 — 먼저 정하고 올려야 한다
 
 **3.1.1 (In-App Purchase).** 앱 안에서 디지털 구독을 외부 결제로 팔면 리젝된다.
-PlanQ 는 `PlanSettings` · `CheckoutModal` 에 Stripe 구독 결제가 있고, 앱은 웹을 그대로 띄우므로
-**결제 진입이 그대로 노출된다.** 지금은 앱에서 감추는 분기가 없다.
 
-빠져나갈 길은 있다 — **3.1.3(e) Enterprise Services** 는 조직에 파는 업무용 서비스를 예외로 둔다.
-PlanQ 는 워크스페이스 단위 B2B 라 해당될 여지가 있으나 **심사관 판단이라 미리 단정할 수 없다.**
+**→ 해소됨 (A안 구현 완료).** `utils/purchase.ts` 의 `canPurchaseInApp()` 가 단일 판정이고,
+네이티브에서는 구매 표면을 아예 렌더하지 않는다. 적용처 7곳(실측):
+`PlanSettings`(3) · `TrialStatusBanner` · `WorkspaceBillingBanner` · `UsageWarningCard` · `LimitReachedDialog`.
+현재 플랜·사용량은 그대로 보인다(읽기 전용은 위반이 아니다). **구매를 웹으로 안내하는 문구·링크도
+두지 않는다** — 외부 구매 유도로 읽힐 수 있어서다.
+Q Bill 고객 청구서 결제(`PublicInvoicePage`)는 대상이 아니다 — 실물 용역 대금이라 3.1.3(e) 범위.
 
-권장 순서: ① 앱에서만 결제 진입을 숨기고(웹은 그대로) 심사 통과 → ② 예외 인정을 별도로 다툰다.
-작업 자체는 작다 — `isNativeApp()` 분기가 이미 다른 곳에 쓰이고 있다.
+⚠️ **승인 후 다시 열면 안 된다** (Irene 확정 2026-08-24). 재심사·리젝·앱 제거 대상이다.
+정상적으로 여는 길은 3.1.3(e) Enterprise Services 예외를 인정받거나 인앱결제를 붙이는 것뿐이다.
+
+△ 남은 회색지대: 플랜 비교표의 **가격은 앱에서도 보인다**(구매 버튼만 숨김). 규정상 대상은
+구매 유도 CTA 라 문제없다고 보지만 심사관에 따라 지적받을 수 있다 — 걸리면 가격 열도 숨긴다.
 
 ---
 
