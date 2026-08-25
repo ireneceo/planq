@@ -1837,9 +1837,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
       <MainContent $marginLeft={mainMarginLeft} $tabMode={tabMode}>
         <WorkspaceBillingBanner />
         {/* N+72-6 — 알림 안내 모든 페이지 mount (옛: TodoPage 만). granted-off 자동 silent re-subscribe + iOS 비-PWA 안내 */}
+        {/* ★ 안내 배너는 콘텐츠 흐름 안에 둔다 — 화면에 떠 있으면 목록의 마지막 항목을 덮는다
+            (2026-08-25: "말풍선 옆이 하얗게 가려진다" 의 정체가 하단 플로팅 설치 배너였다).
+            그리고 알림 안내와 설치 안내가 **동시에** 뜨면 모바일 상단을 250px 잡아먹는다 —
+            둘 다 "앱처럼 쓰기" 라는 같은 이야기라 한 번에 하나만 노출한다. */}
         {!isNativeApp() && user && (
           <PushPromptWrap>
             <PushPromptBanner />
+            <InstallPromptBanner />
           </PushPromptWrap>
         )}
         {/* ⑥ 멀티탭 tabMode — children = TabPanes(각자 PaneScroll 소유). PageScroll 로 감싸면 이중 스크롤 +
@@ -1858,7 +1863,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
           </PageScroll>
         )}
       </MainContent>
-      {!isNativeApp() && <InstallPromptBanner />}
       {user?.business_id && (
         <GlobalSearchModal
           open={searchOpen}

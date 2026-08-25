@@ -20,7 +20,6 @@ import MainLayout from './components/Layout/MainLayout';
 // 첫 paint 에 안 보이는 (조건 X) 또는 비활성 (toast/alert/PWA banner) 컴포넌트가 main bundle 부담.
 // lazy 화 → entry preload ↓ 첫 로드 시간 ↓. Suspense fallback={null} 로 invisible 동안 무영향.
 const NotificationToaster = lazy(() => import('./components/Common/NotificationToaster'));
-const PwaInstallBanner = lazy(() => import('./components/Common/PwaInstallBanner'));
 const OpenInAppBanner = lazy(() => import('./components/Common/OpenInAppBanner'));
 const BuildVersionGuard = lazy(() => import('./components/Common/BuildVersionGuard'));
 const PopoutBridge = lazy(() => import('./components/Common/PopoutBridge'));
@@ -624,7 +623,11 @@ function ShellApp() {
         {/* 딥링크/알림탭/OAuth 복귀 브리지 (웹/네이티브 공용, MOBILE_APP_DESIGN §5.4·§7.2) */}
         <NativeBridge />
         {/* PWA/웹 전용 안내 배너 — 네이티브 앱에서는 숨김 (MOBILE_APP_DESIGN §6.6) */}
-        {!isNativeApp() && <PwaInstallBanner />}
+        {/* ★ 하단 설치 배너는 **하나만** 둔다 (2026-08-25).
+            PwaInstallBanner(여기)와 InstallPromptBanner(MainLayout)가 서로 다른 사이클에 각자 만들어져
+            둘 다 화면 하단 80px 에 떠 있었다 — 모바일에서 리스트를 덮어 "말풍선 옆이 하얗게 가려진다"
+            는 신고의 정체다. 앱 셸 안쪽(MainLayout)의 것을 정본으로 남기고 이쪽을 걷는다.
+            설치 안내 자체는 설정 > 알림의 PwaInstallSection 이 상시 진입점으로 유지한다. */}
         {!isNativeApp() && <OpenInAppBanner />}
         {/* #258 — 팝아웃/PiP 가 메인 탭에 보내는 요청의 수신자.
             ★ hideAppChrome 게이트를 걸지 않는다 — 도크가 언마운트되는 경로에서도 살아 있어야 한다

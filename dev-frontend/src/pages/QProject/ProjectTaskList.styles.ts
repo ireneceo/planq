@@ -3,7 +3,7 @@
 import styled from 'styled-components';
 
 // 좌우 패딩은 TRow(본문 행)와 같아야 한다 — 2px 만 달라도 라벨이 컬럼과 어긋난다 (#236 후속)
-export const ColRow = styled.div`display:flex;align-items:center;gap:6px;padding:6px 12px;border-bottom:1px solid #E2E8F0;background:#F8FAFC;position:sticky;top:0;z-index:1;min-width:520px;`;
+export const ColRow = styled.div`display:flex;align-items:center;gap:6px;padding:6px 12px;border-bottom:1px solid #E2E8F0;background:#F8FAFC;position:sticky;top:0;z-index:1;min-width:520px;@media(max-width:640px){min-width:0;}`;
 export const Col = styled.span<{$w?:string;$flex?:boolean;$flex2?:boolean;$center?:boolean;$hideBelow?:number}>`
   box-sizing:border-box;min-width:0;
   /* ★ 헤더(Col)와 본문(TCell)의 flex·min-width 는 **문자 그대로 같아야** 한다.
@@ -25,7 +25,7 @@ export const TRow = styled.div<{$done?:boolean;$delayed?:boolean;$selected?:bool
      이미 숨겨지므로 남는 것은 체크박스·제목뿐이다. 520px 을 고집하면 가로로 삐져나가
      "레이아웃이 나가버린다"(2026-08-25 실측). */
   @media (max-width: 640px){min-width:0;padding:8px 10px;}
-  min-width:520px;opacity:${p=>p.$dragging?0.4:p.$done?0.45:1};
+  min-width:520px;@media(max-width:640px){min-width:0;}opacity:${p=>p.$dragging?0.4:p.$done?0.45:1};
   ${p=>p.$selected?'background:#FFF1F2;box-shadow:inset 3px 0 0 #F43F5E;':p.$delayed&&!p.$done?'box-shadow:inset 3px 0 0 #DC2626;':''}
   &:hover{background:${p=>p.$selected?'#FFE4E6':p.$delayed&&!p.$done?'#FEF2F2':'#FAFBFC'};}
 `;
@@ -49,7 +49,7 @@ export const InlineAddRow = styled.div`
   background: #F0FDFA;
   border-bottom: 1px solid #F8FAFC;
   min-width: 520px;
-  @media (max-width: 640px){ min-width: 0; padding: 8px 10px; }
+  @media (max-width: 640px) { min-width: 0; padding: 8px 10px; }
 `;
 export const InlineSpacer = styled.div`width: 24px; flex-shrink: 0;`;
 export const InlineInput = styled.input`
@@ -86,7 +86,7 @@ export const GroupMenuHint = styled.div`padding:4px 10px 2px;font-size:10px;colo
 export const GroupDot = styled.span`width:9px;height:9px;border-radius:50%;flex-shrink:0;`;
 // 그룹 헤더
 export const GroupHeader = styled.div<{$over?:boolean}>`
-  display:flex;align-items:center;gap:8px;padding:8px 12px;min-width:520px;
+  display:flex;align-items:center;gap:8px;padding:8px 12px;min-width:520px;@media(max-width:640px){min-width:0;}
   background:${p=>p.$over?'#F0FDFA':'#FBFCFE'};border-bottom:1px solid #E2E8F0;border-top:1px solid #F1F5F9;
   ${p=>p.$over&&'box-shadow:inset 0 0 0 2px #99F6E4;'}
 `;
@@ -100,12 +100,12 @@ export const GroupPct = styled.span`font-size:11px;font-weight:700;color:#64748B
 export const GroupActions = styled.div`display:flex;align-items:center;gap:2px;margin-left:auto;flex-shrink:0;`;
 export const GroupIconBtn = styled.button`display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;background:transparent;border:1px solid transparent;border-radius:6px;color:#94A3B8;cursor:pointer;&:hover:not(:disabled){background:#F1F5F9;color:#0F766E;border-color:#E2E8F0;}&:disabled{opacity:0.35;cursor:default;}`;
 export const GroupBody = styled.div<{$over?:boolean}>`${p=>p.$over&&'background:#F0FDFA;'}`;
-export const GroupEmpty = styled.div`padding:10px 16px 10px 40px;font-size:12px;color:#CBD5E1;min-width:520px;`;
+export const GroupEmpty = styled.div`padding:10px 16px 10px 40px;font-size:12px;color:#CBD5E1;min-width:520px;@media(max-width:640px){min-width:0;}`;
 export const AddGroupBtn = styled.button`display:inline-flex;align-items:center;gap:6px;margin:10px 0 4px 12px;padding:7px 12px;background:transparent;color:#0F766E;border:1px dashed #99F6E4;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;&:hover{background:#F0FDFA;border-color:#14B8A6;}`;
-export const AddGroupRow = styled.div`display:flex;align-items:center;gap:8px;padding:8px 12px;min-width:520px;background:#F0FDFA;border-top:1px solid #99F6E4;`;
+export const AddGroupRow = styled.div`display:flex;align-items:center;gap:8px;padding:8px 12px;min-width:520px;@media(max-width:640px){min-width:0;}background:#F0FDFA;border-top:1px solid #99F6E4;`;
 // #120 — 그룹별 업무 추가
 export const AddTaskInGroupBtn = styled.button`display:inline-flex;align-items:center;gap:5px;margin:4px 0 4px 40px;padding:5px 10px;background:transparent;color:#94A3B8;border:1px dashed #E2E8F0;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;&:hover{background:#F0FDFA;border-color:#99F6E4;color:#0F766E;}`;
-export const AddTaskInGroupRow = styled.div`display:flex;align-items:center;gap:8px;padding:6px 12px 6px 40px;min-width:520px;`;
+export const AddTaskInGroupRow = styled.div`display:flex;align-items:center;gap:8px;padding:6px 12px 6px 40px;min-width:520px;@media(max-width:640px){min-width:0;}`;
 export const AddTaskInGroupInput = styled.input`flex:0 1 360px;font-size:13px;color:#0F172A;border:1px solid #14B8A6;background:#F0FDFA;padding:5px 10px;border-radius:6px;font-family:inherit;height:30px;box-sizing:border-box;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}&::placeholder{color:#94A3B8;}`;
 export const AddTaskInGroupGo = styled.button`height:30px;padding:0 14px;background:#14B8A6;color:#FFF;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;&:hover:not(:disabled){background:#0D9488;}&:disabled{opacity:0.5;cursor:not-allowed;}`;
 export const StatusPill = styled.span<{$bg:string;$fg:string;$clickable?:boolean}>`

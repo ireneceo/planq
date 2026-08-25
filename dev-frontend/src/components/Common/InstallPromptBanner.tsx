@@ -135,6 +135,10 @@ const InstallPromptBanner: React.FC = () => {
   };
 
   if (mode === 'hidden') return null;
+  // ★ 알림 안내 배너가 이미 떠 있으면 이쪽은 양보한다 (2026-08-25).
+  //   둘 다 "홈 화면에 추가해서 앱처럼 쓰세요" 라는 같은 이야기이고, 동시에 뜨면 모바일 상단을
+  //   250px 잡아먹어 정작 페이지 내용이 안 보인다. PushPromptBanner 가 mount 시 이 플래그를 세운다.
+  if (typeof document !== 'undefined' && document.body.dataset.pushPromptVisible === '1') return null;
 
   if (mode === 'install') {
     const ios = isIOS();
@@ -241,6 +245,17 @@ const Banner = styled.div`
   /* 모바일 키보드 업 시 억제 — bottom:80px 고정이라 키보드가 올라오면 화면 중앙을 덮어 입력을 가린다.
      main.tsx body[data-keyboard-up='1'] 계약 재사용. (이미 >=769px 은 display:none 이라 데스크탑 오작동 없음) */
   body[data-keyboard-up='1'] & { display: none; }
+  /* ★ 모바일에서는 화면에 떠서 리스트를 덮지 않는다 (2026-08-25).
+     하단 고정 배너는 목록의 마지막 항목을 가리고, 사용자는 그걸 "레이아웃이 깨졌다" 로 읽는다.
+     좁은 화면에서는 콘텐츠 흐름 안(인플로우)에 놓아 밀어내되 덮지 않게 한다.
+     ≥769px 는 기존대로 하단 플로팅 — 데스크탑은 가릴 콘텐츠가 없다. */
+  @media (max-width: 768px) {
+    position: static;
+    margin: 0 0 10px;
+    width: auto;
+    max-width: none;
+    left: auto; right: auto; bottom: auto;
+  }
 `;
 const BannerRow = styled.div`
   display: flex; align-items: center; gap: 12px;

@@ -24,6 +24,10 @@ function isIosNotPwa(): boolean {
 }
 
 export default function PushPromptBanner() {
+  useEffect(() => {
+    document.body.dataset.pushPromptVisible = '1';
+    return () => { delete document.body.dataset.pushPromptVisible; };
+  }, []);
   const { t } = useTranslation('settings');
   const { status, refresh } = usePushStatus();
   const [dismissed, setDismissed] = useState<boolean>(() => {
@@ -112,6 +116,8 @@ export default function PushPromptBanner() {
       </Banner>
     );
   }
+  // 이 배너가 실제로 보이는 동안만 플래그를 세운다 — 설치 배너(InstallPromptBanner)가 이걸 보고 양보한다.
+  //   ★ 훅은 항상 같은 순서로 호출돼야 하므로 early return 위에 둔다(feedback_hooks_after_early_return).
   if (status === 'loading' || status === 'unsupported' || status === 'granted-on') return null;
   // granted-off 자동 silent subscribe 시도 중 — banner 안 보임 (사용자 noise 차단)
   if (status === 'granted-off') return null;
@@ -201,8 +207,13 @@ const Body = styled.div`
   min-width: 0; flex: 1 1 auto;
   display: flex; flex-direction: column; gap: 2px;
 `;
-const Title = styled.div`font-size: 13px; font-weight: 700; color: #9A3412; line-height: 1.3;`;
-const Desc = styled.div`font-size: 12px; color: #7C2D12; line-height: 1.4;`;
+const Title = styled.div`font-size: 13px; font-weight: 700; color: #9A3412; line-height: 1.3;
+  @media (max-width: 640px) { font-size: 12.5px; }`;
+const Desc = styled.div`font-size: 12px; color: #7C2D12; line-height: 1.4;
+  /* ★ 폰에서는 설명을 접는다 — 3줄짜리 안내가 화면 상단 250px 를 먹어 정작 페이지가 안 보였다
+     (2026-08-25 실측 스크린샷). 제목과 버튼만 남기면 ~90px 로 줄어든다.
+     내용은 '알림 설정' 링크에서 그대로 볼 수 있다. */
+  @media (max-width: 640px) { display: none; }`;
 const Err = styled.div`font-size: 11px; color: #B91C1C; margin-top: 4px;`;
 const CtaBtn = styled.button`
   height: 32px; padding: 0 14px;

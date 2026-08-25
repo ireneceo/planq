@@ -1995,11 +1995,11 @@ const QTaskPage:React.FC=()=>{
             <Col $w="64px" $hideBelow={640} onClick={()=>handleSort('title')}>{t('col.project','Project')}</Col>
             <Col $flex onClick={()=>handleSort('title')}>{t('col.task','Task')} {sortIcon('title')}</Col>
             {scope==='workspace' && <Col $w="90px" $hideBelow={768}>{t('col.assignee','담당자')}</Col>}
-            <Col $w="68px" $center onClick={()=>handleSort('status')}>{t('col.status','Status')} {sortIcon('status')}</Col>
+            <Col $w="68px" $center $hideBelow={640} onClick={()=>handleSort('status')}>{t('col.status','Status')} {sortIcon('status')}</Col>
             <Col $w="62px" $center $hideBelow={900} onClick={()=>handleSort('estimated_hours')}>{t('col.est','Est(h)')} {sortIcon('estimated_hours')}</Col>
             <Col $w="62px" $center $hideBelow={900} onClick={()=>handleSort('actual_hours')}>{t('col.act','Act(h)')} {sortIcon('actual_hours')}</Col>
             <Col $w="96px" $center $hideBelow={1024} $compactBelow={1280} $wCompact="46px" onClick={()=>handleSort('progress_percent')}>{t('col.progress','Progress')} {sortIcon('progress_percent')}</Col>
-            <Col $w="100px" $center onClick={()=>handleSort('due_date')}>{t('col.dates','기간')} {sortIcon('due_date')}</Col>
+            <Col $w="100px" $center $hideBelow={640} onClick={()=>handleSort('due_date')}>{t('col.dates','기간')} {sortIcon('due_date')}</Col>
           </ColRow>
 
           {/* Flat task list (no grouping) */}
@@ -2240,7 +2240,7 @@ const QTaskPage:React.FC=()=>{
                         </div>
                       </TCell>
                     )}
-                    <TCell $w="68px" $center style={{position:'relative',overflow:'visible'}}>
+                    <TCell $w="68px" $center $hideBelow={640} style={{position:'relative',overflow:'visible'}}>
                       <StatusPill $bg={sc.bg} $fg={sc.fg} $clickable
                         onClick={e=>{e.stopPropagation();setStatusDropdownId(statusDropdownId===task.id?null:task.id);}}
                         title={task.status==='on_hold'&&task.hold_reason ? task.hold_reason : t('list.statusHint','클릭하면 단계 선택')}
@@ -2337,7 +2337,7 @@ const QTaskPage:React.FC=()=>{
                         );
                       })()}
                     </TCell>
-                    <TCell $w="100px" $center>
+                    <TCell $w="100px" $center $hideBelow={640}>
                       <DateRangeCell start={task.start_date} due={task.due_date}
                         dueColor={dColor}
                         readOnly={!canEditDatesFor(task)}
@@ -3564,7 +3564,7 @@ const BottomAddLink=styled.button`margin:10px 14px 20px;padding:6px 0;background
 // #250 태그 관리 진입 — FilterBar 안의 보조 버튼. 기존 FinalizeBtn 톤을 그대로(bespoke 금지).
 const FilterBar=styled.div`display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid #F1F5F9;background:#FFF;flex-wrap:wrap;`;
 
-const ColRow=styled.div`display:flex;align-items:center;gap:6px;padding:6px 14px;border-bottom:1px solid #E2E8F0;background:#F8FAFC;position:sticky;top:0;z-index:1;min-width:520px;`;
+const ColRow=styled.div`display:flex;align-items:center;gap:6px;padding:6px 14px;border-bottom:1px solid #E2E8F0;background:#F8FAFC;position:sticky;top:0;z-index:1;min-width:520px;@media(max-width:640px){min-width:0;padding:6px 10px;}`;
 const Col=styled.span<{$w?:string;$flex?:boolean;$center?:boolean;$hideBelow?:number;$compactBelow?:number;$wCompact?:string}>`
   box-sizing:border-box;
   ${p=>p.$flex
@@ -3579,7 +3579,7 @@ const Col=styled.span<{$w?:string;$flex?:boolean;$center?:boolean;$hideBelow?:nu
 `;
 
 
-const TRow=styled.div<{$done?:boolean;$delayed?:boolean;$selected?:boolean}>`display:flex;align-items:center;gap:6px;padding:7px 14px;border-bottom:1px solid #F8FAFC;min-width:520px;opacity:${p=>p.$done?0.45:1};${p=>p.$selected?'background:#F0FDFA;box-shadow:inset 3px 0 0 #14B8A6;':p.$delayed&&!p.$done?'box-shadow:inset 3px 0 0 #DC2626;':''}&:hover{background:${p=>p.$selected?'#CCFBF1':p.$delayed&&!p.$done?'#FEF2F2':'#FAFBFC'};}`;
+const TRow=styled.div<{$done?:boolean;$delayed?:boolean;$selected?:boolean}>`display:flex;align-items:center;gap:6px;padding:7px 14px;border-bottom:1px solid #F8FAFC;min-width:520px;@media(max-width:640px){min-width:0;padding:8px 10px;}opacity:${p=>p.$done?0.45:1};${p=>p.$selected?'background:#F0FDFA;box-shadow:inset 3px 0 0 #14B8A6;':p.$delayed&&!p.$done?'box-shadow:inset 3px 0 0 #DC2626;':''}&:hover{background:${p=>p.$selected?'#CCFBF1':p.$delayed&&!p.$done?'#FEF2F2':'#FAFBFC'};}`;
 const TCell=styled.div<{$w?:string;$flex?:boolean;$center?:boolean;$hideBelow?:number;$compactBelow?:number;$wCompact?:string}>`
   box-sizing:border-box;
   ${p=>p.$flex
@@ -3639,7 +3639,7 @@ const SaveErrorClose=styled.button`
   font-size:16px;line-height:1;color:#991B1B;padding:0 2px;
   &:hover{color:#7F1D1D;}
 `;
-const QTaskInlineAddRow=styled.div`display:flex;align-items:center;gap:8px;padding:6px 12px;background:#F0FDFA;border-bottom:1px solid #F8FAFC;min-width:520px;`;
+const QTaskInlineAddRow=styled.div`display:flex;align-items:center;gap:8px;padding:6px 12px;background:#F0FDFA;border-bottom:1px solid #F8FAFC;min-width:520px;@media(max-width:640px){min-width:0;padding:8px 10px;}`;
 const QTaskInlineSpacer=styled.div`width:24px;flex-shrink:0;`;
 const QTaskInlineInput=styled.input`flex:1;min-width:0;padding:4px 8px;height:26px;font-size:13px;color:#0F172A;background:#FFFFFF;border:1px solid #14B8A6;border-radius:6px;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}&::placeholder{color:#94A3B8;}`;
 // #249 — 업무명이 셀 안에서 **최약자**였다. 같은 셀의 형제(체크·이월배지·반복칩·이름칩·지연배지·
