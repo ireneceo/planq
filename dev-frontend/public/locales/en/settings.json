@@ -571,5 +571,11 @@
       "decision": "Decision",
       "custom": "Other"
     }
+  },
+  "pushDiag": {
+    "env": "Environment",
+    "envWeb": "Web / PWA",
+    "envInset": "App · inset (old build · screen {{sh}} / view {{vh}})",
+    "envFull": "App · fullscreen (screen {{sh}} / view {{vh}})"
   }
 }

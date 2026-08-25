@@ -571,5 +571,11 @@
       "decision": "결정 사항",
       "custom": "기타"
     }
+  },
+  "pushDiag": {
+    "env": "실행 환경",
+    "envWeb": "Web / PWA",
+    "envInset": "앱 · 인셋 (구버전 빌드 · 화면 {{sh}} / 표시 {{vh}})",
+    "envFull": "앱 · 전체화면 (화면 {{sh}} / 표시 {{vh}})"
   }
 }

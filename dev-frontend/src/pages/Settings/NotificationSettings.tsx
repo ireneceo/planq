@@ -30,6 +30,19 @@ const EVENTS: EventKind[] = [
 ];
 const CHANNELS: Channel[] = ['inbox', 'chat', 'push', 'email'];
 
+/** 앱 화면 모드 — 전체화면(edge-to-edge) / 인셋(옛 빌드) / 브라우저.
+ *  "위아래 흰 띠" 신고 때 앱이 스스로 답하게 하는 진단. CSS 로는 고칠 수 없는 구간이라
+ *  이 한 줄이 있고 없고가 진단 시간을 가른다(2026-08-25). */
+function nativeEnvLabel(): string {
+  if (typeof window === 'undefined') return '-';
+  const root = document.documentElement;
+  if (!root.classList.contains('pq-native')) return 'web||';
+  const inset = root.classList.contains('pq-native-inset');
+  const sh = window.screen?.height ?? 0;
+  // 문구는 호출부에서 t() 로 붙인다 — 이 함수는 판정과 수치만 돌려준다(하드코딩 금지 규칙).
+  return `${inset ? 'inset' : 'fullscreen'}|${sh}|${window.innerHeight}`;
+}
+
 const NotificationSettings: React.FC<Props> = ({ businessId }) => {
   const { t } = useTranslation('settings');
   const [matrix, setMatrix] = useState<Matrix | null>(null);
@@ -336,6 +349,19 @@ const PushDiagnoseModal: React.FC<{ os: ReturnType<typeof detectOS>; onClose: ()
         </DiagHead>
         <DiagBody>
           <DiagDesc>{t('pushDiag.desc', '서버는 정상 발송했지만 시스템 단에서 차단된 것 같습니다. 아래 단계로 점검하면 해결됩니다.') as string}</DiagDesc>
+          {/* ★ 앱 화면 모드 자가 진단 (2026-08-25) — "위아래 흰 띠" 신고 때 앱이 스스로 답하게 한다.
+              전체화면 = capacitor contentInset:'never' 가 적용된 새 빌드.
+              인셋 = WebView 가 상태바 아래에서 시작하는 옛 빌드 → 새 IPA 설치가 필요하다는 뜻.
+              CSS 로는 고칠 수 없는 구간이라, 이 한 줄이 있고 없고가 진단 시간을 가른다. */}
+          <DiagEnv>{(() => {
+            const [mode, sh, vh] = nativeEnvLabel().split('|');
+            const label = mode === 'web'
+              ? t('pushDiag.envWeb', { defaultValue: 'Web / PWA' })
+              : mode === 'inset'
+                ? t('pushDiag.envInset', { sh, vh, defaultValue: '앱 · 인셋 (구버전 빌드 · 화면 {{sh}} / 표시 {{vh}})' })
+                : t('pushDiag.envFull', { sh, vh, defaultValue: '앱 · 전체화면 (화면 {{sh}} / 표시 {{vh}})' });
+            return `${t('pushDiag.env', { defaultValue: '실행 환경' })}: ${label}`;
+          })()}</DiagEnv>
           {os === 'mac' && (
             <DiagSteps>
               <li><Trans i18nKey="pushDiag.mac.1" ns="settings" components={{ 1: <strong /> }} defaults='<1>macOS 시스템 환경설정</1> → <1>알림</1> → <1>Google Chrome</1> → "알림 허용" + "사운드 재생" ON' /></li>
@@ -534,4 +560,15 @@ const TertiaryBtn = styled.button`
 `;
 const ResultNote = styled.div`
   font-size: 11px; color: #0D9488; margin-top: 12px; line-height: 1.5;
+`;
+
+const DiagEnv = styled.div`
+  margin: 6px 0 10px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: #475569;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 6px;
+  word-break: break-all;
 `;
