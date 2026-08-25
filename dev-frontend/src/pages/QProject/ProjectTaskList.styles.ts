@@ -21,6 +21,10 @@ export const Col = styled.span<{$w?:string;$flex?:boolean;$flex2?:boolean;$cente
 `;
 export const TRow = styled.div<{$done?:boolean;$delayed?:boolean;$selected?:boolean;$dragging?:boolean}>`
   display:flex;align-items:center;gap:6px;padding:6px 12px;border-bottom:1px solid #F8FAFC;
+  /* 폰에서는 최소폭을 풀어 화면 안에 들어오게 한다 — 담당자(900)·진행률(1024)·설명(768) 열이
+     이미 숨겨지므로 남는 것은 체크박스·제목뿐이다. 520px 을 고집하면 가로로 삐져나가
+     "레이아웃이 나가버린다"(2026-08-25 실측). */
+  @media (max-width: 640px){min-width:0;padding:8px 10px;}
   min-width:520px;opacity:${p=>p.$dragging?0.4:p.$done?0.45:1};
   ${p=>p.$selected?'background:#FFF1F2;box-shadow:inset 3px 0 0 #F43F5E;':p.$delayed&&!p.$done?'box-shadow:inset 3px 0 0 #DC2626;':''}
   &:hover{background:${p=>p.$selected?'#FFE4E6':p.$delayed&&!p.$done?'#FEF2F2':'#FAFBFC'};}
@@ -45,6 +49,7 @@ export const InlineAddRow = styled.div`
   background: #F0FDFA;
   border-bottom: 1px solid #F8FAFC;
   min-width: 520px;
+  @media (max-width: 640px){ min-width: 0; padding: 8px 10px; }
 `;
 export const InlineSpacer = styled.div`width: 24px; flex-shrink: 0;`;
 export const InlineInput = styled.input`

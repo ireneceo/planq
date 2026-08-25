@@ -2184,6 +2184,7 @@ const QNotePage = () => {
       <FloatingPanelToggle
         side="left"
         open={!sidebarCollapsed}
+        hideBelow={1024}   /* ≤1024 는 리스트↔본문 드릴다운이라 접기 핸들이 필요 없다 — 화살표만 둥 뜬다 */
         onToggle={() => setSidebarCollapsed((v) => !v)}
         offsetOpen={`${listWidth}px`}
         ariaLabel={(sidebarCollapsed ? t('page.sidebar.expand', '리스트 열기') : t('page.sidebar.collapse', '리스트 접기')) as string}

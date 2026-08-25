@@ -9,6 +9,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { usePwaInstall } from '../../contexts/PwaInstallContext';
+import { isNativeApp } from '../../services/native';
 
 // 브라우저별 메뉴 위치는 OS·버전마다 달라 일반화된 안내 사용.
 // 메뉴 명칭은 브라우저 한국어 UI 기준 (영어 환경에서는 i18n 분기로 영어 명칭 사용).
@@ -66,6 +67,11 @@ function getManualSteps(platform: string, t: TFunction): string[] {
 
 const PwaInstallSection: React.FC = () => {
   const { t } = useTranslation('settings');
+  // 네이티브 앱(TestFlight/App Store/Play 설치본) 안에서는 "홈 화면에 추가" 안내가 무의미하다 —
+  //   이미 앱으로 실행 중이라 사용자에게는 고장 난 안내로 읽힌다(2026-08-25 Irene).
+  //   ★ 훅 호출 뒤에 둔다 — early return 을 훅 위에 두면 React #310 으로 화면이 깨진다
+  //     (memory feedback_hooks_after_early_return).
+  const native = isNativeApp();
   const { isStandalone, isRelatedInstalled, canPrompt, isIos, platform, install } = usePwaInstall();
   const [busy, setBusy] = useState(false);
   const [resultMsg, setResultMsg] = useState<string | null>(null);
@@ -82,6 +88,9 @@ const PwaInstallSection: React.FC = () => {
     else if (r === 'dismissed') setResultMsg(t('pwa.dismissedMsg', '설치를 취소했습니다.') as string);
     else setResultMsg(t('pwa.unavailableMsg', '지금은 설치 프롬프트를 띄울 수 없습니다.') as string);
   };
+
+  // 모든 훅이 호출된 뒤에 접는다 (훅 순서 보존).
+  if (native) return null;
 
   return (
     <Section>

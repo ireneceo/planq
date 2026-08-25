@@ -254,6 +254,10 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
             {!status.in_trial && !status.in_grace && status.active && <StateBadge $kind="active">{t('current.active')}</StateBadge>}
           </StatusBadges>
         </CardHead>
+        {/* App Store 3.1.1 — 앱 안에서는 금액을 보여주지 않는다. 결제 경로가 없는 화면에 가격만
+            떠 있으면 "밖에서 사라" 는 안내로 읽힌다(마케팅 /pricing 을 앱에서 막은 것과 같은 이유).
+            현재 플랜 이름·상태·사용량은 그대로 — 그건 구독 상태 표시라 규정 대상이 아니다. */}
+        {canPurchaseInApp() && (
         <PriceRow>
           {currentPlan.code === 'enterprise' ? (
             <Price>{t('comparison.contact')}</Price>
@@ -266,6 +270,7 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
             </>
           )}
         </PriceRow>
+        )}
         <MetaRow>
           {status.in_trial && status.trial_ends_at && (
             <Meta>{t('current.trialEnds', { days: Math.ceil((new Date(status.trial_ends_at).getTime() - Date.now()) / 86400000) })}</Meta>
@@ -357,7 +362,10 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
         )}
       </Section>
 
-      {/* 비교표 */}
+      {/* 비교표 — 네이티브 앱에서는 통째로 숨긴다(App Store 3.1.1).
+          가격·통화·월/연 토글이 모두 구매 유도 표면이고, 앱에는 결제 경로가 없어
+          보여줄 이유도 없다. 웹·PWA 는 그대로. */}
+      {canPurchaseInApp() && (
       <Section>
         <SectionHeadRow>
           <SectionTitle>{t('comparison.title')}</SectionTitle>
@@ -451,6 +459,7 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
           })}
         </PlanGrid>
       </Section>
+      )}
 
       {/* Enterprise — 별도 섹션 (표에서 분리) */}
       <EnterpriseCard>

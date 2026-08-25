@@ -420,10 +420,14 @@ const Matrix = styled.div`
 `;
 const MatrixHead = styled.div`
   display: grid; grid-template-columns: minmax(160px, 1fr) repeat(4, 84px);
+  /* 폰 — 160 + 84*4 = 496px 라 375px 화면을 넘겨 오른쪽으로 삐져나갔다(2026-08-25 실측).
+     라벨을 줄이고 채널 칸을 좁혀 화면 안에 넣는다(96 + 56*4 = 320px). */
+  @media (max-width: 640px) { grid-template-columns: minmax(96px, 1fr) repeat(4, 56px); }
   border-bottom: 1px solid #E2E8F0;
 `;
 const HeadCell = styled.div`
   padding: 12px 14px; text-align: center;
+  @media (max-width: 640px) { padding: 10px 4px; }
   display: flex; flex-direction: column; align-items: center; gap: 4px;
 `;
 const ChannelIcon = styled.div`
@@ -433,11 +437,15 @@ const ChannelIcon = styled.div`
 const ChannelName = styled.div`font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.4px;`;
 const MatrixRow = styled.div`
   display: grid; grid-template-columns: minmax(160px, 1fr) repeat(4, 84px);
+  /* 폰 — 160 + 84*4 = 496px 라 375px 화면을 넘겨 오른쪽으로 삐져나갔다(2026-08-25 실측).
+     라벨을 줄이고 채널 칸을 좁혀 화면 안에 넣는다(96 + 56*4 = 320px). */
+  @media (max-width: 640px) { grid-template-columns: minmax(96px, 1fr) repeat(4, 56px); }
   border-top: 1px solid #F1F5F9;
   &:first-child { border-top: none; }
   &:hover { background: #FAFBFC; }
 `;
-const EventCell = styled.div`padding: 14px 14px; display: flex; flex-direction: column; gap: 2px;`;
+const EventCell = styled.div`padding: 14px 14px; display: flex; flex-direction: column; gap: 2px;
+  @media (max-width: 640px) { padding: 12px 6px 12px 0; min-width: 0; }`;
 const EventLabel = styled.div`font-size: 13px; font-weight: 600; color: #0F172A;`;
 const EventDesc = styled.div`font-size: 11px; color: #94A3B8; line-height: 1.4;`;
 const ToggleCell = styled.div`padding: 14px 0; display: flex; align-items: center; justify-content: center;`;

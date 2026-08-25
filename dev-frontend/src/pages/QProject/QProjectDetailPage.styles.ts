@@ -60,10 +60,14 @@ export const BackBtn = styled.button`padding:6px 12px;background:#FFF;color:#334
 //   실측(1500×950, /projects/p/57): top:0 → 210 · margin-top 을 -60 으로 바꿔도 210(마진 무시) ·
 //     position:static → 190 · **top:-20px → 190, 스크롤 400 후에도 190 고정**.
 //   sticky 가 들어온 것은 74f5d217(2026-08-21) 이다.
-export const TabBar = styled.div`display:flex;gap:4px;border-bottom:1px solid #E2E8F0;background:#FFF;padding:0 20px;margin:-20px -20px 20px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;position:sticky;top:-20px;z-index:5;&::-webkit-scrollbar{display:none;}`;
+export const TabBar = styled.div`display:flex;gap:4px;border-bottom:1px solid #E2E8F0;background:#FFF;padding:0 20px;margin:-20px -20px 20px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;position:sticky;top:-20px;z-index:5;&::-webkit-scrollbar{display:none;}
+  /* 폰 — 본문 padding(16px)과 음수 마진이 어긋나면 탭바가 화면 밖으로 밀린다.
+     같은 값으로 맞추고 탭 자체도 좁게(가로 스크롤은 유지). */
+  @media (max-width:640px){padding:0 14px;margin:-14px -14px 14px;top:-14px;}`;
 export const TabFallback = styled.div`padding:40px 24px;text-align:center;font-size:13px;color:#94A3B8;`;
 export const Tab = styled.button<{$active:boolean}>`
-  padding:12px 14px;background:transparent;border:none;color:${p=>p.$active?'#0F766E':'#64748B'};
+  padding:12px 14px;
+  @media (max-width:640px){padding:10px 10px;font-size:12.5px;}background:transparent;border:none;color:${p=>p.$active?'#0F766E':'#64748B'};
   font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid ${p=>p.$active?'#14B8A6':'transparent'};
   display:inline-flex;align-items:center;gap:6px;white-space:nowrap;flex:0 0 auto;
   &:hover{color:#0F766E;}

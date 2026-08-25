@@ -1888,21 +1888,17 @@ const SkelRow = styled.div<{ $w: string }>`
 
 // #208 — 근무 상태 한 덩어리 (근태 + 업무 흐름)
 const WorkBlock = styled.div`
-  /* ★ 세로가 짧은 화면(노트북 720p 등)에서는 이 카드가 커질수록 **메뉴가 스크롤 밖으로 밀린다**.
-     실측(운영 2026-08-22): 1280×720 에서 근태·설정 메뉴가 fold 밖으로 나가 안 보였다.
-     카드는 상시 노출이 목적이지 자리를 차지하는 게 목적이 아니므로, 짧은 화면에서는 줄인다. */
+  /* ★ 박스를 쓰지 않는다 (2026-08-25 Irene). 카드 배경·테두리·라운드는 그 자체로 세로 공간을
+     먹고, 위 SidebarClock 도 같은 폭에 선으로만 구분돼 있어 상자 하나만 튀어 보였다.
+     메뉴가 주인공인 영역이므로 구분선 하나로 끝낸다 — 데스크탑·모바일 모두에서 메뉴가 밀렸다.
+     margin 좌우 -16px 은 사이드바 가로 패딩 상쇄 → 구분선이 패널 폭 전체를 지난다. */
+  &:empty { display: none; }
+  margin: 0 -16px 8px;
+  padding: 6px 16px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  /* 세로가 짧은 화면(노트북 720p 등)에서는 더 줄인다 — 근태·설정 메뉴가 fold 밖으로 밀렸던 실측. */
   @media (max-height: 820px) {
-    margin-bottom: 8px; padding: 7px 10px;
+    margin-bottom: 6px; padding: 4px 16px 6px;
     font-size: 11px;
   }
-  /* ★ 안이 비면 아예 안 그린다 — Focus 를 꺼두고 아직 출근 전이면 두 자식이 모두 null 이라
-     빈 테두리 상자만 남는다(사용자에게는 고장으로 보인다). */
-  &:empty { display: none; }
-  margin: -2px -4px 12px;
-  padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
-  transition: background 0.15s, border-color 0.15s;
-  &:hover { background: rgba(255, 255, 255, 0.08); }
 `;

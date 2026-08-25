@@ -81,11 +81,13 @@ const Header = styled.div`
   gap: 16px;
   flex-shrink: 0;
   @media (max-width: 640px) {
-    flex-wrap: wrap;
-    gap: 12px;
-    height: auto;
-    min-height: 56px;
-    padding: 12px 16px;
+    /* ★ 한 줄을 유지한다 (2026-08-25 Irene: "버튼 2개뿐인데 2줄로 나온다").
+       옛 규칙은 wrap 이라 제목이 조금만 길어도 액션이 다음 줄로 내려가 헤더가 두 줄이 됐다.
+       대신 제목이 줄어들며 말줄임(…)되게 한다 — 아래 HeaderLeft 의 flex-shrink 와 한 쌍이다. */
+    flex-wrap: nowrap;
+    gap: 8px;
+    height: 56px;
+    padding: 10px 14px;
   }
 `;
 
@@ -96,7 +98,10 @@ const HeaderLeft = styled.div`
   min-width: 0;
   flex-shrink: 0;
   @media (max-width: 640px) {
-    min-width: auto;
+    /* 좁은 화면에서는 제목 쪽이 양보한다 — 안 그러면 액션이 다음 줄로 밀려 헤더가 두 줄이 된다.
+       Title 에 이미 ellipsis 가 있어 줄어들면 말줄임으로 처리된다. */
+    flex-shrink: 1;
+    min-width: 0;
   }
 `;
 
@@ -135,9 +140,10 @@ const HeaderRight = styled.div`
   gap: 10px;
   flex-shrink: 0;
   @media (max-width: 640px) {
-    flex-wrap: wrap;
-    gap: 8px;
-    flex-shrink: 1;
+    /* 액션은 줄바꿈하지 않고 한 줄에 남는다 — 줄이 필요한 쪽은 제목(HeaderLeft)이다. */
+    flex-wrap: nowrap;
+    gap: 6px;
+    flex-shrink: 0;
   }
 `;
 
@@ -150,6 +156,10 @@ const HeaderRight = styled.div`
 
 const Body = styled.div`
   padding: 20px;
+  /* 폰 — 본문 여백을 줄여 가로 공간을 확보한다. 탭바처럼 음수 마진으로 이 여백을 상쇄하는
+     자식들이 있으므로(QProjectDetailPage.styles TabBar) 값이 갈라지면 레이아웃이 밖으로 밀린다.
+     여기와 그 음수 마진은 항상 같은 값이어야 한다. */
+  @media (max-width: 640px) { padding: 14px; }
   flex: 1;
   min-width: 0;
   /* N+29 — 본문만 스크롤. flex 자식 안에서 overflow-y:auto 가 동작하려면 min-height:0 필수 (flex hack). */

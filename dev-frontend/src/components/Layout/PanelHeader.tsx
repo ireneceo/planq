@@ -33,12 +33,17 @@ const Bar = styled.div`
   flex-shrink: 0;
   background: #ffffff;
   @media (max-width: 640px) {
-    flex-direction: column;
-    align-items: flex-start;
-    height: auto;
-    min-height: 56px;
-    padding: 12px 16px;
+    /* ★ 한 줄 유지 (2026-08-25 Irene: "버튼 2개뿐인데 2줄"). 옛 규칙은 column 이라
+       제목과 액션이 무조건 위아래로 쌓여 패널 헤더가 두 줄이 됐고, 좌우 패널의
+       밑줄(회색 라인)이 서로 어긋났다 — 60px 정렬 계약이 모바일에서만 깨져 있었다.
+       좁으면 제목이 말줄임되고 액션은 그대로 오른쪽에 남는다. */
+    flex-direction: row;
+    align-items: center;
+    height: 56px;
+    padding: 10px 14px;
     gap: 8px;
+    > *:first-child { min-width: 0; flex-shrink: 1; }
+    > *:last-child { flex-shrink: 0; }
   }
 `;
 

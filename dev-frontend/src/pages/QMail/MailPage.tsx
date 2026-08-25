@@ -1628,6 +1628,7 @@ const MailPage: React.FC = () => {
       <FloatingPanelToggle
         side="left"
         open={!sidebarCollapsed}
+        hideBelow={1024}   /* ≤1024 는 리스트↔본문 드릴다운이라 접기 핸들이 필요 없다 — 화살표만 둥 뜬다 */
         onToggle={() => setSidebarCollapsed((v) => !v)}
         offsetOpen={`${listWidth}px`}
         ariaLabel={(sidebarCollapsed ? t('sidebar.expand', { defaultValue: '목록 열기' }) : t('sidebar.collapse', { defaultValue: '목록 접기' })) as string}

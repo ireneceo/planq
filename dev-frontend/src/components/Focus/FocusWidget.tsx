@@ -399,7 +399,8 @@ const Wrap = styled.div<{ $embedded?: boolean }>`
   ${p => p.$embedded ? css`
     /* 한 카드 안 — 위 근태 줄과 구분선으로만 나눈다. 들여쓰기가 "이 업무는 오늘 안에 있다" 를 말한다. */
     /* 들여쓰기로 포함 관계를 보이려 했으나 위 줄과 좌측이 어긋나 보인다(운영 지적). 선만 남긴다. */
-    margin: 8px 0 0; padding: 8px 0 0;
+    /* 근태 줄과 업무 줄 사이 구분 — 여백은 최소로(좌측 메뉴가 주인공). */
+    margin: 6px 0 0; padding: 6px 0 0;
     border-top: 1px solid rgba(255, 255, 255, 0.12);
   ` : css`
     margin: -2px -4px 12px;
