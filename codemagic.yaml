@@ -35,6 +35,9 @@ workflows:
         XCODE_WORKSPACE: "dev-frontend/ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
         BUNDLE_ID: "app.planq"
+        # App Store Connect 의 앱 숫자 ID (2026-08-25 첫 업로드로 확인).
+        #   있으면 빌드번호를 TestFlight 최신 +1 로 자동 증가시킨다.
+        APP_STORE_APP_ID: "6804790919"
       node: 20
       xcode: latest
       cocoapods: default
@@ -79,7 +82,11 @@ workflows:
           failure: true
       app_store_connect:
         auth: integration
-        submit_to_testflight: true
-        # 내부 테스터는 심사 없음. 그룹 이름은 App Store Connect 에서 만든 뒤 여기에 적는다.
+        # ★ false 여도 빌드는 TestFlight 에 올라간다 — 내부 테스터는 심사 없이 즉시 설치 가능.
+        #   true 는 "외부 테스터용 베타 심사 제출" 이라 Beta App Review 정보(피드백 이메일·
+        #   담당자 이름·전화·이메일)가 채워져 있지 않으면 후처리가 실패한다(2026-08-25 실측:
+        #   업로드·처리까지 다 끝난 뒤 이 단계에서만 빨간불 → 성공을 실패로 오독하기 쉽다).
+        #   외부 테스터로 넓힐 때 test-info 를 채우고 true 로 되돌린다.
+        submit_to_testflight: false
         # beta_groups:
         #   - PlanQ 내부
