@@ -122,7 +122,7 @@ const Row = styled.a<{ $clickable: boolean }>`
 `;
 const Icon = styled.img`width: 20px; height: 20px; flex-shrink: 0;`;
 const IconFallback = styled.span`font-size: 18px; flex-shrink: 0;`;
-const FileName = styled.div`flex: 1; font-size: 13px; font-weight: 500; color: #0F172A; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
+const FileName = styled.div`flex: 1; font-size: 14px; font-weight: 600; @media (max-width: 640px) { font-size: 15px; } color: #0F172A; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
 const FileMeta = styled.div`font-size: 12px; color: #94A3B8; white-space: nowrap;`;
 const Empty = styled.div`padding: 40px; text-align: center; color: #94A3B8; font-size: 13px;`;
 const ErrorBox = styled.div`

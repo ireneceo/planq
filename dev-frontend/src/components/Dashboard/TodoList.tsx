@@ -431,8 +431,10 @@ const Verb = styled.span`
 `;
 
 const Subject = styled.span`
+  /* 규격: theme/tokens LIST_ROW — 데스크탑 14 / 폰 15 · 600 */
   font-size: 14px;
   font-weight: 600;
+  @media (max-width: 640px) { font-size: 15px; }
   color: #0F172A;
   white-space: nowrap;
   overflow: hidden;

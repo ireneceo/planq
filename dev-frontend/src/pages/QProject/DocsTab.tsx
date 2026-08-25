@@ -1435,7 +1435,9 @@ const FolderIconWrap = styled.div<{ $selected?: boolean; $sys?: FileSource }>`
   }};
 `;
 const FolderName = styled.div`
-  min-width:0;font-size:12px;font-weight:500;
+  /* 규격: 목록 항목 — 폰에서 12px 는 읽기 어렵다(tokens LIST_ROW). */
+  min-width:0;font-size:13px;font-weight:600;
+  @media (max-width: 640px) { font-size: 14px; }
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 `;
 const FolderCount = styled.span`
@@ -1557,7 +1559,7 @@ const SourceTag = styled.div<{ $src: FileSource }>`
   position:absolute;top:8px;left:8px;padding:2px 8px;border-radius:999px;
   font-size:10px;font-weight:700;letter-spacing:.2px;${p => srcStyle(p.$src)}
 `;
-const CardName = styled.div`padding:8px 10px 2px;font-size:13px;font-weight:600;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
+const CardName = styled.div`padding:8px 10px 2px;font-size:14px;font-weight:600;@media(max-width:640px){font-size:15px;}color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
 const CardMeta = styled.div`padding:0 10px;font-size:11px;color:#64748B;display:flex;gap:4px;
   &:last-child{padding-bottom:10px;margin-top:2px;}
 `;

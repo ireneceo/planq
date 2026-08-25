@@ -791,7 +791,10 @@ const Tr = styled.tr<{ $selected?: boolean }>`
 `;
 const Td = styled.td`padding:12px 16px;color:#0f172a;vertical-align:middle;strong{font-weight:600;}`;
 const NameCell = styled.strong`
+  /* 규격: theme/tokens LIST_ROW — 데스크탑 14 / 폰 15 · 600 */
+  font-size:14px;
   font-weight:600;
+  @media (max-width: 640px) { font-size: 15px; }
   display:inline-block; padding:2px 6px; margin:-2px -6px; border-radius:4px;
   cursor:pointer; transition:background 0.12s;
   &:hover{ background:#F1F5F9; }

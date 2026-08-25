@@ -304,15 +304,14 @@ export const ThreadTime = styled.span`
 `;
 export const ThreadSubject = styled.div<{ $unread: boolean }>`
   display: flex; align-items: center; gap: 6px;
-  font-size: 13px;
-  font-weight: ${p => p.$unread ? 600 : 500};
-  color: #334155;
+  /* 규격: theme/tokens LIST_ROW — 데스크탑 14 / 폰 15. 굵기는 안 읽은 메일만 700 으로 강조. */
+  font-size: 14px;
+  font-weight: ${p => p.$unread ? 700 : 600};
+  color: #0F172A;
   margin-bottom: 2px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  /* #283 — Q docs RowTitle 정본값(13px / 700 / #0F172A). 폰에서 제목이 행의 주인공이 된다. */
   @media (max-width: 640px) {
-    font-weight: ${p => p.$unread ? 700 : 600};
-    color: #0F172A;
+    font-size: 15px;
   }
 `;
 export const UnreadDot = styled.span`
