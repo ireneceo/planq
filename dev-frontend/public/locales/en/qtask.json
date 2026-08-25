@@ -1279,5 +1279,23 @@
     "all": "All occurrences",
     "allHint": "Past occurrences are updated too",
     "cancel": "Cancel"
+  },
+  "deliv": {
+    "title": "Deliverable history",
+    "hint": "Each time you send a review request, that version of the deliverable is kept.",
+    "empty": "No versions yet. Send a review request and that deliverable will be kept here.",
+    "loading": "Loading…",
+    "approved": "Approved",
+    "revision": "Changes requested",
+    "pending": "Awaiting review",
+    "revisionNote": "Changes requested",
+    "noSnapshot": "This round predates version keeping, so there is no saved content.",
+    "restore": "Restore this version",
+    "restoring": "Restoring…",
+    "err": {
+      "generic": "Could not load the history",
+      "load_failed": "Could not load the history",
+      "restore_failed": "Could not restore"
+    }
   }
 }

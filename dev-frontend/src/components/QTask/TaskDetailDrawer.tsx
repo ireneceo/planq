@@ -36,6 +36,7 @@ import { useDraftText } from '../../hooks/useLocalDraft';
 import CueTip from '../Common/CueTip';
 import { useImageLightbox } from '../Common/ImageLightbox';
 import TaskFocusBar from '../Focus/TaskFocusBar';
+import DeliverableHistory from './DeliverableHistory';
 import TaskAttachments from './TaskAttachments';
 import RelatedTasksSection from './RelatedTasksSection';
 import DescriptionAttachments from './DescriptionAttachments';
@@ -2090,6 +2091,12 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 uploadUrl={`/api/tasks/${detailTask.id}/attachments?context=description`}
                 minHeight={260}
                 readOnly={!canEditBody} />
+              {/* #271·#307 — 회차 이력. 백엔드는 2026-08-22 부터 "확인 요청" 시점 결과물을 박제해
+                  왔는데 화면이 없어 사용자에게는 아무것도 달라지지 않은 것으로 보였다. */}
+              <DeliverableHistory
+                taskId={detailTask.id}
+                canRestore={canEditBody}
+                onRestored={() => { void loadDetail(detailTask.id); }} />
             </Section>
 
             <TaskAttachments taskId={detailTask.id} onChangeCount={() => {}} />

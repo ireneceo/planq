@@ -946,6 +946,53 @@ async function revertReviewerState(task, actor) {
   return done(task);
 }
 
+/**
+ * 결과물을 그 회차 내용으로 되돌린다 (#271·#307).
+ *
+ * **비파괴적이다** — 되돌리기 직전의 현재 본문을 새 회차로 먼저 박제한 뒤 덮는다.
+ * 그래서 "되돌렸다가 다시 원래대로" 가 된다. 포스트 복원(routes/post_revisions.js)과 같은 계약.
+ *
+ * 권한 = 결과물(body) 편집 권한과 동일: 담당자 · 플랫폼관리자 · 워크스페이스 admin.
+ * (routes/tasks.js FIELD_RULES.body 와 같은 집합 — owner 는 빠진다. 결과물은 수행자 영역이라
+ *  owner 가 손대려면 컨펌 반려 워크플로우를 쓴다. CLAUDE.md §5.7)
+ */
+async function restoreDeliverable(task, actor, { versionId }) {
+  const userId = actor.userId;
+  const { TaskDeliverableVersion } = require('../../models');
+
+  const assignee = await isAssignee(task, userId);
+  const bm = await BusinessMember.findOne({ where: { business_id: task.business_id, user_id: userId } });
+  const canEditBody = assignee || actor.platformRole === 'platform_admin' || bm?.role === 'admin';
+  if (!canEditBody) return fail('forbidden_fields:body', 403);
+
+  const v = await TaskDeliverableVersion.findOne({ where: { id: versionId, task_id: task.id } });
+  if (!v) return fail('version_not_found', 404);
+  if (!v.body) return fail('version_has_no_body', 400);
+
+  const t = await sequelize.transaction();
+  try {
+    // ① 되돌리기 직전의 현재 본문을 먼저 박제 — 이게 없으면 복원이 파괴적이 된다.
+    //    round 는 기존 최대치 +1 (제출 회차와 번호가 섞이지 않게 이어 붙인다).
+    const maxRound = await TaskDeliverableVersion.max('round', { where: { task_id: task.id }, transaction: t });
+    await TaskDeliverableVersion.create({
+      task_id: task.id,
+      round: (Number(maxRound) || 0) + 1,
+      body: task.body ?? null,
+      attachment_ids: [],
+      submitted_by: userId,
+      note: `v${v.round} 로 되돌리기 직전 상태`,
+    }, { transaction: t });
+
+    // ② 현재 결과물을 그 회차 본문으로 교체
+    await task.update({ body: v.body }, { transaction: t });
+    await t.commit();
+  } catch (e) { await t.rollback(); throw e; }
+
+  await task.reload();
+  broadcastTask(task, 'task:updated', userId);
+  return done({ task, restored_from_round: v.round, version_id: v.id });
+}
+
 // ─────────────────────────────────────────────
 // 행동 — 단계 되돌리기 / 컨펌자 관리
 // ─────────────────────────────────────────────
@@ -1276,6 +1323,8 @@ module.exports = {
   ack, submitReview, cancelReview, complete,
   approve, requestRevision, revertReviewerState,
   revertStatus, addReviewer, removeReviewer, setPolicy,
+  // 행동 — 결과물 회차 되돌리기 (#271·#307)
+  restoreDeliverable,
   // 행동 — 보류 / 외부컨펌 (#206)
   hold, resume,
   // 전이 규칙 (다른 도메인이 상태를 재평가해야 할 때 — 단일 원천)

@@ -201,24 +201,114 @@ router.get('/:id/deliverable-versions', authenticateToken, async (req, res, next
   try {
     const task = await loadTaskOrFail(req.params.id, res);
     if (!task) return;
-    const { TaskDeliverableVersion, User } = require('../models');
-    // 워크스페이스 격리는 **위 loadTaskOrFail 이 이미 끝냈다** — 그 안에서 canAccessTask 로
-    //   업무 소유 워크스페이스와 요청자 권한을 대조한다. 여기 where 에 business_id 를 또 넣을
-    //   자리가 없다(이 표는 task_id 로만 매인다). 통과하지 못한 요청은 여기까지 오지 않는다.
+    // ★ 2026-08-25 격리 결함 수정 — 옛 주석은 "loadTaskOrFail 이 격리를 끝냈다" 고 했으나 **사실이 아니었다.**
+    //   그 함수는 `Task.findByPk` 만 한다(이 파일 상단). 다른 라우트는 행동 계층(actions.*)이 내부에서
+    //   권한을 보지만 이 라우트는 읽기 전용이라 행동 계층을 거치지 않아 **아무 검사도 없이 통과했다.**
+    //   실측: 타 워크스페이스 task 의 결과물 본문이 200 으로 반환됐다(같은 task 에 /workflow 는 403).
+    //   이 표는 task_id 로만 매여 있어 where 에 business_id 를 넣을 자리가 없다 → /workflow 와 같은 술어를 부른다.
+    if (!(await canAccessTask(task, req.user.id))) return errorResponse(res, 'forbidden', 403);
+
+    const { TaskDeliverableVersion } = require('../models');
+    // 목록에 본문을 담지 않는다 — 회차가 쌓이면 응답이 수 MB 가 된다(포스트 이력과 같은 규칙,
+    //   routes/post_revisions.js). 본문은 아래 단건 조회로 그 회차를 열 때만 가져온다.
     const rows = await TaskDeliverableVersion.findAll({
       where: { task_id: task.id },
+      attributes: ['id', 'round', 'note', 'attachment_ids', 'submitted_by', 'created_at',
+        [require('sequelize').fn('CHAR_LENGTH', require('sequelize').col('body')), 'body_len']],
       include: [{ model: User, as: 'submitter', attributes: ['id', 'name', 'name_localized'], required: false }],
       order: [['round', 'DESC'], ['id', 'DESC']],
     });
-    return successResponse(res, rows.map(r => {
-      const j = r.toJSON();
-      return {
-        id: j.id, round: j.round, body: j.body, note: j.note,
-        attachment_ids: Array.isArray(j.attachment_ids) ? j.attachment_ids : [],
-        submitted_at: j.created_at,
-        submitter: j.submitter ? { id: j.submitter.id, name: j.submitter.name } : null,
-      };
-    }));
+
+    // 회차별 결과(승인/수정요청) — 사용자가 알고 싶은 건 "무엇이 반려된 버전인가" 다.
+    //   approve·revision 이력은 round 를 들고 있다(task_status_history.round).
+    const outcomes = await TaskStatusHistory.findAll({
+      where: { task_id: task.id, event_type: ['approve', 'revision'] },
+      attributes: ['event_type', 'round', 'note', 'created_at'],
+      order: [['created_at', 'ASC']],
+    });
+    const byRound = new Map();
+    for (const h of outcomes) {
+      if (h.round == null) continue;
+      const cur = byRound.get(h.round) || { approved: 0, revision: 0, lastNote: null, at: null };
+      if (h.event_type === 'approve') cur.approved += 1;
+      else { cur.revision += 1; cur.lastNote = h.note || cur.lastNote; }
+      cur.at = h.created_at;
+      byRound.set(h.round, cur);
+    }
+
+    const items = rows.map(r => r.toJSON());
+    await applyMemberDisplayName(items, task.business_id, ['submitter']);
+    return successResponse(res, {
+      current_round: task.review_round ?? null,
+      versions: items.map(j => {
+        const o = byRound.get(j.round);
+        return {
+          id: j.id,
+          round: j.round,
+          note: j.note,
+          attachment_ids: Array.isArray(j.attachment_ids) ? j.attachment_ids : [],
+          // 본문 유무 — #271 이전 회차는 스냅샷이 없다. 화면이 "고장" 으로 보이지 않게 구분해 준다.
+          has_body: Number(j.body_len || 0) > 0,
+          body_len: Number(j.body_len || 0),
+          outcome: o ? (o.revision > 0 ? 'revision' : (o.approved > 0 ? 'approved' : 'pending')) : 'pending',
+          outcome_note: o ? o.lastNote : null,
+          submitted_at: j.created_at,
+          submitter: j.submitter ? { id: j.submitter.id, name: j.submitter.name } : null,
+        };
+      }),
+    });
+  } catch (err) { next(err); }
+});
+
+// ─────────────────────────────────────────────
+// GET /api/tasks/:id/deliverable-versions/:vid — 그 회차 결과물 본문
+//   목록이 본문을 빼고 오므로, 사용자가 회차를 펼칠 때만 이걸 부른다.
+// ─────────────────────────────────────────────
+router.get('/:id/deliverable-versions/:vid', authenticateToken, async (req, res, next) => {
+  try {
+    const task = await loadTaskOrFail(req.params.id, res);
+    if (!task) return;
+    if (!(await canAccessTask(task, req.user.id))) return errorResponse(res, 'forbidden', 403);
+    const { TaskDeliverableVersion } = require('../models');
+    const v = await TaskDeliverableVersion.findOne({
+      where: { id: req.params.vid, task_id: task.id },   // task_id 를 같이 걸어 남의 회차 조회 차단
+    });
+    if (!v) return errorResponse(res, 'version_not_found', 404);
+    return successResponse(res, {
+      id: v.id, round: v.round, body: v.body, note: v.note,
+      attachment_ids: Array.isArray(v.attachment_ids) ? v.attachment_ids : [],
+      submitted_at: v.created_at,
+    });
+  } catch (err) { next(err); }
+});
+
+// ─────────────────────────────────────────────
+// POST /api/tasks/:id/deliverable-versions/:vid/restore — 그 회차 본문을 현재 결과물로 되돌리기
+//   비파괴적이다 — 되돌리기 **직전의 현재 본문을 새 회차로 먼저 박제**한 뒤 덮는다.
+//   그래서 "되돌렸다가 다시 원래대로" 도 된다. (포스트 복원과 같은 계약, routes/post_revisions.js)
+//   권한 = 결과물 편집 권한과 동일 (담당자 · 플랫폼관리자 · 워크스페이스 admin — routes/tasks.js FIELD_RULES.body)
+// ─────────────────────────────────────────────
+router.post('/:id/deliverable-versions/:vid/restore', authenticateToken, async (req, res, next) => {
+  try {
+    const task = await loadTaskOrFail(req.params.id, res);
+    if (!task) return;
+    if (!(await canAccessTask(task, req.user.id))) return errorResponse(res, 'forbidden', 403);
+    // 되돌리기 규칙(권한·비파괴 박제·트랜잭션)은 행동 계층 단일 착지점에 있다.
+    //   라우트가 트랜잭션을 열면 도메인 로직이 새고, 같은 판정이 Cue 경로와 갈라진다.
+    const result = await actions.restoreDeliverable(task, actorFrom(req), { versionId: req.params.vid });
+    return sendResult(res, result, (d) => {
+      require('../services/auditService').logAudit(req, {
+        action: 'task.deliverable_restore',
+        targetType: 'task',
+        targetId: d.task.id,
+        businessId: d.task.business_id,
+        oldValue: { restored_from_round: d.restored_from_round, version_id: d.version_id },
+        newValue: { title: d.task.title },
+      });
+      return successResponse(res, {
+        id: d.task.id, body: d.task.body, restored_from_round: d.restored_from_round,
+      });
+    });
   } catch (err) { next(err); }
 });
 
