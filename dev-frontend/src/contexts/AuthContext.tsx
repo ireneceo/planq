@@ -73,6 +73,7 @@ export interface User {
   // 플랫폼 정보 (announcement + 현재 약관 버전) — /me 응답이 같이 줌
   platform?: {
     announcement_text: string | null;
+    announcement_text_en?: string | null;
     announcement_dismissible: boolean;
     announcement_severity: 'info' | 'warn' | 'critical';
     current_terms_version: string;

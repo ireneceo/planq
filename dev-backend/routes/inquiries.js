@@ -73,6 +73,9 @@ router.post('/', inquiryHourLimiter, inquiryDayLimiter, async (req, res, next) =
       from_phone: from_phone ? String(from_phone).trim().slice(0, 50) : null,
       message: String(message).trim(),
       from_user_timezone: fromUserTimezone,
+      // 문의자 언어 — 폼이 보낸 값(브라우저/앱 언어)만 신뢰 범위로 좁혀 저장한다.
+      //   접수 확인 메일·답변을 이 언어로 보내기 위한 것. 없으면 ko 로 본다.
+      locale: (String(req.body?.locale || '').toLowerCase().startsWith('en') ? 'en' : 'ko'),
       status: 'new',
     });
 
@@ -135,6 +138,7 @@ router.get('/admin', authenticateToken, requireRole('platform_admin'), async (re
       ],
       order: [['created_at', 'DESC']],
       limit: 200,
+      locale: inquiry.locale,   // 문의자 언어로 회신 (ko/en)
     });
     return successResponse(res, items.map(i => i.toJSON()));
   } catch (err) { next(err); }

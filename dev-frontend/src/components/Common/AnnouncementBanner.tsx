@@ -3,37 +3,48 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTranslation } from 'react-i18next';
 
 const DISMISS_KEY_PREFIX = 'planq_announce_dismissed:';
 
 const AnnouncementBanner: React.FC = () => {
+  const { i18n } = useTranslation();
+  // 사용자 언어로 공지를 고른다 — 영어 공지가 비어 있으면 한국어로 폴백한다(빈 배너 방지).
+  //   여태 한 언어만 있어서 영어권 사용자도 한국어 배너를 봤다(2026-08-25 Irene).
+  const pickText = (a: { announcement_text: string | null; announcement_text_en?: string | null } | null | undefined) => {
+    if (!a) return null;
+    const en = (a.announcement_text_en || '').trim();
+    return (i18n.language || '').startsWith('en') && en ? en : (a.announcement_text || null);
+  };
   const { user } = useAuth();
   const ann = user?.platform;
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
-    if (!ann?.announcement_text) { setDismissed(false); return; }
+    if (!pickText(ann)) { setDismissed(false); return; }
     // 같은 공지 텍스트에 대해 이전에 dismiss 했는지 확인 (텍스트 변경되면 다시 보임)
-    const key = DISMISS_KEY_PREFIX + hashString(ann.announcement_text);
+    const key = DISMISS_KEY_PREFIX + hashString(pickText(ann) || '');
     if (window.localStorage.getItem(key) === '1') setDismissed(true);
     else setDismissed(false);
-  }, [ann?.announcement_text]);
+  }, [ann?.announcement_text, ann?.announcement_text_en, i18n.language]);
 
   const handleDismiss = () => {
-    if (!ann?.announcement_text) return;
-    const key = DISMISS_KEY_PREFIX + hashString(ann.announcement_text);
+    if (!pickText(ann)) return;
+    const key = DISMISS_KEY_PREFIX + hashString(pickText(ann) || '');
     window.localStorage.setItem(key, '1');
     setDismissed(true);
   };
 
-  if (!ann?.announcement_text || dismissed) return null;
+  const text = pickText(ann);
+  // ★ text 가 있으면 ann 도 있다는 걸 타입이 모른다 — 두 조건을 함께 좁혀 준다.
+  if (!ann || !text || dismissed) return null;
 
   return (
     <Banner $sev={ann.announcement_severity}>
       <BannerIcon $sev={ann.announcement_severity}>
         {ann.announcement_severity === 'critical' ? '⚠' : ann.announcement_severity === 'warn' ? '!' : 'ⓘ'}
       </BannerIcon>
-      <BannerText>{ann.announcement_text}</BannerText>
+      <BannerText>{text}</BannerText>
       {ann.announcement_dismissible && (
         <DismissBtn type="button" onClick={handleDismiss} aria-label="Dismiss">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>

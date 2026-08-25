@@ -867,27 +867,40 @@ async function sendBillingInstructionEmail({ to, kind, workspaceName, itemName, 
 // 8. 문의 접수 자동 회신 (게스트·사용자 모두에게)
 //    랜딩 /contact 폼 + 게스트 Cue "문의 남기기" 탭 양쪽에서 호출.
 // ═══════════════════════════════════════════════════════════════
-function inquiryReceivedEmailHtml({ name, message, inquiryId }) {
+// ★ 문의자 언어로 보낸다 (2026-08-25). 여태 한국어 고정이라 영어로 문의한 사람도 한국어 안내를 받았다.
+//   locale 은 contact_inquiries.locale 에 기록된다(폼이 보낸 브라우저/앱 언어).
+function inquiryReceivedEmailHtml({ name, message, inquiryId, locale }) {
+  const en = String(locale || '').toLowerCase().startsWith('en');
+  const t = en ? {
+    title: 'We received your inquiry',
+    head: `${escapeHtml(name || 'Hello')}, we received your inquiry`,
+    lead: `The PlanQ team will get back to you within <b>24 business hours</b>. Reference <b>#${inquiryId}</b>.`,
+    foot: 'This email was sent automatically. Reply to this message if you have anything to add.',
+  } : {
+    title: '문의 접수 안내',
+    head: `${escapeHtml(name || '안녕하세요')}님, 문의가 접수됐습니다`,
+    lead: `PlanQ 운영팀이 영업일 기준 <b>24시간 내</b> 회신드릴게요. 접수 번호 <b>#${inquiryId}</b>.`,
+    foot: '이 메일은 자동 발송됐습니다. 추가로 전달할 내용이 있으면 본 메일에 회신해 주세요.',
+  };
   const body = `
-    <div style="font-size:18px;font-weight:700;color:#0F172A;line-height:1.4;">${escapeHtml(name || '안녕하세요')}님, 문의가 접수됐습니다</div>
-    <div style="margin-top:12px;font-size:14px;color:#475569;line-height:1.7;">
-      PlanQ 운영팀이 영업일 기준 <b>24시간 내</b> 회신드릴게요. 접수 번호 <b>#${inquiryId}</b>.
-    </div>
+    <div style="font-size:18px;font-weight:700;color:#0F172A;line-height:1.4;">${t.head}</div>
+    <div style="margin-top:12px;font-size:14px;color:#475569;line-height:1.7;">${t.lead}</div>
     ${message ? `
     <div style="margin-top:16px;padding:12px 14px;background:#F8FAFC;border-left:3px solid #14B8A6;border-radius:0 8px 8px 0;font-size:13px;color:#334155;line-height:1.6;white-space:pre-wrap;">${escapeHtml(message).slice(0, 800)}</div>
     ` : ''}
-    <div style="margin-top:18px;font-size:12px;color:#94A3B8;line-height:1.6;">
-      이 메일은 자동 발송됐습니다. 추가로 전달할 내용이 있으면 본 메일에 회신해 주세요.
-    </div>`;
-  return emailWrap({ title: '문의 접수 안내', body });
+    <div style="margin-top:18px;font-size:12px;color:#94A3B8;line-height:1.6;">${t.foot}</div>`;
+  return emailWrap({ title: t.title, body });
 }
 
-async function sendInquiryReceivedEmail({ to, name, message, inquiryId }) {
+async function sendInquiryReceivedEmail({ to, name, message, inquiryId, locale }) {
   if (!to) return false;
-  const subject = `[${PLATFORM.brand}] 문의가 접수됐습니다 #${inquiryId}`;
+  const en = String(locale || '').toLowerCase().startsWith('en');
+  const subject = en
+    ? `[${PLATFORM.brand}] We received your inquiry #${inquiryId}`
+    : `[${PLATFORM.brand}] 문의가 접수됐습니다 #${inquiryId}`;
   return sendEmail({
     to, subject,
-    html: inquiryReceivedEmailHtml({ name, message, inquiryId }),
+    html: inquiryReceivedEmailHtml({ name, message, inquiryId, locale }),
     template: 'inquiry_received', relatedEntityType: 'inquiry', relatedEntityId: inquiryId,
   });
 }

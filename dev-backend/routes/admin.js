@@ -715,6 +715,7 @@ router.put('/platform-settings', async (req, res, next) => {
       ...(b.maintenance_mode !== undefined ? { maintenance_mode: !!b.maintenance_mode } : {}),
       ...setStr('maintenance_message', 500),
       ...setStr('announcement_text', 500),
+      ...setStr('announcement_text_en', 500),
       ...(b.announcement_dismissible !== undefined ? { announcement_dismissible: !!b.announcement_dismissible } : {}),
       ...(b.announcement_severity && ['info', 'warn', 'critical'].includes(b.announcement_severity)
         ? { announcement_severity: b.announcement_severity } : {}),

@@ -831,6 +831,8 @@ router.get('/me', authenticateToken, async (req, res, next) => {
       if (ps) {
         userData.platform = {
           announcement_text: ps.announcement_text || null,
+          // 영어 공지 — 비어 있으면 프론트가 한국어로 폴백한다(빈 배너를 띄우지 않기 위해).
+          announcement_text_en: ps.announcement_text_en || null,
           announcement_dismissible: !!ps.announcement_dismissible,
           announcement_severity: ps.announcement_severity || 'info',
           current_terms_version: ps.terms_version || '1.0',

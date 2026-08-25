@@ -23,6 +23,7 @@ interface PlatformSettings {
   maintenance_mode: boolean;
   maintenance_message: string | null;
   announcement_text: string | null;
+  announcement_text_en: string | null;
   announcement_dismissible: boolean;
   announcement_severity: 'info' | 'warn' | 'critical';
   // SEO / SNS (사이클 N+23)
@@ -38,7 +39,7 @@ const EMPTY: PlatformSettings = {
   brand: '', tagline: '', website: '', support_email: '', legal_entity: '', email_logo_url: '',
   terms_version: '1.0', privacy_version: '1.0',
   maintenance_mode: false, maintenance_message: '',
-  announcement_text: '', announcement_dismissible: true, announcement_severity: 'info',
+  announcement_text: '', announcement_text_en: '', announcement_dismissible: true, announcement_severity: 'info',
   seo_title: '', seo_description: '', seo_keywords: '', og_image_url: '',
   app_ios_url: '', app_android_url: '',
 };
@@ -66,6 +67,7 @@ const AdminPlatformSettingsPage = () => {
           maintenance_mode: !!r.data.maintenance_mode,
           maintenance_message: r.data.maintenance_message || '',
           announcement_text: r.data.announcement_text || '',
+          announcement_text_en: r.data.announcement_text_en || '',
           announcement_dismissible: r.data.announcement_dismissible !== false,
           announcement_severity: r.data.announcement_severity || 'info',
           seo_title: r.data.seo_title || '',
@@ -238,6 +240,12 @@ const AdminPlatformSettingsPage = () => {
           <AutoSaveField type="input" onSave={async () => save({ announcement_text: data.announcement_text })}>
             <Input value={data.announcement_text || ''} onChange={(e) => set('announcement_text', e.target.value)}
               placeholder={t('platform.announcement_textPh', '예: 5월 6일 22~23시 점검 예정') as string} maxLength={500} />
+          </AutoSaveField>
+          <Label>{t('platform.announcement_text_en', '공지 내용 (English)')}</Label>
+          {/* 비우면 한국어 공지가 그대로 나간다 — 영어권 사용자에게 한국어 배너가 보이는 것을 막으려면 채운다. */}
+          <AutoSaveField type="input" onSave={async () => save({ announcement_text_en: data.announcement_text_en })}>
+            <Input value={data.announcement_text_en || ''} onChange={(e) => set('announcement_text_en', e.target.value)}
+              placeholder={t('platform.announcement_text_en_ph', 'Leave empty to reuse the Korean text') as string} />
           </AutoSaveField>
         </Field>
         <FieldRow>

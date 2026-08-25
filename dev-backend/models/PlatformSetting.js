@@ -77,6 +77,9 @@ PlatformSetting.init({
   maintenance_message: { type: DataTypes.STRING(500), allowNull: true },
   // 사이드바 상단 공지 배너 — 운영자 일괄 안내 (점검 일정·신규 기능·약관 변경 등)
   announcement_text: { type: DataTypes.STRING(500), allowNull: true },
+  // 영어 공지 — 비우면 announcement_text(한국어)로 폴백한다. 한 언어만 쓰면 영어권 사용자가
+  //   한국어 배너를 그대로 보게 된다(2026-08-25 Irene 지적).
+  announcement_text_en: { type: DataTypes.STRING(500), allowNull: true },
   announcement_dismissible: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
   announcement_severity: { type: DataTypes.ENUM('info', 'warn', 'critical'), allowNull: false, defaultValue: 'info' },
   // ─── SEO / SNS 공유 메타 (사이클 N+23, 2026-05-18) ───

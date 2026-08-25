@@ -25,6 +25,9 @@ ContactInquiry.init({
   // 문의자 워크스페이스 timezone — admin 페이지에서 양쪽 시간 동시 표시.
   // 게스트는 null, 로그인 사용자는 활성 워크스페이스의 Business.timezone 저장.
   from_user_timezone: { type: DataTypes.STRING(64), allowNull: true },
+  // 문의자 언어(ko/en) — 접수 확인 메일과 답변을 그 언어로 보내기 위한 것.
+  //   여태 기록하지 않아 영어로 문의해도 한국어 안내가 나갔다(2026-08-25).
+  locale: { type: DataTypes.STRING(8), allowNull: true },
   status: {
     type: DataTypes.ENUM('new', 'in_progress', 'resolved', 'spam'),
     defaultValue: 'new',

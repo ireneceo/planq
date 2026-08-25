@@ -1,0 +1,42 @@
+{
+  "version": "1.48.4",
+  "date": "2026-08-25",
+  "items": [
+    {
+      "ko": { "title": "문서에 저장 버튼이 없어졌습니다",
+        "body": "이제 문서는 메모처럼 쓰는 대로 저장됩니다. 편집을 마치고 나가면 첨부까지 함께 반영됩니다. 새 문서는 처음 만들 때만 저장을 누릅니다." },
+      "en": { "title": "Documents no longer have a Save button",
+        "body": "Documents now save as you type, like notes. Leaving the editor also finalizes your attachments. New documents still ask you to save once." }
+    },
+    {
+      "ko": { "title": "변경 기록으로 되돌릴 수 있습니다",
+        "body": "문서 상단의 시계 아이콘에서 누가 언제 무엇을 고쳤는지 보고, 원하는 시점으로 되돌릴 수 있습니다. 되돌린 것도 다시 되돌릴 수 있습니다. 본문·제목·분류·첨부 구성이 함께 기록됩니다." },
+      "en": { "title": "Version history lets you go back",
+        "body": "The clock icon at the top of a document shows who changed what and when, and lets you restore any point. Restores are reversible too. Body, title, category and attachment list are all recorded." }
+    },
+    {
+      "ko": { "title": "같은 문서를 함께 편집할 때 서로가 보입니다",
+        "body": "다른 사람이 같은 문서를 편집 중이면 이름이 표시됩니다. 저장이 겹치면 ‘최신 내용 가져오기’ 와 ‘내 수정으로 덮어쓰기’ 중에서 고를 수 있습니다." },
+      "en": { "title": "You can see who else is editing",
+        "body": "When someone else is editing the same document, their name appears. If two saves collide, you choose: load the latest, or overwrite with your edits." }
+    },
+    {
+      "ko": { "title": "반복 업무를 고칠 때 범위를 고릅니다",
+        "body": "반복 업무의 내용을 바꾸면 ‘이 회차만 / 이후 모두 / 전체 회차’ 중에서 선택합니다. 이전에는 고친 회차만 바뀌었습니다." },
+      "en": { "title": "Choose the scope when editing a repeating task",
+        "body": "Editing a repeating task now asks whether to apply it to this occurrence, this and future, or all occurrences. Previously only the one you edited changed." }
+    },
+    {
+      "ko": { "title": "휴가 신청이 확인필요에 뜹니다",
+        "body": "팀원이 휴가를 신청하면 승인권자의 확인필요 목록에 올라옵니다. 근태 화면을 따로 열어보지 않아도 됩니다." },
+      "en": { "title": "Leave requests show up in Needs review",
+        "body": "When a teammate requests leave, approvers see it in their Needs review list — no need to open the attendance page." }
+    },
+    {
+      "ko": { "title": "모바일 화면이 정돈됐습니다",
+        "body": "헤더가 두 줄로 깨지던 것, 프로젝트 업무 목록이 화면 밖으로 나가던 것, 메일·노트에서 목록이 화면을 채우지 못하던 것을 바로잡았습니다." },
+      "en": { "title": "Mobile layout cleanup",
+        "body": "Fixed headers breaking into two lines, project task lists overflowing the screen, and list panels not filling the screen in Mail and Notes." }
+    }
+  ]
+}
