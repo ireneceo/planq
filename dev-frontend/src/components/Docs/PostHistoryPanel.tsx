@@ -4,7 +4,11 @@
 // 이것이다 — 되돌릴 수 있으니까. 이력 없이 버튼만 없애면 "실수로 지운 문단을 되돌릴 수 없는"
 // 다른 사고를 만든다.
 //
-// 한계(사용자에게 명시): **첨부는 버전 대상이 아니다.** 본문·제목·분류만 남는다.
+// 무엇이 버전에 남는가:
+//   - 본문(그 안의 이미지·파일 링크 포함) · 제목 · 분류
+//   - 하단 첨부 **목록**(연결) — 복원하면 그 시점 구성으로 되돌아온다
+//   - ★ 버전이 참조하는 파일은 삭제해도 디스크에서 지우지 않는다(routes/files.js softDeleteFile)
+//     — 그래야 "되돌릴 수 있다" 는 약속이 지켜진다. Notion 도 같은 이유로 파일을 보관한다.
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -69,7 +73,7 @@ const PostHistoryPanel: React.FC<Props> = ({ postId, open, onClose, onRestored }
         <HeadTitle>{t('history.title', '변경 기록')}</HeadTitle>
         <CloseBtn type="button" onClick={onClose} aria-label={t('close', '닫기') as string}>✕</CloseBtn>
       </Head>
-      <Note>{t('history.attachNote', '본문·제목·분류만 기록됩니다. 첨부는 포함되지 않습니다.')}</Note>
+      <Note>{t('history.attachNote', '본문·제목·분류·첨부 구성이 기록됩니다. 되돌리면 그 시점 상태로 돌아갑니다.')}</Note>
       {loading && <Empty>{t('loading', '불러오는 중…')}</Empty>}
       {err && <ErrText role="alert">{err}</ErrText>}
       {!loading && !err && revs.length === 0 && <Empty>{t('history.empty', '아직 기록이 없습니다')}</Empty>}

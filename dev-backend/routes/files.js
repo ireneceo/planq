@@ -929,7 +929,11 @@ async function softDeleteFile(file, transaction) {
         where: { file_path: file.file_path, deleted_at: null, id: { [Op.ne]: file.id } },
         transaction
       });
-      if (siblings === 0 && fs.existsSync(file.file_path)) {
+      // 문서 버전 기록이 참조하면 바이트를 남긴다 — 판정은 services/fileRetention 에 모았다
+      //   (라우트에 두면 같은 규칙이 삭제 경로마다 갈라진다).
+      const referencedByRevision = await require('../services/fileRetention')
+        .isReferencedByPostRevision(file, transaction);
+      if (siblings === 0 && !referencedByRevision && fs.existsSync(file.file_path)) {
         fs.unlinkSync(file.file_path);
       }
     } else if (file.storage_provider === 'gdrive' && file.external_id) {

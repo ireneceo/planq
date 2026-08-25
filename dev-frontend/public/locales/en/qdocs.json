@@ -674,7 +674,7 @@
   },
   "history": {
     "title": "Version history",
-    "attachNote": "Body, title and category are recorded. Attachments are not included.",
+    "attachNote": "Body, title, category and attachment list are recorded. Restoring returns to that point.",
     "empty": "No history yet",
     "current": "Current",
     "restored": "Restored",

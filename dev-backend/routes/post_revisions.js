@@ -86,6 +86,21 @@ router.post('/:id/revisions/:revId/restore', authenticateToken, async (req, res,
       content_text: extractText((() => { try { return rev.content_json ? JSON.parse(rev.content_json) : null; } catch { return null; } })()),
       category: rev.category,
     });
+    // 첨부 목록도 그 시점으로 — 본문 안 이미지는 content_json 에 들어 있어 이미 돌아왔지만,
+    //   하단 첨부는 별도 테이블이라 여기서 맞춰야 "그 시점 문서" 가 완성된다.
+    //   ★ 파일 자체를 지우지는 않는다. 링크(연결)만 그 시점 구성으로 되돌린다.
+    if (Array.isArray(rev.attachment_file_ids)) {
+      const { PostAttachment } = require('../models');
+      const want = rev.attachment_file_ids;
+      const now = await PostAttachment.findAll({ where: { post_id: post.id }, attributes: ['id', 'file_id'] });
+      const nowIds = now.map((a) => a.file_id);
+      const toAdd = want.filter((id) => !nowIds.includes(id));
+      const toRemove = now.filter((a) => !want.includes(a.file_id)).map((a) => a.id);
+      if (toRemove.length) await PostAttachment.destroy({ where: { id: toRemove } });
+      for (const fid of toAdd) {
+        try { await PostAttachment.create({ post_id: post.id, file_id: fid }); } catch { /* 이미 지워진 파일 — 건너뛴다 */ }
+      }
+    }
     await require('../services/postRevisions').recordRevision({
       post, editorUserId: req.user.id, source: 'restore',
     });

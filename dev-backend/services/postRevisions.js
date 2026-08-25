@@ -3,7 +3,7 @@
 // 라우트가 직접 revision 을 만들기 시작하면 합치기 규칙과 상한이 경로마다 갈라진다.
 // (같은 계열 사고: routes 가 알림을 각자 보내던 leave.js → services/leaveTransition.js 로 모은 것)
 const { Op } = require('sequelize');
-const { PostRevision } = require('../models');
+const { PostRevision, PostAttachment } = require('../models');
 
 /** 같은 사람이 이 시간 안에 이어 쓰면 마지막 버전을 갱신한다(새 행을 만들지 않는다). */
 const COALESCE_WINDOW_MS = 10 * 60 * 1000;   // 10분
@@ -17,13 +17,21 @@ const MAX_PER_POST = 50;
 async function recordRevision({ post, editorUserId, source = 'autosave' }) {
   if (!post || !post.id) return { action: 'skipped', revisionNumber: null };
   const contentStr = post.content_json == null ? null : String(post.content_json);
+  // 첨부 목록 스냅샷 — 본문 안 이미지는 content_json 에 이미 있지만 하단 첨부는 별도 테이블이다.
+  let attachIds = [];
+  try {
+    const atts = await PostAttachment.findAll({ where: { post_id: post.id }, attributes: ['file_id'] });
+    attachIds = atts.map((a) => a.file_id).sort((a, b) => a - b);
+  } catch { attachIds = []; }
+  const attachKey = JSON.stringify(attachIds);
   const last = await PostRevision.findOne({
     where: { post_id: post.id, business_id: post.business_id },
     order: [['revision_number', 'DESC']],
   });
 
   // 내용이 그대로면 버전을 남기지 않는다 — 저장 요청이 곧 변경은 아니다.
-  if (last && last.title === post.title && last.content_json === contentStr && last.category === (post.category ?? null)) {
+  if (last && last.title === post.title && last.content_json === contentStr && last.category === (post.category ?? null)
+      && JSON.stringify(last.attachment_file_ids || []) === attachKey) {
     return { action: 'skipped', revisionNumber: last.revision_number };
   }
 
@@ -37,6 +45,7 @@ async function recordRevision({ post, editorUserId, source = 'autosave' }) {
   if (last && sameEditor && withinWindow && source !== 'restore' && last.source !== 'restore') {
     await last.update({
       title: post.title, content_json: contentStr, category: post.category ?? null,
+      attachment_file_ids: attachIds,
       source, byte_size: contentStr ? Buffer.byteLength(contentStr) : 0,
     });
     return { action: 'coalesced', revisionNumber: last.revision_number };
@@ -50,6 +59,7 @@ async function recordRevision({ post, editorUserId, source = 'autosave' }) {
     title: post.title,
     content_json: contentStr,
     category: post.category ?? null,
+    attachment_file_ids: attachIds,
     editor_user_id: editorUserId || null,
     source,
     byte_size: contentStr ? Buffer.byteLength(contentStr) : 0,

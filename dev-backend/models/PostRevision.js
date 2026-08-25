@@ -34,6 +34,9 @@ PostRevision.init({
   // autosave: 타이핑 중 저장 / manual: 명시 저장 / restore: 옛 버전 복원으로 생긴 것
   source: { type: DataTypes.ENUM('autosave', 'manual', 'restore'), allowNull: false, defaultValue: 'autosave' },
   byte_size: { type: DataTypes.INTEGER, allowNull: true },           // 용량 감시용 (운영 집계)
+  // 문서 하단 첨부 목록의 file_id 배열. 본문 안 이미지는 content_json 에 이미 들어 있지만,
+  //   첨부 목록은 별도 테이블(post_attachments)이라 여기 함께 남기지 않으면 복원해도 안 돌아온다.
+  attachment_file_ids: { type: DataTypes.JSON, allowNull: true },
 }, {
   sequelize,
   tableName: 'post_revisions',
