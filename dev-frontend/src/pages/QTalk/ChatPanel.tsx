@@ -24,6 +24,7 @@ import { mapApiError } from '../../utils/apiError';
 import { useImageLightbox } from '../../components/Common/ImageLightbox';
 import { useNavigate } from 'react-router-dom';
 import MessageReactions from './MessageReactions';   // #138 이모지 리액션
+import { PanelBackButton } from '../../components/Layout/PanelHeader';
 
 // 운영 #367 — 작성 중 메시지 초안의 저장 키. **사용자별로 갈라야 한다** — 한 브라우저를 둘이
 //   나눠 쓰면(공용 PC·로그아웃 후 재로그인) 앞사람이 쓰다 만 글이 뒷사람 입력칸에 그대로 떴다.
@@ -1062,9 +1063,7 @@ const ChatPanel: React.FC<Props> = ({
         <HeaderBar>
           <HeaderLeft>
             {onMobileBack && (
-              <MobileBackBtn type="button" onClick={onMobileBack} aria-label={t('chat.back', '리스트로 돌아가기') as string} title={t('chat.back', '리스트로 돌아가기') as string}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><polyline points="15 18 9 12 15 6"/></svg>
-              </MobileBackBtn>
+              <PanelBackButton onClick={onMobileBack} label={t('chat.back', '리스트로 돌아가기') as string} />
             )}
             <HeaderTitleBlock $embedded={embedded}>
               <ChatNameRow>
@@ -1130,9 +1129,7 @@ const ChatPanel: React.FC<Props> = ({
       <HeaderBar>
         <HeaderLeft>
           {onMobileBack && (
-            <MobileBackBtn type="button" onClick={onMobileBack} aria-label={t('chat.back', '리스트로 돌아가기') as string} title={t('chat.back', '리스트로 돌아가기') as string}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><polyline points="15 18 9 12 15 6"/></svg>
-            </MobileBackBtn>
+            <PanelBackButton onClick={onMobileBack} label={t('chat.back', '리스트로 돌아가기') as string} />
           )}
           {/* 리스트 열기 버튼은 두지 않는다 — ≥1025px 는 PanelEdgeHandle(경계선),
               ≤1024px 는 MobileBackBtn(리스트로 돌아가기)이 이미 담당한다.
@@ -2188,17 +2185,7 @@ const Container = styled.main<{ $mobileHidden?: boolean }>`
      모바일 미디어쿼리에서 height 명시 제거 — flex grow 만 의존. */
 `;
 
-const MobileBackBtn = styled.button`
-  display: none;
-  background: none; border: none; padding: 8px;
-  align-items: center; justify-content: center;
-  color: #334155; border-radius: 6px; cursor: pointer;
-  min-width: 44px; min-height: 44px;
-  margin-right: 4px;
-  &:hover { background: #F1F5F9; }
-  svg { width: 20px; height: 20px; }
-  ${mediaTablet} { display: inline-flex; }
-`;
+
 
 const HeaderBar = styled.div`
   min-height: 60px;

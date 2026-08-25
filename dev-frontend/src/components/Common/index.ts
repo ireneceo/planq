@@ -2,7 +2,6 @@ export { FilterBar, SearchInput, FilterSelect, QuickFilters } from './FilterComp
 export { Tabs, Tab, Badge } from './TabComponents';
 export { default as ConfirmDialog } from './ConfirmDialog';
 export { default as PhoneInput } from './PhoneInput';
-export { default as PageHeader } from './PageHeader';
 export { default as AutoSaveField } from './AutoSaveField';
 export * from './Modal';
 export { default as LanguageSelector } from './LanguageSelector';

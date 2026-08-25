@@ -292,6 +292,8 @@ const Notice = styled.div<{ $tone: 'info' | 'error' }>`
   align-items: flex-start;
   gap: 10px;
   padding: 10px 14px;
+  position: relative;   /* 닫기 버튼(우상단 절대배치) 기준 */
+  @media (max-width: 640px) { padding-right: 48px; }
   border-radius: 10px;
   margin-bottom: 12px;
   background: ${(p) => (p.$tone === 'error' ? '#FEF2F2' : '#FEF3C7')};
@@ -367,10 +369,21 @@ const OrphanItem = styled.label`
 `;
 const OrphanName = styled.span`flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
 const OrphanDate = styled.span`flex-shrink: 0; color: #94A3B8; font-size: 11px;`;
+// ★ 폰에서 닫기 버튼이 **좌측 하단**에 떨어져 있었다(Irene, 2026-08-25).
+//   컨테이너가 ≤640px 에서 flex-wrap:wrap 이라 X 가 본문 아래로 줄바꿈된 것.
+//   안내의 닫기는 항상 **우상단**이 정본이다(전 배너 공통) — 절대배치로 고정하고
+//   터치 타깃을 44 로 올린다(theme/tokens CONTROL.touchMin).
 const CloseBtn = styled.button`
   flex-shrink: 0;
   width: 24px;
   height: 24px;
+  @media (max-width: 640px) {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 44px;
+    height: 44px;
+  }
   display: flex;
   align-items: center;
   justify-content: center;

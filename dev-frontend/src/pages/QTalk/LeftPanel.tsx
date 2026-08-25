@@ -338,6 +338,8 @@ const Container = styled.aside<{ $mobileHidden?: boolean; $w?: number }>`
 
 /* N+63 — 시인성·세련도 강화. 평소 12×72 진한 색 + chevron 14×14, hover 18×84 teal + nudge animation. */
 
+// 규격: components/Layout/PanelHeader 와 동일 (데스크탑 60 / 폰 56 · 한 줄 유지).
+//   좌우 패널의 밑줄이 같은 y 에서 이어지는 계약 — 값이 갈라지면 폰에서 단차가 보인다.
 const Header = styled.div`
   padding: 14px 20px;
   min-height: 60px;
@@ -346,6 +348,7 @@ const Header = styled.div`
   display: flex;
   flex-direction: column;
   justify-content: center;
+  @media (max-width: 640px) { min-height: 56px; padding: 10px 14px; }
 `;
 
 const HeaderTop = styled.div`
