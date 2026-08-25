@@ -1018,12 +1018,29 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                     </InboxBadge>
                   )}
                 </NavItem>
+                {/* 도움말(Q위키) — 개발 사이클이 seed-wiki-content.js 로 채우는 쪽. 여기서는 확인·수정. */}
                 <NavItem to="/admin/wiki" $isCollapsed={isCollapsed} $active={isActive('/admin/wiki')}
-                  title={isCollapsed ? t('nav.wiki', 'Q위키 관리') : undefined}>
+                  title={isCollapsed ? t('nav.wiki', '도움말 관리') : undefined}>
                   <NavIcon $isCollapsed={isCollapsed}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
                   </NavIcon>
-                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.wiki', 'Q위키 관리')}</NavLabel>
+                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.wiki', '도움말 관리')}</NavLabel>
+                </NavItem>
+                {/* 새소식·인사이트 — 사람이 쓰는 쪽(릴리즈 노트·제품 소식). 사용자는 /insights 에서 본다. */}
+                <NavItem to="/admin/updates" $isCollapsed={isCollapsed} $active={isActive('/admin/updates')}
+                  title={isCollapsed ? t('nav.updates', '새소식·인사이트') : undefined}>
+                  <NavIcon $isCollapsed={isCollapsed}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>
+                  </NavIcon>
+                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.updates', '새소식·인사이트')}</NavLabel>
+                </NavItem>
+                {/* 공지 배너 — 플랫폼 설정 안에 묻혀 있어 찾지 못했다(Irene). 진입점을 메뉴로 올린다. */}
+                <NavItem to="/admin/platform-settings#announcement" $isCollapsed={isCollapsed} $active={false}
+                  title={isCollapsed ? t('nav.announcement', '공지 배너') : undefined}>
+                  <NavIcon $isCollapsed={isCollapsed}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 11v3a1 1 0 0 0 1 1h3l4 4V6L7 10H4a1 1 0 0 0-1 1z"/><path d="M16 8a5 5 0 0 1 0 8"/></svg>
+                  </NavIcon>
+                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.announcement', '공지 배너')}</NavLabel>
                 </NavItem>
                 <NavItem to="/admin/email-logs" $isCollapsed={isCollapsed} $active={isActive('/admin/email-logs')}
                   title={isCollapsed ? t('nav.emailLogs', '메일 발송 모니터링') : undefined}>

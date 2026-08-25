@@ -506,6 +506,12 @@ function ShellApp() {
             <MainLayout><AdminWikiPage /></MainLayout>
           </ProtectedRoute>
         } />
+        {/* 새소식·인사이트 — 도움말(자동 채움)과 성격이 달라 진입점을 나눈다. 화면은 같은 것을 재사용. */}
+        <Route path="/admin/updates" element={
+          <ProtectedRoute requiredRole={['platform_admin']}>
+            <MainLayout><AdminWikiPage mode="blog" /></MainLayout>
+          </ProtectedRoute>
+        } />
         <Route path="/admin/email-logs" element={
           <ProtectedRoute requiredRole={['platform_admin']}>
             <MainLayout><AdminEmailLogsPage /></MainLayout>

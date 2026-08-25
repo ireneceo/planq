@@ -60,7 +60,7 @@
     "users": "Users",
     "businesses": "Workspaces",
     "feedback": "User feedback",
-    "wiki": "Q Wiki",
+    "wiki": "Help center",
     "emailLogs": "Email monitoring",
     "pushLogs": "Push delivery monitoring",
     "platformSettings": "Platform settings",
@@ -147,7 +147,9 @@
       "me-data": "my data,export"
     },
     "attendance": "Attendance",
-    "attendanceAdmin": "Attendance"
+    "attendanceAdmin": "Attendance",
+    "updates": "Updates & insights",
+    "announcement": "Announcement banner"
   },
   "user": {
     "profile": "My Profile",

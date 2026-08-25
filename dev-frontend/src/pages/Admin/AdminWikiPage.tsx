@@ -42,7 +42,13 @@ const emptyForm = (categoryId: number | null): ArticleForm => ({
   est_minutes: '', sort_order: '0', is_published: false,
 });
 
-const AdminWikiPage = () => {
+/**
+ * mode='help'  — 도움말(Q위키). 개발 사이클이 seed-wiki-content.js 로 채우는 쪽(자동화됨).
+ * mode='blog'  — 새소식·인사이트. 사람이 쓰는 쪽. 같은 테이블(help_articles)을 쓰지만
+ *                성격이 달라 진입점을 나눈다 — 한 메뉴에 섞여 있어 "새소식을 어디서 쓰지?" 가 됐다
+ *                (2026-08-25 Irene). 데이터·화면은 그대로 재사용한다.
+ */
+const AdminWikiPage = ({ mode = 'help' }: { mode?: 'help' | 'blog' }) => {
   const { t } = useTranslation('common');
   const { t: tErr } = useTranslation('errors');
   const [cats, setCats] = useState<WikiCategoryAdmin[]>([]);
@@ -78,7 +84,7 @@ const AdminWikiPage = () => {
   // 선택 변경 → 편집기 로드
   useEffect(() => {
     setMsg(null); setErr(null);
-    setBlog({ published: false, category: 'insights' });
+    setBlog({ published: mode === 'blog', category: mode === 'blog' ? 'updates' : 'insights' });
     if (isNew) {
       setForm(emptyForm(catFilter !== 'all' ? Number(catFilter) : (cats[0]?.id ?? null)));
       setBlocks([]);
