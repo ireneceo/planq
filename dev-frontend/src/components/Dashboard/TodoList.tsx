@@ -30,6 +30,8 @@ const IconBill = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="no
 const IconSign = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>);
 const IconCash = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/></svg>);
 const IconReceipt = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16l3-2 3 2 3-2 3 2 3-2V8z"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="9" y1="14" x2="15" y2="14"/></svg>);
+// 휴가 — 달력에서 하루가 빠진 모양 (승인 대기)
+const IconLeave = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="9" y1="16" x2="15" y2="16"/></svg>);
 const IconChevron = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>);
 
 function TypeIcon({ type }: { type: TodoItem['type'] }) {
@@ -43,6 +45,7 @@ function TypeIcon({ type }: { type: TodoItem['type'] }) {
   if (type === 'signature') return <IconSign />;
   if (type === 'payment_notify') return <IconCash />;
   if (type === 'tax_invoice') return <IconReceipt />;
+  if (type === 'leave') return <IconLeave />;
   if (type === 'planq_subscription') return <IconCash />;  // PlanQ 구독 청구 (받는 청구)
   return <IconMention />;
 }

@@ -10,6 +10,7 @@ export type TodoPriority = 'urgent' | 'today' | 'waiting' | 'week';
 export type TodoType =
   | 'task' | 'event' | 'invite' | 'mention' | 'email'
   | 'task_candidate' | 'invoice'
+  | 'leave'          // 휴가 승인 대기 (승인권자에게만 — routes/dashboard.collectLeaveApprovals)
   | 'signature' | 'payment_notify' | 'tax_invoice'
   | 'invoice_draft'  // 발행 대기 정기 청구서 초안 (owner/admin)
   | 'planq_subscription';  // PlanQ 플랫폼 → 워크스페이스 구독 청구 (owner 만)

@@ -45,6 +45,7 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { CheckIcon } from '../Common/Icons';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
+import SeriesScopeDialog, { type SeriesScope } from './SeriesScopeDialog';
 
 export interface DrawerTaskPatch {
   id: number;
@@ -533,13 +534,24 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   // 운영 #279 — 여러 필드를 **한 번의 PUT** 으로 보낸다.
   //   기간(start_date+due_date)을 saveField 로 두 번 쏘면 ①요청이 경쟁하고 ②하나가 403 이면
   //   절반만 저장된다. 백엔드 PUT 은 원래 여러 필드를 한 번에 받는다.
-  const saveFields = async (patch: Record<string, unknown>) => {
+  // 시리즈가 공유하는 내용 — 이 필드를 고치면 "어디까지 반영할지" 를 묻는다.
+  //   회차마다 달라야 하는 값(status·진행률·마감일·결과물 body)은 목록에 없다 — 물을 이유가 없다.
+  const SERIES_FIELDS = ['title', 'description', 'category', 'assignee_id', 'estimated_hours'];
+  const isSeries = !!(detailTask?.recurrence_rule || detailTask?.recurrence_parent_id);
+  const [seriesAsk, setSeriesAsk] = useState<Record<string, unknown> | null>(null);
+
+  const saveFields = async (patch: Record<string, unknown>, scope?: SeriesScope) => {
     if (!detailTask) return;
+    // 반복 업무 + 공유 필드 → 범위를 먼저 묻는다 (Q 캘린더 반복 일정과 같은 규칙).
+    if (!scope && isSeries && Object.keys(patch).some((k) => SERIES_FIELDS.includes(k))) {
+      setSeriesAsk(patch);
+      return;
+    }
     setSaveStatusTemp('saving');
     try {
       const r = await apiFetch(`/api/tasks/by-business/${bizId}/${detailTask.id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patch),
+        body: JSON.stringify(scope ? { ...patch, series_scope: scope } : patch),
       });
       if (!r.ok) throw new Error('save_failed');   // apiFetch 는 throw 안 함 — res.ok 필수
       setDetailTask(prev => prev ? { ...prev, ...patch } as TaskDetail : prev);
@@ -2230,6 +2242,12 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         })()}
       </Scroll>
     </Drawer>
+    {/* 반복 업무 편집 범위 — 이 회차만 / 이후 모두 / 전체 (Q 캘린더와 같은 규칙) */}
+    <SeriesScopeDialog
+      open={!!seriesAsk}
+      onClose={() => setSeriesAsk(null)}
+      onPick={(scope) => { const patch = seriesAsk; setSeriesAsk(null); if (patch) void saveFields(patch, scope); }}
+    />
     {detailTask && (
       <ShareModal
         open={shareOpen}

@@ -7,6 +7,7 @@ const {
   Client, BusinessMember, Business, User,
   TaskCandidate, Conversation,
   Invoice, InvoiceInstallment, SignatureRequest, Post,
+  LeaveRequest,
 } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
@@ -266,6 +267,42 @@ async function collectEvents(businessId, userId) {
       });
     }
     // accepted + 미래(내일 이후) 또는 declined → 제외
+  }
+  return items;
+}
+
+/* ─────────────────────────────────────────────
+   휴가 승인 대기 집계 (2026-08-25) — 승인권자에게만.
+   여태 휴가는 인박스·알림 어디에도 없어서, 관리자가 근태 화면을 직접 열어보지 않으면
+   신청이 있는지 알 수 없었다(Irene 지적). 알림(routes/leave.js)과 한 쌍으로 넣는다.
+   ★ 본인 신청은 제외 — 자기 신청이 자기 확인필요에 뜨면 처리할 것이 아니라 기다리는 것이다.
+   ──────────────────────────────────────────── */
+async function collectLeaveApprovals(businessId, userRole, userId) {
+  // owner·admin(그리고 platform_admin) 만 승인권자다. member 에게는 보이지 않아야 한다.
+  if (!['owner', 'admin', 'platform_admin'].includes(userRole)) return [];
+  const items = [];
+  const pend = await LeaveRequest.findAll({
+    where: { business_id: businessId, status: 'pending', user_id: { [Op.ne]: userId } },
+    order: [['start_date', 'ASC']],
+    limit: 20,
+  });
+  if (pend.length === 0) return items;
+  const nameMap = await getMemberNameMap(businessId, [...new Set(pend.map((r) => r.user_id))]);
+  const TYPE = { annual: '연차', half: '반차', sick: '병가', special: '경조', unpaid: '무급', other: '기타' };
+  for (const r of pend) {
+    const start = r.start_date instanceof Date ? r.start_date.toISOString().slice(0, 10) : String(r.start_date).slice(0, 10);
+    const end = r.end_date instanceof Date ? r.end_date.toISOString().slice(0, 10) : String(r.end_date).slice(0, 10);
+    items.push({
+      id: `leave-${r.id}`,
+      type: 'leave',
+      priority: 'waiting',
+      verb: 'approve',
+      subject: `${nameMap[r.user_id] || '팀원'} · ${TYPE[r.leave_type] || r.leave_type} ${start === end ? start : `${start} ~ ${end}`}`,
+      context: '휴가 승인 대기',
+      createdAt: safeToIso(r.created_at || r.createdAt),
+      actor: { name: nameMap[r.user_id] || null },
+      link: '/attendance',
+    });
   }
   return items;
 }
@@ -919,7 +956,7 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
     // 각 워크스페이스에서 collector 돌리고 항목마다 workspace 라벨 부착
     const allBuckets = await Promise.all(workspaces.map(async (w) => {
       const userRole = w.role === 'admin' ? 'admin' : w.role;
-      const [tasks, events, candidates, invoices, signatures, paymentNotifies, taxInvoices, planqSubs, recurringDrafts, mails] = await Promise.all([
+      const [tasks, events, candidates, invoices, signatures, paymentNotifies, taxInvoices, planqSubs, recurringDrafts, mails, leaveApprovals] = await Promise.all([
         collectTasks(w.business_id, userId),
         collectEvents(w.business_id, userId),
         // N+30 — 사용자 정책: task_candidate 는 채팅 옆 (RightPanel) + 본인 전체 업무 옆 (QTaskPage 인박스) 만 노출.
@@ -933,8 +970,9 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
         collectPlanqSubscription(w.business_id, userRole),
         collectRecurringDrafts(w.business_id, userRole),
         collectMails(w.business_id, userId),
+        collectLeaveApprovals(w.business_id, userRole, userId),
       ]);
-      const items = [...tasks, ...events, ...candidates, ...invoices, ...signatures, ...paymentNotifies, ...taxInvoices, ...planqSubs, ...recurringDrafts, ...mails];
+      const items = [...tasks, ...events, ...candidates, ...invoices, ...signatures, ...paymentNotifies, ...taxInvoices, ...planqSubs, ...recurringDrafts, ...mails, ...leaveApprovals];
       // 워크스페이스 라벨 부착
       for (const it of items) it.workspace = { business_id: w.business_id, brand_name: w.brand_name, role: w.role };
       return items;

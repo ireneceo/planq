@@ -1091,6 +1091,35 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
 
     await task.update(updates);
 
+    // ── 정기업무 시리즈 전파 (2026-08-25) ───────────────────────────────
+    //   반복업무는 부모 1건 + 회차별 행이고, 회차는 **생성 시점에 부모 내용을 복사**한다.
+    //   그래서 여태 내용을 고쳐도 이미 만들어진 회차는 그대로였다(Irene: "왜 모두 안 바뀌어?").
+    //   Q 캘린더 반복 일정은 이미 '이 일정만/이후 모두/전체' 를 묻는다 — 업무만 규칙이 갈라져 있었다.
+    //   series_scope: 'single'(기본·기존 동작) | 'future'(이 회차 이후) | 'all'(전 회차)
+    //   ★ 전파 대상은 "시리즈가 공유하는 내용"뿐이다. 회차마다 달라야 하는 값
+    //     (status·진행률·실적시간·마감일·결과물 body·완료시각)은 절대 건드리지 않는다.
+    const seriesScope = String(req.body.series_scope || 'single').toLowerCase();
+    let seriesApplied = 0;
+    if (seriesScope === 'future' || seriesScope === 'all') {
+      const SERIES_FIELDS = ['title', 'description', 'category', 'assignee_id', 'estimated_hours', 'workstream_id', 'is_milestone'];
+      const propagate = {};
+      for (const f of SERIES_FIELDS) if (updates[f] !== undefined) propagate[f] = updates[f];
+      if (Object.keys(propagate).length > 0) {
+        const parentId = task.recurrence_parent_id || task.id;
+        const where = {
+          business_id: businessId,
+          id: { [Op.ne]: task.id },
+          status: { [Op.notIn]: ['canceled'] },
+          [Op.or]: [{ id: parentId }, { recurrence_parent_id: parentId }],
+        };
+        if (seriesScope === 'future' && task.due_date) {
+          // 이 회차 이후 = 마감일이 같거나 뒤인 회차. 부모(템플릿)는 앞으로 생길 회차의 원본이므로 항상 포함한다.
+          where[Op.and] = [{ [Op.or]: [{ id: parentId }, { due_date: { [Op.gte]: task.due_date } }] }];
+        }
+        seriesApplied = (await Task.update(propagate, { where }))[0] || 0;
+      }
+    }
+
     // N+32 — 옵션 A 통합 동기: task status ↔ Focus session 자동 연결
     //   - in_progress 진입 (담당자 본인 + focus_enabled=true): 기존 활성 stop → 새 session active
     //   - in_progress 이탈 (담당자 본인): 활성 session 자동 stop (end_reason='status_change')
@@ -1298,7 +1327,8 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
       }
     } catch (e) { console.warn('[task PUT notify outer]', e.message); }
 
-    return successResponse(res, task.toJSON());
+    // series_applied — 프론트가 "N개 회차에 반영됨" 을 사용자에게 보여줄 수 있게 (조용한 전파 금지).
+    return successResponse(res, { ...task.toJSON(), series_applied: seriesApplied });
   } catch (err) { next(err); }
 });
 

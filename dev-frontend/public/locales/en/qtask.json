@@ -1268,5 +1268,16 @@
     "saveFailed": "Could not save tags",
     "maxPerTask": "Up to {{count}} tags per task",
     "manageHint": "Rename · delete"
+  },
+  "series": {
+    "title": "Edit repeating task",
+    "desc": "This task repeats. How far should this change apply?",
+    "single": "This occurrence only",
+    "singleHint": "Other occurrences stay as they are",
+    "future": "This and all future",
+    "futureHint": "Past occurrences stay as a record",
+    "all": "All occurrences",
+    "allHint": "Past occurrences are updated too",
+    "cancel": "Cancel"
   }
 }

@@ -1268,5 +1268,16 @@
     "saveFailed": "태그를 저장하지 못했습니다",
     "maxPerTask": "업무당 태그는 최대 {{count}}개입니다",
     "manageHint": "이름 변경 · 삭제"
+  },
+  "series": {
+    "title": "반복 업무 수정",
+    "desc": "이 업무는 반복됩니다. 어디까지 반영할까요?",
+    "single": "이 회차만",
+    "singleHint": "다른 회차는 그대로 둡니다",
+    "future": "이 회차 이후 모두",
+    "futureHint": "지난 회차는 기록으로 남깁니다",
+    "all": "전체 회차",
+    "allHint": "지난 회차까지 같은 내용으로 맞춥니다",
+    "cancel": "취소"
   }
 }
