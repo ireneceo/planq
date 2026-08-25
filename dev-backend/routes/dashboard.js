@@ -277,6 +277,14 @@ async function collectEvents(businessId, userId) {
    신청이 있는지 알 수 없었다(Irene 지적). 알림(routes/leave.js)과 한 쌍으로 넣는다.
    ★ 본인 신청은 제외 — 자기 신청이 자기 확인필요에 뜨면 처리할 것이 아니라 기다리는 것이다.
    ──────────────────────────────────────────── */
+/** 표시 라벨 — 연차/무급 + 반차·시간 단위 (예: "연차 반차", "연차 4시간"). */
+function unitLabel(r, TYPE, UNIT) {
+  const base = TYPE[r.leave_type] || r.leave_type;
+  if (r.unit === 'half_day') return `${base} ${UNIT.half_day}${r.half_kind ? `(${r.half_kind === 'am' ? '오전' : '오후'})` : ''}`;
+  if (r.unit === 'hours' && r.hours) return `${base} ${Number(r.hours)}${UNIT.hours}`;
+  return base;
+}
+
 async function collectLeaveApprovals(businessId, userRole, userId) {
   // owner·admin(그리고 platform_admin) 만 승인권자다. member 에게는 보이지 않아야 한다.
   if (!['owner', 'admin', 'platform_admin'].includes(userRole)) return [];
@@ -287,8 +295,21 @@ async function collectLeaveApprovals(businessId, userRole, userId) {
     limit: 20,
   });
   if (pend.length === 0) return items;
-  const nameMap = await getMemberNameMap(businessId, [...new Set(pend.map((r) => r.user_id))]);
-  const TYPE = { annual: '연차', half: '반차', sick: '병가', special: '경조', unpaid: '무급', other: '기타' };
+  // ★ getMemberNameMap 은 **Map** 을 돌려준다 — 객체처럼 nameMap[id] 로 읽으면 언제나 undefined 라
+  //   전원이 '팀원' 으로 표시된다(2026-08-25 실호출 검증에서 잡음).
+  const uids = [...new Set(pend.map((r) => r.user_id))];
+  const nameMap = await getMemberNameMap(businessId, uids);
+  // 워크스페이스 표시명이 비어 있으면 계정 이름으로 채운다 — 안 그러면 전원이 '팀원' 으로 보인다
+  //   (표시명 우선순위: 워크스페이스 프로필 → 계정 이름 → 계정명, feedback_member_display_name_on_lists).
+  const missing = uids.filter((id) => !nameMap.get(id));
+  if (missing.length) {
+    const us = await User.findAll({ where: { id: missing }, attributes: ['id', 'name', 'username'] });
+    for (const u of us) nameMap.set(u.id, u.name || u.username);
+  }
+  // ★ leave_type ENUM 은 ('paid','unpaid') 두 값뿐이다(models/LeaveRequest). 종류를 임의로 늘려 적으면
+  //   매칭이 안 돼 코드값('paid')이 그대로 사용자에게 노출된다.
+  const TYPE = { paid: '연차', unpaid: '무급' };
+  const UNIT = { half_day: '반차', hours: '시간' };
   for (const r of pend) {
     const start = r.start_date instanceof Date ? r.start_date.toISOString().slice(0, 10) : String(r.start_date).slice(0, 10);
     const end = r.end_date instanceof Date ? r.end_date.toISOString().slice(0, 10) : String(r.end_date).slice(0, 10);
@@ -297,10 +318,10 @@ async function collectLeaveApprovals(businessId, userRole, userId) {
       type: 'leave',
       priority: 'waiting',
       verb: 'approve',
-      subject: `${nameMap[r.user_id] || '팀원'} · ${TYPE[r.leave_type] || r.leave_type} ${start === end ? start : `${start} ~ ${end}`}`,
+      subject: `${nameMap.get(r.user_id) || '팀원'} · ${unitLabel(r, TYPE, UNIT)} ${start === end ? start : `${start} ~ ${end}`}`,
       context: '휴가 승인 대기',
       createdAt: safeToIso(r.created_at || r.createdAt),
-      actor: { name: nameMap[r.user_id] || null },
+      actor: { name: nameMap.get(r.user_id) || null },
       link: '/attendance',
     });
   }
