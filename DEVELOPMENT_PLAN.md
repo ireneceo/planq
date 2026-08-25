@@ -1,6 +1,45 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-08-24 (Opus 5, 1M) — **운영 배포 23회 · 신고 대응 하루 사이클 · Fable 미사용(Irene 지시)** — 이번 사이클의 주제는 **"시간대와 형식이 조용히 갈라놓은 것들"** 이었다. ①**같은 뿌리의 버그 세 건** — 근태 자동 마감이 **한 번도 동작한 적 없었고**(`work_date` 가 DATEONLY 인데 Date 객체로 와서 템플릿에 넣는 순간 Invalid Date → MySQL 로 'Invalid date' 가 나가 매 tick 실패), 팝아웃에서 **완료한 업무가 사라졌으며**(`completed_at` 은 UTC 저장인데 주간 경계는 워크스페이스 KST — KST 새벽 완료분이 전날로 밀린다), 주간 보고가 **`already exists` 만 반복**했다(POST 는 `"2026-08-24"`, GET 은 `"2026-08-24T00:00:00.000Z"` 를 주는데 프론트가 `===` 로 비교해 **기존 보고서를 영영 못 찾음**). 셋 다 "형식이 다른 두 값을 그대로 비교" 였다. ②**z-순서를 한 줄로 정리** — 팝업·우측패널이 세로 화살표 아래로 깔리던 것을, 오버레이 15곳을 올리는 대신 **핸들을 90 으로 내려** 앞으로 생길 오버레이까지 자동으로 덮게 했다. ③**수집 단계에서 버리던 메일** — 우리가 보낸 알림 메일을 저장하지 않고 커서만 올려 **다시 가져올 수도 없었다**. 분류(`isFromOurPlatform` → 확인 권장)는 이미 옳았는데 저장을 막아 그 규칙을 탈 기회조차 없었다. 백필로 7건 회수. ④**원터치 Google 로그인 개방** — 검증 승인 후 스위치 한 줄. 실브라우저로 "이 앱은 확인되지 않았습니다" 경고가 **없음**을 확인해 게시 상태를 실증했다. ⑤**오늘의 업무 리뷰** — 두 번 교정하고도 "목록 스타일" 을 못 벗어나 **Fable 큐로 이관**(재료 수집·UI 는 배포 완료, 요약 층만 남음). ⑥**하니스가 하루 종일 나를 속였다** — 검사가 `/login` 을 먼저 열면 세션이 있을 때 `/dashboard` 로 튕기는데, 그걸 모르고 "기능이 죽었다" 로 세 번 오독했다. 카나리 flaky 의 정체도 같았다. ⑦**가드가 내 실수를 네 번 잡았다** — 무스코프 테넌트 쿼리 4건(남의 워크스페이스 고객 이름이 리뷰에 찍힐 뻔), 한국어 하드코딩 2건, god-file 초과 2회. 그중 **두 번은 가드를 파이프 뒤에서 돌려 실패가 가려진 채 커밋**됐다(내가 아는 함정을 또 밟았다).
+> **최종 업데이트:** 2026-08-25 (Opus 5, 1M) — **iOS 베타 빌드를 클라우드로 옮긴 사이클** — 소스 변경 없음(CI 설정·문서). 주제는 **"1년에 몇 번 쓸 도구에 기기를 내주지 않는다"** 였다. 맥북 실측에서 Xcode·Node 가 **둘 다 미설치**였고 데이터 볼륨이 **94%(여유 28GB)** 인데 Xcode 는 40GB 를 요구했다. 우리 앱은 `capacitor.config.ts` 가 가리키는 **Remote URL 껍데기**라 서버 `/배포` 만으로 앱 화면이 바뀐다 — 즉 **앱 재빌드가 드물다.** 그래서 맥을 비우는 대신 **Codemagic 클라우드 빌드**로 전환해 아이맥·맥북·윈도우 어디서든 되게 했다(개인 계정 무료 500 macOS M2 분/월 · 회당 10~15분 = 사실상 무료. ⚠️ 가입 시 **Team 을 만들면 무료 분이 사라진다**). 두 가지가 함정이었다: ①CI 는 기본값이 dev 라 그냥 아카이브하면 **테스터가 개발서버를 쓴다** → `npm run cap:beta` 를 그대로 태워 목표가 `https://planq.kr` 이 아니면 빌드가 멈추게 했다(유일한 안전장치). ②Capacitor 가 만든 스킴은 `xcuserdata` 에 있어 **git 에 없었다** → 공유 스킴이 없으면 클라우드가 빌드 대상을 못 찾는다. `App.xcscheme` 을 커밋했다. 애플 쪽 관문(Team ID·Bundle ID·APNs 키·앱 레코드·Universal Links)은 전 사이클에 끝나 **다시 할 것이 없고**, 남은 것은 Irene 의 브라우저 4단계(ASC API 키 발급 → Codemagic 가입 → 통합 이름 `PlanQ ASC` 등록 → 워크플로 실행)뿐이다.
+
+## ✅ 완료: iOS TestFlight 빌드 Codemagic 클라우드 전환 (2026-08-25)
+
+**소스(dev-backend/dev-frontend/q-note) 변경 0 — CI 설정·Xcode 공유 스킴·문서뿐이라 `/배포` 불필요.**
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| **빌드 방식 결정** | 맥에 Xcode 를 깔지 않고 **Codemagic 클라우드 빌드**로 전환. 맥북 실측 Xcode·Node 미설치 · 데이터 볼륨 94%(여유 28GB) vs Xcode 40GB 요구 | ✅ |
+| **`codemagic.yaml` 신규** | 6단계 — npm ci → `cap:beta` → pod install → 빌드번호 → 서명 → IPA → TestFlight 자동 업로드 | ✅ |
+| **목표 서버 안전장치 CI 반영** | `npm run cap:beta` 를 그대로 태워 목표가 `https://planq.kr` 이 아니면 **빌드 중단**(기본값이 dev 라 이게 유일한 방어선) | ✅ |
+| **공유 스킴 `App.xcscheme` 커밋** | Capacitor 기본 스킴은 `xcuserdata` 라 git 에 없어 CI 가 빌드 대상을 못 찾는다 (target `504EC3031FED79650016851F`) | ✅ |
+| **CI 경량화 확인** | `webDir: www-placeholder` 라 **vite 웹빌드 없이 sync** 된다 | ✅ |
+| **비용 확인** | 개인 계정 무료 **500 macOS M2 분/월** · 회당 10~15분 · 초과 시 분당 $0.095. ⚠️ 가입 시 Team 생성 금지(무료 분 소멸) | ✅ |
+| **`IOS_BETA_RUNBOOK.md` §2 재작성** | 옛 "아이맥에서 빌드" 문구 정정 → 클라우드 절차 + Irene 브라우저 4단계 | ✅ |
+
+### 남은 것 — Irene 의 브라우저 작업 (맥 불필요)
+
+1. **App Store Connect API 키 발급** — Users and Access > Integrations > App Store Connect > **+** / Role **App Manager** / `.p8`·**Key ID**·**Issuer ID**. ⚠️ `.p8` 는 **한 번만** 내려받힌다. APNs 키와는 **다른 키**
+2. **Codemagic 가입** — https://codemagic.io , GitHub 계정으로. ⚠️ **Team 만들지 말 것**
+3. Teams > Integrations > App Store Connect 에 키 등록. **이름 정확히 `PlanQ ASC`** (yaml 이 이 이름을 찾는다)
+4. 저장소 `ireneceo/planq` 연결 → 워크플로 `ios-testflight` 실행 → TestFlight 내부 테스터 추가(심사 없음, 100명)
+
+> 첫 빌드는 서명 프로파일 자동 생성 때문에 한 번 실패할 수 있다 — 로그 보고 조정.
+> `APP_STORE_APP_ID`(앱 숫자 ID)를 Codemagic 환경변수에 넣으면 빌드번호가 TestFlight 최신+1 로 자동.
+
+### 수정된 파일
+- `codemagic.yaml` (신규)
+- `dev-frontend/ios/App/App.xcodeproj/xcshareddata/xcschemes/App.xcscheme` (신규)
+- `docs/IOS_BETA_RUNBOOK.md`
+- `.claude/session-state.md`
+
+### 검증
+- 가드 3축 EXIT 0 — health-check **37/37** · guard-invariants **26/26** · e2e tenant **실패 0**
+- Q위키 커버리지 게이트 EXIT 0 (이번 변경은 사용자 대면 화면 변경 없음 → 아티클 추가 불요)
+- 실제 CI 실행 검증은 **Irene 의 Codemagic 가입 후**에만 가능 (현 시점 미실행)
+
+---
 
 ## ✅ 완료: 서비스 페이지·크레딧 경보·Q Task 카운트 정합 + iOS 베타 관문 통과 (2026-08-24 오후)
 

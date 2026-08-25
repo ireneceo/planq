@@ -1,46 +1,29 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-08-25 05:11 UTC (14:11 KST) — **아이맥에서 이어감**
-**작업 상태:** 서버 작업 전부 완료 · 커밋·push 완료(`72cbbe39` = origin/main, 작업트리 clean) · iOS 베타는 **Irene 의 브라우저 작업 4단계**만 남음(§📱)
+**마지막 업데이트:** 2026-08-25 (KST) — `/개발완료` 처리
+**작업 상태:** 완료 · 작업트리 clean · 소스(dev-backend/dev-frontend/q-note) 변경 0 → **`/배포` 불필요**
 
-### ▶ 진행 중인 작업 — iOS TestFlight 베타 (**클라우드 빌드로 전환**)
+### 진행 중인 작업
+- 없음 (서버 쪽 할 일 없음)
 
-**애플 쪽 관문은 100% 끝났다. 다시 할 것 없다.** 남은 것은 **빌드 → TestFlight 업로드** 뿐이다.
+### 완료된 작업 (이번 세션 — 2026-08-25)
+- **iOS TestFlight 빌드를 Codemagic 클라우드로 전환** (커밋 `72cbbe39`, push 완료)
+  - 맥에 Xcode 를 깔지 않는다. 맥북 실측 Xcode·Node 미설치 · 데이터 볼륨 94%(여유 28GB) vs Xcode 40GB 요구
+  - 판단 근거: 우리 앱은 Remote URL 껍데기라 서버 배포만으로 화면이 바뀐다 → **앱 재빌드가 드물다.** 어느 기기에서든 빌드 가능해짐
+  - 비용: 개인 계정 **무료 500 macOS M2 분/월**(회당 10~15분) · 초과 시 분당 $0.095. ⚠️ 가입 시 **Team 만들면 무료 분 소멸**
+  - 신규 `codemagic.yaml`(6단계 + TestFlight 자동 업로드) · 신규 공유 스킴 `App.xcscheme` · `IOS_BETA_RUNBOOK §2` 재작성
+- `/개발완료` — 가드 3축 EXIT 0 · Q위키 커버리지 EXIT 0 · DEVELOPMENT_PLAN 히스토리 박제 · memory 갱신
 
-**2026-08-25 결정: 맥에 Xcode 를 깔지 않고 Codemagic 클라우드 빌드로 간다.**
-- 맥북(맥에어) 실측 — Xcode·Node **둘 다 미설치**, 데이터 볼륨 **94% 사용(여유 28GB)**. Xcode 는 40GB 필요 → 애초에 빠듯
-- 우리 앱은 **Remote URL 껍데기**(`capacitor.config.ts`)라 서버 `/배포` 만으로 앱 화면이 바뀐다 → **앱 재빌드가 드물다.**
-  1년에 몇 번 쓸 도구 때문에 맥 40GB 를 비우지 않는다
-- 아이맥·맥북·윈도우 **어느 기기에서든** 된다 (빌드는 제공사 맥에서 돎)
-- **비용: 사실상 무료** — 개인 계정 무료 500 macOS M2 분/월, 우리 빌드 회당 10~15분.
-  초과 시 분당 $0.095. ⚠️ **무료 분은 개인 계정에만 — 가입 시 Team 만들면 무료 분이 사라진다**
+### 가드 3축 결과 (2026-08-25)
+| 가드 | 결과 |
+|---|---|
+| `scripts/health-check.js` | ✅ 37/37 (EXIT 0) |
+| `scripts/guard-invariants.js` | ✅ 26/26 (EXIT 0) |
+| `scripts/e2e/run.js --suite tenant` | ✅ 실패 0 (EXIT 0) |
+| `dev-backend/scripts/wiki-coverage-check.js` | ✅ 통과 (이번 변경은 사용자 대면 화면 변경 없음 → 아티클 불요) |
 
-### 🔴 오늘 마지막에 잡은 회귀 (배포 완료)
-**업무 저장이 매번 50초** — 내가 오늘 넣은 `afterSave` 스냅샷 훅이 `options.transaction` 을
-넘기지 않아 별도 커넥션으로 같은 행을 잠그려 했고, 바깥 트랜잭션이 쥔 락을 기다리다
-`innodb_lock_wait_timeout`(50초)를 매번 꽉 채웠다.
-- 운영 실측 **50,107ms → 82ms** (커밋 `2b7b2fa9`, 배포 18:43)
-- 두 겹으로 숨었다: 훅 `catch` 가 삼켜 로그에만 남고, 저장은 성공해 "그냥 느림" 으로만 보였다
-- 교훈 박제: memory `feedback_hook_must_join_transaction`
-
-### 완료된 작업 (2026-08-25 — 이번 세션)
-- **iOS 베타 빌드를 Codemagic 클라우드로 전환** (커밋 `72cbbe39`, GitHub push 완료)
-  - 맥북 실측: Xcode·Node 둘 다 미설치, 데이터 볼륨 **94%(여유 28GB)** — Xcode 는 40GB 필요
-  - 판단 근거: 우리 앱은 Remote URL 껍데기라 **앱 재빌드가 드물다.** 어느 기기에서든 빌드 가능해짐
-  - 비용 확인: 개인 계정 **무료 500 macOS M2 분/월**(회당 10~15분) · 초과 시 분당 $0.095
-  - 신규 `codemagic.yaml` · 신규 공유 스킴 `App.xcscheme` · `IOS_BETA_RUNBOOK §2` 재작성
-- 런북의 옛 "아이맥에서 빌드" 문구 정정
-
-### 완료된 작업 (2026-08-24 세션)
-- 랜딩 **서비스 페이지 `/service`** + 견적문의(`/contact?type=quote`) — ko/en
-- **문의 폼 전건 실패 수정** — 필드명 불일치로 역대 접수 0건이던 것 (실호출 400 재현 후 수정)
-- **외부 API 크레딧 경보** — Deepgram/OpenAI 잔액·소진 예상일(30/14/7/3/1일)·일 1회 메일 + 단가 자동 보정
-- **Q Task 체크박스 권한 규칙** — 담당자 아닌 업무의 완료 체크박스 제거(팝아웃과 단일 함수 공유)
-- **팝아웃 체크 즉시 반응** — 낙관 반영 + 행 단위 잠금
-- **카운트 정의 통일** — 오늘 탭·팝아웃 `업무 N건, 요청 M건` (합 = 보이는 행 수)
-- 태그 `+` 위치 고정 · 메일 답장 카드 여백 · 전체보기 새 창 여백
-- **iOS**: 아이콘·스플래시 PlanQ 마크 교체(알파 제거) · 베타 런북 · 빌드 목표 서버 안전장치
+> Fable 게이트: **소스 변경 0** 이라 해당 없음 (`git status --porcelain -- dev-backend dev-frontend q-note` 빈 값).
 
 ---
 
@@ -59,14 +42,13 @@
 APNs 검증 완료: 가짜 토큰에 `BadDeviceToken`(400) = 애플이 우리 인증을 수락.
 운영 `APNS_PRODUCTION=true`(TestFlight용) / dev `false`.
 
-### Claude 가 끝낸 것 (2026-08-25)
-- **`codemagic.yaml`** 신규 — 6단계(npm ci → `cap:beta` → pod install → 빌드번호 → 서명 → IPA) + TestFlight 자동 업로드
-  - `npm run cap:beta` 를 그대로 태워 **목표 서버가 `https://planq.kr` 이 아니면 빌드가 멈춘다**(기본값 dev 라 이게 유일한 안전장치)
-  - `webDir: www-placeholder` 라 **웹 빌드(vite) 없이 sync 된다** — CI 가 가볍다
-- **`App.xcscheme` 공유 스킴 신규** — Capacitor 가 만든 스킴은 `xcuserdata` 라 git 에 없었다.
-  공유 스킴이 없으면 클라우드 빌드가 빌드 대상을 못 찾는다 (target UUID `504EC3031FED79650016851F`)
+### Claude 가 끝낸 것
+- **`codemagic.yaml`** — npm ci → `cap:beta` → pod install → 빌드번호 → 서명 → IPA → TestFlight 자동 업로드
+  - `npm run cap:beta` 를 그대로 태워 **목표 서버가 `https://planq.kr` 이 아니면 빌드가 멈춘다**(기본값이 dev 라 이게 유일한 안전장치)
+  - `webDir: www-placeholder` 라 **웹 빌드(vite) 없이 sync** 된다 — CI 가 가볍다
+- **`App.xcscheme` 공유 스킴** — Capacitor 기본 스킴은 `xcuserdata` 라 git 에 없다. 없으면 클라우드가 빌드 대상을 못 찾는다 (target `504EC3031FED79650016851F`)
 
-### Irene 이 할 일 (브라우저만, 맥 불필요)
+### ▶ Irene 이 할 일 (브라우저만, 맥 불필요)
 1. **App Store Connect API 키 발급** — Users and Access > Integrations > App Store Connect > **+**
    - Role: **App Manager** / 받을 것: `.p8` 파일 · **Key ID** · **Issuer ID**
    - ⚠️ `.p8` 는 **한 번만** 내려받을 수 있다. APNs 키와는 **다른 키**다
@@ -81,32 +63,46 @@ APNs 검증 완료: 가짜 토큰에 `BadDeviceToken`(400) = 애플이 우리 �
 
 절차 상세: `docs/IOS_BETA_RUNBOOK.md`
 
-## 다음 할 일
-1. **iOS 베타 — Codemagic** (§📱 의 Irene 4단계) → 내부 테스터로 실기기 검증 6항목
-2. Fable 큐 `docs/FABLE_VERIFY_QUEUE.md` — §6 Gmail 스팸함 수집(커서 스키마), §5 메일 전달 기능(차단 중)
+---
 
-### ✅ 2026-08-24 저녁 — 대기 3건 전부 해소
-- Dropbox `.p8` 공유 링크 삭제 (Irene)
-- **운영 nginx Universal Links 완료** — `application/json` + `Cache-Control` 확인, `appIDs H2HW8BHXNW.app.planq`
-  ※ 1차 스크립트가 파일의 **첫 `listen 443`**(= www.planq.kr 리다이렉트 블록)에 넣어 실패했다.
-    2차는 `server_name planq.kr;` 뒤에 넣어 성공. **운영 설정을 못 읽는 상태에서 위치를 추측하지 말 것** —
-    구조(`grep -nE "server_name|listen"`)를 먼저 받고 스크립트를 짠다
-- **운영 크레딧 잔액 입력 완료** — Deepgram $185.54 / OpenAI $15.76 (Claude 가 직접 반영)
+## 다음 할 일
+1. **iOS 베타 — Codemagic** (§📱 의 Irene 4단계) → 첫 빌드 로그 확인 → 내부 테스터로 실기기 검증 6항목
+2. Fable 큐 `docs/FABLE_VERIFY_QUEUE.md` — §6 Gmail 스팸함 수집(커서 스키마), §5 메일 전달 기능(차단 중)
+3. 오늘의 업무 리뷰 — 요약 층 (재료 수집·UI 는 배포 완료, Fable 큐 이관분)
 
 ### Irene 조치 대기
 - Google Drive 재연동 (`invalid_grant`)
 
 ---
 
-## Git 상태 (2026-08-25 05:11 UTC)
+## 지난 세션 참고
+
+### 🔴 2026-08-24 마지막에 잡은 회귀 (배포 완료)
+**업무 저장이 매번 50초** — `afterSave` 스냅샷 훅이 `options.transaction` 을 넘기지 않아
+별도 커넥션으로 같은 행을 잠그려 했고, 바깥 트랜잭션이 쥔 락을 기다리다
+`innodb_lock_wait_timeout`(50초)를 매번 꽉 채웠다.
+- 운영 실측 **50,107ms → 82ms** (커밋 `2b7b2fa9`, 배포 18:43)
+- 두 겹으로 숨었다: 훅 `catch` 가 삼켜 로그에만 남고, 저장은 성공해 "그냥 느림" 으로만 보였다
+- 교훈 박제: memory `feedback_hook_must_join_transaction`
+
+### 2026-08-24 세션 완료분
+- 랜딩 **서비스 페이지 `/service`** + 견적문의(`/contact?type=quote`) — ko/en
+- **문의 폼 전건 실패 수정** — 필드명 불일치로 역대 접수 0건이던 것
+- **외부 API 크레딧 경보** — Deepgram/OpenAI 잔액·소진 예상일·일 1회 메일 + 단가 자동 보정
+- **Q Task 체크박스 권한 규칙** · **팝아웃 체크 즉시 반응** · **카운트 정의 통일**
+- **iOS**: 아이콘·스플래시 PlanQ 마크 교체(알파 제거) · 베타 런북 · 빌드 목표 서버 안전장치
+
+---
+
+## Git 상태 (2026-08-25 `/개발완료` 시점)
 
 | 항목 | 값 |
 |---|---|
 | 브랜치 | `main` |
 | 마지막 코드 커밋 | `72cbbe39` build(ios): TestFlight 빌드를 Codemagic 클라우드로 전환 |
-| HEAD / origin/main | 이 문서를 담은 세션 저장 커밋 (`git log -1` 로 확인). **push 완료, 로컬과 동일** |
-| 작업트리 | **clean** (미커밋 변경 0) |
-| 미배포 | 없음 — 이번 커밋은 문서·CI 설정뿐이라 `/배포` 불필요 |
+| HEAD | 이 문서를 담은 `/개발완료` 커밋 (`git log -1` 로 확인) — push 완료 |
+| 작업트리 | **clean** |
+| 미배포 | 없음 — 이번 사이클은 CI 설정·문서뿐이라 `/배포` 불필요 |
 
 ---
 
