@@ -86,9 +86,14 @@ const Sidebar = styled.div<{ $isOpen?: boolean; $isCollapsed?: boolean; $tabMode
   ${mediaTablet} {
     transform: translateX(${props => props.$isOpen ? '0' : '-100%'});
     width: 240px; transition: transform 0.3s, width 0.3s ease;
-    /* 모바일 브라우저에서 주소창 포함 문제 해결 */
-    height: 100dvh;
-    height: -webkit-fill-available;
+    /* 높이는 --vvh(=visualViewport.height, main.tsx 가 계속 sync) 하나로 잡는다.
+       ★ -webkit-fill-available 을 쓰지 않는다 — WKWebView 에서 이 값은 가시영역이 아니라
+       다른 박스를 따라가, 메뉴 아래가 잘리고(흰 띠) 남는 공간이 생겼다(2026-08-25 iOS 앱 실측).
+       상단 상태바·하단 홈 인디케이터 영역까지 배경(teal 그라데이션)이 닿도록 padding 으로 확장. */
+    height: var(--vvh, 100dvh);
+    padding-top: var(--pq-safe-top, 0px);
+    padding-bottom: var(--pq-safe-bottom, 0px);
+    box-sizing: border-box;
   }
 `;
 

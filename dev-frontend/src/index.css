@@ -20,6 +20,9 @@ html, body {
      더 내려가 그 틈으로 페이지 서브헤더가 보였다. 반대로 헤더는 상태바에 먹혀 내용을 가렸다.
      safe-area 는 브라우저·PWA 에서 0 이므로 웹 회귀 0. */
   --pq-safe-top: env(safe-area-inset-top, 0px);
+  /* 홈 인디케이터(아이폰 하단 바) 영역. 웹·PWA 는 0. 배경이 여기까지 안 닿으면
+     화면 아래가 흰 띠로 끊겨 "앱 같지 않게" 보인다(운영 실측 2026-08-25). */
+  --pq-safe-bottom: env(safe-area-inset-bottom, 0px);
   --pq-mobile-header: 56px;
   --pq-mobile-chrome: calc(var(--pq-mobile-header) + var(--pq-safe-top));
 }
