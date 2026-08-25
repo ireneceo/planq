@@ -90,8 +90,13 @@ const Sidebar = styled.div<{ $isOpen?: boolean; $isCollapsed?: boolean; $tabMode
        ★ -webkit-fill-available 을 쓰지 않는다 — WKWebView 에서 이 값은 가시영역이 아니라
        다른 박스를 따라가, 메뉴 아래가 잘리고(흰 띠) 남는 공간이 생겼다(2026-08-25 iOS 앱 실측).
        상단 상태바·하단 홈 인디케이터 영역까지 배경(teal 그라데이션)이 닿도록 padding 으로 확장. */
-    height: var(--vvh, 100dvh);
-    padding-top: var(--pq-safe-top, 0px);
+    /* ★ 높이를 계산하지 않는다 — 위아래 끝에 고정한다.
+       뷰포트 값(100dvh·-webkit-fill-available·--vvh)이 실제 WebView 높이와 1px 이라도 다르면
+       그 차이가 아래쪽 흰 여백으로 보인다. top/bottom 을 둘 다 박으면 계산 자체가 사라진다
+       (Irene: "좌측메뉴 열면 아래 흰여백"). 배경 그라데이션도 끝까지 닿는다. */
+    top: 0;
+    bottom: 0;
+    height: auto;
     padding-bottom: var(--pq-safe-bottom, 0px);
     box-sizing: border-box;
   }

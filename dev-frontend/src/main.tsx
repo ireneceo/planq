@@ -35,7 +35,11 @@ if (isNativeApp()) {
   //   iOS 고무줄(bounce) 이 발동한다 — 사용자에겐 "화면이 위아래로 흔들림" 으로 보인다.
   document.documentElement.classList.add('pq-native');
   import('@capacitor/status-bar').then(({ StatusBar, Style }) => {
-    StatusBar.setStyle({ style: Style.Light }).catch(() => {});
+    // overlay=true — 상태바가 WebView 위에 겹친다. contentInset:'never' 와 한 쌍(edge-to-edge).
+    //   이래야 헤더의 teal 이 상태바 뒤까지 이어지고 흰 띠가 사라진다.
+    StatusBar.setOverlaysWebView({ overlay: true }).catch(() => {});
+    // Style.Dark = 어두운 배경용(흰 글자). 우리 헤더는 #115E59 진한 teal 이라 흰 글자가 맞다.
+    StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
   }).catch(() => {});
 }
 

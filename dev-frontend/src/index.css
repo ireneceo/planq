@@ -35,6 +35,13 @@ html.pq-native body {
   -webkit-overflow-scrolling: auto;
 }
 
+/* 네이티브 앱은 화면 끝까지 우리가 그린다(edge-to-edge).
+   capacitor.config.ts 의 ios.contentInset='never' + StatusBar overlay 와 한 쌍이다 —
+   WebView 가 상태바 아래로 밀려나 있으면 그 자리는 WebView 흰 배경이 차지해 흰 띠가 남고,
+   거기에 CSS 로 safe-area 를 더하면 여백만 두꺼워진다(2026-08-25 실측). 둘 중 하나만 하면 안 된다.
+   edge-to-edge 이므로 env(safe-area-inset-*) 가 비로소 정확한 값이 되고,
+   헤더는 상태바 뒤까지 teal 로 채워진다. 웹·PWA 는 safe-area 가 0 이라 무변경. */
+
 @media (max-width: 768px) {
   * {
     max-width: 100vw;

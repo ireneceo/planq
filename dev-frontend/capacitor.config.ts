@@ -21,9 +21,17 @@ const config: CapacitorConfig = {
     errorPath: 'index.html',
   },
   ios: {
-    // 세이프에어리어/상태바 자동 인셋. 기존 env(safe-area-inset-*) CSS 와 병행.
-    contentInset: 'automatic',
+    // ★ 'never' — WebView 가 상태바·홈 인디케이터 뒤까지 채운다(edge-to-edge).
+    //   'automatic' 이면 WebView 자체가 안쪽으로 밀려 그 자리를 흰 배경이 차지한다
+    //   ("위아래가 흰색으로 끊겨서 앱 같지 않다", 2026-08-25 실기기).
+    //   인셋 책임은 CSS 로 옮긴다 — index.css 의 --pq-safe-top/bottom + 각 화면의
+    //   env(safe-area-inset-*) 가 단일 원천이다. 둘 다 인셋하면 여백이 두 배가 된다.
+    contentInset: 'never',
+    // 스크롤 끝에서 튕기는 고무줄 비활성 — CSS overscroll-behavior 와 이중 방어.
+    scrollEnabled: true,
   },
+  // WebView 바탕색 — 페이지가 아직 안 그려진 순간(첫 로드·전환)에 흰 섬광 대신 앱 색.
+  backgroundColor: '#115E59',
   plugins: {
     // 포그라운드 도착 시 OS 배너 억제 — 인앱 토스터(socket)가 담당해 중복 표시 방지. §5.4
     PushNotifications: { presentationOptions: [] },
