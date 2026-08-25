@@ -6,12 +6,14 @@ import { useTranslation } from 'react-i18next';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import DetailDrawer from '../../components/Common/DetailDrawer';
-import { useImageLightbox } from '../../components/Common/ImageLightbox';
 import ShareModal from '../../components/Common/ShareModal';
 import EmptyState from '../../components/Common/EmptyState';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import SecurityLevelBadge, { useSecurityLevelLabel } from '../../components/Common/SecurityLevelBadge';
 import SearchBox from '../../components/Common/SearchBox';
+import { useUploadQueue, UploadQueuePanel } from './docs/UploadQueue';
+import FileMetaEditor from './docs/FileMetaEditor';
+import PreviewArea from './docs/PreviewArea';
 import CloudConnectNotice from '../../components/Common/CloudConnectNotice';
 import { Link } from 'react-router-dom';
 import {
@@ -49,6 +51,7 @@ interface Props {
   scope?: DocScope;
 }
 
+/** 업로드 큐 한 건 */
 const DocsTab: React.FC<Props> = (props) => {
   const scope: DocScope = props.scope
     || (props.projectId && props.businessId
@@ -75,7 +78,8 @@ const DocsTab: React.FC<Props> = (props) => {
   const [preview, setPreview] = useState<ProjectFile | null>(null);
   const [shareTarget, setShareTarget] = useState<ProjectFile | null>(null);
   const [dragOver, setDragOver] = useState(false);
-  const [uploadingCount, setUploadingCount] = useState(0);
+  // 업로드 큐 — 파일별 진행률·속도·취소 (docs/UploadQueue)
+  const { uploads, runUploads, cancelUpload } = useUploadQueue();
   const [deleteConfirm, setDeleteConfirm] = useState<ProjectFile | null>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -234,7 +238,11 @@ const DocsTab: React.FC<Props> = (props) => {
     let r = filteredByFolder.slice();
     if (query.trim()) {
       const q = query.toLowerCase();
-      r = r.filter(f => f.file_name.toLowerCase().includes(q));
+      // 파일명만으로는 영상·스캔본을 찾을 수 없다 — 설명·태그도 같이 본다.
+      r = r.filter(f =>
+        f.file_name.toLowerCase().includes(q)
+        || (f.description || '').toLowerCase().includes(q)
+        || (f.tags || []).some(tg => tg.toLowerCase().includes(q)));
     }
     if (sort === 'name') r.sort((a, b) => (a.file_name || '').localeCompare(b.file_name || ''));
     else if (sort === 'size') r.sort((a, b) => (b.file_size || 0) - (a.file_size || 0));
@@ -253,13 +261,9 @@ const DocsTab: React.FC<Props> = (props) => {
     if (arr.length === 0) return;
     // N+30 — 개인 보관함 모드: project_id 없이 uploadMyFile → backend 가 자동 visibility=L1 (files.js:390)
     if (isPersonal) {
-      setUploadingCount(n => n + arr.length);
-      for (const f of arr) {
-        try {
-          const r = await uploadMyFile(businessId, f);
-          if (r.success && r.file) setFiles(prev => [r.file!, ...prev]);
-        } finally { setUploadingCount(n => n - 1); }
-      }
+      await runUploads(arr,
+        (f, hooks) => uploadMyFile(businessId, f, hooks),
+        (file) => setFiles(prev => [file, ...prev]));
       return;
     }
     if (isWorkspace) {
@@ -267,46 +271,34 @@ const DocsTab: React.FC<Props> = (props) => {
       //  - "내 파일" 폴더 선택 중이면 바로 업로드 (project_id 없이)
       //  - 그 외엔 프로젝트 선택 모달 띄움
       if (folderSel === 'my') {
-        setUploadingCount(n => n + arr.length);
-        for (const f of arr) {
-          try {
-            const r = await uploadMyFile(businessId, f);
-            if (r.success && r.file) setFiles(prev => [r.file!, ...prev]);
-          } finally { setUploadingCount(n => n - 1); }
-        }
+        await runUploads(arr,
+          (f, hooks) => uploadMyFile(businessId, f, hooks),
+          (file) => setFiles(prev => [file, ...prev]));
         return;
       }
       setPendingUpload(arr);
       return;
     }
     const targetFolderId = typeof folderSel === 'number' ? folderSel : null;
-    setUploadingCount(n => n + arr.length);
-    for (const f of arr) {
-      try {
-        const r = await uploadProjectFile(businessId, projectId, f, { folderId: targetFolderId });
-        if (r.success && r.file) setFiles(prev => [r.file!, ...prev]);
-      } finally { setUploadingCount(n => n - 1); }
-    }
-  }, [businessId, projectId, folderSel, isWorkspace, isPersonal]);
+    await runUploads(arr,
+      (f, hooks) => uploadProjectFile(businessId, projectId, f, { folderId: targetFolderId, ...hooks }),
+      (file) => setFiles(prev => [file, ...prev]));
+  }, [businessId, projectId, folderSel, isWorkspace, isPersonal, runUploads]);
 
   const commitWorkspaceUpload = useCallback(async () => {
     if (!pendingUpload || !workspaceUploadProject) return;
     const arr = pendingUpload;
     const targetProject = workspaceUploadProject;
     setPendingUpload(null); setWorkspaceUploadProject(null);
-    setUploadingCount(n => n + arr.length);
-    for (const f of arr) {
-      try {
-        const r = await uploadProjectFile(businessId, targetProject, f, { folderId: null });
-        if (r.success && r.file) {
-          // project_context 수동 주입 (워크스페이스 뷰 유지)
-          const proj = projectGroups.find(p => p.id === targetProject);
-          const withCtx = proj ? { ...r.file, project_context: { id: proj.id, name: proj.name, color: proj.color } } : r.file;
-          setFiles(prev => [withCtx, ...prev]);
-        }
-      } finally { setUploadingCount(n => n - 1); }
-    }
-  }, [pendingUpload, workspaceUploadProject, businessId, projectGroups]);
+    await runUploads(arr,
+      (f, hooks) => uploadProjectFile(businessId, targetProject, f, { folderId: null, ...hooks }),
+      (file) => {
+        // project_context 수동 주입 (워크스페이스 뷰 유지)
+        const proj = projectGroups.find(p => p.id === targetProject);
+        const withCtx = proj ? { ...file, project_context: { id: proj.id, name: proj.name, color: proj.color } } : file;
+        setFiles(prev => [withCtx, ...prev]);
+      });
+  }, [pendingUpload, workspaceUploadProject, businessId, projectGroups, runUploads]);
 
   const toggleSelect = (id: string, e?: React.MouseEvent) => {
     setSelectedIds(prev => {
@@ -426,7 +418,6 @@ const DocsTab: React.FC<Props> = (props) => {
           </DzIcon>
           <DzTitle>{t('docs.drop.title', '파일을 여기에 드롭하거나 클릭해 선택')}</DzTitle>
           <DzHint>{t('docs.drop.hint', '최대 50MB · 여러 파일 동시 업로드')}</DzHint>
-          {uploadingCount > 0 && <DzBadge>{t('docs.drop.uploading', '{{n}}개 업로드 중…', { n: uploadingCount })}</DzBadge>}
         </Dropzone>
       ) : (
         <CompactBar>
@@ -438,9 +429,9 @@ const DocsTab: React.FC<Props> = (props) => {
             {t('docs.drop.upload', '업로드')}
           </CompactUploadBtn>
           <CompactHint>{t('docs.drop.compactHint', '여기나 리스트 영역에 파일을 끌어다 놓아도 됩니다')}</CompactHint>
-          {uploadingCount > 0 && <DzBadge>{t('docs.drop.uploading', '{{n}}개 업로드 중…', { n: uploadingCount })}</DzBadge>}
         </CompactBar>
       )}
+      <UploadQueuePanel uploads={uploads} onCancel={cancelUpload} />
       <input ref={inputRef} type="file" multiple hidden
         onChange={e => { if (e.target.files) handleFiles(e.target.files); e.target.value = ''; }} />
 
@@ -756,7 +747,19 @@ const DocsTab: React.FC<Props> = (props) => {
               </PvHeaderInner>
             </DetailDrawer.Header>
             <DetailDrawer.Body>
-              <PreviewArea file={preview} />
+              <PreviewArea file={preview} businessId={businessId} />
+              {/* 이름·설명·태그 — 파일명만으로 못 찾는 자료를 검색 가능하게 (자동저장) */}
+              {preview.source === 'direct' && preview.deletable && (
+                <FileMetaEditor
+                  key={preview.id}
+                  businessId={businessId}
+                  file={preview}
+                  onSaved={(m) => {
+                    setPreview(prev => (prev ? { ...prev, ...m } : prev));
+                    setFiles(prev => prev.map(f => (f.id === preview.id ? { ...f, ...m } : f)));
+                  }}
+                />
+              )}
               <MetaList>
                 <MetaItem><MetaKey>{t('docs.col.uploader', '업로더')}</MetaKey><MetaVal>{preview.uploader_name}</MetaVal></MetaItem>
                 <MetaItem><MetaKey>{t('docs.col.date', '업로드')}</MetaKey><MetaVal>{formatDate(preview.uploaded_at)}</MetaVal></MetaItem>
@@ -1175,36 +1178,8 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
   );
 };
 
-// ─── 프리뷰 ───
-
-const PreviewArea: React.FC<{ file: ProjectFile }> = ({ file }) => {
-  const { t } = useTranslation('qproject');
-  const { open: openLightbox, lightbox } = useImageLightbox();
-  const hasValidUrl = (u?: string) => !!u && u !== '#' && u.trim().length > 0;
-  if (isImage(file.mime_type, file.file_name) && hasValidUrl(file.preview_url)) {
-    // 클릭 시 원본(파라미터 없는 preview_url)으로 확대 라이트박스
-    const full = file.preview_url!;
-    return (
-      <>
-        <PreviewImageBtn type="button" onClick={() => openLightbox([{ src: full, alt: file.file_name }], 0)}
-          title={t('docs.preview.zoom', '클릭하여 확대') as string}>
-          <PreviewImage src={withW(file.preview_url, 1024)!} alt={file.file_name} />
-        </PreviewImageBtn>
-        {lightbox}
-      </>
-    );
-  }
-  if ((file.mime_type === 'application/pdf' || extOf(file.file_name) === 'pdf') && hasValidUrl(file.download_url)) {
-    return <PreviewIframe src={file.download_url} title={file.file_name} />;
-  }
-  return (
-    <PreviewFallback>
-      <PvExtCircle>{extOf(file.file_name).toUpperCase() || '—'}</PvExtCircle>
-      <PvFallbackHint>{t('docs.preview.fallbackHint', '미리보기는 다운로드 후 확인 가능합니다')}</PvFallbackHint>
-    </PreviewFallback>
-  );
-};
-
+// ─── 파일 메타 편집 (이름 · 설명 · 태그) ───
+// 저장 버튼 없이 자동저장(프로젝트 규칙). 태그는 Enter·쉼표로 칩을 추가한다.
 // ─── helpers ───
 
 function sortLabel(s: SortKey, t: (k: string, fb?: string) => string): string {
@@ -1345,8 +1320,7 @@ const Dropzone = styled.div<{ $drag: boolean }>`
 const DzIcon = styled.div<{ $large?: boolean }>`color:#94A3B8;margin-bottom:${p => p.$large ? 4 : 0}px;`;
 const DzTitle = styled.div`font-size:13px;font-weight:600;color:#334155;`;
 const DzHint = styled.div`font-size:11px;color:#94A3B8;`;
-const DzBadge = styled.div`margin-top:4px;padding:3px 10px;background:#0F766E;color:#fff;border-radius:999px;font-size:11px;font-weight:600;`;
-
+/* 업로드 진행 패널 — 파일별 한 줄 */
 const CompactBar = styled.div`
   display:flex;align-items:center;gap:12px;flex-wrap:wrap;
   padding:8px 12px;background:#F8FAFC;border:1px dashed #CBD5E1;border-radius:10px;
@@ -1624,12 +1598,6 @@ const HeaderIconBtn = styled.button<{ $danger?: boolean }>`
   }
   @media (max-width: 640px){ width:40px;height:40px; }
 `;
-const PreviewImageBtn = styled.button`display:block;width:100%;padding:0;border:none;background:none;cursor:zoom-in;`;
-const PreviewImage = styled.img`width:100%;max-height:420px;object-fit:contain;background:#F8FAFC;border-radius:10px;`;
-const PreviewIframe = styled.iframe`width:100%;height:420px;border:1px solid #E2E8F0;border-radius:10px;background:#F8FAFC;`;
-const PreviewFallback = styled.div`display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:40px 20px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;`;
-const PvExtCircle = styled.div`width:72px;height:72px;border-radius:50%;background:#fff;border:1px solid #E2E8F0;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#475569;letter-spacing:.5px;`;
-const PvFallbackHint = styled.div`font-size:12px;color:#64748B;text-align:center;`;
 const MetaList = styled.div`display:flex;flex-direction:column;gap:10px;`;
 // N+67 — visibility 변경 영역 (preview drawer)
 const VisibilitySection = styled.div`

@@ -39,6 +39,28 @@ function dragSig(businessId, fileId, userId, exp) {
     .digest('hex');
 }
 
+// ─── 영상·음성 인앱 재생 서명 URL ───
+// `<video src>` 는 Authorization 헤더를 실을 수 없다. 그래서 재생만을 위한 서명 URL 을 발급한다.
+// 드래그 아웃(#228)과 **같은 키 파생 방식**이되 도메인 문자열을 분리해 서로 대입되지 않게 한다.
+//   · TTL 4시간 — 긴 녹화를 끝까지 재생하는 동안 Range 요청이 계속 나간다(5분이면 재생 중 끊긴다)
+//   · MIME 을 video/* · audio/* 로 **하드 게이트** — HTML/SVG inline 은 XSS 벡터라 절대 못 태운다
+//   · 상환 시 canDownloadFile 을 다시 통과해야 한다(발급 시점 권한을 신뢰하지 않는다)
+const MEDIA_TTL_SEC = 4 * 60 * 60;
+const MEDIA_SIGN_KEY = crypto.createHmac('sha256', String(process.env.JWT_SECRET || ''))
+  .update('planq-file-media-v1').digest();
+
+function mediaSig(businessId, fileId, userId, exp) {
+  return crypto.createHmac('sha256', MEDIA_SIGN_KEY)
+    .update(`v1.${Number(businessId)}.${Number(fileId)}.${Number(userId)}.${Number(exp)}`)
+    .digest('hex');
+}
+
+/** 인앱 재생 가능한 MIME 인가 (video/audio 만) */
+function isPlayableMedia(mime) {
+  const m = String(mime || '').toLowerCase();
+  return m.startsWith('video/') || m.startsWith('audio/');
+}
+
 // 다운로드 권한 술어 — **단일 원천**. 인증 다운로드 / 드래그 발급 / 드래그 상환 세 곳이 같은 함수를 부른다.
 //   같은 판정을 여러 벌로 복제하면 반드시 갈라진다(한 곳만 고쳐진 채 남는다).
 async function canDownloadFile(scope, userId, file) {
@@ -315,6 +337,53 @@ router.get('/drag/:businessId/:id', perUserLimiter('file-drag-redeem', { windowM
     return res.sendFile(path.resolve(file.file_path));
   } catch (err) { next(err); }
 });
+
+// ─── 영상·음성 재생 (서명 URL 상환 — **무인증 공개**, MIME 하드 게이트) ───
+// GET /api/files/media/:businessId/:id?u=&exp=&sig=
+// res.sendFile 이 Range 를 처리한다(Accept-Ranges: bytes) → 탐색·부분 재생이 그대로 된다.
+router.get('/media/:businessId/:id',
+  perUserLimiter('file-media', { windowMs: 60 * 1000, max: 600 }), async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const fileId = Number(req.params.id);
+      const userId = Number(req.query.u);
+      const exp = Number(req.query.exp);
+      const sig = String(req.query.sig || '');
+      // 형식 가드 — timingSafeEqual 은 길이가 다르면 throw 한다(500 크래시 경로).
+      if (!/^[a-f0-9]{64}$/.test(sig)) return errorResponse(res, 'invalid_signature', 403);
+      if (!Number.isInteger(businessId) || !Number.isInteger(fileId) || !Number.isInteger(userId) || !Number.isInteger(exp)) {
+        return errorResponse(res, 'invalid_signature', 403);
+      }
+      const expected = mediaSig(businessId, fileId, userId, exp);
+      if (!crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'))) {
+        return errorResponse(res, 'invalid_signature', 403);
+      }
+      if (exp * 1000 < Date.now()) return errorResponse(res, 'link_expired', 410);
+
+      const file = await File.findOne({
+        where: { id: fileId, business_id: businessId, deleted_at: null, storage_provider: 'planq' },
+      });
+      if (!file) return errorResponse(res, 'file_not_found', 404);
+      // ★ MIME 게이트 — 서명이 유효해도 영상·음성이 아니면 절대 inline 으로 흘리지 않는다.
+      if (!isPlayableMedia(file.mime_type)) return errorResponse(res, 'not_playable_media', 403);
+      // 외부 노출 게이트 — 드래그 아웃과 **같은 술어**. 무인증 URL 을 발급하는 경로는 규칙이 하나여야
+      //   한다(둘로 갈라두면 한쪽만 고쳐진 채 남는다). 기밀·내부 등급 영상은 미리보기 대신 다운로드로.
+      if (file.security_level && file.security_level !== 'general') {
+        return errorResponse(res, 'security_level_blocks_media', 403, 'security_level_blocks_media');
+      }
+      const user = await User.findByPk(userId);
+      if (!user || user.status !== 'active') return errorResponse(res, 'forbidden', 403);
+      const scope = await getUserScope(userId, businessId, user.platform_role);
+      if (!(await canDownloadFile(scope, userId, file))) return errorResponse(res, 'forbidden', 403);
+
+      if (!fs.existsSync(file.file_path)) return errorResponse(res, 'physical_file_missing', 410);
+      res.setHeader('Content-Type', file.mime_type);
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Content-Disposition', 'inline');
+      res.setHeader('Cache-Control', 'private, max-age=3600');
+      return res.sendFile(path.resolve(file.file_path));
+    } catch (err) { next(err); }
+  });
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -838,6 +907,75 @@ router.put('/:businessId/:id/security-level', authenticateToken, attachWorkspace
 
 // ─── Delete (soft) ───
 
+// ─── 파일 메타 편집 (이름 · 설명 · 태그) ───
+// PATCH /api/files/:businessId/:id  body: { file_name?, description?, tags? }
+// 권한은 삭제와 **같은 술어**(canMutateFile) — 본인 업로드 · 오너 · 프로젝트 PM.
+//   파일명은 검색의 1차 열쇠라 잘못 올라온 이름을 고칠 수 없으면 자료를 영영 못 찾는다.
+//   확장자는 바꾸지 못하게 한다 — 열리는 프로그램이 달라져 사용자에게는 파일이 깨진 것으로 보인다.
+router.patch('/:businessId/:id', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
+  try {
+    const file = await File.findOne({
+      where: { id: req.params.id, business_id: req.params.businessId, deleted_at: null },
+    });
+    if (!file) return errorResponse(res, 'File not found', 404);
+    if (!(await canMutateFile(file, req))) return errorResponse(res, 'forbidden', 403);
+
+    const patch = {};
+    const before = { file_name: file.file_name, description: file.description, tags: file.tags };
+
+    if (req.body.file_name !== undefined) {
+      let name = String(req.body.file_name || '').trim();
+      // 경로 구분자·제어문자 제거 — 저장 경로와 무관한 표시용 이름이지만 헤더·ZIP 에 실린다.
+      name = name.replace(/[/\\\r\n\t\0]/g, '').replace(/^[.\s]+/, '').slice(0, 255).trim();
+      if (!name) return errorResponse(res, 'file_name_required', 400, 'file_name_required');
+      const oldExt = path.extname(file.file_name || '').toLowerCase();
+      const newExt = path.extname(name).toLowerCase();
+      // 확장자를 빼먹고 저장했으면 원래 확장자를 되붙인다(사용자가 지우기 쉬운 부분이다).
+      if (oldExt && newExt !== oldExt) name = name.replace(/\.[^.]*$/, '') + oldExt;
+      patch.file_name = name;
+    }
+    if (req.body.description !== undefined) {
+      patch.description = String(req.body.description || '').slice(0, 500) || null;
+    }
+    if (req.body.tags !== undefined) {
+      const raw = Array.isArray(req.body.tags) ? req.body.tags : [];
+      const seen = new Set();
+      const tags = [];
+      for (const x of raw) {
+        // 문자열·숫자만 — 객체/배열이 오면 String() 이 "[object Object]" 를 만들어 저장된다.
+        if (typeof x !== 'string' && typeof x !== 'number') continue;
+        const v = String(x).trim().replace(/\s+/g, ' ').slice(0, 40);
+        const k = v.toLowerCase();
+        if (!v || seen.has(k)) continue;
+        seen.add(k); tags.push(v);
+        if (tags.length >= 20) break;
+      }
+      patch.tags = tags.length ? tags : null;
+    }
+    if (Object.keys(patch).length === 0) return errorResponse(res, 'nothing_to_update', 400);
+
+    await file.update(patch);
+
+    require('../services/auditService').logAudit(req, {
+      action: 'file.meta_update',
+      targetType: 'file',
+      targetId: file.id,
+      businessId: file.business_id,
+      oldValue: before,
+      newValue: patch,
+    });
+    // 실시간 — 다른 사람이 그 목록을 열고 있으면 즉시 반영된다(CLAUDE.md 운영 안정성 16).
+    broadcastFile(req, file, 'file:updated');
+    return successResponse(res, {
+      id: file.id,
+      file_name: file.file_name,
+      description: file.description,
+      tags: file.tags || [],
+    });
+  } catch (err) { next(err); }
+});
+
 router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
   try {
@@ -1025,6 +1163,40 @@ router.post('/:businessId/:id/drag-url', authenticateToken, attachWorkspaceScope
       const sig = dragSig(businessId, file.id, req.user.id, exp);
       return successResponse(res, {
         url: `/api/files/drag/${businessId}/${file.id}?u=${req.user.id}&exp=${exp}&sig=${sig}`,
+        expires_at: new Date(exp * 1000).toISOString(),
+      });
+    } catch (err) { next(err); }
+  });
+
+// ─── 영상·음성 재생 URL 발급 ───
+// POST /api/files/:businessId/:id/media-url  →  { url, expires_at }
+// 다운로드와 **같은 권한 술어**(canDownloadFile)를 통과해야만 발급한다.
+router.post('/:businessId/:id/media-url', authenticateToken, attachWorkspaceScope(),
+  perUserLimiter('file-media-url', { windowMs: 60 * 1000, max: 120 }), async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const file = await File.findOne({
+        where: { id: req.params.id, business_id: businessId, deleted_at: null },
+      });
+      if (!file) return errorResponse(res, 'File not found', 404);
+      if (!(await canDownloadFile(req.scope, req.user.id, file))) {
+        return errorResponse(res, 'forbidden', 403);
+      }
+      if (!isPlayableMedia(file.mime_type)) {
+        return errorResponse(res, 'not_playable_media', 400, 'not_playable_media');
+      }
+      // 외부 노출 게이트 — 공유 링크·드래그 아웃과 같은 기준 (D4 #62)
+      if (file.security_level && file.security_level !== 'general') {
+        return errorResponse(res, 'security_level_blocks_media', 403, 'security_level_blocks_media');
+      }
+      // 바이트를 우리가 쥔 파일만 — 외부 스토리지는 Range·MIME 을 보장할 수 없다.
+      if (file.storage_provider !== 'planq') {
+        return errorResponse(res, 'external_file_not_playable', 400, 'external_file_not_playable');
+      }
+      const exp = Math.floor(Date.now() / 1000) + MEDIA_TTL_SEC;
+      const sig = mediaSig(businessId, file.id, req.user.id, exp);
+      return successResponse(res, {
+        url: `/api/files/media/${businessId}/${file.id}?u=${req.user.id}&exp=${exp}&sig=${sig}`,
         expires_at: new Date(exp * 1000).toISOString(),
       });
     } catch (err) { next(err); }

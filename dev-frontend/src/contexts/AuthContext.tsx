@@ -413,6 +413,94 @@ const apiFetch = async (url: string, options: RequestInit = {}): Promise<Respons
 // apiFetch를 전역에 노출 (다른 컴포넌트에서 import해서 사용)
 export { apiFetch };
 
+// ─── 업로드 게이트웨이 (진행률) ────────────────────────────────────────────────
+// ★ fetch 는 **업로드 진행 이벤트를 제공하지 않는다** (ReadableStream 요청 본문은 HTTP/2 전용 +
+//   Safari/iOS 미지원). 그래서 파일 업로드만은 XMLHttpRequest 를 쓴다 — `xhr.upload.onprogress`
+//   가 유일한 진행률 원천이다. 인증·능동 refresh·401 재시도·폭주 차단은 apiFetch 와 같은 계약을
+//   따른다(게이트웨이를 두 벌로 가르지 않는다).
+export interface UploadProgress {
+  loaded: number;
+  total: number;
+  /** 0~100. total 을 모르면 -1 */
+  pct: number;
+}
+
+export interface ApiUploadOptions {
+  onProgress?: (p: UploadProgress) => void;
+  signal?: AbortSignal;
+}
+
+function xhrSend(url: string, body: FormData, token: string | null, opts?: ApiUploadOptions): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url, true);
+    xhr.withCredentials = true;             // HttpOnly refresh 쿠키 — apiFetch 의 credentials:'include' 와 동일
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+    if (opts?.onProgress) {
+      xhr.upload.onprogress = (e) => {
+        opts.onProgress!({
+          loaded: e.loaded,
+          total: e.lengthComputable ? e.total : 0,
+          pct: e.lengthComputable && e.total > 0 ? Math.round((e.loaded / e.total) * 100) : -1,
+        });
+      };
+    }
+
+    const onAbort = () => xhr.abort();
+    if (opts?.signal) {
+      if (opts.signal.aborted) { reject(new DOMException('Aborted', 'AbortError')); return; }
+      opts.signal.addEventListener('abort', onAbort, { once: true });
+    }
+    const cleanup = () => { if (opts?.signal) opts.signal.removeEventListener('abort', onAbort); };
+
+    xhr.onload = () => {
+      cleanup();
+      // 서버 응답을 Response 로 감싸 호출부가 fetch 와 같은 방식으로 읽게 한다.
+      const headers = new Headers();
+      const ct = xhr.getResponseHeader('Content-Type');
+      if (ct) headers.set('Content-Type', ct);
+      resolve(new Response(xhr.responseText, { status: xhr.status, headers }));
+    };
+    xhr.onerror = () => { cleanup(); reject(new TypeError('Network request failed')); };
+    xhr.onabort = () => { cleanup(); reject(new DOMException('Aborted', 'AbortError')); };
+    xhr.ontimeout = () => { cleanup(); reject(new TypeError('Upload timed out')); };
+
+    xhr.send(body);
+  });
+}
+
+/**
+ * 파일 업로드 — 진행률 콜백 + 취소 지원.
+ * apiFetch 와 같은 인증 계약: 능동 refresh → Authorization 부착 → 401 이면 refresh 후 1회 재시도.
+ */
+const apiUpload = async (url: string, body: FormData, opts?: ApiUploadOptions): Promise<Response> => {
+  if (accessToken) {
+    const remaining = tokenRemainingMs();
+    if (remaining > 0 && remaining < PROACTIVE_REFRESH_MS) await tryRefresh();
+  }
+  const res = await xhrSend(url, body, accessToken, opts);
+  if (res.status === 401) {
+    const r = await tryRefresh();
+    if (r.ok) return xhrSend(url, body, accessToken, opts);
+    if (isTerminal(r)) {
+      reportSessionEnd('upload_401_then_refresh_unauthorized', (r as { code?: string }).code);
+      try { window.dispatchEvent(new Event('planq:session-expired')); } catch { /* noop */ }
+    }
+  }
+  if (res.status === 422) {
+    try {
+      const j = await res.clone().json();
+      if (j?.code && /quota_exceeded|feature_not_in_plan|subscription_inactive/.test(String(j.code))) {
+        window.dispatchEvent(new CustomEvent('planq:limit-reached', { detail: j }));
+      }
+    } catch { /* noop */ }
+  }
+  return res;
+};
+
+export { apiUpload };
+
 interface AuthProviderProps {
   children: ReactNode;
 }

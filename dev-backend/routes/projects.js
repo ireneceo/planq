@@ -3121,6 +3121,9 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
         // N+67 — visibility 노출 (frontend file detail drawer 에 표시 + 변경 UI)
         visibility: f.visibility,
         project_id: f.project_id,
+        // 검색용 메타 — 이 둘이 빠지면 편집해도 목록·검색에는 옛 값만 남는다
+        description: f.description,
+        tags: f.tags || [],
       });
     }
 
@@ -3321,7 +3324,11 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
         external_url: f.external_url,
         folder_id: f.folder_id,
         deletable: true,
-        storage_provider: f.storage_provider
+        storage_provider: f.storage_provider,
+        visibility: f.visibility,
+        project_id: f.project_id,
+        description: f.description,
+        tags: f.tags || [],
       });
     }
 

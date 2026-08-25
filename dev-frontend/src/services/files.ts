@@ -1,7 +1,8 @@
 // 프로젝트 파일 허브 서비스
 // Phase 2 — 실 API 연결 완료
 
-import { apiFetch } from '../contexts/AuthContext';
+import { apiFetch, apiUpload } from '../contexts/AuthContext';
+import type { UploadProgress } from '../contexts/AuthContext';
 import { downloadBlob } from '../utils/download';
 
 export type FileSource = 'direct' | 'chat' | 'task' | 'meeting' | 'post';
@@ -35,6 +36,28 @@ export interface ProjectFile {
   visibility?: 'L1' | 'L2' | 'L3' | 'L4' | null;
   security_level?: 'general' | 'internal' | 'confidential';  // D4 #62
   project_id?: number | null;
+  // 검색용 메타 — 파일명만으로 못 찾는 자료(영상·스캔본)를 위해
+  description?: string | null;
+  tags?: string[] | null;
+}
+
+/** 파일 메타(이름·설명·태그) 편집. 권한은 삭제와 같은 술어(본인 업로드·오너·PM). */
+export async function updateFileMeta(
+  businessId: number,
+  fileId: string,
+  patch: { file_name?: string; description?: string | null; tags?: string[] },
+): Promise<{ file_name: string; description: string | null; tags: string[] } | null> {
+  const parsed = parseFileId(fileId);
+  if (!parsed || parsed.source !== 'direct') return null;
+  const r = await apiFetch(`/api/files/${businessId}/${parsed.id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+  if (!r.ok) return null;
+  const j = await r.json().catch(() => null);
+  if (!j?.success || !j?.data) return null;
+  return { file_name: j.data.file_name, description: j.data.description ?? null, tags: j.data.tags || [] };
 }
 
 // N+67 — File visibility 변경 API
@@ -256,11 +279,17 @@ async function readUploadResponse(r: Response): Promise<{ ok: true; data: any } 
   return { ok: true, data: j.data };
 }
 
+/** 업로드 진행률·취소 옵션 — 두 업로드 경로 공통 */
+export interface UploadHooks {
+  onProgress?: (p: UploadProgress) => void;
+  signal?: AbortSignal;
+}
+
 export async function uploadProjectFile(
   businessId: number,
   projectId: number,
   file: File,
-  options?: { folderId?: number | null; onProgress?: (pct: number) => void }
+  options?: { folderId?: number | null } & UploadHooks
 ): Promise<UploadResult> {
   if (needsDriveForSize(file.size)) return { success: false, message: 'needs_drive_for_large_file' };
   const fd = new FormData();
@@ -268,7 +297,8 @@ export async function uploadProjectFile(
   fd.append('project_id', String(projectId));
   if (options?.folderId != null) fd.append('folder_id', String(options.folderId));
 
-  const r = await apiFetch(`/api/files/${businessId}`, { method: 'POST', body: fd });
+  const r = await apiUpload(`/api/files/${businessId}`, fd,
+    { onProgress: options?.onProgress, signal: options?.signal });
   const parsed = await readUploadResponse(r);
   if (!parsed.ok) return { success: false, message: parsed.message };
 
@@ -299,14 +329,15 @@ export async function uploadProjectFile(
 export async function uploadMyFile(
   businessId: number,
   file: File,
-  opts?: { conversationId?: number | null; projectId?: number | null }
+  opts?: { conversationId?: number | null; projectId?: number | null } & UploadHooks
 ): Promise<UploadResult> {
   if (needsDriveForSize(file.size)) return { success: false, message: 'needs_drive_for_large_file' };
   const fd = new FormData();
   fd.append('file', file);
   if (opts?.conversationId) fd.append('conversation_id', String(opts.conversationId));
   if (opts?.projectId) fd.append('project_id', String(opts.projectId));
-  const r = await apiFetch(`/api/files/${businessId}`, { method: 'POST', body: fd });
+  const r = await apiUpload(`/api/files/${businessId}`, fd,
+    { onProgress: opts?.onProgress, signal: opts?.signal });
   const parsed = await readUploadResponse(r);
   if (!parsed.ok) return { success: false, message: parsed.message };
   const f = parsed.data;
@@ -452,6 +483,39 @@ export async function issueDragUrl(businessId: number, fileId: string): Promise<
 
 // 브라우저가 직접 렌더 가능한 이미지 확장자만 — heic/heif/raw/tiff 등은 미리보기 X, 파일 카드로.
 // 사이클 N+23: HEIC(iPhone 기본) 업로드 시 깨진 이미지 아이콘 노출 회귀 차단.
+// 브라우저가 <video>/<audio> 로 재생할 수 있는 형식.
+//   mp4(H.264)·webm·ogg 는 표준. mov 는 컨테이너만 다르고 대개 H.264 라 사파리·크롬에서 재생된다.
+//   재생이 안 되면 <video> 가 onError 를 내고 화면은 자동으로 "다운로드 후 확인" 으로 내려간다.
+const PLAYABLE_VIDEO_EXTS = new Set(['mp4', 'm4v', 'webm', 'ogv', 'mov']);
+const PLAYABLE_AUDIO_EXTS = new Set(['mp3', 'm4a', 'aac', 'wav', 'ogg', 'oga', 'opus', 'flac', 'webm']);
+
+export function isVideo(mime: string | null, name: string): boolean {
+  if ((mime || '').toLowerCase().startsWith('video/')) return true;
+  return PLAYABLE_VIDEO_EXTS.has(extOf(name));
+}
+
+export function isAudio(mime: string | null, name: string): boolean {
+  const m = (mime || '').toLowerCase();
+  if (m.startsWith('video/')) return false;
+  if (m.startsWith('audio/')) return true;
+  if (m) return false;
+  return PLAYABLE_AUDIO_EXTS.has(extOf(name));
+}
+
+/**
+ * 인앱 재생용 서명 URL 발급.
+ * `<video src>` 에는 Authorization 헤더를 실을 수 없어서 서버가 짧은 수명의 서명 URL 을 준다.
+ * 실패(권한·외부 스토리지·재생 불가 형식)하면 null → 호출부는 미리보기를 내리고 다운로드로 안내한다.
+ */
+export async function requestMediaUrl(businessId: number, fileId: string): Promise<string | null> {
+  const parsed = parseFileId(fileId);
+  if (!parsed || parsed.source !== 'direct') return null;
+  const r = await apiFetch(`/api/files/${businessId}/${parsed.id}/media-url`, { method: 'POST' });
+  if (!r.ok) return null;
+  const j = await r.json().catch(() => null);
+  return j?.success && j?.data?.url ? String(j.data.url) : null;
+}
+
 const RENDERABLE_IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif', 'bmp', 'ico']);
 const NON_RENDERABLE_IMAGE_MIMES = new Set([
   'image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence',

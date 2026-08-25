@@ -443,7 +443,6 @@
     "drop": {
       "title": "Drop files here or click to select",
       "hint": "Up to 50MB · Multiple files supported",
-      "uploading": "Uploading {{n}}…",
       "upload": "Upload",
       "compactHint": "Or drag files anywhere into this tab",
       "release": "Release to upload"
@@ -494,7 +493,8 @@
       "aria": "File preview",
       "unsupported": "Preview not supported for this format. Download to view.",
       "fallbackHint": "Preview available after download",
-      "zoom": "Click to zoom"
+      "zoom": "Click to zoom",
+      "loadingMedia": "Preparing playback…"
     },
     "wsUpload": {
       "title": "Which project should these go to?",
@@ -550,6 +550,25 @@
       "deleteDesc": "Files inside will be moved to \"Direct root\"",
       "deleteWithFiles": "{{n}} files inside will be moved to \"Direct root\"",
       "deleteEmpty": "This folder is empty"
+    },
+    "up": {
+      "aria": "Upload progress",
+      "queued": "Queued",
+      "working": "Uploading",
+      "failed": "Failed",
+      "errGeneric": "Upload failed",
+      "remain": "{{s}}s left",
+      "cancel": "Cancel upload",
+      "dismiss": "Dismiss"
+    },
+    "meta": {
+      "name": "File name",
+      "nameHint": "The extension is kept",
+      "desc": "Description",
+      "descPh": "One line about this file",
+      "tags": "Tags",
+      "tagsPh": "Type a tag and press Enter",
+      "tagRemove": "Remove tag"
     }
   },
   "pinnedDoc": {

@@ -54,6 +54,11 @@ File.init({
     type: DataTypes.STRING(500),
     allowNull: true
   },
+  // 검색용 태그 — 문자열 배열. 파일명만으로는 찾기 어려운 자료(영상·스캔본)를 위해 추가.
+  tags: {
+    type: DataTypes.JSON,
+    allowNull: true
+  },
   storage_provider: {
     type: DataTypes.ENUM('planq', 'gdrive', 's3'),
     allowNull: false,
