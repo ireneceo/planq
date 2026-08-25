@@ -558,7 +558,11 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
           from_status: prevStatus,
           to_status: patch.status,
           changed_by: req.user.id,
-          note: null,
+          // 2026-08-25 — 여태 null 로 하드코딩돼 있어 note 컬럼이 죽어 있었다.
+          //   히스토리에서 가장 읽고 싶은 것이 "왜 바꿨나" 인데 그걸 담을 자리를 비워 뒀던 것.
+          note: typeof req.body?.status_note === 'string'
+            ? req.body.status_note.trim().slice(0, 1000) || null
+            : null,
         });
       } catch (e) { console.warn('[ProjectStatusHistory create]', e.message); }
     }

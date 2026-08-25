@@ -739,7 +739,33 @@
       "file.uploaded": "File uploaded",
       "note.created": "Note",
       "invoice.sent": "Invoice sent",
-      "invoice.paid": "Payment received"
+      "invoice.paid": "Payment received",
+      "task.review_submit": "Review requested",
+      "task.approve": "Approved",
+      "task.revision": "Changes requested",
+      "task.revert": "Reverted",
+      "task.assignee_change": "Assignee changed",
+      "task.due_change": "Due date changed",
+      "task.project_change": "Moved to another project",
+      "task.on_hold": "Task on hold"
+    },
+    "status": {
+      "not_started": "Not started",
+      "waiting": "Waiting",
+      "in_progress": "In progress",
+      "reviewing": "In review",
+      "revision_requested": "Changes requested",
+      "completed": "Done",
+      "canceled": "Canceled",
+      "on_hold": "On hold",
+      "external_review": "External review",
+      "planning": "Planning",
+      "active": "Active",
+      "paused": "Paused",
+      "closed": "Closed"
+    },
+    "bundle": {
+      "taskCreated": "{{n}} tasks added"
     }
   }
 }

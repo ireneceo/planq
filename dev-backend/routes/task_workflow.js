@@ -385,6 +385,13 @@ router.get('/:id/workflow', authenticateToken, async (req, res, next) => {
     const historyJson = history.map((h) => h.toJSON());
     await applyMemberDisplayName(reviewersJson, task.business_id, ['user']);
     await applyMemberDisplayName(historyJson, task.business_id, ['actor', 'target']);
+    // 옛 행 가리기 — 2026-08-25 이전 assignee_change/project_change 는 note 에 **id 원문**이
+    //   들어 있다("5 → 1000279"). 프로젝트 히스토리와 **같은 술어**를 쓴다(두 벌로 가르면 갈라진다).
+    //   쓰기측은 이름으로 이미 고쳤고, 이미 쌓인 행만 화면에서 숨긴다(대상 이름이 그 역할을 한다).
+    const { looksLikeRawIdNote } = require('../services/event_stream');
+    for (const h of historyJson) {
+      if (looksLikeRawIdNote(h.event_type, h.note)) h.note = null;
+    }
     return successResponse(res, {
       task: (await isClientUser(task, req.user.id)) ? serializeTaskForClient(wfTaskJson) : wfTaskJson,
       reviewers: reviewersJson,

@@ -27,7 +27,22 @@ interface HistoryEvent {
   from_status: string | null;
   to_status: string | null;
   title: string | null;
+  // 사건을 문장으로 만드는 재료 (2026-08-25). 옛 응답엔 없어서 "라벨 + 엔티티 이름" 밖에 못 그렸다.
+  target_name?: string | null;
+  round?: number | null;
+  note?: string | null;
+  /** 업무 추가처럼 낱개로는 의미가 옅어 접어야 하는 사건 */
+  groupable?: boolean;
 }
+
+/** 화면 한 줄 — 낱개 사건이거나, 접힌 업무 추가 묶음 */
+type Entry =
+  | { type: 'one'; event: HistoryEvent }
+  | { type: 'bundle'; items: HistoryEvent[] };
+
+const sameMonth = (a: string, b: string) => a.slice(0, 7) === b.slice(0, 7);
+const sameDay = (a: string, b: string) => a.slice(0, 10) === b.slice(0, 10);
+const bundleKey = (en: { items: HistoryEvent[] }) => `bundle:${en.items[0].id}`;
 
 // businessId 는 받지 않는다 — 서버가 프로젝트로부터 워크스페이스를 판정한다(클라이언트를 믿지 않는다).
 interface Props { projectId: number; }
@@ -46,6 +61,15 @@ export default function HistoryTab({ projectId }: Props) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const reloadTimer = useRef<number | null>(null);
+  // 접힌 업무 묶음 중 펼쳐 둔 것
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggleBundle = useCallback((k: string) => {
+    setExpanded((prev) => {
+      const n = new Set(prev);
+      if (n.has(k)) n.delete(k); else n.add(k);
+      return n;
+    });
+  }, []);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -119,6 +143,17 @@ export default function HistoryTab({ projectId }: Props) {
 
   const label = (e: HistoryEvent) => t(`history.kind.${e.kind}`, { defaultValue: e.kind });
 
+  // 사건 부가 설명 — "무엇이 어떻게 바뀌었는지". 서버가 from/to·대상·회차를 주는데 여태 안 썼다.
+  const detail = (e: HistoryEvent): string | null => {
+    const parts: string[] = [];
+    if (e.from_status && e.to_status && e.from_status !== e.to_status) {
+      parts.push(`${t(`history.status.${e.from_status}`, { defaultValue: e.from_status })} → ${t(`history.status.${e.to_status}`, { defaultValue: e.to_status })}`);
+    }
+    if (e.target_name) parts.push(`→ ${e.target_name}`);
+    if (e.round) parts.push(`R${e.round}`);
+    return parts.length ? parts.join('  ') : null;
+  };
+
   if (loading) return <Wrap><Dim>{t('history.loading', { defaultValue: '불러오는 중…' }) as string}</Dim></Wrap>;
   if (err) return <Wrap><Dim>{err}</Dim></Wrap>;
   if (events.length === 0) {
@@ -126,13 +161,31 @@ export default function HistoryTab({ projectId }: Props) {
   }
 
   // 연·월 그룹 — 최신이 위
-  const groups: { key: string; label: string; items: HistoryEvent[] }[] = [];
+  const groups: { key: string; label: string; items: Entry[] }[] = [];
+  // 연속한 groupable(업무 추가)은 한 줄로 접는다 — 낱개로 두면 화면의 89%가 "업무 추가" 가 된다
+  //   (운영 실측: 업무 41개 프로젝트에서 히스토리 62행 중 55행). 접되 지우지는 않는다.
+  const entries: Entry[] = [];
   for (const e of events) {
-    const d = new Date(e.at);
+    const last = entries[entries.length - 1];
+    if (e.groupable && last && last.type === 'bundle' && sameMonth(last.items[0].at, e.at)) {
+      last.items.push(e);
+      continue;
+    }
+    if (e.groupable) { entries.push({ type: 'bundle', items: [e] }); continue; }
+    entries.push({ type: 'one', event: e });
+  }
+  // 1건짜리 묶음은 묶을 이유가 없다 — "업무 1개 추가" 를 접어 두면 오히려 한 번 더 눌러야 한다
+  for (let i = 0; i < entries.length; i++) {
+    const en = entries[i];
+    if (en.type === 'bundle' && en.items.length === 1) entries[i] = { type: 'one', event: en.items[0] };
+  }
+  for (const en of entries) {
+    const at = en.type === 'one' ? en.event.at : en.items[0].at;
+    const d = new Date(at);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     const g = groups.find((x) => x.key === key);
     const gl = t('history.monthLabel', { defaultValue: '{{year}}년 {{month}}월', year: d.getFullYear(), month: d.getMonth() + 1 }) as string;
-    if (g) g.items.push(e); else groups.push({ key, label: gl, items: [e] });
+    if (g) g.items.push(en); else groups.push({ key, label: gl, items: [en] });
   }
 
   return (
@@ -140,8 +193,38 @@ export default function HistoryTab({ projectId }: Props) {
       {groups.map((g) => (
         <Group key={g.key}>
           <GroupHead>{g.label}</GroupHead>
-          {g.items.map((e) => {
+          {g.items.map((en) => {
+            if (en.type === 'bundle') {
+              const first = en.items[en.items.length - 1];
+              const last = en.items[0];
+              const span = sameDay(first.at, last.at)
+                ? new Date(last.at).toLocaleDateString()
+                : `${new Date(first.at).toLocaleDateString()} ~ ${new Date(last.at).toLocaleDateString()}`;
+              const on = expanded.has(bundleKey(en));
+              return (
+                <BundleWrap key={bundleKey(en)}>
+                  <BundleHead type="button" onClick={() => toggleBundle(bundleKey(en))} aria-expanded={on}>
+                    <Icon $src="task">{on ? '▾' : '▸'}</Icon>
+                    <Body>
+                      <Row1>
+                        <Kind>{t('history.bundle.taskCreated', { defaultValue: '업무 {{n}}개 추가', n: en.items.length }) as string}</Kind>
+                      </Row1>
+                      <Row2><span>{span}</span></Row2>
+                    </Body>
+                  </BundleHead>
+                  {on && en.items.map((e) => (
+                    <BundleItem key={e.id} to={linkFor(e) || '#'}>
+                      <BundleDot aria-hidden="true">·</BundleDot>
+                      <BundleTitle title={e.title || ''}>{e.title}</BundleTitle>
+                      <BundleWhen>{new Date(e.at).toLocaleDateString()}</BundleWhen>
+                    </BundleItem>
+                  ))}
+                </BundleWrap>
+              );
+            }
+            const e = en.event;
             const href = linkFor(e);
+            const dt = detail(e);
             const body = (
               <>
                 <Icon $src={e.source}>{SOURCE_ICON[e.source] || '·'}</Icon>
@@ -149,7 +232,9 @@ export default function HistoryTab({ projectId }: Props) {
                   <Row1>
                     <Kind>{label(e)}</Kind>
                     {e.title && <Title title={e.title}>{e.title}</Title>}
+                    {dt && <Detail>{dt}</Detail>}
                   </Row1>
+                  {e.note && <NoteLine>{e.note}</NoteLine>}
                   <Row2>
                     <span>{new Date(e.at).toLocaleString()}</span>
                     {e.actor_name && <><Sep>·</Sep><span>{e.actor_name}{e.actor_is_ai ? ' (AI)' : ''}</span></>}
@@ -188,6 +273,35 @@ const itemCss = `
   text-decoration: none; color: inherit;
 `;
 const Item = styled.div`${itemCss}`;
+/* 사건 부가 설명 — "기획 → 진행중", "→ 이수민", "R2" */
+const Detail = styled.span`
+  font-size:12.5px;color:#0F766E;font-weight:600;white-space:nowrap;
+`;
+/* 상태를 바꾸며 남긴 사유 — 여태 응답에도 화면에도 없었다 */
+const NoteLine = styled.div`
+  margin-top:3px;padding:6px 10px;background:#F8FAFC;border-left:2px solid #CBD5E1;
+  border-radius:0 6px 6px 0;font-size:12.5px;color:#475569;line-height:1.5;
+`;
+/* 접힌 업무 추가 묶음 */
+const BundleWrap = styled.div`display:flex;flex-direction:column;`;
+const BundleHead = styled.button`
+  display:flex;align-items:flex-start;gap:10px;width:100%;padding:10px 4px;
+  background:transparent;border:none;cursor:pointer;text-align:left;
+  &:hover{background:#F8FAFC;}
+  &:focus-visible{outline:2px solid #0D9488;outline-offset:-2px;}
+`;
+const BundleItem = styled(Link)`
+  display:flex;align-items:center;gap:8px;padding:5px 4px 5px 34px;
+  text-decoration:none;color:inherit;
+  &:hover{background:#F8FAFC;}
+`;
+const BundleDot = styled.span`color:#CBD5E1;font-size:13px;`;
+const BundleTitle = styled.span`
+  flex:1;min-width:0;font-size:13px;color:#334155;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+`;
+const BundleWhen = styled.span`font-size:12px;color:#94A3B8;flex-shrink:0;`;
+
 const ItemLink = styled(Link)`${itemCss} &:hover { border-color: #14B8A6; background: #F0FDFA; }`;
 const Icon = styled.span<{ $src: string }>`
   flex-shrink: 0; width: 22px; height: 22px; border-radius: 6px;

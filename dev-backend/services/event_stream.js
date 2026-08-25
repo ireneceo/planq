@@ -178,6 +178,17 @@ async function getWorkspaceStream(businessId, opts = {}) {
 //
 // 커서 페이징 — 병합 스트림이라 offset/count 가 부정확하다. `before`(ISO) 이전 것만 소스별로
 //   뽑아 병합하고 상위 limit 을 자른다.
+/**
+ * "5 → 1000279" 처럼 **숫자 id 만** 담긴 옛 히스토리 비고인가.
+ * 담당자·프로젝트 변경 비고를 이름으로 바꾸기 전(2026-08-25)의 행을 가려낸다.
+ * 이름이 숫자로만 이뤄지는 경우는 없으므로 오검출 위험이 없다.
+ */
+function looksLikeRawIdNote(eventType, note) {
+  if (!note) return false;
+  if (eventType !== 'assignee_change' && eventType !== 'project_change') return false;
+  return /^\s*(\d+|—|-)\s*→\s*(\d+|—|-)\s*$/.test(String(note));
+}
+
 const PROJECT_SOURCES = ['project', 'task', 'post', 'file', 'note', 'invoice'];
 
 // 이벤트 id 는 `<접두어>:<원장 id>` — 커서 비교를 위해 둘로 나눈다.
@@ -246,7 +257,9 @@ async function getProjectStream(project, viewerUserId, opts = {}) {
     jobs.push(
       ProjectStatusHistory.findAll({
         where: { project_id: projectId, ...timeWhereFor('project') },
-        attributes: ['id', 'from_status', 'to_status', 'changed_by', 'created_at'],
+        // note 컬럼은 처음부터 있었는데 응답에 싣지 않아, 상태를 바꾸며 남긴 사유가
+        //   화면에 영영 안 나왔다(전용 라우트 GET /:id/status-history 만 쓰고 있었고 그건 아무도 안 부른다).
+        attributes: ['id', 'from_status', 'to_status', 'changed_by', 'note', 'created_at'],
         order: [['created_at', 'DESC'], ['id', 'ASC']], limit: perSource, raw: true,
       }).then((rows) => rows.map((r) => ({
         id: `project:${r.id}`, source: 'project', kind: `project.${r.to_status}`,
@@ -254,6 +267,7 @@ async function getProjectStream(project, viewerUserId, opts = {}) {
         entity_type: 'project', entity_id: projectId,
         from_status: r.from_status || null, to_status: r.to_status || null,
         title: project.name || null,
+        note: r.note || null,
       })))
     );
     // 생성 이벤트는 원장이 없다 — projects.created_at 으로 1건 합성한다.
@@ -280,8 +294,12 @@ async function getProjectStream(project, viewerUserId, opts = {}) {
     }
   }
 
-  // ── 업무 생성 ──
+  // ── 업무 ──
   if (want('task')) {
+    // 업무 생성 — **접기 대상**이다. 실측(운영 프로젝트 3): 업무 41개 프로젝트에서 생성 41행이
+    //   그대로 들어와 히스토리의 대부분을 차지했고, 사용자에게는 "업무 목록"으로 보였다
+    //   (Irene 2026-08-25: "프로젝트 히스토리는 좀 의미없이 업무리스트 같아서").
+    //   그렇다고 지우면 "언제 업무가 늘었나"를 잃는다 → groupable 로 표시해 화면이 한 줄로 접는다.
     jobs.push(
       Task.findAll({
         where: { project_id: projectId, business_id: bizId, ...timeWhereFor('task-created') },
@@ -292,28 +310,64 @@ async function getProjectStream(project, viewerUserId, opts = {}) {
         at: iso(r.created_at), actor_user_id: r.created_by,
         entity_type: 'task', entity_id: r.id,
         from_status: null, to_status: null, title: r.title || null,
+        groupable: true,
       })))
     );
-    // 완료·취소만 — 전이 전종을 넣으면 히스토리가 상태 변경 로그로 덮인다.
+
+    // 업무 워크플로우 사건 — 여기가 프로젝트에서 "무슨 일이 있었나" 의 본체다.
+    //   옛 코드는 to_status IN ('completed','canceled') 만 통과시켰다. 컨펌 요청·승인·수정요청·
+    //   담당자 변경·마감일 변경이 **이미 DB 에 다 기록돼 있는데 버려지고 있었다.**
+    //
+    //   그렇다고 전종을 넣으면 반대쪽으로 무너진다 — 실측(운영 프로젝트 3, 총 188행) 중
+    //   status_change 가 85행(in_progress↔waiting 반복)이고 title_change·ack·reviewer_add 가
+    //   23행이다. 이건 사건이 아니라 조작 로그다. 그래서 **되돌릴 수 없는 큰 전이만** 남긴다.
+    const WORKFLOW_EVENTS = [
+      'review_submit',    // 컨펌 요청
+      'approve',          // 승인
+      'revision',         // 수정요청
+      'completed',        // 완료
+      'revert',           // 되돌림
+      'assignee_change',  // 담당자 변경
+      'due_change',       // 마감일 변경 — 대행 업무에서 일정 밀림은 프로젝트 레벨 사건이다
+      'project_change',   // 프로젝트 이관
+    ];
+    //   status_change 는 churn 이 많다 → 되돌리기 어려운 목적지만 (완료·취소·보류)
+    const MEANINGFUL_STATUS = ['completed', 'canceled', 'on_hold'];
     jobs.push(
       // ★ 컬럼명이 원장마다 다르다 — task_status_history 는 `actor_user_id`,
       //   project_status_history 는 `changed_by`. 같다고 가정하면 500 이 난다(실제로 났다).
       TaskStatusHistory.findAll({
-        where: { to_status: { [Op.in]: ['completed', 'canceled'] }, ...timeWhereFor('task-status') },
+        where: {
+          [Op.or]: [
+            { event_type: { [Op.in]: WORKFLOW_EVENTS } },
+            { event_type: 'status_change', to_status: { [Op.in]: MEANINGFUL_STATUS } },
+          ],
+          ...timeWhereFor('task-status'),
+        },
         // ★ include 가 있으면 raw:true 를 못 쓴다 → 결과가 **인스턴스**다. 그때 attributes 에
         //   컬럼명('created_at')을 넣으면 값이 dataValues 에만 실려 `r.created_at` 이 undefined 가 된다.
         //   그러면 at 이 null 이 되어 아래 filter 에서 **에러도 경고도 없이 통째로 사라진다**
         //   (이 브랜치가 통으로 죽어 task 완료/취소가 히스토리에 영영 안 나왔다).
         //   모델 속성명 'createdAt' 을 쓴다.
-        attributes: ['id', 'task_id', 'from_status', 'to_status', 'actor_user_id', 'createdAt'],
+        attributes: ['id', 'task_id', 'event_type', 'from_status', 'to_status',
+          'actor_user_id', 'target_user_id', 'round', 'note', 'createdAt'],
         include: [{ model: Task, attributes: ['id', 'title'], where: { project_id: projectId, business_id: bizId }, required: true }],
         order: [['created_at', 'DESC'], ['id', 'ASC']], limit: perSource,
       }).then((rows) => rows.map((r) => ({
-        id: `task-status:${r.id}`, source: 'task', kind: `task.${r.to_status}`,
+        id: `task-status:${r.id}`, source: 'task',
+        // status_change 는 목적지가 곧 사건이다 (task.completed / task.canceled / task.on_hold)
+        kind: r.event_type === 'status_change' ? `task.${r.to_status}` : `task.${r.event_type}`,
         at: iso(r.createdAt), actor_user_id: r.actor_user_id,
         entity_type: 'task', entity_id: r.task_id,
         from_status: r.from_status || null, to_status: r.to_status || null,
         title: (r.Task && r.Task.title) || null,
+        // 사건을 문장으로 만들 재료 — 옛 응답에는 없어서 화면이 "라벨 + 제목" 밖에 못 그렸다
+        target_user_id: r.target_user_id || null,
+        round: r.round ?? null,
+        // 옛 행 가리기 — 2026-08-25 이전 assignee_change/project_change 는 note 에 **id 원문**이
+        //   들어 있다("5 → 1000279"). 사람이 읽는 기록에 내부 식별자를 보일 수 없다.
+        //   쓰기측은 이미 이름으로 고쳤고, 이미 쌓인 행만 여기서 숨긴다(대상 이름이 그 역할을 한다).
+        note: looksLikeRawIdNote(r.event_type, r.note) ? null : (r.note || null),
       })))
     );
   }
@@ -449,19 +503,30 @@ async function getProjectStream(project, viewerUserId, opts = {}) {
   }
   const top = merged.slice(0, limit);
 
-  const actorIds = [...new Set(top.map((e) => e.actor_user_id).filter(Boolean))];
+  // actor 와 target 을 **한 번에** 조회한다 — "담당자 변경 → 이수민" 처럼 대상 이름이 있어야
+  //   사건이 문장이 된다. 두 벌로 조회하면 같은 사용자를 두 번 읽는다.
+  const peopleIds = [...new Set([
+    ...top.map((e) => e.actor_user_id),
+    ...top.map((e) => e.target_user_id),
+  ].filter(Boolean))];
   const actorMap = new Map();
-  if (actorIds.length) {
+  if (peopleIds.length) {
     const users = await User.findAll({
-      where: { id: { [Op.in]: actorIds } },
+      where: { id: { [Op.in]: peopleIds } },
       attributes: ['id', 'name', 'username', 'is_ai'], raw: true,
     });
     users.forEach((u) => actorMap.set(u.id, u));
   }
   return top.map((e) => {
     const u = e.actor_user_id ? actorMap.get(e.actor_user_id) : null;
-    return { ...e, actor_name: u ? (u.name || u.username || null) : null, actor_is_ai: u ? !!u.is_ai : false };
+    const tg = e.target_user_id ? actorMap.get(e.target_user_id) : null;
+    return {
+      ...e,
+      actor_name: u ? (u.name || u.username || null) : null,
+      actor_is_ai: u ? !!u.is_ai : false,
+      target_name: tg ? (tg.name || tg.username || null) : null,
+    };
   });
 }
 
-module.exports = { getWorkspaceStream, getProjectStream, SOURCES, PROJECT_SOURCES };
+module.exports = { getWorkspaceStream, getProjectStream, SOURCES, PROJECT_SOURCES, looksLikeRawIdNote };

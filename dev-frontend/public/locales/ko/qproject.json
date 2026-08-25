@@ -739,7 +739,33 @@
       "file.uploaded": "파일 업로드",
       "note.created": "메모",
       "invoice.sent": "청구서 발행",
-      "invoice.paid": "입금 확인"
+      "invoice.paid": "입금 확인",
+      "task.review_submit": "컨펌 요청",
+      "task.approve": "승인",
+      "task.revision": "수정요청",
+      "task.revert": "되돌림",
+      "task.assignee_change": "담당자 변경",
+      "task.due_change": "마감일 변경",
+      "task.project_change": "프로젝트 이관",
+      "task.on_hold": "업무 보류"
+    },
+    "status": {
+      "not_started": "시작 전",
+      "waiting": "대기",
+      "in_progress": "진행중",
+      "reviewing": "컨펌 중",
+      "revision_requested": "수정요청",
+      "completed": "완료",
+      "canceled": "취소",
+      "on_hold": "보류",
+      "external_review": "외부 컨펌",
+      "planning": "기획",
+      "active": "진행중",
+      "paused": "보류",
+      "closed": "종료"
+    },
+    "bundle": {
+      "taskCreated": "업무 {{n}}개 추가"
     }
   }
 }

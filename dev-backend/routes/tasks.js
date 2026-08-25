@@ -1177,7 +1177,18 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
         events.push({ event_type: 'status_change', from_status: prev.status, to_status: updates.status });
       }
       if (updates.assignee_id !== undefined && updates.assignee_id !== prev.assignee_id) {
-        events.push({ event_type: 'assignee_change', target_user_id: updates.assignee_id, note: `${prev.assignee_id || '—'} → ${updates.assignee_id || '—'}` });
+        // ★ 2026-08-25 — 여태 사용자 **id 원문**을 넣어 히스토리에 "5 → 1000279" 로 보였다.
+        //   사람이 읽는 기록인데 내부 식별자를 노출한 것. 이름으로 바꾼다(옛 행은 읽는 쪽에서 가린다).
+        const [fromU, toU] = await Promise.all([
+          prev.assignee_id ? User.findByPk(prev.assignee_id, { attributes: ['id', 'name', 'username'] }) : null,
+          updates.assignee_id ? User.findByPk(updates.assignee_id, { attributes: ['id', 'name', 'username'] }) : null,
+        ]);
+        const nm = (u) => (u ? (u.name || u.username || `#${u.id}`) : '—');
+        events.push({
+          event_type: 'assignee_change',
+          target_user_id: updates.assignee_id,
+          note: `${nm(fromU)} → ${nm(toU)}`,
+        });
       }
       if (updates.due_date !== undefined && String(updates.due_date) !== String(prev.due_date)) {
         events.push({ event_type: 'due_change', note: `${fmtDate(prev.due_date)} → ${fmtDate(updates.due_date)}` });
@@ -1186,7 +1197,15 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
         events.push({ event_type: 'title_change', note: `${prev.title} → ${updates.title}` });
       }
       if (updates.project_id !== undefined && updates.project_id !== prev.project_id) {
-        events.push({ event_type: 'project_change', note: `${prev.project_id || '—'} → ${updates.project_id || '—'}` });
+        // 같은 이유 — 프로젝트 id 대신 이름
+        const [fromP, toP] = await Promise.all([
+          prev.project_id ? Project.findByPk(prev.project_id, { attributes: ['id', 'name'] }) : null,
+          updates.project_id ? Project.findByPk(updates.project_id, { attributes: ['id', 'name'] }) : null,
+        ]);
+        events.push({
+          event_type: 'project_change',
+          note: `${fromP ? fromP.name : '—'} → ${toP ? toP.name : '—'}`,
+        });
       }
       if (events.length > 0) {
         await Promise.all(events.map((e) => TaskStatusHistory.create({
