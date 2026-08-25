@@ -1,0 +1,76 @@
+# PlanQ iOS — 클라우드 빌드 (Codemagic)
+#
+# 왜 클라우드인가: 우리 앱은 Remote URL 껍데기라(capacitor.config.ts) 서버 배포만으로 화면이 바뀐다.
+#   → 앱 재빌드는 드물다. 그 도구 하나 때문에 맥에 Xcode(40GB)를 두지 않는다.
+#   맥북 여유 28GB(2026-08-25 실측)라 애초에 설치도 빠듯했다.
+#
+# 안전장치: 목표 서버를 운영으로 고정하고 `ios-beta-check.js --expect-prod` 로 되짚는다.
+#   기본값이 dev.planq.kr 이라(의도적 dev-first) 이 점검을 빼면 테스터 전원이 개발서버를 쓴다.
+#
+# 사전 준비 (Codemagic UI):
+#   1) Teams > Integrations > App Store Connect 에 API 키 등록. 이름을 정확히 `PlanQ ASC` 로.
+#   2) 이 저장소(github: ireneceo/planq) 연결
+#   3) 환경변수 APP_STORE_APP_ID = App Store Connect 앱의 숫자 ID (선택 — 없으면 빌드번호 자동)
+
+workflows:
+  ios-testflight:
+    name: PlanQ iOS — TestFlight (운영 planq.kr)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: PlanQ ASC
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: app.planq
+      vars:
+        XCODE_WORKSPACE: "dev-frontend/ios/App/App.xcworkspace"
+        XCODE_SCHEME: "App"
+      node: 20
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: 의존성 설치 (Podfile 이 node_modules 경로를 참조한다)
+        script: |
+          cd dev-frontend
+          npm ci
+      - name: Capacitor sync — 운영 서버로 고정 + 목표 점검
+        script: |
+          cd dev-frontend
+          npm run cap:beta      # CAP_SERVER_URL=https://planq.kr cap sync ios && ios-beta-check --expect-prod
+      - name: pod install
+        script: |
+          cd dev-frontend/ios/App
+          pod install
+      - name: 빌드 번호 (TestFlight 최신 +1)
+        script: |
+          cd dev-frontend/ios/App
+          if [ -n "$APP_STORE_APP_ID" ]; then
+            LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APP_ID" || echo 0)
+            agvtool new-version -all $(($LATEST + 1))
+          else
+            agvtool new-version -all $BUILD_NUMBER
+          fi
+      - name: 서명 프로파일 적용
+        script: xcode-project use-profiles
+      - name: 아카이브 (IPA)
+        script: |
+          xcode-project build-ipa \
+            --workspace "$XCODE_WORKSPACE" \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      email:
+        recipients:
+          - irene@irenewp.com
+        notify:
+          success: true
+          failure: true
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        # 내부 테스터는 심사 없음. 그룹 이름은 App Store Connect 에서 만든 뒤 여기에 적는다.
+        # beta_groups:
+        #   - PlanQ 내부

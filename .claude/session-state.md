@@ -1,17 +1,20 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-08-24 저녁 (아이맥 → **노트북(맥에어)으로 인계**)
-**작업 상태:** 서버 작업 전부 완료 · **iOS 베타만 노트북에서 이어서**
+**마지막 업데이트:** 2026-08-25 (아이맥) — **iOS 베타를 클라우드 빌드(Codemagic)로 전환.** 맥에 Xcode 불필요
+**작업 상태:** 서버 작업 전부 완료 · iOS 베타는 **Irene 의 브라우저 작업 4단계**만 남음(§📱)
 
-### ▶ 진행 중인 작업 — iOS TestFlight 베타 (여기서 이어간다)
+### ▶ 진행 중인 작업 — iOS TestFlight 베타 (**클라우드 빌드로 전환**)
 
-**애플 쪽 관문은 100% 끝났다. 다시 할 것 없다.** 남은 것은 **맥에서 빌드 → 업로드** 뿐이다.
+**애플 쪽 관문은 100% 끝났다. 다시 할 것 없다.** 남은 것은 **빌드 → TestFlight 업로드** 뿐이다.
 
-Irene 이 노트북에서 하고 오기로 한 것: **App Store 에서 Xcode 설치** + **nodejs.org 에서 Node LTS 설치**.
-→ 세션 시작 시 먼저 물을 것: **"Xcode 와 Node 설치는 끝나셨나요?"**
-   - 끝났으면 아래 §📱 의 3번 명령부터 바로 진행
-   - 아직이면 설치 상태 확인: `xcodebuild -version` · `node -v`
+**2026-08-25 결정: 맥에 Xcode 를 깔지 않고 Codemagic 클라우드 빌드로 간다.**
+- 맥북(맥에어) 실측 — Xcode·Node **둘 다 미설치**, 데이터 볼륨 **94% 사용(여유 28GB)**. Xcode 는 40GB 필요 → 애초에 빠듯
+- 우리 앱은 **Remote URL 껍데기**(`capacitor.config.ts`)라 서버 `/배포` 만으로 앱 화면이 바뀐다 → **앱 재빌드가 드물다.**
+  1년에 몇 번 쓸 도구 때문에 맥 40GB 를 비우지 않는다
+- 아이맥·맥북·윈도우 **어느 기기에서든** 된다 (빌드는 제공사 맥에서 돎)
+- **비용: 사실상 무료** — 개인 계정 무료 500 macOS M2 분/월, 우리 빌드 회당 10~15분.
+  초과 시 분당 $0.095. ⚠️ **무료 분은 개인 계정에만 — 가입 시 Team 만들면 무료 분이 사라진다**
 
 ### 🔴 오늘 마지막에 잡은 회귀 (배포 완료)
 **업무 저장이 매번 50초** — 내가 오늘 넣은 `afterSave` 스냅샷 훅이 `options.transaction` 을
@@ -33,7 +36,7 @@ Irene 이 노트북에서 하고 오기로 한 것: **App Store 에서 Xcode 설
 
 ---
 
-## 📱 iOS 베타 — 여기서 이어서 (노트북)
+## 📱 iOS 베타 — 클라우드 빌드 (Codemagic)
 
 ### 애플 쪽 완료 (다시 안 해도 됨)
 | 항목 | 값 |
@@ -42,36 +45,36 @@ Irene 이 노트북에서 하고 오기로 한 것: **App Store 에서 Xcode 설
 | Team ID | **`H2HW8BHXNW`** (조직 `irene&company`) |
 | Bundle ID | **`app.planq`** (Push Notifications + Associated Domains) |
 | APNs Key ID | **`P8QD2K92HW`** — 키는 양 서버 `/opt/planq/secrets/` 에 640 권한 |
-| App Store Connect | 앱 레코드 `PlanQ` 생성됨 (1.0 제출 준비 중) |
+| App Store Connect | 앱 레코드 `PlanQ` 생성됨 |
+| 운영 Universal Links | 완료 (`application/json` + `appIDs H2HW8BHXNW.app.planq`) |
 
 APNs 검증 완료: 가짜 토큰에 `BadDeviceToken`(400) = 애플이 우리 인증을 수락.
-운영 `APNS_PRODUCTION=true`(TestFlight용) / dev `false`(Xcode 직접설치용).
+운영 `APNS_PRODUCTION=true`(TestFlight용) / dev `false`.
 
-### 기기 판정
-- **아이맥 = 2020 인텔(iMac20,1, i5-10500)** — macOS 26 은 인텔 지원 마지막 세대. 최신 Xcode 설치 가능 여부 미확인
-- → **맥에어(노트북)로 전환하기로 결정.** Apple Silicon 이면 그대로 진행
+### Claude 가 끝낸 것 (2026-08-25)
+- **`codemagic.yaml`** 신규 — 6단계(npm ci → `cap:beta` → pod install → 빌드번호 → 서명 → IPA) + TestFlight 자동 업로드
+  - `npm run cap:beta` 를 그대로 태워 **목표 서버가 `https://planq.kr` 이 아니면 빌드가 멈춘다**(기본값 dev 라 이게 유일한 안전장치)
+  - `webDir: www-placeholder` 라 **웹 빌드(vite) 없이 sync 된다** — CI 가 가볍다
+- **`App.xcscheme` 공유 스킴 신규** — Capacitor 가 만든 스킴은 `xcuserdata` 라 git 에 없었다.
+  공유 스킴이 없으면 클라우드 빌드가 빌드 대상을 못 찾는다 (target UUID `504EC3031FED79650016851F`)
 
-### 노트북에서 할 일 (순서)
-1. 사양 확인: `system_profiler SPHardwareDataType | head -8` · `sw_vers -productVersion` · `df -h / | tail -1`
-   (Xcode 는 설치 후 40GB 가까이 쓴다 — 용량 먼저)
-2. App Store → **Xcode** 설치 / https://nodejs.org → LTS `.pkg` 설치
-3. ```
-   git clone git@github-planq:ireneceo/planq.git
-   cd planq/dev-frontend && npm install
-   npm run cap:beta        # ★ 반드시 "https://planq.kr" + ✓ 점검 통과 확인
-   cd ios/App && pod install && cd ../..
-   npm run cap:open:ios
-   ```
-   `cap:beta` 가 `dev.planq.kr` 을 찍으면 **중단** — 그대로 빌드하면 테스터가 개발서버를 쓴다
-4. Xcode: Signing & Capabilities → Team 지정 → Any iOS Device → Product > Archive → Upload
-5. App Store Connect → PlanQ → **TestFlight 탭** → 내부 테스터 추가 (심사 없음, 100명)
+### Irene 이 할 일 (브라우저만, 맥 불필요)
+1. **App Store Connect API 키 발급** — Users and Access > Integrations > App Store Connect > **+**
+   - Role: **App Manager** / 받을 것: `.p8` 파일 · **Key ID** · **Issuer ID**
+   - ⚠️ `.p8` 는 **한 번만** 내려받을 수 있다. APNs 키와는 **다른 키**다
+2. **Codemagic 가입** — https://codemagic.io , **GitHub 계정으로** (⚠️ **Team 만들지 말 것** — 무료 분이 사라진다)
+3. Codemagic > Teams > Integrations > App Store Connect 에 위 키 등록. **이름을 정확히 `PlanQ ASC`** (yaml 이 이 이름을 찾는다)
+4. 저장소 `ireneceo/planq` 연결 → 워크플로 `ios-testflight` 실행
+5. App Store Connect > PlanQ > **TestFlight** > 내부 테스터 추가 (심사 없음, 100명)
+
+### 남은 확인 사항
+- `APP_STORE_APP_ID`(앱 숫자 ID) 를 Codemagic 환경변수에 넣으면 빌드번호가 TestFlight 최신+1 로 자동. 없으면 Codemagic `BUILD_NUMBER` 사용
+- 첫 빌드는 서명 프로파일 자동 생성 때문에 한 번 실패할 수 있다 — 로그 보고 조정
 
 절차 상세: `docs/IOS_BETA_RUNBOOK.md`
 
----
-
 ## 다음 할 일
-1. **iOS 베타 빌드·업로드** (위 노트북 절차) → 내부 테스터로 실기기 검증 6항목
+1. **iOS 베타 — Codemagic** (§📱 의 Irene 4단계) → 내부 테스터로 실기기 검증 6항목
 2. Fable 큐 `docs/FABLE_VERIFY_QUEUE.md` — §6 Gmail 스팸함 수집(커서 스키마), §5 메일 전달 기능(차단 중)
 
 ### ✅ 2026-08-24 저녁 — 대기 3건 전부 해소

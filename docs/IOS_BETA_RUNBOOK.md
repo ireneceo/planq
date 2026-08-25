@@ -46,32 +46,41 @@ sudo bash /tmp/planq-aasa-nginx.sh
 ```
 백업 → 멱등 → `nginx -t` 실패 시 자동 원복 → reload → 검증 출력까지 한다.
 
-## 2. 아이맥에서 빌드 (Irene)
+## 2. 빌드 — Codemagic 클라우드 (2026-08-25 전환)
 
+**맥에 Xcode 를 설치하지 않는다.** 이유는 `codemagic.yaml` 상단 주석과 세션 상태에 박제.
+요약: 우리 앱은 Remote URL 껍데기라 재빌드가 드물고, 맥북 여유가 28GB(94% 사용)라 40GB 짜리
+Xcode 를 둘 자리가 없다. 클라우드면 아이맥·맥북·윈도우 **어디서든** 된다.
+
+**비용**: 개인 계정 무료 500 macOS M2 분/월 (회당 10~15분 → 월 30회 이상 무료).
+초과 시 분당 $0.095. ⚠️ **무료 분은 개인 계정에만 붙는다 — 가입 시 Team 을 만들면 사라진다.**
+
+### 저장소에 준비된 것 (Claude 완료)
+- `codemagic.yaml` — 6단계 + TestFlight 자동 업로드.
+  `npm run cap:beta` 를 그대로 태워 **목표가 `https://planq.kr` 이 아니면 빌드가 멈춘다**
+- `dev-frontend/ios/App/App.xcodeproj/xcshareddata/xcschemes/App.xcscheme` — 공유 스킴.
+  Capacitor 기본 스킴은 `xcuserdata` 라 git 에 없었고, 없으면 CI 가 빌드 대상을 못 찾는다
+
+### Irene 이 할 일 (브라우저만, 맥 불필요)
+1. **App Store Connect API 키** — Users and Access > Integrations > App Store Connect > **+**
+   - Role **App Manager** / 받을 것: `.p8` · **Key ID** · **Issuer ID**
+   - ⚠️ `.p8` 는 한 번만 내려받을 수 있고, **APNs 키와는 다른 키**다
+2. **Codemagic 가입** — https://codemagic.io , GitHub 계정으로. **Team 만들지 말 것**
+3. Teams > Integrations > App Store Connect 에 키 등록. **이름을 정확히 `PlanQ ASC`**
+4. 저장소 `ireneceo/planq` 연결 → 워크플로 **`ios-testflight`** 실행
+
+첫 빌드는 서명 프로파일 자동 생성 때문에 한 번 실패할 수 있다 — 로그를 보고 조정한다.
+
+### (참고) 맥에서 직접 빌드하려면
+Xcode 설치 후:
 ```bash
-git clone git@github-planq:ireneceo/planq.git    # 이미 있으면 git pull
+git clone git@github-planq:ireneceo/planq.git
 cd planq/dev-frontend && npm install
-
-npm run cap:beta        # ★ 운영(planq.kr)을 가리키게 sync + 자동 점검
-npm run cap:open:ios    # Xcode 열림
+npm run cap:beta        # ★ 목표가 https://planq.kr 인지 확인
+cd ios/App && pod install && cd ../..
+npm run cap:open:ios
 ```
-
-`cap:beta` 가 **목표 서버를 화면에 찍고**, 운영이 아니면 `exit 1` 로 멈춘다.
-기본값이 `dev.planq.kr` 이라(의도적 dev-first) 그냥 Xcode 를 열면 **테스터가 개발 서버를 쓰게 된다** —
-이 스크립트가 그 사고를 막는 유일한 장치다. 아카이브 전에 반드시 통과시킬 것.
-
-Xcode 안에서:
-1. **Signing & Capabilities** → Team 을 본인 계정으로. Bundle Identifier `app.planq` 확인
-2. Capabilities 에 **Push Notifications**, **Associated Domains** 가 있는지 확인
-   (`App.entitlements` 에 이미 적혀 있지만 프로비저닝 프로파일에도 켜져 있어야 한다)
-3. 대상 기기를 **Any iOS Device (arm64)** 로
-4. **Product → Archive** → Distribute App → **TestFlight & App Store** → Upload
-
-`pod install` 이 필요하다는 경고가 뜨면:
-```bash
-cd planq/dev-frontend/ios/App && pod install
-```
-(리눅스에서는 CocoaPods 가 없어 이 단계만 건너뛴다 — 맥에서 한 번 돌리면 된다.)
+Xcode 에서 Signing & Capabilities > Team 지정 → Any iOS Device → Product > Archive → Upload.
 
 ## 3. TestFlight 배포
 
