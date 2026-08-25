@@ -57,12 +57,14 @@ import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
 import { deriveMemoPreview } from '../../utils/qnoteBody';
 import SessionTaxonomyBar from '../../components/QNote/SessionTaxonomyBar';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
+import { usePanelStack } from '../../hooks/usePanelStack';
 // MemoView (PostEditor 풀모드 + 헤더) — 메모 신규/편집 시점에만 chunk fetch (vendor-tiptap lazy).
 const MemoView = React.lazy(() => import('./MemoView'));
 // NewNoteModal — Q docs PostAiModal manual mode 패턴 동일 (탭 메모/음성 + 옵션). 사이클 N+17 hotfix.
 import NewNoteModal, { type NewNoteKind } from './NewNoteModal';
 import FloatingPanelToggle from '../../components/Common/FloatingPanelToggle';
 import PanelResizeHandle, { usePanelWidth } from '../../components/Layout/PanelResizeHandle';
+import { PanelBackButton } from '../../components/Layout/PanelHeader';
 
 /**
  * Q Note 페이지
@@ -266,6 +268,10 @@ const QNotePage = () => {
   const [sessionQuery, setSessionQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');  // 운영 #54
   const [activeSession, setActiveSession] = useState<QNoteSession | null>(null);
+  // ★ 2·3단 레이아웃 단일 계약 (hooks/usePanelStack). 페이지마다 각자 만든 모바일 규칙을
+  //   여기로 모은다 — 구현이 다르면 동작도 달라진다("어떤 화면은 뒤로가기가 안 된다").
+  //   Q Note 는 목록 + 상세(세션) 2단이고 보조 패널은 없다.
+  const panel = usePanelStack(!!urlSessionId, false, () => navigate('/notes'));
   // 사이클 N+14 — visibility 변경 모달 + 에러 표시
   const [visibilityModalOpen, setVisibilityModalOpen] = useState(false);
   // 사이클 N+24 — review 모드 헤더 버튼 모달 state
@@ -2477,6 +2483,8 @@ const QNotePage = () => {
             ) : (
               <MainHeader>
                 <HeaderLeft>
+                  {/* 표준 뒤로가기 — 좁은 화면에서 목록으로. 버튼은 ≤1024px 에서만 보인다(PanelHeader 계약) */}
+                  {panel.canGoBack && <PanelBackButton onClick={() => panel.goBack()} label={t('page.backToList', { defaultValue: '목록으로' }) as string} />}
                   {editingTitle ? (
                     <SessionTitleInput
                       defaultValue={activeSession.title}
@@ -2689,6 +2697,7 @@ const QNotePage = () => {
           <>
             <MainHeader>
               <HeaderLeft>
+                {panel.canGoBack && <PanelBackButton onClick={() => panel.goBack()} label={t('page.backToList', { defaultValue: '목록으로' }) as string} />}
                 {editingTitle ? (
                   <SessionTitleInput
                     defaultValue={activeSession.title}

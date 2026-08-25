@@ -16,10 +16,29 @@ import styled from 'styled-components';
 type Props = {
   children: ReactNode;
   className?: string;
+  /**
+   * 뒤로 가기 — 좁은 화면(드릴다운)에서 상세·보조 패널에 표준으로 붙는다.
+   * ★ 페이지마다 각자 만든 뒤로 버튼을 여기로 모은다 — 어떤 화면은 있고 어떤 화면은 없어서
+   *   "채팅은 돌아가는 게 안 된다" 같은 차이가 났다(Irene, 2026-08-25).
+   *   usePanelStack().canGoBack 과 짝으로 쓴다.
+   */
+  onBack?: () => void;
+  backLabel?: string;
 };
 
-export default function PanelHeader({ children, className }: Props) {
-  return <Bar className={className}>{children}</Bar>;
+export default function PanelHeader({ children, className, onBack, backLabel }: Props) {
+  return (
+    <Bar className={className}>
+      {onBack && (
+        <BackBtn type="button" onClick={onBack} aria-label={backLabel || '뒤로'} title={backLabel || '뒤로'}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+        </BackBtn>
+      )}
+      {children}
+    </Bar>
+  );
 }
 
 const Bar = styled.div`
@@ -82,3 +101,33 @@ export const PanelMetaTitle = styled.h2`
   margin: 0;
   letter-spacing: -0.1px;
 `;
+
+/** 표준 뒤로 버튼 — 폰 터치 타깃 44 (theme/tokens CONTROL.touchMin). 데스크탑에서는 숨긴다. */
+const BackBtn = styled.button`
+  display: none;
+  flex-shrink: 0;
+  width: 40px; height: 40px;
+  margin-left: -8px; margin-right: 2px;
+  align-items: center; justify-content: center;
+  background: none; border: none; border-radius: 8px;
+  color: #334155; cursor: pointer;
+  svg { width: 20px; height: 20px; }
+  &:hover { background: #F1F5F9; }
+  @media (max-width: 1024px) { display: inline-flex; }
+  @media (max-width: 640px) { width: 44px; height: 44px; }
+`;
+
+/**
+ * 자체 헤더를 쓰는 화면(Q Note·Q Talk 등)이 **같은 뒤로가기**를 붙일 수 있게 따로 내보낸다.
+ * 헤더 마크업 통일은 점진적으로 하되, 동작(뒤로 가기)은 지금 당장 같아야 한다 —
+ * "어떤 화면은 되고 어떤 화면은 안 되는" 것이 사용자에겐 가장 큰 차이다.
+ */
+export function PanelBackButton({ onClick, label }: { onClick: () => void; label?: string }) {
+  return (
+    <BackBtn type="button" onClick={onClick} aria-label={label || '뒤로'} title={label || '뒤로'}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="15 18 9 12 15 6" />
+      </svg>
+    </BackBtn>
+  );
+}

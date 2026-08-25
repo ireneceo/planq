@@ -539,5 +539,8 @@
     "viewing": "{{email}} 와(과) 오간 메일",
     "includesArchived": "보관한 메일도 함께 보입니다",
     "exit": "나가기"
+  },
+  "list": {
+    "backToList": "목록으로"
   }
 }

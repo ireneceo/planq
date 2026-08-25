@@ -1170,6 +1170,62 @@ function checkSchemaCol() {
   report('schemacol', `DB 에 없는 컬럼 참조 래칫 (현재 ${r.curTotal} / 베이스 ${r.baseTotal})`, r.fails.length === 0, detail);
 }
 
+
+// ─────────────────────────────────────────────────────────────
+// UI 규격 래칫 (2026-08-25) — "메뉴마다 레이아웃·버튼·글자가 다 다르다"(Irene) 의 재발 차단.
+//
+// 실측으로 확인된 부채: 페이지 헤더 구현 3종(PageShell 44 / PanelHeader 2 / 자체 13),
+//   리스트 글자 5종이 2,000곳 이상, 버튼 높이 8종. 한 번에 다 고칠 수 없으므로 **래칫**으로 잠근다.
+//   지금 값을 베이스라인으로 동결하고, **늘어나면 실패**한다. 줄이는 것은 언제나 통과.
+//
+// 정본: dev-frontend/src/theme/tokens.ts (CONTROL·HEADER·LIST_ROW·PANEL_BP)
+//   신규 컴포넌트는 토큰과 프리미티브(PageShell / PanelHeader / ListRow / ActionButton)를 쓴다.
+function checkUiSpec() {
+  const files = [
+    ...walk(`${ROOT}/dev-frontend/src/pages`, ['.tsx', '.ts']),
+    ...walk(`${ROOT}/dev-frontend/src/components`, ['.tsx', '.ts']),
+  ];
+  const current = { customHeaders: 0, controlHeights: 0, listFontSizes: 0, fixedMinWidth: 0 };
+  const detail = { customHeaders: [], fixedMinWidth: [] };
+
+  for (const f of files) {
+    const src = read(f);
+    const r = rel(f);
+    // ① 자체 페이지 헤더 선언 — PageShell/PanelHeader 를 두고 각자 만든 것
+    const hdr = src.match(/const\s+(Header|HeaderBar|TopBar|PageHeader)\s*=\s*styled/g);
+    if (hdr) { current.customHeaders += hdr.length; detail.customHeaders.push(`${r}(${hdr.length})`); }
+    // ② 컨트롤 높이 하드코딩 — 토큰(36/40/44) 외의 값
+    const hs = src.match(/height:\s*(1[0-9]|2[0-9]|3[0-5]|3[7-9]|4[0-3])px/g);
+    if (hs) current.controlHeights += hs.length;
+    // ③ 리스트 글자 크기 — 12px 미만은 목록에서 읽기 어렵다(모바일에서 특히)
+    const fs = src.match(/font-size:\s*(9|10|11)(\.[0-9])?px/g);
+    if (fs) current.listFontSizes += fs.length;
+    // ④ 표형 리스트의 폰 대응 없는 고정 최소폭 — 375px 화면 밖으로 나간다
+    const mw = src.match(/min-width:\s*[45][0-9][0-9]px/g);
+    if (mw && !/max-width:\s*6[24]0px/.test(src)) {
+      current.fixedMinWidth += mw.length; detail.fixedMinWidth.push(`${r}(${mw.length})`);
+    }
+  }
+
+  newBaseline.uispec = current;
+  const base = baseline.uispec || current;   // 최초 실행은 현재값을 동결(부채 인정)
+  const fails = [];
+  const label = {
+    customHeaders: '자체 페이지 헤더(PageShell·PanelHeader 대신 직접 만든 것)',
+    controlHeights: '컨트롤 높이 하드코딩(토큰 36/40/44 밖)',
+    listFontSizes: '11px 이하 글자(목록 가독성)',
+    fixedMinWidth: '폰 대응 없는 고정 최소폭(가로 넘침)',
+  };
+  for (const k of Object.keys(current)) {
+    if (current[k] > (base[k] ?? current[k])) {
+      const extra = detail[k] && detail[k].length ? ` — 예: ${detail[k].slice(0, 3).join(', ')}` : '';
+      fails.push(`${label[k]}: ${base[k]} → ${current[k]} (+${current[k] - base[k]}) 증가${extra}`);
+    }
+  }
+  const total = Object.values(current).reduce((a, b) => a + b, 0);
+  report('uispec', `UI 규격 래칫 (동결 총 ${Object.values(base).reduce((a, b) => a + b, 0)} / 현재 ${total})`, fails.length === 0, fails);
+}
+
 const CATEGORIES = {
   mock: checkMock,
   i18n: checkI18n,
@@ -1194,6 +1250,7 @@ const CATEGORIES = {
   docfresh: checkDocFresh,
   schemacol: checkSchemaCol,
   routedrift: checkRouteDrift,
+  uispec: checkUiSpec,
 };
 
 try {

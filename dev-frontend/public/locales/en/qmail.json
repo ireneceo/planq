@@ -539,5 +539,8 @@
     "viewing": "Mail with {{email}}",
     "includesArchived": "Archived mail is included",
     "exit": "Exit"
+  },
+  "list": {
+    "backToList": "Back to list"
   }
 }

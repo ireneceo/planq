@@ -216,7 +216,8 @@
       "message": "Leaving will stop the recording. Everything captured so far is already saved.",
       "confirm": "Stop and leave",
       "cancel": "Keep recording"
-    }
+    },
+    "backToList": "Back to list"
   },
   "memoPopup": {
     "title": "Memo",

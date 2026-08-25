@@ -2156,7 +2156,10 @@ const MailPage: React.FC = () => {
             />
           ) : (
             <>
-              <PanelHeader>
+              <PanelHeader
+                onBack={viewportNarrow && activeId != null ? () => navigateToThread(null) : undefined}
+                backLabel={t('list.backToList', { defaultValue: '목록으로' }) as string}
+              >
                 {/* #283 — 버튼과 제목을 한 Row 로 묶는다. PanelHeader 는 ≤640px 에서
                     flex-direction:column 이라 직계 자식으로 넣으면 제목 **위에 한 줄로 쌓인다**. */}
                 <DetailHeaderLeft>
