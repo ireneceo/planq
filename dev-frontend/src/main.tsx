@@ -50,14 +50,35 @@ if (typeof window !== 'undefined' && window.visualViewport) {
   // 줄어드는 경우가 있어 (실측 VVDIAG: iH 793→417) live innerHeight 로 isUp 판정하면
   // 오판. orientation/툴바 복귀로만 갱신되는 최대값을 기준으로 사용.
   let fullH = window.innerHeight;
+  // ★ 성능 — 값이 "바뀔 때만" 쓴다.
+  //   :root 의 CSS 변수를 건드리면 문서 전체 스타일이 재계산된다. 이 update() 는
+  //   visualViewport 의 scroll 마다 불리는데, 네이티브 WebView 는 고무줄 때문에 스크롤이
+  //   초당 수십 번 발생한다 → 같은 값을 계속 다시 써서 재계산 폭풍이 됐다
+  //   ("쓸수록 느려진다", 2026-08-25 iOS 앱 실측). 같은 값이면 아무것도 하지 않는다.
+  let lastVvh = -1;
+  let lastKb = -1;
+  let touching = false;
+  window.addEventListener('touchstart', () => { touching = true; }, { passive: true });
+  window.addEventListener('touchend', () => { touching = false; }, { passive: true });
+  window.addEventListener('touchcancel', () => { touching = false; }, { passive: true });
   const update = () => {
     if (window.innerHeight > fullH) fullH = window.innerHeight;
     const isUp = vv.height < fullH * 0.70;
     if (isUp) document.body.setAttribute('data-keyboard-up', '1');
     else document.body.removeAttribute('data-keyboard-up');
+    if (vv.height === lastVvh) {
+      // 높이가 그대로면 CSS 변수도 그대로다 — 아래 phantom scroll 보정만 판단하고 끝낸다.
+      maybeFixPhantomScroll();
+      return;
+    }
+    lastVvh = vv.height;
     document.documentElement.style.setProperty('--vvh', `${vv.height}px`);
     // 키보드 높이 — fixed 바닥바/FAB 가 필요 시 이만큼 리프트하는 데 사용.
-    document.documentElement.style.setProperty('--keyboard-height', `${Math.max(0, fullH - vv.height)}px`);
+    const kb = Math.max(0, fullH - vv.height);
+    if (kb !== lastKb) {
+      lastKb = kb;
+      document.documentElement.style.setProperty('--keyboard-height', `${kb}px`);
+    }
     // iOS PWA standalone phantom scroll 차단 (근본 fix). 입력란 focus 시 iOS 가
     // document 를 키보드 높이만큼 스크롤 (실측 VVDIAG: 깨진 focus 는 window.scrollY/
     // visualViewport.offsetTop=376, 정상 focus 는 0). position:fixed body 가 이를
@@ -65,11 +86,18 @@ if (typeof window !== 'undefined' && window.visualViewport) {
     // visual viewport 에 맞춤. 모바일 고정 레이아웃에서만 (데스크탑 정상 스크롤 보호).
     // 단, 앱 셸(pq-app-shell)에서만 — 랜딩/회원가입/공개 페이지는 body 스크롤이
     // 정상 동작이라 scrollTo(0,0) 가 사용자 스크롤을 위로 튕겨내면 안 됨.
+    maybeFixPhantomScroll();
+  };
+  // ★ 손가락이 화면에 닿아 있는 동안에는 되돌리지 않는다.
+  //   고무줄로 튕기는 중에 매 프레임 scrollTo(0,0) 을 부르면 관성과 싸우며 프레임을 태운다.
+  //   손을 뗀 뒤 한 번만 정렬하면 결과는 같고 훨씬 가볍다.
+  function maybeFixPhantomScroll() {
+    if (touching) return;
     if (mq.matches && document.documentElement.classList.contains('pq-app-shell')
         && (window.scrollY !== 0 || vv.offsetTop !== 0)) {
       window.scrollTo(0, 0);
     }
-  };
+  }
   update();
   vv.addEventListener('resize', update);
   vv.addEventListener('scroll', update);

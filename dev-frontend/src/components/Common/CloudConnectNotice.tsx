@@ -52,8 +52,8 @@ const CloudConnectNotice: React.FC<Props> = ({ businessId }) => {
       <ConnectedNotice data-testid="cloud-connect-notice">
         <NoticeIcon $tone="amber" aria-hidden>!</NoticeIcon>
         <NoticeText>
-          <strong>{t('docs.cloud.connectedTitle', { defaultValue: '워크스페이스 공용 파일을 Google Drive 에 보관 중입니다.' })}</strong>{' '}
-          {t('docs.cloud.connectedBody', { defaultValue: '프로젝트·업무·채팅 첨부 파일이 자동으로 Drive 의 PlanQ 폴더에 저장됩니다. "내 파일" 등 개인 파일은 PlanQ 자체 스토리지에 보관됩니다. Drive 에서 직접 만들거나 삭제한 파일은 PlanQ 와 동기화되지 않으니 PlanQ 안에서만 관리해 주세요.' })}
+          <strong>{t('docs.cloud.connectedTitle', { defaultValue: '공용 파일은 Google Drive 에 저장됩니다.' })}</strong>{' '}
+          {t('docs.cloud.connectedBody', { defaultValue: 'Drive 에서 직접 만들거나 지운 파일은 PlanQ 에 반영되지 않습니다.' })}
         </NoticeText>
         {driveLink && (
           <NoticeAction as="a" href={driveLink} target="_blank" rel="noreferrer">
@@ -68,8 +68,8 @@ const CloudConnectNotice: React.FC<Props> = ({ businessId }) => {
     <RecommendNotice data-testid="cloud-connect-notice">
       <NoticeIcon $tone="teal" aria-hidden>+</NoticeIcon>
       <NoticeText>
-        <strong>{t('docs.cloud.recommendTitle', { defaultValue: 'Google Drive 연결을 권장합니다.' })}</strong>{' '}
-        {t('docs.cloud.recommendDesc', { defaultValue: 'PlanQ 에서 업로드한 파일이 자동으로 Drive 의 PlanQ 폴더에 보관됩니다. 자체 스토리지 용량을 절약할 수 있어요.' })}
+        <strong>{t('docs.cloud.recommendTitle', { defaultValue: 'Google Drive 연결' })}</strong>{' '}
+        {t('docs.cloud.recommendDesc', { defaultValue: '공용 파일을 Drive 에 보관해 저장 용량을 아낄 수 있어요.' })}
       </NoticeText>
       <NoticeAction as={Link} to="/business/settings/storage">
         {t('docs.cloud.connectCta', { defaultValue: '연결 설정' })} →
@@ -115,6 +115,9 @@ const NoticeIcon = styled.span<{ $tone: 'amber' | 'teal' }>`
 `;
 const NoticeText = styled.div`
   flex: 1;
+  /* 좁은 화면에서는 글이 한 줄을 다 쓰고 버튼은 다음 줄로 내려간다.
+     버튼이 옆에 끼면 안내문이 2~3자씩 끊겨 읽을 수 없다(모바일 실측 2026-08-25). */
+  @media (max-width: 640px) { flex: 1 1 100%; }
   font-size: 12.5px;
   line-height: 1.55;
   color: #334155;
@@ -122,6 +125,8 @@ const NoticeText = styled.div`
 `;
 const NoticeAction = styled.button`
   flex-shrink: 0;
+  /* 아이콘(20px) + gap(10px) 만큼 들여써 본문 왼쪽선에 맞춘다. */
+  @media (max-width: 640px) { margin-left: 30px; margin-top: 2px; }
   padding: 4px 10px;
   font-size: 12px;
   font-weight: 600;
