@@ -35,13 +35,16 @@ async function assertBusinessMember(req, bizId) {
 const PERSONAL_PROVIDERS = ['google_calendar', 'google_drive', 'gmail'];
 
 // OAuth 콜백 창 HTML — 부모창 postMessage 후 자동 닫기 (cloud.js 패턴 정합, COOP fallback 포함)
-// #125a — 네이티브 복귀 딥링크. planq.kr 경로(Universal Link/App Link)로 302 → OS 가 앱을 깨우고
+// #125a — 네이티브 복귀 딥링크. 커스텀 스킴(planq://)으로 302 → OS 가 앱을 깨우고
 //   NativeBridge 의 appUrlOpen 이 시스템 브라우저를 닫은 뒤 'planq:oauth-connected' 를 발행한다.
-//   (로그인 OAuth 가 /oauth/native-return 으로 쓰는 것과 같은 통로)
+//   (로그인 OAuth 와 같은 통로. 같은 도메인 302 로는 iOS UL 이 안 열린다 — utils/nativeReturn 주석)
 function nativeReturnRedirect(res, { ok, provider, error }) {
-  const qs = new URLSearchParams({ provider: provider || '', ok: ok ? '1' : '0' });
-  if (error) qs.set('error', String(error).slice(0, 120));
-  return res.redirect(302, `/oauth/native-return?kind=connect&${qs.toString()}`);
+  return res.redirect(302, nativeReturnUrl({
+    kind: 'connect',
+    provider: provider || '',
+    ok: ok ? '1' : '0',
+    error: error ? String(error).slice(0, 120) : '',
+  }));
 }
 
 function personalCallbackHtml({ ok, provider, title, body }) {

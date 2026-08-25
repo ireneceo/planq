@@ -2190,7 +2190,7 @@ const QNotePage = () => {
       />
       {/* data-testid — 하니스가 "모바일 진입 시 리스트가 보이는가"(#283)를 판정하는 앵커.
           CLAUDE.md 운영안정성 §17: 인터랙티브/판정 대상 요소에 testid 부여. */}
-      <CollapsibleSidebar data-testid="qnote-list" $collapsed={sidebarCollapsed} $w={listWidth}>
+      <CollapsibleSidebar data-testid="qnote-list" $collapsed={sidebarCollapsed} $w={listWidth} $fullOnMobile={!activeSessionId}>
         <PanelResizeHandle onMouseDown={startListResize} />
         <SidebarHeader>
           <TitleGroup>

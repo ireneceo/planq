@@ -427,3 +427,33 @@ ssh 87.106.78.146 'grep -ac "EMAIL_ENCRYPTION_KEY 미설정" ~/.pm2/logs/planq-p
 - 구현 커밋: 이 절 추가 커밋과 같은 사이클
 - 실기기 확인: Irene 이 TestFlight 빌드로 직접 (결제 버튼 0 · 문구 확인)
 - 설계 근거: `utils/purchase.ts` 상단 주석, `docs/IOS_BETA_RUNBOOK.md`
+
+---
+
+## §8 네이티브 OAuth 복귀 경로를 커스텀 스킴으로 전환 (2026-08-25 접수)
+
+**상태: Opus 자체 검증만 통과 (Irene 지시로 Fable 은 나중). 보안 경계 변경이라 반드시 재검증 대상.**
+
+### 무엇을 왜 바꿨나
+iOS 앱에서 구글 로그인이 **3번 시도해야 열렸다**(운영 실측). 원인은 코드 결함이 아니라 플랫폼 규칙이다 —
+**iOS 는 같은 도메인 안에서의 이동으로 Universal Link 를 발화하지 않는다.** 콜백
+`planq.kr/api/auth/google/callback` 이 같은 `planq.kr/oauth/native-return` 으로 302 하므로 OS 가 앱을
+열지 않고 SFSafariViewController 에 남았다. SPA 에 그 경로가 없어 랜딩으로 튕겼고, 사용자에겐
+"창이 안 닫히고 로그인 실패" 로 보였다(가끔 성공하는 복불복이 더 나쁘다).
+
+- 서버: `utils/nativeReturn.js` 신설 → `planq://oauth/native-return?...` 로 302
+  (로그인 `routes/auth_oauth.js`, 개인 연동 `routes/external_connections.js` 둘 다)
+- 앱: `NativeBridge.tsx` 가 https 경로와 커스텀 스킴 **양쪽** 수신
+- 스킴은 이미 iOS Info.plist·AndroidManifest 에 등록돼 있어 **앱 재빌드 불필요**
+
+### Fable 이 검증할 것
+1. **로그인 CSRF** — 수신부가 경로만 보고 code 를 교환하면 남의 링크로 로그인이 트리거된다.
+   https 분기에 same-origin 검사를 넣었다(6케이스 반증). 커스텀 스킴 분기는 host+path 고정.
+   **이것으로 충분한가** — code 자체의 단명성·1회성·사용자 바인딩(`issueNativeOAuthCode`)까지 확인 필요.
+2. **code 유출면** — 커스텀 스킴은 같은 기기의 다른 앱이 같은 스킴(`planq`)을 등록하면 가로챌 수 있다
+   (iOS 는 스킴 선점 규칙이 불명확). Universal Link 보다 약한 경계다.
+   → PKCE 또는 서버측 1회성·짧은 TTL·기기 바인딩으로 충분한지 판단.
+3. **개인 연동 복귀**(`kind=connect`) 도 같은 통로 — 오류 문자열이 URL 로 흐른다(120자 절단).
+4. **웹 회귀 0** — `isNativeOAuth(req)` 분기 안에서만 바뀌었는지. 웹/PWA 로그인은 무변경이어야 한다.
+5. **안드로이드** — App Links(autoVerify)는 assetlinks.json 서빙 후 동작. 스킴 fallback 과 중복 수신 시
+   `appUrlOpen` 이 두 번 발화하지 않는지.

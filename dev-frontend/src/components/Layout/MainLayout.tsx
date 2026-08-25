@@ -539,7 +539,7 @@ const MainContent = styled.div<{ $marginLeft: number; $tabMode?: boolean }>`
   flex-direction: column;
   overflow: hidden;
   transition: margin-left 0.25s ease;
-  ${mediaTablet} { margin-left: 0; --pq-content-left: 0px; padding-top: 56px; }
+  ${mediaTablet} { margin-left: 0; --pq-content-left: 0px; padding-top: var(--pq-mobile-chrome, 56px); }
 `;
 
 /* 페이지 스크롤 영역 — 배너 아래 남은 공간(flex:1). 흐름형 페이지는 여기서 스크롤,
@@ -554,8 +554,11 @@ const PageScroll = styled.div`
 
 const MobileHeader = styled.div`
   display: none; position: fixed; top: 0; left: 0; right: 0;
-  height: 56px; background: #115E59; border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  z-index: 99; padding: 0 16px; align-items: center; justify-content: space-between;
+  /* 상태바(노치) 영역만큼 안쪽으로 밀고, 그만큼 총 높이를 키운다. 웹·PWA 는 safe-area=0 이라 무변경. */
+  height: var(--pq-mobile-chrome, 56px);
+  padding-top: var(--pq-safe-top, 0px);
+  background: #115E59; border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 99; padding-left: 16px; padding-right: 16px; align-items: center; justify-content: space-between;
   ${mediaTablet} { display: flex; }
 `;
 

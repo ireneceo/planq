@@ -12,6 +12,26 @@ html, body {
 }
 
 /* Mobile specific - prevent horizontal scroll and bounce */
+:root {
+  /* 모바일 고정 헤더(MainLayout.MobileHeader)가 실제로 차지하는 높이.
+     ★ 단일 원천이다. 헤더 자신·콘텐츠 padding·드로어 top 이 각자 계산하면 반드시 갈라진다 —
+     실제로 갈라져 있었다(2026-08-25 iOS 앱): 헤더는 56px 고정인데 드로어는
+     `56px + env(safe-area-inset-top)` 을 가정해, 노치 높이(iPhone 47~59px)만큼 드로어가
+     더 내려가 그 틈으로 페이지 서브헤더가 보였다. 반대로 헤더는 상태바에 먹혀 내용을 가렸다.
+     safe-area 는 브라우저·PWA 에서 0 이므로 웹 회귀 0. */
+  --pq-safe-top: env(safe-area-inset-top, 0px);
+  --pq-mobile-header: 56px;
+  --pq-mobile-chrome: calc(var(--pq-mobile-header) + var(--pq-safe-top));
+}
+
+/* 네이티브 WebView 고무줄(overscroll bounce) 차단 — 앱 셸이 아닌 화면(로그인·가입·공개)도 포함.
+   웹/PWA 는 pq-native 가 없으므로 영향 0 (브라우저 pull-to-refresh 보존). */
+html.pq-native,
+html.pq-native body {
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: auto;
+}
+
 @media (max-width: 768px) {
   * {
     max-width: 100vw;

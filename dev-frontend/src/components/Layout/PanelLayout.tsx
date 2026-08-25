@@ -123,7 +123,7 @@ export const Panel = styled.div<{
  * - 태블릿/모바일(≤1024px): absolute 오버레이 드로어 (좌측 고정, 그림자, z-index 30)
  *    → 펼침 시 SidebarBackdrop 와 함께 노출
  */
-export const CollapsibleSidebar = styled.aside<{ $collapsed?: boolean; $w?: number }>`
+export const CollapsibleSidebar = styled.aside<{ $collapsed?: boolean; $w?: number; $fullOnMobile?: boolean }>`
   background: #FFFFFF;
   border-right: 1px solid #E2E8F0;
   display: flex;
@@ -143,6 +143,10 @@ export const CollapsibleSidebar = styled.aside<{ $collapsed?: boolean; $w?: numb
     max-width: 85vw;
     z-index: 30;
     box-shadow: 4px 0 16px rgba(15, 23, 42, 0.12);
+    /* $fullOnMobile — "아직 아무것도 안 골랐다" 상태에서는 리스트가 곧 화면이다.
+       오버레이(85vw)로 두면 오른쪽에 빈 상세 패널이 15% 삐져나와 보인다(운영 실측 2026-08-25 Q Mail).
+       고른 뒤에는 다시 오버레이 드로어로 돌아간다 — 그때는 본문이 주인공이라 덮는 게 맞다. */
+    ${(p) => (p.$fullOnMobile ? 'width: 100%; max-width: 100%; box-shadow: none; border-right: none;' : '')}
   }
 `;
 

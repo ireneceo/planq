@@ -2303,7 +2303,8 @@ const Drawer = styled.aside<{ $w: number }>`
   @keyframes pqSlideIn{from{transform:translateX(100%);}to{transform:translateX(0);}}
   @media (prefers-reduced-motion: reduce){animation:none;}
   /* RightDock FAB(120) 위로 z-index 130. 모바일 고정 헤더(99) 밑에서 시작 + safe-area 보정 → 닫기 버튼 안 가림(#171/172). */
-  @media (max-width: 1024px){ top:calc(56px + env(safe-area-inset-top)); height:calc(var(--vvh, 100dvh) - 56px - env(safe-area-inset-top)); }
+  /* 헤더와 같은 단일 원천(--pq-mobile-chrome). 따로 계산하면 노치 높이만큼 어긋난다(index.css 주석). */
+  @media (max-width: 1024px){ top:var(--pq-mobile-chrome, 56px); height:calc(var(--vvh, 100dvh) - var(--pq-mobile-chrome, 56px)); }
   /* ≤640 폰 — 풀스크린(여태 min(w,100vw-56)이라 56px 조각으로 뒤 화면이 비쳤다). 좌측 border·그림자 제거. */
   @media (max-width: 640px){ width:100vw; border-left:none; box-shadow:none; }
   /* #290 — 팝아웃 창(440px)엔 메인 모바일 고정 헤더(56px)가 없다. 위 ≤1024 분기가 그 헤더 자리를

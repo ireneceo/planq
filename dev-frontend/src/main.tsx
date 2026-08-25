@@ -29,6 +29,11 @@ if (!isNativeApp()) {
 
 // 네이티브 앱 부트스트랩 — 상태바 스타일(흰 배경 + 어두운 글자). 웹/PWA 에는 영향 0.
 if (isNativeApp()) {
+  // `pq-native` — WKWebView/Android WebView 전용 CSS 훅. 웹·PWA 에는 절대 붙지 않는다.
+  //   WebView 는 브라우저와 달리 주소창이 없고 contentInset 을 스스로 조정해,
+  //   100dvh 가 실제 가시영역보다 몇 px 커지는 순간 body 가 스크롤 가능해지고
+  //   iOS 고무줄(bounce) 이 발동한다 — 사용자에겐 "화면이 위아래로 흔들림" 으로 보인다.
+  document.documentElement.classList.add('pq-native');
   import('@capacitor/status-bar').then(({ StatusBar, Style }) => {
     StatusBar.setStyle({ style: Style.Light }).catch(() => {});
   }).catch(() => {});

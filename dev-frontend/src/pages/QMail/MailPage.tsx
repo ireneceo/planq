@@ -1621,7 +1621,9 @@ const MailPage: React.FC = () => {
       ].join(' ')}
     >
       {/* #130 — 좌측 리스트: 300px 접이식 (여태 340px 고정·접기 없음이라 Q mail 만 다른 화면처럼 보였다) */}
-      {!sidebarCollapsed && viewportNarrow && <SidebarBackdrop onClick={() => setSidebarCollapsed(true)} />}
+      {/* 아무 스레드도 안 고른 상태의 리스트는 오버레이가 아니라 화면 그 자체다 — 백드롭을 깔면
+          그 뒤의 빈 본문을 어둡게 비추고, 눌러 닫으면 빈 화면만 남는다. */}
+      {!sidebarCollapsed && viewportNarrow && activeId != null && <SidebarBackdrop onClick={() => setSidebarCollapsed(true)} />}
       {/* 좌측 리스트 접기 — 공통 FloatingPanelToggle(뷰포트 왼쪽 변 플로팅, 전 폭 동일 디자인). */}
       <FloatingPanelToggle
         side="left"
@@ -1630,7 +1632,7 @@ const MailPage: React.FC = () => {
         offsetOpen={`${listWidth}px`}
         ariaLabel={(sidebarCollapsed ? t('sidebar.expand', { defaultValue: '목록 열기' }) : t('sidebar.collapse', { defaultValue: '목록 접기' })) as string}
       />
-      <CollapsibleSidebar $collapsed={sidebarCollapsed} $w={listWidth}>
+      <CollapsibleSidebar $collapsed={sidebarCollapsed} $w={listWidth} $fullOnMobile={activeId == null}>
         <PanelResizeHandle onMouseDown={startListResize} />
         <PanelHeader>
           <PanelTitle>Q mail</PanelTitle>

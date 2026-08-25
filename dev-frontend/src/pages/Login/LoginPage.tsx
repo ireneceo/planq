@@ -24,9 +24,13 @@ const Container = styled.div`
        padding 0 으로 LoginBox 가 가장자리까지 차지. */
     padding: 0;
     background: #FFFFFF;
-    /* 모바일에서 정확히 디바이스 높이만큼만 — 스크롤 발생 차단 */
-    height: 100dvh;
-    min-height: 100dvh;
+    /* 모바일은 정확히 "가시영역" 만큼. 100dvh 는 네이티브 WebView 에서 실제보다 몇 px 커져
+       body 를 스크롤 가능하게 만들고 iOS 고무줄을 유발한다(운영 실측 2026-08-25).
+       --vvh 는 main.tsx 가 visualViewport.height 로 계속 sync 하는 값이라 항상 정확하다.
+       height 고정 대신 min-height — 키보드가 올라와 가시영역이 줄면 내용이 잘리지 않고
+       스크롤로 넘어가야 한다. */
+    height: auto;
+    min-height: var(--vvh, 100dvh);
   }
 `;
 

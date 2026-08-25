@@ -45,10 +45,21 @@ export default function NativeBridge() {
             let u: URL;
             try { u = new URL(url); } catch { return; }
 
+            // 복귀 경로 판정 — 두 형태를 모두 받는다.
+            //   ① https://planq.kr/oauth/native-return   (Universal Link — 외부에서 들어올 때)
+            //   ② planq://oauth/native-return            (커스텀 스킴 — 시스템 브라우저 OAuth 복귀)
+            //   ②가 정본이다: iOS 는 같은 도메인 안의 302 로는 UL 을 발화하지 않아 ①이 복불복이었다
+            //   (2026-08-25 운영 실측 — 3번 시도해야 앱이 열렸다). 서버는 이제 ②로만 보낸다.
+            //   https 분기는 반드시 same-origin 으로 좁힌다 — 경로만 보고 받으면 남의 도메인 링크로도
+            //   code 교환이 트리거된다(로그인 CSRF). OS 가 AASA 로 한 번 거르지만 겹쳐서 막는다.
+            const isNativeReturn =
+              (u.pathname === '/oauth/native-return' && u.origin === window.location.origin) ||
+              (u.protocol === 'planq:' && `${u.hostname}${u.pathname}`.replace(/\/+$/, '') === 'oauth/native-return');
+
             // ── 네이티브 Google 로그인 code 교환 (H-2) ──
             //   딥링크로 받은 일회용 code 를 앱 WebView 컨텍스트에서 세션으로 교환 → refresh cookie 심김
             //   → /inbox 리로드 시 AuthContext bootstrap 이 자동 로그인.
-            if (u.pathname === '/oauth/native-return') {
+            if (isNativeReturn) {
               // #125a — 개인 연동(구글 캘린더·드라이브·Gmail) 복귀. 로그인과 달리 교환할 code 가 없다.
               //   여기서 걸러내지 않으면 아래 code 분기에서 조용히 무시돼 "연동 완료 창이 멈춘" 것처럼 보인다.
               if (u.searchParams.get('kind') === 'connect') {

@@ -943,7 +943,13 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         });
 
         // 활성 대화 자동 선택 (customer 채널 우선)
-        if (!cancelled && mappedConvs.length > 0) {
+        //   ★ 데스크탑(3컬럼)에서만. ≤1024px 는 리스트↔대화 드릴다운이라 자동 선택이
+        //   "뒤로 가기가 안 되는" 버그가 된다 — 뒤로 눌러 null 로 만들어도 목록이 다시
+        //   로드되는 순간(소켓 갱신·foreground 복귀) 여기서 대화를 다시 열어버린다.
+        //   운영 실측 2026-08-25(iOS 앱): 리스트로 영영 못 돌아감.
+        const drilldown = typeof window !== 'undefined'
+          && window.matchMedia('(max-width: 1024px)').matches;
+        if (!cancelled && mappedConvs.length > 0 && !drilldown) {
           const current = mappedConvs.find((c) => c.id === activeConversationId);
           if (!current) {
             const customer = mappedConvs.find((c) => c.channel_type === 'customer');

@@ -277,7 +277,8 @@ router.get('/google/callback', async (req, res) => {
     if (isNativeOAuth(req)) {
       res.clearCookie('oauth_native', { path: '/api/auth' });
       const code = issueNativeOAuthCode(user);
-      return res.redirect(302, `/oauth/native-return?code=${encodeURIComponent(code)}&new=${isNewUser ? '1' : '0'}`);
+      // 커스텀 스킴으로 복귀 — 같은 도메인 302 는 iOS Universal Link 를 발화시키지 못한다(utils/nativeReturn).
+      return res.redirect(302, nativeReturnUrl({ code, new: isNewUser ? '1' : '0' }));
     }
 
     // refresh_token cookie 발급 (옛 /login 패턴 정합) — AuthContext 가 mount 시 자동 refresh
