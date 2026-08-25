@@ -8,7 +8,7 @@
       "idle_detected": "Away detected",
       "break": "On break"
     },
-    "idleHint": "Click \"Start\" on any task in Q Task — time will track automatically.",
+    "idleHint": "Auto-tracked when you start a task",
     "gotoTasks": "Go to my tasks",
     "noTask": "No task selected",
     "noTaskHint": "The task for this session is gone. Starting another task will auto-switch.",

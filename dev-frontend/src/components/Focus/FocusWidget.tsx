@@ -272,7 +272,7 @@ const FocusWidget: React.FC<Props> = ({ isCollapsed, embedded }) => {
           <Dot $state="idle" />
           <Label>{t('widget.title')}</Label>
         </WidgetHeader>
-        <SubText>{t('widget.idleHint', 'Q Task 에서 "진행 시작"을 누르면 시간이 자동 추적돼요.')}</SubText>
+        <SubText>{t('widget.idleHint', 'Q Task 에서 "진행 시작" 시 자동 측정')}</SubText>
         <Actions>
           <GotoLink to="/tasks" title={t('widget.gotoTasks', '내 업무로 가기') as string}>
             <SvgExternal /> {t('widget.gotoTasks', '내 업무로 가기')}
