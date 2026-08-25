@@ -70,8 +70,12 @@ const QTalkStandalonePage: React.FC = () => {
 export default QTalkStandalonePage;
 
 const Shell = styled.div`
+  /* 높이는 --vvh 하나로 — 100dvh 는 네이티브 WebView 에서 가시영역보다 커져 body 가
+     스크롤 가능해지고 iOS 고무줄이 발동한다("팝아웃이 위아래로 흔들림", 2026-08-25 실측).
+     --vvh 는 main.tsx 가 visualViewport.height 로 계속 sync 하는 값이라 항상 정확하다. */
   height: 100vh;
   height: 100dvh;
+  height: var(--vvh, 100dvh);
   width: 100vw;
   overflow: hidden;
   background: #FFFFFF;
