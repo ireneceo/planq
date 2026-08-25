@@ -72,6 +72,15 @@ interface HeaderProps {
 }
 const Header: React.FC<HeaderProps> = ({ onClose, children }) => (
   <HeaderWrap>
+    {/* ★ 2026-08-25 (Irene: "일정에서 상세 들어가면 뒤로가기 화살표도 안나와")
+        폰에서 이 드로어는 전체화면이라 "닫기 X" 가 아니라 **뒤로가기**로 읽힌다.
+        다른 화면(PanelBackButton)과 같은 자리·같은 모양으로 좌측 상단에 둔다.
+        공용 프리미티브에 넣었으므로 일정·업무·고객 상세가 한 번에 통일된다. */}
+    <BackBtn onClick={onClose} aria-label="back">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M15 18l-6-6 6-6" />
+      </svg>
+    </BackBtn>
     <HeaderContent>{children}</HeaderContent>
     <CloseBtn onClick={onClose} aria-label="close">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -169,6 +178,20 @@ const HeaderWrap = styled.div`
 `;
 
 const HeaderContent = styled.div` flex: 1; min-width: 0; `;
+
+const BackBtn = styled.button`
+  /* 데스크탑에는 옆에 목록이 그대로 보이므로 필요 없다 — 폰·태블릿에서만. */
+  display: none;
+  @media (max-width: 1024px) {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px; margin-left: -6px;
+    border: none; background: transparent; color: #475569;
+    border-radius: 8px; cursor: pointer; flex-shrink: 0;
+    &:hover { background: #F1F5F9; color: #0F172A; }
+    &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
+  }
+  @media (max-width: 640px) { width: 44px; height: 44px; }
+`;
 
 const CloseBtn = styled.button`
   /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */

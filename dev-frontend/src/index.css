@@ -56,12 +56,18 @@ html.pq-native body::before {
   z-index: 98;
   pointer-events: none;
 }
+/* ★ 2026-08-25 (Irene: "하단 하얗게 잘리는 거... 위로 덮어버려서 버튼들까지 잘려")
+   아래쪽은 위와 사정이 다르다. 상단은 헤더가 상태바 뒤까지 teal 로 채우므로 덮개가 맞지만,
+   하단에는 **콘텐츠와 버튼이 있다.** z-index 98 로 그리면 그 위를 덮어 버튼이 잘린다
+   (pointer-events:none 이라 눌리기는 하지만 보이지 않는다 — 더 나쁘다).
+   → ① 칠하기는 **콘텐츠 뒤로** 내리고(z-index 0), ② 그 높이만큼 앱 셸이 **자리를 비운다**
+   (MainContent 의 padding-bottom). 덮지 않고 비켜서게 하는 것이 맞다. */
 html.pq-native body::after {
   content: '';
   position: fixed; bottom: 0; left: 0; right: 0;
   height: var(--pq-safe-bottom, 0px);
   background: #F8FAFC;
-  z-index: 98;
+  z-index: 0;
   pointer-events: none;
 }
 

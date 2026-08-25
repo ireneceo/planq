@@ -279,6 +279,18 @@ const QNotePage = () => {
   const [summarizing, setSummarizing] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [reSummarizeOpen, setReSummarizeOpen] = useState(false);
+  // ★ 2026-08-25 (Irene: "모든 곳에서 요약생성한 거 접었다 폈다할 수 있어야지")
+  //   긴 요약이 원문을 밀어낸다. 접힘 여부는 기기에 기억한다(매번 다시 접지 않게).
+  const [summaryCollapsed, setSummaryCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem('qnote_summary_collapsed') === '1'; } catch { return false; }
+  });
+  const toggleSummary = useCallback(() => {
+    setSummaryCollapsed((v) => {
+      const next = !v;
+      try { localStorage.setItem('qnote_summary_collapsed', next ? '1' : '0'); } catch { /* quota */ }
+      return next;
+    });
+  }, []);
   const [reSummarizeInput, setReSummarizeInput] = useState('');
   const [savingDoc, setSavingDoc] = useState(false);
   const [docSaved, setDocSaved] = useState(false);
@@ -2760,7 +2772,12 @@ const QNotePage = () => {
             {/* N+88 — 인라인 영속 요약. 항상 표시, 비었으면 생성 CTA. */}
             <SummarySection>
               <SummaryHead>
-                <SummaryHeadTitle>{t('page.summary.title', '요약')}</SummaryHeadTitle>
+                <SummaryToggle type="button" onClick={toggleSummary}
+                  aria-expanded={!summaryCollapsed}
+                  disabled={!activeSession.summary_full}>
+                  <SummaryCaret $open={!summaryCollapsed} aria-hidden="true">▸</SummaryCaret>
+                  <SummaryHeadTitle>{t('page.summary.title', '요약')}</SummaryHeadTitle>
+                </SummaryToggle>
                 {activeSession.summary_full && (
                   <SummaryActions>
                     {docSaved ? (
@@ -2797,6 +2814,11 @@ const QNotePage = () => {
               )}
               {summaryError && <SummaryError>{summaryError}</SummaryError>}
               {activeSession.summary_full ? (
+                summaryCollapsed ? (
+                  <SummaryCollapsedHint type="button" onClick={toggleSummary}>
+                    {t('page.summary.expand', '요약 펼치기')}
+                  </SummaryCollapsedHint>
+                ) : (
                 <>
                   {(activeSession.summary_key_points || []).length > 0 && (
                     <SummaryPoints>
@@ -2805,6 +2827,7 @@ const QNotePage = () => {
                   )}
                   <SummaryFull>{activeSession.summary_full}</SummaryFull>
                 </>
+                )
               ) : (
                 <SummaryEmpty>
                   <SummaryEmptyText>{t('page.summary.emptyHint', 'AI가 이 회의의 핵심을 요약합니다.')}</SummaryEmptyText>
@@ -3570,6 +3593,23 @@ const MainHeader = styled.div`
     min-height: 48px;
     gap: 8px;
   }
+  /* ★ 2026-08-25 (Irene: "제목 제대로 나오고 버튼 나오려면 2행이어야 하겠는데")
+     폰에서는 제목과 액션이 한 줄에 다 설 수 없다 — 말줄임으로 잘리거나 버튼이 밀린다.
+     이 화면은 드릴다운이라 옆에 나란히 설 패널이 없다(= 60px 정렬 계약을 지킬 상대가 없다).
+     그래서 여기서만 2행으로 푼다: 1행 제목, 2행 액션. */
+  @media (max-width: 640px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    min-height: 0;
+    padding: 10px 12px;
+    > *:first-child { width: 100%; }
+    > *:last-child {
+      width: 100%;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+  }
 `;
 
 /* 수평 엣지 바 — Q Note 헤더 높이 접기 (Q Talk 세로 엣지 바와 같은 디자인, 방향만 가로) */
@@ -4061,6 +4101,28 @@ const SummarySection = styled.section`
   background: #F8FAFC;
   @media (max-width: 640px) { padding: 14px 16px; }
 `;
+const SummaryToggle = styled.button`
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 6px; margin-left: -6px;
+  background: transparent; border: none; border-radius: 6px;
+  cursor: pointer; min-height: 2.25rem;
+  &:hover:not(:disabled) { background: #F1F5F9; }
+  &:disabled { cursor: default; }
+  &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
+`;
+const SummaryCaret = styled.span<{ $open: boolean }>`
+  display: inline-block; font-size: 12px; color: #94A3B8;
+  transition: transform .15s;
+  transform: rotate(${p => (p.$open ? '90deg' : '0deg')});
+`;
+const SummaryCollapsedHint = styled.button`
+  align-self: flex-start; padding: 6px 10px; margin-top: 2px;
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
+  font-size: 12.5px; color: #475569; cursor: pointer;
+  &:hover { background: #F1F5F9; }
+  &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
+`;
+
 const SummaryHead = styled.div`
   display: flex;
   align-items: center;

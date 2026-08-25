@@ -130,13 +130,17 @@ export default function HistoryTab({ projectId }: Props) {
     } finally { setLoadingMore(false); }
   };
 
+  // ★ 2026-08-25 (Irene: "마우스오버가 되는데 클릭해서 볼 수 있는 거 없어? 클릭이 안되네")
+  //   여태 hover 는 모든 줄에 걸려 있고 링크는 일부 줄에만 있어서, **눌러도 될 것처럼 보이는데
+  //   안 눌리는** 상태였다. 갈 곳이 있는 것은 전부 링크로 만들고, 없는 것은 hover 도 끈다.
   const linkFor = (e: HistoryEvent): string | null => {
-    if (!e.entity_id) return null;
     switch (e.entity_type) {
-      case 'task': return `/projects/p/${projectId}?tab=tasks&task=${e.entity_id}`;
-      case 'post': return `/projects/p/${projectId}?tab=docs&post=${e.entity_id}`;
+      case 'task': return e.entity_id ? `/projects/p/${projectId}?tab=tasks&task=${e.entity_id}` : null;
+      case 'post': return e.entity_id ? `/projects/p/${projectId}?tab=docs&post=${e.entity_id}` : null;
       case 'file': return `/projects/p/${projectId}?tab=files`;
-      case 'invoice': return `/bills?invoice=${e.entity_id}`;
+      case 'note': return `/projects/p/${projectId}?tab=overview`;      // 메모는 개요 탭에 모인다
+      case 'invoice': return e.entity_id ? `/bills?invoice=${e.entity_id}` : null;
+      case 'project': return `/projects/p/${projectId}?tab=details`;    // 상태 변경 → 상세정보(상태 이력 카드)
       default: return null;
     }
   };

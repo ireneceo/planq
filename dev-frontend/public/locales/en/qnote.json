@@ -99,7 +99,8 @@
       "saveDocFailed": "Failed to save document",
       "viewDoc": "View",
       "reInstructionPh": "How should it be re-summarized? (e.g., shorter · focus on decisions · highlight action items)",
-      "reSubmit": "Re-summarize"
+      "reSubmit": "Re-summarize",
+      "expand": "Show summary"
     },
     "reviewEmpty": "No utterances recorded.",
     "speaker": {

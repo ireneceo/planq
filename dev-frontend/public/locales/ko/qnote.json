@@ -99,7 +99,8 @@
       "saveDocFailed": "문서 저장 실패",
       "viewDoc": "보기",
       "reInstructionPh": "어떻게 다시 요약할까요? (예: 더 짧게 · 결정사항 위주 · 액션 아이템 강조)",
-      "reSubmit": "다시 요약"
+      "reSubmit": "다시 요약",
+      "expand": "요약 펼치기"
     },
     "reviewEmpty": "기록된 문장이 없습니다.",
     "speaker": {

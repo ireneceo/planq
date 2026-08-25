@@ -2507,6 +2507,16 @@ const ViewMeta = styled.div`
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   font-size: 12px; color: #94A3B8;
   padding-bottom: 12px; border-bottom: 1px solid #F1F5F9;
+  /* ★ 2026-08-25 (Irene: "Q 문서 상세도 가면 서브헤더 엉망이야. 완전 심해")
+     좌(작성자·날짜·분류·프로젝트) ↔ 우(공개·공유·보안) 를 space-between 으로 밀어 두고
+     양쪽 다 wrap 을 허용하면, 폰 폭에서는 두 덩어리가 서로 밀며 줄이 엉킨다.
+     폰에서는 **두 줄로 분리**한다 — 1행 정보, 2행 액션. 서로 폭을 다투지 않게. */
+  @media (max-width: 640px) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    > * { width: 100%; }
+  }
 `;
 const MetaLeft = styled.div`display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0;`;
 const MetaRight = styled.div`display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex-shrink: 0;`;

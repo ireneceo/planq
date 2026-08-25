@@ -2163,7 +2163,12 @@ const MailPage: React.FC = () => {
                 {/* #283 — 버튼과 제목을 한 Row 로 묶는다. PanelHeader 는 ≤640px 에서
                     flex-direction:column 이라 직계 자식으로 넣으면 제목 **위에 한 줄로 쌓인다**. */}
                 <DetailHeaderLeft>
-                  {sidebarCollapsed && (
+                  {/* ★ 2026-08-25 (Irene: "Q mail 은 상세 가고 나면 되돌아오는 버튼 2개야.
+                      박스 안에 있는게 없어야 다른 페이지랑 통일되는 것 같지")
+                      좁은 화면에서는 PanelBackButton 이 이미 왼쪽 화살표로 서 있다.
+                      박스형 '목록 열기' 까지 나오면 뒤로가기가 둘로 보인다 → 좁을 땐 숨긴다.
+                      데스크탑은 뒤로가기가 없으므로 접힌 목록을 여는 통로로 그대로 둔다. */}
+                  {sidebarCollapsed && !viewportNarrow && (
                     <ExpandBtnInline
                       type="button"
                       data-testid="mail-list-expand"

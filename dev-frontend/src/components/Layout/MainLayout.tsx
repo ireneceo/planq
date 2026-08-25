@@ -97,6 +97,12 @@ const Sidebar = styled.div<{ $isOpen?: boolean; $isCollapsed?: boolean; $tabMode
     top: 0;
     bottom: 0;
     height: auto;
+    /* ★ 2026-08-25 (Irene: "좌측메뉴 열면 좌측 로고가 올라가버려서 안보여")
+       위아래 끝에 박으면 배경은 끝까지 닿지만, **내용까지 상태바 밑으로 들어간다.**
+       아래쪽(safe-bottom)만 처리하고 위쪽을 빼 둬서 로고가 노치에 가렸다.
+       모바일 헤더(MobileHeader)가 쓰는 것과 **같은 규칙**을 적용한다 — 그래야 로고가
+       앱 헤더와 같은 높이에 선다. 규칙을 한쪽에만 넣으면 이렇게 어긋난다. */
+    padding-top: var(--pq-safe-top, 0px);
     padding-bottom: var(--pq-safe-bottom, 0px);
     box-sizing: border-box;
   }
@@ -549,7 +555,15 @@ const MainContent = styled.div<{ $marginLeft: number; $tabMode?: boolean }>`
   flex-direction: column;
   overflow: hidden;
   transition: margin-left 0.25s ease;
-  ${mediaTablet} { margin-left: 0; --pq-content-left: 0px; padding-top: var(--pq-mobile-chrome, 56px); }
+  /* ★ 2026-08-25 — 하단 안전영역(홈 인디케이터)만큼 **자리를 비운다.**
+     여태 body::after 로 그 자리를 덮기만 해서 하단 버튼이 흰 막에 가려 잘렸다.
+     덮개는 콘텐츠 뒤로 내리고(index.css), 여기서 높이를 실제로 양보한다. */
+  box-sizing: border-box;
+  ${mediaTablet} {
+    margin-left: 0; --pq-content-left: 0px;
+    padding-top: var(--pq-mobile-chrome, 56px);
+    padding-bottom: var(--pq-safe-bottom, 0px);
+  }
 `;
 
 /* 페이지 스크롤 영역 — 배너 아래 남은 공간(flex:1). 흐름형 페이지는 여기서 스크롤,
