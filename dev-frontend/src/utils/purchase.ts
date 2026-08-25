@@ -20,3 +20,13 @@ import { isNativeApp } from '../services/native';
  *   Guideline 3.1.3(e) 허용 범위 — 여기서 막으면 제품 기능이 죽는다.
  */
 export const canPurchaseInApp = (): boolean => !isNativeApp();
+
+/**
+ * 구매 유도 문구를 쓸 수 없는 화면에서 쓸 i18n 키 후보.
+ *
+ * 버튼을 숨겨도 문구가 "플랜을 업그레이드하세요" 라고 말하면 그것 자체가 외부 결제 유도다.
+ * 네이티브에서는 `<key>_native` 를 먼저 찾고 없으면 원래 키로 떨어진다(i18next 키 배열 폴백).
+ * 그래서 모든 키에 _native 변형을 만들 필요가 없다 — 유도 문구가 있는 키만 추가하면 된다.
+ */
+export const purchaseCopyKeys = (key: string): string[] =>
+  canPurchaseInApp() ? [key] : [`${key}_native`, key];

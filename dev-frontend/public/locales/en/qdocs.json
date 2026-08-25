@@ -59,6 +59,7 @@
     "sourcesPh": "Example:\n\n2026-04-15 Meeting notes\nTopic: Q1 revenue review\nDecision: Increase marketing budget by 20%\n\n\n2026-04-22 Follow-up\nTopic: ROI analysis\nDecision: Cut Facebook, expand Naver",
     "emptyError": "Please paste sources or attach files.",
     "limitExceeded": "Monthly limit reached. Please wait until next month or upgrade your plan.",
+    "limitExceeded_native": "You've used up this month's quota. It resets next month.",
     "failed": "Brief generation failed. Please try again.",
     "generate": "Source-based draft",
     "generating": "Creating...",
@@ -376,6 +377,7 @@
     "openHint": "Let AI draft the document body for you",
     "title": "Draft with AI",
     "cueOver": "AI quota exceeded — upgrade your plan to continue.",
+    "cueOver_native": "AI quota exceeded — resets next month.",
     "cueNear": "{{remaining}} actions left — a confirmation dialog will appear.",
     "cueNormal": "1 AI action will be used ({{used}}/{{limit}} this month)",
     "cueConfirmTitle": "AI quota nearly full — proceed?",
@@ -415,6 +417,7 @@
     "generate": "Create with AI",
     "generating": "Creating…",
     "limitExceeded": "You've reached this month's AI quota. Upgrade your plan or wait until next month.",
+    "limitExceeded_native": "You've used all of this month's AI quota. It resets next month.",
     "unavailable": "AI service is temporarily unavailable. Please try again shortly.",
     "failed": "AI draft failed.",
     "untitledDoc": "Document"

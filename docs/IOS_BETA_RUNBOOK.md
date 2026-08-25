@@ -61,10 +61,22 @@ Xcode 를 둘 자리가 없다. 클라우드면 아이맥·맥북·윈도우 **�
 - `dev-frontend/ios/App/App.xcodeproj/xcshareddata/xcschemes/App.xcscheme` — 공유 스킴.
   Capacitor 기본 스킴은 `xcuserdata` 라 git 에 없었고, 없으면 CI 가 빌드 대상을 못 찾는다
 
+### App Store Connect API 키 (2026-08-25 발급 완료)
+
+| 항목 | 값 |
+|---|---|
+| 키 이름 | `Codemagic` (생성자 MIJUNGKIM) |
+| 권한 | **앱 관리 / App Manager** (TestFlight 업로드에 필요 — Developer 로는 안 된다) |
+| **Key ID** | **`A68786VG7D`** |
+| **Issuer ID** | **`8bd97182-8787-43c3-b129-19257cebdf00`** |
+| `.p8` 파일 | `AuthKey_A68786VG7D.p8` — Irene 로컬 보관. **한 번만 내려받힌다.** 서버에는 두지 않는다 |
+
+⚠️ **APNs 키(`P8QD2K92HW`)와는 다른 키다.** 알림용이 아니라 업로드·인증용.
+※ 팀에서 API 를 처음 쓰면 Integrations 화면에 키 목록 대신 **「액세스 요청」** 이 먼저 뜬다 —
+   계정 보유자가 동의하면 즉시 목록이 열린다(애플의 심사 대기가 아니다).
+
 ### Irene 이 할 일 (브라우저만, 맥 불필요)
-1. **App Store Connect API 키** — Users and Access > Integrations > App Store Connect > **+**
-   - Role **App Manager** / 받을 것: `.p8` · **Key ID** · **Issuer ID**
-   - ⚠️ `.p8` 는 한 번만 내려받을 수 있고, **APNs 키와는 다른 키**다
+1. ~~App Store Connect API 키 발급~~ → **완료** (위 표)
 2. **Codemagic 가입** — https://codemagic.io , GitHub 계정으로. **Team 만들지 말 것**
 3. Teams > Integrations > App Store Connect 에 키 등록. **이름을 정확히 `PlanQ ASC`**
 4. 저장소 `ireneceo/planq` 연결 → 워크플로 **`ios-testflight`** 실행

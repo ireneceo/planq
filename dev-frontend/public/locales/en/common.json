@@ -620,6 +620,7 @@
     "members": {
       "title": "Member limit reached",
       "desc": "You've hit your plan's member cap. Add seats one at a time with the member add-on, or upgrade to a higher plan.",
+      "desc_native": "This workspace has reached its member limit. Please contact your workspace admin.",
       "addon": "Member add-on: ₩4,900/seat/mo — instant"
     },
     "clients": {
@@ -629,7 +630,8 @@
     },
     "projects": {
       "title": "Project limit reached",
-      "desc": "Active projects are at the limit. Completed projects don't count — close them out, or upgrade your plan."
+      "desc": "Active projects are at the limit. Completed projects don't count — close them out, or upgrade your plan.",
+      "desc_native": "You have reached the limit for active projects. Completed projects are not counted — close some and try again."
     },
     "conv": {
       "title": "Conversation limit reached",

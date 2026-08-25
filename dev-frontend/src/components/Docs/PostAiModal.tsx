@@ -15,6 +15,7 @@ import { listClientsForBilling, type ApiClientLite } from '../../services/invoic
 import { listProjects, type ApiProject } from '../../services/qtalk';
 import { uploadMyFile } from '../../services/files';
 import { fetchStatus } from '../../services/plan';
+import { purchaseCopyKeys } from '../../utils/purchase';
 import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
 import AttachmentField from '../Common/AttachmentField';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
@@ -161,7 +162,7 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
     } catch (e) {
       const msg = (e as Error).message || '';
       if (msg.includes('cue_limit_exceeded') || msg.includes('limit_exceeded')) {
-        setError(t('ai.limitExceeded', '이번 달 AI 사용량 한도를 모두 사용했습니다. 플랜을 업그레이드하거나 다음 달까지 기다려 주세요.') as string);
+        setError(t(purchaseCopyKeys('ai.limitExceeded'), { defaultValue: '이번 달 AI 사용량 한도를 모두 사용했습니다. 플랜을 업그레이드하거나 다음 달까지 기다려 주세요.' }) as string);
       } else if (msg.includes('llm_unavailable')) {
         setError(t('ai.unavailable', 'AI 서비스가 일시적으로 사용 불가합니다. 잠시 후 다시 시도해 주세요.') as string);
       } else {
@@ -209,7 +210,7 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
     } catch (e) {
       const msg = (e as Error).message || '';
       if (msg.includes('cue_limit_exceeded') || msg.includes('limit_exceeded')) {
-        setError(t('brief.limitExceeded', '이번 달 AI 사용량 한도를 모두 사용했습니다.') as string);
+        setError(t(purchaseCopyKeys('brief.limitExceeded'), { defaultValue: '이번 달 AI 사용량 한도를 모두 사용했습니다.' }) as string);
       } else {
         setError(t('brief.failed', '자료정리 생성 실패. 잠시 후 다시 시도하세요.') as string);
       }
@@ -470,7 +471,7 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
           {intent === 'ai' && cueUsage && cueUsage.limit != null && (mode === 'brief' || mode === 'new') && (
             <CueHint $danger={cueOverLimit} $warn={cueNearLimit && !cueOverLimit}>
               {cueOverLimit
-                ? t('ai.cueOver', { defaultValue: 'AI 한도 초과 — 플랜을 업그레이드해야 진행할 수 있어요.' }) as string
+                ? t(purchaseCopyKeys('ai.cueOver'), { defaultValue: 'AI 한도 초과 — 플랜을 업그레이드해야 진행할 수 있어요.' }) as string
                 : cueNearLimit
                   ? t('ai.cueNear', { remaining: cueRemaining, defaultValue: '잔여 {{remaining}}회 — 진행 시 확인 모달이 뜹니다.' }) as string
                   : t('ai.cueNormal', { used: cueUsage.current, limit: cueUsage.limit, defaultValue: 'AI 사용 1회 차감 (이번 달 {{used}}/{{limit}})' }) as string}

@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { useChromeNav } from '../../hooks/useChromeNav';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
-import { canPurchaseInApp } from '../../utils/purchase';
+import { canPurchaseInApp, purchaseCopyKeys } from '../../utils/purchase';
 
 interface LimitDetail {
   code?: string;
@@ -54,7 +54,9 @@ const LimitReachedDialog: React.FC = () => {
   const code = detail.code || '';
   const map = CODE_TO_KEY[code] || { titleKey: 'limit.generic.title', descKey: 'limit.generic.desc' };
   const title = t(map.titleKey, detail.message || code);
-  const desc = t(map.descKey, detail.message_en || '');
+  // 버튼(아래 CTA)은 이미 숨기지만 설명문이 "상위 플랜으로 업그레이드하세요" 라고 말한다 —
+  // App Store 3.1.1 은 유도 문구 자체를 금지하므로 네이티브에선 _native 변형으로 대체한다.
+  const desc = t(purchaseCopyKeys(map.descKey), { defaultValue: detail.message_en || '' }) as string;
   // App Store 3.1.1 — add-on 안내 문구는 가격·구매 방법을 담고 있어 네이티브에선 숨긴다.
   // "구매를 웹으로 안내하는 문구도 두지 않는다"(utils/purchase) 원칙과 정렬.
   const addonHint = (canPurchaseInApp() && map.addonHintKey) ? t(map.addonHintKey, '') : '';

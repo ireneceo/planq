@@ -13,7 +13,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import { fetchStatus, type PlanStatus } from '../../services/plan';
-import { canPurchaseInApp } from '../../utils/purchase';
+import { canPurchaseInApp, purchaseCopyKeys } from '../../utils/purchase';
 
 type BannerKind = 'past_due' | 'grace' | 'demoted' | null;
 
@@ -110,7 +110,7 @@ export default function WorkspaceBillingBanner() {
           <Desc>
             {kind === 'past_due' && periodEndedAt && t('banner.pastDue.desc', { date: new Date(periodEndedAt).toISOString().slice(0, 10) })}
             {kind === 'grace' && t('banner.grace.desc')}
-            {kind === 'demoted' && t('banner.demoted.desc')}
+            {kind === 'demoted' && t(purchaseCopyKeys('banner.demoted.desc'))}
           </Desc>
         </Body>
         {payEnabled && <CTA>{t('banner.cta')}</CTA>}

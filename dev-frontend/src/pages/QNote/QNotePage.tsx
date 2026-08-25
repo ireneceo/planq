@@ -8,6 +8,7 @@ import VisibilityChangeModal from '../../components/Common/VisibilityChangeModal
 import { PanelGridLayout, CollapsibleSidebar, SidebarBackdrop, Panel } from '../../components/Layout/PanelLayout';
 import QNoteShareModal from '../../components/QNote/QNoteShareModal';
 import { saveSummaryAsDoc } from '../../utils/qnoteSummaryDoc';
+import { purchaseCopyKeys } from '../../utils/purchase';
 import TaskCandidateCard, { type CandidateData } from '../../components/Common/TaskCandidateCard';
 import { useNoteTaskExtraction } from '../../hooks/useNoteTaskExtraction';
 import styled from 'styled-components';
@@ -911,7 +912,8 @@ const QNotePage = () => {
       too_many_active_recordings: 'page.errors.tooManyRecordings',
       session_time_limit: 'page.errors.sessionTimeLimit',
     };
-    return map[msg] ? (t(map[msg]) as string) : msg;
+    // 한도 소진 안내는 네이티브에서 업그레이드를 권하면 안 된다 (App Store 3.1.1) — _native 변형 우선.
+    return map[msg] ? (t(purchaseCopyKeys(map[msg])) as string) : msg;
   }, [t]);
 
   // ── WebSocket 이벤트 핸들러 ───────────────────────────

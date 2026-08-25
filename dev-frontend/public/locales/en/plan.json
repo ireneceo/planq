@@ -1,7 +1,8 @@
 {
   "page": {
     "title": "Subscription Plan",
-    "desc": "Review your plan, usage, and upgrade options."
+    "desc": "Review your plan, usage, and upgrade options.",
+    "desc_native": "View your current plan and usage."
   },
   "payDue": {
     "title": "Subscription payment due",
@@ -119,7 +120,8 @@
     },
     "demoted": {
       "title": "Downgraded to Free",
-      "desc": "Workspace was downgraded due to missed payment. Pay now to restore your plan (data preserved)."
+      "desc": "Workspace was downgraded due to missed payment. Pay now to restore your plan (data preserved).",
+      "desc_native": "Your plan was downgraded because payment wasn't confirmed. Your data is preserved."
     },
     "cta": "Pay now →",
     "dismiss": "Dismiss"

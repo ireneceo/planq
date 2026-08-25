@@ -387,3 +387,43 @@ ssh 87.106.78.146 'grep -ac "EMAIL_ENCRYPTION_KEY 미설정" ~/.pm2/logs/planq-p
 3. 볼륨: 이 계정 스팸함 UIDNEXT 6039 — 수집량·스토리지·첨부 다운로드 비용 영향.
 4. 폴더명 이식성: `[Gmail]/Spam` 은 Gmail 전용. Naver·Outlook 은 다르다 → SPECIAL-USE `\Junk` 탐지.
 5. 대안(경량): 수집하지 않고 **"스팸함에 N건 있음" 배지 + Gmail 웹 링크**만 노출.
+
+---
+
+## §7 iOS 앱 — App Store 3.1.1 구매 표면 봉쇄가 "사용자 친화적" 인가 (2026-08-25 접수)
+
+**상태: Opus 자체 검증만 통과. Irene 지시로 Fable 검증을 나중으로 미룸 (지금 Fable 사용 불가).**
+**검증자에게: 이 항목은 규정 준수 여부가 아니라 "막힌 사용자가 길을 잃지 않는가" 를 본다.**
+
+### 무엇을 했나
+네이티브 앱(iOS/Android WebView)에서는 구독 구매 표면을 노출할 수 없다(App Store 3.1.1 —
+외부 결제 유도 금지, 버튼·링크뿐 아니라 **유도 문구 자체**가 리젝 사유). 웹·PWA 는 무변경.
+
+- 기존(이전 사이클): `utils/purchase.canPurchaseInApp()` 로 구매 **버튼**·CheckoutModal·
+  마케팅 랜딩(`/pricing` 등) 봉쇄
+- 이번 사이클: 버튼은 숨겼는데 **문구가 여전히 "플랜을 업그레이드하세요"** 라고 말하던 6곳을
+  `purchaseCopyKeys(key)` (i18next 키 배열 폴백 `<key>_native` → `<key>`) 로 대체
+  - qdocs `ai.limitExceeded` / `ai.cueOver` / `brief.limitExceeded`
+  - common `limit.members.desc` / `limit.projects.desc`
+  - qnote `page.errors.quotaExceeded`
+  - plan `banner.demoted.desc` (+ 미사용 키 `page.desc` 도 변형 추가)
+
+### Fable 이 판단할 것 (사용자 친화성)
+1. **막다른 길 점검** — 앱에서 한도에 부딪힌 사용자가 "다음 달에 초기화됩니다" 만 보고 끝난다.
+   워크스페이스 오너 본인이 앱에서 막히면 **해결 경로가 화면에 없다**(웹으로 안내하는 문구조차
+   규정상 둘 수 없다). 이게 수용 가능한 UX 인가, 아니면 규정 안에서 가능한 다른 표현이 있는가.
+   (예: 오너에게만 보이는 중립 문구, 알림/메일로 웹 안내 — 앱 밖 채널은 규정 대상 아님)
+2. **역할별 분기** — 멤버·고객(Client)은 애초에 결제 권한이 없어 문구 변경이 오히려 정확하다.
+   오너와 비오너를 같은 문구로 두는 게 맞는가.
+3. **문구 품질** — ko/en 6쌍이 사실만 말하면서도 차갑지 않은가. `feedback_user_facing_copy` 정렬.
+4. **회귀** — 웹/PWA 에서 기존 문구가 100% 그대로인가(네이티브 분기라 웹 영향 0 이어야 한다).
+   `canPurchaseInApp()` 이 `Capacitor.isNativePlatform()` 단일 판정이라 PWA 는 항상 웹 경로.
+5. **누락 표면** — 유도 문구가 남은 곳이 정말 없는가. 검사 방법: 앱에서 닿는 화면의 ko/en 문자열
+   중 "업그레이드/결제/plan upgrade" 를 전수 grep (랜딩·Admin 제외 — 앱에서 봉쇄됨).
+6. **심사 리스크 재평가** — 링크 없는 서술 문구를 애플이 실제로 문제 삼는가. 과잉 대응이면
+   되돌리는 것도 답이다(문구가 정보를 잃었다면 사용자 손해).
+
+### 관련
+- 구현 커밋: 이 절 추가 커밋과 같은 사이클
+- 실기기 확인: Irene 이 TestFlight 빌드로 직접 (결제 버튼 0 · 문구 확인)
+- 설계 근거: `utils/purchase.ts` 상단 주석, `docs/IOS_BETA_RUNBOOK.md`
