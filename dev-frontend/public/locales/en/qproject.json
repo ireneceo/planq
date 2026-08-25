@@ -17,9 +17,15 @@
     "cta": "Go to Q talk to create a project"
   },
   "status": {
-    "active": "Active",
-    "paused": "Paused",
-    "closed": "Closed"
+    "dialogAria": "Change project status",
+    "titlePaused": "Pause project",
+    "titleActive": "Resume project",
+    "noteLabel": "Reason (optional)",
+    "notePhPaused": "e.g. Waiting on client feedback",
+    "notePhActive": "e.g. Design approved, starting work",
+    "notePhClosed": "e.g. Final deliverables handed over",
+    "noteHint": "This is kept in the history and status log.",
+    "confirm": "Change"
   },
   "stats": {
     "tasks": "Tasks",

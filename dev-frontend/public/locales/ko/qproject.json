@@ -17,9 +17,15 @@
     "cta": "Q talk 로 이동해 프로젝트 만들기"
   },
   "status": {
-    "active": "진행 중",
-    "paused": "대기",
-    "closed": "종료"
+    "dialogAria": "프로젝트 상태 변경",
+    "titlePaused": "프로젝트 일시 중지",
+    "titleActive": "프로젝트 진행 재개",
+    "noteLabel": "사유 (선택)",
+    "notePhPaused": "예: 고객 피드백 대기로 잠시 멈춤",
+    "notePhActive": "예: 디자인 확정되어 착수",
+    "notePhClosed": "예: 최종 산출물 전달 완료",
+    "noteHint": "히스토리와 상태 이력에 그대로 남습니다.",
+    "confirm": "변경"
   },
   "stats": {
     "tasks": "업무",

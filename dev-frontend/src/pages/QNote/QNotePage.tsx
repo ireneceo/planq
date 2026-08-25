@@ -2717,13 +2717,17 @@ const QNotePage = () => {
                   <Badge>{t('page.phase.review')}</Badge>
                   <Badge>{t('page.sessionUtteranceCount', { count: activeSession.utterance_count })}</Badge>
                 </SessionMeta>
-                <SessionTaxonomyBar
-                  sessionId={activeSession.id}
-                  category={activeSession.category ?? null}
-                  tags={activeSession.tags ?? null}
-                  editable={String(activeSession.user_id) === String(user?.id)}
-                  onChange={(patch) => patchTaxonomy(activeSession.id, patch)}
-                />
+                {/* 폰에서는 헤더에서 숨긴다 — 가장 후순위 정보인데 제목과 폭을 다툰다.
+                    (본문 상단의 분류/태그 편집 경로는 그대로 남는다) */}
+                <TaxonomyInHeader>
+                  <SessionTaxonomyBar
+                    sessionId={activeSession.id}
+                    category={activeSession.category ?? null}
+                    tags={activeSession.tags ?? null}
+                    editable={String(activeSession.user_id) === String(user?.id)}
+                    onChange={(patch) => patchTaxonomy(activeSession.id, patch)}
+                  />
+                </TaxonomyInHeader>
               </HeaderLeft>
               <HeaderRight>
                 {/* N+88 — Q docs 문서 상세 상단과 통일: 공개 chip + 공유 Primary + IconBtn 클러스터 */}
@@ -3556,6 +3560,11 @@ const MainHeader = styled.div`
   align-items: center;
   gap: 16px;
   position: relative;
+  /* ★ 표준 PanelHeader 와 같은 자식 계약 (components/Layout/PanelHeader.tsx).
+     제목 쪽은 줄어들 수 있어야 하고 액션 쪽은 줄어들면 안 된다. 이 두 줄이 없으면
+     "제목이 세로로 쌓이는" 계열 버그가 언제든 다시 난다 — 규격을 각자 만들지 않는다. */
+  > *:first-child { min-width: 0; flex-shrink: 1; }
+  > *:last-child { flex-shrink: 0; }
   @media (max-width: 768px) {
     padding: 10px 16px;
     min-height: 48px;
@@ -3689,7 +3698,15 @@ const SessionTitle = styled.h2`
   color: #0f172a;
   margin: 0;
   cursor: text;
-  &:hover { color: #475569; }
+  /* ★ 2026-08-25 (Irene: "모바일에서 q note 상세 들어가면 상단이 다 깨져서 제목이 세로로 보이고")
+     flex item 의 min-width 기본값은 auto(=min-content) 다. nowrap 이 없으면 한국어의 min-content 는
+     **한 글자 폭**이라(음절 어디서나 줄바꿈 가능) 옆 버튼 묶음이 폭을 다 가져가는 순간 제목이
+     한 글자씩 세로로 쌓인다. 같은 Q Note 안에서도 메모 상세(MemoView Title)와 공통 PanelSubTitle 은
+     이 방어가 있어 멀쩡했다 — 음성 세션 헤더만 4월 목업 이후 그 수리를 못 받았다. */
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 `;
 
 const SessionTitleInput = styled.input`
@@ -3704,12 +3721,25 @@ const SessionTitleInput = styled.input`
   background: #f0fdfa;
   min-width: 200px;
   &:focus { border-color: #0d9488; }
+  /* 좁은 화면에서 200px 고정은 헤더를 두 번째로 터뜨린다 */
+  @media (max-width: 640px) {
+    min-width: 0;
+    width: 100%;
+    flex: 1 1 auto;
+  }
+`;
+
+const TaxonomyInHeader = styled.div`
+  min-width: 0;
+  overflow: hidden;
+  @media (max-width: 768px) { display: none; }
 `;
 
 const SessionMeta = styled.div`
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-shrink: 0;
 `;
 
 const Badge = styled.span`
@@ -3718,6 +3748,7 @@ const Badge = styled.span`
   gap: 6px;
   height: 24px;
   padding: 0 10px;
+  white-space: nowrap;
   background: #f1f5f9;
   color: #475569;
   border-radius: 12px;

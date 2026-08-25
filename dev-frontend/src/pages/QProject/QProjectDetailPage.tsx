@@ -95,6 +95,9 @@ import {
   CloseFooter,
   CFCancelBtn,
   CFConfirmBtn,
+  StatusNoteLabel,
+  StatusNoteInput,
+  StatusNoteHint,
   LinkClientBar,
   LinkClientLabel,
   AddClientForm,
@@ -272,6 +275,11 @@ const QProjectDetailPage: React.FC = () => {
   const [bizClients, setBizClients] = useState<{ id: number; display_name: string | null; company_name: string | null; invite_email?: string | null; user?: { id: number; name: string; email: string } }[]>([]);
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [closeModalOpen, setCloseModalOpen] = useState(false);
+  // 상태 변경 사유 — 히스토리에서 가장 읽고 싶은 것이 "왜 바꿨나" 다.
+  //   업무의 수정요청 사유와 같은 성격: 별도 "이력 추가" 기능이 아니라, 그 동작을 하는 순간 같이 받는 한 줄.
+  const [statusChangeTo, setStatusChangeTo] = useState<'active' | 'paused' | null>(null);
+  const [statusNote, setStatusNote] = useState('');
+  const [statusSaving, setStatusSaving] = useState(false);
   const [clientsToRemove, setClientsToRemove] = useState<Set<number>>(new Set());
 
   // 설정 탭 — 저장 단일 착지점 (#147).
@@ -532,6 +540,25 @@ const QProjectDetailPage: React.FC = () => {
   };
 
 
+  // 진행 중 ↔ 일시 중지 — 사유 한 줄을 같이 받아 상태 이력에 남긴다.
+  //   완료(closed)는 되돌리기 어려워 별도 확인 모달을 이미 거친다(거기에도 같은 사유 칸을 넣었다).
+  const performStatusChange = async () => {
+    if (!statusChangeTo) return;
+    setStatusSaving(true);
+    try {
+      const res = await apiFetch(`/api/projects/${projectId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: statusChangeTo, status_note: statusNote.trim() || undefined }),
+      });
+      // apiFetch 는 throw 하지 않는다 — res.ok 를 안 보면 403 도 성공처럼 지나간다
+      if (!res.ok) return;
+      setProject(prev => (prev ? { ...prev, status: statusChangeTo } as ProjectDetail : prev));
+      setStatusChangeTo(null);
+      setStatusNote('');
+      void loadStatusHistory();   // 방금 남긴 사유가 바로 보이게
+    } finally { setStatusSaving(false); }
+  };
+
   const performCloseProject = async () => {
     if (!project) return;
     setClosing(true);
@@ -543,7 +570,7 @@ const QProjectDetailPage: React.FC = () => {
       // 2) 프로젝트 status=closed → 대화도 자동 archived (백엔드 cascade)
       const sr = await apiFetch(`/api/projects/${projectId}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'closed' }),
+        body: JSON.stringify({ status: 'closed', status_note: statusNote.trim() || undefined }),
       });
       if (!sr.ok) return;  // owner-only(403) 등 거절 시 closed 표시 금지 + 모달 유지(거짓 종료 방지)
       setProject((prev) => prev ? {
@@ -551,7 +578,9 @@ const QProjectDetailPage: React.FC = () => {
         projectClients: (prev.projectClients || []).filter((c) => !clientsToRemove.has(c.id)),
       } : prev);
       setClientsToRemove(new Set());
+      setStatusNote('');
       setCloseModalOpen(false);
+      void loadStatusHistory();   // 방금 남긴 사유가 바로 보이게
     } finally { setClosing(false); }
   };
 
@@ -701,15 +730,15 @@ const QProjectDetailPage: React.FC = () => {
               <EditField>
                 <EditLabel>{t('edit.status', '상태')}</EditLabel>
                 <ActionAutoSave type="select" save={saveProject}>
-                  {fire => (
+                  {() => (
                     <div style={{ display: 'flex', gap: 6 }}>
                       <TypeBtn2 $active={project.status === 'active'} onClick={() => {
                         if (project.status === 'active') return;
-                        fire({ status: 'active' });
+                        setStatusNote(''); setStatusChangeTo('active');
                       }}>{t('edit.statusActive', '진행 중')}</TypeBtn2>
                       <TypeBtn2 $active={project.status === 'paused'} onClick={() => {
                         if (project.status === 'paused') return;
-                        fire({ status: 'paused' });
+                        setStatusNote(''); setStatusChangeTo('paused');
                       }}>{t('edit.statusPaused', '일시 중지')}</TypeBtn2>
                       {/* 완료는 되돌리기 어려운 전이 — 확인 모달을 거친다 (자동저장 대상 아님) */}
                       <TypeBtn2 $active={project.status === 'closed'} onClick={() => {
@@ -1149,6 +1178,43 @@ const QProjectDetailPage: React.FC = () => {
       )}
       </Suspense>
 
+      {/* 상태 변경 사유 — 진행 중 / 일시 중지 */}
+      {statusChangeTo && (
+        <CloseBackdrop onMouseDown={(e) => { if (e.target === e.currentTarget) setStatusChangeTo(null); }}>
+          <CloseDialog role="dialog" aria-modal="true"
+            aria-label={t('status.dialogAria', '프로젝트 상태 변경') as string}>
+            <CloseHeader>
+              {statusChangeTo === 'paused'
+                ? t('status.titlePaused', '프로젝트 일시 중지')
+                : t('status.titleActive', '프로젝트 진행 재개')}
+            </CloseHeader>
+            <CloseBody>
+              <StatusNoteLabel htmlFor="proj-status-note">
+                {t('status.noteLabel', '사유 (선택)')}
+              </StatusNoteLabel>
+              <StatusNoteInput id="proj-status-note" autoFocus value={statusNote} maxLength={1000}
+                placeholder={(statusChangeTo === 'paused'
+                  ? t('status.notePhPaused', '예: 고객 피드백 대기로 잠시 멈춤')
+                  : t('status.notePhActive', '예: 디자인 확정되어 착수')) as string}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setStatusNote(e.target.value)}
+                onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                  // Enter 단독 저장 금지 — Ctrl/Cmd+Enter 만 (UI_DESIGN_GUIDE 1.8)
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void performStatusChange();
+                }} />
+              <StatusNoteHint>{t('status.noteHint', '히스토리와 상태 이력에 그대로 남습니다.')}</StatusNoteHint>
+            </CloseBody>
+            <CloseFooter>
+              <CFCancelBtn type="button" onClick={() => setStatusChangeTo(null)} disabled={statusSaving}>
+                {t('close.cancel', '취소')}
+              </CFCancelBtn>
+              <CFConfirmBtn type="button" onClick={performStatusChange} disabled={statusSaving}>
+                {statusSaving ? t('close.processing', '처리 중…') : t('status.confirm', '변경')}
+              </CFConfirmBtn>
+            </CloseFooter>
+          </CloseDialog>
+        </CloseBackdrop>
+      )}
+
       {closeModalOpen && (
         <CloseBackdrop onMouseDown={(e) => { if (e.target === e.currentTarget) setCloseModalOpen(false); }}>
           <CloseDialog>
@@ -1180,6 +1246,13 @@ const QProjectDetailPage: React.FC = () => {
                   </ClientChoiceList>
                 </>
               )}
+              <StatusNoteLabel htmlFor="close-status-note">
+                {t('status.noteLabel', '사유 (선택)')}
+              </StatusNoteLabel>
+              <StatusNoteInput id="close-status-note" value={statusNote} maxLength={1000}
+                placeholder={t('status.notePhClosed', '예: 최종 산출물 전달 완료') as string}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setStatusNote(e.target.value)} />
+              <StatusNoteHint>{t('status.noteHint', '히스토리와 상태 이력에 그대로 남습니다.')}</StatusNoteHint>
             </CloseBody>
             <CloseFooter>
               <CFCancelBtn type="button" onClick={() => setCloseModalOpen(false)} disabled={closing}>{t('close.cancel', '취소')}</CFCancelBtn>

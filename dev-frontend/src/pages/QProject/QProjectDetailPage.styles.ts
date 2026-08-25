@@ -266,3 +266,16 @@ export const OverviewDesc = styled.div`
   font-size: 13px; line-height: 1.7; color: #334155;
   white-space: pre-wrap; word-break: break-word;
 `;
+
+/* 프로젝트 상태 변경 사유 — 히스토리·상태 이력에 남는 한 줄 */
+export const StatusNoteLabel = styled.label`
+  display:block;margin-top:14px;margin-bottom:6px;
+  font-size:12.5px;font-weight:700;color:#475569;
+`;
+export const StatusNoteInput = styled.input`
+  width:100%;height:2.5rem;padding:0 12px;box-sizing:border-box;
+  background:#fff;border:1px solid #CBD5E1;border-radius:8px;
+  font-size:13.5px;color:#0F172A;
+  &:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,.15);}
+`;
+export const StatusNoteHint = styled.div`margin-top:6px;font-size:12px;color:#94A3B8;`;
