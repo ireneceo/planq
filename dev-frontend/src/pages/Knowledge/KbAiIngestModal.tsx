@@ -391,6 +391,9 @@ const Title = styled.h3`
   svg { color: #14B8A6; }
 `;
 const CloseBtn = styled.button`
+  /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */
+  @media (max-width: 640px) { min-width: 44px; min-height: 44px; }
+
   width: 32px; height: 32px; border: none; background: transparent;
   border-radius: 8px; cursor: pointer; color: #64748B;
   display: inline-flex; align-items: center; justify-content: center;

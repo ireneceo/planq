@@ -32,7 +32,6 @@ import AttachmentField from '../../components/Common/AttachmentField';
 import SearchBox from '../../components/Common/SearchBox';
 import FloatingPanelToggle, { PANEL_WIDTH_CSS } from '../../components/Common/FloatingPanelToggle';
 import CreateDrawer from '../../components/Common/CreateDrawer';
-import { useIsNarrow } from '../../hooks/useMediaQuery';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
 import { formatHours, utilizationPercent, utilizationStatus, UTIL_COLOR } from '../../utils/hours';
@@ -54,6 +53,7 @@ import TagPicker from '../../components/QTask/TagPicker';
 import RowTags from '../../components/QTask/RowTags';
 import OpenTaskPopoutButton from '../../components/QTask/OpenTaskPopoutButton';
 import TagManageModal from '../../components/QTask/TagManageModal';
+import { usePanelStack } from '../../hooks/usePanelStack';
 
 // #249 — 우측 패널을 인라인으로 붙여둘 최소 뷰포트 폭.
 //   이보다 좁으면 overlay(기본 닫힘 + 떠 있는 토글 + ⌘/·Ctrl+\)로 전환해 리스트가 전폭을 쓴다.
@@ -259,8 +259,19 @@ const QTaskPage:React.FC=()=>{
   const[notes,setNotes]=useState<NoteRow[]>([]);
   const[loading,setLoading]=useState(true);
   const[rightCollapsed,setRightCollapsed]=useState(false);
-  const isNarrow=useIsNarrow(RIGHT_PANEL_INLINE_MIN);
-  const[rightOverlayOpen,setRightOverlayOpen]=useState(false);
+  const[detailTaskId,setDetailTaskId]=useState<number|null>(()=>{
+    const q=new URLSearchParams(location.search).get('task');
+    return q?Number(q):null;
+  });
+  // ★ 2·3단 단일 계약(hooks/usePanelStack). 자체 useIsNarrow 판정을 여기로 흡수한다 —
+  //   분기점이 페이지마다 흩어져 있어 화면마다 동작이 달랐다(Irene, 2026-08-25).
+  //   Q Task 작업대는 넓어야 쓸모 있어 3단 상한만 1366 으로 올린다(계약 안에서).
+  const panel = usePanelStack(!!detailTaskId, true, () => closeDetail?.(), RIGHT_PANEL_INLINE_MIN);
+  // 계약 값을 그대로 쓴다 — 자체 상태(isNarrow·rightOverlayOpen)를 따로 두면 다시 갈라진다.
+  const isNarrow = panel.drilldown || panel.cols === 2;
+  const rightOverlayOpen = panel.asideOpen;
+  const setRightOverlayOpen = (v: boolean | ((x: boolean) => boolean)) =>
+    panel.setAsideOpen(typeof v === 'function' ? (v as (x: boolean) => boolean)(panel.asideOpen) : v);
   useBodyScrollLock(isNarrow&&rightOverlayOpen);
 
   // 키보드 단축키: ⌘/ (mac) · Ctrl+\ (win) → 우측 패널 토글
@@ -574,10 +585,6 @@ const QTaskPage:React.FC=()=>{
   // AI 예측시간 호출 상태 (per task)
   const[aiEstLoading,setAiEstLoading]=useState<Record<number,boolean>>({});
   const[aiEstFlash,setAiEstFlash]=useState<Record<number,boolean>>({});
-  const[detailTaskId,setDetailTaskId]=useState<number|null>(()=>{
-    const q=new URLSearchParams(location.search).get('task');
-    return q?Number(q):null;
-  });
   const[requestedComments,setRequestedComments]=useState<CommentRow[]>([]);
   const[candidates,setCandidates]=useState<CandidateRow[]>([]);
   const[periodPickerOpen,setPeriodPickerOpen]=useState(false);

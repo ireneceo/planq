@@ -144,6 +144,9 @@ const ReloadBtn = styled.button`
   &:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,0.45); }
 `;
 const CloseBtn = styled.button`
+  /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */
+  @media (max-width: 640px) { min-width: 44px; min-height: 44px; }
+
   flex-shrink: 0; border: 0; background: none; cursor: pointer;
   color: #94A3B8; font-size: 16px; line-height: 1; padding: 0 4px;
   &:hover { color: #F8FAFC; }

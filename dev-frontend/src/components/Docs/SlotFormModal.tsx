@@ -197,7 +197,10 @@ const Modal = styled.div`
 `;
 const Header = styled.div`padding: 18px 22px; border-bottom: 1px solid #E2E8F0; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;`;
 const Title = styled.h2`font-size: 16px; font-weight: 700; color: #0F172A; margin: 0;`;
-const CloseBtn = styled.button`width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: transparent; border: none; border-radius: 8px; color: #64748B; cursor: pointer; &:hover { background: #F1F5F9; color: #0F172A; }`;
+const CloseBtn = styled.button`
+  /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */
+  @media (max-width: 640px) { min-width: 44px; min-height: 44px; }
+width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: transparent; border: none; border-radius: 8px; color: #64748B; cursor: pointer; &:hover { background: #F1F5F9; color: #0F172A; }`;
 const Body = styled.div`padding: 20px 22px; overflow-y: auto; flex: 1;`;
 const Layout = styled.div`display: grid; grid-template-columns: 1fr 1fr; gap: 24px; @media (max-width: 768px) { grid-template-columns: 1fr; }`;
 const FormCol = styled.div`display: flex; flex-direction: column; gap: 12px;`;

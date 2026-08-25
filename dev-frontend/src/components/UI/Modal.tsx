@@ -48,6 +48,9 @@ export const ModalTitle = styled.h2`
 `;
 
 export const CloseButton = styled.button`
+  /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */
+  @media (max-width: 640px) { min-width: 44px; min-height: 44px; }
+
   background: none;
   border: none;
   font-size: 24px;

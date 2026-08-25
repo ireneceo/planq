@@ -40,10 +40,10 @@ export interface PanelStack {
   canGoBack: boolean;
 }
 
-function readCols(): 1 | 2 | 3 {
+function readCols(threeColMin: number): 1 | 2 | 3 {
   if (typeof window === 'undefined') return 3;
   const w = window.innerWidth;
-  if (w >= PANEL_BP.threeCol) return 3;
+  if (w >= threeColMin) return 3;
   if (w >= PANEL_BP.twoCol) return 2;
   return 1;
 }
@@ -53,16 +53,26 @@ function readCols(): 1 | 2 | 3 {
  * @param hasAside  보조 패널이 이 화면에 존재하는가 (작업대·맥락 등)
  * @param onCloseDetail 드릴다운에서 목록으로 돌아갈 때 선택을 해제하는 콜백
  */
-export function usePanelStack(hasDetail: boolean, hasAside: boolean, onCloseDetail?: () => void): PanelStack {
-  const [cols, setCols] = useState<1 | 2 | 3>(readCols);
+/**
+ * @param threeColMin 3단으로 펼칠 최소 폭. 기본은 토큰(1280).
+ *   ★ 보조 패널이 넓어야 쓸모 있는 화면(Q Task 작업대 등)은 이 값을 올릴 수 있다 —
+ *   단 **자기만의 훅을 새로 만들지 않는다**. 분기점이 페이지마다 흩어지면 다시 제각각이 된다.
+ */
+export function usePanelStack(
+  hasDetail: boolean,
+  hasAside: boolean,
+  onCloseDetail?: () => void,
+  threeColMin: number = PANEL_BP.threeCol,
+): PanelStack {
+  const [cols, setCols] = useState<1 | 2 | 3>(() => readCols(threeColMin));
   const [asideOpen, setAsideOpen] = useState(false);
 
   useEffect(() => {
-    const onResize = () => setCols(readCols());
+    const onResize = () => setCols(readCols(threeColMin));
     window.addEventListener('resize', onResize);
     // 폭이 바뀌면 보조 패널 상태를 정리한다 — 드릴다운에서 열어둔 채 넓어지면 유령 오버레이가 남는다.
     return () => window.removeEventListener('resize', onResize);
-  }, []);
+  }, [threeColMin]);
 
   const drilldown = cols === 1;
   const active: PanelPane = drilldown

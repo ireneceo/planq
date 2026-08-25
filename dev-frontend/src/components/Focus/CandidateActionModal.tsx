@@ -265,6 +265,9 @@ const HeaderTitle = styled.h2`
   font-size: 18px; font-weight: 700; color: #0F172A; margin: 0; letter-spacing: -0.3px;
 `;
 const CloseBtn = styled.button`
+  /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */
+  @media (max-width: 640px) { min-width: 44px; min-height: 44px; }
+
   width: 32px; height: 32px; padding: 0;
   background: transparent; border: none; border-radius: 6px;
   color: #64748B; cursor: pointer;

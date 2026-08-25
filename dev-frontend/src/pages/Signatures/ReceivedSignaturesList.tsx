@@ -389,6 +389,9 @@ const DialogHeader = styled.div`
 `;
 const DialogTitle = styled.h2`margin: 0; font-size: 16px; font-weight: 700; color: #0F172A;`;
 const CloseBtn = styled.button`
+  /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */
+  @media (max-width: 640px) { min-width: 44px; min-height: 44px; }
+
   background: transparent; border: none; cursor: pointer; color: #64748B;
   font-size: 20px; padding: 4px 8px; border-radius: 6px;
   &:hover { background: #F1F5F9; color: #0F172A; }

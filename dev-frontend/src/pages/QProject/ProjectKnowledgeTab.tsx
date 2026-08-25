@@ -376,7 +376,10 @@ const Backdrop = styled.div`position: fixed; inset: 0; background: rgba(15,23,42
 const Modal = styled.div`position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; width: 560px; max-width: calc(100vw - 40px); max-height: calc(100vh - 48px); background: #fff; border-radius: 14px; box-shadow: 0 30px 60px -20px rgba(15,23,42,0.25); display: flex; flex-direction: column; overflow: hidden; @media (max-width: 640px) { top: 70px; bottom: 20px; left: 16px; right: 16px; transform: none; width: auto; max-width: none; max-height: none; }`;
 const ModalHeader = styled.div`display: flex; align-items: center; padding: 14px 18px; border-bottom: 1px solid #E2E8F0;`;
 const ModalTitle = styled.div`flex: 1; font-size: 15px; font-weight: 700; color: #0F172A;`;
-const CloseBtn = styled.button`width: 30px; height: 30px; border: none; background: transparent; color: #64748B; border-radius: 6px; cursor: pointer; font-size: 18px; &:hover { background: #F1F5F9; color: #0F172A; }`;
+const CloseBtn = styled.button`
+  /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */
+  @media (max-width: 640px) { min-width: 44px; min-height: 44px; }
+width: 30px; height: 30px; border: none; background: transparent; color: #64748B; border-radius: 6px; cursor: pointer; font-size: 18px; &:hover { background: #F1F5F9; color: #0F172A; }`;
 const ModalBody = styled.div`padding: 16px 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; flex: 1; min-height: 0;`;
 const ModalFooter = styled.div`padding: 14px 18px; border-top: 1px solid #E2E8F0; display: flex; justify-content: flex-end; gap: 8px;`;
 const Field = styled.div`display: flex; flex-direction: column; gap: 6px;`;

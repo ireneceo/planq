@@ -116,6 +116,9 @@ const Head = styled.div`
 `;
 const HeadTitle = styled.h2`margin: 0; font-size: 14px; font-weight: 700; color: #0F172A;`;
 const CloseBtn = styled.button`
+  /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */
+  @media (max-width: 640px) { min-width: 44px; min-height: 44px; }
+
   width: 36px; height: 36px; border: none; background: none; color: #64748B; cursor: pointer;
   border-radius: 8px; &:hover { background: #F1F5F9; color: #0F172A; }
 `;

@@ -130,14 +130,18 @@ const Header = styled.div`
   padding: 18px 22px 14px;
   border-bottom: 1px solid #F1F5F9;
   flex-shrink: 0;
+  @media (max-width: 640px) { padding: 14px 16px 12px; }
 `;
 const Title = styled.h2`
   font-size: 16px; font-weight: 700; color: #0F172A; margin: 0;
   flex: 1; min-width: 0;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
+// ★ 폰에서는 터치 타깃 44 (theme/tokens CONTROL.touchMin) — 28px 은 손가락으로 누르기 어렵다.
+//   모달 닫기는 **항상 우상단**이 정본이다(전 모달 공통).
 const CloseBtn = styled.button`
   width: 28px; height: 28px;
+  @media (max-width: 640px) { width: 44px; height: 44px; margin: -8px -10px -8px 0; }
   display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: none; border-radius: 6px;
   color: #64748B; cursor: pointer;
@@ -145,3 +149,10 @@ const CloseBtn = styled.button`
   &:hover { background: #F1F5F9; color: #0F172A; }
   &:focus-visible { outline: 2px solid rgba(20,184,166,0.3); outline-offset: 2px; }
 `;
+
+/**
+ * 자체 마크업을 쓰는 모달이 **같은 헤더 규격**을 쓸 수 있게 내보낸다.
+ * (18개 모달이 각자 헤더를 만들어 높이·닫기 위치·제목 크기가 제각각이었다 — 2026-08-25 실측)
+ * 구조 전환이 어려운 모달은 최소한 이 세 조각만이라도 재사용한다.
+ */
+export { Header as ModalHeaderBar, Title as ModalTitleText, CloseBtn as ModalCloseButton };
