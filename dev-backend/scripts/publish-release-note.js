@@ -19,6 +19,23 @@ const { HelpArticle } = require('../models');
 
 const UPDATES_CATEGORY_SLUG = 'updates';
 
+/** 릴리즈 노트 한 줄 요약 — spec.summary 우선, 없으면 항목 제목을 이어 붙인다. */
+function summaryFrom(spec, lang) {
+  const given = spec.summary && (spec.summary[lang] || (typeof spec.summary === 'string' ? spec.summary : null));
+  if (typeof given === 'string' && given.trim()) return given.trim().slice(0, 300);
+  const titles = (spec.items || [])
+    .map((it) => {
+      const v = it && (it[lang] !== undefined ? it[lang] : it);
+      if (typeof v === 'string') return v;
+      return (v && (v.title || v.heading)) || '';
+    })
+    .filter(Boolean).slice(0, 3);
+  if (titles.length === 0) {
+    return lang === 'ko' ? `PlanQ v${spec.version} 업데이트` : `PlanQ v${spec.version} update`;
+  }
+  return titles.join(' · ').slice(0, 300);
+}
+
 function blocksFrom(items, lang) {
   const blocks = [];
   for (const it of items) {
@@ -57,6 +74,11 @@ function blocksFrom(items, lang) {
     title_en: `PlanQ Update v${spec.version}`,
     body_ko: blocksFrom(spec.items, 'ko'),
     body_en: blocksFrom(spec.items, 'en'),
+    // ★ 2026-08-25 — 요약을 안 채워서 **이 경로로 낸 릴리즈 노트가 매번 위키 게이트를 막았다.**
+    //   게이트(scripts/wiki-coverage-check.js)는 blog 발행글에 summary_en 을 요구한다.
+    //   spec.summary 가 있으면 그것을, 없으면 항목 제목들로 만든다 — 빈 칸으로 두지 않는다.
+    summary_ko: summaryFrom(spec, 'ko'),
+    summary_en: summaryFrom(spec, 'en'),
     visibility: 'public',
     is_published: publish,
     blog_category: 'updates',

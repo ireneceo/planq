@@ -1,118 +1,98 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-08-25 (KST) — `/개발완료` 처리
-**작업 상태:** 완료 · 작업트리 clean · 소스(dev-backend/dev-frontend/q-note) 변경 0 → **`/배포` 불필요**
-
-### 진행 중인 작업
-- 없음 (서버 쪽 할 일 없음)
-
-### 완료된 작업 (이번 세션 — 2026-08-25)
-- **iOS TestFlight 빌드를 Codemagic 클라우드로 전환** (커밋 `72cbbe39`, push 완료)
-  - 맥에 Xcode 를 깔지 않는다. 맥북 실측 Xcode·Node 미설치 · 데이터 볼륨 94%(여유 28GB) vs Xcode 40GB 요구
-  - 판단 근거: 우리 앱은 Remote URL 껍데기라 서버 배포만으로 화면이 바뀐다 → **앱 재빌드가 드물다.** 어느 기기에서든 빌드 가능해짐
-  - 비용: 개인 계정 **무료 500 macOS M2 분/월**(회당 10~15분) · 초과 시 분당 $0.095. ⚠️ 가입 시 **Team 만들면 무료 분 소멸**
-  - 신규 `codemagic.yaml`(6단계 + TestFlight 자동 업로드) · 신규 공유 스킴 `App.xcscheme` · `IOS_BETA_RUNBOOK §2` 재작성
-- `/개발완료` — 가드 3축 EXIT 0 · Q위키 커버리지 EXIT 0 · DEVELOPMENT_PLAN 히스토리 박제 · memory 갱신
-
-### 가드 3축 결과 (2026-08-25)
-| 가드 | 결과 |
-|---|---|
-| `scripts/health-check.js` | ✅ 37/37 (EXIT 0) |
-| `scripts/guard-invariants.js` | ✅ 26/26 (EXIT 0) |
-| `scripts/e2e/run.js --suite tenant` | ✅ 실패 0 (EXIT 0) |
-| `dev-backend/scripts/wiki-coverage-check.js` | ✅ 통과 (이번 변경은 사용자 대면 화면 변경 없음 → 아티클 불요) |
-
-> Fable 게이트: **소스 변경 0** 이라 해당 없음 (`git status --porcelain -- dev-backend dev-frontend q-note` 빈 값).
+**마지막 업데이트:** 2026-08-25 (KST) 심야 — `/개발완료`
+**작업 상태:** 배포 완료. **미해결 신고 8건이 다음 사이클 최우선** (아래 §🔴)
 
 ---
 
-## 📱 iOS 베타 — 클라우드 빌드 (Codemagic)
+## 🔴 Irene 미해결 신고 (2026-08-25 심야, 네이티브 앱 실기기)
 
-### 애플 쪽 완료 (다시 안 해도 됨)
-| 항목 | 값 |
-|---|---|
-| Apple ID | **`help@wor-pro.com`** (MIJUNGKIM) — 인증 6자리 코드는 **이 메일함으로만** 온다 |
-| Team ID | **`H2HW8BHXNW`** (조직 `irene&company`) |
-| Bundle ID | **`app.planq`** (Push Notifications + Associated Domains) |
-| APNs Key ID | **`P8QD2K92HW`** — 키는 양 서버 `/opt/planq/secrets/` 에 640 권한 |
-| App Store Connect | 앱 레코드 `PlanQ` 생성됨 |
-| 운영 Universal Links | 완료 (`application/json` + `appIDs H2HW8BHXNW.app.planq`) |
+> 배포 직전에 연달아 들어온 것들. **이번 배포에 포함되지 않았다.**
+> 헤더 제목 세로 붕괴(Q Note)는 이번 배포에 포함 — 앱에서 확인 필요.
 
-APNs 검증 완료: 가짜 토큰에 `BadDeviceToken`(400) = 애플이 우리 인증을 수락.
-운영 `APNS_PRODUCTION=true`(TestFlight용) / dev `false`.
+| # | 신고 | 상태 |
+|---|---|---|
+| 1 | **콘텐츠 영역 하단 흰 여백** — 모바일 네이티브 앱. 좌측 메뉴는 해결됐는데 **메뉴 외 모든 페이지** 하단이 하얗게 잘림. 헤더는 해결됨 | 미착수 |
+| 2 | **모바일 좌측 메뉴 로고 위치** — 메뉴 열면 로고가 위로 올라가 안 보임. 이전엔 헤더 기준으로 딱 맞았다 (회귀) | 미착수 |
+| 3 | **Q Note 상세 헤더 2행 필요** — 제목과 버튼이 한 줄에 다 들어가려면 2행이어야 한다는 Irene 판단. 이번 배포는 말줄임 처리만 | 부분 |
+| 4 | **요약 접기/펴기 안 됨** — 모든 AI 요약이 접혀야 한다 | 미착수 |
+| 5 | **Q docs 상세 서브헤더 엉망** — "완전 심해" | 미착수 |
+| 6 | **Q Mail 상세 뒤로가기 버튼 2개** — 박스 안 버튼이 없어야 다른 페이지와 통일됨 | 미착수 |
+| 7 | **캘린더 상세에 뒤로가기 화살표 없음** | 미착수 |
+| 8 | **프로젝트 히스토리 클릭 불가** — hover 는 되는데 클릭이 안 되는 줄이 있음(프로젝트 상태·메모·파일). "눌러도 되는 것처럼 보이는데 안 눌림" | 미착수 |
 
-### Claude 가 끝낸 것
-- **`codemagic.yaml`** — npm ci → `cap:beta` → pod install → 빌드번호 → 서명 → IPA → TestFlight 자동 업로드
-  - `npm run cap:beta` 를 그대로 태워 **목표 서버가 `https://planq.kr` 이 아니면 빌드가 멈춘다**(기본값이 dev 라 이게 유일한 안전장치)
-  - `webDir: www-placeholder` 라 **웹 빌드(vite) 없이 sync** 된다 — CI 가 가볍다
-- **`App.xcscheme` 공유 스킴** — Capacitor 기본 스킴은 `xcuserdata` 라 git 에 없다. 없으면 클라우드가 빌드 대상을 못 찾는다 (target `504EC3031FED79650016851F`)
+### 승인받은 설계 (착수만 하면 됨)
+**AI 생성물 버전 관리** — Irene 선택: 적용 범위 = **Q Note 회의 요약·브리프 + Q docs AI 문서 생성**,
+작업 범위 = **공용 구조 + 선택한 곳 전부**.
+- 요약 접기/펴기 (모든 곳)
+- 재생성 시 **요청사항 입력** 받기 ("더 짧게", "실행 항목 위주로")
+- AI 작성물을 **버전으로** 쌓기 (요청사항을 그 버전 라벨로) — 오늘 만든 결과물 회차 이력과 같은 구조
+- 조사 결과: Q Note `/summary` 는 이미 `instruction` 을 받지만 세션 row 를 **덮어쓴다**(이력 없음).
+  Q docs 는 `POST /api/posts/brief` → Post 생성이라 **PostRevision 이 이미 있다**
+  (`ai_instruction` + `source:'ai'` 컬럼 추가로 확장 가능). `/api/docs/ai/generate` 는 501 스텁.
 
-### ▶ Irene 이 할 일 (브라우저만, 맥 불필요)
-1. **App Store Connect API 키 발급** — Users and Access > Integrations > App Store Connect > **+**
-   - Role: **App Manager** / 받을 것: `.p8` 파일 · **Key ID** · **Issuer ID**
-   - ⚠️ `.p8` 는 **한 번만** 내려받을 수 있다. APNs 키와는 **다른 키**다
-2. **Codemagic 가입** — https://codemagic.io , **GitHub 계정으로** (⚠️ **Team 만들지 말 것** — 무료 분이 사라진다)
-3. Codemagic > Teams > Integrations > App Store Connect 에 위 키 등록. **이름을 정확히 `PlanQ ASC`** (yaml 이 이 이름을 찾는다)
-4. 저장소 `ireneceo/planq` 연결 → 워크플로 `ios-testflight` 실행
-5. App Store Connect > PlanQ > **TestFlight** > 내부 테스터 추가 (심사 없음, 100명)
+---
 
-### 남은 확인 사항
-- `APP_STORE_APP_ID`(앱 숫자 ID) 를 Codemagic 환경변수에 넣으면 빌드번호가 TestFlight 최신+1 로 자동. 없으면 Codemagic `BUILD_NUMBER` 사용
-- 첫 빌드는 서명 프로파일 자동 생성 때문에 한 번 실패할 수 있다 — 로그 보고 조정
+## ✅ 오늘(2026-08-25) 완료·배포분
 
-절차 상세: `docs/IOS_BETA_RUNBOOK.md`
+### 사이클 1 — 파일 3종
+- **업로드 진행률** — 원인은 `fetch`(업로드 진행 이벤트 없음). `apiUpload()` XHR 게이트웨이 신설
+  (인증·refresh·401 재시도는 apiFetch 와 같은 계약). 파일별 %·속도·남은 시간·취소
+- **영상/음성 미리보기** — `<video>` 가 0건이었다. 서명 URL(`/api/files/media/...`) + Range 스트리밍.
+  MIME 하드게이트 · 상환 시 canDownloadFile 재검사 · 보안등급 게이트(드래그아웃과 같은 술어)
+- **파일명·설명·태그** — `PATCH /api/files/:biz/:id`, `files.tags` JSON 신규. 검색이 3필드 모두 봄
+- DocsTab god-file 초과 → `docs/UploadQueue·FileMetaEditor·PreviewArea` 분리
+
+### 사이클 2 — 결과물 회차 이력 (#271·#307)
+- **백엔드는 2026-08-22 부터 이미 박제 중이었고 화면만 없었다.** 운영 DB 에 5회차 축적
+- 🔴 **격리 결함 수정** — `GET /api/tasks/:id/deliverable-versions` 에 권한 검사가 **전혀 없었다.**
+  주석은 "loadTaskOrFail 이 격리를 끝냈다" 고 단언했으나 그 함수는 findByPk 만 한다.
+  카나리로 반증: 타 워크스페이스 결과물 본문이 200 반환. 같은 파일 14 라우트 실호출 전수 점검 → 구멍 1건
+- 목록에서 본문 제외 + 회차별 결과(승인/수정요청) 부착 · 단건 조회 · **비파괴 되돌리기**
+  (행동 계층 `restoreDeliverable` 단일 착지점 — 가드가 라우트 트랜잭션을 잡아 이관)
+- `components/QTask/DeliverableHistory.tsx` 신규
+
+### 사이클 3 — 프로젝트 히스토리 → 사건 타임라인
+- 실측: 업무 41개 프로젝트에서 히스토리 62행 중 **55행(89%)이 "업무 추가"**
+- 워크플로우 사건 8종 복원(컨펌 요청·승인·수정요청·담당자/마감일 변경·이관·되돌림·완료).
+  전종은 넣지 않는다 — 운영 188행 중 85행이 in_progress↔waiting churn
+- 사건을 문장으로: `진행중 → 컨펌 중` · `→ 이수민` · `R2` + 비고 인용
+- 업무 추가는 `▸ 업무 N개 추가` 로 접기(1건짜리는 안 접음)
+- 🔴 **히스토리 비고에 사용자 id 원문 노출** (`담당자 변경: 5 → 1000279`) — 업무 상세에도 나오던 것.
+  쓰기측은 이름으로, 옛 행은 `looksLikeRawIdNote` 로 가림(두 화면이 **같은 술어** 공유)
+- 🔴 `project_status_history.note` 가 `null` 하드코딩 — 컬럼이 죽어 있었다
+
+### 사이클 4 — 모바일 헤더 + 검사기
+- **Q Note 상세 제목 세로 붕괴** 수정 (원인·근거는 커밋 `cf9218a8` 참조)
+- **프로젝트 상태 변경 사유 입력** — 백엔드만 열려 있고 화면이 없어 컬럼이 계속 비어 있었다
+- **`scripts/e2e/narrow-text-audit.js` 신규** (`--suite narrowtext`) — 45 라우트 375px 실측.
+  ★ 만드는 동안 검사기가 **네 번 거짓말**했고 네 번 다 잡아 고쳤다(임계값·목록만봄·필드명·줄수계산).
+  스트레스 개수를 같이 출력해 "0개 = 검사 안 함" 을 구분 가능하게
 
 ---
 
 ## 다음 할 일
-1. **iOS 베타 — Codemagic** (§📱 의 Irene 4단계) → 첫 빌드 로그 확인 → 내부 테스터로 실기기 검증 6항목
-2. Fable 큐 `docs/FABLE_VERIFY_QUEUE.md` — §6 Gmail 스팸함 수집(커서 스키마), §5 메일 전달 기능(차단 중)
-3. 오늘의 업무 리뷰 — 요약 층 (재료 수집·UI 는 배포 완료, Fable 큐 이관분)
+1. **위 §🔴 8건** — 특히 1·2 는 앱 전체에 걸리는 레이아웃 회귀라 최우선
+2. **AI 생성물 버전 관리** (승인된 설계, 위 참조)
+3. iOS 흰 여백 — 설정 → 알림 → 알림 진단 → **실행 환경** 줄 값 필요 (Irene 확인 대기)
+4. SEO 운영 체계 (조사만 완료, 수정 착수 전 — Irene "지금은 SEO 문제를 수정하지 마")
 
 ### Irene 조치 대기
 - Google Drive 재연동 (`invalid_grant`)
+- iOS 실행 환경 진단 값 알려주기
 
 ---
 
-## 지난 세션 참고
-
-### 🔴 2026-08-24 마지막에 잡은 회귀 (배포 완료)
-**업무 저장이 매번 50초** — `afterSave` 스냅샷 훅이 `options.transaction` 을 넘기지 않아
-별도 커넥션으로 같은 행을 잠그려 했고, 바깥 트랜잭션이 쥔 락을 기다리다
-`innodb_lock_wait_timeout`(50초)를 매번 꽉 채웠다.
-- 운영 실측 **50,107ms → 82ms** (커밋 `2b7b2fa9`, 배포 18:43)
-- 두 겹으로 숨었다: 훅 `catch` 가 삼켜 로그에만 남고, 저장은 성공해 "그냥 느림" 으로만 보였다
-- 교훈 박제: memory `feedback_hook_must_join_transaction`
-
-### 2026-08-24 세션 완료분
-- 랜딩 **서비스 페이지 `/service`** + 견적문의(`/contact?type=quote`) — ko/en
-- **문의 폼 전건 실패 수정** — 필드명 불일치로 역대 접수 0건이던 것
-- **외부 API 크레딧 경보** — Deepgram/OpenAI 잔액·소진 예상일·일 1회 메일 + 단가 자동 보정
-- **Q Task 체크박스 권한 규칙** · **팝아웃 체크 즉시 반응** · **카운트 정의 통일**
-- **iOS**: 아이콘·스플래시 PlanQ 마크 교체(알파 제거) · 베타 런북 · 빌드 목표 서버 안전장치
-
----
-
-## Git 상태 (2026-08-25 `/개발완료` 시점)
-
-| 항목 | 값 |
-|---|---|
-| 브랜치 | `main` |
-| 마지막 코드 커밋 | `72cbbe39` build(ios): TestFlight 빌드를 Codemagic 클라우드로 전환 |
-| HEAD | 이 문서를 담은 `/개발완료` 커밋 (`git log -1` 로 확인) — push 완료 |
-| 작업트리 | **clean** |
-| 미배포 | 없음 — 이번 사이클은 CI 설정·문서뿐이라 `/배포` 불필요 |
-
----
+## 참고 — 이번 세션에서 얻은 교훈
+- **정적 스캐너는 두 번 거짓말했다** — 주석 속 `canAccessTask` 를 가드로 세어 거짓 PASS,
+  행동 계층 위임을 못 읽어 거짓 FAIL 13건. **실호출만 믿을 수 있다**
+- **거짓 실패 2건** — ① 프로젝트 기본 status 가 이미 active 라 내 테스트가 전이를 안 만듦
+  ② security-level 라우트가 `{level}` 인데 `{security_level}` 로 보냄. 둘 다 코드가 아니라 테스트가 틀렸다
+- **Fable 사용 한도 소진** — 이번 세션 검증은 전부 Opus 직접(그 사실을 보고에 명시)
 
 ## 복구 가이드
-
-새 Claude 세션 시작 시 아래 내용을 붙여넣으세요:
-
 ```
 이전 세션 이어서 작업하고 싶어.
 /opt/planq/.claude/session-state.md 읽어줘.
 ```
-
-노트북에서 이어가려면 개발 서버에 접속해 `claude --continue` 하면 이 대화가 그대로 이어집니다.

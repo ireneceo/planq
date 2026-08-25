@@ -1,6 +1,39 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-08-25 (Opus 5, 1M) — **v1.48.4 · iOS 앱 첫 실기기 검증 + 문서를 Notion 방식으로** — 오늘의 절반은 **TestFlight 로 앱을 처음 손에 쥔 날**이었고, 브라우저 시뮬레이션으로는 절대 안 잡히는 것들이 한꺼번에 나왔다. ①**WebView 는 브라우저가 아니다** — `100dvh`·`-webkit-fill-available`·`56px` 고정이 실제 가시영역과 어긋나 화면이 고무줄처럼 흔들리고, 그 흔들림이 `visualViewport` scroll 을 초당 수십 번 때리고, 그때마다 `:root` CSS 변수를 다시 써서 **문서 전체 스타일 재계산 폭풍**이 됐다("쓸수록 느려진다"의 정체 — 서버는 31ms 로 멀쩡했다). 높이를 `--vvh`·`--pq-mobile-chrome` **단일 변수**로 통일하고, 값이 바뀔 때만 쓰게 하고, 손가락이 닿아 있는 동안엔 스크롤을 되돌리지 않게 했다. ②**같은 도메인 302 로는 iOS Universal Link 가 안 열린다** — 구글 로그인이 "3번 만에" 되던 복불복의 정체. 커스텀 스킴(`planq://`)으로 바꾸고, 수신부의 https 분기에 same-origin 검사를 더해 **로그인 CSRF 구멍**도 같이 막았다. ③**앱이 화면 끝까지 그리지 않고 있었다**(`contentInset: automatic`) — 그 자리는 WebView 흰 배경이라 CSS 로는 손댈 수 없었다. edge-to-edge 로 바꾸고 안전영역을 페이지가 칠하게 했다(새 IPA 필요). ④**문서를 Notion 방식으로** — "임시저장인데 왜 저장돼?" 의 근본은 status(초안/발행)와 visibility(공개범위)가 같은 일을 반쪽씩 하고 있던 것. 저장 버튼을 없애되 **버전 기록을 먼저** 넣었다(되돌릴 수 없으면 항상 저장은 위험하다). 스냅샷·10분 합치기·50개 상한·비파괴 복원, 그리고 **버전이 참조하는 파일은 지워도 바이트를 남기고**(참조 계수), 참조가 끊기면 30일 뒤 회수(GC). 동시 편집 표시와 충돌 해결(최신 가져오기/덮어쓰기)까지. ⑤**가드가 나를 네 번 잡았다** — god-file 래칫 2회(posts.js·files.js → 라우터·서비스 분리), i18n 하드코딩(styled 템플릿 안 한글 주석), 그리고 **내 판정 기계가 세 번 거짓말했다**(Op 중복 키·underscored 인스턴스 속성·없는 `Post.deleted_at` 컬럼 — 마지막 것은 "모든 파일 영구 보류" 라는 조용한 죽음이었고 양성 대조군이 없었으면 "0건 회수 = 정상" 으로 넘어갔다). ⑥**내가 낸 오답 두 개를 정정했다** — 휴가 알림은 이미 서비스 계층에 있었는데 라우트만 grep 하고 "0건" 이라 보고해 중복 발송을 넣었다(되돌림). 문서 "임시저장" 도 문구 문제로 읽고 로컬 보관을 넣었다가 방향이 반대임을 듣고 되돌렸다.
+> **최종 업데이트:** 2026-08-25 심야 (Opus 5, 1M) — **파일 3종 · 결과물 회차 이력 · 프로젝트 히스토리 · 모바일 헤더 + 자체 검사기** — 오늘 후반은 **"고쳐놨는데 화면이 없어서 사용자에겐 아무것도 안 바뀐" 것들을 파낸 시간**이었다. ①**업로드에 진행률이 없던 근본 원인은 `fetch`** — fetch 에는 업로드 진행 이벤트가 자체가 없다. XHR 게이트웨이(`apiUpload`)를 apiFetch 와 **같은 인증 계약**으로 만들고 파일별 %·속도·남은 시간·취소를 붙였다. ②**영상 미리보기는 `<video>` 태그가 코드 전체에 0건**이었다 — `<video>` 는 Authorization 을 못 실으므로 서명 URL + Range 스트리밍으로. ③**결과물 회차 이력(#271)은 백엔드가 이미 3일 전부터 박제 중이었고 화면만 없었다**(운영 DB 에 5회차 축적). 그 조사 중 **격리 결함**을 찾았다 — `deliverable-versions` 라우트에 권한 검사가 **전혀 없었다.** 주석은 "loadTaskOrFail 이 격리를 끝냈다" 고 단언했으나 그 함수는 `findByPk` 만 한다. 카나리를 심어 **타 워크스페이스 결과물 본문이 200 으로 읽히는 것**을 반증하고 막았다. ④**프로젝트 히스토리는 사실상 업무 목록이었다** — 62행 중 55행(89%)이 "업무 추가". 이력 대신 tasks 테이블을 나열하면서, 정작 컨펌 요청·승인·수정요청·담당자 변경은 **DB 에 다 있는데 버려지고 있었다.** 사건을 문장으로 만들고(`진행중 → 컨펌 중`·`R2`·사유 인용) 업무 추가는 한 줄로 접었다. 그 과정에 **히스토리 비고에 사용자 id 원문이 노출**(`5 → 1000279`)되던 것과 `project_status_history.note` 가 `null` 하드코딩이라 죽어 있던 것도 잡았다. ⑤**모바일 제목이 세로로 쌓이던 것** — 제목에 `nowrap` 이 없는데 옆 버튼이 `flex-shrink:0` 으로 275px 를 고정 점유해 한국어 min-content(=한 글자 폭)까지 붕괴한 것. 실측 재현 폭 80px·5줄. ⑥**"다른 곳도 내가 찾아내야 아느냐"** 는 지적을 받고 **자체 검사기**(`narrow-text-audit`)를 만들었다 — 45 라우트를 375px 로 돌며 증상 자체를 측정한다. **만드는 동안 검사기가 네 번 거짓말했고 네 번 다 잡아 고쳤다**(임계값이 빡빡해 실제 버그를 놓침 · 목록만 봐서 사실상 검사 안 함 · 결과 필드명이 규약과 달라 결함이 ✅ 로 찍힘 · 줄 수를 요소 높이로 세어 오탐 11건). 데이터가 얇으면 거짓 통과하므로 **제목에 긴 한국어를 강제 주입**하고, 몇 개를 스트레스했는지 함께 출력해 "0개 = 검사 안 함" 을 구분하게 했다.
+
+## ✅ 완료: 파일 3종 · 결과물 회차 이력 · 프로젝트 히스토리 · 모바일 헤더 (2026-08-25 심야)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 업로드 진행률 | `apiUpload()` XHR 게이트웨이 — 파일별 %·속도·남은 시간·취소. 원인은 fetch 에 업로드 진행 이벤트가 없다는 것 | ✅ |
+| 영상·음성 미리보기 | 서명 URL + Range. MIME 하드게이트 · 상환 시 권한 재검사 · 보안등급 게이트 | ✅ |
+| 파일명·설명·태그 | `PATCH /api/files/:biz/:id` · `files.tags` 신규 · 검색 3필드 확장 | ✅ |
+| 🔴 결과물 이력 격리 결함 | `deliverable-versions` 에 권한 검사 부재 → 타 워크스페이스 본문 유출. 카나리로 반증 후 수정 | ✅ |
+| 결과물 회차 이력 화면 | 회차·승인/반려 뱃지·사유·본문 펼치기·비파괴 되돌리기 | ✅ |
+| 프로젝트 히스토리 | 업무 목록 → 사건 타임라인. 워크플로우 8종 복원 · 노이즈 차단 · 업무추가 접기 | ✅ |
+| 🔴 히스토리 id 노출 | `담당자 변경: 5 → 1000279` → 이름. 옛 행은 두 화면이 같은 술어로 가림 | ✅ |
+| 🔴 상태 사유 죽은 컬럼 | `project_status_history.note` 가 `null` 하드코딩 → 입력 화면까지 신설 | ✅ |
+| 모바일 헤더 제목 붕괴 | Q Note 상세 — nowrap/ellipsis + 표준 자식 계약. 실측 폭80px·5줄 → 0건 | ✅ |
+| 세로텍스트 검사기 | `--suite narrowtext` 45라우트 실측 + 스트레스 주입 + 반증 확인 | ✅ |
+
+### 수정된 파일
+- `dev-backend/routes/files.js` · `models/File.js` · `routes/projects.js` · `routes/tasks.js`
+- `dev-backend/routes/task_workflow.js` · `services/actions/task_actions.js` · `services/event_stream.js`
+- `dev-frontend/src/contexts/AuthContext.tsx` · `services/files.ts`
+- `dev-frontend/src/pages/QProject/DocsTab.tsx` + `docs/{UploadQueue,FileMetaEditor,PreviewArea}.tsx`
+- `dev-frontend/src/components/QTask/{DeliverableHistory,TaskDetailDrawer}.tsx`
+- `dev-frontend/src/pages/QProject/{HistoryTab,QProjectDetailPage}.tsx`
+- `dev-frontend/src/pages/QNote/QNotePage.tsx`
+- `scripts/e2e/narrow-text-audit.js` (신규) · `scripts/e2e/run.js`
+
+### ⚠️ 다음 사이클 최우선 — Irene 미해결 신고 8건
+`.claude/session-state.md` §🔴 참조. 특히 **모바일 콘텐츠 하단 흰 여백**(앱 전체)과
+**좌측 메뉴 로고 위치 회귀**는 전 화면에 걸린다.
+
+---
 
 ## ✅ 완료: iOS TestFlight 빌드 Codemagic 클라우드 전환 (2026-08-25)
 
