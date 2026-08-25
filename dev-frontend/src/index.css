@@ -35,6 +35,13 @@ html.pq-native body {
   -webkit-overflow-scrolling: auto;
 }
 
+/* 구버전 앱(WebView 가 이미 상태바 아래로 인셋된 빌드) — safe-area 를 또 더하면 여백이 두 배가 된다.
+   main.tsx 가 화면 높이와 뷰포트 높이를 재서 이 클래스를 붙인다. 새 빌드에서는 붙지 않는다. */
+html.pq-native-inset {
+  --pq-safe-top: 0px;
+  --pq-safe-bottom: 0px;
+}
+
 /* 네이티브 앱은 화면 끝까지 우리가 그린다(edge-to-edge).
    capacitor.config.ts 의 ios.contentInset='never' + StatusBar overlay 와 한 쌍이다 —
    WebView 가 상태바 아래로 밀려나 있으면 그 자리는 WebView 흰 배경이 차지해 흰 띠가 남고,

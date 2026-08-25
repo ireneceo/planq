@@ -138,6 +138,15 @@ let idSeq = 0;
 function newId() { return `t${Date.now().toString(36)}_${(idSeq++).toString(36)}`; }
 
 // 미러 모드에서 실제 네비를 위임할 콜백(트리 스왑 전 BrowserRouter 로 이동). setNavigator 로 주입.
+// ★ 탭 전환이 끝날 때까지 location→store 역보고를 무시하기 위한 표식 (2026-08-25).
+//   증상: "분명 문서가 열려 있었는데 그 탭을 누르면 다른 페이지로 바뀐다."
+//   원인: setActive 는 activeId 를 먼저 바꾸고 navigate 를 건다. 그 사이에 라우터가 내는
+//   중간 location(직전 화면의 경로·리다이렉트 결과)이 seedFromPath 로 들어와
+//   **방금 활성화한 탭의 path 를 덮어썼다.** 사용자에겐 탭이 제멋대로 바뀐 것으로 보이고,
+//   그 값이 저장까지 되므로 되돌아오지도 않는다.
+//   해결: 전환 시 "이 탭이 가야 할 경로" 를 기억하고, 그 경로가 실제로 도착하기 전까지는
+//   역보고를 받지 않는다. 사용자가 탭 안에서 직접 이동한 경우는 도착 이후이므로 정상 반영된다.
+let pendingSwitch: { id: string; path: string } | null = null;
 let navigateDelegate: ((path: string) => void) | null = null;
 export function setTabNavigator(fn: ((path: string) => void) | null) { navigateDelegate = fn; }
 
@@ -181,6 +190,7 @@ export const tabStore = {
     const tabs = state.tabs.map((t) => (t.id === id ? { ...t, alive: true, lastActiveAt: now } : t));
     set({ tabs: applyLru(tabs, id), activeId: id });
     const t = state.tabs.find((x) => x.id === id);
+    if (t) pendingSwitch = { id, path: t.path };
     if (state.mirror && navigateDelegate && t) navigateDelegate(t.path);
   },
 
@@ -192,6 +202,7 @@ export const tabStore = {
     if (activeId === id) {
       const next = tabs[idx] || tabs[idx - 1] || tabs[tabs.length - 1] || null;
       activeId = next ? next.id : null;
+      if (next) pendingSwitch = { id: next.id, path: next.path };   // 전환과 같은 이유로 역보고 보류
       if (next && state.mirror && navigateDelegate) navigateDelegate(next.path);
     }
     set({ tabs, activeId });
@@ -246,6 +257,12 @@ export const tabStore = {
   seedFromPath(path: string) {
     const now = Date.now();
     const act = state.activeId ? state.tabs.find((t) => t.id === state.activeId) : null;
+    // 전환 대기 중 — 목표 경로에 도착하기 전의 중간 location 은 무시한다(위 pendingSwitch 주석).
+    if (pendingSwitch) {
+      if (pendingSwitch.id !== state.activeId) pendingSwitch = null;       // 그 사이 또 바뀌었다면 표식 폐기
+      else if (path === pendingSwitch.path) { pendingSwitch = null; return; }  // 도착 — 값은 이미 같다
+      else return;                                                         // 아직 도착 전 — 덮어쓰지 않는다
+    }
     if (act) {
       if (act.path === path) return;
       set({ tabs: state.tabs.map((t) => (t.id === act.id ? { ...t, path, kind: kindOfPath(path), lastActiveAt: now } : t)) });

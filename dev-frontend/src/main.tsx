@@ -34,6 +34,17 @@ if (isNativeApp()) {
   //   100dvh 가 실제 가시영역보다 몇 px 커지는 순간 body 가 스크롤 가능해지고
   //   iOS 고무줄(bounce) 이 발동한다 — 사용자에겐 "화면이 위아래로 흔들림" 으로 보인다.
   document.documentElement.classList.add('pq-native');
+  // ★ 이 앱 빌드가 실제로 화면 끝까지 그리는가(edge-to-edge)를 **재서** 판단한다.
+  //   capacitor.config 의 contentInset 은 앱에 컴파일돼 들어가므로, 서버가 내려주는 이 JS 는
+  //   구버전 앱(contentInset:'automatic')에서도 돌아간다. 그 앱은 WebView 가 이미 상태바 아래로
+  //   밀려 있어서, CSS 가 safe-area 를 또 더하면 "헤더 위 여백만 두꺼워진다"(2026-08-25 실기기).
+  //   화면 높이와 뷰포트 높이 차이가 크면 = 아직 인셋된 구버전 → safe-area 보정을 0 으로 끈다.
+  //   새 빌드(contentInset:'never')에서는 둘이 같아져 보정이 정상 적용된다.
+  try {
+    const screenH = window.screen && window.screen.height ? window.screen.height : 0;
+    const inset = screenH - window.innerHeight;
+    if (screenH && inset > 20) document.documentElement.classList.add('pq-native-inset');
+  } catch { /* 접근 불가 브라우저 — 기본(보정 적용) 유지 */ }
   import('@capacitor/status-bar').then(({ StatusBar, Style }) => {
     // overlay=true — 상태바가 WebView 위에 겹친다. contentInset:'never' 와 한 쌍(edge-to-edge).
     //   이래야 헤더의 teal 이 상태바 뒤까지 이어지고 흰 띠가 사라진다.
