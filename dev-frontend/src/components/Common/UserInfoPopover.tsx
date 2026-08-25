@@ -274,7 +274,7 @@ const Popover = styled.div`
     bottom: 0;
     width: 100%;
     border-radius: 16px 16px 0 0;
-    padding: 18px 20px max(20px, env(safe-area-inset-bottom, 20px));
+    padding: 18px 20px max(20px, var(--pq-safe-bottom, 0px));
   }
 `;
 

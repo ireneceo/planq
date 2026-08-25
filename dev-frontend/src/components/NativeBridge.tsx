@@ -30,6 +30,16 @@ export default function NativeBridge() {
     };
     window.addEventListener('planq:navigate', onNavigate);
 
+    // 콜드 스타트로 보관돼 있던 알림 링크 소비 — 라우터가 준비된 지금 이동한다.
+    //   (탭 이벤트가 리스너보다 먼저 오는 경우가 있어 services/nativePush 가 sessionStorage 에 남긴다)
+    try {
+      const pending = sessionStorage.getItem('planq_pending_push_link');
+      if (pending) {
+        sessionStorage.removeItem('planq_pending_push_link');
+        if (pending.startsWith('/') && !pending.startsWith('/api/')) navigate(pending);
+      }
+    } catch { /* 무시 */ }
+
     // 네이티브 전용 — Universal Link/App Link 로 앱이 열릴 때(딥링크·OAuth 콜백 복귀).
     let cleanupNative: (() => void) | null = null;
     if (isNativeApp()) {

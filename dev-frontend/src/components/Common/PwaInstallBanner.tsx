@@ -64,7 +64,7 @@ const BannerRoot = styled.div`
      bottom 16 이면 이 배너(z 8500)가 FAB(z 120)을 통째로 덮어 **모든 페이지에서 도크가 안 눌린다**
      — 2026-08-14 실측으로 5/5 페이지 도달 0 확인. 80 = FAB top(16+52=68) + gap(12).
      모바일용 InstallPromptBanner 가 같은 이유로 이미 80 을 쓰고 있었는데 이 배너만 규칙을 못 받았다. */
-  bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(80px + var(--pq-safe-bottom, 0px));
   right: 16px;
   z-index: 8500;
   display: grid;

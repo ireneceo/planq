@@ -531,7 +531,7 @@ const Container = styled.aside<{ $overlay?: boolean; $w?: number }>`
       box-shadow: -16px 0 40px rgba(15, 23, 42, 0.14);
       animation: pqSlideIn 0.28s cubic-bezier(0.22, 1, 0.36, 1);
       @keyframes pqSlideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
-      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-bottom: var(--pq-safe-bottom, 0px);
       @media (prefers-reduced-motion: reduce) { animation: none; }
     `
     : `

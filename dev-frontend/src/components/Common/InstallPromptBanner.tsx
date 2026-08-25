@@ -227,7 +227,7 @@ export default InstallPromptBanner;
 const Banner = styled.div`
   position: fixed;
   left: 12px; right: 12px;
-  bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(80px + var(--pq-safe-bottom, 0px));
   z-index: 80;
   display: flex; flex-direction: column; gap: 8px;
   padding: 12px 14px;

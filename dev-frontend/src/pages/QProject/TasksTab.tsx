@@ -570,7 +570,8 @@ const TemplateBtn = styled.button`
   transition:background 0.15s,color 0.15s;
   &:hover{background:#14B8A6;color:#FFF;}
 `;
-const AddTaskBtn = styled.button`display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 14px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;&:hover{background:#0D9488;}`;
+// 헤더 생성 버튼 규격 = ActionButton sm (h36)
+const AddTaskBtn = styled.button`display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;&:hover{background:#0D9488;}`;
 
 const AddForm = styled.div`display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;padding:10px;background:#F8FAFC;border:1px solid #14B8A6;border-radius:10px;margin-bottom:12px;`;
 const AddInput = styled.input`flex:2 1 220px;min-width:180px;height:32px;padding:0 10px;border:1px solid #14B8A6;border-radius:6px;font-size:13px;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
@@ -610,7 +611,7 @@ const AddDrawer = styled.aside`
   box-shadow:-16px 0 40px rgba(15,23,42,0.14);display:flex;flex-direction:column;overflow:hidden;z-index:40;
   animation:pqSlideIn 0.28s cubic-bezier(0.22,1,0.36,1);
   @keyframes pqSlideIn{from{transform:translateX(100%);}to{transform:translateX(0);}}
-  padding-bottom:env(safe-area-inset-bottom,0px);
+  padding-bottom:var(--pq-safe-bottom, 0px);
   @media (prefers-reduced-motion: reduce){animation:none;}
 `;
 const AddDrawerHeader = styled.div`height:60px;padding:14px 20px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;`;

@@ -20,7 +20,7 @@ const Container = styled.div`
      회원가입 폼 상단이 사라진다. 상단정렬 + 상하 여백으로 폼 전체 도달 가능하게. */
   @media (max-width: 768px) {
     justify-content: flex-start;
-    padding: 16px 12px calc(24px + env(safe-area-inset-bottom));
+    padding: 16px 12px calc(24px + var(--pq-safe-bottom, 0px));
   }
 `;
 

@@ -429,7 +429,7 @@ const SidebarFooter = styled.div<{ $isCollapsed?: boolean }>`
   `}
   ${mediaTablet} {
     padding: 12px 16px;
-    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(12px + var(--pq-safe-bottom, 0px));
     display: block;
   }
 `;

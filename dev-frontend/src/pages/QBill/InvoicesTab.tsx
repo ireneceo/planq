@@ -373,7 +373,7 @@ const ClearBtn = styled.button`
 `;
 const NewBtn = styled.button`
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 9px 16px; background: #14B8A6; color: #fff;
+  height: 36px; padding: 0 14px; background: #14B8A6; color: #fff;
   font-size: 13px; font-weight: 700; line-height: 1;
   border: none; border-radius: 8px; cursor: pointer; white-space: nowrap;
   transition: background 0.15s;

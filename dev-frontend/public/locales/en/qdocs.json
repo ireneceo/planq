@@ -656,12 +656,34 @@
     "staleHelp": "Someone else edited this document. Refresh and continue writing.",
     "draftBadge": "Draft",
     "draftBadgeHint": "Only you can see this draft. Open it and save to publish.",
-    "leaveBlocked": "Couldn't leave — there are unsaved changes. Save or cancel first."
+    "leaveBlocked": "Couldn't leave — there are unsaved changes. Save or cancel first.",
+    "pendingLocal": "Kept on this device — press Save to apply",
+    "staleBar": "Someone else saved this document. What would you like to do?",
+    "staleReload": "Load latest",
+    "staleOverwrite": "Overwrite with my edits"
   },
   "toc": {
     "title": "Contents",
     "show": "Show contents",
     "hide": "Hide",
     "hideHint": "Hides the contents in this browser. You can turn it back on."
-  }
+  },
+  "presence": {
+    "editing": "{{name}} is editing",
+    "someone": "Someone"
+  },
+  "history": {
+    "title": "Version history",
+    "attachNote": "Body, title and category are recorded. Attachments are not included.",
+    "empty": "No history yet",
+    "current": "Current",
+    "restored": "Restored",
+    "restore": "Restore this",
+    "restoring": "Restoring…",
+    "loadFailed": "Couldn't load version history",
+    "restoreFailed": "Couldn't restore",
+    "unknown": "Unknown"
+  },
+  "revertEdit": "Undo this edit",
+  "doneEditing": "Done"
 }

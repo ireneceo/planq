@@ -3768,7 +3768,8 @@ const DateTrigger=styled.button<{$color?:string;$empty?:boolean}>`
 `;
 
 const EmptyFull=styled.div`display:flex;align-items:center;justify-content:center;height:100vh;color:#94A3B8;`;
-const HeaderAddBtn=styled.button`display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 14px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
+// 헤더 생성 버튼 규격 = ActionButton sm (h36)
+const HeaderAddBtn=styled.button`display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
 const AddInput=styled.input`flex:1 1 auto;min-width:0;font-size:14px;color:#0F172A;border:1px solid #14B8A6;background:#F0FDFA;padding:6px 10px;border-radius:6px;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}&::placeholder{color:#94A3B8;}`;
 /* 인라인 추가 (표 하단 새 행) — 표와 자연스럽게 연결되도록 좌우 margin 만 적용 */
 const InlineAddBox=styled.div`display:flex;flex-direction:column;gap:8px;margin:8px 14px 20px;padding:12px;background:#F8FAFC;border:1px solid #14B8A6;border-radius:10px;`;
@@ -3891,7 +3892,7 @@ const RightPanel=styled.aside<{$w?:number;$overlay?:boolean}>`background:#FFF;bo
     box-shadow:-16px 0 40px rgba(15,23,42,0.14);
     animation:pqRpSlide 0.28s cubic-bezier(0.22,1,0.36,1);
     @keyframes pqRpSlide{from{transform:translateX(100%);}to{transform:translateX(0);}}
-    padding-bottom:env(safe-area-inset-bottom,0px);
+    padding-bottom:var(--pq-safe-bottom, 0px);
     @media (prefers-reduced-motion: reduce){animation:none;}
   `:`
     width:${p.$w||420}px;flex-shrink:0;position:relative;

@@ -3441,10 +3441,10 @@ const InputBar = styled.div`
   flex-shrink: 0;
   /* iOS 노치/홈 인디케이터 영역 보호 + 키보드 위에 안전하게 떠 있게.
      N+93 — 데스크탑 입력란이 화면 하단에 너무 붙어 보인다는 호소 → 하단 여백 확대(14→20). */
-  padding-bottom: max(20px, env(safe-area-inset-bottom, 20px));
+  padding-bottom: max(20px, var(--pq-safe-bottom, 0px));
   @media (max-width: 640px) {
     padding: 8px 12px;
-    padding-bottom: max(8px, env(safe-area-inset-bottom, 8px));
+    padding-bottom: max(8px, var(--pq-safe-bottom, 0px));
   }
   /* 사이클 N+15-B — 모바일 키보드 up 시 safe-area 무시. 일부 iOS 가 키보드 위에서도 34px 잔존하는 버그 회피.
      InputBar 가 키보드에 딱 붙어 Hangouts/iMessage 와 동일한 인상. */

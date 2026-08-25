@@ -114,7 +114,7 @@ const Screen = styled.div`
   min-height: 100vh; min-height: 100dvh;
   display: flex; align-items: center; justify-content: center;
   background: #F8FAFC; padding: 24px;
-  padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  padding-bottom: calc(24px + var(--pq-safe-bottom, 0px));
 `;
 const Card = styled.div`
   width: 100%; max-width: 460px; background: #fff;

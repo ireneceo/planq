@@ -233,7 +233,11 @@ const FabWrap = styled.div<{ $onTalk?: boolean }>`
   z-index: 120;
   display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
   /* iPhone 홈 인디케이터 회피 (#86) */
-  @media (max-width: 640px) { right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+  /* 우측 여백과 아래 여백을 같은 값으로 본다 — 시각적으로 코너에 균등하게 앉는다.
+     ★ env() 를 직접 쓰지 않고 --pq-safe-bottom 을 쓴다: 구버전 앱(WebView 가 이미 인셋됨)에서는
+     main.tsx 가 이 변수를 0 으로 눌러, 아이콘이 화면 바닥에서 붕 뜨는 것을 막는다
+     (Irene: "말풍선이 너무 위에 있다", 2026-08-25). */
+  @media (max-width: 640px) { right: 16px; bottom: calc(16px + var(--pq-safe-bottom, 0px)); }
   body[data-overlay-open="true"] & { opacity: 0; pointer-events: none; visibility: hidden; }
   /* #86 — 키보드 올라온 동안엔 FAB 숨김 (입력 중 키보드 위에 어정쩡하게 떠 가리는 것 방지) */
   body[data-keyboard-up="1"] & { opacity: 0; pointer-events: none; visibility: hidden; }

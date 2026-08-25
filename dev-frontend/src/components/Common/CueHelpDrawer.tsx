@@ -995,7 +995,7 @@ const Drawer = styled.div<{ $standalone?: boolean; $popover?: boolean }>`
     @media (max-width: 640px) {
       right: 0; bottom: 0; left: 0; top: auto;
       width: 100vw; height: 88vh; border-radius: 16px 16px 0 0;
-      padding-bottom: env(safe-area-inset-bottom);
+      padding-bottom: var(--pq-safe-bottom, 0px);
     }
   ` : `
     /* 워크스페이스 — 우측 전체 드로어 */
@@ -1009,7 +1009,7 @@ const Drawer = styled.div<{ $standalone?: boolean; $popover?: boolean }>`
     @media (max-width: 1024px) { width: ${p.$standalone ? '100vw' : 'min(440px, 90vw)'}; }
     @media (max-width: 640px) {
       width: 100vw; border-left: none; box-shadow: none;
-      padding-bottom: env(safe-area-inset-bottom);
+      padding-bottom: var(--pq-safe-bottom, 0px);
     }
   `)}
 `;
@@ -1024,7 +1024,7 @@ const Header = styled.div`
   display: flex; align-items: center; justify-content: space-between;
   border-bottom: 1px solid #E2E8F0;
   /* #84 — 모바일(풀스크린) 노치/상태바 대응 (전 팝아웃 헤더 통일). */
-  @media (max-width: 640px) { padding-top: env(safe-area-inset-top, 0); }
+  @media (max-width: 640px) { padding-top: var(--pq-safe-top, 0px); }
 `;
 const HeaderTitle = styled.div`
   display: inline-flex; align-items: center; gap: 8px;

@@ -569,7 +569,7 @@ const CreateOverlay = styled.div`
   height: var(--vvh, 100vh);
   background: rgba(15,23,42,0.45);
   display: flex; align-items: center; justify-content: center; padding: 16px;
-  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(16px + var(--pq-safe-bottom, 0px));
 `;
 const CreateModal = styled.div`
   max-height: calc(var(--vvh, 100vh) - 40px);

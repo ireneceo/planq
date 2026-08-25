@@ -2329,8 +2329,8 @@ const Drawer = styled.aside<{ $w: number }>`
      비워두는 바람에 팝아웃에선 **아무것도 없는 56px 띠** 아래로 뒤 리스트가 비쳤다.
      폭으로 분기하면 진짜 폰과 구별되지 않으므로 body[data-popout] 로만 되돌린다(미디어쿼리 뒤 = 우선). */
   body[data-popout='1'] &{
-    top:env(safe-area-inset-top, 0px);
-    height:calc(var(--vvh, 100dvh) - env(safe-area-inset-top, 0px));
+    top:var(--pq-safe-top, 0px);
+    height:calc(var(--vvh, 100dvh) - var(--pq-safe-top, 0px));
   }
 `;
 const ResizeHandle = styled.div`

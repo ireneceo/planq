@@ -34,6 +34,8 @@ if (isNativeApp()) {
   //   100dvh 가 실제 가시영역보다 몇 px 커지는 순간 body 가 스크롤 가능해지고
   //   iOS 고무줄(bounce) 이 발동한다 — 사용자에겐 "화면이 위아래로 흔들림" 으로 보인다.
   document.documentElement.classList.add('pq-native');
+  // 알림 탭 리스너를 부팅 즉시 — 콜드 스타트(앱 꺼진 상태 탭)에서 링크가 유실되지 않게.
+  import('./services/nativePush').then(({ bindNativePushTapEarly }) => { void bindNativePushTapEarly(); }).catch(() => {});
   // ★ 이 앱 빌드가 실제로 화면 끝까지 그리는가(edge-to-edge)를 **재서** 판단한다.
   //   capacitor.config 의 contentInset 은 앱에 컴파일돼 들어가므로, 서버가 내려주는 이 JS 는
   //   구버전 앱(contentInset:'automatic')에서도 돌아간다. 그 앱은 WebView 가 이미 상태바 아래로

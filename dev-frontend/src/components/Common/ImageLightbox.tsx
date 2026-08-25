@@ -369,7 +369,7 @@ const Toolbar = styled.div`
   z-index: 2;
   backdrop-filter: blur(8px);
   @media (max-width: 640px) {
-    top: max(12px, env(safe-area-inset-top));
+    top: max(12px, var(--pq-safe-top, 0px));
     right: 12px;
     gap: 4px;
   }
@@ -409,7 +409,7 @@ const NavBtn = styled.button<{ $side: 'left' | 'right' }>`
   @media (max-width: 640px) {
     /* 폰에서는 아래쪽 가운데 좌우 배치 — 한 손 엄지 닿기 좋게 */
     top: auto;
-    bottom: max(16px, env(safe-area-inset-bottom));
+    bottom: max(16px, var(--pq-safe-bottom, 0px));
     transform: none;
     ${p => p.$side === 'left' ? 'left: 24px;' : 'right: 24px;'}
     width: 48px; height: 48px;
@@ -426,6 +426,6 @@ const IndexBadge = styled.div`
   border-radius: 999px;
   z-index: 2;
   @media (max-width: 640px) {
-    top: max(16px, env(safe-area-inset-top));
+    top: max(16px, var(--pq-safe-top, 0px));
   }
 `;

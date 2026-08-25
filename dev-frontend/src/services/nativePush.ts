@@ -58,11 +58,7 @@ export async function registerNative(): Promise<{ ok: boolean; reason?: string }
     // 포그라운드 도착 — OS 알림은 config presentationOptions:[] 로 억제, 인앱 토스터(socket)가 담당 → no-op.
     await PushNotifications.addListener('pushNotificationReceived', () => { /* in-app toaster handles */ });
     // 알림 탭 — payload custom key 'link'(상대경로) 로 SPA 네비게이트 (NativeBridge 가 수신).
-    await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
-      const data = action.notification?.data as Record<string, unknown> | undefined;
-      const link = (typeof data?.link === 'string' ? data.link : '') || '/';
-      window.dispatchEvent(new CustomEvent('planq:navigate', { detail: { path: link } }));
-    });
+    await PushNotifications.addListener('pushNotificationActionPerformed', handleTap);
   }
 
   // Android: FCM notification 이 지정하는 채널(fcm_sender.js channel_id 'planq_default')을 생성.
@@ -107,4 +103,29 @@ export async function nativePushStatus(): Promise<'granted' | 'denied' | 'prompt
     if (p.receive === 'denied') return 'denied';
     return 'prompt';
   } catch { return 'unknown'; }
+}
+
+/** 알림 탭 처리 — 앱이 아직 라우팅할 준비가 안 됐으면 링크를 보관해 두고, NativeBridge 가 mount 때 소비한다. */
+export const PENDING_PUSH_LINK_KEY = 'planq_pending_push_link';
+function handleTap(action: { notification?: { data?: unknown } }) {
+  const data = action.notification?.data as Record<string, unknown> | undefined;
+  const link = (typeof data?.link === 'string' ? data.link : '') || '';
+  if (!link) return;
+  // ★ 콜드 스타트 — 앱이 꺼진 상태에서 알림을 누르면 이 이벤트가 라우터보다 먼저 온다.
+  //   여태는 그대로 dispatch 해서 아무도 못 듣고 링크가 사라졌고, 앱은 기본 화면(확인필요)으로
+  //   떨어졌다(Irene: "Q mail 알림 눌렀더니 확인필요로 가버려", 2026-08-25).
+  //   보관해 두면 NativeBridge 가 mount 직후 꺼내 이동한다.
+  try { sessionStorage.setItem(PENDING_PUSH_LINK_KEY, link); } catch { /* 무시 */ }
+  window.dispatchEvent(new CustomEvent('planq:navigate', { detail: { path: link } }));
+}
+
+/**
+ * 알림 탭 리스너를 **부팅 즉시** 건다 (권한·등록과 무관).
+ * 등록(registerNative)은 로그인 후에야 불리므로, 그때까지 온 탭 이벤트를 놓치지 않으려면 별도로 필요하다.
+ */
+export async function bindNativePushTapEarly(): Promise<void> {
+  try {
+    const { PushNotifications } = await import('@capacitor/push-notifications');
+    await PushNotifications.addListener('pushNotificationActionPerformed', handleTap);
+  } catch { /* 플러그인 미가용(웹) — 무시 */ }
 }

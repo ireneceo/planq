@@ -183,7 +183,7 @@ export default AgendaView;
 // ── styled ──
 const Wrap = styled.div`
   display: flex; flex-direction: column; gap: 4px;
-  padding: 4px 0 calc(20px + env(safe-area-inset-bottom));
+  padding: 4px 0 calc(20px + var(--pq-safe-bottom, 0px));
   max-width: 720px; width: 100%; margin: 0 auto;
 `;
 const Group = styled.div`

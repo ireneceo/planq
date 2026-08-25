@@ -89,6 +89,7 @@ const PlatformSetting = require('./PlatformSetting');
 const DocumentTemplate = require('./DocumentTemplate');
 const Document = require('./Document');
 const DocumentRevision = require('./DocumentRevision');
+const PostRevision = require('./PostRevision');
 const DocumentShare = require('./DocumentShare');
 const SignatureRequest = require('./SignatureRequest');
 // ─── Q record (동적 테이블 — Notion DB 패턴) ───
@@ -611,6 +612,7 @@ module.exports = {
   DocumentTemplate,
   Document,
   DocumentRevision,
+  PostRevision,
   DocumentShare,
   SignatureRequest,
   // Q record
@@ -665,6 +667,10 @@ Document.belongsTo(Invoice, { foreignKey: 'invoice_id' });
 Document.belongsTo(User, { as: 'creator', foreignKey: 'created_by' });
 Document.belongsTo(User, { as: 'updater', foreignKey: 'updated_by' });
 Document.hasMany(DocumentRevision, { as: 'revisions', foreignKey: 'document_id', onDelete: 'CASCADE' });
+// 포스트 버전 기록 — 글이 지워지면 이력도 함께 사라진다(보존할 이유가 없다).
+Post.hasMany(PostRevision, { as: 'revisions', foreignKey: 'post_id', onDelete: 'CASCADE' });
+PostRevision.belongsTo(Post, { foreignKey: 'post_id' });
+PostRevision.belongsTo(User, { as: 'editor', foreignKey: 'editor_user_id' });
 Document.hasMany(DocumentShare, { as: 'shares', foreignKey: 'document_id', onDelete: 'CASCADE' });
 Business.hasMany(Document, { as: 'documents', foreignKey: 'business_id' });
 Quote.hasOne(Document, { as: 'document', foreignKey: 'quote_id' });

@@ -83,5 +83,5 @@ const Shell = styled.div`
   flex-direction: column;
   /* #84 — 팝아웃 헤더 모바일 노치/상태바 대응 (전 팝아웃 통일). box-sizing 으로 내용 영역이 노치 아래에서 시작. */
   box-sizing: border-box;
-  padding-top: env(safe-area-inset-top, 0);
+  padding-top: var(--pq-safe-top, 0px);
 `;

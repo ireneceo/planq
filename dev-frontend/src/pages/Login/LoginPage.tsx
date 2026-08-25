@@ -104,7 +104,7 @@ const RightSection = styled.div`
   @media (max-width: 768px) {
     /* 폼이 길어도 RightSection 안에서만 스크롤 — Container 자체는 fixed.
        safe-area-inset-bottom 으로 iOS 홈바 영역 보정. */
-    padding: 24px 24px calc(24px + env(safe-area-inset-bottom));
+    padding: 24px 24px calc(24px + var(--pq-safe-bottom, 0px));
     flex: 1 1 auto;
     overflow-y: auto;
     justify-content: flex-start;

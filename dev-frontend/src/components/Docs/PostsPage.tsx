@@ -54,6 +54,8 @@ import SecurityLevelBadge, { useSecurityLevelLabel } from '../Common/SecurityLev
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import FloatingPanelToggle from '../Common/FloatingPanelToggle';
 import PanelResizeHandle, { usePanelWidth } from '../Layout/PanelResizeHandle';
+import { usePostPresence } from '../../hooks/usePostPresence';
+import PostHistoryPanel from './PostHistoryPanel';
 
 // 좌측 필터: 전체(기본) / 프로젝트 그룹 / 카테고리
 // '내 문서'·'기본' 섹션은 제거. 상단 통합검색이 프로젝트명·제목·본문·카테고리를 모두 커버.
@@ -201,6 +203,10 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   //   서버가 draft 를 L1 로 강제하고 broadcast·감사·stage 를 막으므로 남에게 새지 않는다.
   const [autoState, setAutoState] = useState<'idle' | 'saving' | 'saved' | 'error' | 'stale'>('idle');
   const [autoErr, setAutoErr] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  // leaveEditSession 이 최신 값을 보게 하는 ref (useCallback 클로저에 갇히지 않게).
+  const detailRef = useRef<PostDetail | null>(null);
+  const persistAttachmentsRef = useRef<((id: number) => Promise<{ changed: boolean; hasFailure: boolean }>) | null>(null);
   // ★ 2026-08-24 — 자동저장이 실패/충돌이면 leaveEditSession() 이 false 를 돌려 **이동을 막는다**.
   //   그 자체는 옳다(저장 안 된 글을 잃지 않는다). 문제는 **아무 말도 안 한다**는 것이었다 —
   //   문서를 클릭해도, 새 문서를 눌러도 반응이 없어 화면이 먹통으로 보인다(작은 배지에만 사유가 있다).
@@ -228,6 +234,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   //   글을 하나 더 만들고, 취소는 draft 를 못 지운다(Fable 실측 BLOCKER). 진입 지점만 이 값을 올린다.
   const [editEpoch, setEditEpoch] = useState(0);
   const beginEditSession = useCallback(() => setEditEpoch((n) => n + 1), []);
+  useEffect(() => { detailRef.current = detail; }, [detail]);
   const [shareOpen, setShareOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   // 운영 — Q docs AI 재생성: 생성 컨텍스트 보관 + 재생성 busy
@@ -262,6 +269,14 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const [slotTplId, setSlotTplId] = useState<number | null>(null);
   const [tplSearch, setTplSearch] = useState('');
   const { user } = useAuth();
+  // 지금 이 문서를 함께 편집 중인 사람들 (본인 제외하고 표시).
+  const presenceUsers = usePostPresence(
+    detail?.id ?? null,
+    scope.businessId ?? null,
+    user?.name || user?.username || '',
+    mode === 'edit',
+  );
+
   // N+30 — personal 도 scope.businessId 우선 사용 (multi-workspace 사용자 시 user.business_id fallback 잘못된 bizId 회귀 차단)
   const businessId = (scope.type === 'workspace' || scope.type === 'personal') ? scope.businessId : (user?.business_id ? Number(user.business_id) : null);
   // 템플릿 저장 모달 상태
@@ -698,6 +713,38 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     //   진입 지점이 beginEditSession() 으로 editEpoch 를 올릴 때만 재초기화한다.
   }, [mode, editEpoch]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── 충돌(stale) 빠져나오기 ────────────────────────────────────────
+  //   "저장은 누가 해?"(Irene) — 둘이 같이 고치면 **나중에 저장한 사람 내용이 남는다**.
+  //   문제는 여태 뒤늦은 사람이 뱃지 하나만 보고 저장도 이동도 못 하는 막다른 길에 갇혔다는 것.
+  //   두 갈래를 명시적으로 준다: 남의 최신본으로 갈아타거나, 내 내용으로 덮어쓰거나.
+  const resolveStaleReload = useCallback(async () => {
+    if (!detail?.id) return;
+    const latest = await fetchPost(detail.id);
+    if (!latest) return;
+    setDetail(latest);
+    setTitleDraft(latest.title);
+    setContentDraft(latest.content_json);
+    setCategoryDraft(latest.category || '');
+    baseUpdatedAtRef.current = latest.updated_at ?? null;
+    lastSavedRef.current = { title: latest.title, content: latest.content_json, category: latest.category || '' };
+    autoDirtyRef.current = false;
+    setAutoErr(null);
+    setAutoState('idle');
+    setLeaveBlocked(false);
+  }, [detail?.id]);
+
+  const resolveStaleOverwrite = useCallback(async () => {
+    if (!detail?.id) return;
+    const latest = await fetchPost(detail.id);
+    // 최신 기준점을 잡고 내 내용을 그 위에 쓴다 — 명시적인 last-writer-wins.
+    baseUpdatedAtRef.current = latest?.updated_at ?? baseUpdatedAtRef.current;
+    setAutoState('idle');
+    setAutoErr(null);
+    setLeaveBlocked(false);
+    autoDirtyRef.current = true;
+    await runAutosaveRef.current?.();
+  }, [detail?.id]);
+
   // ── #252 자동저장 엔진 ────────────────────────────────────────────
   // debounce 2초 (AutoSaveField 표준. 메모는 1초지만 문서는 본문이 길어 PUT 이 무겁다).
   const AUTOSAVE_DEBOUNCE_MS = 2000;
@@ -796,6 +843,18 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     if (autoDirtyRef.current && autoStateRef.current !== 'stale') {
       const r = await runAutosaveRef.current();
       if (r === 'error' || r === 'stale') { setLeaveBlocked(true); return false; }   // 편집 화면 유지 + 사유 노출
+    }
+    // ★ 저장 버튼 없이 쓰려면(CLAUDE.md 자동저장 원칙) "나가는 순간" 이 곧 저장이어야 한다.
+    //   자동저장은 본문·제목만 쓴다 — **첨부는 명시 저장에서만 반영**되므로 여기서 같이 마무리한다.
+    //   안 하면 버튼을 없앤 순간 첨부가 조용히 사라진다(Irene: "저장버튼 없이 자동저장", 2026-08-25).
+    if (modeRef.current === 'edit' && detailRef.current?.id) {
+      try {
+        const res = await persistAttachmentsRef.current?.(detailRef.current.id);
+        if (res?.changed) {
+          const fresh = await fetchPost(detailRef.current.id);
+          if (fresh) setDetail(fresh);
+        }
+      } catch { /* 첨부 반영 실패는 편집 이탈을 막지 않는다 — 본문은 이미 저장됐다 */ }
     }
     autoDirtyRef.current = false;
     autoDraftIdRef.current = null;
@@ -1453,18 +1512,48 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 >
                   {autoState === 'saving' && t('autosave.saving', '임시저장 중…')}
                   {autoState === 'saved' && `✓ ${t('autosave.saved', '임시저장됨')}`}
+                  {/* 동시 편집 표시 — 나 말고 이 문서를 지금 편집 중인 사람 (구글 문서식) */}
+                  {presenceUsers.filter((p) => p.userId !== Number(user?.id)).map((p) => (
+                    <PresenceChip key={p.userId} title={t('presence.editing', { name: p.name, defaultValue: '{{name}} 님이 편집 중' }) as string}>
+                      <PresenceDot />{p.name || t('presence.someone', '누군가')}
+                    </PresenceChip>
+                  ))}
                   {autoState === 'error' && `! ${t('autosave.failed', '임시저장 실패')}`}
                   {autoState === 'stale' && `! ${t('autosave.stale', '다른 사람이 수정함')}`}
                 </AutoSaveMark>
+                {autoState === 'stale' && (
+                  <StaleBar role="alert">
+                    <span>{t('autosave.staleBar', '다른 사람이 이 문서를 저장했습니다. 어떻게 할까요?')}</span>
+                    <StaleBtn type="button" onClick={() => { void resolveStaleReload(); }}>
+                      {t('autosave.staleReload', '최신 내용 가져오기')}
+                    </StaleBtn>
+                    <StaleBtn type="button" $danger onClick={() => { void resolveStaleOverwrite(); }}>
+                      {t('autosave.staleOverwrite', '내 수정으로 덮어쓰기')}
+                    </StaleBtn>
+                  </StaleBar>
+                )}
                 {leaveBlocked && (
                   <LeaveBlockedNote role="alert">
                     {t('autosave.leaveBlocked', '저장하지 못한 변경이 있어 이동하지 못했습니다. 저장하거나 취소해 주세요.')}
                   </LeaveBlockedNote>
                 )}
-                <SecondaryBtn type="button" disabled={saving} onClick={cancelEdit}>{t('cancel', '취소')}</SecondaryBtn>
-                <PrimaryBtn type="button" disabled={saving || !titleDraft.trim()} onClick={submit}>
-                  {saving ? t('saving', '저장 중…') : t('save', '저장')}
-                </PrimaryBtn>
+                {/* ★ 저장 버튼은 **새 문서에만** 둔다 (2026-08-25, Notion 방식으로 정렬).
+                    기존 문서 편집은 치는 대로 저장되고, 나가는 순간 첨부까지 마무리된다
+                    (leaveEditSession). 저장 버튼을 남겨두면 "임시저장인데 왜 저장돼?" 라는
+                    이중 상태 혼란이 그대로 남는다. 되돌리기는 변경 기록이 담당한다.
+                    새 문서는 처음 공개되는 순간이 의도적이어야 하므로 버튼을 유지한다. */}
+                <SecondaryBtn type="button" disabled={saving} onClick={cancelEdit}>
+                  {mode === 'new' ? t('cancel', '취소') : t('revertEdit', '이번 편집 되돌리기')}
+                </SecondaryBtn>
+                {mode === 'new' ? (
+                  <PrimaryBtn type="button" disabled={saving || !titleDraft.trim()} onClick={submit}>
+                    {saving ? t('saving', '저장 중…') : t('save', '저장')}
+                  </PrimaryBtn>
+                ) : (
+                  <PrimaryBtn type="button" disabled={saving} onClick={() => { void leaveEditSession(); }}>
+                    {t('doneEditing', '편집 완료')}
+                  </PrimaryBtn>
+                )}
               </EditActions>
             </PanelHeader>
             <Body>
@@ -1622,6 +1711,13 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 {/* ★ 2026-08-24 (Irene: "편집을 할 수 없다") — 편집은 여기서 **가장 자주 쓰는 액션**인데
                     아이콘만이라 눈에 띄지 않았다. 공유·서명 받기는 글자 버튼인데 편집만 아이콘이었다.
                     글자 버튼으로 올리고 맨 앞에 둔다. */}
+                {/* 변경 기록 — "저장 버튼 없이 항상 저장" 의 안전망(되돌리기). 편집 권한자에게만 의미가 있다. */}
+                <IconBtn type="button" data-testid="post-history" onClick={() => setHistoryOpen(true)}
+                  title={t('history.title', '변경 기록') as string} aria-label={t('history.title', '변경 기록') as string}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><path d="M12 7v5l4 2" />
+                  </svg>
+                </IconBtn>
                 <EditBtn type="button" data-testid="post-edit" onClick={startEdit}
                   title={t('edit', '편집') as string} aria-label={t('edit', '편집') as string}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -1915,6 +2011,14 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         />
       )}
 
+      {detail && (
+        <PostHistoryPanel
+          postId={detail.id}
+          open={historyOpen}
+          onClose={() => setHistoryOpen(false)}
+          onRestored={() => { void (async () => { const fresh = await fetchPost(detail.id); if (fresh) setDetail(fresh); await load(); })(); }}
+        />
+      )}
       {saveTplOpen && (
         <ModalBackdrop onClick={() => !saveTplBusy && setSaveTplOpen(false)}>
           <ModalDialog onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('saveTpl.title', '템플릿으로 저장') as string}>
@@ -2578,4 +2682,32 @@ const KnowledgeToast = styled.div`
   z-index: 60;
   animation: fadeInUp 0.2s ease-out;
   @keyframes fadeInUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+`;
+
+// 동시 편집 표시 칩 — 편집 헤더에 인라인. 초록 점 = 지금 접속해 편집 중.
+const PresenceChip = styled.span`
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px; margin-left: 6px;
+  font-size: 11.5px; font-weight: 600; color: #0F766E;
+  background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 999px;
+  white-space: nowrap;
+`;
+const PresenceDot = styled.span`
+  width: 6px; height: 6px; border-radius: 50%; background: #14B8A6; flex-shrink: 0;
+`;
+
+// 충돌 해결 바 — 뱃지만 띄우면 사용자는 막다른 길에 갇힌다(저장도 이동도 불가).
+const StaleBar = styled.div`
+  display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 6px 10px; margin-left: 8px;
+  background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px;
+  font-size: 12px; color: #991B1B;
+`;
+const StaleBtn = styled.button<{ $danger?: boolean }>`
+  height: 28px; padding: 0 10px; border-radius: 6px; cursor: pointer;
+  font-size: 12px; font-weight: 700; white-space: nowrap;
+  color: ${(p) => (p.$danger ? '#B91C1C' : '#0F766E')};
+  background: #fff;
+  border: 1px solid ${(p) => (p.$danger ? '#FECACA' : '#99F6E4')};
+  &:hover { background: ${(p) => (p.$danger ? '#FEF2F2' : '#F0FDFA')}; }
 `;

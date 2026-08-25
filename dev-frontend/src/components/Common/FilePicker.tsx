@@ -191,7 +191,7 @@ const Dialog = styled.div`
   @media (max-width: 640px) {
     max-height: calc(var(--vvh, 100dvh) * 0.75); height: auto;
     border-radius: 16px 16px 0 0;
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-bottom: var(--pq-safe-bottom, 0px);
     animation: pq-sheet-up 0.22s ease-out;
   }
   @keyframes pq-sheet-up {

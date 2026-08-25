@@ -120,7 +120,7 @@ const pulse = keyframes`0%,100%{opacity:1}50%{opacity:0.35}`;
 // 하단 중앙 — 작업을 가리지 않는 자리. 자동저장/작업 흐름을 끊지 않는 안내다.
 const Bar = styled.div`
   position: fixed; left: 50%; transform: translateX(-50%);
-  bottom: calc(16px + env(safe-area-inset-bottom));
+  bottom: calc(16px + var(--pq-safe-bottom, 0px));
   z-index: 2147483000;
   display: flex; align-items: center; gap: 10px;
   padding: 8px 10px 8px 14px;
@@ -128,7 +128,7 @@ const Bar = styled.div`
   border-radius: 999px; box-shadow: 0 8px 24px rgba(15,23,42,0.28);
   font-size: 13px; line-height: 1;
   max-width: calc(100vw - 32px);
-  @media (max-width: 640px) { bottom: calc(72px + env(safe-area-inset-bottom)); }
+  @media (max-width: 640px) { bottom: calc(72px + var(--pq-safe-bottom, 0px)); }
 `;
 const Dot = styled.span`
   width: 7px; height: 7px; border-radius: 50%; background: #14B8A6; flex-shrink: 0;

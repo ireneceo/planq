@@ -5,7 +5,7 @@
 //   배경  : #FFFFFF (#F8FAFC body 와 대비)
 //   상단선: 1px solid #E2E8F0
 //   패딩  : 14px 20px (모바일 12px 16px)
-//   safe-area: env(safe-area-inset-bottom) 보정
+//   safe-area: var(--pq-safe-bottom, 0px) 보정
 //   레이아웃: 좌측(보조/상태) · 우측(취소/Primary) — 의도된 손→눈 동선
 //   간격  : gap 8px (sm) 또는 12px (md)
 //
@@ -54,12 +54,12 @@ const Wrap = styled.div<{ $sticky: boolean; $size: 'sm' | 'md' }>`
   background: #FFFFFF;
   border-top: 1px solid #E2E8F0;
   padding: ${(p) => p.$size === 'sm' ? '12px 16px' : '14px 20px'};
-  padding-bottom: calc(${(p) => p.$size === 'sm' ? '12px' : '14px'} + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(${(p) => p.$size === 'sm' ? '12px' : '14px'} + var(--pq-safe-bottom, 0px));
   flex-shrink: 0;
   z-index: 2;
   @media (max-width: 640px) {
     padding: 12px 16px;
-    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(12px + var(--pq-safe-bottom, 0px));
   }
 `;
 const Inner = styled.div<{ $align: 'right' | 'space-between' }>`

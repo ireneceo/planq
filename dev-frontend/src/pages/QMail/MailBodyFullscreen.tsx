@@ -76,7 +76,7 @@ const Panel = styled.div`
   box-shadow: 0 24px 64px rgba(15, 23, 42, 0.28);
   @media (max-width: 768px) {
     width: 100%; height: 100%; border-radius: 0;
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-bottom: var(--pq-safe-bottom, 0px);
   }
 `;
 const Head = styled.div`

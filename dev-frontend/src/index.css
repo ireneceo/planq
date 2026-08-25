@@ -42,6 +42,29 @@ html.pq-native-inset {
   --pq-safe-bottom: 0px;
 }
 
+/* 안전영역(노치·홈 인디케이터·라운드 코너)을 **페이지가 직접 칠한다**.
+   WebView 바탕이 그대로 비치면 그 자리가 흰색으로 남는다
+   (Irene: "아이폰 끄트머리 라운드진 곳이 하얗게 나와", 2026-08-25).
+   위는 헤더와 같은 teal, 아래는 앱 배경색 — 화면이 끊겨 보이지 않는다.
+   ★ 값이 0 인 환경(웹·PWA·구버전 앱)에서는 높이 0 이라 아무것도 안 그린다 = 회귀 0.
+   ★ z-index 는 모바일 고정 헤더(99)보다 낮게 둔다 — 헤더를 가리면 안 된다. */
+html.pq-native body::before {
+  content: '';
+  position: fixed; top: 0; left: 0; right: 0;
+  height: var(--pq-safe-top, 0px);
+  background: #115E59;
+  z-index: 98;
+  pointer-events: none;
+}
+html.pq-native body::after {
+  content: '';
+  position: fixed; bottom: 0; left: 0; right: 0;
+  height: var(--pq-safe-bottom, 0px);
+  background: #F8FAFC;
+  z-index: 98;
+  pointer-events: none;
+}
+
 /* 네이티브 앱은 화면 끝까지 우리가 그린다(edge-to-edge).
    capacitor.config.ts 의 ios.contentInset='never' + StatusBar overlay 와 한 쌍이다 —
    WebView 가 상태바 아래로 밀려나 있으면 그 자리는 WebView 흰 배경이 차지해 흰 띠가 남고,

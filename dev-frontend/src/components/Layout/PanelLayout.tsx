@@ -110,7 +110,7 @@ export const Panel = styled.div<{
       z-index: 41;
       border-left: 1px solid #E2E8F0;
       box-shadow: -8px 0 24px rgba(15, 23, 42, 0.12);
-      padding-bottom: env(safe-area-inset-bottom);
+      padding-bottom: var(--pq-safe-bottom, 0px);
     }
   ` : '')}
 `;

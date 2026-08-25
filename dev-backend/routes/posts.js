@@ -852,6 +852,15 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     //   구멍이 안 생긴다 — "모든 CUD 는 AuditLog" 운영 정책.
     const isPromotion = post.status === 'draft' && patch.status === 'published';
     await post.update(patch);
+    // 버전 기록 — 자동저장이든 명시 저장이든 남긴다(서비스가 합치기·상한을 담당).
+    //   실패해도 저장 자체는 성공시킨다. 다만 삼키지 말고 로그로 드러낸다.
+    if (patch.title !== undefined || patch.content_json !== undefined || patch.category !== undefined) {
+      try {
+        await require('../services/postRevisions').recordRevision({
+          post, editorUserId: req.user.id, source: isAutosave ? 'autosave' : 'manual',
+        });
+      } catch (e) { console.warn('[postRevisions]', e.message); }
+    }
     if (!isAutosave) {
       require('../services/auditService').logAudit(req, {
         action: isPromotion ? 'post.create' : 'post.update',
@@ -1444,3 +1453,6 @@ module.exports.extractBlockText = extractBlockText;
 // #250 후속 — 워크스페이스 이전 워커가 Post 를 만들 때 content_text 를 같은 규칙으로 뽑아야 한다.
 //   사본을 만들면 검색 프리뷰가 두 규칙으로 갈린다(Fable 설계 조건 4).
 module.exports.extractText = extractText;
+// post_revisions.js 가 같은 권한·격리·broadcast 규칙을 쓰도록 공유한다 — 사본을 만들면 규칙이 갈라진다.
+module.exports.canEditPost = canEditPost;
+module.exports.broadcastPost = broadcastPost;

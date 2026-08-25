@@ -828,7 +828,7 @@ const Drawer = styled.aside`
   background:#FFF;border-left:1px solid #E2E8F0;
   box-shadow:-16px 0 40px rgba(15,23,42,0.14);display:flex;flex-direction:column;overflow:hidden;z-index:40;
   animation:ds 0.28s cubic-bezier(0.22,1,0.36,1);@keyframes ds{from{transform:translateX(100%);}to{transform:translateX(0);}}
-  padding-bottom:env(safe-area-inset-bottom,0px);
+  padding-bottom:var(--pq-safe-bottom, 0px);
   @media (prefers-reduced-motion: reduce){animation:none;}
 `;
 const DrawerHeader = styled.div`height:60px;padding:14px 20px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;`;
@@ -970,7 +970,8 @@ const WarnBlock = styled.div`margin-top:4px;padding:10px 12px;background:#fef2f2
 const ProjListUl = styled.ul`margin:6px 0 0 14px;padding:0;& li{margin-bottom:2px;}`;
 const Caveat = styled.div`font-size:11px;color:#94a3b8;margin-top:4px;`;
 const ConfirmFooter = styled.div`padding:14px 22px;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;gap:8px;background:#fafbfc;`;
-const InviteBtn = styled.button`display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 14px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;&:hover{background:#0D9488;}`;
+// 헤더 생성 버튼 규격 = ActionButton sm (h36 / px14 / font13). 페이지마다 32·35 로 갈라져 있었다(2026-08-25).
+const InviteBtn = styled.button`display:inline-flex;align-items:center;gap:6px;height:36px;min-height:36px;padding:0 14px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;&:hover{background:#0D9488;}`;
 const Field = styled.div`display:flex;flex-direction:column;gap:4px;`;
 const FieldLabel = styled.label`font-size:12px;font-weight:600;color:#0F172A;`;
 const FieldInput = styled.input`height:38px;padding:0 12px;border:1px solid #E2E8F0;border-radius:8px;font-size:13px;color:#0F172A;font-family:inherit;background:#FFF;&:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,0.1);}&::placeholder{color:#CBD5E1;}`;

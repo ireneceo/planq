@@ -301,7 +301,7 @@ const Sheet = styled.div`
   overflow-y: auto;
   width: 100%; max-width: 420px;
   background: #fff; border-radius: 16px 16px 0 0;
-  padding: 16px 20px calc(20px + env(safe-area-inset-bottom));
+  padding: 16px 20px calc(20px + var(--pq-safe-bottom, 0px));
   box-shadow: 0 -8px 32px rgba(15, 23, 42, 0.18);
   @media (min-width: 641px) { border-radius: 16px; padding-bottom: 20px; }
 `;
