@@ -23,7 +23,8 @@ import { mediaTablet } from '../../theme/breakpoints';
 import { mapApiError } from '../../utils/apiError';
 import { useImageLightbox } from '../../components/Common/ImageLightbox';
 import { useNavigate } from 'react-router-dom';
-import MessageReactions from './MessageReactions';   // #138 이모지 리액션
+import MessageReactions from './MessageReactions';   // #138 이모지 리액션 (메시지에 다는 것)
+import EmojiPickerButton from './EmojiPickerButton';   // #380 입력창 이모지 (보내는 것)
 import { PanelBackButton } from '../../components/Layout/PanelHeader';
 import { openPreviewWindow } from '../../utils/openPreviewWindow';
 
@@ -2015,6 +2016,27 @@ const ChatPanel: React.FC<Props> = ({
               <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
             </svg>
           </AttachBtn>
+          {/* #380 — 입력창 이모지. 커서 위치에 삽입하고 draft·포커스를 그대로 유지한다. */}
+          <EmojiPickerButton
+            onPick={(emoji) => {
+              const ta = textInputRef.current;
+              const start = ta?.selectionStart ?? input.length;
+              const end = ta?.selectionEnd ?? input.length;
+              const next = input.slice(0, start) + emoji + input.slice(end);
+              setInput(next);
+              // 입력과 같은 draft 계약을 지킨다 — 여기서 빠지면 새로고침 때 이모지만 사라진다.
+              if (activeConversationId) {
+                try { next ? localStorage.setItem(draftKey(user?.id, activeConversationId), next) : localStorage.removeItem(draftKey(user?.id, activeConversationId)); } catch { /* quota */ }
+              }
+              // 커서를 삽입된 이모지 뒤로 — 안 하면 매번 맨 끝으로 튀어 연속 입력이 어긋난다.
+              requestAnimationFrame(() => {
+                if (!ta) return;
+                ta.focus();
+                const pos = start + emoji.length;
+                try { ta.setSelectionRange(pos, pos); } catch { /* 일부 IME */ }
+              });
+            }}
+          />
           <TextInput
             ref={textInputRef}
             value={input}

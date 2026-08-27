@@ -91,6 +91,17 @@ function myWeekWhere(uid, businessId, monday, sunday, opts = {}) {
         status: { [Op.in]: ['reviewing', 'revision_requested'] },
         id: { [Op.in]: literal(`(SELECT task_id FROM task_reviewers WHERE user_id = ${id} AND state = 'pending')`) },
       },
+      // 운영 #375 — "내가 외부컨펌 누르면 그냥 업무리스트에 있어야 해. …컨펌 완료시점을 관리하는
+      //   것이 나니까." 외부컨펌은 활성 상태 어디서든 걸 수 있고, 거는 사람은 담당자만이 아니다
+      //   (canChangeStatus = 담당자·작성자·owner·admin). 그런데 잔류 규칙이 **담당자 분기에만**
+      //   있어서, 의뢰자가 자기가 건 외부컨펌을 자기 주간에서 잃었다.
+      //   → 의뢰자/작성자에게도 남긴다. 날짜 무관 — 외부 답을 채근할 책임에 마감일이 없다.
+      //   ※ on_hold 는 넣지 않는다(보류는 이번 주 무대에서 퇴장 — 위 담당자 분기와 같은 규칙).
+      //   ※ 집계(mine)는 여전히 assignee_id 기준이라 가용시간·진척 그래프는 불변이다.
+      {
+        status: 'external_review',
+        [Op.or]: [{ request_by_user_id: id }, { created_by: id }],
+      },
       // 내가 관여한 이번 주 완료 — 의뢰자/작성자/리뷰어(state 무관). 메인의 involved 분기 미러.
       {
         status: { [Op.in]: ['completed', 'canceled'] },

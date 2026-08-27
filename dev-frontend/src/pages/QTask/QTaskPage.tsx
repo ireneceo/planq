@@ -1215,6 +1215,10 @@ const QTaskPage:React.FC=()=>{
     if(t.assignee_id===myId){
       if(!isDone) return true;
     }
+    // 운영 #375 — 외부컨펌을 건 사람이 컨펌 완료 시점을 관리한다. 담당자 분기에만 잔류 규칙이
+    //   있어서 의뢰자·작성자가 자기가 건 외부컨펌을 잃었다. 서버 weekTaskSet.myWeekWhere 와 **미러** —
+    //   한쪽만 고치면 우선순위 번호가 화면마다 갈린다.
+    if(t.status==='external_review'&&(t.request_by_user_id===myId||t.created_by===myId))return true;
     const myRev=t.reviewers?.find(rv=>rv.user_id===myId);
     if(myRev&&myRev.state==='pending'&&(t.status==='reviewing'||t.status==='revision_requested'))return true;
     // 내가 관여한 이번 주 완료 (리스트에서는 "완료 가리기" OFF 일 때만, 번호 정본에서는 항상)

@@ -49,6 +49,26 @@ interface Summary {
 
 const CHANNELS: Channel[] = ['chat', 'email', 'task', 'invoice'];
 
+// 운영 #377 — "메일 상세의 업무 추출 버튼이 눌러도 반응이 없다."
+//   원인은 AI 도, 권한도 아니었다. **이벤트가 청취자보다 먼저 발사된다.**
+//   상세 툴바 버튼은 (a) 패널을 여는 setState 를 부르고 (b) 곧바로 window 이벤트를 쏜다.
+//   그런데 이 패널은 접혀 있으면 아예 **마운트되지 않는다**(MailPage 조건부 렌더) —
+//   addEventListener 는 다음 렌더에서야 붙으므로 그 사이 발사된 이벤트는 사라진다.
+//   패널이 이미 열려 있을 때만 동작해서 "될 때도 있고 안 될 때도 있는" 것으로 보였다.
+//   → 정본을 **모듈 스코프 값**으로 옮긴다. window 이벤트는 이미 떠 있는 패널을 깨우는 신호일 뿐이고,
+//     늦게 마운트된 패널은 마운트 시점에 이 값을 소비한다.
+//     (TaskDetailDrawer 의 pendingResumeFocusTaskId 와 같은 패턴 — 재마운트를 건너뛰는 의도 전달.)
+//   ★ 30초 유효기간 — 소비되지 못한 요청이 남아 있다가, 나중에 같은 스레드를 다시 열었을 때
+//     사용자가 누르지도 않은 추출이 도는 것을 막는다.
+let pendingExtract: { threadId: number; at: number } | null = null;
+const PENDING_EXTRACT_TTL_MS = 30_000;
+
+/** 상세 툴바가 부른다 — 패널이 아직 없어도 안전하게 전달된다. */
+export function requestExtractTasks(threadId: number) {
+  pendingExtract = { threadId, at: Date.now() };
+  window.dispatchEvent(new CustomEvent('qmail:extract-tasks', { detail: { threadId } }));
+}
+
 const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUserId, onLinked }) => {
   const { t } = useTranslation('qmail');
   const { formatTimeAgo } = useTimeFormat();
@@ -160,17 +180,22 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
     } finally { setExtractBusy(false); }
   }, [extractBusy, businessId, thread.id, t]);
 
-  // #263 — 상세 툴바의 "업무 추출" 버튼이 패널을 열고 이 이벤트를 쏜다. 같은 탭 안 안전망 패턴
-  //   (CLAUDE.md 운영 안정성 16-e) — 패널이 방금 마운트돼도 이 스레드 것만 처리한다.
+  // #263/#377 — 상세 툴바의 "업무 추출" 진입점. 정본은 위 모듈 스코프 pendingExtract 다.
+  const consumePendingExtract = useCallback(() => {
+    if (!pendingExtract || pendingExtract.threadId !== thread.id) return;
+    if (Date.now() - pendingExtract.at > PENDING_EXTRACT_TTL_MS) { pendingExtract = null; return; }
+    pendingExtract = null;      // 먼저 비운다 — 두 경로(마운트·이벤트)가 겹쳐도 한 번만 돈다
+    extract();
+  }, [thread.id, extract]);
+
+  // ① 늦게 마운트된 경우 — 접혀 있던 패널이 이제서야 뜬 경로 (#377 의 실제 회귀)
+  useEffect(() => { consumePendingExtract(); }, [consumePendingExtract]);
+  // ② 이미 떠 있던 경우 — window 이벤트로 즉시 깨운다 (같은 탭 안 안전망, CLAUDE.md 16-e)
   useEffect(() => {
-    const onExtract = (e: Event) => {
-      const tid = (e as CustomEvent<{ threadId?: number }>).detail?.threadId;
-      if (tid && tid !== thread.id) return;
-      extract();
-    };
+    const onExtract = () => consumePendingExtract();
     window.addEventListener('qmail:extract-tasks', onExtract);
     return () => window.removeEventListener('qmail:extract-tasks', onExtract);
-  }, [thread.id, extract]);
+  }, [consumePendingExtract]);
 
   const register = useCallback(async (id: number, overrides: RegisterOverrides) => {
     if (rowBusy) return; setRowBusy(id);

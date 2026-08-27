@@ -25,7 +25,7 @@ import AttachmentField from '../../components/Common/AttachmentField';
 import ActionButton from '../../components/Common/ActionButton';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { uploadMyFile } from '../../services/files';
-import MailContextPanel from './MailContextPanel';
+import MailContextPanel, { requestExtractTasks } from './MailContextPanel';
 import RecipientInput from './RecipientInput';
 import { useInlineCidImages } from './useInlineCidImages';
 import { displayName, type NameLocalizable } from '../../utils/displayName';
@@ -2218,7 +2218,9 @@ const MailPage: React.FC = () => {
                     onClick={() => {
                       if (ctxNarrow) setCtxOverlayOpen(true);
                       else if (rightCollapsed) toggleRightCollapsed();
-                      window.dispatchEvent(new CustomEvent('qmail:extract-tasks', { detail: { threadId: detail.id } }));
+                      // #377 — 직접 dispatch 하면 패널이 아직 마운트 전이라 이벤트가 사라진다.
+                      //   requestExtractTasks 는 모듈 스코프에 요청을 남겨 늦게 뜬 패널도 받게 한다.
+                      requestExtractTasks(detail.id);
                     }}
                     title={t('actions.extractTasksHint', { defaultValue: '이 메일에서 업무를 뽑아 후보로 만듭니다' }) as string}
                   >

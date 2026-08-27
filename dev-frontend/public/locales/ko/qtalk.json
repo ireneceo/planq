@@ -336,7 +336,8 @@
       "attachExisting": "기존 파일 (재업로드 X)",
       "placeholder": "메시지 입력",
       "hint": "Enter 전송 · Shift+Enter 줄바꿈",
-      "extractHint": "AI 가 이 대화에서 할 일 후보를 뽑아냅니다"
+      "extractHint": "AI 가 이 대화에서 할 일 후보를 뽑아냅니다",
+      "emoji": "이모지"
     },
     "yesterday": "어제",
     "weekday": {
