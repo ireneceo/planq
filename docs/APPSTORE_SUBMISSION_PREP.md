@@ -127,11 +127,36 @@ App Store Connect 가 묻는 "수집하는 데이터" 항목. **실제 코드에
 ## 5. 제출 시 체크
 
 - [ ] 수출 규정: `ITSAppUsesNonExemptEncryption` — HTTPS 표준 암호화만 사용 → **면제(false)**
-- [ ] 심사 계정 제공: 심사관이 로그인할 데모 계정 + 비밀번호 (필수 — 로그인 벽이 있는 앱)
-- [ ] 데모 워크스페이스에 샘플 데이터 (빈 화면만 보이면 "기능 확인 불가" 로 리젝된다)
+- [x] 심사 계정 제공: `scripts/seed-appstore-demo.js` 로 계정+데이터를 한 번에 만든다 (§5.1)
+- [x] 데모 워크스페이스에 샘플 데이터 (빈 화면만 보이면 "기능 확인 불가" 로 리젝된다)
 - [ ] 3.1.1 결제 진입 처리 여부 (§1)
 - [ ] 푸시 권한 요청 문구가 맥락과 함께 뜨는지 (권한만 먼저 묻는 앱은 지적받는다)
 - [ ] `NSMicrophoneUsageDescription` — Q Note 녹음. Info.plist 문구가 "왜" 를 말하는지 확인
+
+### 5.1 데모 워크스페이스 — `scripts/seed-appstore-demo.js`
+
+```bash
+node scripts/seed-appstore-demo.js --base=https://planq.kr \
+     --email=appreview@planq.kr --password='<정한 값>' \
+     --admin-email=<platform_admin 이메일> --admin-password='<...>'
+```
+
+전부 **실 HTTP API** 로 만든다(직접 INSERT 안 함 — 라우트의 훅·감사로그·broadcast 를 그대로 태운다).
+**멱등** — 다시 돌려도 있는 건 건드리지 않는다. 파일은 SHA-256 dedup 이 받아낸다.
+
+만들어지는 것(dev 실측 2026-08-27): 고객 3 · 프로젝트 2 · 대화 3(메시지 11) ·
+업무 8(진행중·대기·완료 섞임) · 일정 4 · 문서 3 · 청구서 2 · 파일 3.
+데이터는 **전부 가상**이다(하나커피·미래건설·스튜디오온). 고객 이메일은 `example.com` —
+예약 TLD 라 발송 게이트가 skip 해서 실제 초대 메일이 나가지 않는다.
+
+**⚠ `--admin-*` 를 꼭 같이 준다.** 신규 가입은 starter+trialing **14일**이라, 심사가 그 뒤로 밀리면
+심사관이 체험 만료 화면을 만난다. 네이티브에서는 3.1.1 때문에 구매 표면이 렌더되지 않으므로(§1)
+**막다른 길**이 된다. 이 인자를 주면 `billing_exempt(internal · pro · 무기한)` 을 API 로 건다
+(직접 UPDATE 금지 — 라우트가 감사로그 + 플랜 캐시 무효화까지 한다).
+
+**Q Note 는 비어 있다** — 세션은 실제 녹음(`/ws/live`)으로만 생기고, Q Note 는 설계상
+본인 외 접근이 막힌 개인 공간이라 대신 채워 넣지 않았다. 심사관에게는 "회의 시작" 빈 상태로 보인다.
+Q Mail 도 같다(IMAP 계정 연결이 있어야 채워진다).
 
 ## 6. TestFlight (심사 전 내부 배포)
 
