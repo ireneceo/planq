@@ -518,6 +518,9 @@ app.use('/api/api-tokens', require('./routes/api_tokens'));   // #D-4 — MCP �
 app.use('/api', require('./routes/signatures'));
 // 문서 외부 확인 — /api/sign/:token/confirm · /comment (공개). #239 로 signatures.js 에서 분리.
 app.use('/api', require('./routes/signature_confirm'));
+// 서명 공개 조회 — /api/sign/:token · /api/sign/:token/attachments/:fileId (무인증, 토큰 범위 한정).
+//   signatures.js god-file 분리(2026-08-27). base 는 같다.
+app.use('/api', require('./routes/signature_public'));
 app.use('/api/inquiries', require('./routes/inquiries'));
 app.use('/api', require('./routes/kb'));
 app.use('/api/weekly-reviews', require('./routes/weekly_reviews'));

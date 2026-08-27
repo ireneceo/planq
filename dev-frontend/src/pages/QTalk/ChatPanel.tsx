@@ -25,6 +25,7 @@ import { useImageLightbox } from '../../components/Common/ImageLightbox';
 import { useNavigate } from 'react-router-dom';
 import MessageReactions from './MessageReactions';   // #138 이모지 리액션
 import { PanelBackButton } from '../../components/Layout/PanelHeader';
+import { openPreviewWindow } from '../../utils/openPreviewWindow';
 
 // 운영 #367 — 작성 중 메시지 초안의 저장 키. **사용자별로 갈라야 한다** — 한 브라우저를 둘이
 //   나눠 쓰면(공용 PC·로그아웃 후 재로그인) 앞사람이 쓰다 만 글이 뒷사람 입력칸에 그대로 떴다.
@@ -1448,7 +1449,7 @@ const ChatPanel: React.FC<Props> = ({
                   </EditActions>
                 </EditFormWrap>
               ) : m.card?.card_type === 'signature_request' ? (
-                <SignCard onClick={() => window.open(m.card!.card_type === 'signature_request' ? (m.card as { sign_url: string }).sign_url : '', '_blank', 'noopener,noreferrer')}>
+                <SignCard onClick={() => openPreviewWindow(m.card!.card_type === 'signature_request' ? (m.card as { sign_url: string }).sign_url : '')}>
                   <SignCardIcon>
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
                   </SignCardIcon>
@@ -1476,7 +1477,7 @@ const ChatPanel: React.FC<Props> = ({
                       $paid={paid}
                       $notified={notified}
                       $canceled={canceled}
-                      onClick={() => window.open(ic.share_url, '_blank', 'noopener,noreferrer')}
+                      onClick={() => openPreviewWindow(ic.share_url)}
                     >
                       <InvCardIcon $paid={paid} $notified={notified}>
                         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1509,7 +1510,7 @@ const ChatPanel: React.FC<Props> = ({
                 (() => {
                   const tc = m.card as import('./types').TaskCardMeta;
                   return (
-                    <SharedCard type="button" onClick={() => window.open(tc.share_url, '_blank', 'noopener,noreferrer')}>
+                    <SharedCard type="button" onClick={() => openPreviewWindow(tc.share_url)}>
                       <SharedCardIcon $tone="task">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                       </SharedCardIcon>
@@ -1543,7 +1544,7 @@ const ChatPanel: React.FC<Props> = ({
                     return `${(b/1024/1024).toFixed(1)} MB`;
                   };
                   return (
-                    <SharedCard type="button" onClick={() => window.open(fc.share_url, '_blank', 'noopener,noreferrer')}>
+                    <SharedCard type="button" onClick={() => openPreviewWindow(fc.share_url)}>
                       <SharedCardIcon $tone="file">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
                       </SharedCardIcon>
@@ -1565,7 +1566,7 @@ const ChatPanel: React.FC<Props> = ({
                 (() => {
                   const kc = m.card as import('./types').KbDocCardMeta;
                   return (
-                    <SharedCard type="button" onClick={() => window.open(kc.share_url, '_blank', 'noopener,noreferrer')}>
+                    <SharedCard type="button" onClick={() => openPreviewWindow(kc.share_url)}>
                       <SharedCardIcon $tone="kb">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
                       </SharedCardIcon>
@@ -1594,7 +1595,7 @@ const ChatPanel: React.FC<Props> = ({
                     } catch { return ''; }
                   };
                   return (
-                    <SharedCard type="button" onClick={() => window.open(ec.share_url, '_blank', 'noopener,noreferrer')}>
+                    <SharedCard type="button" onClick={() => openPreviewWindow(ec.share_url)}>
                       <SharedCardIcon $tone="calendar">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                       </SharedCardIcon>

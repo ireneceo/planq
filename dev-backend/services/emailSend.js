@@ -9,6 +9,7 @@
 const nodemailer = require('nodemailer');
 const { encrypt, decrypt } = require('./encryption');
 const gmailOauth = require('./gmail_oauth');
+const { normalizeDataUris } = require('./emailInlineData');
 
 // IMAP host → SMTP host 추정 (smtp_host 미설정 password 계정 fallback)
 const IMAP_TO_SMTP = {
@@ -195,7 +196,7 @@ async function resolveOutgoingIdentity(account, { fromAliasId = null, replyToAdd
 
 async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, references, attachments, fromAliasId = null, replyToAddresses = null, signature = true, quote = null }) {
   // 수신자 검증 — 가짜/예약TLD/형식불량 주소 차단 (바운스·평판 보호). emailService 게이트 재사용.
-  const { emailBlockReason } = require('./emailService');
+  const { emailBlockReason, MAIL_FONT_STACK } = require('./emailService');
   const blocked = emailBlockReason([].concat(to || [], cc || [], bcc || []));
   if (blocked && blocked !== 'empty') {
     const e = new Error(`recipient_${blocked}`);
@@ -254,13 +255,30 @@ async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, 
     ? `${htmlToTextForWire(htmlInlined)}${quote.text}`
     : (text || undefined);
 
+  // ★ 2026-08-27 — **data:URI 이미지는 받는 쪽에서 안 보인다.** Gmail·Outlook 은
+  //   <img src="data:..."> 를 렌더하지 않고 차단한다. 우리 저장본은 수신 시 mailparser 가
+  //   인라인 이미지를 data:URI 로 박아 두므로(전달 원문·답장 인용문 모두), 그대로 내보내면
+  //   보내는 화면에선 멀쩡한데 **받는 사람에겐 이미지가 전멸**한다.
+  //   nodemailer 의 attachDataUrls 가 발송 직전에 그것을 진짜 CID 첨부(multipart/related)로
+  //   바꿔 준다 — 이것이 메일 표준의 정공법이다. normalizeDataUris 는 그 변환 정규식이
+  //   base64 안 공백에서 끊기는 것을 막는 안전핀(services/emailInlineData.js 주석 참조).
+  // ★ 2026-08-27 — **글꼴 통일(고딕).** 여태 Q Mail 발송 HTML 에는 font-family 가 한 줄도 없어서
+  //   받는 쪽 메일앱 기본값으로 렌더됐다 — Gmail=Arial, Outlook=Calibri, 네이버=굴림.
+  //   즉 "우리 메일" 인데 받는 사람마다 글꼴이 달랐다(Irene: "전달 이메일 글씨체 고딕으로 통일").
+  //   플랫폼 메일(emailService.emailWrap)은 이미 이 스택을 쓰므로 **같은 상수를 가져다** 쓴다 —
+  //   값을 여기 또 적으면 그 순간 두 벌이 되어 갈라진다.
+  //   래퍼일 뿐이라 **원문에 이미 박힌 서식은 그대로 이긴다**(CSS 상속). 전달 시 상대가 보낸
+  //   원문 인용문의 글꼴을 우리가 갈아엎지 않는다 — 전달은 원문 보존이 맞다.
+  const wireHtmlFont = `<div style="font-family:${MAIL_FONT_STACK};">${wireHtml}</div>`;
+  const wireHtmlOut = normalizeDataUris(wireHtmlFont);
   const info = await transport.sendMail({
+    attachDataUrls: true,
     from,
     to: joinAddrs(to),
     ...(joinAddrs(cc) ? { cc: joinAddrs(cc) } : {}),
     ...(joinAddrs(bcc) ? { bcc: joinAddrs(bcc) } : {}),
     subject: subject || '(제목 없음)',
-    html: wireHtml,
+    html: wireHtmlOut,
     ...(wireText ? { text: wireText } : {}),
     ...(inReplyTo ? { inReplyTo } : {}),
     ...(references && references.length ? { references } : {}),

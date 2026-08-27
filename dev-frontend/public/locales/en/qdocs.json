@@ -330,7 +330,10 @@
       "doneDesc": "Your confirmation has been sent to the requester. You can close this page.",
       "already": "You have already confirmed.",
       "failed": "Could not process. Please try again in a moment."
-    }
+    },
+    "attachments": "Attachments ({{n}}) — part of this document",
+    "scopeNotice": "You are signing the document below and its {{n}} attachment(s). The content is frozen as of the request, so what you see here is what you sign.",
+    "scopeNoticeNoAttach": "You are signing the document below. The content is frozen as of the request, so what you see here is what you sign."
   },
   "sign": {
     "button": "Get signatures",

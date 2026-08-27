@@ -33,7 +33,8 @@ function fmtDate(s) {
 const BASE_CSS = `
   @page { margin: 0; }
   * { box-sizing: border-box; }
-  body { font-family: 'Noto Sans KR', 'Pretendard', -apple-system, sans-serif; color: #0F172A; margin: 0; padding: 36px 40px; font-size: 12px; line-height: 1.55; }
+  /* 'Noto Sans CJK KR' 이 서버에 실제로 설치된 이름 — 맨 앞에 둬야 폴백에 기대지 않는다(2026-08-27). */
+  body { font-family: 'Noto Sans CJK KR', 'Noto Sans KR', 'Pretendard', -apple-system, sans-serif; color: #0F172A; margin: 0; padding: 36px 40px; font-size: 12px; line-height: 1.55; }
   h1 { font-size: 24px; font-weight: 800; margin: 0 0 8px 0; letter-spacing: -0.5px; }
   h2 { font-size: 14px; font-weight: 700; margin: 22px 0 8px 0; color: #0F766E; text-transform: uppercase; letter-spacing: 0.6px; }
   table { width: 100%; border-collapse: collapse; }

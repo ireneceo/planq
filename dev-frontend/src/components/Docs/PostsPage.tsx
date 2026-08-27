@@ -811,6 +811,12 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         setAutoErr(e.message || (t('autosave.staleHelp', '다른 사람이 이 문서를 수정했습니다. 새로고침 후 이어서 작성해 주세요.') as string));
         return 'stale';
       }
+      // 서명 잠금 — 재시도해도 영영 안 된다. 자동저장을 멈추고 사실과 다음 행동을 알린다.
+      if ((e as { code?: string })?.code === 'post_locked_by_signature') {
+        setAutoState('stale');   // 자동저장 정지 상태(재시도 안 함)
+        setAutoErr((e as Error).message || (t('autosave.signatureLocked', '서명 요청이 진행 중이거나 완료된 문서라 수정할 수 없습니다. 서명 요청을 취소하거나 새 버전 문서로 작성해 주세요.') as string));
+        return 'stale';
+      }
       setAutoState('error');
       setAutoErr((e as Error).message || (t('autosave.failed', '임시저장 실패') as string));
       return 'error';

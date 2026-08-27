@@ -969,7 +969,17 @@ async def _get_user_project_ids(user_id: int, business_id: int) -> list:
 
 
 @router.get('/{session_id}')
-async def get_session(session_id: int, user: dict = Depends(get_current_user)):
+async def get_session(
+  session_id: int,
+  mine_token: str | None = None,
+  user: dict = Depends(get_current_user)
+):
+  # mine_token — 호출한 탭이 쥐고 있다고 믿는 녹음 락 토큰. 서버가 대조해서 `mine` 만 돌려준다
+  #   (토큰 자체는 절대 내보내지 않는다 — 그것을 알면 남의 녹음을 끊을 수 있는 능력이라서다).
+  #   ★ 2026-08-27 운영 #388 — 이것이 없어서 "락이 살아있다" 와 "남이 쥐고 있다" 를 구분 못 했다.
+  #   앱이 재시작되면 탭의 ref 는 날아가지만 서버 락은 stale(12s) 까지 남는다. 그 창에서
+  #   폴링이 active=True 만 보고 "다른 탭/기기에서 녹음 중" 을 띄웠다 — **자기 락에 자기가 막힌 것.**
+  #   (Irene: "나만 보고 있는데 이런게 떠")
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
     row = await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
@@ -1013,6 +1023,8 @@ async def get_session(session_id: int, user: dict = Depends(get_current_user)):
     data['recorder_lock'] = {
       'active': lock_state['active'],
       'heartbeat_at': lock_state['heartbeat_at'],
+      # 이 락을 쥔 것이 호출자 자신인가 — 토큰을 보내지 않았으면 판단 불가라 False.
+      'mine': bool(mine_token) and lock_state['active'] and lock_state['token'] == mine_token,
     }
     data.pop('active_recorder_token', None)
     data.pop('recorder_heartbeat_at', None)

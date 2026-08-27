@@ -60,14 +60,17 @@ html.pq-native body::before {
    아래쪽은 위와 사정이 다르다. 상단은 헤더가 상태바 뒤까지 teal 로 채우므로 덮개가 맞지만,
    하단에는 **콘텐츠와 버튼이 있다.** z-index 98 로 그리면 그 위를 덮어 버튼이 잘린다
    (pointer-events:none 이라 눌리기는 하지만 보이지 않는다 — 더 나쁘다).
-   → ① 칠하기는 **콘텐츠 뒤로** 내리고(z-index 0), ② 그 높이만큼 앱 셸이 **자리를 비운다**
-   (MainContent 의 padding-bottom). 덮지 않고 비켜서게 하는 것이 맞다. */
+   ★ 2026-08-27 정정 — z-index 는 **-1** 이어야 한다.
+   z-index:0 인 fixed 요소는 스태킹 순서상 **in-flow 콘텐츠보다 위**에 그려진다. 그래서 앱 셸이
+   자리를 비켜준 동안에는 안 보이다가, 콘텐츠가 그 영역으로 흐르는 순간 다시 덮개가 된다.
+   -1 이면 body 배경 위·콘텐츠 아래 = 인디케이터 영역을 칠하기만 하는 백스톱이 된다.
+   (앱 셸의 자리 양보는 철회됐다 — MainLayout MainContent 주석 참조) */
 html.pq-native body::after {
   content: '';
   position: fixed; bottom: 0; left: 0; right: 0;
   height: var(--pq-safe-bottom, 0px);
   background: #F8FAFC;
-  z-index: 0;
+  z-index: -1;
   pointer-events: none;
 }
 

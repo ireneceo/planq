@@ -555,14 +555,18 @@ const MainContent = styled.div<{ $marginLeft: number; $tabMode?: boolean }>`
   flex-direction: column;
   overflow: hidden;
   transition: margin-left 0.25s ease;
-  /* ★ 2026-08-25 — 하단 안전영역(홈 인디케이터)만큼 **자리를 비운다.**
-     여태 body::after 로 그 자리를 덮기만 해서 하단 버튼이 흰 막에 가려 잘렸다.
-     덮개는 콘텐츠 뒤로 내리고(index.css), 여기서 높이를 실제로 양보한다. */
+  /* ★ 2026-08-27 — **양보의 주체는 앱 셸이 아니라 하단 고정 UI 요소다.**
+     2026-08-25 에는 여기(앱 셸 전체)가 하단 인셋만큼 자리를 비웠다. 그 결과 모든 화면의
+     콘텐츠가 물리적 바닥에서 34px 위에 끝나고 그 밑에 띠만 남았다
+     (Irene: "회색으로 바꾼 거야? 내용들은 그대로 위로 올라가 있어").
+     정책: **스크롤 콘텐츠는 홈 인디케이터 밑까지 흐르고**, 입력줄·드로어 푸터·FAB 같은
+     하단 고정 UI 만 자신이 --pq-safe-bottom 을 존중한다(대부분 이미 그렇게 돼 있다).
+     상단(상태바)은 사정이 반대라 지금처럼 헤더가 자리를 양보한다.
+     ⚠️ 여기에 padding-bottom 을 다시 넣지 말 것 — 그것이 위 신고의 원인이었다. */
   box-sizing: border-box;
   ${mediaTablet} {
     margin-left: 0; --pq-content-left: 0px;
     padding-top: var(--pq-mobile-chrome, 56px);
-    padding-bottom: var(--pq-safe-bottom, 0px);
   }
 `;
 

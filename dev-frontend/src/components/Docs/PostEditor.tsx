@@ -595,6 +595,32 @@ const Body = styled.div<{ $editable?: boolean; $borderless?: boolean; $compact?:
     text-align: left; letter-spacing: -0.1px;
     border-bottom: 1px solid #CBD5E1;
   }
+  /* ★ 2026-08-27 — **읽기 전용에는 .tableWrapper 가 없다.**
+     Tiptap 은 columnResizing 이 붙는 편집 모드에서만 그 래퍼를 만든다. 그래서 읽기 화면에서는
+     width:max-content 표가 가둘 곳 없이 그대로 페이지 밖으로 잘려 나갔다
+     (운영 신고 2026-08-27 공개 미리보기 — 글 폭 658px 안에서 표가 1839px, 1181px 잘림).
+     읽기 화면의 기준은 **페이지 폭**이다: 표 자신이 스크롤 컨테이너가 되고(display:block),
+     폭이 남으면 auto 레이아웃이 글을 접어 페이지 안에 맞춘다. 정말 못 맞추는 넓은 표만 그 안에서 스크롤.
+     편집 모드는 손대지 않는다 — colgroup 고정폭·칼럼 리사이즈가 그대로 필요하다.
+     ⚠️ **이 블록은 반드시 위의 베이스 table 규칙(width:max-content) 뒤에 있어야 한다.** 같은 특정도라 나중 것이 이기는데,
+     앞으로 옮기면 베이스의 width:max-content 가 다시 이겨 **조용히 무력화된다**
+     (실제로 처음 넣을 때 앞에 두어 실측 0/3 실패했다). */
+  ${p => p.$editable ? '' : `
+  & table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    table-layout: auto;
+    &::-webkit-scrollbar { height: 8px; }
+    &::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
+  }
+  /* 칼럼 하한은 편집 화면과 같은 96px — 이보다 좁게 눌러 넣으면 글이 세로로 붕괴한다.
+     그래서 칼럼이 많아 다 못 넣는 표는 페이지를 밀지 않고 **표 안에서** 가로 스크롤된다. */
+  & table td, & table th { min-width: 96px; word-break: break-word; overflow-wrap: anywhere; }
+  `}
   /* 첫 행 좌상단·우상단 라운드 (border-radius 가 table 에만 적용되면 셀이 가려서 안 보임) */
   & table tr:first-child th:first-child, & table tr:first-child td:first-child {
     border-top-left-radius: 10px;

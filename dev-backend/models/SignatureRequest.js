@@ -113,6 +113,24 @@ SignatureRequest.init({
   // 알림 (재발송 카운트)
   reminder_count: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
   last_reminder_at: { type: DataTypes.DATE, allowNull: true },
+
+  // ── 서명 대상 동결 (2026-08-27) ────────────────────────────────
+  // ★ 여태 이 표에는 "누가·언제·어디서 서명했다" 만 있고 **무엇에 서명했는지가 없었다.**
+  //   서명 페이지는 열 때마다 문서의 *현재* 본문을 읽어 왔으므로, 서명 뒤에 본문을 고치면
+  //   그 서명이 무엇에 붙은 것인지 증명할 수단이 사라진다(운영 실사용 직전 발견).
+  //   → 요청 생성 시점에 대상(본문+첨부 목록)을 동결하고, 서명 완료 시점에 한 번 더 대조한다.
+  //   본문은 전문을 남긴다(계약서는 재현이 곧 증거다). 첨부는 파일 자체가 아니라
+  //   files.content_hash 로 지문만 남긴다 — 파일은 스토리지에 그대로 있고 중복 저장은 낭비다.
+  title_snapshot: { type: DataTypes.STRING(255), allowNull: true },      // 동결된 제목(제목도 계약의 일부다)
+  content_snapshot: { type: DataTypes.TEXT('long'), allowNull: true },   // 동결된 본문(content_json 직렬화)
+  content_hash: { type: DataTypes.STRING(64), allowNull: true },          // 위 본문의 SHA-256
+  attachments_snapshot: { type: DataTypes.JSON, allowNull: true },        // [{file_id,name,size,mime,content_hash}]
+  snapshot_at: { type: DataTypes.DATE, allowNull: true },                 // 동결 시각(요청 생성 시점)
+  // 서명 완료 시점에 대상이 그대로였는가 — 다르면 그 사실 자체를 증거로 남긴다(막지 않고 기록).
+  signed_content_hash: { type: DataTypes.STRING(64), allowNull: true },
+  snapshot_mismatch: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  // 서명자가 첨부를 실제로 열어봤는가 — [{file_id, at}] (열람 사실도 증거의 일부)
+  attachments_viewed: { type: DataTypes.JSON, allowNull: true },
 }, {
   sequelize, tableName: 'signature_requests', timestamps: true, underscored: true,
   indexes: [

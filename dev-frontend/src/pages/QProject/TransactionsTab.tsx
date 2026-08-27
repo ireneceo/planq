@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
+import { openPreviewWindow } from '../../utils/openPreviewWindow';
 
 interface Signer {
   id: number; signer_email: string; signer_name: string | null;
@@ -654,7 +655,7 @@ const TransactionsTab: React.FC<Props> = ({ projectId }) => {
               const allSigned = p.signatures.length > 0 && p.signatures.every(s => s.status === 'signed');
               const anyRejected = p.signatures.some(s => s.status === 'rejected');
               const pending = p.signatures.filter(s => s.status !== 'signed' && s.status !== 'rejected').length;
-              const openDoc = () => p.share_token && window.open(`/public/posts/${p.share_token}`, '_blank', 'noopener,noreferrer');
+              const openDoc = () => p.share_token && openPreviewWindow(`/public/posts/${p.share_token}`);
               return (
                 <DocCard
                   key={p.id}

@@ -1448,6 +1448,11 @@ const FloatingTrigger = styled.button`
   transition: transform 0.15s, background 0.15s, opacity 0.15s;
   &:hover { background: #E11D48; transform: translateY(-1px); }
   &:focus-visible { outline: 2px solid rgba(244,63,94,0.5); outline-offset: 4px; }
+  /* 모달이 떠 있으면 숨김 — RightDock FabWrap 과 같은 술어(2026-08-27). ≤1024px 한정(탭 모드 오탐 방지). */
+  @media (max-width: 1024px) {
+    body:has([aria-modal="true"]) &,
+    body:has([data-memo-popup="1"]) & { opacity: 0; pointer-events: none; visibility: hidden; }
+  }
   @media (max-width: 640px) {
     right: 16px; bottom: 16px;
     width: 48px; height: 48px;

@@ -634,6 +634,9 @@ const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSession
       $standalone={standalone}
       role="dialog"
       aria-label={t('memoPopup.title')}
+      /* FAB 숨김 술어(RightDock·CueHelpDrawer). 이 팝업은 **모달이 아니다** — 뒤 화면을 계속 쓸 수 있으므로
+         aria-modal 을 달면 보조기술에 거짓말이 되고 e2e 모달 스코핑도 오염된다. 자기 표식으로 가른다. */
+      data-memo-popup="1"
     >
       <Header $standalone={standalone} onMouseDown={standalone ? undefined : startDrag}>
         <SearchWrap ref={searchWrapRef}>

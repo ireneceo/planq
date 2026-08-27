@@ -13,8 +13,11 @@ import type { TFunction } from 'i18next';
 import type { Message, toAddrList as ToAddrList } from './MailPage';
 import MailBodyFullscreen from './MailBodyFullscreen';
 
-// 전달 기능 일시 차단 스위치 (Irene 지시 2026-08-24). Fable 이 원문 보존 구조를 확정·검증한 뒤 true.
-const FORWARD_ENABLED = false;
+// 전달 기능 스위치 — 2026-08-24 차단(원문이 리치 에디터를 통과해 표·이미지가 깨졌다) →
+//   2026-08-27 Fable 설계 게이트 통과 후 해제. 원문은 서버가 무가공으로 이어붙이고(에디터 미통과),
+//   본문에 박힌 data:URI 이미지는 발송 직전 진짜 CID 첨부로 변환된다(services/emailSend.js).
+//   서버에도 킬스위치가 따로 있다(QMAIL_FORWARD_ENABLED) — 되돌릴 땐 서버 쪽이 정본이다.
+const FORWARD_ENABLED = true;
 import MessageAttachments from './MessageAttachments';
 import MailMessageBody from './MailMessageBody';
 import AddressMenu from '../../components/Mail/AddressMenu';   // #261 주소 클릭 메뉴

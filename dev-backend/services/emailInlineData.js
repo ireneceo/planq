@@ -93,4 +93,18 @@ function restoreEmbeddedImages(html, sourceHtml, { minBytes = 4096 } = {}) {
   });
 }
 
-module.exports = { stripEmbeddedImages, extractEmbeddedImage, restoreEmbeddedImages, decodedSize };
+/**
+ * data:URI 의 base64 payload 안 공백 제거 (발송 직전 1회).
+ *
+ * ★ 왜 필요한가 (2026-08-27) — nodemailer 의 attachDataUrls 변환 정규식은 payload 를
+ *   `[^"'>\s]+` 로 잡아 **공백에서 끊긴다.** 반면 우리 저장본은 mailparser 가 넣은 줄바꿈이
+ *   섞여 있을 수 있다(DATA_URI_RE 는 \s 를 허용한다). 끊기면 이미지가 깨진 채 나간다.
+ *   여기서 payload 만 정규화해 두 정규식의 눈을 맞춘다. 다른 문자는 손대지 않는다.
+ */
+function normalizeDataUris(html) {
+  const src = String(html || '');
+  if (!src.includes('data:')) return src;
+  return src.replace(DATA_URI_RE, (whole, mime, payload) => `data:${mime};base64,${String(payload).replace(/\s+/g, '')}`);
+}
+
+module.exports = { stripEmbeddedImages, extractEmbeddedImage, restoreEmbeddedImages, decodedSize, normalizeDataUris };

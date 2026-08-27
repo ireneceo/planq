@@ -619,7 +619,9 @@ function ShellApp() {
         {!isPopout && <CueHelpDrawer publicSurface={isPublicSurface} routerNavigate={rrNavigate} />}
         {!hideAppChrome && <MemoFab />}
         {!hideAppChrome && <RightDock />}
-        {!hideAppChrome && <NotificationToaster />}
+        {/* 네이티브 앱에서는 OS 알림이 담당한다 — 인앱 토스터를 띄우면 폰에 데스크탑식 배너가 뜬다.
+            컴포넌트 내부 early-return 이 아니라 **마운트 지점**에서 가른다(훅 순서 사고 방지). */}
+        {!hideAppChrome && !isNativeApp() && <NotificationToaster />}
         {/* 딥링크/알림탭/OAuth 복귀 브리지 (웹/네이티브 공용, MOBILE_APP_DESIGN §5.4·§7.2) */}
         <NativeBridge />
         {/* PWA/웹 전용 안내 배너 — 네이티브 앱에서는 숨김 (MOBILE_APP_DESIGN §6.6) */}
@@ -668,12 +670,12 @@ function ModeGate() {
       // 트리 스왑 진입 — 미러 끄고 부팅 탭 seed(deeplink > 현재 URL > /dashboard). sessionStorage 복원분 있으면 유지.
       try {
         tabStore.setMirror(false);
-        if (tabStore.getSnapshot().tabs.length === 0) {
-          let boot = window.location.pathname + (window.location.search || '');
-          const dl = sessionStorage.getItem('planq_boot_deeplink');
-          if (dl) { boot = dl; sessionStorage.removeItem('planq_boot_deeplink'); }
-          tabStore.newTab(boot || '/dashboard');
-        }
+        let boot = window.location.pathname + (window.location.search || '');
+        const dl = sessionStorage.getItem('planq_boot_deeplink');
+        if (dl) { boot = dl; sessionStorage.removeItem('planq_boot_deeplink'); }
+        // 부팅 경로 판정은 store 단일 착지점(applyBootPath) — 여기서 분기하지 않는다.
+        //   딥링크(explicit)는 언제나 이기고, 앱이 스스로 여는 start_url 은 복원된 마지막 위치를 못 이긴다.
+        tabStore.applyBootPath(boot || '/dashboard', { explicit: !!dl });
       } catch { /* noop */ }
     }
     setMode(ts ? 'tab' : 'shell');

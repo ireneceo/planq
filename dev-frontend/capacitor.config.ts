@@ -33,8 +33,12 @@ const config: CapacitorConfig = {
   // WebView 바탕색 — 페이지가 아직 안 그려진 순간(첫 로드·전환)에 흰 섬광 대신 앱 색.
   backgroundColor: '#115E59',
   plugins: {
-    // 포그라운드 도착 시 OS 배너 억제 — 인앱 토스터(socket)가 담당해 중복 표시 방지. §5.4
-    PushNotifications: { presentationOptions: [] },
+    // ★ 2026-08-27 (Irene: "네이티브앱 알림은 앱 안에 나오는 게 아니라 폰에서 와야지")
+    //   여태 포그라운드 OS 배너를 **의도적으로 껐고**(presentationOptions: []) 인앱 토스터가 대신했다.
+    //   그 결과 아이폰 앱에서 데스크탑처럼 화면 상단에 인앱 알림이 떴다 — 네이티브답지 않다.
+    //   → 포그라운드도 OS 배너로 통일하고, 네이티브에서는 인앱 토스터를 마운트하지 않는다(App.tsx).
+    //   alert = iOS 14+ banner+list 매핑. 백엔드는 온라인 사용자도 push 를 이미 보내고 있다.
+    PushNotifications: { presentationOptions: ['badge', 'sound', 'alert'] },
   },
   // 주의: Keyboard(resize) 플러그인은 Phase 0 에서 의도적으로 미주입.
   //   기존 main.tsx visualViewport 보정(feedback_mobile_chat_input_offsettop)을 먼저 실기기 검증 후

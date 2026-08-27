@@ -21,6 +21,7 @@ import {
   OtpRow, Page, PrimaryBtn, ProgressBar, ProjectChip, RejectActions, RejectBackdrop, RejectBtn, RejectDialog,
   ResendBtn, ResultCard, ResultHint, ResultIcon, ResultMeta, ResultTitle, SecondaryBtn, Section, SectionDesc,
   SectionTitle, SignatureSnap, Spinner, Step, Textarea, TopMeta, Topbar,
+  AttachBox, AttachTitle, AttachRow, AttachIcon, AttachName, AttachSize,
 } from './PublicSignPage.styles';
 
 interface PublicSignData {
@@ -41,6 +42,9 @@ interface PublicSignData {
     id: number;
     title: string;
     content_json: { type: 'doc'; content: unknown[] } | null;
+    // 별첨 — 서명 요청 시점에 동결된 목록(이후 문서에 붙은 파일은 서명 대상이 아니다)
+    attachments?: { file_id: number; name: string | null; size: number | null; mime: string | null }[];
+    snapshot_at?: string | null;
     project?: { id: number; name: string } | null;
   };
 }
@@ -399,10 +403,37 @@ const PublicSignPage: React.FC = () => {
                   {t('publicSign.projectLabel', '프로젝트: {{name}}', { name: doc.entity.project.name })}
                 </ProjectChip>
               )}
+              {/* 서명 대상 범위 고지 — 무엇에 서명하는지 사용자 언어로 못 박는다(Fable C4). */}
+              <NoteBox>
+                {doc.entity.attachments?.length
+                  ? t('publicSign.scopeNotice', { defaultValue: '서명 대상은 아래 본문과 별첨 {{n}}건입니다.', n: doc.entity.attachments.length }) as string
+                  : t('publicSign.scopeNoticeNoAttach', { defaultValue: '서명 대상은 아래 본문입니다.' }) as string}
+              </NoteBox>
               {doc.note && <NoteBox>{doc.note}</NoteBox>}
               <DocBody>
                 <PostEditor value={doc.entity.content_json} onChange={() => {}} editable={false} />
               </DocBody>
+              {/* ★ 2026-08-27 — 별첨. 여태 이 화면에 없었다. 본문이 "별첨 2에 정한…" 을 인용하는데
+                  서명자는 그것을 볼 수 없는 상태로 서명했다(운영 계약서 실사례).
+                  목록은 요청 시점에 동결된 것이라, 이후 문서에서 첨부가 바뀌어도 서명 대상은 불변이다. */}
+              {!!doc.entity.attachments?.length && (
+                <AttachBox>
+                  <AttachTitle>
+                    {t('publicSign.attachments', { defaultValue: '별첨 {{n}}건 — 이 문서의 일부입니다', n: doc.entity.attachments.length }) as string}
+                  </AttachTitle>
+                  {doc.entity.attachments.map((a) => (
+                    <AttachRow key={a.file_id}
+                      href={`/api/sign/${token}/attachments/${a.file_id}`}
+                      target="_blank" rel="noreferrer">
+                      <AttachIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                      </AttachIcon>
+                      <AttachName>{a.name || `file-${a.file_id}`}</AttachName>
+                      {a.size != null && <AttachSize>{Math.max(1, Math.round(a.size / 1024))} KB</AttachSize>}
+                    </AttachRow>
+                  ))}
+                </AttachBox>
+              )}
             </Section>
 
             {/* #239 확인 요청 — OTP·서명 캔버스를 타지 않는다. 확인 버튼 + 의견 두 가지뿐. */}

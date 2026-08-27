@@ -7,6 +7,13 @@ const nodemailer = require('nodemailer');
 const path = require('path');
 const fs = require('fs');
 
+// 우리가 내보내는 **모든** 메일의 글꼴 — 고딕 계열 단일 원천 (2026-08-27).
+//   여태 플랫폼 메일만 이 스택을 썼고 Q Mail 발송(새 메일·답장·전달)에는 font-family 가
+//   한 줄도 없었다. 선언이 없으면 받는 쪽 메일앱 기본값으로 렌더되므로 Gmail=Arial,
+//   Outlook=Calibri, 네이버=굴림 으로 **받는 사람마다 다른 글꼴**이 됐다(=통일 안 됨).
+//   ★ 같은 값의 공식이 두 벌이 되면 이미 갈라진 것이다 — 값은 여기에만 두고 쓰는 쪽이 가져간다.
+const MAIL_FONT_STACK = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Apple SD Gothic Neo','Noto Sans KR',sans-serif";
+
 let transporter = null;
 
 // 로고 PNG 경로 — 인라인 cid 첨부용. 메일 클라이언트 차단·외부 fetch 실패 방지.
@@ -262,7 +269,7 @@ function emailWrap({ title, body, width = 520, footerOptions = {}, preheader }) 
   <meta name="x-apple-disable-message-reformatting">
   <title>${escapeHtml(title || PLATFORM.brand)}</title>
 </head>
-<body style="margin:0;padding:0;background:#F1F5F9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Apple SD Gothic Neo','Noto Sans KR',sans-serif;color:#0F172A;-webkit-text-size-adjust:none;">
+<body style="margin:0;padding:0;background:#F1F5F9;font-family:${MAIL_FONT_STACK};color:#0F172A;-webkit-text-size-adjust:none;">
   <div style="display:none;max-height:0;overflow:hidden;color:#F1F5F9;">${escapeHtml(previewText)}</div>
   <div style="display:none;max-height:0;overflow:hidden;color:#F1F5F9;">${previewPad}</div>
   <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#F1F5F9;padding:32px 16px;">
@@ -1038,6 +1045,7 @@ async function sendUnreadNotificationEmail({ to, name, items, count, workspaceNa
 }
 
 module.exports = {
+  MAIL_FONT_STACK,
   sendEmail,
   sendInviteEmail, sendPostShareEmail, sendEntityShareEmail, sendSignatureRequestEmail, sendSignatureOtpEmail,
   sendInvoiceEmail, sendPaymentReminderEmail, sendReceiptIssuedEmail, sendReceiptCorrectionEmail, sendVerificationCodeEmail,

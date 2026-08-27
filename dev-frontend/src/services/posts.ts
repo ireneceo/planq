@@ -185,6 +185,17 @@ export async function createPost(payload: {
 }
 
 /** 다른 사람이 먼저 저장해 내 편집 기준이 낡았을 때 (#252 낙관적 잠금 409). */
+/**
+ * 서명 잠금 — 서명 요청이 살아 있거나 완료된 문서는 내용을 바꿀 수 없다(2026-08-27).
+ * ★ 같은 409 라도 stale(남이 먼저 저장)과 **완전히 다른 사건**이다. 하나로 뭉뚱그리면
+ *   "다른 사람이 이 문서를 수정했습니다" 라는 거짓 문구가 뜨고, stale 재시도 경로까지 타서
+ *   자동저장이 계속 두드린다. 코드로 갈라서 자동저장을 멈추고 사실대로 알린다.
+ */
+export class SignatureLockedError extends Error {
+  code = 'post_locked_by_signature';
+  constructor(message: string) { super(message); this.name = 'SignatureLockedError'; }
+}
+
 export class StaleEditError extends Error {
   currentUpdatedAt: string | null;
   /** 마지막으로 저장한 사람이 **나** 인가. 내 저장으로 서버가 앞서 나간 것이면 충돌이 아니라
@@ -220,12 +231,15 @@ export async function updatePost(id: number, patch: Partial<{
     let msg = '';
     let cur: string | null = null;
     let byMe = false;
+    let code = '';
     try {
       const j = await r.json();
       msg = j.message || '';
+      code = j.code || '';
       cur = j.data?.current_updated_at ?? null;
       byMe = !!j.data?.by_me;
     } catch { /* non-json */ }
+    if (code === 'post_locked_by_signature') throw new SignatureLockedError(msg);
     throw new StaleEditError(msg, cur, byMe);
   }
   const j = await r.json();

@@ -189,7 +189,7 @@
     "billing": "청구/결제 관련",
     "quote": "견적/계약 키워드",
     "review": "확인 권장",
-    "automated_relevant": "자동 발송 · 업무 관련",
+    "automated_relevant": "자동/업무 관련",
     "unclear_intent": "확인 권장"
   },
   "replyNeededBadge": "답변 필요",

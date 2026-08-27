@@ -78,6 +78,25 @@ if (typeof window !== 'undefined' && window.visualViewport) {
   window.addEventListener('touchstart', () => { touching = true; }, { passive: true });
   window.addEventListener('touchend', () => { touching = false; }, { passive: true });
   window.addEventListener('touchcancel', () => { touching = false; }, { passive: true });
+
+  // ★ 2026-08-27 — **IME 조합 중에는 뷰포트를 건드리지 않는다.** (운영 #299 · #389)
+  //   증상: 한글을 치면 자모가 따로 찍힌다 — "노션이나 슬랙" → "ㄴㅗㅅㅕㄴㅇㅣㄴㅏ ㅅㅡㄹㄹㅐㄱ".
+  //   원인: iOS 는 조합이 열려 있는 동안 visualViewport 의 scroll/resize 를 계속 쏜다.
+  //     그때마다 아래 maybeFixPhantomScroll 이 window.scrollTo(0,0) 을 부르고,
+  //     **WebKit 은 스크롤이 일어나면 열려 있던 조합을 취소한다** → 자모가 낱개로 확정된다.
+  //   반증: 조합 한복판에 scrollTo 를 넣은 검사기가 신고와 똑같은 문자열을 재현했다
+  //     (`scripts/e2e/canary-hangul-ime.js`, 양성 대조군과 같은 출력).
+  //   데스크탑 브라우저는 조합 중 visualViewport 이벤트를 안 쏘므로 **웹에서는 재현되지 않는다** —
+  //   그래서 한 달 동안 "재현이 안 되는 신고" 로 남아 있었다.
+  //   조치: 조합이 열려 있는 동안 스크롤 보정을 미루고, 조합이 끝나면 한 번만 실행한다
+  //   (보정 자체를 없애면 아이폰 유령 스크롤 회귀가 돌아온다 — 미루는 것이지 버리는 것이 아니다).
+  let composing = false;
+  document.addEventListener('compositionstart', () => { composing = true; }, true);
+  document.addEventListener('compositionend', () => {
+    composing = false;
+    // 조합 중 밀린 보정을 여기서 한 번 갚는다.
+    requestAnimationFrame(() => { maybeFixPhantomScroll(); ensureFocusedVisible(); });
+  }, true);
   const update = () => {
     if (window.innerHeight > fullH) fullH = window.innerHeight;
     const isUp = vv.height < fullH * 0.70;
@@ -110,6 +129,7 @@ if (typeof window !== 'undefined' && window.visualViewport) {
   //   손을 뗀 뒤 한 번만 정렬하면 결과는 같고 훨씬 가볍다.
   function maybeFixPhantomScroll() {
     if (touching) return;
+    if (composing) return;   // 조합 중 스크롤 = 조합 취소 = 자모 분리 (위 주석)
     if (mq.matches && document.documentElement.classList.contains('pq-app-shell')
         && (window.scrollY !== 0 || vv.offsetTop !== 0)) {
       window.scrollTo(0, 0);
@@ -139,6 +159,7 @@ if (typeof window !== 'undefined' && window.visualViewport) {
   };
   const ensureFocusedVisible = () => {
     if (!mq.matches) return;
+    if (composing) return;   // scrollIntoView·scrollTop 도 조합을 끊는다 — 조합이 끝난 뒤에 한다
     const el = document.activeElement as HTMLElement | null;
     if (!el) return;
     const tag = el.tagName;
@@ -147,6 +168,7 @@ if (typeof window !== 'undefined' && window.visualViewport) {
     setTimeout(() => {
       try {
         if (document.activeElement !== el) return;
+        if (composing) return;   // 타이머가 조합 도중에 터진 경우 — 여기서도 막는다
         // 기준 rect: contentEditable 은 캐럿, 그 외는 요소.
         let rect = el.getBoundingClientRect();
         if (el.isContentEditable) {

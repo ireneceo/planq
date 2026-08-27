@@ -46,8 +46,12 @@ const RightDock: React.FC = () => {
     || isPublicSurfacePath(location.pathname); // 공개 표면 심층방어
   // Q Talk (메인 채팅) — 모바일에선 채팅 입력바를 가리므로 FAB 숨김 (데스크탑·타 페이지는 유지)
   // Q Talk 에서 FAB 숨김은 "활성 대화방(입력바 있음)" 일 때만 — 대화 리스트(?conv 없음)에선 FAB 유지(#165).
-  const onTalk = (location.pathname === '/talk' || location.pathname.startsWith('/talk/'))
-    && new URLSearchParams(location.search).has('conv');
+  //   ★ 2026-08-27 — 같은 이유가 Q Note 세션에도 그대로 있다(Irene: "Q note 음성메모는 아래
+  //   채팅창이 있는데 이 아이콘이 가리잖아"). 화면마다 따로 두지 않고 **"하단 입력줄이 있는 상세 화면"**
+  //   하나의 술어로 일반화한다. 리스트(/talk, /notes)에선 FAB 유지.
+  const onBottomBarScreen = ((location.pathname === '/talk' || location.pathname.startsWith('/talk/'))
+    && new URLSearchParams(location.search).has('conv'))
+    || /^\/notes\/[^/]+/.test(location.pathname);
 
   // 펼침 메뉴 — 외부 클릭/Esc 닫기
   useEffect(() => {
@@ -123,7 +127,7 @@ const RightDock: React.FC = () => {
     <>
     {/* #157 — 퀵메뉴 펼치면 뒷배경을 어둡게(글자 겹쳐 메뉴가 안 보이던 문제). 클릭 시 닫힘. */}
     {expanded && <DockBackdrop aria-hidden="true" onClick={() => setExpanded(false)} />}
-    <FabWrap ref={fabRef} $onTalk={onTalk}>
+    <FabWrap ref={fabRef} $onBottomBar={onBottomBarScreen}>
       {expanded && (
         <Menu role="menu" aria-label={t('dock.menuLabel', '바로 열기') as string}>
           {/* 말로 추가 — 이동 중·손이 바쁠 때. 모바일에서 제일 많이 쓴다(그래서 퀵버튼 최상단).
@@ -227,7 +231,7 @@ const DockBackdrop = styled.div`
   animation: dockBackdropIn 0.12s ease-out;
   @keyframes dockBackdropIn { from { opacity: 0; } to { opacity: 1; } }
 `;
-const FabWrap = styled.div<{ $onTalk?: boolean }>`
+const FabWrap = styled.div<{ $onBottomBar?: boolean }>`
   position: fixed; right: 20px; bottom: 16px;
   /* 모바일 상단바(z-index 99)·사이드바(100) 위로 떠야 펼친 메뉴가 안 가림 (#86). 모달(1000+)보다는 아래. */
   z-index: 120;
@@ -239,10 +243,20 @@ const FabWrap = styled.div<{ $onTalk?: boolean }>`
      (Irene: "말풍선이 너무 위에 있다", 2026-08-25). */
   @media (max-width: 640px) { right: 16px; bottom: calc(16px + var(--pq-safe-bottom, 0px)); }
   body[data-overlay-open="true"] & { opacity: 0; pointer-events: none; visibility: hidden; }
+  /* ★ 2026-08-27 — 모달이 떠 있으면 FAB 은 안 보여야 한다(Irene: "팝업 나올 땐 액션버튼들 때문에
+     안 나와야 하는데 나오는 것 같은데 다 체크해").
+     여태 술어가 data-overlay-open(=useBodyScrollLock) 뿐이라 그 훅을 안 쓰는 모달 25곳에서 FAB 이 남았다.
+     화면 25곳을 고치는 대신 **모달의 표준 표식**을 술어로 쓴다 — aria-modal="true"
+     (CLAUDE.md 운영안정성 17번, e2e 하니스와 같은 렌즈). 메모 팝업은 모달이 아니므로 자기 표식을 쓴다.
+     ≤1024px 한정: 데스크탑 멀티탭은 백그라운드 탭 pane 의 모달이 DOM 에 남아 오탐이 된다. */
+  @media (max-width: 1024px) {
+    body:has([aria-modal="true"]) &,
+    body:has([data-memo-popup="1"]) & { opacity: 0; pointer-events: none; visibility: hidden; }
+  }
   /* #86 — 키보드 올라온 동안엔 FAB 숨김 (입력 중 키보드 위에 어정쩡하게 떠 가리는 것 방지) */
   body[data-keyboard-up="1"] & { opacity: 0; pointer-events: none; visibility: hidden; }
   /* Q Talk 모바일 — 채팅 입력바/전송버튼 침범 방지 (옛 MemoFab 정책 복원, N+93 통합 시 유실) */
-  ${p => p.$onTalk ? '@media (max-width: 640px) { display: none; }' : ''}
+  ${p => p.$onBottomBar ? '@media (max-width: 640px) { display: none; }' : ''}
 `;
 
 const Fab = styled.button<{ $expanded: boolean }>`

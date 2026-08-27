@@ -25,8 +25,10 @@ const { ipKeyGenerator } = require('express-rate-limit');
 const { Op } = require('sequelize');
 const {
   SignatureRequest, Post, Document, Business, BusinessMember, User, Conversation, Message, Project,
+  PostAttachment, File,
 } = require('../models');
 const { sequelize } = require('../config/database');
+const { parseMaybeJson, buildEntitySnapshot, loadEntity, maybeUpdateEntityStatus } = require('../services/signatureCore');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../middleware/audit');
@@ -58,16 +60,6 @@ async function assertMember(userId, businessId, isPlatformAdmin) {
   return !!biz;
 }
 
-async function loadEntity(entity_type, entity_id) {
-  // 서명 페이지에 프로젝트 컨텍스트 노출 — post 의 연결된 프로젝트(있으면) 같이 fetch
-  if (entity_type === 'post') {
-    return await Post.findByPk(entity_id, {
-      include: [{ model: Project, attributes: ['id', 'name'], required: false }],
-    });
-  }
-  if (entity_type === 'document') return await Document.findByPk(entity_id);
-  return null;
-}
 
 async function getEntityTitle(entity) {
   if (!entity) return '문서';
@@ -78,10 +70,16 @@ async function getEntityTitle(entity) {
 // Post.status enum (draft/published) 은 publish 차원이라 signing 과 별개.
 // 서명 진행은 GET /signatures 에서 SignatureRequest 행 집계로 노출.
 // 향후 별도 entity.signature_status 컬럼 추가 시 여기서 갱신 (Phase 2 검토).
-async function maybeUpdateEntityStatus(/* entity_type, entity_id, business_id, t */) {
-  // no-op (의도)
-}
 
+/**
+ * 서명 대상 동결 — "무엇에 서명하는가" 를 요청 생성 시점에 붙잡아 둔다 (2026-08-27).
+ *
+ * ★ 왜 필요한가: 서명 페이지는 열 때마다 문서의 **현재** 본문을 읽는다. 여태 그 상태로,
+ *   서명 기록에는 누가·언제·어디서만 남고 **무엇에** 가 없었다. 서명 뒤 본문을 한 글자만 고쳐도
+ *   그 서명이 무엇에 붙은 것인지 증명할 방법이 사라진다(운영 첫 실사용 직전 발견).
+ *   본문은 전문을 남긴다 — 계약서는 재현이 곧 증거다. 첨부는 파일을 복제하지 않고
+ *   files.content_hash 로 지문만 남긴다(파일은 스토리지에 그대로 있다).
+ */
 // ─── Rate Limit ───
 const otpSendLimiter = rateLimit({
   windowMs: 60_000,
@@ -134,6 +132,9 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
       await t.rollback(); return errorResponse(res, 'feature_disabled', 503);
     }
 
+    // 서명 대상 동결 — 서명자별로 같은 값이므로 루프 밖에서 한 번만 계산한다.
+    const snapshot = await buildEntitySnapshot('post', post, t);
+
     // 멱등 처리: 같은 (entity, signer_email) 의 pending/sent/viewed 가 있으면 그것 갱신
     const created = [];
     for (const s of signers) {
@@ -170,6 +171,9 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
           token: genToken(),
           kind,
           note, expires_at: expiresAt, status: 'sent',
+          // 서명 대상 동결 — 재발송(existing)에는 다시 찍지 않는다.
+          //   이미 상대가 본 대상을 조용히 바꾸면 그게 더 큰 사고다.
+          ...snapshot,
         }, { transaction: t });
       }
       created.push(row);
@@ -392,47 +396,6 @@ router.get('/signatures/received', authenticateToken, async (req, res, next) => 
 // ════════════════════════════════════════════════════════════
 
 // GET /api/sign/:token — 토큰 페이지 진입 (문서 본문 + 진행 상태)
-router.get('/sign/:token', async (req, res, next) => {
-  try {
-    const sr = await loadByToken(req.params.token);
-    if (!sr) return errorResponse(res, 'not_found', 404);
-    if (sr.status === 'canceled') return errorResponse(res, 'canceled', 410);
-    if (sr.status === 'expired' || (sr.expires_at && sr.expires_at < new Date() && sr.status !== 'signed' && sr.status !== 'rejected')) {
-      if (sr.status !== 'expired') await sr.update({ status: 'expired' });
-      return errorResponse(res, 'expired', 410);
-    }
-    // viewed 마킹
-    if (sr.status === 'sent') {
-      await sr.update({ status: 'viewed', viewed_at: new Date() });
-    }
-    const entity = await loadEntity(sr.entity_type, sr.entity_id);
-    if (!entity) return errorResponse(res, 'entity_missing', 404);
-
-    return successResponse(res, {
-      token: sr.token,
-      signer_email: sr.signer_email,
-      signer_name: sr.signer_name,
-      status: sr.status,
-      expires_at: sr.expires_at,
-      kind: sr.kind || 'sign',   // #239 — 공개 페이지가 확인 뷰/서명 뷰를 가르는 값
-    confirmed_at: sr.confirmed_at,
-    comment: sr.comment,
-    comment_at: sr.comment_at,
-    otp_verified: !!sr.otp_verified_at,
-      signed_at: sr.signed_at,
-      signature_image_b64: sr.signature_image_b64,  // 서명 후 미리보기
-      note: sr.note,
-      entity: {
-        type: sr.entity_type,
-        id: sr.entity_id,
-        title: entity.title || '문서',
-        content_json: sr.entity_type === 'post' ? (entity.content_json ? (typeof entity.content_json === 'string' ? JSON.parse(entity.content_json) : entity.content_json) : null) : null,
-        project: entity.Project ? { id: entity.Project.id, name: entity.Project.name } : null,
-      },
-    });
-  } catch (err) { next(err); }
-});
-
 // POST /api/sign/:token/otp — OTP 발송
 router.post('/sign/:token/otp', otpSendLimiter, async (req, res, next) => {
   try {
@@ -516,12 +479,29 @@ router.post('/sign/:token/sign', async (req, res, next) => {
     const ip = req.ip || req.headers['x-forwarded-for'] || null;
     const ua = String(req.headers['user-agent'] || '').slice(0, 500);
 
+    // ★ 서명 시점 대조 (2026-08-27) — 서명자가 본 것(동결분)과 문서의 **현재** 상태가 같은지
+    //   한 번 더 재고, 다르면 그 사실 자체를 증거로 남긴다. 막지는 않는다:
+    //   서명자는 동결분을 보고 서명했고 그 동결분이 증거이므로, 서명을 거부할 이유가 아니라
+    //   "요청 후 원본이 바뀌었다" 는 사실을 기록해야 할 사유다.
+    let signedHash = sr.content_hash || null;
+    let mismatch = false;
+    try {
+      const cur = await loadEntity(sr.entity_type, sr.entity_id);
+      if (cur) {
+        const now = await buildEntitySnapshot(sr.entity_type, cur, t);
+        signedHash = now.content_hash;
+        mismatch = !!(sr.content_hash && now.content_hash !== sr.content_hash);
+      }
+    } catch (e) { console.warn('[sign] snapshot 대조 실패', e.message); }
+
     await sr.update({
       status: 'signed',
       signature_image_b64: sig,
       signed_at: new Date(),
       signed_ip: ip, signed_ua: ua, signed_consent: true,
       signer_name: signerName,
+      signed_content_hash: signedHash,
+      snapshot_mismatch: mismatch,
     }, { transaction: t });
 
     await maybeUpdateEntityStatus(sr.entity_type, sr.entity_id, sr.business_id, t);
@@ -530,7 +510,7 @@ router.post('/sign/:token/sign', async (req, res, next) => {
     createAuditLog({
       userId: null, businessId: sr.business_id, action: 'signature.sign',
       targetType: 'SignatureRequest', targetId: sr.id,
-      metadata: { signer: sr.signer_email, ip },
+      metadata: { signer: sr.signer_email, ip, content_hash: sr.content_hash, snapshot_mismatch: mismatch },
     });
 
     const io = req.app.get('io');

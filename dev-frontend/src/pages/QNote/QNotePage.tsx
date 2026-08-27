@@ -501,6 +501,21 @@ const QNotePage = () => {
   // ── Recorder lock (동시 녹음 방지) ──
   // 이 탭이 녹음을 "쥐고 있을 때만" 토큰이 존재. heartbeat 5초, 서버는 30초 stale 로 판정.
   const recorderTokenRef = useRef<string | null>(null);
+  // ★ 2026-08-27 운영 #388 — 락 토큰을 **앱 재시작 너머로** 기억한다.
+  //   ref 는 컴포넌트가 다시 마운트되면 사라지는데(아이폰 앱 백그라운드 복귀가 대표적)
+  //   서버 락은 stale(12초)까지 살아 있다. 그 창에서 폴링이 "락 있음" 만 보고
+  //   "다른 탭/기기에서 녹음 중" 을 띄웠다 — 남이 아니라 **자기 락에 자기가 막힌 것**이다.
+  //   토큰을 되찾아 오면 서버가 mine=true 로 답하므로 배너가 뜨지 않고, 반납·심박도 이어진다.
+  const lockKeyOf = (sid: number) => `planq_qnote_lock_${sid}`;
+  const rememberLockToken = (sid: number, tok: string | null) => {
+    try {
+      if (tok) localStorage.setItem(lockKeyOf(sid), tok);
+      else localStorage.removeItem(lockKeyOf(sid));
+    } catch { /* 사파리 프라이빗 등 — 기억 못 해도 12초 뒤 stale 로 회복된다 */ }
+  };
+  const recallLockToken = (sid: number): string | null => {
+    try { return localStorage.getItem(lockKeyOf(sid)); } catch { return null; }
+  };
   const heartbeatTimerRef = useRef<number | null>(null);
   // ★ 녹음 중인 세션 id 를 **락 획득 시점에 고정**한다.
   //   heartbeat 가 activeSessionRef 를 따라가면, 녹음 중에 새 메모를 만드는 것만으로
@@ -631,6 +646,7 @@ const QNotePage = () => {
       const sid = recordingSessionIdRef.current;
       if (tok && sid) {
         releaseRecorderLock(sid, tok);
+        rememberLockToken(sid, null);   // 기억도 같이 버린다 — 죽은 토큰을 들고 되묻지 않게
         recorderTokenRef.current = null;
         recordingSessionIdRef.current = null;
       }
@@ -647,10 +663,19 @@ const QNotePage = () => {
     let cancelled = false;
     const check = async () => {
       try {
-        const detail = await getSession(activeSession.id);
+        // 지난 실행에서 내가 쥐었던 토큰을 같이 보낸다 — 서버가 "그 락이 너의 것인지" 를 답해준다.
+        const mineTok = recorderTokenRef.current || recallLockToken(activeSession.id);
+        const detail = await getSession(activeSession.id, mineTok);
         if (cancelled) return;
-        const locked = !!detail.recorder_lock?.active;
-        setLockedByOther(locked);
+        const lock = detail.recorder_lock;
+        // **남이 쥐고 있을 때만** 막는다. 내 옛 락이면 배너를 띄우지 않고 조용히 잊는다
+        //   (12초 뒤 stale 로 풀리고, 그 전에 녹음을 누르면 같은 토큰이라 서버가 통과시킨다).
+        const lockedByOther = !!lock?.active && !lock?.mine;
+        if (lock?.active && lock?.mine && !recorderTokenRef.current) {
+          recorderTokenRef.current = mineTok;   // 내 락을 되찾는다 — 반납·심박이 다시 이어진다
+        }
+        if (!lock?.active) rememberLockToken(activeSession.id, null);
+        setLockedByOther(lockedByOther);
       } catch { /* noop */ }
     };
     check();
@@ -710,7 +735,7 @@ const QNotePage = () => {
     flushPending();
     const tok = recorderTokenRef.current;
     const sid = recordingSessionIdRef.current;
-    if (tok && sid) { releaseRecorderLock(sid, tok); }
+    if (tok && sid) { releaseRecorderLock(sid, tok); rememberLockToken(sid, null); }
     recorderTokenRef.current = null;
     recordingSessionIdRef.current = null;
     // phase 도 같이 내린다. 안 내리면 마이크는 죽었는데 빨간 뱃지·정지 버튼이 남고
@@ -1124,6 +1149,7 @@ const QNotePage = () => {
     try {
       await acquireRecorderLock(activeSession.id, token);
       recorderTokenRef.current = token;
+      rememberLockToken(activeSession.id, token);
       recordingSessionIdRef.current = activeSession.id;   // 심박 대상 고정 (activeSession 이 바뀌어도 불변)
       setLockedByOther(false);
     } catch (err: any) {
@@ -4299,6 +4325,8 @@ const ManualQuestionBar = styled.div`
   gap: 8px;
   align-items: stretch;
   margin: 0 32px 16px;
+  /* 하단 고정 UI 는 자신이 안전영역을 존중한다(앱 셸이 대신 비켜주지 않는다 — MainLayout 주석). */
+  @media (max-width: 1024px) { margin: 0 16px calc(16px + var(--pq-safe-bottom, 0px)); }
   padding: 10px 12px;
   background: #ffffff;
   border: 1px solid #e2e8f0;

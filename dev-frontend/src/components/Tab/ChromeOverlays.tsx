@@ -27,7 +27,8 @@ export default function ChromeOverlays() {
       <CueHelpDrawer />
       <MemoFab />
       <RightDock />
-      <NotificationToaster />
+      {/* App.tsx 와 같은 계약 — 네이티브(예: iPad 가로, ≥1025px 라 탭 모드)에서는 OS 알림이 담당 */}
+      {!isNativeApp() && <NotificationToaster />}
       <NativeBridge />
       {!isNativeApp() && <PwaInstallBanner />}
       {!isNativeApp() && <OpenInAppBanner />}

@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import styled, { keyframes } from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useChromeLocation } from '../../hooks/useChromeNav';
+import { useActiveTab } from '../../hooks/useTabStore';
 
 const POLL_MS = 5 * 60 * 1000;  // 5분
 
@@ -50,6 +51,7 @@ async function forceSwUpdate(): Promise<void> {
 const BuildVersionGuard: React.FC = () => {
   const { t } = useTranslation('common');
   const location = useChromeLocation();
+  const activeTab = useActiveTab();
   const initialRef = useRef<string | null>(null);
   const pendingReloadRef = useRef(false);
   // ★ 2026-08-24 (Irene: "새로고침하면 알아서 반영되게 업데이트 해야지. 고객이면 어쩌려고")
@@ -95,10 +97,26 @@ const BuildVersionGuard: React.FC = () => {
     };
   }, []);
 
-  // 새 빌드 감지됐는데 입력 중이라 보류된 경우 → 다음 navigation 시점에 안전하게 reload
+  // 새 빌드 감지됐는데 입력 중이라 보류된 경우 → 다음 navigation 시점에 안전하게 reload.
+  //
+  // ★ 2026-08-27 — **탭 전환은 화면 이동이 아니다.**
+  //   `useChromeLocation()` 은 탭 모드에서 **활성 탭의 경로**다. 탭을 누르기만 해도 이 값이 바뀌므로
+  //   여태 그것을 "다음 navigation" 으로 읽고 앱 전체를 하드 리로드했다 —
+  //   열려 있던 탭 전부의 keep-alive 상태(입력·스크롤·열어둔 패널)가 같이 날아갔다.
+  //   (운영 신고: "탭을 가면 리플래시되면서 열려 있던 탭이 확인 필요로 가버려")
+  //   → 같은 탭 안에서 경로가 바뀐 경우에만 적용한다. 탭 전환·새 탭은 기준선만 갱신한다.
+  const navKeyRef = useRef<string | null>(null);
   useEffect(() => {
+    const id = activeTab?.id ?? null;
+    const key = `${id}\n${location.pathname}`;
+    const prev = navKeyRef.current;
+    navKeyRef.current = key;
+    if (prev === null || prev === key) return;         // 첫 관측 / 무변화
+    const [prevId, prevPath] = prev.split('\n');
+    if (prevId !== String(id)) return;                 // 탭 전환·새 탭 — 이동 아님
+    if (prevPath === location.pathname) return;
     if (pendingReloadRef.current && isReloadSafe()) window.location.reload();
-  }, [location.pathname]);
+  }, [activeTab?.id, location.pathname]);
 
   if (!updateReady) return null;
 

@@ -4,6 +4,7 @@
 // 권한·격리 규칙은 posts.js 와 동일하게 canEditPost + business_id WHERE 를 쓴다.
 const express = require('express');
 const router = express.Router();
+const { blockIfSigned } = require('../services/signatureCore');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../utils/response');
 const { Post, PostRevision, User } = require('../models');
@@ -65,6 +66,8 @@ router.get('/:id/revisions/:revId', authenticateToken, async (req, res, next) =>
 //   그래야 "되돌린 것을 다시 되돌리기" 가 된다.
 router.post('/:id/revisions/:revId/restore', authenticateToken, async (req, res, next) => {
   try {
+    // 서명 잠금 — 복원은 본문을 통째로 교체한다(서명 대상 변조).
+    if (await blockIfSigned(res, req.params.id)) return;
     const post = await Post.findByPk(req.params.id);
     if (!post) return errorResponse(res, 'not_found', 404);
     if (!(await canEditPost(req.user.id, post, req.user.platform_role))) {

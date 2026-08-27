@@ -73,4 +73,41 @@ function buildQuote({ date, fromName, fromEmail, bodyHtml, bodyText, locale = 'k
   return { html, text };
 }
 
-module.exports = { buildQuote, buildAttribution, extractQuotableHtml, MAX_QUOTE_BYTES };
+/**
+ * 전달(Forward) 인용 헤더 — 원문 위에 붙는 "---------- 전달된 메시지 ----------" 블록.
+ *
+ * ★ 2026-08-27 — 옛 라우트는 이것을 자기 안에서 조립하면서 두 가지가 틀렸다:
+ *   ① `toISOString()` = **UTC 표기** — 한국 사용자에게 9시간 어긋난 시각이 찍혔다.
+ *   ② "Forwarded message" **영어 고정** — 한국 수신자에게 어색하다.
+ *   답장 인용(buildAttribution)이 이미 ko/en + Asia/Seoul 을 하고 있으므로 같은 방식으로 맞춘다.
+ *   로케일 결정도 답장과 같은 규칙(quote_locale > 원문 detectLang) — 영어 고객에게 한국어
+ *   머리말이 가는 사고를 답장에서 이미 한 번 겪었다.
+ */
+function buildForwardHeader({ date, fromName, fromEmail, to, cc, subject, locale = 'ko' } = {}) {
+  const en = locale === 'en';
+  const d = date ? new Date(date) : new Date();
+  const when = en
+    ? d.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Seoul' })
+    : (() => {
+      const kst = new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+      const h = kst.getHours();
+      const ampm = h < 12 ? '오전' : '오후';
+      const h12 = h % 12 === 0 ? 12 : h % 12;
+      return `${kst.getFullYear()}년 ${kst.getMonth() + 1}월 ${kst.getDate()}일 (${KO_DAYS[kst.getDay()]}) ${ampm} ${h12}:${String(kst.getMinutes()).padStart(2, '0')}`;
+    })();
+  const L = en
+    ? { title: '---------- Forwarded message ----------', from: 'From', date: 'Date', subject: 'Subject', to: 'To', cc: 'Cc' }
+    : { title: '---------- 전달된 메시지 ----------', from: '보낸사람', date: '날짜', subject: '제목', to: '받는사람', cc: '참조' };
+  const who = fromName ? `${esc(fromName)} &lt;${esc(fromEmail || '')}&gt;` : `&lt;${esc(fromEmail || '')}&gt;`;
+  const rows = [
+    `${L.from}: ${who}`,
+    `${L.date}: ${esc(when)}`,
+    `${L.subject}: ${esc(subject || '')}`,
+    to ? `${L.to}: ${esc(to)}` : '',
+    cc ? `${L.cc}: ${esc(cc)}` : '',
+  ].filter(Boolean).join('<br>');
+  return '<div style="border-top:1px solid #e2e8f0;padding-top:10px;margin-top:16px;color:#64748b;font-size:13px;line-height:1.6">'
+    + `${L.title}<br>${rows}</div>`;
+}
+
+module.exports = { buildQuote, buildAttribution, buildForwardHeader, extractQuotableHtml, MAX_QUOTE_BYTES };

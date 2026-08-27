@@ -24,7 +24,7 @@ const { stripEmbeddedImages, extractEmbeddedImage, restoreEmbeddedImages } = req
 const { applyMemberDisplayName, getMemberNameMap } = require('../services/displayName');
 const { sendMail, deliveryFromSendResult } = require('../services/emailSend');
 const { inlineMailTableStyles } = require('../services/emailHtmlInline');
-const { buildQuote } = require('../services/emailQuote');
+const { buildQuote, buildForwardHeader } = require('../services/emailQuote');
 // 폴더 정의·정렬은 services/mailFolders 가 단일 원천 (리스트 라우트 + 벌크 처리 공용)
 const { folderWhere, sentOrder, BULK_FOLDERS } = require('../services/mailFolders');
 // accessibleAccountIds 도 여기서 온다 — 프라이버시 격리 정의를 두 벌 두지 않는다
@@ -1175,20 +1175,35 @@ router.post('/:businessId/email-threads/:id/forward',
       const srcAtts = await EmailAttachment.findAll({ where: { message_id: srcMsg.id }, attributes: ['file_id'] });
       const origFileIds = srcAtts.map(a => a.file_id).filter(Boolean);
       const userFileIds = Array.isArray(attachment_file_ids) ? attachment_file_ids : [];
-      const { atts, files } = await resolveAttachments([...origFileIds, ...userFileIds], businessId);
+      // 원본 첨부 + 사용자 추가분의 **합집합** — 사용자가 원본 첨부를 다시 고르면 이중 첨부되던 것을 막는다.
+      const { atts, files } = await resolveAttachments([...new Set([...origFileIds, ...userFileIds])], businessId);
       const subj = String(subject || '').trim() || `Fwd: ${srcMsg.subject || ''}`;
       // 상세 응답이 base64 이미지를 `cid:planq-embed-N` 자리표시자로 바꿔 내려주므로 원본에서 되채운다.
       let composedHtml = String(body_html || '');
       if (includeOriginal) {
-        const esc = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const when = srcMsg.sent_at ? new Date(srcMsg.sent_at).toISOString().replace('T', ' ').slice(0, 16) : '';
-        const toLabel = esc((Array.isArray(srcMsg.to_emails) ? srcMsg.to_emails : []).join(', '));
-        const header = '<div style="border-top:1px solid #e2e8f0;padding-top:10px;margin-top:16px;color:#64748b;font-size:13px;line-height:1.6">'
-          + '---------- Forwarded message ----------<br>'
-          + `From: ${esc(srcMsg.from_name || '')} &lt;${esc(srcMsg.from_email || '')}&gt;<br>`
-          + (when ? `Date: ${esc(when)}<br>` : '')
-          + `Subject: ${esc(srcMsg.subject || '')}<br>`
-          + (toLabel ? `To: ${toLabel}` : '') + '</div>';
+        // 인용 머리말은 답장과 같은 관문(buildForwardHeader) — ko/en + Asia/Seoul.
+        //   옛 조립부는 toISOString() 이라 **UTC 로 9시간 어긋났고** 문구도 영어 고정이었다.
+        //   언어는 답장과 같은 규칙: quote_locale 우선, 없으면 원문 언어를 따른다
+        //   (영어 고객에게 한국어 머리말이 가는 사고를 답장에서 이미 겪었다).
+        const { detectLang, cleanVisibleBody } = require('../services/emailBodyClean');
+        const askedLoc = String(req.body?.quote_locale || '').toLowerCase();
+        const fwdLocale = (askedLoc === 'en' || askedLoc === 'ko')
+          ? askedLoc
+          : detectLang(cleanVisibleBody(srcMsg.body_text, srcMsg.body_html), 'ko', srcMsg.subject || '');
+        // to_emails/cc_emails 는 **{name,email} 객체 배열**이다 — 그냥 join 하면 [object Object] 가 찍힌다
+        //   (2026-08-27 검증에서 실제로 그렇게 나왔다). 문자열 항목도 섞일 수 있어 둘 다 받는다.
+        const addrLabel = (v) => (Array.isArray(v) ? v : [])
+          .map((a) => (typeof a === 'string' ? a : (a && (a.name ? `${a.name} <${a.email || ''}>` : a.email)) || ''))
+          .filter(Boolean).join(', ');
+        const header = buildForwardHeader({
+          date: srcMsg.sent_at,
+          fromName: srcMsg.from_name,
+          fromEmail: srcMsg.from_email,
+          to: addrLabel(srcMsg.to_emails),
+          cc: addrLabel(srcMsg.cc_emails),
+          subject: srcMsg.subject,
+          locale: fwdLocale === 'en' ? 'en' : 'ko',
+        });
         // 원문은 가공 없이 붙인다 — sanitize/에디터를 통과시키면 원문 보존이 깨진다.
         composedHtml = composedHtml + header + String(srcMsg.body_html || srcMsg.body_text || '');
       }

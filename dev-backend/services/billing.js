@@ -715,7 +715,10 @@ async function buildReceiptPdf(paymentId) {
   const paidAt = pay.paid_at ? new Date(pay.paid_at).toISOString().slice(0, 10) : '—';
 
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>
-    body { font-family: 'Malgun Gothic', sans-serif; padding: 40px; color: #0F172A; }
+    /* ★ 2026-08-27 글꼴 통일(고딕) — 옛 값은 'Malgun Gothic' 단독이었다. 그것은 윈도우 전용이라
+       이 PDF 를 렌더하는 리눅스 서버에 없고, 우연한 sans-serif 폴백으로만 고딕이 나오고 있었다.
+       청구서 PDF(pdfTemplates.js)와 같은 스택 + 실제 설치명('Noto Sans CJK KR')을 명시한다. */
+    body { font-family: 'Noto Sans CJK KR', 'Noto Sans KR', 'Pretendard', -apple-system, sans-serif; padding: 40px; color: #0F172A; }
     h1 { font-size: 24px; margin: 0 0 8px; }
     .sub { color: #64748B; font-size: 12px; margin-bottom: 24px; }
     table { width: 100%; border-collapse: collapse; margin-top: 16px; }

@@ -96,7 +96,7 @@ export interface QNoteSession {
   meeting_answer_style?: string | null;
   meeting_answer_length?: string | null;
   keywords?: string[] | null;
-  recorder_lock?: { active: boolean; heartbeat_at: string | null } | null;
+  recorder_lock?: { active: boolean; heartbeat_at: string | null; mine?: boolean } | null;
   // 사이클 N+14 — visibility 4단계 (L1/L2/L3/L4)
   visibility?: 'L1' | 'L2' | 'L3' | 'L4' | null;
   project_id?: number | null;
@@ -299,8 +299,11 @@ export async function listSessions(businessId: number, page = 1, limit = 20) {
   return handle<QNoteSession[]>(res);
 }
 
-export async function getSession(sessionId: number) {
-  const res = await apiFetch(`${BASE}/sessions/${sessionId}`);
+export async function getSession(sessionId: number, mineToken?: string | null) {
+  // mineToken — 이 탭이 쥐고 있다고 믿는 녹음 락 토큰. 서버가 대조해 recorder_lock.mine 을 채운다.
+  //   보내지 않으면 mine 은 언제나 false 라 기존 호출부는 동작이 안 바뀐다(운영 #388).
+  const qs = mineToken ? `?mine_token=${encodeURIComponent(mineToken)}` : '';
+  const res = await apiFetch(`${BASE}/sessions/${sessionId}${qs}`);
   return handle<QNoteSession>(res);
 }
 

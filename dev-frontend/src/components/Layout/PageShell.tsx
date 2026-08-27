@@ -159,7 +159,9 @@ const Body = styled.div`
   /* 폰 — 본문 여백을 줄여 가로 공간을 확보한다. 탭바처럼 음수 마진으로 이 여백을 상쇄하는
      자식들이 있으므로(QProjectDetailPage.styles TabBar) 값이 갈라지면 레이아웃이 밖으로 밀린다.
      여기와 그 음수 마진은 항상 같은 값이어야 한다. */
-  @media (max-width: 640px) { padding: 14px; }
+  /* 폰 — 스크롤 콘텐츠 자체는 인디케이터 밑까지 흐르되, 마지막 항목이 그 밑에 깔려 안 읽히지 않도록
+     스크롤 여유만 인셋만큼 더 준다(앱 셸이 자리를 비우는 방식과 다르다 — MainLayout 주석 참조). */
+  @media (max-width: 640px) { padding: 14px; padding-bottom: calc(14px + var(--pq-safe-bottom, 0px)); }
   flex: 1;
   min-width: 0;
   /* N+29 — 본문만 스크롤. flex 자식 안에서 overflow-y:auto 가 동작하려면 min-height:0 필수 (flex hack). */

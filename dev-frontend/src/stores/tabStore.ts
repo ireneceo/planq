@@ -67,14 +67,6 @@ export function identityOfPath(path: string): string {
   return kind;
 }
 
-// ── 외부 store 구현 ───────────────────────────────────────────
-let state: TabState = load();
-const listeners = new Set<() => void>();
-
-function emit() { for (const l of listeners) l(); }
-function subscribe(cb: () => void) { listeners.add(cb); return () => { listeners.delete(cb); }; }
-function getSnapshot(): TabState { return state; }
-
 // 운영 #340 — "데스크탑앱이든 다른 앱이든 삭제했다 다시 열면 모든 탭이 그대로 열리게 할 수 있어?
 //   마지막 있던 곳으로 바로 들어가고."
 //
@@ -86,6 +78,39 @@ function getSnapshot(): TabState { return state; }
 //   → 이중 저장. 살아있는 상태는 창별(sessionStorage), **복원용 스냅샷만** 공유(localStorage).
 //     새로 켠 창은 sessionStorage 가 비어 있으므로 그때만 스냅샷을 씨앗으로 쓴다.
 const RESTORE_KEY = `${STORAGE_KEY}_restore`;
+
+// ★ 2026-08-27 — 이 상수는 반드시 `let state = load()` **위**에 있어야 한다.
+//   load() 는 함수 선언이라 호이스팅되지만 여기 const 는 TDZ 라, 아래에 두면 load() 안에서
+//   RESTORE_KEY 를 읽는 순간 ReferenceError 가 나고 그 자리의 `catch {}` 가 그것을 삼킨다.
+//   증상: 복원이 조용히 "없는 기능" 이 된다(운영: 앱을 다시 열면 언제나 확인 필요 한 탭).
+//   실제로 그 상태로 배포돼 있었다(2026-08-27 실측 — 스냅샷은 저장돼 있는데 부팅 시 탭 0개).
+
+// 복원 스냅샷(다른 창/지난 실행분)으로 부팅했는가 — 첫 경로 확정 때 한 번만 소비한다.
+let bootRestorePending = false;
+
+// 앱(PWA·홈화면·네이티브) 재실행인가 — 브라우저 주소창 진입과 구분한다.
+//   앱은 언제나 manifest 의 start_url(=/inbox)로 뜨므로 그 경로는 "사용자가 가려던 곳" 이 아니다.
+//   반면 브라우저에서 /inbox 를 직접 연 것은 명시 의도라 복원이 이겨선 안 된다.
+function isAppRelaunch(): boolean {
+  try {
+    const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+    if (cap?.isNativePlatform?.()) return true;                       // Capacitor 네이티브 앱
+    if ((window.navigator as unknown as { standalone?: boolean }).standalone === true) return true; // iOS 홈화면
+    return window.matchMedia?.('(display-mode: standalone)').matches ?? false;  // 설치형 PWA(데스크탑 앱)
+  } catch { return false; }
+}
+
+// manifest start_url + 루트 — 앱이 스스로 여는 기본 경로(사용자 의도 아님).
+const RELAUNCH_DEFAULT = new Set(['/', '/inbox']);
+
+// ── 외부 store 구현 ───────────────────────────────────────────
+let state: TabState = load();
+const listeners = new Set<() => void>();
+
+function emit() { for (const l of listeners) l(); }
+function subscribe(cb: () => void) { listeners.add(cb); return () => { listeners.delete(cb); }; }
+function getSnapshot(): TabState { return state; }
+
 
 function persist() {
   const payload = JSON.stringify({ tabs: state.tabs, activeId: state.activeId });
@@ -112,6 +137,7 @@ function load(): TabState {
       if (Array.isArray(j.tabs) && j.tabs.length) {
         const activeId = j.activeId ?? null;
         const tabs = j.tabs.map((tb: Tab) => ({ ...tb, alive: tb.id === activeId }));
+        bootRestorePending = true;   // 첫 경로 확정 때 앱이 연 기본 경로로 덮이지 않게 (applyBootPath/seedFromPath)
         return { tabs, activeId, mirror: true };
       }
     }
@@ -183,6 +209,29 @@ export const tabStore = {
     tabs = [...tabs, { id, kind: kindOfPath(path), title: '', path, alive: true, lastActiveAt: now }];
     set({ tabs: applyLru(tabs, id), activeId: id });
     if (state.mirror && navigateDelegate) navigateDelegate(path);
+  },
+
+  // 부팅 경로 확정 (탭 모드 ModeGate 단일 착지점).
+  //   explicit=true 는 알림/공유 딥링크 — 언제나 그 경로가 이긴다.
+  //   그 밖에 "복원으로 시작 + 앱이 연 기본 경로(start_url)" 면 마지막 위치를 유지한다.
+  applyBootPath(path: string, opts?: { explicit?: boolean }) {
+    const restored = bootRestorePending;
+    bootRestorePending = false;
+    const act = activeTab(state);
+    if (!act) { this.newTab(path || '/dashboard'); return; }
+    // 앱(PWA·네이티브)이 스스로 연 기본 경로일 때만 마지막 위치가 이긴다.
+    //   브라우저에서 /inbox 를 직접 연 것은 사용자의 명시 의도라 복원이 이겨선 안 된다(음성 대조군).
+    if (!opts?.explicit && restored && RELAUNCH_DEFAULT.has((path || '/').split('?')[0]) && isAppRelaunch()) {
+      if (state.mirror && navigateDelegate) navigateDelegate(act.path);  // 주소를 마지막 위치로
+      return;
+    }
+    // 같은 종류의 탭이 이미 있으면 그 탭을 그 경로로 (탭이 실행 때마다 쌓이지 않게)
+    const owner = state.tabs.find((t) => identityOfPath(t.path) === identityOfPath(path));
+    if (!owner) { this.newTab(path); return; }
+    this.setTabPath(owner.id, path);
+    this.setActive(owner.id);
+    const nav = paneNavigators.get(owner.id);
+    if (nav) nav(path);
   },
 
   setActive(id: string) {
@@ -257,6 +306,11 @@ export const tabStore = {
   seedFromPath(path: string) {
     const now = Date.now();
     const act = state.activeId ? state.tabs.find((t) => t.id === state.activeId) : null;
+    // 부팅 1회 — 복원 스냅샷으로 시작한 뒤의 첫 location 은 "사용자의 이동" 이 아니라 "앱이 연 경로" 다.
+    //   판정을 applyBootPath 단일 착지점에 위임한다(여기서 갈라 놓으면 두 벌이 되어 어긋난다).
+    //   앱이 연 start_url 이면 마지막 위치 유지, 딥링크면 그 경로를 탭으로 연다 — 어느 쪽이든
+    //   **복원된 활성 탭의 경로를 덮어쓰지 않는다**(옛 동작: 딥링크 부팅이 복원 탭을 잡아먹었다).
+    if (bootRestorePending) { this.applyBootPath(path); return; }
     // 전환 대기 중 — 목표 경로에 도착하기 전의 중간 location 은 무시한다(위 pendingSwitch 주석).
     if (pendingSwitch) {
       if (pendingSwitch.id !== state.activeId) pendingSwitch = null;       // 그 사이 또 바뀌었다면 표식 폐기

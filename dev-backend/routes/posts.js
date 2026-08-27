@@ -2,6 +2,7 @@
 // project_id NULL = 워크스페이스 전역 문서, NOT NULL = 프로젝트 소속
 const express = require('express');
 const router = express.Router();
+const { blockIfSigned } = require('../services/signatureCore');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -728,6 +729,8 @@ router.post('/brief', authenticateToken, async (req, res, next) => {
 // 권한: 작성자(author) 또는 owner/platform_admin 만.
 router.put('/:id', authenticateToken, async (req, res, next) => {
   try {
+    // 서명 잠금 — 판정은 services/signatureLock 단일 착지점. 본문 수정(자동저장도 이 라우트를 쓴다).
+    if (await blockIfSigned(res, req.params.id)) return;
     const post = await Post.findByPk(req.params.id);
     if (!post) return errorResponse(res, 'not_found', 404);
     if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
@@ -930,6 +933,8 @@ router.put('/:id/visibility', authenticateToken, async (req, res, next) => {
 // 권한: 작성자(author) 또는 owner/platform_admin 만.
 router.delete('/:id', authenticateToken, async (req, res, next) => {
   try {
+    // 서명 잠금 — 삭제되면 서명 페이지가 entity_missing 404 가 된다(서명 대상 소멸).
+    if (await blockIfSigned(res, req.params.id)) return;
     const post = await Post.findByPk(req.params.id);
     if (!post) return errorResponse(res, 'not_found', 404);
     if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
@@ -965,6 +970,8 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
 // POST /api/posts/:id/attachments  body: { file_ids: number[] }
 router.post('/:id/attachments', authenticateToken, async (req, res, next) => {
   try {
+    // 서명 잠금 — 판정은 services/signatureLock 단일 착지점. 별첨 추가.
+    if (await blockIfSigned(res, req.params.id)) return;
     const post = await Post.findByPk(req.params.id);
     if (!post) return errorResponse(res, 'not_found', 404);
     if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
@@ -988,6 +995,8 @@ router.post('/:id/attachments', authenticateToken, async (req, res, next) => {
 // ─── 첨부 해제 ───
 router.delete('/:id/attachments/:attId', authenticateToken, async (req, res, next) => {
   try {
+    // 서명 잠금 — 판정은 services/signatureLock 단일 착지점. 별첨 삭제.
+    if (await blockIfSigned(res, req.params.id)) return;
     const att = await PostAttachment.findByPk(req.params.attId);
     if (!att) return errorResponse(res, 'not_found', 404);
     const post = await Post.findByPk(att.post_id);

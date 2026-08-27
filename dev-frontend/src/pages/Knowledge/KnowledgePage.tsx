@@ -1823,20 +1823,29 @@ const TagsInput = styled.input`
 const DrawerCustomList = styled.div`
   display: flex; flex-direction: column; gap: 8px;
 `;
+/* ★ 2026-08-27 운영 #387 — 옛 값은 `grid-template-columns: 100px 1fr` 이었다.
+   그 100px 칸 하나에 [항목명 입력 + 형식 셀렉트(min-width:96px) + 리스트표시 토글(28px) + 간격 12px]
+   = 최소 136px 가 들어간다. 셀렉트·토글은 flex-shrink:0 이라 안 줄고, 줄어들 수 있는 것은
+   항목명 입력뿐이라 **폭 0 으로 짜부라졌다** — 클릭도 입력도 안 되는 상태.
+   (Irene: "입력란 위치가 너무 이상해 … 항목명 입력도 안돼")
+   원인은 100px 그 자체가 아니라, #327·#328 이 그 칸에 컨트롤 둘을 더 넣으면서 폭을 안 늘린 것이다.
+   → 머리줄(이름·형식·표시)과 값줄을 **위아래로 쌓는다.** 드로어는 440px 이고 폰에서는 더 좁아
+   옆으로 나란히 두면 어떤 폭을 줘도 다시 같은 압사가 난다. */
 const DrawerCustomRow = styled.div`
-  display: grid; grid-template-columns: 100px 1fr;
-  gap: 12px; align-items: center;
-  padding: 6px 0; border-bottom: 1px solid #F1F5F9;
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 8px 0; border-bottom: 1px solid #F1F5F9;
   &:last-child { border-bottom: none; }
 `;
 // #187 — 상세 드로어에서 항목명 직접 편집 (blur 시 저장)
-const DrawerColHeadRow = styled.div`display: flex; align-items: center; gap: 6px;`;
+const DrawerColHeadRow = styled.div`display: flex; align-items: center; gap: 6px; flex-wrap: wrap;`;
 // 프로젝트 규칙: raw <select> 금지 — PlanQSelect 로 통일 (health-check frontend 항목).
 const DrawerColTypeSel = styled.div`flex-shrink: 0; min-width: 96px;`;
 const DrawerColNameInput = styled.input`
   font-size: 12px; font-weight: 600; color: #334155;
   border: 1px solid transparent; border-radius: 6px;
-  padding: 5px 8px; background: #F8FAFC; min-width: 0; width: 100%;
+  padding: 5px 8px; background: #F8FAFC; width: 100%;
+  /* min-width:0 이었다 — 그래서 폭 0 까지 짜부라졌다(#387). 바닥을 준다. */
+  flex: 1 1 auto; min-width: 120px;
   &:hover { border-color: #E2E8F0; }
   &:focus { outline: none; border-color: #14B8A6; background: #fff; }
 `;

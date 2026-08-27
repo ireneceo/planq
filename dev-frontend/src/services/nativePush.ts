@@ -55,7 +55,7 @@ export async function registerNative(): Promise<{ ok: boolean; reason?: string }
     await PushNotifications.addListener('registrationError', (e) => {
       console.error('[nativePush] registration error', e);
     });
-    // 포그라운드 도착 — OS 알림은 config presentationOptions:[] 로 억제, 인앱 토스터(socket)가 담당 → no-op.
+    // 포그라운드 도착 — 포그라운드도 OS 배너로 표시한다(config presentationOptions: badge/sound/alert). 인앱 토스터는 네이티브에서 마운트 안 함 → no-op.
     await PushNotifications.addListener('pushNotificationReceived', () => { /* in-app toaster handles */ });
     // 알림 탭 — payload custom key 'link'(상대경로) 로 SPA 네비게이트 (NativeBridge 가 수신).
     await PushNotifications.addListener('pushNotificationActionPerformed', handleTap);

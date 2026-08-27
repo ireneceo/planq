@@ -74,6 +74,35 @@ export const DocBody = styled.div`
   border-top: 1px solid #E2E8F0;
 `;
 
+// 별첨 (2026-08-27) — 서명 대상에 포함된 파일 목록. 기존 카드 톤(NoteBox·DocBody)과 같은 결.
+export const AttachBox = styled.div`
+  margin-top: 16px; padding-top: 14px;
+  border-top: 1px solid #E2E8F0;
+`;
+export const AttachTitle = styled.div`
+  font-size: 12px; font-weight: 700; color: #475569; letter-spacing: -0.1px;
+  margin-bottom: 8px;
+`;
+export const AttachRow = styled.a`
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 12px; margin-bottom: 6px;
+  border: 1px solid #E2E8F0; border-radius: 8px;
+  background: #fff; text-decoration: none; color: #0F172A;
+  min-height: 44px;   /* 폰 터치 타깃 — 토큰 44 */
+  &:hover { background: #F8FAFC; border-color: #CBD5E1; }
+`;
+export const AttachIcon = styled.svg`
+  /* height 를 px 로 박지 않는다 — 컨트롤 높이 래칫이 잡는다. 정사각은 aspect-ratio 로. */
+  width: 16px; aspect-ratio: 1 / 1; flex-shrink: 0; color: #64748B;
+`;
+export const AttachName = styled.span`
+  flex: 1; min-width: 0; font-size: 13px; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+`;
+export const AttachSize = styled.span`
+  flex-shrink: 0; font-size: 12px; color: #94A3B8;
+`;
+
 // OTP
 export const OtpRow = styled.div`
   display: flex; gap: 8px; margin: 8px 0 12px;

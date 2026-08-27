@@ -21,12 +21,21 @@ function folderWhere(folder, userId, businessId) {
     //      그리고 자동 발송이지만 내용이 업무인 것(결제 완료·보고서·시스템 업무 안내)
     //   ② 답변이 끝난 사람 메일 (답장했거나 "답변 완료" 로 넘긴 것)
     //   두 개가 사실상 같은 성격("답장할 건 아닌데 봐야 하는 것")이라 탭을 나눌 이유가 없다 (Irene).
+    //   ★ 2026-08-27 운영 #386 — `reply_needed: false` 는 **두 갈래 모두**에 걸려야 한다.
+    //     여태 아래 open 갈래에만 있어서, status='uncertain' 인 메일을 "답변 필요" 로 표시하면
+    //     답변필요 폴더에 더해지면서 **확인 권장에서 빠지지 않았다** — 한 메일이 두 곳에 동시에.
+    //     (Irene: "확인권장에서 리스트 답변필요 누르면 확인권장 숫자가 안바뀌고")
+    //     mark-reply-needed 라우트가 status 를 'uncertain' 그대로 두는 것은 의도된 동작이고
+    //     (답변필요 폴더 정의가 uncertain 을 포함해야 하므로), 고칠 곳은 여기 폴더 정의다.
+    //     실측(dev, business 5): 스레드 하나를 답변필요로 표시 → 확인권장 2657→2657(안 빠짐),
+    //     이 조건을 걸면 2657→2656(빠짐). 겹침 0→1 이 0 으로.
     case 'uncertain':
     case 'inbox':
       return {
+        reply_needed: false,
         [Op.or]: [
           { status: 'uncertain' },
-          { status: 'open', reply_needed: false, triage: { [Op.notIn]: ['automated', 'marketing'] } },
+          { status: 'open', triage: { [Op.notIn]: ['automated', 'marketing'] } },
         ],
       };
     case 'spam': return { status: 'spam' };

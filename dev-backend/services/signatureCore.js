@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 // signatureCore — 서명/확인이 **함께 쓰는 판정·발송 조각**의 단일 원천.
 //
 // 왜 갈라졌나: #239(문서 외부 확인)로 라우트가 늘면서 routes/signatures.js 가 803줄이 되어
@@ -6,7 +7,7 @@
 // **같은 판정을 두 벌로 갖지 않는다** — 이 저장소가 반복해서 당한 실패 계열이다.
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
-const { SignatureRequest } = require('../models');
+const { SignatureRequest, PostAttachment, File, Post, Document, Project } = require('../models');
 const { errorResponse } = require('../middleware/errorHandler');
 
 async function loadByToken(token) {
@@ -93,7 +94,97 @@ async function notifyWorkspaceMembersOnSignature(sr, event, signerName) {
   });
 }
 
+
+// ── 서명 잠금 · 대상 동결 (2026-08-27 추가) ──────────────────────────
+// 정책(Fable 설계 게이트): **서명 요청이 살아 있는 동안 본문·제목·별첨을 잠근다.**
+//   - 술어: kind='sign' 이면서 status 가 pending/sent/viewed/signed 중 하나.
+//     완료(signed)만 막으면 부족하다 — 서명자는 **동결분**을 보고 서명하는데 그 사이 원본이 바뀌면
+//     워크스페이스 사본과 서명본이 갈라진 상태가 일상이 된다. fail-closed 로 간다.
+//   - 진행 중 문서를 고쳐야 하면 요청을 취소(DELETE /signatures/:id)하면 잠금이 풀린다.
+//   - 확인 요청(kind='confirm')은 잠그지 않는다. 서명이 아니다.
+//   - 여태 routes/posts.js 에는 SignatureRequest 참조가 **한 건도 없었다** — 자동저장이 서명된
+//     계약서를 조용히 덮어쓸 수 있었다(운영 첫 실사용 직전 발견).
+
+/** 이 post 가 서명으로 잠겼는가 (완료된 서명이 1건이라도 있는가) */
+async function isPostSignatureLocked(postId, opts = {}) {
+  const { Op } = require('sequelize');
+  const n = await SignatureRequest.count({
+    where: {
+      entity_type: 'post', entity_id: Number(postId), kind: 'sign',
+      status: { [Op.in]: ['pending', 'sent', 'viewed', 'signed'] },
+    },
+    ...(opts.transaction ? { transaction: opts.transaction } : {}),
+  });
+  return n > 0;
+}
+
+/**
+ * 라우트 가드 — 잠겨 있으면 409 를 응답하고 true 를 돌려준다(호출부는 즉시 return).
+ * 409 를 쓰는 이유: 권한 문제(403)가 아니라 **문서 상태**의 문제다.
+ */
+async function blockIfSigned(res, postId, opts = {}) {
+  if (!(await isPostSignatureLocked(postId, opts))) return false;
+  res.status(409).json({
+    success: false,
+    code: 'post_locked_by_signature',
+    message: '서명 요청이 진행 중이거나 완료된 문서라 내용을 수정할 수 없습니다. 수정하려면 서명 요청을 취소하거나, 새 버전 문서로 다시 서명을 받아 주세요.',
+  });
+  return true;
+}
+
+function parseMaybeJson(v) {
+  if (v == null) return null;
+  if (typeof v !== 'string') return v;
+  try { return JSON.parse(v); } catch { return null; }
+}
+
+async function buildEntitySnapshot(entityType, entity, t) {
+  const raw = entityType === 'post'
+    ? (typeof entity.content_json === 'string' ? entity.content_json : JSON.stringify(entity.content_json ?? null))
+    : JSON.stringify(entity.content ?? entity.content_json ?? null);
+  const title = String(entity.title || '');
+  // ★ 해시 공식은 여기 한 곳에서만 계산한다. 같은 값의 공식이 두 벌이 되면 이미 갈라진 것이고,
+  //   해시는 한 번 바꾸면 **기존 행과 영영 비교 불가**가 된다. 제목까지 포함한다 — 계약서 제목
+  //   ("…ver.01")은 서명 대상의 일부다.
+  const content_hash = crypto.createHash('sha256').update(`${title}\n${String(raw || '')}`).digest('hex');
+  let attachments_snapshot = [];
+  if (entityType === 'post') {
+    const rows = await PostAttachment.findAll({
+      where: { post_id: entity.id },
+      include: [{ model: File, as: 'file' }],
+      order: [['sort_order', 'ASC']],
+      ...(t ? { transaction: t } : {}),
+    });
+    attachments_snapshot = rows.map((a) => ({
+      file_id: a.file_id,
+      name: a.file?.file_name || null,
+      size: a.file?.file_size || null,
+      mime: a.file?.mime_type || null,
+      content_hash: a.file?.content_hash || null,
+    }));
+  }
+  return { title_snapshot: title, content_snapshot: raw, content_hash, attachments_snapshot, snapshot_at: new Date() };
+}
+
+
+// ─── 공개 서명 경로 공유 헬퍼 (routes/signatures.js 에서 이관 — god-file 분리) ───
+async function loadEntity(entity_type, entity_id) {
+  // 서명 페이지에 프로젝트 컨텍스트 노출 — post 의 연결된 프로젝트(있으면) 같이 fetch
+  if (entity_type === 'post') {
+    return await Post.findByPk(entity_id, {
+      include: [{ model: Project, attributes: ['id', 'name'], required: false }],
+    });
+  }
+  if (entity_type === 'document') return await Document.findByPk(entity_id);
+  return null;
+}
+
+async function maybeUpdateEntityStatus(/* entity_type, entity_id, business_id, t */) {
+  // no-op (의도)
+}
+
 module.exports = {
+  isPostSignatureLocked, blockIfSigned, parseMaybeJson, buildEntitySnapshot, loadEntity, maybeUpdateEntityStatus,
   loadByToken, confirmLimiter, docConfirmEnabled, assertKind,
   isExpiredNow, SIGNATURE_EVENT_COPY, notifyWorkspaceMembersOnSignature,
 };
