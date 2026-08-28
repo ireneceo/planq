@@ -592,7 +592,19 @@ close_feedback() {
   BACKLOG_IDS=$( { grep -oE '^[[:space:]]*[0-9]{3,4}\b' /opt/planq/scripts/feedback-close-backlog.txt 2>/dev/null || true; } \
                  | tr -d ' \t' || true )
 
-  IDS=$( printf '%s\n%s\n' "$RANGE_IDS" "$BACKLOG_IDS" | grep -E '^[0-9]+$' | sort -un | paste -sd, - || true )
+  # ★ 철회 트레일러 — 앞선 커밋의 `Feedback-Closes:` 를 **나중 커밋이 취소**한다.
+  #   커밋 메시지는 되돌릴 수 없다. 그런데 "다 고친 줄 알았는데 부분 해결이었다" 는 흔하다
+  #   (2026-08-28 실측: #378 은 5개 요구 중 2개만 고쳤는데 트레일러를 넣어 닫힐 뻔했다).
+  #   부분 해결을 닫으면 나머지가 묻히고, 사용자는 무시당했다고 느낀다.
+  #   사용법:  Feedback-Keeps-Open: 378
+  local KEEP_IDS
+  KEEP_IDS=$( { git log --format=%B "${LAST_REMOTE}..HEAD" 2>/dev/null || true; } \
+              | grep -iE '^[[:space:]]*Feedback-Keeps-Open:' \
+              | grep -oE '[0-9]{2,5}' || true )
+  IDS=$( printf '%s\n%s\n' "$RANGE_IDS" "$BACKLOG_IDS" | grep -E '^[0-9]+$' | sort -un \
+         | { if [ -n "$KEEP_IDS" ]; then grep -vxF -f <(printf '%s\n' $KEEP_IDS) || true; else cat; fi; } \
+         | paste -sd, - || true )
+  if [ -n "$KEEP_IDS" ]; then dim "  (열어둠: $(printf '%s' "$KEEP_IDS" | paste -sd, -) — 부분 해결)"; fi
 
   if [ -z "$IDS" ]; then
     dim "  (커밋 메시지에 피드백 번호가 없어 건너뜀)"
