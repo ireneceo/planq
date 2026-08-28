@@ -234,8 +234,10 @@ router.post('/:token/accept', authenticateToken, async (req, res, next) => {
         return successResponse(res, { type: 'workspace_member', business_id: dup.business_id, redirect: '/dashboard' });
       }
       // 플랜 쿼터 재확인 (race: 초대 발행 후 다른 멤버 추가로 한도 도달했을 수 있음)
+      //   ★ excludeMemberId — 지금 수락하는 이 행(bm)은 초대 발행 때 이미 만들어진 자리다.
+      //     그것까지 세면 자기 자신과 한도를 다퉈 마지막 자리를 영영 못 채운다(plan.js add_member 주석).
       const planEngine = require('../services/plan');
-      const planCan = await planEngine.can(bm.business_id, 'add_member');
+      const planCan = await planEngine.can(bm.business_id, 'add_member', { excludeMemberId: bm.id });
       if (!planCan.ok) {
         await t.rollback();
         return res.status(422).json(planEngine.buildQuotaError(planCan, bm.business_id));

@@ -285,7 +285,16 @@ async function canInner(businessId, action, ctx = {}) {
     }
     case 'add_member': {
       // getUsage().members 와 동일 정책 — AI 시스템 멤버 + 제거된 멤버 제외.
-      const cur = await BusinessMember.count({ where: { business_id: businessId, removed_at: null, role: { [Op.ne]: 'ai' } } });
+      // ★ ctx.excludeMemberId — 이 게이트가 묻는 것은 "한 자리를 **새로** 쓸 수 있나" 다.
+      //   초대 수락은 자리를 새로 쓰는 게 아니라 **발행 때 이미 만들어진 pending 행을 채우는 것**이라,
+      //   그 행 자신을 세면 자기 자신과 한도를 다툰다(cur 에 이미 자신이 포함된 채 +1 → 이중 계산).
+      //   그래서 한도 5인 워크스페이스가 실질 4명에서 잠겼다 — 발행은 통과(pending 행 생성 前),
+      //   수락은 422(pending 행 생성 後). 운영 실측 재현: limit 5 / current 5 로 마지막 자리 거부.
+      //   ★ race 가드는 그대로 산다: 자신만 제외하므로 발행~수락 사이 남이 자리를 채웠다면
+      //     실멤버 5 + 자신 = cur 5 → 5+1 > 5 로 여전히 차단된다.
+      const memberWhere = { business_id: businessId, removed_at: null, role: { [Op.ne]: 'ai' } };
+      if (ctx.excludeMemberId) memberWhere.id = { [Op.ne]: ctx.excludeMemberId };
+      const cur = await BusinessMember.count({ where: memberWhere });
       if (cur + 1 > limits.members_max) {
         return { ok: false, reason: 'members_quota_exceeded', limit: limits.members_max, current: cur };
       }
