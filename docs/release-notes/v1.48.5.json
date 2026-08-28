@@ -1,0 +1,78 @@
+{
+  "version": "1.48.5",
+  "date": "2026-08-28",
+  "items": [
+    {
+      "ko": { "title": "한글이 자모로 풀려 입력되던 문제를 고쳤습니다",
+        "body": "아이폰에서 글을 쓰다 보면 '노션이나 슬랙' 이 'ㄴㅗㅅㅕㄴㅇㅣㄴㅏ' 처럼 낱자로 확정되던 문제입니다. 화면이 스스로 위치를 잡는 동작이 한글 조합을 중간에 끊고 있었습니다. 조합 중에는 건드리지 않도록 바꿨습니다." },
+      "en": { "title": "Fixed Korean letters breaking apart while typing",
+        "body": "On iPhone, Korean text could be committed letter-by-letter mid-composition. A viewport correction was interrupting the input composition; it now waits until you finish the character." }
+    },
+    {
+      "ko": { "title": "혼자 쓰는데 '다른 기기에서 녹음 중' 이 뜨던 문제를 고쳤습니다",
+        "body": "Q Note 음성 노트를 혼자 열었는데도 중복 녹음 경고가 뜨던 문제입니다." },
+      "en": { "title": "Fixed a false 'recording on another device' warning",
+        "body": "Q Note showed a duplicate-recording warning even when you were the only one with the note open." }
+    },
+    {
+      "ko": { "title": "메일 화면 세 가지를 고쳤습니다",
+        "body": "업무 추출 버튼을 눌러도 반응이 없던 문제, 다른 탭에서 답장해도 '확인 권장' 숫자가 안 빠지던 문제, 분류 라벨이 길어 잘리던 문제입니다." },
+      "en": { "title": "Three fixes in Mail",
+        "body": "The task-extract button no longer does nothing when clicked, tab counts now update when you reply from another tab, and long classification labels no longer get cut off." }
+    },
+    {
+      "ko": { "title": "외부 컨펌을 보낸 업무가 내 주간에서 사라지지 않습니다",
+        "body": "컨펌 완료 시점을 관리하는 사람은 컨펌을 건 본인입니다. 이제 내가 요청받은 것·내가 요청한 것·내가 등록한 것 모두, 외부 컨펌 중이어도 내 주간·오늘 업무에 그대로 남습니다." },
+      "en": { "title": "Tasks you sent for external confirmation stay in your week",
+        "body": "Whoever sends a task for external confirmation is the one tracking it. Those tasks now remain in your weekly and daily lists whether you received, requested, or created them." }
+    },
+    {
+      "ko": { "title": "채팅 입력창에서 이모지를 보낼 수 있습니다",
+        "body": "입력창의 이모지 버튼을 누르면 커서 자리에 들어갑니다. 쓰던 글은 그대로 유지됩니다. (받은 메시지에 리액션을 다는 기능은 이전부터 있었습니다.)" },
+      "en": { "title": "Send emoji from the chat input",
+        "body": "The emoji button inserts at your cursor and keeps whatever you were typing. (Reacting to a received message was already available.)" }
+    },
+    {
+      "ko": { "title": "Q info 항목 추가 화면을 정리했습니다",
+        "body": "우측 패널에서 항목을 추가할 때 입력란 위치가 어긋나고 항목명이 입력되지 않던 문제입니다." },
+      "en": { "title": "Cleaned up adding items in Q info",
+        "body": "Fixed misaligned inputs and a field that would not accept the item name when adding from the side panel." }
+    },
+    {
+      "ko": { "title": "팀원 초대의 마지막 한 자리가 잠기던 문제를 고쳤습니다",
+        "body": "인원 한도가 5명이면 실제로는 4명까지만 합류할 수 있었습니다. 초대를 보낼 때는 통과하는데 상대가 가입을 마치고 수락하는 순간 '한도 초과' 로 막혔습니다. 이제 한도까지 전부 받을 수 있습니다." },
+      "en": { "title": "Fixed the last member seat being unusable",
+        "body": "A workspace with a 5-member limit could only reach 4. The invite went out fine, but acceptance was rejected as over-limit. You can now fill every seat." }
+    },
+    {
+      "ko": { "title": "만료된 초대가 인원 자리를 계속 차지하지 않습니다",
+        "body": "30일이 지나 더 이상 수락할 수 없는 초대가 인원 수에는 계속 잡혀 있었습니다. 이제 만료되면 자리가 자동으로 돌아옵니다. 대기 중인 초대는 설정 > 멤버에서 '초대 취소' 로 직접 회수할 수도 있습니다." },
+      "en": { "title": "Expired invitations no longer hold a member seat",
+        "body": "Invitations older than 30 days can no longer be accepted, yet they still counted toward your member limit. The seat is now released automatically. You can also cancel a pending invite from Settings > Members." }
+    },
+    {
+      "ko": { "title": "탭 이름이 실제로 열어둔 내용으로 표시됩니다",
+        "body": "탭을 여러 개 열면 전부 'Q docs' 처럼 메뉴 이름만 보여 무엇이 무엇인지 알 수 없었습니다. 이제 문서명·대화방 이름·회의 제목·메일 제목·프로젝트 이름이 탭에 그대로 나옵니다." },
+      "en": { "title": "Tabs are named after what is actually open",
+        "body": "Every tab used to show only the menu name, so several tabs looked identical. Tabs now show the document, conversation, meeting, email subject, or project name they contain." }
+    },
+    {
+      "ko": { "title": "다른 탭을 보고 있어도 채팅 알림 숫자가 뜹니다",
+        "body": "대화방을 열어둔 채 다른 탭에서 일하고 있으면, 새 메시지가 와도 좌측 메뉴 숫자가 올라가지 않았습니다. 열어만 뒀을 뿐 보고 있지 않은 상태를 '읽음' 으로 판단하고 있었습니다." },
+      "en": { "title": "Chat badges now appear while you are on another tab",
+        "body": "With a conversation open in a background tab, new messages were treated as read and the sidebar count never moved. Being open is no longer the same as being watched." }
+    },
+    {
+      "ko": { "title": "모바일에서 업무 추가 화면이 넓어졌습니다",
+        "body": "키보드가 올라오면 제목이 가려지고 버튼 아래에 빈 여백이 생기던 문제입니다. 키보드가 이미 덮고 있는 자리를 비워두지 않도록 고쳐 입력 영역이 훨씬 넓어졌고, 화면을 먼저 보고 나서 입력할 수 있게 자동 포커스를 뺐습니다." },
+      "en": { "title": "More room in Add Task on mobile",
+        "body": "The title was hidden and a blank strip appeared above the keyboard. We stopped reserving space the keyboard already covers, which nearly doubles the visible form, and the keyboard no longer springs up before you can see the screen." }
+    },
+    {
+      "ko": { "title": "워크스페이스가 하나도 없을 때 새로 만들 수 있습니다",
+        "body": "초대 링크가 이미 사용됐거나 만료된 뒤 가입하면, 로그인은 되는데 워크스페이스가 없는 상태로 남았습니다. 그런데 '새 워크스페이스 만들기' 로 가는 유일한 통로가 그때 화면에서 사라져 스스로 빠져나올 수 없었습니다." },
+      "en": { "title": "You can create a workspace when you have none",
+        "body": "Signing up through an already-used or expired invite left you logged in with no workspace, and the only path to 'Create workspace' was hidden in exactly that state." }
+    }
+  ]
+}

@@ -1032,17 +1032,35 @@ router.post('/editor-image', authenticateToken, (req, res, next) => {
       if (!(await assertMember(req.user.id, businessId, req.user.platform_role === 'platform_admin'))) {
         return errorResponse(res, 'forbidden', 403);
       }
-      // 표준 File 등록 — visibility L3 (워크스페이스) — 본문 인라인 이미지는 그 문서와 동일 노출 범위.
-      // 옛 L1(개인) 정책은 사용자가 Q File 리스트에서 자기 본문 이미지 못 찾는 회귀 유발 → L3 로 변경.
+      // 운영 #378 — "문서 상세에 들어간 파일이나 이미지도 따로 파일메뉴로 들어가야 하는 거 아니야?
+      //   프로젝트 > 파일에도 그렇고."
+      //   워크스페이스 파일 목록에는 이미 떴다(L3). 안 뜨던 곳은 **프로젝트 > 파일** 이다 —
+      //   이 라우트가 project_id 를 아예 안 받아 File 행이 project_id NULL 로 저장됐고,
+      //   프로젝트 파일 목록은 `where.project_id = ?` 로 거르므로 영영 안 걸렸다.
+      //   문서가 프로젝트 안에 있으면 그 이미지도 그 프로젝트 것이어야 한다.
+      const projectId = Number(req.body?.project_id || req.query?.project_id || 0) || null;
+      if (projectId) {
+        // 남의 프로젝트 id 를 넘겨 파일을 심는 것 차단 — 같은 워크스페이스인지 확인.
+        const prj = await Project.findOne({ where: { id: projectId, business_id: businessId }, attributes: ['id'] });
+        if (!prj) return errorResponse(res, 'invalid_project', 400);
+      }
+      // 표준 File 등록 — 본문 인라인 이미지는 **그 문서와 동일 노출 범위**.
+      //   프로젝트 문서면 L2(프로젝트 멤버), 워크스페이스 문서면 L3(워크스페이스).
+      //   옛 L1(개인) 정책은 사용자가 Q File 리스트에서 자기 본문 이미지 못 찾는 회귀 유발 → 폐기됨.
+      // ★ vlevel 이 권위 컬럼이다 — visibility 만 쓰면 모델 default('L3')로 저장돼 프로젝트 전용
+      //   이미지가 워크스페이스 전체에 노출된다 (routes/files.js 의 같은 경고 참조).
+      const level = projectId ? 'L2' : 'L3';
       const file = await File.create({
         business_id: businessId,
+        project_id: projectId,
         uploader_id: req.user.id,
         file_name: decodeOriginalName(req.file.originalname),
         file_path: req.file.path,
         file_size: req.file.size,
         mime_type: req.file.mimetype,
         storage_provider: 'planq',
-        visibility: 'L3',
+        visibility: level,
+        vlevel: level,
       });
       successResponse(res, {
         url,

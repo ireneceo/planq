@@ -1646,6 +1646,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                         value={contentDraft}
                         onChange={setContentDraft}
                         businessId={scope.businessId}
+                        projectId={scopeProjectId}
                         placeholder={t('tableDescPlaceholder', '표에 대한 설명을 입력하세요 (선택)') as string}
                         borderless
                       />
@@ -1665,7 +1666,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   )}
                   {/* 툴바를 위 MetaRow 회색 구분선에 바로 붙인다(Body gap 16 상쇄) — 편집 상단 여백 제거(Irene) */}
                   <div className="pq-fullbleed" style={{ marginTop: -16 }}>
-                    <PostEditor value={contentDraft} onChange={setContentDraft} businessId={scope.businessId} placeholder={t('contentPlaceholder', '본문을 작성하세요…') as string} borderless />
+                    <PostEditor value={contentDraft} onChange={setContentDraft} businessId={scope.businessId} projectId={scopeProjectId} placeholder={t('contentPlaceholder', '본문을 작성하세요…') as string} borderless />
                   </div>
                 </>
               )}

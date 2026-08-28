@@ -63,14 +63,17 @@ interface Props {
   placeholder?: string;
   editable?: boolean;
   businessId?: number;           // 사이클 N+9 — 이미지 업로드 시 File 테이블 등록용
+  projectId?: number;            // 운영 #378 — 프로젝트 문서면 그 이미지도 프로젝트 파일이어야 한다
   borderless?: boolean;          // 사이클 N+9 — 공유 미리보기 등에서 외곽 박스 제거 (이중 박스 회피)
   compact?: boolean;             // 사이클 N+17 — 메모 popup 같은 좁은 컨테이너 용. toolbar 한 줄 + 가로 스크롤 + min-height 축소.
 }
 
-async function uploadEditorImage(file: File, businessId?: number): Promise<string | null> {
+async function uploadEditorImage(file: File, businessId?: number, projectId?: number): Promise<string | null> {
   const fd = new FormData();
   fd.append('file', file);
   if (businessId) fd.append('business_id', String(businessId));
+  // 운영 #378 — 이걸 안 보내면 File 행이 project_id NULL 로 저장돼 '프로젝트 > 파일' 에서 영영 안 보인다.
+  if (projectId) fd.append('project_id', String(projectId));
   const r = await apiFetch('/api/posts/editor-image', { method: 'POST', body: fd });
   const j = await r.json();
   if (!j.success) return null;
@@ -122,7 +125,7 @@ function distributeTableColumnsEvenly(editor: Editor): boolean {
   return true;
 }
 
-const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = true, businessId, borderless = false, compact = false }) => {
+const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = true, businessId, projectId, borderless = false, compact = false }) => {
   const { t } = useTranslation('qdocs');
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -182,7 +185,7 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
               const f = item.getAsFile();
               if (f) {
                 event.preventDefault();
-                uploadEditorImage(f, businessId).then(url => {
+                uploadEditorImage(f, businessId, projectId).then(url => {
                   if (url && editor) editor.chain().focus().setImage({ src: url }).run();
                 });
                 return true;
@@ -215,7 +218,7 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
                 const blob = await (await fetch(dataUrl)).blob();
                 const ext = (blob.type.split('/')[1] || 'png').replace(/[^a-z0-9]/gi, '');
                 const file = new File([blob], `pasted-${i + 1}.${ext}`, { type: blob.type });
-                const url = await uploadEditorImage(file, businessId);
+                const url = await uploadEditorImage(file, businessId, projectId);
                 if (!url) continue;
                 // 같은 data URL 이 여러 번 나올 수 있다 — 전부 바꾼다. split/join 은 정규식 이스케이프가 불필요.
                 html = html.split(dataUrl).join(url);
@@ -243,7 +246,7 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
         event.preventDefault();
         (async () => {
           for (const f of imgs) {
-            const url = await uploadEditorImage(f, businessId);
+            const url = await uploadEditorImage(f, businessId, projectId);
             if (url && editor) editor.chain().focus().setImage({ src: url }).run();
           }
         })();
@@ -257,11 +260,14 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
     const files = e.target.files;
     if (!files) return;
     for (const f of Array.from(files)) {
-      const url = await uploadEditorImage(f);
+      // 운영 #378 — 여기만 businessId 를 안 넘겨 **legacy fallback(파일 저장만, DB 행 없음)** 으로
+      //   빠지고 있었다. 툴바의 이미지 넣기 버튼이 가장 일반적인 경로인데, 그 경로로 넣은 이미지는
+      //   Q File 어디에도 안 남고 공유·용량 관리도 안 됐다 (memory: 인라인 자료 = File 등록).
+      const url = await uploadEditorImage(f, businessId, projectId);
       if (url && editor) editor.chain().focus().setImage({ src: url }).run();
     }
     e.target.value = '';
-  }, [editor]);
+  }, [editor, businessId, projectId]);
 
   useEffect(() => {
     if (!editor) return;
