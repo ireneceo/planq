@@ -98,15 +98,17 @@ const WhatsNewPage: React.FC = () => {
 
 export default WhatsNewPage;
 
-const Loading = styled.div` padding: 60px 16px; text-align: center; color: #94A3B8; font-size: 13px; `;
+const Loading = styled.div` padding: 60px 16px; text-align: center; color: #94A3B8; font-size: 14px; `;
+// 빈 상태도 알림 쪽 수치로 통일 (여백 60 · 아이콘 48 · 제목 15/700 · 설명 13)
 const Empty = styled.div`
-  padding: 80px 16px; text-align: center;
-  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 60px 16px; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
 `;
-const EmptyIcon = styled.svg` width: 44px; height: 44px; color: #CBD5E1; `;
-const EmptyTitle = styled.div` font-size: 14px; font-weight: 600; color: #334155; `;
-const EmptyHint = styled.div` font-size: 12px; color: #94A3B8; line-height: 1.5; `;
-const List = styled.div` display: flex; flex-direction: column; gap: 12px; max-width: 760px; `;
+const EmptyIcon = styled.svg` width: 48px; height: 48px; color: #CBD5E1; `;
+const EmptyTitle = styled.div` font-size: 15px; font-weight: 700; color: #334155; `;
+const EmptyHint = styled.div` font-size: 13px; color: #94A3B8; `;
+// ★ 알림 전체보기와 **같은 폭·같은 정렬**. 한쪽은 800 가운데, 한쪽은 760 왼쪽이라 따로 놀았다.
+const List = styled.div` display: flex; flex-direction: column; gap: 12px; max-width: 800px; margin: 0 auto; `;
 const Card = styled.div` background: #fff; border: 1px solid #E2E8F0; border-radius: 12px; overflow: hidden; `;
 const CardHead = styled.button`
   display: block; width: 100%; text-align: left; padding: 14px 16px;

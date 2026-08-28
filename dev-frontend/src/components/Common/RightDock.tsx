@@ -26,6 +26,16 @@ export const openDockTool = (tool: DockTool) => {
   window.dispatchEvent(new CustomEvent('planq:open-tool', { detail: { tool } }));
 };
 
+/** 도구 열기 **단일 진입점** — 데스크탑은 별도 창(팝아웃), 모바일은 in-app.
+ *  FAB 밖(사이드바 Cue 버튼 등)에서도 같은 함수를 부른다. 각자 분기를 복사하면
+ *  한쪽만 고쳐진 채 갈라진다 — openDockTool 은 **모바일 폴백 전용**이라 그것만
+ *  부르면 데스크탑에서 아무 일도 안 일어난다(실측). */
+export const launchDockTool = (tool: DockTool) => {
+  const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
+  if (isMobile) { openDockTool(tool); return; }
+  openPopout(tool);
+};
+
 const FAB_HIDDEN_PREFIXES = ['/memo', '/talk-popout', '/task-popout', '/note-popout', '/help-popout'];
 
 const RightDock: React.FC = () => {
@@ -102,25 +112,19 @@ const RightDock: React.FC = () => {
     tabStore.newTab(path);
   };
 
-  const openPlain = (tool: DockTool) => {
-    // 자리 규칙은 utils/pinHost.openPopout 단일 진입점에 있다(고정창이 뜨는 자리 기준 + 계단).
-    openPopout(tool);
-  };
-
   const handlePick = (tool: DockTool) => {
     setExpanded(false);
     const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
     if (isMobile) {
       // 모바일 — 별도 창 대신 in-app.
       //   qtask 의 정식 모바일 표면은 /tasks (같은 파일 handleCreate('task') 와 동일 착지).
-      if (tool === 'qtalk') navigate('/talk');
-      else if (tool === 'qtask') navigate('/tasks');
-      else openDockTool(tool);
-      return;
+      if (tool === 'qtalk') { navigate('/talk'); return; }
+      if (tool === 'qtask') { navigate('/tasks'); return; }
     }
-    // 데스크탑 — 일반 창. 도구별 고유 창 이름이라 넷 다 동시에 떠 있을 수 있다(#43).
+    // 나머지는 공용 진입점 — 데스크탑 팝아웃 / 모바일 in-app 분기가 그 안에 있다.
+    //   도구별 고유 창 이름이라 넷 다 동시에 떠 있을 수 있다(#43).
     //   고정하고 싶으면 그 창 위의 핀 아이콘을 누른다. 여기서는 아무것도 묻지 않는다.
-    openPlain(tool);
+    launchDockTool(tool);
   };
 
   return (

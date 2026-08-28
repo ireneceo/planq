@@ -3,22 +3,25 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
 import PageShell from '../../components/Layout/PageShell';
 import { useNotifications, type NotificationItem } from '../../hooks/useNotifications';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import NotificationTypeIcon from '../../components/Common/NotificationTypeIcon';
+import { resolveNotificationLink } from '../../utils/notificationLink';
+import { tabStore } from '../../stores/tabStore';
 
 const NotificationsPage: React.FC = () => {
   const { t } = useTranslation('layout');
-  const navigate = useNavigate();
   const [unreadOnly, setUnreadOnly] = useState(false);
   const { items, loading, markRead, markAllRead } = useNotifications({ limit: 100, unreadOnly, autoRefresh: true });
   const { formatTimeAgo, formatDateTime } = useTimeFormat();
 
   const handleClick = (item: NotificationItem) => {
     if (!item.read_at) markRead(item.id);
-    if (item.link) navigate(item.link);
+    // ★ 드롭다운과 **같은 규칙**. 여태 이 페이지만 원본 link 를 그대로 써서, link 가 비어 있는
+    //   알림(entity_type/event_kind 로만 목적지를 아는 것)은 눌러도 아무 일이 없었다.
+    //   열기는 새 탭 — 목록을 훑으며 여러 건을 여는 자리라 목록이 사라지면 안 된다.
+    tabStore.openInNewTab(resolveNotificationLink(item));
   };
   const unreadCount = items.filter(i => !i.read_at).length;
 
@@ -39,7 +42,8 @@ const NotificationsPage: React.FC = () => {
   );
 
   return (
-    <PageShell title={t('notifications.title', '알림') as string} actions={actions}>
+    // 새 소식 페이지와 같이 제목 옆 개수 배지를 단다 — 한쪽만 있으면 다른 물건처럼 보인다.
+    <PageShell title={t('notifications.title', '알림') as string} count={items.length} actions={actions}>
       {loading && items.length === 0 ? (
         <Loading>{t('notifications.loading', '불러오는 중…')}</Loading>
       ) : items.length === 0 ? (

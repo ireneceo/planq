@@ -197,6 +197,24 @@ export const tabStore = {
     else this.newTab(path);
   },
 
+  // 알림·새 소식 드롭다운처럼 **하던 일 위에 얹히는** 진입점 전용.
+  //   Irene: "열면 새탭으로 나와야 하는 거 아니야? 드롭다운에서 갑자기 탭 내용 바뀌면 하던 일 문제될 것 같아."
+  //   navigateActive 는 보던 탭을 덮어써서, 글 쓰던 중 알림 하나 눌렀다가 그 화면을 잃는다.
+  //   같은 화면이 이미 열려 있으면 새로 만들지 않고 그 탭으로 간다 — 탭이 무한정 쌓이지 않게.
+  //   미러 모드(단일 탭·모바일)에서는 탭 개념이 없으므로 종전대로 이동한다.
+  openInNewTab(path: string) {
+    if (state.mirror) { if (navigateDelegate) navigateDelegate(path); return; }
+    const owner = state.tabs.find((t) => identityOfPath(t.path) === identityOfPath(path));
+    if (owner) {
+      this.setTabPath(owner.id, path);
+      this.setActive(owner.id);
+      const nav = paneNavigators.get(owner.id);
+      if (nav) nav(path);
+      return;
+    }
+    this.newTab(path);
+  },
+
   // 새 탭 — 같은 페이지도 중복 허용. '+' / 새탭 드롭다운. OPEN_MAX 초과면 최오래 비활성 탭 close.
   newTab(path = '/dashboard') {
     const now = Date.now();

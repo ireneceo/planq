@@ -149,7 +149,8 @@
     "attendance": "근태",
     "attendanceAdmin": "근태 관리",
     "updates": "새소식·인사이트",
-    "announcement": "공지 배너"
+    "announcement": "공지 배너",
+    "askCue": "Cue 에게 묻기"
   },
   "user": {
     "profile": "내 프로필",

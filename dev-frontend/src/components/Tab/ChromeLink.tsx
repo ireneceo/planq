@@ -8,15 +8,20 @@ import { tabStore } from '../../stores/tabStore';
 
 interface Props extends Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 'href'> {
   to: string;
+  /** 보던 탭을 덮지 않고 새 탭에서 연다(같은 화면이 열려 있으면 그 탭으로).
+   *  알림·새 소식처럼 **하던 일 위에 얹히는** 진입점에서 켠다. */
+  newTab?: boolean;
 }
 
-const ChromeLink = forwardRef<HTMLAnchorElement, Props>(function ChromeLink({ to, onClick, children, ...rest }, ref) {
+const ChromeLink = forwardRef<HTMLAnchorElement, Props>(function ChromeLink({ to, onClick, newTab, children, ...rest }, ref) {
   const handle = (e: MouseEvent<HTMLAnchorElement>) => {
     onClick?.(e);
     if (e.defaultPrevented) return;
     if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; // 브라우저 기본에 양보
     e.preventDefault();
-    tabStore.navigateActive(to); // 현재 탭 경로 변경(새 탭 X). ⌘/Ctrl 클릭 시 위에서 브라우저 새 탭에 양보
+    // 기본은 현재 탭 경로 변경(새 탭 X). ⌘/Ctrl 클릭 시 위에서 브라우저 새 탭에 양보.
+    if (newTab) tabStore.openInNewTab(to);
+    else tabStore.navigateActive(to);
   };
   return <a href={to} ref={ref} onClick={handle} {...rest}>{children}</a>;
 });

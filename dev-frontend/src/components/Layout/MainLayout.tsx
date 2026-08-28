@@ -10,6 +10,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import LanguageSelector from '../Common/LanguageSelector';
 import WorkspaceSwitcher from './WorkspaceSwitcher';
 import GlobalSearchModal from '../Common/GlobalSearchModal';
+import { launchDockTool } from '../Common/RightDock';
 import WorkspaceBillingBanner from './WorkspaceBillingBanner';
 import SidebarClock from './SidebarClock';
 import FocusWidget from '../Focus/FocusWidget';
@@ -204,12 +205,19 @@ const SidebarNav = styled.nav`
   &::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 3px; }
 `;
 
+// 검색 + Cue 한 줄 — 위쪽 여백은 행이 갖는다(개별 버튼이 아니라).
+const QuickRow = styled.div`
+  display: flex; align-items: stretch; width: 100%; margin-top: 8px;
+`;
+const QuickDivider = styled.span`
+  width: 1px; flex-shrink: 0; margin: 6px 0;
+  background: rgba(255,255,255,0.14);
+`;
+
 // 통합 검색 — NavItem 과 동일한 메뉴 항목 스타일 (input 형태 X, 클릭만 하는 메뉴)
 const GlobalSearchTrigger = styled.button`
   display: flex; align-items: center;
-  width: 100%;
-  /* 워크스페이스 카드와 시각적 분리 — 위쪽 여백 8px */
-  margin-top: 8px;
+  flex: 1; min-width: 0;
   padding: 4px 16px;
   min-height: 28px;
   background: transparent;
@@ -223,6 +231,23 @@ const GlobalSearchTrigger = styled.button`
   &:focus-visible { outline: 2px solid rgba(94,234,212,0.4); outline-offset: -2px; }
   ${mediaTablet} { padding: 8px 16px; min-height: 44px; font-size: 14px; }
 `;
+// Cue — 검색과 같은 높이·같은 톤. 색만 포인트(Coral)로 구분한다.
+const CueTrigger = styled.button`
+  display: flex; align-items: center; gap: 6px;
+  flex-shrink: 0;
+  padding: 4px 14px 4px 12px;
+  background: transparent; border: none;
+  color: #FDA4AF; cursor: pointer;
+  font-size: 13px; font-weight: 600;
+  transition: all 0.15s;
+  white-space: nowrap;
+  &:hover { background: rgba(255,255,255,0.08); color: #FFFFFF; }
+  &:focus-visible { outline: 2px solid rgba(253,164,175,0.5); outline-offset: -2px; }
+  ${mediaTablet} { padding: 8px 14px; min-height: 44px; font-size: 14px; }
+`;
+const CueIconSvg = styled.svg` width: 17px; height: 17px; flex-shrink: 0; `;
+const CueLabel = styled.span` line-height: 1; `;
+
 const SearchIconSvg = styled.svg`
   width: 20px; flex-shrink: 0;
   margin-right: 10px;
@@ -928,6 +953,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
               <HeaderActions>
                 <BellButton
                   ref={megaphoneRef}
+                  data-testid="header-whatsnew"
                   type="button"
                   onClick={openWhatsNew}
                   aria-label={t('whatsNew.title', '새 소식') as string}
@@ -941,6 +967,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                 </BellButton>
                 <BellButton
                   ref={bellRef}
+                  data-testid="header-notifications"
                   type="button"
                   onClick={() => setNotifOpen(v => !v)}
                   aria-label={t('notifications.title', '알림') as string}
@@ -974,19 +1001,39 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
         </SidebarHeader>
 
         {!isCollapsed && <WorkspaceSwitcher />}
+        {/* 검색은 "찾기", Cue 는 "물어보기" — 같은 성격이라 같은 자리에 나란히 둔다.
+            Irene: "Cue 채팅을 바로 들어갈 수 있어야 할 것 같아. 통합검색이랑 옆에 배치하면 어때?"
+            Cue 는 새 화면을 만들지 않고 **기존 Q helper 팝아웃을 그대로** 연다(openDockTool 단일 진입점 —
+            모바일에서는 드로어로 폴백하는 분기까지 이미 그 안에 있다). */}
         {!isCollapsed && hasBiz('owner', 'member', 'client') && (
-          <GlobalSearchTrigger
-            type="button"
-            onClick={() => setSearchOpen(true)}
-            title={t('nav.globalSearch', '통합 검색') as string}
-          >
-            <SearchIconSvg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8"/>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            </SearchIconSvg>
-            <SearchPlaceholder>{t('nav.globalSearch', '검색')}</SearchPlaceholder>
-            <SearchKbd>⌘K</SearchKbd>
-          </GlobalSearchTrigger>
+          <QuickRow>
+            <GlobalSearchTrigger
+              type="button"
+              data-testid="nav-search"
+              onClick={() => setSearchOpen(true)}
+              title={t('nav.globalSearch', '통합 검색') as string}
+            >
+              <SearchIconSvg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </SearchIconSvg>
+              <SearchPlaceholder>{t('nav.globalSearch', '검색')}</SearchPlaceholder>
+              <SearchKbd>⌘K</SearchKbd>
+            </GlobalSearchTrigger>
+            <QuickDivider aria-hidden="true" />
+            <CueTrigger
+              type="button"
+              data-testid="nav-cue"
+              onClick={() => launchDockTool('qhelper')}
+              title={t('nav.askCue', 'Cue 에게 묻기') as string}
+              aria-label={t('nav.askCue', 'Cue 에게 묻기') as string}
+            >
+              <CueIconSvg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+              </CueIconSvg>
+              <CueLabel>{t('nav.cue', 'Cue')}</CueLabel>
+            </CueTrigger>
+          </QuickRow>
         )}
 
         <SidebarNav>

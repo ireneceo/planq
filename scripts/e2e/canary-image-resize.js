@@ -81,9 +81,18 @@ const clickSize = async (page, label) => {
   return true;
 };
 
+// ★ 폭은 감싼 요소(.pq-img-wrap)의 인라인 스타일에 있다 — img 속성이 아니다.
+//   **실제 렌더 픽셀도 같이** 잰다: 퍼센트만 보면 "37% 인데 실제 74px" 같은 붕괴를 놓친다(실측 전례).
 const imgWidth = async (page) => page.evaluate(() => {
   const img = document.querySelector('.ProseMirror img');
-  return img ? (img.getAttribute('width') || null) : 'NO_IMG';
+  const wrap = document.querySelector('.pq-img-wrap');
+  if (!img) return 'NO_IMG';
+  const parentPx = wrap && wrap.parentElement ? wrap.parentElement.getBoundingClientRect().width : 0;
+  return {
+    pct: (wrap && wrap.style.width) || null,
+    px: Math.round(img.getBoundingClientRect().width),
+    parentPx: Math.round(parentPx),
+  };
 });
 
 async function run() {
@@ -145,8 +154,56 @@ async function run() {
     await clickSize(page, 'S');
     await b.sleep(600);
     const w = await imgWidth(page);
-    results.push({ name: 'resize-apply', ok: w === '33%',
-      msg: w === '33%' ? 'S 를 누르면 실제로 33% 로 줄어든다' : `🔴 S 를 눌러도 크기가 안 바뀐다 (width=${w})` });
+    // 33% 라고 **써 있는 것**만으로는 부족하다 — 실제로 본문 폭의 33% 를 차지해야 한다(±4%p).
+    const okPct = w && w.pct === '33%';
+    const ratio = w && w.parentPx ? (w.px / w.parentPx) * 100 : 0;
+    const okPx = Math.abs(ratio - 33) <= 4;
+    results.push({ name: 'resize-apply', ok: !!(okPct && okPx),
+      msg: (okPct && okPx)
+        ? `S 를 누르면 실제로 33% 로 줄어든다 (${w.px}px / 본문 ${w.parentPx}px = ${ratio.toFixed(0)}%)`
+        : `🔴 S 결과가 어긋난다 (표기=${w && w.pct} · 실제 ${w && w.px}px / ${w && w.parentPx}px = ${ratio.toFixed(0)}%)` });
+
+    // #378 의 본뜻 — 끌어서 조절. 프리셋 3단계는 "사이즈 조정" 이 아니다.
+    const hbox = await page.evaluate(() => {
+      const h = document.querySelector('.pq-img-handle');
+      if (!h) return null;
+      const r = h.getBoundingClientRect();
+      if (r.width === 0) return 'hidden';
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    });
+    if (!hbox || hbox === 'hidden') {
+      results.push({ name: 'drag-handle', ok: false,
+        msg: `🔴 이미지를 선택해도 크기 손잡이가 없다 (${hbox === 'hidden' ? '있으나 안 보임' : 'DOM 에 없음'})` });
+    } else {
+      const before = await imgWidth(page);
+      const beforePx = before.px;
+      await page.mouse.move(hbox.x, hbox.y);
+      await page.mouse.down();
+      await page.mouse.move(hbox.x + 120, hbox.y, { steps: 12 });   // 오른쪽으로 끌어 넓힌다
+      await page.mouse.up();
+      await b.sleep(500);
+      const after = await imgWidth(page);
+      // 표기와 실제 픽셀이 **함께** 커져야 한다 — 하나만 보면 붕괴를 놓친다.
+      const grew = after.px > beforePx + 10;
+      results.push({ name: 'drag-handle', ok: grew,
+        msg: grew
+          ? `끌면 실제로 커진다 (${before.pct}/${beforePx}px → ${after.pct}/${after.px}px)`
+          : `🔴 손잡이를 끌어도 크기가 그대로다 (${before.pct}/${beforePx}px → ${after.pct}/${after.px}px)` });
+      // 놓은 뒤 **문서**에 남는지 — 화면만 바뀌면 새로고침에 사라진다.
+      //   에디터를 한 번 건드려 재렌더를 유발한 뒤에도 값이 유지되는지로 본다.
+      if (grew) {
+        await page.evaluate(() => {
+          const pm = document.querySelector('.ProseMirror');
+          if (pm) pm.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+        });
+        await b.sleep(500);
+        const still = await imgWidth(page);
+        results.push({ name: 'drag-persist', ok: still.px > beforePx + 10,
+          msg: still.px > beforePx + 10
+            ? `끈 결과가 문서에 남는다 (${still.pct}/${still.px}px)`
+            : `🔴 끈 결과가 되돌아간다 (${still.pct}/${still.px}px)` });
+      }
+    }
   } finally {
     await browser.close();
   }

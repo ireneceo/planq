@@ -6,9 +6,11 @@
 //   → NotificationDropdown 과 **같은 popover 구조**를 그대로 쓴다(디자인 단일 원천).
 //   콘텐츠 원천은 종전과 같다 (/api/whats-new · hooks/useWhatsNew).
 import React, { useEffect, useRef } from 'react';
-import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import ChromeLink from '../Tab/ChromeLink';
+import {
+  Popover, Header, HeaderTitle, List, Loading, Empty, EmptyIcon, EmptyTitle, EmptyHint,
+  ItemLink, ItemIcon, ItemBody, ItemTitle, ItemDesc, ItemMeta, UnreadDot, Footer, FooterLink,
+} from './dropdownShell';
 import type { WhatsNewItem } from '../../hooks/useWhatsNew';
 
 interface Props {
@@ -67,21 +69,27 @@ const WhatsNewDropdown: React.FC<Props> = ({ open, onClose, anchorRef, items, lo
         ) : (
           // 드롭다운은 훑어보는 자리다 — 본문은 펼치지 않고 제목·요약까지만. 전문은 모두보기 페이지에서.
           items.slice(0, 8).map((it) => (
-            <Item key={it.slug} to={`/whats-new?post=${encodeURIComponent(it.slug)}`} onClick={onClose} $unread={it.is_new}>
+            // 알림과 **같은 구조** — 아이콘 | (제목·요약·날짜) | 안읽음 점. 두 드롭다운이 다르게
+            //   생기면 사용자는 매번 다시 배운다. 열기는 새 탭(보던 화면을 덮지 않는다).
+            <ItemLink key={it.slug} to={`/whats-new?post=${encodeURIComponent(it.slug)}`} newTab onClick={onClose} $unread={it.is_new}>
+              <ItemIcon aria-hidden="true">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 11l18-5v12L3 14v-3z" />
+                  <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
+                </svg>
+              </ItemIcon>
               <ItemBody>
-                <ItemMeta>
-                  {it.is_new && <NewDot aria-label={t('whatsNew.new', '새 소식') as string} />}
-                  {fmtDate(it.published_at)}
-                </ItemMeta>
                 <ItemTitle $unread={it.is_new}>{it.title}</ItemTitle>
                 {it.summary && <ItemDesc>{it.summary.slice(0, 100)}</ItemDesc>}
+                <ItemMeta>{fmtDate(it.published_at)}</ItemMeta>
               </ItemBody>
-            </Item>
+              {it.is_new && <UnreadDot aria-label={t('whatsNew.new', '새 소식') as string} />}
+            </ItemLink>
           ))
         )}
       </List>
       <Footer>
-        <FooterLink to="/whats-new" onClick={onClose}>
+        <FooterLink to="/whats-new" newTab onClick={onClose}>
           {t('whatsNew.viewAll', '새 소식 모두 보기')} →
         </FooterLink>
       </Footer>
@@ -90,51 +98,3 @@ const WhatsNewDropdown: React.FC<Props> = ({ open, onClose, anchorRef, items, lo
 };
 
 export default WhatsNewDropdown;
-
-const Popover = styled.div`
-  position: fixed; top: 60px; left: 16px;
-  width: 360px; max-width: calc(100vw - 32px); max-height: 70vh;
-  background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
-  z-index: 2000;
-  display: flex; flex-direction: column; overflow: hidden;
-`;
-const Header = styled.div`
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 16px; border-bottom: 1px solid #F1F5F9; flex-shrink: 0;
-`;
-const HeaderTitle = styled.h3` margin: 0; font-size: 14px; font-weight: 700; color: #0F172A; `;
-const List = styled.div` flex: 1; overflow-y: auto; padding: 4px; `;
-const Loading = styled.div` padding: 40px 16px; text-align: center; color: #94A3B8; font-size: 13px; `;
-const Empty = styled.div`
-  padding: 40px 16px; text-align: center;
-  display: flex; flex-direction: column; align-items: center; gap: 8px;
-`;
-const EmptyIcon = styled.svg` width: 36px; height: 36px; color: #CBD5E1; `;
-const EmptyTitle = styled.div` font-size: 13px; font-weight: 600; color: #334155; `;
-const EmptyHint = styled.div` font-size: 12px; color: #94A3B8; line-height: 1.5; `;
-const Item = styled(ChromeLink)<{ $unread: boolean }>`
-  display: flex; gap: 8px; align-items: flex-start;
-  width: 100%; padding: 10px 12px; border-radius: 8px;
-  background: ${p => p.$unread ? '#F0FDFA' : 'transparent'};
-  border: none; cursor: pointer; text-align: left; text-decoration: none;
-  transition: background 0.12s;
-  &:hover { background: ${p => p.$unread ? '#CCFBF1' : '#F8FAFC'}; }
-`;
-const ItemBody = styled.div` flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; `;
-const ItemTitle = styled.div<{ $unread: boolean }>`
-  font-size: 13px; font-weight: ${p => p.$unread ? 700 : 600}; color: #0F172A;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-`;
-const ItemDesc = styled.div`
-  font-size: 12px; color: #64748B; line-height: 1.45;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-`;
-const ItemMeta = styled.div` display: flex; align-items: center; gap: 5px; font-size: 11px; color: #94A3B8; `;
-const NewDot = styled.span` width: 6px; height: 6px; border-radius: 50%; background: #F43F5E; flex-shrink: 0; `;
-const Footer = styled.div` padding: 8px; border-top: 1px solid #F1F5F9; flex-shrink: 0; `;
-const FooterLink = styled(ChromeLink)`
-  display: block; text-align: center; padding: 8px;
-  font-size: 12px; font-weight: 600; color: #14B8A6; text-decoration: none; border-radius: 6px;
-  &:hover { background: #F0FDFA; }
-`;
