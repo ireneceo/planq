@@ -1156,8 +1156,14 @@ router.post('/:businessId/email-threads/:id/forward',
       // ★ include_original (Irene 2026-08-24 "이메일 그대로 전달이 안돼") — 원문을 리치 에디터에
       //   통과시키면 <table>·인라인 스타일이 에디터 노드로 재해석돼 레이아웃이 깨지고 cid: 도 유실된다.
       //   사용자는 덧붙일 말만 쓰고, 원문은 서버가 srcMsg.body_html 을 손대지 않고 이어붙인다.
-      // ★ 전달 일시 차단 (Irene 2026-08-24). 버튼만 숨기면 옛 번들·직접 호출이 남는다. 해제는 FABLE_VERIFY_QUEUE §5.
-      if (process.env.QMAIL_FORWARD_ENABLED !== '1') return errorResponse(res, 'forward_temporarily_disabled', 503, 'forward_temporarily_disabled');
+      // ★ 킬스위치 — 기본 **켜짐**. 끄려면 QMAIL_FORWARD_ENABLED=0 을 명시한다.
+      //   옛 구현은 `!== '1'` 이라 **기본이 꺼짐**이었다. .env 는 배포 rsync 에서 보호되므로
+      //   코드만 올라가고 플래그는 안 따라와, 운영에서만 "버튼은 보이는데 누르면 503" 이 됐다
+      //   (실측: 프론트 FORWARD_ENABLED=true · 운영 .env 플래그 없음 · 운영 전달 발송 0건.
+      //    Irene: "아무것도 전달 안된다"). 차단 목적은 Fable 검증 전까지였고 그건 끝났다
+      //    (FABLE_VERIFY_QUEUE §5 · 커밋 7c461ece). 같은 코드베이스의 다른 게이트
+      //    (CUE_TOOLS_ENABLED `!== '0'`, FEATURE_DOC_CONFIRM `|| 'on'`)와 모양을 맞춘다.
+      if (process.env.QMAIL_FORWARD_ENABLED === '0') return errorResponse(res, 'forward_temporarily_disabled', 503, 'forward_temporarily_disabled');
       const includeOriginal = req.body?.include_original === true;
       if (!includeOriginal && !String(body_html || '').trim()) return errorResponse(res, 'body_required', 400);
       const toList = (Array.isArray(to) ? to : [to]).map(s => String(s || '').trim()).filter(Boolean);
