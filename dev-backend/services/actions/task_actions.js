@@ -772,7 +772,15 @@ async function complete(task, actor) {
   const fromStatus = task.status;
   const t = await sequelize.transaction();
   try {
-    await task.update({ status: 'completed', completed_at: new Date() }, { transaction: t });
+    // ★ 운영 #385 — 진행률을 같이 100 으로 채운다.
+    //   여태 이 경로(리스트·팝아웃 **체크박스 빠른완료**)만 progress_percent 를 안 썼다.
+    //   다른 완료 경로는 전부 채운다: PUT(routes/tasks.js:947) · PATCH /time(:406) ·
+    //   컨펌 자동완료(recalcStatusFromReviewers). 이 하나만 빠져 있었다.
+    //   주간 진척 그래프는 `예측시간 × 진행률` 이라 진행률이 0 이면 **완료해도 진척이 0** 이다.
+    //   운영 실측(2026-08-28): 완료인데 진행률 0 인 업무 37건 · 이번 주만 예측 35.1h 가
+    //   그래프에서 증발했다. "다 끝냈는데 그래프가 안 올라간다" 의 정체.
+    //   ★ 그래프 계산식은 손대지 않는다(동결 영역) — 빠진 값을 채울 뿐이다.
+    await task.update({ status: 'completed', completed_at: new Date(), progress_percent: 100 }, { transaction: t });
     await logHistory({
       taskId: task.id, eventType: 'completed',
       fromStatus, toStatus: 'completed',
