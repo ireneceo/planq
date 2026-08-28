@@ -91,6 +91,18 @@ html.pq-native body::after {
     touch-action: pan-y;
   }
 
+  /* ★ 운영 신고 (Irene, 2026-08-28): "버튼도 키보드 올라간 상태에서 넓게 잡혀서 이상한 여백이 생겨."
+     키보드가 올라오면 홈 인디케이터는 키보드에 덮인다 — 그런데 env(safe-area-inset-bottom) 는
+     계속 34px 를 보고하므로, 고정 푸터(DrawerFooter)와 본문(DetailDrawer.Body)이 **각자**
+     그만큼을 비워 둔다. 합 68px 이 키보드 위에 아무것도 없는 흰 띠로 남는다.
+     실측(iPhone 기하 375x667, 키보드 up): 보이는 337px 중 헤더 134 + 푸터 103 = 237 이 크롬,
+     폼 본문은 100px 뿐이고 그중 52px 이 하단 패딩이었다.
+     ★ (max-width: 768px) 게이트 안이어야 한다 — data-keyboard-up 은 세로 축소만으로도 켜져서
+       데스크탑 창을 줄이면 오작동한다. */
+  body[data-keyboard-up='1'] {
+    --pq-safe-bottom: 0px;
+  }
+
   /* 뷰포트 고정 락은 앱 셸(MainLayout·팝아웃)에만 opt-in.
      `pq-app-shell` 클래스는 useAppShellLock() 이 <html> 에 부여한다.
      이 클래스가 없으면(랜딩/회원가입/로그인/공개 위키·공유 등) body 가 정상

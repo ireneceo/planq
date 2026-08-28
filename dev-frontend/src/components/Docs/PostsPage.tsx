@@ -11,6 +11,7 @@ import SlotFormModal from './SlotFormModal';
 import { displayName } from '../../utils/displayName';
 import i18n from '../../i18n';
 import { useSearchParams } from 'react-router-dom';
+import { useTabTitle } from '../../hooks/useTabTitle';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import SearchBox from '../Common/SearchBox';
 import PanelHeader, { PanelTitle, PanelSubTitle } from '../Layout/PanelHeader';
@@ -145,6 +146,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
   const [detail, setDetail] = useState<PostDetail | null>(null);
+  // 탭 이름 = 열려 있는 문서 이름 (목록만 보는 중이면 null → 'Q docs' 로 복귀)
+  useTabTitle(detail?.title);
   // N+67 — visibility 변경 모달 + fetch context
   const [visModalOpen, setVisModalOpen] = useState(false);
   const [visProjects, setVisProjects] = useState<ApiProject[]>([]);

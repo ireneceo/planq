@@ -201,6 +201,8 @@
     "createError": "Failed to create",
     "creating": "Creating…",
     "create": "Create",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "noWorkspace": "No workspace",
+    "noWorkspaceSub": "Tap to create one"
   }
 }

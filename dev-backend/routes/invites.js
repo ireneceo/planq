@@ -11,17 +11,12 @@ const { ProjectClient, Project, Business, Client, User, BusinessMember, Conversa
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 
-const INVITE_EXPIRY_DAYS = 30;
+const { INVITE_EXPIRY_DAYS, isExpired } = require('../services/inviteExpiry');
 
 // 초대 수락 시 실시간 broadcast — 초대한 쪽 화면(참여 고객/고객/멤버 리스트) 즉시 갱신.
 function broadcastAccept(req, bizId, event, data) {
   try { const io = req.app.get('io'); if (io && bizId) io.to(`business:${bizId}`).emit(event, data); }
   catch (e) { /* best-effort */ }
-}
-
-function isExpired(invitedAt) {
-  if (!invitedAt) return false;
-  return Date.now() - new Date(invitedAt).getTime() > INVITE_EXPIRY_DAYS * 86400000;
 }
 
 // 삭제된 워크스페이스의 초대는 무효다.

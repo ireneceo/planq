@@ -21,6 +21,8 @@ import {
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import * as qtalkApi from '../../services/qtalk';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { useTabTitle } from '../../hooks/useTabTitle';
+import { useReallyVisible } from '../../contexts/TabActiveContext';
 import { mapApiError } from '../../utils/apiError';
 import FloatingPanelToggle from '../../components/Common/FloatingPanelToggle';
 import { usePanelWidth } from '../../components/Layout/PanelResizeHandle';
@@ -305,6 +307,19 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
   const initialCandidateId = Number(initialParams.get('candidate')) || null;
   const [activeProjectId, setActiveProjectId] = useState<number | null>(initialProject);
   const [activeConversationId, setActiveConversationId] = useState<number | null>(initialConv);
+  // ★ 운영 신고 (Irene, 2026-08-28): "Talk 메시지 왔는데 좌측메뉴에 숫자가 안생겼어. 나는 다른 곳에 있는데."
+  //   멀티탭은 keep-alive 라 뒤에 있는 Q Talk 탭도 계속 살아서 소켓을 듣는다. 그런데 읽음 판정이
+  //   `document.visibilityState` 였다 — 그건 **브라우저 창** 기준이라 뒤 앱탭에서도 'visible' 이다.
+  //   그래서 메시지가 오는 순간 '보고 있다' 로 오판해 unread 를 안 올리고 서버 last_read_at 까지 밀어,
+  //   뱃지가 뜰 근거가 사라졌다. `useReallyVisible` = 앱탭 활성 AND 브라우저 visible.
+  //   (contexts/TabActiveContext 가 정확히 이 문제 때문에 만들어졌는데 Q Talk 만 안 쓰고 있었다.)
+  //   ★ 단일탭에선 tabActive 가 항상 true → 옛 동작과 완전히 동일. 회귀 0.
+  const reallyVisible = useReallyVisible();
+  // 소켓 핸들러는 effect 안에서 한 번 등록되므로 값을 직접 닫으면 옛 값에 굳는다 → ref 로 읽는다.
+  const reallyVisibleRef = useRef(reallyVisible);
+  useEffect(() => { reallyVisibleRef.current = reallyVisible; }, [reallyVisible]);
+  // 탭 이름 = 열려 있는 대화방 이름
+  useTabTitle(conversations.find((c) => c.id === activeConversationId)?.name);
   const [highlightCandidateId, setHighlightCandidateId] = useState<number | null>(initialCandidateId);
   // 진입 시 candidate 강조는 5초 후 자동 해제
   useEffect(() => {
@@ -486,7 +501,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
       const isActive = activeConversationIdRef.current === mapped.conversation_id;
       // ★ '읽음'은 실제로 창을 보고 있을 때만 — 활성 대화여도 앱이 백그라운드(또는 화면 꺼짐)면
       //   읽지 않은 것으로 취급 (사용자 호소: 앱만 열어두고 채팅창 안 봤는데 읽음 처리됨).
-      const viewing = isActive && (typeof document === 'undefined' || document.visibilityState === 'visible');
+      const viewing = isActive && reallyVisibleRef.current;
       setConversations((prev) => prev.map((c) => {
         if (c.id !== mapped.conversation_id) return c;
         const incrementUnread = !isMine && !viewing;
@@ -709,23 +724,16 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
       })();
     };
 
-    // ★ '실제로 보고 있을 때만' 읽음 처리. 앱을 열어둔 채(백그라운드) 또는 URL 로 대화가 자동 복원만 된
-    //   경우엔 읽음 처리하지 않고 미읽음 유지 → foreground 로 돌아와 실제로 볼 때(visible) 처리.
+    // ★ '실제로 보고 있을 때만' 읽음 처리. 앱을 열어둔 채(백그라운드 브라우저 창 **또는 백그라운드
+    //   앱탭**) 또는 URL 로 대화가 자동 복원만 된 경우엔 읽음 처리하지 않고 미읽음 유지.
     //   (사용자 호소: 채팅창을 열지도 않았는데 읽음 처리되어 뱃지가 0)
-    if (typeof document === 'undefined' || document.visibilityState === 'visible') {
-      doMarkRead();
-      return () => { cancelled = true; };
-    }
-    const onVisible = () => {
-      if (document.visibilityState === 'visible' && !cancelled) {
-        document.removeEventListener('visibilitychange', onVisible);
-        doMarkRead();
-      }
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => { cancelled = true; document.removeEventListener('visibilitychange', onVisible); };
+    //   reallyVisible 이 deps 에 있으므로, 나중에 그 탭을 실제로 보는 순간 이 effect 가 다시 돌아
+    //   그때 읽음 처리된다 — 옛 수동 visibilitychange 리스너가 하던 일을 훅이 대신한다.
+    if (!reallyVisible) return () => { cancelled = true; };
+    doMarkRead();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeConversationId, businessId]);
+  }, [activeConversationId, businessId, reallyVisible]);
 
   // 모바일 PWA background → foreground 복귀 시 회복:
   //   1) socket 강제 재연결 — disconnect 사이 새 conv/message emit 미수신 가능

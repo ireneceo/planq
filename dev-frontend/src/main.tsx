@@ -74,6 +74,7 @@ if (typeof window !== 'undefined' && window.visualViewport) {
   //   ("쓸수록 느려진다", 2026-08-25 iOS 앱 실측). 같은 값이면 아무것도 하지 않는다.
   let lastVvh = -1;
   let lastKb = -1;
+  let lastVvTop = -1;
   let touching = false;
   window.addEventListener('touchstart', () => { touching = true; }, { passive: true });
   window.addEventListener('touchend', () => { touching = false; }, { passive: true });
@@ -102,6 +103,19 @@ if (typeof window !== 'undefined' && window.visualViewport) {
     const isUp = vv.height < fullH * 0.70;
     if (isUp) document.body.setAttribute('data-keyboard-up', '1');
     else document.body.removeAttribute('data-keyboard-up');
+    // ★ iOS 는 키보드가 올라올 때 visual viewport 를 아래로 민다(offsetTop). position:fixed 요소는
+    //   layout viewport 에 붙어 있으므로 그만큼 화면 **위로 밀려 나간다** — 드로어 헤더·제목이
+    //   사라지는 정체다 (Irene: "업무추가버튼 누르면 상단 제목이 가려져").
+    //   아래 maybeFixPhantomScroll 의 scrollTo(0,0) 은 앱 셸에서 스크롤할 것이 없어 이 값을 못 되돌린다.
+    //   그래서 fixed 오버레이가 이 값만큼 내려오도록 CSS 변수로 내보낸다.
+    //   데스크탑·안드로이드·키보드 없음 = 0 이라 기존 동작과 완전히 동일(회귀 0).
+    //   ★ 높이 early-return 보다 위에 둔다 — 키보드가 이미 뜬 뒤 스크롤만 움직이면 높이는 그대로이고
+    //     offsetTop 만 바뀌는데, 아래에 두면 그 경우를 놓친다.
+    const vtop = Math.max(0, Math.round(vv.offsetTop));
+    if (vtop !== lastVvTop) {
+      lastVvTop = vtop;
+      document.documentElement.style.setProperty('--vv-top', vtop + 'px');
+    }
     if (vv.height === lastVvh) {
       // 높이가 그대로면 CSS 변수도 그대로다 — 아래 phantom scroll 보정만 판단하고 끝낸다.
       maybeFixPhantomScroll();

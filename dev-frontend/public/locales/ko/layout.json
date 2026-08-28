@@ -201,6 +201,8 @@
     "createError": "생성 실패",
     "creating": "만드는 중…",
     "create": "만들기",
-    "cancel": "취소"
+    "cancel": "취소",
+    "noWorkspace": "워크스페이스 없음",
+    "noWorkspaceSub": "눌러서 새로 만들기"
   }
 }

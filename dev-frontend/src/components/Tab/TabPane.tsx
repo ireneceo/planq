@@ -5,7 +5,7 @@
 import { Suspense, useLayoutEffect, useRef } from 'react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import styled from 'styled-components';
-import { TabActiveProvider } from '../../contexts/TabActiveContext';
+import { TabActiveProvider, TabIdProvider } from '../../contexts/TabActiveContext';
 import { APP_ROUTES } from '../../routes/appRoutes';
 import UrlMirror from './UrlMirror';
 import type { Tab } from '../../stores/tabStore';
@@ -22,6 +22,7 @@ export default function TabPane({ tab, active }: { tab: Tab; active: boolean }) 
   return (
     <PaneWrap $active={active} data-pane-tab={tab.id} aria-hidden={!active} {...(active ? {} : { inert: '' as unknown as boolean })}>
       <TabActiveProvider value={active}>
+       <TabIdProvider value={tab.id}>
         <MemoryRouter initialEntries={[tab.path]}>
           <UrlMirror tabId={tab.id} active={active} />
           <PaneScroll ref={scrollRef} onScroll={(e) => { if (active) savedScroll.current = e.currentTarget.scrollTop; }}>
@@ -33,6 +34,7 @@ export default function TabPane({ tab, active }: { tab: Tab; active: boolean }) 
             </Suspense>
           </PaneScroll>
         </MemoryRouter>
+       </TabIdProvider>
       </TabActiveProvider>
     </PaneWrap>
   );

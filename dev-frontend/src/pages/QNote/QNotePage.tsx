@@ -17,6 +17,7 @@ import type { StartConfig } from './StartMeetingModal';
 import { getLanguageByCode } from '../../constants/languages';
 import { useAuth, getAccessToken } from '../../contexts/AuthContext';
 import { useReallyVisible } from '../../contexts/TabActiveContext';
+import { useTabTitle } from '../../hooks/useTabTitle';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import {
   listSessions,
@@ -268,6 +269,8 @@ const QNotePage = () => {
   const [sessionQuery, setSessionQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');  // 운영 #54
   const [activeSession, setActiveSession] = useState<QNoteSession | null>(null);
+  // 탭 이름 = 열려 있는 회의 제목
+  useTabTitle(activeSession?.title);
   // ★ 2·3단 레이아웃 단일 계약 (hooks/usePanelStack). 페이지마다 각자 만든 모바일 규칙을
   //   여기로 모은다 — 구현이 다르면 동작도 달라진다("어떤 화면은 뒤로가기가 안 된다").
   //   Q Note 는 목록 + 상세(세션) 2단이고 보조 패널은 없다.

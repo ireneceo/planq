@@ -144,7 +144,10 @@ const Backdrop = styled.div`
 //   키보드가 올라오면 --vvh 가 줄어 Panel 이 같이 줄고 → Body(flex:1) 스크롤 + Footer(액션바)가
 //   항상 키보드 위에 유지된다. 데스크탑은 --vvh = 전체 높이라 무변경.
 const Panel = styled.aside<{ $width: number }>`
-  position: fixed; top: var(--chrome-top, 0px); right: 0;
+  /* --vv-top: iOS 가 키보드를 올리며 visual viewport 를 밀어낸 양(main.tsx 가 sync).
+     이걸 안 더하면 fixed 패널이 화면 위로 밀려 **헤더와 제목이 잘려 나간다**.
+     키보드 없음/데스크탑 = 0 → 기존과 동일. */
+  position: fixed; top: calc(var(--chrome-top, 0px) + var(--vv-top, 0px)); right: 0;
   height: calc(var(--vvh, 100dvh) - var(--chrome-top, 0px));
   z-index: 130;
   background: #fff;

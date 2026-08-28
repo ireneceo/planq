@@ -78,7 +78,11 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
 
   if (!user) return null;
   const workspaces = user.workspaces || [];
-  if (workspaces.length === 0 && user.platform_role !== 'platform_admin') return null;
+  // ★ Fable 감사 F3 (2026-08-28) — 여기서 return null 하면 **좌초 계정이 앱 안에서 빠져나올 수 없다.**
+  //   초대 수락 체인이 끊기면(토큰 재사용·만료·쿼터 거부) 로그인은 되는데 워크스페이스가 0개가 된다.
+  //   그런데 '새 워크스페이스 만들기' 로 가는 **유일한 문**이 이 컴포넌트 안에 있어서(아래 MenuItem),
+  //   그 문을 닫아버리면 사용자는 CS 로만 복구된다. 0개일 때는 숨기지 말고 **만들기로 안내**한다.
+  const noWorkspace = workspaces.length === 0 && user.platform_role !== 'platform_admin';
 
   const isAdminMode = location.pathname.startsWith('/admin');
   const isPlatformAdmin = user.platform_role === 'platform_admin';
@@ -88,10 +92,14 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
   const currentDot = isAdminMode ? '#FB7185' : (activeWs ? ROLE_DOT[activeWs.role] : '#94A3B8');
   const currentName = isAdminMode
     ? t('switcher.platformAdmin', '플랫폼 관리자')
-    : (activeWs?.brand_name || '—');
+    : noWorkspace
+      ? t('switcher.noWorkspace', '워크스페이스 없음')
+      : (activeWs?.brand_name || '—');
   const currentSub = isAdminMode
     ? t('switcher.platformAdminSub', '전체 워크스페이스·사용자')
-    : (activeWs ? t(ROLE_LABEL_KEY[activeWs.role], ROLE_LABEL_FALLBACK[activeWs.role]) : '');
+    : noWorkspace
+      ? t('switcher.noWorkspaceSub', '눌러서 새로 만들기')
+      : (activeWs ? t(ROLE_LABEL_KEY[activeWs.role], ROLE_LABEL_FALLBACK[activeWs.role]) : '');
 
   // 옵션이 2개 이상이면 드롭다운 (워크스페이스 여러 개 OR platform_admin 추가)
   const multiple = workspaces.length > 1 || (isPlatformAdmin && workspaces.length >= 1);
@@ -163,7 +171,12 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
         $multiple={!collapsed}
         $collapsed={!!collapsed}
         $admin={isAdminMode}
-        onClick={() => !collapsed && setOpen((v) => !v)}
+        onClick={() => {
+          if (collapsed) return;
+          // 0개면 고를 것이 없다 — 드롭다운을 여는 대신 곧장 만들기로.
+          if (noWorkspace) { setCreateErr(''); setCreateName(''); setCreateOpen(true); return; }
+          setOpen((v) => !v);
+        }}
         title={t('switcher.tooltip', '워크스페이스 전환') as string}
       >
         {isAdminMode ? (

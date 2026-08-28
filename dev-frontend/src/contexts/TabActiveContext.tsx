@@ -10,6 +10,12 @@ import { createContext, useContext, useEffect, useRef, useSyncExternalStore } fr
 const TabActiveContext = createContext<boolean>(true); // 단일탭 fallback = true
 export const TabActiveProvider = TabActiveContext.Provider;
 
+// 이 앱탭의 id — 탭 제목을 그 탭이 실제로 담고 있는 것으로 바꾸기 위해 필요하다.
+//   단일탭(Provider 없음)에선 null → useTabTitle 이 no-op (탭 스트립 자체가 없다).
+const TabIdContext = createContext<string | null>(null);
+export const TabIdProvider = TabIdContext.Provider;
+export const useTabId = () => useContext(TabIdContext);
+
 // "이 앱탭이 활성(전면) 탭인가" — 단일탭에선 항상 true.
 export const useTabActive = () => useContext(TabActiveContext);
 

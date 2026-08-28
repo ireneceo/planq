@@ -10,6 +10,7 @@
 
 import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useTabTitle } from '../../hooks/useTabTitle';
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { plainToHtml } from '../../utils/plainToHtml';
 import type { VoiceHandoff } from '../../utils/voiceHandoff';
@@ -308,6 +309,8 @@ const MailPage: React.FC = () => {
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [detail, setDetail] = useState<ThreadDetail | null>(null);
+  // 탭 이름 = 열려 있는 메일 제목
+  useTabTitle(detail?.subject);
   const [detailLoading, setDetailLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   // 우측 맥락 패널 — 리사이즈 + 접기 (Q Task 패턴 통일). localStorage 저장 · ⌘/ · Ctrl+\

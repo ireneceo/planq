@@ -7,6 +7,7 @@ const {
   File, BusinessStorageUsage, CueUsage, QnoteUsage, BusinessPlanHistory,
 } = require('../models');
 const { getPlan } = require('../config/plans');
+const { activeMemberSeatWhere } = require('./inviteExpiry');
 
 // ─── 메모리 캐시 (30s TTL) ───
 const _planCache = new Map();   // businessId → { data, expires }
@@ -153,7 +154,9 @@ async function getUsage(businessId) {
   //   회귀 fix: getUsage().members 가 모든 row 를 count 해서 "8/5 160%" 같은 잘못된 표시 발생.
   //   add_member 가드와 일관 정책 (아래 case 'add_member' 도 동일).
   const [memberCount, clientCount, projectCount, conversationCount, storageRow, cueThisMonth, cueByType, qnoteThisMonth] = await Promise.all([
-    BusinessMember.count({ where: { business_id: key, removed_at: null, role: { [Op.ne]: 'ai' } } }),
+    // F2 — 만료된 미수락 초대는 세지 않는다. 게이트(add_member)와 **같은 집합**이어야
+    //   화면 숫자와 실제 가능 여부가 갈라지지 않는다.
+    BusinessMember.count({ where: { business_id: key, removed_at: null, role: { [Op.ne]: 'ai' }, ...activeMemberSeatWhere() } }),
     Client.count({ where: { business_id: key } }),
     Project.count({ where: { business_id: key, status: { [Op.in]: ['active', 'paused'] } } }),
     Conversation.count({ where: { business_id: key } }),
@@ -292,7 +295,9 @@ async function canInner(businessId, action, ctx = {}) {
       //   수락은 422(pending 행 생성 後). 운영 실측 재현: limit 5 / current 5 로 마지막 자리 거부.
       //   ★ race 가드는 그대로 산다: 자신만 제외하므로 발행~수락 사이 남이 자리를 채웠다면
       //     실멤버 5 + 자신 = cur 5 → 5+1 > 5 로 여전히 차단된다.
-      const memberWhere = { business_id: businessId, removed_at: null, role: { [Op.ne]: 'ai' } };
+      // F2 — 만료된 미수락 초대는 자리를 잡지 않는다(수락이 이미 410 으로 거부되는 행이다).
+      //   getUsage().members 와 동일 집합 — services/inviteExpiry 단일 원천.
+      const memberWhere = { business_id: businessId, removed_at: null, role: { [Op.ne]: 'ai' }, ...activeMemberSeatWhere() };
       if (ctx.excludeMemberId) memberWhere.id = { [Op.ne]: ctx.excludeMemberId };
       const cur = await BusinessMember.count({ where: memberWhere });
       if (cur + 1 > limits.members_max) {

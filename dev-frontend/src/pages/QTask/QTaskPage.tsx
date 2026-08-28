@@ -32,6 +32,7 @@ import AttachmentField from '../../components/Common/AttachmentField';
 import SearchBox from '../../components/Common/SearchBox';
 import FloatingPanelToggle, { PANEL_WIDTH_CSS } from '../../components/Common/FloatingPanelToggle';
 import CreateDrawer from '../../components/Common/CreateDrawer';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
 import { formatHours, utilizationPercent, utilizationStatus, UTIL_COLOR } from '../../utils/hours';
@@ -269,6 +270,12 @@ const QTaskPage:React.FC=()=>{
   const panel = usePanelStack(!!detailTaskId, true, () => closeDetail?.(), RIGHT_PANEL_INLINE_MIN);
   // 계약 값을 그대로 쓴다 — 자체 상태(isNarrow·rightOverlayOpen)를 따로 두면 다시 갈라진다.
   const isNarrow = panel.drilldown || panel.cols === 2;
+  // ★ 운영 신고 (Irene, 2026-08-28): "모바일에서 업무추가버튼 누르면 상단 제목이 가려져."
+  //   폰에서 이 폼은 전체화면인데 입력에 autoFocus 가 걸려 있어 **열리자마자 키보드가 튀어오른다**.
+  //   화면 667 중 330 을 키보드가 먹어, 사용자는 폼을 보기도 전에 좁은 틈만 보게 된다.
+  //   폰에서만 자동 포커스를 끈다 — 먼저 폼을 보고, 입력할 때 사용자가 직접 탭한다.
+  //   (isNarrow 는 레이아웃 기준이라 태블릿·분할에서도 참이다 — 여기선 폰만 대상이라 별도 판정)
+  const isPhone = useMediaQuery('(max-width: 640px)');
   const rightOverlayOpen = panel.asideOpen;
   const setRightOverlayOpen = (v: boolean | ((x: boolean) => boolean)) =>
     panel.setAsideOpen(typeof v === 'function' ? (v as (x: boolean) => boolean)(panel.asideOpen) : v);
@@ -2445,7 +2452,7 @@ const QTaskPage:React.FC=()=>{
           {addingTask&&addInline&&(
             <InlineAddBox data-task-add-form>
               {/* 제목 — 풀폭 */}
-              <AddInput autoFocus value={newTitle} placeholder={t('add.placeholder','업무명 입력 후 Ctrl+Enter 로 저장')}
+              <AddInput autoFocus={!isPhone} value={newTitle} placeholder={t('add.placeholder','업무명 입력 후 Ctrl+Enter 로 저장')}
                 onChange={e=>setNewTitle(e.target.value)}
                 onKeyDown={e=>{
                   if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();addTask();}
@@ -3334,7 +3341,7 @@ const QTaskPage:React.FC=()=>{
           submitDisabled={!newTitle.trim()||(tab==='requested'&&!newAssignee)}
         >
             <PanelAddForm>
-              <AddInput autoFocus value={newTitle} placeholder={t('add.placeholder','업무명 입력 후 Ctrl+Enter 로 저장')}
+              <AddInput autoFocus={!isPhone} value={newTitle} placeholder={t('add.placeholder','업무명 입력 후 Ctrl+Enter 로 저장')}
                 onChange={e=>setNewTitle(e.target.value)}
                 onKeyDown={e=>{
                   if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();addTask();}

@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import PageShell from '../../components/Layout/PageShell';
+import { useTabTitle } from '../../hooks/useTabTitle';
 import AutoSaveField, { type AutoSaveHandle } from '../../components/Common/AutoSaveField';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
@@ -262,6 +263,8 @@ const QProjectDetailPage: React.FC = () => {
   const periodAnchorRef = useRef<HTMLButtonElement>(null);
   const [periodPickerOpen, setPeriodPickerOpen] = useState(false);
   const [project, setProject] = useState<ProjectDetail | null>(null);
+  // 탭 이름 = 프로젝트 이름. ★ 아래 `if (!projectId) return` 보다 반드시 위 — 훅은 조건부일 수 없다.
+  useTabTitle(project?.name);
   const isClient = project?.my_role_in_project === 'client';
   // 고객이 숨겨진 탭(캔버스 등)으로 진입하면 허용 탭(문서)으로 이동 — 빈/에러 화면 방지.
   useEffect(() => {
