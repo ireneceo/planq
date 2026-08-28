@@ -22,6 +22,7 @@ const SUITES = {
          // ⑥ 멀티탭 트리 스왑(형제 라우터 무크래시·keep-alive·shell 무회귀)
   hlock: () => require('./canary-qtalk-hlock'), // #245 Q Talk 가로 잠금 — overflow-y:auto 만 두면 반대축이 auto 로 강제(grep 불가)
   fab: () => require('./canary-fab-reach'),
+  mailfwd: () => require('./canary-mail-forward'),   // 전달 컴포저 — 원문 미리보기가 **실제 높이**를 갖는가
   dropdowns: () => require('./canary-dropdowns'),   // 알림↔새소식 규격 일치 + 새 탭으로 열기
   imgresize: () => require('./canary-image-resize'), // #378 드래그 삽입 이미지의 S/M/L — 툴바에도 S/M/L 이 있어 버블만 골라야 한다
 

@@ -222,6 +222,34 @@ export const CloseBtn = styled.button`
   &:hover { background: #F1F5F9; color: #0F172A; }
 `;
 export const FwdAttachHint = styled.div`font-size: 12px; color: #0F766E; background: #F0FDFA; border: 1px solid #CCFBF1; border-radius: 8px; padding: 8px 12px;`;
+
+// 전달 원문 미리보기 — 운영 신고 "전달버튼 누르면 빈화면 돼".
+//   원문을 에디터에 넣으면 표·인라인 스타일·cid: 가 깨지므로, 읽기 전용으로 **보여주기만** 한다.
+export const FwdPreview = styled.div`
+  border: 1px solid #E2E8F0; border-radius: 10px; overflow: hidden; background: #FFFFFF;
+  /* ★ 컴포저 본문이 flex 컬럼이라 이 상자가 **2px(테두리만)로 찌그러져** 있었다 —
+     렌더는 되는데 화면에는 안 보이는 상태. flex 자식은 기본으로 줄어든다. */
+  flex-shrink: 0;
+`;
+export const FwdPreviewHead = styled.button`
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; padding: 10px 12px; background: #F8FAFC; border: none; cursor: pointer;
+  font-size: 12px; font-weight: 600; color: #334155; text-align: left;
+  &:hover { background: #F1F5F9; }
+`;
+export const FwdChevron = styled.svg<{ $open: boolean }>`
+  width: 16px; aspect-ratio: 1; color: #94A3B8; flex-shrink: 0;
+  transition: transform 0.15s; transform: rotate(${p => (p.$open ? 180 : 0)}deg);
+`;
+export const FwdPreviewBody = styled.div`
+  border-top: 1px solid #F1F5F9; padding: 10px 12px;
+  /* 원문이 길어도 컴포저를 삼키지 않게 — 안에서 스크롤한다 */
+  max-height: 320px; overflow-y: auto; flex-shrink: 0;
+`;
+export const FwdPreviewMeta = styled.div`
+  font-size: 11px; color: #94A3B8; margin-bottom: 8px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+`;
 /* 메일 작성 — 센터모달 폐기, 중앙 패널을 채우는 풀페이지 저작(Q docs 예외군과 동일, Fable 승인).
    좌측 리스트 유지 · 우측 맥락패널 숨김 · 헤더/본문/푸터 세로 스택. */
 export const ComposeFull = styled.div`

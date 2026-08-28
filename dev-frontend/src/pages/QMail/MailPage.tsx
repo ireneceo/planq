@@ -42,6 +42,7 @@ import { useThreadMessageExpansion } from './useThreadMessageExpansion';
 import FloatingPanelToggle from '../../components/Common/FloatingPanelToggle';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import HelpDot from '../../components/Common/HelpDot';
+import MailMessageBody from './MailMessageBody';
 import {
   AcctFilterRow,
   FilterToggleRow,
@@ -153,6 +154,7 @@ import {
   HeaderActions,
   AcctManageIcon,
   BulkAction,
+  FwdPreview, FwdPreviewHead, FwdChevron, FwdPreviewBody, FwdPreviewMeta,
 } from './MailPage.styles';
 
 type Folder = 'reply_needed' | 'uncertain' | 'all' | 'sent' | 'marketing' | 'following' | 'spam' | 'archived';
@@ -1391,6 +1393,8 @@ const MailPage: React.FC = () => {
   const [cError, setCError] = useState<string | null>(null);
   // 전달(forward) 모드 — set 이면 compose 모달이 전달용. message_id 로 서버가 원본 첨부 재유지.
   const [fwdFromMsgId, setFwdFromMsgId] = useState<number | null>(null);
+  // 전달 원문 미리보기 — 기본 펼침. 무엇을 보내는지 바로 보여야 한다.
+  const [fwdPreviewOpen, setFwdPreviewOpen] = useState(true);
   const [fwdAttachCount, setFwdAttachCount] = useState(0);
   // 열 때 발신 계정 기본값 = 첫 계정
   useEffect(() => {
@@ -1572,6 +1576,12 @@ const MailPage: React.FC = () => {
     show: t('quoteFold.show', { defaultValue: '⋯ 이전 대화 보기' }) as string,
     hide: t('quoteFold.hide', { defaultValue: '이전 대화 숨기기' }) as string,
   }), [t]);
+
+  // 전달할 원문 — 미리보기에 쓴다. detail.messages 에서 그 메시지를 찾는다.
+  const fwdOriginal = useMemo(
+    () => (fwdFromMsgId && detail ? detail.messages.find(m => m.id === fwdFromMsgId) || null : null),
+    [fwdFromMsgId, detail],
+  );
 
   // #215-H — 본문 cid: 이미지 → data: URI 맵 (본문 렌더 srcDoc 치환 재료).
   //   펼쳐진 메시지만 받는다 — 접힌 본문의 인라인 이미지를 미리 받으면 긴 스레드에서 낭비다.
@@ -2139,6 +2149,34 @@ const MailPage: React.FC = () => {
                 <RichEditor value={cBody} onChange={(v: string) => { markComposeTouched(); setCBody(v); }} toolbar placeholder={t('compose.bodyPh', { defaultValue: '메일 내용을 입력하세요…' }) as string} />
                 {fwdFromMsgId && (
                   <FwdAttachHint>{t('forward.originalIncluded', { defaultValue: '원본 메일이 아래에 그대로 붙어 전달됩니다 — 위에 덧붙일 말만 쓰시면 돼요 (비워도 됩니다)' }) as string}</FwdAttachHint>
+                )}
+                {/* ★ 운영 신고(Irene 2026-08-28): "전달버튼 누르면 빈화면 돼. 그리고 다 그래."
+                    크래시가 아니라, 읽고 있던 메일 자리를 **빈 작성칸**이 덮어 무엇을 보내는지
+                    아무것도 안 보였던 것이다(모바일은 화면 전체를 덮으니 더 그렇다).
+                    원문은 여전히 에디터에 넣지 않는다(표·인라인 스타일·cid: 가 깨진다) —
+                    대신 스레드에서 쓰는 **같은 안전한 렌더러**로 읽기 전용 미리보기만 보여준다. */}
+                {fwdFromMsgId && fwdOriginal && (
+                  <FwdPreview>
+                    <FwdPreviewHead type="button" onClick={() => setFwdPreviewOpen(v => !v)} aria-expanded={fwdPreviewOpen}>
+                      <span>{t('forward.previewTitle', { defaultValue: '전달할 원문' }) as string}</span>
+                      <FwdChevron $open={fwdPreviewOpen} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                        <path d="M6 9l6 6 6-6" />
+                      </FwdChevron>
+                    </FwdPreviewHead>
+                    {fwdPreviewOpen && (
+                      <FwdPreviewBody>
+                        <FwdPreviewMeta>
+                          {fwdOriginal.from_name || fwdOriginal.from_email} · {fwdOriginal.subject || cSubject}
+                        </FwdPreviewMeta>
+                        <MailMessageBody
+                          id={fwdOriginal.id}
+                          bodyHtml={fwdOriginal.body_html || ''}
+                          bodyText={fwdOriginal.body_text}
+                          foldLabels={foldLabels}
+                        />
+                      </FwdPreviewBody>
+                    )}
+                  </FwdPreview>
                 )}
                 {fwdFromMsgId && fwdAttachCount > 0 && (
                   <FwdAttachHint><ClipIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></ClipIcon> {t('forward.origAttach', { defaultValue: '원본 첨부 {{n}}개 포함', n: fwdAttachCount }) as string}</FwdAttachHint>
