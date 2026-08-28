@@ -83,6 +83,50 @@ function buildQuote({ date, fromName, fromEmail, bodyHtml, bodyText, locale = 'k
  *   로케일 결정도 답장과 같은 규칙(quote_locale > 원문 detectLang) — 영어 고객에게 한국어
  *   머리말이 가는 사고를 답장에서 이미 한 번 겪었다.
  */
+// 전달 원문을 **그 블록 안에 가둔다**.
+//
+//   운영 신고(Irene 2026-08-28): "내가 쓴 글까지 왜 전달한 메일 배경색이야? 회색인데
+//   그 안에 내용이 들어가니까 분리가 안되고 혼란인데?"
+//
+//   원인: 원문을 통째로 이어붙이면 원문의 `<body style="background:#F4F5F7">` 를
+//   메일 앱이 **문서 전체에 적용**한다(실측: 그 PO 메일이 정확히 그 형태).
+//   그래서 내가 쓴 글까지 회색 위에 얹혀 어디까지가 내 말인지 사라진다.
+//
+//   해결: <html>/<head>/<body> 껍데기를 벗기고, body 가 갖고 있던 배경·여백을
+//   **원문을 감싸는 div 로 옮긴다.** 원문은 픽셀 하나 안 바뀌고(그 안에서 그대로 렌더),
+//   배경만 그 블록 밖으로 못 나간다.
+//   ★ <style> 블록은 그대로 남긴다 — 지금도 전역이라 빼면 원문 레이아웃이 되레 깨진다.
+function isolateForwardedHtml(html) {
+  const src = String(html || '');
+  if (!src.trim()) return '';
+  // 껍데기가 없으면 가둘 것도 없다 (평문 조각·단순 HTML)
+  if (!/<body\b/i.test(src) && !/<html\b/i.test(src)) return src;
+
+  const styles = (src.match(/<style[\s\S]*?<\/style>/gi) || []).join('');
+  const bodyOpen = src.match(/<body\b([^>]*)>/i);
+  const attrs = bodyOpen ? bodyOpen[1] : '';
+
+  // body 안쪽만 꺼낸다. body 태그가 없으면(head+style 만 있는 형태) html 안쪽을 쓴다.
+  let inner;
+  const bm = src.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i);
+  if (bm) inner = bm[1];
+  else {
+    inner = src.replace(/<!doctype[^>]*>/gi, '')
+      .replace(/<\/?html[^>]*>/gi, '')
+      .replace(/<head[\s\S]*?<\/head>/gi, '');
+  }
+
+  // body 의 배경·여백을 감싸는 div 로 옮긴다. bgcolor="X" 는 CSS 로 환산.
+  const styleAttr = (attrs.match(/style\s*=\s*["']([^"']*)["']/i) || [])[1] || '';
+  const bgcolor = (attrs.match(/bgcolor\s*=\s*["']?([#\w]+)["']?/i) || [])[1];
+  const parts = [];
+  if (styleAttr) parts.push(styleAttr.replace(/;\s*$/, ''));
+  if (bgcolor) parts.push(`background-color:${bgcolor}`);
+  const wrapStyle = parts.join(';');
+
+  return `${styles}<div${wrapStyle ? ` style="${wrapStyle}"` : ''}>${inner}</div>`;
+}
+
 function buildForwardHeader({ date, fromName, fromEmail, to, cc, subject, locale = 'ko' } = {}) {
   const en = locale === 'en';
   const d = date ? new Date(date) : new Date();
@@ -110,4 +154,4 @@ function buildForwardHeader({ date, fromName, fromEmail, to, cc, subject, locale
     + `${L.title}<br>${rows}</div>`;
 }
 
-module.exports = { buildQuote, buildAttribution, buildForwardHeader, extractQuotableHtml, MAX_QUOTE_BYTES };
+module.exports = { buildQuote, buildAttribution, buildForwardHeader, isolateForwardedHtml, extractQuotableHtml, MAX_QUOTE_BYTES };

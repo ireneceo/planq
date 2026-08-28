@@ -24,7 +24,7 @@ const { stripEmbeddedImages, extractEmbeddedImage, restoreEmbeddedImages } = req
 const { applyMemberDisplayName, getMemberNameMap } = require('../services/displayName');
 const { sendMail, deliveryFromSendResult } = require('../services/emailSend');
 const { inlineMailTableStyles } = require('../services/emailHtmlInline');
-const { buildQuote, buildForwardHeader } = require('../services/emailQuote');
+const { buildQuote, buildForwardHeader, isolateForwardedHtml } = require('../services/emailQuote');
 // 폴더 정의·정렬은 services/mailFolders 가 단일 원천 (리스트 라우트 + 벌크 처리 공용)
 const { folderWhere, sentOrder, BULK_FOLDERS } = require('../services/mailFolders');
 // accessibleAccountIds 도 여기서 온다 — 프라이버시 격리 정의를 두 벌 두지 않는다
@@ -1210,8 +1210,17 @@ router.post('/:businessId/email-threads/:id/forward',
           subject: srcMsg.subject,
           locale: fwdLocale === 'en' ? 'en' : 'ko',
         });
-        // 원문은 가공 없이 붙인다 — sanitize/에디터를 통과시키면 원문 보존이 깨진다.
-        composedHtml = composedHtml + header + String(srcMsg.body_html || srcMsg.body_text || '');
+        // 원문의 **내용은** 가공하지 않는다 — sanitize/에디터를 통과시키면 원문 보존이 깨진다.
+        //   다만 <body> 껍데기의 배경은 원문 블록 안에 가둔다(isolateForwardedHtml).
+        //   안 그러면 원문의 background 가 문서 전체에 적용돼 **내가 쓴 글까지 회색**이 되고
+        //   어디까지가 내 말인지 사라진다(Irene: "분리가 안되고 혼란인데?").
+        const isolated = isolateForwardedHtml(String(srcMsg.body_html || ''))
+          || String(srcMsg.body_text || '');
+        // 내가 덧붙인 말도 **자기 영역**을 갖는다 — 배경을 흰색으로 명시해 원문과 확실히 갈린다.
+        const mine = String(composedHtml || '').trim()
+          ? `<div style="background:#ffffff;color:#111827;font-size:14px;line-height:1.6">${composedHtml}</div>`
+          : '';
+        composedHtml = mine + header + isolated;
       }
       const bodyRestored = restoreEmbeddedImages(composedHtml, srcMsg.body_html);
       const bodyHtmlOut2 = inlineMailTableStyles(bodyRestored);
