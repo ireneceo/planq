@@ -26,6 +26,37 @@ const {
 const kbService = require('./kb_service');
 const { taskListWhere, invoiceListWhere, calendarListWhere, isMemberOrAbove } = require('../middleware/access_scope');
 
+// ─────────────────────────────────────────────────────────────
+// Cue 가 실제로 조회하는 영역 — **단일 원천**
+// ─────────────────────────────────────────────────────────────
+//   운영 (Irene 2026-08-28): 문서 10건·파일 2,353건·메일 4,775건이 있는 워크스페이스에서
+//   Cue 가 "등록되어 있지 않습니다" / "업로드된 정보가 없습니다" 라고 **단언**했다.
+//   원인: 컨텍스트에 그 영역 자체가 없는데, 프롬프트가 "내가 무엇을 볼 수 있는지" 를 말해주지 않아
+//   LLM 이 '항목이 없음 = 데이터가 없음' 으로 추론했다.
+//   ★ "모른다" 와 "없다" 는 다르다. 모른다면 사용자가 직접 찾아보지만,
+//     없다고 하면 **찾기를 포기한다.** 안 보는 영역을 없다고 답하는 것은 기능 부족이 아니라 오정보다.
+//
+//   그래서 커버리지를 데이터 쪽에서 선언해 프롬프트에 실어 보낸다. 새 영역을 연결하면
+//   아래 배열에서 한 줄을 옮기기만 하면 되고, 프롬프트 문구가 따로 낡지 않는다.
+const COVERED_DOMAINS = [
+  '프로젝트', '업무(Q Task)', '워크스페이스 일정(Q Calendar)', '고객 명단',
+  '청구(Q Bill)', '서명 요청', '대화(Q Talk) 최근 내역', '지식베이스(KB)',
+];
+const UNCOVERED_DOMAINS = [
+  '문서(Q docs)', '파일(Q File)', '메일(Q Mail)', 'Q info 기록',
+  '개인 일정(구글 캘린더 연동분)', '고객 활동 이력', '회의록(Q Note)', '근태·휴가', '주간 보고서',
+];
+
+function coverageBlock() {
+  return `## Cue 가 이번 답변에서 조회한 범위
+- 조회함: ${COVERED_DOMAINS.join(' · ')}
+- **아직 조회하지 못함: ${UNCOVERED_DOMAINS.join(' · ')}**
+
+★ 위 '아직 조회하지 못함' 영역에 대해서는 **"없다" 고 단정하지 말 것.**
+  그 영역은 데이터가 없는 것이 아니라 내가 아직 안 본 것이다.
+  "제가 아직 그 영역은 못 봅니다. <해당 메뉴>에서 직접 확인하실 수 있어요" 처럼 답한다.`;
+}
+
 // 토큰 예산 — 대략 chars/4 ≈ tokens. 안전 margin.
 const HISTORY_TURN_LIMIT = 10;
 const TASK_LIMIT = 5;
@@ -485,6 +516,16 @@ function composeMarkdown({ history, project, client, kb, userSnap, matches, over
         // "없음" 도 사실이다 — 근거 없이 침묵하면 Cue 가 추측하거나 데이터가 없다고 오해한다.
         parts.push('- 오늘 일정: 없음 (조회됨 — 데이터 부재가 아니라 실제로 0건)');
       }
+      // ★ 운영 (Irene 2026-08-28): "지금 일정이 여기서 보이는데 왜 cue가 못 읽는데?"
+      //   캘린더 **화면**은 세 겹을 겹쳐 그린다 — 워크스페이스 일정 + **개인 구글 캘린더**(저장 안 하고
+      //   services/personalCalendar.js 가 그릴 때마다 실시간 조회) + **업무 마감일**(tasks 를 변환).
+      //   Cue 는 CalendarEvent 한 겹만 본다. 그래서 사용자 눈에는 있는데 Cue 에게는 없다.
+      //   범위를 밝히지 않으면 "일정 없습니다" 가 사용자에게는 **거짓말로 들린다.**
+      //   단서를 프롬프트 문구가 아니라 **데이터에 실어 보낸다** — 그래야 답변마다 항상 따라간다.
+      parts.push('  ※ 위 일정은 **워크스페이스 일정만**이다. 사용자 화면에는 개인 구글 캘린더 연동분과'
+        + ' 업무 마감일도 함께 보이지만 그 둘은 조회하지 못했다.'
+        + ' 일정을 답할 때는 이 범위를 반드시 밝힐 것 — "워크스페이스 일정 기준으로는 …이고,'
+        + ' 개인 일정·업무 마감은 제가 아직 못 봅니다".');
     }
     if (userSnap.events?.length) {
       parts.push(`- 다가오는 일정:`);
@@ -622,6 +663,8 @@ async function buildCueContext({ businessId, conversationId, projectId, clientId
   const [history, project, client, userSnap, kb, matches, overview, knowledgeBlock] = await Promise.all([historyP, projectP, clientP, userP, kbP, matchesP, overviewP, knowledgeP]);
   let markdown = composeMarkdown({ history, project, client, kb, userSnap, matches, overview, businessTimezone });
   if (knowledgeBlock) markdown = `${knowledgeBlock}\n\n${markdown}`;
+  // 커버리지 선언을 **맨 앞**에 — 뒤에 붙이면 긴 컨텍스트에 묻힌다.
+  markdown = `${coverageBlock()}\n\n${markdown}`;
   return { markdown, kb, history, project, client, userSnap, matches, overview };
 }
 
@@ -631,4 +674,5 @@ async function buildCueContext({ businessId, conversationId, projectId, clientId
 module.exports = {
   buildCueContext,
   getWorkspaceOverview, getWorkspaceMatches, getClientSnapshot, getProjectSnapshot,
+  COVERED_DOMAINS, UNCOVERED_DOMAINS, coverageBlock,
 };
