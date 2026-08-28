@@ -379,15 +379,47 @@ async function generateDocumentDraft(businessId, { systemPrompt, userPrompt, max
 
 // ─── Q Mail M3-C — 이메일 답장 초안 (gpt-4o-mini, CueUsage 'email_reply') ───
 // 마지막 inbound 메일 + 비즈니스 컨텍스트로 답장 본문 초안 생성. 사실 날조 금지 프롬프트.
-async function generateEmailReplyDraft(businessId, { businessName, subject, latestInboundText, language = 'ko', faqContext = null, userInstruction = null, currentDraft = null }) {
+// 초안이 받은 메일을 **축자로** 베낀 것인지 판정한다.
+//   ⚠️ 이건 마지막 그물일 뿐, 이번 신고의 주된 방어가 아니다. 실측(gpt-4o-mini, 같은 스레드 4회):
+//     · 옛 프롬프트 — 4/4 실패. 다만 축자 복사가 아니라 **역할이 뒤집힌 재서술**이었다
+//       ("아이린님, 문의 주셔서 감사합니다. 모임은 오프라인으로…" ← 상대 입장이 되어 우리에게 씀).
+//       이 모양은 토큰 겹침이 낮아 아래 판정으로 **안 잡힌다**.
+//     · 새 프롬프트 — 4/4 정상. 즉 실제 수정은 프롬프트의 역할 명시 + 베끼기 금지 쪽이다.
+//   따라서 이 함수를 "베낌 방어" 로 믿지 말 것. 축자 복사만 막는다.
+function looksLikeEcho(draft, inbound) {
+  const norm = (v) => String(v || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const a = norm(draft), b = norm(inbound);
+  if (!a || !b || a.length < 20) return false;
+  const tok = (v) => v.split(/[^0-9a-z가-힣]+/).filter(w => w.length > 1);
+  const at = tok(a), bset = new Set(tok(b));
+  // 짧은 초안("확인했습니다. 감사합니다.")은 어휘가 겹쳐도 베낀 것이 아니다 — 판정 대상에서 뺀다.
+  if (at.length < 8) return false;
+  const hit = at.filter(w => bset.has(w)).length / at.length;
+  // 실측 분리도(Irene 실사례 스레드): 그대로 1.00 · 요약 베낌 0.63 · 진짜 답장 0.05 · 짧은 감사 0.33.
+  //   0.55 가 베낌과 답장 사이의 골이다. 걸려도 곧바로 실패가 아니라 **한 번 더 세게 지시**해 다시 받는다.
+  return hit >= 0.55;
+}
+
+async function generateEmailReplyDraft(businessId, { businessName, subject, latestInboundText, language = 'ko', faqContext = null, userInstruction = null, currentDraft = null, threadContext = null }) {
   const usage = await checkUsageLimit(businessId);
   if (usage.over) return { error: 'usage_limit_exceeded', usage };
   const lang = language === 'en' ? 'English' : 'Korean';
-  let systemPrompt = `You are an assistant drafting a professional email reply on behalf of "${businessName || 'our team'}". `
-    + `Write a concise, polite reply in ${lang}. Only use information present in the incoming email`
-    + (faqContext ? ` or in the registered FAQ answers below` : '') + `; `
+  // ★ 역할을 명시한다. 옛 프롬프트는 "우리 팀을 대신해 답장" 이라고만 해서, **우리가 먼저 물어보고
+  //   상대가 답한** 스레드(문의를 보낸 쪽이 우리인 경우)에서 모델이 자기 위치를 잃었다.
+  let systemPrompt = `You are drafting the NEXT email that "${businessName || 'our team'}" will SEND to the other party. `
+    + `The "incoming email" below was written BY THE OTHER PARTY and sent TO US — it is what we are responding to, not something we wrote. `
+    + `Write a concise, polite reply in ${lang}. `
+    // ★ 베끼기 금지 — 이 한 줄이 없어서 답이 이미 온 스레드에서 받은 본문이 그대로 초안이 됐다.
+    + `NEVER repeat, quote, echo, or restate the incoming email back to its own sender — they already know what they wrote. `
+    + `Write only what WE say next: acknowledge what they told us, then respond to it (thanks, a follow-up question, a next step, or a decision). `
+    + `Ground it in the incoming email and the conversation so far`
+    + (faqContext ? ` and in the registered FAQ answers below` : '') + `; `
     + `do NOT invent facts, prices, dates, or commitments. If something must be confirmed, say it will be checked and followed up. `
     + `Output ONLY the reply body text — no subject line, no greeting placeholder like [Name], no signature.`;
+  // 대화 흐름(누가 무엇을 말했는지)을 준다 — 마지막 받은 메일 한 통만으로는 우리가 무엇을 물었는지 모른다.
+  if (threadContext) {
+    systemPrompt += `\n\nConversation so far (oldest first; "US" = ${businessName || 'our team'}, the sender of the email you are drafting):\n${threadContext}`;
+  }
   // M4 — 등록 FAQ 답변을 권위 있는 근거로 주입 (정확한 사실. 질문과 무관하면 사용 X — 날조 금지 유지)
   if (faqContext) {
     systemPrompt += `\n\nRegistered FAQ answers (authoritative — base your reply on the matching one if the incoming email asks about it):\n${faqContext}`;
@@ -402,12 +434,30 @@ async function generateEmailReplyDraft(businessId, { businessName, subject, late
   } else {
     userPrompt += `Draft a reply body.`;
   }
-  const result = await callLLM(MODEL_MINI, [
+  let result = await callLLM(MODEL_MINI, [
     { role: 'system', content: systemPrompt },
     { role: 'user', content: userPrompt },
   ], { temperature: 0.4, maxTokens: 600 });
   if (result.fallback) return { error: 'llm_unavailable', fallback: true };
   await recordUsage(businessId, 'email_reply', MODEL_MINI, result.input_tokens, result.output_tokens);
+
+  // 그래도 베꼈으면 **한 번만** 더 세게 지시해 다시 받는다. 두 번째도 베끼면 초안을 내지 않는다 —
+  //   받은 메일을 그대로 붙여 놓고 "초안" 이라 부르는 것이 사용자에게 가장 나쁘다(조용한 오작동).
+  if (looksLikeEcho(result.content, latestInboundText)) {
+    const retry = await callLLM(MODEL_MINI, [
+      { role: 'system', content: systemPrompt
+        + `\n\nCRITICAL: your previous attempt simply copied the incoming email back. That is wrong. `
+        + `The other party already said that. Write OUR next message to them instead.` },
+      { role: 'user', content: userPrompt },
+    ], { temperature: 0.7, maxTokens: 600 });
+    if (!retry.fallback) {
+      await recordUsage(businessId, 'email_reply', MODEL_MINI, retry.input_tokens, retry.output_tokens);
+      result = retry;
+    }
+    if (looksLikeEcho(result.content, latestInboundText)) {
+      return { error: 'echoed_inbound', usage: await checkUsageLimit(businessId) };
+    }
+  }
   return { content: result.content, usage: await checkUsageLimit(businessId) };
 }
 

@@ -1147,6 +1147,10 @@ const MailPage: React.FC = () => {
           cue_usage_limit_exceeded: t('reply.aiLimitExceeded', { defaultValue: '이번 달 Cue 사용량을 모두 썼어요.' }) as string,
           ai_unavailable: t('reply.aiUnavailable', { defaultValue: 'AI 서비스를 잠시 사용할 수 없어요.' }) as string,
           no_inbound_message: t('reply.aiNoInbound', { defaultValue: '답장할 받은 메일이 없어요.' }) as string,
+          // 받은 메일을 그대로 베낀 초안은 서버가 막는다. 무엇을 쓸지 알려주면 제대로 나온다.
+          ai_echoed_inbound: t('reply.aiEchoed', {
+            defaultValue: '받은 메일을 되풀이하는 초안만 나왔어요. 어떤 답을 보내고 싶은지 아래에 적어 주세요.',
+          }) as string,
         };
         setReplyError(map[j.message] || (t('reply.aiFailed', { defaultValue: 'AI 제안 생성 실패' }) as string));
         return;

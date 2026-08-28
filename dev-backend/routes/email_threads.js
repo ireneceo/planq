@@ -1373,6 +1373,16 @@ router.post('/:businessId/email-threads/:id/ai-suggest',
         ? String(currentDraftRaw).replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 4000) || null
         : null;
 
+      // 대화 흐름 — 마지막 받은 메일 한 통만 주면 **우리가 무엇을 물었는지** 모른다.
+      //   운영 실사례: 우리가 질문하고 상대가 답한 스레드에서 모델이 역할을 잃고 받은 답장을 그대로 베꼈다.
+      //   방향을 라벨로 붙여 준다. 오래된 것부터, 최근 6통, 통당 800자 (costGuard 입력 캡 원칙).
+      const threadContext = msgs.slice(-6).map((m) => {
+        const body = cleanVisibleBody(m.body_text, m.body_html)
+          || String(m.body_text || '').replace(/\s+/g, ' ').trim();
+        if (!body) return null;
+        return `[${m.direction === 'inbound' ? 'THEM' : 'US'}] ${body.slice(0, 800)}`;
+      }).filter(Boolean).join('\n\n').slice(0, 3000) || null;
+
       const cueOrch = require('../services/cue_orchestrator');
       const out = await cueOrch.generateEmailReplyDraft(businessId, {
         businessName: (biz && (biz.brand_name || biz.name)) || null,
@@ -1382,9 +1392,12 @@ router.post('/:businessId/email-threads/:id/ai-suggest',
         faqContext,
         userInstruction: instruction,
         currentDraft: instruction ? currentDraft : null,
+        threadContext,
       });
       if (out.error === 'usage_limit_exceeded') return errorResponse(res, 'cue_usage_limit_exceeded', 429);
       if (out.error === 'llm_unavailable') return errorResponse(res, 'ai_unavailable', 503);
+      // 받은 메일을 그대로 되돌려준 초안은 내보내지 않는다 — 조용히 붙여 놓는 것이 가장 나쁘다.
+      if (out.error === 'echoed_inbound') return errorResponse(res, 'ai_echoed_inbound', 422);
 
       // 텍스트 → 안전한 HTML (문단/줄바꿈)
       const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

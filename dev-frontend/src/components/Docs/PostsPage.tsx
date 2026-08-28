@@ -18,7 +18,7 @@ import PanelHeader, { PanelTitle, PanelSubTitle } from '../Layout/PanelHeader';
 import AttachmentField from '../Common/AttachmentField';
 import CategoryCombobox from '../Common/CategoryCombobox';
 import EmptyState from '../Common/EmptyState';
-import { uploadMyFile, uploadProjectFile } from '../../services/files';
+import { uploadMyFile, uploadProjectFile, updateFileVisibility } from '../../services/files';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import PostEditor from './PostEditor';
 import DocToc from './DocToc';
@@ -211,7 +211,13 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const [historyOpen, setHistoryOpen] = useState(false);
   // leaveEditSession 이 최신 값을 보게 하는 ref (useCallback 클로저에 갇히지 않게).
   const detailRef = useRef<PostDetail | null>(null);
-  const persistAttachmentsRef = useRef<((id: number) => Promise<{ changed: boolean; hasFailure: boolean }>) | null>(null);
+  //   ★ 이 ref 는 선언만 돼 있고 **한 번도 대입되지 않았다** — 아래 leaveEditSession 의
+  //     "나가는 순간 첨부 저장" 이 지금껏 한 번도 실행된 적이 없다(항상 null?.() 로 조용히 통과).
+  //     주석은 동작을 설명하는데 코드는 죽어 있었다. 정의부(persistAttachments) 뒤에서 대입한다.
+  const persistAttachmentsRef = useRef<
+    ((id: number, target: { projectId: number | null; vlevel: 'L1' | 'L2' | 'L3' | 'L4' })
+      => Promise<{ changed: boolean; hasFailure: boolean }>) | null
+  >(null);
   // ★ 2026-08-24 — 자동저장이 실패/충돌이면 leaveEditSession() 이 false 를 돌려 **이동을 막는다**.
   //   그 자체는 옳다(저장 안 된 글을 잃지 않는다). 문제는 **아무 말도 안 한다**는 것이었다 —
   //   문서를 클릭해도, 새 문서를 눌러도 반응이 없어 화면이 먹통으로 보인다(작은 배지에만 사유가 있다).
@@ -860,7 +866,11 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     //   안 하면 버튼을 없앤 순간 첨부가 조용히 사라진다(Irene: "저장버튼 없이 자동저장", 2026-08-25).
     if (modeRef.current === 'edit' && detailRef.current?.id) {
       try {
-        const res = await persistAttachmentsRef.current?.(detailRef.current.id);
+        const d = detailRef.current;
+        const res = await persistAttachmentsRef.current?.(d.id, {
+          projectId: d.project_id ?? null,
+          vlevel: (d.vlevel || (d.project_id ? 'L2' : 'L3')) as 'L1' | 'L2' | 'L3' | 'L4',
+        });
         if (res?.changed) {
           const fresh = await fetchPost(detailRef.current.id);
           if (fresh) setDetail(fresh);
@@ -984,17 +994,27 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   // 예약된 첨부(신규 업로드 + 기존 파일 선택)를 post 에 반영한다.
   //   신규 작성·편집 **양쪽이 같은 경로**를 쓴다 — 한쪽에만 있어서 편집 모드 첨부가 통째로 유실됐다(#365).
   //   업로드가 실패해도 **본문 저장은 되돌리지 않는다**. 파일 하나 때문에 쓴 글을 잃게 하지 않는다.
-  const persistAttachments = async (postId: number): Promise<{ changed: boolean; hasFailure: boolean }> => {
+  //   ★ #378 — 첨부는 **문서와 같은 곳에 같은 범위로** 있어야 한다. 두 가지가 어긋나 있었다.
+  //     (a) 프로젝트 귀속 — 워크스페이스 Docs 에서 프로젝트를 골라 쓴 문서의 첨부가 프로젝트 없이
+  //         올라가 '프로젝트 > 파일' 에서 영영 안 잡혔다(scope.type 만 보고 projectDraft 를 무시했다).
+  //     (b) 노출 범위 — 프로젝트 없는 문서(L3)의 첨부는 L1 로 올라간다. 업로드가 정하는 범위는
+  //         project 유무뿐이라 문서보다 좁아진다 → "문서는 보이는데 첨부는 못 여는" 상태(운영 실측 2건).
+  //     기존 파일을 **고른** 것은 손대지 않는다 — 참조는 이사가 아니다.
+  const persistAttachments = async (
+    postId: number,
+    target: { projectId: number | null; vlevel: 'L1' | 'L2' | 'L3' | 'L4' },
+  ): Promise<{ changed: boolean; hasFailure: boolean }> => {
     const fileIds: number[] = [...pendingExistingIds];
+    const uploadedIds: number[] = [];
     const failedFiles: File[] = [];
     const failedLabels: string[] = [];
     for (const f of pendingUploads) {
-      const result = scope.type === 'project'
-        ? await uploadProjectFile(scope.businessId, scope.projectId, f)
+      const result = target.projectId
+        ? await uploadProjectFile(scope.businessId, target.projectId, f)
         : await uploadMyFile(scope.businessId, f);
       if (result.success && result.file) {
         const fid = Number(result.file.id.replace(/^direct-/, ''));
-        if (fid) fileIds.push(fid);
+        if (fid) { fileIds.push(fid); uploadedIds.push(fid); }
       } else {
         const reason = result.message === 'file_size_exceeded'
           ? t('attach.tooLarge', '용량 한도 초과')
@@ -1004,15 +1024,39 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       }
     }
     if (fileIds.length > 0) await attachToPost(postId, fileIds);
+    // 문서보다 좁게 올라간 **신규 업로드분**만 문서 범위로 넓힌다. 넓히기 한 방향뿐 —
+    //   좁히면 이미 보던 사람이 못 보게 된다. L4(외부 공개)로는 자동으로 올리지 않는다.
+    const RANK: Record<string, number> = { L1: 1, L2: 2, L3: 3, L4: 4 };
+    const uploadedLevel = target.projectId ? 'L2' : 'L1';
+    let scopeFailed = 0;
+    // ★ L2 는 "프로젝트" 또는 "대상 멤버" 로 볼 사람이 정해져야 성립한다. 프로젝트 없이 L2 로 올리면
+    //   파일 술어에는 작성자 예외 조항이 **없어서** 업로더 본인조차 못 보게 된다 — 원래 문제보다 나쁘다.
+    //   그 조합이면 아예 손대지 않고 L1(본인만) 로 둔다.
+    const audienceless = target.vlevel === 'L2' && !target.projectId;
+    if (!audienceless && target.vlevel !== 'L4' && RANK[uploadedLevel] < RANK[target.vlevel]) {
+      for (const fid of uploadedIds) {
+        try {
+          await updateFileVisibility(scope.businessId, fid,
+            target.projectId ? { level: target.vlevel, project_id: target.projectId } : { level: target.vlevel });
+        } catch {
+          // 첨부 자체는 이미 붙었다 — 범위 조정 실패로 저장을 되돌리지 않는다. 대신 **말해 준다**.
+          scopeFailed += 1;
+        }
+      }
+    }
     // 성공분만 비우고 **실패분은 남긴다** — 사용자가 무엇이 안 올라갔는지 보고 다시 시도할 수 있게.
     setPendingUploads(failedFiles);
     setPendingExistingIds([]);
     setPendingExistingMeta({});
     if (failedLabels.length > 0) {
       setError(t('attach.someFailed', '문서는 저장했습니다. 다음 파일은 올리지 못했습니다: {{files}}', { files: failedLabels.join(', ') }) as string);
+    } else if (scopeFailed > 0) {
+      setError(t('attach.scopeFailed', '첨부는 저장했지만 공개 범위를 문서와 맞추지 못했습니다. 다른 멤버에게 보이지 않을 수 있습니다.') as string);
     }
     return { changed: fileIds.length > 0, hasFailure: failedLabels.length > 0 };
   };
+  // 매 렌더 갱신 — 위 leaveEditSession 이 이 함수보다 먼저 정의돼 있어 ref 로 건넨다.
+  persistAttachmentsRef.current = persistAttachments;
 
   const submit = async () => {
     if (submittingRef.current) return;
@@ -1055,7 +1099,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             category: categoryVal,
           });
         // 예약된 첨부 처리 — 편집 모드와 **같은 경로**를 쓴다 (#365)
-        const attachRes = await persistAttachments(created.id);
+        const attachRes = await persistAttachments(created.id, { projectId, vlevel: projectId ? 'L2' : 'L3' });
         const final = attachRes.changed ? ((await fetchPost(created.id)) || created) : created;
         setDetail(final);
         setActiveId(final.id);
@@ -1084,7 +1128,12 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         // ★ #365 — 편집 모드에서는 첨부가 **한 번도 저장되지 않았다**.
         //   attachToPost 호출이 신규 작성 분기에만 있어서, 이미 저장된 문서에 파일을 올려도
         //   조용히 사라졌다("첨부한 영상이 보이지 않아요"). 영상 한정이 아니라 전 파일 공통이었다.
-        const attachResEdit = await persistAttachments(patched.id);
+        //   승격(draft→정식)이면 새 범위, 아니면 문서가 지금 갖고 있는 범위에 맞춘다.
+        //   임시저장(L1)에 붙인 첨부는 L1 그대로 — 아직 남에게 보일 글이 아니다.
+        const attachTargetLevel = (promote
+          ? (targetProjectId ? 'L2' : 'L3')
+          : (patched.vlevel || detail.vlevel || (targetProjectId ? 'L2' : 'L3'))) as 'L1' | 'L2' | 'L3' | 'L4';
+        const attachResEdit = await persistAttachments(patched.id, { projectId: targetProjectId ?? null, vlevel: attachTargetLevel });
         const finalEdit = attachResEdit.changed ? ((await fetchPost(patched.id)) || patched) : patched;
         setDetail(finalEdit);
         setMode(attachResEdit.hasFailure ? 'edit' : 'view');
@@ -1193,12 +1242,12 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             <AiActionButton onClick={() => { setAiIntent('ai'); setAiOpen(true); }} label={t('ai.btn', 'AI')} title={t('ai.openHint', 'AI 가 문서 본문을 자동 작성') as string} />
             <TemplateBtn type="button" onClick={openTemplateModal} title={t('templates.openHint', '템플릿에서 시작') as string}>{t('templates.btn', '템플릿')}</TemplateBtn>
             <NewBtnWrap>
-              <NewBtn type="button" onClick={() => setNewDropdownOpen(v => !v)} title={t('btn.new') as string} aria-label={t('btn.new') as string} aria-expanded={newDropdownOpen}>
+              <NewBtn type="button" data-testid="docs-new" onClick={() => setNewDropdownOpen(v => !v)} title={t('btn.new') as string} aria-label={t('btn.new') as string} aria-expanded={newDropdownOpen}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               </NewBtn>
               {newDropdownOpen && (
                 <NewDropdown onMouseLeave={() => setNewDropdownOpen(false)}>
-                  <NewItem type="button" onClick={() => { setNewDropdownOpen(false); startNew(); }}>
+                  <NewItem type="button" data-testid="docs-new-blank" onClick={() => { setNewDropdownOpen(false); startNew(); }}>
                     <NewItemTitle>{t('newDropdown.blankLabel', { defaultValue: '빈 문서' }) as string}</NewItemTitle>
                     <NewItemDesc>{t('newDropdown.blankDesc', { defaultValue: '빈 본문으로 즉시 시작' }) as string}</NewItemDesc>
                   </NewItem>
@@ -1325,14 +1374,14 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               {t('templates.btn', '템플릿')}
             </TemplateBtn>
             <NewBtnWrap>
-              <NewBtn type="button" onClick={() => setNewDropdownOpen(v => !v)} title={t('btn.new') as string} aria-label={t('btn.new') as string} aria-expanded={newDropdownOpen}>
+              <NewBtn type="button" data-testid="docs-new" onClick={() => setNewDropdownOpen(v => !v)} title={t('btn.new') as string} aria-label={t('btn.new') as string} aria-expanded={newDropdownOpen}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
                 </svg>
               </NewBtn>
               {newDropdownOpen && (
                 <NewDropdown onMouseLeave={() => setNewDropdownOpen(false)}>
-                  <NewItem type="button" onClick={() => { setNewDropdownOpen(false); startNew(); }}>
+                  <NewItem type="button" data-testid="docs-new-blank" onClick={() => { setNewDropdownOpen(false); startNew(); }}>
                     <NewItemTitle>{t('newDropdown.blankLabel', { defaultValue: '빈 문서' }) as string}</NewItemTitle>
                     <NewItemDesc>{t('newDropdown.blankDesc', { defaultValue: '빈 본문으로 즉시 시작' }) as string}</NewItemDesc>
                   </NewItem>

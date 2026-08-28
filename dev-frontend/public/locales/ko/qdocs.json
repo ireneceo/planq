@@ -649,7 +649,8 @@
     "newAiHint": "AI 가 문서 본문을 자동 작성합니다",
     "tooLarge": "용량 한도 초과",
     "uploadFailed": "업로드 실패",
-    "someFailed": "문서는 저장했습니다. 다음 파일은 올리지 못했습니다: {{files}}"
+    "someFailed": "문서는 저장했습니다. 다음 파일은 올리지 못했습니다: {{files}}",
+    "scopeFailed": "첨부는 저장했지만 공개 범위를 문서와 맞추지 못했습니다. 다른 멤버에게 보이지 않을 수 있습니다."
   },
   "autosave": {
     "saving": "임시저장 중…",

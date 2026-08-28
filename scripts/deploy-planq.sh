@@ -299,6 +299,11 @@ sync_database() {
   #   멱등 — 이미 100 이면 건드리지 않는다(dev 실측: 적용 후 재실행 0건).
   #   ★ 완료일 **이후** 스냅샷만 고친다 — 완료 전 날짜는 실제로 진행 중이었다.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/backfill-completed-progress.js --apply 2>&1 | tail -8"
+
+  # #378 — 문서에 들어간 파일/이미지가 그 문서의 프로젝트·노출범위를 안 따라가던 것.
+  #   쓰기측(업로드 경로)은 고쳤고, 여기서 **이미 쌓인 것**을 문서 기준으로 맞춘다.
+  #   넓히기 한 방향뿐 · 임시저장(L1) 문서는 제외 · 볼 사람이 안 정해지는 L2 는 건너뛴다.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/backfill-post-file-scope.js --apply 2>&1 | tail -12"
   success "마이그레이션 완료 (push native / invoice-payment / account-deletion / mail-notify / task-hold / mail-delivery / calendar-sync / calendar-split / calendar-reverse-sync / doc-confirm)"
 
   # 백필 — 마이그레이션 후. 과거 paid invoice/회차에 payment 원장 생성(멱등). 매출 0 복구.

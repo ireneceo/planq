@@ -649,7 +649,8 @@
     "newAiHint": "AI writes the document body for you",
     "tooLarge": "Exceeds size limit",
     "uploadFailed": "Upload failed",
-    "someFailed": "The document was saved, but these files could not be uploaded: {{files}}"
+    "someFailed": "The document was saved, but these files could not be uploaded: {{files}}",
+    "scopeFailed": "Attachments were saved, but their visibility could not be matched to the document. Other members may not be able to see them."
   },
   "autosave": {
     "saving": "Saving draft…",

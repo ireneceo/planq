@@ -246,7 +246,8 @@
     "useReceived": "Send from {{addr}} (register)",
     "dismissHint": "No reply required. It moves to Needs review.",
     "aiInstructionRequired": "You already have a draft. Tell AI how to revise it.",
-    "aliasHelp": "This customer wrote to {{addr}}. Your reply will also be sent from that address."
+    "aliasHelp": "This customer wrote to {{addr}}. Your reply will also be sent from that address.",
+    "aiEchoed": "The draft only repeated the email you received. Tell us below what you want to say."
   },
   "errors": {
     "loadList": "Failed to load inbox"
