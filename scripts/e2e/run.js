@@ -17,6 +17,7 @@ const SUITES = {
   tabtitle: () => require('./canary-tab-title'),
   collapsed: () => require('./canary-collapsed'),        // 좌측 메뉴 접힘 × 전 루트 빈 화면
   docscollapse: () => require('./canary-docs-collapse'), // 문서 **편집 중** 리스트 접기 — 보기 모드에서는 재현 안 됨
+  gdrivesync: () => require('./canary-gdrive-sync'),    // Drive 역방향 종단 — 실제 Drive 파일을 만들고 고쳐서 본다
  // 탭 이름이 내용으로 유지되는가 — LRU 정지(alive:false)로 pane 이 언마운트돼도 되돌아가면 안 된다
          // ⑥ 멀티탭 트리 스왑(형제 라우터 무크래시·keep-alive·shell 무회귀)
   hlock: () => require('./canary-qtalk-hlock'), // #245 Q Talk 가로 잠금 — overflow-y:auto 만 두면 반대축이 auto 로 강제(grep 불가)
