@@ -43,18 +43,40 @@ const COVERED_DOMAINS = [
   '청구(Q Bill)', '서명 요청', '대화(Q Talk) 최근 내역', '지식베이스(KB)',
 ];
 const UNCOVERED_DOMAINS = [
-  '문서(Q docs)', '파일(Q File)', '메일(Q Mail)', 'Q info 기록',
+  '문서(Q docs)', '파일(Q File)', '메일(Q Mail)',
   '개인 일정(구글 캘린더 연동분)', '고객 활동 이력', '회의록(Q Note)', '근태·휴가', '주간 보고서',
 ];
 
-function coverageBlock() {
+// ★ 이번 **요청에서 실제로 조회한 것** 기준으로 만든다(Fable A-6).
+//   정적 배열을 그대로 쓰면, 고객 대화방(client_facing) 경로처럼 신규 영역을 안 싣는 턴에서도
+//   "조회함" 이라고 선언해 **커버리지 선언 자체가 거짓말**이 된다.
+function coverageBlock(covered = COVERED_DOMAINS, uncovered = UNCOVERED_DOMAINS) {
   return `## Cue 가 이번 답변에서 조회한 범위
-- 조회함: ${COVERED_DOMAINS.join(' · ')}
-- **아직 조회하지 못함: ${UNCOVERED_DOMAINS.join(' · ')}**
+- 조회함: ${covered.join(' · ')}
+- **아직 조회하지 못함: ${uncovered.join(' · ')}**
 
 ★ 위 '아직 조회하지 못함' 영역에 대해서는 **"없다" 고 단정하지 말 것.**
   그 영역은 데이터가 없는 것이 아니라 내가 아직 안 본 것이다.
   "제가 아직 그 영역은 못 봅니다. <해당 메뉴>에서 직접 확인하실 수 있어요" 처럼 답한다.`;
+}
+
+// ─────────────────────────────────────────────────────────────
+// A-1. 질문 의도 게이트 (Fable 설계 게이트 2026-08-28)
+// ─────────────────────────────────────────────────────────────
+//   전 영역을 항상 실으면 토큰 예산(~6K)이 터진다. 그래서 **상세 목록은 질문 어휘로 연다.**
+//   게이트가 못 잡은 질문도 (a) 항상 실리는 카운트 라인 (b) 동적 커버리지 선언이 받쳐주므로
+//   "없다" 가 아니라 "못 본다" 로 안전하게 떨어진다.
+const DOMAIN_HINTS = {
+  docs: ['문서', '독스', 'docs', '포스트', '계약서', '견적', '제안서', 'post'],
+  files: ['파일', 'file', '업로드', '첨부'],
+  mail: ['메일', 'mail', '이메일', '수신함'],
+  schedule: ['일정', '캘린더', '미팅', '회의', '스케줄', 'calendar', '오늘', '내일', '이번 주', '이번주', '약속'],
+};
+function detectDomainHints(query) {
+  const q = String(query || '').toLowerCase();
+  const out = {};
+  for (const [k, words] of Object.entries(DOMAIN_HINTS)) out[k] = words.some((w) => q.includes(w.toLowerCase()));
+  return out;
 }
 
 // 토큰 예산 — 대략 chars/4 ≈ tokens. 안전 margin.
@@ -131,6 +153,66 @@ async function getProjectSnapshot(projectId, businessId, scope) {
 
 // ── 사용자 본인 스냅샷 — 도움말 챗 (/api/cue/help) 에서 활용
 //    본인의 이번 주 task, 다가오는 일정, 받은 업무 요청
+// ─────────────────────────────────────────────────────────────
+// A-4. 개인 구글 일정 + 업무 마감 — 캘린더 "세 겹" 완성 (Fable 설계 게이트)
+// ─────────────────────────────────────────────────────────────
+//   운영 (Irene 2026-08-28): "지금 일정이 여기서 보이는데 왜 cue가 못 읽는데?"
+//   캘린더 화면은 ①calendar_events ②개인 구글 캘린더(저장 안 하고 실시간 조회) ③업무 마감일
+//   세 겹을 겹쳐 그리는데 Cue 는 ①만 봤다. 사용자 눈에는 있는데 Cue 에겐 없었다.
+//
+//   ★ 보안 — 개인 구글 일정은 **그 사람 개인의 것**이다. Cue 답변은 고객이 있는 대화방으로도
+//     나가므로(cue_orchestrator.respondToMessage 는 audience:'client_facing'), 반드시
+//     `internal` 경로에서만 조회한다. 조회 단위도 `user_id = 본인` 연결이라 구조적으로 본인 것뿐.
+//   ★ 외부 API 라 매 호출 때리면 지연·quota 폭탄 → **일정 어휘 질문일 때만** + 3초 소프트 타임아웃.
+//   ★ 실패를 "없음" 으로 보고하지 않는다 — 이번 사고(없는 것과 못 본 것의 혼동)의 동형 재발 방지.
+async function getPersonalScheduleSnapshot({ userId, businessId, businessTimezone, scope, internal, hints }) {
+  if (!internal || !userId || !hints?.schedule) return null;
+  const out = { personal: { status: 'none_connected', events: [] }, dueTasks: [] };
+
+  // ── 개인 구글 캘린더 (읽기 전용 overlay 와 같은 소스) ──
+  try {
+    const { ExternalConnection } = require('../models');
+    const conns = await ExternalConnection.findAll({
+      where: { user_id: userId, owner_scope: 'user', provider: 'google_calendar', is_active: true },
+    });
+    if (conns.length) {
+      const personalCalendar = require('./personalCalendar');
+      const now = new Date();
+      const timeMin = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+      const timeMax = new Date(now.getTime() + 7 * 86400000).toISOString();
+      const raced = await Promise.race([
+        Promise.all(conns.map((c) => personalCalendar.listEvents(c, { timeMin, timeMax, maxResults: 20 }).catch(() => []))),
+        new Promise((r) => setTimeout(() => r(null), 3000)),   // 소프트 타임아웃 — 답변을 붙잡지 않는다
+      ]);
+      if (raced === null) out.personal = { status: 'error', events: [] };
+      else out.personal = { status: 'ok', events: raced.flat().slice(0, 10) };
+    }
+  } catch (e) {
+    out.personal = { status: 'error', events: [] };
+  }
+
+  // ── 업무 마감일 (화면의 세 번째 겹) — 이미 통과된 가시성 술어 재사용 ──
+  try {
+    const base = await taskListWhere(userId, businessId, scope);
+    if (base) {
+      const now = new Date();
+      out.dueTasks = await Task.findAll({
+        where: {
+          [Op.and]: [base, {
+            business_id: businessId,
+            due_date: { [Op.between]: [now, new Date(now.getTime() + 7 * 86400000)] },
+            status: { [Op.in]: ['not_started', 'in_progress', 'reviewing', 'revision_requested', 'waiting', 'external_review'] },
+          }],
+        },
+        attributes: ['id', 'title', 'due_date', 'status'],
+        order: [['due_date', 'ASC']],
+        limit: 8,
+      });
+    }
+  } catch (e) { /* 개별 실패는 답변 전체를 막지 않는다 */ }
+  return out;
+}
+
 async function getUserSnapshot(userId, businessId, businessTimezone, scope) {
   if (!userId || !businessId) return null;
   // 이번 주 본인 담당 task
@@ -445,7 +527,7 @@ async function getWorkspaceOverview({ businessId, scope, businessTimezone, audie
 }
 
 // ── 마크다운 합성 — system prompt 에 주입
-function composeMarkdown({ history, project, client, kb, userSnap, matches, overview, businessTimezone }) {
+function composeMarkdown({ history, project, client, kb, userSnap, matches, overview, businessTimezone , sched }) {
   const parts = [];
 
   // #61 — 워크스페이스 현황 (권한 스코프, 일반 질문 대응). 맨 위에 전체 그림.
@@ -522,10 +604,38 @@ function composeMarkdown({ history, project, client, kb, userSnap, matches, over
       //   Cue 는 CalendarEvent 한 겹만 본다. 그래서 사용자 눈에는 있는데 Cue 에게는 없다.
       //   범위를 밝히지 않으면 "일정 없습니다" 가 사용자에게는 **거짓말로 들린다.**
       //   단서를 프롬프트 문구가 아니라 **데이터에 실어 보낸다** — 그래야 답변마다 항상 따라간다.
-      parts.push('  ※ 위 일정은 **워크스페이스 일정만**이다. 사용자 화면에는 개인 구글 캘린더 연동분과'
-        + ' 업무 마감일도 함께 보이지만 그 둘은 조회하지 못했다.'
-        + ' 일정을 답할 때는 이 범위를 반드시 밝힐 것 — "워크스페이스 일정 기준으로는 …이고,'
-        + ' 개인 일정·업무 마감은 제가 아직 못 봅니다".');
+      // ── 개인 구글 일정 (화면의 두 번째 겹) ──
+      if (sched?.personal?.status === 'ok') {
+        if (sched.personal.events.length) {
+          parts.push(`- 개인 일정 (구글 캘린더, ${sched.personal.events.length}건):`);
+          sched.personal.events.forEach((e) => {
+            const dt = e.start_at ? new Date(e.start_at).toLocaleString('ko-KR', { timeZone: userSnap.businessTimezone || 'Asia/Seoul', dateStyle: 'short', timeStyle: 'short' }) : '미정';
+            parts.push(`  · ${e.title || '(제목 없음)'} — ${dt}`);
+          });
+        } else {
+          parts.push('- 개인 일정 (구글 캘린더): 없음 (조회됨 — 데이터 부재가 아니라 실제로 0건)');
+        }
+      } else if (sched?.personal?.status === 'error') {
+        // ★ 실패를 "없음" 으로 보고하지 않는다 — 이번 사고(없는 것 vs 못 본 것)의 동형 재발 방지.
+        parts.push('- 개인 일정 (구글 캘린더): **조회 실패** — 없다고 답하지 말 것. "지금 개인 일정을 불러오지 못했습니다" 로 답한다.');
+      } else if (sched) {
+        parts.push('- 개인 일정 (구글 캘린더): 연동 안 됨 — 없는 것이 아니라 연결이 없다.');
+      }
+      // ── 업무 마감일 (화면의 세 번째 겹) ──
+      if (sched?.dueTasks?.length) {
+        parts.push(`- 마감 임박 업무 (7일 내, ${sched.dueTasks.length}건):`);
+        sched.dueTasks.forEach((t) => parts.push(`  · ${t.title} — 마감 ${String(t.due_date).slice(0, 10)} (${t.status})`));
+      } else if (sched) {
+        parts.push('- 마감 임박 업무 (7일 내): 없음 (조회됨)');
+      }
+      // 범위 단서 — 조회 여부에 따라 문구가 달라져야 한다. 안 그러면 문구가 데이터와 어긋난다.
+      if (sched) {
+        parts.push('  ※ 일정은 화면과 같은 **세 겹(워크스페이스 일정 · 개인 구글 일정 · 업무 마감일)** 을 모두 조회했다.');
+      } else {
+        parts.push('  ※ 위 일정은 **워크스페이스 일정만**이다. 사용자 화면에는 개인 구글 캘린더 연동분과'
+          + ' 업무 마감일도 함께 보이지만 그 둘은 이번에 조회하지 않았다.'
+          + ' 일정을 답할 때는 이 범위를 반드시 밝힐 것.');
+      }
     }
     if (userSnap.events?.length) {
       parts.push(`- 다가오는 일정:`);
@@ -633,6 +743,10 @@ async function buildCueContext({ businessId, conversationId, projectId, clientId
   const clientP = clientId ? getClientSnapshot(clientId, businessId, scope).catch(() => null) : Promise.resolve(null);
   // 4. 사용자 본인 스냅샷 (도움말 챗 / userId 명시 시)
   const userP = userId ? getUserSnapshot(userId, businessId, businessTimezone, scope).catch(() => null) : Promise.resolve(null);
+  // 4-b. 개인 구글 일정 + 업무 마감 — internal + '일정' 어휘 질문일 때만 (Fable A-4)
+  const hints = detectDomainHints(query);
+  const schedP = getPersonalScheduleSnapshot({ userId, businessId, businessTimezone, scope,
+    internal: audience === 'internal', hints }).catch(() => null);
   // 5. KB 검색 (사이클 G 의 ctx 우선순위 활용)
   //    P0 — 질문자가 내부 사람(멤버/owner/admin)이면 그 사람 권한 안에서만 검색한다.
   //    (여태 business_id 로 전체를 긁어, 참여하지 않은 프로젝트의 KB 가 답변 재료로 들어갔다.)
@@ -660,11 +774,31 @@ async function buildCueContext({ businessId, conversationId, projectId, clientId
   // 8. KNOWLEDGE_LOOP 축1 — 팀이 확정한 워크스페이스 지식 카드 (active 만)
   const knowledgeP = require('./cueKnowledge').buildKnowledgeBlock(businessId).catch(() => '');
 
-  const [history, project, client, userSnap, kb, matches, overview, knowledgeBlock] = await Promise.all([historyP, projectP, clientP, userP, kbP, matchesP, overviewP, knowledgeP]);
-  let markdown = composeMarkdown({ history, project, client, kb, userSnap, matches, overview, businessTimezone });
+  const [history, project, client, userSnap, kb, matches, overview, knowledgeBlock, sched] = await Promise.all([historyP, projectP, clientP, userP, kbP, matchesP, overviewP, knowledgeP, schedP]);
+  let markdown = composeMarkdown({ history, project, client, kb, userSnap, matches, overview, businessTimezone, sched });
   if (knowledgeBlock) markdown = `${knowledgeBlock}\n\n${markdown}`;
+  // ★ 커버리지는 **이번 요청에서 실제로 조회한 것** 기준(Fable A-6).
+  //   개인 일정을 조회한 턴에만 '조회함' 으로 옮긴다 — 안 옮기면 선언이 데이터와 어긋나고,
+  //   문구가 데이터와 어긋나면 그게 다음 신고다.
+  const covered = [...COVERED_DOMAINS];
+  const uncovered = [...UNCOVERED_DOMAINS];
+  if (sched) {
+    // 업무 마감일은 조회했으면 조회한 것 (내부 데이터라 항상 성립)
+    covered.push('업무 마감일');
+    // ★ 개인 구글 일정은 **실제로 읽어온 경우에만** 조회함으로 옮긴다.
+    //   연동이 없거나(none_connected) 조회에 실패했으면(error) 여전히 '못 본 것' 이다 —
+    //   여기서 covered 로 옮기면 커버리지 선언이 거짓이 되고, 그게 정확히 이번 사고의 재발이다.
+    const idx = uncovered.indexOf('개인 일정(구글 캘린더 연동분)');
+    if (sched.personal?.status === 'ok') {
+      if (idx >= 0) { uncovered.splice(idx, 1); covered.push('개인 일정(구글 캘린더)'); }
+    } else if (idx >= 0) {
+      uncovered[idx] = sched.personal?.status === 'error'
+        ? '개인 일정(구글 캘린더) — 이번 턴 조회 실패'
+        : '개인 일정(구글 캘린더) — 연동 없음';
+    }
+  }
   // 커버리지 선언을 **맨 앞**에 — 뒤에 붙이면 긴 컨텍스트에 묻힌다.
-  markdown = `${coverageBlock()}\n\n${markdown}`;
+  markdown = `${coverageBlock(covered, uncovered)}\n\n${markdown}`;
   return { markdown, kb, history, project, client, userSnap, matches, overview };
 }
 
