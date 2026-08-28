@@ -146,8 +146,10 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
   const [detail, setDetail] = useState<PostDetail | null>(null);
-  // 탭 이름 = 열려 있는 문서 이름 (목록만 보는 중이면 null → 'Q docs' 로 복귀)
-  useTabTitle(detail?.title);
+  // 탭 이름 = 열려 있는 문서 이름 (목록만 보는 중이면 null → 'Q docs' 로 복귀).
+  //   ★ 워크스페이스 scope 일 때만 — 이 컴포넌트는 프로젝트 상세(DocsTab)·개인 보관함 안에도
+  //     임베드된다. 거기서도 제목을 쓰면 그 화면의 주인(프로젝트명)을 덮어써 지운다.
+  useTabTitle(detail?.title, scope.type === 'workspace');
   // N+67 — visibility 변경 모달 + fetch context
   const [visModalOpen, setVisModalOpen] = useState(false);
   const [visProjects, setVisProjects] = useState<ApiProject[]>([]);

@@ -18,17 +18,22 @@ import { tabStore } from '../stores/tabStore';
 
 const MAX = 40;   // 칩이 좁다 — 너무 길면 어차피 CSS 로 잘린다. 저장 단계에서도 한 번 자른다.
 
-export function useTabTitle(title?: string | null): void {
+// enabled=false 면 **아무것도 하지 않는다**. 빈 문자열조차 쓰지 않는 것이 핵심 —
+//   같은 탭에 이미 제목의 주인이 있는데 ''(비움)을 쓰면 그 주인의 제목을 지워버린다.
+//   (Fable 재검증 2026-08-28: 프로젝트 상세 안에 PostsPage 가 임베드되어 문서 탭을 누르는
+//    순간 프로젝트명이 지워지고 메뉴명으로 추락했다. 훅 주석의 "한 탭에 한 곳만" 을
+//    배선이 위반한 것 → 임베드 쪽은 enabled=false 로 꺼서 주인을 하나로 만든다.)
+export function useTabTitle(title?: string | null, enabled = true): void {
   const tabId = useTabId();
   // 공백 정규화 — 제목에 개행이 섞이면 칩이 무너진다.
   const clean = (title || '').replace(/\s+/g, ' ').trim().slice(0, MAX);
   useEffect(() => {
-    if (!tabId) return;
+    if (!tabId || !enabled) return;
     tabStore.setTabTitle(tabId, clean);
     // 화면을 떠나면 메뉴명으로 되돌린다 — 안 그러면 같은 탭에서 다른 메뉴로 이동했을 때
     // 이전 화면의 제목이 남아 "엉뚱한 이름의 탭"이 된다.
     return () => { tabStore.setTabTitle(tabId, ''); };
-  }, [tabId, clean]);
+  }, [tabId, clean, enabled]);
 }
 
 export default useTabTitle;
