@@ -36,7 +36,10 @@ const PURPOSES = {
   // kb_tags — 옛 호출부는 temperature 를 아예 안 줬다(= API 기본 1.0). 키워드 추출에 1.0 은 실수에 가깝다
   //   (같은 문서에서 매번 다른 태그가 나온다). **의도적으로** 0.3 으로 낮춘다 — 이 한 줄만 1:1 이 아니다.
   kb_tags:        { model: 'gpt-4o-mini', temperature: 0.3, maxTokens: 200,  timeoutMs: 45_000, maxInputChars: 8_000 },
-  kb_answer:      { model: 'gpt-4o-mini', temperature: 0.2, maxTokens: 800,  timeoutMs: 45_000, maxInputChars: 32_000 },
+  // #379/Cue 확장 — 문서·파일·메일·개인일정·고객이력을 실으면 최악 컨텍스트가 ~31K chars 로
+  //   32K 상한에 딱 붙는다. 상한에 걸리면 **꼬리(KB 블록)부터 조용히 잘려** 답이 나빠지는데
+  //   어디서 잘렸는지 화면에 안 나온다. 여유를 준다(호출당 비용 증가는 $0.001 미만).
+  kb_answer:      { model: 'gpt-4o-mini', temperature: 0.2, maxTokens: 800,  timeoutMs: 45_000, maxInputChars: 40_000 },
   docs_generate:  { model: 'gpt-4o-mini', temperature: 0.4, maxTokens: 3000, timeoutMs: 90_000, maxInputChars: 24_000 },
   // brief — 옛 호출부가 자료를 100,000자까지 보냈다(자료 여러 건을 합쳐 요약하는 기능). 상한을 그 아래로
   //   내리면 요약이 조용히 일부 자료를 빠뜨린다. 옛 값을 존중하되 천장은 둔다.

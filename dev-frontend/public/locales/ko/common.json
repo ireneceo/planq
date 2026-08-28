@@ -453,7 +453,9 @@
       "clients": "고객",
       "projects": "프로젝트"
     },
-    "recent": "최근 항목"
+    "recent": "최근 항목",
+    "cueBadge": "Cue",
+    "askCue": "Cue 에게 묻기: \"{{q}}\""
   },
   "attach": {
     "uploadHint": "파일을 드래그하거나 클릭",

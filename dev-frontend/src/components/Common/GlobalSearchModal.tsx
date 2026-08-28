@@ -176,6 +176,23 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
         </SearchHeader>
 
         <Results>
+          {/* Cue 진입 (Fable ③) — Irene: "cue 채팅창이 Q help 말고도 어디에 쉽게 들어가야 하지 않아? 검색창처럼."
+              ★ 새 단축키·새 표면을 만들지 않는다. CueHelpDrawer 는 이미 전역이고(⌘?/Ctrl+/ · RightDock FAB),
+                부족한 것은 **존재가 아니라 발견성**이다. 검색창에 질문형 문장을 친 사용자를 Cue 로
+                넘기는 다리 하나면 된다. `cue:ask` 이벤트가 이미 있어 신규 배선이 없다. */}
+          {query.trim() && (
+            <Hit type="button" data-testid="search-ask-cue"
+              onClick={() => {
+                const q = query.trim();
+                onClose();
+                window.dispatchEvent(new CustomEvent('cue:ask', { detail: { prefill: q, tab: 'cue' } }));
+              }}>
+              <TypeBadge $color="#F43F5E">{t('search.cueBadge') as string}</TypeBadge>
+              <HitMain>
+                <HitTitle>{t('search.askCue', { q: query.trim() }) as string}</HitTitle>
+              </HitMain>
+            </Hit>
+          )}
           {/* #210 — 메뉴 이동. 검색어 없을 때는 전체 메뉴가 그대로 목록이 된다(고르면 그 페이지로) */}
           {menuHits.length > 0 && (
             <>

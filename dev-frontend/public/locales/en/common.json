@@ -453,7 +453,9 @@
       "clients": "Client",
       "projects": "Project"
     },
-    "recent": "Recent"
+    "recent": "Recent",
+    "cueBadge": "Cue",
+    "askCue": "Ask Cue: \"{{q}}\""
   },
   "attach": {
     "uploadHint": "Drag files here or click to browse",
