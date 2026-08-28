@@ -526,6 +526,45 @@ verify_deployment() {
 #   건너뛴다(멱등). 여기서는 이번에 나가는 커밋들의 `#번호` 만 넘긴다.
 #   실패해도 배포를 되돌리지 않는다 — 코드는 이미 정상 반영된 상태다.
 # ──────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────
+# 릴리즈 노트 자동 발행 (운영 #346 · #289)
+# ─────────────────────────────────────────────────────────────
+#   Irene: "배포하고 업데이트하면 자동으로 스피커 아이콘에 공지로 나가는 거 아니야?
+#           우리가 업데이트하면서 바뀌는 거나 중요한 부분들 제대로 표시해야 하는데 왜 안되지?"
+#           "업데이트하는 내용 알리는 것도 안되고 자동화되어서 개발하면 내역이 정돈되어서
+#            고객에게 공지되어야 하는데 그것도 없어."
+#
+#   여태 이 단계가 배포 스크립트에 **아예 없었다.** 문서(스킬)에만 "버전 올릴까요?" 로 적혀 있어
+#   사람이 기억할 때만 나갔고, 그래서 대부분의 배포가 사용자에게 고지되지 않았다.
+#
+#   규칙:
+#   - 발행 대상은 `docs/release-notes/v<package.json version>.json` 하나뿐이다.
+#     버전을 올리면서 노트를 안 썼으면 **발행할 것이 없다** → 경고만 하고 배포는 계속한다
+#     (노트가 없다고 이미 끝난 배포를 실패시키면 안 된다).
+#   - `publish-release-note.js` 는 slug `update-<버전>` 으로 **upsert** 라 재배포해도 글이 하나다(멱등).
+#   - 이 단계는 verify 뒤에 둔다 — 서버가 실제로 살아난 뒤에 고지해야 사용자가 눌렀을 때 열린다.
+publish_release_note() {
+  log "Publishing release note..."
+  local VER NOTE
+  VER=$(node -p "require('/opt/planq/dev-backend/package.json').version" 2>/dev/null || echo "")
+  if [ -z "$VER" ]; then warn "  버전을 읽지 못함 — 릴리즈 노트 건너뜀"; return 0; fi
+  NOTE="/opt/planq/docs/release-notes/v${VER}.json"
+  if [ ! -f "$NOTE" ]; then
+    warn "  v${VER} 릴리즈 노트 없음 — 사용자에게 이번 배포가 고지되지 않습니다"
+    dim  "  (작성 위치: docs/release-notes/v${VER}.json — ko/en 짝 필수)"
+    return 0
+  fi
+  if [ "$DRY_RUN" = true ]; then dim "  [dry] scp $NOTE + publish-release-note.js --publish"; return 0; fi
+  scp $SSH_OPTS -q "$NOTE" "$PROD_HOST:/tmp/v${VER}.json" || { warn "  노트 전송 실패 — 건너뜀"; return 0; }
+  # 실패해도 배포를 되돌리지 않는다 — 코드는 이미 나갔고, 고지는 나중에 손으로도 할 수 있다.
+  if prod_run "cd $PROD_BE && node scripts/publish-release-note.js /tmp/v${VER}.json --publish"; then
+    success "릴리즈 노트 v${VER} 발행 완료 (새 소식에 노출)"
+  else
+    warn "  릴리즈 노트 발행 실패 — 배포 자체는 정상. 수동 발행 필요"
+  fi
+  prod_run "rm -f /tmp/v${VER}.json" || true
+}
+
 close_feedback() {
   log "Closing deployed feedback in ledger..."
   cd /opt/planq
@@ -648,6 +687,7 @@ main() {
   restart_server
   reload_nginx
   verify_deployment
+  publish_release_note
   close_feedback
   show_summary
   update_record
