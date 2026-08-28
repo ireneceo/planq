@@ -266,7 +266,7 @@ async function getUserSnapshot(userId, businessId, businessTimezone, scope) {
 }
 
 // ── 고객 360° 요약 — 이전 결제·서명·기본 정보
-async function getClientSnapshot(clientId, businessId, scope) {
+async function getClientSnapshot(clientId, businessId, scope, internal = false) {
   if (!clientId) return null;
   const client = await Client.findOne({
     where: { id: clientId, business_id: businessId },
@@ -296,7 +296,19 @@ async function getClientSnapshot(clientId, businessId, scope) {
     where: { business_id: businessId, kind: 'sign', status: { [Op.in]: ['signed', 'sent', 'viewed'] } },
   }) : 0;
 
-  return { client, recentInvoices, totalSent, totalPaid, totalSigs: recentSigs };
+  // ── 고객 활동 이력 (Fable A-5) — 스태프 + 내부 화면 한정 ──
+  //   운영: "고객이 최근 행동한게 뭐야?" 에 "확인할 수 없습니다" 라고 답했다.
+  //   그런데 `services/clientTimeline.js` 는 **이미 만들어져 있었다** — Cue 에 연결만 안 됐다.
+  //   ★ userId 를 넘겨야 메일 격리가 걸린다(그 함수가 accessibleAccountIds 로 내장 처리).
+  let timeline = null;
+  if (internal && isMemberOrAbove(scope)) {
+    try {
+      const { getClientTimeline } = require('./clientTimeline');
+      const r = await getClientTimeline(businessId, clientId, { userId: scope.userId, limit: 10 });
+      timeline = (r?.items || []).slice(0, 10);
+    } catch (e) { void e; }
+  }
+  return { client, recentInvoices, totalSent, totalPaid, totalSigs: recentSigs, timeline };
 }
 
 // ── #61 — 질문 기반 워크스페이스 전방위 검색 (질문자 권한 범위 내)
@@ -406,7 +418,66 @@ async function getWorkspaceMatches({ businessId, scope, query, audience = 'clien
     } catch (e) { void e; }
   }
 
-  const total = out.tasks.length + out.projects.length + out.clients.length + out.invoices.length;
+  // ── 문서·파일·메일 상세 (Fable A-3) — 스태프 + 내부 화면 + **질문 어휘가 있을 때만** ──
+  //   전부 항상 실으면 토큰 예산이 터진다. 검색어가 '문서' 뿐이라 LIKE 가 0건이면
+  //   최근 8건을 대신 싣는다 — "문서 뭐 있어" 가 카운트+최근목록으로 답이 되게.
+  //   ★ 본문은 절대 싣지 않는다(제목만). 외부 유입 텍스트를 프롬프트에 넣을수록
+  //     프롬프트 주입 표면이 제곱으로 커진다.
+  if (isStaff && internal) {
+    const hints = detectDomainHints(query);
+    const { Post, File: FileModel, EmailThread } = require('../models');
+    const { postListWhereByLevel, fileListWhereByLevel } = require('../middleware/access_scope');
+    if (hints.docs) {
+      try {
+        const base = { [Op.and]: [postListWhereByLevel(scope), { status: { [Op.ne]: 'draft' } }] };
+        const hit = await Post.findAll({
+          where: { [Op.and]: [base, likeAny(['title'], terms)] },
+          attributes: ['id', 'title', 'category', 'vlevel', 'updated_at'],
+          order: [['updated_at', 'DESC']], limit: 5,
+        });
+        out.posts = hit.length ? hit : await Post.findAll({
+          where: base, attributes: ['id', 'title', 'category', 'vlevel', 'updated_at'],
+          order: [['updated_at', 'DESC']], limit: 8,
+        });
+      } catch (e) { void e; }
+    }
+    if (hints.files) {
+      try {
+        // ★ deleted_at: null 필수 — 이 술어는 soft-delete 를 모른다. 빼면 지운 파일이 답변에 부활한다.
+        const base = { [Op.and]: [fileListWhereByLevel(scope), { deleted_at: null }] };
+        const hit = await FileModel.findAll({
+          where: { [Op.and]: [base, likeAny(['file_name'], terms)] },
+          attributes: ['id', 'file_name', 'file_size', 'created_at'],
+          order: [['created_at', 'DESC']], limit: 5,
+        });
+        out.files = hit.length ? hit : await FileModel.findAll({
+          where: base, attributes: ['id', 'file_name', 'file_size', 'created_at'],
+          order: [['created_at', 'DESC']], limit: 8,
+        });
+      } catch (e) { void e; }
+    }
+    if (hints.mail) {
+      try {
+        const { accessibleAccountIds } = require('./mailIdentity');
+        const acctIds = await accessibleAccountIds(businessId, scope.userId);
+        if (acctIds && acctIds.length) {
+          const base = { business_id: businessId, account_id: { [Op.in]: acctIds } };
+          const hit = await EmailThread.findAll({
+            where: { [Op.and]: [base, likeAny(['subject'], terms)] },
+            attributes: ['id', 'subject', 'status', 'reply_needed', 'last_message_at'],
+            order: [['last_message_at', 'DESC']], limit: 4,
+          });
+          out.mail = hit.length ? hit : await EmailThread.findAll({
+            where: base, attributes: ['id', 'subject', 'status', 'reply_needed', 'last_message_at'],
+            order: [['last_message_at', 'DESC']], limit: 6,
+          });
+        }
+      } catch (e) { void e; }
+    }
+  }
+
+  const total = out.tasks.length + out.projects.length + out.clients.length + out.invoices.length
+    + (out.posts?.length || 0) + (out.files?.length || 0) + (out.mail?.length || 0);
   return total > 0 ? out : null;
 }
 
@@ -717,6 +788,15 @@ function composeMarkdown({ history, project, client, kb, userSnap, matches, over
     parts.push(`- ${name}${client.client.is_business ? ' (사업자)' : ''}${client.client.country ? ` · ${client.client.country}` : ''}`);
     if (client.client.notes) parts.push(`- 메모: ${snip(client.client.notes, 200)}`);
     if (client.client.summary) parts.push(`- 고객 요약(Cue 생성): ${snip(client.client.summary, 400)}`);
+    // 최근 활동 — "고객이 최근 뭐 했어?" 에 답할 근거. clientTimeline 이 메일 격리까지 내장한다.
+    if (client.timeline?.length) {
+      parts.push(`- 최근 활동 ${client.timeline.length}건:`);
+      client.timeline.forEach((it) => {
+        const when = it.at || it.created_at || it.occurred_at;
+        const ts = when ? String(new Date(when).toISOString()).slice(0, 16).replace('T', ' ') : '';
+        parts.push(`  · [${it.type || it.kind || '활동'}] ${snip(it.title || it.preview || it.summary || '', 80)}${ts ? ` (${ts})` : ''}`);
+      });
+    }
     if (client.recentInvoices.length) {
       parts.push(`- 최근 청구서 ${client.recentInvoices.length}건 / 발행 ${client.totalSent.toLocaleString()} / 수금 ${client.totalPaid.toLocaleString()}`);
     }
@@ -746,6 +826,19 @@ function composeMarkdown({ history, project, client, kb, userSnap, matches, over
     if (matches.clients?.length) {
       parts.push(`- 고객 ${matches.clients.length}건:`);
       matches.clients.forEach((c) => parts.push(`  · ${c.company_name || c.biz_name || c.display_name || `#${c.id}`} (${c.status || '-'})`));
+    }
+    // 문서·파일·메일 — 제목만(본문 미포함: 프롬프트 주입 표면 차단)
+    if (matches.posts?.length) {
+      parts.push(`- 문서 ${matches.posts.length}건:`);
+      matches.posts.forEach((d) => parts.push(`  · ${d.title}${d.category ? ` (#${d.category})` : ''}`));
+    }
+    if (matches.files?.length) {
+      parts.push(`- 파일 ${matches.files.length}건:`);
+      matches.files.forEach((f) => parts.push(`  · ${f.file_name}`));
+    }
+    if (matches.mail?.length) {
+      parts.push(`- 메일 ${matches.mail.length}건:`);
+      matches.mail.forEach((m) => parts.push(`  · ${m.subject || '(제목 없음)'}${m.reply_needed ? ' [답변 필요]' : ''}`));
     }
     if (matches.invoices?.length) {
       parts.push(`- 청구서 ${matches.invoices.length}건:`);
@@ -781,7 +874,7 @@ async function buildCueContext({ businessId, conversationId, projectId, clientId
   // 2. 프로젝트 스냅샷 — 질문자 권한 scope 관통 (없으면 fail-closed)
   const projectP = projectId ? getProjectSnapshot(projectId, businessId, scope).catch(() => null) : Promise.resolve(null);
   // 3. 고객 스냅샷 — 재무는 권한자에게만
-  const clientP = clientId ? getClientSnapshot(clientId, businessId, scope).catch(() => null) : Promise.resolve(null);
+  const clientP = clientId ? getClientSnapshot(clientId, businessId, scope, audience === 'internal').catch(() => null) : Promise.resolve(null);
   // 4. 사용자 본인 스냅샷 (도움말 챗 / userId 명시 시)
   const userP = userId ? getUserSnapshot(userId, businessId, businessTimezone, scope).catch(() => null) : Promise.resolve(null);
   // 4-b. 개인 구글 일정 + 업무 마감 — internal + '일정' 어휘 질문일 때만 (Fable A-4)
@@ -823,6 +916,17 @@ async function buildCueContext({ businessId, conversationId, projectId, clientId
   //   문구가 데이터와 어긋나면 그게 다음 신고다.
   const covered = [...COVERED_DOMAINS];
   const uncovered = [...UNCOVERED_DOMAINS];
+  // 문서·파일·메일 — 카운트를 실었거나 상세를 실었으면 '조회함' 으로 옮긴다.
+  //   ★ 실제로 실은 턴에만 옮긴다 — 안 그러면 커버리지 선언이 거짓이 된다(개인 일정에서 겪은 사고).
+  const movedByHint = (label, got) => {
+    if (!got) return;
+    const i = uncovered.indexOf(label);
+    if (i >= 0) { uncovered.splice(i, 1); covered.push(label); }
+  };
+  movedByHint('문서(Q docs)', overview?.counts?.docs != null || matches?.posts?.length);
+  movedByHint('파일(Q File)', overview?.counts?.files != null || matches?.files?.length);
+  movedByHint('메일(Q Mail)', !!overview?.counts?.mail || matches?.mail?.length);
+  movedByHint('고객 활동 이력', client?.timeline?.length);
   if (sched) {
     // 업무 마감일은 조회했으면 조회한 것 (내부 데이터라 항상 성립)
     covered.push('업무 마감일');
