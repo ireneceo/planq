@@ -505,6 +505,38 @@ async function getWorkspaceOverview({ businessId, scope, businessTimezone, audie
     } catch (e) { void e; }
   }
 
+  // ── 문서·파일·메일 카운트 (Fable A-2) — 스태프 + 내부 화면에서만 ──
+  //   운영 (Irene 2026-08-28): 문서 10건·파일 2,353건·메일 4,775건이 있는데 Cue 가
+  //   "등록되어 있지 않습니다" 라고 **단언**했다. 상세 목록을 다 실으면 토큰이 터지므로,
+  //   **카운트 한 줄**만 항상 실어 "없다" 오답을 구조적으로 막는다(~50토큰).
+  //   ★ 술어는 화면과 같은 단일 원천을 그대로 쓴다 — 여기서 새로 짜면 두 벌이 되어 갈라진다.
+  if (isStaff && internal) {
+    try {
+      const { Post, File: FileModel, EmailThread } = require('../models');
+      const { postListWhereByLevel, fileListWhereByLevel } = require('../middleware/access_scope');
+      const [docs, files] = await Promise.all([
+        Post.count({ where: { [Op.and]: [postListWhereByLevel(scope), { status: { [Op.ne]: 'draft' } }] } }).catch(() => null),
+        // ★ fileListWhereByLevel 은 soft-delete 를 모른다 — `deleted_at: null` 을 따로 걸지 않으면
+        //   삭제한 파일까지 세어 사용자에게 없는 숫자를 말하게 된다(Fable 지적).
+        FileModel.count({ where: { [Op.and]: [fileListWhereByLevel(scope), { deleted_at: null }] } }).catch(() => null),
+      ]);
+      let mail = null;
+      try {
+        // 메일 격리는 mailIdentity 단일 원천 — 공용 계정 + 본인 개인 계정만. 남의 메일함은 구조적으로 배제.
+        const { accessibleAccountIds } = require('./mailIdentity');
+        const acctIds = await accessibleAccountIds(businessId, scope.userId);
+        if (acctIds && acctIds.length) {
+          const [open, reply] = await Promise.all([
+            EmailThread.count({ where: { business_id: businessId, account_id: { [Op.in]: acctIds }, status: 'open' } }),
+            EmailThread.count({ where: { business_id: businessId, account_id: { [Op.in]: acctIds }, reply_needed: true } }),
+          ]);
+          mail = { open, reply };
+        }
+      } catch (e) { void e; }
+      ov.counts = { docs, files, mail };
+    } catch (e) { void e; }
+  }
+
   // 재무 요약 — owner/admin/platform_admin + 내부 화면 한정
   if ((scope.isOwner || scope.isAdmin || scope.isPlatformAdmin) && internal) {
     try {
@@ -540,9 +572,18 @@ function composeMarkdown({ history, project, client, kb, userSnap, matches, over
       if (o.identity.tagline) parts.push(`- 소개: ${snip(o.identity.tagline, 200)}`);
       parts.push('');
     }
-    const hasAny = (o.projects?.length || o.taskTotal || o.finance || o.clients?.total);
+    const hasAny = (o.projects?.length || o.taskTotal || o.finance || o.clients?.total || o.counts);
     if (hasAny) {
       parts.push('## 워크스페이스 현황 (질문자 권한 범위 내 — 이 데이터로 답하세요)');
+      // 문서·파일·메일 카운트 — "뭐 있어?" 류 질문의 "없습니다" 오답을 구조적으로 막는 한 줄(Fable A-2)
+      if (o.counts) {
+        const c = o.counts;
+        const bits = [];
+        if (c.docs != null) bits.push(`문서 ${c.docs}건`);
+        if (c.files != null) bits.push(`파일 ${c.files}건`);
+        if (c.mail) bits.push(`메일 열린 스레드 ${c.mail.open}건(답변 필요 ${c.mail.reply})`);
+        if (bits.length) parts.push(`- ${bits.join(' · ')} — 건수만 조회했다. 목록이 필요하면 그 메뉴에서 볼 수 있다고 안내한다`);
+      }
       if (o.projects?.length) {
         parts.push(`- 활성 프로젝트 ${o.projects.length}개: ${o.projects.map(p => `${p.name}(${p.status})`).join(', ')}`);
       }
