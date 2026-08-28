@@ -262,6 +262,33 @@ export function toAddrList(list: Array<string | { name?: string; email: string }
 }
 
 
+// ─────────────────────────────────────────────────────────────
+// 번역 대상 언어 자동 선택 (운영: Irene 2026-08-28)
+// ─────────────────────────────────────────────────────────────
+//   "메일이 한국어인데 번역하기 디폴트가 왜 한국어야? 영어로 하던가 해야지."
+//   옛 기본값은 **UI 언어** 였다. 한국어 UI 에서 한국어 메일을 열면 한→한 번역이라 아무 의미가 없고,
+//   백엔드도 `unsupported_or_same_language` 로 떨어뜨린다(services/translation_service.js).
+//   원문 언어를 글자로 추정해 **원문과 다른 언어**를 기본값으로 준다.
+//   ★ LLM 호출 전이라 서버의 detected_language 를 쓸 수 없다 — 문자 종류로 충분히 갈린다.
+//     정확한 판별이 목적이 아니라 "같은 언어로 번역하기" 를 막는 것이 목적이다.
+function guessLangFromText(text?: string | null): string {
+  const t = String(text || '').slice(0, 400);
+  if (!t.trim()) return '';
+  if (/[\uAC00-\uD7A3]/.test(t)) return 'ko';                    // 한글
+  if (/[\u3040-\u309F\u30A0-\u30FF]/.test(t)) return 'ja';       // 히라가나·가타카나
+  if (/[\u4E00-\u9FFF]/.test(t)) return 'zh';                    // 한자 (일본어는 위에서 먼저 걸림)
+  if (/[A-Za-z]/.test(t)) return 'en';
+  return '';
+}
+// 원문 언어와 UI 언어를 보고 "번역할 만한" 대상을 고른다.
+//   원문 ≠ UI 언어면 UI 언어로(내가 읽으려는 것). 같으면 영어로, 원문이 영어면 UI 언어로.
+export function pickTranslateTarget(sourceLang: string, uiLang: string): string {
+  const ui = uiLang?.startsWith('en') ? 'en' : 'ko';
+  if (!sourceLang) return ui;
+  if (sourceLang !== ui) return ui;
+  return ui === 'en' ? 'ko' : 'en';
+}
+
 const MailPage: React.FC = () => {
   const { t, i18n } = useTranslation('qmail');
   const { user } = useAuth();
@@ -367,7 +394,8 @@ const MailPage: React.FC = () => {
   const [projectOpts, setProjectOpts] = useState<Array<{ id: number; name: string }>>([]);
   const [frameH, setFrameH] = useState<Record<number, number>>({});
   // #184 — 메시지별 번역 상태 (원본보기/번역하기 토글). target 기본 = UI 언어.
-  const [transLang, setTransLang] = useState<string>(() => (i18n.language?.startsWith('en') ? 'en' : 'ko'));
+  // 메시지마다 원문 언어가 다를 수 있으므로 **메시지별**로 둔다. 값이 없으면 원문에서 추정한 기본값.
+  const [transLangByMsg, setTransLangByMsg] = useState<Record<number, string>>({});
   const [msgTrans, setMsgTrans] = useState<Record<number, { text?: string; lang?: string; showing: boolean; loading: boolean; error?: boolean }>>({});
   // #202 — 번역은 LLM 호출이라 긴 본문이면 수십 초가 걸린다. 취소 수단이 없으면 사용자는 그 동안
   //   "번역 중…" 에 갇힌다(버튼 disabled). 메시지별 AbortController 를 잡아두고, 로딩 중 버튼을
@@ -378,7 +406,7 @@ const MailPage: React.FC = () => {
     if (ac) { ac.abort(); delete transAbortRef.current[msgId]; }
     setMsgTrans(prev => ({ ...prev, [msgId]: { ...(prev[msgId] || {}), showing: false, loading: false, error: false } }));
   }, []);
-  const translateMsg = useCallback(async (msgId: number, threadId: number) => {
+  const translateMsg = useCallback(async (msgId: number, threadId: number, targetLang?: string) => {
     // 로딩 동안에는 showing 을 켜지 않는다. 켜면 버튼 삼항이 즉시 "원본 보기" 로 뒤집혀
     // "번역 중…" 로딩 표시가 사라지고, 번역문은 아직 없어 화면이 무반응처럼 보인다(#197).
     // 번역문이 도착한 뒤에만 showing:true 로 전환해 해당 메시지 바로 밑에 표시.
@@ -388,7 +416,7 @@ const MailPage: React.FC = () => {
     setMsgTrans(prev => ({ ...prev, [msgId]: { ...(prev[msgId] || {}), showing: false, loading: true, error: false } }));
     try {
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${threadId}/messages/${msgId}/translate`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target_lang: transLang }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target_lang: targetLang || 'en' }),
         signal: ac.signal,
       });
       const j = await r.json().catch(() => ({}));
@@ -404,7 +432,7 @@ const MailPage: React.FC = () => {
     } finally {
       if (transAbortRef.current[msgId] === ac) delete transAbortRef.current[msgId];
     }
-  }, [businessId, transLang]);
+  }, [businessId]);
   // 스레드를 떠나거나 화면을 닫을 때 남은 번역 요청 정리 (좀비 요청·언마운트 후 setState 차단)
   useEffect(() => () => {
     Object.values(transAbortRef.current).forEach(ac => ac.abort());
@@ -2273,8 +2301,11 @@ const MailPage: React.FC = () => {
                   msgCidData={msgCidData}
                   msgTrans={msgTrans}
                   setMsgTrans={setMsgTrans}
-                  transLang={transLang}
-                  setTransLang={setTransLang}
+                  transLangByMsg={transLangByMsg}
+                  setTransLangByMsg={setTransLangByMsg}
+                  guessLangFromText={guessLangFromText}
+                  pickTranslateTarget={pickTranslateTarget}
+                  uiLang={i18n.language || 'ko'}
                   translateMsg={translateMsg}
                   cancelTranslate={cancelTranslate}
                   startForward={startForward}

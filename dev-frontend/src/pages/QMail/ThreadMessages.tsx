@@ -47,9 +47,12 @@ interface Props {
   msgCidData: Record<number, Record<string, string>>;
   msgTrans: Record<number, MsgTransState>;
   setMsgTrans: React.Dispatch<React.SetStateAction<Record<number, MsgTransState>>>;
-  transLang: string;
-  setTransLang: (v: string) => void;
-  translateMsg: (msgId: number, threadId: number) => void;
+  translateMsg: (msgId: number, threadId: number, targetLang?: string) => void;
+  transLangByMsg: Record<number, string>;
+  setTransLangByMsg: React.Dispatch<React.SetStateAction<Record<number, string>>>;
+  guessLangFromText: (t?: string | null) => string;
+  pickTranslateTarget: (source: string, ui: string) => string;
+  uiLang: string;
   cancelTranslate: (msgId: number) => void;
   startForward: (m: Message) => void;
   /** 인용 접기 토글 문구 (iframe 안이라 t() 를 쓸 수 없어 문자열로 넘긴다) */
@@ -70,8 +73,9 @@ export default function ThreadMessages(p: Props) {
   const {
     addressActions,
     messages, threadId, accountEmail, subject, myUserId, businessId, expandedMsgIds, toggleMsg,
-    frameH, msgCidData, msgTrans, setMsgTrans, transLang, setTransLang,
+    frameH, msgCidData, msgTrans, setMsgTrans,
     translateMsg, cancelTranslate, startForward, foldLabels, toAddrList, formatTimeAgo, t,
+    transLangByMsg, setTransLangByMsg, guessLangFromText, pickTranslateTarget, uiLang,
   } = p;
   // 운영 #260 — 좁은 패널에서 읽기 답답한 메일을 화면 전체로 펼쳐 읽는다.
   const [fullMsgId, setFullMsgId] = React.useState<number | null>(null);
@@ -220,7 +224,8 @@ export default function ThreadMessages(p: Props) {
           )}
           {/* #184 — 번역하기 / 원본 보기 토글 (언어 선택). 답장 원문 언어는 #153에서 처리됨. */}
           <TransBar>
-            <TransSelect value={transLang} onChange={(e) => setTransLang(e.target.value)}
+            <TransSelect value={transLangByMsg[m.id] ?? pickTranslateTarget(guessLangFromText(m.body_text), uiLang)}
+              onChange={(e) => setTransLangByMsg((p) => ({ ...p, [m.id]: e.target.value }))}
               aria-label={t('translate.langLabel', { defaultValue: '번역 언어' }) as string}>
               <option value="ko">{t('translate.lang.ko') as string}</option>
               <option value="en">{t('translate.lang.en') as string}</option>
@@ -242,10 +247,12 @@ export default function ThreadMessages(p: Props) {
             ) : (
               <TransBtn type="button"
                 onClick={() => {
+                  // 이 메시지의 실효 대상 언어 — 사용자가 고른 값이 없으면 원문에서 추정한 기본값.
+                  const target = transLangByMsg[m.id] ?? pickTranslateTarget(guessLangFromText(m.body_text), uiLang);
                   const cached = msgTrans[m.id];
-                  if (cached?.text && cached.lang === transLang) {
+                  if (cached?.text && cached.lang === target) {
                     setMsgTrans(prev => ({ ...prev, [m.id]: { ...cached, showing: true } }));
-                  } else { translateMsg(m.id, threadId); }
+                  } else { translateMsg(m.id, threadId, target); }
                 }}>
                 {t('translate.translate', { defaultValue: '번역하기' }) as string}
               </TransBtn>
