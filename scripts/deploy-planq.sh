@@ -293,6 +293,12 @@ sync_database() {
   #     자동 생성에 기대면 sync alter 64키 한도(memory)나 모델 로딩 순서 변화에 조용히 실패한다.
   #     멱등이라 이미 있으면 skip 한다.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-gdrive-sync.js 2>&1 | tail -10"
+
+  # #385 — 체크박스 빠른완료가 진행률을 안 채워 완료 업무가 진척 그래프에서 증발하던 것.
+  #   쓰기측(services/actions/task_actions.js complete)은 고쳤고, **이미 쌓인 것**을 여기서 정리한다.
+  #   멱등 — 이미 100 이면 건드리지 않는다(dev 실측: 적용 후 재실행 0건).
+  #   ★ 완료일 **이후** 스냅샷만 고친다 — 완료 전 날짜는 실제로 진행 중이었다.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/backfill-completed-progress.js --apply 2>&1 | tail -8"
   success "마이그레이션 완료 (push native / invoice-payment / account-deletion / mail-notify / task-hold / mail-delivery / calendar-sync / calendar-split / calendar-reverse-sync / doc-confirm)"
 
   # 백필 — 마이그레이션 후. 과거 paid invoice/회차에 payment 원장 생성(멱등). 매출 0 복구.
