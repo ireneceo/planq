@@ -31,8 +31,23 @@ async function login(page, creds = CREDS) {
   if (!ok) throw new Error('login failed for ' + creds.email);
 }
 
+// ★ networkidle2 만 믿으면 **멀쩡한 화면에서 거짓 실패**가 난다.
+//   /files 는 socket.io + 썸네일이 계속 붙어 네트워크가 조용해지지 않아 30초를 넘긴다
+//   (실측: 하니스는 timeout ❌ · 같은 페이지를 직접 재면 DOM 135ms · 3초에 103,854자 정상).
+//   그래서 idle 은 **기다려 보되 못 기다려도 계속 간다**. 대신 DOM 준비 + 내용이 붙을 때까지는
+//   반드시 기다린다 — 진짜 빈 화면은 여기서 안 걸러지고 각 카나리의 내용 검사에 그대로 잡힌다.
 async function goto(page, pathname) {
-  await page.goto(BASE + pathname, { waitUntil: 'networkidle2' });
+  try {
+    await page.goto(BASE + pathname, { waitUntil: 'networkidle2', timeout: 15000 });
+  } catch {
+    await page.goto(BASE + pathname, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+  }
+  // 내용이 붙을 때까지 최대 8초 — 붙지 않으면 그대로 넘겨 카나리가 '빈 화면' 으로 판정하게 둔다.
+  for (let i = 0; i < 16; i++) {
+    const n = await page.evaluate(() => (document.body && document.body.innerText || '').length).catch(() => 0);
+    if (n > 200) break;
+    await sleep(500);
+  }
   await sleep(500);
 }
 
