@@ -28,6 +28,9 @@ FileFolder.init({
     type: DataTypes.STRING(200),
     allowNull: false
   },
+  // #379 — Drive 폴더와의 매핑. 이동(부모 폴더 변경)을 반영하려면 양쪽 폴더가 이어져 있어야 한다.
+  //   ★ 매핑이 없는 부모로의 이동은 **적용하지 않는다** — 모르는 폴더를 루트로 쓸어버리면 사고다.
+  gdrive_folder_id: { type: DataTypes.STRING(128), allowNull: true, defaultValue: null },
   sort_order: {
     type: DataTypes.INTEGER,
     allowNull: false,

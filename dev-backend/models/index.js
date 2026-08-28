@@ -58,6 +58,7 @@ const CalendarEventAttendee = require('./CalendarEventAttendee');
 const FileFolder = require('./FileFolder');
 const BusinessStorageUsage = require('./BusinessStorageUsage');
 const OpsCapacityLog = require('./OpsCapacityLog');
+const GdriveSyncLog = require('./GdriveSyncLog');
 const BusinessCloudToken = require('./BusinessCloudToken');
 const QnoteUsage = require('./QnoteUsage');
 const QnoteUsageEvent = require('./QnoteUsageEvent');
@@ -565,6 +566,7 @@ module.exports = {
   FileFolder,
   BusinessStorageUsage,
   OpsCapacityLog,
+  GdriveSyncLog,
   BusinessCloudToken,
   QnoteUsage,
   QnoteUsageEvent,

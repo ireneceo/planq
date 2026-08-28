@@ -316,7 +316,13 @@ async function stopChannel(drive, { channelId, resourceId }) {
  * 변경 목록 조회 (webhook 수신 후 호출)
  */
 async function listChanges(drive, pageToken) {
-  const res = await drive.changes.list({ pageToken, fields: 'nextPageToken, newStartPageToken, changes(fileId, removed, file(id, name, mimeType, modifiedTime, trashed))' });
+  // #379 — `parents`(이동 감지)·`md5Checksum`(내용 수정 감지)이 없으면 이름변경만 알 수 있다.
+  //   Drive 는 요청한 필드만 준다 — 여기 빠지면 적용 엔진이 조용히 아무것도 못 한다.
+  const res = await drive.changes.list({
+    pageToken,
+    fields: 'nextPageToken, newStartPageToken, changes(fileId, removed, time, '
+      + 'file(id, name, mimeType, modifiedTime, trashed, parents, md5Checksum, size))',
+  });
   return res.data;
 }
 

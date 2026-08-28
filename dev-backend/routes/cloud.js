@@ -248,11 +248,23 @@ router.post('/webhook/gdrive', async (req, res) => {
         }
         break;
       }
+      // ★ #379 — 여태 여기서 **알리기만** 했다. 변경을 PlanQ 파일함에 실제로 반영한다.
+      //   정책 정본은 services/gdriveApply.js (정본 축 비대칭 · soft delete · 멱등 에코 흡수 · LWW).
+      //   적용 실패가 웹훅 200 을 막으면 구글이 재시도 폭주하므로 여기서 삼키고 로그로 남긴다.
+      let applied = null;
+      if (changes.length > 0) {
+        try {
+          applied = await require('../services/gdriveApply').applyChanges(token.business_id, changes);
+        } catch (e) {
+          console.warn('[gdrive webhook] 변경 적용 실패', e.message);
+        }
+      }
       // Socket.IO 로 해당 워크스페이스에 변경 알림 (UI가 파일 리스트 재조회 트리거)
       const io = req.app.get('io');
       if (io && changes.length > 0) {
         io.to(`business:${token.business_id}`).emit('gdrive:changed', {
           count: changes.length,
+          applied,
           message_number: messageNumber,
           state: resourceState,
         });
