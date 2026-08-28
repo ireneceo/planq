@@ -1,5 +1,5 @@
 {
-  "_generated": "2026-08-18",
+  "_generated": "2026-08-28",
   "_db": "planq_dev_db",
   "_note": "스키마 변경 후 `node scripts/dump-schema.js` 로 갱신할 것. guard-invariants schemacol 이 읽는다.",
   "tables": {
@@ -15,6 +15,37 @@
       "revoked_at",
       "created_at",
       "updated_at"
+    ],
+    "attendance_days": [
+      "id",
+      "business_id",
+      "user_id",
+      "work_date",
+      "state",
+      "clock_in_at",
+      "clock_out_at",
+      "break_started_at",
+      "work_total_sec",
+      "break_total_sec",
+      "auto_closed",
+      "admin_fixed",
+      "note",
+      "created_at",
+      "updated_at"
+    ],
+    "attendance_events": [
+      "id",
+      "business_id",
+      "user_id",
+      "attendance_day_id",
+      "kind",
+      "at",
+      "source",
+      "actor_user_id",
+      "fix_reason",
+      "created_at",
+      "updated_at",
+      "superseded_at"
     ],
     "audit_logs": [
       "id",
@@ -373,7 +404,8 @@
       "reply_note",
       "created_at",
       "updated_at",
-      "from_user_timezone"
+      "from_user_timezone",
+      "locale"
     ],
     "conversation_participants": [
       "id",
@@ -588,6 +620,15 @@
       "created_at",
       "updated_at"
     ],
+    "email_domain_rules": [
+      "id",
+      "business_id",
+      "domain",
+      "note",
+      "created_by",
+      "created_at",
+      "updated_at"
+    ],
     "email_drafts": [
       "id",
       "thread_id",
@@ -796,7 +837,8 @@
       "sort_order",
       "created_by",
       "created_at",
-      "updated_at"
+      "updated_at",
+      "gdrive_folder_id"
     ],
     "files": [
       "id",
@@ -808,6 +850,7 @@
       "file_size",
       "mime_type",
       "description",
+      "tags",
       "created_at",
       "updated_at",
       "project_id",
@@ -844,6 +887,18 @@
       "last_activity_at",
       "auto_paused",
       "end_reason",
+      "created_at",
+      "updated_at"
+    ],
+    "gdrive_sync_logs": [
+      "id",
+      "business_id",
+      "direction",
+      "gdrive_file_id",
+      "file_id",
+      "action",
+      "reason",
+      "detail",
       "created_at",
       "updated_at"
     ],
@@ -1116,6 +1171,38 @@
       "created_at",
       "updated_at"
     ],
+    "leave_grants": [
+      "id",
+      "business_id",
+      "user_id",
+      "year",
+      "days",
+      "note",
+      "granted_by",
+      "created_at",
+      "updated_at"
+    ],
+    "leave_requests": [
+      "id",
+      "business_id",
+      "user_id",
+      "leave_type",
+      "unit",
+      "start_date",
+      "end_date",
+      "half_kind",
+      "hours",
+      "days_charged",
+      "reason",
+      "status",
+      "decided_by",
+      "decided_at",
+      "decide_note",
+      "canceled_by",
+      "canceled_at",
+      "created_at",
+      "updated_at"
+    ],
     "mail_sender_rules": [
       "id",
       "business_id",
@@ -1128,7 +1215,9 @@
       "last_hit_at",
       "created_by",
       "created_at",
-      "updated_at"
+      "updated_at",
+      "match_field",
+      "mark_important"
     ],
     "message_attachments": [
       "id",
@@ -1339,7 +1428,8 @@
       "swift_code",
       "stripe_publishable_key",
       "stripe_secret_enc",
-      "stripe_webhook_secret_enc"
+      "stripe_webhook_secret_enc",
+      "announcement_text_en"
     ],
     "post_attachments": [
       "id",
@@ -1357,6 +1447,21 @@
       "sort_order",
       "created_at",
       "updated_at"
+    ],
+    "post_revisions": [
+      "id",
+      "post_id",
+      "business_id",
+      "revision_number",
+      "title",
+      "content_json",
+      "category",
+      "editor_user_id",
+      "source",
+      "byte_size",
+      "created_at",
+      "updated_at",
+      "attachment_file_ids"
     ],
     "posts": [
       "id",
@@ -1562,6 +1667,21 @@
       "success_metrics",
       "timeline_key_only",
       "strategy_sources"
+    ],
+    "provider_credits": [
+      "id",
+      "provider",
+      "balance_start_usd",
+      "balance_start_at",
+      "unit_price_usd",
+      "topup_url",
+      "last_alert_days",
+      "last_alert_at",
+      "block_on_empty",
+      "updated_by_user_id",
+      "created_at",
+      "updated_at",
+      "baseline_spent_usd"
     ],
     "push_logs": [
       "id",
@@ -1806,7 +1926,15 @@
       "updated_at",
       "confirmed_at",
       "comment",
-      "comment_at"
+      "comment_at",
+      "content_snapshot",
+      "content_hash",
+      "attachments_snapshot",
+      "snapshot_at",
+      "signed_content_hash",
+      "snapshot_mismatch",
+      "attachments_viewed",
+      "title_snapshot"
     ],
     "subscriptions": [
       "id",
@@ -1891,6 +2019,17 @@
       "actual_hours",
       "estimated_hours",
       "status",
+      "created_at",
+      "updated_at"
+    ],
+    "task_deliverable_versions": [
+      "id",
+      "task_id",
+      "round",
+      "body",
+      "attachment_ids",
+      "submitted_by",
+      "note",
       "created_at",
       "updated_at"
     ],
@@ -2046,7 +2185,8 @@
       "is_milestone",
       "created_via",
       "hold_prev_status",
-      "hold_reason"
+      "hold_reason",
+      "miss_policy"
     ],
     "teams": [
       "id",
@@ -2117,7 +2257,8 @@
       "deletion_requested_at",
       "deletion_scheduled_at",
       "anonymized_at",
-      "whats_new_seen_at"
+      "whats_new_seen_at",
+      "auto_clock_in_on_focus"
     ],
     "weekly_review_settings": [
       "user_id",
