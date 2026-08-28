@@ -27,12 +27,16 @@ export function useTabTitle(title?: string | null, enabled = true): void {
   const tabId = useTabId();
   // 공백 정규화 — 제목에 개행이 섞이면 칩이 무너진다.
   const clean = (title || '').replace(/\s+/g, ' ').trim().slice(0, MAX);
+  // ★ 언마운트 cleanup 을 두지 말 것 (Irene 2026-08-28: "다른 탭 클릭하면 이름이 다시 메뉴이름으로 바뀌어").
+  //   탭이 5개를 넘으면 가장 오래 안 본 탭이 alive:false 로 **언마운트**된다(tabStore MAX_ALIVE=4,
+  //   TabAppShell 이 alive 탭만 렌더). 그건 "화면을 떠났다" 가 아니라 "잠시 접어뒀다" 인데,
+  //   cleanup 이 거기서 발화해 멀쩡한 탭의 이름을 지웠다.
+  //   같은 탭에서 **다른 메뉴로 이동**했을 때 옛 제목이 남는 문제는 마운트 여부가 아니라
+  //   **경로 변화**로 판단해야 한다 → tabStore.setTabPath 가 kind 가 바뀔 때 제목을 비운다.
+  //   (같은 화면 안의 이동(/docs → /docs?post=5)은 kind 가 그대로라 안 지운다 — 깜빡임 방지.)
   useEffect(() => {
     if (!tabId || !enabled) return;
     tabStore.setTabTitle(tabId, clean);
-    // 화면을 떠나면 메뉴명으로 되돌린다 — 안 그러면 같은 탭에서 다른 메뉴로 이동했을 때
-    // 이전 화면의 제목이 남아 "엉뚱한 이름의 탭"이 된다.
-    return () => { tabStore.setTabTitle(tabId, ''); };
   }, [tabId, clean, enabled]);
 }
 

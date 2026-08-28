@@ -260,7 +260,18 @@ export const tabStore = {
   // 탭 내부 네비 역보고 (UrlMirror) — 활성 탭 path 갱신. 미러 모드에선 location 변화가 이걸 부른다.
   setTabPath(id: string, path: string) {
     if (!state.tabs.some((t) => t.id === id && t.path !== path)) return;
-    set({ tabs: state.tabs.map((t) => (t.id === id ? { ...t, path, kind: kindOfPath(path) } : t)) });
+    // 탭 제목("그 탭이 담고 있는 것")은 **경로가 다른 메뉴로 바뀔 때** 비운다.
+    //   옛 구현은 useTabTitle 의 언마운트 cleanup 이 했는데, 탭 LRU 정지(alive:false)에서도
+    //   똑같이 발화해 멀쩡한 탭 이름이 메뉴명으로 되돌아갔다. 정지는 이탈이 아니다.
+    //   같은 화면 안의 이동(/docs → /docs?post=5)은 kind 가 같으므로 유지 — 깜빡임 방지.
+    //   비운 뒤엔 새 화면이 자기 제목을 다시 쓴다. 안 쓰는 화면이면 메뉴명이 맞다.
+    set({
+      tabs: state.tabs.map((t) => {
+        if (t.id !== id) return t;
+        const nextKind = kindOfPath(path);
+        return { ...t, path, kind: nextKind, title: nextKind === t.kind ? t.title : '' };
+      }),
+    });
   },
 
   setTabTitle(id: string, title: string) {
