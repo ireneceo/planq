@@ -905,12 +905,23 @@ router.put('/:id/visibility', authenticateToken, async (req, res, next) => {
     const isOwner = scope.isOwner || scope.isPlatformAdmin;
     if (!isAuthor && !isOwner) return errorResponse(res, 'forbidden', 403);
 
+    // ★ 운영 (Irene 2026-08-28): "프로젝트 > 문서에 왜 나만보기는 안나와? 보기표시 하고 나오긴 해야지."
+    //   옛 코드는 L1/L3/L4 로 바꿀 때 project_id 를 **null 로 지웠다.** 그래서 프로젝트 문서를
+    //   '나만보기' 로 바꾸는 순간 그 문서가 프로젝트에서 통째로 빠져나가, 목록(where project_id=?)에
+    //   영영 안 걸렸다. 본인조차 못 찾는다.
+    //   두 축을 섞어 쓴 것이 원인이다:
+    //     · vlevel     = **누가 보는가**(공개 범위)
+    //     · project_id = **어디에 속하는가**(소속)
+    //   공개 범위를 좁힌다고 소속이 사라질 이유가 없다. 소속은 유지하고 범위만 바꾼다.
+    //   L2 만 예외로 project_id 가 **필수**다 — 그때는 프로젝트가 곧 청중이기 때문이다.
+    //   (목록에는 이미 RowVisChip 으로 공개 범위가 표시된다 = "보기표시 하고 나오긴 해야지")
     let nextProjectId = post.project_id;
     if (level === 'L2') {
       if (project_id) nextProjectId = Number(project_id);
       if (!nextProjectId) return errorResponse(res, 'project_id_required_for_L2', 400);
-    } else if (level === 'L1' || level === 'L3' || level === 'L4') {
-      nextProjectId = null;
+    } else if (project_id !== undefined) {
+      // 호출자가 명시적으로 넘긴 경우만 소속 변경 (null 을 주면 '프로젝트에서 빼기')
+      nextProjectId = project_id === null ? null : Number(project_id);
     }
     // D4 #62 — 보안등급 게이트: 일반 외 문서는 L4(외부 공개) 전환 차단
     if (level === 'L4' && blocksExternalShare(post)) {

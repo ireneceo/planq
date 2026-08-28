@@ -14,7 +14,10 @@ const SUITES = {
   mailrt: () => require('./canary-mail-realtime'), // #205 실시간 반영 — 한 탭에서 내린 행이 다른 탭에서도 사라지는가
   handles: () => require('./canary-panel-handles'), // 패널 토글 화살표 중복 카나리 (접힘 상태에서만 드러남)
   tabs: () => require('./canary-tabs'),
-  tabtitle: () => require('./canary-tab-title'), // 탭 이름이 내용으로 유지되는가 — LRU 정지(alive:false)로 pane 이 언마운트돼도 되돌아가면 안 된다
+  tabtitle: () => require('./canary-tab-title'),
+  collapsed: () => require('./canary-collapsed'),        // 좌측 메뉴 접힘 × 전 루트 빈 화면
+  docscollapse: () => require('./canary-docs-collapse'), // 문서 **편집 중** 리스트 접기 — 보기 모드에서는 재현 안 됨
+ // 탭 이름이 내용으로 유지되는가 — LRU 정지(alive:false)로 pane 이 언마운트돼도 되돌아가면 안 된다
          // ⑥ 멀티탭 트리 스왑(형제 라우터 무크래시·keep-alive·shell 무회귀)
   hlock: () => require('./canary-qtalk-hlock'), // #245 Q Talk 가로 잠금 — overflow-y:auto 만 두면 반대축이 auto 로 강제(grep 불가)
   fab: () => require('./canary-fab-reach'),

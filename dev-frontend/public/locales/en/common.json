@@ -950,5 +950,9 @@
     "ready": "A new version is ready",
     "reload": "Refresh now",
     "later": "Later"
+  },
+  "download": {
+    "pluginMissing": "This app version cannot save files. Please update the app.",
+    "saveFailed": "Could not save the file. Please check your device storage."
   }
 }

@@ -1273,8 +1273,14 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                         )}
                         {r.title}
                       </AtCardName>
+                      {/* 운영 (Irene 2026-08-28): "리스트에 나오는 내용이 제목만나오면 다인가?
+                          내용살짝 보여주거나 해야하는 거 아니야? 아니면 다른 정보라도?"
+                          content_preview(200자)는 목록 API 가 이미 주고 있었고 카드만 안 그렸다.
+                          워크스페이스 목록(RowPreview)과 같은 정보량으로 맞춘다 — 본문 두 줄 + 작성자. */}
+                      {r.content_preview && <CardPreview>{r.content_preview}</CardPreview>}
                       <AtCardMeta>
                         <span>{formatDate(r.updated_at)}</span>
+                        {r.author?.name && <CardAuthor>{r.author.name}</CardAuthor>}
                         {r.category && <CategoryMini>#{r.category}</CategoryMini>}
                         <RowVisChip $level={(r.vlevel as string) || 'L3'}>{visLabel(r.vlevel)}</RowVisChip>
                       </AtCardMeta>
@@ -2150,7 +2156,15 @@ const Layout = styled.div<{ $collapsed?: boolean; $projectFull?: boolean; $hasDe
   /* 좌측 리스트 폭 — Q note 와 동일 (300px). 좌측 리스트 패턴 통일 */
   /* 프로젝트 스코프: 단일 컬럼. browse 시 ProjBrowse(파일 탭과 동일한 Toolbar+Split) 가 셀을 채우고,
      문서를 열면(상세/편집) 같은 셀에 상세를 풀폭으로 렌더. */
-  grid-template-columns: ${p => p.$projectFull ? '1fr' : (p.$collapsed ? '0 1fr' : `${p.$listW || 300}px 1fr`)};
+  /* ★ 운영 (Irene 2026-08-28): "문서에서 좌측메뉴 닫으면 편집하던 화면이 하얗게 돼."
+     접으면 위의 Sidebar 가 조건부 렌더(!sidebarCollapsed &&)로 **DOM 에서 사라진다.** 그런데 여기서
+     첫 칸을 0 으로 남겨두면, 남은 본문(section)이 그 **0px 칸**에 들어가 화면이 통째로 없어진다.
+     ★ 이 주석에 백틱을 쓰지 말 것 — styled 템플릿이 그 자리에서 끊긴다(memory 박제된 함정).
+     실측(1440px·1000px 둘 다): cols "0px 1376px" · 자식 [section:0] · 에디터 폭 0 · painted 0/111.
+     칸 수는 **실제로 렌더되는 자식 수와 맞아야 한다** → 접힘은 단일 칸.
+     (0 폭 칸을 남기려면 Sidebar 를 계속 마운트해야 하는데, 그건 Q Mail/Q Note 의
+      CollapsibleSidebar(visibility:hidden) 방식이다. 여기는 조건부 렌더라 칸을 없애는 쪽이 맞다.) */
+  grid-template-columns: ${p => (p.$projectFull || p.$collapsed) ? '1fr' : `${p.$listW || 300}px 1fr`};
   height: 100%; min-height: 0;
   /* 경계선 핸들(PanelEdgeHandle)이 이 컨테이너 기준으로 absolute 배치된다 */
   position: relative;
@@ -2412,6 +2426,16 @@ const RowTitle = styled.div`
 const RowPreview = styled.div`
   margin-top: 4px; font-size: 12px; color: #64748B; line-height: 1.5;
   overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+`;
+// 프로젝트 문서 카드의 본문 미리보기 — 워크스페이스 목록의 RowPreview 와 같은 규격.
+const CardPreview = styled.div`
+  padding: 0 10px; margin-top: 2px; font-size: 12px; color: #64748B; line-height: 1.45;
+  overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  word-break: break-word;
+`;
+const CardAuthor = styled.span`
+  color: #94A3B8;
+  &::before { content: '·'; margin-right: 4px; }
 `;
 // N+72 — 리스트 row vlevel chip + share mini
 const RowVisChip = styled.span<{ $level: string }>`

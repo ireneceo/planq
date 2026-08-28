@@ -55,7 +55,13 @@ export const Card = styled.div<{ $selected?: boolean }>`
   &:hover{border-color:#14B8A6;box-shadow:0 2px 8px rgba(20,184,166,.08);}
 `;
 // 문서 탭 카드는 우상단 핀 버튼(28px)을 얹으므로 오른쪽 여백만 확보 (파일 탭은 이 모듈을 쓰지 않아 영향 없음).
-export const CardName = styled.div`padding:8px 36px 2px 10px;font-size:13px;font-weight:600;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
+// 운영 (Irene 2026-08-28): "문서리스트들 제목이 2줄은 나와야 제목을 읽지. 지금은 글자가 너무 빨리 끊겨서"
+//   한 줄 말줄임이면 카드 폭이 좁아 제목 대부분이 잘린다. 두 줄까지 보여주고 그 다음에 자른다.
+//   (line-clamp 는 -webkit- 접두사가 여전히 표준 경로다. min-height 로 두 줄 자리를 미리 잡아
+//    제목 길이에 따라 카드 높이가 들쭉날쭉해지지 않게 한다.)
+export const CardName = styled.div`padding:8px 36px 2px 10px;font-size:13px;font-weight:600;color:#0F172A;line-height:1.35;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  min-height:calc(1.35em * 2);word-break:break-word;`;
 export const CardMeta = styled.div`padding:0 10px;font-size:11px;color:#64748B;display:flex;gap:4px;
   &:last-child{padding-bottom:10px;margin-top:2px;}
 `;

@@ -104,7 +104,15 @@ async function run() {
   return results;
 }
 
-module.exports = { run, name: 'tab-title' };
+
+// ★ 하니스 러너(run.js printSuite)는 **r.fail(숫자)** 을 센다. {ok, msg} 만 돌려주면 bad=0 이 되어
+//   **게이트에서 영원히 통과**한다 — 단독 실행은 실패하는데 러너는 ✅ 를 찍는다(2026-08-28 실측).
+//   결과를 러너 계약으로 변환한다: { name, fail: 0|1, details: [메시지] }.
+function toRunnerShape(rows) {
+  return rows.map((r) => ({ name: r.name, fail: r.ok ? 0 : 1, details: [r.msg], hasCanary: true }));
+}
+
+module.exports = { run: async () => toRunnerShape(await run()), name: 'tab-title' };
 
 if (require.main === module) {
   run().then((res) => {
