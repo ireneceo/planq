@@ -180,10 +180,14 @@ const DocsTab: React.FC<Props> = (props) => {
     const offNew = onSocket('file:new', triggerReload);
     const offUpdated = onSocket('file:updated', triggerReload);
     const offDeleted = onSocket('file:deleted', triggerReload);
+    // #379 — Google Drive 에서 고친 것도 여기로 온다(이름변경·이동·삭제).
+    //   서버가 `gdrive:changed` 를 쏘고 있었지만 **받는 곳이 한 군데도 없었다** —
+    //   broadcast 는 수신부까지가 기능이다(CLAUDE.md 실시간 반영 규칙 16-c).
+    const offGdrive = onSocket('gdrive:changed', triggerReload);
     return () => {
       if (pending) window.clearTimeout(pending);
       leaveRoom(`business:${businessId}`);
-      offNew(); offUpdated(); offDeleted();
+      offNew(); offUpdated(); offDeleted(); offGdrive();
     };
   }, [businessId, projectId, isWorkspace, isPersonal]);
 

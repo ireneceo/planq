@@ -656,6 +656,10 @@ initAttendanceAutoClose();
 // #242 ② — 역방향 동기화 cron (구글에서 고친 내용을 PlanQ 로, 5분 단위)
 const { initCalendarReverseSyncCron } = require('./services/calendarReverseSyncCron');
 initCalendarReverseSyncCron(app);
+// #379 — Drive watch 채널 갱신 + 공백 backstop (30분 단위).
+//   채널은 약 1주 뒤 만료된다. 갱신이 없으면 배포 직후엔 되다가 **일주일 뒤 조용히 멈춘다.**
+const { initGdriveWatchCron } = require('./services/gdriveWatchCron');
+initGdriveWatchCron();
 // Q Mail M1 — IMAP fetch cron (5분 단위)
 const emailImapCron = require('./services/emailImapCron');
 emailImapCron.init();
