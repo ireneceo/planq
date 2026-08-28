@@ -287,6 +287,12 @@ sync_database() {
   #   ★ 롤백은 **코드만 revert**. 컬럼·ENUM 은 남긴다(옛 코드에 무해). 단 models/SignatureRequest.js 의
   #     컬럼 선언은 revert 금지 — sync alter 가 모델에 없는 컬럼을 DROP 한다. (스크립트 헤더 참조)
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-doc-external-confirm.js 2>&1 | tail -10"
+
+  # #379 — Drive 역방향 동기화 스키마 (gdrive_sync_logs · file_folders.gdrive_folder_id).
+  #   ★ 2026-08-28 실측: sync-database 가 모델 정의를 보고 **우연히** 만들어 줬다. 그래도 명시한다 —
+  #     자동 생성에 기대면 sync alter 64키 한도(memory)나 모델 로딩 순서 변화에 조용히 실패한다.
+  #     멱등이라 이미 있으면 skip 한다.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-gdrive-sync.js 2>&1 | tail -10"
   success "마이그레이션 완료 (push native / invoice-payment / account-deletion / mail-notify / task-hold / mail-delivery / calendar-sync / calendar-split / calendar-reverse-sync / doc-confirm)"
 
   # 백필 — 마이그레이션 후. 과거 paid invoice/회차에 payment 원장 생성(멱등). 매출 0 복구.
