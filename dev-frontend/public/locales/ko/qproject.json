@@ -575,7 +575,9 @@
       "tags": "태그",
       "tagsPh": "태그 입력 후 Enter",
       "tagRemove": "태그 삭제"
-    }
+    },
+    "unmirrored": "Drive 사본 없음",
+    "unmirroredHint": "Google Drive 의 사본이 삭제됐습니다. PlanQ 원본은 그대로 있습니다."
   },
   "pinnedDoc": {
     "tableHint": "표 문서는 여기서 미리보기를 지원하지 않아요.",

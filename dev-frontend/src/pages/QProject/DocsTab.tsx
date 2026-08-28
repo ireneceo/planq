@@ -671,6 +671,13 @@ const DocsTab: React.FC<Props> = (props) => {
                     <RowName>
                       <FileExtIcon ext={extOf(f.file_name)} size={32} />
                       <RowNameText title={f.file_name}>{f.file_name}</RowNameText>
+                      {/* #379 — Drive 에서 사본을 지우면 원본은 그대로 두고 미러만 끊는다.
+                          알려주지 않으면 사용자는 "드라이브에 없는데 왜 여기 있지" 를 설명할 수 없다. */}
+                      {f.gdrive_unmirrored && (
+                        <UnmirrorTag title={tr('docs.unmirroredHint') as string}>
+                          {tr('docs.unmirrored') as string}
+                        </UnmirrorTag>
+                      )}
                     </RowName>
                     <RowSrc>
                       <SourcePill $src={f.source}>{sourceShortLabel(f.source, tr)}</SourcePill>
@@ -1568,6 +1575,11 @@ const ListRow = styled.div<{ $selected?: boolean; $selectMode?: boolean }>`
 const RowChk = styled.div`display:flex;justify-content:center;`;
 const RowName = styled.div`display:flex;align-items:center;gap:10px;min-width:0;`;
 const RowNameText = styled.div`font-size:13px;font-weight:600;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;`;
+// #379 — Drive 사본이 끊긴 상태 표시. 경고가 아니라 **사실 고지**라 회색 톤(원본은 멀쩡하다).
+const UnmirrorTag = styled.span`
+  flex-shrink:0; padding:1px 6px; border-radius:4px;
+  background:#F1F5F9; color:#64748B; font-size:12px; font-weight:600; white-space:nowrap;
+`;
 const RowSrc = styled.div`display:flex;align-items:center;gap:6px;min-width:0;`;
 const SourcePill = styled.span<{ $src: FileSource }>`padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.2px;${p => srcStyle(p.$src)}`;
 const RowCtx = styled.span`font-size:11px;color:#64748B;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;`;

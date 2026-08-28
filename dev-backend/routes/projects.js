@@ -3122,6 +3122,12 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
         project_context: proj ? { id: proj.id, name: proj.name, color: proj.color } : null,
         deletable: true,
         storage_provider: f.storage_provider,
+        // #379 — Drive 사본이 삭제되면 gdriveApply 가 미러만 해제한다(원본은 보존).
+        //   그 사실을 사용자가 알아야 "왜 드라이브에 없지" 를 스스로 설명할 수 있다.
+        //   ★ 이 직렬화는 **두 군데**(워크스페이스 all-files · 프로젝트 files)에 있다 —
+        //     한쪽만 고치면 같은 파일이 화면마다 다르게 보인다.
+        gdrive_mirror_id: f.gdrive_mirror_id || null,
+        gdrive_unmirrored: f.storage_provider === 'planq' && !f.gdrive_mirror_id && !!f.gdrive_mirrored_at,
         // N+67 — visibility 노출 (frontend file detail drawer 에 표시 + 변경 UI)
         visibility: f.visibility,
         project_id: f.project_id,
@@ -3329,6 +3335,12 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
         folder_id: f.folder_id,
         deletable: true,
         storage_provider: f.storage_provider,
+        // #379 — Drive 사본이 삭제되면 gdriveApply 가 미러만 해제한다(원본은 보존).
+        //   그 사실을 사용자가 알아야 "왜 드라이브에 없지" 를 스스로 설명할 수 있다.
+        //   ★ 이 직렬화는 **두 군데**(워크스페이스 all-files · 프로젝트 files)에 있다 —
+        //     한쪽만 고치면 같은 파일이 화면마다 다르게 보인다.
+        gdrive_mirror_id: f.gdrive_mirror_id || null,
+        gdrive_unmirrored: f.storage_provider === 'planq' && !f.gdrive_mirror_id && !!f.gdrive_mirrored_at,
         visibility: f.visibility,
         project_id: f.project_id,
         description: f.description,

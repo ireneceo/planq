@@ -32,6 +32,9 @@ export interface ProjectFile {
   storage_provider: StorageProvider;
   external_id?: string | null;
   external_url?: string | null;
+  // #379 — Drive 사본이 지워져 미러가 끊긴 상태(원본은 PlanQ 에 그대로 있다)
+  gdrive_mirror_id?: string | null;
+  gdrive_unmirrored?: boolean;
   // N+67 — visibility 필드 (source='direct' 일 때만 변경 가능)
   visibility?: 'L1' | 'L2' | 'L3' | 'L4' | null;
   security_level?: 'general' | 'internal' | 'confidential';  // D4 #62

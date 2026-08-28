@@ -575,7 +575,9 @@
       "tags": "Tags",
       "tagsPh": "Type a tag and press Enter",
       "tagRemove": "Remove tag"
-    }
+    },
+    "unmirrored": "No Drive copy",
+    "unmirroredHint": "The Google Drive copy was deleted. Your PlanQ original is intact."
   },
   "pinnedDoc": {
     "tableHint": "Table documents can't be previewed here.",
