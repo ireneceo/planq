@@ -617,6 +617,8 @@ const ARTICLES = [
       s('업무를 맡기면 결과물을 자동으로 만들어 줍니다.', 'Hand off a task and Cue generates the deliverable.'),
       s('고객 채팅에 자동으로 답안을 제안합니다(내가 확인 후 발송).', 'Cue drafts replies to customer chat (you review before sending).'),
       s('회의 내용·자료를 요약하고 정리합니다.', 'Cue summarizes and organizes meetings and material.'),
+      p('바로 물어보려면 왼쪽 메뉴의 검색창 오른쪽에 있는 <strong>Cue</strong> 버튼을 누르세요. 별도 창으로 열려 보던 화면이 그대로 남습니다.',
+        'To ask right away, click the <strong>Cue</strong> button to the right of the search box in the left menu. It opens in its own window so your current screen stays put.'),
       note('Cue는 전 플랜에서 같은 기능을 쓰고, 월 사용 한도(액션 수)만 플랜별로 다릅니다.', 'Cue works the same on every plan; only the monthly action limit differs by plan.'),
     ] },
   { cat: 'cue', slug: 'assign-task-to-cue', visibility: 'authenticated', linked_route: '/tasks', est: 2,
