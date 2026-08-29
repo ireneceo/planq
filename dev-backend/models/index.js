@@ -401,6 +401,9 @@ Project.hasMany(ProjectIssue, { as: 'issues', foreignKey: 'project_id' });
 
 TaskCandidate.belongsTo(Project, { foreignKey: 'project_id', onDelete: 'CASCADE' });
 TaskCandidate.belongsTo(Conversation, { foreignKey: 'conversation_id' });
+// #235 — 메일에서 뽑은 후보. 전역 인박스가 이 연관으로 스레드 제목·상태를 읽는다.
+//   (없으면 include 가 런타임에 던진다 — 문법 검사로는 안 잡힌다)
+TaskCandidate.belongsTo(EmailThread, { foreignKey: 'email_thread_id' });
 TaskCandidate.belongsTo(User, { as: 'guessedAssignee', foreignKey: 'guessed_assignee_user_id' });
 Project.hasMany(TaskCandidate, { as: 'taskCandidates', foreignKey: 'project_id' });
 

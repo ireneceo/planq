@@ -1965,14 +1965,35 @@ router.get('/extracted-candidates', authenticateToken, async (req, res, next) =>
     const projs = await ProjectModel.findAll({ where: { business_id: businessId }, attributes: ['id', 'name'] });
     const projIds = projs.map(p => p.id);
     const projMap = new Map(projs.map(p => [p.id, p.name]));
-    if (projIds.length === 0) return successResponse(res, []);
+    // ★ 프로젝트 축만 보면 **메일 후보가 영영 안 보인다**(project_id 없음). 실제로 그랬다 —
+    //   메일에서 뽑은 후보는 그 스레드를 열었을 때의 우측 패널에서만 보였고, 업무 인박스에는
+    //   한 번도 오지 않았다. 그래서 "만들어도 아무도 안 보는 후보" 가 된다.
+    //   메일 후보는 business_id 로 직접 격리해 같이 모은다(Op.or 로 한 쿼리).
+    //   ※ 프로젝트가 하나도 없어도 메일 후보는 있을 수 있으므로 조기 return 하지 않는다.
+    const { EmailThread } = require('../models');
+    const candWhere = projIds.length > 0
+      ? { status: 'pending', [Op.or]: [{ project_id: projIds }, { business_id: businessId, email_thread_id: { [Op.ne]: null } }] }
+      : { status: 'pending', business_id: businessId, email_thread_id: { [Op.ne]: null } };
     const cands = await TaskCandidate.findAll({
-      where: { project_id: projIds, status: 'pending' },
-      include: [{ model: User, as: 'guessedAssignee', attributes: ['id', 'name', 'name_localized'], required: false }],
+      where: candWhere,
+      include: [
+        { model: User, as: 'guessedAssignee', attributes: ['id', 'name', 'name_localized'], required: false },
+        // 메일 후보의 맥락 — 어느 메일에서 나왔는지 보여주려면 제목이 필요하다.
+        { model: EmailThread, attributes: ['id', 'subject', 'status'], required: false },
+      ],
       order: [['extracted_at', 'DESC']],
       limit: 20,
     });
-    const candsJson = cands.map(c => ({ ...c.toJSON(), project_name: projMap.get(c.project_id) }));
+    const candsJson = cands
+      // 보관·스팸 스레드의 후보는 올리지 않는다 (손 뗀 대화다)
+      .filter(c => !c.EmailThread || !['archived', 'spam'].includes(String(c.EmailThread.status)))
+      .map(c => ({
+        ...c.toJSON(),
+        project_name: projMap.get(c.project_id),
+        // 출처 표시 — 화면이 "어디서 왔는지" 를 말할 수 있게
+        source: c.email_thread_id ? 'mail' : 'chat',
+        email_subject: c.EmailThread ? c.EmailThread.subject : null,
+      }));
     await applyMemberDisplayName(candsJson, businessId, ['guessedAssignee']);
     return successResponse(res, candsJson);
   } catch (err) { next(err); }

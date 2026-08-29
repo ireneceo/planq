@@ -593,7 +593,10 @@ async function extractEmailTaskCandidates({ emailThreadId, userId, businessId })
   }));
 
   // dedup — 이미 등록/병합/거절된 후보 + source 가진 task 의 메일 메시지 차단
-  const resolvedC = await TaskCandidate.findAll({ where: { email_thread_id: emailThreadId, status: { [Op.in]: ['registered', 'merged', 'rejected'] } }, attributes: ['source_email_message_ids'] });
+  // ★ pending 도 막는다 (Fable #235 F1). 여태 resolved(registered/merged/rejected)만 차단해서,
+  //   같은 스레드를 두 번 추출하면 **아직 처리 안 한 후보가 그대로 중복 생성**됐다.
+  //   수동(1클릭)에선 잘 안 드러나지만 자동추출을 붙이면 즉시 드러나는 구멍이다.
+  const resolvedC = await TaskCandidate.findAll({ where: { email_thread_id: emailThreadId, status: { [Op.in]: ['pending', 'registered', 'merged', 'rejected'] } }, attributes: ['source_email_message_ids'] });
   const tasksWithSrc = await Task.findAll({ where: { email_thread_id: emailThreadId, source_email_message_id: { [Op.ne]: null } }, attributes: ['source_email_message_id'] });
   const blocked = new Set();
   for (const c of resolvedC) for (const id of (c.source_email_message_ids || [])) blocked.add(Number(id));
