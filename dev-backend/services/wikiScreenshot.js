@@ -49,6 +49,13 @@ async function loginForCapture(email, password) {
 
 // File dedup 저장 (해당 워크스페이스 스코프)
 async function saveScreenshotFile(buffer, businessId, fileName) {
+  // ★ uploader_id 는 NOT NULL 이다(모델·DB 둘 다). 여기서 null 을 넣고 있어 create 가 **항상 실패**했고,
+  //   그래서 위키 캡처는 여태 파일을 한 건도 만든 적이 없다(운영 실측 0건, 2026-08-29).
+  //   주체가 사람이 아니므로 워크스페이스 소유자로 귀속한다 — Drive 인제스트가 연동자로 귀속하는 것과 같은 규칙.
+  const { Business } = require('../models');
+  const biz = await Business.findByPk(businessId, { attributes: ['id', 'owner_id'] });
+  const ownerId = biz?.owner_id || null;
+  if (!ownerId) throw new Error(`wikiScreenshot: business ${businessId} 의 owner_id 를 찾을 수 없어 캡처를 저장할 수 없다`);
   const hash = crypto.createHash('sha256').update(buffer).digest('hex');
   const existing = await File.findOne({ where: { business_id: businessId, content_hash: hash, deleted_at: null } });
   if (existing) {
@@ -64,7 +71,7 @@ async function saveScreenshotFile(buffer, businessId, fileName) {
   fs.writeFileSync(abs, buffer);
   return File.create({
     business_id: businessId,
-    uploader_id: null,
+    uploader_id: ownerId,
     file_name: fileName,
     file_path: abs,
     file_size: buffer.length,
@@ -72,7 +79,10 @@ async function saveScreenshotFile(buffer, businessId, fileName) {
     storage_provider: 'planq',
     content_hash: hash,
     ref_count: 1,
+    // 권위 컬럼은 **쌍으로** 쓴다. 한쪽만 쓰면 나머지가 기본값으로 떨어져 의도보다 넓게 샌다
+    //   (지금은 기본값이 같아 결과가 우연히 맞지만, 기본값이 갈리는 순간 사고가 된다).
     visibility: 'L3',
+    vlevel: 'L3',
   });
 }
 

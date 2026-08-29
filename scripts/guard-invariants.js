@@ -1226,6 +1226,40 @@ function checkUiSpec() {
   report('uispec', `UI 규격 래칫 (동결 총 ${Object.values(base).reduce((a, b) => a + b, 0)} / 현재 ${total})`, fails.length === 0, fails);
 }
 
+// ═══════════════════════════════════════════════
+// N. vlevelpair — 권위 컬럼 쌍(visibility · vlevel) 동시 기록
+//
+// 왜: 노출 판정은 vlevel 우선이고, 둘 다 없으면 **전 멤버 공개**로 떨어진다
+//   (middleware/access_scope.js). 그래서 한쪽만 쓰면 의도한 것보다 넓게 새는데,
+//   기본값이 마침 같은 값이면 **런타임 검사로는 구별조차 안 된다**(2026-08-29 실측 —
+//   Drive 인제스트에서 세 줄을 지워도 결과가 L3/L3 로 같아 검사가 통과했다).
+//   그래서 값이 아니라 **쓰였는지**를 소스에서 본다.
+//   박제: memory feedback_dual_column_authority_write_side
+function checkVlevelPair() {
+  const files = [
+    ...walk(`${ROOT}/dev-backend/routes`, ['.js']),
+    ...walk(`${ROOT}/dev-backend/services`, ['.js']),
+  ];
+  const bad = [];
+  let scanned = 0;
+  for (const f of files) {
+    const src = read(f);
+    const re = /\bFile\.create\s*\(/g;
+    let m;
+    while ((m = re.exec(src)) !== null) {
+      const snippet = extractCallSnippet(src, re.lastIndex - 1);
+      scanned += 1;
+      const hasVis = /\bvisibility\s*:/.test(snippet);
+      const hasLvl = /\bvlevel\s*:/.test(snippet);
+      if (hasVis === hasLvl) continue;               // 둘 다 있거나 둘 다 없으면 이 가드의 대상이 아니다
+      const line = src.slice(0, m.index).split('\n').length;
+      bad.push(`${rel(f)}:${line}: File.create 가 ${hasVis ? 'visibility 만' : 'vlevel 만'} 기록 — 쌍으로 쓸 것`);
+    }
+  }
+  // ★ 몇 개를 검사했는지 같이 보고한다 — 0개 검사한 통과와 진짜 통과는 같은 얼굴이다.
+  report('vlevelpair', `권위 컬럼 쌍 동시 기록 (File.create ${scanned}곳 검사)`, bad.length === 0, bad);
+}
+
 const CATEGORIES = {
   mock: checkMock,
   i18n: checkI18n,
@@ -1251,6 +1285,7 @@ const CATEGORIES = {
   schemacol: checkSchemaCol,
   routedrift: checkRouteDrift,
   uispec: checkUiSpec,
+  vlevelpair: checkVlevelPair,
 };
 
 try {

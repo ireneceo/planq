@@ -57,12 +57,30 @@ async function addColumn(table, col, ddl) {
   const md5Moved = m?.affectedRows ?? m?.changedRows ?? 0;
   console.log(`· md5 오염 정리: ${md5Moved}행 (content_hash → drive_md5)`);
 
+  // ④ 원장 ENUM 확장 — v2 의 'ingest' / 'scope_exit'.
+  //   없으면 MySQL 이 'Data truncated' 로 거부하고 우리 log() 는 catch 로 삼켜서
+  //   **성공 기록만 조용히 사라진다**(dev 검사에서 실제로 드러났다). 멱등.
+  const [ac] = await sequelize.query("SHOW COLUMNS FROM gdrive_sync_logs LIKE 'action'");
+  const actionType = ac[0]?.Type || '';
+  if (actionType.includes("'ingest'") && actionType.includes("'scope_exit'")) {
+    console.log('✓ gdrive_sync_logs.action ENUM 이미 확장됨 — skip');
+  } else {
+    await sequelize.query(
+      "ALTER TABLE gdrive_sync_logs MODIFY COLUMN action " +
+      "ENUM('rename','move','content','trash','untrash','unmirror','create','skip','ingest','scope_exit') NOT NULL");
+    console.log('+ gdrive_sync_logs.action ENUM 확장 (ingest, scope_exit)');
+    changed++;
+  }
+
   // 검산 — 남아 있으면 안 되는 것
   const [chk] = await sequelize.query(
     "SELECT " +
     "(SELECT COUNT(*) FROM files WHERE content_hash IS NOT NULL AND CHAR_LENGTH(content_hash)<>64) AS bad_hash, " +
     "(SELECT COUNT(*) FROM files WHERE storage_provider='gdrive' AND origin_provider IS NULL) AS unfilled");
-  console.log(`· 검산: 비-sha256 해시 ${chk[0].bad_hash}행 · 미백필 ${chk[0].unfilled}행 (둘 다 0 이어야 함)`);
+  const [ac2] = await sequelize.query("SHOW COLUMNS FROM gdrive_sync_logs LIKE 'action'");
+  const enumOk = String(ac2[0]?.Type || '').includes("'ingest'");
+  console.log(`· 검산: 비-sha256 해시 ${chk[0].bad_hash}행 · 미백필 ${chk[0].unfilled}행 (둘 다 0 이어야 함) · action ENUM ingest 포함 ${enumOk}`);
+  if (!enumOk) { console.error('FATAL 검산 실패 — action ENUM 에 ingest 가 없다'); process.exit(1); }
   if (Number(chk[0].bad_hash) || Number(chk[0].unfilled)) {
     console.error('FATAL 검산 실패 — 위 두 값이 0 이 아니다');
     process.exit(1);

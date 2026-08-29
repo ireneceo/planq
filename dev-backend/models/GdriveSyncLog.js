@@ -17,7 +17,11 @@ GdriveSyncLog.init({
   file_id: { type: DataTypes.INTEGER, allowNull: true },      // PlanQ File.id (매칭됐을 때)
   // 무엇을 했는가. skipped 계열은 **왜 안 했는지**가 핵심이라 reason 과 짝으로 본다.
   action: {
-    type: DataTypes.ENUM('rename', 'move', 'content', 'trash', 'untrash', 'unmirror', 'create', 'skip'),
+    // v2 추가: 'ingest'(Drive 원본을 들임) · 'scope_exit'(워크스페이스 폴더 밖으로 나감)
+    //   ★ ENUM 에 없는 값을 쓰면 MySQL 이 'Data truncated' 로 거부하고, 우리 log() 는
+    //     catch 로 삼켜서 **성공 기록만 조용히 사라진다**(실패 사유는 action='skip' 이라 남는다).
+    //     검사에서 실제로 그렇게 드러났다 — 모델과 DB ENUM 을 같이 늘릴 것.
+    type: DataTypes.ENUM('rename', 'move', 'content', 'trash', 'untrash', 'unmirror', 'create', 'skip', 'ingest', 'scope_exit'),
     allowNull: false,
   },
   // skip 사유: echo(우리가 만든 변경) · unknown_file(모르는 파일) · no_change(멱등 비교 diff 0) ·
