@@ -312,7 +312,12 @@ sync_database() {
   #   **없는 것만** purged_at 을 찍는다 — 옛 코드도 sibling 이 있으면 물리삭제를 보류했으므로
   #   되살릴 수 있는 것이 섞여 있다. 멱등(dev 실측: 적용 후 재실행 0건).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/backfill-file-purged.js --apply 2>&1 | tail -6"
-  success "마이그레이션 완료 (push native / invoice-payment / account-deletion / mail-notify / task-hold / mail-delivery / calendar-sync / calendar-split / calendar-reverse-sync / doc-confirm / file-trash)"
+
+  # Drive 역방향 v2 — 정본 축 분리(files.origin_provider) · Drive 체크섬 자리(files.drive_md5)
+  #   · 인제스트 커서. 백필까지 한 스크립트 안에서 하고 **검산 실패 시 exit 1** 이라 배포가 멈춘다.
+  #   여기가 없으면 코드만 올라가고 컬럼이 없어 조용히 죽는다(memory: 게이트에 안 붙은 가드는 없는 가드).
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-gdrive-origin.js 2>&1 | tail -8"
+  success "마이그레이션 완료 (push native / invoice-payment / account-deletion / mail-notify / task-hold / mail-delivery / calendar-sync / calendar-split / calendar-reverse-sync / doc-confirm / file-trash / gdrive-origin)"
 
   # 백필 — 마이그레이션 후. 과거 paid invoice/회차에 payment 원장 생성(멱등). 매출 0 복구.
   log "Backfilling invoice payments..."

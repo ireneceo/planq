@@ -84,6 +84,11 @@ BusinessCloudToken.init({
     type: DataTypes.STRING(128),
     allowNull: true
   },
+  // v2 전체 스캔 재개 지점 — 배치가 중단돼도 이어받는다 (증분 커서 watch_page_token 과 별개).
+  gdrive_ingest_cursor: {
+    type: DataTypes.STRING(255),
+    allowNull: true
+  },
   // 연결은 유지한 채 동기화만 끄기 (Irene 요구 2026-07-27). 기본 ON.
   //   ★ DB 컬럼만 추가하고 이 필드를 빠뜨리면 값이 undefined 라 토글이 조용히 무시된다.
   sync_enabled: {

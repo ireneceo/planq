@@ -87,7 +87,20 @@ File.init({
     allowNull: true,
   },
   content_hash: {
+    // ★ sha256 전용 (64자). Drive 가 주는 md5 를 여기 넣지 말 것 — drive_md5 가 그 자리다.
+    //   2026-08-29 이전에는 gdriveApply 가 md5 를 넣어 오염된 행이 있었다(마이그레이션에서 이전).
     type: DataTypes.CHAR(64),
+    allowNull: true
+  },
+  // Drive 가 준 체크섬 — 변경 감지 비교용. 우리 해시 축(content_hash)과 섞지 않는다.
+  drive_md5: {
+    type: DataTypes.STRING(32),
+    allowNull: true
+  },
+  // 정본 축 — 변경의 진실이 어디에 있는가. NULL = PlanQ 가 정본.
+  //   서빙 축(storage_provider)과 분리돼 있다. 판정은 services/fileOrigin.js 하나만 쓴다.
+  origin_provider: {
+    type: DataTypes.ENUM('gdrive'),
     allowNull: true
   },
   ref_count: {
