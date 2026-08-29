@@ -173,6 +173,8 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
 
   // 초안 자동저장 (localStorage) — 모달 닫아도 입력 보존
   const DRAFT_KEY = 'qnote_meeting_draft_v1';
+  // 초안 유효 기간 — 24시간. 그 이상 지난 것은 오늘의 의도가 아니다.
+  const DRAFT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
   const [draftRestored, setDraftRestored] = useState(false);
   const hasDraftRef = useRef(false);
 
@@ -261,6 +263,16 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
       const raw = localStorage.getItem(DRAFT_KEY);
       if (raw) {
         const d = JSON.parse(raw);
+        // ★ 오래된 초안은 버린다. 초안은 "쓰다가 멈춘 것을 이어서" 를 위한 것이지
+        //   **며칠 전 설정이 오늘 회의의 언어·번역을 계속 정하라는 뜻이 아니다.**
+        //   실제로 계정 언어가 한국어인데 세션이 영어로 시작된 사례를 조사하다 이 창구를 발견했다
+        //   (초안에 meetingLang·translateEnabled 가 같이 실려 복원된다).
+        //   savedAt 이 없는 옛 초안도 만료로 본다 — 언제 것인지 모르는 것을 믿지 않는다.
+        const savedAt = typeof d.savedAt === 'number' ? d.savedAt : 0;
+        if (!savedAt || Date.now() - savedAt > DRAFT_MAX_AGE_MS) {
+          try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+          throw new Error('draft_expired');   // 아래 catch → 초안 없음 경로로 떨어진다
+        }
         setTitle(d.title || '');
         setBrief(d.brief || '');
         setParticipants(Array.isArray(d.participants) ? d.participants : []);
@@ -309,6 +321,8 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
           meetingLang, translateEnabled, translationLang, answerLang, showAdvanced,
           captureMode, pastedContext, urls,
           priorityQAs, meetingAnswerStyle, meetingAnswerLength,
+          // 초안이 언제 것인지 — 오래된 초안이 오늘 회의 설정을 지배하지 않게 한다.
+          savedAt: Date.now(),
         };
         // 전부 비어있으면 저장하지 않음 (빈 초안 유령 방지)
         // meetingLang/translationLang 은 사용자 언어로 자동 프리필되는 값이라 판정에서 뺀다.

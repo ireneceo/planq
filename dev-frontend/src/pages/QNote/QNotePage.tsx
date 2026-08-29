@@ -2347,7 +2347,9 @@ const QNotePage = () => {
             </NewSessionBtn>
             {newNoteDropdownOpen && (
               <NewNoteDropdown onMouseLeave={() => setNewNoteDropdownOpen(false)}>
-                {/* 맨 위 — 준비 없이 바로 시작. 통화가 걸려온 순간에 쓰는 경로라 가장 먼저 온다. */}
+                {/* 순서: 바로 녹음 → 음성 노트 → 메모 (Irene 2026-08-29 "메모가 가운데인 순서는 이상해").
+                    녹음 계열 둘이 붙어 있고, 성격이 다른 텍스트 메모가 맨 아래로 간다.
+                    맨 위는 준비 없이 바로 시작 — 통화가 걸려온 순간에 쓰는 경로다. */}
                 <NewNoteItem type="button" data-testid="qnote-quick-record" onClick={() => {
                   setNewNoteDropdownOpen(false);
                   guardRecording(() => { handleQuickStart(); });
@@ -2357,18 +2359,18 @@ const QNotePage = () => {
                 </NewNoteItem>
                 <NewNoteItem type="button" onClick={() => {
                   setNewNoteDropdownOpen(false);
+                  guardRecording(() => setShowStartModal(true));
+                }}>
+                  <NewNoteItemTitle>{t('page.newNoteDropdown.voiceLabel', { defaultValue: '음성 노트' }) as string}</NewNoteItemTitle>
+                  <NewNoteItemDesc>{t('page.newNoteDropdown.voiceDesc', { defaultValue: '회의 녹음 + STT + 답변 찾기' }) as string}</NewNoteItemDesc>
+                </NewNoteItem>
+                <NewNoteItem type="button" onClick={() => {
+                  setNewNoteDropdownOpen(false);
                   // 녹음 중 새 메모 생성은 activeSession 을 바꿔 심박을 흔든다 → 확인 후에만.
                   guardRecording(() => { void createMemoSession(); });
                 }}>
                   <NewNoteItemTitle>{t('page.newNoteDropdown.memoLabel', { defaultValue: '메모' }) as string}</NewNoteItemTitle>
                   <NewNoteItemDesc>{t('page.newNoteDropdown.memoDesc', { defaultValue: '텍스트 · 코드블록 · 서식 지원' }) as string}</NewNoteItemDesc>
-                </NewNoteItem>
-                <NewNoteItem type="button" onClick={() => {
-                  setNewNoteDropdownOpen(false);
-                  guardRecording(() => setShowStartModal(true));
-                }}>
-                  <NewNoteItemTitle>{t('page.newNoteDropdown.voiceLabel', { defaultValue: '음성 노트' }) as string}</NewNoteItemTitle>
-                  <NewNoteItemDesc>{t('page.newNoteDropdown.voiceDesc', { defaultValue: '회의 녹음 + STT + 답변 찾기' }) as string}</NewNoteItemDesc>
                 </NewNoteItem>
               </NewNoteDropdown>
             )}
