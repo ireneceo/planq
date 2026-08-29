@@ -460,6 +460,9 @@ router.get('/:businessId/email-threads/:id',
         ai_summary: tj.ai_summary,
         ai_summary_at: tj.ai_summary_at,
         is_starred: tj.is_starred,
+        // #384 — 상세는 필드를 **명시 나열**한다. 여기 안 적으면 목록엔 있는데 상세엔 없어서
+        //   화면이 현재 설정을 못 그리고 매번 기본값으로 보인다(실측으로 드러남).
+        follow_up_days: tj.follow_up_days ?? null,
         unread_count: tj.unread_count || 0,
         message_count: tj.message_count || 0,
         labels: tj.labels || [],
@@ -661,6 +664,40 @@ router.post('/:businessId/email-threads/:id/mark-handled',
       // reply_needed:false 를 실어야 위 헬퍼가 뱃지 갱신까지 쏜다 (답변 완료 = 답변필요 해제).
       broadcastMail(req, businessId, 'mail:updated', { thread_id: thread.id, handled: true, unread: 0, reply_needed: false });
       return successResponse(res, { id: thread.id, status: 'archived', unread_count: 0 });
+    } catch (err) { next(err); }
+  }
+);
+
+// POST follow-up — 이 대화의 후속 알림 기간 설정 (#384)
+//   "언제쯤까지 답변 안 오면 알려달라" — 대화마다 다르게 정한다.
+//   값: null(기본 3일) · 0(끔) · 1~365(N일). 판정은 services/mailFollowUp 하나만 읽는다.
+// ─────────────────────────────────────────────
+router.post('/:businessId/email-threads/:id/follow-up',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const acctIds = await accessibleAccountIds(businessId, req.user.id);
+      const thread = await EmailThread.findOne({
+        where: { id: req.params.id, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } },
+      });
+      if (!thread) return errorResponse(res, 'thread_not_found', 404);
+
+      // 입력 검증 — 손상된 값이 DB 에 들어가면 판정이 이상해진다(thresholdFor 가 방어하지만 저장부터 막는다).
+      const raw = req.body ? req.body.days : undefined;
+      let days;
+      if (raw === null || raw === undefined || raw === '') {
+        days = null;                                  // 기본값으로 되돌리기
+      } else {
+        const n = Number(raw);
+        if (!Number.isInteger(n) || n < 0 || n > 365) {
+          return errorResponse(res, 'invalid_days', 400);
+        }
+        days = n;                                     // 0 = 끔
+      }
+      await thread.update({ follow_up_days: days });
+      broadcastMail(req, businessId, 'mail:updated', { thread_id: thread.id, follow_up_days: days });
+      return successResponse(res, { id: thread.id, follow_up_days: days });
     } catch (err) { next(err); }
   }
 );

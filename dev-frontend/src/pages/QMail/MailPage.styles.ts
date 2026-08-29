@@ -522,6 +522,9 @@ export const DetailControls = styled.div`
   display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
   margin-top: 0;
 `;
+// #384 — 후속 알림 기간 선택. 툴바의 알약들과 같은 높이(28)로 맞춰 한 줄에 얹힌다.
+export const FollowUpPicker = styled.div`display:flex;align-items:center;gap:6px;min-width:150px;`;
+export const FollowUpLabel = styled.span`font-size:12px;color:#64748B;white-space:nowrap;`;
 export const CtrlBtn = styled.button<{ $on: boolean }>`
   height: 28px; padding: 0 12px;
   border-radius: 999px;

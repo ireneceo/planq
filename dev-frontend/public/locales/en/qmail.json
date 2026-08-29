@@ -543,5 +543,16 @@
   },
   "list": {
     "backToList": "Back to list"
+  },
+  "followUp": {
+    "label": "If no reply",
+    "aria": "Reminder delay when there is no reply",
+    "opt": {
+      "default": "In 3 days (default)",
+      "d7": "In 7 days",
+      "d14": "In 14 days",
+      "d30": "In 30 days",
+      "off": "Don't remind"
+    }
   }
 }

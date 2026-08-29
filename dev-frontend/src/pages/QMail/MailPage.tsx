@@ -121,6 +121,8 @@ import {
   MessagesScroll,
   MetaChip,
   FollowUpChip,
+  FollowUpPicker,
+  FollowUpLabel,
   NewLabelInput,
   NoAcctBtn,
   NoAcctHint,
@@ -184,6 +186,8 @@ interface Thread {
   // 읽음 추적 대신 쓰는 결정론적 신호 — 보낸 뒤 답이 없거나, 애초에 발송이 안 됐거나.
   //   서버 판정(services/mailFollowUp) 단일 원천. 프론트에서 날짜를 다시 계산하지 말 것.
   follow_up?: { kind: 'awaiting_reply'; days: number } | { kind: 'delivery_problem'; delivery_status: string } | null;
+  // #384 — 이 대화의 후속 알림 기간. null=기본(3일) · 0=끔 · N=N일
+  follow_up_days?: number | null;
   status: string;
   reply_needed: boolean;
   reply_needed_at?: string | null;
@@ -290,6 +294,16 @@ export function pickTranslateTarget(sourceLang: string, uiLang: string): string 
   if (sourceLang !== ui) return ui;
   return ui === 'en' ? 'ko' : 'en';
 }
+
+// #384 — 후속 알림 기간 프리셋. 백엔드는 1~365 를 받지만 화면은 자주 쓰는 값만 준다.
+//   'default' = 서버 기본(3일) · '0' = 이 대화 알림 끔.
+const FOLLOW_UP_OPTIONS = (t: (k: string, o?: Record<string, unknown>) => unknown) => ([
+  { value: 'default', label: t('followUp.opt.default', { defaultValue: '3일 뒤(기본)' }) as string },
+  { value: '7', label: t('followUp.opt.d7', { defaultValue: '7일 뒤' }) as string },
+  { value: '14', label: t('followUp.opt.d14', { defaultValue: '14일 뒤' }) as string },
+  { value: '30', label: t('followUp.opt.d30', { defaultValue: '30일 뒤' }) as string },
+  { value: '0', label: t('followUp.opt.off', { defaultValue: '알리지 않음' }) as string },
+]);
 
 const MailPage: React.FC = () => {
   const { t, i18n } = useTranslation('qmail');
@@ -781,6 +795,21 @@ const MailPage: React.FC = () => {
   }, [businessId, i18n.language]);
 
   // 스레드 부분 수정 (스타/라벨/보관) — 낙관적 갱신
+  // #384 — 이 대화의 후속 알림 기간. 전용 라우트(POST .../follow-up)를 쓴다 —
+  //   일반 PUT 은 이 필드를 받지 않고, 값 검증(0~365)도 그 라우트에 있다.
+  const setFollowUpDays = useCallback(async (id: number, days: number | null) => {
+    if (!businessId) return;
+    setThreads(prev => prev.map(t => (t.id === id ? { ...t, follow_up_days: days } as Thread : t)));
+    setDetail(prev => (prev && prev.id === id ? { ...prev, follow_up_days: days } as ThreadDetail : prev));
+    try {
+      const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${id}/follow-up`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ days }),
+      });
+      // apiFetch 는 non-2xx 에 throw 하지 않는다 — 낙관적 갱신을 되돌리려면 직접 확인해야 한다.
+      if (!r.ok) silentReloadRef.current?.();
+    } catch { silentReloadRef.current?.(); }
+  }, [businessId]);
+
   const patchThread = useCallback(async (id: number, patch: Record<string, unknown>) => {
     if (!businessId) return;
     setThreads(prev => prev.map(t => (t.id === id ? { ...t, ...patch } as Thread : t)));
@@ -2274,6 +2303,24 @@ const MailPage: React.FC = () => {
                       ? t('actions.following', { defaultValue: '팔로우 중' }) as string
                       : t('actions.follow', { defaultValue: '팔로우' }) as string}
                   </CtrlBtn>
+                  {/* #384 — "언제쯤까지 답 없으면 알려달라". 대화마다 다르게 정한다.
+                      판정은 백엔드 한 곳(services/mailFollowUp)이라 여기서 바꾸면
+                      목록 뱃지와 알림이 **함께** 움직인다. */}
+                  <FollowUpPicker>
+                    <FollowUpLabel>{t('followUp.label', { defaultValue: '답 없으면' }) as string}</FollowUpLabel>
+                    <PlanQSelect
+                      size="sm"
+                      isSearchable={false}
+                      value={FOLLOW_UP_OPTIONS(t).find(o => o.value === String(detail.follow_up_days ?? 'default')) || null}
+                      options={FOLLOW_UP_OPTIONS(t)}
+                      onChange={(opt) => {
+                        const v = (opt as { value: string } | null)?.value;
+                        if (v === undefined) return;
+                        setFollowUpDays(detail.id, v === 'default' ? null : Number(v));
+                      }}
+                      aria-label={t('followUp.aria', { defaultValue: '답장 없을 때 알림 기간' }) as string}
+                    />
+                  </FollowUpPicker>
                   {myUserId && (
                     <CtrlBtn type="button" $on={detail.assignee_user_id === myUserId} onClick={toggleAssignMe}>
                       {detail.assignee_user_id === myUserId

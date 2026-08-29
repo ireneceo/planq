@@ -109,6 +109,9 @@ function serializeThreadRow(t, { folder, senderByThread, lastOutByThread, attach
       received_at_email: obj.received_at_email || null,   // 별칭별 보기 — 이 대화가 들어온 우리 주소
       // 읽음 추적 대신 쓰는 결정론적 신호 — services/mailFollowUp 참조
       follow_up: followUpState(obj, lastOutByThread.get(obj.id) || null),
+      // #384 — 화면이 현재 설정을 보여주고 바꿀 수 있게 그대로 내려준다.
+      //   null = 기본값 사용 · 0 = 끔 · N = N일. 뜻은 services/mailFollowUp.thresholdFor 가 정본.
+      follow_up_days: obj.follow_up_days ?? null,
       status: obj.status,
       reply_needed: obj.reply_needed,
       reply_needed_at: obj.reply_needed_at,

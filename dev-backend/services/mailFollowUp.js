@@ -10,6 +10,12 @@
  *   반면 "마지막으로 보낸 뒤 답이 없다" 는 이미 있는 데이터(방향·시각)로 **거짓 양성/음성 없이**
  *   계산된다. 수집 항목이 0건이라 개인정보처리방침 개정도 필요 없다.
  *
+ * 기간 (#384 후속, 2026-08-29):
+ *   기본 3일이지만 **대화마다 바꿀 수 있다** — `email_threads.follow_up_days`.
+ *     NULL = 기본값 · 0 = 이 대화는 알림 끔 · N = N일
+ *   ★ 판정을 여기 한 곳에서만 하므로, 사용자가 기간을 바꾸면 **목록 뱃지와 알림이 함께** 움직인다.
+ *     둘 중 하나만 고치면 "뱃지는 떴는데 알림은 안 온다" 가 된다.
+ *
  * 판정 규칙:
  *   · 스레드의 마지막 메시지가 outbound 여야 한다 (답이 왔으면 inbound 가 마지막)
  *   · **마지막 보낸 메일이 실제로 안 나갔으면(suppressed/failed/bounced) "응답 없음" 은 거짓**이다.
@@ -47,8 +53,24 @@ function followUpState(thread, lastOutbound, now) {
   const sentAt = thread.last_message_at ? new Date(thread.last_message_at) : null;
   if (!sentAt || isNaN(sentAt.getTime())) return null;
   const days = Math.floor(((now instanceof Date ? now : new Date()) - sentAt) / DAY_MS);
-  if (days < MIN_DAYS) return null;
+  const threshold = thresholdFor(thread);
+  if (threshold === null) return null;          // 이 대화는 사용자가 알림을 껐다
+  if (days < threshold) return null;
   return { kind: 'awaiting_reply', days };
 }
 
-module.exports = { followUpState, MIN_DAYS, DELIVERED_ENOUGH, INACTIVE_STATUS };
+/**
+ * 이 대화의 문턱(일). null 이면 알림을 끈 것.
+ *   범위 밖 값은 기본값으로 떨어뜨린다 — 손상된 데이터가 판정을 이상하게 만들지 않게.
+ */
+function thresholdFor(thread) {
+  const raw = thread ? thread.follow_up_days : null;
+  if (raw === null || raw === undefined) return MIN_DAYS;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return MIN_DAYS;
+  if (n === 0) return null;                     // 끔
+  if (n < 1 || n > 365) return MIN_DAYS;        // 범위 밖 — 기본값
+  return Math.floor(n);
+}
+
+module.exports = { followUpState, thresholdFor, MIN_DAYS, DELIVERED_ENOUGH, INACTIVE_STATUS };

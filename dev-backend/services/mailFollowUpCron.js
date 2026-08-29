@@ -15,9 +15,10 @@
 //   · 한 사람에게 여러 건이면 **한 통으로 묶는다**.
 const { Op } = require('sequelize');
 const { EmailThread, EmailMessage, EmailAccount } = require('../models');
-const { followUpState, MIN_DAYS, INACTIVE_STATUS } = require('./mailFollowUp');
+const { followUpState, thresholdFor, MIN_DAYS, INACTIVE_STATUS } = require('./mailFollowUp');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const MAX_DAYS = 365;   // follow_up_days 상한 (mailFollowUp.thresholdFor 와 같은 값)
 
 /**
  * @param {Date} [now]
@@ -27,10 +28,12 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 async function runMailFollowUpCron(now = new Date(), ioApp = null) {
   const summary = { scanned: 0, due: 0, notified: 0 };
 
-  // 후보 좁히기 — 마지막 메시지가 outbound 이고, 보낸 지 MIN_DAYS~MIN_DAYS+1 일 사이.
-  //   경계는 넉넉히 잡고 최종 판정은 followUpState 에 맡긴다.
-  const from = new Date(now.getTime() - (MIN_DAYS + 1) * DAY_MS);
-  const to = new Date(now.getTime() - MIN_DAYS * DAY_MS);
+  // 후보 좁히기 — 마지막 메시지가 outbound 인 것.
+  //   ★ 대화마다 기간이 다르므로(#384) 창을 MIN_DAYS 로 고정할 수 없다. 최대 기간(365일)까지
+  //     넉넉히 훑고, **문턱을 오늘 넘겼는지는 아래에서 대화별로** 판정한다.
+  //     (좁은 창으로 자르면 7일·14일로 설정한 대화가 영영 안 걸린다)
+  const from = new Date(now.getTime() - (MAX_DAYS + 1) * DAY_MS);
+  const to = new Date(now.getTime() - 1 * DAY_MS);
   const threads = await EmailThread.findAll({
     where: {
       last_message_direction: 'outbound',
@@ -38,7 +41,7 @@ async function runMailFollowUpCron(now = new Date(), ioApp = null) {
       last_message_at: { [Op.gte]: from, [Op.lt]: to },
     },
     attributes: ['id', 'business_id', 'account_id', 'subject', 'status',
-      'last_message_direction', 'last_message_at'],
+      'last_message_direction', 'last_message_at', 'follow_up_days'],
   });
   summary.scanned = threads.length;
   if (threads.length === 0) return summary;
@@ -69,7 +72,9 @@ async function runMailFollowUpCron(now = new Date(), ioApp = null) {
     const state = followUpState(t, out, now);
     // 알림은 "답이 없다" 만 다룬다. 발송 실패(delivery_problem)는 성격이 달라 목록 뱃지로 남긴다.
     if (!state || state.kind !== 'awaiting_reply') continue;
-    if (state.days !== MIN_DAYS) continue;      // 문턱을 넘는 날 한 번만
+    // 문턱을 **넘는 날 한 번만**. 기간이 대화마다 다르므로 고정값이 아니라 그 대화의 문턱과 비교한다.
+    const threshold = thresholdFor(t);
+    if (threshold === null || state.days !== threshold) continue;
     const userId = (out && out.sent_by_user_id) || ownerByAccount.get(t.account_id) || null;
     if (!userId) continue;                      // 받을 사람을 모르면 보내지 않는다
     summary.due += 1;
@@ -94,7 +99,8 @@ async function runMailFollowUpCron(now = new Date(), ioApp = null) {
         eventKind: 'mail',
         titleSpec: { feature: 'mail', action: 'mail_awaiting_reply', subject: subjectLabel },
         title: `답장 없음 — ${subjectLabel}`,   // titleSpec 이 해석되지 않을 때의 대비
-        body: `보낸 지 ${MIN_DAYS}일이 지났습니다`,
+        // 대화마다 기간이 다르므로 그 대화의 문턱을 그대로 쓴다(3일 고정 문구 금지).
+        body: `보낸 지 ${thresholdFor(first)}일이 지났습니다`,
         // 목록에서 바로 후속 조치를 하도록 전체 탭으로 — 여기에 후속조치 뱃지가 보인다.
         link: '/mail?folder=all',
         ctaLabel: '메일 보기',

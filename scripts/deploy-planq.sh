@@ -317,7 +317,11 @@ sync_database() {
   #   · 인제스트 커서. 백필까지 한 스크립트 안에서 하고 **검산 실패 시 exit 1** 이라 배포가 멈춘다.
   #   여기가 없으면 코드만 올라가고 컬럼이 없어 조용히 죽는다(memory: 게이트에 안 붙은 가드는 없는 가드).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-gdrive-origin.js 2>&1 | tail -8"
-  success "마이그레이션 완료 (push native / invoice-payment / account-deletion / mail-notify / task-hold / mail-delivery / calendar-sync / calendar-split / calendar-reverse-sync / doc-confirm / file-trash / gdrive-origin)"
+
+  # #384 — 메일별 후속 알림 기간 (email_threads.follow_up_days). NULL=기본 3일 · 0=끔 · N=N일.
+  #   백필하지 않는다 — NULL 이 곧 "기본값" 이라 옛 대화의 동작이 그대로 유지된다.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-mail-followup-days.js 2>&1 | tail -6"
+  success "마이그레이션 완료 (push native / invoice-payment / account-deletion / mail-notify / task-hold / mail-delivery / calendar-sync / calendar-split / calendar-reverse-sync / doc-confirm / file-trash / gdrive-origin / mail-followup)"
 
   # 백필 — 마이그레이션 후. 과거 paid invoice/회차에 payment 원장 생성(멱등). 매출 0 복구.
   log "Backfilling invoice payments..."

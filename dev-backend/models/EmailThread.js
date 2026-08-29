@@ -46,6 +46,9 @@ EmailThread.init({
   // 이 대화가 **우리 쪽 어느 주소**로 들어왔는가 (계정 본주소 또는 별칭).
   //   별칭이 여러 개인 메일함에서 "support@ 로 온 것만 보기" 같은 필터의 기반이 된다.
   //   매 조회마다 to_emails JSON 을 스캔하는 건 오답이라 수신 시점에 한 번 박아둔다.
+  // #384 — 이 대화의 후속 알림 기간(일). NULL=기본 3일 · 0=끔 · N=N일.
+  //   판정은 services/mailFollowUp.thresholdFor() 하나만 읽는다.
+  follow_up_days: { type: DataTypes.INTEGER, allowNull: true, defaultValue: null },
   received_at_email: { type: DataTypes.STRING(255), allowNull: true },
   last_message_preview: { type: DataTypes.STRING(500), allowNull: true },
   participants: { type: DataTypes.JSON, allowNull: true, defaultValue: null },
