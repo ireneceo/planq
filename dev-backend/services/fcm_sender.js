@@ -10,6 +10,7 @@
 // 미설정 시 isFcmConfigured()=false → 호출측(push_service)이 skipped 처리.
 const fs = require('fs');
 const jwt = require('jsonwebtoken');
+const { isTransientPushFailure, RETRY_DELAY_MS, sleep } = require('./pushTransient');
 
 const TOKEN_URI = 'https://oauth2.googleapis.com/token';
 const SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
@@ -94,7 +95,8 @@ async function sendFcm(deviceToken, payload, _retried = false) {
       signal: AbortSignal.timeout(5000),
     });
   } catch (e) {
-    return { ok: false, status: 0, reason: e.name === 'TimeoutError' ? 'timeout' : (e.message || 'req_error') };
+    const reason = e.name === 'TimeoutError' ? 'timeout' : (e.message || 'req_error');
+    return _maybeRetry(deviceToken, payload, _retried, { ok: false, status: 0, reason });
   }
 
   if (res.status === 200) return { ok: true, status: 200 };
@@ -118,7 +120,17 @@ async function sendFcm(deviceToken, payload, _retried = false) {
     }
     reason = detailCode || status || reason;
   } catch { /* body 파싱 실패 — http_status 유지 */ }
-  return { ok: false, status: res.status, reason };
+  return _maybeRetry(deviceToken, payload, _retried, { ok: false, status: res.status, reason });
+}
+
+// 일시적 실패(timeout·네트워크·5xx)면 1회만 다시 보낸다.
+//   여태는 그대로 실패로 돌아가 **알림이 영영 사라졌다** (services/pushTransient.js 주석 참조).
+async function _maybeRetry(deviceToken, payload, alreadyRetried, result) {
+  if (alreadyRetried || !isTransientPushFailure(result.status, result.reason)) return result;
+  await sleep(RETRY_DELAY_MS);
+  const retried = await sendFcm(deviceToken, payload, true);
+  if (!retried.ok) return { ...retried, reason: `${retried.reason || 'failed'} (재시도 1회 후)` };
+  return retried;
 }
 
 module.exports = { sendFcm, isFcmConfigured };

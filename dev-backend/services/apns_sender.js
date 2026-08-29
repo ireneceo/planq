@@ -12,6 +12,7 @@
 const http2 = require('http2');
 const fs = require('fs');
 const jwt = require('jsonwebtoken');
+const { isTransientPushFailure, RETRY_DELAY_MS, sleep } = require('./pushTransient');
 
 const HOST_PROD = 'https://api.push.apple.com';
 const HOST_SANDBOX = 'https://api.sandbox.push.apple.com';
@@ -58,6 +59,13 @@ function _getClient() {
   c.on('close', () => { if (_client === c) _client = null; });
   _client = c;
   return c;
+}
+
+// 연결 계층 오류 뒤에는 **캐시된 세션을 버린다.** 반쯤 죽은 세션으로 다시 쏘면 두 번 실패할 뿐이다.
+function _dropClient() {
+  const c = _client;
+  _client = null;
+  try { if (c) c.destroy(); } catch { /* noop */ }
 }
 
 // payload: push_service 의 { title, body, link?, tag?, badge? }
@@ -114,6 +122,17 @@ async function sendApns(deviceToken, payload, _retried = false) {
   if (!result.ok && result.status === 403 && result.reason === 'InvalidProviderToken' && !_retried) {
     _cachedJwt = { token: null, iat: 0 };
     return sendApns(deviceToken, payload, true);
+  }
+
+  // 일시적 실패(ECONNRESET·timeout·5xx) — 연결을 버리고 1회 재시도.
+  //   여태는 여기서 그냥 실패로 돌아가 **알림이 영영 사라졌다**(운영 7일 2건, services/pushTransient.js 주석).
+  if (!result.ok && !_retried && isTransientPushFailure(result.status, result.reason)) {
+    _dropClient();
+    await sleep(RETRY_DELAY_MS);
+    const retried = await sendApns(deviceToken, payload, true);
+    // 최종 실패면 재시도했다는 사실을 사유에 남긴다 — 로그만 보고 "한 번 만에 죽었다" 로 오독하지 않게.
+    if (!retried.ok) return { ...retried, reason: `${retried.reason || 'failed'} (재시도 1회 후)` };
+    return retried;
   }
   return result;
 }

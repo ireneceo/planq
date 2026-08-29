@@ -15,6 +15,7 @@ const { Op } = require('sequelize');
 const { PushSubscription, PushLog } = require('../models');
 const { sendApns } = require('./apns_sender');
 const { sendFcm } = require('./fcm_sender');
+const { isTransientPushFailure, RETRY_DELAY_MS, sleep } = require('./pushTransient');
 
 const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY || '';
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || '';
@@ -158,10 +159,16 @@ async function sendPushToUser(userId, payload, opts = {}) {
         await logPush({ user_id: userId, subscription_id: s.id, endpoint_host: endpointHost(s.endpoint), status: 'skipped', error_message: 'no_vapid', category, payload_title: payload.title });
         continue;
       }
-      await webpush.sendNotification({
-        endpoint: s.endpoint,
-        keys: { p256dh: s.p256dh, auth: s.auth },
-      }, json, sendOpts);
+      // 일시적 실패(ECONNRESET·5xx)는 1회만 다시 보낸다 — 네이티브(APNs/FCM)와 같은 판정을 쓴다.
+      //   410/404 는 영구라 여기서 걸리지 않고 아래 catch 의 정리 분기로 그대로 간다.
+      const sub = { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } };
+      try {
+        await webpush.sendNotification(sub, json, sendOpts);
+      } catch (e1) {
+        if (!isTransientPushFailure(e1.statusCode || null, e1.message)) throw e1;
+        await sleep(RETRY_DELAY_MS);
+        await webpush.sendNotification(sub, json, sendOpts);
+      }
       await s.update({ last_used_at: new Date() });
       sent++;
       await logPush({
