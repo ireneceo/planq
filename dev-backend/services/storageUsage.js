@@ -70,7 +70,7 @@ async function reservePlanqUpload(businessId, sizeBytes, opts = {}) {
   }
 }
 
-// 자체 스토리지 파일 삭제 — usage 반환(감소). files.js softDeleteFile 과 동일 하한 정책.
+// 자체 스토리지 파일 삭제 — usage 반환(감소). files.js trashFile 과 동일 하한 정책.
 //   물리 파일을 실제로 제거(단독 소유)한 경우에만 호출해야 double-decrement 를 피한다.
 //   count: 한 번에 여러 파일을 반환할 때 file_count 감소량(대량 삭제용). 기본 1.
 //   ⚠ 자체 트랜잭션을 열므로 다른 트랜잭션(같은 BusinessStorageUsage 행 FOR UPDATE) 안에서

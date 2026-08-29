@@ -190,8 +190,11 @@ async function copyFileToTarget(f, targetBiz, userId, quotaCtx) {
   return { status: 'copied', bytes: sz };
 }
 
-// ─── 원본 파일 soft delete (move 모드) — 복사 성공 후에만 호출 ───
-//   files.js softDeleteFile 과 동일 정책: deleted_at + ref_count 감소 + (0 도달·sibling 없음) 물리삭제
+// ─── 원본 파일 제거 (move 모드) — 복사 성공 후에만 호출 ───
+//   ★ 이건 "삭제" 가 아니라 **이동**이다. 바이트는 이미 대상 워크스페이스로 복사됐으므로
+//     원본을 지우는 것이 move 의 정의다 — 휴지통(routes/files.js trashFile)에 넣지 않는다.
+//     휴지통에 넣으면 같은 파일이 두 워크스페이스에 동시에 살아 있는 것처럼 보인다.
+//   정책: deleted_at + ref_count 감소 + (0 도달·sibling 없음) 물리삭제
 //   + 출발 워크스페이스 쿼터 반환(bytes_used·file_count). 쿼터 차감 누락 시 출발지 용량 부풀려짐.
 async function softDeleteSourceFile(f) {
   await f.update({ deleted_at: new Date() });

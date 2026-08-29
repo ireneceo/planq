@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // 문서 버전이 놓아준 파일 회수 (GC) — 2026-08-25.
 //
-// 왜 필요한가: 버전 기록이 참조하는 파일은 물리 삭제를 보류한다(routes/files.js softDeleteFile).
+// 왜 필요한가: 버전 기록이 참조하는 파일은 물리 삭제를 보류한다(routes/files.js purgeFile).
 //   그 버전이 상한(50개)에 밀려 사라지면 파일은 **아무도 참조하지 않는 고아**로 남는다.
 //   정석은 "참조 계수 + 지연 회수" 다 — git 의 gc.pruneExpire, S3 lifecycle 과 같은 모델.
 //

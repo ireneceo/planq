@@ -148,6 +148,21 @@ File.init({
   deleted_at: {
     type: DataTypes.DATE,
     allowNull: true
+  },
+  // 휴지통 — 누가 지웠는가. 복구 화면에 "누가 언제" 를 보여주고, 감사에도 쓴다.
+  //   옛 행은 NULL 이다(그때는 기록하지 않았다) — 표시할 때 '알 수 없음' 으로 낮춘다.
+  deleted_by: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
+  // 바이트를 실제로 제거한 시각. NULL = 아직 되돌릴 수 있다.
+  //   왜 컬럼이 필요한가: 휴지통 목록에서 "되돌릴 수 있는 것" 만 보여주려면 SQL 로 걸러야 한다.
+  //   행마다 디스크를 뒤지면 페이지네이션이 무너진다(500건 받아 3건 남는 식).
+  //   ★ 다만 **최종 판정은 이 컬럼이 아니다.** 복구 직전에 바이트 실존을 한 번 더 본다
+  //     (routes/files.js isRestorable) — 컬럼과 디스크가 어긋나도 거짓 복구가 되지 않게.
+  purged_at: {
+    type: DataTypes.DATE,
+    allowNull: true
   }
 }, {
   sequelize,

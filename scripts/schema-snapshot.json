@@ -1,5 +1,5 @@
 {
-  "_generated": "2026-08-28",
+  "_generated": "2026-08-29",
   "_db": "planq_dev_db",
   "_note": "스키마 변경 후 `node scripts/dump-schema.js` 로 갱신할 것. guard-invariants schemacol 이 읽는다.",
   "tables": {
@@ -872,7 +872,9 @@
       "security_level",
       "gdrive_mirror_id",
       "gdrive_mirror_url",
-      "gdrive_mirrored_at"
+      "gdrive_mirrored_at",
+      "deleted_by",
+      "purged_at"
     ],
     "focus_sessions": [
       "id",

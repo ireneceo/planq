@@ -15,6 +15,10 @@ const { decodeOriginalName, buildContentDisposition } = require('../services/fil
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { attachWorkspaceScope, fileListWhereByLevel, canAccessFileByLevel, isMemberOrAbove, getUserScope } = require('../middleware/access_scope');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
+// 영구 삭제는 services/filePurge.js 단일 착지점. cron(uploadCleanup)도 같은 함수를 부른다 —
+//   두 벌로 두었더니 cron 이 휴지통을 영영 못 비우는 상태가 됐었다.
+// ★ 상단에 둔다 — 아래쪽 const 는 TDZ 라 모듈 평가 중 참조하면 조용히 죽는다(프로젝트 전례).
+const { purgeFile } = require('../services/filePurge');
 const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../services/displayName');
 const { perUserLimiter, perUserDaily } = require('../middleware/costGuard');
 
@@ -989,7 +993,7 @@ router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, async 
 
     const t = await sequelize.transaction();
     try {
-      await softDeleteFile(file, t);
+      await trashFile(file, req, t);
       await t.commit();
       // 사이클 N+21 — 파일 삭제 audit
       require('../services/auditService').logAudit(req, {
@@ -1035,7 +1039,7 @@ router.post('/:businessId/bulk-delete', authenticateToken, checkBusinessAccess, 
         project_id: f.project_id,
         visibility: f.visibility,
       }));
-      for (const f of files) await softDeleteFile(f, t);
+      for (const f of files) await trashFile(f, req, t);
       await t.commit();
       for (const f of files) broadcastFile(req, { id: f.id, business_id: f.business_id, project_id: f.project_id }, 'file:deleted');
       // 사이클 N+59 — bulk delete audit. 다량 데이터 삭제 = 보안 감사 critical
@@ -1053,46 +1057,26 @@ router.post('/:businessId/bulk-delete', authenticateToken, checkBusinessAccess, 
   }
 });
 
-async function softDeleteFile(file, transaction) {
-  file.deleted_at = new Date();
-  await file.save({ transaction });
-  // ref_count 감소 + 0이면 물리 파일 제거
-  await file.decrement('ref_count', { transaction });
-  await file.reload({ transaction });
+// ─── 삭제 = 2단계 (휴지통 → 영구삭제) ──────────────────────────────
+//
+// ★ 여기가 이번 변경의 핵심이다. 여태 "soft delete" 라고 부르던 것이 **바이트까지 지우고
+//   있었다** — DB 행만 남고 파일은 사라졌다. 그 상태로 복구 화면만 붙이면 "복구" 버튼이
+//   거짓말을 한다(memory: feedback_soft_delete_without_trash_ui).
+//
+//   삭제(trashFile)  : deleted_at/deleted_by 만 기록. 바이트·원격 객체는 **손대지 않는다.**
+//   영구삭제(purgeFile): 그때 비로소 ref_count 감소 · 물리 unlink · 원격 삭제.
+//
+//   쿼터는 **삭제 시점에 즉시 반환**한다(현행 유지). Free 1GB 인 제품에서 "지웠는데 용량이
+//   안 준다" 는 즉시 막힘으로 이어진다 — Dropbox 모델. 실제 디스크는 보존기간(TRASH_RETENTION_DAYS)
+//   만큼 더 쓰지만 자동 정리 cron 이 상한을 잡는다.
+const TRASH_RETENTION_DAYS = 30;
 
-  if (file.ref_count <= 0) {
-    if (file.storage_provider === 'planq') {
-      // 동일 file_path 를 참조하는 다른 활성 레코드 존재 여부 확인
-      const siblings = await File.count({
-        where: { file_path: file.file_path, deleted_at: null, id: { [Op.ne]: file.id } },
-        transaction
-      });
-      // 문서 버전 기록이 참조하면 바이트를 남긴다 — 판정은 services/fileRetention 에 모았다
-      //   (라우트에 두면 같은 규칙이 삭제 경로마다 갈라진다).
-      const referencedByRevision = await require('../services/fileRetention')
-        .isReferencedByPostRevision(file, transaction);
-      if (siblings === 0 && !referencedByRevision && fs.existsSync(file.file_path)) {
-        fs.unlinkSync(file.file_path);
-      }
-    } else if (file.storage_provider === 'gdrive' && file.external_id) {
-      try {
-        const cloudToken = await BusinessCloudToken.findOne({
-          where: { business_id: file.business_id, provider: 'gdrive' }, transaction
-        });
-        if (cloudToken) {
-          const drive = await gdrive.getDriveClient(cloudToken);
-          await gdrive.deleteFile(drive, file.external_id);
-        }
-      } catch (e) { console.error('[files] gdrive delete failed:', e.message); }
-    } else if (file.storage_provider === 's3' && file.external_id) {
-      try {
-        const { WorkspaceStorageConfig } = require('../models');
-        const cfg = await WorkspaceStorageConfig.findOne({ where: { business_id: file.business_id }, transaction });
-        if (cfg) await require('../services/s3Storage').deleteObject(cfg, file.external_id);
-      } catch (e) { console.error('[files] s3 delete failed:', e.message); }
-    }
-  }
-  // 쿼터 반환 (자체 스토리지만 쿼터 사용)
+async function trashFile(file, req, transaction) {
+  file.deleted_at = new Date();
+  file.deleted_by = req?.user?.id ?? null;
+  await file.save({ transaction });
+
+  // 쿼터 반환 (자체 스토리지만 쿼터 사용) — 바이트는 남지만 사용자 한도에서는 즉시 빠진다.
   if (file.storage_provider === 'planq') {
     const usage = await getOrCreateUsage(file.business_id, transaction);
     usage.bytes_used = Math.max(0, Number(usage.bytes_used) - Number(file.file_size));
@@ -1100,6 +1084,18 @@ async function softDeleteFile(file, transaction) {
     await usage.save({ transaction });
   }
 }
+
+// 복구 가능한가 — **바이트가 실제로 있는가**로 판정한다.
+//   파생 컬럼(purged_at 같은 것)을 진실의 원천으로 두지 않는다: 그 컬럼과 디스크가 어긋나는
+//   순간 복구 버튼이 거짓말을 한다(memory: feedback_derived_field_not_source_of_truth).
+//   외부 저장소(gdrive/s3)는 우리가 삭제를 미뤘으므로 원격에 남아 있다 — 다만 사용자가 Drive
+//   에서 직접 지웠을 수 있어 확답하지 않고, 복구 시도에서 실패하면 그때 알린다.
+function isRestorable(file) {
+  if (file.storage_provider !== 'planq') return true;
+  try { return !!file.file_path && fs.existsSync(file.file_path); } catch { return false; }
+}
+
+
 
 // ─── Download ───
 
@@ -1420,4 +1416,12 @@ router.get('/internal/:fileId', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// 휴지통 라우터(routes/file_trash.js)가 **같은 술어**를 쓰도록 내보낸다.
+//   따로 짜면 갈라진다 — 권한·가시성·보존기간은 한 곳에서만 정의한다.
 module.exports = router;
+module.exports.canMutateFile = canMutateFile;
+module.exports.getOrCreateUsage = getOrCreateUsage;
+module.exports.applyMemberDisplayName = applyMemberDisplayName;
+module.exports.broadcastFile = broadcastFile;
+module.exports.isRestorable = isRestorable;
+module.exports.TRASH_RETENTION_DAYS = TRASH_RETENTION_DAYS;

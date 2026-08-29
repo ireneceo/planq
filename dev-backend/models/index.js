@@ -257,6 +257,8 @@ File.belongsTo(Project, { foreignKey: 'project_id' });
 File.belongsTo(FileFolder, { as: 'folder', foreignKey: 'folder_id' });
 File.belongsTo(Client, { foreignKey: 'client_id' });
 File.belongsTo(User, { as: 'uploader', foreignKey: 'uploader_id' });
+// 휴지통 — 누가 지웠는지 화면에 보여준다. 옛 행은 deleted_by 가 NULL 이라 null 로 온다.
+File.belongsTo(User, { as: 'deleter', foreignKey: 'deleted_by' });
 Business.hasMany(File, { as: 'files', foreignKey: 'business_id' });
 Client.hasMany(File, { as: 'files', foreignKey: 'client_id' });
 

@@ -304,7 +304,15 @@ sync_database() {
   #   쓰기측(업로드 경로)은 고쳤고, 여기서 **이미 쌓인 것**을 문서 기준으로 맞춘다.
   #   넓히기 한 방향뿐 · 임시저장(L1) 문서는 제외 · 볼 사람이 안 정해지는 L2 는 건너뛴다.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/backfill-post-file-scope.js --apply 2>&1 | tail -12"
-  success "마이그레이션 완료 (push native / invoice-payment / account-deletion / mail-notify / task-hold / mail-delivery / calendar-sync / calendar-split / calendar-reverse-sync / doc-confirm)"
+
+  # 파일 휴지통 — files.deleted_by / files.purged_at (멱등 ALTER).
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-file-trash.js 2>&1 | tail -6"
+  # 옛 삭제분 stamp — 이 변경 전의 삭제는 **바이트까지 지웠다.** 그 행들을 휴지통에 그대로 두면
+  #   목록이 "눌러도 안 되는 항목" 으로 채워진다(dev 실측 1292건). 디스크를 실제로 확인해
+  #   **없는 것만** purged_at 을 찍는다 — 옛 코드도 sibling 이 있으면 물리삭제를 보류했으므로
+  #   되살릴 수 있는 것이 섞여 있다. 멱등(dev 실측: 적용 후 재실행 0건).
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/backfill-file-purged.js --apply 2>&1 | tail -6"
+  success "마이그레이션 완료 (push native / invoice-payment / account-deletion / mail-notify / task-hold / mail-delivery / calendar-sync / calendar-split / calendar-reverse-sync / doc-confirm / file-trash)"
 
   # 백필 — 마이그레이션 후. 과거 paid invoice/회차에 payment 원장 생성(멱등). 매출 0 복구.
   log "Backfilling invoice payments..."

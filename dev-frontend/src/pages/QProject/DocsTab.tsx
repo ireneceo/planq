@@ -27,6 +27,7 @@ import VisibilityField, { serializeVisibility, parseVisibility, type VisibilityV
 import { listProjects, listWorkspaceClients, type ApiProject, type WorkspaceClientRow } from '../../services/qtalk';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import { cacheKey, readCache, hasCache, writeCache } from '../../lib/pageCache';
+import TrashDrawer from './TrashDrawer';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { useFileDragOut } from '../../hooks/useFileDragOut';
 
@@ -78,6 +79,9 @@ const DocsTab: React.FC<Props> = (props) => {
     scope.type === 'project' ? `files:p${scope.projectId}` : `files:${scope.type}`,
     cacheUser?.id, scope.businessId,
   );
+  const [trashOpen, setTrashOpen] = useState(false);
+  // 휴지통에서 복구하면 바깥 목록이 **즉시** 그것을 보여야 한다 — 안 그러면 복구가 안 된 것처럼 보인다.
+  const [reloadTick, setReloadTick] = useState(0);
   const [files, setFiles] = useState<ProjectFile[]>(() => readCache<ProjectFile[]>(fileKey) ?? []);
   const [folders, setFolders] = useState<FileFolder[]>(() => readCache<FileFolder[]>(`${fileKey}:folders`) ?? []);
   const [projectName, setProjectName] = useState<string>('');
@@ -154,7 +158,7 @@ const DocsTab: React.FC<Props> = (props) => {
       });
     }
     return () => { cancelled = true; };
-  }, [projectId, businessId, isWorkspace, isPersonal, fileKey]);
+  }, [projectId, businessId, isWorkspace, isPersonal, fileKey, reloadTick]);
 
   // N+39 — PWA visibility 안전망 (socket 끊김 / background→foreground)
   useVisibilityRefresh(useCallback(() => {
@@ -489,6 +493,16 @@ const DocsTab: React.FC<Props> = (props) => {
         <SelectToggle $on={selectMode} type="button" onClick={() => setSelectMode(v => !v)}>
           {selectMode ? t('docs.bulk.exit', '선택 종료') : t('docs.bulk.enter', '선택')}
         </SelectToggle>
+        {/* 휴지통 — 지운 파일을 되돌리는 유일한 경로. 이게 없어서 삭제가 사실상 영구였다. */}
+        <SelectToggle
+          $on={trashOpen}
+          type="button"
+          data-testid="files-trash-open"
+          onClick={() => setTrashOpen(true)}
+          title={t('docs.trash.title', '휴지통') as string}
+        >
+          {t('docs.trash.title', '휴지통') as string}
+        </SelectToggle>
       </Toolbar>
 
       {/* 하니스 판정 신호(CLAUDE.md §17) — **양성**이어야 한다.
@@ -498,6 +512,14 @@ const DocsTab: React.FC<Props> = (props) => {
       {loading
         ? <span data-testid="files-loading" hidden />
         : <span data-testid="files-ready" hidden />}
+
+      <TrashDrawer
+        open={trashOpen}
+        businessId={Number(businessId)}
+        projectId={scope.type === 'project' ? scope.projectId : undefined}
+        onClose={() => setTrashOpen(false)}
+        onChanged={() => { setReloadTick((v) => v + 1); }}
+      />
 
       {/* Split: 좌 (폴더 트리 or 프로젝트 그룹) + 우 파일 영역
           N+30 — personal 모드: 좌측 패널 자체 렌더 X (평면 view, 폴더·프로젝트 그룹 없음) */}

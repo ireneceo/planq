@@ -387,6 +387,65 @@ export async function bulkDeleteFiles(businessId: number, fileIds: string[]): Pr
   return j.success ? (j.data?.deleted ?? numericIds.length) : 0;
 }
 
+// ─── 휴지통 ─────────────────────────────────────────────────────
+//
+// 지운 파일을 되돌리는 경로. 여태 삭제는 되돌릴 방법이 없었다(복구 라우트도 화면도 0건).
+// 서버가 행마다 `restorable` 을 정직하게 실어 준다 — 눌러도 안 되는 버튼을 만들지 않기 위해.
+
+export interface TrashedFile {
+  id: number;
+  file_name: string;
+  file_size: number;
+  mime_type: string | null;
+  deleted_at: string;
+  /** 되돌릴 수 있는가. 서버가 바이트 실존까지 보고 판정한 값이다. */
+  restorable: boolean;
+  /** 이 시각이 지나면 자동으로 비워진다 */
+  purge_after: string | null;
+  deleter?: { id: number; name: string } | null;
+  uploader?: { id: number; name: string } | null;
+  project_id?: number | null;
+}
+
+export interface TrashPage {
+  items: TrashedFile[];
+  total: number;
+  retentionDays: number;
+}
+
+export async function fetchTrash(businessId: number, opts?: { projectId?: number }): Promise<TrashPage> {
+  const q = opts?.projectId ? `&project_id=${opts.projectId}` : '';
+  const r = await apiFetch(`/api/files/${businessId}/trash?limit=200${q}`);
+  const j = await r.json();
+  if (!r.ok || !j.success) return { items: [], total: 0, retentionDays: 30 };
+  return {
+    items: (j.data || []) as TrashedFile[],
+    total: j.pagination?.total ?? (j.data || []).length,
+    retentionDays: j.pagination?.retention_days ?? 30,
+  };
+}
+
+/** 복구. 실패 사유를 그대로 돌려준다 — 조용히 실패하면 사용자는 눌렀는데 아무 일도 안 난 것으로 본다. */
+export async function restoreFile(businessId: number, fileId: number): Promise<{ ok: boolean; reason?: string }> {
+  const r = await apiFetch(`/api/files/${businessId}/${fileId}/restore`, { method: 'POST' });
+  const j = await r.json().catch(() => ({}));
+  if (r.ok && j.success) return { ok: true };
+  return { ok: false, reason: j.message || `HTTP ${r.status}` };
+}
+
+export async function purgeFile(businessId: number, fileId: number): Promise<boolean> {
+  const r = await apiFetch(`/api/files/${businessId}/${fileId}/purge`, { method: 'DELETE' });
+  const j = await r.json().catch(() => ({}));
+  return r.ok && !!j.success;
+}
+
+export async function emptyTrash(businessId: number): Promise<{ purged: number; skipped: number }> {
+  const r = await apiFetch(`/api/files/${businessId}/trash/empty`, { method: 'POST' });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.success) return { purged: 0, skipped: 0 };
+  return { purged: j.data?.purged ?? 0, skipped: j.data?.skipped ?? 0 };
+}
+
 // ─── 공유 링크 + 대량 다운로드 ───
 
 export interface ShareLinkResult {

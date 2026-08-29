@@ -577,7 +577,28 @@
       "tagRemove": "Remove tag"
     },
     "unmirrored": "No Drive copy",
-    "unmirroredHint": "The Google Drive copy was deleted. Your PlanQ original is intact."
+    "unmirroredHint": "The Google Drive copy was deleted. Your PlanQ original is intact.",
+    "trash": {
+      "title": "Trash",
+      "loading": "Loading…",
+      "emptyTitle": "Trash is empty",
+      "emptyDesc": "Deleted files are kept here and can be restored.",
+      "retention": "Items are cleared automatically after {{days}} days. Until then you can restore them.",
+      "restore": "Restore",
+      "purge": "Delete permanently",
+      "empty": "Empty trash",
+      "deletedBy": "Deleted by {{who}}",
+      "unknownWho": "Unknown",
+      "purgeAfter": "Auto-deleted on {{date}}",
+      "purgeTitle": "Delete permanently",
+      "purgeMsg": "\"{{name}}\" will be deleted permanently. This cannot be undone.",
+      "emptyMsg": "All files in the trash will be deleted permanently. This cannot be undone.",
+      "emptyPartial": "{{n}} item(s) were kept — you do not have permission to delete them.",
+      "restoreFailed": "Could not restore the file.",
+      "purgeFailed": "Could not delete the file.",
+      "quotaFull": "Storage is full, so this file cannot be restored. Please free up space first.",
+      "bytesGone": "This file's contents are already gone and cannot be restored."
+    }
   },
   "pinnedDoc": {
     "tableHint": "Table documents can't be previewed here.",
