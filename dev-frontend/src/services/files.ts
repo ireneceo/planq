@@ -139,7 +139,14 @@ async function fetchAllPages<T>(buildUrl: (page: number, limit: number) => strin
   for (let page = 1; page <= AUTO_PAGINATE_MAX_PAGES; page++) {
     const r = await apiFetch(buildUrl(page, AUTO_PAGINATE_LIMIT));
     const j = await r.json();
-    if (!j.success) break;
+    if (!j.success) {
+      // ★ 첫 페이지부터 실패한 것은 "결과가 없음" 이 아니라 **못 불러온 것**이다.
+      //   여태는 빈 배열을 돌려줘서 화면이 "아직 파일이 없어요" 를 띄웠고,
+      //   사용자는 파일이 사라진 것으로 읽었다(500 재현으로 실측).
+      //   2페이지 이후 실패는 부분 성공이라 있는 만큼 돌려준다(종전 동작 유지).
+      if (page === 1) throw new Error(j.message || `HTTP ${r.status}`);
+      break;
+    }
     const data = (j.data || []) as T[];
     collected.push(...data);
     const pag = j.pagination;

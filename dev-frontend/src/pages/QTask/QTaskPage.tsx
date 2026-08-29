@@ -260,6 +260,8 @@ const QTaskPage:React.FC=()=>{
   const[newBelowTitle,setNewBelowTitle]=useState('');
   const[submittingBelow,setSubmittingBelow]=useState(false);
   const[assigneeFilter,setAssigneeFilter]=useState<number|null>(null); // workspace mode 담당자 필터
+  // ★ "못 불러옴" 과 "업무 없음" 은 다른 상태다(500 재현으로 실측 — 오류인데 빈 상태가 떴다).
+  const[loadError,setLoadError]=useState(false);
   const[capacity,setCapacity]=useState<{daily:number;days:number;rate:number;weekly:number}>({daily:8,days:5,rate:1,weekly:40});
   const[issues,setIssues]=useState<IssueRow[]>([]);
   const[notes,setNotes]=useState<NoteRow[]>([]);
@@ -645,12 +647,21 @@ const QTaskPage:React.FC=()=>{
     try{
       // 사이클 N+55 — auto-paginate. 워크스페이스 task 1000+ 누적 시 5000 까지 자동 누적
       const allTasksCollected: unknown[] = [];
+      let firstPageOk = false;
       for (let page = 1; page <= 5; page++) {
         const r = await(await apiFetch(`/api/projects/workspace/${bizId}/all-tasks?page=${page}&limit=1000`)).json();
         if (!r.success) break;
+        if (page === 1) firstPageOk = true;
         allTasksCollected.push(...(r.data || []));
         if (!r.pagination || !r.pagination.has_more) break;
       }
+      // ★ 첫 페이지부터 실패하면 **빈 목록으로 바꾸지 않는다.** 옛 코드는 빈 배열을 상태에 넣고
+      //   캐시에까지 써서, 서버 오류가 "업무가 하나도 없음" 으로 보였고 그 상태가 저장됐다.
+      //   (2페이지 이후 실패는 부분 성공이라 있는 만큼 보여준다 — 종전 동작 유지)
+      //   ★ 대기 상태를 같이 끝낸다 — setLoading(false) 는 try 밖에 있어서 return 하면 건너뛴다.
+      //     안 그러면 스켈레톤이 영원히 돈다(이 함수 맨 위 주석의 그 함정 그대로).
+      if (!firstPageOk) { setLoadError(true); setLoading(false); return; }
+      setLoadError(false);
       setAllTasks(allTasksCollected as never[]);
       writeCache(taskCacheKey, allTasksCollected);
       try{
@@ -693,7 +704,11 @@ const QTaskPage:React.FC=()=>{
       (async()=>{
         try{
           const wr=await(await apiFetch(`/api/tasks/my-week?business_id=${bizId}`)).json();
-          if(wr.success){
+          // ★ capacity 가 없으면 **넣지 않는다**. 여태는 그대로 넣어서 undefined 가 상태에 들어가고
+          //   effectiveCapacity 의 `capacity.daily` 에서 Q Task 화면 전체가 죽었다(React 오류 화면).
+          //   바로 아랫줄은 `?.` 로 방어하고 있는데 이 줄만 빠져 있었다.
+          //   ※ 계산식·기본값은 건드리지 않는다 — 가용시간은 동결 영역이다.
+          if(wr.success&&wr.data?.capacity){
             setCapacity(wr.data.capacity);
             // 운영 #50 — 이번 주 휴일도 백엔드에서 복원 (페이지 이탈 후 0 리셋 버그 fix)
             if(typeof wr.data.capacity?.holidays==='number')setHolidayDays(wr.data.capacity.holidays);
@@ -2410,7 +2425,24 @@ const QTaskPage:React.FC=()=>{
           })}
           {/* #206 V1 — 주간이 비었는데 보류가 있으면 "없다"가 아니라 "어디 있는지"를 말해야 한다.
               기본 빈 상태만 두면 삭제된 줄 안다. */}
-          {filtered.length===0&&tab==='week'&&myHoldCount>0&&(
+          {/* ★ 실패를 빈 상태로 위장하지 않는다. 아래 빈 상태들보다 **먼저** 판정한다 —
+              순서가 뒤면 "업무를 시작해 보세요" 가 먼저 걸려 오류가 영영 안 보인다. */}
+          {loadError&&(
+            <EmptyCenterWrap>
+            <EmptyState
+              icon={
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+              }
+              title={t('loadError.title','업무를 불러오지 못했습니다')}
+              description={t('loadError.desc','잠시 후 다시 시도해 주세요. 계속 안 되면 네트워크 연결을 확인해 주세요.')}
+              ctaLabel={t('loadError.retry','다시 시도') as string}
+              onCta={()=>{void load();}}
+            />
+            </EmptyCenterWrap>
+          )}
+          {!loadError&&filtered.length===0&&tab==='week'&&myHoldCount>0&&(
             <EmptyCenterWrap>
             <EmptyState
               icon={
@@ -2426,7 +2458,7 @@ const QTaskPage:React.FC=()=>{
             />
             </EmptyCenterWrap>
           )}
-          {filtered.length===0&&!(tab==='week'&&myHoldCount>0)&&(
+          {!loadError&&filtered.length===0&&!(tab==='week'&&myHoldCount>0)&&(
             <EmptyCenterWrap>
             <EmptyState
               icon={

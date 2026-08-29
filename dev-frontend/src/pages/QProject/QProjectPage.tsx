@@ -129,6 +129,9 @@ const QProjectPage: React.FC = () => {
     }
   }, [user?.business_id, navigate]);
   const [loading, setLoading] = useState(() => !hasCache(projKey));
+  // ★ "못 불러옴" 과 "프로젝트가 없음" 은 다른 상태다. 여태는 실패해도 빈 상태가 떠서
+  //   사용자가 프로젝트가 사라진 것으로 읽었다(500 재현으로 실측).
+  const [loadError, setLoadError] = useState(false);
 
   const bizId = user?.business_id || null;
   const wsTz = user?.workspace_timezone || detectBrowserTz();
@@ -139,7 +142,14 @@ const QProjectPage: React.FC = () => {
     if (!hasCache(projKey)) setLoading(true);   // 캐시로 이미 그렸으면 스피너로 되돌리지 않는다
     try {
       const pr = await (await apiFetch(`/api/projects?business_id=${bizId}`)).json();
-      const list: ProjectRow[] = pr.success ? pr.data : [];
+      if (!pr.success) {
+        // ★ 실패를 빈 목록으로 바꾸지 않는다. 게다가 옛 코드는 그 빈 결과를 **캐시에까지 써서**
+        //   실패가 저장됐다 — 다음 진입에서도 "프로젝트 없음" 으로 보였다.
+        setLoadError(true);
+        return;
+      }
+      const list: ProjectRow[] = pr.data;
+      setLoadError(false);
       setProjects(list);
       writeCache(projKey, list);
       // 각 프로젝트의 tasks 병렬 fetch
@@ -335,6 +345,18 @@ const QProjectPage: React.FC = () => {
       />
       {loading ? (
         <EmptyState>{t('loading')}</EmptyState>
+      ) : loadError ? (
+        /* 실패를 빈 상태로 위장하지 않는다 — 빈 상태와 같은 모양, 다른 내용 */
+        <EmptyState>
+          <EmptyIcon aria-hidden>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+          </EmptyIcon>
+          <EmptyTitle>{t('loadError.title', '프로젝트를 불러오지 못했습니다')}</EmptyTitle>
+          <EmptyDesc>{t('loadError.desc', '잠시 후 다시 시도해 주세요. 계속 안 되면 네트워크 연결을 확인해 주세요.')}</EmptyDesc>
+          <EmptyCta type="button" onClick={() => { void load(); }}>{t('loadError.retry', '다시 시도')}</EmptyCta>
+        </EmptyState>
       ) : enriched.length === 0 ? (
         <EmptyState>
           <EmptyIcon aria-hidden>

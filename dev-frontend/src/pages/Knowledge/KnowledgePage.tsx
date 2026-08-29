@@ -131,6 +131,9 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
   const [bundleCopied, setBundleCopied] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  // ★ 목록을 못 불러온 것과 "자료가 없는 것" 은 다른 상태다. 여태는 실패해도 빈 상태가 떠서
+  //   사용자가 **자료가 사라졌다** 고 읽었다(운영 500 재현으로 실측).
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [catError, setCatError] = useState<string | null>(null);  // 상세 패널 카테고리 저장 에러 노출 (silent catch 제거)
   // 삭제·공유 등 액션 실패를 사용자에게 노출 (옛 silent catch 제거 — "안 됨" 무피드백 회귀 차단)
   const [actionError, setActionError] = useState<string | null>(null);
@@ -270,6 +273,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
         // client-side query 필터 (backend 가 personal-vault 라우트에서 q 미지원)
         const q = debouncedSearch.current.trim().toLowerCase();
         setDocs(q ? list.filter(d => (d.title || '').toLowerCase().includes(q)) : list);
+        setLoadError(null);
         return;
       }
       const filter: Parameters<typeof listKnowledge>[1] = {};
@@ -280,6 +284,10 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
       if (debouncedSearch.current.trim()) filter.q = debouncedSearch.current.trim();
       const list = await listKnowledge(businessId, filter);
       setDocs(list);
+      setLoadError(null);
+    } catch (e) {
+      // 여태는 catch 가 없어 `void load()` 가 예외를 삼켰고, docs 가 빈 채로 남아 빈 상태가 떴다.
+      setLoadError(e instanceof Error ? e.message : 'unknown');
     } finally { setLoading(false); }
   }, [businessId, mode, activeScope, activeProject, activeClient, activeTag]);
 
@@ -786,6 +794,16 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
           )}
 
           {loading ? <Loading>{t('page.loading')}</Loading> :
+           loadError ? (
+             /* 실패를 빈 상태로 위장하지 않는다 — 같은 시각 언어(EmptyState)를 쓰되 내용이 다르다 */
+             <EmptyState
+               icon={<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>}
+               title={t('loadError.title', '정보를 불러오지 못했습니다') as string}
+               description={t('loadError.desc', '잠시 후 다시 시도해 주세요. 계속 안 되면 네트워크 연결을 확인해 주세요.') as string}
+               ctaLabel={t('loadError.retry', '다시 시도') as string}
+               onCta={() => { void load(); }}
+             />
+           ) :
            filtered.length === 0 ? (
              <EmptyState
                icon={<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 6.253v13"/><path d="M12 6.253C10.832 5.477 9.246 5 7.5 5 5.754 5 4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253"/><path d="M12 6.253C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18s-3.332.477-4.5 1.253"/></svg>}

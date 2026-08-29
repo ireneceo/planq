@@ -86,6 +86,8 @@ const DocsTab: React.FC<Props> = (props) => {
   const [files, setFiles] = useState<ProjectFile[]>(() => readCache<ProjectFile[]>(fileKey) ?? []);
   const [folders, setFolders] = useState<FileFolder[]>(() => readCache<FileFolder[]>(`${fileKey}:folders`) ?? []);
   const [projectName, setProjectName] = useState<string>('');
+  // ★ "못 불러옴" 과 "파일 없음" 은 다른 상태다(500 재현으로 실측 — 오류인데 빈 상태가 떴다).
+  const [loadError, setLoadError] = useState(false);
   const [loading, setLoading] = useState(() => !hasCache(fileKey));
   const [view, setView] = useState<ViewMode>('grid');
   const [folderSel, setFolderSel] = useState<FolderSel>('all');
@@ -133,13 +135,13 @@ const DocsTab: React.FC<Props> = (props) => {
       // N+30 — 개인 보관함: 본인 L1 파일만. 폴더 X (개인 보관함은 평면 view)
       import('../../services/files').then(({ fetchPersonalFiles }) => {
         fetchPersonalFiles(businessId).then(fs => {
-          if (!cancelled) { setFiles(fs); setFolders([]); writeCache(fileKey, fs); setLoading(false); }
-        });
+          if (!cancelled) { setFiles(fs); setFolders([]); writeCache(fileKey, fs); setLoadError(false); setLoading(false); }
+        }).catch(() => { if (!cancelled) { setLoadError(true); setLoading(false); } });
       });
     } else if (isWorkspace) {
       fetchWorkspaceFiles(businessId).then(fs => {
-        if (!cancelled) { setFiles(fs); setFolders([]); writeCache(fileKey, fs); setLoading(false); }
-      });
+        if (!cancelled) { setFiles(fs); setFolders([]); writeCache(fileKey, fs); setLoadError(false); setLoading(false); }
+      }).catch(() => { if (!cancelled) { setLoadError(true); setLoading(false); } });
     } else {
       Promise.all([fetchProjectFiles(projectId), fetchFolders(projectId)]).then(([fs, fd]) => {
         if (!cancelled) {
@@ -647,7 +649,14 @@ const DocsTab: React.FC<Props> = (props) => {
               </ListTable>
             )
           ) : visible.length === 0 ? (
-            files.length === 0 ? (
+            /* ★ 실패를 빈 상태로 위장하지 않는다 — 빈 상태보다 먼저 판정한다 */
+            loadError ? (
+              <EmptyState
+                icon={<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>}
+                title={t('docs.loadError.title', '파일을 불러오지 못했습니다')}
+                description={t('docs.loadError.desc', '잠시 후 다시 시도해 주세요. 계속 안 되면 네트워크 연결을 확인해 주세요.')}
+              />
+            ) : files.length === 0 ? (
               <EmptyState
                 icon={<EmptyIcon />}
                 title={t('docs.empty.title', '아직 파일이 없어요')}

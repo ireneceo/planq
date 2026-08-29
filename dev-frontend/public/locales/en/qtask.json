@@ -1297,5 +1297,10 @@
       "load_failed": "Could not load the history",
       "restore_failed": "Could not restore"
     }
+  },
+  "loadError": {
+    "title": "Couldn't load your tasks",
+    "desc": "Please try again in a moment. If it keeps failing, check your network connection.",
+    "retry": "Try again"
   }
 }

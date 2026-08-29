@@ -215,5 +215,10 @@
   },
   "csv": {
     "secretMasked": "(secret — not exported)"
+  },
+  "loadError": {
+    "title": "Couldn't load your info",
+    "desc": "Please try again in a moment. If it keeps failing, check your network connection.",
+    "retry": "Try again"
   }
 }

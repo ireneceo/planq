@@ -599,6 +599,10 @@
       "purgeFailed": "Could not delete the file.",
       "quotaFull": "Storage is full, so this file cannot be restored. Please free up space first.",
       "bytesGone": "This file's contents are already gone and cannot be restored."
+    },
+    "loadError": {
+      "title": "Couldn't load your files",
+      "desc": "Please try again in a moment. If it keeps failing, check your network connection."
     }
   },
   "pinnedDoc": {
@@ -797,5 +801,10 @@
     "bundle": {
       "taskCreated": "{{n}} tasks added"
     }
+  },
+  "loadError": {
+    "title": "Couldn't load your projects",
+    "desc": "Please try again in a moment. If it keeps failing, check your network connection.",
+    "retry": "Try again"
   }
 }
