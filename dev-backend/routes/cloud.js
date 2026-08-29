@@ -225,9 +225,20 @@ router.post('/webhook/gdrive', async (req, res) => {
     if (!token) return res.status(404).send('channel_not_found');
 
     // token 검증 (HMAC hint 일치)
+    // ★ fail-closed. 예전엔 `if (tokenHeader && ...)` 라 **헤더가 없으면 검증을 통째로 건너뛰었다** —
+    //   channelId 만 알면 아무나 이 워크스페이스의 Drive 동기화를 트리거할 수 있었다.
+    //   채널을 만드는 경로는 둘뿐이고(routes/cloud.js:195 · services/gdriveWatchCron.js:71)
+    //   **둘 다 tokenHint 를 반드시 설정**하므로, 정상 트래픽에는 헤더가 항상 있다.
+    //   역방향 동기화 v2 는 이 경로가 **행을 만드는 유입구**가 되므로 그 전에 조인다.
     const crypto = require('crypto');
     const expected = crypto.createHmac('sha256', process.env.JWT_SECRET).update(`biz:${token.business_id}`).digest('hex').slice(0, 32);
-    if (tokenHeader && tokenHeader !== expected) return res.status(403).send('forbidden');
+    if (tokenHeader !== expected) {
+      // 조용히 죽지 않게 남긴다 — 옛 채널이 있어 정상 동기화가 막히는 경우를 구별할 수 있어야 한다.
+      console.warn('[gdrive webhook] 토큰 불일치로 거부', {
+        channelId, business_id: token.business_id, hasHeader: !!tokenHeader,
+      });
+      return res.status(403).send('forbidden');
+    }
 
     // sync 호출은 확인용 — 무시
     if (resourceState === 'sync') return res.status(200).end();
