@@ -224,6 +224,9 @@ const setupSecurity = (app) => {
   //   인증 사용자는 user 별 버킷(사무실 공용 IP NAT 충돌 방지 — 옛 IP 키는 한 팀이 한 버킷을
   //   공유해 정상 사용 중에도 막히던 회귀), 미인증은 IP 별. 캡은 인증 SPA(대시보드·실시간·폴링·
   //   멀티탭)가 정상 사용 중 막히지 않도록 600/분 으로 상향(옛 100/분 은 정상 트래픽도 차단).
+  // 이미지 서빙 경로 — API 버킷에서 빼고 별도 버킷으로 센다(아래 imageLimiter).
+  //   ★ apiLimiter 의 skip 이 이걸 참조하므로 **위에 둔다** — 아래에 두면 TDZ 다(프로젝트 전례).
+  const IMAGE_PATHS = ['/api/files/public-image', '/api/tasks/public/attach'];
   const apiLimiter = rateLimit({
     windowMs: 1 * 60 * 1000, // 1분
     max: 600,
@@ -243,8 +246,39 @@ const setupSecurity = (app) => {
       }
       return ipKeyGenerator(req.ip);
     },
+    // ★ 이미지 서빙은 이 버킷에서 뺀다. app.use 로 앞에 다른 limiter 를 걸어도 **연쇄 실행**이라
+    //   여기서 또 세면 예산은 그대로 탄다 — 반드시 skip 으로 빼야 실제로 분리된다.
+    skip: (req) => IMAGE_PATHS.some((ip) => (req.originalUrl || '').startsWith(ip)),
     message: { success: false, message: 'Too many requests, please try again later' }
   });
+  // ── 이미지 서빙은 **별도 버킷** ────────────────────────────────────────────
+  //   왜: 썸네일은 "API 호출" 이 아니라 <img> 태그가 만드는 정적 읽기다. 그런데 같은 버킷을 쓰면
+  //   목록 한 화면이 그것만으로 예산을 태운다 — 운영 실측: /files 한 번 열면 API 요청 1,099건
+  //   이고 그중 ~1,000건이 이 경로다. 한도가 600/분이니 **파일 화면을 한 번 여는 것만으로
+  //   그 사용자가 잠기고**, 그 상태로 새로고침하면 /api/auth/refresh 가 429 를 받아
+  //   로그인 화면으로 튕긴다(검증 중 세 번 재현).
+  //   프론트는 뷰포트에 들어온 썸네일만 받도록 고쳤지만(loading="lazy"), 스크롤이 길면 여전히
+  //   수백 장이다. **면제가 아니라 분리**다 — 남용 방지는 그대로 두고 버킷만 나눈다.
+  //   미인증 공개 경로라 키는 IP 폴백이 된다(사무실 공용 IP 공유) → 캡을 넉넉히 잡는다.
+  const imageLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000,
+    max: 3000,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => {
+      const auth = req.headers.authorization;
+      if (auth && auth.startsWith('Bearer ')) {
+        try {
+          const p = jwt.verify(auth.slice(7), process.env.JWT_SECRET);
+          if (p && p.userId) return `img-u${p.userId}`;
+        } catch { /* fallback */ }
+      }
+      return 'img-' + ipKeyGenerator(req.ip);
+    },
+    message: { success: false, message: 'Too many image requests, please try again later' },
+  });
+  for (const p of IMAGE_PATHS) app.use(p, imageLimiter);
+
   app.use('/api/', apiLimiter);
 
   // Rate Limiting — 로그인

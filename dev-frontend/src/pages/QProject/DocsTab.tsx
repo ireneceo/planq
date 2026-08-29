@@ -78,6 +78,8 @@ const DocsTab: React.FC<Props> = (props) => {
     scope.type === 'project' ? `files:p${scope.projectId}` : `files:${scope.type}`,
     cacheUser?.id, scope.businessId,
   );
+  // 썸네일을 못 받은 파일 — 깨진 아이콘 대신 파일 종류 아이콘으로 되돌린다.
+  const [thumbFailed, setThumbFailed] = useState<Set<string>>(new Set());
   const [trashOpen, setTrashOpen] = useState(false);
   // 휴지통에서 복구하면 바깥 목록이 **즉시** 그것을 보여야 한다 — 안 그러면 복구가 안 된 것처럼 보인다.
   const [reloadTick, setReloadTick] = useState(0);
@@ -671,8 +673,24 @@ const DocsTab: React.FC<Props> = (props) => {
                       const img = isImage(f.mime_type, f.file_name);
                       const valid = !!f.preview_url && f.preview_url !== '#';
                       return (
-                        <Thumb $src={img && valid ? withW(f.preview_url, 400) : undefined}>
-                          {!(img && valid) && <FileExtIcon ext={extOf(f.file_name)} size={56} large />}
+                        <Thumb>
+                          {img && valid && !thumbFailed.has(f.id)
+                            /* ★ 배경 이미지(background-image)로 두면 **화면 밖 카드까지 전부** 받는다.
+                                 운영 실측: /files 한 번 열면 API 요청 1,099건 — 그중 ~1,000건이 이 썸네일이고,
+                                 한도는 600건/분이다. 즉 **파일 화면을 한 번 여는 것만으로 그 사용자가 잠긴다**
+                                 (그 상태로 새로고침하면 refresh 가 429 → 로그인 화면으로 튕긴다).
+                                 <img loading="lazy"> 는 뷰포트에 들어올 때만 받는다. contain·가운데 정렬은
+                                 object-fit 으로 유지 — 보이는 모양은 그대로다(#121 규칙 보존). */
+                            ? (
+                              <ThumbImg
+                                src={withW(f.preview_url, 400)} alt="" loading="lazy" decoding="async"
+                                /* ★ 못 받은 이미지는 **감춘다.** 옛 background-image 는 실패해도 배경색만
+                                     보였는데, <img> 로 바꾸면 깨진 아이콘이 그대로 뜬다(실측 3건).
+                                     고치면서 새 흠집을 내지 않는다 — 실패하면 파일 종류 아이콘으로 되돌린다. */
+                                onError={() => setThumbFailed((prev) => prev.has(f.id) ? prev : new Set(prev).add(f.id))}
+                              />
+                            )
+                            : <FileExtIcon ext={extOf(f.file_name)} size={56} large />}
                           <SourceTag $src={f.source}>{sourceShortLabel(f.source, tr)}</SourceTag>
                         </Thumb>
                       );
@@ -1587,11 +1605,14 @@ const CardCheck = styled.div`
   width:24px;height:24px;display:flex;align-items:center;justify-content:center;
   background:rgba(255,255,255,0.92);border-radius:4px;
 `;
-const Thumb = styled.div<{ $src?: string }>`
-  position:relative;aspect-ratio:16/10;
-  /* #121 — 썸네일은 이미지 전체가 보이게(contain). cover 는 높이기준으로 잘려서 사용자 호소. 여백은 배경색으로. */
-  background:${p => p.$src ? `center/contain no-repeat url(${p.$src}), #F8FAFC` : '#F8FAFC'};
+const Thumb = styled.div`
+  position:relative;aspect-ratio:16/10;background:#F8FAFC;overflow:hidden;
   display:flex;align-items:center;justify-content:center;
+`;
+/* #121 — 썸네일은 이미지 전체가 보이게(contain). cover 는 높이기준으로 잘려서 사용자 호소.
+   여백은 Thumb 배경색이 채운다. 옛 background-image 와 **보이는 결과는 같다**. */
+const ThumbImg = styled.img`
+  width:100%;height:100%;object-fit:contain;display:block;
 `;
 const SourceTag = styled.div<{ $src: FileSource }>`
   position:absolute;top:8px;left:8px;padding:2px 8px;border-radius:999px;
