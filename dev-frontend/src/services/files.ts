@@ -116,7 +116,10 @@ export interface UploadResult {
 }
 
 // ─── id 접두어 파서 ───
-function parseFileId(composite: string): { source: FileSource; id: number } | null {
+// 'direct-12' 같은 합성 id 에서 숫자 id 를 꺼낸다.
+//   ★ 호출부에서 Number(id) 로 때우면 안 된다 — 'direct-12' 는 NaN 이 되고, 그 NaN 이 URL 에
+//     그대로 실려 존재하지 않는 경로를 때린다(운영 #390: 공유 링크가 아예 안 만들어지던 정체).
+export function parseFileId(composite: string): { source: FileSource; id: number } | null {
   const m = composite.match(/^(direct|chat|task|meeting)-(\d+)$/);
   if (!m) return null;
   return { source: m[1] as FileSource, id: Number(m[2]) };

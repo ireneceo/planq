@@ -21,8 +21,7 @@ import {
   fetchFolders, createFolder, renameFolder, deleteFolder, reorderFolder, moveFile,
   createShareLink, bulkDownloadZip, updateFileVisibility, updateFileSecurityLevel,
   formatBytes, extOf, isImage,
-  type ProjectFile, type FileSource, type FileFolder,
-} from '../../services/files';
+  type ProjectFile, type FileSource, type FileFolder, parseFileId } from '../../services/files';
 import VisibilityField, { serializeVisibility, parseVisibility, type VisibilityValue } from '../../components/Common/VisibilityField';
 import { listProjects, listWorkspaceClients, type ApiProject, type WorkspaceClientRow } from '../../services/qtalk';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
@@ -770,6 +769,10 @@ const DocsTab: React.FC<Props> = (props) => {
                   </PvSubRow>
                 </PvHeaderText>
                 <PvActions>
+                  {/* 공유는 **직접 업로드 파일**만. 채팅·업무 첨부는 id 체계가 달라(chat-45 는
+                      MessageAttachment id) 같은 라우트를 때리면 남의 파일을 가리키거나 404 다.
+                      되지도 않는 버튼을 보여주면 사용자는 "눌렀는데 아무 일도 안 난다" 로 읽는다. */}
+                  {preview.source === 'direct' && (
                   <HeaderIconBtn type="button" onClick={() => setShareTarget(preview)}
                     title={tr('docs.share', '공유')} aria-label={tr('docs.share', '공유')}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -780,6 +783,7 @@ const DocsTab: React.FC<Props> = (props) => {
                       <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
                     </svg>
                   </HeaderIconBtn>
+                  )}
                   <HeaderIconBtn as="a" href={preview.download_url} download
                     title={tr('docs.download', '다운로드')} aria-label={tr('docs.download', '다운로드')}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -882,7 +886,11 @@ const DocsTab: React.FC<Props> = (props) => {
         <ShareModal
           open={!!shareTarget}
           entityType="file"
-          entityId={Number(shareTarget.id)}
+          /* ★ 운영 #390 — 여기가 `Number(shareTarget.id)` 였다. ProjectFile.id 는 'direct-12'
+             같은 **합성 문자열**이라 Number() 는 NaN 이 되고, /api/files/NaN/share 라는
+             존재하지 않는 경로를 때려 공유 링크가 아예 만들어지지 않았다.
+             실패가 404 HTML 이라 화면에는 아무 말도 안 뜬다 — "생성이 안됨" 의 정체. */
+          entityId={parseFileId(String(shareTarget.id))?.id ?? 0}
           entityTitle={shareTarget.file_name}
           onClose={() => setShareTarget(null)}
         />
@@ -895,7 +903,9 @@ const DocsTab: React.FC<Props> = (props) => {
             <DTitle>{t('docs.confirmDelete.title', '파일을 삭제할까요?')}</DTitle>
             <DBody>
               <p><strong>{deleteConfirm.file_name}</strong></p>
-              <p>{t('docs.confirmDelete.desc', '삭제한 파일은 복구할 수 없습니다')}</p>
+              {/* ★ 휴지통이 생기면서 이 문구가 거짓말이 됐다 — 동작을 바꾸면 그 동작을 설명하는
+                  문자열도 같이 바꾼다(memory feedback_new_behavior_makes_copy_lie). */}
+              <p>{t('docs.confirmDelete.descTrash', '삭제한 파일은 휴지통으로 이동합니다. 30일 안에 되돌릴 수 있습니다.')}</p>
             </DBody>
             <DFooter>
               <SecondaryBtn type="button" onClick={() => setDeleteConfirm(null)}>{t('members.cancel', '취소')}</SecondaryBtn>
@@ -919,7 +929,7 @@ const DocsTab: React.FC<Props> = (props) => {
                   <BulkFileMore>{t('docs.bulkDelete.more', '외 {{n}}개', { n: selectedDeletable.length - 5 })}</BulkFileMore>
                 )}
               </BulkFileList>
-              <p>{t('docs.confirmDelete.desc', '삭제한 파일은 복구할 수 없습니다')}</p>
+              <p>{t('docs.confirmDelete.descTrash', '삭제한 파일은 휴지통으로 이동합니다. 30일 안에 되돌릴 수 있습니다.')}</p>
             </DBody>
             <DFooter>
               <SecondaryBtn type="button" onClick={() => setBulkDeleteOpen(false)}>{t('members.cancel', '취소')}</SecondaryBtn>

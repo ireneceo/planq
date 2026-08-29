@@ -510,7 +510,8 @@
     },
     "confirmDelete": {
       "title": "Delete this file?",
-      "desc": "This cannot be undone"
+      "desc": "This cannot be undone",
+      "descTrash": "The file moves to the trash. You can restore it within 30 days."
     },
     "bulk": {
       "enter": "Select",
