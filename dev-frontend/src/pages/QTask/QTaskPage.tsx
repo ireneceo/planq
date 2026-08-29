@@ -16,6 +16,7 @@ import { STATUS_CODES, STATUS_COLOR, displayStatus, getStatusLabel, statusOption
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
 import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { cacheKey, readCache, hasCache, writeCache } from '../../lib/pageCache';
 import TaskRowActionMenu from '../../components/QTask/TaskRowActionMenu';
 import { responsiveDrawerWidth } from '../../utils/responsiveDrawer';
 import { plainToHtml } from '../../utils/plainToHtml';
@@ -245,8 +246,11 @@ const QTaskPage:React.FC=()=>{
     const qs=sp.toString();
     navigate(qs?`${location.pathname}?${qs}`:location.pathname,{replace:true});
   };
-  const[allTasks,setAllTasks]=useState<TaskRow[]>([]);
-  const[members,setMembers]=useState<MemberOption[]>([]);
+  // 재진입 즉시 표시 — 지난 목록이 있으면 그것으로 그리고 시작(전체 화면 "Loading..." 회피).
+  //   서버 값이 오면 그대로 덮어쓴다. 캐시는 표시를 앞당길 뿐 진실의 원천이 아니다.
+  const taskCacheKey=cacheKey('qtask',myId,bizId);
+  const[allTasks,setAllTasks]=useState<TaskRow[]>(()=>readCache<TaskRow[]>(cacheKey('qtask',myId,bizId))??[]);
+  const[members,setMembers]=useState<MemberOption[]>(()=>readCache<MemberOption[]>(cacheKey('qtask-members',myId,bizId))??[]);
   const[aiOpen,setAiOpen]=useState(false);
   const[tplSelOpen,setTplSelOpen]=useState(false);
   const[tplSelInitialId,setTplSelInitialId]=useState<number|null>(null);
@@ -258,7 +262,7 @@ const QTaskPage:React.FC=()=>{
   const[capacity,setCapacity]=useState<{daily:number;days:number;rate:number;weekly:number}>({daily:8,days:5,rate:1,weekly:40});
   const[issues,setIssues]=useState<IssueRow[]>([]);
   const[notes,setNotes]=useState<NoteRow[]>([]);
-  const[loading,setLoading]=useState(true);
+  const[loading,setLoading]=useState(()=>!hasCache(cacheKey('qtask',myId,bizId)));
   const[rightCollapsed,setRightCollapsed]=useState(false);
   const[detailTaskId,setDetailTaskId]=useState<number|null>(()=>{
     const q=new URLSearchParams(location.search).get('task');
@@ -635,7 +639,8 @@ const QTaskPage:React.FC=()=>{
     //   그냥 return 하면 loading 초기값 true 가 그대로 남아 화면이 영원히 "Loading..." 이다
     //   (memory: feedback_predicate_must_match_both_sides — 안 하기를 추가하는 변경은 대기 상태도 손봐야).
     if(!bizId){ setLoading(false); return; }
-    setLoading(true);
+    // 캐시로 이미 그려 놓았으면 전체 화면 스피너로 되돌리지 않는다.
+    if(!hasCache(taskCacheKey)) setLoading(true);
     try{
       // 사이클 N+55 — auto-paginate. 워크스페이스 task 1000+ 누적 시 5000 까지 자동 누적
       const allTasksCollected: unknown[] = [];
@@ -646,6 +651,7 @@ const QTaskPage:React.FC=()=>{
         if (!r.pagination || !r.pagination.has_more) break;
       }
       setAllTasks(allTasksCollected as never[]);
+      writeCache(taskCacheKey, allTasksCollected);
       try{
         const mr=await(await apiFetch(`/api/businesses/${bizId}/members`)).json();
         if(mr.success){
@@ -661,6 +667,7 @@ const QTaskPage:React.FC=()=>{
               team:m.team||null,
             }));
           setMembers(opts);
+          writeCache(cacheKey('qtask-members',myId,bizId), opts);
           // 가용시간 저장 때 쓸 내 member row id — 저장할 때마다 목록을 다시 받지 않기 위해.
           const mine=(mr.data||[]).find((m:{user_id:number|null;id:number})=>m.user_id===myId);
           if(mine) myMemberIdRef.current=mine.id;
@@ -668,7 +675,7 @@ const QTaskPage:React.FC=()=>{
       }catch{}
     }catch{}
     setLoading(false);
-  },[bizId,myId]);   // myId — members 매핑에서 내 member row id 를 잡는다
+  },[bizId,myId,taskCacheKey]);   // myId — members 매핑에서 내 member row id 를 잡는다
 
   useEffect(()=>{load();},[load]);
 

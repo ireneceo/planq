@@ -134,7 +134,9 @@ const TodoList: React.FC<Props> = ({ items, loading, groupBy = 'priority', hideH
         <Header>
           <Title>{t('todo.title')}</Title>
         </Header>
-        <Skeleton />
+        {/* data-testid — 검사 하니스가 "재진입에 또 로딩되는가"를 판정하는 신호(CLAUDE.md §17).
+            이 표식이 사라지면 canary-mobile-boot 의 revisit 검사가 눈이 먼다. */}
+        <Skeleton data-testid="todo-skeleton" />
       </Shell>
     );
   }

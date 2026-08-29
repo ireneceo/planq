@@ -19,6 +19,7 @@ import type { CalendarEvent } from '../../pages/QCalendar/types';
 import { updateEvent, deleteEvent, createMeetingRoom } from '../../services/calendar';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { cacheKey, readCache, hasCache, writeCache } from '../../lib/pageCache';
 import { joinRoom, leaveRoom, onSocket, getSocket } from '../../services/socket';
 
 interface MemberOpt { user_id: number; name: string; }
@@ -57,8 +58,11 @@ const TodoPage: React.FC = () => {
     navigate(`${location.pathname}${sp.toString() ? `?${sp.toString()}` : ''}`, { replace: true });
   };
 
-  const [data, setData] = useState<TodoResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  // 재진입 즉시 표시 — 지난 응답이 있으면 그것으로 그리고 시작한다(스피너 없이). 곧 아래 load()
+  //   가 서버 값으로 덮어쓴다. 인박스는 cross-workspace 라 워크스페이스 축이 'all' 이다.
+  const inboxKey = cacheKey('inbox', user?.id, 'all');
+  const [data, setData] = useState<TodoResponse | null>(() => readCache<TodoResponse>(inboxKey) ?? null);
+  const [loading, setLoading] = useState(() => !hasCache(inboxKey));
   const [err, setErr] = useState<string | null>(null);
 
   const [members, setMembers] = useState<MemberOpt[]>([]);
@@ -81,12 +85,13 @@ const TodoPage: React.FC = () => {
   // 리스트를 업데이트할 때 뒤 리스트가 "깜빡"이지 않도록.
   // **cross-workspace** — 사용자가 속한 모든 워크스페이스의 알림 통합. 항목별 workspace 라벨 부착됨.
   const load = useCallback((opts?: { silent?: boolean }) => {
-    if (!opts?.silent) setLoading(true);
+    // 캐시로 이미 그려 놓았으면 skeleton 으로 되돌리지 않는다 — 그러면 "매번 로딩" 이 그대로다.
+    if (!opts?.silent && !hasCache(inboxKey)) setLoading(true);
     fetchTodo()
-      .then(res => { setData(res); setErr(null); })
+      .then(res => { setData(res); writeCache(inboxKey, res); setErr(null); })
       .catch(e => { setErr(e.message || 'Failed'); })
       .finally(() => { if (!opts?.silent) setLoading(false); });
-  }, []);
+  }, [inboxKey]);
 
   // 오늘의 업무 리뷰도 같은 신호로 갱신한다 — 리스트만 새로 그리고 리뷰가 옛 숫자를 들고 있으면
   //   같은 화면에서 두 숫자가 어긋난다(CLAUDE.md §16 실시간 반영).

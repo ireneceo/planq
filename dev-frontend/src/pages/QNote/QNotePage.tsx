@@ -13,6 +13,7 @@ import TaskCandidateCard, { type CandidateData } from '../../components/Common/T
 import { useNoteTaskExtraction } from '../../hooks/useNoteTaskExtraction';
 import styled from 'styled-components';
 import StartMeetingModal from './StartMeetingModal';
+import { getDefaultLanguageFromBrowser } from '../../constants/languages';
 import type { StartConfig } from './StartMeetingModal';
 import { getLanguageByCode } from '../../constants/languages';
 import { useAuth, getAccessToken } from '../../contexts/AuthContext';
@@ -1185,9 +1186,30 @@ const QNotePage = () => {
           await heartbeatRecorderLock(recSid, tok);
         } catch (e: any) {
           if (e?.status === 409) {
-            // 다른 탭이 가로챘거나 서버가 stale 판정 → 현재 녹음 중단
+            // ★ 2026-08-29 (Irene: "녹음 중에 끊기고 다른 사람이 들어왔다는 오류도 있으면 안되고")
+            //   409 를 곧바로 "남이 가로챘다" 로 읽지 않는다. 락이 stale 로 풀렸다가
+            //   비어 있는 경우에도 토큰이 어긋나 같은 409 가 오는데, 그때 녹음을 끊으면
+            //   **아무도 없는데 남 탓을 하며 녹음이 죽는다**. 통화 중 신호가 잠깐 끊기는
+            //   모바일에서 실제로 걸리는 창이다.
+            //   그래서 한 번 되찾아 본다 — 서버는 진짜로 남이 살아 있을 때만 다시 409 를 준다
+            //   (recorder_acquire: active 이고 토큰이 다를 때만 409). 되찾으면 그대로 이어 녹음한다.
+            const recovered = await (async () => {
+              try {
+                const fresh = (crypto as any).randomUUID
+                  ? (crypto as any).randomUUID()
+                  : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+                await acquireRecorderLock(recSid, fresh);
+                recorderTokenRef.current = fresh;
+                rememberLockToken(recSid, fresh);
+                return true;
+              } catch { return false; }
+            })();
+            if (recovered) return;   // 남이 없었다 — 녹음은 끊지 않는다
+
+            // 진짜로 다른 탭/기기가 쥐고 있다 → 현재 녹음 중단
             if (heartbeatTimerRef.current) { window.clearInterval(heartbeatTimerRef.current); heartbeatTimerRef.current = null; }
             recorderTokenRef.current = null;
+            rememberLockToken(recSid, null);
             recordingSessionIdRef.current = null;
             liveRef.current?.stop();
             liveRef.current = null;
@@ -1401,6 +1423,39 @@ const QNotePage = () => {
   };
 
   // ── 새 회의 생성 ──────────────────────────────────────
+  // ── 바로 녹음 (Irene 2026-08-29) ──────────────────────────────
+  //   "번역없고 그냥 바로 짧은 미팅이나 통화할 때 열어두게 해야 하는데 바로 들어가는 버튼이 없어서."
+  //   회의 준비 모달(제목·참석자·자료·언어)은 준비된 회의를 위한 것이다. 통화가 걸려온 순간에는
+  //   그걸 채울 시간이 없다. 그래서 **준비 없이 시작하는 경로**를 따로 둔다.
+  //   준비 모달을 건너뛸 뿐 세션 생성 경로는 완전히 같다(handleStartMeeting 단일 착지점) —
+  //   따로 만들면 반드시 갈라진다. 제목·참석자·자료는 녹음 중/후에 얼마든지 채울 수 있다.
+  const handleQuickStart = () => {
+    const lang = user?.language || getDefaultLanguageFromBrowser();
+    void handleStartMeeting({
+      title: t('page.quickRecord.title', {
+        defaultValue: '빠른 녹음 {{time}}',
+        time: new Date().toLocaleString(undefined, { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      }) as string,
+      brief: '',
+      participants: [],
+      meetingLanguages: [lang],
+      // 번역 없음 — 짧은 통화/미팅에 영어 번역이 딸려 나오면 방해만 된다(#241 과 같은 기본값).
+      translateEnabled: false,
+      translationLanguage: '',
+      answerLanguage: lang,
+      // 통화·대면 짧은 미팅이 대상이라 마이크. 화면공유(web_conference)는 준비가 필요하다.
+      captureMode: 'microphone',
+      documents: [],
+      workspaceFileIds: [],
+      pastedContext: '',
+      urls: [],
+      priorityQAs: [],
+      priorityQACsv: null,
+      meetingAnswerStyle: '',
+      meetingAnswerLength: 'medium',
+    });
+  };
+
   const handleStartMeeting = async (cfg: StartConfig) => {
     if (!businessId) {
       setLiveError(t('page.errors.noBusiness'));
@@ -2264,6 +2319,14 @@ const QNotePage = () => {
             </NewSessionBtn>
             {newNoteDropdownOpen && (
               <NewNoteDropdown onMouseLeave={() => setNewNoteDropdownOpen(false)}>
+                {/* 맨 위 — 준비 없이 바로 시작. 통화가 걸려온 순간에 쓰는 경로라 가장 먼저 온다. */}
+                <NewNoteItem type="button" data-testid="qnote-quick-record" onClick={() => {
+                  setNewNoteDropdownOpen(false);
+                  guardRecording(() => { handleQuickStart(); });
+                }}>
+                  <NewNoteItemTitle>{t('page.newNoteDropdown.quickLabel', { defaultValue: '바로 녹음' }) as string}</NewNoteItemTitle>
+                  <NewNoteItemDesc>{t('page.newNoteDropdown.quickDesc', { defaultValue: '준비 없이 즉시 시작 · 번역 없음 · 마이크' }) as string}</NewNoteItemDesc>
+                </NewNoteItem>
                 <NewNoteItem type="button" onClick={() => {
                   setNewNoteDropdownOpen(false);
                   // 녹음 중 새 메모 생성은 activeSession 을 바꿔 심박을 흔든다 → 확인 후에만.

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import type { ReactNode } from 'react';
 import i18n from '../i18n';
 import { isNativeApp, nativePlatform } from '../services/native';
+import { clearPageCache } from '../lib/pageCache';
 
 // ⑥ 멀티탭 P1 선행(Fable BLOCKER #1) — AuthProvider 는 라우터 조상 위에 놓이므로 react-router 훅을
 //   쓰면 안 된다(트리 스왑 후 첫 렌더 크래시). 세션 종료(로그아웃·토큰만료) 이동은 window.location 로.
@@ -174,7 +175,10 @@ let refreshInflight: Promise<RefreshResult> | null = null;
 //   429 를 포함한 **모든 non-401 4xx 가 즉시 영구 로그아웃**이었다. 공용 IP 사무실에서
 //   한 명이 한도를 채우면 옆 사람이 로그아웃되는 실 발화 경로다.
 export type RefreshFailReason = 'unauthorized' | 'network' | 'server' | 'ratelimited';
-type RefreshResult = { ok: true } | { ok: false; reason: RefreshFailReason; code?: string };
+// ok 일 때 서버가 같이 준 user 를 실어 보낸다 — 부팅 왕복을 줄이기 위한 통로.
+//   /api/auth/refresh 는 원래부터 user 를 함께 응답했는데 프론트가 token 만 쓰고 버려서
+//   부팅 때 /api/auth/me 를 한 번 더 불렀다. 한국↔독일 왕복이 통째로 하나 더 붙는 구간이었다.
+type RefreshResult = { ok: true; user?: unknown } | { ok: false; reason: RefreshFailReason; code?: string };
 
 const isTerminal = (r: RefreshResult) => !r.ok && r.reason === 'unauthorized';
 
@@ -228,7 +232,7 @@ const tryRefresh = (): Promise<RefreshResult> => {
         if (data.success && data.data?.token) {
           setAccessToken(data.data.token);
           lastRefreshSuccessAt = new Date().toISOString();
-          return { ok: true };
+          return { ok: true, user: data.data.user };
         }
         // 200 인데 형식이 어긋남 — 서버 이상으로 취급(세션 종결 사유 아님)
         return { ok: false, reason: 'server' };
@@ -610,14 +614,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         //   부팅은 재시도 루프에 넣지 않는다: 게스트도 여기를 지나가므로(쿠키 없으면 401),
         //   버티게 하면 로그인 화면 진입이 지연된다. 1회 시도 후 실패하면 그대로 게스트로 부팅하고,
         //   세션 유지 책임은 로그인 이후의 scheduleRefresh 가 진다.
-        const refreshed = (await tryRefresh()).ok;
-        if (refreshed) {
-          const res = await apiFetch('/api/auth/me');
-          if (res.ok) {
-            const result = await res.json();
-            if (result.success && result.data) {
-              setUser(normalizeUser(result.data));
-              scheduleRefresh();
+        const refreshRes = await tryRefresh();
+        if (refreshRes.ok) {
+          // refresh 응답에 user 가 실려 있으면 그것으로 부팅을 끝낸다(왕복 1회 절약).
+          //   payload 는 /api/auth/me 와 같은 단일 원천(getUserWithBusiness)이 만든다.
+          //   폴백을 남겨두는 이유: 옛 백엔드(배포 시차)나 응답 형식 변화로 user 가 없을 때
+          //   부팅이 통째로 죽으면 안 되기 때문이다 — 없으면 종전대로 /me 를 부른다.
+          const inline = refreshRes.user as Record<string, unknown> | undefined;
+          if (inline && typeof inline === 'object' && inline.id) {
+            setUser(normalizeUser(inline));
+            scheduleRefresh();
+          } else {
+            const res = await apiFetch('/api/auth/me');
+            if (res.ok) {
+              const result = await res.json();
+              if (result.success && result.data) {
+                setUser(normalizeUser(result.data));
+                scheduleRefresh();
+              }
             }
           }
         }
@@ -738,6 +752,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
     } catch { /* ignore */ }
+    clearPageCache();   // 다음 사용자에게 남의 목록이 한 프레임도 비치지 않게
     setUser(null);
     setAccessToken(null);
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
@@ -801,6 +816,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (!res.ok) return false;
       const body = await res.json();
       if (!body.success || !body.data) return false;
+      clearPageCache();   // 워크스페이스가 바뀌면 앞 워크스페이스 캐시는 전부 무효
       setUser(normalizeUser(body.data));
       return true;
     } catch (e) {

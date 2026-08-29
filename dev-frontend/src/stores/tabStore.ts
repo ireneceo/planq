@@ -7,6 +7,8 @@
 //   location 을 활성 탭 path 로 반영. chrome(사이드바·알림 등)이 이 store 를 소비하도록 하나씩 전환하면
 //   각 단계가 단일탭에서 무회귀 검증 가능. P1 트리 스왑 시 미러 어댑터를 끄고 탭별 MemoryRouter 로 승격.
 
+import { isTabsSpike } from '../utils/tabsBeta';
+
 export type TabKind =
   | 'dashboard' | 'inbox' | 'talk' | 'task' | 'note' | 'docs' | 'calendar'
   | 'bill' | 'mail' | 'project' | 'projectDetail' | 'files' | 'clients' | 'info' | 'other';
@@ -88,6 +90,19 @@ const RESTORE_KEY = `${STORAGE_KEY}_restore`;
 // 복원 스냅샷(다른 창/지난 실행분)으로 부팅했는가 — 첫 경로 확정 때 한 번만 소비한다.
 let bootRestorePending = false;
 
+// 지난 실행의 위치를 되살릴 자격이 있는 창인가 — **탭 시스템이 켜지는 창만**.
+//   #340("앱을 다시 열면 모든 탭이 그대로")은 여러 탭을 되살리는 기능이라 탭 UI 가 전제다.
+//   탭이 없는 단일 페이지 모드(모바일 앱·폰 PWA·탭 opt-out 데스크탑)에서 이걸 그대로 적용하면
+//   "앱을 완전히 껐다 켜도 지난번 보던 화면 한 장"이 되는데, 그건 복원이 아니라 **시작 화면 납치**다.
+//   (Irene 2026-08-29: "앱을 아예 닫았다 열었을 땐 그냥 확인필요로 가는게 맞지 않아?")
+//   → 단일 페이지 모드는 manifest start_url(/inbox = 확인 필요)로 그냥 뜬다.
+//
+//   읽기만 막으면 안 되고 **쓰기도 같이** 막는다: 폰에서 쓴 탭 1개짜리 스냅샷이
+//   데스크탑이 남겨둔 여러 탭 스냅샷을 덮어써(last-writer-wins) #340 을 무력화하기 때문이다.
+function isRestoreCapable(): boolean {
+  try { return isTabsSpike(); } catch { return false; }
+}
+
 // 앱(PWA·홈화면·네이티브) 재실행인가 — 브라우저 주소창 진입과 구분한다.
 //   앱은 언제나 manifest 의 start_url(=/inbox)로 뜨므로 그 경로는 "사용자가 가려던 곳" 이 아니다.
 //   반면 브라우저에서 /inbox 를 직접 연 것은 명시 의도라 복원이 이겨선 안 된다.
@@ -116,6 +131,8 @@ function persist() {
   const payload = JSON.stringify({ tabs: state.tabs, activeId: state.activeId });
   try { sessionStorage.setItem(STORAGE_KEY, payload); } catch { /* quota·비허용 무시 */ }
   // 복원 스냅샷 — 마지막으로 쓴 창의 것이 남는다(last-writer-wins). "지난번 그대로" 에는 충분하다.
+  //   단일 페이지 모드(폰·탭 opt-out)는 쓰지 않는다 — 탭 1개짜리로 데스크탑 스냅샷을 지운다.
+  if (!isRestoreCapable()) return;
   try { localStorage.setItem(RESTORE_KEY, payload); } catch { /* quota·비허용 무시 */ }
 }
 function load(): TabState {
@@ -131,7 +148,7 @@ function load(): TabState {
   //    alive 는 되살리지 않는다: 한 번에 전 탭을 마운트하면 첫 화면이 느려지고 LRU 도 즉시 터진다.
   //    활성 탭만 살아나고 나머지는 suspend 상태로 서 있다가 누르면 깨어난다(기존 LRU 동작 그대로).
   try {
-    const raw = localStorage.getItem(RESTORE_KEY);
+    const raw = isRestoreCapable() ? localStorage.getItem(RESTORE_KEY) : null;
     if (raw) {
       const j = JSON.parse(raw);
       if (Array.isArray(j.tabs) && j.tabs.length) {

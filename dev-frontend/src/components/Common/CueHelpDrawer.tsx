@@ -976,6 +976,16 @@ const Backdrop = styled.div`
   background: rgba(15, 23, 42, 0.30);
   z-index: 1000;
 `;
+// ★ 모바일 키보드 (Irene 2026-08-29: "큐헬프가 키보드나오고 채팅창 딱 올라가야 하는데 안그래")
+//   position:fixed 는 **레이아웃 뷰포트**에 붙는다. iOS 는 키보드를 올릴 때 레이아웃 뷰포트를
+//   그대로 두고 visual viewport 만 줄이므로, `bottom: 0` 으로 잡아 둔 이 드로어는 바닥이
+//   키보드 뒤로 들어가고 그 바닥에 있는 입력줄이 통째로 가려진다.
+//   해법은 이미 이 저장소에 있다 — DetailDrawer.Panel 의 계약(top: --vv-top / height: --vvh)이
+//   그것이다. 베껴 만든 이 드로어만 그 계약에서 빠져 있었다.
+//     --vvh    : visual viewport 높이 (키보드가 먹은 만큼 줄어든다)
+//     --vv-top : iOS 가 visual viewport 를 아래로 민 양 (안 더하면 헤더가 화면 위로 잘려 나간다)
+//   둘 다 main.tsx 가 실시간 sync 하고, 키보드 없음·데스크탑에서는 각각 전체 높이·0 이라
+//   기존 동작과 완전히 같다(회귀 0).
 const Drawer = styled.div<{ $standalone?: boolean; $popover?: boolean }>`
   position: fixed;
   z-index: 1001;
@@ -993,13 +1003,17 @@ const Drawer = styled.div<{ $standalone?: boolean; $popover?: boolean }>`
     animation: cuePopIn 0.16s ease-out;
     @keyframes cuePopIn { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
     @media (max-width: 640px) {
-      right: 0; bottom: 0; left: 0; top: auto;
-      width: 100vw; height: 88vh; border-radius: 16px 16px 0 0;
+      right: 0; left: 0; top: auto;
+      /* 바닥 시트도 같은 이유로 키보드 위에 올라와야 한다. 바닥을 키보드 높이만큼 띄우고
+         높이는 보이는 영역(--vvh) 안으로 가둔다. 키보드 없음 = 0 이라 종전과 동일. */
+      bottom: var(--keyboard-height, 0px);
+      width: 100vw; height: min(88vh, var(--vvh, 100vh)); border-radius: 16px 16px 0 0;
       padding-bottom: var(--pq-safe-bottom, 0px);
     }
   ` : `
     /* 워크스페이스 — 우측 전체 드로어 */
-    top: 0; right: 0; bottom: 0;
+    top: var(--vv-top, 0px); right: 0; bottom: auto;
+    height: var(--vvh, 100dvh);
     width: ${p.$standalone ? '100vw' : '440px'};
     ${p.$standalone ? 'left: 0;' : ''}
     border-left: ${p.$standalone ? 'none' : '1px solid #E2E8F0'};
@@ -1045,7 +1059,9 @@ const CloseBtn = styled.button`
   &:hover { background: #F1F5F9; color: #0F172A; }
 `;
 const Body = styled.div`
-  flex: 1; overflow-y: auto;
+  /* min-height: 0 — flex 자식은 기본 min-height:auto 라 내용이 길면 줄지 않고 밀어낸다.
+     그러면 아래 Footer(입력줄)가 드로어 밖으로 밀려나 키보드 보정이 무의미해진다. */
+  flex: 1; min-height: 0; overflow-y: auto;
   padding: 16px;
 `;
 const Empty = styled.div`

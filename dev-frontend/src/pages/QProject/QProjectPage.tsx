@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { displayName } from '../../utils/displayName';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
+import { cacheKey, readCache, hasCache, writeCache } from '../../lib/pageCache';
 import PageShell from '../../components/Layout/PageShell';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { todayInTz, addDaysStr, detectBrowserTz } from '../../utils/timezones';
@@ -89,8 +90,12 @@ const QProjectPage: React.FC = () => {
   const { view: viewParam } = useParams<{ view?: string }>();
   const view: ViewMode = viewParam === 'timeline' || viewParam === 'calendar' ? viewParam : 'list';
 
-  const [projects, setProjects] = useState<ProjectRow[]>([]);
-  const [tasksByProject, setTasksByProject] = useState<Record<number, TaskRow[]>>({});
+  // 재진입 즉시 표시 — 지난 목록으로 그리고 시작하고, 서버 응답이 오면 덮어쓴다.
+  const projKey = cacheKey('projects', user?.id, user?.business_id);
+  const [projects, setProjects] = useState<ProjectRow[]>(() => readCache<ProjectRow[]>(projKey) ?? []);
+  const [tasksByProject, setTasksByProject] = useState<Record<number, TaskRow[]>>(
+    () => readCache<Record<number, TaskRow[]>>(`${projKey}:tasks`) ?? {}
+  );
   const [newProjectOpen, setNewProjectOpen] = useState(false);
   // 검색 + 상태 필터 (사이클 N+17). 기본은 'active' — 진행 중만 노출. 종료/대기는 명시 선택 시 표시.
   const [query, setQuery] = useState('');
@@ -123,7 +128,7 @@ const QProjectPage: React.FC = () => {
       navigate(`/projects/p/${j.data.id}`);
     }
   }, [user?.business_id, navigate]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !hasCache(projKey));
 
   const bizId = user?.business_id || null;
   const wsTz = user?.workspace_timezone || detectBrowserTz();
@@ -131,11 +136,12 @@ const QProjectPage: React.FC = () => {
 
   const load = useCallback(async () => {
     if (!bizId) return;
-    setLoading(true);
+    if (!hasCache(projKey)) setLoading(true);   // 캐시로 이미 그렸으면 스피너로 되돌리지 않는다
     try {
       const pr = await (await apiFetch(`/api/projects?business_id=${bizId}`)).json();
       const list: ProjectRow[] = pr.success ? pr.data : [];
       setProjects(list);
+      writeCache(projKey, list);
       // 각 프로젝트의 tasks 병렬 fetch
       const results = await Promise.all(
         list.map((p) => apiFetch(`/api/projects/${p.id}/tasks`).then((r) => r.json()).catch(() => ({ success: false })))
@@ -146,10 +152,11 @@ const QProjectPage: React.FC = () => {
         map[p.id] = r.success ? r.data : [];
       });
       setTasksByProject(map);
+      writeCache(`${projKey}:tasks`, map);
     } finally {
       setLoading(false);
     }
-  }, [bizId]);
+  }, [bizId, projKey]);
 
   useEffect(() => { load(); }, [load]);
 

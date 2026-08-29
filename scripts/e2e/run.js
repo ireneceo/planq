@@ -24,7 +24,8 @@ const SUITES = {
   fab: () => require('./canary-fab-reach'),
   mailfwd: () => require('./canary-mail-forward'),   // 전달 컴포저 — 원문 미리보기가 **실제 높이**를 갖는가
   dropdowns: () => require('./canary-dropdowns'),   // 알림↔새소식 규격 일치 + 새 탭으로 열기
-  imgresize: () => require('./canary-image-resize'), // #378 드래그 삽입 이미지의 S/M/L — 툴바에도 S/M/L 이 있어 버블만 골라야 한다
+  imgresize: () => require('./canary-image-resize'),
+  mobileboot: () => require('./canary-mobile-boot'), // 콜드스타트 착지 · 재진입 즉시표시 · Cue 키보드 (저장소+뷰포트+키보드가 합쳐진 뒤에만 존재)
 
   aiopen: () => require('./canary-ai-open'),    // AI 진입 모달이 **눌러서 뜨는가** (early return 아래 훅 = React #310, 런타임에만 드러남)
   rowtags: () => require('./canary-row-tags'),  // 행 태그 버튼이 **눌리는가** (존재 검사로는 button-in-button 을 못 잡는다)     // 우하단 도크 FAB 도달성 — 겹침은 두 파일 CSS 가 합쳐진 뒤에만 존재(정적 검사 불가)

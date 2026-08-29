@@ -53,6 +53,7 @@ import SignatureProgressSection from './SignatureProgressSection';
 import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
 import SecurityLevelBadge, { useSecurityLevelLabel } from '../Common/SecurityLevelBadge';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
+import { cacheKey, readCache, hasCache, writeCache } from '../../lib/pageCache';
 import FloatingPanelToggle from '../Common/FloatingPanelToggle';
 import PanelResizeHandle, { usePanelWidth } from '../Layout/PanelResizeHandle';
 import { usePostPresence } from '../../hooks/usePostPresence';
@@ -90,9 +91,17 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const { t: tErr } = useTranslation('errors');
   const { formatDate } = useTimeFormat();
 
-  const [rows, setRows] = useState<PostRow[]>([]);
+  // 재진입 즉시 표시 — 같은 목록(범위+검색어+필터)이면 지난 결과로 먼저 그린다.
+  //   검색어·필터를 키에 넣는 이유: 안 넣으면 "검색 결과가 잠깐 남아 있다가 바뀌는" 더 나쁜 화면이 된다.
+  //   user 축 필수 — 개인 보관함(personal) 은 L1 개인자원이다.
+  const { user: cacheUser } = useAuth();
+  const postsKey = cacheKey(
+    `posts:${scope.type}${scope.type === 'project' ? scope.projectId : ''}`,
+    cacheUser?.id, scope.businessId,
+  );
+  const [rows, setRows] = useState<PostRow[]>(() => readCache<PostRow[]>(postsKey) ?? []);
   const [meta, setMeta] = useState<PostsMeta>({ total: 0, myCount: 0, categories: [], projects: [] });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !hasCache(postsKey));
   const [query, setQuery] = useState('');
   const [searchParams, setSearchParams] = useSearchParams();
   const [filter, setFilter] = useState<FilterSel>(() => {
@@ -325,7 +334,10 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const scopeProjectId = scope.type === 'project' ? scope.projectId : undefined;
 
   const load = useCallback(async () => {
-    setLoading(true);
+    // 캐시는 **기본 목록**(검색어·필터 없음)에만 쓴다. 검색 결과를 캐시하면 다음 진입에
+    // 남의 검색 결과가 잠깐 보이는 더 나쁜 화면이 된다.
+    const plain = !query && filter.kind === 'all';
+    if (!(plain && hasCache(postsKey))) setLoading(true);
     try {
       // N+30 — 개인 보관함 모드: 자체 fetch 함수 (본인 + L1 + project_id=null 자동)
       if (scope.type === 'personal') {
@@ -336,6 +348,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           ? list.filter(p => (p.title || '').toLowerCase().includes(query.toLowerCase()))
           : list;
         setRows(filtered);
+        if (plain) writeCache(postsKey, filtered);
         return;
       }
       // 필터를 API 파라미터로 변환
@@ -348,8 +361,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
 
       const list = await fetchPosts(scope.businessId, apiFilter);
       setRows(list);
+      if (plain) writeCache(postsKey, list);
     } finally { setLoading(false); }
-  }, [scope, query, filter]);
+  }, [scope, query, filter, postsKey]);
 
   const loadMeta = useCallback(async () => {
     const m = await fetchPostsMeta(scope.businessId, scopeProjectId);
@@ -1227,6 +1241,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
 
   return (
     <Layout $collapsed={sidebarCollapsed} $projectFull={isProject} $hasDetail={!!detail || isEditing} $listW={listWidth}>
+      {/* 하니스 판정 신호(CLAUDE.md §17) — 양성 신호로, 뷰포트·모드와 무관하게 항상 그려지는 루트에.
+          목록 영역 안에 두면 폰에서 그 자리가 안 그려져 판정 자체가 불가능해진다(2026-08-29 실측). */}
+      {!loading && <span data-testid="posts-ready" hidden />}
       {isProject && !detail && !isEditing && (
         <ProjBrowse>
           <AtToolbar>
@@ -1475,8 +1492,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         </FilterSection>
 
         <RowList>
+          {/* data-testid — 하니스가 "재진입에 또 로딩되는가" 를 판정하는 신호(CLAUDE.md §17) */}
           {loading ? (
-            <Dim>{t('loading', '로딩 중…')}</Dim>
+            <Dim data-testid="posts-loading">{t('loading', '로딩 중…')}</Dim>
           ) : filtered.length === 0 ? (
             <EmptyState
               icon={(

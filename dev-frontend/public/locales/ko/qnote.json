@@ -37,7 +37,9 @@
       "memoLabel": "메모",
       "memoDesc": "텍스트 · 코드블록 · 서식 지원",
       "voiceLabel": "음성 노트",
-      "voiceDesc": "회의 녹음 + STT + 답변 찾기"
+      "voiceDesc": "회의 녹음 + STT + 답변 찾기",
+      "quickLabel": "바로 녹음",
+      "quickDesc": "준비 없이 즉시 시작 · 번역 없음 · 마이크"
     },
     "header": {
       "editTitleHint": "클릭하여 수정",
@@ -218,7 +220,10 @@
       "confirm": "중단하고 이동",
       "cancel": "녹음 계속하기"
     },
-    "backToList": "목록으로"
+    "backToList": "목록으로",
+    "quickRecord": {
+      "title": "빠른 녹음 {{time}}"
+    }
   },
   "memoPopup": {
     "title": "메모",

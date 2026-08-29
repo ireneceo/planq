@@ -37,7 +37,9 @@
       "memoLabel": "Memo",
       "memoDesc": "Text · code blocks · formatting",
       "voiceLabel": "Voice note",
-      "voiceDesc": "Meeting recording + STT + answer finder"
+      "voiceDesc": "Meeting recording + STT + answer finder",
+      "quickLabel": "Record now",
+      "quickDesc": "Start instantly · no translation · microphone"
     },
     "header": {
       "editTitleHint": "Click to edit",
@@ -218,7 +220,10 @@
       "confirm": "Stop and leave",
       "cancel": "Keep recording"
     },
-    "backToList": "Back to list"
+    "backToList": "Back to list",
+    "quickRecord": {
+      "title": "Quick recording {{time}}"
+    }
   },
   "memoPopup": {
     "title": "Memo",

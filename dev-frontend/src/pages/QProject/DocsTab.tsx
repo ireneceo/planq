@@ -25,7 +25,8 @@ import {
 } from '../../services/files';
 import VisibilityField, { serializeVisibility, parseVisibility, type VisibilityValue } from '../../components/Common/VisibilityField';
 import { listProjects, listWorkspaceClients, type ApiProject, type WorkspaceClientRow } from '../../services/qtalk';
-import { apiFetch } from '../../contexts/AuthContext';
+import { apiFetch, useAuth } from '../../contexts/AuthContext';
+import { cacheKey, readCache, hasCache, writeCache } from '../../lib/pageCache';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { useFileDragOut } from '../../hooks/useFileDragOut';
 
@@ -67,10 +68,20 @@ const DocsTab: React.FC<Props> = (props) => {
   const tr: (k: string, fb?: string) => string = (k, fb) => t(k, (fb ?? '') as string) as unknown as string;
   const { formatDate } = useTimeFormat();
 
-  const [files, setFiles] = useState<ProjectFile[]>([]);
-  const [folders, setFolders] = useState<FileFolder[]>([]);
+  // 재진입 즉시 표시 — 같은 범위(개인/워크스페이스/프로젝트)로 다시 들어오면 지난 목록으로 먼저 그린다.
+  //   scope 별로 키가 갈리므로 프로젝트 파일이 워크스페이스 파일 자리에 섞이지 않는다.
+  //   ★ user 축을 반드시 넣는다 — 개인 보관함(personal)은 L1 개인자원이라 키가 겹치면
+  //     같은 브라우저의 다른 사용자에게 남의 목록이 비칠 수 있다. 로그아웃 시 clearPageCache
+  //     가 통째로 비우지만, 키에서도 한 번 더 막는다(겹쳐서 막기).
+  const { user: cacheUser } = useAuth();
+  const fileKey = cacheKey(
+    scope.type === 'project' ? `files:p${scope.projectId}` : `files:${scope.type}`,
+    cacheUser?.id, scope.businessId,
+  );
+  const [files, setFiles] = useState<ProjectFile[]>(() => readCache<ProjectFile[]>(fileKey) ?? []);
+  const [folders, setFolders] = useState<FileFolder[]>(() => readCache<FileFolder[]>(`${fileKey}:folders`) ?? []);
   const [projectName, setProjectName] = useState<string>('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !hasCache(fileKey));
   const [view, setView] = useState<ViewMode>('grid');
   const [folderSel, setFolderSel] = useState<FolderSel>('all');
   const [query, setQuery] = useState('');
@@ -112,22 +123,23 @@ const DocsTab: React.FC<Props> = (props) => {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
+    if (!hasCache(fileKey)) setLoading(true);   // 캐시로 이미 그렸으면 스피너로 되돌리지 않는다
     if (isPersonal) {
       // N+30 — 개인 보관함: 본인 L1 파일만. 폴더 X (개인 보관함은 평면 view)
       import('../../services/files').then(({ fetchPersonalFiles }) => {
         fetchPersonalFiles(businessId).then(fs => {
-          if (!cancelled) { setFiles(fs); setFolders([]); setLoading(false); }
+          if (!cancelled) { setFiles(fs); setFolders([]); writeCache(fileKey, fs); setLoading(false); }
         });
       });
     } else if (isWorkspace) {
       fetchWorkspaceFiles(businessId).then(fs => {
-        if (!cancelled) { setFiles(fs); setFolders([]); setLoading(false); }
+        if (!cancelled) { setFiles(fs); setFolders([]); writeCache(fileKey, fs); setLoading(false); }
       });
     } else {
       Promise.all([fetchProjectFiles(projectId), fetchFolders(projectId)]).then(([fs, fd]) => {
         if (!cancelled) {
           setFiles(fs); setFolders(fd); setLoading(false);
+          writeCache(fileKey, fs); writeCache(`${fileKey}:folders`, fd);
           // 프로젝트 이름은 집계 파일에 있는 project_context 에서 또는 별도 조회 — 없으면 fetch
           const fromFile = fs.find(f => f.project_context)?.project_context?.name;
           if (fromFile) setProjectName(fromFile);
@@ -142,7 +154,7 @@ const DocsTab: React.FC<Props> = (props) => {
       });
     }
     return () => { cancelled = true; };
-  }, [projectId, businessId, isWorkspace, isPersonal]);
+  }, [projectId, businessId, isWorkspace, isPersonal, fileKey]);
 
   // N+39 — PWA visibility 안전망 (socket 끊김 / background→foreground)
   useVisibilityRefresh(useCallback(() => {
@@ -479,6 +491,14 @@ const DocsTab: React.FC<Props> = (props) => {
         </SelectToggle>
       </Toolbar>
 
+      {/* 하니스 판정 신호(CLAUDE.md §17) — **양성**이어야 한다.
+          "로딩 표식이 없다" 는 화면이 아직 안 뜬 것과 구별되지 않아 카나리가 눈이 멀었다.
+          그리고 파일 영역 안에 두었더니 폰에서는 그 자리가 아예 안 그려져 판정 자체가 불가능했다
+          (2026-08-29 실측). 그래서 뷰포트·모드와 무관하게 항상 그려지는 루트에 둔다. */}
+      {loading
+        ? <span data-testid="files-loading" hidden />
+        : <span data-testid="files-ready" hidden />}
+
       {/* Split: 좌 (폴더 트리 or 프로젝트 그룹) + 우 파일 영역
           N+30 — personal 모드: 좌측 패널 자체 렌더 X (평면 view, 폴더·프로젝트 그룹 없음) */}
       <Split $single={isPersonal}>
@@ -584,6 +604,7 @@ const DocsTab: React.FC<Props> = (props) => {
             </ShareLinkBar>
           )}
 
+          {/* data-testid — 하니스가 "재진입에 또 로딩되는가" 를 판정하는 신호(CLAUDE.md §17) */}
           {loading ? (
             view === 'grid' ? (
               <Grid>

@@ -159,7 +159,31 @@ const getUserWithBusiness = async (userId) => {
     userData.workspace_timezone = null;
     userData.workspace_reference_timezones = [];
   }
+
+  // 공지 배너 + 약관 버전 — **세션 payload 의 일부로 여기서 한 번에** 붙인다.
+  //   여태 /me 라우트 안에만 있었다. 그래서 부팅 때 프론트가 refresh 로 user 를 받고도
+  //   platform 이 없어 /me 를 한 번 더 불러야 했다(왕복 2회). 같은 값의 공식이 두 벌이면
+  //   반드시 갈라지므로 라우트별로 덧붙이지 않고 **이 단일 원천에서** 만든다.
+  await attachPlatform(userData);
   return userData;
+};
+
+// 플랫폼 공통 설정(공지·약관 버전) 부착. 실패해도 세션 payload 를 죽이지 않는다.
+const attachPlatform = async (userData) => {
+  try {
+    const { PlatformSetting } = require('../models');
+    const ps = await PlatformSetting.findOne({ order: [['id', 'ASC']] });
+    if (!ps) return;
+    userData.platform = {
+      announcement_text: ps.announcement_text || null,
+      // 영어 공지 — 비어 있으면 프론트가 한국어로 폴백한다(빈 배너를 띄우지 않기 위해).
+      announcement_text_en: ps.announcement_text_en || null,
+      announcement_dismissible: !!ps.announcement_dismissible,
+      announcement_severity: ps.announcement_severity || 'info',
+      current_terms_version: ps.terms_version || '1.0',
+      current_privacy_version: ps.privacy_version || '1.0',
+    };
+  } catch { /* skip */ }
 };
 
 // ============================================
@@ -824,22 +848,7 @@ router.get('/me', authenticateToken, async (req, res, next) => {
     if (!userData) {
       return errorResponse(res, 'User not found', 404);
     }
-    // 공지 배너 + 약관 버전 같이 (사이드바 / 약관 재동의 모달용)
-    try {
-      const { PlatformSetting } = require('../models');
-      const ps = await PlatformSetting.findOne({ order: [['id', 'ASC']] });
-      if (ps) {
-        userData.platform = {
-          announcement_text: ps.announcement_text || null,
-          // 영어 공지 — 비어 있으면 프론트가 한국어로 폴백한다(빈 배너를 띄우지 않기 위해).
-          announcement_text_en: ps.announcement_text_en || null,
-          announcement_dismissible: !!ps.announcement_dismissible,
-          announcement_severity: ps.announcement_severity || 'info',
-          current_terms_version: ps.terms_version || '1.0',
-          current_privacy_version: ps.privacy_version || '1.0',
-        };
-      }
-    } catch { /* skip */ }
+    // platform(공지·약관 버전)은 getUserWithBusiness 가 이미 붙였다 — 단일 원천.
     successResponse(res, userData);
   } catch (error) {
     next(error);
