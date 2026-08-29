@@ -154,6 +154,21 @@ const Trigger = styled.button`
   &:hover { color: #14B8A6; background: #F0FDFA; }
   &:focus-visible { outline: 2px solid rgba(20,184,166,0.3); outline-offset: 2px; }
   svg { display: block; width: 14px; height: 14px; }
+
+  /* 폰 실측(375px)에서 18x18 이었다 — 손가락으로 누르기엔 너무 작다(WCAG 2.5.5 · iOS HIG 44).
+     ★ 보이는 크기는 그대로 둔다. 라벨 옆 인라인이라 원이 커지면 글줄이 어색해진다.
+       손가락 기기에서만 **누르는 영역**을 44 로 넓힌다(투명 영역이라 화면은 안 바뀐다).
+       마우스에는 적용하지 않는다 — 44 짜리 투명 영역이 옆 요소 클릭을 삼킬 수 있다. */
+  position: relative;
+  @media (pointer: coarse) {
+    &::after {
+      content: '';
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 44px; height: 44px;
+    }
+  }
 `;
 const Popover = styled.div`
   position: fixed;

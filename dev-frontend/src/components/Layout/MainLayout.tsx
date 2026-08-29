@@ -519,7 +519,7 @@ const UserMenuChevron = styled.span<{ $open: boolean }>`
   transform: ${({ $open }) => $open ? 'rotate(180deg)' : 'rotate(0deg)'};
   svg { width: 14px; height: 14px; }
 `;
-const UserMenuPopover = styled.div`
+const UserMenuPopover = styled.div.attrs<{ 'data-popover'?: string }>({ 'data-popover': 'true' })`
   position: absolute; bottom: calc(100% + 6px); left: 0; right: 0;
   background: #115E59;
   border: 1px solid rgba(255, 255, 255, 0.12);
