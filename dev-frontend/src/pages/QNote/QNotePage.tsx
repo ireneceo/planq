@@ -103,6 +103,8 @@ interface BlockSegment {
   end: number | null;
   detectedLanguage?: string | null;
   outOfScope?: boolean;
+  /** 번역·정제가 실패했다. 조용히 비어 있는 것과 구별해 사용자에게 표시한다. */
+  translationFailed?: boolean;
 }
 
 interface TranscriptBlock {
@@ -174,12 +176,14 @@ function joinText(segments: BlockSegment[]): string {
   return segments.map((s) => s.original).join(' ').replace(/\s+/g, ' ').trim();
 }
 
-function joinTranslation(segments: BlockSegment[]): { text: string; hasAny: boolean; allTranslated: boolean } {
+function joinTranslation(segments: BlockSegment[]): { text: string; hasAny: boolean; allTranslated: boolean; failed: boolean } {
   const translated = segments.filter((s) => s.translation != null && s.translation !== '');
   const text = translated.map((s) => s.translation).join(' ').replace(/\s+/g, ' ').trim();
   return {
     text,
     hasAny: translated.length > 0,
+    // ★ "아직 안 온 것" 과 "실패한 것" 은 다른 상태다. 실패를 안 알리면 영영 기다리게 된다.
+    failed: segments.some((s) => s.translationFailed),
     allTranslated: translated.length === segments.length,
   };
 }
@@ -1038,6 +1042,19 @@ const QNotePage = () => {
     }
 
     if (ev.type === 'enrichment') {
+      // ★ 실패 이벤트면 **아무것도 덮지 않는다.** 그대로 patch 하면 translation 이 undefined 로
+      //   덮여 "번역이 조용히 사라진" 것처럼 보인다. 실패는 실패라고 표시한다.
+      if (ev.error) {
+        setBlocks((prev) => prev.map((block) => {
+          if (!block.segments.some((sg) => sg.utteranceId === ev.utterance_id)) return block;
+          return {
+            ...block,
+            segments: block.segments.map((sg) =>
+              sg.utteranceId === ev.utterance_id ? { ...sg, translationFailed: true } : sg),
+          };
+        }));
+        return;
+      }
       // 블록과 pending 모두에서 해당 utterance_id 를 찾아 번역/언어/정제 원문 주입
       const patch = (seg: BlockSegment): BlockSegment => ({
         ...seg,
@@ -1893,7 +1910,7 @@ const QNotePage = () => {
 
   const renderBlock = (block: TranscriptBlock, _prevBlock: TranscriptBlock | null, blockIndex: number, visibleBlocks: TranscriptBlock[]) => {
     const originalText = joinText(block.segments);
-    const { text: translatedText, hasAny, allTranslated } = joinTranslation(block.segments);
+    const { text: translatedText, hasAny, allTranslated, failed: translationFailed } = joinTranslation(block.segments);
 
     const allOutOfScope = block.segments.length > 0 && block.segments.every((s) => s.outOfScope);
 
@@ -2227,7 +2244,9 @@ const QNotePage = () => {
             ) : (hasAny && (
               <QuestionTranslation>
                 {translatedText}
-                {!allTranslated && <PendingHint> ...</PendingHint>}
+                {!allTranslated && (translationFailed
+                  ? <PendingHint> {t('page.translateFailed', { defaultValue: '번역 실패' }) as string}</PendingHint>
+                  : <PendingHint> ...</PendingHint>)}
               </QuestionTranslation>
             )))}
             {hasAnswer && !isCollapsed && (
@@ -2262,7 +2281,9 @@ const QNotePage = () => {
           {!allOutOfScope && hasAny && (
             <SpeechTranslation>
               {translatedText}
-              {!allTranslated && <PendingHint> ...</PendingHint>}
+              {!allTranslated && (translationFailed
+                  ? <PendingHint> {t('page.translateFailed', { defaultValue: '번역 실패' }) as string}</PendingHint>
+                  : <PendingHint> ...</PendingHint>)}
             </SpeechTranslation>
           )}
         </SpeechTextCol>

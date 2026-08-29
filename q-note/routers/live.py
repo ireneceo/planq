@@ -356,6 +356,17 @@ async def _enrich_and_persist(
     raise
   except Exception as e:
     logger.error(f'Enrichment failed for utterance {utterance_id}: {e}')
+    # ★ 여태 로그만 남기고 프론트엔 아무것도 안 보냈다 — 그 블록은 **영영 번역 없이 침묵**한다.
+    #   강제 commit 으로 enrichment 횟수가 늘면 이 침묵 창구도 같이 는다(Fable E).
+    #   실패를 사용자가 알 수 있게 이벤트로 내보낸다. 전송 실패가 이 핸들러를 다시 깨뜨리지 않게 감싼다.
+    try:
+      await websocket.send_json({
+        'type': 'enrichment',
+        'utterance_id': utterance_id,
+        'error': True,
+      })
+    except Exception:
+      pass
 
 
 async def _prefetch_answer(
@@ -819,6 +830,43 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
       enrichment_tasks.pop(uid, None)
     new_task.add_done_callback(_cleanup)
 
+  # ── 강제 commit 술어 (Fable 판정의 정본) ───────────────────────────────
+  #   ★ 이 함수 하나가 유일한 판정이다. 여기 말고 다른 곳에서 길이·시간을 다시 재지 말 것
+  #     (같은 값의 공식이 여러 벌이면 반드시 갈라진다).
+  #   ★ capture_mode 를 받지 않는다 — 음성노트(단일 화자 장시간)가 오히려 최대 수혜자다.
+  #     모드별로 가르면 두 벌이 된다.
+  #
+  #   ① 문장이 끝났고(구두점) 충분히 길다  → 가장 자연스러운 절단면
+  #   ② 너무 길어졌다(200자)              → 구두점이 안 붙는 발화의 방어선
+  #   ③ 너무 오래됐다(10초)               → 위 둘 다 안 걸리는 경우의 최후 방어선
+  _FORCE_SENTENCE_END = ('.', '?', '!', '…', '。', '？', '！')
+  _FORCE_MIN_CHARS_AFTER_PUNCT = 50
+  _FORCE_MAX_CHARS = 200
+  _FORCE_MAX_SECONDS = 10.0
+
+  def _should_force_commit(buf) -> bool:
+    if not buf:
+      return False
+    parts = [p for p in buf.get('text_parts') or [] if p]
+    if not parts:
+      return False
+    text = ' '.join(parts).strip()
+    if not text:
+      return False
+    n = len(text)
+    if n >= _FORCE_MAX_CHARS:
+      return True
+    if n >= _FORCE_MIN_CHARS_AFTER_PUNCT and text.endswith(_FORCE_SENTENCE_END):
+      return True
+    st, en = buf.get('start_time'), buf.get('end_time')
+    if st is not None and en is not None:
+      try:
+        if float(en) - float(st) >= _FORCE_MAX_SECONDS:
+          return True
+      except (TypeError, ValueError):
+        pass
+    return False
+
   # Forward transcripts back to client and accumulate/commit utterances
   async def on_transcript(result: dict):
     try:
@@ -861,6 +909,19 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
 
       # speech_final=true → utterance 경계. 누적된 조각 전체를 단일 row 로 commit.
       if result.get('speech_final'):
+        await _commit_pending_utterance(ch)
+        return
+
+      # ── 긴 발화 강제 commit (Irene #번역지연 · Fable 판정 2026-08-29) ──────────
+      #   문제: 번역 트리거가 **발화 종료 하나뿐**이라, 쉬지 않고 길게 말하면 그동안
+      #   상대는 아무것도 못 본다("긴 말 다 할때까지 계속 번역 안나와서 대화가 안돼").
+      #   Deepgram 은 500ms 만 쉬어도 speech_final 을 주므로, 문제는 **쉼 없는 장문**이다.
+      #
+      #   Fable 결정 — 부분 번역을 따로 쏘지 않는다(같은 텍스트를 두 번 번역하게 되고
+      #   화면 글자가 튄다). 대신 **commit 자체를 앞당긴다**. 그러면 기존 파이프라인
+      #   (insert → finalized → 질문판정 → enrich)이 **한 벌 그대로** 돈다.
+      #   ★ 커트는 반드시 is_final 조각 경계에서만 — 조각 중간을 자르면 번역이 망가진다.
+      if _should_force_commit(pending_buffers.get(ch)):
         await _commit_pending_utterance(ch)
       return
 

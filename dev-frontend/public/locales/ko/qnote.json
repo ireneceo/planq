@@ -224,7 +224,8 @@
     "backToList": "목록으로",
     "quickRecord": {
       "title": "빠른 녹음 {{time}}"
-    }
+    },
+    "translateFailed": "번역 실패"
   },
   "memoPopup": {
     "title": "메모",

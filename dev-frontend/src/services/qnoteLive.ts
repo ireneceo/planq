@@ -17,6 +17,8 @@ export interface LiveTranscriptEvent {
 
 export interface LiveEnrichmentEvent {
   type: 'enrichment';
+  /** 번역·정제가 실패했다. 이 값이 true 면 나머지 필드는 비어 있다 — 덮어쓰지 말 것. */
+  error?: boolean;
   utterance_id: number;
   formatted_original?: string;
   translation: string;
