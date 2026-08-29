@@ -151,6 +151,82 @@ code {
     monospace;
 }
 
+/* ══════════════════════════════════════════════════════════════
+   상호작용 기본선 (2026-08-29)
+
+   왜: 인터랙티브 요소 1,362개를 전수로 세어 보니 —
+       눌림(:active) 피드백 98.3% 없음 · 키보드 포커스 링 82.5% 없음 · 전환 71.2% 없음.
+       버튼을 눌러도 반응이 없고, 상태가 바뀔 때 툭 튀고, 키보드로 다니면 어디 있는지 안 보인다.
+       "고가 솔루션 대비 저급하다" 는 대부분 이 셋에서 온다.
+
+   어떻게: 컴포넌트 1,362개를 고치는 대신 **바닥만** 올린다.
+       모든 선택자를 `:where()` 로 감싸 **명시도 0** 으로 둔다 → 컴포넌트가 자기 스타일을
+       가지고 있으면 **언제나 그쪽이 이긴다.** 아무것도 없던 것만 이 기본값을 받는다.
+       (이미 :focus-visible 을 쓰는 220곳, 자체 :active 를 쓴 곳은 영향 없음)
+
+   ★ 되돌리려면 이 블록만 지우면 된다. 컴포넌트 코드는 건드리지 않았다.
+   ══════════════════════════════════════════════════════════════ */
+
+/* 누를 수 있게 보이기 — 브라우저는 button 에 pointer 커서를 주지 않는다 */
+:where(button:not(:disabled), [role="button"], summary, a[href]) {
+  cursor: pointer;
+}
+:where(button:disabled, [aria-disabled="true"]) {
+  cursor: not-allowed;
+}
+
+/* 상태가 바뀔 때 툭 튀지 않게 */
+:where(button, [role="button"], summary, a[href], input, select, textarea) {
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease,
+    opacity 0.15s ease,
+    transform 0.06s ease;
+}
+
+/* 눌리는 느낌 — 아주 미세하게. 레이아웃에는 영향이 없다(transform) */
+:where(button:not(:disabled), [role="button"]:not([aria-disabled="true"])):active {
+  transform: scale(0.985);
+}
+
+/* 키보드 포커스 — 마우스 클릭에는 안 뜨고 Tab 이동에만 뜬다(:focus-visible) */
+:where(
+  button, [role="button"], summary, a[href],
+  input, select, textarea,
+  [tabindex]:not([tabindex="-1"])
+):focus-visible {
+  outline: 2px solid rgba(15, 118, 110, 0.55);
+  outline-offset: 2px;
+}
+
+/* 모달·드로어가 툭 나타나지 않게 — 전수 조사: aria-modal 55곳 중 37곳에 등장 효과가 없었다.
+   ★ transform 은 쓰지 않는다. 12곳이 `transform: translate(-50%,-50%)` 로 가운데 정렬을
+     하고 있어서, 여기서 transform 을 건드리면 **모달이 화면 구석으로 튄다.**
+     투명도만 쓰면 어떤 정렬 방식과도 충돌하지 않는다.
+   자체 등장 효과가 있는 18곳(DetailDrawer 의 슬라이드 등)은 :where() 명시도 0 이라 그대로 이긴다. */
+@keyframes planq-surface-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+:where([aria-modal="true"]) {
+  animation: planq-surface-in 0.18s ease-out;
+}
+
+/* 움직임을 줄이도록 설정한 사용자 — 전환과 눌림 효과를 끈다 (접근성) */
+@media (prefers-reduced-motion: reduce) {
+  :where(button, [role="button"], summary, a[href], input, select, textarea) {
+    transition: none;
+  }
+  :where(button:not(:disabled), [role="button"]):active {
+    transform: none;
+  }
+  :where([aria-modal="true"]) {
+    animation: none;
+  }
+}
+
 /* ── Q docs 인쇄 (PDF 저장) — Body 만 A4 출력 ── */
 @media print {
   @page { size: A4; margin: 18mm 16mm; }
