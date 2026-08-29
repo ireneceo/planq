@@ -606,6 +606,12 @@ function scheduleNextMidnight() {
       console.log('[upload-cleanup]', r);
     } catch (e) { console.warn('[upload-cleanup] failed', e.message); }
     try {
+      // 운영 #384 — 보낸 메일에 답이 없으면 알려준다. 판정은 services/mailFollowUp 하나만 쓴다
+      //   (목록 뱃지와 알림이 서로 다른 말을 하지 않게).
+      const r = await require('./services/mailFollowUpCron').runMailFollowUpCron(new Date(), app);
+      if (r.notified > 0) console.log('[mail-followup]', r);
+    } catch (e) { console.warn('[mail-followup] failed', e.message); }
+    try {
       // 탈퇴 유예(30일) 만료 계정 익명화 (ACCOUNT_DELETION_DESIGN)
       const r = await require('./services/accountAnonymize').runAccountAnonymizeCron();
       if (r.due > 0) console.log('[account-anonymize]', r);

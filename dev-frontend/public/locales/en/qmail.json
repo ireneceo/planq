@@ -190,7 +190,7 @@
     "quote": "Quote/contract",
     "review": "Review suggested",
     "automated_relevant": "Auto/business",
-    "unclear_intent": "Review suggested"
+    "unclear_intent": "Needs a closer look"
   },
   "replyNeededBadge": "Reply needed",
   "actions": {

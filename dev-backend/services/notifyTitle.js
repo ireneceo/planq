@@ -37,6 +37,7 @@ const ACTIONS = {
   // Q Mail
   mail_reply_needed: { ko: '답변 필요', en: 'Reply needed' },
   mail_review: { ko: '확인 권장', en: 'Review suggested' },
+  mail_awaiting_reply: { ko: '답장 없음', en: 'No reply yet' },
   mail_account_failed: { ko: '계정 동기화 실패', en: 'Account sync failed' },
   mail_account_reauth: { ko: '재연결 필요', en: 'Reconnect required' },
   // Q Task
