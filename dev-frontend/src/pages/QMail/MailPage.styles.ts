@@ -410,6 +410,9 @@ export const UncertainBadge = styled.span`
   margin-top: 4px; padding: 2px 8px; border-radius: 999px;
   background: rgba(245, 158, 11, 0.13); color: #92400E;
   font-size: 11px; font-weight: 700;
+  /* 알약은 쪼개지지 않는다 — 목록 칸이 좁아지면 "⚠ 자동/업무 / 관련" 처럼 두 줄로 찢어졌다.
+     문구를 줄이는 것만으로는 부족하다(더 좁아지면 또 찢어진다). */
+  white-space: nowrap;
 `;
 // #221 — 확인 권장 뱃지의 대칭. 여태 리스트에는 '확인 권장' 만 있고 '답변 필요' 표시가 없어서,
 //   다른 탭(전체·내 담당 등)에서 보면 그 메일이 답변 대기 중인지 알 수 없었다.
