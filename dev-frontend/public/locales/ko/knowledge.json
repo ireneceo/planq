@@ -92,6 +92,7 @@
   "drawer": {
     "title": "정보 상세",
     "body": "본문",
+    "source": "출처",
     "chunks": "청크",
     "metadata": "메타데이터",
     "category": "카테고리",

@@ -92,6 +92,7 @@
   "drawer": {
     "title": "Knowledge detail",
     "body": "Body",
+    "source": "Source",
     "chunks": "Chunks",
     "metadata": "Metadata",
     "category": "Category",

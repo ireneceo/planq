@@ -746,6 +746,28 @@ router.get('/businesses/:businessId/kb/documents/:docId', authenticateToken, che
     } else {
       result.attached_posts = [];
     }
+
+    // #284 ⑤ — "연결된 자료나 문서들도 오픈해서 보기 수월하고".
+    //   출처(source_post_id/source_file_id)는 batch 인제스트(:1444)가 **기록만** 하고
+    //   화면이 한 번도 읽은 적이 없었다. id 만으로는 제목을 못 그려 열 수도 없다 —
+    //   첨부와 같은 방식으로 메타를 같이 내려 "어디서 왔는지" 를 눌러서 열 수 있게 한다.
+    //   ★ business_id 를 같이 걸어 다른 워크스페이스 출처가 새지 않게 한다(기록 시점 검증과 이중).
+    result.source_post = null;
+    result.source_file = null;
+    if (doc.source_post_id) {
+      const sp = await Post.findOne({
+        where: { id: doc.source_post_id, business_id: req.params.businessId },
+        attributes: ['id', 'title', 'project_id', 'category'],
+      });
+      result.source_post = sp ? sp.toJSON() : null;
+    }
+    if (doc.source_file_id) {
+      const sf = await FileModel.findOne({
+        where: { id: doc.source_file_id, business_id: req.params.businessId, deleted_at: null },
+        attributes: ['id', 'file_name', 'file_size', 'mime_type', 'storage_provider', 'external_url'],
+      });
+      result.source_file = sf ? sf.toJSON() : null;
+    }
     successResponse(res, result);
   } catch (err) { next(err); }
 });

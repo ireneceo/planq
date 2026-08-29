@@ -73,6 +73,9 @@ interface KbDetail extends KbDocumentRow {
   chunks?: { id: number; chunk_index: number; section_title: string | null; token_count: number }[];
   attached_files?: { id: number; file_name: string; file_size: number; mime_type: string | null; storage_provider: string; external_url: string | null }[];
   attached_posts?: { id: number; title: string; project_id: number | null; category: string | null }[];
+  // #284 ⑤ — 이 정보가 **어느 문서/파일에서 왔는지**. 서버가 메타까지 같이 준다(제목 없이는 열 수 없다).
+  source_post?: { id: number; title: string; project_id: number | null; category: string | null } | null;
+  source_file?: { id: number; file_name: string; file_size: number; mime_type: string | null; storage_provider: string; external_url: string | null } | null;
 }
 
 const formatDateSafe = (input: string | number | Date | null | undefined, kind: 'date' | 'datetime' = 'datetime'): string => {
@@ -1160,6 +1163,65 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                   </DrawerSection>
                 );
               })()}
+              {/* 출처 — 이 정보가 어디서 왔는가 (#284 ⑤ "연결된 자료나 문서들도 오픈해서 보기 수월하고").
+                  문서→Info 로 보낼 때 서버가 source_post_id/source_file_id 를 남겨 왔는데
+                  화면이 읽지 않아 사용자에겐 없는 기능이었다. 첨부와 같은 행 구조를 쓰되
+                  제거 버튼은 두지 않는다 — 출처는 편집 대상이 아니라 사실이다. */}
+              {(detail.source_post || detail.source_file) && (
+                <DrawerSection>
+                  <SectionLabel>{t('drawer.source', '출처')}</SectionLabel>
+                  <AttachList>
+                    {detail.source_post && (
+                      <AttachRow key={`sp-${detail.source_post.id}`}>
+                        <AttachIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                          <polyline points="14 2 14 8 20 8"/>
+                          <line x1="16" y1="13" x2="8" y2="13"/>
+                          <line x1="16" y1="17" x2="8" y2="17"/>
+                        </AttachIcon>
+                        <AttachName>{detail.source_post.title}</AttachName>
+                        {detail.source_post.category && <AttachMeta>{detail.source_post.category}</AttachMeta>}
+                        <AttachAction
+                          href={`/docs?post=${detail.source_post.id}`}
+                          title={t('drawer.openPost', '문서 열기') as string}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                            <polyline points="15 3 21 3 21 9"/>
+                            <line x1="10" y1="14" x2="21" y2="3"/>
+                          </svg>
+                        </AttachAction>
+                      </AttachRow>
+                    )}
+                    {detail.source_file && (
+                      <AttachRow key={`sf-${detail.source_file.id}`}>
+                        <AttachIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                          <polyline points="14 2 14 8 20 8"/>
+                        </AttachIcon>
+                        <AttachName>{detail.source_file.file_name}</AttachName>
+                        <AttachMeta>{formatBytes(detail.source_file.file_size)}</AttachMeta>
+                        <AttachAction
+                          href={detail.source_file.storage_provider === 'gdrive' && detail.source_file.external_url
+                            ? detail.source_file.external_url
+                            : `/api/files/${businessId}/${detail.source_file.id}/download`}
+                          target={detail.source_file.storage_provider === 'gdrive' ? '_blank' : undefined}
+                          rel="noopener noreferrer"
+                          download={detail.source_file.storage_provider !== 'gdrive' ? detail.source_file.file_name : undefined}
+                          title={t('drawer.download', '다운로드') as string}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                          </svg>
+                        </AttachAction>
+                      </AttachRow>
+                    )}
+                  </AttachList>
+                </DrawerSection>
+              )}
+
               {/* 첨부 파일·문서 — AttachmentField 통합 컴포넌트로 통일 (사이클 P5 후속, 2026-05-14).
                   새 정보 등록 모달과 같은 UI/UX. 새 업로드는 표준 File 테이블 등록 후 즉시
                   attached_file_ids 에 link. 기존 파일/문서 선택도 즉시 PATCH updateKnowledge. */}
