@@ -1118,6 +1118,18 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                             >
                               {col.show_in_list ? '◉' : '○'}
                             </ShowInListToggle>
+                            {/* #284 — 삭제(×)는 **항목명 줄 끝**으로. 값 줄에 있으면 값 칸이
+                                그만큼 좁아진다("항목들이 너무 좁게 끝나서 오른쪽에 불필요한 내용이 보여"). */}
+                            <RemoveColBtn
+                              type="button"
+                              title={t('drawer.removeColumn', '항목 삭제') as string}
+                              onClick={() => {
+                                const next = cols.filter((_, i) => i !== idx);
+                                const vals = { ...(detail.custom_values || {}) };
+                                delete vals[col.id];
+                                saveCols(next, vals);
+                              }}
+                            >×</RemoveColBtn>
                           </DrawerColHeadRow>
                           <DrawerColValueRow>
                             <InlineCellEdit
@@ -1132,16 +1144,8 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                                 setDetail(prev => prev ? { ...prev, custom_values: { ...(prev.custom_values || {}), [col.id]: newVal } } : prev);
                               }}
                             />
-                            <RemoveColBtn
-                              type="button"
-                              title={t('drawer.removeColumn', '항목 삭제') as string}
-                              onClick={() => {
-                                const next = cols.filter((_, i) => i !== idx);
-                                const vals = { ...(detail.custom_values || {}) };
-                                delete vals[col.id];
-                                saveCols(next, vals);
-                              }}
-                            >×</RemoveColBtn>
+                            {/* #284 — 상세에서도 값을 복사할 수 있게. 리스트와 같은 동작(useCopy 단일 원천). */}
+                            <DrawerCopyBtn value={(detail.custom_values || {})[col.id]} />
                           </DrawerColValueRow>
                         </DrawerCustomRow>
                       ))}
@@ -1849,9 +1853,12 @@ const DrawerColNameInput = styled.input`
   &:hover { border-color: #E2E8F0; }
   &:focus { outline: none; border-color: #14B8A6; background: #fff; }
 `;
+/* #284 — "항목들이 너무 좁게 끝나서 오른쪽에 불필요한 내용이 보여."
+   값 칸이 남는 폭을 전부 쓰게 하고, 오른쪽에는 **복사**만 남긴다(삭제 ×는 항목명 줄로 옮겼다). */
 const DrawerColValueRow = styled.div`
-  display: flex; align-items: center; gap: 6px; min-width: 0;
-  & > *:first-child { flex: 1; min-width: 0; }
+  display: flex; align-items: center; gap: 6px; min-width: 0; width: 100%;
+  & > *:first-child { flex: 1 1 auto; min-width: 0; }
+  & > *:not(:first-child) { flex-shrink: 0; }
 `;
 
 // ─── 인라인 셀 편집 — 리스트 행의 커스텀 항목 클릭 시 그 자리에서 수정 ───
@@ -1864,9 +1871,40 @@ const DrawerColValueRow = styled.div`
  *       클릭이 곧 편집이면 값을 꺼내려다 실수로 고치게 된다. 편집은 우측 패널에 이미 전부 있다.
  *       (드로어 안의 InlineCellEdit 는 그대로 — 거기서는 편집이 맞다.)
  */
+// 복사 동작 **단일 원천**. 리스트(CopyCell)와 상세(DrawerCopyBtn)가 같은 것을 쓴다 —
+//   각자 navigator.clipboard 를 부르면 피드백 시간·에러 처리가 곧 갈라진다.
+function useCopy() {
+  const [copied, setCopied] = React.useState(false);
+  const copy = React.useCallback(async (text: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch { /* 클립보드 권한 없음 — 값은 그대로 보인다 */ }
+  }, []);
+  return { copied, copy };
+}
+
+/** #284 — "항목들이 리스트랑 상세 모두에서 복사되게 해서 편리하게 제공하면 좋겠어."
+ *  리스트에는 있었고(#143) 상세에는 없었다. 상세는 편집 화면이라 값 칸을 누르면 편집이 되므로,
+ *  복사는 **별도 버튼**으로 둔다 — 꺼내려다 고치는 일이 없게. */
+const DrawerCopyBtn: React.FC<{ value: unknown }> = ({ value }) => {
+  const { t } = useTranslation('knowledge');
+  const { copied, copy } = useCopy();
+  const text = value == null || value === '' ? '' : String(value);
+  if (!text) return null;
+  return (
+    <SecretBtn type="button" onClick={(e) => copy(text, e)} title={t('inline.copy', '복사') as string}>
+      {copied ? (t('inline.copied', '복사됨') as string) : (t('inline.copy', '복사') as string)}
+    </SecretBtn>
+  );
+};
+
 const CopyCell: React.FC<{ value: string | undefined; colType: string }> = ({ value, colType }) => {
   const { t } = useTranslation('knowledge');
-  const [copied, setCopied] = React.useState(false);
+  const { copied, copy: doCopy } = useCopy();
   // #330 — secret 은 기본은 가리되 **본인이 눌러서 볼 수 있어야** 한다.
   //   여태 ●●●●●● 로만 보이고 꺼낼 방법이 없어, 넣는 사람이 "리스트에서 항목을 빼는" 식으로 우회했다.
   const [revealed, setRevealed] = React.useState(false);
@@ -1875,14 +1913,7 @@ const CopyCell: React.FC<{ value: string | undefined; colType: string }> = ({ va
   const isSecret = colType === 'secret';
   if (!text) return <CustomValue>{isSecret ? '' : '—'}</CustomValue>;
 
-  const copy = async (e: React.MouseEvent) => {
-    e.stopPropagation();                       // 행 클릭(드로어 열기)과 겹치지 않게
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1200);
-    } catch { /* 클립보드 권한 없음 — 값은 그대로 보인다 */ }
-  };
+  const copy = (e: React.MouseEvent) => doCopy(text, e);   // 행 클릭(드로어 열기)과 겹치지 않게
 
   if (isSecret) {
     return (
