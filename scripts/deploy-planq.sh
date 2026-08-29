@@ -321,7 +321,11 @@ sync_database() {
   # #384 — 메일별 후속 알림 기간 (email_threads.follow_up_days). NULL=기본 3일 · 0=끔 · N=N일.
   #   백필하지 않는다 — NULL 이 곧 "기본값" 이라 옛 대화의 동작이 그대로 유지된다.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-mail-followup-days.js 2>&1 | tail -6"
-  success "마이그레이션 완료 (push native / invoice-payment / account-deletion / mail-notify / task-hold / mail-delivery / calendar-sync / calendar-split / calendar-reverse-sync / doc-confirm / file-trash / gdrive-origin / mail-followup)"
+
+  # task_candidates.conversation_id NULL 허용 — 운영만 NOT NULL 이라 **메일에서 업무가 나오면
+  #   항상 500** 이었다(2026-08-29 운영 실측). sync-database 는 기존 컬럼의 NULL 허용을 안 바꾼다.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-candidate-nullable-conv.js 2>&1 | tail -5"
+  success "마이그레이션 완료 (push native / invoice-payment / account-deletion / mail-notify / task-hold / mail-delivery / calendar-sync / calendar-split / calendar-reverse-sync / doc-confirm / file-trash / gdrive-origin / mail-followup / candidate-null)"
 
   # 백필 — 마이그레이션 후. 과거 paid invoice/회차에 payment 원장 생성(멱등). 매출 0 복구.
   log "Backfilling invoice payments..."
