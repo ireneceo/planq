@@ -45,6 +45,7 @@ import { listTemplates, aiGenerateDoc, type DocTemplate, type DocKind, KIND_LABE
 import AiRegenerateBar from '../Common/AiRegenerateBar';
 import KindIcon from './KindIcon';
 import PostShareModal from './PostShareModal';
+import KbAiIngestModal from '../../pages/Knowledge/KbAiIngestModal';
 import PostAiModal from './PostAiModal';
 // 프로젝트 문서 탭 — 파일 탭과 동일한 공용 레이아웃 (단일 원천). 파일탭·문서탭 디자인 통일.
 import { Split as AtSplit, FolderTreePanel as AtPanel, FilesArea as AtArea, TreeRoot as AtTree, FolderRow as AtRow, FolderName as AtName, FolderCount as AtCount, Grid as AtGrid, Card as AtCard, CardName as AtCardName, CardMeta as AtCardMeta, Toolbar as AtToolbar, SortWrap as AtSortWrap } from './assetTabLayout';
@@ -630,6 +631,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   // N+72-7 — 문서 ↔ 표 타입 변경 (편집 모드).
   //   표→문서: 빈 표면 자유, 컬럼/행 있으면 ConfirmDialog (force_kind_change=true)
   //   문서→표: 자유 (빈 q_record 자동 생성)
+  // 문서 본문을 AI 추출 모달로 넘길 때의 페이로드 (#284)
+  const [aiIngest, setAiIngest] = useState<{ text: string; postId: number } | null>(null);
   const [pendingKindChange, setPendingKindChange] = useState<'doc' | 'table' | null>(null);
 
   const doKindChange = async (newKind: 'doc' | 'table', force = false) => {
@@ -680,26 +683,24 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     await doKindChange(newKind, false);
   };
 
+  // #284 — "내용이 그냥 텍스트로 정리되어 버리는데 AI가 검토해서 항목별로 따로 저장할 거 있으면
+  //   하고 보낼 수 없어?" 여태 문서→Info 는 본문을 **통짜 한 건**으로 넣었다.
+  //   이제 같은 AI 추출(kb/ai-ingest)을 태워 항목으로 나누고, 사용자가 확인한 뒤 저장한다.
+  //   ★ 본문 평문은 **서버에서 받아온다** — content_json 에서 문단을 복원하는 규칙이 서버에 한 벌
+  //     있고, 프론트에 베끼면 갈라진다(#234 가 그 계열의 사고였다).
   const sendToKnowledge = async (post: PostDetail) => {
     if (!businessId || knowledgeBusy) return;
     setKnowledgeBusy(true);
     setKnowledgeMsg(null);
     try {
-      // 프로젝트 연결된 포스트면 project scope, 아니면 workspace
-      const scope = post.project_id ? 'project' : 'workspace';
       const r = await apiFetch(`/api/businesses/${businessId}/kb/documents/import-from-post`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          post_id: post.id,
-          category: 'manual',
-          scope,
-          project_id: post.project_id || undefined,
-        }),
+        body: JSON.stringify({ post_id: post.id, extract_only: true }),
       });
       const j = await r.json();
-      if (j.success) {
-        setKnowledgeMsg(t('actions.sendToKnowledgeOk', 'Q knowledge 에 추가됐습니다 — 인덱싱 후 Cue 답변에 활용됩니다') as string);
+      if (r.ok && j.success && j.data?.text) {
+        setAiIngest({ text: j.data.text, postId: post.id });
       } else {
         setKnowledgeMsg(t('actions.sendToKnowledgeErr', '추가 실패: {{msg}}', { msg: j.message || 'error' }) as string);
       }
@@ -2201,6 +2202,21 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           open={true}
           onClose={() => setSlotTplId(null)}
           onConfirm={handleSlotConfirm}
+        />
+      )}
+      {/* #284 — 문서 본문을 AI 가 항목으로 나눠 Info 에 넣는다. 저장은 사용자가 확인한 뒤.
+          출처(postId)를 같이 넘겨 저장된 항목마다 원본 문서로 되짚을 수 있게 한다. */}
+      {aiIngest && businessId && (
+        <KbAiIngestModal
+          businessId={businessId}
+          initialText={aiIngest.text}
+          sourcePostId={aiIngest.postId}
+          onClose={() => setAiIngest(null)}
+          onSaved={() => {
+            setAiIngest(null);
+            setKnowledgeMsg(t('actions.sendToKnowledgeOk', 'Q knowledge 에 추가됐습니다 — 인덱싱 후 Cue 답변에 활용됩니다') as string);
+            setTimeout(() => setKnowledgeMsg(null), 4000);
+          }}
         />
       )}
       {knowledgeMsg && <KnowledgeToast>{knowledgeMsg}</KnowledgeToast>}

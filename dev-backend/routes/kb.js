@@ -630,6 +630,14 @@ router.post('/businesses/:businessId/kb/documents/import-from-post', authenticat
     if (!text) text = (post.content_text || '').trim();
     if (!text) return errorResponse(res, '본문이 비어있어 Q knowledge 에 보낼 수 없습니다.', 400);
 
+    // #284 — AI 항목 분리로 보내려면 프론트가 **본문 평문**을 알아야 한다.
+    //   그 추출 규칙(content_json → 문단 복원)은 위에 한 벌뿐이고, 프론트에 베끼면 반드시 갈라진다
+    //   (#234 가 정확히 그 계열의 사고였다). 그래서 같은 자리에서 텍스트만 돌려주는 문을 낸다.
+    //   저장은 하지 않는다 — 사용자가 AI 추출 결과를 확인한 뒤 batch 로 저장한다.
+    if (req.body.extract_only) {
+      return successResponse(res, { text, title: post.title || '', project_id: post.project_id || null });
+    }
+
     // N+64 — 자유 카테고리 (string 40자 cap)
     const sanU = sanitizeCategories(categories) ?? (category ? [String(category).trim().slice(0,40)] : ['manual']);
     const finalCategories = sanU.length > 0 ? sanU : ['manual'];
@@ -1333,6 +1341,27 @@ router.post('/businesses/:businessId/kb/documents/batch', authenticateToken, che
     const businessId = parseInt(req.params.businessId, 10);
     const { items, scope, project_id, client_id, auto_translate, translation_visibility, source_language } = req.body || {};
     if (!Array.isArray(items) || items.length === 0) return errorResponse(res, 'items_required', 400);
+
+    // #284 — "문서나 다른 곳에서 info로 보내면 해당 문서나 파일 자료들이 연결되어 있으면 좋겠는데
+    //   서로 관련된 자료인걸 알고 참고하게." 출처를 항목마다 남긴다.
+    //   ★ 남의 워크스페이스 글/파일을 출처로 위조할 수 없게 **소유권을 먼저 확인**한다 —
+    //     확인 없이 body 값을 그대로 쓰면 다른 워크스페이스 id 가 그대로 박힌다.
+    let srcPostId = null;
+    let srcFileId = null;
+    if (req.body?.source_post_id) {
+      const p = await Post.findOne({
+        where: { id: parseInt(req.body.source_post_id, 10) || 0, business_id: businessId },
+        attributes: ['id'],
+      });
+      srcPostId = p ? p.id : null;
+    }
+    if (req.body?.source_file_id) {
+      const f = await FileModel.findOne({
+        where: { id: parseInt(req.body.source_file_id, 10) || 0, business_id: businessId, deleted_at: null },
+        attributes: ['id'],
+      });
+      srcFileId = f ? f.id : null;
+    }
     if (items.length > 500) return errorResponse(res, 'too_many_items', 400);
 
     const ALLOWED_SCOPE = ['private','workspace','project','client'];
@@ -1410,7 +1439,10 @@ router.post('/businesses/:businessId/kb/documents/batch', authenticateToken, che
           business_id: businessId,
           title,
           body: indexBody,
-          source_type: 'manual',
+          // 출처가 있으면 source_type 도 그것으로 — 상세 화면이 이 값으로 "어디서 왔는지" 를 그린다.
+          source_type: srcPostId ? 'post' : (srcFileId ? 'file' : 'manual'),
+          source_post_id: srcPostId,
+          source_file_id: srcFileId,
           category: cat,
           categories: finalCategories,
           tags: Array.isArray(it.tags) ? it.tags.slice(0, 8).map(String) : null,

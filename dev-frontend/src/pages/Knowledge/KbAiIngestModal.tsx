@@ -31,6 +31,12 @@ interface Props {
   businessId: number;
   onClose: () => void;
   onSaved: () => void;
+  /** 문서에서 바로 열 때 — 본문을 채워 두고 분석 단계로 시작한다 (#284).
+   *  "내용이 그냥 텍스트로 정리되어 버리는데 AI가 검토해서 항목별로 따로 저장할 거 있으면 하고 보낼 수 없어?"
+   *  → 문서→Info 는 여태 통짜 텍스트로 넣었다. 같은 AI 추출을 태우면 항목이 나뉜다. */
+  initialText?: string;
+  /** 어느 문서에서 왔는가 — 저장되는 항목마다 출처로 남겨 서로 참조하게 한다 (#284 두 번째 요청). */
+  sourcePostId?: number;
 }
 
 const CATEGORIES: Category[] = ['policy', 'manual', 'incident', 'faq', 'about', 'pricing'];
@@ -44,11 +50,11 @@ const TruncBox = styled.div`
   font-size: 12px; line-height: 1.5;
 `;
 
-const KbAiIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved }) => {
+const KbAiIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved, initialText, sourcePostId }) => {
   const { t } = useTranslation('knowledge');
   const { t: tErr } = useTranslation('errors');
   const [step, setStep] = useState<'input' | 'review'>('input');
-  const [text, setText] = useState('');
+  const [text, setText] = useState(initialText || '');
   const [sourceLanguage, setSourceLanguage] = useState<Lang>('ko');
   const [autoTranslate, setAutoTranslate] = useState(true);
   const [visibility, setVisibility] = useState<Visibility>('translate');
@@ -157,6 +163,8 @@ const KbAiIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved }) => {
         body: JSON.stringify({
           items: filtered,
           scope: 'workspace',
+          // 출처를 같이 보낸다 — 저장된 항목에서 원본 문서로 되짚을 수 있게(#284).
+          ...(sourcePostId ? { source_post_id: sourcePostId } : {}),
           source_language: sourceLanguage,
           auto_translate: autoTranslate,
           translation_visibility: visibility,
