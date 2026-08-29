@@ -321,7 +321,7 @@ async function listChanges(drive, pageToken) {
   const res = await drive.changes.list({
     pageToken,
     fields: 'nextPageToken, newStartPageToken, changes(fileId, removed, time, '
-      + 'file(id, name, mimeType, modifiedTime, trashed, parents, md5Checksum, size))',
+      + 'file(id, name, mimeType, modifiedTime, trashed, parents, md5Checksum, size, webViewLink))',
   });
   return res.data;
 }

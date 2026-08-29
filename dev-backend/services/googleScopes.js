@@ -26,14 +26,24 @@
 const REQUIRED_SCOPES = {
   // 개인 연동 (external_connections)
   google_calendar: ['https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/calendar'],
-  google_drive: ['https://www.googleapis.com/auth/drive.file'],
+  google_drive: ['https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/drive'],
   gmail: ['https://mail.google.com/'],
   // 워크스페이스 연동 (business_cloud_tokens) — provider 이름이 다르다
   gcal: ['https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/calendar'],
-  gdrive: ['https://www.googleapis.com/auth/drive.file'],
+  // ★ OR 목록이다 — 하나라도 있으면 충족. 그래서 full `drive` 를 **추가**하는 것은 안전하다
+  //   (drive.file 사용자는 그대로 통과 · full 만 승인한 사용자도 통과).
+  //   Fable 이 경고한 것은 이 배열을 full 로 **교체**하는 것이었다 — 그러면 기존 연동이 전부 죽는다.
+  //   "전체 권한이 있는가" 는 별도 술어 hasDriveFull() 로 본다(인제스트 활성 판정).
+  gdrive: ['https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/drive'],
 };
 
 const CALENDAR_READONLY_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
+
+// Drive **전체** 권한 (Restricted). `drive.file`(앱이 만든 것만)과 **다른 원소**다.
+//   ★ REQUIRED_SCOPES.gdrive 에 이걸 넣으면 안 된다 — 넣는 순간 기존 drive.file 연동 전부가
+//     "권한 부족" 으로 오판된다(hasRequired 는 OR 이지만, 반대로 이 술어를 필수로 승격하면 그렇게 된다).
+//     그래서 **별도 술어**로 둔다. 역방향 인제스트(v2)에서만 쓴다.
+const DRIVE_FULL_SCOPE = 'https://www.googleapis.com/auth/drive';
 
 // ★ 새 동의를 **요청하면 안 되는** provider (2026-08-19, Irene 결정).
 //   Google OAuth 검증을 캘린더만으로 제출하기로 하면서 Cloud Console 에서
@@ -84,6 +94,16 @@ function hasCalendarReadOnly(scopeStr) {
   return parseGranted(scopeStr).includes(CALENDAR_READONLY_SCOPE);
 }
 
+/**
+ * Drive 전체 권한이 승인됐는가 — 사용자가 Drive 에 **직접 올린 파일**까지 볼 수 있는가.
+ *   이것이 false 면 인제스트는 **정상 대기** 상태다(고장이 아니다).
+ *   심사 통과만으로는 켜지지 않는다 — scope 는 OAuth 콜백에서만 기록되므로
+ *   사용자가 다시 동의해야 이 값이 참이 된다.
+ */
+function hasDriveFull(scopeStr) {
+  return parseGranted(scopeStr).includes(DRIVE_FULL_SCOPE);
+}
+
 /** 화면에 보여줄 권한 상태 — 저장된 scope 에서 읽기 시점 파생. */
 function permissionStatus(provider, scopeStr) {
   if (hasRequired(provider, scopeStr)) return 'ok';
@@ -101,11 +121,13 @@ function providerLabel(provider, lang = 'ko') {
 module.exports = {
   REQUIRED_SCOPES,
   CALENDAR_READONLY_SCOPE,
+  DRIVE_FULL_SCOPE,
   OAUTH_CONSENT_DISABLED,
   isConsentDisabled,
   parseGranted,
   hasRequired,
   hasCalendarReadOnly,
+  hasDriveFull,
   permissionStatus,
   providerLabel,
 };

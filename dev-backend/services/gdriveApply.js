@@ -24,6 +24,7 @@
 const { Op } = require('sequelize');
 const { File, FileFolder, GdriveSyncLog } = require('../models');
 const { isDriveMaster } = require('./fileOrigin');
+const { newCache } = require('./gdriveTree');
 
 // 적용 결과 기록 — 실패해도 본 흐름을 막지 않는다(로그가 기능을 죽이면 안 된다).
 async function log(businessId, row) {
@@ -62,15 +63,30 @@ async function mapParentFolder(businessId, parents) {
  * Changes API 결과 한 건을 적용한다.
  * @returns {{action:string, reason?:string}} 무엇을 했는지 (로그·집계용)
  */
-async function applyChange(businessId, change) {
+async function applyChange(businessId, change, ctx = null) {
   const driveId = change.fileId || change.file?.id;
   if (!driveId) return { action: 'skip', reason: 'no_file_id' };
 
   const local = await findLocal(businessId, driveId);
   if (!local) {
-    // v1 에서는 정상 경로다 — 우리가 안 만든 Drive 파일은 scope 밖이라 애초에 관심 대상이 아니다.
-    await log(businessId, { gdrive_file_id: driveId, action: 'skip', reason: 'unknown_file' });
-    return { action: 'skip', reason: 'unknown_file' };
+    // ── 모르는 파일 = **인제스트 후보** (v2) ────────────────────────────────
+    //   v1 에서는 여기가 종점이었다. 이제는 워크스페이스 폴더 하위면 들여온다.
+    //   ctx 가 없거나(옛 호출부) 전체 권한이 없으면 들이지 않고, **왜 안 들였는지**를 남긴다 —
+    //   "정상 대기" 와 "고장" 이 같은 얼굴이 되지 않게(Fable B-5).
+    if (change.removed || change.file?.trashed) {
+      // 모르는 파일이 지워진 것 — 우리와 무관하다.
+      await log(businessId, { gdrive_file_id: driveId, action: 'skip', reason: 'unknown_file' });
+      return { action: 'skip', reason: 'unknown_file' };
+    }
+    if (ctx && ctx.canIngest && change.file) {
+      const r = await require('./gdriveIngest').ingestOne(ctx, change.file, ctx.cache || newCache());
+      return r.action === 'ingest'
+        ? { action: 'ingest', fileId: r.fileId }
+        : { action: 'skip', reason: r.reason, blocked: r.blocked };
+    }
+    const reason = ctx ? 'ingest_scope_missing' : 'unknown_file';
+    await log(businessId, { gdrive_file_id: driveId, action: 'skip', reason });
+    return { action: 'skip', reason };
   }
   // 정본 판정은 services/fileOrigin.js 하나만 읽는다 (Fable B-1 — 이중 공식 금지).
   //   옛 코드는 `storage_provider === 'gdrive'` 를 봤는데, 그 컬럼은 **서빙 축**이라
@@ -126,13 +142,17 @@ async function applyChange(businessId, change) {
 }
 
 /** 변경 목록을 순서대로 적용하고 집계를 돌려준다. 개별 실패가 전체를 막지 않는다. */
-async function applyChanges(businessId, changes) {
-  const summary = { applied: 0, skipped: 0, failed: 0, byAction: {} };
+async function applyChanges(businessId, changes, ctx = null) {
+  const summary = { applied: 0, skipped: 0, failed: 0, byAction: {}, blocked: false };
+  // 조상 걷기 캐시는 **배치 1회 동안만** 공유한다(폴더는 움직인다).
+  const runCtx = ctx ? { ...ctx, cache: newCache() } : null;
   for (const c of changes || []) {
     try {
-      const r = await applyChange(businessId, c);
+      const r = await applyChange(businessId, c, runCtx);
       if (r.action === 'skip') summary.skipped += 1; else summary.applied += 1;
       summary.byAction[r.action] = (summary.byAction[r.action] || 0) + 1;
+      // 저장공간이 찼으면 남은 건을 계속 시도하지 않는다 (외부 API·디스크 낭비 차단)
+      if (r.blocked) { summary.blocked = true; break; }
     } catch (e) {
       summary.failed += 1;
       console.warn('[gdriveApply] 적용 실패', c?.fileId, e.message);
@@ -142,4 +162,20 @@ async function applyChanges(businessId, changes) {
   return summary;
 }
 
-module.exports = { applyChanges, applyChange, findLocal };
+/**
+ * 역방향 적용에 넘길 컨텍스트. 인제스트 활성 여부는 **저장된 scope 에서 읽기 시점 파생**한다
+ * (googleScopes 불변식 ③). 전체 권한이 없으면 canIngest=false 로 내려가고,
+ * 적용 엔진이 `skip/ingest_scope_missing` 을 남겨 **정상 대기**임을 알 수 있게 한다.
+ */
+function buildApplyCtx(drive, token) {
+  const { hasDriveFull } = require('./googleScopes');
+  return {
+    drive,
+    businessId: token.business_id,
+    rootFolderId: token.root_folder_id || null,
+    uploaderId: token.connected_by || null,
+    canIngest: hasDriveFull(token.scope) && !!token.root_folder_id && !!token.connected_by,
+  };
+}
+
+module.exports = { applyChanges, applyChange, findLocal, buildApplyCtx };

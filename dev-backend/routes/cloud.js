@@ -265,7 +265,8 @@ router.post('/webhook/gdrive', async (req, res) => {
       let applied = null;
       if (changes.length > 0) {
         try {
-          applied = await require('../services/gdriveApply').applyChanges(token.business_id, changes);
+          const ga = require('../services/gdriveApply');
+          applied = await ga.applyChanges(token.business_id, changes, ga.buildApplyCtx(drive, token));
         } catch (e) {
           console.warn('[gdrive webhook] 변경 적용 실패', e.message);
         }

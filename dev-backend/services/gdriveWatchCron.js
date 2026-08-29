@@ -30,7 +30,9 @@ async function catchUp(token, drive) {
     if (data.newStartPageToken) await token.update({ watch_page_token: data.newStartPageToken });
     break;
   }
-  const applied = changes.length ? await gdriveApply.applyChanges(token.business_id, changes) : null;
+  const applied = changes.length
+    ? await gdriveApply.applyChanges(token.business_id, changes, gdriveApply.buildApplyCtx(drive, token))
+    : null;
   return { scanned: changes.length, applied };
 }
 
