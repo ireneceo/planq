@@ -620,6 +620,10 @@ async function extractEmailTaskCandidates({ emailThreadId, userId, businessId })
         project_id: thread.project_id || null,
         conversation_id: null,
         email_thread_id: emailThreadId,
+        // ★ 메일 경로만 business_id 를 안 넣고 있었다(채팅·Q Note 경로는 넣는다).
+        //   지금 화면은 email_thread_id 로 직접 조회해 보이지만, 워크스페이스 단위로 후보를
+        //   훑는 쿼리가 하나라도 생기면 메일 후보만 조용히 빠진다. 축을 맞춘다.
+        business_id: businessId,
         extracted_at: new Date(),
         extracted_by_user_id: userId,
         source_message_ids: null,
