@@ -333,7 +333,7 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
               <InlineHint>
                 {providers.gdrive.ingest.reason === 'no_root_folder'
                   ? tr('storage.ingest.noFolder', 'Drive 전용 폴더가 아직 만들어지지 않았습니다 — 파일을 한 번 올리면 생성됩니다')
-                  : tr('storage.ingest.waiting', 'Drive 에서 직접 올린 파일 가져오기는 준비돼 있으며, Google 승인 후 다시 연결하면 켜집니다')}
+                  : tr('storage.ingest.waiting', 'Drive 에서 직접 올린 파일 가져오기는 준비돼 있습니다 — Google 승인 절차가 끝나면 안내와 함께 켜집니다')}
               </InlineHint>
             )}
           </CardActions>

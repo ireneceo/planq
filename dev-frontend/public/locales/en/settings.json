@@ -247,7 +247,7 @@
       "active": "Files added directly in Drive are imported too",
       "recent": "Last 30 days",
       "count": "",
-      "waiting": "Importing files added directly in Drive is ready — it turns on once Google approves and you reconnect.",
+      "waiting": "Importing files added directly in Drive is ready — we'll turn it on and let you know once Google's review completes.",
       "noFolder": "The Drive folder hasn't been created yet — upload a file once and it will appear."
     },
     "scopeTwoWay": "Files added directly in Drive are imported into PlanQ when they live inside the workspace folder. Renames and deletions are reflected too."

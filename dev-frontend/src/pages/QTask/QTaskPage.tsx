@@ -1,4 +1,5 @@
 import React, { Fragment, useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { SkeletonList } from '../../components/Common/Skeleton';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -1777,7 +1778,9 @@ const QTaskPage:React.FC=()=>{
   },[computedBurndown,weekTotalEst,capacity.days,holidayDays]);
 
   if(!bizId)return<EmptyFull>No workspace</EmptyFull>;
-  if(loading)return<EmptyFull>Loading...</EmptyFull>;
+  // 로딩 중에 영어 "Loading..." 한 줄만 띄우던 자리. 목록 화면이므로 목록 모양으로 기다린다 —
+  //   완료 시 레이아웃이 덜 튀고, 사용자가 "안 눌렸나" 로 읽지 않는다.
+  if(loading)return<SkeletonList rows={8}/>;
 
   const sortIcon=(key:SortKey)=>sortKey===key?(sortDir==='asc'?'↑':'↓'):'';
 
