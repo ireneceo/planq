@@ -48,6 +48,8 @@ EmailThread.init({
   //   매 조회마다 to_emails JSON 을 스캔하는 건 오답이라 수신 시점에 한 번 박아둔다.
   // #384 — 이 대화의 후속 알림 기간(일). NULL=기본 3일 · 0=끔 · N=N일.
   //   판정은 services/mailFollowUp.thresholdFor() 하나만 읽는다.
+  // #235 — 자동추출이 어디까지 봤는지. 없으면 수신할 때마다 스레드 전체를 다시 추출한다.
+  last_extracted_email_message_id: { type: DataTypes.INTEGER, allowNull: true },
   follow_up_days: { type: DataTypes.INTEGER, allowNull: true, defaultValue: null },
   received_at_email: { type: DataTypes.STRING(255), allowNull: true },
   last_message_preview: { type: DataTypes.STRING(500), allowNull: true },

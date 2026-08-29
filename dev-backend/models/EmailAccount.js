@@ -53,6 +53,14 @@ EmailAccount.init({
     allowNull: false,
     defaultValue: 'recommended',
   },
+  // #235 — 메일 업무 자동추출 범위. notify_scope 의 미러(같은 어휘를 쓴다).
+  //   'off'(기본) · 'reply_needed'(답변 필요만) · 'recommended'(확인 권장까지)
+  //   판정은 services/mailAutoExtract.matchesScope 하나만 읽는다.
+  auto_extract_scope: {
+    type: DataTypes.ENUM('off', 'reply_needed', 'recommended'),
+    allowNull: false,
+    defaultValue: 'off',
+  },
   last_sync_at: { type: DataTypes.DATE, allowNull: true },
   last_sync_error: { type: DataTypes.TEXT, allowNull: true },
   fail_count: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },

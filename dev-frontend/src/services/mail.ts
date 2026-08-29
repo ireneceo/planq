@@ -20,6 +20,8 @@ export interface EmailAccountRow {
   is_default: boolean;
   // #207 — 이 계정 메일 중 무엇을 알림으로 받을지 (all=전체 / recommended=확인권장+답변필요 / reply_only=답변필요만)
   notify_scope: 'all' | 'recommended' | 'reply_only';
+  // #235 — 업무 자동추출 범위 (계정 속성). 'off' 가 기본.
+  auto_extract_scope?: 'off' | 'reply_needed' | 'recommended';
   // 서명 — 계정마다 등록 (발송 시 백엔드가 본문 끝에 붙인다)
   signature_html: string | null;
   signature_enabled: boolean;

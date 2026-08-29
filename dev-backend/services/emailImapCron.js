@@ -597,6 +597,12 @@ async function syncOne(account, opts = {}) {
           ...triageFields,
         });
 
+        // #235 — 분류가 끝난 **직후**가 자동추출 판정 시점이다(그 전엔 reply_needed 가 없다).
+        //   백필 제외·scope 판정·디바운스는 전부 services/mailAutoExtract 안에 있다.
+        try {
+          require('./mailAutoExtract').scheduleFromInbound({ thread, account, isBackfill, io });
+        } catch (e) { console.warn('[mailAutoExtract] schedule', e.message); }
+
         // socket emit
         if (io) {
           io.to(`business:${account.business_id}`).emit('mail:new', {

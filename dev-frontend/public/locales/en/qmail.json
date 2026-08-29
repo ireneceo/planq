@@ -554,5 +554,17 @@
       "d30": "In 30 days",
       "off": "Don't remind"
     }
+  },
+  "autoExtract": {
+    "title": "Auto-extract tasks",
+    "desc": "Pulls action items out of incoming mail and adds them as task candidates. Only mail written by people — marketing, automated, archived and spam are excluded.",
+    "saved": "Saved",
+    "failed": "Couldn't save",
+    "off": "Off",
+    "offDesc": "Nothing is extracted automatically. You can still open a mail and press [Extract tasks] any time.",
+    "replyNeeded": "Reply needed only",
+    "replyNeededDesc": "Only mail classified as needing a reply. The quietest option.",
+    "recommended": "Include review-suggested",
+    "recommendedDesc": "Adds mail that needs a closer look, on top of reply-needed."
   }
 }

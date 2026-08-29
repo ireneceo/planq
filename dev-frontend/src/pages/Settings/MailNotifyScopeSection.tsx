@@ -5,6 +5,10 @@
 //   (인앱·모바일·이메일)는 알림 설정 화면의 사용자별 매트릭스가 담당 — 두 축이 겹치지 않는다.
 //
 //   기본값은 '확인 권장 + 답변 필요' (Irene 지정). 저장 버튼 없이 고르면 바로 저장(PlanQ 표준).
+//
+// #235 — 같은 모양의 계정 설정이 하나 더 생겼다(업무 자동추출 범위). **베끼지 않고**
+//   이 껍데기를 필드 무관하게 일반화해 둘이 같이 움직이게 한다
+//   (memory: 베낀 컴포넌트는 반드시 갈라진다 — 껍데기를 뽑아라).
 import { useCallback, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -12,33 +16,45 @@ import { apiFetch } from '../../contexts/AuthContext';
 
 export type NotifyScope = 'all' | 'recommended' | 'reply_only';
 
+interface ScopeOption { value: string; labelKey: string; descKey: string }
+
 interface Props {
   businessId: number;
   accountId: number;
-  initialScope: NotifyScope;
+  initialScope: string;
+  /** 저장할 컬럼. 기본은 알림 범위(notify_scope) — 옛 호출부 무변경. */
+  field?: 'notify_scope' | 'auto_extract_scope';
+  /** 선택지·문구. 안 주면 알림 범위 기본표. */
+  options?: ScopeOption[];
+  /** 제목·설명 i18n 키 접두. 기본 'notifyScope'. */
+  i18nPrefix?: string;
 }
 
 // 문구는 전부 i18n(qmail ns) — 이 파일에 사용자 노출 문자열을 두지 않는다.
-const OPTIONS: Array<{ value: NotifyScope; labelKey: string; descKey: string }> = [
+const OPTIONS: ScopeOption[] = [
   { value: 'reply_only', labelKey: 'notifyScope.replyOnly', descKey: 'notifyScope.replyOnlyDesc' },
   { value: 'recommended', labelKey: 'notifyScope.recommended', descKey: 'notifyScope.recommendedDesc' },
   { value: 'all', labelKey: 'notifyScope.all', descKey: 'notifyScope.allDesc' },
 ];
 
-export default function MailNotifyScopeSection({ businessId, accountId, initialScope }: Props) {
+export default function MailNotifyScopeSection({
+  businessId, accountId, initialScope,
+  field = 'notify_scope', options, i18nPrefix = 'notifyScope',
+}: Props) {
   const { t } = useTranslation('qmail');
-  const [scope, setScope] = useState<NotifyScope>(initialScope || 'recommended');
+  const opts = options || OPTIONS;
+  const [scope, setScope] = useState<string>(initialScope || opts[0].value);
   const [saved, setSaved] = useState(false);
   const [err, setErr] = useState(false);
 
-  const save = useCallback(async (next: NotifyScope) => {
+  const save = useCallback(async (next: string) => {
     const prev = scope;
     setScope(next);
     try {
       const r = await apiFetch(`/api/businesses/${businessId}/email-accounts/${accountId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notify_scope: next }),
+        body: JSON.stringify({ [field]: next }),
       });
       // apiFetch 는 실패해도 throw 하지 않는다 — res.ok 를 봐야 저장 실패가 침묵하지 않는다
       if (!r.ok) throw new Error('save_failed');
@@ -50,25 +66,25 @@ export default function MailNotifyScopeSection({ businessId, accountId, initialS
       setErr(true);
       setTimeout(() => setErr(false), 4000);
     }
-  }, [businessId, accountId, scope]);
+  }, [businessId, accountId, scope, field]);
 
   return (
     <Wrap>
       <Head>
-        <Title>{t('notifyScope.title') as string}</Title>
-        {saved && <Badge $ok>{t('notifyScope.saved') as string}</Badge>}
-        {err && <Badge>{t('notifyScope.failed') as string}</Badge>}
+        <Title>{t(`${i18nPrefix}.title`) as string}</Title>
+        {saved && <Badge $ok>{t(`${i18nPrefix}.saved`) as string}</Badge>}
+        {err && <Badge>{t(`${i18nPrefix}.failed`) as string}</Badge>}
       </Head>
-      <Desc>{t('notifyScope.desc') as string}</Desc>
-      <Options role="radiogroup" aria-label={t('notifyScope.title') as string}>
-        {OPTIONS.map((o) => (
+      <Desc>{t(`${i18nPrefix}.desc`) as string}</Desc>
+      <Options role="radiogroup" aria-label={t(`${i18nPrefix}.title`) as string}>
+        {opts.map((o) => (
           <Option
             key={o.value}
             type="button"
             role="radio"
             aria-checked={scope === o.value}
             $active={scope === o.value}
-            data-testid={`mail-notify-scope-${o.value}`}
+            data-testid={`mail-${field}-${o.value}`}
             onClick={() => { if (scope !== o.value) save(o.value); }}
           >
             <Dot $active={scope === o.value} aria-hidden="true" />

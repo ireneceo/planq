@@ -93,6 +93,9 @@ function serializeAccount(acc) {
     is_active: j.is_active,
     is_default: j.is_default,
     notify_scope: j.notify_scope || 'recommended',   // #207 알림 범위
+    // #235 — 업무 자동추출 범위. 화면이 현재 설정을 그리려면 여기 실려야 한다
+    //   (명시 나열이라 안 적으면 목록엔 없고 화면은 매번 기본값으로 보인다).
+    auto_extract_scope: j.auto_extract_scope || 'off',
     owner_user_id: j.owner_user_id ?? null,
     is_personal: j.owner_user_id != null,
     scope: j.owner_user_id != null ? 'personal' : 'team',
@@ -225,6 +228,12 @@ router.put('/:businessId/email-accounts/:id', authenticateToken, checkBusinessAc
       const allowed = ['all', 'recommended', 'reply_only'];
       if (!allowed.includes(String(b.notify_scope))) return errorResponse(res, 'invalid_notify_scope', 400);
       patch.notify_scope = String(b.notify_scope);
+    }
+    // #235 — 업무 자동추출 범위 (끔 / 답변필요만 / 확인권장까지). notify_scope 와 같은 계정 속성.
+    if (b.auto_extract_scope !== undefined) {
+      const allowedAx = ['off', 'reply_needed', 'recommended'];
+      if (!allowedAx.includes(String(b.auto_extract_scope))) return errorResponse(res, 'invalid_auto_extract_scope', 400);
+      patch.auto_extract_scope = String(b.auto_extract_scope);
     }
     // IMAP 자격이 바뀌면 저장 전 실연결 검증 (비밀번호 재입력으로 계정 살리는 경로 포함)
     const imapTouched = ['imap_host', 'imap_port', 'imap_username', 'imap_password'].some((k) => b[k] !== undefined && b[k]);

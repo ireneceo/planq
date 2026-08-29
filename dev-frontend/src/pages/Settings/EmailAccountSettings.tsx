@@ -256,6 +256,21 @@ const EmailAccountSettings: React.FC = () => {
           initialScope={acc.notify_scope || 'recommended'}
         />
 
+        {/* #235 — 업무 자동추출 범위. 같은 껍데기를 필드만 바꿔 쓴다(베끼면 갈라진다).
+            기본 'off' — 켜는 것은 사용자 선택이다(비용이 드는 기능이라 opt-in). */}
+        <MailNotifyScopeSection
+          businessId={businessId}
+          accountId={acc.id}
+          field="auto_extract_scope"
+          i18nPrefix="autoExtract"
+          initialScope={acc.auto_extract_scope || 'off'}
+          options={[
+            { value: 'off', labelKey: 'autoExtract.off', descKey: 'autoExtract.offDesc' },
+            { value: 'reply_needed', labelKey: 'autoExtract.replyNeeded', descKey: 'autoExtract.replyNeededDesc' },
+            { value: 'recommended', labelKey: 'autoExtract.recommended', descKey: 'autoExtract.recommendedDesc' },
+          ]}
+        />
+
         {/* 서명 — 계정마다 등록 (발송 시 백엔드가 본문 끝에 붙인다) */}
         <MailSignatureSection
           businessId={businessId}
