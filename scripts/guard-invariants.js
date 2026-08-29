@@ -158,6 +158,13 @@ function checkI18n() {
     for (const m of srcAll.matchAll(/\{\s*t\s*:\s*([A-Za-z_$][\w$]*)\s*\}\s*=\s*useTranslation/g)) {
       aliases.add(m[1]);
     }
+    // ★ 지역 래퍼도 t() 다 — `const tr = (k, fb) => t(k, fb)` 처럼 기본값을 넘기기 쉽게 감싼 것.
+    //   구조분해 별칭만 알던 옛 검사는 이걸 전부 하드코딩으로 셌다(StorageSettings 한 파일에서만 52건).
+    //   오탐이 쌓이면 --update-baseline 을 부르고, 그 순간 **진짜 부채가 같이 통과**한다.
+    //   ★ 좁게 인정한다 — 화살표 본문이 곧바로 t( 또는 이미 아는 별칭을 부르는 경우만.
+    for (const m of srcAll.matchAll(/const\s+([A-Za-z_$][\w$]*)\s*=\s*\([^)]*\)(?::[^=]*)?\s*=>\s*(?:\([^)]*\)\s*)?([A-Za-z_$][\w$]*)\s*\(/g)) {
+      if (aliases.has(m[2])) aliases.add(m[1]);
+    }
     const callRe = new RegExp(`\\b(?:${[...aliases].join('|')})\\(`);
     srcAll.split('\n').forEach((l, i) => {
       const t = l.trim();

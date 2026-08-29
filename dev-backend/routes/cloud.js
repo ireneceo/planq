@@ -2,6 +2,7 @@
 const express = require('express');
 const router = express.Router();
 // Business 는 콜백 전용이 되어 cloud_oauth.js 로 옮겨갔다.
+const { Op } = require('sequelize');
 const { BusinessCloudToken, User } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
@@ -28,8 +29,32 @@ router.get('/status/:businessId', authenticateToken, checkBusinessAccess, async 
       include: [{ model: User, as: 'connector', attributes: ['id', 'name'] }]
     });
     const statusMap = {};
+    const { hasDriveFull } = require('../services/googleScopes');
+    const { GdriveSyncLog } = require('../models');
     for (const t of tokens) {
+      // #379 v2 — 역방향 인제스트 상태. 화면이 "권한 대기" 와 "고장" 을 구별해 보여줄 수 있게
+      //   **파생 상태**로 내려준다(별도 상태 컬럼을 두지 않는다 — googleScopes 불변식 ③).
+      let ingest = null;
+      if (t.provider === 'gdrive') {
+        const active = hasDriveFull(t.scope) && !!t.root_folder_id && !!t.connected_by;
+        let recent = 0;
+        try {
+          recent = await GdriveSyncLog.count({
+            where: {
+              business_id: t.business_id, action: 'ingest',
+              created_at: { [Op.gte]: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+            },
+          });
+        } catch { /* 집계 실패가 설정 화면을 죽이면 안 된다 */ }
+        ingest = {
+          active,
+          // 왜 안 켜졌는가 — 화면이 사용자 언어로 안내할 수 있게 사유를 준다
+          reason: active ? 'ok' : (!t.root_folder_id ? 'no_root_folder' : 'scope_missing'),
+          recent_30d: recent,
+        };
+      }
       statusMap[t.provider] = {
+        ingest,
         connected: true,
         account_email: t.account_email,
         root_folder_id: t.root_folder_id,

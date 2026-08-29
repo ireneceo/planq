@@ -242,7 +242,15 @@
     },
     "syncEnabled": "일정 자동 동기화",
     "ownerOnly": "워크스페이스 오너만 연결·해제할 수 있습니다",
-    "ownerOnlyGcal": "워크스페이스 오너만 연결·해제할 수 있습니다. 내 계정으로 Meet 을 쓰려면 내 프로필 → 외부 연동에서 Google 캘린더를 연결하세요"
+    "ownerOnlyGcal": "워크스페이스 오너만 연결·해제할 수 있습니다. 내 계정으로 Meet 을 쓰려면 내 프로필 → 외부 연동에서 Google 캘린더를 연결하세요",
+    "ingest": {
+      "active": "Drive 에서 직접 올린 파일도 가져옵니다",
+      "recent": "최근 30일",
+      "count": "건",
+      "waiting": "Drive 에서 직접 올린 파일 가져오기는 준비돼 있으며, Google 승인 후 다시 연결하면 켜집니다",
+      "noFolder": "Drive 전용 폴더가 아직 만들어지지 않았습니다 — 파일을 한 번 올리면 생성됩니다"
+    },
+    "scopeTwoWay": "Drive 에서 직접 올린 파일도 워크스페이스 폴더 안에 있으면 PlanQ 파일함으로 들어옵니다. 삭제·이름 변경도 반영됩니다."
   },
   "brand": {
     "sectionTitle": "브랜드",

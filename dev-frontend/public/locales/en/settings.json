@@ -242,7 +242,15 @@
     },
     "syncEnabled": "Auto-sync events",
     "ownerOnly": "Only the workspace owner can connect or disconnect",
-    "ownerOnlyGcal": "Only the workspace owner can connect or disconnect. To use Meet from your own account, connect Google Calendar in My profile → Integrations"
+    "ownerOnlyGcal": "Only the workspace owner can connect or disconnect. To use Meet from your own account, connect Google Calendar in My profile → Integrations",
+    "ingest": {
+      "active": "Files added directly in Drive are imported too",
+      "recent": "Last 30 days",
+      "count": "",
+      "waiting": "Importing files added directly in Drive is ready — it turns on once Google approves and you reconnect.",
+      "noFolder": "The Drive folder hasn't been created yet — upload a file once and it will appear."
+    },
+    "scopeTwoWay": "Files added directly in Drive are imported into PlanQ when they live inside the workspace folder. Renames and deletions are reflected too."
   },
   "brand": {
     "sectionTitle": "Brand",

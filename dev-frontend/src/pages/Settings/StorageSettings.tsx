@@ -17,6 +17,9 @@ interface ProviderState {
   needs_reconnect?: boolean;
   scope_ok?: boolean;      // gcal — 동의 화면에서 캘린더 쓰기 권한을 실제로 받았는지
   sync_enabled?: boolean;  // 연결 유지 + 동기화만 끔
+  // #379 v2 — Drive → PlanQ 역방향 인제스트 상태. 서버가 저장된 권한에서 **파생**해 내려준다.
+  //   active=false 라도 고장이 아니라 '권한 대기' 일 수 있어 reason 을 같이 본다.
+  ingest?: { active: boolean; reason: 'ok' | 'scope_missing' | 'no_root_folder'; recent_30d: number } | null;
 }
 
 interface Props {
@@ -246,7 +249,13 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
           <ul>
             <li>{tr('storage.scopeBackedUp', '워크스페이스 공용 (프로젝트·업무·채팅 첨부): Drive 연결 시 Drive 로, 미연결 시 자체 스토리지')}</li>
             <li>{tr('storage.scopeLocal', '개인 보관함 (내 파일·개인 메모): 항상 자체 스토리지 — Drive 연동과 무관, 개인별 분리 없음 (워크스페이스 공용 quota 안 합산)')}</li>
-            <li>{tr('storage.scopeOneWay', 'Drive 에서 직접 만들거나 삭제한 파일은 PlanQ 와 동기화되지 않습니다. 파일 관리는 PlanQ 안에서만 해주세요.')}</li>
+            {/* ★ 이 문구는 **상태에서 파생**시킨다. 인제스트가 켜지는 순간 "동기화되지 않습니다" 는
+                거짓말이 되기 때문이다(동작을 바꾸면 문구도 같이 바뀌어야 한다). */}
+            <li>
+              {providers.gdrive.ingest?.active
+                ? tr('storage.scopeTwoWay', 'Drive 에서 직접 올린 파일도 워크스페이스 폴더 안에 있으면 PlanQ 파일함으로 들어옵니다. 삭제·이름 변경도 반영됩니다.')
+                : tr('storage.scopeOneWay', 'Drive 에서 직접 만들거나 삭제한 파일은 PlanQ 와 동기화되지 않습니다. 파일 관리는 PlanQ 안에서만 해주세요.')}
+            </li>
           </ul>
         </NoticeText>
       </Notice>
@@ -307,6 +316,28 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
             ? <StatusBadge $kind="inactive">{tr('storage.reconnectNeeded', '재연결 필요')}</StatusBadge>
             : <StatusBadge $kind="active">{tr('storage.active', '사용 중')}</StatusBadge>)}
         </CardHead>
+        {/* #379 v2 — 역방향 인제스트 상태.
+            ★ "아직 안 켜짐" 과 "고장" 은 다른 상태다. 같은 얼굴로 보여주면 사용자는 고장으로 읽는다.
+              그리고 심사를 통과해도 **사용자가 다시 동의해야** 켜진다 — 그 사실을 여기서 말해준다.
+              안 그러면 "통과했는데 왜 안 돼요" 가 다음 조용한 죽음이 된다. */}
+        {gdriveConnected && providers.gdrive.ingest && !providers.gdrive.needs_reconnect && (
+          <CardActions>
+            {providers.gdrive.ingest.active ? (
+              <InlineHint>
+                {tr('storage.ingest.active', 'Drive 에서 직접 올린 파일도 가져옵니다')}
+                {providers.gdrive.ingest.recent_30d > 0
+                  ? ` · ${tr('storage.ingest.recent', '최근 30일')} ${providers.gdrive.ingest.recent_30d}${tr('storage.ingest.count', '건')}`
+                  : ''}
+              </InlineHint>
+            ) : (
+              <InlineHint>
+                {providers.gdrive.ingest.reason === 'no_root_folder'
+                  ? tr('storage.ingest.noFolder', 'Drive 전용 폴더가 아직 만들어지지 않았습니다 — 파일을 한 번 올리면 생성됩니다')
+                  : tr('storage.ingest.waiting', 'Drive 에서 직접 올린 파일 가져오기는 준비돼 있으며, Google 승인 후 다시 연결하면 켜집니다')}
+              </InlineHint>
+            )}
+          </CardActions>
+        )}
         {gdriveConnected && providers.gdrive.needs_reconnect && (
           <CardActions>
             <S3Msg $tone="err">{tr('storage.tokenError', 'Google 인증이 만료되었습니다 — 다시 연결해 주세요')}</S3Msg>
