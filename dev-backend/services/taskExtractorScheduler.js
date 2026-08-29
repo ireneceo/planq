@@ -122,16 +122,27 @@ function initCronFallback() {
     try {
       // 마지막 추출 후 60초+ 경과 + auto_extract_enabled + 추출 진행 중 아님
       const targets = await Conversation.findAll({
+        // ★ [Op.or] 를 두 번 쓰면 **뒤엣것이 앞엣것을 덮어쓴다**(같은 객체 키).
+        //   그래서 "마지막 추출 후 60초 경과" 조건이 조용히 사라져, 방금 추출한 대화까지
+        //   매분 다시 집어 왔다. runExtract 가 안에서 다시 걸러 잘못된 추출은 없었지만,
+        //   의도한 디바운스가 죽어 있었고 쓸모없는 쿼리가 매분 돌았다.
+        //   → [Op.and] 로 묶어 둘 다 살린다.
         where: {
           auto_extract_enabled: true,
           archived_at: null,
-          [Op.or]: [
-            { last_extracted_at: null },
-            { last_extracted_at: { [Op.lt]: new Date(Date.now() - DEBOUNCE_MS) } },
-          ],
-          [Op.or]: [
-            { extraction_in_progress_at: null },
-            { extraction_in_progress_at: { [Op.lt]: new Date(Date.now() - 10 * 60 * 1000) } },
+          [Op.and]: [
+            {
+              [Op.or]: [
+                { last_extracted_at: null },
+                { last_extracted_at: { [Op.lt]: new Date(Date.now() - DEBOUNCE_MS) } },
+              ],
+            },
+            {
+              [Op.or]: [
+                { extraction_in_progress_at: null },
+                { extraction_in_progress_at: { [Op.lt]: new Date(Date.now() - 10 * 60 * 1000) } },
+              ],
+            },
           ],
         },
         attributes: ['id', 'business_id', 'last_extracted_message_id'],
