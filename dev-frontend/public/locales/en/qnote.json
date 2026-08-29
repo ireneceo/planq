@@ -197,7 +197,8 @@
       "notMember": "You're not a member of this workspace, so recording isn't allowed.",
       "tooManyRecordings": "A recording is already in progress elsewhere. Please stop it first.",
       "sessionTimeLimit": "Recording stopped — the maximum session length (4 hours) was reached.",
-      "creditExhausted": "Speech recognition is temporarily unavailable. Please contact your administrator. (All other features continue to work.)"
+      "creditExhausted": "Speech recognition is temporarily unavailable. Please contact your administrator. (All other features continue to work.)",
+      "noAudio": "We're not receiving any sound from your microphone. Check whether another app is using it, or whether the right input device is selected."
     },
     "tasks": {
       "title": "Tasks",

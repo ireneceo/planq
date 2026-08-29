@@ -1100,6 +1100,13 @@ const QNotePage = () => {
       return;
     }
 
+    // ★ 소리가 한 조각도 안 들어옴. 녹음 중 표시만 뜨고 아무것도 안 담기던 사고(2026-08-29)를
+    //   사용자가 바로 알 수 있게 한다. 녹음을 끊지는 않는다 — 마이크가 곧 붙는 경우도 있다.
+    if (ev.type === 'no_audio') {
+      // 기본값은 t() 와 **같은 줄**에 둔다 — 줄을 나누면 한국어만 있는 줄이 생겨 i18n 가드가 잡는다(실제로 잡혔다).
+      setLiveError(t('page.errors.noAudio', { defaultValue: '마이크에서 소리가 들어오지 않습니다. 다른 앱이 마이크를 쓰고 있는지, 입력 장치가 맞는지 확인해 주세요.' }) as string);
+      return;
+    }
     if (ev.type === 'closed') {
       // 비용폭탄 C1 — 서버가 error JSON 을 close 전에 flush 못한 경우 대비, close code 로도 안내.
       const codeKey: Record<number, string> = {

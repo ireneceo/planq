@@ -34,6 +34,21 @@ export class PCMStreamer {
     if (!AC) throw new Error('AudioContext not supported');
 
     this.ctx = new AC();
+    // ★ 새 AudioContext 는 'suspended' 로 시작할 수 있고, 그 상태에서는
+    //   ScriptProcessor 의 onaudioprocess 가 **아예 발화하지 않는다** → 오디오가 한 조각도 안 나간다.
+    //   화면은 "녹음 중" 이고 WebSocket 도 열려 있어서 **아무 오류 없이 조용히 아무것도 안 녹음**된다
+    //   (운영 실측 2026-08-29: Q Note '바로 녹음' 세션이 Deepgram 까지 붙고 오디오 0건 · 35초 뒤 종료).
+    //   제스처 직후면 브라우저가 알아서 깨우지만, 이 경로는 세션 생성·락·WS 연결로 await 이 길어
+    //   사용자 활성화 창을 놓치기 쉽다. 그래서 **명시적으로 깨운다.**
+    if (this.ctx.state === 'suspended') {
+      try { await this.ctx.resume(); } catch { /* 아래에서 상태로 판정한다 */ }
+    }
+    if (this.ctx.state !== 'running') {
+      // 깨우지 못했으면 조용히 빈 녹음을 하지 않는다 — 호출측이 사용자에게 알릴 수 있게 던진다.
+      try { this.ctx.close(); } catch { /* ignore */ }
+      this.ctx = null;
+      throw new Error('audio_context_suspended');
+    }
     const sourceRate = this.ctx.sampleRate;
     const ratio = sourceRate / TARGET_RATE;
     const inChannels = stereo ? 2 : 1;
