@@ -22,13 +22,25 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- App Links (딥링크) — planq.kr / dev.planq.kr 링크를 앱으로. autoVerify 는 assetlinks.json 필요(Phase 6). -->
+            <!-- App Links (딥링크) — planq.kr / dev.planq.kr 링크를 앱으로.
+                 ★ 반드시 **경로를 좁혀서** 잡는다. host 만 적으면 그 도메인의 모든 링크를
+                   앱이 가로채는데, PlanQ 는 고객·외부 파트너가 **로그인 없이 웹으로 봐야 하는**
+                   표면(공유 문서·서명·공개 위키·랜딩)을 같은 도메인으로 낸다. 앱을 깐 사람이
+                   그 링크를 받으면 브라우저 미리보기 대신 앱이 열려 "안 보인다" 가 된다.
+                 iOS 의 AASA components 와 **같은 목록**이어야 한다 — 한쪽만 고치면 갈라진다.
+                   현재 정본: /oauth/native-return · /inbox* · /talk* · /task* · /notifications*
+                   (public/dev-frontend-build/.well-known/apple-app-site-association) -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="planq.kr" />
                 <data android:scheme="https" android:host="dev.planq.kr" />
+                <data android:path="/oauth/native-return" />
+                <data android:pathPrefix="/inbox" />
+                <data android:pathPrefix="/talk" />
+                <data android:pathPrefix="/task" />
+                <data android:pathPrefix="/notifications" />
             </intent-filter>
             <!--
               custom scheme fallback — App Links(autoVerify) 는 assetlinks.json 서빙 후에만 발화한다.
