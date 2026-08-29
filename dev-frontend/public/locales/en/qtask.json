@@ -1302,5 +1302,12 @@
     "title": "Couldn't load your tasks",
     "desc": "Please try again in a moment. If it keeps failing, check your network connection.",
     "retry": "Try again"
+  },
+  "action": {
+    "failed": "Couldn't complete that. Please try again in a moment."
+  },
+  "attach": {
+    "failed": "Couldn't upload the attachments. Please attach them again from the comments.",
+    "partialFail": "The revision request was sent, but {{n}} attachment(s) didn't upload. Please attach them again from the comments."
   }
 }

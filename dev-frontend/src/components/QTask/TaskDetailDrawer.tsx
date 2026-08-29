@@ -364,6 +364,9 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const [revisionFiles, setRevisionFiles] = useState<File[]>([]);
   const [revisionPickerOpen, setRevisionPickerOpen] = useState(false);
   const [revisionExistingFileIds, setRevisionExistingFileIds] = useState<number[]>([]);
+  // ★ 이 드로어엔 오류 표시가 없었다 — callAction 이 실패해도 호출부가 그냥 return 해서
+  //   "눌렀는데 아무 일도 안 일어남" 이 된다. 특히 첨부는 **댓글만 올라가고 파일이 조용히 사라졌다**.
+  const [actionError, setActionError] = useState<string | null>(null);
   const [addReviewerOpen, setAddReviewerOpen] = useState(false);
   const [pendingReviewerAdd, setPendingReviewerAdd] = useState<number | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
@@ -709,6 +712,8 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       const opts: RequestInit = { method };
       if (body) { opts.headers = { 'Content-Type': 'application/json' }; opts.body = JSON.stringify(body); }
       const r = await (await apiFetch(`/api/tasks/${detailTask.id}${path}`, opts)).json();
+      if (!r.success) setActionError(r.message || (t('action.failed', '처리하지 못했습니다. 잠시 후 다시 시도해 주세요.') as string));
+      else setActionError(null);
       if (r.success) {
         // approve 는 { task, new_status }, 나머지 status 전이는 task.toJSON() — 둘 다에서 task 객체 추출.
         const taskData = (r.data && typeof r.data === 'object' && 'task' in r.data) ? r.data.task : r.data;
@@ -805,19 +810,26 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     const commentId = r.data?.revision_comment_id as number | undefined;
     if (commentId && hasAttach) {
       try {
+        // ★ apiFetch 는 HTTP 오류에 **throw 하지 않는다** — 그래서 옛 try/catch 는 500 을 못 잡았고,
+        //   첨부가 안 붙었는데 사용자는 붙은 줄 알았다. res.ok 를 직접 본다.
+        let failed = 0;
         for (const f of revisionFiles) {
           const fd = new FormData();
           fd.append('file', f, f.name);
-          await apiFetch(`/api/tasks/${detailTask.id}/attachments?context=comment&commentId=${commentId}`, { method: 'POST', body: fd });
+          const res = await apiFetch(`/api/tasks/${detailTask.id}/attachments?context=comment&commentId=${commentId}`, { method: 'POST', body: fd });
+          if (!res.ok) failed += 1;
         }
         if (revisionExistingFileIds.length > 0) {
-          await apiFetch(`/api/tasks/${detailTask.id}/attachments/link`, {
+          const res = await apiFetch(`/api/tasks/${detailTask.id}/attachments/link`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ file_ids: revisionExistingFileIds, context: 'comment', comment_id: commentId }),
           });
+          if (!res.ok) failed += revisionExistingFileIds.length;
         }
+        // 수정요청 전이 자체는 이미 성립했다 — 되돌리지 않고 **무엇이 빠졌는지만** 알린다.
+        if (failed > 0) setActionError(t('attach.partialFail', { n: failed, defaultValue: '수정요청은 보냈지만 첨부 {{n}}건이 올라가지 않았습니다. 댓글에서 다시 첨부해 주세요.' }) as string);
         await refreshAfterAction();  // 첨부 반영 위해 댓글 스레드 재조회
-      } catch { /* 첨부 실패해도 수정요청 전이 자체는 성립 */ }
+      } catch { setActionError(t('attach.failed', '첨부를 올리지 못했습니다. 댓글에서 다시 첨부해 주세요.') as string); }
     }
     setRevisionOpen(false); setRevisionNote('');
     setRevisionFiles([]); setRevisionExistingFileIds([]); setRevisionPickerOpen(false);
@@ -1001,6 +1013,12 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </CloseBtn>
       </DrawerHeader>
+      {actionError && (
+        <ActionErrorBar role="alert">
+          <span>{actionError}</span>
+          <ActionErrorClose type="button" onClick={() => setActionError(null)} aria-label={t('common.close', '닫기') as string}>×</ActionErrorClose>
+        </ActionErrorBar>
+      )}
       <Scroll>
         {!detailTask ? <Empty>Loading...</Empty> : (() => {
           const myRoles = getRoles({
@@ -2345,6 +2363,8 @@ const ResizeHandle = styled.div`
   &:hover{background:rgba(20,184,166,0.25);}&:active{background:rgba(20,184,166,0.45);}
   @media (max-width: 1024px) { display: none; }
 `;
+const ActionErrorBar = styled.div`display:flex;align-items:flex-start;gap:8px;padding:10px 20px;background:#FEF2F2;border-bottom:1px solid #FECACA;color:#991B1B;font-size:12.5px;line-height:1.5;flex-shrink:0;`;
+const ActionErrorClose = styled.button`margin-left:auto;background:transparent;border:none;color:#991B1B;font-size:16px;line-height:1;cursor:pointer;padding:0 2px;&:hover{color:#7F1D1D;}`;
 const DrawerHeader = styled.div`height:60px;padding:14px 20px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;position:sticky;top:0;background:#FFFFFF;z-index:1;`;
 // WORK_FLOW §6-B — 이월 연속성 배너 (차분한 slate, 비강조)
 const CarriedBanner = styled.div`display:flex;align-items:center;gap:8px;margin:12px 20px 0;padding:8px 12px;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:10px;font-size:12px;font-weight:600;color:#475569;line-height:1.4;`;
