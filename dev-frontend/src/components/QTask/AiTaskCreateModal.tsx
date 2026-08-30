@@ -117,7 +117,8 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
   const [areas, setAreas] = useState<AiArea[]>([]);
   const [existingRules, setExistingRules] = useState<string[]>([]);
   // 서버가 "계약을 못 채웠다" 고 알려준 것 — 조용히 삼키지 않고 그대로 보여준다.
-  const [shortfall, setShortfall] = useState<string[] | null>(null);
+  type Shortfall = string | { code: string; n?: number; min?: number };
+  const [shortfall, setShortfall] = useState<Shortfall[] | null>(null);
 
   if (!open) return null;
 
@@ -173,7 +174,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
       setAreas(((j.data?.areas || []) as AiArea[]).map(a => ({ ...a, adopted: true })));
       setExistingRules(((j.data?.existing_recurring || []) as Array<{ recurrence_rule?: string }>)
         .map(x => x.recurrence_rule || '').filter(Boolean));
-      setShortfall((j.data?.routine_shortfall as string[] | null) || null);
+      setShortfall((j.data?.routine_shortfall as Shortfall[] | null) || null);
       setAiInstructions(nextInstructions);   // ★ 성공했을 때만 누적 확정 (실패한 지시는 쌓지 않는다)
       setReasoning(j.data?.reasoning || '');
       setStage('preview');
@@ -398,7 +399,15 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
               )}
               {routineMode && shortfall && shortfall.length > 0 && (
                 <ShortfallBox role="status">
-                  {shortfall.map((line, i) => <div key={i}>{line}</div>)}
+                  {/* ★ 문구는 여기서 만든다 — 서버가 한국어를 박아 보내면 영어 사용자에게 그대로 나간다.
+                      서버는 code 만 준다(옛 문자열 형태도 그대로 그려 하위호환). */}
+                  {shortfall.map((sf, i) => (
+                    <div key={i}>
+                      {typeof sf === 'string'
+                        ? sf
+                        : (t(`ai.shortfall.${sf.code}`, { n: sf.n, min: sf.min, defaultValue: sf.code }) as string)}
+                    </div>
+                  ))}
                 </ShortfallBox>
               )}
               <CardList>

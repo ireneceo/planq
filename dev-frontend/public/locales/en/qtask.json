@@ -1181,7 +1181,14 @@
         "sun": "Sun"
       }
     },
-    "truncated": "The result was too large and got cut off. Split the routine into smaller requests."
+    "truncated": "The result was too large and got cut off. Split the routine into smaller requests.",
+    "shortfall": {
+      "areas_too_few": "Only {{n}} areas were proposed — the structure is shallow. Split them yourself if needed.",
+      "no_pipeline": "No links were created between the routines (daily → weekly → monthly)",
+      "no_recurrence": "{{n}} tasks have no recurrence rule",
+      "instruction_short": "{{n}} guides are under {{min}} characters — fill them in yourself if needed",
+      "no_area_assignment": "{{n}} areas were proposed but no task was assigned to any of them — they will be created without an area"
+    }
   },
   "bar": {
     "resumeTitle": "In progress",

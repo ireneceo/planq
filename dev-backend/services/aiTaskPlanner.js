@@ -563,23 +563,33 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
     //   "더 길게 써라" 를 시키면 모델이 출력 상한(12,000토큰)을 꽉 채워 JSON 이 중간에서 잘리고,
     //   그 응답은 통째로 못 쓴다(실측). 게다가 짧은 지침(180~400자)은 Irene 이 손으로 쓴
     //   실데이터 범위(175~1,001자) 안이라 애초에 결함이 아니다. 부족하면 아래 soft 로 알린다.
+    // ★ 청중이 둘이다 — **LLM(재요구 지시)** 과 **사용자(화면 안내)**. 한 문자열에 섞으면
+    //   반드시 한쪽이 틀린다: 영문 지시가 한국어 사용자 화면에 뜨거나, 한국어 안내가
+    //   프롬프트에 실린다. 그래서 코드(code)로 내려보내고 **문구는 프론트가 i18n 으로** 만든다.
+    //   `llm` 필드는 재요구 프롬프트에만 쓴다(사용자에게 나가지 않는다).
     const check = (cands, ars) => {
       const miss = [];
-      if (cands.length >= 4 && ars.length < 3) miss.push(`"areas" has ${ars.length} entries — output at least 3 distinct areas`);
-      if (!cands.some((c) => c.pipeline_refs && c.pipeline_refs.length)) miss.push('no task has "pipeline_refs" — connect the routines (weekly consumes daily, monthly consumes weekly)');
+      if (cands.length >= 4 && ars.length < 3) {
+        miss.push({ code: 'areas_too_few', n: ars.length, llm: `"areas" has ${ars.length} entries — output at least 3 distinct areas` });
+      }
+      if (!cands.some((c) => c.pipeline_refs && c.pipeline_refs.length)) {
+        miss.push({ code: 'no_pipeline', n: 0, llm: 'no task has "pipeline_refs" — connect the routines (weekly consumes daily, monthly consumes weekly)' });
+      }
       const noRule = cands.filter((c) => !c.recurrence_rule);
-      if (noRule.length) miss.push(`${noRule.length} tasks have no "recurrence_rule" — every task in routine mode must repeat`);
+      if (noRule.length) {
+        miss.push({ code: 'no_recurrence', n: noRule.length, llm: `${noRule.length} tasks have no "recurrence_rule" — every task in routine mode must repeat` });
+      }
       return miss;
     };
     // soft — 재요구는 안 하되 화면이 알 수 있게 내려보낸다(조용히 삼키지 않는다).
     const softCheck = (cands) => {
       const out = [];
       const short = cands.filter((c) => !c.instruction || c.instruction.length < MIN_ROUTINE_INSTRUCTION);
-      if (short.length) out.push(`${short.length}건의 지침이 ${MIN_ROUTINE_INSTRUCTION}자 미만입니다 — 필요하면 직접 보완하세요`);
+      if (short.length) out.push({ code: 'instruction_short', n: short.length, min: MIN_ROUTINE_INSTRUCTION });
       // 영역은 만들었는데 **아무 업무도 배치되지 않은** 상태 — 화면엔 "업무 0건" 으로만 보여
       //   사용자가 "왜 비었지" 로 읽는다. 무슨 일이 있었는지 말해 준다(Fable 권고).
       if (areas.length > 0 && cands.length > 0 && !cands.some((c) => Number.isInteger(c.area_ref))) {
-        out.push(`영역 ${areas.length}개가 제안됐지만 업무가 어느 영역에도 배치되지 않았습니다 — 확정하면 영역 없이 만들어집니다`);
+        out.push({ code: 'no_area_assignment', n: areas.length });
       }
       return out;
     };
@@ -590,7 +600,7 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
     if (!missing.length) runSoft();
     if (missing.length) {
       const note = '\n\n[CONTRACT VIOLATIONS — your previous answer was rejected. Fix ALL of these and output the FULL JSON again]\n'
-        + missing.map((m, i) => `${i + 1}. ${m}`).join('\n');
+        + missing.map((m, i) => `${i + 1}. ${m.llm}`).join('\n');
       try {
         const retry = await callOpenAi(systemPrompt, userPrompt + note, 'routine_plan');
         const rp = JSON.parse(retry.content);
@@ -652,7 +662,7 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
         routineShortfall = (routineShortfall || []).concat(missing);
         // 무엇이 부족한지 로그에 남긴다 — "모델이 그 키를 아예 안 냈는지" 와
         // "냈는데 서버가 걸렀는지" 는 화면에서 구별이 안 된다.
-        console.warn('[aiTaskPlanner] routine 계약 미충족:', missing.join(' | '),
+        console.warn('[aiTaskPlanner] routine 계약 미충족:', missing.map((m) => m.code).join(' | '),
           '| 첫 업무 키:', Object.keys(rawTasks[0] || {}).join(','));
       }
     }
