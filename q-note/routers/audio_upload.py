@@ -7,7 +7,7 @@ Irene: "Q note 에 녹음파일 업로드해서 텍스트화하는 것도 추가
   ② 로컬 길이 측정(audio_probe) — 못 재면 **거부**. 길이 상한 검사.
   ③ 과금 사전 게이트 `qnote/can` — ★업로드는 **fail-closed**
   ④ 세션 생성(status='processing') 후 **즉시 응답** — STT 는 백그라운드
-  ⑤ Deepgram pre-recorded → utterances 적재 → 과금 기록 → status='ended' → 원본 삭제
+  ⑤ Deepgram pre-recorded → utterances 적재 → 과금 기록 → status='completed' → 원본 삭제
 
 왜 사전 게이트가 실시간과 다르게 fail-closed 인가 (Fable 판정):
   실시간의 fail-open 근거는 "진행 중인 회의를 끊지 않는다 + 5분마다 flush 백스톱" 이다.
@@ -207,8 +207,12 @@ async def _process(session_id: int, business_id: int, user_id: int,
           (session_id, u['speaker'], u['text'], result.get('detected_language'),
            u['start'], u['end'], u['confidence'], _now()),
         )
+      # ★ 'completed' — 기존 음성 세션의 종료 상태값과 **같아야 한다**.
+      #   'ended' 를 쓰면 목록 라벨 분기에도 없어 "대기" 로 보이고, 상세의 phase 판정에서도
+      #   review 가 아니라 paused 로 떨어져 **"녹음 이어하기 / 음성 노트 종료" 버튼**이 뜬다
+      #   — 업로드한 노트에 있을 수 없는 버튼이다 (Irene 2026-08-30 운영 실사용에서 발각).
       await db.execute(
-        "UPDATE sessions SET status='ended', duration_seconds=?, utterance_count=?, updated_at=? WHERE id=?",
+        "UPDATE sessions SET status='completed', duration_seconds=?, utterance_count=?, updated_at=? WHERE id=?",
         (billed, len(utts), _now(), session_id),
       )
       await db.commit()

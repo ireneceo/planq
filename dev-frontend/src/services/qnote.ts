@@ -56,7 +56,7 @@ export interface QNoteUtterance {
   created_at: string;
 }
 
-export type QNoteCaptureMode = 'microphone' | 'web_conference' | 'text';
+export type QNoteCaptureMode = 'microphone' | 'web_conference' | 'text' | 'upload';
 export type QNoteInputType = 'voice' | 'text';
 
 export interface QNoteDetectedQuestion {

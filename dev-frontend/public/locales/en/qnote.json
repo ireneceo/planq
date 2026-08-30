@@ -438,6 +438,8 @@
     "errRateLimited": "Please try again in a moment.",
     "errBusy": "A previous upload is still being transcribed. Please try again once it finishes.",
     "errUnavailable": "We cannot process this right now. Please try again shortly.",
-    "errGeneric": "Upload failed."
+    "errGeneric": "Upload failed.",
+    "processingNotice": "Turning the recording into text. It will appear here automatically when it is done.",
+    "failedNotice": "Transcription failed. Please try uploading the file again."
   }
 }

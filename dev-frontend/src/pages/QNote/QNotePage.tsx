@@ -93,6 +93,15 @@ import { PanelBackButton } from '../../components/Layout/PanelHeader';
  *   질문 감지는 텍스트 끝 `?` 로 낙관 판정, enrichment 도착 후 백엔드 판정으로 덮어씀.
  */
 
+/**
+ * 녹음 설정이 아는 모드는 microphone / web_conference 둘뿐이다.
+ * text(메모)·upload(녹음 파일)는 **녹음을 하지 않는** 노트라 그 설정값이 쓰이지 않는다 —
+ * 타입을 넓히는 대신 여기서 한 번 환산한다(환산이 여러 곳에 흩어지면 반드시 갈라진다).
+ */
+function toRecordingCaptureMode(m: string | null | undefined): 'microphone' | 'web_conference' {
+  return m === 'web_conference' ? 'web_conference' : 'microphone';
+}
+
 type Phase = 'empty' | 'prepared' | 'recording' | 'paused' | 'review';
 type BlockKind = 'speech' | 'question';
 
@@ -916,7 +925,13 @@ const QNotePage = () => {
       // 이는 백엔드 status 생명주기 버그 또는 비정상 종료(탭닫힘 등) 상황에서도
       // 녹음된 텍스트가 화면에서 사라지지 않도록 하는 데이터 보존 장치.
       const hasUtterances = (detail.utterances?.length ?? 0) > 0;
+      // ★ 업로드한 노트는 **녹음 컨트롤이 있을 수 없다** — 이어서 녹음할 원본 스트림이 없다.
+      //   status 만으로 판정하면 처리 중(processing)·실패(failed) 가 기본값 paused 로 떨어져
+      //   "녹음 이어하기 / 음성 노트 종료" 버튼이 뜬다 (Irene 2026-08-30 운영에서 발각).
+      //   capture_mode 로 못을 박는다 — 상태값이 뭐가 되든 업로드는 읽기(review) 다.
+      const isUpload = detail.capture_mode === 'upload';
       const nextPhase: Phase =
+        isUpload ? 'review' :
         detail.status === 'completed' ? 'review' :
         hasUtterances ? 'paused' :
         detail.status === 'prepared' ? 'prepared' : 'paused';
@@ -948,7 +963,7 @@ const QNotePage = () => {
           documents: [],
           workspaceFileIds: [],
           urls: [],
-          captureMode: (detail.capture_mode === 'text' ? 'microphone' : (detail.capture_mode || 'microphone')),
+          captureMode: toRecordingCaptureMode(detail.capture_mode),
           priorityQAs: [],
           priorityQACsv: null,
           meetingAnswerStyle: '',
@@ -1169,7 +1184,7 @@ const QNotePage = () => {
         documents: [],
         workspaceFileIds: [],
         urls: [],
-        captureMode: (activeSession.capture_mode === 'text' ? 'microphone' : (activeSession.capture_mode || 'microphone')),
+        captureMode: toRecordingCaptureMode(activeSession.capture_mode),
         priorityQAs: [],
         priorityQACsv: null,
         meetingAnswerStyle: '',
@@ -1180,7 +1195,7 @@ const QNotePage = () => {
     setLiveError(null);
 
     const rawCaptureMode = pendingConfig?.captureMode || activeSession.capture_mode || 'microphone';
-    const captureMode: 'microphone' | 'web_conference' = rawCaptureMode === 'text' ? 'microphone' : rawCaptureMode;
+    const captureMode: 'microphone' | 'web_conference' = toRecordingCaptureMode(rawCaptureMode);
     if (captureMode === 'web_conference' && phase === 'paused') {
       setLiveNotice(t('page.errors.reshareTab'));
     }
@@ -2736,6 +2751,16 @@ const QNotePage = () => {
               </ParticipantBar>
             )}
 
+            {/* #383 — 업로드한 녹음이 아직 변환 중일 때. 빈 화면을 내면 "고장" 으로 읽힌다
+                (memory feedback_fixed_but_unreachable: 기다림을 고장으로 읽는다 —
+                 겪는 화면에서 무슨 일이 일어나는지 말해 준다). 목록의 폴링이 완성되면 갱신한다. */}
+            {activeSession?.capture_mode === 'upload' && activeSession?.status === 'processing' && (
+              <NoticeBar>{t('audioUpload.processingNotice')}</NoticeBar>
+            )}
+            {activeSession?.capture_mode === 'upload' && activeSession?.status === 'failed' && (
+              <ErrorBar>{t('audioUpload.failedNotice')}</ErrorBar>
+            )}
+
             {liveError && <ErrorBar>{liveError}</ErrorBar>}
             {liveNotice && <NoticeBar>{liveNotice}</NoticeBar>}
             {lockedByOther && phase !== 'recording' && (
@@ -3096,7 +3121,12 @@ const QNotePage = () => {
         open={audioUploadOpen}
         businessId={businessId ?? 0}
         onClose={() => setAudioUploadOpen(false)}
-        onUploaded={() => { void loadSessions(); }}
+        onUploaded={(sessionId) => {
+          // ★ 올리자마자 그 노트를 연다. 목록만 갱신하면 사용자에겐 **아무 반응이 없는 것**으로
+          //   보인다 (Irene 2026-08-30: "선택하기 전 화면이 뜨고 아무 반응이 없어").
+          void loadSessions();
+          openReview(sessionId);   // 목록 클릭과 **같은 단일 착지점** — 따로 만들면 갈라진다
+        }}
       />
 
       <StartMeetingModal
@@ -3119,7 +3149,10 @@ const QNotePage = () => {
           translateEnabled: !!activeSession.translate_enabled,
           translationLanguage: activeSession.translation_language || '',
           answerLanguage: activeSession.answer_language || '',
-          captureMode: (activeSession.capture_mode === 'text' ? 'web_conference' : (activeSession.capture_mode || 'web_conference')),
+          // 이 자리는 기본값이 web_conference 다(위 toRecordingCaptureMode 와 기본값이 다르므로
+          //   헬퍼로 바꾸면 기존 동작이 바뀐다). microphone 만 그대로 두고 나머지는 종전대로 —
+          //   upload 도 여기에 묶인다(업로드 노트는 녹음 설정을 쓰지 않는다).
+          captureMode: (activeSession.capture_mode === 'microphone' ? 'microphone' : 'web_conference'),
           pastedContext: activeSession.pasted_context || '',
           urls: [],
           priorityQAs: [],
