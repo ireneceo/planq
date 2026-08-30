@@ -22,7 +22,10 @@ const ENTITY_LINK: Record<string, (id: string | number) => string> = {
   // SPA 라우트는 `/bills` — 옛 `/bill`(단수)은 존재한 적이 없어 catch-all 이 대시보드로
   //   튕겼다. 즉 청구서 알림 클릭이 전부 죽어 있었다. 백엔드 미러도 같이 교정.
   invoice: (id) => `/bills?invoice=${id}`,
-  signature_request: (id) => `/docs?sig=${id}`,
+  // ★ `?sig=` 는 **읽는 곳이 0곳**이었다(잠복 죽은 링크 — 운영·dev 실측 생성 0건).
+  //   소비자를 새로 만드는 대신, 실제로 있는 화면으로 보낸다. 받은 서명 목록에서 찾을 수 있다.
+  //   (id 는 남겨 둔다 — 나중에 그 화면이 하이라이트에 쓸 수 있게)
+  signature_request: (id) => `/signatures/received?sig=${id}`,
   calendar_event: (id) => `/calendar?event=${id}`,
   event: (id) => `/calendar?event=${id}`,
   kb_document: (id) => `/info?doc=${id}`,

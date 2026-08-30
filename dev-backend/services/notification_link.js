@@ -12,7 +12,7 @@
 //   comment_mention(post) → /docs?post={post_id}
 //   invoice       → /bills?invoice={invoice_id}
 //   tax_invoice   → /bills?invoice={invoice_id}
-//   signature     → /docs?post={post_id} (entity_type='post') or /docs?sig={sig_id} (entity_type='signature_request')
+//   signature     → /docs?post={post_id} (entity_type='post') or /signatures/received?sig={sig_id}
 //   event         → /calendar?event={event_id}
 //   invite        → /business/settings/members
 //   inquiry / signup / payment / subscription / trial / feedback → /admin/* (platform_admin)
@@ -27,7 +27,9 @@ const ENTITY_LINK = {
   // SPA 라우트는 `/bills` — 옛 `/bill`(단수)은 존재한 적이 없어 catch-all 이 대시보드로
   //   튕겼다(청구서 알림 클릭 전건 사망). frontend utils/notificationLink.ts 와 쌍으로 유지.
   invoice: (id) => `/bills?invoice=${id}`,
-  signature_request: (id) => `/docs?sig=${id}`,
+  // ★ `/docs?sig=` 는 **읽는 곳이 0곳**이었다(잠복 죽은 링크 — 운영 생성 0건 실측).
+  //   프론트 utils/notificationLink.ts 와 **같은 값**이어야 한다 — 두 벌이면 반드시 갈라진다.
+  signature_request: (id) => `/signatures/received?sig=${id}`,
   calendar_event: (id) => `/calendar?event=${id}`,
   event: (id) => `/calendar?event=${id}`,
   kb_document: (id) => `/info?doc=${id}`,

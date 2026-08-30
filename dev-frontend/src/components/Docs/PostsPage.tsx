@@ -33,13 +33,15 @@ import { TableRow } from '@tiptap/extension-table-row';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { TableHeader } from '@tiptap/extension-table-header';
 import {
-  fetchPosts, fetchPost, createPost, updatePost, deletePost, StaleEditError,
+  fetchPosts, fetchPost, fetchPostResult, createPost, updatePost, deletePost, StaleEditError,
   attachToPost, detachFromPost, fetchPostsMeta,
   createCategory, updatePostVisibility, updatePostSecurityLevel, downloadPostPdf,
   downloadPostDocx,
   type PostRow, type PostDetail, type PostsMeta,
 } from '../../services/posts';
 import VisibilityChangeModal from '../Common/VisibilityChangeModal';
+import DetailFallback from '../Common/DetailFallback';
+import type { DetailStatus } from '../../hooks/useDetailResource';
 import { listProjects, listWorkspaceClients, type ApiProject, type WorkspaceClientRow } from '../../services/qtalk';
 import { listTemplates, aiGenerateDoc, type DocTemplate, type DocKind, KIND_LABELS_KO } from '../../services/docs';
 import AiRegenerateBar from '../Common/AiRegenerateBar';
@@ -156,6 +158,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
   const [detail, setDetail] = useState<PostDetail | null>(null);
+  const [detailStatus, setDetailStatus] = useState<DetailStatus>('idle');
   // 탭 이름 = 열려 있는 문서 이름 (목록만 보는 중이면 null → 'Q docs' 로 복귀).
   //   ★ 워크스페이스 scope 일 때만 — 이 컴포넌트는 프로젝트 상세(DocsTab)·개인 보관함 안에도
   //     임베드된다. 거기서도 제목을 쓰면 그 화면의 주인(프로젝트명)을 덮어써 지운다.
@@ -426,9 +429,13 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       return;
     }
     let cancelled = false;
+    setDetailStatus('loading');
     (async () => {
-      const d = await fetchPost(activeId);
+      // ★ 실패 이유를 잃지 않는다 — 여태 fetchPost 는 404·403·500 을 전부 null 로 뭉갰고,
+      //   화면은 목록만 남긴 채 **아무 말도 하지 않았다** (2026-08-30).
+      const { status: st, data: d } = await fetchPostResult(activeId);
       if (!cancelled) {
+        setDetailStatus(st);
         setDetail(d);
         // #96 — 방금 만든 표(?new_table=1)는 바로 편집 화면으로. 그 외는 view.
         const flaggedNewTable = pendingNewTableRef.current === activeId;
@@ -1972,6 +1979,13 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               )}
             </Body>
           </>
+        ) : (detailStatus === 'not_found' || detailStatus === 'forbidden' || detailStatus === 'error') ? (
+          /* 못 불러온 것 — "아직 안 골랐음"(아래 온보딩)과 **다른 상태**다 (2026-08-30) */
+          <DetailFallback
+            status={detailStatus}
+            onRetry={activeId ? () => setActiveId((v) => v) : undefined}
+            onBack={() => setActiveId(null)}
+          />
         ) : (
           <EmptyState
             icon={(

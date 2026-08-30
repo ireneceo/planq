@@ -32,11 +32,14 @@ const FB = `(() => {
   return vis ? vis.getAttribute('data-testid') : null;
 })()`;
 
-// [라벨, URL 만들기, 유효 ID, 없는 ID, 남의 워크스페이스 ID]
+// [라벨, URL 만들기, 유효 ID, 없는 ID, **남의 워크스페이스** ID]
+//   남의 워크스페이스 케이스는 Fable 이 필수로 지목했다 — 403 도 침묵으로 떨어지던 계열이다.
+//   dev 에 워크스페이스가 여러 개라 재현 가능하다(health-check 은 5·73 소속).
 const CASES = [
-  ['업무   ', (id)=>`/tasks?task=${id}`,   1600, 99999901, null],
-  ['메일   ', (id)=>`/mail?folder=all&thread=${id}`, 5594, 99999901, null],
-  ['Q info', (id)=>`/info?doc=${id}`,      null, 99999901, null],
+  ['업무   ', (id)=>`/tasks?task=${id}`,             1600, 99999901, 1667],
+  ['메일   ', (id)=>`/mail?folder=all&thread=${id}`, 5594, 99999901, 5595],
+  ['문서   ', (id)=>`/docs?post=${id}`,              null, 99999901, 367],
+  ['Q info', (id)=>`/info?doc=${id}`,                null, 99999901, null],
 ];
 
 async function run() {
@@ -47,13 +50,16 @@ async function run() {
     // Q info 실제 doc id 하나 확보
     await goto(page, '/info'); await sleep(3500);
     const docId = await page.evaluate(() => {
-      const rows=[...document.querySelectorAll('[data-doc-id],[data-testid^="kb-row"]')];
-      if (rows.length) return rows[0].getAttribute('data-doc-id') || null;
+      const rows=[...document.querySelectorAll('[data-doc-id],[data-testid^="kb-row"],[data-kb-id]')];
+      for (const r of rows) {
+        const v = r.getAttribute('data-doc-id') || r.getAttribute('data-kb-id');
+        if (v && /^\d+$/.test(v)) return v;
+      }
       return null;
     });
     CASES[2][2] = docId ? Number(docId) : null;
 
-    for (const [label, mk, good, missing] of CASES) {
+    for (const [label, mk, good, missing, foreign] of CASES) {
       if (good != null) {
         await goto(page, mk(good));
         // ★ 고정 대기는 **로딩 중을 실패로 오독**한다 (1차에 메일이 그렇게 거짓 실패했다).
@@ -79,6 +85,22 @@ async function run() {
       }
       f2 === 'detail-fallback-notfound' ? ok(`${label} 없는 ID → "찾을 수 없는 항목입니다"`)
         : bad(`${label} 없는 ID → ${f2 || '아무 말도 없음(회귀)'}`);
+
+      // ── 남의 워크스페이스 — 403 도 말을 해야 한다 (침묵 금지) ──
+      if (foreign) {
+        await goto(page, mk(foreign));
+        let f3 = null;
+        for (let i = 0; i < 16; i++) {
+          await sleep(700);
+          f3 = await page.evaluate(FB);
+          if (f3 && f3 !== 'detail-fallback-loading') break;
+        }
+        // 서버가 404 로 감추는 정책일 수도 있다 — 둘 다 "말을 한 것" 이므로 통과로 본다.
+        //   침묵(null)이나 영원한 로딩만 실패다.
+        (f3 === 'detail-fallback-forbidden' || f3 === 'detail-fallback-notfound')
+          ? ok(`${label} 남의 워크스페이스 → 말을 한다 (${f3.replace('detail-fallback-','')})`)
+          : bad(`${label} 남의 워크스페이스 → ${f3 || '아무 말도 없음(회귀)'}`);
+      }
     }
   } finally { await browser.close(); }
   return results;

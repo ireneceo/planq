@@ -131,10 +131,31 @@ export async function fetchPostsMeta(businessId: number, projectId?: number | nu
 }
 
 export async function fetchPost(id: number): Promise<PostDetail | null> {
-  const r = await apiFetch(`/api/posts/${id}`);
-  const j = await r.json();
-  if (!j.success) return null;
-  return j.data as PostDetail;
+  const { data } = await fetchPostResult(id);
+  return data;
+}
+
+/**
+ * 실패 **이유**까지 돌려주는 변형 (2026-08-30).
+ * 기존 fetchPost 는 404·403·429·500 을 전부 `null` 로 뭉개서, 화면은 "못 불러옴" 과
+ * "아직 안 고름" 을 구별할 수 없었다 — 사용자에겐 전부 "안 열림" 으로 보였다.
+ * ★ apiFetch 는 throw 하지 않는다 — r.status 를 본다
+ *   (memory feedback_apifetch_no_throw_silent_save).
+ */
+export async function fetchPostResult(
+  id: number,
+): Promise<{ status: 'ready' | 'not_found' | 'forbidden' | 'error'; data: PostDetail | null }> {
+  try {
+    const r = await apiFetch(`/api/posts/${id}`);
+    if (r.status === 404) return { status: 'not_found', data: null };
+    if (r.status === 403) return { status: 'forbidden', data: null };
+    if (!r.ok) return { status: 'error', data: null };
+    const j = await r.json().catch(() => null);
+    if (!j || j.success === false) return { status: 'error', data: null };
+    return { status: 'ready', data: j.data as PostDetail };
+  } catch {
+    return { status: 'error', data: null };
+  }
 }
 
 // 포스트(Q docs 글) PDF 다운로드 — 서버 렌더 브랜드 PDF (window.print 대체). 인증 blob fetch.
