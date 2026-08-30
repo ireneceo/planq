@@ -422,15 +422,8 @@ async function getPlanQuota(businessId) {
   return await planEngine.getLimit(businessId, 'storage_bytes');
 }
 
-function sha256OfFile(filePath) {
-  return new Promise((resolve, reject) => {
-    const hash = crypto.createHash('sha256');
-    const stream = fs.createReadStream(filePath);
-    stream.on('data', d => hash.update(d));
-    stream.on('end', () => resolve(hash.digest('hex')));
-    stream.on('error', reject);
-  });
-}
+// 해시는 utils/fileHash 단일 원천 (posts editor-image · gdrive 인제스트와 같은 규칙).
+const { sha256OfFile } = require('../utils/fileHash');
 
 async function verifyProjectOwnership(projectId, businessId) {
   if (!projectId) return true;

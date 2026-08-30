@@ -49,15 +49,7 @@ function uploadPathFor(businessId) {
   return path.join(dir, crypto.randomUUID());
 }
 
-function sha256OfFile(p) {
-  return new Promise((resolve, reject) => {
-    const h = crypto.createHash('sha256');
-    const s = fs.createReadStream(p);
-    s.on('data', (d) => h.update(d));
-    s.on('end', () => resolve(h.digest('hex')));
-    s.on('error', reject);
-  });
-}
+const { sha256OfFile } = require('../utils/fileHash');   // 해시 규칙 단일 원천
 
 async function downloadTo(drive, fileId, dest) {
   const stream = await gdrive.getFileStream(drive, fileId);

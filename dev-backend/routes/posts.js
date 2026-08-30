@@ -1034,9 +1034,15 @@ router.post('/editor-image', authenticateToken, (req, res, next) => {
 
       // #97 — 본문 표시용은 리사이즈본 (?w=1600). 원본은 파라미터 없이 접근 가능.
       const url = `/api/posts/editor-image/${req.file.filename}?w=1600`;
-      const businessId = Number(req.body?.business_id || req.query?.business_id || 0);
+      // ★ 운영 #378 잔여 — business_id 가 없으면 **File 행 없이** 통과시키던 자리다.
+      //   그렇게 올라간 이미지는 본문에는 보이는데 파일 메뉴 어디에도 없다(운영 실측 9건).
+      //   옛 번들이 안 보내도 토큰의 **활성 워크스페이스**로 착지시킨다 — 조용한 결손보다 낫다.
+      //   ★ active_business_id 는 권한 근거가 아니다(멤버 해제 후 stale 가능) —
+      //     바로 아래 assertMember 가 그 판정을 한다. 여기서는 "어디에 담을지" 만 정한다.
+      const businessId = Number(req.body?.business_id || req.query?.business_id || req.user?.active_business_id || 0);
       if (!businessId) {
-        // legacy fallback — business_id 없으면 DB 등록 X (옛 호출자 호환)
+        // 워크스페이스를 끝내 못 정하면 등록할 곳이 없다. 조용히 넘기지 말고 로그를 남긴다.
+        console.warn('[editor-image] business_id 없음 — File 미등록 (user', req.user?.id, ')');
         return successResponse(res, { url }, 'uploaded');
       }
       // 워크스페이스 멤버 확인
@@ -1061,20 +1067,68 @@ router.post('/editor-image', authenticateToken, (req, res, next) => {
       // ★ vlevel 이 권위 컬럼이다 — visibility 만 쓰면 모델 default('L3')로 저장돼 프로젝트 전용
       //   이미지가 워크스페이스 전체에 노출된다 (routes/files.js 의 같은 경고 참조).
       const level = projectId ? 'L2' : 'L3';
+
+      // ★ 이 경로만 dedup·쿼터를 지나지 않았다 (운영 실측: editor-image 58건 전부 content_hash NULL).
+      //   같은 이미지를 여러 문서에 붙이면 물리 파일이 매번 새로 쌓이고, 스토리지 사용량에도 안 잡혀
+      //   플랜 한도가 헐거워진다. 표준 업로드(routes/files.js)·메일 첨부와 같은 규칙으로 맞춘다.
+      //   ※ dedup 대상은 **같은 에디터 이미지 폴더 안**으로 제한한다 — 본문 URL 이
+      //     `/api/posts/editor-image/<파일명>` 이라, 다른 폴더 파일을 재사용하면 그 URL 이 404 가 된다.
+      const { sha256OfFile } = require('../utils/fileHash');
+      const { reservePlanqUpload } = require('../services/storageUsage');
+      let hash = null;
+      try { hash = await sha256OfFile(req.file.path); } catch (e) { console.warn('[editor-image] hash 실패', e.message); }
+
+      let twin = null;
+      if (hash) {
+        twin = await File.findOne({
+          where: {
+            business_id: businessId, content_hash: hash, deleted_at: null,
+            file_path: { [Op.like]: '%editor-images%' },
+          },
+          order: [['id', 'ASC']],
+        });
+      }
+
+      let finalPath = req.file.path;
+      let finalUrl = url;
+      if (twin) {
+        // 중복 — 물리 파일은 하나만 두고 참조만 늘린다. 본문 URL 도 살아 있는 쪽을 가리킨다.
+        try { fs.unlinkSync(req.file.path); } catch { /* 이미 없으면 그만 */ }
+        await twin.increment('ref_count');
+        finalPath = twin.file_path;
+        finalUrl = `/api/posts/editor-image/${path.basename(twin.file_path)}?w=1600`;
+      } else {
+        // 새 바이트 — 쿼터에 반영한다. 한도를 넘으면 파일을 지우고 413.
+        let reserved;
+        try {
+          reserved = await reservePlanqUpload(businessId, req.file.size);
+        } catch (e) {
+          try { fs.unlinkSync(req.file.path); } catch { /* noop */ }
+          throw e;
+        }
+        if (reserved && reserved.ok === false) {
+          try { fs.unlinkSync(req.file.path); } catch { /* noop */ }
+          const planEngine = require('../services/plan');
+          return res.status(413).json(planEngine.buildQuotaError(reserved, businessId));
+        }
+      }
+
       const file = await File.create({
         business_id: businessId,
         project_id: projectId,
         uploader_id: req.user.id,
         file_name: decodeOriginalName(req.file.originalname),
-        file_path: req.file.path,
+        file_path: finalPath,
         file_size: req.file.size,
         mime_type: req.file.mimetype,
         storage_provider: 'planq',
+        content_hash: hash,
+        ref_count: 1,
         visibility: level,
         vlevel: level,
       });
       successResponse(res, {
-        url,
+        url: finalUrl,
         file_id: file.id,
         download_url: `/api/files/${businessId}/${file.id}/download`,
       }, 'uploaded');
