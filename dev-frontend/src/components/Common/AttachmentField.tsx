@@ -252,8 +252,8 @@ const UploadDrop = styled.div<{ $dragOver?: boolean }>`
   &:hover { border-color: #14B8A6; background: #F0FDFA; }
 `;
 const UploadIcon = styled.svg`width: 36px; height: 36px; color: #94A3B8;`;
-const UploadText = styled.div`font-size: 13px; font-weight: 600; color: #334155;`;
-const UploadSub = styled.div`font-size: 11px; color: #94A3B8;`;
+const UploadText = styled.div`font-size: 0.8125rem; font-weight: 600; color: #334155;`;
+const UploadSub = styled.div`font-size: 0.6875rem; color: #94A3B8;`;
 const ChipList = styled.div`
   display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;
 `;
@@ -261,7 +261,7 @@ const Chip = styled.span`
   display: inline-flex; align-items: center; gap: 6px;
   padding: 4px 8px 4px 10px;
   background: #F1F5F9; border: 1px solid #E2E8F0; border-radius: 6px;
-  font-size: 12px;
+  font-size: 0.75rem;
 `;
 // N+63 — 이미지 첨부 시 thumbnail (40x40, 모서리 둥글게)
 const ChipThumb = styled.img`
@@ -273,11 +273,11 @@ const ChipFileIcon = styled.svg`
   width: 14px; height: 14px; color: #64748B; flex-shrink: 0;
 `;
 const ChipText = styled.span`color: #0F172A; max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
-const ChipMeta = styled.span`color: #94A3B8; font-size: 10px;`;
+const ChipMeta = styled.span`color: #94A3B8; font-size: 0.625rem;`;
 const ChipX = styled.button`
   all: unset; cursor: pointer;
   width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center;
-  color: #94A3B8; border-radius: 4px; font-size: 14px;
+  color: #94A3B8; border-radius: 4px; font-size: 0.875rem;
   &:hover { background: #FEE2E2; color: #DC2626; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;

@@ -45,20 +45,20 @@ export function toLocalInput(iso: string): string {
 }
 
 export const Section = styled.section` margin-bottom: 24px; `;
-export const SectionTitle = styled.h3` margin: 0 0 10px; font-size: 14px; font-weight: 700; color: #0F172A; `;
-export const Empty = styled.div` padding: 28px; text-align: center; color: #94A3B8; font-size: 13px; `;
+export const SectionTitle = styled.h3` margin: 0 0 10px; font-size: 0.875rem; font-weight: 700; color: #0F172A; `;
+export const Empty = styled.div` padding: 28px; text-align: center; color: #94A3B8; font-size: 0.8125rem; `;
 export const TableWrap = styled.div` overflow-x: auto; border: 1px solid #E2E8F0; border-radius: 10px; background: #fff; `;
-export const Table = styled.table` width: 100%; border-collapse: collapse; font-size: 13px; `;
+export const Table = styled.table` width: 100%; border-collapse: collapse; font-size: 0.8125rem; `;
 export const Th = styled.th`
   text-align: left; padding: 10px 12px; background: #F8FAFC;
-  font-size: 11px; font-weight: 700; color: #64748B; white-space: nowrap;
+  font-size: 0.6875rem; font-weight: 700; color: #64748B; white-space: nowrap;
   border-bottom: 1px solid #E2E8F0;
 `;
 export const Td = styled.td` padding: 10px 12px; border-bottom: 1px solid #F1F5F9; color: #334155; white-space: nowrap; `;
 export const Muted = styled.span` color: #94A3B8; `;
 export const Badge = styled.span<{ $tone: 'warn' | 'info' }>`
   display: inline-block; padding: 2px 7px; border-radius: 999px; margin-right: 4px;
-  font-size: 11px; font-weight: 600;
+  font-size: 0.6875rem; font-weight: 600;
   background: ${p => (p.$tone === 'warn' ? '#FEF3C7' : '#E0F2FE')};
   color: ${p => (p.$tone === 'warn' ? '#92400E' : '#075985')};
 `;
@@ -68,14 +68,14 @@ export const Row = styled.div`
   background: #fff; border: 1px solid #E2E8F0; border-radius: 10px;
 `;
 export const RowMain = styled.div` flex: 1; min-width: 0; `;
-export const RowTitle = styled.div` font-size: 13px; font-weight: 600; color: #0F172A; `;
-export const RowMeta = styled.div` font-size: 12px; color: #64748B; margin-top: 2px; `;
-export const Hint = styled.div` margin-top: 6px; font-size: 11px; color: #94A3B8; `;
+export const RowTitle = styled.div` font-size: 0.8125rem; font-weight: 600; color: #0F172A; `;
+export const RowMeta = styled.div` font-size: 0.75rem; color: #64748B; margin-top: 2px; `;
+export const Hint = styled.div` margin-top: 6px; font-size: 0.6875rem; color: #94A3B8; `;
 export const Field = styled.div` margin-bottom: 14px; `;
-export const FieldLabel = styled.label` display: block; margin-bottom: 6px; font-size: 12px; font-weight: 600; color: #475569; `;
+export const FieldLabel = styled.label` display: block; margin-bottom: 6px; font-size: 0.75rem; font-weight: 600; color: #475569; `;
 const inputCss = `
   width: 100%; padding: 10px 12px; border: 1px solid #CBD5E1; border-radius: 8px;
-  font-size: 14px; color: #0F172A; background: #fff;
+  font-size: 0.875rem; color: #0F172A; background: #fff;
   &:focus { outline: none; border-color: #F43F5E; box-shadow: 0 0 0 3px rgba(244,63,94,0.12); }
 `;
 export const NumInput = styled.input`${inputCss}`;
@@ -84,5 +84,5 @@ export const TextArea = styled.textarea`${inputCss} resize: vertical;`;
 export const ErrorBar = styled.div`
   padding: 10px 12px; margin-bottom: 12px;
   background: #FEE2E2; border: 1px solid #FECACA; border-radius: 8px;
-  font-size: 12px; color: #991B1B;
+  font-size: 0.75rem; color: #991B1B;
 `;

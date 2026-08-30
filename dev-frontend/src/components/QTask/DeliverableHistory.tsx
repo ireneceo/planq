@@ -152,25 +152,25 @@ const Wrap = styled.div`margin-top:10px;`;
 const Toggle = styled.button`
   display:inline-flex;align-items:center;gap:6px;height:2.25rem;padding:0 10px;
   background:transparent;border:none;border-radius:8px;cursor:pointer;
-  font-size:13px;font-weight:700;color:#475569;
+  font-size:0.8125rem;font-weight:700;color:#475569;
   &:hover{background:#F1F5F9;}
   &:focus-visible{outline:2px solid #0D9488;outline-offset:2px;}
 `;
 const Caret = styled.span<{ $open: boolean }>`
-  display:inline-block;transition:transform .15s;font-size:12px;
+  display:inline-block;transition:transform .15s;font-size:0.75rem;
   transform:rotate(${p => (p.$open ? '90deg' : '0deg')});
 `;
 const RoundPill = styled.span`
   padding:1px 8px;background:#CCFBF1;color:#0F766E;border-radius:999px;
-  font-size:12px;font-weight:700;
+  font-size:0.75rem;font-weight:700;
 `;
 const Body = styled.div`
   display:flex;flex-direction:column;gap:8px;margin-top:6px;padding:10px 12px;
   background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;
 `;
-const Hint = styled.div`font-size:12px;color:#94A3B8;line-height:1.5;`;
-const Muted = styled.div`font-size:12.5px;color:#64748B;`;
-const ErrLine = styled.div`font-size:12.5px;color:#DC2626;`;
+const Hint = styled.div`font-size:0.75rem;color:#94A3B8;line-height:1.5;`;
+const Muted = styled.div`font-size:0.78125rem;color:#64748B;`;
+const ErrLine = styled.div`font-size:0.78125rem;color:#DC2626;`;
 const Row = styled.div`
   display:flex;flex-direction:column;gap:4px;padding:8px 0;
   border-top:1px solid #E2E8F0;
@@ -181,17 +181,17 @@ const RowHead = styled.button`
   padding:2px 0;background:transparent;border:none;cursor:pointer;text-align:left;
   &:focus-visible{outline:2px solid #0D9488;outline-offset:2px;}
 `;
-const VLabel = styled.span`font-size:13px;font-weight:800;color:#0F172A;`;
+const VLabel = styled.span`font-size:0.8125rem;font-weight:800;color:#0F172A;`;
 const Badge = styled.span<{ $o: Outcome }>`
-  padding:1px 8px;border-radius:999px;font-size:12px;font-weight:700;
+  padding:1px 8px;border-radius:999px;font-size:0.75rem;font-weight:700;
   background:${p => (p.$o === 'approved' ? '#DCFCE7' : p.$o === 'revision' ? '#FEE2E2' : '#F1F5F9')};
   color:${p => (p.$o === 'approved' ? '#166534' : p.$o === 'revision' ? '#B91C1C' : '#64748B')};
 `;
-const Who = styled.span`font-size:12.5px;color:#475569;`;
-const When = styled.span`font-size:12px;color:#94A3B8;margin-left:auto;`;
-const SubmitNote = styled.div`font-size:12.5px;color:#475569;line-height:1.5;`;
+const Who = styled.span`font-size:0.78125rem;color:#475569;`;
+const When = styled.span`font-size:0.75rem;color:#94A3B8;margin-left:auto;`;
+const SubmitNote = styled.div`font-size:0.78125rem;color:#475569;line-height:1.5;`;
 const RevisionNote = styled.div`
-  font-size:12.5px;color:#B91C1C;line-height:1.5;
+  font-size:0.78125rem;color:#B91C1C;line-height:1.5;
   padding:6px 10px;background:#FEF2F2;border-radius:8px;
 `;
 const Preview = styled.div`
@@ -199,7 +199,7 @@ const Preview = styled.div`
   background:#fff;border:1px solid #E2E8F0;border-radius:8px;
 `;
 const Rendered = styled.div`
-  font-size:13.5px;line-height:1.65;color:#0F172A;max-height:40vh;overflow-y:auto;
+  font-size:0.84375rem;line-height:1.65;color:#0F172A;max-height:40vh;overflow-y:auto;
   img{max-width:100%;height:auto;}
   table{width:100%;border-collapse:collapse;}
   td,th{border:1px solid #E2E8F0;padding:4px 6px;}
@@ -207,7 +207,7 @@ const Rendered = styled.div`
 const RestoreBtn = styled.button`
   align-self:flex-start;height:2.25rem;padding:0 14px;
   background:#fff;color:#0F172A;border:1px solid #CBD5E1;border-radius:8px;
-  font-size:12.5px;font-weight:600;cursor:pointer;
+  font-size:0.78125rem;font-weight:600;cursor:pointer;
   &:hover:not(:disabled){background:#F1F5F9;}
   &:disabled{opacity:.6;cursor:default;}
   &:focus-visible{outline:2px solid #0D9488;outline-offset:2px;}

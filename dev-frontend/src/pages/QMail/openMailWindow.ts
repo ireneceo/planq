@@ -43,9 +43,9 @@ export function openMailWindow(opts: {
   body{margin:0;display:flex;flex-direction:column;background:#F8FAFC;
     font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#0F172A}
   header{flex-shrink:0;padding:12px 20px;background:#fff;border-bottom:1px solid #E2E8F0}
-  h1{margin:0;font-size:16px;font-weight:700;line-height:1.35;
+  h1{margin:0;font-size:1rem;font-weight:700;line-height:1.35;
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .sub{margin-top:3px;font-size:12px;color:#64748B;
+  .sub{margin-top:3px;font-size:0.75rem;color:#64748B;
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   /* ★ 2026-08-24 (Irene) — "전체보기 누르면 메일 내용이 위아래좌우 여백 없이 다 들러붙어서
      보기 안 좋아." 앱 안 전체보기(MailBodyFullscreen)는 바깥 컨테이너가 20px 24px 을 준다.
@@ -56,7 +56,7 @@ export function openMailWindow(opts: {
   iframe{width:100%;height:100%;border:0;display:block;background:#fff}
   /* 여백은 main 이 담당 — 여기에도 주면 이중이 된다 */
   .plain{margin:0;padding:0;height:100%;overflow:auto;white-space:pre-wrap;word-break:break-word;
-    font-family:inherit;font-size:14px;line-height:1.7}
+    font-family:inherit;font-size:0.875rem;line-height:1.7}
 </style></head>
 <body>
   <header>

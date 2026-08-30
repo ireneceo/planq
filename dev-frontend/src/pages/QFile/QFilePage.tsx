@@ -53,7 +53,7 @@ const Tabs = styled.div`
 `;
 const Tab = styled.button<{ $active: boolean }>`
   height: 32px; padding: 0 14px; border: none; border-radius: 8px;
-  font-size: 13px; font-weight: 600; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   background: ${(p) => (p.$active ? '#FFFFFF' : 'transparent')};
   color: ${(p) => (p.$active ? '#0F766E' : '#64748B')};
   box-shadow: ${(p) => (p.$active ? '0 1px 2px rgba(15,23,42,0.08)' : 'none')};

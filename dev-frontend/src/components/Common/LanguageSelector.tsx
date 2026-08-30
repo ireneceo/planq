@@ -122,14 +122,14 @@ const Toggle = styled.button<{ $compact: boolean }>`
   gap: ${({ $compact }) => $compact ? '4px' : '8px'};
   padding: ${({ $compact }) => $compact ? '6px 8px' : '6px 12px'};
   background: transparent; border: 1px solid #E0E0E0; border-radius: 8px;
-  cursor: pointer; font-size: 13px; color: #374151; transition: all 0.15s;
+  cursor: pointer; font-size: 0.8125rem; color: #374151; transition: all 0.15s;
   &:hover { background: #F9FAFB; border-color: #D1D5DB; }
 `;
 
 const IconToggle = styled.button`
   display: flex; align-items: center; justify-content: center;
   width: 36px; height: 36px; background: none; border: none;
-  border-radius: 8px; cursor: pointer; font-size: 18px; transition: background 0.15s;
+  border-radius: 8px; cursor: pointer; font-size: 1.125rem; transition: background 0.15s;
   &:hover { background: #F3F4F6; }
 `;
 
@@ -146,13 +146,13 @@ const SidebarContainer = styled.div`
 const SidebarToggle = styled.button`
   display: flex; align-items: center; justify-content: space-between;
   width: 100%; padding: 10px 16px; background: transparent; border: none;
-  cursor: pointer; font-size: 13px; color: #CCFBF1; transition: background 0.15s;
+  cursor: pointer; font-size: 0.8125rem; color: #CCFBF1; transition: background 0.15s;
   &:hover { background: rgba(255, 255, 255, 0.08); color: #FFFFFF; }
 `;
 
 const SidebarLeft = styled.div`display: flex; align-items: center; gap: 10px;`;
-const SidebarLabel = styled.span`font-size: 13px; font-weight: 500; color: inherit;`;
-const FlagCircle = styled.span`font-size: 16px; line-height: 1;`;
+const SidebarLabel = styled.span`font-size: 0.8125rem; font-weight: 500; color: inherit;`;
+const FlagCircle = styled.span`font-size: 1rem; line-height: 1;`;
 
 const SidebarDropdown = styled.div<{ $direction?: 'up' | 'down' }>`
   position: absolute;
@@ -175,7 +175,7 @@ const SidebarOption = styled.button<{ $active: boolean }>`
   display: flex; align-items: center; gap: 10px; width: 100%;
   padding: 10px 12px; border: none; border-radius: 8px;
   background: ${({ $active }) => $active ? 'rgba(94, 234, 212, 0.16)' : 'transparent'};
-  cursor: pointer; font-size: 13px;
+  cursor: pointer; font-size: 0.8125rem;
   color: ${({ $active }) => $active ? '#FFFFFF' : '#CCFBF1'};
   font-weight: ${({ $active }) => $active ? 600 : 500};
   transition: background 0.1s, color 0.1s;
@@ -183,7 +183,7 @@ const SidebarOption = styled.button<{ $active: boolean }>`
 `;
 
 const Arrow = styled.span<{ $open: boolean }>`
-  font-size: 10px; color: #5EEAD4; transition: transform 0.15s;
+  font-size: 0.625rem; color: #5EEAD4; transition: transform 0.15s;
   transform: ${({ $open }) => $open ? 'rotate(180deg)' : 'none'};
 `;
 
@@ -199,11 +199,11 @@ const Option = styled.button<{ $active: boolean }>`
   display: flex; align-items: center; gap: 10px; width: 100%;
   padding: 10px 14px; border: none;
   background: ${({ $active }) => $active ? '#F0FDFA' : 'transparent'};
-  cursor: pointer; font-size: 14px;
+  cursor: pointer; font-size: 0.875rem;
   color: ${({ $active }) => $active ? '#0D9488' : '#374151'};
   font-weight: ${({ $active }) => $active ? 600 : 400};
   transition: background 0.1s;
   &:hover { background: ${({ $active }) => $active ? '#F0FDFA' : '#F9FAFB'}; }
 `;
 
-const Check = styled.span`margin-left: auto; color: #0D9488; font-size: 14px;`;
+const Check = styled.span`margin-left: auto; color: #0D9488; font-size: 0.875rem;`;

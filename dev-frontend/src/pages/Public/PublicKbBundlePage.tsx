@@ -157,20 +157,20 @@ const Brand = styled.img`display:block;width:120px;height:auto;user-select:none;
 const ToolbarSpacer = styled.div`flex:1;`;
 const PrimaryBtn = styled.button`
   display: inline-flex; align-items: center; min-height: 44px;
-  padding: 8px 16px; font-size: 13px; font-weight: 700; color: #FFFFFF;
+  padding: 8px 16px; font-size: 0.8125rem; font-weight: 700; color: #FFFFFF;
   border: none; border-radius: 8px; background: #14B8A6; cursor: pointer;
   &:hover { background: #0D9488; }
 `;
 const PlainBtn = styled.button`
   display: inline-flex; align-items: center; min-height: 44px;
-  padding: 8px 16px; font-size: 13px; font-weight: 600; color: #334155;
+  padding: 8px 16px; font-size: 0.8125rem; font-weight: 600; color: #334155;
   border: 1px solid #E2E8F0; border-radius: 8px; background: #FFF; cursor: pointer;
   &:hover { border-color: #14B8A6; color: #0F766E; }
 `;
 const PromoBar = styled.div`
   display: flex; align-items: center; gap: 14px;
   padding: 9px 24px; background: #F0FDFA; border-bottom: 1px solid #99F6E4;
-  font-size: 12px; color: #475569; line-height: 1.5;
+  font-size: 0.75rem; color: #475569; line-height: 1.5;
   @media (max-width: 640px) { padding: 9px 16px; gap: 10px; flex-wrap: wrap; }
 `;
 const PromoText = styled.span`
@@ -188,10 +188,10 @@ const DocFrame = styled.article`
   color: #0F172A;
   @media (max-width: 640px) { padding: 24px 20px; margin: 16px; }
 `;
-const WorkspaceLabel = styled.div`font-size: 11px; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;`;
-const DocTitle = styled.h1`font-size: 24px; font-weight: 700; color: #0F172A; margin: 0 0 6px 0; line-height: 1.3;`;
-const DocMeta = styled.div`display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; color: #64748B; margin: 0 0 20px 0;`;
-const SourcePill = styled.span`display: inline-flex; padding: 3px 10px; font-size: 11px; font-weight: 700; border-radius: 999px; background: #F0FDFA; color: #0F766E;`;
+const WorkspaceLabel = styled.div`font-size: 0.6875rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;`;
+const DocTitle = styled.h1`font-size: 1.5rem; font-weight: 700; color: #0F172A; margin: 0 0 6px 0; line-height: 1.3;`;
+const DocMeta = styled.div`display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 0.75rem; color: #64748B; margin: 0 0 20px 0;`;
+const SourcePill = styled.span`display: inline-flex; padding: 3px 10px; font-size: 0.6875rem; font-weight: 700; border-radius: 999px; background: #F0FDFA; color: #0F766E;`;
 const List = styled.div`display: flex; flex-direction: column; gap: 8px;`;
 const Row = styled.button`
   display: grid; grid-template-columns: 28px 1fr 18px; gap: 12px; align-items: center;
@@ -203,34 +203,34 @@ const Row = styled.button`
 const RowIndex = styled.div`
   width: 24px; height: 24px; border-radius: 999px;
   display: flex; align-items: center; justify-content: center;
-  background: #F0FDFA; color: #0F766E; font-size: 12px; font-weight: 700;
+  background: #F0FDFA; color: #0F766E; font-size: 0.75rem; font-weight: 700;
 `;
 const RowMain = styled.div`min-width: 0;`;
-const RowTitle = styled.div`font-size: 15px; font-weight: 700; color: #0F172A; line-height: 1.4;`;
+const RowTitle = styled.div`font-size: 0.9375rem; font-weight: 700; color: #0F172A; line-height: 1.4;`;
 const RowCats = styled.div`display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px;`;
-const CatPill = styled.span`display: inline-flex; padding: 2px 8px; font-size: 11px; font-weight: 600; border-radius: 999px; background: #F0FDFA; color: #0F766E;`;
-const RowSnippet = styled.div`font-size: 12px; color: #64748B; line-height: 1.5; margin-top: 6px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;`;
-const RowArrow = styled.div`color: #CBD5E1; font-size: 16px; text-align: center;`;
+const CatPill = styled.span`display: inline-flex; padding: 2px 8px; font-size: 0.6875rem; font-weight: 600; border-radius: 999px; background: #F0FDFA; color: #0F766E;`;
+const RowSnippet = styled.div`font-size: 0.75rem; color: #64748B; line-height: 1.5; margin-top: 6px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;`;
+const RowArrow = styled.div`color: #CBD5E1; font-size: 1rem; text-align: center;`;
 const BackInline = styled.button`
   background: none; border: none; cursor: pointer; padding: 0; margin: 0 0 14px;
-  font-size: 13px; font-weight: 600; color: #0F766E;
+  font-size: 0.8125rem; font-weight: 600; color: #0F766E;
   &:hover { text-decoration: underline; }
 `;
 const Body = styled.div`
-  font-size: 14px; color: #334155; line-height: 1.7;
+  font-size: 0.875rem; color: #334155; line-height: 1.7;
   overflow-wrap: anywhere; word-break: break-word;
   & p { margin: 0 0 10px; }
   & p:last-child { margin-bottom: 0; }
   & ul, & ol { padding-left: 22px; margin: 8px 0; }
-  & h1 { font-size: 22px; font-weight: 700; margin: 16px 0 6px; }
-  & h2 { font-size: 18px; font-weight: 700; margin: 14px 0 6px; }
-  & h3 { font-size: 15px; font-weight: 700; margin: 12px 0 4px; }
+  & h1 { font-size: 1.375rem; font-weight: 700; margin: 16px 0 6px; }
+  & h2 { font-size: 1.125rem; font-weight: 700; margin: 14px 0 6px; }
+  & h3 { font-size: 0.9375rem; font-weight: 700; margin: 12px 0 4px; }
   & img { max-width: 100%; height: auto; border-radius: 8px; margin: 8px 0; }
   & a { color: #0D9488; text-decoration: underline; overflow-wrap: anywhere; }
-  & table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13px; }
+  & table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 0.8125rem; }
   & td, & th { border: 1px solid #E2E8F0; padding: 8px 10px; }
   & blockquote { border-left: 3px solid #14B8A6; padding: 4px 12px; background: #F0FDFA; border-radius: 0 6px 6px 0; color: #475569; }
 `;
-const Hint = styled.div`font-size: 13px; color: #94A3B8; padding: 12px 0;`;
-const ErrorTitle = styled.div`font-size: 18px; font-weight: 700; color: #0F172A; margin-bottom: 8px;`;
-const Center = styled.div`min-height:60vh;display:flex;align-items:center;justify-content:center;color:#64748B;font-size:14px;`;
+const Hint = styled.div`font-size: 0.8125rem; color: #94A3B8; padding: 12px 0;`;
+const ErrorTitle = styled.div`font-size: 1.125rem; font-weight: 700; color: #0F172A; margin-bottom: 8px;`;
+const Center = styled.div`min-height:60vh;display:flex;align-items:center;justify-content:center;color:#64748B;font-size:0.875rem;`;

@@ -77,28 +77,28 @@ const Card = styled.div`
   text-align: center;
 `;
 const Icon = styled.div`color: #14B8A6; margin-bottom: 12px; display: flex; justify-content: center;`;
-const Title = styled.h1`font-size: 18px; font-weight: 700; color: #0F172A; margin: 0 0 6px;`;
-const Sub = styled.p`font-size: 12px; color: #64748B; margin: 0 0 20px;`;
+const Title = styled.h1`font-size: 1.125rem; font-weight: 700; color: #0F172A; margin: 0 0 6px;`;
+const Sub = styled.p`font-size: 0.75rem; color: #64748B; margin: 0 0 20px;`;
 const Form = styled.form`display: flex; flex-direction: column; gap: 8px; align-items: stretch;`;
 const InputRow = styled.div`display: flex; gap: 6px;`;
 const Input = styled.input`
-  flex: 1; min-height: 44px; padding: 10px 12px; font-size: 13px; color: #0F172A;
+  flex: 1; min-height: 44px; padding: 10px 12px; font-size: 0.8125rem; color: #0F172A;
   border: 1px solid #E2E8F0; border-radius: 8px;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
   &:disabled { opacity: 0.5; }
 `;
 const Toggle = styled.button`
   display: inline-flex; align-items: center; min-height: 44px;
-  padding: 8px 12px; font-size: 11px; font-weight: 600; color: #475569;
+  padding: 8px 12px; font-size: 0.6875rem; font-weight: 600; color: #475569;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer;
   &:hover:not(:disabled) { background: #F8FAFC; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 const Submit = styled.button`
   display: inline-flex; align-items: center; justify-content: center; min-height: 44px;
-  padding: 10px 16px; font-size: 13px; font-weight: 700; color: #fff;
+  padding: 10px 16px; font-size: 0.8125rem; font-weight: 700; color: #fff;
   background: #14B8A6; border: none; border-radius: 8px; cursor: pointer;
   &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
-const Err = styled.div`font-size: 12px; color: #DC2626; text-align: left;`;
+const Err = styled.div`font-size: 0.75rem; color: #DC2626; text-align: left;`;

@@ -700,7 +700,7 @@ const ActionsRow = styled.div`
 `;
 const NewEventBtn = styled.button`
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  padding: 0 12px; height: 32px; border-radius: 8px; font-size: 13px; font-weight: 600;
+  padding: 0 12px; height: 32px; border-radius: 8px; font-size: 0.8125rem; font-weight: 600;
   background: #14B8A6; color: #fff; border: none; cursor: pointer; white-space: nowrap;
   &:hover { background: #0F766E; }
   @media (max-width: 640px) { width: 32px; padding: 0; }
@@ -722,7 +722,7 @@ const PersonalToggle = styled.button<{ $on: boolean }>`
   display: inline-flex; align-items: center; gap: 6px;
   height: 30px; padding: 0 12px;
   border-radius: 999px;
-  font-size: 12px; font-weight: 600;
+  font-size: 0.75rem; font-weight: 600;
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s, opacity 0.12s;
   border: 1px solid ${(p) => (p.$on ? '#5EEAD4' : '#E2E8F0')};
@@ -738,14 +738,14 @@ const PersonalDot = styled.span`
 `;
 const TodayBtn = styled.button`
   padding: 6px 12px; border: 1px solid #CBD5E1; border-radius: 6px;
-  background: #fff; color: #0F172A; font-size: 12.5px; font-weight: 600; cursor: pointer;
+  background: #fff; color: #0F172A; font-size: 0.78125rem; font-weight: 600; cursor: pointer;
   &:hover { background: #F8FAFC; }
 `;
 // #193 — day 뷰 전용 월 복귀 버튼. teal 액센트로 "여기서 나가는 길"임을 눈에 띄게.
 const BackToMonthBtn = styled.button`
   display: inline-flex; align-items: center; gap: 4px;
   padding: 6px 10px 6px 8px; border: 1px solid #5EEAD4; border-radius: 6px;
-  background: #F0FDFA; color: #0F766E; font-size: 12.5px; font-weight: 600; cursor: pointer;
+  background: #F0FDFA; color: #0F766E; font-size: 0.78125rem; font-weight: 600; cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
   &:hover { background: #CCFBF1; border-color: #14B8A6; }
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
@@ -758,8 +758,8 @@ const NavIconBtn = styled.button`
   &:hover { background: #F8FAFC; color: #0F172A; }
 `;
 const HeaderTitle = styled.h2`
-  margin: 0 10px 0 10px; font-size: 18px; font-weight: 700; color: #0F172A; letter-spacing: -0.3px;
-  @media (max-width: 640px) { font-size: 16px; margin: 0 6px; }
+  margin: 0 10px 0 10px; font-size: 1.125rem; font-weight: 700; color: #0F172A; letter-spacing: -0.3px;
+  @media (max-width: 640px) { font-size: 1rem; margin: 0 6px; }
 `;
 const ViewWrap = styled.div<{ $agenda?: boolean }>`
   height: calc(100vh - 60px - 56px - 40px); min-height: 520px;
@@ -772,7 +772,7 @@ const ViewWrap = styled.div<{ $agenda?: boolean }>`
 const ErrorToast = styled.div`
   position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
   padding: 10px 16px; border-radius: 8px;
-  background: #FEE2E2; color: #B91C1C; font-size: 13px; font-weight: 500;
+  background: #FEE2E2; color: #B91C1C; font-size: 0.8125rem; font-weight: 500;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12); cursor: pointer;
   z-index: 80;
 `;
@@ -782,7 +782,7 @@ const MeetWarnToast = styled.div`
   max-width: min(560px, calc(100vw - 32px));
   padding: 10px 16px; border-radius: 8px;
   background: #FFFBEB; color: #92400E; border: 1px solid #FDE68A;
-  font-size: 13px; font-weight: 500; line-height: 1.5;
+  font-size: 0.8125rem; font-weight: 500; line-height: 1.5;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12); cursor: pointer;
   z-index: 80;
 `;

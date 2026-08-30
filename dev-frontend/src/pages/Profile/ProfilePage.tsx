@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { useTranslation, Trans } from 'react-i18next';
+import FontScaleSection from '../../components/Common/FontScaleSection';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import type { LanguageLevels, LanguageSkillLevel, User } from '../../contexts/AuthContext';
 import { WavRecorder } from '../../services/audio/recordToWav';
@@ -638,6 +639,12 @@ export default function ProfilePage() {
           </FieldRow>
         </Card>
 
+        {/* 글씨 크기 — 기기별(localStorage). 계정이 아니라 이 기기에만 적용된다. */}
+        <Card>
+          <SectionTitle>{t('fontScale.sectionTitle') as string}</SectionTitle>
+          <FontScaleSection />
+        </Card>
+
         {/* 개인정보 처리 — 첫 행 2번째 열 (사용자 호소: 계정정보 옆 빈 공간 차단) */}
         <Card>
           <SectionTitle>{t('privacy.sectionTitle')}</SectionTitle>
@@ -1105,7 +1112,7 @@ const Card = styled.section<{ $wide?: boolean }>`
 
 const SectionTitle = styled.h2`
   margin: 0 0 16px;
-  font-size: 16px;
+  font-size: 1rem;
   font-weight: 700;
   color: #0f172a;
 `;
@@ -1113,7 +1120,7 @@ const SectionTitle = styled.h2`
 const Description = styled.p`
   margin: 0 0 16px;
   color: #475569;
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.6;
   strong { color: #0f172a; font-weight: 600; }
 `;
@@ -1129,7 +1136,7 @@ const FieldRow = styled.div`
 const Label = styled.div`
   width: 100px;
   flex-shrink: 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: #475569;
   padding-top: 8px;
@@ -1145,7 +1152,7 @@ const FieldBody = styled.div`
 const ReadOnly = styled.div`
   flex: 1;
   padding: 8px 12px;
-  font-size: 14px;
+  font-size: 0.875rem;
   color: #0f172a;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
@@ -1153,14 +1160,14 @@ const ReadOnly = styled.div`
 `;
 
 const UsernameOk = styled.div`
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #15803d;
   font-weight: 600;
   margin-top: 2px;
 `;
 
 const UsernameNg = styled.div`
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #b91c1c;
   font-weight: 600;
   margin-top: 2px;
@@ -1174,7 +1181,7 @@ const EmailRow = styled.div`
 `;
 
 const Hint = styled.div`
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #94a3b8;
 `;
 
@@ -1182,7 +1189,7 @@ const VerifyBadge = styled.span<{ $ok?: boolean }>`
   flex-shrink: 0;
   padding: 3px 10px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   ${p => p.$ok
     ? 'background: #F0FDFA; color: #0F766E; border: 1px solid #99F6E4;'
@@ -1205,7 +1212,7 @@ const LevelTableHead = styled.div`
 `;
 
 const LevelTableCell = styled.div<{ $head?: boolean }>`
-  font-size: ${(p) => (p.$head ? '11px' : '13px')};
+  font-size: ${(p) => (p.$head ? '0.6875rem' : '0.8125rem')};
   font-weight: ${(p) => (p.$head ? 700 : 500)};
   color: ${(p) => (p.$head ? '#64748b' : '#0f172a')};
   letter-spacing: 0.03em;
@@ -1222,7 +1229,7 @@ const LevelRow = styled.div`
 `;
 
 const LevelLangCell = styled.div`
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: #0f172a;
 `;
@@ -1271,12 +1278,12 @@ const ExpertiseCard = styled.button<{ $active?: boolean }>`
   &:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,0.3); }
 `;
 const ExpertiseTitle = styled.span`
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 700;
   color: #0F172A;
 `;
 const ExpertiseSample = styled.span`
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 500;
   color: #64748B;
   line-height: 1.45;
@@ -1288,7 +1295,7 @@ const TextInput = styled.input`
   padding: 10px 12px;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 0.875rem;
   color: #0f172a;
   background: #ffffff;
   outline: none;
@@ -1302,7 +1309,7 @@ const TextArea = styled.textarea`
   padding: 10px 12px;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 0.875rem;
   color: #0f172a;
   background: #ffffff;
   outline: none;
@@ -1321,7 +1328,7 @@ const Banner = styled.div<{ $kind: 'error' | 'success' }>`
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   background: ${(p) => (p.$kind === 'error' ? '#fef2f2' : '#f0fdf4')};
   color: ${(p) => (p.$kind === 'error' ? '#b91c1c' : '#15803d')};
   border: 1px solid ${(p) => (p.$kind === 'error' ? '#fecaca' : '#bbf7d0')};
@@ -1339,7 +1346,7 @@ const EmptyHint = styled.div`
   background: #f8fafc;
   border: 1px dashed #cbd5e1;
   border-radius: 8px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #64748b;
   text-align: center;
 `;
@@ -1361,13 +1368,13 @@ const RegLeft = styled.div`
 `;
 
 const RegLabel = styled.div`
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 700;
   color: #0f172a;
 `;
 
 const RegMeta = styled.div`
-  font-size: 10px;
+  font-size: 0.625rem;
   color: #0f766e;
 `;
 
@@ -1391,7 +1398,7 @@ const AddLangLabel = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #475569;
 
   svg { color: #0d9488; flex-shrink: 0; }
@@ -1421,14 +1428,14 @@ const VerifyResultLine = styled.div`
   align-items: center;
   gap: 8px;
   margin-bottom: 4px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #0f172a;
   strong { font-weight: 700; }
-  span { font-size: 11px; color: #64748b; font-variant-numeric: tabular-nums; }
+  span { font-size: 0.6875rem; color: #64748b; font-variant-numeric: tabular-nums; }
 `;
 
 const VerifyResultMsg = styled.div`
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #475569;
 `;
 
@@ -1444,7 +1451,7 @@ const VerifyPerLang = styled.div`
 const VerifyPerLangItem = styled.div`
   display: flex;
   gap: 6px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #64748b;
   strong { color: #0f172a; font-weight: 700; font-variant-numeric: tabular-nums; }
 `;
@@ -1460,7 +1467,7 @@ const SampleSentenceBox = styled.div`
 `;
 
 const SampleLabel = styled.div`
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   color: #64748b;
   margin-bottom: 6px;
@@ -1471,7 +1478,7 @@ const SampleSentence = styled.div`
   padding: 12px 14px;
   background: #f8fafc;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #0f172a;
   line-height: 1.7;
 `;
@@ -1481,7 +1488,7 @@ const PrimaryBtn = styled.button`
   align-items: center;
   gap: 8px;
   padding: 9px 16px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   background: #0d9488;
   color: #fff;
@@ -1497,7 +1504,7 @@ const SecondaryBtn = styled.button`
   align-items: center;
   gap: 6px;
   padding: 8px 12px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   background: #fff;
   color: #475569;
@@ -1513,7 +1520,7 @@ const DangerBtn = styled.button`
   align-items: center;
   gap: 6px;
   padding: 8px 12px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   background: #fff;
   color: #dc2626;
@@ -1561,7 +1568,7 @@ const RecDot = styled.span`
 `;
 
 const RecElapsed = styled.div`
-  font-size: 15px;
+  font-size: 0.9375rem;
   font-weight: 700;
   color: #0f172a;
   font-variant-numeric: tabular-nums;
@@ -1570,17 +1577,17 @@ const RecElapsed = styled.div`
 const RecHint = styled.span`
   font-weight: 500;
   color: #94a3b8;
-  font-size: 12px;
+  font-size: 0.75rem;
 `;
 
 const RecRemaining = styled.div`
   margin-left: auto;
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #64748b;
 `;
 
 const RecHintLine = styled.div`
-  font-size: 10px;
+  font-size: 0.625rem;
   color: #94a3b8;
   text-align: center;
   padding-top: 2px;
@@ -1608,7 +1615,7 @@ const ProcessingUI = styled.div`
   padding: 12px;
   text-align: center;
   color: #64748b;
-  font-size: 13px;
+  font-size: 0.8125rem;
 `;
 
 const InlineError = styled.div`
@@ -1621,7 +1628,7 @@ const InlineError = styled.div`
   border: 1px solid #fecaca;
   border-radius: 8px;
   color: #b91c1c;
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.6;
 
   svg { flex-shrink: 0; }
@@ -1631,7 +1638,7 @@ const InlineError = styled.div`
 const RetryBtn = styled.button`
   flex-shrink: 0;
   padding: 4px 10px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   background: #fff;
   color: #b91c1c;
@@ -1650,7 +1657,7 @@ const PrivacyList = styled.ul`
 `;
 
 const PrivacyItem = styled.li`
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #475569;
   line-height: 1.7;
   strong { color: #0f172a; font-weight: 600; }
@@ -1680,7 +1687,7 @@ const TzUserLeft = styled.div`
 `;
 
 const TzUserLabel = styled.div`
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 700;
   letter-spacing: 1px;
   text-transform: uppercase;
@@ -1688,7 +1695,7 @@ const TzUserLabel = styled.div`
 `;
 
 const TzUserCity = styled.div`
-  font-size: 22px;
+  font-size: 1.375rem;
   font-weight: 700;
   color: #ffffff;
   letter-spacing: -0.5px;
@@ -1698,12 +1705,12 @@ const TzUserCity = styled.div`
 `;
 
 const TzUserSub = styled.div`
-  font-size: 12px;
+  font-size: 0.75rem;
   color: rgba(255, 228, 230, 0.8);
 `;
 
 const TzUserTime = styled.div`
-  font-size: 40px;
+  font-size: 2.5rem;
   font-weight: 700;
   color: #ffffff;
   font-variant-numeric: tabular-nums;
@@ -1726,12 +1733,12 @@ const UChip = styled.div`
   background: #f1f5f9;
   border: 1px solid #e2e8f0;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #0f172a;
 `;
 
 const UChipCity = styled.span`font-weight: 600;`;
-const UChipMeta = styled.span`color: #64748b; font-size: 11px;`;
+const UChipMeta = styled.span`color: #64748b; font-size: 0.6875rem;`;
 
 const UChipRemove = styled.button`
   width: 20px; height: 20px;
@@ -1741,7 +1748,7 @@ const UChipRemove = styled.button`
   color: #475569;
   cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center;
-  font-size: 14px; line-height: 1; padding: 0;
+  font-size: 0.875rem; line-height: 1; padding: 0;
   transition: all 120ms;
   &:hover { background: #fee2e2; color: #b91c1c; }
 `;
@@ -1757,7 +1764,7 @@ const UAddButton = styled.button`
   border: 1px solid #f43f5e;
   background: #fff1f2;
   color: #be123c;
-  font-size: 13px; font-weight: 600;
+  font-size: 0.8125rem; font-weight: 600;
   cursor: pointer;
   transition: all 120ms;
   &:hover { background: #f43f5e; color: #fff; }
@@ -1768,7 +1775,7 @@ const BrowserHint = styled.button`
   background: none;
   border: none;
   color: #0f766e;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
   padding: 0;
@@ -1845,7 +1852,7 @@ export function UserTimezoneSection() {
         <Description>{t('timezone.referenceDesc')}</Description>
 
         {userRefs.length === 0 ? (
-          <div style={{ color: '#94a3b8', fontSize: 13, padding: '8px 0' }}>
+          <div style={{ color: '#94a3b8', fontSize: '0.8125rem', padding: '8px 0' }}>
             {t('timezone.referenceEmpty')}
           </div>
         ) : (

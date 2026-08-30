@@ -132,14 +132,14 @@ const Brand = styled.img`display:block;width:120px;height:auto;user-select:none;
 const ToolbarSpacer = styled.div`flex:1;`;
 const PrintBtn = styled.button`
   display: inline-flex; align-items: center; min-height: 44px;
-  padding: 8px 16px; font-size: 13px; font-weight: 600; color: #334155;
+  padding: 8px 16px; font-size: 0.8125rem; font-weight: 600; color: #334155;
   border: 1px solid #E2E8F0; border-radius: 8px; background: #FFF; cursor: pointer;
   &:hover { border-color: #14B8A6; color: #0F766E; }
 `;
 const PromoBar = styled.div`
   display: flex; align-items: center; gap: 14px;
   padding: 9px 24px; background: #F0FDFA; border-bottom: 1px solid #99F6E4;
-  font-size: 12px; color: #475569; line-height: 1.5;
+  font-size: 0.75rem; color: #475569; line-height: 1.5;
   @media (max-width: 640px) { padding: 9px 16px; gap: 10px; flex-wrap: wrap; }
   @media print { display: none !important; }
 `;
@@ -156,22 +156,22 @@ const PromoLink = styled.a`
 const DocFrame = styled.article`
   max-width: 820px; margin: 32px auto; background: #FFF; border: 1px solid #E2E8F0;
   border-radius: 12px; padding: 48px 56px; box-shadow: 0 4px 12px rgba(0,0,0,0.04);
-  font-size: 14px; line-height: 1.7; color: #0F172A;
+  font-size: 0.875rem; line-height: 1.7; color: #0F172A;
   @media print {
     border: none; box-shadow: none; padding: 0; margin: 0; max-width: 100%;
   }
   @media (max-width: 640px) { padding: 24px 20px; margin: 16px; }
 `;
-const DocTitle = styled.h1`font-size:24px;font-weight:700;color:#0F172A;margin:0 0 6px 0;`;
-const DocMeta = styled.div`font-size:12px;color:#64748B;margin:0 0 24px 0;`;
+const DocTitle = styled.h1`font-size:1.5rem;font-weight:700;color:#0F172A;margin:0 0 6px 0;`;
+const DocMeta = styled.div`font-size:0.75rem;color:#64748B;margin:0 0 24px 0;`;
 const AttachSection = styled.section`
   margin-top: 24px; padding-top: 16px; border-top: 1px solid #E2E8F0;
   display: flex; flex-direction: column; gap: 8px;
 `;
-const AttachTitle = styled.h3`font-size:13px;font-weight:700;color:#334155;margin:0;`;
-const AttachRow = styled.div`font-size:13px;`;
+const AttachTitle = styled.h3`font-size:0.8125rem;font-weight:700;color:#334155;margin:0;`;
+const AttachRow = styled.div`font-size:0.8125rem;`;
 const AttachLink = styled.a`
   color: #0F766E; text-decoration: none;
   &:hover { text-decoration: underline; }
 `;
-const Center = styled.div`min-height:60vh;display:flex;align-items:center;justify-content:center;color:#64748B;font-size:14px;`;
+const Center = styled.div`min-height:60vh;display:flex;align-items:center;justify-content:center;color:#64748B;font-size:0.875rem;`;

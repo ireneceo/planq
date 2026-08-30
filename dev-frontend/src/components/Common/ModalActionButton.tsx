@@ -24,7 +24,7 @@ export default function ModalActionButton({ variant = 'secondary', type = 'butto
 
 const Btn = styled.button<{ $variant: Variant }>`
   display: inline-flex; align-items: center;
-  font-size: 13px;
+  font-size: 0.8125rem;
   border-radius: 8px;
   cursor: pointer;
   ${p => p.$variant === 'ai' ? css`

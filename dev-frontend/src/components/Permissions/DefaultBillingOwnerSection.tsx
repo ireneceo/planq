@@ -87,21 +87,21 @@ const Card = styled.div`
   padding: 20px 24px; margin-top: 16px;
 `;
 const Header = styled.div` margin-bottom: 12px; `;
-const Title = styled.h3` margin: 0 0 4px; font-size: 16px; font-weight: 700; color: #0F172A; `;
-const Desc = styled.p` margin: 0; font-size: 13px; color: #64748B; line-height: 1.5; `;
+const Title = styled.h3` margin: 0 0 4px; font-size: 1rem; font-weight: 700; color: #0F172A; `;
+const Desc = styled.p` margin: 0; font-size: 0.8125rem; color: #64748B; line-height: 1.5; `;
 const Row = styled.div`
   display: flex; align-items: center; gap: 14px;
   @media (max-width: 640px) { flex-direction: column; align-items: stretch; gap: 8px; }
 `;
-const Label = styled.div` font-size: 13px; font-weight: 600; color: #475569; min-width: 140px; `;
+const Label = styled.div` font-size: 0.8125rem; font-weight: 600; color: #475569; min-width: 140px; `;
 const Selector = styled.div` flex: 1; max-width: 320px; display: inline-flex; align-items: center; gap: 10px; `;
-const SavedChip = styled.span` font-size: 11px; color: #0F766E; font-weight: 600; `;
+const SavedChip = styled.span` font-size: 0.6875rem; color: #0F766E; font-weight: 600; `;
 const Hint = styled.div`
-  font-size: 12px; color: #64748B; margin-top: 8px; padding-left: 154px;
+  font-size: 0.75rem; color: #64748B; margin-top: 8px; padding-left: 154px;
   @media (max-width: 640px) { padding-left: 0; }
 `;
 const ErrorMsg = styled.div`
   background: #FEE2E2; color: #B91C1C; padding: 8px 12px;
-  border-radius: 8px; font-size: 12px; margin-bottom: 10px;
+  border-radius: 8px; font-size: 0.75rem; margin-bottom: 10px;
 `;
-const Empty = styled.div` padding: 20px; text-align: center; color: #94A3B8; font-size: 13px; `;
+const Empty = styled.div` padding: 20px; text-align: center; color: #94A3B8; font-size: 0.8125rem; `;

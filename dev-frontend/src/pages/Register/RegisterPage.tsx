@@ -57,7 +57,7 @@ const LeftSection = styled.div`
 `;
 
 const BrandLogo = styled.div`
-  font-size: 40px;
+  font-size: 2.5rem;
   font-weight: 800;
   color: #FFFFFF;
   letter-spacing: -1px;
@@ -70,7 +70,7 @@ const BrandLogo = styled.div`
 
 const BrandTagline = styled.p`
   color: #CCFBF1;
-  font-size: 16px;
+  font-size: 1rem;
   line-height: 1.6;
   margin: 0;
   max-width: 280px;
@@ -87,7 +87,7 @@ const FeatureList = styled.ul`
 
 const FeatureItem = styled.li`
   color: #CCFBF1;
-  font-size: 14px;
+  font-size: 0.875rem;
   padding: 8px 0;
   display: flex;
   align-items: center;
@@ -113,14 +113,14 @@ const RightSection = styled.div`
 `;
 
 const FormTitle = styled.h2`
-  font-size: 24px;
+  font-size: 1.5rem;
   font-weight: 700;
   color: #0F172A;
   margin: 0 0 8px 0;
 `;
 
 const FormSubtitle = styled.p`
-  font-size: 14px;
+  font-size: 0.875rem;
   color: #475569;
   margin: 0 0 28px 0;
 `;
@@ -140,7 +140,7 @@ const Input = styled.input<{ $hasError?: boolean }>`
   padding: 12px 16px;
   border: 1px solid ${props => props.$hasError ? '#DC2626' : '#E2E8F0'};
   border-radius: 50px;
-  font-size: 15px;
+  font-size: 0.9375rem;
   transition: all 0.2s;
   width: 100%;
   box-sizing: border-box;
@@ -187,7 +187,7 @@ const PasswordToggle = styled.button`
 `;
 
 const FieldError = styled.div`
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #DC2626;
   margin-top: 2px;
 `;
@@ -200,7 +200,7 @@ const ConsentRow = styled.div`
 `;
 const ConsentItem = styled.div`
   display: flex; align-items: center; gap: 8px;
-  font-size: 13px; color: #334155;
+  font-size: 0.8125rem; color: #334155;
   input { width: 16px; height: 16px; accent-color: #14B8A6; cursor: pointer; }
   label { cursor: pointer; }
   a { color: #0D9488; font-weight: 600; text-decoration: underline; }
@@ -213,7 +213,7 @@ const Button = styled.button`
   color: white;
   border: none;
   border-radius: 50px;
-  font-size: 16px;
+  font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
@@ -243,7 +243,7 @@ const ErrorMessage = styled.div`
   color: #DC2626;
   padding: 12px 16px;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 0.875rem;
   border: 1px solid #FEE2E2;
 `;
 
@@ -256,7 +256,7 @@ const Divider = styled.div`
 
 const BottomLinks = styled.div`
   text-align: center;
-  font-size: 14px;
+  font-size: 0.875rem;
   color: #475569;
 
   a {

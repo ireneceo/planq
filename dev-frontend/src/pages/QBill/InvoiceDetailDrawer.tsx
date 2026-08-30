@@ -724,7 +724,7 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
             <SummaryDiv />
             <SummaryRow>
               <SumKey style={{ fontWeight: 700, color: '#0F172A' }}>{t('detail.summary.total')}</SumKey>
-              <SumVal style={{ fontSize: 16, fontWeight: 700 }}>{formatMoney(grandTotal, invoice.currency)}</SumVal>
+              <SumVal style={{ fontSize: '1rem', fontWeight: 700 }}>{formatMoney(grandTotal, invoice.currency)}</SumVal>
             </SummaryRow>
             {paidAmount > 0 && (
               <>
@@ -1181,7 +1181,7 @@ const TaxModalHead = styled.div`
   padding: 16px 20px; border-bottom: 1px solid #F1F5F9;
 `;
 const TaxModalTitle = styled.h3`
-  font-size: 15px; font-weight: 700; color: #0F172A; margin: 0;
+  font-size: 0.9375rem; font-weight: 700; color: #0F172A; margin: 0;
 `;
 const TaxModalClose = styled.button`
   width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center;
@@ -1192,10 +1192,10 @@ const TaxModalBody = styled.div`
   overflow-y: auto; min-height: 0;
   padding: 18px 20px; display: flex; flex-direction: column; gap: 10px;
 `;
-const TaxModalDesc = styled.div`font-size: 12px; color: #64748B; line-height: 1.5;`;
-const TaxModalLabel = styled.label`font-size: 11px; font-weight: 600; color: #475569;`;
+const TaxModalDesc = styled.div`font-size: 0.75rem; color: #64748B; line-height: 1.5;`;
+const TaxModalLabel = styled.label`font-size: 0.6875rem; font-weight: 600; color: #475569;`;
 const TaxModalInput = styled.input`
-  width: 100%; padding: 9px 12px; font-size: 13px; color: #0F172A;
+  width: 100%; padding: 9px 12px; font-size: 0.8125rem; color: #0F172A;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 8px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
@@ -1209,29 +1209,29 @@ const TaxFileRow = styled.div<{ $over?: boolean }>`display: flex; align-items: c
   transition: border-color 0.15s, background 0.15s;
 `;
 const TaxFileBtn = styled.button`
-  flex-shrink: 0; padding: 7px 12px; font-size: 12px; font-weight: 600;
+  flex-shrink: 0; padding: 7px 12px; font-size: 0.75rem; font-weight: 600;
   color: #334155; background: #fff; border: 1px solid #E2E8F0; border-radius: 6px; cursor: pointer;
   &:hover { border-color: #14B8A6; color: #0F766E; }
 `;
-const TaxFileName = styled.span`flex: 1; min-width: 0; font-size: 12px; color: #64748B; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
+const TaxFileName = styled.span`flex: 1; min-width: 0; font-size: 0.75rem; color: #64748B; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
 const TaxFileClear = styled.button`
   flex-shrink: 0; width: 22px; height: 22px; border: none; background: transparent;
-  color: #94A3B8; font-size: 16px; cursor: pointer; border-radius: 4px;
+  color: #94A3B8; font-size: 1rem; cursor: pointer; border-radius: 4px;
   &:hover { background: #F1F5F9; color: #EF4444; }
 `;
-const TaxFileHint = styled.div`font-size: 11px; color: #94A3B8; line-height: 1.5; margin-top: 4px;`;
+const TaxFileHint = styled.div`font-size: 0.6875rem; color: #94A3B8; line-height: 1.5; margin-top: 4px;`;
 const TaxModalFooter = styled.div`
   display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px;
   border-top: 1px solid #F1F5F9;
 `;
 const TaxModalPrimary = styled.button`
-  padding: 8px 16px; font-size: 13px; font-weight: 700; color: #fff; background: #14B8A6;
+  padding: 8px 16px; font-size: 0.8125rem; font-weight: 700; color: #fff; background: #14B8A6;
   border: none; border-radius: 6px; cursor: pointer;
   &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { background: #CBD5E1; cursor: not-allowed; }
 `;
 const TaxModalSecondary = styled.button`
-  padding: 8px 14px; font-size: 13px; font-weight: 600; color: #334155;
+  padding: 8px 14px; font-size: 0.8125rem; font-weight: 600; color: #334155;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 6px; cursor: pointer;
   &:hover { background: #F8FAFC; }
 `;
@@ -1248,12 +1248,12 @@ const NumWrap = styled.div`
 `;
 const NumBadge = styled.span`
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px; font-weight: 700; color: #0F172A;
+  font-size: 0.75rem; font-weight: 700; color: #0F172A;
   background: #F1F5F9; padding: 3px 8px; border-radius: 6px;
 `;
 const StatusBadge = styled.span<{ $bg: string; $fg: string }>`
   display: inline-flex; align-items: center; gap: 5px;
-  padding: 3px 8px 3px 7px; font-size: 11px; font-weight: 700;
+  padding: 3px 8px 3px 7px; font-size: 0.6875rem; font-weight: 700;
   background: ${p => p.$bg}; color: ${p => p.$fg}; border-radius: 999px;
 `;
 const StatusDot = styled.span<{ $color: string }>`
@@ -1268,17 +1268,17 @@ const CloseBtn = styled.button`
   &:hover { background: #F1F5F9; color: #0F172A; }
 `;
 const HeaderTitle = styled.h2`
-  font-size: 18px; font-weight: 700; color: #0F172A; margin: 0; letter-spacing: -0.3px;
+  font-size: 1.125rem; font-weight: 700; color: #0F172A; margin: 0; letter-spacing: -0.3px;
 `;
 const HeaderSub = styled.div`
-  font-size: 13px; color: #64748B; margin-top: 4px;
+  font-size: 0.8125rem; color: #64748B; margin-top: 4px;
 `;
 const ActionRow = styled.div`
   display: flex; gap: 6px; margin-top: 14px; flex-wrap: wrap;
 `;
 const ActionBtn = styled.button<{ $primary?: boolean }>`
   display: inline-flex; align-items: center; gap: 5px;
-  padding: 7px 12px; font-size: 12px; font-weight: 600;
+  padding: 7px 12px; font-size: 0.75rem; font-weight: 600;
   background: ${p => p.$primary ? '#14B8A6' : '#fff'};
   color: ${p => p.$primary ? '#fff' : '#334155'};
   border: 1px solid ${p => p.$primary ? '#14B8A6' : '#E2E8F0'};
@@ -1291,16 +1291,16 @@ const ActionBtn = styled.button<{ $primary?: boolean }>`
   &:disabled { opacity: 0.5; cursor: default; }
 `;
 const RemindNote = styled.div<{ $tone: 'ok' | 'warn' }>`
-  margin-top: 8px; font-size: 12px; font-weight: 600;
+  margin-top: 8px; font-size: 0.75rem; font-weight: 600;
   color: ${p => p.$tone === 'ok' ? '#0F766E' : '#B45309'};
 `;
 const OverdueNotifyRow = styled.div`
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  margin-top: 10px; font-size: 12px; line-height: 1.5; color: #64748B;
+  margin-top: 10px; font-size: 0.75rem; line-height: 1.5; color: #64748B;
 `;
 const LinkBtn = styled.button`
   background: none; border: none; padding: 0;
-  font-size: 12px; font-weight: 600; color: #475569;
+  font-size: 0.75rem; font-weight: 600; color: #475569;
   text-decoration: underline; cursor: pointer;
   &:hover:not(:disabled) { color: #0F766E; }
   &:disabled { opacity: 0.5; cursor: default; }
@@ -1325,11 +1325,11 @@ const StepNode = styled.div<{ $active: boolean; $reached: boolean }>`
   background: ${p => p.$reached ? '#14B8A6' : '#fff'};
   color: ${p => p.$reached ? '#fff' : '#94A3B8'};
   border: 2px solid ${p => p.$reached ? '#14B8A6' : '#E2E8F0'};
-  font-size: 11px; font-weight: 700;
+  font-size: 0.6875rem; font-weight: 700;
   ${p => p.$active && `box-shadow: 0 0 0 4px rgba(20, 184, 166, 0.15);`}
 `;
 const StepLabel = styled.span<{ $active: boolean; $reached: boolean }>`
-  font-size: 12px; font-weight: ${p => p.$active ? 700 : 500};
+  font-size: 0.75rem; font-weight: ${p => p.$active ? 700 : 500};
   color: ${p => p.$reached ? '#0F766E' : '#94A3B8'};
   margin-left: 8px;
 `;
@@ -1339,7 +1339,7 @@ const StepLine = styled.div<{ $reached: boolean }>`
 `;
 const OverdueChip = styled.span`
   position: absolute; right: 14px; top: 14px;
-  font-size: 11px; font-weight: 700; color: #991B1B; background: #FEE2E2;
+  font-size: 0.6875rem; font-weight: 700; color: #991B1B; background: #FEE2E2;
   padding: 3px 8px; border-radius: 999px;
 `;
 const Parties = styled.div`
@@ -1347,29 +1347,29 @@ const Parties = styled.div`
   @media (max-width: 720px) { grid-template-columns: 1fr; gap: 12px; }
 `;
 const PartyArrow = styled.div`
-  text-align: center; color: #CBD5E1; font-size: 18px; font-weight: 300;
+  text-align: center; color: #CBD5E1; font-size: 1.125rem; font-weight: 300;
   @media (max-width: 720px) { display: none; }
 `;
 const PartyCard = styled.div`
   background: #fff; border: 1px solid #E2E8F0; border-radius: 10px; padding: 12px 14px;
 `;
 const PartyLabel = styled.div`
-  font-size: 10px; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.4px;
+  font-size: 0.625rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.4px;
   margin-bottom: 6px; display: flex; align-items: center; gap: 6px;
 `;
 // 외부(미연동) 청구 배지 (운영 #11)
 const ExtBadge = styled.span`
-  font-size: 10px; font-weight: 700; color: #92400E; text-transform: none; letter-spacing: 0;
+  font-size: 0.625rem; font-weight: 700; color: #92400E; text-transform: none; letter-spacing: 0;
   background: #FEF3C7; border-radius: 999px; padding: 1px 7px;
 `;
 const PartyName = styled.div`
-  font-size: 14px; font-weight: 700; color: #0F172A; margin-bottom: 8px;
+  font-size: 0.875rem; font-weight: 700; color: #0F172A; margin-bottom: 8px;
 `;
 const PartyMeta = styled.div`
   display: flex; flex-direction: column; gap: 4px;
 `;
 const MetaRow = styled.div`
-  display: flex; gap: 6px; font-size: 12px;
+  display: flex; gap: 6px; font-size: 0.75rem;
 `;
 const MetaKey = styled.span`
   color: #94A3B8; min-width: 60px; flex-shrink: 0;
@@ -1378,13 +1378,13 @@ const MetaVal = styled.span`
   color: #334155; flex: 1; min-width: 0;
 `;
 const Missing = styled.span`
-  color: #DC2626; font-weight: 500; font-size: 11px;
+  color: #DC2626; font-weight: 500; font-size: 0.6875rem;
 `;
 const Section = styled.div`
   background: #fff; border: 1px solid #E2E8F0; border-radius: 10px; padding: 14px 16px;
 `;
 const SectionTitle = styled.div`
-  font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.4px;
+  font-size: 0.75rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.4px;
   margin-bottom: 10px;
 `;
 const SectionTitleRow = styled.div`
@@ -1392,7 +1392,7 @@ const SectionTitleRow = styled.div`
   ${SectionTitle} { margin-bottom: 0; }
 `;
 const SectionMeta = styled.span`
-  font-size: 11px; color: #94A3B8;
+  font-size: 0.6875rem; color: #94A3B8;
 `;
 const ItemTable = styled.div`
   display: flex; flex-direction: column; border: 1px solid #F1F5F9; border-radius: 8px; overflow: hidden;
@@ -1400,7 +1400,7 @@ const ItemTable = styled.div`
 const ItemHead = styled.div`
   display: flex; gap: 8px; padding: 8px 12px; background: #F8FAFC;
   border-bottom: 1px solid #F1F5F9;
-  font-size: 11px; font-weight: 600; color: #64748B;
+  font-size: 0.6875rem; font-weight: 600; color: #64748B;
 `;
 const ItemHeadCell = styled.div`
   flex: 1; min-width: 0;
@@ -1408,7 +1408,7 @@ const ItemHeadCell = styled.div`
 const ItemRow = styled.div`
   display: flex; gap: 8px; padding: 10px 12px;
   border-bottom: 1px solid #F1F5F9;
-  font-size: 13px; color: #0F172A;
+  font-size: 0.8125rem; color: #0F172A;
   &:last-child { border-bottom: none; }
 `;
 const ItemCell = styled.div`
@@ -1417,7 +1417,7 @@ const ItemCell = styled.div`
 `;
 // 항목 상세내용 (운영 #2)
 const ItemDetailText = styled.div`
-  margin-top: 2px; font-size: 11px; color: #94A3B8; line-height: 1.4; white-space: pre-wrap; word-break: break-word;
+  margin-top: 2px; font-size: 0.6875rem; color: #94A3B8; line-height: 1.4; white-space: pre-wrap; word-break: break-word;
 `;
 const Summary = styled.div`
   display: flex; flex-direction: column; gap: 6px; padding-top: 12px; margin-top: 8px;
@@ -1425,7 +1425,7 @@ const Summary = styled.div`
 `;
 const SummaryRow = styled.div`
   display: flex; justify-content: space-between; align-items: baseline;
-  font-size: 13px;
+  font-size: 0.8125rem;
 `;
 const SumKey = styled.span`color: #64748B;`;
 const SumVal = styled.span`color: #0F172A; font-variant-numeric: tabular-nums;`;
@@ -1447,30 +1447,30 @@ const InstNo = styled.div`
   width: 24px; height: 24px; border-radius: 50%;
   background: #fff; color: #475569; border: 1px solid #E2E8F0;
   display: inline-flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 700;
+  font-size: 0.6875rem; font-weight: 700;
 `;
 const InstInfo = styled.div`
   display: flex; flex-direction: column; gap: 2px; min-width: 0;
 `;
 const InstLabel = styled.div`
-  font-size: 13px; font-weight: 600; color: #0F172A;
+  font-size: 0.8125rem; font-weight: 600; color: #0F172A;
 `;
 const InstMilestone = styled.div`
-  font-size: 11px; color: #64748B;
+  font-size: 0.6875rem; color: #64748B;
 `;
 const InstSubMeta = styled.div`
-  font-size: 11px; color: #166534; margin-top: 2px;
+  font-size: 0.6875rem; color: #166534; margin-top: 2px;
 `;
 const InstDue = styled.div`
-  font-size: 12px; color: #475569; font-variant-numeric: tabular-nums;
+  font-size: 0.75rem; color: #475569; font-variant-numeric: tabular-nums;
 `;
 const InstAmt = styled.div`
-  font-size: 13px; font-weight: 700; color: #0F172A; text-align: right;
+  font-size: 0.8125rem; font-weight: 700; color: #0F172A; text-align: right;
   font-variant-numeric: tabular-nums;
 `;
 const InstStatus = styled.span<{ $bg: string; $fg: string }>`
   display: inline-flex; align-items: center; gap: 4px; justify-content: center;
-  padding: 3px 8px; font-size: 11px; font-weight: 700;
+  padding: 3px 8px; font-size: 0.6875rem; font-weight: 700;
   background: ${p => p.$bg}; color: ${p => p.$fg}; border-radius: 999px;
 `;
 const InstMenuWrap = styled.div`
@@ -1492,7 +1492,7 @@ const Menu = styled.div`
 `;
 const MenuItem = styled.button<{ $danger?: boolean }>`
   display: inline-flex; align-items: center; gap: 8px;
-  padding: 8px 10px; font-size: 12px; font-weight: 500;
+  padding: 8px 10px; font-size: 0.75rem; font-weight: 500;
   color: ${p => p.$danger ? '#DC2626' : '#334155'};
   background: transparent; border: none; border-radius: 6px; cursor: pointer; text-align: left;
   &:hover { background: ${p => p.$danger ? '#FEF2F2' : '#F8FAFC'}; }
@@ -1505,7 +1505,7 @@ const BankCard = styled.div`
 `;
 const BankRow = styled.div`
   display: flex; gap: 10px; padding: 4px 0;
-  font-size: 12px;
+  font-size: 0.75rem;
 `;
 const BankKey = styled.span`
   color: #94A3B8; min-width: 60px; flex-shrink: 0;
@@ -1518,7 +1518,7 @@ const BankValRow = styled.span`
 `;
 const CopyChip = styled.button`
   display: inline-flex; align-items: center; gap: 3px;
-  font-size: 10px; font-weight: 700; color: #0F766E;
+  font-size: 0.625rem; font-weight: 700; color: #0F766E;
   background: #F0FDFA; border: 1px solid #14B8A6;
   padding: 2px 8px; border-radius: 999px; cursor: pointer; white-space: nowrap;
   &:hover { background: #14B8A6; color: #fff; }
@@ -1529,18 +1529,18 @@ const ReceiptInfoBox = styled.div`
   border: 1px solid #E2E8F0; border-radius: 10px;
 `;
 const ReceiptInfoHead = styled.div`
-  font-size: 11px; font-weight: 700; color: #475569; margin-bottom: 8px;
+  font-size: 0.6875rem; font-weight: 700; color: #475569; margin-bottom: 8px;
 `;
 const ReceiptRow = styled.div`
   display: flex; justify-content: space-between; gap: 12px; padding: 3px 0;
-  font-size: 12px;
+  font-size: 0.75rem;
   span { color: #94A3B8; flex-shrink: 0; }
   b { color: #334155; font-weight: 600; text-align: right; word-break: break-all; }
 `;
 const ReceiptMarkRow = styled.div`display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;`;
 const ReceiptMarkBtn = styled.button`
   flex: 1; min-width: 140px; min-height: 40px; padding: 9px 12px;
-  font-size: 12px; font-weight: 600; color: #0F766E;
+  font-size: 0.75rem; font-weight: 600; color: #0F766E;
   background: #FFF; border: 1.5px solid #0D9488; border-radius: 8px; cursor: pointer;
   &:hover { background: #F0FDFA; }
 `;
@@ -1548,12 +1548,12 @@ const CorrHistory = styled.div`
   margin-top: 12px; padding: 12px; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 10px;
   display: flex; flex-direction: column; gap: 8px;
 `;
-const CorrHistTitle = styled.div`font-size: 11px; font-weight: 700; color: #991B1B; text-transform: uppercase; letter-spacing: 0.4px;`;
+const CorrHistTitle = styled.div`font-size: 0.6875rem; font-weight: 700; color: #991B1B; text-transform: uppercase; letter-spacing: 0.4px;`;
 const CorrItem = styled.div`display: flex; flex-direction: column; gap: 2px; padding-bottom: 8px; border-bottom: 1px solid #FECACA; &:last-child { border-bottom: none; padding-bottom: 0; }`;
 const CorrTop = styled.div`display: flex; justify-content: space-between; align-items: baseline; gap: 8px;`;
-const CorrReason = styled.span`font-size: 12px; font-weight: 600; color: #0F172A;`;
-const CorrNo = styled.span`font-size: 12px; font-weight: 700; color: #991B1B; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;`;
-const CorrMeta = styled.div`font-size: 11px; color: #B91C1C;`;
+const CorrReason = styled.span`font-size: 0.75rem; font-weight: 600; color: #0F172A;`;
+const CorrNo = styled.span`font-size: 0.75rem; font-weight: 700; color: #991B1B; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;`;
+const CorrMeta = styled.div`font-size: 0.6875rem; color: #B91C1C;`;
 
 // 상태 변경 이력 타임라인 (기본 히스토리)
 const StatusHistList = styled.div`display: flex; flex-direction: column; gap: 12px;`;
@@ -1564,12 +1564,12 @@ const StatusHistDot = styled.div`
 const StatusHistBody = styled.div`display: flex; flex-direction: column; gap: 2px; min-width: 0;`;
 const StatusHistMain = styled.div`display: flex; align-items: center; gap: 6px; flex-wrap: wrap;`;
 const StatusHistChip = styled.span<{ $to?: boolean }>`
-  font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+  font-size: 0.75rem; font-weight: 600; padding: 2px 8px; border-radius: 999px;
   background: ${p => (p.$to ? '#F0FDFA' : '#F1F5F9')};
   color: ${p => (p.$to ? '#0F766E' : '#64748B')};
 `;
-const StatusHistArrow = styled.span`font-size: 12px; color: #94A3B8;`;
-const StatusHistMeta = styled.div`font-size: 11px; color: #94A3B8;`;
+const StatusHistArrow = styled.span`font-size: 0.75rem; color: #94A3B8;`;
+const StatusHistMeta = styled.div`font-size: 0.6875rem; color: #94A3B8;`;
 
 // Q Bill 이벤트 타임라인 (생애주기) — 좌측 점 + 세로 연결선
 const TlList = styled.div`display: flex; flex-direction: column;`;
@@ -1583,27 +1583,27 @@ const TlDot = styled.div<{ $c: string }>`
 `;
 const TlBody = styled.div`display: flex; flex-direction: column; gap: 2px; min-width: 0;`;
 const TlMain = styled.div`display: flex; align-items: center; gap: 6px; flex-wrap: wrap;`;
-const TlLabel = styled.span`font-size: 13px; font-weight: 600; color: #0F172A;`;
-const TlSuffix = styled.span`font-size: 12px; color: #64748B;`;
-const TlDest = styled.div`font-size: 12px; color: #0F766E; font-weight: 600; margin-top: 2px; word-break: break-all;`;
-const TlMeta = styled.div`font-size: 11px; color: #94A3B8;`;
+const TlLabel = styled.span`font-size: 0.8125rem; font-weight: 600; color: #0F172A;`;
+const TlSuffix = styled.span`font-size: 0.75rem; color: #64748B;`;
+const TlDest = styled.div`font-size: 0.75rem; color: #0F766E; font-weight: 600; margin-top: 2px; word-break: break-all;`;
+const TlMeta = styled.div`font-size: 0.6875rem; color: #94A3B8;`;
 const PayerHint = styled.div`
   margin-top: 8px; padding: 10px 12px;
   background: #FEF3C7; border-radius: 8px;
   border: 1px dashed #F59E0B;
 `;
 const PayerHintTitle = styled.div`
-  font-size: 11px; font-weight: 700; color: #92400E; margin-bottom: 6px;
+  font-size: 0.6875rem; font-weight: 700; color: #92400E; margin-bottom: 6px;
 `;
 // #274 — 입금자명을 못 바꾸는 은행도 있다. 그 경우의 대안을 같이 말해준다.
 const PayerHintNote = styled.div`
-  margin-top: 6px; font-size: 11px; line-height: 1.5; color: #A16207;
+  margin-top: 6px; font-size: 0.6875rem; line-height: 1.5; color: #A16207;
 `;
 const PayerCode = styled.div`
   display: flex; align-items: center; gap: 8px; justify-content: space-between;
   code {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 12px; color: #0F172A; font-weight: 600;
+    font-size: 0.75rem; color: #0F172A; font-weight: 600;
     background: #fff; padding: 4px 8px; border-radius: 4px;
     border: 1px solid #FDE68A;
   }
@@ -1617,7 +1617,7 @@ const TaxBox = styled.div<{ $status: string }>`
 const TaxIcon = styled.div<{ $status: string }>`
   width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;
-  font-size: 14px; font-weight: 700;
+  font-size: 0.875rem; font-weight: 700;
   background: ${p => p.$status === 'issued' ? '#22C55E' : p.$status === 'required' ? '#F59E0B' : '#CBD5E1'};
   color: #fff;
 `;
@@ -1625,10 +1625,10 @@ const TaxBody = styled.div`
   flex: 1; min-width: 0;
 `;
 const TaxLabel = styled.div`
-  font-size: 13px; font-weight: 700; color: #0F172A;
+  font-size: 0.8125rem; font-weight: 700; color: #0F172A;
 `;
 const TaxDesc = styled.div`
-  font-size: 11px; color: #64748B; margin-top: 2px;
+  font-size: 0.6875rem; color: #64748B; margin-top: 2px;
 `;
 
 // 출처 카드
@@ -1638,7 +1638,7 @@ const SourceCard = styled.div`
 `;
 const SourceLeft = styled.div`display: flex; gap: 10px; align-items: center; min-width: 0; flex: 1;`;
 const SourceKindBadge = styled.span<{ $kind: string }>`
-  font-size: 10px; font-weight: 700; flex-shrink: 0;
+  font-size: 0.625rem; font-weight: 700; flex-shrink: 0;
   padding: 3px 8px; border-radius: 4px;
   background: ${p =>
     p.$kind === 'contract' ? '#FEF3C7' :
@@ -1653,13 +1653,13 @@ const SourceKindBadge = styled.span<{ $kind: string }>`
 `;
 const SourceText = styled.div`display: flex; flex-direction: column; gap: 2px; min-width: 0;`;
 const SourceTitle = styled.div`
-  font-size: 13px; font-weight: 700; color: #0F172A;
+  font-size: 0.8125rem; font-weight: 700; color: #0F172A;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
-const SourceMeta = styled.div`font-size: 11px; color: #64748B;`;
+const SourceMeta = styled.div`font-size: 0.6875rem; color: #64748B;`;
 const SourceLink = styled.a`
   display: inline-flex; align-items: center; gap: 4px;
-  font-size: 12px; font-weight: 700; color: #0F766E;
+  font-size: 0.75rem; font-weight: 700; color: #0F766E;
   background: #fff; border: 1px solid #14B8A6; padding: 6px 12px; border-radius: 6px;
   text-decoration: none; flex-shrink: 0;
   &:hover { background: #14B8A6; color: #fff; }

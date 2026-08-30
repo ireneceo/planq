@@ -143,11 +143,11 @@ const UpRow = styled.div`display:flex;align-items:center;gap:10px;`;
 const UpMain = styled.div`flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;`;
 const UpTop = styled.div`display:flex;align-items:baseline;gap:8px;`;
 const UpName = styled.div`
-  flex:1;min-width:0;font-size:13px;font-weight:600;color:#0F172A;
+  flex:1;min-width:0;font-size:0.8125rem;font-weight:600;color:#0F172A;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 `;
 const UpPct = styled.div<{ $err: boolean }>`
-  font-size:12.5px;font-weight:700;flex-shrink:0;
+  font-size:0.78125rem;font-weight:700;flex-shrink:0;
   color:${p => (p.$err ? '#DC2626' : '#0F766E')};
 `;
 const UpBar = styled.div`height:6px;background:#F1F5F9;border-radius:999px;overflow:hidden;`;
@@ -155,7 +155,7 @@ const UpFill = styled.div<{ $pct: number; $err: boolean }>`
   height:100%;width:${p => p.$pct}%;border-radius:999px;transition:width .2s ease;
   background:${p => (p.$err ? '#FCA5A5' : 'linear-gradient(90deg,#14B8A6,#0D9488)')};
 `;
-const UpMeta = styled.div`font-size:12px;color:#64748B;`;
+const UpMeta = styled.div`font-size:0.75rem;color:#64748B;`;
 const UpCancel = styled.button`
   flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;
   width:36px;height:36px;background:transparent;border:none;border-radius:8px;

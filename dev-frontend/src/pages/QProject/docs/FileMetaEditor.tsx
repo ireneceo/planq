@@ -102,16 +102,16 @@ const MetaEditRow = styled.div`display:flex;flex-direction:column;gap:6px;`;
 const MetaInput = styled.input`
   width:100%;height:2.5rem;padding:0 32px 0 12px;box-sizing:border-box;
   background:#fff;border:1px solid #CBD5E1;border-radius:8px;
-  font-size:13.5px;color:#0F172A;
+  font-size:0.84375rem;color:#0F172A;
   &:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,.15);}
 `;
 const MetaTextarea = styled.textarea`
   width:100%;padding:9px 32px 9px 12px;box-sizing:border-box;resize:vertical;
   background:#fff;border:1px solid #CBD5E1;border-radius:8px;
-  font-size:13.5px;line-height:1.5;color:#0F172A;font-family:inherit;
+  font-size:0.84375rem;line-height:1.5;color:#0F172A;font-family:inherit;
   &:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,.15);}
 `;
-const MetaHint = styled.div`font-size:12px;color:#94A3B8;`;
+const MetaHint = styled.div`font-size:0.75rem;color:#94A3B8;`;
 const TagBox = styled.div`
   display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-height:2.5rem;
   padding:6px 8px;box-sizing:border-box;
@@ -120,18 +120,18 @@ const TagBox = styled.div`
 `;
 const TagChip = styled.span`
   display:inline-flex;align-items:center;gap:4px;min-height:1.625rem;padding:2px 4px 2px 10px;
-  background:#CCFBF1;color:#0F766E;border-radius:999px;font-size:12.5px;font-weight:600;
+  background:#CCFBF1;color:#0F766E;border-radius:999px;font-size:0.78125rem;font-weight:600;
 `;
 const TagX = styled.button`
   display:inline-flex;align-items:center;justify-content:center;
   width:1.125rem;height:1.125rem;padding:0;background:transparent;border:none;border-radius:50%;
-  color:#0F766E;font-size:15px;line-height:1;cursor:pointer;
+  color:#0F766E;font-size:0.9375rem;line-height:1;cursor:pointer;
   &:hover{background:rgba(15,118,110,.15);}
 `;
 const TagInput = styled.input`
   flex:1;min-width:100px;height:1.625rem;border:none;outline:none;background:transparent;
-  font-size:13px;color:#0F172A;
+  font-size:0.8125rem;color:#0F172A;
 `;
-const SectionLabel = styled.div`font-size: 11px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px;`;
+const SectionLabel = styled.div`font-size: 0.6875rem; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px;`;
 
 export default FileMetaEditor;

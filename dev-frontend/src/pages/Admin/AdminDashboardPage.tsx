@@ -152,16 +152,16 @@ const Kpi = styled.div<{ $accent?: boolean }>`
   padding: 16px 18px; display: flex; flex-direction: column; gap: 4px;
   ${(p) => p.$accent && 'background: linear-gradient(135deg, #F0FDFA 0%, #FFFFFF 100%);'}
 `;
-const KpiLabel = styled.div`font-size: 11px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px;`;
-const KpiValue = styled.div`font-size: 26px; font-weight: 700; color: #0F172A; line-height: 1.1; word-break: break-word;`;
-const KpiSub = styled.div`font-size: 11px; color: #94A3B8;`;
+const KpiLabel = styled.div`font-size: 0.6875rem; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px;`;
+const KpiValue = styled.div`font-size: 1.625rem; font-weight: 700; color: #0F172A; line-height: 1.1; word-break: break-word;`;
+const KpiSub = styled.div`font-size: 0.6875rem; color: #94A3B8;`;
 const SkeletonCard = styled.div`
   height: 92px; border-radius: 12px; border: 1px solid #E2E8F0;
   background: linear-gradient(90deg, #F8FAFC 25%, #F1F5F9 50%, #F8FAFC 75%); background-size: 200% 100%;
   animation: shimmer 1.4s infinite; @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 `;
 const ErrorBox = styled.div`
-  background: #FEF2F2; border: 1px solid #FCA5A5; border-radius: 12px; padding: 16px; font-size: 13px; color: #B91C1C;
+  background: #FEF2F2; border: 1px solid #FCA5A5; border-radius: 12px; padding: 16px; font-size: 0.8125rem; color: #B91C1C;
 `;
 const Row = styled.div`
   display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;
@@ -170,23 +170,23 @@ const Row = styled.div`
 const Panel = styled.div`
   background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 18px 20px; margin-bottom: 16px;
 `;
-const PanelTitle = styled.h2`font-size: 13px; font-weight: 700; color: #0F172A; margin: 0;`;
-const PanelHint = styled.div`font-size: 11px; color: #94A3B8; margin: 2px 0 14px;`;
-const EmptyHint = styled.div`font-size: 12px; color: #94A3B8; padding: 24px; text-align: center;`;
+const PanelTitle = styled.h2`font-size: 0.8125rem; font-weight: 700; color: #0F172A; margin: 0;`;
+const PanelHint = styled.div`font-size: 0.6875rem; color: #94A3B8; margin: 2px 0 14px;`;
+const EmptyHint = styled.div`font-size: 0.75rem; color: #94A3B8; padding: 24px; text-align: center;`;
 const BarChart = styled.div`display: flex; align-items: flex-end; gap: 10px; height: 160px; padding-top: 8px;`;
 const BarCol = styled.div`flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; height: 100%;`;
-const BarValue = styled.div`font-size: 11px; font-weight: 700; color: #475569;`;
+const BarValue = styled.div`font-size: 0.6875rem; font-weight: 700; color: #475569;`;
 const Bar = styled.div`width: 100%; max-width: 40px; min-height: 4px; background: linear-gradient(180deg, #14B8A6 0%, #0D9488 100%); border-radius: 6px 6px 0 0; transition: height 0.2s;`;
-const BarLabel = styled.div`font-size: 10px; color: #94A3B8;`;
+const BarLabel = styled.div`font-size: 0.625rem; color: #94A3B8;`;
 const PlanList = styled.div`display: flex; flex-direction: column; gap: 12px; padding-top: 4px;`;
 const PlanRow = styled.div`display: grid; grid-template-columns: 64px 1fr 40px; align-items: center; gap: 10px;`;
-const PlanName = styled.div`font-size: 12px; font-weight: 700; color: #334155;`;
+const PlanName = styled.div`font-size: 0.75rem; font-weight: 700; color: #334155;`;
 const PlanBarTrack = styled.div`background: #F1F5F9; border-radius: 999px; height: 10px; overflow: hidden;`;
 const PlanBar = styled.div`height: 100%; background: linear-gradient(90deg, #14B8A6 0%, #0D9488 100%); border-radius: 999px; transition: width 0.2s;`;
-const PlanCount = styled.div`font-size: 12px; font-weight: 600; color: #475569; text-align: right;`;
+const PlanCount = styled.div`font-size: 0.75rem; font-weight: 600; color: #475569; text-align: right;`;
 const QuickLinks = styled.div`display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px;`;
 const QuickLink = styled(Link)`
-  padding: 8px 14px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 12px; font-weight: 600;
+  padding: 8px 14px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.75rem; font-weight: 600;
   color: #0F766E; text-decoration: none; background: #FFFFFF; transition: background 0.15s, border-color 0.15s;
   &:hover { background: #F0FDFA; border-color: #99F6E4; }
 `;

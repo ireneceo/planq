@@ -75,37 +75,37 @@ const Card = styled.div`
   background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 14px;
   padding: 32px; box-shadow: 0 1px 2px rgba(0,0,0,0.04);
 `;
-const Title = styled.h1`font-size: 22px; font-weight: 700; color: #0F172A; margin: 0 0 20px;`;
+const Title = styled.h1`font-size: 1.375rem; font-weight: 700; color: #0F172A; margin: 0 0 20px;`;
 const Form = styled.form`display: flex; flex-direction: column; gap: 14px;`;
-const Hint = styled.p`font-size: 13px; color: #475569; line-height: 1.6; margin: 0;`;
+const Hint = styled.p`font-size: 0.8125rem; color: #475569; line-height: 1.6; margin: 0;`;
 const Field = styled.div`display: flex; flex-direction: column; gap: 6px;`;
-const Label = styled.label`font-size: 12px; font-weight: 700; color: #475569;`;
+const Label = styled.label`font-size: 0.75rem; font-weight: 700; color: #475569;`;
 const Input = styled.input`
   padding: 10px 12px; border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 14px; color: #0F172A;
+  font-size: 0.875rem; color: #0F172A;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
 `;
 const Submit = styled.button`
   padding: 10px 16px; background: #14B8A6; color: #FFFFFF; border: none;
-  border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer;
+  border-radius: 8px; font-size: 0.875rem; font-weight: 700; cursor: pointer;
   &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { background: #CBD5E1; cursor: not-allowed; }
 `;
 const BackLink = styled(Link)`
-  text-align: center; font-size: 13px; color: #0D9488; text-decoration: none;
+  text-align: center; font-size: 0.8125rem; color: #0D9488; text-decoration: none;
   &:hover { text-decoration: underline; }
 `;
 const ErrorBox = styled.div`
   padding: 10px 12px; background: #FEF2F2; border: 1px solid #FECACA;
-  border-radius: 8px; font-size: 13px; color: #B91C1C;
+  border-radius: 8px; font-size: 0.8125rem; color: #B91C1C;
 `;
 const SuccessBox = styled.div`
   padding: 16px; background: #F0FDFA; border: 1px solid #99F6E4;
-  border-radius: 10px; font-size: 14px; color: #0F766E; line-height: 1.6;
+  border-radius: 10px; font-size: 0.875rem; color: #0F766E; line-height: 1.6;
 `;
 const SuccessSub = styled.div`
   margin-top: 12px; padding-top: 12px; border-top: 1px solid #99F6E4;
-  font-size: 13px;
+  font-size: 0.8125rem;
   a { color: #0D9488; text-decoration: none; font-weight: 600; }
   a:hover { text-decoration: underline; }
 `;

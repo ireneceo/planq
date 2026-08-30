@@ -48,9 +48,9 @@ export default Button;
 
 // ─── styled ───
 const sizeStyles = {
-  sm: css`height: 28px; padding: 0 10px; font-size: 12px;`,
-  md: css`height: 36px; padding: 0 16px; font-size: 13px;`,
-  lg: css`height: 40px; padding: 0 20px; font-size: 14px;`,
+  sm: css`height: 28px; padding: 0 10px; font-size: 0.75rem;`,
+  md: css`height: 36px; padding: 0 16px; font-size: 0.8125rem;`,
+  lg: css`height: 40px; padding: 0 20px; font-size: 0.875rem;`,
 };
 
 const variantStyles = {

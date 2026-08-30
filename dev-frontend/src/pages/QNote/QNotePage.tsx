@@ -2871,7 +2871,7 @@ const QNotePage = () => {
                     onClick={() => setVisibilityModalOpen(true)}
                   />
                 )}
-                {visibilityError && <span style={{ fontSize: 11, color: '#B91C1C' }}>{visibilityError}</span>}
+                {visibilityError && <span style={{ fontSize: '0.6875rem', color: '#B91C1C' }}>{visibilityError}</span>}
                 {/* 공유 — Primary (Q docs PrimaryBtn 패턴) */}
                 {String(activeSession.user_id) === String(user?.id) && (
                   <ReviewPrimaryBtn type="button" onClick={() => setShareModalOpen(true)} title={t('page.reviewBar.shareTitle', '회의록 공유') as string}>
@@ -3153,8 +3153,8 @@ const QNotePage = () => {
               ) : (
                 (activeSession.detected_questions || []).map((q, i) => (
                   <div key={q.id ?? q.utterance_id ?? i} style={{ padding: '12px 0', borderBottom: '1px solid #E2E8F0' }}>
-                    {q.question_text && <div style={{ fontSize: 13, fontWeight: 600, color: '#0F172A', marginBottom: 6 }}>{q.question_text}</div>}
-                    {q.answer_text && <div style={{ fontSize: 12, color: '#475569', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{q.answer_text}</div>}
+                    {q.question_text && <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#0F172A', marginBottom: 6 }}>{q.question_text}</div>}
+                    {q.answer_text && <div style={{ fontSize: '0.75rem', color: '#475569', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{q.answer_text}</div>}
                   </div>
                 ))
               )}
@@ -3257,34 +3257,34 @@ const ModalHeader = styled.div`
   padding: 16px 20px; border-bottom: 1px solid #E2E8F0;
 `;
 const ModalTitle = styled.h3`
-  margin: 0; font-size: 16px; font-weight: 700; color: #0F172A;
+  margin: 0; font-size: 1rem; font-weight: 700; color: #0F172A;
 `;
 const ModalCloseBtn = styled.button`
   width: 28px; height: 28px; border: none; background: transparent;
-  border-radius: 6px; cursor: pointer; font-size: 20px; color: #64748B;
+  border-radius: 6px; cursor: pointer; font-size: 1.25rem; color: #64748B;
   display: inline-flex; align-items: center; justify-content: center;
   &:hover { background: #F1F5F9; color: #0F172A; }
 `;
 const ModalBody = styled.div`
   padding: 20px; overflow-y: auto; flex: 1; min-height: 0;
 `;
-const ModalDim = styled.div`color: #64748B; font-size: 13px; padding: 8px 0;`;
+const ModalDim = styled.div`color: #64748B; font-size: 0.8125rem; padding: 8px 0;`;
 const SettingsViewRow = styled.div`
   display: grid; grid-template-columns: 110px 1fr; gap: 12px;
   padding: 10px 0; border-bottom: 1px solid #F1F5F9;
   &:last-of-type { border-bottom: none; }
 `;
 const SettingsViewLabel = styled.div`
-  font-size: 12px; font-weight: 600; color: #64748B; padding-top: 2px;
+  font-size: 0.75rem; font-weight: 600; color: #64748B; padding-top: 2px;
 `;
 const SettingsViewValue = styled.div`
-  font-size: 13px; color: #0F172A; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
+  font-size: 0.8125rem; color: #0F172A; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
 `;
 const SettingsViewEditBtn = styled.button`
   margin-top: 16px; width: 100%; padding: 10px;
   background: #0F766E; color: #FFFFFF;
   border: none; border-radius: 8px; cursor: pointer;
-  font-size: 13px; font-weight: 600;
+  font-size: 0.8125rem; font-weight: 600;
   &:hover { background: #115E59; }
 `;
 
@@ -3402,7 +3402,7 @@ const PopoverWrap = styled.div`
 `;
 
 const PopoverTitle = styled.div`
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 700;
   color: #94a3b8;
   padding: 4px 8px 2px;
@@ -3411,14 +3411,14 @@ const PopoverTitle = styled.div`
 `;
 
 const PopoverLabel = styled.div`
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 600;
   color: #94a3b8;
   padding: 2px 8px;
 `;
 
 const PopoverHint = styled.div`
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #94a3b8;
   padding: 6px 8px;
   line-height: 1.4;
@@ -3432,7 +3432,7 @@ const PopoverDivider = styled.div`
 
 const PopoverBtn = styled.button<{ $primary?: boolean }>`
   text-align: left;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: ${(p) => (p.$primary ? 700 : 500)};
   color: ${(p) => (p.$primary ? '#0d9488' : '#0f172a')};
   background: ${(p) => (p.$primary ? '#f0fdfa' : 'transparent')};
@@ -3450,7 +3450,7 @@ const PopoverBtn = styled.button<{ $primary?: boolean }>`
 `;
 
 const PopoverRole = styled.span`
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 500;
   color: #94a3b8;
 `;
@@ -3464,7 +3464,7 @@ const PopoverInputRow = styled.div`
 const PopoverInput = styled.input`
   flex: 1;
   min-width: 0;
-  font-size: 12px;
+  font-size: 0.75rem;
   padding: 6px 8px;
   border: 1px solid #e2e8f0;
   border-radius: 6px;
@@ -3475,7 +3475,7 @@ const PopoverInput = styled.input`
 `;
 
 const PopoverInputBtn = styled.button`
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   padding: 6px 10px;
   background: #0d9488;
@@ -3510,7 +3510,7 @@ const TitleGroup = styled.div`
 `;
 
 const SidebarTitle = styled.h1`
-  font-size: 18px;
+  font-size: 1.125rem;
   font-weight: 700;
   color: #0f172a;
   margin: 0;
@@ -3556,10 +3556,10 @@ const NewNoteItem = styled.button`
   & + & { border-top: 1px solid #F1F5F9; }
 `;
 const NewNoteItemTitle = styled.div`
-  font-size: 13px; font-weight: 600; color: #0F172A;
+  font-size: 0.8125rem; font-weight: 600; color: #0F172A;
 `;
 const NewNoteItemDesc = styled.div`
-  font-size: 11px; color: #94A3B8; margin-top: 2px;
+  font-size: 0.6875rem; color: #94A3B8; margin-top: 2px;
 `;
 
 const SearchWrap = styled.div`
@@ -3577,7 +3577,7 @@ const CatFilterRow = styled.div`
 `;
 const CatChip = styled.button<{ $active: boolean }>`
   padding: 4px 12px; border-radius: 999px; cursor: pointer;
-  font-size: 12px; font-weight: ${p => p.$active ? 700 : 500};
+  font-size: 0.75rem; font-weight: ${p => p.$active ? 700 : 500};
   border: 1px solid ${p => p.$active ? '#14B8A6' : '#E2E8F0'};
   background: ${p => p.$active ? '#F0FDFA' : '#FFFFFF'};
   color: ${p => p.$active ? '#0F766E' : '#64748B'};
@@ -3596,7 +3596,7 @@ const EmptySessionMsg = styled.div`
   padding: 32px 20px;
   text-align: center;
   color: #94A3B8;
-  font-size: 12px;
+  font-size: 0.75rem;
 `;
 
 const SessionItem = styled.div<{ $active: boolean }>`
@@ -3635,17 +3635,17 @@ const SessDelDialog = styled.div`
   background: #fff; border-radius: 12px; max-width: 420px; width: 100%;
   padding: 24px; box-shadow: 0 20px 60px rgba(15,23,42,0.2);
 `;
-const SessDelTitle = styled.h2`font-size: 16px; font-weight: 700; color: #0F172A; margin: 0 0 8px;`;
-const SessDelDesc = styled.p`font-size: 13px; color: #64748B; line-height: 1.6; margin: 0 0 20px;`;
+const SessDelTitle = styled.h2`font-size: 1rem; font-weight: 700; color: #0F172A; margin: 0 0 8px;`;
+const SessDelDesc = styled.p`font-size: 0.8125rem; color: #64748B; line-height: 1.6; margin: 0 0 20px;`;
 const SessDelActions = styled.div`display: flex; gap: 8px; justify-content: flex-end;`;
 const SessDelCancel = styled.button`
-  padding: 8px 14px; font-size: 13px; font-weight: 600; color: #475569;
+  padding: 8px 14px; font-size: 0.8125rem; font-weight: 600; color: #475569;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer;
   &:hover:not(:disabled) { background: #F8FAFC; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 const SessDelConfirm = styled.button`
-  padding: 8px 14px; font-size: 13px; font-weight: 700; color: #fff;
+  padding: 8px 14px; font-size: 0.8125rem; font-weight: 700; color: #fff;
   background: #DC2626; border: none; border-radius: 8px; cursor: pointer;
   &:hover:not(:disabled) { background: #B91C1C; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -3653,9 +3653,9 @@ const SessDelConfirm = styled.button`
 
 const SessionItemTitle = styled.div`
   /* 규격: theme/tokens LIST_ROW — 데스크탑 14 / 폰 15 · 600 */
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
-  @media (max-width: 640px) { font-size: 15px; }
+  @media (max-width: 640px) { font-size: 0.9375rem; }
   color: #0F172A;
   white-space: nowrap;
   overflow: hidden;
@@ -3666,7 +3666,7 @@ const SessionItemTitle = styled.div`
 
 const SessionStatusBadge = styled.span`
   flex-shrink: 0;
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 600;
   border: none;
   border-radius: 8px;
@@ -3682,7 +3682,7 @@ const SessionParticipants = styled.span`
 `;
 
 const SessionItemMeta = styled.div`
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #94A3B8;
   display: flex;
   gap: 6px;
@@ -3772,7 +3772,7 @@ const CollapsedHeader = styled.div`
 `;
 
 const CollapsedTitle = styled.h2`
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: #0f172a;
   margin: 0;
@@ -3817,7 +3817,7 @@ const IconBtn = styled.button<{ $primary?: boolean; $danger?: boolean }>`
 const ReviewPrimaryBtn = styled.button`
   height: 32px; padding: 0 14px;
   background: #14B8A6; color: #FFFFFF; border: none; border-radius: 8px;
-  font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  font-size: 0.8125rem; font-weight: 600; cursor: pointer; white-space: nowrap;
   display: inline-flex; align-items: center;
   transition: background 0.15s;
   &:hover:not(:disabled) { background: #0D9488; }
@@ -3833,7 +3833,7 @@ const QuestionChip = styled.button`
   &:hover { border-color: #14B8A6; color: #0D9488; background: #F0FDFA; }
 `;
 const IconCount = styled.span`
-  font-size: 12px; font-weight: 700; color: #0F766E;
+  font-size: 0.75rem; font-weight: 700; color: #0F766E;
 `;
 
 const HeaderLeft = styled.div`
@@ -3855,7 +3855,7 @@ const HeaderRight = styled.div`
 `;
 
 const SessionTitle = styled.h2`
-  font-size: 16px;
+  font-size: 1rem;
   font-weight: 700;
   color: #0f172a;
   margin: 0;
@@ -3872,7 +3872,7 @@ const SessionTitle = styled.h2`
 `;
 
 const SessionTitleInput = styled.input`
-  font-size: 16px;
+  font-size: 1rem;
   font-weight: 700;
   color: #0f172a;
   margin: 0;
@@ -3914,7 +3914,7 @@ const Badge = styled.span`
   background: #f1f5f9;
   color: #475569;
   border-radius: 12px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 500;
 `;
 
@@ -3928,7 +3928,7 @@ const RecordingIndicator = styled.div`
   color: #0f766e;
   border: 1px solid #99f6e4;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   @media (max-width: 768px) {
     width: 36px;
@@ -3969,7 +3969,7 @@ const PrimaryBtn = styled.button<{ $compact?: boolean }>`
   color: #ffffff;
   border: none;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
   &:hover { background: #0d9488; }
@@ -3987,7 +3987,7 @@ const SecondaryBtn = styled.button<{ $compact?: boolean }>`
   color: #0d9488;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
   &:hover {
@@ -4008,7 +4008,7 @@ const DangerBtn = styled.button<{ $compact?: boolean }>`
   color: #9f1239;
   border: 1px solid #fecdd3;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
   &:hover {
@@ -4027,7 +4027,7 @@ const ParticipantBar = styled.div`
   padding: 4px 10px;
   background: #f8fafc;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: 0.75rem;
 `;
 
 const ReadinessPanel = styled.div<{ $ready: boolean; $collapsed: boolean }>`
@@ -4048,7 +4048,7 @@ const ReadinessHeader = styled.div<{ $collapsed?: boolean }>`
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: ${(p) => (p.$collapsed ? '12px' : '13px')};
+  font-size: ${(p) => (p.$collapsed ? '0.75rem' : '0.8125rem')};
   font-weight: 700;
   color: #0f172a;
   margin-bottom: ${(p) => (p.$collapsed ? '0' : '10px')};
@@ -4056,7 +4056,7 @@ const ReadinessHeader = styled.div<{ $collapsed?: boolean }>`
 
 const ReadinessToggleHint = styled.span`
   margin-left: auto;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 500;
   color: #64748b;
 `;
@@ -4089,7 +4089,7 @@ const ReadinessItem = styled.div`
 `;
 
 const ReadinessLabel = styled.div`
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   color: #64748b;
   text-transform: uppercase;
@@ -4098,7 +4098,7 @@ const ReadinessLabel = styled.div`
 `;
 
 const ReadinessValue = styled.div<{ $ok: boolean }>`
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: ${(p) => (p.$ok ? '#0d9488' : '#d97706')};
   display: flex;
@@ -4110,7 +4110,7 @@ const FailedBadge = styled.span`
   display: inline-flex;
   align-items: center;
   padding: 1px 6px;
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 700;
   color: #ffffff;
   background: #dc2626;
@@ -4119,13 +4119,13 @@ const FailedBadge = styled.span`
 
 const ReadinessHint = styled.div`
   margin-top: 10px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #64748b;
   line-height: 1.5;
 `;
 
 const ParticipantBarLabel = styled.span`
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   color: #94a3b8;
   letter-spacing: 0.03em;
@@ -4141,13 +4141,13 @@ const SelfModeGroup = styled.div`
 `;
 
 const SelfModeLabel = styled.span`
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #64748b;
   margin-right: 4px;
 `;
 
 const SelfModeBtn = styled.button<{ $active?: boolean }>`
-  font-size: 11px;
+  font-size: 0.6875rem;
   padding: 3px 8px;
   border-radius: 4px;
   border: 1px solid ${(p) => (p.$active ? '#0d9488' : '#e2e8f0')};
@@ -4165,7 +4165,7 @@ const ParticipantPill = styled.span`
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 500;
   color: #115e59;
   background: #f0fdfa;
@@ -4175,7 +4175,7 @@ const ParticipantPill = styled.span`
 `;
 
 const ParticipantPillRole = styled.span`
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 400;
   color: #64748b;
 `;
@@ -4187,7 +4187,7 @@ const ErrorBar = styled.div`
   color: #9f1239;
   border: 1px solid #fecdd3;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 0.8125rem;
 `;
 
 const LockBar = styled.div`
@@ -4197,7 +4197,7 @@ const LockBar = styled.div`
   color: #92400e;
   border: 1px solid #fde68a;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 0.8125rem;
 `;
 
 const NoticeBar = styled.div`
@@ -4207,7 +4207,7 @@ const NoticeBar = styled.div`
   color: #0f766e;
   border: 1px solid #99f6e4;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   animation: fadeOut 4s forwards;
   @keyframes fadeOut {
     0%, 70% { opacity: 1; }
@@ -4233,14 +4233,14 @@ const SummaryToggle = styled.button`
   &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
 `;
 const SummaryCaret = styled.span<{ $open: boolean }>`
-  display: inline-block; font-size: 12px; color: #94A3B8;
+  display: inline-block; font-size: 0.75rem; color: #94A3B8;
   transition: transform .15s;
   transform: rotate(${p => (p.$open ? '90deg' : '0deg')});
 `;
 const SummaryCollapsedHint = styled.button`
   align-self: flex-start; padding: 6px 10px; margin-top: 2px;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 12.5px; color: #475569; cursor: pointer;
+  font-size: 0.78125rem; color: #475569; cursor: pointer;
   &:hover { background: #F1F5F9; }
   &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
 `;
@@ -4254,7 +4254,7 @@ const SummaryHead = styled.div`
 `;
 const SummaryHeadTitle = styled.h3`
   margin: 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 700;
   color: #0F172A;
   letter-spacing: -0.2px;
@@ -4273,7 +4273,7 @@ const SummaryRegenBtn = styled.button`
   border: 1px solid #E2E8F0;
   background: #FFFFFF;
   color: #475569;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   padding: 6px 12px;
   border-radius: 8px;
@@ -4292,7 +4292,7 @@ const SummaryDocBtn = styled.button`
   border: 1px solid #14B8A6;
   background: #F0FDFA;
   color: #0F766E;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   padding: 6px 12px;
   border-radius: 8px;
@@ -4307,7 +4307,7 @@ const SummarySavedRow = styled.div`
   gap: 8px;
 `;
 const SummarySavedText = styled.span`
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   color: #0F766E;
 `;
@@ -4315,14 +4315,14 @@ const SummaryLink = styled.button`
   border: none;
   background: transparent;
   color: #0D9488;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   text-decoration: underline;
   cursor: pointer;
   padding: 0;
 `;
 const SummaryError = styled.div`
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #B91C1C;
   margin-bottom: 8px;
 `;
@@ -4335,7 +4335,7 @@ const ReSummarizeInput = styled.input`
   flex: 1; min-width: 200px;
   height: 32px; padding: 0 12px;
   border: 1px solid #CBD5E1; border-radius: 8px;
-  font-size: 13px; color: #0F172A;
+  font-size: 0.8125rem; color: #0F172A;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
   &::placeholder { color: #94A3B8; }
 `;
@@ -4345,10 +4345,10 @@ const SummaryPoints = styled.ul`
   display: flex;
   flex-direction: column;
   gap: 4px;
-  li { font-size: 13px; line-height: 1.6; color: #0F172A; }
+  li { font-size: 0.8125rem; line-height: 1.6; color: #0F172A; }
 `;
 const SummaryFull = styled.div`
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.7;
   color: #334155;
   white-space: pre-wrap;
@@ -4363,14 +4363,14 @@ const SummaryEmpty = styled.div`
   flex-wrap: wrap;
 `;
 const SummaryEmptyText = styled.div`
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #64748B;
 `;
 const SummaryGenerateBtn = styled.button`
   border: none;
   background: #14B8A6;
   color: #FFFFFF;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   padding: 8px 16px;
   border-radius: 8px;
@@ -4411,7 +4411,7 @@ const EmptyTranscript = styled.div`
   padding: 48px 24px;
   text-align: center;
   color: #94a3b8;
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1.6;
 `;
 
@@ -4434,7 +4434,7 @@ const ManualQuestionInput = styled.input`
   flex: 1;
   border: none;
   outline: none;
-  font-size: 13px;
+  font-size: 0.8125rem;
   padding: 8px 10px;
   color: #0f172a;
   background: transparent;
@@ -4444,7 +4444,7 @@ const ManualQuestionInput = styled.input`
 
 const ManualSubmitBtn = styled.button`
   padding: 8px 16px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: #ffffff;
   background: #F43F5E;
@@ -4478,7 +4478,7 @@ const SpeechTextCol = styled.div`
 
 const SpeakerInline = styled.span<{ $self: boolean }>`
   flex-shrink: 0;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   color: ${(p) => (p.$self ? '#0d9488' : '#6366f1')};
   margin-right: 6px;
@@ -4491,7 +4491,7 @@ const SpeechRow = styled.div`
 `;
 
 const InlineTime = styled.span`
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #cbd5e1;
   white-space: nowrap;
   flex-shrink: 0;
@@ -4505,7 +4505,7 @@ const SpeakerAssignWrap = styled.span`
 `;
 
 const SpeakerAssignBtn = styled.button`
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #94a3b8;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
@@ -4524,7 +4524,7 @@ const BlockHeader = styled.div`
 `;
 
 const BlockSpeaker = styled.span<{ $clickable?: boolean }>`
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   color: #0d9488;
   display: inline-flex;
@@ -4543,19 +4543,19 @@ const BlockSpeaker = styled.span<{ $clickable?: boolean }>`
 `;
 
 const BlockTime = styled.span`
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #94a3b8;
 `;
 
 const SpeechOriginal = styled.div`
-  font-size: 15px;
+  font-size: 0.9375rem;
   color: #0f172a;
   line-height: 1.65;
   word-break: break-word;
 `;
 
 const SpeechTranslation = styled.div`
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #64748b;
   line-height: 1.55;
   word-break: break-word;
@@ -4619,7 +4619,7 @@ const CollapseBtn = styled.button`
   height: 34px;
   padding: 0 14px;
   border-radius: 8px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 120ms;
@@ -4627,7 +4627,7 @@ const CollapseBtn = styled.button`
 `;
 
 const QuestionOriginal = styled.div`
-  font-size: 15px;
+  font-size: 0.9375rem;
   font-weight: 600;
   color: #0f172a;
   line-height: 1.55;
@@ -4636,7 +4636,7 @@ const QuestionOriginal = styled.div`
 `;
 
 const QuestionEditInput = styled.input`
-  font-size: 15px;
+  font-size: 0.9375rem;
   font-weight: 600;
   color: #0f172a;
   line-height: 1.55;
@@ -4650,7 +4650,7 @@ const QuestionEditInput = styled.input`
 `;
 
 const EditedMark = styled.span`
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 400;
   color: #f43f5e;
   margin-left: 6px;
@@ -4660,7 +4660,7 @@ const ManualBadge = styled.span`
   display: inline-flex;
   align-items: center;
   padding: 2px 8px;
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 700;
   color: #ffffff;
   background: #F43F5E;
@@ -4678,7 +4678,7 @@ const MergeNextBtn = styled.button`
   border: 1px solid #fecdd3;
   background: #fff1f2;
   color: #f43f5e;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 700;
   cursor: pointer;
   display: inline-flex;
@@ -4696,7 +4696,7 @@ const UnmergeBtn = styled.button`
   border: 1px solid #e2e8f0;
   background: #ffffff;
   color: #64748b;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   cursor: pointer;
   display: inline-flex;
@@ -4710,7 +4710,7 @@ const MergedBadge = styled.span`
   align-items: center;
   margin-left: 6px;
   padding: 1px 6px;
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 700;
   color: #9f1239;
   background: #ffe4e6;
@@ -4719,7 +4719,7 @@ const MergedBadge = styled.span`
 `;
 
 const QuestionTranslation = styled.div`
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #64748b;
   line-height: 1.5;
   word-break: break-word;
@@ -4743,7 +4743,7 @@ const FindAnswerBtn = styled.button<{ $ready?: boolean }>`
   height: 34px;
   padding: 0 14px;
   border-radius: 8px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
   transition: background 120ms;
@@ -4772,7 +4772,7 @@ const AnswerPanel = styled.div`
 `;
 
 const AnswerTierBadge = styled.span<{ $tier: string }>`
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 700;
   color: ${(p) =>
     p.$tier === 'priority' ? '#f43f5e' :
@@ -4786,14 +4786,14 @@ const AnswerTierBadge = styled.span<{ $tier: string }>`
 `;
 
 const AnswerText = styled.div`
-  font-size: 14px;
+  font-size: 0.875rem;
   color: #0f172a;
   line-height: 1.6;
   white-space: pre-wrap;
 `;
 
 const AnswerTranslation = styled.div`
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #64748b;
   line-height: 1.55;
   border-top: 1px solid #fef08a;
@@ -4803,14 +4803,14 @@ const AnswerTranslation = styled.div`
 
 const AnswerLoading = styled.div`
   margin-top: 6px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #94a3b8;
   font-style: italic;
 `;
 
 const AnswerError = styled.div`
   margin-top: 6px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #dc2626;
 `;
 
@@ -4824,7 +4824,7 @@ const PendingBlockWrap = styled.div`
 `;
 
 const PendingOriginal = styled.div`
-  font-size: 15px;
+  font-size: 0.9375rem;
   color: #475569;
   line-height: 1.65;
   font-style: italic;
@@ -4840,7 +4840,7 @@ const InterimLine = styled.div`
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 14px;
+  font-size: 0.875rem;
   color: #94a3b8;
   font-style: italic;
   padding: 4px 0;

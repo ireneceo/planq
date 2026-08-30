@@ -301,50 +301,50 @@ export default function PersonalEventDrawer({ event, businessId, onClose, onChan
 }
 
 const HeadWrap = styled.div`display: flex; flex-direction: column; gap: 6px; min-width: 0;`;
-const Title = styled.h3`margin: 0; font-size: 16px; font-weight: 700; color: #0F172A; word-break: break-word;`;
+const Title = styled.h3`margin: 0; font-size: 1rem; font-weight: 700; color: #0F172A; word-break: break-word;`;
 const TitleInput = styled.input`
   width: 100%; border: 1px solid transparent; border-radius: 8px; padding: 4px 8px;
-  font-size: 16px; font-weight: 700; color: #0F172A; background: transparent;
+  font-size: 1rem; font-weight: 700; color: #0F172A; background: transparent;
   &:hover { border-color: #E2E8F0; }
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,.15); background: #fff; }
 `;
 const Badge = styled.span`
   align-self: flex-start; padding: 2px 8px; border-radius: 999px;
-  background: #F0FDFA; color: #0F766E; font-size: 11px; font-weight: 700;
+  background: #F0FDFA; color: #0F766E; font-size: 0.6875rem; font-weight: 700;
 `;
 const Row = styled.div`display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid #F1F5F9;`;
-const Label = styled.div`flex: 0 0 64px; font-size: 12px; font-weight: 600; color: #94A3B8;`;
-const Value = styled.div`flex: 1; min-width: 0; font-size: 13px; color: #334155; word-break: break-word; position: relative;`;
-const Desc = styled.div`flex: 1; min-width: 0; font-size: 13px; color: #334155; white-space: pre-wrap; word-break: break-word;`;
+const Label = styled.div`flex: 0 0 64px; font-size: 0.75rem; font-weight: 600; color: #94A3B8;`;
+const Value = styled.div`flex: 1; min-width: 0; font-size: 0.8125rem; color: #334155; word-break: break-word; position: relative;`;
+const Desc = styled.div`flex: 1; min-width: 0; font-size: 0.8125rem; color: #334155; white-space: pre-wrap; word-break: break-word;`;
 const DateTimeRow = styled.div`display: flex; align-items: center; gap: 6px; flex-wrap: wrap;`;
 const DateTrigger = styled.button`
   height: 30px; padding: 0 10px; border: 1px solid #E2E8F0; border-radius: 8px;
-  background: #fff; font-size: 12px; color: #334155; cursor: pointer;
+  background: #fff; font-size: 0.75rem; color: #334155; cursor: pointer;
   &:hover { border-color: #14B8A6; }
 `;
 const TimeWrap = styled.div`width: 96px;`;
-const Dash = styled.span`color: #94A3B8; font-size: 12px;`;
+const Dash = styled.span`color: #94A3B8; font-size: 0.75rem;`;
 const TextInput = styled.input`
   width: 100%; height: 32px; padding: 0 10px;
-  border: 1px solid #E2E8F0; border-radius: 8px; font-size: 13px; color: #334155;
+  border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.8125rem; color: #334155;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,.15); }
 `;
 const TextArea = styled.textarea`
   width: 100%; min-height: 84px; padding: 8px 10px; resize: vertical;
-  border: 1px solid #E2E8F0; border-radius: 8px; font-size: 13px; color: #334155; line-height: 1.6;
+  border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.8125rem; color: #334155; line-height: 1.6;
   font-family: inherit;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,.15); }
 `;
-const Hint = styled.p`margin: 14px 0 0; font-size: 12px; color: #94A3B8; line-height: 1.6;`;
+const Hint = styled.p`margin: 14px 0 0; font-size: 0.75rem; color: #94A3B8; line-height: 1.6;`;
 const Notice = styled.div`
   margin-bottom: 10px; padding: 8px 10px; border-radius: 8px;
-  background: #F8FAFC; border: 1px solid #E2E8F0; font-size: 11px; color: #64748B; line-height: 1.6;
+  background: #F8FAFC; border: 1px solid #E2E8F0; font-size: 0.6875rem; color: #64748B; line-height: 1.6;
 `;
 const Warn = styled(Notice)`background: #FFFBEB; border-color: #FDE68A; color: #92400E; font-weight: 600;`;
 const DeleteRow = styled.div`margin-top: 16px; display: flex; justify-content: flex-end;`;
 const LinkDanger = styled.button`
   border: none; background: none; padding: 0; cursor: pointer;
-  font-size: 12px; font-weight: 600; color: #94A3B8;
+  font-size: 0.75rem; font-weight: 600; color: #94A3B8;
   &:hover { color: #DC2626; text-decoration: underline; }
 `;
 const DeleteConfirm = styled.div`
@@ -352,5 +352,5 @@ const DeleteConfirm = styled.div`
   background: #FEF2F2; border: 1px solid #FECACA;
   display: flex; flex-direction: column; gap: 10px;
 `;
-const ConfirmText = styled.div`font-size: 12px; color: #991B1B; font-weight: 600;`;
+const ConfirmText = styled.div`font-size: 0.75rem; color: #991B1B; font-weight: 600;`;
 const ConfirmActions = styled.div`display: flex; gap: 8px; justify-content: flex-end;`;

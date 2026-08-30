@@ -122,23 +122,23 @@ const ApiTokenSection: React.FC<{ businessId: number }> = ({ businessId }) => {
 };
 
 const Wrap = styled.div`display: flex; flex-direction: column; gap: 12px; max-width: 720px; margin-top: 28px; padding-top: 24px; border-top: 1px solid #e2e8f0;`;
-const Title = styled.h3`font-size: 16px; font-weight: 700; color: #0f172a; margin: 0;`;
-const Desc = styled.p`font-size: 13px; color: #64748b; margin: 0; line-height: 1.5;`;
+const Title = styled.h3`font-size: 1rem; font-weight: 700; color: #0f172a; margin: 0;`;
+const Desc = styled.p`font-size: 0.8125rem; color: #64748b; margin: 0; line-height: 1.5;`;
 const CreateRow = styled.div`display: flex; gap: 8px; align-items: center; flex-wrap: wrap;`;
 const Input = styled.input`
-  flex: 1; min-width: 200px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 10px; font-size: 13px;
+  flex: 1; min-width: 200px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 10px; font-size: 0.8125rem;
   &:focus { outline: none; border-color: #0f766e; }
 `;
-const ErrLine = styled.div`font-size: 12px; color: #dc2626; font-weight: 600;`;
+const ErrLine = styled.div`font-size: 0.75rem; color: #dc2626; font-weight: 600;`;
 const IssuedBox = styled.div`border: 1px solid #99f6e4; background: #f0fdfa; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px;`;
-const IssuedLabel = styled.div`font-size: 12px; color: #0f766e; font-weight: 600;`;
+const IssuedLabel = styled.div`font-size: 0.75rem; color: #0f766e; font-weight: 600;`;
 const IssuedRow = styled.div`display: flex; gap: 8px; align-items: center;`;
-const Code = styled.code`flex: 1; font-size: 12px; background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 7px 9px; word-break: break-all; color: #0f172a;`;
-const Muted = styled.div`font-size: 13px; color: #94a3b8;`;
-const Empty = styled.div`font-size: 13px; color: #94a3b8; padding: 12px 0;`;
+const Code = styled.code`flex: 1; font-size: 0.75rem; background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 7px 9px; word-break: break-all; color: #0f172a;`;
+const Muted = styled.div`font-size: 0.8125rem; color: #94a3b8;`;
+const Empty = styled.div`font-size: 0.8125rem; color: #94a3b8; padding: 12px 0;`;
 const List = styled.div`display: flex; flex-direction: column; gap: 8px;`;
 const Item = styled.div`display: flex; justify-content: space-between; align-items: center; gap: 12px; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 14px;`;
-const ItemName = styled.div`font-size: 13px; font-weight: 600; color: #0f172a;`;
-const ItemMeta = styled.div`font-size: 11px; color: #94a3b8; margin-top: 2px;`;
+const ItemName = styled.div`font-size: 0.8125rem; font-weight: 600; color: #0f172a;`;
+const ItemMeta = styled.div`font-size: 0.6875rem; color: #94a3b8; margin-top: 2px;`;
 
 export default ApiTokenSection;

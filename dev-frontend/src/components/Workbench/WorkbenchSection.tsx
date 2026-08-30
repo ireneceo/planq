@@ -58,7 +58,7 @@ export default function WorkbenchSection({
 /** 섹션 안 빈 상태 — 두 패널 공통 */
 export const WorkbenchEmptyRow = styled.div`
   padding: 10px 0;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #94A3B8;
   line-height: 1.5;
 `;
@@ -68,7 +68,7 @@ export const WorkbenchSectionLink = styled.button`
   align-self: flex-start;
   border: none; background: none; padding: 2px 0; cursor: pointer;
   display: inline-flex; align-items: center; gap: 3px;
-  font-size: 11px; font-weight: 600; color: #0D9488;
+  font-size: 0.6875rem; font-weight: 600; color: #0D9488;
   &:hover { text-decoration: underline; }
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; border-radius: 4px; }
 `;
@@ -87,7 +87,7 @@ const Head = styled.div<{ $static: boolean }>`
 `;
 const Title = styled.div`
   display: flex; align-items: center; gap: 6px; min-width: 0;
-  font-size: 12px; font-weight: 700; color: #0F172A; letter-spacing: -0.1px;
+  font-size: 0.75rem; font-weight: 700; color: #0F172A; letter-spacing: -0.1px;
 `;
 // chevron — Q Talk 의 작은 삼각형 (SVG 아이콘 세트와 크기가 안 맞아 프리미티브로 박제)
 const Chevron = styled.span<{ $open: boolean }>`
@@ -103,7 +103,7 @@ const Count = styled.span`
   min-width: 16px; height: 16px; padding: 0 4px;
   display: inline-flex; align-items: center; justify-content: center;
   border-radius: 8px; background: rgba(15, 23, 42, 0.08); color: #475569;
-  font-size: 10px; font-weight: 700; line-height: 1;
+  font-size: 0.625rem; font-weight: 700; line-height: 1;
 `;
 const Action = styled.div`display: flex; align-items: center; gap: 6px; flex-shrink: 0;`;
 const Body = styled.div<{ $max?: number }>`

@@ -62,8 +62,8 @@ const Card = styled.div`
   display: flex; flex-direction: column; gap: 8px;
   @media (max-width: 640px) { max-width: 100%; }
 `;
-const Title = styled.h2`margin: 0; font-size: 15px; font-weight: 700; color: #0F172A;`;
-const Desc = styled.p`margin: 0 0 6px; font-size: 12.5px; color: #64748B; line-height: 1.5;`;
+const Title = styled.h2`margin: 0; font-size: 0.9375rem; font-weight: 700; color: #0F172A;`;
+const Desc = styled.p`margin: 0 0 6px; font-size: 0.78125rem; color: #64748B; line-height: 1.5;`;
 const Opt = styled.button`
   display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
   width: 100%; padding: 11px 12px; min-height: 44px;
@@ -71,11 +71,11 @@ const Opt = styled.button`
   cursor: pointer; text-align: left;
   &:hover { background: #F0FDFA; border-color: #99F6E4; }
 `;
-const OptName = styled.span`font-size: 13.5px; font-weight: 600; color: #0F172A;`;
-const OptHint = styled.span`font-size: 11.5px; color: #94A3B8;`;
+const OptName = styled.span`font-size: 0.84375rem; font-weight: 600; color: #0F172A;`;
+const OptHint = styled.span`font-size: 0.71875rem; color: #94A3B8;`;
 const Cancel = styled.button`
   align-self: flex-end; margin-top: 4px;
   padding: 8px 12px; min-height: 36px;
-  background: none; border: none; color: #64748B; font-size: 12.5px; cursor: pointer;
+  background: none; border: none; color: #64748B; font-size: 0.78125rem; cursor: pointer;
   &:hover { color: #0F172A; }
 `;

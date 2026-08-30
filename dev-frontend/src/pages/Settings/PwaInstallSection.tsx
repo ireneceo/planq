@@ -183,20 +183,20 @@ const IconWrap = styled.div`
 const HeaderText = styled.div`
   flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px;
 `;
-const Title = styled.h3`font-size: 15px; font-weight: 700; color: #0F172A; margin: 0;`;
-const Desc = styled.div`font-size: 12px; color: #64748B; line-height: 1.4;`;
+const Title = styled.h3`font-size: 0.9375rem; font-weight: 700; color: #0F172A; margin: 0;`;
+const Desc = styled.div`font-size: 0.75rem; color: #64748B; line-height: 1.4;`;
 const InstalledBadge = styled.span`
   flex-shrink: 0;
   display: inline-flex; align-items: center; height: 24px; padding: 0 10px;
   background: #F0FDFA; color: #0D9488;
   border: 1px solid #99F6E4; border-radius: 999px;
-  font-size: 11px; font-weight: 700; letter-spacing: 0.2px;
+  font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.2px;
 `;
 const Body = styled.div`
   display: flex; flex-direction: column; gap: 10px;
 `;
 const Note = styled.div`
-  font-size: 12px; color: #475569; line-height: 1.6;
+  font-size: 0.75rem; color: #475569; line-height: 1.6;
 `;
 const Steps = styled.div`
   display: flex; flex-direction: column; gap: 8px;
@@ -205,13 +205,13 @@ const Steps = styled.div`
 `;
 const Step = styled.div`
   display: flex; align-items: center; gap: 10px;
-  font-size: 13px; color: #0F172A;
+  font-size: 0.8125rem; color: #0F172A;
 `;
 const StepNum = styled.span`
   flex-shrink: 0; width: 22px; height: 22px;
   display: inline-flex; align-items: center; justify-content: center;
   background: #14B8A6; color: #FFFFFF; border-radius: 50%;
-  font-size: 11px; font-weight: 700;
+  font-size: 0.6875rem; font-weight: 700;
 `;
 const Actions = styled.div`
   display: flex; gap: 8px;
@@ -219,17 +219,17 @@ const Actions = styled.div`
 const PrimaryBtn = styled.button`
   height: 36px; padding: 0 18px;
   background: #14B8A6; color: #FFFFFF; border: none; border-radius: 8px;
-  font-size: 13px; font-weight: 600; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   transition: background 0.15s;
   &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { opacity: 0.6; cursor: not-allowed; }
 `;
 const ResultLine = styled.div`
-  font-size: 12px; color: #0D9488;
+  font-size: 0.75rem; color: #0D9488;
   padding-top: 4px; border-top: 1px dashed #E2E8F0;
 `;
 const BrowserName = styled.div`
-  font-size: 11px; font-weight: 700; color: #0D9488;
+  font-size: 0.6875rem; font-weight: 700; color: #0D9488;
   text-transform: uppercase; letter-spacing: 0.4px;
 `;
 const Troubleshoot = styled.div`
@@ -238,8 +238,8 @@ const Troubleshoot = styled.div`
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
 `;
 const TroubleTitle = styled.div`
-  font-size: 12px; font-weight: 700; color: #0F172A; margin-bottom: 2px;
+  font-size: 0.75rem; font-weight: 700; color: #0F172A; margin-bottom: 2px;
 `;
 const TroubleItem = styled.div`
-  font-size: 12px; color: #475569; line-height: 1.6;
+  font-size: 0.75rem; color: #475569; line-height: 1.6;
 `;

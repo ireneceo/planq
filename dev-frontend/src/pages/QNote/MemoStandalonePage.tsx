@@ -76,5 +76,5 @@ const CenterMsg = styled.div`
   position: fixed; inset: 0;
   display: flex; align-items: center; justify-content: center;
   background: #F8FAFC;
-  font-size: 13px; color: #94A3B8;
+  font-size: 0.8125rem; color: #94A3B8;
 `;

@@ -105,10 +105,10 @@ const InsightsPage: React.FC = () => {
           background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12,
           padding: '60px 20px', textAlign: 'center',
         }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', marginBottom: 8 }}>
+          <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0F172A', marginBottom: 8 }}>
             {t('noWorkspace.title', '워크스페이스를 선택하세요')}
           </div>
-          <div style={{ fontSize: 12, color: '#64748B' }}>
+          <div style={{ fontSize: '0.75rem', color: '#64748B' }}>
             {t('noWorkspace.hint', '좌측 상단에서 워크스페이스를 선택한 후 통계를 확인할 수 있습니다.')}
           </div>
         </div>
@@ -131,7 +131,7 @@ const InsightsPage: React.FC = () => {
 
 const SegGroup = styled.div`display:inline-flex;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:8px;padding:2px;gap:2px;`;
 const SegBtn = styled.button<{ $active?: boolean }>`
-  padding:5px 12px;font-size:12px;font-weight:600;border:none;border-radius:6px;cursor:pointer;font-family:inherit;white-space:nowrap;
+  padding:5px 12px;font-size:0.75rem;font-weight:600;border:none;border-radius:6px;cursor:pointer;font-family:inherit;white-space:nowrap;
   background:${p => p.$active ? '#FFFFFF' : 'transparent'};
   color:${p => p.$active ? '#0F766E' : '#64748B'};
   box-shadow:${p => p.$active ? '0 1px 2px rgba(0,0,0,0.06)' : 'none'};

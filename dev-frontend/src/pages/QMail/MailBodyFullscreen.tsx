@@ -86,11 +86,11 @@ const Head = styled.div`
 `;
 const HeadText = styled.div` flex: 1; min-width: 0; `;
 const HeadTitle = styled.div`
-  font-size: 16px; font-weight: 700; letter-spacing: -0.2px; color: #0F172A;
+  font-size: 1rem; font-weight: 700; letter-spacing: -0.2px; color: #0F172A;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 `;
 const HeadSub = styled.div`
-  margin-top: 2px; font-size: 12px; color: #64748B;
+  margin-top: 2px; font-size: 0.75rem; color: #64748B;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 `;
 const CloseBtn = styled.button`
@@ -117,6 +117,6 @@ const Body = styled.div`
 const Frame = styled.iframe` width: 100%; height: 100%; border: none; display: block; background: #fff; `;
 const PlainText = styled.pre`
   margin: 0; padding: 0;   /* 여백은 Body 가 담당 — 여기에도 주면 이중이 된다 */
-  font: inherit; font-size: 14px; line-height: 1.7; color: #0F172A;
+  font: inherit; font-size: 0.875rem; line-height: 1.7; color: #0F172A;
   white-space: pre-wrap; word-break: break-word;
 `;

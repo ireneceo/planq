@@ -649,12 +649,12 @@ function UsageItem({ label, used, max, format = 'count', unit }: UsageItemProps)
 
 // ─── styled ───
 const PageDesc = styled.p`
-  font-size: 13px; color: #64748B; line-height: 1.5; margin: 0 0 16px;
+  font-size: 0.8125rem; color: #64748B; line-height: 1.5; margin: 0 0 16px;
 `;
-const InfoText = styled.div`font-size: 13px; color: #64748B; padding: 24px 4px;`;
-const ErrorText = styled.div`font-size: 13px; color: #DC2626; padding: 12px 4px;`;
+const InfoText = styled.div`font-size: 0.8125rem; color: #64748B; padding: 24px 4px;`;
+const ErrorText = styled.div`font-size: 0.8125rem; color: #DC2626; padding: 12px 4px;`;
 const Padded = styled.div`padding: 24px;`;
-const Dim = styled.span`color: #94A3B8; font-size: 12px;`;
+const Dim = styled.span`color: #94A3B8; font-size: 0.75rem;`;
 
 const List = styled.div`
   display: flex; flex-direction: column; gap: 6px;
@@ -670,25 +670,25 @@ const Row = styled.button<{ $active: boolean }>`
   &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
 `;
 const RowMain = styled.div`flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px;`;
-const RowTitle = styled.div`font-size: 14px; font-weight: 600; color: #0F172A;`;
+const RowTitle = styled.div`font-size: 0.875rem; font-weight: 600; color: #0F172A;`;
 const RowMeta = styled.div`display: flex; align-items: center; gap: 8px; flex-wrap: wrap;`;
 
 const PlanBadge = styled.span<{ $code: PlanCode }>`
   display: inline-flex; align-items: center; padding: 2px 10px;
   background: ${p => PLAN_COLOR[p.$code].bg};
   color: ${p => PLAN_COLOR[p.$code].fg};
-  border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: 0.2px;
+  border-radius: 999px; font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.2px;
 `;
 const StateBadge = styled.span<{ $tone: 'info' | 'warn' | 'danger' }>`
-  display: inline-flex; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600;
+  display: inline-flex; padding: 2px 8px; border-radius: 999px; font-size: 0.6875rem; font-weight: 600;
   ${p => p.$tone === 'warn' && `background:#FEF3C7; color:#92400E;`}
   ${p => p.$tone === 'info' && `background:#DBEAFE; color:#1D4ED8;`}
   ${p => p.$tone === 'danger' && `background:#FEE2E2; color:#B91C1C;`}
 `;
 
 // Drawer
-const DrawerTitle = styled.div`font-size: 16px; font-weight: 700; color: #0F172A;`;
-const DrawerSub = styled.div`font-size: 12px; color: #94A3B8; margin-top: 2px;`;
+const DrawerTitle = styled.div`font-size: 1rem; font-weight: 700; color: #0F172A;`;
+const DrawerSub = styled.div`font-size: 0.75rem; color: #94A3B8; margin-top: 2px;`;
 
 const Section = styled.section`
   padding: 16px 20px; border-bottom: 1px solid #E2E8F0;
@@ -698,13 +698,13 @@ const SectionHead = styled.div`
   display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;
 `;
 const SectionTitle = styled.h3`
-  margin: 0; font-size: 13px; font-weight: 700; color: #0F172A; letter-spacing: -0.1px;
+  margin: 0; font-size: 0.8125rem; font-weight: 700; color: #0F172A; letter-spacing: -0.1px;
 `;
 const KV = styled.div`
   display: flex; align-items: center; padding: 6px 0; gap: 8px;
 `;
-const KLabel = styled.div`width: 110px; font-size: 12px; color: #64748B; flex-shrink: 0;`;
-const KValue = styled.div`flex: 1; font-size: 13px; color: #0F172A; display: flex; align-items: center; gap: 6px;`;
+const KLabel = styled.div`width: 110px; font-size: 0.75rem; color: #64748B; flex-shrink: 0;`;
+const KValue = styled.div`flex: 1; font-size: 0.8125rem; color: #0F172A; display: flex; align-items: center; gap: 6px;`;
 
 // Usage
 const UsageGrid = styled.div`
@@ -715,10 +715,10 @@ const UsageCard = styled.div`
   display: flex; flex-direction: column; gap: 6px;
   padding: 10px 12px; background: #F8FAFC; border-radius: 8px;
 `;
-const UsageLabel = styled.div`font-size: 11px; color: #64748B; font-weight: 600;`;
+const UsageLabel = styled.div`font-size: 0.6875rem; color: #64748B; font-weight: 600;`;
 const UsageRow = styled.div`display: flex; align-items: baseline; gap: 4px;`;
-const UsageVal = styled.div`font-size: 14px; font-weight: 700; color: #0F172A;`;
-const UsageMax = styled.div`font-size: 11px; color: #94A3B8;`;
+const UsageVal = styled.div`font-size: 0.875rem; font-weight: 700; color: #0F172A;`;
+const UsageMax = styled.div`font-size: 0.6875rem; color: #94A3B8;`;
 const UsageBar = styled.div`height: 4px; background: #E2E8F0; border-radius: 2px; overflow: hidden;`;
 const UsageFill = styled.div<{ $warn: boolean; $caution: boolean }>`
   height: 100%;
@@ -733,18 +733,18 @@ const HistBullet = styled.div`
   width: 8px; height: 8px; border-radius: 999px; background: #14B8A6; margin-top: 6px; flex-shrink: 0;
 `;
 const HistBody = styled.div`flex: 1; min-width: 0;`;
-const HistPlans = styled.div`font-size: 13px; color: #0F172A; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;`;
+const HistPlans = styled.div`font-size: 0.8125rem; color: #0F172A; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;`;
 const ReasonTag = styled.span`
   display: inline-flex; padding: 1px 8px; border-radius: 999px;
-  background: #F1F5F9; color: #475569; font-size: 10px; font-weight: 600;
+  background: #F1F5F9; color: #475569; font-size: 0.625rem; font-weight: 600;
 `;
-const HistMeta = styled.div`font-size: 11px; color: #94A3B8; margin-top: 2px;`;
-const HistNote = styled.div`font-size: 12px; color: #475569; margin-top: 4px; padding: 6px 10px; background: #F8FAFC; border-radius: 6px;`;
+const HistMeta = styled.div`font-size: 0.6875rem; color: #94A3B8; margin-top: 2px;`;
+const HistNote = styled.div`font-size: 0.75rem; color: #475569; margin-top: 4px; padding: 6px 10px; background: #F8FAFC; border-radius: 6px;`;
 
 // Modal
 const DangerBtn = styled.button`
   height: 34px; padding: 0 14px; background: #fff; color: #DC2626;
-  border: 1px solid #FCA5A5; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+  border: 1px solid #FCA5A5; border-radius: 8px; font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   &:hover:not(:disabled){ background: #FEF2F2; border-color: #DC2626; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;

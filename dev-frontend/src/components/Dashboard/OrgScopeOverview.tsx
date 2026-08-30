@@ -84,21 +84,21 @@ const StatCard = styled.div<{ $alert?: boolean }>`
   background: #fff; border: 1px solid ${(p) => (p.$alert ? '#FECACA' : '#e2e8f0')}; border-radius: 12px;
   padding: 16px; display: flex; flex-direction: column; gap: 4px;
 `;
-const StatNum = styled.div<{ $alert?: boolean }>`font-size: 24px; font-weight: 700; color: ${(p) => (p.$alert ? '#EF4444' : '#0f172a')};`;
-const StatLabel = styled.div`font-size: 12px; color: #64748b; font-weight: 600;`;
+const StatNum = styled.div<{ $alert?: boolean }>`font-size: 1.5rem; font-weight: 700; color: ${(p) => (p.$alert ? '#EF4444' : '#0f172a')};`;
+const StatLabel = styled.div`font-size: 0.75rem; color: #64748b; font-weight: 600;`;
 const Section = styled.div`background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px 18px;`;
-const SecTitle = styled.div`font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 12px;`;
+const SecTitle = styled.div`font-size: 0.8125rem; font-weight: 700; color: #0f172a; margin-bottom: 12px;`;
 const BreakRow = styled.div<{ $click?: boolean }>`
   display: grid; grid-template-columns: 1.4fr 2fr auto; gap: 12px; align-items: center; padding: 7px 0;
   ${(p) => p.$click && 'cursor: pointer; border-radius: 8px; margin: 0 -8px; padding: 7px 8px; &:hover { background: #f8fafc; }'}
 `;
-const BreakName = styled.div`font-size: 13px; font-weight: 600; color: #334155; display: flex; align-items: center; gap: 6px; min-width: 0;`;
+const BreakName = styled.div`font-size: 0.8125rem; font-weight: 600; color: #334155; display: flex; align-items: center; gap: 6px; min-width: 0;`;
 const Dot = styled.span<{ $c: string }>`width: 9px; height: 9px; border-radius: 50%; background: ${(p) => p.$c}; flex-shrink: 0;`;
-const MutedCount = styled.span`font-size: 12px; color: #94a3b8; font-weight: 500;`;
+const MutedCount = styled.span`font-size: 0.75rem; color: #94a3b8; font-weight: 500;`;
 const BreakBarWrap = styled.div`height: 8px; background: #f1f5f9; border-radius: 999px; overflow: hidden;`;
 const BreakBar = styled.div`height: 100%; background: #14b8a6; border-radius: 999px; transition: width 0.3s;`;
-const BreakVal = styled.div`font-size: 13px; font-weight: 700; color: #0f172a; text-align: right; display: flex; align-items: center; gap: 6px; justify-content: flex-end;`;
-const OverdueTag = styled.span`font-size: 11px; font-weight: 700; color: #EF4444; background: #FEF2F2; border-radius: 999px; padding: 1px 6px;`;
-const Dim = styled.div`padding: 24px; text-align: center; font-size: 13px; color: #94a3b8;`;
+const BreakVal = styled.div`font-size: 0.8125rem; font-weight: 700; color: #0f172a; text-align: right; display: flex; align-items: center; gap: 6px; justify-content: flex-end;`;
+const OverdueTag = styled.span`font-size: 0.6875rem; font-weight: 700; color: #EF4444; background: #FEF2F2; border-radius: 999px; padding: 1px 6px;`;
+const Dim = styled.div`padding: 24px; text-align: center; font-size: 0.8125rem; color: #94a3b8;`;
 const Skeleton = styled.div`display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;`;
 const Bar = styled.div`height: 48px; background: #f1f5f9; border-radius: 12px; animation: pulse 1.2s ease-in-out infinite; @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }`;

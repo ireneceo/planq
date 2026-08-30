@@ -447,13 +447,13 @@ const MemoSummaryTop = styled.div`
   margin-bottom: 8px;
 `;
 const MemoSummaryTitle = styled.h3`
-  margin: 0; font-size: 13px; font-weight: 700; color: #0F172A; letter-spacing: -0.2px;
+  margin: 0; font-size: 0.8125rem; font-weight: 700; color: #0F172A; letter-spacing: -0.2px;
   display: flex; align-items: center; gap: 8px;
   &::before { content: ''; width: 3px; height: 14px; background: #14B8A6; border-radius: 2px; }
 `;
 const MemoSummaryRegen = styled.button`
   border: 1px solid #E2E8F0; background: #FFFFFF; color: #475569;
-  font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 8px; cursor: pointer;
+  font-size: 0.75rem; font-weight: 600; padding: 6px 12px; border-radius: 8px; cursor: pointer;
   transition: all 0.15s ease;
   &:hover:not(:disabled) { border-color: #CBD5E1; background: #F8FAFC; }
   &:disabled { opacity: 0.5; cursor: default; }
@@ -478,13 +478,13 @@ const MemoReRow = styled.div`
 `;
 const MemoReInput = styled.input`
   flex: 1; min-width: 180px; height: 32px; padding: 0 12px;
-  border: 1px solid #CBD5E1; border-radius: 8px; font-size: 13px; color: #0F172A;
+  border: 1px solid #CBD5E1; border-radius: 8px; font-size: 0.8125rem; color: #0F172A;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
   &::placeholder { color: #94A3B8; }
 `;
 const MemoSummaryDocBtn = styled.button`
   border: 1px solid #14B8A6; background: #F0FDFA; color: #0F766E;
-  font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 8px; cursor: pointer;
+  font-size: 0.75rem; font-weight: 600; padding: 6px 12px; border-radius: 8px; cursor: pointer;
   transition: all 0.15s ease;
   &:hover:not(:disabled) { background: #CCFBF1; }
   &:disabled { opacity: 0.5; cursor: default; }
@@ -493,36 +493,36 @@ const MemoSummarySaved = styled.div`
   display: inline-flex; align-items: center; gap: 8px;
 `;
 const MemoSummarySavedText = styled.span`
-  font-size: 12px; font-weight: 600; color: #0F766E;
+  font-size: 0.75rem; font-weight: 600; color: #0F766E;
 `;
 const MemoSummaryLink = styled.button`
   border: none; background: transparent; color: #0D9488;
-  font-size: 12px; font-weight: 600; text-decoration: underline; cursor: pointer; padding: 0;
+  font-size: 0.75rem; font-weight: 600; text-decoration: underline; cursor: pointer; padding: 0;
 `;
 const MemoSummaryPoints = styled.ul`
   margin: 0 0 8px; padding-left: 18px; display: flex; flex-direction: column; gap: 4px;
-  li { font-size: 13px; line-height: 1.6; color: #0F172A; }
+  li { font-size: 0.8125rem; line-height: 1.6; color: #0F172A; }
 `;
 const MemoSummaryFull = styled.div`
-  font-size: 13px; line-height: 1.7; color: #334155; white-space: pre-wrap;
+  font-size: 0.8125rem; line-height: 1.7; color: #334155; white-space: pre-wrap;
   max-height: 140px; overflow-y: auto;
 `;
 const MemoSummaryEmpty = styled.div`
   display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
 `;
 const MemoSummaryHint = styled.div`
-  font-size: 13px; color: #64748B;
+  font-size: 0.8125rem; color: #64748B;
 `;
 const MemoSummaryGenerate = styled.button`
   border: none; background: #14B8A6; color: #FFFFFF;
-  font-size: 13px; font-weight: 600; padding: 8px 16px; border-radius: 8px; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 600; padding: 8px 16px; border-radius: 8px; cursor: pointer;
   white-space: nowrap; transition: background 0.15s ease;
   &:hover:not(:disabled) { background: #0D9488; }
   &:active:not(:disabled) { background: #0F766E; }
   &:disabled { opacity: 0.6; cursor: default; }
 `;
 const MemoSummaryError = styled.div`
-  font-size: 12px; color: #B91C1C; margin-top: 8px; flex-basis: 100%;
+  font-size: 0.75rem; color: #B91C1C; margin-top: 8px; flex-basis: 100%;
 `;
 const Header = styled.div`
   display: flex; align-items: flex-start; gap: 12px;
@@ -542,13 +542,13 @@ const TitleArea = styled.div`
 `;
 const Title = styled.h2`
   margin: 0;
-  font-size: 16px; font-weight: 700; color: #0F172A;
+  font-size: 1rem; font-weight: 700; color: #0F172A;
   letter-spacing: -0.2px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
 const Status = styled.div`
   display: inline-flex; align-items: center; gap: 6px;
-  font-size: 11px; color: #94A3B8;
+  font-size: 0.6875rem; color: #94A3B8;
 `;
 const Dot = styled.span<{ $tone: SaveState }>`
   display: inline-block;
@@ -583,7 +583,7 @@ const Body = styled.div`
 const EditorLoading = styled.div`
   display: flex; align-items: center; justify-content: center;
   height: 100%; min-height: 200px;
-  font-size: 13px; color: #94A3B8;
+  font-size: 0.8125rem; color: #94A3B8;
 `;
 
 // 삭제 확인
@@ -600,24 +600,24 @@ const ConfirmDialog = styled.div`
   box-shadow: 0 20px 50px -12px rgba(15,23,42,0.3);
 `;
 const ConfirmTitle = styled.div`
-  font-size: 15px; font-weight: 700; color: #0F172A; margin-bottom: 8px;
+  font-size: 0.9375rem; font-weight: 700; color: #0F172A; margin-bottom: 8px;
 `;
 const ConfirmDesc = styled.div`
-  font-size: 13px; color: #64748B; line-height: 1.55; margin-bottom: 16px;
+  font-size: 0.8125rem; color: #64748B; line-height: 1.55; margin-bottom: 16px;
 `;
 const ConfirmActions = styled.div`
   display: flex; justify-content: flex-end; gap: 8px;
 `;
 const SecondaryBtn = styled.button`
   padding: 8px 16px;
-  font-size: 13px; font-weight: 600; color: #475569;
+  font-size: 0.8125rem; font-weight: 600; color: #475569;
   background: transparent; border: 1px solid #E2E8F0;
   border-radius: 6px; cursor: pointer;
   &:hover { background: #F8FAFC; border-color: #CBD5E1; }
 `;
 const DangerBtn = styled.button`
   padding: 8px 16px;
-  font-size: 13px; font-weight: 600; color: #FFFFFF;
+  font-size: 0.8125rem; font-weight: 600; color: #FFFFFF;
   background: #EF4444; border: 1px solid #EF4444;
   border-radius: 6px; cursor: pointer;
   &:hover { background: #DC2626; border-color: #DC2626; }

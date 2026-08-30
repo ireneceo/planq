@@ -171,22 +171,22 @@ const Brand = styled.img`display:block;width:120px;height:auto;user-select:none;
 const ToolbarSpacer = styled.div`flex:1;`;
 const PrintBtn = styled.button`
   display: inline-flex; align-items: center; min-height: 44px;
-  padding: 8px 16px; font-size: 13px; font-weight: 600; color: #334155;
+  padding: 8px 16px; font-size: 0.8125rem; font-weight: 600; color: #334155;
   border: 1px solid #E2E8F0; border-radius: 8px; background: #FFF; cursor: pointer;
   &:hover { border-color: #14B8A6; color: #0F766E; }
 `;
 const SignBtn = styled.button`
   display: inline-flex; align-items: center; min-height: 44px;
-  padding: 8px 16px; font-size: 13px; font-weight: 700; color: #FFF;
+  padding: 8px 16px; font-size: 0.8125rem; font-weight: 700; color: #FFF;
   background: #14B8A6; border: none; border-radius: 8px; cursor: pointer;
   &:hover { background: #0D9488; }
 `;
 const DocFrame = styled.article`
   max-width: 820px; margin: 32px auto; background: #FFF; border: 1px solid #E2E8F0;
   border-radius: 12px; padding: 48px 56px; box-shadow: 0 4px 12px rgba(0,0,0,0.04);
-  font-size: 14px; line-height: 1.7; color: #0F172A;
-  h1 { font-size: 24px; margin: 0 0 16px 0; }
-  h2 { font-size: 17px; margin: 28px 0 10px 0; color: #0F172A; }
+  font-size: 0.875rem; line-height: 1.7; color: #0F172A;
+  h1 { font-size: 1.5rem; margin: 0 0 16px 0; }
+  h2 { font-size: 1.0625rem; margin: 28px 0 10px 0; color: #0F172A; }
   p { margin: 0 0 12px 0; }
   ul, ol { padding-left: 24px; margin: 0 0 12px 0; }
   table { width: 100%; border-collapse: collapse; margin: 12px 0; }
@@ -196,16 +196,16 @@ const DocFrame = styled.article`
   }
   @media (max-width: 640px) { padding: 24px 20px; margin: 16px; }
 `;
-const DocTitle = styled.h1`font-size:24px;font-weight:700;color:#0F172A;margin:0 0 20px 0;`;
+const DocTitle = styled.h1`font-size:1.5rem;font-weight:700;color:#0F172A;margin:0 0 20px 0;`;
 const DocBody = styled.div``;
 const SignBlock = styled.div<{ $accept?: boolean }>`
   margin-top: 32px; padding: 16px 20px; border-radius: 12px;
   background: ${p => p.$accept ? '#F0FDFA' : '#FEF2F2'};
   border: 1px solid ${p => p.$accept ? '#14B8A6' : '#EF4444'};
 `;
-const SignTitle = styled.div`font-size:15px;font-weight:700;color:#0F172A;margin-bottom:6px;`;
-const SignMeta = styled.div`font-size:12px;color:#64748B;`;
-const Center = styled.div`min-height:60vh;display:flex;align-items:center;justify-content:center;color:#64748B;font-size:14px;`;
+const SignTitle = styled.div`font-size:0.9375rem;font-weight:700;color:#0F172A;margin-bottom:6px;`;
+const SignMeta = styled.div`font-size:0.75rem;color:#64748B;`;
+const Center = styled.div`min-height:60vh;display:flex;align-items:center;justify-content:center;color:#64748B;font-size:0.875rem;`;
 
 const ModalBackdrop = styled.div`
   position: fixed; inset: 0; background: rgba(15,23,42,0.4);
@@ -216,14 +216,14 @@ const ModalDialog = styled.div`
   background: #FFF; border-radius: 14px; max-width: 460px; width: 100%; padding: 24px;
   box-shadow: 0 20px 60px rgba(0,0,0,0.2);
 `;
-const ModalTitle = styled.h2`font-size:16px;font-weight:700;color:#0F172A;margin:0 0 6px 0;`;
-const ModalSub = styled.p`font-size:12px;color:#64748B;margin:0 0 16px 0;line-height:1.5;`;
+const ModalTitle = styled.h2`font-size:1rem;font-weight:700;color:#0F172A;margin:0 0 6px 0;`;
+const ModalSub = styled.p`font-size:0.75rem;color:#64748B;margin:0 0 16px 0;line-height:1.5;`;
 const ModalField = styled.div`display:flex;flex-direction:column;gap:6px;margin-bottom:12px;`;
-const FieldLabel = styled.label`font-size:12px;font-weight:600;color:#0F172A;`;
-const FieldInput = styled.input`width:100%;padding:8px 10px;font-size:13px;color:#0F172A;border:1px solid #E2E8F0;border-radius:8px;&:focus{outline:none;border-color:#14B8A6;}`;
-const FieldTextarea = styled.textarea`width:100%;padding:8px 10px;font-size:13px;color:#0F172A;border:1px solid #E2E8F0;border-radius:8px;resize:vertical;font-family:inherit;&:focus{outline:none;border-color:#14B8A6;}`;
+const FieldLabel = styled.label`font-size:0.75rem;font-weight:600;color:#0F172A;`;
+const FieldInput = styled.input`width:100%;padding:8px 10px;font-size:0.8125rem;color:#0F172A;border:1px solid #E2E8F0;border-radius:8px;&:focus{outline:none;border-color:#14B8A6;}`;
+const FieldTextarea = styled.textarea`width:100%;padding:8px 10px;font-size:0.8125rem;color:#0F172A;border:1px solid #E2E8F0;border-radius:8px;resize:vertical;font-family:inherit;&:focus{outline:none;border-color:#14B8A6;}`;
 const ModalActions = styled.div`display:flex;justify-content:flex-end;gap:8px;margin-top:8px;`;
-const BtnGhost = styled.button`padding:8px 14px;font-size:13px;font-weight:600;color:#334155;background:#FFF;border:1px solid #E2E8F0;border-radius:8px;cursor:pointer;&:hover:not(:disabled){border-color:#CBD5E1;}&:disabled{opacity:0.5;cursor:not-allowed;}`;
-const BtnDanger = styled.button`padding:8px 14px;font-size:13px;font-weight:700;color:#DC2626;background:#FFF;border:1px solid #EF4444;border-radius:8px;cursor:pointer;&:hover:not(:disabled){background:#FEF2F2;}&:disabled{opacity:0.5;cursor:not-allowed;}`;
-const BtnPrimary = styled.button`padding:8px 16px;font-size:13px;font-weight:700;color:#FFF;background:#14B8A6;border:none;border-radius:8px;cursor:pointer;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
-const ErrorBox = styled.div`font-size:12px;color:#DC2626;background:#FEF2F2;padding:8px 10px;border-radius:6px;margin-bottom:8px;`;
+const BtnGhost = styled.button`padding:8px 14px;font-size:0.8125rem;font-weight:600;color:#334155;background:#FFF;border:1px solid #E2E8F0;border-radius:8px;cursor:pointer;&:hover:not(:disabled){border-color:#CBD5E1;}&:disabled{opacity:0.5;cursor:not-allowed;}`;
+const BtnDanger = styled.button`padding:8px 14px;font-size:0.8125rem;font-weight:700;color:#DC2626;background:#FFF;border:1px solid #EF4444;border-radius:8px;cursor:pointer;&:hover:not(:disabled){background:#FEF2F2;}&:disabled{opacity:0.5;cursor:not-allowed;}`;
+const BtnPrimary = styled.button`padding:8px 16px;font-size:0.8125rem;font-weight:700;color:#FFF;background:#14B8A6;border:none;border-radius:8px;cursor:pointer;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
+const ErrorBox = styled.div`font-size:0.75rem;color:#DC2626;background:#FEF2F2;padding:8px 10px;border-radius:6px;margin-bottom:8px;`;

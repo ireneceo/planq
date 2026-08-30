@@ -143,44 +143,44 @@ const Brand = styled(Link)`
 const Lang = styled.div`display:inline-flex;align-items:center;gap:4px;`;
 const LangBtn = styled.button<{ $active: boolean }>`
   background:none;border:none;padding:4px 8px;
-  font-size:12px;font-weight:${p => p.$active ? 700 : 500};
+  font-size:0.75rem;font-weight:${p => p.$active ? 700 : 500};
   color:${p => p.$active ? '#0F766E' : '#94A3B8'};
   cursor:pointer;
   &:hover{color:#0F172A;}
 `;
 const LangDiv = styled.span`color:#CBD5E1;`;
 const Title = styled.h1`
-  margin:0 0 8px;font-size:28px;font-weight:800;color:#0F172A;letter-spacing:-0.4px;
-  @media (max-width: 640px){ font-size:22px; }
+  margin:0 0 8px;font-size:1.75rem;font-weight:800;color:#0F172A;letter-spacing:-0.4px;
+  @media (max-width: 640px){ font-size:1.375rem; }
 `;
-const Meta = styled.div`font-size:12px;color:#64748B;margin-bottom:20px;`;
+const Meta = styled.div`font-size:0.75rem;color:#64748B;margin-bottom:20px;`;
 const Intro = styled.p`
-  font-size:14px;line-height:1.7;color:#475569;
+  font-size:0.875rem;line-height:1.7;color:#475569;
   background:#F8FAFC;padding:16px 20px;border-radius:10px;border-left:3px solid #14B8A6;
   margin:0 0 32px;
 `;
 const Section = styled.section`margin-bottom:28px;`;
 const SectionTitle = styled.h2`
-  margin:0 0 10px;font-size:16px;font-weight:700;color:#0F172A;
+  margin:0 0 10px;font-size:1rem;font-weight:700;color:#0F172A;
 `;
 const SectionIntro = styled.p`
-  font-size:14px;line-height:1.7;color:#475569;margin:0 0 10px;
+  font-size:0.875rem;line-height:1.7;color:#475569;margin:0 0 10px;
 `;
 const SectionP = styled.p`
-  font-size:14px;line-height:1.7;color:#334155;margin:0 0 8px;
+  font-size:0.875rem;line-height:1.7;color:#334155;margin:0 0 8px;
 `;
 const List = styled.ul`
   margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px;
 `;
 const ListItem = styled.li`
-  font-size:14px;line-height:1.7;color:#334155;padding-left:16px;position:relative;
+  font-size:0.875rem;line-height:1.7;color:#334155;padding-left:16px;position:relative;
   &::before{content:'·';position:absolute;left:4px;color:#94A3B8;font-weight:700;}
 `;
 const ContactBox = styled.div`
   margin-top:12px;padding:14px 16px;background:#F0FDFA;border:1px solid #99F6E4;border-radius:10px;
   display:flex;flex-direction:column;gap:6px;
 `;
-const ContactRow = styled.div`display:flex;gap:12px;font-size:13px;`;
+const ContactRow = styled.div`display:flex;gap:12px;font-size:0.8125rem;`;
 const ContactKey = styled.div`flex:0 0 120px;color:#64748B;font-weight:600;`;
 const ContactVal = styled.div`color:#0F172A;
   a{color:#0F766E;text-decoration:none;&:hover{text-decoration:underline;}}
@@ -188,7 +188,7 @@ const ContactVal = styled.div`color:#0F172A;
 const Footer = styled.footer`
   margin-top:40px;padding-top:20px;border-top:1px solid #F1F5F9;
   display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;
-  font-size:12px;
+  font-size:0.75rem;
   a{color:#64748B;text-decoration:none;&:hover{color:#0F172A;}}
 `;
 const FooterLinks = styled.div`display:inline-flex;gap:8px;align-items:center;

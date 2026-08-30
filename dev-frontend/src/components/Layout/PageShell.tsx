@@ -114,7 +114,7 @@ const TitleGroup = styled.div`
 `;
 
 const Title = styled.h1`
-  font-size: 18px;
+  font-size: 1.125rem;
   font-weight: 700;
   color: #0f172a;
   margin: 0;
@@ -125,7 +125,7 @@ const Title = styled.h1`
 `;
 
 const Count = styled.span`
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #64748b;
   background: #f1f5f9;
   padding: 2px 8px;

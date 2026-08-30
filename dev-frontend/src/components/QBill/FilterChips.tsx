@@ -8,7 +8,7 @@ export const ChipBar = styled.div`
 `;
 export const Chip = styled.button<{ $active: boolean }>`
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 6px 12px; font-size: 12px; font-weight: 600;
+  padding: 6px 12px; font-size: 0.75rem; font-weight: 600;
   background: ${p => p.$active ? '#14B8A6' : '#fff'};
   color: ${p => p.$active ? '#fff' : '#475569'};
   border: 1px solid ${p => p.$active ? '#14B8A6' : '#E2E8F0'};
@@ -17,7 +17,7 @@ export const Chip = styled.button<{ $active: boolean }>`
   &:hover { border-color: ${p => p.$active ? '#0D9488' : '#CBD5E1'}; color: ${p => p.$active ? '#fff' : '#0F172A'}; }
 `;
 export const ChipCount = styled.span<{ $active: boolean }>`
-  font-size: 11px; font-weight: 700;
+  font-size: 0.6875rem; font-weight: 700;
   padding: 1px 6px; border-radius: 999px;
   background: ${p => p.$active ? 'rgba(255,255,255,0.25)' : '#F1F5F9'};
   color: ${p => p.$active ? '#fff' : '#475569'};

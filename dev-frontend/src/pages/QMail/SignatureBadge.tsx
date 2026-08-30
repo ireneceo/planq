@@ -112,24 +112,24 @@ export default function SignatureBadge({ businessId, threadId, accountId, fromAl
 
 const Wrap = styled.div`padding: 6px 0 2px;`;
 const Row = styled.div`display: flex; align-items: center; gap: 8px; flex-wrap: wrap;`;
-const Label = styled.span`font-size: 11px; font-weight: 600; color: #94A3B8;`;
+const Label = styled.span`font-size: 0.6875rem; font-weight: 600; color: #94A3B8;`;
 const Src = styled.span<{ $muted: boolean }>`
-  font-size: 11px; font-weight: 600;
+  font-size: 0.6875rem; font-weight: 600;
   color: ${p => (p.$muted ? '#94A3B8' : '#0F172A')};
   background: #F1F5F9; border-radius: 10px; padding: 2px 8px;
 `;
-const SrcAddr = styled.span`font-size: 11px; color: #94A3B8; word-break: break-all;`;
+const SrcAddr = styled.span`font-size: 0.6875rem; color: #94A3B8; word-break: break-all;`;
 const LinkBtn = styled.button`
   background: none; border: none; padding: 2px 4px; cursor: pointer;
-  font-size: 11px; font-weight: 600; color: #64748B; text-decoration: underline;
+  font-size: 0.6875rem; font-weight: 600; color: #64748B; text-decoration: underline;
   &:hover { color: #0F172A; }
   &:focus-visible { outline: 2px solid #F43F5E; outline-offset: 2px; border-radius: 4px; }
 `;
-const Off = styled.span`font-size: 11px; font-weight: 600; color: #D97706;`;
+const Off = styled.span`font-size: 0.6875rem; font-weight: 600; color: #D97706;`;
 const Preview = styled.div`
   margin-top: 6px; padding: 8px 10px;
   border: 1px dashed #E2E8F0; border-radius: 8px;
-  background: #F8FAFC; color: #334155; font-size: 12px;
+  background: #F8FAFC; color: #334155; font-size: 0.75rem;
   max-height: 160px; overflow-y: auto;
   img { max-width: 100%; }
 `;

@@ -179,7 +179,7 @@ const Popover = styled.div`
   padding: 14px 16px;
   box-shadow: 0 4px 16px rgba(15,23,42,0.10);
   z-index: 9999;
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   color: #334155;
   line-height: 1.65;
   text-align: left;
@@ -194,7 +194,7 @@ const AskCueLink = styled.button`
   display: inline-flex; align-items: center; gap: 4px;
   margin-top: 10px; padding: 0;
   background: transparent; border: none;
-  font-size: 12px; font-weight: 600;
+  font-size: 0.75rem; font-weight: 600;
   color: #0D9488;
   cursor: pointer;
   &:hover { color: #0F766E; text-decoration: underline; }

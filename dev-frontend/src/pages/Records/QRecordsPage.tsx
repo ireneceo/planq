@@ -307,7 +307,7 @@ const Spacer = styled.div`flex: 1;`;
 const SearchInput = styled.input`
   height: 32px; padding: 0 10px; min-width: 220px;
   border: 1px solid #E2E8F0; border-radius: 6px;
-  font-size: 13px; color: #0F172A;
+  font-size: 0.8125rem; color: #0F172A;
   &:focus { outline: none; border-color: #14B8A6; }
 `;
 const ViewToggle = styled.div`
@@ -353,11 +353,11 @@ const TreeIcon = styled.svg<{ $selected?: boolean }>`
   flex-shrink: 0;
 `;
 const TreeName = styled.div`
-  min-width: 0; font-size: 12px; font-weight: 500;
+  min-width: 0; font-size: 0.75rem; font-weight: 500;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
 const TreeCount = styled.span`
-  font-size: 10px; color: #94A3B8; font-weight: 600;
+  font-size: 0.625rem; color: #94A3B8; font-weight: 600;
   min-width: 22px; padding: 1px 6px;
   background: #F1F5F9; border-radius: 999px;
   text-align: center; justify-self: end;
@@ -384,17 +384,17 @@ const CardHeader = styled.div`
   display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;
 `;
 const CardTitle = styled.div`
-  font-size: 14px; font-weight: 700; color: #0F172A; letter-spacing: -0.1px;
+  font-size: 0.875rem; font-weight: 700; color: #0F172A; letter-spacing: -0.1px;
   flex: 1; min-width: 0;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
 const CardDesc = styled.div`
-  font-size: 12px; color: #64748B; line-height: 1.5;
+  font-size: 0.75rem; color: #64748B; line-height: 1.5;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   overflow: hidden;
 `;
 const CardStats = styled.div`
-  display: flex; gap: 12px; font-size: 11px; color: #94A3B8;
+  display: flex; gap: 12px; font-size: 0.6875rem; color: #94A3B8;
   margin-top: auto; padding-top: 8px; border-top: 1px solid #F1F5F9;
   b { color: #475569; font-weight: 700; margin-right: 2px; }
 `;
@@ -420,8 +420,8 @@ const DelDialog = styled.div`
   background: #fff; border-radius: 12px; max-width: 420px; width: 100%;
   padding: 24px; box-shadow: 0 20px 60px rgba(15,23,42,0.2);
 `;
-const DelTitle = styled.h2`font-size: 16px; font-weight: 700; color: #0F172A; margin: 0 0 8px;`;
-const DelDesc = styled.p`font-size: 13px; color: #64748B; line-height: 1.6; margin: 0 0 20px;`;
+const DelTitle = styled.h2`font-size: 1rem; font-weight: 700; color: #0F172A; margin: 0 0 8px;`;
+const DelDesc = styled.p`font-size: 0.8125rem; color: #64748B; line-height: 1.6; margin: 0 0 20px;`;
 const DelActions = styled.div`display: flex; gap: 8px; justify-content: flex-end;`;
 
 // 리스트
@@ -430,7 +430,7 @@ const ListHead = styled.div`
   display: grid; grid-template-columns: 2fr 1fr 1fr 80px 80px 100px 40px;
   gap: 12px; padding: 10px 16px;
   background: #F8FAFC; border-bottom: 1px solid #E2E8F0;
-  font-size: 11px; font-weight: 700; color: #64748B;
+  font-size: 0.6875rem; font-weight: 700; color: #64748B;
   text-transform: uppercase; letter-spacing: 0.4px;
 `;
 const ListRow = styled.button`
@@ -441,7 +441,7 @@ const ListRow = styled.button`
   border-bottom: 1px solid #F1F5F9;
   cursor: pointer; transition: background 0.12s;
   text-align: left;
-  font-size: 13px; color: #0F172A;
+  font-size: 0.8125rem; color: #0F172A;
   &:hover { background: #F0FDFA; }
   &:focus-visible { outline: 2px solid rgba(20,184,166,0.4); outline-offset: -2px; }
   &:last-child { border-bottom: none; }
@@ -449,20 +449,20 @@ const ListRow = styled.button`
 const ColName = styled.div`font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
 const ColCat = styled.div``;
 const ColScope = styled.div``;
-const ColCount = styled.div`color: #64748B; font-size: 12px;`;
-const ColUpdated = styled.div`color: #94A3B8; font-size: 12px;`;
-const Muted = styled.span`color: #94A3B8; font-size: 12px;`;
+const ColCount = styled.div`color: #64748B; font-size: 0.75rem;`;
+const ColUpdated = styled.div`color: #94A3B8; font-size: 0.75rem;`;
+const Muted = styled.span`color: #94A3B8; font-size: 0.75rem;`;
 
 // 모달 form
 const Field = styled.div`display: flex; flex-direction: column; gap: 6px;`;
-const Label = styled.label`font-size: 13px; font-weight: 600; color: #0F172A;`;
+const Label = styled.label`font-size: 0.8125rem; font-weight: 600; color: #0F172A;`;
 const TextInput = styled.input`
   height: 36px; padding: 0 10px;
   border: 1px solid #E2E8F0; border-radius: 6px;
-  font-size: 13px; color: #0F172A;
+  font-size: 0.8125rem; color: #0F172A;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
 `;
 const ErrorBox = styled.div`
-  padding: 8px 12px; font-size: 12px; color: #B91C1C;
+  padding: 8px 12px; font-size: 0.75rem; color: #B91C1C;
   background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px;
 `;

@@ -18,7 +18,7 @@ export const ThemedButton = styled.button<{
   border: none;
   border-radius: 8px;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 0.875rem;
   text-decoration: none;
   cursor: pointer;
   transition: all 0.2s;
@@ -87,7 +87,7 @@ export const ThemedInput = styled.input`
   padding: 8px 12px;
   border: 1px solid #E5E7EB;
   border-radius: 6px;
-  font-size: 14px;
+  font-size: 0.875rem;
   background: white;
   color: #374151;
   transition: all 0.2s ease;

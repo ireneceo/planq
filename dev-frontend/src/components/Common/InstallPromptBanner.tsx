@@ -269,7 +269,7 @@ const Steps = styled.div`
   margin-top: 4px;
 `;
 const Step = styled.div`
-  font-size: 12px; color: #334155; line-height: 1.5;
+  font-size: 0.75rem; color: #334155; line-height: 1.5;
 `;
 const BannerIcon = styled.div<{ $bell?: boolean }>`
   width: 40px; height: 40px; border-radius: 10px;
@@ -278,18 +278,18 @@ const BannerIcon = styled.div<{ $bell?: boolean }>`
   color: #0F766E; flex-shrink: 0;
 `;
 const BannerBody = styled.div`flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;`;
-const BannerTitle = styled.div`font-size: 13px; font-weight: 700; color: #0F172A;`;
-const BannerDesc = styled.div`font-size: 11px; color: #64748B; line-height: 1.4;`;
+const BannerTitle = styled.div`font-size: 0.8125rem; font-weight: 700; color: #0F172A;`;
+const BannerDesc = styled.div`font-size: 0.6875rem; color: #64748B; line-height: 1.4;`;
 const BannerActions = styled.div`display: flex; align-items: center; gap: 6px; flex-shrink: 0;`;
 const PrimaryBtn = styled.button`
   padding: 8px 14px; background: #14B8A6; color: #FFFFFF;
-  border: none; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer;
+  border: none; border-radius: 8px; font-size: 0.75rem; font-weight: 700; cursor: pointer;
   &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 const DismissBtn = styled.button`
   width: 28px; height: 28px; padding: 0;
   background: transparent; border: none; border-radius: 6px;
-  font-size: 18px; color: #94A3B8; cursor: pointer;
+  font-size: 1.125rem; color: #94A3B8; cursor: pointer;
   &:hover { background: #F1F5F9; color: #475569; }
 `;

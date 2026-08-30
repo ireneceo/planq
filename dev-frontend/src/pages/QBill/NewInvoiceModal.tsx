@@ -814,7 +814,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
               <SumDiv />
               <SumRow>
                 <SumKey style={{ fontWeight: 700, color: '#0F172A' }}>{t('newInvoice.summary.total')}</SumKey>
-                <SumVal style={{ fontSize: 16, fontWeight: 700 }}>{formatMoney(total, currency)}</SumVal>
+                <SumVal style={{ fontSize: '1rem', fontWeight: 700 }}>{formatMoney(total, currency)}</SumVal>
               </SumRow>
             </Summary>
           </Section>
@@ -1060,7 +1060,7 @@ const Head = styled.div`
   border-bottom: 1px solid #E2E8F0; flex-shrink: 0;
 `;
 const Title = styled.h2`
-  flex: 1; font-size: 15px; font-weight: 700; color: #0F172A; letter-spacing: -0.1px; margin: 0;
+  flex: 1; font-size: 0.9375rem; font-weight: 700; color: #0F172A; letter-spacing: -0.1px; margin: 0;
 `;
 const CloseBtn = styled.button`
   /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */
@@ -1076,25 +1076,25 @@ const SentBody = styled.div`
 `;
 const SentIcon = styled.div`
   width: 56px; height: 56px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
-  background: #F0FDF4; color: #15803D; font-size: 28px; font-weight: 700;
+  background: #F0FDF4; color: #15803D; font-size: 1.75rem; font-weight: 700;
 `;
-const SentTitle = styled.div`font-size: 16px; font-weight: 700; color: #0F172A;`;
+const SentTitle = styled.div`font-size: 1rem; font-weight: 700; color: #0F172A;`;
 const SentList = styled.ul`
   margin: 4px 0; padding: 0 0 0 0;
   list-style: none; display: flex; flex-direction: column; gap: 6px;
-  font-size: 13px; color: #475569; text-align: center;
+  font-size: 0.8125rem; color: #475569; text-align: center;
   & li { padding: 6px 12px; background: #F8FAFC; border-radius: 8px; }
 `;
 const SentActions = styled.div`
   display: flex; gap: 8px; justify-content: center; margin-top: 8px;
 `;
 const SentSecondaryBtn = styled.button`
-  padding: 9px 16px; font-size: 13px; font-weight: 600; color: #0F766E;
+  padding: 9px 16px; font-size: 0.8125rem; font-weight: 600; color: #0F766E;
   background: #fff; border: 1px solid #14B8A6; border-radius: 8px; cursor: pointer;
   &:hover { background: #F0FDFA; }
 `;
 const SentPrimaryBtn = styled.button`
-  padding: 9px 16px; font-size: 13px; font-weight: 600; color: #fff;
+  padding: 9px 16px; font-size: 0.8125rem; font-weight: 600; color: #fff;
   background: #0D9488; border: none; border-radius: 8px; cursor: pointer;
   &:hover { background: #0F766E; }
 `;
@@ -1115,7 +1115,7 @@ const FooterSummary = styled.div`
   @media (max-width: 720px) { display: none; }
 `;
 const FooterSumText = styled.div`
-  font-size: 11px; color: #64748B; line-height: 1.4;
+  font-size: 0.6875rem; color: #64748B; line-height: 1.4;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
 const SectionGrid = styled.div`
@@ -1127,23 +1127,23 @@ const Section = styled.div`
   display: flex; flex-direction: column; gap: 10px;
 `;
 const SectionLabel = styled.div`
-  font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.4px;
+  font-size: 0.75rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.4px;
 `;
 const SectionLabelRow = styled.div`
   display: flex; justify-content: space-between; align-items: center;
 `;
 const FromCard = styled.div`display: flex; flex-direction: column; gap: 4px;`;
-const FromName = styled.div`font-size: 14px; font-weight: 700; color: #0F172A; margin-bottom: 4px;`;
+const FromName = styled.div`font-size: 0.875rem; font-weight: 700; color: #0F172A; margin-bottom: 4px;`;
 const FromMeta = styled.div`display: flex; flex-direction: column; gap: 4px;`;
-const FromMetaRow = styled.div`display: flex; gap: 6px; font-size: 12px;`;
+const FromMetaRow = styled.div`display: flex; gap: 6px; font-size: 0.75rem;`;
 const FromKey = styled.span`color: #94A3B8; min-width: 60px; flex-shrink: 0;`;
 const FromVal = styled.span`color: #334155; flex: 1; min-width: 0;`;
-const FromHint = styled.div`font-size: 11px; color: #94A3B8; margin-top: 4px;`;
+const FromHint = styled.div`font-size: 0.6875rem; color: #94A3B8; margin-top: 4px;`;
 const ToCard = styled.div`display: flex; flex-direction: column; gap: 6px; margin-top: 4px;`;
-const ToName = styled.div`font-size: 14px; font-weight: 700; color: #0F172A; margin-bottom: 4px;`;
-const FieldHole = styled.span`color: #DC2626; font-size: 11px; font-weight: 500;`;
+const ToName = styled.div`font-size: 0.875rem; font-weight: 700; color: #0F172A; margin-bottom: 4px;`;
+const FieldHole = styled.span`color: #DC2626; font-size: 0.6875rem; font-weight: 500;`;
 const NoBizMsg = styled.div`
-  font-size: 12px; color: #64748B;
+  font-size: 0.75rem; color: #64748B;
   background: #F8FAFC; padding: 8px 10px; border-radius: 6px;
 `;
 const MissingPanel = styled.div`
@@ -1154,15 +1154,15 @@ const MissingHead = styled.div`display: flex; align-items: center; gap: 6px; mar
 const MissingIcon = styled.span`
   width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;
-  background: #F59E0B; color: #fff; font-size: 11px; font-weight: 700;
+  background: #F59E0B; color: #fff; font-size: 0.6875rem; font-weight: 700;
 `;
-const MissingTitle = styled.div`font-size: 12px; font-weight: 700; color: #92400E;`;
-const MissingDesc = styled.div`font-size: 11px; color: #92400E; line-height: 1.5; margin-bottom: 8px;`;
+const MissingTitle = styled.div`font-size: 0.75rem; font-weight: 700; color: #92400E;`;
+const MissingDesc = styled.div`font-size: 0.6875rem; color: #92400E; line-height: 1.5; margin-bottom: 8px;`;
 const MissingFields = styled.div`display: flex; flex-direction: column; gap: 6px;`;
 const MissingField = styled.div`display: flex; flex-direction: column; gap: 3px;`;
-const MissingLabel = styled.label`font-size: 11px; font-weight: 600; color: #92400E;`;
+const MissingLabel = styled.label`font-size: 0.6875rem; font-weight: 600; color: #92400E;`;
 const MissingInput = styled.input`
-  width: 100%; padding: 6px 8px; font-size: 12px; color: #0F172A;
+  width: 100%; padding: 6px 8px; font-size: 0.75rem; color: #0F172A;
   background: #fff; border: 1px solid #FDE68A; border-radius: 6px;
   &:focus { outline: none; border-color: #F59E0B; }
 `;
@@ -1170,7 +1170,7 @@ const MissingInput = styled.input`
 const RecipientModeRow = styled.div`display: inline-flex; gap: 4px; margin-bottom: 8px; background: #F1F5F9; border-radius: 8px; padding: 3px;`;
 const RecipientModeBtn = styled.button<{ $active: boolean }>`
   padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer;
-  font-size: 12px; font-weight: 600;
+  font-size: 0.75rem; font-weight: 600;
   background: ${p => p.$active ? '#FFFFFF' : 'transparent'};
   color: ${p => p.$active ? '#0F766E' : '#64748B'};
   box-shadow: ${p => p.$active ? '0 1px 2px rgba(0,0,0,0.06)' : 'none'};
@@ -1181,11 +1181,11 @@ const ExtRecipientCard = styled.div`
   padding: 14px; border: 1px solid #E2E8F0; border-radius: 10px; background: #F8FAFC;
 `;
 const ExtField = styled.div`display: flex; flex-direction: column; gap: 4px;`;
-const ExtLabel = styled.label`font-size: 12px; font-weight: 600; color: #334155;`;
-const ExtHint = styled.div`font-size: 11px; color: #64748B; line-height: 1.5;`;
+const ExtLabel = styled.label`font-size: 0.75rem; font-weight: 600; color: #334155;`;
+const ExtHint = styled.div`font-size: 0.6875rem; color: #64748B; line-height: 1.5;`;
 const SaveOnClient = styled.label`
   display: flex; align-items: center; gap: 6px;
-  font-size: 11px; color: #92400E; margin-top: 8px; cursor: pointer;
+  font-size: 0.6875rem; color: #92400E; margin-top: 8px; cursor: pointer;
 `;
 const SaveOnClientCheck = styled.input`accent-color: #F59E0B; cursor: pointer;`;
 const FieldGrid = styled.div`
@@ -1197,9 +1197,9 @@ const Field = styled.div<{ $span?: number }>`
   display: flex; flex-direction: column; gap: 4px;
   @media (max-width: 720px) { grid-column: span 2; }
 `;
-const FieldLabel = styled.label`font-size: 11px; font-weight: 600; color: #475569;`;
+const FieldLabel = styled.label`font-size: 0.6875rem; font-weight: 600; color: #475569;`;
 const Input = styled.input`
-  width: 100%; padding: 7px 10px; font-size: 13px; color: #0F172A;
+  width: 100%; padding: 7px 10px; font-size: 0.8125rem; color: #0F172A;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 6px;
   font-variant-numeric: tabular-nums;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
@@ -1207,14 +1207,14 @@ const Input = styled.input`
 `;
 // 항목 상세내용 (운영 #2) — 작은 회색 보조 입력, 자동 높이
 const DetailInput = styled.textarea`
-  width: 100%; padding: 5px 10px; font-size: 12px; color: #64748B;
+  width: 100%; padding: 5px 10px; font-size: 0.75rem; color: #64748B;
   background: #F8FAFC; border: 1px dashed #E2E8F0; border-radius: 6px;
   resize: vertical; font-family: inherit; min-height: 30px; line-height: 1.4;
   &::placeholder { color: #B6C0CD; }
   &:focus { outline: none; border-color: #14B8A6; border-style: solid; background: #fff; color: #334155; }
 `;
 const Textarea = styled.textarea`
-  width: 100%; padding: 8px 10px; font-size: 13px; color: #0F172A;
+  width: 100%; padding: 8px 10px; font-size: 0.8125rem; color: #0F172A;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 6px; resize: vertical; font-family: inherit;
   &:focus { outline: none; border-color: #14B8A6; }
 `;
@@ -1224,7 +1224,7 @@ const ItemTable = styled.div`
 const ItemHead = styled.div`
   display: flex; gap: 8px; padding: 8px 12px; background: #F8FAFC;
   border-bottom: 1px solid #F1F5F9;
-  font-size: 11px; font-weight: 600; color: #64748B;
+  font-size: 0.6875rem; font-weight: 600; color: #64748B;
 `;
 const ItemHeadCell = styled.div`flex: 1; min-width: 0;`;
 const ItemRow = styled.div`
@@ -1242,13 +1242,13 @@ const RemoveBtn = styled.button`
 const Summary = styled.div`
   display: flex; flex-direction: column; gap: 4px; padding: 10px 14px; background: #F8FAFC; border-radius: 8px;
 `;
-const SumRow = styled.div`display: flex; justify-content: space-between; font-size: 13px;`;
+const SumRow = styled.div`display: flex; justify-content: space-between; font-size: 0.8125rem;`;
 const SumKey = styled.span`color: #64748B;`;
 const SumVal = styled.span`color: #0F172A; font-variant-numeric: tabular-nums;`;
 const SumDiv = styled.div`height: 1px; background: #E2E8F0; margin: 4px 0;`;
 const AddRow = styled.button`
   display: inline-flex; align-items: center; gap: 4px;
-  padding: 5px 10px; font-size: 11px; font-weight: 700; color: #0F766E;
+  padding: 5px 10px; font-size: 0.6875rem; font-weight: 700; color: #0F766E;
   background: #F0FDFA; border: 1px solid #14B8A6; border-radius: 6px; cursor: pointer;
   line-height: 1;
   & > svg { display: block; flex-shrink: 0; }
@@ -1269,13 +1269,13 @@ const Knob = styled.span<{ $on: boolean }>`
   transition: left 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.2);
 `;
 const ToggleText = styled.div`display: flex; flex-direction: column; gap: 2px; min-width: 0;`;
-const ToggleTitle = styled.div`font-size: 13px; font-weight: 700; color: #0F172A;`;
-const ToggleDesc = styled.div`font-size: 11px; color: #64748B; line-height: 1.5;`;
+const ToggleTitle = styled.div`font-size: 0.8125rem; font-weight: 700; color: #0F172A;`;
+const ToggleDesc = styled.div`font-size: 0.6875rem; color: #64748B; line-height: 1.5;`;
 const SplitArea = styled.div`display: flex; flex-direction: column; gap: 10px; margin-top: 8px;`;
 const PresetRow = styled.div`display: flex; align-items: center; gap: 6px; flex-wrap: wrap;`;
-const PresetLabel = styled.span`font-size: 11px; font-weight: 600; color: #64748B;`;
+const PresetLabel = styled.span`font-size: 0.6875rem; font-weight: 600; color: #64748B;`;
 const PresetBtn = styled.button`
-  padding: 4px 10px; font-size: 11px; font-weight: 600; color: #475569;
+  padding: 4px 10px; font-size: 0.6875rem; font-weight: 600; color: #475569;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 999px; cursor: pointer;
   &:hover { border-color: #14B8A6; color: #0F766E; background: #F0FDFA; }
 `;
@@ -1285,7 +1285,7 @@ const RoundTable = styled.div`
 const RoundHead = styled.div`
   display: flex; gap: 8px; padding: 8px 12px; background: #F8FAFC;
   border-bottom: 1px solid #F1F5F9;
-  font-size: 11px; font-weight: 600; color: #64748B;
+  font-size: 0.6875rem; font-weight: 600; color: #64748B;
 `;
 const RoundHeadCell = styled.div`flex: 1; min-width: 0;`;
 const RoundRow = styled.div`
@@ -1297,13 +1297,13 @@ const RoundCell = styled.div`flex: 1; min-width: 0; display: flex; align-items: 
 const PercentInputWrap = styled.div`position: relative; width: 100%;`;
 const PercentSign = styled.span`
   position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
-  font-size: 12px; color: #94A3B8;
+  font-size: 0.75rem; color: #94A3B8;
 `;
 const SplitFooter = styled.div`
   display: flex; justify-content: space-between; align-items: center;
 `;
 const SumStatus = styled.span<{ $ok: boolean }>`
-  font-size: 12px; font-weight: 700;
+  font-size: 0.75rem; font-weight: 700;
   color: ${p => p.$ok ? '#166534' : '#92400E'};
   background: ${p => p.$ok ? '#DCFCE7' : '#FEF3C7'};
   padding: 4px 10px; border-radius: 999px;
@@ -1312,21 +1312,21 @@ const BankAuto = styled.div`
   display: flex; flex-direction: column; gap: 3px; padding: 12px 14px;
   background: #F8FAFC; border-radius: 8px;
 `;
-const BankAutoTitle = styled.div`font-size: 13px; font-weight: 700; color: #0F172A; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;`;
-const BankAutoSub = styled.div`font-size: 11px; color: #64748B;`;
+const BankAutoTitle = styled.div`font-size: 0.8125rem; font-weight: 700; color: #0F172A; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;`;
+const BankAutoSub = styled.div`font-size: 0.6875rem; color: #64748B;`;
 const ErrorPanel = styled.div`
   background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 10px 12px;
   display: flex; flex-direction: column; gap: 4px;
 `;
-const ErrorRow = styled.div`font-size: 12px; color: #991B1B; font-weight: 600;`;
+const ErrorRow = styled.div`font-size: 0.75rem; color: #991B1B; font-weight: 600;`;
 const PrimaryBtn = styled.button`
-  padding: 9px 18px; font-size: 13px; font-weight: 700;
+  padding: 9px 18px; font-size: 0.8125rem; font-weight: 700;
   background: #14B8A6; color: #fff; border: none; border-radius: 8px; cursor: pointer;
   &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { background: #CBD5E1; cursor: not-allowed; }
 `;
 const SecondaryBtn = styled.button`
-  padding: 9px 16px; font-size: 13px; font-weight: 600;
+  padding: 9px 16px; font-size: 0.8125rem; font-weight: 600;
   background: #fff; color: #334155; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer;
   &:hover:not(:disabled) { background: #F8FAFC; border-color: #CBD5E1; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -1334,14 +1334,14 @@ const SecondaryBtn = styled.button`
 
 // 출처 문서
 const SourceEmpty = styled.div`
-  font-size: 12px; color: #64748B; padding: 8px 10px; background: #F8FAFC; border-radius: 6px;
+  font-size: 0.75rem; color: #64748B; padding: 8px 10px; background: #F8FAFC; border-radius: 6px;
 `;
-const SourceHint = styled.div`font-size: 11px; color: #94A3B8;`;
+const SourceHint = styled.div`font-size: 0.6875rem; color: #94A3B8;`;
 const ProjectLink = styled.div`
   display: flex; align-items: center; gap: 8px;
   margin-top: 12px; padding: 10px 12px;
   background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 8px;
-  font-size: 12px; font-weight: 600; color: #0F766E;
+  font-size: 0.75rem; font-weight: 600; color: #0F766E;
 `;
 const ProjectName = styled.span`
   font-weight: 700; color: #0F172A;
@@ -1352,7 +1352,7 @@ const SourceBadge = styled.div`
   background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 8px;
 `;
 const SourceKindBadge = styled.span<{ $kind: string }>`
-  font-size: 10px; font-weight: 700;
+  font-size: 0.625rem; font-weight: 700;
   padding: 3px 8px; border-radius: 4px;
   background: ${p =>
     p.$kind === 'contract' ? '#FEF3C7' :
@@ -1365,8 +1365,8 @@ const SourceKindBadge = styled.span<{ $kind: string }>`
     p.$kind === 'sow' ? '#6B21A8' :
     '#991B1B'};
 `;
-const SourceTitle = styled.div`flex: 1; font-size: 13px; font-weight: 600; color: #0F172A; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
-const SourceMeta = styled.div`font-size: 11px; color: #64748B; flex-shrink: 0;`;
+const SourceTitle = styled.div`flex: 1; font-size: 0.8125rem; font-weight: 600; color: #0F172A; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
+const SourceMeta = styled.div`font-size: 0.6875rem; color: #64748B; flex-shrink: 0;`;
 
 // 발송 옵션
 const DeliverList = styled.div`display: flex; flex-direction: column; gap: 6px;`;
@@ -1386,12 +1386,12 @@ const DeliverIcon = styled.div<{ $color: string }>`
   background: ${p => p.$color}1a; color: ${p => p.$color};
 `;
 const DeliverBody = styled.div`flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;`;
-const DeliverTitle = styled.div`font-size: 13px; font-weight: 600; color: #0F172A;`;
-const DeliverTarget = styled.div`font-size: 12px; color: #64748B;`;
+const DeliverTitle = styled.div`font-size: 0.8125rem; font-weight: 600; color: #0F172A;`;
+const DeliverTarget = styled.div`font-size: 0.75rem; color: #64748B;`;
 const NoChannelHint = styled.span`color: #92400E;`;
 const NoChannelLink = styled.span`color: #0F766E; font-weight: 600; cursor: pointer; &:hover { text-decoration: underline; }`;
 const PdfToggle = styled.label`
   display: inline-flex; align-items: center; gap: 5px;
-  font-size: 11px; color: #475569; margin-top: 4px;
+  font-size: 0.6875rem; color: #475569; margin-top: 4px;
   input { accent-color: #14B8A6; }
 `;

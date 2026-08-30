@@ -77,13 +77,13 @@ const IconCircle = styled.div`
   margin-bottom: 20px;
 `;
 const Title = styled.h2<{ $size: 'sm' | 'md' }>`
-  font-size: ${p => p.$size === 'md' ? '22px' : '13px'};
+  font-size: ${p => p.$size === 'md' ? '1.375rem' : '0.8125rem'};
   font-weight: ${p => p.$size === 'md' ? '700' : '600'};
   color: ${p => p.$size === 'md' ? '#0F766E' : '#64748B'};
   margin: 0 0 ${p => p.$size === 'md' ? '8px' : '4px'};
 `;
 const Desc = styled.p<{ $size: 'sm' | 'md' }>`
-  font-size: ${p => p.$size === 'md' ? '14px' : '12px'};
+  font-size: ${p => p.$size === 'md' ? '0.875rem' : '0.75rem'};
   color: #94A3B8;
   margin: 0 0 ${p => p.$size === 'md' ? '24px' : '8px'};
   line-height: 1.6;
@@ -103,7 +103,7 @@ const Cta = styled.button`
   color: #FFFFFF;
   border: none;
   border-radius: 10px;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s;
@@ -118,7 +118,7 @@ const SecondaryCta = styled.button`
   color: #0D9488;
   border: 1px solid #99F6E4;
   border-radius: 10px;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;

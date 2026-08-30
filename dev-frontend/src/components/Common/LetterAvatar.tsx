@@ -74,7 +74,7 @@ const Circle = styled.div<{ $size: number; $variant: Variant; $hasImage: boolean
   justify-content: center;
   overflow: hidden;
   font-weight: 700;
-  font-size: ${(p) => Math.max(10, Math.round(p.$size * 0.42))}px;
+  font-size: ${(p) => Math.max(10, Math.round(p.$size * 0.42)) / 16}rem;
   letter-spacing: -0.3px;
   user-select: none;
 

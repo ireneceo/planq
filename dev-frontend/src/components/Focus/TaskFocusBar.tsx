@@ -226,7 +226,7 @@ const CtaLink = styled(ChromeLink)`
   background: #14B8A6; color: #FFFFFF;
   border-radius: 8px;
   text-decoration: none;
-  font-size: 13px; font-weight: 600;
+  font-size: 0.8125rem; font-weight: 600;
   transition: background 0.15s;
   &:hover { background: #0D9488; }
 `;
@@ -269,16 +269,16 @@ const ToneDot = styled.span<{ $tone: Tone }>`
 `;
 const Body = styled.div`flex: 1; min-width: 0;`;
 const Title = styled.div`
-  font-size: 14px; font-weight: 700; color: #0F172A;
+  font-size: 0.875rem; font-weight: 700; color: #0F172A;
   letter-spacing: -0.1px; margin-bottom: 3px;
 `;
 const Hint = styled.div`
-  font-size: 12px; color: #475569; line-height: 1.45;
+  font-size: 0.75rem; color: #475569; line-height: 1.45;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
 const Counter = styled.div`
   /* N+32 — 시간 강조. 사용자 의도 "크게" 정합. tabular-nums 로 안 흔들림. */
-  font-size: 22px; font-weight: 700; color: #0F172A;
+  font-size: 1.375rem; font-weight: 700; color: #0F172A;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.5px;
   line-height: 1.1;
@@ -289,7 +289,7 @@ const baseBtn = css`
   display: inline-flex; align-items: center; gap: 6px;
   height: 36px; padding: 0 14px;
   border-radius: 8px;
-  font-size: 13px; font-weight: 600;
+  font-size: 0.8125rem; font-weight: 600;
   cursor: pointer;
   border: 1px solid transparent;
   transition: background 0.12s, transform 0.08s;

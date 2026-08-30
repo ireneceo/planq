@@ -133,7 +133,7 @@ const Header = styled.div`
   @media (max-width: 640px) { padding: 14px 16px 12px; }
 `;
 const Title = styled.h2`
-  font-size: 16px; font-weight: 700; color: #0F172A; margin: 0;
+  font-size: 1rem; font-weight: 700; color: #0F172A; margin: 0;
   flex: 1; min-width: 0;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;

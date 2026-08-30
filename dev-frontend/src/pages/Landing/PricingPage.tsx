@@ -114,17 +114,17 @@ const SubHero = styled.section`
 `;
 const Eyebrow = styled.div`
   font-family: 'Outfit', sans-serif;
-  font-size: 13px; font-weight: 500; color: #0D9488;
+  font-size: 0.8125rem; font-weight: 500; color: #0D9488;
   letter-spacing: 3px; margin-bottom: 16px;
 `;
 const Title = styled.h1`
-  font-size: 44px; font-weight: 700; color: #0F172A;
+  font-size: 2.75rem; font-weight: 700; color: #0F172A;
   line-height: 1.3; word-break: keep-all;
   margin-bottom: 20px;
-  @media (max-width: 768px) { font-size: 32px; }
+  @media (max-width: 768px) { font-size: 2rem; }
 `;
 const Sub = styled.p`
-  font-size: 17px; font-weight: 300; color: #64748B;
+  font-size: 1.0625rem; font-weight: 300; color: #64748B;
   line-height: 1.7; max-width: 640px; margin: 0 auto;
 `;
 
@@ -150,19 +150,19 @@ const PlanBadge = styled.span`
   position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
   padding: 6px 16px; background: #14B8A6; color: #FFFFFF;
   border-radius: 999px;
-  font-size: 11px; font-weight: 700; letter-spacing: 0.4px;
+  font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.4px;
 `;
 const PlanName = styled.div`
   font-family: 'Outfit', sans-serif;
-  font-size: 14px; font-weight: 500; color: #0D9488;
+  font-size: 0.875rem; font-weight: 500; color: #0D9488;
   text-transform: uppercase; letter-spacing: 1px;
 `;
 const PlanPrice = styled.div`
   font-family: 'Outfit', sans-serif;
-  font-size: 40px; font-weight: 600; color: #0F172A;
+  font-size: 2.5rem; font-weight: 600; color: #0F172A;
   letter-spacing: -1px; line-height: 1.1;
 `;
-const PlanSub = styled.div`font-size: 13px; color: #94A3B8; font-weight: 300;`;
+const PlanSub = styled.div`font-size: 0.8125rem; color: #94A3B8; font-weight: 300;`;
 const PlanDivider = styled.div`height: 1px; background: #E2E8F0; margin: 12px 0;`;
 const PlanList = styled.ul`
   list-style: none; padding: 0; margin: 0;
@@ -171,7 +171,7 @@ const PlanList = styled.ul`
 `;
 const PlanItem = styled.li`
   display: flex; align-items: flex-start; gap: 10px;
-  font-size: 14px; color: #334155; line-height: 1.6; word-break: keep-all;
+  font-size: 0.875rem; color: #334155; line-height: 1.6; word-break: keep-all;
 `;
 const Check = styled.svg`
   width: 18px; height: 18px;
@@ -186,7 +186,7 @@ const PlanCta = styled(Link)<{ $featured?: boolean }>`
   color: ${p => p.$featured ? '#FFFFFF' : '#0F172A'};
   border: 1px solid ${p => p.$featured ? '#14B8A6' : '#E2E8F0'};
   text-align: center;
-  font-size: 14px; font-weight: 600;
+  font-size: 0.875rem; font-weight: 600;
   text-decoration: none;
   transition: all 0.2s;
   &:hover { background: ${p => p.$featured ? '#0D9488' : '#F8FAFC'}; }
@@ -199,12 +199,12 @@ const AddonSection = styled.section`
 `;
 const AddonEyebrow = styled.div`
   font-family: 'Outfit', sans-serif;
-  font-size: 13px; font-weight: 500; color: #0D9488;
+  font-size: 0.8125rem; font-weight: 500; color: #0D9488;
   letter-spacing: 3px; margin-bottom: 12px;
 `;
 const AddonTitle = styled.h2`
-  font-size: 32px; font-weight: 700; color: #0F172A; margin: 0 0 32px; letter-spacing: -0.5px;
-  @media (max-width: 768px) { font-size: 24px; }
+  font-size: 2rem; font-weight: 700; color: #0F172A; margin: 0 0 32px; letter-spacing: -0.5px;
+  @media (max-width: 768px) { font-size: 1.5rem; }
 `;
 const AddonGrid = styled.div`
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
@@ -214,13 +214,13 @@ const AddonCard = styled.div`
   padding: 28px 24px; background: #FFFFFF;
   border: 1px solid #E2E8F0; border-radius: 12px;
 `;
-const AddonName = styled.div`font-size: 14px; font-weight: 700; color: #0F172A; margin-bottom: 8px;`;
+const AddonName = styled.div`font-size: 0.875rem; font-weight: 700; color: #0F172A; margin-bottom: 8px;`;
 const AddonPrice = styled.div`
   font-family: 'Outfit', sans-serif;
-  font-size: 22px; font-weight: 600; color: #0D9488;
+  font-size: 1.375rem; font-weight: 600; color: #0D9488;
   margin-bottom: 8px;
 `;
-const AddonDesc = styled.div`font-size: 13px; color: #64748B; line-height: 1.6; word-break: keep-all;`;
+const AddonDesc = styled.div`font-size: 0.8125rem; color: #64748B; line-height: 1.6; word-break: keep-all;`;
 
 const FaqSection = styled.section`
   padding: 96px 0; background: #FFFFFF;
@@ -229,20 +229,20 @@ const FaqSection = styled.section`
 `;
 const FaqEyebrow = styled.div`
   font-family: 'Outfit', sans-serif;
-  font-size: 13px; font-weight: 500; color: #0D9488;
+  font-size: 0.8125rem; font-weight: 500; color: #0D9488;
   letter-spacing: 3px; margin-bottom: 12px;
 `;
 const FaqTitle = styled.h2`
-  font-size: 32px; font-weight: 700; color: #0F172A; margin: 0 0 40px; letter-spacing: -0.5px;
-  @media (max-width: 768px) { font-size: 24px; }
+  font-size: 2rem; font-weight: 700; color: #0F172A; margin: 0 0 40px; letter-spacing: -0.5px;
+  @media (max-width: 768px) { font-size: 1.5rem; }
 `;
 const FaqList = styled.div`display: flex; flex-direction: column; gap: 12px;`;
 const FaqItem = styled.div`
   padding: 24px 28px; background: #FAFBFC;
   border: 1px solid #E2E8F0; border-radius: 12px;
 `;
-const FaqQ = styled.div`font-size: 15px; font-weight: 700; color: #0F172A; margin-bottom: 8px;`;
-const FaqA = styled.div`font-size: 14px; line-height: 1.7; color: #475569; word-break: keep-all;`;
+const FaqQ = styled.div`font-size: 0.9375rem; font-weight: 700; color: #0F172A; margin-bottom: 8px;`;
+const FaqA = styled.div`font-size: 0.875rem; line-height: 1.7; color: #475569; word-break: keep-all;`;
 
 const CtaBand = styled.section`
   padding: 96px 0;
@@ -250,13 +250,13 @@ const CtaBand = styled.section`
   color: #FFFFFF; text-align: center;
   ${Container} { display: flex; flex-direction: column; align-items: center; gap: 16px; }
 `;
-const CtaTitle = styled.h2`font-size: 32px; font-weight: 700; line-height: 1.4; margin: 0; word-break: keep-all; @media (max-width: 768px) { font-size: 24px; }`;
-const CtaSub = styled.p`font-size: 15px; color: #94A3B8; font-weight: 300; margin: 0;`;
+const CtaTitle = styled.h2`font-size: 2rem; font-weight: 700; line-height: 1.4; margin: 0; word-break: keep-all; @media (max-width: 768px) { font-size: 1.5rem; }`;
+const CtaSub = styled.p`font-size: 0.9375rem; color: #94A3B8; font-weight: 300; margin: 0;`;
 const CtaBtn = styled(Link)`
   margin-top: 12px;
   padding: 16px 48px; border-radius: 999px;
   background: #14B8A6; color: #FFFFFF;
-  font-size: 16px; font-weight: 500;
+  font-size: 1rem; font-weight: 500;
   text-decoration: none;
   transition: all 0.3s;
   box-shadow: 0 0 40px rgba(20,184,166,0.3);

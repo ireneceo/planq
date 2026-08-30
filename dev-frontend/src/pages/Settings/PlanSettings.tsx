@@ -739,8 +739,8 @@ const ExemptCard = styled.div`
   border-radius:14px;padding:20px 24px;
   display:flex;flex-direction:column;gap:6px;
 `;
-const ExemptTitle = styled.div`font-size:14px;font-weight:700;color:#0F766E;letter-spacing:-0.1px;`;
-const ExemptDesc = styled.div`font-size:12px;color:#64748B;line-height:1.5;`;
+const ExemptTitle = styled.div`font-size:0.875rem;font-weight:700;color:#0F766E;letter-spacing:-0.1px;`;
+const ExemptDesc = styled.div`font-size:0.75rem;color:#64748B;line-height:1.5;`;
 
 const PayDueCard = styled.div<{ $notified?: boolean }>`
   background:${p => p.$notified ? '#F0FDFA' : '#FEF2F2'};
@@ -749,18 +749,18 @@ const PayDueCard = styled.div<{ $notified?: boolean }>`
   display:flex;flex-direction:column;gap:10px;
 `;
 const PayDueHead = styled.div`display:flex;align-items:center;gap:10px;`;
-const PayDueLabel = styled.div<{ $notified?: boolean }>`font-size:13px;font-weight:700;color:${p => p.$notified ? '#0F766E' : '#B91C1C'};letter-spacing:-0.1px;`;
+const PayDueLabel = styled.div<{ $notified?: boolean }>`font-size:0.8125rem;font-weight:700;color:${p => p.$notified ? '#0F766E' : '#B91C1C'};letter-spacing:-0.1px;`;
 const PayDueRow = styled.div`
   display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
 `;
 const PayDueInfo = styled.div`display:flex;flex-direction:column;gap:4px;min-width:0;`;
-const PayDuePlan = styled.div`font-size:14px;font-weight:600;color:#0F172A;`;
-const PayDueAmount = styled.div`font-size:24px;font-weight:800;color:#0F172A;letter-spacing:-0.5px;font-variant-numeric:tabular-nums;`;
-const PayDueHint = styled.div`font-size:12px;color:#64748B;line-height:1.45;`;
+const PayDuePlan = styled.div`font-size:0.875rem;font-weight:600;color:#0F172A;`;
+const PayDueAmount = styled.div`font-size:1.5rem;font-weight:800;color:#0F172A;letter-spacing:-0.5px;font-variant-numeric:tabular-nums;`;
+const PayDueHint = styled.div`font-size:0.75rem;color:#64748B;line-height:1.45;`;
 const PayDueBtn = styled.button<{ $notified?: boolean }>`
   flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;min-height:44px;
   padding:0 24px;border-radius:10px;
-  font-size:14px;font-weight:700;cursor:pointer;transition:background 0.15s;
+  font-size:0.875rem;font-weight:700;cursor:pointer;transition:background 0.15s;
   ${p => p.$notified
     ? 'background:#fff;color:#0F766E;border:1px solid #5EEAD4;'
     : 'background:#DC2626;color:#fff;border:none;'}
@@ -774,52 +774,52 @@ const CurrentCard = styled.div<{ $plan: PlanCode }>`
 `;
 const CardHead = styled.div`display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;`;
 const PlanBadge = styled.span<{ $code: PlanCode }>`
-  padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:0.3px;
+  padding:4px 12px;border-radius:999px;font-size:0.6875rem;font-weight:700;letter-spacing:0.3px;
   ${p => planBadge(p.$code)}
 `;
-const PlanTitle = styled.h3`margin:0;font-size:18px;font-weight:700;color:#0F172A;`;
+const PlanTitle = styled.h3`margin:0;font-size:1.125rem;font-weight:700;color:#0F172A;`;
 const StatusBadges = styled.div`margin-left:auto;display:flex;gap:6px;`;
 const StateBadge = styled.span<{ $kind: 'active' | 'trial' | 'grace' }>`
-  padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600;
+  padding:3px 10px;border-radius:999px;font-size:0.6875rem;font-weight:600;
   ${p => p.$kind === 'active' ? 'background:#F0FDFA;color:#0F766E;'
     : p.$kind === 'trial' ? 'background:#DBEAFE;color:#1D4ED8;'
     : 'background:#FEF3C7;color:#92400E;'}
 `;
 const PriceRow = styled.div`display:flex;align-items:baseline;gap:6px;margin-top:4px;`;
-const Price = styled.div`font-size:28px;font-weight:800;color:#0F172A;`;
-const PriceUnit = styled.div`font-size:13px;color:#64748B;`;
+const Price = styled.div`font-size:1.75rem;font-weight:800;color:#0F172A;`;
+const PriceUnit = styled.div`font-size:0.8125rem;color:#64748B;`;
 const MetaRow = styled.div`display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:8px;`;
-const Meta = styled.div`font-size:12px;color:#475569;display:inline-flex;align-items:center;gap:8px;`;
-const LinkBtn = styled.button`background:none;border:none;color:#0D9488;font-size:12px;font-weight:600;cursor:pointer;text-decoration:underline;
+const Meta = styled.div`font-size:0.75rem;color:#475569;display:inline-flex;align-items:center;gap:8px;`;
+const LinkBtn = styled.button`background:none;border:none;color:#0D9488;font-size:0.75rem;font-weight:600;cursor:pointer;text-decoration:underline;
   &:hover{color:#0F766E;}
   &:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}`;
 
 const Section = styled.div`background:#fff;border:1px solid #E2E8F0;border-radius:14px;padding:20px 24px;`;
-const SectionTitle = styled.h3`margin:0 0 16px;font-size:14px;font-weight:700;color:#0F172A;`;
+const SectionTitle = styled.h3`margin:0 0 16px;font-size:0.875rem;font-weight:700;color:#0F172A;`;
 const SectionHeadRow = styled.div`display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;
   h3{margin:0;}`;
 const Controls = styled.div`display:flex;gap:8px;`;
 const Seg = styled.div`display:inline-flex;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:8px;padding:2px;gap:2px;`;
 const SegBtn = styled.button<{ $active: boolean }>`
-  height:28px;padding:0 12px;font-size:12px;font-weight:600;border:none;border-radius:6px;cursor:pointer;
+  height:28px;padding:0 12px;font-size:0.75rem;font-weight:600;border:none;border-radius:6px;cursor:pointer;
   display:inline-flex;align-items:center;gap:6px;
   background:${p => p.$active ? '#fff' : 'transparent'};
   color:${p => p.$active ? '#0F766E' : '#64748B'};
   box-shadow:${p => p.$active ? '0 1px 2px rgba(15,23,42,0.06)' : 'none'};
   &:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}
 `;
-const SmallBadge = styled.span`padding:1px 6px;background:#F43F5E;color:#fff;border-radius:4px;font-size:9px;font-weight:700;`;
+const SmallBadge = styled.span`padding:1px 6px;background:#F43F5E;color:#fff;border-radius:4px;font-size:0.5625rem;font-weight:700;`;
 
 /* 사용량 */
 const UsageGrid = styled.div`display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;`;
 const UsageBlock = styled.div`display:flex;flex-direction:column;gap:6px;`;
-const UsageLabel = styled.div`font-size:12px;font-weight:600;color:#475569;`;
+const UsageLabel = styled.div`font-size:0.75rem;font-weight:600;color:#475569;`;
 const UsageValueRow = styled.div`display:flex;align-items:baseline;gap:6px;`;
-const UsageValue = styled.span`font-size:15px;font-weight:700;color:#0F172A;`;
+const UsageValue = styled.span`font-size:0.9375rem;font-weight:700;color:#0F172A;`;
 const UsageDivider = styled.span`color:#CBD5E1;`;
-const UsageLimit = styled.span`font-size:13px;color:#64748B;`;
+const UsageLimit = styled.span`font-size:0.8125rem;color:#64748B;`;
 const UsagePct = styled.span<{ $color: 'ok' | 'warn' | 'crit' }>`
-  margin-left:auto;font-size:11px;font-weight:700;
+  margin-left:auto;font-size:0.6875rem;font-weight:700;
   color:${p => p.$color === 'crit' ? '#DC2626' : p.$color === 'warn' ? '#C2410C' : '#0F766E'};
 `;
 const UsageBar = styled.div`height:6px;background:#F1F5F9;border-radius:4px;overflow:hidden;`;
@@ -828,7 +828,7 @@ const UsageFill = styled.div<{ $color: 'ok' | 'warn' | 'crit' }>`
   background:${p => p.$color === 'crit' ? '#DC2626' : p.$color === 'warn' ? '#F59E0B' : '#14B8A6'};
 `;
 const UsageWarn = styled.div<{ $color: 'ok' | 'warn' | 'crit' }>`
-  font-size:11px;font-weight:600;
+  font-size:0.6875rem;font-weight:600;
   color:${p => p.$color === 'crit' ? '#DC2626' : '#C2410C'};
 `;
 
@@ -847,19 +847,19 @@ const PlanCol = styled.div<{ $current: boolean }>`
 const TopRibbon = styled.div<{ $warn?: boolean }>`
   position:absolute;top:-10px;left:50%;transform:translateX(-50%);
   padding:3px 12px;background:${p => p.$warn ? '#F59E0B' : '#14B8A6'};color:#fff;
-  border-radius:999px;font-size:10px;font-weight:700;letter-spacing:0.2px;
+  border-radius:999px;font-size:0.625rem;font-weight:700;letter-spacing:0.2px;
 `;
 const PlanColHead = styled.div`text-align:center;padding-bottom:12px;border-bottom:1px solid #F1F5F9;`;
-const PlanName = styled.div`font-size:16px;font-weight:700;color:#0F172A;`;
-const PlanEn = styled.div`font-size:11px;color:#94A3B8;letter-spacing:0.3px;text-transform:uppercase;margin-top:2px;`;
+const PlanName = styled.div`font-size:1rem;font-weight:700;color:#0F172A;`;
+const PlanEn = styled.div`font-size:0.6875rem;color:#94A3B8;letter-spacing:0.3px;text-transform:uppercase;margin-top:2px;`;
 const ColPriceRow = styled.div`margin-top:12px;display:flex;align-items:baseline;justify-content:center;gap:4px;min-height:32px;`;
-const ColPrice = styled.div`font-size:22px;font-weight:800;color:#0F172A;`;
-const ColPriceUnit = styled.div`font-size:12px;color:#64748B;`;
-const VatText = styled.div`font-size:10px;color:#94A3B8;margin-top:2px;`;
-const PlanTarget = styled.div`font-size:12px;color:#64748B;margin-top:8px;line-height:1.4;`;
+const ColPrice = styled.div`font-size:1.375rem;font-weight:800;color:#0F172A;`;
+const ColPriceUnit = styled.div`font-size:0.75rem;color:#64748B;`;
+const VatText = styled.div`font-size:0.625rem;color:#94A3B8;margin-top:2px;`;
+const PlanTarget = styled.div`font-size:0.75rem;color:#64748B;margin-top:8px;line-height:1.4;`;
 const FeatureList = styled.div`display:flex;flex-direction:column;gap:6px;flex:1;`;
 const FeatItem = styled.div<{ $hl?: boolean }>`
-  display:flex;justify-content:space-between;gap:8px;font-size:12px;align-items:center;
+  display:flex;justify-content:space-between;gap:8px;font-size:0.75rem;align-items:center;
   ${p => p.$hl
     ? 'background:#F8FAFC;padding:8px 10px;border-radius:6px;margin:2px 0;'
     : 'padding:2px 10px;'}
@@ -869,25 +869,25 @@ const FV = styled.span`color:#0F172A;font-weight:600;`;
 const ColCta = styled.div`display:flex;flex-direction:column;gap:6px;padding-top:8px;`;
 const BtnPrimary = styled.button`
   height:36px;background:#14B8A6;color:#fff;border:none;border-radius:8px;
-  font-size:13px;font-weight:600;cursor:pointer;
+  font-size:0.8125rem;font-weight:600;cursor:pointer;
   &:hover:not(:disabled){background:#0D9488;}
   &:disabled{opacity:0.5;cursor:not-allowed;}
   &:focus-visible{outline:2px solid #0D9488;outline-offset:2px;}
 `;
 const BtnGhost = styled.button`
   height:36px;background:#fff;color:#0F172A;border:1px solid #CBD5E1;border-radius:8px;
-  font-size:13px;font-weight:600;cursor:pointer;
+  font-size:0.8125rem;font-weight:600;cursor:pointer;
   &:hover:not(:disabled){background:#F8FAFC;}
   &:disabled{opacity:0.5;cursor:not-allowed;color:#94A3B8;}
 `;
 const BtnDanger = styled.button`
   height:36px;background:#fff;color:#DC2626;border:1px solid #FCA5A5;border-radius:8px;
-  font-size:13px;font-weight:600;cursor:pointer;
+  font-size:0.8125rem;font-weight:600;cursor:pointer;
   &:hover{background:#FEF2F2;border-color:#DC2626;}
 `;
 const BtnLink = styled.button`
   height:30px;background:transparent;color:#0D9488;border:none;
-  font-size:12px;font-weight:600;cursor:pointer;text-decoration:underline;
+  font-size:0.75rem;font-weight:600;cursor:pointer;text-decoration:underline;
   &:hover{color:#0F766E;}
 `;
 
@@ -895,7 +895,7 @@ const BtnLink = styled.button`
 const HistoryList = styled.div`display:flex;flex-direction:column;gap:1px;`;
 const HistoryRow = styled.div`
   display:grid;grid-template-columns:100px minmax(140px, 1fr) 80px 80px 1fr;
-  gap:12px;padding:10px 8px;font-size:12px;
+  gap:12px;padding:10px 8px;font-size:0.75rem;
   border-bottom:1px solid #F1F5F9;align-items:center;
   &:last-child{border-bottom:none;}
   @media (max-width: 768px){ grid-template-columns:1fr; gap:4px; padding:10px 0;}
@@ -903,14 +903,14 @@ const HistoryRow = styled.div`
 const HistoryDate = styled.div`color:#64748B;`;
 const HistoryChange = styled.div`color:#0F172A;`;
 const PlanInline = styled.span<{ $to?: boolean }>`
-  padding:1px 6px;background:#F1F5F9;border-radius:4px;font-size:11px;font-weight:600;
+  padding:1px 6px;background:#F1F5F9;border-radius:4px;font-size:0.6875rem;font-weight:600;
   color:${p => p.$to ? '#0F766E' : '#475569'};
 `;
 const HistoryReason = styled.div`color:#475569;`;
 const HistoryActor = styled.div`color:#64748B;`;
 const HistoryNote = styled.div`color:#94A3B8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
 
-const Dim = styled.div`padding:20px;text-align:center;font-size:12px;color:#94A3B8;`;
+const Dim = styled.div`padding:20px;text-align:center;font-size:0.75rem;color:#94A3B8;`;
 
 /* 모달 */
 const Modal = styled.div`
@@ -927,12 +927,12 @@ const Dialog = styled.div`
     overflow-y:auto;
   }
 `;
-const DTitle = styled.div`padding:20px 22px 12px;font-size:16px;font-weight:700;color:#0F172A;`;
-const DBody = styled.div`padding:0 22px 16px;font-size:13px;color:#475569;line-height:1.6;p{margin:4px 0;}`;
+const DTitle = styled.div`padding:20px 22px 12px;font-size:1rem;font-weight:700;color:#0F172A;`;
+const DBody = styled.div`padding:0 22px 16px;font-size:0.8125rem;color:#475569;line-height:1.6;p{margin:4px 0;}`;
 const DFooter = styled.div`padding:12px 22px;border-top:1px solid #E2E8F0;display:flex;gap:8px;justify-content:flex-end;`;
 const WarnBox = styled.div`margin-top:12px;padding:10px 12px;background:#FEF3C7;border:1px solid #F59E0B;border-radius:8px;`;
-const WarnTitle = styled.div`font-size:12px;font-weight:700;color:#92400E;margin-bottom:4px;`;
-const WarnList = styled.ul`margin:0;padding-left:18px;font-size:12px;color:#92400E;`;
+const WarnTitle = styled.div`font-size:0.75rem;font-weight:700;color:#92400E;margin-bottom:4px;`;
+const WarnList = styled.ul`margin:0;padding-left:18px;font-size:0.75rem;color:#92400E;`;
 
 /* Enterprise 카드 (표 아래 별도 섹션) */
 const EnterpriseCard = styled.div`
@@ -942,19 +942,19 @@ const EnterpriseCard = styled.div`
   @media (max-width: 768px){ grid-template-columns:1fr; gap:16px; padding:24px 20px; }
 `;
 const EntContent = styled.div`display:flex;flex-direction:column;gap:10px;`;
-const EntTitle = styled.h3`margin:0;font-size:18px;font-weight:700;letter-spacing:-0.2px;`;
-const EntDesc = styled.p`margin:0;font-size:13px;line-height:1.6;color:#CBD5E1;`;
+const EntTitle = styled.h3`margin:0;font-size:1.125rem;font-weight:700;letter-spacing:-0.2px;`;
+const EntDesc = styled.p`margin:0;font-size:0.8125rem;line-height:1.6;color:#CBD5E1;`;
 const EntBullets = styled.ul`
   margin:4px 0 0;padding:0;list-style:none;
   display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;
-  li{font-size:12px;color:#E2E8F0;padding-left:16px;position:relative;}
+  li{font-size:0.75rem;color:#E2E8F0;padding-left:16px;position:relative;}
   li::before{content:'';position:absolute;left:0;top:8px;width:6px;height:6px;border-radius:50%;background:#14B8A6;}
   @media (max-width: 560px){ grid-template-columns:1fr; }
 `;
 const EntCta = styled.div`display:flex;justify-content:flex-end;align-items:center;`;
 
 /* 문의 모달 폼 */
-const InqSub = styled.p`margin:0 0 16px;font-size:12px;color:#64748B;`;
+const InqSub = styled.p`margin:0 0 16px;font-size:0.75rem;color:#64748B;`;
 const InqGrid = styled.div`
   display:grid;grid-template-columns:1fr 1fr;gap:12px;
   @media (max-width: 560px){ grid-template-columns:1fr; }
@@ -963,25 +963,25 @@ const InqField = styled.div<{ $span2?: boolean }>`
   display:flex;flex-direction:column;gap:6px;
   ${p => p.$span2 && 'grid-column: 1 / -1;'}
 `;
-const InqLabel = styled.label`font-size:12px;font-weight:600;color:#334155;display:flex;align-items:center;gap:2px;`;
+const InqLabel = styled.label`font-size:0.75rem;font-weight:600;color:#334155;display:flex;align-items:center;gap:2px;`;
 const Req = styled.span`color:#DC2626;font-weight:700;`;
 const InqInput = styled.input`
-  height:36px;padding:0 12px;font-size:13px;color:#0F172A;
+  height:36px;padding:0 12px;font-size:0.8125rem;color:#0F172A;
   background:#fff;border:1px solid #CBD5E1;border-radius:8px;font-family:inherit;
   &:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,0.12);}
   &::placeholder{color:#94A3B8;}
 `;
 const InqTextarea = styled.textarea`
-  padding:10px 12px;font-size:13px;color:#0F172A;
+  padding:10px 12px;font-size:0.8125rem;color:#0F172A;
   background:#fff;border:1px solid #CBD5E1;border-radius:8px;font-family:inherit;
   resize:vertical;min-height:100px;line-height:1.6;
   &:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,0.12);}
   &::placeholder{color:#94A3B8;}
 `;
-const InqError = styled.div`margin-top:10px;padding:8px 12px;background:#FEF2F2;border:1px solid #FCA5A5;color:#B91C1C;border-radius:8px;font-size:12px;`;
+const InqError = styled.div`margin-top:10px;padding:8px 12px;background:#FEF2F2;border:1px solid #FCA5A5;color:#B91C1C;border-radius:8px;font-size:0.75rem;`;
 const SuccessBox = styled.div`padding:20px;background:#F0FDFA;border:1px solid #99F6E4;border-radius:10px;text-align:center;`;
-const SuccessTitle = styled.div`font-size:15px;font-weight:700;color:#0F766E;margin-bottom:6px;`;
-const SuccessDesc = styled.div`font-size:13px;color:#0F766E;line-height:1.6;`;
+const SuccessTitle = styled.div`font-size:0.9375rem;font-weight:700;color:#0F766E;margin-bottom:6px;`;
+const SuccessDesc = styled.div`font-size:0.8125rem;color:#0F766E;line-height:1.6;`;
 
 // ─── Plan 배지 색상 ───
 function planBadge(code: PlanCode): string {
@@ -1004,7 +1004,7 @@ const PaymentRow = styled.div`
   padding: 10px 0;
   border-bottom: 1px solid #F1F5F9;
   &:last-child { border-bottom: none; }
-  font-size: 12px;
+  font-size: 0.75rem;
   @media (max-width: 768px) {
     grid-template-columns: 1fr 1fr;
     grid-template-rows: auto auto;
@@ -1014,7 +1014,7 @@ const PaymentDate = styled.div`color: #64748B; font-variant-numeric: tabular-num
 const PaymentAmount = styled.div`font-weight: 700; color: #0F172A;`;
 const PaymentMeta = styled.div`color: #64748B;`;
 const PaymentStatus = styled.span<{ $status: string }>`
-  padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 600;
+  padding: 2px 8px; border-radius: 999px; font-size: 0.625rem; font-weight: 600;
   background: ${p =>
     p.$status === 'paid' ? '#DCFCE7' :
     p.$status === 'refunded' ? '#FEF3C7' :
@@ -1027,7 +1027,7 @@ const PaymentStatus = styled.span<{ $status: string }>`
     '#64748B'};
 `;
 const ReceiptLink = styled.a`
-  font-size: 11px; color: #0D9488; font-weight: 600;
+  font-size: 0.6875rem; color: #0D9488; font-weight: 600;
   text-decoration: none; padding: 4px 10px;
   border: 1px solid #5EEAD4; border-radius: 6px;
   &:hover { background: #F0FDFA; }
@@ -1042,7 +1042,7 @@ const CueBreakdown = styled.div`
   border-radius: 10px;
 `;
 const CueBreakdownTitle = styled.div`
-  font-size: 12px; font-weight: 700; color: #64748B;
+  font-size: 0.75rem; font-weight: 700; color: #64748B;
   text-transform: uppercase; letter-spacing: 0.4px;
   margin-bottom: 10px;
 `;
@@ -1062,7 +1062,7 @@ const CueBreakdownRow = styled.div`
   }
 `;
 const CueBreakdownLabel = styled.div`
-  font-size: 13px; color: #0F172A; font-weight: 500;
+  font-size: 0.8125rem; color: #0F172A; font-weight: 500;
 `;
 const CueBreakdownBar = styled.div`
   height: 6px; background: #E2E8F0; border-radius: 999px; overflow: hidden;
@@ -1072,5 +1072,5 @@ const CueBreakdownFill = styled.div`
   transition: width 0.3s;
 `;
 const CueBreakdownCount = styled.div`
-  font-size: 13px; color: #0F766E; font-weight: 700; text-align: right;
+  font-size: 0.8125rem; color: #0F766E; font-weight: 700; text-align: right;
 `;

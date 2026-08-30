@@ -1703,7 +1703,7 @@ const ChatPanel: React.FC<Props> = ({
                             card.onclick = () => downloadAttachment(a.id, a.file_name);
                             card.style.cssText = 'display:inline-flex;align-items:center;gap:10px;padding:10px 12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;cursor:pointer;font:inherit;color:#0F172A;max-width:280px;';
                             const ext = (a.file_name.split('.').pop() || 'FILE').slice(0, 4).toUpperCase();
-                            card.innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;background:#E2E8F0;color:#475569;border-radius:6px;font-size:10px;font-weight:700;flex-shrink:0">${ext}</span><span style="display:flex;flex-direction:column;min-width:0;text-align:left"><span style="font-size:13px;font-weight:600;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px">${a.file_name.replace(/</g,'&lt;')}</span><span style="font-size:11px;color:#64748B">${(a.file_size/1024).toFixed(0)}KB · 미리보기 불가</span></span>`;
+                            card.innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;background:#E2E8F0;color:#475569;border-radius:6px;font-size:0.625rem;font-weight:700;flex-shrink:0">${ext}</span><span style="display:flex;flex-direction:column;min-width:0;text-align:left"><span style="font-size:0.8125rem;font-weight:600;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px">${a.file_name.replace(/</g,'&lt;')}</span><span style="font-size:0.6875rem;color:#64748B">${(a.file_size/1024).toFixed(0)}KB · 미리보기 불가</span></span>`;
                             img.parentElement?.replaceWith(card);
                           }}
                         />
@@ -2263,7 +2263,7 @@ const ChatNameRow = styled.div`
 `;
 
 const ChatName = styled.h2<{ $editable: boolean }>`
-  font-size: 16px;
+  font-size: 1rem;
   font-weight: 700;
   color: #0F172A;
   margin: 0;
@@ -2282,7 +2282,7 @@ const ChatName = styled.h2<{ $editable: boolean }>`
 `;
 
 const ChatNameInput = styled.input`
-  font-size: 16px;
+  font-size: 1rem;
   font-weight: 700;
   color: #0F172A;
   letter-spacing: -0.2px;
@@ -2302,17 +2302,17 @@ const ChatNameInput = styled.input`
 const CustomerLink = styled.button`
   display: inline-flex; align-items: center; gap: 3px;
   padding: 2px 8px; border-radius: 999px; cursor: pointer;
-  font-size: 11px; font-weight: 700;
+  font-size: 0.6875rem; font-weight: 700;
   color: #0F766E; background: #F0FDFA; border: 1px solid #99F6E4;
   &:hover { background: #CCFBF1; }
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
-  span { font-size: 13px; line-height: 1; }
+  span { font-size: 0.8125rem; line-height: 1; }
 `;
 const CustomerTag = styled.span`
   padding: 1px 7px;
   background: rgba(244, 63, 94, 0.10);
   color: #BE123C;
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 700;
   border-radius: 10px;
   letter-spacing: 0.2px;
@@ -2323,7 +2323,7 @@ const ProjectSublabel = styled.div`
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #94A3B8;
   font-weight: 500;
   white-space: nowrap;
@@ -2351,7 +2351,7 @@ const ProjectLink = styled.button`
   background: transparent;
   border: none;
   color: #0D9488;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   padding: 0;
   cursor: pointer;
@@ -2387,7 +2387,7 @@ const QuickSwitchBtn = styled.button`
   background: #F8FAFC;
   border: 1px solid #E2E8F0;
   border-radius: 14px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 500;
   color: #64748B;
   cursor: pointer;
@@ -2415,7 +2415,7 @@ const QuickBadge = styled.span`
   background: #F43F5E;
   color: #FFFFFF;
   border-radius: 8px;
-  font-size: 9px;
+  font-size: 0.5625rem;
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -2472,7 +2472,7 @@ const CandidatesBanner = styled.div`
 `;
 
 const BannerText = styled.div`
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #92400E;
   font-weight: 500;
 `;
@@ -2511,11 +2511,11 @@ const MessageList = styled.div`
 `;
 
 const NoMsgBox = styled.div`
-  padding: 40px 20px; text-align: center; color: #94A3B8; font-size: 13px;
+  padding: 40px 20px; text-align: center; color: #94A3B8; font-size: 0.8125rem;
 `;
 const OlderLoadingRow = styled.div`
   display: flex; align-items: center; justify-content: center; gap: 8px;
-  padding: 10px 0; color: #94A3B8; font-size: 12px;
+  padding: 10px 0; color: #94A3B8; font-size: 0.75rem;
 `;
 const OlderSpinner = styled.span`
   width: 14px; height: 14px; border-radius: 50%;
@@ -2526,7 +2526,7 @@ const OlderSpinner = styled.span`
 // '여기까지 읽음' 구분선 — 진입 시점 기준 첫 안 읽은 메시지 앞. 가운데 라벨 + 양옆 라인(Coral).
 const UnreadDivider = styled.div`
   display: flex; align-items: center; gap: 10px;
-  margin: 24px 4px 8px; color: #F43F5E; font-size: 11px; font-weight: 700;  /* #209 — 옛 flex gap 대체 */
+  margin: 24px 4px 8px; color: #F43F5E; font-size: 0.6875rem; font-weight: 700;  /* #209 — 옛 flex gap 대체 */
   &::before, &::after { content: ''; flex: 1; height: 1px; background: rgba(244, 63, 94, 0.25); }
   span { flex-shrink: 0; letter-spacing: 0.2px; }
 `;
@@ -2537,7 +2537,7 @@ const UnreadDivider = styled.div`
 const ReadMark = styled.div<{ $read: boolean }>`
   margin-top: 2px;
   align-self: flex-end;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 500;
   color: ${(p) => (p.$read ? '#0D9488' : '#94A3B8')};
   letter-spacing: -0.1px;
@@ -2585,7 +2585,7 @@ const ScrollPendingBadge = styled.span`
   border-radius: 10px;
   background: #F43F5E;
   color: #FFFFFF;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -2720,14 +2720,14 @@ const MsgCheckbox = styled.div<{ $checked: boolean; $disabled?: boolean }>`
 
 // (수정됨) 라벨
 const EditedMark = styled.span`
-  font-size: 10px;
+  font-size: 0.625rem;
   color: #94A3B8;
   font-style: italic;
 `;
 
 // 삭제된 메시지 placeholder (CLAUDE.md 운영 정책)
 const DeletedPlaceholder = styled.div`
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #94A3B8;
   font-style: italic;
   padding: 6px 12px;
@@ -2755,7 +2755,7 @@ const EditTextArea = styled.textarea`
   border-radius: 8px;
   background: #FFFFFF;
   font-family: inherit;
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.5;
   color: #0F172A;
   outline: none;
@@ -2770,7 +2770,7 @@ const EditBtn = styled.button<{ $primary?: boolean }>`
   height: 28px;
   padding: 0 12px;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
   border: 1px solid ${(p) => (p.$primary ? '#0D9488' : '#CBD5E1')};
@@ -2783,7 +2783,7 @@ const EditBtn = styled.button<{ $primary?: boolean }>`
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 const EditHint = styled.span`
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #94A3B8;
   margin-left: auto;
 `;
@@ -2866,7 +2866,7 @@ const ToolBarMoreItem = styled.button<{ $danger?: boolean }>`
   background: transparent;
   border: none;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 500;
   color: ${(p) => (p.$danger ? '#B91C1C' : '#334155')};
   cursor: pointer;
@@ -2889,7 +2889,7 @@ const PinnedHeader = styled.button`
   background: transparent;
   border: none;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #92400E;
   transition: background 0.15s;
   &:hover { background: rgba(245, 158, 11, 0.08); }
@@ -2901,7 +2901,7 @@ const PinIcon = styled.svg`
   flex-shrink: 0;
 `;
 const PinnedTitle = styled.span`
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   color: #92400E;
 `;
@@ -2937,7 +2937,7 @@ const PinnedItem = styled.button`
   border-radius: 8px;
   cursor: pointer;
   text-align: left;
-  font-size: 12px;
+  font-size: 0.75rem;
   transition: background 0.15s, border-color 0.15s;
   &:hover { background: #FFFBEB; border-color: #F59E0B; }
 `;
@@ -2955,7 +2955,7 @@ const PinnedBody = styled.span`
   min-width: 0;
 `;
 const PinnedTime = styled.span`
-  font-size: 10px;
+  font-size: 0.625rem;
   color: #94A3B8;
   flex-shrink: 0;
 `;
@@ -2989,7 +2989,7 @@ const SelectionBar = styled.div`
   border-bottom: 1px solid #99F6E4;
 `;
 const SelectionCount = styled.span`
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   color: #0F766E;
 `;
@@ -3005,7 +3005,7 @@ const SelectionBtn = styled.button<{ $danger?: boolean }>`
   height: 30px;
   padding: 0 12px;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
   border: 1px solid ${(p) => (p.$danger ? '#FCA5A5' : '#CBD5E1')};
@@ -3023,7 +3023,7 @@ const SelectionCancel = styled.button`
   padding: 0 12px;
   background: transparent;
   border: none;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   color: #64748B;
   cursor: pointer;
@@ -3048,10 +3048,10 @@ const ConfirmDialog = styled.div`
   display: flex; flex-direction: column; gap: 12px;
 `;
 const ConfirmTitle = styled.div`
-  font-size: 15px; font-weight: 700; color: #0F172A;
+  font-size: 0.9375rem; font-weight: 700; color: #0F172A;
 `;
 const ConfirmBody = styled.div`
-  font-size: 13px; color: #475569; line-height: 1.55;
+  font-size: 0.8125rem; color: #475569; line-height: 1.55;
 `;
 const ConfirmActions = styled.div`
   display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px;
@@ -3059,13 +3059,13 @@ const ConfirmActions = styled.div`
 const ConfirmCancel = styled.button`
   height: 34px; padding: 0 14px;
   background: #FFFFFF; border: 1px solid #CBD5E1; border-radius: 8px;
-  font-size: 13px; font-weight: 600; color: #334155; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 600; color: #334155; cursor: pointer;
   &:hover { background: #F8FAFC; }
 `;
 const ConfirmDanger = styled.button`
   height: 34px; padding: 0 14px;
   background: #DC2626; border: none; border-radius: 8px;
-  font-size: 13px; font-weight: 700; color: #FFFFFF; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 700; color: #FFFFFF; cursor: pointer;
   &:hover { background: #B91C1C; }
 `;
 
@@ -3081,7 +3081,7 @@ const SenderName = styled.button`
   background: transparent;
   border: none;
   padding: 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: #0F172A;
   font-family: inherit;
@@ -3093,12 +3093,12 @@ const SenderName = styled.button`
 `;
 
 const TimeStamp = styled.span`
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #94A3B8;
 `;
 
 const CueBadge = styled.span`
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 700;
   padding: 1px 6px;
   background: linear-gradient(135deg, #F43F5E 0%, #C026D3 100%);
@@ -3111,7 +3111,7 @@ const CueBadge = styled.span`
 // (MsgLink 는 utils/linkify 의 AutoLink 로 이관 — 링크 모양이 채팅·댓글에서 갈리지 않게)
 
 const MessageText = styled.div<{ $question: boolean }>`
-  font-size: 14px;
+  font-size: 0.875rem;
   color: #1E293B;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -3131,7 +3131,7 @@ const MessageText = styled.div<{ $question: boolean }>`
 const TranslatedText = styled.div`
   margin-top: 4px;
   padding: 6px 10px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #64748B;
   background: #F8FAFC;
   border-left: 2px solid #CBD5E1;
@@ -3205,11 +3205,11 @@ const InvCardIcon = styled.span<{ $paid: boolean; $notified: boolean }>`
   border-radius: 8px;
 `;
 const InvCardSub = styled.span`
-  font-size: 11px; color: #64748B; font-weight: 500;
+  font-size: 0.6875rem; color: #64748B; font-weight: 500;
   font-variant-numeric: tabular-nums;
 `;
 const InvCardStatus = styled.span<{ $paid: boolean; $notified: boolean; $canceled: boolean }>`
-  font-size: 11px; font-weight: 700;
+  font-size: 0.6875rem; font-weight: 700;
   color: ${p => p.$paid ? '#15803D' : p.$canceled ? '#94A3B8' : p.$notified ? '#B45309' : '#0F766E'};
 `;
 const SignCardIcon = styled.span`
@@ -3224,17 +3224,17 @@ const DocCardIcon = styled.span`
 `;
 const DocCardBody = styled.div`flex:1;display:flex;flex-direction:column;gap:2px;min-width:0;`;
 const DocCardTitle = styled.span`
-  font-size: 13px; font-weight: 700; color: #0F172A;
+  font-size: 0.8125rem; font-weight: 700; color: #0F172A;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
-const DocCardLabel = styled.span`font-size:11px;color:#64748B;font-weight:500;`;
+const DocCardLabel = styled.span`font-size:0.6875rem;color:#64748B;font-weight:500;`;
 const TaskCardStatus = styled.span<{ $bg: string; $fg: string }>`
-  display:inline-block;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;
+  display:inline-block;font-size:0.625rem;font-weight:700;padding:1px 6px;border-radius:999px;
   background:${p => p.$bg};color:${p => p.$fg};`;
 const DocCardArrow = styled.span`color:#94A3B8;flex-shrink:0;`;
 const CardNote = styled.div`
   margin-top: 6px; padding: 8px 10px;
-  font-size: 13px; color: #334155; line-height: 1.5;
+  font-size: 0.8125rem; color: #334155; line-height: 1.5;
   background: #fff; border-left: 3px solid #14B8A6; border-radius: 0 6px 6px 0;
   /* #245 — 줄바꿈 가드 부재(잠복). 장문 토큰이 카드를 밀어 가로 오버플로를 만든다. */
   word-break: break-word; overflow-wrap: anywhere;
@@ -3251,14 +3251,14 @@ const SourceBox = styled.div`
   gap: 2px;
 `;
 const SourceLabel = styled.div`
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 700;
   color: #94A3B8;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 `;
 const SourceItem = styled.div`
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #475569;
 `;
 
@@ -3268,7 +3268,7 @@ const CueRatingRow = styled.div`
   margin-top: 6px;
 `;
 const CueRatingLabel = styled.span`
-  font-size: 11px; color: #94A3B8; font-weight: 500;
+  font-size: 0.6875rem; color: #94A3B8; font-weight: 500;
 `;
 const CueRatingBtn = styled.button<{ $active?: boolean; $danger?: boolean }>`
   width: 24px; height: 24px; padding: 0;
@@ -3302,7 +3302,7 @@ const DraftLabel = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 700;
   color: #9F1239;
   text-transform: uppercase;
@@ -3325,14 +3325,14 @@ const Confidence = styled.span`
   padding: 1px 6px;
   background: #FECDD3;
   border-radius: 8px;
-  font-size: 10px;
+  font-size: 0.625rem;
 `;
 
 const LockInfo = styled.div`
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 10px;
+  font-size: 0.625rem;
   color: #94A3B8;
   font-weight: 500;
 `;
@@ -3345,7 +3345,7 @@ const LockDot = styled.span`
 `;
 
 const DraftBody = styled.div`
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #1E293B;
   line-height: 1.5;
   margin-bottom: 8px;
@@ -3353,7 +3353,7 @@ const DraftBody = styled.div`
 
 const DraftEditArea = styled.textarea`
   width: 100%;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #1E293B;
   line-height: 1.5;
   margin-bottom: 8px;
@@ -3371,7 +3371,7 @@ const DraftEditArea = styled.textarea`
 `;
 
 const DraftSource = styled.div`
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #9F1239;
   margin-bottom: 8px;
   padding: 4px 8px;
@@ -3387,7 +3387,7 @@ const DraftActions = styled.div`
 
 const DraftBtn = styled.button<{ $primary?: boolean; $ghost?: boolean }>`
   padding: 5px 12px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   border-radius: 6px;
   cursor: pointer;
@@ -3438,7 +3438,7 @@ const MentionItem = styled.button<{ $active: boolean }>`
   all: unset; box-sizing: border-box; cursor: pointer;
   display: flex; align-items: center; gap: 8px;
   padding: 7px 10px; border-radius: 8px;
-  font-size: 13px; color: #0F172A;
+  font-size: 0.8125rem; color: #0F172A;
   background: ${(p) => (p.$active ? '#F0FDFA' : 'transparent')};
   &:hover { background: #F0FDFA; }
   span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -3486,7 +3486,7 @@ const CueBadgeInline = styled.button`
   color: #9F1239;
   border: 1px solid #FECDD3;
   border-radius: 12px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s;
@@ -3513,10 +3513,10 @@ const TextInput = styled.textarea`
   border: none;
   background: transparent;
   resize: none;
-  font-size: 14px;
+  font-size: 0.875rem;
   /* iOS 는 font-size < 16px 인 input 포커스 시 자동 줌(화면 확대) → 키보드 뜰 때 레이아웃 튐.
      모바일/태블릿에선 16px 로 올려 자동 줌 차단 (데스크탑은 14px 유지). */
-  @media (max-width: 1024px) { font-size: 16px; }
+  @media (max-width: 1024px) { font-size: 1rem; }
   line-height: 1.45;
   color: #0F172A;
   font-family: inherit;
@@ -3571,11 +3571,11 @@ const StagedChip = styled.div`
   /* chip 자체의 좌측 padding 을 0 으로 — 아이콘이 InputWrap 콘텐츠 좌측과 시각적으로 정렬되도록 */
   display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px 4px 6px;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px;
-  font-size: 11px; color: #475569; max-width: 220px;
+  font-size: 0.6875rem; color: #475569; max-width: 220px;
   min-width: 0;
 `;
 const StagedName = styled.span`white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; text-align: left;`;
-const StagedSize = styled.span`color: #94A3B8; font-size: 10px;`;
+const StagedSize = styled.span`color: #94A3B8; font-size: 0.625rem;`;
 const ExistingDot = styled.span`
   width: 6px; height: 6px; border-radius: 50%;
   background: #14B8A6; flex-shrink: 0;
@@ -3593,7 +3593,7 @@ const UploadErrorChip = styled.div`
   display: inline-flex; align-items: flex-start; gap: 8px;
   padding: 6px 8px 6px 10px;
   background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px;
-  color: #B91C1C; font-size: 11px;
+  color: #B91C1C; font-size: 0.6875rem;
   min-width: 0; max-width: 320px;
 `;
 const UploadErrorBody = styled.div`
@@ -3621,11 +3621,11 @@ const DropOverlay = styled.div`
   background: rgba(20, 184, 166, 0.06);
   border: 2px dashed #14B8A6; border-radius: 8px;
   pointer-events: none;
-  font-size: 14px; font-weight: 600; color: #0F766E;
+  font-size: 0.875rem; font-weight: 600; color: #0F766E;
 `;
 const StagedX = styled.button`
   background: transparent; border: none; color: #94A3B8; cursor: pointer;
-  font-size: 14px; line-height: 1; padding: 0 2px;
+  font-size: 0.875rem; line-height: 1; padding: 0 2px;
   &:hover { color: #DC2626; }
 `;
 
@@ -3644,13 +3644,13 @@ const AttachImage = styled.img`
 const AttachFileLink = styled.a`
   display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
-  text-decoration: none; color: #0F172A; font-size: 12px; max-width: 260px;
+  text-decoration: none; color: #0F172A; font-size: 0.75rem; max-width: 260px;
   &:hover { background: #F0FDFA; border-color: #14B8A6; }
 `;
 const AttachIcon = styled.span`
   display: inline-flex; align-items: center; justify-content: center;
   width: 28px; height: 28px; background: #14B8A6; color: #FFFFFF;
-  border-radius: 6px; font-size: 9px; font-weight: 800; letter-spacing: 0.3px;
+  border-radius: 6px; font-size: 0.5625rem; font-weight: 800; letter-spacing: 0.3px;
 `;
 const AttachName = styled.span`font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px;`;
-const AttachSize = styled.span`color: #94A3B8; font-size: 10px;`;
+const AttachSize = styled.span`color: #94A3B8; font-size: 0.625rem;`;

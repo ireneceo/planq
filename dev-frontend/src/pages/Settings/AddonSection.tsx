@@ -127,24 +127,24 @@ export default AddonSection;
 
 // ─── styled ───
 const Wrap = styled.section`display: flex; flex-direction: column; gap: 14px;`;
-const Loading = styled.div`text-align: center; padding: 24px; color: #94A3B8; font-size: 12px;`;
-const ErrorBanner = styled.div`padding: 10px 14px; background: #FEF2F2; border: 1px solid #FECACA; color: #991B1B; border-radius: 8px; font-size: 12px;`;
+const Loading = styled.div`text-align: center; padding: 24px; color: #94A3B8; font-size: 0.75rem;`;
+const ErrorBanner = styled.div`padding: 10px 14px; background: #FEF2F2; border: 1px solid #FECACA; color: #991B1B; border-radius: 8px; font-size: 0.75rem;`;
 const Head = styled.div`display: flex; flex-direction: column; gap: 4px;`;
-const Title = styled.h3`font-size: 15px; font-weight: 700; color: #0F172A; margin: 0;`;
-const Desc = styled.div`font-size: 12px; color: #64748B; line-height: 1.5;`;
+const Title = styled.h3`font-size: 0.9375rem; font-weight: 700; color: #0F172A; margin: 0;`;
+const Desc = styled.div`font-size: 0.75rem; color: #64748B; line-height: 1.5;`;
 
 const OwnedBox = styled.div`
   background: #F0FDFA; border: 1px solid #CCFBF1; border-radius: 10px;
   padding: 12px 16px; display: flex; flex-direction: column; gap: 8px;
 `;
 const OwnedTitle = styled.div`
-  font-size: 11px; font-weight: 700; color: #0F766E;
+  font-size: 0.6875rem; font-weight: 700; color: #0F766E;
   text-transform: uppercase; letter-spacing: 0.4px;
 `;
 const OwnedRow = styled.div`display: flex; flex-wrap: wrap; gap: 12px 24px;`;
 const OwnedItem = styled.div`display: flex; flex-direction: column; gap: 2px;`;
-const OwnedLabel = styled.div`font-size: 11px; color: #0F766E;`;
-const OwnedValue = styled.div`font-size: 13px; font-weight: 700; color: #0F172A; font-variant-numeric: tabular-nums;`;
+const OwnedLabel = styled.div`font-size: 0.6875rem; color: #0F766E;`;
+const OwnedValue = styled.div`font-size: 0.8125rem; font-weight: 700; color: #0F172A; font-variant-numeric: tabular-nums;`;
 
 const Grid = styled.div`
   display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px;
@@ -153,31 +153,31 @@ const Card = styled.div`
   border: 1px solid #E2E8F0; border-radius: 10px; padding: 14px 16px;
   display: flex; flex-direction: column; gap: 8px; background: #fff;
 `;
-const CardName = styled.div`font-size: 13px; font-weight: 700; color: #0F172A;`;
-const CardPrice = styled.div`font-size: 18px; font-weight: 800; color: #0F766E; line-height: 1.1;`;
-const PriceUnit = styled.span`font-size: 11px; font-weight: 500; color: #94A3B8; margin-left: 4px;`;
+const CardName = styled.div`font-size: 0.8125rem; font-weight: 700; color: #0F172A;`;
+const CardPrice = styled.div`font-size: 1.125rem; font-weight: 800; color: #0F766E; line-height: 1.1;`;
+const PriceUnit = styled.span`font-size: 0.6875rem; font-weight: 500; color: #94A3B8; margin-left: 4px;`;
 const BuyRow = styled.div`display: flex; align-items: center; gap: 8px; margin-top: 4px;`;
 const QtyInput = styled.input`
   width: 56px; height: 28px; padding: 0 8px;
-  border: 1px solid #E2E8F0; border-radius: 6px; font-size: 12px;
+  border: 1px solid #E2E8F0; border-radius: 6px; font-size: 0.75rem;
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 1px; }
 `;
 const BuyBtn = styled.button`
   height: 28px; padding: 0 12px;
   background: #14B8A6; color: #fff; border: none; border-radius: 6px;
-  font-size: 12px; font-weight: 600; cursor: pointer;
+  font-size: 0.75rem; font-weight: 600; cursor: pointer;
   &:hover:not(:disabled) { background: #0F766E; }
   &:disabled { background: #CBD5E1; cursor: not-allowed; }
 `;
 const TotalPrice = styled.div`
-  margin-left: auto; font-size: 12px; font-weight: 700; color: #475569;
+  margin-left: auto; font-size: 0.75rem; font-weight: 700; color: #475569;
   font-variant-numeric: tabular-nums;
 `;
 const ResultMsg = styled.div`
-  font-size: 12px; color: #0D9488; line-height: 1.5;
+  font-size: 0.75rem; color: #0D9488; line-height: 1.5;
   padding-left: 4px;
 `;
 const FootNote = styled.div`
-  font-size: 11px; color: #94A3B8; line-height: 1.5;
+  font-size: 0.6875rem; color: #94A3B8; line-height: 1.5;
   padding-top: 4px;
 `;

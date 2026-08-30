@@ -36,7 +36,7 @@ const Pill = styled.span<{ $bg: string; $fg: string; $size: 'sm' | 'xs' }>`
   border-radius: 999px;
   white-space: nowrap;
   line-height: 1.4;
-  font-size: ${(p) => (p.$size === 'xs' ? '10px' : '11px')};
+  font-size: ${(p) => (p.$size === 'xs' ? '0.625rem' : '0.6875rem')};
   padding: ${(p) => (p.$size === 'xs' ? '1px 6px' : '2px 8px')};
   background: ${(p) => p.$bg};
   color: ${(p) => p.$fg};

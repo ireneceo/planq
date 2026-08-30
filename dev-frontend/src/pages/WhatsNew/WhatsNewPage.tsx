@@ -98,15 +98,15 @@ const WhatsNewPage: React.FC = () => {
 
 export default WhatsNewPage;
 
-const Loading = styled.div` padding: 60px 16px; text-align: center; color: #94A3B8; font-size: 14px; `;
+const Loading = styled.div` padding: 60px 16px; text-align: center; color: #94A3B8; font-size: 0.875rem; `;
 // 빈 상태도 알림 쪽 수치로 통일 (여백 60 · 아이콘 48 · 제목 15/700 · 설명 13)
 const Empty = styled.div`
   padding: 60px 16px; text-align: center;
   display: flex; flex-direction: column; align-items: center; gap: 10px;
 `;
 const EmptyIcon = styled.svg` width: 48px; height: 48px; color: #CBD5E1; `;
-const EmptyTitle = styled.div` font-size: 15px; font-weight: 700; color: #334155; `;
-const EmptyHint = styled.div` font-size: 13px; color: #94A3B8; `;
+const EmptyTitle = styled.div` font-size: 0.9375rem; font-weight: 700; color: #334155; `;
+const EmptyHint = styled.div` font-size: 0.8125rem; color: #94A3B8; `;
 // ★ 알림 전체보기와 **같은 폭·같은 정렬**. 한쪽은 800 가운데, 한쪽은 760 왼쪽이라 따로 놀았다.
 const List = styled.div` display: flex; flex-direction: column; gap: 12px; max-width: 800px; margin: 0 auto; `;
 const Card = styled.div` background: #fff; border: 1px solid #E2E8F0; border-radius: 12px; overflow: hidden; `;
@@ -116,30 +116,30 @@ const CardHead = styled.button`
   &:hover { background: #F8FAFC; }
 `;
 const CardTop = styled.div` display: flex; align-items: center; justify-content: space-between; `;
-const DateRow = styled.div` display: flex; align-items: center; gap: 6px; font-size: 11px; color: #94A3B8; `;
+const DateRow = styled.div` display: flex; align-items: center; gap: 6px; font-size: 0.6875rem; color: #94A3B8; `;
 const NewDot = styled.span` width: 6px; height: 6px; border-radius: 50%; background: #F43F5E; flex-shrink: 0; `;
 const Chevron = styled.svg<{ $open: boolean }>`
   width: 16px; height: 16px; color: #94A3B8; flex-shrink: 0;
   transition: transform 0.15s; transform: rotate(${p => (p.$open ? 180 : 0)}deg);
 `;
-const CardTitle = styled.div` margin-top: 4px; font-size: 14px; font-weight: 700; color: #0F172A; `;
-const CardSummary = styled.div` margin-top: 3px; font-size: 12px; color: #64748B; line-height: 1.5; `;
+const CardTitle = styled.div` margin-top: 4px; font-size: 0.875rem; font-weight: 700; color: #0F172A; `;
+const CardSummary = styled.div` margin-top: 3px; font-size: 0.75rem; color: #64748B; line-height: 1.5; `;
 const CardBody = styled.div` padding: 4px 16px 16px; border-top: 1px solid #F1F5F9; `;
-const BP = styled.p` margin: 10px 0 0; font-size: 13px; line-height: 1.7; color: #334155; `;
-const BH = styled.h4` margin: 16px 0 0; font-size: 13px; font-weight: 700; color: #0F172A; `;
+const BP = styled.p` margin: 10px 0 0; font-size: 0.8125rem; line-height: 1.7; color: #334155; `;
+const BH = styled.h4` margin: 16px 0 0; font-size: 0.8125rem; font-weight: 700; color: #0F172A; `;
 const BCallout = styled.div`
   margin: 12px 0 0; padding: 10px 12px; background: #F0FDFA; border-left: 3px solid #14B8A6;
-  border-radius: 0 8px 8px 0; font-size: 12.5px; line-height: 1.6; color: #0F766E;
+  border-radius: 0 8px 8px 0; font-size: 0.78125rem; line-height: 1.6; color: #0F766E;
 `;
 const BStep = styled.div`
   margin: 8px 0 0; display: flex; gap: 8px; align-items: flex-start;
-  font-size: 13px; line-height: 1.6; color: #334155;
+  font-size: 0.8125rem; line-height: 1.6; color: #334155;
   em { flex-shrink: 0; width: 18px; height: 18px; margin-top: 1px; border-radius: 50%;
-       background: #14B8A6; color: #fff; font-style: normal; font-size: 11px; font-weight: 700;
+       background: #14B8A6; color: #fff; font-style: normal; font-size: 0.6875rem; font-weight: 700;
        display: flex; align-items: center; justify-content: center; }
 `;
 const BFigure = styled.figure`
   margin: 12px 0 0;
   img { display: block; width: 100%; border: 1px solid #E2E8F0; border-radius: 8px; }
-  figcaption { margin-top: 5px; font-size: 11px; color: #94A3B8; text-align: center; }
+  figcaption { margin-top: 5px; font-size: 0.6875rem; color: #94A3B8; text-align: center; }
 `;

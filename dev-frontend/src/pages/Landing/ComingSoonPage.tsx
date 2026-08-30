@@ -40,16 +40,16 @@ const Inner = styled.div`
   @media (max-width: 640px) { padding: 0 16px; }
 `;
 const Eyebrow = styled.div`
-  font-size: 12px; font-weight: 700; color: #0D9488;
+  font-size: 0.75rem; font-weight: 700; color: #0D9488;
   text-transform: uppercase; letter-spacing: 1px;
 `;
 const Title = styled.h1`
-  font-size: 44px; font-weight: 800; letter-spacing: -1px;
+  font-size: 2.75rem; font-weight: 800; letter-spacing: -1px;
   color: #0F172A; margin: 0;
-  @media (max-width: 640px) { font-size: 32px; }
+  @media (max-width: 640px) { font-size: 2rem; }
 `;
 const Desc = styled.p`
-  font-size: 16px; line-height: 1.7; color: #475569;
+  font-size: 1rem; line-height: 1.7; color: #475569;
   margin: 0; max-width: 540px;
 `;
 const BackBtn = styled(Link)`
@@ -58,7 +58,7 @@ const BackBtn = styled(Link)`
   display: inline-flex; align-items: center;
   background: transparent; color: #0F172A;
   border: 1px solid #E2E8F0; border-radius: 10px;
-  font-size: 14px; font-weight: 600;
+  font-size: 0.875rem; font-weight: 600;
   text-decoration: none;
   transition: background 0.15s;
   &:hover { background: #F8FAFC; }

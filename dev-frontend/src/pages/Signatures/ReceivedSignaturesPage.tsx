@@ -30,7 +30,7 @@ const BackLink = styled(Link)`
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #64748B;
   text-decoration: none;
   padding: 6px 10px;

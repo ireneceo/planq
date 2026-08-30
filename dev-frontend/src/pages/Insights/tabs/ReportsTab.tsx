@@ -252,16 +252,16 @@ const NextAutoBox = styled.div`
   padding: 20px; margin-bottom: 16px;
   display: flex; flex-direction: column; gap: 4px;
 `;
-const NextAutoLabel = styled.div`font-size: 11px; font-weight: 700; color: #0F766E; text-transform: uppercase; letter-spacing: 0.4px;`;
-const NextAutoDate = styled.div`font-size: 22px; font-weight: 700; color: #0F172A; line-height: 1.2;`;
-const NextAutoHint = styled.div`font-size: 12px; color: #64748B;`;
+const NextAutoLabel = styled.div`font-size: 0.6875rem; font-weight: 700; color: #0F766E; text-transform: uppercase; letter-spacing: 0.4px;`;
+const NextAutoDate = styled.div`font-size: 1.375rem; font-weight: 700; color: #0F172A; line-height: 1.2;`;
+const NextAutoHint = styled.div`font-size: 0.75rem; color: #64748B;`;
 
 const GenRow = styled.div`
   display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;
 `;
 const GenBtn = styled.button`
   padding: 9px 14px; background: #14B8A6; color: #FFFFFF;
-  border: none; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer;
+  border: none; border-radius: 8px; font-size: 0.75rem; font-weight: 700; cursor: pointer;
   transition: background 0.15s;
   &:hover:not(:disabled) { background: #0F766E; }
   &:disabled { background: #CBD5E1; cursor: not-allowed; }
@@ -269,42 +269,42 @@ const GenBtn = styled.button`
 const GenErrBox = styled.div`
   margin-bottom: 12px; padding: 10px 12px;
   background: #FEF2F2; border: 1px solid #FCA5A5; border-radius: 8px;
-  font-size: 12px; color: #B91C1C;
+  font-size: 0.75rem; color: #B91C1C;
 `;
 
-const Heading = styled.h2`font-size: 13px; font-weight: 700; color: #0F172A; margin: 18px 0 12px;`;
+const Heading = styled.h2`font-size: 0.8125rem; font-weight: 700; color: #0F172A; margin: 18px 0 12px;`;
 const EmptyBox = styled.div`
   background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px;
   padding: 40px 20px; text-align: center; display: flex; flex-direction: column; gap: 8px; align-items: center;
 `;
-const EmptyTitle = styled.div`font-size: 14px; font-weight: 700; color: #0F172A;`;
-const EmptyHint = styled.div`font-size: 12px; color: #64748B; max-width: 360px; line-height: 1.5;`;
+const EmptyTitle = styled.div`font-size: 0.875rem; font-weight: 700; color: #0F172A;`;
+const EmptyHint = styled.div`font-size: 0.75rem; color: #64748B; max-width: 360px; line-height: 1.5;`;
 
 const Grid = styled.div`display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px;`;
 const Card = styled.div`
   background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px;
   padding: 16px; display: flex; flex-direction: column; gap: 4px;
 `;
-const CardKind = styled.div`font-size: 11px; font-weight: 700; color: #0F766E; text-transform: uppercase; letter-spacing: 0.4px;`;
-const CardPeriod = styled.div`font-size: 14px; font-weight: 700; color: #0F172A;`;
-const CardCreated = styled.div`font-size: 11px; color: #94A3B8;`;
+const CardKind = styled.div`font-size: 0.6875rem; font-weight: 700; color: #0F766E; text-transform: uppercase; letter-spacing: 0.4px;`;
+const CardPeriod = styled.div`font-size: 0.875rem; font-weight: 700; color: #0F172A;`;
+const CardCreated = styled.div`font-size: 0.6875rem; color: #94A3B8;`;
 const CardActions = styled.div`
   margin-top: 10px; display: flex; align-items: center; gap: 12px;
   padding-top: 8px; border-top: 1px solid #F1F5F9;
 `;
 const CardLink = styled.a`
-  font-size: 12px; font-weight: 600; color: #0F766E; text-decoration: none;
+  font-size: 0.75rem; font-weight: 600; color: #0F766E; text-decoration: none;
   &:hover { text-decoration: underline; }
 `;
 const ShareBtn = styled.button`
   background: transparent; border: 1px solid #E2E8F0; color: #475569;
-  padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 500;
+  padding: 4px 8px; border-radius: 6px; font-size: 0.6875rem; font-weight: 500;
   cursor: pointer; transition: background 0.15s, border-color 0.15s;
   &:hover { background: #F8FAFC; border-color: #CBD5E1; }
 `;
 const CardStatus = styled.div<{ $failed?: boolean }>`
   margin-top: 10px; padding-top: 8px; border-top: 1px solid #F1F5F9;
-  font-size: 11px; font-weight: 500; color: ${(p) => (p.$failed ? '#B91C1C' : '#94A3B8')};
+  font-size: 0.6875rem; font-weight: 500; color: ${(p) => (p.$failed ? '#B91C1C' : '#94A3B8')};
 `;
 
 // ── 대화형 통합 보고서 ──
@@ -314,7 +314,7 @@ const IntegratedSection = styled.div`
 `;
 const PeriodTypeRow = styled.div`display: flex; gap: 6px;`;
 const PeriodTypeBtn = styled.button<{ $active?: boolean }>`
-  padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
+  padding: 6px 14px; border-radius: 8px; font-size: 0.75rem; font-weight: 600; cursor: pointer;
   border: 1px solid ${(p) => (p.$active ? '#14B8A6' : '#E2E8F0')};
   background: ${(p) => (p.$active ? '#F0FDFA' : '#FFFFFF')};
   color: ${(p) => (p.$active ? '#0F766E' : '#64748B')};
@@ -324,7 +324,7 @@ const PeriodTypeBtn = styled.button<{ $active?: boolean }>`
 const PeriodChips = styled.div`display: flex; gap: 6px; flex-wrap: wrap;`;
 const PeriodChip = styled.button<{ $active?: boolean }>`
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 5px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; cursor: pointer;
+  padding: 5px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; cursor: pointer;
   border: 1px solid ${(p) => (p.$active ? '#14B8A6' : '#E2E8F0')};
   background: ${(p) => (p.$active ? '#14B8A6' : '#FFFFFF')};
   color: ${(p) => (p.$active ? '#FFFFFF' : '#475569')};
@@ -338,8 +338,8 @@ const NarrativeBox = styled.div`
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 14px 16px;
   display: flex; flex-direction: column; gap: 6px;
 `;
-const NarrativeLabel = styled.div`font-size: 11px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px;`;
-const NarrativeText = styled.div`font-size: 13px; color: #334155; line-height: 1.6; white-space: pre-wrap;`;
+const NarrativeLabel = styled.div`font-size: 0.6875rem; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px;`;
+const NarrativeText = styled.div`font-size: 0.8125rem; color: #334155; line-height: 1.6; white-space: pre-wrap;`;
 const RollupBlock = styled.div`display: flex; flex-direction: column; gap: 8px;`;
-const RollupTitle = styled.div`font-size: 12px; font-weight: 700; color: #475569;`;
-const RollupEmpty = styled.div`font-size: 12px; color: #94A3B8; padding: 20px; text-align: center;`;
+const RollupTitle = styled.div`font-size: 0.75rem; font-weight: 700; color: #475569;`;
+const RollupEmpty = styled.div`font-size: 0.75rem; color: #94A3B8; padding: 20px; text-align: center;`;

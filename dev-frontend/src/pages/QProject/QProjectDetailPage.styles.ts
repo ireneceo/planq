@@ -15,7 +15,7 @@ export const PinnedDocHeader = styled.div`
   padding-bottom: 12px; border-bottom: 1px solid #E2E8F0;
 `;
 export const PinnedDocTitle = styled.h2`
-  margin: 0; font-size: 18px; font-weight: 700; color: #0F172A;
+  margin: 0; font-size: 1.125rem; font-weight: 700; color: #0F172A;
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 `;
 export const PinnedDocActions = styled.div`
@@ -26,27 +26,27 @@ export const PinnedDocBtn = styled.button`
   height: 32px; padding: 0 12px;
   background: #14B8A6; color: #fff;
   border: none; border-radius: 8px;
-  font-size: 12px; font-weight: 600; cursor: pointer;
+  font-size: 0.75rem; font-weight: 600; cursor: pointer;
   transition: background 0.15s;
   &:hover { background: #0D9488; }
 `;
 export const PinnedDocLoading = styled.div`
-  text-align: center; padding: 40px; color: #94A3B8; font-size: 13px;
+  text-align: center; padding: 40px; color: #94A3B8; font-size: 0.8125rem;
 `;
 export const PinnedDocEmpty = styled.div`
-  text-align: center; padding: 40px; color: #DC2626; font-size: 13px;
+  text-align: center; padding: 40px; color: #DC2626; font-size: 0.8125rem;
   background: #FEF2F2; border: 1px solid #FECACA; border-radius: 12px;
 `;
 // 중립 안내(표 문서 등) — 에러 아님. 세로 정렬 + 버튼.
 export const PinnedDocInfo = styled.div`
   display: flex; flex-direction: column; align-items: center; gap: 12px;
-  text-align: center; padding: 40px; color: #64748B; font-size: 13px;
+  text-align: center; padding: 40px; color: #64748B; font-size: 0.8125rem;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px;
 `;
 
 // ───────── Dashboard Timeline (공용 GanttTrack) ─────────
 // ───────── styled ─────────
-export const BackBtn = styled.button`padding:6px 12px;background:#FFF;color:#334155;border:1px solid #CBD5E1;border-radius:8px;font-size:12px;cursor:pointer;&:hover{background:#F8FAFC;border-color:#94A3B8;}`;
+export const BackBtn = styled.button`padding:6px 12px;background:#FFF;color:#334155;border:1px solid #CBD5E1;border-radius:8px;font-size:0.75rem;cursor:pointer;&:hover{background:#F8FAFC;border-color:#94A3B8;}`;
 // 운영 #313 — "스크롤을 끝까지 내려도 상단에 서브페이지 제목이 있고 그 옆에 헤더들 모두 고정되어야
 //   하는데 탭 부분이 고정되고 움직여서 올라가 버려."
 //   PageShell 은 헤더를 고정하고 Body 만 스크롤시키는데, 이 탭 줄은 그 Body **안에** 있어서 같이
@@ -64,11 +64,11 @@ export const TabBar = styled.div`display:flex;gap:4px;border-bottom:1px solid #E
   /* 폰 — 본문 padding(16px)과 음수 마진이 어긋나면 탭바가 화면 밖으로 밀린다.
      같은 값으로 맞추고 탭 자체도 좁게(가로 스크롤은 유지). */
   @media (max-width:640px){padding:0 14px;margin:-14px -14px 14px;top:-14px;}`;
-export const TabFallback = styled.div`padding:40px 24px;text-align:center;font-size:13px;color:#94A3B8;`;
+export const TabFallback = styled.div`padding:40px 24px;text-align:center;font-size:0.8125rem;color:#94A3B8;`;
 export const Tab = styled.button<{$active:boolean}>`
   padding:12px 14px;
-  @media (max-width:640px){padding:10px 10px;font-size:12.5px;}background:transparent;border:none;color:${p=>p.$active?'#0F766E':'#64748B'};
-  font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid ${p=>p.$active?'#14B8A6':'transparent'};
+  @media (max-width:640px){padding:10px 10px;font-size:0.78125rem;}background:transparent;border:none;color:${p=>p.$active?'#0F766E':'#64748B'};
+  font-size:0.8125rem;font-weight:600;cursor:pointer;border-bottom:2px solid ${p=>p.$active?'#14B8A6':'transparent'};
   display:inline-flex;align-items:center;gap:6px;white-space:nowrap;flex:0 0 auto;
   &:hover{color:#0F766E;}
 `;
@@ -83,12 +83,12 @@ export const ProjectDocsWrap = styled.div`
 `;
 export const EditGrid = styled.div`display:grid;grid-template-columns:1fr 1fr;gap:12px;`;
 export const EditField = styled.div`display:flex;flex-direction:column;gap:4px;`;
-export const EditLabel = styled.span`font-size:11px;color:#64748B;font-weight:700;`;
-export const EditHint = styled.div`font-size:10px;color:#94A3B8;margin-top:4px;line-height:1.5;`;
-export const EditInput = styled.input`height:34px;padding:0 10px;border:1px solid #E2E8F0;border-radius:6px;font-size:13px;font-family:inherit;&:focus{outline:none;border-color:#14B8A6;}`;
-export const EditTextarea = styled.textarea`padding:8px 10px;border:1px solid #E2E8F0;border-radius:6px;font-size:13px;font-family:inherit;resize:vertical;&:focus{outline:none;border-color:#14B8A6;}`;
-export const TypeBtn2 = styled.button<{$active?:boolean}>`flex:1;padding:8px 12px;border:1px solid ${p=>p.$active?'#14B8A6':'#E2E8F0'};background:${p=>p.$active?'#F0FDFA':'#FFF'};color:${p=>p.$active?'#0F766E':'#334155'};border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;&:hover{border-color:#14B8A6;}`;
-export const EditDateRangeTrigger = styled.button`width:100%;height:34px;padding:0 10px;border:1px solid #E2E8F0;border-radius:6px;font-size:13px;color:#0F172A;background:#FFF;font-family:inherit;text-align:left;cursor:pointer;&:hover{border-color:#14B8A6;}`;
+export const EditLabel = styled.span`font-size:0.6875rem;color:#64748B;font-weight:700;`;
+export const EditHint = styled.div`font-size:0.625rem;color:#94A3B8;margin-top:4px;line-height:1.5;`;
+export const EditInput = styled.input`height:34px;padding:0 10px;border:1px solid #E2E8F0;border-radius:6px;font-size:0.8125rem;font-family:inherit;&:focus{outline:none;border-color:#14B8A6;}`;
+export const EditTextarea = styled.textarea`padding:8px 10px;border:1px solid #E2E8F0;border-radius:6px;font-size:0.8125rem;font-family:inherit;resize:vertical;&:focus{outline:none;border-color:#14B8A6;}`;
+export const TypeBtn2 = styled.button<{$active?:boolean}>`flex:1;padding:8px 12px;border:1px solid ${p=>p.$active?'#14B8A6':'#E2E8F0'};background:${p=>p.$active?'#F0FDFA':'#FFF'};color:${p=>p.$active?'#0F766E':'#334155'};border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer;&:hover{border-color:#14B8A6;}`;
+export const EditDateRangeTrigger = styled.button`width:100%;height:34px;padding:0 10px;border:1px solid #E2E8F0;border-radius:6px;font-size:0.8125rem;color:#0F172A;background:#FFF;font-family:inherit;text-align:left;cursor:pointer;&:hover{border-color:#14B8A6;}`;
 export const DatePH = styled.span`color:#94A3B8;`;
 export const ColorRow = styled.div`display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-start;padding:2px 0;width:100%;`;
 export const ColorSwatch = styled.button<{$active?:boolean}>`width:28px;height:28px;border-radius:50%;border:2px solid ${p=>p.$active?'#0F172A':'#E2E8F0'};cursor:pointer;padding:0;transition:transform 0.15s;&:hover{transform:scale(1.1);}`;
@@ -101,23 +101,23 @@ export const HexNativePicker = styled.input`
 `;
 export const HexInput = styled.input`
   width:110px;height:28px;padding:0 10px;border:1px solid #CBD5E1;border-radius:6px;
-  font-size:12px;font-family:'SFMono-Regular',Menlo,Consolas,monospace;color:#0F172A;letter-spacing:0.5px;
+  font-size:0.75rem;font-family:'SFMono-Regular',Menlo,Consolas,monospace;color:#0F172A;letter-spacing:0.5px;
   &:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}
 `;
 export const ClientsBody = styled.div``;
 export const Card = styled.div`background:#FFF;border:1px solid #E2E8F0;border-radius:10px;padding:16px;`;
-export const CardTitle = styled.h3`margin:0 0 12px;font-size:14px;font-weight:700;color:#0F172A;display:flex;align-items:center;gap:8px;small{font-size:11px;font-weight:600;color:#64748B;}`;
+export const CardTitle = styled.h3`margin:0 0 12px;font-size:0.875rem;font-weight:700;color:#0F172A;display:flex;align-items:center;gap:8px;small{font-size:0.6875rem;font-weight:600;color:#64748B;}`;
 
 // 상태 변경 이력 타임라인 (기본 히스토리)
-export const ProjHistEmpty = styled.div`font-size:12px;color:#94A3B8;`;
+export const ProjHistEmpty = styled.div`font-size:0.75rem;color:#94A3B8;`;
 export const ProjHistList = styled.div`display:flex;flex-direction:column;gap:12px;`;
 export const ProjHistRow = styled.div`display:flex;gap:10px;align-items:flex-start;`;
 export const ProjHistDot = styled.div`width:8px;height:8px;border-radius:999px;background:#14B8A6;margin-top:5px;flex-shrink:0;`;
 export const ProjHistBody = styled.div`display:flex;flex-direction:column;gap:2px;min-width:0;`;
 export const ProjHistMain = styled.div`display:flex;align-items:center;gap:6px;flex-wrap:wrap;`;
-export const ProjHistChip = styled.span<{ $to?: boolean }>`font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;background:${p => (p.$to ? '#F0FDFA' : '#F1F5F9')};color:${p => (p.$to ? '#0F766E' : '#64748B')};`;
-export const ProjHistArrow = styled.span`font-size:12px;color:#94A3B8;`;
-export const ProjHistMeta = styled.div`font-size:11px;color:#94A3B8;`;
+export const ProjHistChip = styled.span<{ $to?: boolean }>`font-size:0.75rem;font-weight:600;padding:2px 8px;border-radius:999px;background:${p => (p.$to ? '#F0FDFA' : '#F1F5F9')};color:${p => (p.$to ? '#0F766E' : '#64748B')};`;
+export const ProjHistArrow = styled.span`font-size:0.75rem;color:#94A3B8;`;
+export const ProjHistMeta = styled.div`font-size:0.6875rem;color:#94A3B8;`;
 
 
 export const ConvList = styled.div`display:flex;flex-direction:column;gap:6px;`;
@@ -141,65 +141,65 @@ export const ConvMenu = styled.div`
   box-shadow:0 4px 12px rgba(0,0,0,0.06);
 `;
 export const ConvMenuBtn = styled.button<{$danger?:boolean}>`
-  width:100%;padding:8px 10px;text-align:left;font-size:12px;font-weight:500;
+  width:100%;padding:8px 10px;text-align:left;font-size:0.75rem;font-weight:500;
   color:${p=>p.$danger?'#DC2626':'#334155'};
   background:transparent;border:none;border-radius:6px;cursor:pointer;
   transition:background 0.15s;
   &:hover{background:${p=>p.$danger?'#FEF2F2':'#F8FAFC'};}
 `;
 export const ConvChannel = styled.span<{$type:string}>`
-  padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;flex-shrink:0;
+  padding:2px 6px;border-radius:4px;font-size:0.625rem;font-weight:700;flex-shrink:0;
   background:${p=>p.$type==='customer'?'#FFF1F2':p.$type==='internal'?'#F0FDFA':'#F1F5F9'};
   color:${p=>p.$type==='customer'?'#9F1239':p.$type==='internal'?'#0F766E':'#475569'};
 `;
-export const ConvTitle = styled.span`flex:1;font-size:13px;color:#0F172A;`;
+export const ConvTitle = styled.span`flex:1;font-size:0.8125rem;color:#0F172A;`;
 
 
 export const ClientList = styled.div`display:flex;flex-direction:column;gap:6px;margin-bottom:12px;`;
-export const ClientRow = styled.div`display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid #E2E8F0;border-radius:6px;strong{flex:1;font-size:13px;color:#0F172A;}span{font-size:12px;color:#64748B;}`;
+export const ClientRow = styled.div`display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid #E2E8F0;border-radius:6px;strong{flex:1;font-size:0.8125rem;color:#0F172A;}span{font-size:0.75rem;color:#64748B;}`;
 export const ClientStatusPill = styled.span<{ $joined: boolean }>`
-  flex-shrink:0;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:600;white-space:nowrap;
+  flex-shrink:0;padding:2px 8px;border-radius:8px;font-size:0.625rem;font-weight:600;white-space:nowrap;
   ${p=>p.$joined?'background:#CCFBF1;color:#0F766E;':'background:#FEF3C7;color:#92400E;'}
 `;
-export const ClientDelBtn = styled.button`width:24px;height:24px;border:none;background:transparent;color:#94A3B8;cursor:pointer;border-radius:4px;font-size:14px;&:hover{background:#FEE2E2;color:#DC2626;}`;
-export const InviteSentAt = styled.span`font-size:11px!important;color:#94A3B8!important;white-space:nowrap;`;
+export const ClientDelBtn = styled.button`width:24px;height:24px;border:none;background:transparent;color:#94A3B8;cursor:pointer;border-radius:4px;font-size:0.875rem;&:hover{background:#FEE2E2;color:#DC2626;}`;
+export const InviteSentAt = styled.span`font-size:0.6875rem!important;color:#94A3B8!important;white-space:nowrap;`;
 export const ResendBtn = styled.button`
   height:26px;padding:0 10px;border:1px solid #CBD5E1;background:#fff;color:#0F766E;
-  border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;
+  border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer;white-space:nowrap;
   &:hover:not(:disabled){background:#F0FDFA;border-color:#14B8A6;}
   &:disabled{opacity:0.5;cursor:not-allowed;}
 `;
 // ── Close Project modal ──
 export const CloseBackdrop = styled.div`position:fixed;inset:0;background:rgba(15,23,42,0.40);z-index: 1000;display:flex;align-items:center;justify-content:center;padding:20px;animation:cpfade 0.15s ease-out;@keyframes cpfade{from{opacity:0;}to{opacity:1;}}`;
 export const CloseDialog = styled.div`width:100%;max-width:520px;background:#FFF;border-radius:14px;box-shadow:0 24px 48px rgba(15,23,42,0.20);display:flex;flex-direction:column;max-height:88vh;overflow:hidden;`;
-export const CloseHeader = styled.h2`font-size:16px;font-weight:700;color:#0F172A;margin:0;padding:18px 22px;border-bottom:1px solid #E2E8F0;`;
-export const CloseBody = styled.div`padding:18px 22px;font-size:13px;color:#334155;line-height:1.6;overflow-y:auto;& p{margin:0 0 8px;}& ul{margin:0 0 12px 18px;padding:0;}& li{margin-bottom:2px;}`;
-export const ClientsChoiceTitle = styled.div`font-size:13px;font-weight:700;color:#0F172A;margin:14px 0 4px;`;
-export const ClientsChoiceHint = styled.div`font-size:11px;color:#94A3B8;line-height:1.5;margin-bottom:8px;`;
+export const CloseHeader = styled.h2`font-size:1rem;font-weight:700;color:#0F172A;margin:0;padding:18px 22px;border-bottom:1px solid #E2E8F0;`;
+export const CloseBody = styled.div`padding:18px 22px;font-size:0.8125rem;color:#334155;line-height:1.6;overflow-y:auto;& p{margin:0 0 8px;}& ul{margin:0 0 12px 18px;padding:0;}& li{margin-bottom:2px;}`;
+export const ClientsChoiceTitle = styled.div`font-size:0.8125rem;font-weight:700;color:#0F172A;margin:14px 0 4px;`;
+export const ClientsChoiceHint = styled.div`font-size:0.6875rem;color:#94A3B8;line-height:1.5;margin-bottom:8px;`;
 export const ClientChoiceList = styled.div`display:flex;flex-direction:column;gap:6px;padding:10px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;max-height:200px;overflow-y:auto;`;
-export const ClientChoiceRow = styled.label`display:flex;align-items:center;gap:8px;font-size:12px;color:#0F172A;cursor:pointer;& input{accent-color:#14B8A6;}& strong{font-weight:600;}`;
-export const ClientChoiceEmail = styled.span`color:#64748B;font-size:11px;margin-left:auto;`;
+export const ClientChoiceRow = styled.label`display:flex;align-items:center;gap:8px;font-size:0.75rem;color:#0F172A;cursor:pointer;& input{accent-color:#14B8A6;}& strong{font-weight:600;}`;
+export const ClientChoiceEmail = styled.span`color:#64748B;font-size:0.6875rem;margin-left:auto;`;
 export const CloseFooter = styled.div`padding:14px 22px;border-top:1px solid #E2E8F0;display:flex;justify-content:flex-end;gap:8px;background:#FAFBFC;flex-shrink:0;`;
-export const CFCancelBtn = styled.button`height:40px;padding:0 16px;background:#FFF;color:#475569;border:1px solid #E2E8F0;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;&:hover:not(:disabled){background:#F8FAFC;}&:disabled{opacity:0.5;cursor:not-allowed;}`;
-export const CFConfirmBtn = styled.button`height:40px;padding:0 20px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
+export const CFCancelBtn = styled.button`height:40px;padding:0 16px;background:#FFF;color:#475569;border:1px solid #E2E8F0;border-radius:8px;font-size:0.8125rem;font-weight:600;cursor:pointer;&:hover:not(:disabled){background:#F8FAFC;}&:disabled{opacity:0.5;cursor:not-allowed;}`;
+export const CFConfirmBtn = styled.button`height:40px;padding:0 20px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:0.8125rem;font-weight:700;cursor:pointer;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
 
 export const LinkClientBar = styled.div`display:flex;gap:10px;align-items:center;padding:10px 12px;background:#F0FDFA;border:1px solid #CCFBF1;border-radius:8px;margin-bottom:8px;`;
-export const LinkClientLabel = styled.span`font-size:12px;font-weight:600;color:#0F766E;flex-shrink:0;`;
+export const LinkClientLabel = styled.span`font-size:0.75rem;font-weight:600;color:#0F766E;flex-shrink:0;`;
 export const AddClientForm = styled.form`display:flex;gap:6px;align-items:center;padding:10px;background:#F8FAFC;border-radius:8px;border:1px dashed #E2E8F0;margin-top:4px;`;
-export const ClientInput = styled.input`flex:1;padding:6px 10px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;font-family:inherit;&:focus{outline:none;border-color:#14B8A6;}`;
-export const AddClientBtn = styled.button`padding:6px 12px;background:#14B8A6;color:#FFF;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
+export const ClientInput = styled.input`flex:1;padding:6px 10px;border:1px solid #E2E8F0;border-radius:6px;font-size:0.75rem;font-family:inherit;&:focus{outline:none;border-color:#14B8A6;}`;
+export const AddClientBtn = styled.button`padding:6px 12px;background:#14B8A6;color:#FFF;border:none;border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
 
-export const Dim = styled.div`padding:16px;text-align:center;font-size:12px;color:#94A3B8;`;
+export const Dim = styled.div`padding:16px;text-align:center;font-size:0.75rem;color:#94A3B8;`;
 
 // 프로젝트 멤버 카드
 export const MemberList = styled.div`display:flex;flex-direction:column;gap:6px;margin-bottom:8px;`;
 export const MemberRow = styled.div`display:flex;align-items:center;gap:8px;padding:6px 8px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;`;
-export const MemberName = styled.div`flex:1;min-width:0;font-size:13px;font-weight:600;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px;`;
-export const OwnerTag = styled.span`padding:1px 6px;font-size:10px;font-weight:600;background:#F0FDFA;color:#0F766E;border-radius:6px;`;
-export const PmTag = styled.span`padding:1px 6px;font-size:10px;font-weight:700;background:#EEF2FF;color:#4338CA;border-radius:6px;letter-spacing:0.2px;`;
-export const MemberRoleInput = styled.input`flex:0 0 120px;min-width:80px;height:28px;padding:0 8px;font-size:12px;color:#0F172A;border:1px solid transparent;background:transparent;border-radius:6px;font-family:inherit;&:hover:not(:disabled){background:#FFF;border-color:#E2E8F0;}&:focus{outline:none;background:#FFF;border-color:#14B8A6;}&:disabled{color:#94A3B8;cursor:not-allowed;}`;
+export const MemberName = styled.div`flex:1;min-width:0;font-size:0.8125rem;font-weight:600;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px;`;
+export const OwnerTag = styled.span`padding:1px 6px;font-size:0.625rem;font-weight:600;background:#F0FDFA;color:#0F766E;border-radius:6px;`;
+export const PmTag = styled.span`padding:1px 6px;font-size:0.625rem;font-weight:700;background:#EEF2FF;color:#4338CA;border-radius:6px;letter-spacing:0.2px;`;
+export const MemberRoleInput = styled.input`flex:0 0 120px;min-width:80px;height:28px;padding:0 8px;font-size:0.75rem;color:#0F172A;border:1px solid transparent;background:transparent;border-radius:6px;font-family:inherit;&:hover:not(:disabled){background:#FFF;border-color:#E2E8F0;}&:focus{outline:none;background:#FFF;border-color:#14B8A6;}&:disabled{color:#94A3B8;cursor:not-allowed;}`;
 export const PmToggle = styled.button<{ $active: boolean }>`
-  flex-shrink:0;width:36px;height:24px;padding:0;font-size:10px;font-weight:700;letter-spacing:0.3px;
+  flex-shrink:0;width:36px;height:24px;padding:0;font-size:0.625rem;font-weight:700;letter-spacing:0.3px;
   border-radius:6px;cursor:pointer;transition:background 0.12s, color 0.12s, border-color 0.12s;
   ${p => p.$active
     ? 'background:#4338CA;color:#fff;border:1px solid #4338CA;'
@@ -207,37 +207,37 @@ export const PmToggle = styled.button<{ $active: boolean }>`
   &:hover:not(:disabled){ ${p => p.$active ? 'background:#3730A3;' : 'background:#F8FAFC;color:#4338CA;border-color:#4338CA;'} }
   &:disabled{ background:#EEF2FF;color:#4338CA;border:1px solid #C7D2FE;cursor:not-allowed;opacity:0.85; }
 `;
-export const MemberRemoveBtn = styled.button`width:24px;height:24px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;color:#94A3B8;border-radius:4px;cursor:pointer;font-size:16px;line-height:1;&:hover{background:#FEE2E2;color:#DC2626;}`;
+export const MemberRemoveBtn = styled.button`width:24px;height:24px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;color:#94A3B8;border-radius:4px;cursor:pointer;font-size:1rem;line-height:1;&:hover{background:#FEE2E2;color:#DC2626;}`;
 export const AddMemberBox = styled.div`display:flex;flex-direction:column;gap:6px;padding:8px;background:#FFF;border:1px solid #E2E8F0;border-radius:8px;margin-top:6px;`;
 export const MemberCandidateList = styled.div`display:flex;flex-direction:column;gap:2px;max-height:200px;overflow-y:auto;`;
-export const MemberCandidateItem = styled.button`display:flex;flex-direction:column;gap:2px;padding:6px 10px;text-align:left;background:transparent;border:none;border-radius:4px;font-size:12px;color:#0F172A;cursor:pointer;&:hover{background:#F0FDFA;color:#0F766E;}`;
-export const MemberEmail = styled.span`font-size:10px;color:#94A3B8;`;
-export const AddMemberCancelBtn = styled.button`align-self:flex-start;padding:5px 10px;background:transparent;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;color:#64748B;cursor:pointer;&:hover{background:#F8FAFC;color:#0F172A;}`;
-export const AddMemberLink = styled.button`margin-top:8px;padding:6px 0;background:transparent;border:none;color:#94A3B8;font-size:12px;font-weight:500;cursor:pointer;text-align:left;font-family:inherit;&:hover{color:#0F766E;}`;
+export const MemberCandidateItem = styled.button`display:flex;flex-direction:column;gap:2px;padding:6px 10px;text-align:left;background:transparent;border:none;border-radius:4px;font-size:0.75rem;color:#0F172A;cursor:pointer;&:hover{background:#F0FDFA;color:#0F766E;}`;
+export const MemberEmail = styled.span`font-size:0.625rem;color:#94A3B8;`;
+export const AddMemberCancelBtn = styled.button`align-self:flex-start;padding:5px 10px;background:transparent;border:1px solid #E2E8F0;border-radius:6px;font-size:0.75rem;color:#64748B;cursor:pointer;&:hover{background:#F8FAFC;color:#0F172A;}`;
+export const AddMemberLink = styled.button`margin-top:8px;padding:6px 0;background:transparent;border:none;color:#94A3B8;font-size:0.75rem;font-weight:500;cursor:pointer;text-align:left;font-family:inherit;&:hover{color:#0F766E;}`;
 export const IssueList = styled.div`display:flex;flex-direction:column;gap:6px;margin-bottom:10px;`;
 export const IssueRow = styled.div`padding:8px 10px;background:#F8FAFC;border-radius:6px;display:flex;flex-direction:column;gap:2px;`;
-export const IssueBody = styled.div`font-size:12px;color:#0F172A;line-height:1.5;display:flex;align-items:center;gap:6px;strong{font-size:12px;}`;
-export const IssueMeta = styled.div`font-size:10px;color:#94A3B8;`;
+export const IssueBody = styled.div`font-size:0.75rem;color:#0F172A;line-height:1.5;display:flex;align-items:center;gap:6px;strong{font-size:0.75rem;}`;
+export const IssueMeta = styled.div`font-size:0.625rem;color:#94A3B8;`;
 /* 상세 탭의 전략 요약 (#148) — 개요와 같은 데이터를 읽기 전용으로 비춘다 */
 export const ReadOnlyHint = styled.span`
   margin-left:8px;padding:2px 8px;border-radius:10px;
-  font-size:11px;font-weight:500;color:#94A3B8;background:#F1F5F9;
+  font-size:0.6875rem;font-weight:500;color:#94A3B8;background:#F1F5F9;
 `;
 export const StrategyEditLink = styled.button`
   margin-left:auto;padding:2px 8px;border:none;background:none;cursor:pointer;
-  font-size:12px;font-weight:600;font-family:inherit;color:#0D9488;border-radius:6px;
+  font-size:0.75rem;font-weight:600;font-family:inherit;color:#0D9488;border-radius:6px;
   &:hover{background:#F0FDFA;}
   &:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(20,184,166,0.3);}
 `;
 export const StrategyBlock = styled.div`& + &{margin-top:16px;}`;
-export const StrategyLabel = styled.div`font-size:12px;font-weight:600;color:#64748B;margin-bottom:6px;`;
-export const StrategyText = styled.div`font-size:13px;font-weight:500;color:#334155;line-height:1.6;white-space:pre-wrap;`;
+export const StrategyLabel = styled.div`font-size:0.75rem;font-weight:600;color:#64748B;margin-bottom:6px;`;
+export const StrategyText = styled.div`font-size:0.8125rem;font-weight:500;color:#334155;line-height:1.6;white-space:pre-wrap;`;
 
 export const AddIssueRow = styled.div`display:flex;gap:6px;align-items:center;`;
 /* 이슈·메모 등록 버튼 (#148) — Enter 없이도 등록할 수 있어야 한다 (태블릿·모바일). Primary 토큰. */
 export const AddBtn = styled.button`
   flex-shrink:0;height:32px;min-width:56px;padding:0 12px;
-  font-size:12px;font-weight:600;font-family:inherit;
+  font-size:0.75rem;font-weight:600;font-family:inherit;
   color:#fff;background:#14B8A6;border:1px solid #14B8A6;border-radius:6px;cursor:pointer;
   transition:background 0.15s, border-color 0.15s;
   &:hover:not(:disabled){background:#0D9488;border-color:#0D9488;}
@@ -245,14 +245,14 @@ export const AddBtn = styled.button`
   &:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(20,184,166,0.3);}
   &:disabled{background:#E2E8F0;border-color:#E2E8F0;color:#94A3B8;cursor:not-allowed;}
 `;
-export const IssueInput = styled.input`flex:1;padding:6px 10px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;font-family:inherit;&:focus{outline:none;border-color:#14B8A6;}`;
-export const VisTag = styled.span<{$internal?:boolean}>`padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;flex-shrink:0;background:${p=>p.$internal?'#F0FDFA':'#F1F5F9'};color:${p=>p.$internal?'#0F766E':'#64748B'};`;
+export const IssueInput = styled.input`flex:1;padding:6px 10px;border:1px solid #E2E8F0;border-radius:6px;font-size:0.75rem;font-family:inherit;&:focus{outline:none;border-color:#14B8A6;}`;
+export const VisTag = styled.span<{$internal?:boolean}>`padding:1px 6px;border-radius:4px;font-size:0.625rem;font-weight:600;flex-shrink:0;background:${p=>p.$internal?'#F0FDFA':'#F1F5F9'};color:${p=>p.$internal?'#0F766E':'#64748B'};`;
 export const Empty = styled.div`padding:60px;text-align:center;color:#94A3B8;`;
 
 export const HeaderActions = styled.div`display: flex; align-items: center; gap: 8px;`;
 export const HeaderBtn = styled.button`
   height: 32px; padding: 0 12px; border-radius: 8px; cursor: pointer;
-  font-size: 12px; font-weight: 600; color: #0F766E;
+  font-size: 0.75rem; font-weight: 600; color: #0F766E;
   background: #F0FDFA; border: 1px solid #99F6E4;
   &:hover { background: #CCFBF1; }
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
@@ -263,19 +263,19 @@ export const HeaderBtn = styled.button`
 export const OverviewDesc = styled.div`
   margin: 0 0 12px; padding: 14px 16px;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 12px;
-  font-size: 13px; line-height: 1.7; color: #334155;
+  font-size: 0.8125rem; line-height: 1.7; color: #334155;
   white-space: pre-wrap; word-break: break-word;
 `;
 
 /* 프로젝트 상태 변경 사유 — 히스토리·상태 이력에 남는 한 줄 */
 export const StatusNoteLabel = styled.label`
   display:block;margin-top:14px;margin-bottom:6px;
-  font-size:12.5px;font-weight:700;color:#475569;
+  font-size:0.78125rem;font-weight:700;color:#475569;
 `;
 export const StatusNoteInput = styled.input`
   width:100%;height:2.5rem;padding:0 12px;box-sizing:border-box;
   background:#fff;border:1px solid #CBD5E1;border-radius:8px;
-  font-size:13.5px;color:#0F172A;
+  font-size:0.84375rem;color:#0F172A;
   &:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,.15);}
 `;
-export const StatusNoteHint = styled.div`margin-top:6px;font-size:12px;color:#94A3B8;`;
+export const StatusNoteHint = styled.div`margin-top:6px;font-size:0.75rem;color:#94A3B8;`;

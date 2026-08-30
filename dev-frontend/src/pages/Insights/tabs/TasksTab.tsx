@@ -165,10 +165,10 @@ const TasksTab: React.FC<{ businessId: number; range: RangePreset }> = ({ busine
           <ResponsiveContainer width="100%" height={360}>
             <ScatterChart margin={{ top: 16, right: 24, bottom: 32, left: 24 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-              <XAxis type="number" dataKey="user_estimate" tick={{ fontSize: 11, fill: '#64748B' }}
-                label={{ value: t('chart.axis.estimate', '예측 (시간)') as string, position: 'insideBottom', offset: -8, fill: '#64748B', fontSize: 11 }} />
-              <YAxis type="number" dataKey="actual" tick={{ fontSize: 11, fill: '#64748B' }}
-                label={{ value: t('chart.axis.actual', '실제 (시간)') as string, angle: -90, position: 'insideLeft', fill: '#64748B', fontSize: 11 }} />
+              <XAxis type="number" dataKey="user_estimate" tick={{ fontSize: '0.6875rem', fill: '#64748B' }}
+                label={{ value: t('chart.axis.estimate', '예측 (시간)') as string, position: 'insideBottom', offset: -8, fill: '#64748B', fontSize: '0.6875rem' }} />
+              <YAxis type="number" dataKey="actual" tick={{ fontSize: '0.6875rem', fill: '#64748B' }}
+                label={{ value: t('chart.axis.actual', '실제 (시간)') as string, angle: -90, position: 'insideLeft', fill: '#64748B', fontSize: '0.6875rem' }} />
               <ZAxis range={[60, 60]} />
               <ReferenceLine segment={[{ x: 0, y: 0 }, { x: 100, y: 100 }]} stroke="#14B8A6" strokeDasharray="4 4" />
               <Tooltip cursor={{ strokeDasharray: '3 3' }} content={({ active, payload }) => {
@@ -202,10 +202,10 @@ const TasksTab: React.FC<{ businessId: number; range: RangePreset }> = ({ busine
               user_mape_pct: d.user_mape == null ? null : d.user_mape * 100,
             }))} margin={{ top: 16, right: 24, bottom: 8, left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#64748B' }} />
-              <YAxis unit="%" tick={{ fontSize: 11, fill: '#64748B' }} />
+              <XAxis dataKey="month" tick={{ fontSize: '0.6875rem', fill: '#64748B' }} />
+              <YAxis unit="%" tick={{ fontSize: '0.6875rem', fill: '#64748B' }} />
               <Tooltip />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Legend wrapperStyle={{ fontSize: '0.6875rem' }} />
               <Line type="monotone" dataKey="ai_mape_pct" name={t('chart.aiTrend.aiLabel', 'AI MAPE') as string} stroke="#F43F5E" strokeWidth={2} dot={{ r: 3 }} />
               <Line type="monotone" dataKey="user_mape_pct" name={t('chart.aiTrend.userLabel', '사용자 MAPE') as string} stroke="#14B8A6" strokeWidth={2} dot={{ r: 3 }} />
             </LineChart>
@@ -278,22 +278,22 @@ const TasksTab: React.FC<{ businessId: number; range: RangePreset }> = ({ busine
 export default TasksTab;
 
 const StatusTag = styled.span<{ $bg: string; $fg: string }>`
-  display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+  display: inline-block; font-size: 0.6875rem; font-weight: 600; padding: 2px 8px; border-radius: 999px;
   background: ${(p) => p.$bg}; color: ${(p) => p.$fg}; white-space: nowrap;
 `;
 const KpiDelta = styled.div<{ $positive: boolean }>`
-  font-size: 12px; font-weight: 700;
+  font-size: 0.75rem; font-weight: 700;
   color: ${(p) => (p.$positive ? '#16A34A' : '#DC2626')};
 `;
 const TooltipBox = styled.div`
   background: #0F172A; color: #FFFFFF; padding: 10px 12px; border-radius: 8px;
-  font-size: 11px; line-height: 1.6; & strong { color: #5EEAD4; }
+  font-size: 0.6875rem; line-height: 1.6; & strong { color: #5EEAD4; }
 `;
 
 const FilterBar = styled.div`
   display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 16px;
   & > * { min-width: 160px; }
 `;
-const FilterLoading = styled.span`font-size: 12px; color: #94A3B8; min-width: auto;`;
+const FilterLoading = styled.span`font-size: 0.75rem; color: #94A3B8; min-width: auto;`;
 
 const OverPct = styled.span`color: #EF4444; font-weight: 700;`;

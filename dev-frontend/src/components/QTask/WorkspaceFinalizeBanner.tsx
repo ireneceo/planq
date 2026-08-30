@@ -117,10 +117,10 @@ const Icon = styled.span<{ $tone: 'info' | 'warn' }>`
 `;
 const Body = styled.div`flex: 1; min-width: 0;`;
 const Title = styled.div`
-  font-size: 13px; font-weight: 700; color: #0F172A; margin-bottom: 2px;
+  font-size: 0.8125rem; font-weight: 700; color: #0F172A; margin-bottom: 2px;
 `;
 const Desc = styled.div`
-  font-size: 12px; color: #475569; line-height: 1.45;
+  font-size: 0.75rem; color: #475569; line-height: 1.45;
   strong { color: #0F172A; font-weight: 700; }
 `;
 const SettingsLink = styled(Link)`
@@ -129,7 +129,7 @@ const SettingsLink = styled(Link)`
   padding: 6px 12px;
   background: #FFFFFF; color: #0F766E;
   border: 1px solid #14B8A6; border-radius: 6px;
-  font-size: 12px; font-weight: 700;
+  font-size: 0.75rem; font-weight: 700;
   text-decoration: none;
   transition: background 0.12s, color 0.12s;
   &:hover { background: #14B8A6; color: #FFFFFF; }

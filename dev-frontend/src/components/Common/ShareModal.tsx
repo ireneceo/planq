@@ -479,7 +479,7 @@ const Dialog = styled.div`
   @media (max-width: 640px) { max-height: 100vh; height: 100vh; border-radius: 0; }
 `;
 const Header = styled.div`display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid #F1F5F9;`;
-const Title = styled.h2`display: inline-flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; color: #0F172A; margin: 0;`;
+const Title = styled.h2`display: inline-flex; align-items: center; gap: 8px; font-size: 0.9375rem; font-weight: 700; color: #0F172A; margin: 0;`;
 const CloseBtn = styled.button`
   /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */
   @media (max-width: 640px) { min-width: 44px; min-height: 44px; }
@@ -491,56 +491,56 @@ const CloseBtn = styled.button`
 `;
 const Body = styled.div`padding: 16px 20px; display: flex; flex-direction: column; gap: 8px;`;
 const Footer = styled.div`display: flex; justify-content: space-between; gap: 8px; padding: 12px 20px 16px; border-top: 1px solid #F1F5F9;`;
-const EntityTitle = styled.div`font-size: 13px; font-weight: 600; color: #475569; padding: 8px 10px; background: #F8FAFC; border-radius: 6px; margin-bottom: 8px;`;
-const SectionLabel = styled.label`font-size: 11px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 8px;`;
-const Hint = styled.div`font-size: 11px; color: #94A3B8; line-height: 1.5;`;
+const EntityTitle = styled.div`font-size: 0.8125rem; font-weight: 600; color: #475569; padding: 8px 10px; background: #F8FAFC; border-radius: 6px; margin-bottom: 8px;`;
+const SectionLabel = styled.label`font-size: 0.6875rem; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 8px;`;
+const Hint = styled.div`font-size: 0.6875rem; color: #94A3B8; line-height: 1.5;`;
 const UrlRow = styled.div`display: flex; gap: 6px; align-items: center;`;
 const UrlInput = styled.input`
-  flex: 1; padding: 8px 10px; font-size: 12px; color: #0F172A;
+  flex: 1; padding: 8px 10px; font-size: 0.75rem; color: #0F172A;
   border: 1px solid #E2E8F0; border-radius: 6px; background: #F8FAFC;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   &:focus { outline: none; border-color: #14B8A6; }
 `;
 const CopyBtn = styled.button`
-  padding: 8px 12px; font-size: 12px; font-weight: 600; color: #fff;
+  padding: 8px 12px; font-size: 0.75rem; font-weight: 600; color: #fff;
   background: #14B8A6; border: none; border-radius: 6px; cursor: pointer; white-space: nowrap;
   &:hover { background: #0D9488; }
 `;
 const ChipRow = styled.div`display: flex; gap: 6px; flex-wrap: wrap;`;
 const PwRow = styled.div`display: flex; gap: 6px; align-items: center;`;
 const PwInput = styled.input`
-  flex: 1; padding: 8px 10px; font-size: 12px; color: #0F172A;
+  flex: 1; padding: 8px 10px; font-size: 0.75rem; color: #0F172A;
   border: 1px solid #E2E8F0; border-radius: 6px; background: #fff;
   &:focus { outline: none; border-color: #14B8A6; }
   &:disabled { opacity: 0.5; }
 `;
 const PwToggle = styled.button`
-  padding: 8px 10px; font-size: 11px; font-weight: 600; color: #475569;
+  padding: 8px 10px; font-size: 0.6875rem; font-weight: 600; color: #475569;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 6px; cursor: pointer; white-space: nowrap;
   &:hover:not(:disabled) { background: #F8FAFC; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 const PwSaveBtn = styled.button`
-  padding: 8px 12px; font-size: 12px; font-weight: 600; color: #fff;
+  padding: 8px 12px; font-size: 0.75rem; font-weight: 600; color: #fff;
   background: #14B8A6; border: none; border-radius: 6px; cursor: pointer; white-space: nowrap;
   &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 const PwSetBadge = styled.span`
   display: inline-flex; align-items: center; padding: 2px 8px; margin-left: 8px;
-  font-size: 10px; font-weight: 700; color: #0F766E; background: #F0FDFA; border-radius: 999px;
+  font-size: 0.625rem; font-weight: 700; color: #0F766E; background: #F0FDFA; border-radius: 999px;
   text-transform: none; letter-spacing: 0;
 `;
 const PwClearLink = styled.button`
   align-self: flex-start; margin-top: 4px;
   background: transparent; border: none; padding: 0;
-  font-size: 11px; font-weight: 600; color: #DC2626; cursor: pointer;
+  font-size: 0.6875rem; font-weight: 600; color: #DC2626; cursor: pointer;
   text-decoration: underline; text-underline-offset: 2px;
   &:hover:not(:disabled) { color: #B91C1C; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 const Chip = styled.button<{ $active: boolean }>`
-  height: 28px; padding: 0 12px; font-size: 12px; font-weight: 600;
+  height: 28px; padding: 0 12px; font-size: 0.75rem; font-weight: 600;
   background: ${p => p.$active ? '#0F766E' : '#fff'};
   color: ${p => p.$active ? '#fff' : '#475569'};
   border: 1px solid ${p => p.$active ? '#0F766E' : '#E2E8F0'};
@@ -554,28 +554,28 @@ const ConfirmInline = styled.div`
   background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px;
   display: flex; flex-direction: column; gap: 10px;
 `;
-const ConfirmText = styled.div`font-size: 12px; color: #991B1B; line-height: 1.5;`;
+const ConfirmText = styled.div`font-size: 0.75rem; color: #991B1B; line-height: 1.5;`;
 const ConfirmActions = styled.div`display: flex; gap: 6px; justify-content: flex-end;`;
 const ConfirmCancel = styled.button`
-  padding: 6px 12px; font-size: 12px; font-weight: 600; color: #475569;
+  padding: 6px 12px; font-size: 0.75rem; font-weight: 600; color: #475569;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 6px; cursor: pointer;
   &:hover:not(:disabled) { background: #F8FAFC; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 const ConfirmYes = styled.button`
-  padding: 6px 14px; font-size: 12px; font-weight: 700; color: #fff;
+  padding: 6px 14px; font-size: 0.75rem; font-weight: 700; color: #fff;
   background: #DC2626; border: none; border-radius: 6px; cursor: pointer;
   &:hover:not(:disabled) { background: #B91C1C; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 const RevokeBtn = styled.button`
-  padding: 8px 12px; font-size: 12px; font-weight: 600; color: #DC2626;
+  padding: 8px 12px; font-size: 0.75rem; font-weight: 600; color: #DC2626;
   background: #fff; border: 1px solid #FECACA; border-radius: 8px; cursor: pointer;
   &:hover:not(:disabled) { background: #FEF2F2; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 const PrimaryBtn = styled.button`
-  padding: 8px 16px; font-size: 13px; font-weight: 700; color: #fff;
+  padding: 8px 16px; font-size: 0.8125rem; font-weight: 700; color: #fff;
   background: #14B8A6; border: none; border-radius: 8px; cursor: pointer;
   &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -585,7 +585,7 @@ const TabBar = styled.div`
   border-bottom: 1px solid #E2E8F0;
 `;
 const TabBtn = styled.button<{ $active: boolean }>`
-  padding: 8px 14px; font-size: 13px; font-weight: 600;
+  padding: 8px 14px; font-size: 0.8125rem; font-weight: 600;
   background: transparent; border: none;
   color: ${p => p.$active ? '#0F766E' : '#64748B'};
   border-bottom: 2px solid ${p => p.$active ? '#14B8A6' : 'transparent'};
@@ -595,15 +595,15 @@ const TabBtn = styled.button<{ $active: boolean }>`
 `;
 const EmailPanel = styled.div`display: flex; flex-direction: column; gap: 6px;`;
 const EmailTextarea = styled.textarea`
-  padding: 8px 10px; font-size: 12px; color: #0F172A;
+  padding: 8px 10px; font-size: 0.75rem; color: #0F172A;
   border: 1px solid #E2E8F0; border-radius: 6px; background: #fff;
   font-family: inherit; resize: vertical;
   &:focus { outline: none; border-color: #14B8A6; }
   &:disabled { opacity: 0.5; }
 `;
 const EmailActions = styled.div`display: flex; justify-content: flex-end; margin-top: 4px;`;
-const ErrLine = styled.div`font-size: 12px; color: #DC2626; padding: 4px 0;`;
-const SuccessLine = styled.div`font-size: 12px; color: #0F766E; padding: 4px 0; font-weight: 600;`;
+const ErrLine = styled.div`font-size: 0.75rem; color: #DC2626; padding: 4px 0;`;
+const SuccessLine = styled.div`font-size: 0.75rem; color: #0F766E; padding: 4px 0; font-weight: 600;`;
 // N+63 — 채팅방 전송 후 "바로 보러가기" 버튼 (사용자 호소). success line + 버튼 한 row.
 const SuccessRow = styled.div`
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
@@ -615,7 +615,7 @@ const GoToChatBtn = styled.button`
   padding: 6px 12px; border-radius: 6px;
   background: #14B8A6; color: #FFFFFF;
   border: none; cursor: pointer;
-  font-size: 12px; font-weight: 600;
+  font-size: 0.75rem; font-weight: 600;
   transition: background 0.15s;
   &:hover { background: #0F766E; }
   &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
@@ -633,5 +633,5 @@ const ConvRow = styled.button<{ $active: boolean }>`
   transition: background 0.15s, border-color 0.15s;
   &:hover { background: ${p => p.$active ? '#F0FDFA' : '#fff'}; }
 `;
-const ConvName = styled.span`font-size: 13px; font-weight: 600; color: #0F172A;`;
-const ConvDate = styled.span`font-size: 11px; color: #94A3B8;`;
+const ConvName = styled.span`font-size: 0.8125rem; font-weight: 600; color: #0F172A;`;
+const ConvDate = styled.span`font-size: 0.6875rem; color: #94A3B8;`;

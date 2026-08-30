@@ -36,18 +36,18 @@ interface CsvCandidate {
 const WarnBox = styled.div`
   margin: 8px 0; padding: 8px 12px; border-radius: 6px;
   background: #FFF7ED; border: 1px solid #FED7AA; color: #9A3412;
-  font-size: 12px; line-height: 1.5;
+  font-size: 0.75rem; line-height: 1.5;
 `;
 const InfoBox = styled.div`
   margin: 8px 0; padding: 8px 12px; border-radius: 6px;
   background: #F0FDFA; border: 1px solid #CCFBF1; color: #0F766E;
-  font-size: 12px; line-height: 1.5;
+  font-size: 0.75rem; line-height: 1.5;
   strong { font-weight: 700; }
 `;
 const DupRow = styled.div`display: flex; align-items: center; gap: 8px; margin: 8px 0;`;
-const DupLabel = styled.span`font-size: 12px; color: #64748B;`;
+const DupLabel = styled.span`font-size: 0.75rem; color: #64748B;`;
 const DupChoice = styled.button<{ $on: boolean }>`
-  padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; font-family: inherit;
+  padding: 3px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; font-family: inherit;
   cursor: pointer; transition: all 0.12s;
   border: 1px solid ${p => (p.$on ? '#14B8A6' : '#E2E8F0')};
   background: ${p => (p.$on ? '#F0FDFA' : '#fff')};
@@ -308,7 +308,7 @@ const Header = styled.div`
   display: flex; align-items: center; justify-content: space-between;
 `;
 const Title = styled.h3`
-  margin: 0; font-size: 16px; font-weight: 700; color: #0F172A;
+  margin: 0; font-size: 1rem; font-weight: 700; color: #0F172A;
 `;
 const CloseBtn = styled.button`
   /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */
@@ -324,12 +324,12 @@ const Body = styled.div`
   display: flex; flex-direction: column; gap: 14px;
 `;
 const Hint = styled.div`
-  font-size: 13px; color: #475569; line-height: 1.6;
+  font-size: 0.8125rem; color: #475569; line-height: 1.6;
   padding: 12px 14px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
   display: flex; justify-content: space-between; align-items: center; gap: 12px;
 `;
 const PreviewCount = styled.span`
-  font-size: 11px; font-weight: 700; color: #475569; flex-shrink: 0;
+  font-size: 0.6875rem; font-weight: 700; color: #475569; flex-shrink: 0;
   padding: 2px 8px; background: #FFFFFF; border: 1px solid #CBD5E1; border-radius: 999px;
 `;
 const Row = styled.div`
@@ -339,34 +339,34 @@ const Field = styled.div`
   display: flex; flex-direction: column; gap: 6px;
 `;
 const Label = styled.label`
-  font-size: 12px; font-weight: 700; color: #475569;
+  font-size: 0.75rem; font-weight: 700; color: #475569;
 `;
 const TextArea = styled.textarea`
   width: 100%; box-sizing: border-box;
   padding: 10px 12px;
   border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 12px; color: #0F172A; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem; color: #0F172A; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   resize: vertical;
   &:focus { outline: none; border-color: #14B8A6; }
 `;
 const ErrorBox = styled.div`
   padding: 10px 12px; background: #FEF2F2; border: 1px solid #FECACA;
-  border-radius: 8px; font-size: 13px; color: #B91C1C;
+  border-radius: 8px; font-size: 0.8125rem; color: #B91C1C;
 `;
 const PreviewTable = styled.table`
   width: 100%; border-collapse: collapse;
-  font-size: 12px; color: #334155;
+  font-size: 0.75rem; color: #334155;
 `;
 const Th = styled.th`
   padding: 8px 10px; text-align: left; background: #F8FAFC;
-  border-bottom: 1px solid #E2E8F0; font-weight: 700; font-size: 11px; color: #64748B;
+  border-bottom: 1px solid #E2E8F0; font-weight: 700; font-size: 0.6875rem; color: #64748B;
 `;
 const Td = styled.td`
   padding: 8px 10px; border-bottom: 1px solid #F1F5F9;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px;
 `;
 const MoreNote = styled.div`
-  text-align: center; font-size: 12px; color: #94A3B8; padding: 6px;
+  text-align: center; font-size: 0.75rem; color: #94A3B8; padding: 6px;
 `;
 const Footer = styled.div`
   padding: 14px 22px; border-top: 1px solid #E2E8F0;
@@ -374,14 +374,14 @@ const Footer = styled.div`
 `;
 const PrimaryBtn = styled.button`
   padding: 8px 16px; background: #14B8A6; color: #FFFFFF;
-  border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer;
+  border: none; border-radius: 8px; font-size: 0.8125rem; font-weight: 700; cursor: pointer;
   &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { background: #CBD5E1; cursor: not-allowed; }
 `;
 const SecondaryBtn = styled.button`
   display: inline-flex; align-items: center; gap: 6px;
   padding: 8px 14px; background: #FFFFFF; color: #475569;
-  border: 1px solid #E2E8F0; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+  border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   &:hover:not(:disabled) { border-color: #14B8A6; color: #0F766E; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
@@ -398,4 +398,4 @@ const DropZone = styled.label<{ $over: boolean }>`
   &:hover { border-color: #94A3B8; }
 `;
 const DropIcon = styled.svg` width: 22px; height: 22px; `;
-const DropText = styled.div` font-size: 12.5px; font-weight: 600; text-align: center; `;
+const DropText = styled.div` font-size: 0.78125rem; font-weight: 600; text-align: center; `;

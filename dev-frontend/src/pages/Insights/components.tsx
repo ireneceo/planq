@@ -29,20 +29,20 @@ export const InsightBody = styled.div`
   flex-wrap: wrap;
 `;
 export const InsightTitle = styled.div`
-  font-size: 12px; font-weight: 700; color: #64748B;
+  font-size: 0.75rem; font-weight: 700; color: #64748B;
   text-transform: uppercase; letter-spacing: 0.3px;
   flex-shrink: 0;
 `;
 export const InsightValue = styled.div`
-  font-size: 14px; font-weight: 700; color: #0F172A;
+  font-size: 0.875rem; font-weight: 700; color: #0F172A;
   flex-shrink: 0;
 `;
 export const InsightHint = styled.div`
-  font-size: 12px; color: #64748B; line-height: 1.4;
+  font-size: 0.75rem; color: #64748B; line-height: 1.4;
   flex: 1; min-width: 0;
 `;
 export const InsightAction = styled.div`
-  font-size: 12px; font-weight: 600; color: #0F766E;
+  font-size: 0.75rem; font-weight: 600; color: #0F766E;
   flex-shrink: 0; margin-left: auto;
 `;
 
@@ -59,12 +59,12 @@ export const KpiCard = styled.div`
   min-width: 0;  /* grid child 가 콘텐츠 min-size 밑으로 줄 수 있게 (오버플로우 차단) */
 `;
 
-export const KpiLabel = styled.div`font-size: 11px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px; word-break: keep-all;`;
-export const KpiValueBig = styled.div`font-size: 24px; font-weight: 700; color: #0F172A; line-height: 1.1; word-break: break-word;`;
-export const KpiHint = styled.div`font-size: 11px; color: #94A3B8;`;
+export const KpiLabel = styled.div`font-size: 0.6875rem; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px; word-break: keep-all;`;
+export const KpiValueBig = styled.div`font-size: 1.5rem; font-weight: 700; color: #0F172A; line-height: 1.1; word-break: break-word;`;
+export const KpiHint = styled.div`font-size: 0.6875rem; color: #94A3B8;`;
 
 export const SectionLabel = styled.h2`
-  font-size: 12px; font-weight: 700; color: #64748B;
+  font-size: 0.75rem; font-weight: 700; color: #64748B;
   text-transform: uppercase; letter-spacing: 0.4px; margin: 0 0 8px;
 `;
 
@@ -75,7 +75,7 @@ export const ChartCard = styled.div`
 
 export const ChartEmpty = styled.div`
   display: flex; align-items: center; justify-content: center;
-  min-height: 240px; color: #94A3B8; font-size: 13px; text-align: center; padding: 16px;
+  min-height: 240px; color: #94A3B8; font-size: 0.8125rem; text-align: center; padding: 16px;
 `;
 
 export const TableWrap = styled.div`
@@ -83,7 +83,7 @@ export const TableWrap = styled.div`
   overflow-x: auto;
 `;
 
-export const Table = styled.table`width: 100%; border-collapse: collapse; font-size: 13px;`;
+export const Table = styled.table`width: 100%; border-collapse: collapse; font-size: 0.8125rem;`;
 export const Tr = styled.tr<{ $clickable?: boolean }>`
   border-bottom: 1px solid #F1F5F9;
   ${(p) => p.$clickable && 'cursor: pointer; &:hover { background: #F8FAFC; }'}
@@ -92,7 +92,7 @@ export const Tr = styled.tr<{ $clickable?: boolean }>`
 export const Th = styled.th<{ $num?: boolean }>`
   text-align: ${(p) => (p.$num ? 'right' : 'left')};
   padding: 10px 14px; background: #F8FAFC;
-  font-size: 11px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.3px;
+  font-size: 0.6875rem; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.3px;
 `;
 export const Td = styled.td<{ $num?: boolean }>`
   padding: 12px 14px; color: #0F172A;
@@ -113,7 +113,7 @@ export const SkeletonCard = styled.div`
 
 export const ErrorBanner = styled.div`
   padding: 12px 16px; background: #FEE2E2; border: 1px solid #FECACA;
-  color: #991B1B; border-radius: 10px; font-size: 13px; margin-bottom: 16px;
+  color: #991B1B; border-radius: 10px; font-size: 0.8125rem; margin-bottom: 16px;
 `;
 
 export const SectionRow = styled.div`
@@ -125,7 +125,7 @@ export const DownloadBtn = styled.button`
   display: inline-flex; align-items: center; gap: 6px;
   padding: 6px 12px; background: #FFFFFF; color: #0F766E;
   border: 1px solid #CBD5E1; border-radius: 8px;
-  font-size: 12px; font-weight: 600; cursor: pointer;
+  font-size: 0.75rem; font-weight: 600; cursor: pointer;
   transition: all 0.15s;
   &:hover:not(:disabled) { border-color: #0F766E; background: #F0FDFA; }
   &:disabled { color: #94A3B8; cursor: not-allowed; }
@@ -178,11 +178,11 @@ const BreakdownRow = styled.div`
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px;
 `;
 const BreakdownLabel = styled.span`
-  font-size: 11px; font-weight: 500; color: #94A3B8;
+  font-size: 0.6875rem; font-weight: 500; color: #94A3B8;
 `;
 const BreakdownChip = styled.span`
   display: inline-flex; align-items: center; padding: 2px 8px;
-  font-size: 12px; font-weight: 600; color: #334155;
+  font-size: 0.75rem; font-weight: 600; color: #334155;
   background: #F1F5F9; border: 1px solid #E2E8F0; border-radius: 16px;
 `;
 
@@ -204,13 +204,13 @@ export const CurrencyBreakdown = ({ map, label }: { map?: Record<string, number>
 //   숫자만 보면 "비용이 적다 = 이익이 크다" 로 오독한다. 그 옆에서 사실을 말해야 한다.
 export const PartialBadge = styled.span`
   display: inline-flex; align-items: center; padding: 1px 6px; margin-left: 6px;
-  font-size: 10px; font-weight: 600; color: #B45309;
+  font-size: 0.625rem; font-weight: 600; color: #B45309;
   background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 10px;
   vertical-align: middle; cursor: help;
 `;
 export const ForeignBadge = styled.span`
   display: inline-flex; align-items: center; padding: 1px 6px; margin-left: 6px;
-  font-size: 10px; font-weight: 600; color: #F43F5E;
+  font-size: 0.625rem; font-weight: 600; color: #F43F5E;
   background: #FFF1F2; border: 1px solid #FECDD3; border-radius: 10px;
   vertical-align: middle;
 `;

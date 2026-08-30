@@ -506,7 +506,7 @@ const IntroCard = styled.div`
 `;
 const IntroLine = styled.div`
   display: flex; align-items: flex-start; gap: 8px;
-  font-size: 13px; color: #334155; line-height: 1.55;
+  font-size: 0.8125rem; color: #334155; line-height: 1.55;
 `;
 const IntroDot = styled.span<{ $tone: 'personal' | 'team' }>`
   flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; margin-top: 6px;
@@ -515,19 +515,19 @@ const IntroDot = styled.span<{ $tone: 'personal' | 'team' }>`
 const ErrorBanner = styled.div`
   padding: 10px 14px; margin-bottom: 16px;
   background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px;
-  color: #B91C1C; font-size: 13px;
+  color: #B91C1C; font-size: 0.8125rem;
 `;
 const Section = styled.div`
   background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px;
   padding: 20px; margin-bottom: 16px;
 `;
-const SectionTitle = styled.h3`margin: 0 0 4px; font-size: 15px; font-weight: 700; color: #0F172A;`;
-const SectionSub = styled.p`margin: 0 0 14px; font-size: 12px; color: #64748B; line-height: 1.5;`;
+const SectionTitle = styled.h3`margin: 0 0 4px; font-size: 0.9375rem; font-weight: 700; color: #0F172A;`;
+const SectionSub = styled.p`margin: 0 0 14px; font-size: 0.75rem; color: #64748B; line-height: 1.5;`;
 const Empty = styled.div`
   padding: 24px 12px; text-align: center; color: #94A3B8;
   background: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 8px;
   display: flex; flex-direction: column; gap: 6px;
-  font-size: 13px;
+  font-size: 0.8125rem;
 `;
 const ConnList = styled.div`display: flex; flex-direction: column; gap: 8px;`;
 const ConnRow = styled.div`
@@ -535,30 +535,30 @@ const ConnRow = styled.div`
   padding: 12px 14px;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px;
 `;
-const ConnIcon = styled.div`font-size: 24px;`;
+const ConnIcon = styled.div`font-size: 1.5rem;`;
 const ConnInfo = styled.div`flex: 1; display: flex; flex-direction: column; gap: 2px;`;
-const ConnTitle = styled.div`font-size: 13px; font-weight: 700; color: #0F172A;`;
-const ConnSub = styled.div`font-size: 12px; color: #475569;`;
-const SyncToggle = styled.label`display:inline-flex;align-items:center;gap:6px;margin-top:4px;font-size:12px;color:#475569;cursor:pointer;`;
-const ReconnectHint = styled.div`display:flex;align-items:center;gap:6px;margin-top:4px;font-size:12px;color:#B45309;flex-wrap:wrap;`;
-const LinkBtnInline = styled.button`background:none;border:none;padding:0;font-size:12px;font-weight:600;color:#0F766E;cursor:pointer;text-decoration:underline;&:hover{color:#134E4A;}&:disabled{color:#94A3B8;cursor:default;text-decoration:none;}`;
+const ConnTitle = styled.div`font-size: 0.8125rem; font-weight: 700; color: #0F172A;`;
+const ConnSub = styled.div`font-size: 0.75rem; color: #475569;`;
+const SyncToggle = styled.label`display:inline-flex;align-items:center;gap:6px;margin-top:4px;font-size:0.75rem;color:#475569;cursor:pointer;`;
+const ReconnectHint = styled.div`display:flex;align-items:center;gap:6px;margin-top:4px;font-size:0.75rem;color:#B45309;flex-wrap:wrap;`;
+const LinkBtnInline = styled.button`background:none;border:none;padding:0;font-size:0.75rem;font-weight:600;color:#0F766E;cursor:pointer;text-decoration:underline;&:hover{color:#134E4A;}&:disabled{color:#94A3B8;cursor:default;text-decoration:none;}`;
 // 권한 상태 뱃지 — StorageSettings 의 StatusBadge 와 같은 형태(높이·radius·타이포).
 const PermBadge = styled.span<{ $kind: 'ok' | 'warn' | 'bad' }>`
   flex-shrink: 0;
   padding: 3px 8px; border-radius: 999px;
-  font-size: 11px; font-weight: 700; white-space: nowrap;
+  font-size: 0.6875rem; font-weight: 700; white-space: nowrap;
   ${({ $kind }) => $kind === 'ok'
     ? 'background:#ECFDF5;color:#047857;'
     : $kind === 'warn'
       ? 'background:#FFFBEB;color:#B45309;'
       : 'background:#FEF2F2;color:#B91C1C;'}
 `;
-const ConnMeta = styled.div`font-size: 11px; color: #94A3B8;`;
+const ConnMeta = styled.div`font-size: 0.6875rem; color: #94A3B8;`;
 const DangerBtn = styled.button`
   height: 30px; padding: 0 12px;
   background: transparent; color: #B91C1C;
   border: 1px solid #FECACA; border-radius: 6px;
-  font-size: 12px; font-weight: 600;
+  font-size: 0.75rem; font-weight: 600;
   cursor: pointer;
   &:hover { background: #FEF2F2; border-color: #FCA5A5; color: #991B1B; }
   &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
@@ -569,7 +569,7 @@ const ConnectGoogleBtn = styled.button`
   height: 40px; padding: 0 16px;
   background: #FFFFFF; color: #1F1F1F;
   border: 1px solid #DADCE0; border-radius: 8px;
-  font-size: 14px; font-weight: 500;
+  font-size: 0.875rem; font-weight: 500;
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s, box-shadow 0.12s;
   &:hover:not(:disabled) {
@@ -589,12 +589,12 @@ const DividerBox = styled.div`
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   @media (max-width: 640px) { flex-direction: column; align-items: stretch; }
 `;
-const DividerText = styled.div`font-size: 12px; color: #0F766E; line-height: 1.5;`;
+const DividerText = styled.div`font-size: 0.75rem; color: #0F766E; line-height: 1.5;`;
 const DividerBtn = styled.button`
   height: 32px; padding: 0 14px;
   background: #14B8A6; color: #FFFFFF;
   border: none; border-radius: 8px;
-  font-size: 12px; font-weight: 600;
+  font-size: 0.75rem; font-weight: 600;
   cursor: pointer; white-space: nowrap;
   &:hover { background: #0D9488; }
   &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
@@ -603,7 +603,7 @@ const MailManageLink = styled(Link)`
   display: inline-flex; align-items: center; gap: 4px;
   height: 34px; padding: 0 14px;
   background: #14B8A6; color: #FFFFFF;
-  border-radius: 8px; font-size: 13px; font-weight: 600;
+  border-radius: 8px; font-size: 0.8125rem; font-weight: 600;
   text-decoration: none; white-space: nowrap; align-self: flex-start;
   &:hover { background: #0D9488; }
   &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }

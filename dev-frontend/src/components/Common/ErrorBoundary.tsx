@@ -94,7 +94,7 @@ class ErrorBoundary extends React.Component<Props, State> {
     if (silentReload) {
       const ko = !(typeof navigator !== 'undefined' && navigator.language?.startsWith('en'));
       return (
-        <div role="status" style={{ padding: '40px 20px', textAlign: 'center', color: '#64748B', fontSize: 13 }}>
+        <div role="status" style={{ padding: '40px 20px', textAlign: 'center', color: '#64748B', fontSize: '0.8125rem' }}>
           {ko ? '새 버전을 불러오는 중입니다…' : 'Loading the new version…'}
         </div>
       );
@@ -137,12 +137,12 @@ const Wrap = styled.div`
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 12px; padding: 40px 24px; text-align: center; background: #F8FAFC;
 `;
-const Title = styled.h1` font-size: 20px; font-weight: 700; color: #0F172A; margin: 0; `;
-const Desc = styled.p` font-size: 14px; color: #475569; margin: 0; line-height: 1.6; `;
+const Title = styled.h1` font-size: 1.25rem; font-weight: 700; color: #0F172A; margin: 0; `;
+const Desc = styled.p` font-size: 0.875rem; color: #475569; margin: 0; line-height: 1.6; `;
 const Detail = styled.pre`
   margin: 4px 0 8px; padding: 10px 14px; max-width: 560px; width: 100%;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 8px;
-  font-family: 'ui-monospace', 'SFMono-Regular', monospace; font-size: 12px; color: #64748B;
+  font-family: 'ui-monospace', 'SFMono-Regular', monospace; font-size: 0.75rem; color: #64748B;
   white-space: pre-wrap; word-break: break-word; text-align: left;
 `;
 const Row = styled.div` display: flex; gap: 8px; margin-top: 8px; `;

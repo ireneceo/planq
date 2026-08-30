@@ -91,17 +91,17 @@ export default function SuccessMetricsEditor({ projectId, initial, onSaved, read
 }
 
 const Box = styled.div``;
-const Head = styled.div`display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:#0F172A;`;
-const HintText = styled.div`font-size:12px;color:#94A3B8;margin:4px 0 12px;`;
+const Head = styled.div`display:flex;align-items:center;gap:8px;font-size:0.875rem;font-weight:700;color:#0F172A;`;
+const HintText = styled.div`font-size:0.75rem;color:#94A3B8;margin:4px 0 12px;`;
 const Status = styled.span`display:inline-flex;width:18px;height:18px;align-items:center;justify-content:center;`;
 const Spinner = styled.span`width:14px;height:14px;border:2px solid #E2E8F0;border-top-color:#94A3B8;border-radius:50%;animation:spin .6s linear infinite;@keyframes spin{to{transform:rotate(360deg)}}`;
 const Saved = styled.span`display:inline-flex;width:18px;height:18px;align-items:center;justify-content:center;background:#D1FAE5;color:#065F46;border-radius:50%;`;
-const Err = styled.span`display:inline-flex;width:18px;height:18px;align-items:center;justify-content:center;background:#EF4444;color:#fff;border-radius:50%;font-size:12px;font-weight:700;`;
-const Empty = styled.div`font-size:13px;color:#94A3B8;padding:12px 0;`;
+const Err = styled.span`display:inline-flex;width:18px;height:18px;align-items:center;justify-content:center;background:#EF4444;color:#fff;border-radius:50%;font-size:0.75rem;font-weight:700;`;
+const Empty = styled.div`font-size:0.8125rem;color:#94A3B8;padding:12px 0;`;
 const List = styled.div`display:flex;flex-direction:column;gap:6px;`;
-const RowHead = styled.div`display:grid;grid-template-columns:1fr 80px 80px 64px 28px;gap:8px;font-size:11px;font-weight:600;color:#94A3B8;padding:0 2px;`;
+const RowHead = styled.div`display:grid;grid-template-columns:1fr 80px 80px 64px 28px;gap:8px;font-size:0.6875rem;font-weight:600;color:#94A3B8;padding:0 2px;`;
 const Row = styled.div`display:grid;grid-template-columns:1fr 80px 80px 64px 28px;gap:8px;align-items:center;`;
-const In = styled.input`height:36px;border:1px solid #E2E8F0;border-radius:8px;padding:0 10px;font-size:13px;color:#0F172A;&:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,.15);}`;
+const In = styled.input`height:36px;border:1px solid #E2E8F0;border-radius:8px;padding:0 10px;font-size:0.8125rem;color:#0F172A;&:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,.15);}`;
 const InS = styled(In)`text-align:center;padding:0 4px;`;
 const DelBtn = styled.button`display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:none;background:transparent;color:#CBD5E1;border-radius:6px;cursor:pointer;&:hover{background:#FEF2F2;color:#EF4444;}`;
-const AddBtn = styled.button`display:inline-flex;align-items:center;gap:6px;margin-top:12px;height:34px;padding:0 12px;border:1px dashed #CBD5E1;background:#fff;border-radius:8px;font-size:13px;font-weight:600;color:#475569;cursor:pointer;&:hover{border-color:#14B8A6;color:#0F766E;background:#F0FDFA;}`;
+const AddBtn = styled.button`display:inline-flex;align-items:center;gap:6px;margin-top:12px;height:34px;padding:0 12px;border:1px dashed #CBD5E1;background:#fff;border-radius:8px;font-size:0.8125rem;font-weight:600;color:#475569;cursor:pointer;&:hover{border-color:#14B8A6;color:#0F766E;background:#F0FDFA;}`;

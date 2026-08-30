@@ -132,32 +132,32 @@ export default function WorkstreamBoard({ projectId, workstreams, onChanged, rea
   );
 }
 
-const Empty = styled.div`font-size:13px;color:#94A3B8;padding:8px 0 14px;`;
+const Empty = styled.div`font-size:0.8125rem;color:#94A3B8;padding:8px 0 14px;`;
 // auto-fit — 카드 2·3개여도 좌우 끝까지 채운다(우측 빈 공간 X, Irene). 4개까지 한 줄.
 const Grid = styled.div`display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;`;
 const Card = styled.div<{ $dim?: boolean }>`display:flex;background:#fff;border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;opacity:${(p) => (p.$dim ? 0.6 : 1)};transition:box-shadow .15s;&:hover{box-shadow:0 4px 12px rgba(15,23,42,.06);}`;
 const Bar = styled.div`width:5px;flex-shrink:0;`;
 const CardBody = styled.div`flex:1;min-width:0;padding:14px 16px;`;
 const TitleRow = styled.div`display:flex;align-items:center;gap:8px;`;
-const Title = styled.div`flex:1;font-size:14px;font-weight:700;color:#0F172A;cursor:text;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
-const TitleInput = styled.input`flex:1;font-size:14px;font-weight:700;color:#0F172A;border:1px solid #14B8A6;border-radius:6px;padding:3px 8px;&:focus{outline:none;box-shadow:0 0 0 3px rgba(20,184,166,.15);}`;
+const Title = styled.div`flex:1;font-size:0.875rem;font-weight:700;color:#0F172A;cursor:text;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
+const TitleInput = styled.input`flex:1;font-size:0.875rem;font-weight:700;color:#0F172A;border:1px solid #14B8A6;border-radius:6px;padding:3px 8px;&:focus{outline:none;box-shadow:0 0 0 3px rgba(20,184,166,.15);}`;
 const Reorder = styled.div`display:flex;gap:2px;flex-shrink:0;`;
-const MiniBtn = styled.button`width:22px;height:22px;border:none;background:#F1F5F9;color:#64748B;border-radius:5px;font-size:12px;cursor:pointer;&:hover:not(:disabled){background:#E2E8F0;}&:disabled{opacity:.4;cursor:default;}`;
-const Desc = styled.div`font-size:12px;color:#64748B;margin:6px 0 0;line-height:1.5;`;
+const MiniBtn = styled.button`width:22px;height:22px;border:none;background:#F1F5F9;color:#64748B;border-radius:5px;font-size:0.75rem;cursor:pointer;&:hover:not(:disabled){background:#E2E8F0;}&:disabled{opacity:.4;cursor:default;}`;
+const Desc = styled.div`font-size:0.75rem;color:#64748B;margin:6px 0 0;line-height:1.5;`;
 const ProgressTrack = styled.div`height:6px;background:#F1F5F9;border-radius:999px;margin:12px 0 8px;overflow:hidden;`;
 const ProgressFill = styled.div`height:100%;border-radius:999px;transition:width .3s;`;
-const Meta = styled.div`display:flex;align-items:center;flex-wrap:wrap;gap:4px;font-size:11px;color:#64748B;`;
+const Meta = styled.div`display:flex;align-items:center;flex-wrap:wrap;gap:4px;font-size:0.6875rem;color:#64748B;`;
 const Dot = styled.span`width:3px;height:3px;border-radius:50%;background:#CBD5E1;margin:0 3px;`;
 const Over = styled.span`color:#EF4444;font-weight:600;`;
 const Footer = styled.div`display:flex;align-items:center;gap:8px;margin-top:12px;`;
 const StatusSelWrap = styled.div`min-width:104px;`;
-const StatusStatic = styled.span`font-size:11px;font-weight:700;color:#64748B;background:#F1F5F9;border-radius:999px;padding:3px 10px;`;
+const StatusStatic = styled.span`font-size:0.6875rem;font-weight:700;color:#64748B;background:#F1F5F9;border-radius:999px;padding:3px 10px;`;
 const IconBtn = styled.button`display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;margin-left:auto;border:none;background:transparent;color:#CBD5E1;border-radius:6px;cursor:pointer;&:hover{background:#FEF2F2;color:#EF4444;}`;
 const ConfirmRow = styled.div`display:flex;align-items:center;gap:8px;margin-left:auto;`;
-const ConfirmHint = styled.span`font-size:11px;color:#64748B;`;
-const DelYes = styled.button`height:28px;padding:0 10px;border:1px solid #EF4444;background:#fff;color:#EF4444;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;&:hover{background:#EF4444;color:#fff;}`;
+const ConfirmHint = styled.span`font-size:0.6875rem;color:#64748B;`;
+const DelYes = styled.button`height:28px;padding:0 10px;border:1px solid #EF4444;background:#fff;color:#EF4444;border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer;&:hover{background:#EF4444;color:#fff;}`;
 const AddCard = styled.div`display:flex;flex-direction:column;justify-content:center;gap:8px;border:1px dashed #CBD5E1;border-radius:12px;padding:16px;`;
-const AddInput = styled.input`height:36px;border:1px solid #E2E8F0;border-radius:8px;padding:0 10px;font-size:13px;&:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,.15);}`;
+const AddInput = styled.input`height:36px;border:1px solid #E2E8F0;border-radius:8px;padding:0 10px;font-size:0.8125rem;&:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,.15);}`;
 const AddActions = styled.div`display:flex;justify-content:flex-end;`;
-const SaveBtn = styled.button`height:32px;padding:0 14px;border:none;background:#14B8A6;color:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;&:hover:not(:disabled){background:#0D9488;}&:disabled{opacity:.5;cursor:default;}`;
-const AddTile = styled.button`display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:120px;border:1px dashed #CBD5E1;border-radius:12px;background:#fff;color:#64748B;font-size:13px;font-weight:600;cursor:pointer;&:hover{border-color:#14B8A6;color:#0F766E;background:#F0FDFA;}`;
+const SaveBtn = styled.button`height:32px;padding:0 14px;border:none;background:#14B8A6;color:#fff;border-radius:8px;font-size:0.8125rem;font-weight:600;cursor:pointer;&:hover:not(:disabled){background:#0D9488;}&:disabled{opacity:.5;cursor:default;}`;
+const AddTile = styled.button`display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:120px;border:1px dashed #CBD5E1;border-radius:12px;background:#fff;color:#64748B;font-size:0.8125rem;font-weight:600;cursor:pointer;&:hover{border-color:#14B8A6;color:#0F766E;background:#F0FDFA;}`;

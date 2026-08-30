@@ -107,10 +107,10 @@ const TeamTab: React.FC<{ businessId: number; range: RangePreset; segment?: Stat
           <ResponsiveContainer width="100%" height={320}>
             <BarChart data={utilBars} margin={{ top: 16, right: 24, bottom: 8, left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-              <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748B' }} />
-              <YAxis tick={{ fontSize: 11, fill: '#64748B' }} unit="%" />
+              <XAxis dataKey="name" tick={{ fontSize: '0.6875rem', fill: '#64748B' }} />
+              <YAxis tick={{ fontSize: '0.6875rem', fill: '#64748B' }} unit="%" />
               <Tooltip />
-              <ReferenceLine y={100} stroke="#EF4444" strokeDasharray="4 4" label={{ value: '100%', position: 'right', fill: '#EF4444', fontSize: 11 }} />
+              <ReferenceLine y={100} stroke="#EF4444" strokeDasharray="4 4" label={{ value: '100%', position: 'right', fill: '#EF4444', fontSize: '0.6875rem' }} />
               <Bar dataKey="utilization_pct" name={t('team.chart.utilization.bar', '가동률') as string} fill="#14B8A6" />
             </BarChart>
           </ResponsiveContainer>
@@ -257,11 +257,11 @@ const ClickableTr = styled(Tr)<{ $active?: boolean }>`
   transition: background 0.15s;
   &:hover { background: ${(p) => p.$active ? '#CCFBF1' : '#F8FAFC'}; }
 `;
-const DrawerTitle = styled.div`font-size: 16px; font-weight: 700; color: #0F172A;`;
-const DrawerSub = styled.div`font-size: 12px; color: #64748B; margin-top: 2px;`;
-const ForeignNote = styled.div`margin: 12px 0 4px; font-size: 12px; color: #64748B;`;
+const DrawerTitle = styled.div`font-size: 1rem; font-weight: 700; color: #0F172A;`;
+const DrawerSub = styled.div`font-size: 0.75rem; color: #64748B; margin-top: 2px;`;
+const ForeignNote = styled.div`margin: 12px 0 4px; font-size: 0.75rem; color: #64748B;`;
 const DrawerSectionLabel = styled.div`
-  font-size: 11px; font-weight: 700; color: #475569;
+  font-size: 0.6875rem; font-weight: 700; color: #475569;
   text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 8px;
 `;
 const SummaryGrid = styled.div`
@@ -271,20 +271,20 @@ const SummaryCell = styled.div`
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
   padding: 10px 12px; display: flex; flex-direction: column; gap: 2px;
 `;
-const SummaryLabel = styled.div`font-size: 10px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.3px;`;
-const SummaryValue = styled.div`font-size: 14px; font-weight: 700; color: #0F172A; font-variant-numeric: tabular-nums;`;
+const SummaryLabel = styled.div`font-size: 0.625rem; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.3px;`;
+const SummaryValue = styled.div`font-size: 0.875rem; font-weight: 700; color: #0F172A; font-variant-numeric: tabular-nums;`;
 const DrawerEmpty = styled.div`
   background: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 8px;
-  padding: 24px 16px; text-align: center; font-size: 12px; color: #94A3B8;
+  padding: 24px 16px; text-align: center; font-size: 0.75rem; color: #94A3B8;
 `;
 const CatTable = styled.table`
-  width: 100%; border-collapse: collapse; font-size: 12px;
+  width: 100%; border-collapse: collapse; font-size: 0.75rem;
   th, td { padding: 8px; border-bottom: 1px solid #F1F5F9; text-align: left; }
-  th { background: #F8FAFC; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.3px; font-size: 10px; }
+  th { background: #F8FAFC; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.3px; font-size: 0.625rem; }
   td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 `;
 const Tag = styled.span<{ $kind: 'strength' | 'weakness' | 'neutral' }>`
-  display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700;
+  display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.625rem; font-weight: 700;
   background: ${(p) => p.$kind === 'strength' ? '#DCFCE7' : p.$kind === 'weakness' ? '#FEE2E2' : '#F1F5F9'};
   color: ${(p) => p.$kind === 'strength' ? '#15803D' : p.$kind === 'weakness' ? '#B91C1C' : '#64748B'};
 `;

@@ -107,7 +107,7 @@ const NoticeIcon = styled.span<{ $tone: 'amber' | 'teal' }>`
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   line-height: 1;
   color: #fff;
@@ -118,7 +118,7 @@ const NoticeText = styled.div`
   /* 좁은 화면에서는 글이 한 줄을 다 쓰고 버튼은 다음 줄로 내려간다.
      버튼이 옆에 끼면 안내문이 2~3자씩 끊겨 읽을 수 없다(모바일 실측 2026-08-25). */
   @media (max-width: 640px) { flex: 1 1 100%; }
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   line-height: 1.55;
   color: #334155;
   strong { color: #0F172A; font-weight: 700; }
@@ -128,7 +128,7 @@ const NoticeAction = styled.button`
   /* 아이콘(20px) + gap(10px) 만큼 들여써 본문 왼쪽선에 맞춘다. */
   @media (max-width: 640px) { margin-left: 30px; margin-top: 2px; }
   padding: 4px 10px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   color: #0F766E;
   background: #fff;

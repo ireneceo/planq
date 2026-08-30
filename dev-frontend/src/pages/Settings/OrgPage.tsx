@@ -252,11 +252,11 @@ export default OrgPage;
 // ─── styled ───
 const AddRow = styled.div`display: flex; align-items: center; gap: 8px;`;
 const AddInput = styled.input`
-  padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; color: #0f172a; font-family: inherit; min-width: 0;
+  padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.8125rem; color: #0f172a; font-family: inherit; min-width: 0;
   &:focus { outline: none; border-color: #14b8a6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
 `;
-const ErrMsg = styled.div`margin-bottom: 16px; padding: 10px 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; font-size: 13px; color: #b91c1c;`;
-const Dim = styled.div`padding: 32px 16px; text-align: center; font-size: 13px; color: #94a3b8;`;
+const ErrMsg = styled.div`margin-bottom: 16px; padding: 10px 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; font-size: 0.8125rem; color: #b91c1c;`;
+const Dim = styled.div`padding: 32px 16px; text-align: center; font-size: 0.8125rem; color: #94a3b8;`;
 const DeptGrid = styled.div`
   display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; margin-bottom: 28px;
   @media (max-width: 768px) { grid-template-columns: 1fr; }
@@ -273,33 +273,33 @@ const ColorDot = styled.button<{ $c: string; $on: boolean }>`
   transition: transform 0.1s; &:hover { transform: scale(1.15); }
 `;
 const DelBtn = styled.button`
-  width: 26px; height: 26px; border: none; background: transparent; color: #94a3b8; font-size: 16px; cursor: pointer; border-radius: 6px;
+  width: 26px; height: 26px; border: none; background: transparent; color: #94a3b8; font-size: 1rem; cursor: pointer; border-radius: 6px;
   &:hover { background: #fee2e2; color: #b91c1c; }
 `;
 const DeptName = styled.input`
-  border: none; background: transparent; font-size: 16px; font-weight: 700; color: #0f172a; padding: 2px 0; font-family: inherit;
+  border: none; background: transparent; font-size: 1rem; font-weight: 700; color: #0f172a; padding: 2px 0; font-family: inherit;
   &:focus { outline: none; border-bottom: 2px solid #14b8a6; }
 `;
 const DeptMeta = styled.div`display: flex; gap: 6px;`;
-const MetaChip = styled.span`font-size: 11px; font-weight: 700; color: #0f766e; background: #f0fdfa; border-radius: 999px; padding: 2px 10px;`;
-const FieldLabel = styled.div`font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.4px; margin-top: 4px;`;
+const MetaChip = styled.span`font-size: 0.6875rem; font-weight: 700; color: #0f766e; background: #f0fdfa; border-radius: 999px; padding: 2px 10px;`;
+const FieldLabel = styled.div`font-size: 0.6875rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.4px; margin-top: 4px;`;
 const TeamChips = styled.div`display: flex; flex-wrap: wrap; gap: 6px;`;
 const TeamChip = styled.span`
-  display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: #475569;
+  display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; font-weight: 600; color: #475569;
   background: #f1f5f9; border-radius: 999px; padding: 3px 6px 3px 10px;
 `;
 const TeamX = styled.button`
-  width: 16px; height: 16px; border: none; background: transparent; color: #94a3b8; font-size: 13px; cursor: pointer; border-radius: 50%; line-height: 1;
+  width: 16px; height: 16px; border: none; background: transparent; color: #94a3b8; font-size: 0.8125rem; cursor: pointer; border-radius: 50%; line-height: 1;
   &:hover { background: #fee2e2; color: #b91c1c; }
 `;
-const TeamAdd = styled.div`display: flex; gap: 6px; ${AddInput} { flex: 1; padding: 6px 10px; font-size: 12px; }`;
-const SectionTitle = styled.h2`font-size: 15px; font-weight: 700; color: #0f172a; margin: 8px 0 4px;`;
-const SectionHint = styled.p`font-size: 12px; color: #64748b; margin: 0 0 14px;`;
+const TeamAdd = styled.div`display: flex; gap: 6px; ${AddInput} { flex: 1; padding: 6px 10px; font-size: 0.75rem; }`;
+const SectionTitle = styled.h2`font-size: 0.9375rem; font-weight: 700; color: #0f172a; margin: 8px 0 4px;`;
+const SectionHint = styled.p`font-size: 0.75rem; color: #64748b; margin: 0 0 14px;`;
 const AssignTable = styled.div`border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden; background: #fff;`;
 const AssignHead = styled.div`
   display: grid; grid-template-columns: 1.4fr 1.2fr 1.2fr 1.2fr; gap: 12px; padding: 10px 16px;
   background: #f8fafc; border-bottom: 1px solid #e2e8f0;
-  span { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.4px; }
+  span { font-size: 0.6875rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.4px; }
   @media (max-width: 768px) { grid-template-columns: 1fr; gap: 4px; span { display: none; } }
 `;
 const AssignRow = styled.div`
@@ -307,14 +307,14 @@ const AssignRow = styled.div`
   border-bottom: 1px solid #f1f5f9; &:last-child { border-bottom: none; }
   @media (max-width: 768px) { grid-template-columns: 1fr; gap: 8px; padding: 12px 16px; }
 `;
-const MemberName = styled.div`font-size: 13px; font-weight: 600; color: #0f172a; display: flex; align-items: center; gap: 6px;`;
+const MemberName = styled.div`font-size: 0.8125rem; font-weight: 600; color: #0f172a; display: flex; align-items: center; gap: 6px;`;
 const SavedBadge = styled.span`
-  font-size: 11px; font-weight: 700; color: #0f766e; background: #f0fdfa;
+  font-size: 0.6875rem; font-weight: 700; color: #0f766e; background: #f0fdfa;
   border-radius: 999px; padding: 1px 7px;
   animation: fadeBadge 2s ease forwards;
   @keyframes fadeBadge { 0% { opacity: 0; } 12% { opacity: 1; } 75% { opacity: 1; } 100% { opacity: 0; } }
 `;
 const JobInput = styled.input`
-  padding: 7px 10px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; color: #0f172a; font-family: inherit;
+  padding: 7px 10px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.8125rem; color: #0f172a; font-family: inherit;
   &:focus { outline: none; border-color: #14b8a6; box-shadow: 0 0 0 3px rgba(20,184,166,0.12); }
 `;

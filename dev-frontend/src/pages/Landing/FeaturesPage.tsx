@@ -225,16 +225,16 @@ const SubHero = styled.section`
 `;
 const Eyebrow = styled.div`
   font-family: 'Outfit', sans-serif;
-  font-size: 13px; font-weight: 500; color: #0D9488;
+  font-size: 0.8125rem; font-weight: 500; color: #0D9488;
   letter-spacing: 3px; margin-bottom: 16px;
 `;
 const Title = styled.h1`
-  font-size: 44px; font-weight: 700; color: #0F172A;
+  font-size: 2.75rem; font-weight: 700; color: #0F172A;
   line-height: 1.3; word-break: keep-all; margin-bottom: 20px;
-  @media (max-width: 768px) { font-size: 32px; }
+  @media (max-width: 768px) { font-size: 2rem; }
 `;
 const Sub = styled.p`
-  font-size: 17px; font-weight: 300; color: #64748B;
+  font-size: 1.0625rem; font-weight: 300; color: #64748B;
   line-height: 1.7; max-width: 720px; margin: 0 auto;
   word-break: keep-all;
 `;
@@ -247,7 +247,7 @@ const Anchor = styled.a`
   display: inline-flex; align-items: center;
   background: #FFFFFF; color: #0D9488;
   border: 1px solid #99F6E4; border-radius: 999px;
-  font-size: 13px; font-weight: 500; text-decoration: none;
+  font-size: 0.8125rem; font-weight: 500; text-decoration: none;
   transition: background 0.15s, transform 0.15s;
   &:hover { background: #F0FDFA; transform: translateY(-1px); }
 `;
@@ -263,19 +263,19 @@ const Group = styled.section<{ $bg?: 'bg' | 'dark' }>`
 `;
 const GroupTag = styled.div<{ $light?: boolean }>`
   font-family: 'Outfit', sans-serif;
-  font-size: 13px; font-weight: 500;
+  font-size: 0.8125rem; font-weight: 500;
   color: ${p => p.$light ? '#5EEAD4' : '#0D9488'};
   letter-spacing: 3px; margin-bottom: 12px;
 `;
 const GroupTitle = styled.h2<{ $light?: boolean }>`
-  font-size: 36px; font-weight: 700;
+  font-size: 2.25rem; font-weight: 700;
   color: ${p => p.$light ? '#FFFFFF' : '#0F172A'};
   letter-spacing: -0.6px; margin: 0 0 16px;
   word-break: keep-all;
-  @media (max-width: 768px) { font-size: 28px; }
+  @media (max-width: 768px) { font-size: 1.75rem; }
 `;
 const GroupDesc = styled.p<{ $light?: boolean }>`
-  font-size: 16px; font-weight: 300;
+  font-size: 1rem; font-weight: 300;
   color: ${p => p.$light ? '#94A3B8' : '#64748B'};
   line-height: 1.7; max-width: 720px;
   word-break: keep-all;
@@ -301,17 +301,17 @@ const FeatureRow = styled.div<{ $reverse?: boolean }>`
 const FeatureCopy = styled.div`display: flex; flex-direction: column; gap: 16px;`;
 const FeatureLabel = styled.div`
   font-family: 'Outfit', sans-serif;
-  font-size: 14px; font-weight: 500; color: #0D9488;
+  font-size: 0.875rem; font-weight: 500; color: #0D9488;
   text-transform: lowercase; letter-spacing: 1px;
 `;
 const FeatureName = styled.h3`
-  font-size: 28px; font-weight: 700; color: #0F172A;
+  font-size: 1.75rem; font-weight: 700; color: #0F172A;
   letter-spacing: -0.4px; margin: 0;
   word-break: keep-all;
-  @media (max-width: 768px) { font-size: 22px; }
+  @media (max-width: 768px) { font-size: 1.375rem; }
 `;
 const FeatureLead = styled.p`
-  font-size: 15px; color: #475569; line-height: 1.7;
+  font-size: 0.9375rem; color: #475569; line-height: 1.7;
   font-weight: 400; margin: 0;
   word-break: keep-all;
 `;
@@ -321,7 +321,7 @@ const FeatureList = styled.ul`
 `;
 const FeatureItem = styled.li`
   display: flex; align-items: flex-start; gap: 10px;
-  font-size: 14px; color: #334155; line-height: 1.7;
+  font-size: 0.875rem; color: #334155; line-height: 1.7;
   word-break: keep-all;
 `;
 const Bullet = styled.span`
@@ -358,7 +358,7 @@ const MockBar = styled.div`
 const Dot = styled.span<{ $c: string }>`
   width: 10px; height: 10px; border-radius: 50%; background: ${p => p.$c};
 `;
-const MockUrl = styled.div`margin-left: 14px; font-size: 11px; color: #94A3B8;`;
+const MockUrl = styled.div`margin-left: 14px; font-size: 0.6875rem; color: #94A3B8;`;
 const MockBody = styled.div`
   flex: 1;
   display: flex; align-items: center; justify-content: center;
@@ -370,7 +370,7 @@ const MockHint = styled.div`
   padding: 12px 24px; background: #FFFFFF;
   border: 1px solid #E2E8F0; border-radius: 999px;
   font-family: 'Outfit', sans-serif;
-  font-size: 14px; font-weight: 500; color: #0D9488;
+  font-size: 0.875rem; font-weight: 500; color: #0D9488;
   text-transform: capitalize;
 `;
 
@@ -395,15 +395,15 @@ const ModuleCard = styled.div`
 const ModuleHeader = styled.div`display: flex; align-items: center;`;
 const ModuleLabel = styled.div`
   font-family: 'Outfit', sans-serif;
-  font-size: 12px; font-weight: 500; color: #0D9488;
+  font-size: 0.75rem; font-weight: 500; color: #0D9488;
   text-transform: lowercase; letter-spacing: 1px;
 `;
 const ModuleName = styled.h3`
-  font-size: 20px; font-weight: 700; color: #0F172A;
+  font-size: 1.25rem; font-weight: 700; color: #0F172A;
   letter-spacing: -0.3px; margin: 0;
 `;
 const ModuleLead = styled.p`
-  font-size: 14px; color: #475569; line-height: 1.7;
+  font-size: 0.875rem; color: #475569; line-height: 1.7;
   margin: 0; word-break: keep-all;
 `;
 const ModuleList = styled.ul`
@@ -412,7 +412,7 @@ const ModuleList = styled.ul`
 `;
 const ModuleItem = styled.li`
   display: flex; align-items: flex-start; gap: 10px;
-  font-size: 13px; color: #334155; line-height: 1.6;
+  font-size: 0.8125rem; color: #334155; line-height: 1.6;
   word-break: keep-all;
 `;
 
@@ -428,15 +428,15 @@ const DarkCard = styled.div`
 `;
 const DarkLabel = styled.div`
   font-family: 'Outfit', sans-serif;
-  font-size: 12px; font-weight: 500; color: #5EEAD4;
+  font-size: 0.75rem; font-weight: 500; color: #5EEAD4;
   text-transform: uppercase; letter-spacing: 1.5px;
 `;
 const DarkName = styled.h3`
-  font-size: 20px; font-weight: 700; color: #FFFFFF;
+  font-size: 1.25rem; font-weight: 700; color: #FFFFFF;
   letter-spacing: -0.3px; margin: 0;
 `;
 const DarkLead = styled.p`
-  font-size: 14px; color: #94A3B8; line-height: 1.7;
+  font-size: 0.875rem; color: #94A3B8; line-height: 1.7;
   margin: 0; word-break: keep-all;
 `;
 const DarkList = styled.ul`
@@ -445,7 +445,7 @@ const DarkList = styled.ul`
 `;
 const DarkItem = styled.li`
   display: flex; align-items: flex-start; gap: 10px;
-  font-size: 13px; color: #CBD5E1; line-height: 1.6;
+  font-size: 0.8125rem; color: #CBD5E1; line-height: 1.6;
   word-break: keep-all;
 `;
 
@@ -459,10 +459,10 @@ const SmallCard = styled.div`
   &:hover { border-color: #99F6E4; }
 `;
 const SmallName = styled.h3`
-  font-size: 15px; font-weight: 700; color: #0F172A; margin: 0;
+  font-size: 0.9375rem; font-weight: 700; color: #0F172A; margin: 0;
 `;
 const SmallLead = styled.p`
-  font-size: 13px; color: #64748B; line-height: 1.7;
+  font-size: 0.8125rem; color: #64748B; line-height: 1.7;
   margin: 0; word-break: keep-all;
 `;
 
@@ -472,13 +472,13 @@ const CtaBand = styled.section`
   color: #FFFFFF; text-align: center;
   ${Container} { display: flex; flex-direction: column; align-items: center; gap: 16px; }
 `;
-const CtaTitle = styled.h2`font-size: 32px; font-weight: 700; line-height: 1.4; margin: 0; word-break: keep-all; @media (max-width: 768px) { font-size: 24px; }`;
-const CtaSub = styled.p`font-size: 15px; color: #94A3B8; font-weight: 300; margin: 0;`;
+const CtaTitle = styled.h2`font-size: 2rem; font-weight: 700; line-height: 1.4; margin: 0; word-break: keep-all; @media (max-width: 768px) { font-size: 1.5rem; }`;
+const CtaSub = styled.p`font-size: 0.9375rem; color: #94A3B8; font-weight: 300; margin: 0;`;
 const CtaBtn = styled(Link)`
   margin-top: 12px;
   padding: 16px 48px; border-radius: 999px;
   background: #14B8A6; color: #FFFFFF;
-  font-size: 16px; font-weight: 500;
+  font-size: 1rem; font-weight: 500;
   text-decoration: none;
   transition: all 0.3s;
   box-shadow: 0 0 40px rgba(20,184,166,0.3);

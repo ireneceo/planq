@@ -179,45 +179,45 @@ const Logo = styled.img`
 `;
 
 const Title = styled.h1`
-  font-size: 18px;
+  font-size: 1.125rem;
   font-weight: 700;
   color: #0F172A;
   margin: 0 0 4px;
 `;
 
 const Subtitle = styled.p`
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #64748B;
   margin: 0 0 16px;
 `;
 
 const ProjectName = styled.div`
-  font-size: 20px;
+  font-size: 1.25rem;
   font-weight: 700;
   color: #0F766E;
   margin-bottom: 6px;
 `;
 
 const CompanyName = styled.div`
-  font-size: 14px;
+  font-size: 0.875rem;
   color: #475569;
   margin-bottom: 4px;
 `;
 
 const ContactInfo = styled.div`
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #94A3B8;
   margin-bottom: 24px;
 `;
 
 const Message = styled.p`
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #64748B;
   margin: 16px 0;
 `;
 
 const ErrorText = styled.p`
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #DC2626;
   margin: 16px 0;
 `;
@@ -229,7 +229,7 @@ const ActionBtn = styled.button`
   color: #FFFFFF;
   border: none;
   border-radius: 10px;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 700;
   cursor: pointer;
   margin-top: 20px;
@@ -244,7 +244,7 @@ const SecondaryBtn = styled.button`
   color: #0D9488;
   border: 1px solid #99F6E4;
   border-radius: 10px;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
   margin-top: 12px;

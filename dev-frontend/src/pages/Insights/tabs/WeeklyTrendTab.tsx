@@ -142,10 +142,10 @@ const WeeklyTrendTab: React.FC<Props> = ({ businessId }) => {
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={chartData} margin={{ top: 16, right: 24, bottom: 8, left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-              <XAxis dataKey="week" stroke="#64748B" fontSize={11} />
-              <YAxis stroke="#64748B" fontSize={11} unit="%" domain={[0, 100]} />
-              <Tooltip contentStyle={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 12 }} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <XAxis dataKey="week" stroke="#64748B" fontSize="0.6875rem" />
+              <YAxis stroke="#64748B" fontSize="0.6875rem" unit="%" domain={[0, 100]} />
+              <Tooltip contentStyle={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: '0.75rem' }} />
+              <Legend wrapperStyle={{ fontSize: '0.75rem' }} />
               <Line type="monotone" dataKey="completion" stroke="#14B8A6" strokeWidth={2.5} dot={{ r: 4 }} name={t('weekly.kpi.completion', { defaultValue: '완료율' }) as string} />
             </LineChart>
           </ResponsiveContainer>
@@ -164,6 +164,6 @@ const EmptyState = styled.div`
   background: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 12px;
 `;
 const EmptyIcon = styled.div`color: #94A3B8; margin-bottom: 12px;`;
-const EmptyTitle = styled.div`font-size: 14px; font-weight: 600; color: #334155; margin-bottom: 6px;`;
-const EmptyHint = styled.div`font-size: 12px; color: #64748B; text-align: center; max-width: 480px; line-height: 1.6;`;
-const Hint = styled.div`font-size: 11px; color: #94A3B8; padding: 8px 0; line-height: 1.6;`;
+const EmptyTitle = styled.div`font-size: 0.875rem; font-weight: 600; color: #334155; margin-bottom: 6px;`;
+const EmptyHint = styled.div`font-size: 0.75rem; color: #64748B; text-align: center; max-width: 480px; line-height: 1.6;`;
+const Hint = styled.div`font-size: 0.6875rem; color: #94A3B8; padding: 8px 0; line-height: 1.6;`;

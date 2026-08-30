@@ -1834,7 +1834,7 @@ const CenteredHint = styled.div`
   align-items: center;
   justify-content: center;
   color: #64748B;
-  font-size: 14px;
+  font-size: 0.875rem;
   min-height: 0;
 `;
 
@@ -1852,7 +1852,7 @@ const Toast = styled.div`
   background: #0F172A;
   color: #F0FDFA;
   border-radius: 12px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 500;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
   z-index: 3000;

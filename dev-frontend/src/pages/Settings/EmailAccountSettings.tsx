@@ -804,7 +804,7 @@ const Toolbar = styled.div`
   gap: 12px; flex-wrap: wrap; margin-bottom: 16px;
 `;
 const MemberHint = styled.div`
-  font-size: 13px; color: #64748B; line-height: 1.5;
+  font-size: 0.8125rem; color: #64748B; line-height: 1.5;
 `;
 const MemberHintLink = styled(Link)`
   color: #0F766E; font-weight: 600; text-decoration: none;
@@ -812,41 +812,41 @@ const MemberHintLink = styled(Link)`
 `;
 const Group = styled.div`margin-bottom: 24px;`;
 const GroupTitle = styled.div`
-  font-size: 13px; font-weight: 700; color: #334155;
+  font-size: 0.8125rem; font-weight: 700; color: #334155;
   margin-bottom: 10px;
 `;
 const TeamBadge = styled.span`
-  font-size: 11px; font-weight: 700; padding: 2px 8px;
+  font-size: 0.6875rem; font-weight: 700; padding: 2px 8px;
   background: #E0F2FE; color: #075985; border-radius: 12px;
 `;
 const PersonalBadge = styled.span`
-  font-size: 11px; font-weight: 700; padding: 2px 8px;
+  font-size: 0.6875rem; font-weight: 700; padding: 2px 8px;
   background: #F1F5F9; color: #475569; border-radius: 12px;
 `;
 const ScopeNote = styled.div<{ $personal: boolean }>`
-  font-size: 12px; font-weight: 600; line-height: 1.5;
+  font-size: 0.75rem; font-weight: 600; line-height: 1.5;
   padding: 10px 12px; border-radius: 8px;
   background: ${p => p.$personal ? '#F8FAFC' : '#EFF6FF'};
   color: ${p => p.$personal ? '#475569' : '#1E40AF'};
   border: 1px solid ${p => p.$personal ? '#E2E8F0' : '#BFDBFE'};
 `;
-const Hint = styled.p`font-size: 13px; color: #64748B; margin: 0 0 20px; line-height: 1.6;`;
-const ConnErr = styled.p`font-size: 13px; color: #B91C1C; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 10px 12px; margin: 0 0 16px; line-height: 1.5;`;
-const DismissBtn = styled.button`all: unset; cursor: pointer; float: right; font-size: 15px; line-height: 1; color: #B91C1C; padding: 0 2px; &:hover { opacity: 0.7; }`;
+const Hint = styled.p`font-size: 0.8125rem; color: #64748B; margin: 0 0 20px; line-height: 1.6;`;
+const ConnErr = styled.p`font-size: 0.8125rem; color: #B91C1C; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 10px 12px; margin: 0 0 16px; line-height: 1.5;`;
+const DismissBtn = styled.button`all: unset; cursor: pointer; float: right; font-size: 0.9375rem; line-height: 1; color: #B91C1C; padding: 0 2px; &:hover { opacity: 0.7; }`;
 const Loading = styled.div`padding: 40px; text-align: center; color: #94A3B8;`;
 const EmptyCard = styled.div`
   padding: 40px 24px; text-align: center;
   background: #FFFFFF; border: 1px dashed #CBD5E1; border-radius: 12px;
 `;
-const EmptyIcon = styled.div`font-size: 40px; margin-bottom: 12px;`;
-const EmptyTitle = styled.div`font-size: 16px; font-weight: 700; color: #0F172A; margin-bottom: 6px;`;
-const EmptyDesc = styled.div`font-size: 13px; color: #64748B; margin-bottom: 16px;`;
+const EmptyIcon = styled.div`font-size: 2.5rem; margin-bottom: 12px;`;
+const EmptyTitle = styled.div`font-size: 1rem; font-weight: 700; color: #0F172A; margin-bottom: 6px;`;
+const EmptyDesc = styled.div`font-size: 0.8125rem; color: #64748B; margin-bottom: 16px;`;
 const Empty = styled.div`padding: 40px; text-align: center; color: #94A3B8;`;
 const AddBtn = styled.button`
   height: 36px; padding: 0 14px;
   background: #14B8A6; color: #FFFFFF;
   border: none; border-radius: 8px;
-  font-size: 13px; font-weight: 600;
+  font-size: 0.8125rem; font-weight: 600;
   cursor: pointer;
   &:hover { background: #0D9488; }
   &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
@@ -858,7 +858,7 @@ const GoogleConnectBtn = styled.button`
   height: 36px; padding: 0 14px;
   background: #FFFFFF; color: #0F172A;
   border: 1px solid #CBD5E1; border-radius: 8px;
-  font-size: 13px; font-weight: 600;
+  font-size: 0.8125rem; font-weight: 600;
   cursor: pointer;
   &:hover { background: #F8FAFC; border-color: #94A3B8; }
   &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
@@ -873,33 +873,33 @@ const AccountCard = styled.div`
 const CardHeader = styled.div`display: flex; gap: 16px; justify-content: space-between; flex-wrap: wrap;`;
 const EmailInfo = styled.div`display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 240px;`;
 const EmailRow = styled.div`display: flex; align-items: center; gap: 8px;`;
-const Email = styled.div`font-size: 15px; font-weight: 700; color: #0F172A;`;
+const Email = styled.div`font-size: 0.9375rem; font-weight: 700; color: #0F172A;`;
 const DefaultBadge = styled.span`
-  font-size: 11px; font-weight: 700; padding: 2px 8px;
+  font-size: 0.6875rem; font-weight: 700; padding: 2px 8px;
   background: #CCFBF1; color: #0F766E; border-radius: 12px;
 `;
 const InactiveBadge = styled.span`
-  font-size: 11px; font-weight: 700; padding: 2px 8px;
+  font-size: 0.6875rem; font-weight: 700; padding: 2px 8px;
   background: #FEE2E2; color: #B91C1C; border-radius: 12px;
 `;
-const DisplayName = styled.div`font-size: 13px; color: #475569;`;
+const DisplayName = styled.div`font-size: 0.8125rem; color: #475569;`;
 const MetaRow = styled.div`display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 4px;`;
-const MetaItem = styled.span`font-size: 11px; color: #94A3B8;`;
+const MetaItem = styled.span`font-size: 0.6875rem; color: #94A3B8;`;
 const ErrorBadge = styled.span`
-  font-size: 11px; font-weight: 600; padding: 2px 6px;
+  font-size: 0.6875rem; font-weight: 600; padding: 2px 6px;
   background: #FEF3C7; color: #92400E; border-radius: 10px;
 `;
-const ErrorMsg = styled.div`font-size: 12px; color: #B91C1C; margin-top: 6px; line-height: 1.4;`;
-const FixHint = styled.div`font-size: 12px; color: #B45309; margin-top: 4px; line-height: 1.4; padding: 6px 10px; background: #FFFBEB; border-radius: 6px;`;
+const ErrorMsg = styled.div`font-size: 0.75rem; color: #B91C1C; margin-top: 6px; line-height: 1.4;`;
+const FixHint = styled.div`font-size: 0.75rem; color: #B45309; margin-top: 4px; line-height: 1.4; padding: 6px 10px; background: #FFFBEB; border-radius: 6px;`;
 const ReconnectRow = styled.div`margin-top: 8px;`;
-const TestSuccess = styled.div`font-size: 12px; color: #0F766E; font-weight: 600; margin-top: 6px;`;
-const TestError = styled.div`font-size: 12px; color: #B91C1C; font-weight: 600; margin-top: 6px;`;
+const TestSuccess = styled.div`font-size: 0.75rem; color: #0F766E; font-weight: 600; margin-top: 6px;`;
+const TestError = styled.div`font-size: 0.75rem; color: #B91C1C; font-weight: 600; margin-top: 6px;`;
 const CardActions = styled.div`display: flex; gap: 6px; flex-wrap: wrap; align-items: flex-start;`;
 const ActionBtn = styled.button`
   height: 30px; padding: 0 12px;
   background: transparent; color: #475569;
   border: 1px solid #E2E8F0; border-radius: 6px;
-  font-size: 12px; font-weight: 600;
+  font-size: 0.75rem; font-weight: 600;
   cursor: pointer;
   &:hover:not(:disabled) { background: #F8FAFC; border-color: #CBD5E1; color: #0F172A; }
   &:disabled { opacity: 0.55; cursor: not-allowed; }
@@ -914,40 +914,40 @@ const DangerBtn = styled(AddBtn)`
   &:hover { background: #DC2626; }
 `;
 // 모달 (DetailDrawer)
-const DrawerTitle = styled.div`font-size: 16px; font-weight: 700; color: #0F172A;`;
+const DrawerTitle = styled.div`font-size: 1rem; font-weight: 700; color: #0F172A;`;
 const Form = styled.div`display: flex; flex-direction: column; gap: 14px;`;
 const Field = styled.div`display: flex; flex-direction: column; gap: 5px;`;
-const Label = styled.label`font-size: 12px; font-weight: 600; color: #475569; display: flex; align-items: center; gap: 4px;`;
-const FieldHint = styled.span`font-size: 11px; font-weight: 500; color: #94A3B8; line-height: 1.5;`;
+const Label = styled.label`font-size: 0.75rem; font-weight: 600; color: #475569; display: flex; align-items: center; gap: 4px;`;
+const FieldHint = styled.span`font-size: 0.6875rem; font-weight: 500; color: #94A3B8; line-height: 1.5;`;
 const Required = styled.span`color: #EF4444;`;
-const PasswordHint = styled.span`font-size: 11px; color: #94A3B8; font-weight: 500; margin-left: 4px;`;
-const Optional = styled.span`font-size: 11px; color: #94A3B8; font-weight: 500; margin-left: 4px;`;
+const PasswordHint = styled.span`font-size: 0.6875rem; color: #94A3B8; font-weight: 500; margin-left: 4px;`;
+const Optional = styled.span`font-size: 0.6875rem; color: #94A3B8; font-weight: 500; margin-left: 4px;`;
 const Input = styled.input`
   height: 36px; padding: 0 10px;
   border: 1px solid #E2E8F0; border-radius: 6px;
-  font-size: 13px; color: #0F172A;
+  font-size: 0.8125rem; color: #0F172A;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
   &:disabled { background: #F8FAFC; color: #94A3B8; cursor: not-allowed; }
 `;
 const Grid2 = styled.div`display: grid; grid-template-columns: 2fr 1fr; gap: 10px;`;
 const SectionTitle = styled.div`
-  font-size: 13px; font-weight: 700; color: #0F172A;
+  font-size: 0.8125rem; font-weight: 700; color: #0F172A;
   margin-top: 8px; padding-top: 12px;
   border-top: 1px solid #E2E8F0;
   display: flex; align-items: center;
 `;
-const SmtpHint = styled.div`font-size: 11px; color: #64748B; line-height: 1.5; padding: 8px 10px; background: #F8FAFC; border-radius: 6px;`;
+const SmtpHint = styled.div`font-size: 0.6875rem; color: #64748B; line-height: 1.5; padding: 8px 10px; background: #F8FAFC; border-radius: 6px;`;
 const GuideBox = styled.div`margin-top: 8px; padding: 14px 16px; background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 10px;`;
-const GuideTitle = styled.div`font-size: 13px; font-weight: 700; color: #0F766E; margin-bottom: 10px;`;
+const GuideTitle = styled.div`font-size: 0.8125rem; font-weight: 700; color: #0F766E; margin-bottom: 10px;`;
 const GuideSteps = styled.div`display: flex; flex-direction: column; gap: 8px;`;
 const GuideStep = styled.div`display: flex; gap: 10px; align-items: flex-start;`;
-const GuideNum = styled.span`flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; background: #14B8A6; color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-top: 1px;`;
-const GuideStepText = styled.div`font-size: 12px; color: #334155; line-height: 1.55;`;
-const GuideLink = styled.a`display: inline-block; margin-top: 12px; font-size: 12px; font-weight: 600; color: #0F766E; text-decoration: none; padding: 7px 12px; background: #fff; border: 1px solid #14B8A6; border-radius: 8px; transition: background 0.15s; &:hover { background: #CCFBF1; }`;
+const GuideNum = styled.span`flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; background: #14B8A6; color: #fff; font-size: 0.6875rem; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-top: 1px;`;
+const GuideStepText = styled.div`font-size: 0.75rem; color: #334155; line-height: 1.55;`;
+const GuideLink = styled.a`display: inline-block; margin-top: 12px; font-size: 0.75rem; font-weight: 600; color: #0F766E; text-decoration: none; padding: 7px 12px; background: #fff; border: 1px solid #14B8A6; border-radius: 8px; transition: background 0.15s; &:hover { background: #CCFBF1; }`;
 const ErrorBox = styled.div`
   padding: 10px 12px;
   background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px;
-  font-size: 12px; color: #B91C1C;
+  font-size: 0.75rem; color: #B91C1C;
 `;
 // confirm modal
 const ConfirmBackdrop = styled.div`
@@ -961,6 +961,6 @@ const ConfirmCard = styled.div`
   display: flex; flex-direction: column; gap: 12px;
   box-shadow: 0 12px 40px rgba(15,23,42,0.2);
 `;
-const ConfirmTitle = styled.div`font-size: 15px; font-weight: 700; color: #0F172A;`;
-const ConfirmDesc = styled.div`font-size: 12px; color: #64748B; line-height: 1.5;`;
+const ConfirmTitle = styled.div`font-size: 0.9375rem; font-weight: 700; color: #0F172A;`;
+const ConfirmDesc = styled.div`font-size: 0.75rem; color: #64748B; line-height: 1.5;`;
 const ConfirmActions = styled.div`display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px;`;

@@ -214,14 +214,14 @@ const DayHeaderCell = styled.div<{ $today: boolean; $isSaturday: boolean; $isSun
   &:hover { background: #F8FAFC; }
 `;
 const DayLabel = styled.div<{ $today: boolean }>`
-  font-size: 11px; font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase;
+  font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase;
   color: ${({ $today }) => $today ? '#14B8A6' : '#64748B'};
   margin-bottom: 4px;
 `;
 const DateNumber = styled.div<{ $today: boolean }>`
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 28px; height: 28px; border-radius: 999px;
-  font-size: 16px; font-weight: 700;
+  font-size: 1rem; font-weight: 700;
   background: ${({ $today }) => $today ? '#14B8A6' : 'transparent'};
   color: ${({ $today }) => $today ? '#fff' : '#0F172A'};
 `;
@@ -232,7 +232,7 @@ const AllDayRow = styled.div`
 `;
 const AllDayLabel = styled.div`
   width: ${TIME_COL_WIDTH}px; flex-shrink: 0; border-right: 1px solid #E2E8F0;
-  font-size: 10px; font-weight: 500; color: #94A3B8; letter-spacing: 0.3px;
+  font-size: 0.625rem; font-weight: 500; color: #94A3B8; letter-spacing: 0.3px;
   display: flex; align-items: center; justify-content: center;
   text-transform: uppercase;
 `;
@@ -246,7 +246,7 @@ const AllDayCell = styled.div`
   &:last-child { border-right: none; }
 `;
 const AllDayChip = styled.div<{ $bg: string; $fg: string; $border: string }>`
-  padding: 3px 8px; border-radius: 4px; font-size: 11.5px; font-weight: 500;
+  padding: 3px 8px; border-radius: 4px; font-size: 0.71875rem; font-weight: 500;
   background: ${({ $bg }) => $bg}; color: ${({ $fg }) => $fg};
   border-left: 3px solid ${({ $border }) => $border};
   cursor: pointer; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
@@ -268,7 +268,7 @@ const TimeSlot = styled.div`
 `;
 const TimeLabel = styled.div`
   position: absolute; top: -7px; right: 6px;
-  font-size: 10.5px; font-weight: 500; color: #94A3B8;
+  font-size: 0.65625rem; font-weight: 500; color: #94A3B8;
   font-variant-numeric: tabular-nums;
 `;
 const DayColumns = styled.div<{ $cols: number }>`
@@ -300,18 +300,18 @@ const TimeEvent = styled.div<{ $bg: string; $fg: string; $border: string }>`
   padding: 4px 7px; border-radius: 6px;
   background: ${({ $bg }) => $bg}; color: ${({ $fg }) => $fg};
   border-left: 3px solid ${({ $border }) => $border};
-  font-size: 11.5px; line-height: 1.35;
+  font-size: 0.71875rem; line-height: 1.35;
   cursor: pointer; overflow: hidden;
   transition: filter 0.1s ease;
   &:hover { filter: brightness(0.97); }
 `;
 const EventHeader = styled.div` display: flex; align-items: center; `;
 const EventTitle = styled.div`
-  font-weight: 600; font-size: 12px; overflow: hidden;
+  font-weight: 600; font-size: 0.75rem; overflow: hidden;
   white-space: nowrap; text-overflow: ellipsis;
 `;
 const EventMeta = styled.div`
-  opacity: 0.85; font-size: 11px; overflow: hidden;
+  opacity: 0.85; font-size: 0.6875rem; overflow: hidden;
   white-space: nowrap; text-overflow: ellipsis;
 `;
 // N+63 P2a 후속 — child exception (변경된 정기 회차) 시각 마커
@@ -319,5 +319,5 @@ const ExceptionMark = styled.span`
   display: inline-flex; align-items: center; justify-content: center;
   margin-left: 4px; padding: 0 4px; min-width: 14px; height: 14px;
   background: #FEF3C7; color: #92400E;
-  border-radius: 4px; font-size: 10px; font-weight: 700; line-height: 1;
+  border-radius: 4px; font-size: 0.625rem; font-weight: 700; line-height: 1;
 `;

@@ -160,9 +160,9 @@ const Card = styled.div`
   box-shadow: 0 8px 32px rgba(15,23,42,0.08);
   display: flex; flex-direction: column; gap: 16px;
 `;
-const Title = styled.h2`margin: 0; font-size: 18px; font-weight: 700; color: #0F172A;`;
-const Desc = styled.p`margin: 0; font-size: 13px; color: #475569; line-height: 1.6;`;
-const Hint = styled.p`margin: 0; font-size: 12px; color: #64748B; line-height: 1.6; padding: 10px 12px; background: #F8FAFC; border-radius: 8px;`;
+const Title = styled.h2`margin: 0; font-size: 1.125rem; font-weight: 700; color: #0F172A;`;
+const Desc = styled.p`margin: 0; font-size: 0.8125rem; color: #475569; line-height: 1.6;`;
+const Hint = styled.p`margin: 0; font-size: 0.75rem; color: #64748B; line-height: 1.6; padding: 10px 12px; background: #F8FAFC; border-radius: 8px;`;
 const ComparisonRow = styled.div`
   display: flex; align-items: center; gap: 12px; margin: 8px 0;
   @media (max-width: 640px) { flex-direction: column; }
@@ -172,33 +172,33 @@ const AccountCard = styled.div`
   display: flex; flex-direction: column; align-items: center; gap: 6px;
 `;
 const AccountBadge = styled.div<{ $google?: boolean }>`
-  font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 10px;
+  font-size: 0.625rem; font-weight: 700; padding: 3px 8px; border-radius: 10px;
   background: ${p => p.$google ? '#FEF3C7' : '#CCFBF1'};
   color: ${p => p.$google ? '#92400E' : '#0F766E'};
   text-transform: uppercase; letter-spacing: 0.4px;
 `;
 const Avatar = styled.img`width: 40px; height: 40px; border-radius: 50%; object-fit: cover;`;
-const AccountName = styled.div`font-size: 13px; font-weight: 700; color: #0F172A;`;
-const AccountEmail = styled.div`font-size: 11px; color: #64748B;`;
-const ConnectArrow = styled.div`font-size: 18px; color: #14B8A6;`;
+const AccountName = styled.div`font-size: 0.8125rem; font-weight: 700; color: #0F172A;`;
+const AccountEmail = styled.div`font-size: 0.6875rem; color: #64748B;`;
+const ConnectArrow = styled.div`font-size: 1.125rem; color: #14B8A6;`;
 const Spinner = styled.div`
   width: 32px; height: 32px; margin: 0 auto;
   border: 3px solid #E2E8F0; border-top-color: #14B8A6;
   border-radius: 50%; animation: spin 0.8s linear infinite;
   @keyframes spin { to { transform: rotate(360deg); } }
 `;
-const ErrorMsg = styled.div`color: #B91C1C; font-size: 13px; padding: 10px; background: #FEF2F2; border-radius: 6px;`;
+const ErrorMsg = styled.div`color: #B91C1C; font-size: 0.8125rem; padding: 10px; background: #FEF2F2; border-radius: 6px;`;
 const Actions = styled.div`display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px;`;
 const PrimaryBtn = styled.button`
   padding: 10px 18px; background: #14B8A6; color: #FFFFFF;
-  border: none; border-radius: 8px; font-size: 13px; font-weight: 600;
+  border: none; border-radius: 8px; font-size: 0.8125rem; font-weight: 600;
   cursor: pointer;
   &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { opacity: 0.55; cursor: not-allowed; }
 `;
 const SecondaryBtn = styled.button`
   padding: 10px 16px; background: transparent; color: #475569;
-  border: 1px solid #CBD5E1; border-radius: 8px; font-size: 13px; font-weight: 600;
+  border: 1px solid #CBD5E1; border-radius: 8px; font-size: 0.8125rem; font-weight: 600;
   cursor: pointer;
   &:hover:not(:disabled) { background: #F8FAFC; }
   &:disabled { opacity: 0.55; cursor: not-allowed; }

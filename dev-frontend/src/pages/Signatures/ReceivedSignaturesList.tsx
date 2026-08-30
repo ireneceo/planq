@@ -282,7 +282,7 @@ const Toolbar = styled.div`display: flex; flex-direction: column; gap: 10px;`;
 const SearchInput = styled.input`
   width: 100%; max-width: 480px; padding: 9px 12px;
   border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 13px; outline: none;
+  font-size: 0.8125rem; outline: none;
   &:focus { border-color: #14B8A6; }
 `;
 const FilterRow = styled.div`display: flex; gap: 6px; flex-wrap: wrap;`;
@@ -290,7 +290,7 @@ const FilterChip = styled.button<{ $active: boolean }>`
   padding: 6px 14px; background: ${p => p.$active ? '#14B8A6' : '#FFFFFF'};
   color: ${p => p.$active ? '#FFFFFF' : '#475569'};
   border: 1px solid ${p => p.$active ? '#0D9488' : '#E2E8F0'};
-  border-radius: 999px; font-size: 12px; font-weight: 600; cursor: pointer;
+  border-radius: 999px; font-size: 0.75rem; font-weight: 600; cursor: pointer;
   &:hover { border-color: #94A3B8; }
 `;
 const WsRow = styled.div`display: flex; gap: 6px; flex-wrap: wrap;`;
@@ -298,7 +298,7 @@ const WsBtn = styled.button<{ $active: boolean }>`
   padding: 4px 10px; background: ${p => p.$active ? '#F0FDFA' : '#FFFFFF'};
   color: ${p => p.$active ? '#0F766E' : '#64748B'};
   border: 1px solid ${p => p.$active ? '#5EEAD4' : '#E2E8F0'};
-  border-radius: 999px; font-size: 11px; font-weight: 600; cursor: pointer;
+  border-radius: 999px; font-size: 0.6875rem; font-weight: 600; cursor: pointer;
 `;
 
 const List = styled.div`
@@ -313,8 +313,8 @@ const Card = styled.div`
 `;
 const CardLeft = styled.div`display: flex; align-items: center; flex-shrink: 0;`;
 const CardBody = styled.div`flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px;`;
-const CardTitle = styled.div`font-size: 14px; font-weight: 600; color: #0F172A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
-const CardMeta = styled.div`display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 11px; color: #64748B;`;
+const CardTitle = styled.div`font-size: 0.875rem; font-weight: 600; color: #0F172A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
+const CardMeta = styled.div`display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 0.6875rem; color: #64748B;`;
 const CardRight = styled.div`display: flex; align-items: center; gap: 6px; flex-shrink: 0;`;
 
 const StatusDot = styled.span<{ $status: string }>`
@@ -326,7 +326,7 @@ const StatusDot = styled.span<{ $status: string }>`
     '#F59E0B'};
 `;
 const StatusPill = styled.span<{ $status: string }>`
-  padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 600;
+  padding: 2px 8px; border-radius: 999px; font-size: 0.625rem; font-weight: 600;
   background: ${p =>
     p.$status === 'signed' ? '#DCFCE7' :
     p.$status === 'rejected' ? '#FEE2E2' :
@@ -340,18 +340,18 @@ const StatusPill = styled.span<{ $status: string }>`
 `;
 const WsChip = styled.span`
   padding: 2px 8px; background: #FEF3C7; color: #92400E;
-  border-radius: 999px; font-size: 10px; font-weight: 600;
+  border-radius: 999px; font-size: 0.625rem; font-weight: 600;
 `;
-const DueText = styled.span`color: #64748B; font-size: 11px;`;
+const DueText = styled.span`color: #64748B; font-size: 0.6875rem;`;
 
 const PrimaryBtn = styled.button`
   padding: 8px 14px; background: #0D9488; color: #FFFFFF;
-  border: none; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
+  border: none; border-radius: 8px; font-size: 0.75rem; font-weight: 600; cursor: pointer;
   &:hover { background: #0F766E; }
 `;
 const SecondaryBtn = styled.button`
   padding: 8px 14px; background: #FFFFFF; color: #334155;
-  border: 1px solid #CBD5E1; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
+  border: 1px solid #CBD5E1; border-radius: 8px; font-size: 0.75rem; font-weight: 600; cursor: pointer;
   &:hover { background: #F8FAFC; }
 `;
 
@@ -360,17 +360,17 @@ const EmptyState = styled.div`
   display: flex; flex-direction: column; align-items: center; gap: 12px;
 `;
 const EmptyIcon = styled.svg`width: 48px; height: 48px; color: #CBD5E1;`;
-const EmptyTitle = styled.div`font-size: 14px; font-weight: 600; color: #475569;`;
+const EmptyTitle = styled.div`font-size: 0.875rem; font-weight: 600; color: #475569;`;
 const Loading = styled.div`padding: 40px; text-align: center; color: #94A3B8;`;
 
 const Pagination = styled.div`display: flex; justify-content: center; align-items: center; gap: 12px; padding: 16px;`;
 const PageBtn = styled.button`
   padding: 8px 14px; background: #FFFFFF; color: #334155;
-  border: 1px solid #CBD5E1; border-radius: 8px; font-size: 13px; cursor: pointer;
+  border: 1px solid #CBD5E1; border-radius: 8px; font-size: 0.8125rem; cursor: pointer;
   &:disabled { opacity: 0.4; cursor: not-allowed; }
   &:hover:not(:disabled) { background: #F8FAFC; }
 `;
-const PageInfo = styled.span`font-size: 12px; color: #64748B; font-variant-numeric: tabular-nums;`;
+const PageInfo = styled.span`font-size: 0.75rem; color: #64748B; font-variant-numeric: tabular-nums;`;
 
 // 상세 드로어
 const Backdrop = styled.div`
@@ -387,13 +387,13 @@ const DialogHeader = styled.div`
   display: flex; justify-content: space-between; align-items: center;
   padding: 16px 20px; border-bottom: 1px solid #E2E8F0;
 `;
-const DialogTitle = styled.h2`margin: 0; font-size: 16px; font-weight: 700; color: #0F172A;`;
+const DialogTitle = styled.h2`margin: 0; font-size: 1rem; font-weight: 700; color: #0F172A;`;
 const CloseBtn = styled.button`
   /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */
   @media (max-width: 640px) { min-width: 44px; min-height: 44px; }
 
   background: transparent; border: none; cursor: pointer; color: #64748B;
-  font-size: 20px; padding: 4px 8px; border-radius: 6px;
+  font-size: 1.25rem; padding: 4px 8px; border-radius: 6px;
   &:hover { background: #F1F5F9; color: #0F172A; }
 `;
 const DialogBody = styled.div`padding: 20px; display: flex; flex-direction: column; gap: 14px;`;
@@ -402,6 +402,6 @@ const DialogFooter = styled.div`
   padding: 14px 20px; border-top: 1px solid #F1F5F9;
 `;
 const Field = styled.div`display: flex; flex-direction: column; gap: 4px;`;
-const FieldLabel = styled.div`font-size: 11px; font-weight: 600; color: #64748B; text-transform: uppercase; letter-spacing: 0.3px;`;
-const FieldValue = styled.div`font-size: 13px; color: #0F172A;`;
+const FieldLabel = styled.div`font-size: 0.6875rem; font-weight: 600; color: #64748B; text-transform: uppercase; letter-spacing: 0.3px;`;
+const FieldValue = styled.div`font-size: 0.8125rem; color: #0F172A;`;
 const SigImg = styled.img`max-width: 240px; max-height: 120px; border: 1px solid #E2E8F0; border-radius: 6px; background: #FFFFFF;`;

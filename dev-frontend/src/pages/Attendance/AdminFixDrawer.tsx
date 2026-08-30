@@ -127,19 +127,19 @@ const LedgerBox = styled.div`
 `;
 
 const LedgerRow = styled.div<{ $dead?: boolean }>`
-  display: flex; align-items: center; gap: 8px; font-size: 12px;
+  display: flex; align-items: center; gap: 8px; font-size: 0.75rem;
   color: ${p => (p.$dead ? '#94A3B8' : '#334155')};
   text-decoration: ${p => (p.$dead ? 'line-through' : 'none')};
   b { min-width: 56px; }
 `;
 
 const SourceTag = styled.span`
-  padding: 1px 6px; border-radius: 999px; background: #E2E8F0; color: #64748B; font-size: 10px; font-weight: 700;
+  padding: 1px 6px; border-radius: 999px; background: #E2E8F0; color: #64748B; font-size: 0.625rem; font-weight: 700;
 `;
 
 const KindRow = styled.div` display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; `;
 
 const NewRow = styled.div`
   display: grid; grid-template-columns: 70px 1fr auto; gap: 8px; align-items: center; margin-bottom: 6px;
-  span { font-size: 12px; font-weight: 600; color: #475569; }
+  span { font-size: 0.75rem; font-weight: 600; color: #475569; }
 `;

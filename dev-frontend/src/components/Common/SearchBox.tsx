@@ -68,7 +68,7 @@ const Wrap = styled.label<{ $size: 'sm' | 'md'; $w?: number | string; $disabled:
 const IconSlot = styled.span`display:inline-flex;align-items:center;color:#94A3B8;flex-shrink:0;`;
 const Input = styled.input`
   flex:1;min-width:0;border:none;outline:none;background:transparent;
-  font-size:13px;color:#0F172A;
+  font-size:0.8125rem;color:#0F172A;
   &::placeholder{color:#94A3B8;}
   &:disabled{cursor:not-allowed;}
 `;
@@ -80,7 +80,7 @@ const ClearBtn = styled.button`
 `;
 const HintPill = styled.span`
   padding:2px 6px;background:#fff;border:1px solid #E2E8F0;border-radius:4px;
-  font-size:10px;font-weight:600;color:#94A3B8;letter-spacing:.2px;flex-shrink:0;
+  font-size:0.625rem;font-weight:600;color:#94A3B8;letter-spacing:.2px;flex-shrink:0;
   /* 키보드 단축키 힌트 — 터치/모바일에선 무의미하므로 숨김 */
   @media (hover: none), (max-width: 640px) { display: none; }
 `;

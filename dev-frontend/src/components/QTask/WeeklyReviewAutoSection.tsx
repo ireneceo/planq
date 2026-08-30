@@ -80,7 +80,7 @@ const SectionHeader = styled.div`
 
 const SectionTitle = styled.h3`
   margin: 0;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
   color: #1e293b;
 `;
@@ -91,7 +91,7 @@ const SectionBody = styled.div`
 
 const Description = styled.p`
   margin: 0 0 12px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #64748b;
 `;
 
@@ -102,7 +102,7 @@ const ToggleRow = styled.div`
 `;
 
 const ToggleLabel = styled.span`
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #475569;
   min-width: 40px;
 `;

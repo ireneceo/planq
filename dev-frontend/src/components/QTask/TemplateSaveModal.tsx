@@ -148,7 +148,7 @@ const Header = styled.div`
   padding: 18px 22px 14px; border-bottom: 1px solid #F1F5F9;
   flex-shrink: 0;
 `;
-const Title = styled.h2`font-size: 16px; font-weight: 700; color: #0F172A; margin: 0;`;
+const Title = styled.h2`font-size: 1rem; font-weight: 700; color: #0F172A; margin: 0;`;
 const CloseBtn = styled.button`
   /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */
   @media (max-width: 640px) { min-width: 44px; min-height: 44px; }
@@ -171,21 +171,21 @@ const Footer = styled.div`
   border-top: 1px solid #F1F5F9; background: #fff;
 `;
 const FieldRow = styled.div`display: flex; flex-direction: column; gap: 6px;`;
-const FieldLabel = styled.label`font-size: 12px; font-weight: 600; color: #0F172A;`;
+const FieldLabel = styled.label`font-size: 0.75rem; font-weight: 600; color: #0F172A;`;
 const FieldInput = styled.input`
-  width: 100%; padding: 8px 10px; font-size: 13px; color: #0F172A;
+  width: 100%; padding: 8px 10px; font-size: 0.8125rem; color: #0F172A;
   border: 1px solid #E2E8F0; border-radius: 8px; background: #FFF;
   &:focus { outline: none; border-color: #14B8A6; }
   &::placeholder { color: #CBD5E1; }
 `;
 const FieldTextarea = styled.textarea`
-  width: 100%; padding: 8px 10px; font-size: 13px; color: #0F172A; line-height: 1.5;
+  width: 100%; padding: 8px 10px; font-size: 0.8125rem; color: #0F172A; line-height: 1.5;
   border: 1px solid #E2E8F0; border-radius: 8px; background: #FFF; font-family: inherit; resize: vertical;
   &:focus { outline: none; border-color: #14B8A6; }
   &::placeholder { color: #CBD5E1; }
 `;
 const Hint = styled.div`
   padding: 10px 12px; background: #F8FAFC; color: #475569;
-  border-radius: 6px; font-size: 12px; line-height: 1.5;
+  border-radius: 6px; font-size: 0.75rem; line-height: 1.5;
 `;
-const ErrorMsg = styled.div`font-size: 12px; color: #DC2626; background: #FEF2F2; padding: 8px 10px; border-radius: 6px;`;
+const ErrorMsg = styled.div`font-size: 0.75rem; color: #DC2626; background: #FEF2F2; padding: 8px 10px; border-radius: 6px;`;

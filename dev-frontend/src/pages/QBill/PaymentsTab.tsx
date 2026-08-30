@@ -150,19 +150,19 @@ const TabBar = styled.div`display: flex; gap: 4px; border-bottom: 1px solid #E2E
 const TabBtn = styled.button<{ $active: boolean }>`
   display: inline-flex; align-items: center; gap: 6px;
   padding: 9px 14px; margin-bottom: -1px;
-  font-size: 13px; font-weight: 600;
+  font-size: 0.8125rem; font-weight: 600;
   background: transparent; border: none; cursor: pointer;
   color: ${p => p.$active ? '#0F766E' : '#64748B'};
   border-bottom: 2px solid ${p => p.$active ? '#0D9488' : 'transparent'};
   &:hover { color: #0F172A; }
 `;
 const TabCount = styled.span<{ $active: boolean }>`
-  font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 999px;
+  font-size: 0.6875rem; font-weight: 700; padding: 1px 6px; border-radius: 999px;
   background: ${p => p.$active ? '#CCFBF1' : '#F1F5F9'};
   color: ${p => p.$active ? '#0F766E' : '#64748B'};
 `;
 const Empty = styled.div`
-  text-align: center; padding: 60px 20px; color: #94A3B8; font-size: 13px;
+  text-align: center; padding: 60px 20px; color: #94A3B8; font-size: 0.8125rem;
   background: #fff; border: 1px dashed #E2E8F0; border-radius: 12px;
 `;
 const List = styled.div`
@@ -173,7 +173,7 @@ const List = styled.div`
 `;
 const ListHead = styled.div`
   display: flex; gap: 12px; padding: 10px 16px; background: #F8FAFC; border-bottom: 1px solid #E2E8F0;
-  font-size: 11px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px;
+  font-size: 0.6875rem; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px;
   min-width: 720px;
 `;
 const Row = styled.div`
@@ -184,27 +184,27 @@ const Row = styled.div`
 `;
 const Cell = styled.div`flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;`;
 const RowNum = styled.div`
-  font-size: 12px; font-weight: 700; color: #0F172A; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem; font-weight: 700; color: #0F172A; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 `;
 const RoundChip = styled.span`
   display: inline-block; align-self: flex-start;
-  font-size: 11px; font-weight: 600; color: #0F766E;
+  font-size: 0.6875rem; font-weight: 600; color: #0F766E;
   background: #F0FDFA; border: 1px solid #99F6E4;
   padding: 2px 8px; border-radius: 999px;
 `;
 const SingleChip = styled.span`
   display: inline-block; align-self: flex-start;
-  font-size: 11px; font-weight: 600; color: #475569;
+  font-size: 0.6875rem; font-weight: 600; color: #475569;
   background: #F1F5F9; padding: 2px 8px; border-radius: 999px;
 `;
-const ClientName = styled.div`font-size: 13px; font-weight: 600; color: #0F172A;`;
-const ClientTitle = styled.div`font-size: 11px; color: #64748B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
-const DueDate = styled.div`font-size: 12px; color: #475569; font-variant-numeric: tabular-nums;`;
-const Overdue = styled.span`font-size: 10px; font-weight: 700; color: #991B1B; align-self: flex-start;`;
-const Amt = styled.div`font-size: 13px; font-weight: 700; color: #0F172A; font-variant-numeric: tabular-nums;`;
+const ClientName = styled.div`font-size: 0.8125rem; font-weight: 600; color: #0F172A;`;
+const ClientTitle = styled.div`font-size: 0.6875rem; color: #64748B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
+const DueDate = styled.div`font-size: 0.75rem; color: #475569; font-variant-numeric: tabular-nums;`;
+const Overdue = styled.span`font-size: 0.625rem; font-weight: 700; color: #991B1B; align-self: flex-start;`;
+const Amt = styled.div`font-size: 0.8125rem; font-weight: 700; color: #0F172A; font-variant-numeric: tabular-nums;`;
 const StatusBadge = styled.span<{ $bg: string; $fg: string }>`
   display: inline-flex; align-items: center; gap: 5px; align-self: flex-start;
-  padding: 3px 8px 3px 7px; font-size: 11px; font-weight: 700;
+  padding: 3px 8px 3px 7px; font-size: 0.6875rem; font-weight: 700;
   background: ${p => p.$bg}; color: ${p => p.$fg}; border-radius: 999px;
 `;
 const Dot = styled.span<{ $color: string }>`width: 6px; height: 6px; border-radius: 50%; background: ${p => p.$color};`;

@@ -150,18 +150,18 @@ const AdminNotificationsPage: React.FC = () => {
 export default AdminNotificationsPage;
 
 // ─── styled (NotificationSettings 패턴 카피) ───
-const Loading = styled.div`padding: 40px; text-align: center; color: #64748B; font-size: 14px;`;
-const Hint = styled.div`font-size: 13px; color: #475569; line-height: 1.6; margin-bottom: 20px;`;
-const ErrorBanner = styled.div`padding: 10px 14px; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; color: #B91C1C; font-size: 13px; margin-bottom: 16px;`;
+const Loading = styled.div`padding: 40px; text-align: center; color: #64748B; font-size: 0.875rem;`;
+const Hint = styled.div`font-size: 0.8125rem; color: #475569; line-height: 1.6; margin-bottom: 20px;`;
+const ErrorBanner = styled.div`padding: 10px 14px; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; color: #B91C1C; font-size: 0.8125rem; margin-bottom: 16px;`;
 const Matrix = styled.div`background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; overflow: hidden;`;
 const MatrixHead = styled.div`display: grid; grid-template-columns: 2fr repeat(3, 1fr); background: #F8FAFC; border-bottom: 1px solid #E2E8F0;`;
 const HeadCell = styled.div`padding: 14px 16px; display: flex; flex-direction: column; align-items: center; gap: 4px;`;
 const ChannelIcon = styled.div`color: #475569;`;
-const ChannelName = styled.div`font-size: 11px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px;`;
+const ChannelName = styled.div`font-size: 0.6875rem; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px;`;
 const MatrixRow = styled.div`display: grid; grid-template-columns: 2fr repeat(3, 1fr); border-top: 1px solid #F1F5F9; align-items: center; &:first-child { border-top: none; }`;
 const EventCell = styled.div`padding: 14px 16px;`;
-const EventLabel = styled.div`font-size: 14px; font-weight: 600; color: #0F172A;`;
-const EventDesc = styled.div`font-size: 12px; color: #64748B; margin-top: 4px;`;
+const EventLabel = styled.div`font-size: 0.875rem; font-weight: 600; color: #0F172A;`;
+const EventDesc = styled.div`font-size: 0.75rem; color: #64748B; margin-top: 4px;`;
 const ToggleCell = styled.div`padding: 14px 16px; display: flex; justify-content: center;`;
 const Switch = styled.button<{ $on: boolean; $saving: boolean }>`
   width: 40px; height: 22px; border-radius: 11px;

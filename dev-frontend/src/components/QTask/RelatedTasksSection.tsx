@@ -201,33 +201,33 @@ export default RelatedTasksSection;
 
 // ─── Styled ───
 const Wrap = styled.div`margin-top:16px;`;
-const Title = styled.h4`display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:13px;font-weight:600;color:#475569;`;
-const Count = styled.span`display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:18px;padding:0 6px;border-radius:8px;background:#F1F5F9;color:#475569;font-size:11px;font-weight:700;`;
-const Empty = styled.div`padding:8px 0;font-size:12px;color:#94A3B8;`;
+const Title = styled.h4`display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:0.8125rem;font-weight:600;color:#475569;`;
+const Count = styled.span`display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:18px;padding:0 6px;border-radius:8px;background:#F1F5F9;color:#475569;font-size:0.6875rem;font-weight:700;`;
+const Empty = styled.div`padding:8px 0;font-size:0.75rem;color:#94A3B8;`;
 const ChipList = styled.div`display:flex;flex-wrap:wrap;gap:6px;`;
 const Chip = styled.button<{$closed?: boolean}>`
   display:inline-flex;align-items:center;gap:6px;padding:6px 6px 6px 10px;
   background:${p => p.$closed ? '#F8FAFC' : '#F0FDFA'};
   color:${p => p.$closed ? '#94A3B8' : '#0F766E'};
   border:1px solid ${p => p.$closed ? '#E2E8F0' : '#CCFBF1'};
-  border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;
+  border-radius:8px;font-size:0.75rem;font-weight:500;cursor:pointer;font-family:inherit;
   max-width:280px;transition:background 0.15s, border-color 0.15s;
   &:hover{background:${p => p.$closed ? '#F1F5F9' : '#CCFBF1'};border-color:${p => p.$closed ? '#CBD5E1' : '#5EEAD4'};}
 `;
 const ChipIcon = styled.svg`width:12px;height:12px;flex-shrink:0;`;
 const ChipText = styled.span`display:inline-flex;align-items:center;gap:6px;min-width:0;`;
 const ChipTitle = styled.span`overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px;`;
-const ChipMeta = styled.span`color:#94A3B8;font-size:11px;font-weight:400;flex-shrink:0;`;
+const ChipMeta = styled.span`color:#94A3B8;font-size:0.6875rem;font-weight:400;flex-shrink:0;`;
 const ChipRemove = styled.span`
   display:inline-flex;align-items:center;justify-content:center;
-  width:18px;height:18px;border-radius:4px;color:#94A3B8;font-size:14px;line-height:1;cursor:pointer;
+  width:18px;height:18px;border-radius:4px;color:#94A3B8;font-size:0.875rem;line-height:1;cursor:pointer;
   &:hover{background:#FEE2E2;color:#DC2626;}
 `;
 const AddBtn = styled.button`
   display:inline-flex;align-items:center;gap:4px;margin-top:8px;
   padding:6px 12px;background:transparent;color:#0F766E;
   border:1px dashed #CBD5E1;border-radius:8px;
-  font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;
+  font-size:0.75rem;font-weight:500;cursor:pointer;font-family:inherit;
   transition:background 0.15s, border-color 0.15s;
   &:hover{background:#F0FDFA;border-color:#14B8A6;border-style:solid;}
 `;
@@ -237,15 +237,15 @@ const Picker = styled.div`
 `;
 const PickerInput = styled.input`
   width:calc(100% - 70px);padding:6px 10px;height:32px;border:1px solid #CBD5E1;
-  border-radius:6px;font-size:13px;color:#0F172A;background:#FFFFFF;font-family:inherit;
+  border-radius:6px;font-size:0.8125rem;color:#0F172A;background:#FFFFFF;font-family:inherit;
   &:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}
 `;
 const PickerCancel = styled.button`
   margin-left:6px;padding:6px 10px;height:32px;border:1px solid #E2E8F0;background:#FFFFFF;
-  border-radius:6px;font-size:12px;font-weight:500;color:#64748B;cursor:pointer;font-family:inherit;
+  border-radius:6px;font-size:0.75rem;font-weight:500;color:#64748B;cursor:pointer;font-family:inherit;
   &:hover{background:#F1F5F9;}
 `;
-const ErrLine = styled.div`margin-top:6px;font-size:12px;color:#DC2626;`;
+const ErrLine = styled.div`margin-top:6px;font-size:0.75rem;color:#DC2626;`;
 const ResultsList = styled.div`margin-top:8px;display:flex;flex-direction:column;gap:2px;max-height:240px;overflow-y:auto;`;
 const ResultItem = styled.button<{$closed?: boolean}>`
   display:flex;align-items:center;gap:8px;padding:8px 10px;
@@ -255,5 +255,5 @@ const ResultItem = styled.button<{$closed?: boolean}>`
   &:hover:not(:disabled){background:#F0FDFA;border-color:#14B8A6;}
   &:disabled{cursor:not-allowed;opacity:0.5;}
 `;
-const ResultTitle = styled.span`flex:1;font-size:13px;color:#0F172A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
-const ResultMeta = styled.span`font-size:11px;color:#94A3B8;flex-shrink:0;`;
+const ResultTitle = styled.span`flex:1;font-size:0.8125rem;color:#0F172A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
+const ResultMeta = styled.span`font-size:0.6875rem;color:#94A3B8;flex-shrink:0;`;

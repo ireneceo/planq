@@ -166,24 +166,24 @@ export default function MailAuthDiagSection({ businessId }: Props) {
 
 const Wrap = styled.div`display:flex;flex-direction:column;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid #F1F5F9;`;
 const Head = styled.div`display:flex;align-items:center;justify-content:space-between;`;
-const Title = styled.div`font-size:13px;font-weight:700;color:#0F172A;`;
-const Desc = styled.p`margin:0;font-size:12px;color:#94A3B8;line-height:1.6;`;
+const Title = styled.div`font-size:0.8125rem;font-weight:700;color:#0F172A;`;
+const Desc = styled.p`margin:0;font-size:0.75rem;color:#94A3B8;line-height:1.6;`;
 const Row = styled.div`display:flex;align-items:center;gap:6px;flex-wrap:wrap;`;
 const SelectWrap = styled.div`flex:0 1 220px;min-width:160px;`;
 const Input = styled.input`
   /* 넓은 화면에서 한 줄 입력이 1,150px 까지 늘어나던 것 — 다른 설정 입력과 같은 상한. */
   flex:1;min-width:180px;max-width:420px;height:32px;padding:0 10px;
-  border:1px solid #E2E8F0;border-radius:8px;font-size:12px;color:#334155;
+  border:1px solid #E2E8F0;border-radius:8px;font-size:0.75rem;color:#334155;
   &:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,.15);}
 `;
 const WildNote = styled.p`
   margin:0;padding:8px 10px;border-radius:8px;background:#FFFBEB;border:1px solid #FDE68A;
-  font-size:11px;color:#92400E;line-height:1.6;
+  font-size:0.6875rem;color:#92400E;line-height:1.6;
 `;
 const List = styled.div`display:flex;flex-direction:column;gap:6px;`;
 const Item = styled.div`padding:10px;border:1px solid #E2E8F0;border-radius:8px;background:#fff;display:flex;flex-direction:column;gap:6px;`;
 const ItemHead = styled.div`display:flex;align-items:center;gap:8px;flex-wrap:wrap;`;
-const Name = styled.span`font-size:12px;font-weight:700;color:#0F172A;min-width:48px;`;
+const Name = styled.span`font-size:0.75rem;font-weight:700;color:#0F172A;min-width:48px;`;
 const TONE: Record<string, { bg: string; fg: string; bd: string }> = {
   ok: { bg: '#F0FDFA', fg: '#0F766E', bd: '#CCFBF1' },
   missing: { bg: '#FEF2F2', fg: '#DC2626', bd: '#FECACA' },
@@ -192,19 +192,19 @@ const TONE: Record<string, { bg: string; fg: string; bd: string }> = {
   unknown: { bg: '#F1F5F9', fg: '#475569', bd: '#CBD5E1' },
 };
 const Badge = styled.span<{ $s: string }>`
-  padding:1px 8px;border-radius:999px;font-size:10px;font-weight:700;
+  padding:1px 8px;border-radius:999px;font-size:0.625rem;font-weight:700;
   background:${(p) => (TONE[p.$s] || TONE.unknown).bg};
   color:${(p) => (TONE[p.$s] || TONE.unknown).fg};
   border:1px solid ${(p) => (TONE[p.$s] || TONE.unknown).bd};
 `;
-const Sel = styled.span`font-size:11px;color:#94A3B8;`;
+const Sel = styled.span`font-size:0.6875rem;color:#94A3B8;`;
 const Record = styled.code`
   display:block;padding:6px 8px;border-radius:6px;background:#F8FAFC;border:1px solid #E2E8F0;
-  font-size:11px;color:#334155;word-break:break-all;line-height:1.5;
+  font-size:0.6875rem;color:#334155;word-break:break-all;line-height:1.5;
 `;
-const Tip = styled.p`margin:0;font-size:11px;color:#64748B;line-height:1.6;`;
-const ErrText = styled.div`font-size:11px;font-weight:600;color:#B45309;`;
+const Tip = styled.p`margin:0;font-size:0.6875rem;color:#64748B;line-height:1.6;`;
+const ErrText = styled.div`font-size:0.6875rem;font-weight:600;color:#B45309;`;
 const Note = styled.p`
   margin:2px 0 0;padding:8px 10px;border-radius:8px;background:#F8FAFC;border:1px solid #E2E8F0;
-  font-size:11px;color:#64748B;line-height:1.6;
+  font-size:0.6875rem;color:#64748B;line-height:1.6;
 `;

@@ -38,7 +38,7 @@ const Chip = styled.button<{ $level: NonNullable<VLevel> }>`
   color: ${p => p.$level === 'L1' ? '#475569' : p.$level === 'L2' ? '#92400E' : p.$level === 'L4' ? '#9F1239' : '#0F766E'};
   border: 1px solid ${p => p.$level === 'L1' ? '#CBD5E1' : p.$level === 'L2' ? '#FDE68A' : p.$level === 'L4' ? '#FBCFE8' : '#5EEAD4'};
   border-radius: 999px;
-  font-size: 12px; font-weight: 600;
+  font-size: 0.75rem; font-weight: 600;
   cursor: pointer;
   transition: filter 0.12s;
   &:hover:not(:disabled) { filter: brightness(0.97); }

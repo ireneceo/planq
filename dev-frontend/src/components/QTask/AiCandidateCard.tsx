@@ -186,8 +186,8 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
 
 const RecurWrap = styled.div`min-width: 104px;`;
 const DoneCheck = styled.input`width: 15px; height: 15px; flex-shrink: 0; cursor: pointer; accent-color: #0F766E; margin: 0;`;
-const DoneLbl = styled.span`font-size: 12px; color: #475569; cursor: pointer;`;
-const DoneHint = styled.div`font-size: 11px; color: #64748B; padding: 0 2px;`;
+const DoneLbl = styled.span`font-size: 0.75rem; color: #475569; cursor: pointer;`;
+const DoneHint = styled.div`font-size: 0.6875rem; color: #64748B; padding: 0 2px;`;
 const Card = styled.div<{ $disabled: boolean }>`
   padding: 10px 12px;
   background: ${p => p.$disabled ? '#F8FAFC' : '#FFFFFF'};
@@ -203,13 +203,13 @@ const TitleInput = styled.input<{ $vague: boolean }>`
   padding: 4px 6px;
   border: 1px solid transparent;
   border-radius: 4px;
-  font-size: 14px; font-weight: 600; color: #0F172A;
+  font-size: 0.875rem; font-weight: 600; color: #0F172A;
   background: transparent;
   ${p => p.$vague && 'background: #FEF3C7; border-color: #FCD34D;'}
   &:focus { outline: none; border-color: #14B8A6; background: #FFFFFF; }
 `;
-const VagueBadge = styled.span`flex-shrink: 0; font-size: 14px; color: #B45309; cursor: help;`;
-const UnmatchedWarn = styled.div`font-size: 12px; color: #B45309; background: #FFFBEB; border-radius: 6px; padding: 6px 10px; margin: 6px 0 0; line-height: 1.4;`;
+const VagueBadge = styled.span`flex-shrink: 0; font-size: 0.875rem; color: #B45309; cursor: help;`;
+const UnmatchedWarn = styled.div`font-size: 0.75rem; color: #B45309; background: #FFFBEB; border-radius: 6px; padding: 6px 10px; margin: 6px 0 0; line-height: 1.4;`;
 const AssigneeInline = styled.div`
   flex-shrink: 0; min-width: 110px; max-width: 150px;
   margin-left: auto;
@@ -217,16 +217,16 @@ const AssigneeInline = styled.div`
 const CardMetaRow = styled.div`
   display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
   padding-left: 24px;
-  font-size: 12px; color: #475569;
+  font-size: 0.75rem; color: #475569;
 `;
 const MetaItem = styled.div`display: inline-flex; align-items: center; gap: 4px;`;
 const MetaIcon = styled.span`display: inline-flex; align-items: center; color: #94A3B8; flex-shrink: 0;`;
 const DateRange = styled.span`color: #0F172A; font-weight: 600;`;
-const DurEdit = styled.span`display: inline-flex; align-items: center; gap: 2px; color: #94A3B8; font-size: 11px;`;
+const DurEdit = styled.span`display: inline-flex; align-items: center; gap: 2px; color: #94A3B8; font-size: 0.6875rem;`;
 const DurInput = styled.input`
   width: 38px; padding: 1px 3px;
   border: 1px solid #E2E8F0; border-radius: 4px;
-  font-size: 11px; text-align: right;
+  font-size: 0.6875rem; text-align: right;
   &:focus { outline: none; border-color: #14B8A6; }
 `;
-const Unit = styled.span`color: #94A3B8; font-size: 11px;`;
+const Unit = styled.span`color: #94A3B8; font-size: 0.6875rem;`;

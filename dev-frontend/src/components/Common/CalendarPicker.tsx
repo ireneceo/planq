@@ -254,7 +254,7 @@ const Sidebar = styled.div`display:flex;flex-direction:column;gap:2px;padding-ri
 `;
 const SidebarBtn = styled.button<{$danger?:boolean}>`
   padding:7px 10px;text-align:left;background:transparent;border:none;border-radius:6px;
-  font-size:12px;font-weight:500;cursor:pointer;color:${p=>p.$danger?'#DC2626':'#374151'};
+  font-size:0.75rem;font-weight:500;cursor:pointer;color:${p=>p.$danger?'#DC2626':'#374151'};
   &:hover{background:${p=>p.$danger?'#FEF2F2':'#F1F5F9'};}
 `;
 const SingleFooter = styled.div`margin-top:8px;padding-top:8px;border-top:1px solid #F1F5F9;`;
@@ -266,14 +266,14 @@ const CalBody = styled.div`display:flex;gap:24px;
 `;
 const SecondMonth = styled.div``;
 const MonthBox = styled.div`width:220px;`;
-const MonthLabel = styled.div`text-align:center;font-size:13px;font-weight:700;color:#0F172A;margin-bottom:10px;`;
+const MonthLabel = styled.div`text-align:center;font-size:0.8125rem;font-weight:700;color:#0F172A;margin-bottom:10px;`;
 const WeekdayRow = styled.div`display:grid;grid-template-columns:repeat(7,1fr);margin-bottom:2px;`;
-const Weekday = styled.div`text-align:center;font-size:11px;color:#94A3B8;font-weight:600;height:24px;line-height:24px;`;
+const Weekday = styled.div`text-align:center;font-size:0.6875rem;color:#94A3B8;font-weight:600;height:24px;line-height:24px;`;
 const DaysGrid = styled.div`display:grid;grid-template-columns:repeat(7,1fr);`;
 const EmptyCell = styled.div`aspect-ratio:1;min-width:30px;`;
 const DayCell = styled.div<{$isStart:boolean;$isEnd:boolean;$isInRange:boolean;$isHoverEnd:boolean;$isToday:boolean}>`
   aspect-ratio:1;min-width:30px;display:flex;align-items:center;justify-content:center;
-  font-size:12px;cursor:pointer;border-radius:50%;transition:background 0.12s,color 0.12s;position:relative;user-select:none;
+  font-size:0.75rem;cursor:pointer;border-radius:50%;transition:background 0.12s,color 0.12s;position:relative;user-select:none;
   color:${p=>(p.$isStart||p.$isEnd)?'#FFF':p.$isInRange?'#0F766E':'#374151'};
   background:${p=>(p.$isStart||p.$isEnd)?'#14B8A6':p.$isInRange?'#F0FDFA':'transparent'};
   font-weight:${p=>(p.$isStart||p.$isEnd||p.$isToday)?700:500};

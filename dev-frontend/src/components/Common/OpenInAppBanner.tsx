@@ -91,15 +91,15 @@ const Wrap = styled.div`
     border-radius: 12px;
   }
 `;
-const Icon = styled.div`font-size: 22px; line-height: 1;`;
+const Icon = styled.div`font-size: 1.375rem; line-height: 1;`;
 const Body = styled.div`flex: 1; display: flex; flex-direction: column; gap: 2px;`;
-const Title = styled.div`font-size: 13px; font-weight: 700;`;
-const Sub = styled.div`font-size: 11px; color: #CCFBF1;`;
+const Title = styled.div`font-size: 0.8125rem; font-weight: 700;`;
+const Sub = styled.div`font-size: 0.6875rem; color: #CCFBF1;`;
 const OpenBtn = styled.button`
   height: 32px; padding: 0 12px;
   background: #FFFFFF; color: #115E59;
   border: none; border-radius: 8px;
-  font-size: 12px; font-weight: 700;
+  font-size: 0.75rem; font-weight: 700;
   cursor: pointer;
   transition: background 0.15s;
   &:hover { background: #F0FDFA; }
@@ -109,7 +109,7 @@ const DismissBtn = styled.button`
   width: 28px; height: 28px;
   background: transparent; color: #99F6E4;
   border: none; border-radius: 6px;
-  font-size: 20px; line-height: 1;
+  font-size: 1.25rem; line-height: 1;
   cursor: pointer;
   &:hover { background: rgba(255,255,255,0.10); color: #FFFFFF; }
   &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }

@@ -144,8 +144,8 @@ export default function WikiPage() {
 const Overview = styled.div``;
 const OverviewHead = styled.div`
   margin-bottom: 20px;
-  h2 { font-size: 20px; font-weight: 700; color: #0f172a; margin: 0 0 6px; }
-  p { font-size: 14px; color: #64748b; margin: 0; }
+  h2 { font-size: 1.25rem; font-weight: 700; color: #0f172a; margin: 0 0 6px; }
+  p { font-size: 0.875rem; color: #64748b; margin: 0; }
 `;
 const CatGrid = styled.div`
   display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px;
@@ -156,16 +156,16 @@ const CatCard = styled.button`
   cursor: pointer; transition: border-color .15s, box-shadow .15s; display: flex; flex-direction: column; gap: 6px; min-height: 120px;
   &:hover { border-color: #F43F5E; box-shadow: 0 4px 14px rgba(15,23,42,.06); }
 `;
-const CatTitle = styled.div` font-size: 16px; font-weight: 700; color: #0f172a; `;
-const CatSummary = styled.div` font-size: 13px; color: #64748b; line-height: 1.5; flex: 1; `;
-const CatCount = styled.div` font-size: 12px; color: #94a3b8; margin-top: auto; `;
+const CatTitle = styled.div` font-size: 1rem; font-weight: 700; color: #0f172a; `;
+const CatSummary = styled.div` font-size: 0.8125rem; color: #64748b; line-height: 1.5; flex: 1; `;
+const CatCount = styled.div` font-size: 0.75rem; color: #94a3b8; margin-top: auto; `;
 
 const Chips = styled.div` display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; `;
 const Chip = styled.button<{ $active?: boolean }>`
   border: 1px solid ${(p) => (p.$active ? '#F43F5E' : '#e2e8f0')};
   background: ${(p) => (p.$active ? '#FFF1F2' : '#fff')};
   color: ${(p) => (p.$active ? '#F43F5E' : '#475569')};
-  font-size: 13px; font-weight: 600; padding: 7px 14px; border-radius: 999px; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 600; padding: 7px 14px; border-radius: 999px; cursor: pointer;
   &:hover { border-color: #F43F5E; }
 `;
 
@@ -178,18 +178,18 @@ const ArtCard = styled.button`
   cursor: pointer; transition: border-color .15s, box-shadow .15s; display: flex; flex-direction: column; gap: 6px; min-height: 120px;
   &:hover { border-color: #F43F5E; box-shadow: 0 4px 14px rgba(15,23,42,.06); }
 `;
-const ArtCat = styled.div` font-size: 12px; font-weight: 600; color: #F43F5E; `;
-const ArtTitle = styled.div` font-size: 15px; font-weight: 700; color: #0f172a; line-height: 1.4; `;
-const ArtSummary = styled.div` font-size: 13px; color: #64748b; line-height: 1.5; flex: 1; `;
-const ArtMeta = styled.div` font-size: 12px; color: #94a3b8; margin-top: auto; `;
+const ArtCat = styled.div` font-size: 0.75rem; font-weight: 600; color: #F43F5E; `;
+const ArtTitle = styled.div` font-size: 0.9375rem; font-weight: 700; color: #0f172a; line-height: 1.4; `;
+const ArtSummary = styled.div` font-size: 0.8125rem; color: #64748b; line-height: 1.5; flex: 1; `;
+const ArtMeta = styled.div` font-size: 0.75rem; color: #94a3b8; margin-top: auto; `;
 
-const Muted = styled.div` color: #94a3b8; font-size: 14px; padding: 40px 0; text-align: center; `;
+const Muted = styled.div` color: #94a3b8; font-size: 0.875rem; padding: 40px 0; text-align: center; `;
 
 const Search = styled.div`
   display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
   padding: 0 12px; height: 38px; width: min(360px, 60vw);
   &:focus-within { border-color: #F43F5E; }
-  input { border: 0; outline: 0; font-size: 14px; flex: 1; background: transparent; color: #0f172a; }
+  input { border: 0; outline: 0; font-size: 0.875rem; flex: 1; background: transparent; color: #0f172a; }
   ${mediaPhone} { width: 100%; }
 `;
 const SearchIcon = styled.svg` width: 17px; height: 17px; color: #94a3b8; flex-shrink: 0; `;

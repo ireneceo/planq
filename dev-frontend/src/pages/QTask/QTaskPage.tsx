@@ -2946,7 +2946,7 @@ const QTaskPage:React.FC=()=>{
               const personalInsights = <>
                 <RSection>
                   <RSTitle>{t('period.title','Period')}</RSTitle>
-                  <DateTrigger ref={periodAnchorRef} style={{width:'100%',padding:'8px 10px',border:'1px solid #E2E8F0',borderRadius:8,fontSize:13,color:'#0F172A',background:'#FAFBFC'}}
+                  <DateTrigger ref={periodAnchorRef} style={{width:'100%',padding:'8px 10px',border:'1px solid #E2E8F0',borderRadius:8,fontSize:'0.8125rem',color:'#0F172A',background:'#FAFBFC'}}
                     onClick={()=>setPeriodPickerOpen(v=>!v)}>
                     {periodFrom.replace(/-/g,'/')} ~ {periodTo.replace(/-/g,'/')}
                   </DateTrigger>
@@ -3594,9 +3594,9 @@ const CandMissingIcon = styled.span`
 `;
 const CandMissingBody = styled.div`flex: 1; min-width: 0;`;
 const CandMissingTitle = styled.div`
-  font-size: 13px; font-weight: 700; color: #92400E; margin-bottom: 2px;
+  font-size: 0.8125rem; font-weight: 700; color: #92400E; margin-bottom: 2px;
 `;
-const CandMissingDesc = styled.div`font-size: 12px; color: #78350F; line-height: 1.5;`;
+const CandMissingDesc = styled.div`font-size: 0.75rem; color: #78350F; line-height: 1.5;`;
 const CandMissingClose = styled.button`
   flex-shrink: 0; width: 24px; height: 24px; padding: 0;
   background: transparent; border: none; border-radius: 4px; cursor: pointer;
@@ -3607,20 +3607,20 @@ const CandMissingClose = styled.button`
 
 // ═══ Styled ═══
 const Header=styled.div`padding:14px 20px;height:60px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #E2E8F0;flex-shrink:0;`;
-const PageTitle=styled.h1`font-size:18px;font-weight:700;color:#0F172A;margin:0;flex-shrink:0;letter-spacing:-0.2px;`;
-const HideCheck=styled.label`display:flex;align-items:center;gap:4px;font-size:12px;color:#64748B;cursor:pointer;white-space:nowrap;& input{accent-color:#0D9488;}`;
+const PageTitle=styled.h1`font-size:1.125rem;font-weight:700;color:#0F172A;margin:0;flex-shrink:0;letter-spacing:-0.2px;`;
+const HideCheck=styled.label`display:flex;align-items:center;gap:4px;font-size:0.75rem;color:#64748B;cursor:pointer;white-space:nowrap;& input{accent-color:#0D9488;}`;
 const ChipRow=styled.div`display:flex;gap:4px;margin-left:auto;`;
-const Chip=styled.span<{$teal?:boolean;$coral?:boolean;$warn?:boolean}>`padding:2px 8px;font-size:11px;font-weight:600;border-radius:6px;background:${p=>p.$warn?'#FEF3C7':p.$teal?'#F0FDFA':p.$coral?'#FFF1F2':'#F1F5F9'};color:${p=>p.$warn?'#B45309':p.$teal?'#0F766E':p.$coral?'#9F1239':'#475569'};`;
+const Chip=styled.span<{$teal?:boolean;$coral?:boolean;$warn?:boolean}>`padding:2px 8px;font-size:0.6875rem;font-weight:600;border-radius:6px;background:${p=>p.$warn?'#FEF3C7':p.$teal?'#F0FDFA':p.$coral?'#FFF1F2':'#F1F5F9'};color:${p=>p.$warn?'#B45309':p.$teal?'#0F766E':p.$coral?'#9F1239':'#475569'};`;
 
 const TabBar=styled.div`display:flex;border-bottom:1px solid #E2E8F0;flex-shrink:0;@media(max-width:640px){overflow-x:auto;-webkit-overflow-scrolling:touch;&::-webkit-scrollbar{display:none;}}`;
-const TabBtn=styled.button<{$active?:boolean}>`flex:1;padding:10px 8px;font-size:13px;font-weight:600;border:none;cursor:pointer;background:transparent;color:${p=>p.$active?'#0F766E':'#94A3B8'};border-bottom:2px solid ${p=>p.$active?'#14B8A6':'transparent'};display:inline-flex;align-items:center;justify-content:center;gap:4px;white-space:nowrap;@media(max-width:640px){flex:none;padding:10px 12px;font-size:12px;}`;
-const FinalizeBtn=styled.button`display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:6px;font-size:13px;font-weight:600;color:#475569;cursor:pointer;transition:background 0.15s, border-color 0.15s;&:hover{background:#F8FAFC;border-color:#CBD5E1;color:#0F172A;}@media(max-width:640px){padding:6px 10px;}`;
+const TabBtn=styled.button<{$active?:boolean}>`flex:1;padding:10px 8px;font-size:0.8125rem;font-weight:600;border:none;cursor:pointer;background:transparent;color:${p=>p.$active?'#0F766E':'#94A3B8'};border-bottom:2px solid ${p=>p.$active?'#14B8A6':'transparent'};display:inline-flex;align-items:center;justify-content:center;gap:4px;white-space:nowrap;@media(max-width:640px){flex:none;padding:10px 12px;font-size:0.75rem;}`;
+const FinalizeBtn=styled.button`display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:6px;font-size:0.8125rem;font-weight:600;color:#475569;cursor:pointer;transition:background 0.15s, border-color 0.15s;&:hover{background:#F8FAFC;border-color:#CBD5E1;color:#0F172A;}@media(max-width:640px){padding:6px 10px;}`;
 const FinalizeIcon=styled.svg`width:16px;height:16px;flex-shrink:0;`;
 const FinalizeText=styled.span`@media(max-width:640px){display:none;}`;
-const TabBadge=styled.span<{$active?:boolean}>`display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 6px;border-radius:8px;background:${p=>p.$active?'#F43F5E':'#CBD5E1'};color:#FFF;font-size:11px;font-weight:700;line-height:1;`;
+const TabBadge=styled.span<{$active?:boolean}>`display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 6px;border-radius:8px;background:${p=>p.$active?'#F43F5E':'#CBD5E1'};color:#FFF;font-size:0.6875rem;font-weight:700;line-height:1;`;
 const ListScroll=styled.div`flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;&::-webkit-scrollbar{width:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
 const TableHScroll=styled.div`overflow-x:auto;overflow-y:visible;overscroll-behavior-x:contain;&::-webkit-scrollbar{height:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
-const BottomAddLink=styled.button`margin:10px 14px 20px;padding:6px 0;background:transparent;color:#94A3B8;border:none;font-size:13px;font-weight:500;cursor:pointer;text-align:left;display:block;font-family:inherit;&:hover{color:#0F766E;}`;
+const BottomAddLink=styled.button`margin:10px 14px 20px;padding:6px 0;background:transparent;color:#94A3B8;border:none;font-size:0.8125rem;font-weight:500;cursor:pointer;text-align:left;display:block;font-family:inherit;&:hover{color:#0F766E;}`;
 // #250 태그 관리 진입 — FilterBar 안의 보조 버튼. 기존 FinalizeBtn 톤을 그대로(bespoke 금지).
 const FilterBar=styled.div`display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid #F1F5F9;background:#FFF;flex-wrap:wrap;`;
 
@@ -3631,7 +3631,7 @@ const Col=styled.span<{$w?:string;$flex?:boolean;$center?:boolean;$hideBelow?:nu
     ? 'flex:1 1 0;min-width:180px;'
     : `flex:0 0 ${p.$w||'auto'};width:${p.$w||'auto'};`}
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-  font-size:11px;font-weight:700;color:#94A3B8;cursor:pointer;user-select:none;
+  font-size:0.6875rem;font-weight:700;color:#94A3B8;cursor:pointer;user-select:none;
   ${p=>p.$center&&'display:inline-flex;justify-content:center;align-items:center;gap:4px;text-align:center;'}
   &:hover{color:#475569;}
   ${p=>p.$hideBelow?`@media (max-width: ${p.$hideBelow}px){display:none;}`:''}
@@ -3651,9 +3651,9 @@ const TCell=styled.div<{$w?:string;$flex?:boolean;$center?:boolean;$hideBelow?:n
   ${p=>p.$hideBelow?`@media (max-width: ${p.$hideBelow}px){display:none;}`:''}
   ${p=>p.$compactBelow&&p.$wCompact?`@media (max-width: ${p.$compactBelow}px){flex:0 0 ${p.$wCompact};width:${p.$wCompact};}`:''}
 `;
-const ProjLabel=styled.span`font-size:11px;color:#94A3B8;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;`;
+const ProjLabel=styled.span`font-size:0.6875rem;color:#94A3B8;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;`;
 const DelayBadge=styled.span<{$severe?:boolean}>`
-  padding:1px 6px;font-size:9px;font-weight:700;border-radius:4px;flex-shrink:0;white-space:nowrap;
+  padding:1px 6px;font-size:0.5625rem;font-weight:700;border-radius:4px;flex-shrink:0;white-space:nowrap;
   cursor:pointer;user-select:none;transition:background 120ms ease,border-color 120ms ease,color 120ms ease;
   color:${p=>p.$severe?'#fff':'#DC2626'};
   background:${p=>p.$severe?'#DC2626':'#FEF2F2'};
@@ -3673,7 +3673,7 @@ const DelayChipPopover=styled.div`
   z-index:200;white-space:nowrap;
 `;
 const DelayChip=styled.button`
-  padding:4px 10px;font-size:11px;font-weight:600;
+  padding:4px 10px;font-size:0.6875rem;font-weight:600;
   color:#475569;background:#F1F5F9;
   border:none;border-radius:4px;cursor:pointer;
   transition:background 120ms ease,color 120ms ease;
@@ -3687,33 +3687,33 @@ const SaveErrorBar=styled.div`
   display:flex;align-items:center;gap:8px;
   margin:0 12px 8px;padding:8px 12px;
   background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;
-  font-size:12px;color:#991B1B;line-height:1.5;
+  font-size:0.75rem;color:#991B1B;line-height:1.5;
 `;
 const SaveErrorMark=styled.span`
   flex-shrink:0;width:16px;height:16px;border-radius:50%;
-  background:#DC2626;color:#fff;font-size:11px;font-weight:800;
+  background:#DC2626;color:#fff;font-size:0.6875rem;font-weight:800;
   display:inline-flex;align-items:center;justify-content:center;
 `;
 const SaveErrorClose=styled.button`
   margin-left:auto;flex-shrink:0;background:none;border:none;cursor:pointer;
-  font-size:16px;line-height:1;color:#991B1B;padding:0 2px;
+  font-size:1rem;line-height:1;color:#991B1B;padding:0 2px;
   &:hover{color:#7F1D1D;}
 `;
 const QTaskInlineAddRow=styled.div`display:flex;align-items:center;gap:8px;padding:6px 12px;background:#F0FDFA;border-bottom:1px solid #F8FAFC;min-width:520px;@media(max-width:640px){min-width:0;padding:8px 10px;}`;
 const QTaskInlineSpacer=styled.div`width:24px;flex-shrink:0;`;
-const QTaskInlineInput=styled.input`flex:1;min-width:0;padding:4px 8px;height:26px;font-size:13px;color:#0F172A;background:#FFFFFF;border:1px solid #14B8A6;border-radius:6px;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}&::placeholder{color:#94A3B8;}`;
+const QTaskInlineInput=styled.input`flex:1;min-width:0;padding:4px 8px;height:26px;font-size:0.8125rem;color:#0F172A;background:#FFFFFF;border:1px solid #14B8A6;border-radius:6px;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}&::placeholder{color:#94A3B8;}`;
 // #249 — 업무명이 셀 안에서 **최약자**였다. 같은 셀의 형제(체크·이월배지·반복칩·이름칩·지연배지·
 //   상세버튼)가 전부 flex-shrink:0 이라, 셀이 좁아지면 그것들이 폭을 먼저 다 먹고 업무명에
 //   1~2글자만 남았다("노트북에서 1, 2글자만 보여"). 성장 + 최소폭 바닥을 줘서
 //   "업무명 > 장식 배지" 우선순위를 강제한다 — 셀의 overflow:hidden 이 뒤쪽 배지부터 잘라낸다.
-const TaskTitle=styled.span<{$done?:boolean}>`font-size:14px;font-weight:600;@media(max-width:640px){font-size:15px;}color:#0F172A;cursor:text;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:96px;${p=>p.$done&&'text-decoration:line-through;color:#94A3B8;'}&:hover{color:#0F766E;}`;
+const TaskTitle=styled.span<{$done?:boolean}>`font-size:0.875rem;font-weight:600;@media(max-width:640px){font-size:0.9375rem;}color:#0F172A;cursor:text;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:96px;${p=>p.$done&&'text-decoration:line-through;color:#94A3B8;'}&:hover{color:#0F766E;}`;
 // WORK_FLOW §6 — 이월 배지 (차분·비강조, slate)
-const CarriedBadge=styled.span`flex-shrink:0;display:inline-flex;align-items:center;padding:1px 7px;font-size:10px;font-weight:700;color:#475569;background:#F1F5F9;border-radius:10px;letter-spacing:-0.2px;cursor:help;`;
+const CarriedBadge=styled.span`flex-shrink:0;display:inline-flex;align-items:center;padding:1px 7px;font-size:0.625rem;font-weight:700;color:#475569;background:#F1F5F9;border-radius:10px;letter-spacing:-0.2px;cursor:help;`;
 // 안 읽은 업무 활동(댓글·변경) 점 (운영 #5)
 const UnreadDot=styled.span`flex-shrink:0;width:7px;height:7px;border-radius:50%;background:#F43F5E;margin-right:2px;align-self:center;`;
-const TitleInput=styled.input`flex:1;font-size:14px;font-weight:500;color:#0F172A;border:1px solid #14B8A6;background:#F0FDFA;padding:2px 8px;border-radius:6px;font-family:inherit;height:24px;box-sizing:border-box;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
+const TitleInput=styled.input`flex:1;font-size:0.875rem;font-weight:500;color:#0F172A;border:1px solid #14B8A6;background:#F0FDFA;padding:2px 8px;border-radius:6px;font-family:inherit;height:24px;box-sizing:border-box;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
 const StatusPill=styled.span<{$bg:string;$fg:string;$clickable?:boolean}>`
-  padding:2px 8px;background:${p=>p.$bg};color:${p=>p.$fg};font-size:10px;font-weight:700;
+  padding:2px 8px;background:${p=>p.$bg};color:${p=>p.$fg};font-size:0.625rem;font-weight:700;
   border-radius:8px;white-space:nowrap;${p=>p.$clickable?'cursor:pointer;user-select:none;&:hover{opacity:0.8;}':''}
 `;
 const StatusDropdown=styled.div`
@@ -3722,14 +3722,14 @@ const StatusDropdown=styled.div`
   padding:4px;min-width:100px;margin-top:4px;
 `;
 const StatusOption=styled.button<{$bg:string;$fg:string;$active?:boolean}>`
-  display:block;width:100%;padding:5px 10px;font-size:11px;font-weight:600;text-align:left;
+  display:block;width:100%;padding:5px 10px;font-size:0.6875rem;font-weight:600;text-align:left;
   border:none;border-radius:6px;cursor:pointer;
   background:${p=>p.$active?p.$bg:'transparent'};color:${p=>p.$fg};
   &:hover{background:${p=>p.$bg};}
 `;
 const PrioNum=styled.button<{$active?:boolean;$disabled?:boolean}>`
   width:24px;height:24px;display:flex;align-items:center;justify-content:center;
-  font-size:12px;font-weight:800;border-radius:50%;transition:all 0.15s;
+  font-size:0.75rem;font-weight:800;border-radius:50%;transition:all 0.15s;
   cursor:${p=>p.$disabled?'default':'pointer'};
   ${p=>p.$disabled?`
     color:#E2E8F0;background:transparent;border:2px dashed #F1F5F9;
@@ -3785,7 +3785,7 @@ const AiInlineBadge=styled.span`
   color:#F43F5E;opacity:0.65;pointer-events:none;
 `;
 const NumInput=styled.input<{$ai?:boolean}>`
-  width:54px;text-align:center;font-size:13px;font-weight:600;
+  width:54px;text-align:center;font-size:0.8125rem;font-weight:600;
   color:${p=>p.$ai?'#94A3B8':'#0F172A'};
   font-style:${p=>p.$ai?'italic':'normal'};
   border:1px solid transparent;background:transparent;padding:3px 2px;border-radius:5px;
@@ -3816,10 +3816,10 @@ const SliderTrack=styled.div`flex:1;height:6px;background:#F1F5F9;border-radius:
 const SliderFill=styled.div<{$w:number;$color:string}>`height:100%;width:${p=>p.$w}%;background:${p=>p.$color};border-radius:3px;`;
 const SliderRange=styled.input`position:absolute;left:0;top:-4px;width:calc(100% - 29px);height:18px;opacity:0;cursor:pointer;&:disabled{cursor:not-allowed;}@media (max-width:1280px){display:none;}`;
 // % 는 입력 필드가 아니라 표시값이라 작게 — 남는 폭은 업무명·담당자로 간다 (Irene 2026-08-24)
-const SliderPct=styled.span`font-size:11px;font-weight:700;color:#475569;min-width:26px;text-align:right;@media (max-width:1280px){min-width:0;width:100%;text-align:center;}`;
+const SliderPct=styled.span`font-size:0.6875rem;font-weight:700;color:#475569;min-width:26px;text-align:right;@media (max-width:1280px){min-width:0;width:100%;text-align:center;}`;
 
 const DateTrigger=styled.button<{$color?:string;$empty?:boolean}>`
-  width:100%;padding:4px 6px;font-size:12px;font-weight:600;
+  width:100%;padding:4px 6px;font-size:0.75rem;font-weight:600;
   background:transparent;border:1px solid transparent;border-radius:6px;cursor:pointer;
   white-space:nowrap;font-family:inherit;text-align:left;
   color:${p=>p.$empty?'#CBD5E1':p.$color==='overdue'?'#DC2626':p.$color==='today'?'#EA580C':'#64748B'};
@@ -3829,8 +3829,8 @@ const DateTrigger=styled.button<{$color?:string;$empty?:boolean}>`
 
 const EmptyFull=styled.div`display:flex;align-items:center;justify-content:center;height:100vh;color:#94A3B8;`;
 // 헤더 생성 버튼 규격 = ActionButton sm (h36)
-const HeaderAddBtn=styled.button`display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
-const AddInput=styled.input`flex:1 1 auto;min-width:0;font-size:14px;color:#0F172A;border:1px solid #14B8A6;background:#F0FDFA;padding:6px 10px;border-radius:6px;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}&::placeholder{color:#94A3B8;}`;
+const HeaderAddBtn=styled.button`display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:0.8125rem;font-weight:700;cursor:pointer;white-space:nowrap;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
+const AddInput=styled.input`flex:1 1 auto;min-width:0;font-size:0.875rem;color:#0F172A;border:1px solid #14B8A6;background:#F0FDFA;padding:6px 10px;border-radius:6px;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}&::placeholder{color:#94A3B8;}`;
 /* 인라인 추가 (표 하단 새 행) — 표와 자연스럽게 연결되도록 좌우 margin 만 적용 */
 const InlineAddBox=styled.div`display:flex;flex-direction:column;gap:8px;margin:8px 14px 20px;padding:12px;background:#F8FAFC;border:1px solid #14B8A6;border-radius:10px;`;
 // 반복 옵션 펼침 (inline 폼 전용 컴팩트 행)
@@ -3843,35 +3843,35 @@ const PanelAddForm=styled.div`display:flex;flex-direction:column;gap:10px;paddin
 const AddOptRow=styled.div`display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;`;
 const DescEditorWrap=styled.div`background:#FFF;border:1px solid #E2E8F0;border-radius:8px;padding:0;overflow:hidden;&:focus-within{border-color:#14B8A6;}`;
 const AttachToggleRow=styled.div`display:flex;`;
-const AttachToggleBtn=styled.button`display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;font-weight:600;color:#475569;cursor:pointer;font-family:inherit;&:hover{background:#F1F5F9;border-color:#CBD5E1;}`;
-const AttachCount=styled.span`display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;background:#14B8A6;color:#FFF;border-radius:8px;font-size:10px;font-weight:700;`;
+const AttachToggleBtn=styled.button`display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;font-size:0.75rem;font-weight:600;color:#475569;cursor:pointer;font-family:inherit;&:hover{background:#F1F5F9;border-color:#CBD5E1;}`;
+const AttachCount=styled.span`display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;background:#14B8A6;color:#FFF;border-radius:8px;font-size:0.625rem;font-weight:700;`;
 const AttachInlineBox=styled.div`background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:14px;`;
 const AddOptField=styled.div`flex:1 1 140px;min-width:120px;display:flex;flex-direction:column;gap:3px;`;
-const AddOptLabel=styled.label`font-size:11px;color:#64748B;font-weight:600;`;
-const AddDateInput=styled.input`height:30px;padding:0 8px;font-size:13px;color:#0F172A;border:1px solid #E2E8F0;border-radius:6px;background:#FFF;font-family:inherit;width:100%;min-width:0;&:focus{outline:none;border-color:#14B8A6;}`;
+const AddOptLabel=styled.label`font-size:0.6875rem;color:#64748B;font-weight:600;`;
+const AddDateInput=styled.input`height:30px;padding:0 8px;font-size:0.8125rem;color:#0F172A;border:1px solid #E2E8F0;border-radius:6px;background:#FFF;font-family:inherit;width:100%;min-width:0;&:focus{outline:none;border-color:#14B8A6;}`;
 const AddEstWrap=styled.div`display:flex;gap:6px;align-items:stretch;`;
-const AddEstNumberInput=styled.input`width:60px;flex-shrink:0;height:30px;padding:0 8px;font-size:13px;color:#0F172A;border:1px solid #E2E8F0;border-radius:6px;background:#FFF;font-family:inherit;text-align:right;&:focus{outline:none;border-color:#14B8A6;}`;
-const AddEstAiBtn=styled.button`flex:1;min-width:0;height:30px;padding:0 10px;font-size:12px;font-weight:600;color:#0D9488;background:#F0FDFA;border:1px solid #99F6E4;border-radius:6px;cursor:pointer;font-family:inherit;letter-spacing:0.2px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;&:hover:not(:disabled){background:#CCFBF1;border-color:#14B8A6;}&:disabled{opacity:0.5;cursor:not-allowed;}`;
-const AddEstReason=styled.div`font-size:10px;color:#64748B;margin-top:2px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;`;
-const AddDateTrigger=styled.button`height:30px;padding:0 10px;font-size:13px;color:#0F172A;border:1px solid #E2E8F0;border-radius:6px;background:#FFF;font-family:inherit;cursor:pointer;text-align:left;display:inline-flex;align-items:center;&:hover{border-color:#CBD5E1;}&:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
+const AddEstNumberInput=styled.input`width:60px;flex-shrink:0;height:30px;padding:0 8px;font-size:0.8125rem;color:#0F172A;border:1px solid #E2E8F0;border-radius:6px;background:#FFF;font-family:inherit;text-align:right;&:focus{outline:none;border-color:#14B8A6;}`;
+const AddEstAiBtn=styled.button`flex:1;min-width:0;height:30px;padding:0 10px;font-size:0.75rem;font-weight:600;color:#0D9488;background:#F0FDFA;border:1px solid #99F6E4;border-radius:6px;cursor:pointer;font-family:inherit;letter-spacing:0.2px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;&:hover:not(:disabled){background:#CCFBF1;border-color:#14B8A6;}&:disabled{opacity:0.5;cursor:not-allowed;}`;
+const AddEstReason=styled.div`font-size:0.625rem;color:#64748B;margin-top:2px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;`;
+const AddDateTrigger=styled.button`height:30px;padding:0 10px;font-size:0.8125rem;color:#0F172A;border:1px solid #E2E8F0;border-radius:6px;background:#FFF;font-family:inherit;cursor:pointer;text-align:left;display:inline-flex;align-items:center;&:hover{border-color:#CBD5E1;}&:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
 const AddDatePH=styled.span`color:#94A3B8;`;
 const AddBtnRow=styled.div`display:flex;justify-content:flex-end;gap:6px;`;
-const AddSaveBtn=styled.button`flex:0 0 auto;padding:6px 14px;font-size:13px;font-weight:600;background:#14B8A6;color:#FFFFFF;border:none;border-radius:6px;cursor:pointer;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
-const AddCancelBtn=styled.button`flex:0 0 auto;padding:6px 10px;font-size:13px;color:#64748B;background:transparent;border:1px solid #E2E8F0;border-radius:6px;cursor:pointer;&:hover{background:#F8FAFC;color:#0F172A;}`;
+const AddSaveBtn=styled.button`flex:0 0 auto;padding:6px 14px;font-size:0.8125rem;font-weight:600;background:#14B8A6;color:#FFFFFF;border:none;border-radius:6px;cursor:pointer;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
+const AddCancelBtn=styled.button`flex:0 0 auto;padding:6px 10px;font-size:0.8125rem;color:#64748B;background:transparent;border:1px solid #E2E8F0;border-radius:6px;cursor:pointer;&:hover{background:#F8FAFC;color:#0F172A;}`;
 const RecurRow=styled.div`display:flex;flex-direction:column;gap:6px;padding:8px 10px;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:6px;`;
-const RecurToggleLabel=styled.label`display:inline-flex;align-items:center;gap:8px;font-size:13px;color:#0F172A;cursor:pointer;input{cursor:pointer;}input:disabled{cursor:not-allowed;}`;
-const RecurHint=styled.span`font-size:12px;color:#94A3B8;margin-left:6px;`;
+const RecurToggleLabel=styled.label`display:inline-flex;align-items:center;gap:8px;font-size:0.8125rem;color:#0F172A;cursor:pointer;input{cursor:pointer;}input:disabled{cursor:not-allowed;}`;
+const RecurHint=styled.span`font-size:0.75rem;color:#94A3B8;margin-left:6px;`;
 const RecurOptions=styled.div`display:flex;gap:8px;flex-wrap:wrap;align-items:center;`;
 const RecurEndBox=styled.div`display:inline-flex;gap:6px;align-items:center;`;
-const RecurChip=styled.span<{$iconOnly?:boolean}>`display:inline-flex;align-items:center;gap:4px;padding:${p=>p.$iconOnly?'2px 4px':'2px 8px'};font-size:11px;font-weight:600;color:#0F766E;background:#CCFBF1;border-radius:10px;line-height:1.5;flex-shrink:0;`;
+const RecurChip=styled.span<{$iconOnly?:boolean}>`display:inline-flex;align-items:center;gap:4px;padding:${p=>p.$iconOnly?'2px 4px':'2px 8px'};font-size:0.6875rem;font-weight:600;color:#0F766E;background:#CCFBF1;border-radius:10px;line-height:1.5;flex-shrink:0;`;
 // 반복 아이콘 — "매주 토" 라벨 앞 (텍스트 "반복" 대신 회전 화살표 아이콘)
 const RecurIcon=styled.svg`width:11px;height:11px;flex-shrink:0;`;
 // Custom recurrence modal
 const CustomRecurOverlay=styled.div`position:fixed;inset:0;background:rgba(15,23,42,0.45);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;`;
 const CustomRecurDialog=styled.div`background:#FFFFFF;border-radius:12px;padding:20px 22px;width:min(420px,90vw);box-shadow:0 20px 60px rgba(0,0,0,0.18);display:flex;flex-direction:column;gap:14px;`;
-const CustomRecurTitle=styled.h3`margin:0;font-size:16px;font-weight:700;color:#0F172A;`;
+const CustomRecurTitle=styled.h3`margin:0;font-size:1rem;font-weight:700;color:#0F172A;`;
 const CustomRecurField=styled.div`display:flex;flex-direction:column;gap:6px;`;
-const CustomRecurFieldLabel=styled.label`font-size:12px;color:#64748B;font-weight:600;`;
+const CustomRecurFieldLabel=styled.label`font-size:0.75rem;color:#64748B;font-weight:600;`;
 const CustomRecurInline=styled.div`display:flex;gap:8px;align-items:center;`;
 const ViewToggle=styled.div`display:inline-flex;gap:2px;padding:2px;background:#F1F5F9;border-radius:8px;margin-left:auto;`;
 const ViewBtn=styled.button<{$active:boolean}>`padding:6px 10px;background:${p=>p.$active?'#FFFFFF':'transparent'};color:${p=>p.$active?'#0F766E':'#94A3B8'};border:none;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;box-shadow:${p=>p.$active?'0 1px 2px rgba(0,0,0,0.06)':'none'};transition:background 0.15s;&:hover{background:${p=>p.$active?'#FFFFFF':'#E2E8F0'};color:#0F766E;}`;
@@ -3888,10 +3888,10 @@ const KanbanBoard=styled.div`
   overflow-x:auto;
 `;
 const KanbanColumn=styled.div`display:flex;flex-direction:column;gap:8px;min-width:220px;`;
-const KanbanColHeader=styled.div`display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:700;`;
-const KanbanCount=styled.span`font-size:11px;font-weight:600;opacity:0.8;`;
+const KanbanColHeader=styled.div`display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:8px;font-size:0.75rem;font-weight:700;`;
+const KanbanCount=styled.span`font-size:0.6875rem;font-weight:600;opacity:0.8;`;
 const KanbanColBody=styled.div`display:flex;flex-direction:column;gap:8px;min-height:40px;`;
-const KanbanHoldReason=styled.div`font-size:11px;line-height:1.4;color:#9A3412;margin-top:2px;
+const KanbanHoldReason=styled.div`font-size:0.6875rem;line-height:1.4;color:#9A3412;margin-top:2px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
 const KanbanCard=styled.div<{$delayed?:boolean;$done?:boolean;$selected?:boolean}>`
   position:relative;
@@ -3905,36 +3905,36 @@ const KanbanCard=styled.div<{$delayed?:boolean;$done?:boolean;$selected?:boolean
   ${p=>p.$selected?'box-shadow:inset 3px 0 0 #F43F5E;':''}
   &:hover{box-shadow:${p=>p.$selected?'inset 3px 0 0 #F43F5E,0 4px 12px rgba(244,63,94,0.12)':'0 4px 12px rgba(15,23,42,0.08)'};border-color:${p=>p.$selected?'#F43F5E':'#CBD5E1'};}
 `;
-const KanbanDelayBadge=styled.span`position:absolute;top:6px;right:8px;padding:1px 6px;font-size:9px;font-weight:700;color:#B91C1C;background:#FEE2E2;border-radius:4px;letter-spacing:0.3px;`;
-const KanbanProject=styled.div`font-size:10px;font-weight:600;color:#64748B;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:4px;`;
-const KanbanTitle=styled.div`font-size:13px;font-weight:600;color:#0F172A;line-height:1.4;margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;`;
+const KanbanDelayBadge=styled.span`position:absolute;top:6px;right:8px;padding:1px 6px;font-size:0.5625rem;font-weight:700;color:#B91C1C;background:#FEE2E2;border-radius:4px;letter-spacing:0.3px;`;
+const KanbanProject=styled.div`font-size:0.625rem;font-weight:600;color:#64748B;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:4px;`;
+const KanbanTitle=styled.div`font-size:0.8125rem;font-weight:600;color:#0F172A;line-height:1.4;margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;`;
 const KanbanMeta=styled.div`display:flex;flex-wrap:wrap;gap:4px;align-items:center;`;
 const KanbanRoleRow=styled.div`display:flex;align-items:center;gap:6px;margin-bottom:6px;`;
 const KanbanRoleBadge=styled.span<{$role:string}>`
-  display:inline-block;padding:1px 6px;font-size:10px;font-weight:700;border-radius:4px;
+  display:inline-block;padding:1px 6px;font-size:0.625rem;font-weight:700;border-radius:4px;
   ${p=>p.$role==='assignee'?'background:#CCFBF1;color:#0F766E;':''}
   ${p=>p.$role==='reviewer'?'background:#FEF3C7;color:#92400E;':''}
   ${p=>p.$role==='requester'?'background:#E0E7FF;color:#3730A3;':''}
   ${p=>p.$role==='observer'?'background:#F1F5F9;color:#64748B;':''}
 `;
-const KanbanStatusText=styled.span`font-size:11px;color:#64748B;`;
-const KanbanDue=styled.span<{$overdue?:boolean}>`font-size:11px;font-weight:600;color:${p=>p.$overdue?'#DC2626':'#64748B'};margin-left:auto;`;
+const KanbanStatusText=styled.span`font-size:0.6875rem;color:#64748B;`;
+const KanbanDue=styled.span<{$overdue?:boolean}>`font-size:0.6875rem;font-weight:600;color:${p=>p.$overdue?'#DC2626':'#64748B'};margin-left:auto;`;
 const KanbanProgress=styled.div`height:4px;background:#F1F5F9;border-radius:999px;overflow:hidden;margin-top:8px;`;
 const KanbanProgressFill=styled.div`height:100%;background:linear-gradient(90deg,#14B8A6,#0D9488);border-radius:999px;transition:width 0.3s;`;
-const KanbanEmpty=styled.div`text-align:center;padding:20px 10px;color:#CBD5E1;font-size:12px;`;
+const KanbanEmpty=styled.div`text-align:center;padding:20px 10px;color:#CBD5E1;font-size:0.75rem;`;
 const KanbanEmptyBoard=styled.div`
   grid-column:1 / -1;
   padding:60px 20px;
   text-align:center;
   color:#94A3B8;
-  font-size:13px;
+  font-size:0.8125rem;
   background:#FFFFFF;
   border:1px dashed #E2E8F0;
   border-radius:12px;
 `;
-const ScopeBtn=styled.button<{$active:boolean}>`padding:6px 14px;font-size:13px;font-weight:600;background:${p=>p.$active?'#FFFFFF':'transparent'};color:${p=>p.$active?'#0F172A':'#64748B'};border:none;border-radius:6px;cursor:pointer;box-shadow:${p=>p.$active?'0 1px 2px rgba(0,0,0,0.06)':'none'};transition:background 0.15s, color 0.15s;&:hover{background:${p=>p.$active?'#FFFFFF':'#E2E8F0'};color:${p=>p.$active?'#0F172A':'#0F172A'};}`;
+const ScopeBtn=styled.button<{$active:boolean}>`padding:6px 14px;font-size:0.8125rem;font-weight:600;background:${p=>p.$active?'#FFFFFF':'transparent'};color:${p=>p.$active?'#0F172A':'#64748B'};border:none;border-radius:6px;cursor:pointer;box-shadow:${p=>p.$active?'0 1px 2px rgba(0,0,0,0.06)':'none'};transition:background 0.15s, color 0.15s;&:hover{background:${p=>p.$active?'#FFFFFF':'#E2E8F0'};color:${p=>p.$active?'#0F172A':'#0F172A'};}`;
 const NameChip=styled.span<{$type:'from'|'to'|'observer'}>`
-  display:inline-block;margin-left:6px;padding:1px 7px;font-size:11px;font-weight:600;
+  display:inline-block;margin-left:6px;padding:1px 7px;font-size:0.6875rem;font-weight:600;
   border-radius:10px;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;
   ${p=>p.$type==='from'?'color:#BE123C;background:#FFE4E6;':p.$type==='to'?'color:#0F766E;background:#CCFBF1;':'color:#64748B;background:#F1F5F9;'}
 `;
@@ -3962,83 +3962,83 @@ const RightPanel=styled.aside<{$w?:number;$overlay?:boolean}>`background:#FFF;bo
 const RightPanelBackdrop=styled.div`position:fixed;inset:0;background:rgba(15, 23, 42, 0.08);-webkit-z-index:45;animation:pqRpFade 0.22s ease-out;@keyframes pqRpFade{from{opacity:0;}to{opacity:1;}}@media (prefers-reduced-motion: reduce){animation:none;}`;
 const ResizeHandle=styled.div`position:absolute;top:0;left:-3px;width:6px;height:100%;cursor:col-resize;z-index:5;&:hover{background:rgba(20,184,166,0.2);}&:active{background:rgba(20,184,166,0.4);}`;
 const RightHeader=styled.div`height:60px;padding:14px 20px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;`;
-const RightTitle=styled.h2`font-size:13px;font-weight:700;color:#0F172A;margin:0;letter-spacing:-0.1px;`;
+const RightTitle=styled.h2`font-size:0.8125rem;font-weight:700;color:#0F172A;margin:0;letter-spacing:-0.1px;`;
 const RightScroll=styled.div`flex:1;overflow-y:auto;overflow-x:hidden;min-width:0;&>*{min-width:0;max-width:100%;}&::-webkit-scrollbar{width:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
 const RSection=styled.div`border-bottom:1px solid #F1F5F9;padding:12px 14px;`;
-const RSTitle=styled.h4`font-size:12px;font-weight:700;color:#0F172A;margin:0 0 8px;`;
-const CapFieldLabel=styled.div`font-size:10px;color:#94A3B8;font-weight:600;margin-bottom:3px;`;
-const CapFieldInput=styled.input`width:100%;padding:4px 6px;border:1px solid #E2E8F0;border-radius:6px;font-size:13px;font-weight:600;color:#0F172A;text-align:center;background:#FAFBFC;&:focus{outline:none;border-color:#14B8A6;background:#FFF;}`;
+const RSTitle=styled.h4`font-size:0.75rem;font-weight:700;color:#0F172A;margin:0 0 8px;`;
+const CapFieldLabel=styled.div`font-size:0.625rem;color:#94A3B8;font-weight:600;margin-bottom:3px;`;
+const CapFieldInput=styled.input`width:100%;padding:4px 6px;border:1px solid #E2E8F0;border-radius:6px;font-size:0.8125rem;font-weight:600;color:#0F172A;text-align:center;background:#FAFBFC;&:focus{outline:none;border-color:#14B8A6;background:#FFF;}`;
 /* 가용시간 대시보드 — 큰 숫자 + 진행바 + 남은 시간 강조 (사용자: 탁월한 UI/UX) */
 const CapDashboard=styled.div`display:flex;flex-direction:column;gap:10px;margin-bottom:12px;`;
 const CapHeadline=styled.div`display:flex;align-items:baseline;justify-content:space-between;gap:10px;`;
 const CapBigNum=styled.div`display:flex;align-items:baseline;gap:6px;`;
-const CapTinyLabel=styled.span`font-size:11px;color:#94A3B8;font-weight:600;`;
-const CapUsed=styled.span`font-size:24px;font-weight:800;letter-spacing:-0.4px;`;
-const CapSep=styled.span`font-size:18px;color:#CBD5E1;font-weight:600;`;
-const CapTotal=styled.span`font-size:15px;color:#64748B;font-weight:600;`;
+const CapTinyLabel=styled.span`font-size:0.6875rem;color:#94A3B8;font-weight:600;`;
+const CapUsed=styled.span`font-size:1.5rem;font-weight:800;letter-spacing:-0.4px;`;
+const CapSep=styled.span`font-size:1.125rem;color:#CBD5E1;font-weight:600;`;
+const CapTotal=styled.span`font-size:0.9375rem;color:#64748B;font-weight:600;`;
 const CapBarRow=styled.div`display:flex;align-items:center;gap:8px;`;
 const CapBar=styled.div`flex:1;min-width:0;height:8px;background:#F1F5F9;border-radius:4px;overflow:hidden;`;
-const CapBarPct=styled.span`flex-shrink:0;font-size:11px;font-weight:700;color:#0F766E;min-width:30px;text-align:right;`;
+const CapBarPct=styled.span`flex-shrink:0;font-size:0.6875rem;font-weight:700;color:#0F766E;min-width:30px;text-align:right;`;
 const CapBarFill=styled.div`height:100%;border-radius:4px;transition:width 0.25s ease,background 0.15s;`;
 const CapOverChip=styled.span`
   flex-shrink:0;padding:2px 8px;border-radius:10px;
-  font-size:11px;font-weight:700;color:#B91C1C;background:#FEE2E2;
+  font-size:0.6875rem;font-weight:700;color:#B91C1C;background:#FEE2E2;
 `;
 const CapDoneNote=styled.div`
-  margin-top:4px; font-size:11px; color:#94A3B8; line-height:1.4;
+  margin-top:4px; font-size:0.6875rem; color:#94A3B8; line-height:1.4;
 `;
 const CapRemainingRow=styled.div`display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#F8FAFC;border-radius:8px;`;
-const CapRemainingLabel=styled.span`font-size:11px;color:#64748B;font-weight:600;`;
-const CapRemainingValue=styled.span`font-size:15px;font-weight:700;letter-spacing:-0.2px;`;
+const CapRemainingLabel=styled.span`font-size:0.6875rem;color:#64748B;font-weight:600;`;
+const CapRemainingValue=styled.span`font-size:0.9375rem;font-weight:700;letter-spacing:-0.2px;`;
 const CapSettingsRow=styled.div`display:flex;flex-wrap:wrap;gap:6px;`;
 const CapSettingsField=styled.div`flex:1;min-width:56px;`;
-const CapFormulaHint=styled.div`margin-top:8px;font-size:11px;color:#94A3B8;font-weight:500;text-align:center;letter-spacing:-0.2px;`;
+const CapFormulaHint=styled.div`margin-top:8px;font-size:0.6875rem;color:#94A3B8;font-weight:500;text-align:center;letter-spacing:-0.2px;`;
 // WORK_FLOW §6 (U5) — 실측 참여율 제안 (은은하게)
-const CapSuggest=styled.div`margin-top:6px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:11px;color:#64748B;font-weight:600;cursor:help;`;
-const CapSuggestBtn=styled.button`padding:2px 10px;font-size:11px;font-weight:700;color:#0F766E;background:#F0FDFA;border:1px solid #99F6E4;border-radius:10px;cursor:pointer;transition:background 0.15s;&:hover{background:#CCFBF1;}`;
+const CapSuggest=styled.div`margin-top:6px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:0.6875rem;color:#64748B;font-weight:600;cursor:help;`;
+const CapSuggestBtn=styled.button`padding:2px 10px;font-size:0.6875rem;font-weight:700;color:#0F766E;background:#F0FDFA;border:1px solid #99F6E4;border-radius:10px;cursor:pointer;transition:background 0.15s;&:hover{background:#CCFBF1;}`;
 // WORK_FLOW §6 (U1) — 판정 칩 (EVM→일상어). good/warn/bad 3톤.
 const VERDICT_TONE={good:{bg:'#F0FDFA',text:'#0F766E',dot:'#14B8A6'},warn:{bg:'#FFFBEB',text:'#B45309',dot:'#F59E0B'},bad:{bg:'#FEF2F2',text:'#B91C1C',dot:'#EF4444'}} as const;
-const VerdictChip=styled.div<{$tone:'good'|'warn'|'bad'}>`display:inline-flex;align-items:center;gap:6px;margin-bottom:8px;padding:4px 10px;font-size:12px;font-weight:700;border-radius:14px;letter-spacing:-0.2px;cursor:help;background:${p=>VERDICT_TONE[p.$tone].bg};color:${p=>VERDICT_TONE[p.$tone].text};`;
+const VerdictChip=styled.div<{$tone:'good'|'warn'|'bad'}>`display:inline-flex;align-items:center;gap:6px;margin-bottom:8px;padding:4px 10px;font-size:0.75rem;font-weight:700;border-radius:14px;letter-spacing:-0.2px;cursor:help;background:${p=>VERDICT_TONE[p.$tone].bg};color:${p=>VERDICT_TONE[p.$tone].text};`;
 const VerdictDot=styled.span<{$tone:'good'|'warn'|'bad'}>`width:7px;height:7px;border-radius:50%;background:${p=>VERDICT_TONE[p.$tone].dot};`;
 // WORK_FLOW §6 — 부하 구성(이월/신규) 표시
 const CapBreakdown=styled.div`display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:4px 12px;padding:6px 0 2px;`;
-const CapBreakItem=styled.span`display:inline-flex;align-items:center;gap:5px;font-size:11px;color:#64748B;font-weight:600;`;
+const CapBreakItem=styled.span`display:inline-flex;align-items:center;gap:5px;font-size:0.6875rem;color:#64748B;font-weight:600;`;
 const CapBreakDot=styled.span<{$carried?:boolean}>`width:7px;height:7px;border-radius:2px;background:${p=>p.$carried?'#94A3B8':'#14B8A6'};`;
 const ChartSVG=styled.svg`width:100%;height:160px;display:block;`;
-const EmptyChart=styled.div`padding:16px;text-align:center;color:#CBD5E1;font-size:11px;`;
+const EmptyChart=styled.div`padding:16px;text-align:center;color:#CBD5E1;font-size:0.6875rem;`;
 // 운영 #300 — 그래프가 어느 집합·어느 기간을 그리는지 화면에 적는다.
 //   이게 없으면 왼쪽 목록 숫자와 다를 때 사용자는 고장으로 읽는다(실제로 그렇게 신고됐다).
-const ChartScopeHint=styled.div`margin-top:6px;font-size:10.5px;line-height:1.45;color:#94A3B8;`;
+const ChartScopeHint=styled.div`margin-top:6px;font-size:0.65625rem;line-height:1.45;color:#94A3B8;`;
 const Legend=styled.div`display:flex;gap:12px;margin-top:6px;`;
-const LI=styled.div`display:flex;align-items:center;gap:3px;font-size:10px;color:#64748B;font-weight:600;`;
+const LI=styled.div`display:flex;align-items:center;gap:3px;font-size:0.625rem;color:#64748B;font-weight:600;`;
 const Dot=styled.span<{$c:string}>`width:7px;height:7px;border-radius:50%;background:${p=>p.$c};`;
 const DashDot=styled.span<{$c:string}>`width:14px;height:0;border-top:2px dashed ${p=>p.$c};flex-shrink:0;`;
 // WORK_FLOW §6 (U4) — 되돌림 마커 범례 (▽ 주황)
 const RevertTri=styled.span`width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:6px solid #F59E0B;flex-shrink:0;`;
 const PPRow=styled.div`display:flex;align-items:center;gap:8px;& + &{margin-top:6px;}`;
-const PPName=styled.span`font-size:11px;color:#0F172A;font-weight:500;min-width:60px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
+const PPName=styled.span`font-size:0.6875rem;color:#0F172A;font-weight:500;min-width:60px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
 const PPTrack=styled.div`flex:1;height:5px;background:#F1F5F9;border-radius:3px;overflow:hidden;`;
 const PPFill=styled.div<{$w:number}>`height:100%;width:${p=>p.$w}%;background:#14B8A6;border-radius:3px;`;
-const PPPct=styled.span`font-size:11px;font-weight:700;color:#475569;min-width:28px;text-align:right;`;
+const PPPct=styled.span`font-size:0.6875rem;font-weight:700;color:#475569;min-width:28px;text-align:right;`;
 const IssueCard=styled.div`padding:6px 8px;background:#F8FAFC;border-radius:6px;border-left:2px solid #F43F5E;& + &{margin-top:4px;}`;
 const NoteCard=styled.div<{$internal?:boolean}>`padding:6px 8px;background:#F8FAFC;border-radius:6px;border-left:2px solid ${p=>p.$internal?'#0284C7':'#94A3B8'};& + &{margin-top:4px;}`;
 // 프로젝트 태그 — 흰 배경 + 포인트(코랄) 글자·테두리. 회색 배경이 코랄 카드 위에서 안 보이던 것 개선(Irene).
-const IProjTag=styled.span`padding:1px 6px;background:#FFFFFF;color:#E11D48;border:1px solid #FECDD3;font-size:9px;font-weight:700;border-radius:999px;margin-right:4px;`;
+const IProjTag=styled.span`padding:1px 6px;background:#FFFFFF;color:#E11D48;border:1px solid #FECDD3;font-size:0.5625rem;font-weight:700;border-radius:999px;margin-right:4px;`;
 
 // Detail slide-over
 const CommentItem=styled.div`padding:8px 10px;background:#F8FAFC;border-radius:8px;& + &{margin-top:6px;}`;
-const CommentHead=styled.div`display:flex;gap:8px;align-items:baseline;font-size:11px;color:#64748B;margin-bottom:3px;& strong{color:#0F172A;font-weight:600;}`;
-const CommentBody=styled.div`font-size:12px;color:#1E293B;line-height:1.4;white-space:pre-wrap;`;
+const CommentHead=styled.div`display:flex;gap:8px;align-items:baseline;font-size:0.6875rem;color:#64748B;margin-bottom:3px;& strong{color:#0F172A;font-weight:600;}`;
+const CommentBody=styled.div`font-size:0.75rem;color:#1E293B;line-height:1.4;white-space:pre-wrap;`;
 // Candidate card (전체업무 탭)
 const CandCard=styled.div`padding:8px 10px;background:#FFF1F2;border:1px solid #FECDD3;border-radius:8px;& + &{margin-top:6px;}`;
-const CandTitle=styled.div`font-size:12px;font-weight:600;color:#9F1239;margin-bottom:4px;`;
+const CandTitle=styled.div`font-size:0.75rem;font-weight:600;color:#9F1239;margin-bottom:4px;`;
 
 // Period row (right panel)
 
 // Detail button on task row
 const DetailBtn=styled.button<{$active?:boolean}>`display:flex;align-items:center;justify-content:center;width:28px;height:28px;background:${p=>p.$active?'#F43F5E':'transparent'};border:1px solid ${p=>p.$active?'#F43F5E':'transparent'};border-radius:6px;color:${p=>p.$active?'#FFF':'#94A3B8'};cursor:pointer;flex-shrink:0;transition:all 0.15s;&:hover{background:${p=>p.$active?'#E11D48':'#F1F5F9'};color:${p=>p.$active?'#FFF':'#0F766E'};border-color:${p=>p.$active?'#E11D48':'#E2E8F0'};}`;
-const IBody=styled.div`font-size:12px;color:#1E293B;line-height:1.4;`;
-const IMeta=styled.div`font-size:10px;color:#94A3B8;margin-top:2px;`;
+const IBody=styled.div`font-size:0.75rem;color:#1E293B;line-height:1.4;`;
+const IMeta=styled.div`font-size:0.625rem;color:#94A3B8;margin-top:2px;`;
 
 // ─── Phase C: 워크플로우 상세 UI ───
 // 액션 버튼 — COLOR_GUIDE 준수 (Primary/Secondary/Danger 3톤으로 통일)

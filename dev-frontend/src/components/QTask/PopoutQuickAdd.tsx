@@ -21,7 +21,7 @@ const Input = styled.input`
   flex: 1; min-width: 0; height: 34px;
   padding: 0 10px;
   border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 13px; font-family: inherit; color: #0F172A;
+  font-size: 0.8125rem; font-family: inherit; color: #0F172A;
   background: #FFFFFF;
   &::placeholder { color: #94A3B8; }
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.12); }
@@ -36,7 +36,7 @@ const AddBtn = styled.button`
   flex-shrink: 0; height: 34px; padding: 0 12px;
   border: 1px solid #99F6E4; border-radius: 8px;
   background: #F0FDFA; color: #0F766E;
-  font-size: 13px; font-weight: 700; font-family: inherit;
+  font-size: 0.8125rem; font-weight: 700; font-family: inherit;
   cursor: pointer;
   &:hover:not(:disabled) { background: #CCFBF1; }
   &:disabled { opacity: 0.5; cursor: default; }
@@ -44,7 +44,7 @@ const AddBtn = styled.button`
 `;
 const Err = styled.div`
   padding: 6px 12px 0;
-  font-size: 12px; color: #DC2626;
+  font-size: 0.75rem; color: #DC2626;
 `;
 
 /** #309 — 지금 보고 있는 기준(태그·프로젝트)에 맞는 선택지. 없으면 안 그린다. */

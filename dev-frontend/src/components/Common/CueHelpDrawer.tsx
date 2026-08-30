@@ -56,16 +56,16 @@ interface Turn {
 // #81 — 실행 완료 요약 (확인 카드가 접힌 뒤)
 const ActionDone = styled.div`
   margin-top: 8px; display: flex; align-items: center; gap: 10px;
-  font-size: 13px; color: #0f766e; font-weight: 600;
+  font-size: 0.8125rem; color: #0f766e; font-weight: 600;
 `;
 const ActionOpen = styled.button`
   border: 1px solid #99f6e4; background: #f0fdfa; color: #0f766e;
-  border-radius: 8px; padding: 4px 10px; font-size: 12px; font-weight: 700; cursor: pointer;
+  border-radius: 8px; padding: 4px 10px; font-size: 0.75rem; font-weight: 700; cursor: pointer;
   &:hover { background: #ccfbf1; }
 `;
 // #237 — "완료로 추가" 가 완료까지 못 간 경우의 안내 (성공 요약 아래 한 줄)
 const ActionNote = styled.div`
-  margin-top: 5px; font-size: 11px; color: #b45309;
+  margin-top: 5px; font-size: 0.6875rem; color: #b45309;
   background: #fffbeb; border-radius: 6px; padding: 5px 8px;
 `;
 
@@ -1042,7 +1042,7 @@ const Header = styled.div`
 `;
 const HeaderTitle = styled.div`
   display: inline-flex; align-items: center; gap: 8px;
-  font-size: 14px; font-weight: 700; color: #0F172A;
+  font-size: 0.875rem; font-weight: 700; color: #0F172A;
 `;
 const Sparkle = styled.span<{ $cue?: boolean }>`
   display: inline-flex;
@@ -1068,21 +1068,21 @@ const Empty = styled.div`
   text-align: center; padding: 40px 20px;
 `;
 const EmptyTitle = styled.h4`
-  font-size: 14px; font-weight: 700; color: #0F172A;
+  font-size: 0.875rem; font-weight: 700; color: #0F172A;
   margin: 0 0 6px;
 `;
 const EmptyHint = styled.p`
-  font-size: 13px; color: #64748B;
+  font-size: 0.8125rem; color: #64748B;
   margin: 0 0 16px; line-height: 1.55;
 `;
 const EmptyShortcut = styled.div`
-  font-size: 12px; color: #94A3B8;
+  font-size: 0.75rem; color: #94A3B8;
   display: inline-flex; align-items: center; gap: 4px;
   kbd {
     display: inline-flex; align-items: center; justify-content: center;
     min-width: 22px; height: 22px; padding: 0 6px;
     background: #F1F5F9; border: 1px solid #E2E8F0; border-radius: 4px;
-    font-family: inherit; font-size: 11px; font-weight: 600; color: #334155;
+    font-family: inherit; font-size: 0.6875rem; font-weight: 600; color: #334155;
   }
 `;
 const TurnRow = styled.div`
@@ -1096,11 +1096,11 @@ const Q = styled.div`
   border-radius: 8px;
 `;
 const QuLabel = styled.span`
-  font-size: 10px; font-weight: 700; color: #94A3B8;
+  font-size: 0.625rem; font-weight: 700; color: #94A3B8;
   text-transform: uppercase; letter-spacing: 0.4px;
 `;
 const QText = styled.span`
-  font-size: 13px; color: #0F172A; line-height: 1.55;
+  font-size: 0.8125rem; color: #0F172A; line-height: 1.55;
   white-space: pre-wrap; word-break: break-word;
 `;
 const A = styled.div<{ $variant?: 'qhelper' | 'workspace' }>`
@@ -1111,20 +1111,20 @@ const A = styled.div<{ $variant?: 'qhelper' | 'workspace' }>`
   padding: 10px 12px;
 `;
 const ALabel = styled.span<{ $variant?: 'qhelper' | 'workspace' }>`
-  font-size: 10px; font-weight: 700;
+  font-size: 0.625rem; font-weight: 700;
   color: ${p => p.$variant === 'workspace' ? '#9F1239' : '#0D9488'};
   text-transform: uppercase; letter-spacing: 0.4px;
 `;
 const Answer = styled.div`
-  font-size: 13px; color: #0F172A; line-height: 1.55;
+  font-size: 0.8125rem; color: #0F172A; line-height: 1.55;
   white-space: pre-wrap;
   flex: 1;
 `;
 const Loading = styled.span`
-  font-size: 13px; color: #64748B; font-style: italic;
+  font-size: 0.8125rem; color: #64748B; font-style: italic;
 `;
 const ErrorText = styled.span`
-  font-size: 13px; color: #DC2626;
+  font-size: 0.8125rem; color: #DC2626;
 `;
 const Footer = styled.div`
   flex-shrink: 0;
@@ -1149,13 +1149,13 @@ const InputWrap = styled.div`
 const InputTextarea = styled.textarea`
   flex: 1;
   border: none; background: transparent; resize: none;
-  font-size: 13px; font-family: inherit;
+  font-size: 0.8125rem; font-family: inherit;
   line-height: 1.45; color: #0F172A;
   padding: 4px 0;
   min-height: 40px; max-height: 120px;
   &:focus { outline: none; }
   &::placeholder { color: #94A3B8; }
-  @media (max-width: 1024px) { font-size: 16px; }
+  @media (max-width: 1024px) { font-size: 1rem; }
 `;
 const SendBtn = styled.button`
   flex-shrink: 0;
@@ -1180,7 +1180,7 @@ const FeedbackEnter = styled.button`
   padding: 6px 10px;
   background: #FFF1F2; color: #9F1239;
   border-radius: 999px;
-  font-size: 12px; font-weight: 600;
+  font-size: 0.75rem; font-weight: 600;
   transition: all 0.15s;
   &:hover { background: #FECDD3; }
 `;
@@ -1190,7 +1190,7 @@ const BackToGuide = styled.button`
   padding: 6px 10px;
   background: #F1F5F9; color: #475569;
   border-radius: 999px;
-  font-size: 12px; font-weight: 600;
+  font-size: 0.75rem; font-weight: 600;
   transition: all 0.15s;
   &:hover { background: #E2E8F0; }
 `;
@@ -1206,7 +1206,7 @@ const ModeBtn = styled.button<{ $active: boolean; $variant: 'qhelper' | 'workspa
   all: unset; cursor: pointer; box-sizing: border-box;
   display: inline-flex; align-items: center; gap: 6px;
   padding: 6px 12px; border-radius: 999px;
-  font-size: 12px; font-weight: 600;
+  font-size: 0.75rem; font-weight: 600;
   border: 1px solid transparent;  /* active/inactive 동일 box-size 유지 — 탭 전환 시 높이 흔들림 방지 */
   transition: background 0.15s, color 0.15s, border-color 0.15s;
   ${p => p.$active && p.$variant === 'qhelper' && 'background: #FFFFFF; color: #0F766E; border-color: #14B8A6;'}
@@ -1219,7 +1219,7 @@ const ModeHint = styled.div`
   flex-shrink: 0;
   display: flex; align-items: center; gap: 6px;
   padding: 0 14px 8px;
-  font-size: 11.5px; font-weight: 500; color: #64748B;
+  font-size: 0.71875rem; font-weight: 500; color: #64748B;
   line-height: 1.3;
 `;
 const DOT_COLOR: Record<string, string> = { cue: '#F43F5E', wiki: '#14B8A6', inquiry: '#94A3B8' };
@@ -1239,7 +1239,7 @@ const QuickChip = styled.button`
   all: unset; cursor: pointer;
   padding: 4px 10px; border-radius: 999px;
   background: #F8FAFC; border: 1px solid #E2E8F0;
-  font-size: 12px; font-weight: 500; color: #475569;
+  font-size: 0.75rem; font-weight: 500; color: #475569;
   transition: all 0.15s;
   &:hover { background: #F0FDFA; border-color: #14B8A6; color: #0F766E; }
 `;
@@ -1257,15 +1257,15 @@ const WikiSection = styled.div`
 const WikiSearchInput = styled.input`
   box-sizing: border-box; width: 100%; height: 36px; padding: 0 12px;
   border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 13px; color: #334155; background: #fff;
+  font-size: 0.8125rem; color: #334155; background: #fff;
   &::placeholder { color: #94A3B8; }
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.12); }
 `;
 const WikiEmptyHint = styled.div`
-  font-size: 12px; color: #94A3B8; padding: 6px 2px;
+  font-size: 0.75rem; color: #94A3B8; padding: 6px 2px;
 `;
 const WikiSectionLabel = styled.div`
-  font-size: 11px; font-weight: 700; color: #94A3B8;
+  font-size: 0.6875rem; font-weight: 700; color: #94A3B8;
   text-transform: uppercase; letter-spacing: 0.4px;
 `;
 const WikiContextCard = styled.button`
@@ -1277,15 +1277,15 @@ const WikiContextCard = styled.button`
   &:hover { border-color: #14B8A6; background: #ECFDF5; }
 `;
 const WikiCardTitle = styled.span`
-  font-size: 13px; font-weight: 700; color: #0F766E; line-height: 1.4;
+  font-size: 0.8125rem; font-weight: 700; color: #0F766E; line-height: 1.4;
 `;
 const WikiCardSummary = styled.span`
-  font-size: 12px; color: #64748B; line-height: 1.45;
+  font-size: 0.75rem; color: #64748B; line-height: 1.45;
 `;
 const WikiFullLink = styled.button`
   all: unset; cursor: pointer;
   align-self: flex-start;
-  font-size: 12px; font-weight: 700; color: #0D9488;
+  font-size: 0.75rem; font-weight: 700; color: #0D9488;
   &:hover { color: #0F766E; text-decoration: underline; }
 `;
 // ─── Q위키 답변 근거(sources) ───
@@ -1294,14 +1294,14 @@ const Sources = styled.div`
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
 `;
 const SourcesLabel = styled.span`
-  font-size: 10px; font-weight: 700; color: #0D9488;
+  font-size: 0.625rem; font-weight: 700; color: #0D9488;
   text-transform: uppercase; letter-spacing: 0.4px;
 `;
 const SourceLink = styled.button`
   all: unset; cursor: pointer;
   padding: 3px 8px; border-radius: 999px;
   background: #FFFFFF; border: 1px solid #5EEAD4;
-  font-size: 11px; font-weight: 600; color: #0F766E;
+  font-size: 0.6875rem; font-weight: 600; color: #0F766E;
   &:hover { background: #F0FDFA; }
 `;
 // KNOWLEDGE_LOOP 축2 — 답변 피드백 2버튼
@@ -1312,18 +1312,18 @@ const FeedbackBtn = styled.button`
   all: unset; cursor: pointer;
   padding: 3px 10px; border-radius: 999px;
   background: #FFFFFF; border: 1px solid #E2E8F0;
-  font-size: 11px; font-weight: 600; color: #64748B;
+  font-size: 0.6875rem; font-weight: 600; color: #64748B;
   &:hover { background: #F8FAFC; border-color: #CBD5E1; }
 `;
 const FeedbackDone = styled.span`
-  font-size: 11px; color: #94A3B8;
+  font-size: 0.6875rem; color: #94A3B8;
 `;
 const FeedbackPitch = styled.div`
   flex-shrink: 0;
   padding: 12px 16px;
   background: #FFF1F2;
   border-bottom: 1px solid #FECDD3;
-  font-size: 12.5px; color: #9F1239;
+  font-size: 0.78125rem; color: #9F1239;
   line-height: 1.55;
 `;
 // ─── 피드백 폼 ───
@@ -1334,7 +1334,7 @@ const FbField = styled.div`
   display: flex; flex-direction: column; gap: 6px;
 `;
 const FbLabel = styled.label`
-  font-size: 12px; font-weight: 700; color: #475569;
+  font-size: 0.75rem; font-weight: 700; color: #475569;
 `;
 const FbCatRow = styled.div`
   display: flex; gap: 6px; flex-wrap: wrap;
@@ -1342,7 +1342,7 @@ const FbCatRow = styled.div`
 const FbCatBtn = styled.button<{ $active: boolean }>`
   all: unset; cursor: pointer;
   padding: 6px 12px; border-radius: 999px;
-  font-size: 12px; font-weight: 600;
+  font-size: 0.75rem; font-weight: 600;
   background: ${p => p.$active ? '#F43F5E' : '#F1F5F9'};
   color: ${p => p.$active ? '#FFFFFF' : '#475569'};
   transition: all 0.15s;
@@ -1351,20 +1351,20 @@ const FbCatBtn = styled.button<{ $active: boolean }>`
 const FbTextArea = styled.textarea`
   padding: 10px 12px;
   border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 13px; color: #0F172A;
+  font-size: 0.8125rem; color: #0F172A;
   font-family: inherit; resize: vertical;
   &:focus { outline: none; border-color: #F43F5E; box-shadow: 0 0 0 3px rgba(244,63,94,0.15); }
 `;
 const FbInput = styled.input`
   padding: 10px 12px;
   border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 13px; color: #0F172A;
+  font-size: 0.8125rem; color: #0F172A;
   font-family: inherit;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
 `;
 const FbCheck = styled.div`
   display: flex; align-items: center; gap: 8px;
-  font-size: 13px; color: #475569;
+  font-size: 0.8125rem; color: #475569;
   input { width: 16px; height: 16px; accent-color: #F43F5E; cursor: pointer; }
   label { cursor: pointer; }
 `;
@@ -1372,7 +1372,7 @@ const FbMeta = styled.div`
   display: flex; align-items: center; gap: 8px;
   padding: 8px 10px;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px;
-  font-size: 11px;
+  font-size: 0.6875rem;
 `;
 const FbMetaLabel = styled.span`color: #64748B; font-weight: 600; flex-shrink: 0;`;
 const FbMetaValue = styled.span`
@@ -1382,22 +1382,22 @@ const FbMetaValue = styled.span`
 const FbResult = styled.div`
   padding: 10px 12px;
   background: #F0FDFA; border: 1px solid #5EEAD4; border-radius: 8px;
-  font-size: 13px; color: #0F766E;
+  font-size: 0.8125rem; color: #0F766E;
 `;
 // 내 문의·피드백 내역 (운영 #21)
 const MyHistoryLink = styled.button`
   align-self: flex-start; padding: 6px 0; background: none; border: none; cursor: pointer;
-  font-size: 13px; font-weight: 600; color: #0D9488;
+  font-size: 0.8125rem; font-weight: 600; color: #0D9488;
   &:hover { color: #0F766E; text-decoration: underline; }
 `;
 const MyHistoryWrap = styled.div`display: flex; flex-direction: column; gap: 12px;`;
 const MyHistoryBack = styled.button`
   align-self: flex-start; padding: 4px 0; background: none; border: none; cursor: pointer;
-  font-size: 13px; font-weight: 600; color: #64748B;
+  font-size: 0.8125rem; font-weight: 600; color: #64748B;
   &:hover { color: #0F172A; }
 `;
 const MyHistoryEmpty = styled.div`
-  padding: 28px 16px; text-align: center; font-size: 13px; color: #94A3B8;
+  padding: 28px 16px; text-align: center; font-size: 0.8125rem; color: #94A3B8;
 `;
 const MyHistoryCard = styled.div`
   padding: 14px; border: 1px solid #E2E8F0; border-radius: 12px; background: #FFFFFF;
@@ -1405,7 +1405,7 @@ const MyHistoryCard = styled.div`
 `;
 const MyHistoryTop = styled.div`display: flex; align-items: center; gap: 8px; flex-wrap: wrap;`;
 const MyHistCat = styled.span`
-  font-size: 11px; font-weight: 700; color: #0F766E;
+  font-size: 0.6875rem; font-weight: 700; color: #0F766E;
   background: #F0FDFA; border-radius: 999px; padding: 2px 10px;
 `;
 const STATUS_TONE: Record<string, { bg: string; fg: string }> = {
@@ -1415,24 +1415,24 @@ const STATUS_TONE: Record<string, { bg: string; fg: string }> = {
   wontfix: { bg: '#F1F5F9', fg: '#64748B' },
 };
 const MyHistStatus = styled.span<{ $s: string }>`
-  font-size: 11px; font-weight: 700; border-radius: 999px; padding: 2px 10px;
+  font-size: 0.6875rem; font-weight: 700; border-radius: 999px; padding: 2px 10px;
   background: ${p => (STATUS_TONE[p.$s] || STATUS_TONE.pending).bg};
   color: ${p => (STATUS_TONE[p.$s] || STATUS_TONE.pending).fg};
 `;
-const MyHistDate = styled.span`margin-left: auto; font-size: 11px; color: #94A3B8;`;
-const MyHistBody = styled.div`font-size: 13px; color: #334155; white-space: pre-wrap; word-break: break-word;`;
+const MyHistDate = styled.span`margin-left: auto; font-size: 0.6875rem; color: #94A3B8;`;
+const MyHistBody = styled.div`font-size: 0.8125rem; color: #334155; white-space: pre-wrap; word-break: break-word;`;
 const MyHistReply = styled.div`
   margin-top: 4px; padding: 10px 12px; background: #F8FAFC; border-radius: 8px;
   border-left: 3px solid #14B8A6;
 `;
-const MyHistReplyLabel = styled.div`font-size: 11px; font-weight: 700; color: #0F766E; margin-bottom: 4px;`;
-const MyHistReplyText = styled.div`font-size: 13px; color: #334155; white-space: pre-wrap; word-break: break-word;`;
+const MyHistReplyLabel = styled.div`font-size: 0.6875rem; font-weight: 700; color: #0F766E; margin-bottom: 4px;`;
+const MyHistReplyText = styled.div`font-size: 0.8125rem; color: #334155; white-space: pre-wrap; word-break: break-word;`;
 // N+63 — 피드백 이미지 첨부. #232 로 드롭존(AttachmentField) 통일 — 전용 칩/버튼 스타일은 제거됨.
 const FbAttachHint = styled.span`
-  font-size: 11px; color: #94A3B8;
+  font-size: 0.6875rem; color: #94A3B8;
 `;
 const FbAttachErr = styled.div`
-  margin-top: 6px; font-size: 11px; color: #B91C1C;
+  margin-top: 6px; font-size: 0.6875rem; color: #B91C1C;
 `;
 const FbSendBtn = styled.button`
   width: 100%;
@@ -1440,7 +1440,7 @@ const FbSendBtn = styled.button`
   background: #F43F5E;
   color: #FFFFFF;
   border: none; border-radius: 8px;
-  font-size: 13px; font-weight: 700;
+  font-size: 0.8125rem; font-weight: 700;
   cursor: pointer;
   height: 40px;
   transition: background 0.15s;

@@ -61,5 +61,5 @@ const Spinner = styled.div`
   margin: 0 auto 16px;
   @keyframes spin { to { transform: rotate(360deg); } }
 `;
-const Title = styled.h2`margin: 0 0 8px; font-size: 16px; font-weight: 700; color: #0F172A;`;
-const Hint = styled.p`margin: 0; font-size: 13px; color: #64748B;`;
+const Title = styled.h2`margin: 0 0 8px; font-size: 1rem; font-weight: 700; color: #0F172A;`;
+const Hint = styled.p`margin: 0; font-size: 0.8125rem; color: #64748B;`;

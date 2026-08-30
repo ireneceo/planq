@@ -416,31 +416,31 @@ const PushDiagnoseModal: React.FC<{ os: ReturnType<typeof detectOS>; onClose: ()
 const DiagBackdrop = styled.div`position: fixed; inset: 0; background: rgba(15,23,42,0.5); z-index: 3000; display: flex; align-items: center; justify-content: center; padding: 20px;`;
 const DiagCard = styled.div`background: #FFFFFF; border-radius: 14px; max-width: 520px; width: 100%; box-shadow: 0 12px 32px rgba(15,23,42,0.18); display: flex; flex-direction: column; max-height: 90vh; overflow: hidden;`;
 const DiagHead = styled.div`display: flex; align-items: center; justify-content: space-between; padding: 18px 20px 12px; border-bottom: 1px solid #E2E8F0;`;
-const DiagTitle = styled.h3`margin: 0; font-size: 16px; font-weight: 700; color: #0F172A;`;
-const DiagClose = styled.button`background: none; border: none; font-size: 22px; line-height: 1; color: #64748B; cursor: pointer; padding: 4px 8px; &:hover { color: #0F172A; }`;
+const DiagTitle = styled.h3`margin: 0; font-size: 1rem; font-weight: 700; color: #0F172A;`;
+const DiagClose = styled.button`background: none; border: none; font-size: 1.375rem; line-height: 1; color: #64748B; cursor: pointer; padding: 4px 8px; &:hover { color: #0F172A; }`;
 const DiagBody = styled.div`padding: 16px 20px; overflow-y: auto;`;
-const DiagDesc = styled.p`margin: 0 0 14px; font-size: 13px; color: #334155; line-height: 1.55;`;
-const DiagSteps = styled.ol`margin: 0 0 14px; padding-left: 22px; font-size: 13px; color: #334155; line-height: 1.7;
+const DiagDesc = styled.p`margin: 0 0 14px; font-size: 0.8125rem; color: #334155; line-height: 1.55;`;
+const DiagSteps = styled.ol`margin: 0 0 14px; padding-left: 22px; font-size: 0.8125rem; color: #334155; line-height: 1.7;
   li { margin-bottom: 6px; }
-  code { background: #F1F5F9; padding: 1px 6px; border-radius: 4px; font-size: 12px; color: #0F766E; }
+  code { background: #F1F5F9; padding: 1px 6px; border-radius: 4px; font-size: 0.75rem; color: #0F766E; }
 `;
-const DiagShortcut = styled.a`display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: #0F766E; text-decoration: none; padding: 8px 12px; background: #F0FDFA; border: 1px solid #CCFBF1; border-radius: 8px; margin-top: 4px; &:hover { background: #CCFBF1; }`;
+const DiagShortcut = styled.a`display: inline-flex; align-items: center; gap: 6px; font-size: 0.8125rem; font-weight: 600; color: #0F766E; text-decoration: none; padding: 8px 12px; background: #F0FDFA; border: 1px solid #CCFBF1; border-radius: 8px; margin-top: 4px; &:hover { background: #CCFBF1; }`;
 const DiagFooter = styled.div`display: flex; gap: 8px; justify-content: flex-end; padding: 12px 20px 16px; border-top: 1px solid #E2E8F0;`;
-const DiagPrimary = styled.button`height: 36px; padding: 0 16px; background: #14B8A6; color: #FFFFFF; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; &:hover { background: #0D9488; }`;
-const DiagSecondary = styled.button`height: 36px; padding: 0 16px; background: #FFFFFF; color: #334155; border: 1px solid #CBD5E1; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; &:hover { background: #F8FAFC; }`;
+const DiagPrimary = styled.button`height: 36px; padding: 0 16px; background: #14B8A6; color: #FFFFFF; border: none; border-radius: 8px; font-size: 0.8125rem; font-weight: 700; cursor: pointer; &:hover { background: #0D9488; }`;
+const DiagSecondary = styled.button`height: 36px; padding: 0 16px; background: #FFFFFF; color: #334155; border: 1px solid #CBD5E1; border-radius: 8px; font-size: 0.8125rem; font-weight: 500; cursor: pointer; &:hover { background: #F8FAFC; }`;
 
 export default NotificationSettings;
 
 // ─── styled ───
 const Wrap = styled.div`display: flex; flex-direction: column; gap: 14px;`;
-const Loading = styled.div`text-align: center; padding: 40px; color: #94A3B8; font-size: 13px;`;
-const ErrorBanner = styled.div`padding: 10px 14px; background: #FEF2F2; border: 1px solid #FECACA; color: #991B1B; border-radius: 8px; font-size: 12px;`;
+const Loading = styled.div`text-align: center; padding: 40px; color: #94A3B8; font-size: 0.8125rem;`;
+const ErrorBanner = styled.div`padding: 10px 14px; background: #FEF2F2; border: 1px solid #FECACA; color: #991B1B; border-radius: 8px; font-size: 0.75rem;`;
 const Section = styled.section`
   background: #fff; border: 1px solid #E2E8F0; border-radius: 12px; padding: 18px 20px;
   display: flex; flex-direction: column; gap: 12px;
 `;
-const SectionTitle = styled.h3`font-size: 15px; font-weight: 700; color: #0F172A; margin: 0;`;
-const SectionDesc = styled.div`font-size: 12px; color: #64748B;`;
+const SectionTitle = styled.h3`font-size: 0.9375rem; font-weight: 700; color: #0F172A; margin: 0;`;
+const SectionDesc = styled.div`font-size: 0.75rem; color: #64748B;`;
 const Matrix = styled.div`
   display: flex; flex-direction: column; gap: 0;
 `;
@@ -460,7 +460,7 @@ const ChannelIcon = styled.div`
   display: inline-flex; align-items: center; justify-content: center;
   color: #475569; height: 18px;
 `;
-const ChannelName = styled.div`font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.4px;`;
+const ChannelName = styled.div`font-size: 0.6875rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.4px;`;
 const MatrixRow = styled.div`
   display: grid; grid-template-columns: minmax(160px, 1fr) repeat(4, 84px);
   /* 폰 — 160 + 84*4 = 496px 라 375px 화면을 넘겨 오른쪽으로 삐져나갔다(2026-08-25 실측).
@@ -472,8 +472,8 @@ const MatrixRow = styled.div`
 `;
 const EventCell = styled.div`padding: 14px 14px; display: flex; flex-direction: column; gap: 2px;
   @media (max-width: 640px) { padding: 12px 6px 12px 0; min-width: 0; }`;
-const EventLabel = styled.div`font-size: 13px; font-weight: 600; color: #0F172A;`;
-const EventDesc = styled.div`font-size: 11px; color: #94A3B8; line-height: 1.4;`;
+const EventLabel = styled.div`font-size: 0.8125rem; font-weight: 600; color: #0F172A;`;
+const EventDesc = styled.div`font-size: 0.6875rem; color: #94A3B8; line-height: 1.4;`;
 const ToggleCell = styled.div`padding: 14px 0; display: flex; align-items: center; justify-content: center;`;
 const Switch = styled.button<{ $on: boolean; $saving: boolean }>`
   width: 36px; height: 20px; border-radius: 999px; border: none;
@@ -490,19 +490,19 @@ const SwitchKnob = styled.span<{ $on: boolean }>`
   box-shadow: 0 1px 3px rgba(0,0,0,0.15);
 `;
 const FooterNote = styled.div`
-  font-size: 11px; color: #94A3B8; line-height: 1.5;
+  font-size: 0.6875rem; color: #94A3B8; line-height: 1.5;
   padding-top: 4px;
 `;
 const PolicyBox = styled.div`
   margin-top: 4px; display: flex; flex-direction: column; gap: 6px;
 `;
 const PolicyTitle = styled.div`
-  font-size: 11px; font-weight: 700; color: #475569;
+  font-size: 0.6875rem; font-weight: 700; color: #475569;
   text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 2px;
 `;
 const PolicyItem = styled.div`
   display: flex; gap: 8px; align-items: flex-start;
-  font-size: 12px; color: #64748B; line-height: 1.5;
+  font-size: 0.75rem; color: #64748B; line-height: 1.5;
 `;
 const PolicyDot = styled.span<{ $kind?: 'info' }>`
   flex-shrink: 0; margin-top: 6px; width: 5px; height: 5px;
@@ -529,12 +529,12 @@ const AttentionIcon = styled.div`
   border-radius: 8px;
 `;
 const AttentionBody = styled.div`min-width: 0; display: flex; flex-direction: column; gap: 2px;`;
-const AttentionTitle = styled.div`font-size: 13px; font-weight: 700; color: #9A3412; line-height: 1.3;`;
-const AttentionDesc = styled.div`font-size: 12px; color: #7C2D12; line-height: 1.4;`;
+const AttentionTitle = styled.div`font-size: 0.8125rem; font-weight: 700; color: #9A3412; line-height: 1.3;`;
+const AttentionDesc = styled.div`font-size: 0.75rem; color: #7C2D12; line-height: 1.4;`;
 const AttentionCta = styled.button`
   height: 36px; padding: 0 16px;
   background: #14B8A6; color: #FFFFFF; border: none; border-radius: 8px;
-  font-size: 13px; font-weight: 600; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   transition: background 0.15s;
   &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -546,7 +546,7 @@ const SecondaryBtn = styled.button`
   height: 32px; padding: 0 14px;
   background: transparent; color: #475569;
   border: 1px solid #E2E8F0; border-radius: 6px;
-  font-size: 13px; font-weight: 600; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   &:hover:not(:disabled) { background: #F8FAFC; }
   &:disabled { opacity: 0.6; cursor: not-allowed; }
 `;
@@ -554,18 +554,18 @@ const TertiaryBtn = styled.button`
   height: 32px; padding: 0 14px;
   background: #F0FDFA; color: #0D9488;
   border: 1px solid #99F6E4; border-radius: 6px;
-  font-size: 13px; font-weight: 600; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   &:hover:not(:disabled) { background: #CCFBF1; }
   &:disabled { opacity: 0.6; cursor: not-allowed; }
 `;
 const ResultNote = styled.div`
-  font-size: 11px; color: #0D9488; margin-top: 12px; line-height: 1.5;
+  font-size: 0.6875rem; color: #0D9488; margin-top: 12px; line-height: 1.5;
 `;
 
 const DiagEnv = styled.div`
   margin: 6px 0 10px;
   padding: 6px 10px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #475569;
   background: #F8FAFC;
   border: 1px solid #E2E8F0;

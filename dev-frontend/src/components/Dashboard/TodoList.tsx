@@ -302,7 +302,7 @@ const Header = styled.header`
 `;
 
 const Title = styled.h2`
-  font-size: 16px;
+  font-size: 1rem;
   font-weight: 700;
   color: #0F172A;
   margin: 0;
@@ -310,7 +310,7 @@ const Title = styled.h2`
 `;
 
 const Count = styled.span`
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #64748B;
   font-weight: 500;
 `;
@@ -344,13 +344,13 @@ const Dot = styled.span`
 `;
 
 const SectionLabel = styled.span`
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.2px;
 `;
 
 const SectionCount = styled.span`
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #64748B;
   background: #F1F5F9;
   border-radius: 999px;
@@ -359,7 +359,7 @@ const SectionCount = styled.span`
 `;
 
 const SectionHint = styled.span`
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #94A3B8;
   margin-left: auto;
 `;
@@ -423,7 +423,7 @@ const CardLine1 = styled.div`
 `;
 
 const Verb = styled.span`
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   color: #0F766E;
   background: #F0FDFA;
@@ -434,9 +434,9 @@ const Verb = styled.span`
 
 const Subject = styled.span`
   /* 규격: theme/tokens LIST_ROW — 데스크탑 14 / 폰 15 · 600 */
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
-  @media (max-width: 640px) { font-size: 15px; }
+  @media (max-width: 640px) { font-size: 0.9375rem; }
   color: #0F172A;
   white-space: nowrap;
   overflow: hidden;
@@ -449,12 +449,12 @@ const CardLine2 = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #64748B;
 `;
 
 const DueBadge = styled.span<{ $priority: TodoPriority }>`
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   padding: 1px 6px;
   border-radius: 4px;
@@ -472,7 +472,7 @@ const CtxText = styled.span`
 // 발생 시점 chip — "방금 / 5분 전 / 어제 14:30" 식. hover 시 절대 시각 표시.
 const CreatedChip = styled.span`
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 500;
   color: #94A3B8;
   white-space: nowrap;
@@ -485,7 +485,7 @@ const WsChip = styled.span<{ $role: 'owner' | 'member' | 'client' | 'admin' }>`
   gap: 4px;
   padding: 2px 8px;
   border-radius: 999px;
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 600;
   background: ${p =>
     p.$role === 'client' ? '#FEF3C7' :
@@ -513,7 +513,7 @@ const Chevron = styled.span`
 `;
 
 const InlineBtn = styled.button<{ $variant: 'primary' | 'ghost' | 'danger' }>`
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   padding: 6px 12px;
   border-radius: 6px;
@@ -549,7 +549,7 @@ const PRIORITY_CHIP: Record<string, { bg: string; fg: string }> = {
 };
 const PriorityChip = styled.span<{ $priority: string }>`
   flex-shrink: 0; padding: 1px 7px; border-radius: 999px;
-  font-size: 10px; font-weight: 700; line-height: 1.6;
+  font-size: 0.625rem; font-weight: 700; line-height: 1.6;
   background: ${(p) => (PRIORITY_CHIP[p.$priority] || PRIORITY_CHIP.week).bg};
   color: ${(p) => (PRIORITY_CHIP[p.$priority] || PRIORITY_CHIP.week).fg};
 `;

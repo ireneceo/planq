@@ -161,14 +161,14 @@ export default EmailSettings;
 
 // ─── styled ───
 const Wrap = styled.div`display: flex; flex-direction: column; gap: 14px;`;
-const Loading = styled.div`text-align: center; padding: 40px; color: #94A3B8; font-size: 13px;`;
-const ErrorBanner = styled.div`padding: 10px 14px; background: #FEF2F2; border: 1px solid #FECACA; color: #991B1B; border-radius: 8px; font-size: 12px;`;
+const Loading = styled.div`text-align: center; padding: 40px; color: #94A3B8; font-size: 0.8125rem;`;
+const ErrorBanner = styled.div`padding: 10px 14px; background: #FEF2F2; border: 1px solid #FECACA; color: #991B1B; border-radius: 8px; font-size: 0.75rem;`;
 const Section = styled.section`
   background: #fff; border: 1px solid #E2E8F0; border-radius: 12px; padding: 18px 20px;
   display: flex; flex-direction: column; gap: 10px;
 `;
-const SectionTitle = styled.h3`font-size: 15px; font-weight: 700; color: #0F172A; margin: 0;`;
-const SectionDesc = styled.div`font-size: 12px; color: #64748B;`;
+const SectionTitle = styled.h3`font-size: 0.9375rem; font-weight: 700; color: #0F172A; margin: 0;`;
+const SectionDesc = styled.div`font-size: 0.75rem; color: #64748B;`;
 const StatusBox = styled.div<{ $ok: boolean }>`
   display: flex; align-items: center; gap: 10px;
   padding: 12px 14px; border-radius: 10px;
@@ -179,21 +179,21 @@ const StatusDot = styled.div<{ $ok: boolean }>`
   width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
   background: ${p => p.$ok ? '#22C55E' : '#F59E0B'};
 `;
-const StatusText = styled.div`font-size: 13px; color: #334155; line-height: 1.5;`;
+const StatusText = styled.div`font-size: 0.8125rem; color: #334155; line-height: 1.5;`;
 const Field = styled.div`display: flex; flex-direction: column; gap: 6px; padding-top: 6px;`;
-const Label = styled.label`font-size: 12px; font-weight: 600; color: #475569;`;
+const Label = styled.label`font-size: 0.75rem; font-weight: 600; color: #475569;`;
 const Input = styled.input`
-  padding: 9px 12px; font-size: 13px; color: #0F172A;
+  padding: 9px 12px; font-size: 0.8125rem; color: #0F172A;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 8px;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
   &:disabled { background: #F8FAFC; color: #94A3B8; cursor: not-allowed; }
 `;
-const Hint = styled.div`font-size: 11px; color: #94A3B8;`;
+const Hint = styled.div`font-size: 0.6875rem; color: #94A3B8;`;
 const Preview = styled.div`display: flex; flex-direction: column; gap: 4px; margin-top: 4px;`;
-const PreviewLabel = styled.div`font-size: 10px; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.4px;`;
+const PreviewLabel = styled.div`font-size: 0.625rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.4px;`;
 const PreviewBox = styled.div`background: #F8FAFC; border-radius: 8px; padding: 10px 12px; font-family: ui-monospace, monospace;`;
-const PreviewFrom = styled.div`font-size: 11px; color: #475569;`;
-const PreviewSubject = styled.div`font-size: 12px; color: #0F172A; margin-top: 2px;`;
+const PreviewFrom = styled.div`font-size: 0.6875rem; color: #475569;`;
+const PreviewSubject = styled.div`font-size: 0.75rem; color: #0F172A; margin-top: 2px;`;
 
 const ScopeHint = styled.p`
   margin: 0 0 12px;
@@ -201,7 +201,7 @@ const ScopeHint = styled.p`
   border-radius: 8px;
   background: #F0FDFA;
   border: 1px solid #CCFBF1;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #0F766E;
   line-height: 1.6;
 `;

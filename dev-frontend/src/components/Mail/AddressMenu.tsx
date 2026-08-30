@@ -103,7 +103,7 @@ const AddrBtn = styled.button`
 `;
 const Copied = styled.span`
   margin-left: 6px; padding: 1px 6px; border-radius: 999px;
-  background: #DCFCE7; color: #166534; font-size: 10px; font-weight: 700;
+  background: #DCFCE7; color: #166534; font-size: 0.625rem; font-weight: 700;
 `;
 const Menu = styled.div`
   position: absolute; top: calc(100% + 6px); left: 0; z-index: 60;
@@ -113,7 +113,7 @@ const Menu = styled.div`
   display: flex; flex-direction: column; gap: 2px;
 `;
 const MenuHead = styled.div`
-  padding: 6px 8px 8px; font-size: 11px; color: #94A3B8;
+  padding: 6px 8px 8px; font-size: 0.6875rem; color: #94A3B8;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   border-bottom: 1px solid #F1F5F9; margin-bottom: 4px;
 `;
@@ -121,8 +121,8 @@ const Item = styled.button<{ $danger?: boolean }>`
   display: block; width: 100%; text-align: left;
   padding: 8px 10px; min-height: 36px;
   background: none; border: none; border-radius: 7px; cursor: pointer;
-  font-size: 13px; color: ${p => (p.$danger ? '#B91C1C' : '#334155')};
+  font-size: 0.8125rem; color: ${p => (p.$danger ? '#B91C1C' : '#334155')};
   &:hover { background: ${p => (p.$danger ? '#FEF2F2' : '#F1F5F9')}; }
 `;
 const Divider = styled.div` height: 1px; background: #F1F5F9; margin: 4px 0; `;
-const Hint = styled.div` padding: 2px 10px 6px; font-size: 10px; color: #94A3B8; line-height: 1.4; `;
+const Hint = styled.div` padding: 2px 10px 6px; font-size: 0.625rem; color: #94A3B8; line-height: 1.4; `;

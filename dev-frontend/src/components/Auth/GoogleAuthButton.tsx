@@ -58,7 +58,7 @@ export default GoogleAuthButton;
 const OAuthDivider = styled.div`
   display: flex; align-items: center; gap: 12px;
   margin: 16px 0 12px;
-  & > span { font-size: 12px; color: #94A3B8; padding: 0 12px; }
+  & > span { font-size: 0.75rem; color: #94A3B8; padding: 0 12px; }
   &::before, &::after { content: ''; flex: 1; height: 1px; background: #E2E8F0; }
 `;
 const GoogleBtn = styled.button`
@@ -66,7 +66,7 @@ const GoogleBtn = styled.button`
   width: 100%; height: 44px;
   background: #FFFFFF; color: #0F172A;
   border: 1px solid #CBD5E1; border-radius: 8px;
-  font-size: 14px; font-weight: 600;
+  font-size: 0.875rem; font-weight: 600;
   cursor: pointer; font-family: inherit;
   transition: background 0.15s, border-color 0.15s;
   &:hover:not(:disabled) { background: #F8FAFC; border-color: #94A3B8; }

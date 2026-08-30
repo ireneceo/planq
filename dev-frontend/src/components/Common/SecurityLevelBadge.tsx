@@ -29,5 +29,5 @@ const SecurityLevelBadge: React.FC<{ level?: string; className?: string }> = ({ 
 export default SecurityLevelBadge;
 
 const Badge = styled.span`
-  font-size: 11px; font-weight: 700; border-radius: 999px; padding: 2px 8px; flex-shrink: 0;
+  font-size: 0.6875rem; font-weight: 700; border-radius: 999px; padding: 2px 8px; flex-shrink: 0;
 `;

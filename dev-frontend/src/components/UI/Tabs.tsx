@@ -19,7 +19,7 @@ export const TabContainer = styled.div`
 
 export const Tab = styled.button<{ active?: boolean }>`
   padding: 12px 0;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 500;
   color: ${props => props.active ? '#14B8A6' : '#6B7C93'};
   background: none;

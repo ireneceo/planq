@@ -360,7 +360,7 @@ const AiBar = styled.div`
 `;
 const AiBtn = styled.button`
   display:inline-flex; align-items:center; gap:6px; flex-shrink:0;
-  height:36px; padding:0 16px; font-size:13px; font-weight:700; color:#fff; cursor:pointer;
+  height:36px; padding:0 16px; font-size:0.8125rem; font-weight:700; color:#fff; cursor:pointer;
   background:#F43F5E; border:none; border-radius:8px; transition:background .15s;
   &:hover:not(:disabled){ background:#E11D48; }
   &:disabled{ opacity:.6; cursor:default; }
@@ -370,19 +370,19 @@ const AiSpinner = styled.span`
   display:inline-block; width:14px; height:14px; border-radius:50%;
   border:2px solid rgba(255,255,255,.5); border-top-color:#fff; animation:${aiSpin} .7s linear infinite;
 `;
-const AiHint = styled.span`flex:1; min-width:160px; font-size:12px; color:#9F1239; line-height:1.5;`;
-const AiMsg = styled.span`flex-basis:100%; font-size:12px; font-weight:600; color:#B45309;`;
+const AiHint = styled.span`flex:1; min-width:160px; font-size:0.75rem; color:#9F1239; line-height:1.5;`;
+const AiMsg = styled.span`flex-basis:100%; font-size:0.75rem; font-weight:600; color:#B45309;`;
 const LayerLabel = styled.div<{ $tone: 'blue' | 'green' | 'orange' }>`
-  display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;letter-spacing:.02em;
+  display:inline-flex;align-items:center;gap:6px;font-size:0.75rem;font-weight:700;letter-spacing:.02em;
   margin-top:14px;padding:4px 12px;border-radius:999px;align-self:flex-start;
   color:${(p) => (p.$tone === 'blue' ? '#1E40AF' : p.$tone === 'green' ? '#0F766E' : '#9A3412')};
   background:${(p) => (p.$tone === 'blue' ? '#DBEAFE' : p.$tone === 'green' ? '#CCFBF1' : '#FFEDD5')};
   &::before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor;}
 `;
 const Field = styled.div``;
-const FieldLabel = styled.div`font-size:13px;font-weight:700;color:#0F172A;margin-bottom:6px;`;
-const Hint = styled.span`font-size:11px;font-weight:500;color:#94A3B8;margin-left:8px;`;
-const Textarea = styled.textarea`width:100%;min-height:72px;resize:vertical;border:1px solid #E2E8F0;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.6;color:#334155;font-family:inherit;&:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,.15);}&::placeholder{color:#94A3B8;}`;
+const FieldLabel = styled.div`font-size:0.8125rem;font-weight:700;color:#0F172A;margin-bottom:6px;`;
+const Hint = styled.span`font-size:0.6875rem;font-weight:500;color:#94A3B8;margin-left:8px;`;
+const Textarea = styled.textarea`width:100%;min-height:72px;resize:vertical;border:1px solid #E2E8F0;border-radius:10px;padding:10px 12px;font-size:0.8125rem;line-height:1.6;color:#334155;font-family:inherit;&:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,.15);}&::placeholder{color:#94A3B8;}`;
 // 빈 칸 안 남기는 2열 — 1개면 풀폭, 2개면 좌우, 좁으면 1열 (Irene: 우측 공간 비우지마)
 const AutoGrid = styled.div`display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;`;
 // 파스텔 hero 카드 — 프레이밍(파랑)/전략(teal) 톤. 두껍고 큰 글자(핵심메시지 스타일). (Irene)
@@ -392,10 +392,10 @@ const HeroCard = styled.div<{ $tone: 'blue' | 'teal' }>`
   border:1px solid ${p => p.$tone === 'blue' ? '#BFDBFE' : '#99F6E4'};
 `;
 const HeroLabel = styled.div<{ $tone: 'blue' | 'teal' }>`
-  display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;letter-spacing:0.03em;
+  display:inline-flex;align-items:center;gap:6px;font-size:0.75rem;font-weight:700;letter-spacing:0.03em;
   color:${p => p.$tone === 'blue' ? '#1D4ED8' : '#0F766E'};
 `;
-const HeroText = styled.div`font-size:18px;font-weight:700;line-height:1.5;color:#0F172A;white-space:pre-wrap;word-break:break-word;`;
+const HeroText = styled.div`font-size:1.125rem;font-weight:700;line-height:1.5;color:#0F172A;white-space:pre-wrap;word-break:break-word;`;
 // 섹션 제목 옆 수정 아이콘 — 상세정보(편집 가능한 곳)로 이동. 통일 형태(Irene)
 const EditIconBtn = styled.button`
   margin-left:6px;width:22px;height:22px;padding:0;border:none;background:transparent;color:#94A3B8;cursor:pointer;
@@ -403,34 +403,34 @@ const EditIconBtn = styled.button`
   &:hover{background:#F1F5F9;color:#0F766E;}
 `;
 const Card = styled.div`background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:16px 18px;`;
-const SectionTitle = styled.div`font-size:15px;font-weight:700;color:#0F172A;letter-spacing:-0.1px;margin-top:6px;margin-bottom:10px;display:flex;align-items:center;`;
+const SectionTitle = styled.div`font-size:0.9375rem;font-weight:700;color:#0F172A;letter-spacing:-0.1px;margin-top:6px;margin-bottom:10px;display:flex;align-items:center;`;
 // 개요 폴리시드 빈상태 — 내용 없어도 대시보드처럼 안내(Irene).
 const EmptyOverview = styled.div`display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;padding:44px 24px;background:linear-gradient(135deg,#F8FAFC,#fff);border:1px solid #E2E8F0;border-radius:14px;`;
 const EmptyIcon = styled.div`display:inline-flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:16px;background:#F0FDFA;color:#0F766E;`;
-const EmptyTitle = styled.div`font-size:16px;font-weight:700;color:#0F172A;`;
-const EmptyDesc = styled.div`font-size:14px;font-weight:500;color:#64748B;line-height:1.6;max-width:440px;`;
-const EmptyCta = styled.button`margin-top:4px;height:40px;padding:0 20px;background:#14B8A6;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;&:hover{background:#0D9488;}`;
-const GroupLabel = styled.div`font-size:11px;font-weight:600;color:#94A3B8;margin:10px 0 6px;`;
-const Empty = styled.div`font-size:13px;color:#94A3B8;padding:10px 0;`;
-const WeekHead = styled.div`display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#0F172A;margin-bottom:10px;`;
-const WeekCount = styled.span`display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;background:#CCFBF1;color:#0F766E;border-radius:999px;font-size:11px;font-weight:700;`;
+const EmptyTitle = styled.div`font-size:1rem;font-weight:700;color:#0F172A;`;
+const EmptyDesc = styled.div`font-size:0.875rem;font-weight:500;color:#64748B;line-height:1.6;max-width:440px;`;
+const EmptyCta = styled.button`margin-top:4px;height:40px;padding:0 20px;background:#14B8A6;color:#fff;border:none;border-radius:10px;font-size:0.875rem;font-weight:600;cursor:pointer;&:hover{background:#0D9488;}`;
+const GroupLabel = styled.div`font-size:0.6875rem;font-weight:600;color:#94A3B8;margin:10px 0 6px;`;
+const Empty = styled.div`font-size:0.8125rem;color:#94A3B8;padding:10px 0;`;
+const WeekHead = styled.div`display:flex;align-items:center;gap:8px;font-size:0.8125rem;font-weight:700;color:#0F172A;margin-bottom:10px;`;
+const WeekCount = styled.span`display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;background:#CCFBF1;color:#0F766E;border-radius:999px;font-size:0.6875rem;font-weight:700;`;
 const TaskChips = styled.div`display:flex;flex-direction:column;gap:6px;`;
 const Chip = styled.div`display:flex;align-items:center;gap:8px;padding:8px 10px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;cursor:pointer;&:hover{background:#F0FDFA;border-color:#99F6E4;}`;
 const ChipDot = styled.span`width:7px;height:7px;border-radius:50%;flex-shrink:0;`;
-const ChipTitle = styled.span`flex:1;font-size:13px;color:#0F172A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
-const ChipMeta = styled.span`font-size:11px;color:#94A3B8;flex-shrink:0;`;
+const ChipTitle = styled.span`flex:1;font-size:0.8125rem;color:#0F172A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
+const ChipMeta = styled.span`font-size:0.6875rem;color:#94A3B8;flex-shrink:0;`;
 const DelivList = styled.div`display:flex;flex-direction:column;gap:4px;`;
 const DelivRow = styled.div`display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;cursor:pointer;color:#475569;&:hover{background:#F8FAFC;}`;
-const DelivTitle = styled.span`flex:1;font-size:13px;color:#0F172A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
-const DelivTag = styled.span`font-size:10px;font-weight:700;color:#64748B;background:#F1F5F9;border-radius:999px;padding:2px 8px;flex-shrink:0;`;
+const DelivTitle = styled.span`flex:1;font-size:0.8125rem;color:#0F172A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
+const DelivTag = styled.span`font-size:0.625rem;font-weight:700;color:#64748B;background:#F1F5F9;border-radius:999px;padding:2px 8px;flex-shrink:0;`;
 const People = styled.div`display:flex;flex-wrap:wrap;gap:8px;`;
 const Person = styled.div`display:inline-flex;align-items:center;gap:6px;padding:5px 10px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:999px;`;
-const PName = styled.span`font-size:12px;font-weight:600;color:#334155;`;
-const DeptBadge = styled.span`font-size:10px;font-weight:700;color:#475569;background:#E2E8F0;border-radius:999px;padding:1px 7px;`;
+const PName = styled.span`font-size:0.75rem;font-weight:600;color:#334155;`;
+const DeptBadge = styled.span`font-size:0.625rem;font-weight:700;color:#475569;background:#E2E8F0;border-radius:999px;padding:1px 7px;`;
 const RiskList = styled.div`display:flex;flex-direction:column;gap:6px;`;
-const RiskRow = styled.div`display:flex;align-items:flex-start;gap:8px;font-size:13px;color:#334155;line-height:1.5;color:#92400E;`;
+const RiskRow = styled.div`display:flex;align-items:flex-start;gap:8px;font-size:0.8125rem;color:#334155;line-height:1.5;color:#92400E;`;
 const Skeleton = styled.div`display:flex;flex-direction:column;gap:14px;`;
 const SkelBar = styled.div`height:20px;background:#F1F5F9;border-radius:8px;`;
 const SkelBlock = styled.div`height:90px;background:#F1F5F9;border-radius:12px;`;
 const ErrorBox = styled.div`display:flex;flex-direction:column;align-items:center;gap:10px;padding:40px;color:#92400E;`;
-const Retry = styled.button`height:34px;padding:0 16px;border:1px solid #E2E8F0;background:#fff;border-radius:8px;font-size:13px;font-weight:600;color:#0F766E;cursor:pointer;&:hover{background:#F0FDFA;}`;
+const Retry = styled.button`height:34px;padding:0 16px;border:1px solid #E2E8F0;background:#fff;border-radius:8px;font-size:0.8125rem;font-weight:600;color:#0F766E;cursor:pointer;&:hover{background:#F0FDFA;}`;

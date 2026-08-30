@@ -207,32 +207,32 @@ const Section = styled.section`
   padding: 20px; display: flex; flex-direction: column; gap: 16px;
 `;
 const Head = styled.div`display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;`;
-const Title = styled.h3`margin: 0 0 6px; font-size: 15px; font-weight: 700; color: #0F172A;`;
-const Desc = styled.p`margin: 0; font-size: 13px; line-height: 1.6; color: #64748B;`;
+const Title = styled.h3`margin: 0 0 6px; font-size: 0.9375rem; font-weight: 700; color: #0F172A;`;
+const Desc = styled.p`margin: 0; font-size: 0.8125rem; line-height: 1.6; color: #64748B;`;
 const AddRow = styled.div`display: flex; align-items: center; gap: 8px; flex-wrap: wrap;`;
 const PatternInput = styled.input`
   /* 넓은 화면에서 한 줄 입력이 1,150px 까지 늘어나던 것 — 다른 설정 입력과 같은 상한. */
   flex: 1; max-width: 420px; min-width: 220px; height: 36px; padding: 0 12px;
-  border: 1px solid #E2E8F0; border-radius: 8px; font-size: 13px; color: #334155;
+  border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.8125rem; color: #334155;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,.15); }
 `;
 const SelectWrap = styled.div`min-width: 150px;`;
-const ErrText = styled.div`font-size: 12px; font-weight: 600; color: #B45309;`;
-const Muted = styled.div`font-size: 13px; color: #94A3B8;`;
+const ErrText = styled.div`font-size: 0.75rem; font-weight: 600; color: #B45309;`;
+const Muted = styled.div`font-size: 0.8125rem; color: #94A3B8;`;
 const List = styled.ul`list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px;`;
 const Row = styled.li`
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 12px 14px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px;
 `;
 const Main = styled.div`min-width: 0; display: flex; flex-direction: column; gap: 4px;`;
-const PatternText = styled.div`font-size: 13px; font-weight: 600; color: #0F172A; word-break: break-all;`;
+const PatternText = styled.div`font-size: 0.8125rem; font-weight: 600; color: #0F172A; word-break: break-all;`;
 const Meta = styled.div`display: flex; align-items: center; gap: 6px; flex-wrap: wrap;`;
 const Chip = styled.span<{ $bg: string; $fg: string }>`
-  padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700;
+  padding: 2px 8px; border-radius: 999px; font-size: 0.6875rem; font-weight: 700;
   background: ${(p) => p.$bg}; color: ${(p) => p.$fg};
 `;
-const Kind = styled.span`font-size: 11px; color: #94A3B8;`;
-const Evidence = styled.div`font-size: 12px; color: #64748B;`;
+const Kind = styled.span`font-size: 0.6875rem; color: #94A3B8;`;
+const Evidence = styled.div`font-size: 0.75rem; color: #64748B;`;
 
 // #344 — 주소 규칙 / 문구 규칙 입력 전환
 const KindTabs = styled.div` display: flex; gap: 4px; margin-bottom: 10px; `;
@@ -241,13 +241,13 @@ const KindTab = styled.button<{ $on: boolean }>`
   background: ${p => (p.$on ? '#0F172A' : '#fff')};
   color: ${p => (p.$on ? '#fff' : '#475569')};
   border: 1px solid ${p => (p.$on ? '#0F172A' : '#CBD5E1')};
-  border-radius: 999px; cursor: pointer; font-size: 12px; font-weight: 600;
+  border-radius: 999px; cursor: pointer; font-size: 0.75rem; font-weight: 600;
   &:hover { border-color: #94A3B8; }
 `;
 const ImportantRow = styled.div` display: flex; align-items: center; gap: 6px; margin: 8px 0 4px; `;
 const ImportantCheck = styled.input` width: 16px; height: 16px; accent-color: #F43F5E; cursor: pointer; `;
-const ImportantLabel = styled.label` font-size: 12px; color: #475569; cursor: pointer; `;
+const ImportantLabel = styled.label` font-size: 0.75rem; color: #475569; cursor: pointer; `;
 const ImportantTag = styled.span`
   margin-left: 6px; padding: 1px 6px; border-radius: 999px;
-  background: #FFE4E6; color: #BE123C; font-size: 10px; font-weight: 700;
+  background: #FFE4E6; color: #BE123C; font-size: 0.625rem; font-weight: 700;
 `;

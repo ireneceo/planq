@@ -391,7 +391,7 @@ const TabBtn = styled.button<{ $active: boolean }>`
   background: transparent; border: none;
   border-bottom: 2px solid ${p => p.$active ? '#14B8A6' : 'transparent'};
   color: ${p => p.$active ? '#0F766E' : '#64748B'};
-  font-size: 13px; font-weight: ${p => p.$active ? 700 : 500};
+  font-size: 0.8125rem; font-weight: ${p => p.$active ? 700 : 500};
   cursor: pointer; white-space: nowrap;
   transition: color 0.15s;
   &:hover { color: #0F172A; }
@@ -400,7 +400,7 @@ const TabBtn = styled.button<{ $active: boolean }>`
 const Count = styled.span<{ $active: boolean }>`
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 20px; padding: 1px 7px;
-  font-size: 11px; font-weight: 700;
+  font-size: 0.6875rem; font-weight: 700;
   background: ${p => p.$active ? '#14B8A6' : '#E2E8F0'};
   color: ${p => p.$active ? '#FFFFFF' : '#64748B'};
   border-radius: 999px;
@@ -417,14 +417,14 @@ const ArchiveHint = styled.div`
   flex-wrap: wrap;
 `;
 const ArchiveHintText = styled.span`
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #334155;
 `;
 const ArchiveLink = styled(Link)`
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   color: #0F766E;
   text-decoration: none;

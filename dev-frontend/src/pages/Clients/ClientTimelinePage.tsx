@@ -152,14 +152,14 @@ export default ClientTimelinePage;
 
 const BackBtn = styled.button`
   height: 32px; padding: 0 12px; border-radius: 8px;
-  font-size: 13px; font-weight: 600; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   color: #334155; background: #fff; border: 1px solid #CBD5E1;
   &:hover { background: #F1F5F9; }
 `;
 const FilterRow = styled.div`display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;`;
 const FilterChip = styled.button<{ $active?: boolean }>`
   height: 32px; padding: 0 14px; border-radius: 999px;
-  font-size: 13px; font-weight: 600; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
   color: ${(p) => (p.$active ? '#0F766E' : '#64748B')};
   background: ${(p) => (p.$active ? '#F0FDFA' : '#fff')};
@@ -187,19 +187,19 @@ const typeColor: Record<Channel, { bg: string; fg: string }> = {
 const TypeBadge = styled.span<{ $type: Channel }>`
   display: inline-flex; align-items: center; justify-content: center;
   height: 24px; padding: 0 8px; border-radius: 999px;
-  font-size: 11px; font-weight: 700;
+  font-size: 0.6875rem; font-weight: 700;
   background: ${(p) => typeColor[p.$type].bg}; color: ${(p) => typeColor[p.$type].fg};
 `;
 const Body = styled.div`min-width: 0; display: flex; flex-direction: column; gap: 3px;`;
-const RowTitle = styled.div`font-size: 14px; font-weight: 600; color: #0F172A; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
-const Preview = styled.div`font-size: 13px; color: #64748B; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
+const RowTitle = styled.div`font-size: 0.875rem; font-weight: 600; color: #0F172A; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
+const Preview = styled.div`font-size: 0.8125rem; color: #64748B; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
 const Metas = styled.div`display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px;`;
-const Meta = styled.span`font-size: 11px; font-weight: 600; color: #475569; background: #F1F5F9; border-radius: 999px; padding: 1px 8px;`;
-const TimeCell = styled.div`font-size: 12px; color: #94A3B8; white-space: nowrap; flex-shrink: 0;`;
-const CenterMsg = styled.div`display: flex; align-items: center; justify-content: center; gap: 10px; padding: 60px 24px; font-size: 13px; color: #94A3B8;`;
+const Meta = styled.span`font-size: 0.6875rem; font-weight: 600; color: #475569; background: #F1F5F9; border-radius: 999px; padding: 1px 8px;`;
+const TimeCell = styled.div`font-size: 0.75rem; color: #94A3B8; white-space: nowrap; flex-shrink: 0;`;
+const CenterMsg = styled.div`display: flex; align-items: center; justify-content: center; gap: 10px; padding: 60px 24px; font-size: 0.8125rem; color: #94A3B8;`;
 const Empty = styled.div`display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 64px 24px; text-align: center;`;
-const EmptyTitle = styled.div`font-size: 15px; font-weight: 700; color: #334155;`;
-const EmptyDesc = styled.div`font-size: 13px; color: #94A3B8; line-height: 1.5; max-width: 360px;`;
+const EmptyTitle = styled.div`font-size: 0.9375rem; font-weight: 700; color: #334155;`;
+const EmptyDesc = styled.div`font-size: 0.8125rem; color: #94A3B8; line-height: 1.5; max-width: 360px;`;
 const MoreRow = styled.div`display: flex; justify-content: center; padding: 16px;`;
 const Spinner = styled.span`
   width: 18px; height: 18px; border: 2px solid #E2E8F0; border-top-color: #14B8A6;

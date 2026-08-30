@@ -766,28 +766,28 @@ const SubCard = styled.section<{ $active: boolean }>`
   border-radius: 12px; padding: 14px 16px; margin-bottom: 16px;
 `;
 const SubHead = styled.div`display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;`;
-const SubBadge = styled.span`font-size:12px;font-weight:700;color:#0F766E;`;
+const SubBadge = styled.span`font-size:0.75rem;font-weight:700;color:#0F766E;`;
 const SubAuto = styled.span<{ $on?: boolean }>`
-  font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;
+  font-size:0.6875rem;font-weight:600;padding:2px 8px;border-radius:999px;
   color:${p => p.$on ? '#15803D' : '#94A3B8'};background:${p => p.$on ? '#DCFCE7' : '#F1F5F9'};
 `;
 const SubGrid = styled.div`display:grid;grid-template-columns:repeat(4,1fr);gap:10px;@media (max-width:640px){grid-template-columns:repeat(2,1fr);}`;
 const SubItem = styled.div`display:flex;flex-direction:column;gap:3px;`;
-const SubK = styled.span`font-size:11px;color:#64748B;font-weight:500;`;
-const SubV = styled.span`font-size:14px;color:#0F172A;font-weight:700;`;
-const SubSetup = styled.p`margin:0;font-size:12px;color:#64748B;line-height:1.5;`;
+const SubK = styled.span`font-size:0.6875rem;color:#64748B;font-weight:500;`;
+const SubV = styled.span`font-size:0.875rem;color:#0F172A;font-weight:700;`;
+const SubSetup = styled.p`margin:0;font-size:0.75rem;color:#64748B;line-height:1.5;`;
 const SubMode = styled.span`
-  font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;color:#0284C7;background:#E0F2FE;
+  font-size:0.6875rem;font-weight:600;padding:2px 8px;border-radius:999px;color:#0284C7;background:#E0F2FE;
 `;
 const SubEditBtn = styled.button`
-  margin-left:auto;font-size:12px;font-weight:600;color:#0F766E;background:#fff;
+  margin-left:auto;font-size:0.75rem;font-weight:600;color:#0F766E;background:#fff;
   border:1px solid #99F6E4;border-radius:8px;padding:5px 12px;cursor:pointer;transition:background .15s;
   &:hover{background:#F0FDFA;}
 `;
 // ─ 정기청구 설정 편집 폼 ─
 const BillForm = styled.div`display:flex;flex-direction:column;gap:12px;`;
 const BillRow = styled.div`display:flex;align-items:center;gap:12px;`;
-const BillLabel = styled.label`font-size:13px;font-weight:600;color:#334155;min-width:88px;`;
+const BillLabel = styled.label`font-size:0.8125rem;font-weight:600;color:#334155;min-width:88px;`;
 const Toggle = styled.button<{ $on?: boolean }>`
   position:relative;width:44px;height:24px;border-radius:999px;border:none;cursor:pointer;flex-shrink:0;
   background:${p => p.$on ? '#14B8A6' : '#CBD5E1'};transition:background .15s;
@@ -797,28 +797,28 @@ const ToggleKnob = styled.span<{ $on?: boolean }>`
   background:#fff;transition:left .15s;box-shadow:0 1px 2px rgba(0,0,0,.15);
 `;
 const BillInput = styled.input`
-  width:140px;height:36px;padding:0 12px;font-size:14px;color:#0F172A;
+  width:140px;height:36px;padding:0 12px;font-size:0.875rem;color:#0F172A;
   border:1px solid #E2E8F0;border-radius:8px;background:#fff;
   &:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,.2);}
 `;
 const BillDayWrap = styled.div`display:flex;align-items:center;gap:10px;flex-wrap:wrap;`;
-const BillHint = styled.span`font-size:11px;color:#94A3B8;`;
+const BillHint = styled.span`font-size:0.6875rem;color:#94A3B8;`;
 const BillModeWrap = styled.div`display:inline-flex;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:8px;padding:2px;gap:2px;`;
 const BillSeg = styled.button<{ $on?: boolean }>`
-  font-size:12px;font-weight:600;padding:6px 12px;border-radius:6px;cursor:pointer;border:none;transition:all .15s;
+  font-size:0.75rem;font-weight:600;padding:6px 12px;border-radius:6px;cursor:pointer;border:none;transition:all .15s;
   color:${p => p.$on ? '#fff' : '#64748B'};background:${p => p.$on ? '#14B8A6' : 'transparent'};
 `;
-const BillModeDesc = styled.p`margin:0;font-size:12px;color:#64748B;line-height:1.5;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px 12px;`;
+const BillModeDesc = styled.p`margin:0;font-size:0.75rem;color:#64748B;line-height:1.5;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px 12px;`;
 const BillNote = styled.p<{ $tone: 'ok' | 'warn' }>`
-  margin:0;font-size:12px;font-weight:500;color:${p => p.$tone === 'ok' ? '#15803D' : '#DC2626'};
+  margin:0;font-size:0.75rem;font-weight:500;color:${p => p.$tone === 'ok' ? '#15803D' : '#DC2626'};
 `;
 const BillActions = styled.div`display:flex;justify-content:flex-end;gap:8px;`;
 const BillCancel = styled.button`
-  font-size:13px;font-weight:600;color:#64748B;background:#fff;border:1px solid #E2E8F0;border-radius:8px;padding:8px 16px;cursor:pointer;
+  font-size:0.8125rem;font-weight:600;color:#64748B;background:#fff;border:1px solid #E2E8F0;border-radius:8px;padding:8px 16px;cursor:pointer;
   &:disabled{opacity:.5;cursor:default;}
 `;
 const BillSave = styled.button`
-  font-size:13px;font-weight:600;color:#fff;background:#14B8A6;border:none;border-radius:8px;padding:8px 16px;cursor:pointer;transition:background .15s;
+  font-size:0.8125rem;font-weight:600;color:#fff;background:#14B8A6;border:none;border-radius:8px;padding:8px 16px;cursor:pointer;transition:background .15s;
   &:hover{background:#0D9488;}&:disabled{opacity:.5;cursor:default;}
 `;
 const NextActionCard = styled.div<{ $kind: string }>`
@@ -835,14 +835,14 @@ const NextActionCard = styled.div<{ $kind: string }>`
 `;
 const NextActionLeft = styled.div`flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0;`;
 const NextActionEyebrow = styled.div`
-  font-size: 11px; font-weight: 700; color: #0F766E;
+  font-size: 0.6875rem; font-weight: 700; color: #0F766E;
   text-transform: uppercase; letter-spacing: 0.6px;
 `;
-const NextActionTitle = styled.div`font-size: 16px; font-weight: 700; color: #0F172A; letter-spacing: -0.2px;`;
-const NextActionHint = styled.div`font-size: 13px; color: #475569;`;
+const NextActionTitle = styled.div`font-size: 1rem; font-weight: 700; color: #0F172A; letter-spacing: -0.2px;`;
+const NextActionHint = styled.div`font-size: 0.8125rem; color: #475569;`;
 const NextActionBtn = styled.button`
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 10px 18px; font-size: 13px; font-weight: 700;
+  padding: 10px 18px; font-size: 0.8125rem; font-weight: 700;
   background: #0D9488; color: #FFF; border: none; border-radius: 10px;
   cursor: pointer; flex-shrink: 0; transition: background 0.15s, transform 0.1s;
   & svg { display: block; }
@@ -859,7 +859,7 @@ const StageBoardHead = styled.div`
 `;
 const EditToggle = styled.button<{ $on: boolean }>`
   display: inline-flex; align-items: center; gap: 4px;
-  padding: 5px 10px; font-size: 11px; font-weight: 700;
+  padding: 5px 10px; font-size: 0.6875rem; font-weight: 700;
   background: ${p => p.$on ? '#0D9488' : '#fff'};
   color: ${p => p.$on ? '#fff' : '#0F766E'};
   border: 1px solid ${p => p.$on ? '#0D9488' : '#5EEAD4'};
@@ -884,13 +884,13 @@ const EditDot = styled.span<{ $status: string; $custom: boolean }>`
 `;
 const EditLabelInput = styled.input`
   flex: 1; min-width: 0;
-  padding: 7px 10px; font-size: 13px; color: #0F172A;
+  padding: 7px 10px; font-size: 0.8125rem; color: #0F172A;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 6px;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
   &:disabled { background: #F8FAFC; color: #94A3B8; }
 `;
 const EditKindBadge = styled.span<{ $custom: boolean }>`
-  font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;
+  font-size: 0.625rem; font-weight: 700; padding: 2px 7px; border-radius: 4px;
   background: ${p => p.$custom ? '#FFF7ED' : '#F1F5F9'};
   color: ${p => p.$custom ? '#B45309' : '#64748B'};
   flex-shrink: 0;
@@ -915,7 +915,7 @@ const DeleteBtn = styled.button`
 `;
 const AddStageBtn = styled.button`
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  padding: 10px 14px; font-size: 12px; font-weight: 700; color: #0F766E;
+  padding: 10px 14px; font-size: 0.75rem; font-weight: 700; color: #0F766E;
   background: #fff; border: 1px dashed #5EEAD4; border-radius: 8px; cursor: pointer;
   transition: all 0.12s;
   & svg { display: block; }
@@ -926,7 +926,7 @@ const AddStageBtn = styled.button`
 const StageBoard = styled.section`
   background: #fff; border: 1px solid #E2E8F0; border-radius: 12px; padding: 18px 20px;
 `;
-const StageBoardTitle = styled.h3`font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.4px; margin: 0 0 14px 0;`;
+const StageBoardTitle = styled.h3`font-size: 0.75rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.4px; margin: 0 0 14px 0;`;
 const StageList = styled.div<{ $count: number }>`
   display: grid;
   grid-template-columns: repeat(${p => p.$count}, 1fr);
@@ -976,7 +976,7 @@ const StageMeta = styled.div`
   @media (max-width: 720px) { align-items: flex-start; padding-top: 0; text-align: left; }
 `;
 const StageLabel = styled.div<{ $status: string }>`
-  font-size: 12px; font-weight: ${p => p.$status === 'active' ? 700 : 600};
+  font-size: 0.75rem; font-weight: ${p => p.$status === 'active' ? 700 : 600};
   color: ${p => p.$status === 'active' ? '#0F766E'
               : p.$status === 'completed' ? '#15803D'
               : p.$status === 'skipped' ? '#94A3B8'
@@ -984,7 +984,7 @@ const StageLabel = styled.div<{ $status: string }>`
   white-space: nowrap;
 `;
 const StageStatus = styled.div<{ $status: string }>`
-  font-size: 10px; font-weight: 600;
+  font-size: 0.625rem; font-weight: 600;
   color: ${p => p.$status === 'active' ? '#0D9488'
               : p.$status === 'completed' ? '#15803D'
               : p.$status === 'skipped' ? '#CBD5E1'
@@ -992,20 +992,20 @@ const StageStatus = styled.div<{ $status: string }>`
 `;
 const RecurBadge = styled.span`
   display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;
-  font-size:9px;font-weight:700;color:#0D9488;background:#F0FDFA;border:1px solid #99F6E4;vertical-align:middle;
+  font-size:0.5625rem;font-weight:700;color:#0D9488;background:#F0FDFA;border:1px solid #99F6E4;vertical-align:middle;
 `;
-const RecurCycle = styled.div`font-size:10px;font-weight:600;color:#0D9488;margin-top:2px;`;
+const RecurCycle = styled.div`font-size:0.625rem;font-weight:600;color:#0D9488;margin-top:2px;`;
 const StageActions = styled.div`display:flex;gap:4px;margin-top:6px;flex-wrap:wrap;`;
 const StageActBtn = styled.button<{ $ghost?: boolean }>`
-  height:24px;padding:0 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;
+  height:24px;padding:0 8px;border-radius:6px;font-size:0.6875rem;font-weight:600;cursor:pointer;white-space:nowrap;
   border:1px solid ${p => p.$ghost ? '#E2E8F0' : '#14B8A6'};
   background:${p => p.$ghost ? '#fff' : '#14B8A6'};
   color:${p => p.$ghost ? '#64748B' : '#fff'};
   &:hover:not(:disabled){ ${p => p.$ghost ? 'border-color:#CBD5E1;background:#F8FAFC;' : 'background:#0D9488;'} }
   &:disabled{opacity:0.5;cursor:not-allowed;}
 `;
-const Loading = styled.div`text-align: center; padding: 40px; color: #94A3B8; font-size: 13px;`;
-const ErrorBanner = styled.div`padding: 10px 14px; background: #FEF2F2; border: 1px solid #FECACA; color: #991B1B; border-radius: 8px; font-size: 12px;`;
+const Loading = styled.div`text-align: center; padding: 40px; color: #94A3B8; font-size: 0.8125rem;`;
+const ErrorBanner = styled.div`padding: 10px 14px; background: #FEF2F2; border: 1px solid #FECACA; color: #991B1B; border-radius: 8px; font-size: 0.75rem;`;
 
 const SummaryGrid = styled.div`
   display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;
@@ -1018,17 +1018,17 @@ const SummaryCard = styled.div<{ $accent: string }>`
     background: ${p => p.$accent}; opacity: 0.6;
   }
 `;
-const SummaryLabel = styled.div`font-size: 12px; font-weight: 600; color: #475569; text-transform: uppercase; letter-spacing: 0.4px;`;
-const SummaryValue = styled.div`font-size: 22px; font-weight: 700; color: #0F172A; margin-top: 8px; letter-spacing: -0.4px; display: flex; align-items: baseline; gap: 4px; font-variant-numeric: tabular-nums;`;
-const Unit = styled.span`font-size: 13px; font-weight: 600; color: #64748B;`;
-const SummarySub = styled.div`font-size: 12px; color: #64748B; margin-top: 4px;`;
+const SummaryLabel = styled.div`font-size: 0.75rem; font-weight: 600; color: #475569; text-transform: uppercase; letter-spacing: 0.4px;`;
+const SummaryValue = styled.div`font-size: 1.375rem; font-weight: 700; color: #0F172A; margin-top: 8px; letter-spacing: -0.4px; display: flex; align-items: baseline; gap: 4px; font-variant-numeric: tabular-nums;`;
+const Unit = styled.span`font-size: 0.8125rem; font-weight: 600; color: #64748B;`;
+const SummarySub = styled.div`font-size: 0.75rem; color: #64748B; margin-top: 4px;`;
 
 const Section = styled.section`
   background: #fff; border: 1px solid #E2E8F0; border-radius: 12px; padding: 18px 20px;
   display: flex; flex-direction: column; gap: 12px;
 `;
-const SectionTitle = styled.h3`font-size: 14px; font-weight: 700; color: #0F172A; margin: 0;`;
-const Empty = styled.div`padding: 24px; text-align: center; color: #94A3B8; font-size: 13px;`;
+const SectionTitle = styled.h3`font-size: 0.875rem; font-weight: 700; color: #0F172A; margin: 0;`;
+const Empty = styled.div`padding: 24px; text-align: center; color: #94A3B8; font-size: 0.8125rem;`;
 
 const DocList = styled.div`display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px;`;
 const DocCard = styled.div`
@@ -1037,11 +1037,11 @@ const DocCard = styled.div`
   &:hover { background: #F0FDFA; border-color: #14B8A6; }
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
 `;
-const DocCat = styled.div`font-size: 11px; font-weight: 600; color: #0F766E; text-transform: uppercase; letter-spacing: 0.4px;`;
-const DocTitle = styled.div`font-size: 13px; font-weight: 600; color: #0F172A; margin-top: 4px;`;
-const DocMeta = styled.div`font-size: 11px; color: #64748B; margin-top: 4px; display: flex; align-items: center; gap: 4px;`;
+const DocCat = styled.div`font-size: 0.6875rem; font-weight: 600; color: #0F766E; text-transform: uppercase; letter-spacing: 0.4px;`;
+const DocTitle = styled.div`font-size: 0.8125rem; font-weight: 600; color: #0F172A; margin-top: 4px;`;
+const DocMeta = styled.div`font-size: 0.6875rem; color: #64748B; margin-top: 4px; display: flex; align-items: center; gap: 4px;`;
 const SigBadge = styled.span<{ $tone: 'ok' | 'pending' | 'reject' }>`
-  font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px;
+  font-size: 0.625rem; font-weight: 700; padding: 1px 6px; border-radius: 4px;
   background: ${p => p.$tone === 'ok' ? '#F0FDF4' : p.$tone === 'reject' ? '#FEF2F2' : '#FFFBEB'};
   color: ${p => p.$tone === 'ok' ? '#15803D' : p.$tone === 'reject' ? '#B91C1C' : '#B45309'};
 `;
@@ -1055,10 +1055,10 @@ const InvHead = styled.div`
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: -2px; }
   @media (max-width: 720px) { grid-template-columns: 1fr auto; gap: 6px; }
 `;
-const InvNumber = styled.div`font-size: 12px; font-weight: 600; color: #0F766E; font-family: ui-monospace, monospace;`;
-const InvTitle = styled.div`font-size: 13px; color: #0F172A; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
+const InvNumber = styled.div`font-size: 0.75rem; font-weight: 600; color: #0F766E; font-family: ui-monospace, monospace;`;
+const InvTitle = styled.div`font-size: 0.8125rem; color: #0F172A; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
 const StatusChip = styled.span<{ $status: string }>`
-  font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+  font-size: 0.625rem; font-weight: 700; padding: 2px 8px; border-radius: 999px;
   background: ${p => {
     if (p.$status === 'paid') return '#F0FDF4';
     if (p.$status === 'partially_paid') return '#FFFBEB';
@@ -1076,11 +1076,11 @@ const StatusChip = styled.span<{ $status: string }>`
     return '#475569';
   }};
 `;
-const InvAmount = styled.div`font-size: 14px; font-weight: 700; color: #0F172A; text-align: right; font-variant-numeric: tabular-nums;`;
+const InvAmount = styled.div`font-size: 0.875rem; font-weight: 700; color: #0F172A; text-align: right; font-variant-numeric: tabular-nums;`;
 const InstTable = styled.div`background: #fff; border-top: 1px solid #E2E8F0; padding: 8px 14px; display: flex; flex-direction: column; gap: 6px;`;
 const InstRow = styled.div<{ $paid: boolean }>`
   display: grid; grid-template-columns: 1fr 110px 100px 110px; gap: 8px; align-items: center;
-  font-size: 12px; padding: 4px 0;
+  font-size: 0.75rem; padding: 4px 0;
   opacity: ${p => p.$paid ? 0.85 : 1};
   @media (max-width: 720px) { grid-template-columns: 1fr 1fr; }
 `;
@@ -1096,14 +1096,14 @@ const InstStatus = styled.div<{ $status: string }>`
   }};
 `;
 const TaxBadge = styled.span<{ $tone: 'ok' | 'warn' }>`
-  font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px;
+  font-size: 0.625rem; font-weight: 700; padding: 1px 6px; border-radius: 4px;
   background: ${p => p.$tone === 'ok' ? '#F0FDF4' : '#FFFBEB'};
   color: ${p => p.$tone === 'ok' ? '#15803D' : '#B45309'};
 `;
 
 const Timeline = styled.div`display: flex; flex-direction: column; gap: 4px; padding-left: 4px;`;
 const TimelineRow = styled.div`display: grid; grid-template-columns: 90px 16px 1fr; gap: 12px; align-items: flex-start; padding: 6px 0;`;
-const TimelineTime = styled.div`font-size: 11px; color: #94A3B8; font-variant-numeric: tabular-nums; padding-top: 2px;`;
+const TimelineTime = styled.div`font-size: 0.6875rem; color: #94A3B8; font-variant-numeric: tabular-nums; padding-top: 2px;`;
 const TimelineDot = styled.div<{ $kind: string }>`
   width: 10px; height: 10px; border-radius: 50%; margin-top: 5px;
   background: ${p => {
@@ -1118,5 +1118,5 @@ const TimelineDot = styled.div<{ $kind: string }>`
   box-shadow: 0 0 0 3px #fff;
 `;
 const TimelineBody = styled.div`display: flex; flex-direction: column; gap: 2px;`;
-const TimelineLabel = styled.div`font-size: 13px; font-weight: 600; color: #0F172A;`;
-const TimelineSub = styled.div`font-size: 12px; color: #64748B;`;
+const TimelineLabel = styled.div`font-size: 0.8125rem; font-weight: 600; color: #0F172A;`;
+const TimelineSub = styled.div`font-size: 0.75rem; color: #64748B;`;

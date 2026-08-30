@@ -363,20 +363,20 @@ const NotifiedIcon = styled.div`
   display: flex; align-items: center; justify-content: center;
   background: #F0FDFA; color: #0D9488;
 `;
-const NotifiedTitle = styled.div`font-size: 16px; font-weight: 700; color: #0F172A;`;
-const NotifiedDesc = styled.div`font-size: 13px; color: #64748B; line-height: 1.6; max-width: 340px;`;
+const NotifiedTitle = styled.div`font-size: 1rem; font-weight: 700; color: #0F172A;`;
+const NotifiedDesc = styled.div`font-size: 0.8125rem; color: #64748B; line-height: 1.6; max-width: 340px;`;
 const NotifiedMeta = styled.div`
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   width: 100%; margin-top: 4px; padding: 12px 16px;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px;
-  span { font-size: 13px; color: #475569; font-weight: 600; }
-  strong { font-size: 16px; color: #0F172A; font-weight: 700; }
+  span { font-size: 0.8125rem; color: #475569; font-weight: 600; }
+  strong { font-size: 1rem; color: #0F172A; font-weight: 700; }
 `;
 const TaxToggle = styled.div`
   display: flex; align-items: center; gap: 8px;
   padding: 10px 12px;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 13px; color: #334155;
+  font-size: 0.8125rem; color: #334155;
   input { width: 16px; height: 16px; }
   label { cursor: pointer; user-select: none; }
 `;
@@ -405,13 +405,13 @@ const ModalHeader = styled.div`
   padding: 16px 20px; border-bottom: 1px solid #E2E8F0;
   flex-shrink: 0;
 `;
-const Title = styled.h2`margin: 0; font-size: 16px; font-weight: 700; color: #0F172A;`;
+const Title = styled.h2`margin: 0; font-size: 1rem; font-weight: 700; color: #0F172A;`;
 const CloseBtn = styled.button`
   /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */
   @media (max-width: 640px) { min-width: 44px; min-height: 44px; }
 
   background: transparent; border: none; cursor: pointer; color: #64748B;
-  font-size: 20px; padding: 4px 8px; border-radius: 6px;
+  font-size: 1.25rem; padding: 4px 8px; border-radius: 6px;
   &:hover { background: #F1F5F9; color: #0F172A; }
 `;
 const Body = styled.div`padding: 20px; display: flex; flex-direction: column; gap: 16px; flex: 1; overflow-y: auto; min-height: 0;`;
@@ -421,27 +421,27 @@ const Summary = styled.div`
   padding: 14px 16px; display: flex; flex-direction: column; gap: 8px;
 `;
 const SummaryRow = styled.div`display: flex; justify-content: space-between; align-items: baseline;`;
-const SummaryLabel = styled.span`font-size: 12px; color: #64748B; font-weight: 500;`;
-const SummaryValue = styled.span`font-size: 13px; color: #0F172A; font-weight: 600;`;
-const SummaryAmount = styled.span`font-size: 18px; color: #0F172A; font-weight: 700;`;
+const SummaryLabel = styled.span`font-size: 0.75rem; color: #64748B; font-weight: 500;`;
+const SummaryValue = styled.span`font-size: 0.8125rem; color: #0F172A; font-weight: 600;`;
+const SummaryAmount = styled.span`font-size: 1.125rem; color: #0F172A; font-weight: 700;`;
 
 const BankBox = styled.div`
   background: #F0FDFA; border: 1px solid #5EEAD4; border-radius: 10px;
   padding: 14px 16px; display: flex; flex-direction: column; gap: 8px;
 `;
 const BankLabel = styled.div`
-  font-size: 11px; font-weight: 700; color: #0F766E;
+  font-size: 0.6875rem; font-weight: 700; color: #0F766E;
   text-transform: uppercase; letter-spacing: 0.5px;
 `;
 const BankInfo = styled.div`display: flex; flex-direction: column; gap: 4px;`;
-const BankFallback = styled.div`font-size: 13px; color: #64748B;`;
-const BankHint = styled.div`font-size: 11px; color: #64748B; line-height: 1.5;`;
+const BankFallback = styled.div`font-size: 0.8125rem; color: #64748B;`;
+const BankHint = styled.div`font-size: 0.6875rem; color: #64748B; line-height: 1.5;`;
 
 // ─── 카드 결제 (Stripe) 블록 — 은행송금과 택일. "또는" 구분선 + 카드 버튼 ───
 const StripeBlock = styled.div`display: flex; flex-direction: column; gap: 10px;`;
 const OrDivider = styled.div`
   display: flex; align-items: center; gap: 12px;
-  color: #94A3B8; font-size: 12px; font-weight: 600;
+  color: #94A3B8; font-size: 0.75rem; font-weight: 600;
   &::before, &::after { content: ''; flex: 1; height: 1px; background: #E2E8F0; }
   span { flex-shrink: 0; }
 `;
@@ -449,29 +449,29 @@ const CardPayBtn = styled.button`
   display: flex; align-items: center; justify-content: center; gap: 8px;
   width: 100%; min-height: 44px; padding: 0 16px;
   background: #635BFF; color: #FFFFFF;
-  border: none; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer;
+  border: none; border-radius: 8px; font-size: 0.875rem; font-weight: 700; cursor: pointer;
   transition: background 120ms;
   &:hover:not(:disabled) { background: #524DE0; }
   &:disabled { background: #A5A1F0; cursor: not-allowed; }
 `;
 const CardIcon = styled.span`display: inline-flex; svg { width: 18px; height: 18px; }`;
-const StripeHint = styled.div`font-size: 11px; color: #94A3B8; line-height: 1.5; text-align: center;`;
+const StripeHint = styled.div`font-size: 0.6875rem; color: #94A3B8; line-height: 1.5; text-align: center;`;
 
 const Field = styled.div`display: flex; flex-direction: column; gap: 6px;`;
-const FieldLabel = styled.div`font-size: 12px; font-weight: 600; color: #475569;`;
-const FieldHint = styled.div`font-size: 11px; color: #94A3B8;`;
+const FieldLabel = styled.div`font-size: 0.75rem; font-weight: 600; color: #475569;`;
+const FieldHint = styled.div`font-size: 0.6875rem; color: #94A3B8;`;
 const Input = styled.input`
   width: 100%; padding: 10px 12px; border: 1px solid #E2E8F0;
-  border-radius: 8px; font-size: 14px; color: #0F172A;
+  border-radius: 8px; font-size: 0.875rem; color: #0F172A;
   outline: none; transition: border-color 120ms;
   &:focus { border-color: #14B8A6; }
 `;
 const ErrorBox = styled.div`
   padding: 10px 12px; background: #FEF2F2; border: 1px solid #FECACA;
-  border-radius: 8px; color: #B91C1C; font-size: 12px;
+  border-radius: 8px; color: #B91C1C; font-size: 0.75rem;
 `;
 const Notice = styled.div`
-  font-size: 11px; color: #94A3B8; line-height: 1.6;
+  font-size: 0.6875rem; color: #94A3B8; line-height: 1.6;
 `;
 
 const Footer = styled.div`
@@ -481,13 +481,13 @@ const Footer = styled.div`
 `;
 const PrimaryBtn = styled.button`
   padding: 10px 20px; background: #0D9488; color: #FFFFFF;
-  border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+  border: none; border-radius: 8px; font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   &:hover:not(:disabled) { background: #0F766E; }
   &:disabled { background: #94A3B8; cursor: not-allowed; }
 `;
 const SecondaryBtn = styled.button`
   padding: 10px 16px; background: #FFFFFF; color: #334155;
-  border: 1px solid #CBD5E1; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+  border: 1px solid #CBD5E1; border-radius: 8px; font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   &:hover:not(:disabled) { background: #F8FAFC; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
@@ -503,10 +503,10 @@ const CopyIconBtn = styled.button`
   &:hover { background: #F0FDFA; border-color: #5EEAD4; }
   svg { width: 15px; height: 15px; }
 `;
-const CopiedTag = styled.span`font-size: 11px; font-weight: 600; color: #0D9488;`;
+const CopiedTag = styled.span`font-size: 0.6875rem; font-weight: 600; color: #0D9488;`;
 const BankRow = styled.div`display: flex; align-items: center; gap: 10px; min-height: 28px;`;
-const BankRowLabel = styled.div`font-size: 12px; color: #0F766E; font-weight: 600; width: 64px; flex-shrink: 0;`;
-const BankRowVal = styled.div`display: flex; align-items: center; gap: 8px; font-size: 14px; color: #0F172A; flex-wrap: wrap;`;
+const BankRowLabel = styled.div`font-size: 0.75rem; color: #0F766E; font-weight: 600; width: 64px; flex-shrink: 0;`;
+const BankRowVal = styled.div`display: flex; align-items: center; gap: 8px; font-size: 0.875rem; color: #0F172A; flex-wrap: wrap;`;
 const Mono = styled.span`font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; letter-spacing: 0.2px;`;
 
 function ClipIcon() {

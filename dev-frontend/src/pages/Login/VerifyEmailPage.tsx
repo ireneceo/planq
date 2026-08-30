@@ -53,9 +53,9 @@ export default VerifyEmailPage;
 
 const Page = styled.div`min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #F8FAFC; padding: 24px;`;
 const Card = styled.div`width: 100%; max-width: 460px; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 14px; padding: 32px; text-align: center;`;
-const Title = styled.h1`font-size: 22px; font-weight: 700; color: #0F172A; margin: 0 0 20px;`;
-const PendingBox = styled.div`padding: 20px; color: #64748B; font-size: 14px;`;
-const SuccessBox = styled.div`padding: 18px; background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 10px; font-size: 14px; color: #0F766E; line-height: 1.7;`;
+const Title = styled.h1`font-size: 1.375rem; font-weight: 700; color: #0F172A; margin: 0 0 20px;`;
+const PendingBox = styled.div`padding: 20px; color: #64748B; font-size: 0.875rem;`;
+const SuccessBox = styled.div`padding: 18px; background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 10px; font-size: 0.875rem; color: #0F766E; line-height: 1.7;`;
 const SuccessSub = styled.div`margin-top: 14px; padding-top: 14px; border-top: 1px solid #99F6E4; a { color: #0D9488; font-weight: 700; text-decoration: none; } a:hover { text-decoration: underline; }`;
-const ErrorBox = styled.div`padding: 18px; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 10px; font-size: 14px; color: #B91C1C; line-height: 1.7;`;
+const ErrorBox = styled.div`padding: 18px; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 10px; font-size: 0.875rem; color: #B91C1C; line-height: 1.7;`;
 const ErrorSub = styled.div`margin-top: 14px; padding-top: 14px; border-top: 1px solid #FECACA; a { color: #B91C1C; font-weight: 700; text-decoration: none; } a:hover { text-decoration: underline; }`;

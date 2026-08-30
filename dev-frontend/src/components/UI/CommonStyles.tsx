@@ -226,7 +226,7 @@ export const AlertMessage = styled.div<{
   gap: 12px;
   padding: 12px 16px;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 500;
   text-align: left;
   min-height: 44px;
@@ -273,7 +273,7 @@ export const SaveButtonGroup = styled.div`
 export const SaveButton = styled.button<{ variant?: 'primary' | 'secondary' }>`
   padding: 12px 24px;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
@@ -294,7 +294,7 @@ export const SaveButton = styled.button<{ variant?: 'primary' | 'secondary' }>`
 export const StatusMessage = styled.div<{ type: 'success' | 'error' }>`
   padding: 12px 16px;
   border-radius: 6px;
-  font-size: 14px;
+  font-size: 0.875rem;
   margin-top: 12px;
   width: 100%;
   box-sizing: border-box;

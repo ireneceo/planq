@@ -153,35 +153,35 @@ const ReportContent: React.FC<Props> = ({ snap, compact, confirmedAt, canReopen 
 export default ReportContent;
 
 const Wrap = styled.div`display:flex;flex-direction:column;gap:12px;`;
-const Governing = styled.div`font-size:15px;font-weight:700;color:#0F766E;background:linear-gradient(135deg,#F0FDFA,#fff);border:1px solid #99F6E4;border-radius:10px;padding:12px 14px;line-height:1.5;`;
-const GoalLine = styled.div`font-size:12px;font-weight:500;color:#64748B;margin-top:4px;`;
+const Governing = styled.div`font-size:0.9375rem;font-weight:700;color:#0F766E;background:linear-gradient(135deg,#F0FDFA,#fff);border:1px solid #99F6E4;border-radius:10px;padding:12px 14px;line-height:1.5;`;
+const GoalLine = styled.div`font-size:0.75rem;font-weight:500;color:#64748B;margin-top:4px;`;
 const Streams = styled.div`display:flex;flex-direction:column;gap:6px;`;
 const Stream = styled.div`display:flex;align-items:center;gap:10px;`;
-const SLabel = styled.span`flex:0 0 100px;font-size:12px;font-weight:600;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
+const SLabel = styled.span`flex:0 0 100px;font-size:0.75rem;font-weight:600;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
 const SBar = styled.div`flex:1;height:6px;background:#F1F5F9;border-radius:999px;overflow:hidden;`;
 const SFill = styled.div`height:100%;border-radius:999px;`;
-const SPct = styled.span`flex:0 0 34px;text-align:right;font-size:11px;font-weight:700;color:#64748B;`;
+const SPct = styled.span`flex:0 0 34px;text-align:right;font-size:0.6875rem;font-weight:700;color:#64748B;`;
 const Grid = styled.div<{ $compact?: boolean }>`display:grid;grid-template-columns:${(p) => (p.$compact ? 'minmax(0,1fr)' : 'minmax(0,1fr) minmax(0,1fr)')};gap:14px;@media (max-width:768px){grid-template-columns:minmax(0,1fr);}`;
 const Sec = styled.div`min-width:0;`;
-const SecHead = styled.div`display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#0F172A;margin-bottom:8px;`;
-const SecIcon = styled.span`font-size:13px;`;
-const Cnt = styled.span`display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:17px;padding:0 5px;background:#F1F5F9;color:#64748B;border-radius:999px;font-size:10px;font-weight:700;`;
+const SecHead = styled.div`display:flex;align-items:center;gap:6px;font-size:0.8125rem;font-weight:700;color:#0F172A;margin-bottom:8px;`;
+const SecIcon = styled.span`font-size:0.8125rem;`;
+const Cnt = styled.span`display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:17px;padding:0 5px;background:#F1F5F9;color:#64748B;border-radius:999px;font-size:0.625rem;font-weight:700;`;
 const List = styled.div`display:flex;flex-direction:column;gap:5px;`;
 const Item = styled.button<{ $tone: 'good' | 'bad' | 'wait' | 'plan' }>`display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:7px 9px;background:#F8FAFC;border:1px solid #E2E8F0;border-left:3px solid ${(p) => (p.$tone === 'bad' ? '#EF4444' : p.$tone === 'good' ? '#22C55E' : p.$tone === 'wait' ? '#14B8A6' : '#94A3B8')};border-radius:8px;cursor:pointer;font-family:inherit;&:hover{background:#F0FDFA;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:1px;}`;
 const Dot = styled.span`width:6px;height:6px;border-radius:50%;flex-shrink:0;`;
-const ITitle = styled.span`flex:1;min-width:0;font-size:13px;color:#0F172A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
-const Meta = styled.span`font-size:11px;color:#94A3B8;flex-shrink:0;`;
-const Tag = styled.span`font-size:10px;font-weight:600;color:#0F766E;background:#F0FDFA;border-radius:999px;padding:1px 7px;flex-shrink:0;`;
-const IssueRow = styled.div`font-size:13px;color:#92400E;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:7px 9px;line-height:1.5;`;
-const DelivItem = styled.button`display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:7px 9px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;cursor:pointer;font-size:13px;color:#0F172A;font-family:inherit;&:hover{background:#F0FDFA;color:#0F766E;}&:focus-visible{outline:2px solid #14B8A6;}&::before{content:'📄';}`;
+const ITitle = styled.span`flex:1;min-width:0;font-size:0.8125rem;color:#0F172A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
+const Meta = styled.span`font-size:0.6875rem;color:#94A3B8;flex-shrink:0;`;
+const Tag = styled.span`font-size:0.625rem;font-weight:600;color:#0F766E;background:#F0FDFA;border-radius:999px;padding:1px 7px;flex-shrink:0;`;
+const IssueRow = styled.div`font-size:0.8125rem;color:#92400E;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:7px 9px;line-height:1.5;`;
+const DelivItem = styled.button`display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:7px 9px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;cursor:pointer;font-size:0.8125rem;color:#0F172A;font-family:inherit;&:hover{background:#F0FDFA;color:#0F766E;}&:focus-visible{outline:2px solid #14B8A6;}&::before{content:'📄';}`;
 const People = styled.div`display:flex;flex-wrap:wrap;gap:8px;`;
 const Person = styled.div<{ $client?: boolean }>`display:flex;flex-direction:column;gap:1px;padding:6px 10px;background:${(p) => (p.$client ? '#FFF1F2' : '#F8FAFC')};border:1px solid ${(p) => (p.$client ? '#FECDD3' : '#E2E8F0')};border-radius:8px;`;
-const PName = styled.span`font-size:12px;font-weight:700;color:#0F172A;`;
+const PName = styled.span`font-size:0.75rem;font-weight:700;color:#0F172A;`;
 
 const ChartSec = styled.div`display: flex; flex-direction: column; gap: 6px;`;
-const ChartTitle = styled.div`font-size: 12px; font-weight: 700; color: #0F172A;`;
+const ChartTitle = styled.div`font-size: 0.75rem; font-weight: 700; color: #0F172A;`;
 const ChartCap = styled.div`
-  font-size: 11px; color: #94A3B8; margin: -2px 0 6px;
+  font-size: 0.6875rem; color: #94A3B8; margin: -2px 0 6px;
 `;
 const CapHint = styled.span`
   display: block; color: #B45309; margin-top: 2px;

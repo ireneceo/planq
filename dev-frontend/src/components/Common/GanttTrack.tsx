@@ -203,7 +203,7 @@ const HeaderScroller = styled.div`
 `;
 const HeaderInner = styled.div`position:relative;height:26px;padding:0 2px;`;
 const HeaderTick = styled.span<{ $align: 'start'|'center'|'end' }>`
-  position:absolute;top:4px;font-size:11px;color:#64748B;font-weight:600;
+  position:absolute;top:4px;font-size:0.6875rem;color:#64748B;font-weight:600;
   transform:translateX(${p => p.$align === 'start' ? '0' : p.$align === 'end' ? '-100%' : '-50%'});
   white-space:nowrap;pointer-events:none;
   &::before{
@@ -234,4 +234,4 @@ const Bar = styled.div`
   cursor:pointer;transition:box-shadow 0.15s;
   &:hover{box-shadow:0 2px 8px rgba(15,23,42,0.10);}
 `;
-const BarLabel = styled.span`font-size:10px;font-weight:600;white-space:nowrap;`;
+const BarLabel = styled.span`font-size:0.625rem;font-weight:600;white-space:nowrap;`;

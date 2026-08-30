@@ -197,26 +197,26 @@ const DayHeader = styled.div`
 const DateBadge = styled.div<{ $today: boolean; $isSaturday: boolean; $isSunday: boolean }>`
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 26px; height: 26px; padding: 0 7px; border-radius: 999px;
-  font-size: 14px; font-weight: 700;
+  font-size: 0.875rem; font-weight: 700;
   background: ${({ $today }) => $today ? '#14B8A6' : 'transparent'};
   color: ${({ $today, $isSunday, $isSaturday }) => $today ? '#fff' : $isSunday ? '#BE123C' : $isSaturday ? '#1D4ED8' : '#0F172A'};
 `;
 const Weekday = styled.span<{ $isSaturday: boolean; $isSunday: boolean }>`
-  font-size: 13px; font-weight: 600;
+  font-size: 0.8125rem; font-weight: 600;
   color: ${({ $isSunday, $isSaturday }) => $isSunday ? '#BE123C' : $isSaturday ? '#1D4ED8' : '#475569'};
 `;
 const TodayTag = styled.span`
-  font-size: 11px; font-weight: 700; color: #0F766E;
+  font-size: 0.6875rem; font-weight: 700; color: #0F766E;
   background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 999px; padding: 1px 8px;
 `;
-const MonthLabel = styled.span`font-size: 12px; color: #94A3B8; margin-left: 2px;`;
+const MonthLabel = styled.span`font-size: 0.75rem; color: #94A3B8; margin-left: 2px;`;
 const AddBtn = styled.button`
   margin-left: auto; width: 36px; height: 36px; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: 1px solid #E2E8F0; border-radius: 8px; color: #64748B; cursor: pointer;
   &:hover { background: #F0FDFA; border-color: #5EEAD4; color: #0F766E; }
 `;
-const NoItems = styled.div`font-size: 12px; color: #CBD5E1; padding: 8px 12px 10px;`;
+const NoItems = styled.div`font-size: 0.75rem; color: #CBD5E1; padding: 8px 12px 10px;`;
 const Card = styled.div<{ $border: string }>`
   position: relative; display: flex; align-items: flex-start; gap: 12px;
   min-height: 44px; padding: 10px 12px; margin: 4px 0;
@@ -230,28 +230,28 @@ const ColorBar = styled.span<{ $color: string }>`
 `;
 const CardTime = styled.div`
   flex-shrink: 0; min-width: 84px; padding-left: 6px;
-  font-size: 12px; font-weight: 600; color: #475569; font-variant-numeric: tabular-nums;
+  font-size: 0.75rem; font-weight: 600; color: #475569; font-variant-numeric: tabular-nums;
   line-height: 1.5;
 `;
 const CardMain = styled.div`flex: 1; min-width: 0;`;
 const CardTitle = styled.div`
   display: flex; align-items: center; gap: 6px;
-  font-size: 14px; font-weight: 600; color: #0F172A; line-height: 1.4;
+  font-size: 0.875rem; font-weight: 600; color: #0F172A; line-height: 1.4;
 `;
 const TitleText = styled.span`overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;`;
-const CardSub = styled.div`font-size: 12px; color: #94A3B8; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
+const CardSub = styled.div`font-size: 0.75rem; color: #94A3B8; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
 const TaskIcon = styled.svg`width: 13px; height: 13px; flex-shrink: 0; color: #0F766E;`;
 const LockIcon = styled.svg`width: 12px; height: 12px; flex-shrink: 0; color: #94A3B8;`;
 const ExtLink = styled.svg`width: 12px; height: 12px; flex-shrink: 0; color: #7C3AED;`;
 const ExceptionMark = styled.span`
   display: inline-flex; align-items: center; justify-content: center;
   padding: 0 4px; min-width: 14px; height: 14px; flex-shrink: 0;
-  background: #FEF3C7; color: #92400E; border-radius: 4px; font-size: 10px; font-weight: 700; line-height: 1;
+  background: #FEF3C7; color: #92400E; border-radius: 4px; font-size: 0.625rem; font-weight: 700; line-height: 1;
 `;
 const Empty = styled.div`
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 8px; padding: 64px 20px; text-align: center; color: #94A3B8;
 `;
 const EmptyIcon = styled.div`color: #CBD5E1;`;
-const EmptyTitle = styled.div`font-size: 15px; font-weight: 600; color: #475569;`;
-const EmptyHint = styled.div`font-size: 13px; color: #94A3B8;`;
+const EmptyTitle = styled.div`font-size: 0.9375rem; font-weight: 600; color: #475569;`;
+const EmptyHint = styled.div`font-size: 0.8125rem; color: #94A3B8;`;

@@ -342,11 +342,11 @@ const Wrap = styled.div`
   display: flex; flex-direction: column; gap: 14px;
 `;
 const Loading = styled.div`
-  text-align: center; padding: 40px 20px; color: #94A3B8; font-size: 13px;
+  text-align: center; padding: 40px 20px; color: #94A3B8; font-size: 0.8125rem;
 `;
 const ErrorBanner = styled.div`
   padding: 10px 14px; background: #FEF2F2; border: 1px solid #FECACA;
-  color: #991B1B; border-radius: 8px; font-size: 12px;
+  color: #991B1B; border-radius: 8px; font-size: 0.75rem;
 `;
 const Toolbar = styled.div`
   display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
@@ -360,7 +360,7 @@ const SearchIcon = styled.div`
 const SearchInput = styled.input`
   width: 100%; padding: 9px 32px 9px 32px;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 13px; color: #0F172A;
+  font-size: 0.8125rem; color: #0F172A;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.15); }
   &::placeholder { color: #94A3B8; }
 `;
@@ -374,7 +374,7 @@ const ClearBtn = styled.button`
 const NewBtn = styled.button`
   display: inline-flex; align-items: center; gap: 6px;
   height: 36px; padding: 0 14px; background: #14B8A6; color: #fff;
-  font-size: 13px; font-weight: 700; line-height: 1;
+  font-size: 0.8125rem; font-weight: 700; line-height: 1;
   border: none; border-radius: 8px; cursor: pointer; white-space: nowrap;
   transition: background 0.15s;
   & > svg { display: block; flex-shrink: 0; }
@@ -386,10 +386,10 @@ const Empty = styled.div`
   background: #fff; border: 1px dashed #E2E8F0; border-radius: 12px;
 `;
 const EmptyTitle = styled.div`
-  font-size: 14px; font-weight: 700; color: #475569;
+  font-size: 0.875rem; font-weight: 700; color: #475569;
 `;
 const EmptyDesc = styled.div`
-  font-size: 12px; color: #94A3B8; margin-bottom: 4px;
+  font-size: 0.75rem; color: #94A3B8; margin-bottom: 4px;
 `;
 const List = styled.div`
   background: #fff; border: 1px solid #E2E8F0; border-radius: 12px; overflow: hidden;
@@ -399,7 +399,7 @@ const ListHead = styled.div`
   grid-template-columns: 130px 180px minmax(0, 1.5fr) 130px 100px 130px 110px;
   gap: 12px; padding: 10px 16px; background: #F8FAFC;
   border-bottom: 1px solid #E2E8F0;
-  font-size: 11px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px;
+  font-size: 0.6875rem; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px;
   @media (max-width: 1280px) {
     grid-template-columns: 130px 160px minmax(0, 1fr) 110px 90px 130px 100px;
   }
@@ -444,7 +444,7 @@ const ColStatus = styled.div`
 // 고객 열람 여부 — 발행된 청구서에서 "고객이 봤나?" 한눈에 (viewed_at 기반)
 const ViewedTag = styled.span<{ $seen: boolean }>`
   display: inline-flex; align-items: center; gap: 4px;
-  font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px;
+  font-size: 0.625rem; font-weight: 700; padding: 2px 7px; border-radius: 999px;
   background: ${p => (p.$seen ? '#E0F2FE' : '#FEF3C7')};
   color: ${p => (p.$seen ? '#0284C7' : '#B45309')};
 `;
@@ -456,38 +456,38 @@ const ColDue = styled.div`
   display: flex; flex-direction: column; gap: 2px; align-items: flex-end;
 `;
 const Num = styled.div`
-  font-size: 12px; font-weight: 700; color: #0F172A;
+  font-size: 0.75rem; font-weight: 700; color: #0F172A;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 `;
 const Issued = styled.div`
-  font-size: 11px; color: #94A3B8;
+  font-size: 0.6875rem; color: #94A3B8;
 `;
 const ClientName = styled.div`
-  font-size: 13px; font-weight: 600; color: #0F172A;
+  font-size: 0.8125rem; font-weight: 600; color: #0F172A;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   display: flex; align-items: center; gap: 6px;
 `;
 // 외부(미연동) 청구 배지 (운영 #11)
 const ExternalBadge = styled.span`
-  flex-shrink: 0; font-size: 10px; font-weight: 700; color: #92400E;
+  flex-shrink: 0; font-size: 0.625rem; font-weight: 700; color: #92400E;
   background: #FEF3C7; border-radius: 999px; padding: 1px 7px; line-height: 1.5;
 `;
 const TitleText = styled.div`
-  font-size: 13px; color: #0F172A; font-weight: 500;
+  font-size: 0.8125rem; color: #0F172A; font-weight: 500;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
 const Amt = styled.div`
-  font-size: 13px; font-weight: 700; color: #0F172A;
+  font-size: 0.8125rem; font-weight: 700; color: #0F172A;
   font-variant-numeric: tabular-nums;
 `;
 const VatHint = styled.div`
-  font-size: 10px; color: #94A3B8;
+  font-size: 0.625rem; color: #94A3B8;
 `;
 const SplitView = styled.div`
   display: flex; flex-direction: column; gap: 4px;
 `;
 const ModeLabel = styled.span`
-  font-size: 11px; font-weight: 600; color: #475569;
+  font-size: 0.6875rem; font-weight: 600; color: #475569;
 `;
 const DotRow = styled.div`
   display: flex; gap: 3px;
@@ -497,7 +497,7 @@ const Dot = styled.span<{ $color: string }>`
 `;
 const StatusBadge = styled.span<{ $bg: string; $fg: string }>`
   display: inline-flex; align-items: center; gap: 5px;
-  padding: 3px 8px 3px 7px; font-size: 11px; font-weight: 700;
+  padding: 3px 8px 3px 7px; font-size: 0.6875rem; font-weight: 700;
   background: ${p => p.$bg}; color: ${p => p.$fg};
   border-radius: 999px;
 `;
@@ -505,8 +505,8 @@ const StatusDot = styled.span<{ $color: string }>`
   width: 6px; height: 6px; border-radius: 50%; background: ${p => p.$color};
 `;
 const DueDate = styled.div`
-  font-size: 12px; color: #475569; font-variant-numeric: tabular-nums;
+  font-size: 0.75rem; color: #475569; font-variant-numeric: tabular-nums;
 `;
 const DueOverdue = styled.div`
-  font-size: 10px; font-weight: 700; color: #991B1B;
+  font-size: 0.625rem; font-weight: 700; color: #991B1B;
 `;

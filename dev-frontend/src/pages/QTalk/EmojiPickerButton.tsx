@@ -134,7 +134,7 @@ const Cell = styled.button`
   justify-content: center;
   border: none;
   background: transparent;
-  font-size: 18px;
+  font-size: 1.125rem;
   line-height: 1;
   cursor: pointer;
   border-radius: 6px;

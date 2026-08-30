@@ -100,12 +100,12 @@ const Icon = styled.div`
   border-radius: 8px;
 `;
 const Body = styled.div`min-width: 0; display: flex; flex-direction: column; gap: 2px;`;
-const Title = styled.div`font-size: 13px; font-weight: 700; color: #0F172A; line-height: 1.3;`;
-const Desc = styled.div`font-size: 11px; color: #64748B; line-height: 1.3;`;
+const Title = styled.div`font-size: 0.8125rem; font-weight: 700; color: #0F172A; line-height: 1.3;`;
+const Desc = styled.div`font-size: 0.6875rem; color: #64748B; line-height: 1.3;`;
 const CtaBtn = styled.button`
   height: 32px; padding: 0 14px;
   background: #14B8A6; color: #FFFFFF; border: none; border-radius: 8px;
-  font-size: 12px; font-weight: 600; cursor: pointer;
+  font-size: 0.75rem; font-weight: 600; cursor: pointer;
   &:hover { background: #0D9488; }
 `;
 const CloseBtn = styled.button`
@@ -114,7 +114,7 @@ const CloseBtn = styled.button`
 
   width: 24px; height: 24px;
   background: transparent; border: none; cursor: pointer;
-  color: #94A3B8; font-size: 18px; line-height: 1;
+  color: #94A3B8; font-size: 1.125rem; line-height: 1;
   display: flex; align-items: center; justify-content: center;
   border-radius: 4px;
   &:hover { background: #F1F5F9; color: #0F172A; }
@@ -122,6 +122,6 @@ const CloseBtn = styled.button`
 const SnoozeBtn = styled.button`
   height: 32px; padding: 0 10px;
   background: #fff; color: #64748B; border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 11px; font-weight: 600; cursor: pointer;
+  font-size: 0.6875rem; font-weight: 600; cursor: pointer;
   &:hover { border-color: #CBD5E1; background: #F8FAFC; }
 `;

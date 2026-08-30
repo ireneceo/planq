@@ -41,7 +41,7 @@ export const ModalHeader = styled.div`
 `;
 
 export const ModalTitle = styled.h2`
-  font-size: 20px;
+  font-size: 1.25rem;
   font-weight: 600;
   color: #0A2540;
   margin: 0;
@@ -53,7 +53,7 @@ export const CloseButton = styled.button`
 
   background: none;
   border: none;
-  font-size: 24px;
+  font-size: 1.5rem;
   color: #6B7C93;
   cursor: pointer;
   padding: 0;
@@ -96,7 +96,7 @@ export const FormGroup = styled.div`
 
 export const FormLabel = styled.label`
   display: block;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 500;
   color: #6B7C93;
   margin-bottom: 8px;
@@ -109,7 +109,7 @@ export const FormInput = styled.input`
   padding: 8px 12px;
   border: 1px solid #E6EBF1;
   border-radius: 6px;
-  font-size: 14px;
+  font-size: 0.875rem;
   transition: all 0.15s;
   &:focus {
     outline: none;
@@ -129,7 +129,7 @@ export const FormTextArea = styled.textarea`
   padding: 8px 12px;
   border: 1px solid #E6EBF1;
   border-radius: 6px;
-  font-size: 14px;
+  font-size: 0.875rem;
   min-height: 100px;
   resize: vertical;
   transition: all 0.15s;
@@ -149,14 +149,14 @@ export const ModalWarning = styled.div<{ show?: boolean }>`
   border: 1px solid #FCA5A5;
   border-radius: 8px;
   color: #DC2626;
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1.5;
 `;
 
 export const ModalButton = styled.button<{ variant?: 'primary' | 'secondary' | 'danger' }>`
   padding: 12px 20px;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s;

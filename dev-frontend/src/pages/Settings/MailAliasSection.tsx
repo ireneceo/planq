@@ -257,8 +257,8 @@ const Wrap = styled.div`
   margin-top: 14px; padding-top: 14px; border-top: 1px solid #F1F5F9;
 `;
 const Head = styled.div`display: flex; align-items: center; justify-content: space-between;`;
-const Title = styled.div`font-size: 13px; font-weight: 700; color: #0F172A;`;
-const Desc = styled.p`margin: 0; font-size: 12px; color: #94A3B8; line-height: 1.6;`;
+const Title = styled.div`font-size: 0.8125rem; font-weight: 700; color: #0F172A;`;
+const Desc = styled.p`margin: 0; font-size: 0.75rem; color: #94A3B8; line-height: 1.6;`;
 const List = styled.div`display: flex; flex-direction: column; gap: 4px;`;
 const Row = styled.div<{ $muted?: boolean }>`
   display: flex; align-items: center; gap: 8px;
@@ -266,26 +266,26 @@ const Row = styled.div<{ $muted?: boolean }>`
   background: ${(p) => (p.$muted ? '#F8FAFC' : '#FFFFFF')};
   border: 1px solid #E2E8F0;
 `;
-const Addr = styled.div`flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 12px; color: #334155; word-break: break-all;`;
-const Who = styled.span`font-size: 11px; color: #94A3B8;`;
+const Addr = styled.div`flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: #334155; word-break: break-all;`;
+const Who = styled.span`font-size: 0.6875rem; color: #94A3B8;`;
 // 표시 이름이 비어 있다는 사실을 드러낸다 — 옛 등록분은 전부 비어 있는데 화면에 아무것도 안 뜨면
 //   "설정할 게 없다" 로 읽힌다.
-const WhoEmpty = styled.span`font-size: 11px; color: #CBD5E1; font-style: italic;`;
+const WhoEmpty = styled.span`font-size: 0.6875rem; color: #CBD5E1; font-style: italic;`;
 const SigBox = styled.div`
   display: flex; flex-direction: column; gap: 6px;
   padding: 10px; margin: -2px 0 4px; border: 1px solid #E2E8F0; border-radius: 8px; background: #F8FAFC;
 `;
-const SigLabel = styled.div`font-size: 11px; font-weight: 700; color: #334155;`;
-const SigHint = styled.div`font-size: 11px; color: #94A3B8; line-height: 1.6;`;
+const SigLabel = styled.div`font-size: 0.6875rem; font-weight: 700; color: #334155;`;
+const SigHint = styled.div`font-size: 0.6875rem; color: #94A3B8; line-height: 1.6;`;
 const Tag = styled.span<{ $on?: boolean }>`
   flex-shrink: 0; padding: 1px 7px; border-radius: 999px;
-  font-size: 10px; font-weight: 700;
+  font-size: 0.625rem; font-weight: 700;
   color: ${(p) => (p.$on ? '#0F766E' : '#94A3B8')};
   background: ${(p) => (p.$on ? '#F0FDFA' : '#F1F5F9')};
 `;
 const LinkBtn = styled.button<{ $danger?: boolean }>`
   flex-shrink: 0; border: none; background: none; padding: 0 2px; cursor: pointer;
-  font-size: 11px; font-weight: 600; color: ${(p) => (p.$danger ? '#94A3B8' : '#0F766E')};
+  font-size: 0.6875rem; font-weight: 600; color: ${(p) => (p.$danger ? '#94A3B8' : '#0F766E')};
   &:hover:not(:disabled) { color: ${(p) => (p.$danger ? '#DC2626' : '#0D9488')}; text-decoration: underline; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
@@ -294,13 +294,13 @@ const Input = styled.input`
   /* 넓은 화면에서 한 줄 입력이 1,380px 까지 늘어나던 것 — 이메일·도메인 한 줄에 그 폭은 과하다.
      설정 본문 폭 제한을 걷어내면서(다른 화면과 여백 통일) 대신 입력칸에 상한을 둔다. */
   flex: 1; min-width: 200px; max-width: 420px; height: 32px; padding: 0 10px;
-  border: 1px solid #E2E8F0; border-radius: 8px; font-size: 12px; color: #334155;
+  border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.75rem; color: #334155;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,.15); }
 `;
 const InputSm = styled(Input)`flex: 0 1 140px; min-width: 120px;`;
-const ErrText = styled.div`font-size: 11px; font-weight: 600; color: #B45309;`;
+const ErrText = styled.div`font-size: 0.6875rem; font-weight: 600; color: #B45309;`;
 const Note = styled.p`
   margin: 2px 0 0; padding: 8px 10px; border-radius: 8px;
   background: #F8FAFC; border: 1px solid #E2E8F0;
-  font-size: 11px; color: #64748B; line-height: 1.6;
+  font-size: 0.6875rem; color: #64748B; line-height: 1.6;
 `;

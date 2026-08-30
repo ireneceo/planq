@@ -151,26 +151,26 @@ const AdminEmailLogsPage = () => {
 
 export default AdminEmailLogsPage;
 
-const Hint = styled.div`font-size: 12px; color: #94A3B8; padding: 16px 0;`;
-const Table = styled.table`width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13px;`;
+const Hint = styled.div`font-size: 0.75rem; color: #94A3B8; padding: 16px 0;`;
+const Table = styled.table`width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 0.8125rem;`;
 const Thead = styled.thead`background: #F8FAFC;`;
 const Tr = styled.tr`border-bottom: 1px solid #F1F5F9;`;
-const Th = styled.th`text-align: left; padding: 10px 12px; font-size: 11px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.3px;`;
+const Th = styled.th`text-align: left; padding: 10px 12px; font-size: 0.6875rem; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.3px;`;
 const Td = styled.td<{ $mono?: boolean }>`
   padding: 10px 12px; vertical-align: top; color: #0F172A;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 280px;
   ${p => p.$mono && 'font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #334155;'}
 `;
 const Pill = styled.span`
-  display: inline-flex; align-items: center; padding: 2px 10px; font-size: 11px; font-weight: 700;
+  display: inline-flex; align-items: center; padding: 2px 10px; font-size: 0.6875rem; font-weight: 700;
   border-radius: 999px;
 `;
 const ErrLine = styled.div`
-  margin-top: 4px; font-size: 11px; color: #B91C1C; max-width: 240px;
+  margin-top: 4px; font-size: 0.6875rem; color: #B91C1C; max-width: 240px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
 const RetryBtn = styled.button`
-  padding: 4px 10px; font-size: 11px; font-weight: 600; color: #0F766E;
+  padding: 4px 10px; font-size: 0.6875rem; font-weight: 600; color: #0F766E;
   background: #FFF; border: 1px solid #CBD5E1; border-radius: 6px; cursor: pointer;
   &:hover:not(:disabled) { border-color: #0F766E; background: #F0FDFA; }
   &:disabled { color: #94A3B8; cursor: not-allowed; }

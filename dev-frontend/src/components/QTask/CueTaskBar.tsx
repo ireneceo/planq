@@ -268,7 +268,7 @@ const Field = styled.textarea`
   flex: 1; min-width: 0;
   border: none; outline: none; resize: none;
   background: transparent;
-  font-family: inherit; font-size: 13.5px; line-height: 1.5; color: #0F172A;
+  font-family: inherit; font-size: 0.84375rem; line-height: 1.5; color: #0F172A;
   padding: 1px 0;
   max-height: 140px;
   &::placeholder { color: #94A3B8; }
@@ -286,28 +286,28 @@ const SendBtn = styled.button`
 `;
 const Shortcut = styled.span`
   flex-shrink: 0;
-  font-size: 11px; font-weight: 600; color: #CBD5E1;
+  font-size: 0.6875rem; font-weight: 600; color: #CBD5E1;
   padding: 2px 6px; border: 1px solid #E2E8F0; border-radius: 5px;
   @media (max-width: 640px) { display: none; }
 `;
 const AddedBadge = styled.span`
   flex-shrink: 0;
   display: inline-flex; align-items: center; gap: 4px;
-  font-size: 12px; font-weight: 600; color: #0D9488;
+  font-size: 0.75rem; font-weight: 600; color: #0D9488;
   animation: cuefade .25s ease;
   @keyframes cuefade { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; } }
 `;
 const Check = styled.svg`width: 14px; height: 14px;`;
 const SubHint = styled.div`
-  font-size: 11px; color: #94A3B8; padding: 5px 4px 0 14px;
+  font-size: 0.6875rem; color: #94A3B8; padding: 5px 4px 0 14px;
 `;
 const ErrorMsg = styled.div`
-  font-size: 12px; color: #DC2626; background: #FEF2F2;
+  font-size: 0.75rem; color: #DC2626; background: #FEF2F2;
   padding: 8px 10px; border-radius: 6px; margin-top: 8px;
 `;
 // #237 — 실패가 아니라 안내(업무는 생성됨). 실패와 같은 빨강을 쓰지 않는다.
 const NoticeMsg = styled.div`
-  font-size: 12px; color: #B45309; background: #FFFBEB;
+  font-size: 0.75rem; color: #B45309; background: #FFFBEB;
   padding: 8px 10px; border-radius: 6px; margin-top: 8px;
 `;
 const Drop = styled.div`
@@ -322,7 +322,7 @@ const Drop = styled.div`
 `;
 const CueLine = styled.div`
   display: flex; align-items: flex-start; gap: 6px;
-  font-size: 12.5px; line-height: 1.5; color: #9F1239; font-weight: 500;
+  font-size: 0.78125rem; line-height: 1.5; color: #9F1239; font-weight: 500;
 `;
 const CardList = styled.div`display: flex; flex-direction: column; gap: 8px;`;
 const Actions = styled.div`
@@ -330,7 +330,7 @@ const Actions = styled.div`
 `;
 const Thinking = styled.div`
   display: flex; align-items: center; gap: 8px;
-  font-size: 12.5px; color: #9F1239; font-weight: 500;
+  font-size: 0.78125rem; color: #9F1239; font-weight: 500;
 `;
 const blink = keyframes`0%,80%,100%{opacity:.25;transform:scale(.8)}40%{opacity:1;transform:scale(1)}`;
 const Dots = styled.span`

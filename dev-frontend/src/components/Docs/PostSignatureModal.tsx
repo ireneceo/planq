@@ -407,7 +407,7 @@ const Header = styled.div`
 `;
 const Title = styled.h2`
   display: inline-flex; align-items: center; gap: 8px;
-  font-size: 16px; font-weight: 700; color: #0F172A; margin: 0;
+  font-size: 1rem; font-weight: 700; color: #0F172A; margin: 0;
 `;
 const PenIcon = styled.span`
   display: inline-flex; align-items: center; justify-content: center;
@@ -431,8 +431,8 @@ const SectionTwoCol = styled.section`
   @media (max-width: 540px) { grid-template-columns: 1fr; }
 `;
 const SectionHalf = styled.div`display: flex; flex-direction: column; gap: 6px;`;
-const SectionLabel = styled.label`font-size: 12px; font-weight: 600; color: #0F172A; display: block; margin-bottom: 6px;`;
-const SectionHint = styled.div`font-size: 11px; color: #94A3B8; line-height: 1.5; margin-top: 4px;`;
+const SectionLabel = styled.label`font-size: 0.75rem; font-weight: 600; color: #0F172A; display: block; margin-bottom: 6px;`;
+const SectionHint = styled.div`font-size: 0.6875rem; color: #94A3B8; line-height: 1.5; margin-top: 4px;`;
 
 // 멤버·고객 picker
 const ContactPickWrap = styled.div`margin-bottom: 8px;`;
@@ -449,12 +449,12 @@ const Avatar = styled.div`
   width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   background: linear-gradient(135deg, #14B8A6 0%, #0D9488 100%);
-  color: #fff; font-size: 12px; font-weight: 700;
+  color: #fff; font-size: 0.75rem; font-weight: 700;
 `;
 const SignerFields = styled.div`flex: 1; min-width: 0; display: grid; grid-template-columns: 1fr 110px; gap: 6px;`;
 const SignerEmailInput = styled.input`
   border: none; background: transparent; padding: 4px 0;
-  font-size: 13px; color: #0F172A; min-width: 0;
+  font-size: 0.8125rem; color: #0F172A; min-width: 0;
   &::placeholder { color: #CBD5E1; }
   &:focus { outline: none; }
 `;
@@ -474,7 +474,7 @@ const RemoveSigner = styled.button`
 const AddSigner = styled.button`
   display: inline-flex; align-items: center; gap: 4px;
   padding: 6px 10px; margin-top: 8px;
-  font-size: 12px; font-weight: 600; color: #0F766E;
+  font-size: 0.75rem; font-weight: 600; color: #0F766E;
   background: transparent; border: 1px dashed #14B8A6; border-radius: 8px; cursor: pointer;
   transition: background 0.15s;
   &:hover { background: #F0FDFA; }
@@ -483,7 +483,7 @@ const AddSigner = styled.button`
 // 메모
 const Textarea = styled.textarea`
   width: 100%; padding: 10px 12px;
-  font-size: 13px; color: #0F172A; line-height: 1.55;
+  font-size: 0.8125rem; color: #0F172A; line-height: 1.55;
   border: 1px solid #E2E8F0; border-radius: 8px; background: #fff;
   resize: vertical; font-family: inherit;
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -494,7 +494,7 @@ const Textarea = styled.textarea`
 const ExpiryRow = styled.div`display: flex; gap: 4px; flex-wrap: wrap;`;
 const ExpiryChip = styled.button<{ $active: boolean }>`
   height: 28px; padding: 0 12px;
-  font-size: 12px; font-weight: 600;
+  font-size: 0.75rem; font-weight: 600;
   background: ${p => p.$active ? '#0F766E' : '#fff'};
   color: ${p => p.$active ? '#fff' : '#475569'};
   border: 1px solid ${p => p.$active ? '#0F766E' : '#E2E8F0'};
@@ -507,14 +507,14 @@ const ExpiryChip = styled.button<{ $active: boolean }>`
 const CheckLabel = styled.label`
   display: flex; align-items: center; gap: 8px;
   padding: 8px 10px; border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 12px; color: #334155;
+  font-size: 0.75rem; color: #334155;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
   &:hover { background: #F8FAFC; border-color: #CBD5E1; }
   input { accent-color: #14B8A6; cursor: pointer; }
 `;
 
-const ErrorBox = styled.div`font-size:12px;color:#DC2626;background:#FEF2F2;padding:8px 10px;border-radius:6px;margin-top:8px;`;
+const ErrorBox = styled.div`font-size:0.75rem;color:#DC2626;background:#FEF2F2;padding:8px 10px;border-radius:6px;margin-top:8px;`;
 
 // Footer
 const Footer = styled.div`
@@ -525,7 +525,7 @@ const Footer = styled.div`
 const PrimaryBtn = styled.button`
   display: inline-flex; align-items: center;
   height: 36px; padding: 0 18px;
-  font-size: 13px; font-weight: 700; color: #fff;
+  font-size: 0.8125rem; font-weight: 700; color: #fff;
   background: #14B8A6; border: none; border-radius: 8px; cursor: pointer;
   transition: background 0.15s, transform 0.15s;
   &:hover:not(:disabled) { background: #0D9488; transform: translateY(-1px); }
@@ -535,7 +535,7 @@ const PrimaryBtn = styled.button`
 `;
 const SecondaryBtn = styled.button`
   height: 36px; padding: 0 16px;
-  font-size: 13px; font-weight: 600; color: #334155;
+  font-size: 0.8125rem; font-weight: 600; color: #334155;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
   &:hover:not(:disabled) { border-color: #CBD5E1; background: #F8FAFC; }
@@ -562,12 +562,12 @@ const DoneCircle = styled.div`
   @keyframes pop { 0% { transform: scale(0.6); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
 `;
 const DoneTitle = styled.div`
-  font-size: 16px; font-weight: 700; color: #0F172A;
+  font-size: 1rem; font-weight: 700; color: #0F172A;
 `;
 const DoneList = styled.ul`
   list-style: none; padding: 0; margin: 0;
   display: flex; flex-direction: column; gap: 6px;
-  font-size: 13px; color: #475569; line-height: 1.55;
+  font-size: 0.8125rem; color: #475569; line-height: 1.55;
   text-align: center;
   & li::before { content: '·'; margin-right: 6px; color: #94A3B8; }
 `;
@@ -582,7 +582,7 @@ const KindRow = styled.div`
 `;
 const KindBtn = styled.button<{ $on: boolean }>`
   padding: 7px 16px; border: none; cursor: pointer;
-  font-size: 12.5px; font-weight: 600;
+  font-size: 0.78125rem; font-weight: 600;
   background: ${p => (p.$on ? '#0F766E' : '#fff')};
   color: ${p => (p.$on ? '#fff' : '#64748B')};
   &:hover { background: ${p => (p.$on ? '#0F766E' : '#F8FAFC')}; }

@@ -218,14 +218,14 @@ const Header = styled.div`
   display: flex; flex-direction: column; gap: 6px;
 `;
 const Subtitle = styled.p`
-  font-size: 13px; color: #64748B; margin: 0; line-height: 1.6;
+  font-size: 0.8125rem; color: #64748B; margin: 0; line-height: 1.6;
 `;
 const OwnerHint = styled.div`
   margin-top: 8px;
   display: inline-flex; align-items: center; gap: 6px;
   padding: 8px 12px;
   background: #FEF3C7; border: 1px solid #FDE68A; color: #92400E;
-  border-radius: 8px; font-size: 12px; font-weight: 500;
+  border-radius: 8px; font-size: 0.75rem; font-weight: 500;
   width: fit-content;
   svg { color: #B45309; }
 `;
@@ -249,10 +249,10 @@ const IconCircle = styled.div<{ $tone: string }>`
   flex-shrink: 0;
 `;
 const CardTitle = styled.div`
-  font-size: 15px; font-weight: 600; color: #0F172A; margin-bottom: 2px;
+  font-size: 0.9375rem; font-weight: 600; color: #0F172A; margin-bottom: 2px;
 `;
 const CardDesc = styled.div`
-  font-size: 12px; color: #64748B; line-height: 1.5;
+  font-size: 0.75rem; color: #64748B; line-height: 1.5;
 `;
 const fadeOut = keyframes`
   from { opacity: 1; }
@@ -261,7 +261,7 @@ const fadeOut = keyframes`
 const SaveBadge = styled.div<{ $state: 'idle' | 'saving' | 'saved' | 'error' }>`
   display: flex; align-items: center; gap: 4px;
   height: 22px; padding: 0 8px; border-radius: 999px;
-  font-size: 11px; font-weight: 500;
+  font-size: 0.6875rem; font-weight: 500;
   ${p => p.$state === 'idle' && css`display: none;`}
   ${p => p.$state === 'saving' && css`background: #F1F5F9; color: #64748B;`}
   ${p => p.$state === 'saved' && css`
@@ -301,19 +301,19 @@ const Radio = styled.span<{ $selected: boolean }>`
 const OptionBody = styled.div` flex: 1; min-width: 0; `;
 const OptionLabel = styled.div`
   display: flex; align-items: center; gap: 6px;
-  font-size: 13px; font-weight: 500; color: #0F172A;
+  font-size: 0.8125rem; font-weight: 500; color: #0F172A;
 `;
 const RecommendBadge = styled.span`
   display: inline-flex; align-items: center;
   height: 18px; padding: 0 6px; border-radius: 4px;
   background: #F0FDFA; color: #0F766E;
-  font-size: 10px; font-weight: 600;
+  font-size: 0.625rem; font-weight: 600;
 `;
 const Preview = styled.div<{ $tone: string }>`
   display: flex; align-items: center; gap: 8px;
   padding: 10px 14px; border-radius: 8px;
   background: ${p => p.$tone}0A;
-  font-size: 12px; color: #475569;
+  font-size: 0.75rem; color: #475569;
   line-height: 1.5;
 `;
 const PreviewDot = styled.span<{ $tone: string }>`

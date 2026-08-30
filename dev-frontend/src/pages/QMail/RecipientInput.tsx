@@ -93,7 +93,7 @@ const Box = styled.div<{ $disabled: boolean }>`
 const Chip = styled.span<{ $bad: boolean }>`
   display: inline-flex; align-items: center; gap: 4px; max-width: 100%;
   padding: 2px 6px 2px 8px; border-radius: 6px;
-  font-size: 12px; font-weight: 600; line-height: 18px;
+  font-size: 0.75rem; font-weight: 600; line-height: 18px;
   color: ${(p) => (p.$bad ? '#B91C1C' : '#0F766E')};
   background: ${(p) => (p.$bad ? '#FEE2E2' : '#F0FDFA')};
   border: 1px solid ${(p) => (p.$bad ? '#FCA5A5' : '#99F6E4')};
@@ -102,13 +102,13 @@ const Chip = styled.span<{ $bad: boolean }>`
 const Del = styled.button`
   flex-shrink: 0; width: 16px; height: 16px; padding: 0;
   display: inline-flex; align-items: center; justify-content: center;
-  background: none; border: none; cursor: pointer; font-size: 14px; line-height: 1;
+  background: none; border: none; cursor: pointer; font-size: 0.875rem; line-height: 1;
   color: inherit; opacity: 0.65; font-family: inherit;
   &:hover { opacity: 1; }
 `;
 const Field = styled.input`
   flex: 1; min-width: 140px; height: 24px; padding: 0 2px;
   border: none; outline: none; background: transparent;
-  font-size: 13px; color: #0F172A; font-family: inherit;
+  font-size: 0.8125rem; color: #0F172A; font-family: inherit;
   &::placeholder { color: #94A3B8; }
 `;

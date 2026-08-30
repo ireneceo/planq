@@ -142,27 +142,27 @@ const Card = styled.div`
   padding: 28px 32px; box-shadow: 0 4px 12px rgba(0,0,0,0.06);
   @media (max-width: 640px) { padding: 20px 16px; }
 `;
-const WorkspaceLabel = styled.div`font-size: 11px; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;`;
-const FileTitle = styled.h1`font-size: 20px; font-weight: 700; color: #0F172A; margin: 0 0 12px; line-height: 1.3; word-break: break-all;`;
+const WorkspaceLabel = styled.div`font-size: 0.6875rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;`;
+const FileTitle = styled.h1`font-size: 1.25rem; font-weight: 700; color: #0F172A; margin: 0 0 12px; line-height: 1.3; word-break: break-all;`;
 const MetaRow = styled.div`display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 20px;`;
-const MetaItem = styled.span`font-size: 12px; color: #64748B;`;
+const MetaItem = styled.span`font-size: 0.75rem; color: #64748B;`;
 const PreviewBox = styled.div`margin: 16px 0; border: 1px solid #E2E8F0; border-radius: 10px; overflow: hidden; background: #F8FAFC;`;
 const PreviewImg = styled.img`width: 100%; height: auto; max-height: 70vh; display: block; object-fit: contain;`;
 const PreviewIframe = styled.iframe`width: 100%; height: 70vh; border: 0;`;
 const CTAArea = styled.div`display: flex; gap: 8px; margin: 24px 0 12px; flex-wrap: wrap;`;
 const CTA = styled.a`
   display: inline-flex; align-items: center; min-height: 44px; padding: 10px 20px;
-  background: #14B8A6; color: #fff; font-size: 13px; font-weight: 700;
+  background: #14B8A6; color: #fff; font-size: 0.8125rem; font-weight: 700;
   border-radius: 8px; text-decoration: none;
   transition: background 0.15s;
   &:hover { background: #0D9488; }
 `;
 const CTASecondary = styled.a`
   display: inline-flex; align-items: center; min-height: 44px; padding: 10px 20px;
-  background: #fff; color: #334155; font-size: 13px; font-weight: 600;
+  background: #fff; color: #334155; font-size: 0.8125rem; font-weight: 600;
   border: 1px solid #E2E8F0; border-radius: 8px; text-decoration: none;
   &:hover { border-color: #CBD5E1; background: #F8FAFC; }
 `;
-const Hint = styled.div`font-size: 12px; color: #94A3B8; padding: 12px 0;`;
-const ErrorTitle = styled.div`font-size: 18px; font-weight: 700; color: #0F172A; margin-bottom: 8px;`;
-const Footer = styled.div`font-size: 11px; color: #94A3B8; text-align: center; margin-top: 12px;`;
+const Hint = styled.div`font-size: 0.75rem; color: #94A3B8; padding: 12px 0;`;
+const ErrorTitle = styled.div`font-size: 1.125rem; font-weight: 700; color: #0F172A; margin-bottom: 8px;`;
+const Footer = styled.div`font-size: 0.6875rem; color: #94A3B8; text-align: center; margin-top: 12px;`;

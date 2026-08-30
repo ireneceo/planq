@@ -159,47 +159,47 @@ const DONE_TONE: Record<string, { bg: string; fg: string }> = {
 };
 const DoneBadge = styled.span<{ $state: string }>`
   flex-shrink: 0;
-  font-size: 10px; font-weight: 700; border-radius: 999px; padding: 3px 8px;
+  font-size: 0.625rem; font-weight: 700; border-radius: 999px; padding: 3px 8px;
   background: ${p => (DONE_TONE[p.$state] || DONE_TONE.rejected).bg};
   color: ${p => (DONE_TONE[p.$state] || DONE_TONE.rejected).fg};
 `;
 const DoneTitle = styled.div`
-  font-size: 13px; font-weight: 600; color: #475569; line-height: 1.4;
+  font-size: 0.8125rem; font-weight: 600; color: #475569; line-height: 1.4;
   word-break: break-word;
 `;
 const TitleInput = styled.input`
-  font-size: 14px; font-weight: 600; color: #0F172A;
+  font-size: 0.875rem; font-weight: 600; color: #0F172A;
   border: 1px solid transparent; border-radius: 6px; padding: 6px 0; margin: 0;
   background: transparent; width: 100%;
   &:hover { background: #F8FAFC; padding: 6px 8px; margin: 0 -8px; }
   &:focus { outline: none; border-color: #14B8A6; background: #FFF; padding: 6px 8px; margin: 0 -8px; }
 `;
-const Desc = styled.div`font-size: 12px; color: #64748B; line-height: 1.5; white-space: pre-wrap; word-break: break-word; padding: 0; margin: -4px 0 0;`;
+const Desc = styled.div`font-size: 0.75rem; color: #64748B; line-height: 1.5; white-space: pre-wrap; word-break: break-word; padding: 0; margin: -4px 0 0;`;
 const MetaRow = styled.div`display: grid; grid-template-columns: 1fr 1fr; gap: 8px;`;
 const MetaCol = styled.div`display: flex; flex-direction: column; gap: 4px;`;
-const MetaLabel = styled.label`font-size: 10px; font-weight: 600; color: #94A3B8;`;
+const MetaLabel = styled.label`font-size: 0.625rem; font-weight: 600; color: #94A3B8;`;
 const DateTrigger = styled.button<{ $empty?: boolean }>`
   height: 36px; padding: 0 12px; border: 1px solid #E2E8F0; border-radius: 6px;
-  font-size: 13px; font-family: inherit; font-weight: 500;
+  font-size: 0.8125rem; font-family: inherit; font-weight: 500;
   color: ${(p) => (p.$empty ? '#94A3B8' : '#0F172A')}; background: #FFF; cursor: pointer;
   text-align: left; display: flex; align-items: center; transition: border-color 0.15s;
   &:hover { border-color: #CBD5E1; } &:focus { outline: none; border-color: #14B8A6; }
 `;
 const SimilarWarning = styled.div`
-  display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600;
+  display: inline-flex; align-items: center; gap: 4px; font-size: 0.6875rem; font-weight: 600;
   color: #92400E; background: #FEF3C7; border-radius: 6px; padding: 3px 8px; width: fit-content;
 `;
 const Actions = styled.div`display: flex; gap: 6px; flex-wrap: wrap;`;
 const PrimaryBtn = styled.button`
   padding: 6px 14px; background: #14B8A6; color: #FFFFFF; border: none; border-radius: 6px;
-  font-size: 12px; font-weight: 700; cursor: pointer; transition: background 0.15s;
+  font-size: 0.75rem; font-weight: 700; cursor: pointer; transition: background 0.15s;
   &:hover:not(:disabled) { background: #0D9488; } &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 const SecondaryBtn = styled.button`
   padding: 6px 14px; background: #FFFFFF; color: #475569; border: 1px solid #CBD5E1; border-radius: 6px;
-  font-size: 12px; font-weight: 600; cursor: pointer; &:hover { background: #F8FAFC; }
+  font-size: 0.75rem; font-weight: 600; cursor: pointer; &:hover { background: #F8FAFC; }
 `;
 const GhostBtn = styled.button`
   padding: 6px 14px; background: transparent; color: #94A3B8; border: none; border-radius: 6px;
-  font-size: 12px; font-weight: 500; cursor: pointer; &:hover { color: #EF4444; }
+  font-size: 0.75rem; font-weight: 500; cursor: pointer; &:hover { color: #EF4444; }
 `;

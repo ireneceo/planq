@@ -109,13 +109,13 @@ const Header = styled.div`
   padding: 14px 18px; border-bottom: 1px solid #F1F5F9;
 `;
 const Title = styled.h2`
-  flex: 1; font-size: 16px; font-weight: 700; color: #0F172A; margin: 0;
+  flex: 1; font-size: 1rem; font-weight: 700; color: #0F172A; margin: 0;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
 const HeaderActions = styled.div`display:flex;align-items:center;gap:6px;flex-shrink:0;`;
 const OpenBtn = styled.button`
   display: inline-flex; align-items: center; padding: 7px 12px;
-  font-size: 12px; font-weight: 700; color: #fff; background: #14B8A6;
+  font-size: 0.75rem; font-weight: 700; color: #fff; background: #14B8A6;
   border: none; border-radius: 8px; cursor: pointer;
   &:hover { background: #0D9488; }
 `;
@@ -129,15 +129,15 @@ const CloseBtn = styled.button`
 `;
 const Body = styled.div`
   flex: 1; overflow-y: auto; padding: 20px 28px 28px;
-  font-size: 14px; line-height: 1.7; color: #0F172A;
+  font-size: 0.875rem; line-height: 1.7; color: #0F172A;
 `;
 const Meta = styled.div`
-  display: flex; align-items: center; gap: 6px; font-size: 12px; color: #64748B;
+  display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: #64748B;
   margin-bottom: 16px;
 `;
 const Center = styled.div`
   min-height: 200px; display: flex; align-items: center; justify-content: center;
-  color: #64748B; font-size: 14px;
+  color: #64748B; font-size: 0.875rem;
 `;
 const DeletedState = styled.div`
   min-height: 240px; padding: 32px 16px;
@@ -150,5 +150,5 @@ const DeletedIcon = styled.div`
   background: #FEF2F2; color: #DC2626; border: 1px solid #FECACA;
   margin-bottom: 4px;
 `;
-const DeletedTitle = styled.div`font-size:14px;font-weight:700;color:#0F172A;`;
-const DeletedHint = styled.div`font-size:12px;color:#64748B;line-height:1.5;max-width:320px;`;
+const DeletedTitle = styled.div`font-size:0.875rem;font-weight:700;color:#0F172A;`;
+const DeletedHint = styled.div`font-size:0.75rem;color:#64748B;line-height:1.5;max-width:320px;`;

@@ -109,38 +109,38 @@ export default function WikiArticlePage() {
 }
 
 const Back = styled.button`
-  border: 0; background: none; color: #64748b; font-size: 13px; font-weight: 600; cursor: pointer; padding: 0 0 16px;
+  border: 0; background: none; color: #64748b; font-size: 0.8125rem; font-weight: 600; cursor: pointer; padding: 0 0 16px;
   &:hover { color: #F43F5E; }
 `;
 const Wrap = styled.article` max-width: 760px; `;
-const Eyebrow = styled.div` font-size: 12px; font-weight: 700; color: #F43F5E; margin-bottom: 8px; `;
-const Title = styled.h1` font-size: 26px; font-weight: 800; color: #0f172a; margin: 0 0 10px; line-height: 1.3; `;
-const Lead = styled.p` font-size: 15px; color: #475569; line-height: 1.6; margin: 0 0 18px; `;
+const Eyebrow = styled.div` font-size: 0.75rem; font-weight: 700; color: #F43F5E; margin-bottom: 8px; `;
+const Title = styled.h1` font-size: 1.625rem; font-weight: 800; color: #0f172a; margin: 0 0 10px; line-height: 1.3; `;
+const Lead = styled.p` font-size: 0.9375rem; color: #475569; line-height: 1.6; margin: 0 0 18px; `;
 const OpenScreen = styled.button`
-  border: 1px solid #F43F5E; background: #fff; color: #F43F5E; font-size: 13px; font-weight: 700; border-radius: 8px;
+  border: 1px solid #F43F5E; background: #fff; color: #F43F5E; font-size: 0.8125rem; font-weight: 700; border-radius: 8px;
   padding: 9px 16px; cursor: pointer; margin-bottom: 24px;
   &:hover { background: #FFF1F2; }
 `;
 const Body = styled.div` display: flex; flex-direction: column; gap: 14px; `;
-const H3 = styled.h3` font-size: 17px; font-weight: 700; color: #0f172a; margin: 12px 0 0; `;
-const P = styled.p` font-size: 15px; color: #334155; line-height: 1.7; margin: 0; `;
+const H3 = styled.h3` font-size: 1.0625rem; font-weight: 700; color: #0f172a; margin: 12px 0 0; `;
+const P = styled.p` font-size: 0.9375rem; color: #334155; line-height: 1.7; margin: 0; `;
 const Callout = styled.div`
   background: #FFF7ED; border-left: 3px solid #fb923c; border-radius: 0 8px 8px 0; padding: 12px 16px;
-  font-size: 14px; color: #7c2d12; line-height: 1.6;
+  font-size: 0.875rem; color: #7c2d12; line-height: 1.6;
 `;
 const Step = styled.div`
   display: flex; gap: 12px; align-items: flex-start;
-  span { flex-shrink: 0; width: 24px; height: 24px; border-radius: 999px; background: #F43F5E; color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
-  p { margin: 0; font-size: 15px; color: #334155; line-height: 1.6; padding-top: 1px; }
+  span { flex-shrink: 0; width: 24px; height: 24px; border-radius: 999px; background: #F43F5E; color: #fff; font-size: 0.8125rem; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  p { margin: 0; font-size: 0.9375rem; color: #334155; line-height: 1.6; padding-top: 1px; }
 `;
 const Figure = styled.figure`
   margin: 8px 0; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden;
   img { display: block; width: 100%; height: auto; }
-  figcaption { font-size: 12px; color: #94a3b8; padding: 8px 12px; }
+  figcaption { font-size: 0.75rem; color: #94a3b8; padding: 8px 12px; }
 `;
 const ImgBtn = styled.button` display: block; width: 100%; padding: 0; border: none; background: none; cursor: zoom-in; `;
 const Related = styled.section` margin-top: 36px; border-top: 1px solid #e2e8f0; padding-top: 20px; `;
-const RelatedHead = styled.h4` font-size: 14px; font-weight: 700; color: #0f172a; margin: 0 0 12px; `;
+const RelatedHead = styled.h4` font-size: 0.875rem; font-weight: 700; color: #0f172a; margin: 0 0 12px; `;
 const RelatedList = styled.div`
   display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
   ${mediaPhone} { grid-template-columns: 1fr; }
@@ -148,8 +148,8 @@ const RelatedList = styled.div`
 const RelatedItem = styled.button`
   text-align: left; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 14px; cursor: pointer;
   display: flex; flex-direction: column; gap: 3px;
-  span { font-size: 14px; font-weight: 600; color: #0f172a; }
-  small { font-size: 12px; color: #94a3b8; line-height: 1.4; }
+  span { font-size: 0.875rem; font-weight: 600; color: #0f172a; }
+  small { font-size: 0.75rem; color: #94a3b8; line-height: 1.4; }
   &:hover { border-color: #F43F5E; }
 `;
-const Muted = styled.div` color: #94a3b8; font-size: 14px; padding: 40px 0; text-align: center; `;
+const Muted = styled.div` color: #94a3b8; font-size: 0.875rem; padding: 40px 0; text-align: center; `;

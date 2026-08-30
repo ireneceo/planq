@@ -131,7 +131,7 @@ const TabBtn = styled.button<{ $active: boolean }>`
   border: none;
   border-bottom: 2px solid ${(p) => (p.$active ? '#0D9488' : 'transparent')};
   color: ${(p) => (p.$active ? '#0F766E' : '#64748B')};
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: ${(p) => (p.$active ? 700 : 500)};
   cursor: pointer;
   white-space: nowrap;
@@ -147,7 +147,7 @@ const Body = styled.div`
 const TabCount = styled.span<{ $active: boolean }>`
   margin-left: 6px; padding: 0 6px; height: 16px;
   display: inline-flex; align-items: center; justify-content: center;
-  border-radius: 8px; font-size: 10px; font-weight: 700;
+  border-radius: 8px; font-size: 0.625rem; font-weight: 700;
   color: ${(p) => (p.$active ? '#0F766E' : '#B45309')};
   background: ${(p) => (p.$active ? '#F0FDFA' : '#FEF3C7')};
 `;

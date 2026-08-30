@@ -45,7 +45,7 @@ const CueTip: React.FC<{ compact?: boolean }> = ({ compact = false }) => {
 const Wrap = styled.span`position:relative;display:inline-flex;`;
 const TipBtn = styled.button<{ $active?: boolean }>`
   display:inline-flex;align-items:center;justify-content:center;height:18px;min-width:18px;padding:0 6px;
-  font-size:10px;font-weight:700;line-height:1;cursor:pointer;font-family:inherit;
+  font-size:0.625rem;font-weight:700;line-height:1;cursor:pointer;font-family:inherit;
   border-radius:999px;border:1px solid ${p => p.$active ? '#F43F5E' : '#FECDD3'};
   background:${p => p.$active ? '#FFE4E6' : '#FFF1F2'};color:#9F1239;
   &:hover{border-color:#F43F5E;background:#FFE4E6;}
@@ -56,10 +56,10 @@ const Pop = styled.div`
   box-shadow:0 12px 32px rgba(159,18,57,0.14);
   @media (max-width:640px){ left:auto; right:0; }
 `;
-const PopHead = styled.div`display:flex;align-items:center;gap:6px;font-size:12px;font-weight:800;color:#9F1239;margin-bottom:6px;`;
-const Star = styled.span`color:#F43F5E;font-size:12px;line-height:1;`;
-const PopBody = styled.p`margin:0 0 8px;font-size:12px;line-height:1.6;color:#334155;`;
+const PopHead = styled.div`display:flex;align-items:center;gap:6px;font-size:0.75rem;font-weight:800;color:#9F1239;margin-bottom:6px;`;
+const Star = styled.span`color:#F43F5E;font-size:0.75rem;line-height:1;`;
+const PopBody = styled.p`margin:0 0 8px;font-size:0.75rem;line-height:1.6;color:#334155;`;
 const PopList = styled.ul`margin:0;padding-left:16px;display:flex;flex-direction:column;gap:3px;
-  li{font-size:11px;line-height:1.5;color:#64748B;}`;
+  li{font-size:0.6875rem;line-height:1.5;color:#64748B;}`;
 
 export default CueTip;

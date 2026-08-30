@@ -262,7 +262,7 @@ const SummaryCard = styled.section`
   gap: 10px;
 `;
 const SummaryLabel = styled.div`
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 700;
   color: #0F766E;
   text-transform: uppercase;
@@ -270,7 +270,7 @@ const SummaryLabel = styled.div`
 `;
 const SummaryText = styled.p`
   margin: 0;
-  font-size: 15px;
+  font-size: 0.9375rem;
   line-height: 1.7;
   color: #0F172A;
 `;
@@ -280,14 +280,14 @@ const SummaryMeta = styled.div`
 const Chip = styled.span`
   display: inline-flex; align-items: center;
   padding: 3px 10px;
-  font-size: 11px; font-weight: 600;
+  font-size: 0.6875rem; font-weight: 600;
   background: #CCFBF1; color: #0F766E;
   border-radius: 999px;
 `;
 const ChipGray = styled.span`
   display: inline-flex; align-items: center;
   padding: 3px 10px;
-  font-size: 11px; font-weight: 500;
+  font-size: 0.6875rem; font-weight: 500;
   background: #F1F5F9; color: #64748B;
   border-radius: 999px;
 `;
@@ -304,7 +304,7 @@ const ToggleBtn = styled.button<{ $active: boolean }>`
   color: ${p => p.$active ? '#0F766E' : '#64748B'};
   border: none;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: ${p => p.$active ? 700 : 500};
   cursor: pointer;
   box-shadow: ${p => p.$active ? '0 1px 2px rgba(0,0,0,0.06)' : 'none'};
@@ -313,7 +313,7 @@ const ToggleBtn = styled.button<{ $active: boolean }>`
 `;
 const SectionTitle = styled.h3`
   margin: 0 0 12px;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 700;
   color: #0F172A;
 `;
@@ -354,12 +354,12 @@ const ItemHeader = styled.header`
   margin-bottom: 4px;
 `;
 const When = styled.div`
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   color: #0F766E;
 `;
 const SourceTag = styled.span`
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 600;
   color: #64748B;
   background: #F1F5F9;
@@ -368,13 +368,13 @@ const SourceTag = styled.span`
 `;
 const ItemTitle = styled.h4`
   margin: 0 0 6px;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
   color: #0F172A;
 `;
 const ItemContent = styled.p`
   margin: 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.6;
   color: #334155;
 `;
@@ -395,14 +395,14 @@ const FileCard = styled.article<{ $single: boolean }>`
 `;
 const FileHeader = styled.header``;
 const FileSource = styled.div`
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   color: #0F766E;
   word-break: break-all;
 `;
 const FileSummary = styled.p`
   margin: 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.6;
   color: #334155;
 `;
@@ -414,7 +414,7 @@ const KeyList = styled.ul`
   gap: 4px;
 `;
 const KeyItem = styled.li`
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.5;
   color: #334155;
 `;
@@ -428,7 +428,7 @@ const NextCta = styled.section`
   gap: 10px;
 `;
 const NextLabel = styled.div`
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 700;
   color: #0F766E;
   text-transform: uppercase;
@@ -440,7 +440,7 @@ const NextBody = styled.div`
 const NextKindBadge = styled.span`
   display: inline-flex;
   padding: 4px 12px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 700;
   background: #14B8A6;
   color: #FFFFFF;
@@ -448,7 +448,7 @@ const NextKindBadge = styled.span`
 `;
 const NextReason = styled.p`
   margin: 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.5;
   color: #334155;
   flex: 1;
@@ -460,7 +460,7 @@ const NextActions = styled.div`
 `;
 const NextSecondary = styled.button`
   padding: 8px 14px;
-  font-size: 13px; font-weight: 600;
+  font-size: 0.8125rem; font-weight: 600;
   color: #334155;
   background: #FFFFFF;
   border: 1px solid #CBD5E1;
@@ -472,7 +472,7 @@ const NextSecondary = styled.button`
 `;
 const NextPrimary = styled.button`
   padding: 8px 16px;
-  font-size: 13px; font-weight: 700;
+  font-size: 0.8125rem; font-weight: 700;
   color: #FFFFFF;
   background: #14B8A6;
   border: none;
@@ -483,7 +483,7 @@ const NextPrimary = styled.button`
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 const FollowUpError = styled.div`
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #DC2626;
   background: #FEF2F2;
   padding: 8px 12px;
@@ -509,20 +509,20 @@ const ChildCard = styled(Link)`
   &:hover { border-color: #14B8A6; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
 `;
 const ChildKind = styled.div`
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 700;
   color: #0F766E;
   text-transform: uppercase;
   letter-spacing: 0.3px;
 `;
 const ChildTitle = styled.div`
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: #0F172A;
   line-height: 1.4;
 `;
 const ChildMeta = styled.div`
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #94A3B8;
 `;
 const SourcesFoot = styled.section`
@@ -533,7 +533,7 @@ const SourcesFoot = styled.section`
   border-top: 1px solid #E2E8F0;
 `;
 const SourcesLabel = styled.div`
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #94A3B8;
   font-weight: 600;
 `;
@@ -541,7 +541,7 @@ const SourcesList = styled.div`
   display: flex; gap: 6px; flex-wrap: wrap;
 `;
 const SourceFootItem = styled.span`
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #64748B;
   background: #F1F5F9;
   padding: 2px 8px;
@@ -552,13 +552,13 @@ const Center = styled.div`
 `;
 const BackBtn = styled.button`
   padding: 10px 18px;
-  font-size: 13px; font-weight: 600;
+  font-size: 0.8125rem; font-weight: 600;
   background: #14B8A6; color: #FFFFFF;
   border: none; border-radius: 8px; cursor: pointer;
   &:hover { background: #0D9488; }
 `;
 const BackLink = styled(Link)`
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #64748B;
   text-decoration: none;
   padding: 6px 10px;

@@ -87,7 +87,7 @@ const Row = styled.div`
 const Chip = styled.button<{ $mine: boolean }>`
   display: inline-flex; align-items: center; gap: 4px;
   height: 24px; padding: 0 8px; border-radius: 999px; cursor: pointer;
-  font-size: 12px; line-height: 1;
+  font-size: 0.75rem; line-height: 1;
   background: ${(p) => (p.$mine ? '#F0FDFA' : '#F1F5F9')};
   border: 1px solid ${(p) => (p.$mine ? '#5EEAD4' : '#E2E8F0')};
   color: ${(p) => (p.$mine ? '#0F766E' : '#475569')};
@@ -95,7 +95,7 @@ const Chip = styled.button<{ $mine: boolean }>`
   &:hover:not(:disabled) { background: ${(p) => (p.$mine ? '#CCFBF1' : '#E2E8F0')}; }
   &:disabled { opacity: .6; cursor: default; }
 `;
-const Count = styled.span`font-weight: 600; font-size: 11px;`;
+const Count = styled.span`font-weight: 600; font-size: 0.6875rem;`;
 const AddBtn = styled.button<{ $hasAny: boolean }>`
   display: inline-flex; align-items: center; justify-content: center;
   width: 24px; height: 24px; padding: 0; border-radius: 999px; cursor: pointer;
@@ -116,7 +116,7 @@ const Picker = styled.div`
 const PickBtn = styled.button`
   display: inline-flex; align-items: center; justify-content: center;
   width: 26px; height: 26px; padding: 0; border: none; background: none;
-  font-size: 15px; line-height: 1; cursor: pointer; border-radius: 6px; color: #64748B;
+  font-size: 0.9375rem; line-height: 1; cursor: pointer; border-radius: 6px; color: #64748B;
   &:hover:not(:disabled) { background: #F1F5F9; }
   &:disabled { opacity: .6; cursor: default; }
 `;

@@ -120,22 +120,22 @@ const Card = styled.div`
   display: flex; flex-direction: column; gap: 12px;
   box-shadow: 0 20px 60px rgba(15,23,42,0.25);
 `;
-const Title = styled.div` font-size: 17px; font-weight: 700; color: #0F172A; `;
-const Desc = styled.div` font-size: 14px; color: #475569; line-height: 1.6; `;
+const Title = styled.div` font-size: 1.0625rem; font-weight: 700; color: #0F172A; `;
+const Desc = styled.div` font-size: 0.875rem; color: #475569; line-height: 1.6; `;
 const Stats = styled.div`
   display: flex; gap: 16px; padding: 10px 12px;
   background: #F8FAFC; border-radius: 8px;
-  font-size: 13px; color: #64748B;
+  font-size: 0.8125rem; color: #64748B;
   b { color: #0F172A; font-weight: 600; }
 `;
 const AddonHint = styled.div`
-  font-size: 13px; color: #0D9488;
+  font-size: 0.8125rem; color: #0D9488;
   background: #F0FDFA; border: 1px solid #99F6E4;
   padding: 10px 12px; border-radius: 8px;
 `;
 const AltList = styled.ul`
   margin: 0; padding: 0 0 0 18px;
-  font-size: 13px; color: #475569; line-height: 1.7;
+  font-size: 0.8125rem; color: #475569; line-height: 1.7;
 `;
 const Actions = styled.div`
   display: flex; justify-content: flex-end; gap: 8px;
@@ -145,14 +145,14 @@ const Actions = styled.div`
 const UsageLink = styled.button`
   align-self: flex-start;
   background: none; border: 0; padding: 4px 0;
-  color: #0D9488; font-size: 13px; font-weight: 600;
+  color: #0D9488; font-size: 0.8125rem; font-weight: 600;
   cursor: pointer; text-decoration: underline;
   &:hover { color: #0F766E; }
 `;
 const PrimaryBtn = styled.button`
   padding: 10px 18px; border-radius: 8px;
   background: #14B8A6; color: #FFFFFF; border: 0;
-  font-size: 14px; font-weight: 600;
+  font-size: 0.875rem; font-weight: 600;
   cursor: pointer;
   &:hover { background: #0D9488; }
 `;
@@ -160,7 +160,7 @@ const SecondaryBtn = styled.button`
   padding: 10px 18px; border-radius: 8px;
   background: #FFFFFF; color: #334155;
   border: 1px solid #CBD5E1;
-  font-size: 14px; font-weight: 500;
+  font-size: 0.875rem; font-weight: 500;
   cursor: pointer;
   &:hover { background: #F8FAFC; }
 `;

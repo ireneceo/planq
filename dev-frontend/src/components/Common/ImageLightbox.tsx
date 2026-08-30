@@ -380,7 +380,7 @@ const ToolBtn = styled.button`
   display: inline-flex; align-items: center; justify-content: center;
   cursor: pointer;
   transition: background 0.12s;
-  font-size: 12px; font-weight: 600;
+  font-size: 0.75rem; font-weight: 600;
   padding: 0;
   &:hover { background: rgba(255,255,255,0.18); }
   &:focus-visible { outline: 2px solid rgba(255,255,255,0.5); outline-offset: 1px; }
@@ -390,7 +390,7 @@ const ToolBtn = styled.button`
 `;
 const PctLabel = styled.span`
   font-variant-numeric: tabular-nums;
-  font-size: 11px;
+  font-size: 0.6875rem;
   letter-spacing: -0.2px;
   min-width: 30px;
   text-align: center;
@@ -421,7 +421,7 @@ const IndexBadge = styled.div`
   padding: 6px 12px;
   background: rgba(0,0,0,0.55);
   color: #fff;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   border-radius: 999px;
   z-index: 2;

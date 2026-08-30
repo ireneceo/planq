@@ -68,14 +68,14 @@ export default function ProgressBurnupChart({ series, capacityHours = null, heig
       <ResponsiveContainer width="100%" height={height}>
         <LineChart data={data} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-          <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={{ stroke: '#E2E8F0' }} tickLine={false} />
-          <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} width={40}
-            label={{ value: 'h', position: 'insideTopLeft', fontSize: 10, fill: '#CBD5E1' }} />
+          <XAxis dataKey="label" tick={{ fontSize: '0.6875rem', fill: '#94A3B8' }} axisLine={{ stroke: '#E2E8F0' }} tickLine={false} />
+          <YAxis tick={{ fontSize: '0.6875rem', fill: '#94A3B8' }} axisLine={false} tickLine={false} width={40}
+            label={{ value: 'h', position: 'insideTopLeft', fontSize: '0.625rem', fill: '#CBD5E1' }} />
           <Tooltip
-            contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #E2E8F0' }}
+            contentStyle={{ fontSize: '0.75rem', borderRadius: 8, border: '1px solid #E2E8F0' }}
             formatter={(v) => `${v}h`}
           />
-          <Legend wrapperStyle={{ fontSize: 11 }} />
+          <Legend wrapperStyle={{ fontSize: '0.6875rem' }} />
           {/* #288 — "설정에서 가져온 기준". 캡션 한 줄로만 있던 것을 차트 위 실제 기준선으로 올린다.
               0 만 있는 주에도 "가용 Nh 프레임에 아직 0h" 라는 읽을거리가 생긴다. */}
           {capacityHours ? (
@@ -84,7 +84,7 @@ export default function ProgressBurnupChart({ series, capacityHours = null, heig
             //   즉 기본값이면 필요할 때마다 정확히 안 그려진다 — 캡션만 남고 죽은 코드가 된다.
             //   extendDomain: y축을 기준선까지 넓혀 0 도 "가용 Nh 프레임 안" 에서 읽히게 한다.
             <ReferenceLine y={capacityHours} ifOverflow="extendDomain" stroke="#CBD5E1" strokeDasharray="5 4"
-              label={{ value: `${capacityHours}h`, position: 'right', fontSize: 10, fill: '#94A3B8' }} />
+              label={{ value: `${capacityHours}h`, position: 'right', fontSize: '0.625rem', fill: '#94A3B8' }} />
           ) : null}
           <Line
             type="monotone" dataKey="estimated" name={t('report.chartEstimated', { defaultValue: '진척 (예측시간)' }) as string}
@@ -114,10 +114,10 @@ export default function ProgressBurnupChart({ series, capacityHours = null, heig
 const Box = styled.div`
   border: 1px solid #E2E8F0; border-radius: 12px; padding: 12px 8px 6px; background: #fff;
 `;
-const Cap = styled.div`padding: 0 8px 4px; font-size: 11px; color: #94A3B8; text-align: right;`;
+const Cap = styled.div`padding: 0 8px 4px; font-size: 0.6875rem; color: #94A3B8; text-align: right;`;
 const Empty = styled.div`
   display: flex; flex-direction: column; gap: 4px; align-items: center; justify-content: center;
   padding: 28px 16px; border: 1px dashed #E2E8F0; border-radius: 12px; background: #F8FAFC;
 `;
-const EmptyTitle = styled.div`font-size: 13px; font-weight: 600; color: #64748B;`;
-const EmptyHint = styled.div`font-size: 12px; color: #94A3B8; text-align: center;`;
+const EmptyTitle = styled.div`font-size: 0.8125rem; font-weight: 600; color: #64748B;`;
+const EmptyHint = styled.div`font-size: 0.75rem; color: #94A3B8; text-align: center;`;

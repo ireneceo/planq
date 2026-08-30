@@ -264,7 +264,7 @@ function kindLabel(k: Kind, t: (key: string, fallback: string) => string): strin
 export default AdminInquiriesPage;
 
 // ─── styled ───
-const Loading = styled.div`padding: 40px; text-align: center; color: #64748B; font-size: 14px;`;
+const Loading = styled.div`padding: 40px; text-align: center; color: #64748B; font-size: 0.875rem;`;
 const List = styled.div`display: flex; flex-direction: column; gap: 8px; padding: 16px 0;`;
 const Row = styled.div<{ $active: boolean }>`
   border: 1px solid ${p => p.$active ? '#14B8A6' : '#E2E8F0'};
@@ -276,51 +276,51 @@ const Row = styled.div<{ $active: boolean }>`
   &:hover { border-color: #14B8A6; }
 `;
 const RowHeader = styled.div`display: flex; align-items: center; gap: 8px;`;
-const FromName = styled.div`font-size: 14px; font-weight: 700; color: #0F172A;`;
+const FromName = styled.div`font-size: 0.875rem; font-weight: 700; color: #0F172A;`;
 const KindTag = styled.span`
-  font-size: 11px; font-weight: 600; color: #0F766E;
+  font-size: 0.6875rem; font-weight: 600; color: #0F766E;
   padding: 2px 8px; background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 999px;
 `;
 const Spacer = styled.div`flex: 1;`;
-const CreatedAt = styled.span`font-size: 12px; color: #94A3B8;`;
-const FromInfo = styled.div`font-size: 12px; color: #64748B; margin-top: 4px;`;
+const CreatedAt = styled.span`font-size: 0.75rem; color: #94A3B8;`;
+const FromInfo = styled.div`font-size: 0.75rem; color: #64748B; margin-top: 4px;`;
 const SourceTag = styled.span`color: #94A3B8; margin-left: 4px;`;
-const Preview = styled.div`font-size: 13px; color: #334155; margin-top: 8px; line-height: 1.55;`;
+const Preview = styled.div`font-size: 0.8125rem; color: #334155; margin-top: 8px; line-height: 1.55;`;
 
-const DetailTitle = styled.div`display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: #0F172A;`;
+const DetailTitle = styled.div`display: flex; align-items: center; gap: 8px; font-size: 0.875rem; font-weight: 700; color: #0F172A;`;
 const DetailFromName = styled.span`font-weight: 700;`;
 const DSection = styled.section`margin-bottom: 18px;`;
-const DLabel = styled.div`font-size: 11px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 6px;`;
-const DLabelInline = styled.span`font-size: 11px; font-weight: 600; color: #94A3B8;`;
-const DValue = styled.div`font-size: 13px; color: #0F172A; line-height: 1.6; margin-bottom: 4px; a { color: #0D9488; }`;
+const DLabel = styled.div`font-size: 0.6875rem; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 6px;`;
+const DLabelInline = styled.span`font-size: 0.6875rem; font-weight: 600; color: #94A3B8;`;
+const DValue = styled.div`font-size: 0.8125rem; color: #0F172A; line-height: 1.6; margin-bottom: 4px; a { color: #0D9488; }`;
 const DMessage = styled.div`
-  font-size: 13px; color: #0F172A; line-height: 1.7;
+  font-size: 0.8125rem; color: #0F172A; line-height: 1.7;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
   padding: 12px 14px; white-space: pre-wrap;
 `;
 const ReplyTextarea = styled.textarea`
   width: 100%; box-sizing: border-box;
   border: 1px solid #E2E8F0; border-radius: 8px;
-  padding: 10px 12px; font-size: 13px; color: #0F172A;
+  padding: 10px 12px; font-size: 0.8125rem; color: #0F172A;
   font-family: inherit; resize: vertical;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
 `;
-const DMeta = styled.div`font-size: 11px; color: #94A3B8; margin-top: 6px;`;
+const DMeta = styled.div`font-size: 0.6875rem; color: #94A3B8; margin-top: 6px;`;
 const TzTag = styled.span`
   display: inline-block; padding: 1px 6px; margin-left: 2px;
-  font-size: 10px; font-weight: 600; color: #475569;
+  font-size: 0.625rem; font-weight: 600; color: #475569;
   background: #F1F5F9; border-radius: 4px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 `;
 const FooterRow = styled.div`display: flex; gap: 8px; justify-content: flex-end; width: 100%;`;
 const PrimaryBtn = styled.button`
   padding: 8px 16px; background: #14B8A6; color: #FFFFFF;
-  border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer;
+  border: none; border-radius: 8px; font-size: 0.8125rem; font-weight: 700; cursor: pointer;
   &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { background: #CBD5E1; cursor: not-allowed; }
 `;
 const SecondaryBtn = styled.button`
   padding: 8px 16px; background: #FFFFFF; color: #475569;
-  border: 1px solid #E2E8F0; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+  border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   &:hover { border-color: #14B8A6; color: #0F766E; }
 `;

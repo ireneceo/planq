@@ -44,7 +44,7 @@ export default function IdentityContext({ person, lang, className }: Props) {
 }
 
 const Text = styled.div`
-  font-size: 11px; color: #94A3B8; line-height: 1.4; word-break: keep-all;
+  font-size: 0.6875rem; color: #94A3B8; line-height: 1.4; word-break: keep-all;
 `;
 const Row = styled.div`
   display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 4px;

@@ -85,11 +85,14 @@ const SIZE_HEIGHT = {
   lg: 52,
 } as const;
 
+// ★ 숫자로 두면 react-select 가 px 로 굳혀 **글씨 크기 배율을 안 따라간다** (2026-08-30 실측:
+//   셀렉트 값만 13px 에 멈춰 있었다). rem 문자열로 넘긴다 — 값은 px 로 적고 아래서 환산한다.
 const SIZE_FONT = {
   sm: 13,
   md: 14,
   lg: 16,
 } as const;
+const rem = (px: number) => `${px / 16}rem`;
 
 // ─────────────────────────────────────────────────────────
 // 스타일 빌더
@@ -100,7 +103,8 @@ function buildStyles(
   density: 'comfortable' | 'compact' = 'comfortable',
 ): StylesConfig<PlanQSelectOption, boolean, GroupBase<PlanQSelectOption>> {
   const minHeight = SIZE_HEIGHT[size];
-  const fontSize = SIZE_FONT[size];
+  const fontSizePx = SIZE_FONT[size];
+  const fontSize = rem(fontSizePx);
   const optionPadding = density === 'compact' ? '5px 10px' : '10px 12px';
 
   return {
@@ -214,7 +218,7 @@ function buildStyles(
     multiValueLabel: (base) => ({
       ...base,
       color: C.primary700,
-      fontSize: fontSize - 1,
+      fontSize: rem(fontSizePx - 1),
       fontWeight: 500,
     }),
     multiValueRemove: (base) => ({
@@ -245,7 +249,7 @@ const Option = (props: any) => {
       {data.icon && <span style={{ display: 'inline-flex', alignItems: 'center' }}>{data.icon}</span>}
       <span style={{ flex: 1 }}>{data.label}</span>
       {data.description && (
-        <span style={{ color: C.neutral400, fontSize: 12 }}>{data.description}</span>
+        <span style={{ color: C.neutral400, fontSize: '0.75rem' }}>{data.description}</span>
       )}
     </components.Option>
   );

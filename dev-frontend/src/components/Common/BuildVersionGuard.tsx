@@ -144,7 +144,7 @@ const Bar = styled.div`
   padding: 8px 10px 8px 14px;
   background: #0F172A; color: #F8FAFC;
   border-radius: 999px; box-shadow: 0 8px 24px rgba(15,23,42,0.28);
-  font-size: 13px; line-height: 1;
+  font-size: 0.8125rem; line-height: 1;
   max-width: calc(100vw - 32px);
   @media (max-width: 640px) { bottom: calc(72px + var(--pq-safe-bottom, 0px)); }
 `;
@@ -157,7 +157,7 @@ const Msg = styled.span`white-space: nowrap; overflow: hidden; text-overflow: el
 const ReloadBtn = styled.button`
   flex-shrink: 0; border: 0; cursor: pointer;
   padding: 6px 12px; border-radius: 999px;
-  background: #14B8A6; color: #fff; font-size: 12px; font-weight: 700; font-family: inherit;
+  background: #14B8A6; color: #fff; font-size: 0.75rem; font-weight: 700; font-family: inherit;
   &:hover { background: #0D9488; }
   &:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,0.45); }
 `;
@@ -166,7 +166,7 @@ const CloseBtn = styled.button`
   @media (max-width: 640px) { min-width: 44px; min-height: 44px; }
 
   flex-shrink: 0; border: 0; background: none; cursor: pointer;
-  color: #94A3B8; font-size: 16px; line-height: 1; padding: 0 4px;
+  color: #94A3B8; font-size: 1rem; line-height: 1; padding: 0 4px;
   &:hover { color: #F8FAFC; }
 `;
 

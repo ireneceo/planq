@@ -210,17 +210,17 @@ const Chevron = styled.svg<{ $open: boolean }>`
   width:14px; height:14px; flex-shrink:0; color:#94A3B8;
   transform: rotate(${(p) => (p.$open ? '90deg' : '0deg')}); transition: transform 0.18s ease;
 `;
-const HeadTitle = styled.span`font-size:14px; font-weight:700; color:#0F172A; flex-shrink:0;`;
+const HeadTitle = styled.span`font-size:0.875rem; font-weight:700; color:#0F172A; flex-shrink:0;`;
 const SummaryRow = styled.span`display:flex; align-items:center; gap:6px; flex-wrap:wrap; min-width:0;`;
 const Pill = styled.span`
   padding:2px 8px; border-radius:999px; background:#F1F5F9;
-  font-size:11px; font-weight:600; color:#475569; white-space:nowrap;
+  font-size:0.6875rem; font-weight:600; color:#475569; white-space:nowrap;
   b { color:#0F766E; margin-left:2px; }
 `;
-const Quiet = styled.span`font-size:12px; color:#94A3B8;`;
+const Quiet = styled.span`font-size:0.75rem; color:#94A3B8;`;
 const Body = styled.div`padding:0 14px 14px; border-top:1px solid #F1F5F9;`;
 const Section = styled.div`margin-top:12px;`;
-const SecTitle = styled.div`font-size:12px; font-weight:700; color:#64748B; margin-bottom:6px;`;
+const SecTitle = styled.div`font-size:0.75rem; font-weight:700; color:#64748B; margin-bottom:6px;`;
 const List = styled.div`display:flex; flex-direction:column; gap:4px;`;
 const CtxRow = styled.div`
   display:flex; flex-direction:column; gap:2px;
@@ -229,11 +229,11 @@ const CtxRow = styled.div`
 `;
 const CtxTop = styled.div`display:flex; align-items:center; gap:8px; min-width:0;`;
 const CtxBody = styled.div`
-  padding-left:2px; font-size:12px; color:#64748B; line-height:1.5;
+  padding-left:2px; font-size:0.75rem; color:#64748B; line-height:1.5;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 `;
 const Subject = styled.span`
-  flex-shrink:0; font-size:12px; font-weight:700; color:#0F766E;
+  flex-shrink:0; font-size:0.75rem; font-weight:700; color:#0F766E;
   max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 `;
 const Speaker = styled.span`font-weight:600; color:#334155; margin-right:5px;`;
@@ -243,21 +243,21 @@ const Row = styled.div`
   &:last-child { border-bottom:none; }
 `;
 const KindTag = styled.span<{ $kind: string }>`
-  flex-shrink:0; padding:1px 7px; border-radius:6px; font-size:10px; font-weight:700;
+  flex-shrink:0; padding:1px 7px; border-radius:6px; font-size:0.625rem; font-weight:700;
   ${(p) => (p.$kind === 'task' ? 'background:#CCFBF1;color:#0F766E;'
     : p.$kind === 'email' ? 'background:#E0E7FF;color:#3730A3;'
       : p.$kind === 'chat' ? 'background:#FEF3C7;color:#92400E;'
         : 'background:#F1F5F9;color:#475569;')}
 `;
 const WhyTag = styled.span<{ $why: string }>`
-  flex-shrink:0; padding:1px 7px; border-radius:6px; font-size:10px; font-weight:700;
+  flex-shrink:0; padding:1px 7px; border-radius:6px; font-size:0.625rem; font-weight:700;
   ${(p) => (p.$why === 'overdue' ? 'background:#FEE2E2;color:#B91C1C;'
     : p.$why === 'approval' ? 'background:#FEF3C7;color:#92400E;'
       : 'background:#CCFBF1;color:#0F766E;')}
 `;
 const RowLink = styled(Link)`
   flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-  font-size:13px; color:#0F172A; text-decoration:none;
+  font-size:0.8125rem; color:#0F172A; text-decoration:none;
   &:hover { color:#0F766E; text-decoration:underline; }
 `;
-const RowWhy = styled.span`flex-shrink:0; font-size:11px; color:#94A3B8; white-space:nowrap;`;
+const RowWhy = styled.span`flex-shrink:0; font-size:0.6875rem; color:#94A3B8; white-space:nowrap;`;

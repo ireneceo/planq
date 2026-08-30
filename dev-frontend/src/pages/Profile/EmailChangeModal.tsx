@@ -196,7 +196,7 @@ export default function EmailChangeModal({ open, userId, currentEmail, onClose, 
                 onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) verify(); }}
                 autoFocus
-                style={{ textAlign: 'center', letterSpacing: 6, fontFamily: 'monospace', fontSize: 18 }}
+                style={{ textAlign: 'center', letterSpacing: 6, fontFamily: 'monospace', fontSize: '1.125rem' }}
               />
             </Field>
             {error && <ErrorBox>{error}</ErrorBox>}
@@ -232,7 +232,7 @@ const ModalHeader = styled.div`
   flex-shrink: 0;
 `;
 const Title = styled.h2`
-  margin: 0; font-size: 16px; font-weight: 700; color: #0F172A;
+  margin: 0; font-size: 1rem; font-weight: 700; color: #0F172A;
 `;
 const CloseBtn = styled.button`
   /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */
@@ -244,29 +244,29 @@ const CloseBtn = styled.button`
 `;
 const Body = styled.div`padding: 20px; flex: 1; overflow-y: auto; min-height: 0;`;
 const StepLabel = styled.div`
-  font-size: 11px; font-weight: 700; color: #64748B; letter-spacing: 0.5px;
+  font-size: 0.6875rem; font-weight: 700; color: #64748B; letter-spacing: 0.5px;
   text-transform: uppercase; margin-bottom: 6px;
 `;
 const Description = styled.p`
-  margin: 0 0 16px; font-size: 13px; color: #475569; line-height: 1.6;
+  margin: 0 0 16px; font-size: 0.8125rem; color: #475569; line-height: 1.6;
 `;
 const Field = styled.div`margin-bottom: 14px;`;
 const FieldLabel = styled.div`
-  font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 6px;
+  font-size: 0.75rem; font-weight: 600; color: #475569; margin-bottom: 6px;
 `;
 const ReadOnly = styled.div`
   padding: 10px 12px; background: #F8FAFC; border: 1px solid #E2E8F0;
-  border-radius: 8px; font-size: 14px; color: #0F172A;
+  border-radius: 8px; font-size: 0.875rem; color: #0F172A;
 `;
 const Input = styled.input`
   width: 100%; padding: 10px 12px; border: 1px solid #E2E8F0;
-  border-radius: 8px; font-size: 14px; color: #0F172A;
+  border-radius: 8px; font-size: 0.875rem; color: #0F172A;
   outline: none; transition: border-color 120ms;
   &:focus { border-color: #14B8A6; }
 `;
 const ErrorBox = styled.div`
   padding: 10px 12px; background: #FEF2F2; border: 1px solid #FECACA;
-  border-radius: 8px; color: #B91C1C; font-size: 12px; margin-bottom: 14px;
+  border-radius: 8px; color: #B91C1C; font-size: 0.75rem; margin-bottom: 14px;
 `;
 const Footer = styled.div`
   display: flex; justify-content: flex-end; gap: 8px;
@@ -274,13 +274,13 @@ const Footer = styled.div`
 `;
 const PrimaryBtn = styled.button`
   padding: 9px 16px; background: #0D9488; color: #FFFFFF; border: none;
-  border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+  border-radius: 8px; font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   &:hover:not(:disabled) { background: #0F766E; }
   &:disabled { background: #94A3B8; cursor: not-allowed; }
 `;
 const SecondaryBtn = styled.button`
   padding: 9px 16px; background: #FFFFFF; color: #334155;
   border: 1px solid #CBD5E1; border-radius: 8px;
-  font-size: 13px; font-weight: 600; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   &:hover { background: #F8FAFC; border-color: #94A3B8; }
 `;

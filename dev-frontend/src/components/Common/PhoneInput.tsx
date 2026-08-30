@@ -23,7 +23,7 @@ const StyledInput = styled.input<{ hasError?: boolean }>`
   padding: 8px 12px;
   border: 1px solid ${props => props.hasError ? '#EF4444' : '#E6EBF1'};
   border-radius: 6px;
-  font-size: 14px;
+  font-size: 0.875rem;
   transition: all 0.15s;
   box-sizing: border-box;
   &:focus {
@@ -36,7 +36,7 @@ const StyledInput = styled.input<{ hasError?: boolean }>`
 `;
 
 const ErrorMessage = styled.div`
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #EF4444;
   margin-top: 4px;
 `;

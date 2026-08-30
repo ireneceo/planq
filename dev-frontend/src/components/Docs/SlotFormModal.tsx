@@ -196,7 +196,7 @@ const Modal = styled.div`
   }
 `;
 const Header = styled.div`padding: 18px 22px; border-bottom: 1px solid #E2E8F0; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;`;
-const Title = styled.h2`font-size: 16px; font-weight: 700; color: #0F172A; margin: 0;`;
+const Title = styled.h2`font-size: 1rem; font-weight: 700; color: #0F172A; margin: 0;`;
 const CloseBtn = styled.button`
   /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */
   @media (max-width: 640px) { min-width: 44px; min-height: 44px; }
@@ -205,16 +205,16 @@ const Body = styled.div`padding: 20px 22px; overflow-y: auto; flex: 1;`;
 const Layout = styled.div`display: grid; grid-template-columns: 1fr 1fr; gap: 24px; @media (max-width: 768px) { grid-template-columns: 1fr; }`;
 const FormCol = styled.div`display: flex; flex-direction: column; gap: 12px;`;
 const PreviewCol = styled.div`display: flex; flex-direction: column; gap: 8px;`;
-const SectionTitle = styled.h3`font-size: 13px; font-weight: 700; color: #0F172A; margin: 0;`;
-const Hint = styled.p`font-size: 12px; color: #94A3B8; margin: 0 0 8px; line-height: 1.5;`;
+const SectionTitle = styled.h3`font-size: 0.8125rem; font-weight: 700; color: #0F172A; margin: 0;`;
+const Hint = styled.p`font-size: 0.75rem; color: #94A3B8; margin: 0 0 8px; line-height: 1.5;`;
 const Field = styled.div`display: flex; flex-direction: column; gap: 4px;`;
-const Label = styled.label`font-size: 12px; font-weight: 600; color: #475569;`;
+const Label = styled.label`font-size: 0.75rem; font-weight: 600; color: #475569;`;
 const Req = styled.span`color: #F43F5E; margin-left: 2px;`;
-const Input = styled.input`height: 34px; padding: 0 10px; border: 1px solid #E2E8F0; border-radius: 6px; font-size: 13px; color: #0F172A; &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }`;
-const TextArea = styled.textarea`padding: 8px 10px; border: 1px solid #E2E8F0; border-radius: 6px; font-size: 13px; color: #0F172A; font-family: inherit; resize: vertical; &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }`;
-const Preview = styled.pre`padding: 14px 16px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 12px; line-height: 1.6; color: #334155; white-space: pre-wrap; word-break: break-word; font-family: inherit; max-height: 400px; overflow-y: auto;`;
+const Input = styled.input`height: 34px; padding: 0 10px; border: 1px solid #E2E8F0; border-radius: 6px; font-size: 0.8125rem; color: #0F172A; &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }`;
+const TextArea = styled.textarea`padding: 8px 10px; border: 1px solid #E2E8F0; border-radius: 6px; font-size: 0.8125rem; color: #0F172A; font-family: inherit; resize: vertical; &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }`;
+const Preview = styled.pre`padding: 14px 16px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.75rem; line-height: 1.6; color: #334155; white-space: pre-wrap; word-break: break-word; font-family: inherit; max-height: 400px; overflow-y: auto;`;
 const Footer = styled.div`padding: 14px 22px; border-top: 1px solid #E2E8F0; display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0;`;
-const PrimaryBtn = styled.button`height: 36px; padding: 0 18px; background: #14B8A6; color: #FFFFFF; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; &:disabled { background: #CBD5E1; cursor: not-allowed; } &:hover:not(:disabled) { background: #0D9488; }`;
-const SecondaryBtn = styled.button`height: 36px; padding: 0 14px; background: transparent; color: #475569; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; &:hover { background: #F8FAFC; border-color: #CBD5E1; }`;
+const PrimaryBtn = styled.button`height: 36px; padding: 0 18px; background: #14B8A6; color: #FFFFFF; border: none; border-radius: 8px; font-size: 0.8125rem; font-weight: 600; cursor: pointer; &:disabled { background: #CBD5E1; cursor: not-allowed; } &:hover:not(:disabled) { background: #0D9488; }`;
+const SecondaryBtn = styled.button`height: 36px; padding: 0 14px; background: transparent; color: #475569; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.8125rem; font-weight: 600; cursor: pointer; &:hover { background: #F8FAFC; border-color: #CBD5E1; }`;
 const Loading = styled.div`padding: 40px; text-align: center; color: #94A3B8;`;
-const ErrorBox = styled.div`padding: 8px 12px; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px; font-size: 12px; color: #B91C1C; margin-bottom: 12px;`;
+const ErrorBox = styled.div`padding: 8px 12px; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px; font-size: 0.75rem; color: #B91C1C; margin-bottom: 12px;`;

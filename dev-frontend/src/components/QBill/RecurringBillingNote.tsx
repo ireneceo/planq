@@ -78,9 +78,9 @@ const IconWrap = styled.span`
   display: inline-flex;
 `;
 const Text = styled.div`display: flex; flex-direction: column; gap: 2px; min-width: 0;`;
-const Label = styled.span`font-size: 12px; font-weight: 700; color: #0F766E;`;
+const Label = styled.span`font-size: 0.75rem; font-weight: 700; color: #0F766E;`;
 const Detail = styled.span`
-  font-size: 13px; font-weight: 500; color: #334155;
+  font-size: 0.8125rem; font-weight: 500; color: #334155;
   display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px;
 `;
 const Sep = styled.span`color: #94A3B8;`;

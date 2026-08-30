@@ -51,7 +51,7 @@ const Chip = styled.span<{ $color: string }>`
   flex-shrink: 0; max-width: 96px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   padding: 1px 6px; border-radius: 4px;
-  font-size: 10px; font-weight: 700; line-height: 16px;
+  font-size: 0.625rem; font-weight: 700; line-height: 16px;
   color: ${({ $color }) => $color};
   background: ${({ $color }) => `${$color}1A`};   /* 10% alpha — 배경만 연하게 */
   border: 1px solid ${({ $color }) => `${$color}33`};
@@ -59,6 +59,6 @@ const Chip = styled.span<{ $color: string }>`
 const More = styled.span`
   flex-shrink: 0;
   padding: 1px 5px; border-radius: 4px;
-  font-size: 10px; font-weight: 700; line-height: 16px;
+  font-size: 0.625rem; font-weight: 700; line-height: 16px;
   color: #64748B; background: #F1F5F9;
 `;

@@ -369,25 +369,25 @@ const DataExportSettings: React.FC<Props> = ({ businessId, isOwner }) => {
 export default DataExportSettings;
 
 const Wrap = styled.div`display:flex;flex-direction:column;gap:12px;`;
-const SectionDesc = styled.p`font-size:13px;color:#64748B;line-height:1.6;margin:0 0 4px;`;
+const SectionDesc = styled.p`font-size:0.8125rem;color:#64748B;line-height:1.6;margin:0 0 4px;`;
 const Card = styled.div`background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:16px;`;
 const CardHead = styled.div`display:flex;align-items:flex-start;gap:12px;`;
 const CardIcon = styled.div<{ $bg: string; $fg: string }>`width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:${p => p.$bg};color:${p => p.$fg};`;
 const CardTitleWrap = styled.div`flex:1;min-width:0;`;
-const CardTitle = styled.div`font-size:15px;font-weight:700;color:#0F172A;margin-bottom:3px;`;
-const CardSub = styled.div`font-size:13px;color:#64748B;line-height:1.55;`;
+const CardTitle = styled.div`font-size:0.9375rem;font-weight:700;color:#0F172A;margin-bottom:3px;`;
+const CardSub = styled.div`font-size:0.8125rem;color:#64748B;line-height:1.55;`;
 const CardBody = styled.div``;
 const CardActions = styled.div`display:flex;gap:8px;justify-content:flex-end;`;
 const StatRow = styled.div`display:flex;gap:12px;flex-wrap:wrap;`;
 const StatItem = styled.div`flex:1;min-width:96px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:12px 16px;`;
-const StatVal = styled.div`font-size:20px;font-weight:700;color:#0F172A;line-height:1.2;word-break:break-all;`;
-const StatLabel = styled.div`font-size:12px;color:#94A3B8;margin-top:4px;`;
+const StatVal = styled.div`font-size:1.25rem;font-weight:700;color:#0F172A;line-height:1.2;word-break:break-all;`;
+const StatLabel = styled.div`font-size:0.75rem;color:#94A3B8;margin-top:4px;`;
 const Notice = styled.div`display:flex;gap:8px;align-items:flex-start;background:#FEF3C7;border-radius:8px;padding:10px 12px;margin-top:12px;`;
 const NoticeIcon = styled.span`color:#92400E;flex-shrink:0;display:flex;`;
-const NoticeText = styled.div`font-size:12px;color:#92400E;line-height:1.5;`;
-const ErrText = styled.div`font-size:12px;color:#EF4444;margin-top:10px;`;
+const NoticeText = styled.div`font-size:0.75rem;color:#92400E;line-height:1.5;`;
+const ErrText = styled.div`font-size:0.75rem;color:#EF4444;margin-top:10px;`;
 const TrRow = styled.div`max-width:360px;`;
-const TrNote = styled.div<{ $tone: 'ok' | 'err' }>`font-size:12px;margin-top:10px;color:${p => p.$tone === 'ok' ? '#0F766E' : '#EF4444'};`;
+const TrNote = styled.div<{ $tone: 'ok' | 'err' }>`font-size:0.75rem;margin-top:10px;color:${p => p.$tone === 'ok' ? '#0F766E' : '#EF4444'};`;
 // #63 Phase 3 — 이동 방식 라디오 + Q Note 토글 + 작업 내역
 const ModeRow = styled.div`display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;`;
 const ModeOpt = styled.button<{ $active?: boolean }>`
@@ -396,20 +396,20 @@ const ModeOpt = styled.button<{ $active?: boolean }>`
   border:1px solid ${p => p.$active ? '#14B8A6' : '#E2E8F0'};
   transition:all 0.15s;&:hover{border-color:#14B8A6;}
 `;
-const ModeTitle = styled.div`font-size:13px;font-weight:700;color:#0F172A;`;
-const ModeDesc = styled.div`font-size:11px;color:#94A3B8;margin-top:2px;`;
+const ModeTitle = styled.div`font-size:0.8125rem;font-weight:700;color:#0F172A;`;
+const ModeDesc = styled.div`font-size:0.6875rem;color:#94A3B8;margin-top:2px;`;
 const ToggleRow = styled.button`display:flex;align-items:center;gap:10px;margin-top:12px;background:none;border:none;padding:0;cursor:pointer;text-align:left;`;
 const Switch = styled.span<{ $on?: boolean }>`width:38px;height:22px;border-radius:999px;flex-shrink:0;position:relative;transition:background 0.15s;background:${p => p.$on ? '#14B8A6' : '#CBD5E1'};`;
 const SwitchKnob = styled.span<{ $on?: boolean }>`position:absolute;top:2px;left:${p => p.$on ? '18px' : '2px'};width:18px;height:18px;border-radius:50%;background:#fff;transition:left 0.15s;box-shadow:0 1px 2px rgba(0,0,0,0.15);`;
-const ToggleText = styled.span`font-size:13px;color:#334155;`;
+const ToggleText = styled.span`font-size:0.8125rem;color:#334155;`;
 const JobList = styled.div`display:flex;flex-direction:column;gap:8px;`;
 const JobRow = styled.div`display:flex;align-items:center;gap:12px;padding:10px 12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;`;
 const JobMain = styled.div`flex:1;min-width:0;`;
-const JobKind = styled.div`font-size:13px;font-weight:600;color:#0F172A;`;
-const JobMeta = styled.div`font-size:11px;color:#94A3B8;margin-top:2px;`;
+const JobKind = styled.div`font-size:0.8125rem;font-weight:600;color:#0F172A;`;
+const JobMeta = styled.div`font-size:0.6875rem;color:#94A3B8;margin-top:2px;`;
 const JobRight = styled.div`display:flex;align-items:center;gap:10px;flex-shrink:0;`;
 const JobStatus = styled.span<{ $s: string }>`
-  font-size:12px;font-weight:600;
+  font-size:0.75rem;font-weight:600;
   color:${p => p.$s === 'done' ? '#0F766E' : p.$s === 'failed' ? '#EF4444' : '#64748B'};
 `;
 const JobDelBtn = styled.button`width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:#94A3B8;border-radius:6px;cursor:pointer;flex-shrink:0;transition:all 0.15s;&:hover{background:#FEF2F2;color:#EF4444;}`;

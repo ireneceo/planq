@@ -85,7 +85,7 @@ export default VisibilityBadge;
 const baseStyles = `
   display: inline-flex; align-items: center; gap: 4px;
   padding: 2px 6px; border-radius: 999px;
-  font-size: 10px; font-weight: 600;
+  font-size: 0.625rem; font-weight: 600;
   line-height: 1; white-space: nowrap;
 `;
 
@@ -93,7 +93,7 @@ const Static = styled.span<{ $fg: string; $bg: string; $size: 'sm' | 'md' }>`
   ${baseStyles}
   color: ${p => p.$fg};
   background: ${p => p.$bg};
-  ${p => p.$size === 'md' && 'padding: 3px 8px; font-size: 11px;'}
+  ${p => p.$size === 'md' && 'padding: 3px 8px; font-size: 0.6875rem;'}
 `;
 
 const Btn = styled.button<{ $fg: string; $bg: string; $size: 'sm' | 'md'; $clickable: boolean }>`
@@ -103,7 +103,7 @@ const Btn = styled.button<{ $fg: string; $bg: string; $size: 'sm' | 'md'; $click
   border: none;
   cursor: pointer;
   transition: filter 0.12s;
-  ${p => p.$size === 'md' && 'padding: 3px 8px; font-size: 11px;'}
+  ${p => p.$size === 'md' && 'padding: 3px 8px; font-size: 0.6875rem;'}
   &:hover { filter: brightness(0.95); }
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 1px; }
 `;

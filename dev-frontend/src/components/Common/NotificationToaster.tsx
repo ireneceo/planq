@@ -639,7 +639,7 @@ const ToastIcon = styled.div<{ $type: string }>`
     p.$type === 'signature' ? '#0F766E' :
     '#475569'};
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 700;
   flex-shrink: 0;
 `;
@@ -652,7 +652,7 @@ const ToastBody = styled.div`
 `;
 
 const ToastTitle = styled.div`
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: #0F172A;
   white-space: nowrap;
@@ -662,7 +662,7 @@ const ToastTitle = styled.div`
 `;
 
 const ToastDesc = styled.div`
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #64748B;
   white-space: nowrap;
   overflow: hidden;
@@ -676,7 +676,7 @@ const ToastClose = styled.button`
   background: transparent;
   border: none;
   border-radius: 4px;
-  font-size: 18px;
+  font-size: 1.125rem;
   line-height: 1;
   color: #94A3B8;
   cursor: pointer;
@@ -696,7 +696,7 @@ const ClearAllBtn = styled.button`
   border: none;
   border-radius: 14px;
   padding: 4px 10px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: -0.1px;
   cursor: pointer;

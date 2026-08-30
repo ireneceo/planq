@@ -117,5 +117,5 @@ export default function AttendanceAdminSettings({ businessId }: Props) {
 
 const Wrap = styled.div` display: flex; flex-direction: column; `;
 const Desc = styled.p`
-  margin: 0 0 16px; font-size: 13px; color: #64748B; line-height: 1.5;
+  margin: 0 0 16px; font-size: 0.8125rem; color: #64748B; line-height: 1.5;
 `;

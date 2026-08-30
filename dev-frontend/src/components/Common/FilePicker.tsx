@@ -145,13 +145,13 @@ const ModalShell: React.FC<{
 export default FilePicker;
 
 // ─── styled ───
-const Title = styled.h3`font-size: 15px; font-weight: 700; color: #0F172A; margin: 0;`;
+const Title = styled.h3`font-size: 0.9375rem; font-weight: 700; color: #0F172A; margin: 0;`;
 const Spacer = styled.span`flex: 1;`;
 const SecondaryBtn = styled.button`
   height: 36px; padding: 0 14px;
   background: #FFFFFF; color: #475569;
   border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 13px; font-weight: 600; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   &:hover:not(:disabled) { background: #F8FAFC; border-color: #CBD5E1; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
@@ -159,7 +159,7 @@ const PrimaryBtn = styled.button`
   height: 36px; padding: 0 18px;
   background: #14B8A6; color: #FFFFFF;
   border: none; border-radius: 8px;
-  font-size: 13px; font-weight: 600; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { background: #CBD5E1; cursor: not-allowed; }
 `;

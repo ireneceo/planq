@@ -68,7 +68,7 @@ const City = styled.span<{ $variant: 'workspace' | 'you' | 'reference' }>`
       ? 'rgba(204, 251, 241, 0.7)'
       : 'rgba(204, 251, 241, 0.5)'};
   font-weight: 500;
-  font-size: 12px;
+  font-size: 0.75rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -84,7 +84,7 @@ const Time = styled.span<{ $variant: 'workspace' | 'you' | 'reference' }>`
       ? 'rgba(240, 253, 250, 0.7)'
       : 'rgba(240, 253, 250, 0.55)'};
   font-weight: 600;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum';
   letter-spacing: -0.2px;
@@ -100,7 +100,7 @@ const SetupHint = styled.button`
   background: none;
   border: none;
   color: rgba(204, 251, 241, 0.45);
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 500;
   cursor: pointer;
   display: flex;
@@ -111,7 +111,7 @@ const SetupHint = styled.button`
   text-align: left;
   &:hover { color: #ffffff; background: rgba(255, 255, 255, 0.05); }
   &:focus-visible { outline: 2px solid rgba(20, 184, 166, 0.4); outline-offset: 1px; }
-  span[aria-hidden] { font-size: 12px; opacity: 0.7; }
+  span[aria-hidden] { font-size: 0.75rem; opacity: 0.7; }
 `;
 
 const ExpandButton = styled.button<{ $open?: boolean }>`
@@ -121,7 +121,7 @@ const ExpandButton = styled.button<{ $open?: boolean }>`
   background: none;
   border: none;
   color: rgba(204, 251, 241, 0.4);
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 600;
   cursor: pointer;
   display: flex;

@@ -264,12 +264,12 @@ export default function HistoryTab({ projectId }: Props) {
 }
 
 const Wrap = styled.div`display: flex; flex-direction: column; gap: 18px; padding: 4px 0 24px;`;
-const Dim = styled.div`padding: 40px 0; text-align: center; font-size: 13px; color: #94A3B8; line-height: 1.7;`;
+const Dim = styled.div`padding: 40px 0; text-align: center; font-size: 0.8125rem; color: #94A3B8; line-height: 1.7;`;
 const Group = styled.div`display: flex; flex-direction: column; gap: 4px;`;
 const GroupHead = styled.div`
   position: sticky; top: 0; z-index: 1;
   padding: 6px 2px; background: #F8FAFC;
-  font-size: 12px; font-weight: 700; color: #64748B;
+  font-size: 0.75rem; font-weight: 700; color: #64748B;
 `;
 const itemCss = `
   display: flex; align-items: flex-start; gap: 10px;
@@ -279,12 +279,12 @@ const itemCss = `
 const Item = styled.div`${itemCss}`;
 /* 사건 부가 설명 — "기획 → 진행중", "→ 이수민", "R2" */
 const Detail = styled.span`
-  font-size:12.5px;color:#0F766E;font-weight:600;white-space:nowrap;
+  font-size:0.78125rem;color:#0F766E;font-weight:600;white-space:nowrap;
 `;
 /* 상태를 바꾸며 남긴 사유 — 여태 응답에도 화면에도 없었다 */
 const NoteLine = styled.div`
   margin-top:3px;padding:6px 10px;background:#F8FAFC;border-left:2px solid #CBD5E1;
-  border-radius:0 6px 6px 0;font-size:12.5px;color:#475569;line-height:1.5;
+  border-radius:0 6px 6px 0;font-size:0.78125rem;color:#475569;line-height:1.5;
 `;
 /* 접힌 업무 추가 묶음 */
 const BundleWrap = styled.div`display:flex;flex-direction:column;`;
@@ -299,26 +299,26 @@ const BundleItem = styled(Link)`
   text-decoration:none;color:inherit;
   &:hover{background:#F8FAFC;}
 `;
-const BundleDot = styled.span`color:#CBD5E1;font-size:13px;`;
+const BundleDot = styled.span`color:#CBD5E1;font-size:0.8125rem;`;
 const BundleTitle = styled.span`
-  flex:1;min-width:0;font-size:13px;color:#334155;
+  flex:1;min-width:0;font-size:0.8125rem;color:#334155;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 `;
-const BundleWhen = styled.span`font-size:12px;color:#94A3B8;flex-shrink:0;`;
+const BundleWhen = styled.span`font-size:0.75rem;color:#94A3B8;flex-shrink:0;`;
 
 const ItemLink = styled(Link)`${itemCss} &:hover { border-color: #14B8A6; background: #F0FDFA; }`;
 const Icon = styled.span<{ $src: string }>`
   flex-shrink: 0; width: 22px; height: 22px; border-radius: 6px;
   display: inline-flex; align-items: center; justify-content: center;
-  font-size: 12px; background: #F1F5F9; color: #475569;
+  font-size: 0.75rem; background: #F1F5F9; color: #475569;
 `;
 const Body = styled.div`flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;`;
 const Row1 = styled.div`display: flex; align-items: baseline; gap: 8px; min-width: 0;`;
-const Kind = styled.span`flex-shrink: 0; font-size: 12px; font-weight: 700; color: #0F172A;`;
+const Kind = styled.span`flex-shrink: 0; font-size: 0.75rem; font-weight: 700; color: #0F172A;`;
 const Title = styled.span`
-  flex: 1; min-width: 0; font-size: 12px; color: #475569;
+  flex: 1; min-width: 0; font-size: 0.75rem; color: #475569;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 `;
-const Row2 = styled.div`display: flex; align-items: center; gap: 6px; font-size: 11px; color: #94A3B8;`;
+const Row2 = styled.div`display: flex; align-items: center; gap: 6px; font-size: 0.6875rem; color: #94A3B8;`;
 const Sep = styled.span`color: #CBD5E1;`;
 const MoreRow = styled.div`display: flex; justify-content: center; padding: 8px 0;`;

@@ -259,17 +259,17 @@ const FilterRow = styled.div`display: flex; align-items: center; gap: 8px;`;
 const SmallInput = styled.input`
   height: 32px; padding: 0 10px;
   border: 1px solid #E2E8F0; border-radius: 6px;
-  font-size: 13px; color: #0F172A; max-width: 130px;
+  font-size: 0.8125rem; color: #0F172A; max-width: 130px;
   &:focus { outline: none; border-color: #14B8A6; }
 `;
 const Loading = styled.div`padding: 40px; text-align: center; color: #64748B;`;
 const Table = styled.table`
   width: 100%; border-collapse: collapse; margin-top: 12px;
-  font-size: 13px;
+  font-size: 0.8125rem;
 `;
 const Th = styled.th`
   padding: 10px 12px; text-align: left; background: #F8FAFC;
-  border-bottom: 1px solid #E2E8F0; font-weight: 700; font-size: 11px; color: #64748B;
+  border-bottom: 1px solid #E2E8F0; font-weight: 700; font-size: 0.6875rem; color: #64748B;
   text-transform: uppercase; letter-spacing: 0.4px;
 `;
 const Row = styled.tr<{ $selected: boolean }>`
@@ -285,20 +285,20 @@ const ActionTag = styled.span`
   display: inline-block; padding: 2px 8px;
   background: #F0FDFA; color: #0F766E;
   border: 1px solid #99F6E4; border-radius: 999px;
-  font-size: 11px; font-weight: 600;
+  font-size: 0.6875rem; font-weight: 600;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 `;
-const IpText = styled.span`font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: #64748B;`;
+const IpText = styled.span`font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.6875rem; color: #64748B;`;
 
-const DTitle = styled.h3`margin: 0; font-size: 14px; font-weight: 700; color: #0F172A; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;`;
+const DTitle = styled.h3`margin: 0; font-size: 0.875rem; font-weight: 700; color: #0F172A; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;`;
 const DSection = styled.section`margin-bottom: 16px;`;
-const DLabel = styled.div`font-size: 11px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px;`;
-const DValue = styled.div`font-size: 13px; color: #0F172A;`;
-const DValueSmall = styled.div`font-size: 11px; color: #64748B; word-break: break-all;`;
+const DLabel = styled.div`font-size: 0.6875rem; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px;`;
+const DValue = styled.div`font-size: 0.8125rem; color: #0F172A;`;
+const DValueSmall = styled.div`font-size: 0.6875rem; color: #64748B; word-break: break-all;`;
 const DJson = styled.pre`
   margin: 0; padding: 12px;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 11px; color: #0F172A;
+  font-size: 0.6875rem; color: #0F172A;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   overflow-x: auto;
   max-height: 320px; overflow-y: auto;

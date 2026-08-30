@@ -1560,7 +1560,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               {detailTask.recurrence_parent_id && !detailTask.recurrence_rule && (
                 <MetaRecurRow $disabled>
                   <MetaRecurToggle as="div">
-                    <span aria-hidden="true" style={{ fontSize: 12 }}>↻</span>
+                    <span aria-hidden="true" style={{ fontSize: '0.75rem' }}>↻</span>
                     <span>{t('recur.instance', { defaultValue: '정기업무에서 자동 생성된 1회분' })}</span>
                   </MetaRecurToggle>
                 </MetaRecurRow>
@@ -2363,23 +2363,23 @@ const ResizeHandle = styled.div`
   &:hover{background:rgba(20,184,166,0.25);}&:active{background:rgba(20,184,166,0.45);}
   @media (max-width: 1024px) { display: none; }
 `;
-const ActionErrorBar = styled.div`display:flex;align-items:flex-start;gap:8px;padding:10px 20px;background:#FEF2F2;border-bottom:1px solid #FECACA;color:#991B1B;font-size:12.5px;line-height:1.5;flex-shrink:0;`;
-const ActionErrorClose = styled.button`margin-left:auto;background:transparent;border:none;color:#991B1B;font-size:16px;line-height:1;cursor:pointer;padding:0 2px;&:hover{color:#7F1D1D;}`;
+const ActionErrorBar = styled.div`display:flex;align-items:flex-start;gap:8px;padding:10px 20px;background:#FEF2F2;border-bottom:1px solid #FECACA;color:#991B1B;font-size:0.78125rem;line-height:1.5;flex-shrink:0;`;
+const ActionErrorClose = styled.button`margin-left:auto;background:transparent;border:none;color:#991B1B;font-size:1rem;line-height:1;cursor:pointer;padding:0 2px;&:hover{color:#7F1D1D;}`;
 const DrawerHeader = styled.div`height:60px;padding:14px 20px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;position:sticky;top:0;background:#FFFFFF;z-index:1;`;
 // WORK_FLOW §6-B — 이월 연속성 배너 (차분한 slate, 비강조)
-const CarriedBanner = styled.div`display:flex;align-items:center;gap:8px;margin:12px 20px 0;padding:8px 12px;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:10px;font-size:12px;font-weight:600;color:#475569;line-height:1.4;`;
-const CarriedTag = styled.span`flex-shrink:0;padding:1px 8px;font-size:10px;font-weight:700;color:#FFFFFF;background:#64748B;border-radius:10px;letter-spacing:-0.2px;`;
+const CarriedBanner = styled.div`display:flex;align-items:center;gap:8px;margin:12px 20px 0;padding:8px 12px;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:10px;font-size:0.75rem;font-weight:600;color:#475569;line-height:1.4;`;
+const CarriedTag = styled.span`flex-shrink:0;padding:1px 8px;font-size:0.625rem;font-weight:700;color:#FFFFFF;background:#64748B;border-radius:10px;letter-spacing:-0.2px;`;
 // #90 — 원본 출처 링크 (대화/메일/노트). route 있으면 button(클릭→이동), 없으면 div(라벨만).
 const ProvenanceRow = styled.div`display:flex;margin:12px 20px 0;`;
 const SourceRefLink = styled.div<{ $clickable?: boolean }>`
   display:flex;align-items:center;gap:7px;margin:12px 20px 0;padding:7px 11px;width:calc(100% - 40px);
   background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;
-  font-size:12px;font-weight:600;color:#475569;line-height:1.3;text-align:left;
+  font-size:0.75rem;font-weight:600;color:#475569;line-height:1.3;text-align:left;
   ${(p) => p.$clickable ? `cursor:pointer;&:hover{background:#EEF2F7;border-color:#CBD5E1;color:#334155;}` : ''}
   & > svg{flex-shrink:0;color:#94A3B8;}
   & > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 `;
-const BackBtn = styled.button`display:flex;align-items:center;gap:4px;background:transparent;border:none;color:#0F766E;font-size:12px;font-weight:600;cursor:pointer;padding:0;outline:none;&:hover{color:#134E4A;}&:focus{outline:none;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;border-radius:4px;}`;
+const BackBtn = styled.button`display:flex;align-items:center;gap:4px;background:transparent;border:none;color:#0F766E;font-size:0.75rem;font-weight:600;cursor:pointer;padding:0;outline:none;&:hover{color:#134E4A;}&:focus{outline:none;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;border-radius:4px;}`;
 const CloseBtn = styled.button`
   /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */
   @media (max-width: 640px) { min-width: 44px; min-height: 44px; }
@@ -2387,7 +2387,7 @@ width:28px;height:28px;display:flex;align-items:center;justify-content:center;ba
 const ShareIconBtn = styled.button`width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#0F766E;cursor:pointer;outline:none;transition:background 0.15s;&:hover{background:#F0FDFA;color:#134E4A;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:-2px;}`;
 const DuplicateIconBtn = styled.button`width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#64748B;cursor:pointer;outline:none;transition:background 0.15s;&:hover:not(:disabled){background:#F1F5F9;color:#0F172A;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:-2px;}&:disabled{opacity:0.5;cursor:not-allowed;}`;
 const SaveStatusPill = styled.span<{ $status: 'idle'|'saving'|'saved'|'error' }>`
-  display:inline-flex;align-items:center;gap:4px;margin-left:auto;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600;
+  display:inline-flex;align-items:center;gap:4px;margin-left:auto;padding:3px 10px;border-radius:999px;font-size:0.6875rem;font-weight:600;
   opacity:${p => p.$status === 'idle' ? 0 : 1};transition:opacity 0.2s;
   ${p => p.$status === 'saving' ? 'background:#F0FDFA;color:#0F766E;' : ''}
   ${p => p.$status === 'saved' ? 'background:#D1FAE5;color:#065F46;' : ''}
@@ -2402,28 +2402,28 @@ const Scroll = styled.div`flex:1;overflow-y:auto;overflow-x:hidden;min-width:0;&
 // #290 — 팝아웃(440px)에서만 여백을 조인다. 터치 타겟(MetaValueRow 28px)·헤더 60px 는 안 건드린다.
 const Section = styled.div`border-bottom:1px solid #F1F5F9;padding:12px 14px;
   body[data-popout='1'] &{padding:10px 12px;}`;
-const SectionTitle = styled.h4`font-size:12px;font-weight:700;color:#0F172A;margin:0 0 8px;display:flex;align-items:center;gap:8px;
+const SectionTitle = styled.h4`font-size:0.75rem;font-weight:700;color:#0F172A;margin:0 0 8px;display:flex;align-items:center;gap:8px;
   body[data-popout='1'] &{margin-bottom:6px;}`;
-const ReadOnlyHint = styled.span`font-size:11px;font-weight:500;color:#94A3B8;background:#F1F5F9;border-radius:10px;padding:2px 8px;`;
+const ReadOnlyHint = styled.span`font-size:0.6875rem;font-weight:500;color:#94A3B8;background:#F1F5F9;border-radius:10px;padding:2px 8px;`;
 const KbSaveBtn = styled.button`
   all:unset;cursor:pointer;margin-left:auto;
-  font-size:11px;font-weight:600;color:#0F766E;background:#F0FDFA;border:1px solid #99F6E4;border-radius:10px;padding:2px 10px;
+  font-size:0.6875rem;font-weight:600;color:#0F766E;background:#F0FDFA;border:1px solid #99F6E4;border-radius:10px;padding:2px 10px;
   &:hover{background:#CCFBF1;}
   &:disabled{cursor:default;color:#94A3B8;background:#F8FAFC;border-color:#E2E8F0;}
 `;
-const Title = styled.h3`font-size:19px;font-weight:700;color:#0F172A;margin:0 0 8px;line-height:1.35;cursor:pointer;border-radius:6px;padding:4px 6px;margin-left:-6px;transition:background 0.12s;display:flex;align-items:center;gap:8px;&:hover{background:#F1F5F9;}&:hover > span:last-child{opacity:1;}&:focus{outline:none;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}
-  body[data-popout='1'] &{font-size:17px;margin-bottom:6px;}`;
+const Title = styled.h3`font-size:1.1875rem;font-weight:700;color:#0F172A;margin:0 0 8px;line-height:1.35;cursor:pointer;border-radius:6px;padding:4px 6px;margin-left:-6px;transition:background 0.12s;display:flex;align-items:center;gap:8px;&:hover{background:#F1F5F9;}&:hover > span:last-child{opacity:1;}&:focus{outline:none;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}
+  body[data-popout='1'] &{font-size:1.0625rem;margin-bottom:6px;}`;
 const TitleText = styled.span`flex:1;min-width:0;`;
 const TitleEditIcon = styled.span`display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;color:#94A3B8;opacity:0;transition:opacity 0.15s, background 0.12s;flex-shrink:0;`;
 const RecurBadge = styled.span`
   display:inline-flex;align-items:center;gap:4px;
   padding:2px 8px;border-radius:10px;
-  font-size:11px;font-weight:600;color:#0F766E;background:#CCFBF1;
+  font-size:0.6875rem;font-weight:600;color:#0F766E;background:#CCFBF1;
   max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 `;
-const TitleInput = styled.input`font-size:19px;font-weight:700;color:#0F172A;line-height:1.35;width:100%;padding:4px 8px;margin-left:-6px;margin-bottom:8px;border:1px solid #14B8A6;border-radius:6px;background:#FFF;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
-const Meta = styled.div`display:flex;align-items:center;gap:6px;font-size:11px;color:#64748B;flex-wrap:wrap;`;
-const MetaDate = styled.span`font-size:11px;color:#94A3B8;white-space:nowrap;`;
+const TitleInput = styled.input`font-size:1.1875rem;font-weight:700;color:#0F172A;line-height:1.35;width:100%;padding:4px 8px;margin-left:-6px;margin-bottom:8px;border:1px solid #14B8A6;border-radius:6px;background:#FFF;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
+const Meta = styled.div`display:flex;align-items:center;gap:6px;font-size:0.6875rem;color:#64748B;flex-wrap:wrap;`;
+const MetaDate = styled.span`font-size:0.6875rem;color:#94A3B8;white-space:nowrap;`;
 // #247 — 이 행도 Section 밖(Scroll 직속)이라 좌우 padding 0 이면 버튼이 드로어 **우측 테두리에
 //   딱 붙는다**. Section 과 같은 14px 인셋을 직접 준다 (보류 버튼과 같은 계열의 "틀어짐").
 const RevertRow = styled.div`display:flex;justify-content:flex-end;padding:4px 14px 2px;`;
@@ -2436,22 +2436,22 @@ const HoldBanner = styled.div<{ $kind: 'hold' | 'external' }>`
   color:${p => (p.$kind === 'hold' ? '#9A3412' : '#075985')};
 `;
 const HoldBannerHead = styled.div`display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;width:100%;`;
-const HoldBannerTitle = styled.div`display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;line-height:1.4;min-width:0;`;
+const HoldBannerTitle = styled.div`display:inline-flex;align-items:center;gap:6px;font-size:0.8125rem;font-weight:700;line-height:1.4;min-width:0;`;
 const HoldReasonInput = styled.input`
-  width:100%;box-sizing:border-box;padding:7px 30px 7px 10px;border-radius:8px;font-size:13px;
+  width:100%;box-sizing:border-box;padding:7px 30px 7px 10px;border-radius:8px;font-size:0.8125rem;
   border:1px solid rgba(0,0,0,0.12);background:rgba(255,255,255,0.75);color:inherit;
   &::placeholder{color:currentColor;opacity:0.55;}
   &:focus{outline:2px solid rgba(0,0,0,0.25);outline-offset:1px;background:#FFF;}
 `;
-const HoldReasonText = styled.div`font-size:13px;line-height:1.5;word-break:break-word;opacity:0.9;`;
+const HoldReasonText = styled.div`font-size:0.8125rem;line-height:1.5;word-break:break-word;opacity:0.9;`;
 const HoldActionRow = styled.div`display:flex;gap:8px;flex-wrap:wrap;padding:2px 0 6px;`;
 const StatusBadgeWrap = styled.span`position:relative;display:inline-flex;align-items:center;gap:4px;`;
-const StatusBadge = styled.span<{ $bg: string; $fg: string }>`display:inline-flex;align-items:center;gap:2px;padding:3px 10px;font-size:11px;font-weight:700;background:${p => p.$bg};color:${p => p.$fg};border:none;border-radius:10px;cursor:pointer;user-select:none;&:hover{filter:brightness(0.95);}`;
-const RoundBadge = styled.span`display:inline-flex;align-items:center;padding:2px 6px;font-size:10px;font-weight:800;color:#92400E;background:#FEF3C7;border-radius:6px;letter-spacing:0.3px;`;
+const StatusBadge = styled.span<{ $bg: string; $fg: string }>`display:inline-flex;align-items:center;gap:2px;padding:3px 10px;font-size:0.6875rem;font-weight:700;background:${p => p.$bg};color:${p => p.$fg};border:none;border-radius:10px;cursor:pointer;user-select:none;&:hover{filter:brightness(0.95);}`;
+const RoundBadge = styled.span`display:inline-flex;align-items:center;padding:2px 6px;font-size:0.625rem;font-weight:800;color:#92400E;background:#FEF3C7;border-radius:6px;letter-spacing:0.3px;`;
 // N+93 (#10) — 되돌리기 버튼
 const RevertBtn = styled.button`
   display:inline-flex; align-items:center; gap:4px; padding:3px 9px;
-  font-size:11px; font-weight:600; color:#64748B;
+  font-size:0.6875rem; font-weight:600; color:#64748B;
   background:#FFFFFF; border:1px solid #E2E8F0; border-radius:8px; cursor:pointer;
   transition:all 0.15s;
   &:hover:not(:disabled){ border-color:#CBD5E1; color:#0F172A; background:#F8FAFC; }
@@ -2461,12 +2461,12 @@ const StatusDropdown = styled.div`
   position:absolute;top:100%;left:0;z-index:100;background:#FFF;border:1px solid #E2E8F0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.12);padding:4px;min-width:140px;margin-top:4px;
 `;
 const StatusOption = styled.button<{ $bg: string; $fg: string; $active?: boolean }>`
-  display:block;width:100%;padding:5px 10px;font-size:11px;font-weight:600;text-align:left;border:none;border-radius:6px;cursor:pointer;
+  display:block;width:100%;padding:5px 10px;font-size:0.6875rem;font-weight:600;text-align:left;border:none;border-radius:6px;cursor:pointer;
   background:${p => p.$active ? p.$bg : 'transparent'};color:${p => p.$fg};&:hover{background:${p => p.$bg};}
 `;
-const ProjTag = styled.span`padding:1px 5px;background:#F1F5F9;color:#64748B;font-size:9px;font-weight:600;border-radius:4px;`;
+const ProjTag = styled.span`padding:1px 5px;background:#F1F5F9;color:#64748B;font-size:0.5625rem;font-weight:600;border-radius:4px;`;
 const DrawerNameChip = styled.span<{ $type: 'from' | 'to' | 'observer' | 'mine' }>`
-  display:inline-flex;align-items:center;padding:2px 8px;font-size:11px;font-weight:600;
+  display:inline-flex;align-items:center;padding:2px 8px;font-size:0.6875rem;font-weight:600;
   border-radius:10px;white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis;
   ${p => p.$type === 'from' ? 'color:#BE123C;background:#FFE4E6;'
     : p.$type === 'to' ? 'color:#0F766E;background:#CCFBF1;'
@@ -2478,7 +2478,7 @@ const DrawerNameChip = styled.span<{ $type: 'from' | 'to' | 'observer' | 'mine' 
 // #290 — 팝아웃 접힘 토글. Reviewers/History 의 ColHeader 와 같은 생김새를 쓴다(새 패턴 안 만듦).
 const MetaToggle = styled.button`
   display:flex;align-items:center;gap:8px;width:100%;padding:8px 0 2px;
-  background:transparent;border:none;font-size:12px;font-weight:700;color:#64748B;
+  background:transparent;border:none;font-size:0.75rem;font-weight:700;color:#64748B;
   cursor:pointer;text-align:left;font-family:inherit;
   &:hover{color:#0F172A;}
 `;
@@ -2496,7 +2496,7 @@ const MetaCell = styled.div<{ $full?: boolean }>`
   flex: ${p => p.$full ? '1 1 100%' : '1 1 140px'}; min-width: 0;
   display: flex; flex-direction: column; gap: 3px;
 `;
-const MetaLabel = styled.label`font-size: 11px; color: #64748B; font-weight: 600;`;
+const MetaLabel = styled.label`font-size: 0.6875rem; color: #64748B; font-weight: 600;`;
 // 마일스톤(주요 업무) 토글 — 다이아몬드 + 라벨. 일정 타임라인 ◆ 와 시각 연동.
 const MilestoneToggle = styled.button<{ $on: boolean }>`
   display: inline-flex; align-items: center; gap: 7px; min-height: 28px; align-self: flex-start;
@@ -2511,7 +2511,7 @@ const MsDiamond = styled.span<{ $on: boolean }>`
   border: 2px solid ${(p) => (p.$on ? '#F59E0B' : '#CBD5E1')};
   background: ${(p) => (p.$on ? '#F59E0B' : 'transparent')};
 `;
-const MsToggleLbl = styled.span<{ $on?: boolean }>`font-size: 12px; font-weight: 700; color: ${(p) => (p.$on ? '#92400E' : '#94A3B8')};`;
+const MsToggleLbl = styled.span<{ $on?: boolean }>`font-size: 0.75rem; font-weight: 700; color: ${(p) => (p.$on ? '#92400E' : '#94A3B8')};`;
 const MetaLabelRow = styled.div`display: flex; align-items: center; gap: 6px; min-height: 14px;`;
 // 모든 셀 값 영역 height 통일 (28px) — progress range(8px) 와 hour input(28px) 시각 정렬 일치
 const MetaValueRow = styled.div`display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 28px;`;
@@ -2520,7 +2520,7 @@ const TimeAutoHint = styled.div`
   display: flex; align-items: center; gap: 6px;
   margin-top: 8px; padding: 6px 10px;
   background: #F8FAFC; border: 1px solid #F1F5F9; border-radius: 6px;
-  font-size: 11px; color: #64748B; line-height: 1.4;
+  font-size: 0.6875rem; color: #64748B; line-height: 1.4;
 `;
 const TimeAutoHintIcon = styled.svg`width: 12px; height: 12px; flex-shrink: 0; color: #94A3B8;`;
 // 100% 도달 + reviewer 있을 때 동적 안내 — Primary 톤 (강조이지만 경고 아님)
@@ -2528,7 +2528,7 @@ const ReviewReminderHint = styled.div`
   display: flex; align-items: flex-start; gap: 6px;
   margin-top: 6px; padding: 8px 10px;
   background: #F0FDFA; border: 1px solid #5EEAD4; border-radius: 6px;
-  font-size: 12px; color: #0F766E; font-weight: 500; line-height: 1.4;
+  font-size: 0.75rem; color: #0F766E; font-weight: 500; line-height: 1.4;
 `;
 const ReviewReminderIcon = styled.svg`width: 14px; height: 14px; flex-shrink: 0; color: #14B8A6; margin-top: 1px;`;
 const MetaRecurRow = styled.div<{ $disabled?: boolean }>`
@@ -2542,11 +2542,11 @@ const MetaRecurRow = styled.div<{ $disabled?: boolean }>`
 `;
 const MetaRecurToggle = styled.label`
   display: inline-flex; align-items: center; gap: 8px;
-  font-size: 13px; color: #0F172A; cursor: pointer;
+  font-size: 0.8125rem; color: #0F172A; cursor: pointer;
   input { cursor: pointer; }
   input:disabled { cursor: not-allowed; }
 `;
-const MetaRecurHint = styled.span`font-size: 12px; color: #94A3B8; margin-left: 6px;`;
+const MetaRecurHint = styled.span`font-size: 0.75rem; color: #94A3B8; margin-left: 6px;`;
 const MetaRecurOptions = styled.div`
   display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
   padding-top: 4px; border-top: 1px dashed #E2E8F0;
@@ -2554,7 +2554,7 @@ const MetaRecurOptions = styled.div`
 const MetaNumInput = styled.input.attrs({ type: 'number', step: '0.5', min: '0' })<{ $ai?: boolean }>`
   width: 64px; min-width: 0;
   height: 28px; padding: 3px 8px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: ${p => p.$ai ? '#94A3B8' : '#0F172A'};
   font-style: ${p => p.$ai ? 'italic' : 'normal'};
   border: 1px solid #E2E8F0; border-radius: 6px;
@@ -2569,11 +2569,11 @@ const MetaNumInput = styled.input.attrs({ type: 'number', step: '0.5', min: '0' 
   }
   &:disabled::-webkit-outer-spin-button, &:disabled::-webkit-inner-spin-button { display: none; }
 `;
-const MetaUnit = styled.span`font-size: 11px; color: #94A3B8; flex-shrink: 0;`;
+const MetaUnit = styled.span`font-size: 0.6875rem; color: #94A3B8; flex-shrink: 0;`;
 // 진행 중 dot — 작업 중 (status=in_progress) 일 때 actual_hours 옆 라이브 표시 (Apple Watch 스톱워치 패턴)
 const InProgressDot = styled.span`
   display: inline-flex; align-items: center; gap: 4px;
-  font-size: 10px; font-weight: 600; color: #DC2626; flex-shrink: 0;
+  font-size: 0.625rem; font-weight: 600; color: #DC2626; flex-shrink: 0;
   > span {
     width: 6px; height: 6px; border-radius: 50%;
     background: #DC2626;
@@ -2592,13 +2592,13 @@ const AiBtn = styled.button`
   border: none; border-radius: 6px;
   cursor: pointer;
   flex-shrink: 0;
-  font-size: 11px; font-weight: 600;
+  font-size: 0.6875rem; font-weight: 600;
   transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
   box-shadow: 0 2px 6px rgba(20,184,166,0.28);
   &:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(20,184,166,0.4); }
   &:disabled { opacity: 0.6; cursor: not-allowed; }
 `;
-const MetaProgressPct = styled.span`font-size:11px;color:#475569;font-weight:600;min-width:32px;text-align:right;flex-shrink:0;white-space:nowrap;`;
+const MetaProgressPct = styled.span`font-size:0.6875rem;color:#475569;font-weight:600;min-width:32px;text-align:right;flex-shrink:0;white-space:nowrap;`;
 const MetaRangeInput = styled.input`
   flex:1 1 0;min-width:0;appearance:none;-webkit-appearance:none;height:8px;border-radius:4px;
   background:linear-gradient(to right,#14B8A6 0%,#14B8A6 var(--pq-fill,0%),#F1F5F9 var(--pq-fill,0%),#F1F5F9 100%);
@@ -2614,7 +2614,7 @@ const MetaRangeInput = styled.input`
   &:disabled::-moz-range-thumb{border-color:#94A3B8;cursor:not-allowed;}
 `;
 const DateTrigger = styled.button<{ $empty?: boolean }>`
-  width:100%;padding:4px 6px;font-size:12px;font-weight:600;background:transparent;border:1px solid transparent;border-radius:6px;cursor:pointer;
+  width:100%;padding:4px 6px;font-size:0.75rem;font-weight:600;background:transparent;border:1px solid transparent;border-radius:6px;cursor:pointer;
   white-space:nowrap;font-family:inherit;text-align:left;
   color:${p => p.$empty ? '#CBD5E1' : '#64748B'};
   &:hover{border-color:#14B8A6;color:#0F766E;}
@@ -2624,7 +2624,7 @@ const DateTrigger = styled.button<{ $empty?: boolean }>`
 const RecurDescHint = styled.div`
   margin: 0 0 8px; padding: 7px 10px;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 11.5px; line-height: 1.5; color: #64748B;
+  font-size: 0.71875rem; line-height: 1.5; color: #64748B;
 `;
 const DescEditorWrap = styled.div``;
 
@@ -2633,7 +2633,7 @@ const ActionCard = styled.div`background:#F8FAFC;border:1px solid #E2E8F0;border
   transition:opacity 0.18s ease-out;
   & > button{transition:background 0.15s, color 0.15s, border-color 0.15s;}
 `;
-const ActionCardTitle = styled.div`font-size:10px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.3px;`;
+const ActionCardTitle = styled.div`font-size:0.625rem;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.3px;`;
 // 사이클 N+19 — 옛 3개 styled 를 공용 ActionButton 으로 alias.
 // 사용처 17곳 코드 변경 없이 디자인 시스템 통일 (sm 36px / Primary teal / Secondary gray / Danger red).
 type _ABProps = Omit<React.ComponentProps<typeof ActionButton>, 'tone' | 'size'>;
@@ -2641,14 +2641,14 @@ const ActionPrimary: React.FC<_ABProps> = (p) => <ActionButton tone="primary" si
 const ActionSecondary: React.FC<_ABProps> = (p) => <ActionButton tone="secondary" size="sm" {...p} />;
 const ActionDanger: React.FC<_ABProps> = (p) => <ActionButton tone="danger" size="sm" {...p} />;
 const ActionHint = styled.div`display:flex;flex-direction:column;gap:4px;`;
-const ActionHintRow = styled.div`display:flex;align-items:center;gap:8px;font-size:12px;color:#475569;flex-wrap:wrap;`;
-const TextLink = styled.button`background:transparent;border:none;color:#0F766E;font-size:12px;font-weight:600;cursor:pointer;padding:0;text-decoration:underline;&:disabled{color:#CBD5E1;cursor:not-allowed;}&:hover:not(:disabled){color:#134E4A;}`;
-const MutedText = styled.span`font-size:11px;color:#94A3B8;`;
+const ActionHintRow = styled.div`display:flex;align-items:center;gap:8px;font-size:0.75rem;color:#475569;flex-wrap:wrap;`;
+const TextLink = styled.button`background:transparent;border:none;color:#0F766E;font-size:0.75rem;font-weight:600;cursor:pointer;padding:0;text-decoration:underline;&:disabled{color:#CBD5E1;cursor:not-allowed;}&:hover:not(:disabled){color:#134E4A;}`;
+const MutedText = styled.span`font-size:0.6875rem;color:#94A3B8;`;
 const ReviewProgressTrack = styled.div`height:6px;background:#E2E8F0;border-radius:999px;overflow:hidden;`;
 const ReviewProgressFill = styled.div<{ $w: number }>`height:100%;background:linear-gradient(90deg,#14B8A6,#0D9488);width:${p => p.$w}%;transition:width 0.25s;`;
-const ReviewProgressText = styled.div`font-size:11px;color:#475569;font-weight:600;`;
+const ReviewProgressText = styled.div`font-size:0.6875rem;color:#475569;font-weight:600;`;
 const RevisionForm = styled.div`display:flex;flex-direction:column;gap:6px;padding:8px;background:#FFF;border:1px solid #F43F5E;border-radius:8px;`;
-const RevisionInput = styled.textarea`width:100%;min-height:60px;padding:6px 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;color:#0F172A;resize:vertical;font-family:inherit;&:focus{outline:none;border-color:#F43F5E;}`;
+const RevisionInput = styled.textarea`width:100%;min-height:60px;padding:6px 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:0.75rem;color:#0F172A;resize:vertical;font-family:inherit;&:focus{outline:none;border-color:#F43F5E;}`;
 const RevisionRow = styled.div`display:flex;gap:6px;align-items:center;justify-content:flex-end;& > button:first-child{margin-right:auto;}`;
 
 // Comments
@@ -2658,11 +2658,11 @@ const CommentItem = styled.div`
   &:hover .comment-more-btn{opacity:1;}
 `;
 const CommentHead = styled.div`
-  position:relative;display:flex;gap:8px;align-items:baseline;font-size:11px;color:#64748B;margin-bottom:3px;
+  position:relative;display:flex;gap:8px;align-items:baseline;font-size:0.6875rem;color:#64748B;margin-bottom:3px;
   & strong{color:#0F172A;font-weight:600;}
 `;
 // #270 — 긴 URL 이 드로어 폭을 넘어 레이아웃을 밀던 것. pre-wrap 만으로는 공백 없는 긴 문자열이 안 접힌다.
-const CommentBody = styled.div`font-size:12px;color:#1E293B;line-height:1.4;white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;min-width:0;`;
+const CommentBody = styled.div`font-size:0.75rem;color:#1E293B;line-height:1.4;white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;min-width:0;`;
 const CommentMoreBtn = styled.button.attrs({ className: 'comment-more-btn' })`
   margin-left:auto;width:22px;height:22px;background:transparent;border:none;border-radius:4px;
   display:inline-flex;align-items:center;justify-content:center;color:#94A3B8;cursor:pointer;
@@ -2676,66 +2676,66 @@ const CommentMenu = styled.div`
   box-shadow:0 4px 12px rgba(0,0,0,0.06);
 `;
 const CommentMenuBtn = styled.button<{$danger?:boolean}>`
-  width:100%;padding:6px 10px;text-align:left;font-size:12px;font-weight:500;
+  width:100%;padding:6px 10px;text-align:left;font-size:0.75rem;font-weight:500;
   color:${p=>p.$danger?'#DC2626':'#334155'};background:transparent;border:none;border-radius:6px;cursor:pointer;
   &:hover{background:${p=>p.$danger?'#FEF2F2':'#F8FAFC'};}
 `;
 const CommentEditWrap = styled.div`display:flex;flex-direction:column;gap:6px;`;
 const CommentEditArea = styled.textarea`
-  width:100%;padding:6px 8px;font-size:12px;color:#0F172A;line-height:1.5;
+  width:100%;padding:6px 8px;font-size:0.75rem;color:#0F172A;line-height:1.5;
   border:1px solid #14B8A6;border-radius:6px;background:#fff;font-family:inherit;resize:vertical;
   &:focus{outline:none;box-shadow:0 0 0 3px rgba(20,184,166,0.15);}
 `;
 const CommentEditActions = styled.div`display:flex;justify-content:flex-end;gap:6px;`;
 const CommentEditCancel = styled.button`
-  height:26px;padding:0 10px;font-size:11px;font-weight:600;color:#475569;
+  height:26px;padding:0 10px;font-size:0.6875rem;font-weight:600;color:#475569;
   background:#fff;border:1px solid #E2E8F0;border-radius:6px;cursor:pointer;
   &:hover{background:#F8FAFC;}
 `;
 const CommentEditSave = styled.button`
-  height:26px;padding:0 12px;font-size:11px;font-weight:700;color:#fff;
+  height:26px;padding:0 12px;font-size:0.6875rem;font-weight:700;color:#fff;
   background:#14B8A6;border:none;border-radius:6px;cursor:pointer;
   &:hover:not(:disabled){background:#0D9488;}
   &:disabled{background:#CBD5E1;cursor:not-allowed;}
 `;
 const CommentComposer = styled.div`display:flex;flex-direction:column;gap:6px;margin-top:8px;`;
 const CmtComposerRow = styled.div`display:flex;justify-content:flex-end;gap:6px;align-items:center;`;
-const CommentInput = styled.textarea`width:100%;padding:6px 10px;border:1px solid #E2E8F0;border-radius:8px;font-size:12px;color:#0F172A;font-family:inherit;resize:vertical;min-height:40px;max-height:120px;&:focus{outline:none;border-color:#14B8A6;}&::placeholder{color:#94A3B8;}`;
-const CommentSend = styled.button`padding:6px 14px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;&:disabled{background:#CBD5E1;cursor:not-allowed;}&:hover:not(:disabled){background:#0D9488;}`;
+const CommentInput = styled.textarea`width:100%;padding:6px 10px;border:1px solid #E2E8F0;border-radius:8px;font-size:0.75rem;color:#0F172A;font-family:inherit;resize:vertical;min-height:40px;max-height:120px;&:focus{outline:none;border-color:#14B8A6;}&::placeholder{color:#94A3B8;}`;
+const CommentSend = styled.button`padding:6px 14px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:0.6875rem;font-weight:700;cursor:pointer;white-space:nowrap;&:disabled{background:#CBD5E1;cursor:not-allowed;}&:hover:not(:disabled){background:#0D9488;}`;
 const CmtAttachBtn = styled.button<{ $active?: boolean }>`width:32px;height:28px;display:flex;align-items:center;justify-content:center;background:${p=>p.$active?'#F0FDFA':'transparent'};border:1px solid ${p=>p.$active?'#14B8A6':'#E2E8F0'};color:${p=>p.$active?'#0D9488':'#64748B'};border-radius:6px;cursor:pointer;&:hover{border-color:#14B8A6;background:#F0FDFA;color:#0D9488;}`;
 const CmtPickerInline = styled.div`background:#FAFBFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px;margin-top:6px;`;
 const CmtStagedRow = styled.div`display:flex;flex-wrap:wrap;gap:4px;`;
-const CmtStaged = styled.span`display:inline-flex;align-items:center;gap:4px;padding:2px 6px 2px 8px;background:#F0FDFA;color:#0F766E;border:1px solid #99F6E4;border-radius:12px;font-size:11px;`;
-const CmtStagedX = styled.button`width:16px;height:16px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;color:#0F766E;cursor:pointer;font-size:14px;line-height:1;&:hover{color:#DC2626;}`;
+const CmtStaged = styled.span`display:inline-flex;align-items:center;gap:4px;padding:2px 6px 2px 8px;background:#F0FDFA;color:#0F766E;border:1px solid #99F6E4;border-radius:12px;font-size:0.6875rem;`;
+const CmtStagedX = styled.button`width:16px;height:16px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;color:#0F766E;cursor:pointer;font-size:0.875rem;line-height:1;&:hover{color:#DC2626;}`;
 const CmtAtts = styled.div`display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;`;
 const CmtAttImgBtn = styled.button`
   all: unset; display: inline-block; cursor: zoom-in; border-radius: 6px;
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
 `;
 const CmtAttImg = styled.img`max-width:160px;max-height:120px;object-fit:cover;border-radius:6px;border:1px solid #E2E8F0;display:block;`;
-const CmtAttFile = styled.a`display:inline-flex;align-items:center;gap:6px;padding:4px 8px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;text-decoration:none;color:#0F172A;font-size:11px;max-width:200px;&:hover{border-color:#14B8A6;background:#F0FDFA;color:#0F766E;}`;
-const CmtAttIcon = styled.span`width:22px;height:22px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:#E2E8F0;color:#475569;font-size:9px;font-weight:700;border-radius:3px;`;
+const CmtAttFile = styled.a`display:inline-flex;align-items:center;gap:6px;padding:4px 8px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;text-decoration:none;color:#0F172A;font-size:0.6875rem;max-width:200px;&:hover{border-color:#14B8A6;background:#F0FDFA;color:#0F766E;}`;
+const CmtAttIcon = styled.span`width:22px;height:22px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:#E2E8F0;color:#475569;font-size:0.5625rem;font-weight:700;border-radius:3px;`;
 const CmtAttName = styled.span`overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
 
 // Reviewers
 const Collapsible = styled.div`padding:10px 20px;border-bottom:1px solid #F1F5F9;`;
-const ColHeader = styled.button`display:flex;align-items:center;gap:8px;width:100%;padding:6px 0;background:transparent;border:none;font-size:12px;font-weight:700;color:#64748B;cursor:pointer;text-align:left;&:hover{color:#0F172A;}`;
-const ColArrow = styled.span<{ $open: boolean }>`display:inline-block;font-size:10px;color:#94A3B8;transition:transform 0.15s;transform:rotate(${p => p.$open ? '90deg' : '0deg'});`;
+const ColHeader = styled.button`display:flex;align-items:center;gap:8px;width:100%;padding:6px 0;background:transparent;border:none;font-size:0.75rem;font-weight:700;color:#64748B;cursor:pointer;text-align:left;&:hover{color:#0F172A;}`;
+const ColArrow = styled.span<{ $open: boolean }>`display:inline-block;font-size:0.625rem;color:#94A3B8;transition:transform 0.15s;transform:rotate(${p => p.$open ? '90deg' : '0deg'});`;
 const ColBody = styled.div`padding:8px 0 4px 0;`;
 const PolicySeg = styled.div`display:inline-flex;background:#F1F5F9;border-radius:6px;padding:2px;margin-bottom:6px;`;
-const PolicySegBtn = styled.button<{ $active: boolean }>`padding:3px 10px;font-size:11px;font-weight:600;border:none;border-radius:4px;cursor:pointer;background:${p => p.$active ? '#FFF' : 'transparent'};color:${p => p.$active ? '#0F766E' : '#64748B'};box-shadow:${p => p.$active ? '0 1px 2px rgba(0,0,0,0.06)' : 'none'};&:disabled{cursor:not-allowed;opacity:0.5;}`;
+const PolicySegBtn = styled.button<{ $active: boolean }>`padding:3px 10px;font-size:0.6875rem;font-weight:600;border:none;border-radius:4px;cursor:pointer;background:${p => p.$active ? '#FFF' : 'transparent'};color:${p => p.$active ? '#0F766E' : '#64748B'};box-shadow:${p => p.$active ? '0 1px 2px rgba(0,0,0,0.06)' : 'none'};&:disabled{cursor:not-allowed;opacity:0.5;}`;
 const ReviewerList = styled.div`display:flex;flex-direction:column;gap:4px;margin-bottom:6px;`;
 const ReviewerRowE = styled.div`display:flex;align-items:center;gap:8px;padding:6px 8px;background:#FFF;border:1px solid #E2E8F0;border-radius:6px;`;
-const ReviewerName = styled.span`flex:1;font-size:12px;color:#0F172A;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
-const ReviewerState = styled.span<{ $state: string }>`padding:1px 6px;font-size:10px;font-weight:700;border-radius:4px;${p => p.$state === 'approved' ? 'background:#D1FAE5;color:#065F46;' : ''}${p => p.$state === 'revision' ? 'background:#FCE7F3;color:#9F1239;' : ''}${p => p.$state === 'pending' ? 'background:#F1F5F9;color:#64748B;' : ''}`;
-const ReviewerRemove = styled.button`width:20px;height:20px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;color:#94A3B8;border-radius:4px;cursor:pointer;font-size:14px;&:hover:not(:disabled){background:#FEE2E2;color:#DC2626;}&:disabled{cursor:not-allowed;opacity:0.5;}`;
+const ReviewerName = styled.span`flex:1;font-size:0.75rem;color:#0F172A;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
+const ReviewerState = styled.span<{ $state: string }>`padding:1px 6px;font-size:0.625rem;font-weight:700;border-radius:4px;${p => p.$state === 'approved' ? 'background:#D1FAE5;color:#065F46;' : ''}${p => p.$state === 'revision' ? 'background:#FCE7F3;color:#9F1239;' : ''}${p => p.$state === 'pending' ? 'background:#F1F5F9;color:#64748B;' : ''}`;
+const ReviewerRemove = styled.button`width:20px;height:20px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;color:#94A3B8;border-radius:4px;cursor:pointer;font-size:0.875rem;&:hover:not(:disabled){background:#FEE2E2;color:#DC2626;}&:disabled{cursor:not-allowed;opacity:0.5;}`;
 const AddReviewerBox = styled.div`display:flex;flex-direction:column;gap:6px;padding:8px;background:#FFF;border:1px solid #E2E8F0;border-radius:8px;margin-top:6px;`;
 const AddReviewerList = styled.div`display:flex;flex-direction:column;gap:2px;max-height:160px;overflow:auto;`;
-const AddReviewerItem = styled.button`padding:6px 8px;text-align:left;background:transparent;border:none;border-radius:4px;font-size:12px;color:#0F172A;cursor:pointer;&:hover:not(:disabled){background:#F0FDFA;color:#0F766E;}&:disabled{color:#CBD5E1;cursor:not-allowed;}`;
+const AddReviewerItem = styled.button`padding:6px 8px;text-align:left;background:transparent;border:none;border-radius:4px;font-size:0.75rem;color:#0F172A;cursor:pointer;&:hover:not(:disabled){background:#F0FDFA;color:#0F766E;}&:disabled{color:#CBD5E1;cursor:not-allowed;}`;
 const ReviewerOptInner = styled.span`display:inline-flex;align-items:center;gap:8px;`;
 const WarnDialog = styled.div`margin-top:8px;padding:10px;background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;display:flex;flex-direction:column;gap:6px;`;
-const WarnTitle = styled.div`font-size:12px;font-weight:700;color:#991B1B;`;
-const WarnBody = styled.div`font-size:11px;color:#7F1D1D;line-height:1.5;`;
+const WarnTitle = styled.div`font-size:0.75rem;font-weight:700;color:#991B1B;`;
+const WarnBody = styled.div`font-size:0.6875rem;color:#7F1D1D;line-height:1.5;`;
 const WarnRow = styled.div`display:flex;gap:6px;justify-content:flex-end;`;
 
 // 업무 삭제 (위험 영역)
@@ -2756,20 +2756,20 @@ const TimelineDot = styled.div<{ $event: string }>`position:absolute;left:-13px;
   if (e === 'reviewer_add' || e === 'reviewer_remove') return 'background:#1E40AF;';
   return 'background:#CBD5E1;';
 }}`;
-const TimelineBody = styled.div`flex:1;font-size:12px;color:#334155;`;
+const TimelineBody = styled.div`flex:1;font-size:0.75rem;color:#334155;`;
 const TimelineHead = styled.div`display:flex;flex-wrap:wrap;align-items:center;gap:4px;`;
 const TimelineEvent = styled.span`color:#64748B;`;
 const TimelineTarget = styled.span`color:#64748B;`;
-const TimelineRound = styled.span`font-size:10px;font-weight:700;color:#0F766E;background:#CCFBF1;padding:0 5px;border-radius:4px;margin-left:auto;`;
-const TimelineNote = styled.div`margin-top:2px;padding:4px 8px;background:#F8FAFC;border-radius:4px;font-size:11px;color:#475569;`;
-const TimelineTime = styled.div`margin-top:2px;font-size:10px;color:#94A3B8;`;
+const TimelineRound = styled.span`font-size:0.625rem;font-weight:700;color:#0F766E;background:#CCFBF1;padding:0 5px;border-radius:4px;margin-left:auto;`;
+const TimelineNote = styled.div`margin-top:2px;padding:4px 8px;background:#F8FAFC;border-radius:4px;font-size:0.6875rem;color:#475569;`;
+const TimelineTime = styled.div`margin-top:2px;font-size:0.625rem;color:#94A3B8;`;
 
 // Daily
 const DailyGrid = styled.div`display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:1px;background:#E2E8F0;border:1px solid #E2E8F0;border-radius:8px;overflow:hidden;`;
-const DailyHead = styled.div`display:contents;& > span{padding:6px 8px;background:#F8FAFC;font-size:10px;font-weight:700;color:#94A3B8;text-align:center;}`;
-const DailyRow = styled.div`display:contents;& > span{padding:6px 8px;background:#FFF;font-size:11px;color:#0F172A;text-align:center;font-variant-numeric:tabular-nums;}`;
+const DailyHead = styled.div`display:contents;& > span{padding:6px 8px;background:#F8FAFC;font-size:0.625rem;font-weight:700;color:#94A3B8;text-align:center;}`;
+const DailyRow = styled.div`display:contents;& > span{padding:6px 8px;background:#FFF;font-size:0.6875rem;color:#0F172A;text-align:center;font-variant-numeric:tabular-nums;}`;
 
-const Empty = styled.div`padding:16px;text-align:center;color:#CBD5E1;font-size:11px;`;
+const Empty = styled.div`padding:16px;text-align:center;color:#CBD5E1;font-size:0.6875rem;`;
 
 // ─── Cue 섹션 ───
 // 동일 Drawer 의 댓글·히스토리 시각 표기 (`createdAt?.slice(5, 16).replace('T', ' ')`)와 일관 유지.
@@ -2779,11 +2779,11 @@ function formatCueTime(iso: string): string {
   return iso.slice(5, 16).replace('T', ' ');
 }
 const CueHead = styled.div`display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;`;
-const CueBadge = styled.span`display:inline-flex;align-items:center;gap:4px;padding:3px 10px;font-size:11px;font-weight:700;background:linear-gradient(135deg,#FFF1F2 0%,#FFE4E6 100%);color:#9F1239;border:1px solid #FECDD3;border-radius:999px;`;
-const CueStar = styled.span`color:#F43F5E;font-size:11px;line-height:1;`;
-const CueKindTag = styled.span`padding:2px 8px;font-size:10px;font-weight:700;color:#0F766E;background:#F0FDFA;border:1px solid #CCFBF1;border-radius:6px;text-transform:uppercase;letter-spacing:0.3px;`;
-const CueRerunBtn = styled.button`margin-left:auto;padding:4px 10px;font-size:11px;font-weight:600;color:#0F766E;background:#FFF;border:1px solid #CBD5E1;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:3px;&:hover:not(:disabled){border-color:#0F766E;background:#F0FDFA;}&:disabled{color:#94A3B8;cursor:not-allowed;}`;
-const CueEventLine = styled.div`display:flex;align-items:center;gap:6px;font-size:11px;color:#64748B;`;
+const CueBadge = styled.span`display:inline-flex;align-items:center;gap:4px;padding:3px 10px;font-size:0.6875rem;font-weight:700;background:linear-gradient(135deg,#FFF1F2 0%,#FFE4E6 100%);color:#9F1239;border:1px solid #FECDD3;border-radius:999px;`;
+const CueStar = styled.span`color:#F43F5E;font-size:0.6875rem;line-height:1;`;
+const CueKindTag = styled.span`padding:2px 8px;font-size:0.625rem;font-weight:700;color:#0F766E;background:#F0FDFA;border:1px solid #CCFBF1;border-radius:6px;text-transform:uppercase;letter-spacing:0.3px;`;
+const CueRerunBtn = styled.button`margin-left:auto;padding:4px 10px;font-size:0.6875rem;font-weight:600;color:#0F766E;background:#FFF;border:1px solid #CBD5E1;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:3px;&:hover:not(:disabled){border-color:#0F766E;background:#F0FDFA;}&:disabled{color:#94A3B8;cursor:not-allowed;}`;
+const CueEventLine = styled.div`display:flex;align-items:center;gap:6px;font-size:0.6875rem;color:#64748B;`;
 const CueEventDot = styled.span<{ $action: string | null }>`
   width:6px;height:6px;border-radius:50%;flex-shrink:0;
   background:${p =>
@@ -2794,9 +2794,9 @@ const CueEventDot = styled.span<{ $action: string | null }>`
 `;
 const CueEventTime = styled.span`color:#94A3B8;font-variant-numeric:tabular-nums;`;
 const CueSourcesRow = styled.div`display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px;`;
-const CueSourcesLabel = styled.span`font-size:10px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:0.3px;`;
-const CueSourceChip = styled.span`display:inline-flex;align-items:center;padding:3px 8px;font-size:11px;font-weight:600;color:#0F766E;background:#F0FDFA;border:1px solid #CCFBF1;border-radius:6px;text-decoration:none;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+const CueSourcesLabel = styled.span`font-size:0.625rem;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:0.3px;`;
+const CueSourceChip = styled.span`display:inline-flex;align-items:center;padding:3px 8px;font-size:0.6875rem;font-weight:600;color:#0F766E;background:#F0FDFA;border:1px solid #CCFBF1;border-radius:6px;text-decoration:none;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   &[href]{cursor:pointer;}
   &[href]:hover{border-color:#14B8A6;background:#CCFBF1;}
 `;
-const CueErrorLine = styled.div`margin-top:8px;font-size:11px;color:#991B1B;background:#FEE2E2;border:1px solid #FECACA;border-radius:6px;padding:6px 10px;`;
+const CueErrorLine = styled.div`margin-top:8px;font-size:0.6875rem;color:#991B1B;background:#FEE2E2;border:1px solid #FECACA;border-radius:6px;padding:6px 10px;`;

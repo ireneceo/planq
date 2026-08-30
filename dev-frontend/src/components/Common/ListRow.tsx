@@ -45,17 +45,17 @@ const Main = styled.div`
 `;
 
 const Title = styled.div`
-  font-size: ${LIST_ROW.titleSize.desktop}px;
+  font-size: ${LIST_ROW.titleSize.desktop / 16}rem;
   font-weight: ${LIST_ROW.titleWeight};
   color: #0F172A;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  @media (max-width: 640px) { font-size: ${LIST_ROW.titleSize.phone}px; }
+  @media (max-width: 640px) { font-size: ${LIST_ROW.titleSize.phone / 16}rem; }
 `;
 
 const Meta = styled.div`
-  font-size: ${LIST_ROW.metaSize.desktop}px;
+  font-size: ${LIST_ROW.metaSize.desktop / 16}rem;
   color: #94A3B8;
   white-space: nowrap;
   overflow: hidden;

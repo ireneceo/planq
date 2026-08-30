@@ -184,19 +184,19 @@ const Header = styled.div`
   display: flex; align-items: center; justify-content: space-between;
   padding: 16px 20px; border-bottom: 1px solid #E2E8F0;
 `;
-const Title = styled.h3`margin: 0; font-size: 16px; font-weight: 700; color: #0F172A;`;
-const SubTitle = styled.span`font-size: 13px; font-weight: 500; color: #64748B; margin-left: 4px;`;
+const Title = styled.h3`margin: 0; font-size: 1rem; font-weight: 700; color: #0F172A;`;
+const SubTitle = styled.span`font-size: 0.8125rem; font-weight: 500; color: #64748B; margin-left: 4px;`;
 const CloseBtn = styled.button`
   /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */
   @media (max-width: 640px) { min-width: 44px; min-height: 44px; }
 
   width: 28px; height: 28px; border: none; background: transparent;
-  border-radius: 6px; cursor: pointer; font-size: 20px; color: #64748B;
+  border-radius: 6px; cursor: pointer; font-size: 1.25rem; color: #64748B;
   display: inline-flex; align-items: center; justify-content: center;
   &:hover { background: #F1F5F9; color: #0F172A; }
 `;
 const Body = styled.div`padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px;`;
-const Hint = styled.div`font-size: 13px; color: #64748B; line-height: 1.6;`;
+const Hint = styled.div`font-size: 0.8125rem; color: #64748B; line-height: 1.6;`;
 const Options = styled.div`display: flex; flex-direction: column; gap: 6px;`;
 const Opt = styled.button<{ $active: boolean; $disabled?: boolean }>`
   width: 100%; padding: 12px 14px; text-align: left;
@@ -207,44 +207,44 @@ const Opt = styled.button<{ $active: boolean; $disabled?: boolean }>`
   transition: border-color 0.15s, background 0.15s;
   &:hover:not(:disabled) { border-color: ${p => p.$active ? '#14B8A6' : '#CBD5E1'}; }
 `;
-const OptTitle = styled.div`font-size: 14px; font-weight: 600; color: #0F172A; margin-bottom: 4px;`;
-const OptDesc = styled.div`font-size: 12px; color: #64748B; line-height: 1.5;`;
+const OptTitle = styled.div`font-size: 0.875rem; font-weight: 600; color: #0F172A; margin-bottom: 4px;`;
+const OptDesc = styled.div`font-size: 0.75rem; color: #64748B; line-height: 1.5;`;
 const Divider = styled.div`height: 1px; background: #E2E8F0; margin: 8px 0;`;
-const SectionTitle = styled.h4`margin: 0; font-size: 13px; font-weight: 700; color: #0F172A;`;
-const SectionHint = styled.div`font-size: 12px; color: #64748B; line-height: 1.6; margin-top: -4px;`;
+const SectionTitle = styled.h4`margin: 0; font-size: 0.8125rem; font-weight: 700; color: #0F172A;`;
+const SectionHint = styled.div`font-size: 0.75rem; color: #64748B; line-height: 1.6; margin-top: -4px;`;
 const PrimaryBtn = styled.button`
   padding: 10px 16px; background: #0F766E; color: #FFFFFF;
   border: none; border-radius: 8px; cursor: pointer;
-  font-size: 13px; font-weight: 600;
+  font-size: 0.8125rem; font-weight: 600;
   &:hover:not(:disabled) { background: #115E59; }
   &:disabled { opacity: 0.6; cursor: not-allowed; }
 `;
 const LinkRow = styled.div`display: flex; gap: 8px;`;
 const LinkInput = styled.input`
-  flex: 1; padding: 8px 12px; font-size: 12px; color: #0F172A;
+  flex: 1; padding: 8px 12px; font-size: 0.75rem; color: #0F172A;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
 `;
 const CopyBtn = styled.button<{ $copied?: boolean }>`
-  padding: 8px 14px; font-size: 12px; font-weight: 600;
+  padding: 8px 14px; font-size: 0.75rem; font-weight: 600;
   background: ${p => p.$copied ? '#22C55E' : '#0F766E'};
   color: #FFFFFF; border: none; border-radius: 8px; cursor: pointer;
   white-space: nowrap;
   &:hover { background: ${p => p.$copied ? '#16A34A' : '#115E59'}; }
 `;
 const DangerBtn = styled.button`
-  padding: 8px 14px; font-size: 12px; font-weight: 600;
+  padding: 8px 14px; font-size: 0.75rem; font-weight: 600;
   background: #FFFFFF; color: #B91C1C;
   border: 1px solid #FECACA; border-radius: 8px; cursor: pointer;
   &:hover:not(:disabled) { background: #FEF2F2; }
   &:disabled { opacity: 0.6; cursor: not-allowed; }
 `;
 const SecondaryBtn = styled.button`
-  padding: 8px 14px; font-size: 12px; font-weight: 600;
+  padding: 8px 14px; font-size: 0.75rem; font-weight: 600;
   background: #FFFFFF; color: #334155;
   border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer;
   &:hover:not(:disabled) { background: #F8FAFC; }
 `;
 const ConfirmRow = styled.div`display: flex; flex-direction: column; gap: 8px; padding: 10px; background: #FEF2F2; border-radius: 8px; border: 1px solid #FECACA;`;
-const ConfirmText = styled.div`font-size: 12px; color: #B91C1C;`;
+const ConfirmText = styled.div`font-size: 0.75rem; color: #B91C1C;`;
 const ConfirmActions = styled.div`display: flex; gap: 6px; justify-content: flex-end;`;
-const ErrorBox = styled.div`padding: 10px 12px; font-size: 12px; color: #B91C1C; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px;`;
+const ErrorBox = styled.div`padding: 10px 12px; font-size: 0.75rem; color: #B91C1C; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px;`;

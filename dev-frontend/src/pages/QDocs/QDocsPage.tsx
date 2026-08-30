@@ -45,4 +45,4 @@ const FullHeight = styled.div`
   flex-direction: column;
   @media (max-width: 768px) { height: calc(100vh - 56px); }
 `;
-const Fallback = styled.div`padding: 40px; text-align: center; color: #94A3B8; font-size: 13px;`;
+const Fallback = styled.div`padding: 40px; text-align: center; color: #94A3B8; font-size: 0.8125rem;`;

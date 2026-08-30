@@ -156,8 +156,8 @@ const SvgPause = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="cur
 const SvgStop = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1.5" /></svg>;
 
 // ─── styled ─────────────────────────────────────────────────────
-const AutoModalBody = styled.div`font-size:14px;color:#0F172A;line-height:1.6;`;
-const AutoModalHint = styled.div`margin-top:8px;font-size:12px;color:#64748B;`;
+const AutoModalBody = styled.div`font-size:0.875rem;color:#0F172A;line-height:1.6;`;
+const AutoModalHint = styled.div`margin-top:8px;font-size:0.75rem;color:#64748B;`;
 const AutoModalFooter = styled.div`display:flex;gap:8px;justify-content:flex-end;`;
 const breath = keyframes`0%{transform:scale(1)}50%{transform:scale(1.15)}100%{transform:scale(1)}`;
 
@@ -192,12 +192,12 @@ const CollapsedDot = styled.div`
   width: 100%; height: 20px; margin-bottom: 8px;
 `;
 const Label = styled.span<{ $dark: boolean }>`
-  font-size: ${p => (p.$dark ? 11 : 13)}px; font-weight: 700; letter-spacing: 0.2px;
+  font-size: ${p => (p.$dark ? 11 : 13) / 16}rem; font-weight: 700; letter-spacing: 0.2px;
   color: ${p => (p.$dark ? 'rgba(255,255,255,0.85)' : '#0F172A')};
 `;
 const Elapsed = styled.span<{ $dark: boolean }>`
   margin-left: auto; font-variant-numeric: tabular-nums;
-  font-size: ${p => (p.$dark ? 11 : 13)}px; font-weight: 600;
+  font-size: ${p => (p.$dark ? 11 : 13) / 16}rem; font-weight: 600;
   color: ${p => (p.$dark ? 'rgba(255,255,255,0.6)' : '#475569')};
 `;
 const Actions = styled.div<{ $card: boolean }>`
@@ -207,7 +207,7 @@ const Actions = styled.div<{ $card: boolean }>`
 const btnBase = css<{ $card: boolean }>`
   flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
   border-radius: 8px; cursor: pointer; font-weight: 600;
-  font-size: ${p => (p.$card ? 14 : 12)}px;
+  font-size: ${p => (p.$card ? 14 : 12) / 16}rem;
   min-height: ${p => (p.$card ? 48 : 32)}px;
   transition: background 0.15s, border-color 0.15s, opacity 0.15s;
   &:disabled { opacity: 0.55; cursor: not-allowed; }

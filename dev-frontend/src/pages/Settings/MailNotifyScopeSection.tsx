@@ -104,13 +104,13 @@ const Wrap = styled.div`
   margin-top: 14px; padding-top: 14px; border-top: 1px solid #F1F5F9;
 `;
 const Head = styled.div`display: flex; align-items: center; gap: 8px;`;
-const Title = styled.div`font-size: 13px; font-weight: 700; color: #0F172A;`;
+const Title = styled.div`font-size: 0.8125rem; font-weight: 700; color: #0F172A;`;
 const Badge = styled.span<{ $ok?: boolean }>`
-  font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px;
+  font-size: 0.6875rem; font-weight: 700; padding: 1px 8px; border-radius: 999px;
   color: ${(p) => (p.$ok ? '#0F766E' : '#B45309')};
   background: ${(p) => (p.$ok ? '#F0FDFA' : '#FEF3C7')};
 `;
-const Desc = styled.p`margin: 0; font-size: 12px; color: #94A3B8; line-height: 1.6;`;
+const Desc = styled.p`margin: 0; font-size: 0.75rem; color: #94A3B8; line-height: 1.6;`;
 const Options = styled.div`
   display: flex; flex-direction: column; gap: 8px;
   @media (min-width: 769px) { flex-direction: row; }
@@ -133,5 +133,5 @@ const Dot = styled.span<{ $active: boolean }>`
   box-shadow: ${(p) => (p.$active ? 'inset 0 0 0 2px #FFFFFF' : 'none')};
 `;
 const OptText = styled.span`display: flex; flex-direction: column; gap: 2px; min-width: 0;`;
-const OptLabel = styled.span`font-size: 13px; font-weight: 600; color: #0F172A;`;
-const OptDesc = styled.span`font-size: 11px; color: #64748B; line-height: 1.5;`;
+const OptLabel = styled.span`font-size: 0.8125rem; font-weight: 600; color: #0F172A;`;
+const OptDesc = styled.span`font-size: 0.6875rem; color: #64748B; line-height: 1.5;`;

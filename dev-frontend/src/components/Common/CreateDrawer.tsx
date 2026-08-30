@@ -79,7 +79,7 @@ export default CreateDrawer;
 //   ★ 스타일은 여기(CreateDrawer)에만 둔다 — DetailDrawer 쪽에 넣으면 자체 제목을 가진
 //     십수 개 상세 드로어로 캐스케이드돼 이중 스타일이 된다.
 const DrawerTitle = styled.div`
-  font-size: 18px; font-weight: 700; letter-spacing: -0.2px; color: #0F172A;
+  font-size: 1.125rem; font-weight: 700; letter-spacing: -0.2px; color: #0F172A;
   line-height: 1.35;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 `;

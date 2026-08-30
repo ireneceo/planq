@@ -262,7 +262,7 @@ const ModalHeader = styled.header`
   padding: 20px 24px 12px;
 `;
 const HeaderTitle = styled.h2`
-  font-size: 18px; font-weight: 700; color: #0F172A; margin: 0; letter-spacing: -0.3px;
+  font-size: 1.125rem; font-weight: 700; color: #0F172A; margin: 0; letter-spacing: -0.3px;
 `;
 const CloseBtn = styled.button`
   /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */
@@ -282,26 +282,26 @@ const SourceBadge = styled.div`
   display: inline-flex; align-items: center; gap: 8px;
   padding: 8px 12px;
   background: #F0FDFA; border: 1px solid #CCFBF1; border-radius: 8px;
-  font-size: 12px; color: #0F766E;
+  font-size: 0.75rem; color: #0F766E;
 `;
-const SourceIcon = styled.span`font-size: 14px; line-height: 1;`;
+const SourceIcon = styled.span`font-size: 0.875rem; line-height: 1;`;
 const SourceText = styled.span`font-weight: 500;`;
 const Field = styled.div`display: flex; flex-direction: column; gap: 6px;`;
 const FieldLabel = styled.label`
-  font-size: 13px; font-weight: 600; color: #0F172A;
+  font-size: 0.8125rem; font-weight: 600; color: #0F172A;
 `;
 const Required = styled.span`color: #DC2626; margin-left: 2px;`;
-const FieldHint = styled.span`font-size: 11px; color: #64748B;`;
+const FieldHint = styled.span`font-size: 0.6875rem; color: #64748B;`;
 const TextInput = styled.input`
   height: 40px; padding: 0 12px;
   border: 1px solid #CBD5E1; border-radius: 6px;
-  font-size: 14px; color: #0F172A;
+  font-size: 0.875rem; color: #0F172A;
   &:focus { outline: 2px solid rgba(20,184,166,0.4); outline-offset: -1px; border-color: #14B8A6; }
 `;
 const ErrorLine = styled.div`
   padding: 8px 12px;
   background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px;
-  font-size: 12px; color: #DC2626;
+  font-size: 0.75rem; color: #DC2626;
 `;
 const Footer = styled.footer`
   display: flex; align-items: center; justify-content: space-between;
@@ -313,7 +313,7 @@ const FooterRight = styled.div`display: flex; gap: 8px;`;
 const baseFooterBtn = `
   height: 36px; padding: 0 16px;
   border-radius: 8px;
-  font-size: 13px; font-weight: 600; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   transition: background 0.12s, color 0.12s;
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;

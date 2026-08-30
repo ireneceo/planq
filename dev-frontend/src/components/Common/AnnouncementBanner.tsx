@@ -67,14 +67,14 @@ const Banner = styled.div<{ $sev: 'info'|'warn'|'critical' }>`
   padding: 10px 16px;
   background: ${p => p.$sev === 'critical' ? '#FEF2F2' : p.$sev === 'warn' ? '#FEF3C7' : '#F0FDFA'};
   border-bottom: 1px solid ${p => p.$sev === 'critical' ? '#FECACA' : p.$sev === 'warn' ? '#FDE68A' : '#99F6E4'};
-  font-size: 13px; line-height: 1.5;
+  font-size: 0.8125rem; line-height: 1.5;
   color: ${p => p.$sev === 'critical' ? '#B91C1C' : p.$sev === 'warn' ? '#92400E' : '#0F766E'};
 `;
 const BannerIcon = styled.span<{ $sev: 'info'|'warn'|'critical' }>`
   display: inline-flex; align-items: center; justify-content: center;
   width: 22px; height: 22px; flex-shrink: 0;
   background: ${p => p.$sev === 'critical' ? '#FEE2E2' : p.$sev === 'warn' ? '#FDE68A' : '#CCFBF1'};
-  border-radius: 50%; font-weight: 700; font-size: 12px;
+  border-radius: 50%; font-weight: 700; font-size: 0.75rem;
 `;
 const BannerText = styled.span`flex: 1; font-weight: 500;`;
 const DismissBtn = styled.button`

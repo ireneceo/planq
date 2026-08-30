@@ -99,7 +99,7 @@ const BtnEl = styled.button<{ $tone: ActionButtonTone; $size: ActionButtonSize; 
   height: ${(p) => sizeMap[p.$size].h}px;
   padding: 0 ${(p) => sizeMap[p.$size].px}px;
   gap: ${(p) => sizeMap[p.$size].gap}px;
-  font-size: ${(p) => sizeMap[p.$size].font}px;
+  font-size: ${(p) => sizeMap[p.$size].font / 16}rem;
   font-weight: 600;
   font-family: inherit;
   line-height: 1;

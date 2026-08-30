@@ -242,20 +242,20 @@ function extIcon(name: string): string {
 
 const Wrap = styled.div`padding:14px 20px;border-bottom:1px solid #F1F5F9;`;
 const Head = styled.div`display:flex;align-items:center;gap:8px;`;
-const Title = styled.div`font-size:12px;font-weight:700;color:#64748B;flex:1;`;
+const Title = styled.div`font-size:0.75rem;font-weight:700;color:#64748B;flex:1;`;
 const Count = styled.span`color:#0F766E;font-weight:600;`;
-const AddBtn = styled.button<{ $active?: boolean }>`padding:4px 10px;font-size:11px;font-weight:600;color:${p=>p.$active?'#FFF':'#0F766E'};background:${p=>p.$active?'#14B8A6':'#F0FDFA'};border:1px solid ${p=>p.$active?'#0D9488':'#99F6E4'};border-radius:6px;cursor:pointer;&:hover:not(:disabled){background:${p=>p.$active?'#0D9488':'#CCFBF1'};}&:disabled{opacity:0.5;cursor:not-allowed;}`;
+const AddBtn = styled.button<{ $active?: boolean }>`padding:4px 10px;font-size:0.6875rem;font-weight:600;color:${p=>p.$active?'#FFF':'#0F766E'};background:${p=>p.$active?'#14B8A6':'#F0FDFA'};border:1px solid ${p=>p.$active?'#0D9488':'#99F6E4'};border-radius:6px;cursor:pointer;&:hover:not(:disabled){background:${p=>p.$active?'#0D9488':'#CCFBF1'};}&:disabled{opacity:0.5;cursor:not-allowed;}`;
 const ListArea = styled.div<{$over:boolean}>`border:1px ${p=>p.$over?'solid':'dashed'} ${p=>p.$over?'#14B8A6':'transparent'};border-radius:8px;background:${p=>p.$over?'#F0FDFA':'transparent'};transition:all 0.15s;`;
 // 인라인 picker — 모달 대신 같은 영역에 펼쳐짐 (Irene: popup-on-popup 금지).
 const PickerInline = styled.div`margin-top:8px;background:#FAFBFC;border:1px solid #E2E8F0;border-radius:10px;padding:12px;`;
-const Dim = styled.div`font-size:12px;color:#94A3B8;text-align:center;padding:14px 0;`;
+const Dim = styled.div`font-size:0.75rem;color:#94A3B8;text-align:center;padding:14px 0;`;
 const List = styled.div`display:flex;flex-direction:column;gap:6px;`;
 const Row = styled.div`display:flex;align-items:center;gap:10px;padding:6px 8px;background:#FFF;border:1px solid #E2E8F0;border-radius:6px;`;
 const PreviewImg = styled.img`width:36px;height:36px;object-fit:cover;border-radius:4px;flex-shrink:0;cursor:pointer;`;
-const FileIcon = styled.div`width:36px;height:36px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:#F1F5F9;color:#475569;font-size:10px;font-weight:700;border-radius:4px;`;
+const FileIcon = styled.div`width:36px;height:36px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:#F1F5F9;color:#475569;font-size:0.625rem;font-weight:700;border-radius:4px;`;
 const Meta = styled.div`flex:1;min-width:0;cursor:pointer;`;
-const Name = styled.div`font-size:13px;color:#0F172A;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
-const Sub = styled.div`font-size:11px;color:#94A3B8;`;
-const DelBtn = styled.button`width:24px;height:24px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;color:#94A3B8;cursor:pointer;border-radius:4px;font-size:16px;&:hover{background:#FEE2E2;color:#DC2626;}`;
-const Uploading = styled.div`margin-top:6px;font-size:11px;color:#0D9488;`;
-const Err = styled.div`margin-top:6px;font-size:11px;color:#DC2626;`;
+const Name = styled.div`font-size:0.8125rem;color:#0F172A;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
+const Sub = styled.div`font-size:0.6875rem;color:#94A3B8;`;
+const DelBtn = styled.button`width:24px;height:24px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;color:#94A3B8;cursor:pointer;border-radius:4px;font-size:1rem;&:hover{background:#FEE2E2;color:#DC2626;}`;
+const Uploading = styled.div`margin-top:6px;font-size:0.6875rem;color:#0D9488;`;
+const Err = styled.div`margin-top:6px;font-size:0.6875rem;color:#DC2626;`;

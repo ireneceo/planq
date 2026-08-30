@@ -243,7 +243,7 @@ const ModalHeader = styled.header`
   padding: 20px 24px 12px;
 `;
 const Title = styled.h2`
-  font-size: 18px; font-weight: 700; color: #0F172A;
+  font-size: 1.125rem; font-weight: 700; color: #0F172A;
   margin: 0; letter-spacing: -0.3px;
 `;
 const CloseBtn = styled.button`
@@ -258,7 +258,7 @@ const CloseBtn = styled.button`
 `;
 const Intro = styled.p`
   margin: 0 24px 16px;
-  font-size: 13px; color: #475569; line-height: 1.55;
+  font-size: 0.8125rem; color: #475569; line-height: 1.55;
 `;
 const Body = styled.div`
   flex: 1; overflow-y: auto;
@@ -270,11 +270,11 @@ const Category = styled.section`
 `;
 const CategoryTitle = styled.h3`
   margin: 0 0 8px;
-  font-size: 13px; font-weight: 700; color: #0F172A;
+  font-size: 0.8125rem; font-weight: 700; color: #0F172A;
   display: flex; align-items: center; gap: 6px;
 `;
 const CategoryCount = styled.span`
-  font-size: 11px; font-weight: 500; color: #94A3B8;
+  font-size: 0.6875rem; font-weight: 500; color: #94A3B8;
 `;
 const List = styled.div`
   display: flex; flex-direction: column; gap: 6px;
@@ -310,7 +310,7 @@ const PlayIcon = styled.span`
 `;
 const RowBody = styled.div`flex: 1; min-width: 0;`;
 const RowTitle = styled.div`
-  font-size: 14px; font-weight: 600; color: #0F172A;
+  font-size: 0.875rem; font-weight: 600; color: #0F172A;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   letter-spacing: -0.1px;
 `;
@@ -319,10 +319,10 @@ const RowMeta = styled.div`
   margin-top: 2px;
 `;
 const DueText = styled.span`
-  font-size: 11px; color: #64748B;
+  font-size: 0.6875rem; color: #64748B;
 `;
 const ProgressText = styled.span`
-  font-size: 11px; color: #0F766E; font-weight: 600;
+  font-size: 0.6875rem; color: #0F766E; font-weight: 600;
 `;
 const Footer = styled.footer`
   display: flex; align-items: center; justify-content: space-between;
@@ -332,7 +332,7 @@ const Footer = styled.footer`
 `;
 const DontShow = styled.div`
   display: inline-flex; align-items: center; gap: 8px;
-  font-size: 12px; color: #475569;
+  font-size: 0.75rem; color: #475569;
   & input { cursor: pointer; }
   & label { cursor: pointer; }
 `;
@@ -340,6 +340,6 @@ const CloseBtnText = styled.button`
   height: 36px; padding: 0 16px;
   background: #FFFFFF; color: #334155;
   border: 1px solid #CBD5E1; border-radius: 8px;
-  font-size: 13px; font-weight: 600; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   &:hover { background: #F8FAFC; }
 `;

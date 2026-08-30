@@ -99,9 +99,9 @@ export default TermsReacceptModal;
 
 const Backdrop = styled.div`position: fixed; inset: 0; background: rgba(15,23,42,0.6); z-index: 300; display: flex; align-items: center; justify-content: center; padding: 24px;`;
 const Dialog = styled.div`width: 100%; max-width: 480px; background: #FFFFFF; border-radius: 14px; box-shadow: 0 24px 48px rgba(15,23,42,0.18); overflow: hidden;`;
-const Header = styled.div`padding: 20px 24px; font-size: 16px; font-weight: 700; color: #0F172A; border-bottom: 1px solid #E2E8F0;`;
+const Header = styled.div`padding: 20px 24px; font-size: 1rem; font-weight: 700; color: #0F172A; border-bottom: 1px solid #E2E8F0;`;
 const Body = styled.div`padding: 20px 24px; display: flex; flex-direction: column; gap: 14px;`;
-const Hint = styled.p`margin: 0; font-size: 13px; color: #475569; line-height: 1.6;`;
-const ConsentItem = styled.div`display: flex; align-items: center; gap: 8px; font-size: 13px; color: #334155; padding: 12px 14px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; input { width: 16px; height: 16px; accent-color: #14B8A6; cursor: pointer; } label { cursor: pointer; } a { color: #0D9488; font-weight: 600; text-decoration: underline; }`;
+const Hint = styled.p`margin: 0; font-size: 0.8125rem; color: #475569; line-height: 1.6;`;
+const ConsentItem = styled.div`display: flex; align-items: center; gap: 8px; font-size: 0.8125rem; color: #334155; padding: 12px 14px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; input { width: 16px; height: 16px; accent-color: #14B8A6; cursor: pointer; } label { cursor: pointer; } a { color: #0D9488; font-weight: 600; text-decoration: underline; }`;
 const Footer = styled.div`padding: 14px 24px; border-top: 1px solid #E2E8F0; display: flex; justify-content: flex-end;`;
-const Submit = styled.button`padding: 10px 20px; background: #14B8A6; color: #FFFFFF; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; &:hover:not(:disabled) { background: #0D9488; } &:disabled { background: #CBD5E1; cursor: not-allowed; }`;
+const Submit = styled.button`padding: 10px 20px; background: #14B8A6; color: #FFFFFF; border: none; border-radius: 8px; font-size: 0.8125rem; font-weight: 700; cursor: pointer; &:hover:not(:disabled) { background: #0D9488; } &:disabled { background: #CBD5E1; cursor: not-allowed; }`;

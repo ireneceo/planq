@@ -57,7 +57,7 @@ const VARIANT_COLORS: Record<ChipVariant, { bg: string; fg: string; bd: string }
 const baseStyle = css<{ $variant: ChipVariant }>`
   display: inline-flex; align-items: center; gap: 6px;
   padding: 4px 10px;
-  font-size: 12px; font-weight: 600;
+  font-size: 0.75rem; font-weight: 600;
   background: ${p => VARIANT_COLORS[p.$variant].bg};
   color: ${p => VARIANT_COLORS[p.$variant].fg};
   border: 1px solid ${p => VARIANT_COLORS[p.$variant].bd};
@@ -80,7 +80,7 @@ const RemoveBtn = styled.button`
   width: 14px; height: 14px;
   display: inline-flex; align-items: center; justify-content: center;
   color: currentColor; opacity: 0.6;
-  border-radius: 4px; font-size: 14px; line-height: 1;
+  border-radius: 4px; font-size: 0.875rem; line-height: 1;
   cursor: pointer;
   &:hover { opacity: 1; background: rgba(0,0,0,0.06); }
 `;

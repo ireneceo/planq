@@ -169,18 +169,18 @@ const ProfitTab: React.FC<{ businessId: number; range: RangePreset; segment?: St
             <ScatterChart margin={{ top: 16, right: 24, bottom: 32, left: 24 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
               <XAxis type="number" dataKey="hours" name={t('profit.chart.axis.hours', '시간') as string}
-                tick={{ fontSize: 11, fill: '#64748B' }}
-                label={{ value: t('profit.chart.axis.hours', '투입 시간 (h)') as string, position: 'insideBottom', offset: -8, fill: '#64748B', fontSize: 11 }} />
+                tick={{ fontSize: '0.6875rem', fill: '#64748B' }}
+                label={{ value: t('profit.chart.axis.hours', '투입 시간 (h)') as string, position: 'insideBottom', offset: -8, fill: '#64748B', fontSize: '0.6875rem' }} />
               <YAxis type="number" dataKey="revenue" name={t('profit.chart.axis.revenue', '매출') as string}
-                tick={{ fontSize: 11, fill: '#64748B' }} tickFormatter={(v) => fmtMoney(v, home)}
-                label={{ value: t('profit.chart.axis.revenue', '매출') as string, angle: -90, position: 'insideLeft', fill: '#64748B', fontSize: 11 }} />
+                tick={{ fontSize: '0.6875rem', fill: '#64748B' }} tickFormatter={(v) => fmtMoney(v, home)}
+                label={{ value: t('profit.chart.axis.revenue', '매출') as string, angle: -90, position: 'insideLeft', fill: '#64748B', fontSize: '0.6875rem' }} />
               <ZAxis range={[60, 60]} />
               <Tooltip
                 content={({ active, payload }) => {
                   if (!active || !payload?.length) return null;
                   const p = payload[0].payload;
                   return (
-                    <div style={{ background: '#0F172A', color: '#FFF', padding: '10px 12px', borderRadius: 8, fontSize: 11, lineHeight: 1.6 }}>
+                    <div style={{ background: '#0F172A', color: '#FFF', padding: '10px 12px', borderRadius: 8, fontSize: '0.6875rem', lineHeight: 1.6 }}>
                       <div><strong style={{ color: '#5EEAD4' }}>{p.name}</strong></div>
                       <div>{t('profit.tooltip.hours', '시간')}: {p.hours}h</div>
                       <div>{t('profit.tooltip.revenue', '매출')}: {fmtMoney(p.revenue, home)}</div>
@@ -315,11 +315,11 @@ const ProfitTab: React.FC<{ businessId: number; range: RangePreset; segment?: St
 };
 
 const ForeignNote = styled.div`
-  margin: 12px 0 4px; font-size: 12px; color: #64748B;
+  margin: 12px 0 4px; font-size: 0.75rem; color: #64748B;
 `;
 
 const InternalNote = styled.div`
-  margin: 4px 0 16px; padding: 8px 12px; font-size: 12px; color: #64748B;
+  margin: 4px 0 16px; padding: 8px 12px; font-size: 0.75rem; color: #64748B;
   background: #F8FAFC; border: 1px dashed #E2E8F0; border-radius: 8px;
 `;
 

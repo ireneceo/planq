@@ -46,12 +46,12 @@ const Holder = styled.div`
 `;
 const Name = styled.span`
   max-width: 100%;
-  font-size: 13px; font-weight: 600; letter-spacing: -0.2px; color: #0F172A;
+  font-size: 0.8125rem; font-weight: 600; letter-spacing: -0.2px; color: #0F172A;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
 const UnpinLink = styled.button`
   padding: 2px 4px;
-  font-size: 12px; line-height: 1.2;
+  font-size: 0.75rem; line-height: 1.2;
   color: #64748B; background: none; border: 0; cursor: pointer;
   &:hover { color: #0F172A; text-decoration: underline; }
   &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }

@@ -298,12 +298,12 @@ const SectionHeader = styled.div`
 `;
 const Title = styled.h3`
   display: inline-flex; align-items: center; gap: 8px;
-  font-size: 14px; font-weight: 700; color: #0F172A; margin: 0;
+  font-size: 0.875rem; font-weight: 700; color: #0F172A; margin: 0;
 `;
 const Count = styled.span`
   display: inline-flex; align-items: center; justify-content: center;
   height: 20px; padding: 0 8px;
-  font-size: 11px; font-weight: 700; color: #0F766E;
+  font-size: 0.6875rem; font-weight: 700; color: #0F766E;
   background: #CCFBF1; border-radius: 999px;
 `;
 const HeaderActions = styled.div`display:flex;align-items:center;gap:6px;`;
@@ -317,7 +317,7 @@ const ReloadBtn = styled.button`
 const AddMoreBtn = styled.button`
   display: inline-flex; align-items: center; gap: 4px;
   height: 28px; padding: 0 12px;
-  font-size: 12px; font-weight: 600; color: #0F766E;
+  font-size: 0.75rem; font-weight: 600; color: #0F766E;
   background: #F0FDFA; border: 1px solid #14B8A6; border-radius: 8px; cursor: pointer;
   transition: background 0.15s, color 0.15s;
   &:hover { background: #14B8A6; color: #fff; }
@@ -346,8 +346,8 @@ const FollowupIcon = styled.span<{ $tone: 'ok' | 'reject' }>`
   border-radius: 50%;
 `;
 const FollowupBody = styled.div`flex:1;display:flex;flex-direction:column;gap:2px;`;
-const FollowupTitle = styled.span`font-size:13px;font-weight:700;color:#0F172A;`;
-const FollowupDesc = styled.span`font-size:11px;color:#64748B;line-height:1.5;`;
+const FollowupTitle = styled.span`font-size:0.8125rem;font-weight:700;color:#0F172A;`;
+const FollowupDesc = styled.span`font-size:0.6875rem;color:#64748B;line-height:1.5;`;
 const FollowupArrow = styled.span`color:#14B8A6;flex-shrink:0;`;
 
 // 표
@@ -359,14 +359,14 @@ const Table = styled.div`
 const THead = styled.div`
   display: flex; padding: 8px 12px;
   background: #F8FAFC; border-bottom: 1px solid #E2E8F0;
-  font-size: 11px; font-weight: 700; color: #64748B;
+  font-size: 0.6875rem; font-weight: 700; color: #64748B;
   text-transform: uppercase; letter-spacing: 0.4px;
 `;
 const Th = styled.div``;
 const TBody = styled.div`display:flex;flex-direction:column;`;
 const Tr = styled.div<{ $rejected?: boolean; $signed?: boolean }>`
   display: flex; align-items: flex-start; padding: 12px;
-  font-size: 13px; color: #0F172A;
+  font-size: 0.8125rem; color: #0F172A;
   background: ${p => p.$rejected ? '#FEF2F2' : p.$signed ? '#F0FDFA' : '#fff'};
   & + & { border-top: 1px solid #E2E8F0; }
   transition: background 0.15s;
@@ -382,19 +382,19 @@ const Avatar = styled.div<{ $signed?: boolean }>`
   background: ${p => p.$signed
     ? 'linear-gradient(135deg, #14B8A6 0%, #0D9488 100%)'
     : 'linear-gradient(135deg, #94A3B8 0%, #64748B 100%)'};
-  color: #fff; font-size: 13px; font-weight: 700; border-radius: 50%;
+  color: #fff; font-size: 0.8125rem; font-weight: 700; border-radius: 50%;
 `;
 const SignerInfo = styled.div`display:flex;flex-direction:column;gap:1px;min-width:0;`;
 const SignerName = styled.span`
-  font-size: 13px; font-weight: 600; color: #0F172A;
+  font-size: 0.8125rem; font-weight: 600; color: #0F172A;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
 const SignerEmail = styled.span`
-  font-size: 11px; color: #64748B;
+  font-size: 0.6875rem; color: #64748B;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
 const SignerNote = styled.span`
-  font-size: 11px; color: #94A3B8; margin-top: 4px;
+  font-size: 0.6875rem; color: #94A3B8; margin-top: 4px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   max-width: 100%;
 `;
@@ -403,7 +403,7 @@ const SignerNote = styled.span`
 const StatusBadge = styled.span<{ $status: SignatureStatus }>`
   display: inline-flex; align-items: center;
   height: 22px; padding: 0 8px;
-  font-size: 11px; font-weight: 700;
+  font-size: 0.6875rem; font-weight: 700;
   border-radius: 999px;
   ${p => {
     switch (p.$status) {
@@ -417,13 +417,13 @@ const StatusBadge = styled.span<{ $status: SignatureStatus }>`
   }}
 `;
 const RejectReason = styled.div`
-  font-size: 11px; color: #DC2626; margin-top: 4px;
+  font-size: 0.6875rem; color: #DC2626; margin-top: 4px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px;
 `;
 const ReminderHint = styled.div`
-  font-size: 11px; color: #94A3B8; margin-top: 2px;
+  font-size: 0.6875rem; color: #94A3B8; margin-top: 2px;
 `;
-const TimeText = styled.span`font-size:12px;color:#475569;`;
+const TimeText = styled.span`font-size:0.75rem;color:#475569;`;
 
 // 서명 thumbnail
 const SigThumb = styled.button`
@@ -437,7 +437,7 @@ const SigThumb = styled.button`
 `;
 const SigPlaceholder = styled.span`
   display: inline-block; width: 60px; text-align: center;
-  font-size: 13px; color: #CBD5E1;
+  font-size: 0.8125rem; color: #CBD5E1;
 `;
 
 // 액션 dropdown
@@ -457,7 +457,7 @@ const ActionMenu = styled.div`
 const MenuItem = styled.button<{ $danger?: boolean }>`
   display: flex; align-items: center; gap: 8px; width: 100%;
   padding: 8px 10px;
-  font-size: 12px; font-weight: 600;
+  font-size: 0.75rem; font-weight: 600;
   color: ${p => p.$danger ? '#DC2626' : '#334155'};
   background: transparent; border: none; border-radius: 6px; cursor: pointer; text-align: left;
   transition: background 0.15s;

@@ -18,14 +18,14 @@ export const Head = styled.div`
   flex-shrink: 0;
 `;
 export const HeadTitle = styled.h1`
-  margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.2px; color: #0F172A;
+  margin: 0; font-size: 1.125rem; font-weight: 700; letter-spacing: -0.2px; color: #0F172A;
 `;
 // #258 — 헤더의 "Q Task 열기". 보조 액션이라 3톤 중 Secondary 톤(테두리+무채색)으로 둔다.
 export const GoMainBtn = styled.button`
   flex-shrink: 0; height: 28px; padding: 0 10px;
   border: 1px solid #E2E8F0; border-radius: 8px;
   background: #FFFFFF; color: #475569;
-  font-size: 12px; font-weight: 600; font-family: inherit;
+  font-size: 0.75rem; font-weight: 600; font-family: inherit;
   cursor: pointer; white-space: nowrap;
   &:hover { background: #F8FAFC; border-color: #CBD5E1; }
   &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
@@ -35,14 +35,14 @@ export const HeadRight = styled.div`
   display: flex; align-items: center; gap: 10px;
 `;
 export const HeadMeta = styled.span`
-  font-size: 12px; color: #64748B; white-space: nowrap;
+  font-size: 0.75rem; color: #64748B; white-space: nowrap;
 `;
 // 태그 그룹 헤더 — 태그순 모드에서 대표 태그가 바뀌는 지점 (#237 "태그별로 시각적으로")
 export const TagGroupHead = styled.div<{ $color: string }>`
   display: flex; align-items: center; gap: 6px;
   margin: 8px 0 2px; padding: 2px 0 2px 8px;
   border-left: 3px solid ${p => p.$color};
-  font-size: 11px; font-weight: 700; color: #64748B; letter-spacing: 0.2px;
+  font-size: 0.6875rem; font-weight: 700; color: #64748B; letter-spacing: 0.2px;
 `;
 // 오늘/이번 주 세그먼트 — 팝아웃 폭(≈520px)에서 한 줄. 헤더 아래 고정.
 export const TabRow = styled.div`
@@ -53,7 +53,7 @@ export const TabRow = styled.div`
 `;
 export const TabBtn = styled.button<{ $active: boolean }>`
   flex: 1; height: 30px; padding: 0 10px;
-  font-size: 12px; font-weight: ${p => (p.$active ? 700 : 600)};
+  font-size: 0.75rem; font-weight: ${p => (p.$active ? 700 : 600)};
   color: ${p => (p.$active ? '#0F766E' : '#64748B')};
   background: ${p => (p.$active ? '#F0FDFA' : 'transparent')};
   border: 1px solid ${p => (p.$active ? '#99F6E4' : '#E2E8F0')};
@@ -157,7 +157,7 @@ export const RowErr = styled.div`
   margin-left: 42px;
   padding: 4px 8px; border-radius: 6px;
   background: #FEF2F2; color: #BE123C;
-  font-size: 11.5px; font-weight: 600; line-height: 1.4;
+  font-size: 0.71875rem; font-weight: 600; line-height: 1.4;
 `;
 export const CheckIcon: React.FC = () => (
   <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
@@ -192,7 +192,7 @@ export const PrioChip = styled.span<{ $dim: boolean }>`
   width: 20px; height: 20px;
   display: inline-flex; align-items: center; justify-content: center;
   border-radius: 50%;
-  font-size: 11px; font-weight: 800; line-height: 1;
+  font-size: 0.6875rem; font-weight: 800; line-height: 1;
   background: ${({ $dim }) => ($dim ? '#F1F5F9' : '#14B8A6')};
   color: ${({ $dim }) => ($dim ? '#94A3B8' : '#FFFFFF')};
 `;
@@ -210,7 +210,7 @@ export const PrioBtn = styled.button<{ $on: boolean }>`
     width: 20px; height: 20px;
     display: inline-flex; align-items: center; justify-content: center;
     border-radius: 50%;
-    font-size: 11px; font-weight: 800; line-height: 1;
+    font-size: 0.6875rem; font-weight: 800; line-height: 1;
     background: ${({ $on }) => ($on ? '#14B8A6' : 'transparent')};
     color: ${({ $on }) => ($on ? '#FFFFFF' : '#CBD5E1')};
     border: ${({ $on }) => ($on ? '0' : '1px dashed #CBD5E1')};
@@ -224,17 +224,17 @@ export const PrioBtn = styled.button<{ $on: boolean }>`
 export const Badge = styled.span<{ $bg: string; $fg: string }>`
   flex-shrink: 0;
   padding: 2px 8px; border-radius: 999px;
-  font-size: 11px; font-weight: 700;
+  font-size: 0.6875rem; font-weight: 700;
   background: ${({ $bg }) => $bg}; color: ${({ $fg }) => $fg};
   white-space: nowrap;
 `;
 export const RowTitle = styled.span`
-  font-size: 13.5px; font-weight: 600; color: #0F172A; line-height: 1.4;
+  font-size: 0.84375rem; font-weight: 600; color: #0F172A; line-height: 1.4;
   word-break: break-word;
 `;
 export const RowMeta = styled.div`
   display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
-  font-size: 11.5px; color: #64748B;
+  font-size: 0.71875rem; color: #64748B;
 `;
 export const MetaChip = styled.span`
   padding: 1px 6px; border-radius: 6px; background: #F1F5F9; color: #475569;
@@ -249,13 +249,13 @@ export const MetaDue = styled.span<{ $overdue: boolean }>`
 export const PrioGapHint = styled.div`
   margin-top: 10px; padding: 7px 9px;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 11px; line-height: 1.5; color: #64748B;
+  font-size: 0.6875rem; line-height: 1.5; color: #64748B;
 `;
 // 완료 가리기 — Q Task 리스트의 HideCheck 와 같은 감각(작은 체크박스 + 라벨).
 //   보기 칩 줄 위에 놓아 "무엇을 보여줄지" 를 먼저 정하고 "어떻게 나열할지" 로 넘어가게 한다.
 export const DoneFilterLabel = styled.label`
   display:inline-flex; align-items:center; gap:6px; cursor:pointer;
-  font-size:12px; font-weight:600; color:#64748B; user-select:none;
+  font-size:0.75rem; font-weight:600; color:#64748B; user-select:none;
   input { width:14px; height:14px; accent-color:#14B8A6; cursor:pointer; }
   &:hover { color:#0F172A; }
 `;
@@ -263,21 +263,21 @@ export const ToggleDone = styled.button`
   width: 100%; margin-top: 10px;
   padding: 8px; border: 1px dashed #CBD5E1; border-radius: 8px;
   background: transparent; cursor: pointer;
-  font-size: 12px; font-weight: 600; color: #64748B;
+  font-size: 0.75rem; font-weight: 600; color: #64748B;
   &:hover { border-color: #94A3B8; color: #475569; }
   &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
 `;
 export const Center = styled.div`
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
   padding: 48px 20px; text-align: center;
-  font-size: 13px; color: #94A3B8;
+  font-size: 0.8125rem; color: #94A3B8;
 `;
-export const EmptyTitle = styled.div`font-size: 14px; font-weight: 700; color: #475569;`;
-export const EmptyLine = styled.div`font-size: 12.5px; color: #94A3B8;`;
-export const ErrText = styled.div`font-size: 13px; color: #BE123C;`;
+export const EmptyTitle = styled.div`font-size: 0.875rem; font-weight: 700; color: #475569;`;
+export const EmptyLine = styled.div`font-size: 0.78125rem; color: #94A3B8;`;
+export const ErrText = styled.div`font-size: 0.8125rem; color: #BE123C;`;
 export const RetryBtn = styled.button`
   padding: 7px 14px; border: 1px solid #E2E8F0; border-radius: 8px;
-  background: #FFFFFF; cursor: pointer; font-size: 12.5px; font-weight: 600; color: #0F172A;
+  background: #FFFFFF; cursor: pointer; font-size: 0.78125rem; font-weight: 600; color: #0F172A;
   &:hover { border-color: #0F766E; color: #0F766E; }
   &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
 `;

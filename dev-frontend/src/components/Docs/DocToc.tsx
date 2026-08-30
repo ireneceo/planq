@@ -138,7 +138,7 @@ const ShowChip = styled.button`
   display: inline-flex; align-items: center; gap: 4px;
   margin: 0 ${BODY_INSET}px 10px; padding: 3px 10px;
   background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 999px; cursor: pointer;
-  font-size: 11px; font-weight: 600; color: #64748B;
+  font-size: 0.6875rem; font-weight: 600; color: #64748B;
   &:hover { border-color: #CBD5E1; color: #0F172A; }
 `;
 const HeadRow = styled.div`
@@ -147,12 +147,12 @@ const HeadRow = styled.div`
 const Head = styled.button`
   display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0;
   background: transparent; border: none; padding: 2px 0; cursor: pointer;
-  font-size: 12px; font-weight: 700; color: #475569;
+  font-size: 0.75rem; font-weight: 700; color: #475569;
 `;
 const HideBtn = styled.button`
   flex-shrink: 0; padding: 2px 6px;
   background: transparent; border: none; cursor: pointer;
-  font-size: 11px; color: #94A3B8;
+  font-size: 0.6875rem; color: #94A3B8;
   &:hover { color: #475569; text-decoration: underline; }
 `;
 const Chevron = styled.svg<{ $open: boolean }>`
@@ -162,14 +162,14 @@ const Chevron = styled.svg<{ $open: boolean }>`
 const Count = styled.span`
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 16px; height: 16px; padding: 0 4px; margin-left: 2px;
-  background: #E2E8F0; color: #64748B; border-radius: 8px; font-size: 10px; font-weight: 700;
+  background: #E2E8F0; color: #64748B; border-radius: 8px; font-size: 0.625rem; font-weight: 700;
 `;
 const List = styled.div` display: flex; flex-direction: column; margin-top: 6px; `;
 const Row = styled.button<{ $level: number }>`
   display: block; width: 100%; text-align: left;
   padding: 4px 6px 4px ${p => 6 + (p.$level - 1) * 14}px;
   background: transparent; border: none; border-radius: 6px; cursor: pointer;
-  font-size: ${p => (p.$level === 1 ? 13 : 12)}px;
+  font-size: ${p => (p.$level === 1 ? 13 : 12) / 16}rem;
   font-weight: ${p => (p.$level === 1 ? 600 : 500)};
   color: ${p => (p.$level === 1 ? '#334155' : '#64748B')};
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;

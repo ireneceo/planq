@@ -321,10 +321,10 @@ const DetailPane = styled.div<{ $detailOpen: boolean }>`
     display: ${p => (p.$detailOpen ? 'flex' : 'none')};
   }
 `;
-const Empty = styled.div`padding: 40px 20px; text-align: center; font-size: 13px; color: #94a3b8;`;
+const Empty = styled.div`padding: 40px 20px; text-align: center; font-size: 0.8125rem; color: #94a3b8;`;
 const DetailEmpty = styled.div`
   flex: 1; display: flex; align-items: center; justify-content: center;
-  padding: 40px 24px; text-align: center; font-size: 13px; color: #94a3b8; line-height: 1.6;
+  padding: 40px 24px; text-align: center; font-size: 0.8125rem; color: #94a3b8; line-height: 1.6;
 `;
 
 const ListRow = styled.button<{ $active: boolean }>`
@@ -339,26 +339,26 @@ const ListRow = styled.button<{ $active: boolean }>`
 `;
 const RowTop = styled.div`display: flex; align-items: center; gap: 6px;`;
 const Cat = styled.span`
-  font-size: 11px; font-weight: 700; color: #0f766e;
+  font-size: 0.6875rem; font-weight: 700; color: #0f766e;
   background: #f0fdfa; border-radius: 999px; padding: 2px 8px;
 `;
 const Status = styled.span<{ $bg: string; $fg: string }>`
-  font-size: 11px; font-weight: 700; border-radius: 999px; padding: 2px 8px;
+  font-size: 0.6875rem; font-weight: 700; border-radius: 999px; padding: 2px 8px;
   background: ${p => p.$bg}; color: ${p => p.$fg};
 `;
 const AwaitDot = styled.span`
   width: 7px; height: 7px; border-radius: 50%; background: #f59e0b; margin-left: auto;
 `;
 const RowTitle = styled.div`
-  font-size: 13px; font-weight: 600; color: #0f172a; line-height: 1.4;
+  font-size: 0.8125rem; font-weight: 600; color: #0f172a; line-height: 1.4;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 `;
 const RowMeta = styled.div`
   display: flex; align-items: center; gap: 8px;
-  font-size: 11px; color: #94a3b8;
+  font-size: 0.6875rem; color: #94a3b8;
 `;
 const ReplyCount = styled.span`
-  font-size: 11px; font-weight: 700; color: #0d9488;
+  font-size: 0.6875rem; font-weight: 700; color: #0d9488;
   background: #ccfbf1; border-radius: 999px; padding: 1px 7px;
 `;
 
@@ -380,7 +380,7 @@ const BackBtn = styled.button`
 `;
 const DetailTitle = styled.h2`
   flex: 1; min-width: 0;
-  font-size: 16px; font-weight: 700; color: #0f172a; margin: 0;
+  font-size: 1rem; font-weight: 700; color: #0f172a; margin: 0;
   line-height: 1.4; word-break: break-word;
 `;
 const Thread = styled.div`
@@ -402,21 +402,21 @@ const ReplyBlock = styled.div`
 `;
 const MsgWho = styled.div<{ $reply?: boolean }>`
   display: flex; align-items: center; gap: 8px;
-  font-size: 11px; font-weight: 700;
+  font-size: 0.6875rem; font-weight: 700;
   color: ${p => (p.$reply ? '#0f766e' : '#94a3b8')};
   text-transform: uppercase; letter-spacing: 0.4px;
 `;
 const FollowTag = styled.span`
-  font-size: 10px; font-weight: 700; color: #0d9488;
+  font-size: 0.625rem; font-weight: 700; color: #0d9488;
   background: #ccfbf1; border-radius: 999px; padding: 1px 7px;
   text-transform: none; letter-spacing: 0;
 `;
 const MsgDate = styled.span`
-  margin-left: auto; font-size: 11px; font-weight: 500; color: #94a3b8;
+  margin-left: auto; font-size: 0.6875rem; font-weight: 500; color: #94a3b8;
   text-transform: none; letter-spacing: 0;
 `;
 const MsgBody = styled.div`
-  font-size: 13px; color: #334155; line-height: 1.6;
+  font-size: 0.8125rem; color: #334155; line-height: 1.6;
   white-space: pre-wrap; word-break: break-word;
 `;
 const Composer = styled.div`
@@ -426,21 +426,21 @@ const Composer = styled.div`
   background: #ffffff;
   display: flex; flex-direction: column; gap: 10px;
 `;
-const ComposerLabel = styled.div`font-size: 12px; font-weight: 700; color: #475569;`;
+const ComposerLabel = styled.div`font-size: 0.75rem; font-weight: 700; color: #475569;`;
 const FollowTextarea = styled.textarea`
   padding: 10px 12px;
   border: 1px solid #e2e8f0; border-radius: 8px;
-  font-size: 13px; color: #0f172a; font-family: inherit; resize: vertical;
+  font-size: 0.8125rem; color: #0f172a; font-family: inherit; resize: vertical;
   &:focus { outline: none; border-color: #14b8a6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
-  @media (max-width: 1024px) { font-size: 16px; }
+  @media (max-width: 1024px) { font-size: 1rem; }
 `;
 const ComposerFooter = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 12px;`;
-const Hint = styled.span`font-size: 11px; color: #94a3b8;`;
+const Hint = styled.span`font-size: 0.6875rem; color: #94a3b8;`;
 const ResultMsg = styled.div`
   padding: 10px 12px;
   background: #f0fdfa; border: 1px solid #5eead4; border-radius: 8px;
-  font-size: 13px; color: #0f766e;
+  font-size: 0.8125rem; color: #0f766e;
 `;
 const LockedHint = styled.div`
-  font-size: 12px; color: #94a3b8; text-align: center; line-height: 1.5;
+  font-size: 0.75rem; color: #94a3b8; text-align: center; line-height: 1.5;
 `;

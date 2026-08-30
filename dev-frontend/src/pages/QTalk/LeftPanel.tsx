@@ -391,7 +391,7 @@ const SearchSection = styled.div`
 `;
 
 const HeaderTitle = styled.h1`
-  font-size: 18px;
+  font-size: 1.125rem;
   font-weight: 700;
   color: #0F172A;
   margin: 0;
@@ -418,7 +418,7 @@ const Empty = styled.div`
   padding: 32px 20px;
   text-align: center;
   color: #94A3B8;
-  font-size: 12px;
+  font-size: 0.75rem;
 `;
 
 // 사이클 N+15-A — 초기 로딩 skeleton (Slack/카카오톡 패턴).
@@ -483,7 +483,7 @@ const ArchiveLink = styled.button`
   background: transparent;
   border: none;
   border-radius: 8px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 500;
   color: #64748B;
   cursor: pointer;
@@ -526,7 +526,7 @@ const ChatTop = styled.div`
 `;
 
 const ChatName = styled.div<{ $active: boolean }>`
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: ${(p) => (p.$active ? 700 : 600)};
   color: #0F172A;
   white-space: nowrap;
@@ -542,7 +542,7 @@ const CustomerTag = styled.span`
   padding: 1px 5px;
   background: rgba(244, 63, 94, 0.10);
   color: #BE123C;
-  font-size: 9px;
+  font-size: 0.5625rem;
   font-weight: 700;
   border-radius: 8px;
   flex-shrink: 0;
@@ -550,7 +550,7 @@ const CustomerTag = styled.span`
 `;
 
 const ProjectName = styled.div`
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #94A3B8;
   font-weight: 500;
   white-space: nowrap;
@@ -562,7 +562,7 @@ const ProjectName = styled.div`
 // unread 시 글자색 진하게 (대비) + 굵게 / 읽음·active 시 옅게.
 // 1줄 ellipsis, 발신자 prefix 가 있으면 회색 + ': '.
 const LastMessagePreview = styled.div<{ $unread: boolean }>`
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: ${(p) => (p.$unread ? 600 : 400)};
   color: ${(p) => (p.$unread ? '#334155' : '#94A3B8')};
   white-space: nowrap;
@@ -587,7 +587,7 @@ const Unread = styled.div`
   background: #F43F5E;
   color: #FFFFFF;
   border-radius: 8px;
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -595,7 +595,7 @@ const Unread = styled.div`
   flex-shrink: 0;
   align-self: center;
   @media (max-width: 1024px) {
-    min-width: 20px; height: 20px; font-size: 11px;
+    min-width: 20px; height: 20px; font-size: 0.6875rem;
   }
 `;
 
@@ -682,7 +682,7 @@ const MenuItem = styled.button<{ $danger?: boolean }>`
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 500;
   color: ${(p) => (p.$danger ? '#B91C1C' : '#334155')};
   text-align: left;

@@ -49,7 +49,7 @@ const AccessDeniedBox = styled.div`
 `;
 
 const Title = styled.h2`
-  font-size: 24px;
+  font-size: 1.5rem;
   color: #0F172A;
   margin-bottom: 12px;
 `;

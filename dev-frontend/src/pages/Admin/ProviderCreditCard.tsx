@@ -190,52 +190,52 @@ const Wrap = styled.div`
   background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px;
   padding: 20px; display: flex; flex-direction: column; gap: 12px;
 `;
-const SectionTitle = styled.h2`font-size: 15px; font-weight: 700; color: #0F172A; margin: 0;`;
-const Desc = styled.p`font-size: 12px; color: #64748B; line-height: 1.6; margin: 0; word-break: keep-all;`;
-const ErrBox = styled.div`font-size: 12px; color: #DC2626; background: #FEF2F2; padding: 8px 10px; border-radius: 6px;`;
+const SectionTitle = styled.h2`font-size: 0.9375rem; font-weight: 700; color: #0F172A; margin: 0;`;
+const Desc = styled.p`font-size: 0.75rem; color: #64748B; line-height: 1.6; margin: 0; word-break: keep-all;`;
+const ErrBox = styled.div`font-size: 0.75rem; color: #DC2626; background: #FEF2F2; padding: 8px 10px; border-radius: 6px;`;
 const Row = styled.div<{ $tone: keyof typeof TONE }>`
   border: 1px solid ${p => TONE[p.$tone].bd}; background: ${p => TONE[p.$tone].bg};
   border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px;
 `;
 const Head = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 12px;`;
-const Name = styled.div`font-size: 14px; font-weight: 700; color: #0F172A;`;
+const Name = styled.div`font-size: 0.875rem; font-weight: 700; color: #0F172A;`;
 const Days = styled.div<{ $tone: keyof typeof TONE }>`
-  font-size: 13px; font-weight: 700; color: ${p => TONE[p.$tone].fg}; white-space: nowrap;
+  font-size: 0.8125rem; font-weight: 700; color: ${p => TONE[p.$tone].fg}; white-space: nowrap;
 `;
 const Stats = styled.div`
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
   @media (max-width: 720px) { grid-template-columns: repeat(2, 1fr); }
 `;
 const Stat = styled.div`display: flex; flex-direction: column; gap: 2px;`;
-const K = styled.div`font-size: 11px; color: #94A3B8;`;
-const V = styled.div`font-size: 13px; font-weight: 600; color: #0F172A;`;
+const K = styled.div`font-size: 0.6875rem; color: #94A3B8;`;
+const V = styled.div`font-size: 0.8125rem; font-weight: 600; color: #0F172A;`;
 const Form = styled.div`display: flex; align-items: center; gap: 8px; flex-wrap: wrap;`;
 const Input = styled.input`
   flex: 1; min-width: 160px; height: 36px; padding: 0 10px;
-  border: 1px solid #CBD5E1; border-radius: 8px; font-size: 13px; background: #FFFFFF;
+  border: 1px solid #CBD5E1; border-radius: 8px; font-size: 0.8125rem; background: #FFFFFF;
   &:focus { outline: 2px solid rgba(15,118,110,0.4); outline-offset: -1px; }
 `;
 const SaveBtn = styled.button`
   height: 36px; padding: 0 14px; border: none; border-radius: 8px;
-  background: #0F766E; color: #FFFFFF; font-size: 13px; font-weight: 600; cursor: pointer;
+  background: #0F766E; color: #FFFFFF; font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   &:disabled { opacity: 0.6; cursor: default; }
   &:hover:not(:disabled) { background: #115E59; }
 `;
 const TopupLink = styled.a`
   height: 36px; display: inline-flex; align-items: center; padding: 0 12px;
   border: 1px solid #99F6E4; border-radius: 8px; background: #FFFFFF;
-  font-size: 13px; font-weight: 600; color: #0F766E; text-decoration: none;
+  font-size: 0.8125rem; font-weight: 600; color: #0F766E; text-decoration: none;
   &:hover { background: #F0FDFA; }
 `;
-const Hint = styled.div`font-size: 11px; color: #94A3B8; line-height: 1.5; word-break: keep-all;`;
+const Hint = styled.div`font-size: 0.6875rem; color: #94A3B8; line-height: 1.5; word-break: keep-all;`;
 const RateTag = styled.span<{ $ok: boolean }>`
   margin-left: 6px; padding: 1px 6px; border-radius: 999px;
-  font-size: 10px; font-weight: 700;
+  font-size: 0.625rem; font-weight: 700;
   background: ${p => (p.$ok ? '#CCFBF1' : '#F1F5F9')};
   color: ${p => (p.$ok ? '#0F766E' : '#64748B')};
 `;
 const Learned = styled.div`
-  font-size: 12px; font-weight: 600; color: #0F766E;
+  font-size: 0.75rem; font-weight: 600; color: #0F766E;
   background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 8px;
   padding: 8px 10px; line-height: 1.5; word-break: keep-all;
 `;

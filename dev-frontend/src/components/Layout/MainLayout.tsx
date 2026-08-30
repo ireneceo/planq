@@ -153,7 +153,7 @@ const BellBadge = styled.span`
   min-width: 14px; height: 14px; padding: 0 3px;
   background: #F43F5E; color: #FFFFFF;
   border-radius: 999px;
-  font-size: 9px; font-weight: 700; line-height: 14px;
+  font-size: 0.5625rem; font-weight: 700; line-height: 14px;
   display: inline-flex; align-items: center; justify-content: center;
   border: 1.5px solid #115E59;
 `;
@@ -223,13 +223,13 @@ const GlobalSearchTrigger = styled.button`
   background: transparent;
   border: none;
   color: #CCFBF1; cursor: pointer;
-  font-size: 13px; font-weight: 500;
+  font-size: 0.8125rem; font-weight: 500;
   transition: all 0.15s;
   text-align: left;
   white-space: nowrap;
   &:hover { background: rgba(255,255,255,0.08); color: #FFFFFF; }
   &:focus-visible { outline: 2px solid rgba(94,234,212,0.4); outline-offset: -2px; }
-  ${mediaTablet} { padding: 8px 16px; min-height: 44px; font-size: 14px; }
+  ${mediaTablet} { padding: 8px 16px; min-height: 44px; font-size: 0.875rem; }
 `;
 // Cue — 검색과 같은 높이·같은 톤. 색만 포인트(Coral)로 구분한다.
 const CueTrigger = styled.button`
@@ -238,12 +238,12 @@ const CueTrigger = styled.button`
   padding: 4px 14px 4px 12px;
   background: transparent; border: none;
   color: #FDA4AF; cursor: pointer;
-  font-size: 13px; font-weight: 600;
+  font-size: 0.8125rem; font-weight: 600;
   transition: all 0.15s;
   white-space: nowrap;
   &:hover { background: rgba(255,255,255,0.08); color: #FFFFFF; }
   &:focus-visible { outline: 2px solid rgba(253,164,175,0.5); outline-offset: -2px; }
-  ${mediaTablet} { padding: 8px 14px; min-height: 44px; font-size: 14px; }
+  ${mediaTablet} { padding: 8px 14px; min-height: 44px; font-size: 0.875rem; }
 `;
 const CueIconSvg = styled.svg` width: 17px; height: 17px; flex-shrink: 0; `;
 const CueLabel = styled.span` line-height: 1; `;
@@ -257,7 +257,7 @@ const SearchPlaceholder = styled.span`
   flex: 1;
 `;
 const SearchKbd = styled.kbd`
-  font-size: 10px; font-family: inherit; font-weight: 600;
+  font-size: 0.625rem; font-family: inherit; font-weight: 600;
   padding: 1px 5px;
   background: rgba(94,234,212,0.10);
   border: 1px solid rgba(94,234,212,0.18);
@@ -272,7 +272,7 @@ const SearchKbd = styled.kbd`
 const NavSection = styled.div`margin-bottom: 0;`;
 
 const NavTitle = styled.div<{ $isCollapsed?: boolean }>`
-  color: rgba(204, 251, 241, 0.5); font-size: 11px; font-weight: 600;
+  color: rgba(204, 251, 241, 0.5); font-size: 0.6875rem; font-weight: 600;
   text-transform: uppercase; letter-spacing: 0.5px;
   padding: 0 16px; margin-bottom: 6px; margin-top: 20px;
   ${props => props.$isCollapsed && css`
@@ -294,7 +294,7 @@ const NavItem = styled(ChromeLink)<{ $active?: boolean; $isCollapsed?: boolean }
   padding: ${props => props.$isCollapsed ? '6px 0' : '4px 16px'};
   justify-content: ${props => props.$isCollapsed ? 'center' : 'flex-start'};
   color: #CCFBF1; text-decoration: none; transition: all 0.15s;
-  font-size: 13px; font-weight: 500;
+  font-size: 0.8125rem; font-weight: 500;
   min-height: ${props => props.$isCollapsed ? '36px' : '28px'};
   white-space: nowrap;
   &:hover { background: rgba(255, 255, 255, 0.08); color: #FFFFFF; }
@@ -307,7 +307,7 @@ const NavItem = styled(ChromeLink)<{ $active?: boolean; $isCollapsed?: boolean }
     padding: 8px 16px;
     justify-content: flex-start;
     min-height: 44px;
-    font-size: 14px;
+    font-size: 0.875rem;
   }
 `;
 
@@ -315,7 +315,7 @@ const NavIcon = styled.span<{ $isCollapsed?: boolean }>`
   width: 20px;
   margin-right: ${props => props.$isCollapsed ? '0' : '10px'};
   display: flex;
-  align-items: center; justify-content: center; font-size: 15px;
+  align-items: center; justify-content: center; font-size: 0.9375rem;
   color: #5EEAD4;
   ${mediaTablet} { margin-right: 10px; }
 `;
@@ -334,7 +334,7 @@ const InboxBadge = styled.span<{ $collapsed?: boolean }>`
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 20px; height: 18px; padding: 0 6px;
   background: #F43F5E; color: #FFFFFF;
-  font-size: 10px; font-weight: 700; line-height: 1;
+  font-size: 0.625rem; font-weight: 700; line-height: 1;
   border-radius: 999px;
   ${p => p.$collapsed && `
     position: absolute;
@@ -344,7 +344,7 @@ const InboxBadge = styled.span<{ $collapsed?: boolean }>`
     min-width: 16px;
     height: 14px;
     padding: 0 4px;
-    font-size: 9px;
+    font-size: 0.5625rem;
     pointer-events: none;
   `}
 `;
@@ -377,7 +377,7 @@ const SecondaryBody = styled.div`
 const SecondaryGroupLabel = styled.div`
   display: flex; align-items: center; gap: 7px;
   padding: 12px 16px 6px 20px;
-  font-size: 11px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;
+  font-size: 0.6875rem; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;
   color: #64748B;
   &::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: #14B8A6; flex-shrink: 0; }
   &:not(:first-child) { margin-top: 8px; border-top: 1px solid #F1F5F9; padding-top: 14px; }
@@ -388,7 +388,7 @@ const SecondaryNavItem = styled(ChromeLink)<{ $active?: boolean; $collapsed?: bo
   display: flex; align-items: center; gap: 10px;
   padding: 9px 20px;
   color: #334155; text-decoration: none;
-  font-size: 13px; font-weight: 500;
+  font-size: 0.8125rem; font-weight: 500;
   transition: all 0.15s;
   border-left: 3px solid transparent;
   svg { width: 16px; height: 16px; color: #64748B; flex-shrink: 0; }
@@ -469,7 +469,7 @@ const UserAvatar = styled.div`
   width: 32px; height: 32px; border-radius: 50%;
   background: #0F766E; color: #FFFFFF;
   display: flex; align-items: center; justify-content: center;
-  font-size: 13px; font-weight: 600; flex-shrink: 0;
+  font-size: 0.8125rem; font-weight: 600; flex-shrink: 0;
 `;
 // N+63 — 옛 UserInfo/UserName/UserRoleText/LogoutButton 제거 (UserMenuButton 통합으로 대체)
 
@@ -478,7 +478,7 @@ const CollapsedAvatarButton = styled.button`
   width: 36px; height: 36px; border-radius: 50%;
   background: #0F766E; color: #FFFFFF;
   display: flex; align-items: center; justify-content: center;
-  font-size: 14px; font-weight: 600;
+  font-size: 0.875rem; font-weight: 600;
   transition: all 0.15s;
   &:hover { background: #0D5E56; }
 `;
@@ -507,7 +507,7 @@ const UserMenuButton = styled.button`
 `;
 const UserMenuName = styled.span`
   flex: 1; min-width: 0;
-  font-size: 13px; font-weight: 500; color: #FFFFFF;
+  font-size: 0.8125rem; font-weight: 500; color: #FFFFFF;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   text-align: left;
 `;
@@ -533,11 +533,11 @@ const UserMenuMeta = styled.div`
   padding: 6px 10px 8px;
 `;
 const UserMenuMetaName = styled.div`
-  font-size: 13px; font-weight: 600; color: #FFFFFF;
+  font-size: 0.8125rem; font-weight: 600; color: #FFFFFF;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 `;
 const UserMenuMetaRole = styled.div`
-  font-size: 11px; color: #5EEAD4; margin-top: 2px;
+  font-size: 0.6875rem; color: #5EEAD4; margin-top: 2px;
 `;
 const UserMenuDivider = styled.div`
   height: 1px; background: rgba(255, 255, 255, 0.1); margin: 4px 0;
@@ -548,7 +548,7 @@ const UserMenuLangRow = styled.div`
 const UserMenuItemBase = css<{ $danger?: boolean }>`
   display: flex; align-items: center;
   padding: 8px 10px; border-radius: 6px;
-  font-size: 13px; font-weight: 500;
+  font-size: 0.8125rem; font-weight: 500;
   text-decoration: none;
   background: transparent; border: none; cursor: pointer; width: 100%;
   text-align: left;
@@ -669,7 +669,7 @@ const AccordionItem = styled(ChromeLink)<{ $active?: boolean }>`
   display: flex; align-items: center; gap: 10px;
   padding: 10px 16px 10px 48px;
   color: #CCFBF1; text-decoration: none;
-  font-size: 13px; font-weight: 500;
+  font-size: 0.8125rem; font-weight: 500;
   min-height: 44px;
   transition: all 0.15s;
   &:hover { background: rgba(255, 255, 255, 0.08); color: #FFFFFF; }
@@ -686,7 +686,7 @@ const AccordionGroupLabel = styled.div`
   display: flex; align-items: center; gap: 8px;
   padding: 8px 16px 6px 48px;
   color: rgba(204, 251, 241, 0.92);
-  font-size: 11px; font-weight: 800;
+  font-size: 0.6875rem; font-weight: 800;
   letter-spacing: 0.5px; text-transform: uppercase;
   &::before {
     content: ''; width: 5px; height: 5px; border-radius: 50%;
@@ -1985,6 +1985,6 @@ const WorkBlock = styled.div`
   /* 세로가 짧은 화면(노트북 720p 등)에서는 더 줄인다 — 근태·설정 메뉴가 fold 밖으로 밀렸던 실측. */
   @media (max-height: 820px) {
     margin-bottom: 6px; padding: 4px 16px 6px;
-    font-size: 11px;
+    font-size: 0.6875rem;
   }
 `;

@@ -242,9 +242,9 @@ export default ShareReceivePage;
 
 const Wrap = styled.div`max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px;`;
 const PreviewBox = styled.div`background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 14px 16px;`;
-const PreviewLabel = styled.div`font-size: 11px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 6px;`;
-const PreviewContent = styled.div`font-size: 13px; color: #0F172A; white-space: pre-wrap; word-break: break-word; line-height: 1.5;`;
-const ChooseLabel = styled.h3`font-size: 14px; font-weight: 700; color: #0F172A; margin: 0;`;
+const PreviewLabel = styled.div`font-size: 0.6875rem; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 6px;`;
+const PreviewContent = styled.div`font-size: 0.8125rem; color: #0F172A; white-space: pre-wrap; word-break: break-word; line-height: 1.5;`;
+const ChooseLabel = styled.h3`font-size: 0.875rem; font-weight: 700; color: #0F172A; margin: 0;`;
 const DestGrid = styled.div`display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;`;
 const DestBtn = styled.button<{ $highlight?: boolean }>`
   display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
@@ -258,17 +258,17 @@ const DestBtn = styled.button<{ $highlight?: boolean }>`
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 const FilesList = styled.div`display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;`;
-const FileChip = styled.div`display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: #FFFFFF; border: 1px solid #CBD5E1; border-radius: 999px; font-size: 11px; color: #475569; max-width: 240px;`;
+const FileChip = styled.div`display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: #FFFFFF; border: 1px solid #CBD5E1; border-radius: 999px; font-size: 0.6875rem; color: #475569; max-width: 240px;`;
 const FileChipName = styled.span`white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; font-weight: 600; color: #0F172A;`;
 const FileChipSize = styled.span`color: #94A3B8;`;
 const DestIcon = styled.span`
   display: inline-flex; align-items: center; justify-content: center;
   color: #0F766E; height: 22px;
 `;
-const DestTitle = styled.div`font-size: 14px; font-weight: 700; color: #0F172A;`;
-const DestDesc = styled.div`font-size: 11px; color: #64748B;`;
-const Hint = styled.div`font-size: 11px; color: #94A3B8; padding: 8px 0; line-height: 1.5;`;
+const DestTitle = styled.div`font-size: 0.875rem; font-weight: 700; color: #0F172A;`;
+const DestDesc = styled.div`font-size: 0.6875rem; color: #64748B;`;
+const Hint = styled.div`font-size: 0.6875rem; color: #94A3B8; padding: 8px 0; line-height: 1.5;`;
 const StaleNote = styled.div`
   background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 10px;
-  padding: 12px 14px; font-size: 13px; color: #92400E; line-height: 1.5;
+  padding: 12px 14px; font-size: 0.8125rem; color: #92400E; line-height: 1.5;
 `;

@@ -194,27 +194,27 @@ const Card = styled.div`
   padding: 20px 24px; margin-top: 16px;
 `;
 const Header = styled.div` margin-bottom: 12px; `;
-const Title = styled.h3` margin: 0 0 4px; font-size: 16px; font-weight: 700; color: #0F172A; `;
-const Desc = styled.p` margin: 0; font-size: 13px; color: #64748B; line-height: 1.5; `;
+const Title = styled.h3` margin: 0 0 4px; font-size: 1rem; font-weight: 700; color: #0F172A; `;
+const Desc = styled.p` margin: 0; font-size: 0.8125rem; color: #64748B; line-height: 1.5; `;
 const OwnerHint = styled.div`
   background: #FFFBEB; border: 1px solid #FDE68A; color: #92400E;
-  padding: 8px 12px; border-radius: 8px; font-size: 12px;
+  padding: 8px 12px; border-radius: 8px; font-size: 0.75rem;
   margin-bottom: 10px;
 `;
 const ErrorMsg = styled.div`
   background: #FEE2E2; color: #B91C1C; padding: 8px 12px;
-  border-radius: 8px; font-size: 12px; margin-bottom: 10px;
+  border-radius: 8px; font-size: 0.75rem; margin-bottom: 10px;
 `;
-const Empty = styled.div` padding: 40px; text-align: center; color: #94A3B8; font-size: 13px; `;
+const Empty = styled.div` padding: 40px; text-align: center; color: #94A3B8; font-size: 0.8125rem; `;
 const TableWrap = styled.div`
   overflow-x: auto;
   border: 1px solid #E2E8F0; border-radius: 10px;
   background: #FFFFFF;
 `;
-const Table = styled.table` width: 100%; border-collapse: collapse; font-size: 12px; `;
+const Table = styled.table` width: 100%; border-collapse: collapse; font-size: 0.75rem; `;
 const Th = styled.th<{ $sticky?: boolean }>`
   text-align: left; padding: 12px 14px;
-  font-size: 12px; font-weight: 700; color: #475569;
+  font-size: 0.75rem; font-weight: 700; color: #475569;
   background: #F8FAFC;
   border-bottom: 1px solid #E2E8F0;
   white-space: nowrap;
@@ -231,18 +231,18 @@ const Td = styled.td<{ $sticky?: boolean }>`
   ${p => p.$sticky && 'position: sticky; left: 0; background: #FFFFFF; z-index: 1; min-width: 160px;'}
 `;
 const MemberName = styled.div`
-  font-size: 13px; font-weight: 600; color: #0F172A;
+  font-size: 0.8125rem; font-weight: 600; color: #0F172A;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   max-width: 180px;
 `;
 const MemberEmail = styled.div`
-  font-size: 11px; color: #94A3B8; margin-top: 2px;
+  font-size: 0.6875rem; color: #94A3B8; margin-top: 2px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   max-width: 180px;
 `;
 const RoleBadge = styled.span<{ $kind: 'owner' | 'admin' | 'member' }>`
   display: inline-block; padding: 4px 10px;
-  font-size: 11px; font-weight: 700; border-radius: 999px;
+  font-size: 0.6875rem; font-weight: 700; border-radius: 999px;
   white-space: nowrap;
   background: ${p => p.$kind === 'owner' ? '#F0FDFA' : p.$kind === 'admin' ? '#DBEAFE' : '#F1F5F9'};
   color: ${p => p.$kind === 'owner' ? '#0F766E' : p.$kind === 'admin' ? '#1E40AF' : '#64748B'};
@@ -255,16 +255,16 @@ const SmallBtn = styled.button<{ $kind: 'promote' | 'demote' }>`
   background: transparent;
   border: 1px solid ${p => p.$kind === 'promote' ? '#14B8A6' : '#FCA5A5'};
   color: ${p => p.$kind === 'promote' ? '#0F766E' : '#B91C1C'};
-  font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 6px;
+  font-size: 0.6875rem; font-weight: 600; padding: 4px 10px; border-radius: 6px;
   cursor: pointer; white-space: nowrap;
   line-height: 1.4;
   &:hover { background: ${p => p.$kind === 'promote' ? '#F0FDFA' : '#FEF2F2'}; }
 `;
 const CountChip = styled.span`
   display: inline-block; background: #E0E7FF; color: #3730A3;
-  font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 999px;
+  font-size: 0.625rem; font-weight: 700; padding: 1px 6px; border-radius: 999px;
 `;
-const LevelLocked = styled.span` font-size: 11px; color: #94A3B8; font-style: italic; `;
+const LevelLocked = styled.span` font-size: 0.6875rem; color: #94A3B8; font-style: italic; `;
 const LevelPickerCell = styled.div<{ $saved: boolean }>`
   position: relative; min-width: 96px;
   ${p => p.$saved && `
@@ -281,5 +281,5 @@ const Warn = styled.div`
   margin-top: 12px;
   background: #FEF2F2; border: 1px solid #FECACA; color: #991B1B;
   padding: 10px 12px; border-radius: 8px;
-  font-size: 12px; font-weight: 600;
+  font-size: 0.75rem; font-weight: 600;
 `;

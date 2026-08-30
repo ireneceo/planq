@@ -846,7 +846,7 @@ const Brand = styled.img`display:block;width:120px;height:auto;user-select:none;
 const ToolbarSpacer = styled.div`flex:1;`;
 const PrintBtn = styled.button`
   display: inline-flex; align-items: center; min-height: 44px;
-  padding: 8px 16px; font-size: 13px; font-weight: 600; color: #334155;
+  padding: 8px 16px; font-size: 0.8125rem; font-weight: 600; color: #334155;
   border: 1px solid #E2E8F0; border-radius: 8px; background: #FFF; cursor: pointer;
   &:hover { border-color: #14B8A6; color: #0F766E; }
 `;
@@ -860,10 +860,10 @@ const Header = styled.header`
   text-align: center; padding: 8px 0 4px;
 `;
 const Title = styled.h1`
-  font-size: 22px; font-weight: 700; color: #0F172A; margin: 0 0 6px 0; letter-spacing: -0.3px;
+  font-size: 1.375rem; font-weight: 700; color: #0F172A; margin: 0 0 6px 0; letter-spacing: -0.3px;
 `;
 const Meta = styled.div`
-  font-size: 13px; color: #64748B;
+  font-size: 0.8125rem; color: #64748B;
 `;
 const Arrow = styled.span`color: #CBD5E1; margin: 0 6px;`;
 const Card = styled.div`
@@ -872,17 +872,17 @@ const Card = styled.div`
   @media (max-width: 640px) { padding: 18px 16px; }
 `;
 const CardTitle = styled.h2`
-  font-size: 18px; font-weight: 700; color: #0F172A; margin: 0;
+  font-size: 1.125rem; font-weight: 700; color: #0F172A; margin: 0;
 `;
 const CardNumber = styled.div`
-  font-size: 12px; color: #64748B; font-family: ui-monospace, monospace;
+  font-size: 0.75rem; color: #64748B; font-family: ui-monospace, monospace;
 `;
 const Total = styled.div`
-  font-size: 32px; font-weight: 700; color: #0F172A; margin-top: 8px; letter-spacing: -0.5px;
+  font-size: 2rem; font-weight: 700; color: #0F172A; margin-top: 8px; letter-spacing: -0.5px;
   font-variant-numeric: tabular-nums;
 `;
 const DueRow = styled.div`
-  font-size: 13px; color: #64748B;
+  font-size: 0.8125rem; color: #64748B;
 `;
 const InstallList = styled.div`
   display: flex; flex-direction: column; margin-top: 12px;
@@ -904,23 +904,23 @@ const InstallRow = styled.div<{ $paid: boolean; $canceled: boolean }>`
   }
 `;
 const InstallLeft = styled.div`display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1;`;
-const InstallLabel = styled.div`font-size: 14px; font-weight: 600; color: #0F172A;`;
-const InstallSub = styled.div`font-size: 12px; color: #64748B;`;
+const InstallLabel = styled.div`font-size: 0.875rem; font-weight: 600; color: #0F172A;`;
+const InstallSub = styled.div`font-size: 0.75rem; color: #64748B;`;
 const InstallRight = styled.div`
   display: flex; flex-direction: column; gap: 4px; align-items: flex-end;
   @media (max-width: 640px) { align-items: flex-start; width: 100%; }
 `;
 const InstallAmt = styled.div<{ $paid: boolean }>`
-  font-size: 16px; font-weight: 700; color: ${p => p.$paid ? '#15803D' : '#0F172A'};
+  font-size: 1rem; font-weight: 700; color: ${p => p.$paid ? '#15803D' : '#0F172A'};
   font-variant-numeric: tabular-nums;
 `;
 const InstallStatus = styled.div<{ $paid: boolean; $notified: boolean; $canceled: boolean }>`
-  font-size: 11px; font-weight: 600;
+  font-size: 0.6875rem; font-weight: 600;
   color: ${p => p.$paid ? '#15803D' : p.$canceled ? '#94A3B8' : p.$notified ? '#B45309' : '#64748B'};
 `;
 const NotifyBtnSm = styled.button`
   display: inline-flex; align-items: center; min-height: 36px;
-  padding: 6px 12px; font-size: 11px; font-weight: 600;
+  padding: 6px 12px; font-size: 0.6875rem; font-weight: 600;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 6px; color: #0F766E; cursor: pointer;
   &:hover:not(:disabled) { background: #F0FDFA; border-color: #14B8A6; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -929,14 +929,14 @@ const NotifyBtnSm = styled.button`
 const BtnRow = styled.div`display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end;`;
 const CardPayBtnSm = styled.button`
   display: inline-flex; align-items: center; min-height: 36px;
-  padding: 6px 12px; font-size: 11px; font-weight: 700;
+  padding: 6px 12px; font-size: 0.6875rem; font-weight: 700;
   background: #635BFF; border: none; border-radius: 6px; color: #fff; cursor: pointer;
   &:hover:not(:disabled) { background: #524DE0; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 const CardPayBtn = styled.button`
   display: inline-flex; align-items: center; justify-content: center; min-height: 46px;
-  padding: 0 20px; font-size: 14px; font-weight: 700;
+  padding: 0 20px; font-size: 0.875rem; font-weight: 700;
   background: #635BFF; border: none; border-radius: 10px; color: #fff; cursor: pointer; width: 100%;
   &:hover:not(:disabled) { background: #524DE0; }
   &:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -945,25 +945,25 @@ const Section = styled.section`
   background: #FFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 18px 20px;
   display: flex; flex-direction: column; gap: 8px;
 `;
-const SectionTitle = styled.h3`font-size: 13px; font-weight: 700; color: #0F172A; margin: 0;`;
-const SectionDesc = styled.div`font-size: 12px; color: #64748B;`;
+const SectionTitle = styled.h3`font-size: 0.8125rem; font-weight: 700; color: #0F172A; margin: 0;`;
+const SectionDesc = styled.div`font-size: 0.75rem; color: #64748B;`;
 const BankCard = styled.div`
   display: flex; flex-direction: column; gap: 8px;
   background: #F8FAFC; border-radius: 8px; padding: 14px 16px; margin-top: 4px;
 `;
 const BankRow = styled.div`display: flex; gap: 16px; align-items: center;`;
 const BankDivider = styled.div`height: 1px; background: #E2E8F0; margin: 4px 0;`;
-const BankLabel = styled.div`font-size: 12px; color: #64748B; width: 80px; flex-shrink: 0;`;
-const BankValue = styled.div`font-size: 14px; color: #0F172A; font-weight: 500;`;
+const BankLabel = styled.div`font-size: 0.75rem; color: #64748B; width: 80px; flex-shrink: 0;`;
+const BankValue = styled.div`font-size: 0.875rem; color: #0F172A; font-weight: 500;`;
 const BankValueRow = styled.div`display: flex; gap: 8px; align-items: center; flex: 1;`;
 const BankValueMono = styled.div`
-  font-size: 14px; color: #0F172A; font-weight: 600;
+  font-size: 0.875rem; color: #0F172A; font-weight: 600;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-variant-numeric: tabular-nums;
 `;
 const CopyBtn = styled.button`
   display: inline-flex; align-items: center; min-height: 36px;
-  padding: 6px 12px; font-size: 11px; font-weight: 600; color: #0F766E;
+  padding: 6px 12px; font-size: 0.6875rem; font-weight: 600; color: #0F766E;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 6px; cursor: pointer;
   &:hover { background: #F0FDFA; border-color: #14B8A6; }
 `;
@@ -972,61 +972,61 @@ const PayerGuideRow = styled.div`
   background: #F0FDFA; border: 1px dashed #5EEAD4; border-radius: 8px; padding: 12px 14px; margin-top: 4px;
 `;
 const PayerGuideMono = styled.div`
-  flex: 1; font-size: 14px; color: #0F766E; font-weight: 600;
+  flex: 1; font-size: 0.875rem; color: #0F766E; font-weight: 600;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 `;
 const Memo = styled.div`
-  font-size: 13px; color: #475569; line-height: 1.6; white-space: pre-wrap;
+  font-size: 0.8125rem; color: #475569; line-height: 1.6; white-space: pre-wrap;
 `;
 const NotifyArea = styled.div`
   display: flex; flex-direction: column; gap: 6px; align-items: stretch; margin-top: 4px;
 `;
 const NotifyBtn = styled.button`
-  width: 100%; min-height: 44px; padding: 14px 20px; font-size: 14px; font-weight: 700;
+  width: 100%; min-height: 44px; padding: 14px 20px; font-size: 0.875rem; font-weight: 700;
   background: #0D9488; color: #FFF; border: none; border-radius: 10px; cursor: pointer;
   transition: background 0.15s;
   &:hover { background: #0F766E; }
 `;
-const NotifyHint = styled.div`font-size: 11px; color: #64748B; text-align: center;`;
+const NotifyHint = styled.div`font-size: 0.6875rem; color: #64748B; text-align: center;`;
 const NotifyDoneBox = styled.div`
   display: flex; gap: 12px; align-items: center;
   background: #FFFBEB; border: 1px solid #FCD34D; border-radius: 10px; padding: 14px 18px;
 `;
 const DoneIcon = styled.div`
-  font-size: 18px; font-weight: 700; color: #B45309;
+  font-size: 1.125rem; font-weight: 700; color: #B45309;
 `;
 const NotifyDoneText = styled.div`display: flex; flex-direction: column; gap: 2px;`;
 // #77 — 발행 파일 다운로드 (공개 페이지, 외부 고객용 — 터치 타겟 44px)
 const ReceiptDownloadBtn = styled.a`
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   margin-top: 10px; min-height: 44px; padding: 0 18px;
-  font-size: 13px; font-weight: 600; text-decoration: none;
+  font-size: 0.8125rem; font-weight: 600; text-decoration: none;
   color: #0F766E; background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 8px;
   transition: background 0.15s, border-color 0.15s;
   &:hover { background: #CCFBF1; border-color: #14B8A6; }
 `;
-const NotifyDoneTitle = styled.div`font-size: 14px; font-weight: 600; color: #92400E;`;
-const NotifyDoneSub = styled.div`font-size: 12px; color: #78716C;`;
+const NotifyDoneTitle = styled.div`font-size: 0.875rem; font-weight: 600; color: #92400E;`;
+const NotifyDoneSub = styled.div`font-size: 0.75rem; color: #78716C;`;
 const PaidBanner = styled.div`
   display: flex; gap: 10px; align-items: center;
   background: #F0FDF4; border: 1px solid #86EFAC; border-radius: 10px; padding: 14px 18px;
-  font-size: 14px; font-weight: 600; color: #15803D;
+  font-size: 0.875rem; font-weight: 600; color: #15803D;
   & ${DoneIcon} { color: #15803D; }
 `;
 const Footer = styled.footer`
   margin-top: 8px; padding-top: 12px;
   text-align: center;
 `;
-const FooterText = styled.div`font-size: 11px; color: #94A3B8;`;
+const FooterText = styled.div`font-size: 0.6875rem; color: #94A3B8;`;
 const FooterContact = styled.a`
-  display: inline-block; margin-top: 8px; font-size: 12px; font-weight: 600;
+  display: inline-block; margin-top: 8px; font-size: 0.75rem; font-weight: 600;
   color: #0D9488; text-decoration: none;
   &:hover { text-decoration: underline; }
 `;
 
 const Center = styled.div`
   min-height: 60vh; display: flex; align-items: center; justify-content: center;
-  color: #64748B; font-size: 14px;
+  color: #64748B; font-size: 0.875rem;
 `;
 
 // 모달
@@ -1043,28 +1043,28 @@ const ModalHead = styled.div`
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 16px 20px; border-bottom: 1px solid #E2E8F0;
 `;
-const ModalTitle = styled.h3`font-size: 15px; font-weight: 700; color: #0F172A; margin: 0;`;
+const ModalTitle = styled.h3`font-size: 0.9375rem; font-weight: 700; color: #0F172A; margin: 0;`;
 const ModalClose = styled.button`
   display: inline-flex; align-items: center; justify-content: center; min-width: 36px; min-height: 36px;
-  background: none; border: none; font-size: 22px; line-height: 1; color: #94A3B8; cursor: pointer; padding: 0 4px;
+  background: none; border: none; font-size: 1.375rem; line-height: 1; color: #94A3B8; cursor: pointer; padding: 0 4px;
   &:hover { color: #475569; }
 `;
 const ModalBody = styled.div`
   padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto;
 `;
 const ModalLine = styled.div<{ $muted?: boolean }>`
-  font-size: 13px; color: ${p => p.$muted ? '#64748B' : '#0F172A'};
+  font-size: 0.8125rem; color: ${p => p.$muted ? '#64748B' : '#0F172A'};
 `;
 const FormField = styled.div`display: flex; flex-direction: column; gap: 6px;`;
-const FormLabel = styled.label`font-size: 12px; font-weight: 600; color: #475569;`;
+const FormLabel = styled.label`font-size: 0.75rem; font-weight: 600; color: #475569;`;
 const FormHint = styled.span`font-weight: 400; color: #94A3B8;`;
 const FormInput = styled.input`
-  padding: 9px 12px; font-size: 13px; color: #0F172A;
+  padding: 9px 12px; font-size: 0.8125rem; color: #0F172A;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 8px;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
 `;
 const FormTextarea = styled.textarea`
-  padding: 9px 12px; font-size: 13px; color: #0F172A; font-family: inherit;
+  padding: 9px 12px; font-size: 0.8125rem; color: #0F172A; font-family: inherit;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 8px; resize: vertical;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
 `;
@@ -1074,13 +1074,13 @@ const ModalFoot = styled.div`
 `;
 const ModalCancelBtn = styled.button`
   display: inline-flex; align-items: center; min-height: 44px;
-  padding: 9px 16px; font-size: 13px; font-weight: 600; color: #334155;
+  padding: 9px 16px; font-size: 0.8125rem; font-weight: 600; color: #334155;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer;
   &:hover { background: #F8FAFC; border-color: #CBD5E1; }
 `;
 const ModalSendBtn = styled.button`
   display: inline-flex; align-items: center; min-height: 44px;
-  padding: 9px 16px; font-size: 13px; font-weight: 600; color: #FFF;
+  padding: 9px 16px; font-size: 0.8125rem; font-weight: 600; color: #FFF;
   background: #0D9488; border: none; border-radius: 8px; cursor: pointer;
   &:hover:not(:disabled) { background: #0F766E; }
   &:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -1091,17 +1091,17 @@ const RcAmountBox = styled.div`
   display: flex; align-items: center; justify-content: space-between;
   padding: 12px 14px; margin-bottom: 4px;
   background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 10px;
-  span { font-size: 13px; font-weight: 600; color: #0F766E; }
-  strong { font-size: 16px; font-weight: 700; color: #0F172A; }
-  em { font-size: 12px; font-weight: 500; color: #64748B; font-style: normal; }
+  span { font-size: 0.8125rem; font-weight: 600; color: #0F766E; }
+  strong { font-size: 1rem; font-weight: 700; color: #0F172A; }
+  em { font-size: 0.75rem; font-weight: 500; color: #64748B; font-style: normal; }
 `;
 const RcRegisteredBanner = styled.div`
   padding: 10px 14px; margin-bottom: 4px;
   background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 10px;
-  font-size: 13px; font-weight: 500; line-height: 1.5; color: #0F766E;
+  font-size: 0.8125rem; font-weight: 500; line-height: 1.5; color: #0F766E;
 `;
 const RcSaveHint = styled.div`
-  font-size: 12px; color: #64748B; line-height: 1.5; margin-top: 8px; text-align: center;
+  font-size: 0.75rem; color: #64748B; line-height: 1.5; margin-top: 8px; text-align: center;
 `;
 const RcSummary = styled.dl`
   display: flex; flex-direction: column; gap: 0; margin: 0;
@@ -1110,19 +1110,19 @@ const RcSummary = styled.dl`
 const RcSumRow = styled.div`
   display: flex; gap: 12px; padding: 11px 14px;
   &:not(:last-child) { border-bottom: 1px solid #F1F5F9; }
-  dt { flex: 0 0 104px; font-size: 13px; font-weight: 500; color: #64748B; margin: 0; }
-  dd { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; color: #0F172A; margin: 0; word-break: break-all; }
+  dt { flex: 0 0 104px; font-size: 0.8125rem; font-weight: 500; color: #64748B; margin: 0; }
+  dd { flex: 1; min-width: 0; font-size: 0.8125rem; font-weight: 600; color: #0F172A; margin: 0; word-break: break-all; }
 `;
 const RcEditToggle = styled.button`
   align-self: flex-start; margin-top: 2px;
   background: transparent; border: none; padding: 6px 2px;
-  font-size: 13px; font-weight: 600; color: #0F766E; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 600; color: #0F766E; cursor: pointer;
   &:hover { color: #0D9488; text-decoration: underline; }
   &:focus-visible { outline: 2px solid rgba(15,118,110,0.35); outline-offset: 2px; border-radius: 4px; }
 `;
 const RcToggleRow = styled.div`display: flex; gap: 8px; margin-bottom: 4px;`;
 const RcToggleBtn = styled.button<{ $active: boolean }>`
-  flex: 1; min-height: 44px; padding: 10px 12px; font-size: 13px; font-weight: 600;
+  flex: 1; min-height: 44px; padding: 10px 12px; font-size: 0.8125rem; font-weight: 600;
   border-radius: 8px; cursor: pointer; transition: all .12s;
   color: ${p => p.$active ? '#0F766E' : '#64748B'};
   background: ${p => p.$active ? '#F0FDFA' : '#FFF'};
@@ -1131,6 +1131,6 @@ const RcToggleBtn = styled.button<{ $active: boolean }>`
 `;
 const RcTwoCol = styled.div`display: grid; grid-template-columns: 1fr 1fr; gap: 10px;`;
 const RcErr = styled.div`
-  margin-top: 4px; padding: 9px 12px; font-size: 12px; font-weight: 500;
+  margin-top: 4px; padding: 9px 12px; font-size: 0.75rem; font-weight: 500;
   color: #B91C1C; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px;
 `;

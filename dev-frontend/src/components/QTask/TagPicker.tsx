@@ -81,5 +81,5 @@ const TagPicker: React.FC<Props> = ({ bizId, dict, value, disabled, onChange, on
 export default TagPicker;
 
 const ErrText = styled.div`
-  margin-top: 4px; font-size: 11px; color: #DC2626;
+  margin-top: 4px; font-size: 0.6875rem; color: #DC2626;
 `;

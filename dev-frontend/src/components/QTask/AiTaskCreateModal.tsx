@@ -376,7 +376,7 @@ const Header = styled.div`
 `;
 const Title = styled.h2`
   display: inline-flex; align-items: center; gap: 6px;
-  font-size: 16px; font-weight: 700; color: #0F172A; margin: 0;
+  font-size: 1rem; font-weight: 700; color: #0F172A; margin: 0;
 `;
 const Sparkle = styled.span`
   display: inline-flex; align-items: center; justify-content: center;
@@ -405,18 +405,18 @@ const Footer = styled.div`
   border-top: 1px solid #F1F5F9; background: #fff;
 `;
 const AIForm = styled.div`display:flex;flex-direction:column;gap:14px;`;
-const AIDesc = styled.div`font-size:12px;color:#64748B;line-height:1.5;`;
+const AIDesc = styled.div`font-size:0.75rem;color:#64748B;line-height:1.5;`;
 const FieldRow = styled.div`display:flex;flex-direction:column;gap:6px;`;
-const FieldLabel = styled.label`font-size:12px;font-weight:600;color:#0F172A;`;
+const FieldLabel = styled.label`font-size:0.75rem;font-weight:600;color:#0F172A;`;
 const FieldTextarea = styled.textarea`
-  width:100%;padding:10px 12px;font-size:13px;color:#0F172A;line-height:1.55;
+  width:100%;padding:10px 12px;font-size:0.8125rem;color:#0F172A;line-height:1.55;
   border:1px solid #E2E8F0;border-radius:8px;background:#FFF;font-family:inherit;resize:vertical;
   &:focus{outline:none;border-color:#14B8A6;}
   &::placeholder{color:#CBD5E1;}
 `;
-const ErrorMsg = styled.div`font-size:12px;color:#DC2626;background:#FEF2F2;padding:8px 10px;border-radius:6px;`;
+const ErrorMsg = styled.div`font-size:0.75rem;color:#DC2626;background:#FEF2F2;padding:8px 10px;border-radius:6px;`;
 // #237 — 실패가 아니라 안내(업무는 생성됨). 실패와 같은 빨강을 쓰지 않는다.
-const NoticeMsg = styled.div`font-size:12px;color:#B45309;background:#FFFBEB;padding:8px 10px;border-radius:6px;`;
+const NoticeMsg = styled.div`font-size:0.75rem;color:#B45309;background:#FFFBEB;padding:8px 10px;border-radius:6px;`;
 
 // AI 템플릿 추천 배너 — subtle info 톤 (memory feedback_ai_recommendation_threshold). 강제 아님.
 const RecBanner = styled.div`
@@ -430,13 +430,13 @@ const RecIcon = styled.span`
 `;
 const RecBody = styled.div`flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;`;
 const RecTitle = styled.div`
-  font-size: 12px; font-weight: 600; color: #0F766E; line-height: 1.4;
+  font-size: 0.75rem; font-weight: 600; color: #0F766E; line-height: 1.4;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 `;
-const RecMeta = styled.div`font-size: 11px; color: #64748B;`;
+const RecMeta = styled.div`font-size: 0.6875rem; color: #64748B;`;
 const RecUseBtn = styled.button`
   flex-shrink: 0;
-  padding: 6px 12px; font-size: 12px; font-weight: 600;
+  padding: 6px 12px; font-size: 0.75rem; font-weight: 600;
   color: #FFFFFF; background: #14B8A6; border: none; border-radius: 6px;
   cursor: pointer; transition: background 0.15s;
   &:hover { background: #0D9488; }
@@ -460,9 +460,9 @@ const Spinner = styled.div`
   border-radius: 50%; animation: spin 0.8s linear infinite;
   @keyframes spin { to { transform: rotate(360deg); } }
 `;
-const LoadingText = styled.div`font-size: 14px; font-weight: 600; color: #0F172A;`;
-const LoadingSub = styled.div`font-size: 12px; color: #64748B;`;
-const LoadingHint = styled.div`font-size: 11px; color: #94A3B8; margin-top: 4px;`;
+const LoadingText = styled.div`font-size: 0.875rem; font-weight: 600; color: #0F172A;`;
+const LoadingSub = styled.div`font-size: 0.75rem; color: #64748B;`;
+const LoadingHint = styled.div`font-size: 0.6875rem; color: #94A3B8; margin-top: 4px;`;
 const ProgressTrack = styled.div`
   width: 240px; height: 6px; max-width: 100%;
   background: #E2E8F0; border-radius: 999px; overflow: hidden;
@@ -483,7 +483,7 @@ const ProgressFill = styled.div`
 
 const ReasoningBox = styled.div`
   padding: 10px 12px; background: #F0FDFA; color: #0F766E;
-  border-left: 3px solid #14B8A6; border-radius: 6px; font-size: 12px; line-height: 1.5;
+  border-left: 3px solid #14B8A6; border-radius: 6px; font-size: 0.75rem; line-height: 1.5;
 `;
 const CardList = styled.div`display: flex; flex-direction: column; gap: 8px;`;
 const PreviewBaseRow = styled.div`
@@ -491,5 +491,5 @@ const PreviewBaseRow = styled.div`
   padding: 8px 10px;
   background: #F8FAFC; border-radius: 6px;
 `;
-const BaseHint = styled.div`font-size: 11px; color: #94A3B8;`;
-const Hint = styled.div`font-size: 11px; color: #94A3B8;`;
+const BaseHint = styled.div`font-size: 0.6875rem; color: #94A3B8;`;
+const Hint = styled.div`font-size: 0.6875rem; color: #94A3B8;`;

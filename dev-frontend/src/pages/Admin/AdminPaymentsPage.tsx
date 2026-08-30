@@ -303,10 +303,10 @@ const Kpi = styled.div`
   padding: 14px 16px;
   display: flex; flex-direction: column; gap: 4px;
 `;
-const KpiLabel = styled.div`font-size: 12px; color: #64748B; font-weight: 600;`;
-const KpiValue = styled.div`font-size: 20px; font-weight: 700; color: #0F172A;`;
+const KpiLabel = styled.div`font-size: 0.75rem; color: #64748B; font-weight: 600;`;
+const KpiValue = styled.div`font-size: 1.25rem; font-weight: 700; color: #0F172A;`;
 // 비매출(내부·테스터) 보조 라인 — 운영 #275. AdminDashboardPage 의 KpiSub 와 같은 규격.
-const KpiSub = styled.div`font-size: 11px; color: #94A3B8; font-weight: 500; line-height: 1.4;`;
+const KpiSub = styled.div`font-size: 0.6875rem; color: #94A3B8; font-weight: 500; line-height: 1.4;`;
 const TabBar = styled.div`
   display: flex; gap: 4px; padding: 0 4px;
   border-bottom: 1px solid #E2E8F0;
@@ -318,13 +318,13 @@ const TabBtn = styled.button<{ $active: boolean }>`
   padding: 10px 14px; background: transparent; border: none;
   border-bottom: 2px solid ${p => p.$active ? '#14B8A6' : 'transparent'};
   color: ${p => p.$active ? '#0F766E' : '#64748B'};
-  font-size: 13px; font-weight: ${p => p.$active ? 700 : 500};
+  font-size: 0.8125rem; font-weight: ${p => p.$active ? 700 : 500};
   cursor: pointer; white-space: nowrap;
   &:hover { color: #0F172A; }
 `;
 const Count = styled.span<{ $active: boolean }>`
   display: inline-flex; align-items: center; justify-content: center;
-  min-width: 20px; padding: 1px 7px; font-size: 11px; font-weight: 700;
+  min-width: 20px; padding: 1px 7px; font-size: 0.6875rem; font-weight: 700;
   background: ${p => p.$active ? '#14B8A6' : '#E2E8F0'};
   color: ${p => p.$active ? '#FFFFFF' : '#64748B'};
   border-radius: 999px;
@@ -332,7 +332,7 @@ const Count = styled.span<{ $active: boolean }>`
 const ErrorBox = styled.div`
   padding: 10px 14px; border-radius: 8px;
   background: #FEF2F2; color: #B91C1C;
-  font-size: 13px; border: 1px solid #FECACA;
+  font-size: 0.8125rem; border: 1px solid #FECACA;
 `;
 const List = styled.div`display: flex; flex-direction: column; gap: 8px;`;
 const Row = styled.article`
@@ -343,32 +343,32 @@ const Row = styled.article`
 `;
 const RowLeft = styled.div`flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0;`;
 const RowTop = styled.div`display: flex; gap: 8px; align-items: center;`;
-const BizName = styled.div`font-size: 14px; font-weight: 700; color: #0F172A;`;
+const BizName = styled.div`font-size: 0.875rem; font-weight: 700; color: #0F172A;`;
 const StatusBadge = styled.span<{ $bg: string; $fg: string }>`
-  padding: 2px 8px; font-size: 11px; font-weight: 700;
+  padding: 2px 8px; font-size: 0.6875rem; font-weight: 700;
   background: ${p => p.$bg}; color: ${p => p.$fg}; border-radius: 4px;
 `;
 const RowMeta = styled.div`display: flex; gap: 6px; flex-wrap: wrap; align-items: center;`;
 const Tag = styled.span`
-  padding: 2px 8px; font-size: 11px; font-weight: 600;
+  padding: 2px 8px; font-size: 0.6875rem; font-weight: 600;
   background: #F0FDFA; color: #0F766E; border-radius: 4px;
 `;
-const Amount = styled.span`font-size: 13px; color: #0F172A; font-weight: 700;`;
+const Amount = styled.span`font-size: 0.8125rem; color: #0F172A; font-weight: 700;`;
 const RowDates = styled.div`
   display: flex; gap: 12px; flex-wrap: wrap;
-  font-size: 11px; color: #94A3B8;
+  font-size: 0.6875rem; color: #94A3B8;
 `;
-const Reason = styled.div`font-size: 12px; color: #64748B; font-style: italic; margin-top: 2px;`;
+const Reason = styled.div`font-size: 0.75rem; color: #64748B; font-style: italic; margin-top: 2px;`;
 const RowRight = styled.div`display: flex; gap: 8px; flex-shrink: 0;`;
 const DangerBtn = styled.button`
-  padding: 8px 14px; font-size: 13px; font-weight: 600;
+  padding: 8px 14px; font-size: 0.8125rem; font-weight: 600;
   background: #FFFFFF; color: #DC2626;
   border: 1px solid #FECACA; border-radius: 8px; cursor: pointer;
   &:hover:not(:disabled) { background: #FEF2F2; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 const PrimaryBtn = styled.button`
-  padding: 8px 14px; font-size: 13px; font-weight: 600;
+  padding: 8px 14px; font-size: 0.8125rem; font-weight: 600;
   background: #14B8A6; color: #FFFFFF;
   border: 0; border-radius: 8px; cursor: pointer;
   &:hover:not(:disabled) { background: #0D9488; }

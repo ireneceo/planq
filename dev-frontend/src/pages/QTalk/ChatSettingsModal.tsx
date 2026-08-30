@@ -295,7 +295,7 @@ const Header = styled.div`
   display: flex; align-items: center; justify-content: space-between;
   padding: 16px 20px; border-bottom: 1px solid #F1F5F9;
 `;
-const Title = styled.h2`font-size:16px;font-weight:700;color:#0F172A;margin:0;`;
+const Title = styled.h2`font-size:1rem;font-weight:700;color:#0F172A;margin:0;`;
 const CloseBtn = styled.button`
   /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */
   @media (max-width: 640px) { min-width: 44px; min-height: 44px; }
@@ -306,39 +306,39 @@ const CloseBtn = styled.button`
 `;
 const Body = styled.div`flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:20px;`;
 const Section = styled.section`display:flex;flex-direction:column;gap:8px;`;
-const SectionTitle = styled.h3`font-size:13px;font-weight:700;color:#0F172A;margin:0 0 4px;`;
+const SectionTitle = styled.h3`font-size:0.8125rem;font-weight:700;color:#0F172A;margin:0 0 4px;`;
 const ReadRow = styled.div`display:flex;justify-content:space-between;align-items:center;`;
-const ReadLabel = styled.div`font-size:12px;font-weight:600;color:#334155;`;
-const ReadValue = styled.div`font-size:13px;color:#0F172A;`;
-const ReadHint = styled.div`font-size:11px;color:#94A3B8;line-height:1.5;`;
+const ReadLabel = styled.div`font-size:0.75rem;font-weight:600;color:#334155;`;
+const ReadValue = styled.div`font-size:0.8125rem;color:#0F172A;`;
+const ReadHint = styled.div`font-size:0.6875rem;color:#94A3B8;line-height:1.5;`;
 const ToggleRow = styled.div`display:flex;flex-direction:column;gap:4px;`;
 const ToggleLabel = styled.label`
-  display:inline-flex;align-items:center;gap:8px;font-size:13px;color:#0F172A;cursor:pointer;
+  display:inline-flex;align-items:center;gap:8px;font-size:0.8125rem;color:#0F172A;cursor:pointer;
   input{width:32px;height:18px;}
 `;
-const ToggleHint = styled.div`font-size:11px;color:#94A3B8;line-height:1.5;`;
+const ToggleHint = styled.div`font-size:0.6875rem;color:#94A3B8;line-height:1.5;`;
 const LangRow = styled.div`display:flex;align-items:flex-end;gap:8px;`;
 const LangCol = styled.div`flex:1;display:flex;flex-direction:column;gap:4px;`;
-const LangSep = styled.div`font-size:14px;color:#94A3B8;padding-bottom:8px;`;
-const ErrorMsg = styled.div`font-size:12px;color:#DC2626;background:#FEF2F2;padding:8px 10px;border-radius:6px;border:1px solid #FECACA;`;
+const LangSep = styled.div`font-size:0.875rem;color:#94A3B8;padding-bottom:8px;`;
+const ErrorMsg = styled.div`font-size:0.75rem;color:#DC2626;background:#FEF2F2;padding:8px 10px;border-radius:6px;border:1px solid #FECACA;`;
 const MemberList = styled.div`display:flex;flex-direction:column;gap:6px;`;
 const MemberRow = styled.div`
   display:flex;justify-content:space-between;align-items:center;
   padding:8px 12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;
 `;
 const MemberInfo = styled.div`display:flex;flex-direction:column;gap:2px;`;
-const MemberName = styled.div`font-size:13px;font-weight:600;color:#0F172A;display:flex;align-items:center;gap:6px;`;
-const MemberEmail = styled.div`font-size:11px;color:#64748B;`;
-const Empty = styled.div`text-align:center;padding:14px;color:#94A3B8;font-size:12px;`;
+const MemberName = styled.div`font-size:0.8125rem;font-weight:600;color:#0F172A;display:flex;align-items:center;gap:6px;`;
+const MemberEmail = styled.div`font-size:0.6875rem;color:#64748B;`;
+const Empty = styled.div`text-align:center;padding:14px;color:#94A3B8;font-size:0.75rem;`;
 const RoleTag = styled.span<{ $kind: 'client' | 'ai' }>`
-  font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;
+  font-size:0.625rem;font-weight:700;padding:1px 7px;border-radius:999px;
   ${p => p.$kind === 'client'
     ? 'background:#F0FDFA;color:#0F766E;'
     : 'background:#FEF2F2;color:#B91C1C;'}
 `;
 const PendingNote = styled.div`
   margin-top:10px;padding:10px 12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;
-  font-size:11px;color:#64748B;line-height:1.6;
+  font-size:0.6875rem;color:#64748B;line-height:1.6;
 `;
 const PendingList = styled.div`
   display:flex;flex-direction:column;gap:2px;margin-top:6px;font-weight:600;color:#475569;
@@ -346,18 +346,18 @@ const PendingList = styled.div`
 const InviteRow = styled.div`display:flex;gap:6px;align-items:flex-start;`;
 const PrimaryBtn = styled.button`
   height:32px;padding:0 14px;background:#14B8A6;color:#fff;border:none;
-  border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;
+  border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer;
   &:hover:not(:disabled){background:#0D9488;}
   &:disabled{background:#CBD5E1;cursor:not-allowed;}
 `;
 const SecondaryBtn = styled.button`
   height:32px;padding:0 14px;background:#fff;color:#334155;border:1px solid #E2E8F0;
-  border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;
+  border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer;
   &:hover:not(:disabled){border-color:#CBD5E1;background:#F8FAFC;}
 `;
 const DangerBtn = styled.button`
   height:28px;padding:0 10px;background:#fff;color:#DC2626;border:1px solid #FECACA;
-  border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;
+  border-radius:6px;font-size:0.6875rem;font-weight:600;cursor:pointer;
   &:hover:not(:disabled){background:#FEF2F2;}
   &:disabled{opacity:.4;cursor:not-allowed;}
 `;

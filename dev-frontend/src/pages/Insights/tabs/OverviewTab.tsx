@@ -92,10 +92,10 @@ const OverviewTab: React.FC<{ businessId: number; range: RangePreset; segment?: 
           <ResponsiveContainer width="100%" height={320}>
             <LineChart data={data.trend} margin={{ top: 16, right: 24, bottom: 8, left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#64748B' }} />
-              <YAxis tick={{ fontSize: 11, fill: '#64748B' }} tickFormatter={(v) => fmtMoney(v, home)} />
+              <XAxis dataKey="month" tick={{ fontSize: '0.6875rem', fill: '#64748B' }} />
+              <YAxis tick={{ fontSize: '0.6875rem', fill: '#64748B' }} tickFormatter={(v) => fmtMoney(v, home)} />
               <Tooltip formatter={(v) => fmtMoney(typeof v === 'number' ? v : Number(v), home)} />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Legend wrapperStyle={{ fontSize: '0.6875rem' }} />
               <Line type="monotone" dataKey="revenue" name={t('overview.chart.trend.revenue', '매출') as string} stroke="#14B8A6" strokeWidth={2} />
               <Line type="monotone" dataKey="profit" name={t('overview.chart.trend.profit', '이익') as string} stroke="#F43F5E" strokeWidth={2} />
             </LineChart>

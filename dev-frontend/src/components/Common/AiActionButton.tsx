@@ -61,7 +61,7 @@ const Btn = styled.button<{ $size: 'sm' | 'md' }>`
   padding: 0 ${(p) => (p.$size === 'md' ? 16 : 12)}px;
   display: inline-flex; align-items: center; justify-content: center;
   gap: ${(p) => (p.$size === 'md' ? 6 : 4)}px;
-  font-size: ${(p) => (p.$size === 'md' ? 13 : 12)}px;
+  font-size: ${(p) => (p.$size === 'md' ? 13 : 12) / 16}rem;
   font-weight: 700; color: #fff; white-space: nowrap;
   background: linear-gradient(135deg, #F43F5E 0%, #BE185D 100%);
   border: none; border-radius: 8px; cursor: pointer;

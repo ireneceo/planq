@@ -285,7 +285,7 @@ export default function AttendancePageBoundary() {
 const Tabs = styled.div` display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid #E2E8F0; `;
 const TabBtn = styled.button<{ $on: boolean }>`
   padding: 8px 14px; background: transparent; border: none; cursor: pointer;
-  font-size: 13px; font-weight: ${p => (p.$on ? 700 : 500)};
+  font-size: 0.8125rem; font-weight: ${p => (p.$on ? 700 : 500)};
   color: ${p => (p.$on ? '#0F172A' : '#64748B')};
   border-bottom: 2px solid ${p => (p.$on ? '#F43F5E' : 'transparent')};
   margin-bottom: -1px;
@@ -298,21 +298,21 @@ const WidgetSlot = styled.div` flex: 1 1 280px; min-width: 0; `;
 const SummaryChip = styled.div`
   display: flex; align-items: center; padding: 14px 16px;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px;
-  font-size: 13px; font-weight: 600; color: #334155;
+  font-size: 0.8125rem; font-weight: 600; color: #334155;
 `;
 const BalanceCard = styled.div`
   display: flex; flex-direction: column; gap: 12px; padding: 16px;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 12px; margin-bottom: 16px;
 `;
-const BalanceTitle = styled.div` font-size: 13px; font-weight: 700; color: #0F172A; `;
+const BalanceTitle = styled.div` font-size: 0.8125rem; font-weight: 700; color: #0F172A; `;
 const BalanceRow = styled.div` display: flex; gap: 20px; flex-wrap: wrap; `;
 const BalanceItem = styled.div<{ $accent?: boolean }>`
   display: flex; flex-direction: column; gap: 2px;
-  span { font-size: 11px; color: #64748B; }
-  b { font-size: 20px; font-weight: 700; color: ${p => (p.$accent ? '#F43F5E' : '#0F172A')}; }
+  span { font-size: 0.6875rem; color: #64748B; }
+  b { font-size: 1.25rem; font-weight: 700; color: ${p => (p.$accent ? '#F43F5E' : '#0F172A')}; }
 `;
 const StatusBadge = styled.span<{ $s: string }>`
-  padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap;
+  padding: 3px 9px; border-radius: 999px; font-size: 0.6875rem; font-weight: 700; white-space: nowrap;
   background: ${p => ({ pending: '#FEF3C7', approved: '#DCFCE7', rejected: '#FEE2E2', canceled: '#F1F5F9' }[p.$s] || '#F1F5F9')};
   color: ${p => ({ pending: '#92400E', approved: '#166534', rejected: '#991B1B', canceled: '#64748B' }[p.$s] || '#64748B')};
 `;
@@ -329,6 +329,6 @@ const SettingCheck = styled.input`
 `;
 const SettingText = styled.label`
   display: flex; flex-direction: column; gap: 2px; cursor: pointer;
-  b { font-size: 13px; font-weight: 600; color: #0F172A; }
-  span { font-size: 11px; color: #64748B; line-height: 1.45; }
+  b { font-size: 0.8125rem; font-weight: 600; color: #0F172A; }
+  span { font-size: 0.6875rem; color: #64748B; line-height: 1.45; }
 `;

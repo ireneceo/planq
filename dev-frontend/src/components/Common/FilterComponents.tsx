@@ -26,7 +26,7 @@ const CommonSearchInput = styled.input`
   padding: 12px 16px;
   border: 1px solid #E6EBF1;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 0.875rem;
   background: white;
   &::placeholder { color: #9CA3AF; }
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1); }
@@ -65,7 +65,7 @@ const CommonFilterSelect = styled.select`
   padding: 12px 16px;
   border: 1px solid #E6EBF1;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 0.875rem;
   background: white;
   cursor: pointer;
   min-width: 140px;
@@ -73,7 +73,7 @@ const CommonFilterSelect = styled.select`
   flex-shrink: 0;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1); }
   &:disabled { background: #F8FAFC; color: #6B7280; cursor: not-allowed; }
-  @media (max-width: 600px) { width: 100%; min-width: 100%; max-width: 100%; padding: 12px 16px; font-size: 14px; }
+  @media (max-width: 600px) { width: 100%; min-width: 100%; max-width: 100%; padding: 12px 16px; font-size: 0.875rem; }
 `;
 
 interface CommonFilterBarProps {

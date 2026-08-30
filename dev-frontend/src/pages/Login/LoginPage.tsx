@@ -88,7 +88,7 @@ const BrandLogo = styled.img`
 
 const BrandDescription = styled.p`
   color: rgba(204, 251, 241, 0.6);
-  font-size: 13px;
+  font-size: 0.8125rem;
   margin-top: 24px;
   max-width: 260px;
   line-height: 1.5;
@@ -112,14 +112,14 @@ const RightSection = styled.div`
 `;
 
 const FormTitle = styled.h2`
-  font-size: 24px;
+  font-size: 1.5rem;
   font-weight: 700;
   color: #0F172A;
   margin: 0 0 8px 0;
 `;
 
 const FormSubtitle = styled.p`
-  font-size: 14px;
+  font-size: 0.875rem;
   color: #475569;
   margin: 0 0 32px 0;
 `;
@@ -129,10 +129,10 @@ const RecoverBanner = styled.div`
   background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px;
   padding: 14px 16px; margin: 0 0 20px;
 `;
-const RecoverText = styled.p`font-size: 13px; color: #92400e; margin: 0; line-height: 1.5;`;
+const RecoverText = styled.p`font-size: 0.8125rem; color: #92400e; margin: 0; line-height: 1.5;`;
 const RecoverBtn = styled.button`
   align-self: flex-start; height: 38px; padding: 0 16px; border-radius: 8px;
-  border: none; background: #d97706; color: #fff; font-size: 13px; font-weight: 700; cursor: pointer;
+  border: none; background: #d97706; color: #fff; font-size: 0.8125rem; font-weight: 700; cursor: pointer;
   &:hover:not(:disabled) { background: #b45309; }
   &:disabled { opacity: 0.6; cursor: not-allowed; }
 `;
@@ -152,7 +152,7 @@ const Input = styled.input`
   padding: 14px 16px;
   border: 1px solid #E2E8F0;
   border-radius: 50px;
-  font-size: 16px;
+  font-size: 1rem;
   transition: all 0.2s;
   width: 100%;
   box-sizing: border-box;
@@ -210,7 +210,7 @@ const Button = styled.button`
   color: white;
   border: none;
   border-radius: 50px;
-  font-size: 16px;
+  font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
@@ -240,7 +240,7 @@ const ErrorMessage = styled.div`
   color: #DC2626;
   padding: 12px 16px;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 0.875rem;
   border: 1px solid #FEE2E2;
 `;
 
@@ -258,7 +258,7 @@ const RememberCheckbox = styled.input`
   margin: 0;
 `;
 const RememberLabel = styled.label`
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 500;
   color: #334155;
   cursor: pointer;
@@ -266,7 +266,7 @@ const RememberLabel = styled.label`
 `;
 const RememberHint = styled.p`
   margin: -16px 0 0 24px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #94A3B8;
   line-height: 1.4;
 `;
@@ -280,7 +280,7 @@ const DevPanel = styled.div`
 `;
 
 const DevPanelTitle = styled.div`
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   color: #9A3412;
   margin-bottom: 4px;
@@ -289,7 +289,7 @@ const DevPanelTitle = styled.div`
 `;
 
 const DevPanelHint = styled.div`
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #9A3412;
   opacity: 0.8;
   margin-bottom: 12px;
@@ -311,19 +311,19 @@ const DevRoleBtn = styled.button`
   border-radius: 8px;
   cursor: pointer;
   text-align: left;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #0F172A;
   transition: all 0.15s;
 
   strong {
     font-weight: 600;
     color: #0F172A;
-    font-size: 12px;
+    font-size: 0.75rem;
     margin-bottom: 1px;
   }
   span {
     color: #64748B;
-    font-size: 10px;
+    font-size: 0.625rem;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   }
 
@@ -349,7 +349,7 @@ const BottomLinks = styled.div`
   flex-direction: column;
   gap: 10px;
   align-items: center;
-  font-size: 14px;
+  font-size: 0.875rem;
   color: #475569;
 
   a {

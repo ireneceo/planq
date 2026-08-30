@@ -523,7 +523,7 @@ const CalendarView: React.FC<{ tasks: TaskRow[]; onOpen: (id: number) => void; t
         <CalNavBtn onClick={() => setAnchorDate(new Date(year, month - 1, 1))}>‹</CalNavBtn>
         <CalTitle>{tp('calHeader.monthYear', { year, month: month + 1 })}</CalTitle>
         <CalNavBtn onClick={() => setAnchorDate(new Date(year, month + 1, 1))}>›</CalNavBtn>
-        <CalNavBtn onClick={() => setAnchorDate(new Date())} style={{ marginLeft: 'auto', fontSize: 11 }}>{tp('cal.today', '오늘')}</CalNavBtn>
+        <CalNavBtn onClick={() => setAnchorDate(new Date())} style={{ marginLeft: 'auto', fontSize: '0.6875rem' }}>{tp('cal.today', '오늘')}</CalNavBtn>
       </CalHead>
       <CalGrid>
         {[tp('cal.sun', '일'), tp('cal.mon', '월'), tp('cal.tue', '화'), tp('cal.wed', '수'), tp('cal.thu', '목'), tp('cal.fri', '금'), tp('cal.sat', '토')].map(w => <CalDow key={w}>{w}</CalDow>)}
@@ -559,43 +559,43 @@ void CalendarPicker; // keep import (future date pickers)
 const Wrap = styled.div``;
 const Toolbar = styled.div`display:flex;align-items:center;gap:8px;margin-bottom:12px;`;
 const ViewTabs = styled.div`display:inline-flex;background:#F1F5F9;padding:3px;border-radius:8px;gap:2px;`;
-const ViewBtn = styled.button<{$active?:boolean}>`padding:6px 14px;border:none;background:${p=>p.$active?'#FFF':'transparent'};color:${p=>p.$active?'#0F766E':'#64748B'};border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;box-shadow:${p=>p.$active?'0 1px 2px rgba(0,0,0,0.06)':'none'};&:hover{color:#0F766E;}`;
+const ViewBtn = styled.button<{$active?:boolean}>`padding:6px 14px;border:none;background:${p=>p.$active?'#FFF':'transparent'};color:${p=>p.$active?'#0F766E':'#64748B'};border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer;box-shadow:${p=>p.$active?'0 1px 2px rgba(0,0,0,0.06)':'none'};&:hover{color:#0F766E;}`;
 const ToolbarRight = styled.div`margin-left:auto;display:inline-flex;align-items:center;gap:6px;`;
 const TemplateBtn = styled.button`
   display:inline-flex;align-items:center;gap:6px;
   height:32px;padding:0 12px;
   background:#F0FDFA;color:#0F766E;
   border:1px solid #14B8A6;border-radius:8px;
-  font-size:12px;font-weight:600;cursor:pointer;
+  font-size:0.75rem;font-weight:600;cursor:pointer;
   transition:background 0.15s,color 0.15s;
   &:hover{background:#14B8A6;color:#FFF;}
 `;
 // 헤더 생성 버튼 규격 = ActionButton sm (h36)
-const AddTaskBtn = styled.button`display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;&:hover{background:#0D9488;}`;
+const AddTaskBtn = styled.button`display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:0.8125rem;font-weight:700;cursor:pointer;white-space:nowrap;&:hover{background:#0D9488;}`;
 
 const AddForm = styled.div`display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;padding:10px;background:#F8FAFC;border:1px solid #14B8A6;border-radius:10px;margin-bottom:12px;`;
-const AddInput = styled.input`flex:2 1 220px;min-width:180px;height:32px;padding:0 10px;border:1px solid #14B8A6;border-radius:6px;font-size:13px;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
+const AddInput = styled.input`flex:2 1 220px;min-width:180px;height:32px;padding:0 10px;border:1px solid #14B8A6;border-radius:6px;font-size:0.8125rem;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
 const AddOptRow = styled.div`display:contents;`;
 const AddOptField = styled.div`flex:1 1 130px;min-width:120px;display:flex;flex-direction:column;gap:2px;`;
-const AddOptLabel = styled.label`font-size:10px;color:#64748B;font-weight:600;text-transform:uppercase;letter-spacing:0.3px;`;
-const AddDateInput = styled.input`height:32px;padding:0 10px;font-size:13px;color:#0F172A;border:1px solid #E2E8F0;border-radius:6px;background:#FFF;font-family:inherit;&:focus{outline:none;border-color:#14B8A6;}`;
+const AddOptLabel = styled.label`font-size:0.625rem;color:#64748B;font-weight:600;text-transform:uppercase;letter-spacing:0.3px;`;
+const AddDateInput = styled.input`height:32px;padding:0 10px;font-size:0.8125rem;color:#0F172A;border:1px solid #E2E8F0;border-radius:6px;background:#FFF;font-family:inherit;&:focus{outline:none;border-color:#14B8A6;}`;
 // 반복 선택기는 자체 배경 카드를 갖고 있어 폼 폭을 통째로 쓴다(행 안에 끼우면 눌린다)
 const RecurSlot = styled.div`flex:1 1 100%;min-width:0;`;
 const AddDescArea = styled.textarea`
-  width:100%;min-width:0;box-sizing:border-box;padding:8px 10px;font-size:13px;line-height:1.5;color:#0F172A;
+  width:100%;min-width:0;box-sizing:border-box;padding:8px 10px;font-size:0.8125rem;line-height:1.5;color:#0F172A;
   border:1px solid #E2E8F0;border-radius:6px;background:#FFF;font-family:inherit;resize:vertical;
   &::placeholder{color:#94A3B8;}
   &:focus{outline:none;border-color:#14B8A6;}
 `;
 const AddBtnRow = styled.div`display:flex;justify-content:flex-end;gap:6px;flex:0 0 auto;`;
-const CancelBtn = styled.button`padding:6px 12px;background:#FFF;color:#64748B;border:1px solid #E2E8F0;border-radius:6px;font-size:13px;cursor:pointer;&:hover{background:#F8FAFC;}`;
-const SaveBtn = styled.button`padding:6px 14px;background:#14B8A6;color:#FFF;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
+const CancelBtn = styled.button`padding:6px 12px;background:#FFF;color:#64748B;border:1px solid #E2E8F0;border-radius:6px;font-size:0.8125rem;cursor:pointer;&:hover{background:#F8FAFC;}`;
+const SaveBtn = styled.button`padding:6px 14px;background:#14B8A6;color:#FFF;border:none;border-radius:6px;font-size:0.8125rem;font-weight:700;cursor:pointer;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
 
 // List — Q Task 스타일
-const DateTrigger = styled.button`width:100%;height:32px;padding:0 10px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;color:#0F172A;background:#FFF;font-family:inherit;text-align:left;cursor:pointer;&:hover{border-color:#14B8A6;}`;
+const DateTrigger = styled.button`width:100%;height:32px;padding:0 10px;border:1px solid #E2E8F0;border-radius:6px;font-size:0.75rem;color:#0F172A;background:#FFF;font-family:inherit;text-align:left;cursor:pointer;&:hover{border-color:#14B8A6;}`;
 const DatePlaceholder = styled.span`color:#94A3B8;`;
 const TableWrap = styled.div`background:#FFF;border:1px solid #E2E8F0;border-radius:8px;overflow-x:auto;overflow-y:hidden;&::-webkit-scrollbar{height:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
-const BottomAddLink = styled.button`margin-top:10px;padding:8px 14px;background:transparent;color:#94A3B8;border:none;font-size:13px;font-weight:500;cursor:pointer;text-align:left;display:block;font-family:inherit;&:hover{color:#0F766E;}`;
+const BottomAddLink = styled.button`margin-top:10px;padding:8px 14px;background:transparent;color:#94A3B8;border:none;font-size:0.8125rem;font-weight:500;cursor:pointer;text-align:left;display:block;font-family:inherit;&:hover{color:#0F766E;}`;
 const BottomAddSlot = styled.div`margin-top:16px;`;
 const AddBackdrop = styled.div`
   position:fixed;inset:0;background:rgba(15, 23, 42, 0.08);
@@ -615,18 +615,18 @@ const AddDrawer = styled.aside`
   @media (prefers-reduced-motion: reduce){animation:none;}
 `;
 const AddDrawerHeader = styled.div`height:60px;padding:14px 20px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;`;
-const AddDrawerTitle = styled.h2`font-size:14px;font-weight:700;color:#0F172A;margin:0;`;
+const AddDrawerTitle = styled.h2`font-size:0.875rem;font-weight:700;color:#0F172A;margin:0;`;
 const AddDrawerClose = styled.button`width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#64748B;cursor:pointer;&:hover{background:#F1F5F9;color:#0F172A;}`;
 const AddDrawerBody = styled.div`flex:1;overflow-y:auto;padding:16px;`;
-const EmptyBox = styled.div`padding:40px;text-align:center;color:#94A3B8;font-size:13px;background:#FFF;border:1px solid #E2E8F0;border-radius:8px;`;
+const EmptyBox = styled.div`padding:40px;text-align:center;color:#94A3B8;font-size:0.8125rem;background:#FFF;border:1px solid #E2E8F0;border-radius:8px;`;
 
 // Timeline
 const TLWrap = styled.div`background:#FFF;border:1px solid #E2E8F0;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:4px;`;
 const TLHeadRow = styled.div`display:flex;align-items:center;gap:8px;border-bottom:1px solid #E2E8F0;padding-bottom:6px;margin-bottom:4px;`;
 const TLLabelCol = styled.div`width:220px;flex-shrink:0;display:flex;flex-direction:column;gap:3px;padding:2px 8px 2px 0;cursor:pointer;min-height:22px;&:hover > *:first-child{color:#0F766E;}`;
-const TLTitle = styled.div`font-size:12px;font-weight:600;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
-const TLMeta = styled.div`display:flex;align-items:center;gap:6px;font-size:10px;color:#94A3B8;`;
-const StatusPillSm = styled.span<{ $bg:string; $fg:string }>`padding:1px 6px;background:${p=>p.$bg};color:${p=>p.$fg};font-size:9px;font-weight:600;border-radius:6px;`;
+const TLTitle = styled.div`font-size:0.75rem;font-weight:600;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
+const TLMeta = styled.div`display:flex;align-items:center;gap:6px;font-size:0.625rem;color:#94A3B8;`;
+const StatusPillSm = styled.span<{ $bg:string; $fg:string }>`padding:1px 6px;background:${p=>p.$bg};color:${p=>p.$fg};font-size:0.5625rem;font-weight:600;border-radius:6px;`;
 const TLAssignee = styled.span`color:#64748B;`;
 const TLProgress = styled.span`font-weight:600;color:#475569;margin-left:auto;`;
 const TLRow = styled.div`display:flex;align-items:center;gap:8px;padding:4px 0;&:hover{background:#F8FAFC;}`;
@@ -634,11 +634,11 @@ const TLRow = styled.div`display:flex;align-items:center;gap:8px;padding:4px 0;&
 // Calendar
 const CalWrap = styled.div`background:#FFF;border:1px solid #E2E8F0;border-radius:8px;padding:12px;`;
 const CalHead = styled.div`display:flex;align-items:center;gap:8px;margin-bottom:10px;`;
-const CalTitle = styled.div`font-size:14px;font-weight:700;color:#0F172A;`;
-const CalNavBtn = styled.button`padding:4px 10px;background:#F1F5F9;border:none;border-radius:6px;cursor:pointer;font-size:13px;color:#475569;&:hover{background:#E2E8F0;}`;
+const CalTitle = styled.div`font-size:0.875rem;font-weight:700;color:#0F172A;`;
+const CalNavBtn = styled.button`padding:4px 10px;background:#F1F5F9;border:none;border-radius:6px;cursor:pointer;font-size:0.8125rem;color:#475569;&:hover{background:#E2E8F0;}`;
 const CalGrid = styled.div`display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:#E2E8F0;border:1px solid #E2E8F0;border-radius:6px;overflow:hidden;`;
-const CalDow = styled.div`background:#F8FAFC;padding:8px;font-size:11px;font-weight:700;color:#64748B;text-align:center;`;
+const CalDow = styled.div`background:#F8FAFC;padding:8px;font-size:0.6875rem;font-weight:700;color:#64748B;text-align:center;`;
 const CalCell = styled.div<{$off?:boolean;$today?:boolean}>`background:${p=>p.$off?'#FAFBFC':p.$today?'#F0FDFA':'#FFF'};min-height:80px;padding:4px;display:flex;flex-direction:column;gap:2px;`;
-const CalDate = styled.div`font-size:11px;font-weight:600;color:#475569;margin-bottom:2px;`;
-const CalTaskDot = styled.div`padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;&:hover{filter:brightness(0.95);}`;
-const CalMore = styled.div`font-size:10px;color:#94A3B8;padding-left:4px;`;
+const CalDate = styled.div`font-size:0.6875rem;font-weight:600;color:#475569;margin-bottom:2px;`;
+const CalTaskDot = styled.div`padding:2px 6px;border-radius:4px;font-size:0.625rem;font-weight:600;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;&:hover{filter:brightness(0.95);}`;
+const CalMore = styled.div`font-size:0.625rem;color:#94A3B8;padding-left:4px;`;

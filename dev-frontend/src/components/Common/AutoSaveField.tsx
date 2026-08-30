@@ -43,7 +43,7 @@ const ListBadge = styled.div<{ $fading: boolean }>`${badgeBase} position: absolu
 const SavedPill = styled.span`
   display: inline-flex; align-items: center; justify-content: center;
   background: #D1FAE5; color: #065F46; border-radius: 50%;
-  width: 22px; height: 22px; font-size: 13px; font-weight: 700;
+  width: 22px; height: 22px; font-size: 0.8125rem; font-weight: 700;
 `;
 
 const Spinner = styled.span`
@@ -55,7 +55,7 @@ const Spinner = styled.span`
 const ErrorPill = styled.span`
   display: inline-flex; align-items: center; justify-content: center;
   background: #EF4444; color: white; border-radius: 50%;
-  width: 20px; height: 20px; font-size: 12px; font-weight: 700;
+  width: 20px; height: 20px; font-size: 0.75rem; font-weight: 700;
 `;
 
 const AutoSaveField = forwardRef<AutoSaveHandle, AutoSaveFieldProps>(({

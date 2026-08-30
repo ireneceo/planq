@@ -207,18 +207,18 @@ const Body = styled.div`
   min-width: 0; flex: 1 1 auto;
   display: flex; flex-direction: column; gap: 2px;
 `;
-const Title = styled.div`font-size: 13px; font-weight: 700; color: #9A3412; line-height: 1.3;
-  @media (max-width: 640px) { font-size: 12.5px; }`;
-const Desc = styled.div`font-size: 12px; color: #7C2D12; line-height: 1.4;
+const Title = styled.div`font-size: 0.8125rem; font-weight: 700; color: #9A3412; line-height: 1.3;
+  @media (max-width: 640px) { font-size: 0.78125rem; }`;
+const Desc = styled.div`font-size: 0.75rem; color: #7C2D12; line-height: 1.4;
   /* ★ 폰에서는 설명을 접는다 — 3줄짜리 안내가 화면 상단 250px 를 먹어 정작 페이지가 안 보였다
      (2026-08-25 실측 스크린샷). 제목과 버튼만 남기면 ~90px 로 줄어든다.
      내용은 '알림 설정' 링크에서 그대로 볼 수 있다. */
   @media (max-width: 640px) { display: none; }`;
-const Err = styled.div`font-size: 11px; color: #B91C1C; margin-top: 4px;`;
+const Err = styled.div`font-size: 0.6875rem; color: #B91C1C; margin-top: 4px;`;
 const CtaBtn = styled.button`
   height: 32px; padding: 0 14px;
   background: #14B8A6; color: #FFFFFF; border: none; border-radius: 8px;
-  font-size: 12px; font-weight: 600; cursor: pointer;
+  font-size: 0.75rem; font-weight: 600; cursor: pointer;
   transition: background 0.15s;
   &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -228,7 +228,7 @@ const SettingsLink = styled(ChromeLink)`
   display: inline-flex; align-items: center;
   background: transparent; color: #9A3412;
   border: 1px solid #FED7AA; border-radius: 8px;
-  font-size: 12px; font-weight: 600; text-decoration: none;
+  font-size: 0.75rem; font-weight: 600; text-decoration: none;
   transition: background 0.15s;
   &:hover { background: #FFEDD5; }
 `;
@@ -238,7 +238,7 @@ const CloseBtn = styled.button`
 
   width: 28px; height: 28px; flex-shrink: 0;
   background: transparent; border: none; cursor: pointer;
-  color: #C2410C; font-size: 18px; line-height: 1;
+  color: #C2410C; font-size: 1.125rem; line-height: 1;
   display: flex; align-items: center; justify-content: center;
   border-radius: 4px;
   &:hover { background: #FED7AA; }

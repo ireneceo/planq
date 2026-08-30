@@ -129,7 +129,7 @@ const CodeWrap = styled.div`
     background: transparent !important;
     border-radius: 0 !important;
     overflow-x: auto;
-    font-size: 12.5px;
+    font-size: 0.78125rem;
     line-height: 1.6;
   }
   pre code {
@@ -159,7 +159,7 @@ const LangBtn = styled.button`
   background: transparent;
   border: none;
   color: #94A3B8;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
   font-weight: 600;
   cursor: pointer;
@@ -195,7 +195,7 @@ const LangOption = styled.button<{ $active?: boolean }>`
   color: ${p => p.$active ? '#5EEAD4' : '#CBD5E1'};
   border: none;
   border-radius: 5px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
   font-weight: 600;
   cursor: pointer;
@@ -210,7 +210,7 @@ const CopyBtn = styled.button.attrs({ className: 'pq-copy' })`
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.08);
   color: #CBD5E1;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   font-family: inherit;
   border-radius: 6px;

@@ -22,7 +22,7 @@ const Row = styled.div`
 const Trailing = styled.span`margin-left:auto; display:inline-flex; align-items:center;`;
 const Chip = styled.button<{ $active: boolean }>`
   height: 28px; padding: 0 10px;
-  font-size: 12px; font-weight: ${p => (p.$active ? 700 : 600)};
+  font-size: 0.75rem; font-weight: ${p => (p.$active ? 700 : 600)};
   color: ${p => (p.$active ? '#0F766E' : '#64748B')};
   background: ${p => (p.$active ? '#F0FDFA' : 'transparent')};
   border: 1px solid ${p => (p.$active ? '#99F6E4' : '#E2E8F0')};

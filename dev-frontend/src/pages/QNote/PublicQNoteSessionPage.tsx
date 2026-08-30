@@ -187,14 +187,14 @@ const Brand = styled.img`display:block;width:120px;height:auto;user-select:none;
 const ToolbarSpacer = styled.div`flex:1;`;
 const PrintBtn = styled.button`
   display: inline-flex; align-items: center; min-height: 44px;
-  padding: 8px 16px; font-size: 13px; font-weight: 600; color: #334155;
+  padding: 8px 16px; font-size: 0.8125rem; font-weight: 600; color: #334155;
   border: 1px solid #E2E8F0; border-radius: 8px; background: #FFF; cursor: pointer;
   &:hover { border-color: #14B8A6; color: #0F766E; }
 `;
 const PromoBar = styled.div`
   display: flex; align-items: center; gap: 14px;
   padding: 9px 24px; background: #F0FDFA; border-bottom: 1px solid #99F6E4;
-  font-size: 12px; color: #475569;
+  font-size: 0.75rem; color: #475569;
   @media print { display: none !important; }
 `;
 const PromoText = styled.span`flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
@@ -205,26 +205,26 @@ const PromoLink = styled.a`
 const DocFrame = styled.article`
   max-width: 820px; margin: 32px auto; background: #FFF; border: 1px solid #E2E8F0;
   border-radius: 12px; padding: 48px 56px; box-shadow: 0 4px 12px rgba(0,0,0,0.04);
-  font-size: 14px; line-height: 1.7; color: #0F172A;
+  font-size: 0.875rem; line-height: 1.7; color: #0F172A;
   @media print { border: none; box-shadow: none; padding: 0; margin: 0; max-width: 100%; }
   @media (max-width: 640px) { padding: 24px 20px; margin: 16px; }
 `;
-const DocTitle = styled.h1`font-size: 24px; font-weight: 700; color: #0F172A; margin: 0 0 6px 0;`;
-const DocMeta = styled.div`font-size: 12px; color: #64748B; margin: 0 0 16px 0;`;
+const DocTitle = styled.h1`font-size: 1.5rem; font-weight: 700; color: #0F172A; margin: 0 0 6px 0;`;
+const DocMeta = styled.div`font-size: 0.75rem; color: #64748B; margin: 0 0 16px 0;`;
 const ParticipantsRow = styled.div`display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px;`;
 const ParticipantPill = styled.span`
-  padding: 4px 10px; font-size: 12px; font-weight: 500; color: #334155;
+  padding: 4px 10px; font-size: 0.75rem; font-weight: 500; color: #334155;
   background: #F1F5F9; border-radius: 999px;
 `;
 const ParticipantRole = styled.span`margin-left: 6px; color: #64748B; font-weight: 400;`;
 const Section = styled.section`margin-top: 28px; padding-top: 16px; border-top: 1px solid #E2E8F0;`;
-const SectionTitle = styled.h2`font-size: 14px; font-weight: 700; color: #0F172A; margin: 0 0 10px 0;`;
-const SectionBody = styled.div`font-size: 13px; color: #334155; line-height: 1.7;`;
+const SectionTitle = styled.h2`font-size: 0.875rem; font-weight: 700; color: #0F172A; margin: 0 0 10px 0;`;
+const SectionBody = styled.div`font-size: 0.8125rem; color: #334155; line-height: 1.7;`;
 const SummaryLine = styled.div`margin-bottom: 4px; &::before { content: '· '; color: #94A3B8; }`;
 const Utt = styled.div`padding: 10px 0; border-bottom: 1px solid #F1F5F9; &:last-child { border-bottom: none; }`;
-const UttSpeaker = styled.div`font-size: 12px; font-weight: 600; color: #0F766E; margin-bottom: 4px;`;
-const UttText = styled.div`font-size: 13px; color: #0F172A; line-height: 1.6;`;
-const UttTranslated = styled.div`font-size: 12px; color: #64748B; line-height: 1.6; margin-top: 4px; padding-left: 8px; border-left: 2px solid #E2E8F0;`;
-const Center = styled.div`min-height: 60vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #64748B; font-size: 14px; padding: 24px;`;
-const ErrTitle = styled.div`font-size: 16px; font-weight: 600; color: #0F172A;`;
-const ErrHint = styled.div`font-size: 13px; color: #64748B;`;
+const UttSpeaker = styled.div`font-size: 0.75rem; font-weight: 600; color: #0F766E; margin-bottom: 4px;`;
+const UttText = styled.div`font-size: 0.8125rem; color: #0F172A; line-height: 1.6;`;
+const UttTranslated = styled.div`font-size: 0.75rem; color: #64748B; line-height: 1.6; margin-top: 4px; padding-left: 8px; border-left: 2px solid #E2E8F0;`;
+const Center = styled.div`min-height: 60vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #64748B; font-size: 0.875rem; padding: 24px;`;
+const ErrTitle = styled.div`font-size: 1rem; font-weight: 600; color: #0F172A;`;
+const ErrHint = styled.div`font-size: 0.8125rem; color: #64748B;`;

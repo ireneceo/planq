@@ -507,14 +507,14 @@ const TitleArea = styled.div`
   display: flex; align-items: center; gap: 10px;
 `;
 const H1 = styled.h2`
-  font-size: 18px; font-weight: 700; color: #0F172A; letter-spacing: -0.3px; margin: 0;
+  font-size: 1.125rem; font-weight: 700; color: #0F172A; letter-spacing: -0.3px; margin: 0;
 `;
 const PeriodToggle = styled.div`
   display: inline-flex; gap: 2px; padding: 3px;
   background: #F1F5F9; border-radius: 8px;
 `;
 const PeriodBtn = styled.button<{ $active: boolean }>`
-  padding: 6px 12px; font-size: 12px; font-weight: 600;
+  padding: 6px 12px; font-size: 0.75rem; font-weight: 600;
   background: ${p => p.$active ? '#fff' : 'transparent'};
   color: ${p => p.$active ? '#0F766E' : '#64748B'};
   border: none; border-radius: 6px; cursor: pointer;
@@ -532,16 +532,16 @@ const ActionHead = styled.div`
 `;
 const ActionTitle = styled.div`
   display: inline-flex; align-items: center; gap: 8px;
-  font-size: 13px; font-weight: 700; color: #9F1239;
+  font-size: 0.8125rem; font-weight: 700; color: #9F1239;
 `;
 const ActionCount = styled.span`
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 20px; height: 20px; padding: 0 6px;
-  background: #F43F5E; color: #fff; font-size: 11px; font-weight: 700;
+  background: #F43F5E; color: #fff; font-size: 0.6875rem; font-weight: 700;
   border-radius: 999px;
 `;
 const ActionHint = styled.div`
-  font-size: 12px; color: #9F1239; opacity: 0.85;
+  font-size: 0.75rem; color: #9F1239; opacity: 0.85;
 `;
 const PendingList = styled.div`
   display: flex; flex-direction: column; gap: 8px;
@@ -560,30 +560,30 @@ const PendingTop = styled.div`
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0;
 `;
 const PendingNum = styled.span`
-  font-size: 12px; font-weight: 700; color: #0F172A;
+  font-size: 0.75rem; font-weight: 700; color: #0F172A;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 `;
 const PendingTag = styled.span`
-  font-size: 10px; font-weight: 700; color: #9F1239; background: #FFE4E6;
+  font-size: 0.625rem; font-weight: 700; color: #9F1239; background: #FFE4E6;
   padding: 2px 6px; border-radius: 4px;
 `;
 const PendingClient = styled.span`
-  font-size: 12px; color: #64748B;
+  font-size: 0.75rem; color: #64748B;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
 const PendingMeta = styled.div`
-  font-size: 11px; color: #64748B;
+  font-size: 0.6875rem; color: #64748B;
 `;
 const PendingRight = styled.div`
   display: flex; align-items: center; gap: 12px; flex-shrink: 0;
   @media (max-width: 640px) { justify-content: space-between; }
 `;
 const PendingAmt = styled.div`
-  font-size: 14px; font-weight: 700; color: #0F172A;
+  font-size: 0.875rem; font-weight: 700; color: #0F172A;
 `;
 const ConfirmBtn = styled.button`
   height: 36px; padding: 0 14px; border: none; border-radius: 8px;
-  background: #F43F5E; color: #fff; font-size: 13px; font-weight: 600;
+  background: #F43F5E; color: #fff; font-size: 0.8125rem; font-weight: 600;
   cursor: pointer; transition: background 0.15s; white-space: nowrap;
   &:hover:not(:disabled) { background: #E11D48; }
   &:disabled { opacity: 0.5; cursor: default; }
@@ -591,7 +591,7 @@ const ConfirmBtn = styled.button`
 `;
 const ReviewBtn = styled.button`
   height: 36px; padding: 0 14px; border: 1px solid #CBD5E1; border-radius: 8px;
-  background: #fff; color: #334155; font-size: 13px; font-weight: 600;
+  background: #fff; color: #334155; font-size: 0.8125rem; font-weight: 600;
   cursor: pointer; transition: background 0.15s; white-space: nowrap;
   &:hover { background: #F8FAFC; }
   &:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,0.3); }
@@ -616,22 +616,22 @@ const KpiHead = styled.div`
   ${mediaPhone} { flex-direction: column; gap: 2px; margin-bottom: 6px; }
 `;
 const KpiLabel = styled.div`
-  font-size: 12px; font-weight: 600; color: #475569; text-transform: uppercase; letter-spacing: 0.4px;
+  font-size: 0.75rem; font-weight: 600; color: #475569; text-transform: uppercase; letter-spacing: 0.4px;
 `;
 const KpiHelp = styled.div`
-  font-size: 11px; color: #94A3B8; text-align: right;
+  font-size: 0.6875rem; color: #94A3B8; text-align: right;
   ${mediaPhone} { text-align: left; }
 `;
 const KpiValue = styled.div`
-  font-size: 26px; font-weight: 700; color: #0F172A; letter-spacing: -0.5px;
+  font-size: 1.625rem; font-weight: 700; color: #0F172A; letter-spacing: -0.5px;
   display: flex; align-items: baseline; gap: 4px;
-  ${mediaPhone} { font-size: 21px; }
+  ${mediaPhone} { font-size: 1.3125rem; }
 `;
 const KpiUnit = styled.span`
-  font-size: 14px; font-weight: 600; color: #64748B;
+  font-size: 0.875rem; font-weight: 600; color: #64748B;
 `;
 const KpiSub = styled.div`
-  font-size: 12px; color: #64748B; margin-top: 4px;
+  font-size: 0.75rem; color: #64748B; margin-top: 4px;
 `;
 const KpiSpark = styled.div<{ $color: string }>`
   margin-top: 8px;
@@ -652,18 +652,18 @@ const PanelHead = styled.div`
   padding: 14px 18px; border-bottom: 1px solid #F1F5F9;
 `;
 const PanelTitle = styled.div`
-  font-size: 13px; font-weight: 700; color: #0F172A;
+  font-size: 0.8125rem; font-weight: 700; color: #0F172A;
 `;
 const PanelLink = styled.button`
   background: none; border: none; cursor: pointer;
-  font-size: 12px; font-weight: 600; color: #0D9488;
+  font-size: 0.75rem; font-weight: 600; color: #0D9488;
   &:hover { color: #0F766E; }
 `;
 const PanelBody = styled.div`
   padding: 18px; flex: 1;
 `;
 const EmptyMsg = styled.div`
-  text-align: center; color: #94A3B8; font-size: 12px; padding: 24px 0;
+  text-align: center; color: #94A3B8; font-size: 0.75rem; padding: 24px 0;
 `;
 const UnpaidList = styled.div`
   display: flex; flex-direction: column; gap: 4px;
@@ -678,20 +678,20 @@ const UnpaidLeft = styled.div`
   display: flex; flex-direction: column; gap: 2px; min-width: 0;
 `;
 const UnpaidNum = styled.div`
-  font-size: 12px; font-weight: 700; color: #0F172A;
+  font-size: 0.75rem; font-weight: 700; color: #0F172A;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 `;
 const UnpaidClient = styled.div`
-  font-size: 12px; color: #64748B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: 0.75rem; color: #64748B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
 const UnpaidRight = styled.div`
   display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
 `;
 const UnpaidAmt = styled.div`
-  font-size: 13px; font-weight: 700; color: #0F172A;
+  font-size: 0.8125rem; font-weight: 700; color: #0F172A;
 `;
 const OverdueBadge = styled.span`
-  font-size: 10px; font-weight: 700; color: #991B1B; background: #FEE2E2;
+  font-size: 0.625rem; font-weight: 700; color: #991B1B; background: #FEE2E2;
   padding: 2px 6px; border-radius: 4px;
 `;
 const RecentList = styled.div`
@@ -709,10 +709,10 @@ const RecentBody = styled.div`
   flex: 1; min-width: 0;
 `;
 const RecentTitle = styled.div`
-  font-size: 12px; font-weight: 600; color: #0F172A;
+  font-size: 0.75rem; font-weight: 600; color: #0F172A;
 `;
 const RecentMeta = styled.div`
-  font-size: 11px; color: #64748B; margin-top: 2px; line-height: 1.5;
+  font-size: 0.6875rem; color: #64748B; margin-top: 2px; line-height: 1.5;
 `;
 const BarsWrap = styled.div`
   display: flex; align-items: flex-end; gap: 6px; height: 160px;
@@ -737,5 +737,5 @@ const BarFill = styled.div`
   &:hover { opacity: 0.85; }
 `;
 const BarLabel = styled.div`
-  font-size: 10px; color: #94A3B8; font-weight: 500;
+  font-size: 0.625rem; color: #94A3B8; font-weight: 500;
 `;

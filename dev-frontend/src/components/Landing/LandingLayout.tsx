@@ -248,7 +248,7 @@ const NavItem = styled(NavLink)<{ $light: boolean }>`
   display: inline-flex; align-items: center;
   text-decoration: none;
   color: ${p => p.$light ? 'rgba(255,255,255,0.85)' : '#475569'};
-  font-size: 14px; font-weight: 500;
+  font-size: 0.875rem; font-weight: 500;
   border-radius: 8px;
   transition: background 0.15s, color 0.15s;
   &:hover {
@@ -272,7 +272,7 @@ const Lang = styled.div`
 `;
 const LangBtn = styled.button<{ $active: boolean; $light: boolean }>`
   background: none; border: none; padding: 4px 8px;
-  font-size: 12px; font-weight: ${p => (p.$active ? 700 : 500)};
+  font-size: 0.75rem; font-weight: ${p => (p.$active ? 700 : 500)};
   color: ${p => (p.$light
     ? (p.$active ? '#5EEAD4' : 'rgba(255,255,255,0.65)')
     : (p.$active ? '#0F766E' : '#94A3B8'))};
@@ -287,7 +287,7 @@ const PrimaryBtn = styled(Link)`
   display: inline-flex; align-items: center;
   background: #14B8A6; color: #FFFFFF;
   border: none; border-radius: 999px;
-  font-size: 13px; font-weight: 500;
+  font-size: 0.8125rem; font-weight: 500;
   text-decoration: none;
   transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
   box-shadow: 0 0 0 rgba(20,184,166,0);
@@ -300,7 +300,7 @@ const SecondaryBtn = styled(Link)<{ $light: boolean }>`
   color: ${p => p.$light ? 'rgba(255,255,255,0.85)' : '#0F172A'};
   border: 1px solid ${p => p.$light ? 'rgba(255,255,255,0.18)' : '#E2E8F0'};
   border-radius: 999px;
-  font-size: 13px; font-weight: 500;
+  font-size: 0.8125rem; font-weight: 500;
   text-decoration: none;
   transition: background 0.15s, border-color 0.15s;
   &:hover {
@@ -327,7 +327,7 @@ const MobileNavItem = styled(NavLink)`
   display: block;
   padding: 12px 14px;
   text-decoration: none;
-  color: #0F172A; font-size: 15px; font-weight: 500;
+  color: #0F172A; font-size: 0.9375rem; font-weight: 500;
   border-radius: 8px;
   &:hover { background: #F1F5F9; }
   &.active { color: #0D9488; background: #F0FDFA; }
@@ -366,17 +366,17 @@ const FooterLogo = styled.img`
   margin-bottom: 4px; align-self: flex-start;
 `;
 const FooterTagline = styled.div`
-  font-size: 13px; color: #94A3B8; line-height: 1.6; max-width: 280px;
+  font-size: 0.8125rem; color: #94A3B8; line-height: 1.6; max-width: 280px;
   letter-spacing: 0.2px; text-align: left;  /* #89 — 문장형 태그라인: 과도한 자간 제거 */
 `;
 const FooterTitle = styled.div`
   font-family: 'Outfit', sans-serif;
-  font-size: 12px; font-weight: 500; color: #5EEAD4;
+  font-size: 0.75rem; font-weight: 500; color: #5EEAD4;
   letter-spacing: 2px;
   margin-bottom: 6px;
 `;
 const FooterLink = styled(Link)`
-  font-size: 13px; color: #94A3B8;
+  font-size: 0.8125rem; color: #94A3B8;
   text-decoration: none;
   transition: color 0.15s;
   &:hover { color: #FFFFFF; }
@@ -397,7 +397,7 @@ const FooterBizRow = styled.div`
   display: flex;
   flex-wrap: wrap;
   gap: 4px 16px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #94A3B8;
   font-weight: 300;
   line-height: 1.6;
@@ -408,4 +408,4 @@ const FooterBizLink = styled.a`
   text-underline-offset: 2px;
   &:hover { color: #CBD5E1; }
 `;
-const FooterCopy = styled.div`font-size: 12px; color: #64748B; font-weight: 300;`;
+const FooterCopy = styled.div`font-size: 0.75rem; color: #64748B; font-weight: 300;`;

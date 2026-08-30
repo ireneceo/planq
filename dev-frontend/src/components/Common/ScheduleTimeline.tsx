@@ -179,29 +179,29 @@ export default function ScheduleTimeline({ data, keyOnly, onToggleKeyOnly, onTas
 const Card = styled.div`background:#fff;border:1px solid #E2E8F0;border-radius:14px;padding:18px 20px;`;
 const SummaryRow = styled.div`display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px;`;
 const Big = styled.div`display:flex;align-items:baseline;gap:4px;`;
-const BigVal = styled.span`font-size:28px;font-weight:700;color:#0F172A;font-variant-numeric:tabular-nums;`;
-const Pct = styled.span`font-size:14px;font-weight:700;color:#64748B;`;
-const BigLbl = styled.span`font-size:12px;color:#94A3B8;margin-left:6px;align-self:center;`;
-const Chip = styled.span`display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;color:#475569;background:#F1F5F9;border-radius:999px;padding:4px 11px;`;
-const SchedBadge = styled.span`display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;border-radius:999px;padding:4px 12px;`;
+const BigVal = styled.span`font-size:1.75rem;font-weight:700;color:#0F172A;font-variant-numeric:tabular-nums;`;
+const Pct = styled.span`font-size:0.875rem;font-weight:700;color:#64748B;`;
+const BigLbl = styled.span`font-size:0.75rem;color:#94A3B8;margin-left:6px;align-self:center;`;
+const Chip = styled.span`display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;font-weight:700;color:#475569;background:#F1F5F9;border-radius:999px;padding:4px 11px;`;
+const SchedBadge = styled.span`display:inline-flex;align-items:center;gap:6px;font-size:0.75rem;font-weight:700;border-radius:999px;padding:4px 12px;`;
 const SchedSub = styled.span`font-weight:500;opacity:.8;`;
 const Spacer = styled.div`flex:1;`;
 const Toggle = styled.button<{ $on: boolean }>`display:inline-flex;align-items:center;gap:8px;border:none;background:none;padding:4px 2px;cursor:pointer;&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;border-radius:6px;}`;
 const Knob = styled.span<{ $on: boolean }>`width:30px;height:18px;border-radius:999px;background:${(p) => (p.$on ? '#14B8A6' : '#CBD5E1')};position:relative;transition:background .15s;&::after{content:'';position:absolute;top:2px;left:${(p) => (p.$on ? '14px' : '2px')};width:14px;height:14px;border-radius:50%;background:#fff;transition:left .15s;}`;
-const ToggleLbl = styled.span`font-size:12px;font-weight:600;color:#475569;`;
+const ToggleLbl = styled.span`font-size:0.75rem;font-weight:600;color:#475569;`;
 // 가로 스크롤 래퍼 — overflow-x:auto. 음수 top 라벨('지금'·마일스톤) 클리핑 방지 위해 상하 패딩 확보.
 const ScrollWrap = styled.div`overflow-x:auto;overflow-y:hidden;padding:12px 0 6px;
   &::-webkit-scrollbar{height:6px;}
   &::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:3px;}
   &::-webkit-scrollbar-track{background:#F1F5F9;border-radius:3px;}`;
-const JumpBtn = styled.button`height:28px;padding:0 12px;border:1px solid #E2E8F0;background:#fff;border-radius:999px;font-size:12px;font-weight:600;color:#0F766E;cursor:pointer;white-space:nowrap;&:hover{background:#F0FDFA;border-color:#99F6E4;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}`;
+const JumpBtn = styled.button`height:28px;padding:0 12px;border:1px solid #E2E8F0;background:#fff;border-radius:999px;font-size:0.75rem;font-weight:600;color:#0F766E;cursor:pointer;white-space:nowrap;&:hover{background:#F0FDFA;border-color:#99F6E4;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}`;
 const Track = styled.div`position:relative;padding:34px 0 8px;`;
 const Grid = styled.div`position:absolute;top:34px;bottom:8px;width:1px;background:#F1F5F9;`;
-const GridLabel = styled.span`position:absolute;top:-16px;left:0;transform:translateX(-50%);font-size:10px;color:#94A3B8;white-space:nowrap;`;
+const GridLabel = styled.span`position:absolute;top:-16px;left:0;transform:translateX(-50%);font-size:0.625rem;color:#94A3B8;white-space:nowrap;`;
 const MsLane = styled.div`position:relative;height:0;`;
 const Ms = styled.button`position:absolute;top:-28px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;cursor:pointer;z-index:3;background:none;border:none;padding:2px;font:inherit;border-radius:6px;&:hover{z-index:6;}&:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}@media (max-width:640px){padding:6px 8px;}`;
 // 흰 배경 padding — 라벨이 서로 겹쳐도 읽히게. hover 시 z-index 올려 앞으로(Irene: 글자 겹쳐 밀리지 않게).
-const MsLabel = styled.span`font-size:10px;font-weight:700;color:#0F172A;white-space:nowrap;max-width:84px;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px;background:#fff;padding:0 3px;border-radius:3px;`;
+const MsLabel = styled.span`font-size:0.625rem;font-weight:700;color:#0F172A;white-space:nowrap;max-width:84px;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px;background:#fff;padding:0 3px;border-radius:3px;`;
 const Diamond = styled.span`width:12px;height:12px;transform:rotate(45deg);border:2px solid;border-radius:2px;`;
 const Axis = styled.div`position:relative;height:10px;background:#E2E8F0;border-radius:999px;`;
 const AxisProgress = styled.div`position:absolute;top:0;left:0;height:100%;background:linear-gradient(90deg,#99F6E4,#14B8A6);border-radius:999px;`;
@@ -213,9 +213,9 @@ const Dot = styled.button`position:absolute;top:50%;transform:translate(-50%,-50
   &:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}
   @media (max-width:640px){&::after{inset:-15px;}}`;
 const Today = styled.div`position:absolute;top:-30px;bottom:-6px;width:2px;background:#F43F5E;z-index:4;`;
-const TodayLbl = styled.span`position:absolute;top:-14px;left:50%;transform:translateX(-50%);font-size:10px;font-weight:700;color:#F43F5E;background:#fff;padding:0 4px;white-space:nowrap;`;
-const Empty = styled.div`font-size:13px;color:#94A3B8;padding:18px 0;text-align:center;`;
+const TodayLbl = styled.span`position:absolute;top:-14px;left:50%;transform:translateX(-50%);font-size:0.625rem;font-weight:700;color:#F43F5E;background:#fff;padding:0 4px;white-space:nowrap;`;
+const Empty = styled.div`font-size:0.8125rem;color:#94A3B8;padding:18px 0;text-align:center;`;
 const Legend = styled.div`display:flex;flex-wrap:wrap;gap:12px;margin-top:18px;`;
-const LegendItem = styled.span`display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#64748B;`;
+const LegendItem = styled.span`display:inline-flex;align-items:center;gap:6px;font-size:0.6875rem;color:#64748B;`;
 const LegendDot = styled.span`width:9px;height:9px;border-radius:50%;`;
-const LegendMuted = styled.span`font-size:11px;color:#CBD5E1;`;
+const LegendMuted = styled.span`font-size:0.6875rem;color:#CBD5E1;`;

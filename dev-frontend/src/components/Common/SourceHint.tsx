@@ -62,19 +62,19 @@ const Tip = styled.span<{ $placement: 'top' | 'bottom' }>`
   position:absolute;z-index:50;left:50%;transform:translateX(-50%);
   ${(p) => (p.$placement === 'top' ? 'bottom:calc(100% + 6px);' : 'top:calc(100% + 6px);')}
   min-width:140px;max-width:240px;width:max-content;
-  background:#0F172A;color:#fff;font-size:11px;font-weight:500;line-height:1.5;
+  background:#0F172A;color:#fff;font-size:0.6875rem;font-weight:500;line-height:1.5;
   padding:7px 10px;border-radius:8px;box-shadow:0 4px 12px rgba(15,23,42,0.18);
   white-space:normal;text-align:left;pointer-events:none;
 `;
 const GenBadge = styled.span`
   display:inline-flex;align-items:center;gap:3px;
-  font-size:10px;font-weight:700;color:#0F766E;background:#F0FDFA;
+  font-size:0.625rem;font-weight:700;color:#0F766E;background:#F0FDFA;
   border-radius:999px;padding:2px 8px;white-space:nowrap;
 `;
 // 중립 회색 provenance 배지 (AI 생성 배지와 색으로 구분)
 const ProvBadge = styled.span`
   display:inline-flex;align-items:center;
-  font-size:10px;font-weight:600;color:#64748B;background:#F1F5F9;
+  font-size:0.625rem;font-weight:600;color:#64748B;background:#F1F5F9;
   border-radius:999px;padding:2px 8px;white-space:nowrap;
 `;
 

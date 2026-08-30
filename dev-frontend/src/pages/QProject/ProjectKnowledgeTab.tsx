@@ -359,31 +359,31 @@ const Row = styled.button<{ $active: boolean }>`
   &:last-child { border-bottom: none; }
   &:hover { background: ${p => p.$active ? '#F0FDFA' : '#F8FAFC'}; }
 `;
-const RowTitle = styled.div`font-size: 14px; font-weight: 600; color: #0F172A; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
-const RowMeta = styled.div`display: flex; gap: 8px; align-items: center; font-size: 12px; color: #64748B;`;
-const CategoryChip = styled.span`background: #F1F5F9; color: #475569; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;`;
+const RowTitle = styled.div`font-size: 0.875rem; font-weight: 600; color: #0F172A; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
+const RowMeta = styled.div`display: flex; gap: 8px; align-items: center; font-size: 0.75rem; color: #64748B;`;
+const CategoryChip = styled.span`background: #F1F5F9; color: #475569; padding: 2px 8px; border-radius: 4px; font-size: 0.6875rem; font-weight: 500;`;
 const SkBar = styled.div`background: linear-gradient(90deg, #F1F5F9 0px, #E2E8F0 40px, #F1F5F9 80px); background-size: 200px 100%; animation: sk 1.2s linear infinite; border-radius: 4px; @keyframes sk { 0% { background-position: -200px 0 } 100% { background-position: calc(200px + 100%) 0 } }`;
-const PrimaryBtn = styled.button`display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 16px; background: #14B8A6; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; &:hover:not(:disabled) { background: #0D9488; } &:disabled { opacity: 0.5; cursor: not-allowed; }`;
-const SecondaryBtn = styled.button`height: 36px; padding: 0 14px; background: transparent; color: #475569; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; &:hover { background: #F8FAFC; border-color: #CBD5E1; }`;
-const DangerBtn = styled.button`height: 36px; padding: 0 14px; background: transparent; color: #DC2626; border: 1px solid #FECACA; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; &:hover { background: #FEF2F2; }`;
+const PrimaryBtn = styled.button`display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 16px; background: #14B8A6; color: #fff; border: none; border-radius: 8px; font-size: 0.8125rem; font-weight: 600; cursor: pointer; &:hover:not(:disabled) { background: #0D9488; } &:disabled { opacity: 0.5; cursor: not-allowed; }`;
+const SecondaryBtn = styled.button`height: 36px; padding: 0 14px; background: transparent; color: #475569; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.8125rem; font-weight: 600; cursor: pointer; &:hover { background: #F8FAFC; border-color: #CBD5E1; }`;
+const DangerBtn = styled.button`height: 36px; padding: 0 14px; background: transparent; color: #DC2626; border: 1px solid #FECACA; border-radius: 8px; font-size: 0.8125rem; font-weight: 600; cursor: pointer; &:hover { background: #FEF2F2; }`;
 const Spacer = styled.div`flex: 1;`;
-const DrawerTitle = styled.div`font-size: 16px; font-weight: 700; color: #0F172A;`;
+const DrawerTitle = styled.div`font-size: 1rem; font-weight: 700; color: #0F172A;`;
 const DrawerSections = styled.div`display: flex; flex-direction: column; gap: 18px;`;
 const DrawerSection = styled.div`display: flex; flex-direction: column; gap: 8px;`;
-const SectionLabel = styled.div`font-size: 12px; font-weight: 600; color: #475569;`;
-const DrawerBody = styled.div`font-size: 13px; color: #0F172A; line-height: 1.6; white-space: pre-wrap;`;
+const SectionLabel = styled.div`font-size: 0.75rem; font-weight: 600; color: #475569;`;
+const DrawerBody = styled.div`font-size: 0.8125rem; color: #0F172A; line-height: 1.6; white-space: pre-wrap;`;
 const Backdrop = styled.div`position: fixed; inset: 0; background: rgba(15,23,42,0.08); z-index: 1000;`;
 const Modal = styled.div`position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; width: 560px; max-width: calc(100vw - 40px); max-height: calc(100vh - 48px); background: #fff; border-radius: 14px; box-shadow: 0 30px 60px -20px rgba(15,23,42,0.25); display: flex; flex-direction: column; overflow: hidden; @media (max-width: 640px) { top: 70px; bottom: 20px; left: 16px; right: 16px; transform: none; width: auto; max-width: none; max-height: none; }`;
 const ModalHeader = styled.div`display: flex; align-items: center; padding: 14px 18px; border-bottom: 1px solid #E2E8F0;`;
-const ModalTitle = styled.div`flex: 1; font-size: 15px; font-weight: 700; color: #0F172A;`;
+const ModalTitle = styled.div`flex: 1; font-size: 0.9375rem; font-weight: 700; color: #0F172A;`;
 const CloseBtn = styled.button`
   /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */
   @media (max-width: 640px) { min-width: 44px; min-height: 44px; }
-width: 30px; height: 30px; border: none; background: transparent; color: #64748B; border-radius: 6px; cursor: pointer; font-size: 18px; &:hover { background: #F1F5F9; color: #0F172A; }`;
+width: 30px; height: 30px; border: none; background: transparent; color: #64748B; border-radius: 6px; cursor: pointer; font-size: 1.125rem; &:hover { background: #F1F5F9; color: #0F172A; }`;
 const ModalBody = styled.div`padding: 16px 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; flex: 1; min-height: 0;`;
 const ModalFooter = styled.div`padding: 14px 18px; border-top: 1px solid #E2E8F0; display: flex; justify-content: flex-end; gap: 8px;`;
 const Field = styled.div`display: flex; flex-direction: column; gap: 6px;`;
-const Label = styled.label`font-size: 13px; font-weight: 600; color: #0F172A;`;
+const Label = styled.label`font-size: 0.8125rem; font-weight: 600; color: #0F172A;`;
 const Req = styled.span`color: #DC2626; margin-left: 2px;`;
-const Input = styled.input`height: 36px; padding: 0 10px; border: 1px solid #E2E8F0; border-radius: 6px; font-size: 13px; &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }`;
-const Textarea = styled.textarea`padding: 8px 10px; border: 1px solid #E2E8F0; border-radius: 6px; font-size: 13px; font-family: inherit; resize: vertical; &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }`;
+const Input = styled.input`height: 36px; padding: 0 10px; border: 1px solid #E2E8F0; border-radius: 6px; font-size: 0.8125rem; &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }`;
+const Textarea = styled.textarea`padding: 8px 10px; border: 1px solid #E2E8F0; border-radius: 6px; font-size: 0.8125rem; font-family: inherit; resize: vertical; &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }`;

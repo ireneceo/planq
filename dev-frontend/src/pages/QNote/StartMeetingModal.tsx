@@ -1377,7 +1377,7 @@ const Header = styled.div`
 `;
 
 const Title = styled.h2`
-  font-size: 20px;
+  font-size: 1.25rem;
   font-weight: 700;
   color: #0f172a;
   margin: 0;
@@ -1426,7 +1426,7 @@ const PurposeRow = styled.div`
 `;
 const PurposeChip = styled.button<{ $active?: boolean }>`
   padding: 6px 14px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   color: ${(p) => (p.$active ? '#FFFFFF' : '#334155')};
   background: ${(p) => (p.$active ? '#14B8A6' : '#FFFFFF')};
@@ -1438,7 +1438,7 @@ const PurposeChip = styled.button<{ $active?: boolean }>`
   &:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,0.3); }
 `;
 const CaptureNote = styled.div`
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #78350F;
   background: #FEF3C7;
   border: 1px solid #FDE68A;
@@ -1458,14 +1458,14 @@ const ProfileBanner = styled.div`
 `;
 const ProfileBannerText = styled.div`
   flex: 1;
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   color: #0F766E;
   line-height: 1.5;
 `;
 const ProfileBannerLink = styled.a`
   flex-shrink: 0;
   padding: 4px 10px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   color: #0F766E;
   background: #fff;
@@ -1483,7 +1483,7 @@ const AdvancedSection = styled.div`
 `;
 
 const AdvancedToggle = styled.button`
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 500;
   color: #94a3b8;
   background: none;
@@ -1496,7 +1496,7 @@ const AdvancedToggle = styled.button`
 
 const CheckboxLabel = styled.label`
   display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
-  font-size: 13px; color: #334155;
+  font-size: 0.8125rem; color: #334155;
   input { accent-color: #14B8A6; cursor: pointer; }
 `;
 const LangRow = styled.div`
@@ -1509,7 +1509,7 @@ const LangRow = styled.div`
 `;
 
 const Label = styled.label`
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: #334155;
 `;
@@ -1519,7 +1519,7 @@ const Required = styled.span`
 `;
 
 const Hint = styled.div`
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #94a3b8;
   margin-top: 2px;
 `;
@@ -1529,7 +1529,7 @@ const Input = styled.input`
   padding: 0 14px;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 0.875rem;
   color: #0f172a;
   transition: border-color 120ms, box-shadow 120ms;
   &::placeholder {
@@ -1546,7 +1546,7 @@ const TextArea = styled.textarea`
   padding: 12px 14px;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 0.875rem;
   color: #0f172a;
   font-family: inherit;
   line-height: 1.55;
@@ -1565,7 +1565,7 @@ const TextArea = styled.textarea`
 `;
 
 const CharCount = styled.div`
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #94a3b8;
   text-align: right;
   margin-top: -2px;
@@ -1601,14 +1601,14 @@ const DropzoneIcon = styled.div`
 `;
 
 const DropzoneText = styled.div`
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #334155;
   font-weight: 600;
   text-align: center;
 `;
 
 const DropzoneSubText = styled.div`
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #94A3B8;
   font-weight: 400;
   margin-top: 2px;
@@ -1632,7 +1632,7 @@ const PriorityLabel = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: #0f172a;
   margin-bottom: 4px;
@@ -1645,7 +1645,7 @@ const EditModeBanner = styled.div`
   border: 1px solid #99f6e4;
   border-left: 3px solid #0d9488;
   border-radius: 8px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #134e4a;
   line-height: 1.55;
   strong { color: #0f766e; font-weight: 700; }
@@ -1656,7 +1656,7 @@ const ExistingCount = styled.span`
   align-items: center;
   margin-left: auto;
   padding: 2px 8px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   color: #0f766e;
   background: #ccfbf1;
@@ -1669,7 +1669,7 @@ const GenerateKeywordsBtn = styled.button`
   color: #0d9488;
   border: 1px solid #99f6e4;
   border-radius: 8px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 120ms;
@@ -1710,7 +1710,7 @@ const KeywordChip = styled.div`
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #0f172a;
 `;
 
@@ -1734,7 +1734,7 @@ const EmptyHint = styled.div`
   margin-top: 8px;
   background: #f8fafc;
   color: #94a3b8;
-  font-size: 12px;
+  font-size: 0.75rem;
   text-align: center;
   border-radius: 8px;
 `;
@@ -1743,7 +1743,7 @@ const PriorityBadge = styled.span`
   display: inline-flex;
   align-items: center;
   padding: 3px 8px;
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 700;
   color: #ffffff;
   background: #f43f5e;
@@ -1760,7 +1760,7 @@ const PQRow = styled.div`
 
 const PQQuestionText = styled.div`
   flex: 1;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #0f172a;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1795,7 +1795,7 @@ const LengthBtn = styled.button<{ $active?: boolean }>`
   border: 1px solid ${(p) => (p.$active ? '#0d9488' : '#e2e8f0')};
   background: ${(p) => (p.$active ? '#0d9488' : '#ffffff')};
   color: ${(p) => (p.$active ? '#ffffff' : '#475569')};
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   border-radius: 8px;
   cursor: pointer;
@@ -1811,7 +1811,7 @@ const TemplateLink = styled.button`
   padding: 0;
   background: none;
   border: none;
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #0d9488;
   text-decoration: none;
   cursor: pointer;
@@ -1828,7 +1828,7 @@ const DraftBadge = styled.span`
   display: inline-flex;
   align-items: center;
   padding: 3px 8px;
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 700;
   color: #0f766e;
   background: #ccfbf1;
@@ -1842,7 +1842,7 @@ const DraftResetBtn = styled.button`
   color: #64748b;
   border: 1px solid #e2e8f0;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 120ms;
@@ -1857,7 +1857,7 @@ const DividerText = styled.span`
   position: relative;
   background: #ffffff;
   padding: 0 12px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #94a3b8;
   font-weight: 500;
 `;
@@ -1869,18 +1869,18 @@ const WorkspaceFileBtn = styled.button`
   height: 32px; padding: 0 12px;
   background: #FFFFFF; color: #0F766E;
   border: 1px solid #14B8A6; border-radius: 6px;
-  font-size: 12px; font-weight: 600; cursor: pointer;
+  font-size: 0.75rem; font-weight: 600; cursor: pointer;
   transition: all 0.15s;
   &:hover { background: #F0FDFA; }
 `;
 const PickerHint = styled.div`
-  font-size: 11px; color: #94A3B8;
+  font-size: 0.6875rem; color: #94A3B8;
 `;
 const WorkspaceTag = styled.span`
   flex-shrink: 0;
   padding: 1px 6px; border-radius: 4px;
   background: #F0FDFA; color: #0F766E;
-  font-size: 10px; font-weight: 600;
+  font-size: 0.625rem; font-weight: 600;
 `;
 const FileList = styled.div`
   display: flex;
@@ -1913,7 +1913,7 @@ const FileIcon = styled.div`
 
 const FileName = styled.div`
   flex: 1;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #0f172a;
   font-weight: 500;
   overflow: hidden;
@@ -1922,7 +1922,7 @@ const FileName = styled.div`
 `;
 
 const FileSize = styled.div`
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #94a3b8;
   flex-shrink: 0;
 `;
@@ -1986,19 +1986,19 @@ const CaptureIconWrap = styled.div<{ $selected: boolean }>`
 `;
 
 const CaptureLabel = styled.div`
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
   color: #0f172a;
 `;
 
 const Unavailable = styled.span`
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 400;
   color: #94a3b8;
 `;
 
 const CaptureDesc = styled.div`
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #64748b;
   line-height: 1.4;
 `;
@@ -2019,7 +2019,7 @@ const SecondaryBtn = styled.button`
   background: #ffffff;
   color: #475569;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
   &:hover {
@@ -2035,7 +2035,7 @@ const PrimaryBtn = styled.button`
   background: #14b8a6;
   color: #ffffff;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
   transition: background 120ms;
@@ -2069,7 +2069,7 @@ const ParticipantRow = styled.div`
 `;
 
 const ParticipantName = styled.div`
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
   color: #0f172a;
   flex-shrink: 0;
@@ -2077,7 +2077,7 @@ const ParticipantName = styled.div`
 
 const ParticipantRole = styled.div`
   flex: 1;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #64748b;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2095,7 +2095,7 @@ const ParticipantInput = styled.input`
   padding: 0 12px;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #0f172a;
   &::placeholder {
     color: #94a3b8;
@@ -2134,7 +2134,7 @@ const UrlRow = styled.div`
 `;
 
 const UrlStatus = styled.span`
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #94a3b8;
   flex-shrink: 0;
   padding: 2px 8px;
@@ -2148,6 +2148,6 @@ const ErrorBanner = styled.div`
   color: #9f1239;
   border: 1px solid #fecdd3;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 500;
 `;

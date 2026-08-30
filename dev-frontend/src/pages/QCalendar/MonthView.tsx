@@ -214,7 +214,7 @@ const Weekdays = styled.div`
   border-bottom: 1px solid #E2E8F0; background: #F8FAFC;
 `;
 const WeekdayCell = styled.div<{ $isSaturday: boolean; $isSunday: boolean }>`
-  padding: 10px 12px; font-size: 12px; font-weight: 600; letter-spacing: -0.1px;
+  padding: 10px 12px; font-size: 0.75rem; font-weight: 600; letter-spacing: -0.1px;
   color: ${({ $isSunday, $isSaturday }) => $isSunday ? '#BE123C' : $isSaturday ? '#1D4ED8' : '#475569'};
   text-align: center;
 `;
@@ -250,7 +250,7 @@ const AddBtn = styled.button`
 const DateBadge = styled.div<{ $today: boolean; $isSaturday: boolean; $isSunday: boolean }>`
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px;
-  font-size: 12px; font-weight: 600; margin-bottom: 2px;
+  font-size: 0.75rem; font-weight: 600; margin-bottom: 2px;
   background: ${({ $today }) => $today ? '#14B8A6' : 'transparent'};
   color: ${({ $today, $isSunday, $isSaturday }) =>
     $today ? '#fff' : $isSunday ? '#BE123C' : $isSaturday ? '#1D4ED8' : '#0F172A'};
@@ -265,7 +265,7 @@ const MoreLinkWrap = styled.div`
 const EventChip = styled.div<{ $bg: string; $fg: string; $border: string; $allDay: boolean }>`
   display: flex; align-items: center; gap: 4px;
   padding: 2px 6px; border-radius: 4px;
-  font-size: 11.5px; font-weight: 500; line-height: 1.3;
+  font-size: 0.71875rem; font-weight: 500; line-height: 1.3;
   background: ${({ $bg, $allDay }) => $allDay ? $bg : 'transparent'};
   color: ${({ $fg }) => $fg};
   border-left: ${({ $allDay, $border }) => $allDay ? `3px solid ${$border}` : 'none'};
@@ -291,10 +291,10 @@ const ExceptionMark = styled.span`
   display: inline-flex; align-items: center; justify-content: center;
   margin-left: 4px; padding: 0 4px; min-width: 14px; height: 14px;
   background: #FEF3C7; color: #92400E;
-  border-radius: 4px; font-size: 10px; font-weight: 700; line-height: 1;
+  border-radius: 4px; font-size: 0.625rem; font-weight: 700; line-height: 1;
 `;
 const MoreLink = styled.div`
-  font-size: 11px; font-weight: 600; color: #14B8A6;
+  font-size: 0.6875rem; font-weight: 600; color: #14B8A6;
   padding: 2px 6px; cursor: pointer;
   &:hover { text-decoration: underline; }
 `;
@@ -316,7 +316,7 @@ const PopoverHeader = styled.div`
   padding: 12px 16px; border-bottom: 1px solid #E2E8F0;
 `;
 const PopoverTitle = styled.div`
-  font-size: 14px; font-weight: 700; color: #0F172A;
+  font-size: 0.875rem; font-weight: 700; color: #0F172A;
 `;
 const PopoverClose = styled.button`
   width: 28px; height: 28px; border: none; background: transparent; color: #64748B;
@@ -332,12 +332,12 @@ const PopoverItem = styled.div<{ $bg: string; $fg: string; $border: string }>`
   padding: 8px 10px; border-radius: 6px;
   background: ${({ $bg }) => $bg}; color: ${({ $fg }) => $fg};
   border-left: 3px solid ${({ $border }) => $border};
-  cursor: pointer; font-size: 13px;
+  cursor: pointer; font-size: 0.8125rem;
   transition: filter 0.12s ease;
   &:hover { filter: brightness(0.96); }
 `;
 const PopoverItemTime = styled.div`
-  flex-shrink: 0; font-size: 11.5px; font-weight: 600; opacity: 0.85;
+  flex-shrink: 0; font-size: 0.71875rem; font-weight: 600; opacity: 0.85;
   font-variant-numeric: tabular-nums; min-width: 48px;
 `;
 const PopoverItemTitle = styled.div`

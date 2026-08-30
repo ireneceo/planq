@@ -170,7 +170,7 @@ const MenuItem = styled.button<{ $danger?: boolean }>`
   display: inline-flex; align-items: center; gap: 10px;
   padding: 8px 12px;
   background: transparent; border: none; border-radius: 6px;
-  font-size: 13px; font-weight: 500;
+  font-size: 0.8125rem; font-weight: 500;
   color: ${p => p.$danger ? '#DC2626' : '#0F172A'};
   cursor: pointer;
   text-align: left;
@@ -185,14 +185,14 @@ const ConfirmRow = styled.div`
   padding: 8px 12px; display: flex; flex-direction: column; gap: 8px;
 `;
 const ConfirmText = styled.div`
-  font-size: 13px; font-weight: 600; color: #0F172A;
+  font-size: 0.8125rem; font-weight: 600; color: #0F172A;
 `;
 const ConfirmBtns = styled.div`
   display: flex; gap: 6px;
 `;
 const CBtn = styled.button<{ $danger?: boolean }>`
   flex: 1; min-height: 32px; padding: 0 10px;
-  border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;
+  border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer;
   border: 1px solid ${p => p.$danger ? '#DC2626' : '#E2E8F0'};
   background: ${p => p.$danger ? '#DC2626' : '#FFFFFF'};
   color: ${p => p.$danger ? '#FFFFFF' : '#475569'};
@@ -200,7 +200,7 @@ const CBtn = styled.button<{ $danger?: boolean }>`
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 const ErrBox = styled.div`
-  padding: 8px 12px; font-size: 12px; line-height: 1.45; font-weight: 500;
+  padding: 8px 12px; font-size: 0.75rem; line-height: 1.45; font-weight: 500;
   color: #B91C1C; background: #FEF2F2; border-radius: 6px; white-space: normal;
   max-width: 240px;
 `;

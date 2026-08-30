@@ -120,23 +120,23 @@ const Card = styled.div`
   max-height: 90vh; overflow-y: auto;
   @media (max-width: 640px) { padding: 20px 16px; }
 `;
-const Title = styled.h2` margin: 0; font-size: 16px; font-weight: 700; color: #0F172A; `;
-const Hint = styled.p` margin: 0; font-size: 12px; color: #64748B; line-height: 1.5; `;
+const Title = styled.h2` margin: 0; font-size: 1rem; font-weight: 700; color: #0F172A; `;
+const Hint = styled.p` margin: 0; font-size: 0.75rem; color: #64748B; line-height: 1.5; `;
 const ExternalLink = styled.button`
   align-self: flex-start; background: none; border: 0; padding: 4px 0;
-  color: #C2410C; font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: underline;
+  color: #C2410C; font-size: 0.75rem; font-weight: 600; cursor: pointer; text-decoration: underline;
   &:hover { color: #9A3412; }
 `;
 const Actions = styled.div` display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; `;
 const Primary = styled.button`
   padding: 8px 16px; border-radius: 8px; border: 0;
-  background: #14B8A6; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer;
+  background: #14B8A6; color: #fff; font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   &:hover { background: #0D9488; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 const Secondary = styled.button`
   padding: 8px 16px; border-radius: 8px;
   background: #fff; color: #334155; border: 1px solid #CBD5E1;
-  font-size: 13px; font-weight: 500; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 500; cursor: pointer;
   &:hover { background: #F8FAFC; }
 `;

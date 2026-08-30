@@ -300,22 +300,22 @@ export default NewChatModal;
 
 // ─── styled (디자인 토큰 통일: EmptyState / AddDrawer 와 동일 팔레트) ───
 const Field = styled.div`display:flex;flex-direction:column;gap:6px;`;
-const Label = styled.label`font-size:13px;font-weight:600;color:#0F172A;`;
+const Label = styled.label`font-size:0.8125rem;font-weight:600;color:#0F172A;`;
 const Req = styled.span`color:#F43F5E;margin-left:2px;`;
-const Hint = styled.div`font-size:12px;color:#94A3B8;line-height:1.5;margin-bottom:2px;`;
+const Hint = styled.div`font-size:0.75rem;color:#94A3B8;line-height:1.5;margin-bottom:2px;`;
 const ToggleLine = styled.div`margin-top:4px;`;
 const ToggleSwitch = styled.label`
-  display:inline-flex;align-items:center;gap:8px;font-size:13px;color:#0F172A;cursor:pointer;
+  display:inline-flex;align-items:center;gap:8px;font-size:0.8125rem;color:#0F172A;cursor:pointer;
   input{width:32px;height:18px;}
 `;
 const LangRow = styled.div`display:flex;align-items:flex-end;gap:8px;margin-top:8px;`;
 const LangCol = styled.div`flex:1;display:flex;flex-direction:column;gap:4px;`;
-const LangSep = styled.div`font-size:14px;color:#94A3B8;padding-bottom:8px;`;
-const SmallLabel = styled.div`font-size:12px;font-weight:600;color:#334155;`;
-const SmallError = styled.div`font-size:12px;color:#DC2626;margin-top:4px;`;
+const LangSep = styled.div`font-size:0.875rem;color:#94A3B8;padding-bottom:8px;`;
+const SmallLabel = styled.div`font-size:0.75rem;font-weight:600;color:#334155;`;
+const SmallError = styled.div`font-size:0.75rem;color:#DC2626;margin-top:4px;`;
 const Input = styled.input`
   height:40px;padding:0 12px;border:1px solid #E2E8F0;border-radius:8px;
-  font-size:14px;color:#0F172A;font-family:inherit;background:#FFF;
+  font-size:0.875rem;color:#0F172A;font-family:inherit;background:#FFF;
   &:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,0.12);}
   &::placeholder{color:#CBD5E1;}
 `;
@@ -324,13 +324,13 @@ const Chips = styled.div`
 `;
 const Chip = styled.span`
   display:inline-flex;align-items:center;gap:6px;padding:4px 8px 4px 4px;
-  background:#F1F5F9;border-radius:999px;font-size:12px;color:#0F172A;font-weight:500;
+  background:#F1F5F9;border-radius:999px;font-size:0.75rem;color:#0F172A;font-weight:500;
 `;
 const MeChip = styled(Chip)`
   background:#F0FDFA;color:#0F766E;font-weight:600;
 `;
 const ChipX = styled.button`
   width:18px;height:18px;display:flex;align-items:center;justify-content:center;
-  background:transparent;border:none;color:#64748B;cursor:pointer;font-size:14px;line-height:1;border-radius:50%;
+  background:transparent;border:none;color:#64748B;cursor:pointer;font-size:0.875rem;line-height:1;border-radius:50%;
   &:hover{background:#E2E8F0;color:#0F172A;}
 `;

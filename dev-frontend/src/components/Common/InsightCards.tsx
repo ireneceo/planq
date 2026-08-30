@@ -98,12 +98,12 @@ const Sparkle = styled.div`
   color: #F43F5E;
 `;
 const Body = styled.div`flex: 1; min-width: 0;`;
-const Title = styled.div`font-size: 13px; font-weight: 700; color: #0F172A; margin-bottom: 4px;`;
-const Desc = styled.div`font-size: 12px; color: #475569; line-height: 1.55; white-space: pre-line;`;
+const Title = styled.div`font-size: 0.8125rem; font-weight: 700; color: #0F172A; margin-bottom: 4px;`;
+const Desc = styled.div`font-size: 0.75rem; color: #475569; line-height: 1.55; white-space: pre-line;`;
 const ActionBtn = styled.button`
   margin-top: 8px;
   background: transparent; border: none; padding: 0;
-  font-size: 12px; font-weight: 600; color: #0D9488;
+  font-size: 0.75rem; font-weight: 600; color: #0D9488;
   cursor: pointer;
   &:hover { color: #0F766E; text-decoration: underline; }
 `;

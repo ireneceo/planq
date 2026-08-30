@@ -775,13 +775,13 @@ function renderHistoryDetail(h: HistoryEntry) {
 const FilterSeg = styled.div`display:inline-flex;background:#F1F5F9;padding:3px;border-radius:8px;gap:2px;`;
 const FilterSegBtn = styled.button<{ $active: boolean }>`
   padding:6px 12px;border:none;background:${p=>p.$active?'#FFF':'transparent'};color:${p=>p.$active?'#0F766E':'#64748B'};
-  border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;
+  border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer;
   box-shadow:${p=>p.$active?'0 1px 2px rgba(0,0,0,0.06)':'none'};
   &:hover{color:#0F766E;}
 `;
 const TableWrap = styled.div`background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;`;
-const Table = styled.table`width:100%;border-collapse:collapse;font-size:13px;`;
-const Th = styled.th`text-align:left;padding:12px 16px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;color:#64748b;background:#f8fafc;border-bottom:1px solid #e2e8f0;`;
+const Table = styled.table`width:100%;border-collapse:collapse;font-size:0.8125rem;`;
+const Th = styled.th`text-align:left;padding:12px 16px;font-size:0.6875rem;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;color:#64748b;background:#f8fafc;border-bottom:1px solid #e2e8f0;`;
 const Tr = styled.tr<{ $selected?: boolean }>`
   cursor: pointer;
   &:not(:last-child){border-bottom:1px solid #f1f5f9;}
@@ -792,9 +792,9 @@ const Tr = styled.tr<{ $selected?: boolean }>`
 const Td = styled.td`padding:12px 16px;color:#0f172a;vertical-align:middle;strong{font-weight:600;}`;
 const NameCell = styled.strong`
   /* 규격: theme/tokens LIST_ROW — 데스크탑 14 / 폰 15 · 600 */
-  font-size:14px;
+  font-size:0.875rem;
   font-weight:600;
-  @media (max-width: 640px) { font-size: 15px; }
+  @media (max-width: 640px) { font-size: 0.9375rem; }
   display:inline-block; padding:2px 6px; margin:-2px -6px; border-radius:4px;
   cursor:pointer; transition:background 0.12s;
   &:hover{ background:#F1F5F9; }
@@ -802,7 +802,7 @@ const NameCell = styled.strong`
 `;
 const NameWrap = styled.div`display:inline-flex; align-items:center; gap:8px; min-width:0;`;
 const KindRow = styled.div`display:flex; align-items:center; gap:12px; margin-bottom:14px;`;
-const KindRowLabel = styled.span`font-size:12px; font-weight:700; color:#475569; flex-shrink:0;`;
+const KindRowLabel = styled.span`font-size:0.75rem; font-weight:700; color:#475569; flex-shrink:0;`;
 const KindSelectWrap = styled.div`min-width:160px;`;
 const CompanyCell = styled.span`
   display:inline-block; padding:2px 6px; margin:-2px -6px; border-radius:4px;
@@ -811,12 +811,12 @@ const CompanyCell = styled.span`
   &:focus-visible{ outline:2px solid #14B8A6; outline-offset:-1px; }
 `;
 const Muted = styled.span`color:#CBD5E1;`;
-const CellInput = styled.input`width:100%;height:26px;padding:0 6px;border:1px solid #14B8A6;border-radius:6px;font-size:13px;font-family:inherit;background:#F0FDFA;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
+const CellInput = styled.input`width:100%;height:26px;padding:0 6px;border:1px solid #14B8A6;border-radius:6px;font-size:0.8125rem;font-family:inherit;background:#F0FDFA;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
 
-const StatusPill = styled.span`display:inline-block;padding:2px 10px;border-radius:8px;font-size:11px;font-weight:600;white-space:nowrap;`;
-const ProjCount = styled.span`display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:22px;padding:0 8px;background:#F0FDFA;color:#0F766E;border-radius:999px;font-size:12px;font-weight:700;`;
-const Empty = styled.div`padding:60px 20px;text-align:center;color:#94a3b8;font-size:14px;`;
-const ErrorBanner = styled.div`padding:12px 16px;background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;border-radius:8px;font-size:13px;margin:0 0 16px;`;
+const StatusPill = styled.span`display:inline-block;padding:2px 10px;border-radius:8px;font-size:0.6875rem;font-weight:600;white-space:nowrap;`;
+const ProjCount = styled.span`display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:22px;padding:0 8px;background:#F0FDFA;color:#0F766E;border-radius:999px;font-size:0.75rem;font-weight:700;`;
+const Empty = styled.div`padding:60px 20px;text-align:center;color:#94a3b8;font-size:0.875rem;`;
+const ErrorBanner = styled.div`padding:12px 16px;background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;border-radius:8px;font-size:0.8125rem;margin:0 0 16px;`;
 
 // Drawer
 const DrawerBackdrop = styled.div`
@@ -835,13 +835,13 @@ const Drawer = styled.aside`
   @media (prefers-reduced-motion: reduce){animation:none;}
 `;
 const DrawerHeader = styled.div`height:60px;padding:14px 20px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;`;
-const DrawerBack = styled.button`display:flex;align-items:center;gap:4px;background:transparent;border:none;color:#0F766E;font-size:12px;font-weight:600;cursor:pointer;padding:0;&:hover{color:#134E4A;}`;
+const DrawerBack = styled.button`display:flex;align-items:center;gap:4px;background:transparent;border:none;color:#0F766E;font-size:0.75rem;font-weight:600;cursor:pointer;padding:0;&:hover{color:#134E4A;}`;
 const DrawerClose = styled.button`width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#64748B;cursor:pointer;&:hover{background:#F1F5F9;color:#0F172A;}`;
 const DrawerScroll = styled.div`flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:20px;`;
 const HeadRow = styled.div`display:flex;align-items:center;gap:14px;padding-bottom:16px;border-bottom:1px solid #F1F5F9;`;
 const HeadText = styled.div`flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;`;
-const HeadName = styled.h2`font-size:20px;font-weight:700;color:#0F172A;margin:0;`;
-const HeadCompany = styled.div`font-size:13px;color:#64748B;`;
+const HeadName = styled.h2`font-size:1.25rem;font-weight:700;color:#0F172A;margin:0;`;
+const HeadCompany = styled.div`font-size:0.8125rem;color:#64748B;`;
 const HeadSide = styled.div`flex-shrink:0;`;
 
 // Switch
@@ -854,7 +854,7 @@ const SwitchInput = styled.input`appearance:none;-webkit-appearance:none;positio
 const SwitchTrack = styled.span`display:inline-block;width:38px;height:22px;background:#CBD5E1;border-radius:999px;position:relative;transition:background 0.15s;
   &::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;background:#FFF;border-radius:50%;box-shadow:0 1px 2px rgba(0,0,0,0.2);transition:transform 0.15s;}
 `;
-const SwitchLabel = styled.span`font-size:12px;font-weight:600;color:#475569;`;
+const SwitchLabel = styled.span`font-size:0.75rem;font-weight:600;color:#475569;`;
 
 const InviteBanner = styled.div`
   display:flex; align-items:center; gap:12px; justify-content:space-between;
@@ -863,19 +863,19 @@ const InviteBanner = styled.div`
 `;
 const InviteBannerText = styled.div`
   display:flex; flex-direction:column; gap:2px; min-width:0;
-  strong { font-size:13px; font-weight:700; color:#92400E; }
-  span { font-size:12px; color:#A16207; line-height:1.4; }
+  strong { font-size:0.8125rem; font-weight:700; color:#92400E; }
+  span { font-size:0.75rem; color:#A16207; line-height:1.4; }
 `;
 // 운영 #52 — 초대일시·재발송 표시
-const InviteMeta = styled.div`font-size:11px; color:#A16207; opacity:0.85; margin-top:2px; font-variant-numeric:tabular-nums;`;
-const InviteWhen = styled.div`font-size:12px; color:#334155; font-variant-numeric:tabular-nums;`;
+const InviteMeta = styled.div`font-size:0.6875rem; color:#A16207; opacity:0.85; margin-top:2px; font-variant-numeric:tabular-nums;`;
+const InviteWhen = styled.div`font-size:0.75rem; color:#334155; font-variant-numeric:tabular-nums;`;
 const ResendTag = styled.span`
-  display:inline-block; margin-top:3px; font-size:10px; font-weight:700;
+  display:inline-block; margin-top:3px; font-size:0.625rem; font-weight:700;
   color:#92400E; background:#FEF3C7; border-radius:999px; padding:1px 7px;
 `;
 const ResendBtn = styled.button`
   flex-shrink:0; height:32px; padding:0 12px; border-radius:8px;
-  font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap;
+  font-size:0.75rem; font-weight:600; cursor:pointer; white-space:nowrap;
   color:#fff; background:#0D9488; border:1px solid #0D9488;
   transition:background 0.12s;
   &:hover:not(:disabled){ background:#0F766E; }
@@ -884,34 +884,34 @@ const ResendBtn = styled.button`
 const TimelineBtn = styled.button`
   display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%;
   padding:12px 14px; border-radius:10px; cursor:pointer; text-align:left;
-  font-size:13px; font-weight:600; color:#0F766E;
+  font-size:0.8125rem; font-weight:600; color:#0F766E;
   background:#F0FDFA; border:1px solid #99F6E4;
   transition:background 0.15s, border-color 0.15s;
   &:hover{ background:#CCFBF1; border-color:#5EEAD4; }
-  span{ font-size:18px; line-height:1; color:#14B8A6; }
+  span{ font-size:1.125rem; line-height:1; color:#14B8A6; }
 `;
 const Section = styled.section`display:flex;flex-direction:column;gap:8px;`;
-const SectionTitle = styled.h3`font-size:13px;font-weight:700;color:#0F172A;margin:0;`;
+const SectionTitle = styled.h3`font-size:0.8125rem;font-weight:700;color:#0F172A;margin:0;`;
 const SectionTitleRow = styled.div`display:flex;align-items:center;justify-content:space-between;`;
-const SmallCount = styled.small`margin-left:6px;font-size:11px;color:#94A3B8;font-weight:500;`;
-const Helper = styled.div`font-size:11px;color:#94A3B8;line-height:1.5;`;
+const SmallCount = styled.small`margin-left:6px;font-size:0.6875rem;color:#94A3B8;font-weight:500;`;
+const Helper = styled.div`font-size:0.6875rem;color:#94A3B8;line-height:1.5;`;
 const ContactRow = styled.div`display:flex;align-items:center;gap:8px;padding:6px 0;`;
-const ContactLabel = styled.span`font-size:11px;color:#94A3B8;font-weight:600;width:48px;flex-shrink:0;`;
-const ContactValue = styled.span`font-size:13px;color:#0F172A;`;
+const ContactLabel = styled.span`font-size:0.6875rem;color:#94A3B8;font-weight:600;width:48px;flex-shrink:0;`;
+const ContactValue = styled.span`font-size:0.8125rem;color:#0F172A;`;
 const BizToggleRow = styled.div`padding:2px 0 6px;`;
 const BizRow = styled.div`display:flex;flex-direction:column;gap:4px;min-width:0;`;
-const BizLabel = styled.span`font-size:11px;color:#64748B;font-weight:600;`;
-const BizReadVal = styled.span`font-size:13px;color:#0F172A;word-break:break-all;`;
+const BizLabel = styled.span`font-size:0.6875rem;color:#64748B;font-weight:600;`;
+const BizReadVal = styled.span`font-size:0.8125rem;color:#0F172A;word-break:break-all;`;
 const BizTwoCol = styled.div`display:grid;grid-template-columns:1fr 1fr;gap:10px;`;
 const BizInput = styled.input`
   width:100%;box-sizing:border-box;padding:8px 28px 8px 10px;
-  border:1px solid #E2E8F0;border-radius:8px;font-size:13px;color:#0F172A;font-family:inherit;
+  border:1px solid #E2E8F0;border-radius:8px;font-size:0.8125rem;color:#0F172A;font-family:inherit;
   &:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,0.15);}
   &::placeholder{color:#CBD5E1;}
 `;
 const NoteArea = styled.textarea`
   width:100%;min-height:70px;max-height:180px;padding:8px 10px;
-  border:1px solid #E2E8F0;border-radius:8px;font-size:13px;color:#0F172A;background:#FAFBFC;font-family:inherit;line-height:1.5;resize:vertical;
+  border:1px solid #E2E8F0;border-radius:8px;font-size:0.8125rem;color:#0F172A;background:#FAFBFC;font-family:inherit;line-height:1.5;resize:vertical;
   &:focus{outline:none;border-color:#14B8A6;background:#FFF;box-shadow:0 0 0 3px rgba(20,184,166,0.1);}
   &:disabled{background:#F8FAFC;color:#64748B;cursor:not-allowed;}
   &::placeholder{color:#CBD5E1;}
@@ -927,21 +927,21 @@ const ItemCard = styled.button`
 const ColorDot = styled.span`width:4px;align-self:stretch;border-radius:2px;flex-shrink:0;`;
 const ChannelDot = styled.span<{ $type:string }>`width:8px;height:8px;border-radius:50%;flex-shrink:0;background:${p=>p.$type==='customer'?'#14B8A6':'#94A3B8'};`;
 const ItemMain = styled.div`flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;`;
-const ItemTitle = styled.div`font-size:13px;font-weight:600;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
-const ItemMeta = styled.div`display:flex;align-items:center;gap:6px;font-size:11px;color:#64748B;`;
-const ProjectStatusPill = styled.span<{ $status:string }>`padding:1px 6px;border-radius:6px;font-size:10px;font-weight:600;
+const ItemTitle = styled.div`font-size:0.8125rem;font-weight:600;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
+const ItemMeta = styled.div`display:flex;align-items:center;gap:6px;font-size:0.6875rem;color:#64748B;`;
+const ProjectStatusPill = styled.span<{ $status:string }>`padding:1px 6px;border-radius:6px;font-size:0.625rem;font-weight:600;
   ${p=>p.$status==='active'?'background:#CCFBF1;color:#0F766E;':p.$status==='paused'?'background:#FEF3C7;color:#92400E;':'background:#E2E8F0;color:#475569;'}
 `;
-const TypeBadge = styled.span`padding:1px 6px;background:#F1F5F9;color:#64748B;border-radius:4px;font-size:9px;font-weight:600;`;
-const ChannelBadge = styled.span<{ $type:string }>`padding:1px 6px;border-radius:6px;font-size:10px;font-weight:600;
+const TypeBadge = styled.span`padding:1px 6px;background:#F1F5F9;color:#64748B;border-radius:4px;font-size:0.5625rem;font-weight:600;`;
+const ChannelBadge = styled.span<{ $type:string }>`padding:1px 6px;border-radius:6px;font-size:0.625rem;font-weight:600;
   ${p=>p.$type==='customer'?'background:#F0FDFA;color:#0F766E;':'background:#F1F5F9;color:#64748B;'}
 `;
-const ArchivedPill = styled.span`padding:1px 6px;background:#E2E8F0;color:#475569;border-radius:6px;font-size:10px;font-weight:600;`;
-const LastMsg = styled.span`margin-left:auto;font-size:10px;color:#94A3B8;`;
-const GoArrow = styled.span`font-size:18px;color:#CBD5E1;margin-left:auto;`;
+const ArchivedPill = styled.span`padding:1px 6px;background:#E2E8F0;color:#475569;border-radius:6px;font-size:0.625rem;font-weight:600;`;
+const LastMsg = styled.span`margin-left:auto;font-size:0.625rem;color:#94A3B8;`;
+const GoArrow = styled.span`font-size:1.125rem;color:#CBD5E1;margin-left:auto;`;
 
 // History
-const HistoryToggle = styled.button`display:inline-flex;align-items:center;gap:4px;padding:5px 10px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;color:#475569;cursor:pointer;&:hover{background:#F0FDFA;border-color:#CCFBF1;color:#0F766E;}`;
+const HistoryToggle = styled.button`display:inline-flex;align-items:center;gap:4px;padding:5px 10px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;font-size:0.75rem;color:#475569;cursor:pointer;&:hover{background:#F0FDFA;border-color:#CCFBF1;color:#0F766E;}`;
 const Timeline = styled.div`display:flex;flex-direction:column;gap:10px;padding-left:8px;border-left:2px solid #E2E8F0;margin-top:4px;`;
 const TimelineItem = styled.div`display:flex;gap:10px;position:relative;padding-left:8px;`;
 const TimelineDot = styled.div<{ $event:string }>`position:absolute;left:-15px;top:4px;width:10px;height:10px;border-radius:50%;border:2px solid #FFF;${p=>{
@@ -952,35 +952,35 @@ const TimelineDot = styled.div<{ $event:string }>`position:absolute;left:-15px;t
   if(p.$event==='client.updated')return 'background:#3B82F6;';
   return 'background:#CBD5E1;';
 }}`;
-const TimelineBody = styled.div`flex:1;font-size:12px;color:#334155;`;
+const TimelineBody = styled.div`flex:1;font-size:0.75rem;color:#334155;`;
 const TimelineHead = styled.div`display:flex;flex-wrap:wrap;align-items:center;gap:6px;`;
 const TimelineEvent = styled.span`color:#64748B;`;
-const TimelineNote = styled.div`margin-top:2px;padding:4px 8px;background:#F8FAFC;border-radius:4px;font-size:11px;color:#475569;`;
-const TimelineTime = styled.div`margin-top:2px;font-size:10px;color:#94A3B8;`;
+const TimelineNote = styled.div`margin-top:2px;padding:4px 8px;background:#F8FAFC;border-radius:4px;font-size:0.6875rem;color:#475569;`;
+const TimelineTime = styled.div`margin-top:2px;font-size:0.625rem;color:#94A3B8;`;
 
 // Danger
 const DangerBlock = styled.section`display:flex;flex-direction:column;gap:8px;padding-top:16px;border-top:1px solid #F1F5F9;`;
-const DangerBtn = styled.button`height:40px;padding:0 16px;background:#FFF;color:#DC2626;border:1px solid #FECACA;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;align-self:flex-start;&:hover{background:#FEF2F2;border-color:#DC2626;}`;
+const DangerBtn = styled.button`height:40px;padding:0 16px;background:#FFF;color:#DC2626;border:1px solid #FECACA;border-radius:8px;font-size:0.8125rem;font-weight:600;cursor:pointer;align-self:flex-start;&:hover{background:#FEF2F2;border-color:#DC2626;}`;
 
-const Dim = styled.div`padding:12px;text-align:center;font-size:12px;color:#94A3B8;background:#F8FAFC;border-radius:8px;`;
+const Dim = styled.div`padding:12px;text-align:center;font-size:0.75rem;color:#94A3B8;background:#F8FAFC;border-radius:8px;`;
 
 // Delete modal (reused)
 const ConfirmBackdrop = styled.div`position:fixed;inset:0;background:rgba(15,23,42,0.40);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px;animation:cbfade 0.15s ease-out;@keyframes cbfade{from{opacity:0;}to{opacity:1;}}`;
 const ConfirmDialog = styled.div`width:100%;max-width:440px;background:#fff;border-radius:14px;box-shadow:0 24px 48px rgba(15,23,42,0.20);display:flex;flex-direction:column;overflow:hidden;animation:cbpop 0.18s ease-out;@keyframes cbpop{from{transform:translateY(8px);opacity:0.6;}to{transform:translateY(0);opacity:1;}}`;
-const ConfirmTitle = styled.h2`font-size:16px;font-weight:700;color:#0f172a;margin:0;padding:18px 22px;border-bottom:1px solid #e2e8f0;`;
-const ConfirmBody = styled.div`padding:18px 22px;font-size:13px;color:#334155;line-height:1.6;display:flex;flex-direction:column;gap:10px;`;
-const WarnBlock = styled.div`margin-top:4px;padding:10px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#991b1b;font-size:12px;`;
+const ConfirmTitle = styled.h2`font-size:1rem;font-weight:700;color:#0f172a;margin:0;padding:18px 22px;border-bottom:1px solid #e2e8f0;`;
+const ConfirmBody = styled.div`padding:18px 22px;font-size:0.8125rem;color:#334155;line-height:1.6;display:flex;flex-direction:column;gap:10px;`;
+const WarnBlock = styled.div`margin-top:4px;padding:10px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#991b1b;font-size:0.75rem;`;
 const ProjListUl = styled.ul`margin:6px 0 0 14px;padding:0;& li{margin-bottom:2px;}`;
-const Caveat = styled.div`font-size:11px;color:#94a3b8;margin-top:4px;`;
+const Caveat = styled.div`font-size:0.6875rem;color:#94a3b8;margin-top:4px;`;
 const ConfirmFooter = styled.div`padding:14px 22px;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;gap:8px;background:#fafbfc;`;
 // 헤더 생성 버튼 규격 = ActionButton sm (h36 / px14 / font13). 페이지마다 32·35 로 갈라져 있었다(2026-08-25).
-const InviteBtn = styled.button`display:inline-flex;align-items:center;gap:6px;height:36px;min-height:36px;padding:0 14px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;&:hover{background:#0D9488;}`;
+const InviteBtn = styled.button`display:inline-flex;align-items:center;gap:6px;height:36px;min-height:36px;padding:0 14px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:0.8125rem;font-weight:700;cursor:pointer;&:hover{background:#0D9488;}`;
 const Field = styled.div`display:flex;flex-direction:column;gap:4px;`;
-const FieldLabel = styled.label`font-size:12px;font-weight:600;color:#0F172A;`;
-const FieldInput = styled.input`height:38px;padding:0 12px;border:1px solid #E2E8F0;border-radius:8px;font-size:13px;color:#0F172A;font-family:inherit;background:#FFF;&:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,0.1);}&::placeholder{color:#CBD5E1;}`;
+const FieldLabel = styled.label`font-size:0.75rem;font-weight:600;color:#0F172A;`;
+const FieldInput = styled.input`height:38px;padding:0 12px;border:1px solid #E2E8F0;border-radius:8px;font-size:0.8125rem;color:#0F172A;font-family:inherit;background:#FFF;&:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,0.1);}&::placeholder{color:#CBD5E1;}`;
 const Req = styled.span`color:#F43F5E;margin-left:2px;`;
-const CFCancel = styled.button`height:40px;padding:0 16px;background:#fff;color:#475569;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;&:hover:not(:disabled){background:#f8fafc;border-color:#cbd5e1;}&:disabled{opacity:0.5;cursor:not-allowed;}`;
-const CFDanger = styled.button`height:40px;padding:0 20px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;&:hover:not(:disabled){background:#b91c1c;}&:disabled{background:#fca5a5;cursor:not-allowed;}`;
+const CFCancel = styled.button`height:40px;padding:0 16px;background:#fff;color:#475569;border:1px solid #e2e8f0;border-radius:8px;font-size:0.8125rem;font-weight:600;cursor:pointer;&:hover:not(:disabled){background:#f8fafc;border-color:#cbd5e1;}&:disabled{opacity:0.5;cursor:not-allowed;}`;
+const CFDanger = styled.button`height:40px;padding:0 20px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-size:0.8125rem;font-weight:700;cursor:pointer;&:hover:not(:disabled){background:#b91c1c;}&:disabled{background:#fca5a5;cursor:not-allowed;}`;
 
 // 인라인 메모 — AutoSaveField 적용 (debounce 2s + ✓ 뱃지)
 const NotesEditor = ({ clientId, initial, disabled, placeholder, onSave }: {
@@ -1011,7 +1011,7 @@ const ExportBtn = styled.button`
   height: 36px; padding: 0 12px;
   background: #FFFFFF; color: #334155;
   border: 1px solid #CBD5E1; border-radius: 8px; cursor: pointer;
-  font-size: 13px; font-weight: 600;
+  font-size: 0.8125rem; font-weight: 600;
   &:hover:not(:disabled) { border-color: #94A3B8; background: #F8FAFC; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;

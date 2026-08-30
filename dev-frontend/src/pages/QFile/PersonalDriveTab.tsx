@@ -105,11 +105,11 @@ const Bar = styled.div`
 const SearchInput = styled.input`
   flex: 1; min-width: 200px; height: 36px;
   padding: 0 12px; border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 13px; color: #0F172A;
+  font-size: 0.8125rem; color: #0F172A;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(139,92,246,0.12); }
 `;
 const AccountTag = styled.span`
-  font-size: 12px; color: #0F766E; background: #F0FDFA;
+  font-size: 0.75rem; color: #0F766E; background: #F0FDFA;
   border: 1px solid #5EEAD4; border-radius: 999px; padding: 4px 10px; white-space: nowrap;
 `;
 const List = styled.div`display: flex; flex-direction: column; gap: 6px;`;
@@ -121,24 +121,24 @@ const Row = styled.a<{ $clickable: boolean }>`
   &:hover { background: ${(p) => (p.$clickable ? '#F8FAFC' : '#fff')}; border-color: ${(p) => (p.$clickable ? '#CBD5E1' : '#E2E8F0')}; }
 `;
 const Icon = styled.img`width: 20px; height: 20px; flex-shrink: 0;`;
-const IconFallback = styled.span`font-size: 18px; flex-shrink: 0;`;
-const FileName = styled.div`flex: 1; font-size: 14px; font-weight: 600; @media (max-width: 640px) { font-size: 15px; } color: #0F172A; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
-const FileMeta = styled.div`font-size: 12px; color: #94A3B8; white-space: nowrap;`;
-const Empty = styled.div`padding: 40px; text-align: center; color: #94A3B8; font-size: 13px;`;
+const IconFallback = styled.span`font-size: 1.125rem; flex-shrink: 0;`;
+const FileName = styled.div`flex: 1; font-size: 0.875rem; font-weight: 600; @media (max-width: 640px) { font-size: 0.9375rem; } color: #0F172A; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
+const FileMeta = styled.div`font-size: 0.75rem; color: #94A3B8; white-space: nowrap;`;
+const Empty = styled.div`padding: 40px; text-align: center; color: #94A3B8; font-size: 0.8125rem;`;
 const ErrorBox = styled.div`
   padding: 10px 14px; margin-bottom: 12px;
-  background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; color: #B91C1C; font-size: 13px;
+  background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; color: #B91C1C; font-size: 0.8125rem;
 `;
 const Notice = styled.div`
   display: flex; flex-direction: column; align-items: center; gap: 12px;
   padding: 40px 20px; text-align: center;
   background: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 12px;
 `;
-const NoticeText = styled.div`font-size: 13px; color: #475569; line-height: 1.6;`;
+const NoticeText = styled.div`font-size: 0.8125rem; color: #475569; line-height: 1.6;`;
 const NoticeBtn = styled.button`
   height: 36px; padding: 0 16px;
   background: #14B8A6; color: #fff; border: none; border-radius: 8px;
-  font-size: 13px; font-weight: 600; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   &:hover { background: #0F766E; }
   &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
 `;

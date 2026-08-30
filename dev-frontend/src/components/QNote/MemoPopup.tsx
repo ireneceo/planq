@@ -131,7 +131,7 @@ const SearchInput = styled.input`
   width: 100%;
   height: 32px;
   padding: 0 12px 0 30px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   background: #F8FAFC;
   border: 1px solid #E2E8F0;
   border-radius: 8px;
@@ -167,15 +167,15 @@ const DropdownItem = styled.button.attrs({ type: 'button' as const })<{ $active?
   &:hover { background: #F1F5F9; }
 `;
 const DropdownTitle = styled.div`
-  font-size: 13px; font-weight: 600; color: #0F172A;
+  font-size: 0.8125rem; font-weight: 600; color: #0F172A;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
 const DropdownMeta = styled.div`
-  font-size: 11px; color: #94A3B8; margin-top: 2px;
+  font-size: 0.6875rem; color: #94A3B8; margin-top: 2px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
 const DropdownEmpty = styled.div`
-  padding: 14px 12px; font-size: 12px; color: #94A3B8; text-align: center;
+  padding: 14px 12px; font-size: 0.75rem; color: #94A3B8; text-align: center;
 `;
 
 const HeaderBtn = styled.button.attrs({ type: 'button' as const })<{ $active?: boolean }>`
@@ -193,7 +193,7 @@ const HeaderBtn = styled.button.attrs({ type: 'button' as const })<{ $active?: b
 
 const StatusRow = styled.div`
   padding: 0 14px 8px;
-  font-size: 11px; color: #94A3B8;
+  font-size: 0.6875rem; color: #94A3B8;
   display: flex; align-items: center; gap: 6px;
   min-height: 16px;
   flex-shrink: 0;
@@ -219,7 +219,7 @@ const Body = styled.div`
 const EditorLoading = styled.div`
   display: flex; align-items: center; justify-content: center;
   height: 100%; min-height: 200px;
-  font-size: 13px; color: #94A3B8;
+  font-size: 0.8125rem; color: #94A3B8;
 `;
 // Body 안에서 PostEditor 의 .ProseMirror 가 자체 padding 가져서 별도 wrap padding 0.
 // PostEditor borderless=true → 외곽 박스 X, popup 안에 자연스럽게 fit.

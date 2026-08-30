@@ -291,7 +291,7 @@ const NameBlock = styled.div`
   min-width: 0;
 `;
 const Name = styled.div`
-  font-size: 15px;
+  font-size: 0.9375rem;
   font-weight: 700;
   color: #0F172A;
 `;
@@ -300,7 +300,7 @@ const RoleTag = styled.span<{ $client?: boolean }>`
   padding: 1px 8px;
   background: ${(p) => (p.$client ? 'rgba(244,63,94,0.10)' : '#F0FDFA')};
   color: ${(p) => (p.$client ? '#BE123C' : '#0F766E')};
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 700;
   border-radius: 8px;
   width: fit-content;
@@ -313,7 +313,7 @@ const FieldList = styled.div`
 const Field = styled.div`
   display: flex;
   gap: 10px;
-  font-size: 12px;
+  font-size: 0.75rem;
 `;
 const FieldLabel = styled.div`
   min-width: 60px;
@@ -327,7 +327,7 @@ const FieldValue = styled.div`
   a:hover { text-decoration: underline; }
 `;
 const NoInfo = styled.div`
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #94A3B8;
   text-align: center;
   padding: 12px 0;

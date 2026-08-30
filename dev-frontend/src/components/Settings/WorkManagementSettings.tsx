@@ -155,11 +155,11 @@ const Card = styled.section`
 `;
 const SectionTitle = styled.h3`
   margin: 0 0 8px;
-  font-size: 16px; font-weight: 700; color: #0F172A; letter-spacing: -0.2px;
+  font-size: 1rem; font-weight: 700; color: #0F172A; letter-spacing: -0.2px;
 `;
 const SectionDesc = styled.p`
   margin: 0 0 20px;
-  font-size: 13px; color: #475569; line-height: 1.6;
+  font-size: 0.8125rem; color: #475569; line-height: 1.6;
 `;
 const Row = styled.div`
   display: flex; align-items: center; gap: 16px;
@@ -168,10 +168,10 @@ const Row = styled.div`
 `;
 const Field = styled.div`flex: 1; min-width: 0;`;
 const FieldLabel = styled.div`
-  font-size: 14px; font-weight: 600; color: #0F172A; margin-bottom: 2px;
+  font-size: 0.875rem; font-weight: 600; color: #0F172A; margin-bottom: 2px;
 `;
 const FieldHint = styled.div`
-  font-size: 12px; color: #64748B; line-height: 1.5;
+  font-size: 0.75rem; color: #64748B; line-height: 1.5;
 `;
 const Control = styled.div`
   flex-shrink: 0; min-width: 140px;
@@ -201,9 +201,9 @@ const SubOptions = styled.div`
 const NextHint = styled.div`
   margin-top: 16px; padding: 10px 14px;
   background: #F0FDFA; border: 1px solid #CCFBF1; border-radius: 8px;
-  font-size: 13px; color: #0F766E;
+  font-size: 0.8125rem; color: #0F766E;
   strong { font-weight: 700; }
 `;
 const ReadOnlyHint = styled.div`
-  margin-top: 12px; font-size: 12px; color: #94A3B8; font-style: italic;
+  margin-top: 12px; font-size: 0.75rem; color: #94A3B8; font-style: italic;
 `;

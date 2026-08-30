@@ -166,7 +166,7 @@ const ArchivedChatsModal: React.FC<Props> = ({ open, businessId, onClose, onAfte
 export default ArchivedChatsModal;
 
 const Description = styled.p`
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #475569;
   line-height: 1.6;
   margin: 0 0 16px 0;
@@ -177,7 +177,7 @@ const ErrorBox = styled.div`
   background: #FEF2F2;
   border: 1px solid #FECACA;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #B91C1C;
   margin-bottom: 12px;
 `;
@@ -185,7 +185,7 @@ const ErrorBox = styled.div`
 const Empty = styled.div`
   text-align: center;
   padding: 40px 20px;
-  font-size: 14px;
+  font-size: 0.875rem;
   color: #94A3B8;
 `;
 
@@ -213,7 +213,7 @@ const Body = styled.div`
 `;
 
 const RowTitle = styled.div`
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
   color: #0F172A;
   margin-bottom: 4px;
@@ -226,7 +226,7 @@ const Meta = styled.div`
   display: flex;
   flex-wrap: wrap;
   gap: 4px 6px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #64748B;
 `;
 const MetaCell = styled.span``;
@@ -242,7 +242,7 @@ const Actions = styled.div`
 
 const ActionBtn = styled.button<{ $danger?: boolean }>`
   padding: 6px 12px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   border-radius: 8px;
   border: 1px solid ${(p) => (p.$danger ? '#FECACA' : '#CBD5E1')};

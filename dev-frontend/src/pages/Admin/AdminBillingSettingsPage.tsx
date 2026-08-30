@@ -424,13 +424,13 @@ const Card = styled.section`
 `;
 const SectionTitle = styled.h3`
   margin: 0;
-  font-size: 15px;
+  font-size: 0.9375rem;
   font-weight: 700;
   color: #0F172A;
 `;
 const Hint = styled.p`
   margin: -8px 0 4px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #64748B;
   line-height: 1.5;
 `;
@@ -439,7 +439,7 @@ const Grid = styled.div`
   display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
   @media (max-width: 720px) { grid-template-columns: 1fr; }
 `;
-const Label = styled.label`font-size: 13px; font-weight: 600; color: #334155;`;
+const Label = styled.label`font-size: 0.8125rem; font-weight: 600; color: #334155;`;
 const LabelRow = styled.div`display: flex; align-items: center; gap: 8px;`;
 
 /* ① 현황 */
@@ -452,10 +452,10 @@ const StatusDot = styled.span<{ $on: boolean }>`
   background: ${p => (p.$on ? '#0F766E' : '#CBD5E1')};
   margin-top: 1px;
 `;
-const StatusName = styled.span`font-size: 13px; font-weight: 700; color: #0F172A; flex-shrink: 0; min-width: 68px;`;
-const StatusText = styled.span`font-size: 13px; color: #475569; line-height: 1.5;`;
+const StatusName = styled.span`font-size: 0.8125rem; font-weight: 700; color: #0F172A; flex-shrink: 0; min-width: 68px;`;
+const StatusText = styled.span`font-size: 0.8125rem; color: #475569; line-height: 1.5;`;
 const WarnBox = styled.div`
-  font-size: 12px; color: #92400E; line-height: 1.5;
+  font-size: 0.75rem; color: #92400E; line-height: 1.5;
   background: #FFFBEB; border: 1px solid #FCD34D; border-radius: 8px; padding: 10px 12px;
 `;
 
@@ -469,31 +469,31 @@ const StepHead = styled.div`display: flex; align-items: center; gap: 8px; flex-w
 const StepNum = styled.span<{ $done: boolean }>`
   display: inline-flex; align-items: center; justify-content: center;
   width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0;
-  font-size: 11px; font-weight: 700;
+  font-size: 0.6875rem; font-weight: 700;
   color: ${p => (p.$done ? '#FFFFFF' : '#64748B')};
   background: ${p => (p.$done ? '#0F766E' : '#F1F5F9')};
   border: 1px solid ${p => (p.$done ? '#0F766E' : '#E2E8F0')};
 `;
 const StepWhere = styled.p`
-  margin: 0; font-size: 12px; color: #64748B; line-height: 1.6;
+  margin: 0; font-size: 0.75rem; color: #64748B; line-height: 1.6;
   display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline;
 `;
 const LinkOut = styled.a`
-  font-size: 12px; font-weight: 600; color: #0F766E; text-decoration: none;
+  font-size: 0.75rem; font-weight: 600; color: #0F766E; text-decoration: none;
   &:hover { text-decoration: underline; }
 `;
 const CodeRow = styled.div`
   display: flex; align-items: center; gap: 8px; min-width: 0;
   @media (max-width: 640px) { flex-direction: column; align-items: stretch; }
 `;
-const CodeLabel = styled.span`font-size: 12px; font-weight: 600; color: #64748B; flex-shrink: 0; min-width: 84px;`;
+const CodeLabel = styled.span`font-size: 0.75rem; font-weight: 600; color: #64748B; flex-shrink: 0; min-width: 84px;`;
 const Code = styled.code`
   flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap;
-  font-size: 12px; color: #0F172A; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem; color: #0F172A; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 8px 10px;
 `;
 const CopyBtn = styled.button`
-  padding: 0 12px; height: 34px; font-size: 12px; font-weight: 600;
+  padding: 0 12px; height: 34px; font-size: 0.75rem; font-weight: 600;
   background: #FFFFFF; color: #64748B;
   border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer; flex-shrink: 0;
   &:hover { color: #0F172A; background: #F8FAFC; }
@@ -501,28 +501,28 @@ const CopyBtn = styled.button`
 const OptionalBlock = styled.div`
   padding-top: 16px; border-top: 1px solid #F1F5F9;
 `;
-const MutedNote = styled.p`margin: 0; font-size: 12px; color: #94A3B8; line-height: 1.5;`;
-const FieldError = styled.p`margin: 0; font-size: 12px; color: #B91C1C; line-height: 1.5;`;
+const MutedNote = styled.p`margin: 0; font-size: 0.75rem; color: #94A3B8; line-height: 1.5;`;
+const FieldError = styled.p`margin: 0; font-size: 0.75rem; color: #B91C1C; line-height: 1.5;`;
 
 const SetBadge = styled.span`
-  font-size: 11px; font-weight: 700; color: #0F766E;
+  font-size: 0.6875rem; font-weight: 700; color: #0F766E;
   background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 6px; padding: 2px 8px;
 `;
 const UnsetBadge = styled.span`
-  font-size: 11px; font-weight: 700; color: #94A3B8;
+  font-size: 0.6875rem; font-weight: 700; color: #94A3B8;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; padding: 2px 8px;
 `;
 const TestBadge = styled.span`
-  font-size: 11px; font-weight: 700; color: #92400E;
+  font-size: 0.6875rem; font-weight: 700; color: #92400E;
   background: #FFFBEB; border: 1px solid #FCD34D; border-radius: 6px; padding: 2px 8px;
 `;
 const OptionalBadge = styled.span`
-  font-size: 11px; font-weight: 600; color: #94A3B8;
+  font-size: 0.6875rem; font-weight: 600; color: #94A3B8;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; padding: 2px 8px;
 `;
 const ClearBtn = styled.button`
   align-self: flex-start; margin-top: 2px;
-  font-size: 12px; font-weight: 600; color: #B91C1C;
+  font-size: 0.75rem; font-weight: 600; color: #B91C1C;
   background: transparent; border: none; padding: 2px 0; cursor: pointer;
   &:hover { text-decoration: underline; }
 `;
@@ -532,7 +532,7 @@ const Input = styled.input`
   width: 100%;
   box-sizing: border-box;
   height: 38px; padding: 0 12px;
-  font-size: 14px; color: #0F172A;
+  font-size: 0.875rem; color: #0F172A;
   border: 1px solid #E2E8F0; border-radius: 8px; background: #FFFFFF;
   font-family: inherit;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.15); }
@@ -542,7 +542,7 @@ const SecretRow = styled.div`
   > div:first-child { flex: 1; min-width: 0; }
 `;
 const RevealBtn = styled.button`
-  padding: 0 14px; font-size: 12px; font-weight: 600;
+  padding: 0 14px; font-size: 0.75rem; font-weight: 600;
   background: #FFFFFF; color: #64748B;
   border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer;
   flex-shrink: 0;

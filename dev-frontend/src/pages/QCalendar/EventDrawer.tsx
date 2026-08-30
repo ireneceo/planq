@@ -990,13 +990,13 @@ const ColorBar = styled.div<{ $color: string }>`
 const HeaderTexts = styled.div` flex: 1; min-width: 0; `;
 const TitleInput = styled.input`
   width: 100%; border: none; outline: none; background: transparent;
-  font-size: 18px; font-weight: 700; color: #0F172A; letter-spacing: -0.2px;
+  font-size: 1.125rem; font-weight: 700; color: #0F172A; letter-spacing: -0.2px;
   padding: 0 0 6px; line-height: 1.25;
   border-bottom: 1px solid transparent;
   &:focus { border-bottom-color: #14B8A6; }
 `;
 const TitleReadOnly = styled.div`
-  font-size: 18px; font-weight: 700; color: #0F172A; letter-spacing: -0.2px;
+  font-size: 1.125rem; font-weight: 700; color: #0F172A; letter-spacing: -0.2px;
   padding: 0 0 6px; line-height: 1.25;
 `;
 const MetaRow = styled.div`
@@ -1004,27 +1004,27 @@ const MetaRow = styled.div`
 `;
 const CategoryPill = styled.span<{ $bg: string; $fg: string }>`
   display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 999px;
-  font-size: 11px; font-weight: 600;
+  font-size: 0.6875rem; font-weight: 600;
   background: ${({ $bg }) => $bg}; color: ${({ $fg }) => $fg};
 `;
 const ProjectChip = styled.span`
   display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 999px;
-  font-size: 11px; font-weight: 500; background: #F1F5F9; color: #334155;
+  font-size: 0.6875rem; font-weight: 500; background: #F1F5F9; color: #334155;
 `;
 const ProjectDot = styled.span<{ $color: string }>`
   width: 7px; height: 7px; border-radius: 50%; background: ${({ $color }) => $color};
 `;
 const VisibilityTag = styled.span`
-  font-size: 11px; color: #94A3B8; padding: 3px 0;
+  font-size: 0.6875rem; color: #94A3B8; padding: 3px 0;
 `;
 const RecurrenceBadge = styled.span`
   display: inline-flex; align-items: center; gap: 4px;
   padding: 3px 8px; border-radius: 999px;
-  font-size: 11px; font-weight: 600;
+  font-size: 0.6875rem; font-weight: 600;
   background: #F0FDFA; color: #0F766E;
 `;
 const ReadOnlyHint = styled.span`
-  font-size: 11px; font-weight: 500;
+  font-size: 0.6875rem; font-weight: 500;
   color: #94A3B8; background: #F1F5F9;
   border-radius: 10px; padding: 2px 8px;
 `;
@@ -1036,31 +1036,31 @@ const SectionIcon = styled.div`
 `;
 const SectionBody = styled.div` flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; `;
 const DateLine = styled.div`
-  font-size: 13px; font-weight: 500; color: #0F172A; font-variant-numeric: tabular-nums;
+  font-size: 0.8125rem; font-weight: 500; color: #0F172A; font-variant-numeric: tabular-nums;
 `;
 const MutedSmall = styled.div`
-  font-size: 11px; font-weight: 500; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.4px;
+  font-size: 0.6875rem; font-weight: 500; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.4px;
 `;
 // 운영 #41 — 타임존 안내 (기준 tz / 개인 tz 보조)
 const TzNote = styled.div<{ $alt?: boolean }>`
-  font-size: 11px; font-weight: 500; margin-top: 2px;
+  font-size: 0.6875rem; font-weight: 500; margin-top: 2px;
   color: ${p => p.$alt ? '#0F766E' : '#94A3B8'};
 `;
-const Plain = styled.div` font-size: 13px; color: #334155; `;
-const GcalSyncRow = styled.label<{ $disabled?: boolean }>`display:flex;align-items:center;gap:8px;padding:3px 0;font-size:13px;color:#334155;cursor:${p=>p.$disabled?'not-allowed':'pointer'};opacity:${p=>p.$disabled?0.55:1};`;
-const Muted = styled.span` font-size: 12px; color: #94A3B8; font-style: italic; `;
+const Plain = styled.div` font-size: 0.8125rem; color: #334155; `;
+const GcalSyncRow = styled.label<{ $disabled?: boolean }>`display:flex;align-items:center;gap:8px;padding:3px 0;font-size:0.8125rem;color:#334155;cursor:${p=>p.$disabled?'not-allowed':'pointer'};opacity:${p=>p.$disabled?0.55:1};`;
+const Muted = styled.span` font-size: 0.75rem; color: #94A3B8; font-style: italic; `;
 const Description = styled.div`
-  font-size: 13px; color: #334155; line-height: 1.55; white-space: pre-wrap;
+  font-size: 0.8125rem; color: #334155; line-height: 1.55; white-space: pre-wrap;
 `;
 
 // 시간 편집
 const ScheduleEditor = styled.div` display: flex; flex-direction: column; gap: 8px; position: relative; `;
 const DateTimeRow = styled.div` display: flex; align-items: center; gap: 8px; flex-wrap: wrap; `;
-const RowLabel = styled.span` font-size: 11px; font-weight: 700; color: #64748B; min-width: 30px; `;
+const RowLabel = styled.span` font-size: 0.6875rem; font-weight: 700; color: #64748B; min-width: 30px; `;
 const DateTrigger = styled.button`
   display: inline-flex; align-items: center; gap: 6px;
   padding: 7px 10px; border: 1px solid #CBD5E1; border-radius: 8px;
-  background: #fff; color: #0F172A; font-size: 12.5px; font-weight: 500; cursor: pointer;
+  background: #fff; color: #0F172A; font-size: 0.78125rem; font-weight: 500; cursor: pointer;
   svg { color: #64748B; flex-shrink: 0; }
   &:hover { border-color: #14B8A6; }
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.12); }
@@ -1069,7 +1069,7 @@ const TimeWrap = styled.div` width: 100px; `;
 const AllDayRow = styled.div` display: flex; `;
 const CheckboxLabel = styled.label`
   display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
-  font-size: 12.5px; color: #475569;
+  font-size: 0.78125rem; color: #475569;
   input { accent-color: #14B8A6; cursor: pointer; width: 14px; height: 14px; }
 `;
 
@@ -1077,12 +1077,12 @@ const CheckboxLabel = styled.label`
 const Grid2 = styled.div` display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; `;
 const Field = styled.div` display: flex; flex-direction: column; gap: 4px; min-width: 0; `;
 const FieldLabel = styled.label`
-  font-size: 10.5px; font-weight: 500; color: #94A3B8;
+  font-size: 0.65625rem; font-weight: 500; color: #94A3B8;
   text-transform: uppercase; letter-spacing: 0.3px;
 `;
 const CategoryRow = styled.div` display: flex; flex-wrap: wrap; gap: 5px; `;
 const CategoryBtn = styled.button<{ $active: boolean }>`
-  padding: 5px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 500;
+  padding: 5px 10px; border-radius: 999px; font-size: 0.71875rem; font-weight: 500;
   background: ${({ $active }) => $active ? '#14B8A6' : '#F1F5F9'};
   color: ${({ $active }) => $active ? '#fff' : '#475569'};
   border: none; cursor: pointer;
@@ -1093,12 +1093,12 @@ const CategoryBtn = styled.button<{ $active: boolean }>`
 // input/textarea
 const Input = styled.input`
   padding: 8px 11px; border: 1px solid #CBD5E1; border-radius: 8px;
-  font-size: 13px; color: #0F172A; outline: none; background: #fff;
+  font-size: 0.8125rem; color: #0F172A; outline: none; background: #fff;
   &:focus { border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.12); }
 `;
 const Textarea = styled.textarea`
   padding: 8px 11px; border: 1px solid #CBD5E1; border-radius: 8px;
-  font-size: 13px; color: #0F172A; outline: none; resize: vertical;
+  font-size: 0.8125rem; color: #0F172A; outline: none; resize: vertical;
   font-family: inherit; line-height: 1.5;
   &:focus { border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.12); }
 `;
@@ -1112,7 +1112,7 @@ const MeetingUrl = styled.a`
   border: 1px solid #99F6E4;
   border-radius: 6px;
   font-family: 'SF Mono', 'Monaco', 'Menlo', 'Roboto Mono', monospace;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #0F766E;
   text-decoration: none;
   word-break: break-all;
@@ -1125,39 +1125,39 @@ const MeetingUrl = styled.a`
 `;
 const MeetingActions = styled.div` display: flex; gap: 6px; flex-wrap: wrap; `;
 const MeetingHint = styled.div`
-  font-size: 11px; color: #94A3B8; line-height: 1.45; margin-top: 4px;
+  font-size: 0.6875rem; color: #94A3B8; line-height: 1.45; margin-top: 4px;
 `;
 const CreateRoomBtn = styled.button`
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 8px 14px; border-radius: 8px; font-size: 12.5px; font-weight: 600;
+  padding: 8px 14px; border-radius: 8px; font-size: 0.78125rem; font-weight: 600;
   background: #14B8A6; color: #fff; border: none; cursor: pointer;
   &:hover:not(:disabled) { background: #0F766E; }
   &:disabled { background: #CBD5E1; cursor: not-allowed; }
 `;
 const ReissueBtn = styled.button`
   display: inline-flex; align-items: center;
-  padding: 7px 12px; border-radius: 6px; font-size: 12px; font-weight: 500;
+  padding: 7px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 500;
   background: #FFFBEB; color: #92400E; border: 1px solid #FDE68A; cursor: pointer;
   &:hover:not(:disabled) { background: #FEF3C7; }
   &:disabled { opacity: 0.6; cursor: not-allowed; }
 `;
 // #126 — Google Calendar 동기화 UI
 const GcalSynced = styled.div`
-  font-size: 12.5px; font-weight: 600; color: #0F766E;
+  font-size: 0.78125rem; font-weight: 600; color: #0F766E;
 `;
 const GcalPushBtn = styled.button`
   display: inline-flex; align-items: center; align-self: flex-start;
-  padding: 8px 14px; border-radius: 8px; font-size: 12.5px; font-weight: 600;
+  padding: 8px 14px; border-radius: 8px; font-size: 0.78125rem; font-weight: 600;
   background: #F0FDFA; color: #0F766E; border: 1px solid #99F6E4; cursor: pointer;
   &:hover:not(:disabled) { background: #14B8A6; color: #fff; }
   &:disabled { opacity: 0.6; cursor: not-allowed; }
 `;
 const GcalErr = styled.div`
-  font-size: 12px; color: #DC2626; margin-top: 6px; line-height: 1.5;
+  font-size: 0.75rem; color: #DC2626; margin-top: 6px; line-height: 1.5;
 `;
 const CopyBtn = styled.button`
   display: inline-flex; align-items: center; padding: 7px 12px; border-radius: 6px;
-  background: transparent; color: #475569; font-size: 12px; font-weight: 500;
+  background: transparent; color: #475569; font-size: 0.75rem; font-weight: 500;
   border: 1px solid #CBD5E1; cursor: pointer; text-decoration: none;
   &:hover { background: #F8FAFC; color: #0F172A; }
 `;
@@ -1167,12 +1167,12 @@ const AttendeeList = styled.div` display: flex; flex-direction: column; gap: 6px
 const AttendeeRow = styled.div` display: flex; align-items: center; gap: 8px; `;
 const Avatar = styled.div`
   width: 24px; height: 24px; border-radius: 50%; background: #E2E8F0;
-  color: #475569; font-size: 11px; font-weight: 600;
+  color: #475569; font-size: 0.6875rem; font-weight: 600;
   display: flex; align-items: center; justify-content: center;
 `;
-const AttendeeName = styled.div` font-size: 13px; color: #0F172A; flex: 1; `;
+const AttendeeName = styled.div` font-size: 0.8125rem; color: #0F172A; flex: 1; `;
 const ResponsePill = styled.span<{ $response: string }>`
-  font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 999px;
+  font-size: 0.65625rem; font-weight: 600; padding: 2px 7px; border-radius: 999px;
   background: ${({ $response }) => ({
     accepted: '#DCFCE7', declined: '#FEE2E2', tentative: '#FEF3C7', pending: '#F1F5F9',
   }[$response] || '#F1F5F9')};
@@ -1183,7 +1183,7 @@ const ResponsePill = styled.span<{ $response: string }>`
 const AttendeeRemoveBtn = styled.button`
   width: 22px; height: 22px; border-radius: 50%;
   background: transparent; border: 1px solid transparent;
-  color: #94A3B8; font-size: 16px; line-height: 1; cursor: pointer;
+  color: #94A3B8; font-size: 1rem; line-height: 1; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   margin-left: 4px; flex-shrink: 0; padding: 0;
   &:hover { background: #FEF2F2; color: #B91C1C; border-color: #FECACA; }
@@ -1194,23 +1194,23 @@ const AddAttendeeRow = styled.div`
 
 // footer
 const DangerBtn = styled.button`
-  padding: 7px 14px; border-radius: 6px; font-size: 12px; font-weight: 500;
+  padding: 7px 14px; border-radius: 6px; font-size: 0.75rem; font-weight: 500;
   background: transparent; color: #B91C1C; border: 1px solid #FECACA; cursor: pointer;
   &:hover { background: #FEF2F2; }
 `;
 const SecondaryBtn = styled.button`
-  padding: 7px 14px; border-radius: 6px; font-size: 12px; font-weight: 500;
+  padding: 7px 14px; border-radius: 6px; font-size: 0.75rem; font-weight: 500;
   background: transparent; color: #475569; border: 1px solid #CBD5E1; cursor: pointer;
   &:hover { background: #F8FAFC; color: #0F172A; }
 `;
 const ConfirmGroup = styled.div` display: flex; align-items: center; gap: 8px; `;
-const ConfirmText = styled.div` font-size: 12px; color: #64748B; margin-right: 4px; `;
+const ConfirmText = styled.div` font-size: 0.75rem; color: #64748B; margin-right: 4px; `;
 // #122 — 정기일정 삭제 범위 선택 (footer 안, 세로 배치)
 const ScopeDeleteGroup = styled.div`
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
 `;
 const ScopeDeleteBtn = styled.button<{ $danger?: boolean }>`
-  padding: 7px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;
+  padding: 7px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer;
   background: transparent;
   color: ${p => p.$danger ? '#B91C1C' : '#334155'};
   border: 1px solid ${p => p.$danger ? '#FECACA' : '#CBD5E1'};
@@ -1219,9 +1219,9 @@ const ScopeDeleteBtn = styled.button<{ $danger?: boolean }>`
 const FooterRow = styled.div`
   display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%;
 `;
-const PrivateShareNote = styled.span`font-size: 11px; color: #94A3B8;`;
+const PrivateShareNote = styled.span`font-size: 0.6875rem; color: #94A3B8;`;
 const ShareBtn = styled.button`
-  padding: 7px 12px; border-radius: 6px; font-size: 12px; font-weight: 500;
+  padding: 7px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 500;
   background: transparent; color: #475569; border: 1px solid #CBD5E1; cursor: pointer;
   display: inline-flex; align-items: center; gap: 6px;
   &:hover { background: #F0FDFA; color: #0F766E; border-color: #99F6E4; }
@@ -1244,10 +1244,10 @@ const ScopeModal = styled.div`
   display: flex; flex-direction: column; gap: 10px;
 `;
 const ScopeTitle = styled.h3`
-  margin: 0; font-size: 16px; font-weight: 700; color: #0F172A;
+  margin: 0; font-size: 1rem; font-weight: 700; color: #0F172A;
 `;
 const ScopeDesc = styled.p`
-  margin: 0 0 8px; font-size: 13px; color: #64748B; line-height: 1.5;
+  margin: 0 0 8px; font-size: 0.8125rem; color: #64748B; line-height: 1.5;
 `;
 const ScopeOption = styled.button`
   display: flex; flex-direction: column; gap: 3px;
@@ -1259,10 +1259,10 @@ const ScopeOption = styled.button`
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
 `;
 const ScopeOptName = styled.span`
-  font-size: 14px; font-weight: 600; color: #0F172A;
+  font-size: 0.875rem; font-weight: 600; color: #0F172A;
 `;
 const ScopeOptHint = styled.span`
-  font-size: 12px; color: #64748B; line-height: 1.45;
+  font-size: 0.75rem; color: #64748B; line-height: 1.45;
 `;
 const ScopeFooter = styled.div`
   display: flex; justify-content: flex-end; margin-top: 4px;

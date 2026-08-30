@@ -167,17 +167,17 @@ const TitleArea = styled.div`
   flex: 1; min-width: 200px;
 `;
 const Title = styled.div<{ $over?: boolean }>`
-  font-size: 14px; font-weight: 700;
+  font-size: 0.875rem; font-weight: 700;
   color: ${p => p.$over ? '#991B1B' : '#78350F'};
 `;
 const Subtitle = styled.div`
-  font-size: 12px; color: #991B1B; line-height: 1.5;
+  font-size: 0.75rem; color: #991B1B; line-height: 1.5;
 `;
 const CtaGroup = styled.div`
   display: flex; align-items: center; gap: 8px; flex-shrink: 0;
 `;
 const CtaLink = styled(Link)`
-  font-size: 13px; font-weight: 600;
+  font-size: 0.8125rem; font-weight: 600;
   color: #64748B; text-decoration: underline;
   &:hover { color: #334155; }
 `;
@@ -185,7 +185,7 @@ const CtaLink = styled(Link)`
 const CtaPrimary = styled(Link)<{ $danger?: boolean }>`
   display: inline-flex; align-items: center;
   height: 36px; padding: 0 14px;
-  font-size: 13px; font-weight: 600;
+  font-size: 0.8125rem; font-weight: 600;
   color: #FFFFFF;
   background: ${p => p.$danger ? '#DC2626' : '#B45309'};
   border-radius: 8px;
@@ -194,7 +194,7 @@ const CtaPrimary = styled(Link)<{ $danger?: boolean }>`
   &:hover { background: ${p => p.$danger ? '#B91C1C' : '#92400E'}; }
 `;
 const OverBy = styled.span`
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #B91C1C;
   font-weight: 600;
   margin-left: 4px;
@@ -207,9 +207,9 @@ const Row = styled.div<{ $danger: boolean }>`
   column-gap: 12px;
   align-items: baseline;
 `;
-const RowLabel = styled.div` font-size: 13px; color: #78350F; font-weight: 600; `;
+const RowLabel = styled.div` font-size: 0.8125rem; color: #78350F; font-weight: 600; `;
 const RowMeta = styled.div`
-  font-size: 12px; color: #92400E;
+  font-size: 0.75rem; color: #92400E;
   display: flex; gap: 8px; align-items: baseline;
 `;
 const Pct = styled.span<{ $over?: boolean }>`

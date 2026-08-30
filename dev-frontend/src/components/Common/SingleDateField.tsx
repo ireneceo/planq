@@ -85,7 +85,7 @@ const Trigger = styled.button<{ $empty?: boolean; $size: 'sm' | 'md'; $width?: n
   ${(p) => p.$width !== undefined && `width: ${typeof p.$width === 'number' ? `${p.$width}px` : p.$width};`}
   border: 1px solid #E2E8F0;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-family: inherit;
   font-weight: 500;
   color: ${(p) => (p.$empty ? '#94A3B8' : '#0F172A')};

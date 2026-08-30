@@ -573,7 +573,7 @@ const HeaderBar = styled.div`
 `;
 
 const HeaderTitle = styled.h2`
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 700;
   color: #0F172A;
   margin: 0;
@@ -609,7 +609,7 @@ const HiddenToggle = styled.button`
   border: 1px solid #CBD5E1;
   border-radius: 6px;
   padding: 4px 10px;
-  font-size: 11px; font-weight: 500;
+  font-size: 0.6875rem; font-weight: 500;
   color: #475569;
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
@@ -627,7 +627,7 @@ const RoleTag = styled.span`
   padding: 1px 6px;
   background: #F1F5F9;
   color: #475569;
-  font-size: 9px;
+  font-size: 0.5625rem;
   font-weight: 600;
   border-radius: 8px;
 `;
@@ -641,7 +641,7 @@ const AddBtn = styled.button`
   align-items: center;
   gap: 3px;
   padding: 3px 8px;
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 600;
   background: transparent;
   color: #0D9488;
@@ -660,7 +660,7 @@ const IssueItem = styled.div`
 `;
 
 const IssueBody = styled.div<{ $editable?: boolean }>`
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #1E293B;
   line-height: 1.4;
   margin-bottom: 3px;
@@ -672,7 +672,7 @@ const IssueBody = styled.div<{ $editable?: boolean }>`
 
 const IssueEditInput = styled.textarea`
   width: 100%;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #1E293B;
   line-height: 1.4;
   margin-bottom: 3px;
@@ -694,7 +694,7 @@ const NewIssueInput = styled.input`
   border: 1px solid #14B8A6;
   border-radius: 6px;
   box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.12);
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #0F172A;
   font-family: inherit;
   &:focus { outline: none; }
@@ -705,7 +705,7 @@ const IssueMeta = styled.div`
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 10px;
+  font-size: 0.625rem;
   color: #94A3B8;
 `;
 
@@ -714,7 +714,7 @@ const IssueDeleteBtn = styled.button`
   background: transparent;
   border: none;
   color: #CBD5E1;
-  font-size: 10px;
+  font-size: 0.625rem;
   cursor: pointer;
   padding: 0;
   &:hover { color: #DC2626; }
@@ -741,7 +741,7 @@ const IssueDeleteBtn = styled.button`
 
 
 const SourceTag = styled.span`
-  font-size: 10px;
+  font-size: 0.625rem;
   color: #0F766E;
   background: #F0FDFA;
   padding: 1px 6px;
@@ -768,14 +768,14 @@ const InfoRow = styled.div`
   align-items: flex-start;
   gap: 10px;
   padding: 5px 0;
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.5;
 `;
 
 const InfoLabel = styled.div`
   color: #64748B;
   font-weight: 600;
-  font-size: 11px;
+  font-size: 0.6875rem;
   flex-shrink: 0;
   width: 46px;
 `;
@@ -798,7 +798,7 @@ const MemberRow = styled.div`
 
 const MemberName = styled.div`
   flex: 1;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #0F172A;
   font-weight: 500;
 `;
@@ -810,7 +810,7 @@ const InternalBadge = styled.span`
   padding: 1px 6px;
   background: #F1F5F9;
   color: #475569;
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 700;
   border-radius: 8px;
   letter-spacing: 0.2px;
@@ -821,7 +821,7 @@ const PmTag = styled.span`
   padding: 1px 6px;
   background: #EEF2FF;
   color: #4338CA;
-  font-size: 9px;
+  font-size: 0.5625rem;
   font-weight: 700;
   border-radius: 8px;
   letter-spacing: 0.2px;
@@ -833,7 +833,7 @@ const DetailLink = styled.button`
   background: transparent;
   color: #0D9488;
   border: none;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   cursor: pointer;
   text-align: left;
@@ -842,5 +842,5 @@ const DetailLink = styled.button`
 
 
 const AutoRow = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;`;
-const AutoLabel = styled.label`display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #64748B; cursor: pointer;`;
+const AutoLabel = styled.label`display: inline-flex; align-items: center; gap: 6px; font-size: 0.6875rem; color: #64748B; cursor: pointer;`;
 const AutoCheckbox = styled.input`width: 14px; height: 14px; accent-color: #14B8A6; cursor: pointer;`;

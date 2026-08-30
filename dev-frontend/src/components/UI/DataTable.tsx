@@ -47,7 +47,7 @@ export const DataTableCell = styled.td<{
   mobileFullWidth?: boolean;
 }>`
   padding: 16px;
-  font-size: 14px;
+  font-size: 0.875rem;
   color: #0A2540;
   vertical-align: middle;
   text-align: ${props => props.align || 'left'};
@@ -61,7 +61,7 @@ export const DataTableCell = styled.td<{
     &:before {
       content: attr(data-label);
       display: block;
-      font-size: 10px;
+      font-size: 0.625rem;
       font-weight: 600;
       color: #9CA3AF;
       text-transform: uppercase;
@@ -83,7 +83,7 @@ export const DataTableHeaderCell = styled.th<{
 }>`
   padding: 14px 16px;
   text-align: ${props => props.align || 'center'};
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   color: #6B7280;
   text-transform: uppercase;
@@ -124,7 +124,7 @@ export const DataTableStatus = styled.span<{
   display: inline-block;
   padding: 4px 10px;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 500;
   white-space: normal;
   line-height: 1.3;

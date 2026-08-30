@@ -277,13 +277,13 @@ const TabBtn = styled.button<{ $active: boolean }>`
   padding: 10px 14px; background: transparent; border: none;
   border-bottom: 2px solid ${p => p.$active ? '#14B8A6' : 'transparent'};
   color: ${p => p.$active ? '#0F766E' : '#64748B'};
-  font-size: 13px; font-weight: ${p => p.$active ? 700 : 500};
+  font-size: 0.8125rem; font-weight: ${p => p.$active ? 700 : 500};
   cursor: pointer; white-space: nowrap;
   &:hover { color: #0F172A; }
 `;
 const Count = styled.span<{ $active: boolean }>`
   display: inline-flex; align-items: center; justify-content: center;
-  min-width: 20px; padding: 1px 7px; font-size: 11px; font-weight: 700;
+  min-width: 20px; padding: 1px 7px; font-size: 0.6875rem; font-weight: 700;
   background: ${p => p.$active ? '#14B8A6' : '#E2E8F0'};
   color: ${p => p.$active ? '#FFFFFF' : '#64748B'};
   border-radius: 999px;
@@ -291,7 +291,7 @@ const Count = styled.span<{ $active: boolean }>`
 const ErrorBox = styled.div`
   padding: 10px 14px; border-radius: 8px;
   background: #FEF2F2; color: #B91C1C;
-  font-size: 13px; border: 1px solid #FECACA;
+  font-size: 0.8125rem; border: 1px solid #FECACA;
 `;
 const List = styled.div`display: flex; flex-direction: column; gap: 8px;`;
 const Row = styled.article<{ $notified?: boolean }>`
@@ -303,39 +303,39 @@ const Row = styled.article<{ $notified?: boolean }>`
   @media (max-width: 768px) { flex-direction: column; align-items: stretch; }
 `;
 const NotifyBadge = styled.span`
-  padding: 2px 8px; font-size: 11px; font-weight: 700;
+  padding: 2px 8px; font-size: 0.6875rem; font-weight: 700;
   background: #0D9488; color: #FFFFFF; border-radius: 4px;
 `;
 const NotifyLine = styled.span`
   color: #0F766E !important; font-weight: 600;
 `;
 const RowLeft = styled.div`flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0;`;
-const BizName = styled.div`font-size: 14px; font-weight: 700; color: #0F172A;`;
+const BizName = styled.div`font-size: 0.875rem; font-weight: 700; color: #0F172A;`;
 const RowMeta = styled.div`display: flex; gap: 6px; flex-wrap: wrap; align-items: center;`;
 const PlanBadge = styled.span`
-  padding: 2px 8px; font-size: 11px; font-weight: 600;
+  padding: 2px 8px; font-size: 0.6875rem; font-weight: 600;
   background: #F0FDFA; color: #0F766E; border-radius: 4px;
 `;
 const StatusBadge = styled.span<{ $bg: string; $fg: string ; $muted?: boolean }>`
-  padding: 2px 8px; font-size: 11px; font-weight: 700;
+  padding: 2px 8px; font-size: 0.6875rem; font-weight: 700;
   background: ${p => p.$bg}; color: ${p => p.$fg}; border-radius: 4px;
   opacity: ${p => (p.$muted ? 0.45 : 1)};
 `;
-const Price = styled.span`font-size: 12px; color: #64748B; font-weight: 500;`;
+const Price = styled.span`font-size: 0.75rem; color: #64748B; font-weight: 500;`;
 const RowDates = styled.div`
   display: flex; gap: 12px; flex-wrap: wrap;
-  font-size: 11px; color: #94A3B8;
+  font-size: 0.6875rem; color: #94A3B8;
 `;
 const RowRight = styled.div`display: flex; gap: 8px; flex-shrink: 0;`;
 const PrimaryBtn = styled.button`
-  padding: 8px 14px; font-size: 13px; font-weight: 600;
+  padding: 8px 14px; font-size: 0.8125rem; font-weight: 600;
   background: #14B8A6; color: #FFFFFF;
   border: none; border-radius: 8px; cursor: pointer;
   &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 const DangerBtn = styled.button`
-  padding: 8px 14px; font-size: 13px; font-weight: 600;
+  padding: 8px 14px; font-size: 0.8125rem; font-weight: 600;
   background: #FFFFFF; color: #DC2626;
   border: 1px solid #FECACA; border-radius: 8px; cursor: pointer;
   &:hover:not(:disabled) { background: #FEF2F2; }
@@ -355,11 +355,11 @@ const ExemptBadge = styled.span`
   display:inline-flex;align-items:center;
   padding:2px 8px;border-radius:999px;
   background:#F0FDFA;color:#0F766E;border:1px solid #5EEAD4;
-  font-size:11px;font-weight:700;letter-spacing:-0.1px;white-space:nowrap;
+  font-size:0.6875rem;font-weight:700;letter-spacing:-0.1px;white-space:nowrap;
 `;
 
 const ExemptNotice = styled.div`
   padding: 10px 14px; border-radius: 10px;
   background: #F0FDFA; border: 1px solid #5EEAD4; color: #0F766E;
-  font-size: 12px; font-weight: 600; line-height: 1.5;
+  font-size: 0.75rem; font-weight: 600; line-height: 1.5;
 `;

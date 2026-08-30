@@ -93,14 +93,14 @@ const Banner = styled.div`
   padding: 10px 20px;
   background: #FFF1F2;
   border-bottom: 2px solid #F43F5E;
-  font-size: 13px; color: #9F1239;
+  font-size: 0.8125rem; color: #9F1239;
 `;
-const Icon = styled.span`font-size: 16px; flex-shrink: 0;`;
+const Icon = styled.span`font-size: 1rem; flex-shrink: 0;`;
 const Text = styled.span`flex: 1; font-weight: 600;`;
 const Remaining = styled.span`margin-left: 8px; font-weight: 400; opacity: 0.8;`;
 const ExitBtn = styled.button`
   padding: 6px 14px; background: #FFFFFF; color: #9F1239;
   border: 1px solid #FECDD3; border-radius: 6px;
-  font-size: 12px; font-weight: 700; cursor: pointer;
+  font-size: 0.75rem; font-weight: 700; cursor: pointer;
   &:hover { background: #FECDD3; border-color: #F43F5E; }
 `;

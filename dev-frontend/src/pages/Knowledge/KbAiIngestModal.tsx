@@ -42,12 +42,12 @@ interface Props {
 const CATEGORIES: Category[] = ['policy', 'manual', 'incident', 'faq', 'about', 'pricing'];
 
 const FileNote = styled.div`
-  margin-top: 6px; font-size: 11.5px; line-height: 1.5; color: #64748B;
+  margin-top: 6px; font-size: 0.71875rem; line-height: 1.5; color: #64748B;
 `;
 const TruncBox = styled.div`
   margin: 8px 0; padding: 8px 12px; border-radius: 6px;
   background: #FFF7ED; border: 1px solid #FED7AA; color: #9A3412;
-  font-size: 12px; line-height: 1.5;
+  font-size: 0.75rem; line-height: 1.5;
 `;
 
 const KbAiIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved, initialText, sourcePostId }) => {
@@ -394,7 +394,7 @@ const Header = styled.div`
   display: flex; align-items: center; justify-content: space-between;
 `;
 const Title = styled.h3`
-  margin: 0; font-size: 16px; font-weight: 700; color: #0F172A;
+  margin: 0; font-size: 1rem; font-weight: 700; color: #0F172A;
   display: inline-flex; align-items: center; gap: 8px;
   svg { color: #14B8A6; }
 `;
@@ -412,31 +412,31 @@ const Body = styled.div`
   display: flex; flex-direction: column; gap: 14px;
 `;
 const Hint = styled.div`
-  font-size: 13px; color: #475569; line-height: 1.6;
+  font-size: 0.8125rem; color: #475569; line-height: 1.6;
   padding: 12px 14px; background: #F0FDFA; border: 1px solid #99F6E4;
   border-radius: 8px;
   display: flex; justify-content: space-between; align-items: center; gap: 12px;
 `;
 const ReviewCount = styled.span`
-  font-size: 11px; font-weight: 700; color: #0F766E; flex-shrink: 0;
+  font-size: 0.6875rem; font-weight: 700; color: #0F766E; flex-shrink: 0;
   padding: 2px 8px; background: #FFFFFF; border: 1px solid #99F6E4; border-radius: 999px;
 `;
 const Field = styled.div`
   display: flex; flex-direction: column; gap: 6px;
 `;
 const Label = styled.label`
-  font-size: 12px; font-weight: 700; color: #475569;
+  font-size: 0.75rem; font-weight: 700; color: #475569;
 `;
 const TextArea = styled.textarea`
   width: 100%; box-sizing: border-box;
   padding: 10px 12px;
   border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 13px; color: #0F172A; font-family: inherit;
+  font-size: 0.8125rem; color: #0F172A; font-family: inherit;
   resize: vertical;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
 `;
 const CharCount = styled.div`
-  text-align: right; font-size: 11px; color: #94A3B8;
+  text-align: right; font-size: 0.6875rem; color: #94A3B8;
 `;
 const Row = styled.div`
   display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
@@ -457,7 +457,7 @@ const SwitchKnob = styled.div<{ $on: boolean }>`
   background: #FFFFFF; transition: left 0.15s;
 `;
 const SwitchHint = styled.span`
-  font-size: 12px; color: #475569;
+  font-size: 0.75rem; color: #475569;
 `;
 const SkipReview = styled.div`
   display: flex; align-items: center; gap: 10px;
@@ -465,7 +465,7 @@ const SkipReview = styled.div`
 `;
 const ErrorBox = styled.div`
   padding: 10px 12px; background: #FEF2F2; border: 1px solid #FECACA;
-  border-radius: 8px; font-size: 13px; color: #B91C1C;
+  border-radius: 8px; font-size: 0.8125rem; color: #B91C1C;
 `;
 const ReviewList = styled.div`
   display: flex; flex-direction: column; gap: 10px;
@@ -482,7 +482,7 @@ const CardTopRow = styled.div`
   display: flex; align-items: center; gap: 8px;
 `;
 const CardNum = styled.span`
-  font-size: 11px; font-weight: 700; color: #94A3B8;
+  font-size: 0.6875rem; font-weight: 700; color: #94A3B8;
   font-family: ui-monospace, monospace;
 `;
 // CardCategorySelect 폐지 — PlanQSelect 사용
@@ -491,26 +491,26 @@ const CardCategoryWrap = styled.div`
 `;
 const CardSpacer = styled.div`flex: 1;`;
 const CardExcludeBtn = styled.button`
-  padding: 4px 10px; font-size: 12px; font-weight: 600; color: #64748B;
+  padding: 4px 10px; font-size: 0.75rem; font-weight: 600; color: #64748B;
   border: 1px solid #E2E8F0; background: #FFFFFF; border-radius: 6px; cursor: pointer;
   &:hover { color: #B91C1C; border-color: #FECACA; background: #FEF2F2; }
 `;
 const CardTitleInput = styled.input`
   padding: 8px 10px;
   border: 1px solid #E2E8F0; border-radius: 6px;
-  font-size: 14px; font-weight: 600; color: #0F172A;
+  font-size: 0.875rem; font-weight: 600; color: #0F172A;
   &:focus { outline: none; border-color: #14B8A6; }
 `;
 const CardBodyTextArea = styled.textarea`
   padding: 8px 10px;
   border: 1px solid #E2E8F0; border-radius: 6px;
-  font-size: 13px; color: #334155; font-family: inherit; resize: vertical;
+  font-size: 0.8125rem; color: #334155; font-family: inherit; resize: vertical;
   &:focus { outline: none; border-color: #14B8A6; }
 `;
 const CardTagsInput = styled.input`
   padding: 6px 10px;
   border: 1px solid #E2E8F0; border-radius: 6px;
-  font-size: 12px; color: #475569;
+  font-size: 0.75rem; color: #475569;
   &:focus { outline: none; border-color: #14B8A6; }
 `;
 const Footer = styled.div`
@@ -521,13 +521,13 @@ const Footer = styled.div`
 const PrimaryBtn = styled.button`
   display: inline-flex; align-items: center; gap: 6px;
   padding: 8px 16px; background: #14B8A6; color: #FFFFFF;
-  border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer;
+  border: none; border-radius: 8px; font-size: 0.8125rem; font-weight: 700; cursor: pointer;
   &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { background: #CBD5E1; cursor: not-allowed; }
 `;
 const SecondaryBtn = styled.button`
   padding: 8px 16px; background: #FFFFFF; color: #475569;
-  border: 1px solid #E2E8F0; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+  border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   &:hover:not(:disabled) { border-color: #14B8A6; color: #0F766E; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;

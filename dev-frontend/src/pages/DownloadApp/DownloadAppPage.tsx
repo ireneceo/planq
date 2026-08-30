@@ -122,9 +122,9 @@ const Card = styled.div`
   padding: 32px 28px; text-align: center;
   box-shadow: 0 4px 12px rgba(0,0,0,0.06);
 `;
-const Brand = styled.div` font-size: 20px; font-weight: 700; color: #0F766E; letter-spacing: -0.3px; `;
-const Title = styled.h1` margin: 16px 0 8px; font-size: 22px; font-weight: 700; color: #0F172A; `;
-const Subtitle = styled.p` margin: 0 0 24px; font-size: 14px; line-height: 1.6; color: #334155; `;
+const Brand = styled.div` font-size: 1.25rem; font-weight: 700; color: #0F766E; letter-spacing: -0.3px; `;
+const Title = styled.h1` margin: 16px 0 8px; font-size: 1.375rem; font-weight: 700; color: #0F172A; `;
+const Subtitle = styled.p` margin: 0 0 24px; font-size: 0.875rem; line-height: 1.6; color: #334155; `;
 const SingleWrap = styled.div` display: flex; justify-content: center; `;
 const Grid = styled.div` display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; @media (max-width: 420px) { grid-template-columns: 1fr; } `;
 const Platform_ = styled.div<{ $highlight?: boolean }>`
@@ -134,26 +134,26 @@ const Platform_ = styled.div<{ $highlight?: boolean }>`
   display: flex; flex-direction: column; align-items: center; gap: 10px;
 `;
 const PlatIcon = styled.div` color: #0F172A; display: flex; `;
-const PlatLabel = styled.div` font-size: 13px; font-weight: 600; color: #334155; `;
+const PlatLabel = styled.div` font-size: 0.8125rem; font-weight: 600; color: #334155; `;
 const PrimaryBtn = styled.a`
   display: inline-flex; align-items: center; justify-content: center;
-  padding: 11px 18px; border-radius: 8px; font-size: 14px; font-weight: 600;
+  padding: 11px 18px; border-radius: 8px; font-size: 0.875rem; font-weight: 600;
   background: #14B8A6; color: #fff; text-decoration: none; border: none; cursor: pointer;
   transition: background 0.15s; width: 100%;
   &:hover { background: #0D9488; }
   &:active { background: #0F766E; }
 `;
 const ComingSoon = styled.div`
-  padding: 11px 14px; border-radius: 8px; font-size: 13px; font-weight: 500;
+  padding: 11px 14px; border-radius: 8px; font-size: 0.8125rem; font-weight: 500;
   color: #64748B; background: #F1F5F9; width: 100%;
 `;
-const DesktopHint = styled.div` font-size: 13px; font-weight: 500; color: #64748B; margin-bottom: 12px; `;
-const UrlHint = styled.div` font-size: 13px; color: #64748B; margin-top: 8px; `;
+const DesktopHint = styled.div` font-size: 0.8125rem; font-weight: 500; color: #64748B; margin-bottom: 12px; `;
+const UrlHint = styled.div` font-size: 0.8125rem; color: #64748B; margin-top: 8px; `;
 const UrlBox = styled.div`
   margin-top: 8px; padding: 10px 16px; border-radius: 8px; background: #F1F5F9;
-  font-size: 15px; font-weight: 600; color: #0F766E; letter-spacing: 0.2px; display: inline-block;
+  font-size: 0.9375rem; font-weight: 600; color: #0F766E; letter-spacing: 0.2px; display: inline-block;
 `;
-const NotifyNote = styled.p` margin: 20px 0 0; font-size: 12px; color: #94A3B8; line-height: 1.5; `;
-const WebLink = styled.a` display: inline-block; margin-top: 16px; font-size: 13px; color: #64748B; text-decoration: underline; `;
-const InAppTitle = styled.h1` margin: 16px 0 24px; font-size: 18px; font-weight: 700; color: #0F172A; `;
+const NotifyNote = styled.p` margin: 20px 0 0; font-size: 0.75rem; color: #94A3B8; line-height: 1.5; `;
+const WebLink = styled.a` display: inline-block; margin-top: 16px; font-size: 0.8125rem; color: #64748B; text-decoration: underline; `;
+const InAppTitle = styled.h1` margin: 16px 0 24px; font-size: 1.125rem; font-weight: 700; color: #0F172A; `;
 const Skeleton = styled.div` height: 120px; border-radius: 12px; background: #F1F5F9; `;

@@ -181,10 +181,10 @@ const CueKnowledgeSection: React.FC<{ businessId: number; isAdmin: boolean }> = 
 
 const Wrap = styled.div`margin-top: 8px;`;
 const Head = styled.div`display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px;`;
-const Title = styled.div`font-size: 14px; font-weight: 600; color: #0f172a;`;
-const Desc = styled.div`font-size: 12px; color: #64748b; margin-top: 2px; line-height: 1.5;`;
+const Title = styled.div`font-size: 0.875rem; font-weight: 600; color: #0f172a;`;
+const Desc = styled.div`font-size: 0.75rem; color: #64748b; margin-top: 2px; line-height: 1.5;`;
 const GroupLabel = styled.div<{ $tone?: 'pending' }>`
-  font-size: 12px; font-weight: 700; margin: 14px 0 8px;
+  font-size: 0.75rem; font-weight: 700; margin: 14px 0 8px;
   color: ${(p) => (p.$tone === 'pending' ? '#B45309' : '#64748B')};
 `;
 const CardRow = styled.div<{ $pending?: boolean }>`
@@ -195,28 +195,28 @@ const CardRow = styled.div<{ $pending?: boolean }>`
 `;
 const CardBody = styled.div`min-width: 0; flex: 1;`;
 const CardTop = styled.div`display: flex; align-items: center; gap: 6px; flex-wrap: wrap;`;
-const CardTitle = styled.span`font-size: 13px; font-weight: 600; color: #0f172a;`;
+const CardTitle = styled.span`font-size: 0.8125rem; font-weight: 600; color: #0f172a;`;
 const KindBadge = styled.span`
-  font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+  font-size: 0.625rem; font-weight: 700; padding: 2px 8px; border-radius: 999px;
   background: #F0FDFA; color: #0F766E; border: 1px solid #99F6E4;
 `;
-const AutoBadge = styled.span`font-size: 10px; color: #94A3B8;`;
-const CardText = styled.div`font-size: 12px; color: #475569; margin-top: 4px; line-height: 1.5; white-space: pre-wrap;`;
+const AutoBadge = styled.span`font-size: 0.625rem; color: #94A3B8;`;
+const CardText = styled.div`font-size: 0.75rem; color: #475569; margin-top: 4px; line-height: 1.5; white-space: pre-wrap;`;
 const CardActions = styled.div`display: flex; gap: 6px; flex-shrink: 0;`;
 const AddForm = styled.div`
   display: flex; flex-direction: column; gap: 8px; padding: 12px;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; margin-bottom: 12px;
 `;
 const AddInput = styled.input`
-  height: 36px; padding: 0 10px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 13px;
+  height: 36px; padding: 0 10px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.8125rem;
   &:focus { outline: none; border-color: #14B8A6; }
 `;
 const AddTextarea = styled.textarea`
-  padding: 8px 10px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 13px; resize: vertical; font-family: inherit;
+  padding: 8px 10px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.8125rem; resize: vertical; font-family: inherit;
   &:focus { outline: none; border-color: #14B8A6; }
 `;
 const AddActions = styled.div`display: flex; justify-content: flex-end;`;
-const ErrMsg = styled.div`font-size: 12px; color: #B91C1C;`;
-const Empty = styled.div`font-size: 12px; color: #94A3B8; padding: 10px 0;`;
+const ErrMsg = styled.div`font-size: 0.75rem; color: #B91C1C;`;
+const Empty = styled.div`font-size: 0.75rem; color: #94A3B8; padding: 10px 0;`;
 
 export default CueKnowledgeSection;

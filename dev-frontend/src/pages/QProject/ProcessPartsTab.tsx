@@ -340,16 +340,16 @@ export default ProcessPartsTab;
 // ─── styled ───
 const Wrap = styled.div``;
 const Toolbar = styled.div`display:flex;gap:6px;margin-bottom:10px;`;
-const ToolbarBtn = styled.button`padding:6px 12px;border:1px solid #CBD5E1;background:#FFF;color:#334155;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;&:hover{border-color:#14B8A6;color:#0F766E;}`;
+const ToolbarBtn = styled.button`padding:6px 12px;border:1px solid #CBD5E1;background:#FFF;color:#334155;border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer;&:hover{border-color:#14B8A6;color:#0F766E;}`;
 const TableWrap = styled.div`background:#FFF;border:1px solid #E2E8F0;border-radius:8px;overflow:auto;`;
-const Table = styled.table`width:100%;border-collapse:collapse;font-size:12px;`;
-const Th = styled.th<{$w?:number}>`text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:#64748B;background:#F8FAFC;border-bottom:1px solid #E2E8F0;${p=>p.$w?`width:${p.$w}px;`:''}`;
+const Table = styled.table`width:100%;border-collapse:collapse;font-size:0.75rem;`;
+const Th = styled.th<{$w?:number}>`text-align:left;padding:8px 10px;font-size:0.6875rem;font-weight:700;color:#64748B;background:#F8FAFC;border-bottom:1px solid #E2E8F0;${p=>p.$w?`width:${p.$w}px;`:''}`;
 const Td = styled.td`padding:4px 6px;border-bottom:1px solid #F1F5F9;vertical-align:middle;`;
-const CellInput = styled.input`width:100%;padding:4px 6px;border:1px solid transparent;border-radius:4px;font-size:12px;color:#0F172A;background:transparent;font-family:inherit;&:focus{outline:none;border-color:#14B8A6;background:#FFF;}&:hover{background:#F8FAFC;}`;
+const CellInput = styled.input`width:100%;padding:4px 6px;border:1px solid transparent;border-radius:4px;font-size:0.75rem;color:#0F172A;background:transparent;font-family:inherit;&:focus{outline:none;border-color:#14B8A6;background:#FFF;}&:hover{background:#F8FAFC;}`;
 const StatusWrap = styled.div`padding:1px 2px;border-radius:4px;min-width:90px;`;
-const DelBtn = styled.button`width:24px;height:24px;border:none;background:transparent;color:#94A3B8;cursor:pointer;border-radius:4px;font-size:14px;&:hover{background:#FEE2E2;color:#DC2626;}`;
-const Empty = styled.div`padding:40px;text-align:center;color:#94A3B8;font-size:12px;`;
-const DragHandle = styled.span`display:inline-block;color:#CBD5E1;cursor:grab;user-select:none;font-size:14px;line-height:1;&:hover{color:#14B8A6;}`;
+const DelBtn = styled.button`width:24px;height:24px;border:none;background:transparent;color:#94A3B8;cursor:pointer;border-radius:4px;font-size:0.875rem;&:hover{background:#FEE2E2;color:#DC2626;}`;
+const Empty = styled.div`padding:40px;text-align:center;color:#94A3B8;font-size:0.75rem;`;
+const DragHandle = styled.span`display:inline-block;color:#CBD5E1;cursor:grab;user-select:none;font-size:0.875rem;line-height:1;&:hover{color:#14B8A6;}`;
 
 const Backdrop = styled.div`
   position:fixed;inset:0;background:rgba(15,23,42,0.4);z-index:100;
@@ -364,15 +364,15 @@ const Modal = styled.div`
     margin-top:60px;height:calc(100vh - 60px);height:calc(100dvh - 60px);
   }
 `;
-const ModalTitle = styled.h3`margin:0;font-size:16px;font-weight:700;color:#0F172A;`;
+const ModalTitle = styled.h3`margin:0;font-size:1rem;font-weight:700;color:#0F172A;`;
 const ModalList = styled.div`display:flex;flex-direction:column;gap:6px;flex:1;overflow-y:auto;`;
 const Row2 = styled.div`display:flex;align-items:center;gap:8px;padding:6px 8px;background:#F8FAFC;border-radius:6px;`;
-const RowInput = styled.input`flex:1 1 120px;min-width:0;height:32px;padding:0 10px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;font-family:inherit;box-sizing:border-box;&:focus{outline:none;border-color:#14B8A6;}`;
-const RowText = styled.div`flex:1;display:flex;flex-direction:column;gap:2px;strong{font-size:13px;color:#0F172A;}`;
-const KeyHint = styled.span`font-size:10px;color:#94A3B8;font-family:monospace;`;
+const RowInput = styled.input`flex:1 1 120px;min-width:0;height:32px;padding:0 10px;border:1px solid #E2E8F0;border-radius:6px;font-size:0.75rem;font-family:inherit;box-sizing:border-box;&:focus{outline:none;border-color:#14B8A6;}`;
+const RowText = styled.div`flex:1;display:flex;flex-direction:column;gap:2px;strong{font-size:0.8125rem;color:#0F172A;}`;
+const KeyHint = styled.span`font-size:0.625rem;color:#94A3B8;font-family:monospace;`;
 const ColorPicker = styled.input`flex:0 0 32px;width:32px;height:32px;padding:0;border:1px solid #E2E8F0;border-radius:6px;cursor:pointer;`;
-const RowDel = styled.button`width:24px;height:24px;border:none;background:transparent;color:#94A3B8;cursor:pointer;font-size:14px;&:hover{color:#DC2626;}`;
+const RowDel = styled.button`width:24px;height:24px;border:none;background:transparent;color:#94A3B8;cursor:pointer;font-size:0.875rem;&:hover{color:#DC2626;}`;
 const AddRow = styled.div`display:flex;gap:6px;padding-top:12px;border-top:1px solid #E2E8F0;flex-wrap:wrap;align-items:stretch;`;
-const AddBtn = styled.button`flex:0 0 auto;padding:0 14px;height:32px;background:#FFF;color:#334155;border:1px solid #CBD5E1;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;&:hover:not(:disabled){border-color:#14B8A6;color:#0F766E;background:#F8FAFC;}&:disabled{opacity:0.5;cursor:not-allowed;}`;
+const AddBtn = styled.button`flex:0 0 auto;padding:0 14px;height:32px;background:#FFF;color:#334155;border:1px solid #CBD5E1;border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer;white-space:nowrap;&:hover:not(:disabled){border-color:#14B8A6;color:#0F766E;background:#F8FAFC;}&:disabled{opacity:0.5;cursor:not-allowed;}`;
 const ModalBtnRow = styled.div`display:flex;justify-content:flex-end;`;
-const ModalPrimary = styled.button`padding:7px 14px;background:#14B8A6;color:#FFF;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;&:hover{background:#0D9488;}`;
+const ModalPrimary = styled.button`padding:7px 14px;background:#14B8A6;color:#FFF;border:none;border-radius:6px;font-size:0.75rem;font-weight:700;cursor:pointer;&:hover{background:#0D9488;}`;

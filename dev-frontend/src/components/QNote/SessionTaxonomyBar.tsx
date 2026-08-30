@@ -89,28 +89,28 @@ export default SessionTaxonomyBar;
 
 const Bar = styled.div`display: flex; align-items: center; flex-wrap: wrap; gap: 6px;`;
 const CatChip = styled.span<{ $clickable: boolean }>`
-  font-size: 11px; font-weight: 700; color: #0F766E; background: #F0FDFA;
+  font-size: 0.6875rem; font-weight: 700; color: #0F766E; background: #F0FDFA;
   border-radius: 999px; padding: 3px 10px; cursor: ${p => p.$clickable ? 'pointer' : 'default'};
 `;
 const Tag = styled.span`
   display: inline-flex; align-items: center; gap: 3px;
-  font-size: 11px; font-weight: 500; color: #475569; background: #F1F5F9;
+  font-size: 0.6875rem; font-weight: 500; color: #475569; background: #F1F5F9;
   border-radius: 999px; padding: 3px 8px;
 `;
 const TagX = styled.button`
-  border: none; background: none; cursor: pointer; color: #94A3B8; font-size: 13px;
+  border: none; background: none; cursor: pointer; color: #94A3B8; font-size: 0.8125rem;
   line-height: 1; padding: 0; &:hover { color: #DC2626; }
 `;
 const AddBtn = styled.button`
   border: 1px dashed #CBD5E1; background: none; cursor: pointer;
-  font-size: 11px; font-weight: 600; color: #64748B; border-radius: 999px; padding: 3px 10px;
+  font-size: 0.6875rem; font-weight: 600; color: #64748B; border-radius: 999px; padding: 3px 10px;
   &:hover { border-color: #14B8A6; color: #0F766E; }
 `;
 const CatInput = styled.input`
-  font-size: 11px; padding: 3px 8px; border: 1px solid #14B8A6; border-radius: 999px;
+  font-size: 0.6875rem; padding: 3px 8px; border: 1px solid #14B8A6; border-radius: 999px;
   outline: none; width: 100px;
 `;
 const TagInput = styled.input`
-  font-size: 11px; padding: 3px 8px; border: 1px solid #14B8A6; border-radius: 999px;
+  font-size: 0.6875rem; padding: 3px 8px; border: 1px solid #14B8A6; border-radius: 999px;
   outline: none; width: 80px;
 `;

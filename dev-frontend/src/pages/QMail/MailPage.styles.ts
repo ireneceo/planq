@@ -14,12 +14,12 @@ export const FaqSuggestBox = styled.div`
 `;
 export const FaqSuggestHead = styled.div`
   display: flex; align-items: center; gap: 6px;
-  font-size: 12px; font-weight: 700; color: #F43F5E;
+  font-size: 0.75rem; font-weight: 700; color: #F43F5E;
 `;
 export const FaqCount = styled.span`
   margin-left: auto; min-width: 18px; height: 18px; padding: 0 6px;
   border-radius: 8px; background: rgba(244, 63, 94, 0.15); color: #F43F5E;
-  font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.6875rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;
 `;
 export const FaqItem = styled.div`
   background: #FFFFFF; border: 1px solid rgba(244, 63, 94, 0.22); border-radius: 10px;
@@ -29,26 +29,26 @@ export const FaqQ = styled.button`
   all: unset; cursor: pointer; display: flex; align-items: flex-start; gap: 6px;
 `;
 export const FaqQText = styled.span`
-  flex: 1; min-width: 0; font-size: 12px; font-weight: 600; color: #0F172A;
+  flex: 1; min-width: 0; font-size: 0.75rem; font-weight: 600; color: #0F172A;
   line-height: 1.4; overflow: hidden; text-overflow: ellipsis; display: -webkit-box;
   -webkit-line-clamp: 2; -webkit-box-orient: vertical;
 `;
-export const FaqOcc = styled.span`flex-shrink: 0; font-size: 11px; font-weight: 700; color: #F43F5E;`;
+export const FaqOcc = styled.span`flex-shrink: 0; font-size: 0.6875rem; font-weight: 700; color: #F43F5E;`;
 export const FaqAnswer = styled.div`
-  font-size: 12px; color: #475569; line-height: 1.5; white-space: pre-wrap;
+  font-size: 0.75rem; color: #475569; line-height: 1.5; white-space: pre-wrap;
   overflow-wrap: anywhere; background: #F8FAFC; border-radius: 6px; padding: 8px 10px;
   max-height: 160px; overflow-y: auto;
 `;
 export const FaqActions = styled.div`display: flex; gap: 6px;`;
 export const FaqRegisterBtn = styled.button`
   flex: 1; height: 30px; border-radius: 6px; border: none; cursor: pointer;
-  background: #0D9488; color: #FFFFFF; font-size: 12px; font-weight: 600;
+  background: #0D9488; color: #FFFFFF; font-size: 0.75rem; font-weight: 600;
   &:hover:not(:disabled) { background: #0F766E; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 export const FaqDismissBtn = styled.button`
   flex: 1; height: 30px; border-radius: 6px; cursor: pointer;
-  background: #FFFFFF; color: #64748B; border: 1px solid #E2E8F0; font-size: 12px; font-weight: 600;
+  background: #FFFFFF; color: #64748B; border: 1px solid #E2E8F0; font-size: 0.75rem; font-weight: 600;
   &:hover:not(:disabled) { background: #F1F5F9; color: #0F172A; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
@@ -57,7 +57,7 @@ export const FaqUsedBadge = styled.div`
   display: inline-flex; align-items: center; gap: 4px; align-self: flex-start;
   margin: 0 0 8px; padding: 4px 10px; border-radius: 999px;
   background: rgba(244, 63, 94, 0.08); color: #F43F5E;
-  font-size: 11px; font-weight: 700; max-width: 100%;
+  font-size: 0.6875rem; font-weight: 700; max-width: 100%;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 `;
 // 폴더 탭 (답변필요/인박스/내담당/팔로우/스팸/보관) — 좌측 상단 가로 탭
@@ -75,7 +75,7 @@ export const FolderTab = styled.button<{ $active: boolean }>`
   flex-shrink: 0;
   padding: 8px 10px 9px;
   border: none; background: transparent;
-  font-size: 13px; font-weight: ${p => p.$active ? 700 : 500};
+  font-size: 0.8125rem; font-weight: ${p => p.$active ? 700 : 500};
   color: ${p => p.$active ? '#0F766E' : '#64748B'};
   border-bottom: 2px solid ${p => p.$active ? '#14B8A6' : 'transparent'};
   cursor: pointer; white-space: nowrap;
@@ -86,7 +86,7 @@ export const TabCount = styled.span<{ $active: boolean }>`
   min-width: 16px; padding: 0 5px;
   background: ${p => p.$active ? '#14B8A6' : '#E2E8F0'};
   color: ${p => p.$active ? '#FFFFFF' : '#64748B'};
-  font-size: 10px; font-weight: 700;
+  font-size: 0.625rem; font-weight: 700;
   border-radius: 999px; text-align: center;
 `;
 // 계정 필터 칩 (회사/개인) — 탭 아래
@@ -116,12 +116,12 @@ export const AcctManageIcon = styled.button`
 export const SearchIcon = styled.svg`width: 15px; height: 15px; color: #94A3B8; flex-shrink: 0;`;
 export const SearchInput = styled.input`
   flex: 1; min-width: 0; border: none; background: transparent; outline: none;
-  height: 34px; font-size: 13px; color: #0F172A; font-family: inherit;
+  height: 34px; font-size: 0.8125rem; color: #0F172A; font-family: inherit;
   &::placeholder { color: #94A3B8; }
 `;
 export const SearchClear = styled.button`
   flex-shrink: 0; border: none; background: transparent; cursor: pointer;
-  color: #94A3B8; font-size: 18px; line-height: 1; padding: 0 2px;
+  color: #94A3B8; font-size: 1.125rem; line-height: 1; padding: 0 2px;
   &:hover { color: #0F172A; }
 `;
 // 운영 #213 — 필터 접기 토글 줄. 일괄 액션은 필터가 아니므로 접힘 밖인 이 줄에 함께 둔다.
@@ -133,7 +133,7 @@ export const FilterToggleBtn = styled.button`
   display: inline-flex; align-items: center; gap: 5px;
   min-height: 28px; padding: 4px 9px;
   background: transparent; border: 1px solid #E2E8F0; border-radius: 7px;
-  font-size: 12px; font-weight: 600; color: #64748B; cursor: pointer;
+  font-size: 0.75rem; font-weight: 600; color: #64748B; cursor: pointer;
   &:hover { border-color: #CBD5E1; color: #475569; }
   &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
 `;
@@ -146,7 +146,7 @@ export const FilterCount = styled.span`
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 16px; height: 16px; padding: 0 4px;
   background: #0D9488; color: #fff; border-radius: 8px;
-  font-size: 10px; font-weight: 700;
+  font-size: 0.625rem; font-weight: 700;
 `;
 export const AcctFilterRow = styled.div`
   display: flex; align-items: center; gap: 8px;
@@ -157,20 +157,20 @@ export const AcctSelectWrap = styled.div`flex: 1; min-width: 0;`;
 // 운영 #55 — 계정 관리(설정) 진입 칩 (dashed, 보조 액션)
 export const AcctManageChip = styled.button`
   padding: 3px 10px; border-radius: 999px;
-  font-size: 11px; font-weight: 600; cursor: pointer;
+  font-size: 0.6875rem; font-weight: 600; cursor: pointer;
   border: 1px dashed #CBD5E1; background: transparent; color: #64748B;
   margin-left: auto;
   &:hover { border-color: #14B8A6; color: #0F766E; }
 `;
 // 운영 #55 — 계정 미연결 빈 상태
 export const NoAcctHint = styled.div`
-  font-size: 12px; color: #64748B; line-height: 1.6;
+  font-size: 0.75rem; color: #64748B; line-height: 1.6;
   max-width: 320px; text-align: center; margin-top: 6px;
 `;
 export const NoAcctBtn = styled.button`
   margin-top: 16px; padding: 0 18px; height: 40px;
   background: #14B8A6; color: #FFFFFF; border: none; border-radius: 8px;
-  font-size: 13px; font-weight: 700; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 700; cursor: pointer;
   &:hover { background: #0D9488; }
 `;
 // 새 메일 작성 버튼 — Q Talk NewChatBtn 과 동일값
@@ -214,14 +214,14 @@ export const ComposeHead = styled.div`
   flex-shrink: 0;
 `;
 export const ComposeTitle = styled.h2`
-  margin: 0; font-size: 18px; font-weight: 700; color: #0F172A; letter-spacing: -0.2px;
+  margin: 0; font-size: 1.125rem; font-weight: 700; color: #0F172A; letter-spacing: -0.2px;
 `;
 export const CloseBtn = styled.button`
   width: 30px; height: 30px; border: none; background: transparent;
-  color: #94A3B8; font-size: 16px; cursor: pointer; border-radius: 8px;
+  color: #94A3B8; font-size: 1rem; cursor: pointer; border-radius: 8px;
   &:hover { background: #F1F5F9; color: #0F172A; }
 `;
-export const FwdAttachHint = styled.div`font-size: 12px; color: #0F766E; background: #F0FDFA; border: 1px solid #CCFBF1; border-radius: 8px; padding: 8px 12px;`;
+export const FwdAttachHint = styled.div`font-size: 0.75rem; color: #0F766E; background: #F0FDFA; border: 1px solid #CCFBF1; border-radius: 8px; padding: 8px 12px;`;
 
 // 전달 원문 미리보기 — 운영 신고 "전달버튼 누르면 빈화면 돼".
 //   원문을 에디터에 넣으면 표·인라인 스타일·cid: 가 깨지므로, 읽기 전용으로 **보여주기만** 한다.
@@ -234,7 +234,7 @@ export const FwdPreview = styled.div`
 export const FwdPreviewHead = styled.button`
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   width: 100%; padding: 10px 12px; background: #F8FAFC; border: none; cursor: pointer;
-  font-size: 12px; font-weight: 600; color: #334155; text-align: left;
+  font-size: 0.75rem; font-weight: 600; color: #334155; text-align: left;
   &:hover { background: #F1F5F9; }
 `;
 export const FwdChevron = styled.svg<{ $open: boolean }>`
@@ -247,7 +247,7 @@ export const FwdPreviewBody = styled.div`
   max-height: 320px; overflow-y: auto; flex-shrink: 0;
 `;
 export const FwdPreviewMeta = styled.div`
-  font-size: 11px; color: #94A3B8; margin-bottom: 8px;
+  font-size: 0.6875rem; color: #94A3B8; margin-bottom: 8px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 `;
 /* 메일 작성 — 센터모달 폐기, 중앙 패널을 채우는 풀페이지 저작(Q docs 예외군과 동일, Fable 승인).
@@ -266,12 +266,12 @@ export const ComposeField = styled.div`
   display: flex; flex-direction: column; gap: 4px;
 `;
 export const ComposeLabel = styled.label`
-  font-size: 12px; font-weight: 600; color: #64748B;
+  font-size: 0.75rem; font-weight: 600; color: #64748B;
 `;
 export const ComposeInput = styled.input`
   height: 40px; padding: 0 12px;
   border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 14px; color: #0F172A;
+  font-size: 0.875rem; color: #0F172A;
   &::placeholder { color: #94A3B8; }
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.12); }
 `;
@@ -319,27 +319,27 @@ export const ThreadRow1 = styled.div`
   margin-bottom: 4px;
 `;
 export const ThreadSender = styled.span`
-  font-size: 13px; font-weight: 600; color: #0F172A;
+  font-size: 0.8125rem; font-weight: 600; color: #0F172A;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   max-width: 70%;
   /* #283 — 폰에서는 발신자를 **메타 톤**으로 내린다. Q docs 행은 "제목(진한 검정) → 미리보기" 라
      한 눈에 제목이 먼저 읽히는데, 메일만 발신자가 제일 진하고 제목이 흐려 위계가 반대로 보였다.
      정보는 그대로 두고 **강조만** 문서 쪽 규칙에 맞춘다. */
-  @media (max-width: 640px) { font-size: 12px; font-weight: 600; color: #64748B; }
+  @media (max-width: 640px) { font-size: 0.75rem; font-weight: 600; color: #64748B; }
 `;
 export const ThreadTime = styled.span`
-  font-size: 11px; color: #94A3B8; flex-shrink: 0;
+  font-size: 0.6875rem; color: #94A3B8; flex-shrink: 0;
 `;
 export const ThreadSubject = styled.div<{ $unread: boolean }>`
   display: flex; align-items: center; gap: 6px;
   /* 규격: theme/tokens LIST_ROW — 데스크탑 14 / 폰 15. 굵기는 안 읽은 메일만 700 으로 강조. */
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: ${p => p.$unread ? 700 : 600};
   color: #0F172A;
   margin-bottom: 2px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   @media (max-width: 640px) {
-    font-size: 15px;
+    font-size: 0.9375rem;
   }
 `;
 export const UnreadDot = styled.span`
@@ -348,7 +348,7 @@ export const UnreadDot = styled.span`
   background: #14B8A6;
 `;
 export const ThreadPreview = styled.div`
-  font-size: 12px; color: #64748B;
+  font-size: 0.75rem; color: #64748B;
   line-height: 1.4;
   overflow: hidden; text-overflow: ellipsis;
   display: -webkit-box;
@@ -362,7 +362,7 @@ export const ThreadRow1Right = styled.span`
   display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
 `;
 export const StarSpan = styled.span<{ $on: boolean }>`
-  font-size: 14px; line-height: 1; cursor: pointer;
+  font-size: 0.875rem; line-height: 1; cursor: pointer;
   color: ${p => p.$on ? '#F59E0B' : '#CBD5E1'};
   &:hover { color: ${p => p.$on ? '#D97706' : '#94A3B8'}; }
 `;
@@ -374,14 +374,14 @@ export const ReplyRow = styled.div`
   display: flex; align-items: center; gap: 6px; margin-top: 6px; min-height: 24px;
 `;
 export const OverdueChip = styled.span`
-  font-size: 10px; font-weight: 700; color: #B91C1C; background: #FEF2F2;
+  font-size: 0.625rem; font-weight: 700; color: #B91C1C; background: #FEF2F2;
   border: 1px solid #FECACA; border-radius: 999px; padding: 1px 7px;
 `;
 // 리스트 행의 처리 버튼 — 확인 완료 · 스팸 · 답변 불필요. 높이·정렬을 하나로 고정한다.
 export const RowBtn = styled.button<{ $danger?: boolean }>`
   height: 24px; padding: 0 8px; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 600; line-height: 1;
+  font-size: 0.6875rem; font-weight: 600; line-height: 1;
   color: ${(p) => (p.$danger ? '#94A3B8' : '#64748B')};
   background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 6px;
   cursor: pointer;
@@ -398,18 +398,18 @@ export const UncertainInline = styled.span`
   height: 24px; padding: 0 8px; margin-right: auto;
   display: inline-flex; align-items: center; gap: 3px;
   border-radius: 999px; background: rgba(245, 158, 11, 0.13); color: #92400E;
-  font-size: 11px; font-weight: 700; line-height: 1;
+  font-size: 0.6875rem; font-weight: 700; line-height: 1;
 `;
 export const RuleBadge = styled.span`
   display: inline-flex; align-items: center; align-self: flex-start;
   margin-top: 4px; padding: 2px 8px; border-radius: 999px;
-  background: #F1F5F9; color: #64748B; font-size: 11px; font-weight: 600;
+  background: #F1F5F9; color: #64748B; font-size: 0.6875rem; font-weight: 600;
 `;
 export const UncertainBadge = styled.span`
   display: inline-flex; align-items: center; gap: 3px; align-self: flex-start;
   margin-top: 4px; padding: 2px 8px; border-radius: 999px;
   background: rgba(245, 158, 11, 0.13); color: #92400E;
-  font-size: 11px; font-weight: 700;
+  font-size: 0.6875rem; font-weight: 700;
   /* 알약은 쪼개지지 않는다 — 목록 칸이 좁아지면 "⚠ 자동/업무 / 관련" 처럼 두 줄로 찢어졌다.
      문구를 줄이는 것만으로는 부족하다(더 좁아지면 또 찢어진다). */
   white-space: nowrap;
@@ -421,14 +421,14 @@ export const ReplyNeededBadge = styled.span`
   display: inline-flex; align-items: center; gap: 3px; align-self: flex-start;
   margin-top: 4px; padding: 2px 8px; border-radius: 999px;
   background: rgba(244, 63, 94, 0.12); color: #9F1239;
-  font-size: 11px; font-weight: 700;
+  font-size: 0.6875rem; font-weight: 700;
 `;
 // #186 — '보낸' 태그 (제목 앞 인라인). 받은 메일과 즉시 구분.
 export const SentTag = styled.span`
   display: inline-flex; align-items: center; flex-shrink: 0;
   margin-right: 5px; padding: 1px 6px; border-radius: 4px;
   background: rgba(20, 184, 166, 0.14); color: #0F766E;
-  font-size: 10px; font-weight: 700; vertical-align: middle;
+  font-size: 0.625rem; font-weight: 700; vertical-align: middle;
 `;
 // #184 — 번역 컨트롤 바 + 번역 본문
 export const TransBar = styled.div`
@@ -437,32 +437,32 @@ export const TransBar = styled.div`
 `;
 export const TransSelect = styled.select`
   height: 28px; padding: 0 6px; border: 1px solid #E2E8F0; border-radius: 6px;
-  background: #FFF; color: #334155; font-size: 12px; cursor: pointer;
+  background: #FFF; color: #334155; font-size: 0.75rem; cursor: pointer;
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: -1px; }
 `;
 export const TransBtn = styled.button`
   height: 28px; padding: 0 12px; border: 1px solid #14B8A6; border-radius: 6px;
   background: rgba(20, 184, 166, 0.08); color: #0F766E;
-  font-size: 12px; font-weight: 600; cursor: pointer;
+  font-size: 0.75rem; font-weight: 600; cursor: pointer;
   &:hover:not(:disabled) { background: rgba(20, 184, 166, 0.16); }
   &:disabled { opacity: 0.6; cursor: default; }
 `;
 export const TransErr = styled.span`
-  color: #DC2626; font-size: 12px;
+  color: #DC2626; font-size: 0.75rem;
 `;
 // #202 — 번역 중 표시. 버튼은 "취소" 로 바뀌므로 진행 상태를 별도 텍스트로 남긴다.
 export const TransLoading = styled.span`
-  color: #0F766E; font-size: 12px;
+  color: #0F766E; font-size: 0.75rem;
 `;
 export const TransBody = styled.div`
   margin-top: 8px; padding: 10px 12px; border-radius: 8px;
   background: #F8FAFC; border: 1px solid #E2E8F0;
-  color: #1E293B; font-size: 13px; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
+  color: #1E293B; font-size: 0.8125rem; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
 `;
 export const LabelChip = styled.span<{ $color: string; $clickable?: boolean }>`
   display: inline-flex; align-items: center; gap: 3px;
   padding: 1px 8px; border-radius: 999px;
-  font-size: 11px; font-weight: 600;
+  font-size: 0.6875rem; font-weight: 600;
   color: ${p => p.$color};
   background: ${p => p.$color}1A;
   border: 1px solid ${p => p.$color}55;
@@ -514,7 +514,7 @@ export const DetailToolbar = styled.div`
 export const MetaChip = styled.span`
   padding: 2px 8px;
   background: #F1F5F9; color: #475569;
-  font-size: 11px; font-weight: 500;
+  font-size: 0.6875rem; font-weight: 500;
   border-radius: 999px;
 `;
 // M3-B — 상세 헤더 컨트롤 (별표/팔로우/담당) + 라벨
@@ -524,11 +524,11 @@ export const DetailControls = styled.div`
 `;
 // #384 — 후속 알림 기간 선택. 툴바의 알약들과 같은 높이(28)로 맞춰 한 줄에 얹힌다.
 export const FollowUpPicker = styled.div`display:flex;align-items:center;gap:6px;min-width:150px;`;
-export const FollowUpLabel = styled.span`font-size:12px;color:#64748B;white-space:nowrap;`;
+export const FollowUpLabel = styled.span`font-size:0.75rem;color:#64748B;white-space:nowrap;`;
 export const CtrlBtn = styled.button<{ $on: boolean }>`
   height: 28px; padding: 0 12px;
   border-radius: 999px;
-  font-size: 12px; font-weight: 600;
+  font-size: 0.75rem; font-weight: 600;
   cursor: pointer;
   border: 1px solid ${p => p.$on ? '#5EEAD4' : '#E2E8F0'};
   background: ${p => p.$on ? '#F0FDFA' : '#FFFFFF'};
@@ -542,7 +542,7 @@ export const DetailLabels = styled.div`
 `;
 export const AddLabelChip = styled.button<{ $color: string }>`
   padding: 2px 10px; border-radius: 999px;
-  font-size: 11px; font-weight: 600;
+  font-size: 0.6875rem; font-weight: 600;
   cursor: pointer;
   color: ${p => p.$color};
   background: #FFFFFF;
@@ -552,7 +552,7 @@ export const AddLabelChip = styled.button<{ $color: string }>`
 export const NewLabelInput = styled.input`
   height: 24px; padding: 0 10px;
   border: 1px dashed #CBD5E1; border-radius: 999px;
-  font-size: 11px; color: #334155;
+  font-size: 0.6875rem; color: #334155;
   width: 96px;
   &::placeholder { color: #94A3B8; }
   &:focus { outline: none; border-color: #14B8A6; border-style: solid; }
@@ -566,7 +566,7 @@ export const DangerBtn = styled.button`
   height: 28px; padding: 0 12px;
   background: transparent; color: #B91C1C;
   border: 1px solid #FECACA; border-radius: 6px;
-  font-size: 12px; font-weight: 600;
+  font-size: 0.75rem; font-weight: 600;
   cursor: pointer;
   &:hover { background: #FEF2F2; border-color: #FCA5A5; color: #991B1B; }
 `;
@@ -614,7 +614,7 @@ export const MsgCollapsedPreview = styled.div`
   background: #F8FAFC;
   border: 1px solid #EEF2F6;
   border-radius: 8px;
-  font-size: 13px; line-height: 1.5;
+  font-size: 0.8125rem; line-height: 1.5;
   color: #94A3B8;
   cursor: pointer;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -634,7 +634,7 @@ export const MsgChevron = styled.span<{ $open: boolean }>`
 export const FollowUpChip = styled.span<{ $tone: 'warn' | 'err' }>`
   display: inline-flex; align-items: center; align-self: flex-start;
   margin-top: 4px; padding: 2px 8px; border-radius: 10px;
-  font-size: 11px; font-weight: 600; white-space: nowrap;
+  font-size: 0.6875rem; font-weight: 600; white-space: nowrap;
   background: ${p => (p.$tone === 'warn' ? '#FFFBEB' : '#FEF2F2')};
   color: ${p => (p.$tone === 'warn' ? '#D97706' : '#DC2626')};
   border: 1px solid ${p => (p.$tone === 'warn' ? '#FDE68A' : '#FECACA')};
@@ -650,22 +650,22 @@ const CHIP_TONE = {
 export const DeliveryChip = styled.span<{ $tone: 'warn' | 'err' | 'info' }>`
   display: inline-flex; align-items: center;
   padding: 2px 8px; border-radius: 10px;
-  font-size: 11px; font-weight: 600; white-space: nowrap;
+  font-size: 0.6875rem; font-weight: 600; white-space: nowrap;
   background: ${p => CHIP_TONE[p.$tone].bg};
   color: ${p => CHIP_TONE[p.$tone].fg};
   border: 1px solid ${p => CHIP_TONE[p.$tone].bd};
 `;
 export const MsgForwardBtn = styled.button`
   background: transparent; border: 1px solid #E2E8F0; color: #475569;
-  padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer;
+  padding: 3px 10px; border-radius: 6px; font-size: 0.6875rem; font-weight: 600; cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
   &:hover { background: #F0FDFA; border-color: #99F6E4; color: #0F766E; }
 `;
 export const MessageFrom = styled.div`
-  font-size: 13px; font-weight: 600; color: #0F172A;
+  font-size: 0.8125rem; font-weight: 600; color: #0F172A;
 `;
 export const MessageTime = styled.div`
-  font-size: 11px; color: #94A3B8;
+  font-size: 0.6875rem; color: #94A3B8;
 `;
 export const MessageBodyFrame = styled.iframe`
   width: 100%;
@@ -676,7 +676,7 @@ export const MessageBodyFrame = styled.iframe`
 `;
 export const MessageBodyText = styled.div`
   padding: 4px 0 8px;
-  font-size: 14px; color: #334155;
+  font-size: 0.875rem; color: #334155;
   white-space: pre-wrap;
   font-family: -apple-system, sans-serif;
   line-height: 1.6;
@@ -688,7 +688,7 @@ export const Attachments = styled.div`
 `;
 export const Attachment = styled.div`
   display: inline-flex; align-items: center; gap: 6px;
-  font-size: 12px; color: #475569; font-family: inherit;
+  font-size: 0.75rem; color: #475569; font-family: inherit;
   padding: 5px 10px; border: 1px solid #E2E8F0; border-radius: 8px; background: #F8FAFC;
   cursor: pointer; transition: border-color 0.12s, color 0.12s, background 0.12s;
   & > svg { width: 13px; height: 13px; flex-shrink: 0; }
@@ -717,7 +717,7 @@ export const AttachDownloadBtn = styled.button`
   @media (hover: none), (max-width: 640px) { width: 36px; height: 36px; }
 `;
 export const AttachErr = styled.span`
-  font-size: 11px; font-weight: 500; color: #B91C1C;
+  font-size: 0.6875rem; font-weight: 500; color: #B91C1C;
 `;
 // 하단 액션 영역 — 본문과 같은 흰 바탕. 회색/흰 박스를 겹쳐 띄우지 않는다(박스 속 박스 금지).
 export const DetailFooter = styled.div`
@@ -743,14 +743,14 @@ export const Composer = styled.div`
   & > .pq-rich-editor { margin-left: -24px; margin-right: -24px; border-radius: 0; border-left: 0; border-right: 0; }
 `;
 export const ComposerTo = styled.div`
-  font-size: 12px; color: #64748B;
+  font-size: 0.75rem; color: #64748B;
   strong { color: #0F172A; font-weight: 600; }
 `;
 export const ComposerError = styled.div`
   padding: 8px 10px;
   background: #FEF2F2; color: #B91C1C;
   border: 1px solid #FECACA; border-radius: 8px;
-  font-size: 12px;
+  font-size: 0.75rem;
 `;
 // 좌측 정렬 고정 — [보내기] [AI] [취소]. 버튼이 좌우로 튀지 않게 space-between 을 쓰지 않는다.
 // ★ 2026-08-24 (Irene: "보내기 버튼 있는 곳만 푸터로 붙어야 하지 않아? 버튼 안보여서 한참 헤맸어")
@@ -776,24 +776,24 @@ export const AiInstructionRow = styled.div`
 export const AiInstructionInput = styled.input`
   flex: 1; min-width: 0; height: 34px; padding: 0 12px;
   border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 13px; color: #334155; background: #fff;
+  font-size: 0.8125rem; color: #334155; background: #fff;
   &::placeholder { color: #94A3B8; }
   &:focus { outline: none; border-color: #F43F5E; box-shadow: 0 0 0 3px rgba(244,63,94,0.12); }
   &:disabled { opacity: 0.5; }
 `;
 export const AiInstructionHint = styled.span`
-  font-size: 11px; color: #94A3B8; white-space: nowrap;
+  font-size: 0.6875rem; color: #94A3B8; white-space: nowrap;
   @media (max-width: 640px) { display: none; }
 `;
 export const ComposerHint = styled.div`
-  font-size: 11px; color: #94A3B8;
+  font-size: 0.6875rem; color: #94A3B8;
 `;
 // AI 답변 제안 — Coral 강조 (AI 감지/액션 컬러)
 // 자동·마케팅 메일 — AI 답변 비노출 안내 (게이트)
 export const Loading = styled.div`
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   padding: 60px 24px;
-  font-size: 13px; color: #94A3B8;
+  font-size: 0.8125rem; color: #94A3B8;
   gap: 12px;
 `;
 export const Spinner = styled.div`
@@ -809,7 +809,7 @@ export const ErrorBar = styled.div`
   padding: 10px 12px;
   background: #FEF2F2; color: #B91C1C;
   border: 1px solid #FECACA; border-radius: 8px;
-  font-size: 12px;
+  font-size: 0.75rem;
 `;
 export const EmptyList = styled.div`
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -820,11 +820,11 @@ export const EmptyIcon = styled.svg`
   color: #CBD5E1;
 `;
 export const EmptyText = styled.div`
-  font-size: 13px; color: #64748B;
+  font-size: 0.8125rem; color: #64748B;
 `;
 export const Empty = styled.div`
   padding: 60px 24px; text-align: center;
-  font-size: 13px; color: #64748B;
+  font-size: 0.8125rem; color: #64748B;
 `;
 // 첨부 아이콘 — 이모지(📎) 대신 SVG (플랫폼 아이콘 통일, 폰트 의존 제거)
 export const ClipIcon = styled.svg`
@@ -838,23 +838,23 @@ export const CtxBackdrop = styled.div`
 `;
 // 보내는 사람(Send-as) — 주소가 2개 이상일 때만 뜬다
 export const ComposerFrom = styled.div`display: flex; align-items: center; gap: 8px;`;
-export const FromLbl = styled.span`font-size: 12px; color: #64748B; flex-shrink: 0;`;
+export const FromLbl = styled.span`font-size: 0.75rem; color: #64748B; flex-shrink: 0;`;
 export const FromSelect = styled.div`flex: 1; min-width: 0; max-width: 320px;`;
 // 처리됨 — 그 자리에 남되 조용히 물러난다 (행을 지우면 아래가 위로 밀려 읽던 자리가 흔들린다)
 export const HandledBadge = styled.span`
   height: 24px; padding: 0 8px; margin-left: auto;
   display: inline-flex; align-items: center;
   border-radius: 999px; background: #F1F5F9; color: #94A3B8;
-  font-size: 11px; font-weight: 700; line-height: 1;
+  font-size: 0.6875rem; font-weight: 700; line-height: 1;
 `;
 // 받은 주소 — 메시지 헤더 보조 줄
 export const MessageTo = styled.div`
-  margin-top: 2px; font-size: 11px; color: #94A3B8; font-weight: 500;
+  margin-top: 2px; font-size: 0.6875rem; color: #94A3B8; font-weight: 500;
 `;
 // 보내는 주소가 하나뿐일 때 — 설정으로 가는 길
 export const FromManage = styled.button`
   flex-shrink: 0; border: none; background: none; padding: 0 2px; cursor: pointer;
-  font-size: 11px; font-weight: 600; color: #0F766E;
+  font-size: 0.6875rem; font-weight: 600; color: #0F766E;
   &:hover { text-decoration: underline; }
 `;
 
@@ -868,7 +868,7 @@ export const BulkAction = styled.button<{ $confirm?: boolean }>`
   flex-shrink: 0; align-self: center;
   display: inline-flex; align-items: center; gap: 5px;
   min-height: 28px; padding: 4px 9px; margin-left: auto;
-  border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer;
+  border-radius: 7px; font-size: 0.75rem; font-weight: 600; cursor: pointer;
   white-space: nowrap;
   & > svg { flex-shrink: 0; }
   background: ${(p) => (p.$confirm ? '#FFF1F2' : '#F1F5F9')};
@@ -915,15 +915,15 @@ export const AddressBanner = styled.div`
 `;
 export const AddressBannerText = styled.div`
   flex: 1; min-width: 0;
-  font-size: 12px; font-weight: 600; color: #3730A3;
+  font-size: 0.75rem; font-weight: 600; color: #3730A3;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 `;
 export const AddressBannerHint = styled.div`
-  font-size: 11px; font-weight: 400; color: #6366F1; margin-top: 1px;
+  font-size: 0.6875rem; font-weight: 400; color: #6366F1; margin-top: 1px;
 `;
 export const AddressBannerClose = styled.button`
   flex-shrink: 0; padding: 4px 10px; min-height: 28px;
   background: #fff; border: 1px solid #C7D2FE; border-radius: 6px; cursor: pointer;
-  font-size: 12px; font-weight: 600; color: #4338CA;
+  font-size: 0.75rem; font-weight: 600; color: #4338CA;
   &:hover { background: #E0E7FF; }
 `;

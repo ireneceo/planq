@@ -34,7 +34,7 @@ const Btn = styled.button`
   display: inline-flex; align-items: center; gap: 5px;
   height: 30px; padding: 0 10px; flex-shrink: 0;
   background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 6px;
-  font-size: 12px; font-weight: 600; color: #64748B; cursor: pointer; font-family: inherit;
+  font-size: 0.75rem; font-weight: 600; color: #64748B; cursor: pointer; font-family: inherit;
   transition: background 0.15s, border-color 0.15s, color 0.15s;
   &:hover { background: #F8FAFC; border-color: #CBD5E1; color: #0F172A; }
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }

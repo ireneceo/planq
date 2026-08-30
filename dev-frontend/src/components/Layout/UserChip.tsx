@@ -95,7 +95,7 @@ const PlanBadge = styled(Link)<{ $bg: string; $fg: string; $bd: string }>`
   align-items: center;
   gap: 6px;
   padding: 5px 10px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   color: ${p => p.$fg};
   background: ${p => p.$bg};
@@ -111,7 +111,7 @@ const PlanBadge = styled(Link)<{ $bg: string; $fg: string; $bd: string }>`
   }
 `;
 const SubText = styled.span`
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 500;
   opacity: 0.85;
   &::before { content: '·'; margin-right: 4px; opacity: 0.6; }
@@ -120,7 +120,7 @@ const ChipLink = styled(Link)`
   display: inline-flex;
   align-items: center;
   padding: 6px 10px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   color: #64748B;
   background: transparent;

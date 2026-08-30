@@ -86,23 +86,23 @@ const FilterBtn = styled.button<{ $active: boolean }>`
   background: ${p => p.$active ? '#14B8A6' : '#F1F5F9'};
   color: ${p => p.$active ? '#fff' : '#475569'};
   border: none; cursor: pointer;
-  font-size: 12px; font-weight: 500;
+  font-size: 0.75rem; font-weight: 500;
   &:hover { background: ${p => p.$active ? '#0D9488' : '#E2E8F0'}; }
 `;
 const ReadAllBtn = styled.button`
   padding: 6px 12px; border-radius: 6px;
   background: transparent; border: 1px solid #CBD5E1;
-  color: #475569; font-size: 12px; font-weight: 500; cursor: pointer;
+  color: #475569; font-size: 0.75rem; font-weight: 500; cursor: pointer;
   &:hover { background: #F0FDFA; color: #0F766E; border-color: #5EEAD4; }
 `;
-const Loading = styled.div` padding: 60px 16px; text-align: center; color: #94A3B8; font-size: 14px; `;
+const Loading = styled.div` padding: 60px 16px; text-align: center; color: #94A3B8; font-size: 0.875rem; `;
 const Empty = styled.div`
   padding: 60px 16px; text-align: center;
   display: flex; flex-direction: column; align-items: center; gap: 10px;
 `;
 const EmptyIcon = styled.svg` width: 48px; height: 48px; color: #CBD5E1; `;
-const EmptyTitle = styled.div` font-size: 15px; font-weight: 700; color: #334155; `;
-const EmptyHint = styled.div` font-size: 13px; color: #94A3B8; `;
+const EmptyTitle = styled.div` font-size: 0.9375rem; font-weight: 700; color: #334155; `;
+const EmptyHint = styled.div` font-size: 0.8125rem; color: #94A3B8; `;
 const List = styled.div`
   display: flex; flex-direction: column; gap: 4px;
   max-width: 800px; margin: 0 auto;
@@ -123,12 +123,12 @@ const ItemIcon = styled.span`
 `;
 const ItemBody = styled.div` flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; `;
 const ItemTitle = styled.div<{ $unread: boolean }>`
-  font-size: 14px; font-weight: ${p => p.$unread ? 600 : 500}; color: #0F172A;
+  font-size: 0.875rem; font-weight: ${p => p.$unread ? 600 : 500}; color: #0F172A;
 `;
-const ItemDesc = styled.div` font-size: 13px; color: #475569; line-height: 1.5; `;
+const ItemDesc = styled.div` font-size: 0.8125rem; color: #475569; line-height: 1.5; `;
 const ItemMetaRow = styled.div` display: flex; gap: 8px; align-items: baseline; margin-top: 4px; `;
-const ItemMeta = styled.div` font-size: 11px; color: #94A3B8; `;
-const ItemMetaDate = styled.div` font-size: 11px; color: #CBD5E1; `;
+const ItemMeta = styled.div` font-size: 0.6875rem; color: #94A3B8; `;
+const ItemMetaDate = styled.div` font-size: 0.6875rem; color: #CBD5E1; `;
 const UnreadDot = styled.span`
   width: 10px; height: 10px; border-radius: 50%; background: #14B8A6;
   flex-shrink: 0; margin-top: 7px;

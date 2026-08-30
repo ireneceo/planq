@@ -136,31 +136,31 @@ const AdminUsersPage = () => {
 export default AdminUsersPage;
 
 const Loading = styled.div`padding: 40px; text-align: center; color: #64748B;`;
-const Table = styled.table`width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px;`;
-const Th = styled.th`padding: 10px 12px; text-align: left; background: #F8FAFC; border-bottom: 1px solid #E2E8F0; font-weight: 700; font-size: 11px; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px;`;
+const Table = styled.table`width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 0.8125rem;`;
+const Th = styled.th`padding: 10px 12px; text-align: left; background: #F8FAFC; border-bottom: 1px solid #E2E8F0; font-weight: 700; font-size: 0.6875rem; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px;`;
 const Row = styled.tr`&:hover { background: #F8FAFC; }`;
 const Td = styled.td`padding: 10px 12px; border-bottom: 1px solid #F1F5F9; color: #334155; vertical-align: middle;`;
-const EmailText = styled.span`font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;`;
+const EmailText = styled.span`font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.75rem;`;
 const RoleTag = styled.span<{ $admin: boolean }>`
   display: inline-block; padding: 2px 8px;
   background: ${p => p.$admin ? '#FFF1F2' : '#F0FDFA'};
   color: ${p => p.$admin ? '#9F1239' : '#0F766E'};
   border: 1px solid ${p => p.$admin ? '#FECDD3' : '#99F6E4'};
-  border-radius: 999px; font-size: 11px; font-weight: 700;
+  border-radius: 999px; font-size: 0.6875rem; font-weight: 700;
 `;
 const StatusTag = styled.span`
   display: inline-block; margin-left: 4px; padding: 2px 8px;
   background: #FEF2F2; color: #B91C1C; border: 1px solid #FECACA;
-  border-radius: 999px; font-size: 11px; font-weight: 600;
+  border-radius: 999px; font-size: 0.6875rem; font-weight: 600;
 `;
 const UnverifiedTag = styled.span`
   display: inline-block; padding: 2px 6px;
   background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A;
-  border-radius: 4px; font-size: 11px; font-weight: 600;
+  border-radius: 4px; font-size: 0.6875rem; font-weight: 600;
 `;
 const ActionRow = styled.div`display: flex; gap: 6px;`;
 const ActionBtn = styled.button`
-  padding: 4px 10px; font-size: 11px; font-weight: 600; color: #475569;
+  padding: 4px 10px; font-size: 0.6875rem; font-weight: 600; color: #475569;
   border: 1px solid #E2E8F0; background: #FFFFFF; border-radius: 6px; cursor: pointer;
   &:hover { border-color: #14B8A6; color: #0F766E; background: #F0FDFA; }
 `;

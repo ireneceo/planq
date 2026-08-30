@@ -300,7 +300,7 @@ const MenuItem = styled.button<{ $create?: boolean; $grow?: boolean }>`
   border: 1px solid #E2E8F0; border-radius: 12px;
   box-shadow: 0 4px 14px rgba(15,23,42,0.12);
   cursor: pointer;
-  font-size: 14px; font-weight: 600; color: #0F172A;
+  font-size: 0.875rem; font-weight: 600; color: #0F172A;
   text-align: left;
   transition: transform 0.12s, box-shadow 0.12s;
   &:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(15,23,42,0.16); ${({ $create }) => $create && 'border-color: #14B8A6; color: #0F766E;'} }
@@ -316,7 +316,7 @@ const ItemIcon = styled.span<{ $bg: string }>`
 `;
 // #80 — 빠른 만들기 그룹 라벨 · 구분선 · + 아이콘
 const GroupLabel = styled.div`
-  font-size: 10px; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.5px;
+  font-size: 0.625rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.5px;
   padding: 2px 6px 0; align-self: flex-end; text-align: right; width: 100%;
 `;
 const MenuDivider = styled.div`height: 1px; background: #E2E8F0; margin: 2px 4px;`;
@@ -328,7 +328,7 @@ const PlusIcon = () => (
 const VoiceItem = styled.button`
   display: flex; align-items: center; gap: 8px; width: 100%;
   padding: 9px 12px; border: none; border-radius: 10px; cursor: pointer;
-  font-size: 13px; font-weight: 700; color: #fff;
+  font-size: 0.8125rem; font-weight: 700; color: #fff;
   background: linear-gradient(135deg, #F43F5E 0%, #BE185D 100%);
   &:hover { filter: brightness(1.05); }
   &:focus-visible { outline: 2px solid #F43F5E; outline-offset: 2px; }

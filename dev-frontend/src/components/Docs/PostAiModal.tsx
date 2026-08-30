@@ -564,7 +564,7 @@ const Header = styled.div`
 `;
 const Title = styled.h2`
   display: inline-flex; align-items: center; gap: 6px;
-  font-size: 16px; font-weight: 700; color: #0F172A; margin: 0;
+  font-size: 1rem; font-weight: 700; color: #0F172A; margin: 0;
 `;
 const Sparkle = styled.span`
   display: inline-flex; align-items: center; justify-content: center;
@@ -598,13 +598,13 @@ const Tab = styled.button<{ $active: boolean }>`
   &:focus-visible { outline: 2px solid rgba(20,184,166,0.3); outline-offset: 2px; }
 `;
 const TabTitle = styled.span`
-  font-size: 13px; font-weight: 700; color: #0F172A;
+  font-size: 0.8125rem; font-weight: 700; color: #0F172A;
 `;
 const TabHint = styled.span`
-  font-size: 11px; font-weight: 500; color: #64748B; line-height: 1.4;
+  font-size: 0.6875rem; font-weight: 500; color: #64748B; line-height: 1.4;
 `;
 const BriefIntro = styled.p`
-  font-size: 12px; color: #334155; line-height: 1.6; margin: 0 0 12px;
+  font-size: 0.75rem; color: #334155; line-height: 1.6; margin: 0 0 12px;
   padding: 10px 12px; background: #F8FAFC; border-radius: 8px;
 `;
 const Body = styled.div`
@@ -612,34 +612,34 @@ const Body = styled.div`
   flex: 1; overflow-y: auto;
   min-height: 0;
 `;
-const OptionalMark = styled.span`color: #94A3B8; font-weight: 400; font-size: 11px; margin-left: 4px;`;
+const OptionalMark = styled.span`color: #94A3B8; font-weight: 400; font-size: 0.6875rem; margin-left: 4px;`;
 const Field = styled.div`display:flex;flex-direction:column;gap:6px;margin-bottom:12px;`;
-const Label = styled.label`font-size:12px;font-weight:600;color:#0F172A;`;
+const Label = styled.label`font-size:0.75rem;font-weight:600;color:#0F172A;`;
 const Input = styled.input`
-  width: 100%; padding: 9px 12px; font-size: 13px; color: #0F172A;
+  width: 100%; padding: 9px 12px; font-size: 0.8125rem; color: #0F172A;
   border: 1px solid #E2E8F0; border-radius: 8px; background: #fff;
   &:focus { outline: none; border-color: #14B8A6; }
   &:disabled { background: #F8FAFC; }
 `;
 const Textarea = styled.textarea`
-  width: 100%; padding: 10px 12px; font-size: 13px; color: #0F172A;
+  width: 100%; padding: 10px 12px; font-size: 0.8125rem; color: #0F172A;
   border: 1px solid #E2E8F0; border-radius: 8px; background: #fff;
   resize: vertical; font-family: inherit; line-height: 1.55;
   &:focus { outline: none; border-color: #14B8A6; }
   &:disabled { background: #F8FAFC; }
 `;
-const Hint = styled.p`font-size:11px;color:#94A3B8;margin:6px 0 0;line-height:1.5;`;
+const Hint = styled.p`font-size:0.6875rem;color:#94A3B8;margin:6px 0 0;line-height:1.5;`;
 const ContextBadge = styled.div`
-  font-size: 11px; color: #0F766E;
+  font-size: 0.6875rem; color: #0F766E;
   background: #F0FDFA; border: 1px solid #CCFBF1;
   padding: 8px 10px; border-radius: 6px; margin: 8px 0;
 `;
 const UsageRow = styled.div`
-  font-size: 12px; color: #64748B; margin-top: 8px;
+  font-size: 0.75rem; color: #64748B; margin-top: 8px;
   background: #F8FAFC; padding: 8px 10px; border-radius: 6px;
 `;
 const ErrorBox = styled.div`
-  font-size: 12px; color: #DC2626; background: #FEF2F2;
+  font-size: 0.75rem; color: #DC2626; background: #FEF2F2;
   padding: 8px 10px; border-radius: 6px; margin-top: 8px;
 `;
 const Footer = styled.div`
@@ -650,7 +650,7 @@ const Footer = styled.div`
 `;
 const PrimaryBtn = styled.button<{ $accent?: boolean }>`
   display: inline-flex; align-items: center;
-  padding: 9px 18px; font-size: 13px; font-weight: 700; color: #fff;
+  padding: 9px 18px; font-size: 0.8125rem; font-weight: 700; color: #fff;
   background: ${p => p.$accent ? 'linear-gradient(135deg, #F43F5E 0%, #BE185D 100%)' : '#14B8A6'};
   border: none; border-radius: 8px; cursor: pointer;
   transition: background 0.15s, transform 0.15s;
@@ -658,7 +658,7 @@ const PrimaryBtn = styled.button<{ $accent?: boolean }>`
   &:disabled { background: #CBD5E1; cursor: not-allowed; }
 `;
 const SecondaryBtn = styled.button`
-  padding: 9px 16px; font-size: 13px; font-weight: 600; color: #334155;
+  padding: 9px 16px; font-size: 0.8125rem; font-weight: 600; color: #334155;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer;
   &:hover:not(:disabled) { border-color: #CBD5E1; background: #F8FAFC; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -679,7 +679,7 @@ const CueHint = styled.div<{ $danger?: boolean; $warn?: boolean }>`
   border: 1px solid ${p => p.$danger ? '#FECACA' : p.$warn ? '#FDE68A' : '#99F6E4'};
   color: ${p => p.$danger ? '#991B1B' : p.$warn ? '#78350F' : '#0F766E'};
   border-radius: 8px;
-  font-size: 12px; font-weight: 500;
+  font-size: 0.75rem; font-weight: 500;
 `;
 const ConfirmOverlay = styled.div`
   position: absolute; inset: 0;
@@ -697,10 +697,10 @@ const ConfirmDialog = styled.div`
   display: flex; flex-direction: column; gap: 12px;
 `;
 const ConfirmTitle = styled.div`
-  font-size: 15px; font-weight: 700; color: #0F172A;
+  font-size: 0.9375rem; font-weight: 700; color: #0F172A;
 `;
 const ConfirmDesc = styled.div`
-  font-size: 13px; color: #475569; line-height: 1.6;
+  font-size: 0.8125rem; color: #475569; line-height: 1.6;
 `;
 const ConfirmActions = styled.div`
   display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px;

@@ -1,3 +1,16 @@
+/* ── 글씨 크기 배율 (2026-08-30) ───────────────────────────────────────────
+   앱 전체의 font-size 는 rem 이다(px 4,022곳을 일괄 전환). 루트 크기 하나만 바꾸면
+   글자만 비례해 커진다 — 여백·아이콘·레이아웃은 그대로다(zoom 과 다르다).
+
+   기본값 1 에서 16px 이라 **전환 전과 픽셀 단위로 동일**하다. 13px → 0.8125rem 처럼
+   전부 정확히 나누어떨어지므로 배율 1.0 은 무변경이어야 하고, 다르면 전환이 틀린 것이다.
+
+   값은 기기별(localStorage) 이다 — 폰과 데스크탑은 필요한 크기가 다르므로 계정에
+   묶지 않는다. 적용은 services/fontScale.ts 가 단일 착지점. */
+html {
+  font-size: calc(16px * var(--planq-font-scale, 1));
+}
+
 html, body {
   margin: 0;
   padding: 0;
@@ -250,8 +263,23 @@ code {
   [data-print-area], [data-print-area] * { visibility: visible; }
   [data-print-area] { position: absolute; left: 0; top: 0; width: 100%; padding: 0; background: #FFF !important; }
   /* TipTap 본문은 출력에 적합한 크기 */
-  [data-print-area] .ProseMirror { font-size: 13px; line-height: 1.65; color: #0F172A; }
+  [data-print-area] .ProseMirror { font-size: 0.8125rem; line-height: 1.65; color: #0F172A; }
   [data-print-area] table { page-break-inside: avoid; }
   /* 사이드바·헤더·메뉴·드로어 등 요소 숨김 */
   aside, header, nav, [role="dialog"], .no-print { display: none !important; }
+}
+
+
+/* ── 폰 입력칸 최소 1rem (2026-08-30) ─────────────────────────────────────
+   iOS Safari 는 16px 미만 입력칸에 포커스하면 화면을 스스로 확대한다. 여태는 viewport 의
+   maximum-scale=1.0 이 그것을 억제하는 대신 **사용자의 손가락 확대까지** 막고 있었다
+   (Android Chrome). 접근성 쪽을 되살리고(= maximum-scale 제거) 자동확대는 크기로 막는다.
+   실측: 입력칸이 전부 13~14px 이었다(16px 이상 0개).
+   ★ 이 둘은 세트다 — maximum-scale 만 걷고 이걸 빼면 채팅 입력마다 화면이 튄다. */
+@media (max-width: 640px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  textarea,
+  select {
+    font-size: max(1rem, 1em);
+  }
 }

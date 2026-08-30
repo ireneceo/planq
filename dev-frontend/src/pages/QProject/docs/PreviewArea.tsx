@@ -81,10 +81,10 @@ const PreviewAudioWrap = styled.div`
 const PreviewLoading = styled.div`
   display:flex;align-items:center;justify-content:center;min-height:160px;
   background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;
-  font-size:13px;color:#64748B;
+  font-size:0.8125rem;color:#64748B;
 `;
 const PreviewFallback = styled.div`display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:40px 20px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;`;
-const PvExtCircle = styled.div`width:72px;height:72px;border-radius:50%;background:#fff;border:1px solid #E2E8F0;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#475569;letter-spacing:.5px;`;
-const PvFallbackHint = styled.div`font-size:12px;color:#64748B;text-align:center;`;
+const PvExtCircle = styled.div`width:72px;height:72px;border-radius:50%;background:#fff;border:1px solid #E2E8F0;display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:800;color:#475569;letter-spacing:.5px;`;
+const PvFallbackHint = styled.div`font-size:0.75rem;color:#64748B;text-align:center;`;
 
 export default PreviewArea;

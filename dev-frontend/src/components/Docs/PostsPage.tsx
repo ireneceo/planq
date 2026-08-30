@@ -2231,7 +2231,7 @@ const PrintOnlyTitle = styled.h1`
   display: none;
   @media print {
     display: block;
-    font-size: 24px; font-weight: 700; color: #0F172A; margin: 0 0 16px 0;
+    font-size: 1.5rem; font-weight: 700; color: #0F172A; margin: 0 0 16px 0;
   }
 `;
 const Layout = styled.div<{ $collapsed?: boolean; $projectFull?: boolean; $hasDetail?: boolean; $listW?: number }>`
@@ -2279,7 +2279,7 @@ const HeaderBtnRow = styled.div`display:flex;align-items:center;gap:6px;`;
 const TemplateBtn = styled.button`
   height: 32px; padding: 0 12px;
   display: inline-flex; align-items: center; gap: 4px;
-  font-size: 12px; font-weight: 600; color: #0F766E;
+  font-size: 0.75rem; font-weight: 600; color: #0F766E;
   background: #F0FDFA; border: 1px solid #14B8A6; border-radius: 8px; cursor: pointer;
   transition: background 0.15s, color 0.15s;
   &:hover { background: #14B8A6; color: #FFF; }
@@ -2321,8 +2321,8 @@ const NewItem = styled.button`
   &:focus-visible { background: #F0FDFA; outline: none; }
   & + & { border-top: 1px solid #F1F5F9; }
 `;
-const NewItemTitle = styled.div`font-size: 13px; font-weight: 600; color: #0F172A;`;
-const NewItemDesc = styled.div`font-size: 11px; color: #94A3B8; margin-top: 2px;`;
+const NewItemTitle = styled.div`font-size: 0.8125rem; font-weight: 600; color: #0F172A;`;
+const NewItemDesc = styled.div`font-size: 0.6875rem; color: #94A3B8; margin-top: 2px;`;
 const ModalBackdrop = styled.div`
   position: fixed; inset: 0; background: rgba(15,23,42,0.08);
   z-index: 60;
@@ -2343,7 +2343,7 @@ const ModalHead = styled.div`
   display:flex;justify-content:space-between;align-items:center;
   padding: 14px 18px; border-bottom: 1px solid #E2E8F0; flex-shrink: 0;
 `;
-const ModalTitle = styled.h2`font-size:15px;font-weight:700;color:#0F172A;margin:0;letter-spacing:-0.1px;`;
+const ModalTitle = styled.h2`font-size:0.9375rem;font-weight:700;color:#0F172A;margin:0;letter-spacing:-0.1px;`;
 const ModalClose = styled.button`
   width:30px;height:30px;border:none;background:transparent;color:#64748B;cursor:pointer;border-radius:6px;
   display:flex;align-items:center;justify-content:center;
@@ -2353,7 +2353,7 @@ const ModalBody = styled.div`
   padding: 16px 18px; overflow-y: auto; flex: 1; min-height: 0;
   display: flex; flex-direction: column; gap: 14px;
 `;
-const ModalSub = styled.p`font-size:12px;color:#64748B;margin:0;line-height:1.5;`;
+const ModalSub = styled.p`font-size:0.75rem;color:#64748B;margin:0;line-height:1.5;`;
 const TplGrid = styled.div`display:grid;grid-template-columns:repeat(2,1fr);gap:8px;flex:1;overflow-y:auto;@media(max-width:520px){grid-template-columns:1fr;}`;
 const TplCard = styled.button`
   display:flex;gap:10px;padding:12px;font-family:inherit;text-align:left;
@@ -2362,9 +2362,9 @@ const TplCard = styled.button`
   &:hover{border-color:#14B8A6;background:#F0FDFA;}
 `;
 const TplCardIcon = styled.div`flex:0 0 auto;color:#0F766E;display:inline-flex;align-items:flex-start;`;
-const TplBadgeSys = styled.span`flex:0 0 auto;font-size:10px;font-weight:700;color:#0F766E;background:#F0FDFA;border:1px solid #14B8A6;border-radius:999px;padding:1px 8px;align-self:flex-start;`;
+const TplBadgeSys = styled.span`flex:0 0 auto;font-size:0.625rem;font-weight:700;color:#0F766E;background:#F0FDFA;border:1px solid #14B8A6;border-radius:999px;padding:1px 8px;align-self:flex-start;`;
 const TplSearchInput = styled.input`
-  width:100%;padding:8px 12px;font-size:13px;color:#0F172A;
+  width:100%;padding:8px 12px;font-size:0.8125rem;color:#0F172A;
   border:1px solid #E2E8F0;border-radius:8px;background:#FFF;margin-bottom:12px;
   &:focus{outline:none;border-color:#14B8A6;}
   &::placeholder{color:#94A3B8;}
@@ -2382,7 +2382,7 @@ const ParentLink = styled.a`
   display: inline-flex; align-items: center;
   margin-left: 12px;
   padding: 2px 10px;
-  font-size: 11px; font-weight: 600;
+  font-size: 0.6875rem; font-weight: 600;
   color: #0F766E;
   background: #F0FDFA;
   border: 1px solid #CCFBF1;
@@ -2392,16 +2392,16 @@ const ParentLink = styled.a`
   &:hover { background: #CCFBF1; }
 `;
 const SaveTplField = styled.div`display:flex;flex-direction:column;gap:6px;margin-bottom:10px;`;
-const SaveTplLabel = styled.label`font-size:12px;font-weight:600;color:#0F172A;`;
-const SaveTplError = styled.div`font-size:12px;color:#DC2626;background:#FEF2F2;padding:8px 10px;border-radius:6px;margin-bottom:8px;`;
+const SaveTplLabel = styled.label`font-size:0.75rem;font-weight:600;color:#0F172A;`;
+const SaveTplError = styled.div`font-size:0.75rem;color:#DC2626;background:#FEF2F2;padding:8px 10px;border-radius:6px;margin-bottom:8px;`;
 const ModalFooter = styled.div`
   padding: 12px 18px; border-top: 1px solid #E2E8F0;
   display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0;
 `;
 const TplCardBody = styled.div`flex:1;min-width:0;`;
-const TplCardName = styled.div`font-size:13px;font-weight:600;color:#0F172A;margin-bottom:2px;`;
-const TplCardDesc = styled.div`font-size:11px;color:#64748B;line-height:1.4;`;
-const Empty = styled.div`grid-column:1/-1;padding:32px;text-align:center;color:#94A3B8;font-size:13px;`;
+const TplCardName = styled.div`font-size:0.8125rem;font-weight:600;color:#0F172A;margin-bottom:2px;`;
+const TplCardDesc = styled.div`font-size:0.6875rem;color:#64748B;line-height:1.4;`;
+const Empty = styled.div`grid-column:1/-1;padding:32px;text-align:center;color:#94A3B8;font-size:0.8125rem;`;
 const SearchWrap = styled.div`
   padding: 12px 16px 8px; border-bottom: 1px solid #F1F5F9;
 `;
@@ -2411,7 +2411,7 @@ const FilterSection = styled.div`
   max-height: 160px; overflow-y: auto;
 `;
 const FilterGroupLabel = styled.div`
-  width: 100%; font-size: 10px; font-weight: 700; color: #94A3B8;
+  width: 100%; font-size: 0.625rem; font-weight: 700; color: #94A3B8;
   text-transform: uppercase; letter-spacing: 0.3px;
   margin-top: 4px;
   &:first-child { margin-top: 0; }
@@ -2423,14 +2423,14 @@ const Chip = styled.button<{ $active: boolean }>`
   background: ${p => p.$active ? '#14B8A6' : '#F1F5F9'};
   color: ${p => p.$active ? '#fff' : '#475569'};
   border: 1px solid ${p => p.$active ? '#14B8A6' : 'transparent'};
-  font-size: 11px; font-weight: 600;
+  font-size: 0.6875rem; font-weight: 600;
   transition: all 0.15s;
   &:hover { background: ${p => p.$active ? '#0D9488' : '#E2E8F0'}; }
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
 `;
 const Count = styled.span`
   background: rgba(15, 23, 42, 0.08); color: #64748B;
-  padding: 0 6px; border-radius: 999px; font-size: 10px; font-weight: 700;
+  padding: 0 6px; border-radius: 999px; font-size: 0.625rem; font-weight: 700;
   ${Chip}[data-active="true"] & { background: rgba(255, 255, 255, 0.25); color: #fff; }
 `;
 const ColorDot = styled.span<{ $color: string }>`
@@ -2442,14 +2442,14 @@ const AddCatBtn = styled.button`
   padding: 4px 10px; border-radius: 999px;
   background: transparent; color: #0F766E;
   border: 1px dashed #99F6E4;
-  font-size: 11px; font-weight: 600;
+  font-size: 0.6875rem; font-weight: 600;
   transition: all 0.15s;
   &:hover { background: #F0FDFA; border-color: #14B8A6; }
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
 `;
 const NewCatInput = styled.input`
   height: 24px; padding: 0 10px; border: 1px solid #14B8A6; border-radius: 999px;
-  background: #fff; font-size: 11px; color: #0F172A; min-width: 140px;
+  background: #fff; font-size: 0.6875rem; color: #0F172A; min-width: 140px;
   &:focus { outline: none; box-shadow: 0 0 0 2px rgba(20,184,166,0.2); }
 `;
 
@@ -2489,7 +2489,7 @@ const RowPinBtn = styled.button<{ $on: boolean }>`
   position: absolute; top: 8px; right: 8px;
   width: 28px; height: 28px; padding: 0; border: none; border-radius: 6px;
   display: inline-flex; align-items: center; justify-content: center;
-  cursor: pointer; font-size: 13px; line-height: 1;
+  cursor: pointer; font-size: 0.8125rem; line-height: 1;
   background: ${p => p.$on ? '#F0FDFA' : 'transparent'};
   filter: ${p => p.$on ? 'none' : 'grayscale(1) opacity(0.4)'};
   transition: filter 0.15s ease, background 0.15s ease;
@@ -2501,18 +2501,18 @@ const RowPinBtn = styled.button<{ $on: boolean }>`
 //   짧은 제목일 때 빈 줄이 생기지 않게 한다(높이는 내용만큼만).
 //   ★ 이 컴포넌트는 Q docs 와 프로젝트 > 문서 탭이 함께 쓴다 — 한 번 고치면 두 화면에 같이 적용된다.
 const RowTitle = styled.div`
-  font-size: 13px; font-weight: 700; color: #0F172A;
+  font-size: 0.8125rem; font-weight: 700; color: #0F172A;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   overflow: hidden; overflow-wrap: anywhere; line-height: 1.45;
   > * { vertical-align: middle; margin-right: 4px; }
 `;
 const RowPreview = styled.div`
-  margin-top: 4px; font-size: 12px; color: #64748B; line-height: 1.5;
+  margin-top: 4px; font-size: 0.75rem; color: #64748B; line-height: 1.5;
   overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
 `;
 // 프로젝트 문서 카드의 본문 미리보기 — 워크스페이스 목록의 RowPreview 와 같은 규격.
 const CardPreview = styled.div`
-  padding: 0 10px; margin-top: 2px; font-size: 12px; color: #64748B; line-height: 1.45;
+  padding: 0 10px; margin-top: 2px; font-size: 0.75rem; color: #64748B; line-height: 1.45;
   overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   word-break: break-word;
 `;
@@ -2524,7 +2524,7 @@ const CardAuthor = styled.span`
 const RowVisChip = styled.span<{ $level: string }>`
   display: inline-flex; align-items: center;
   padding: 1px 7px; border-radius: 8px;
-  font-size: 10px; font-weight: 600;
+  font-size: 0.625rem; font-weight: 600;
   background: ${p => p.$level === 'L1' ? '#F1F5F9' : p.$level === 'L2' ? '#FEF3C7' : p.$level === 'L4' ? '#FCE7F3' : '#CCFBF1'};
   color: ${p => p.$level === 'L1' ? '#475569' : p.$level === 'L2' ? '#92400E' : p.$level === 'L4' ? '#9F1239' : '#0F766E'};
 `;
@@ -2550,7 +2550,7 @@ const KindBtn = styled.button<{ $active: boolean }>`
   background: ${p => p.$active ? '#FFFFFF' : 'transparent'};
   color: ${p => p.$active ? '#0F766E' : '#64748B'};
   border: none;
-  font-size: 12px; font-weight: 600;
+  font-size: 0.75rem; font-weight: 600;
   cursor: pointer;
   transition: background 0.12s, color 0.12s;
   box-shadow: ${p => p.$active ? '0 1px 2px rgba(0,0,0,0.06)' : 'none'};
@@ -2558,13 +2558,13 @@ const KindBtn = styled.button<{ $active: boolean }>`
   & + & { border-left: 1px solid #E2E8F0; }
 `;
 // N+72-7 — 헤더 공개범위 chip (RowVisChip 보다 크고 button 형태, 클릭=변경)
-const ShareMini = styled.span`font-size: 11px; cursor: help;`;
+const ShareMini = styled.span`font-size: 0.6875rem; cursor: help;`;
 const RowMeta = styled.div`
   margin-top: 6px;
   display: flex; align-items: center; gap: 4px;
-  font-size: 11px; color: #94A3B8; flex-wrap: wrap;
+  font-size: 0.6875rem; color: #94A3B8; flex-wrap: wrap;
 `;
-const Dim = styled.div`padding: 24px 16px; color: #94A3B8; font-size: 12px; text-align: center;`;
+const Dim = styled.div`padding: 24px 16px; color: #94A3B8; font-size: 0.75rem; text-align: center;`;
 
 const Content = styled.section<{ $hasDetail?: boolean; $projectFull?: boolean }>`
   display: flex; flex-direction: column;
@@ -2599,7 +2599,7 @@ const Body = styled.div`
 const TitleInput = styled.input`
   flex: 1; height: 32px; padding: 0 10px;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 15px; font-weight: 700; color: #0F172A;
+  font-size: 0.9375rem; font-weight: 700; color: #0F172A;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
 `;
 const EditActions = styled.div`
@@ -2608,24 +2608,24 @@ const EditActions = styled.div`
 `;
 // #252 임시저장 상태 표시 — AutoSaveField 의 뱃지 톤과 동일 (성공 회색 ✓ / 실패 붉은 !).
 const AutoSaveMark = styled.span<{ $tone: 'ok' | 'err' }>`
-  font-size: 12px; white-space: nowrap;
+  font-size: 0.75rem; white-space: nowrap;
   color: ${p => (p.$tone === 'err' ? '#DC2626' : '#94A3B8')};
   /* ★ 모바일에서 숨기지 않는다 — 실패·충돌이 안 보이면 저장된 줄 알고 창을 닫는다(조용한 실패 금지).
      좁은 화면에서는 글자만 줄인다. */
-  @media (max-width: 640px) { font-size: 11px; }
+  @media (max-width: 640px) { font-size: 0.6875rem; }
 `;
 // #252 — 목록의 임시저장(draft) 행 표시. 이 행은 작성자에게만 보인다(백엔드 필터).
 const DraftTag = styled.span`
   display: inline-flex; align-items: center; flex-shrink: 0;
   margin-right: 6px; padding: 1px 6px;
   background: #FFF7ED; color: #C2410C; border: 1px solid #FED7AA;
-  border-radius: 999px; font-size: 10px; font-weight: 700; line-height: 16px;
+  border-radius: 999px; font-size: 0.625rem; font-weight: 700; line-height: 16px;
 `;
 // 상세 메타 — 헤더 아래 한 줄 MetaBar. 좌(작성자·날짜·분류·프로젝트) ↔ 우(공개·공유·보안). (Irene)
 // 구분선은 좌우 끝까지(풀폭), 글자만 좌우 24px 안쪽.
 const ViewMeta = styled.div`
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  font-size: 12px; color: #94A3B8;
+  font-size: 0.75rem; color: #94A3B8;
   padding-bottom: 12px; border-bottom: 1px solid #F1F5F9;
   /* ★ 2026-08-25 (Irene: "Q 문서 상세도 가면 서브헤더 엉망이야. 완전 심해")
      좌(작성자·날짜·분류·프로젝트) ↔ 우(공개·공유·보안) 를 space-between 으로 밀어 두고
@@ -2646,14 +2646,14 @@ const MetaRight = styled.div`display: flex; align-items: center; gap: 8px; flex-
 const PinTag = styled.span`display: inline-flex; align-items: center; color: #0D9488;`;
 const ProjectTag = styled.span<{ $color: string }>`
   display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px;
-  background: #F1F5F9; color: #475569; border-radius: 999px; font-size: 10px; font-weight: 600;
+  background: #F1F5F9; color: #475569; border-radius: 999px; font-size: 0.625rem; font-weight: 600;
   &::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: ${p => p.$color}; }
 `;
 const CategoryTag = styled.button`
   all: unset; cursor: pointer;
   display: inline-flex; align-items: center; padding: 2px 8px;
   background: #F0FDFA; color: #0F766E;
-  border-radius: 999px; font-size: 11px; font-weight: 600;
+  border-radius: 999px; font-size: 0.6875rem; font-weight: 600;
   &:hover { background: #CCFBF1; }
 `;
 // 편집 메타 — 한 줄(카테고리·프로젝트·형태·공개·보안). 좁으면 wrap. (Irene: 한 줄로)
@@ -2679,7 +2679,7 @@ const VisibilityChip = styled.button`
   border: 1px solid #CBD5E1;
   border-radius: 12px;
   padding: 2px 10px;
-  font-size: 11px; font-weight: 600;
+  font-size: 0.6875rem; font-weight: 600;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
   &:hover { background: #E2E8F0; border-color: #94A3B8; }
@@ -2687,12 +2687,12 @@ const VisibilityChip = styled.button`
 `;
 const ShareTag = styled.span`
   display: inline-flex; align-items: center; padding: 2px 8px;
-  background: #FFF7ED; color: #C2410C; border-radius: 999px; font-size: 10px; font-weight: 700;
+  background: #FFF7ED; color: #C2410C; border-radius: 999px; font-size: 0.625rem; font-weight: 700;
   border: 1px solid #FED7AA;
 `;
 const CategoryMini = styled.span`
   display: inline-flex; padding: 1px 6px; background: #F0FDFA; color: #0F766E;
-  border-radius: 999px; font-size: 10px; font-weight: 600;
+  border-radius: 999px; font-size: 0.625rem; font-weight: 600;
 `;
 
 // 첨부 섹션 — 외곽 박스 없음, 상단 구분선으로 영역만 분리
@@ -2702,7 +2702,7 @@ const AttachSection = styled.section`
   border-top: 1px solid #E2E8F0;
   display: flex; flex-direction: column; gap: 12px;
 `;
-const AttachTitle = styled.div`font-size: 13px; font-weight: 700; color: #334155;`;
+const AttachTitle = styled.div`font-size: 0.8125rem; font-weight: 700; color: #334155;`;
 const AttachList = styled.div`
   display: flex; flex-direction: column;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 8px; overflow: hidden;
@@ -2714,18 +2714,18 @@ const AttachRow = styled.div`
   &:hover { background: #F8FAFC; }
 `;
 const AttachName = styled.a`
-  flex: 1; min-width: 0; font-size: 13px; color: #0F172A; text-decoration: none;
+  flex: 1; min-width: 0; font-size: 0.8125rem; color: #0F172A; text-decoration: none;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left;
   &:hover { color: #0F766E; text-decoration: underline; }
 `;
 const RemoveBtn = styled.button`
   all: unset; cursor: pointer; width: 22px; height: 22px;
   display: flex; align-items: center; justify-content: center;
-  color: #94A3B8; border-radius: 4px; font-size: 16px;
+  color: #94A3B8; border-radius: 4px; font-size: 1rem;
   &:hover { background: #FEE2E2; color: #DC2626; }
 `;
 
-const ErrorBar = styled.div`font-size: 12px; color: #DC2626; background: #FEF2F2; padding: 8px 12px; border-radius: 6px;`;
+const ErrorBar = styled.div`font-size: 0.75rem; color: #DC2626; background: #FEF2F2; padding: 8px 12px; border-radius: 6px;`;
 // 표 설명 — 열기/닫기 통합 full-width 헤더 바(라운드·이질감 제거, flat 통일). (Irene)
 const DescToggleHeader = styled.button`
   display: flex; align-items: center; justify-content: space-between; width: 100%;
@@ -2736,19 +2736,19 @@ const DescToggleHeader = styled.button`
   &:hover { background: #F1F5F9; }
 `;
 const DescBoxLabel = styled.span`
-  font-size: 11px; font-weight: 700; color: #64748B;
+  font-size: 0.6875rem; font-weight: 700; color: #64748B;
   text-transform: uppercase; letter-spacing: 0.05em;
 `;
 const DescChevron = styled.span<{ $open?: boolean }>`
   display: inline-flex; align-items: center; gap: 4px;
-  font-size: 11px; font-weight: 600; color: #64748B;
+  font-size: 0.6875rem; font-weight: 600; color: #64748B;
   svg { transition: transform 0.18s ease; transform: rotate(${p => p.$open ? '180deg' : '0deg'}); }
 `;
 
 // 버튼 — PanelHeader 60px (padding 14*2=28 + 32 content) 와 일치하도록 32px
 const PrimaryBtn = styled.button`
   height: 32px; padding: 0 14px; background: #14B8A6; color: #fff; border: none; border-radius: 8px;
-  font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  font-size: 0.8125rem; font-weight: 600; cursor: pointer; white-space: nowrap;
   display: inline-flex; align-items: center;
   &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -2757,7 +2757,7 @@ const PrimaryBtn = styled.button`
 const EditBtn = styled.button`
   height: 32px; padding: 0 14px;
   display: inline-flex; align-items: center; white-space: nowrap;
-  font-size: 13px; font-weight: 600; color: #334155;
+  font-size: 0.8125rem; font-weight: 600; color: #334155;
   background: #FFFFFF; border: 1px solid #CBD5E1; border-radius: 8px; cursor: pointer;
   transition: background 0.15s, border-color 0.15s, color 0.15s;
   &:hover:not(:disabled) { background: #F8FAFC; border-color: #94A3B8; color: #0F172A; }
@@ -2766,7 +2766,7 @@ const EditBtn = styled.button`
 const SignBtn = styled.button`
   height: 32px; padding: 0 14px;
   display: inline-flex; align-items: center; white-space: nowrap;
-  font-size: 13px; font-weight: 700; color: #0F766E;
+  font-size: 0.8125rem; font-weight: 700; color: #0F766E;
   background: #F0FDFA; border: 1px solid #14B8A6; border-radius: 8px; cursor: pointer;
   transition: background 0.15s, color 0.15s, transform 0.15s;
   &:hover:not(:disabled) { background: #14B8A6; color: #fff; transform: translateY(-1px); }
@@ -2775,12 +2775,12 @@ const SignBtn = styled.button`
 const LeaveBlockedNote = styled.span`
   display:inline-flex; align-items:center; max-width:340px;
   padding:4px 10px; border-radius:8px;
-  font-size:12px; font-weight:600; line-height:1.4;
+  font-size:0.75rem; font-weight:600; line-height:1.4;
   color:#B91C1C; background:#FEE2E2; border:1px solid #FCA5A5;
 `;
 const SecondaryBtn = styled.button`
   height: 32px; padding: 0 14px; background: #fff; color: #0F172A; white-space: nowrap;
-  border: 1px solid #CBD5E1; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+  border: 1px solid #CBD5E1; border-radius: 8px; font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   &:hover:not(:disabled) { background: #F8FAFC; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
@@ -2807,7 +2807,7 @@ const KnowledgeToast = styled.div`
   position: fixed; bottom: 24px; right: 24px;
   padding: 10px 16px;
   background: #0F172A; color: #FFFFFF;
-  border-radius: 8px; font-size: 13px; font-weight: 500;
+  border-radius: 8px; font-size: 0.8125rem; font-weight: 500;
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
   z-index: 60;
   animation: fadeInUp 0.2s ease-out;
@@ -2818,7 +2818,7 @@ const KnowledgeToast = styled.div`
 const PresenceChip = styled.span`
   display: inline-flex; align-items: center; gap: 5px;
   padding: 3px 9px; margin-left: 6px;
-  font-size: 11.5px; font-weight: 600; color: #0F766E;
+  font-size: 0.71875rem; font-weight: 600; color: #0F766E;
   background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 999px;
   white-space: nowrap;
 `;
@@ -2831,11 +2831,11 @@ const StaleBar = styled.div`
   display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap;
   padding: 6px 10px; margin-left: 8px;
   background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px;
-  font-size: 12px; color: #991B1B;
+  font-size: 0.75rem; color: #991B1B;
 `;
 const StaleBtn = styled.button<{ $danger?: boolean }>`
   height: 28px; padding: 0 10px; border-radius: 6px; cursor: pointer;
-  font-size: 12px; font-weight: 700; white-space: nowrap;
+  font-size: 0.75rem; font-weight: 700; white-space: nowrap;
   color: ${(p) => (p.$danger ? '#B91C1C' : '#0F766E')};
   background: #fff;
   border: 1px solid ${(p) => (p.$danger ? '#FECACA' : '#99F6E4')};

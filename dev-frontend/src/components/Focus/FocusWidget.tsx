@@ -392,7 +392,7 @@ const PausedTag = styled.span`
   align-self: flex-start;
   padding: 1px 7px; border-radius: 999px;
   background: rgba(252, 211, 77, 0.18); color: #FCD34D;
-  font-size: 10px; font-weight: 700;
+  font-size: 0.625rem; font-weight: 700;
 `;
 const Wrap = styled.div<{ $embedded?: boolean }>`
   display: flex; flex-direction: column; gap: 6px;
@@ -430,23 +430,23 @@ const Dot = styled.span<{ $state: DotState }>`
   ${p => p.$state === 'idle_detected' && css`animation: ${pulseAlert} 1.2s ease-in-out infinite;`}
 `;
 const Label = styled.span`
-  font-size: 11px; font-weight: 700; letter-spacing: 0.2px;
+  font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.2px;
   color: rgba(255, 255, 255, 0.85);
   text-transform: uppercase;
 `;
 const ElapsedMini = styled.span`
   margin-left: auto;
-  font-size: 10px; font-weight: 500;
+  font-size: 0.625rem; font-weight: 500;
   color: rgba(255, 255, 255, 0.5);
   font-variant-numeric: tabular-nums;
 `;
 const SubText = styled.div`
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: rgba(255, 255, 255, 0.6);
   line-height: 1.35;
 `;
 const TaskTitle = styled.div<{ $clickable?: boolean }>`
-  font-size: 13px; font-weight: 600;
+  font-size: 0.8125rem; font-weight: 600;
   color: #FFFFFF;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   letter-spacing: -0.1px;
@@ -460,13 +460,13 @@ const TaskTitle = styled.div<{ $clickable?: boolean }>`
   `}
 `;
 const Counter = styled.div<{ $embedded?: boolean }>`
-  font-size: 12px; font-weight: 600;
+  font-size: 0.75rem; font-weight: 600;
   color: rgba(255, 255, 255, 0.75);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0;
   min-width: 6ch;
   /* 한 카드 안에서는 위 '근무 3:42' 와 같은 급으로 — 큰 카운터가 두 개면 무엇이 주인지 흐려진다. */
-  ${p => p.$embedded && css`font-size: 12px; letter-spacing: 0;`}
+  ${p => p.$embedded && css`font-size: 0.75rem; letter-spacing: 0;`}
 `;
 const Actions = styled.div`
   display: flex; gap: 6px; margin-top: 2px;
@@ -476,7 +476,7 @@ const baseBtn = css`
   gap: 4px;
   height: 28px; padding: 0 10px;
   border-radius: 6px;
-  font-size: 11px; font-weight: 600;
+  font-size: 0.6875rem; font-weight: 600;
   cursor: pointer;
   border: 1px solid transparent;
   transition: background 0.12s, color 0.12s, transform 0.08s;
@@ -541,11 +541,11 @@ const IdlePrompt = styled.div`
   @keyframes ip-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
 `;
 const IdlePromptText = styled.div`
-  font-size: 11px; font-weight: 700;
+  font-size: 0.6875rem; font-weight: 700;
   color: #FCD34D;
 `;
 const IdlePromptDesc = styled.div`
-  font-size: 11px; font-weight: 500;
+  font-size: 0.6875rem; font-weight: 500;
   color: rgba(255, 255, 255, 0.75);
 `;
 const IdlePromptActions = styled.div`
@@ -555,7 +555,7 @@ const IdleBtnPrimary = styled.button`
   flex: 1; height: 26px; padding: 0 8px;
   background: #FCD34D; color: #92400E;
   border: none; border-radius: 5px;
-  font-size: 11px; font-weight: 700; cursor: pointer;
+  font-size: 0.6875rem; font-weight: 700; cursor: pointer;
   &:hover:not(:disabled) { background: #FBBF24; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
@@ -563,7 +563,7 @@ const IdleBtnSecondary = styled.button`
   flex: 1; height: 26px; padding: 0 8px;
   background: rgba(255, 255, 255, 0.1); color: #FFFFFF;
   border: none; border-radius: 5px;
-  font-size: 11px; font-weight: 600; cursor: pointer;
+  font-size: 0.6875rem; font-weight: 600; cursor: pointer;
   &:hover:not(:disabled) { background: rgba(255, 255, 255, 0.18); }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;

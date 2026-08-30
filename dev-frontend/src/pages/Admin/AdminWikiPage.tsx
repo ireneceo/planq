@@ -499,8 +499,8 @@ const EditorPane = styled.div<{ $detailOpen: boolean }>`
   flex: 1; min-width: 0; background: #f8fafc; display: flex; flex-direction: column; min-height: 0;
   @media (max-width: 1024px) { display: ${p => p.$detailOpen ? 'flex' : 'none'}; }
 `;
-const Empty = styled.div`padding: 40px 20px; text-align: center; font-size: 13px; color: #94a3b8;`;
-const EditorEmpty = styled.div`flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px; text-align: center; font-size: 13px; color: #94a3b8;`;
+const Empty = styled.div`padding: 40px 20px; text-align: center; font-size: 0.8125rem; color: #94a3b8;`;
+const EditorEmpty = styled.div`flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px; text-align: center; font-size: 0.8125rem; color: #94a3b8;`;
 const ListRow = styled.button<{ $active: boolean }>`
   all: unset; cursor: pointer; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px;
   padding: 14px 16px; border-bottom: 1px solid #f1f5f9;
@@ -510,10 +510,10 @@ const ListRow = styled.button<{ $active: boolean }>`
   &:hover { background: ${p => p.$active ? '#f0fdfa' : '#f8fafc'}; }
 `;
 const RowTop = styled.div`display: flex; align-items: center; gap: 6px; flex-wrap: wrap;`;
-const CatChip = styled.span`font-size: 11px; font-weight: 700; color: #0f766e; background: #f0fdfa; border-radius: 999px; padding: 2px 8px;`;
-const Badge = styled.span<{ $bg: string; $fg: string }>`font-size: 11px; font-weight: 700; border-radius: 999px; padding: 2px 8px; background: ${p => p.$bg}; color: ${p => p.$fg};`;
-const RowTitle = styled.div`font-size: 13px; font-weight: 600; color: #0f172a; line-height: 1.4;`;
-const RowSlug = styled.div`font-size: 11px; color: #94a3b8; font-family: ui-monospace, monospace;`;
+const CatChip = styled.span`font-size: 0.6875rem; font-weight: 700; color: #0f766e; background: #f0fdfa; border-radius: 999px; padding: 2px 8px;`;
+const Badge = styled.span<{ $bg: string; $fg: string }>`font-size: 0.6875rem; font-weight: 700; border-radius: 999px; padding: 2px 8px; background: ${p => p.$bg}; color: ${p => p.$fg};`;
+const RowTitle = styled.div`font-size: 0.8125rem; font-weight: 600; color: #0f172a; line-height: 1.4;`;
+const RowSlug = styled.div`font-size: 0.6875rem; color: #94a3b8; font-family: ui-monospace, monospace;`;
 const EditorHeader = styled.div`flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 16px 20px; background: #fff; border-bottom: 1px solid #e2e8f0;`;
 const BackBtn = styled.button`
   display: none; width: 32px; height: 32px; flex-shrink: 0; align-items: center; justify-content: center;
@@ -521,15 +521,15 @@ const BackBtn = styled.button`
   &:hover { background: #f1f5f9; color: #0f172a; }
   @media (max-width: 1024px) { display: inline-flex; }
 `;
-const EditorTitle = styled.h2`flex: 1; min-width: 0; font-size: 16px; font-weight: 700; color: #0f172a; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
-const PreviewLink = styled.a`font-size: 12px; font-weight: 600; color: #0d9488; text-decoration: none; flex-shrink: 0; &:hover { text-decoration: underline; }`;
+const EditorTitle = styled.h2`flex: 1; min-width: 0; font-size: 1rem; font-weight: 700; color: #0f172a; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
+const PreviewLink = styled.a`font-size: 0.75rem; font-weight: 600; color: #0d9488; text-decoration: none; flex-shrink: 0; &:hover { text-decoration: underline; }`;
 const EditorBody = styled.div`flex: 1; min-height: 0; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px;`;
 const Grid2 = styled.div`display: grid; grid-template-columns: 1fr 1fr; gap: 12px; @media (max-width: 640px) { grid-template-columns: 1fr; }`;
 const Grid3 = styled.div`display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; @media (max-width: 640px) { grid-template-columns: 1fr; }`;
 const Field = styled.div`display: flex; flex-direction: column; gap: 6px; min-width: 0;`;
-const Label = styled.label`font-size: 12px; font-weight: 700; color: #475569;`;
+const Label = styled.label`font-size: 0.75rem; font-weight: 700; color: #475569;`;
 const Input = styled.input`
-  padding: 9px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; color: #0f172a; font-family: inherit;
+  padding: 9px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.8125rem; color: #0f172a; font-family: inherit;
   &:focus { outline: none; border-color: #14b8a6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
 `;
 const ToggleRow = styled.div`display: flex; align-items: center; gap: 12px;`;
@@ -541,40 +541,40 @@ const Knob = styled.span<{ $on: boolean }>`
   position: absolute; top: 3px; left: ${p => p.$on ? '19px' : '3px'}; width: 18px; height: 18px;
   background: #fff; border-radius: 50%; transition: left 0.15s;
 `;
-const ToggleLabel = styled.div`font-size: 13px; font-weight: 600; color: #0f172a;`;
-const ToggleHint = styled.div`font-size: 12px; color: #64748b;`;
+const ToggleLabel = styled.div`font-size: 0.8125rem; font-weight: 600; color: #0f172a;`;
+const ToggleHint = styled.div`font-size: 0.75rem; color: #64748b;`;
 const BlockSection = styled.div`display: flex; flex-direction: column; gap: 10px;`;
-const BlockEmpty = styled.div`font-size: 12px; color: #94a3b8; padding: 8px 0;`;
+const BlockEmpty = styled.div`font-size: 0.75rem; color: #94a3b8; padding: 8px 0;`;
 const BlockCard = styled.div`border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; padding: 12px; display: flex; flex-direction: column; gap: 8px;`;
 const BlockBar = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 8px;`;
 const BlockBtns = styled.div`display: flex; gap: 4px;`;
 const MiniBtn = styled.button<{ $danger?: boolean }>`
   width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center;
-  border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; cursor: pointer; font-size: 14px;
+  border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; cursor: pointer; font-size: 0.875rem;
   color: ${p => p.$danger ? '#b91c1c' : '#475569'};
   &:hover:not(:disabled) { background: ${p => p.$danger ? '#fee2e2' : '#f1f5f9'}; }
   &:disabled { opacity: 0.4; cursor: not-allowed; }
 `;
 const BlockTextarea = styled.textarea`
-  padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; color: #0f172a; font-family: inherit; resize: vertical;
+  padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.8125rem; color: #0f172a; font-family: inherit; resize: vertical;
   &:focus { outline: none; border-color: #14b8a6; box-shadow: 0 0 0 3px rgba(20,184,166,0.12); }
 `;
 const BlockImg = styled.img`max-width: 100%; border-radius: 8px; border: 1px solid #e2e8f0;`;
-const ImgHint = styled.div`font-size: 12px; color: #94a3b8; padding: 8px; background: #f8fafc; border-radius: 6px;`;
+const ImgHint = styled.div`font-size: 0.75rem; color: #94a3b8; padding: 8px; background: #f8fafc; border-radius: 6px;`;
 const AddBlockRow = styled.div`display: flex; flex-wrap: wrap; gap: 6px;`;
 const AddBlockBtn = styled.button`
   all: unset; cursor: pointer; padding: 6px 12px; border-radius: 999px; background: #f0fdfa; border: 1px solid #ccfbf1;
-  font-size: 12px; font-weight: 600; color: #0f766e; &:hover { background: #ccfbf1; }
+  font-size: 0.75rem; font-weight: 600; color: #0f766e; &:hover { background: #ccfbf1; }
 `;
 const EditorFooter = styled.div`flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px; background: #fff; border-top: 1px solid #e2e8f0;`;
 const FooterLeft = styled.div`display: flex; gap: 8px;`;
-const ErrMsg = styled.div`padding: 10px 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; font-size: 13px; color: #b91c1c;`;
-const OkMsg = styled.div`padding: 10px 12px; background: #f0fdfa; border: 1px solid #5eead4; border-radius: 8px; font-size: 13px; color: #0f766e;`;
+const ErrMsg = styled.div`padding: 10px 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; font-size: 0.8125rem; color: #b91c1c;`;
+const OkMsg = styled.div`padding: 10px 12px; background: #f0fdfa; border: 1px solid #5eead4; border-radius: 8px; font-size: 0.8125rem; color: #0f766e;`;
 const CatList = styled.div`display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;`;
 const CatRow = styled.div`display: flex; align-items: center; gap: 8px;`;
 const CatInput = styled.input`
-  flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; color: #0f172a; font-family: inherit;
+  flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.8125rem; color: #0f172a; font-family: inherit;
   &:focus { outline: none; border-color: #14b8a6; box-shadow: 0 0 0 3px rgba(20,184,166,0.12); }
 `;
-const CatCount = styled.span`font-size: 11px; font-weight: 700; color: #64748b; background: #f1f5f9; border-radius: 999px; padding: 2px 8px; flex-shrink: 0;`;
+const CatCount = styled.span`font-size: 0.6875rem; font-weight: 700; color: #64748b; background: #f1f5f9; border-radius: 999px; padding: 2px 8px; flex-shrink: 0;`;
 const CatAddRow = styled.div`display: flex; align-items: center; gap: 8px; padding-top: 12px; border-top: 1px solid #e2e8f0;`;

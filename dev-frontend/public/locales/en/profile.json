@@ -273,5 +273,12 @@
     "errBlocked": "Transfer your workspace ownership first.",
     "errOauth": "Social-login accounts need email verification (OTP). Please contact support.",
     "errGeneric": "Could not process the request. Please try again shortly."
+  },
+  "fontScale": {
+    "sectionTitle": "Text size",
+    "normal": "Default",
+    "large": "Large",
+    "xlarge": "Larger",
+    "hint": "Applies to this device only. Only the text grows — the layout stays the same."
   }
 }

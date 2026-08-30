@@ -306,20 +306,20 @@ const HeroLogoImg = styled.img`
   @media (max-width: 768px) { height: 48px; }
 `;
 const HeroSlogan = styled.div`
-  font-size: 20px; font-weight: 300; color: #94A3B8;
+  font-size: 1.25rem; font-weight: 300; color: #94A3B8;
   letter-spacing: 6px; margin-bottom: 50px;
-  @media (max-width: 768px) { font-size: 14px; letter-spacing: 4px; margin-bottom: 32px; }
+  @media (max-width: 768px) { font-size: 0.875rem; letter-spacing: 4px; margin-bottom: 32px; }
 `;
 const HeroPreHeadline = styled.div`
-  font-size: 20px; font-weight: 400; color: #FFFFFF;
+  font-size: 1.25rem; font-weight: 400; color: #FFFFFF;
   margin-bottom: 20px;
-  @media (max-width: 768px) { font-size: 16px; }
+  @media (max-width: 768px) { font-size: 1rem; }
 `;
 const HeroHeadline = styled.h1`
-  font-size: 48px; font-weight: 700; color: #FFFFFF;
+  font-size: 3rem; font-weight: 700; color: #FFFFFF;
   line-height: 1.31; margin: 0 0 48px 0;
   word-break: keep-all;
-  @media (max-width: 768px) { font-size: 30px; }
+  @media (max-width: 768px) { font-size: 1.875rem; }
 `;
 const HeroHighlight = styled.span`
   color: #14B8A6;
@@ -328,7 +328,7 @@ const HeroCta = styled(Link)`
   display: inline-block; padding: 16px 48px;
   border-radius: 999px;
   background: #14B8A6; color: #FFFFFF;
-  font-size: 16px; font-weight: 500;
+  font-size: 1rem; font-weight: 500;
   text-decoration: none;
   transition: all 0.3s;
   box-shadow: 0 0 40px rgba(20,184,166,0.3);
@@ -339,13 +339,13 @@ const HeroCta = styled(Link)`
 const HeroPurpose = styled.p`
   margin: 20px auto 4px;
   max-width: 720px;
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1.75;
   color: rgba(255, 255, 255, 0.72);
   text-align: center;
   word-break: keep-all;
   @media (max-width: 640px) {
-    font-size: 13px;
+    font-size: 0.8125rem;
     max-width: 92%;
   }
 `;
@@ -368,20 +368,20 @@ const Section = styled.section<{ $bg: 'white' | 'bg' | 'dark' | 'engine' }>`
 const Container = styled.div`max-width: 1080px; margin: 0 auto;`;
 const SectionTag = styled.div<{ $light?: boolean; $teal?: boolean }>`
   font-family: 'Outfit', sans-serif;
-  font-size: 13px; font-weight: 500;
+  font-size: 0.8125rem; font-weight: 500;
   color: ${p => p.$teal ? '#5EEAD4' : p.$light ? '#5EEAD4' : '#0D9488'};
   letter-spacing: 3px; text-transform: uppercase;
   margin-bottom: 16px;
 `;
 const SectionTitle = styled.h2<{ $light?: boolean }>`
-  font-size: 36px; font-weight: 700; line-height: 1.35;
+  font-size: 2.25rem; font-weight: 700; line-height: 1.35;
   margin-bottom: 20px;
   word-break: keep-all;
   color: ${p => p.$light ? '#FFFFFF' : '#0F172A'};
-  @media (max-width: 768px) { font-size: 28px; }
+  @media (max-width: 768px) { font-size: 1.75rem; }
 `;
 const SectionDesc = styled.p<{ $light?: boolean; $teal?: boolean }>`
-  font-size: 17px; font-weight: 300;
+  font-size: 1.0625rem; font-weight: 300;
   color: ${p => p.$teal ? '#99F6E4' : p.$light ? '#94A3B8' : '#64748B'};
   line-height: 1.8; max-width: 640px; word-break: keep-all;
 `;
@@ -400,11 +400,11 @@ const ProblemItem = styled.div`
   transition: opacity 0.7s ease-out, transform 0.7s ease-out;
 `;
 const ProblemIcon = styled.div`color: #14B8A6; margin-bottom: 8px;`;
-const ProblemLabel = styled.div`font-size: 14px; color: #64748B; font-weight: 400;`;
-const ProblemTool = styled.div`font-size: 15px; font-weight: 500; color: #0F172A;`;
+const ProblemLabel = styled.div`font-size: 0.875rem; color: #64748B; font-weight: 400;`;
+const ProblemTool = styled.div`font-size: 0.9375rem; font-weight: 500; color: #0F172A;`;
 const ProblemArrow = styled.div`
   text-align: center; margin-top: 40px;
-  font-size: 18px; color: #64748B; font-weight: 300; line-height: 1.8;
+  font-size: 1.125rem; color: #64748B; font-weight: 300; line-height: 1.8;
   strong { color: #0F172A; font-weight: 600; }
 `;
 
@@ -424,11 +424,11 @@ const ValueCard = styled.div`
 `;
 const ValueNum = styled.div`
   font-family: 'Outfit', sans-serif;
-  font-size: 48px; font-weight: 200; color: #5EEAD4;
+  font-size: 3rem; font-weight: 200; color: #5EEAD4;
   margin-bottom: 20px;
 `;
-const ValueH3 = styled.h3`font-size: 20px; font-weight: 600; line-height: 1.4; margin-bottom: 16px; word-break: keep-all;`;
-const ValueP = styled.p`font-size: 15px; color: #64748B; line-height: 1.7; font-weight: 300; word-break: keep-all;`;
+const ValueH3 = styled.h3`font-size: 1.25rem; font-weight: 600; line-height: 1.4; margin-bottom: 16px; word-break: keep-all;`;
+const ValueP = styled.p`font-size: 0.9375rem; color: #64748B; line-height: 1.7; font-weight: 300; word-break: keep-all;`;
 
 // ===== Q Series =====
 const QList = styled.div`
@@ -451,7 +451,7 @@ const QName = styled.div`
   display: flex; align-items: center; justify-content: center;
   padding: 32px 24px;
   font-family: 'Outfit', sans-serif;
-  font-size: 22px; font-weight: 500; color: #2DD4BF;
+  font-size: 1.375rem; font-weight: 500; color: #2DD4BF;
   border-right: 1px solid rgba(255,255,255,0.05);
   /* Q 만 대문자, 뒷 단어는 소문자 (메뉴 규칙 'Q talk·Q calendar'와 일치). capitalize 제거 —
      소스 텍스트 그대로 표시 + nowrap 으로 'Q calendar' 2줄 방지. */
@@ -464,7 +464,7 @@ const QName = styled.div`
 `;
 const QDesc = styled.div`
   padding: 32px 36px;
-  font-size: 15px; color: #94A3B8; line-height: 1.7; font-weight: 300;
+  font-size: 0.9375rem; color: #94A3B8; line-height: 1.7; font-weight: 300;
   display: flex; align-items: center; word-break: keep-all;
 `;
 
@@ -486,7 +486,7 @@ const EngineVisual = styled.div`
 const EngineCol = styled.div`display: flex; flex-direction: column; gap: 12px;`;
 const EnginePill = styled.div<{ $active?: boolean }>`
   padding: 14px 24px; border-radius: 12px;
-  font-size: 15px; font-weight: ${p => p.$active ? 500 : 400};
+  font-size: 0.9375rem; font-weight: ${p => p.$active ? 500 : 400};
   background: ${p => p.$active ? 'rgba(20,184,166,0.18)' : 'rgba(255,255,255,0.08)'};
   backdrop-filter: blur(10px);
   border: 1px solid ${p => p.$active ? '#14B8A6' : 'rgba(255,255,255,0.1)'};
@@ -500,7 +500,7 @@ const EngineCenter = styled.div`
 `;
 const EnginePlus = styled.div`
   font-family: 'Outfit', sans-serif;
-  font-size: 36px; font-weight: 200; color: #2DD4BF;
+  font-size: 2.25rem; font-weight: 200; color: #2DD4BF;
   opacity: 0.7;
 `;
 const EngineResult = styled.div`
@@ -510,12 +510,12 @@ const EngineResult = styled.div`
   border: 1px solid rgba(255,255,255,0.08);
 `;
 const EngineResultTitle = styled.div`
-  font-size: 28px; font-weight: 700; line-height: 1.4;
+  font-size: 1.75rem; font-weight: 700; line-height: 1.4;
   margin-bottom: 12px; word-break: keep-all;
 `;
 const EngineEm = styled.em`font-style: normal; color: #5EEAD4;`;
 const EngineResultSub = styled.div`
-  font-size: 16px; color: #99F6E4; font-weight: 300; word-break: keep-all;
+  font-size: 1rem; color: #99F6E4; font-weight: 300; word-break: keep-all;
 `;
 
 // ===== Compare =====
@@ -535,12 +535,12 @@ const CompareRow = styled.div<{ $head?: boolean }>`
   }
 `;
 const CompareCell = styled.div<{ $accent?: boolean }>`
-  padding: 18px 24px; font-size: 14px; font-weight: 300;
+  padding: 18px 24px; font-size: 0.875rem; font-weight: 300;
   color: ${p => p.$accent ? '#0F766E' : '#64748B'};
   ${p => p.$accent && css`font-weight: 500; color: #0F172A;`}
   &:first-child { font-weight: 500; color: #0F172A; background: #FAFBFC; }
   @media (max-width: 768px) {
-    &:first-child { font-size: 13px; color: #0D9488; background: #F0FDFA; }
+    &:first-child { font-size: 0.8125rem; color: #0D9488; background: #F0FDFA; }
   }
 `;
 
@@ -554,13 +554,13 @@ const TrustQuote = styled.div`
   @media (max-width: 768px) { padding: 28px 24px; }
 `;
 const TrustText = styled.p`
-  font-size: 18px; font-weight: 300; color: #334155;
+  font-size: 1.125rem; font-weight: 300; color: #334155;
   line-height: 1.8; font-style: italic;
   word-break: keep-all;
 `;
 const TrustCite = styled.cite`
   display: block; margin-top: 20px;
-  font-size: 14px; color: #64748B;
+  font-size: 0.875rem; color: #64748B;
   font-style: normal; font-weight: 400;
 `;
 
@@ -574,7 +574,7 @@ const TargetGrid = styled.div`
 const TargetItem = styled.div`
   padding: 28px 24px; border-radius: 12px;
   background: #FAFBFC;
-  font-size: 15px; color: #0F172A; font-weight: 400;
+  font-size: 0.9375rem; color: #0F172A; font-weight: 400;
   text-align: center;
   border: 1px solid transparent;
   transition: opacity 0.7s ease-out, transform 0.7s ease-out, background 0.3s, border-color 0.3s;
@@ -606,12 +606,12 @@ const CtaLogoImg = styled.img`
   @media (max-width: 768px) { height: 40px; }
 `;
 const CtaHead = styled.div`
-  font-size: 32px; font-weight: 300; margin-bottom: 12px;
+  font-size: 2rem; font-weight: 300; margin-bottom: 12px;
   color: #94A3B8;
-  @media (max-width: 768px) { font-size: 24px; }
+  @media (max-width: 768px) { font-size: 1.5rem; }
 `;
 const CtaSub = styled.div`
-  font-size: 16px; color: #64748B; font-weight: 300;
+  font-size: 1rem; color: #64748B; font-weight: 300;
   margin-bottom: 48px;
 `;
 const CtaButtons = styled.div`
@@ -620,7 +620,7 @@ const CtaButtons = styled.div`
 const CtaPrimary = styled(Link)`
   padding: 16px 48px; border-radius: 999px;
   background: #14B8A6; color: #FFFFFF;
-  font-size: 16px; font-weight: 500;
+  font-size: 1rem; font-weight: 500;
   text-decoration: none;
   transition: all 0.3s;
   box-shadow: 0 0 40px rgba(20,184,166,0.3);
@@ -629,7 +629,7 @@ const CtaPrimary = styled(Link)`
 const CtaSecondary = styled(Link)`
   padding: 16px 48px; border-radius: 999px;
   background: transparent; color: #94A3B8;
-  font-size: 16px; font-weight: 400;
+  font-size: 1rem; font-weight: 400;
   text-decoration: none;
   border: 1px solid rgba(255,255,255,0.15);
   transition: all 0.3s;

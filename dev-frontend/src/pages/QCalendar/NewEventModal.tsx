@@ -506,18 +506,18 @@ export default NewEventModal;
 // ── styled ──
 const GcalRow = styled.label<{ $disabled?: boolean }>`
   display: flex; align-items: flex-start; gap: 8px;
-  padding: 6px 0; font-size: 13px; color: #334155;
+  padding: 6px 0; font-size: 0.8125rem; color: #334155;
   cursor: ${p => (p.$disabled ? 'not-allowed' : 'pointer')};
   opacity: ${p => (p.$disabled ? 0.55 : 1)};
 `;
-const GcalHint = styled.small`display:block;margin-top:2px;font-size:11.5px;color:#94A3B8;line-height:1.45;`;
+const GcalHint = styled.small`display:block;margin-top:2px;font-size:0.71875rem;color:#94A3B8;line-height:1.45;`;
 const Field = styled.div` display: flex; flex-direction: column; gap: 6px; position: relative; `;
 const Label = styled.label`
-  font-size: 11px; font-weight: 600; color: #64748B;
+  font-size: 0.6875rem; font-weight: 600; color: #64748B;
   text-transform: uppercase; letter-spacing: 0.3px;
 `;
 const TitleInput = styled.input`
-  font-size: 20px; font-weight: 700; color: #0F172A; letter-spacing: -0.3px;
+  font-size: 1.25rem; font-weight: 700; color: #0F172A; letter-spacing: -0.3px;
   border: none; outline: none; padding: 4px 0; background: transparent;
   border-bottom: 1px solid transparent;
   &:focus { border-bottom-color: #14B8A6; }
@@ -528,12 +528,12 @@ const DateRow = styled.div`
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
 `;
 const TzHint = styled.div`
-  font-size: 11px; font-weight: 500; color: #94A3B8; margin-top: 4px;
+  font-size: 0.6875rem; font-weight: 500; color: #94A3B8; margin-top: 4px;
 `;
 const DateTrigger = styled.button`
   display: inline-flex; align-items: center; gap: 8px;
   padding: 9px 12px; border: 1px solid #CBD5E1; border-radius: 8px;
-  background: #fff; color: #0F172A; font-size: 13px; font-weight: 500; cursor: pointer;
+  background: #fff; color: #0F172A; font-size: 0.8125rem; font-weight: 500; cursor: pointer;
   svg { color: #64748B; flex-shrink: 0; }
   &:hover { border-color: #14B8A6; }
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.12); }
@@ -542,19 +542,19 @@ const TimePair = styled.div`
   display: inline-flex; align-items: center; gap: 6px;
 `;
 const TimeWrap = styled.div` width: 112px; `;
-const Dash = styled.span` color: #94A3B8; font-size: 13px; `;
+const Dash = styled.span` color: #94A3B8; font-size: 0.8125rem; `;
 
 const Grid2 = styled.div` display: grid; grid-template-columns: 1fr 1fr; gap: 12px; `;
 const Row = styled.div` display: flex; gap: 16px; `;
 const CheckboxLabel = styled.label`
   display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
-  font-size: 13px; color: #334155;
+  font-size: 0.8125rem; color: #334155;
   input { accent-color: #14B8A6; cursor: pointer; }
 `;
 const CategoryRow = styled.div` display: flex; flex-wrap: wrap; gap: 6px; `;
 const CategoryBtn = styled.button<{ $active: boolean }>`
   padding: 6px 12px; border-radius: 999px;
-  font-size: 12px; font-weight: 500;
+  font-size: 0.75rem; font-weight: 500;
   background: ${({ $active }) => $active ? '#14B8A6' : '#F1F5F9'};
   color: ${({ $active }) => $active ? '#fff' : '#475569'};
   border: none; cursor: pointer;
@@ -562,7 +562,7 @@ const CategoryBtn = styled.button<{ $active: boolean }>`
 `;
 const Input = styled.input`
   padding: 9px 11px; border: 1px solid #CBD5E1; border-radius: 8px;
-  font-size: 13px; color: #0F172A; outline: none; background: #fff;
+  font-size: 0.8125rem; color: #0F172A; outline: none; background: #fff;
   &:focus { border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.12); }
   &:disabled { background: #F8FAFC; color: #94A3B8; cursor: not-allowed; }
 `;
@@ -572,12 +572,12 @@ const AutoMeetingRow = styled.div`
 `;
 const AutoMeetingText = styled.div`
   display: flex; flex-direction: column; gap: 2px;
-  strong { font-size: 13px; color: #0F172A; font-weight: 600; }
-  small { font-size: 11.5px; color: #64748B; }
+  strong { font-size: 0.8125rem; color: #0F172A; font-weight: 600; }
+  small { font-size: 0.71875rem; color: #64748B; }
 `;
 const Textarea = styled.textarea`
   padding: 9px 11px; border: 1px solid #CBD5E1; border-radius: 8px;
-  font-size: 13px; color: #0F172A; outline: none; resize: vertical;
+  font-size: 0.8125rem; color: #0F172A; outline: none; resize: vertical;
   font-family: inherit;
   &:focus { border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.12); }
 `;

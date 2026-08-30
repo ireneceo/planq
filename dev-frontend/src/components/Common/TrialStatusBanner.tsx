@@ -153,16 +153,16 @@ const Wrap = styled.div<{ $tone: Tone }>`
 `;
 const Texts = styled.div` flex: 1; display: flex; flex-direction: column; gap: 2px; `;
 const Title = styled.div<{ $tone: Tone }>`
-  font-size: 14px; font-weight: 700;
+  font-size: 0.875rem; font-weight: 700;
   color: ${p => TONES[p.$tone].title};
 `;
 const Desc = styled.div<{ $tone: Tone }>`
-  font-size: 13px; color: ${p => TONES[p.$tone].desc};
+  font-size: 0.8125rem; color: ${p => TONES[p.$tone].desc};
 `;
 const CtaLink = styled(Link)<{ $tone: Tone }>`
   flex-shrink: 0;
   padding: 8px 16px; border-radius: 8px;
-  font-size: 13px; font-weight: 600;
+  font-size: 0.8125rem; font-weight: 600;
   background: ${p => TONES[p.$tone].ctaBg};
   color: ${p => TONES[p.$tone].cta};
   text-decoration: none;

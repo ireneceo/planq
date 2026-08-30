@@ -110,7 +110,7 @@ groups.forEach(function(g){
   g.forEach(function(n){wrap.appendChild(n);});
   var btn=document.createElement('button');btn.type='button';
   btn.setAttribute('aria-expanded','false');btn.setAttribute('data-planq-fold','1');btn.textContent=SHOW;
-  btn.style.cssText='display:block;margin:10px 0;padding:3px 12px;border:1px solid #CBD5E1;border-radius:999px;background:#F1F5F9;color:#475569;font:500 12px/1.7 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Noto Sans KR,sans-serif;cursor:pointer;';
+  btn.style.cssText='display:block;margin:10px 0;padding:3px 12px;border:1px solid #CBD5E1;border-radius:999px;background:#F1F5F9;color:#475569;font:500 0.75rem/1.7 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Noto Sans KR,sans-serif;cursor:pointer;';
   btn.onclick=function(){var open=wrap.style.display!=='none';
     wrap.style.display=open?'none':'block';
     btn.textContent=open?SHOW:HIDE;
@@ -205,7 +205,7 @@ export function buildMailSrcDoc(
   //   ★ 완성 문서(뉴스레터 템플릿)에는 절대 적용하지 않는다 — 발신자 디자인을 덮으면 레이아웃이 깨진다.
   const fragStyle = isFragment
     ? "<style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans KR',sans-serif;"
-      + 'font-size:14px;line-height:1.6;color:#0F172A;padding:2px 14px 12px 0;}</style>'
+      + 'font-size:0.875rem;line-height:1.6;color:#0F172A;padding:2px 14px 12px 0;}</style>'
     : '';
   const hasDoc = /<body[\s>]/i.test(safe);
   if (hasDoc) {

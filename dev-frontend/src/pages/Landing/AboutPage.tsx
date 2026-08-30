@@ -110,17 +110,17 @@ const SubHero = styled.section`
 `;
 const Eyebrow = styled.div<{ $light?: boolean }>`
   font-family: 'Outfit', sans-serif;
-  font-size: 13px; font-weight: 500;
+  font-size: 0.8125rem; font-weight: 500;
   color: ${p => p.$light ? '#5EEAD4' : '#0D9488'};
   letter-spacing: 3px; margin-bottom: 16px;
 `;
 const Title = styled.h1`
-  font-size: 44px; font-weight: 700; color: #0F172A;
+  font-size: 2.75rem; font-weight: 700; color: #0F172A;
   line-height: 1.3; word-break: keep-all; margin-bottom: 20px;
-  @media (max-width: 768px) { font-size: 32px; }
+  @media (max-width: 768px) { font-size: 2rem; }
 `;
 const Sub = styled.p`
-  font-size: 17px; font-weight: 300; color: #64748B;
+  font-size: 1.0625rem; font-weight: 300; color: #64748B;
   line-height: 1.7; max-width: 640px; margin: 0 auto;
 `;
 
@@ -138,12 +138,12 @@ const StoryQuote = styled.div`
   @media (max-width: 768px) { padding: 32px 28px; }
 `;
 const QuoteText = styled.p`
-  font-size: 19px; font-weight: 300; color: #334155;
+  font-size: 1.1875rem; font-weight: 300; color: #334155;
   line-height: 1.85; font-style: italic; word-break: keep-all;
 `;
 const QuoteCite = styled.cite`
   display: block; margin-top: 24px;
-  font-size: 14px; color: #64748B;
+  font-size: 0.875rem; color: #64748B;
   font-style: normal; font-weight: 500;
 `;
 
@@ -156,12 +156,12 @@ const MissionSection = styled.section`
   .reveal.in { opacity: 1; transform: none; }
 `;
 const MissionTitle = styled.h2`
-  font-size: 56px; font-weight: 800; letter-spacing: -1.2px;
+  font-size: 3.5rem; font-weight: 800; letter-spacing: -1.2px;
   line-height: 1.2; margin: 0 0 24px;
-  @media (max-width: 768px) { font-size: 36px; }
+  @media (max-width: 768px) { font-size: 2.25rem; }
 `;
 const MissionDesc = styled.p`
-  font-size: 17px; color: #99F6E4; font-weight: 300;
+  font-size: 1.0625rem; color: #99F6E4; font-weight: 300;
   line-height: 1.8; max-width: 720px; margin: 0 auto;
   word-break: keep-all;
 `;
@@ -172,9 +172,9 @@ const ValuesSection = styled.section`
   .reveal.in { opacity: 1; transform: none; }
 `;
 const ValuesTitle = styled.h2`
-  font-size: 32px; font-weight: 700; color: #0F172A; margin: 0 0 48px;
+  font-size: 2rem; font-weight: 700; color: #0F172A; margin: 0 0 48px;
   letter-spacing: -0.5px;
-  @media (max-width: 768px) { font-size: 24px; }
+  @media (max-width: 768px) { font-size: 1.5rem; }
 `;
 const ValuesGrid = styled.div`
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;
@@ -186,11 +186,11 @@ const ValueCard = styled.div`
 `;
 const ValueNum = styled.div`
   font-family: 'Outfit', sans-serif;
-  font-size: 48px; font-weight: 200; color: #5EEAD4;
+  font-size: 3rem; font-weight: 200; color: #5EEAD4;
   margin-bottom: 16px;
 `;
-const ValueName = styled.div`font-size: 20px; font-weight: 700; color: #0F172A; margin-bottom: 12px;`;
-const ValueDesc = styled.p`font-size: 14px; color: #64748B; line-height: 1.7; font-weight: 400; word-break: keep-all;`;
+const ValueName = styled.div`font-size: 1.25rem; font-weight: 700; color: #0F172A; margin-bottom: 12px;`;
+const ValueDesc = styled.p`font-size: 0.875rem; color: #64748B; line-height: 1.7; font-weight: 400; word-break: keep-all;`;
 
 const TimelineSection = styled.section`
   padding: 96px 0; background: #FAFBFC;
@@ -198,9 +198,9 @@ const TimelineSection = styled.section`
   .reveal.in { opacity: 1; transform: none; }
 `;
 const TimelineTitle = styled.h2`
-  font-size: 32px; font-weight: 700; color: #0F172A; margin: 0 0 48px;
+  font-size: 2rem; font-weight: 700; color: #0F172A; margin: 0 0 48px;
   letter-spacing: -0.5px;
-  @media (max-width: 768px) { font-size: 24px; }
+  @media (max-width: 768px) { font-size: 1.5rem; }
 `;
 const TimelineList = styled.div`display: flex; flex-direction: column; gap: 16px;`;
 const TimelineItem = styled.div`
@@ -214,7 +214,7 @@ const TimelineItem = styled.div`
 `;
 const TimelineYear = styled.div`
   font-family: 'Outfit', sans-serif;
-  font-size: 22px; font-weight: 600; color: #0D9488;
+  font-size: 1.375rem; font-weight: 600; color: #0D9488;
   display: flex; align-items: center;
 `;
 const TimelineDivider = styled.div`
@@ -222,8 +222,8 @@ const TimelineDivider = styled.div`
   justify-self: center; align-self: stretch;
 `;
 const TimelineContent = styled.div`display: flex; flex-direction: column; gap: 6px; padding: 4px 0;`;
-const TimelineLabel = styled.div`font-size: 16px; font-weight: 700; color: #0F172A;`;
-const TimelineDesc = styled.div`font-size: 14px; color: #64748B; line-height: 1.6; word-break: keep-all;`;
+const TimelineLabel = styled.div`font-size: 1rem; font-weight: 700; color: #0F172A;`;
+const TimelineDesc = styled.div`font-size: 0.875rem; color: #64748B; line-height: 1.6; word-break: keep-all;`;
 
 const CtaBand = styled.section`
   padding: 96px 0;
@@ -231,13 +231,13 @@ const CtaBand = styled.section`
   color: #FFFFFF; text-align: center;
   ${Container} { display: flex; flex-direction: column; align-items: center; gap: 16px; }
 `;
-const CtaTitle = styled.h2`font-size: 32px; font-weight: 700; line-height: 1.4; margin: 0; word-break: keep-all; @media (max-width: 768px) { font-size: 24px; }`;
-const CtaSub = styled.p`font-size: 15px; color: #94A3B8; font-weight: 300; margin: 0;`;
+const CtaTitle = styled.h2`font-size: 2rem; font-weight: 700; line-height: 1.4; margin: 0; word-break: keep-all; @media (max-width: 768px) { font-size: 1.5rem; }`;
+const CtaSub = styled.p`font-size: 0.9375rem; color: #94A3B8; font-weight: 300; margin: 0;`;
 const CtaButtons = styled.div`display: flex; gap: 12px; margin-top: 12px; flex-wrap: wrap; justify-content: center;`;
 const CtaPrimary = styled(Link)`
   padding: 16px 36px; border-radius: 999px;
   background: #14B8A6; color: #FFFFFF;
-  font-size: 15px; font-weight: 500; text-decoration: none;
+  font-size: 0.9375rem; font-weight: 500; text-decoration: none;
   transition: all 0.3s; box-shadow: 0 0 40px rgba(20,184,166,0.3);
   &:hover { background: #0D9488; transform: translateY(-2px); }
 `;
@@ -245,7 +245,7 @@ const CtaSecondary = styled(Link)`
   padding: 16px 36px; border-radius: 999px;
   background: transparent; color: #94A3B8;
   border: 1px solid rgba(255,255,255,0.18);
-  font-size: 15px; font-weight: 400; text-decoration: none;
+  font-size: 0.9375rem; font-weight: 400; text-decoration: none;
   transition: all 0.3s;
   &:hover { color: #FFFFFF; border-color: rgba(255,255,255,0.32); }
 `;

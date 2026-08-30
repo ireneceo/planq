@@ -170,11 +170,11 @@ const ExistingBar = styled.div`
   display:flex; align-items:center; gap:8px; flex-wrap:wrap;
   margin-bottom:10px; padding:8px 10px; border-radius:8px;
   background:#F0FDFA; border:1px solid #99F6E4;
-  font-size:12px; color:#0F766E; line-height:1.5;
+  font-size:0.75rem; color:#0F766E; line-height:1.5;
 `;
 const LinkBtn = styled.button`
   margin-left:auto; padding:0; background:none; border:none; cursor:pointer;
-  font-size:12px; font-weight:700; color:#0F766E; text-decoration:underline; font-family:inherit;
+  font-size:0.75rem; font-weight:700; color:#0F766E; text-decoration:underline; font-family:inherit;
   &:hover { color:#0D9488; }
 `;
 const Overlay = styled.div`
@@ -208,13 +208,13 @@ const Header = styled.div`
 
 const Title = styled.h2`
   margin: 0 0 6px;
-  font-size: 18px;
+  font-size: 1.125rem;
   font-weight: 700;
   color: #1e293b;
 `;
 
 const Period = styled.div`
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #64748b;
 `;
 
@@ -224,7 +224,7 @@ const Body = styled.div`
 
 const NoteLabel = styled.label`
   display: block;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: #475569;
   margin-bottom: 8px;
@@ -235,7 +235,7 @@ const NoteInput = styled.textarea`
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   padding: 10px 12px;
-  font-size: 14px;
+  font-size: 0.875rem;
   resize: vertical;
   min-height: 60px;
   &:focus {
@@ -249,7 +249,7 @@ const ConfirmBody = styled.div`
 `;
 
 const ConfirmText = styled.p`
-  font-size: 14px;
+  font-size: 0.875rem;
   color: #475569;
   text-align: center;
   margin-bottom: 20px;
@@ -257,7 +257,7 @@ const ConfirmText = styled.p`
 
 const ErrorMsg = styled.div`
   color: #DC2626;
-  font-size: 13px;
+  font-size: 0.8125rem;
   margin-bottom: 12px;
   padding: 8px 12px;
   background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px;
@@ -268,6 +268,6 @@ const SavedIcon = styled.div`
   width: 56px; height: 56px;
   display: flex; align-items: center; justify-content: center;
   margin: 0 auto 14px;
-  font-size: 28px; font-weight: 800; color: #166534;
+  font-size: 1.75rem; font-weight: 800; color: #166534;
   background: #DCFCE7; border-radius: 50%;
 `;

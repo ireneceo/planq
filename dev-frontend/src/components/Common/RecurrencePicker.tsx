@@ -319,18 +319,18 @@ const ToggleRow = styled.div`
 `;
 const ToggleLabel = styled.label`
   display: inline-flex; align-items: center; gap: 6px;
-  font-size: 13px; font-weight: 600; color: #0F172A; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 600; color: #0F172A; cursor: pointer;
   input { width: 16px; height: 16px; accent-color: #14B8A6; cursor: pointer; }
   input:disabled { cursor: not-allowed; opacity: 0.5; }
 `;
 const Hint = styled.span`
-  font-size: 11px; color: #94A3B8; font-weight: 500;
+  font-size: 0.6875rem; color: #94A3B8; font-weight: 500;
 `;
 const Field = styled.div`
   display: flex; flex-direction: column; gap: 4px;
 `;
 const FieldLabel = styled.label`
-  font-size: 11px; font-weight: 600; color: #64748B;
+  font-size: 0.6875rem; font-weight: 600; color: #64748B;
 `;
 const Inline = styled.div`
   display: flex; align-items: center; gap: 6px;
@@ -338,15 +338,15 @@ const Inline = styled.div`
 const NumInput = styled.input`
   width: 60px; padding: 6px 8px;
   border: 1px solid #E2E8F0; border-radius: 6px;
-  font-size: 13px; font-weight: 600; color: #0F172A; background: #FFF;
+  font-size: 0.8125rem; font-weight: 600; color: #0F172A; background: #FFF;
   &:focus { outline: none; border-color: #14B8A6; }
   &:disabled { background: #F1F5F9; color: #94A3B8; cursor: not-allowed; }
 `;
 const EveryHint = styled.span`
-  font-size: 12px; color: #64748B; font-weight: 500;
+  font-size: 0.75rem; color: #64748B; font-weight: 500;
 `;
 const Preview = styled.div`
-  font-size: 12px; color: #475569; padding: 6px 10px;
+  font-size: 0.75rem; color: #475569; padding: 6px 10px;
   background: #FFF; border: 1px dashed #CBD5E1; border-radius: 6px;
   strong { color: #0F766E; font-weight: 700; }
 `;
@@ -355,9 +355,9 @@ const AdvancedNotice = styled.div`
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   margin-bottom: 10px; padding: 8px 10px;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 11.5px; line-height: 1.5; color: #64748B;
+  font-size: 0.71875rem; line-height: 1.5; color: #64748B;
 `;
 const AdvancedBadge = styled.span`
   flex-shrink: 0; padding: 2px 7px; border-radius: 999px;
-  background: #E2E8F0; color: #475569; font-size: 10.5px; font-weight: 700;
+  background: #E2E8F0; color: #475569; font-size: 0.65625rem; font-weight: 700;
 `;

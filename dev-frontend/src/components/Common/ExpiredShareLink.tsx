@@ -82,19 +82,19 @@ const IconWrap = styled.div`
 `;
 const Title = styled.h1`
   margin: 0 0 8px;
-  font-size: 18px; font-weight: 700; color: #0F172A;
+  font-size: 1.125rem; font-weight: 700; color: #0F172A;
 `;
 const Desc = styled.p`
   margin: 0 0 12px;
-  font-size: 14px; color: #334155; line-height: 1.5;
+  font-size: 0.875rem; color: #334155; line-height: 1.5;
 `;
 const Meta = styled.p`
   margin: 0 0 16px;
-  font-size: 13px; color: #64748B;
+  font-size: 0.8125rem; color: #64748B;
 `;
 const Hint = styled.p`
   margin: 0;
   padding-top: 16px;
   border-top: 1px solid #F1F5F9;
-  font-size: 13px; color: #94A3B8; line-height: 1.5;
+  font-size: 0.8125rem; color: #94A3B8; line-height: 1.5;
 `;

@@ -525,10 +525,10 @@ function CorrectionModal({ row, onClose, onDone }: { row: ReceiptDueRow; onClose
 
 const Wrap = styled.div`display: flex; flex-direction: column; gap: 14px;`;
 const GuideBox = styled.div`
-  font-size: 11px; color: #1E40AF; background: #EFF6FF; border: 1px solid #BFDBFE;
+  font-size: 0.6875rem; color: #1E40AF; background: #EFF6FF; border: 1px solid #BFDBFE;
   border-radius: 8px; padding: 8px 10px; line-height: 1.5;
 `;
-const ErrLine = styled.div`font-size: 12px; color: #991B1B; background: #FEF2F2; padding: 6px 10px; border-radius: 6px;`;
+const ErrLine = styled.div`font-size: 0.75rem; color: #991B1B; background: #FEF2F2; padding: 6px 10px; border-radius: 6px;`;
 const InfoBox = styled.div`
   display: flex; gap: 10px; align-items: flex-start;
   background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 10px; padding: 12px 14px;
@@ -536,16 +536,16 @@ const InfoBox = styled.div`
 const InfoIcon = styled.div`
   width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;
-  background: #2563EB; color: #fff; font-size: 12px; font-weight: 700;
+  background: #2563EB; color: #fff; font-size: 0.75rem; font-weight: 700;
 `;
-const InfoTitle = styled.div`font-size: 12px; font-weight: 700; color: #1E40AF;`;
-const InfoDesc = styled.div`font-size: 11px; color: #1E40AF; line-height: 1.5; margin-top: 2px;`;
+const InfoTitle = styled.div`font-size: 0.75rem; font-weight: 700; color: #1E40AF;`;
+const InfoDesc = styled.div`font-size: 0.6875rem; color: #1E40AF; line-height: 1.5; margin-top: 2px;`;
 const OverdueBanner = styled.div`
-  font-size: 12px; font-weight: 600; color: #991B1B;
+  font-size: 0.75rem; font-weight: 600; color: #991B1B;
   background: #FEF2F2; border: 1px solid #FECACA; border-radius: 10px; padding: 10px 14px;
 `;
 const Empty = styled.div`
-  text-align: center; padding: 60px 20px; color: #94A3B8; font-size: 13px;
+  text-align: center; padding: 60px 20px; color: #94A3B8; font-size: 0.8125rem;
   background: #fff; border: 1px dashed #E2E8F0; border-radius: 12px;
 `;
 const List = styled.div`
@@ -556,7 +556,7 @@ const List = styled.div`
 `;
 const ListHead = styled.div`
   display: flex; gap: 12px; padding: 10px 16px; background: #F8FAFC; border-bottom: 1px solid #E2E8F0;
-  font-size: 11px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px;
+  font-size: 0.6875rem; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px;
   min-width: 940px;
 `;
 const Row = styled.div`
@@ -567,32 +567,32 @@ const Row = styled.div`
 `;
 const Cell = styled.div`flex: 1; min-width: 0;`;
 const KindBadge = styled.span<{ $cash?: boolean }>`
-  display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px;
+  display: inline-block; font-size: 0.6875rem; font-weight: 700; padding: 3px 8px; border-radius: 6px;
   white-space: nowrap;
   background: ${p => p.$cash ? '#ECFDF5' : '#EFF6FF'};
   color: ${p => p.$cash ? '#047857' : '#1D4ED8'};
   border: 1px solid ${p => p.$cash ? '#A7F3D0' : '#BFDBFE'};
 `;
-const Num = styled.div`font-size: 12px; font-weight: 700; color: #0F172A; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;`;
-const ClientName = styled.div`font-size: 13px; color: #0F172A; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
-const TaxId = styled.div`font-size: 12px; color: #475569; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;`;
-const Amt = styled.div`font-size: 13px; font-weight: 700; color: #0F172A; font-variant-numeric: tabular-nums;`;
-const DueMuted = styled.span`font-size: 12px; color: #64748B;`;
+const Num = styled.div`font-size: 0.75rem; font-weight: 700; color: #0F172A; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;`;
+const ClientName = styled.div`font-size: 0.8125rem; color: #0F172A; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
+const TaxId = styled.div`font-size: 0.75rem; color: #475569; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;`;
+const Amt = styled.div`font-size: 0.8125rem; font-weight: 700; color: #0F172A; font-variant-numeric: tabular-nums;`;
+const DueMuted = styled.span`font-size: 0.75rem; color: #64748B;`;
 const DuePill = styled.span<{ $tone: 'overdue' | 'soon' }>`
-  font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px; white-space: nowrap;
+  font-size: 0.6875rem; font-weight: 700; padding: 3px 8px; border-radius: 4px; white-space: nowrap;
   background: ${p => p.$tone === 'overdue' ? '#FEE2E2' : '#FEF3C7'};
   color: ${p => p.$tone === 'overdue' ? '#991B1B' : '#92400E'};
 `;
 const IssueNo = styled.span`
-  font-size: 11px; font-weight: 600; color: #166534; background: #DCFCE7;
+  font-size: 0.6875rem; font-weight: 600; color: #166534; background: #DCFCE7;
   padding: 3px 8px; border-radius: 4px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 `;
 const Pending = styled.span`
-  font-size: 11px; font-weight: 700; color: #92400E; background: #FEF3C7;
+  font-size: 0.6875rem; font-weight: 700; color: #92400E; background: #FEF3C7;
   padding: 3px 8px; border-radius: 4px;
 `;
 const ActionBtn = styled.button<{ $primary?: boolean; $danger?: boolean }>`
-  padding: 6px 12px; font-size: 12px; font-weight: 600; white-space: nowrap;
+  padding: 6px 12px; font-size: 0.75rem; font-weight: 600; white-space: nowrap;
   background: ${p => p.$primary ? '#14B8A6' : '#fff'};
   color: ${p => p.$danger ? '#B91C1C' : p.$primary ? '#fff' : '#334155'};
   border: 1px solid ${p => p.$danger ? '#FCA5A5' : p.$primary ? '#14B8A6' : '#E2E8F0'};
@@ -600,11 +600,11 @@ const ActionBtn = styled.button<{ $primary?: boolean; $danger?: boolean }>`
   &:hover { background: ${p => p.$primary ? '#0D9488' : p.$danger ? '#FEF2F2' : '#F8FAFC'}; }
 `;
 const CorrPendingBadge = styled.span`
-  font-size: 11px; font-weight: 700; color: #991B1B; background: #FEE2E2;
+  font-size: 0.6875rem; font-weight: 700; color: #991B1B; background: #FEE2E2;
   padding: 3px 8px; border-radius: 4px; white-space: nowrap;
 `;
 const CorrBadge = styled.span<{ $canceled?: boolean }>`
-  font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 4px;
+  font-size: 0.6875rem; font-weight: 600; padding: 3px 8px; border-radius: 4px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap;
   display: inline-block; max-width: 120px; overflow: hidden; text-overflow: ellipsis;
   color: ${p => p.$canceled ? '#991B1B' : '#92400E'};
@@ -624,7 +624,7 @@ const ModalHead = styled.div`
   display: flex; justify-content: space-between; align-items: center;
   padding: 16px 20px; border-bottom: 1px solid #F1F5F9;
 `;
-const ModalTitle = styled.h3`font-size: 15px; font-weight: 700; color: #0F172A; margin: 0;`;
+const ModalTitle = styled.h3`font-size: 0.9375rem; font-weight: 700; color: #0F172A; margin: 0;`;
 const ModalClose = styled.button`
   width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: none; cursor: pointer; color: #64748B; border-radius: 4px;
@@ -633,15 +633,15 @@ const ModalClose = styled.button`
 // #216 — overflow-y·min-height 가 있어야 다이얼로그의 max-height 안에서 **본문이** 스크롤된다.
 //   없으면 내용이 흰 카드 밖(백드롭 위)으로 흘러나와 요약칩·푸터가 떠 보인다(Fable 실측 스필 133~273px).
 const ModalBody = styled.div`padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; min-height: 0;`;
-const ModalDesc = styled.div`font-size: 12px; color: #64748B; line-height: 1.5;`;
+const ModalDesc = styled.div`font-size: 0.75rem; color: #64748B; line-height: 1.5;`;
 const ModalField = styled.div`display: flex; flex-direction: column; gap: 4px;`;
-const ModalLabel = styled.label`font-size: 11px; font-weight: 600; color: #475569;`;
+const ModalLabel = styled.label`font-size: 0.6875rem; font-weight: 600; color: #475569;`;
 const ModalInput = styled.input`
-  width: 100%; padding: 8px 10px; font-size: 13px;
+  width: 100%; padding: 8px 10px; font-size: 0.8125rem;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 6px;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
 `;
-const Hint = styled.div`font-size: 11px; color: #94A3B8; padding: 8px 10px; background: #F8FAFC; border-radius: 6px; line-height: 1.7;`;
+const Hint = styled.div`font-size: 0.6875rem; color: #94A3B8; padding: 8px 10px; background: #F8FAFC; border-radius: 6px; line-height: 1.7;`;
 // #77 — 발행 파일 첨부
 const FileRow = styled.div<{ $over?: boolean }>`display: flex; align-items: center; gap: 8px;
   padding: 10px;
@@ -654,43 +654,43 @@ const NotifyRow = styled.div`display: flex; align-items: center; gap: 8px;`;
 const NotifyCheck = styled.input`width: 16px; height: 16px; accent-color: #14B8A6; cursor: pointer;
   &:disabled { cursor: not-allowed; opacity: 0.5; }`;
 const NotifyLabel = styled.label<{ $disabled?: boolean }>`
-  font-size: 13px; font-weight: 600; cursor: ${p => (p.$disabled ? 'not-allowed' : 'pointer')};
+  font-size: 0.8125rem; font-weight: 600; cursor: ${p => (p.$disabled ? 'not-allowed' : 'pointer')};
   color: ${p => (p.$disabled ? '#94A3B8' : '#0F172A')};`;
 const FileBtn = styled.button`
-  flex-shrink: 0; padding: 7px 12px; font-size: 12px; font-weight: 600;
+  flex-shrink: 0; padding: 7px 12px; font-size: 0.75rem; font-weight: 600;
   color: #334155; background: #fff; border: 1px solid #E2E8F0; border-radius: 6px; cursor: pointer;
   &:hover { border-color: #14B8A6; color: #0F766E; }
 `;
-const FileName = styled.span`flex: 1; min-width: 0; font-size: 12px; color: #64748B; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
+const FileName = styled.span`flex: 1; min-width: 0; font-size: 0.75rem; color: #64748B; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
 const FileClear = styled.button`
   flex-shrink: 0; width: 22px; height: 22px; border: none; background: transparent;
-  color: #94A3B8; font-size: 16px; cursor: pointer; border-radius: 4px;
+  color: #94A3B8; font-size: 1rem; cursor: pointer; border-radius: 4px;
   &:hover { background: #F1F5F9; color: #EF4444; }
 `;
-const FileHint = styled.div`font-size: 11px; color: #94A3B8; line-height: 1.5;`;
+const FileHint = styled.div`font-size: 0.6875rem; color: #94A3B8; line-height: 1.5;`;
 // #75 — 발행 내역 패널 (read-only, 홈택스 복사용)
 const BdBox = styled.div`border: 1px solid #E2E8F0; border-radius: 10px; padding: 12px 14px; background: #F8FAFC; display: flex; flex-direction: column; gap: 10px;`;
-const BdHead = styled.div`font-size: 12px; font-weight: 700; color: #0F766E;`;
+const BdHead = styled.div`font-size: 0.75rem; font-weight: 700; color: #0F766E;`;
 const BdGrid = styled.div`display: grid; grid-template-columns: 1fr 1fr; gap: 12px; @media (max-width: 560px) { grid-template-columns: 1fr; }`;
 const BdParty = styled.div`display: flex; flex-direction: column; gap: 3px; background: #fff; border: 1px solid #E2E8F0; border-radius: 8px; padding: 8px 10px;`;
-const BdPartyLabel = styled.div`font-size: 11px; font-weight: 700; color: #475569; margin-bottom: 2px;`;
-const BdRow = styled.div`display: flex; gap: 6px; font-size: 11px; line-height: 1.5; span { color: #94A3B8; flex-shrink: 0; min-width: 56px; } b { color: #0F172A; font-weight: 600; word-break: break-all; }`;
+const BdPartyLabel = styled.div`font-size: 0.6875rem; font-weight: 700; color: #475569; margin-bottom: 2px;`;
+const BdRow = styled.div`display: flex; gap: 6px; font-size: 0.6875rem; line-height: 1.5; span { color: #94A3B8; flex-shrink: 0; min-width: 56px; } b { color: #0F172A; font-weight: 600; word-break: break-all; }`;
 const BdItems = styled.div`display: flex; flex-direction: column; background: #fff; border: 1px solid #E2E8F0; border-radius: 8px; overflow: hidden;`;
-const BdItemsHead = styled.div`display: grid; grid-template-columns: 1fr 44px 88px 96px; gap: 6px; padding: 6px 10px; background: #F1F5F9; font-size: 10px; font-weight: 700; color: #64748B; i { text-align: right; font-style: normal; }`;
-const BdItemRow = styled.div`display: grid; grid-template-columns: 1fr 44px 88px 96px; gap: 6px; padding: 6px 10px; border-top: 1px solid #F1F5F9; font-size: 11px; color: #0F172A; span { word-break: break-all; } i { text-align: right; font-style: normal; }`;
-const BdAmt = styled.div<{ $total?: boolean }>`display: flex; justify-content: flex-end; gap: 12px; font-size: ${p => (p.$total ? '13px' : '11px')}; span { color: #64748B; } b { color: ${p => (p.$total ? '#0F766E' : '#0F172A')}; font-weight: ${p => (p.$total ? 700 : 600)}; min-width: 96px; text-align: right; }`;
+const BdItemsHead = styled.div`display: grid; grid-template-columns: 1fr 44px 88px 96px; gap: 6px; padding: 6px 10px; background: #F1F5F9; font-size: 0.625rem; font-weight: 700; color: #64748B; i { text-align: right; font-style: normal; }`;
+const BdItemRow = styled.div`display: grid; grid-template-columns: 1fr 44px 88px 96px; gap: 6px; padding: 6px 10px; border-top: 1px solid #F1F5F9; font-size: 0.6875rem; color: #0F172A; span { word-break: break-all; } i { text-align: right; font-style: normal; }`;
+const BdAmt = styled.div<{ $total?: boolean }>`display: flex; justify-content: flex-end; gap: 12px; font-size: ${p => (p.$total ? '0.8125rem' : '0.6875rem')}; span { color: #64748B; } b { color: ${p => (p.$total ? '#0F766E' : '#0F172A')}; font-weight: ${p => (p.$total ? 700 : 600)}; min-width: 96px; text-align: right; }`;
 const ModalFooter = styled.div`
   display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px;
   border-top: 1px solid #F1F5F9;
 `;
 const PrimaryBtn = styled.button`
-  padding: 8px 16px; font-size: 13px; font-weight: 700; color: #fff; background: #14B8A6;
+  padding: 8px 16px; font-size: 0.8125rem; font-weight: 700; color: #fff; background: #14B8A6;
   border: none; border-radius: 6px; cursor: pointer;
   &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { background: #CBD5E1; cursor: not-allowed; }
 `;
 const SecondaryBtn = styled.button`
-  padding: 8px 14px; font-size: 13px; font-weight: 600; color: #334155;
+  padding: 8px 14px; font-size: 0.8125rem; font-weight: 600; color: #334155;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 6px; cursor: pointer;
   &:hover { background: #F8FAFC; }
 `;
@@ -698,6 +698,6 @@ const SecondaryBtn = styled.button`
 // #274 — 고객에게 보이는 증빙 상태(발행 예정/완료). 발행자 액션 버튼 자리를 대신한다.
 const RecipientState = styled.span`
   display: inline-flex; align-items: center; padding: 2px 8px;
-  font-size: 11px; font-weight: 600; color: #475569;
+  font-size: 0.6875rem; font-weight: 600; color: #475569;
   background: #F1F5F9; border: 1px solid #E2E8F0; border-radius: 999px;
 `;

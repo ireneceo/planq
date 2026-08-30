@@ -508,15 +508,15 @@ const KindCheckRow = styled.div`
   display:flex;align-items:flex-start;gap:8px;padding:10px 12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;
   input{margin-top:2px;width:16px;height:16px;cursor:pointer;flex-shrink:0;}
   label{display:flex;flex-direction:column;gap:2px;cursor:pointer;}
-  strong{font-size:13px;color:#0F172A;font-weight:600;}
-  small{font-size:11px;color:#64748B;line-height:1.5;}
+  strong{font-size:0.8125rem;color:#0F172A;font-weight:600;}
+  small{font-size:0.6875rem;color:#64748B;line-height:1.5;}
 `;
 const TypeBtn = styled.button<{$active?:boolean}>`
   flex:1;display:flex;flex-direction:column;align-items:flex-start;gap:4px;
   padding:10px 12px;border:1px solid ${p=>p.$active?'#14B8A6':'#E2E8F0'};
   border-radius:8px;background:${p=>p.$active?'#F0FDFA':'#FFF'};cursor:pointer;text-align:left;
-  strong{font-size:13px;font-weight:600;color:${p=>p.$active?'#0F766E':'#0F172A'};}
-  small{font-size:11px;color:#64748B;}
+  strong{font-size:0.8125rem;font-weight:600;color:${p=>p.$active?'#0F766E':'#0F172A'};}
+  small{font-size:0.6875rem;color:#64748B;}
   &:hover{border-color:#14B8A6;}
 `;
 const Row = styled.div`
@@ -526,7 +526,7 @@ const Row = styled.div`
 `;
 
 const Label = styled.label`
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   color: #475569;
 `;
@@ -535,14 +535,14 @@ const Required = styled.span`
   color: #F43F5E;
 `;
 
-const DateTrigger = styled.button`width:100%;padding:8px 10px;border:1px solid #E2E8F0;border-radius:8px;font-size:13px;color:#0F172A;background:#FFF;font-family:inherit;text-align:left;cursor:pointer;&:hover{border-color:#14B8A6;}&:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
+const DateTrigger = styled.button`width:100%;padding:8px 10px;border:1px solid #E2E8F0;border-radius:8px;font-size:0.8125rem;color:#0F172A;background:#FFF;font-family:inherit;text-align:left;cursor:pointer;&:hover{border-color:#14B8A6;}&:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
 const DatePlaceholder = styled.span`color:#94A3B8;`;
 const Input = styled.input`
   padding: 9px 12px;
   background: #F8FAFC;
   border: 1px solid #E2E8F0;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #0F172A;
   font-family: inherit;
   &::placeholder { color: #94A3B8; }
@@ -559,7 +559,7 @@ const TextArea = styled.textarea`
   background: #F8FAFC;
   border: 1px solid #E2E8F0;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #0F172A;
   font-family: inherit;
   resize: vertical;
@@ -573,7 +573,7 @@ const TextArea = styled.textarea`
 `;
 
 const HelpText = styled.div`
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #94A3B8;
   margin-top: 2px;
 `;
@@ -596,21 +596,21 @@ const MemberRow = styled.div`
 
 const MemberName = styled.div`
   flex: 1;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #0F172A;
   font-weight: 500;
 `;
 
 const RoleSelectWrap = styled.div`
   width: 120px;
-  font-size: 12px;
+  font-size: 0.75rem;
 `;
 
 const DefaultCheck = styled.label`
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #64748B;
   cursor: pointer;
   input { accent-color: #F43F5E; }
@@ -640,7 +640,7 @@ const AddMemberRow = styled.div`
 `;
 
 const AddMemberLabel = styled.span`
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #64748B;
   font-weight: 600;
   margin-right: 4px;
@@ -654,7 +654,7 @@ const AddMemberChip = styled.button`
   background: #FFFFFF;
   border: 1px solid #E2E8F0;
   border-radius: 14px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 500;
   color: #475569;
   cursor: pointer;
@@ -678,14 +678,14 @@ const ClientRow = styled.div`
 `;
 
 const ClientName = styled.div`
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #0F172A;
   font-weight: 500;
 `;
 
 const ClientEmail = styled.div`
   flex: 1;
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #64748B;
 `;
 
@@ -697,7 +697,7 @@ const NewClientRow = styled.div`
 
 const ChannelCard = styled.div<{ $disabled?: boolean }>`padding:12px;border:1px solid ${p=>p.$disabled?'#E2E8F0':'#99F6E4'};border-radius:8px;margin-top:8px;display:flex;flex-direction:column;gap:8px;background:${p=>p.$disabled?'#FAFBFC':'#F0FDFA'};transition:background 0.15s,border-color 0.15s;`;
 const ChannelHeaderRow = styled.div`display:flex;align-items:center;justify-content:space-between;`;
-const ChannelTitle = styled.div`font-size:13px;font-weight:700;color:#0F766E;`;
+const ChannelTitle = styled.div`font-size:0.8125rem;font-weight:700;color:#0F766E;`;
 // 우측 상단 토글 스위치 — Primary teal, 36×20.
 const SwitchLabel = styled.label`position:relative;display:inline-block;width:36px;height:20px;cursor:pointer;flex-shrink:0;`;
 const SwitchInput = styled.input`opacity:0;width:0;height:0;`;
@@ -707,14 +707,14 @@ const SwitchSlider = styled.span`position:absolute;inset:0;background:#CBD5E1;bo
   ${SwitchInput}:checked + &::before{transform:translateX(16px);}`;
 const ChannelMembers = styled.div`display:flex;flex-direction:column;gap:4px;`;
 const ChannelMembersList = styled.div`display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:4px;max-height:140px;overflow-y:auto;padding:4px;background:#F8FAFC;border-radius:6px;`;
-const ChannelMemberChk = styled.label`display:flex;align-items:center;gap:6px;font-size:11px;color:#0F172A;cursor:pointer;padding:2px 4px;border-radius:4px;&:hover{background:#F0FDFA;}input{accent-color:#14B8A6;cursor:pointer;}`;
+const ChannelMemberChk = styled.label`display:flex;align-items:center;gap:6px;font-size:0.6875rem;color:#0F172A;cursor:pointer;padding:2px 4px;border-radius:4px;&:hover{background:#F0FDFA;}input{accent-color:#14B8A6;cursor:pointer;}`;
 const AddClientBtn = styled.button`
   padding: 8px 14px;
   background: #0D9488;
   color: #FFFFFF;
   border: none;
   border-radius: 8px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
   flex-shrink: 0;
@@ -739,7 +739,7 @@ const HexPreview = styled.div`
 const HexInput = styled.input`
   width: 100px; height: 32px; padding: 0 10px;
   border: 1px solid #E2E8F0; border-radius: 6px;
-  font-size: 12px; color: #0F172A;
+  font-size: 0.75rem; color: #0F172A;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
 `;

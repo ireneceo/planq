@@ -205,14 +205,14 @@ const Card = styled.div`
   padding: 28px 32px; box-shadow: 0 4px 12px rgba(0,0,0,0.06);
   @media (max-width: 640px) { padding: 20px 16px; }
 `;
-const WorkspaceLabel = styled.div`font-size: 11px; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;`;
-const TaskTitle = styled.h1`font-size: 22px; font-weight: 700; color: #0F172A; margin: 0 0 12px; line-height: 1.3;`;
+const WorkspaceLabel = styled.div`font-size: 0.6875rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;`;
+const TaskTitle = styled.h1`font-size: 1.375rem; font-weight: 700; color: #0F172A; margin: 0 0 12px; line-height: 1.3;`;
 const MetaRow = styled.div`display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 20px;`;
-const StatusPill = styled.span`display: inline-flex; padding: 3px 10px; font-size: 11px; font-weight: 700; border-radius: 999px;`;
-const MetaItem = styled.span`font-size: 12px; color: #64748B;`;
+const StatusPill = styled.span`display: inline-flex; padding: 3px 10px; font-size: 0.6875rem; font-weight: 700; border-radius: 999px;`;
+const MetaItem = styled.span`font-size: 0.75rem; color: #64748B;`;
 const Section = styled.section`margin: 16px 0;`;
-const SectionLabel = styled.div`font-size: 11px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;`;
-const DescBox = styled.div`font-size: 13px; color: #334155; line-height: 1.6; padding: 12px 14px; background: #F8FAFC; border-radius: 8px;
+const SectionLabel = styled.div`font-size: 0.6875rem; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;`;
+const DescBox = styled.div`font-size: 0.8125rem; color: #334155; line-height: 1.6; padding: 12px 14px; background: #F8FAFC; border-radius: 8px;
   p { margin: 0 0 8px; } p:last-child { margin-bottom: 0; }
   ul, ol { margin: 0 0 8px; padding-left: 20px; }
   img { max-width: 100%; height: auto; border-radius: 6px; }
@@ -221,25 +221,25 @@ const DescBox = styled.div`font-size: 13px; color: #334155; line-height: 1.6; pa
 const Grid = styled.div`display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 20px 0;
   @media (max-width: 480px) { grid-template-columns: 1fr; }`;
 const KV = styled.div`display: flex; flex-direction: column; gap: 4px;`;
-const K = styled.div`font-size: 11px; font-weight: 600; color: #94A3B8;`;
-const V = styled.div`font-size: 13px; color: #0F172A; display: flex; align-items: center; gap: 8px;`;
+const K = styled.div`font-size: 0.6875rem; font-weight: 600; color: #94A3B8;`;
+const V = styled.div`font-size: 0.8125rem; color: #0F172A; display: flex; align-items: center; gap: 8px;`;
 const ProgressBar = styled.div`flex: 1; height: 6px; background: #E2E8F0; border-radius: 3px; overflow: hidden;`;
 const ProgressFill = styled.div`height: 100%; background: #14B8A6; border-radius: 3px;`;
-const ProgressText = styled.span`font-size: 11px; font-weight: 600; color: #475569; min-width: 32px; text-align: right;`;
+const ProgressText = styled.span`font-size: 0.6875rem; font-weight: 600; color: #475569; min-width: 32px; text-align: right;`;
 const CTAArea = styled.div`display: flex; gap: 8px; margin: 24px 0 12px; flex-wrap: wrap;`;
 const CTA = styled.a`
   display: inline-flex; align-items: center; min-height: 44px; padding: 10px 20px;
-  background: #14B8A6; color: #fff; font-size: 13px; font-weight: 700;
+  background: #14B8A6; color: #fff; font-size: 0.8125rem; font-weight: 700;
   border-radius: 8px; text-decoration: none;
   transition: background 0.15s;
   &:hover { background: #0D9488; }
 `;
 const CTASecondary = styled.a`
   display: inline-flex; align-items: center; min-height: 44px; padding: 10px 20px;
-  background: #fff; color: #334155; font-size: 13px; font-weight: 600;
+  background: #fff; color: #334155; font-size: 0.8125rem; font-weight: 600;
   border: 1px solid #E2E8F0; border-radius: 8px; text-decoration: none;
   &:hover { border-color: #CBD5E1; background: #F8FAFC; }
 `;
-const Hint = styled.div`font-size: 12px; color: #94A3B8; padding: 12px 0;`;
-const ErrorTitle = styled.div`font-size: 18px; font-weight: 700; color: #0F172A; margin-bottom: 8px;`;
-const Footer = styled.div`font-size: 11px; color: #94A3B8; text-align: center; margin-top: 12px;`;
+const Hint = styled.div`font-size: 0.75rem; color: #94A3B8; padding: 12px 0;`;
+const ErrorTitle = styled.div`font-size: 1.125rem; font-weight: 700; color: #0F172A; margin-bottom: 8px;`;
+const Footer = styled.div`font-size: 0.6875rem; color: #94A3B8; text-align: center; margin-top: 12px;`;

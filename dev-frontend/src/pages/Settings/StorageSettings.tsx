@@ -521,7 +521,7 @@ const SkBar = styled.div`background:linear-gradient(90deg,#F1F5F9 0px,#E2E8F0 40
 const SkCard = styled(SkBar)`height:88px;margin-bottom:12px;border-radius:12px;`;
 
 const Wrap = styled.div`display:flex;flex-direction:column;gap:12px;`;
-const SectionDesc = styled.p`font-size:13px;color:#64748B;line-height:1.6;margin:0 0 12px;`;
+const SectionDesc = styled.p`font-size:0.8125rem;color:#64748B;line-height:1.6;margin:0 0 12px;`;
 
 const ProviderCard = styled.div<{ $active: boolean; $disabled?: boolean }>`
   background:#fff;border:1px solid ${p => p.$active ? '#14B8A6' : '#E2E8F0'};
@@ -537,10 +537,10 @@ const CardIcon = styled.div<{ $bg: string; $fg: string }>`
   border-radius:10px;display:flex;align-items:center;justify-content:center;
 `;
 const CardTitleWrap = styled.div`flex:1;min-width:0;`;
-const CardTitle = styled.div`font-size:14px;font-weight:700;color:#0F172A;margin-bottom:2px;`;
-const CardSub = styled.div`font-size:12px;color:#64748B;line-height:1.5;word-break:break-all;`;
+const CardTitle = styled.div`font-size:0.875rem;font-weight:700;color:#0F172A;margin-bottom:2px;`;
+const CardSub = styled.div`font-size:0.75rem;color:#64748B;line-height:1.5;word-break:break-all;`;
 const StatusBadge = styled.span<{ $kind: 'active' | 'soon' | 'inactive' }>`
-  flex-shrink:0;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600;
+  flex-shrink:0;padding:3px 10px;border-radius:999px;font-size:0.6875rem;font-weight:600;
   ${p => p.$kind === 'active'
     ? 'background:#F0FDFA;color:#0F766E;'
     : p.$kind === 'inactive'
@@ -556,10 +556,10 @@ const NoticeIcon = styled.span`
   flex-shrink:0;width:20px;height:20px;
   background:#F59E0B;color:#fff;border-radius:50%;
   display:flex;align-items:center;justify-content:center;
-  font-size:12px;font-weight:700;line-height:1;
+  font-size:0.75rem;font-weight:700;line-height:1;
 `;
 const NoticeText = styled.div`
-  font-size:12.5px;color:#78350F;line-height:1.55;
+  font-size:0.78125rem;color:#78350F;line-height:1.55;
   strong { display:block; color:#78350F; font-weight:700; margin-bottom:4px; }
   ul { margin:0; padding-left:18px; }
   li { margin-bottom:2px; }
@@ -569,41 +569,41 @@ const CardActions = styled.div`display:flex;gap:8px;justify-content:flex-end;`;
 const UsageRow = styled.div`display:flex;flex-direction:column;gap:6px;`;
 const UsageBar = styled.div`height:6px;background:#F1F5F9;border-radius:4px;overflow:hidden;`;
 const UsageFill = styled.div`height:100%;background:#14B8A6;transition:width 0.3s;`;
-const UsageText = styled.div`font-size:12px;color:#475569;small{color:#94A3B8;}`;
+const UsageText = styled.div`font-size:0.75rem;color:#475569;small{color:#94A3B8;}`;
 
 const PrimaryBtn = styled.button`
   height:34px;padding:0 16px;background:#14B8A6;color:#fff;border:none;border-radius:8px;
-  font-size:13px;font-weight:600;cursor:pointer;
+  font-size:0.8125rem;font-weight:600;cursor:pointer;
   &:hover:not(:disabled){background:#0D9488;}
   &:disabled{opacity:0.5;cursor:not-allowed;}
   &:focus-visible{outline:2px solid #0D9488;outline-offset:2px;}
 `;
 const SecondaryBtn = styled.button`
   height:34px;padding:0 14px;background:#fff;color:#0F172A;
-  border:1px solid #CBD5E1;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;
+  border:1px solid #CBD5E1;border-radius:8px;font-size:0.8125rem;font-weight:600;cursor:pointer;
   &:hover{background:#F8FAFC;}
 `;
 const DangerBtn = styled.button`
   height:34px;padding:0 14px;background:#fff;color:#DC2626;
-  border:1px solid #FCA5A5;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;
+  border:1px solid #FCA5A5;border-radius:8px;font-size:0.8125rem;font-weight:600;cursor:pointer;
   &:hover{background:#FEF2F2;border-color:#DC2626;}
 `;
 const LinkBtn = styled.button`
   height:34px;padding:0 14px;background:#F0FDFA;color:#0F766E;border:1px solid #99F6E4;border-radius:8px;
-  font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;text-decoration:none;
+  font-size:0.75rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;text-decoration:none;
   &:hover{background:#CCFBF1;}
 `;
-const SyncToggleLabel = styled.label`display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#475569;cursor:pointer;margin-right:auto;`;
-const InlineHint = styled.div`font-size:12px;color:#94A3B8;padding:8px 12px;background:#F8FAFC;border-radius:8px;`;
+const SyncToggleLabel = styled.label`display:inline-flex;align-items:center;gap:6px;font-size:0.75rem;color:#475569;cursor:pointer;margin-right:auto;`;
+const InlineHint = styled.div`font-size:0.75rem;color:#94A3B8;padding:8px 12px;background:#F8FAFC;border-radius:8px;`;
 // 독립 서버(S3) 설정 폼 (운영 #29)
 const S3Form = styled.div`margin-top:12px;padding:14px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;display:flex;flex-direction:column;gap:10px;`;
 const S3Row = styled.div`display:flex;gap:10px;@media (max-width:560px){flex-direction:column;}`;
 const S3Field = styled.div`flex:1;display:flex;flex-direction:column;gap:4px;min-width:0;`;
-const S3Label = styled.label`font-size:12px;font-weight:600;color:#334155;`;
-const S3Input = styled.input`width:100%;padding:7px 10px;font-size:13px;color:#0F172A;background:#fff;border:1px solid #E2E8F0;border-radius:6px;&:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,0.15);}`;
-const S3Msg = styled.div<{ $tone:'ok'|'err' }>`font-size:12px;padding:8px 12px;border-radius:8px;background:${p=>p.$tone==='ok'?'#F0FDF4':'#FEF2F2'};color:${p=>p.$tone==='ok'?'#166534':'#B91C1C'};`;
+const S3Label = styled.label`font-size:0.75rem;font-weight:600;color:#334155;`;
+const S3Input = styled.input`width:100%;padding:7px 10px;font-size:0.8125rem;color:#0F172A;background:#fff;border:1px solid #E2E8F0;border-radius:6px;&:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,0.15);}`;
+const S3Msg = styled.div<{ $tone:'ok'|'err' }>`font-size:0.75rem;padding:8px 12px;border-radius:8px;background:${p=>p.$tone==='ok'?'#F0FDF4':'#FEF2F2'};color:${p=>p.$tone==='ok'?'#166534':'#B91C1C'};`;
 const S3Actions = styled.div`display:flex;align-items:center;gap:10px;`;
-const S3Verified = styled.span`font-size:12px;font-weight:700;color:#166534;`;
+const S3Verified = styled.span`font-size:0.75rem;font-weight:700;color:#166534;`;
 
 const Modal = styled.div`
   position:fixed;inset:0;z-index:80;background:rgba(15,23,42,.24);
@@ -619,6 +619,6 @@ const Dialog = styled.div`
     overflow-y:auto;
   }
 `;
-const DTitle = styled.div`padding:18px 20px 10px;font-size:15px;font-weight:700;color:#0F172A;`;
-const DBody = styled.div`padding:0 20px 16px;font-size:13px;color:#475569;line-height:1.5;strong{color:#0F172A;}p{margin:4px 0;}`;
+const DTitle = styled.div`padding:18px 20px 10px;font-size:0.9375rem;font-weight:700;color:#0F172A;`;
+const DBody = styled.div`padding:0 20px 16px;font-size:0.8125rem;color:#475569;line-height:1.5;strong{color:#0F172A;}p{margin:4px 0;}`;
 const DFooter = styled.div`padding:12px 20px;border-top:1px solid #E2E8F0;display:flex;gap:8px;justify-content:flex-end;`;

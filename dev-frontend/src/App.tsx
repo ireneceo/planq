@@ -137,7 +137,7 @@ const PageLoadingFallback = () => (
 // Placeholder pages - will be replaced per phase
 const PlaceholderPage = ({ title }: { title: string }) => (
   <div style={{ padding: '32px', background: '#F8FAFC', minHeight: 'calc(100vh - 64px)' }}>
-    <h1 style={{ color: '#0F172A', fontSize: '24px', fontWeight: 700 }}>{title}</h1>
+    <h1 style={{ color: '#0F172A', fontSize: '1.5rem', fontWeight: 700 }}>{title}</h1>
     <p style={{ color: '#475569', marginTop: '8px' }}>Coming soon</p>
   </div>
 );

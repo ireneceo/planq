@@ -400,7 +400,7 @@ const GridWrap = styled.div`
 const GridScroll = styled.div`overflow-x: auto;`;
 const GridTable = styled.table`
   width: 100%; border-collapse: collapse;
-  font-size: 13px; color: #0F172A;
+  font-size: 0.8125rem; color: #0F172A;
 `;
 const RowNumHeader = styled.th`
   width: 40px; padding: 10px 8px;
@@ -418,12 +418,12 @@ const ColHead = styled.th`
   &:hover { background: #F0FDFA; }
 `;
 const ColNameLabel = styled.div`
-  font-size: 12px; font-weight: 700; color: #0F172A; cursor: text;
+  font-size: 0.75rem; font-weight: 700; color: #0F172A; cursor: text;
   padding: 2px 4px; border-radius: 4px;
   &:hover { background: #FFFFFF; }
 `;
 const ColTypeBtn = styled.button`
-  font-size: 10px; font-weight: 500; color: #94A3B8; margin-top: 2px;
+  font-size: 0.625rem; font-weight: 500; color: #94A3B8; margin-top: 2px;
   background: transparent; border: none; padding: 2px 6px;
   border-radius: 4px; cursor: pointer;
   &:hover { background: #F1F5F9; color: #0F766E; }
@@ -431,7 +431,7 @@ const ColTypeBtn = styled.button`
 const HeaderEditInput = styled.input`
   width: 100%; padding: 4px 6px;
   border: 1px solid #14B8A6; border-radius: 4px;
-  font-size: 12px; font-weight: 700; color: #0F172A;
+  font-size: 0.75rem; font-weight: 700; color: #0F172A;
   background: #FFFFFF;
   &:focus { outline: none; box-shadow: 0 0 0 2px rgba(20,184,166,0.2); }
 `;
@@ -439,7 +439,7 @@ const AddColHead = styled.th`
   width: 40px; padding: 10px;
   background: #F8FAFC; border-bottom: 1px solid #E2E8F0;
   cursor: pointer;
-  font-size: 16px; font-weight: 700; color: #14B8A6;
+  font-size: 1rem; font-weight: 700; color: #14B8A6;
   &:hover { background: #F0FDFA; }
 `;
 const ActionsHead = styled.th`
@@ -447,7 +447,7 @@ const ActionsHead = styled.th`
 `;
 const RowNumCell = styled.td`
   padding: 8px 12px;
-  font-size: 11px; color: #94A3B8;
+  font-size: 0.6875rem; color: #94A3B8;
   background: #F8FAFC; border-bottom: 1px solid #F1F5F9;
   text-align: right;
 `;
@@ -468,21 +468,21 @@ const DeleteRowBtn = styled.button`
   width: 24px; height: 24px;
   display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: none; border-radius: 4px;
-  color: #CBD5E1; cursor: pointer; font-size: 14px;
+  color: #CBD5E1; cursor: pointer; font-size: 0.875rem;
   &:hover { background: #FEE2E2; color: #DC2626; }
 `;
 const CellInput = styled.input`
   width: 100%; padding: 10px 12px;
   border: none; outline: none;
   background: transparent;
-  font-size: 13px; color: #0F172A; font-family: inherit;
+  font-size: 0.8125rem; color: #0F172A; font-family: inherit;
   &:focus { background: #FFFFFF; box-shadow: inset 0 0 0 2px #14B8A6; }
 `;
 const CellTextarea = styled.textarea`
   width: 100%; padding: 10px 12px;
   border: 1px solid #E2E8F0; border-radius: 6px; outline: none;
   background: #FFFFFF;
-  font-size: 13px; color: #0F172A; font-family: inherit; resize: vertical;
+  font-size: 0.8125rem; color: #0F172A; font-family: inherit; resize: vertical;
   &:focus { border-color: #14B8A6; }
 `;
 const CheckboxLabel = styled.label`
@@ -494,17 +494,17 @@ const SecretCell = styled.div`
   display: flex; align-items: center; gap: 6px; padding: 6px 10px;
 `;
 const SecretMask = styled.span`
-  font-family: monospace; font-size: 13px; color: #475569;
+  font-family: monospace; font-size: 0.8125rem; color: #475569;
 `;
 const SecretInput = styled.input`
   flex: 1; padding: 6px 8px;
   border: 1px solid #E2E8F0; border-radius: 4px;
-  font-family: monospace; font-size: 12px; color: #0F172A;
+  font-family: monospace; font-size: 0.75rem; color: #0F172A;
   &:focus { outline: none; border-color: #14B8A6; }
 `;
 const RevealBtn = styled.button`
   height: 22px; padding: 0 8px;
-  font-size: 11px; font-weight: 600; color: #0F766E;
+  font-size: 0.6875rem; font-weight: 600; color: #0F766E;
   background: #F0FDFA; border: 1px solid #CCFBF1; border-radius: 4px;
   cursor: pointer;
   &:hover { background: #14B8A6; color: #fff; }
@@ -512,16 +512,16 @@ const RevealBtn = styled.button`
 const AddRowBtn = styled.button`
   width: 100%; padding: 10px;
   background: transparent; border: none;
-  font-size: 12px; font-weight: 500; color: #94A3B8;
+  font-size: 0.75rem; font-weight: 500; color: #94A3B8;
   cursor: pointer;
   &:hover { background: #F0FDFA; color: #0F766E; }
 `;
 const Field = styled.div`display: flex; flex-direction: column; gap: 6px;`;
-const Label = styled.label`font-size: 13px; font-weight: 600; color: #0F172A;`;
+const Label = styled.label`font-size: 0.8125rem; font-weight: 600; color: #0F172A;`;
 const TextInput = styled.input`
   height: 36px; padding: 0 10px;
   border: 1px solid #E2E8F0; border-radius: 6px;
-  font-size: 13px; color: #0F172A;
+  font-size: 0.8125rem; color: #0F172A;
   &:focus { outline: none; border-color: #14B8A6; }
 `;
 const FooterRow = styled.div`display: flex; gap: 8px; align-items: center; width: 100%;`;

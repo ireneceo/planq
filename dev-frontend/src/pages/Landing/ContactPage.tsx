@@ -220,16 +220,16 @@ const SubHero = styled.section`
 `;
 const Eyebrow = styled.div`
   font-family: 'Outfit', sans-serif;
-  font-size: 13px; font-weight: 500; color: #0D9488;
+  font-size: 0.8125rem; font-weight: 500; color: #0D9488;
   letter-spacing: 3px; margin-bottom: 16px;
 `;
 const Title = styled.h1`
-  font-size: 44px; font-weight: 700; color: #0F172A;
+  font-size: 2.75rem; font-weight: 700; color: #0F172A;
   line-height: 1.3; word-break: keep-all; margin-bottom: 20px;
-  @media (max-width: 768px) { font-size: 32px; }
+  @media (max-width: 768px) { font-size: 2rem; }
 `;
 const Sub = styled.p`
-  font-size: 17px; font-weight: 300; color: #64748B;
+  font-size: 1.0625rem; font-weight: 300; color: #64748B;
   line-height: 1.7; max-width: 640px; margin: 0 auto; word-break: keep-all;
 `;
 
@@ -249,21 +249,21 @@ const SideCard = styled.div`
   display: flex; flex-direction: column; gap: 16px;
   height: 100%;
 `;
-const SideTitle = styled.h2`font-size: 18px; font-weight: 700; color: #0F172A; margin: 0;`;
+const SideTitle = styled.h2`font-size: 1.125rem; font-weight: 700; color: #0F172A; margin: 0;`;
 const SideRow = styled.div`display: flex; flex-direction: column; gap: 4px;`;
 const SideLabel = styled.div`
   font-family: 'Outfit', sans-serif;
-  font-size: 11px; font-weight: 500; color: #94A3B8;
+  font-size: 0.6875rem; font-weight: 500; color: #94A3B8;
   text-transform: uppercase; letter-spacing: 1px;
 `;
-const SideValue = styled.div`font-size: 14px; color: #334155;`;
+const SideValue = styled.div`font-size: 0.875rem; color: #334155;`;
 const SideValueLink = styled.a`
-  font-size: 14px; color: #0D9488; text-decoration: none; font-weight: 500;
+  font-size: 0.875rem; color: #0D9488; text-decoration: none; font-weight: 500;
   &:hover { text-decoration: underline; }
 `;
 const SideDivider = styled.div`height: 1px; background: #E2E8F0; margin: 8px 0;`;
 const SideTip = styled.p`
-  font-size: 13px; color: #64748B; line-height: 1.7;
+  font-size: 0.8125rem; color: #64748B; line-height: 1.7;
   word-break: keep-all; font-weight: 300;
 `;
 
@@ -272,14 +272,14 @@ const FormCard = styled.form`
   border: 1px solid #E2E8F0; border-radius: 16px;
   display: flex; flex-direction: column; gap: 20px;
 `;
-const FormTitle = styled.h2`font-size: 18px; font-weight: 700; color: #0F172A; margin: 0 0 4px;`;
+const FormTitle = styled.h2`font-size: 1.125rem; font-weight: 700; color: #0F172A; margin: 0 0 4px;`;
 const Field = styled.div`display: flex; flex-direction: column; gap: 8px;`;
 const FieldLabel = styled.label`
-  font-size: 13px; font-weight: 600; color: #475569;
+  font-size: 0.8125rem; font-weight: 600; color: #475569;
 `;
 const FieldInput = styled.input`
   height: 44px; padding: 0 14px;
-  font-size: 14px; color: #0F172A;
+  font-size: 0.875rem; color: #0F172A;
   background: #FFFFFF;
   border: 1px solid #E2E8F0; border-radius: 8px;
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -287,7 +287,7 @@ const FieldInput = styled.input`
 `;
 const FieldTextarea = styled.textarea`
   padding: 12px 14px;
-  font-size: 14px; color: #0F172A; font-family: inherit;
+  font-size: 0.875rem; color: #0F172A; font-family: inherit;
   background: #FFFFFF;
   border: 1px solid #E2E8F0; border-radius: 8px;
   resize: vertical;
@@ -302,7 +302,7 @@ const ReasonChip = styled.button<{ $active: boolean }>`
   color: ${p => p.$active ? '#0D9488' : '#475569'};
   border: 1px solid ${p => p.$active ? '#14B8A6' : '#E2E8F0'};
   border-radius: 999px;
-  font-size: 13px; font-weight: ${p => p.$active ? 600 : 500};
+  font-size: 0.8125rem; font-weight: ${p => p.$active ? 600 : 500};
   cursor: pointer;
   transition: all 0.15s;
   &:hover { border-color: ${p => p.$active ? '#14B8A6' : '#CBD5E1'}; }
@@ -311,11 +311,11 @@ const SubmitRow = styled.div`display: flex; align-items: center; gap: 12px; flex
 const SubmitBtn = styled.button`
   padding: 14px 32px; border-radius: 999px;
   background: #14B8A6; color: #FFFFFF;
-  border: none; font-size: 14px; font-weight: 600; cursor: pointer;
+  border: none; font-size: 0.875rem; font-weight: 600; cursor: pointer;
   transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
   box-shadow: 0 0 24px rgba(20,184,166,0.2);
   &:hover:not(:disabled) { background: #0D9488; transform: translateY(-1px); box-shadow: 0 0 36px rgba(20,184,166,0.32); }
   &:disabled { opacity: 0.6; cursor: not-allowed; }
 `;
-const ResultOk = styled.div`font-size: 13px; color: #0D9488; font-weight: 500;`;
-const ResultErr = styled.div`font-size: 13px; color: #B91C1C; font-weight: 500;`;
+const ResultOk = styled.div`font-size: 0.8125rem; color: #0D9488; font-weight: 500;`;
+const ResultErr = styled.div`font-size: 0.8125rem; color: #B91C1C; font-weight: 500;`;

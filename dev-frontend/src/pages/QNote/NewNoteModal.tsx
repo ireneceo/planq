@@ -165,7 +165,7 @@ const Header = styled.div`
   flex-shrink: 0;
 `;
 const Title = styled.h2`
-  font-size: 16px; font-weight: 700; color: #0F172A; margin: 0;
+  font-size: 1rem; font-weight: 700; color: #0F172A; margin: 0;
 `;
 const CloseBtn = styled.button`
   /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */
@@ -197,18 +197,18 @@ const Tab = styled.button<{ $active: boolean }>`
   &:focus-visible { outline: 2px solid rgba(20,184,166,0.3); outline-offset: 2px; }
 `;
 const TabTitle = styled.span`
-  font-size: 13px; font-weight: 700; color: #0F172A;
+  font-size: 0.8125rem; font-weight: 700; color: #0F172A;
 `;
 const TabHint = styled.span`
-  font-size: 11px; font-weight: 500; color: #64748B; line-height: 1.4;
+  font-size: 0.6875rem; font-weight: 500; color: #64748B; line-height: 1.4;
 `;
 const Intro = styled.p`
-  font-size: 12px; color: #334155; line-height: 1.6; margin: 0 0 12px;
+  font-size: 0.75rem; color: #334155; line-height: 1.6; margin: 0 0 12px;
   padding: 10px 12px; background: #F8FAFC; border-radius: 8px;
 `;
 const Field = styled.div`display:flex;flex-direction:column;gap:6px;margin-bottom:12px;`;
-const Label = styled.label`font-size:12px;font-weight:600;color:#0F172A;`;
-const OptionalMark = styled.span`color: #94A3B8; font-weight: 400; font-size: 11px; margin-left: 4px;`;
+const Label = styled.label`font-size:0.75rem;font-weight:600;color:#0F172A;`;
+const OptionalMark = styled.span`color: #94A3B8; font-weight: 400; font-size: 0.6875rem; margin-left: 4px;`;
 const Footer = styled.div`
   display: flex; justify-content: flex-end; gap: 6px;
   padding: 12px 22px 18px;
@@ -216,14 +216,14 @@ const Footer = styled.div`
   border-top: 1px solid #F1F5F9; background: #FFFFFF;
 `;
 const PrimaryBtn = styled.button`
-  padding: 9px 18px; font-size: 13px; font-weight: 700; color: #FFFFFF;
+  padding: 9px 18px; font-size: 0.8125rem; font-weight: 700; color: #FFFFFF;
   background: #14B8A6;
   border: none; border-radius: 8px; cursor: pointer;
   transition: background 0.15s;
   &:hover { background: #0D9488; }
 `;
 const SecondaryBtn = styled.button`
-  padding: 9px 16px; font-size: 13px; font-weight: 600; color: #334155;
+  padding: 9px 16px; font-size: 0.8125rem; font-weight: 600; color: #334155;
   background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer;
   &:hover { border-color: #CBD5E1; background: #F8FAFC; }
 `;

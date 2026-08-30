@@ -407,8 +407,8 @@ export default function SettingsTab({ inWorkspaceSettings = false }: SettingsTab
 }
 
 const Wrap = styled.div`display: flex; flex-direction: column; gap: 14px;`;
-const Loading = styled.div`text-align: center; padding: 40px 20px; color: #94A3B8; font-size: 13px;`;
-const ErrorBanner = styled.div`padding: 10px 14px; background: #FEF2F2; border: 1px solid #FECACA; color: #991B1B; border-radius: 8px; font-size: 12px;`;
+const Loading = styled.div`text-align: center; padding: 40px 20px; color: #94A3B8; font-size: 0.8125rem;`;
+const ErrorBanner = styled.div`padding: 10px 14px; background: #FEF2F2; border: 1px solid #FECACA; color: #991B1B; border-radius: 8px; font-size: 0.75rem;`;
 const Section = styled.section`
   background: #fff; border: 1px solid #E2E8F0; border-radius: 12px; padding: 18px 20px;
   display: flex; flex-direction: column; gap: 14px;
@@ -417,8 +417,8 @@ const SectionHead = styled.div`
   display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
   padding-bottom: 12px; border-bottom: 1px solid #F1F5F9;
 `;
-const SectionTitle = styled.h3`font-size: 15px; font-weight: 700; color: #0F172A; margin: 0;`;
-const SectionDesc = styled.div`font-size: 12px; color: #64748B; margin-top: 2px;`;
+const SectionTitle = styled.h3`font-size: 0.9375rem; font-weight: 700; color: #0F172A; margin: 0;`;
+const SectionDesc = styled.div`font-size: 0.75rem; color: #64748B; margin-top: 2px;`;
 const FieldGrid = styled.div`
   display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px 18px;
   @media (max-width: 720px) { grid-template-columns: 1fr; }
@@ -428,10 +428,10 @@ const Field = styled.div<{ $span?: number }>`
   display: flex; flex-direction: column; gap: 4px;
   @media (max-width: 720px) { grid-column: span 1; }
 `;
-const FieldLabel = styled.div`font-size: 11px; font-weight: 600; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.4px;`;
-const FieldVal = styled.div`font-size: 13px; color: #0F172A; font-weight: 500;`;
-const FieldHint = styled.div`font-size: 11px; color: #94A3B8;`;
-const Hole = styled.span`color: #DC2626; font-size: 12px; font-weight: 500;`;
+const FieldLabel = styled.div`font-size: 0.6875rem; font-weight: 600; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.4px;`;
+const FieldVal = styled.div`font-size: 0.8125rem; color: #0F172A; font-weight: 500;`;
+const FieldHint = styled.div`font-size: 0.6875rem; color: #94A3B8;`;
+const Hole = styled.span`color: #DC2626; font-size: 0.75rem; font-weight: 500;`;
 // 법인 정보 누락 경고 (통합 설정 안에서만)
 const IssuerWarn = styled.div`
   display: flex; gap: 12px; align-items: center;
@@ -445,10 +445,10 @@ const IssuerWarnIcon = styled.div`
   width: 28px; height: 28px; background: #fff; border: 1px solid #FCD34D; border-radius: 8px;
 `;
 const IssuerWarnBody = styled.div`flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0;`;
-const IssuerWarnTitle = styled.div`font-size: 13px; font-weight: 700; color: #92400E;`;
-const IssuerWarnDesc = styled.div`font-size: 12px; color: #B45309;`;
+const IssuerWarnTitle = styled.div`font-size: 0.8125rem; font-weight: 700; color: #92400E;`;
+const IssuerWarnDesc = styled.div`font-size: 0.75rem; color: #B45309;`;
 const IssuerWarnLink = styled.button`
-  flex-shrink: 0; padding: 7px 14px; font-size: 12px; font-weight: 700;
+  flex-shrink: 0; padding: 7px 14px; font-size: 0.75rem; font-weight: 700;
   background: #fff; border: 1px solid #FCD34D; border-radius: 8px; color: #B45309; cursor: pointer;
   transition: background 0.12s;
   &:hover { background: #FEF3C7; }
@@ -463,17 +463,17 @@ const EditField = styled.div<{ $span?: number }>`
   display: flex; flex-direction: column; gap: 6px;
   @media (max-width: 720px) { grid-column: span 1; }
 `;
-const EditLabel = styled.label`font-size: 11px; font-weight: 600; color: #475569; text-transform: uppercase; letter-spacing: 0.4px;`;
-const FieldError = styled.p`margin: 0; font-size: 12px; color: #B91C1C; line-height: 1.5;`;
+const EditLabel = styled.label`font-size: 0.6875rem; font-weight: 600; color: #475569; text-transform: uppercase; letter-spacing: 0.4px;`;
+const FieldError = styled.p`margin: 0; font-size: 0.75rem; color: #B91C1C; line-height: 1.5;`;
 const EditInput = styled.input`
-  width: 100%; padding: 8px 10px; font-size: 13px; color: #0F172A;
+  width: 100%; padding: 8px 10px; font-size: 0.8125rem; color: #0F172A;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 8px;
   font-variant-numeric: tabular-nums;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
 `;
 const SecondaryBtn = styled.button`
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 9px 14px; font-size: 13px; font-weight: 600; color: #334155;
+  padding: 9px 14px; font-size: 0.8125rem; font-weight: 600; color: #334155;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer;
   line-height: 1; white-space: nowrap;
   & > svg { display: block; flex-shrink: 0; }
@@ -485,26 +485,26 @@ const SecretRow = styled.div`
   > div:first-child { flex: 1; }
 `;
 const RevealBtn = styled.button`
-  padding: 0 12px; font-size: 12px; font-weight: 600; color: #64748B;
+  padding: 0 12px; font-size: 0.75rem; font-weight: 600; color: #64748B;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer;
   flex-shrink: 0; white-space: nowrap;
   &:hover { color: #0F172A; background: #F8FAFC; }
 `;
 const SetBadge = styled.span`
-  display: inline-block; margin-left: 6px; font-size: 10px; font-weight: 700; color: #0F766E;
+  display: inline-block; margin-left: 6px; font-size: 0.625rem; font-weight: 700; color: #0F766E;
   background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 5px; padding: 1px 6px; letter-spacing: 0;
 `;
 const UnsetBadge = styled.span`
-  display: inline-block; margin-left: 6px; font-size: 10px; font-weight: 700; color: #94A3B8;
+  display: inline-block; margin-left: 6px; font-size: 0.625rem; font-weight: 700; color: #94A3B8;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 5px; padding: 1px 6px; letter-spacing: 0;
 `;
 const ClearBtn = styled.button`
-  align-self: flex-start; font-size: 12px; font-weight: 600; color: #B91C1C;
+  align-self: flex-start; font-size: 0.75rem; font-weight: 600; color: #B91C1C;
   background: transparent; border: none; padding: 2px 0; cursor: pointer;
   &:hover { text-decoration: underline; }
 `;
 const WebhookUrl = styled.code`
-  display: block; font-size: 12px; color: #0F172A; word-break: break-all;
+  display: block; font-size: 0.75rem; color: #0F172A; word-break: break-all;
   background: #F1F5F9; border: 1px solid #E2E8F0; border-radius: 6px; padding: 6px 8px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 `;

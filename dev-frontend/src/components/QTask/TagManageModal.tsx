@@ -164,18 +164,18 @@ const Item = styled.div`
 const Row = styled.div`display: flex; align-items: center; gap: 8px; min-width: 0;`;
 const NameText = styled.span`
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-size: 13px; font-weight: 700; color: #0F172A;
+  font-size: 0.8125rem; font-weight: 700; color: #0F172A;
 `;
-const Usage = styled.span`flex-shrink: 0; font-size: 11px; color: #94A3B8;`;
-const ConfirmText = styled.span`flex: 1; min-width: 0; font-size: 12px; color: #B91C1C;`;
+const Usage = styled.span`flex-shrink: 0; font-size: 0.6875rem; color: #94A3B8;`;
+const ConfirmText = styled.span`flex: 1; min-width: 0; font-size: 0.75rem; color: #B91C1C;`;
 const NameInput = styled.input`
   flex: 1; min-width: 0; height: 30px; padding: 0 8px;
-  border: 1px solid #E2E8F0; border-radius: 6px; font-size: 13px; color: #0F172A;
+  border: 1px solid #E2E8F0; border-radius: 6px; font-size: 0.8125rem; color: #0F172A;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
 `;
 const SmallBtn = styled.button<{ $tone?: 'primary' | 'danger' }>`
   flex-shrink: 0; height: 28px; padding: 0 10px; border-radius: 6px; cursor: pointer;
-  font-size: 12px; font-weight: 700;
+  font-size: 0.75rem; font-weight: 700;
   border: 1px solid ${({ $tone }) => ($tone === 'danger' ? '#FECACA' : $tone === 'primary' ? '#14B8A6' : '#E2E8F0')};
   background: ${({ $tone }) => ($tone === 'primary' ? '#14B8A6' : '#fff')};
   color: ${({ $tone }) => ($tone === 'primary' ? '#fff' : $tone === 'danger' ? '#DC2626' : '#475569')};
@@ -186,5 +186,5 @@ const AddRow = styled.div`
   display: flex; align-items: center; gap: 6px; margin-bottom: 10px;
   padding-bottom: 10px; border-bottom: 1px solid #F1F5F9;
 `;
-const Empty = styled.div`padding: 24px 8px; text-align: center; font-size: 13px; color: #94A3B8;`;
-const ErrText = styled.div`margin-top: 10px; font-size: 12px; color: #DC2626;`;
+const Empty = styled.div`padding: 24px 8px; text-align: center; font-size: 0.8125rem; color: #94A3B8;`;
+const ErrText = styled.div`margin-top: 10px; font-size: 0.75rem; color: #DC2626;`;

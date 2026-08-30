@@ -275,30 +275,30 @@ const Card = styled.div`
   background: #f8fafc; padding: 12px; max-width: 100%;
   display: flex; flex-direction: column; gap: 8px;
 `;
-const Hdr = styled.div`font-size: 12px; font-weight: 700; color: #0f766e; letter-spacing: -0.2px;`;
+const Hdr = styled.div`font-size: 0.75rem; font-weight: 700; color: #0f766e; letter-spacing: -0.2px;`;
 const Field = styled.label`display: flex; flex-direction: column; gap: 3px;`;
-const Lbl = styled.span`font-size: 11px; color: #64748b; font-weight: 600;`;
+const Lbl = styled.span`font-size: 0.6875rem; color: #64748b; font-weight: 600;`;
 const Input = styled.input`
-  border: 1px solid #cbd5e1; border-radius: 8px; padding: 7px 9px; font-size: 13px;
+  border: 1px solid #cbd5e1; border-radius: 8px; padding: 7px 9px; font-size: 0.8125rem;
   background: #fff; width: 100%; &:focus { outline: none; border-color: #0f766e; }
 `;
 const Textarea = styled.textarea`
-  border: 1px solid #cbd5e1; border-radius: 8px; padding: 7px 9px; font-size: 13px;
+  border: 1px solid #cbd5e1; border-radius: 8px; padding: 7px 9px; font-size: 0.8125rem;
   background: #fff; width: 100%; resize: vertical; &:focus { outline: none; border-color: #0f766e; }
 `;
-const ReadVal = styled.div`font-size: 13px; color: #1e293b; padding: 6px 2px;`;
-const Warn = styled.div`font-size: 11px; color: #b45309; background: #fffbeb; border-radius: 6px; padding: 5px 8px;`;
-const Hint = styled.div`font-size: 11px; color: #64748b; padding: 0 2px;`;
+const ReadVal = styled.div`font-size: 0.8125rem; color: #1e293b; padding: 6px 2px;`;
+const Warn = styled.div`font-size: 0.6875rem; color: #b45309; background: #fffbeb; border-radius: 6px; padding: 5px 8px;`;
+const Hint = styled.div`font-size: 0.6875rem; color: #64748b; padding: 0 2px;`;
 const CheckRow = styled.label`
   display: flex; align-items: center; gap: 7px; cursor: pointer;
-  font-size: 12px; color: #334155; padding: 2px 0;
+  font-size: 0.75rem; color: #334155; padding: 2px 0;
   input { width: 15px; height: 15px; accent-color: #0f766e; cursor: pointer; margin: 0; }
 `;
 const ToggleRow = styled.button`
   border: none; background: none; text-align: left; cursor: pointer; padding: 2px 0;
-  font-size: 12px; color: #64748b; font-weight: 600;
+  font-size: 0.75rem; color: #64748b; font-weight: 600;
 `;
-const ErrLine = styled.div`font-size: 12px; color: #dc2626; font-weight: 600;`;
+const ErrLine = styled.div`font-size: 0.75rem; color: #dc2626; font-weight: 600;`;
 const Actions = styled.div`display: flex; justify-content: flex-end; gap: 8px; margin-top: 2px;`;
 
 export default CueActionCard;

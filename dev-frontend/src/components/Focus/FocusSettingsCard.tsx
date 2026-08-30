@@ -155,12 +155,12 @@ const Card = styled.section`
 `;
 const SectionTitle = styled.h3`
   margin: 0 0 8px;
-  font-size: 16px; font-weight: 700; color: #0F172A;
+  font-size: 1rem; font-weight: 700; color: #0F172A;
   letter-spacing: -0.2px;
 `;
 const Description = styled.p`
   margin: 0 0 16px;
-  font-size: 13px; color: #475569; line-height: 1.6;
+  font-size: 0.8125rem; color: #475569; line-height: 1.6;
 `;
 const ToggleRow = styled.div`
   display: flex; align-items: center; gap: 16px;
@@ -169,10 +169,10 @@ const ToggleRow = styled.div`
 `;
 const ToggleBody = styled.div`flex: 1; min-width: 0;`;
 const ToggleLabel = styled.div`
-  font-size: 14px; font-weight: 600; color: #0F172A; margin-bottom: 2px;
+  font-size: 0.875rem; font-weight: 600; color: #0F172A; margin-bottom: 2px;
 `;
 const ToggleHint = styled.div`
-  font-size: 12px; color: #64748B; line-height: 1.5;
+  font-size: 0.75rem; color: #64748B; line-height: 1.5;
 `;
 const Switch = styled.button<{ $active: boolean }>`
   position: relative;
@@ -204,10 +204,10 @@ const FieldRow = styled.div`
 const FieldLabel = styled.div`
   flex: 1; min-width: 0;
   display: flex; flex-direction: column; gap: 2px;
-  font-size: 14px; font-weight: 600; color: #0F172A;
+  font-size: 0.875rem; font-weight: 600; color: #0F172A;
 `;
 const FieldHint = styled.span`
-  font-size: 12px; font-weight: 500; color: #64748B; line-height: 1.5;
+  font-size: 0.75rem; font-weight: 500; color: #64748B; line-height: 1.5;
 `;
 const FieldControl = styled.div`
   flex-shrink: 0;

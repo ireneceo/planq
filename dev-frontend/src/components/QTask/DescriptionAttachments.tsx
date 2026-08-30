@@ -226,13 +226,13 @@ const FileChipBody = styled.button`
 const FileChipExt = styled.span`
   display:inline-flex;align-items:center;justify-content:center;
   min-width:34px;height:20px;padding:0 6px;border-radius:4px;
-  background:#F1F5F9;color:#475569;font-size:10px;font-weight:700;letter-spacing:0.3px;flex-shrink:0;
+  background:#F1F5F9;color:#475569;font-size:0.625rem;font-weight:700;letter-spacing:0.3px;flex-shrink:0;
 `;
-const FileChipName = styled.span`font-size:12px;color:#0F172A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
+const FileChipName = styled.span`font-size:0.75rem;color:#0F172A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
 const FileChipX = styled.button`
   display:inline-flex;align-items:center;justify-content:center;
   width:24px;height:32px;background:transparent;border:none;border-left:1px solid #E2E8F0;
-  color:#94A3B8;font-size:14px;cursor:pointer;font-family:inherit;
+  color:#94A3B8;font-size:0.875rem;cursor:pointer;font-family:inherit;
   &:hover{background:#FEE2E2;color:#DC2626;}
 `;
 const ImgChip = styled.div`position:relative;display:inline-block;border-radius:8px;overflow:hidden;border:1px solid #E2E8F0;`;
@@ -245,7 +245,7 @@ const ImgRemove = styled.button`
   position:absolute;top:2px;right:2px;
   width:20px;height:20px;border-radius:10px;
   background:rgba(0,0,0,0.5);color:#FFFFFF;border:none;cursor:pointer;
-  font-size:14px;line-height:1;font-family:inherit;
+  font-size:0.875rem;line-height:1;font-family:inherit;
   &:hover{background:rgba(220,38,38,0.85);}
 `;
 const ActionRow = styled.div`display:flex;align-items:center;gap:8px;`;
@@ -253,7 +253,7 @@ const AttachBtn = styled.button`
   display:inline-flex;align-items:center;gap:4px;
   padding:6px 12px;background:transparent;color:#475569;
   border:1px dashed #CBD5E1;border-radius:8px;
-  font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;
+  font-size:0.75rem;font-weight:500;cursor:pointer;font-family:inherit;
   transition:background 0.15s, border-color 0.15s, color 0.15s;
   &:hover{background:#F0FDFA;color:#0F766E;border-color:#14B8A6;border-style:solid;}
 `;
@@ -265,14 +265,14 @@ const PickerActions = styled.div`display:flex;justify-content:flex-end;gap:6px;m
 const PickerCancel = styled.button`
   padding:6px 12px; background:#FFFFFF; color:#64748B;
   border:1px solid #E2E8F0; border-radius:6px;
-  font-size:12px; font-weight:500; cursor:pointer; font-family:inherit;
+  font-size:0.75rem; font-weight:500; cursor:pointer; font-family:inherit;
   &:hover{background:#F1F5F9;}
 `;
 const PickerSubmit = styled.button`
   padding:6px 14px; background:#14B8A6; color:#FFFFFF;
   border:none; border-radius:6px;
-  font-size:12px; font-weight:600; cursor:pointer; font-family:inherit;
+  font-size:0.75rem; font-weight:600; cursor:pointer; font-family:inherit;
   &:hover:not(:disabled){background:#0D9488;}
   &:disabled{background:#CBD5E1;cursor:not-allowed;}
 `;
-const ErrLine = styled.div`margin-top:6px; font-size:11px; color:#DC2626;`;
+const ErrLine = styled.div`margin-top:6px; font-size:0.6875rem; color:#DC2626;`;

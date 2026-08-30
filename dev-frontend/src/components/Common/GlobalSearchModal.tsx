@@ -285,11 +285,11 @@ const SearchIconSvg = styled.svg`width: 16px; height: 16px; color: #94A3B8; flex
 const SearchInput = styled.input`
   flex: 1; height: 28px;
   border: none; outline: none;
-  font-size: 15px; color: #0F172A; background: transparent;
+  font-size: 0.9375rem; color: #0F172A; background: transparent;
   &::placeholder { color: #94A3B8; }
 `;
 const Kbd = styled.button`
-  font-size: 11px; font-weight: 600; font-family: inherit;
+  font-size: 0.6875rem; font-weight: 600; font-family: inherit;
   padding: 2px 8px;
   background: #F1F5F9; border: 1px solid #E2E8F0; border-radius: 6px;
   color: #64748B; cursor: pointer;
@@ -303,17 +303,17 @@ const Results = styled.div`
 `;
 const Hint = styled.div`
   padding: 40px 20px; text-align: center;
-  font-size: 13px; color: #94A3B8;
+  font-size: 0.8125rem; color: #94A3B8;
 `;
 // #210 — 메뉴 목록이 이미 보일 때의 하단 안내 (큰 여백 없이 한 줄)
 const FootHint = styled.div`
   padding: 10px 12px 4px; text-align: center;
-  font-size: 12px; color: #CBD5E1;
+  font-size: 0.75rem; color: #CBD5E1;
 `;
 // #210 — 결과 그룹 헤더 (메뉴 / 검색 결과)
 const GroupTitle = styled.div`
   padding: 8px 12px 4px;
-  font-size: 11px; font-weight: 700; letter-spacing: 0.4px;
+  font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.4px;
   color: #94A3B8; text-transform: uppercase;
 `;
 const Hit = styled.button`
@@ -330,15 +330,15 @@ const TypeBadge = styled.span<{ $color: string }>`
   background: ${p => p.$color}1A;
   color: ${p => p.$color};
   border-radius: 4px;
-  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  font-size: 0.625rem; font-weight: 700; text-transform: uppercase;
   letter-spacing: 0.3px;
 `;
 const HitMain = styled.div`flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;`;
 const HitTitle = styled.div`
-  font-size: 13px; color: #0F172A; font-weight: 500;
+  font-size: 0.8125rem; color: #0F172A; font-weight: 500;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
 const HitSub = styled.div`
-  font-size: 11px; color: #94A3B8;
+  font-size: 0.6875rem; color: #94A3B8;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;

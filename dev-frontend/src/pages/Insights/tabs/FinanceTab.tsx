@@ -77,10 +77,10 @@ const FinanceTab: React.FC<{ businessId: number; range: RangePreset; segment?: S
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={data.cost_trend} margin={{ top: 16, right: 24, bottom: 8, left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#64748B' }} tickFormatter={(v) => String(v).slice(2)} />
-              <YAxis tick={{ fontSize: 11, fill: '#64748B' }} tickFormatter={(v) => fmtMoney(v, home)} />
+              <XAxis dataKey="month" tick={{ fontSize: '0.6875rem', fill: '#64748B' }} tickFormatter={(v) => String(v).slice(2)} />
+              <YAxis tick={{ fontSize: '0.6875rem', fill: '#64748B' }} tickFormatter={(v) => fmtMoney(v, home)} />
               <Tooltip formatter={(v) => fmtMoney(typeof v === 'number' ? v : Number(v), home)} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Legend wrapperStyle={{ fontSize: '0.75rem' }} />
               <Line type="monotone" dataKey="revenue" name={t('finance.chart.trend.revenue', '매출') as string} stroke="#14B8A6" strokeWidth={2} dot={false} />
               <Line type="monotone" dataKey="cost" name={t('finance.chart.trend.cost', '비용') as string} stroke="#F43F5E" strokeWidth={2} dot={false} />
               <Line type="monotone" dataKey="profit" name={t('finance.chart.trend.profit', '이익') as string} stroke="#0F172A" strokeWidth={2} dot={false} />
@@ -97,8 +97,8 @@ const FinanceTab: React.FC<{ businessId: number; range: RangePreset; segment?: S
           <ResponsiveContainer width="100%" height={320}>
             <BarChart data={data.expenses_by_category.slice(0, 10)} margin={{ top: 16, right: 24, bottom: 8, left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-              <XAxis dataKey="category" tick={{ fontSize: 11, fill: '#64748B' }} />
-              <YAxis tick={{ fontSize: 11, fill: '#64748B' }} tickFormatter={(v) => fmtMoney(v, home)} />
+              <XAxis dataKey="category" tick={{ fontSize: '0.6875rem', fill: '#64748B' }} />
+              <YAxis tick={{ fontSize: '0.6875rem', fill: '#64748B' }} tickFormatter={(v) => fmtMoney(v, home)} />
               <Tooltip formatter={(v) => fmtMoney(typeof v === 'number' ? v : Number(v), home)} />
               <Bar dataKey="amount" name={t('finance.chart.expenses.bar', '금액') as string} fill="#F43F5E" />
             </BarChart>

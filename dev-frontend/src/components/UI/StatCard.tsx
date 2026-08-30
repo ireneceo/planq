@@ -22,31 +22,31 @@ export const StatCard = styled.div<{ color?: string }>`
 `;
 
 export const StatValue = styled.div`
-  font-size: 24px;
+  font-size: 1.5rem;
   font-weight: 700;
   color: #0A2540;
   margin-bottom: 4px;
-  @media (max-width: 768px) { font-size: 18px; margin-bottom: 2px; }
+  @media (max-width: 768px) { font-size: 1.125rem; margin-bottom: 2px; }
 `;
 
 export const StatLabel = styled.div`
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #6B7280;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   font-weight: 500;
-  @media (max-width: 768px) { font-size: 10px; }
+  @media (max-width: 768px) { font-size: 0.625rem; }
 `;
 
 export const StatDescription = styled.div`
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #9CA3AF;
   margin-top: 4px;
-  @media (max-width: 768px) { font-size: 10px; margin-top: 2px; }
+  @media (max-width: 768px) { font-size: 0.625rem; margin-top: 2px; }
 `;
 
 export const StatTrend = styled.div<{ trend?: 'up' | 'down' | 'neutral' }>`
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 500;
   margin-top: 4px;
   color: ${props => {
@@ -78,7 +78,7 @@ export const DashboardStatCard = styled.div<{ color?: string }>`
 `;
 
 export const DashboardStatLabel = styled.div`
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: #6B7C93;
   text-transform: uppercase;
@@ -87,14 +87,14 @@ export const DashboardStatLabel = styled.div`
 `;
 
 export const DashboardStatValue = styled.div`
-  font-size: 32px;
+  font-size: 2rem;
   font-weight: 700;
   color: #0A2540;
   margin-bottom: 8px;
 `;
 
 export const DashboardStatDescription = styled.div`
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #6B7280;
 `;
 

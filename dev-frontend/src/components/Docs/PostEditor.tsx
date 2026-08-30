@@ -485,7 +485,7 @@ const Toolbar = styled.div<{ $compact?: boolean }>`
     /* 자식 toolbar 버튼 강제 축소 (모든 인스턴스 prop 안 바꿔도 cascade 로 적용) */
     & > div > button, & > button {
       min-width: 24px !important; height: 24px !important;
-      padding: 0 4px !important; font-size: 11px !important;
+      padding: 0 4px !important; font-size: 0.6875rem !important;
       flex-shrink: 0;
     }
     & > div { gap: 1px !important; flex-shrink: 0; }
@@ -500,7 +500,7 @@ const ToolBtn = styled.button<{ $active?: boolean; $compact?: boolean }>`
   height: ${p => p.$compact ? '24px' : '28px'};
   padding: ${p => p.$compact ? '0 5px' : '0 8px'};
   display: inline-flex; align-items: center; justify-content: center;
-  font-size: ${p => p.$compact ? '11px' : '12px'};
+  font-size: ${p => p.$compact ? '0.6875rem' : '0.75rem'};
   font-weight: 700; color: ${p => p.$active ? '#0F766E' : '#475569'};
   background: ${p => p.$active ? '#F0FDFA' : 'transparent'};
   border-radius: 6px;
@@ -519,7 +519,7 @@ const ImgSizeBtn = styled.button<{ $active?: boolean }>`
   background: ${p => p.$active ? '#334155' : 'transparent'};
   color: ${p => p.$active ? '#FFF' : '#CBD5E1'};
   padding: 4px 10px; border-radius: 5px;
-  font-size: 11px; font-weight: 700; cursor: pointer; min-width: 28px;
+  font-size: 0.6875rem; font-weight: 700; cursor: pointer; min-width: 28px;
   &:hover { background: #334155; color: #FFF; }
 `;
 // 표 행/열 플로팅 컨트롤 (표 안 커서일 때 노출)
@@ -534,7 +534,7 @@ const TableBubbleBtn = styled.button<{ $danger?: boolean }>`
   border: none; background: transparent;
   color: ${p => p.$danger ? '#FCA5A5' : '#E2E8F0'};
   padding: 4px 8px; border-radius: 5px;
-  font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap;
+  font-size: 0.6875rem; font-weight: 700; cursor: pointer; white-space: nowrap;
   &:hover { background: ${p => p.$danger ? '#7F1D1D' : '#334155'}; color: #FFF; }
 `;
 
@@ -568,7 +568,7 @@ const Body = styled.div<{ $editable?: boolean; $borderless?: boolean; $compact?:
     width: max-content;
     min-width: 100%;
     max-width: none;
-    font-size: 13px; margin: 16px 0;
+    font-size: 0.8125rem; margin: 16px 0;
     border: 1px solid #CBD5E1; border-radius: 10px;
     overflow: hidden;
     background: #fff;
@@ -644,11 +644,11 @@ const Body = styled.div<{ $editable?: boolean; $borderless?: boolean; $compact?:
   & table .column-resize-handle:hover { opacity: 1; }
 
   .ProseMirror {
-    outline: none; font-size: 14px; line-height: 1.55; color: #0F172A;
+    outline: none; font-size: 0.875rem; line-height: 1.55; color: #0F172A;
     > * + * { margin-top: 0.5em; }
-    h1 { font-size: 22px; font-weight: 700; color: #0F172A; margin-top: 1.2em; line-height: 1.3; }
-    h2 { font-size: 18px; font-weight: 700; color: #0F172A; margin-top: 1em; line-height: 1.35; }
-    h3 { font-size: 15px; font-weight: 700; color: #334155; margin-top: 0.8em; line-height: 1.4; }
+    h1 { font-size: 1.375rem; font-weight: 700; color: #0F172A; margin-top: 1.2em; line-height: 1.3; }
+    h2 { font-size: 1.125rem; font-weight: 700; color: #0F172A; margin-top: 1em; line-height: 1.35; }
+    h3 { font-size: 0.9375rem; font-weight: 700; color: #334155; margin-top: 0.8em; line-height: 1.4; }
     p { color: #334155; margin: 0; }
     ul, ol { padding-left: 1.4em; margin: 0; }
     li { margin: 0; }
@@ -657,9 +657,9 @@ const Body = styled.div<{ $editable?: boolean; $borderless?: boolean; $compact?:
     ul li::marker { color: #94A3B8; }
     ol li::marker { color: #94A3B8; font-weight: 600; }
     blockquote { border-left: 3px solid #14B8A6; padding: 4px 12px; background: #F0FDFA; color: #334155; border-radius: 0 6px 6px 0; }
-    code { background: #F1F5F9; padding: 2px 6px; border-radius: 4px; font-size: 12px; font-family: 'SFMono-Regular', Menlo, Consolas, monospace; color: #BE185D; }
+    code { background: #F1F5F9; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-family: 'SFMono-Regular', Menlo, Consolas, monospace; color: #BE185D; }
     /* CodeBlockLowlight node view 가 자체 스타일 가짐 — 옛 pre/code 스타일은 fallback. */
-    pre { background: #1E293B; color: #E2E8F0; padding: 12px 14px; border-radius: 8px; font-size: 12px; overflow-x: auto; }
+    pre { background: #1E293B; color: #E2E8F0; padding: 12px 14px; border-radius: 8px; font-size: 0.75rem; overflow-x: auto; }
     pre code { background: transparent; color: inherit; padding: 0; font-family: 'SFMono-Regular', Menlo, Consolas, monospace; }
 
     /* 사이클 N+16 — highlight.js (atom-one-dark 톤) syntax 색상.

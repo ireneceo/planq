@@ -376,7 +376,7 @@ const TSep = styled.div`width:1px;height:18px;background:#E2E8F0;margin:0 4px;fl
 const ToolBtn = styled.button<{ $active?: boolean }>`
   all:unset;cursor:pointer;min-width:28px;height:28px;padding:0 8px;
   display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
-  font-size:12px;font-weight:700;border-radius:6px;
+  font-size:0.75rem;font-weight:700;border-radius:6px;
   color:${p => (p.$active ? '#0F766E' : '#475569')};
   background:${p => (p.$active ? '#F0FDFA' : 'transparent')};
   &:hover{background:${p => (p.$active ? '#CCFBF1' : '#E2E8F0')};color:#0F172A;}
@@ -389,22 +389,22 @@ const LinkBar = styled.div`
 `;
 const LinkInput = styled.input`
   flex:1;min-width:0;height:28px;padding:0 10px;
-  border:1px solid #E2E8F0;border-radius:6px;font-size:12px;color:#334155;
+  border:1px solid #E2E8F0;border-radius:6px;font-size:0.75rem;color:#334155;
   &:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,.15);}
 `;
 
 const EditorShell = styled.div<{ $mh: number }>`
   border:1px solid #E2E8F0;border-radius:10px;background:#FFF;display:flex;flex-direction:column;
   & .pq-editor-body{
-    outline:none;padding:14px 16px;min-height:${p => p.$mh}px;font-size:14px;line-height:1.65;color:#0F172A;
+    outline:none;padding:14px 16px;min-height:${p => p.$mh}px;font-size:0.875rem;line-height:1.65;color:#0F172A;
     overflow-wrap:anywhere;word-break:break-word;
   }
   & .pq-editor-body > * + *{margin-top:8px;}
   & .pq-editor-body p{margin:0;}
   & .pq-editor-body p.is-editor-empty:first-child::before{content:attr(data-placeholder);color:#94A3B8;float:left;height:0;pointer-events:none;}
-  & .pq-editor-body h1{font-size:24px;font-weight:700;margin:16px 0 4px;line-height:1.2;}
-  & .pq-editor-body h2{font-size:19px;font-weight:700;margin:12px 0 4px;line-height:1.3;}
-  & .pq-editor-body h3{font-size:16px;font-weight:700;margin:10px 0 4px;line-height:1.4;}
+  & .pq-editor-body h1{font-size:1.5rem;font-weight:700;margin:16px 0 4px;line-height:1.2;}
+  & .pq-editor-body h2{font-size:1.1875rem;font-weight:700;margin:12px 0 4px;line-height:1.3;}
+  & .pq-editor-body h3{font-size:1rem;font-weight:700;margin:10px 0 4px;line-height:1.4;}
   & .pq-editor-body ul,& .pq-editor-body ol{padding-left:22px;}
   & .pq-editor-body ul[data-type="taskList"]{padding-left:4px;list-style:none;}
   & .pq-editor-body ul[data-type="taskList"] li{display:flex;align-items:flex-start;gap:6px;}
@@ -413,8 +413,8 @@ const EditorShell = styled.div<{ $mh: number }>`
   & .pq-editor-body ul[data-type="taskList"] li > div{flex:1;}
   & .pq-editor-body ul[data-type="taskList"] li[data-checked="true"] > div{color:#94A3B8;text-decoration:line-through;}
   & .pq-editor-body blockquote{border-left:3px solid #14B8A6;padding:4px 12px;color:#475569;background:#F0FDFA;border-radius:4px;}
-  & .pq-editor-body code{background:#F1F5F9;padding:1px 4px;border-radius:3px;font-family:monospace;font-size:12px;}
-  & .pq-editor-body pre{background:#0F172A;color:#E2E8F0;padding:12px 14px;border-radius:8px;overflow-x:auto;font-family:monospace;font-size:12px;line-height:1.5;}
+  & .pq-editor-body code{background:#F1F5F9;padding:1px 4px;border-radius:3px;font-family:monospace;font-size:0.75rem;}
+  & .pq-editor-body pre{background:#0F172A;color:#E2E8F0;padding:12px 14px;border-radius:8px;overflow-x:auto;font-family:monospace;font-size:0.75rem;line-height:1.5;}
   & .pq-editor-body pre code{background:transparent;color:inherit;padding:0;}
   & .pq-editor-body hr{border:none;border-top:1px solid #E2E8F0;margin:14px 0;}
   & .pq-editor-body img{max-width:100%;border-radius:8px;display:block;margin:4px 0;}
@@ -423,7 +423,7 @@ const EditorShell = styled.div<{ $mh: number }>`
   & .pq-editor-body .tableWrapper{overflow-x:auto;}
   & .pq-editor-body table{
     border-collapse:separate;border-spacing:0;table-layout:fixed;
-    width:max-content;min-width:100%;font-size:13px;margin:16px 0;
+    width:max-content;min-width:100%;font-size:0.8125rem;margin:16px 0;
     border:1px solid #CBD5E1;border-radius:10px;overflow:hidden;background:#fff;
   }
   & .pq-editor-body table td,& .pq-editor-body table th{
@@ -439,15 +439,15 @@ const EditorShell = styled.div<{ $mh: number }>`
   & .pq-editor-body ::selection{background:#CCFBF1;}
 `;
 
-const Hint = styled.div`padding:6px 16px 8px;font-size:11px;color:#94A3B8;border-top:1px solid #F1F5F9;
-  kbd{display:inline-block;padding:1px 5px;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:3px;font-size:10px;font-family:monospace;color:#475569;margin:0 2px;}
+const Hint = styled.div`padding:6px 16px 8px;font-size:0.6875rem;color:#94A3B8;border-top:1px solid #F1F5F9;
+  kbd{display:inline-block;padding:1px 5px;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:3px;font-size:0.625rem;font-family:monospace;color:#475569;margin:0 2px;}
 `;
 
 const Bubble = styled.div`display:inline-flex;align-items:center;gap:2px;padding:3px;background:#0F172A;border-radius:8px;box-shadow:0 4px 12px rgba(15,23,42,0.25);`;
 const BBtn = styled.button<{ $active?: boolean }>`
   border:none;background:${p => p.$active ? '#334155' : 'transparent'};
   color:${p => p.$active ? '#FFF' : '#CBD5E1'};
-  padding:4px 8px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;min-width:24px;
+  padding:4px 8px;border-radius:5px;font-size:0.75rem;font-weight:600;cursor:pointer;min-width:24px;
   &:hover{background:#334155;color:#FFF;}
 `;
 const BSep = styled.div`width:1px;height:16px;background:#334155;margin:0 2px;`;

@@ -132,7 +132,7 @@ const Chip = styled.button<{ $active: boolean; $dragging?: boolean; $dropTarget?
   color: ${(p) => (p.$active ? '#FFFFFF' : '#CCFBF1')};
   opacity: ${(p) => (p.$dragging ? 0.45 : 1)};   /* 드래그 중인 탭 흐리게 */
   /* 굵기 고정(500) — 활성 시 굵기 변화로 글자·X 가 밀리는 것 방지. 활성 구분은 색·배경·상단 액센트로만 */
-  font-size: 13px; font-weight: 500;
+  font-size: 0.8125rem; font-weight: 500;
   transition: background 0.12s, color 0.12s, opacity 0.12s;
   &:hover { background: ${(p) => (p.$active ? '#0F766E' : 'rgba(255,255,255,0.08)')}; color: #FFFFFF; }
   &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: -2px; }

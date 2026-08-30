@@ -23,7 +23,7 @@ export const RadioButton = styled.button<{ selected?: boolean }>`
   border: 1px solid ${props => props.selected ? '#14B8A6' : '#E6EBF1'};
   background: ${props => props.selected ? 'rgba(20, 184, 166, 0.1)' : 'white'};
   color: ${props => props.selected ? '#14B8A6' : '#374151'};
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s;
@@ -62,7 +62,7 @@ export const CheckboxInput = styled.input`
 `;
 
 export const CheckboxText = styled.span`
-  font-size: 14px;
+  font-size: 0.875rem;
   color: #374151;
   margin-left: 10px;
   flex: 1;

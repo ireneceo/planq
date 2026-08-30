@@ -817,7 +817,7 @@ const CalendarView: React.FC<{
         <MonthNavBtn onClick={() => setMonthOffset((o) => o - 1)} type="button">‹</MonthNavBtn>
         <MonthLabel>{year}.{String(month + 1).padStart(2, '0')}</MonthLabel>
         <MonthNavBtn onClick={() => setMonthOffset((o) => o + 1)} type="button">›</MonthNavBtn>
-        <MonthNavBtn onClick={() => setMonthOffset(0)} type="button" style={{ marginLeft: 'auto', fontSize: 12 }}>
+        <MonthNavBtn onClick={() => setMonthOffset(0)} type="button" style={{ marginLeft: 'auto', fontSize: '0.75rem' }}>
           {t('cal.today')}
         </MonthNavBtn>
       </CalendarHeader>
@@ -859,7 +859,7 @@ const FilterBar = styled.div`
 const NewProjectCta = styled.button`
   display:inline-flex;align-items:center;justify-content:center;gap:6px;
   padding:0 12px;height:32px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;
-  font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;
+  font-size:0.8125rem;font-weight:600;cursor:pointer;white-space:nowrap;
   &:hover{background:#0D9488;}
   @media(max-width:640px){width:32px;padding:0;span{display:none;}}
 `;
@@ -883,7 +883,7 @@ const ViewTab = styled.button<{ $active: boolean }>`
   background: ${p => p.$active ? '#FFFFFF' : 'transparent'};
   color: ${p => p.$active ? '#0F766E' : '#64748B'};
   border-radius: 6px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
   box-shadow: ${p => p.$active ? '0 1px 2px rgba(0,0,0,0.06)' : 'none'};
@@ -908,8 +908,8 @@ const EmptyState = styled.div`
   gap: 8px;
 `;
 const EmptyIcon = styled.div`color: #CBD5E1; margin-bottom: 4px;`;
-const EmptyTitle = styled.div`font-size: 15px; font-weight: 600; color: #334155;`;
-const EmptyDesc = styled.div`font-size: 13px; color: #64748B;`;
+const EmptyTitle = styled.div`font-size: 0.9375rem; font-weight: 600; color: #334155;`;
+const EmptyDesc = styled.div`font-size: 0.8125rem; color: #64748B;`;
 const EmptyCta = styled.button`
   margin-top: 12px;
   padding: 8px 16px;
@@ -917,7 +917,7 @@ const EmptyCta = styled.button`
   color: #FFFFFF;
   border: none;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s;
@@ -935,8 +935,8 @@ const CardGrid = styled.div`
 // #99 — 그룹 섹션
 const GroupSection = styled.section` margin-bottom: 22px; `;
 const GroupHeader = styled.div` display: flex; align-items: center; gap: 8px; margin: 0 0 10px; `;
-const GroupLabel = styled.h3` margin: 0; font-size: 13px; font-weight: 700; color: #0F172A; letter-spacing: -0.2px; `;
-const GroupCount = styled.span` display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 18px; padding: 0 6px; background: #E2E8F0; color: #475569; border-radius: 999px; font-size: 10px; font-weight: 700; `;
+const GroupLabel = styled.h3` margin: 0; font-size: 0.8125rem; font-weight: 700; color: #0F172A; letter-spacing: -0.2px; `;
+const GroupCount = styled.span` display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 18px; padding: 0 6px; background: #E2E8F0; color: #475569; border-radius: 999px; font-size: 0.625rem; font-weight: 700; `;
 const ProjectCard = styled.div`
   background: #FFFFFF;
   border: 1px solid #E2E8F0;
@@ -969,24 +969,24 @@ const BottomStack = styled.div`
   gap: 10px;
 `;
 const CardHead = styled.div`display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px;`;
-const CardTitle = styled.div`font-size: 15px; font-weight: 700; color: #0F172A; line-height: 1.4;`;
+const CardTitle = styled.div`font-size: 0.9375rem; font-weight: 700; color: #0F172A; line-height: 1.4;`;
 const StatusBadge = styled.span<{ $bg?: string; $fg?: string }>`
   flex-shrink: 0;
   padding: 2px 10px;
   background: ${p => p.$bg || '#F1F5F9'};
   color: ${p => p.$fg || '#64748B'};
   border-radius: 16px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
 `;
-const ClientLine = styled.div`font-size: 12px; color: #64748B; margin-bottom: 8px; display: inline-flex; align-items: center; gap: 4px;`;
-const Description = styled.div`font-size: 13px; color: #475569; line-height: 1.5; margin-bottom: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;`;
+const ClientLine = styled.div`font-size: 0.75rem; color: #64748B; margin-bottom: 8px; display: inline-flex; align-items: center; gap: 4px;`;
+const Description = styled.div`font-size: 0.8125rem; color: #475569; line-height: 1.5; margin-bottom: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;`;
 
 // ─── Progress block ───
 const ProgressBlock = styled.div`display: flex; flex-direction: column; gap: 6px;`;
 const ProgressMeta = styled.div`
   display: flex; align-items: center; gap: 10px;
-  font-size: 12px;
+  font-size: 0.75rem;
 `;
 const ProgressPct = styled.span`font-weight: 700; color: #0F766E;`;
 const ProgressTaskCount = styled.span`color: #64748B;`;
@@ -994,14 +994,14 @@ const OverdueChip = styled.span`
   display: inline-flex; align-items: center; gap: 2px;
   padding: 2px 8px; border-radius: 999px;
   background: #FEE2E2; color: #B91C1C;
-  font-size: 11px; font-weight: 700;
+  font-size: 0.6875rem; font-weight: 700;
   margin-left: auto;
 `;
 
 // ─── Meta line (기간 + 활동) ───
 const MetaLine = styled.div`
   display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
-  font-size: 12px; color: #64748B;
+  font-size: 0.75rem; color: #64748B;
 `;
 const MetaItem = styled.div`
   display: inline-flex; align-items: center; gap: 6px;
@@ -1011,7 +1011,7 @@ const MetaIcon = styled.svg`width: 13px; height: 13px; flex-shrink: 0; color: #9
 const DDay = styled.span<{ $danger?: boolean; $warning?: boolean }>`
   display: inline-flex; align-items: center;
   padding: 1px 6px; border-radius: 4px;
-  font-size: 10px; font-weight: 700;
+  font-size: 0.625rem; font-weight: 700;
   ${p => p.$danger ? 'background: #FEE2E2; color: #B91C1C;' :
         p.$warning ? 'background: #FEF3C7; color: #92400E;' :
         'background: #F0FDFA; color: #0F766E;'}
@@ -1030,8 +1030,8 @@ const PMBlock = styled.div`
   padding: 3px 8px 3px 6px;
   background: #FFF7ED; border: 1px solid #FDE68A; border-radius: 999px;
 `;
-const PMStar = styled.span`color: #F59E0B; font-size: 11px;`;
-const PMName = styled.span`font-size: 11px; font-weight: 700; color: #92400E;`;
+const PMStar = styled.span`color: #F59E0B; font-size: 0.6875rem;`;
+const PMName = styled.span`font-size: 0.6875rem; font-weight: 700; color: #92400E;`;
 const AvatarStack = styled.div`
   display: inline-flex; align-items: center;
   & > * { margin-left: -6px; &:first-child { margin-left: 0; } }
@@ -1040,7 +1040,7 @@ const Avatar = styled.span`
   display: inline-flex; align-items: center; justify-content: center;
   width: 24px; height: 24px; border-radius: 50%;
   background: #0F766E; color: #FFFFFF;
-  font-size: 11px; font-weight: 700;
+  font-size: 0.6875rem; font-weight: 700;
   border: 2px solid #FFFFFF;
   flex-shrink: 0;
 `;
@@ -1048,7 +1048,7 @@ const AvatarMore = styled.span`
   display: inline-flex; align-items: center; justify-content: center;
   width: 24px; height: 24px; border-radius: 50%;
   background: #F1F5F9; color: #475569;
-  font-size: 10px; font-weight: 700;
+  font-size: 0.625rem; font-weight: 700;
   border: 2px solid #FFFFFF;
   flex-shrink: 0;
 `;
@@ -1056,7 +1056,7 @@ const ClientChip = styled.span`
   display: inline-flex; align-items: center; gap: 4px;
   padding: 3px 10px; border-radius: 999px;
   background: #F1F5F9; color: #475569;
-  font-size: 11px; font-weight: 600;
+  font-size: 0.6875rem; font-weight: 600;
   flex-shrink: 0;
 `;
 const ProgressBar = styled.div`height: 6px; background: #F1F5F9; border-radius: 999px; overflow: hidden; margin-top: 12px;`;
@@ -1078,7 +1078,7 @@ const MenuDropdown = styled.div`
 `;
 const MenuItem = styled.button<{ $danger?: boolean }>`
   padding:8px 10px; text-align:left; background:transparent; border:none; border-radius:6px;
-  font-size:13px; font-weight:500; color:${p => p.$danger ? '#DC2626' : '#0F172A'}; cursor:pointer;
+  font-size:0.8125rem; font-weight:500; color:${p => p.$danger ? '#DC2626' : '#0F172A'}; cursor:pointer;
   &:hover{ background:${p => p.$danger ? '#FEF2F2' : '#F8FAFC'}; }
 `;
 
@@ -1093,17 +1093,17 @@ const ConfirmModal = styled.div`
   box-shadow:0 10px 40px rgba(0,0,0,0.15);
   @media (max-width: 640px) { margin-top:60px; max-height:calc(100vh - 100px); overflow-y:auto; }
 `;
-const ConfirmTitle = styled.h3`margin:0 0 8px; font-size:16px; font-weight:700; color:#0F172A;`;
-const ConfirmBody = styled.p`margin:0 0 20px; font-size:13px; color:#475569; line-height:1.5;`;
+const ConfirmTitle = styled.h3`margin:0 0 8px; font-size:1rem; font-weight:700; color:#0F172A;`;
+const ConfirmBody = styled.p`margin:0 0 20px; font-size:0.8125rem; color:#475569; line-height:1.5;`;
 const ConfirmRow = styled.div`display:flex; gap:8px; justify-content:flex-end;`;
 const ConfirmCancel = styled.button`
   padding:8px 14px; background:#FFFFFF; color:#334155; border:1px solid #CBD5E1; border-radius:8px;
-  font-size:13px; font-weight:600; cursor:pointer;
+  font-size:0.8125rem; font-weight:600; cursor:pointer;
   &:hover{ background:#F8FAFC; border-color:#94A3B8; }
 `;
 const ConfirmDanger = styled.button`
   padding:8px 14px; background:#DC2626; color:#FFFFFF; border:none; border-radius:8px;
-  font-size:13px; font-weight:700; cursor:pointer;
+  font-size:0.8125rem; font-weight:700; cursor:pointer;
   &:hover{ background:#B91C1C; }
 `;
 
@@ -1120,12 +1120,12 @@ const FilterSegBtn = styled.button<{ $active: boolean }>`
   background: ${p => p.$active ? '#FFFFFF' : 'transparent'};
   color: ${p => p.$active ? '#0F766E' : '#64748B'};
   border-radius: 6px;
-  font-size: 12px; font-weight: 600; cursor: pointer;
+  font-size: 0.75rem; font-weight: 600; cursor: pointer;
   box-shadow: ${p => p.$active ? '0 1px 2px rgba(0,0,0,0.06)' : 'none'};
   transition: color 0.15s, background 0.15s;
   &:hover { color: #0F766E; }
   &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
-  @media (max-width: 640px) { padding: 6px 10px; font-size: 11px; }
+  @media (max-width: 640px) { padding: 6px 10px; font-size: 0.6875rem; }
 `;
 
 // Timeline
@@ -1134,11 +1134,11 @@ const TimelineHeader = styled.div`
   display: grid; grid-template-columns: 200px 1fr; gap: 12px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #E2E8F0;
   @media (max-width: 768px) { grid-template-columns: 120px 1fr; gap: 8px; }
 `;
-const TimelineHeadLabel = styled.div`font-size: 12px; color: #64748B; font-weight: 600;`;
+const TimelineHeadLabel = styled.div`font-size: 0.75rem; color: #64748B; font-weight: 600;`;
 const TimelineScale = styled.div`position: relative; height: 20px;`;
 const ScaleTick = styled.div`position: absolute; top: 0; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 2px;`;
 const ScaleTickBar = styled.div`width: 1px; height: 6px; background: #CBD5E1;`;
-const ScaleTickLabel = styled.div`font-size: 11px; color: #64748B; white-space: nowrap;`;
+const ScaleTickLabel = styled.div`font-size: 0.6875rem; color: #64748B; white-space: nowrap;`;
 const ScaleGridLine = styled.div`position: absolute; top: 0; bottom: 0; width: 1px; background: #F1F5F9; z-index: 0;`;
 const TimelineRow = styled.div<{ $task?: boolean }>`
   display: grid;
@@ -1149,7 +1149,7 @@ const TimelineRow = styled.div<{ $task?: boolean }>`
   ${(p) => p.$task && 'background: #FBFCFD;'}
   @media (max-width: 768px) { grid-template-columns: 120px 1fr; gap: 8px; }
 `;
-const TimelineRowLabel = styled.div`display: flex; align-items: center; gap: 4px; font-size: 13px; color: #0F172A;`;
+const TimelineRowLabel = styled.div`display: flex; align-items: center; gap: 4px; font-size: 0.8125rem; color: #0F172A;`;
 const ExpandBtn = styled.button`
   flex: 0 0 auto;
   width: 20px; height: 20px;
@@ -1173,7 +1173,7 @@ const ProjectNameBtn = styled.button`
   border-radius: 0 4px 4px 0;
   transition: background 0.15s;
   strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  small { color: #64748B; font-size: 11px; flex-shrink: 0; }
+  small { color: #64748B; font-size: 0.6875rem; flex-shrink: 0; }
   &:hover { background: #F8FAFC; }
   &:focus-visible { outline: none; background: #F0FDFA; box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.25); }
 `;
@@ -1183,9 +1183,9 @@ const TaskNameLabel = styled.div`
   padding: 2px 8px;
   border-left: 3px solid transparent;
   color: #475569;
-  font-size: 12px;
+  font-size: 0.75rem;
   span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  small { color: #94A3B8; font-size: 10px; flex-shrink: 0; }
+  small { color: #94A3B8; font-size: 0.625rem; flex-shrink: 0; }
 `;
 const TimelineTrack = styled.div`position: relative; height: 24px; background: #F8FAFC; border-radius: 4px; overflow: hidden;`;
 const TodayMarker = styled.div`position: absolute; top: 0; bottom: 0; width: 2px; background: #F43F5E; z-index: 2; cursor: help;`;
@@ -1196,10 +1196,10 @@ const BarFill = styled.div`height: 100%; background: rgba(255,255,255,0.45);`;
 // Calendar
 const CalendarWrap = styled.div`background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px;`;
 const CalendarHeader = styled.div`display: flex; align-items: center; gap: 12px; margin-bottom: 12px;`;
-const MonthNavBtn = styled.button`padding: 6px 12px; border: 1px solid #E2E8F0; border-radius: 6px; background: #FFFFFF; color: #0F172A; cursor: pointer; font-size: 14px; &:hover { background: #F8FAFC; }`;
-const MonthLabel = styled.div`font-size: 16px; font-weight: 700; color: #0F172A;`;
+const MonthNavBtn = styled.button`padding: 6px 12px; border: 1px solid #E2E8F0; border-radius: 6px; background: #FFFFFF; color: #0F172A; cursor: pointer; font-size: 0.875rem; &:hover { background: #F8FAFC; }`;
+const MonthLabel = styled.div`font-size: 1rem; font-weight: 700; color: #0F172A;`;
 const CalendarGrid = styled.div`display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: #E2E8F0; border: 1px solid #E2E8F0; border-radius: 8px; overflow: hidden;`;
-const CalWeekday = styled.div`padding: 8px; background: #F8FAFC; text-align: center; font-size: 12px; font-weight: 600; color: #64748B;`;
+const CalWeekday = styled.div`padding: 8px; background: #F8FAFC; text-align: center; font-size: 0.75rem; font-weight: 600; color: #64748B;`;
 const CalCell = styled.div<{ $empty?: boolean; $today?: boolean }>`
   min-height: 96px;
   padding: 6px;
@@ -1214,12 +1214,12 @@ const CalCell = styled.div<{ $empty?: boolean; $today?: boolean }>`
     padding: 4px;
   }
 `;
-const CalDayNum = styled.div<{ $today?: boolean }>`font-size: 12px; font-weight: ${p => p.$today ? 700 : 500}; color: ${p => p.$today ? '#0F766E' : '#334155'}; margin-bottom: 2px;`;
+const CalDayNum = styled.div<{ $today?: boolean }>`font-size: 0.75rem; font-weight: ${p => p.$today ? 700 : 500}; color: ${p => p.$today ? '#0F766E' : '#334155'}; margin-bottom: 2px;`;
 const CalEvent = styled.div<{ $bg?: string; $fg?: string }>`
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 10px;
+  font-size: 0.625rem;
   padding: 2px 6px;
   border-radius: 4px;
   background: ${p => p.$bg || '#F1F5F9'};
@@ -1240,4 +1240,4 @@ const CalEventText = styled.span`
   text-overflow: ellipsis;
   white-space: nowrap;
 `;
-const CalMore = styled.div`font-size: 10px; color: #94A3B8; padding: 2px 6px;`;
+const CalMore = styled.div`font-size: 0.625rem; color: #94A3B8; padding: 2px 6px;`;

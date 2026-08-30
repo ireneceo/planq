@@ -306,13 +306,13 @@ const Sheet = styled.div`
   @media (min-width: 641px) { border-radius: 16px; padding-bottom: 20px; }
 `;
 const Head = styled.div`display: flex; align-items: center; justify-content: space-between;`;
-const Title = styled.h3`margin: 0; font-size: 15px; font-weight: 700; color: #0F172A;`;
+const Title = styled.h3`margin: 0; font-size: 0.9375rem; font-weight: 700; color: #0F172A;`;
 const CloseBtn = styled.button`
   /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */
   @media (max-width: 640px) { min-width: 44px; min-height: 44px; }
 
   width: 32px; height: 32px; border: none; background: none; cursor: pointer;
-  color: #94A3B8; font-size: 14px; border-radius: 8px;
+  color: #94A3B8; font-size: 0.875rem; border-radius: 8px;
   &:hover { background: #F1F5F9; color: #334155; }
 `;
 const Body = styled.div<{ $left?: boolean }>`
@@ -320,9 +320,9 @@ const Body = styled.div<{ $left?: boolean }>`
   align-items: ${(p) => (p.$left ? 'stretch' : 'center')};
   padding: 18px 0 6px;
 `;
-const Hint = styled.p`margin: 0; font-size: 13px; color: #64748B; line-height: 1.6; text-align: center;`;
+const Hint = styled.p`margin: 0; font-size: 0.8125rem; color: #64748B; line-height: 1.6; text-align: center;`;
 const Examples = styled.div`display: flex; flex-direction: column; gap: 4px; align-items: center;`;
-const Ex = styled.span`font-size: 12px; color: #94A3B8;`;
+const Ex = styled.span`font-size: 0.75rem; color: #94A3B8;`;
 const MicBtn = styled.button`
   width: 72px; height: 72px; border-radius: 50%; border: none; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
@@ -333,24 +333,24 @@ const MicBtn = styled.button`
   &:focus-visible { outline: 3px solid #F43F5E; outline-offset: 3px; }
 `;
 const MicIcon = styled.svg`width: 30px; height: 30px;`;
-const MicLabel = styled.span`font-size: 12px; font-weight: 600; color: #64748B;`;
+const MicLabel = styled.span`font-size: 0.75rem; font-weight: 600; color: #64748B;`;
 const Pulse = styled.div`
   width: 64px; height: 64px; border-radius: 50%;
   background: linear-gradient(135deg, #F43F5E 0%, #BE185D 100%);
   animation: ${pulse} 1.2s ease-in-out infinite;
   @media (prefers-reduced-motion: reduce) { animation: none; }
 `;
-const RecText = styled.div`font-size: 14px; font-weight: 700; color: #0F172A;`;
-const Remain = styled.div`font-size: 12px; color: #94A3B8;`;
+const RecText = styled.div`font-size: 0.875rem; font-weight: 700; color: #0F172A;`;
+const Remain = styled.div`font-size: 0.75rem; color: #94A3B8;`;
 const Spinner = styled.div`
   width: 32px; height: 32px; border-radius: 50%;
   border: 3px solid #E2E8F0; border-top-color: #14B8A6;
   animation: ${spin} 0.8s linear infinite;
   @media (prefers-reduced-motion: reduce) { animation-duration: 2.5s; }
 `;
-const ErrText = styled.div`font-size: 13px; color: #B45309; text-align: center; line-height: 1.6;`;
+const ErrText = styled.div`font-size: 0.8125rem; color: #B45309; text-align: center; line-height: 1.6;`;
 const Said = styled.div`
-  font-size: 13px; color: #475569; line-height: 1.6;
+  font-size: 0.8125rem; color: #475569; line-height: 1.6;
   padding: 10px 12px; background: #F8FAFC; border-radius: 10px;
 `;
 const Card = styled.div`
@@ -365,12 +365,12 @@ const KIND_TONE: Record<Kind, { bg: string; fg: string }> = {
 };
 const KindChip = styled.span<{ $kind: Kind }>`
   align-self: flex-start; padding: 1px 8px; border-radius: 999px;
-  font-size: 11px; font-weight: 700;
+  font-size: 0.6875rem; font-weight: 700;
   background: ${(p) => KIND_TONE[p.$kind].bg}; color: ${(p) => KIND_TONE[p.$kind].fg};
 `;
-const CardTitle = styled.div`font-size: 14px; font-weight: 600; color: #0F172A; line-height: 1.5;`;
+const CardTitle = styled.div`font-size: 0.875rem; font-weight: 600; color: #0F172A; line-height: 1.5;`;
 const CardMeta = styled.div`display: flex; gap: 8px; flex-wrap: wrap;`;
-const Meta = styled.span`font-size: 11px; color: #94A3B8;`;
-const CardDetail = styled.div`font-size: 12px; color: #64748B; line-height: 1.6;`;
+const Meta = styled.span`font-size: 0.6875rem; color: #94A3B8;`;
+const CardDetail = styled.div`font-size: 0.75rem; color: #64748B; line-height: 1.6;`;
 const Row = styled.div`display: flex; gap: 8px;`;
-const FootHint = styled.div`font-size: 11px; color: #94A3B8; text-align: center;`;
+const FootHint = styled.div`font-size: 0.6875rem; color: #94A3B8; text-align: center;`;

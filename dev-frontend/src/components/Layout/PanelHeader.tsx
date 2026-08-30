@@ -96,7 +96,7 @@ const Bar = styled.div`
 `;
 
 export const PanelTitle = styled.h1`
-  font-size: 18px;
+  font-size: 1.125rem;
   font-weight: 700;
   color: #0f172a;
   margin: 0;
@@ -107,7 +107,7 @@ export const PanelTitle = styled.h1`
 `;
 
 const SubTitleH2 = styled.h2<{ $expanded: boolean; $clamp: boolean }>`
-  font-size: 16px;
+  font-size: 1rem;
   font-weight: 700;
   color: #0f172a;
   margin: 0;
@@ -176,7 +176,7 @@ export function PanelSubTitle({ children, className, ...rest }: {
 }
 
 export const PanelMetaTitle = styled.h2`
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 700;
   color: #0f172a;
   margin: 0;

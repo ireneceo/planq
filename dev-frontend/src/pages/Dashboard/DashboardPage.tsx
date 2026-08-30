@@ -267,12 +267,12 @@ const NotificationsPreview: React.FC<{ navTo: (p: string) => () => void }> = ({ 
 };
 
 const NotifDesc = styled.div`
-  font-size: 12px; color: #64748B; line-height: 1.45;
+  font-size: 0.75rem; color: #64748B; line-height: 1.45;
   overflow: hidden; text-overflow: ellipsis; display: -webkit-box;
   -webkit-line-clamp: 1; -webkit-box-orient: vertical;
   margin-top: 2px;
 `;
-const NotifMeta = styled.div` font-size: 11px; color: #94A3B8; margin-top: 3px; `;
+const NotifMeta = styled.div` font-size: 0.6875rem; color: #94A3B8; margin-top: 3px; `;
 const NotifUnreadDot = styled.span`
   width: 8px; height: 8px; border-radius: 50%; background: #14B8A6; flex-shrink: 0; margin-top: 8px;
 `;
@@ -317,7 +317,7 @@ const ScopeSwitch = styled.div`
 const ScopeBtn = styled.button<{ $active: boolean }>`
   all: unset; cursor: pointer; box-sizing: border-box;
   padding: 6px 14px; border-radius: 8px;
-  font-size: 13px; font-weight: 600;
+  font-size: 0.8125rem; font-weight: 600;
   color: ${(p) => (p.$active ? '#0f172a' : '#64748b')};
   background: ${(p) => (p.$active ? '#ffffff' : 'transparent')};
   box-shadow: ${(p) => (p.$active ? '0 1px 2px rgba(15,23,42,0.08)' : 'none')};
@@ -346,20 +346,20 @@ const InboxCard = styled.div`
   @media (max-width: 1024px) { grid-column: 1 / -1; }
 `;
 const InboxLabel = styled.div`
-  font-size: 11px; font-weight: 700; color: #0F766E;
+  font-size: 0.6875rem; font-weight: 700; color: #0F766E;
   text-transform: uppercase; letter-spacing: 0.4px;
 `;
 const InboxCount = styled.div<{ $highlight: boolean }>`
-  font-size: 32px; font-weight: 700; line-height: 1;
+  font-size: 2rem; font-weight: 700; line-height: 1;
   color: ${(p) => (p.$highlight ? '#0F766E' : '#94A3B8')};
 `;
 const InboxBreakdown = styled.div`display: flex; gap: 6px; flex-wrap: wrap; min-height: 22px; align-items: center;`;
 const Pill = styled.span<{ $kind: 'urgent' | 'today' }>`
   display: inline-flex; align-items: center; padding: 2px 10px;
-  font-size: 11px; font-weight: 700; border-radius: 999px;
+  font-size: 0.6875rem; font-weight: 700; border-radius: 999px;
   ${(p) => (p.$kind === 'urgent' ? 'background:#FEE2E2;color:#B91C1C;' : 'background:#FEF3C7;color:#92400E;')}
 `;
-const Muted = styled.span`font-size: 12px; color: #94A3B8;`;
+const Muted = styled.span`font-size: 0.75rem; color: #94A3B8;`;
 
 const ActionTile = styled.button`
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -377,7 +377,7 @@ const TileIcon = styled.span`
   color: #0F766E; background: #F0FDFA;
   ${ActionTile}:hover & { background: #FFFFFF; }
 `;
-const TileLabel = styled.span`font-size: 13px; font-weight: 600;`;
+const TileLabel = styled.span`font-size: 0.8125rem; font-weight: 600;`;
 
 // 박스 안 박스 제거 — Section 자체 wrapper 없이 헤더 + flat list
 const SectionRow = styled.div`
@@ -385,12 +385,12 @@ const SectionRow = styled.div`
   margin: 0 0 8px 0;
 `;
 const SectionTitle = styled.h2`
-  font-size: 13px; font-weight: 700; color: #0F172A;
+  font-size: 0.8125rem; font-weight: 700; color: #0F172A;
   text-transform: uppercase; letter-spacing: 0.4px; margin: 0;
 `;
 const SectionLink = styled.button`
   background: transparent; border: none; cursor: pointer;
-  font-size: 12px; font-weight: 600; color: #0F766E;
+  font-size: 0.75rem; font-weight: 600; color: #0F766E;
   padding: 4px 8px; border-radius: 6px;
   &:hover { background: #F0FDFA; }
   &:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,0.3); }
@@ -408,7 +408,7 @@ const FlatRow = styled.div<{ $clickable?: boolean }>`
 `;
 const FlatEmpty = styled.div`
   background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px;
-  padding: 28px 16px; text-align: center; color: #94A3B8; font-size: 13px;
+  padding: 28px 16px; text-align: center; color: #94A3B8; font-size: 0.8125rem;
 `;
 const PriorityDot = styled.span<{ $priority: string }>`
   width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
@@ -418,13 +418,13 @@ const PriorityDot = styled.span<{ $priority: string }>`
     p.$priority === 'waiting' ? '#94A3B8' : '#14B8A6'};
 `;
 const RowMain = styled.div`flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;`;
-const RowSubject = styled.div`font-size: 13px; font-weight: 600; color: #0F172A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
-const RowMeta = styled.div`font-size: 11px; color: #64748B; display: flex; gap: 4px; flex-wrap: wrap;`;
+const RowSubject = styled.div`font-size: 0.8125rem; font-weight: 600; color: #0F172A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
+const RowMeta = styled.div`font-size: 0.6875rem; color: #64748B; display: flex; gap: 4px; flex-wrap: wrap;`;
 const Dim = styled.span`color: #94A3B8;`;
-const RowDue = styled.span`font-size: 11px; color: #475569; font-weight: 600; flex-shrink: 0; font-variant-numeric: tabular-nums;`;
+const RowDue = styled.span`font-size: 0.6875rem; color: #475569; font-weight: 600; flex-shrink: 0; font-variant-numeric: tabular-nums;`;
 const EventDate = styled.div`display: flex; flex-direction: column; align-items: flex-start; min-width: 50px; flex-shrink: 0;`;
-const EventDay = styled.span`font-size: 11px; font-weight: 700; color: #0F172A; font-variant-numeric: tabular-nums;`;
-const EventTime = styled.span`font-size: 10px; color: #64748B; font-variant-numeric: tabular-nums;`;
+const EventDay = styled.span`font-size: 0.6875rem; font-weight: 700; color: #0F172A; font-variant-numeric: tabular-nums;`;
+const EventTime = styled.span`font-size: 0.625rem; color: #64748B; font-variant-numeric: tabular-nums;`;
 
 const Skeleton = styled.div`
   display: flex; flex-direction: column;

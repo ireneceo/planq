@@ -26,12 +26,12 @@ export const Header = styled.div`
 `;
 
 export const Title = styled.h1`
-  font-size: 24px;
+  font-size: 1.5rem;
   font-weight: 700;
   color: #0A2540;
   margin: 0;
   line-height: 1;
-  @media (max-width: 768px) { font-size: 20px; }
+  @media (max-width: 768px) { font-size: 1.25rem; }
 `;
 
 export const ActionSection = styled.div`
@@ -47,7 +47,7 @@ export const Content = styled.div`
 export const Button = styled.button<{ variant?: 'primary' | 'secondary' | 'danger' | 'danger-outline' }>`
   padding: 12px 20px;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;

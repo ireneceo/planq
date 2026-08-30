@@ -68,9 +68,9 @@ const Item = styled.div<{$active?:boolean}>`
 `;
 const Icon = styled.div`
   width:28px;height:28px;display:flex;align-items:center;justify-content:center;
-  background:#F1F5F9;color:#475569;font-size:11px;font-weight:700;border-radius:6px;flex-shrink:0;
+  background:#F1F5F9;color:#475569;font-size:0.6875rem;font-weight:700;border-radius:6px;flex-shrink:0;
 `;
 const Meta = styled.div`display:flex;flex-direction:column;gap:1px;min-width:0;`;
-const Title = styled.span`font-size:13px;font-weight:600;color:#0F172A;`;
-const Desc = styled.span`font-size:11px;color:#94A3B8;`;
-const Empty = styled.div`padding:10px;font-size:12px;color:#94A3B8;`;
+const Title = styled.span`font-size:0.8125rem;font-weight:600;color:#0F172A;`;
+const Desc = styled.span`font-size:0.6875rem;color:#94A3B8;`;
+const Empty = styled.div`padding:10px;font-size:0.75rem;color:#94A3B8;`;

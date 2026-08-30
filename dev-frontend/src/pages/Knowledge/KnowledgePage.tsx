@@ -975,7 +975,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                         for (const c of docCats(detail)) if (!seen.has(c)) { seen.add(c); opts.push({ value: c, label: c }); }
                         return opts;
                       })()} />
-                    {catError && <span style={{ fontSize: 11, color: '#B91C1C' }}>{catError}</span>}
+                    {catError && <span style={{ fontSize: '0.6875rem', color: '#B91C1C' }}>{catError}</span>}
                   </MetaEditWrap>
                   {/* N+65 — 상세 패널 visibility 통합 (등록 모달과 동일 VisibilityField). 옛 scope/project/client/read_policy 4 row 폐지. */}
                   <MetaLabel>{t('drawer.visibility', { defaultValue: '공개' }) as string}</MetaLabel>
@@ -1755,7 +1755,7 @@ const DrawerTitleEdit: React.FC<{
    제목 편집은 우측 패널의 DrawerTitleEdit 한 곳. 죽은 코드를 남기면 다음 사람이 다시 쓴다. */
 
 const DrawerTitleInput = styled.input`
-  font-size: 16px; font-weight: 700; color: #0F172A;
+  font-size: 1rem; font-weight: 700; color: #0F172A;
   padding: 4px 8px;
   border: 1px solid #14B8A6; border-radius: 6px;
   background: #FFFFFF; width: 100%;
@@ -1820,7 +1820,7 @@ const DrawerBodyEdit: React.FC<{
 };
 
 const BodyClickable = styled.div`
-  font-size: 13px; color: #334155; line-height: 1.6;
+  font-size: 0.8125rem; color: #334155; line-height: 1.6;
   word-break: break-word; overflow-wrap: anywhere;
   padding: 10px 12px; background: #F8FAFC; border-radius: 6px;
   cursor: text;
@@ -1894,13 +1894,13 @@ const TagsClickable = styled.div`
 `;
 const TagChip = styled.span`
   display: inline-flex; align-items: center;
-  padding: 2px 8px; font-size: 11px; font-weight: 600; color: #0F766E;
+  padding: 2px 8px; font-size: 0.6875rem; font-weight: 600; color: #0F766E;
   background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 999px;
 `;
 const TagsInput = styled.input`
   width: 100%; padding: 6px 10px;
   border: 1px solid #14B8A6; border-radius: 6px;
-  font-size: 12px; color: #0F172A; font-family: inherit;
+  font-size: 0.75rem; color: #0F172A; font-family: inherit;
   &:focus { outline: none; box-shadow: 0 0 0 2px rgba(20,184,166,0.2); }
 `;
 // N+72-5 — BodyTextarea 폐기 (RichEditor 통합)
@@ -1925,7 +1925,7 @@ const DrawerColHeadRow = styled.div`display: flex; align-items: center; gap: 6px
 // 프로젝트 규칙: raw <select> 금지 — PlanQSelect 로 통일 (health-check frontend 항목).
 const DrawerColTypeSel = styled.div`flex-shrink: 0; min-width: 96px;`;
 const DrawerColNameInput = styled.input`
-  font-size: 12px; font-weight: 600; color: #334155;
+  font-size: 0.75rem; font-weight: 600; color: #334155;
   border: 1px solid transparent; border-radius: 6px;
   padding: 5px 8px; background: #F8FAFC; width: 100%;
   /* min-width:0 이었다 — 그래서 폭 0 까지 짜부라졌다(#387). 바닥을 준다. */
@@ -2186,7 +2186,7 @@ const InlineValue = styled.span`
 // #327 — 긴 텍스트 편집기(여러 줄). 한 줄 input 으로 편집하면 줄바꿈이 사라진다.
 const InlineTextarea = styled.textarea<{ $err?: boolean }>`
   width: 100%; box-sizing: border-box;
-  font-family: inherit; font-size: 13px; line-height: 1.6; color: #0F172A;
+  font-family: inherit; font-size: 0.8125rem; line-height: 1.6; color: #0F172A;
   padding: 6px 8px; border-radius: 4px; resize: vertical;
   border: 1px solid ${p => (p.$err ? '#F43F5E' : '#14B8A6')};
   background: #fff;
@@ -2197,7 +2197,7 @@ const InlineTextarea = styled.textarea<{ $err?: boolean }>`
 const SecretBtn = styled.button`
   flex-shrink: 0;
   background: none; border: 1px solid #E2E8F0; border-radius: 4px;
-  padding: 1px 6px; font-size: 11px; font-weight: 600; font-family: inherit;
+  padding: 1px 6px; font-size: 0.6875rem; font-weight: 600; font-family: inherit;
   color: #64748B; cursor: pointer; transition: all 0.12s;
   &:hover { background: #F0FDFA; color: #0F766E; border-color: #CCFBF1; }
   &:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,0.3); }
@@ -2210,14 +2210,14 @@ const SecretRow = styled.div`
 const SecretEditRow = styled.div`display: flex; align-items: center; gap: 6px; max-width: 100%;`;
 const SecretText = styled.span<{ $masked: boolean }>`
   flex: 1; min-width: 0;
-  color: #334155; font-weight: 500; font-size: 13px;
+  color: #334155; font-weight: 500; font-size: 0.8125rem;
   letter-spacing: ${p => (p.$masked ? '1px' : 'normal')};
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 `;
 const SecretValueBtn = styled.button`
   flex: 1; min-width: 0; text-align: left;
   background: none; border: 1px dashed transparent; border-radius: 4px;
-  padding: 2px 8px; font-family: inherit; font-size: 13px; font-weight: 500; color: #334155;
+  padding: 2px 8px; font-family: inherit; font-size: 0.8125rem; font-weight: 500; color: #334155;
   cursor: text; overflow-wrap: anywhere;
   &:hover { background: #F0FDFA; color: #0F766E; border-color: #CCFBF1; }
 `;
@@ -2232,14 +2232,14 @@ const LinkRow = styled.div`
 `;
 const ValueLink = styled.a`
   flex: 1; min-width: 0;
-  color: #0F766E; font-weight: 500; font-size: 13px; text-decoration: none;
+  color: #0F766E; font-weight: 500; font-size: 0.8125rem; text-decoration: none;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   &:hover { text-decoration: underline; }
 `;
 const InlineInput = styled.input<{ $err?: boolean }>`
   height: 22px; padding: 0 6px;
   border: 1px solid ${p => (p.$err ? '#EF4444' : '#14B8A6')}; border-radius: 4px;
-  font-size: 12px; color: #0F172A; background: #fff;
+  font-size: 0.75rem; color: #0F172A; background: #fff;
   max-width: 200px;
   &:focus { outline: none; box-shadow: 0 0 0 2px ${p => (p.$err ? 'rgba(239,68,68,0.2)' : 'rgba(20,184,166,0.2)')}; }
 `;
@@ -2249,22 +2249,22 @@ const NewBtn = styled.button`
   height: 32px; padding: 0 14px;
   background: #14B8A6; color: #FFFFFF;
   border: none; border-radius: 6px;
-  font-size: 13px; font-weight: 600; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   white-space: nowrap;
   &:hover { background: #0D9488; }
-  @media (max-width: 640px) { height: 36px; font-size: 12px; padding: 0 12px; }
+  @media (max-width: 640px) { height: 36px; font-size: 0.75rem; padding: 0 12px; }
 `;
 const CsvBtn = styled.button`
   display: inline-flex; align-items: center; gap: 6px;
   height: 32px; padding: 0 12px;
   background: #FFFFFF; color: #475569;
   border: 1px solid #CBD5E1; border-radius: 6px;
-  font-size: 13px; font-weight: 600; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   white-space: nowrap;
   transition: all 0.15s;
   &:hover:not(:disabled) { background: #F1F5F9; border-color: #94A3B8; color: #0F172A; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
-  @media (max-width: 640px) { height: 36px; font-size: 12px; padding: 0 10px; gap: 4px; }
+  @media (max-width: 640px) { height: 36px; font-size: 0.75rem; padding: 0 10px; gap: 4px; }
 `;
 // AI 자동 추가 버튼 — 별 아이콘 + teal accent. Q docs PostAiModal "AI 로 시작" 패턴 카피.
 const CsvUploadBtn = styled.button`
@@ -2272,11 +2272,11 @@ const CsvUploadBtn = styled.button`
   height: 32px; padding: 0 12px;
   background: #FFFFFF; color: #475569;
   border: 1px solid #CBD5E1; border-radius: 6px;
-  font-size: 13px; font-weight: 600; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   white-space: nowrap;
   transition: all 0.15s;
   &:hover { background: #F1F5F9; border-color: #94A3B8; color: #0F172A; }
-  @media (max-width: 640px) { height: 36px; font-size: 12px; padding: 0 10px; gap: 4px; }
+  @media (max-width: 640px) { height: 36px; font-size: 0.75rem; padding: 0 10px; gap: 4px; }
 `;
 
 const Loading = styled.div`padding: 40px; text-align: center; color: #94A3B8;`;
@@ -2289,7 +2289,7 @@ const DupHint = styled.div`
   margin-top: 4px;
   padding: 6px 10px;
   background: #FEF3C7; border: 1px solid #FCD34D;
-  border-radius: 6px; font-size: 12px; color: #92400E;
+  border-radius: 6px; font-size: 0.75rem; color: #92400E;
 `;
 // N+65 — 옛 PolicyRadio* / ScopeSubField / SubLabel styled 제거 (VisibilityField 로 통합)
 
@@ -2303,7 +2303,7 @@ const CustomColRow = styled.div`
 const CustomColInput = styled.input`
   height: 32px; padding: 0 10px;
   border: 1px solid #E2E8F0; border-radius: 6px;
-  font-size: 12px; color: #0F172A;
+  font-size: 0.75rem; color: #0F172A;
   &:focus { outline: none; border-color: #14B8A6; }
 `;
 const CustomColTypeSel = styled.div``;
@@ -2313,21 +2313,21 @@ const ShowInListToggle = styled.button<{ $on: boolean }>`
   background: ${p => p.$on ? '#F0FDFA' : '#F1F5F9'};
   color: ${p => p.$on ? '#0F766E' : '#94A3B8'};
   border: 1px solid ${p => p.$on ? '#CCFBF1' : '#E2E8F0'};
-  border-radius: 6px; cursor: pointer; font-size: 11px;
+  border-radius: 6px; cursor: pointer; font-size: 0.6875rem;
   &:hover { background: ${p => p.$on ? '#CCFBF1' : '#E2E8F0'}; }
 `;
 const RemoveColBtn = styled.button`
   width: 24px; height: 24px;
   display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: none; border-radius: 4px;
-  color: #94A3B8; cursor: pointer; font-size: 14px;
+  color: #94A3B8; cursor: pointer; font-size: 0.875rem;
   &:hover { background: #FEE2E2; color: #DC2626; }
 `;
 const AddColBtn = styled.button`
   height: 32px; padding: 0 12px;
   background: #F0FDFA; color: #0F766E;
   border: 1px solid #CCFBF1; border-radius: 6px;
-  font-size: 12px; font-weight: 600; cursor: pointer;
+  font-size: 0.75rem; font-weight: 600; cursor: pointer;
   align-self: flex-start;
   &:hover { background: #14B8A6; color: #fff; }
 `;
@@ -2337,7 +2337,7 @@ const ActionErrorBanner = styled.div`
   display: flex; align-items: center; gap: 8px;
   margin-bottom: 12px; padding: 10px 14px;
   background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px;
-  color: #B91C1C; font-size: 13px; font-weight: 500; cursor: pointer;
+  color: #B91C1C; font-size: 0.8125rem; font-weight: 500; cursor: pointer;
 `;
 const Toolbar = styled.div`
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
@@ -2352,7 +2352,7 @@ const SelectToggle = styled.button<{ $on: boolean }>`
   background: ${p => p.$on ? '#14B8A6' : '#fff'};
   color: ${p => p.$on ? '#fff' : '#0F172A'};
   border: 1px solid ${p => p.$on ? '#14B8A6' : '#CBD5E1'};
-  border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
+  border-radius: 8px; font-size: 0.75rem; font-weight: 600; cursor: pointer;
   &:hover { border-color: ${p => p.$on ? '#1E293B' : '#94A3B8'}; }
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
 `;
@@ -2360,7 +2360,7 @@ const BulkDeleteBtn = styled.button`
   height: 36px; padding: 0 14px;
   background: #FFFFFF; color: #B91C1C;
   border: 1px solid #FECACA; border-radius: 8px;
-  font-size: 12px; font-weight: 600; cursor: pointer;
+  font-size: 0.75rem; font-weight: 600; cursor: pointer;
   &:hover { background: #FEF2F2; border-color: #DC2626; }
 `;
 // N+93 — 번들 공유 (#6)
@@ -2368,7 +2368,7 @@ const BulkShareBtn = styled.button`
   height: 36px; padding: 0 14px;
   background: #F0FDFA; color: #0F766E;
   border: 1px solid #14B8A6; border-radius: 8px;
-  font-size: 12px; font-weight: 600; cursor: pointer;
+  font-size: 0.75rem; font-weight: 600; cursor: pointer;
   transition: background 0.15s;
   &:hover:not(:disabled) { background: #CCFBF1; }
   &:disabled { opacity: 0.6; cursor: default; }
@@ -2384,23 +2384,23 @@ const BundleCard = styled.div`
   box-shadow: 0 12px 32px rgba(15,23,42,0.18);
 `;
 const BundleHead = styled.div`display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;`;
-const BundleTitle = styled.h3`margin: 0; font-size: 16px; font-weight: 700; color: #0F172A;`;
-const BundleClose = styled.button`border: none; background: transparent; font-size: 22px; line-height: 1; color: #94A3B8; cursor: pointer; &:hover { color: #0F172A; }`;
-const BundleDesc = styled.div`font-size: 13px; color: #64748B; line-height: 1.6; margin-bottom: 16px;`;
+const BundleTitle = styled.h3`margin: 0; font-size: 1rem; font-weight: 700; color: #0F172A;`;
+const BundleClose = styled.button`border: none; background: transparent; font-size: 1.375rem; line-height: 1; color: #94A3B8; cursor: pointer; &:hover { color: #0F172A; }`;
+const BundleDesc = styled.div`font-size: 0.8125rem; color: #64748B; line-height: 1.6; margin-bottom: 16px;`;
 const BundleLinkRow = styled.div`display: flex; gap: 8px; margin-bottom: 12px;`;
 const BundleLinkInput = styled.input`
   flex: 1; min-width: 0; height: 40px; padding: 0 12px;
-  border: 1px solid #E2E8F0; border-radius: 8px; font-size: 13px; color: #334155; background: #F8FAFC;
+  border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.8125rem; color: #334155; background: #F8FAFC;
   &:focus { outline: none; border-color: #14B8A6; }
 `;
 const BundleCopyBtn = styled.button`
   height: 40px; padding: 0 16px; white-space: nowrap;
   background: #14B8A6; color: #FFFFFF; border: none; border-radius: 8px;
-  font-size: 13px; font-weight: 600; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   &:hover { background: #0D9488; }
 `;
 const BundleOpen = styled.a`
-  display: inline-block; font-size: 13px; font-weight: 600; color: #0D9488; text-decoration: none;
+  display: inline-block; font-size: 0.8125rem; font-weight: 600; color: #0D9488; text-decoration: none;
   &:hover { text-decoration: underline; }
 `;
 const RowCheckbox = styled.input`
@@ -2435,11 +2435,11 @@ const TreeRow = styled.button<{ $selected?: boolean }>`
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: -2px; }
 `;
 const TreeName = styled.div`
-  min-width: 0; font-size: 12px; font-weight: 500;
+  min-width: 0; font-size: 0.75rem; font-weight: 500;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
 const TreeCount = styled.span`
-  font-size: 10px; color: #94A3B8; font-weight: 600;
+  font-size: 0.625rem; color: #94A3B8; font-weight: 600;
   min-width: 22px; padding: 1px 6px;
   background: #F1F5F9; border-radius: 999px;
   text-align: center; justify-self: end;
@@ -2449,7 +2449,7 @@ const MainArea = styled.div`display: flex; flex-direction: column; gap: 10px; mi
 // 커스텀 항목 — Row 의 ColCustomArea 안에서 자동 배치
 const CustomItem = styled.span`
   display: inline-flex; align-items: center; gap: 4px;
-  white-space: nowrap; font-size: 12px;
+  white-space: nowrap; font-size: 0.75rem;
   min-width: 0; max-width: 260px;  /* #187 — 개별 항목 폭 제한 (라벨+값이 옆 컬럼 침범 방지) */
   overflow: hidden;                /* 링크 값이 제 폭을 넘어 흘러나오던 것 차단 (Irene 2026-08-24) */
 `;
@@ -2509,7 +2509,7 @@ const ColCustomArea = styled.div`
 const ColMeta = styled.div`
   display: flex; align-items: center; gap: 6px;
   flex-wrap: wrap; justify-content: flex-end;
-  font-size: 11px; color: #94A3B8;
+  font-size: 0.6875rem; color: #94A3B8;
   @media (max-width: 900px) { display: none; }
 `;
 const CategoryChip = styled.span`
@@ -2517,10 +2517,10 @@ const CategoryChip = styled.span`
   padding: 2px 8px;
   background: #F0FDFA; color: #0F766E;
   border-radius: 999px;
-  font-size: 11px; font-weight: 600;
+  font-size: 0.6875rem; font-weight: 600;
 `;
 const MetaText = styled.span`
-  font-size: 11px; color: #94A3B8;
+  font-size: 0.6875rem; color: #94A3B8;
 `;
 // 우측 끝: 권한·상태 chip
 const ColRight = styled.div`
@@ -2529,12 +2529,12 @@ const ColRight = styled.div`
 `;
 const PolicyChip = styled.span<{ $kind: 'owner' }>`
   padding: 2px 8px; border-radius: 999px;
-  font-size: 10px; font-weight: 600;
+  font-size: 0.625rem; font-weight: 600;
   background: #FEF3C7; color: #92400E;
 `;
 const StatusChip = styled.span<{ $s: string }>`
   flex-shrink: 0;
-  padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 600;
+  padding: 2px 8px; border-radius: 999px; font-size: 0.625rem; font-weight: 600;
   ${p => p.$s === 'ready' ? 'background:#DCFCE7;color:#166534;' :
         p.$s === 'indexing' ? 'background:#FEF3C7;color:#92400E;' :
         p.$s === 'failed' ? 'background:#FEE2E2;color:#B91C1C;' :
@@ -2544,25 +2544,25 @@ const ActiveTagBar = styled.div`
   display: flex; align-items: center; gap: 8px;
   margin-bottom: 12px;
 `;
-const ActiveTagLabel = styled.span`font-size: 12px; color: #64748B;`;
+const ActiveTagLabel = styled.span`font-size: 0.75rem; color: #64748B;`;
 const ActiveTagChip = styled.button`
   all: unset; cursor: pointer;
   display: inline-flex; align-items: center; gap: 6px;
   padding: 4px 10px; border-radius: 999px;
   background: #14B8A6; color: #FFFFFF;
-  font-size: 12px; font-weight: 600;
+  font-size: 0.75rem; font-weight: 600;
   &:hover { background: #0D9488; }
 `;
-const ActiveTagX = styled.span`font-size: 14px; line-height: 1;`;
+const ActiveTagX = styled.span`font-size: 0.875rem; line-height: 1;`;
 /* 리스트 제목 — 읽기 전용 (#143). 행을 클릭하면 우측 패널이 열리고 거기서 편집한다. */
 const RowTitleText = styled.div`
-  font-size: 14px; font-weight: 600; color: #0F172A;
+  font-size: 0.875rem; font-weight: 600; color: #0F172A;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   padding: 2px 8px;
 `;
 // #187 — 본문 미리보기 (제목 아래 한 줄 말줄임)
 const RowBodyPreview = styled.div`
-  font-size: 12px; color: #94A3B8;
+  font-size: 0.75rem; color: #94A3B8;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   padding: 0 8px; margin-top: 1px;
 `;
@@ -2570,14 +2570,14 @@ const RowBodyPreview = styled.div`
 const CopyValue = styled.button`
   display: flex; align-items: center; gap: 6px; width: 100%; max-width: 100%; min-width: 0;
   padding: 2px 8px; border: 1px dashed transparent; border-radius: 4px;
-  background: none; font-family: inherit; font-size: 13px; font-weight: 500;
+  background: none; font-family: inherit; font-size: 0.8125rem; font-weight: 500;
   color: #334155; text-align: left; cursor: pointer; transition: all 0.12s;
   & > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   &:hover { background: #F0FDFA; border-color: #CCFBF1; }
   &:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,0.3); }
 `;
 const CopyMark = styled.span<{ $on: boolean }>`
-  flex-shrink: 0; margin-left: auto; font-size: 11px; font-weight: 600;
+  flex-shrink: 0; margin-left: auto; font-size: 0.6875rem; font-weight: 600;
   color: ${p => (p.$on ? '#0F766E' : '#94A3B8')};
   opacity: ${p => (p.$on ? 1 : 0)};
   transition: opacity 0.12s;
@@ -2585,37 +2585,37 @@ const CopyMark = styled.span<{ $on: boolean }>`
 `;
 // ─── DetailDrawer 내부 ───
 const DrawerTitle = styled.div`
-  font-size: 16px; font-weight: 700; color: #0F172A;
+  font-size: 1rem; font-weight: 700; color: #0F172A;
   cursor: text; padding: 4px 8px; border-radius: 6px;
   &:hover { background: #F0FDFA; }
 `;
 const DrawerSections = styled.div`display: flex; flex-direction: column; gap: 20px; padding: 20px;`;
 const DrawerSection = styled.div`display: flex; flex-direction: column; gap: 8px;`;
 const SectionLabel = styled.div`
-  font-size: 11px; font-weight: 700; color: #64748B;
+  font-size: 0.6875rem; font-weight: 700; color: #64748B;
   text-transform: uppercase; letter-spacing: 0.5px;
   small { font-weight: 500; text-transform: none; letter-spacing: 0; color: #94A3B8; margin-left: 4px; }
 `;
 const MetaGrid = styled.div`
   display: grid; grid-template-columns: max-content 1fr;
-  gap: 8px 16px; font-size: 13px;
+  gap: 8px 16px; font-size: 0.8125rem;
 `;
 const MetaLabel = styled.div`color: #64748B; font-weight: 500;`;
 const MetaValue = styled.div`color: #0F172A; font-weight: 500;`;
 const MetaEditWrap = styled.div`min-width: 0;`;
 // D4 #62 — 보안등급 힌트
-const SecLevelHint = styled.div`margin-top: 6px; font-size: 11px; color: #94A3B8; line-height: 1.45;`;
+const SecLevelHint = styled.div`margin-top: 6px; font-size: 0.6875rem; color: #94A3B8; line-height: 1.45;`;
 const AttachList = styled.div`display: flex; flex-direction: column; gap: 6px;`;
 const AttachRow = styled.div`
   display: grid; grid-template-columns: auto 1fr auto auto auto; gap: 10px;
   align-items: center;
   padding: 10px 12px;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 13px;
+  font-size: 0.8125rem;
 `;
 const AttachIcon = styled.svg`width: 16px; height: 16px; color: #64748B; flex-shrink: 0;`;
 const AttachName = styled.span`color: #0F172A; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
-const AttachMeta = styled.span`color: #94A3B8; font-size: 11px; flex-shrink: 0;`;
+const AttachMeta = styled.span`color: #94A3B8; font-size: 0.6875rem; flex-shrink: 0;`;
 const AttachAction = styled.a`
   display: inline-flex; align-items: center; justify-content: center;
   width: 28px; height: 28px;
@@ -2628,7 +2628,7 @@ const AttachRemoveBtn = styled.button`
   width: 24px; height: 24px;
   background: transparent; color: #94A3B8;
   border: 1px solid transparent; border-radius: 6px;
-  font-size: 16px; line-height: 1; cursor: pointer;
+  font-size: 1rem; line-height: 1; cursor: pointer;
   transition: all 0.15s;
   &:hover { background: #FEF2F2; color: #B91C1C; border-color: #FECACA; }
 `;
@@ -2637,7 +2637,7 @@ const ShareFooterBtn = styled.button`
   height: 34px; padding: 0 12px;
   background: transparent; color: #475569;
   border: 1px solid #CBD5E1; border-radius: 8px;
-  font-size: 13px; font-weight: 600; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   display: inline-flex; align-items: center; gap: 6px;
   &:hover { background: #F0FDFA; color: #0F766E; border-color: #99F6E4; }
 `;
@@ -2645,27 +2645,27 @@ const DangerBtn = styled.button`
   height: 34px; padding: 0 14px;
   background: #FFFFFF; color: #B91C1C;
   border: 1px solid #FECACA; border-radius: 8px;
-  font-size: 13px; font-weight: 600; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   &:hover { background: #FEF2F2; border-color: #DC2626; }
 `;
 
 // ─── 등록 모달 ───
 const RequiredMark = styled.span`color: #DC2626; margin-left: 2px;`;
-const OptionalMark = styled.span`color: #94A3B8; font-weight: 400; font-size: 11px; margin-left: 4px;`;
+const OptionalMark = styled.span`color: #94A3B8; font-weight: 400; font-size: 0.6875rem; margin-left: 4px;`;
 const Field = styled.div`display: flex; flex-direction: column; gap: 6px; flex: 1;`;
-const Label = styled.label`font-size: 13px; font-weight: 600; color: #0F172A;`;
+const Label = styled.label`font-size: 0.8125rem; font-weight: 600; color: #0F172A;`;
 const ErrorBox = styled.div`
   padding: 8px 12px;
   background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px;
-  font-size: 12px; color: #B91C1C;
+  font-size: 0.75rem; color: #B91C1C;
 `;
 const SuccessBox = styled.div`
   padding: 8px 12px;
   background: #F0FDFA; border: 1px solid #5EEAD4; border-radius: 6px;
-  font-size: 12px; color: #0F766E;
+  font-size: 0.75rem; color: #0F766E;
 `;
-const TextInput = styled.input`height: 36px; padding: 0 10px; border: 1px solid #E2E8F0; border-radius: 6px; font-size: 13px; color: #0F172A; &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }`;
+const TextInput = styled.input`height: 36px; padding: 0 10px; border: 1px solid #E2E8F0; border-radius: 6px; font-size: 0.8125rem; color: #0F172A; &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }`;
 // N+72-5 — TextArea 폐기 (RichEditor 통합)
-const SecondaryBtn = styled.button`height: 36px; padding: 0 14px; background: transparent; color: #475569; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; &:hover { background: #F8FAFC; border-color: #CBD5E1; }`;
+const SecondaryBtn = styled.button`height: 36px; padding: 0 14px; background: transparent; color: #475569; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.8125rem; font-weight: 600; cursor: pointer; &:hover { background: #F8FAFC; border-color: #CBD5E1; }`;
 
 

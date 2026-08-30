@@ -114,7 +114,7 @@ const Head = styled.div`
   min-height: 56px; padding: 12px 14px; border-bottom: 1px solid #E2E8F0;
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
 `;
-const HeadTitle = styled.h2`margin: 0; font-size: 14px; font-weight: 700; color: #0F172A;`;
+const HeadTitle = styled.h2`margin: 0; font-size: 0.875rem; font-weight: 700; color: #0F172A;`;
 const CloseBtn = styled.button`
   /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */
   @media (max-width: 640px) { min-width: 44px; min-height: 44px; }
@@ -122,23 +122,23 @@ const CloseBtn = styled.button`
   width: 36px; height: 36px; border: none; background: none; color: #64748B; cursor: pointer;
   border-radius: 8px; &:hover { background: #F1F5F9; color: #0F172A; }
 `;
-const Note = styled.p`margin: 0; padding: 10px 14px; font-size: 11.5px; color: #94A3B8; line-height: 1.5;`;
+const Note = styled.p`margin: 0; padding: 10px 14px; font-size: 0.71875rem; color: #94A3B8; line-height: 1.5;`;
 const List = styled.div`flex: 1; min-height: 0; overflow-y: auto;`;
 const Row = styled.div`
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   padding: 10px 14px; border-top: 1px solid #F1F5F9;
 `;
 const RowMain = styled.div`display: flex; flex-direction: column; gap: 2px; min-width: 0;`;
-const RowWho = styled.span`font-size: 13px; font-weight: 600; color: #0F172A;`;
-const RowWhen = styled.span`font-size: 11.5px; color: #94A3B8;`;
-const Tag = styled.span`font-size: 10.5px; font-weight: 700; color: #92400E; background: #FEF3C7; border-radius: 999px; padding: 1px 7px; width: fit-content;`;
+const RowWho = styled.span`font-size: 0.8125rem; font-weight: 600; color: #0F172A;`;
+const RowWhen = styled.span`font-size: 0.71875rem; color: #94A3B8;`;
+const Tag = styled.span`font-size: 0.65625rem; font-weight: 700; color: #92400E; background: #FEF3C7; border-radius: 999px; padding: 1px 7px; width: fit-content;`;
 const TagNow = styled(Tag)`color: #0F766E; background: #F0FDFA;`;
 const RestoreBtn = styled.button`
   height: 30px; padding: 0 10px; flex-shrink: 0;
-  font-size: 12px; font-weight: 700; color: #0F766E;
+  font-size: 0.75rem; font-weight: 700; color: #0F766E;
   background: #fff; border: 1px solid #99F6E4; border-radius: 6px; cursor: pointer;
   &:hover:not(:disabled) { background: #F0FDFA; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
-const Empty = styled.div`padding: 18px 14px; font-size: 12.5px; color: #94A3B8;`;
-const ErrText = styled.div`padding: 10px 14px; font-size: 12.5px; color: #B91C1C;`;
+const Empty = styled.div`padding: 18px 14px; font-size: 0.78125rem; color: #94A3B8;`;
+const ErrText = styled.div`padding: 10px 14px; font-size: 0.78125rem; color: #B91C1C;`;

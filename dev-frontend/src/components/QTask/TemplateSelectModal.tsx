@@ -579,7 +579,7 @@ const Header = styled.div`
 `;
 const Title = styled.h2`
   display: inline-flex; align-items: center; gap: 8px;
-  font-size: 16px; font-weight: 700; color: #0F172A; margin: 0;
+  font-size: 1rem; font-weight: 700; color: #0F172A; margin: 0;
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
 `;
 const BackBtn = styled.button`
@@ -616,7 +616,7 @@ const ListToolbar = styled.div`
   padding-bottom: 4px;
 `;
 const ResultCount = styled.div`
-  font-size: 11px; color: #94A3B8; white-space: nowrap;
+  font-size: 0.6875rem; color: #94A3B8; white-space: nowrap;
 `;
 const CategoryCount = styled.span`
   display: inline-flex; align-items: center; justify-content: center;
@@ -625,13 +625,13 @@ const CategoryCount = styled.span`
   margin-left: 6px;
   background: #F0FDFA; color: #0F766E;
   border-radius: 8px;
-  font-size: 10px; font-weight: 700;
+  font-size: 0.625rem; font-weight: 700;
 `;
-const Loading = styled.div`padding: 40px 20px; text-align: center; color: #64748B; font-size: 13px;`;
-const Empty = styled.div`padding: 40px 20px; text-align: center; color: #94A3B8; font-size: 13px;`;
+const Loading = styled.div`padding: 40px 20px; text-align: center; color: #64748B; font-size: 0.8125rem;`;
+const Empty = styled.div`padding: 40px 20px; text-align: center; color: #94A3B8; font-size: 0.8125rem;`;
 const CategorySection = styled.div`display: flex; flex-direction: column; gap: 8px;`;
 const CategoryTitle = styled.h3`
-  font-size: 12px; font-weight: 700; color: #64748B; margin: 0;
+  font-size: 0.75rem; font-weight: 700; color: #64748B; margin: 0;
   text-transform: uppercase; letter-spacing: 0.5px;
 `;
 const Grid = styled.div`
@@ -661,10 +661,10 @@ const ConfirmRow = styled.div`
   display: flex; align-items: center; gap: 6px;
   padding: 8px 10px; margin-top: 6px;
   background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px;
-  font-size: 12px; color: #B91C1C;
+  font-size: 0.75rem; color: #B91C1C;
 `;
 const SmallBtn = styled.button<{ $danger?: boolean }>`
-  padding: 4px 8px; font-size: 11px; font-weight: 600;
+  padding: 4px 8px; font-size: 0.6875rem; font-weight: 600;
   border-radius: 4px; cursor: pointer;
   background: ${p => p.$danger ? '#DC2626' : '#FFFFFF'};
   color: ${p => p.$danger ? '#FFFFFF' : '#475569'};
@@ -681,7 +681,7 @@ const ItemsList = styled.div`
   background: #F8FAFC; border-radius: 8px;
 `;
 const ItemsEmpty = styled.div`
-  padding: 20px; text-align: center; color: #94A3B8; font-size: 12px;
+  padding: 20px; text-align: center; color: #94A3B8; font-size: 0.75rem;
 `;
 const ItemRow = styled.div`
   display: flex; flex-direction: column; gap: 6px;
@@ -696,12 +696,12 @@ const ItemNum = styled.div`
   display: inline-flex; align-items: center; justify-content: center;
   background: #F0FDFA; color: #0F766E;
   border-radius: 4px;
-  font-size: 11px; font-weight: 700;
+  font-size: 0.6875rem; font-weight: 700;
   flex-shrink: 0;
 `;
 const ItemTitleInput = styled.input`
   flex: 1; min-width: 0;
-  padding: 5px 8px; font-size: 13px; font-weight: 600; color: #0F172A;
+  padding: 5px 8px; font-size: 0.8125rem; font-weight: 600; color: #0F172A;
   border: 1px solid transparent; border-radius: 4px;
   background: transparent;
   &:focus { outline: none; border-color: #14B8A6; background: #FFFFFF; }
@@ -710,7 +710,7 @@ const ItemMoveBtn = styled.button`
   width: 22px; height: 22px;
   display: inline-flex; align-items: center; justify-content: center;
   background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 4px;
-  color: #64748B; cursor: pointer; font-size: 11px;
+  color: #64748B; cursor: pointer; font-size: 0.6875rem;
   &:hover:not(:disabled) { color: #0F766E; border-color: #14B8A6; }
   &:disabled { opacity: 0.4; cursor: not-allowed; }
 `;
@@ -725,28 +725,28 @@ const ItemField = styled.div<{ $flex?: boolean }>`
   display: flex; align-items: center; gap: 4px;
   ${p => p.$flex && 'flex: 1; min-width: 120px;'}
 `;
-const ItemMeta = styled.span`color: #64748B; font-size: 11px;`;
-const ItemUnit = styled.span`color: #94A3B8; font-size: 11px;`;
+const ItemMeta = styled.span`color: #64748B; font-size: 0.6875rem;`;
+const ItemUnit = styled.span`color: #94A3B8; font-size: 0.6875rem;`;
 const ItemNumInput = styled.input`
   width: 44px; padding: 2px 4px;
   border: 1px solid #E2E8F0; border-radius: 4px;
-  font-size: 12px; text-align: right;
+  font-size: 0.75rem; text-align: right;
   &:focus { outline: none; border-color: #14B8A6; }
 `;
 const ItemRoleInput = styled.input`
   flex: 1; min-width: 0;
   padding: 3px 6px;
   border: 1px solid #E2E8F0; border-radius: 4px;
-  font-size: 12px;
+  font-size: 0.75rem;
   &:focus { outline: none; border-color: #14B8A6; }
 `;
 const EditInput = styled.input`
-  width: 100%; padding: 8px 10px; font-size: 13px; color: #0F172A;
+  width: 100%; padding: 8px 10px; font-size: 0.8125rem; color: #0F172A;
   border: 1px solid #E2E8F0; border-radius: 8px; background: #FFF;
   &:focus { outline: none; border-color: #14B8A6; }
 `;
 const EditTextarea = styled.textarea`
-  width: 100%; padding: 8px 10px; font-size: 13px; color: #0F172A; line-height: 1.5;
+  width: 100%; padding: 8px 10px; font-size: 0.8125rem; color: #0F172A; line-height: 1.5;
   border: 1px solid #E2E8F0; border-radius: 8px; background: #FFF; font-family: inherit; resize: vertical;
   &:focus { outline: none; border-color: #14B8A6; }
 `;
@@ -762,7 +762,7 @@ const Card = styled.button`
   &:focus-visible { outline: 2px solid rgba(20,184,166,0.3); outline-offset: 2px; }
 `;
 const CardName = styled.div`
-  font-size: 13px; font-weight: 700; color: #0F172A;
+  font-size: 0.8125rem; font-weight: 700; color: #0F172A;
   line-height: 1.3;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -770,7 +770,7 @@ const CardName = styled.div`
   overflow: hidden;
 `;
 const CardDesc = styled.div`
-  font-size: 12px; color: #64748B; line-height: 1.4;
+  font-size: 0.75rem; color: #64748B; line-height: 1.4;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -778,7 +778,7 @@ const CardDesc = styled.div`
 `;
 const CardMeta = styled.div`
   display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
-  font-size: 11px; color: #94A3B8;
+  font-size: 0.6875rem; color: #94A3B8;
   margin-top: auto;
   padding-top: 6px;
   border-top: 1px solid #F1F5F9;
@@ -786,20 +786,20 @@ const CardMeta = styled.div`
 const SystemBadge = styled.span`
   margin-left: auto;
   background: #F0FDFA; color: #0F766E;
-  font-size: 10px; font-weight: 700;
+  font-size: 0.625rem; font-weight: 700;
   padding: 2px 6px; border-radius: 4px;
 `;
 const Desc = styled.div`
   padding: 10px 12px; background: #F8FAFC; color: #334155;
-  border-radius: 6px; font-size: 12px; line-height: 1.5;
+  border-radius: 6px; font-size: 0.75rem; line-height: 1.5;
 `;
 const FieldRow = styled.div`display: flex; flex-direction: column; gap: 6px;`;
-const FieldLabel = styled.label`font-size: 12px; font-weight: 600; color: #0F172A;`;
-const Hint = styled.div`font-size: 11px; color: #94A3B8;`;
+const FieldLabel = styled.label`font-size: 0.75rem; font-weight: 600; color: #0F172A;`;
+const Hint = styled.div`font-size: 0.6875rem; color: #94A3B8;`;
 const RoleGrid = styled.div`display: grid; gap: 6px; grid-template-columns: 1fr;`;
 const RoleRow = styled.div`display: grid; gap: 8px; grid-template-columns: 100px 1fr; align-items: center;`;
 const RoleTag = styled.span`
-  font-size: 12px; font-weight: 600; color: #0F766E;
+  font-size: 0.75rem; font-weight: 600; color: #0F766E;
   background: #F0FDFA; border: 1px solid #CCFBF1;
   padding: 4px 8px; border-radius: 6px; text-align: center;
 `;
@@ -808,13 +808,13 @@ const PreviewBox = styled.div`
   padding: 10px 12px;
   display: flex; flex-direction: column; gap: 6px;
 `;
-const PreviewTitle = styled.div`font-size: 12px; font-weight: 700; color: #475569;`;
+const PreviewTitle = styled.div`font-size: 0.75rem; font-weight: 700; color: #475569;`;
 const PreviewList = styled.div`display: flex; flex-direction: column; gap: 4px;`;
 const PreviewItem = styled.div`
   display: flex; flex-direction: column; gap: 2px;
   padding: 6px 8px;
   background: #FFFFFF; border-radius: 6px;
 `;
-const PrevTitle = styled.div`font-size: 12px; font-weight: 600; color: #0F172A;`;
-const PrevMeta = styled.div`font-size: 11px; color: #94A3B8;`;
-const ErrorMsg = styled.div`font-size: 12px; color: #DC2626; background: #FEF2F2; padding: 8px 10px; border-radius: 6px;`;
+const PrevTitle = styled.div`font-size: 0.75rem; font-weight: 600; color: #0F172A;`;
+const PrevMeta = styled.div`font-size: 0.6875rem; color: #94A3B8;`;
+const ErrorMsg = styled.div`font-size: 0.75rem; color: #DC2626; background: #FEF2F2; padding: 8px 10px; border-radius: 6px;`;

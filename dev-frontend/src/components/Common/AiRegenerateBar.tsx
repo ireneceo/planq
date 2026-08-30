@@ -58,7 +58,7 @@ const RegenBtn = styled.button<{ $sm?: boolean }>`
   display: inline-flex; align-items: center; gap: 5px;
   height: ${p => p.$sm ? 30 : 36}px; padding: 0 ${p => p.$sm ? 10 : 12}px;
   border: 1px solid #E2E8F0; background: #FFFFFF; border-radius: 8px;
-  font-size: ${p => p.$sm ? 12 : 13}px; font-weight: 600; color: #475569; cursor: pointer;
+  font-size: ${p => (p.$sm ? 12 : 13) / 16}rem; font-weight: 600; color: #475569; cursor: pointer;
   transition: border-color 0.15s, color 0.15s;
   &:hover:not(:disabled) { border-color: #14B8A6; color: #0F766E; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -68,18 +68,18 @@ const RegenBtn = styled.button<{ $sm?: boolean }>`
 const Row = styled.div`display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; width: 100%;`;
 const Input = styled.input`
   flex: 1; min-width: 0; height: 36px; padding: 0 12px;
-  border: 1px solid #14B8A6; border-radius: 8px; font-size: 13px; color: #0F172A; outline: none;
+  border: 1px solid #14B8A6; border-radius: 8px; font-size: 0.8125rem; color: #0F172A; outline: none;
   &::placeholder { color: #94A3B8; }
   &:focus { box-shadow: 0 0 0 3px rgba(20,184,166,0.18); }
 `;
 const GoBtn = styled.button`
   flex-shrink: 0; height: 36px; padding: 0 14px; border: none; border-radius: 8px;
-  background: #14B8A6; color: #FFFFFF; font-size: 13px; font-weight: 700; cursor: pointer;
+  background: #14B8A6; color: #FFFFFF; font-size: 0.8125rem; font-weight: 700; cursor: pointer;
   &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { opacity: 0.6; cursor: not-allowed; }
 `;
 const CancelBtn = styled.button`
   flex-shrink: 0; width: 30px; height: 36px; border: none; background: transparent;
-  color: #94A3B8; font-size: 18px; line-height: 1; cursor: pointer;
+  color: #94A3B8; font-size: 1.125rem; line-height: 1; cursor: pointer;
   &:hover { color: #0F172A; }
 `;

@@ -17,7 +17,7 @@ const TabButton = styled.button<{ active?: boolean }>`
   padding: 12px 0;
   background: none;
   border: none;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 500;
   color: ${props => props.active ? '#14B8A6' : '#6B7C93'};
   cursor: pointer;
@@ -42,7 +42,7 @@ const TabBadge = styled.span<{ variant?: 'default' | 'warning' | 'danger' }>`
   margin-left: 8px;
   padding: 2px 8px;
   border-radius: 10px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   background: ${props => {
     switch (props.variant) {

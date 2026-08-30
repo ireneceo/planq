@@ -215,7 +215,7 @@ const Radio = styled.button<{ $active: boolean }>`
   &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
   ${p => p.$active && css`box-shadow: 0 0 0 2px rgba(20,184,166,0.18);`}
 `;
-const RadioTitle = styled.div`font-size: 13px; font-weight: 600; color: #0F172A;`;
-const RadioHint = styled.div`font-size: 11px; color: #64748B; line-height: 1.4;`;
+const RadioTitle = styled.div`font-size: 0.8125rem; font-weight: 600; color: #0F172A;`;
+const RadioHint = styled.div`font-size: 0.6875rem; color: #64748B; line-height: 1.4;`;
 const SubField = styled.div`display: flex; flex-direction: column; gap: 4px; padding-left: 4px;`;
-const SubLabel = styled.div`font-size: 11px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px;`;
+const SubLabel = styled.div`font-size: 0.6875rem; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px;`;

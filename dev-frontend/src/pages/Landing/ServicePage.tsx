@@ -237,21 +237,21 @@ const SubHero = styled.section`
 `;
 const Eyebrow = styled.div`
   font-family: 'Outfit', sans-serif;
-  font-size: 13px; font-weight: 500; color: #0D9488;
+  font-size: 0.8125rem; font-weight: 500; color: #0D9488;
   letter-spacing: 3px; margin-bottom: 16px;
 `;
 const TitleTop = styled.div`
-  font-size: 15px; font-weight: 600; color: #0D9488;
+  font-size: 0.9375rem; font-weight: 600; color: #0D9488;
   margin-bottom: 12px; word-break: keep-all;
 `;
 const Title = styled.h1`
-  font-size: 44px; font-weight: 700; color: #0F172A;
+  font-size: 2.75rem; font-weight: 700; color: #0F172A;
   line-height: 1.3; word-break: keep-all; margin-bottom: 20px;
   white-space: pre-line;
-  @media (max-width: 768px) { font-size: 30px; }
+  @media (max-width: 768px) { font-size: 1.875rem; }
 `;
 const Sub = styled.p`
-  font-size: 17px; font-weight: 300; color: #64748B;
+  font-size: 1.0625rem; font-weight: 300; color: #64748B;
   line-height: 1.8; max-width: 680px; margin: 0 auto; word-break: keep-all;
 `;
 const HeroActions = styled.div`
@@ -262,7 +262,7 @@ const PrimaryCta = styled(Link)`
   display: inline-flex; align-items: center; justify-content: center;
   min-height: 48px; padding: 0 28px;
   border-radius: 999px; background: #0F766E; color: #FFFFFF;
-  font-size: 15px; font-weight: 600; text-decoration: none;
+  font-size: 0.9375rem; font-weight: 600; text-decoration: none;
   transition: background 0.2s, transform 0.2s;
   &:hover { background: #115E59; transform: translateY(-1px); }
 `;
@@ -271,12 +271,12 @@ const SecondaryCta = styled(Link)`
   min-height: 48px; padding: 0 28px;
   border-radius: 999px; background: #FFFFFF; color: #0F766E;
   border: 1px solid #99F6E4;
-  font-size: 15px; font-weight: 600; text-decoration: none;
+  font-size: 0.9375rem; font-weight: 600; text-decoration: none;
   transition: background 0.2s, border-color 0.2s;
   &:hover { background: #F0FDFA; border-color: #5EEAD4; }
 `;
 const ByLine = styled.div`
-  margin-top: 20px; font-size: 13px; color: #94A3B8; word-break: keep-all;
+  margin-top: 20px; font-size: 0.8125rem; color: #94A3B8; word-break: keep-all;
 `;
 
 const Section = styled.section<{ $bg: string; $dark?: boolean }>`
@@ -287,27 +287,27 @@ const Section = styled.section<{ $bg: string; $dark?: boolean }>`
   @media (max-width: 640px) { padding: 60px 0; }
 `;
 const SectionTitle = styled.h2<{ $light?: boolean }>`
-  font-size: 32px; font-weight: 700; margin: 0 0 14px;
+  font-size: 2rem; font-weight: 700; margin: 0 0 14px;
   color: ${p => (p.$light ? '#FFFFFF' : '#0F172A')};
   letter-spacing: -0.4px; word-break: keep-all;
-  @media (max-width: 768px) { font-size: 24px; }
+  @media (max-width: 768px) { font-size: 1.5rem; }
 `;
 const SectionSub = styled.p<{ $light?: boolean }>`
-  font-size: 16px; font-weight: 300; line-height: 1.8; margin: 0 0 40px;
+  font-size: 1rem; font-weight: 300; line-height: 1.8; margin: 0 0 40px;
   color: ${p => (p.$light ? 'rgba(255,255,255,0.72)' : '#64748B')};
   max-width: 720px; word-break: keep-all;
 `;
 const Lead = styled.p`
-  font-size: 19px; font-weight: 500; color: #0F172A;
+  font-size: 1.1875rem; font-weight: 500; color: #0F172A;
   line-height: 1.8; margin: 0 0 20px; word-break: keep-all;
-  @media (max-width: 768px) { font-size: 17px; }
+  @media (max-width: 768px) { font-size: 1.0625rem; }
 `;
 const Body = styled.p`
-  font-size: 16px; font-weight: 300; color: #475569;
+  font-size: 1rem; font-weight: 300; color: #475569;
   line-height: 1.9; margin: 0 0 18px; word-break: keep-all;
 `;
 const Accent = styled.p`
-  font-size: 17px; font-weight: 600; color: #0F766E;
+  font-size: 1.0625rem; font-weight: 600; color: #0F766E;
   line-height: 1.8; margin: 0 0 18px; word-break: keep-all;
 `;
 
@@ -329,19 +329,19 @@ const LayerCard = styled.div`
 `;
 const LayerNo = styled.div`
   font-family: 'Outfit', sans-serif;
-  font-size: 12px; font-weight: 600; color: #5EEAD4; letter-spacing: 1px;
+  font-size: 0.75rem; font-weight: 600; color: #5EEAD4; letter-spacing: 1px;
 `;
-const LayerName = styled.h3`font-size: 19px; font-weight: 700; color: #0F172A; margin: 0;`;
+const LayerName = styled.h3`font-size: 1.1875rem; font-weight: 700; color: #0F172A; margin: 0;`;
 const LayerEn = styled.div`
   font-family: 'Outfit', sans-serif;
-  font-size: 12px; font-weight: 500; color: #0D9488; letter-spacing: 0.6px;
+  font-size: 0.75rem; font-weight: 500; color: #0D9488; letter-spacing: 0.6px;
 `;
 const LayerDesc = styled.p`
-  font-size: 14px; color: #475569; line-height: 1.75; margin: 6px 0 0; word-break: keep-all;
+  font-size: 0.875rem; color: #475569; line-height: 1.75; margin: 6px 0 0; word-break: keep-all;
 `;
 const LayerTags = styled.div`
   margin-top: auto; padding-top: 14px;
-  font-size: 12px; color: #94A3B8; line-height: 1.6; word-break: keep-all;
+  font-size: 0.75rem; color: #94A3B8; line-height: 1.6; word-break: keep-all;
 `;
 
 const ServiceList = styled.div`display: flex; flex-direction: column; gap: 14px;`;
@@ -352,14 +352,14 @@ const ServiceRow = styled.div`
   @media (max-width: 900px) { grid-template-columns: 1fr; gap: 12px; }
 `;
 const ServiceHead = styled.div`display: flex; flex-direction: column; gap: 4px;`;
-const ServiceName = styled.h3`font-size: 20px; font-weight: 700; color: #0F172A; margin: 0; word-break: keep-all;`;
+const ServiceName = styled.h3`font-size: 1.25rem; font-weight: 700; color: #0F172A; margin: 0; word-break: keep-all;`;
 const ServiceEn = styled.div`
   font-family: 'Outfit', sans-serif;
-  font-size: 12px; font-weight: 500; color: #0D9488; letter-spacing: 0.6px;
+  font-size: 0.75rem; font-weight: 500; color: #0D9488; letter-spacing: 0.6px;
 `;
 const ServiceBody = styled.div`display: flex; flex-direction: column; gap: 8px;`;
-const ServiceLead = styled.p`font-size: 16px; font-weight: 600; color: #0F172A; margin: 0; word-break: keep-all;`;
-const ServiceDesc = styled.p`font-size: 14px; color: #475569; line-height: 1.8; margin: 0; word-break: keep-all;`;
+const ServiceLead = styled.p`font-size: 1rem; font-weight: 600; color: #0F172A; margin: 0; word-break: keep-all;`;
+const ServiceDesc = styled.p`font-size: 0.875rem; color: #475569; line-height: 1.8; margin: 0; word-break: keep-all;`;
 const ServiceOut = styled.div`
   margin-top: 6px; padding-top: 14px; border-top: 1px dashed #CBD5E1;
   display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap;
@@ -368,9 +368,9 @@ const OutLabel = styled.span`
   flex-shrink: 0;
   padding: 2px 10px; border-radius: 999px;
   background: #CCFBF1; color: #0F766E;
-  font-size: 11px; font-weight: 700;
+  font-size: 0.6875rem; font-weight: 700;
 `;
-const OutValue = styled.span`font-size: 13px; color: #475569; line-height: 1.7; word-break: keep-all;`;
+const OutValue = styled.span`font-size: 0.8125rem; color: #475569; line-height: 1.7; word-break: keep-all;`;
 
 const StepList = styled.div`display: flex; flex-direction: column; gap: 12px;`;
 const StepRow = styled.div`
@@ -381,15 +381,15 @@ const StepRow = styled.div`
 `;
 const StepNo = styled.div`
   font-family: 'Outfit', sans-serif;
-  font-size: 11px; font-weight: 600; color: #5EEAD4; letter-spacing: 2px;
+  font-size: 0.6875rem; font-weight: 600; color: #5EEAD4; letter-spacing: 2px;
 `;
 const StepEn = styled.div`
   font-family: 'Outfit', sans-serif;
-  font-size: 20px; font-weight: 600; color: #FFFFFF; letter-spacing: -0.2px;
+  font-size: 1.25rem; font-weight: 600; color: #FFFFFF; letter-spacing: -0.2px;
 `;
-const StepTitle = styled.div`font-size: 16px; font-weight: 600; color: #CCFBF1; word-break: keep-all;`;
+const StepTitle = styled.div`font-size: 1rem; font-weight: 600; color: #CCFBF1; word-break: keep-all;`;
 const StepDesc = styled.p`
-  font-size: 14px; font-weight: 300; color: rgba(255,255,255,0.7);
+  font-size: 0.875rem; font-weight: 300; color: rgba(255,255,255,0.7);
   line-height: 1.8; margin: 4px 0 0; word-break: keep-all;
 `;
 
@@ -401,8 +401,8 @@ const OutputCard = styled.div`
   transition: border-color 0.2s;
   &:hover { border-color: #99F6E4; }
 `;
-const OutputName = styled.div`font-size: 15px; font-weight: 700; color: #0F172A; word-break: keep-all;`;
-const OutputDesc = styled.div`font-size: 13px; color: #64748B; line-height: 1.65; word-break: keep-all;`;
+const OutputName = styled.div`font-size: 0.9375rem; font-weight: 700; color: #0F172A; word-break: keep-all;`;
+const OutputDesc = styled.div`font-size: 0.8125rem; color: #64748B; line-height: 1.65; word-break: keep-all;`;
 
 const FitList = styled.div`
   display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
@@ -412,7 +412,7 @@ const FitItem = styled.div`
   display: flex; align-items: flex-start; gap: 12px;
   padding: 18px 20px;
   background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px;
-  font-size: 15px; color: #334155; line-height: 1.6; word-break: keep-all;
+  font-size: 0.9375rem; color: #334155; line-height: 1.6; word-break: keep-all;
 `;
 const FitMark = styled.span`
   flex-shrink: 0; width: 8px; height: 8px; margin-top: 8px;
@@ -424,17 +424,17 @@ const FaqItem = styled.div`
   &:last-child { border-bottom: none; }
 `;
 const FaqQ = styled.h3`
-  font-size: 17px; font-weight: 700; color: #0F172A;
+  font-size: 1.0625rem; font-weight: 700; color: #0F172A;
   margin: 0 0 10px; word-break: keep-all;
 `;
 const FaqA = styled.p`
-  font-size: 15px; font-weight: 300; color: #475569;
+  font-size: 0.9375rem; font-weight: 300; color: #475569;
   line-height: 1.9; margin: 0; word-break: keep-all;
 `;
 
 const WhyBlock = styled.div`margin-bottom: 24px;`;
 const WhyTitle = styled.h3`
-  font-size: 17px; font-weight: 700; color: #0F172A;
+  font-size: 1.0625rem; font-weight: 700; color: #0F172A;
   margin: 0 0 8px; word-break: keep-all;
 `;
 
@@ -446,11 +446,11 @@ const FinalSection = styled.section`
   .reveal.in { opacity: 1; transform: none; }
 `;
 const FinalTitle = styled.h2`
-  font-size: 34px; font-weight: 700; color: #0F172A;
+  font-size: 2.125rem; font-weight: 700; color: #0F172A;
   line-height: 1.4; margin: 0 0 16px; white-space: pre-line; word-break: keep-all;
-  @media (max-width: 768px) { font-size: 24px; }
+  @media (max-width: 768px) { font-size: 1.5rem; }
 `;
 const FinalSub = styled.p`
-  font-size: 16px; font-weight: 300; color: #64748B;
+  font-size: 1rem; font-weight: 300; color: #64748B;
   line-height: 1.8; max-width: 620px; margin: 0 auto; word-break: keep-all;
 `;

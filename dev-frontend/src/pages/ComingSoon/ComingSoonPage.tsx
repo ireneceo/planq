@@ -47,8 +47,8 @@ const IconBox = styled.div`
   margin-bottom: 24px;
 `;
 const Title = styled.h2`
-  font-size: 20px; font-weight: 700; color: #0F172A; margin: 0 0 8px;
+  font-size: 1.25rem; font-weight: 700; color: #0F172A; margin: 0 0 8px;
 `;
 const Desc = styled.p`
-  font-size: 14px; color: #64748B; max-width: 420px; line-height: 1.6; margin: 0;
+  font-size: 0.875rem; color: #64748B; max-width: 420px; line-height: 1.6; margin: 0;
 `;

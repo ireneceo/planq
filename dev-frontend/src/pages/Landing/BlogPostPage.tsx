@@ -119,43 +119,43 @@ export default BlogPostPage;
 const Container = styled.div`max-width: 760px; margin: 0 auto; padding: 0 24px; @media (max-width: 640px) { padding: 0 16px; }`;
 const ArticleSection = styled.section`padding: 110px 0 80px; background: #FFFFFF;`;
 const Back = styled.button`
-  border: 0; background: none; color: #64748B; font-size: 13px; font-weight: 600; cursor: pointer; padding: 0 0 20px;
+  border: 0; background: none; color: #64748B; font-size: 0.8125rem; font-weight: 600; cursor: pointer; padding: 0 0 20px;
   &:hover { color: #0D9488; }
 `;
 const ArticleWrap = styled.article``;
 const Eyebrow = styled.div`
   font-family: 'Outfit', sans-serif;
-  font-size: 12px; font-weight: 600; color: #0D9488; letter-spacing: 1.5px; margin-bottom: 10px; text-transform: uppercase;
+  font-size: 0.75rem; font-weight: 600; color: #0D9488; letter-spacing: 1.5px; margin-bottom: 10px; text-transform: uppercase;
 `;
-const Title = styled.h1`font-size: 36px; font-weight: 700; color: #0F172A; line-height: 1.35; margin: 0 0 12px; word-break: keep-all; @media (max-width: 768px) { font-size: 27px; }`;
-const Meta = styled.div`display: flex; gap: 5px; font-size: 13px; color: #94A3B8; margin-bottom: 18px;`;
-const Lead = styled.p`font-size: 17px; color: #475569; line-height: 1.7; margin: 0 0 28px; word-break: keep-all;`;
+const Title = styled.h1`font-size: 2.25rem; font-weight: 700; color: #0F172A; line-height: 1.35; margin: 0 0 12px; word-break: keep-all; @media (max-width: 768px) { font-size: 1.6875rem; }`;
+const Meta = styled.div`display: flex; gap: 5px; font-size: 0.8125rem; color: #94A3B8; margin-bottom: 18px;`;
+const Lead = styled.p`font-size: 1.0625rem; color: #475569; line-height: 1.7; margin: 0 0 28px; word-break: keep-all;`;
 const Body = styled.div`display: flex; flex-direction: column; gap: 16px;`;
-const H3 = styled.h3`font-size: 21px; font-weight: 700; color: #0F172A; margin: 18px 0 0;`;
-const P = styled.p`font-size: 16px; color: #334155; line-height: 1.8; margin: 0;`;
+const H3 = styled.h3`font-size: 1.3125rem; font-weight: 700; color: #0F172A; margin: 18px 0 0;`;
+const P = styled.p`font-size: 1rem; color: #334155; line-height: 1.8; margin: 0;`;
 const Callout = styled.div`
   background: #F0FDFA; border-left: 3px solid #14B8A6; border-radius: 0 8px 8px 0; padding: 14px 18px;
-  font-size: 15px; color: #134E4A; line-height: 1.7;
+  font-size: 0.9375rem; color: #134E4A; line-height: 1.7;
 `;
 const Step = styled.div`
   display: flex; gap: 12px; align-items: flex-start;
-  span { flex-shrink: 0; width: 26px; height: 26px; border-radius: 999px; background: #14B8A6; color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
-  p { margin: 0; font-size: 16px; color: #334155; line-height: 1.7; padding-top: 2px; }
+  span { flex-shrink: 0; width: 26px; height: 26px; border-radius: 999px; background: #14B8A6; color: #fff; font-size: 0.8125rem; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  p { margin: 0; font-size: 1rem; color: #334155; line-height: 1.7; padding-top: 2px; }
 `;
 const Figure = styled.figure`
   margin: 8px 0; border: 1px solid #E2E8F0; border-radius: 12px; overflow: hidden;
   img { display: block; width: 100%; height: auto; }
-  figcaption { font-size: 12px; color: #94A3B8; padding: 8px 12px; }
+  figcaption { font-size: 0.75rem; color: #94A3B8; padding: 8px 12px; }
 `;
-const Muted = styled.div`color: #94A3B8; font-size: 14px; padding: 60px 0; text-align: center;`;
+const Muted = styled.div`color: #94A3B8; font-size: 0.875rem; padding: 60px 0; text-align: center;`;
 const CtaBand = styled.div`
   margin-top: 48px; padding: 36px 28px; border-radius: 16px; text-align: center;
   background: linear-gradient(160deg, #0F172A 0%, #134E4A 100%);
   display: flex; flex-direction: column; align-items: center; gap: 16px;
 `;
-const CtaTitle = styled.h2`font-size: 22px; font-weight: 700; color: #FFFFFF; margin: 0; word-break: keep-all;`;
+const CtaTitle = styled.h2`font-size: 1.375rem; font-weight: 700; color: #FFFFFF; margin: 0; word-break: keep-all;`;
 const CtaBtn = styled(Link)`
   padding: 13px 36px; border-radius: 999px; background: #14B8A6; color: #FFFFFF;
-  font-size: 15px; font-weight: 500; text-decoration: none;
+  font-size: 0.9375rem; font-weight: 500; text-decoration: none;
   &:hover { background: #0D9488; }
 `;

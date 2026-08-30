@@ -172,8 +172,8 @@ export default function ContextTaskList({
 
 const Group = styled.div`display: flex; flex-direction: column; gap: 5px;`;
 const GroupHead = styled.div`display: flex; align-items: center; gap: 6px; padding-top: 2px;`;
-const GroupLabel = styled.span`font-size: 11px; font-weight: 700; color: #64748B; letter-spacing: -0.1px;`;
-const GroupCount = styled.span`font-size: 11px; font-weight: 600; color: #94A3B8;`;
+const GroupLabel = styled.span`font-size: 0.6875rem; font-weight: 700; color: #64748B; letter-spacing: -0.1px;`;
+const GroupCount = styled.span`font-size: 0.6875rem; font-weight: 600; color: #94A3B8;`;
 const Rows = styled.div`display: flex; flex-direction: column; gap: 2px;`;
 const Row = styled.button`
   display: flex; align-items: flex-start; gap: 8px; width: 100%;
@@ -189,18 +189,18 @@ const Dot = styled.span<{ $color: string }>`
 `;
 const RowMain = styled.span`display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1;`;
 const RowTitle = styled.span`
-  font-size: 12px; font-weight: 600; color: #334155; line-height: 1.4;
+  font-size: 0.75rem; font-weight: 600; color: #334155; line-height: 1.4;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 `;
 const RowMeta = styled.span`display: flex; align-items: center; gap: 6px; flex-wrap: wrap;`;
-const Who = styled.span`font-size: 11px; color: #94A3B8;`;
+const Who = styled.span`font-size: 0.6875rem; color: #94A3B8;`;
 const Proj = styled.span`
-  font-size: 10px; font-weight: 600; color: #0F766E; background: #F0FDFA;
+  font-size: 0.625rem; font-weight: 600; color: #0F766E; background: #F0FDFA;
   padding: 0 6px; border-radius: 999px;
   max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 `;
 const Due = styled.span<{ $overdue: boolean }>`
-  font-size: 10px; font-weight: 700;
+  font-size: 0.625rem; font-weight: 700;
   color: ${(p) => (p.$overdue ? '#B91C1C' : '#94A3B8')};
   background: ${(p) => (p.$overdue ? '#FEF2F2' : 'transparent')};
   padding: ${(p) => (p.$overdue ? '0 6px' : '0')};

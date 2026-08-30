@@ -15,7 +15,7 @@ export const TableHeader = styled.div<{ columns: string }>`
   padding: 16px 24px;
   background: #F8FAFC;
   border-bottom: 1px solid #E6EBF1;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   color: #6B7280;
   text-transform: uppercase;
@@ -57,7 +57,7 @@ export const TableRow = styled.div<{ columns: string }>`
 
 export const MobileLabel = styled.div`
   display: none;
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 600;
   color: #9CA3AF;
   text-transform: uppercase;
@@ -91,13 +91,13 @@ export const ActionButton = styled.button`
   border: 1px solid #E6EBF1;
   border-radius: 6px;
   color: #6B7280;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap;
   &:hover { border-color: #14B8A6; color: #14B8A6; background: #F0FDFA; }
-  @media (max-width: 768px) { padding: 6px 10px; font-size: 11px; flex: 0 0 auto; }
+  @media (max-width: 768px) { padding: 6px 10px; font-size: 0.6875rem; flex: 0 0 auto; }
 `;
 
 export const IconButton = styled.button<{ variant?: 'default' | 'edit' | 'delete' | 'view' }>`
@@ -110,7 +110,7 @@ export const IconButton = styled.button<{ variant?: 'default' | 'edit' | 'delete
   justify-content: center;
   min-width: 32px;
   min-height: 32px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 500;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   ${props => {
@@ -138,7 +138,7 @@ export const EmptyState = styled.div`
   padding: 60px 20px;
   color: #6B7280;
   grid-column: 1 / -1;
-  h3 { color: #374151; font-size: 18px; font-weight: 600; margin-bottom: 8px; }
-  p { font-size: 14px; color: #6B7280; }
+  h3 { color: #374151; font-size: 1.125rem; font-weight: 600; margin-bottom: 8px; }
+  p { font-size: 0.875rem; color: #6B7280; }
   @media (max-width: 1024px) { padding: 40px 20px; }
 `;

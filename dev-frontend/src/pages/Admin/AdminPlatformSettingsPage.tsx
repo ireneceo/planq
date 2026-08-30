@@ -378,10 +378,10 @@ const Card = styled.section`
   margin-bottom: 16px;
 `;
 const SectionTitle = styled.h3`
-  margin: 0; font-size: 15px; font-weight: 700; color: #0F172A;
+  margin: 0; font-size: 0.9375rem; font-weight: 700; color: #0F172A;
 `;
 const SectionHint = styled.p`
-  margin: -12px 0 0; font-size: 12px; color: #64748B; line-height: 1.6;
+  margin: -12px 0 0; font-size: 0.75rem; color: #64748B; line-height: 1.6;
 `;
 const FieldRow = styled.div`
   display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
@@ -389,7 +389,7 @@ const FieldRow = styled.div`
 const ToggleRow = styled.div`
   display: flex; align-items: center; gap: 12px;
 `;
-const ToggleHint = styled.span`font-size: 13px; color: #475569;`;
+const ToggleHint = styled.span`font-size: 0.8125rem; color: #475569;`;
 const Switch = styled.button<{ $on: boolean }>`
   width: 40px; height: 22px; border-radius: 11px; padding: 0;
   background: ${p => p.$on ? '#14B8A6' : '#CBD5E1'};
@@ -404,7 +404,7 @@ const SwitchKnob = styled.div<{ $on: boolean }>`
 const SeverityRow = styled.div`display: flex; gap: 6px;`;
 const SeverityBtn = styled.button<{ $active: boolean; $sev: 'info'|'warn'|'critical' }>`
   padding: 6px 12px; border-radius: 6px;
-  font-size: 12px; font-weight: 600; cursor: pointer;
+  font-size: 0.75rem; font-weight: 600; cursor: pointer;
   background: ${p => !p.$active ? '#FFFFFF' : (p.$sev === 'critical' ? '#FEF2F2' : p.$sev === 'warn' ? '#FEF3C7' : '#F0FDFA')};
   color: ${p => !p.$active ? '#64748B' : (p.$sev === 'critical' ? '#B91C1C' : p.$sev === 'warn' ? '#92400E' : '#0F766E')};
   border: 1px solid ${p => !p.$active ? '#E2E8F0' : (p.$sev === 'critical' ? '#FECACA' : p.$sev === 'warn' ? '#FDE68A' : '#99F6E4')};
@@ -412,7 +412,7 @@ const SeverityBtn = styled.button<{ $active: boolean; $sev: 'info'|'warn'|'criti
 `;
 const Hint = styled.p`
   margin: 0 0 8px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #64748B;
   line-height: 1.6;
 `;
@@ -422,14 +422,14 @@ const Field = styled.div`
   gap: 6px;
 `;
 const Label = styled.label`
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: #334155;
 `;
 const Input = styled.input`
   height: 38px;
   padding: 0 12px;
-  font-size: 14px;
+  font-size: 0.875rem;
   color: #0F172A;
   border: 1px solid #E2E8F0;
   border-radius: 8px;
@@ -449,7 +449,7 @@ const OgThumb = styled.img`
   flex-shrink: 0;
 `;
 const OgHint = styled.div`
-  font-size: 12px; color: #64748B; line-height: 1.6;
+  font-size: 0.75rem; color: #64748B; line-height: 1.6;
   flex: 1;
 `;
 const Skeleton = styled.div`

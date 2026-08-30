@@ -241,7 +241,7 @@ export default AdminFeedbackPage;
 const SearchInput = styled.input`
   width: 200px; height: 32px; padding: 0 10px;
   border: 1px solid #E2E8F0; border-radius: 6px;
-  font-size: 13px; color: #0F172A;
+  font-size: 0.8125rem; color: #0F172A;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
 `;
 const Loading = styled.div`padding: 40px; text-align: center; color: #94A3B8;`;
@@ -259,17 +259,17 @@ const Row = styled.div<{ $active: boolean }>`
   &:hover { background: ${p => p.$active ? '#F0FDFA' : '#F8FAFC'}; }
 `;
 const RowTitle = styled.div`
-  font-size: 14px; font-weight: 600; color: #0F172A;
+  font-size: 0.875rem; font-weight: 600; color: #0F172A;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
 const RowMeta = styled.div`
-  font-size: 12px; color: #64748B;
+  font-size: 0.75rem; color: #64748B;
   white-space: nowrap; flex-shrink: 0;
 `;
 const CatChip = styled.span<{ $cat: Category }>`
   flex-shrink: 0;
   padding: 3px 10px; border-radius: 999px;
-  font-size: 11px; font-weight: 700;
+  font-size: 0.6875rem; font-weight: 700;
   ${p => p.$cat === 'bug' ? 'background:#FEE2E2;color:#B91C1C;' :
         p.$cat === 'improve' ? 'background:#DCFCE7;color:#166534;' :
         p.$cat === 'feature' ? 'background:#DBEAFE;color:#1E40AF;' :
@@ -279,11 +279,11 @@ const UrgentChip = styled.span`
   flex-shrink: 0;
   padding: 3px 10px; border-radius: 999px;
   background: #F43F5E; color: #FFFFFF;
-  font-size: 11px; font-weight: 700;
+  font-size: 0.6875rem; font-weight: 700;
 `;
 const StatusChip = styled.span<{ $s: Status }>`
   padding: 3px 10px; border-radius: 999px;
-  font-size: 11px; font-weight: 700;
+  font-size: 0.6875rem; font-weight: 700;
   ${p => p.$s === 'pending' ? 'background:#FEF3C7;color:#92400E;' :
         p.$s === 'reviewing' ? 'background:#DBEAFE;color:#1E40AF;' :
         p.$s === 'done' ? 'background:#DCFCE7;color:#166534;' :
@@ -291,21 +291,21 @@ const StatusChip = styled.span<{ $s: Status }>`
 `;
 const ChipRow = styled.div`display: flex; align-items: center; gap: 6px; flex-wrap: wrap;`;
 // Drawer
-const DrawerTitle = styled.div`font-size: 15px; font-weight: 700; color: #0F172A; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
+const DrawerTitle = styled.div`font-size: 0.9375rem; font-weight: 700; color: #0F172A; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
 const DrawerSections = styled.div`display: flex; flex-direction: column; gap: 20px; padding: 20px;`;
 const Section = styled.div`display: flex; flex-direction: column; gap: 10px;`;
 const SectionLabel = styled.div`
-  font-size: 11px; font-weight: 700; color: #64748B;
+  font-size: 0.6875rem; font-weight: 700; color: #64748B;
   text-transform: uppercase; letter-spacing: 0.5px;
 `;
 const Meta = styled.div`display: flex; flex-direction: column; gap: 6px;`;
-const MetaRow = styled.div`display: grid; grid-template-columns: 100px 1fr; gap: 12px; font-size: 12.5px;`;
+const MetaRow = styled.div`display: grid; grid-template-columns: 100px 1fr; gap: 12px; font-size: 0.78125rem;`;
 const MetaLabel = styled.div`color: #64748B;`;
 const MetaValue = styled.div`color: #0F172A; word-break: break-all;`;
 const BodyBox = styled.pre`
   margin: 0; padding: 12px;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 13px; color: #0F172A; font-family: inherit;
+  font-size: 0.8125rem; color: #0F172A; font-family: inherit;
   white-space: pre-wrap; word-break: break-word;
   max-height: 240px; overflow-y: auto;
 `;
@@ -328,16 +328,16 @@ const AttachThumb = styled.img`
   border-radius: 6px; background: #F1F5F9;
 `;
 const AttachLabel = styled.div`
-  font-size: 11px; color: #64748B;
+  font-size: 0.6875rem; color: #64748B;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
 const FieldRow = styled.div`display: flex; gap: 12px;`;
 const FieldHalf = styled.div`flex: 1; display: flex; flex-direction: column; gap: 6px;`;
-const FieldLabel = styled.label`font-size: 12px; font-weight: 600; color: #475569;`;
+const FieldLabel = styled.label`font-size: 0.75rem; font-weight: 600; color: #475569;`;
 const ResponseArea = styled.textarea`
   width: 100%; padding: 10px 12px;
   border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 13px; color: #0F172A; font-family: inherit; resize: vertical;
+  font-size: 0.8125rem; color: #0F172A; font-family: inherit; resize: vertical;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
 `;
 const Spacer = styled.div`flex: 1;`;
@@ -345,7 +345,7 @@ const PrimaryBtn = styled.button`
   height: 36px; padding: 0 18px;
   background: #14B8A6; color: #FFFFFF;
   border: none; border-radius: 8px;
-  font-size: 13px; font-weight: 600; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   &:disabled { background: #CBD5E1; cursor: not-allowed; }
   &:hover:not(:disabled) { background: #0D9488; }
 `;

@@ -114,11 +114,11 @@ export default CategoryCombobox;
 
 const Wrap = styled.div`position: relative; width: 100%;`;
 const Row = styled.div`display: flex; align-items: center; gap: 6px;`;
-const Hash = styled.div`font-size: 14px; color: #94A3B8; font-weight: 700; padding-left: 2px;`;
+const Hash = styled.div`font-size: 0.875rem; color: #94A3B8; font-weight: 700; padding-left: 2px;`;
 const Input = styled.input`
   flex: 1; height: 34px; padding: 0 12px;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 13px; color: #0F172A;
+  font-size: 0.8125rem; color: #0F172A;
   &::placeholder { color: #94A3B8; }
   &:focus { outline: none; border-color: #14B8A6; background: #fff; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
 `;
@@ -133,7 +133,7 @@ const Item = styled.div<{ $active: boolean }>`
   padding: 8px 10px; border-radius: 6px; cursor: pointer;
   background: ${p => p.$active ? '#F0FDFA' : 'transparent'};
   color: ${p => p.$active ? '#0F766E' : '#334155'};
-  font-size: 13px;
+  font-size: 0.8125rem;
   &:hover { background: #F0FDFA; color: #0F766E; }
 `;
 const ItemText = styled.span`font-weight: 600;`;
@@ -142,7 +142,7 @@ const CreateHint = styled.div`
   display: flex; align-items: center; justify-content: space-between;
   padding: 10px; border-radius: 6px; cursor: pointer;
   border-top: 1px solid #F1F5F9; margin-top: 4px;
-  color: #0F766E; font-size: 13px;
+  color: #0F766E; font-size: 0.8125rem;
   &:hover { background: #F0FDFA; }
 `;
-const EmptyHint = styled.div`padding: 10px; font-size: 12px; color: #94A3B8; text-align: center;`;
+const EmptyHint = styled.div`padding: 10px; font-size: 0.75rem; color: #94A3B8; text-align: center;`;

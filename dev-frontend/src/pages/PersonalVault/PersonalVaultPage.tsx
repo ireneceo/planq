@@ -309,7 +309,7 @@ const LoadingSkeleton: React.FC = () => (
 // ─── styles ──────────────────────────────────────────────────────────────
 const SubLine = styled.div`
   display: inline-flex; align-items: center; gap: 6px;
-  font-size: 12px; color: #64748B; margin-bottom: 16px;
+  font-size: 0.75rem; color: #64748B; margin-bottom: 16px;
 `;
 const SubLineIcon = styled.svg` width: 14px; height: 14px; color: #94A3B8; `;
 
@@ -320,8 +320,8 @@ const ExplainerBox = styled.div`
 `;
 const ExplainerIcon = styled.svg` width: 20px; height: 20px; color: #0F766E; flex-shrink: 0; margin-top: 2px; `;
 const ExplainerBody = styled.div` flex: 1; min-width: 0; `;
-const ExplainerTitle = styled.div` font-size: 13px; font-weight: 700; color: #0F766E; margin-bottom: 2px; `;
-const ExplainerText = styled.div` font-size: 12px; color: #115E59; line-height: 1.5; `;
+const ExplainerTitle = styled.div` font-size: 0.8125rem; font-weight: 700; color: #0F766E; margin-bottom: 2px; `;
+const ExplainerText = styled.div` font-size: 0.75rem; color: #115E59; line-height: 1.5; `;
 const ExplainerDismiss = styled.button`
   background: none; border: none; color: #0F766E; cursor: pointer; padding: 4px;
   display: flex; align-items: center; justify-content: center; border-radius: 4px;
@@ -336,7 +336,7 @@ const TabRow = styled.div`
 `;
 const TabBtn = styled.button<{ $active: boolean }>`
   padding: 10px 16px; background: transparent; border: none; cursor: pointer;
-  font-size: 13px; font-weight: 600;
+  font-size: 0.8125rem; font-weight: 600;
   color: ${p => p.$active ? '#0F766E' : '#64748B'};
   border-bottom: 2px solid ${p => p.$active ? '#14B8A6' : 'transparent'};
   margin-bottom: -1px;
@@ -354,7 +354,7 @@ const SectionHead = styled.div`
 `;
 const ViewAll = styled.button`
   padding: 2px 8px; border: none; background: none; cursor: pointer;
-  font-family: inherit; font-size: 12px; font-weight: 600; color: #0D9488; border-radius: 6px;
+  font-family: inherit; font-size: 0.75rem; font-weight: 600; color: #0D9488; border-radius: 6px;
   &:hover { background: #F0FDFA; }
   &:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,0.3); }
 `;
@@ -371,8 +371,8 @@ const Card = styled.div`
   transition: border-color 0.12s, background 0.12s;
   &:hover { border-color: #CBD5E1; background: #F8FAFC; }
 `;
-const CardTitle = styled.div` font-size: 14px; color: #0F172A; font-weight: 600; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; `;
-const CardMeta = styled.div` font-size: 11px; color: #94A3B8; `;
+const CardTitle = styled.div` font-size: 0.875rem; color: #0F172A; font-weight: 600; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; `;
+const CardMeta = styled.div` font-size: 0.6875rem; color: #94A3B8; `;
 
 const EmptyWrap = styled.div`
   padding: 48px 16px;

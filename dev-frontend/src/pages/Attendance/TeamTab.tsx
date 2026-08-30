@@ -179,7 +179,7 @@ const PresenceWrap = styled.div` display: flex; flex-wrap: wrap; gap: 8px; `;
 const PresenceChip = styled.div<{ $state: string | null }>`
   display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 999px;
-  font-size: 12px; font-weight: 600; color: #334155;
+  font-size: 0.75rem; font-weight: 600; color: #334155;
 `;
 
 const PresenceState = styled.span` font-weight: 500; color: #94A3B8; `;
@@ -197,4 +197,4 @@ const GrantForm = styled.div`
 
 const MonthNav = styled.div` display: flex; align-items: center; gap: 8px; margin-bottom: 8px; `;
 
-const MonthLabel = styled.span` font-size: 14px; font-weight: 700; color: #0F172A; font-variant-numeric: tabular-nums; `;
+const MonthLabel = styled.span` font-size: 0.875rem; font-weight: 700; color: #0F172A; font-variant-numeric: tabular-nums; `;

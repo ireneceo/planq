@@ -326,7 +326,7 @@ const Header = styled.div`
   padding: 18px 22px 12px; border-bottom: 1px solid #F1F5F9;
   position: sticky; top: 0; background: #fff; z-index: 1;
 `;
-const Title = styled.h2`font-size:16px;font-weight:700;color:#0F172A;margin:0;`;
+const Title = styled.h2`font-size:1rem;font-weight:700;color:#0F172A;margin:0;`;
 const CloseBtn = styled.button`
   /* touch-target-44: 폰 터치 타깃 (theme/tokens CONTROL.touchMin). 데스크탑 크기는 그대로. */
   @media (max-width: 640px) { min-width: 44px; min-height: 44px; }
@@ -341,10 +341,10 @@ const Section = styled.section`
 // D4 #62 — 보안등급 차단 배너
 const BlockedBanner = styled.div`
   margin: 14px 22px 0; padding: 10px 14px; border-radius: 10px;
-  background: #FEF3C7; color: #92400E; font-size: 12.5px; line-height: 1.5; font-weight: 600;
+  background: #FEF3C7; color: #92400E; font-size: 0.78125rem; line-height: 1.5; font-weight: 600;
   border: 1px solid #FDE68A;
 `;
-const SectionTitle = styled.h3`font-size:13px;font-weight:700;color:#0F172A;margin:0 0 10px 0;`;
+const SectionTitle = styled.h3`font-size:0.8125rem;font-weight:700;color:#0F172A;margin:0 0 10px 0;`;
 const CheckRow = styled.div`margin-bottom:8px;`;
 const CheckLabel = styled.label`
   display: flex; align-items: flex-start; gap: 10px; cursor: pointer;
@@ -357,8 +357,8 @@ const CheckLabel = styled.label`
   }
 `;
 const CheckTexts = styled.div`display:flex;flex-direction:column;gap:2px;flex:1;min-width:0;`;
-const CheckTitle = styled.span`font-size:13px;font-weight:600;color:#0F172A;`;
-const CheckDesc = styled.span`font-size:11px;color:#64748B;line-height:1.5;`;
+const CheckTitle = styled.span`font-size:0.8125rem;font-weight:600;color:#0F172A;`;
+const CheckDesc = styled.span`font-size:0.6875rem;color:#64748B;line-height:1.5;`;
 // URL 카드
 const UrlCard = styled.div`
   display: flex; align-items: center; gap: 10px; padding: 10px 12px;
@@ -370,12 +370,12 @@ const UrlIcon = styled.span`
   background: #fff; color: #0F766E; border: 1px solid #E2E8F0; border-radius: 8px;
 `;
 const UrlText = styled.div`
-  flex: 1; min-width: 0; font-size: 12px; color: #334155;
+  flex: 1; min-width: 0; font-size: 0.75rem; color: #334155;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 `;
 const CopyBtn = styled.button`
-  flex-shrink: 0; padding: 7px 12px; font-size: 12px; font-weight: 700; color: #0F766E;
+  flex-shrink: 0; padding: 7px 12px; font-size: 0.75rem; font-weight: 700; color: #0F766E;
   background: #F0FDFA; border: 1px solid #14B8A6; border-radius: 8px; cursor: pointer; white-space: nowrap;
   display: inline-flex; align-items: center; gap: 4px;
   &:hover { background: #14B8A6; color: #fff; }
@@ -389,7 +389,7 @@ const TabBar = styled.div`
 const TabBtn = styled.button<{ $active: boolean }>`
   display: inline-flex; align-items: center; gap: 6px;
   padding: 10px 14px; margin-bottom: -1px;
-  font-size: 13px; font-weight: 600;
+  font-size: 0.8125rem; font-weight: 600;
   background: transparent; border: none; cursor: pointer;
   color: ${p => p.$active ? '#0F766E' : '#64748B'};
   border-bottom: 2px solid ${p => p.$active ? '#14B8A6' : 'transparent'};
@@ -399,31 +399,31 @@ const TabBtn = styled.button<{ $active: boolean }>`
 const TabPanel = styled.div`padding: 16px 22px 20px;`;
 
 const Field = styled.div`display:flex;flex-direction:column;gap:5px;margin-bottom:10px;`;
-const Label = styled.label`font-size:12px;font-weight:600;color:#0F172A;`;
+const Label = styled.label`font-size:0.75rem;font-weight:600;color:#0F172A;`;
 const Input = styled.input`
-  width: 100%; padding: 8px 10px; font-size: 13px; color: #0F172A;
+  width: 100%; padding: 8px 10px; font-size: 0.8125rem; color: #0F172A;
   border: 1px solid #E2E8F0; border-radius: 8px; background: #fff;
   &:focus { outline: none; border-color: #14B8A6; }
 `;
 const Textarea = styled.textarea`
-  width: 100%; padding: 8px 10px; font-size: 13px; color: #0F172A;
+  width: 100%; padding: 8px 10px; font-size: 0.8125rem; color: #0F172A;
   border: 1px solid #E2E8F0; border-radius: 8px; background: #fff; resize: vertical;
   font-family: inherit;
   &:focus { outline: none; border-color: #14B8A6; }
 `;
 const Actions = styled.div`display:flex;justify-content:flex-end;gap:6px;margin-top:8px;`;
 const PrimaryBtn = styled.button`
-  padding: 8px 16px; font-size: 13px; font-weight: 700; color: #fff; background: #14B8A6;
+  padding: 8px 16px; font-size: 0.8125rem; font-weight: 700; color: #fff; background: #14B8A6;
   border: none; border-radius: 8px; cursor: pointer;
   &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { background: #CBD5E1; cursor: not-allowed; }
 `;
 const SecondaryBtn = styled.button`
-  padding: 8px 14px; font-size: 13px; font-weight: 600; color: #334155;
+  padding: 8px 14px; font-size: 0.8125rem; font-weight: 600; color: #334155;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer;
   &:hover { border-color: #CBD5E1; background: #F8FAFC; }
 `;
-const ErrorBox = styled.div`font-size:12px;color:#DC2626;background:#FEF2F2;padding:8px 10px;border-radius:6px;margin-bottom:6px;`;
+const ErrorBox = styled.div`font-size:0.75rem;color:#DC2626;background:#FEF2F2;padding:8px 10px;border-radius:6px;margin-bottom:6px;`;
 
 // 발송 완료 화면
 const Done = styled.div`
@@ -433,12 +433,12 @@ const Done = styled.div`
 const DoneIcon = styled.div<{ $tone: 'ok' | 'warn' }>`
   width: 44px; height: 44px; border-radius: 50%;
   display: inline-flex; align-items: center; justify-content: center;
-  font-size: 20px; font-weight: 700;
+  font-size: 1.25rem; font-weight: 700;
   background: ${p => p.$tone === 'ok' ? '#F0FDFA' : '#FFF7ED'};
   color: ${p => p.$tone === 'ok' ? '#0F766E' : '#C2410C'};
   border: 1px solid ${p => p.$tone === 'ok' ? '#14B8A6' : '#FED7AA'};
 `;
 const DoneTitle = styled.div`
-  font-size: 14px; font-weight: 600; color: #0F172A;
+  font-size: 0.875rem; font-weight: 600; color: #0F172A;
   text-align: center; line-height: 1.5; max-width: 380px;
 `;

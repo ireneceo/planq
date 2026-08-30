@@ -879,12 +879,12 @@ const AttachPickerModal: React.FC<{
 export default PostTableGrid;
 
 // ─── styled ───
-const Loading = styled.div`padding: 40px; text-align: center; color: #94A3B8; font-size: 13px;`;
+const Loading = styled.div`padding: 40px; text-align: center; color: #94A3B8; font-size: 0.8125rem;`;
 const GridWrap = styled.div`width: 100%;`;
 // 라운드 제거 — 문서 flat 풀레이아웃과 통일(상하 flat 라인만, 좌우는 full-bleed 로 패널 끝까지). (Irene)
 const GridScroll = styled.div`overflow-x: auto; border-top: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; background: #fff;`;
 const GridTable = styled.table`
-  width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px;
+  width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.8125rem;
   background: #fff;
   th, td { border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; vertical-align: top; }
   thead th { background: #F8FAFC; font-weight: 600; color: #0F172A; padding: 8px 10px; text-align: left; white-space: nowrap; }
@@ -893,23 +893,23 @@ const GridTable = styled.table`
   tr:last-child td { border-bottom: none; }
 `;
 const RowNumHeader = styled.th`width: 40px; min-width: 40px;`;
-const RowNumCell = styled.td`width: 40px; text-align: center; color: #94A3B8; font-size: 11px; padding: 8px 0; background: #F8FAFC;`;
+const RowNumCell = styled.td`width: 40px; text-align: center; color: #94A3B8; font-size: 0.6875rem; padding: 8px 0; background: #F8FAFC;`;
 const ColHead = styled.th`min-width: 140px; cursor: default;`;
 const ColHeadInner = styled.div`display: flex; flex-direction: column; gap: 2px;`;
 const ColNameLabel = styled.div<{ $readOnly?: boolean }>`
-  font-size: 13px; font-weight: 600; color: #0F172A;
+  font-size: 0.8125rem; font-weight: 600; color: #0F172A;
   cursor: ${p => p.$readOnly ? 'default' : 'pointer'};
   padding: 2px 4px; border-radius: 4px;
   ${p => p.$readOnly ? '' : `&:hover { background: #F0FDFA; }`}
 `;
 const HeaderEditInput = styled.input`
-  font-size: 13px; font-weight: 600; color: #0F172A;
+  font-size: 0.8125rem; font-weight: 600; color: #0F172A;
   border: 1px solid #14B8A6; border-radius: 4px; padding: 2px 4px; outline: none;
   width: 100%; box-sizing: border-box;
 `;
-const ColType = styled.div`font-size: 10px; color: #94A3B8; font-weight: 500; padding: 0 4px;`;
+const ColType = styled.div`font-size: 0.625rem; color: #94A3B8; font-weight: 500; padding: 0 4px;`;
 const AddColHead = styled.th`
-  width: 36px; text-align: center; cursor: pointer; color: #64748B; font-size: 18px; font-weight: 400;
+  width: 36px; text-align: center; cursor: pointer; color: #64748B; font-size: 1.125rem; font-weight: 400;
   &:hover { background: #F0FDFA; color: #0F766E; }
 `;
 const ActionsHead = styled.th`width: 32px;`;
@@ -917,21 +917,21 @@ const Cell = styled.td`min-width: 140px; padding: 0;`;
 const ActionsCell = styled.td`width: 32px; text-align: center; padding: 0; background: #F8FAFC;`;
 const DeleteRowBtn = styled.button`
   width: 22px; height: 22px; border: none; background: transparent; cursor: pointer;
-  color: #94A3B8; border-radius: 4px; font-size: 14px; line-height: 1;
+  color: #94A3B8; border-radius: 4px; font-size: 0.875rem; line-height: 1;
   &:hover { background: #FEF2F2; color: #DC2626; }
 `;
 const AddRowBtn = styled.button`
   width: 100%; padding: 10px; border: none; background: transparent; cursor: pointer;
-  color: #14B8A6; font-size: 13px; font-weight: 600; text-align: left;
+  color: #14B8A6; font-size: 0.8125rem; font-weight: 600; text-align: left;
   &:hover { background: #F0FDFA; }
 `;
 const CellInput = styled.input`
   width: 100%; height: 100%; padding: 8px 10px; border: none; background: transparent;
-  font-size: 13px; color: #0F172A; box-sizing: border-box;
+  font-size: 0.8125rem; color: #0F172A; box-sizing: border-box;
   &:focus { outline: 2px solid #14B8A6; outline-offset: -2px; }
 `;
 const ReadCell = styled.div`
-  padding: 8px 10px; font-size: 13px; color: #0F172A; line-height: 1.5;
+  padding: 8px 10px; font-size: 0.8125rem; color: #0F172A; line-height: 1.5;
   min-height: 36px; word-break: break-word;
 `;
 const Dim = styled.span`color: #CBD5E1;`;
@@ -939,21 +939,21 @@ const ComputedValue = styled.div`
   display: inline-flex; align-items: center; gap: 4px;
   font-weight: 600; color: #0F766E; font-variant-numeric: tabular-nums;
   &::before {
-    content: 'fx'; font-size: 9px; font-weight: 700; padding: 2px 5px;
+    content: 'fx'; font-size: 0.5625rem; font-weight: 700; padding: 2px 5px;
     background: #CCFBF1; color: #0F766E; border-radius: 4px;
   }
 `;
 const CellTextarea = styled.textarea`
   width: 100%; padding: 8px 10px; border: none; background: transparent;
-  font-size: 13px; color: #0F172A; font-family: inherit; resize: vertical; box-sizing: border-box; line-height: 1.5;
+  font-size: 0.8125rem; color: #0F172A; font-family: inherit; resize: vertical; box-sizing: border-box; line-height: 1.5;
   &:focus { outline: 2px solid #14B8A6; outline-offset: -2px; }
 `;
 const CheckboxLabel = styled.label`display: flex; align-items: center; justify-content: center; padding: 8px;`;
 const SecretCell = styled.div`display: flex; align-items: center; gap: 6px; padding: 8px 10px;`;
 const SecretMask = styled.span`color: #64748B; font-family: monospace;`;
-const SecretInput = styled.input`flex: 1; border: none; background: transparent; font-size: 13px; outline: none;`;
+const SecretInput = styled.input`flex: 1; border: none; background: transparent; font-size: 0.8125rem; outline: none;`;
 const RevealBtn = styled.button`
-  font-size: 11px; padding: 2px 8px; border: 1px solid #E2E8F0; background: #fff;
+  font-size: 0.6875rem; padding: 2px 8px; border: 1px solid #E2E8F0; background: #fff;
   color: #475569; border-radius: 4px; cursor: pointer;
   &:hover { background: #F8FAFC; }
 `;
@@ -964,14 +964,14 @@ const AttachCellWrap = styled.div`
 const AttachEmptyBtn = styled.button`
   width: 100%; min-height: 24px; background: transparent; border: 1px dashed #CBD5E1;
   border-radius: 6px; padding: 4px 8px; cursor: pointer; font-family: inherit;
-  color: #64748B; font-size: 12px; text-align: left;
+  color: #64748B; font-size: 0.75rem; text-align: left;
   &:hover { background: #F0FDFA; border-color: #14B8A6; color: #0F766E; }
 `;
 const AttachAddIcon = styled.button`
   display: inline-flex; align-items: center; justify-content: center;
   width: 22px; height: 22px;
   background: transparent; border: 1px solid #E2E8F0; border-radius: 50%;
-  color: #64748B; font-size: 14px; font-weight: 600; cursor: pointer;
+  color: #64748B; font-size: 0.875rem; font-weight: 600; cursor: pointer;
   flex-shrink: 0;
   &:hover { background: #F0FDFA; border-color: #14B8A6; color: #0F766E; }
 `;
@@ -980,7 +980,7 @@ const AttachChipLink = styled.a<{ $kind: 'file' | 'post' }>`
   display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px;
   background: ${p => p.$kind === 'file' ? '#FEF3C7' : '#DBEAFE'};
   color: ${p => p.$kind === 'file' ? '#92400E' : '#1E40AF'};
-  border-radius: 6px; font-size: 11px; font-weight: 600;
+  border-radius: 6px; font-size: 0.6875rem; font-weight: 600;
   max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   text-decoration: none; cursor: pointer;
   transition: background 0.15s, transform 0.1s;
@@ -996,10 +996,10 @@ const EmptyWrap = styled.div`
   /* 라운드 박스라 좌우 끝에 붙으면 안 됨 — full-bleed 컨테이너 안에서 좌우 여백(Irene) */
   margin: 0 24px;
 `;
-const EmptyTitle = styled.div`font-size: 14px; font-weight: 600; color: #0F172A; margin-bottom: 4px;`;
-const EmptyHint = styled.div`font-size: 12px; color: #64748B; margin-bottom: 14px;`;
+const EmptyTitle = styled.div`font-size: 0.875rem; font-weight: 600; color: #0F172A; margin-bottom: 4px;`;
+const EmptyHint = styled.div`font-size: 0.75rem; color: #64748B; margin-bottom: 14px;`;
 const FirstColumnInput = styled.input`
-  width: min(320px, 80%); padding: 10px 14px; font-size: 14px; color: #0F172A;
+  width: min(320px, 80%); padding: 10px 14px; font-size: 0.875rem; color: #0F172A;
   border: 1px solid #E2E8F0; border-radius: 8px; background: #fff; text-align: center;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
 `;
@@ -1024,7 +1024,7 @@ const AttachDialog = styled.div`
   @media (max-width: 640px) { max-height: 100vh; height: 100vh; border-radius: 0; }
 `;
 const PopoverHeader = styled.div`display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid #F1F5F9; flex-shrink: 0;`;
-const PopoverTitle = styled.h3`font-size: 14px; font-weight: 700; color: #0F172A; margin: 0;`;
+const PopoverTitle = styled.h3`font-size: 0.875rem; font-weight: 700; color: #0F172A; margin: 0;`;
 const PopoverClose = styled.button`
   width: 26px; height: 26px; background: transparent; border: none;
   display: flex; align-items: center; justify-content: center;
@@ -1036,23 +1036,23 @@ const PopoverBody = styled.div`padding: 16px 18px; flex: 1; overflow-y: auto; mi
 const PopoverFooter = styled.div`padding: 12px 18px; border-top: 1px solid #F1F5F9; flex-shrink: 0;`;
 const PopoverActions = styled.div`display: flex; justify-content: flex-end; gap: 8px;`;
 const Field = styled.div`display: flex; flex-direction: column; gap: 6px;`;
-const FieldLabel = styled.label`font-size: 12px; font-weight: 600; color: #0F172A;`;
+const FieldLabel = styled.label`font-size: 0.75rem; font-weight: 600; color: #0F172A;`;
 const FieldInput = styled.input`
-  width: 100%; padding: 8px 12px; font-size: 13px; color: #0F172A;
+  width: 100%; padding: 8px 12px; font-size: 0.8125rem; color: #0F172A;
   border: 1px solid #E2E8F0; border-radius: 8px; background: #fff;
   &:focus { outline: none; border-color: #14B8A6; }
 `;
 const FieldTextarea = styled.textarea`
-  width: 100%; padding: 8px 12px; font-size: 13px; color: #0F172A;
+  width: 100%; padding: 8px 12px; font-size: 0.8125rem; color: #0F172A;
   border: 1px solid #E2E8F0; border-radius: 8px; background: #fff;
   font-family: inherit; line-height: 1.5; resize: vertical;
   &:focus { outline: none; border-color: #14B8A6; }
 `;
-const FieldHint = styled.div`font-size: 11px; color: #94A3B8; line-height: 1.4;`;
+const FieldHint = styled.div`font-size: 0.6875rem; color: #94A3B8; line-height: 1.4;`;
 // footer (집계)
 const FooterLabelCell = styled.td`
   width: 40px; text-align: center; padding: 8px 0;
-  background: #F8FAFC; color: #94A3B8; font-size: 12px; font-weight: 700;
+  background: #F8FAFC; color: #94A3B8; font-size: 0.75rem; font-weight: 700;
   border-top: 2px solid #E2E8F0;
 `;
 const FooterCell = styled.td`
@@ -1061,36 +1061,36 @@ const FooterCell = styled.td`
 `;
 const FooterValue = styled.span`
   display: inline-flex; gap: 6px; align-items: baseline;
-  font-size: 11px; color: #64748B;
-  > strong { font-size: 13px; color: #0F172A; font-weight: 700; }
+  font-size: 0.6875rem; color: #64748B;
+  > strong { font-size: 0.8125rem; color: #0F172A; font-weight: 700; }
 `;
 const SecondaryBtn = styled.button`
-  padding: 8px 14px; font-size: 13px; font-weight: 600; color: #334155;
+  padding: 8px 14px; font-size: 0.8125rem; font-weight: 600; color: #334155;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer;
   &:hover:not(:disabled) { border-color: #CBD5E1; background: #F8FAFC; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 const PrimaryBtn = styled.button`
-  padding: 8px 16px; font-size: 13px; font-weight: 700; color: #fff;
+  padding: 8px 16px; font-size: 0.8125rem; font-weight: 700; color: #fff;
   background: #14B8A6; border: none; border-radius: 8px; cursor: pointer;
   &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { background: #CBD5E1; cursor: not-allowed; }
 `;
 const DangerSection = styled.div`margin-bottom: 12px;`;
 const DangerLinkBtn = styled.button`
-  font-size: 12px; padding: 4px 0; background: transparent; border: none;
+  font-size: 0.75rem; padding: 4px 0; background: transparent; border: none;
   color: #DC2626; font-weight: 600; cursor: pointer;
   &:hover { text-decoration: underline; }
 `;
 const DangerConfirm = styled.div`display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: #FEF2F2; border-radius: 8px;`;
-const DangerHint = styled.span`flex: 1; font-size: 12px; color: #991B1B;`;
+const DangerHint = styled.span`flex: 1; font-size: 0.75rem; color: #991B1B;`;
 const DangerBtn = styled.button`
-  padding: 6px 12px; font-size: 12px; font-weight: 700; color: #fff;
+  padding: 6px 12px; font-size: 0.75rem; font-weight: 700; color: #fff;
   background: #DC2626; border: none; border-radius: 6px; cursor: pointer;
   &:hover { background: #B91C1C; }
 `;
 const DangerCancel = styled.button`
-  padding: 6px 10px; font-size: 12px; font-weight: 600; color: #475569;
+  padding: 6px 10px; font-size: 0.75rem; font-weight: 600; color: #475569;
   background: transparent; border: none; cursor: pointer;
   &:hover { color: #0F172A; }
 `;
@@ -1099,7 +1099,7 @@ const DangerCancel = styled.button`
 const CurrentList = styled.div`display: flex; flex-direction: column; gap: 4px;`;
 const CurrentItem = styled.div`
   display: flex; align-items: center; gap: 8px; padding: 6px 10px;
-  background: #F0FDFA; border-radius: 6px; font-size: 12px; color: #0F172A;
+  background: #F0FDFA; border-radius: 6px; font-size: 0.75rem; color: #0F172A;
   > span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 `;
 const CurrentItemLink = styled.a`
@@ -1109,10 +1109,10 @@ const CurrentItemLink = styled.a`
   &:hover { color: #0F766E; }
 `;
 const ExternalIcon = styled.span`
-  font-size: 10px; color: #94A3B8; margin-left: 2px;
+  font-size: 0.625rem; color: #94A3B8; margin-left: 2px;
 `;
 const SectionHelp = styled.div`
-  font-size: 11px; color: #64748B; line-height: 1.5;
+  font-size: 0.6875rem; color: #64748B; line-height: 1.5;
   padding: 4px 0;
 `;
 const RemoveItemBtn = styled.button`
@@ -1120,17 +1120,17 @@ const RemoveItemBtn = styled.button`
   color: #64748B; cursor: pointer; border-radius: 4px; line-height: 1;
   &:hover { background: #fff; color: #DC2626; }
 `;
-const SectionTitle = styled.div`font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 6px;`;
+const SectionTitle = styled.div`font-size: 0.6875rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 6px;`;
 const DropZone = styled.button<{ $over?: boolean }>`
   width: 100%; padding: 14px; border: 1px dashed ${p => (p.$over ? '#14B8A6' : '#CBD5E1')}; border-radius: 8px;
   background: ${p => (p.$over ? '#F0FDFA' : '#F8FAFC')}; color: ${p => (p.$over ? '#0F766E' : '#64748B')};
-  font-size: 12px; cursor: pointer;
+  font-size: 0.75rem; cursor: pointer;
   &:hover:not(:disabled) { border-color: #14B8A6; background: #F0FDFA; color: #0F766E; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 const NewDocActions = styled.div`display: flex; gap: 8px;`;
 const NewDocBtn = styled.button<{ $accent?: boolean }>`
-  flex: 1; padding: 10px 14px; font-size: 13px; font-weight: 600;
+  flex: 1; padding: 10px 14px; font-size: 0.8125rem; font-weight: 600;
   background: ${p => p.$accent ? 'linear-gradient(135deg, #F43F5E 0%, #BE185D 100%)' : '#fff'};
   color: ${p => p.$accent ? '#fff' : '#334155'};
   border: ${p => p.$accent ? 'none' : '1px solid #E2E8F0'};

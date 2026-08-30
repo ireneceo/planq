@@ -469,8 +469,8 @@ export default MailContextPanel;
 const Wrap = styled.div`flex:1; min-height:0; overflow-y:auto;`;
 // Q Talk ChatPanel:3430 과 동일 — 같은 기능은 어느 화면에서든 같은 모양 (teal + 체크박스 아이콘)
 const CandList = styled.div`display:flex; flex-direction:column; gap:8px;`;
-const SummaryBox = styled.div`font-size:12px; color:#334155; line-height:1.6; white-space:pre-wrap; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; padding:10px 12px;`;
-const SummaryError = styled.div`font-size:12px; color:#B91C1C; line-height:1.5; background:#FEF2F2; border:1px solid #FECACA; border-radius:10px; padding:10px 12px;`;
+const SummaryBox = styled.div`font-size:0.75rem; color:#334155; line-height:1.6; white-space:pre-wrap; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; padding:10px 12px;`;
+const SummaryError = styled.div`font-size:0.75rem; color:#B91C1C; line-height:1.5; background:#FEF2F2; border:1px solid #FECACA; border-radius:10px; padding:10px 12px;`;
 const typeColor: Record<Channel, { bg: string; fg: string }> = {
   chat: { bg: '#F0FDFA', fg: '#0F766E' },
   email: { bg: '#EFF6FF', fg: '#1D4ED8' },
@@ -482,12 +482,12 @@ const CountChip = styled.div<{ $type: Channel }>`
   display:flex; flex-direction:column; align-items:center; gap:1px; padding:8px 4px; border-radius:10px;
   background:${p => typeColor[p.$type].bg};
 `;
-const CountNum = styled.span<{}>`font-size:16px; font-weight:700; color:#0F172A;`;
-const CountLbl = styled.span`font-size:10px; font-weight:600; color:#64748B;`;
+const CountNum = styled.span<{}>`font-size:1rem; font-weight:700; color:#0F172A;`;
+const CountLbl = styled.span`font-size:0.625rem; font-weight:600; color:#64748B;`;
 const RecentList = styled.div`display:flex; flex-direction:column; gap:6px;`;
 const RecentRow = styled.div`display:flex; align-items:center; gap:6px; min-width:0;`;
 const RecentType = styled.span<{ $type: Channel }>`
-  flex-shrink:0; font-size:10px; font-weight:700; padding:1px 6px; border-radius:999px;
+  flex-shrink:0; font-size:0.625rem; font-weight:700; padding:1px 6px; border-radius:999px;
   background:${p => typeColor[p.$type].bg}; color:${p => typeColor[p.$type].fg};
 `;
-const RecentText = styled.span`font-size:12px; color:#475569; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;`;
+const RecentText = styled.span`font-size:0.75rem; color:#475569; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;`;

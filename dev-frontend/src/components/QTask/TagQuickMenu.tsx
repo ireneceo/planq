@@ -205,7 +205,7 @@ const Menu = styled.div`
 `;
 const Field = styled.input`
   width: 100%; height: 30px; padding: 0 8px;
-  font-size: 12px; font-family: inherit; color: #0F172A;
+  font-size: 0.75rem; font-family: inherit; color: #0F172A;
   border: 1px solid #E2E8F0; border-radius: 6px; outline: none;
   &:focus { border-color: #5EEAD4; box-shadow: 0 0 0 2px rgba(94,234,212,0.25); }
 `;
@@ -218,7 +218,7 @@ const Item = styled.button<{ $on: boolean }>`
   padding: 6px 8px; min-height: 30px;
   background: ${p => (p.$on ? '#F0FDFA' : 'transparent')};
   border: none; border-radius: 6px; cursor: pointer;
-  font-size: 12px; font-family: inherit; text-align: left;
+  font-size: 0.75rem; font-family: inherit; text-align: left;
   color: ${p => (p.$on ? '#0F766E' : '#334155')};
   &:hover:not(:disabled) { background: ${p => (p.$on ? '#CCFBF1' : '#F8FAFC')}; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -233,18 +233,18 @@ const Name = styled.span`
 `;
 const Check = styled.svg`width: 12px; height: 12px; flex-shrink: 0;`;
 const Empty = styled.div`
-  padding: 10px 8px; font-size: 11px; color: #94A3B8; line-height: 1.5;
+  padding: 10px 8px; font-size: 0.6875rem; color: #94A3B8; line-height: 1.5;
 `;
 const ManageRow = styled.button`
   display: flex; align-items: center; gap: 6px; width: 100%;
   margin-top: 6px; padding: 7px 8px; min-height: 32px;
   background: transparent; border: none; border-top: 1px solid #F1F5F9; border-radius: 0 0 6px 6px;
-  font-size: 12px; font-family: inherit; color: #475569; cursor: pointer; text-align: left;
+  font-size: 0.75rem; font-family: inherit; color: #475569; cursor: pointer; text-align: left;
   &:hover { background: #F8FAFC; color: #0F172A; }
 `;
 const ManageHint = styled.span`
-  margin-left: auto; font-size: 11px; color: #94A3B8;
+  margin-left: auto; font-size: 0.6875rem; color: #94A3B8;
 `;
 const ErrText = styled.div`
-  margin-top: 6px; font-size: 11px; color: #DC2626; line-height: 1.4;
+  margin-top: 6px; font-size: 0.6875rem; color: #DC2626; line-height: 1.4;
 `;

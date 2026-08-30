@@ -58,7 +58,7 @@ const Card = styled.section<{ $highlight?: boolean }>`
 `;
 
 const SectionTitle = styled.h2`
-  font-size: 16px;
+  font-size: 1rem;
   font-weight: 700;
   color: #0f172a;
   margin: 0 0 4px;
@@ -69,7 +69,7 @@ const SectionHeaderRow = styled.div`
 const InvitePrimaryBtn = styled.button`
   display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px;
   background: #14B8A6; color: #FFFFFF; border: none; border-radius: 8px;
-  font-size: 13px; font-weight: 700; cursor: pointer; flex-shrink: 0;
+  font-size: 0.8125rem; font-weight: 700; cursor: pointer; flex-shrink: 0;
   &:hover { background: #0D9488; }
 `;
 const InviteBox = styled.div`
@@ -79,29 +79,29 @@ const InviteBox = styled.div`
 const InviteInputRow = styled.div`display: flex; gap: 8px;`;
 const InviteInput = styled.input`
   flex: 2; padding: 8px 12px; border: 1px solid #CBD5E1; border-radius: 8px;
-  font-size: 13px; background: #FFFFFF; &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
+  font-size: 0.8125rem; background: #FFFFFF; &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
 `;
 const InviteRoleInput = styled.input`
   flex: 1; padding: 8px 12px; border: 1px solid #CBD5E1; border-radius: 8px;
-  font-size: 13px; background: #FFFFFF; min-width: 120px;
+  font-size: 0.8125rem; background: #FFFFFF; min-width: 120px;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
 `;
-const InviteError = styled.div`font-size: 12px; color: #DC2626;`;
+const InviteError = styled.div`font-size: 0.75rem; color: #DC2626;`;
 const InviteActionRow = styled.div`display: flex; gap: 8px; justify-content: flex-end;`;
 const InviteCancel = styled.button`
   padding: 7px 12px; background: #FFFFFF; color: #334155; border: 1px solid #CBD5E1;
-  border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
+  border-radius: 8px; font-size: 0.75rem; font-weight: 600; cursor: pointer;
   &:hover { background: #F8FAFC; border-color: #94A3B8; }
 `;
 const InviteSubmit = styled.button`
   padding: 7px 14px; background: #0D9488; color: #FFFFFF; border: none;
-  border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer;
+  border-radius: 8px; font-size: 0.75rem; font-weight: 700; cursor: pointer;
   &:hover:not(:disabled) { background: #0F766E; }
   &:disabled { background: #CBD5E1; cursor: not-allowed; }
 `;
 
 const SectionDesc = styled.p`
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #64748b;
   margin: 0 0 20px;
 `;
@@ -121,13 +121,13 @@ const Field = styled.div<{ $full?: boolean }>`
 `;
 
 const Label = styled.label`
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   color: #475569;
 `;
 
 const LabelHint = styled.span`
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 400;
   color: #94a3b8;
   margin-left: 6px;
@@ -154,7 +154,7 @@ const UploadLogoBtn = styled.button`
   height: 36px; padding: 0 14px;
   background: #FFFFFF; color: #0F766E;
   border: 1px solid #99F6E4; border-radius: 8px;
-  font-size: 13px; font-weight: 600; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
   &:hover:not(:disabled) { background: #F0FDFA; border-color: #14B8A6; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -166,7 +166,7 @@ const TextInput = styled.input`
   padding: 0 12px;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 0.875rem;
   color: #0f172a;
   background: #ffffff;
   outline: none;
@@ -216,13 +216,13 @@ const ModeBody = styled.div`
 `;
 
 const ModeTitle = styled.div`
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
   color: #0f172a;
 `;
 
 const ModeHint = styled.div`
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #64748b;
   margin-top: 2px;
 `;
@@ -247,7 +247,7 @@ const UsageStats = styled.div`
   display: flex;
   flex-wrap: wrap;
   gap: 18px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #475569;
   margin-top: 8px;
 `;
@@ -260,13 +260,13 @@ const UsageStat = styled.div`
 
 const UsageStatLabel = styled.span`
   color: #94a3b8;
-  font-size: 11px;
+  font-size: 0.6875rem;
 `;
 
 const UsageStatValue = styled.span`
   color: #0f172a;
   font-weight: 700;
-  font-size: 14px;
+  font-size: 0.875rem;
 `;
 
 const ByTypeList = styled.div`
@@ -274,7 +274,7 @@ const ByTypeList = styled.div`
   grid-template-columns: 1fr 1fr;
   gap: 8px 18px;
   margin-top: 14px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #475569;
   @media (max-width: 768px) { grid-template-columns: 1fr; }
 `;
@@ -339,10 +339,10 @@ const MemberRow = styled.div<{ $ai?: boolean; $clickable?: boolean }>`
   }
 `;
 const MemberNameRow = styled.div`display:flex; align-items:center; gap:6px; flex-wrap:wrap;`;
-const MemberOrg = styled.span`font-size:12px; color:#94A3B8; font-weight:500;`;
+const MemberOrg = styled.span`font-size:0.75rem; color:#94A3B8; font-weight:500;`;
 const DefaultRoleBadge = styled.span`
   display:inline-flex; align-items:center; height:22px; padding:0 10px;
-  font-size:11px; font-weight:600; color:#0F766E; background:#F0FDFA; border:1px solid #99F6E4;
+  font-size:0.6875rem; font-weight:600; color:#0F766E; background:#F0FDFA; border:1px solid #99F6E4;
   border-radius:10px; flex-shrink:0;
 `;
 
@@ -356,7 +356,7 @@ const Avatar = styled.div<{ $ai?: boolean }>`
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 14px;
+  font-size: 0.875rem;
   flex-shrink: 0;
 `;
 
@@ -366,13 +366,13 @@ const MemberInfo = styled.div`
 `;
 
 const MemberName = styled.div`
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 700;
   color: #0f172a;
 `;
 
 const MemberEmail = styled.div`
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #64748b;
   margin-top: 2px;
   overflow: hidden;
@@ -385,7 +385,7 @@ const RoleBadge = styled.span<{ $role?: string }>`
   align-items: center;
   height: 22px;
   padding: 0 10px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 700;
   color: ${(p) => (p.$role === 'owner' ? '#0f766e' : p.$role === 'ai' ? '#9f1239' : '#475569')};
   background: ${(p) => (p.$role === 'owner' ? '#ccfbf1' : p.$role === 'ai' ? '#ffe4e6' : '#f1f5f9')};
@@ -411,7 +411,7 @@ const MemberDrawerHeader = styled.div`
 `;
 const MemberDrawerBack = styled.button`
   display: flex; align-items: center; gap: 4px; background: transparent; border: none;
-  color: #0F766E; font-size: 12px; font-weight: 600; cursor: pointer; padding: 0;
+  color: #0F766E; font-size: 0.75rem; font-weight: 600; cursor: pointer; padding: 0;
   &:hover { color: #134E4A; }
 `;
 const MemberDrawerClose = styled.button`
@@ -422,55 +422,55 @@ const MemberDrawerClose = styled.button`
 const MemberDrawerScroll = styled.div`flex: 1; overflow: auto; padding: 20px;`;
 const DrawerHeadRow = styled.div`display: flex; align-items: center; gap: 14px; padding-bottom: 20px; border-bottom: 1px solid #F1F5F9;`;
 const DrawerHeadText = styled.div`flex: 1; min-width: 0;`;
-const DrawerName = styled.div`font-size: 18px; font-weight: 700; color: #0F172A;`;
-const DrawerSub = styled.div`font-size: 13px; color: #64748B; margin-top: 4px;`;
-const DrawerPendingNote = styled.div`font-size: 12px; color: #92400E; background: #FEF3C7; padding: 6px 10px; border-radius: 6px; margin-top: 6px; display: inline-block;`;
+const DrawerName = styled.div`font-size: 1.125rem; font-weight: 700; color: #0F172A;`;
+const DrawerSub = styled.div`font-size: 0.8125rem; color: #64748B; margin-top: 4px;`;
+const DrawerPendingNote = styled.div`font-size: 0.75rem; color: #92400E; background: #FEF3C7; padding: 6px 10px; border-radius: 6px; margin-top: 6px; display: inline-block;`;
 const DrawerSection = styled.section`padding: 20px 0; border-bottom: 1px solid #F1F5F9;`;
-const DrawerSectionTitle = styled.h3`font-size: 13px; font-weight: 700; color: #0F172A; margin: 0 0 4px; text-transform: uppercase; letter-spacing: 0.3px;`;
-const DrawerSectionHint = styled.p`font-size: 11px; color: #94A3B8; margin: 0 0 12px;`;
+const DrawerSectionTitle = styled.h3`font-size: 0.8125rem; font-weight: 700; color: #0F172A; margin: 0 0 4px; text-transform: uppercase; letter-spacing: 0.3px;`;
+const DrawerSectionHint = styled.p`font-size: 0.6875rem; color: #94A3B8; margin: 0 0 12px;`;
 const DrawerInfoGrid = styled.div`
   display: grid; grid-template-columns: 90px 1fr; gap: 8px 14px; align-items: center;
 `;
-const DrawerInfoLabel = styled.div`font-size: 12px; color: #64748B; font-weight: 600;`;
-const DrawerInfoValue = styled.div`font-size: 13px; color: #0F172A;`;
+const DrawerInfoLabel = styled.div`font-size: 0.75rem; color: #64748B; font-weight: 600;`;
+const DrawerInfoValue = styled.div`font-size: 0.8125rem; color: #0F172A;`;
 const DrawerBioBox = styled.div`
   margin-top: 12px; padding: 10px 12px; background: #F8FAFC;
-  border-radius: 8px; font-size: 13px; color: #334155; line-height: 1.55; white-space: pre-wrap;
+  border-radius: 8px; font-size: 0.8125rem; color: #334155; line-height: 1.55; white-space: pre-wrap;
 `;
 const DrawerInlineInput = styled.input`
   width: 100%; max-width: 200px; height: 28px; padding: 0 8px; border: 1px solid #CBD5E1;
-  border-radius: 6px; font-size: 13px; background: #FFFFFF;
+  border-radius: 6px; font-size: 0.8125rem; background: #FFFFFF;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
 `;
 const WorkHoursForm = styled.div`display: flex; gap: 16px; flex-wrap: wrap;`;
 const WorkHoursField = styled.label`display: flex; flex-direction: column; gap: 4px; min-width: 90px;`;
-const WorkHoursLabel = styled.span`font-size: 11px; color: #64748B; font-weight: 600;`;
+const WorkHoursLabel = styled.span`font-size: 0.6875rem; color: #64748B; font-weight: 600;`;
 const WorkHoursNumber = styled.input`
   width: 80px; height: 32px; padding: 0 8px; border: 1px solid #CBD5E1; border-radius: 6px;
-  font-size: 13px; background: #FFFFFF;
+  font-size: 0.8125rem; background: #FFFFFF;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
   &:disabled { background: #F8FAFC; color: #94A3B8; cursor: not-allowed; }
 `;
-const WorkHoursUnit = styled.span`font-size: 11px; color: #94A3B8; font-weight: 500; margin-top: -2px;`;
+const WorkHoursUnit = styled.span`font-size: 0.6875rem; color: #94A3B8; font-weight: 500; margin-top: -2px;`;
 
 const DangerRow = styled.div`
   display: flex; align-items: center; justify-content: space-between; gap: 14px;
   padding: 10px 0;
 `;
-const DangerRowLabel = styled.span`font-size: 13px; color: #334155; font-weight: 600;`;
+const DangerRowLabel = styled.span`font-size: 0.8125rem; color: #334155; font-weight: 600;`;
 const RoleSelectWrap = styled.div`min-width: 140px;`;
 const DangerBtn = styled.button`
   padding: 7px 14px; background: #FFFFFF; color: #DC2626;
-  border: 1px solid #FECACA; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
+  border: 1px solid #FECACA; border-radius: 8px; font-size: 0.75rem; font-weight: 600; cursor: pointer;
   &:hover:not(:disabled) { background: #FEF2F2; border-color: #DC2626; }
   &:disabled { color: #CBD5E1; border-color: #E2E8F0; cursor: not-allowed; }
 `;
-const DangerError = styled.div`font-size: 12px; color: #DC2626; margin: 4px 0;`;
+const DangerError = styled.div`font-size: 0.75rem; color: #DC2626; margin: 4px 0;`;
 const ConfirmBox = styled.div`
   margin-top: 8px; padding: 12px; background: #FEF2F2; border: 1px solid #FECACA;
   border-radius: 8px; display: flex; flex-direction: column; gap: 10px;
 `;
-const ConfirmText = styled.div`font-size: 12px; color: #7F1D1D; line-height: 1.5;`;
+const ConfirmText = styled.div`font-size: 0.75rem; color: #7F1D1D; line-height: 1.5;`;
 const ConfirmRow = styled.div`display: flex; gap: 6px; justify-content: flex-end;`;
 
 const ErrorBanner = styled.div`
@@ -479,7 +479,7 @@ const ErrorBanner = styled.div`
   color: #9f1239;
   padding: 10px 14px;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   margin-bottom: 16px;
 `;
 
@@ -489,7 +489,7 @@ const InfoBanner = styled.div`
   color: #0f766e;
   padding: 10px 14px;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   margin-bottom: 16px;
 `;
 
@@ -1363,7 +1363,7 @@ export default function WorkspaceSettingsPage() {
               </InviteBox>
             )}
 
-            {members.length === 0 && <div style={{ color: '#94a3b8', fontSize: 13 }}>{t('members.emptyMembers')}</div>}
+            {members.length === 0 && <div style={{ color: '#94a3b8', fontSize: '0.8125rem' }}>{t('members.emptyMembers')}</div>}
             {members.map((m) => {
               const isAi = m.role === 'ai' || !!m.user?.is_ai;
               const isPending = !m.user_id && !!m.invite_email;
@@ -1427,7 +1427,7 @@ export default function WorkspaceSettingsPage() {
 
                   <MemberDrawerScroll>
                     <DrawerHeadRow>
-                      <Avatar $ai={false} style={{ width: 56, height: 56, fontSize: 22 }}>
+                      <Avatar $ai={false} style={{ width: 56, height: 56, fontSize: '1.375rem' }}>
                         {(targetName || '?').charAt(0).toUpperCase()}
                       </Avatar>
                       <DrawerHeadText>
@@ -1741,9 +1741,9 @@ export default function WorkspaceSettingsPage() {
 
             <PauseToggleRow>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#0f172a' }}>{t('cue.pauseTitle')}</div>
-                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{t('cue.pauseHint')}</div>
-                <div style={{ fontSize: 11, color: cue.paused ? '#f43f5e' : '#14b8a6', marginTop: 4, fontWeight: 700 }}>
+                <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#0f172a' }}>{t('cue.pauseTitle')}</div>
+                <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: 2 }}>{t('cue.pauseHint')}</div>
+                <div style={{ fontSize: '0.6875rem', color: cue.paused ? '#f43f5e' : '#14b8a6', marginTop: 4, fontWeight: 700 }}>
                   {cue.paused ? t('cue.paused') : t('cue.active')}
                 </div>
               </div>
@@ -1772,7 +1772,7 @@ export default function WorkspaceSettingsPage() {
             </UsageStats>
 
             {cue.usage.action_count >= cue.usage.limit && (
-              <div style={{ background: '#fff1f2', border: '1px solid #fecdd3', color: '#9f1239', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginTop: 14 }}>
+              <div style={{ background: '#fff1f2', border: '1px solid #fecdd3', color: '#9f1239', padding: '10px 14px', borderRadius: 8, fontSize: '0.8125rem', marginTop: 14 }}>
                 {t('cue.usageExceeded')}
               </div>
             )}
@@ -1827,7 +1827,7 @@ const TzCallout = styled.div`
   border: 1px solid #CCFBF1;
   border-radius: 10px;
   color: #0F766E;
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.55;
 `;
 const TzCalloutIcon = styled.span`
@@ -1836,7 +1836,7 @@ const TzCalloutIcon = styled.span`
   border-radius: 50%;
   background: #0F766E;
   color: #F0FDFA;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 700;
   display: inline-flex;
   align-items: center;
@@ -1868,7 +1868,7 @@ const TzPreviewLeft = styled.div`
 `;
 
 const TzPreviewLabel = styled.div`
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 700;
   letter-spacing: 1px;
   text-transform: uppercase;
@@ -1876,7 +1876,7 @@ const TzPreviewLabel = styled.div`
 `;
 
 const TzPreviewCity = styled.div`
-  font-size: 22px;
+  font-size: 1.375rem;
   font-weight: 700;
   color: #FFFFFF;
   letter-spacing: -0.5px;
@@ -1886,12 +1886,12 @@ const TzPreviewCity = styled.div`
 `;
 
 const TzPreviewSub = styled.div`
-  font-size: 12px;
+  font-size: 0.75rem;
   color: rgba(204, 251, 241, 0.7);
 `;
 
 const TzPreviewTime = styled.div`
-  font-size: 40px;
+  font-size: 2.5rem;
   font-weight: 700;
   color: #FFFFFF;
   font-variant-numeric: tabular-nums;
@@ -1914,7 +1914,7 @@ const Chip = styled.div`
   background: #f1f5f9;
   border: 1px solid #e2e8f0;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #0f172a;
 `;
 
@@ -1924,7 +1924,7 @@ const ChipCity = styled.span`
 
 const ChipMeta = styled.span`
   color: #64748b;
-  font-size: 11px;
+  font-size: 0.6875rem;
 `;
 
 const ChipRemove = styled.button`
@@ -1938,7 +1938,7 @@ const ChipRemove = styled.button`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1;
   padding: 0;
   transition: all 120ms;
@@ -1960,7 +1960,7 @@ const AddButton = styled.button`
   border: 1px solid #14b8a6;
   background: #f0fdfa;
   color: #0f766e;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 120ms;
@@ -2045,7 +2045,7 @@ function WorkspaceTimezoneSection({
         <SectionDesc>{t('timezone.referenceDesc')}</SectionDesc>
 
         {workspaceRefs.length === 0 ? (
-          <div style={{ color: '#94a3b8', fontSize: 13, padding: '8px 0' }}>
+          <div style={{ color: '#94a3b8', fontSize: '0.8125rem', padding: '8px 0' }}>
             {t('timezone.referenceEmpty')}
           </div>
         ) : (

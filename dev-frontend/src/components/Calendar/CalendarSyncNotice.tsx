@@ -308,7 +308,7 @@ const NoticeIcon = styled.span<{ $tone: 'info' | 'error' }>`
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   line-height: 1;
   color: #fff;
@@ -317,7 +317,7 @@ const NoticeIcon = styled.span<{ $tone: 'info' | 'error' }>`
 const NoticeText = styled.div`
   flex: 1;
   min-width: 0;
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   line-height: 1.55;
   color: #334155;
   strong { color: #0F172A; font-weight: 700; }
@@ -327,12 +327,12 @@ const NoticeLine = styled.div`
 `;
 const NoticeHint = styled.div`
   margin-top: 4px;
-  font-size: 11.5px;
+  font-size: 0.71875rem;
   color: #64748B;
 `;
 const SyncMsg = styled.div`
   margin-top: 6px;
-  font-size: 11.5px;
+  font-size: 0.71875rem;
   font-weight: 600;
   color: #0F766E;
 `;
@@ -341,7 +341,7 @@ const LineLabel = styled.span`
   margin-right: 6px;
   padding: 1px 6px;
   border-radius: 5px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 700;
   color: #92400E;
   background: #FDE68A;
@@ -360,15 +360,15 @@ const OrphanBox = styled.div`
   background: #FFFFFF;
   border: 1px solid #E2E8F0;
 `;
-const OrphanTitle = styled.div`font-size: 12px; font-weight: 700; color: #0F172A;`;
-const OrphanHint = styled.div`font-size: 11px; color: #64748B; margin-bottom: 6px;`;
+const OrphanTitle = styled.div`font-size: 0.75rem; font-weight: 700; color: #0F172A;`;
+const OrphanHint = styled.div`font-size: 0.6875rem; color: #64748B; margin-bottom: 6px;`;
 const OrphanList = styled.div`display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; max-height: 180px; overflow-y: auto;`;
 const OrphanItem = styled.label`
   display: flex; align-items: center; gap: 6px;
-  font-size: 11.5px; color: #334155; cursor: pointer;
+  font-size: 0.71875rem; color: #334155; cursor: pointer;
 `;
 const OrphanName = styled.span`flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
-const OrphanDate = styled.span`flex-shrink: 0; color: #94A3B8; font-size: 11px;`;
+const OrphanDate = styled.span`flex-shrink: 0; color: #94A3B8; font-size: 0.6875rem;`;
 // ★ 폰에서 닫기 버튼이 **좌측 하단**에 떨어져 있었다(Irene, 2026-08-25).
 //   컨테이너가 ≤640px 에서 flex-wrap:wrap 이라 X 가 본문 아래로 줄바꿈된 것.
 //   안내의 닫기는 항상 **우상단**이 정본이다(전 배너 공통) — 절대배치로 고정하고
@@ -387,7 +387,7 @@ const CloseBtn = styled.button`
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  font-size: 1.125rem;
   line-height: 1;
   color: #92400E;
   background: transparent;

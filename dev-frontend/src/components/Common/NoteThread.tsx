@@ -140,21 +140,21 @@ const List = styled.div`
   display: flex; flex-direction: column; gap: 6px;
   max-height: 260px; overflow-y: auto;
 `;
-const Empty = styled.div`font-size: 12px; color: #94A3B8; padding: 6px 0;`;
+const Empty = styled.div`font-size: 0.75rem; color: #94A3B8; padding: 6px 0;`;
 const Item = styled.div`
   display: flex; align-items: flex-start; gap: 6px;
   padding: 8px 10px; background: #F8FAFC; border-radius: 8px;
 `;
 const Vis = styled.span`
   flex-shrink: 0; margin-top: 1px; padding: 1px 6px; border-radius: 999px;
-  font-size: 10px; font-weight: 700; color: #92400E; background: #FEF3C7;
+  font-size: 0.625rem; font-weight: 700; color: #92400E; background: #FEF3C7;
 `;
 const Content = styled.div`min-width: 0; flex: 1;`;
-const Body = styled.div`font-size: 12px; color: #334155; line-height: 1.55; white-space: pre-wrap; word-break: break-word;`;
-const Meta = styled.div`margin-top: 3px; font-size: 11px; color: #94A3B8;`;
+const Body = styled.div`font-size: 0.75rem; color: #334155; line-height: 1.55; white-space: pre-wrap; word-break: break-word;`;
+const Meta = styled.div`margin-top: 3px; font-size: 0.6875rem; color: #94A3B8;`;
 const DelBtn = styled.button`
   border: none; background: none; padding: 0; cursor: pointer;
-  font-size: 11px; color: #94A3B8;
+  font-size: 0.6875rem; color: #94A3B8;
   &:hover { color: #DC2626; }
 `;
 const InputRow = styled.div`
@@ -164,14 +164,14 @@ const InputRow = styled.div`
 `;
 const TextInput = styled.textarea`
   flex: 1; min-width: 0; border: none; outline: none; resize: none;
-  font-size: 12px; color: #0F172A; line-height: 1.5; max-height: 96px;
+  font-size: 0.75rem; color: #0F172A; line-height: 1.5; max-height: 96px;
   font-family: inherit;
   &::placeholder { color: #94A3B8; }
 `;
 const VisToggle = styled.div`display: flex; flex-shrink: 0; border: 1px solid #E2E8F0; border-radius: 999px; overflow: hidden;`;
 const VisOption = styled.button<{ $active: boolean }>`
   border: none; cursor: pointer; padding: 3px 8px;
-  font-size: 10px; font-weight: 700;
+  font-size: 0.625rem; font-weight: 700;
   color: ${(p) => (p.$active ? '#0F766E' : '#94A3B8')};
   background: ${(p) => (p.$active ? '#F0FDFA' : '#FFFFFF')};
 `;

@@ -367,7 +367,7 @@ const InitialBadge = styled.span<{ $color: string }>`
   background: ${(p) => p.$color};
   color: #0B3B36;
   border-radius: 8px;
-  font-size: 13px; font-weight: 700;
+  font-size: 0.8125rem; font-weight: 700;
   letter-spacing: -0.2px;
   box-shadow: 0 1px 2px rgba(0,0,0,0.15);
 `;
@@ -400,7 +400,7 @@ const MenuInitial = styled.span<{ $color: string }>`
   background: ${(p) => p.$color};
   color: #0B3B36;
   border-radius: 6px;
-  font-size: 12px; font-weight: 700;
+  font-size: 0.75rem; font-weight: 700;
   letter-spacing: -0.2px;
   box-shadow: 0 1px 2px rgba(0,0,0,0.15);
 `;
@@ -423,7 +423,7 @@ const Info = styled.div`
 `;
 
 const Name = styled.div<{ $admin?: boolean }>`
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
   color: #FFFFFF;
   white-space: nowrap;
@@ -437,7 +437,7 @@ const RolePill = styled.span<{ $admin?: boolean }>`
   display: inline-flex; align-items: center;
   margin-top: 2px;
   padding: 1px 7px;
-  font-size: 10px; font-weight: 600;
+  font-size: 0.625rem; font-weight: 600;
   color: #5EEAD4;
   background: rgba(94,234,212,0.14);
   border: 1px solid rgba(94,234,212,0.22);
@@ -483,7 +483,7 @@ const Menu = styled.div`
 
 const MenuLabel = styled.div`
   padding: 8px 12px 6px;
-  font-size: 10px;
+  font-size: 0.625rem;
   color: rgba(94, 234, 212, 0.6);
   text-transform: uppercase;
   letter-spacing: 0.8px;
@@ -523,7 +523,7 @@ const ItemBody = styled.div`
   gap: 2px;
 `;
 const ItemName = styled.div`
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: inherit;
   white-space: nowrap;
@@ -531,7 +531,7 @@ const ItemName = styled.div`
   text-overflow: ellipsis;
 `;
 const ItemSub = styled.div`
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: #5EEAD4;
   opacity: 0.85;
 `;
@@ -546,7 +546,7 @@ const OtherUnreadBadge = styled.span`
   min-width: 18px; height: 18px; padding: 0 6px;
   display: inline-flex; align-items: center; justify-content: center;
   background: #F43F5E; color: #FFFFFF;
-  font-size: 10px; font-weight: 700;
+  font-size: 0.625rem; font-weight: 700;
   border-radius: 999px;
   flex-shrink: 0;
 `;
@@ -555,7 +555,7 @@ const MenuUnreadBadge = styled.span`
   min-width: 20px; height: 20px; padding: 0 7px;
   display: inline-flex; align-items: center; justify-content: center;
   background: #F43F5E; color: #FFFFFF;
-  font-size: 11px; font-weight: 700;
+  font-size: 0.6875rem; font-weight: 700;
   border-radius: 999px;
   flex-shrink: 0;
 `;
@@ -590,22 +590,22 @@ const CreateModal = styled.div`
   width: 100%; max-width: 380px; background: #FFFFFF; border-radius: 14px;
   padding: 22px 22px 18px; box-shadow: 0 24px 48px -16px rgba(15,23,42,0.4);
 `;
-const CreateTitle = styled.h3`font-size: 16px; font-weight: 800; color: #0F172A; margin: 0 0 6px;`;
-const CreateDesc = styled.p`font-size: 12px; color: #64748B; line-height: 1.6; margin: 0 0 16px;`;
+const CreateTitle = styled.h3`font-size: 1rem; font-weight: 800; color: #0F172A; margin: 0 0 6px;`;
+const CreateDesc = styled.p`font-size: 0.75rem; color: #64748B; line-height: 1.6; margin: 0 0 16px;`;
 const CreateInput = styled.input`
-  width: 100%; box-sizing: border-box; padding: 11px 13px; font-size: 14px;
+  width: 100%; box-sizing: border-box; padding: 11px 13px; font-size: 0.875rem;
   border: 1px solid #CBD5E1; border-radius: 8px; color: #0F172A; outline: none;
   &:focus { border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.18); }
 `;
-const CreateErr = styled.div`font-size: 12px; color: #EF4444; margin-top: 8px;`;
+const CreateErr = styled.div`font-size: 0.75rem; color: #EF4444; margin-top: 8px;`;
 const CreateActions = styled.div`display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px;`;
 const CreateCancel = styled.button`
-  padding: 9px 16px; font-size: 13px; font-weight: 600; color: #475569;
+  padding: 9px 16px; font-size: 0.8125rem; font-weight: 600; color: #475569;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer;
   &:hover:not(:disabled) { background: #F8FAFC; } &:disabled { opacity: 0.5; cursor: not-allowed; }
 `;
 const CreatePrimary = styled.button`
-  padding: 9px 18px; font-size: 13px; font-weight: 700; color: #fff;
+  padding: 9px 18px; font-size: 0.8125rem; font-weight: 700; color: #fff;
   background: #0D9488; border: none; border-radius: 8px; cursor: pointer;
   &:hover:not(:disabled) { background: #0F766E; } &:disabled { background: #CBD5E1; cursor: not-allowed; }
 `;

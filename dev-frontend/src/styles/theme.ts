@@ -82,14 +82,17 @@ export const theme = {
 
   typography: {
     fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    // rem — 앱 전체가 rem 이고 루트 배율(services/fontScale)이 글자만 키운다.
+    //   px 로 두면 이 값을 쓰는 요소만 배율을 안 따라간다.
+    //   ※ 신규 코드는 theme/tokens.ts 의 TYPE 을 쓴다. 이건 옛 사용처 호환용.
     fontSize: {
-      xs: '12px',
-      sm: '14px',
-      base: '16px',
-      lg: '18px',
-      xl: '20px',
-      '2xl': '24px',
-      '3xl': '30px',
+      xs: '0.75rem',      // 12px
+      sm: '0.875rem',     // 14px
+      base: '1rem',       // 16px
+      lg: '1.125rem',     // 18px
+      xl: '1.25rem',      // 20px
+      '2xl': '1.5rem',    // 24px
+      '3xl': '1.875rem',  // 30px
     },
     fontWeight: {
       regular: 400,

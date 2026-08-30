@@ -1085,7 +1085,7 @@ const ProjectDot = styled.span<{ $color: string }>`
 const ProjectLink = styled(Link)`
   display:inline-flex;align-items:center;gap:6px;
   padding:2px 8px;background:#F1F5F9;border-radius:999px;
-  font-size:11px;color:#0F172A;text-decoration:none;
+  font-size:0.6875rem;color:#0F172A;text-decoration:none;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px;
   &:hover{background:#E0F2FE;color:#075985;}
   &:focus-visible{outline:2px solid #14B8A6;outline-offset:1px;}
@@ -1383,8 +1383,9 @@ function extPalette(ext: string): ExtPalette {
 const FileExtIcon: React.FC<{ ext: string; size?: number; large?: boolean }> = ({ ext, size = 32, large }) => {
   const p = extPalette(ext);
   const label = (ext || '—').toUpperCase().slice(0, 4);
+  // ★ 글자 크기 배율을 따라가려면 상자도 같이 rem 이어야 한다 — 글자만 키우면 32px 상자를 넘친다.
   return (
-    <FileExtBox style={{ width: size, height: size, background: p.bg, color: p.fg, fontSize: large ? 13 : 10 }}>
+    <FileExtBox style={{ width: `${size / 16}rem`, height: `${size / 16}rem`, background: p.bg, color: p.fg, fontSize: `${(large ? 13 : 10) / 16}rem` }}>
       {label}
     </FileExtBox>
   );
@@ -1409,8 +1410,8 @@ const Dropzone = styled.div<{ $drag: boolean }>`
   &:focus-visible{outline:2px solid rgba(20,184,166,0.3);outline-offset:2px;}
 `;
 const DzIcon = styled.div<{ $large?: boolean }>`color:#94A3B8;margin-bottom:${p => p.$large ? 4 : 0}px;`;
-const DzTitle = styled.div`font-size:13px;font-weight:600;color:#334155;`;
-const DzHint = styled.div`font-size:11px;color:#94A3B8;`;
+const DzTitle = styled.div`font-size:0.8125rem;font-weight:600;color:#334155;`;
+const DzHint = styled.div`font-size:0.6875rem;color:#94A3B8;`;
 /* 업로드 진행 패널 — 파일별 한 줄 */
 const CompactBar = styled.div`
   display:flex;align-items:center;gap:12px;flex-wrap:wrap;
@@ -1419,11 +1420,11 @@ const CompactBar = styled.div`
 const CompactUploadBtn = styled.button`
   display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 14px;
   background:#14B8A6;color:#fff;border:none;border-radius:8px;
-  font-size:12px;font-weight:600;cursor:pointer;
+  font-size:0.75rem;font-weight:600;cursor:pointer;
   &:hover{background:#0D9488;}
   &:focus-visible{outline:2px solid #0D9488;outline-offset:2px;}
 `;
-const CompactHint = styled.div`font-size:11px;color:#94A3B8;flex:1;min-width:0;`;
+const CompactHint = styled.div`font-size:0.6875rem;color:#94A3B8;flex:1;min-width:0;`;
 
 const DragOverlay = styled.div`
   position:fixed;inset:0;z-index:60;background:rgba(15,23,42,0.55);
@@ -1432,7 +1433,7 @@ const DragOverlay = styled.div`
 const DragOverlayInner = styled.div`
   display:flex;flex-direction:column;align-items:center;gap:12px;
   padding:32px 48px;background:#fff;border:2px dashed #14B8A6;border-radius:16px;
-  font-size:15px;font-weight:700;color:#0F766E;
+  font-size:0.9375rem;font-weight:700;color:#0F766E;
 `;
 
 // 박스 제거 — 페이지 배경 위 inline 배치 (박스 안에 박스 X)
@@ -1456,7 +1457,7 @@ const SelectToggle = styled.button<{ $on: boolean }>`
   background:${p => p.$on ? '#14B8A6' : '#fff'};
   color:${p => p.$on ? '#fff' : '#0F172A'};
   border:1px solid ${p => p.$on ? '#14B8A6' : '#CBD5E1'};
-  border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;
+  border-radius:8px;font-size:0.75rem;font-weight:600;cursor:pointer;
   &:hover{border-color:${p => p.$on ? '#1E293B' : '#94A3B8'};}
   &:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}
 `;
@@ -1501,12 +1502,12 @@ const FolderIconWrap = styled.div<{ $selected?: boolean; $sys?: FileSource }>`
 `;
 const FolderName = styled.div`
   /* 규격: 목록 항목 — 폰에서 12px 는 읽기 어렵다(tokens LIST_ROW). */
-  min-width:0;font-size:13px;font-weight:600;
-  @media (max-width: 640px) { font-size: 14px; }
+  min-width:0;font-size:0.8125rem;font-weight:600;
+  @media (max-width: 640px) { font-size: 0.875rem; }
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 `;
 const FolderCount = styled.span`
-  font-size:10px;color:#94A3B8;font-weight:600;
+  font-size:0.625rem;color:#94A3B8;font-weight:600;
   min-width:22px;padding:1px 6px;background:#F1F5F9;border-radius:999px;
   text-align:center;justify-self:end;
 `;
@@ -1523,7 +1524,7 @@ const FolderMiniBtn = styled.button<{ $danger?: boolean }>`
 `;
 const RenameInput = styled.input`
   flex:1;min-width:0;height:24px;padding:0 6px;
-  background:#fff;border:1px solid #14B8A6;border-radius:4px;font-size:12px;color:#0F172A;
+  background:#fff;border:1px solid #14B8A6;border-radius:4px;font-size:0.75rem;color:#0F172A;
   &:focus{outline:none;}
 `;
 
@@ -1565,9 +1566,9 @@ const BulkBar = styled.div`
   border:1px solid #E2E8F0;
   box-shadow:0 1px 2px rgba(15,23,42,.05);
 `;
-const BulkBarLeft = styled.div`display:flex;gap:8px;align-items:baseline;font-size:13px;color:#0F172A;
+const BulkBarLeft = styled.div`display:flex;gap:8px;align-items:baseline;font-size:0.8125rem;color:#0F172A;
   strong{font-weight:700;}
-  span{color:#64748B;font-size:11px;}
+  span{color:#64748B;font-size:0.6875rem;}
 `;
 const BulkBarRight = styled.div`display:flex;gap:6px;align-items:center;flex-wrap:wrap;`;
 const BulkBtnSep = styled.div`width:1px;height:18px;background:#E2E8F0;margin:0 4px;`;
@@ -1576,7 +1577,7 @@ const BulkBtn = styled.button<{ $danger?: boolean; $primary?: boolean }>`
   background:${p => p.$primary ? '#14B8A6' : '#FFFFFF'};
   color:${p => p.$primary ? '#FFFFFF' : (p.$danger ? '#DC2626' : '#334155')};
   border:1px solid ${p => p.$primary ? '#14B8A6' : (p.$danger ? '#FECACA' : '#E2E8F0')};
-  border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;
+  border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer;
   transition:background .15s, border-color .15s;
   &:hover:not(:disabled){
     background:${p => p.$primary ? '#0D9488' : (p.$danger ? '#FEF2F2' : '#F8FAFC')};
@@ -1586,11 +1587,11 @@ const BulkBtn = styled.button<{ $danger?: boolean; $primary?: boolean }>`
 `;
 const ErrorBar = styled.div`
   margin-top:8px;padding:10px 14px;background:#FEF2F2;color:#DC2626;
-  border:1px solid #FECACA;border-radius:8px;font-size:12px;
+  border:1px solid #FECACA;border-radius:8px;font-size:0.75rem;
 `;
 const ShareLinkBar = styled.div`
   margin-top:8px;padding:10px 14px;background:#F0FDFA;border:1px solid #CCFBF1;
-  color:#0F766E;border-radius:8px;font-size:12px;
+  color:#0F766E;border-radius:8px;font-size:0.75rem;
   display:flex;align-items:center;gap:10px;flex-wrap:wrap;
   strong{font-weight:700;}
   small{color:#0F766E;opacity:0.7;}
@@ -1598,7 +1599,7 @@ const ShareLinkBar = styled.div`
 const ShareUrl = styled.code`
   flex:1;min-width:200px;padding:6px 10px;background:rgba(20,184,166,0.08);
   border-radius:6px;font-family:'SF Mono','Monaco','Consolas',monospace;
-  font-size:11px;word-break:break-all;color:#0F766E;
+  font-size:0.6875rem;word-break:break-all;color:#0F766E;
 `;
 
 const Grid = styled.div`display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;`;
@@ -1625,10 +1626,10 @@ const ThumbImg = styled.img`
 `;
 const SourceTag = styled.div<{ $src: FileSource }>`
   position:absolute;top:8px;left:8px;padding:2px 8px;border-radius:999px;
-  font-size:10px;font-weight:700;letter-spacing:.2px;${p => srcStyle(p.$src)}
+  font-size:0.625rem;font-weight:700;letter-spacing:.2px;${p => srcStyle(p.$src)}
 `;
-const CardName = styled.div`padding:8px 10px 2px;font-size:14px;font-weight:600;@media(max-width:640px){font-size:15px;}color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
-const CardMeta = styled.div`padding:0 10px;font-size:11px;color:#64748B;display:flex;gap:4px;
+const CardName = styled.div`padding:8px 10px 2px;font-size:0.875rem;font-weight:600;@media(max-width:640px){font-size:0.9375rem;}color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
+const CardMeta = styled.div`padding:0 10px;font-size:0.6875rem;color:#64748B;display:flex;gap:4px;
   &:last-child{padding-bottom:10px;margin-top:2px;}
 `;
 
@@ -1638,7 +1639,7 @@ const ListHead = styled.div<{ $selectMode?: boolean }>`
   display:grid;
   grid-template-columns:${p => p.$selectMode ? `36px ${LIST_COLS}` : LIST_COLS};
   gap:8px;padding:10px 14px;background:#F8FAFC;border-bottom:1px solid #E2E8F0;
-  font-size:11px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.3px;
+  font-size:0.6875rem;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.3px;
 `;
 const HCChk = styled.div``;
 const HCName = styled.div``;
@@ -1657,18 +1658,18 @@ const ListRow = styled.div<{ $selected?: boolean; $selectMode?: boolean }>`
 `;
 const RowChk = styled.div`display:flex;justify-content:center;`;
 const RowName = styled.div`display:flex;align-items:center;gap:10px;min-width:0;`;
-const RowNameText = styled.div`font-size:13px;font-weight:600;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;`;
+const RowNameText = styled.div`font-size:0.8125rem;font-weight:600;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;`;
 // #379 — Drive 사본이 끊긴 상태 표시. 경고가 아니라 **사실 고지**라 회색 톤(원본은 멀쩡하다).
 const UnmirrorTag = styled.span`
   flex-shrink:0; padding:1px 6px; border-radius:4px;
-  background:#F1F5F9; color:#64748B; font-size:12px; font-weight:600; white-space:nowrap;
+  background:#F1F5F9; color:#64748B; font-size:0.75rem; font-weight:600; white-space:nowrap;
 `;
 const RowSrc = styled.div`display:flex;align-items:center;gap:6px;min-width:0;`;
-const SourcePill = styled.span<{ $src: FileSource }>`padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.2px;${p => srcStyle(p.$src)}`;
-const RowCtx = styled.span`font-size:11px;color:#64748B;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;`;
-const RowSize = styled.div`font-size:12px;color:#475569;`;
-const RowUp = styled.div`font-size:12px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
-const RowDate = styled.div`font-size:12px;color:#64748B;`;
+const SourcePill = styled.span<{ $src: FileSource }>`padding:2px 8px;border-radius:999px;font-size:0.625rem;font-weight:700;letter-spacing:.2px;${p => srcStyle(p.$src)}`;
+const RowCtx = styled.span`font-size:0.6875rem;color:#64748B;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;`;
+const RowSize = styled.div`font-size:0.75rem;color:#475569;`;
+const RowUp = styled.div`font-size:0.75rem;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
+const RowDate = styled.div`font-size:0.75rem;color:#64748B;`;
 const RowAct = styled.div`display:flex;justify-content:flex-end;`;
 const IconBtn = styled.button`
   width:28px;height:28px;display:flex;align-items:center;justify-content:center;
@@ -1676,14 +1677,14 @@ const IconBtn = styled.button`
   &:hover{background:#FEE2E2;color:#DC2626;}
 `;
 
-const Dim = styled.div`padding:30px;text-align:center;font-size:13px;color:#94A3B8;background:#fff;border:1px solid #E2E8F0;border-radius:10px;`;
+const Dim = styled.div`padding:30px;text-align:center;font-size:0.8125rem;color:#94A3B8;background:#fff;border:1px solid #E2E8F0;border-radius:10px;`;
 
 // 드로어 내부
 const PvHeaderInner = styled.div`display:flex;align-items:flex-start;gap:10px;min-width:0;width:100%;`;
 const PvHeaderText = styled.div`flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;`;
-const PvTitle = styled.div`font-size:15px;font-weight:700;color:#0F172A;word-break:break-all;`;
+const PvTitle = styled.div`font-size:0.9375rem;font-weight:700;color:#0F172A;word-break:break-all;`;
 const PvSubRow = styled.div`display:flex;align-items:center;gap:8px;flex-wrap:wrap;`;
-const PvSub = styled.div`font-size:12px;color:#64748B;`;
+const PvSub = styled.div`font-size:0.75rem;color:#64748B;`;
 const PvActions = styled.div`display:flex;gap:4px;flex-shrink:0;`;
 const HeaderIconBtn = styled.button<{ $danger?: boolean }>`
   width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;
@@ -1704,22 +1705,22 @@ const VisibilitySection = styled.div`
   border-top: 1px solid #E2E8F0;
   display: flex; flex-direction: column; gap: 10px;
 `;
-const SectionLabel = styled.div`font-size: 11px; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px;`;
-const SecHint = styled.div`font-size: 11px; color: #94A3B8; margin-top: 6px; line-height: 1.5;`;
-const MetaItem = styled.div`display:flex;align-items:flex-start;gap:10px;font-size:13px;`;
-const MetaKey = styled.div`flex:0 0 74px;font-size:11px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.3px;padding-top:2px;`;
+const SectionLabel = styled.div`font-size: 0.6875rem; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px;`;
+const SecHint = styled.div`font-size: 0.6875rem; color: #94A3B8; margin-top: 6px; line-height: 1.5;`;
+const MetaItem = styled.div`display:flex;align-items:flex-start;gap:10px;font-size:0.8125rem;`;
+const MetaKey = styled.div`flex:0 0 74px;font-size:0.6875rem;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.3px;padding-top:2px;`;
 const MetaVal = styled.div`color:#0F172A;word-break:break-all;`;
 
 // Buttons
 const SecondaryBtn = styled.button`
   height:34px;padding:0 14px;background:#fff;color:#0F172A;
-  border:1px solid #CBD5E1;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;
+  border:1px solid #CBD5E1;border-radius:8px;font-size:0.8125rem;font-weight:600;cursor:pointer;
   display:inline-flex;align-items:center;justify-content:center;text-decoration:none;
   &:hover{background:#F8FAFC;}
 `;
 const PrimaryBtn = styled.button`
   height:34px;padding:0 14px;background:#14B8A6;color:#fff;
-  border:1px solid #14B8A6;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;
+  border:1px solid #14B8A6;border-radius:8px;font-size:0.8125rem;font-weight:600;cursor:pointer;
   display:inline-flex;align-items:center;justify-content:center;
   &:hover:not(:disabled){background:#0D9488;border-color:#0D9488;}
   &:disabled{opacity:0.5;cursor:not-allowed;}
@@ -1727,7 +1728,7 @@ const PrimaryBtn = styled.button`
 `;
 const DangerBtn = styled.button`
   height:34px;padding:0 14px;background:#fff;color:#DC2626;
-  border:1px solid #FCA5A5;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;
+  border:1px solid #FCA5A5;border-radius:8px;font-size:0.8125rem;font-weight:600;cursor:pointer;
   &:hover{background:#FEF2F2;border-color:#DC2626;}
 `;
 
@@ -1746,23 +1747,23 @@ const Dialog = styled.div`
     margin-top:60px;height:calc(100vh - 60px);height:calc(100dvh - 60px);
   }
 `;
-const DTitle = styled.div`padding:18px 20px 10px;font-size:15px;font-weight:700;color:#0F172A;`;
+const DTitle = styled.div`padding:18px 20px 10px;font-size:0.9375rem;font-weight:700;color:#0F172A;`;
 const DBody = styled.div`
-  padding:0 20px 16px;font-size:13px;color:#475569;line-height:1.5;overflow-y:auto;
+  padding:0 20px 16px;font-size:0.8125rem;color:#475569;line-height:1.5;overflow-y:auto;
   strong{color:#0F172A;}
   p{margin:4px 0;}
 `;
 const DFooter = styled.div`padding:12px 20px;border-top:1px solid #E2E8F0;display:flex;gap:8px;justify-content:flex-end;`;
 
 const BulkFileList = styled.ul`list-style:none;padding:0;margin:8px 0 12px;display:flex;flex-direction:column;gap:4px;`;
-const BulkFileItem = styled.li`font-size:12px;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
-const BulkFileMore = styled.li`font-size:11px;color:#94A3B8;`;
+const BulkFileItem = styled.li`font-size:0.75rem;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
+const BulkFileMore = styled.li`font-size:0.6875rem;color:#94A3B8;`;
 
 const MoveTargetList = styled.div`display:flex;flex-direction:column;gap:2px;max-height:320px;overflow-y:auto;`;
 const MoveTargetRow = styled.button`
   display:flex;align-items:center;gap:8px;padding:10px 12px;
   background:transparent;border:1px solid transparent;border-radius:8px;
-  cursor:pointer;font-size:13px;color:#0F172A;text-align:left;
+  cursor:pointer;font-size:0.8125rem;color:#0F172A;text-align:left;
   &:hover{background:#F8FAFC;border-color:#E2E8F0;}
 `;
 const MoveTargetIcon = styled.span`display:inline-flex;color:#64748B;flex-shrink:0;`;

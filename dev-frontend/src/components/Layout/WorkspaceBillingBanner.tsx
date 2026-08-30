@@ -170,19 +170,19 @@ const Body = styled.div`
   }
 `;
 const Title = styled.span`
-  font-size: 13px; font-weight: 700; line-height: 1.4;
+  font-size: 0.8125rem; font-weight: 700; line-height: 1.4;
   display: block;
   /* 모바일: 인라인 */
   @media (max-width: 640px) { display: inline; }
 `;
 const Desc = styled.span`
-  font-size: 12px; opacity: 0.9; line-height: 1.4;
+  font-size: 0.75rem; opacity: 0.9; line-height: 1.4;
   display: block;
   /* 모바일: 인라인, 제목 뒤 줄바꿈 */
   @media (max-width: 640px) { display: block; margin-top: 2px; }
 `;
 const CTA = styled.span`
-  font-size: 12px; font-weight: 700;
+  font-size: 0.75rem; font-weight: 700;
   padding: 6px 12px; background: rgba(255,255,255,0.6);
   border-radius: 999px; flex-shrink: 0;
   text-decoration: underline;
@@ -199,7 +199,7 @@ const CloseBtn = styled.button`
   @media (max-width: 640px) { min-width: 44px; min-height: 44px; }
 
   background: transparent; border: none; cursor: pointer; color: inherit;
-  font-size: 18px; padding: 6px 14px;
+  font-size: 1.125rem; padding: 6px 14px;
   &:hover { opacity: 0.7; }
   /* 모바일: 우상단 고정 */
   @media (max-width: 640px) {

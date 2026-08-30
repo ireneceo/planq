@@ -202,20 +202,20 @@ const TrashDrawer: React.FC<Props> = ({ open, businessId, projectId, onClose, on
 
 export default TrashDrawer;
 
-const HeadTitle = styled.div`font-size:16px;font-weight:700;color:#0F172A;`;
+const HeadTitle = styled.div`font-size:1rem;font-weight:700;color:#0F172A;`;
 const HeadCount = styled.span`
   margin-left:8px;padding:1px 8px;border-radius:999px;
-  background:#F1F5F9;color:#475569;font-size:12px;font-weight:700;
+  background:#F1F5F9;color:#475569;font-size:0.75rem;font-weight:700;
 `;
 const Notice = styled.div`
   padding:10px 12px;margin-bottom:12px;border-radius:8px;
-  background:#F8FAFC;border:1px solid #E2E8F0;color:#475569;font-size:12.5px;line-height:1.5;
+  background:#F8FAFC;border:1px solid #E2E8F0;color:#475569;font-size:0.78125rem;line-height:1.5;
 `;
 const ErrorBar = styled.div`
   padding:10px 12px;margin-bottom:12px;border-radius:8px;
-  background:#FEF2F2;border:1px solid #FECACA;color:#B91C1C;font-size:13px;
+  background:#FEF2F2;border:1px solid #FECACA;color:#B91C1C;font-size:0.8125rem;
 `;
-const Dim = styled.div`padding:24px 0;text-align:center;color:#94A3B8;font-size:13px;`;
+const Dim = styled.div`padding:24px 0;text-align:center;color:#94A3B8;font-size:0.8125rem;`;
 const List = styled.div`display:flex;flex-direction:column;gap:8px;`;
 const Row = styled.div`
   display:flex;align-items:flex-start;gap:10px;
@@ -224,11 +224,11 @@ const Row = styled.div`
 `;
 const RowMain = styled.div`flex:1;min-width:0;`;
 const Name = styled.div`
-  font-size:13.5px;font-weight:600;color:#0F172A;
+  font-size:0.84375rem;font-weight:600;color:#0F172A;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 `;
-const Meta = styled.div`margin-top:3px;font-size:12px;color:#64748B;`;
-const Expiry = styled.div`margin-top:2px;font-size:12px;color:#B45309;`;
+const Meta = styled.div`margin-top:3px;font-size:0.75rem;color:#64748B;`;
+const Expiry = styled.div`margin-top:2px;font-size:0.75rem;color:#B45309;`;
 const RowActions = styled.div`
   display:flex;gap:6px;flex-shrink:0;
   @media (max-width: 640px) { margin-top:10px; }
