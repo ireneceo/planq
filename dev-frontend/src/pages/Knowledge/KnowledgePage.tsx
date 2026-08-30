@@ -843,6 +843,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                    key={d.id}
                    $active={selectMode ? isSelected : detailId === d.id}
                    $selectMode={selectMode}
+                   data-kb-id={d.id}
                    onClick={() => {
                      if (selectMode) {
                        setSelectedIds(prev => {

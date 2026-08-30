@@ -1530,6 +1530,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               <RowItem
                 key={r.id}
                 data-testid="docs-row"
+                data-post-id={r.id}
                 $active={activeId === r.id}
                 $project={isProject}
                 onClick={() => { void selectPost(activeId === r.id ? null : r.id); }}

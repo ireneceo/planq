@@ -4,6 +4,8 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
+import DetailFallback from '../../components/Common/DetailFallback';
+import type { DetailStatus } from '../../hooks/useDetailResource';
 import PageShell from '../../components/Layout/PageShell';
 import { useTabTitle } from '../../hooks/useTabTitle';
 import AutoSaveField, { type AutoSaveHandle } from '../../components/Common/AutoSaveField';
@@ -263,6 +265,7 @@ const QProjectDetailPage: React.FC = () => {
   const periodAnchorRef = useRef<HTMLButtonElement>(null);
   const [periodPickerOpen, setPeriodPickerOpen] = useState(false);
   const [project, setProject] = useState<ProjectDetail | null>(null);
+  const [detailStatus, setDetailStatus] = useState<DetailStatus>('idle');
   // 탭 이름 = 프로젝트 이름. ★ 아래 `if (!projectId) return` 보다 반드시 위 — 훅은 조건부일 수 없다.
   useTabTitle(project?.name);
   const isClient = project?.my_role_in_project === 'client';
@@ -388,14 +391,23 @@ const QProjectDetailPage: React.FC = () => {
     if (!projectId) return;
     setLoading(true);
     try {
-      const [pr, cr, tr, ir, nr] = await Promise.all([
-        apiFetch(`/api/projects/${projectId}`).then(r => r.json()),
+      // ★ 프로젝트 본체는 **응답 객체**로 받는다 — 여태 곧바로 .json() 해서 404·403·500 이
+      //   전부 `if (pr.success)` 의 else 없음으로 사라졌다. 그 결과 없는/권한 없는 프로젝트를
+      //   열면 화면이 **아무 말도 하지 않았다** (2026-08-30).
+      const [prRes, cr, tr, ir, nr] = await Promise.all([
+        apiFetch(`/api/projects/${projectId}`),
         apiFetch(`/api/projects/${projectId}/conversations`).then(r => r.json()),
         apiFetch(`/api/projects/${projectId}/tasks`).then(r => r.json()).catch(() => ({ data: [] })),
         apiFetch(`/api/projects/${projectId}/issues`).then(r => r.json()).catch(() => ({ data: [] })),
         apiFetch(`/api/projects/${projectId}/notes`).then(r => r.json()).catch(() => ({ data: [] })),
       ]);
+      if (prRes.status === 404) { setDetailStatus('not_found'); setProject(null); return; }
+      if (prRes.status === 403) { setDetailStatus('forbidden'); setProject(null); return; }
+      if (!prRes.ok) { setDetailStatus('error'); setProject(null); return; }
+      const pr = await prRes.json().catch(() => null);
+      if (!pr || pr.success === false) { setDetailStatus('error'); setProject(null); return; }
       if (pr.success) {
+        setDetailStatus('ready');
         setProject(pr.data);
         // 비즈니스 멤버 후보 로드 (멤버 추가 드롭다운용)
         if (pr.data.business_id) {
@@ -597,6 +609,14 @@ const QProjectDetailPage: React.FC = () => {
 
   if (!projectId) return <PageShell title="Error"><Empty>{t('error.invalidUrl', '잘못된 주소')}</Empty></PageShell>;
   if (loading) return <PageShell title={t('loading', '로드 중...')}><Empty>{t('loading', '로드 중...')}</Empty></PageShell>;
+  // ★ 못 불러온 것 — 여태는 아무 말도 없이 빈 화면이었다 (2026-08-30).
+  if (!project && (detailStatus === 'not_found' || detailStatus === 'forbidden' || detailStatus === 'error')) {
+    return (
+      <PageShell title={t('project', '프로젝트') as string}>
+        <DetailFallback status={detailStatus} onRetry={() => load()} onBack={() => navigate('/projects')} />
+      </PageShell>
+    );
+  }
   if (!project) return <PageShell title="Not found"><Empty>{t('error.notFound', '프로젝트를 찾을 수 없습니다')}</Empty></PageShell>;
 
   return (

@@ -40,6 +40,7 @@ const CASES = [
   ['메일   ', (id)=>`/mail?folder=all&thread=${id}`, 5594, 99999901, 5595],
   ['문서   ', (id)=>`/docs?post=${id}`,              null, 99999901, 367],
   ['Q info', (id)=>`/info?doc=${id}`,                null, 99999901, null],
+  ['프로젝트', (id)=>`/projects/p/${id}`,             196,  99999901, null],
 ];
 
 async function run() {
@@ -57,7 +58,20 @@ async function run() {
       }
       return null;
     });
-    CASES[2][2] = docId ? Number(docId) : null;
+    // ★ 인덱스로 넣지 말 것 — 화면을 추가하면 밀려서 **엉뚱한 케이스**에 들어간다.
+    //   실제로 문서(post) 케이스에 KB doc id 가 들어가 거짓 실패했다(2026-08-30).
+    const qinfo = CASES.find((c) => c[0].trim() === 'Q info');
+    if (qinfo) qinfo[2] = docId ? Number(docId) : null;
+
+    // 문서(post) 유효 ID 도 목록에서 집는다 — 계약은 data-post-id
+    await goto(page, '/docs'); await sleep(3500);
+    const postId = await page.evaluate(() => {
+      const r = document.querySelector('[data-post-id]');
+      const v = r ? r.getAttribute('data-post-id') : null;
+      return v && /^\d+$/.test(v) ? v : null;
+    });
+    const docsCase = CASES.find((c) => c[0].trim() === '문서');
+    if (docsCase) docsCase[2] = postId ? Number(postId) : null;
 
     for (const [label, mk, good, missing, foreign] of CASES) {
       if (good != null) {
