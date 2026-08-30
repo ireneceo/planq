@@ -321,6 +321,19 @@ const ARTICLES = [
       note('Q Note 는 기본적으로 개인 공간입니다 — 명시적으로 공유하기 전까지 다른 사람이 볼 수 없습니다.',
         'Q Note is private by default — no one else sees it until you explicitly share.'),
     ] },
+  { cat: 'qnote', slug: 'upload-recording', visibility: 'authenticated', linked_route: '/notes', est: 2,
+    title: t('녹음 파일 올려 텍스트로 만들기', 'Turn a recording file into text'),
+    summary: t('이미 녹음해 둔 파일을 올리면 텍스트 노트로 만들어 줍니다', 'Upload a recording you already have and get a text note'),
+    body: [
+      s('Q Note 목록 위 + 버튼 → "녹음 파일" 을 고르고, 파일을 끌어다 놓거나 눌러서 선택합니다.',
+        'In Q Note, click + above the list, choose "Recording file", then drop a file or click to pick one.'),
+      s('올리면 창이 바로 닫히고 그 노트가 열립니다. 변환은 뒤에서 진행되며 "처리 중" 이 자동으로 사라집니다.',
+        'The dialog closes right away and the note opens. Transcription runs in the background and "Processing" clears on its own.'),
+      s('아이폰 음성 메모는 앱에서 녹음 선택 → 공유 → "파일에 저장" 을 거치면 올릴 수 있습니다.',
+        'For iPhone Voice Memos: select the recording, tap Share, then "Save to Files" — then upload it here.'),
+      note('m4a · mp3 · wav · ogg · flac · aiff · caf 를 받습니다. 파일당 최대 200MB · 4시간이며, 사용한 길이는 Q Note 월 사용 시간에 포함됩니다.',
+        'Supports m4a, mp3, wav, ogg, flac, aiff, caf. Up to 200MB and 4 hours per file; the duration counts toward your monthly Q Note minutes.'),
+    ] },
   { cat: 'qnote', slug: 'quick-memo', visibility: 'authenticated', linked_route: '/notes', est: 2,
     title: t('빠른 메모', 'Quick notes'),
     summary: t('회의가 아니어도 텍스트·음성 메모를 빠르게 남기기', 'Capture text or voice notes quickly, even outside meetings'),
@@ -411,6 +424,15 @@ const ARTICLES = [
 
   // ── 설정·권한 ──
   // #195 — '설정·권한' 카테고리의 게스트 대표 글 (승격 근거는 qtalk start-conversation 주석 참조)
+  { cat: 'settings', slug: 'text-size', visibility: 'authenticated', linked_route: '/profile', est: 1,
+    title: t('글씨 크기 바꾸기', 'Change the text size'),
+    summary: t('화면 글씨를 크게 — 이 기기에서만 적용됩니다', 'Make on-screen text larger — applies to this device only'),
+    body: [
+      s('내 프로필 > 글씨 크기 에서 기본 · 크게 · 더 크게 중 고릅니다. 고르는 즉시 화면 전체에 반영됩니다.',
+        'Go to My profile > Text size and choose Default, Large, or Larger. It applies across the app immediately.'),
+      note('이 설정은 **지금 쓰는 기기에만** 저장됩니다 — 폰과 컴퓨터에서 각각 다르게 정할 수 있습니다. 글자만 커지고 화면 구성은 그대로입니다.',
+        'This setting is saved **per device** — you can set phone and desktop differently. Only the text grows; the layout stays the same.'),
+    ] },
   { cat: 'settings', slug: 'member-permissions', visibility: 'public', linked_route: '/business/members', est: 3,
     title: t('멤버 메뉴 권한', 'Member menu permissions'),
     summary: t('멤버별로 메뉴 접근(없음/읽기/쓰기)을 조정', 'Adjust each member’s menu access (none/read/write)'),

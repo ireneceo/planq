@@ -6,6 +6,53 @@
 
 ---
 
+## 0. 글자 크기는 rem 이다 (2026-08-30 — px 금지)
+
+**`font-size` 를 px 로 쓰지 않는다.** 앱 전체가 rem 이고, 루트 배율 하나가 글자만 키운다.
+
+```css
+/* ❌ 금지 — 이 요소만 배율을 안 따라간다 */
+font-size: 13px;
+
+/* ✅ */
+font-size: 0.8125rem;    /* 13px */
+```
+
+- 배율 정의: `dev-frontend/src/index.css` → `html { font-size: calc(16px * var(--planq-font-scale, 1)) }`
+- 적용 단일 착지점: `services/fontScale.ts` (설정: 내 프로필 > 글씨 크기, 기기별 localStorage)
+- **신규 코드는 `theme/tokens.ts` 의 `TYPE` 을 쓴다** — caption 0.6875 / meta 0.75 / body 0.8125 /
+  bodyLg 0.875 / title 1 / pageTitle 1.125 rem
+- **가드 `fontpx` 가 fail-closed 로 막는다**(베이스 0). styled 선언·JSX 인라인·중괄호·동적
+  보간·`font:` 축약형 5형태 모두 잡는다 — 반증 완료.
+- 아이콘·여백·고정 px 높이는 **안 커진다**(의도) — 그것까지 키우는 것은 화면 확대이고
+  좁은 폰에서 유효 가로폭을 깎는다.
+- **폰 입력칸은 최소 1rem(16px)** — iOS 가 16px 미만 입력칸 포커스 시 화면을 자동 확대한다.
+  `textarea`·`select` 는 `:not()` 3연쇄로 특이도를 맞춰야 styled 클래스를 이긴다.
+
+> 아래 예시 코드에 남아 있는 `font-size: NNpx` 표기는 **옛 문서**다. 실제 코드는 전부 rem 이며,
+> 새로 쓸 때는 위 규칙을 따른다.
+
+---
+
+## 0-B. 상세는 못 불러오면 **말을 한다** (2026-08-30)
+
+상세 로드 실패(404·403·429·500·네트워크 순단)를 조용히 삼키지 않는다. 침묵은 사용자에게
+**"눌렀는데 아무 일도 안 일어났다"** 로 보인다.
+
+```tsx
+import DetailFallback from 'components/Common/DetailFallback';
+import { useDetailResource } from 'hooks/useDetailResource';
+// status: 'loading' | 'ready' | 'not_found' | 'forbidden' | 'error'
+<DetailFallback status={status} onRetry={retry} onBack={close} />
+```
+
+- **`apiFetch` 는 throw 하지 않는다** — 반드시 `r.status` 를 본다
+- 상세 URL 파라미터는 `hooks/useDetailParam` 하나로 — 화면마다 만들면 갈라지고,
+  안 만든 화면은 **딥링크가 죽는다**(실제로 파일·고객이 그랬다)
+- 카나리 `node scripts/e2e/run.js --suite detailopen` 가 지킨다 — **침묵이 실패**
+
+---
+
 ## 1. 필수 규칙
 
 ### 1.1 브라우저 alert() 절대 금지
