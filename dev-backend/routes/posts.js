@@ -188,6 +188,12 @@ function serialize(p, withContent = false) {
           mime_type: a.file.mime_type,
           storage_provider: a.file.storage_provider,
           external_url: a.file.external_url,
+          // 공유 모달이 "이 첨부가 공개 링크로 나가는가" 를 표시하는 근거(#378 후속).
+          //   이 화이트리스트에 없어서 프론트가 늘 undefined 를 읽었고, 그래서 **이미 공개된
+          //   첨부까지 "링크로 안 나감" 으로 표시**됐다 — 소유자에게 노출을 과소보고하는 거짓 안내였다.
+          //   ※ 공개 응답에는 L4 첨부만 실리므로 여기에 등급이 실려도 새는 정보가 없다.
+          vlevel: a.file.vlevel,
+          visibility: a.file.visibility,
           download_url: a.file.storage_provider === 'gdrive' && a.file.external_url
             ? a.file.external_url
             : `/api/files/${a.file.business_id}/${a.file.id}/download`,
@@ -1491,8 +1497,11 @@ router.get('/public/:token', async (req, res, next) => {
         ...a,
         file: { ...a.file, download_url: `/api/posts/public/${token}/attachments/${a.id}/download` },
       }));
-      // 몇 건이 빠졌는지는 알려준다 — 조용히 사라지면 "첨부가 없는 문서" 로 오해한다.
-      safe.hidden_attachment_count = hidden;
+      // ★ 숨긴 건수를 **익명 뷰어에게 내보내지 않는다.** 처음엔 "조용히 사라지면 오해한다" 며
+      //   실었는데, 공개 페이지를 보는 사람은 문서 소유자가 아니다 — 숨긴 파일이 몇 개인지는
+      //   그에게 줄 정보가 아니다(존재 자체가 정보다). 소유자는 공유 모달에서 본다.
+      //   소비처도 0곳이었다 — 죽은 채로 두지 않는다(Fable 권고).
+      void hidden;
     }
     delete safe.share_token;
     await applyMemberDisplayNameOne(safe, post.business_id, ['author', 'editor']);
