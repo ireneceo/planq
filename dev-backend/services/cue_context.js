@@ -119,14 +119,14 @@ async function getEmailThreadSnapshot(threadId, businessId) {
     if (!th) return null;
     const msgs = await EmailMessage.findAll({
       where: { thread_id: threadId },
-      attributes: ['id', 'direction', 'from_name', 'from_address', 'body_text', 'sent_at'],
+      attributes: ['id', 'direction', 'from_name', 'from_email', 'body_text', 'sent_at'],
       order: [['sent_at', 'DESC']], limit: THREAD_MSG_LIMIT,
     });
     return {
       id: th.id, subject: th.subject, status: th.status, reply_needed: th.reply_needed,
       messages: msgs.reverse().map((m) => ({
         direction: m.direction,
-        who: m.from_name || m.from_address || '(발신자 미상)',
+        who: m.from_name || m.from_email || '(발신자 미상)',
         at: m.sent_at,
         text: snip(String(m.body_text || '').replace(/\s+/g, ' ').trim(), THREAD_MSG_CHARS),
       })).filter((m) => m.text),

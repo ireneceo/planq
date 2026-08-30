@@ -1110,6 +1110,32 @@ function modelTableMap() {
 }
 
 /** 옵션 객체 문자열에서 **depth 1** 의 `where: { ... }` 본문만 뽑는다 (include 안의 것 제외). */
+// #227 후속 — 호출 옵션의 **최상위** `attributes: [...]` 만 뽑는다.
+//   include 안의 attributes(다른 모델 것)나 `[fn(...), '별칭']` 중첩 배열을 집으면
+//   전부 거짓 FAIL 이 된다(실측: 59건 중 전부 오탐이었다).
+function topLevelAttributesBody(optionsSrc) {
+  const open = optionsSrc.indexOf('{');
+  if (open === -1) return null;
+  let depth = 0;
+  for (let i = open; i < optionsSrc.length; i++) {
+    const ch = optionsSrc[i];
+    if (ch === '{' || ch === '[') depth++;
+    else if (ch === '}' || ch === ']') depth--;
+    else if (depth === 1 && optionsSrc.startsWith('attributes:', i)) {
+      let k = i + 'attributes:'.length;
+      while (k < optionsSrc.length && /\s/.test(optionsSrc[k])) k++;
+      if (optionsSrc[k] !== '[') return null;   // 배열 리터럴이 아니면 검사하지 않는다
+      let d = 0;
+      for (let j = k; j < optionsSrc.length; j++) {
+        if (optionsSrc[j] === '[') d++;
+        else if (optionsSrc[j] === ']') { d--; if (d === 0) return optionsSrc.slice(k + 1, j); }
+      }
+      return null;
+    }
+  }
+  return null;
+}
+
 function topLevelWhereBody(optionsSrc) {
   const open = optionsSrc.indexOf('{');
   if (open === -1) return null;
@@ -1171,9 +1197,43 @@ function checkSchemaCol() {
         else if (src[i] === ')') { depth--; if (depth === 0) { close = i; break; } }
       }
       if (close === -1) continue;
-      const body = topLevelWhereBody(src.slice(open, close));
-      if (!body) continue;
+      const callBody = src.slice(open, close);
       const known = new Set(cols);
+
+      // ★ attributes 배열도 검사한다 (2026-08-30 추가).
+      //   `attributes: ['from_address']` 처럼 없는 컬럼을 적으면 MySQL 이
+      //   "Unknown column ... in 'field list'" 로 죽는데, 호출부의 try/catch 가 삼키면
+      //   **기능이 항상 null 을 돌려주며 조용히 죽는다** — 실제로 #227 메일 스레드
+      //   스냅샷이 그렇게 한 번도 동작하지 않았다(Fable 적발).
+      //   where 절만 보던 가드가 이 계열을 통째로 놓치고 있었다.
+      const attrBody = topLevelAttributesBody(callBody);
+      if (attrBody) {
+        // 최상위 쉼표로만 쪼갠다 — `[fn('COUNT', col), '별칭']` 같은 중첩은 통째로 건너뛴다.
+        const parts = [];
+        { let d = 0, cur = '';
+          for (const ch of attrBody) {
+            if (ch === '[' || ch === '(' || ch === '{') d++;
+            else if (ch === ']' || ch === ')' || ch === '}') d--;
+            if (ch === ',' && d === 0) { parts.push(cur); cur = ''; } else cur += ch;
+          }
+          parts.push(cur); }
+        for (const raw of parts) {
+          const lit = raw.trim().match(/^['"]([a-zA-Z_][a-zA-Z0-9_]*)['"]$/);
+          if (!lit) continue;                    // 변수·fn()·별칭 배열은 건너뛴다
+          const col = lit[1];
+          const snakeA = col.replace(/[A-Z]/g, (ch) => `_${ch.toLowerCase()}`);
+          if (!known.has(col) && !known.has(snakeA)) {
+            n++;
+            if (samples.length < 12) {
+              const ln = src.slice(0, m.index).split('\n').length;
+              samples.push(`${rel(f)}:${ln}: ${m[1]}.${m[2]}() attributes.${col} — ${table} 에 없는 컬럼`);
+            }
+          }
+        }
+      }
+
+      const body = topLevelWhereBody(callBody);
+      if (!body) continue;
       // ★ 줄 단위가 아니라 **최상위 쉼표 단위**로 키를 뽑는다.
       //   `where: { token, nonexistent_col: 1 }` 처럼 한 줄에 여러 키가 있으면
       //   줄 파싱은 첫 키만 보고 나머지를 놓친다(실측 — 반증에서 안 잡혔다).
