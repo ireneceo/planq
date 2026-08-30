@@ -498,7 +498,15 @@
       "noneProject": "No project linked",
       "hint": "Changing the linkage doesn't affect the document body. The doc appears in the linked project · conversation."
     },
-    "linkError": "Link update failed"
+    "linkError": "Link update failed",
+    "attach": {
+      "title": "{{n}} attachments on this document",
+      "shared": "Downloadable via link",
+      "notShared": "Not shared via link",
+      "makePublic": "Let the link download these too",
+      "applying": "Applying…",
+      "failed": "{{n}} could not be changed. Please try again."
+    }
   },
   "common": {
     "cancel": "Cancel",

@@ -49,6 +49,10 @@ export interface PostAttachment {
     file_size: number;
     mime_type: string | null;
     storage_provider: 'planq' | 'gdrive';
+    // #378 — 공개 링크에 이 첨부가 나가는지 판정하는 근거. 서버는 File 전 컬럼을 내려주는데
+    //   타입에만 빠져 있었다(실측: {"vlevel":"L2","visibility":"L2"} 가 실제로 온다).
+    vlevel?: 'L1' | 'L2' | 'L3' | 'L4' | null;
+    visibility?: string | null;
     external_url: string | null;
     download_url: string;
   } | null;

@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { updateFileVisibility } from '../../services/files';
 import { useNavigate } from 'react-router-dom';
 import {
   sharePost, revokePostShare, emailPostShare, sharePostToChat,
@@ -32,6 +33,41 @@ const PostShareModal: React.FC<Props> = ({ open, onClose, post, onChanged }) => 
   const [tab, setTab] = useState<Tab>('email');
   // D4 #62 — 내부·기밀 등급 문서는 외부 공유 불가 (백엔드도 403 으로 강제)
   const blocked = !!post.security_level && post.security_level !== 'general';
+
+  // #378 후속 — 공개 링크에 첨부가 어떻게 나가는지. 서버 기준과 **같은 술어**를 쓴다
+  //   (공개 라우트는 vlevel L4, 미마이그레이션이면 visibility L4 만 내보낸다).
+  const [attachBusy, setAttachBusy] = useState(false);
+  const [attachError, setAttachError] = useState<string | null>(null);
+  const [attachVersion, setAttachVersion] = useState(0);   // 바꾼 뒤 다시 그리기용
+  const attachments = useMemo(() => {
+    void attachVersion;
+    return (post.attachments || []).filter(a => a.file).map(a => ({
+      id: a.file!.id,
+      name: a.file!.file_name,
+      isPublic: a.file!.vlevel === 'L4' || (!a.file!.vlevel && a.file!.visibility === 'L4'),
+    }));
+  }, [post.attachments, attachVersion]);
+
+  // 동의하면 **그때** 파일 설정을 바꾼다 — 묻지 않고 바꾸지 않는다.
+  const publishAttachments = async () => {
+    if (attachBusy) return;
+    setAttachBusy(true); setAttachError(null);
+    const targets = attachments.filter(a => !a.isPublic);
+    let failed = 0;
+    for (const a of targets) {
+      try { await updateFileVisibility(post.business_id, a.id, { level: 'L4' }); }
+      catch { failed += 1; }
+    }
+    // 낙관 갱신 — 성공분만 공개로 표시한다(실패분은 그대로 남아 사용자가 다시 시도할 수 있게)
+    for (const a of attachments) {
+      const src = (post.attachments || []).find(x => x.file?.id === a.id);
+      if (src?.file && !a.isPublic && failed === 0) src.file.vlevel = 'L4';
+    }
+    setAttachVersion(v => v + 1);
+    if (failed > 0) setAttachError(t('share.attach.failed', { n: failed, defaultValue: '{{n}}건은 바꾸지 못했어요. 잠시 후 다시 시도해 주세요.' }) as string);
+    setAttachBusy(false);
+    onChanged?.(post);
+  };
 
   // Email
   const [emailTo, setEmailTo] = useState('');
@@ -183,6 +219,40 @@ const PostShareModal: React.FC<Props> = ({ open, onClose, post, onChanged }) => 
               </CheckTexts>
             </CheckLabel>
           </CheckRow>
+          {/* #378 후속 (Irene 2026-08-30): 공개 링크를 만들 때 **첨부가 어떻게 되는지 알려주고,
+              공유하겠다면 그때 파일 설정을 바꾼다.** 경고만 하고 방치하면 사용자는 "나만 보기" 로
+              올린 파일이 나가는 줄 모른다. 공개 링크에는 **외부 공개로 표시된 첨부만** 나간다. */}
+          {isPublic && attachments.length > 0 && (
+            <AttachScopeCard>
+              <AttachScopeTitle>
+                {t('share.attach.title', { n: attachments.length, defaultValue: '이 문서의 첨부 {{n}}건' }) as string}
+              </AttachScopeTitle>
+              <AttachScopeList>
+                {attachments.map((a) => (
+                  <AttachScopeRow key={a.id}>
+                    <AttachScopeName title={a.name}>{a.name}</AttachScopeName>
+                    <AttachScopeTag $public={a.isPublic}>
+                      {a.isPublic
+                        ? (t('share.attach.shared', '링크로 받을 수 있음') as string)
+                        : (t('share.attach.notShared', '링크로 안 나감') as string)}
+                    </AttachScopeTag>
+                  </AttachScopeRow>
+                ))}
+              </AttachScopeList>
+              {attachments.some((a) => !a.isPublic) && (
+                <AttachScopeAction
+                  type="button"
+                  disabled={attachBusy}
+                  onClick={publishAttachments}
+                >
+                  {attachBusy
+                    ? (t('share.attach.applying', '바꾸는 중…') as string)
+                    : (t('share.attach.makePublic', '첨부도 링크로 받을 수 있게 하기') as string)}
+                </AttachScopeAction>
+              )}
+              {attachError && <AttachScopeError>{attachError}</AttachScopeError>}
+            </AttachScopeCard>
+          )}
           {isPublic && (
             <UrlCard>
               <UrlIcon>
@@ -360,6 +430,40 @@ const CheckTexts = styled.div`display:flex;flex-direction:column;gap:2px;flex:1;
 const CheckTitle = styled.span`font-size:0.8125rem;font-weight:600;color:#0F172A;`;
 const CheckDesc = styled.span`font-size:0.6875rem;color:#64748B;line-height:1.5;`;
 // URL 카드
+// #378 후속 — 공개 링크에 첨부가 어떻게 나가는지. 장황하지 않게, 표처럼 한눈에.
+const AttachScopeCard = styled.div`
+  border: 1px solid #e2e8f0; border-radius: 10px;
+  padding: 10px 12px; margin-bottom: 8px; background: #f8fafc;
+`;
+const AttachScopeTitle = styled.div`
+  font-size: 0.75rem; font-weight: 700; color: #334155; margin-bottom: 6px;
+`;
+const AttachScopeList = styled.div`
+  display: flex; flex-direction: column; gap: 4px;
+`;
+const AttachScopeRow = styled.div`
+  display: flex; align-items: center; gap: 8px; min-width: 0;
+`;
+const AttachScopeName = styled.div`
+  flex: 1; min-width: 0; font-size: 0.75rem; color: #475569;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+`;
+const AttachScopeTag = styled.span<{ $public: boolean }>`
+  flex-shrink: 0; font-size: 0.6875rem; font-weight: 600;
+  padding: 2px 7px; border-radius: 999px;
+  color: ${(p) => (p.$public ? '#9a3412' : '#0f766e')};
+  background: ${(p) => (p.$public ? '#ffedd5' : '#ccfbf1')};
+`;
+const AttachScopeAction = styled.button`
+  margin-top: 8px; background: none; border: none; padding: 0; cursor: pointer;
+  font-size: 0.75rem; font-weight: 600; color: #E11D48;
+  &:hover:not(:disabled) { text-decoration: underline; }
+  &:disabled { color: #cbd5e1; cursor: not-allowed; }
+`;
+const AttachScopeError = styled.div`
+  margin-top: 6px; font-size: 0.6875rem; color: #B45309;
+`;
+
 const UrlCard = styled.div`
   display: flex; align-items: center; gap: 10px; padding: 10px 12px;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px;

@@ -1475,10 +1475,24 @@ router.get('/public/:token', async (req, res, next) => {
     // 사이클 N+9 fix: 옛 download_url 은 /api/files/:bizId/:id/download (인증 필요) — 공개 페이지에선 401.
     const token = req.params.token;
     if (Array.isArray(safe.attachments)) {
-      safe.attachments = safe.attachments.map(a => a.file ? {
+      // ★ 공개 링크에는 **L4(외부 공개)로 표시된 첨부만** 내보낸다.
+      //   여태 파일 등급을 보지 않아, 내부 문서(L2)의 "나만 보기"(L1) 첨부까지 링크 소지자
+      //   전원이 파일명을 보고 내려받을 수 있었다. 파일명 자체도 정보라 목록에서 뺀다.
+      //   문서를 공개할 때 화면이 "첨부도 함께 공개할지" 를 묻고, 동의하면 그때 L4 로 올린다.
+      //   ★ 판정은 **원본 인스턴스**(post.attachments)로 한다. `serialize` 가 파일 필드를
+      //     화이트리스트로 추리면서 vlevel 을 빼기 때문에, 직렬화 결과로 판단하면
+      //     "전부 비공개" 로 읽혀 동의한 첨부까지 사라진다(실측: 다운로드는 200 인데 목록만 0건).
+      //     파생본을 원본으로 쓰지 않는다.
+      const isPublicFile = (f) => !!f && (f.vlevel === 'L4' || (!f.vlevel && f.visibility === 'L4'));
+      const publicAttIds = new Set(
+        (post.attachments || []).filter(a => isPublicFile(a.file)).map(a => a.id));
+      const hidden = safe.attachments.filter(a => !publicAttIds.has(a.id)).length;
+      safe.attachments = safe.attachments.filter(a => publicAttIds.has(a.id)).map(a => ({
         ...a,
         file: { ...a.file, download_url: `/api/posts/public/${token}/attachments/${a.id}/download` },
-      } : a);
+      }));
+      // 몇 건이 빠졌는지는 알려준다 — 조용히 사라지면 "첨부가 없는 문서" 로 오해한다.
+      safe.hidden_attachment_count = hidden;
     }
     delete safe.share_token;
     await applyMemberDisplayNameOne(safe, post.business_id, ['author', 'editor']);
@@ -1523,6 +1537,11 @@ router.get('/public/:token/attachments/:attId/download', async (req, res, next) 
     });
     if (!att || !att.file) return errorResponse(res, 'attachment_not_found', 404);
     const file = att.file;
+    // ★ 목록에서 뺐어도 URL 을 알면 그대로 받아진다 — 여기서도 같은 기준으로 막는다.
+    //   (한쪽만 막는 것은 막은 게 아니다)
+    if (!(file.vlevel === 'L4' || (!file.vlevel && file.visibility === 'L4'))) {
+      return errorResponse(res, 'attachment_not_shared', 403);
+    }
     if (file.storage_provider !== 'planq') {
       if (file.external_url) return res.redirect(file.external_url);
       return errorResponse(res, 'external_file_no_url', 400);
