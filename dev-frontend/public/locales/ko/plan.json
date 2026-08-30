@@ -48,7 +48,9 @@
       "ai_estimate": "예측 시간",
       "task_summarize": "업무 요약",
       "qnote_answer": "Q Note 답변",
-      "post_draft": "초안 작성"
+      "post_draft": "초안 작성",
+      "ai_task_create": "AI 업무 추가",
+      "ai_routine_plan": "루틴 설계"
     }
   },
   "comparison": {

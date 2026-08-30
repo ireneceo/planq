@@ -372,3 +372,70 @@ export function presetLabelMap(t: TFunction, anchorDate: string | null | undefin
     advanced: t('recur.advancedBadge', '사용자 지정 규칙') as string,
   };
 }
+
+// ─── #354 루틴 부하 요약 ────────────────────────────────────────────────────
+//   "평일 4건은 과하다" 를 **확정 전에** 보여주기 위한 계산. 사람이 손으로 하던 부하 조정을
+//   AI 단계에서 재현하는 장치다(#354 원문 2번).
+//
+//   ★ 공식은 여기 한 곳뿐이다. 제안된 루틴과 **이미 돌고 있는 루틴**을 같은 함수로 센다 —
+//     둘을 다른 식으로 세면 화면과 실제가 갈라진다(memory: 같은 값의 공식이 여러 벌이면 이미 갈라져 있다).
+//
+//   주 단위로 떨어지지 않는 규칙(MONTHLY·YEARLY)은 요일 막대에 억지로 넣지 않고
+//   `monthlyCount` 로 따로 센다 — 월 1회를 요일에 1/4 씩 흩뿌리면 사용자가 읽을 수 없는 숫자가 된다.
+
+/** 0=월 … 6=일 */
+export type WeekdayLoad = {
+  perWeekday: [number, number, number, number, number, number, number];
+  /** 요일 막대에 표현할 수 없는 것 — 월간·연간·분기 등 */
+  monthlyCount: number;
+  /** 평일(월~금) 중 가장 많이 몰린 날의 건수 */
+  peakWeekday: number;
+  /** 규칙을 못 읽어 세지 못한 건수 (조용히 0으로 만들지 않는다) */
+  unparsed: number;
+};
+
+const DAY_INDEX: Record<string, number> = { MO: 0, TU: 1, WE: 2, TH: 3, FR: 4, SA: 5, SU: 6 };
+
+function rrulePart(rule: string, key: string): string | null {
+  const m = new RegExp(`(?:^|;)${key}=([^;]*)`, 'i').exec(rule);
+  return m ? m[1] : null;
+}
+
+/**
+ * RRULE 목록 → 요일별 상시 건수.
+ * 종료조건(COUNT/UNTIL)은 무시한다 — "지금 이 체계가 매주 몇 건인가" 를 보는 값이기 때문이다.
+ */
+export function weekdayLoadFromRules(rules: Array<string | null | undefined>): WeekdayLoad {
+  const perWeekday: [number, number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0, 0];
+  let monthlyCount = 0;
+  let unparsed = 0;
+
+  for (const raw of rules) {
+    const rule = String(raw || '').trim().toUpperCase();
+    if (!rule) { continue; }
+    const freq = rrulePart(rule, 'FREQ');
+    if (!freq) { unparsed += 1; continue; }
+    const interval = Math.max(1, parseInt(rrulePart(rule, 'INTERVAL') || '1', 10) || 1);
+    const byday = (rrulePart(rule, 'BYDAY') || '').split(',').map((d) => d.replace(/^[-+]?\d+/, '').trim()).filter(Boolean);
+
+    if (freq === 'DAILY') {
+      // 격일(INTERVAL=2)이면 매일 1건이 아니라 대략 0.5건 — 정수로 보여주려고 반올림하지 않는다.
+      for (let i = 0; i < 7; i++) perWeekday[i] += 1 / interval;
+    } else if (freq === 'WEEKLY') {
+      const days = byday.length ? byday : [];
+      if (!days.length) { unparsed += 1; continue; }   // 요일을 모르면 세지 않는다(추측 금지)
+      for (const d of days) {
+        const idx = DAY_INDEX[d];
+        if (idx === undefined) { unparsed += 1; continue; }
+        perWeekday[idx] += 1 / interval;
+      }
+    } else if (freq === 'MONTHLY' || freq === 'YEARLY') {
+      monthlyCount += 1;
+    } else {
+      unparsed += 1;
+    }
+  }
+
+  const peakWeekday = Math.max(0, ...perWeekday.slice(0, 5));
+  return { perWeekday, monthlyCount, peakWeekday, unparsed };
+}

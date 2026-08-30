@@ -30,6 +30,12 @@ export interface AiCandidate {
   instruction_truncated?: boolean;
   /** #353 ② — 업무그룹(워크스트림) 이름 힌트. 확정 시 서버가 이 프로젝트 그룹과 대조해 배치한다. */
   workstream_hint?: string | null;
+  /** #354 루틴 설계 — 이 업무가 속한 영역의 0-base 번호. 확정 시 이름이 아니라 **id 로 직결**한다.
+   *  범위 밖이면 서버가 null 로 떨어뜨리고 area_ref_dropped 로 알린다(조용히 버리지 않는다). */
+  area_ref?: number | null;
+  area_ref_dropped?: boolean;
+  /** #354 — 루틴 파이프라인(일간 → 주간 → 월간). depends_on_index 와 달리 여러 갈래를 갖는다. */
+  pipeline_refs?: number[];
   /** #237 "완료로 추가" — 이미 끝난 일의 기록. 서버가 오늘 날짜로 넣고 반복은 끊는다(상호배타). */
   completed?: boolean;
   assignee_hint: string | null;

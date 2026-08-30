@@ -25,6 +25,12 @@ const PURPOSES = {
   cue_task:       { model: 'gpt-4o-mini', temperature: 0.3, maxTokens: 1200, timeoutMs: 45_000, maxInputChars: 32_000 },
   task_extract:   { model: 'gpt-4o-mini', temperature: 0.1, maxTokens: 1500, timeoutMs: 45_000, maxInputChars: 32_000 },
   task_plan:      { model: 'gpt-4o-mini', temperature: 0.2, maxTokens: 2000, timeoutMs: 45_000, maxInputChars: 16_000 },
+  // #354 루틴 설계 모드 — 같은 분해라도 **출력 부피가 다른 일**이라 task_plan 과 나눠 둔다.
+  //   업무 16건 × 지침 500~1,500자면 task_plan 의 2,000토큰에서 JSON 이 중간에 잘리고,
+  //   잘린 JSON 은 parse 실패로 **전량 유실**된다(부분 복구 경로가 없다). 12,000 은
+  //   4o-mini 출력 상한(16,384) 안에서 그 최악을 담는 값이다. 지침이 길어 90초로는
+  //   모자랄 수 있어 timeout 도 함께 올린다.
+  routine_plan:   { model: 'gpt-4o-mini', temperature: 0.2, maxTokens: 12_000, timeoutMs: 120_000, maxInputChars: 24_000 },
   task_estimate:  { model: 'gpt-4o-mini', temperature: 0.2, maxTokens: 100,  timeoutMs: 20_000, maxInputChars: 12_000 },
   mail_reply:     { model: 'gpt-4o-mini', temperature: 0.3, maxTokens: 800,  timeoutMs: 45_000, maxInputChars: 24_000 },
   mail_summary:   { model: 'gpt-4o-mini', temperature: 0.2, maxTokens: 500,  timeoutMs: 45_000, maxInputChars: 24_000 },

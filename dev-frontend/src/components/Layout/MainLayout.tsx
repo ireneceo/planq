@@ -13,6 +13,7 @@ import GlobalSearchModal from '../Common/GlobalSearchModal';
 import { launchDockTool } from '../Common/RightDock';
 import WorkspaceBillingBanner from './WorkspaceBillingBanner';
 import SidebarClock from './SidebarClock';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import FocusWidget from '../Focus/FocusWidget';
 import AttendanceWidget from '../Attendance/AttendanceWidget';   // #208 출퇴근
 import PanelHeader, { PanelTitle } from './PanelHeader';
@@ -200,6 +201,8 @@ const MobileCloseButton = styled.button`
 
 const SidebarNav = styled.nav`
   padding: 8px 0 24px 0; flex: 1; overflow-y: auto; overflow-x: hidden;
+  /* 폰에서는 아래 24px 이 메뉴 한 줄만큼의 손실이다. 스크롤 영역이라 여백이 없어도 답답하지 않다. */
+  ${mediaTablet} { padding-bottom: 8px; }
   &::-webkit-scrollbar { width: 6px; }
   &::-webkit-scrollbar-track { background: transparent; }
   &::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 3px; }
@@ -459,8 +462,11 @@ const SidebarFooter = styled.div<{ $isCollapsed?: boolean }>`
     }
   `}
   ${mediaTablet} {
-    padding: 12px 16px;
-    padding-bottom: calc(12px + var(--pq-safe-bottom, 0px));
+    padding: 10px 16px;
+    /* ★ safe-bottom 을 여기서 **다시** 더하지 않는다 — Sidebar 가 이미
+       padding-bottom: var(--pq-safe-bottom) 을 갖고 있어 두 번 잡혔다.
+       홈 인디케이터가 있는 기기에서 그 차이가 그대로 아래 빈 공간이 된다
+       (Irene: "좌측메뉴 하단에 여백이 너무 많아"). */
     display: block;
   }
 `;
@@ -756,6 +762,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
   const location = useChromeLocation();
   const navigate = useChromeNav();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // 폰/태블릿에서는 시계·근태 블록을 푸터에 고정하지 않고 메뉴 스크롤 안으로 넣는다.
+  //   기준은 Sidebar 가 오버레이로 바뀌는 mediaTablet(≤1024) 과 같은 값 — 다르면 두 규칙이 어긋난다.
+  const isMobileNav = useMediaQuery('(max-width: 1024px)');
   const [isCollapsed, setIsCollapsed] = useState(() => readLS(LS_COLLAPSED, false));
   const [searchOpen, setSearchOpen] = useState(false);
   // N+63 — 사이드바 user 메뉴 (avatar 클릭 popover). LanguageSelector + 프로필 link + 로그아웃 통합.
@@ -779,6 +788,27 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
   // 데스크탑은 SecondaryPanel 이 있어 즉시 이동 (기존 동작).
   const [mobileExpandedSection, setMobileExpandedSection] = useState<SecondarySection>(null);
   const { workspaceTz, workspaceRefs, userTz, userRefs, userTzExplicit } = useTimezones();
+
+  // 시계 + 근태/포커스 — 한 벌만 만든다. 데스크탑은 푸터에, 폰은 메뉴 스크롤 끝에 **같은 것**을 건다.
+  //   두 벌로 만들면 반드시 갈라진다 — 한쪽만 고쳐지는 일이 이 파일에서 이미 여러 번 있었다.
+  const statusBlock = (
+    <>
+      <SidebarClock
+        workspaceTz={workspaceTz}
+        workspaceLabel={user?.business_name || undefined}
+        userTz={userTz}
+        userTzExplicit={userTzExplicit}
+        referenceTzs={[...workspaceRefs, ...userRefs]}
+        locale={(i18n.language === 'ko' ? 'ko' : 'en')}
+        isWorkspaceAdmin={hasRole('business_owner', 'platform_admin')}
+      />
+      {/* #208 — 근태와 업무 흐름을 한 카드로. 위=오늘 근무(관리자도 봄) / 아래=지금 이 업무(나만 봄). */}
+      <WorkBlock>
+        <AttendanceWidget variant="sidebar" embedded />
+        <FocusWidget isCollapsed={false} embedded />
+      </WorkBlock>
+    </>
+  );
 
   useEffect(() => { setSidebarOpen(false); }, [location.pathname]);
   // 경로 변경 시 펼침 state reset (메뉴 안에서 하위 클릭 후 다른 페이지 가면 자동 접힘)
@@ -1036,6 +1066,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
           </QuickRow>
         )}
 
+        {/* 시계 · 근태/포커스 — 데스크탑은 푸터 고정, 폰은 메뉴 안 끝(스크롤).
+            폰에서 이걸 푸터에 고정하면 213px 를 늘 차지해 메뉴가 261px 만 남는다(실측 375×667:
+            19개 중 5개만 보였다). Irene: "하단에 여백이 너무 많아. 아래까지 내려가게 해서
+            메뉴가 조금이라도 많이 보이게". 숨기지 않고 **자리만 옮긴다** — 기능은 그대로다. */}
         <SidebarNav>
           {isAdminMode ? (
             <>
@@ -1579,28 +1613,18 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
               )}
             </>
           )}
+          {/* 폰에서만 — 시계·근태를 메뉴 끝에 붙여 스크롤에 태운다.
+              접힌 사이드바(데스크탑)는 해당 없음. */}
+          {isMobileNav && !isCollapsed && (
+            <MobileStatusSlot>{statusBlock}</MobileStatusSlot>
+          )}
         </SidebarNav>
 
         <SidebarFooter $isCollapsed={isCollapsed}>
           {!isCollapsed && (
             <>
-              <SidebarClock
-                workspaceTz={workspaceTz}
-                workspaceLabel={user?.business_name || undefined}
-                userTz={userTz}
-                userTzExplicit={userTzExplicit}
-                referenceTzs={[...workspaceRefs, ...userRefs]}
-                locale={(i18n.language === 'ko' ? 'ko' : 'en')}
-                isWorkspaceAdmin={hasRole('business_owner', 'platform_admin')}
-              />
-              {/* #208 — 근태와 업무 흐름을 **한 카드**로 묶는다.
-                  둘을 따로 두면 사용자에게는 "시간이 흐르는 상자" 두 개일 뿐이라 구별이 안 된다.
-                  위=오늘 근무(하루의 경계, 관리자도 봄) / 아래=지금 이 업무(나만 봄).
-                  들여쓰기와 구분선이 "업무 시간은 근무 시간 안에 있다" 를 설명 없이 전달한다. */}
-              <WorkBlock>
-                <AttendanceWidget variant="sidebar" embedded />
-                <FocusWidget isCollapsed={false} embedded />
-              </WorkBlock>
+              {/* 폰에서는 이 블록이 메뉴 안(스크롤 영역 끝)으로 옮겨간다 — 아래 statusBlock 참조 */}
+              {!isMobileNav && statusBlock}
               {/* N+63 — UserMenu 통합: avatar+이름 1줄 + 클릭 popover (Language + 프로필 + 로그아웃).
                   옛 3블록 (LanguageSelector + UserInfo + LogoutButton) 합쳐 공간 절약 (모바일 호소 fix). */}
               <UserMenuWrap ref={userMenuRef}>
@@ -1973,6 +1997,14 @@ const SkelRow = styled.div<{ $w: string }>`
 `;
 
 // #208 — 근무 상태 한 덩어리 (근태 + 업무 흐름)
+// 폰에서 시계·근태가 메뉴 스크롤 끝에 붙을 때의 자리.
+//   좌우 패딩은 SidebarFooter 와 같은 16px — 그래야 위 메뉴 항목들과 글자 시작선이 맞는다.
+const MobileStatusSlot = styled.div`
+  padding: 8px 16px 4px;
+  margin-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+`;
+
 const WorkBlock = styled.div`
   /* ★ 박스를 쓰지 않는다 (2026-08-25 Irene). 카드 배경·테두리·라운드는 그 자체로 세로 공간을
      먹고, 위 SidebarClock 도 같은 폭에 선으로만 구분돼 있어 상자 하나만 튀어 보였다.

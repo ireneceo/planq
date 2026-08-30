@@ -48,7 +48,9 @@
       "ai_estimate": "Time Estimation",
       "task_summarize": "Task Summary",
       "qnote_answer": "Q Note Answer",
-      "post_draft": "Draft"
+      "post_draft": "Draft",
+      "ai_task_create": "AI Task Add",
+      "ai_routine_plan": "Routine Design"
     }
   },
   "comparison": {

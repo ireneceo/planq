@@ -1141,7 +1141,47 @@
     "workstreamChip": "그룹 {{name}}",
     "instructionShow": "실행 지침 보기 ({{n}}자)",
     "instructionHide": "실행 지침 접기",
-    "instructionTruncated": "지침이 길어 일부가 잘렸어요"
+    "instructionTruncated": "지침이 길어 일부가 잘렸어요",
+    "modeLabel": "무엇을 만들까요",
+    "promptLabelRoutine": "만들 루틴",
+    "placeholderRoutine": "예: 개인 브랜드 연구 루틴. 매일 논문 인사이트 기록, 평일 SNS 발행, 매주 월요일 리서치 계획, 매월 마지막 평일 회고.",
+    "promptHintRoutine": "반복 주기와 하고 싶은 일을 적으면 영역·반복 규칙·실행 지침까지 만들어요.",
+    "modeMismatch": "루틴 설계로 처리되지 않았어요. 잠시 후 다시 시도해 주세요.",
+    "mode": {
+      "oneoff": "일회성 업무 분해",
+      "oneoffDesc": "프로젝트를 단계별 업무로 나눕니다",
+      "routine": "루틴 설계",
+      "routineDesc": "영역을 나누고 반복 업무·실행 지침까지 만듭니다",
+      "routineNeedsProject": "프로젝트를 먼저 선택하세요"
+    },
+    "area": {
+      "title": "영역",
+      "none": "영역이 제안되지 않았습니다",
+      "nameLabel": "영역 이름",
+      "existing": "기존 영역 재사용",
+      "new": "새로 만듦",
+      "taskCount": "업무 {{n}}건",
+      "droppedHint": "업무 {{n}}건은 영역 없이 만들어집니다 (삭제되지 않습니다)"
+    },
+    "load": {
+      "title": "요일별 상시 업무량",
+      "sub": "제안 {{n}}건 기준",
+      "subWithExisting": "제안 {{n}}건 + 이미 돌고 있는 {{m}}건",
+      "monthly": "월·분기·연 단위 {{n}}건은 요일에 매이지 않아 따로 셉니다",
+      "unparsed": "{{n}}건은 반복 규칙을 읽지 못해 세지 않았습니다",
+      "tooHeavy": "가장 몰린 평일이 {{n}}건입니다. 하루 {{cap}}건을 넘으면 오래 못 갑니다 — 몇 건은 주 단위로 낮추거나 빼세요.",
+      "none": "반복 규칙이 있는 업무가 없습니다",
+      "day": {
+        "mon": "월",
+        "tue": "화",
+        "wed": "수",
+        "thu": "목",
+        "fri": "금",
+        "sat": "토",
+        "sun": "일"
+      }
+    },
+    "truncated": "결과가 너무 커서 잘렸어요. 루틴 범위를 나눠서 다시 요청해 주세요."
   },
   "bar": {
     "resumeTitle": "이 업무 진행 중",

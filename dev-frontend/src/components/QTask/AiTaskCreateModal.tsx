@@ -11,6 +11,8 @@ import { apiFetch } from '../../contexts/AuthContext';
 import { mapApiError } from '../../utils/apiError';
 import AiCandidateCard, { type AiCandidate } from './AiCandidateCard';
 import AiRegenerateBar from '../Common/AiRegenerateBar';
+import AiAreaBlock, { type AiArea } from './AiAreaBlock';
+import AiLoadSummary from './AiLoadSummary';
 
 interface Member { user_id: number; name: string; }
 interface Project { id: number; name: string; }
@@ -109,6 +111,13 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
   // 운영 #312 — "다시 만들기" 로 준 지시를 누적한다. 마지막 한 줄만 보내면 앞서 시킨 것이 풀려
   //   결과가 처음으로 되돌아간다. 직전 후보 목록도 같이 넘겨 "고쳐 쓰기" 가 되게 한다.
   const [aiInstructions, setAiInstructions] = useState<string[]>([]);
+  // #354 — 루틴 설계 모드. **명시 버튼으로만** 켠다(반복 어휘 자동 감지는 Fable 판정으로 반려 —
+  //   #353 이후 일반 모드도 "매일 …" 을 RRULE 로 만들기 때문에 반복 어휘 ≠ 루틴 설계 의도다).
+  const [routineMode, setRoutineMode] = useState(false);
+  const [areas, setAreas] = useState<AiArea[]>([]);
+  const [existingRules, setExistingRules] = useState<string[]>([]);
+  // 서버가 "계약을 못 채웠다" 고 알려준 것 — 조용히 삼키지 않고 그대로 보여준다.
+  const [shortfall, setShortfall] = useState<string[] | null>(null);
 
   if (!open) return null;
 
@@ -127,12 +136,33 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
           business_id: businessId,
           project_id: selectedProjectId,
           prompt: prompt.trim(),
+          mode: routineMode ? 'routine' : undefined,
           instructions: nextInstructions.length ? nextInstructions : undefined,
           base_candidates: baseCandidates.length ? baseCandidates : undefined,
+          // #354 — 재생성 때 영역도 원본으로 넘긴다. 안 넘기면 "영역을 5개로 줄여" 같은 지시가
+          //   업무 목록만 보고 돌아 반쪽 재생성이 된다.
+          base_areas: routineMode && areas.length ? areas.map(a => ({ title: a.title, description: a.description })) : undefined,
         }),
       });
       const j = await r.json();
-      if (!j.success) throw new Error(j.message || 'failed');
+      if (!j.success) {
+        // ★ 결과가 상한에서 잘린 경우 — "더 구체적으로 입력해 주세요" 를 띄우면 안 된다.
+        //   더 구체적으로 쓸수록 출력이 길어져 더 잘린다. 반대 처방을 말해 준다.
+        if (j.message === 'output_truncated') {
+          setError(t('ai.truncated', '결과가 너무 커서 잘렸어요. 루틴 범위를 나눠서 다시 요청해 주세요.') as string);
+          setStage('input');
+          return;
+        }
+        throw new Error(j.message || 'failed');
+      }
+      // ★ 서버가 에코한 mode 를 대조한다. 예전엔 모르는 mode 가 조용히 일반 분해로 떨어져
+      //   "루틴 설계를 눌렀는데 일반 업무가 나오는" 상태를 화면이 알 길이 없었다.
+      const echoed = j.data?.mode ?? null;
+      if (routineMode && echoed !== 'routine') {
+        setError(t('ai.modeMismatch', '루틴 설계로 처리되지 않았어요. 잠시 후 다시 시도해 주세요.') as string);
+        setStage('input');
+        return;
+      }
       const list: Candidate[] = (j.data?.candidates || []).map((c: Candidate) => ({ ...c, selected: true }));
       if (list.length === 0) {
         setError(t('ai.noCandidates', '업무를 추출하지 못했어요. 더 구체적으로 입력해 주세요.') as string);
@@ -140,6 +170,10 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
         return;
       }
       setCandidates(list);
+      setAreas(((j.data?.areas || []) as AiArea[]).map(a => ({ ...a, adopted: true })));
+      setExistingRules(((j.data?.existing_recurring || []) as Array<{ recurrence_rule?: string }>)
+        .map(x => x.recurrence_rule || '').filter(Boolean));
+      setShortfall((j.data?.routine_shortfall as string[] | null) || null);
       setAiInstructions(nextInstructions);   // ★ 성공했을 때만 누적 확정 (실패한 지시는 쌓지 않는다)
       setReasoning(j.data?.reasoning || '');
       setStage('preview');
@@ -170,6 +204,11 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
           project_id: selectedProjectId,
           candidates: selected,
           base_date: baseDate,
+          ...(routineMode ? {
+            mode: 'routine',
+            // 폐기한 영역은 adopted:false 로 그대로 보낸다 — 서버가 "안 만든다" 를 판단한다.
+            areas: areas.map(a => ({ idx: a.idx, title: a.title, description: a.description, adopted: a.adopted !== false })),
+          } : {}),
         }),
       });
       const j = await r.json();
@@ -244,16 +283,50 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
                   />
                 </FieldRow>
               )}
+              {/* #354 — 루틴 설계 모드는 **명시 버튼**으로만 켠다. 프로젝트가 있어야 영역(업무그룹)을
+                  만들 수 있으므로 프로젝트 미선택 시엔 켤 수 없다(서버도 400 으로 막는다). */}
               <FieldRow>
-                <FieldLabel>{t('ai.promptLabel', '추가할 업무')}</FieldLabel>
+                <FieldLabel>{t('ai.modeLabel', '무엇을 만들까요')}</FieldLabel>
+                <ModeRow role="radiogroup" aria-label={t('ai.modeLabel', '무엇을 만들까요') as string}>
+                  <ModeBtn
+                    type="button" role="radio" aria-checked={!routineMode}
+                    $active={!routineMode}
+                    data-testid="ai-mode-oneoff"
+                    onClick={() => setRoutineMode(false)}
+                  >
+                    <ModeName>{t('ai.mode.oneoff', '일회성 업무 분해') as string}</ModeName>
+                    <ModeDesc>{t('ai.mode.oneoffDesc', '프로젝트를 단계별 업무로 나눕니다') as string}</ModeDesc>
+                  </ModeBtn>
+                  <ModeBtn
+                    type="button" role="radio" aria-checked={routineMode}
+                    $active={routineMode}
+                    disabled={!selectedProjectId}
+                    data-testid="ai-mode-routine"
+                    onClick={() => setRoutineMode(true)}
+                    title={!selectedProjectId ? (t('ai.mode.routineNeedsProject', '프로젝트를 먼저 선택하세요') as string) : undefined}
+                  >
+                    <ModeName>{t('ai.mode.routine', '루틴 설계') as string}</ModeName>
+                    <ModeDesc>{t('ai.mode.routineDesc', '영역을 나누고 반복 업무·실행 지침까지 만듭니다') as string}</ModeDesc>
+                  </ModeBtn>
+                </ModeRow>
+                {!selectedProjectId && (
+                  <Hint>{t('ai.mode.routineNeedsProject', '프로젝트를 먼저 선택하세요') as string}</Hint>
+                )}
+              </FieldRow>
+              <FieldRow>
+                <FieldLabel>{routineMode ? t('ai.promptLabelRoutine', '만들 루틴') : t('ai.promptLabel', '추가할 업무')}</FieldLabel>
                 <FieldTextarea
                   value={prompt}
                   onChange={e => setPrompt(e.target.value)}
                   onKeyDown={handleKey}
                   rows={5}
-                  placeholder={t('ai.placeholder', '예: WordPress 블로그 사이트 한 달 안에 런칭. 디자인부터 컨텐츠 마이그레이션, SEO 까지.') as string}
+                  placeholder={(routineMode
+                    ? t('ai.placeholderRoutine', '예: 개인 브랜드 연구 루틴. 매일 논문 인사이트 기록, 평일 SNS 발행, 매주 월요일 리서치 계획, 매월 마지막 평일 회고.')
+                    : t('ai.placeholder', '예: WordPress 블로그 사이트 한 달 안에 런칭. 디자인부터 컨텐츠 마이그레이션, SEO 까지.')) as string}
                 />
-                <Hint>{t('ai.promptHint', '한 줄로 적으면 AI 가 여러 업무로 나눠 줘요.') as string}</Hint>
+                <Hint>{(routineMode
+                  ? t('ai.promptHintRoutine', '반복 주기와 하고 싶은 일을 적으면 영역·반복 규칙·실행 지침까지 만들어요.')
+                  : t('ai.promptHint', '한 줄로 적으면 AI 가 여러 업무로 나눠 줘요.')) as string}</Hint>
               </FieldRow>
               {recMatch && onUseTemplate && (
                 <RecBanner>
@@ -299,6 +372,35 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
                 <SingleDateField value={baseDate} onChange={(d) => setBaseDate(d || new Date().toISOString().slice(0, 10))} size="sm" />
                 <BaseHint>{t('ai.baseHint', '시작일을 바꾸면 모든 일정이 자동 재계산돼요.')}</BaseHint>
               </PreviewBaseRow>
+              {/* #354 — 확정 전에 ① 영역 구조 ② 요일별 부하를 먼저 보여준다.
+                  #358 이 요구한 "전량 저장 후 지우기의 반대" 를 여기서 실현한다. */}
+              {routineMode && areas.length > 0 && (
+                <BlockSection>
+                  <BlockTitle>{t('ai.area.title', '영역') as string}</BlockTitle>
+                  <AiAreaBlock
+                    areas={areas}
+                    taskCountByArea={candidates.reduce((acc, c) => {
+                      if (typeof c.area_ref === 'number') acc[c.area_ref] = (acc[c.area_ref] || 0) + 1;
+                      return acc;
+                    }, {} as Record<number, number>)}
+                    onChange={(idx, patch) => setAreas(prev => prev.map(a => a.idx === idx ? { ...a, ...patch } : a))}
+                    disabled={submitting}
+                  />
+                </BlockSection>
+              )}
+              {routineMode && (
+                <BlockSection>
+                  <AiLoadSummary
+                    proposedRules={candidates.filter(c => c.selected).map(c => c.recurrence_rule)}
+                    existingRules={existingRules}
+                  />
+                </BlockSection>
+              )}
+              {routineMode && shortfall && shortfall.length > 0 && (
+                <ShortfallBox role="status">
+                  {shortfall.map((line, i) => <div key={i}>{line}</div>)}
+                </ShortfallBox>
+              )}
               <CardList>
                 {candidates.map(c => (
                   <AiCandidateCard
@@ -486,6 +588,43 @@ const ReasoningBox = styled.div`
   border-left: 3px solid #14B8A6; border-radius: 6px; font-size: 0.75rem; line-height: 1.5;
 `;
 const CardList = styled.div`display: flex; flex-direction: column; gap: 8px;`;
+
+// #354 — 모드 선택 (일회성 분해 / 루틴 설계). 상태색을 버튼 배경에 칠하지 않는다(3톤 규칙) —
+//   선택 표시는 테두리와 옅은 바탕으로만 한다.
+const ModeRow = styled.div`
+  display: flex; gap: 8px; width: 100%;
+  @media (max-width: 640px) { flex-direction: column; }
+`;
+const ModeBtn = styled.button<{ $active: boolean }>`
+  flex: 1; min-width: 0; text-align: left;
+  padding: 10px 12px;
+  border: 1px solid ${(p) => (p.$active ? '#14B8A6' : '#e2e8f0')};
+  background: ${(p) => (p.$active ? '#f0fdfa' : '#ffffff')};
+  border-radius: 10px; cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  &:hover:not(:disabled) { border-color: ${(p) => (p.$active ? '#14B8A6' : '#cbd5e1')}; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+  &:focus-visible { outline: 2px solid rgba(20,184,166,0.4); outline-offset: 1px; }
+`;
+const ModeName = styled.div`
+  font-size: 0.8125rem; font-weight: 700; color: #0f172a; margin-bottom: 2px;
+`;
+const ModeDesc = styled.div`
+  font-size: 0.75rem; color: #64748b; line-height: 1.4;
+`;
+const BlockSection = styled.div`
+  display: flex; flex-direction: column; gap: 8px;
+`;
+const BlockTitle = styled.div`
+  font-size: 0.8125rem; font-weight: 700; color: #0f172a;
+`;
+// 서버가 "계약을 못 채웠다" 고 알려준 것. 오류가 아니라 안내 톤이다 — 결과는 쓸 수 있다.
+const ShortfallBox = styled.div`
+  border: 1px solid #fde68a; background: #fffbeb; color: #92400e;
+  border-radius: 8px; padding: 8px 10px;
+  font-size: 0.75rem; line-height: 1.5;
+  display: flex; flex-direction: column; gap: 2px;
+`;
 const PreviewBaseRow = styled.div`
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   padding: 8px 10px;

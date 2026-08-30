@@ -1141,7 +1141,47 @@
     "workstreamChip": "Group {{name}}",
     "instructionShow": "Show guide ({{n}} chars)",
     "instructionHide": "Hide guide",
-    "instructionTruncated": "The guide was too long and got trimmed"
+    "instructionTruncated": "The guide was too long and got trimmed",
+    "modeLabel": "What should I build",
+    "promptLabelRoutine": "Routine to build",
+    "placeholderRoutine": "e.g. Personal brand research routine. Daily paper insights, weekday SNS posts, Monday research plan, last-weekday monthly retro.",
+    "promptHintRoutine": "Describe the cadence and the work — it builds areas, recurrence rules and execution guides.",
+    "modeMismatch": "This was not processed as a routine design. Please try again.",
+    "mode": {
+      "oneoff": "One-off breakdown",
+      "oneoffDesc": "Splits a project into staged tasks",
+      "routine": "Routine design",
+      "routineDesc": "Creates areas plus recurring tasks and execution guides",
+      "routineNeedsProject": "Select a project first"
+    },
+    "area": {
+      "title": "Areas",
+      "none": "No areas were proposed",
+      "nameLabel": "Area name",
+      "existing": "Reuses existing area",
+      "new": "New",
+      "taskCount": "{{n}} tasks",
+      "droppedHint": "{{n}} tasks will be created without an area (nothing is deleted)"
+    },
+    "load": {
+      "title": "Recurring load by weekday",
+      "sub": "Based on {{n}} proposed",
+      "subWithExisting": "{{n}} proposed + {{m}} already running",
+      "monthly": "{{n}} monthly/quarterly/yearly items are counted separately",
+      "unparsed": "{{n}} items were not counted — their recurrence rule could not be read",
+      "tooHeavy": "The busiest weekday has {{n}} items. Above {{cap}} a day it will not last — move some to a weekly cadence or drop them.",
+      "none": "No task has a recurrence rule",
+      "day": {
+        "mon": "Mon",
+        "tue": "Tue",
+        "wed": "Wed",
+        "thu": "Thu",
+        "fri": "Fri",
+        "sat": "Sat",
+        "sun": "Sun"
+      }
+    },
+    "truncated": "The result was too large and got cut off. Split the routine into smaller requests."
   },
   "bar": {
     "resumeTitle": "In progress",

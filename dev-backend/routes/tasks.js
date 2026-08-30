@@ -485,12 +485,30 @@ router.post('/', authenticateToken, async (req, res, next) => {
 // ============================================
 // 비용폭탄 H-b — AI 업무분해는 외부 LLM 비용(max 2000 tok). per-user 6/분 + 60/일 (재생성 포함 UX 여유).
 const aiCreateLimiter = require('../middleware/costGuard').perUserDaily('ai-create', { perMin: 6, perDay: 60, message: 'AI 업무 추가를 너무 자주 호출했습니다. 잠시 후 다시 시도하세요.' });
-router.post('/ai-create', authenticateToken, ...aiCreateLimiter, async (req, res, next) => {
+// #354 루틴 설계 — 출력이 6배라 별도 버킷. 블록 수정→재생성이 매번 1콜이므로 하루 12회는 줘야
+//   "수정 세 번 하면 오늘 못 씀" 이 안 된다. 일반 분해(60/일)와 예산을 나눠 서로를 안 태운다.
+const aiRoutineLimiter = require('../middleware/costGuard').perUserDaily('ai-routine', { perMin: 2, perDay: 12, message: '루틴 설계를 너무 자주 호출했습니다. 잠시 후 다시 시도하세요.' });
+// 두 리미터 중 **이번 요청의 모드에 맞는 것만** 태운다. 둘 다 걸면 루틴 1회가
+//   일반 분해 예산까지 같이 깎아, 리미터를 나눈 의도가 사라진다.
+const aiCreateModeLimiter = (req, res, next) => {
+  const chain = String(req.body?.mode || '') === 'routine' ? aiRoutineLimiter : aiCreateLimiter;
+  let i = 0;
+  const step = (err) => (err ? next(err) : (i < chain.length ? chain[i++](req, res, step) : next()));
+  step();
+};
+router.post('/ai-create', authenticateToken, aiCreateModeLimiter, async (req, res, next) => {
   try {
-    const { business_id, project_id, prompt, target_date, language, mode, instruction, instructions, base_candidates } = req.body;
+    const { business_id, project_id, prompt, target_date, language, mode, instruction, instructions, base_candidates, base_areas } = req.body;
     if (!business_id) return errorResponse(res, 'business_id required', 400);
     if (!prompt || !String(prompt).trim()) return errorResponse(res, 'prompt required', 400);
     if (String(prompt).length > 4000) return errorResponse(res, 'prompt_too_long', 400);
+
+    // #354 — 모드 화이트리스트. 모르는 값은 조용히 낙하시키지 않고 **거절**한다.
+    const AI_MODES = ['quick', 'routine'];
+    const effectiveMode = mode == null || mode === '' ? null : (AI_MODES.includes(String(mode)) ? String(mode) : undefined);
+    if (effectiveMode === undefined) return errorResponse(res, 'unknown_mode', 400);
+    // 루틴 설계는 영역(워크스트림)을 만들어 배치하는 일이라 프로젝트 없이는 성립하지 않는다.
+    if (effectiveMode === 'routine' && !project_id) return errorResponse(res, 'project_id required for routine mode', 400);
 
     const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id, removed_at: null } });
     if (!bm && req.user.platform_role !== 'platform_admin') {
@@ -529,10 +547,18 @@ router.post('/ai-create', authenticateToken, ...aiCreateLimiter, async (req, res
       }))
       .filter(m => m.name.trim());   // 이름 없는 후보는 고를 수도, 보여줄 수도 없다
 
+    // ★ business_id 를 WHERE 에 반드시 건다. findByPk 만 쓰면 **다른 워크스페이스의 프로젝트
+    //   이름·설명이 그대로 LLM 프롬프트에 실린다** — 클라이언트가 보낸 id 를 믿은 셈이라
+    //   남의 워크스페이스 내용을 읽어내는 경로가 된다(멀티테넌트 격리 위반).
     let projectContext = '';
+    let projectRow = null;
     if (project_id) {
-      const p = await Project.findByPk(project_id, { attributes: ['name', 'description'] });
-      if (p) projectContext = `${p.name}${p.description ? ' — ' + String(p.description).slice(0, 200) : ''}`;
+      projectRow = await Project.findOne({
+        where: { id: project_id, business_id },
+        attributes: ['id', 'name', 'description', 'strategy_context', 'strategy_goal'],
+      });
+      if (!projectRow) return errorResponse(res, 'project_not_found', 404);
+      projectContext = `${projectRow.name}${projectRow.description ? ' — ' + String(projectRow.description).slice(0, 200) : ''}`;
     }
 
     // #353 ② — 업무그룹(워크스트림) 이름을 LLM 에 알려준다. 안 알려주면 이름을 지어내고,
@@ -545,6 +571,27 @@ router.post('/ai-create', authenticateToken, ...aiCreateLimiter, async (req, res
         where: { project_id, business_id }, attributes: ['title'], order: [['order_index', 'ASC'], ['id', 'ASC']], limit: 30,
       });
       workstreamNames = wsRows.map((w) => w.title).filter(Boolean);
+    }
+
+    // #354 — 루틴 설계는 "이미 돌고 있는 것" 을 알아야 한다.
+    //   ① 부하 요약: 새로 제안한 루틴만 세면 실제 부담을 절반만 보여준다(기존 반복이 이미 매일 돈다).
+    //   ② 중복 방지: 같은 루틴을 또 만들지 않게 LLM 에 알려준다.
+    //   반복 parent 만 — 생성된 회차(recurrence_parent_id 있는 행)까지 세면 같은 루틴을 여러 번 센다.
+    let existingRecurring = [];
+    if (effectiveMode === 'routine' && project_id) {
+      const rows = await Task.findAll({
+        where: {
+          business_id, project_id,
+          recurrence_rule: { [Op.ne]: null },
+          recurrence_parent_id: null,
+          status: { [Op.notIn]: ['completed', 'canceled'] },
+        },
+        attributes: ['id', 'title', 'recurrence_rule', 'workstream_id'],
+        order: [['id', 'ASC']], limit: 60,
+      });
+      existingRecurring = rows.map((t) => ({
+        id: t.id, title: t.title, recurrence_rule: t.recurrence_rule, workstream_id: t.workstream_id,
+      }));
     }
 
     const tz = await getWorkspaceTz(business_id);
@@ -560,15 +607,38 @@ router.post('/ai-create', authenticateToken, ...aiCreateLimiter, async (req, res
       targetDate: target_date || null,
       todayLocal,
       language: language || (req.user.language === 'en' ? 'en' : 'ko'),
-      mode: mode === 'quick' ? 'quick' : null,
+      // ★ 화이트리스트를 **명시**한다. 예전엔 `mode === 'quick' ? 'quick' : null` 이라
+      //   모르는 모드가 전부 조용히 일반 분해로 떨어졌다 — 사용자는 "루틴 설계를 눌렀는데
+      //   왜 일반 업무가 나오지" 로 겪는다(CLAUDE.md 「상태값 규약」: 알 수 없는 값은 보이게).
+      //   모드를 늘릴 때는 반드시 이 배열에 넣고, 응답 mode 에코로 프론트가 대조한다.
+      mode: effectiveMode,
       instruction: instruction || null,  // 운영 — 재생성 지시 (단건 — 옛 호출 호환)
       // 운영 #312 — 누적 지시 + 직전 후보. 안 넘기면 재생성이 매번 처음으로 되돌아간다.
       instructions: Array.isArray(instructions) ? instructions : null,
       baseCandidates: Array.isArray(base_candidates) ? base_candidates.slice(0, 30) : null,
+      // #354 — 루틴 모드 전용 입력. 다른 모드에서는 undefined 라 프롬프트가 그대로다.
+      //   전략은 **읽기만** 한다 — 루틴 설계가 전략 필드를 쓰지 않는 것은 Fable 판정(#358 게이트가 먼저).
+      strategy: effectiveMode === 'routine' && projectRow
+        ? { context: projectRow.strategy_context || null, goal: projectRow.strategy_goal || null }
+        : null,
+      existingRecurring: effectiveMode === 'routine' ? existingRecurring : null,
+      baseAreas: Array.isArray(base_areas) ? base_areas.slice(0, 12) : null,
     });
 
+    // ★ 응답이 상한에서 잘려 아무것도 못 건진 경우 — 200 + 빈 목록으로 내보내지 않는다.
+    //   그러면 화면이 "더 구체적으로 입력해 주세요" 를 띄우는데, 그건 정반대 처방이다.
+    if (result.error === 'output_truncated') {
+      return errorResponse(res, 'output_truncated', 422);
+    }
+
     return successResponse(res, {
+      // ★ mode 에코 — 프론트가 "내가 보낸 모드로 실제 처리됐는지" 를 대조한다.
+      //   없으면 서버가 조용히 다른 모드로 처리해도 화면은 알 길이 없다.
+      mode: effectiveMode,
       candidates: result.candidates,
+      areas: result.areas || [],                       // #354 — 루틴 모드에서만 채워진다
+      routine_shortfall: result.routine_shortfall || null,
+      existing_recurring: existingRecurring,           // 부하 요약의 "이미 돌고 있는 것"
       reasoning: result.reasoning,
       fallback: result.fallback,
       today: todayLocal,
@@ -583,11 +653,19 @@ router.post('/ai-create', authenticateToken, ...aiCreateLimiter, async (req, res
 // ============================================
 router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
   try {
-    const { business_id, project_id, candidates, base_date, context } = req.body;
+    const { business_id, project_id, candidates, base_date, context, mode: confirmMode, areas } = req.body;
     if (!business_id) return errorResponse(res, 'business_id required', 400);
     if (!Array.isArray(candidates) || candidates.length === 0) {
       return errorResponse(res, 'candidates array required', 400);
     }
+    // #354 — 후보 수 상한. 여태 상한이 **없어서** 조작된 요청 하나로 수백 건이 생성될 수 있었다.
+    //   루틴이든 아니든 같은 캡을 건다.
+    const MAX_CONFIRM_CANDIDATES = 40;
+    if (candidates.length > MAX_CONFIRM_CANDIDATES) {
+      return errorResponse(res, `too_many_candidates (max ${MAX_CONFIRM_CANDIDATES})`, 400);
+    }
+    const isRoutineConfirm = String(confirmMode || '') === 'routine';
+    if (isRoutineConfirm && !project_id) return errorResponse(res, 'project_id required for routine mode', 400);
 
     const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id, removed_at: null } });
     if (!bm && req.user.platform_role !== 'platform_admin') {
@@ -636,6 +714,74 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
       if (!hint || !wsByName.size) return null;
       return wsByName.get(String(hint).replace(/\s+/g, '').toLowerCase()) || null;
     };
+
+    // ── #354 루틴 확정 ① 영역(워크스트림) 먼저 착지 ──────────────────────────
+    //   순서가 고정이다: 영역 → 업무 → 링크. 업무가 workstream_id 를 들고 태어나야
+    //   회차 상속(recurringTaskGenerator)이 그 영역을 물려준다 — 나중에 붙이면 이미 난 회차가 빈다.
+    //
+    //   ★ 여기서 워크스트림을 직접 만들면 POST /projects/:id/workstreams 라우트의
+    //     loadProjectOrForbidden 게이트를 **우회**한다. BusinessMember 검사만으로는
+    //     남의 워크스페이스 project_id 에 영역을 꽂을 수 있으므로 소속을 직접 확인한다.
+    const areaIdxToWsId = new Map();
+    let workstreamsCreated = 0; let workstreamsMatched = 0;
+    let routineProject = null;
+    if (isRoutineConfirm) {
+      routineProject = await Project.findOne({ where: { id: project_id, business_id }, attributes: ['id', 'name', 'business_id'] });
+      if (!routineProject) return errorResponse(res, 'project_not_found', 404);
+
+      const { ProjectWorkstream } = require('../models');
+      const adopted = (Array.isArray(areas) ? areas : []).filter((a) => a && a.adopted !== false && String(a.title || '').trim());
+      if (adopted.length > 12) return errorResponse(res, 'too_many_areas (max 12)', 400);
+
+      let orderBase = await ProjectWorkstream.count({ where: { project_id, business_id } });
+      for (const a of adopted) {
+        const title = String(a.title).trim().slice(0, 200);
+        const key = title.replace(/\s+/g, '').toLowerCase();
+        const areaIdx = Number.isInteger(a.idx) ? a.idx : null;
+        // 이미 있는 영역이면 **재사용**한다. 여기가 정규화를 planner 와 같게 유지해야 하는 이유다 —
+        //   어긋나면 "Research" 가 두 벌 생긴다.
+        const existingId = wsByName.get(key);
+        if (existingId) {
+          if (areaIdx !== null) areaIdxToWsId.set(areaIdx, existingId);
+          workstreamsMatched++;
+          continue;
+        }
+        const ws = await ProjectWorkstream.create({
+          business_id, project_id,
+          title,
+          description: a.description ? String(a.description).slice(0, 1000) : null,
+          order_index: orderBase++,
+          status: 'active',
+          created_by: req.user.id,
+          source: 'ai',
+        });
+        wsByName.set(key, ws.id);
+        if (areaIdx !== null) areaIdxToWsId.set(areaIdx, ws.id);
+        workstreamsCreated++;
+        // ★ 이 파일의 감사 기록은 AuditLog.create 직접 호출이다(createAuditLog 헬퍼를 import 하지 않는다).
+        //   헬퍼를 그냥 부르면 이 분기만 ReferenceError 로 죽는데, 문법검사·빌드는 전부 통과한다.
+        await AuditLog.create({
+          user_id: req.user.id, business_id,
+          action: 'project.workstream_create', target_type: 'ProjectWorkstream', target_id: ws.id,
+          new_value: { title, project_id, via: 'ai_routine_confirm' },
+        }).catch(() => null);
+      }
+      // 열려 있는 캔버스에 즉시 나타나야 한다 — 안 하면 새로고침해야 보인다(운영안정성 16번).
+      //   ★ 이벤트 이름을 지어내지 말 것. 캔버스가 실제로 듣는 것은 projects.js 의 broadcastCanvas 가
+      //     쏘는 `project:updated`(+`inbox:refresh`) 다. 다른 이름으로 쏘면 **수신부가 0곳**이라
+      //     "브로드캐스트는 했는데 화면은 그대로" 가 된다.
+      if (workstreamsCreated > 0) {
+        try {
+          const io = req.app?.get('io');
+          if (io) {
+            const payload = { id: Number(project_id), business_id: Number(business_id), actor_user_id: req.user.id };
+            io.to(`business:${business_id}`).emit('project:updated', payload);
+            io.to(`project:${project_id}`).emit('project:updated', payload);
+            io.to(`business:${business_id}`).emit('inbox:refresh', { reason: 'workstream_new', project_id: Number(project_id) });
+          }
+        } catch (e) { console.warn('[ai-routine] canvas broadcast', e.message); }
+      }
+    }
 
     // #353 ④ — depends_on_index 는 여태 확정 시점에 **버려졌다**(task_links 생성 0건).
     //   생성이 끝난 뒤 한 번에 착지시킨다 — 루프 안에서 걸면 아직 안 만들어진 후보를 가리킬 수 있고,
@@ -689,7 +835,12 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
         // 정기 루틴 — 마감일이 첫 발생일이므로 없으면 반복 불가(task_actions 가 due 없는 반복을 거절한다).
         recurrenceRule: (dueStr && effectiveRule) ? effectiveRule : null,
         // #353 ② — 업무그룹 배치. task_actions 가 프로젝트 소속인지 다시 검증한다(오배치·테넌트 차단).
-        workstreamId: matchWorkstream(c.workstream_hint),
+        // #354 — 루틴 모드는 영역 인덱스로 **id 직결**한다. 이름 왕복 매칭은 방금 만든 영역을
+        //   문자열로 다시 찾는 셈이라 정규화가 한 톨만 어긋나도 미배치가 된다.
+        //   루틴이 아니면 종전대로 이름 힌트 매칭(하위호환).
+        workstreamId: (isRoutineConfirm && Number.isInteger(c.area_ref) && areaIdxToWsId.has(c.area_ref))
+          ? areaIdxToWsId.get(c.area_ref)
+          : matchWorkstream(c.workstream_hint),
       }, {
         // 이 경로의 고유 규칙 (통일 금지 — 프론트가 이 차이에 기대고 있다):
         keepEstimateForCue: true,          // 담당=Cue 면 요청 업무여도 예측시간을 남긴다
@@ -732,6 +883,13 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
       if (Number.isInteger(c.depends_on_index) && c.depends_on_index !== selfIdx) {
         pendingLinks.push({ from: selfIdx, to: c.depends_on_index });
       }
+      // #354 — 루틴 파이프라인(일간 → 주간 → 월간)은 단일 의존이 아니라 **여러 갈래**다.
+      //   depends_on_index 하나로는 표현이 안 돼 pipeline_refs 배열을 같은 착지점으로 보낸다.
+      if (isRoutineConfirm && Array.isArray(c.pipeline_refs)) {
+        for (const ref of c.pipeline_refs.slice(0, 5)) {
+          if (Number.isInteger(ref) && ref !== selfIdx) pendingLinks.push({ from: selfIdx, to: ref });
+        }
+      }
     }
 
     // #353 ④ — 관련 업무 링크 착지. 선택 해제돼 만들어지지 않은 후보를 가리키는 링크는 조용히 건너뛴다
@@ -762,7 +920,13 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
       }
     }
 
-    return successResponse(res, { created, count: created.length, linked });
+    // #354 — 착지 결과를 전부 실어 보낸다. 모달이 "영역 3개 만들고 2개는 기존 것 재사용, 업무 16건,
+    //   링크 12건" 을 그대로 보여줄 수 있어야 부분 성공도 사용자가 읽을 수 있다.
+    return successResponse(res, {
+      created, count: created.length, linked,
+      workstreams_created: workstreamsCreated,
+      workstreams_matched: workstreamsMatched,
+    });
   } catch (err) { next(err); }
 });
 

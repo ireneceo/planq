@@ -32,8 +32,95 @@ function detectVague(title, language) {
   return list.some(w => lower.includes(w.toLowerCase()));
 }
 
-function buildSystemPrompt(language, members, projectContext, targetDate, todayLocal, mode, workstreams = []) {
+function buildSystemPrompt(language, members, projectContext, targetDate, todayLocal, mode, workstreams = [], routineCtx = null) {
   const lang = language === 'en' ? 'English' : 'Korean';
+  // #354 루틴 설계 모드 — 일회성 분해가 아니라 **상시 반복 체계**를 설계한다.
+  //   ★ 여기서 만들지 않는 것(Fable 판정): 성과지표(측정 방법 없는 지표 금지 — #358 게이트가 먼저),
+  //     Q Records 자동 개설(문서 종속 자원이라 고아를 낳는다 — #360 이 먼저), 전략 필드 쓰기.
+  //     산출물 저장 위치는 **지침 안의 한 섹션**으로 쓴다 — 저장할 컬럼이 아직 없다.
+  // ★ 이 블록은 프롬프트 **맨 끝**에 붙인다. 앞에 붙였더니 뒤따르는 거대 본문
+  //   (분해 정책·명명 규칙·OUTPUT FORMAT)에 묻혀 계약이 셋이나 무시됐다 — 실측:
+  //   영역 1개(요구 3~8) · 지침 136자(요구 500~1,500) · pipeline_refs 0건.
+  //   같은 지시라도 마지막에 오면 지켜진다. 서버 재요구(아래 enforceRoutineContract)와 2중으로 건다.
+  const routineBlock = mode === 'routine' ? `
+
+═══ ROUTINE DESIGN MODE — FINAL REQUIREMENTS. THESE OVERRIDE EVERY RULE ABOVE ═══
+
+The user wants a RECURRING OPERATING SYSTEM, not a one-off project breakdown.
+Design it in two layers: **areas** (work groups) and **recurring tasks** placed into those areas.
+
+1. AREAS — 3~8 areas that carve up this project's ongoing work. Output them in "areas".
+   - **You MUST output at least 3 areas when you output 4 or more tasks.** Grouping every routine
+     under one area is a FAILED design — the point of this mode is to give the work a structure.
+   - Reuse EXISTING work groups when one already covers the ground: copy its name EXACTLY and set "existing": true.
+     Reusing one existing area does NOT mean everything goes into it — add the areas the rest of the work needs.
+   - Only invent a new area when nothing existing fits. New areas: "existing": false.
+   - An area is a standing domain of responsibility (예: "리서치 운영", "콘텐츠 발행"), NOT a project phase
+     (요구정의/설계/QA 같은 단계 이름은 여기서 틀렸다 — 그건 일회성 프로젝트의 어휘다).
+   - description: 1~2 sentences on what belongs in this area.
+
+2. TASKS — every task MUST be recurring. "recurrence_rule" is REQUIRED (never null) in this mode.
+   - "area_ref": the 0-based index of the area in "areas" this task belongs to. Required.
+   - "completed": ALWAYS false in this mode.
+   - "pipeline_refs": 0-based indexes of OTHER tasks in this response that feed this one
+     (예: 일간 기록 → 주간 정리 → 월간 회고). Up to 5. Use it to express the routine pipeline.
+     **At least one task MUST have a non-empty pipeline_refs** — a routine system where nothing
+     feeds anything is not a system. Lower-frequency tasks consume higher-frequency ones:
+     the weekly task references the daily task's index, the monthly references the weekly.
+     Leave "depends_on_index" null in this mode — pipeline_refs replaces it.
+   - "instruction" is REQUIRED and substantial: **at least 300 characters, target 500~1,200**, markdown.
+     A 150-character instruction is a FAILED output — that is a description, not a guide.
+     Write the actual procedure someone follows: numbered steps, what to check, what "done" looks like.
+     It MUST end with the section where the output is recorded:
+       ${language === 'en' ? '"## Deliverable & where it goes"' : '"## 산출물과 기록 위치"'}
+     — name the concrete artifact and the place it lands (문서·표·지식 항목 등). Be specific.
+
+     COPY THIS SHAPE AND DEPTH (this is the minimum acceptable length):
+     """
+     ${language === 'en' ? `## Steps
+     1. Open the reading queue and pick the 1-2 papers with the highest relevance to this week's research question.
+     2. For each paper, capture: the claim, the evidence behind it, the method's limits, and what it changes for us.
+     3. Write one paragraph in your own words. Do NOT paste the abstract — if you cannot restate it, you have not read it.
+     4. Tag it with the theme so the weekly roll-up can pick it up.
+
+     ## Checks before closing
+     - Every entry names a source (title + link).
+     - At least one line says what this changes for our own work. An entry with no "so what" is not done.
+     - If nothing was worth recording today, record that fact with one line of reasoning — silence is not a record.
+
+     ## Deliverable & where it goes
+     One dated entry per paper in the Insight Log table, with columns: date / source / claim / implication / tag.` : `## 절차
+     1. 읽기 대기열에서 이번 주 리서치 질문과 관련도가 높은 논문 1~2편을 고른다.
+     2. 편마다 다음을 뽑는다 — 주장 / 근거 / 방법의 한계 / 우리에게 달라지는 점.
+     3. 자기 말로 한 문단을 쓴다. 초록을 붙여넣지 않는다 — 다시 못 쓰면 읽은 것이 아니다.
+     4. 주간 정리가 집어갈 수 있도록 주제 태그를 단다.
+
+     ## 닫기 전 점검
+     - 항목마다 출처(제목 + 링크)가 있는가.
+     - "우리 작업에 무엇이 달라지는가" 가 최소 한 줄 있는가. 그게 없으면 끝난 것이 아니다.
+     - 오늘 기록할 것이 없었다면 그 사실을 한 줄 근거와 함께 남긴다 — 빈칸은 기록이 아니다.
+
+     ## 산출물과 기록 위치
+     Insight Log 표에 논문 1편당 1행 — 날짜 / 출처 / 주장 / 시사점 / 태그.`}
+     """
+
+3. LOAD BALANCE — this is what makes a routine survivable. Before finalizing, count how many tasks
+   land on a typical weekday. **Keep it at or under 3 recurring tasks per weekday.** If your draft
+   exceeds that, do NOT just delete work — move it to a lower frequency (daily → 주 3회 → 주 1회).
+   Prefer WEEKLY/MONTHLY for anything that does not genuinely need daily cadence.
+
+4. Do NOT invent success metrics, KPIs, or strategy statements. That is not your job in this mode.
+${routineCtx?.strategy?.context || routineCtx?.strategy?.goal ? `
+Project strategy already set by the user — your routine must SERVE this, never contradict it:
+${routineCtx.strategy.context ? `  Background: ${String(routineCtx.strategy.context).slice(0, 800)}` : ''}
+${routineCtx.strategy.goal ? `  Goal: ${String(routineCtx.strategy.goal).slice(0, 800)}` : ''}` : ''}
+${routineCtx?.existingRecurring?.length ? `
+Recurring tasks ALREADY running in this project — do NOT duplicate these, and count them in your load balance:
+${routineCtx.existingRecurring.slice(0, 40).map((t) => `  - ${t.title} [${t.recurrence_rule}]`).join('\n')}` : ''}
+
+Additional output key for this mode:
+  "areas": [ { "title": "<area name>", "description": "<1-2 sentences>", "existing": <bool> } ]
+` : '';
   // quick 모드 — "Cue에게 말하기" 바의 캐주얼 한마디. 분해 최소화(보통 1개), 사용자가 명시적으로
   // 여러 산출물을 나열했을 때만 다중. 일반 모달은 mode 없음(기존 분해 정책 유지).
   const quickBlock = mode === 'quick' ? `
@@ -172,19 +259,23 @@ ${workstreamBlock}
       "completed": <true only if the user said it is already finished, else false>,
       "assignee_hint": "<short role keyword or null>",
       "assignee_name": "<exact member name if user named a person, else null>",
-      "depends_on_index": <int or null>
+      "depends_on_index": <int or null>,
+      "area_ref": <int index into "areas", routine mode only, else omit>,
+      "pipeline_refs": [<int>, ...]   // routine mode only, else omit
     }
   ],
   "reasoning": "<ONE short phrase (max 30 Korean chars / 60 English chars) naming WHAT was broken out. No justification, no restating the user's request, no meta-commentary about the decomposition itself. Good: \\"계획서 작성 1건으로 정리했어요\\". Bad: \\"사용자의 요청에 따라 ... 단일 작업을 정의했습니다. 이 작업은 ... 필요합니다\\">"
-}`;
+}${routineBlock}`;
 }
 
-async function callOpenAi(systemPrompt, userPrompt) {
+async function callOpenAi(systemPrompt, userPrompt, purpose = 'task_plan') {
   if (!isEnabled()) {
     return { content: '{"tasks":[],"reasoning":"OPENAI_API_KEY not configured"}', input_tokens: 0, output_tokens: 0, fallback: true };
   }
   const r = await callLLM({
-    purpose: 'task_plan',
+    // #354 — 루틴 설계는 출력이 6배라 별도 purpose(routine_plan). 여기서 task_plan 으로 고정하면
+    //   12,000토큰 상한이 2,000 으로 되돌아가 JSON 이 중간에서 잘린다(= 전량 유실).
+    purpose,
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
@@ -197,6 +288,10 @@ async function callOpenAi(systemPrompt, userPrompt) {
     input_tokens: r.input_tokens || 0,
     output_tokens: r.output_tokens || 0,
     fallback: r.fallback,
+    // ★ 'length' = 출력 상한에서 **잘린** 응답. 잘린 JSON 은 파싱에 실패해 tasks 가 0건이 되는데,
+    //   그것을 "추출 못 함" 으로 내보내면 사용자는 85초를 기다린 끝에 "더 구체적으로 입력해 주세요"
+    //   라는 거짓 안내를 받는다 — 더 구체적으로 쓰면 출력이 더 길어져 오히려 악화된다(Fable 실측).
+    finish_reason: r.finish_reason || null,
   };
 }
 
@@ -257,11 +352,28 @@ const { sanitizeRRule } = require('./rruleFromRecurrence');
 // #353 ③ — 장문 실행 지침 상한. description(요약)과 달리 여기엔 체크리스트·기준이 들어간다.
 const MAX_INSTRUCTION_LEN = 8000;
 
-async function planTasksFromPrompt({ prompt, businessId, projectContext, members = [], workstreams = [], targetDate = null, todayLocal, language = 'ko', mode = null, instruction = null, instructions = null, baseCandidates = null }) {
+// 잘린 응답이라도 tasks 가 온전히 들어왔으면 쓸 수 있다 — 무조건 버리지 않는다.
+function rawTasksUsable(parsed) {
+  return !!parsed && Array.isArray(parsed.tasks) && parsed.tasks.length > 0;
+}
+
+// #354 — 영역 상한. 넘으면 LLM 이 "영역" 을 업무 수준으로 잘게 쪼갠 것이라 설계가 아니다.
+const MAX_AREAS = 12;
+// 루틴 지침 최소 길이. **Irene 이 손으로 쓴 실데이터가 175~1,001자**(#354 원문)라 그 하한을
+//   그대로 쓰면 한 문장짜리도 통과한다. 중간값 근처인 300 을 바닥으로 둔다 —
+//   이 값을 넘기면 재요구(LLM 1회 추가)가 발화하므로, 올릴수록 비용이 는다.
+const MIN_ROUTINE_INSTRUCTION = 300;
+// 영역 이름 정규화 — confirm 의 워크스트림 매칭과 **같은 규칙**이어야 한다(공백 제거 + 소문자).
+//   여기와 저기가 다르면 "기존 영역 재사용" 이 어긋나 같은 이름 워크스트림이 중복 생성된다.
+function normAreaKey(s) { return String(s || '').replace(/\s+/g, '').toLowerCase(); }
+
+async function planTasksFromPrompt({ prompt, businessId, projectContext, members = [], workstreams = [], targetDate = null, todayLocal, language = 'ko', mode = null, instruction = null, instructions = null, baseCandidates = null, strategy = null, existingRecurring = null, baseAreas = null }) {
   if (!prompt || !String(prompt).trim()) {
     return { candidates: [], reasoning: '', fallback: true, error: 'empty_prompt' };
   }
-  let systemPrompt = buildSystemPrompt(language, members, projectContext, targetDate, todayLocal, mode, workstreams);
+  const isRoutine = mode === 'routine';
+  let systemPrompt = buildSystemPrompt(language, members, projectContext, targetDate, todayLocal, mode, workstreams,
+    isRoutine ? { strategy, existingRecurring } : null);
   // KNOWLEDGE_LOOP 축1 — 워크스페이스 카테고리별 실측 소요시간 통계 주입 (estimated_hours 정확도 ↑)
   try { systemPrompt += await require('./cueKnowledge').getWorkPatternPromptBlock(businessId); } catch { /* noop */ }
   // 운영 #312 — 재생성은 "처음부터 다시 분해" 가 아니라 **"직전 결과를 고쳐 쓰기"** 다.
@@ -287,14 +399,78 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
       : '\n\n[수정 지시 — 앞에서 뒤로 누적된 요구다. **모두** 반영한다. 충돌하면 뒤엣것을 따른다]\n';
     userPrompt += label + insList.map((x, i) => `${i + 1}. ${x}`).join('\n');
   }
-  const result = await callOpenAi(systemPrompt, userPrompt);
+  // #354 — 재생성 때 **영역도 같이** 원본으로 넘긴다. 업무 목록만 넘기면 "영역을 5개로 줄여"
+  //   같은 지시가 볼 대상 자체를 못 봐서 반쪽 재생성이 된다.
+  if (isRoutine && Array.isArray(baseAreas) && baseAreas.length) {
+    const abrief = baseAreas.slice(0, MAX_AREAS)
+      .map((a, i) => `${i}. ${String(a.title || '').slice(0, 120)}${a.description ? ` — ${String(a.description).slice(0, 160)}` : ''}`)
+      .join('\n');
+    userPrompt += (language === 'en'
+      ? '\n\n[Current areas — revise THIS list. area_ref indexes refer to it]\n'
+      : '\n\n[현재 영역 목록 — 이 목록을 **고쳐서** 낸다. area_ref 는 이 목록을 가리킨다]\n') + abrief;
+  }
+  const result = await callOpenAi(systemPrompt, userPrompt, isRoutine ? 'routine_plan' : 'task_plan');
 
   let parsed;
+  let parseFailed = false;
   try { parsed = JSON.parse(result.content); }
-  catch { parsed = { tasks: [], reasoning: 'parse_error' }; }
+  catch { parsed = { tasks: [], reasoning: 'parse_error' }; parseFailed = true; }
+
+  // ★ 조용한 0건 차단 — 응답이 **상한에서 잘렸는지**를 먼저 본다.
+  //   잘린 JSON 은 파싱에 실패해 tasks 0건이 되는데, 그걸 "추출 못 함" 으로 내보내면
+  //   사용자는 오래 기다린 끝에 "더 구체적으로 입력해 주세요" 를 본다 — 정반대 처방이다
+  //   (더 구체적으로 쓰면 출력이 길어져 더 잘린다). 원인을 이름으로 돌려준다.
+  //   memory: feedback_silent_no_output_paths — 오류 없이 산출물만 0인 경로.
+  const truncated = result.finish_reason === 'length';
+  if (!result.fallback && (truncated || parseFailed)) {
+    console.warn('[aiTaskPlanner] 응답 절단/파싱 실패 —',
+      `finish_reason=${result.finish_reason} parseFailed=${parseFailed}`,
+      `out_tokens=${result.output_tokens} content_len=${(result.content || '').length}`);
+  }
+  if (truncated && !rawTasksUsable(parsed)) {
+    return {
+      candidates: [], areas: [], routine_shortfall: null,
+      reasoning: '', fallback: false,
+      error: 'output_truncated',
+      input_tokens: result.input_tokens, output_tokens: result.output_tokens,
+    };
+  }
 
   const rawTasks = Array.isArray(parsed.tasks) ? parsed.tasks : [];
-  const buildCandidates = (arr) => arr.map((t, idx) => {
+
+  // #354 — 영역 정규화. 기존 워크스트림과 같은 이름이면 LLM 이 뭐라 했든 existing:true 로 **서버가** 정한다
+  //   (LLM 의 self-report 를 믿으면 같은 이름 워크스트림이 중복 생성된다).
+  const existingKeys = new Set((workstreams || []).map(normAreaKey).filter(Boolean));
+  let areas = [];
+  if (isRoutine) {
+    const rawAreas = Array.isArray(parsed.areas) ? parsed.areas : [];
+    const seen = new Set();
+    areas = rawAreas.map((a) => ({
+      title: String(a?.title || '').trim().slice(0, 200),
+      description: a?.description ? String(a.description).trim().slice(0, 1000) : null,
+    })).filter((a) => {
+      if (!a.title) return false;
+      const k = normAreaKey(a.title);
+      if (seen.has(k)) return false;      // 같은 영역을 두 번 내는 경우 — 뒤엣것 버림
+      seen.add(k);
+      return true;
+    }).slice(0, MAX_AREAS).map((a, i) => ({
+      idx: i,
+      title: a.title,
+      description: a.description,
+      existing: existingKeys.has(normAreaKey(a.title)),
+    }));
+  }
+  let areaCount = areas.length;
+
+  // ★ LLM 은 배열에 null·문자열을 섞어 보낸다(실측: tasks 22건 중 일부가 null).
+  //   방어 없이 map 하면 `Cannot read properties of null` 로 **요청 전체가 500** 이 된다.
+  //   여기는 루틴 전용이 아니라 일반 분해도 지나는 길이므로 같은 자리에서 한 번만 막는다.
+  //   ※ idx 는 걸러낸 **뒤** 기준이어야 한다 — depends_on_index·pipeline_refs·area_ref 가
+  //     가리키는 번호가 걸러내기 전 번호면 서로 다른 업무를 가리키게 된다.
+  const buildCandidates = (rawArr) => (Array.isArray(rawArr) ? rawArr : [])
+    .filter((t) => t && typeof t === 'object' && String(t.title || '').trim())
+    .map((t, idx, arr) => {
     const title = String(t.title || '').trim().slice(0, 200);
     const description = String(t.description || '').trim().slice(0, 1000);
     const estimated_hours = clampInt(t.estimated_hours, 1, 80, 4);
@@ -308,7 +484,10 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
       ? String(t.recurrence).toLowerCase() : 'none';
     // #237 "완료로 추가" — 이미 끝난 일의 기록. 완료된 일에 다음 회차는 없으므로 반복과 **상호배타**다
     //   (여기서 안 끊으면 recurringTaskGenerator 가 닫힌 업무에서 다음 회차를 계속 낳는다).
-    const completed = t.completed === true || t.completed === 'true';
+    // ★ 루틴 설계에는 "이미 끝난 일" 이라는 개념이 없다. 여기서 서버가 끊지 않으면
+    //   completed:true 하나가 아래 상호배타 규칙을 타고 **RRULE 을 조용히 null 로 만든다**
+    //   — 반복을 설계하러 들어와서 반복 없는 업무가 나오는 사고다.
+    const completed = isRoutine ? false : (t.completed === true || t.completed === 'true');
     const recurrence = completed ? 'none' : recurrenceRaw;
     // #353 ① — LLM 이 직접 낸 RRULE. 프리셋 3종으로는 평일·말일·BYSETPOS·분기·종료조건을 못 만든다.
     //   검증은 생성 경로와 같은 관문(sanitizeRRule — FREQ 화이트리스트 포함).
@@ -325,6 +504,15 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
     const assignee_name = t.assignee_name ? String(t.assignee_name).slice(0, 80) : null;
     const depends_on_index = (Number.isInteger(t.depends_on_index) && t.depends_on_index !== idx && t.depends_on_index >= 0)
       ? t.depends_on_index : null;
+    // #354 — 영역 배치. 범위 밖이면 **조용히 버리지 않고** null 로 떨어뜨린 사실을 후보에 실어 보낸다
+    //   (미배치로 화면에 보여야 사용자가 직접 고를 수 있다).
+    const areaRefRaw = Number.isInteger(t.area_ref) ? t.area_ref : null;
+    const area_ref = (isRoutine && areaRefRaw !== null && areaRefRaw >= 0 && areaRefRaw < areaCount) ? areaRefRaw : null;
+    const area_ref_dropped = isRoutine && areaRefRaw !== null && area_ref === null;
+    // 파이프라인 링크 — depends_on_index 와 같은 규칙(자기참조·범위 밖 제거) + 중복 제거, 최대 5.
+    const pipeline_refs = isRoutine && Array.isArray(t.pipeline_refs)
+      ? [...new Set(t.pipeline_refs.filter((n) => Number.isInteger(n) && n >= 0 && n !== idx && n < arr.length))].slice(0, 5)
+      : [];
     // #90 — 이름 지정 우선, 없으면 역할 힌트
     const assignee_user_id = matchMemberByName(assignee_name, members) ?? matchMemberByHint(assignee_hint, members);
     const vague = detectVague(title, language);
@@ -356,11 +544,119 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
       instruction: instructionRaw || null,
       workstream_hint,
       depends_on_index,
+      area_ref,
+      area_ref_dropped,
+      pipeline_refs,
       vague,
     };
   }).filter(c => c.title);
 
   let candidates = buildCandidates(rawTasks);
+
+  // #354 — 루틴 계약 검사 + **1회 재요구**.
+  //   프롬프트만으로는 지켜지지 않는다(실측: 영역 1개 · 지침 136자 · pipeline 0건).
+  //   LLM 순종에 기대지 않고, 어긴 항목을 이름으로 짚어 한 번 더 받는다. 그래도 못 지키면
+  //   **받은 그대로 내보내고** 프론트가 무엇이 부족한지 표시한다 — 조용히 삼키지 않는다.
+  let routineShortfall = null;
+  if (isRoutine && candidates.length) {
+    // 재요구 대상은 **구조 결함만**이다. 지침 길이는 재요구에 넣지 않는다 —
+    //   "더 길게 써라" 를 시키면 모델이 출력 상한(12,000토큰)을 꽉 채워 JSON 이 중간에서 잘리고,
+    //   그 응답은 통째로 못 쓴다(실측). 게다가 짧은 지침(180~400자)은 Irene 이 손으로 쓴
+    //   실데이터 범위(175~1,001자) 안이라 애초에 결함이 아니다. 부족하면 아래 soft 로 알린다.
+    const check = (cands, ars) => {
+      const miss = [];
+      if (cands.length >= 4 && ars.length < 3) miss.push(`"areas" has ${ars.length} entries — output at least 3 distinct areas`);
+      if (!cands.some((c) => c.pipeline_refs && c.pipeline_refs.length)) miss.push('no task has "pipeline_refs" — connect the routines (weekly consumes daily, monthly consumes weekly)');
+      const noRule = cands.filter((c) => !c.recurrence_rule);
+      if (noRule.length) miss.push(`${noRule.length} tasks have no "recurrence_rule" — every task in routine mode must repeat`);
+      return miss;
+    };
+    // soft — 재요구는 안 하되 화면이 알 수 있게 내려보낸다(조용히 삼키지 않는다).
+    const softCheck = (cands) => {
+      const out = [];
+      const short = cands.filter((c) => !c.instruction || c.instruction.length < MIN_ROUTINE_INSTRUCTION);
+      if (short.length) out.push(`${short.length}건의 지침이 ${MIN_ROUTINE_INSTRUCTION}자 미만입니다 — 필요하면 직접 보완하세요`);
+      // 영역은 만들었는데 **아무 업무도 배치되지 않은** 상태 — 화면엔 "업무 0건" 으로만 보여
+      //   사용자가 "왜 비었지" 로 읽는다. 무슨 일이 있었는지 말해 준다(Fable 권고).
+      if (areas.length > 0 && cands.length > 0 && !cands.some((c) => Number.isInteger(c.area_ref))) {
+        out.push(`영역 ${areas.length}개가 제안됐지만 업무가 어느 영역에도 배치되지 않았습니다 — 확정하면 영역 없이 만들어집니다`);
+      }
+      return out;
+    };
+    // ★ soft 는 hard 유무와 무관하게 항상 센다. hard 가 없을 때만 건너뛰게 두면
+    //   "구조는 멀쩡한데 지침이 짧은" 흔한 경우가 화면에 아무 말도 못 하게 된다.
+    let missing = check(candidates, areas);
+    const runSoft = () => { const s = softCheck(candidates); if (s.length) routineShortfall = (routineShortfall || []).concat(s); };
+    if (!missing.length) runSoft();
+    if (missing.length) {
+      const note = '\n\n[CONTRACT VIOLATIONS — your previous answer was rejected. Fix ALL of these and output the FULL JSON again]\n'
+        + missing.map((m, i) => `${i + 1}. ${m}`).join('\n');
+      try {
+        const retry = await callOpenAi(systemPrompt, userPrompt + note, 'routine_plan');
+        const rp = JSON.parse(retry.content);
+        const rTasks = Array.isArray(rp.tasks) ? rp.tasks : [];
+        if (rTasks.length) {
+          // 영역도 함께 다시 읽는다 — 업무만 갈아끼우면 area_ref 가 옛 영역을 가리킨다.
+          const rAreasRaw = Array.isArray(rp.areas) ? rp.areas : [];
+          const seen2 = new Set();
+          const rAreas = rAreasRaw.map((a) => ({
+            title: String(a?.title || '').trim().slice(0, 200),
+            description: a?.description ? String(a.description).trim().slice(0, 1000) : null,
+          })).filter((a) => {
+            if (!a.title) return false;
+            const k = normAreaKey(a.title);
+            if (seen2.has(k)) return false;
+            seen2.add(k); return true;
+          }).slice(0, MAX_AREAS).map((a, i) => ({ idx: i, title: a.title, description: a.description, existing: existingKeys.has(normAreaKey(a.title)) }));
+          // ★ 재요구 결과를 **무조건 덮어쓰지 않는다.** 실측: 첫 응답이 영역 3개로 멀쩡했는데
+          //   재요구가 영역 1개를 돌려줬고, 그대로 갈아끼워 결과가 나빠졌다.
+          //   더 나은 쪽을 고른다 — 판정 기준은 위반 건수, 같으면 지침 총량.
+          const useAreas = rAreas.length ? rAreas : areas;
+          // ★ buildCandidates 는 areaCount 를 **클로저로** 읽는다. 새 영역 개수를 먼저 반영하지 않고
+          //   후보를 다시 만들면, 늘어난 영역(4·5번)을 가리키는 area_ref 가 범위 밖으로 떨어져
+          //   미배치가 된다(실측: 영역 5개인데 2건이 area=null).
+          const prevAreaCount = areaCount;
+          areaCount = useAreas.length;
+          const rebuilt = buildCandidates(rTasks);
+          if (rebuilt.length) {
+            const score = (cands, ars) => {
+              const v = check(cands, ars).length;
+              const insSum = cands.reduce((a, c) => a + (c.instruction || '').length, 0);
+              return { v, insSum };
+            };
+            const before = score(candidates, areas);
+            const after = score(rebuilt, useAreas);
+            // ★ **확실히 나아졌을 때만** 갈아끼운다. 동점일 때 지침 글자수로 고르게 했더니
+            //   영역 3개짜리를 1개짜리로 바꿨다 — 글자수는 늘었지만 설계는 무너졌다.
+            //   동점 = 개선 아님 → 첫 응답을 지킨다.
+            const better = after.v < before.v;
+            if (better) {
+              candidates = rebuilt;
+              areas = useAreas;
+            } else {
+              areaCount = prevAreaCount;   // 첫 응답을 유지하므로 영역 개수도 되돌린다
+              console.warn(`[aiTaskPlanner] routine 재요구가 더 나쁨 — 첫 응답 유지 (위반 ${before.v}→${after.v}, 지침 ${before.insSum}→${after.insSum}자)`);
+            }
+          } else {
+            areaCount = prevAreaCount;
+          }
+          missing = check(candidates, areas);
+        }
+        result.input_tokens += retry.input_tokens || 0;
+        result.output_tokens += retry.output_tokens || 0;
+      } catch (e) {
+        console.warn('[aiTaskPlanner] routine contract retry failed', e.message);
+      }
+      runSoft();
+      if (missing.length) {
+        routineShortfall = (routineShortfall || []).concat(missing);
+        // 무엇이 부족한지 로그에 남긴다 — "모델이 그 키를 아예 안 냈는지" 와
+        // "냈는데 서버가 걸렀는지" 는 화면에서 구별이 안 된다.
+        console.warn('[aiTaskPlanner] routine 계약 미충족:', missing.join(' | '),
+          '| 첫 업무 키:', Object.keys(rawTasks[0] || {}).join(','));
+      }
+    }
+  }
 
   // #353 ③ — 지침이 상한을 넘으면 **자르지 않고 한 번 더 요구한다**.
   //   자르면 루틴 지침이 문장 중간에서 끊긴 채 저장되고, 사용자는 그것이 잘린 줄도 모른다.
@@ -371,7 +667,7 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
       ? `\n\n[Constraint] Each "instruction" must be under ${MAX_INSTRUCTION_LEN} characters. Rewrite them shorter, keeping every step.`
       : `\n\n[제약] 각 "instruction" 은 ${MAX_INSTRUCTION_LEN}자 미만이어야 한다. 단계를 빠뜨리지 말고 더 짧게 다시 써라.`;
     try {
-      const retry = await callOpenAi(systemPrompt, userPrompt + retryNote);
+      const retry = await callOpenAi(systemPrompt, userPrompt + retryNote, isRoutine ? 'routine_plan' : 'task_plan');
       const reparsed = JSON.parse(retry.content);
       const retried = buildCandidates(Array.isArray(reparsed.tasks) ? reparsed.tasks : []);
       if (retried.length) candidates = retried;
@@ -426,12 +722,20 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
   // recordUsage — cue_usage 카운터에 'ai_task_create' 액션으로 기록
   if (!result.fallback && businessId) {
     try {
-      await recordUsage(businessId, 'ai_task_create', MODEL, result.input_tokens, result.output_tokens);
+      // #354 — 루틴 설계는 별도 액션으로 센다. 같은 'ai_task_create' 로 합치면 사용량 화면에서
+      //   "출력이 6배인 호출" 이 일반 분해와 구별되지 않아, 비용이 어디서 나는지 못 읽는다.
+      await recordUsage(businessId,
+        isRoutine ? 'ai_routine_plan' : 'ai_task_create',
+        isRoutine ? modelFor('routine_plan') : MODEL,
+        result.input_tokens, result.output_tokens);
     } catch (e) { console.warn('[aiTaskPlanner] recordUsage failed', e.message); }
   }
 
   return {
     candidates,
+    areas,
+    // #354 — 계약을 못 채운 항목. 화면이 "지침이 짧습니다" 를 말할 수 있어야 한다(조용한 손실 금지).
+    routine_shortfall: routineShortfall,
     // 운영 #263 — "이런 긴 멘트가 필요해? 언제 읽어?"
     //   프롬프트는 "30자 이내 · 메타설명 금지" 를 요구하는데 여기 캡은 120자였다. 계약이 4배 어긋나
     //   장황한 첫 문장이 그대로 통과했다(Irene 실측: "사용자의 요청에 따라 … 단일 작업을 정의했습니다.").
