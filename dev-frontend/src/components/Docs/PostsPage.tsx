@@ -1013,13 +1013,26 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     setError(null);
   };
 
-  // 첨부가 실제로 올라가는 범위와 **같은 규칙**으로 안내 문구를 만든다.
-  //   문구를 따로 계산하면 저장 동작과 갈라져 화면이 거짓말을 하게 된다.
-  //   (프로젝트 있으면 L2 / 없으면 L3 — persistAttachments 호출부와 동일)
-  const attachScopeProjectId = scope.type === 'project' ? scope.projectId : projectDraft;
-  const attachScopeHint = attachScopeProjectId
-    ? (t('attach.scopeHintProject', '올린 파일은 이 문서와 같은 범위 — 프로젝트 참여자가 볼 수 있어요.') as string)
-    : (t('attach.scopeHintWorkspace', '올린 파일은 이 문서와 같은 범위 — 워크스페이스 멤버가 볼 수 있어요.') as string);
+  // 첨부 범위 안내 — **지금 이 문서 기준으로** 어떻게 되는지 한 줄로 말한다(Irene 2026-08-30).
+  //   ★ 기준은 `detail`(저장된 문서) 이다. 처음엔 `projectDraft`(편집 초안)를 봤는데,
+  //     보기 모드로 문서를 여는 경로는 setProjectDraft 를 부르지 않아 **직전 편집의 잔재**나
+  //     null 을 읽었다 — 프로젝트 문서에 "워크스페이스 멤버가 볼 수 있어요" 가 떴다(Fable 실측).
+  //   ★ vlevel 도 같이 본다. 승급 규칙(persistAttachments 호출부)이 L4 는 제외하고,
+  //     L1 문서면 첨부도 L1 로 남는다 — projectId 만 보면 그 두 경우에 거짓말이 된다.
+  const attachScopeProjectId = mode === 'new'
+    ? (scope.type === 'project' ? scope.projectId : projectDraft)
+    : (detail?.project_id ?? (scope.type === 'project' ? scope.projectId : null));
+  const attachScopeLevel = mode === 'new'
+    ? (attachScopeProjectId ? 'L2' : 'L3')
+    : (detail?.vlevel || (attachScopeProjectId ? 'L2' : 'L3'));
+  const attachScopeHint =
+    attachScopeLevel === 'L4'
+      ? (t('attach.scopeHintPublic', '올린 파일은 나만 보기로 저장됩니다 — 공개 링크에는 본문만 나가요.') as string)
+      : attachScopeLevel === 'L1'
+        ? (t('attach.scopeHintPrivate', '이 문서는 나만 보기라 올린 파일도 나만 볼 수 있어요.') as string)
+        : attachScopeProjectId
+          ? (t('attach.scopeHintProject', '올린 파일은 이 문서와 같은 범위 — 프로젝트 참여자가 볼 수 있어요.') as string)
+          : (t('attach.scopeHintWorkspace', '올린 파일은 이 문서와 같은 범위 — 워크스페이스 멤버가 볼 수 있어요.') as string);
 
   // 예약된 첨부(신규 업로드 + 기존 파일 선택)를 post 에 반영한다.
   //   신규 작성·편집 **양쪽이 같은 경로**를 쓴다 — 한쪽에만 있어서 편집 모드 첨부가 통째로 유실됐다(#365).

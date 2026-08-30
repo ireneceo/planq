@@ -652,7 +652,9 @@
     "someFailed": "The document was saved, but these files could not be uploaded: {{files}}",
     "scopeFailed": "Attachments were saved, but their visibility could not be matched to the document. Other members may not be able to see them.",
     "scopeHintProject": "Files you add follow this document — project members can see them.",
-    "scopeHintWorkspace": "Files you add follow this document — workspace members can see them."
+    "scopeHintWorkspace": "Files you add follow this document — workspace members can see them.",
+    "scopeHintPublic": "Files you add stay private — only the body goes out via the public link.",
+    "scopeHintPrivate": "This document is private, so files you add stay private too."
   },
   "autosave": {
     "saving": "Saving draft…",

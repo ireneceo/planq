@@ -501,6 +501,12 @@ function fileListWhereByLevel(scope) {
     conds.push({ vlevel: null, visibility: 'L3' });
     conds.push({ vlevel: null, visibility: 'L4' });
     conds.push({ vlevel: null, visibility: null });
+    // ★ "청중 없는 L2"(프로젝트도 대상 멤버도 없는 L2) — **문서 술어와 같게** 워크스페이스 전체다.
+    //   `canAccessPostByLevel` 의 L2 분기 마지막 줄이 `return fullView || scope.isMember` 이고,
+    //   파일 **단건** 검사(`canAccessFileByLevel`)도 같은 폴백을 갖는다. 목록만 이 분기가 없어서
+    //   "직접 링크로는 열리는데 목록에는 없는" 파일이 생겼다 — 세 술어를 여기서 맞춘다.
+    conds.push(sequelize.literal(
+      "vlevel = 'L2' AND project_id IS NULL AND (target_member_ids IS NULL OR JSON_LENGTH(target_member_ids) = 0)"));
   }
   if (fullView) {
     conds.push({ vlevel: 'L2' });

@@ -844,7 +844,12 @@ router.put('/:businessId/:id/visibility', authenticateToken, attachWorkspaceScop
         nextTargetMemberIds = target_member_ids.map(Number).filter(n => Number.isFinite(n));
         if (nextTargetMemberIds.length === 0) return errorResponse(res, 'invalid_target_member_ids', 400);
       } else {
-        return errorResponse(res, 'L2 는 project_id 또는 target_member_ids 중 하나 필요', 400);
+        // ★ "청중 없는 L2" 를 허용한다 (#378). 문서(posts)는 이미 이 상태로 저장되고,
+        //   그 경우 문서 술어는 **워크스페이스 전체**로 본다 — 파일만 막으면 문서에 첨부를
+        //   붙일 때마다 400 이 나서 첨부가 L1 로 남고, 문서는 보이는데 첨부만 안 열린다.
+        //   (이 400 때문에 #378 결손이 계속 재축적되고 있었다 — Fable 실측)
+        nextProjectId = null;
+        nextTargetMemberIds = null;
       }
     } else {
       // L1/L3/L4 — project_id, target_member_ids 모두 null
