@@ -455,7 +455,10 @@
     },
     "recent": "최근 항목",
     "cueBadge": "Cue",
-    "askCue": "Cue 에게 묻기: \"{{q}}\""
+    "askCue": "Cue 에게 묻기: \"{{q}}\"",
+    "askCueHint": "여기서 바로 답을 보여드려요",
+    "cueContinue": "Cue 창에서 이어서 묻기",
+    "cueClear": "지우고 검색으로"
   },
   "attach": {
     "uploadHint": "파일을 드래그하거나 클릭",

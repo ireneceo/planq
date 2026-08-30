@@ -12,6 +12,10 @@ import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import { visibleNavMenus, SECTION_LABEL_KEY, type NavMenuEntry } from '../../config/navMenus';
 import Spinner from './Spinner';
 import { askCue } from '../../utils/cueAsk';
+import { useCueChat, cueActionDeepLink } from '../../hooks/useCueChat';
+import CueTurnList from './CueTurnList';
+import { useChromeLocation } from '../../hooks/useChromeNav';
+import { tabStore } from '../../stores/tabStore';
 
 interface Props {
   open: boolean;
@@ -69,6 +73,29 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
   // #305 — "검색이랑 상단 탭 열 때 최신글이나 문서 등 이런거 보여주는 거 기본 아니야? 검색 전에."
   //   빈 검색창은 아무것도 못 하는 화면이었다. 열자마자 최근에 손댄 것을 보여준다.
   const [recent, setRecent] = useState<SearchResult>({});
+
+  // #233 — **검색창 안에서** Cue 답변을 텍스트로 본다. 여태는 Cue 창을 열어주고 끝이라
+  //   "결과 내용이 텍스트로 나오게" 라는 요구의 절반만 채워져 있었다.
+  //   ★ 새 대화 로직을 만들지 않는다 — #227 에서 뽑은 코어(useCueChat + CueTurnList)를 그대로 쓴다.
+  const { t: tErr } = useTranslation('errors');
+  const chromeLoc = useChromeLocation();
+  const cue = useCueChat({
+    isGuest: !user,
+    mode: 'workspace',
+    location: { pathname: chromeLoc.pathname, search: chromeLoc.search },
+    tErr: tErr as unknown as (k: string, d?: string) => string,
+    translateError: (code: string) => (
+      code === 'rate_limit_minute' ? (t('qhelper.rateLimitMinute', '잠깐만요 — 너무 빠르게 묻고 있어요. 1분 후 다시 시도해주세요.') as string)
+        : code === 'rate_limit_day' ? (t('qhelper.rateLimitDay', '오늘 안내 횟수를 초과했습니다. 자세한 내용은 문의 남기기 탭으로 알려주세요.') as string)
+          : null
+    ),
+  });
+  const { setInput: setCueInput, submit: cueSubmit, setTurns: setCueTurns } = cue;
+  // 검색어를 바꾸면 Cue 입력도 따라간다 — 사용자가 친 문장이 곧 질문이다.
+  useEffect(() => { setCueInput(query); }, [query, setCueInput]);
+  // 모달을 닫으면 대화를 비운다. 다음에 열었을 때 옛 답이 남아 있으면
+  //   "왜 내가 안 물은 답이 있지" 가 된다 — 검색창은 매번 새로 시작하는 자리다.
+  useEffect(() => { if (!open) setCueTurns([]); }, [open, setCueTurns]);
 
   useBodyScrollLock(open);
   useEscapeStack(open, onClose);
@@ -181,18 +208,40 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
               ★ 새 단축키·새 표면을 만들지 않는다. CueHelpDrawer 는 이미 전역이고(⌘?/Ctrl+/ · RightDock FAB),
                 부족한 것은 **존재가 아니라 발견성**이다. 검색창에 질문형 문장을 친 사용자를 Cue 로
                 넘기는 다리 하나면 된다. `cue:ask` 이벤트가 이미 있어 신규 배선이 없다. */}
-          {query.trim() && (
+          {query.trim() && cue.turns.length === 0 && (
             <Hit type="button" data-testid="search-ask-cue"
-              onClick={() => {
-                const q = query.trim();
-                onClose();
-                askCue(q, 'cue');
-              }}>
+              onClick={() => { cue.setInput(query.trim()); cueSubmit(); }}>
               <TypeBadge $color="#F43F5E">{t('search.cueBadge') as string}</TypeBadge>
               <HitMain>
                 <HitTitle>{t('search.askCue', { q: query.trim() }) as string}</HitTitle>
+                <HitSub>{t('search.askCueHint', '여기서 바로 답을 보여드려요') as string}</HitSub>
               </HitMain>
             </Hit>
+          )}
+
+          {/* #233 — 답변을 **이 자리에** 텍스트로. 확인 카드(업무·일정 추가)도 그대로 뜬다. */}
+          {cue.turns.length > 0 && (
+            <CueAnswerBox data-testid="search-cue-answer">
+              <CueTurnList
+                turns={cue.turns}
+                mode="workspace"
+                businessId={user?.business_id ?? null}
+                onFeedback={cue.sendAnswerFeedback}
+                onActionExecuted={cue.onActionExecuted}
+                onActionDismiss={cue.onActionDismiss}
+                // 만든 것은 **새 탭**으로 — 검색창은 하던 일 위에 얹히는 자리다.
+                onOpenResult={(r) => { onClose(); tabStore.openInNewTab(cueActionDeepLink(r)); }}
+              />
+              <CueFootRow>
+                <CueFootBtn type="button" data-testid="search-cue-continue"
+                  onClick={() => { const q = cue.turns[cue.turns.length - 1]?.q || query.trim(); onClose(); askCue(q, 'cue'); }}>
+                  {t('search.cueContinue', 'Cue 창에서 이어서 묻기') as string} ↗
+                </CueFootBtn>
+                <CueFootBtn type="button" onClick={() => cue.setTurns([])}>
+                  {t('search.cueClear', '지우고 검색으로') as string}
+                </CueFootBtn>
+              </CueFootRow>
+            </CueAnswerBox>
           )}
           {/* #210 — 메뉴 이동. 검색어 없을 때는 전체 메뉴가 그대로 목록이 된다(고르면 그 페이지로) */}
           {menuHits.length > 0 && (
@@ -296,6 +345,26 @@ const Kbd = styled.button`
   color: #64748B; cursor: pointer;
   &:hover { background: #E2E8F0; }
 `;
+// #233 — 검색창 안의 Cue 답변 영역. 결과 목록과 섞이지 않게 옅은 바탕으로 구분한다.
+const CueAnswerBox = styled.div`
+  border: 1px solid #fecdd3;
+  background: #fff1f2;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+`;
+const CueFootRow = styled.div`
+  display: flex; gap: 10px; flex-wrap: wrap;
+  margin-top: 8px; padding-top: 8px;
+  border-top: 1px solid #fecdd3;
+`;
+const CueFootBtn = styled.button`
+  background: none; border: none; padding: 0; cursor: pointer;
+  font-size: 0.75rem; font-weight: 600; color: #E11D48;
+  &:hover { text-decoration: underline; }
+  &:focus-visible { outline: 2px solid rgba(244,63,94,0.4); outline-offset: 2px; }
+`;
+
 const Results = styled.div`
   flex: 1; min-height: 0;
   display: flex; flex-direction: column; gap: 2px;

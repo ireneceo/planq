@@ -455,7 +455,10 @@
     },
     "recent": "Recent",
     "cueBadge": "Cue",
-    "askCue": "Ask Cue: \"{{q}}\""
+    "askCue": "Ask Cue: \"{{q}}\"",
+    "askCueHint": "Get the answer right here",
+    "cueContinue": "Continue in the Cue panel",
+    "cueClear": "Clear and back to search"
   },
   "attach": {
     "uploadHint": "Drag files here or click to browse",
