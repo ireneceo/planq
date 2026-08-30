@@ -50,6 +50,14 @@ interface Props {
   projectId?: number;
   businessId?: number;
   scope?: DocScope;
+  /**
+   * 딥링크로 열 파일 id (`/files?file=N`). ★파라미터는 **페이지 오너가 읽어** 내려보낸다 —
+   * DocsTab 은 프로젝트·개인보관함에도 임베드되므로 여기서 직접 URL 을 읽으면
+   * 인스턴스들이 같은 파라미터를 두고 싸운다 (Fable 지적, 2026-08-30).
+   */
+  openFileId?: number | null;
+  /** 상세가 열리고 닫힐 때 — 오너가 URL 을 맞춘다 */
+  onOpenFileChange?: (id: number | null) => void;
 }
 
 /** 업로드 큐 한 건 */
@@ -94,6 +102,29 @@ const DocsTab: React.FC<Props> = (props) => {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortKey>('recent');
   const [preview, setPreview] = useState<ProjectFile | null>(null);
+
+  // ── 딥링크 소생 (2026-08-30) ────────────────────────────────────────────
+  //   `/files?file=N` 은 알림·전역검색·개인보관함·공개페이지·표 **5곳이 만드는데**
+  //   읽는 곳이 **0곳**이었다 — 즉 파일 알림을 눌러도 항상 아무 일도 안 일어났다.
+  //   목록이 로드된 뒤 그 id 를 찾아 상세를 연다. 목록에 없으면(삭제·권한) 그대로 둔다 —
+  //   "없음" 안내는 다음 커밋의 공통 폴백이 담당한다.
+  const openFileId = props.openFileId ?? null;
+  const openedFileRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!openFileId) { openedFileRef.current = null; return; }
+    if (openedFileRef.current === openFileId) return;
+    // ★ 목록의 id 는 `direct-123` 같은 **합성 문자열**이다 (#390 에서 Number('direct-N')=NaN
+    //   사고가 난 그 축). 딥링크의 숫자 id 와 맞추려면 반드시 parseFileId 로 푼다.
+    const hit = files.find((f) => parseFileId(f.id)?.id === openFileId);
+    if (hit) { openedFileRef.current = openFileId; setPreview(hit); }
+  }, [openFileId, files]);
+
+  // 상세 열림/닫힘을 오너에 알려 URL 을 맞춘다 (새로고침·공유에서 맥락 유지)
+  const notifyOpen = props.onOpenFileChange;
+  useEffect(() => {
+    if (!notifyOpen) return;
+    notifyOpen(preview ? (parseFileId(preview.id)?.id ?? null) : null);
+  }, [preview, notifyOpen]);
   const [shareTarget, setShareTarget] = useState<ProjectFile | null>(null);
   const [dragOver, setDragOver] = useState(false);
   // 업로드 큐 — 파일별 진행률·속도·취소 (docs/UploadQueue)

@@ -334,7 +334,9 @@ function ShellApp() {
           </ProtectedRoute>
         } />
         {/* 호환: 이전 URL /knowledge → /info */}
-        <Route path="/knowledge" element={<Navigate to="/info" replace />} />
+        {/* ★ 쿼리를 보존한다 — `<Navigate to="/info">` 는 search 를 **버려서**
+            전역검색의 `/knowledge?doc=N` 딥링크가 항상 죽어 있었다 (2026-08-30 실측). */}
+        <Route path="/knowledge" element={<Navigate to={{ pathname: '/info', search: window.location.search }} replace />} />
 
         {/* Q record 메뉴 폐지 — Q docs 안의 표 kind 로 흡수 */}
         <Route path="/records" element={<Navigate to="/docs" replace />} />

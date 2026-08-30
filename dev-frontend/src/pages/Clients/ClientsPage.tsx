@@ -10,6 +10,7 @@ import type { TFunction } from 'i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { useDetailParam } from '../../hooks/useDetailParam';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import LetterAvatar from '../../components/Common/LetterAvatar';
@@ -124,6 +125,9 @@ export default function ClientsPage() {
 
   // 드로어
   const [activeId, setActiveId] = useState<number | null>(null);
+  // ★ 딥링크 소생 — `/business/clients?client=N` 은 전역검색이 만들지만 **읽는 곳이 0곳**이었다.
+  //   즉 검색 결과에서 고객을 눌러도 항상 아무 일도 안 일어났다 (2026-08-30 실측).
+  useDetailParam('client', { activeId, onOpen: setActiveId });
   useBodyScrollLock(activeId != null);
   const [activeDetail, setActiveDetail] = useState<ClientRow | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -490,7 +494,10 @@ export default function ClientsPage() {
       {/* 우측 드로어 */}
       {activeId && activeDetail && (<>
         <DrawerBackdrop onClick={() => setActiveId(null)} />
-        <Drawer>
+        {/* data-testid — 상세가 실제로 열렸는지 판정하는 계약 (CLAUDE.md 검사 하니스 요건).
+            휴리스틱(위치·크기)으로 재면 검사기가 거짓말한다 — 실제로 세 번 그랬다. */}
+        <Drawer data-testid="client-detail" role="dialog" aria-modal="true"
+                aria-label={activeDetail?.display_name || activeDetail?.company_name || 'client'}>
           <DrawerHeader>
             <DrawerBack onClick={() => setActiveId(null)}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6" /></svg>

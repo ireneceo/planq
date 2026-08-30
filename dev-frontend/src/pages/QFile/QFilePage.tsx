@@ -6,6 +6,7 @@ import PageShell from '../../components/Layout/PageShell';
 import DocsTab from '../QProject/DocsTab';
 import PersonalDriveTab from './PersonalDriveTab';
 import { useAuth } from '../../contexts/AuthContext';
+import { useDetailParam } from '../../hooks/useDetailParam';
 
 type FileTab = 'workspace' | 'personal';
 
@@ -14,6 +15,10 @@ const QFilePage: React.FC = () => {
   const { user } = useAuth();
   const businessId = user?.business_id;
   const [tab, setTab] = useState<FileTab>('workspace');
+  // ★ 파라미터는 **페이지 오너인 여기서** 읽는다 — DocsTab 은 프로젝트·개인보관함에도
+  //   임베드되므로 거기서 직접 읽으면 인스턴스들이 같은 파라미터를 두고 싸운다.
+  const [openFileId, setOpenFileId] = useState<number | null>(null);
+  useDetailParam('file', { activeId: openFileId, onOpen: (id) => { setTab('workspace'); setOpenFileId(id); } });
 
   if (!businessId) {
     return (
@@ -39,7 +44,11 @@ const QFilePage: React.FC = () => {
   return (
     <PageShell title={t('page.title', 'Q file') as string} actions={tabs}>
       {tab === 'workspace'
-        ? <DocsTab scope={{ type: 'workspace', businessId }} />
+        ? <DocsTab
+            scope={{ type: 'workspace', businessId }}
+            openFileId={openFileId}
+            onOpenFileChange={setOpenFileId}
+          />
         : <PersonalDriveTab businessId={Number(businessId)} />}
     </PageShell>
   );
