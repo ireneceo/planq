@@ -139,7 +139,14 @@ async function notifyInboundMail({ account, thread, fromName, fromEmail, subject
   //   제목은 수신자별 언어로 만들어야 하므로 아래 루프 안에서 buildTitle 을 호출한다.
   const titleAction = kind === 'reply' ? 'mail_reply_needed' : 'mail_review';
   const body = subj;                                     // 제목까지만 (본문 미포함)
-  const link = `/mail?thread=${thread.id}`;
+  // ★ 폴더를 같이 싣는다 (2026-08-30).
+  //   여태 `?thread=` 만 보내서, 링크를 눌러도 목록은 **지난번에 보던 탭**에 서 있었다
+  //   (MailPage: folder = URL → 없으면 지난 선택 → 없으면 'reply_needed'. 자동 전환은
+  //   지금 탭이 비어 있을 때만 발동하는데 답변 필요에 42건이 있어 안 바뀐다).
+  //   확인 권장 메일 알림을 눌렀는데 "답변 필요" 탭이 열리는 어긋남의 정체다.
+  //   kind 는 위 classify 와 같은 축이므로 여기서 폴더로 바로 옮긴다.
+  const folder = kind === 'reply' ? 'reply_needed' : 'uncertain';
+  const link = `/mail?folder=${folder}&thread=${thread.id}`;
 
   // 이메일 채널: 답변 필요만. 그리고 수신자 로그인 주소가 이 메일 계정 주소면 자기 메일함으로
   //   되돌아오므로 그 사람만 email 을 끈다(루프 가드).

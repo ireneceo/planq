@@ -6,12 +6,35 @@
 //   window 'planq:oauth-connected'                     → 연동 페이지가 상태 refetch (§6.8 시스템 브라우저 복귀)
 //
 // 웹에서는 native 리스너를 달지 않으므로 회귀 0 (planq:navigate 리스너만, 웹에선 아무도 발행 안 함).
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useChromeNav } from '../hooks/useChromeNav';
 import { isNativeApp, nativePlatform } from '../services/native';
 
 export default function NativeBridge() {
-  const navigate = useChromeNav();
+  const chromeNav = useChromeNav();
+
+  /**
+   * 알림·딥링크 전용 이동 — **조용히 실패하지 않는다.**
+   *
+   * chrome nav(tabStore)는 미러 모드에서 navigateDelegate 로만 이동하는데, 그것을 심는
+   * TabMirror 가 아직 mount 전이거나 언마운트된 표면이면 **아무 일도 일어나지 않는다**
+   * (App.tsx 주석: "navigateDelegate 가 null → chrome nav 는 silent no-op").
+   * 알림 링크는 그 사이에 이미 소비돼 사라지므로, 실패하면 사용자는 앱 기본 착지
+   * (start_url = /inbox = 확인필요)에 남는다 — "메일 알림을 눌렀는데 확인필요로 갔고
+   * 상세가 안 열렸다"(Irene, 2026-08-30)의 모양이 정확히 이것이다.
+   *
+   * 그래서 이동이 실제로 일어났는지 **다음 프레임에 주소로 확인**하고, 그대로면
+   * 전체 로드로 착지시킨다. 느리지만 링크를 잃는 것보다 낫다.
+   */
+  const deepLinkNav = useCallback((path: string) => {
+    const before = window.location.pathname + window.location.search;
+    if (path === before) return;                       // 이미 그 자리
+    try { chromeNav(path); } catch { /* 아래 폴백이 받는다 */ }
+    window.setTimeout(() => {
+      const after = window.location.pathname + window.location.search;
+      if (after === before) window.location.assign(path);   // SPA 이동이 안 먹었다 → 확실히 착지
+    }, 350);
+  }, [chromeNav]);
 
   useEffect(() => {
     // 공용 — 알림 탭/딥링크가 발행하는 앱 내부 네비게이션 이벤트.
@@ -26,7 +49,7 @@ export default function NativeBridge() {
           path = u.pathname + u.search + u.hash;
         } catch { return; }
       }
-      if (path.startsWith('/') && !path.startsWith('/api/')) navigate(path);
+      if (path.startsWith('/') && !path.startsWith('/api/')) deepLinkNav(path);
     };
     window.addEventListener('planq:navigate', onNavigate);
 
@@ -36,7 +59,7 @@ export default function NativeBridge() {
       const pending = sessionStorage.getItem('planq_pending_push_link');
       if (pending) {
         sessionStorage.removeItem('planq_pending_push_link');
-        if (pending.startsWith('/') && !pending.startsWith('/api/')) navigate(pending);
+        if (pending.startsWith('/') && !pending.startsWith('/api/')) deepLinkNav(pending);
       }
     } catch { /* 무시 */ }
 
@@ -126,7 +149,7 @@ export default function NativeBridge() {
       window.removeEventListener('planq:navigate', onNavigate);
       if (cleanupNative) cleanupNative();
     };
-  }, [navigate]);
+  }, [deepLinkNav]);
 
   return null;
 }
