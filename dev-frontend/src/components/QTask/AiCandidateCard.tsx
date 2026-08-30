@@ -1,10 +1,13 @@
 // AI 업무 후보 카드 — AiTaskCreateModal(분해 모달)과 CueTaskBar(말 걸기 바) 공유.
 // 제목·마감·예측시간·담당자 인라인 편집 + 모호한 업무명(⚠) 경고. 단일 진실 원천(DRY).
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import PlanQSelect from '../Common/PlanQSelect';
 import { CalendarIcon, ClockIcon } from '../Common/Icons';
+// 반복 규칙 라벨은 단일 원천에서만 온다 (운영 #347 — 3벌 하드코딩 제거).
+import { formatRRuleLabel } from '../../utils/recurrence';
+import type { TFunction } from 'i18next';
 
 export interface AiCandidate {
   idx: number;
@@ -17,6 +20,16 @@ export interface AiCandidate {
   priority: string;
   /** 정기 루틴 — 'none' | 'daily' | 'weekly' | 'monthly'. 마감일이 첫 발생일이 된다. */
   recurrence?: string;
+  /** #353 ① — AI 가 직접 낸 RRULE. 프리셋으로 표현 못 하는 규칙(평일만·말일·분기·종료조건)이 여기 온다.
+   *  값이 있으면 프리셋 select 대신 규칙 라벨을 보여준다 — 없는 표현을 select 로 위장하면 저장값과 어긋난다. */
+  recurrence_rule?: string | null;
+  /** 서버가 규칙을 거절한 이유(FREQ 화이트리스트 등). 있으면 프리셋으로 폴백됐다는 뜻. */
+  recurrence_rule_rejected?: string | null;
+  /** #353 ③ — 장문 실행 지침. 저장 시 description 뒤에 이어 붙는다. */
+  instruction?: string | null;
+  instruction_truncated?: boolean;
+  /** #353 ② — 업무그룹(워크스트림) 이름 힌트. 확정 시 서버가 이 프로젝트 그룹과 대조해 배치한다. */
+  workstream_hint?: string | null;
   /** #237 "완료로 추가" — 이미 끝난 일의 기록. 서버가 오늘 날짜로 넣고 반복은 끊는다(상호배타). */
   completed?: boolean;
   assignee_hint: string | null;
@@ -63,6 +76,14 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
   // 운영 #263 — 담당자 이름 해석의 단일 규칙.
   //   ① 이 화면 멤버 목록 → ② 서버가 고르며 실어 보낸 표시 이름 → ③ 사람 말 폴백.
   //   날 id(`#2`)는 어떤 경우에도 내보내지 않는다 — 사용자에게 숫자는 아무 뜻이 없다.
+  const [instrOpen, setInstrOpen] = useState(false);
+  // RRULE 라벨의 기준일 — 후보는 오프셋만 들고 있으므로 baseDate + due_offset 으로 되살린다.
+  const ruleAnchorDate = useMemo(() => {
+    const d = new Date(`${baseDate}T00:00:00Z`);
+    if (Number.isNaN(d.getTime())) return baseDate;
+    d.setUTCDate(d.getUTCDate() + (c.due_offset_days || 0));
+    return d.toISOString().slice(0, 10);
+  }, [baseDate, c.due_offset_days]);
   const unknownLabel = t('ai.assigneeUnknown', '알 수 없는 담당자') as string;
   const assigneeLabel = (uid: number) =>
     members.find(m => m.user_id === uid)?.name || c.assignee_display_name || unknownLabel;
@@ -154,7 +175,19 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
             여태 후보에 반복 개념이 없어서 "매일 …" 이라고 써도 일회성으로만 생성됐다.
             ★ 완료로 추가일 때는 감춘다 — 완료된 일에 다음 회차는 없고(서버가 null 로 끊는다),
               보이는 채로 두면 화면이 저장되지 않을 값을 약속하게 된다. */}
-        {!c.completed && (
+        {!c.completed && (c.recurrence_rule ? (
+          /* #353 ① — 프리셋이 표현하지 못하는 규칙(평일만·매월 마지막 평일·분기·종료조건).
+             select 로 위장하면 화면이 약속한 값과 저장되는 값이 어긋난다 → 규칙 라벨을 그대로 보여주고,
+             바꾸고 싶으면 해제해서 프리셋으로 내려가게 한다. 라벨은 단일 원천(formatRRuleLabel). */
+          <MetaItem>
+            <RuleChip title={c.recurrence_rule}>
+              {formatRRuleLabel(c.recurrence_rule, ruleAnchorDate, t as unknown as TFunction)}
+              <RuleClear type="button"
+                onClick={() => onChange({ recurrence_rule: null, recurrence: 'none' })}
+                aria-label={t('ai.recurRuleClear', '반복 규칙 해제') as string}>×</RuleClear>
+            </RuleChip>
+          </MetaItem>
+        ) : (
           <MetaItem>
             <RecurWrap>
               <PlanQSelect
@@ -165,6 +198,13 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
                 aria-label={t('ai.recurrenceLabel', '반복') as string}
               />
             </RecurWrap>
+          </MetaItem>
+        ))}
+        {c.workstream_hint && (
+          <MetaItem>
+            <GroupChip title={c.workstream_hint}>
+              {t('ai.workstreamChip', '그룹 {{name}}', { name: c.workstream_hint })}
+            </GroupChip>
           </MetaItem>
         )}
         {/* #237 — "완료로 추가". AI 가 오해했으면 사람이 여기서 정정한다. */}
@@ -177,6 +217,21 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
           <DoneLbl>{t('ai.completedAdd', '완료로 추가')}</DoneLbl>
         </MetaItem>
       </CardMetaRow>
+      {/* #353 ③ — 장문 실행 지침. 카드에서 통째로 펼치면 목록이 무너지므로 접어 두되,
+          **있다는 사실과 길이는 보이게** 한다(모르고 넘어가면 저장된 뒤에야 발견한다). */}
+      {c.instruction && (
+        <InstrBox>
+          <InstrToggle type="button" onClick={() => setInstrOpen(v => !v)} aria-expanded={instrOpen}>
+            {instrOpen
+              ? t('ai.instructionHide', '실행 지침 접기')
+              : t('ai.instructionShow', '실행 지침 보기 ({{n}}자)', { n: c.instruction.length })}
+          </InstrToggle>
+          {instrOpen && <InstrBody>{c.instruction}</InstrBody>}
+          {c.instruction_truncated && (
+            <InstrWarn>{t('ai.instructionTruncated', '지침이 길어 일부가 잘렸어요')}</InstrWarn>
+          )}
+        </InstrBox>
+      )}
       {c.completed && (
         <DoneHint>{t('ai.completedHint', '이미 끝낸 일로 오늘 날짜에 기록됩니다 — 반복은 적용되지 않아요')}</DoneHint>
       )}
@@ -185,6 +240,37 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
 }
 
 const RecurWrap = styled.div`min-width: 104px;`;
+const RuleChip = styled.span`
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 0.75rem; color: #0F766E; background: #F0FDFA;
+  border: 1px solid #99F6E4; border-radius: 6px; padding: 2px 6px; max-width: 220px;
+`;
+const RuleClear = styled.button`
+  position: relative;
+  border: none; background: none; color: #0F766E; cursor: pointer;
+  font-size: 0.875rem; line-height: 1; padding: 0 4px;
+  /* 폰 터치 타겟 — 칩 레이아웃을 밀지 않으면서 실제로 누를 수 있는 넓이를 확보한다(반응형 원칙 2). */
+  &::after {
+    content: ''; position: absolute; left: 50%; top: 50%;
+    width: 36px; height: 36px; transform: translate(-50%, -50%);
+  }
+`;
+const GroupChip = styled.span`
+  font-size: 0.75rem; color: #475569; background: #F1F5F9;
+  border: 1px solid #E2E8F0; border-radius: 6px; padding: 2px 6px;
+  max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+`;
+const InstrBox = styled.div`display: flex; flex-direction: column; gap: 4px;`;
+const InstrToggle = styled.button`
+  align-self: flex-start; border: none; background: none; padding: 0;
+  font-size: 0.75rem; color: #0F766E; cursor: pointer; text-decoration: underline;
+`;
+const InstrBody = styled.div`
+  font-size: 0.75rem; color: #475569; white-space: pre-wrap; line-height: 1.55;
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px;
+  padding: 8px; max-height: 220px; overflow-y: auto;
+`;
+const InstrWarn = styled.div`font-size: 0.6875rem; color: #B45309;`;
 const DoneCheck = styled.input`width: 15px; height: 15px; flex-shrink: 0; cursor: pointer; accent-color: #0F766E; margin: 0;`;
 const DoneLbl = styled.span`font-size: 0.75rem; color: #475569; cursor: pointer;`;
 const DoneHint = styled.div`font-size: 0.6875rem; color: #64748B; padding: 0 2px;`;

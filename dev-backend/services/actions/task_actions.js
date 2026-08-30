@@ -314,7 +314,8 @@ async function createTask(actor, params = {}, opts = {}) {
   //   여기서까지 반복을 NULL 로 만들면, 사용자가 정기업무로 만든 루틴이 저장 시 조용히 일회성이 된다
   //   (Irene: "업무반복 기능도 적용이 안되네?"). 담당자를 **명시적으로 남으로 고른** 경우엔 종전대로 sanitize.
   const recurrenceAllowed = !isInternalRequest || assigneeFromChain;
-  const effectiveRecurrenceRule = recurrenceAllowed ? (params.recurrenceRule || null) : null;
+  // sanitizeRRule 이 정규화한 값으로 아래에서 덮어쓴다(대문자·RRULE: 접두 제거) → let.
+  let effectiveRecurrenceRule = recurrenceAllowed ? (params.recurrenceRule || null) : null;
   if (isInternalRequest && !recurrenceAllowed && params.recurrenceRule) {
     console.warn(`[createTask] requester=${subjectId} assignee=${finalAssignee} — 반복설정 sanitize (책임선 분리)`);
   }
@@ -340,13 +341,14 @@ async function createTask(actor, params = {}, opts = {}) {
     if (!params.dueDate) {
       return fail('due_date is required for recurring tasks (it serves as the first occurrence)');
     }
-    const { RRule } = require('rrule');
+    // ★ 검증은 단일 관문 sanitizeRRule 을 지난다 (Fable 구현 검증 2026-08-30 권고).
+    //   여기서 parseString 만 하면 `FREQ=HOURLY` 가 그대로 저장돼 시리즈 발생일이 영구 고착된다
+    //   — AI 경로만 막고 이 문(일반 생성 API)을 열어 두면 같은 값이 다른 문으로 들어온다.
+    const { sanitizeRRule } = require('../rruleFromRecurrence');
     const { computeNextOccurrence } = require('../recurringTaskGenerator');
-    try {
-      RRule.parseString(effectiveRecurrenceRule);
-    } catch (e) {
-      return fail(`Invalid recurrence_rule: ${e.message}`);
-    }
+    const checked = sanitizeRRule(effectiveRecurrenceRule);
+    if (!checked.rule) return fail(`Invalid recurrence_rule: ${checked.reason}`);
+    effectiveRecurrenceRule = checked.rule;
     const next = computeNextOccurrence(effectiveRecurrenceRule, params.dueDate, 1);
     nextOccurrenceAt = next ? next.toISOString().slice(0, 10) : null;
   }

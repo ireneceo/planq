@@ -1136,7 +1136,12 @@
     "completedHint": "Recorded as already finished under today's date — repeat is not applied",
     "completedSkipped": "{{n}} of them are assigned to someone else, so they were added without being marked complete",
     "close": "Close",
-    "assigneeUnknown": "Unknown assignee"
+    "assigneeUnknown": "Unknown assignee",
+    "recurRuleClear": "Clear repeat rule",
+    "workstreamChip": "Group {{name}}",
+    "instructionShow": "Show guide ({{n}} chars)",
+    "instructionHide": "Hide guide",
+    "instructionTruncated": "The guide was too long and got trimmed"
   },
   "bar": {
     "resumeTitle": "In progress",

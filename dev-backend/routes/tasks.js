@@ -8,7 +8,7 @@ const { getUserScope, taskListWhere, canAccessTask, isMemberOrAbove, assertAssig
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { getProgressBaselines, deltaOf, estDoneOf, actDoneOf } = require('../services/progressBaseline');
 const { todayInTz, mondayOfDateStr, addDaysStr, mondayOfIsoWeek, tzOffsetOf } = require('../utils/datetime');
-const { rruleFromRecurrence } = require('../services/rruleFromRecurrence');
+const { rruleFromRecurrence, sanitizeRRule } = require('../services/rruleFromRecurrence');
 // N+34 — 워크스페이스 표시명 helper. BusinessMember.name 우선, User.name fallback.
 // 사용자 호소: "담당자 이름이 워크스페이스 프로필 이름이 아니야" — User.name 직접 사용 회귀 fix.
 const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../services/displayName');
@@ -535,6 +535,18 @@ router.post('/ai-create', authenticateToken, ...aiCreateLimiter, async (req, res
       if (p) projectContext = `${p.name}${p.description ? ' — ' + String(p.description).slice(0, 200) : ''}`;
     }
 
+    // #353 ② — 업무그룹(워크스트림) 이름을 LLM 에 알려준다. 안 알려주면 이름을 지어내고,
+    //   지어낸 이름은 confirm 의 보수 매칭에서 전부 미배치로 떨어져 기능이 있으나 마나가 된다.
+    let workstreamNames = [];
+    if (project_id) {
+      const { ProjectWorkstream } = require('../models');
+      // ★ 컬럼은 `title` 이다 — `name` 으로 읽으면 SQL 이 통째로 죽어(Unknown column) AI 업무추가 전체가 500 이 된다.
+      const wsRows = await ProjectWorkstream.findAll({
+        where: { project_id, business_id }, attributes: ['title'], order: [['order_index', 'ASC'], ['id', 'ASC']], limit: 30,
+      });
+      workstreamNames = wsRows.map((w) => w.title).filter(Boolean);
+    }
+
     const tz = await getWorkspaceTz(business_id);
     const todayLocal = todayInTz(tz);
 
@@ -544,6 +556,7 @@ router.post('/ai-create', authenticateToken, ...aiCreateLimiter, async (req, res
       businessId: business_id,
       projectContext,
       members,
+      workstreams: workstreamNames,
       targetDate: target_date || null,
       todayLocal,
       language: language || (req.user.language === 'en' ? 'en' : 'ko'),
@@ -608,6 +621,28 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
     const created = [];
     const actor = actorFrom(req);
 
+    // #353 ② — 후보의 workstream_hint(이름) → 실제 workstream_id. **이 프로젝트 것만** 대조한다.
+    //   매칭은 보수적으로: 공백·대소문자만 무시한 정확 일치. 부분 일치를 허용하면 "리서치" 가
+    //   "리서치 운영" 에 붙는 식으로 조용히 오배치된다 — 못 찾으면 미배치가 옳다(담당자 매칭과 같은 규칙).
+    const wsByName = new Map();
+    if (project_id) {
+      const { ProjectWorkstream } = require('../models');
+      const wsRows = await ProjectWorkstream.findAll({ where: { project_id, business_id }, attributes: ['id', 'title'] });
+      for (const w of wsRows) {
+        if (w.title) wsByName.set(String(w.title).replace(/\s+/g, '').toLowerCase(), w.id);
+      }
+    }
+    const matchWorkstream = (hint) => {
+      if (!hint || !wsByName.size) return null;
+      return wsByName.get(String(hint).replace(/\s+/g, '').toLowerCase()) || null;
+    };
+
+    // #353 ④ — depends_on_index 는 여태 확정 시점에 **버려졌다**(task_links 생성 0건).
+    //   생성이 끝난 뒤 한 번에 착지시킨다 — 루프 안에서 걸면 아직 안 만들어진 후보를 가리킬 수 있고,
+    //   중간 실패 시 멈추는 부분 성공 계약과도 충돌한다.
+    const idxToTaskId = new Map();
+    const pendingLinks = [];
+
     // 후보를 하나씩 실제 업무로 — 생성은 행동 계층 단일 착지점을 지난다.
     //   중간에 실패하면 그 지점에서 멈춘다(이미 만든 것은 남는다) — 프론트의 부분 성공 UX 계약이다.
     for (const c of candidates) {
@@ -624,12 +659,26 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
       const wantCompleted = c.completed === true || c.completed === 'true';
       const dueStr = dueOff !== null ? addDaysStr(todayLocal, dueOff) : (wantCompleted ? todayLocal : null);
 
+      // #353 ① — 후보가 RRULE 을 직접 들고 오면 그것을 쓴다(평일·말일·BYSETPOS·분기·종료조건).
+      //   클라이언트가 보낸 값이므로 **여기서 다시 검증한다** — 프리셋 폴백은 그대로 남긴다(하위호환).
+      const rrFromCandidate = wantCompleted ? null : sanitizeRRule(c.recurrence_rule).rule;
+      const effectiveRule = rrFromCandidate
+        || ((!wantCompleted && dueOff !== null) ? rruleFromRecurrence(c.recurrence, addDaysStr(todayLocal, dueOff)) : null);
+
+      // #353 ③ — 장문 실행 지침은 description(요약) 뒤에 이어 붙여 저장한다.
+      //   후보 응답에서는 두 필드가 분리돼 있어야 미리보기가 요약만 보여줄 수 있다 — 병합은 저장 시점에.
+      const descBase = c.description ? String(c.description).slice(0, 2000) : '';
+      const instr = c.instruction ? String(c.instruction).slice(0, 8000) : '';
+      const mergedDescription = instr
+        ? (descBase ? `${descBase}\n\n${instr}` : instr)
+        : (descBase || null);
+
       const result = await taskActions.createTask(actor, {
         businessId: business_id,
         projectId: project_id || null,
         ...ctxFields,
         title,
-        description: c.description ? String(c.description).slice(0, 2000) : null,
+        description: mergedDescription,
         // ★ `|| req.user.id` 를 두면 **항상 명시값**이 되어 프로젝트 기본담당자 체인이
         //   영원히 죽은 코드가 된다. 미지정은 미지정으로 넘기고, 체인(기본담당자→PM→생성자)은
         //   createTask 가 판단한다 — 사람·AI·Cue 가 같은 규칙을 쓰게 하는 지점이다.
@@ -637,9 +686,10 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
         startDate: startOff !== null ? addDaysStr(todayLocal, startOff) : null,
         dueDate: dueStr,
         estimatedHours: rawEstimated,
-        // 정기 루틴 — 후보의 recurrence 를 실제 RRULE 로. 마감일이 첫 발생일이므로 없으면 반복 불가.
-        recurrenceRule: (!wantCompleted && dueOff !== null)
-          ? rruleFromRecurrence(c.recurrence, addDaysStr(todayLocal, dueOff)) : null,
+        // 정기 루틴 — 마감일이 첫 발생일이므로 없으면 반복 불가(task_actions 가 due 없는 반복을 거절한다).
+        recurrenceRule: (dueStr && effectiveRule) ? effectiveRule : null,
+        // #353 ② — 업무그룹 배치. task_actions 가 프로젝트 소속인지 다시 검증한다(오배치·테넌트 차단).
+        workstreamId: matchWorkstream(c.workstream_hint),
       }, {
         // 이 경로의 고유 규칙 (통일 금지 — 프론트가 이 차이에 기대고 있다):
         keepEstimateForCue: true,          // 담당=Cue 면 요청 업무여도 예측시간을 남긴다
@@ -675,9 +725,44 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
       await applyMemberDisplayName([fullJson], business_id, ['assignee', 'requester']);
       if (completedSkipped) fullJson.completed_skipped = completedSkipped;
       created.push(fullJson);
+
+      // #353 ④ — 후보 순번 → 실제 업무 id. 링크는 전 후보 생성 후 한 번에 건다.
+      const selfIdx = Number.isInteger(c.idx) ? c.idx : created.length - 1;
+      idxToTaskId.set(selfIdx, result.data.task.id);
+      if (Number.isInteger(c.depends_on_index) && c.depends_on_index !== selfIdx) {
+        pendingLinks.push({ from: selfIdx, to: c.depends_on_index });
+      }
     }
 
-    return successResponse(res, { created, count: created.length });
+    // #353 ④ — 관련 업무 링크 착지. 선택 해제돼 만들어지지 않은 후보를 가리키는 링크는 조용히 건너뛴다
+    //   (사용자가 일부만 고르는 것은 정상 흐름이다 — 그것 때문에 생성 전체를 실패시키지 않는다).
+    // ※ 알려진 한계: 위 루프가 **중간에 실패해 return** 하면 여기까지 오지 못하므로, 그때까지 만들어진
+    //   업무들 사이의 링크는 걸리지 않는다(업무는 남는다 — 부분 성공 계약). 사용자가 상세에서 직접 걸 수 있다.
+    let linked = 0;
+    for (const { from, to } of pendingLinks) {
+      const a = idxToTaskId.get(from);
+      const b = idxToTaskId.get(to);
+      if (!a || !b || a === b) continue;
+      const [x, y] = sortPair(a, b);
+      try {
+        const [link, isNew] = await TaskLink.findOrCreate({
+          where: { task_a_id: x, task_b_id: y },
+          defaults: { task_a_id: x, task_b_id: y, link_type: 'related', created_by: req.user.id },
+        });
+        if (isNew) {
+          linked += 1;
+          await AuditLog.create({
+            user_id: req.user.id, business_id,
+            action: 'task_link.added', target_type: 'TaskLink', target_id: link.id,
+            new_value: { source_task_id: a, target_task_id: b, via: 'ai_create_confirm' },
+          }).catch(() => null);
+        }
+      } catch (e) {
+        console.warn('[ai-create/confirm] task link failed', a, b, e.message);
+      }
+    }
+
+    return successResponse(res, { created, count: created.length, linked });
   } catch (err) { next(err); }
 });
 
@@ -896,15 +981,13 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
       } else {
         const finalDue = (due_date !== undefined ? due_date : task.due_date);
         if (!finalDue) return errorResponse(res, 'due_date is required for recurring tasks', 400);
-        try {
-          const { RRule } = require('rrule');
-          RRule.parseString(recurrence_rule);
-        } catch (e) {
-          return errorResponse(res, `Invalid recurrence_rule: ${e.message}`, 400);
-        }
+        // ★ 생성 경로와 **같은 관문**을 지난다 (Fable 구현 검증 2026-08-30 권고).
+        //   수정만 열어 두면 만들 때 막힌 값을 고칠 때 넣을 수 있다.
+        const checked = sanitizeRRule(recurrence_rule);
+        if (!checked.rule) return errorResponse(res, `Invalid recurrence_rule: ${checked.reason}`, 400);
         const { computeNextOccurrence } = require('../services/recurringTaskGenerator');
-        updates.recurrence_rule = recurrence_rule;
-        updates.next_occurrence_at = computeNextOccurrence(recurrence_rule, finalDue, 1);
+        updates.recurrence_rule = checked.rule;
+        updates.next_occurrence_at = computeNextOccurrence(checked.rule, finalDue, 1);
       }
     }
     // 프로젝트 이관 허용 — 같은 business 내 프로젝트여야 함

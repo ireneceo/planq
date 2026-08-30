@@ -32,7 +32,7 @@ function detectVague(title, language) {
   return list.some(w => lower.includes(w.toLowerCase()));
 }
 
-function buildSystemPrompt(language, members, projectContext, targetDate, todayLocal, mode) {
+function buildSystemPrompt(language, members, projectContext, targetDate, todayLocal, mode, workstreams = []) {
   const lang = language === 'en' ? 'English' : 'Korean';
   // quick 모드 — "Cue에게 말하기" 바의 캐주얼 한마디. 분해 최소화(보통 1개), 사용자가 명시적으로
   // 여러 산출물을 나열했을 때만 다중. 일반 모달은 mode 없음(기존 분해 정책 유지).
@@ -47,6 +47,12 @@ This input came from a casual one-line "talk to me" bar. The user expects ONE ta
 - This QUICK rule OVERRIDES the "minimum 3 tasks" / domain-expansion rules below.
 ` : '';
 
+  // #353 ② — 업무그룹(워크스트림) 배치. 이름을 알려주지 않으면 LLM 이 힌트를 지어내고,
+  //   지어낸 이름은 confirm 의 보수 매칭에서 전부 미배치로 떨어진다(기능이 있으나 마나가 된다).
+  const workstreamBlock = (workstreams && workstreams.length)
+    ? `\nProject work groups (workstreams) — set workstream_hint to the EXACT name from this list, or null:\n`
+      + workstreams.map((w) => `  - ${w}`).join('\n')
+    : '';
   const memberLines = members && members.length > 0
     ? members.map(m => `  - ${m.name}${m.job_title ? ` (${m.job_title}` + (m.expertise ? `, ${m.expertise.slice(0, 60)}` : '') + ')' : ''}`).join('\n')
     : '  (no members)';
@@ -96,9 +102,23 @@ Rules:
 - duration_days: working days (exclude weekends in your reasoning). Sequential dependency = next task starts after previous ends.
 - start_offset_days / due_offset_days: integer days from today (today = 0). Respect user's deadline if given. If no deadline, distribute realistically.
 - priority: "low" | "normal" | "high" | "urgent". Critical-path tasks (런칭/배포 등) → "high".
-- recurrence: set to "daily"/"weekly"/"monthly" ONLY when the task is an explicitly repeating routine
-  (예: "매일 논문 읽기", "주간 회고", "매월 뉴스레터"). One-off work → "none". Default "none".
-  A recurring task repeats on the anchor date's weekday (weekly) or day-of-month (monthly).
+- recurrence_rule: an RFC-5545 RRULE string, ONLY when the task is an explicitly repeating routine
+  (예: "매일 논문 읽기", "평일 아침 SNS", "매월 마지막 평일 결산", "분기 보고"). One-off work → null.
+  FREQ MUST be one of DAILY / WEEKLY / MONTHLY / YEARLY. Never HOURLY or MINUTELY.
+  The task's due date is the first occurrence (DTSTART) — do NOT put DTSTART in the string.
+  Examples (copy the shape):
+    매일           FREQ=DAILY
+    평일만         FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR
+    월·수·금       FREQ=WEEKLY;BYDAY=MO,WE,FR
+    격주           FREQ=WEEKLY;INTERVAL=2;BYDAY=MO
+    매월 n일       FREQ=MONTHLY;BYMONTHDAY=15
+    매월 마지막 평일 FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1
+    매월 둘째 화요일 FREQ=MONTHLY;BYDAY=TU;BYSETPOS=2
+    분기마다       FREQ=MONTHLY;INTERVAL=3;BYMONTHDAY=1
+    매년           FREQ=YEARLY;BYMONTH=3;BYMONTHDAY=2
+  End condition — add ONLY when the user stated one: ';COUNT=12' (n times) or ';UNTIL=20261231T235959Z' (until a date).
+- recurrence: legacy field — "none" | "daily" | "weekly" | "monthly". Set it to match recurrence_rule
+  when the rule is one of those simple shapes, otherwise "none". recurrence_rule always wins.
 - completed: true ONLY when the user says the work is ALREADY DONE and just needs to be recorded
   (예: "완료로 추가해줘", "이건 어제 끝냈어 기록만 해줘"). Anything the user still has to do → false. Default false.
   A completed task is recorded on today's date. Never combine completed:true with a recurrence.
@@ -106,6 +126,10 @@ Rules:
 - assignee_hint: short role keyword (예: "디자이너" / "백엔드 개발자" / "마케터" / "기획자"). Match domain expertise.
 - assignee_name: if the user EXPLICITLY named a specific person to handle this task (예: "루아에게 요청", "민수가 맡아"), set the EXACT member name copied from the Workspace members list below. Otherwise null. Names take priority over assignee_hint.
 - description: 1-2 sentences explaining what the deliverable contains. CRITICAL — if the user's input contains any URL/link or specific reference, PRESERVE it verbatim inside the description (never drop the link). Capture the user's actual request faithfully; do NOT replace it with a generic restatement.
+- instruction: OPTIONAL long-form execution guide for the assignee — steps, checklist, standards, references.
+  Write it ONLY when the user asked for a routine/guideline or the task genuinely needs multi-step guidance
+  (반복 루틴은 거의 항상 필요하다). Markdown is fine. Keep it under 6,000 characters. null when not needed.
+  description stays SHORT (1-2 sentences) even when instruction is long — they are different fields.
 - Output ${lang} for titles and descriptions.
 
 ═══ DOMAIN-AWARE EXPANSION (apply when user input is brief) ═══
@@ -127,6 +151,7 @@ ${projectContext ? `Project context: ${projectContext}` : ''}
 
 Workspace members (use these to infer assignee_hint):
 ${memberLines}
+${workstreamBlock}
 
 ═══ OUTPUT FORMAT (strict JSON) ═══
 
@@ -140,7 +165,10 @@ ${memberLines}
       "start_offset_days": <int, today=0>,
       "due_offset_days": <int>,
       "priority": "low" | "normal" | "high" | "urgent",
+      "recurrence_rule": "<RRULE string or null>",
       "recurrence": "none" | "daily" | "weekly" | "monthly",
+      "instruction": "<long-form execution guide or null>",
+      "workstream_hint": "<exact work group name from the list above, or null>",
       "completed": <true only if the user said it is already finished, else false>,
       "assignee_hint": "<short role keyword or null>",
       "assignee_name": "<exact member name if user named a person, else null>",
@@ -224,11 +252,16 @@ function matchMemberByHint(hint, members) {
 }
 
 // 메인 — 미리보기 후보 생성
-async function planTasksFromPrompt({ prompt, businessId, projectContext, members = [], targetDate = null, todayLocal, language = 'ko', mode = null, instruction = null, instructions = null, baseCandidates = null }) {
+const { sanitizeRRule } = require('./rruleFromRecurrence');
+
+// #353 ③ — 장문 실행 지침 상한. description(요약)과 달리 여기엔 체크리스트·기준이 들어간다.
+const MAX_INSTRUCTION_LEN = 8000;
+
+async function planTasksFromPrompt({ prompt, businessId, projectContext, members = [], workstreams = [], targetDate = null, todayLocal, language = 'ko', mode = null, instruction = null, instructions = null, baseCandidates = null }) {
   if (!prompt || !String(prompt).trim()) {
     return { candidates: [], reasoning: '', fallback: true, error: 'empty_prompt' };
   }
-  let systemPrompt = buildSystemPrompt(language, members, projectContext, targetDate, todayLocal, mode);
+  let systemPrompt = buildSystemPrompt(language, members, projectContext, targetDate, todayLocal, mode, workstreams);
   // KNOWLEDGE_LOOP 축1 — 워크스페이스 카테고리별 실측 소요시간 통계 주입 (estimated_hours 정확도 ↑)
   try { systemPrompt += await require('./cueKnowledge').getWorkPatternPromptBlock(businessId); } catch { /* noop */ }
   // 운영 #312 — 재생성은 "처음부터 다시 분해" 가 아니라 **"직전 결과를 고쳐 쓰기"** 다.
@@ -261,7 +294,7 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
   catch { parsed = { tasks: [], reasoning: 'parse_error' }; }
 
   const rawTasks = Array.isArray(parsed.tasks) ? parsed.tasks : [];
-  const candidates = rawTasks.map((t, idx) => {
+  const buildCandidates = (arr) => arr.map((t, idx) => {
     const title = String(t.title || '').trim().slice(0, 200);
     const description = String(t.description || '').trim().slice(0, 1000);
     const estimated_hours = clampInt(t.estimated_hours, 1, 80, 4);
@@ -277,6 +310,17 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
     //   (여기서 안 끊으면 recurringTaskGenerator 가 닫힌 업무에서 다음 회차를 계속 낳는다).
     const completed = t.completed === true || t.completed === 'true';
     const recurrence = completed ? 'none' : recurrenceRaw;
+    // #353 ① — LLM 이 직접 낸 RRULE. 프리셋 3종으로는 평일·말일·BYSETPOS·분기·종료조건을 못 만든다.
+    //   검증은 생성 경로와 같은 관문(sanitizeRRule — FREQ 화이트리스트 포함).
+    //   거절되면 조용히 버리지 않고 **프리셋 폴백**으로 내려간다(하위호환) — reason 은 후보에 실어 보낸다.
+    const rrCheck = completed ? { rule: null, reason: 'completed' } : sanitizeRRule(t.recurrence_rule);
+    const recurrence_rule = rrCheck.rule;
+    const recurrence_rule_rejected = (!completed && t.recurrence_rule && !rrCheck.rule) ? rrCheck.reason : null;
+    // #353 ③ — 장문 실행 지침. description(1~2문장 요약)과 **다른 필드**다.
+    //   여기서 잘라 버리면 루틴 지침이 반쪽으로 저장된다 → 초과분은 아래에서 재생성 1회로 되받는다.
+    const instructionRaw = t.instruction ? String(t.instruction).trim() : '';
+    // #353 ② — 업무그룹 힌트(이름). 실제 배치는 confirm 이 프로젝트 워크스트림과 대조해 판단한다.
+    const workstream_hint = t.workstream_hint ? String(t.workstream_hint).trim().slice(0, 120) : null;
     const assignee_hint = t.assignee_hint ? String(t.assignee_hint).slice(0, 80) : null;
     const assignee_name = t.assignee_name ? String(t.assignee_name).slice(0, 80) : null;
     const depends_on_index = (Number.isInteger(t.depends_on_index) && t.depends_on_index !== idx && t.depends_on_index >= 0)
@@ -307,10 +351,43 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
       assignee_display_name: assignee_user_id
         ? ((members.find(m => m.user_id === assignee_user_id)?.name) || null)
         : null,
+      recurrence_rule,
+      recurrence_rule_rejected,
+      instruction: instructionRaw || null,
+      workstream_hint,
       depends_on_index,
       vague,
     };
   }).filter(c => c.title);
+
+  let candidates = buildCandidates(rawTasks);
+
+  // #353 ③ — 지침이 상한을 넘으면 **자르지 않고 한 번 더 요구한다**.
+  //   자르면 루틴 지침이 문장 중간에서 끊긴 채 저장되고, 사용자는 그것이 잘린 줄도 모른다.
+  //   재생성은 1회로 제한한다(LLM 비용·응답 지연). 그래도 넘치면 그때는 절단하고 **표시**한다.
+  const overLimit = candidates.filter((c) => c.instruction && c.instruction.length > MAX_INSTRUCTION_LEN);
+  if (overLimit.length) {
+    const retryNote = language === 'en'
+      ? `\n\n[Constraint] Each "instruction" must be under ${MAX_INSTRUCTION_LEN} characters. Rewrite them shorter, keeping every step.`
+      : `\n\n[제약] 각 "instruction" 은 ${MAX_INSTRUCTION_LEN}자 미만이어야 한다. 단계를 빠뜨리지 말고 더 짧게 다시 써라.`;
+    try {
+      const retry = await callOpenAi(systemPrompt, userPrompt + retryNote);
+      const reparsed = JSON.parse(retry.content);
+      const retried = buildCandidates(Array.isArray(reparsed.tasks) ? reparsed.tasks : []);
+      if (retried.length) candidates = retried;
+      result.input_tokens += retry.input_tokens || 0;
+      result.output_tokens += retry.output_tokens || 0;
+    } catch (e) {
+      console.warn('[aiTaskPlanner] instruction retry failed', e.message);
+    }
+    // 재생성 후에도 넘치면 절단 — 다만 **잘렸다는 사실을 후보에 실어 보낸다**(조용한 손실 금지)
+    for (const c of candidates) {
+      if (c.instruction && c.instruction.length > MAX_INSTRUCTION_LEN) {
+        c.instruction = c.instruction.slice(0, MAX_INSTRUCTION_LEN);
+        c.instruction_truncated = true;
+      }
+    }
+  }
 
   // #90 — 링크 유실 방지 안전망: 프롬프트의 URL 이 어떤 후보 description 에도 없으면 첫 후보에 보존.
   const urls = (String(prompt).match(/https?:\/\/[^\s<>"')]+/g) || []).slice(0, 3);
