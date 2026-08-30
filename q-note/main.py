@@ -14,7 +14,7 @@ logging.basicConfig(
 logger = logging.getLogger('q-note')
 
 from services.database import init_db
-from routers import live, sessions, llm, voice
+from routers import live, sessions, llm, voice, audio_upload
 
 
 @asynccontextmanager
@@ -44,6 +44,7 @@ app.include_router(sessions.router)
 app.include_router(llm.router)
 app.include_router(live.router)
 app.include_router(voice.router)
+app.include_router(audio_upload.router)   # #383 녹음파일 업로드 → STT
 
 
 @app.get('/health')

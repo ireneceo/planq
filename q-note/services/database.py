@@ -52,6 +52,12 @@ async def _run_migrations(db):
     ('capture_mode', "TEXT NOT NULL DEFAULT 'microphone'"),  # 'microphone' | 'web_conference'
     ('active_recorder_token', 'TEXT'),          # 현재 녹음 중인 탭/기기의 토큰 (UUID)
     ('recorder_heartbeat_at', 'TEXT'),          # 마지막 heartbeat ISO 시각 — 30s 초과 시 stale
+    # #383 녹음파일 업로드 — 과금 원장의 stream_id 를 세션에 **영속** 저장한다.
+    #   qnote_usage_events 는 UNIQUE(stream_id, segment_seq) 로 이중집계를 막는데,
+    #   업로드는 WS 연결이 없어 stream_id 가 없다. 작업 UUID 를 그 자리에 넣고 seq=0 고정.
+    #   영속이라 워커 재기동·재시도에도 같은 키가 나와 멱등이 유지된다.
+    ('upload_job_id', 'TEXT'),
+    ('upload_source_name', 'TEXT'),             # 사용자가 올린 원본 파일명 (표시용)
   ]
   for col, typ in session_cols:
     if not await _column_exists(db, 'sessions', col):
