@@ -1025,12 +1025,17 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const attachScopeLevel = mode === 'new'
     ? (attachScopeProjectId ? 'L2' : 'L3')
     : (detail?.vlevel || (attachScopeProjectId ? 'L2' : 'L3'));
+  // ★ 등급 × 프로젝트 **격자**로 판단한다. projectId 를 먼저 보면 "L3 인데 프로젝트가 연결된 문서"
+  //   에서 "프로젝트 참여자가 볼 수 있어요" 라는 **청중을 좁게 말하는 거짓**이 된다 —
+  //   실제로는 워크스페이스 전체가 본다. 운영에 그 조합이 8건 있었고, dev 에는 0건이라
+  //   dev 실측만으로는 안 잡히는 부류였다(Fable 적발).
+  //   프로젝트 문구는 **L2 이면서 프로젝트가 있을 때만**.
   const attachScopeHint =
     attachScopeLevel === 'L4'
       ? (t('attach.scopeHintPublic', '올린 파일은 나만 보기로 저장됩니다 — 공개 링크에는 본문만 나가요.') as string)
       : attachScopeLevel === 'L1'
         ? (t('attach.scopeHintPrivate', '이 문서는 나만 보기라 올린 파일도 나만 볼 수 있어요.') as string)
-        : attachScopeProjectId
+        : (attachScopeLevel === 'L2' && attachScopeProjectId)
           ? (t('attach.scopeHintProject', '올린 파일은 이 문서와 같은 범위 — 프로젝트 참여자가 볼 수 있어요.') as string)
           : (t('attach.scopeHintWorkspace', '올린 파일은 이 문서와 같은 범위 — 워크스페이스 멤버가 볼 수 있어요.') as string);
 

@@ -505,8 +505,13 @@ function fileListWhereByLevel(scope) {
     //   `canAccessPostByLevel` 의 L2 분기 마지막 줄이 `return fullView || scope.isMember` 이고,
     //   파일 **단건** 검사(`canAccessFileByLevel`)도 같은 폴백을 갖는다. 목록만 이 분기가 없어서
     //   "직접 링크로는 열리는데 목록에는 없는" 파일이 생겼다 — 세 술어를 여기서 맞춘다.
+    //   ★ 컬럼에 **모델 자격을 반드시 붙인다**. 자격 없이 쓰면 folder(FileFolder) 조인이 있는
+    //     쿼리에서 `project_id` 가 양쪽에 있어 "Column 'project_id' in where clause is ambiguous"
+    //     로 **전체 파일 페이지·프로젝트 파일 탭이 통째로 500** 이 된다(Fable 실측).
+    //     조인 없는 표면만 재면 멀쩡해 보인다 — 술어를 고치면 호출처 전수를 표면별로 재야 한다.
     conds.push(sequelize.literal(
-      "vlevel = 'L2' AND project_id IS NULL AND (target_member_ids IS NULL OR JSON_LENGTH(target_member_ids) = 0)"));
+      "`File`.`vlevel` = 'L2' AND `File`.`project_id` IS NULL "
+      + "AND (`File`.`target_member_ids` IS NULL OR JSON_LENGTH(`File`.`target_member_ids`) = 0)"));
   }
   if (fullView) {
     conds.push({ vlevel: 'L2' });
@@ -518,7 +523,9 @@ function fileListWhereByLevel(scope) {
       conds.push({ vlevel: null, visibility: 'L2', project_id: { [Op.in]: scope.projectMemberIds } });
     }
     // N+74 — L2-members (target_member_ids JSON contains userId). MySQL JSON_CONTAINS 사용.
-    conds.push(sequelize.literal(`vlevel = 'L2' AND JSON_CONTAINS(target_member_ids, '${Number(scope.userId)}')`));
+    //   자격 부여 — 위와 같은 이유(조인 시 ambiguous). 여태 안 터진 것은 운이 좋았을 뿐이다.
+    conds.push(sequelize.literal(
+      `\`File\`.\`vlevel\` = 'L2' AND JSON_CONTAINS(\`File\`.\`target_member_ids\`, '${Number(scope.userId)}')`));
   }
   if (conds.length === 0) return { business_id: scope.businessId, id: { [Op.in]: [-1] } };
   return { business_id: scope.businessId, [Op.or]: conds };
