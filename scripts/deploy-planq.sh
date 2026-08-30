@@ -424,13 +424,31 @@ sync_qnote() {
   else
     rsync $RSYNC_FLAGS -e "$RSYNC_SSH" "$DEV_QNOTE/" "$PROD_HOST:$PROD_QNOTE/"
 
-    # 첫 배포 시 venv 자동 생성
-    prod_run "
+    # venv 생성(첫 배포) + requirements 변경 시 재설치
+    #
+    # ★ 여태 `if [ ! -d venv ]` 라 **첫 배포에만** pip install 이 돌았다. 운영 venv 는 이미
+    #   있으므로 requirements.txt 에 새 패키지를 넣어도 **영영 설치되지 않는다** — 코드만
+    #   올라가고 의존성은 안 따라오는, `.env` 플래그가 rsync 보호로 죽던 것과 같은 계열이다
+    #   (memory feedback_env_flag_default_off_dies_silently). 파이썬 쪽만 뚫려 있었다
+    #   (Node 는 매 배포 npm ci 가 돈다). Fable 설계 게이트에서 발각 (2026-08-30).
+    #
+    #   해시를 venv 안에 박아 두고 바뀔 때만 설치한다 — 안 바뀌면 수 밀리초, 바뀌면 그때만 느리다.
+    prod_run "set -o pipefail
       if [ ! -d $PROD_QNOTE/venv ]; then
         echo '[Q Note venv 생성 — 첫 배포]'
         python3 -m venv $PROD_QNOTE/venv
         $PROD_QNOTE/venv/bin/pip install --upgrade pip --quiet
-        $PROD_QNOTE/venv/bin/pip install -r $PROD_QNOTE/requirements.txt --quiet
+      fi
+      REQ=$PROD_QNOTE/requirements.txt
+      STAMP=$PROD_QNOTE/venv/.requirements.sha256
+      NEW=\$(sha256sum \"\$REQ\" | awk '{print \$1}')
+      OLD=\$(cat \"\$STAMP\" 2>/dev/null || echo none)
+      if [ \"\$NEW\" != \"\$OLD\" ]; then
+        echo \"[Q Note requirements 변경 감지 (\$OLD → \$NEW) — pip install 실행]\"
+        $PROD_QNOTE/venv/bin/pip install -r \"\$REQ\" --quiet 2>&1 | tail -5
+        echo \"\$NEW\" > \"\$STAMP\"
+      else
+        echo '[Q Note requirements 무변경 — pip install 건너뜀]'
       fi
     "
     success "Q Note sync 완료"

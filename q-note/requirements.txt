@@ -17,3 +17,11 @@ scikit-learn==1.5.2
 torch==2.5.1
 numpy>=1.24
 openpyxl>=3.1
+
+# 오디오 길이 측정 — 업로드 STT 사전 게이트용 (#383, 2026-08-30)
+#   mutagen: 순수 파이썬, 시스템 의존성 0. M4A(아이폰 음성 메모)·MP3(VBR)·OGG·FLAC·WAV·AIFF 를
+#            헤더만 읽어 duration 반환. ★mvhd 를 손으로 파싱하지 말 것 — 이것이 검증된 상위호환.
+#   soundfile: mutagen 이 못 여는 CAF·W64·RF64 폴백. librosa 의존으로 이미 들어와 있었으나
+#            의도를 문서화하기 위해 명시 고정한다.
+mutagen==1.47.0
+soundfile==0.13.1
