@@ -18,6 +18,8 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { mapApiError } from '../../utils/apiError';
 import { fetchWikiContext, fetchWikiCategories, fetchWikiArticles, type WikiArticleSummary, type WikiCategory } from '../../services/wiki';
 import CueActionCard, { type CueProposal, type CueActionResult } from './CueActionCard';
+import { startQhelperHeartbeat, CUE_ASK_EVENT, type CueAskMsg } from '../../utils/cueAsk';
+import { POPOUT_CHANNEL } from './PopoutBridge';
 
 // 사이클 P7d — 채팅 모드 분리: qhelper(PlanQ 매뉴얼) / workspace(Cue, 워크스페이스 데이터)
 // 'feedback' / 'inquiry' 는 별도 view (채팅 아닌 폼)
@@ -265,20 +267,45 @@ const CueHelpDrawer: React.FC<{
     return () => document.removeEventListener('keydown', onKey);
   }, [open]);
 
-  // cue:ask 이벤트 listen — detail.tab 으로 진입 탭 결정 ('wiki' → Q위키, 'cue' → Cue)
+  // cue:ask — detail.tab 으로 진입 탭 결정 ('wiki' → Q위키, 'cue' → Cue)
+  const applyAsk = useCallback((prefill: string, tab?: 'wiki' | 'cue') => {
+    if (tab === 'wiki') setMode('qhelper');
+    else if (tab === 'cue' && !guestView) setMode('workspace');
+    setOpen(true);
+    if (prefill) setInput(prefill);
+    // 팝아웃 창이면 사용자가 그 창을 보고 있어야 질문이 전달된 것이다.
+    if (standalone) { try { window.focus(); } catch { /* 제스처 밖이면 브라우저가 무시 */ } }
+  }, [guestView, standalone]);
+
   useEffect(() => {
     const onAsk = (e: Event) => {
       const ce = e as CustomEvent<{ prefill?: string; tab?: 'wiki' | 'cue' }>;
-      const prefill = ce.detail?.prefill || '';
-      const tab = ce.detail?.tab;
-      if (tab === 'wiki') setMode('qhelper');
-      else if (tab === 'cue' && !guestView) setMode('workspace');
-      setOpen(true);
-      if (prefill) setInput(prefill);
+      applyAsk(ce.detail?.prefill || '', ce.detail?.tab);
     };
-    window.addEventListener('cue:ask', onAsk as EventListener);
-    return () => window.removeEventListener('cue:ask', onAsk as EventListener);
-  }, [guestView]);
+    window.addEventListener(CUE_ASK_EVENT, onAsk as EventListener);
+    return () => window.removeEventListener(CUE_ASK_EVENT, onAsk as EventListener);
+  }, [applyAsk]);
+
+  // ★ 창 경계 넘기 (Irene 2026-08-30) — Q helper 를 **별도 창**으로 띄워 둔 사용자에게는
+  //   window 이벤트가 닿지 않는다. 검색어를 들고 오는 채널 수신은 **팝아웃 인스턴스만** 한다
+  //   (본 창까지 받으면 같은 질문이 두 곳에 열려 어느 쪽이 내 질문인지 알 수 없다).
+  //   같은 이유로 심박도 팝아웃만 찍는다 — 이 심박이 "본 창 드로어를 열지 말라"는 신호다.
+  useEffect(() => {
+    if (!standalone) return;
+    const stopBeat = startQhelperHeartbeat();
+    let ch: BroadcastChannel | null = null;
+    try { ch = new BroadcastChannel(POPOUT_CHANNEL); } catch { return stopBeat; }
+    const onMsg = (ev: MessageEvent) => {
+      const m = ev.data as CueAskMsg | null;
+      if (!m || typeof m !== 'object' || m.type !== 'cue-ask') return;
+      applyAsk(String(m.prefill || ''), m.tab);
+    };
+    ch.addEventListener('message', onMsg);
+    return () => {
+      stopBeat();
+      try { ch?.removeEventListener('message', onMsg); ch?.close(); } catch { /* noop */ }
+    };
+  }, [standalone, applyAsk]);
 
   // 열린 후 input focus
   useEffect(() => {

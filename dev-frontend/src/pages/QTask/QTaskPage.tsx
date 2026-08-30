@@ -57,6 +57,7 @@ import RowTags from '../../components/QTask/RowTags';
 import OpenTaskPopoutButton from '../../components/QTask/OpenTaskPopoutButton';
 import TagManageModal from '../../components/QTask/TagManageModal';
 import { usePanelStack } from '../../hooks/usePanelStack';
+import { askCue } from '../../utils/cueAsk';
 
 // #249 — 우측 패널을 인라인으로 붙여둘 최소 뷰포트 폭.
 //   이보다 좁으면 overlay(기본 닫힘 + 떠 있는 토글 + ⌘/·Ctrl+\)로 전환해 리스트가 전폭을 쓴다.
@@ -2482,7 +2483,7 @@ const QTaskPage:React.FC=()=>{
               }
               onCta={()=>{setAddInline(false);setAddingTask(true);setNewAssignee(tab==='requested'?null:myId);}}
               secondaryCtaLabel={t('empty.askCue','Cue 에게 묻기')}
-              onSecondaryCta={()=>window.dispatchEvent(new CustomEvent('cue:ask',{detail:{prefill:t('help.cuePrefill') as string}}))}
+              onSecondaryCta={()=>askCue(t('help.cuePrefill') as string)}
             />
             </EmptyCenterWrap>
           )}

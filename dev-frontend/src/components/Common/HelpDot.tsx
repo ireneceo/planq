@@ -10,6 +10,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { askCue as askCueTo } from '../../utils/cueAsk';
 
 export interface HelpDotProps {
   /** popover 본문. \n 으로 줄바꿈 가능 */
@@ -85,7 +86,7 @@ const HelpDot: React.FC<HelpDotProps> = ({ children, askCue, askTab = 'wiki', pl
   const handleAskCue = () => {
     if (!askCue) return;
     // F6 — Q helper 드로어의 진입 탭 지정 (기본 Q위키). 드로어가 detail.tab 으로 분기.
-    window.dispatchEvent(new CustomEvent('cue:ask', { detail: { prefill: askCue, tab: askTab } }));
+    askCueTo(askCue, askTab);
     setOpen(false);
   };
 

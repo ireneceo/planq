@@ -6,6 +6,7 @@ import type { TodoItem, TodoPriority } from '../../services/dashboard';
 import { groupByPriority, PRIORITY_LIST } from '../../services/dashboard';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import EmptyState from '../Common/EmptyState';
+import { askCue } from '../../utils/cueAsk';
 
 /* ─────────────────────────────────────────────
    우선순위 컬러 토큰
@@ -152,7 +153,7 @@ const TodoList: React.FC<Props> = ({ items, loading, groupBy = 'priority', hideH
           title={t('todo.emptyTitle')}
           description={t('todo.emptySub')}
           secondaryCtaLabel={t('todo.emptyAskCue', 'Cue 에게 묻기') as string}
-          onSecondaryCta={() => window.dispatchEvent(new CustomEvent('cue:ask', { detail: { prefill: t('todo.help.cuePrefill') as string } }))}
+          onSecondaryCta={() => askCue(t('todo.help.cuePrefill') as string)}
         />
       </Shell>
     );

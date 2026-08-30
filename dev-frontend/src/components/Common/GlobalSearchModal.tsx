@@ -11,6 +11,7 @@ import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import { visibleNavMenus, SECTION_LABEL_KEY, type NavMenuEntry } from '../../config/navMenus';
 import Spinner from './Spinner';
+import { askCue } from '../../utils/cueAsk';
 
 interface Props {
   open: boolean;
@@ -185,7 +186,7 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
               onClick={() => {
                 const q = query.trim();
                 onClose();
-                window.dispatchEvent(new CustomEvent('cue:ask', { detail: { prefill: q, tab: 'cue' } }));
+                askCue(q, 'cue');
               }}>
               <TypeBadge $color="#F43F5E">{t('search.cueBadge') as string}</TypeBadge>
               <HitMain>
