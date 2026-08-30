@@ -1013,6 +1013,14 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     setError(null);
   };
 
+  // 첨부가 실제로 올라가는 범위와 **같은 규칙**으로 안내 문구를 만든다.
+  //   문구를 따로 계산하면 저장 동작과 갈라져 화면이 거짓말을 하게 된다.
+  //   (프로젝트 있으면 L2 / 없으면 L3 — persistAttachments 호출부와 동일)
+  const attachScopeProjectId = scope.type === 'project' ? scope.projectId : projectDraft;
+  const attachScopeHint = attachScopeProjectId
+    ? (t('attach.scopeHintProject', '올린 파일은 이 문서와 같은 범위 — 프로젝트 참여자가 볼 수 있어요.') as string)
+    : (t('attach.scopeHintWorkspace', '올린 파일은 이 문서와 같은 범위 — 워크스페이스 멤버가 볼 수 있어요.') as string);
+
   // 예약된 첨부(신규 업로드 + 기존 파일 선택)를 post 에 반영한다.
   //   신규 작성·편집 **양쪽이 같은 경로**를 쓴다 — 한쪽에만 있어서 편집 모드 첨부가 통째로 유실됐다(#365).
   //   업로드가 실패해도 **본문 저장은 되돌리지 않는다**. 파일 하나 때문에 쓴 글을 잃게 하지 않는다.
@@ -1051,11 +1059,11 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     const RANK: Record<string, number> = { L1: 1, L2: 2, L3: 3, L4: 4 };
     const uploadedLevel = target.projectId ? 'L2' : 'L1';
     let scopeFailed = 0;
-    // ★ L2 는 "프로젝트" 또는 "대상 멤버" 로 볼 사람이 정해져야 성립한다. 프로젝트 없이 L2 로 올리면
-    //   파일 술어에는 작성자 예외 조항이 **없어서** 업로더 본인조차 못 보게 된다 — 원래 문제보다 나쁘다.
-    //   그 조합이면 아예 손대지 않고 L1(본인만) 로 둔다.
-    const audienceless = target.vlevel === 'L2' && !target.projectId;
-    if (!audienceless && target.vlevel !== 'L4' && RANK[uploadedLevel] < RANK[target.vlevel]) {
+    // (#378) 옛 주석: "프로젝트 없이 L2 면 업로더 본인조차 못 보게 되니 손대지 않는다" —
+    //   그건 **파일 목록 술어에 업로더 예외가 없던 것**이 원인이었고, 이제 봉합됐다
+    //   (`access_scope.js fileListWhereByLevel` — 단건 검사엔 원래 있었다).
+    //   프론트에서 우회하던 예외를 제거한다. 청중 없는 L2 문서의 첨부도 문서와 같은 등급으로 올린다.
+    if (target.vlevel !== 'L4' && RANK[uploadedLevel] < RANK[target.vlevel]) {
       for (const fid of uploadedIds) {
         try {
           await updateFileVisibility(scope.businessId, fid,
@@ -1756,6 +1764,10 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
 
               <AttachSection>
                 <AttachTitle>{t('attachments', '첨부 파일·문서')}</AttachTitle>
+                {/* 알아야 하는 운영 기준은 **그 자리에서 한 줄로**(Irene 2026-08-30).
+                    규칙을 설명하지 않고 "이 문서 기준으로 어떻게 되는지" 상태로 쓴다 —
+                    안 쓰면 "왜 다른 사람에겐 안 보이지" 를 나중에 겪는다(#378). */}
+                <AttachScopeHint>{attachScopeHint}</AttachScopeHint>
                 {mode === 'edit' && detail && detail.attachments.length > 0 && (
                   <AttachList>
                     {detail.attachments.map(a => (
@@ -1953,6 +1965,10 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               {(detail.attachments.length > 0 || (detail.linked_posts && detail.linked_posts.length > 0)) && (
                 <AttachSection>
                   <AttachTitle>{t('attachments', '첨부 파일·문서')}</AttachTitle>
+                {/* 알아야 하는 운영 기준은 **그 자리에서 한 줄로**(Irene 2026-08-30).
+                    규칙을 설명하지 않고 "이 문서 기준으로 어떻게 되는지" 상태로 쓴다 —
+                    안 쓰면 "왜 다른 사람에겐 안 보이지" 를 나중에 겪는다(#378). */}
+                <AttachScopeHint>{attachScopeHint}</AttachScopeHint>
                   {detail.attachments.length > 0 && (
                     <AttachList>
                       {detail.attachments.map(a => (
@@ -2718,6 +2734,10 @@ const AttachSection = styled.section`
   display: flex; flex-direction: column; gap: 12px;
 `;
 const AttachTitle = styled.div`font-size: 0.8125rem; font-weight: 700; color: #334155;`;
+// 운영 기준 한 줄 안내 — 제목 바로 아래. 길어지면 아무도 안 읽는다.
+const AttachScopeHint = styled.div`
+  font-size: 0.75rem; color: #64748b; line-height: 1.45; margin: -2px 0 6px;
+`;
 const AttachList = styled.div`
   display: flex; flex-direction: column;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 8px; overflow: hidden;

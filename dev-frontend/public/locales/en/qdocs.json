@@ -650,7 +650,9 @@
     "tooLarge": "Exceeds size limit",
     "uploadFailed": "Upload failed",
     "someFailed": "The document was saved, but these files could not be uploaded: {{files}}",
-    "scopeFailed": "Attachments were saved, but their visibility could not be matched to the document. Other members may not be able to see them."
+    "scopeFailed": "Attachments were saved, but their visibility could not be matched to the document. Other members may not be able to see them.",
+    "scopeHintProject": "Files you add follow this document — project members can see them.",
+    "scopeHintWorkspace": "Files you add follow this document — workspace members can see them."
   },
   "autosave": {
     "saving": "Saving draft…",

@@ -484,8 +484,14 @@ function fileListWhereByLevel(scope) {
   if (scope.isPlatformAdmin) return { business_id: scope.businessId };
   const fullView = scope.isOwner || scope.isAdmin;  // admin(N+21) = owner 급 가시성
   const conds = [];
-  // L1 — 본인 업로드 (vlevel 또는 legacy visibility)
-  conds.push({ [Op.or]: [{ vlevel: 'L1' }, { visibility: 'L1' }], uploader_id: scope.userId });
+  // ★ 내가 올린 파일은 등급과 무관하게 나에게 보인다 (#378).
+  //   문서 술어는 이미 그렇다 — `canAccessPostByLevel` 의 `post.author_id === userId → true`.
+  //   그런데 파일은 uploader 조건이 **L1 에만** 걸려 있어, "볼 사람이 정해지지 않은 L2"
+  //   (project_id NULL · target_member_ids 없음) 파일은 **올린 본인조차 못 봤다.**
+  //   같은 어휘를 쓰는 두 술어가 갈라져 있던 것이고, 그래서 문서는 보이는데 그 첨부만
+  //   사라지는 상태가 나왔다(운영 post 77). 프론트에서 우회하지 않고 여기서 맞춘다.
+  //   ※ 노출이 넓어지지 않는다 — 대상은 **자기가 올린 파일**뿐이다.
+  conds.push({ uploader_id: scope.userId });
   if (fullView || scope.isMember) {
     // L3 / L4 / legacy null — 워크스페이스 멤버는 모두 OK
     conds.push({ vlevel: 'L3' });
