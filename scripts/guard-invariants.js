@@ -219,7 +219,9 @@ function checkFontPx() {
         /fontSize:\s*['"`]?[0-9.]+px/.test(l) ||
         /fontSize:\s*[0-9.]+\s*[,}]/.test(l) ||
         /fontSize=\{[0-9.]+\}/.test(l) ||
-        /font-size:\s*\$\{[^}]*\}px/.test(l);
+        /font-size:\s*\$\{[^}]*\}px/.test(l) ||
+        // ④ 축약형  font: 600 13px/1.4 sans   (Fable 게이트 후속 지적 — 지금 잔재 0 일 때 막아둔다)
+        /(^|[^-])font:\s*[^;{}]*[0-9.]+px/.test(l);
       if (bad) hits.push(`${rel(f)}:${i + 1}: ${t.slice(0, 90)}`);
     });
   }
