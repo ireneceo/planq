@@ -195,6 +195,38 @@ function checkI18n() {
 }
 
 // ═══════════════════════════════════════════════
+// 2c. fontpx — font-size 하드코딩 px 차단 (fail-closed, 베이스 0)
+//     앱 전체 글자는 rem 이고 루트 배율(services/fontScale)이 글자만 키운다.
+//     px 로 쓰면 **그 요소만 배율을 안 따라간다** — 사용자에겐 "일부 글자만 안 커진다" 로 보인다.
+//     전환 시점(2026-08-30)에 잔재가 0 이므로 래칫이 아니라 **0 고정 하드 게이트**로 건다.
+//     실제로 이 구멍으로 셀렉트 값 전부가 13px 에 멈춰 있었다(Fable 게이트에서 발각).
+// ═══════════════════════════════════════════════
+function checkFontPx() {
+  const files = walk(`${ROOT}/dev-frontend/src`, ['.ts', '.tsx', '.css']);
+  const hits = [];
+  for (const f of files) {
+    const srcAll = read(f);
+    let inBlock = false;
+    srcAll.split('\n').forEach((l, i) => {
+      const t = l.trim();
+      if (inBlock) { if (t.includes('*/')) inBlock = false; return; }
+      if (t.startsWith('//') || t.startsWith('*')) return;
+      if (t.startsWith('/*') || t.startsWith('{/*')) { if (!t.includes('*/')) inBlock = true; return; }
+      // ① CSS 선언  font-size: 13px      ② JSX 인라인  fontSize: 13 / '13px' / {13}
+      // ③ 동적       font-size: ${...}px
+      const bad =
+        /font-size:\s*[0-9.]+px/.test(l) ||
+        /fontSize:\s*['"`]?[0-9.]+px/.test(l) ||
+        /fontSize:\s*[0-9.]+\s*[,}]/.test(l) ||
+        /fontSize=\{[0-9.]+\}/.test(l) ||
+        /font-size:\s*\$\{[^}]*\}px/.test(l);
+      if (bad) hits.push(`${rel(f)}:${i + 1}: ${t.slice(0, 90)}`);
+    });
+  }
+  report('fontpx', `font-size 하드코딩 px 0건 (rem 전환 유지 · 하드 게이트)`, hits.length === 0, hits.slice(0, 12));
+}
+
+// ═══════════════════════════════════════════════
 // 2b. parity — locales ko/en 키 패리티 래칫 + i18n.ts ns 등록 하드 게이트
 //     "기획 단계부터 ko/en 동시 작성" (CLAUDE.md 다국어 필수) 자동 검출.
 // ═══════════════════════════════════════════════
@@ -1271,6 +1303,7 @@ const CATEGORIES = {
   mock: checkMock,
   i18n: checkI18n,
   parity: checkParity,
+  fontpx: checkFontPx,
   tenant: checkTenant,
   pagination: checkPagination,
   notify: checkNotify,

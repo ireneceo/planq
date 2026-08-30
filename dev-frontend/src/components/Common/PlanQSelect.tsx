@@ -105,11 +105,18 @@ function buildStyles(
   const minHeight = SIZE_HEIGHT[size];
   const fontSizePx = SIZE_FONT[size];
   const fontSize = rem(fontSizePx);
+  /* ★ 폰에서는 1rem(16px) 아래로 내려가지 않는다 — iOS 가 16px 미만 입력칸에 포커스하면
+     화면을 스스로 확대한다(viewport 의 maximum-scale 을 걷어냈으므로 크기로 막아야 한다).
+     react-select 의 내부 input 은 **인라인 `font: inherit`** 라 어떤 stylesheet 규칙도
+     못 이긴다 — 그래서 index.css 가 아니라 **부모 슬롯들**을 여기서 올린다
+     (Fable 게이트 지적: 검색 input 이 13px 로 남아 있었다). */
+  const phoneFloor = { '@media (max-width: 640px)': { fontSize: `max(1rem, ${fontSize})` } };
   const optionPadding = density === 'compact' ? '5px 10px' : '10px 12px';
 
   return {
     control: (base, state) => ({
       ...base,
+      ...phoneFloor,
       minHeight,
       backgroundColor: state.isDisabled ? '#F8FAFC' : C.white,
       borderColor: hasError
@@ -130,21 +137,25 @@ function buildStyles(
     }),
     valueContainer: (base) => ({
       ...base,
+      ...phoneFloor,
       padding: size === 'sm' ? '2px 12px' : size === 'lg' ? '8px 16px' : '4px 14px',
       fontSize,
     }),
     placeholder: (base) => ({
       ...base,
+      ...phoneFloor,
       color: C.neutral400,
       fontSize,
     }),
     singleValue: (base) => ({
       ...base,
+      ...phoneFloor,
       color: C.neutral900,
       fontSize,
     }),
     input: (base) => ({
       ...base,
+      ...phoneFloor,
       color: C.neutral900,
       fontSize,
       margin: 0,

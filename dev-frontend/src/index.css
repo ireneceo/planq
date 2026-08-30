@@ -277,9 +277,15 @@ code {
    실측: 입력칸이 전부 13~14px 이었다(16px 이상 0개).
    ★ 이 둘은 세트다 — maximum-scale 만 걷고 이걸 빼면 채팅 입력마다 화면이 튄다. */
 @media (max-width: 640px) {
+  /* ★ :not() 3연쇄는 **특이도를 맞추기 위한 것**이다 (Fable 게이트 지적, 2026-08-30).
+     textarea·select 를 그냥 태그로 쓰면 특이도 (0,0,1) 이라 styled-components 가 만드는
+     클래스(.sc-x.hash = (0,2,0))에 **전부 진다** — 실측: /tasks 의 Cue 텍스트영역 13.5px,
+     /profile 의 bio 14px 가 이 규칙을 무시하고 있었다.
+     textarea·select 에는 type 속성이 없으므로 아래 :not() 은 **항상 참**이고,
+     하는 일은 특이도를 input 과 같은 (0,3,1) 로 올리는 것뿐이다. */
   input:not([type='checkbox']):not([type='radio']):not([type='range']),
-  textarea,
-  select {
+  textarea:not([type='checkbox']):not([type='radio']):not([type='range']),
+  select:not([type='checkbox']):not([type='radio']):not([type='range']) {
     font-size: max(1rem, 1em);
   }
 }
