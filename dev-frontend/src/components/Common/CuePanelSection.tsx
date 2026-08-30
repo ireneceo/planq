@@ -154,7 +154,7 @@ export default function CuePanelSection({ surface, subjectId, location, contextP
           placeholder={t('cuePanel.placeholder', 'Cue 에게 물어보기 (⌘/Ctrl+Enter)') as string}
           aria-label={t('cuePanel.aria', 'Cue 에게 물어보기') as string}
         />
-        <SendBtn type="button" onClick={chat.submit} disabled={!chat.input.trim() || chat.submitting}>
+        <SendBtn type="button" onClick={() => chat.submit()} disabled={!chat.input.trim() || chat.submitting}>
           {chat.submitting ? (t('cuePanel.sending', '…') as string) : (t('cuePanel.send', '묻기') as string)}
         </SendBtn>
       </InputRow>

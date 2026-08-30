@@ -210,7 +210,9 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
                 넘기는 다리 하나면 된다. `cue:ask` 이벤트가 이미 있어 신규 배선이 없다. */}
           {query.trim() && cue.turns.length === 0 && (
             <Hit type="button" data-testid="search-ask-cue"
-              onClick={() => { cue.setInput(query.trim()); cueSubmit(); }}>
+              // ★ 질문을 **인자로** 넘긴다. setInput 후 곧바로 submit() 하면 빈 클로저를 읽어
+              //   조용히 아무 일도 안 일어난다(Fable 적발 — 두 번 눌러야 발화했다).
+              onClick={() => cueSubmit(query.trim())}>
               <TypeBadge $color="#F43F5E">{t('search.cueBadge') as string}</TypeBadge>
               <HitMain>
                 <HitTitle>{t('search.askCue', { q: query.trim() }) as string}</HitTitle>

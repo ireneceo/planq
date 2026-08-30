@@ -71,8 +71,23 @@ export function useCueChat(opts: Options) {
     });
   }, [onTurnsChange]);
 
-  const submit = useCallback(async () => {
-    const q = input.trim();
+  /**
+   * 질문을 보낸다.
+   * @param qOverride 명시 질문. **입력창을 거치지 않고 바로 물을 때 반드시 이걸 쓴다.**
+   *
+   * ★ 왜 인자가 필요한가 (Fable 적발):
+   *   `submit()` 은 클로저의 `input` 을 읽는데, 제출 직후 `setInput('')` 으로 비운다.
+   *   그래서 "입력값을 setInput 으로 넣고 곧바로 submit()" 하는 호출부는 React 배칭 탓에
+   *   **여전히 빈 문자열 클로저를 읽어 조용히 빠져나간다**(`if (!q) return`).
+   *   실제로 검색창에서 [지우고 검색으로] 뒤 같은 검색어로 다시 누르면 아무 일도 안 일어났고,
+   *   두 번 눌러야 발화했다 — 오류도 안 나서 "그냥 안 눌렸나" 로 보인다.
+   *   setInput 재동기화로 때우지 않는다. 질문은 부르는 쪽이 알고 있으니 그대로 받는다.
+   *
+   * ★ 함정: `onClick={submit}` 처럼 **직접 넘기지 말 것** — 클릭 이벤트 객체가 qOverride 자리에
+   *   들어간다. `onClick={() => submit()}` 로 감싼다. (타입이 잡아주지만 any 경유면 샌다.)
+   */
+  const submit = useCallback(async (qOverride?: string) => {
+    const q = (qOverride ?? input).trim();
     if (!q || submitting) return;
     setSubmitting(true);
     setTurns((prev) => [...prev.slice(-4), { q, a: '', loading: true }]);   // 최근 5턴 유지
