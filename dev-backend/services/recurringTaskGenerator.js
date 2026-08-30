@@ -405,18 +405,52 @@ async function runDailyRecurringTaskGen(today = new Date(), io = null) {
   // #350 — 실행 전체에서 알림을 모았다가 (사용자 × 워크스페이스) 당 1건만 보낸다.
   const notifyBucket = new Map();
 
-  const out = { ok: 0, skip: 0, fail: 0, created: 0, notified: 0, results: [] };
+  const out = { ok: 0, skip: 0, fail: 0, created: 0, skipped: 0, notified: 0, results: [] };
   for (const p of parents) {
     try {
       const r = await generateOneSeries(p, today, io, notifyBucket);
       const n = r.created_count || 0;
       if (n > 0) { out.ok += 1; out.created += n; }
       else out.skip += 1;
+      out.skipped += r.skipped_count || 0;
       out.results.push(r);
     } catch (e) {
       console.warn('[recurringTask] parent', p.id, 'crash', e.message);
       out.fail += 1;
       out.results.push({ parent_id: p.id, error: e.message });
+    }
+  }
+
+  // ★ #349 의 반쪽 구멍 (Fable 설계 게이트 2026-08-30) — 지난 미수행 회차 정리가
+  //   **생성 대상 parent 에만** 돌고 있었다. 위 parents 조회가 `next_occurrence_at <= cutoff` 를
+  //   요구하기 때문이다. generateOneSeries 안의 조기반환(series_ended · not_due_yet)은 이미
+  //   고쳤지만 **바깥 WHERE 가 그대로 남아**, 정리는 여전히 생성의 곁가지였다.
+  //   실제 피해 폭: 월간 시리즈는 한 달 중 ~3주, 분기는 ~11주, 연간은 ~51주 동안 정리가 안 돌고,
+  //   종결된 시리즈(next_occurrence_at NULL)는 **영영** 안 돈다.
+  //   → 정리는 생성과 독립된 일이므로 **대상도 독립으로 조회한다** (auto_skip 시리즈 전체).
+  const handledIds = parents.map((p) => p.id);
+  const cleanupOnly = await Task.findAll({
+    where: {
+      recurrence_rule: { [Op.ne]: null },
+      recurrence_parent_id: null,
+      miss_policy: 'auto_skip',
+      ...(handledIds.length ? { id: { [Op.notIn]: handledIds } } : {}),
+    },
+  });
+  for (const p of cleanupOnly) {
+    try {
+      const skippedIds = await skipMissedOccurrences(p, today);
+      if (skippedIds.length) {
+        out.skipped += skippedIds.length;
+        out.results.push({
+          parent_id: p.id, cleanup_only: true,
+          skipped_ids: skippedIds, skipped_count: skippedIds.length,
+        });
+      }
+    } catch (e) {
+      console.warn('[recurringTask] cleanup parent', p.id, 'crash', e.message);
+      out.fail += 1;
+      out.results.push({ parent_id: p.id, cleanup_only: true, error: e.message });
     }
   }
 
@@ -427,6 +461,7 @@ async function runDailyRecurringTaskGen(today = new Date(), io = null) {
 module.exports = {
   runDailyRecurringTaskGen,
   generateOneSeries,
+  skipMissedOccurrences,
   createOccurrence,
   flushRecurringNotifications,
   computeNextOccurrence,
