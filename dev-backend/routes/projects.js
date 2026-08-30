@@ -3428,7 +3428,73 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
       }
     }
 
-    // 4) meeting (Q Note) 자료는 별도 스토리지 — 현재 연동 미구현, 빈 배열 (추후 확장)
+    // 4) 문서(포스트) 첨부 — 운영 #378 "프로젝트 > 파일에도 그렇고. 첨부된 것만 남아?"
+    //
+    //   ★ 이 블록이 **없었다.** 워크스페이스 전체 파일(all-files)에는 post 소스가 있는데
+    //     프로젝트 파일에는 direct/chat/task 만 있었다 — 같은 파일 탭인데 화면마다 다르게 보였다.
+    //     그래서 프로젝트 문서에 붙인 첨부 중 **File.project_id 가 비어 있는 것**(프로젝트 없이
+    //     올린 뒤 문서를 프로젝트에 붙인 경우 등)은 프로젝트 탭에서 영영 안 보였다.
+    //     direct 소스는 파일 행의 project_id 만 보기 때문이다.
+    //   기준은 **문서가 이 프로젝트 것인가** — 파일 행이 프로젝트를 가리키는지가 아니다.
+    //   direct 와 중복 노출되는 것은 all-files 와 같은 의도(좌측 "문서" 필터에서 모아 보기).
+    {
+      const { Post, PostAttachment } = require('../models');
+      const projPosts = await Post.findAll({
+        where: { business_id: bizId, project_id: projId },
+        attributes: ['id', 'title'],
+      });
+      if (projPosts.length > 0) {
+        const postMap = new Map(projPosts.map((p) => [p.id, p]));
+        const postAtts = await PostAttachment.findAll({
+          where: { post_id: { [Op.in]: projPosts.map((p) => p.id) } },
+          order: [['created_at', 'DESC']],
+          limit: 2000,
+        });
+        if (postAtts.length > 0) {
+          // ★ 노출 등급은 direct 와 **같은 단일 원천**(fileListWhereByLevel)으로 거른다.
+          //   첨부라는 이유로 게이트를 건너뛰면 L1(본인만) 파일이 이름·크기·미리보기까지 샌다
+          //   — 이 라우트 앞부분의 가시성 게이트 주석과 같은 이유다.
+          const attFiles = await File.findAll({
+            where: { ...levelWhere, id: { [Op.in]: [...new Set(postAtts.map((a) => a.file_id))] }, deleted_at: null },
+            include: [{ model: User, as: 'uploader', attributes: ['id', 'name'] }],
+          });
+          const fileMap = new Map(attFiles.map((f) => [f.id, f]));
+          for (const a of postAtts) {
+            const f = fileMap.get(a.file_id);
+            if (!f) continue;                      // 등급 밖이거나 삭제됨
+            const post = postMap.get(a.post_id);
+            results.push({
+              id: `post-${a.id}`,
+              source: 'post',
+              file_name: f.file_name,
+              file_size: Number(f.file_size),
+              mime_type: f.mime_type,
+              uploader_id: f.uploader_id,
+              uploader_name: f.uploader ? f.uploader.name : null,
+              uploaded_at: (f.createdAt || f.created_at || new Date()).toISOString
+                ? (f.createdAt || f.created_at).toISOString() : new Date().toISOString(),
+              download_url: f.storage_provider === 'gdrive' && f.external_url
+                ? f.external_url : `/api/files/${bizId}/${f.id}/download`,
+              preview_url: previewUrlForFile(f),
+              external_id: f.external_id,
+              external_url: f.external_url,
+              context: post ? { kind: 'post', id: post.id, label: post.title } : undefined,
+              folder_id: null,
+              deletable: false,                    // 원본은 문서에서 관리한다
+              storage_provider: f.storage_provider,
+              // 이 직렬화는 all-files 쪽과 짝이다 — 한쪽만 고치면 화면마다 다르게 보인다.
+              gdrive_mirror_id: f.gdrive_mirror_id || null,
+              gdrive_unmirrored: f.storage_provider === 'planq' && !f.gdrive_mirror_id && !!f.gdrive_mirrored_at,
+              visibility: f.visibility,
+              project_id: f.project_id,
+              tags: f.tags || [],
+            });
+          }
+        }
+      }
+    }
+
+    // 5) meeting (Q Note) 자료는 별도 스토리지 — 현재 연동 미구현, 빈 배열 (추후 확장)
 
     results.sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at));
     // 업로더/발신자 이름 = 워크스페이스 표시명 (flat uploader_name 계정명 누출 fix, 2026-07-06)
