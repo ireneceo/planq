@@ -13,6 +13,8 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import DetailFallback from '../../components/Common/DetailFallback';
+import type { DetailStatus } from '../../hooks/useDetailResource';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import PageShell from '../../components/Layout/PageShell';
 import HelpDot from '../../components/Common/HelpDot';
@@ -130,6 +132,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
   const [bundleShare, setBundleShare] = useState<{ url: string; count: number | null; label: string } | null>(null);
   const [bundleCopied, setBundleCopied] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [detailStatus, setDetailStatus] = useState<DetailStatus>('idle');
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   // ★ 목록을 못 불러온 것과 "자료가 없는 것" 은 다른 상태다. 여태는 실패해도 빈 상태가 떠서
   //   사용자가 **자료가 사라졌다** 고 읽었다(운영 500 재현으로 실측).
@@ -328,12 +331,31 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
 
   // ─── DetailDrawer fetch ───
   useEffect(() => {
-    if (!detailId || !businessId) { setDetail(null); return; }
+    if (!detailId || !businessId) { setDetail(null); setDetailStatus('idle'); return; }
+    // ★ 실패를 삼키지 않는다 (2026-08-30). 여태는 `if (j.success)` 만 처리해서
+    //   404·403·429·500 이 전부 **드로어가 열린 채 내용 없음** 으로 떨어졌다.
+    let cancelled = false;
     setDetailLoading(true);
-    apiFetch(`/api/businesses/${businessId}/kb/documents/${detailId}`)
-      .then(r => r.json())
-      .then(j => { if (j.success) setDetail(j.data); })
-      .finally(() => setDetailLoading(false));
+    setDetailStatus('loading');
+    (async () => {
+      try {
+        const r = await apiFetch(`/api/businesses/${businessId}/kb/documents/${detailId}`);
+        if (cancelled) return;
+        if (r.status === 404) { setDetailStatus('not_found'); setDetail(null); return; }
+        if (r.status === 403) { setDetailStatus('forbidden'); setDetail(null); return; }
+        if (!r.ok) { setDetailStatus('error'); setDetail(null); return; }
+        const j = await r.json().catch(() => null);
+        if (cancelled) return;
+        if (!j || j.success === false) { setDetailStatus('error'); setDetail(null); return; }
+        setDetail(j.data);
+        setDetailStatus('ready');
+      } catch {
+        if (!cancelled) { setDetailStatus('error'); setDetail(null); }
+      } finally {
+        if (!cancelled) setDetailLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, [detailId, businessId]);
 
   // 멀티 카테고리 헬퍼 — categories 우선, 없으면 [category] fallback
@@ -939,7 +961,13 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
         </DetailDrawer.Header>
         <DetailDrawer.Body>
           {detailLoading || !detail ? (
-            <Loading>{t('page.loading')}</Loading>
+            /* ★ 로딩과 실패를 구별한다 — 여태는 둘 다 같은 "불러오는 중" 이라
+               404·403·500 에서도 **영원히 로딩** 처럼 보였다 (2026-08-30). */
+            <DetailFallback
+              status={detailLoading || detailStatus === 'ready' ? 'loading' : detailStatus === 'idle' ? 'loading' : detailStatus}
+              onRetry={() => { const id = detailId; setDetailId(null); setTimeout(() => setDetailId(id), 0); }}
+              onBack={() => setDetailId(null)}
+            />
           ) : (
             <DrawerSections>
               <DrawerSection>

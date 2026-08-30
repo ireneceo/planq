@@ -956,5 +956,22 @@
   "download": {
     "pluginMissing": "This app version cannot save files. Please update the app.",
     "saveFailed": "Could not save the file. Please check your device storage."
+  },
+  "detail": {
+    "loading": "Loading…",
+    "retry": "Try again",
+    "backToList": "Back to list",
+    "notfound": {
+      "title": "We could not find this item",
+      "desc": "It may have been deleted or moved. Try finding it again from the list."
+    },
+    "forbidden": {
+      "title": "You do not have access to this",
+      "desc": "It belongs to another workspace, or you do not have permission to view it."
+    },
+    "error": {
+      "title": "We could not load this",
+      "desc": "This may be temporary. Please try again in a moment."
+    }
   }
 }

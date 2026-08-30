@@ -26,7 +26,8 @@ const SUITES = {
   dropdowns: () => require('./canary-dropdowns'),   // 알림↔새소식 규격 일치 + 새 탭으로 열기
   imgresize: () => require('./canary-image-resize'),
   mobileboot: () => require('./canary-mobile-boot'), // 콜드스타트 착지 · 재진입 즉시표시 · Cue 키보드 (저장소+뷰포트+키보드가 합쳐진 뒤에만 존재)
-  trash: () => require('./canary-file-trash'),   // 파일 휴지통 — 삭제를 되돌릴 수 있는가(백엔드 아닌 **화면**에서)
+  trash: () => require('./canary-file-trash'),
+  detailopen: () => require('./canary-detail-open'), // 상세가 실제로 열리는가 — 딥링크 소생 + "없음" 을 말하는가(침묵 금지)   // 파일 휴지통 — 삭제를 되돌릴 수 있는가(백엔드 아닌 **화면**에서)
 
   aiopen: () => require('./canary-ai-open'),    // AI 진입 모달이 **눌러서 뜨는가** (early return 아래 훅 = React #310, 런타임에만 드러남)
   rowtags: () => require('./canary-row-tags'),  // 행 태그 버튼이 **눌리는가** (존재 검사로는 button-in-button 을 못 잡는다)     // 우하단 도크 FAB 도달성 — 겹침은 두 파일 CSS 가 합쳐진 뒤에만 존재(정적 검사 불가)

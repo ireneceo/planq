@@ -2,6 +2,8 @@
 // QTaskPage / QProjectDetailPage 양쪽에서 공용. 단일 taskId 를 받아 상세 + 워크플로우
 // (리뷰어/히스토리/댓글/첨부/리치 본문) 를 자체 로드·편집.
 import { downloadBlob } from '../../utils/download';
+import DetailFallback from '../Common/DetailFallback';
+import type { DetailStatus } from '../../hooks/useDetailResource';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
@@ -203,6 +205,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   useFocusTrap(drawerRef, !!taskId, resumeFocusRef.current ? '[data-testid="task-resume"]' : undefined);
 
   const [detailTask, setDetailTask] = useState<TaskDetail | null>(null);
+  const [detailStatus, setDetailStatus] = useState<DetailStatus>('idle');
   const [weekFocusH, setWeekFocusH] = useState(0);  // WORK_FLOW §6-B — 이번 주 포커스 시간(이월 배너)
   // KNOWLEDGE_LOOP 축1 — 결과물 KB 저장 (Cue 리서치 결과 등 되먹임, 사람 게이트)
   const [kbSaving, setKbSaving] = useState(false);
@@ -442,18 +445,30 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     } catch { /* ignore */ }
   }, []);
   const loadDetail = useCallback(async (id: number) => {
+    // ★ 실패를 삼키지 않는다 (2026-08-30). 여태는 `if (dr.success)` 만 처리하고 catch 가
+    //   전부 무시해서, 404·403·429·500·네트워크 순단이 **전부 같은 침묵**으로 떨어졌다.
+    //   그 결과 드로어가 열린 채 하드코딩 영문 "Loading..." 에 **영원히** 머물렀다.
+    //   apiFetch 는 throw 하지 않으므로 r.status 를 본다
+    //   (memory feedback_apifetch_no_throw_silent_save).
+    setDetailStatus('loading');
     try {
-      const [dr] = await Promise.all([
-        apiFetch(`/api/tasks/${id}/detail`).then(r => r.json()),
+      const [res] = await Promise.all([
+        apiFetch(`/api/tasks/${id}/detail`),
         loadWorkflow(id),
       ]);
-      if (dr.success) {
-        setDetailTask(dr.data);
-        // #206 — 서버 값으로 배너 사유 draft 동기화. 사용자가 타이핑 중인 값을 덮지 않도록
-        //   로드/재로드 시점에만 맞춘다 (AutoSave 가 저장 후 detail 을 다시 읽는 경로 포함).
-        setHoldReasonDraft(dr.data?.hold_reason || '');
-      }
-    } catch { /* ignore */ }
+      if (res.status === 404) { setDetailStatus('not_found'); return; }
+      if (res.status === 403) { setDetailStatus('forbidden'); return; }
+      if (!res.ok) { setDetailStatus('error'); return; }
+      const dr = await res.json().catch(() => null);
+      if (!dr || dr.success === false) { setDetailStatus('error'); return; }
+      setDetailTask(dr.data);
+      // #206 — 서버 값으로 배너 사유 draft 동기화. 사용자가 타이핑 중인 값을 덮지 않도록
+      //   로드/재로드 시점에만 맞춘다 (AutoSave 가 저장 후 detail 을 다시 읽는 경로 포함).
+      setHoldReasonDraft(dr.data?.hold_reason || '');
+      setDetailStatus('ready');
+    } catch {
+      setDetailStatus('error');
+    }
   }, [loadWorkflow]);
 
   useEffect(() => {
@@ -1020,7 +1035,13 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         </ActionErrorBar>
       )}
       <Scroll>
-        {!detailTask ? <Empty>Loading...</Empty> : (() => {
+        {!detailTask ? (
+          <DetailFallback
+            status={detailStatus === 'ready' ? 'loading' : detailStatus}
+            onRetry={taskId ? () => { void loadDetail(taskId); } : undefined}
+            onBack={onClose}
+          />
+        ) : (() => {
           const myRoles = getRoles({
             assignee_id: detailTask.assignee_id, created_by: detailTask.created_by,
             request_by_user_id: detailTask.request_by_user_id, reviewers: reviewers.map(rv => ({ user_id: rv.user_id })),

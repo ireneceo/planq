@@ -16,6 +16,8 @@ import { plainToHtml } from '../../utils/plainToHtml';
 import type { VoiceHandoff } from '../../utils/voiceHandoff';
 import PageShell from '../../components/Layout/PageShell';
 import PanelHeader, { PanelTitle, PanelSubTitle, PanelMetaTitle } from '../../components/Layout/PanelHeader';
+import DetailFallback from '../../components/Common/DetailFallback';
+import type { DetailStatus } from '../../hooks/useDetailResource';
 import { PanelGridLayout, CollapsibleSidebar, SidebarBackdrop, Panel } from '../../components/Layout/PanelLayout';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
@@ -355,6 +357,7 @@ const MailPage: React.FC = () => {
   // 탭 이름 = 열려 있는 메일 제목
   useTabTitle(detail?.subject);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [detailStatus, setDetailStatus] = useState<DetailStatus>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   // 우측 맥락 패널 — 리사이즈 + 접기 (Q Task 패턴 통일). localStorage 저장 · ⌘/ · Ctrl+\
   const [rightWidth, setRightWidth] = useState<number>(() => {
@@ -1016,10 +1019,19 @@ const MailPage: React.FC = () => {
   const loadDetail = useCallback(async (id: number) => {
     if (!businessId) return;
     setDetailLoading(true);
+    setDetailStatus('loading');
     try {
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${id}`);
-      const j = await r.json();
+      // ★ 실패를 삼키지 않는다 (2026-08-30). 여태는 `if (j.success)` 만 처리해서
+      //   404·403·429·500 이 전부 아래 **"메일에서 시작해 보세요" 온보딩**으로 떨어졌다 —
+      //   알림을 눌러 들어온 사용자에게 그 문구는 거짓말이다.
+      if (r.status === 404) { setDetailStatus('not_found'); setDetail(null); return; }
+      if (r.status === 403) { setDetailStatus('forbidden'); setDetail(null); return; }
+      if (!r.ok) { setDetailStatus('error'); setDetail(null); return; }
+      const j = await r.json().catch(() => null);
+      if (!j || j.success === false) { setDetailStatus('error'); setDetail(null); return; }
       if (j.success) {
+        setDetailStatus('ready');
         setDetail(j.data);
         // 자동 읽음 처리 (unread_count 있을 때만)
         if (j.data.unread_count > 0) {
@@ -1032,6 +1044,7 @@ const MailPage: React.FC = () => {
         }
       }
     } catch (e) {
+      setDetailStatus('error');
       setErrorMsg((e as Error).message);
     } finally {
       setDetailLoading(false);
@@ -2237,6 +2250,13 @@ const MailPage: React.FC = () => {
               <SkelCard><SkelLine $w="38%" /><SkelLine /><SkelLine $w="86%" /></SkelCard>
               <SkelCard><SkelLine $w="44%" /><SkelLine /><SkelLine $w="72%" /></SkelCard>
             </DetailSkeleton>
+          ) : !detail && (detailStatus === 'not_found' || detailStatus === 'forbidden' || detailStatus === 'error') ? (
+            /* 상세를 못 불러온 것 — "아직 안 골랐음"(아래 온보딩)과 **다른 상태**다. */
+            <DetailFallback
+              status={detailStatus}
+              onRetry={activeId ? () => { void loadDetail(activeId); } : undefined}
+              onBack={viewportNarrow ? () => navigateToThread(null) : undefined}
+            />
           ) : !detail ? (
             /* 빈 상태 — Q docs·Q Note·Q Talk 와 같은 공통 EmptyState (여태 Q mail 만 13px 회색 한 줄) */
             <EmptyState
