@@ -594,17 +594,6 @@ const QNotePage = () => {
     }
   }, [businessId]);
 
-  // #383 — 업로드 STT 처리 중인 노트가 있으면 완성될 때까지 목록을 따라간다.
-  //   새로고침을 눌러야 결과가 보이면 "안 됐다" 로 읽힌다(CLAUDE.md §16 실시간 반영).
-  //   Q Note 는 별도 FastAPI 라 socket.io 가 없다 → 폴링. 처리 중이 0건이면 타이머를 아예 안 건다.
-  //   ★ 선언 위치 주의 — 의존성 배열은 **렌더 시점에** 평가된다. loadSessions 위에 두면 TDZ 다.
-  const hasProcessing = sessions.some((s) => s.status === 'processing');
-  useEffect(() => {
-    if (!hasProcessing) return;
-    const id = window.setInterval(() => { void loadSessions(); }, 5000);
-    return () => window.clearInterval(id);
-  }, [hasProcessing, loadSessions]);
-
   useEffect(() => {
     loadSessions();
   }, [loadSessions]);
@@ -1916,6 +1905,22 @@ const QNotePage = () => {
     }
   }, []);
 
+  // #383 — 업로드 STT 가 도는 동안 목록과 **열어 놓은 상세**를 같이 따라간다.
+  //   새로고침을 눌러야 결과가 보이면 "안 됐다" 로 읽힌다(CLAUDE.md §16 실시간 반영).
+  //   Q Note 는 별도 FastAPI 라 socket.io 가 없다 → 폴링. 처리 중이 0건이면 타이머를 아예 안 건다.
+  //   ★ 선언 위치 주의 — 의존성 배열은 **렌더 시점에** 평가된다. loadSessions·refreshActiveSession
+  //     선언 위에 두면 TDZ ReferenceError 다 (이 파일 sidebarCollapsed 주석이 경고하는 그 사고).
+  const hasProcessing = sessions.some((s) => s.status === 'processing');
+  const watchingProcessing = activeSession?.status === 'processing';
+  useEffect(() => {
+    if (!hasProcessing && !watchingProcessing) return;
+    const id = window.setInterval(() => {
+      void loadSessions();
+      if (watchingProcessing) void refreshActiveSession();
+    }, 5000);
+    return () => window.clearInterval(id);
+  }, [hasProcessing, watchingProcessing, loadSessions, refreshActiveSession]);
+
   // 라이브 자동 하단 스크롤 (sticky-to-bottom: 사용자가 위로 스크롤했으면 멈춤)
   useEffect(() => {
     if (phase !== 'recording' && phase !== 'paused') return;
@@ -2751,16 +2756,6 @@ const QNotePage = () => {
               </ParticipantBar>
             )}
 
-            {/* #383 — 업로드한 녹음이 아직 변환 중일 때. 빈 화면을 내면 "고장" 으로 읽힌다
-                (memory feedback_fixed_but_unreachable: 기다림을 고장으로 읽는다 —
-                 겪는 화면에서 무슨 일이 일어나는지 말해 준다). 목록의 폴링이 완성되면 갱신한다. */}
-            {activeSession?.capture_mode === 'upload' && activeSession?.status === 'processing' && (
-              <NoticeBar>{t('audioUpload.processingNotice')}</NoticeBar>
-            )}
-            {activeSession?.capture_mode === 'upload' && activeSession?.status === 'failed' && (
-              <ErrorBar>{t('audioUpload.failedNotice')}</ErrorBar>
-            )}
-
             {liveError && <ErrorBar>{liveError}</ErrorBar>}
             {liveNotice && <NoticeBar>{liveNotice}</NoticeBar>}
             {lockedByOther && phase !== 'recording' && (
@@ -2940,6 +2935,17 @@ const QNotePage = () => {
                 </QuestionChip>
               </HeaderRight>
             </MainHeader>
+
+            {/* #383 — 업로드한 녹음이 아직 변환 중일 때. 빈 화면을 내면 "고장" 으로 읽힌다
+                (memory feedback_fixed_but_unreachable: 기다림을 고장으로 읽는다).
+                ★ 이 자리여야 한다 — 업로드 노트는 phase 가 항상 review 라, liveError 계열이
+                  있는 녹음 화면 블록에 넣으면 **영영 렌더되지 않는다**(1차 시도에서 그랬다). */}
+            {activeSession.capture_mode === 'upload' && activeSession.status === 'processing' && (
+              <NoticeBar>{t('audioUpload.processingNotice')}</NoticeBar>
+            )}
+            {activeSession.capture_mode === 'upload' && activeSession.status === 'failed' && (
+              <ErrorBar>{t('audioUpload.failedNotice')}</ErrorBar>
+            )}
 
             {/* N+88 — 인라인 영속 요약. 항상 표시, 비었으면 생성 CTA. */}
             <SummarySection>
