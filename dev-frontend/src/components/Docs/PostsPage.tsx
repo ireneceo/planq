@@ -1032,7 +1032,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   //   프로젝트 문구는 **L2 이면서 프로젝트가 있을 때만**.
   const attachScopeHint =
     attachScopeLevel === 'L4'
-      ? (t('attach.scopeHintPublic', '올린 파일은 나만 보기로 저장됩니다 — 공개 링크에는 본문만 나가요.') as string)
+      ? (t('attach.scopeHintPublic', '올린 파일은 공개 링크를 여는 사람도 내려받을 수 있어요.') as string)
       : attachScopeLevel === 'L1'
         ? (t('attach.scopeHintPrivate', '이 문서는 나만 보기라 올린 파일도 나만 볼 수 있어요.') as string)
         : (attachScopeLevel === 'L2' && attachScopeProjectId)

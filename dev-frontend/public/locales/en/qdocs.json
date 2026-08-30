@@ -653,7 +653,7 @@
     "scopeFailed": "Attachments were saved, but their visibility could not be matched to the document. Other members may not be able to see them.",
     "scopeHintProject": "Files you add follow this document — project members can see them.",
     "scopeHintWorkspace": "Files you add follow this document — workspace members can see them.",
-    "scopeHintPublic": "Files you add stay private — only the body goes out via the public link.",
+    "scopeHintPublic": "Anyone with the public link can download files you add here.",
     "scopeHintPrivate": "This document is private, so files you add stay private too."
   },
   "autosave": {
