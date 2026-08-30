@@ -17,7 +17,8 @@ import { formatDate } from '../../utils/dateFormat';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { mapApiError } from '../../utils/apiError';
 import { fetchWikiContext, fetchWikiCategories, fetchWikiArticles, type WikiArticleSummary, type WikiCategory } from '../../services/wiki';
-import CueActionCard, { type CueProposal, type CueActionResult } from './CueActionCard';
+import CueTurnList from './CueTurnList';
+import { useCueChat, cueActionDeepLink } from '../../hooks/useCueChat';
 import { startQhelperHeartbeat, CUE_ASK_EVENT, type CueAskMsg } from '../../utils/cueAsk';
 import { POPOUT_CHANNEL } from './PopoutBridge';
 
@@ -41,35 +42,11 @@ interface MyFeedbackItem {
 }
 type FeedbackCategory = 'bug' | 'improve' | 'feature' | 'other';
 
-interface Turn {
-  q: string;
-  a: string;
-  loading?: boolean;
-  error?: string;
-  sources?: Array<{ slug: string; title: string }>;  // Q위키 RAG 근거 article
-  logId?: number | null;                              // KNOWLEDGE_LOOP 축2 — 피드백 대상 로그
-  feedback?: 'helpful' | 'not_helpful';               // 제출된 피드백 (재클릭 차단)
-  proposedAction?: CueProposal;                       // #81 — Cue 실행 제안 (확인 카드)
-  actionStatus?: 'pending' | 'done' | 'dismissed';    // 카드 상태
-  actionResult?: CueActionResult;                     // 실행 결과 (딥링크용)
-}
+// Turn 타입은 hooks/useCueChat.ts 의 CueTurn 단일 원천을 쓴다(#227).
 
 // N+93 — standalone: /help-popout 분리 창에서 풀윈도우로 마운트 (FAB/백드롭 없음, 항상 open, 닫기=window.close).
 // #81 — 실행 완료 요약 (확인 카드가 접힌 뒤)
-const ActionDone = styled.div`
-  margin-top: 8px; display: flex; align-items: center; gap: 10px;
-  font-size: 0.8125rem; color: #0f766e; font-weight: 600;
-`;
-const ActionOpen = styled.button`
-  border: 1px solid #99f6e4; background: #f0fdfa; color: #0f766e;
-  border-radius: 8px; padding: 4px 10px; font-size: 0.75rem; font-weight: 700; cursor: pointer;
-  &:hover { background: #ccfbf1; }
-`;
 // #237 — "완료로 추가" 가 완료까지 못 간 경우의 안내 (성공 요약 아래 한 줄)
-const ActionNote = styled.div`
-  margin-top: 5px; font-size: 0.6875rem; color: #b45309;
-  background: #fffbeb; border-radius: 6px; padding: 5px 8px;
-`;
 
 /**
  * publicSurface — 랜딩/마케팅/Q위키 등 공개 표면에서 마운트됐는가 (utils/publicSurface).
@@ -113,9 +90,23 @@ const CueHelpDrawer: React.FC<{
   //   여태 무조건 qhelper(Q위키) 로 보내서, Cue 에서 들어간 사용자는 "Q위키로 갔는데
   //   화면엔 아까 Cue 에게 물어본 대화가 남아있는" 상태를 봤다(대화는 정상, 탭이 틀렸던 것).
   const [preFeedbackMode, setPreFeedbackMode] = useState<Mode>('workspace');
-  const [input, setInput] = useState('');
-  const [turns, setTurns] = useState<Turn[]>([]);
-  const [submitting, setSubmitting] = useState(false);
+  // #227 — 대화 동작은 훅(단일 원천)으로. 채팅·메일 우측 패널이 같은 것을 쓴다.
+  const {
+    input, setInput, turns, setTurns, submitting, setSubmitting,
+    submit, sendAnswerFeedback, onActionExecuted, onActionDismiss,
+  } = useCueChat({
+    isGuest,
+    mode,
+    location,
+    tErr: tErr as unknown as (k: string, d?: string) => string,
+    translateError: (code: string) => (
+      code === 'rate_limit_minute' ? (t('qhelper.rateLimitMinute', '잠깐만요 — 너무 빠르게 묻고 있어요. 1분 후 다시 시도해주세요.') as string)
+        : code === 'rate_limit_day' ? (t('qhelper.rateLimitDay', '오늘 안내 횟수를 초과했습니다. 자세한 내용은 문의 남기기 탭으로 알려주세요.') as string)
+          : null
+    ),
+    // #296 — 전송 후 auto-grow 로 늘어난 높이를 1줄로 되돌린다(안 하면 빈 입력창이 두껍게 남는다).
+    onAfterSend: () => { if (inputRef.current) inputRef.current.style.height = ''; },
+  });
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -320,83 +311,7 @@ const CueHelpDrawer: React.FC<{
     if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
   }, [turns]);
 
-  const submit = useCallback(async () => {
-    const q = input.trim();
-    if (!q || submitting) return;
-    setSubmitting(true);
-    const turn: Turn = { q, a: '', loading: true };
-    setTurns(prev => [...prev.slice(-4), turn]); // 최근 5턴 유지
-    setInput('');
-    // #296 — 전송 후 auto-grow 로 늘어난 높이를 1줄로 되돌린다 (안 하면 빈 입력창이 계속 두껍게 남는다).
-    if (inputRef.current) inputRef.current.style.height = '';
-    try {
-      // 게스트는 auth 없는 public 라우트 (마케팅 비용 — 워크스페이스 사용량 미차감)
-      // 로그인 사용자는 apiFetch (토큰 자동 추가 + 401 시 refresh)
-      const url = isGuest ? '/api/cue/help-public' : '/api/cue/help';
-      const body = isGuest
-        ? { question: q }
-        : {
-            question: q,
-            mode,
-            page_context: { path: location.pathname, search: location.search || undefined },
-          };
-      const fetcher = isGuest ? fetch : apiFetch;
-      const res = await fetcher(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      const j = await res.json();
-      if (!res.ok || !j.success) {
-        const msg = j.message === 'rate_limit_minute' ? t('qhelper.rateLimitMinute', '잠깐만요 — 너무 빠르게 묻고 있어요. 1분 후 다시 시도해주세요.')
-          : j.message === 'rate_limit_day' ? t('qhelper.rateLimitDay', '오늘 안내 횟수를 초과했습니다. 자세한 내용은 문의 남기기 탭으로 알려주세요.')
-          : (j.message || 'Q helper error');
-        throw new Error(msg as string);
-      }
-      const srcs = Array.isArray(j.data?.sources) ? j.data.sources : [];
-      // #81 — Cue 실행 제안 (workspace 모드). 화이트리스트 툴만 카드로.
-      const pa = j.data?.proposed_action;
-      const proposed = pa && ['create_task', 'create_event', 'create_document_draft', 'submit_review', 'complete_task', 'add_task_comment'].includes(pa.tool)
-        ? (pa as CueProposal) : undefined;
-      setTurns(prev => prev.map((tn, i) => i === prev.length - 1
-        ? { ...tn, a: j.data.answer || '', loading: false, sources: srcs, logId: j.data.log_id ?? null,
-            proposedAction: proposed, actionStatus: proposed ? 'pending' as const : undefined }
-        : tn));
-    } catch (e) {
-      setTurns(prev => prev.map((tn, i) => i === prev.length - 1
-        ? { ...tn, error: mapApiError(e, tErr), loading: false }
-        : tn));
-    } finally {
-      setSubmitting(false);
-    }
-  }, [input, submitting, location, isGuest, mode, t]);
-
-  // KNOWLEDGE_LOOP 축2 — 답변 피드백 (낙관적 표시, 실패 무해)
-  const sendAnswerFeedback = useCallback(async (turnIdx: number, feedback: 'helpful' | 'not_helpful') => {
-    const turn = turns[turnIdx];
-    if (!turn || turn.logId == null || turn.feedback) return;
-    setTurns(prev => prev.map((tn, i) => i === turnIdx ? { ...tn, feedback } : tn));
-    try {
-      const fetcher = isGuest ? fetch : apiFetch;
-      await fetcher('/api/cue/help-feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ log_id: turn.logId, feedback }),
-      });
-    } catch { /* 피드백 실패는 조용히 무시 */ }
-  }, [turns, isGuest]);
-
-  // #81 — 확인 카드 실행 완료/취소 → 해당 턴 상태 갱신
-  const onActionExecuted = useCallback((turnIdx: number, r: CueActionResult) => {
-    setTurns(prev => prev.map((tn, i) => i === turnIdx ? { ...tn, actionStatus: 'done' as const, actionResult: r } : tn));
-  }, []);
-  const onActionDismiss = useCallback((turnIdx: number) => {
-    setTurns(prev => prev.map((tn, i) => i === turnIdx ? { ...tn, actionStatus: 'dismissed' as const } : tn));
-  }, []);
-  const actionDeepLink = (r: CueActionResult): string =>
-    r.entity_type === 'task' ? `/tasks?task=${r.entity_id}`
-      : r.entity_type === 'event' ? `/calendar?event=${r.entity_id}`
-        : `/info?doc=${r.entity_id}`;
+  // submit · 답변 피드백 · 확인 카드 핸들러 · 딥링크는 모두 useCueChat 로 옮겼다(#227).
 
   // 게스트 문의 제출 — 랜딩 /contact 와 동일 백엔드 (POST /api/inquiries)
   const submitInquiry = useCallback(async () => {
@@ -729,81 +644,16 @@ const CueHelpDrawer: React.FC<{
                 )}
               </Empty>
             ) : (
-              turns.map((tn, i) => (
-                <TurnRow key={i}>
-                  <Q>
-                    <QuLabel>{t('qhelper.you', '나')}</QuLabel>
-                    <QText>{tn.q}</QText>
-                  </Q>
-                  <A $variant="qhelper">
-                    <ALabel $variant="qhelper">
-                      {mode === 'workspace' ? t('qhelper.cueLabel', 'Cue') : t('qhelper.guideLabel', 'Q helper')}
-                    </ALabel>
-                    {tn.loading
-                      ? <Loading>{t('qhelper.thinking', '생각 중…')}</Loading>
-                      : tn.error
-                        ? <ErrorText>{tn.error}</ErrorText>
-                        : <Answer>{tn.a}</Answer>}
-                    {/* #81 — Cue 실행 제안 확인 카드 (workspace 모드) */}
-                    {mode === 'workspace' && !tn.loading && !tn.error && tn.proposedAction && tn.actionStatus !== 'dismissed' && (
-                      tn.actionStatus === 'done' && tn.actionResult ? (
-                        <>
-                          <ActionDone>
-                            <span>✓ {t('qhelper.action.done', '추가됐어요')}</span>
-                            <ActionOpen type="button" onClick={() => { navigate(actionDeepLink(tn.actionResult!)); closeDrawer(); }}>
-                              {t('qhelper.action.open', '열기')} ↗
-                            </ActionOpen>
-                          </ActionDone>
-                          {/* #237 — 업무는 만들었지만 '완료' 까지는 못 간 경우. 조용히 넘기면 사용자는 완료된 줄 안다. */}
-                          {tn.actionResult.completed_skipped && (
-                            <ActionNote>
-                              {tn.actionResult.completed_skipped === 'only_assignee'
-                                ? t('qhelper.action.completedSkipAssignee', '담당자가 다른 분이라 완료 처리는 하지 않았어요 — 업무만 추가했습니다')
-                                : tn.actionResult.completed_skipped === 'not_ready_for_complete'
-                                  ? t('qhelper.action.completedSkipReview', '컨펌자가 있는 업무라 완료 처리는 하지 않았어요 — 업무만 추가했습니다')
-                                  : t('qhelper.action.completedSkipGeneric', '완료 처리는 하지 못했어요 — 업무만 추가했습니다')}
-                            </ActionNote>
-                          )}
-                        </>
-                      ) : (
-                        <CueActionCard
-                          proposal={tn.proposedAction}
-                          businessId={user?.business_id ?? null}
-                          onExecuted={(r) => onActionExecuted(i, r)}
-                          onDismiss={() => onActionDismiss(i)}
-                        />
-                      )
-                    )}
-                    {mode === 'qhelper' && !tn.loading && !tn.error && tn.sources && tn.sources.length > 0 && (
-                      <Sources>
-                        <SourcesLabel>{tw('drawer.sources')}</SourcesLabel>
-                        {tn.sources.map((s) => (
-                          <SourceLink key={s.slug} type="button" onClick={() => openWikiPath(`/wiki/a/${s.slug}`)}>
-                            {s.title}
-                          </SourceLink>
-                        ))}
-                      </Sources>
-                    )}
-                    {/* KNOWLEDGE_LOOP 축2 — 답변 피드백. 미답변·불만족이 위키 초안 제안으로 되먹임 */}
-                    {!tn.loading && !tn.error && tn.a && tn.logId != null && (
-                      <FeedbackRow>
-                        {tn.feedback ? (
-                          <FeedbackDone>{t('qhelper.feedbackThanks', '피드백 감사합니다')}</FeedbackDone>
-                        ) : (
-                          <>
-                            <FeedbackBtn type="button" onClick={() => sendAnswerFeedback(i, 'helpful')}>
-                              {t('qhelper.feedbackHelpful', '도움됐어요')}
-                            </FeedbackBtn>
-                            <FeedbackBtn type="button" onClick={() => sendAnswerFeedback(i, 'not_helpful')}>
-                              {t('qhelper.feedbackNotHelpful', '아니요')}
-                            </FeedbackBtn>
-                          </>
-                        )}
-                      </FeedbackRow>
-                    )}
-                  </A>
-                </TurnRow>
-              ))
+              <CueTurnList
+                turns={turns}
+                mode={mode}
+                businessId={user?.business_id ?? null}
+                onFeedback={sendAnswerFeedback}
+                onActionExecuted={onActionExecuted}
+                onActionDismiss={onActionDismiss}
+                onOpenResult={(r) => { navigate(cueActionDeepLink(r)); closeDrawer(); }}
+                onOpenSource={(slug) => openWikiPath(`/wiki/a/${slug}`)}
+              />
             )
           )}
           {mode === 'feedback' && (
@@ -1112,47 +962,6 @@ const EmptyShortcut = styled.div`
     font-family: inherit; font-size: 0.6875rem; font-weight: 600; color: #334155;
   }
 `;
-const TurnRow = styled.div`
-  margin-bottom: 16px;
-  display: flex; flex-direction: column; gap: 6px;
-`;
-const Q = styled.div`
-  display: flex; flex-direction: column; gap: 2px;
-  padding: 8px 10px;
-  background: #F8FAFC;
-  border-radius: 8px;
-`;
-const QuLabel = styled.span`
-  font-size: 0.625rem; font-weight: 700; color: #94A3B8;
-  text-transform: uppercase; letter-spacing: 0.4px;
-`;
-const QText = styled.span`
-  font-size: 0.8125rem; color: #0F172A; line-height: 1.55;
-  white-space: pre-wrap; word-break: break-word;
-`;
-const A = styled.div<{ $variant?: 'qhelper' | 'workspace' }>`
-  display: flex; flex-direction: column; gap: 4px;
-  background: ${p => p.$variant === 'workspace' ? '#FFF1F2' : '#F0FDFA'};
-  border-left: 3px solid ${p => p.$variant === 'workspace' ? '#F43F5E' : '#14B8A6'};
-  border-radius: 0 8px 8px 0;
-  padding: 10px 12px;
-`;
-const ALabel = styled.span<{ $variant?: 'qhelper' | 'workspace' }>`
-  font-size: 0.625rem; font-weight: 700;
-  color: ${p => p.$variant === 'workspace' ? '#9F1239' : '#0D9488'};
-  text-transform: uppercase; letter-spacing: 0.4px;
-`;
-const Answer = styled.div`
-  font-size: 0.8125rem; color: #0F172A; line-height: 1.55;
-  white-space: pre-wrap;
-  flex: 1;
-`;
-const Loading = styled.span`
-  font-size: 0.8125rem; color: #64748B; font-style: italic;
-`;
-const ErrorText = styled.span`
-  font-size: 0.8125rem; color: #DC2626;
-`;
 const Footer = styled.div`
   flex-shrink: 0;
   padding: 12px 16px;
@@ -1316,35 +1125,7 @@ const WikiFullLink = styled.button`
   &:hover { color: #0F766E; text-decoration: underline; }
 `;
 // ─── Q위키 답변 근거(sources) ───
-const Sources = styled.div`
-  margin-top: 8px; padding-top: 8px; border-top: 1px dashed #CCFBF1;
-  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
-`;
-const SourcesLabel = styled.span`
-  font-size: 0.625rem; font-weight: 700; color: #0D9488;
-  text-transform: uppercase; letter-spacing: 0.4px;
-`;
-const SourceLink = styled.button`
-  all: unset; cursor: pointer;
-  padding: 3px 8px; border-radius: 999px;
-  background: #FFFFFF; border: 1px solid #5EEAD4;
-  font-size: 0.6875rem; font-weight: 600; color: #0F766E;
-  &:hover { background: #F0FDFA; }
-`;
 // KNOWLEDGE_LOOP 축2 — 답변 피드백 2버튼
-const FeedbackRow = styled.div`
-  margin-top: 8px; display: flex; align-items: center; gap: 6px;
-`;
-const FeedbackBtn = styled.button`
-  all: unset; cursor: pointer;
-  padding: 3px 10px; border-radius: 999px;
-  background: #FFFFFF; border: 1px solid #E2E8F0;
-  font-size: 0.6875rem; font-weight: 600; color: #64748B;
-  &:hover { background: #F8FAFC; border-color: #CBD5E1; }
-`;
-const FeedbackDone = styled.span`
-  font-size: 0.6875rem; color: #94A3B8;
-`;
 const FeedbackPitch = styled.div`
   flex-shrink: 0;
   padding: 12px 16px;
