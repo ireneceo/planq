@@ -27,13 +27,16 @@ export default function NativeBridge() {
    * 전체 로드로 착지시킨다. 느리지만 링크를 잃는 것보다 낫다.
    */
   const deepLinkNav = useCallback((path: string) => {
-    const before = window.location.pathname + window.location.search;
-    if (path === before) return;                       // 이미 그 자리
+    const here = () => window.location.pathname + window.location.search;
+    if (path === here()) return;                       // 이미 그 자리
     try { chromeNav(path); } catch { /* 아래 폴백이 받는다 */ }
+    // ★ 판정은 "주소가 **바뀌었나**" 가 아니라 "**목적지에 있나**" 여야 한다.
+    //   아이폰 앱은 루트(/)로 뜨고 그 경로는 인증 사용자를 /inbox 로 **스스로 보낸다**
+    //   (App.tsx NativeMarketingRedirect). "바뀌었나" 로 재면 그 리다이렉트를 이동 성공으로
+    //   오인해 폴백이 영영 안 터진다 — 고치려던 바로 그 화면(확인필요)에 남는다.
     window.setTimeout(() => {
-      const after = window.location.pathname + window.location.search;
-      if (after === before) window.location.assign(path);   // SPA 이동이 안 먹었다 → 확실히 착지
-    }, 350);
+      if (here() !== path) window.location.assign(path);   // SPA 이동이 안 먹었다 → 확실히 착지
+    }, 400);
   }, [chromeNav]);
 
   useEffect(() => {
@@ -55,6 +58,11 @@ export default function NativeBridge() {
 
     // 콜드 스타트로 보관돼 있던 알림 링크 소비 — 라우터가 준비된 지금 이동한다.
     //   (탭 이벤트가 리스너보다 먼저 오는 경우가 있어 services/nativePush 가 sessionStorage 에 남긴다)
+    //
+    // ★ 읽는 즉시 지운다(consume-once). "도착할 때까지 들고 있기" 를 시도했다가 되돌렸다 —
+    //   SPA 이동은 재마운트가 없어 보관값이 영영 안 지워졌고(다음 실행 때 지난 메일로 튐),
+    //   못 가는 경로에서는 문서 로드가 11회까지 폭주했다(실측). 고치려던 것보다 나빴다.
+    //   대신 아래 deepLinkNav 가 **목적지 도착을 확인**하고 안 됐으면 전체 로드로 착지시킨다.
     try {
       const pending = sessionStorage.getItem('planq_pending_push_link');
       if (pending) {
