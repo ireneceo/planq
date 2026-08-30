@@ -973,5 +973,12 @@
       "title": "We could not load this",
       "desc": "This may be temporary. Please try again in a moment."
     }
+  },
+  "cuePanel": {
+    "empty": "Ask about what you are looking at. You can add tasks and events here too.",
+    "placeholder": "Ask Cue (⌘/Ctrl+Enter)",
+    "aria": "Ask Cue",
+    "send": "Ask",
+    "sending": "…"
   }
 }

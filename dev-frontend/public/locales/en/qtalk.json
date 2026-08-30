@@ -81,7 +81,11 @@
         "closed": "Closed"
       }
     },
-    "quickAdd": "Add a task in one line"
+    "quickAdd": "Add a task in one line",
+    "cue": {
+      "title": "Ask Cue",
+      "empty": "Ask about this conversation. You can add tasks and events here too."
+    }
   },
   "channelBadge": {
     "internal": "Internal",

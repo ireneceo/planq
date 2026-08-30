@@ -81,7 +81,11 @@
         "closed": "종료"
       }
     },
-    "quickAdd": "한 줄 업무 등록"
+    "quickAdd": "한 줄 업무 등록",
+    "cue": {
+      "title": "Cue 에게 묻기",
+      "empty": "이 대화방 내용을 그대로 물어보세요. 업무·일정 추가도 여기서 됩니다."
+    }
   },
   "channelBadge": {
     "internal": "내부",

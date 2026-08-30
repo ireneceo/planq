@@ -303,7 +303,9 @@
     "issuesEmpty": "No issues yet",
     "quickAddTitle": "Add a task in one line",
     "notesTitleProject": "Project notes",
-    "summaryFailed": "Could not generate a summary. Please try again in a moment."
+    "summaryFailed": "Could not generate a summary. Please try again in a moment.",
+    "cueTitle": "Ask Cue",
+    "cueEmpty": "Ask about this email. You can add tasks and events here too."
   },
   "accounts": {
     "all": "All mailboxes",

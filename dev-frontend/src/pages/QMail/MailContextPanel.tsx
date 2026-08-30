@@ -14,6 +14,8 @@ import NoteThread from '../../components/Common/NoteThread';
 import WorkbenchSection, { WorkbenchEmptyRow, WorkbenchSectionLink } from '../../components/Workbench/WorkbenchSection';
 import ContextTaskList from '../../components/Workbench/ContextTaskList';
 import CueTaskBar from '../../components/QTask/CueTaskBar';
+import CuePanelSection from '../../components/Common/CuePanelSection';
+import { useChromeLocation } from '../../hooks/useChromeNav';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 
 interface ThreadLite {
@@ -73,6 +75,8 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
   const { t } = useTranslation('qmail');
   const { formatTimeAgo } = useTimeFormat();
   const navigate = useNavigate();
+  // ★ early return 위. 아래에 두면 훅 개수가 갈려 React #310 이 난다.
+  const chromeLoc = useChromeLocation();
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [extractBusy, setExtractBusy] = useState(false);
   const [extractMsg, setExtractMsg] = useState<string | null>(null);
@@ -319,6 +323,20 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
           context={{ email_thread_id: thread.id }}
           compact
           onCreated={() => setTasksKey((k) => k + 1)}
+        />
+      </WorkbenchSection>
+
+      {/* #227 — Cue 에게 묻기. 스레드를 보면서 그대로 물을 수 있다(서버가 `?thread=` 로 읽는다).
+          ★ 이 패널은 접으면 **언마운트된다** — 대화 보존은 CuePanelSection 의 캐시가 맡는다.
+            (같은 파일 #377 주석이 이미 이 함정을 박제하고 있다.) */}
+      <WorkbenchSection title={t('context.cueTitle', { defaultValue: 'Cue 에게 묻기' }) as string} defaultOpen={false}>
+        <CuePanelSection
+          surface="qmail"
+          subjectId={thread.id}
+          location={{ pathname: chromeLoc.pathname, search: chromeLoc.search }}
+          contextParam={{ key: 'thread', id: thread.id }}
+          placeholder={t('context.cueEmpty', { defaultValue: '이 메일 내용을 그대로 물어보세요. 업무·일정 추가도 여기서 됩니다.' }) as string}
+          testId="qmail-cue-section"
         />
       </WorkbenchSection>
 

@@ -15,6 +15,8 @@ import TaskCandidateCard from '../../components/Common/TaskCandidateCard';
 import type { RegisterCandidateOverrides } from '../../services/qtalk';
 import NoteThread from '../../components/Common/NoteThread';
 import WorkbenchSection, { WorkbenchEmptyRow, WorkbenchSectionLink } from '../../components/Workbench/WorkbenchSection';
+import CuePanelSection from '../../components/Common/CuePanelSection';
+import { useChromeLocation } from '../../hooks/useChromeNav';
 import ContextTaskList from '../../components/Workbench/ContextTaskList';
 import CueTaskBar from '../../components/QTask/CueTaskBar';
 import AiAssistButton from '../../components/Common/AiAssistButton';
@@ -76,6 +78,9 @@ const RightPanel: React.FC<Props> = ({
   // 업무 리스트 갱신 신호 — 한 줄 등록·후보 승격 후 즉시 반영
   const [tasksKey, setTasksKey] = useState(0);
   const isClient = user?.business_role === 'client';
+  // ★ early return 위에서 부른다. 아래에 두면 렌더마다 훅 개수가 달라져 React #310 이 난다
+  //   (이 저장소가 겪은 계열 — tsc·가드는 못 잡는다).
+  const chromeLoc = useChromeLocation();
   const myUserId = user ? Number(user.id) : -1;
   // 업무 status 라벨 (observer 관점) — overdue 판정에 오늘 날짜 (워크스페이스 tz 정확도는 부모에서 주입 가능, 우선 로컬 ISO)
 
@@ -240,6 +245,22 @@ const RightPanel: React.FC<Props> = ({
               context={activeConversationId ? { conversation_id: activeConversationId } : null}
               compact
               onCreated={() => setTasksKey((k) => k + 1)}
+            />
+          </WorkbenchSection>
+        )}
+
+        {/* #227 — Cue 에게 묻기. **새 패널·새 단축키를 만들지 않는다** — 기존 우측 패널
+            (⌘/ · Ctrl+\) 안의 접이식 섹션이라 토글 충돌이 원천적으로 없다.
+            보고 있는 대화방을 서버가 `?conv=` 로 읽으므로 "이 대화방에서…" 가 통한다. */}
+        {!isClient && businessId && (
+          <WorkbenchSection title={t('right.cue.title', 'Cue 에게 묻기') as string} defaultOpen={false}>
+            <CuePanelSection
+              surface="qtalk"
+              subjectId={activeConversationId ?? null}
+              location={{ pathname: chromeLoc.pathname, search: chromeLoc.search }}
+              contextParam={{ key: 'conv', id: activeConversationId ?? null }}
+              placeholder={t('right.cue.empty', '이 대화방 내용을 그대로 물어보세요. 업무·일정 추가도 여기서 됩니다.') as string}
+              testId="qtalk-cue-section"
             />
           </WorkbenchSection>
         )}
