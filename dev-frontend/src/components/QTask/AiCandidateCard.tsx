@@ -270,7 +270,7 @@ const InstrBody = styled.div`
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px;
   padding: 8px; max-height: 220px; overflow-y: auto;
 `;
-const InstrWarn = styled.div`font-size: 0.6875rem; color: #B45309;`;
+const InstrWarn = styled.div`font-size: 0.6875rem; color: #D97706;`;   /* Warning 600 — COLOR_GUIDE 경고 텍스트 */
 const DoneCheck = styled.input`width: 15px; height: 15px; flex-shrink: 0; cursor: pointer; accent-color: #0F766E; margin: 0;`;
 const DoneLbl = styled.span`font-size: 0.75rem; color: #475569; cursor: pointer;`;
 const DoneHint = styled.div`font-size: 0.6875rem; color: #64748B; padding: 0 2px;`;
