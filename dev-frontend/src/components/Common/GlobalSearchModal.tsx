@@ -208,7 +208,10 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
               ★ 새 단축키·새 표면을 만들지 않는다. CueHelpDrawer 는 이미 전역이고(⌘?/Ctrl+/ · RightDock FAB),
                 부족한 것은 **존재가 아니라 발견성**이다. 검색창에 질문형 문장을 친 사용자를 Cue 로
                 넘기는 다리 하나면 된다. `cue:ask` 이벤트가 이미 있어 신규 배선이 없다. */}
-          {query.trim() && cue.turns.length === 0 && (
+          {/* ★ 답변이 오는 중에는 이 항목을 내리지 않는다 — 그때 누르면 submitting 가드에 막혀
+              **아무 일도 안 일어난다**(Fable 실측: POST +0). 자기치유되는 좁은 창이지만
+              "오류 없이 산출물만 0" 계열이라 애초에 누를 수 없게 한다. */}
+          {query.trim() && cue.turns.length === 0 && !cue.submitting && (
             <Hit type="button" data-testid="search-ask-cue"
               // ★ 질문을 **인자로** 넘긴다. setInput 후 곧바로 submit() 하면 빈 클로저를 읽어
               //   조용히 아무 일도 안 일어난다(Fable 적발 — 두 번 눌러야 발화했다).
