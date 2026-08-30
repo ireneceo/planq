@@ -21,7 +21,9 @@
       "paused": "일시 중지",
       "completed": "종료",
       "prepared": "준비됨",
-      "pending": "대기"
+      "pending": "대기",
+      "processing": "처리 중",
+      "failed": "실패"
     },
     "sidebarOpen": "사이드바 열기",
     "sidebarCollapse": "사이드바 닫기",
@@ -39,7 +41,9 @@
       "voiceLabel": "음성 노트",
       "voiceDesc": "회의 녹음 + STT + 답변 찾기",
       "quickLabel": "바로 녹음",
-      "quickDesc": "준비 없이 즉시 시작 · 번역 없음 · 마이크"
+      "quickDesc": "준비 없이 즉시 시작 · 번역 없음 · 마이크",
+      "uploadLabel": "녹음 파일",
+      "uploadDesc": "가지고 있는 녹음을 올려 텍스트로"
     },
     "header": {
       "editTitleHint": "클릭하여 수정",
@@ -415,5 +419,25 @@
     "tagPh": "태그",
     "addTag": "태그",
     "removeTag": "태그 삭제"
+  },
+  "audioUpload": {
+    "title": "녹음 파일로 노트 만들기",
+    "desc": "녹음해 둔 파일을 올리면 텍스트로 바꿔 노트를 만들어 드립니다. 화자도 나눠서 정리됩니다.",
+    "dropTitle": "파일을 끌어다 놓거나 눌러서 고르세요",
+    "dropHint": "{{list}} · 최대 200MB · 4시간",
+    "note": "올리고 나면 바로 닫힙니다. 변환은 뒤에서 진행되고, 목록의 노트가 \"처리 중\"에서 자동으로 바뀝니다.",
+    "submit": "올리기",
+    "uploading": "올리는 중…",
+    "cancel": "취소",
+    "close": "닫기",
+    "errUnsupported": "지원하지 않는 형식입니다. ({{list}})",
+    "errTooBig": "파일이 너무 큽니다. 최대 {{mb}}MB 입니다.",
+    "errTooLong": "녹음이 너무 깁니다. 최대 4시간입니다.",
+    "errCorrupt": "파일을 읽을 수 없습니다. 손상되었거나 지원하지 않는 형식입니다.",
+    "errQuota": "이번 달 Q note 사용 시간을 다 쓰셨습니다.",
+    "errRateLimited": "조금 뒤에 다시 시도해 주세요.",
+    "errBusy": "앞서 올린 파일을 아직 변환하고 있습니다. 끝나면 올려 주세요.",
+    "errUnavailable": "일시적으로 처리할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+    "errGeneric": "올리지 못했습니다."
   }
 }

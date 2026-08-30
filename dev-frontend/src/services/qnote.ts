@@ -698,3 +698,55 @@ export function buildLiveSocketUrl(sessionId: number): string {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   return `${proto}//${window.location.host}/qnote/ws/live?session_id=${sessionId}&token=${encodeURIComponent(token)}`;
 }
+
+
+// ─────────────────────────────────────────────────────────
+// #383 녹음 파일 업로드 → STT (2026-08-30)
+//   서버가 **즉시** session_id + status='processing' 을 준다. STT 는 백그라운드라
+//   화면은 기다리지 않고 목록으로 돌아가 상태만 따라가면 된다.
+//   ★ apiFetch 를 쓰지 않는다 — FormData 는 Content-Type 을 브라우저가 boundary 와 함께
+//     붙여야 하는데 apiFetch 가 JSON 헤더를 얹으면 multipart 파싱이 깨진다.
+// ─────────────────────────────────────────────────────────
+export const AUDIO_UPLOAD_EXT = ['m4a', 'mp3', 'wav', 'ogg', 'flac', 'aiff', 'aif', 'caf'] as const;
+export const AUDIO_UPLOAD_MAX_BYTES = 200 * 1024 * 1024;
+
+export type AudioUploadResult = {
+  session_id: number;
+  status: string;
+  duration_seconds: number;
+  measured_by: string;
+};
+
+export async function uploadAudioForStt(
+  file: File,
+  businessId: number,
+  opts: { title?: string; language?: string } = {},
+): Promise<AudioUploadResult> {
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('business_id', String(businessId));
+  if (opts.title) fd.append('title', opts.title);
+  fd.append('language', opts.language || 'multi');
+
+  const res = await fetch(`${BASE}/sessions/upload-audio`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${getAccessToken()}` },
+    body: fd,
+  });
+
+  // ★ 실패를 삼키지 않는다 — 서버가 이유를 준다(형식·길이·한도 초과·동시 업로드).
+  //   memory feedback_apifetch_no_throw_silent_save: res.ok 를 안 보면 실패가 성공인 척한다.
+  if (!res.ok) {
+    let detail = '';
+    try {
+      const j = await res.json();
+      detail = typeof j.detail === 'string' ? j.detail : JSON.stringify(j.detail ?? j.message ?? '');
+    } catch { /* 본문 없음 */ }
+    const err = new Error(detail || `upload_failed_${res.status}`);
+    (err as Error & { status?: number }).status = res.status;
+    throw err;
+  }
+  const j = await res.json();
+  if (!j.success) throw new Error(j.message || 'upload_failed');
+  return j.data as AudioUploadResult;
+}

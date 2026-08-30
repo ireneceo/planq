@@ -21,7 +21,9 @@
       "paused": "Paused",
       "completed": "Ended",
       "prepared": "Ready",
-      "pending": "Pending"
+      "pending": "Pending",
+      "processing": "Processing",
+      "failed": "Failed"
     },
     "sidebarOpen": "Open sidebar",
     "sidebarCollapse": "Collapse sidebar",
@@ -39,7 +41,9 @@
       "voiceLabel": "Voice note",
       "voiceDesc": "Meeting recording + STT + answer finder",
       "quickLabel": "Record now",
-      "quickDesc": "Start instantly · no translation · microphone"
+      "quickDesc": "Start instantly · no translation · microphone",
+      "uploadLabel": "Recording file",
+      "uploadDesc": "Upload a recording you already have"
     },
     "header": {
       "editTitleHint": "Click to edit",
@@ -415,5 +419,25 @@
     "tagPh": "Tag",
     "addTag": "Tag",
     "removeTag": "Remove tag"
+  },
+  "audioUpload": {
+    "title": "Create a note from a recording",
+    "desc": "Upload a recording and we will turn it into text, split by speaker.",
+    "dropTitle": "Drop a file here, or click to choose one",
+    "dropHint": "{{list}} · up to 200MB · 4 hours",
+    "note": "The dialog closes right away. Transcription runs in the background and the note changes from \"Processing\" on its own.",
+    "submit": "Upload",
+    "uploading": "Uploading…",
+    "cancel": "Cancel",
+    "close": "Close",
+    "errUnsupported": "That format is not supported. ({{list}})",
+    "errTooBig": "That file is too large. The limit is {{mb}}MB.",
+    "errTooLong": "That recording is too long. The limit is 4 hours.",
+    "errCorrupt": "We could not read that file — it may be damaged or in an unsupported format.",
+    "errQuota": "You have used all of this month’s Q note minutes.",
+    "errRateLimited": "Please try again in a moment.",
+    "errBusy": "A previous upload is still being transcribed. Please try again once it finishes.",
+    "errUnavailable": "We cannot process this right now. Please try again shortly.",
+    "errGeneric": "Upload failed."
   }
 }

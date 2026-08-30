@@ -13,6 +13,7 @@ import TaskCandidateCard, { type CandidateData } from '../../components/Common/T
 import { useNoteTaskExtraction } from '../../hooks/useNoteTaskExtraction';
 import styled from 'styled-components';
 import StartMeetingModal from './StartMeetingModal';
+import AudioUploadModal from './AudioUploadModal';
 import { getDefaultLanguageFromBrowser } from '../../constants/languages';
 import type { StartConfig } from './StartMeetingModal';
 import { getLanguageByCode } from '../../constants/languages';
@@ -255,6 +256,7 @@ const QNotePage = () => {
   }, [searchParams, setSearchParams]);
   // 사이클 N+22 — + 버튼 드롭다운 (메모 즉시 / 음성 모달) — Irene 요청
   const [newNoteDropdownOpen, setNewNoteDropdownOpen] = useState(false);
+  const [audioUploadOpen, setAudioUploadOpen] = useState(false);   // #383 녹음 파일 업로드
   const handleSessionDelete = async (sessionId: number) => {
     if (sessionDeleting) return;
     setSessionDeleting(true);
@@ -582,6 +584,17 @@ const QNotePage = () => {
       console.error('Failed to load sessions:', err);
     }
   }, [businessId]);
+
+  // #383 — 업로드 STT 처리 중인 노트가 있으면 완성될 때까지 목록을 따라간다.
+  //   새로고침을 눌러야 결과가 보이면 "안 됐다" 로 읽힌다(CLAUDE.md §16 실시간 반영).
+  //   Q Note 는 별도 FastAPI 라 socket.io 가 없다 → 폴링. 처리 중이 0건이면 타이머를 아예 안 건다.
+  //   ★ 선언 위치 주의 — 의존성 배열은 **렌더 시점에** 평가된다. loadSessions 위에 두면 TDZ 다.
+  const hasProcessing = sessions.some((s) => s.status === 'processing');
+  useEffect(() => {
+    if (!hasProcessing) return;
+    const id = window.setInterval(() => { void loadSessions(); }, 5000);
+    return () => window.clearInterval(id);
+  }, [hasProcessing, loadSessions]);
 
   useEffect(() => {
     loadSessions();
@@ -2364,6 +2377,14 @@ const QNotePage = () => {
                   <NewNoteItemTitle>{t('page.newNoteDropdown.voiceLabel', { defaultValue: '음성 노트' }) as string}</NewNoteItemTitle>
                   <NewNoteItemDesc>{t('page.newNoteDropdown.voiceDesc', { defaultValue: '회의 녹음 + STT + 답변 찾기' }) as string}</NewNoteItemDesc>
                 </NewNoteItem>
+                {/* #383 — 녹음 계열끼리 붙인다(바로 녹음 · 음성 노트 · 녹음 파일). 텍스트 메모는 맨 아래. */}
+                <NewNoteItem type="button" data-testid="qnote-upload-audio" onClick={() => {
+                  setNewNoteDropdownOpen(false);
+                  guardRecording(() => setAudioUploadOpen(true));
+                }}>
+                  <NewNoteItemTitle>{t('page.newNoteDropdown.uploadLabel') as string}</NewNoteItemTitle>
+                  <NewNoteItemDesc>{t('page.newNoteDropdown.uploadDesc') as string}</NewNoteItemDesc>
+                </NewNoteItem>
                 <NewNoteItem type="button" onClick={() => {
                   setNewNoteDropdownOpen(false);
                   // 녹음 중 새 메모 생성은 activeSession 을 바꿔 심박을 흔든다 → 확인 후에만.
@@ -2409,6 +2430,8 @@ const QNotePage = () => {
             const statusLabel = isTextMemo
               ? t('page.memoStatus', { defaultValue: '메모' })
               : (session.status === 'recording' ? t('page.sessionStatus.recording') :
+                 session.status === 'processing' ? t('page.sessionStatus.processing') :
+                 session.status === 'failed' ? t('page.sessionStatus.failed') :
                  session.status === 'paused' ? t('page.sessionStatus.paused') :
                  session.status === 'completed' ? t('page.sessionStatus.completed') :
                  session.status === 'prepared' ? t('page.sessionStatus.prepared') : t('page.sessionStatus.pending'));
@@ -2416,6 +2439,8 @@ const QNotePage = () => {
             const statusStyle: { bg: string; fg: string } = isTextMemo
               ? { bg: '#F0FDFA', fg: '#0F766E' }   // teal — text 메모 표식 (MemoFab 와 같은 톤)
               : (session.status === 'recording' ? { bg: '#FEE2E2', fg: '#B91C1C' } :
+                 session.status === 'processing' ? { bg: '#FEF3C7', fg: '#92400E' } :
+                 session.status === 'failed' ? { bg: '#FEE2E2', fg: '#B91C1C' } :
                  session.status === 'paused' ? { bg: '#FEF3C7', fg: '#92400E' } :
                  session.status === 'completed' ? { bg: '#E2E8F0', fg: '#475569' } :
                  session.status === 'prepared' ? { bg: '#CCFBF1', fg: '#0F766E' } :
@@ -3063,6 +3088,15 @@ const QNotePage = () => {
         message={t('page.recordingGuard.message', '이동하면 녹음이 중단됩니다. 지금까지 기록된 내용은 저장되어 있습니다.') as string}
         confirmText={t('page.recordingGuard.confirm', '중단하고 이동') as string}
         cancelText={t('page.recordingGuard.cancel', '녹음 계속하기') as string}
+      />
+
+      {/* #383 — 녹음 파일 올려 텍스트로. 서버가 즉시 session_id 를 주고 STT 는 백그라운드라
+          모달은 기다리지 않고 닫힌다. 목록의 그 노트가 "처리 중" 으로 서 있다가 완성된다. */}
+      <AudioUploadModal
+        open={audioUploadOpen}
+        businessId={businessId ?? 0}
+        onClose={() => setAudioUploadOpen(false)}
+        onUploaded={() => { void loadSessions(); }}
       />
 
       <StartMeetingModal
