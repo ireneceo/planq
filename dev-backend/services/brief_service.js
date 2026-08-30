@@ -9,8 +9,6 @@
 //
 // 응답: { post_id, brief_meta, recommended_next_kind, usage }
 
-const fs = require('fs');
-const path = require('path');
 const { Op } = require('sequelize');
 const { File, Post, sequelize } = require('../models');
 const cueOrch = require('./cue_orchestrator');
@@ -18,35 +16,12 @@ const cueOrch = require('./cue_orchestrator');
 // LLM 호출은 게이트웨이 단일 지점을 지난다 (services/llm.js).
 const { callLLM, isEnabled } = require('./llm');
 
-// 파일 본문 텍스트 추출 — 1차 출시는 text/* 와 단순 PDF 만 지원.
-// 실패 시 빈 문자열 반환 (graceful — LLM 이 텍스트 부분만 처리).
-async function extractFileText(fileRow) {
-  if (!fileRow || !fileRow.file_path) return '';
-  if (fileRow.storage_provider !== 'planq') return '';  // gdrive 등 외부는 1차 미지원
-  const abs = path.isAbsolute(fileRow.file_path)
-    ? fileRow.file_path
-    : path.resolve(__dirname, '..', fileRow.file_path);
-  if (!fs.existsSync(abs)) return '';
-  const mime = String(fileRow.mime_type || '').toLowerCase();
-  try {
-    if (mime.startsWith('text/') || mime === 'application/json') {
-      return fs.readFileSync(abs, 'utf-8').slice(0, 50_000);
-    }
-    if (mime === 'application/pdf') {
-      // PDF 텍스트 추출 — pdf-parse 가 있으면 사용 (의존성 추가 안 함, optional require)
-      try {
-        const pdfParse = require('pdf-parse');
-        const dataBuffer = fs.readFileSync(abs);
-        const data = await pdfParse(dataBuffer);
-        return String(data.text || '').slice(0, 50_000);
-      } catch { return ''; }
-    }
-    return '';  // docx/xlsx 등은 1.x
-  } catch (e) {
-    console.warn('[brief_service] extractFileText failed:', fileRow.id, e.message);
-    return '';
-  }
-}
+// 파일 본문 텍스트 추출 — **단일 원천은 services/fileText.js** 다.
+//   여기 있던 구현을 승격했다(#227). 복사본을 되살리지 말 것 — Cue 컨텍스트와
+//   자료정리가 서로 다른 형식·상한을 갖게 되는 순간 "왜 저기선 읽히는데 여기선 안 되지" 가 된다.
+//   ※ 옛 구현은 pdf-parse 를 optional require 했는데 **설치돼 있지 않아 PDF 가 늘 빈 문자열**이었다.
+//     이제 정식 의존성 + v2(PDFParse 클래스) API 로 실제로 읽는다.
+const { extractFileText } = require('./fileText');
 
 // LLM 시스템 프롬프트 — 시점 추출 + 통합 정리 + 후속 문서 추천 한 번에 (호출 1회 절약)
 const SYSTEM_PROMPT = `당신은 자료 정리 전문가입니다. 사용자가 제공한 여러 자료(텍스트·파일 본문)를 통합 정리합니다.

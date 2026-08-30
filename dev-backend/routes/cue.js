@@ -229,9 +229,18 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
         if (businessId) {
           const { buildCueContext } = require('../services/cue_context');
           const { getUserScope } = require('../middleware/access_scope');
+          // ★ 프론트는 pathname 과 search 를 **따로** 보낸다(CueHelpDrawer submit).
+          //   그래서 여태 `path.match(/\?project=/)` 는 **한 번도 맞은 적이 없다** — 쿼리로 오는
+          //   프로젝트·고객 컨텍스트가 통째로 죽어 있었다(`?task=` 만 둘을 이어 붙여 검사해서 살아남았다).
+          //   둘을 이어 붙인 것을 정본으로 쓴다.
           const path = page_context?.path || '';
-          const projMatch = path.match(/\/projects\/p\/(\d+)/) || path.match(/\?project=(\d+)/);
-          const clientMatch = path.match(/\?client=(\d+)/);
+          const loc = String(path) + String(page_context?.search || '');
+          const projMatch = loc.match(/\/projects\/p\/(\d+)/) || loc.match(/[?&]project=(\d+)/);
+          const clientMatch = loc.match(/[?&]client=(\d+)/);
+          // #227 — 채팅방·메일 스레드를 **보면서** 묻는 경우. 화면이 URL 에 싱크해 두는 값을 읽는다
+          //   (QTalk `/talk?conv=N` · QMail `?thread=N`). 클라가 준 id 는 아래에서 반드시 재검증한다.
+          const convMatch = loc.match(/[?&]conv=(\d+)/);
+          const threadMatch = loc.match(/[?&]thread=(\d+)/);
           // #61 — 질문자 권한 scope 계산 → 전방위 검색을 권한 범위 내로 격리
           const scope = await getUserScope(req.user.id, businessId, req.user.platform_role);
           // 워크스페이스 1회 조회 — 정체성(누구의 워크스페이스인가) + 시간대.
@@ -240,9 +249,42 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
           const biz = await Business.findByPk(businessId, {
             attributes: ['id', 'name', 'brand_name', 'brand_tagline', 'legal_name', 'timezone'],
           });
+          // ★ 클라가 준 conv/thread id 를 **믿지 않는다.** 화면에서 보이는 것만 Cue 도 본다.
+          //   신규 술어를 만들지 않는다 — 화면 목록이 쓰는 것과 **같은 함수**를 쓴다.
+          //   (사본을 만들면 화면과 Cue 의 가시성이 갈라져, 못 보는 대화 내용이 답변으로 샌다.)
+          let allowedConvId = null;
+          if (convMatch) {
+            try {
+              const { Conversation } = require('../models');
+              const { canAccessConversation } = require('../middleware/access_scope');
+              const conv = await Conversation.findOne({
+                where: { id: Number(convMatch[1]), business_id: businessId },
+                attributes: ['id', 'business_id', 'client_id'],
+              });
+              if (conv && await canAccessConversation(req.user.id, conv, scope)) allowedConvId = conv.id;
+            } catch (e) { console.warn('[cue] conv 접근검사', e.message); }
+          }
+          let allowedThreadId = null;
+          if (threadMatch) {
+            try {
+              const { EmailThread } = require('../models');
+              const { accessibleAccountIds } = require('../services/mailIdentity');
+              const th = await EmailThread.findOne({
+                where: { id: Number(threadMatch[1]), business_id: businessId },
+                attributes: ['id', 'account_id'],
+              });
+              if (th) {
+                const acctIds = await accessibleAccountIds(businessId, req.user.id);
+                // 남의 **개인** 메일함(owner_user_id 가 타인)은 구조적으로 제외된다.
+                if (acctIds.includes(th.account_id)) allowedThreadId = th.id;
+              }
+            } catch (e) { console.warn('[cue] thread 접근검사', e.message); }
+          }
+
           const ctx = await buildCueContext({
             businessId,
-            conversationId: null,
+            conversationId: allowedConvId,
+            emailThreadId: allowedThreadId,
             projectId: projMatch ? Number(projMatch[1]) : null,
             clientId: clientMatch ? Number(clientMatch[1]) : null,
             userId: req.user.id,
