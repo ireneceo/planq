@@ -64,16 +64,6 @@ export default function TabStrip({ leftOffset = 0 }: { leftOffset?: number }) {
 
   return (
     <Strip role="tablist" aria-label={t('tabs.strip', { defaultValue: '열린 탭' }) as string} data-testid="tabstrip" style={{ left: leftOffset }}>
-      {canGoBack && (
-        <BackBtn type="button" onClick={goBack} data-testid="tabstrip-back"
-          title={t('nav.back', { defaultValue: '뒤로' }) as string}
-          aria-label={t('nav.back', { defaultValue: '뒤로' }) as string}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-        </BackBtn>
-      )}
       <Scroll>
         {tabs.map((tab) => {
           const isActive = active?.id === tab.id;
@@ -114,6 +104,23 @@ export default function TabStrip({ leftOffset = 0 }: { leftOffset?: number }) {
           data-testid="tabstrip-new" onClick={() => setSearchOpen(true)}><PlusIcon size={16} /></NewBtn>
       </Scroll>
 
+      {/* ★ 뒤로 가기는 **오른쪽 끝**에 둔다.
+          · 왼쪽에 두었더니 첫 탭이 34px 밀려 사이드바 경계와 안 맞았다 — 활성 탭 배경이
+            좌측 라인에 딱 붙는 것이 원래 디자인이다 (Irene 2026-08-31).
+          · 자리는 항상 차지한다. 나타났다 사라지면 그때마다 옆이 밀린다.
+          · 아이콘은 화살표(←) — 사이드바·패널 접기가 이미 셰브론(<)을 쓰고 있어 구분이 필요하다. */}
+      <BackBtn type="button" onClick={goBack} disabled={!canGoBack} data-testid="tabstrip-back"
+          title={t('nav.back', { defaultValue: '뒤로' }) as string}
+          aria-label={t('nav.back', { defaultValue: '뒤로' }) as string}>
+          {/* ★ 셰브론(<)이 아니라 화살표(←). 사이드바 접기·패널 접기가 이미 `<` 를 쓰고 있어
+              바로 옆에 같은 모양이 또 있으면 무엇을 하는 버튼인지 알 수 없다 (Irene 2026-08-31
+              "좌측 메뉴 닫는 거랑 너무 같아서 애매한데"). 화살표는 브라우저 뒤로가기 표준이다. */}
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" />
+          </svg>
+      </BackBtn>
+
       {/* + = 통합검색. 결과 클릭 = 새 탭으로 열기(navigate 대신 newTab 주입) */}
       <GlobalSearchModal open={searchOpen} onClose={() => setSearchOpen(false)} businessId={bizId}
         onNavigate={(to) => tabStore.newTab(to)} />
@@ -127,8 +134,10 @@ const BackBtn = styled.button`
   display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: none; cursor: pointer;
   color: rgba(255,255,255,0.75); padding: 0;
-  &:hover { color: #fff; background: rgba(255,255,255,0.08); }
+  transition: color .12s, opacity .12s;
+  &:hover:not(:disabled) { color: #fff; background: rgba(255,255,255,0.08); }
   &:focus-visible { outline: 2px solid #fff; outline-offset: -2px; }
+  &:disabled { opacity: 0.28; cursor: default; }
 `;
 const Strip = styled.div`
   position: fixed; top: 0; right: 0; z-index: 95;   /* left 는 inline(사이드바 폭) — 사이드바 오른쪽부터 */
