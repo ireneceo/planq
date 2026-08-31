@@ -2484,13 +2484,19 @@ const NewItem = styled.button`
 `;
 const NewItemTitle = styled.div`font-size: 0.8125rem; font-weight: 600; color: #0F172A;`;
 const NewItemDesc = styled.div`font-size: 0.6875rem; color: #94A3B8; margin-top: 2px;`;
+/* ★ 2026-08-31 (Irene): "템플릿으로 저장 누르면 좌측 메뉴 세로 화살표가 팝업 위로 나와.
+     모든 팝업은 최상단 위치 통일한 거 아니야?" — 맞다. 그런데 **이 페이지는 공용 모달을 안 쓰고
+     자기 모달을 따로 만들어** 60/70 을 썼다. 페이지 층 핸들(FloatingPanelToggle, z-index 90)보다
+     낮아 화살표가 팝업 위로 올라왔다.
+     오버레이는 공용 모달과 같은 층(1100/1110)에 둔다 — 베낀 컴포넌트는 반드시 갈라진다
+     (memory: copied_component_drifts_extract_shell). */
 const ModalBackdrop = styled.div`
   position: fixed; inset: 0; background: rgba(15,23,42,0.08);
-  z-index: 60;
+  z-index: 1100;
 `;
 const ModalDialog = styled.div`
   position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-  z-index: 70; width: 540px; max-width: calc(100vw - 40px); max-height: calc(100vh - 48px);
+  z-index: 1110; width: 540px; max-width: calc(100vw - 40px); max-height: calc(100vh - 48px);
   background: #FFF; border-radius: 14px;
   box-shadow: 0 30px 60px -20px rgba(15,23,42,0.25);
   display: flex; flex-direction: column; overflow: hidden;
@@ -2997,7 +3003,9 @@ const KnowledgeToast = styled.div`
   background: #0F172A; color: #FFFFFF;
   border-radius: 8px; font-size: 0.8125rem; font-weight: 500;
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  z-index: 60;
+  /* 알림 토스트는 모달 위에도 보여야 한다(모달 안 동작의 결과를 알리는 경우가 있다).
+     그리고 페이지 층 핸들(90)보다 위여야 한다 — 같은 이유로 여기도 올린다. */
+  z-index: 1200;
   animation: fadeInUp 0.2s ease-out;
   @keyframes fadeInUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 `;
