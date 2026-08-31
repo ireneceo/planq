@@ -59,7 +59,9 @@ const UserChip: React.FC = () => {
 
   return (
     <Wrap>
-      <ChipLink to="/profile" title={t('userChip.title', { defaultValue: '내 프로필' }) as string}>
+      {/* 폰에서는 인사말을 감추므로(아래 Greeting) 링크도 같이 접는다 —
+          안 접으면 폭 0 의 빈 링크가 남아 탭 순서에만 걸린다. */}
+      <ChipLink to="/profile" title={t('userChip.title', { defaultValue: '내 프로필' }) as string} $phoneHide>
         <Greeting>{t('userChip.greeting', { name, defaultValue: '안녕하세요, {{name}}님' })}</Greeting>
       </ChipLink>
       {status && tone && planLabel && (
@@ -116,7 +118,7 @@ const SubText = styled.span`
   opacity: 0.85;
   &::before { content: '·'; margin-right: 4px; opacity: 0.6; }
 `;
-const ChipLink = styled(Link)`
+const ChipLink = styled(Link)<{ $phoneHide?: boolean }>`
   display: inline-flex;
   align-items: center;
   padding: 6px 10px;
@@ -138,9 +140,16 @@ const ChipLink = styled(Link)`
     outline: none;
     box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.3);
   }
+
+  ${p => p.$phoneHide && '@media (max-width: 640px) { display: none; }'}
 `;
 const Greeting = styled.span`
   max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* 운영 (Irene 2026-08-31): "상단 헤더 제대로 안나오고 잘리는 것도"
+     폰 375px 에서 이 인사말이 **줄어들지 않는 채로 259px** 을 차지해(실측), 페이지 제목이
+     54px 로 밀려 "대시보드" 가 말줄임됐다. 헤더에서 양보해야 하는 쪽은 인사말이지 제목이 아니다.
+     폰에서는 인사말을 감춘다 — 플랜 배지(짧고 정보가 있다)는 남긴다. */
+  @media (max-width: 640px) { display: none; }
 `;
