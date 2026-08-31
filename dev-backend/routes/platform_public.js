@@ -32,4 +32,29 @@ router.get('/info', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/platform/beta — 앱 베타 참여 링크 (공개, 비인증)
+//   ★ 값은 **이미 있던** platform_settings.app_ios_url / app_android_url 을 그대로 읽는다
+//     (관리자 화면 "앱 다운로드 — iOS (App Store / TestFlight URL)"). 베타용 컬럼을 따로 만들면
+//     같은 값이 두 벌이 되어 반드시 갈라진다. 여태 이 값을 **읽는 곳이 0곳**이었다.
+//   고객이 우리 사이트에서 바로 받는다. 링크가 없으면 그 플랫폼은 "준비 중" 이다 —
+//   빈 문자열이나 '#' 같은 죽은 값을 내보내지 않는다(눌러도 아무 일 없는 버튼 금지).
+router.get('/beta', async (req, res, next) => {
+  try {
+    const row = await PlatformSetting.findOne({
+      order: [['id', 'ASC']],
+      attributes: ['app_ios_url', 'app_android_url'],
+    });
+    const clean = (u) => {
+      const v = (u || '').trim();
+      if (!v) return null;
+      // https 만 — 관리자 오타로 http/javascript: 가 들어가도 화면에 내보내지 않는다
+      try { return new URL(v).protocol === 'https:' ? v : null; } catch { return null; }
+    };
+    return successResponse(res, {
+      ios_url: clean(row?.app_ios_url),
+      android_url: clean(row?.app_android_url),
+    });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

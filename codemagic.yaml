@@ -90,3 +90,65 @@ workflows:
         submit_to_testflight: false
         # beta_groups:
         #   - PlanQ 내부
+
+  # ─────────────────────────────────────────────────────────────────────
+  # PlanQ Android — Google Play (운영 planq.kr)
+  #
+  # 사전 준비 (Codemagic UI):
+  #   1) Teams > Integrations > Google Play 에 서비스 계정 JSON 등록 → 이름 `PlanQ Play`
+  #   2) Code signing identities > Android keystores 에 업로드 키 등록 → reference `planq_upload`
+  #      (Codemagic 이 만들어 보관하게 한다. iOS 에서 키를 손으로 옮기다 깨진 전례가 있다.)
+  #   3) 첫 회차는 Play Console 에 **손으로 한 번** 올려야 한다 — 앱이 아직 없으면 API 업로드가
+  #      거부된다. 그래서 아래 publishing 은 처음엔 주석 상태로 두고 artifacts 로 받는다.
+  # ─────────────────────────────────────────────────────────────────────
+  android-play:
+    name: PlanQ Android — Play (운영 planq.kr)
+    instance_type: linux_x2
+    max_build_duration: 60
+    environment:
+      android_signing:
+        - planq_upload
+      vars:
+        PACKAGE_NAME: "app.planq"
+      node: 20
+      java: 21
+    scripts:
+      - name: 의존성 설치
+        script: |
+          cd dev-frontend
+          npm ci
+      - name: Capacitor sync — 운영 서버로 고정 + 목표 점검
+        script: |
+          cd dev-frontend
+          CAP_SERVER_URL=https://planq.kr npx cap sync android
+          # ★ 이 점검이 없으면 테스터 전원이 개발 서버를 쓴다. 생성물은 gitignore 라
+          #   코드 리뷰로도 안 걸린다 — 빌드 시점에만 잡을 수 있다.
+          node ../scripts/android-beta-check.js --expect-prod
+      - name: 빌드 번호 (Play 최신 +1)
+        script: |
+          cd dev-frontend/android
+          # Play 는 같은 versionCode 재업로드를 거부한다. 이미 올라간 것보다 1 크게 잡는다.
+          LATEST=$(google-play get-latest-build-number --package-name "$PACKAGE_NAME" 2>/dev/null || echo 0)
+          NEXT=$((LATEST + 1))
+          echo "versionCode → $NEXT"
+          sed -i "s/versionCode .*/versionCode $NEXT/" app/build.gradle
+      - name: AAB 빌드
+        script: |
+          cd dev-frontend/android
+          ./gradlew bundleRelease
+    artifacts:
+      - dev-frontend/android/app/build/outputs/**/*.aab
+      - dev-frontend/android/app/build/outputs/**/mapping.txt
+    publishing:
+      email:
+        recipients:
+          - irene@irenewp.com
+        notify:
+          success: true
+          failure: true
+      # 첫 업로드를 Play Console 에 손으로 마친 뒤 아래 주석을 해제한다.
+      #   track 은 internal → closed(비공개) → open(공개) 순으로 넓힌다.
+      # google_play:
+      #   credentials: $GOOGLE_PLAY_SERVICE_ACCOUNT
+      #   track: internal
+      #   submit_as_draft: true

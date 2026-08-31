@@ -110,6 +110,7 @@ const LandingFeatures = lazy(() => import('./pages/Landing/FeaturesPage'));
 const LandingPricing = lazy(() => import('./pages/Landing/PricingPage'));
 const LandingService = lazy(() => import('./pages/Landing/ServicePage'));
 const LandingAbout = lazy(() => import('./pages/Landing/AboutPage'));
+const LandingBeta = lazy(() => import('./pages/Landing/BetaPage'));
 const LandingContact = lazy(() => import('./pages/Landing/ContactPage'));
 const LandingBlog = lazy(() => import('./pages/Landing/BlogPage'));
 const LandingBlogPost = lazy(() => import('./pages/Landing/BlogPostPage'));
@@ -208,6 +209,8 @@ function ShellApp() {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
         <Route path="/verify-email/:token" element={<VerifyEmailPage />} />
+        {/* 앱 베타 받기 — 공개. 네이티브 앱 안에서는 의미가 없으므로(이미 앱이다) 마케팅 리다이렉트. */}
+        <Route path="/beta" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingBeta />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
         {/* Q위키 (Q Wiki) — 게스트 허용 공개 라우트 (public article) + 로그인 시 전체.

@@ -984,5 +984,32 @@
       "sub": "Start with the work system audit. We organise how your company runs today, as data.",
       "cta": "Request a work system audit"
     }
+  },
+  "betaPage": {
+    "eyebrow": "BETA",
+    "title": "Try the PlanQ app early",
+    "sub": "This is a beta ahead of the public release. Tell us what gets in your way and we'll fix it.",
+    "ios": {
+      "name": "iPhone · iPad",
+      "how": "TestFlight is installed alongside. Open the link to join."
+    },
+    "android": {
+      "name": "Android",
+      "how": "Takes you to the Google Play testing page."
+    },
+    "join": "Get the beta",
+    "soon": "Coming soon",
+    "soonHow": "The join link appears here once review is complete.",
+    "thisDevice": "Your device",
+    "loading": "Loading…",
+    "error": "We couldn't load the join details right now. Please try again shortly.",
+    "faq": {
+      "q1": "Is the beta free?",
+      "a1": "Yes. There's no charge for using the app during the beta.",
+      "q2": "Will my existing data be there?",
+      "a2": "Sign in with the same account and you'll see exactly what you see on the web. Nothing to migrate.",
+      "q3": "How do I report a problem?",
+      "a3": "Send it from Settings > Feedback inside the app. It arrives with the screen you were on."
+    }
   }
 }
