@@ -316,34 +316,40 @@ const ChatPanel: React.FC<Props> = ({
   // N+63 — auto-resize 정합. min-height 46px (CSS) 와 일치하는 floor 보장.
   // 빈 input + 긴 placeholder 시 scrollHeight 가 1줄로 측정되어 textarea 가 1줄 높이로
   // 고정되던 회귀 — Math.max(46, ...) 로 차단. placeholder wrap 도 안에서 다 보임.
+  // 운영 #398 — 이 floor 는 **CSS min-height 와 같은 값이어야 한다.**
+  //   CSS 만 폰에서 36 으로 낮추고 여기를 46 으로 두면, 자동높이가 인라인 style 로 46 을 다시
+  //   써 넣어 CSS 가 무력화된다(실측: 버튼 44 · 입력칸 54 로 여전히 어긋남).
+  //   폰에서는 버튼 높이(44) − 세로 padding(8) = 36 에 맞춘다. 2줄부터는 종전대로 자란다.
+  const MIN_H_PHONE = 36;
   const MIN_H = 46;
   const MAX_H = 120;
+  //   ★ 공식은 한 벌만 둔다 — 아래 리사이즈 경로가 따로 계산하고 있어서, 한쪽만 고치면
+  //     회전·키보드 때 옛 값으로 되돌아간다(memory: 같은 값의 공식이 여러 벌이면 이미 갈라져 있다).
+  const fitTextarea = React.useCallback(() => {
+    const el = textInputRef.current;
+    if (!el) return;
+    const floor = window.matchMedia('(max-width: 1024px)').matches ? MIN_H_PHONE : MIN_H;
+    el.style.height = 'auto';
+    el.style.height = `${Math.max(floor, Math.min(el.scrollHeight, MAX_H))}px`;
+  }, []);
   React.useLayoutEffect(() => {
     const el = textInputRef.current;
     if (!el) return;
-    const measure = () => {
-      el.style.height = 'auto';
-      el.style.height = `${Math.max(MIN_H, Math.min(el.scrollHeight, MAX_H))}px`;
-    };
+    const measure = fitTextarea;
     measure();
     const raf = requestAnimationFrame(measure);
     return () => cancelAnimationFrame(raf);
-  }, [input]);
+  }, [input, fitTextarea]);
   // 폭 변경(회전·사이드바 토글·키보드 등) 시 재측정
   React.useEffect(() => {
-    const measure = () => {
-      const el = textInputRef.current;
-      if (!el) return;
-      el.style.height = 'auto';
-      el.style.height = `${Math.max(MIN_H, Math.min(el.scrollHeight, MAX_H))}px`;
-    };
+    const measure = fitTextarea;
     window.addEventListener('resize', measure);
     window.visualViewport?.addEventListener('resize', measure);
     return () => {
       window.removeEventListener('resize', measure);
       window.visualViewport?.removeEventListener('resize', measure);
     };
-  }, []);
+  }, [fitTextarea]);
   // 활성 대화방 변경 시 자동 포커스 (모바일에서는 키보드 자동 펼치지 않도록 skip)
   React.useEffect(() => {
     if (!activeConversationId) return;
@@ -2087,7 +2093,10 @@ const ChatPanel: React.FC<Props> = ({
             }}
             placeholder={t('chat.input.placeholder', '메시지 입력') as string}
             title={t('chat.input.hint', 'Enter 전송 · Shift+Enter 줄바꿈') as string}
-            rows={2}
+            /* 운영 #398 — rows=2 면 비어 있어도 내재 높이가 2줄(실측 54px)이라
+               min-height(36) 도 자동높이도 이 값을 못 내리고, 같은 줄의 버튼(44)과 어긋난다.
+               높이는 min-height + 자동높이가 정하게 두고 여기서는 1줄로 시작한다. */
+            rows={1}
           />
           <SendBtn
             type="button"
@@ -3498,6 +3507,9 @@ const InputWrap = styled.div`
   align-items: flex-end;
   gap: 8px;
   padding: 8px 10px;
+  /* 폰 — 버튼 3개(44×3=132)가 이미 폭을 크게 쓴다. 실측 입력칸이 181px(화면의 48%)이었다.
+     여백을 줄여 그만큼 입력칸에 돌려준다(버튼 크기는 터치 타겟이라 줄이지 않는다). */
+  @media (max-width: 640px) { gap: 4px; padding: 6px 8px; }
   background: #F8FAFC;
   border: 1px solid #E2E8F0;
   border-radius: 10px;
@@ -3525,6 +3537,11 @@ const TextInput = styled.textarea`
      1줄 wrap 으로 가려지는 회귀 차단. line-height 1.45 × 2줄 + padding 8 ≈ 46px.
      입력 시 useLayoutEffect 가 max(46, min(scrollHeight, 120)) 로 동작. */
   min-height: 46px;
+  /* 운영 #398 — 모바일에서 버튼은 44px 인데 이 칸은 46+padding 8 = 54px 이라
+     같은 줄에서 10px 이 어긋났다(실측). 아이콘은 아래, 글자는 위로 보이는 정체.
+     버튼 높이(44) − 세로 padding(8) = 36 으로 맞추면 1줄일 때 정확히 한 줄에 선다.
+     2줄 이상은 종전대로 scrollHeight 로 자란다(입력 공간은 줄지 않는다). */
+  @media (max-width: 1024px) { min-height: 36px; }
   max-height: 120px;
   &:focus { outline: none; }
   &::placeholder { color: #94A3B8; line-height: 1.45; }

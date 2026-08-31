@@ -91,6 +91,9 @@ const Wrap = styled.div`
 const Btn = styled.button`
   width: 36px;
   height: 36px;
+  /* 운영 #398 — 첨부·전송은 모바일에서 44px 인데 이것만 36px 이라 셋이 어긋나 보였다
+     (Irene: "결론은 정돈이 안되어 보여"). 같은 줄에 서는 버튼은 같은 규칙을 쓴다. */
+  @media (max-width: 1024px) { width: 44px; height: 44px; }
   display: flex;
   align-items: center;
   justify-content: center;

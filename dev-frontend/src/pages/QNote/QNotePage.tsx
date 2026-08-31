@@ -879,7 +879,13 @@ const QNotePage = () => {
       console.log(`[QNOTE-TIMING] ${Math.round(performance.now() - _t0)}ms getSession done (${detail.utterances?.length || 0} utt)`);
       setActiveSession(detail);
       speakersRef.current = detail.speakers || [];
-      navigate(`/notes/${sessionId}`, { replace: true });
+      // 운영 #400 — "상세에서 돌아갔을 때 … 뒤로가기가 통일 안 되었어."
+      //   replace 로 열면 목록(`/notes`)이 히스토리에서 **사라져** 뒤로가기가 Q Note 밖
+      //   (직전 화면, 실측 /dashboard)으로 나가 버렸다. 메일·채팅은 목록으로 돌아온다.
+      //   목록에서 항목을 여는 것은 **한 단계 들어가는 것**이므로 push 가 맞다.
+      //   ※ 새로 만들어 바로 여는 경로(아래 생성 흐름들)는 replace 를 유지한다 —
+      //     거기서 뒤로 가면 반쯤 만들어진 상태로 돌아가는 셈이라 의미가 다르다.
+      navigate(`/notes/${sessionId}`);
 
       // 저장된 답변 있는 질문들 → 초기 상태 세팅 (답변 보기 버튼으로 시작)
       if (detail.detected_questions && detail.detected_questions.length > 0) {
@@ -2354,7 +2360,12 @@ const QNotePage = () => {
       />
       {/* data-testid — 하니스가 "모바일 진입 시 리스트가 보이는가"(#283)를 판정하는 앵커.
           CLAUDE.md 운영안정성 §17: 인터랙티브/판정 대상 요소에 testid 부여. */}
-      <CollapsibleSidebar data-testid="qnote-list" $collapsed={sidebarCollapsed} $w={listWidth} $fullOnMobile={!activeSessionId}>
+      {/* 운영 #399·#400 — "큐노트는 리스트가 왜 우측까지 다 안열려? … 뒤로갔을 때야."
+          $fullOnMobile 은 "지금 무엇을 보고 있나" 를 묻는 판정인데, 여기만 **로드된 세션 상태**를
+          봤다. 뒤로가면 URL 은 /notes 로 돌아오지만 activeSession 은 그대로 남아, 목록이
+          85vw 오버레이에 머물렀다(Q Mail 은 URL 파라미터를 봐서 정상이었다 — 그래서 "메뉴마다 달라").
+          판정 축을 **URL** 로 맞춘다 — 뒤로가기가 바꾸는 것이 바로 그것이다. */}
+      <CollapsibleSidebar data-testid="qnote-list" $collapsed={sidebarCollapsed} $w={listWidth} $fullOnMobile={!urlSessionId}>
         <PanelResizeHandle onMouseDown={startListResize} />
         <SidebarHeader>
           <TitleGroup>
