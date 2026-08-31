@@ -534,3 +534,40 @@ export async function remindSignature(id: number): Promise<{ sent: boolean; remi
   if (!j.success) throw new Error(j.message || 'reminder failed');
   return j.data;
 }
+
+// ─── 휴지통 (문서·정보) — Irene 2026-08-31 ───────────────────────────────
+//   여태 문서·정보는 지우면 즉시 영구 삭제였다. 파일 휴지통과 같은 계약으로 맞춘다.
+export interface TrashedContent {
+  kind: 'post' | 'kb';
+  id: number;
+  title: string;
+  deleted_at: string;
+  author: { id: number; name: string } | null;
+  /** 보관 기간(30일)이 지나면 false — 눌러도 안 되는 버튼을 주지 않기 위해 서버가 판정한다 */
+  restorable: boolean;
+}
+
+export async function fetchContentTrash(businessId: number): Promise<TrashedContent[]> {
+  const r = await apiFetch(`/api/content-trash/${businessId}?limit=300`);
+  if (!r.ok) return [];
+  const j = await r.json();
+  return j.success ? (j.data as TrashedContent[]) : [];
+}
+
+export async function restoreContent(businessId: number, kind: 'post' | 'kb', id: number): Promise<boolean> {
+  const r = await apiFetch(`/api/content-trash/${businessId}/${kind}/${id}/restore`, { method: 'POST' });
+  if (!r.ok) {
+    const j = await r.json().catch(() => null);
+    throw new Error(j?.message || `HTTP ${r.status}`);
+  }
+  return true;
+}
+
+export async function purgeContent(businessId: number, kind: 'post' | 'kb', id: number): Promise<boolean> {
+  const r = await apiFetch(`/api/content-trash/${businessId}/${kind}/${id}/purge`, { method: 'DELETE' });
+  if (!r.ok) {
+    const j = await r.json().catch(() => null);
+    throw new Error(j?.message || `HTTP ${r.status}`);
+  }
+  return true;
+}

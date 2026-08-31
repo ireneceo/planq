@@ -9,6 +9,7 @@ import StorageSettings from './StorageSettings';
 import ApiTokenSection from './ApiTokenSection';
 import PlanSettings from './PlanSettings';
 import PermissionsSettings from './PermissionsSettings';
+import ActivityLogSection from './ActivityLogSection';
 import AttendanceAdminSettings from './AttendanceAdminSettings';   // #208 근태 팀 관리
 import BillingSettings from './BillingSettings';
 import EmailSettings from './EmailSettings';
@@ -41,7 +42,7 @@ import {
   type CueInfo,
 } from '../../services/workspace';
 
-type TabKey = 'attendance' | 'brand' | 'legal' | 'language' | 'work-env' | 'storage' | 'plan' | 'permissions' | 'members' | 'cue' | 'billing' | 'email' | 'mail-accounts' | 'notifications' | 'work-flow' | 'data-export';
+type TabKey = 'attendance' | 'brand' | 'legal' | 'language' | 'work-env' | 'storage' | 'plan' | 'permissions' | 'members' | 'cue' | 'billing' | 'email' | 'mail-accounts' | 'notifications' | 'work-flow' | 'data-export' | 'activity';   // activity — 팀원 활동 기록(owner 전용)
 
 // ─────────────────────────────────────────────
 // Styled
@@ -513,7 +514,10 @@ export default function WorkspaceSettingsPage() {
   // /business/settings/{language|timezone|storage|plan|cue} → 해당 섹션
   const isMembersMode = location.pathname.includes('/business/members');
   const visibleTabs = useMemo<TabKey[]>(() => (
-    isMembersMode ? ['members'] : ['brand', 'legal', 'work-env', 'attendance', 'plan', 'permissions', 'billing', 'mail-accounts', 'email', 'storage', 'cue', 'notifications', 'data-export']
+    // ★ 새 탭을 만들면 **이 목록에도 넣어야 한다.** 여기 없으면 URL 이 맞아도
+    //   아래 fallback 이 visibleTabs[0] 로 떨어뜨려 첫 탭이 열린다 — 화면은 멀쩡한데
+    //   내가 만든 섹션만 영영 안 보인다(실측: activity 탭이 그렇게 죽어 있었다).
+    isMembersMode ? ['members'] : ['brand', 'legal', 'work-env', 'attendance', 'plan', 'permissions', 'billing', 'mail-accounts', 'email', 'storage', 'cue', 'notifications', 'data-export', 'activity']
   ), [isMembersMode]);
 
   const tabFromUrl = useMemo<TabKey>(() => {
@@ -1210,6 +1214,12 @@ export default function WorkspaceSettingsPage() {
       )}
 
       {/* ─── WORK ENV: 언어·타임존 + 업무 관리 통합 ─── */}
+      {/* 활동 기록 (Irene 2026-08-31) — 기록은 이미 쌓이고 있었는데 볼 화면이 없었다 */}
+      {tab === 'activity' && (
+        <Card>
+          <ActivityLogSection businessId={businessId} />
+        </Card>
+      )}
       {tab === 'work-env' && (
         <Card>
           <SectionTitle>{t('language.sectionTitle')}</SectionTitle>

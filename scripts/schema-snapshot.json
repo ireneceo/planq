@@ -1150,7 +1150,8 @@
       "share_expires_at",
       "vlevel",
       "target_member_ids",
-      "security_level"
+      "security_level",
+      "deleted_at"
     ],
     "kb_pinned_faqs": [
       "id",
@@ -1498,7 +1499,8 @@
       "vlevel",
       "target_member_ids",
       "share_expires_at",
-      "security_level"
+      "security_level",
+      "deleted_at"
     ],
     "project_clients": [
       "id",

@@ -20,6 +20,7 @@ import CategoryCombobox from '../Common/CategoryCombobox';
 import EmptyState from '../Common/EmptyState';
 import { uploadMyFile, uploadProjectFile, updateFileVisibility } from '../../services/files';
 import ConfirmDialog from '../Common/ConfirmDialog';
+import ContentTrashDrawer from './ContentTrashDrawer';
 import PostEditor from './PostEditor';
 import DocToc from './DocToc';
 import PostTableGrid from './PostTableGrid';
@@ -313,6 +314,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const businessId = (scope.type === 'workspace' || scope.type === 'personal') ? scope.businessId : (user?.business_id ? Number(user.business_id) : null);
   // 템플릿 저장 모달 상태
   const [saveTplOpen, setSaveTplOpen] = useState(false);
+  // 휴지통 (Irene 2026-08-31) — 문서·정보는 여태 지우면 영구 삭제였다
+  const [trashOpen, setTrashOpen] = useState(false);
   const [saveTplName, setSaveTplName] = useState('');
   const [saveTplDesc, setSaveTplDesc] = useState('');
   const [saveTplBusy, setSaveTplBusy] = useState(false);
@@ -822,6 +825,13 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           content_json: contentDraft as never,
           category: categoryVal,
           status: 'draft',
+          // ★ 개인 보관함에서 만든 것은 **나만 보기(L1)** 다 (Irene 2026-08-31:
+          //   "개인보관함에 올리는 건 당연히 나만보기로 만들어줘야 하는 거 아니야? 올리는 것들 다?")
+          //   여기서 안 보내면 서버 기본값이 project_id 없을 때 **L3(워크스페이스 전체)** 다
+          //   (routes/posts.js:490). 초안일 동안은 L1 이라 안 보이다가, 발행되는 순간
+          //   전 멤버에게 공개되고 **개인 보관함 목록(L1 필터)에서는 사라진다.**
+          //   파일 업로드는 이미 서버가 L1 로 저장한다 — 문서만 규칙이 갈라져 있었다.
+          ...(scope.type === 'personal' ? { vlevel: 'L1' as const } : {}),
         });
         autoDraftIdRef.current = created.id;
         baseUpdatedAtRef.current = created.updated_at ?? null;
@@ -1152,7 +1162,10 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             category: categoryVal,
             status: 'published',
             // draft 는 L1 로 강제돼 있었다 — 정식 등록 시 기본 공개 범위로 승격.
-            vlevel: projectId ? 'L2' : 'L3',
+            //   ★ 단, **개인 보관함은 승격 대상이 아니다** (Irene 2026-08-31).
+            //     여기서 L3 로 올리면 내 보관함에 쓴 글이 전 멤버에게 공개되고,
+            //     동시에 보관함 목록(L1 필터)에서 **사라진다** — 사용자에겐 "글이 없어졌다".
+            vlevel: scope.type === 'personal' ? 'L1' : (projectId ? 'L2' : 'L3'),
             base_updated_at: baseUpdatedAtRef.current,
           })
           : await createPost({
@@ -1161,9 +1174,14 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             title: titleDraft.trim(),
             content_json: contentDraft as any,
             category: categoryVal,
+            ...(scope.type === 'personal' ? { vlevel: 'L1' as const } : {}),
           });
         // 예약된 첨부 처리 — 편집 모드와 **같은 경로**를 쓴다 (#365)
-        const attachRes = await persistAttachments(created.id, { projectId, vlevel: projectId ? 'L2' : 'L3' });
+        //   첨부의 공개 범위도 문서를 따라간다 — 문서는 나만 보기인데 첨부만 전체면 그게 유출이다.
+        const attachRes = await persistAttachments(created.id, {
+          projectId,
+          vlevel: scope.type === 'personal' ? 'L1' : (projectId ? 'L2' : 'L3'),
+        });
         const final = attachRes.changed ? ((await fetchPost(created.id)) || created) : created;
         setDetail(final);
         setActiveId(final.id);
@@ -1466,6 +1484,11 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             />
             <TemplateBtn type="button" onClick={openTemplateModal} title={t('templates.openHint', '견적·청구·NDA·제안서·회의록 5종 템플릿에서 시작') as string}>
               {t('templates.btn', '템플릿')}
+            </TemplateBtn>
+            {/* 휴지통 — 삭제한 문서·정보를 30일 안에 되돌린다. 파일 휴지통과 같은 자리 개념. */}
+            <TemplateBtn type="button" data-testid="docs-trash-open" onClick={() => setTrashOpen(true)}
+              title={t('trash.openHint', { defaultValue: '삭제한 문서·정보 되돌리기 (30일)' }) as string}>
+              {t('trash.btn', { defaultValue: '휴지통' })}
             </TemplateBtn>
             <NewBtnWrap>
               <NewBtn type="button" data-testid="docs-new" onClick={() => setNewDropdownOpen(v => !v)} title={t('btn.new') as string} aria-label={t('btn.new') as string} aria-expanded={newDropdownOpen}>
@@ -2150,6 +2173,13 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         confirmText={t('delete', '삭제') as string}
         cancelText={t('cancel', '취소') as string}
         variant="danger"
+      />
+
+      <ContentTrashDrawer
+        open={trashOpen}
+        businessId={scope.businessId}
+        onClose={() => setTrashOpen(false)}
+        onChanged={() => { void loadMeta(); void load(); }}
       />
 
       {/* 운영 #401 — 분류 삭제. 몇 건이 분류를 잃는지 **먼저 말하고** 지운다.

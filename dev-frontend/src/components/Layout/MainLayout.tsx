@@ -1476,6 +1476,18 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                           {t('nav.attendanceAdmin', '근태 관리')}
                         </AccordionItem>
                       )}
+                      {/* 활동 기록 — 누가 언제 무엇을 했는지(삭제 포함). owner/admin 만.
+                          (Irene 2026-08-31: "잘못해서 삭제하고 문제되면 책임여부 문제") */}
+                      {hasBiz('owner') && (
+                        <AccordionItem
+                          to="/business/settings/activity"
+                          data-testid="nav-activity-log"
+                          $active={location.pathname.includes('/business/settings/activity')}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><polyline points="7 14 11 10 15 13 21 7"/></svg>
+                          {t('nav.activityLog', { defaultValue: '활동 기록' })}
+                        </AccordionItem>
+                      )}
                       {hasBiz('owner', 'member') && (
                         <AccordionItem
                           to="/business/settings/work-env"

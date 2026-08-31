@@ -73,6 +73,14 @@ Post.init({
   updatedAt: { type: DataTypes.DATE(3), allowNull: false, field: 'updated_at' },
 }, {
   sequelize, tableName: 'posts', timestamps: true, underscored: true,
+  // 휴지통 (Irene 2026-08-31: "잘못해서 삭제하고 문제되면 책임여부 문제")
+  //   ★ paranoid 를 쓴다 — destroy() 가 soft 가 되고 **모든 조회가 자동으로 걸러진다.**
+  //     File 처럼 라우트마다 `deleted_at: null` 을 손으로 붙이면 한 곳만 빠져도
+  //     "지웠는데 목록에 남아 있다" 가 된다(memory: delete_needs_all_surfaces — 40여 라우트).
+  //     영구삭제는 destroy({ force: true }).
+  //   ※ 예외: raw SQL 은 자동 필터가 안 걸린다 — routes/search.js 두 곳에 수동 조건을 넣었다.
+  paranoid: true,
+  deletedAt: 'deleted_at',
   indexes: [
     { fields: ['business_id', 'project_id', 'created_at'] },
     { fields: ['business_id', 'is_pinned'] },

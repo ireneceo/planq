@@ -182,7 +182,8 @@ router.get('/', authenticateToken, async (req, res, next) => {
         const tableSql =
           'SELECT DISTINCT p.id, p.title, p.category, p.project_id, p.kind, p.updated_at ' +
           'FROM posts p JOIN q_record_rows r ON r.q_record_id = p.q_record_id ' +
-          'WHERE p.business_id = :bid AND p.kind = \'table\' ' +
+          // paranoid 는 raw SQL 에 안 걸린다 — 지운 문서가 검색에 뜨지 않게 손으로 건다
+          'WHERE p.business_id = :bid AND p.deleted_at IS NULL AND p.kind = \'table\' ' +
           'AND LOWER(CAST(r.`values` AS CHAR)) LIKE LOWER(:like) ' +
           `ORDER BY p.updated_at DESC LIMIT ${Number(limit)}`;
         const tableMatches = await sequelize.query(tableSql,
@@ -226,7 +227,8 @@ router.get('/', authenticateToken, async (req, res, next) => {
         //   secret 타입 항목에서만 맞은 문서는 **결과에서 뺀다**(값을 아는 사람에게만 뜨는 것도 노출이다).
         const rawValHits = await sequelize.query(
           'SELECT id, title, category, scope, custom_columns, custom_values FROM kb_documents ' +
-          'WHERE business_id = :bid ' +
+          // paranoid 는 raw SQL 에 안 걸린다 — 지운 정보가 검색에 뜨지 않게 손으로 건다
+          'WHERE business_id = :bid AND deleted_at IS NULL ' +
           'AND (custom_values IS NOT NULL AND LOWER(CAST(custom_values AS CHAR)) LIKE LOWER(:like)) ' +
           `ORDER BY updated_at DESC LIMIT ${Number(limit) * 3}`,
           { replacements: { bid: businessId, like: `%${qEsc}%` }, type: sequelize.QueryTypes.SELECT }

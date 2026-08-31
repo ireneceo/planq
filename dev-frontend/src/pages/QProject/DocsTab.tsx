@@ -10,6 +10,7 @@ import DetailDrawer from '../../components/Common/DetailDrawer';
 import ShareModal from '../../components/Common/ShareModal';
 import EmptyState from '../../components/Common/EmptyState';
 import PlanQSelect from '../../components/Common/PlanQSelect';
+import VisibilityBadge from '../../components/Common/VisibilityBadge';
 import SecurityLevelBadge, { useSecurityLevelLabel } from '../../components/Common/SecurityLevelBadge';
 import SearchBox from '../../components/Common/SearchBox';
 import { useUploadQueue, UploadQueuePanel } from './docs/UploadQueue';
@@ -740,7 +741,13 @@ const DocsTab: React.FC<Props> = (props) => {
                       );
                     })()}
                     <CardName title={f.file_name}>{f.file_name}</CardName>
-                    {f.security_level && f.security_level !== 'general' && <CardMeta><SecurityLevelBadge level={f.security_level} /></CardMeta>}
+                    {/* 공유 범위 (Irene 2026-08-31): "리스트에 … 공유범위가 같이 표시되어야 맞는 것 같은데?"
+                        누가 올렸는지는 보이는데 **누가 볼 수 있는지**는 안 보였다. 파일 목록에서
+                        가장 알고 싶은 것이 그것이다(특히 개인 보관함에서 L1 인지 눈으로 확인). */}
+                    <CardMeta>
+                      {f.visibility && <VisibilityBadge level={f.visibility as 'L1' | 'L2' | 'L3' | 'L4'} compact />}
+                      {f.security_level && f.security_level !== 'general' && <SecurityLevelBadge level={f.security_level} />}
+                    </CardMeta>
                     <CardMeta><span>{formatBytes(f.file_size)}</span><span>·</span><span>{f.uploader_name}</span></CardMeta>
                     <CardMeta><span>{formatDate(f.uploaded_at)}</span></CardMeta>
                   </Card>

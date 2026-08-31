@@ -229,6 +229,9 @@ KbDocument.init({
   sequelize,
   tableName: 'kb_documents',
   timestamps: true,
+  // 휴지통 — Post 와 같은 규칙(paranoid). 이유는 models/Post.js 주석 참조.
+  paranoid: true,
+  deletedAt: 'deleted_at',
   underscored: true,
   indexes: [
     { fields: ['business_id', 'status'] },

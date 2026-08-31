@@ -500,6 +500,8 @@ app.use('/api/dashboard', require('./routes/today_review'));
 // ★ 휴지통이 **먼저**다. `/api/files/:businessId/trash` 는 files.js 의 `/:businessId/:id` 계열과
 //   같은 모양이라, 순서가 뒤바뀌면 'trash' 가 파일 id 로 해석돼 404 가 난다(라우트 순서 함정).
 app.use('/api/files', require('./routes/file_trash'));
+// 문서·정보 휴지통 (Irene 2026-08-31) — 파일 휴지통과 같은 계약
+app.use('/api/content-trash', require('./routes/content_trash'));
 app.use('/api/files', require('./routes/files'));
 app.use('/api/export', require('./routes/export'));
 app.use('/api/folders', require('./routes/file_folders'));
