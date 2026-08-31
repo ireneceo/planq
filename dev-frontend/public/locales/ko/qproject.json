@@ -605,7 +605,8 @@
       "desc": "잠시 후 다시 시도해 주세요. 계속 안 되면 네트워크 연결을 확인해 주세요."
     },
     "folders": {
-      "workspaceRoot": "내 파일"
+      "section": "폴더",
+      "empty": "+ 를 눌러 폴더를 만들 수 있어요"
     }
   },
   "pinnedDoc": {

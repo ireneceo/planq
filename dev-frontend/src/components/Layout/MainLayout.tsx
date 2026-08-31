@@ -36,6 +36,7 @@ import InstallPromptBanner from '../Common/InstallPromptBanner';
 import PushPromptBanner from '../Common/PushPromptBanner';
 import { isNativeApp } from '../../services/native';
 import i18n from '../../i18n';
+import { usePaneBack } from '../../hooks/usePaneBack';
 
 // ─────────────────────────────────────────────────────────────
 // localStorage
@@ -630,6 +631,14 @@ const HamburgerButton = styled.button`
 `;
 
 /* 모바일 헤더 우측 액션 — 햄버거와 같은 44x44 터치 타겟(대칭이라 로고가 가운데로 온다) */
+const MobileBackBtn = styled.button`
+  width: 44px; height: 44px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: none; border-radius: 8px; cursor: pointer;
+  color: #fff; padding: 0;
+  &:active { background: rgba(255,255,255,0.14); }
+  &:focus-visible { outline: 2px solid #fff; outline-offset: -2px; }
+`;
 const MobileHeaderAction = styled(ChromeLink)`
   position: relative;
   background: none; border: none; padding: 8px;
@@ -777,6 +786,8 @@ interface MainLayoutProps { children: React.ReactNode; tabMode?: boolean; }
 type SecondarySection = 'reports' | 'settings' | 'account' | null;
 
 const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp }) => {
+  // 모바일·앱 전용 뒤로 가기 (브라우저 뒤로가기가 없는 환경). 갈 곳이 있을 때만 버튼이 뜬다.
+  const { canGoBack, goBack } = usePaneBack();
   useAppShellLock();  // 모바일 뷰포트 고정 락 — 앱 셸에서만 (공개 페이지는 body 스크롤)
   const { t } = useTranslation('layout');
   const { user, logout, hasRole } = useAuth();
@@ -992,6 +1003,20 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
         <HamburgerButton onClick={() => setSidebarOpen(true)} aria-label={t('nav.expandSidebar')}>
           <IconHamburger />
         </HamburgerButton>
+        {/* ★ 뒤로 가기 — 모바일·앱에는 브라우저 뒤로가기가 없어서 잘못 들어가면 갇혔다
+            (Irene 2026-08-31 "잘못 누르면 다시 못 돌아가서 당혹스러워. 계속.").
+            갈 곳이 있을 때만 그린다 — 눌러도 아무 일 없는 버튼은 고장으로 읽힌다. */}
+        {canGoBack && (
+          <MobileBackBtn type="button" onClick={goBack}
+            data-testid="mobile-header-back"
+            aria-label={t('nav.back', { defaultValue: '뒤로' }) as string}
+            title={t('nav.back', { defaultValue: '뒤로' }) as string}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </MobileBackBtn>
+        )}
         <Logo src="/planQ_white_new.svg" alt="PlanQ" />
         {/* 우측 — Q talk 바로가기. 모바일은 메뉴를 열어야 대화로 갈 수 있어서 왕복이 길었다(Irene).
             사이드바 Q talk 항목과 **같은 가시성 규칙·같은 내비게이션 계약**(ChromeLink, 주 내비라 새 탭 X)

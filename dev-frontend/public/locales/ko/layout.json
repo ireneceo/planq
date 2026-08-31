@@ -150,7 +150,8 @@
     "attendanceAdmin": "근태 관리",
     "updates": "새소식·인사이트",
     "announcement": "공지 배너",
-    "askCue": "Cue 에게 묻기"
+    "askCue": "Cue 에게 묻기",
+    "back": "뒤로"
   },
   "user": {
     "profile": "내 프로필",

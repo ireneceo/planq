@@ -317,6 +317,9 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
   const reallyVisible = useReallyVisible();
   // 소켓 핸들러는 effect 안에서 한 번 등록되므로 값을 직접 닫으면 옛 값에 굳는다 → ref 로 읽는다.
   const reallyVisibleRef = useRef(reallyVisible);
+  // effect 안에서 최신 user 를 읽는다 (핸들러가 옛 값에 굳지 않게 — 위 reallyVisible 과 같은 이유)
+  const userRef = useRef(user);
+  useEffect(() => { userRef.current = user; }, [user]);
   useEffect(() => { reallyVisibleRef.current = reallyVisible; }, [reallyVisible]);
   // 탭 이름 = 열려 있는 대화방 이름
   useTabTitle(conversations.find((c) => c.id === activeConversationId)?.name);
@@ -957,7 +960,13 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         //   운영 실측 2026-08-25(iOS 앱): 리스트로 영영 못 돌아감.
         const drilldown = typeof window !== 'undefined'
           && window.matchMedia('(max-width: 1024px)').matches;
-        if (!cancelled && mappedConvs.length > 0 && !drilldown) {
+        //   ★ 자동 선택은 **고객에게만** (Irene 2026-08-31).
+        //     고객은 대화가 사실상 하나라 바로 열리는 게 맞다. 반면 내부 직원은 내부 논의하려고
+        //     들어와도 "고객 채널 우선" 규칙이 고객방을 열어버렸다 —
+        //     "내부채팅인지 고객채팅인지 뭘 알고 고객채팅으로 바로 보내는 거야?"
+        //     내부 사용자는 목록을 보고 고르게 둔다.
+        const isClientUser = userRef.current?.business_role === 'client';
+        if (!cancelled && mappedConvs.length > 0 && !drilldown && isClientUser) {
           const current = mappedConvs.find((c) => c.id === activeConversationId);
           if (!current) {
             const customer = mappedConvs.find((c) => c.channel_type === 'customer');
@@ -1014,8 +1023,15 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
           return [...others, ...candidatesList.map(apiCandidateToMock)];
         });
       } catch (err) {
+        // ★ 여태 console.error 로만 삼켰다 — 화면은 **아무 말 없이 비어 있거나 로딩 중**이었다
+        //   (Irene 2026-08-31 "리스트는 안나오고 계속 로딩중"). 사용자에겐 고장과 구별되지 않는다.
+        //   무엇이 실패했는지 말하고, 다시 시도할 길을 준다.
         // eslint-disable-next-line no-console
         console.error('[QTalk] project data load failed', err);
+        if (!cancelled) setLoadError(mapApiError(err, tErr));
+      } finally {
+        // 실패했든 아니든 **로딩은 끝난다**. 안 내리면 스피너가 영원히 돈다.
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };

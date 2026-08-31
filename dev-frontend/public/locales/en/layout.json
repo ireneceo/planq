@@ -150,7 +150,8 @@
     "attendanceAdmin": "Attendance",
     "updates": "Updates & insights",
     "announcement": "Announcement banner",
-    "askCue": "Ask Cue"
+    "askCue": "Ask Cue",
+    "back": "Back"
   },
   "user": {
     "profile": "My Profile",

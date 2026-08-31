@@ -597,7 +597,7 @@ const DocsTab: React.FC<Props> = (props) => {
                 folders={folders}
                 counts={counts}
                 total={counts.total}
-                projectName={tr('docs.folders.workspaceRoot')}
+                foldersOnly
                 selected={folderSel}
                 onSelect={sel => { setFolderSel(sel); clearSelection(); }}
                 onCreate={async (parentId, name) => {
@@ -1197,6 +1197,10 @@ const ProjectLink = styled(Link)`
 // ─── 폴더 트리 컴포넌트 ───
 
 interface FolderTreeProps {
+  /** 워크스페이스 모드 — 폴더 섹션만 그린다.
+   *  ★ 이걸 안 두면 ProjectGroups 가 이미 그린 전체·내 파일·시스템 폴더를 **한 번 더** 그린다
+   *    (Irene 2026-08-31 "내 파일이 왜 두 개야?"). 트리를 통째로 얹은 것이 원인이었다. */
+  foldersOnly?: boolean;
   folders: FileFolder[];
   counts: { total: number; bySrc: Record<FileSource, number>; byFolder: Record<number, number>; directRoot: number };
   total: number;
@@ -1210,7 +1214,7 @@ interface FolderTreeProps {
   tr: (k: string, fb?: string) => string;
 }
 
-const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, projectName, selected, onSelect, onCreate, onRename, onDelete, onReorder, tr }) => {
+const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, projectName, selected, onSelect, onCreate, onRename, onDelete, onReorder, tr, foldersOnly }) => {
   const [creatingParent, setCreatingParent] = useState<number | null | undefined>(undefined);
   const [newName, setNewName] = useState('');
   const [renamingId, setRenamingId] = useState<number | null>(null);
@@ -1301,6 +1305,65 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
 
   const fileCountInFolder = (folderId: number): number => counts.byFolder[folderId] || 0;
 
+  // 삭제 확인 모달 — 두 변형(폴더 전용 / 전체 트리)이 같은 것을 쓴다.
+  const deleteModal = deleteTarget && (
+    <Modal onMouseDown={e => { if (e.target === e.currentTarget) setDeleteTarget(null); }}>
+      <Dialog>
+        <DTitle>{tr('docs.folder.deleteTitle', '폴더를 삭제할까요?')}</DTitle>
+        <DBody>
+          <p><strong>{deleteTarget.name}</strong></p>
+          {fileCountInFolder(deleteTarget.id) > 0 ? (
+            <p>{deleteWithFilesMessage(fileCountInFolder(deleteTarget.id), tr)}</p>
+          ) : (
+            <p>{tr('docs.folder.deleteEmpty', '이 폴더는 비어있습니다')}</p>
+          )}
+        </DBody>
+        <DFooter>
+          <SecondaryBtn type="button" onClick={() => setDeleteTarget(null)}>{tr('members.cancel', '취소')}</SecondaryBtn>
+          <DangerBtn type="button" onClick={async () => { await onDelete(deleteTarget.id); setDeleteTarget(null); }}>
+            {tr('docs.delete', '삭제')}
+          </DangerBtn>
+        </DFooter>
+      </Dialog>
+    </Modal>
+  );
+
+  const createRow = creatingParent === null && (
+    <FolderRow style={{ paddingLeft: 22 }}>
+      <FolderIconWrap><FolderSvg /></FolderIconWrap>
+      <RenameInput autoFocus placeholder={tr('docs.folder.placeholder')} value={newName}
+        onChange={e => setNewName(e.target.value)} onBlur={commitCreate}
+        onKeyDown={e => {
+          if (e.key === 'Enter') { e.preventDefault(); commitCreate(); }
+          if (e.key === 'Escape') setCreatingParent(undefined);
+        }} />
+    </FolderRow>
+  );
+
+  // 워크스페이스 — 폴더 섹션만. 전체·내 파일·시스템 폴더는 ProjectGroups 소관이다.
+  if (foldersOnly) {
+    return (
+      <>
+        <TreeRoot>
+          <TreeDivider />
+          <SectionRow>
+            <FolderSectionLabel>{tr('docs.folders.section')}</FolderSectionLabel>
+            {/* ★ 항상 보이는 버튼 — 선택했을 때만 나타나면 "폴더를 어디서 만드는지" 알 수 없다 */}
+            <FolderMiniBtn type="button" data-testid="folder-new"
+              title={tr('docs.folder.new')} aria-label={tr('docs.folder.new')}
+              onClick={() => startCreate(null)}><PlusSvg size={12} /></FolderMiniBtn>
+          </SectionRow>
+          {createRow}
+          {rootFolders.length === 0 && creatingParent !== null && (
+            <EmptyHint>{tr('docs.folders.empty')}</EmptyHint>
+          )}
+          {rootFolders.map(f => renderFolder(f, 0))}
+        </TreeRoot>
+        {deleteModal}
+      </>
+    );
+  }
+
   return (
     <>
       <TreeRoot>
@@ -1318,8 +1381,8 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
           <FolderIconWrap $selected={selected === 'direct'}>{selected === 'direct' ? <FolderOpenSvg /> : <FolderSvg />}</FolderIconWrap>
           <FolderName title={projectName}>{projectName || tr('docs.folder.directRoot', '내 업로드')}</FolderName>
           <FolderCount>{counts.bySrc.direct}</FolderCount>
-          <FolderActions $visible={selected === 'direct'} onClick={e => e.stopPropagation()}>
-            <FolderMiniBtn type="button" title={tr('docs.folder.new', '새 폴더')} aria-label={tr('docs.folder.new', '새 폴더')} onClick={() => startCreate(null)}>
+          <FolderActions $visible onClick={e => e.stopPropagation()}>
+            <FolderMiniBtn type="button" data-testid="folder-new" title={tr('docs.folder.new', '새 폴더')} aria-label={tr('docs.folder.new', '새 폴더')} onClick={() => startCreate(null)}>
               <PlusSvg size={12} />
             </FolderMiniBtn>
           </FolderActions>
@@ -1347,27 +1410,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
         ))}
       </TreeRoot>
 
-      {deleteTarget && (
-        <Modal onMouseDown={e => { if (e.target === e.currentTarget) setDeleteTarget(null); }}>
-          <Dialog>
-            <DTitle>{tr('docs.folder.deleteTitle', '폴더를 삭제할까요?')}</DTitle>
-            <DBody>
-              <p><strong>{deleteTarget.name}</strong></p>
-              {fileCountInFolder(deleteTarget.id) > 0 ? (
-                <p>{deleteWithFilesMessage(fileCountInFolder(deleteTarget.id), tr)}</p>
-              ) : (
-                <p>{tr('docs.folder.deleteEmpty', '이 폴더는 비어있습니다')}</p>
-              )}
-            </DBody>
-            <DFooter>
-              <SecondaryBtn type="button" onClick={() => setDeleteTarget(null)}>{tr('members.cancel', '취소')}</SecondaryBtn>
-              <DangerBtn type="button" onClick={async () => { await onDelete(deleteTarget.id); setDeleteTarget(null); }}>
-                {tr('docs.delete', '삭제')}
-              </DangerBtn>
-            </DFooter>
-          </Dialog>
-        </Modal>
-      )}
+      {deleteModal}
     </>
   );
 };
@@ -1613,6 +1656,16 @@ const FolderCount = styled.span`
   font-size:0.625rem;color:#94A3B8;font-weight:600;
   min-width:22px;padding:1px 6px;background:#F1F5F9;border-radius:999px;
   text-align:center;justify-self:end;
+`;
+const SectionRow = styled.div`
+  display:flex;align-items:center;gap:6px;padding:4px 8px;min-height:26px;
+`;
+const FolderSectionLabel = styled.div`
+  flex:1;font-size:0.6875rem;font-weight:700;color:#94A3B8;
+  text-transform:uppercase;letter-spacing:.3px;
+`;
+const EmptyHint = styled.div`
+  padding:6px 10px;font-size:0.6875rem;color:#94A3B8;line-height:1.5;
 `;
 const FolderActions = styled.div<{ $visible?: boolean }>`
   display:flex;gap:2px;opacity:${p => p.$visible ? 1 : 0};transition:opacity .1s;flex-shrink:0;

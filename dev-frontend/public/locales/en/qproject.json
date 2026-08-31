@@ -605,7 +605,8 @@
       "desc": "Please try again in a moment. If it keeps failing, check your network connection."
     },
     "folders": {
-      "workspaceRoot": "My files"
+      "section": "FOLDERS",
+      "empty": "Use + to create a folder"
     }
   },
   "pinnedDoc": {
