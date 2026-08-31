@@ -750,7 +750,10 @@
   },
   "header": {
     "openChat": "프로젝트 채팅",
-    "openMail": "프로젝트 메일"
+    "openMail": "프로젝트 메일",
+    "openChatNone": "연결된 채팅방이 없습니다",
+    "openMailNone": "이 프로젝트에 연결된 메일이 없습니다",
+    "none": "없음"
   },
   "detail": {
     "readOnly": "읽기 전용"

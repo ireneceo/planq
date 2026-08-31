@@ -2261,13 +2261,22 @@ const QTaskPage:React.FC=()=>{
                             ? prev
                             : [...prev,{id:tag.id,name:tag.name,color:tag.color??null}].sort((a,b)=>a.name.localeCompare(b.name)))}
                         />
-                        <DetailBtn
-                          $active={detailTaskId===task.id}
-                          onClick={e=>{e.stopPropagation();if(detailTaskId===task.id)closeDetail();else openDetail(task.id);}}
-                          title={t('detail.open','Open detail')}>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-                        </DetailBtn>
                       </>)}
+                    </TCell>
+                    {/* ★ 상세 열기 `>` — **자기 칸**을 갖는다 (Irene 2026-08-31
+                        "가로 사이즈가 짧으면 이 화살표가 잘려. 마지막까지 잘리면 안되는 버튼 아니야?").
+                        여태 업무명 셀(flex:1 1 0 · overflow:hidden) **안**에 있어서, 제목·뱃지가
+                        셀 폭을 넘기면 맨 끝의 이 버튼부터 잘려 나갔다 — 상세를 여는 유일한 버튼인데
+                        가로 스크롤로도 닿지 못했다(실측: 리스트 폭이 좁아지면 31px 밖으로 나감).
+                        고정폭 칸으로 빼면 업무명 셀이 대신 줄어들어 버튼은 항상 남는다. */}
+                    <TCell $w="32px" $center>
+                      <DetailBtn
+                        $active={detailTaskId===task.id}
+                        data-testid="task-open-detail"
+                        onClick={e=>{e.stopPropagation();if(detailTaskId===task.id)closeDetail();else openDetail(task.id);}}
+                        title={t('detail.open','Open detail')}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                      </DetailBtn>
                     </TCell>
                     {scope==='workspace' && (
                       <TCell $w="140px" $hideBelow={768} style={{overflow:'visible'}}>

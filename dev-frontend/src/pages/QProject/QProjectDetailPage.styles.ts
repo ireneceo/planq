@@ -250,12 +250,21 @@ export const VisTag = styled.span<{$internal?:boolean}>`padding:1px 6px;border-r
 export const Empty = styled.div`padding:60px;text-align:center;color:#94A3B8;`;
 
 export const HeaderActions = styled.div`display: flex; align-items: center; gap: 8px;`;
+/** 헤더 버튼 옆 "없음" 배지 — 왜 못 누르는지 한눈에. */
+export const BtnNone = styled.span`
+  margin-left: 6px; padding: 1px 6px; border-radius: 999px;
+  background: #F1F5F9; color: #94A3B8; font-size: 0.625rem; font-weight: 700;
+`;
 export const HeaderBtn = styled.button`
   height: 32px; padding: 0 12px; border-radius: 8px; cursor: pointer;
+  display: inline-flex; align-items: center;
   font-size: 0.75rem; font-weight: 600; color: #0F766E;
   background: #F0FDFA; border: 1px solid #99F6E4;
-  &:hover { background: #CCFBF1; }
+  &:hover:not(:disabled) { background: #CCFBF1; }
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+  /* 갈 곳이 없으면 누를 수 없다 — 눌러서 빈 화면을 보고 "없구나" 하게 두지 않는다.
+     왜 못 누르는지는 title(툴팁)과 옆의 "없음" 배지가 말한다. */
+  &:disabled { cursor: not-allowed; color: #94A3B8; background: #F8FAFC; border-color: #E2E8F0; }
 `;
 
 // 운영 #339 — 개요 탭 상단의 프로젝트 설명(읽기 전용). 편집은 설정 탭 한 곳이 단일 원천이다.

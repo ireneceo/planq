@@ -5,6 +5,11 @@
 //   데스크탑 브라우저는 뒤로가기가 있지만 **모바일·네이티브 앱에는 그 버튼이 아예 없어서**
 //   한 번 잘못 들어가면 빠져나올 길이 없었다.
 //
+// ★★★ window.history.back() 도 쓰지 않는다 — 탭 모드에서 **되감기가 취소된다**(2026-08-31 실측).
+//   popstate → PopstateBridge → tabStore.navigateActive(path) → UrlMirror 가 다시 pushState 하는
+//   왕복이라 뒤로 갔다가 같은 자리로 돌아온다(/tasks → /tasks). 그래서 히스토리에 기대지 않고
+//   **지나온 경로를 직접 기억했다가 그리로 보낸다.** navigateActive 는 미러(단일 탭)에서도 동작한다.
+//
 // ★★ 절대 react-router 훅(useLocation/useNavigate)을 쓰지 말 것 — 2026-08-31 운영 장애.
 //   이 훅은 MainLayout 에서 불린다. 그런데 **탭 모드에서는 MainLayout 이 Router 바깥**이다
 //   (라우터는 각 pane 안의 MemoryRouter — components/Tab/TabPane.tsx). 그래서 useLocation() 이
@@ -24,30 +29,33 @@ function activePathOf(): string {
 }
 
 export function usePaneBack(): { canGoBack: boolean; goBack: () => void } {
-  const depth = useRef(0);
-  const lastPath = useRef<string>(activePathOf());
+  const stack = useRef<string[]>([]);      // 지나온 경로들 (현재 것 제외)
+  const current = useRef<string>(activePathOf());
+  const skipNext = useRef(false);          // goBack 이 만든 경로 변화는 스택에 안 쌓는다
   const [canGoBack, setCanGoBack] = useState(false);
 
   useEffect(() => {
     const onChange = () => {
       const p = activePathOf();
-      if (p === lastPath.current) return;
-      lastPath.current = p;
-      // 뒤로/앞으로인지 구분할 수 없으므로 깊이는 goBack 에서만 줄인다.
-      depth.current += 1;
+      if (p === current.current) return;
+      if (skipNext.current) { skipNext.current = false; current.current = p; return; }
+      stack.current.push(current.current);
+      if (stack.current.length > 30) stack.current.shift();   // 무한 증가 방지
+      current.current = p;
       setCanGoBack(true);
     };
     const off = tabStore.subscribe(onChange);
-    // 셸(단일 탭) 모드에서 tabStore 가 안 움직이는 경로가 있어도 popstate 는 온다.
     window.addEventListener('popstate', onChange);
     return () => { off(); window.removeEventListener('popstate', onChange); };
   }, []);
 
   const goBack = () => {
-    if (depth.current <= 0) return;
-    depth.current -= 1;
-    if (depth.current <= 0) setCanGoBack(false);
-    window.history.back();
+    const target = stack.current.pop();
+    if (!target) { setCanGoBack(false); return; }
+    if (stack.current.length === 0) setCanGoBack(false);
+    skipNext.current = true;
+    current.current = target;
+    tabStore.navigateActive(target);
   };
 
   return { canGoBack, goBack };

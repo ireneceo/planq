@@ -132,6 +132,7 @@ import {
   Empty,
   HeaderActions,
   HeaderBtn,
+  BtnNone,
 } from './QProjectDetailPage.styles';
 
 const PROJECT_COLORS = PROJECT_COLOR_PALETTE.map(p => p.value);
@@ -276,6 +277,9 @@ const QProjectDetailPage: React.FC = () => {
   }, [isClient, tab]);
   const [statusHistory, setStatusHistory] = useState<{ id: number; from_status: string | null; to_status: string; note: string | null; created_at: string; changed_by_name: string | null }[]>([]);
   const [convs, setConvs] = useState<Conv[]>([]);
+  // 이 프로젝트에 연결된 메일 스레드 수 — 0 이면 "프로젝트 메일" 버튼을 잠근다.
+  //   (null = 아직 모름. 모르는 동안은 잠그지 않는다 — 있는데 못 누르는 게 더 나쁘다)
+  const [mailCount, setMailCount] = useState<number | null>(null);
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [bizMembers, setBizMembers] = useState<BizMember[]>([]);
   const [bizClients, setBizClients] = useState<{ id: number; display_name: string | null; company_name: string | null; invite_email?: string | null; user?: { id: number; name: string; email: string } }[]>([]);
@@ -421,6 +425,17 @@ const QProjectDetailPage: React.FC = () => {
         }
       }
       if (cr.success) setConvs(cr.data || []);
+      // 이 프로젝트에 걸린 메일 스레드가 있는지 (버튼 잠금 판정용). 실패하면 null 유지 = 안 잠근다.
+      if (pr?.data?.business_id) {
+        apiFetch(`/api/businesses/${pr.data.business_id}/email-threads?project_id=${projectId}&limit=1`)
+          .then(r => (r.ok ? r.json() : null))
+          .then(j => {
+            if (!j || j.success === false) return;
+            const n = j.pagination?.total ?? (Array.isArray(j.data) ? j.data.length : null);
+            if (typeof n === 'number') setMailCount(n);
+          })
+          .catch(() => { /* 모르면 잠그지 않는다 */ });
+      }
       if (tr.success) setTasks(tr.data || []);
       if (ir.success) setIssues(ir.data || []);
       if (nr.success) setNotes(nr.data || []);
@@ -625,11 +640,27 @@ const QProjectDetailPage: React.FC = () => {
       actions={
         <HeaderActions>
           {/* 소통 창구로 바로 — 채팅과 메일이 PlanQ 의 두 창구다. 프로젝트에서 한 번에 건너간다. */}
-          <HeaderBtn type="button" onClick={() => navigate(`/talk?project=${projectId}`)}>
+          {/* ★ 없는 곳으로 보내지 않는다 (Irene 2026-08-31):
+              "채팅방이 없다면서 프로젝트 채팅 누르면 채팅 메뉴로 가서 없는 건지 아닌지 알수없게 해.
+               가기 전부터 프로젝트에서 없다고 알려야지."
+              연결된 채팅방이 0이면 누를 수 없게 하고, **왜 못 누르는지**를 그 자리에서 말한다. */}
+          <HeaderBtn type="button" disabled={convs.length === 0}
+            data-testid="project-open-chat"
+            title={(convs.length === 0
+              ? t('header.openChatNone', '연결된 채팅방이 없습니다')
+              : t('header.openChat', '프로젝트 채팅')) as string}
+            onClick={() => { if (convs.length > 0) navigate(`/talk?project=${projectId}`); }}>
             {t('header.openChat', '프로젝트 채팅')}
+            {convs.length === 0 && <BtnNone>{t('header.none', '없음')}</BtnNone>}
           </HeaderBtn>
-          <HeaderBtn type="button" onClick={() => navigate(`/mail?folder=all&project=${projectId}`)}>
+          <HeaderBtn type="button" disabled={mailCount === 0}
+            data-testid="project-open-mail"
+            title={(mailCount === 0
+              ? t('header.openMailNone', '이 프로젝트에 연결된 메일이 없습니다')
+              : t('header.openMail', '프로젝트 메일')) as string}
+            onClick={() => { if ((mailCount ?? 1) > 0) navigate(`/mail?folder=all&project=${projectId}`); }}>
             {t('header.openMail', '프로젝트 메일')}
+            {mailCount === 0 && <BtnNone>{t('header.none', '없음')}</BtnNone>}
           </HeaderBtn>
           <BackBtn type="button" onClick={() => navigate('/projects')}>← {t('backToList', '목록')}</BackBtn>
         </HeaderActions>

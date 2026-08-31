@@ -7,6 +7,7 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useTabs, useActiveTab } from '../../hooks/useTabStore';
+import { usePaneBack } from '../../hooks/usePaneBack';
 import { tabStore, type Tab, type TabKind } from '../../stores/tabStore';
 import { XIcon, PlusIcon } from '../Common/Icons';
 import { useAuth } from '../../contexts/AuthContext';
@@ -27,6 +28,9 @@ export default function TabStrip({ leftOffset = 0 }: { leftOffset?: number }) {
   const { user } = useAuth();
   const bizId = user?.business_id ? Number(user.business_id) : 0;
   const [searchOpen, setSearchOpen] = useState(false); // + → 통합검색(새 탭으로 열기)
+  // 뒤로 가기 — 데스크탑(탭 모드)에도 있어야 한다. 모바일 헤더에만 두었더니 데스크탑에선
+  //   버튼이 없어 "계속 안해?" 라는 말을 들었다 (Irene 2026-08-31). 갈 곳 있을 때만 뜬다.
+  const { canGoBack, goBack } = usePaneBack();
   const activeRef = useRef<HTMLButtonElement>(null);
   const [dragId, setDragId] = useState<string | null>(null);   // 드래그 중인 탭
   const [overId, setOverId] = useState<string | null>(null);   // 드롭 대상(시각 표시)
@@ -60,6 +64,16 @@ export default function TabStrip({ leftOffset = 0 }: { leftOffset?: number }) {
 
   return (
     <Strip role="tablist" aria-label={t('tabs.strip', { defaultValue: '열린 탭' }) as string} data-testid="tabstrip" style={{ left: leftOffset }}>
+      {canGoBack && (
+        <BackBtn type="button" onClick={goBack} data-testid="tabstrip-back"
+          title={t('nav.back', { defaultValue: '뒤로' }) as string}
+          aria-label={t('nav.back', { defaultValue: '뒤로' }) as string}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+        </BackBtn>
+      )}
       <Scroll>
         {tabs.map((tab) => {
           const isActive = active?.id === tab.id;
@@ -108,6 +122,14 @@ export default function TabStrip({ leftOffset = 0 }: { leftOffset?: number }) {
 }
 
 // ── styled (사이드바 토큰 수평 연장) ──
+const BackBtn = styled.button`
+  flex-shrink: 0; width: 34px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: none; cursor: pointer;
+  color: rgba(255,255,255,0.75); padding: 0;
+  &:hover { color: #fff; background: rgba(255,255,255,0.08); }
+  &:focus-visible { outline: 2px solid #fff; outline-offset: -2px; }
+`;
 const Strip = styled.div`
   position: fixed; top: 0; right: 0; z-index: 95;   /* left 는 inline(사이드바 폭) — 사이드바 오른쪽부터 */
   display: flex; align-items: stretch;              /* 탭이 위아래로 꽉 차게 */
