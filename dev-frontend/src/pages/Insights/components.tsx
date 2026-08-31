@@ -27,6 +27,12 @@ export const InsightBody = styled.div`
   display: flex; align-items: center; gap: 12px;
   padding: 10px 16px;
   flex-wrap: wrap;
+  /* 폰 — 여러 줄로 흐르는 편이 자연스럽다(가운데 정렬이면 줄마다 들쭉날쭉) */
+  @media (max-width: 640px) {
+    align-items: flex-start;
+    gap: 4px 10px;
+    padding: 10px 12px;
+  }
 `;
 export const InsightTitle = styled.div`
   font-size: 0.75rem; font-weight: 700; color: #64748B;
@@ -35,11 +41,19 @@ export const InsightTitle = styled.div`
 `;
 export const InsightValue = styled.div`
   font-size: 0.875rem; font-weight: 700; color: #0F172A;
-  flex-shrink: 0;
+  /* 운영 #395 — 값 자리에 숫자가 아니라 문장이 오는 인사이트가 있다("프로젝트 수금·비용 기록 후 표시").
+     flex-shrink:0 이면 그 문장이 폭을 통째로 차지해 뒤의 힌트가 몇 px 로 찌그러진다.
+     줄어들 수 있게 두되(0 1 auto) 줄바꿈은 허용한다 — 숫자 값은 짧아서 종전과 동일하게 보인다. */
+  flex: 0 1 auto; min-width: 0;
+  overflow-wrap: anywhere;
 `;
 export const InsightHint = styled.div`
   font-size: 0.75rem; color: #64748B; line-height: 1.4;
-  flex: 1; min-width: 0;
+  /* ★ flex: 1 은 basis 0 이라 **남은 공간이 몇 px 이든 거기에 들어간다** — 그래서 폰에서
+     "청구서·비용 입력하시면 분석 시작" 이 23px 폭에 한 글자씩 세로로 쌓였다(실측 23×134).
+     basis 를 주면 그만큼 못 받을 때 wrap 이 발동해 **다음 줄로 내려간다**(부모가 flex-wrap: wrap).
+     대상은 :first-child 같은 위치가 아니라 역할로 지목한다 — memory flex_wrap_basis_not_content. */
+  flex: 1 1 200px; min-width: 160px;
 `;
 export const InsightAction = styled.div`
   font-size: 0.75rem; font-weight: 600; color: #0F766E;
@@ -141,11 +155,17 @@ export const DownloadIcon = () => (
 );
 
 // helpers
-export const fmtKRW = (v: number | null | undefined): string => {
+// 운영 #393 — "매출이 딱 제대로된 숫자가 아니고 올림이 되는 것 같아. 정확히 표시되는지 확인해."
+//   맞다. 옛 구현은 만원 단위로 **반올림**했다: 434,000원 → "43만원"(4,000원 증발),
+//   125,000,000원 → "1.3억원". 돈은 요약해서 보여줄 값이 아니다 — 사용자가 장부와 대조하는 숫자다.
+//   축약이 필요한 자리가 생기면 compact 를 명시적으로 켤 것(기본은 언제나 정확값).
+export const fmtKRW = (v: number | null | undefined, opts?: { compact?: boolean }): string => {
   if (v == null || isNaN(v)) return '—';
-  if (Math.abs(v) >= 100000000) return `${(v / 100000000).toFixed(1)}억원`;
-  if (Math.abs(v) >= 10000) return `${(v / 10000).toFixed(0)}만원`;
-  return `${v.toLocaleString()}원`;
+  if (opts?.compact) {
+    if (Math.abs(v) >= 100000000) return `${(v / 100000000).toFixed(1)}억원`;
+    if (Math.abs(v) >= 10000) return `${(v / 10000).toFixed(0)}만원`;
+  }
+  return `${Math.round(v).toLocaleString()}원`;
 };
 
 export const fmtNum = (v: number | null | undefined, suffix = ''): string => {

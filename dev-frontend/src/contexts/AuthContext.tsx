@@ -339,7 +339,13 @@ function noteFailure(url: string): void {
 }
 function noteSuccess(url: string): void { failLog.delete(circuitKey(url)); }
 
-const apiFetch = async (url: string, options: RequestInit = {}): Promise<Response> => {
+// 네트워크 수준 실패(요청이 서버에 닿지도 못함)에 한해 **1회만** 다시 보낸다.
+//   ★ 아무 요청에나 붙이면 안 된다 — POST 가 서버에 닿은 뒤 응답만 유실된 경우 중복 생성이 된다.
+//   그래서 기본은 끔이고, **저장하지 않는 요청**(AI 미리보기 등)만 명시적으로 켠다.
+export type ApiFetchOptions = RequestInit & { retryOnNetworkError?: boolean };
+const NET_RETRY_DELAY_MS = 600;
+
+const apiFetch = async (url: string, options: ApiFetchOptions = {}): Promise<Response> => {
   // 폭주 차단 중 — 네트워크로 내보내지 않고 즉시 실패 응답을 만든다(호출부는 !r.ok 로 처리).
   if (circuitOpen(url)) {
     return new Response(JSON.stringify({ success: false, message: 'request_throttled' }),
@@ -364,16 +370,31 @@ const apiFetch = async (url: string, options: RequestInit = {}): Promise<Respons
     headers.set('Authorization', `Bearer ${accessToken}`);
   }
 
+  const { retryOnNetworkError, ...init } = options;
   let response: Response;
+  const startedAt = Date.now();
+  const send = () => fetch(url, { ...init, headers, credentials: 'include' /* HttpOnly cookie 전송 */ });
   try {
-    response = await fetch(url, {
-      ...options,
-      headers,
-      credentials: 'include', // HttpOnly cookie 전송
-    });
+    response = await send();
   } catch (e) {
-    noteFailure(url);          // 네트워크 자체 실패(ERR_INSUFFICIENT_RESOURCES 등)도 폭주 신호다
-    throw e;
+    // ★ 진단 근거를 남긴다. 이 실패는 **서버에 닿지 못한 것**이라 서버 로그엔 아무것도 안 남는다 —
+    //   여기서 안 남기면 "가끔 네트워크 오류가 난다" 가 영원히 추적 불가능한 신고로만 존재한다.
+    const el = Date.now() - startedAt;
+    console.warn(`[apiFetch] 요청이 완료되지 못함: ${circuitKey(url)} · ${el}ms · ${(e as Error).name}: ${(e as Error).message} · online=${navigator.onLine} · ${new Date().toISOString()}`);
+    if (retryOnNetworkError) {
+      // 순단 한 번으로 기능 전체가 실패하지 않게 한 번만 더 보낸다.
+      await new Promise((r) => setTimeout(r, NET_RETRY_DELAY_MS));
+      try {
+        response = await send();
+        console.warn(`[apiFetch] 재시도 성공: ${circuitKey(url)}`);
+      } catch (e2) {
+        noteFailure(url);
+        throw e2;
+      }
+    } else {
+      noteFailure(url);        // 네트워크 자체 실패(ERR_INSUFFICIENT_RESOURCES 등)도 폭주 신호다
+      throw e;
+    }
   }
   if (response.ok) noteSuccess(url);
   else if (response.status >= 500) noteFailure(url);   // 5xx 반복 = 서버가 못 주는 것 — 계속 때리지 않는다
@@ -384,7 +405,7 @@ const apiFetch = async (url: string, options: RequestInit = {}): Promise<Respons
     if (r.ok) {
       const retryHeaders = new Headers(options.headers || {});
       retryHeaders.set('Authorization', `Bearer ${accessToken}`);
-      return fetch(url, { ...options, headers: retryHeaders, credentials: 'include' });
+      return fetch(url, { ...init, headers: retryHeaders, credentials: 'include' });
     }
     // refresh 실패 = 세션이 끝났다. 여기서 응답을 그대로 돌려주면 호출자(예: 확인필요/인박스
     //   fetchTodo)가 백엔드 원문("Access token required")을 화면에 렌더해 사용자가 로그인

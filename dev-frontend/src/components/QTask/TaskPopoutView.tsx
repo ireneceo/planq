@@ -240,9 +240,12 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
           business_id: bizId,
           title,
           assignee_id: myId,                                   // 이 팝아웃은 내 업무 목록이다
+          //   ★ 이번 주 탭에도 마감일을 넣는다(Irene) — 주차 버킷만 있고 날짜가 없으면
+          //     "기간" 칸이 빈 채로 태어나 목록·정렬·지연 판정이 전부 이 업무를 비껴간다.
+          //     주간 술어는 planned_week_start 로, 오늘 술어는 due_date 로 각각 통과한다.
           ...(popTab === 'today'
             ? { due_date: todayStr, planned_week_start: weekStart || undefined }
-            : { planned_week_start: weekStart }),
+            : { due_date: todayStr, planned_week_start: weekStart }),
           // #309 — 프로젝트별로 보고 있으면 그 프로젝트로 바로 만든다.
           ...(viewMode === 'project' && quickPick ? { project_id: Number(quickPick) } : {}),
         }),

@@ -40,6 +40,7 @@ import {
   type KbDocumentRow, type KbCategory, type KbScope, type KbVlevel, type KbCategoryRow,
 } from '../../services/knowledge';
 import { mapApiError } from '../../utils/apiError';
+import { useFileDownload } from '../../hooks/useFileDownload';
 import { apiFetch } from '../../contexts/AuthContext';
 import { listProjects, listWorkspaceClients, type ApiProject, type WorkspaceClientRow } from '../../services/qtalk';
 import { fetchWorkspaceFiles, uploadMyFile, formatBytes, type ProjectFile } from '../../services/files';
@@ -108,6 +109,8 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
   const businessId = user?.business_id ? Number(user.business_id) : null;
 
   // ─── 리스트 + 필터 상태 ───
+  // 원본·첨부 파일 다운로드 — 인증 fetch + 진행 표시 (링크 방식은 401)
+  const dl = useFileDownload();
   const [docs, setDocs] = useState<KbDocumentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCat, setActiveCat] = useState<KbCategory | 'all'>('all');
@@ -1248,14 +1251,16 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                         </AttachIcon>
                         <AttachName>{detail.source_file.file_name}</AttachName>
                         <AttachMeta>{formatBytes(detail.source_file.file_size)}</AttachMeta>
+                        {/* Drive 사본은 외부 링크라 그대로 열면 되고, 우리 저장소 파일은
+                            인증이 필요해 링크로는 401 이다 — 그쪽만 인증 fetch 로 받는다. */}
                         <AttachAction
-                          href={detail.source_file.storage_provider === 'gdrive' && detail.source_file.external_url
-                            ? detail.source_file.external_url
-                            : `/api/files/${businessId}/${detail.source_file.id}/download`}
-                          target={detail.source_file.storage_provider === 'gdrive' ? '_blank' : undefined}
-                          rel="noopener noreferrer"
-                          download={detail.source_file.storage_provider !== 'gdrive' ? detail.source_file.file_name : undefined}
-                          title={t('drawer.download', '다운로드') as string}
+                          {...(detail.source_file.storage_provider === 'gdrive' && detail.source_file.external_url
+                            ? { href: detail.source_file.external_url, target: '_blank', rel: 'noopener noreferrer' }
+                            : {
+                              as: 'button' as const, type: 'button' as const, disabled: dl.downloading,
+                              onClick: () => dl.start(`/api/files/${businessId}/${detail.source_file!.id}/download`, detail.source_file!.file_name),
+                            })}
+                          title={dl.downloading ? (dl.progressText || '') : (t('drawer.download', '다운로드') as string)}
                         >
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -1292,11 +1297,13 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                         <AttachName>{f.file_name}</AttachName>
                         <AttachMeta>{formatBytes(f.file_size)}</AttachMeta>
                         <AttachAction
-                          href={f.storage_provider === 'gdrive' && f.external_url ? f.external_url : `/api/files/${businessId}/${f.id}/download`}
-                          target={f.storage_provider === 'gdrive' ? '_blank' : undefined}
-                          rel="noopener noreferrer"
-                          download={f.storage_provider !== 'gdrive' ? f.file_name : undefined}
-                          title={t('drawer.download', '다운로드') as string}
+                          {...(f.storage_provider === 'gdrive' && f.external_url
+                            ? { href: f.external_url, target: '_blank', rel: 'noopener noreferrer' }
+                            : {
+                              as: 'button' as const, type: 'button' as const, disabled: dl.downloading,
+                              onClick: () => dl.start(`/api/files/${businessId}/${f.id}/download`, f.file_name),
+                            })}
+                          title={dl.downloading ? (dl.progressText || '') : (t('drawer.download', '다운로드') as string)}
                         >
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -2645,12 +2652,15 @@ const AttachRow = styled.div`
 const AttachIcon = styled.svg`width: 16px; height: 16px; color: #64748B; flex-shrink: 0;`;
 const AttachName = styled.span`color: #0F172A; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
 const AttachMeta = styled.span`color: #94A3B8; font-size: 0.6875rem; flex-shrink: 0;`;
+/* `as="button"` 으로도 쓰인다 — 우리 저장소 파일은 인증이 필요해 링크로 못 받는다(401). */
 const AttachAction = styled.a`
   display: inline-flex; align-items: center; justify-content: center;
   width: 28px; height: 28px;
   color: #475569; border-radius: 6px; text-decoration: none;
+  background: none; border: none; padding: 0; cursor: pointer;
   transition: all 0.15s;
   &:hover { background: #F0FDFA; color: #0F766E; }
+  &:disabled { cursor: default; opacity: 0.6; }
 `;
 const AttachRemoveBtn = styled.button`
   display: inline-flex; align-items: center; justify-content: center;

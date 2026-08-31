@@ -524,6 +524,40 @@ async function buildProfitTab(businessId, period, segment = 'client') {
 
   const projectIds = projects.map((p) => p.id);
 
+  // ── 고객 이름의 정본 (운영 #396) ────────────────────────────────────
+  //   Irene: "제대로 고객으로 안들어와있는 강호제가 표시되고 고객으로 있는 이름이 안나오고
+  //          수익만 잡혀. 다른 고객은 표시도 안되는데."
+  //   원인: 이 집계가 `projects.client_company`(자유 텍스트) **하나만** 봤다. 실제 고객 연결은
+  //   project_clients → clients 인데 그 축을 안 봤다. 운영 실측 —
+  //     #7 링크솔루션(자유텍스트 "강호제", 연결 0) → 이름이 뜬다
+  //     #6 K-DINE(연결 2), #3 기율법률사무소(연결 1) → client_company 가 비어 전부 "—" 로 뭉친다
+  //   그래서 **등록된 고객만 이름이 사라지는** 정반대 상태였다.
+  //   정본은 연결된 Client(회사명 > 표시명 > 계정명), 없을 때만 자유 텍스트로 폴백한다.
+  const clientNameByProject = new Map();
+  try {
+    const { ProjectClient, Client, User } = require('../models');
+    const links = await ProjectClient.findAll({
+      where: { project_id: { [Op.in]: projectIds }, client_id: { [Op.ne]: null } },
+      attributes: ['project_id', 'client_id', 'contact_name'],
+      // ★ ProjectClient.belongsTo(Client) 는 **별칭이 없다**(models/index.js:374) —
+      //   as:'client' 를 쓰면 즉시 에러다. 기본 별칭(모델명)으로 받는다.
+      include: [{
+        model: Client, required: false,
+        attributes: ['id', 'company_name', 'display_name', 'user_id'],
+        include: [{ model: User, as: 'user', required: false, attributes: ['id', 'name'] }],
+      }],
+    });
+    for (const l of links) {
+      if (clientNameByProject.has(l.project_id)) continue;   // 한 프로젝트에 여럿이면 첫 고객 기준
+      const c = l.Client;
+      const nm = (c && (c.company_name || c.display_name || c.user?.name)) || l.contact_name || null;
+      if (nm) clientNameByProject.set(l.project_id, String(nm));
+    }
+  } catch (e) {
+    // 연결 조회가 실패해도 통계 전체를 죽이지 않는다 — 자유 텍스트 폴백으로 종전 동작.
+    console.warn('[stats] 프로젝트-고객 연결 조회 실패:', e.message);
+  }
+
   // 프로젝트별 매출 (수금) — 홈 통화만 합산. 외화 결제가 있는 프로젝트는 has_foreign 로 표시해
   //   revenue 0 으로 조용히 사라지는 오정보 차단 (Fable 필수조건).
   const payments = await InvoicePayment.findAll({
@@ -606,7 +640,11 @@ async function buildProfitTab(businessId, period, segment = 'client') {
     return {
       project_id: p.id,
       name: p.name,
-      client: p.client_company || '—',
+      // 정본은 연결된 고객, 없으면 자유 텍스트(미등록 고객), 그것도 없으면 '—'
+      client: clientNameByProject.get(p.id) || p.client_company || '—',
+      // 화면이 "등록된 고객인지" 를 구별할 수 있게 — 미등록 자유 텍스트를 등록 고객처럼 보이면
+      //   #396 같은 오해가 반복된다.
+      client_registered: clientNameByProject.has(p.id),
       kind: p.kind,
       status: p.status,
       has_foreign_currency: foreignProjects.has(p.id),

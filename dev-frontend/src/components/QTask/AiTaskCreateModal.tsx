@@ -132,6 +132,9 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
     try {
       const r = await apiFetch('/api/tasks/ai-create', {
         method: 'POST',
+        // 미리보기라 DB 에 아무것도 저장하지 않는다 → 순단 1회는 다시 보내도 안전하다.
+        //   (아래 confirm 은 저장이므로 **절대** 켜지 않는다 — 중복 생성이 된다)
+        retryOnNetworkError: true,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           business_id: businessId,

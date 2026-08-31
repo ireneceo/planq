@@ -139,6 +139,11 @@ interface TaskDetail {
   /** #349 — 미수행 회차 정책. carry(기본) = 남긴다 / auto_skip = 지난 회차 자동 마감 */
   miss_policy?: 'carry' | 'auto_skip' | null;
   recurrence_parent_id?: number | null;
+  /** 회차(인스턴스)에서만 채워진다 — 규칙은 시리즈 부모의 것이라 서버가 같이 내려준다.
+   *  회차에도 같은 반복 설정 UI 를 그리기 위한 값이다(회차 자신의 recurrence_rule 은 항상 null). */
+  series_recurrence_rule?: string | null;
+  /** 시리즈 첫 회차일 — RRULE 의 기준일(DTSTART). 회차 날짜로 규칙을 다시 만들면 시리즈가 통째로 옮겨간다. */
+  series_due_date?: string | null;
 }
 
 export interface DrawerProjectOption { id: number; name: string; }
@@ -245,15 +250,24 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   // custom 옵션은 추가 폼의 별도 모달에서 처리 — 상세에선 preset 만 (추후 보강 가능)
   const [recurCustomEvery] = useState<string>('1');
   const [recurCustomUnit] = useState<RecurCustomUnit>('week');
-  // detailTask 로드되면 기존 recurrence_rule 파싱 → 모든 recurrence state 복원 (격주 등 preset 유지)
+  // 반복의 정본 — 부모면 자기 규칙, 회차면 시리즈 규칙. 화면·저장이 **같은 값**을 본다.
+  //   두 벌로 두면 회차에서 preset 이 늘 '반복 없음' 으로 보이고(회차엔 규칙이 없다),
+  //   저장할 때는 또 다른 값을 기준으로 만들어 서로 어긋난다.
+  const seriesRule = detailTask?.recurrence_rule ?? detailTask?.series_recurrence_rule ?? null;
+  // RRULE 의 기준일은 **시리즈 첫 회차일**이다 — 이 회차의 마감일로 만들면 주기가 이 날짜로 이사한다.
+  //   회차면 시리즈 첫 회차일, 그 외(부모·아직 반복 아닌 업무)는 자기 마감일.
+  const recurAnchorDue = detailTask?.recurrence_parent_id
+    ? (detailTask?.series_due_date ?? null)
+    : (detailTask?.due_date ?? null);
+  // detailTask 로드되면 기존 규칙 파싱 → 모든 recurrence state 복원 (격주 등 preset 유지)
   React.useEffect(() => {
-    const parsed = parseRRule(detailTask?.recurrence_rule);
+    const parsed = parseRRule(seriesRule);
     setRecurEnabled(parsed.enabled);
     setRecurPreset(parsed.preset);
     setRecurEndType(parsed.endType);
     setRecurEndCount(String(parsed.endCount));
     setRecurEndUntil(parsed.endUntil || '');
-  }, [detailTask?.id, detailTask?.recurrence_rule]);
+  }, [detailTask?.id, seriesRule]);
 
   // 현재 폼 상태 → RRULE 문자열 (없으면 null) — 추가 폼의 buildCurrentRRule 와 동일 로직
   // overrides: setState 비동기 우회 — 새 값을 직접 전달
@@ -274,7 +288,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     if (finalPreset === 'custom') return buildCustomRRule(Number(recurCustomEvery) || 1, recurCustomUnit, end);
     // 운영 #347 — 화면이 표현 못 하는 규칙(advanced)은 다시 만들지 않고 현재 규칙을 그대로 둔다.
     //   여기서 재빌드하면 BYSETPOS·다중 BYDAY 가 통째로 날아간다.
-    if (finalPreset === 'advanced') return detailTask?.recurrence_rule || null;
+    if (finalPreset === 'advanced') return seriesRule || null;
     return buildPresetRRule(finalPreset, dueDate, end);
   };
   const [statusOpen, setStatusOpen] = useState(false);
@@ -558,13 +572,22 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const SERIES_FIELDS = ['title', 'description', 'category', 'assignee_id', 'estimated_hours'];
   const isSeries = !!(detailTask?.recurrence_rule || detailTask?.recurrence_parent_id);
   const [seriesAsk, setSeriesAsk] = useState<Record<string, unknown> | null>(null);
+  // 무엇을 고치는 중인지에 따라 물어야 할 선택지가 다르다 (내용 3가지 / 반복 주기 2가지).
+  const [seriesAskVariant, setSeriesAskVariant] = useState<'content' | 'recurrence'>('content');
 
   const saveFields = async (patch: Record<string, unknown>, scope?: SeriesScope) => {
     if (!detailTask) return;
     // 반복 업무 + 공유 필드 → 범위를 먼저 묻는다 (Q 캘린더 반복 일정과 같은 규칙).
-    if (!scope && isSeries && Object.keys(patch).some((k) => SERIES_FIELDS.includes(k))) {
-      setSeriesAsk(patch);
-      return;
+    //   ★ 반복 주기(recurrence_rule) 자체도 시리즈가 공유하는 값이다. 여태 이 목록에 없어서
+    //     "이 회차만" 도 아니고 아무 것도 묻지 않은 채 한 행에만 적용됐다(Irene 신고).
+    //     단, 켜는 첫 순간(아직 시리즈가 아님)은 물을 것이 없으므로 isSeries 로 걸러진다.
+    if (!scope && isSeries) {
+      const isRecurPatch = Object.prototype.hasOwnProperty.call(patch, 'recurrence_rule');
+      if (isRecurPatch || Object.keys(patch).some((k) => SERIES_FIELDS.includes(k))) {
+        setSeriesAskVariant(isRecurPatch ? 'recurrence' : 'content');
+        setSeriesAsk(patch);
+        return;
+      }
     }
     setSaveStatusTemp('saving');
     try {
@@ -573,7 +596,14 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         body: JSON.stringify(scope ? { ...patch, series_scope: scope } : patch),
       });
       if (!r.ok) throw new Error('save_failed');   // apiFetch 는 throw 안 함 — res.ok 필수
-      setDetailTask(prev => prev ? { ...prev, ...patch } as TaskDetail : prev);
+      // ★ 회차에서 바꾼 반복 규칙은 **이 행이 아니라 시리즈 부모**에 저장된다.
+      //   그대로 이 행에 써 넣으면 화면은 저장된 것처럼 보이는데 다시 열면 되돌아간다
+      //   (그 값을 서버가 이 행에 준 적이 없다). 회차에서는 시리즈 필드에 반영한다.
+      const localPatch = (detailTask.recurrence_parent_id
+        && Object.prototype.hasOwnProperty.call(patch, 'recurrence_rule'))
+        ? { ...patch, recurrence_rule: null, series_recurrence_rule: patch.recurrence_rule }
+        : patch;
+      setDetailTask(prev => prev ? { ...prev, ...localPatch } as TaskDetail : prev);
       onPatch?.({ id: detailTask.id, ...patch } as DrawerTaskPatch);
       setSaveStatusTemp('saved');
     } catch { setSaveStatusTemp('error'); }
@@ -1577,53 +1607,47 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 </ReviewReminderHint>
               )}
 
-              {/* 정기업무 인스턴스 표시 — cron 자동 생성된 자식 task. 편집 UI 숨김 */}
-              {detailTask.recurrence_parent_id && !detailTask.recurrence_rule && (
+              {/* 정기업무 인스턴스 표시 — cron 자동 생성된 자식 task.
+                  ★ 여기서 **편집 UI 를 숨기지 않는다.** 숨겨 두었더니 사용자는 반복을 아예 바꿀 수 없었다
+                    (Irene: "처음 업무에서만 수정되는 것 같은데"). 회차에서 바꾼 규칙은 시리즈 부모에
+                    적용되고, 적용 범위는 저장 직전에 묻는다(SeriesScopeDialog, variant='recurrence'). */}
+              {detailTask.recurrence_parent_id && (
                 <MetaRecurRow $disabled>
                   <MetaRecurToggle as="div">
                     <span aria-hidden="true" style={{ fontSize: '0.75rem' }}>↻</span>
-                    <span>{t('recur.instance', { defaultValue: '정기업무에서 자동 생성된 1회분' })}</span>
+                    <span>{t('series.recurInstanceNote', { defaultValue: '이 회차는 반복 업무에서 자동으로 만들어졌어요. 여기서 반복 설정을 바꾸면 시리즈 전체에 적용됩니다.' })}</span>
                   </MetaRecurToggle>
                 </MetaRecurRow>
               )}
-              {/* 반복하기 — 정기업무 (추가 폼과 동일 옵션). 권한: 작성자/owner/admin.
-                  인스턴스(자식) 인 경우 편집 UI 숨김 — parent 에서만 편집 (시리즈 일관성) */}
-              {!detailTask.recurrence_parent_id && (
+              {/* 반복하기 — 정기업무 (추가 폼과 동일 옵션). 권한: 작성자/owner/admin. */}
+              {(
               <MetaRecurRow $disabled={!canEditRecurrence}>
                 <MetaRecurToggle>
-                  <input type="checkbox" checked={recurEnabled} disabled={!canEditRecurrence || !detailTask.due_date}
+                  <input type="checkbox" checked={recurEnabled} disabled={!canEditRecurrence || !recurAnchorDue}
                     onChange={(e) => {
                       if (!canEditRecurrence) return;
                       const enabled = e.target.checked;
                       setRecurEnabled(enabled);
-                      if (!enabled) {
-                        // 끄면 즉시 백엔드에 null 저장
-                        saveField('recurrence_rule', null);
-                        setDetailTask(prev => prev ? { ...prev, recurrence_rule: null } : prev);
-                      } else {
-                        // 켤 때는 즉시 빌드해서 저장
-                        const rule = buildRecurRule(detailTask.due_date);
-                        if (rule) {
-                          saveField('recurrence_rule', rule);
-                          setDetailTask(prev => prev ? { ...prev, recurrence_rule: rule } : prev);
-                        }
+                      // ★ 화면 state 를 직접 쓰지 않는다 — 회차에서는 규칙이 이 행이 아니라
+                      //   시리즈 부모에 저장된다. saveFields 가 저장 성공 뒤에 맞는 자리를 갱신한다.
+                      if (!enabled) saveField('recurrence_rule', null);
+                      else {
+                        const rule = buildRecurRule(recurAnchorDue);
+                        if (rule) saveField('recurrence_rule', rule);
                       }
                     }} />
                   <span>{t('recur.toggle', '반복하기')}</span>
                   {!canEditRecurrence && <ReadOnlyHint>{t('detail.readOnly', '읽기 전용')}</ReadOnlyHint>}
-                  {canEditRecurrence && !detailTask.due_date && <MetaRecurHint>{t('recur.needDueDate', '반복하려면 마감일이 필요해요')}</MetaRecurHint>}
+                  {canEditRecurrence && !recurAnchorDue && <MetaRecurHint>{t('recur.needDueDate', '반복하려면 마감일이 필요해요')}</MetaRecurHint>}
                 </MetaRecurToggle>
-                {recurEnabled && detailTask.due_date && (() => {
+                {recurEnabled && recurAnchorDue && (() => {
                   // overrides: setState 비동기 우회 — 새 값을 직접 전달
                   const saveRule = (overrides?: { preset?: RecurPreset; endType?: RecurEndType; endCount?: string; endUntil?: string }) => {
-                    const rule = buildRecurRule(detailTask.due_date, overrides);
-                    if (rule) {
-                      saveField('recurrence_rule', rule);
-                      setDetailTask(prev => prev ? { ...prev, recurrence_rule: rule } : prev);
-                    }
+                    const rule = buildRecurRule(recurAnchorDue, overrides);
+                    if (rule) saveField('recurrence_rule', rule);
                   };
                   // 운영 #347 — 라벨은 utils/recurrence 의 단일 원천에서 온다(3벌 하드코딩 제거).
-                  const presetLabels = presetLabelMap(t as unknown as TFunction, detailTask.due_date);
+                  const presetLabels = presetLabelMap(t as unknown as TFunction, recurAnchorDue);
                   return (
                     <MetaRecurOptions>
                       <PlanQSelect size="sm"
@@ -1632,8 +1656,8 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                            나와 "선택된 게 표시가 안 된다" 로 읽혔다 — 실제 규칙 문장을 그대로 보여준다. */
                         value={{
                           value: recurPreset,
-                          label: (recurPreset === 'advanced' || recurPreset === 'custom') && detailTask.recurrence_rule
-                            ? (formatRRuleLabel(detailTask.recurrence_rule, detailTask.due_date, t as unknown as TFunction) as string)
+                          label: (recurPreset === 'advanced' || recurPreset === 'custom') && seriesRule
+                            ? (formatRRuleLabel(seriesRule, recurAnchorDue, t as unknown as TFunction) as string)
                             : presetLabels[recurPreset],
                         }}
                         onChange={(v) => {
@@ -2291,7 +2315,19 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     {/* 반복 업무 편집 범위 — 이 회차만 / 이후 모두 / 전체 (Q 캘린더와 같은 규칙) */}
     <SeriesScopeDialog
       open={!!seriesAsk}
-      onClose={() => setSeriesAsk(null)}
+      variant={seriesAskVariant}
+      onClose={() => {
+        setSeriesAsk(null);
+        // 취소 — 화면 state 는 이미 새 값으로 바뀌어 있다(선택 즉시 반영해야 미리보기가 된다).
+        //   서버는 안 바뀌었으므로 **정본 규칙에서 다시 읽어** 되돌린다. 안 그러면 화면만
+        //   바뀐 채 남아 사용자는 저장된 줄 안다(다시 열면 되돌아가는 유령 편집).
+        const parsed = parseRRule(seriesRule);
+        setRecurEnabled(parsed.enabled);
+        setRecurPreset(parsed.preset);
+        setRecurEndType(parsed.endType);
+        setRecurEndCount(String(parsed.endCount));
+        setRecurEndUntil(parsed.endUntil || '');
+      }}
       onPick={(scope) => { const patch = seriesAsk; setSeriesAsk(null); if (patch) void saveFields(patch, scope); }}
     />
     {detailTask && (

@@ -1,6 +1,6 @@
 {
   "generic": "An error occurred",
-  "network_error": "Please check your network connection",
+  "network_error": "The connection dropped before the request finished. Please try again",
   "timeout": "Request timed out. Please try again",
   "server_error": "A temporary server error occurred. Please try again shortly",
   "client_error": "Could not process the request",

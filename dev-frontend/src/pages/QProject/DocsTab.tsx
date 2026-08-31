@@ -5,6 +5,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { useFileDownload } from '../../hooks/useFileDownload';
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import ShareModal from '../../components/Common/ShareModal';
 import EmptyState from '../../components/Common/EmptyState';
@@ -383,6 +384,8 @@ const DocsTab: React.FC<Props> = (props) => {
   const [shareLinkInfo, setShareLinkInfo] = useState<{ url: string; expires: string } | null>(null);
   const [shareError, setShareError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+  // 단건 다운로드 — 인증 fetch + "받는 중…" 표시 (링크 방식은 401 이라 못 쓴다)
+  const dl = useFileDownload();
 
   const onCreateShareLink = useCallback(async () => {
     if (selectedFiles.length !== 1) return;
@@ -651,6 +654,7 @@ const DocsTab: React.FC<Props> = (props) => {
             </BulkBar>
           )}
           {shareError && <ErrorBar>{shareError}</ErrorBar>}
+          {dl.error && <ErrorBar>{dl.error}</ErrorBar>}
           {shareLinkInfo && (
             <ShareLinkBar>
               <strong>{t('docs.bulk.shareCreated', '공유 링크 생성 — 클립보드에 복사됨')}</strong>
@@ -701,7 +705,7 @@ const DocsTab: React.FC<Props> = (props) => {
               {visible.map(f => {
                 const checked = selectedIds.has(f.id);
                 return (
-                  <Card key={f.id} $selected={checked}
+                  <Card key={f.id} $selected={checked} data-testid="file-card"
                     {...(selectMode ? {} : getDragProps(f))}
                     onClick={e => selectMode ? toggleSelect(f.id, e) : setPreview(f)}>
                     {selectMode && (
@@ -842,13 +846,25 @@ const DocsTab: React.FC<Props> = (props) => {
                     </svg>
                   </HeaderIconBtn>
                   )}
-                  <HeaderIconBtn as="a" href={preview.download_url} download
-                    title={tr('docs.download', '다운로드')} aria-label={tr('docs.download', '다운로드')}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                      <polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
-                    </svg>
+                  {/* ★ 여기는 원래 `<a href download>` 였다 — 그 라우트는 Bearer 헤더를 요구해서
+                    * 링크로는 100% 401 이었다(실측). 인증 fetch 로 받고, 받는 동안 상태를 보여준다. */}
+                  {(() => { const dlLabel = tr('docs.download', '다운로드'); return (
+                  <HeaderIconBtn type="button"
+                    data-testid="file-preview-download"
+                    disabled={dl.downloading}
+                    onClick={() => dl.start(preview.download_url, preview.file_name)}
+                    title={dl.downloading ? (dl.progressText || '') : dlLabel}
+                    aria-label={dlLabel}>
+                    {dl.downloading ? (
+                      <DownloadingText>{dl.progressText}</DownloadingText>
+                    ) : (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                      </svg>
+                    )}
                   </HeaderIconBtn>
+                  ); })()}
                   {preview.deletable && (
                     <HeaderIconBtn $danger type="button" onClick={() => setDeleteConfirm(preview)}
                       title={tr('docs.delete', '삭제')} aria-label={tr('docs.delete', '삭제')}>
@@ -1616,6 +1632,11 @@ const BulkBtn = styled.button<{ $danger?: boolean; $primary?: boolean }>`
   }
   &:disabled{opacity:.4;cursor:not-allowed;}
 `;
+/* 받는 중 표시 — 아이콘 자리에 그대로 들어가 버튼 크기를 흔들지 않는다 */
+const DownloadingText = styled.span`
+  font-size: 0.625rem; font-weight: 700; line-height: 1; white-space: nowrap;
+`;
+
 const ErrorBar = styled.div`
   margin-top:8px;padding:10px 14px;background:#FEF2F2;color:#DC2626;
   border:1px solid #FECACA;border-radius:8px;font-size:0.75rem;

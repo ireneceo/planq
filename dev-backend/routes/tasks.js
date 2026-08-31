@@ -654,6 +654,12 @@ router.post('/ai-create', authenticateToken, aiCreateModeLimiter, async (req, re
 router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
   try {
     const { business_id, project_id, candidates, base_date, context, mode: confirmMode, areas } = req.body;
+    // 탭 문맥 기본값 — "오늘 나의 업무" / "이번 주 나의 업무" 에서 만들면 그 목록 안에 남아야 한다.
+    //   화면이 결정해 보내고(어느 탭에서 만들었는지는 화면만 안다), 서버는 **후보가 스스로 날짜를
+    //   들고 오지 않았을 때만** 채운다 — LLM 이 정한 날짜를 덮어쓰지 않는다.
+    const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+    const defaultDueDate = DATE_RE.test(String(req.body.default_due_date || '')) ? String(req.body.default_due_date) : null;
+    const defaultWeekStart = DATE_RE.test(String(req.body.default_planned_week_start || '')) ? String(req.body.default_planned_week_start) : null;
     if (!business_id) return errorResponse(res, 'business_id required', 400);
     if (!Array.isArray(candidates) || candidates.length === 0) {
       return errorResponse(res, 'candidates array required', 400);
@@ -830,9 +836,15 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
         //   createTask 가 판단한다 — 사람·AI·Cue 가 같은 규칙을 쓰게 하는 지점이다.
         assigneeId: c.assignee_user_id || null,
         startDate: startOff !== null ? addDaysStr(todayLocal, startOff) : null,
-        dueDate: dueStr,
+        //   ★ 기본값은 **후보가 날짜를 안 정했을 때만** 쓴다.
+        dueDate: dueStr || defaultDueDate,
+        //   주차 버킷 — "이번 주 나의 업무" 술어가 이 값으로 맞춰진다(브라우저가 계산한 월요일이
+        //   아니라 화면이 서버에서 받은 주 시작이어야 tz 로 어긋나지 않는다).
+        plannedWeekStart: defaultWeekStart,
         estimatedHours: rawEstimated,
         // 정기 루틴 — 마감일이 첫 발생일이므로 없으면 반복 불가(task_actions 가 due 없는 반복을 거절한다).
+        //   ★ 게이트는 **원래 dueStr** 로 본다. 탭 기본값으로 채워진 날짜에 반복을 걸면,
+        //     날짜를 안 정한 후보가 규칙만 들고 왔을 때 사용자가 시키지도 않은 정기업무가 태어난다.
         recurrenceRule: (dueStr && effectiveRule) ? effectiveRule : null,
         // #353 ② — 업무그룹 배치. task_actions 가 프로젝트 소속인지 다시 검증한다(오배치·테넌트 차단).
         // #354 — 루틴 모드는 영역 인덱스로 **id 직결**한다. 이름 왕복 매칭은 방금 만든 영역을
@@ -1336,7 +1348,25 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
       return errorResponse(res, `forbidden_fields:${denied.join(',')}`, 403);
     }
 
+    // ── 반복 규칙은 **시리즈의 것**이다 — 회차에서 바꿔도 부모에 적용한다 ──────────
+    //   Irene: "반복설정을 바꿀 수가 없어. 처음 업무에서만 수정되는 것 같은데."
+    //   판단은 services/taskSeriesRecurrence 한 곳에 있다(라우트마다 흩어지면 반드시 갈라진다).
+    //   ★ 빼내기는 권한 검사(FIELD_RULES) 통과 **이후**, task.update **이전**이어야 한다.
+    const seriesRecur = require('../services/taskSeriesRecurrence');
+    const seriesRuleChange = seriesRecur.extractSeriesRuleChange(task, updates);
+
     await task.update(updates);
+
+    const ruleRes = await seriesRecur.applySeriesRuleChange({
+      task, updates, businessId, seriesRuleChange,
+      scope: req.body.series_scope,
+      actorId: myId,
+      isOwnerOrAdmin,
+      // 필요할 때만 계산한다 (scope='all' 일 때만) — 모든 업무 저장에 tz 쿼리를 얹지 않는다.
+      getToday: async () => todayInTz(await getWorkspaceTz(businessId)),
+    });
+    if (!ruleRes.ok) return errorResponse(res, ruleRes.code, ruleRes.http);
+    const seriesRuleApplied = ruleRes.reset;
 
     // ── 정기업무 시리즈 전파 (2026-08-25) ───────────────────────────────
     //   반복업무는 부모 1건 + 회차별 행이고, 회차는 **생성 시점에 부모 내용을 복사**한다.
@@ -1594,7 +1624,12 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     } catch (e) { console.warn('[task PUT notify outer]', e.message); }
 
     // series_applied — 프론트가 "N개 회차에 반영됨" 을 사용자에게 보여줄 수 있게 (조용한 전파 금지).
-    return successResponse(res, { ...task.toJSON(), series_applied: seriesApplied });
+    //   series_rule_reset — 반복 주기를 바꿔서 **비운** 미착수 회차 수(새 규칙으로 다시 생성된다).
+    return successResponse(res, {
+      ...task.toJSON(),
+      series_applied: seriesApplied,
+      series_rule_reset: seriesRuleApplied,
+    });
   } catch (err) { next(err); }
 });
 
@@ -1816,6 +1851,22 @@ router.get('/:id/detail', authenticateToken, async (req, res, next) => {
     //   순간 PUT tag_ids 가 기존 태그를 빼고 나가 **소리없이 삭제**된다(Fable 실증 F1 — 데이터 손실).
     //   client 는 바로 아래 serializeTaskForClient 가 BLOCKED_FIELDS 로 tags 를 걷어낸다.
     await require('./task_tags').attachTagsTo([json], task.business_id);
+
+    // 회차(인스턴스)는 **자기 규칙이 없다** — 규칙은 시리즈 부모의 것이다.
+    //   그래서 회차 상세만 보면 반복 설정을 화면에 그릴 수가 없었고, 그 때문에 편집 UI 자체가
+    //   부모에서만 열려 있었다(Irene: "처음 업무에서만 수정되는 것 같은데").
+    //   여기서 시리즈 규칙과 첫 회차일을 같이 내려 회차에서도 같은 UI 를 그린다.
+    if (task.recurrence_parent_id) {
+      const parent = await Task.findOne({
+        where: { id: task.recurrence_parent_id, business_id: task.business_id },
+        attributes: ['id', 'recurrence_rule', 'due_date', 'miss_policy'],
+      });
+      if (parent) {
+        json.series_recurrence_rule = parent.recurrence_rule || null;
+        json.series_due_date = parent.due_date || null;
+        json.series_miss_policy = parent.miss_policy || null;
+      }
+    }
 
     // §8.5 — 고객에겐 내부 운영 데이터(공수 시간·예측 출처·일별 스냅샷·Cue 메타) 제거 + shared 댓글만
     if (scope.isClient) json = serializeTaskForClient(json);

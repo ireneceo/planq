@@ -64,3 +64,71 @@ function blobToBase64(blob: Blob): Promise<string> {
     r.readAsDataURL(blob);
   });
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 인증이 필요한 API 에서 파일 받기 (운영 신고 2026-08-31, Irene)
+//
+// 왜 이게 필요한가 — `<a href="/api/files/.../download" download>` 는 **항상 실패한다.**
+//   그 라우트는 `authenticateToken` 이라 Authorization 헤더를 요구하는데, 브라우저가 링크를
+//   따라갈 때는 쿠키만 보내고 헤더는 못 붙인다. 실측: 헤더 없이 401 / Bearer 붙이면 200.
+//   즉 "가끔 안 되는" 게 아니라 **링크로 만든 다운로드는 100% 죽어 있었다.**
+//   (공개 공유 페이지는 이미 공개 라우트로 우회해 두었는데, 로그인한 화면들만 그대로였다.)
+//
+// 그리고 큰 파일은 시간이 걸린다. 아무 표시가 없으면 사용자는 기능이 고장 난 것으로 읽는다
+//   (Irene: "기다려야 하는 거 알게 해줘야돼. 기능이 안되는 줄 알아").
+//   그래서 진행 상황을 호출부로 흘려보낸다 — 총 크기를 모르면(streaming/gzip) 받은 바이트만 준다.
+export interface DownloadProgress {
+  /** 지금까지 받은 바이트 */
+  received: number;
+  /** 전체 바이트 — Content-Length 가 없으면 null (진행률 대신 받은 양만 보여줄 것) */
+  total: number | null;
+}
+
+export async function downloadFromApi(
+  url: string,
+  filename: string,
+  opts?: { onProgress?: (p: DownloadProgress) => void; signal?: AbortSignal },
+): Promise<void> {
+  const { apiFetch } = await import('../contexts/AuthContext');
+  const res = await apiFetch(url, opts?.signal ? { signal: opts.signal } : {});
+  // apiFetch 는 throw 하지 않는다 — res.ok 를 반드시 본다 (memory: apifetch_no_throw)
+  if (!res.ok) {
+    let msg = '';
+    try { msg = (await res.clone().json())?.message || ''; } catch { /* 본문이 파일이거나 비어있음 */ }
+    throw new Error(msg || `HTTP ${res.status}`);
+  }
+
+  const lenHeader = res.headers.get('content-length');
+  const total = lenHeader ? Number(lenHeader) : null;
+  let blob: Blob;
+  // 진행 표시를 원하고 스트림을 읽을 수 있을 때만 조각내어 읽는다.
+  //   못 읽는 환경(구형 브라우저·프록시)에서는 통째로 받는다 — 기능이 먼저다.
+  if (opts?.onProgress && res.body && typeof res.body.getReader === 'function') {
+    const reader = res.body.getReader();
+    const chunks: BlobPart[] = [];
+    let received = 0;
+    opts.onProgress({ received: 0, total: Number.isFinite(total as number) ? total : null });
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        chunks.push(value as unknown as BlobPart);
+        received += value.byteLength;
+        opts.onProgress({ received, total: Number.isFinite(total as number) ? total : null });
+      }
+    }
+    blob = new Blob(chunks, { type: res.headers.get('content-type') || 'application/octet-stream' });
+  } else {
+    blob = await res.blob();
+  }
+  await downloadBlob(blob, filename);
+}
+
+/** 인증이 필요한 URL → 화면에 바로 쓸 수 있는 blob URL (PDF·이미지 미리보기용).
+ *  ★ 다 쓰면 반드시 revoke 해야 한다 — 호출부의 cleanup 에서 URL.revokeObjectURL 을 부를 것. */
+export async function objectUrlFromApi(url: string, signal?: AbortSignal): Promise<string> {
+  const { apiFetch } = await import('../contexts/AuthContext');
+  const res = await apiFetch(url, signal ? { signal } : {});
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return URL.createObjectURL(await res.blob());
+}

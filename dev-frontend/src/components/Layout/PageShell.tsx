@@ -1,6 +1,8 @@
-import type { ReactNode } from 'react';
+import { useLayoutEffect, useRef, type ReactNode } from 'react';
 import styled from 'styled-components';
+import { useLocation } from 'react-router-dom';
 import UserChip from './UserChip';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 
 /**
  * PageShell — 단일 컬럼 페이지의 표준 레이아웃.
@@ -34,6 +36,28 @@ export default function PageShell({
   bodyPadding,
   embedded,
 }: Props) {
+  // 운영 #391 — "내 문의 및 피드백 모바일에서 상단 잘림."
+  //   헤더는 `flex-wrap: nowrap` 으로 한 줄을 지킨다(2026-08-25 결정: "버튼 2개뿐인데 2줄로 나온다").
+  //   그런데 액션이 검색창(200px)+셀렉트 2개(130px×2) 처럼 넓으면 폰 375px 에서 **화면 밖으로
+  //   밀려 통째로 사라진다** — 헤더가 두 줄이 되지 않는 대신 액션이 없어진 것이다.
+  //   그래서 폰에서는 액션을 헤더 **아래 자기 줄**로 내린다. 헤더는 여전히 한 줄이고(제목+계정),
+  //   액션은 다시 손이 닿는다. PageShell 을 쓰는 모든 화면에 한 번에 적용된다
+  //   (Irene: "비슷한 문제디자인 없는지 다 찾아야 해").
+  //   ★ DOM 을 양쪽에 두고 CSS 로 숨기지 않는다 — 숨은 쪽의 입력·testid 를 검사기와 사용자가
+  //     집을 수 있어 "눌러도 아무 일 없는" 유령이 생긴다. 한 곳에만 렌더한다.
+  const isPhone = useMediaQuery('(max-width: 640px)');
+
+  // 운영 #397 — "모바일에서 비용재무에 들어가면 위에부터 열리는게 아니라 아래에 열려."
+  //   스크롤은 body 가 아니라 아래 Body 가 가진다. 그런데 /stats/profit → /stats/finance 처럼
+  //   **같은 페이지 컴포넌트가 마운트를 유지한 채 내용만 바뀌면** 이 스크롤이 그대로 남는다 —
+  //   앞 화면에서 내려 본 만큼 다음 화면이 중간에서 열린다(실측 384px).
+  //   경로가 바뀌면 위에서부터 연다. 쿼리만 바뀌는 경우(?item= 같은 상세 열기)는 대상이 아니다.
+  //   ★ useLayoutEffect 로 즉시 — RAF 로 미루면 첫 페인트가 옛 위치로 그려졌다가 튄다.
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const { pathname } = useLocation();
+  useLayoutEffect(() => {
+    if (bodyRef.current) bodyRef.current.scrollTop = 0;
+  }, [pathname]);
   // N+30 — embedded 모드: 부모 PageShell 안에서 마운트되는 경우 헤더 + Page wrapping skip.
   // PersonalVaultPage 안의 KnowledgePage 같은 케이스. 부모가 헤더/스크롤 영역 이미 제공.
   if (embedded) return <>{children}</>;
@@ -48,11 +72,12 @@ export default function PageShell({
           {count !== undefined && count !== '' && <Count>{count}</Count>}
         </HeaderLeft>
         <HeaderRight>
-          {actions}
+          {!isPhone && actions}
           <UserChip />
         </HeaderRight>
       </Header>
-      <Body style={bodyPadding ? { padding: bodyPadding } : undefined}>
+      {isPhone && actions && <PhoneActionRow>{actions}</PhoneActionRow>}
+      <Body ref={bodyRef} style={bodyPadding ? { padding: bodyPadding } : undefined}>
         {children}
       </Body>
     </Page>
@@ -122,6 +147,24 @@ const Title = styled.h1`
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+`;
+
+/* 폰 전용 — 헤더에서 내려온 액션 줄. 가로로 넘치면 스크롤되게 두어(숨기지 않고) 전부 닿게 한다.
+   헤더와 같은 흰 배경·같은 좌우 여백이라 시각적으로는 헤더의 둘째 줄로 읽힌다. */
+const PhoneActionRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+  /* 안쪽 요소가 스스로 줄어들어 사라지지 않게 — 넘치면 줄 전체가 스크롤된다 */
+  > * { flex-shrink: 0; }
 `;
 
 const Count = styled.span`

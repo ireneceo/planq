@@ -636,6 +636,19 @@ const QTaskPage:React.FC=()=>{
 
   const thisMonday=thisMondayStr;
 
+  // ── 업무 생성 기본값의 단일 원천 ────────────────────────────────────────
+  //   "오늘/이번 주 나의 업무" 에서 만든 업무는 **그 목록 안에 남아야 한다.**
+  //   여태 규칙이 일반 추가 폼에만 있어서, 같은 탭의 Cue 바·행 아래 추가로 만들면
+  //   방금 만든 업무가 즉시 사라졌다(Irene 신고). 정의를 여기 한 곳에 두고 전부 이걸 쓴다.
+  //   · due_date = 오늘 → 오늘 탭 술어(due === today) 통과. 주간 술어도 함께 통과.
+  //   · planned_week_start = 이번 주 월요일 → 이번 주 탭 술어 통과.
+  const tabCreateDefaults=useMemo(
+    ()=>(scope==='mine'&&(tab==='week'||tab==='today'))
+      ? { due_date: todayStr, planned_week_start: thisMonday }
+      : null,
+    [scope,tab,todayStr,thisMonday]
+  );
+
   // ── Load ALL data once ──
   // 1단계: 리스트(전체 업무) + 멤버 — 즉시 렌더를 위한 최소 로드
   const load=useCallback(async()=>{
@@ -976,7 +989,7 @@ const QTaskPage:React.FC=()=>{
     // 이번 주/오늘 탭에서는 마감일 기본값 = 오늘 (그 목록의 범위 안에 들어오도록).
     //   ★ 오늘 탭에도 필요하다 — 없으면 날짜 없는 not_started 가 backlog flood 차단 규칙에 걸려
     //     방금 추가한 업무가 목록에서 즉시 사라진다(추가했는데 안 보임).
-    const defaultDue=(scope==='mine'&&(tab==='week'||tab==='today'))?todayStr:null;
+    const defaultDue=tabCreateDefaults?.due_date??null;
     const finalDueDate = newDueDate || defaultDue;
     // 정기업무는 due_date 필수 (백엔드도 검증)
     if (newRecurEnabled && !finalDueDate) return;
@@ -990,7 +1003,7 @@ const QTaskPage:React.FC=()=>{
           description:newDescription.trim()||null,
           assignee_id:targetAssignee,
           project_id:newProjectId,
-          planned_week_start:(scope==='mine'&&(tab==='week'||tab==='today'))?thisMonday:null,
+          planned_week_start:tabCreateDefaults?.planned_week_start??null,
           start_date:newStartDate||null,
           due_date:finalDueDate,
           estimated_hours:newEstHours?Number(newEstHours):null,
@@ -1929,6 +1942,9 @@ const QTaskPage:React.FC=()=>{
             businessId={bizId}
             projectId={null}
             members={members.map(m=>({user_id:m.user_id,name:m.name}))}
+            /* 일반 추가 폼(위 defaultDue)과 **같은 규칙**. 여기가 비어 있어서 Cue 로 만든 업무가
+               방금 만든 그 목록에서 바로 사라졌다(Irene). 기본값의 정의는 한 곳에서만 바뀌게 둔다. */
+            defaults={tabCreateDefaults}
             onCreated={()=>{ /* socket task:new 가 리스트 자동 반영 */ }}
           />
         )}
@@ -2408,7 +2424,11 @@ const QTaskPage:React.FC=()=>{
                                   title: newBelowTitle.trim(),
                                   assignee_id: myId,
                                   start_date: task.start_date || null,
-                                  due_date: task.due_date || null,
+                                  //   기준 업무의 기간을 물려받되, 그 업무에 날짜가 없으면
+                                  //   탭 기본값으로 떨어진다 — 안 그러면 오늘/이번 주 탭에서
+                                  //   "아래에 추가" 한 업무가 만들자마자 목록에서 사라진다.
+                                  due_date: task.due_date || tabCreateDefaults?.due_date || null,
+                                  planned_week_start: task.due_date ? null : (tabCreateDefaults?.planned_week_start || null),
                                 }),
                               });
                               if (!r.ok) return;  // 실패 시 입력 유지(폼 보존)

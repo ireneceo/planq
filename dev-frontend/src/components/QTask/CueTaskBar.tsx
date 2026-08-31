@@ -19,6 +19,9 @@ interface Props {
   context?: { conversation_id?: number | null; email_thread_id?: number | null } | null;
   /** 좁은 패널(320~440px)용 — 글로벌 ⌘T 미등록, 여백 축소 */
   compact?: boolean;
+  /** 탭 문맥 기본값 — "오늘/이번 주 나의 업무" 에서 만들면 그 목록 안에 남아야 한다.
+   *  안 넘기면 종전 동작 그대로(채팅·메일 작업대는 탭 개념이 없어 안 넘긴다). */
+  defaults?: { due_date?: string | null; planned_week_start?: string | null } | null;
   onCreated?: (created: Array<{ id: number; title: string }>) => void;
 }
 
@@ -28,7 +31,7 @@ function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-export default function CueTaskBar({ businessId, members, projectId = null, context = null, compact = false, onCreated }: Props) {
+export default function CueTaskBar({ businessId, members, projectId = null, context = null, compact = false, defaults = null, onCreated }: Props) {
   const { t } = useTranslation('qtask');
   const { t: tErr } = useTranslation('errors');
   const [stage, setStage] = useState<Stage>('idle');
@@ -88,6 +91,8 @@ export default function CueTaskBar({ businessId, members, projectId = null, cont
     try {
       const r = await apiFetch('/api/tasks/ai-create', {
         method: 'POST',
+        // 미리보기(저장 없음) — 순단 1회 자동 재시도. confirm 은 저장이라 켜지 않는다.
+        retryOnNetworkError: true,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ business_id: businessId, project_id: projectId, prompt: prompt.trim(), mode: 'quick', instruction: instruction || undefined }),
       });
@@ -132,7 +137,13 @@ export default function CueTaskBar({ businessId, members, projectId = null, cont
       const r = await apiFetch('/api/tasks/ai-create/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ business_id: businessId, project_id: projectId, candidates: selected, base_date: baseDate, context: context || undefined }),
+        body: JSON.stringify({
+          business_id: businessId, project_id: projectId, candidates: selected,
+          base_date: baseDate, context: context || undefined,
+          // 탭 기본값 — 서버는 후보가 날짜를 안 정했을 때만 쓴다(LLM 이 정한 날짜를 안 덮는다)
+          default_due_date: defaults?.due_date || undefined,
+          default_planned_week_start: defaults?.planned_week_start || undefined,
+        }),
       });
       const j = await r.json();
       if (!j.success) throw new Error(j.message || 'failed');

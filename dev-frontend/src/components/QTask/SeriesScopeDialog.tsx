@@ -17,29 +17,44 @@ interface Props {
   open: boolean;
   onPick: (scope: SeriesScope) => void;
   onClose: () => void;
+  /** 무엇을 고치는 중인가.
+   *  'content'  — 제목·설명·담당자 등 시리즈가 공유하는 내용 (이 회차만 / 이후 / 전체 셋 다 성립)
+   *  'recurrence' — 반복 주기 그 자체. "이 회차만 다른 주기" 는 성립하지 않고(한 번짜리엔 주기가 없다),
+   *                 이미 지나간 회차의 날짜도 뒤로 옮길 수 없다. 그래서 **성립하는 것만** 묻는다 —
+   *                 뜻이 없는 선택지를 띄워 놓고 눌러도 아무 일이 없게 두지 않는다. */
+  variant?: 'content' | 'recurrence';
 }
 
-const SeriesScopeDialog: React.FC<Props> = ({ open, onPick, onClose }) => {
+const SeriesScopeDialog: React.FC<Props> = ({ open, onPick, onClose, variant = 'content' }) => {
   const { t } = useTranslation('qtask');
   useBodyScrollLock(open);
   useEscapeStack(open, onClose);
   if (!open) return null;
+  const isRecur = variant === 'recurrence';
   return (
-    <Backdrop role="dialog" aria-modal="true" aria-label={t('series.title', '반복 업무 수정') as string} onClick={onClose}>
+    <Backdrop role="dialog" aria-modal="true" aria-label={(isRecur ? t('series.recurTitle', '반복 설정 변경') : t('series.title', '반복 업무 수정')) as string} onClick={onClose}>
       <Card onClick={(e) => e.stopPropagation()}>
-        <Title>{t('series.title', '반복 업무 수정')}</Title>
-        <Desc>{t('series.desc', '이 업무는 반복됩니다. 어디까지 반영할까요?')}</Desc>
-        <Opt type="button" onClick={() => onPick('single')}>
-          <OptName>{t('series.single', '이 회차만')}</OptName>
-          <OptHint>{t('series.singleHint', '다른 회차는 그대로 둡니다')}</OptHint>
-        </Opt>
+        <Title>{isRecur ? t('series.recurTitle', '반복 설정 변경') : t('series.title', '반복 업무 수정')}</Title>
+        <Desc>{isRecur
+          ? t('series.recurDesc', '이 반복은 시리즈 전체가 함께 씁니다. 새 주기를 어디부터 적용할까요?')
+          : t('series.desc', '이 업무는 반복됩니다. 어디까지 반영할까요?')}</Desc>
+        {!isRecur && (
+          <Opt type="button" onClick={() => onPick('single')}>
+            <OptName>{t('series.single', '이 회차만')}</OptName>
+            <OptHint>{t('series.singleHint', '다른 회차는 그대로 둡니다')}</OptHint>
+          </Opt>
+        )}
         <Opt type="button" onClick={() => onPick('future')}>
-          <OptName>{t('series.future', '이 회차 이후 모두')}</OptName>
-          <OptHint>{t('series.futureHint', '지난 회차는 기록으로 남깁니다')}</OptHint>
+          <OptName>{isRecur ? t('series.recurFuture', '이 회차 이후') : t('series.future', '이 회차 이후 모두')}</OptName>
+          <OptHint>{isRecur
+            ? t('series.recurFutureHint', '이 회차부터 새 주기로 다시 잡습니다. 지난 회차는 그대로 둡니다')
+            : t('series.futureHint', '지난 회차는 기록으로 남깁니다')}</OptHint>
         </Opt>
         <Opt type="button" onClick={() => onPick('all')}>
-          <OptName>{t('series.all', '전체 회차')}</OptName>
-          <OptHint>{t('series.allHint', '지난 회차까지 같은 내용으로 맞춥니다')}</OptHint>
+          <OptName>{isRecur ? t('series.recurAll', '앞으로 전부') : t('series.all', '전체 회차')}</OptName>
+          <OptHint>{isRecur
+            ? t('series.recurAllHint', '오늘 이후의 아직 시작 안 한 회차를 모두 새 주기로 다시 잡습니다')
+            : t('series.allHint', '지난 회차까지 같은 내용으로 맞춥니다')}</OptHint>
         </Opt>
         <Cancel type="button" onClick={onClose}>{t('series.cancel', '취소')}</Cancel>
       </Card>

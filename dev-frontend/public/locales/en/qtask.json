@@ -1330,7 +1330,14 @@
     "futureHint": "Past occurrences stay as a record",
     "all": "All occurrences",
     "allHint": "Past occurrences are updated too",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "recurTitle": "Change repeat settings",
+    "recurDesc": "This repeat is shared by the whole series. From where should the new cycle apply?",
+    "recurFuture": "From this occurrence",
+    "recurFutureHint": "Reschedules from this occurrence onward. Past occurrences stay as they are",
+    "recurAll": "All upcoming",
+    "recurAllHint": "Reschedules every not-yet-started occurrence from today onward",
+    "recurInstanceNote": "This occurrence was generated from a repeating task. Changing the repeat here applies to the whole series."
   },
   "deliv": {
     "title": "Deliverable history",

@@ -629,6 +629,28 @@ const HamburgerButton = styled.button`
   &:hover { background: rgba(255, 255, 255, 0.08); }
 `;
 
+/* 모바일 헤더 우측 액션 — 햄버거와 같은 44x44 터치 타겟(대칭이라 로고가 가운데로 온다) */
+const MobileHeaderAction = styled(ChromeLink)`
+  position: relative;
+  background: none; border: none; padding: 8px;
+  display: flex; align-items: center; justify-content: center;
+  color: #CCFBF1; border-radius: 6px; text-decoration: none;
+  min-width: 44px; min-height: 44px;
+  &:hover { background: rgba(255, 255, 255, 0.08); color: #FFFFFF; }
+`;
+
+/* 권한이 없어 아이콘을 못 그릴 때 — 햄버거와 같은 폭을 차지해 로고가 치우치지 않게 한다 */
+const MobileHeaderSpacer = styled.div`
+  min-width: 44px; min-height: 44px;
+`;
+
+const MobileHeaderBadge = styled.span`
+  position: absolute; top: 4px; right: 2px;
+  min-width: 16px; height: 16px; padding: 0 4px;
+  border-radius: 8px; background: #F43F5E; color: #fff;
+  font-size: 0.625rem; font-weight: 700; line-height: 16px; text-align: center;
+`;
+
 const Overlay = styled.div<{ $show?: boolean }>`
   display: ${props => props.$show ? 'block' : 'none'};
   position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -811,6 +833,16 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
   );
 
   useEffect(() => { setSidebarOpen(false); }, [location.pathname]);
+
+  // 운영 #397 — "모바일에서 비용재무에 들어가면 위에부터 열리는게 아니라 아래에 열려."
+  //   스크롤 컨테이너가 body 가 아니라 이 PageScroll 이라 **화면을 바꿔도 스크롤이 그대로 남는다.**
+  //   앞 화면에서 아래까지 내려 봤으면 다음 화면이 그 위치에서 열린다 — 사용자에겐 "잘못 열린다".
+  //   ★ useLayoutEffect 로 **즉시** 되돌린다. RAF 로 미루면 첫 페인트가 옛 위치로 그려진 뒤
+  //     한 프레임 뒤에 튄다("위에 갔다 옴" 회귀, CLAUDE.md 운영안정성 12).
+  const pageScrollRef = React.useRef<HTMLDivElement>(null);
+  React.useLayoutEffect(() => {
+    if (pageScrollRef.current) pageScrollRef.current.scrollTop = 0;
+  }, [location.pathname]);
   // 경로 변경 시 펼침 state reset (메뉴 안에서 하위 클릭 후 다른 페이지 가면 자동 접힘)
   useEffect(() => { setMobileExpandedSection(null); }, [location.pathname]);
 
@@ -961,7 +993,26 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
           <IconHamburger />
         </HamburgerButton>
         <Logo src="/planQ_white_new.svg" alt="PlanQ" />
-        <div style={{ width: 40 }} />
+        {/* 우측 — Q talk 바로가기. 모바일은 메뉴를 열어야 대화로 갈 수 있어서 왕복이 길었다(Irene).
+            사이드바 Q talk 항목과 **같은 가시성 규칙·같은 내비게이션 계약**(ChromeLink, 주 내비라 새 탭 X)
+            을 쓴다. 권한이 없으면 자리만 남겨 로고 가운데 정렬을 유지한다. */}
+        {hasBiz('owner', 'member', 'client') ? (
+          <MobileHeaderAction
+            to="/talk"
+            data-testid="mobile-header-talk"
+            aria-label={talkUnreadCount > 0
+              ? `${t('nav.talk')} ${talkUnreadCount}`
+              : (t('nav.talk') as string)}
+            title={t('nav.talk') as string}
+          >
+            <IconTalk />
+            {talkUnreadCount > 0 && (
+              <MobileHeaderBadge>{talkUnreadCount > 99 ? '99+' : talkUnreadCount}</MobileHeaderBadge>
+            )}
+          </MobileHeaderAction>
+        ) : (
+          <MobileHeaderSpacer />
+        )}
       </MobileHeader>
 
       <Overlay $show={sidebarOpen} onClick={() => setSidebarOpen(false)} />
@@ -1941,7 +1992,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
         {tabMode ? (
           children
         ) : (
-          <PageScroll>
+          <PageScroll ref={pageScrollRef}>
             {/* 페이지 청크 로딩은 **본문 안에서만** 일어난다.
                 여태 Suspense 가 라우트 전체를 감싸고 있어서, 페이지가 로드되는 동안 사이드바·헤더까지
                 통째로 사라지고 하얀 화면에 스피너만 남았다 (Irene: "느리더라도 고정 레이아웃은 그대로

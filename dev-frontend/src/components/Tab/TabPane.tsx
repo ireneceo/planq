@@ -18,6 +18,13 @@ export default function TabPane({ tab, active }: { tab: Tab; active: boolean }) 
   useLayoutEffect(() => {
     if (active && scrollRef.current) scrollRef.current.scrollTop = savedScroll.current;
   }, [active]);
+  // 운영 #397 — **같은 탭 안에서 화면이 바뀌면** 위에서부터 열려야 한다.
+  //   위 복원은 "탭 전환" 용이다. 경로가 바뀌는 것은 다른 화면으로 가는 것이므로 복원 대상이 아니다.
+  //   (탭 전환 복원과 섞으면 새 화면이 앞 화면 스크롤 위치에서 열린다 — 사용자에겐 "잘못 열린다".)
+  useLayoutEffect(() => {
+    savedScroll.current = 0;
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+  }, [tab.path]);
 
   return (
     <PaneWrap $active={active} data-pane-tab={tab.id} aria-hidden={!active} {...(active ? {} : { inert: '' as unknown as boolean })}>

@@ -24,6 +24,7 @@ import PostEditor from './PostEditor';
 import DocToc from './DocToc';
 import PostTableGrid from './PostTableGrid';
 import { mapApiError } from '../../utils/apiError';
+import { useFileDownload } from '../../hooks/useFileDownload';
 import { generateHTML } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
@@ -102,6 +103,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     `posts:${scope.type}${scope.type === 'project' ? scope.projectId : ''}`,
     cacheUser?.id, scope.businessId,
   );
+  // 첨부 다운로드 — 인증 fetch + 진행 표시 (링크 방식은 401)
+  const dl = useFileDownload();
   const [rows, setRows] = useState<PostRow[]>(() => readCache<PostRow[]>(postsKey) ?? []);
   const [meta, setMeta] = useState<PostsMeta>({ total: 0, myCount: 0, categories: [], projects: [] });
   const [loading, setLoading] = useState(() => !hasCache(postsKey));
@@ -1739,6 +1742,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 )}
               </MetaRow>
               {error && <ErrorBar>{error}</ErrorBar>}
+              {/* 다운로드 실패는 조용히 넘기지 않는다 — 이전엔 링크가 401 이어도 화면에 아무 말이 없었다 */}
+              {dl.error && <ErrorBar>{dl.error}</ErrorBar>}
               {detail?.kind === 'table' && detail.q_record_id ? (
                 <>
                   {/* 표 설명 — 열기/닫기 하나의 full-width 헤더 바로 통일(닫힘=헤더만, 열림=헤더+에디터). (Irene) */}
@@ -1790,8 +1795,13 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   <AttachList>
                     {detail.attachments.map(a => (
                       <AttachRow key={a.id}>
-                        <AttachName href={a.file?.download_url || '#'} target="_blank" rel="noreferrer">
+                        {/* 링크로 열면 401 이다(라우트가 Bearer 요구) — 인증 fetch 로 받는다.
+                            받는 동안 이름 옆에 진행 상태를 붙여 "안 눌리는 것" 처럼 보이지 않게 한다. */}
+                        <AttachName as="button" type="button"
+                          disabled={dl.downloading}
+                          onClick={() => a.file?.download_url && dl.start(a.file.download_url, a.file.file_name || 'file', String(a.id))}>
                           {a.file?.file_name || '—'}
+                          {dl.downloadingId === String(a.id) && ` · ${dl.progressText}`}
                         </AttachName>
                         <RemoveBtn type="button" onClick={() => detachOne(a.id)} title={t('actions.remove', '제거') as string} aria-label={t('actions.remove', '제거') as string}>×</RemoveBtn>
                       </AttachRow>
@@ -1991,8 +2001,11 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                     <AttachList>
                       {detail.attachments.map(a => (
                         <AttachRow key={a.id}>
-                          <AttachName href={a.file?.download_url || '#'} target="_blank" rel="noreferrer">
+                          <AttachName as="button" type="button"
+                            disabled={dl.downloading}
+                            onClick={() => a.file?.download_url && dl.start(a.file.download_url, a.file.file_name || 'file', String(a.id))}>
                             {a.file?.file_name || '—'}
+                            {dl.downloadingId === String(a.id) && ` · ${dl.progressText}`}
                           </AttachName>
                           <RemoveBtn type="button" onClick={() => detachOne(a.id)} title={t('actions.remove', '제거') as string} aria-label={t('actions.remove', '제거') as string}>×</RemoveBtn>
                         </AttachRow>
@@ -2766,10 +2779,14 @@ const AttachRow = styled.div`
   &:last-child { border-bottom: none; }
   &:hover { background: #F8FAFC; }
 `;
+/* `as="button"` 으로도 쓰인다 — 인증이 필요한 다운로드는 링크로는 401 이라 버튼이어야 한다.
+   버튼 기본 스타일(테두리·배경·폰트)을 지워 링크와 똑같이 보이게 맞춘다. */
 const AttachName = styled.a`
   flex: 1; min-width: 0; font-size: 0.8125rem; color: #0F172A; text-decoration: none;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left;
+  background: none; border: none; padding: 0; font-family: inherit; cursor: pointer;
   &:hover { color: #0F766E; text-decoration: underline; }
+  &:disabled { cursor: default; opacity: 0.7; }
 `;
 const RemoveBtn = styled.button`
   all: unset; cursor: pointer; width: 22px; height: 22px;

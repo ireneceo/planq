@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useImageLightbox } from '../../../components/Common/ImageLightbox';
 import { extOf, isImage, isVideo, isAudio, requestMediaUrl, type ProjectFile } from '../../../services/files';
+import { objectUrlFromApi } from '../../../utils/download';
 
 // 이미지 리사이즈 파라미터 — DocsTab 과 같은 규칙(원본 URL 에 ?w= 를 덧붙인다).
 const withW = (u: string | undefined | null, w: number): string | undefined =>
@@ -17,6 +18,22 @@ export const PreviewArea: React.FC<{ file: ProjectFile; businessId: number }> = 
   const audio = isAudio(file.mime_type, file.file_name);
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [mediaFailed, setMediaFailed] = useState(false);
+  // PDF — download_url 은 인증이 필요해 iframe src 로 넣으면 **401 빈 화면**이다(실측).
+  //   인증 fetch 로 받아 blob URL 로 띄운다. 훅은 early return 보다 위 (React #310).
+  const isPdf = file.mime_type === 'application/pdf' || extOf(file.file_name) === 'pdf';
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfFailed, setPdfFailed] = useState(false);
+  useEffect(() => {
+    if (!isPdf || !file.download_url || file.download_url === '#') { setPdfUrl(null); return; }
+    let alive = true;
+    let made: string | null = null;
+    setPdfUrl(null); setPdfFailed(false);
+    objectUrlFromApi(file.download_url)
+      .then(u => { if (alive) { made = u; setPdfUrl(u); } else URL.revokeObjectURL(u); })
+      .catch(() => { if (alive) setPdfFailed(true); });
+    // blob URL 은 반드시 회수한다 — 안 하면 미리보기를 열 때마다 메모리에 파일이 쌓인다.
+    return () => { alive = false; if (made) URL.revokeObjectURL(made); };
+  }, [isPdf, file.download_url]);
   useEffect(() => {
     if (!video && !audio) { setMediaUrl(null); setMediaFailed(false); return; }
     let alive = true;
@@ -56,8 +73,9 @@ export const PreviewArea: React.FC<{ file: ProjectFile; businessId: number }> = 
       </>
     );
   }
-  if ((file.mime_type === 'application/pdf' || extOf(file.file_name) === 'pdf') && hasValidUrl(file.download_url)) {
-    return <PreviewIframe src={file.download_url} title={file.file_name} />;
+  if (isPdf && hasValidUrl(file.download_url) && !pdfFailed) {
+    if (!pdfUrl) return <PreviewLoading>{t('docs.preview.loadingMedia', '재생 준비 중…')}</PreviewLoading>;
+    return <PreviewIframe src={pdfUrl} title={file.file_name} />;
   }
   return (
     <PreviewFallback>
