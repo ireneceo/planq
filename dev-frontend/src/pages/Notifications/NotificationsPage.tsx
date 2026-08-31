@@ -10,9 +10,14 @@ import NotificationTypeIcon from '../../components/Common/NotificationTypeIcon';
 import { resolveNotificationLink } from '../../utils/notificationLink';
 import { tabStore } from '../../stores/tabStore';
 
+const PAGE = 20;   // 한 번에 보여줄 건수
+
 const NotificationsPage: React.FC = () => {
   const { t } = useTranslation('layout');
   const [unreadOnly, setUnreadOnly] = useState(false);
+  // ★ 한 번에 다 쏟으면 훑을 수가 없다 (Irene 2026-08-31 "다 쏟아져 있으면 어떻게 해?").
+  //   20건씩 보여주고 "더 보기" 로 늘린다. 필터를 바꾸면 처음부터 다시 센다.
+  const [shown, setShown] = useState(PAGE);
   const { items, loading, markRead, markAllRead } = useNotifications({ limit: 100, unreadOnly, autoRefresh: true });
   const { formatTimeAgo, formatDateTime } = useTimeFormat();
 
@@ -24,13 +29,15 @@ const NotificationsPage: React.FC = () => {
     tabStore.openInNewTab(resolveNotificationLink(item));
   };
   const unreadCount = items.filter(i => !i.read_at).length;
+  const visible = items.slice(0, shown);
+  const rest = items.length - visible.length;
 
   const actions = (
     <Actions>
-      <FilterBtn $active={!unreadOnly} type="button" onClick={() => setUnreadOnly(false)}>
+      <FilterBtn $active={!unreadOnly} type="button" onClick={() => { setUnreadOnly(false); setShown(PAGE); }}>
         {t('notifications.filterAll', '전체')} ({items.length})
       </FilterBtn>
-      <FilterBtn $active={unreadOnly} type="button" onClick={() => setUnreadOnly(true)}>
+      <FilterBtn $active={unreadOnly} type="button" onClick={() => { setUnreadOnly(true); setShown(PAGE); }}>
         {t('notifications.filterUnread', '미읽음')} ({unreadCount})
       </FilterBtn>
       {unreadCount > 0 && (
@@ -57,7 +64,7 @@ const NotificationsPage: React.FC = () => {
         </Empty>
       ) : (
         <List>
-          {items.map(it => (
+          {visible.map(it => (
             <Item key={it.id} type="button" onClick={() => handleClick(it)} $unread={!it.read_at}>
               {/* 운영 #287 — 종류 아이콘 (드롭다운·토스터와 같은 단일 원천). */}
               <ItemIcon aria-hidden="true"><NotificationTypeIcon kind={it.event_kind} size={16} /></ItemIcon>
@@ -74,12 +81,27 @@ const NotificationsPage: React.FC = () => {
           ))}
         </List>
       )}
+      {rest > 0 && (
+        <MoreWrap>
+          <MoreBtn type="button" data-testid="notifications-more" onClick={() => setShown(n => n + PAGE)}>
+            {t('notifications.more', { count: rest, defaultValue: '더 보기 ({{count}}건 남음)' }) as string}
+          </MoreBtn>
+        </MoreWrap>
+      )}
     </PageShell>
   );
 };
 
 export default NotificationsPage;
 
+const MoreWrap = styled.div` display: flex; justify-content: center; padding: 16px 0 4px; `;
+const MoreBtn = styled.button`
+  padding: 9px 18px; border-radius: 8px; cursor: pointer;
+  background: #fff; border: 1px solid #E2E8F0; color: #475569;
+  font-size: 0.8125rem; font-weight: 600;
+  &:hover { background: #F8FAFC; border-color: #CBD5E1; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+`;
 const Actions = styled.div` display: flex; align-items: center; gap: 8px; `;
 const FilterBtn = styled.button<{ $active: boolean }>`
   padding: 6px 12px; border-radius: 999px;

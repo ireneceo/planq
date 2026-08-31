@@ -164,7 +164,8 @@
     "emptyTitle": "새 알림이 없어요",
     "emptyHint": "댓글·일정·결제 등 알림이 여기로 모입니다.",
     "markAllRead": "모두 읽음",
-    "viewAll": "전체 알림 보기"
+    "viewAll": "전체 알림 보기",
+    "more": "더 보기 ({{count}}건 남음)"
   },
   "role": {
     "platform_admin": "플랫폼 관리자",
@@ -206,5 +207,11 @@
     "cancel": "취소",
     "noWorkspace": "워크스페이스 없음",
     "noWorkspaceSub": "눌러서 새로 만들기"
+  },
+  "whatsNew": {
+    "filterAll": "전체",
+    "filterNew": "새 소식",
+    "markAllRead": "모두 읽음",
+    "more": "더 보기 ({{count}}건 남음)"
   }
 }

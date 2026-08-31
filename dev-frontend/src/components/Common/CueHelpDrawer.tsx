@@ -794,11 +794,10 @@ const CueHelpDrawer: React.FC<{
               <InputTextarea
                 ref={inputRef}
                 value={input}
-                placeholder={mode === 'workspace'
-                  ? t('qhelper.cueInputPh', { ws: user?.business_name || (t('qhelper.workspaceFallback', '워크스페이스') as string), defaultValue: '{{ws}} 에 대해 묻기 (Enter 로 보내기, Shift+Enter 줄바꿈)' }) as string
-                  : guestView
-                    ? t('qhelper.guestInputPh', 'PlanQ 에 대해 무엇이든 물어보세요 (Enter 로 보내기)') as string
-                    : t('qhelper.inputPh', '질문을 입력하세요 (Enter 로 보내기, Shift+Enter 줄바꿈)') as string}
+                /* ★ 입력창은 **조작법만** 말한다 (Irene 2026-08-31).
+                   바로 위에 "○○ 에 대해 무엇이든" 과 안내문이 이미 있어서, 입력창까지 같은 말을
+                   반복하면 군더더기다. 괄호도 뺀다 — 괄호 안이 곧 내용이었다. */
+                placeholder={t('qhelper.inputPh') as string}
                 onChange={e => {
                   setInput(e.target.value);
                   // #296 — 1줄로 시작해 내용만큼만 늘어난다. 고정 2줄이면 Q위키 팝업처럼

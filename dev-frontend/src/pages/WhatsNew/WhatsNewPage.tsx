@@ -9,10 +9,17 @@ import { useSearchParams } from 'react-router-dom';
 import PageShell from '../../components/Layout/PageShell';
 import { useWhatsNew, type WhatsNewBlock } from '../../hooks/useWhatsNew';
 
+const PAGE = 20;   // 한 번에 보여줄 건수
+
 const WhatsNewPage: React.FC = () => {
   const { t, i18n } = useTranslation('common');
   const lang = (i18n.language || 'ko').slice(0, 2) === 'en' ? 'en' : 'ko';
   const { items, loading, markSeen } = useWhatsNew();
+  // ★ 알림 전체보기와 **같은 도구**를 준다 (Irene 2026-08-31 "새소식에는 전체/미읽음 이런 거
+  //   없어도 돼? 모두 읽음 표시 하거나"). 한쪽에만 있으면 다른 물건처럼 보인다.
+  const [newOnly, setNewOnly] = useState(false);
+  // 한 번에 다 쏟지 않는다 — 20건씩 "더 보기"
+  const [shown, setShown] = useState(PAGE);
   const [sp, setSp] = useSearchParams();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
@@ -54,8 +61,29 @@ const WhatsNewPage: React.FC = () => {
     }
   };
 
+  const newCount = items.filter(i => i.is_new).length;
+  const filtered = newOnly ? items.filter(i => i.is_new) : items;
+  const visible = filtered.slice(0, shown);
+  const rest = filtered.length - visible.length;
+
+  const actions = (
+    <Actions>
+      <FilterBtn $active={!newOnly} type="button" onClick={() => { setNewOnly(false); setShown(PAGE); }}>
+        {t('whatsNew.filterAll', '전체')} ({items.length})
+      </FilterBtn>
+      <FilterBtn $active={newOnly} type="button" onClick={() => { setNewOnly(true); setShown(PAGE); }}>
+        {t('whatsNew.filterNew', '새 소식')} ({newCount})
+      </FilterBtn>
+      {newCount > 0 && (
+        <ReadAllBtn type="button" data-testid="whatsnew-read-all" onClick={() => { void markSeen(); }}>
+          {t('whatsNew.markAllRead', '모두 읽음')}
+        </ReadAllBtn>
+      )}
+    </Actions>
+  );
+
   return (
-    <PageShell title={t('whatsNew.title', '새 소식') as string} count={items.length}>
+    <PageShell title={t('whatsNew.title', '새 소식') as string} count={items.length} actions={actions}>
       {loading && items.length === 0 ? (
         <Loading>{t('whatsNew.loading', '불러오는 중…')}</Loading>
       ) : items.length === 0 ? (
@@ -69,7 +97,7 @@ const WhatsNewPage: React.FC = () => {
         </Empty>
       ) : (
         <List>
-          {items.map((it) => {
+          {visible.map((it) => {
             const isOpen = !!expanded[it.slug];
             return (
               <Card key={it.slug}>
@@ -92,12 +120,43 @@ const WhatsNewPage: React.FC = () => {
           })}
         </List>
       )}
+      {rest > 0 && (
+        <MoreWrap>
+          <MoreBtn type="button" data-testid="whatsnew-more" onClick={() => setShown(n => n + PAGE)}>
+            {t('whatsNew.more', { count: rest, defaultValue: '더 보기 ({{count}}건 남음)' }) as string}
+          </MoreBtn>
+        </MoreWrap>
+      )}
     </PageShell>
   );
 };
 
 export default WhatsNewPage;
 
+// 알림 전체보기와 같은 모양 — 두 화면이 갈라지지 않게 수치까지 맞춘다.
+const Actions = styled.div` display: flex; align-items: center; gap: 8px; `;
+const FilterBtn = styled.button<{ $active: boolean }>`
+  padding: 6px 12px; border-radius: 999px;
+  background: ${p => p.$active ? '#14B8A6' : '#F1F5F9'};
+  color: ${p => p.$active ? '#fff' : '#475569'};
+  border: none; cursor: pointer;
+  font-size: 0.75rem; font-weight: 500;
+  &:hover { background: ${p => p.$active ? '#0D9488' : '#E2E8F0'}; }
+`;
+const ReadAllBtn = styled.button`
+  padding: 6px 12px; border-radius: 6px;
+  background: transparent; border: 1px solid #CBD5E1;
+  color: #475569; font-size: 0.75rem; font-weight: 500; cursor: pointer;
+  &:hover { background: #F8FAFC; }
+`;
+const MoreWrap = styled.div` display: flex; justify-content: center; padding: 16px 0 4px; `;
+const MoreBtn = styled.button`
+  padding: 9px 18px; border-radius: 8px; cursor: pointer;
+  background: #fff; border: 1px solid #E2E8F0; color: #475569;
+  font-size: 0.8125rem; font-weight: 600;
+  &:hover { background: #F8FAFC; border-color: #CBD5E1; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+`;
 const Loading = styled.div` padding: 60px 16px; text-align: center; color: #94A3B8; font-size: 0.875rem; `;
 // 빈 상태도 알림 쪽 수치로 통일 (여백 60 · 아이콘 48 · 제목 15/700 · 설명 13)
 const Empty = styled.div`

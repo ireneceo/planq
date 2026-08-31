@@ -62,8 +62,12 @@ export const ItemIcon = styled.span`
   background: #F1F5F9; color: #475569; border-radius: 6px;
 `;
 export const ItemBody = styled.div` flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; `;
+// 제목은 **읽음/안읽음 모두 굵게** — 목록에서 먼저 읽히는 것은 제목이다.
+//   (Irene 2026-08-31 "알림 리스트에서 제목이 좀 두꺼워야 할 것 같아. 새소식은 두꺼워서 더 보기 좋아")
+//   두 목록이 같은 스타일을 쓰는데 달라 보였던 이유는 굵기 규칙이 아니라 **읽음 상태**였다 —
+//   새 소식은 대부분 새 항목(600)이고 알림은 이미 읽은 것(500)이 많았다. 기준을 한 단계씩 올린다.
 export const ItemTitle = styled.div<{ $unread: boolean }>`
-  font-size: 0.8125rem; font-weight: ${p => (p.$unread ? 600 : 500)}; color: #0F172A;
+  font-size: 0.8125rem; font-weight: ${p => (p.$unread ? 700 : 600)}; color: #0F172A;
   overflow: hidden; text-overflow: ellipsis; display: -webkit-box;
   -webkit-line-clamp: 2; -webkit-box-orient: vertical;
 `;

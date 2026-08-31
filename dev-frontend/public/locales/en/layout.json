@@ -164,7 +164,8 @@
     "emptyTitle": "No new notifications",
     "emptyHint": "Comments, events, and payments will appear here.",
     "markAllRead": "Mark all read",
-    "viewAll": "View all notifications"
+    "viewAll": "View all notifications",
+    "more": "Show more ({{count}} left)"
   },
   "role": {
     "platform_admin": "Platform Admin",
@@ -206,5 +207,11 @@
     "cancel": "Cancel",
     "noWorkspace": "No workspace",
     "noWorkspaceSub": "Tap to create one"
+  },
+  "whatsNew": {
+    "filterAll": "All",
+    "filterNew": "What's new",
+    "markAllRead": "Mark all read",
+    "more": "Show more ({{count}} left)"
   }
 }
