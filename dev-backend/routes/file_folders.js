@@ -39,6 +39,58 @@ router.get('/projects/:projectId', authenticateToken, async (req, res, next) => 
   }
 });
 
+// ─── 워크스페이스 폴더 (프로젝트에 속하지 않는 파일) ──────────────────────
+//   Irene 2026-08-31: "우리 q 파일 리스트에 폴더 기능 넣고"
+//   여태 폴더 라우트가 **전부 /projects/:projectId** 라, 프로젝트 없는 파일(운영 파일의 95%)은
+//   폴더를 만들 길이 아예 없었다. 파일 쪽 배관은 이미 준비돼 있다 —
+//   files.js 의 verifyFolderOwnership 은 projectId 가 없으면 business_id 만 본다.
+//   ★ 권한·정렬 규칙은 프로젝트 폴더와 **같은 것**을 쓴다(두 벌로 갈라지지 않게).
+router.get('/workspace/:businessId', authenticateToken, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    if (!businessId) return errorResponse(res, 'business_id required', 400);
+    const scope = await getUserScope(req.user.id, businessId, req.user.platform_role);
+    if (!(scope.isMember || scope.isOwner || scope.isAdmin || scope.isPlatformAdmin)) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    const folders = await FileFolder.findAll({
+      where: { business_id: businessId, project_id: null },
+      order: [['parent_id', 'ASC'], ['sort_order', 'ASC'], ['created_at', 'ASC']],
+    });
+    successResponse(res, folders);
+  } catch (error) { next(error); }
+});
+
+router.post('/workspace/:businessId', authenticateToken, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    if (!businessId) return errorResponse(res, 'business_id required', 400);
+    if (!(await assertMemberWrite(req.user.id, businessId, req.user.platform_role))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    const name = (req.body.name || '').trim();
+    if (!name) return errorResponse(res, 'name required', 400);
+    const parentId = req.body.parent_id ? Number(req.body.parent_id) : null;
+    if (parentId) {
+      const parent = await FileFolder.findOne({
+        where: { id: parentId, business_id: businessId, project_id: null },
+      });
+      if (!parent) return errorResponse(res, 'Invalid parent_id', 400);
+    }
+    // 같은 자리에 같은 이름 두 개는 만들지 않는다 — 목록에서 구별이 안 된다.
+    const dup = await FileFolder.findOne({
+      where: { business_id: businessId, project_id: null, parent_id: parentId, name },
+    });
+    if (dup) return successResponse(res, dup);
+
+    const row = await FileFolder.create({
+      business_id: businessId, project_id: null, parent_id: parentId,
+      name, sort_order: 0, created_by: req.user.id,
+    });
+    successResponse(res, row, 'Folder created', 201);
+  } catch (error) { next(error); }
+});
+
 // Create folder
 router.post('/projects/:projectId', authenticateToken, async (req, res, next) => {
   try {
@@ -128,7 +180,10 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     if (!(await assertMemberWrite(req.user.id, folder.business_id, req.user.platform_role))) {
       return errorResponse(res, 'forbidden', 403);
     }
-    if (!(await requireProjectInBusiness(folder.project_id, folder.business_id))) {
+    // ★ 워크스페이스 폴더(project_id = null)는 프로젝트 검사 대상이 아니다.
+    //   여태 이 줄이 무조건 돌아 `requireProjectInBusiness(null, ...)` 가 항상 실패했다 —
+    //   폴더가 프로젝트에만 있던 시절에는 드러나지 않던 전제다(실측: 이름 변경 403).
+    if (folder.project_id && !(await requireProjectInBusiness(folder.project_id, folder.business_id))) {
       return errorResponse(res, 'Access denied', 403);
     }
     const name = (req.body.name || '').trim();

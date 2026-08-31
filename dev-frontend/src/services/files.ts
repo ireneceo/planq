@@ -218,6 +218,27 @@ export async function createFolder(projectId: number, name: string, parentId: nu
   return j.data as FileFolder;
 }
 
+// ─── 워크스페이스 폴더 (프로젝트에 속하지 않는 파일) — Irene 2026-08-31 ────────
+//   운영 파일의 95% 가 프로젝트 없는 파일인데 여태 폴더를 만들 길이 없었다.
+//   이름 변경·삭제·순서는 id 기반 공용 라우트를 그대로 쓴다(아래).
+export async function fetchWorkspaceFolders(businessId: number): Promise<FileFolder[]> {
+  const r = await apiFetch(`/api/folders/workspace/${businessId}`);
+  if (!r.ok) return [];
+  const j = await r.json();
+  return j.success ? ((j.data || []) as FileFolder[]) : [];
+}
+
+export async function createWorkspaceFolder(businessId: number, name: string, parentId: number | null): Promise<FileFolder> {
+  const r = await apiFetch(`/api/folders/workspace/${businessId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, parent_id: parentId }),
+  });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'create folder failed');
+  return j.data as FileFolder;
+}
+
 export async function renameFolder(folderId: number, name: string): Promise<boolean> {
   const r = await apiFetch(`/api/folders/${folderId}`, {
     method: 'PUT',

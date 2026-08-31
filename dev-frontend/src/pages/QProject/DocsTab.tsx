@@ -21,6 +21,7 @@ import { Link } from 'react-router-dom';
 import {
   fetchProjectFiles, fetchWorkspaceFiles, uploadProjectFile, uploadMyFile, deleteProjectFile, bulkDeleteFiles,
   fetchFolders, createFolder, renameFolder, deleteFolder, reorderFolder, moveFile,
+  fetchWorkspaceFolders, createWorkspaceFolder,
   createShareLink, bulkDownloadZip, updateFileVisibility, updateFileSecurityLevel,
   formatBytes, extOf, isImage,
   type ProjectFile, type FileSource, type FileFolder, parseFileId } from '../../services/files';
@@ -172,8 +173,10 @@ const DocsTab: React.FC<Props> = (props) => {
         }).catch(() => { if (!cancelled) { setLoadError(true); setLoading(false); } });
       });
     } else if (isWorkspace) {
-      fetchWorkspaceFiles(businessId).then(fs => {
-        if (!cancelled) { setFiles(fs); setFolders([]); writeCache(fileKey, fs); setLoadError(false); setLoading(false); }
+      // Irene 2026-08-31 — 워크스페이스 파일에도 폴더. 여태 여기서 folders 를 **비웠다**
+      //   (폴더 라우트가 프로젝트 전용이었다). 운영 파일의 95% 가 이쪽이다.
+      Promise.all([fetchWorkspaceFiles(businessId), fetchWorkspaceFolders(businessId)]).then(([fs, fd]) => {
+        if (!cancelled) { setFiles(fs); setFolders(fd); writeCache(fileKey, fs); writeCache(`${fileKey}:folders`, fd); setLoadError(false); setLoading(false); }
       }).catch(() => { if (!cancelled) { setLoadError(true); setLoading(false); } });
     } else {
       Promise.all([fetchProjectFiles(projectId), fetchFolders(projectId)]).then(([fs, fd]) => {
@@ -202,7 +205,7 @@ const DocsTab: React.FC<Props> = (props) => {
     if (isPersonal) {
       import('../../services/files').then(({ fetchPersonalFiles }) => fetchPersonalFiles(businessId).then(fs => setFiles(fs)));
     } else if (isWorkspace) {
-      fetchWorkspaceFiles(businessId).then(fs => setFiles(fs));
+      Promise.all([fetchWorkspaceFiles(businessId), fetchWorkspaceFolders(businessId)]).then(([fs, fd]) => { setFiles(fs); setFolders(fd); });
     } else {
       Promise.all([fetchProjectFiles(projectId), fetchFolders(projectId)]).then(([fs, fd]) => { setFiles(fs); setFolders(fd); });
     }
@@ -222,7 +225,7 @@ const DocsTab: React.FC<Props> = (props) => {
         if (isPersonal) {
           import('../../services/files').then(({ fetchPersonalFiles }) => fetchPersonalFiles(businessId).then(fs => setFiles(fs)));
         } else if (isWorkspace) {
-          fetchWorkspaceFiles(businessId).then(fs => setFiles(fs));
+          Promise.all([fetchWorkspaceFiles(businessId), fetchWorkspaceFolders(businessId)]).then(([fs, fd]) => { setFiles(fs); setFolders(fd); });
         } else {
           Promise.all([fetchProjectFiles(projectId), fetchFolders(projectId)]).then(([fs, fd]) => { setFiles(fs); setFolders(fd); });
         }
@@ -330,6 +333,19 @@ const DocsTab: React.FC<Props> = (props) => {
         await runUploads(arr,
           (f, hooks) => uploadMyFile(businessId, f, hooks),
           (file) => setFiles(prev => [file, ...prev]));
+        return;
+      }
+      // 폴더를 골라 놓고 올리면 **그 폴더로** 들어간다 — 안 그러면 올린 파일이
+      //   보고 있던 폴더에 안 보여 "어디 갔지" 가 된다(프로젝트 모드와 같은 규칙).
+      if (typeof folderSel === 'number') {
+        const targetFolder = folderSel;
+        await runUploads(arr,
+          (f, hooks) => uploadMyFile(businessId, f, hooks),
+          async (file) => {
+            const parsed = parseFileId(file.id);
+            if (parsed?.source === 'direct') await moveFile(businessId, file.id, targetFolder);
+            setFiles(prev => [{ ...file, folder_id: targetFolder }, ...prev]);
+          });
         return;
       }
       setPendingUpload(arr);
@@ -565,14 +581,47 @@ const DocsTab: React.FC<Props> = (props) => {
         {!isPersonal && (
         <FolderTreePanel>
           {isWorkspace ? (
-            <ProjectGroups
-              projectGroups={projectGroups}
-              counts={counts}
-              total={counts.total}
-              selected={folderSel}
-              onSelect={sel => { setFolderSel(sel); clearSelection(); }}
-              tr={tr}
-            />
+            <>
+              <ProjectGroups
+                projectGroups={projectGroups}
+                counts={counts}
+                total={counts.total}
+                selected={folderSel}
+                onSelect={sel => { setFolderSel(sel); clearSelection(); }}
+                tr={tr}
+              />
+              {/* Irene 2026-08-31 — 워크스페이스 파일에도 폴더.
+                  프로젝트 그룹(출처별 탐색)은 그대로 두고 **아래에** 폴더를 더한다 —
+                  둘은 다른 축이라 하나로 합치면 어느 쪽으로 찾는지가 흐려진다. */}
+              <FolderTree
+                folders={folders}
+                counts={counts}
+                total={counts.total}
+                projectName={tr('docs.folders.workspaceRoot')}
+                selected={folderSel}
+                onSelect={sel => { setFolderSel(sel); clearSelection(); }}
+                onCreate={async (parentId, name) => {
+                  const f = await createWorkspaceFolder(businessId, name, parentId);
+                  setFolders(prev => prev.some(x => x.id === f.id) ? prev : [...prev, f]);
+                }}
+                onRename={async (id, name) => {
+                  await renameFolder(id, name);
+                  setFolders(prev => prev.map(f => f.id === id ? { ...f, name } : f));
+                }}
+                onDelete={async (id) => {
+                  await deleteFolder(id);
+                  setFolders(prev => prev.filter(f => f.id !== id));
+                  setFiles(prev => prev.map(f => f.folder_id === id ? { ...f, folder_id: null } : f));
+                  if (folderSel === id) setFolderSel('all');
+                }}
+                onReorder={async (id, dir) => {
+                  await reorderFolder(id, dir);
+                  const fd = await fetchWorkspaceFolders(businessId);
+                  setFolders(fd);
+                }}
+                tr={tr}
+              />
+            </>
           ) : (
             <FolderTree
               folders={folders}

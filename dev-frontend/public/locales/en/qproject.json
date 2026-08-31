@@ -603,6 +603,9 @@
     "loadError": {
       "title": "Couldn't load your files",
       "desc": "Please try again in a moment. If it keeps failing, check your network connection."
+    },
+    "folders": {
+      "workspaceRoot": "My files"
     }
   },
   "pinnedDoc": {
