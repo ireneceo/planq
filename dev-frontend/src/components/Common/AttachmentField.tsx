@@ -160,6 +160,9 @@ const AttachmentField: React.FC<Props> = ({
 
       {/* 통합 검색 — 파일 + (옵션) 문서 한 셀렉트 안에서 같이 검색·선택. 옵션에 [파일]/[문서] 타입 chip 표시. */}
       <PlanQSelect
+        /* 검사 하니스 앵커 (CLAUDE.md §17) — 드로어 안에 react-select 가 9개나 있어
+           위치·순서로 집으면 반드시 엉뚱한 것을 누른다(실측). inputId 는 실제 input 에 찍힌다. */
+        inputId="attach-search"
         size="sm" isSearchable isMulti
         placeholder={searchPlaceholder || (
           includePosts

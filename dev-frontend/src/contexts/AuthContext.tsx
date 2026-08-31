@@ -339,11 +339,20 @@ function noteFailure(url: string): void {
 }
 function noteSuccess(url: string): void { failLog.delete(circuitKey(url)); }
 
-// 네트워크 수준 실패(요청이 서버에 닿지도 못함)에 한해 **1회만** 다시 보낸다.
-//   ★ 아무 요청에나 붙이면 안 된다 — POST 가 서버에 닿은 뒤 응답만 유실된 경우 중복 생성이 된다.
-//   그래서 기본은 끔이고, **저장하지 않는 요청**(AI 미리보기 등)만 명시적으로 켠다.
+// 네트워크 수준 실패(요청이 서버에 닿지도 못함)에 한해 다시 보낸다.
+//
+// ★ 무엇을 다시 보내도 되는가 — **멱등한 것만**.
+//   POST/PUT/PATCH/DELETE 는 서버에 닿은 뒤 응답만 유실된 경우 재전송이 중복 생성이 된다.
+//   그래서 기본은 **GET 만** 켠다(조회는 몇 번 보내도 같다). 쓰기는 명시적으로 opt-in.
+//
+// 왜 필요한가 (Irene 2026-08-31: "자꾸 네트워크 끊겨. Failed to fetch")
+//   운영 PM2 가 **fork 모드**라 `pm2 reload` 가 무중단이 아니다 — 배포마다 프로세스가 새로 뜨고
+//   그 창에서 **진행 중이던 요청이 전부 끊긴다**(실측: 이 세션에만 배포 5회).
+//   서버는 곧 정상으로 돌아오므로, 조회는 잠깐 뒤 다시 보내면 사용자가 끊김을 아예 못 느낀다.
+//   재시도로 못 덮는 것(쓰기 요청·긴 AI 호출)은 문구와 [다시 시도]가 받는다.
 export type ApiFetchOptions = RequestInit & { retryOnNetworkError?: boolean };
-const NET_RETRY_DELAY_MS = 600;
+// 재기동 창(수 초)을 덮도록 두 번, 점점 늦게. 그 이상은 진짜 네트워크 문제로 본다.
+const NET_RETRY_DELAYS_MS = [600, 1800];
 
 const apiFetch = async (url: string, options: ApiFetchOptions = {}): Promise<Response> => {
   // 폭주 차단 중 — 네트워크로 내보내지 않고 즉시 실패 응답을 만든다(호출부는 !r.ok 로 처리).
@@ -371,6 +380,9 @@ const apiFetch = async (url: string, options: ApiFetchOptions = {}): Promise<Res
   }
 
   const { retryOnNetworkError, ...init } = options;
+  // 기본값 — GET(및 method 미지정)은 멱등하므로 자동 재시도. 쓰기는 명시할 때만.
+  const method = String(init.method || 'GET').toUpperCase();
+  const mayRetry = retryOnNetworkError ?? (method === 'GET' || method === 'HEAD');
   let response: Response;
   const startedAt = Date.now();
   const send = () => fetch(url, { ...init, headers, credentials: 'include' /* HttpOnly cookie 전송 */ });
@@ -381,16 +393,25 @@ const apiFetch = async (url: string, options: ApiFetchOptions = {}): Promise<Res
     //   여기서 안 남기면 "가끔 네트워크 오류가 난다" 가 영원히 추적 불가능한 신고로만 존재한다.
     const el = Date.now() - startedAt;
     console.warn(`[apiFetch] 요청이 완료되지 못함: ${circuitKey(url)} · ${el}ms · ${(e as Error).name}: ${(e as Error).message} · online=${navigator.onLine} · ${new Date().toISOString()}`);
-    if (retryOnNetworkError) {
-      // 순단 한 번으로 기능 전체가 실패하지 않게 한 번만 더 보낸다.
-      await new Promise((r) => setTimeout(r, NET_RETRY_DELAY_MS));
-      try {
-        response = await send();
-        console.warn(`[apiFetch] 재시도 성공: ${circuitKey(url)}`);
-      } catch (e2) {
-        noteFailure(url);
-        throw e2;
+    if (mayRetry) {
+      // 순단 한 번으로 기능 전체가 실패하지 않게 다시 보낸다(멱등 요청만 여기 온다).
+      //   ★ 성공한 응답을 지역 변수에 담아 **한 번만** response 에 대입한다 —
+      //     루프 안에서 직접 대입하면 컴파일러가 "대입 전 사용" 으로 본다(TS2454).
+      let retried: Response | null = null;
+      let lastErr: unknown = e;
+      for (const delay of NET_RETRY_DELAYS_MS) {
+        await new Promise((r) => setTimeout(r, delay));
+        try {
+          retried = await send();
+          console.warn(`[apiFetch] 재시도 성공(${delay}ms 뒤): ${circuitKey(url)}`);
+          break;
+        } catch (e2) { lastErr = e2; }
       }
+      if (!retried) {
+        noteFailure(url);
+        throw lastErr;
+      }
+      response = retried;
     } else {
       noteFailure(url);        // 네트워크 자체 실패(ERR_INSUFFICIENT_RESOURCES 등)도 폭주 신호다
       throw e;

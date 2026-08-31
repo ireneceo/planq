@@ -23,6 +23,8 @@ interface AttachmentRow {
   uploader: { id: number; name: string } | null;
   download_url: string;
   preview_url: string | null;
+  /** 문서(post) 첨부면 그 문서 id — 파일이 아니라 Q docs 로 열어야 한다 */
+  post_id?: number | null;
   created_at: string;
 }
 
@@ -60,7 +62,7 @@ const DescriptionAttachments: React.FC<Props> = ({ taskId, businessId, canEdit, 
 
   const submit = async () => {
     if (submitting) return;
-    if (uploads.length === 0 && existingFileIds.length === 0) return;
+    if (uploads.length === 0 && existingFileIds.length === 0 && existingPostIds.length === 0) return;
     setSubmitting(true); setErrMsg(null);
     try {
       // 1) 새 파일 업로드 — context=description_attach
@@ -82,10 +84,10 @@ const DescriptionAttachments: React.FC<Props> = ({ taskId, businessId, canEdit, 
         }
       }
       // 2) 기존 워크스페이스 파일 link
-      if (existingFileIds.length > 0) {
+      if (existingFileIds.length > 0 || existingPostIds.length > 0) {
         const lr = await apiFetch(`/api/tasks/${taskId}/attachments/link`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ file_ids: existingFileIds, context: 'description_attach' }),
+          body: JSON.stringify({ file_ids: existingFileIds, post_ids: existingPostIds, context: 'description_attach' }),
         });
         if (!lr.ok) {  // upload 분기와 동일하게 link 실패도 표면화 + picker 유지(거짓 첨부 방지)
           const lj = await lr.json().catch(() => null);
@@ -96,8 +98,6 @@ const DescriptionAttachments: React.FC<Props> = ({ taskId, businessId, canEdit, 
           return;
         }
       }
-      // (참고) post 연결은 backend link 라우트가 아직 file_ids 만 받음 — 현재 댓글 패턴과 동일 한계.
-      // 향후 backend 보강 시 자동 작동하도록 existingPostIds state 만 유지.
 
       // 성공 — 패널 닫고 비우기 + list 갱신
       setUploads([]); setExistingFileIds([]); setExistingPostIds([]);
@@ -135,7 +135,11 @@ const DescriptionAttachments: React.FC<Props> = ({ taskId, businessId, canEdit, 
         <ChipList>
           {list.map((a) => {
             const isImg = a.mime_type?.startsWith('image/');
-            const ext = a.original_name.split('.').pop()?.slice(0, 4).toUpperCase() || 'FILE';
+            // 문서 첨부는 내려받을 파일이 없다 — 누르면 그 문서를 연다.
+            const isDoc = !!a.post_id;
+            const ext = isDoc
+              ? (t('descAttach.docTag', { defaultValue: '문서' }) as string)
+              : (a.original_name.split('.').pop()?.slice(0, 4).toUpperCase() || 'FILE');
             const canRemove = canEdit || a.uploader?.id === myId;
             return isImg && a.preview_url ? (
               <ImgChip key={a.id} title={a.original_name}>
@@ -151,7 +155,9 @@ const DescriptionAttachments: React.FC<Props> = ({ taskId, businessId, canEdit, 
               </ImgChip>
             ) : (
               <FileChip key={a.id}>
-                <FileChipBody type="button" onClick={() => downloadFile(a)} title={a.original_name}>
+                <FileChipBody type="button"
+                  onClick={() => { if (isDoc) window.open(`/docs?post=${a.post_id}`, '_blank', 'noopener'); else void downloadFile(a); }}
+                  title={a.original_name}>
                   <FileChipExt>{ext}</FileChipExt>
                   <FileChipName>{a.original_name}</FileChipName>
                 </FileChipBody>
@@ -186,7 +192,9 @@ const DescriptionAttachments: React.FC<Props> = ({ taskId, businessId, canEdit, 
                   {t('common.cancel', '취소')}
                 </PickerCancel>
                 <PickerSubmit type="button" onClick={submit}
-                  disabled={submitting || (uploads.length === 0 && existingFileIds.length === 0)}>
+                  /* 운영 (Irene): 문서만 골랐을 때 이 버튼이 영영 비활성이었다 —
+                     existingPostIds 를 안 봤기 때문. 세 가지 중 **하나라도** 있으면 켠다. */
+                  disabled={submitting || (uploads.length === 0 && existingFileIds.length === 0 && existingPostIds.length === 0)}>
                   {submitting
                     ? t('descAttach.uploading', { defaultValue: '업로드 중...' })
                     : t('descAttach.submit', { defaultValue: '추가' })}

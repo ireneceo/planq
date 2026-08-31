@@ -68,7 +68,15 @@ const PublicPostPage: React.FC = () => {
 
   if (loading) return <Center>{t('public.loading', '문서 로드 중...')}</Center>;
   if (expired) return <ExpiredShareLink expiredAt={expired.at} />;
-  if (err || !post) return <Center>{err || t('public.notFound', '공개되지 않았거나 만료된 링크입니다')}</Center>;
+  //   ★ 서버 코드(not_found 등)를 그대로 뿌리지 않는다 — 사용자에게는 뜻 없는 영어 한 단어로 보인다
+  //     (Irene 2026-08-31: 죽은 공유 링크를 열었더니 무엇이 잘못됐는지 알 수 없었다).
+  //     원인은 셋 다 같은 결과다: 문서가 지워졌거나 · 공유를 중지했거나 · 링크가 만료됐다.
+  if (err || !post) return (
+    <Center>
+      <div>{t('public.notFound', '공개되지 않았거나 만료된 링크입니다')}</div>
+      <SubHint>{t('public.notFoundHint', '문서가 삭제됐거나 공유가 중지된 링크입니다. 보낸 분께 새 링크를 요청해 주세요.')}</SubHint>
+    </Center>
+  );
 
   return (
     <Page>
@@ -173,5 +181,8 @@ const AttachRow = styled.div`font-size:0.8125rem;`;
 const AttachLink = styled.a`
   color: #0F766E; text-decoration: none;
   &:hover { text-decoration: underline; }
+`;
+const SubHint = styled.div`
+  margin-top: 8px; font-size: 0.8125rem; color: #94A3B8; line-height: 1.5;
 `;
 const Center = styled.div`min-height:60vh;display:flex;align-items:center;justify-content:center;color:#64748B;font-size:0.875rem;`;

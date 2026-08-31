@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+// 문서(post) 첨부 행을 파일과 구별하는 표식 — 화면이 이 값으로 아이콘·링크를 가른다.
+const POST_MIME = 'application/vnd.planq.post';
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -219,6 +221,8 @@ router.post('/:taskId/attachments',
         file_size: att.file_size,
         mime_type: att.mime_type,
         download_url: `/api/tasks/attachments/${att.id}/download`,
+        // 문서 첨부는 post_id 로 식별한다 — 없으면 화면이 파일과 구별할 수 없다
+        post_id: att.post_id || null,
         preview_url: att.mime_type?.startsWith('image/') ? `/api/tasks/public/attach/${att.stored_name}` : null,
         created_at: att.created_at,
       });
@@ -238,7 +242,10 @@ router.post('/:taskId/attachments/link', authenticateToken, async (req, res, nex
   try {
     if (!(await loadTaskAndGuard(req, res))) return;
     const fileIds = Array.isArray(req.body?.file_ids) ? req.body.file_ids.map(Number).filter(Boolean) : [];
-    if (fileIds.length === 0) return errorResponse(res, 'file_ids required', 400);
+    // 운영 (Irene 2026-08-31) — 문서(post) 첨부. 여태 화면은 고를 수 있는데 서버가 안 받아서
+    //   "골랐는데 추가가 안 된다" 였다. 파일과 같은 라우트로 받는다(두 벌로 갈라지지 않게).
+    const postIds = Array.isArray(req.body?.post_ids) ? req.body.post_ids.map(Number).filter(Boolean) : [];
+    if (fileIds.length === 0 && postIds.length === 0) return errorResponse(res, 'file_ids or post_ids required', 400);
     const context = ['comment', 'description_attach'].includes(req.body?.context) ? req.body.context : 'task';
     const commentId = context === 'comment' ? Number(req.body?.comment_id || 0) || null : null;
     if (context === 'comment' && !commentId) return errorResponse(res, 'comment_id required', 400);
@@ -275,9 +282,42 @@ router.post('/:taskId/attachments/link', authenticateToken, async (req, res, nex
         file_size: att.file_size,
         mime_type: att.mime_type,
         download_url: `/api/tasks/attachments/${att.id}/download`,
+        // 문서 첨부는 post_id 로 식별한다 — 없으면 화면이 파일과 구별할 수 없다
+        post_id: att.post_id || null,
         preview_url: att.mime_type?.startsWith('image/') ? `/api/tasks/public/attach/${att.stored_name}` : null,
         created_at: att.created_at,
       });
+    }
+
+    // ── 문서(post) 첨부 ────────────────────────────────────────────────
+    //   물리 파일이 없다. NOT NULL 컬럼은 값으로 채운다(스키마 nullability 에 기대지 않는다).
+    if (postIds.length > 0) {
+      const { Post } = require('../models');
+      const posts = await Post.findAll({
+        where: { id: postIds, business_id: req._task.business_id },
+        attributes: ['id', 'title'],
+      });
+      for (const p of posts) {
+        // 같은 문서를 같은 자리에 두 번 붙이지 않는다
+        const dup = await TaskAttachment.findOne({
+          where: { task_id: req._task.id, post_id: p.id, context, ...(commentId ? { comment_id: commentId } : {}) },
+        });
+        if (dup) continue;
+        const att = await TaskAttachment.create({
+          business_id: req._task.business_id,
+          task_id: req._task.id,
+          comment_id: commentId,
+          context,
+          post_id: p.id,
+          original_name: String(p.title || '(제목 없음)').slice(0, 500),
+          stored_name: '',
+          file_path: '',
+          file_size: 0,
+          mime_type: POST_MIME,
+          uploaded_by: req.user.id,
+        });
+        created.push({ id: att.id, post_id: p.id, original_name: att.original_name, mime_type: POST_MIME });
+      }
     }
     return successResponse(res, created, `${created.length} file(s) linked`);
   } catch (err) { next(err); }
@@ -313,6 +353,8 @@ router.get('/:taskId/attachments', authenticateToken, async (req, res, next) => 
       original_name: r.original_name,
       file_size: r.file_size,
       mime_type: r.mime_type,
+      // 문서 첨부 식별 — 화면이 파일과 다르게(문서 아이콘 + Q docs 로 이동) 그린다
+      post_id: r.post_id || null,
       uploader: r.uploader ? { id: r.uploader.id, name: r.uploader.name } : null,
       download_url: `/api/tasks/attachments/${r.id}/download`,
       preview_url: r.mime_type?.startsWith('image/') ? `/api/tasks/public/attach/${r.stored_name}` : null,

@@ -973,7 +973,8 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     if (!detailTask || commentSending) return;
     const hasContent = newComment.trim().length > 0;
     const hasNew = commentFiles.length > 0;
-    const hasExisting = commentExistingFileIds.length > 0;
+    // 운영 (Irene): 문서(post)만 골랐을 때도 첨부로 인정한다 — 여태 파일만 봤다
+    const hasExisting = commentExistingFileIds.length > 0 || commentExistingPostIds.length > 0;
     if (!hasContent && !hasNew && !hasExisting) return;
     setCommentSending(true);
     try {
@@ -1000,7 +1001,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       if (hasExisting) {
         const lr = await apiFetch(`/api/tasks/${detailTask.id}/attachments/link`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ file_ids: commentExistingFileIds, context: 'comment', comment_id: comment.id }),
+          body: JSON.stringify({ file_ids: commentExistingFileIds, post_ids: commentExistingPostIds, context: 'comment', comment_id: comment.id }),
         });
         const lj = await lr.json();
         if (lj.success && Array.isArray(lj.data)) {
@@ -1999,6 +2000,8 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                       const isImg = a.mime_type?.startsWith('image/');
                       const preview = (isImg && a.stored_name) ? `/api/tasks/public/attach/${a.stored_name}` : null;
                       const dl = `/api/tasks/attachments/${a.id}/download`;
+                      // 문서(post) 첨부는 내려받을 파일이 없다 — 그 문서를 연다.
+                      const docId = (a as { post_id?: number | null }).post_id || null;
                       // 이미지는 ImageLightbox 로 — 새 탭 대신 같은 페이지 갤러리.
                       // 비이미지는 fetch 로 blob 받아 다운로드 (auth header 포함).
                       return isImg && preview ? (
@@ -2012,6 +2015,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                       ) : (
                         <CmtAttFile key={a.id} as="button" type="button" onClick={async (e) => {
                           e.preventDefault();
+                          if (docId) { window.open(`/docs?post=${docId}`, '_blank', 'noopener'); return; }
                           try {
                             const r = await apiFetch(dl);
                             if (!r.ok) return;
@@ -2064,7 +2068,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                   </CmtAttachBtn>
                   <CommentSend onClick={addComment}
-                    disabled={commentSending || (!newComment.trim() && commentFiles.length === 0 && commentExistingFileIds.length === 0)}>
+                    disabled={commentSending || (!newComment.trim() && commentFiles.length === 0 && commentExistingFileIds.length === 0 && commentExistingPostIds.length === 0)}>
                     {commentSending ? t('detail.sending', '전송 중...') : t('detail.send', 'Send')}
                   </CommentSend>
                 </CmtComposerRow>
