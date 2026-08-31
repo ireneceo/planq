@@ -155,5 +155,14 @@
   "noWorkspace": "Choose a workspace first.",
   "admin": {
     "desc": "Approve leave, see team status, and review monthly stats. Your own clock-in and leave requests live under “Attendance” on the left."
+  },
+  "correct": {
+    "open": "Correct",
+    "title": "Correct attendance",
+    "save": "Apply correction",
+    "cancel": "Cancel",
+    "reason": "Reason (required)",
+    "reasonPh": "e.g. I left right after the meeting but auto clock-out closed later",
+    "notice": "Applied immediately. The original record is kept as history and managers are notified."
   }
 }

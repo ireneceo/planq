@@ -13,6 +13,7 @@ import AttendanceWidget from '../../components/Attendance/AttendanceWidget';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { ATTENDANCE_REFRESH_EVENT, formatHours, type AttendanceDay } from '../../hooks/useAttendance';
 import { LeaveRequestDrawer } from './LeaveRequestDrawer';
+import CorrectDayModal from './CorrectDayModal';
 import {
   type LeaveRequestRow, type Balance,
   hhmm, unitKey,
@@ -35,6 +36,13 @@ const AttendancePage: React.FC = () => {
   // 관리자 여부 — /team 을 실제로 호출해서 판정하지 않고, 서버가 준 역할로 본다.
 
   const [days, setDays] = useState<AttendanceDay[]>([]);
+  // 운영 #392 — 본인 정정. 서버와 같은 창(14일)을 화면도 알아야 "왜 버튼이 없지" 가 안 생긴다.
+  const [correcting, setCorrecting] = useState<AttendanceDay | null>(null);
+  const SELF_FIX_WINDOW_DAYS = 14;
+  const canCorrect = (d: AttendanceDay) => {
+    const age = Math.floor((Date.now() - new Date(`${d.work_date}T00:00:00`).getTime()) / 86400000);
+    return age <= SELF_FIX_WINDOW_DAYS;
+  };
   const [requests, setRequests] = useState<LeaveRequestRow[]>([]);
   const [balance, setBalance] = useState<Balance | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -181,6 +189,7 @@ const AttendancePage: React.FC = () => {
                   <tr>
                     <Th>{t('my.date')}</Th><Th>{t('my.in')}</Th><Th>{t('my.out')}</Th>
                     <Th>{t('my.break')}</Th><Th>{t('my.work')}</Th><Th>{t('my.status')}</Th>
+                    <Th />
                   </tr>
                 </thead>
                 <tbody>
@@ -194,6 +203,16 @@ const AttendancePage: React.FC = () => {
                       <Td>
                         {d.auto_closed && <Badge $tone="warn" title={t('my.autoClosedHint') as string}>{t('my.autoClosed')}</Badge>}
                         {d.admin_fixed && <Badge $tone="info">{t('my.adminFixed')}</Badge>}
+                      </Td>
+                      <Td>
+                        {/* 운영 #392 — 자동 기록이 안 맞을 때 본인이 고칠 자리. 여태 없었다. */}
+                        {canCorrect(d) && (
+                          <ActionButton tone="secondary" size="sm"
+                            data-testid="attendance-correct-open"
+                            onClick={() => setCorrecting(d)}>
+                            {t('correct.open', { defaultValue: '정정' })}
+                          </ActionButton>
+                        )}
                       </Td>
                     </tr>
                   ))}
@@ -256,6 +275,20 @@ const AttendancePage: React.FC = () => {
             </List>
           )}
         </>
+      )}
+
+      {correcting && (
+
+        <CorrectDayModal
+
+          day={correcting}
+
+          onClose={() => setCorrecting(null)}
+
+          onSaved={() => { void silentLoad(); }}
+
+        />
+
       )}
 
       <LeaveRequestDrawer

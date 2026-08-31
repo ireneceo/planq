@@ -189,6 +189,81 @@ router.patch('/days/:id', authenticateToken, async (req, res, next) => {
   }
 });
 
+// ─── PATCH /days/:id/correct — **본인 정정** (운영 #392) ──────────────────
+//   Irene: "근태기록이 자동으로 된 다음 안맞으면 수정요청해야 하는데 승인이 필요할까?
+//           … 정정 단계없는 건 이상해."
+//   여태 정정은 **관리자 전용**(위 PATCH /days/:id)이라, 본인은 자기 기록이 틀려도
+//   메모밖에 못 남겼다. 자동 기록(업무 시작 → 자동 출근)이 주력인 제품에서 정정 경로가
+//   없는 것은 기능 결손이다.
+//
+//   설계 판단 — **승인 대기를 두지 않는다.**
+//     · 승인을 걸면 실무에서 매번 막히고, 승인자가 사실을 확인할 방법도 없다
+//       (그 시간에 무엇을 했는지는 본인만 안다).
+//     · 대신 **사유를 반드시 받고, 원장을 남기고, 관리자에게 알린다.**
+//       이력 없이 고치는 것이야말로 나중에 다툼이 된다.
+//   가드:
+//     · 본인 기록만
+//     · 사유 필수(applyAdminFix 가 강제)
+//     · **최근 14일 이내만** — 정산이 지난 기간을 본인이 되돌리지 못하게. 그 이전은 관리자에게.
+//     · 미래 시각 금지
+router.patch('/days/:id/correct', authenticateToken, clockLimiter, async (req, res, next) => {
+  try {
+    const day = await AttendanceDay.findByPk(Number(req.params.id));
+    if (!day) return errorResponse(res, 'not_found', 404);
+    const scope = await requireMember(req, res, day.business_id);
+    if (!scope) return;
+    if (day.user_id !== req.user.id) return errorResponse(res, 'forbidden', 403);
+
+    const SELF_FIX_WINDOW_DAYS = 14;
+    const workDate = new Date(`${ymd(day.work_date)}T00:00:00Z`);
+    const ageDays = Math.floor((Date.now() - workDate.getTime()) / 86400000);
+    if (ageDays > SELF_FIX_WINDOW_DAYS) {
+      return errorResponse(res, 'self_fix_window_expired', 400);
+    }
+    const events = Array.isArray(req.body.events) ? req.body.events : [];
+    const now = Date.now();
+    for (const e of events) {
+      const at = new Date(e?.at);
+      if (Number.isNaN(at.getTime())) return errorResponse(res, 'invalid_at', 400);
+      if (at.getTime() > now + 60 * 1000) return errorResponse(res, 'future_time_not_allowed', 400);
+    }
+
+    const updated = await A.applyAdminFix({
+      dayId: day.id,
+      events,
+      fixReason: req.body.fix_reason,
+      actorUserId: req.user.id,       // 원장에 "누가 고쳤는지" 가 남는다 — 본인 정정과 관리자 정정의 구분점
+    });
+
+    // 관리자에게 알린다 — 승인은 안 받지만 **모르게 두지도 않는다**.
+    //   실패해도 정정은 되돌리지 않는다(기록이 우선).
+    try {
+      const { notify } = require('./notifications');
+      const me = await User.findByPk(req.user.id, { attributes: ['id', 'name'] });
+      const managers = await BusinessMember.findAll({
+        where: { business_id: day.business_id, removed_at: null, role: { [Op.in]: ['owner', 'admin'] } },
+        attributes: ['user_id'],
+      });
+      for (const m of managers) {
+        if (!m.user_id || m.user_id === req.user.id) continue;
+        await notify({
+          userId: m.user_id, businessId: day.business_id, eventKind: 'system',
+          title: '근태 기록 정정',
+          body: `${me?.name || '멤버'} 님이 ${ymd(day.work_date)} 근태를 정정했습니다 — ${String(req.body.fix_reason).slice(0, 120)}`,
+          link: `/attendance?tab=team&date=${ymd(day.work_date)}`,
+          actorUserId: req.user.id, entityType: 'attendance_day', entityId: day.id,
+          ioApp: req.app,
+        }).catch(() => null);
+      }
+    } catch (e) { console.warn('[attendance self-fix notify]', e.message); }
+
+    return successResponse(res, serializeDay(updated));
+  } catch (err) {
+    if (err instanceof A.AttendanceError) return errorResponse(res, err.code, err.status || 400);
+    next(err);
+  }
+});
+
 // ─── PATCH /days/:id/note — 본인 메모 ───────────────────────────
 router.patch('/days/:id/note', authenticateToken, async (req, res, next) => {
   try {
