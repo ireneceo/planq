@@ -379,7 +379,9 @@
     "deleteConfirmTitle": "파일 삭제",
     "deleteConfirmMsg": "\"{{name}}\" 파일을 삭제할까요?",
     "delete": "삭제",
-    "cancel": "취소"
+    "cancel": "취소",
+    "docTag": "문서",
+    "docKind": "Q docs 문서"
   },
   "calendar": {
     "today": "오늘",

@@ -809,6 +809,23 @@ router.post('/:businessId/:id/move', authenticateToken, checkBusinessAccess, asy
     }
     file.folder_id = folderId;
     await file.save();
+    // Drive 사본도 같은 자리로 (Irene 2026-08-31). PlanQ 에서 정리했는데 Drive 가 그대로면
+    //   두 곳이 갈라진다. 미러된 파일에만 해당하고, 실패해도 이동 자체는 되돌리지 않는다
+    //   (PlanQ 가 정본, Drive 는 사본).
+    if (file.gdrive_mirror_id) {
+      setImmediate(async () => {
+        try {
+          const gdrive = require('../services/gdrive');
+          const mirror = require('../services/gdriveMirror');
+          const token = await gdrive.getTokenForBusiness(file.business_id);
+          if (!token || !token.root_folder_id) return;
+          const drive = await gdrive.getDriveClient(token);
+          let parentId = await mirror.ensureWorkspaceFilesFolder(drive, token);
+          if (folderId) parentId = await mirror.ensureFolderChainOnDrive(drive, token, folderId, parentId);
+          await gdrive.moveFile(drive, file.gdrive_mirror_id, parentId);
+        } catch (e) { console.warn('[file move] Drive 반영 실패:', e.message); }
+      });
+    }
     broadcastFile(req, file, 'file:updated');
     successResponse(res, file, 'File moved');
   } catch (error) {

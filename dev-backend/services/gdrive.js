@@ -186,6 +186,23 @@ async function getFileStream(drive, fileId) {
 /**
  * 폴더 이름 변경
  */
+/**
+ * Drive 안에서 파일·폴더를 다른 폴더로 옮긴다 (Irene 2026-08-31).
+ *   PlanQ 에서 폴더를 정리했는데 Drive 는 그대로면 두 곳이 갈라진다.
+ *   Drive 는 parents 배열이라 **옛 부모를 빼고 새 부모를 더한다**(복사가 아니다).
+ */
+async function moveFile(drive, fileId, newParentId) {
+  const meta = await drive.files.get({ fileId, fields: 'parents' });
+  const prev = (meta.data.parents || []).join(',');
+  await drive.files.update({
+    fileId,
+    addParents: newParentId,
+    ...(prev ? { removeParents: prev } : {}),
+    fields: 'id, parents',
+  });
+  return true;
+}
+
 async function renameFile(drive, fileId, name) {
   const res = await drive.files.update({
     fileId,
@@ -357,6 +374,7 @@ module.exports = {
   uploadFile,
   deleteFile,
   renameFile,
+  moveFile,
   getFileMeta,
   getFileStream,
   getTokenForBusiness,

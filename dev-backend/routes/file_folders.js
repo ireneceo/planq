@@ -190,6 +190,15 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     if (!name) return errorResponse(res, 'name required', 400);
     folder.name = name;
     await folder.save();
+    // Drive 에도 같은 이름으로 (Irene 2026-08-31 — 한쪽만 정리되면 두 곳이 갈라진다).
+    //   실패해도 이름 변경 자체는 되돌리지 않는다 — Drive 는 사본이고 PlanQ 가 정본이다.
+    if (folder.gdrive_folder_id) {
+      try {
+        const gdrive = require('../services/gdrive');
+        const token = await gdrive.getTokenForBusiness(folder.business_id);
+        if (token) await gdrive.renameFile(await gdrive.getDriveClient(token), folder.gdrive_folder_id, name);
+      } catch (e) { console.warn('[folder rename] Drive 반영 실패:', e.message); }
+    }
     successResponse(res, folder, 'Folder renamed');
   } catch (error) {
     next(error);

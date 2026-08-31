@@ -1032,13 +1032,21 @@ const QTaskPage:React.FC=()=>{
         //     (Irene: "업무추가할 때 넣은 첨부파일이 업무결과물 넣는 곳 아래로 붙어").
         //     권한도 이쪽이 맞다 — description_attach 는 작성자/owner/admin 이고 생성자는 곧 작성자다.
         //     결과물 첨부는 상세 드로어의 TaskAttachments 가 계속 'task' 로 붙인다(무변경).
-        if (uploadedFileIds.length > 0) {
+        //   ★ 문서(post)도 같이 보낸다 — 여태 고른 문서는 **아무 데도 가지 않았다**
+        //     (아래 3) 자리에 TODO 만 남아 있었다). 첨부했다고 믿는데 조용히 사라졌다.
+        if (uploadedFileIds.length > 0 || newExistingPostIds.length > 0) {
           try {
-            await apiFetch(`/api/tasks/${newTaskId}/attachments/link`, {
+            const linkRes = await apiFetch(`/api/tasks/${newTaskId}/attachments/link`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ file_ids: uploadedFileIds, context: 'description_attach' }),
+              body: JSON.stringify({
+                file_ids: uploadedFileIds,
+                post_ids: newExistingPostIds,
+                context: 'description_attach',
+              }),
             });
+            // apiFetch 는 throw 하지 않는다 — res.ok 를 직접 본다.
+            if (!linkRes.ok) console.warn('[task attach link] HTTP', linkRes.status);
           } catch (err) { console.warn('[task attach link]', err); }
         }
         // 2-B) 태그 붙이기 (#236/#250) — 실패해도 업무 생성은 이미 성공이라 되돌리지 않는다.
@@ -1052,11 +1060,6 @@ const QTaskPage:React.FC=()=>{
             });
             if (!tagRes.ok) console.warn('[task tags] HTTP', tagRes.status);
           } catch (err) { console.warn('[task tags]', err); }
-        }
-        // 3) Q docs(post) 카드 — 본문에 reference 표기 (현재는 description 끝에 링크 추가)
-        if (newExistingPostIds.length > 0 && newDescription) {
-          // 첨부된 post 는 별도 시스템이 없으므로 일단 fileIds 와만 연결.
-          // (다음 사이클에서 task ↔ post 관계 모델 추가 가능)
         }
         // Socket task:new 가 먼저 도착했을 가능성 — 중복 방지
         setAllTasks(prev=>prev.some(x=>x.id===r.data.id)?prev:[r.data,...prev]);

@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { apiFetch } from '../../contexts/AuthContext';
 import AttachmentField from '../Common/AttachmentField';
+import PostPreviewModal from '../Docs/PostPreviewModal';
 import { useImageLightbox } from '../Common/ImageLightbox';
 
 interface AttachmentRow {
@@ -46,6 +47,8 @@ const DescriptionAttachments: React.FC<Props> = ({ taskId, businessId, canEdit, 
   const [submitting, setSubmitting] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const { open: openImageLightbox, lightbox: imageLightbox } = useImageLightbox();
+  // 문서 첨부는 그 문서만 미리보기로 연다 (화면 전체 이동 X).
+  const [docPreview, setDocPreview] = useState<{ id: number; title: string } | null>(null);
 
   const fetchList = useCallback(async () => {
     setLoading(true);
@@ -156,7 +159,7 @@ const DescriptionAttachments: React.FC<Props> = ({ taskId, businessId, canEdit, 
             ) : (
               <FileChip key={a.id}>
                 <FileChipBody type="button"
-                  onClick={() => { if (isDoc) window.open(`/docs?post=${a.post_id}`, '_blank', 'noopener'); else void downloadFile(a); }}
+                  onClick={() => { if (isDoc) setDocPreview({ id: a.post_id as number, title: a.original_name }); else void downloadFile(a); }}
                   title={a.original_name}>
                   <FileChipExt>{ext}</FileChipExt>
                   <FileChipName>{a.original_name}</FileChipName>
@@ -171,6 +174,9 @@ const DescriptionAttachments: React.FC<Props> = ({ taskId, businessId, canEdit, 
         );
       })()}
       {imageLightbox}
+      {docPreview && (
+        <PostPreviewModal postId={docPreview.id} title={docPreview.title} onClose={() => setDocPreview(null)} />
+      )}
 
       {canEdit && (
         <>

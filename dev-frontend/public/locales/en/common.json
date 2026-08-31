@@ -379,7 +379,9 @@
     "deleteConfirmTitle": "Delete file",
     "deleteConfirmMsg": "Delete \"{{name}}\"?",
     "delete": "Delete",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "docTag": "DOC",
+    "docKind": "Q docs document"
   },
   "calendar": {
     "today": "Today",

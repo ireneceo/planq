@@ -51,6 +51,41 @@ function isEligible(file, token) {
   return true;  // L2/L3/L4 워크스페이스·팀·외부
 }
 
+/**
+ * PlanQ 폴더 ↔ Drive 폴더 매핑 확보 (Irene 2026-08-31: "폴더도 만들 수 있어야 하고").
+ *
+ * ★ 현재 권한(`drive.file`)으로 **된다** — 우리가 만든 폴더는 완전히 제어할 수 있다.
+ *   구글 심사가 필요한 것은 반대 방향(사용자가 Drive 에서 **새로** 만든 것을 들여오기)뿐이다.
+ *
+ * 상위 폴더를 따라 올라가며 없는 것부터 만든다(위 → 아래). 이미 매핑된 것은 재사용한다(멱등).
+ * 실패해도 파일 미러 자체는 계속된다 — 폴더는 정리를 위한 것이지 보관의 조건이 아니다.
+ */
+async function ensureFolderChainOnDrive(drive, token, folderId, rootId) {
+  const { FileFolder } = require('../models');
+  // 루트까지의 사슬을 위에서 아래 순서로 모은다
+  const chain = [];
+  let cur = folderId;
+  for (let i = 0; i < 20 && cur; i += 1) {
+    const row = await FileFolder.findByPk(cur);
+    if (!row) break;
+    chain.unshift(row);
+    cur = row.parent_id;
+  }
+  let parentDriveId = rootId;
+  for (const row of chain) {
+    if (row.gdrive_folder_id) {
+      try {
+        const r = await drive.files.get({ fileId: row.gdrive_folder_id, fields: 'id, trashed' });
+        if (r.data && !r.data.trashed) { parentDriveId = row.gdrive_folder_id; continue; }
+      } catch { /* 외부에서 지워짐 → 다시 만든다 */ }
+    }
+    const created = await gdrive.createFolder(drive, String(row.name || 'Folder').slice(0, 120), parentDriveId);
+    await row.update({ gdrive_folder_id: created.id });
+    parentDriveId = created.id;
+  }
+  return parentDriveId;
+}
+
 // 부모 폴더 결정 → Drive 사본 업로드 → File 미러 컬럼 기록. drive/token 은 호출부 재사용.
 async function mirrorFile(file, token, drive) {
   const abs = absLocalPath(file);
@@ -63,6 +98,15 @@ async function mirrorFile(file, token, drive) {
       : await ensureWorkspaceFilesFolder(drive, token);
   } else {
     parentId = await ensureWorkspaceFilesFolder(drive, token);
+  }
+  // PlanQ 폴더에 들어 있으면 Drive 에도 **같은 자리**로. 여태 프로젝트 폴더 아니면
+  //   전부 'Workspace Files' 한 곳에 쏟아져, PlanQ 에서 정리한 폴더가 Drive 에선 없었다.
+  if (file.folder_id) {
+    try {
+      parentId = await ensureFolderChainOnDrive(drive, token, file.folder_id, parentId);
+    } catch (e) {
+      console.warn('[gdriveMirror] 폴더 매핑 실패 — 상위 폴더에 올린다:', e.message);
+    }
   }
   const driveFile = await gdrive.uploadFile(drive, {
     name: file.file_name || path.basename(abs),
@@ -94,4 +138,4 @@ async function mirrorOnUpload(fileId, businessId) {
   }
 }
 
-module.exports = { ensureWorkspaceFilesFolder, isEligible, mirrorFile, mirrorOnUpload, absLocalPath };
+module.exports = { ensureWorkspaceFilesFolder, ensureFolderChainOnDrive, isEligible, mirrorFile, mirrorOnUpload, absLocalPath };

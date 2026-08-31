@@ -1,21 +1,27 @@
-// 채팅에서 공유받은 문서 카드 클릭 시 팝업 미리보기
-// 본문 읽기전용 + "문서로 가서 보기" 버튼
+// 문서 미리보기 — 본문 읽기전용 + "문서로 가서 보기" 버튼.
+//
+// ★ 문서 첨부를 누르면 **문서만** 열려야 한다 (Irene 2026-08-31
+//   "문서가 열릴 때 데스크탑 전체가 왜 열려? 그냥 문서만 상세 열려야 하는 거 아니야?").
+//   /docs 로 보내면 리스트·필터까지 딸린 화면 전체가 새 탭으로 뜬다.
+// 채팅 문서 카드가 쓰던 것을 **공용으로 옮겼다** — 같은 동작을 두 벌로 만들면 반드시 갈라진다.
+// 쓰는 곳: 채팅 문서 카드 · 업무 댓글/의뢰/결과물 첨부의 문서.
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import PostEditor from '../../components/Docs/PostEditor';
+import PostEditor from './PostEditor';
 import { fetchPost, type PostDetail } from '../../services/posts';
-import type { PostCardMeta } from './types';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 
 interface Props {
-  card: PostCardMeta;
+  postId: number;
+  /** 불러오기 전 헤더에 먼저 보일 제목 (있으면). 없으면 불러온 뒤 채워진다. */
+  title?: string;
   onClose: () => void;
 }
 
-const PostCardPreviewModal: React.FC<Props> = ({ card, onClose }) => {
+const PostPreviewModal: React.FC<Props> = ({ postId, title, onClose }) => {
   const { t } = useTranslation('qtalk');
   const navigate = useNavigate();
   const [doc, setDoc] = useState<PostDetail | null>(null);
@@ -29,7 +35,7 @@ const PostCardPreviewModal: React.FC<Props> = ({ card, onClose }) => {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetchPost(card.post_id)
+    fetchPost(postId)
       .then(d => {
         if (cancelled) return;
         if (d) {
@@ -42,16 +48,16 @@ const PostCardPreviewModal: React.FC<Props> = ({ card, onClose }) => {
       .catch(e => { if (!cancelled) setErr((e as Error).message); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [card.post_id]);
+  }, [postId]);
 
   return (
     <Backdrop onClick={onClose}>
-      <Dialog onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={card.title}>
+      <Dialog onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={title || t('chat.card.previewLabel', { defaultValue: '문서 미리보기' }) as string}>
         <Header>
-          <Title>{doc?.title || card.title}</Title>
+          <Title>{doc?.title || title || ''}</Title>
           <HeaderActions>
             {doc && (
-              <OpenBtn type="button" onClick={() => { navigate(`/docs?post=${card.post_id}`); onClose(); }}>
+              <OpenBtn type="button" onClick={() => { navigate(`/docs?post=${postId}`); onClose(); }}>
                 {t('chat.card.openFull', '문서로 가서 보기')}
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 4 }}><path d="M7 17L17 7"/><polyline points="7 7 17 7 17 17"/></svg>
               </OpenBtn>
@@ -89,7 +95,7 @@ const PostCardPreviewModal: React.FC<Props> = ({ card, onClose }) => {
   );
 };
 
-export default PostCardPreviewModal;
+export default PostPreviewModal;
 
 const Backdrop = styled.div`
   position: fixed; inset: 0; background: rgba(15,23,42,0.55);

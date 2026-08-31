@@ -15,7 +15,7 @@ import * as qtalkApi from '../../services/qtalk';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import EmptyState from '../../components/Common/EmptyState';
-import PostCardPreviewModal from './PostCardPreviewModal';
+import PostPreviewModal from '../../components/Docs/PostPreviewModal';
 import FilePicker, { type FilePickerResult } from '../../components/Common/FilePicker';
 import UserInfoPopover from '../../components/Common/UserInfoPopover';
 import { fetchWorkspaceFiles, uploadMyFile, isImage as isRenderableImage } from '../../services/files';
@@ -2114,7 +2114,7 @@ const ChatPanel: React.FC<Props> = ({
         </InputWrap>
       </InputBar>
       {previewCard && (
-        <PostCardPreviewModal card={previewCard} onClose={() => setPreviewCard(null)} />
+        <PostPreviewModal postId={previewCard.post_id} title={previewCard.title} onClose={() => setPreviewCard(null)} />
       )}
       {businessId && (
         <FilePicker

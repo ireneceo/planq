@@ -40,6 +40,7 @@ import { useImageLightbox } from '../Common/ImageLightbox';
 import TaskFocusBar from '../Focus/TaskFocusBar';
 import DeliverableHistory from './DeliverableHistory';
 import TaskAttachments from './TaskAttachments';
+import PostPreviewModal from '../Docs/PostPreviewModal';
 import RelatedTasksSection from './RelatedTasksSection';
 import DescriptionAttachments from './DescriptionAttachments';
 import { STATUS_COLOR, displayStatus, getStatusLabel, statusOptionsFor, type StatusCode } from '../../utils/taskLabel';
@@ -179,6 +180,8 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const { t, i18n } = useTranslation('qtask');
   // 댓글 첨부 이미지 라이트박스 — 한 댓글의 이미지들이 갤러리로 묶임
   const { open: openImageLightbox, lightbox: imageLightbox } = useImageLightbox();
+  // 문서 첨부 미리보기 — 화면 전체를 갈아끼우지 않고 그 문서만 연다.
+  const [docPreview, setDocPreview] = useState<{ id: number; title: string } | null>(null);
   // 프로젝트 옵션 — props 우선, 없으면 자체 fetch (TodoPage / QCalendarPage 같은 호출 측 호환)
   const [projectsFetched, setProjectsFetched] = useState<DrawerProjectOption[]>([]);
   React.useEffect(() => {
@@ -2015,7 +2018,11 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                       ) : (
                         <CmtAttFile key={a.id} as="button" type="button" onClick={async (e) => {
                           e.preventDefault();
-                          if (docId) { window.open(`/docs?post=${docId}`, '_blank', 'noopener'); return; }
+                          // ★ window.open 은 PWA·팝업 차단에서 **아무 일도 안 일어난다**
+                          //   (Irene 2026-08-31 "댓글에 문서 첨부했는데 클릭 안돼").
+                          //   앱 안 탭으로 연다 — 보던 업무 화면을 덮지 않는다(CLAUDE.md 탭 규칙).
+                          // 문서만 상세로 연다 — /docs 로 보내면 리스트까지 딸린 화면 전체가 뜬다.
+                          if (docId) { setDocPreview({ id: docId, title: a.original_name }); return; }
                           try {
                             const r = await apiFetch(dl);
                             if (!r.ok) return;
@@ -2356,6 +2363,9 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       variant="danger"
     />
     {imageLightbox}
+    {docPreview && (
+      <PostPreviewModal postId={docPreview.id} title={docPreview.title} onClose={() => setDocPreview(null)} />
+    )}
   </>);
 };
 

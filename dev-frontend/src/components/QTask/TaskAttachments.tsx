@@ -1,5 +1,6 @@
 // Task 첨부파일 UI — 드래그앤드롭 + 업로드 + 리스트 + 다운로드 + 삭제 + 기존 파일/문서 선택 (모두 인라인)
 import { downloadBlob } from '../../utils/download';
+import PostPreviewModal from '../Docs/PostPreviewModal';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
@@ -18,6 +19,8 @@ type AttachRow = {
   uploader: { id: number; name: string } | null;
   download_url: string;
   preview_url: string | null;
+  /** 문서(post) 첨부면 그 문서 id — 파일이 아니라 Q docs 로 열어야 한다 */
+  post_id?: number | null;
   created_at: string;
 };
 
@@ -60,6 +63,8 @@ export default function TaskAttachments({ taskId, onChangeCount }: Props) {
 
   // 이미지 첨부만 모아 갤러리 라이트박스 — 클릭한 이미지부터 좌우 이동
   const { open: openImageLightbox, lightbox: imageLightbox } = useImageLightbox();
+  // 문서 첨부는 그 문서만 미리보기로 연다 (화면 전체 이동 X).
+  const [docPreview, setDocPreview] = useState<{ id: number; title: string } | null>(null);
   const imageRows = visibleRows.filter(r => r.mime_type?.startsWith('image/') && r.preview_url);
   const lightboxItems = imageRows.map(r => ({ src: r.preview_url as string, alt: r.original_name }));
 
@@ -110,6 +115,8 @@ export default function TaskAttachments({ taskId, onChangeCount }: Props) {
   };
 
   const download = async (row: AttachRow) => {
+    // 문서(post) 첨부는 파일이 아니다 — 앱 안 탭으로 그 문서를 연다.
+    if (row.post_id) { setDocPreview({ id: row.post_id, title: row.original_name }); return; }
     // 브라우저에서 그냥 링크 열기 — 서버가 Content-Disposition 으로 다운로드 강제
     try {
       const r = await apiFetch(row.download_url);
@@ -156,11 +163,11 @@ export default function TaskAttachments({ taskId, onChangeCount }: Props) {
                         }}
                       />
                     ) : (
-                      <FileIcon>{extIcon(r.original_name)}</FileIcon>
+                      <FileIcon>{r.post_id ? (t('attachments.docTag', { defaultValue: '문서' }) as string) : extIcon(r.original_name)}</FileIcon>
                     )}
                     <Meta onClick={() => download(r)}>
                       <Name>{r.original_name}</Name>
-                      <Sub>{fmtSize(r.file_size)} · {r.uploader?.name || '-'}{!pickerOpen ? ` · ${new Date(r.created_at).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' })}` : ''}</Sub>
+                      <Sub>{r.post_id ? (t('attachments.docKind', { defaultValue: 'Q docs 문서' }) as string) : fmtSize(r.file_size)} · {r.uploader?.name || '-'}{!pickerOpen ? ` · ${new Date(r.created_at).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' })}` : ''}</Sub>
                     </Meta>
                     <DelBtn type="button" onClick={() => setPendingDelete(r)} title={t('attachments.delete')}>×</DelBtn>
                   </Row>
@@ -183,6 +190,9 @@ export default function TaskAttachments({ taskId, onChangeCount }: Props) {
         variant="danger"
       />
       {imageLightbox}
+      {docPreview && (
+        <PostPreviewModal postId={docPreview.id} title={docPreview.title} onClose={() => setDocPreview(null)} />
+      )}
       {pickerOpen && (
         <PickerInline>
           {/* 인라인 추가 폼과 동일 — 별도 submit/cancel 버튼 없음.
@@ -221,7 +231,27 @@ export default function TaskAttachments({ taskId, onChangeCount }: Props) {
             }}
             includePosts
             existingPostIds={stageExistingPostIds}
-            onExistingPostIdsChange={setStageExistingPostIds}
+            onExistingPostIdsChange={async (ids) => {
+              // ★ 여태 고른 문서를 **서버로 보내지 않았다** — 첨부했다고 믿는데 조용히 사라졌다
+              //   (Irene 2026-08-31). 파일과 같은 link 경로를 쓴다.
+              const newIds = ids.filter((id) => !stageExistingPostIds.includes(id));
+              setStageExistingPostIds(ids);
+              if (newIds.length === 0) return;
+              setUploading(true);
+              try {
+                const res = await apiFetch(`/api/tasks/${taskId}/attachments/link`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ post_ids: newIds, context: 'task' }),
+                });
+                const j = await res.json();
+                if (!res.ok || !j.success) setError(j?.message || 'link_failed');
+                await load();
+              } finally {
+                setUploading(false);
+                setStageExistingPostIds([]);
+              }
+            }}
           />
         </PickerInline>
       )}

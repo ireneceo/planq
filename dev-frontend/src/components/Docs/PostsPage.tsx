@@ -915,15 +915,25 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     if (modeRef.current === 'edit' && detailRef.current?.id) {
       try {
         const d = detailRef.current;
-        const res = await persistAttachmentsRef.current?.(d.id, {
+        await persistAttachmentsRef.current?.(d.id, {
           projectId: d.project_id ?? null,
           vlevel: (d.vlevel || (d.project_id ? 'L2' : 'L3')) as 'L1' | 'L2' | 'L3' | 'L4',
         });
-        if (res?.changed) {
-          const fresh = await fetchPost(detailRef.current.id);
-          if (fresh) setDetail(fresh);
-        }
       } catch { /* 첨부 반영 실패는 편집 이탈을 막지 않는다 — 본문은 이미 저장됐다 */ }
+      // ★ 보기 화면을 **방금 저장한 내용**으로 맞춘다 (Irene 2026-08-31
+      //   "저장 후 보이는 화면이 바로 적용이 안돼", "제목 바꾼 게 안 바뀌어서 검색이 안 됐다").
+      //   자동저장은 타이핑 중 에디터를 갈아끼우지 않으려고 detail 에 updated_at 만 반영한다
+      //   (위 runAutosave). 그래서 편집을 마치고 돌아오면 본문·제목이 **문서를 열었을 때 값**
+      //   그대로였다 — 저장은 됐는데 화면만 옛것이라 사용자에겐 "저장이 안 된다" 로 보인다.
+      //   나가는 순간은 더 이상 타이핑 중이 아니므로 여기서 최신본으로 확정한다.
+      //   (setMode('view') 앞이라 옛 내용이 한 번 깜빡이지 않는다.)
+      try {
+        const fresh = await fetchPost(detailRef.current.id);
+        if (fresh) {
+          setDetail(fresh);
+          baseUpdatedAtRef.current = fresh.updated_at ?? null;
+        }
+      } catch { /* 조회 실패해도 이탈은 막지 않는다 */ }
     }
     autoDirtyRef.current = false;
     autoDraftIdRef.current = null;
@@ -1485,11 +1495,6 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             <TemplateBtn type="button" onClick={openTemplateModal} title={t('templates.openHint', '견적·청구·NDA·제안서·회의록 5종 템플릿에서 시작') as string}>
               {t('templates.btn', '템플릿')}
             </TemplateBtn>
-            {/* 휴지통 — 삭제한 문서·정보를 30일 안에 되돌린다. 파일 휴지통과 같은 자리 개념. */}
-            <TemplateBtn type="button" data-testid="docs-trash-open" onClick={() => setTrashOpen(true)}
-              title={t('trash.openHint', { defaultValue: '삭제한 문서·정보 되돌리기 (30일)' }) as string}>
-              {t('trash.btn', { defaultValue: '휴지통' })}
-            </TemplateBtn>
             <NewBtnWrap>
               <NewBtn type="button" data-testid="docs-new" onClick={() => setNewDropdownOpen(v => !v)} title={t('btn.new') as string} aria-label={t('btn.new') as string} aria-expanded={newDropdownOpen}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1623,6 +1628,22 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             </>
           )}
         </FilterSection>
+
+        {/* 휴지통 — 삭제한 문서·정보를 30일 안에 되돌린다.
+            ★ 헤더(PanelHeader)에 두었더니 좁은 리스트 패널에서 제목을 밀어내 글자가 틀어졌다
+              (Irene 2026-08-31). 상시 노출이 필요한 만큼 자주 쓰는 버튼은 아니므로,
+              필터 아래 얇은 줄로 내린다 — 파일 화면의 툴바 자리와 같은 위계. */}
+        <ListFooterRow>
+          <TrashLinkBtn type="button" data-testid="docs-trash-open" onClick={() => setTrashOpen(true)}
+            title={t('trash.openHint', { defaultValue: '삭제한 문서·정보 되돌리기 (30일)' }) as string}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+              <path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+            </svg>
+            {t('trash.btn', { defaultValue: '휴지통' })}
+          </TrashLinkBtn>
+        </ListFooterRow>
 
         <RowList>
           {/* data-testid — 하니스가 "재진입에 또 로딩되는가" 를 판정하는 신호(CLAUDE.md §17) */}
@@ -2464,9 +2485,11 @@ const Sidebar = styled.aside<{ $hasDetail?: boolean; $projectFull?: boolean }>`
 // 우측 컨텐츠 — background 를 Content 에 직접 부여
 // 제목 + 헬프 아이콘 묶음 — Q note 와 동일 (제목 끝나면 바로 helpDot 붙임)
 const TitleGroup = styled.div`
-  display: inline-flex; align-items: center; gap: 4px; min-width: 0;
+  /* ★ flex-basis 가 auto 면 "내용이 길다" 는 이유만으로 제목 칸이 버튼에 밀린다.
+     0 으로 못 박아야 좁은 패널에서도 제목이 먼저 자리를 갖는다. */
+  display: flex; align-items: center; gap: 4px; min-width: 0; flex: 1 1 0;
 `;
-const HeaderBtnRow = styled.div`display:flex;align-items:center;gap:6px;`;
+const HeaderBtnRow = styled.div`display:flex;align-items:center;gap:6px;flex-shrink:0;`;
 const TemplateBtn = styled.button`
   height: 32px; padding: 0 12px;
   display: inline-flex; align-items: center; gap: 4px;
@@ -2606,6 +2629,18 @@ const FilterSection = styled.div`
   padding: 10px 16px; border-bottom: 1px solid #F1F5F9;
   display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
   max-height: 160px; overflow-y: auto;
+`;
+const ListFooterRow = styled.div`
+  padding: 6px 16px; border-bottom: 1px solid #F1F5F9;
+  display: flex; align-items: center;
+`;
+const TrashLinkBtn = styled.button`
+  all: unset; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 28px; padding: 0 8px; border-radius: 6px;
+  font-size: 0.6875rem; font-weight: 600; color: #64748B;
+  &:hover { background: #F1F5F9; color: #334155; }
+  &:focus-visible { outline: 2px solid #94A3B8; outline-offset: 2px; }
 `;
 const FilterGroupLabel = styled.div`
   width: 100%; font-size: 0.625rem; font-weight: 700; color: #94A3B8;
