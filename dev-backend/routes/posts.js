@@ -10,6 +10,7 @@ const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const { Op } = require('sequelize');
 const { Post, PostAttachment, PostCategory, File, User, Project, BusinessMember, Business, Conversation, Message } = require('../models');
+const { sequelize } = require('../config/database');   // 카테고리 이름변경·삭제는 문서 값과 한 트랜잭션이어야 한다
 const { decodeOriginalName, buildContentDisposition } = require('../services/filename');
 const { authenticateToken } = require('../middleware/auth');
 const { getUserScope, postListWhereByLevel, canAccessPostByLevel, isMemberOrAbove } = require('../middleware/access_scope');
@@ -332,11 +333,18 @@ router.get('/meta', authenticateToken, async (req, res, next) => {
     for (const mc of masterCats) {
       if (!catMap.has(mc.name)) catMap.set(mc.name, 0);
     }
+    // 운영 #401 — "카테고리를 추가했는데 수정 및 삭제가 안돼."
+    //   목록에 **id 가 없었다.** 화면은 이름만 받아서, 수정·삭제 라우트를 부를 방법이 아예 없었다
+    //   (삭제 함수는 services 에 있는데 호출부가 0곳이었다 — 만들어 놓고 읽는 곳이 없는 계열).
+    //   마스터에 없는 이름(문서에만 남은 옛 값)은 id 가 null 이다 — 화면이 그것으로 구별한다.
+    const catIdByName = new Map(masterCats.map((mc) => [mc.name, mc.id]));
 
     successResponse(res, {
       total: all.length,
       myCount,
-      categories: Array.from(catMap.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)),
+      categories: Array.from(catMap.entries())
+        .map(([name, count]) => ({ id: catIdByName.get(name) ?? null, name, count }))
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)),
       projects: Array.from(projMap.values()).sort((a, b) => b.count - a.count),
     });
   } catch (err) { next(err); }
@@ -1177,7 +1185,42 @@ router.post('/categories', authenticateToken, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// PUT /api/posts/categories/:id — 이름 변경 (운영 #401)
+//   ★ 문서의 category 는 **이름 문자열**이다. 마스터 row 이름만 바꾸면 기존 문서는 옛 이름에
+//     남아, 새 이름 카테고리는 0건으로 비고 옛 이름이 목록에 계속 뜬다(사용자에겐 "안 바뀜").
+//     그래서 같은 트랜잭션에서 문서의 값도 함께 옮긴다.
+router.put('/categories/:id', authenticateToken, async (req, res, next) => {
+  try {
+    const row = await PostCategory.findByPk(req.params.id);
+    if (!row) return errorResponse(res, 'not_found', 404);
+    if (!(await assertMember(req.user.id, row.business_id, req.user.platform_role === 'platform_admin'))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    const name = String(req.body?.name || '').trim().slice(0, 40);
+    if (!name) return errorResponse(res, 'name required', 400);
+    if (name === row.name) return successResponse(res, { id: row.id, name: row.name, moved: 0 });
+    const dup = await PostCategory.findOne({
+      where: { business_id: row.business_id, project_id: row.project_id, name },
+    });
+    if (dup) return errorResponse(res, 'duplicate_name', 400);
+
+    const oldName = row.name;
+    const t = await sequelize.transaction();
+    try {
+      await row.update({ name }, { transaction: t });
+      const scope = { business_id: row.business_id, category: oldName };
+      if (row.project_id === null) scope.project_id = null; else scope.project_id = row.project_id;
+      const [moved] = await Post.update({ category: name }, { where: scope, transaction: t });
+      await t.commit();
+      successResponse(res, { id: row.id, name, moved: moved || 0 });
+    } catch (e) { await t.rollback(); throw e; }
+  } catch (err) { next(err); }
+});
+
 // DELETE /api/posts/categories/:id
+//   ★ 마스터 row 만 지우면, 그 이름을 쓰는 문서가 한 건이라도 있으면 meta 가 문서에서 다시
+//     집계해 **목록에 그대로 남는다** — 사용자에겐 "삭제가 안 된다"(운영 #401).
+//     삭제는 문서의 분류도 함께 비운다(문서 자체는 그대로 남는다).
 router.delete('/categories/:id', authenticateToken, async (req, res, next) => {
   try {
     const row = await PostCategory.findByPk(req.params.id);
@@ -1185,9 +1228,15 @@ router.delete('/categories/:id', authenticateToken, async (req, res, next) => {
     if (!(await assertMember(req.user.id, row.business_id, req.user.platform_role === 'platform_admin'))) {
       return errorResponse(res, 'forbidden', 403);
     }
-    await row.destroy();
-    // 기존 문서의 category 값은 건드리지 않음 (유연성 보존). 단, meta 계산에서는 사라짐.
-    successResponse(res, null, 'deleted');
+    const scope = { business_id: row.business_id, category: row.name };
+    if (row.project_id === null) scope.project_id = null; else scope.project_id = row.project_id;
+    const t = await sequelize.transaction();
+    try {
+      const [cleared] = await Post.update({ category: null }, { where: scope, transaction: t });
+      await row.destroy({ transaction: t });
+      await t.commit();
+      successResponse(res, { cleared: cleared || 0 }, 'deleted');
+    } catch (e) { await t.rollback(); throw e; }
   } catch (err) { next(err); }
 });
 

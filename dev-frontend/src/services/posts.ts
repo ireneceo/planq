@@ -121,7 +121,8 @@ export async function fetchPosts(businessId: number, filter: PostListFilter = {}
 export interface PostsMeta {
   total: number;
   myCount: number;
-  categories: Array<{ name: string; count: number }>;
+  /** id 는 마스터에 등록된 분류에만 있다 — 문서에만 남은 옛 값은 null(수정·삭제 대상 아님) */
+  categories: Array<{ id: number | null; name: string; count: number }>;
   projects: Array<{ id: number; name: string; color: string | null; count: number }>;
 }
 export async function fetchPostsMeta(businessId: number, projectId?: number | null): Promise<PostsMeta> {
@@ -334,10 +335,23 @@ export async function createCategory(businessId: number, name: string, projectId
   return j.data;
 }
 
-export async function deleteCategory(categoryId: number): Promise<boolean> {
+/** 이름 변경 — 서버가 그 분류를 쓰던 문서의 값도 같이 옮긴다(moved 건수 반환). */
+export async function renameCategory(categoryId: number, name: string): Promise<{ id: number; name: string; moved: number }> {
+  const r = await apiFetch(`/api/posts/categories/${categoryId}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'category rename failed');
+  return j.data;
+}
+
+/** 삭제 — 그 분류를 쓰던 문서는 남고 분류만 비워진다(cleared 건수 반환). */
+export async function deleteCategory(categoryId: number): Promise<{ cleared: number }> {
   const r = await apiFetch(`/api/posts/categories/${categoryId}`, { method: 'DELETE' });
   const j = await r.json();
-  return !!j.success;
+  if (!j.success) throw new Error(j.message || 'category delete failed');
+  return j.data || { cleared: 0 };
 }
 
 // ─── Brief (자료정리) ───

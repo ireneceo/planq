@@ -36,7 +36,8 @@ import { TableHeader } from '@tiptap/extension-table-header';
 import {
   fetchPosts, fetchPost, fetchPostResult, createPost, updatePost, deletePost, StaleEditError,
   attachToPost, detachFromPost, fetchPostsMeta,
-  createCategory, updatePostVisibility, updatePostSecurityLevel, downloadPostPdf,
+  createCategory, renameCategory, deleteCategory,
+  updatePostVisibility, updatePostSecurityLevel, downloadPostPdf,
   downloadPostDocx,
   type PostRow, type PostDetail, type PostsMeta,
 } from '../../services/posts';
@@ -206,6 +207,10 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PostDetail | null>(null);
   const [newCatOpen, setNewCatOpen] = useState(false);
+  // 운영 #401 — 분류 이름 변경·삭제
+  const [catEditKey, setCatEditKey] = useState<string | null>(null);
+  const [catEditDraft, setCatEditDraft] = useState('');
+  const [catDeleting, setCatDeleting] = useState<{ id: number | null; name: string; count: number } | null>(null);
   const [newCatDraft, setNewCatDraft] = useState('');
   // 신규 모드(Post.id 미존재) 에서 첨부 예약용 — 저장 직후 attach 일괄 처리
   const [pendingUploads, setPendingUploads] = useState<File[]>([]);
@@ -339,6 +344,14 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
 
   // 워크스페이스 모드: project_id 필터 없음(모든 문서), 프로젝트 모드: project_id=scope.projectId
   const scopeProjectId = scope.type === 'project' ? scope.projectId : undefined;
+  // 분류에는 두 종류가 있다 — 마스터에 등록된 것(id 있음)과 **문서에만 남은 값**(id 없음).
+  //   뒤엣것도 화면에는 똑같이 보이므로, 고칠 수 없게 두면 "왜 이건 안 되지" 가 된다.
+  //   findOrCreate 인 생성 API 로 마스터를 확보해 id 를 얻은 뒤 같은 경로로 처리한다.
+  const ensureCatId = useCallback(async (c: { id: number | null; name: string }): Promise<number> => {
+    if (c.id != null) return c.id;
+    const created = await createCategory(scope.businessId, c.name, scopeProjectId ?? null);
+    return created.id;
+  }, [scope.businessId, scopeProjectId]);
 
   const load = useCallback(async () => {
     // 캐시는 **기본 목록**(검색어·필터 없음)에만 쓴다. 검색 결과를 캐시하면 다음 진입에
@@ -1326,9 +1339,36 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   <AtRow key={c.name} $selected={filter.kind === 'category' && filter.name === c.name}
                     onClick={() => { if (filter.kind === 'category' && filter.name === c.name) setFilter({ kind: 'all' }); else setFilter({ kind: 'category', name: c.name }); }}>
                     <span />
-                    <AtName>#{c.name}</AtName>
+                    {catEditKey === c.name ? (
+                      /* 운영 #401 — 이름 변경. 서버가 그 분류를 쓰던 문서 값도 같이 옮긴다. */
+                      <NewCatInput autoFocus value={catEditDraft}
+                        onClick={e => e.stopPropagation()}
+                        onChange={e => setCatEditDraft(e.target.value)}
+                        onBlur={async () => {
+                          const v = catEditDraft.trim(); const id = c.id;
+                          setCatEditKey(null); setCatEditDraft('');
+                          if (!v || v === c.name) return;
+                          try { await renameCategory(id ?? await ensureCatId(c), v); await loadMeta(); await load();
+                            if (filter.kind === 'category' && filter.name === c.name) setFilter({ kind: 'category', name: v });
+                          } catch (e) { setError(mapApiError(e, tErr)); }
+                        }}
+                        onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                          if (e.key === 'Escape') { setCatEditKey(null); setCatEditDraft(''); } }} />
+                    ) : (
+                      <AtName>#{c.name}</AtName>
+                    )}
                     <AtCount>{c.count}</AtCount>
-                    <span />
+                    {/* 마스터에 등록된 분류만 고치고 지울 수 있다 — id 가 없는 것은 문서에만 남은 옛 값이다 */}
+                    {catEditKey !== c.name ? (
+                      <CatActions onClick={e => e.stopPropagation()}>
+                        <CatIconBtn type="button" data-testid="postcat-rename"
+                          title={t('cat.rename', { defaultValue: '이름 변경' }) as string}
+                          onClick={() => { setCatEditKey(c.name); setCatEditDraft(c.name); }}>✎</CatIconBtn>
+                        <CatIconBtn type="button" $danger data-testid="postcat-delete"
+                          title={t('cat.delete', { defaultValue: '삭제' }) as string}
+                          onClick={() => setCatDeleting({ id: c.id, name: c.name, count: c.count })}>×</CatIconBtn>
+                      </CatActions>
+                    ) : <span />}
                   </AtRow>
                 ))}
                 {newCatOpen ? (
@@ -1475,6 +1515,39 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               <Count>{c.count}</Count>
             </Chip>
           ))}
+          {/* 운영 #401 — 분류 이름 변경·삭제. 칩은 button 이라 안에 버튼을 넣을 수 없다
+              (중첩 button 은 무효 마크업). **고른 분류 옆**에 붙여 discoverable 하게 둔다.
+              프로젝트 탭의 목록(위 AtRow)과 같은 동작을 쓴다 — 규칙이 갈라지지 않게. */}
+          {filter.kind === 'category' && (() => {
+            const cur = meta.categories.find(x => x.name === filter.name);
+            if (!cur) return null;
+            if (catEditKey === cur.name) {
+              return (
+                <NewCatInput autoFocus value={catEditDraft}
+                  onChange={e => setCatEditDraft(e.target.value)}
+                  onBlur={async () => {
+                    const v = catEditDraft.trim(); setCatEditKey(null); setCatEditDraft('');
+                    if (!v || v === cur.name) return;
+                    try {
+                      await renameCategory(cur.id ?? await ensureCatId(cur), v);
+                      await loadMeta(); await load(); setFilter({ kind: 'category', name: v });
+                    } catch (e) { setError(mapApiError(e, tErr)); }
+                  }}
+                  onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                    if (e.key === 'Escape') { setCatEditKey(null); setCatEditDraft(''); } }} />
+              );
+            }
+            return (
+              <CatActions>
+                <CatIconBtn type="button" data-testid="postcat-rename"
+                  title={t('cat.rename', { defaultValue: '이름 변경' }) as string}
+                  onClick={() => { setCatEditKey(cur.name); setCatEditDraft(cur.name); }}>✎</CatIconBtn>
+                <CatIconBtn type="button" $danger data-testid="postcat-delete"
+                  title={t('cat.delete', { defaultValue: '삭제' }) as string}
+                  onClick={() => setCatDeleting({ id: cur.id, name: cur.name, count: cur.count })}>×</CatIconBtn>
+              </CatActions>
+            );
+          })()}
           {newCatOpen ? (
             <NewCatInput
               autoFocus
@@ -2074,6 +2147,32 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         onConfirm={onDelete}
         title={t('deleteTitle', '문서 삭제') as string}
         message={t('deleteMessage', '"{{title}}" 문서를 삭제할까요? 이 작업은 되돌릴 수 없습니다.', { title: deleteTarget?.title || '' }) as string}
+        confirmText={t('delete', '삭제') as string}
+        cancelText={t('cancel', '취소') as string}
+        variant="danger"
+      />
+
+      {/* 운영 #401 — 분류 삭제. 몇 건이 분류를 잃는지 **먼저 말하고** 지운다.
+          (문서 자체는 남는다 — 분류만 비워진다) */}
+      <ConfirmDialog
+        isOpen={!!catDeleting}
+        onClose={() => setCatDeleting(null)}
+        onConfirm={async () => {
+          const target = catDeleting; setCatDeleting(null);
+          if (!target) return;
+          try {
+            await deleteCategory(target.id ?? await ensureCatId(target));
+            await loadMeta(); await load();
+            if (filter.kind === 'category' && filter.name === target.name) setFilter({ kind: 'all' });
+          } catch (e) { setError(mapApiError(e, tErr)); }
+        }}
+        title={t('cat.deleteTitle', { defaultValue: '분류 삭제' }) as string}
+        message={(catDeleting && catDeleting.count > 0
+          ? t('cat.deleteMessageInUse', {
+              name: catDeleting.name, count: catDeleting.count,
+              defaultValue: '"{{name}}" 분류를 삭제할까요? 이 분류의 문서 {{count}}건은 그대로 남고 분류만 비워집니다.',
+            })
+          : t('cat.deleteMessage', { name: catDeleting?.name || '', defaultValue: '"{{name}}" 분류를 삭제할까요?' })) as string}
         confirmText={t('delete', '삭제') as string}
         cancelText={t('cancel', '취소') as string}
         variant="danger"
@@ -2793,6 +2892,25 @@ const RemoveBtn = styled.button`
   display: flex; align-items: center; justify-content: center;
   color: #94A3B8; border-radius: 4px; font-size: 1rem;
   &:hover { background: #FEE2E2; color: #DC2626; }
+`;
+
+/* 분류 행의 이름변경·삭제 — 마우스를 올렸을 때만 보인다(목록이 시끄러워지지 않게) */
+const CatActions = styled.span`
+  display: inline-flex; align-items: center; gap: 2px;
+  /* 목록(AtRow) 안에서는 hover 시에만, 칩 옆(선택된 분류)에서는 항상 보인다.
+     선택했다는 것 자체가 "이걸 다루겠다" 는 신호라 숨길 이유가 없다. */
+  opacity: 1;
+  ${AtRow} & { opacity: 0; transition: opacity 0.12s; }
+  ${AtRow}:hover & { opacity: 1; }
+  /* 터치 기기는 hover 가 없다 — 항상 보인다 */
+  @media (hover: none) { ${AtRow} & { opacity: 1; } }
+`;
+const CatIconBtn = styled.button<{ $danger?: boolean }>`
+  all: unset; cursor: pointer;
+  width: 20px; height: 20px; border-radius: 4px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.75rem; color: ${p => (p.$danger ? '#DC2626' : '#64748B')};
+  &:hover { background: ${p => (p.$danger ? '#FEE2E2' : '#F1F5F9')}; }
 `;
 
 const ErrorBar = styled.div`font-size: 0.75rem; color: #DC2626; background: #FEF2F2; padding: 8px 12px; border-radius: 6px;`;
