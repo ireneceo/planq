@@ -228,6 +228,7 @@
       "issueNoPh": "e.g. 20260427-12345",
       "titleCash": "Cash Receipt",
       "customerSubmitted": "Customer-confirmed info",
+      "clientRegistered": "Registered client info",
       "crPurpose": "Purpose",
       "crExpense": "Expense proof",
       "crIncome": "Income deduction",

@@ -228,6 +228,7 @@
       "issueNoPh": "예: 20260427-12345",
       "titleCash": "현금영수증",
       "customerSubmitted": "고객 확인 정보",
+      "clientRegistered": "고객 등록 정보",
       "crPurpose": "용도",
       "crExpense": "지출증빙",
       "crIncome": "소득공제",

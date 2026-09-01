@@ -325,3 +325,56 @@ function payerCodeOf(invoice, client, installmentNo = null) {
 }
 
 module.exports.payerCodeOf = payerCodeOf;
+
+/**
+ * 증빙 정보(공급받는자) 단일 resolve — **표시·발행에 쓰는 값은 여기 하나에서 나온다.**
+ *
+ * ★ 2026-09-01 (Irene: "이미 몇 개월 결제 중인 구독 고객인데 세금계산서 정보가 왜 안 나와?")
+ *   `invoice.receipt_profile` 은 **고객이 공개 결제 페이지에서 직접 입력·확인한** 값이라,
+ *   계좌이체로만 결제하는 정기 구독 고객은 그 페이지를 한 번도 거치지 않아 영영 NULL 이다.
+ *   운영 실측: 고객 #6(기율 법률사무소, 사업자번호 저장돼 있음)의 청구서 4건(6~9월) **전부 NULL**.
+ *   서버는 이미 증빙 큐·PDF·메일·공개페이지 4곳에서 Client 로 폴백하고 있었는데
+ *   **청구서 상세 화면만** 그 폴백이 없어 정보 상자 자체가 안 그려졌다 —
+ *   "저장했으면 사업자 정보가 나와야지" 가 맞다. 공식이 갈라지지 않게 여기로 모은다.
+ *
+ * @returns {{ profile: object|null, source: 'customer'|'client'|'recipient'|null }}
+ *   source — 어디서 온 값인지. 화면이 "고객 확인 정보"(customer) 와
+ *   "고객 등록 정보"(client) 를 구분해 말할 수 있어야 사용자가 신뢰 여부를 판단한다.
+ */
+function resolveReceiptProfile(inv, client) {
+  if (!inv) return { profile: null, source: null };
+  if (inv.receipt_profile) return { profile: inv.receipt_profile, source: 'customer' };
+  if (client) {
+    return {
+      source: 'client',
+      profile: {
+        biz_type: client.is_business ? 'business' : 'individual',
+        biz_name: client.biz_name || client.company_name || null,
+        biz_tax_id: client.biz_tax_id || inv.recipient_business_number || null,
+        biz_ceo: client.biz_ceo || null,
+        biz_category: client.biz_type || null,
+        biz_item: client.biz_item || null,
+        biz_address: client.biz_address || null,
+        tax_email: client.tax_invoice_email || client.billing_contact_email || null,
+        requested_by_name: client.billing_contact_name || null,
+        contact_phone: client.billing_contact_phone || null,
+        // 개인(현금영수증) 식별번호 — 지난 신청 시 저장한 연락처를 다음에도 자동 채움
+        cr_identifier: !client.is_business ? (client.billing_contact_phone || null) : null,
+      },
+    };
+  }
+  // 등록 고객이 아닌 외부 수신자 — 청구서에 직접 적어 넣은 상호·사업자번호
+  if (inv.recipient_business_name || inv.recipient_business_number) {
+    return {
+      source: 'recipient',
+      profile: {
+        biz_type: 'business',
+        biz_name: inv.recipient_business_name || null,
+        biz_tax_id: inv.recipient_business_number || null,
+      },
+    };
+  }
+  return { profile: null, source: null };
+}
+
+module.exports.resolveReceiptProfile = resolveReceiptProfile;

@@ -133,6 +133,10 @@ export interface ApiInvoice {
     cr_purpose?: 'income_deduction' | 'expense_proof'; cr_identifier?: string | null;
     requested_by_name?: string | null;
   } | null;
+  // 서버가 폴백까지 끝낸 증빙 정보 — receipt_profile(고객 직접 입력) 이 없으면 고객 등록 정보로 채워 내려온다.
+  //   화면은 이것을 쓴다. receipt_profile 만 보면 계좌이체 정기 구독 고객은 영영 빈칸이다 (2026-09-01).
+  receipt_profile_effective?: ApiInvoice['receipt_profile'];
+  receipt_profile_source?: 'customer' | 'client' | 'recipient' | null;
   receipt_requested_at?: string | null;
   cash_receipt_status?: 'none' | 'pending' | 'issued' | 'failed' | 'canceled';
   cash_receipt_no?: string | null;

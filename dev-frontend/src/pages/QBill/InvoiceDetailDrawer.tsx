@@ -21,6 +21,7 @@ import {
 } from '../../services/invoices';
 import RecurringBillingNote from '../../components/QBill/RecurringBillingNote';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
+import { isEnterAction } from '../../utils/imeKey';
 
 interface ConfirmState {
   open: boolean;
@@ -808,8 +809,15 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
         </Section>
 
         {/* 증빙 — 세금계산서 / 현금영수증 */}
-        {(client?.is_business || (invoice.receipt_type && invoice.receipt_type !== 'none') || invoice.receipt_profile) && (() => {
-          const rp = invoice.receipt_profile;
+        {(client?.is_business || (invoice.receipt_type && invoice.receipt_type !== 'none') || invoice.receipt_profile_effective || invoice.receipt_profile) && (() => {
+          // ★ 2026-09-01 — `receipt_profile` 은 **고객이 공개 결제 페이지에서 직접 입력한** 값이다.
+          //   계좌이체로만 결제하는 정기 구독 고객은 그 페이지를 거치지 않아 영영 NULL 이라,
+          //   여기만 그것을 보고 있어서 사업자 정보가 저장돼 있어도 상자 자체가 안 그려졌다
+          //   (Irene: "몇 개월 결제 중인 구독 고객인데 세금계산서 정보가 왜 안 나와?").
+          //   서버가 폴백까지 끝낸 값을 쓴다 — 증빙 큐·PDF·메일과 같은 공식(resolveReceiptProfile).
+          const rp = invoice.receipt_profile_effective || invoice.receipt_profile;
+          const rpSource = invoice.receipt_profile_source
+            || (invoice.receipt_profile ? 'customer' : (rp ? 'client' : null));
           // 증빙 종류는 **서버 판정(receipt_kind)** 을 따른다 — 증빙 큐와 같은 단일 원천.
           //   폴백은 옛 응답(파생 필드 없는 캐시/구버전) 대비용.
           const isCash = invoice.receipt_kind
@@ -826,7 +834,13 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
               {/* 고객이 공개 페이지에서 입력·확인한 증빙 정보 */}
               {rp && (
                 <ReceiptInfoBox>
-                  <ReceiptInfoHead>{t('detail.tax.customerSubmitted', { defaultValue: '고객 확인 정보' })}</ReceiptInfoHead>
+                  {/* 출처를 밝힌다 — 고객이 직접 확인한 값인지, 우리가 등록해 둔 값인지에 따라
+                      발행 전에 확인할 책임이 달라진다. */}
+                  <ReceiptInfoHead>
+                    {rpSource === 'customer'
+                      ? t('detail.tax.customerSubmitted', { defaultValue: '고객 확인 정보' })
+                      : t('detail.tax.clientRegistered', { defaultValue: '고객 등록 정보' })}
+                  </ReceiptInfoHead>
                   {rp.biz_type === 'individual' ? (
                     <>
                       <ReceiptRow><span>{t('detail.tax.crPurpose', { defaultValue: '용도' })}</span><b>{rp.cr_purpose === 'expense_proof' ? t('detail.tax.crExpense', { defaultValue: '지출증빙' }) : t('detail.tax.crIncome', { defaultValue: '소득공제' })}</b></ReceiptRow>
@@ -1010,7 +1024,7 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
                 onChange={e => setTaxNoInput(e.target.value)}
                 placeholder={t('detail.tax.issueNoPh') as string}
                 autoFocus
-                onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submitTaxNo(); }}
+                onKeyDown={e => { if (isEnterAction(e) && (e.metaKey || e.ctrlKey)) submitTaxNo(); }}
               />
               {/* #77 — 발행 파일 첨부 (선택) */}
               <TaxModalLabel htmlFor="tax-file-input" style={{ marginTop: 12 }}>

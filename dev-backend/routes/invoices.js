@@ -5,7 +5,7 @@ const { resolveRecurringInfo } = require('../services/invoiceRecurring');
 // 청구서 PDF 빌더 — 라우트·정기청구 2엔진 공용 단일 착지점 (services/invoicePdf.js).
 const { buildInvoicePdf } = require('../services/invoicePdf');
 // 증빙 종류 판정 단일 원천 — 증빙 큐(대시보드 인박스·Q Bill 증빙 탭)와 상세 표시가 갈라지지 않게 공용.
-const { receiptKindOf, payerCodeOf } = require('../services/receiptsDue');
+const { receiptKindOf, payerCodeOf, resolveReceiptProfile } = require('../services/receiptsDue');
 const { logBillEvent, listBillEvents } = require('../services/billEvents');
 const { isStripeEnabled } = require('../services/stripeService'); // Q Bill 워크스페이스 카드결제 활성 판정
 const { authenticateToken, optionalAuth, checkBusinessAccess } = require('../middleware/auth');
@@ -232,25 +232,10 @@ router.get('/public/:token', optionalAuth, async (req, res, next) => {
         tax_invoice_status: invoice.tax_invoice_status,
         cash_receipt_status: invoice.cash_receipt_status,
         requested_at: invoice.receipt_requested_at,
-        // 고객이 이미 제출한 값(있으면) — 없으면 등록 고객 Client 값으로 prefill 힌트
-        profile: invoice.receipt_profile || (invoice.Client ? {
-          biz_type: invoice.Client.is_business ? 'business' : 'individual',
-          biz_name: invoice.Client.biz_name || invoice.Client.company_name || null,
-          biz_tax_id: invoice.Client.biz_tax_id || invoice.recipient_business_number || null,
-          biz_ceo: invoice.Client.biz_ceo || null,
-          biz_category: invoice.Client.biz_type || null,
-          biz_item: invoice.Client.biz_item || null,
-          biz_address: invoice.Client.biz_address || null,
-          tax_email: invoice.Client.tax_invoice_email || invoice.Client.billing_contact_email || null,
-          requested_by_name: invoice.Client.billing_contact_name || null,
-          contact_phone: invoice.Client.billing_contact_phone || null,
-          // 개인(현금영수증) 식별번호 — 지난 신청 시 저장한 연락처를 다음에도 자동 채움
-          cr_identifier: !invoice.Client.is_business ? (invoice.Client.billing_contact_phone || null) : null,
-        } : (invoice.recipient_business_name || invoice.recipient_business_number ? {
-          biz_type: 'business',
-          biz_name: invoice.recipient_business_name || null,
-          biz_tax_id: invoice.recipient_business_number || null,
-        } : null)),
+        // 고객이 이미 제출한 값(있으면) — 없으면 등록 고객 Client 값으로 prefill 힌트.
+        //   ★ 공식은 services/receiptsDue.resolveReceiptProfile 하나뿐이다 (2026-09-01).
+        //     여기에 사본을 두면 상세 화면·증빙 큐와 조용히 갈라진다.
+        profile: resolveReceiptProfile(invoice, invoice.Client || null).profile,
         is_registered_client: !!invoice.client_id,
         client_country: invoice.Client?.country || null,
         // #77 — 발행된 증빙 파일 존재 여부 (invoice 레벨, 다운로드 버튼 표시)
@@ -690,6 +675,9 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
       const j = inv.toJSON();
       j.receipt_kind = receiptKindOf(inv, inv.Client || null);
       j.payer_code = payerCodeOf(inv, inv.Client || null);   // #274
+      const rp = resolveReceiptProfile(inv, inv.Client || null);
+      j.receipt_profile_effective = rp.profile;
+      j.receipt_profile_source = rp.source;
       return j;
     }));
   } catch (error) {
@@ -1073,6 +1061,13 @@ router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async 
     //   레거시(receipt_type='none' + 한국 사업자) 건에 "발행 대상 아님" 이 뜬다(운영 피드백 2026-08-03).
     payload.receipt_kind = receiptKindOf(invoice, invoice.Client || null);
     payload.payer_code = payerCodeOf(invoice, invoice.Client || null);   // #274
+    // ★ 증빙 정보(공급받는자) — receipt_profile 은 **고객이 공개 페이지에서 입력한** 값이라
+    //   계좌이체만 하는 정기 구독 고객은 영영 NULL 이다. 화면이 그것만 보면 사업자 정보가
+    //   저장돼 있어도 아무것도 안 뜬다 (운영 2026-09-01, 고객 #6 청구서 4건 전부 NULL).
+    //   서버가 폴백까지 끝낸 값을 내려준다 — 증빙 큐·PDF·메일과 같은 공식.
+    const rpDetail = resolveReceiptProfile(invoice, invoice.Client || null);
+    payload.receipt_profile_effective = rpDetail.profile;
+    payload.receipt_profile_source = rpDetail.source;
     successResponse(res, payload);
   } catch (error) {
     next(error);
