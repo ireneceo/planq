@@ -767,7 +767,11 @@ main() {
   echo -e "${GREEN}=========================================${NC}"
   echo -e "${GREEN}  Deployment Complete (${ELAPSED}s)${NC}"
   echo -e "${GREEN}=========================================${NC}"
-  $DRY_RUN && dim "(dry-run — 실제 변경 없음)"
+  # ★ `$DRY_RUN && dim ...` 로 두면 실배포(DRY_RUN=false)에서 이 줄이 1 을 반환하고,
+  #   그것이 main() 의 마지막 명령이라 **성공한 배포가 exit 1 로 끝난다.**
+  #   그 탓에 "배포 exit 1 은 무시해도 된다" 가 학습돼 진짜 실패까지 가려진다.
+  if $DRY_RUN; then dim "(dry-run — 실제 변경 없음)"; fi
+  return 0
 }
 
 main
