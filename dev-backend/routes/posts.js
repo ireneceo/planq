@@ -1141,6 +1141,13 @@ router.post('/editor-image', authenticateToken, (req, res, next) => {
         ref_count: 1,
         visibility: level,
         vlevel: level,
+        // ★ 같은 바이트를 다시 붙여넣은 경우(twin) — Drive 사본은 **이미 있다.**
+        //   미러 정보를 물려주지 않으면 새 행의 gdrive_mirror_id 가 NULL 이라
+        //   isEligible 을 통과해 **같은 이미지가 Drive 에 또 올라간다**(붙여넣을 때마다 한 장씩).
+        //   물려주면 ① 중복 업로드가 막히고(멱등) ② 새 행도 같은 Drive 파일을 가리킨다.
+        gdrive_mirror_id: twin ? twin.gdrive_mirror_id : null,
+        gdrive_mirror_url: twin ? twin.gdrive_mirror_url : null,
+        gdrive_mirrored_at: twin ? twin.gdrive_mirrored_at : null,
       });
       // ★ 운영 #378 — 여기서 만든 파일도 **다른 업로드와 똑같이** 다뤄야 한다.
       //   여태 이 경로만 아래 둘이 빠져 있어, 같은 앱인데 어느 에디터에서 넣었느냐에 따라

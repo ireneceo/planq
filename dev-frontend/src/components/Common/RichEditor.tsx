@@ -220,7 +220,7 @@ export default function RichEditor({
   const setLink = openLinkInput;
 
   // 바깥에서 폭·여백을 조정할 수 있게 안정된 클래스를 준다 (메일 컴포저가 풀 폭으로 되민다).
-  if (!editor) return <EditorShell className="pq-rich-editor" $mh={minHeight}><PlainFallback /></EditorShell>;
+  if (!editor) return <EditorShell className="pq-rich-editor" $mh={minHeight} $ro={readOnly}><PlainFallback /></EditorShell>;
 
   // 이미지 사이즈 토글 — editor 가 image 선택 시 BubbleMenu 노출
   const setImageWidth = (w: string | null) => {
@@ -245,7 +245,7 @@ export default function RichEditor({
   };
 
   return (
-    <EditorShell className="pq-rich-editor" $mh={minHeight} onClick={handleWrapperClick}>
+    <EditorShell className="pq-rich-editor" $mh={minHeight} $ro={readOnly} onClick={handleWrapperClick}>
       {/* 상단 고정 툴바 (opt-in). 디자인·동작은 문서 에디터(PostEditor)와 같은 계열로 맞춘다 —
           같은 앱에서 화면마다 다른 편집기처럼 보이지 않게. */}
       {toolbar && !readOnly && (
@@ -400,7 +400,7 @@ const LinkInput = styled.input`
   &:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px rgba(20,184,166,.15);}
 `;
 
-const EditorShell = styled.div<{ $mh: number }>`
+const EditorShell = styled.div<{ $mh: number; $ro?: boolean }>`
   border:1px solid #E2E8F0;border-radius:10px;background:#FFF;display:flex;flex-direction:column;
   & .pq-editor-body{
     outline:none;padding:14px 16px;min-height:${p => p.$mh}px;font-size:0.875rem;line-height:1.65;color:#0F172A;
@@ -425,8 +425,10 @@ const EditorShell = styled.div<{ $mh: number }>`
   & .pq-editor-body pre code{background:transparent;color:inherit;padding:0;}
   & .pq-editor-body hr{border:none;border-top:1px solid #E2E8F0;margin:14px 0;}
   & .pq-editor-body img{max-width:100%;border-radius:8px;display:block;margin:4px 0;}
-  /* #378 — 끌어서 크기 조절 손잡이. Q docs 와 **같은 규칙**을 쓴다(단일 원천). */
-  & .pq-editor-body{ ${resizableImageCss(true)} }
+  /* #378 — 끌어서 크기 조절 손잡이. Q docs 와 **같은 규칙**을 쓴다(단일 원천).
+     읽기전용에서는 끄지 않으면 선택 아웃라인만 그려진다 — 못 끄는 손잡이는 거짓말이다.
+     PostEditor 의 $editable 게이트와 같은 자리 (주석에 백틱을 쓰면 이 템플릿이 거기서 끊긴다). */
+  & .pq-editor-body{ ${p => resizableImageCss(!p.$ro)} }
   & .pq-editor-body a{color:#0D9488;text-decoration:underline;text-decoration-color:#99F6E4;text-underline-offset:3px;}
   /* 표 (#151) — 문서 에디터(PostEditor)와 같은 시각. 넓은 표는 가로 스크롤로 가둔다(페이지가 밀리지 않게) */
   & .pq-editor-body .tableWrapper{overflow-x:auto;}
