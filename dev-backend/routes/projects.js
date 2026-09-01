@@ -1584,6 +1584,25 @@ router.put('/:id/success-metrics', authenticateToken, async (req, res, next) => 
       if (role === 'client') return errorResponse(res, 'member_only', 403);
       const businessId = project.business_id;
 
+      // ★ 채울 자리가 하나도 없으면 **LLM 을 부르지 않는다.**
+      //   이 라우트는 빈 항목만 채운다(비파괴 병합). 이미 다 채워져 있으면 무엇을 만들든 버려진다 —
+      //   Cue 쿼터만 태우고, 게다가 LLM 이 돌려준 "정보가 부족하다" 사유가 화면에 떠서
+      //   **"이미 채워져 있어요" 대신 "근거가 부족합니다" 라는 거짓말**이 됐다(Fable 실측).
+      //   빈 슬롯 계산이 곧 정답이므로 여기서 먼저 끝낸다.
+      const STRAT_KEYS = ['context', 'key_question', 'goal', 'governing_thought', 'approach'];
+      const emptyStrategy = STRAT_KEYS.filter((k) => {
+        const v = project[`strategy_${k}`];
+        return v == null || String(v).trim() === '';
+      }).length;
+      const hasMetricsAlready = Array.isArray(project.success_metrics) && project.success_metrics.length > 0;
+      const wsAlready = await ProjectWorkstream.count({ where: { project_id: project.id } });
+      if (emptyStrategy === 0 && hasMetricsAlready && wsAlready > 0) {
+        return successResponse(res, {
+          strategy_filled: 0, metrics_filled: 0, workstreams_created: 0,
+          insufficient_reason: '',   // 빈 문자열 = "이미 채워져 있어요" (화면이 그렇게 읽는다)
+        });
+      }
+
       // plan 게이트 — LLM 비용 (운영 안정성 1번: rate-limit + plan.can + 입력 캡)
       const planEngine = require('../services/plan');
       const can = await planEngine.can(businessId, 'use_cue');
@@ -1647,7 +1666,20 @@ router.put('/:id/success-metrics', authenticateToken, async (req, res, next) => 
       createAuditLog({ userId: req.user.id, businessId, action: 'project.canvas_ai_draft', targetType: 'project', targetId: project.id, newValue: { strategy_filled: strategyFilled, metrics_filled: metricsFilled, workstreams_created: workstreamsCreated } });
 
       broadcastCanvas(req, project, 'ai_draft');
-      return successResponse(res, { strategy_filled: strategyFilled, metrics_filled: metricsFilled, workstreams_created: workstreamsCreated });
+      // ★ 운영 #358 — 아무것도 못 채웠으면 **왜 못 채웠는지 말한다.**
+      //   여태 빈 결과여도 조용히 성공으로 끝나서, 사용자에게는 "AI 가 안 되네" 로만 보였다.
+      //   (반대로 근거가 없는데도 개수를 채우던 옛 프롬프트는 일반론을 만들어 몇 달 방치됐다 —
+      //    프로젝트 10 워크스트림 4개 "현황 분석/데이터 수집/개선 방안 도출/실행 계획 수립", 배정 업무 0건.)
+      //   빈 배열은 이제 **정상 응답**이다. 대신 이유가 따라간다.
+      const filledNothing = strategyFilled === 0 && metricsFilled === 0 && workstreamsCreated === 0;
+      return successResponse(res, {
+        strategy_filled: strategyFilled,
+        metrics_filled: metricsFilled,
+        workstreams_created: workstreamsCreated,
+        //   ★ 위에서 "채울 자리 0" 은 이미 걸러졌다. 여기 오는 filledNothing 은
+        //     "채울 자리는 있었는데 AI 가 근거가 없어 안 만들었다" 뿐이다.
+        insufficient_reason: filledNothing ? (draft.insufficientReason || '') : '',
+      });
     } catch (err) { next(err); }
   });
 }

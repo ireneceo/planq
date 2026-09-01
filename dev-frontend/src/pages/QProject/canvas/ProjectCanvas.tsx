@@ -108,7 +108,13 @@ export default function ProjectCanvas({ projectId, businessId, readOnly = false 
       const res = await aiDraftCanvas(projectId);
       await silentLoad();
       if (!res.strategy_filled && !res.metrics_filled && !res.workstreams_created) {
-        setAiMsg(t('canvas.ai.nothingToFill', { defaultValue: '이미 채워져 있어요 — 빈 항목만 AI가 채웁니다.' }) as string);
+        // ★ #358 — 빈 결과에는 두 가지 뜻이 있다. 구분하지 않으면 문구가 거짓말이 된다.
+        //   ① 이미 채워져 있어서 채울 게 없었다
+        //   ② 근거가 부족해 AI 가 **일부러** 안 만들었다 (개수를 채우려고 일반론을 지어내지 않는다)
+        //   ②를 ①로 말하면 사용자는 설명을 채워야 한다는 걸 영영 모른다.
+        setAiMsg(res.insufficient_reason
+          ? `${t('canvas.ai.insufficient', { defaultValue: '초안을 만들 근거가 부족합니다. 프로젝트 설명을 채우고 다시 시도해 주세요.' }) as string} (${res.insufficient_reason})`
+          : t('canvas.ai.nothingToFill', { defaultValue: '이미 채워져 있어요 — 빈 항목만 AI가 채웁니다.' }) as string);
       }
     } catch (e) {
       const m = (e as Error)?.message;

@@ -177,6 +177,10 @@ export default function RichEditor({
     try {
       const fd = new FormData();
       fd.append('file', file, file.name);
+      // ★ #378 후속 — **본문 인라인**임을 알린다. 그래야 서버가 그 글과 같은 노출 범위로 저장한다.
+      //   안 보내면 개인(L1)로 저장돼, 글은 팀에 보이는데 그 안의 그림만 남들에게 깨진다.
+      //   Q docs(PostEditor)는 전용 라우트라 이미 그렇게 저장한다 — 두 에디터를 맞춘다.
+      fd.append('inline', '1');
       const r = await apiFetch(url, { method: 'POST', body: fd });
       // ★ apiFetch 는 throw 하지 않는다 — res.ok 를 봐야 실패를 안다.
       // ★ 운영 #378 — 여기서 조용히 null 만 돌려주는 바람에, Q info 의 업로드 경로가

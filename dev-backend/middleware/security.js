@@ -226,7 +226,16 @@ const setupSecurity = (app) => {
   //   멀티탭)가 정상 사용 중 막히지 않도록 600/분 으로 상향(옛 100/분 은 정상 트래픽도 차단).
   // 이미지 서빙 경로 — API 버킷에서 빼고 별도 버킷으로 센다(아래 imageLimiter).
   //   ★ apiLimiter 의 skip 이 이걸 참조하므로 **위에 둔다** — 아래에 두면 TDZ 다(프로젝트 전례).
-  const IMAGE_PATHS = ['/api/files/public-image', '/api/tasks/public/attach'];
+  // ★ 2026-09-01 — 이미지 서빙 경로는 **이미지 버킷**으로 보낸다.
+  //   editor-image(Q docs 본문)와 채팅 이미지가 여태 일반 API 버킷(분당 한도)을 태우고 있었다.
+  //   이미지 많은 문서·채팅방을 열면 그 한 번으로 한도를 소진해 429 가 나고,
+  //   토큰 갱신까지 429 가 되면 로그아웃으로 이어진다(옛 회귀와 같은 계열).
+  const IMAGE_PATHS = [
+    '/api/files/public-image',
+    '/api/tasks/public/attach',
+    '/api/posts/editor-image',
+    '/api/message-attachments/public',
+  ];
   const apiLimiter = rateLimit({
     windowMs: 1 * 60 * 1000, // 1분
     max: 600,
@@ -248,7 +257,11 @@ const setupSecurity = (app) => {
     },
     // ★ 이미지 서빙은 이 버킷에서 뺀다. app.use 로 앞에 다른 limiter 를 걸어도 **연쇄 실행**이라
     //   여기서 또 세면 예산은 그대로 탄다 — 반드시 skip 으로 빼야 실제로 분리된다.
-    skip: (req) => IMAGE_PATHS.some((ip) => (req.originalUrl || '').startsWith(ip)),
+    // ★ GET 만 뺀다. 경로만 보고 빼면 **같은 경로의 POST(업로드)까지 면제**된다 —
+    //   `POST /api/posts/editor-image` 는 파일을 쓰는 라우트인데 한도가 600 → 3000 으로
+    //   풀려 버렸다(Fable 실측). 읽기는 <img> 가 만드는 정적 트래픽이라 빼는 것이 맞지만,
+    //   쓰기는 일반 API 예산 안에 있어야 한다.
+    skip: (req) => req.method === 'GET' && IMAGE_PATHS.some((ip) => (req.originalUrl || '').startsWith(ip)),
     message: { success: false, message: 'Too many requests, please try again later' }
   });
   // ── 이미지 서빙은 **별도 버킷** ────────────────────────────────────────────

@@ -1177,18 +1177,54 @@ router.post('/editor-image', authenticateToken, (req, res, next) => {
 });
 
 // GET /api/posts/editor-image/:filename — UUID 로 추측 불가, 인증 생략 (img 태그 직접 로드 용)
+// ★ 무인증 공개 라우트. 방벽은 **파일명(UUID)의 추측 불가능성 하나뿐**이다.
+//   공개 공유 문서(익명 열람)의 인라인 이미지가 이 길로 나가므로 인증을 걸 수 없다.
+//
+// ★ 2026-09-01 (Fable 설계 게이트) — 여태 이 라우트는 **DB 를 아예 보지 않았다.**
+//   파일시스템에 파일이 있으면 그냥 내보냈다. 그래서 같은 계열 4개 경로 중 가장 약했다:
+//     · 삭제된 파일이 계속 열렸다 (deleted_at 검사 없음)
+//     · 보안 등급(대외비·내부용)을 통과시켰다
+//     · 확장자만 보고 MIME 을 정해, DB 가 아는 실제 타입과 어긋날 수 있었다
+//   File 행을 근거로 삼는다. 운영 실측으로 이 폴더의 파일은 전부 File 행이 있다(orphan 0).
+//
+// ※ 신원 게이트(등급별 접근 판정)는 Stage 2 다 — `<img>` 는 인증 헤더를 못 실으므로
+//   이미지 전용 쿠키 발급(Stage 1)이 먼저다. 현재 모델은 "URL 을 아는 사람 = 볼 수 있는 사람"
+//   (capability URL)이고, 그것이 L1(개인) 어휘와 어긋난다는 것이 알려진 부채다.
 router.get('/editor-image/:filename', async (req, res) => {
-  const filename = String(req.params.filename || '');
-  // path traversal 방어
-  if (!/^[0-9a-f-]+\.(png|jpe?g|gif|webp|svg)$/i.test(filename)) {
-    return errorResponse(res, 'invalid_filename', 400);
+  try {
+    const filename = String(req.params.filename || '');
+    // path traversal 방어
+    if (!/^[0-9a-f-]+\.(png|jpe?g|gif|webp|svg)$/i.test(filename)) {
+      return errorResponse(res, 'invalid_filename', 400);
+    }
+    const fp = path.join(EDITOR_IMG_DIR, filename);
+
+    // ★ LIKE 는 접미사 매칭이라 짧은 값으로 남의 파일이 걸린다 — basename 정확 일치까지 본다.
+    //   (files.js public-image 가 같은 함정을 같은 방식으로 막았다. 규칙을 갈라 두지 말 것.)
+    const row = await File.findOne({
+      where: { file_path: { [Op.like]: `%editor-images/${filename}` }, deleted_at: null },
+    });
+    const file = row && path.basename(row.file_path) === filename ? row : null;
+    if (!file) return errorResponse(res, 'not_found', 404);
+    if (file.security_level && file.security_level !== 'general') {
+      // 대외비·내부용은 무인증 경로로 절대 내보내지 않는다 (/drag · gdriveMirror 와 같은 술어).
+      return errorResponse(res, 'not_found', 404);   // 존재 은닉
+    }
+    // image/* 만 — HTML/JS 를 inline 으로 흘리면 XSS 가 된다 (public-image 와 같은 계약).
+    const { isRenderableImage } = require('../services/filePreview');
+    if (!isRenderableImage(file.mime_type)) return errorResponse(res, 'not_public_image', 403);
+
+    if (!fs.existsSync(fp)) return errorResponse(res, 'not_found', 404);
+    const mime = file.mime_type;   // 확장자 추측이 아니라 DB 가 아는 실제 타입
+    if (await require('../services/imageResize').maybeServeResized(req, res, fp, mime)) return; // #97 ?w= 리사이즈
+    res.setHeader('Content-Type', mime);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Disposition', 'inline');
+    res.sendFile(fp);
+  } catch (e) {
+    console.error('[posts] editor-image:', e.message);
+    return errorResponse(res, 'not_found', 404);
   }
-  const fp = path.join(EDITOR_IMG_DIR, filename);
-  if (!fs.existsSync(fp)) return errorResponse(res, 'not_found', 404);
-  const ext = filename.split('.').pop().toLowerCase();
-  const mime = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', svg: 'image/svg+xml' }[ext];
-  if (await require('../services/imageResize').maybeServeResized(req, res, fp, mime)) return; // #97 ?w= 리사이즈
-  res.sendFile(fp);
 });
 
 // ─── 카테고리 마스터 CRUD (빈 카테고리도 미리 만들어 둘 수 있음) ───

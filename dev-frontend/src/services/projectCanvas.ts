@@ -77,7 +77,13 @@ export async function patchStrategy(projectId: number, patch: Partial<CanvasStra
 }
 
 // ⑤ AI 캔버스 초안 생성 — 빈 전략·지표·추진과제를 AI가 초안으로 채운다(비파괴). 실패 시 throw(message).
-export interface AiDraftResult { strategy_filled: number; metrics_filled: number; workstreams_created: number; }
+export interface AiDraftResult {
+  strategy_filled: number;
+  metrics_filled: number;
+  workstreams_created: number;
+  /** #358 — 아무것도 못 채웠을 때 그 이유. 빈 문자열이면 "이미 채워져 있어서" 라는 뜻이다. */
+  insufficient_reason?: string;
+}
 export async function aiDraftCanvas(projectId: number): Promise<AiDraftResult> {
   return jsonOf(await apiFetch(`/api/projects/${projectId}/canvas/ai-draft`, { method: 'POST' }));
 }

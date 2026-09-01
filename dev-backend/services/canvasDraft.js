@@ -18,13 +18,29 @@ const SYSTEM_PROMPT = `너는 B2B 프로젝트 전략 컨설턴트다. 주어진
     "approach": "추진 방식 (어떻게)"
   },
   "success_metrics": [ { "label": "지표명", "target": "목표값(불확실하면 빈 문자열)", "unit": "단위" } ],
-  "workstreams": [ { "title": "추진과제명", "description": "한 줄 설명" } ]
+  "workstreams": [ { "title": "추진과제명", "description": "한 줄 설명" } ],
+  "insufficient_reason": "근거가 부족해 비워 둔 항목이 있으면 그 이유 한 문장, 없으면 빈 문자열"
 }
 규칙:
 - 언어: 입력 프로젝트의 언어를 따른다 (한국어 프로젝트면 한국어, 영어면 영어).
-- success_metrics 2~4개, workstreams 3~5개. 측정 가능·구체적으로.
+- 측정 가능·구체적으로.
 - 근거 없는 숫자 날조 금지 — target 이 불확실하면 빈 문자열.
-- 기존에 채워진 전략 메모가 있으면 그 방향과 모순되지 않게.`;
+- 기존에 채워진 전략 메모가 있으면 그 방향과 모순되지 않게.
+
+★ **개수를 채우려고 지어내지 마라.** 아래가 이 지시의 핵심이다.
+- 주어진 정보로 **말할 수 있는 만큼만** 만든다. 0개여도 된다(빈 배열).
+  근거가 없으면 insufficient_reason 에 무엇이 없어서 못 만들었는지 적는다.
+- **다른 프로젝트에 그대로 붙여도 말이 되는 항목은 만들지 마라.** 그런 것은 도움이 아니라
+  화면을 채우는 쓰레기이고, 사용자는 지우지도 못한 채 몇 달을 방치한다.
+  금지 예 — 추진과제: "현황 분석" "데이터 수집" "개선 방안 도출" "실행 계획 수립" "모니터링"
+             지표: "업무 효율성 향상 20%" "만족도 개선" "프로세스 개선"
+  이것들은 프로젝트 이름만 바꿔도 그대로 성립하므로 근거가 0이라는 신호다.
+- 좋은 예 (이 정도로 그 프로젝트에서만 성립해야 한다):
+  추진과제 "Irene Lab — 실험 기록 발행" / "Methodology — 방법론 버전 관리"
+  지표 "독자적 관점 — Q docs irene-lab 발행 수 / 목표 40 / 단위 편"
+       "Evidence — Insight Log 중 출처=field·client 행 수 / 목표 50 / 단위 건"
+- 프로젝트 이름 하나만 주어졌다면 대개 **빈 배열이 정답이다.** 이름에서 업종을 추측해
+  일반적인 추진과제를 만들어내지 마라.`;
 
 const clip = (v, n) => (v == null ? '' : String(v).slice(0, n));
 
@@ -72,7 +88,12 @@ async function generateCanvasDraft(project, context = {}) {
     .filter((w) => w && w.title).slice(0, 6)
     .map((w) => ({ title: clip(w.title, 200), description: clip(w.description, 1000) }));
 
-  return { strategy, metrics, workstreams, usage: { input_tokens: res.input_tokens, output_tokens: res.output_tokens } };
+  return {
+    strategy, metrics, workstreams,
+    // 왜 비었는지 — 라우트가 사용자에게 그대로 전한다. 침묵하면 "AI 가 안 되네" 로만 읽힌다.
+    insufficientReason: clip(parsed.insufficient_reason, 300),
+    usage: { input_tokens: res.input_tokens, output_tokens: res.output_tokens },
+  };
 }
 
 module.exports = { generateCanvasDraft };

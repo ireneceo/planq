@@ -624,6 +624,7 @@
       "hint": "AI drafts your empty strategy, metrics, and workstreams. You can edit anytime.",
       "autoBadge": "AI-generated",
       "nothingToFill": "Already filled — AI only fills empty items.",
+      "insufficient": "Not enough to work from. Please fill in the project description and try again.",
       "unavailable": "AI is temporarily unavailable. Please try again shortly.",
       "failed": "Draft generation failed. Please try again shortly."
     },

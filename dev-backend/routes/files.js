@@ -247,6 +247,12 @@ router.get('/public-image/:storedName', async (req, res, next) => {
     if (!require('../services/filePreview').isRenderableImage(file.mime_type)) {
       return errorResponse(res, 'not_public_image', 403);
     }
+    // ★ 2026-09-01 — 대외비·내부용은 **무인증 경로로 절대 내보내지 않는다.**
+    //   같은 바이트에 대해 /drag 는 막고 gdriveMirror 는 미러에서 뺀다. 이 경로만 통과시키고 있었다.
+    //   (운영 실측 당시 해당 파일 0건이라 깨지는 것은 없다 — 구멍을 먼저 닫아 둔다.)
+    if (file.security_level && file.security_level !== 'general') {
+      return errorResponse(res, 'not_found', 404);   // 존재 은닉
+    }
 
     // 저장소 단일 원천 — 로컬이면 로컬, Drive 면 서버가 워크스페이스 토큰으로 받아서 흘려준다.
     const body = await require('../services/attachmentStorage').readAttachmentBody(file);
@@ -510,6 +516,17 @@ router.post('/:businessId', authenticateToken, ...perUserDaily('file-upload', { 
 
     const businessId = Number(req.params.businessId);
     const projectId = req.body.project_id ? Number(req.body.project_id) : null;
+    // ★ 운영 #378 후속 — **본문에 넣은 이미지는 그 글과 같은 노출 범위**여야 한다.
+    //   일반 파일 업로드의 기본값은 개인(L1)이 맞지만, 에디터 본문 인라인은 다르다:
+    //   글은 팀에 보이는데 그 안의 그림만 개인이면, 남들에게는 **글은 보이고 그림만 깨진다.**
+    //   Q docs(`/api/posts/editor-image`)는 이미 `projectId ? 'L2' : 'L3'` 로 정해 뒀고
+    //   (그 파일 주석: "옛 L1 정책은 자기 본문 이미지를 Q File 에서 못 찾는 회귀 유발 → 폐기"),
+    //   Q info·Q Task·Q Mail 의 RichEditor 만 이 라우트를 써서 L1 로 갈라져 있었다.
+    //   지금은 서빙 라우트가 등급을 안 봐서 **우연히** 보이는 상태다 — 게이트가 붙으면 그날 깨진다.
+    //   Irene 확인(2026-09-01): "Q docs 에 맞추기".
+    //   ★ 한 곳에서 정하고 아래 저장 분기(로컬·gdrive·s3)가 모두 이 값을 쓴다. 식을 베껴 두면 갈라진다.
+    const isInline = String(req.body.inline || '') === '1';
+    const uploadLevel = projectId ? 'L2' : (isInline ? 'L3' : 'L1');
     const folderId = req.body.folder_id ? Number(req.body.folder_id) : null;
     // 채팅/대화에서 올라온 첨부 — project_id 없어도 Drive 의 "Conversations" 폴더로 라우팅 가능
     const conversationId = req.body.conversation_id ? Number(req.body.conversation_id) : null;
@@ -578,8 +595,8 @@ router.post('/:businessId', authenticateToken, ...perUserDaily('file-upload', { 
           storage_provider: 's3',
           external_id: key,
           external_url: null,  // private 버킷 — 다운로드 시 presign
-          visibility: projectId ? 'L2' : 'L1',
-          vlevel: projectId ? 'L2' : 'L1',   // ★ 권위 컬럼 동시 기록 (미기록 시 default L3 노출)
+          visibility: uploadLevel,
+          vlevel: uploadLevel,   // ★ 권위 컬럼 동시 기록 (미기록 시 default L3 노출)
         });
         fs.unlinkSync(tempPath);
         tempPath = null;
@@ -626,9 +643,9 @@ router.post('/:businessId', authenticateToken, ...perUserDaily('file-upload', { 
           storage_provider: 'gdrive',
           external_id: driveFile.id,
           external_url: driveFile.webViewLink,
-          visibility: projectId ? 'L2' : 'L1',  // VISIBILITY_VOCABULARY.md §2 — 프로젝트=팀 / 미연결=개인 default
+          visibility: uploadLevel,  // VISIBILITY_VOCABULARY.md §2 — 프로젝트=팀 / 미연결=개인 default
           // ★ vlevel 이 권위 컬럼 — 같이 안 쓰면 모델 default 'L3' 로 저장돼 개인 파일이 전 멤버에게 노출된다
-          vlevel: projectId ? 'L2' : 'L1',
+          vlevel: uploadLevel,
         });
         // 로컬 임시 파일 제거
         fs.unlinkSync(tempPath);
@@ -700,8 +717,8 @@ router.post('/:businessId', authenticateToken, ...perUserDaily('file-upload', { 
             storage_provider: 'planq',
             content_hash: hash,
             ref_count: 1,
-            visibility: projectId ? 'L2' : 'L1',
-            vlevel: projectId ? 'L2' : 'L1',   // ★ 권위 컬럼 동시 기록 (미기록 시 default L3 노출)
+            visibility: uploadLevel,
+            vlevel: uploadLevel,   // ★ 권위 컬럼 동시 기록 (미기록 시 default L3 노출)
           }, { transaction: t });
         } else {
           file = existing;
@@ -721,8 +738,8 @@ router.post('/:businessId', authenticateToken, ...perUserDaily('file-upload', { 
           storage_provider: 'planq',
           content_hash: hash,
           ref_count: 1,
-          visibility: projectId ? 'L2' : 'L1',
-          vlevel: projectId ? 'L2' : 'L1',   // ★ 권위 컬럼 동시 기록 (미기록 시 default L3 노출)
+          visibility: uploadLevel,
+          vlevel: uploadLevel,   // ★ 권위 컬럼 동시 기록 (미기록 시 default L3 노출)
         }, { transaction: t });
         // 쿼터 업데이트 (dedup 히트면 증가 없음)
         usage.bytes_used = Number(usage.bytes_used) + req.file.size;
