@@ -186,10 +186,23 @@ export default function RichEditor({
       fd.append('file', file, file.name);
       const r = await apiFetch(url, { method: 'POST', body: fd });
       // ★ apiFetch 는 throw 하지 않는다 — res.ok 를 봐야 실패를 안다.
-      if (!r.ok) return null;
+      // ★ 운영 #378 — 여기서 조용히 null 만 돌려주는 바람에, Q info 의 업로드 경로가
+      //   **백엔드에 없는 주소(404)** 였는데도 아무도 몰랐다. 사용자에게는 "이미지를 넣어도
+      //   그냥 안 들어간다" 로만 보였다. 실패는 최소한 흔적을 남긴다.
+      if (!r.ok) {
+        console.warn('[RichEditor] 이미지 업로드 실패', r.status, url);
+        return null;
+      }
       const j = await r.json();
-      return (j.success && j.data?.preview_url) ? String(j.data.preview_url) : null;
-    } catch { return null; }
+      if (!(j.success && j.data?.preview_url)) {
+        console.warn('[RichEditor] 업로드는 됐으나 preview_url 이 없다', url, JSON.stringify(j).slice(0, 200));
+        return null;
+      }
+      return String(j.data.preview_url);
+    } catch (e) {
+      console.warn('[RichEditor] 이미지 업로드 예외', url, (e as Error)?.message);
+      return null;
+    }
   };
 
   const uploadAndInsertImage = async (file: File) => {

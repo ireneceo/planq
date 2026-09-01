@@ -1681,7 +1681,12 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                   onChange={(html) => setDraft(d => ({ ...d, body: html }))}
                   placeholder={t('modal.bodyPh') as string}
                   minHeight={200}
-                  uploadUrl={businessId ? `/api/files/${businessId}/upload-inline-image` : undefined}
+                  /* ★ 운영 #378 — 이 경로는 **백엔드에 없다**(실측 404). 본문에 이미지를 넣어도
+                    아무 일도 일어나지 않았다(RichEditor 는 실패를 조용히 삼킨다).
+                    Q Task 가 이미 쓰는 정식 업로드 경로로 통일한다 — File 로 등록되어
+                    Q File 목록에도 잡히고(Irene: "파일메뉴로 들어가야"), 응답의
+                    preview_url 은 인증 없이 <img> 가 읽는 UUID 경로다. */
+                  uploadUrl={businessId ? `/api/files/${businessId}` : undefined}
                 />
               </Field>
 
@@ -1850,7 +1855,12 @@ const DrawerBodyEdit: React.FC<{
         onChange={setDraft}
         onBlur={() => commit()}
         minHeight={180}
-        uploadUrl={businessId ? `/api/files/${businessId}/upload-inline-image` : undefined}
+        /* ★ 운영 #378 — 이 경로는 **백엔드에 없다**(실측 404). 본문에 이미지를 넣어도
+                    아무 일도 일어나지 않았다(RichEditor 는 실패를 조용히 삼킨다).
+                    Q Task 가 이미 쓰는 정식 업로드 경로로 통일한다 — File 로 등록되어
+                    Q File 목록에도 잡히고(Irene: "파일메뉴로 들어가야"), 응답의
+                    preview_url 은 인증 없이 <img> 가 읽는 UUID 경로다. */
+                  uploadUrl={businessId ? `/api/files/${businessId}` : undefined}
       />
     </BodyEditWrap>
   );
