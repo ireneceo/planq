@@ -25,7 +25,7 @@ interface Props {
   onNavigate?: (to: string) => void;
 }
 
-// #359 — 'records' 제거. Q record 는 폐지돼 Q docs 의 표로 흡수됐다(App.tsx:122).
+// #359 — 'records' 제거. 폐지된 옛 메뉴다 — Q docs 의 표로 흡수됐다(App.tsx 이름 대응 주석).
 //   백엔드도 이제 빈 배열만 낸다 — 같은 항목이 '문서' 와 '레코드' 로 두 번 뜨던 중복을 없앤다.
 type Category = 'tasks' | 'posts' | 'files' | 'conversations' | 'knowledge' | 'clients' | 'projects';
 

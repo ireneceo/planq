@@ -122,8 +122,15 @@ const NotificationsPage = lazy(() => import('./pages/Notifications/Notifications
 const WhatsNewPage = lazy(() => import('./pages/WhatsNew/WhatsNewPage'));
 const QBillPage = lazy(() => import('./pages/QBill/QBillPage'));
 const KnowledgePage = lazy(() => import('./pages/Knowledge/KnowledgePage'));
-// Q record 메뉴는 폐지 — Q docs 의 표 kind 로 흡수. /records → /docs redirect.
-// 이전 record id 직접 진입 (/records/:id) 시 연결된 post 로 리다이렉트 (RecordToDocRedirect)
+// ── 이름 대응 (2026-09-01 정리) ──────────────────────────────────────────
+//   제품에 **'Q record' 라는 메뉴는 없다.** 예전에 잠깐 있었고 지금은 없다.
+//   · Q knowledge → **Q info** 로 이름이 바뀌었다 (kb_documents). 경로 /knowledge → /info.
+//   · Q record 는 폐지되고, 그 동적 테이블은 Q docs 문서 안의 **표**(post kind='table')가 됐다.
+//   서버 쪽 이름(q_records 테이블 · QRecord 모델 · /api/records)은 그대로 둔다 —
+//   businesses→워크스페이스 와 같은 정책이다(스키마 rename 은 고비용, 사용자 가치 0).
+//   ★ 그래서 코드에서 'record' 를 보면 그것은 **Q docs 의 표**다. Q info 가 아니다.
+//     이 대응을 적어두지 않아 실제로 오독이 발생했다 (#360 분석 중).
+// /records → /docs redirect. 이전 record id 직접 진입은 연결된 post 로 (RecordToDocRedirect).
 const RecordToDocRedirect = lazy(() => import('./pages/Records/RecordToDocRedirect'));
 import './App.css';
 
@@ -341,7 +348,7 @@ function ShellApp() {
             전역검색의 `/knowledge?doc=N` 딥링크가 항상 죽어 있었다 (2026-08-30 실측). */}
         <Route path="/knowledge" element={<Navigate to={{ pathname: '/info', search: window.location.search }} replace />} />
 
-        {/* Q record 메뉴 폐지 — Q docs 안의 표 kind 로 흡수 */}
+        {/* 폐지된 옛 경로 — 위 '이름 대응' 주석 참조 */}
         <Route path="/records" element={<Navigate to="/docs" replace />} />
         <Route path="/records/:id" element={<RecordToDocRedirect />} />
 

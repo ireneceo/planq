@@ -2086,7 +2086,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               <div data-print-area className="pq-fullbleed" style={{ marginTop: -16 }} ref={docBodyRef}>
                 <PrintOnlyTitle>{detail.title}</PrintOnlyTitle>
                 {detail.kind === 'table' && detail.q_record_id ? (
-                  // 표 kind — 본문 설명(있으면) + Q record 그리드 (보기 모드: read-only)
+                  // 표 kind — 본문 설명(있으면) + 표 그리드 (보기 모드: read-only)
                   <>
                     {detail.content_json && (
                       <PostEditor value={detail.content_json} onChange={() => {}} editable={false} borderless />

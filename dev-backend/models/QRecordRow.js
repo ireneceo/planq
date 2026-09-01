@@ -1,4 +1,5 @@
-// Q record 행 — values JSON 으로 모든 셀 데이터 저장.
+// 표(Q docs 문서 kind='table')의 행 — values JSON 으로 모든 셀 데이터 저장.
+//   ⚠️ 이름 주의: Q info(kb_documents)와 다른 물건이다. models/QRecord.js 주석 참조.
 // values: { col_id: value }. col_id 는 q_records.columns[].id 와 매핑.
 // secret 타입 컬럼 값은 평문 저장 후 라우터에서 권한별 마스킹 처리 (1차 — 향후 KMS).
 const { DataTypes, Model } = require('sequelize');

@@ -1,4 +1,6 @@
-// Q record API 서비스 — 동적 테이블 (Notion DB 패턴)
+// 표(table) API 서비스 — 동적 테이블 (Notion DB 패턴).
+//   ★ 제품에 'Q record' 라는 메뉴는 없다. 이 파일이 다루는 것은 Q docs 문서 안의 **표**다.
+//     서버 경로·테이블 이름은 여전히 record 계열이다 — 아래 주석 참조.
 import { apiFetch } from '../contexts/AuthContext';
 
 export type QRecordColumnType =

@@ -27,7 +27,7 @@ import ShareModal from '../../components/Common/ShareModal';
 import AttachmentField from '../../components/Common/AttachmentField';
 import RichEditor from '../../components/Common/RichEditor';
 import { useImageLightbox } from '../../components/Common/ImageLightbox';
-// 가로 Tabs 폐지 — 좌측 카테고리 트리로 변경 (Q file/Q record 패턴 통일)
+// 가로 Tabs 폐지 — 좌측 카테고리 트리로 변경 (Q file 과 같은 패턴)
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import CreateDrawer from '../../components/Common/CreateDrawer';
 import KbAiIngestModal from './KbAiIngestModal';
@@ -790,7 +790,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
         )}
       </Toolbar>
 
-      {/* ─── 좌측 카테고리 트리 + 메인 영역 (Q file/Q record 패턴 통일) ─── */}
+      {/* ─── 좌측 카테고리 트리 + 메인 영역 (Q file 과 같은 패턴) ─── */}
       <Split>
         <TreePanel>
           <TreeRoot>
@@ -2446,7 +2446,7 @@ const RowCheckbox = styled.input`
   vertical-align: middle;
 `;
 
-// Q info — 좌측 트리 + 메인 영역 (Q file/Q record 패턴 동일)
+// Q info — 좌측 트리 + 메인 영역 (Q file 과 같은 패턴)
 const Split = styled.div`
   display: grid; grid-template-columns: 220px 1fr; gap: 12px; align-items: start;
   @media (max-width: 900px) { grid-template-columns: 1fr; }

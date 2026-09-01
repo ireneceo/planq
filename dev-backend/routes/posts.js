@@ -407,7 +407,7 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
 });
 
 // ─── 생성 ───
-// /records/:id (구 Q record) → post 로 redirect 용
+// /records/:id (폐지된 옛 경로) → post 로 redirect 용
 router.get('/by-record/:recordId', authenticateToken, async (req, res, next) => {
   try {
     const post = await Post.findOne({ where: { q_record_id: Number(req.params.recordId) } });

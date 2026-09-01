@@ -1,4 +1,5 @@
-// Q record 감사 로그 — read/reveal/edit/delete 모든 작업.
+// 표(Q docs 문서 안의 table) 감사 로그 — read/reveal/edit/delete 모든 작업.
+//   ★ 모델 이름은 QRecord 계열이지만 제품에 'Q record' 메뉴는 없다 (App.tsx 이름 대응 주석 참조).
 // secret 필드는 reveal 시 별도 기록 (자체 audit_logs 와 별도 — 빠른 조회용).
 const { DataTypes, Model } = require('sequelize');
 const { sequelize } = require('../config/database');

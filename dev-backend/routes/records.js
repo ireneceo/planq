@@ -1,4 +1,7 @@
-// Q record — 동적 테이블 (Notion DB 패턴) CRUD.
+// 표(table) — 동적 테이블 (Notion DB 패턴) CRUD.
+//   ★ 이름 주의: 제품에 'Q record' 메뉴는 없다. 이것은 **Q docs 문서 안의 표**다.
+//     Q info(kb_documents)와는 다른 물건이다. 경로·테이블 이름만 record 계열로 남아 있다
+//     (businesses→워크스페이스 와 같은 정책). 프론트 App.tsx 상단 '이름 대응' 주석 참조.
 // project_id NULL = 워크스페이스 전역, NOT NULL = 프로젝트 소속.
 const express = require('express');
 const router = express.Router();

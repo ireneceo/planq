@@ -93,7 +93,8 @@ const DocumentRevision = require('./DocumentRevision');
 const PostRevision = require('./PostRevision');
 const DocumentShare = require('./DocumentShare');
 const SignatureRequest = require('./SignatureRequest');
-// ─── Q record (동적 테이블 — Notion DB 패턴) ───
+// ─── 표 (Q docs 문서 안의 동적 테이블 — Notion DB 패턴) ───
+//     ⚠️ Q info(kb_documents)와 다른 물건. models/QRecord.js 주석 참조.
 const QRecord = require('./QRecord');
 const QRecordRow = require('./QRecordRow');
 const QRecordAudit = require('./QRecordAudit');

@@ -1,4 +1,4 @@
-// Post (kind='table') 본문에 임베드되는 Q record 그리드.
+// Post (kind='table') 본문에 임베드되는 표 그리드.
 //
 // 이번 사이클 재작성 (사이클 N+2 / 2026-05-10):
 //   - 컬럼 헤더 클릭 → ColumnSettings popover (이름·타입 변경 / select 옵션 / 삭제)
@@ -13,7 +13,7 @@ import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
 import {
   fetchRecord, updateRecord, createRow, updateRow, deleteRow, revealSecret,
   type QRecordDetail, type QRecordColumn, type QRecordColumnType, type QRecordAggregate,
-} from '../../services/qrecord';
+} from '../../services/qtable';
 import { uploadMyFile, fetchWorkspaceFiles, type ProjectFile } from '../../services/files';
 import { fetchPosts, type PostRow } from '../../services/posts';
 import { apiFetch } from '../../contexts/AuthContext';
@@ -143,7 +143,7 @@ interface Props {
 }
 
 const PostTableGrid: React.FC<Props> = ({ recordId, businessId, readOnly = false }) => {
-  const { t } = useTranslation('qrecord');
+  const { t } = useTranslation('qtable');
   const [rec, setRec] = useState<QRecordDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [headerEditId, setHeaderEditId] = useState<string | null>(null);
@@ -386,7 +386,7 @@ const CellEditor: React.FC<{
   onReveal?: () => void;
   onAttachOpen?: () => void;
 }> = ({ column, value, rowValues, allColumns, revealedValue, readOnly, onChange, onReveal, onAttachOpen }) => {
-  const { t } = useTranslation('qrecord');
+  const { t } = useTranslation('qtable');
   const [draft, setDraft] = useState(value == null ? '' : String(value));
   const [editing, setEditing] = useState(false);
   useEffect(() => { if (!editing) setDraft(value == null ? '' : String(value)); }, [value, editing]);
@@ -542,7 +542,7 @@ const ColumnSettingsPopover: React.FC<{
   onCommit: (patch: Partial<QRecordColumn>) => void;
   onDelete: () => void;
 }> = ({ column, onClose, onCommit, onDelete }) => {
-  const { t } = useTranslation('qrecord');
+  const { t } = useTranslation('qtable');
   const [name, setName] = useState(column.name);
   const [type, setType] = useState<QRecordColumnType>(column.type);
   const [optionsText, setOptionsText] = useState((column.options || []).join('\n'));
@@ -662,7 +662,7 @@ const AttachPickerModal: React.FC<{
   onClose: () => void;
   onConfirm: (items: AttachItem[]) => void;
 }> = ({ businessId, existing, onClose, onConfirm }) => {
-  const { t } = useTranslation('qrecord');
+  const { t } = useTranslation('qtable');
   const [items, setItems] = useState<AttachItem[]>(existing);
   const [files, setFiles] = useState<ProjectFile[]>([]);
   const [posts, setPosts] = useState<PostRow[]>([]);
