@@ -249,8 +249,12 @@ interface MailMember { user_id: number; name: string }
 //   '내 담당' 제거 — 이름이 들어갔다는 이유로 따로 뺄 근거가 약하고, 그런 메일은 어차피 답변 필요다.
 const FOLDERS: Array<{ key: Folder; defaultLabel: string }> = [
   { key: 'reply_needed', defaultLabel: '답변 필요' },
-  // 확인 권장 = 애매한 메일 + 자동이지만 내용이 업무인 것(결제·보고서·업무 안내) + 답변이 끝난 메일.
+  // 확인 권장 = 애매한 메일 + 자동이지만 내용이 업무인 것(결제·보고서·업무 안내).
   // '처리 완료' 탭은 성격이 같아서 여기에 합쳤다 (Irene: "같은 의미 같은데. 확인권장만 남기자").
+  // ★ 2026-09-01 #402 — **내가 답장한 메일은 여기 없다.** 답변필요/확인권장의 공통 의미는
+  //   "내가 아직 뭔가 해야 하는 것" 이라, 내가 마지막에 답장했으면 둘 다 아니고 전체·보낸메일에만 남는다
+  //   (Irene: "답변필요와 확인권장에는 겹쳐서 리스팅되지 않아야 해. 전체메일에 다 나오면 되는거고").
+  //   술어는 서버 단일 원천 — services/mailFolders.js. 여기에 사본을 만들지 말 것.
   { key: 'uncertain', defaultLabel: '확인 권장' },
   { key: 'all', defaultLabel: '전체' },          // 스팸·보관 뺀 모든 메일 (자동·마케팅 포함)
   { key: 'sent', defaultLabel: '보낸메일' },      // #186 — 내가 마지막으로 보낸(outbound) 스레드

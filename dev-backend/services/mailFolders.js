@@ -19,7 +19,8 @@ function folderWhere(folder, userId, businessId) {
     // 확인 권장 = "한 번 보고 판단할 것" — 처리 완료(옛 inbox)를 여기에 합쳤다.
     //   ① 애매한 메일 (status='uncertain'): 스팸·광고는 아닌데 업무인지 모르겠는 것,
     //      그리고 자동 발송이지만 내용이 업무인 것(결제 완료·보고서·시스템 업무 안내)
-    //   ② 답변이 끝난 사람 메일 (답장했거나 "답변 완료" 로 넘긴 것)
+    //   ② (2026-09-01 #402 로 철회) 여기엔 더 이상 "내가 답장한 메일" 이 담기지 않는다 —
+    //      답장하면 확인 권장에서도 빠지고 전체·보낸메일에만 남는다. 아래 조건 참조.
     //   두 개가 사실상 같은 성격("답장할 건 아닌데 봐야 하는 것")이라 탭을 나눌 이유가 없다 (Irene).
     //   ★ 2026-08-27 운영 #386 — `reply_needed: false` 는 **두 갈래 모두**에 걸려야 한다.
     //     여태 아래 open 갈래에만 있어서, status='uncertain' 인 메일을 "답변 필요" 로 표시하면
@@ -29,13 +30,40 @@ function folderWhere(folder, userId, businessId) {
     //     (답변필요 폴더 정의가 uncertain 을 포함해야 하므로), 고칠 곳은 여기 폴더 정의다.
     //     실측(dev, business 5): 스레드 하나를 답변필요로 표시 → 확인권장 2657→2657(안 빠짐),
     //     이 조건을 걸면 2657→2656(빠짐). 겹침 0→1 이 0 으로.
+    //   ★ 2026-09-01 운영 #402 — **내가 답장한 메일은 확인 권장에서 뺀다.**
+    //     (Irene: "답변필요에 들어온 메일에 답변을 했는데 확인권장에도 있어.
+    //      답변필요와 확인권장에는 겹쳐서 리스팅되지 않아야 해. 전체메일에 다 나오면 되는거고.")
+    //     위 ② 는 원래 "답변이 끝난 메일도 여기 담는다" 는 설계였는데, 실제로 써 보니
+    //     답장하자마자 답변필요 → 확인권장으로 **자리만 옮겨 앉아** 목록이 비지 않았다.
+    //     두 폴더의 공통 의미는 "내가 아직 뭔가 해야 하는 것" 이다. 내가 마지막에 답장했다면
+    //     공은 상대에게 넘어갔으므로 둘 다 아니다 — 전체·보낸메일에서 계속 보인다.
+    //
+    //     ※ status 를 archived 로 내리지 않는 이유: services/mailFollowUp.js 의
+    //       INACTIVE_STATUS 가 archived 를 제외해, 그러면 "답장했는데 답이 없다"(awaiting_reply)
+    //       추적이 통째로 죽는다. 답장은 대화를 닫는 것이 아니라 공을 넘기는 것이다.
+    //       (사용자가 명시적으로 누르는 "확인 완료" 만 archived 로 간다.)
+    //     ※ NULL 안전 — last_message_direction 이 NULL 인 옛 스레드가 있다.
+    //       SQL 에서 NULL != 'outbound' 는 NULL(=거짓)이라 그냥 Op.ne 만 쓰면 그것들이 통째로
+    //       사라진다. 명시적으로 NULL 을 포함시킨다.
+    //     ※ services/mailNotify.js classify() 는 **inbound 한 통**을 분류하는 자리라
+    //       last_message_direction 이 정의상 'inbound' 다 — 이 조건과 어긋나지 않는다.
     case 'uncertain':
     case 'inbox':
       return {
         reply_needed: false,
-        [Op.or]: [
-          { status: 'uncertain' },
-          { status: 'open', triage: { [Op.notIn]: ['automated', 'marketing'] } },
+        [Op.and]: [
+          {
+            [Op.or]: [
+              { status: 'uncertain' },
+              { status: 'open', triage: { [Op.notIn]: ['automated', 'marketing'] } },
+            ],
+          },
+          {
+            [Op.or]: [
+              { last_message_direction: { [Op.ne]: 'outbound' } },
+              { last_message_direction: null },
+            ],
+          },
         ],
       };
     case 'spam': return { status: 'spam' };
