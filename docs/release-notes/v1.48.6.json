@@ -1,0 +1,36 @@
+{
+  "version": "1.48.6",
+  "date": "2026-09-01",
+  "items": [
+    {
+      "ko": { "title": "모바일에서 글 쓸 때 커서가 키보드에 가리지 않습니다",
+        "body": "메일 답장을 쓰다 보면 몇 줄만 넘어가도 커서가 키보드 뒤로 들어가 자기가 무엇을 치는지 보이지 않았습니다. 앱은 입력창을 처음 누른 순간에만 위치를 잡고, 그 뒤 글이 길어지는 동안에는 커서를 따라가지 않고 있었습니다. 이제 쓰는 내내 커서가 키보드 위에 남습니다. 메일 답장·새 메일·채팅 모두 해당합니다." },
+      "en": { "title": "Your cursor stays above the keyboard while typing on mobile",
+        "body": "When writing a reply, the cursor slipped behind the keyboard after a few lines so you could not see what you were typing. The app only adjusted position when you first tapped the field, and never followed the cursor afterwards. It now keeps up as you write — in mail replies, new mail, and chat." }
+    },
+    {
+      "ko": { "title": "한글을 입력하다 누른 Enter 가 전송·저장으로 새지 않습니다",
+        "body": "한글에서 Enter 는 글자를 확정하는 키이기도 합니다. '회의' 의 마지막 글자를 확정하려고 누른 Enter 가 그대로 전송·저장·태그 추가로 실행되던 문제입니다. 받는사람 입력, 태그, 이름 수정 등 앱 전체에서 고쳤습니다." },
+      "en": { "title": "Pressing Enter to confirm Korean text no longer triggers actions",
+        "body": "In Korean, Enter also commits the character being composed. That keypress was leaking through as send, save, or add-tag. Fixed across the app — recipient fields, tags, inline renaming, and more." }
+    },
+    {
+      "ko": { "title": "알림에서 메일을 열 때 화면이 어긋나던 문제를 고쳤습니다",
+        "body": "알림을 눌러 메일을 열면 상단 제목줄이 위로 올라가 잘리고, 아래쪽에는 넓은 빈 여백이 생기던 문제입니다. 앱이 화면 여백을 앱을 켠 직후 딱 한 번만 재고 있었는데, 알림으로 여는 순간이 하필 그 값이 가장 부정확한 때였습니다." },
+      "en": { "title": "Fixed the layout shifting when opening mail from a notification",
+        "body": "Opening mail from a notification could push the title bar out of view and leave a wide blank strip at the bottom. The app measured screen insets only once at launch — and a notification cold start is exactly when that measurement is least reliable." }
+    },
+    {
+      "ko": { "title": "답장한 메일이 '확인 권장' 에 남지 않습니다",
+        "body": "'답변 필요' 에 온 메일에 답장하면 목록에서 빠지는 대신 '확인 권장' 으로 자리만 옮겨 앉았습니다. 두 목록은 모두 '내가 아직 할 일이 있는 메일' 이라, 내가 답장했다면 둘 다 아닙니다. 답장한 메일은 이제 전체·보낸메일에서 보시면 됩니다." },
+      "en": { "title": "Replied mail no longer lingers in Review suggested",
+        "body": "Replying to a message in Needs reply moved it to Review suggested instead of clearing it. Both lists mean 'still needs something from me', so a message you already answered belongs in neither. Find it in All mail and Sent." }
+    },
+    {
+      "ko": { "title": "청구서 상세에 세금계산서·현금영수증 정보가 나옵니다",
+        "body": "고객 정보에 사업자등록번호를 저장해 두었는데도, 청구서 상세에는 증빙 정보 상자가 아예 나오지 않는 경우가 있었습니다. 고객이 결제 페이지에서 직접 입력한 적이 있어야만 표시되고 있었기 때문입니다. 계좌이체로만 결제하시는 정기 고객은 그 페이지를 거칠 일이 없습니다. 이제 등록해 두신 고객 정보로 채워 보여주고, 그 값이 '고객이 확인한 것' 인지 '우리가 등록해 둔 것' 인지도 함께 표시합니다." },
+      "en": { "title": "Tax invoice and cash receipt details now show on the invoice",
+        "body": "Even with a business registration number saved on the client, the receipt panel could be missing entirely — it only appeared if the customer had typed the details on the public payment page. Clients who pay by bank transfer never visit that page. We now fall back to the client record you already saved, and label whether the values were confirmed by the customer or registered by you." }
+    }
+  ]
+}
