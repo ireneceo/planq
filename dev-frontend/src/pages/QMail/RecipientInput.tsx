@@ -12,6 +12,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
+import { isEnterAction } from '../../utils/imeKey';
 
 interface Props {
   value: string;
@@ -68,7 +69,7 @@ const RecipientInput: React.FC<Props> = ({ value, onChange, placeholder, disable
           setDraft(v);
         }}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') { e.preventDefault(); commit(draft); return; }
+          if (isEnterAction(e)) { e.preventDefault(); commit(draft); return; }
           if (e.key === 'Backspace' && !draft && chips.length) { e.preventDefault(); removeAt(chips.length - 1); }
         }}
         onPaste={(e) => {

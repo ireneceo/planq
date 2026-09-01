@@ -13,6 +13,7 @@ import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
+import { isEnterAction } from '../../utils/imeKey';
 
 // N+44 — ShareModal 실 사용 5 entity 만 유지. document/invoice/quote/report 는 별도 UI 흐름
 // (PostSignatureModal, Invoice send 라우트 자체 발급) 사용 — ShareModal 통한 호출 dead code 였음.
@@ -418,7 +419,7 @@ const ShareModal: React.FC<Props> = ({ open, entityType, entityId, entityTitle, 
                     ? (t('share.passwordChange', { defaultValue: '새 비밀번호 (변경 시)' }) as string)
                     : (t('share.passwordPlaceholder', { defaultValue: '선택 — 링크 + 비밀번호 둘 다 알아야 접근' }) as string)}
                   disabled={busy}
-                  onKeyDown={e => { if (e.key === 'Enter' && pwInput) savePassword(); }}
+                  onKeyDown={e => { if (isEnterAction(e) && pwInput) savePassword(); }}
                 />
                 <PwToggle type="button" onClick={() => setPwShow(s => !s)} disabled={busy} aria-label="show/hide">
                   {pwShow ? t('share.passwordHide', { defaultValue: '숨기기' }) as string : t('share.passwordShow', { defaultValue: '보이기' }) as string}
@@ -472,11 +473,20 @@ export default ShareModal;
 const Backdrop = styled.div`
   position: fixed; inset: 0; background: rgba(15,23,42,0.4);
   display: flex; align-items: center; justify-content: center; z-index: 1100; padding: 20px;
+  /* 모바일: 오버레이도 visual viewport 에 묶는다 — 안쪽 다이얼로그만 --vvh 로 줄이면
+     레이아웃 뷰포트 기준으로 가운데 정렬돼 키보드 아래로 내려앉는다. */
+  @media (max-width: 640px) {
+    height: var(--vvh, 100vh); bottom: auto; align-items: stretch; padding: 0;
+  }
 `;
 const Dialog = styled.div`
   background: #fff; border-radius: 12px; max-width: 480px; width: 100%;
   display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(15,23,42,0.2);
-  @media (max-width: 640px) { max-height: 100vh; height: 100vh; border-radius: 0; }
+  /* 모바일: 키보드가 올라오면 visual viewport(--vvh)로 줄인다 — 레이아웃 뷰포트(100vh)는
+     키보드를 무시해서 그 아래를 키보드가 덮는다. StandardModal 과 같은 계약. */
+  @media (max-width: 640px) {
+    max-height: var(--vvh, 100vh); height: var(--vvh, 100vh); border-radius: 0;
+  }
 `;
 const Header = styled.div`display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid #F1F5F9;`;
 const Title = styled.h2`display: inline-flex; align-items: center; gap: 8px; font-size: 0.9375rem; font-weight: 700; color: #0F172A; margin: 0;`;

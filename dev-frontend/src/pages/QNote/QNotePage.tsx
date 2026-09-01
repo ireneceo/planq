@@ -68,6 +68,7 @@ import NewNoteModal, { type NewNoteKind } from './NewNoteModal';
 import FloatingPanelToggle from '../../components/Common/FloatingPanelToggle';
 import PanelResizeHandle, { usePanelWidth } from '../../components/Layout/PanelResizeHandle';
 import { PanelBackButton } from '../../components/Layout/PanelHeader';
+import { isEnterAction } from '../../utils/imeKey';
 
 /**
  * Q Note 페이지
@@ -2234,7 +2235,7 @@ const QNotePage = () => {
                   autoFocus
                   onBlur={(e) => commitEdit(e.currentTarget.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') { e.preventDefault(); commitEdit(e.currentTarget.value); }
+                    if (isEnterAction(e)) { e.preventDefault(); commitEdit(e.currentTarget.value); }
                     if (e.key === 'Escape') {
                       setEditingQuestionId(null);
                     }
@@ -2681,7 +2682,7 @@ const QNotePage = () => {
                       autoFocus
                       onBlur={(e) => handleTitleSave(e.currentTarget.value)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') { e.preventDefault(); handleTitleSave(e.currentTarget.value); }
+                        if (isEnterAction(e)) { e.preventDefault(); handleTitleSave(e.currentTarget.value); }
                         if (e.key === 'Escape') setEditingTitle(false);
                       }}
                     />
@@ -2865,7 +2866,7 @@ const QNotePage = () => {
                   onChange={(e) => setManualInput(e.target.value)}
                   onKeyDown={(e) => {
                     // nativeEvent.isComposing 으로 IME 조합 중 Enter 무시 (한글/일본어 입력)
-                    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                    if (isEnterAction(e) && !e.shiftKey && !e.nativeEvent.isComposing) {
                       e.preventDefault();
                       submitManualQuestion();
                     }
@@ -2894,7 +2895,7 @@ const QNotePage = () => {
                     autoFocus
                     onBlur={(e) => handleTitleSave(e.currentTarget.value)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') { e.preventDefault(); handleTitleSave(e.currentTarget.value); }
+                      if (isEnterAction(e)) { e.preventDefault(); handleTitleSave(e.currentTarget.value); }
                       if (e.key === 'Escape') setEditingTitle(false);
                     }}
                   />
@@ -2991,7 +2992,7 @@ const QNotePage = () => {
                     value={reSummarizeInput}
                     onChange={(e) => setReSummarizeInput(e.target.value)}
                     placeholder={t('page.summary.reInstructionPh', '어떻게 다시 요약할까요? (예: 더 짧게 · 결정사항 위주 · 액션 아이템 강조)') as string}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); if (!summarizing) { runSummary(undefined, reSummarizeInput); setReSummarizeOpen(false); setReSummarizeInput(''); } } }}
+                    onKeyDown={(e) => { if (isEnterAction(e) && !e.nativeEvent.isComposing) { e.preventDefault(); if (!summarizing) { runSummary(undefined, reSummarizeInput); setReSummarizeOpen(false); setReSummarizeInput(''); } } }}
                   />
                   <SummaryDocBtn type="button" disabled={summarizing} onClick={() => { runSummary(undefined, reSummarizeInput); setReSummarizeOpen(false); setReSummarizeInput(''); }}>
                     {summarizing ? t('page.summary.generating', '생성 중...') : t('page.summary.reSubmit', '다시 요약')}
@@ -3097,7 +3098,7 @@ const QNotePage = () => {
                 value={manualInput}
                 onChange={(e) => setManualInput(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  if (isEnterAction(e) && !e.shiftKey && !e.nativeEvent.isComposing) {
                     e.preventDefault();
                     submitManualQuestion();
                   }
@@ -3451,7 +3452,7 @@ const SpeakerPopover = ({ currentSpeakerName, currentIsSelf, participants, onClo
           value={customName}
           onChange={(e) => setCustomName(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && customName.trim()) {
+            if (isEnterAction(e) && customName.trim()) {
               onAssignName(customName.trim());
             }
           }}

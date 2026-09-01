@@ -12,6 +12,7 @@ import CreateDrawer from '../../components/Common/CreateDrawer';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import { useAuth } from '../../contexts/AuthContext';
 import { listBusinessMembers, listProjects, listWorkspaceClients, type WorkspaceMemberRow, type WorkspaceClientRow, type ApiProject, type SupportedLang } from '../../services/qtalk';
+import { isEnterAction } from '../../utils/imeKey';
 
 export interface NewChatFormData {
   title: string;
@@ -167,7 +168,7 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
             <Label>{t('newChat.name', '대화창 이름')} <Req>*</Req></Label>
             <Input autoFocus value={title} placeholder={t('newChat.namePh', '예: 4월 정기 미팅 / Acme 온보딩')}
               onChange={(e) => setTitle(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleSubmit(); }} />
+              onKeyDown={(e) => { if (isEnterAction(e) && (e.ctrlKey || e.metaKey)) handleSubmit(); }} />
           </Field>
 
           <Field>

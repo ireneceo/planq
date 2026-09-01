@@ -28,6 +28,7 @@ import {
   MessageTime, MsgForwardBtn, DeliveryChip, MessageBodyText,
   TransBar, TransSelect, TransBtn, TransLoading, TransErr, TransBody,
 } from './MailPage.styles';
+import { isEnterAction } from '../../utils/imeKey';
 
 interface MsgTransState { text?: string; lang?: string; showing: boolean; loading: boolean; error?: boolean }
 
@@ -105,7 +106,7 @@ export default function ThreadMessages(p: Props) {
               role="button"
               tabIndex={0}
               aria-expanded={open}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleMsg(m.id); } }}
+              onKeyDown={(e) => { if (isEnterAction(e) || e.key === ' ') { e.preventDefault(); toggleMsg(m.id); } }}
             >
               {/* 운영 #220 — 팀 주소는 여러 사람이 함께 쓴다. 전부 "나" 로 보이면 누가 답했는지 알 수 없다.
                   내가 보낸 것만 "나", 다른 팀원이 보냈으면 그 사람 표시명을 적는다(워크스페이스 프로필 우선).

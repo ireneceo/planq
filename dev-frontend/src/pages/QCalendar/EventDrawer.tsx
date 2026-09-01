@@ -14,6 +14,7 @@ import CalendarPicker from '../../components/Common/CalendarPicker';
 import RecurrencePicker from '../../components/Common/RecurrencePicker';
 import { ProvenanceBadge } from '../../components/Common/SourceHint';
 import { formatRRuleLabel } from '../../utils/recurrence';
+import { isEnterAction } from '../../utils/imeKey';
 
 // 30분 스텝 시간 옵션 — NewEventModal 과 동일 패턴
 const TIME_OPTIONS = (() => {
@@ -233,7 +234,7 @@ const EventDrawer: React.FC<Props> = ({
                 <TitleInput
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                  onKeyDown={(e) => { if (isEnterAction(e)) (e.target as HTMLInputElement).blur(); }}
                 />
               </AutoSaveField>
             ) : (

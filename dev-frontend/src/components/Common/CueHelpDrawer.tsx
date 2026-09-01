@@ -21,6 +21,7 @@ import CueTurnList from './CueTurnList';
 import { useCueChat, cueActionDeepLink } from '../../hooks/useCueChat';
 import { startQhelperHeartbeat, CUE_ASK_EVENT, type CueAskMsg } from '../../utils/cueAsk';
 import { POPOUT_CHANNEL } from './PopoutBridge';
+import { isEnterAction } from '../../utils/imeKey';
 
 // 사이클 P7d — 채팅 모드 분리: qhelper(PlanQ 매뉴얼) / workspace(Cue, 워크스페이스 데이터)
 // 'feedback' / 'inquiry' 는 별도 view (채팅 아닌 폼)
@@ -810,7 +811,7 @@ const CueHelpDrawer: React.FC<{
                   // Q Talk 과 동일한 입력 동작: Enter 전송 / Shift+Enter 줄바꿈.
                   // IME 한글 조합 중 Enter 는 조합 확정이므로 전송 안 함 (isComposing / keyCode 229 가드).
                   if (e.nativeEvent.isComposing || (e.nativeEvent as KeyboardEvent).keyCode === 229) return;
-                  if (e.key === 'Enter' && !e.shiftKey) {
+                  if (isEnterAction(e) && !e.shiftKey) {
                     e.preventDefault();
                     submit();
                   }

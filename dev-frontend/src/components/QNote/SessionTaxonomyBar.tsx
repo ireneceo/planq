@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { updateSession } from '../../services/qnote';
+import { isEnterAction } from '../../utils/imeKey';
 
 interface Props {
   sessionId: number;
@@ -53,7 +54,7 @@ const SessionTaxonomyBar: React.FC<Props> = ({ sessionId, category, tags, editab
           placeholder={t('taxonomy.categoryPh', { defaultValue: '분류' }) as string}
           onChange={(e) => setCatDraft(e.target.value)}
           onBlur={(e) => saveCategory(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') saveCategory((e.target as HTMLInputElement).value); if (e.key === 'Escape') { setCatDraft(category || ''); setEditingCat(false); } }}
+          onKeyDown={(e) => { if (isEnterAction(e)) saveCategory((e.target as HTMLInputElement).value); if (e.key === 'Escape') { setCatDraft(category || ''); setEditingCat(false); } }}
         />
       ) : category ? (
         <CatChip $clickable={editable} onClick={() => editable && setEditingCat(true)}>{category}</CatChip>
@@ -76,7 +77,7 @@ const SessionTaxonomyBar: React.FC<Props> = ({ sessionId, category, tags, editab
           placeholder={t('taxonomy.tagPh', { defaultValue: '태그' }) as string}
           onChange={(e) => setTagDraft(e.target.value)}
           onBlur={addTag}
-          onKeyDown={(e) => { if (e.key === 'Enter') addTag(); if (e.key === 'Escape') { setTagDraft(''); setAddingTag(false); } }}
+          onKeyDown={(e) => { if (isEnterAction(e)) addTag(); if (e.key === 'Escape') { setTagDraft(''); setAddingTag(false); } }}
         />
       ) : list.length < 20 && (
         <AddBtn type="button" onClick={() => setAddingTag(true)}>+ {t('taxonomy.addTag', { defaultValue: '태그' }) as string}</AddBtn>

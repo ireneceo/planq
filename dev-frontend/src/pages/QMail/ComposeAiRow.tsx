@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import AiActionButton from '../../components/Common/AiActionButton';
 import { AiInstructionRow, AiInstructionInput } from './MailPage.styles';
+import { isEnterAction } from '../../utils/imeKey';
 
 interface Props {
   businessId: number | null;
@@ -73,7 +74,7 @@ export default function ComposeAiRow({ businessId, to, subject, body, isEmptyBod
         value={instruction}
         disabled={busy || sending}
         onChange={(e) => setInstruction(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (instruction.trim()) run(); } }}
+        onKeyDown={(e) => { if (isEnterAction(e)) { e.preventDefault(); if (instruction.trim()) run(); } }}
         placeholder={t('compose.aiInstructionPlaceholder', { defaultValue: 'AI 에게 요청 (예: 미팅 일정 제안 · 견적 안내 · 정중한 거절)' }) as string}
         aria-label={t('compose.aiInstructionLabel', { defaultValue: 'AI 작성 요청' }) as string}
       />

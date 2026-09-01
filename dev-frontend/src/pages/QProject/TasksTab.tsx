@@ -20,6 +20,7 @@ import { STATUS_COLOR, displayStatus, getStatusLabel, type StatusCode } from '..
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
 import { listWorkstreams, type Workstream } from '../../services/projectCanvas';
 import { useTranslation } from 'react-i18next';
+import { isEnterAction } from '../../utils/imeKey';
 
 type ViewMode = 'split' | 'list' | 'timeline' | 'calendar';
 
@@ -229,7 +230,7 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
     <AddForm>
       <AddInput autoFocus placeholder={tp('addTask.titlePlaceholder', '업무명 (Ctrl+Enter 저장)') as string} value={newTitle}
         onChange={e => setNewTitle(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submit(); } if (e.key === 'Escape') { setAdding(null); resetNew(); } }} />
+        onKeyDown={e => { if (isEnterAction(e) && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submit(); } if (e.key === 'Escape') { setAdding(null); resetNew(); } }} />
       <AddOptRow>
         <AddOptField>
           <AddOptLabel>{tp('addTask.assigneeLabel', '담당자')}</AddOptLabel>
@@ -316,7 +317,7 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
           onChange={e => setNewDescription(e.target.value)}
           placeholder={tp('addTask.descPlaceholder', '무엇을, 왜 해야 하는지 (선택)') as string}
           rows={3}
-          onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submit(); } }} />
+          onKeyDown={e => { if (isEnterAction(e) && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submit(); } }} />
       </AddOptField>
       <AddBtnRow>
         <CancelBtn type="button" onClick={() => { setAdding(null); resetNew(); }}>{tp('addTask.cancel', '취소')}</CancelBtn>

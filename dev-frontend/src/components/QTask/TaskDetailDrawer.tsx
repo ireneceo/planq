@@ -50,6 +50,7 @@ import { CheckIcon } from '../Common/Icons';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import SeriesScopeDialog, { type SeriesScope } from './SeriesScopeDialog';
+import { isEnterAction } from '../../utils/imeKey';
 
 export interface DrawerTaskPatch {
   id: number;
@@ -1225,7 +1226,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     setEditingTitle(false);
                   }}
                   onKeyDown={e => {
-                    if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
+                    if (isEnterAction(e)) { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
                     if (e.key === 'Escape') { setTitleDraft(''); setEditingTitle(false); }
                   }} />
               ) : (
@@ -1974,7 +1975,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                         autoFocus value={editingCommentDraft}
                         onChange={(e) => setEditingCommentDraft(e.target.value)}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submitEditComment(); }
+                          if (isEnterAction(e) && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submitEditComment(); }
                           if (e.key === 'Escape') { setEditingCommentId(null); setEditingCommentDraft(''); }
                         }}
                         rows={3}
@@ -2044,7 +2045,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 <CommentInput value={newComment} placeholder={t('detail.writeCommentPaste', '댓글 입력 · 이미지 붙여넣기(Cmd/Ctrl+V) 가능') as string}
                   onChange={e => setNewComment(e.target.value)}
                   onPaste={handleCommentPaste}
-                  onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); addComment(); } }} />
+                  onKeyDown={e => { if (isEnterAction(e) && (e.ctrlKey || e.metaKey)) { e.preventDefault(); addComment(); } }} />
                 {/* 인라인 첨부 picker — popup-on-popup 금지. 같은 영역에서 펼침. */}
                 {commentPickerOpen && (
                   <CmtPickerInline>

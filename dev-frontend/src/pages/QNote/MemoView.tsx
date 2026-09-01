@@ -25,6 +25,7 @@ import AiAssistButton from '../../components/Common/AiAssistButton';
 import type { VLevel } from '../../components/Common/VisibilityBadge';
 import SessionTaxonomyBar from '../../components/QNote/SessionTaxonomyBar';
 import QNoteShareModal from '../../components/QNote/QNoteShareModal';
+import { isEnterAction } from '../../utils/imeKey';
 
 const PostEditor = lazy(() => import('../../components/Docs/PostEditor'));
 
@@ -318,7 +319,7 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
                     value={reSummarizeInput}
                     onChange={(e) => setReSummarizeInput(e.target.value)}
                     placeholder={t('page.summary.reInstructionPh', '어떻게 다시 요약할까요?') as string}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); if (!summarizing) { runMemoSummary(reSummarizeInput); setReSummarizeOpen(false); setReSummarizeInput(''); } } }}
+                    onKeyDown={(e) => { if (isEnterAction(e) && !e.nativeEvent.isComposing) { e.preventDefault(); if (!summarizing) { runMemoSummary(reSummarizeInput); setReSummarizeOpen(false); setReSummarizeInput(''); } } }}
                   />
                   <MemoSummaryDocBtn type="button" disabled={summarizing} onClick={() => { runMemoSummary(reSummarizeInput); setReSummarizeOpen(false); setReSummarizeInput(''); }}>
                     {summarizing ? t('page.summary.generating', '생성 중...') : t('page.summary.reSubmit', '다시 요약')}

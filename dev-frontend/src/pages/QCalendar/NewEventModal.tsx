@@ -12,6 +12,7 @@ import RecurrencePicker from '../../components/Common/RecurrencePicker';
 import { getVideoStatus } from '../../services/calendar';
 import VisibilityField, { serializeVisibility, type VisibilityValue } from '../../components/Common/VisibilityField';
 import { listWorkspaceClients, type WorkspaceClientRow } from '../../services/qtalk';
+import { isEnterAction } from '../../utils/imeKey';
 
 interface Props {
   initialStart: Date;
@@ -253,7 +254,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder={t('form.titlePlaceholder')}
-              onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') handleSubmit(); }}
+              onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && isEnterAction(e)) handleSubmit(); }}
             />
           </Field>
 

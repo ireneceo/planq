@@ -10,6 +10,7 @@ import AiRegenerateBar from '../Common/AiRegenerateBar';
 import { apiFetch } from '../../contexts/AuthContext';
 import { mapApiError } from '../../utils/apiError';
 import AiCandidateCard, { type AiCandidate, type AiCardMember } from './AiCandidateCard';
+import { isEnterAction } from '../../utils/imeKey';
 
 interface Props {
   businessId: number;
@@ -167,7 +168,7 @@ export default function CueTaskBar({ businessId, members, projectId = null, cont
   };
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (isEnterAction(e) && !e.shiftKey) {
       e.preventDefault();
       send();
     }

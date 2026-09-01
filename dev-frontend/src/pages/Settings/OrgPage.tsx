@@ -17,6 +17,7 @@ import {
   createTeam, deleteTeam, assignMember, fetchOrgOverview,
   type OrgDepartment,
 } from '../../services/org';
+import { isEnterAction } from '../../utils/imeKey';
 
 const DEPT_COLORS = ['#14B8A6', '#F43F5E', '#6366F1', '#F59E0B', '#22C55E', '#0EA5E9', '#14B8A6', '#64748B'];
 
@@ -132,7 +133,7 @@ const OrgPage = () => {
       actions={
         <AddRow>
           <AddInput value={newDeptName} onChange={(e) => setNewDeptName(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addDept(); }}
+            onKeyDown={(e) => { if (isEnterAction(e) && (e.metaKey || e.ctrlKey)) addDept(); }}
             placeholder={t('newDeptPh') as string} maxLength={100} />
           <ActionButton tone="primary" size="sm" loading={adding} disabled={!newDeptName.trim()} onClick={addDept}>
             {t('addDept') as string}
@@ -180,7 +181,7 @@ const OrgPage = () => {
                   </TeamChips>
                   <TeamAdd>
                     <AddInput value={teamDraft[d.id] || ''} onChange={(e) => setTeamDraft((p) => ({ ...p, [d.id]: e.target.value }))}
-                      onKeyDown={(e) => { if (e.key === 'Enter') addTeam(d); }}
+                      onKeyDown={(e) => { if (isEnterAction(e)) addTeam(d); }}
                       placeholder={t('newTeamPh') as string} maxLength={100} />
                     <ActionButton tone="secondary" size="sm" disabled={!(teamDraft[d.id] || '').trim()} onClick={() => addTeam(d)}>
                       {t('addTeam') as string}

@@ -26,6 +26,7 @@ import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import FilePicker, { type FilePickerResult } from '../../components/Common/FilePicker';
 import { fetchWorkspaceFiles } from '../../services/files';
 import { mapApiError } from '../../utils/apiError';
+import { isEnterAction } from '../../utils/imeKey';
 
 interface Props {
   open: boolean;
@@ -757,7 +758,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
                 value={pName}
                 onChange={(e) => setPName(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
+                  if (isEnterAction(e)) {
                     e.preventDefault();
                     addParticipant();
                   }
@@ -768,7 +769,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
                 value={pRole}
                 onChange={(e) => setPRole(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
+                  if (isEnterAction(e)) {
                     e.preventDefault();
                     addParticipant();
                   }
@@ -1064,7 +1065,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
                   value={keywordInput}
                   onChange={(e) => setKeywordInput(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
+                    if (isEnterAction(e)) {
                       e.preventDefault();
                       addSessionKeyword();
                     }
@@ -1240,7 +1241,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
                 value={urlInput}
                 onChange={(e) => setUrlInput(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
+                  if (isEnterAction(e)) {
                     e.preventDefault();
                     addUrl();
                   }

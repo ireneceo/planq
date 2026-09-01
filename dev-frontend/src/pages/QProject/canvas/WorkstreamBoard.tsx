@@ -9,6 +9,7 @@ import {
 import { PlusIcon, TrashIcon } from '../../../components/Common/Icons';
 import { AutoGenBadge } from '../../../components/Common/SourceHint';
 import PlanQSelect from '../../../components/Common/PlanQSelect';
+import { isEnterAction } from '../../../utils/imeKey';
 
 interface Props {
   projectId: number;
@@ -67,7 +68,7 @@ export default function WorkstreamBoard({ projectId, workstreams, onChanged, rea
                     <TitleInput autoFocus value={editTitle}
                       onChange={(e) => setEditTitle(e.target.value)}
                       onBlur={() => saveEdit(ws)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditId(null); }} />
+                      onKeyDown={(e) => { if (isEnterAction(e)) (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditId(null); }} />
                   ) : (
                     <Title as={readOnly ? 'div' : undefined} style={readOnly ? { cursor: 'default' } : undefined}
                       onClick={readOnly ? undefined : () => { setEditId(ws.id); setEditTitle(ws.title); }}>{ws.title}</Title>
@@ -117,7 +118,7 @@ export default function WorkstreamBoard({ projectId, workstreams, onChanged, rea
           <AddCard>
             <AddInput autoFocus value={newTitle} placeholder={t('canvas.workstreams.titlePh') as string}
               onChange={(e) => setNewTitle(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') submitNew(); if (e.key === 'Escape') { setAdding(false); setNewTitle(''); } }} />
+              onKeyDown={(e) => { if (isEnterAction(e)) submitNew(); if (e.key === 'Escape') { setAdding(false); setNewTitle(''); } }} />
             <AddActions>
               <SaveBtn type="button" disabled={busy || !newTitle.trim()} onClick={submitNew}>{t('canvas.workstreams.save')}</SaveBtn>
             </AddActions>

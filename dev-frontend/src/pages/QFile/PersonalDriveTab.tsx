@@ -5,6 +5,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
+import { isEnterAction } from '../../utils/imeKey';
 
 interface DriveFile {
   id: string;
@@ -70,7 +71,7 @@ const PersonalDriveTab: React.FC<{ businessId: number }> = ({ businessId }) => {
         <SearchInput
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') load(q); }}
+          onKeyDown={(e) => { if (isEnterAction(e)) load(q); }}
           placeholder={t('drive.searchPlaceholder', { defaultValue: 'PlanQ 저장 파일 검색 (Enter)' }) as string}
         />
         {accountEmail && <AccountTag>{accountEmail}</AccountTag>}

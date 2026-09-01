@@ -4,6 +4,7 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { isEnterAction } from '../../utils/imeKey';
 
 interface Props {
   onRegenerate: (instruction: string) => void;
@@ -39,7 +40,7 @@ const AiRegenerateBar: React.FC<Props> = ({ onRegenerate, busy, size = 'md' }) =
             autoFocus value={instruction}
             placeholder={t('aiRegen.placeholder', { defaultValue: '어떻게 고칠까요? (비우면 그대로 다시 생성)' }) as string}
             onChange={(e) => setInstruction(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); run(); } if (e.key === 'Escape') { setOpen(false); setInstruction(''); } }}
+            onKeyDown={(e) => { if (isEnterAction(e) && !e.nativeEvent.isComposing) { e.preventDefault(); run(); } if (e.key === 'Escape') { setOpen(false); setInstruction(''); } }}
           />
           <GoBtn type="button" disabled={busy} onClick={run}>
             {busy ? (t('aiRegen.running', { defaultValue: '생성 중…' }) as string) : (t('aiRegen.go', { defaultValue: '재생성' }) as string)}

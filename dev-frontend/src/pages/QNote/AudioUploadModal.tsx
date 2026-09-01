@@ -143,7 +143,7 @@ const Panel = styled.div`
   background: #fff; border-radius: 14px;
   box-shadow: 0 20px 60px rgba(15,23,42,0.24);
   display: flex; flex-direction: column;
-  @media (max-width: 640px) { width: 100%; border-radius: 12px; padding-bottom: env(safe-area-inset-bottom); }
+  @media (max-width: 640px) { width: 100%; border-radius: 12px; padding-bottom: var(--pq-safe-bottom, 0px); }
 `;
 const ModalHead = styled.div`
   display: flex; align-items: center; justify-content: space-between;

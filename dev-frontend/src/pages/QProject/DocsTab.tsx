@@ -32,6 +32,7 @@ import { cacheKey, readCache, hasCache, writeCache } from '../../lib/pageCache';
 import TrashDrawer from './TrashDrawer';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { useFileDragOut } from '../../hooks/useFileDragOut';
+import { isEnterAction } from '../../utils/imeKey';
 
 export type DocScope =
   | { type: 'project'; projectId: number; businessId: number }
@@ -483,7 +484,7 @@ const DocsTab: React.FC<Props> = (props) => {
       {isEmpty ? (
         <Dropzone $drag={dragOver} onClick={() => inputRef.current?.click()}
           role="button" tabIndex={0}
-          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') inputRef.current?.click(); }}>
+          onKeyDown={e => { if (isEnterAction(e) || e.key === ' ') inputRef.current?.click(); }}>
           <DzIcon>
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -1260,7 +1261,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
               onChange={e => setRenameDraft(e.target.value)}
               onBlur={commitRename}
               onKeyDown={e => {
-                if (e.key === 'Enter') { e.preventDefault(); commitRename(); }
+                if (isEnterAction(e)) { e.preventDefault(); commitRename(); }
                 if (e.key === 'Escape') setRenamingId(null);
               }} />
           ) : (
@@ -1294,7 +1295,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
             <RenameInput autoFocus placeholder={tr('docs.folder.placeholder', '폴더 이름')} value={newName}
               onChange={e => setNewName(e.target.value)} onBlur={commitCreate}
               onKeyDown={e => {
-                if (e.key === 'Enter') { e.preventDefault(); commitCreate(); }
+                if (isEnterAction(e)) { e.preventDefault(); commitCreate(); }
                 if (e.key === 'Escape') setCreatingParent(undefined);
               }} />
           </FolderRow>
@@ -1334,7 +1335,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
       <RenameInput autoFocus placeholder={tr('docs.folder.placeholder')} value={newName}
         onChange={e => setNewName(e.target.value)} onBlur={commitCreate}
         onKeyDown={e => {
-          if (e.key === 'Enter') { e.preventDefault(); commitCreate(); }
+          if (isEnterAction(e)) { e.preventDefault(); commitCreate(); }
           if (e.key === 'Escape') setCreatingParent(undefined);
         }} />
     </FolderRow>
@@ -1393,7 +1394,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
             <RenameInput autoFocus placeholder={tr('docs.folder.placeholder', '폴더 이름')} value={newName}
               onChange={e => setNewName(e.target.value)} onBlur={commitCreate}
               onKeyDown={e => {
-                if (e.key === 'Enter') { e.preventDefault(); commitCreate(); }
+                if (isEnterAction(e)) { e.preventDefault(); commitCreate(); }
                 if (e.key === 'Escape') setCreatingParent(undefined);
               }} />
           </FolderRow>

@@ -8,6 +8,7 @@ import { useUnreadByBusiness } from '../../hooks/useUnreadTotal';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
+import { isEnterAction } from '../../utils/imeKey';
 
 /**
  * WorkspaceSwitcher (사이드바 전용)
@@ -301,7 +302,7 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
               maxLength={60}
               placeholder={t('switcher.createPlaceholder', '워크스페이스 이름 (예: 우리회사)') as string}
               onChange={(e) => { setCreateName(e.target.value); setCreateErr(''); }}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleCreateWorkspace(); if (e.key === 'Escape' && !creating) setCreateOpen(false); }}
+              onKeyDown={(e) => { if (isEnterAction(e)) handleCreateWorkspace(); if (e.key === 'Escape' && !creating) setCreateOpen(false); }}
             />
             {createErr && <CreateErr>{createErr}</CreateErr>}
             <CreateActions>

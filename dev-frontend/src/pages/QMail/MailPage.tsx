@@ -45,6 +45,7 @@ import FloatingPanelToggle from '../../components/Common/FloatingPanelToggle';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import HelpDot from '../../components/Common/HelpDot';
 import MailMessageBody from './MailMessageBody';
+import { isEnterAction } from '../../utils/imeKey';
 import {
   AcctFilterRow,
   FilterToggleRow,
@@ -1383,7 +1384,7 @@ const MailPage: React.FC = () => {
   };
 
   const onComposerKeyDown = (e: React.KeyboardEvent) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+    if ((e.metaKey || e.ctrlKey) && isEnterAction(e)) {
       e.preventDefault();
       sendReply();
     }
@@ -2390,7 +2391,7 @@ const MailPage: React.FC = () => {
                     value={newLabelName}
                     disabled={labelBusy}
                     onChange={(e) => setNewLabelName(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); createLabel(); } }}
+                    onKeyDown={(e) => { if (isEnterAction(e)) { e.preventDefault(); createLabel(); } }}
                     placeholder={t('actions.newLabel', { defaultValue: '+ 새 라벨' }) as string}
                   />
                 </DetailLabels>
@@ -2427,7 +2428,7 @@ const MailPage: React.FC = () => {
               <DetailFooter>
                 {!replyOpen ? (
                   <ReplyBar>
-                    <ActionButton tone="primary" size="md" onClick={() => setReplyOpen(true)}>
+                    <ActionButton tone="primary" size="md" data-testid="mail-reply-open" onClick={() => setReplyOpen(true)}>
                       {t('reply.button', { defaultValue: '답장하기' }) as string}
                     </ActionButton>
                     {/* AI 답변 초안 — 플랫폼 기능은 'AI' 로 통일한다 (Cue 는 팀원으로 존재할 때만 Cue).
@@ -2547,7 +2548,7 @@ const MailPage: React.FC = () => {
                           value={aiInstruction}
                           disabled={aiBusy || sending}
                           onChange={(e) => setAiInstruction(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (aiInstruction.trim()) aiSuggest(); } }}
+                          onKeyDown={(e) => { if (isEnterAction(e)) { e.preventDefault(); if (aiInstruction.trim()) aiSuggest(); } }}
                           placeholder={t('reply.aiInstructionPlaceholder', { defaultValue: 'AI 에게 수정 요청 (예: 더 정중하게 · 가격 강조 · 짧게)' }) as string}
                           aria-label={t('reply.aiInstructionLabel', { defaultValue: 'AI 수정 요청' }) as string}
                         />

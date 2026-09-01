@@ -5,6 +5,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import AutoSaveField, { type AutoSaveHandle } from '../../../components/Common/AutoSaveField';
 import { updateFileMeta, type ProjectFile } from '../../../services/files';
+import { isEnterAction } from '../../../utils/imeKey';
 
 export const FileMetaEditor: React.FC<{
   businessId: number;
@@ -80,7 +81,7 @@ export const FileMetaEditor: React.FC<{
                 setTagDraft(v);
               }}
               onKeyDown={e => {
-                if (e.key === 'Enter') { e.preventDefault(); addTagFromDraft(); }
+                if (isEnterAction(e)) { e.preventDefault(); addTagFromDraft(); }
                 else if (e.key === 'Backspace' && !tagDraft && tags.length) commitTags(tags.slice(0, -1));
               }}
               onBlur={addTagFromDraft}

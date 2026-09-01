@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 import StandardModal from '../Common/StandardModal';
 import { apiFetch } from '../../contexts/AuthContext';
 import type { TaskTagLite } from './TagChips';
+import { isEnterAction } from '../../utils/imeKey';
 
 export interface TagDictEntry extends TaskTagLite {
   usage_count?: number;
@@ -94,7 +95,7 @@ const TagManageModal: React.FC<Props> = ({ open, onClose, bizId, dict, onChanged
           value={newName} maxLength={30}
           placeholder={t('tags.newPh', '새 태그 이름') as string}
           onChange={(e) => { setNewName(e.target.value); setErr(null); }}
-          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void addTag(); } }} />
+          onKeyDown={(e) => { if (isEnterAction(e)) { e.preventDefault(); void addTag(); } }} />
         <SmallBtn type="button" $tone="primary" disabled={adding || !newName.trim()} onClick={() => void addTag()}>
           {adding ? t('tags.creating', '만드는 중…') : t('tags.create', '만들기')}
         </SmallBtn>
@@ -111,7 +112,7 @@ const TagManageModal: React.FC<Props> = ({ open, onClose, bizId, dict, onChanged
                     autoFocus value={draft} maxLength={30}
                     onChange={(e) => { setDraft(e.target.value); setErr(null); }}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') { e.preventDefault(); rename(tag); }
+                      if (isEnterAction(e)) { e.preventDefault(); rename(tag); }
                       if (e.key === 'Escape') { setEditingId(null); setErr(null); }
                     }} />
                   <SmallBtn type="button" $tone="primary" disabled={busyId === tag.id} onClick={() => rename(tag)}>

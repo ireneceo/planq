@@ -9,6 +9,7 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { XIcon } from '../../components/Common/Icons';
+import { isEnterAction } from '../../utils/imeKey';
 
 interface Props {
   open: boolean;
@@ -167,7 +168,7 @@ export default function EmailChangeModal({ open, userId, currentEmail, onClose, 
                 placeholder={t('emailChange.newEmailPlaceholder') || ''}
                 value={newEmail}
                 onChange={(e) => setNewEmail(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) sendCode(); }}
+                onKeyDown={(e) => { if (isEnterAction(e) && (e.metaKey || e.ctrlKey)) sendCode(); }}
                 autoFocus
               />
             </Field>
@@ -194,7 +195,7 @@ export default function EmailChangeModal({ open, userId, currentEmail, onClose, 
                 placeholder="000000"
                 value={code}
                 onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) verify(); }}
+                onKeyDown={(e) => { if (isEnterAction(e) && (e.metaKey || e.ctrlKey)) verify(); }}
                 autoFocus
                 style={{ textAlign: 'center', letterSpacing: 6, fontFamily: 'monospace', fontSize: '1.125rem' }}
               />

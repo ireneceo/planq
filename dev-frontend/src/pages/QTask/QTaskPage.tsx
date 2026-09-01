@@ -58,6 +58,7 @@ import OpenTaskPopoutButton from '../../components/QTask/OpenTaskPopoutButton';
 import TagManageModal from '../../components/QTask/TagManageModal';
 import { usePanelStack } from '../../hooks/usePanelStack';
 import { askCue } from '../../utils/cueAsk';
+import { isEnterAction } from '../../utils/imeKey';
 
 // #249 — 우측 패널을 인라인으로 붙여둘 최소 뷰포트 폭.
 //   이보다 좁으면 overlay(기본 닫힘 + 떠 있는 토글 + ⌘/·Ctrl+\)로 전환해 리스트가 전폭을 쓴다.
@@ -2158,7 +2159,7 @@ const QTaskPage:React.FC=()=>{
                           onClick={e=>e.stopPropagation()}
                           onMouseDown={e=>e.stopPropagation()}
                           onBlur={()=>{if(titleDraft.trim())saveTitle(task.id,titleDraft.trim());setEditingTitle(null);}}
-                          onKeyDown={e=>{if(e.key==='Enter')(e.target as HTMLInputElement).blur();if(e.key==='Escape')setEditingTitle(null);}} />
+                          onKeyDown={e=>{if(isEnterAction(e))(e.target as HTMLInputElement).blur();if(e.key==='Escape')setEditingTitle(null);}} />
                       ):(<>
                         {task.has_unread && <UnreadDot title={t('list.hasUnread', { defaultValue: '새 활동(댓글·변경) — 열면 사라집니다' }) as string} />}
                         <TaskTitle role="button" $done={task.status==='completed'}
@@ -2349,7 +2350,7 @@ const QTaskPage:React.FC=()=>{
                               }
                               onClick={ev=>ev.stopPropagation()}
                               onBlur={ev=>{const v=Number(ev.target.value);if(!isNaN(v)&&editable){saveField(task.id,'estimated_hours',v);(ev.target as HTMLInputElement).value=formatHours(v);}}}
-                              onKeyDown={ev=>{if(ev.key==='Enter')(ev.target as HTMLInputElement).blur();}} />
+                              onKeyDown={ev=>{if(isEnterAction(ev))(ev.target as HTMLInputElement).blur();}} />
                             {task.latest_estimation_source==='ai' && e>0 && (
                               <AiInlineBadge title={t('list.aiEstimateHint', { defaultValue: 'AI 자동 예측' }) as string} aria-hidden="true">
                                 <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8 5.8 21.3l2.4-7.4L2 9.4h7.6L12 2z"/></svg>
@@ -2381,7 +2382,7 @@ const QTaskPage:React.FC=()=>{
                               }
                               onClick={ev=>ev.stopPropagation()}
                               onBlur={ev=>{const v=Number(ev.target.value);if(!isNaN(v)&&editable){saveField(task.id,'actual_hours',v);(ev.target as HTMLInputElement).value=formatHours(v);}}}
-                              onKeyDown={ev=>{if(ev.key==='Enter')(ev.target as HTMLInputElement).blur();}} />
+                              onKeyDown={ev=>{if(isEnterAction(ev))(ev.target as HTMLInputElement).blur();}} />
                             {task.status==='in_progress' && (
                               <InProgressDotMini role="img"
                                 title={t('list.inProgressDot', { defaultValue: '진행 중 — 지금 이 업무의 시간이 쌓이고 있어요' }) as string}
@@ -2425,7 +2426,7 @@ const QTaskPage:React.FC=()=>{
                         placeholder={t('list.inlineAddPh', '업무명 입력 (Enter 저장 / Esc 취소)') as string}
                         onChange={e => setNewBelowTitle(e.target.value)}
                         onKeyDown={async e => {
-                          if (e.key === 'Enter' && newBelowTitle.trim() && !submittingBelow) {
+                          if (isEnterAction(e) && newBelowTitle.trim() && !submittingBelow) {
                             setSubmittingBelow(true);
                             try {
                               const r = await apiFetch('/api/tasks', {
@@ -2530,7 +2531,7 @@ const QTaskPage:React.FC=()=>{
               <AddInput autoFocus={!isPhone} value={newTitle} placeholder={t('add.placeholder','업무명 입력 후 Ctrl+Enter 로 저장')}
                 onChange={e=>setNewTitle(e.target.value)}
                 onKeyDown={e=>{
-                  if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();addTask();}
+                  if(isEnterAction(e)&&(e.ctrlKey||e.metaKey)){e.preventDefault();addTask();}
                   if(e.key==='Escape'){setAddingTask(false);setAddInline(false);resetNewTask();}
                 }} />
               {/* 필드 한 줄 — 가로 풀폭 활용해 4 항목 펼침 (panel 의 2 행 분리와 차별화) */}
@@ -3072,7 +3073,7 @@ const QTaskPage:React.FC=()=>{
                           if(!Number.isFinite(v)||v<=0){(e.target as HTMLInputElement).value=String(capacity.daily||8);return;}
                           if(v===capacity.daily)return;   // 안 바꿨으면 저장하지 않는다
                           saveCapacity('daily_work_hours',v);}}
-                        onKeyDown={e=>{if(e.key==='Enter')(e.target as HTMLInputElement).blur();}} />
+                        onKeyDown={e=>{if(isEnterAction(e))(e.target as HTMLInputElement).blur();}} />
                     </CapSettingsField>
                     <CapSettingsField>
                       <CapFieldLabel>{t('capacity.days','영업일')}</CapFieldLabel>
@@ -3082,14 +3083,14 @@ const QTaskPage:React.FC=()=>{
                           if(!Number.isFinite(v)||v<=0){(e.target as HTMLInputElement).value=String(capacity.days||5);return;}
                           if(v===capacity.days)return;
                           saveCapacity('weekly_work_days',v);}}
-                        onKeyDown={e=>{if(e.key==='Enter')(e.target as HTMLInputElement).blur();}} />
+                        onKeyDown={e=>{if(isEnterAction(e))(e.target as HTMLInputElement).blur();}} />
                     </CapSettingsField>
                     <CapSettingsField>
                       <CapFieldLabel>{t('capacity.holidays','휴일')}</CapFieldLabel>
                       <CapFieldInput key={`hol-${holidayDays}`} type="number" step="1" min="0" max="5" defaultValue={holidayDays}
                         onBlur={e=>{const v=Math.max(0,Number(e.target.value)||0);
                           if(v===holidayDays)return; saveCapacity('weekly_holidays',v);}}
-                        onKeyDown={e=>{if(e.key==='Enter')(e.target as HTMLInputElement).blur();}} />
+                        onKeyDown={e=>{if(isEnterAction(e))(e.target as HTMLInputElement).blur();}} />
                     </CapSettingsField>
                     {/* 실작업률 — 근무시간 중 회의·잡무 제외하고 실제 업무에 쓰는 비율(%). 백엔드 participation_rate(0~1). */}
                     <CapSettingsField>
@@ -3101,7 +3102,7 @@ const QTaskPage:React.FC=()=>{
                           (e.target as HTMLInputElement).value=String(v);
                           if(Math.abs(v/100-(capacity.rate||1))<0.0001)return;   // 안 바꿨으면 저장 안 함
                           saveCapacity('participation_rate',v/100);}}
-                        onKeyDown={e=>{if(e.key==='Enter')(e.target as HTMLInputElement).blur();}} />
+                        onKeyDown={e=>{if(isEnterAction(e))(e.target as HTMLInputElement).blur();}} />
                     </CapSettingsField>
                   </CapSettingsRow>
                   <CapFormulaHint>
@@ -3419,7 +3420,7 @@ const QTaskPage:React.FC=()=>{
               <AddInput autoFocus={!isPhone} value={newTitle} placeholder={t('add.placeholder','업무명 입력 후 Ctrl+Enter 로 저장')}
                 onChange={e=>setNewTitle(e.target.value)}
                 onKeyDown={e=>{
-                  if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();addTask();}
+                  if(isEnterAction(e)&&(e.ctrlKey||e.metaKey)){e.preventDefault();addTask();}
                   if(e.key==='Escape'){setAddingTask(false);resetNewTask();}
                 }} />
               <AddOptRow>

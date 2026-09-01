@@ -27,6 +27,7 @@ import MessageReactions from './MessageReactions';   // #138 이모지 리액션
 import EmojiPickerButton from './EmojiPickerButton';   // #380 입력창 이모지 (보내는 것)
 import { PanelBackButton } from '../../components/Layout/PanelHeader';
 import { openPreviewWindow } from '../../utils/openPreviewWindow';
+import { isEnterAction } from '../../utils/imeKey';
 
 // 운영 #367 — 작성 중 메시지 초안의 저장 키. **사용자별로 갈라야 한다** — 한 브라우저를 둘이
 //   나눠 쓰면(공용 PC·로그아웃 후 재로그인) 앞사람이 쓰다 만 글이 뒷사람 입력칸에 그대로 떴다.
@@ -986,10 +987,10 @@ const ChatPanel: React.FC<Props> = ({
     if (mentionActive && mentionCandidates.length > 0) {
       if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx((i) => (i + 1) % mentionCandidates.length); return; }
       if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIdx((i) => (i - 1 + mentionCandidates.length) % mentionCandidates.length); return; }
-      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertMention(mentionCandidates[mentionIdx] || mentionCandidates[0]); return; }
+      if (isEnterAction(e) || e.key === 'Tab') { e.preventDefault(); insertMention(mentionCandidates[mentionIdx] || mentionCandidates[0]); return; }
       if (e.key === 'Escape') { e.preventDefault(); closeMention(); return; }
     }
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (isEnterAction(e) && !e.shiftKey) {
       // #110 — 모바일/터치에서는 Enter = 줄바꿈(기본 동작 유지), 전송은 Send 버튼만.
       //   데스크탑(마우스)에서만 Enter 전송. 오발송 + 줄바꿈 불가 문제 해소.
       const enterSends = !window.matchMedia('(hover: none), (max-width: 640px)').matches;
@@ -1150,7 +1151,7 @@ const ChatPanel: React.FC<Props> = ({
                 onChange={(e) => setNameDraft(e.target.value)}
                 onBlur={commitNameEdit}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') { e.preventDefault(); commitNameEdit(); }
+                  if (isEnterAction(e)) { e.preventDefault(); commitNameEdit(); }
                   if (e.key === 'Escape') { setNameDraft(activeConv.name); setEditingName(false); }
                 }}
               />
@@ -1444,7 +1445,7 @@ const ChatPanel: React.FC<Props> = ({
                     onChange={(e) => setEditingMsgDraft(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Escape') { e.preventDefault(); handleEditCancel(); }
-                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); handleEditSave(); }
+                      if (isEnterAction(e) && (e.metaKey || e.ctrlKey)) { e.preventDefault(); handleEditSave(); }
                     }}
                   />
                   <EditActions>

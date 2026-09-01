@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import type { SuggestionProps } from '@tiptap/suggestion';
 import type { SlashItem } from './SlashCommand';
+import { isEnterAction } from '../../utils/imeKey';
 
 const SlashCommandList = forwardRef<unknown, SuggestionProps<SlashItem>>((props, ref) => {
   const { items, command } = props;
@@ -27,7 +28,7 @@ const SlashCommandList = forwardRef<unknown, SuggestionProps<SlashItem>>((props,
         setIndex((prev) => (prev + 1) % Math.max(1, items.length));
         return true;
       }
-      if (event.key === 'Enter') {
+      if (isEnterAction(event)) {
         selectItem(index);
         return true;
       }

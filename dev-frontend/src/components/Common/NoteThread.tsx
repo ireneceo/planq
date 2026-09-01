@@ -7,6 +7,7 @@ import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useDraftText } from '../../hooks/useLocalDraft';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { isEnterAction } from '../../utils/imeKey';
 
 export interface NoteItemData {
   id: number;
@@ -65,7 +66,7 @@ export default function NoteThread({
     // IME 조합 중 무시 (한글 마지막 음절 중복 입력 방지)
     if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     // ⌘/Ctrl+Enter 만 저장 — 일반 Enter 는 줄바꿈
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submit(); }
+    if (isEnterAction(e) && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submit(); }
   };
 
   return (

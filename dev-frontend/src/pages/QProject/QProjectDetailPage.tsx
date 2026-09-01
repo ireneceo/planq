@@ -30,6 +30,7 @@ import CalendarPicker from '../../components/Common/CalendarPicker';
 import { PROJECT_COLOR_PALETTE } from '../../utils/projectColors';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import { usePinnedDocTabs } from './usePinnedDocTabs';
+import { isEnterAction } from '../../utils/imeKey';
 import {
   PinnedDocCard,
   PinnedDocHeader,
@@ -936,7 +937,7 @@ const QProjectDetailPage: React.FC = () => {
                           <MemberRoleInput defaultValue={m.role || t('edit.roleDefault', '팀원')} placeholder={t('edit.rolePlaceholder', '역할') as string}
                             disabled={isOwner}
                             onBlur={e => { const v = e.target.value.trim(); if (v && v !== m.role) fire({ role: v }); }}
-                            onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+                            onKeyDown={e => { if (isEnterAction(e)) (e.target as HTMLInputElement).blur(); }} />
                         )}
                       </ActionAutoSave>
                       {/* PM 체크박스 — 오너는 강제 체크 + disabled */}
@@ -1269,7 +1270,7 @@ const QProjectDetailPage: React.FC = () => {
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setStatusNote(e.target.value)}
                 onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
                   // Enter 단독 저장 금지 — Ctrl/Cmd+Enter 만 (UI_DESIGN_GUIDE 1.8)
-                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void performStatusChange();
+                  if (isEnterAction(e) && (e.metaKey || e.ctrlKey)) void performStatusChange();
                 }} />
               <StatusNoteHint>{t('status.noteHint', '히스토리와 상태 이력에 그대로 남습니다.')}</StatusNoteHint>
             </CloseBody>

@@ -5,6 +5,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
+import { isEnterAction } from '../../utils/imeKey';
 
 interface Props {
   value: string;
@@ -50,7 +51,7 @@ const CategoryCombobox: React.FC<Props> = ({ value, onChange, options, placehold
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setHighlightIdx(i => Math.max(-1, i - 1));
-    } else if (e.key === 'Enter') {
+    } else if (isEnterAction(e)) {
       if (open && highlightIdx >= 0 && filtered[highlightIdx]) {
         e.preventDefault();
         pick(filtered[highlightIdx]);

@@ -15,6 +15,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import type { TaskTagLite } from './TagChips';
+import { isEnterAction } from '../../utils/imeKey';
 
 interface Props {
   taskId: number;
@@ -139,7 +140,7 @@ const TagQuickMenu: React.FC<Props> = ({ taskId, bizId, dict, value, disabled, o
           <Field
             ref={inputRef} value={q} disabled={busy}
             onChange={(e) => { setQ(e.target.value); setErr(null); }}
-            onKeyDown={(e) => { if (e.key === 'Enter' && q.trim() && !exact) { e.preventDefault(); void create(); } }}
+            onKeyDown={(e) => { if (isEnterAction(e) && q.trim() && !exact) { e.preventDefault(); void create(); } }}
             placeholder={t('tags.quickPh', '태그 검색 · 새로 만들기') as string}
           />
           <ScrollArea>

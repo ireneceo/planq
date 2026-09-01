@@ -76,6 +76,7 @@ import {
   createWorkstream, updateWorkstream, deleteWorkstream, reorderWorkstreams, wsColor,
   type Workstream,
 } from '../../services/projectCanvas';
+import { isEnterAction } from '../../utils/imeKey';
 
 export interface TaskRow {
   id: number; project_id: number | null; business_id: number;
@@ -414,7 +415,7 @@ const ProjectTaskList: React.FC<Props> = ({
                 onClick={e => e.stopPropagation()}
                 onMouseDown={e => e.stopPropagation()}
                 onBlur={() => { if (titleDraft.trim() && titleDraft !== task.title) saveField(task.id, 'title', titleDraft.trim()); setEditingTitle(null); }}
-                onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingTitle(null); }} />
+                onKeyDown={e => { if (isEnterAction(e)) (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingTitle(null); }} />
             ) : (<>
               <TaskTitle role="button" $done={task.status === 'completed'}
                 onClick={(e) => { e.stopPropagation(); setEditingTitle(task.id); setTitleDraft(task.title); }}
@@ -558,7 +559,7 @@ const ProjectTaskList: React.FC<Props> = ({
               placeholder={t('list.inlineAddPh', '업무명 입력 (Enter 저장 / Esc 취소)') as string}
               onChange={e => setNewBelowTitle(e.target.value)}
               onKeyDown={e => {
-                if (e.key === 'Enter' && newBelowTitle.trim()) submitBelow(task);
+                if (isEnterAction(e) && newBelowTitle.trim()) submitBelow(task);
                 if (e.key === 'Escape') { setAddingBelowId(null); setNewBelowTitle(''); }
               }}
               onBlur={() => { if (!newBelowTitle.trim()) setAddingBelowId(null); }}
@@ -597,7 +598,7 @@ const ProjectTaskList: React.FC<Props> = ({
           <GroupTitleInput autoFocus value={groupTitleDraft}
             onChange={e => setGroupTitleDraft(e.target.value)}
             onBlur={() => renameGroup(gid as number)}
-            onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingGroupId(null); }} />
+            onKeyDown={e => { if (isEnterAction(e)) (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingGroupId(null); }} />
         ) : (
           <GroupTitle $editable={editable}
             onClick={() => { if (editable) { setEditingGroupId(gid as number); setGroupTitleDraft(g.title); } }}
@@ -714,7 +715,7 @@ const ProjectTaskList: React.FC<Props> = ({
                       <AddTaskInGroupInput autoFocus value={newGroupTaskTitle}
                         placeholder={t('list.group.addTaskPh', '업무 제목 입력 (Enter 추가 / Esc 취소)') as string}
                         onChange={e => setNewGroupTaskTitle(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') submitGroupTask(g.id); if (e.key === 'Escape') { setAddingInGroup(null); setNewGroupTaskTitle(''); } }}
+                        onKeyDown={e => { if (isEnterAction(e)) submitGroupTask(g.id); if (e.key === 'Escape') { setAddingInGroup(null); setNewGroupTaskTitle(''); } }}
                         onBlur={() => { if (!newGroupTaskTitle.trim()) setAddingInGroup(null); }} />
                       <AddTaskInGroupGo type="button" disabled={submittingGroupTask || !newGroupTaskTitle.trim()} onClick={() => submitGroupTask(g.id)}>
                         {t('list.group.addTaskGo', '추가')}
@@ -737,7 +738,7 @@ const ProjectTaskList: React.FC<Props> = ({
             <GroupTitleInput autoFocus value={newGroupTitle}
               placeholder={t('list.group.newGroupPh', '그룹 이름 입력 (Enter 추가 / Esc 취소)') as string}
               onChange={e => setNewGroupTitle(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') submitNewGroup(); if (e.key === 'Escape') { setAddingGroup(false); setNewGroupTitle(''); } }}
+              onKeyDown={e => { if (isEnterAction(e)) submitNewGroup(); if (e.key === 'Escape') { setAddingGroup(false); setNewGroupTitle(''); } }}
               onBlur={() => { if (!newGroupTitle.trim()) setAddingGroup(false); }} />
           </AddGroupRow>
         ) : (

@@ -7,6 +7,7 @@ import { groupByPriority, PRIORITY_LIST } from '../../services/dashboard';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import EmptyState from '../Common/EmptyState';
 import { askCue } from '../../utils/cueAsk';
+import { isEnterAction } from '../../utils/imeKey';
 
 /* ─────────────────────────────────────────────
    우선순위 컬러 토큰
@@ -231,7 +232,7 @@ const TodoList: React.FC<Props> = ({ items, loading, groupBy = 'priority', hideH
                   onClick={() => handleClick(it)}
                   role="button"
                   tabIndex={0}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleClick(it); }}
+                  onKeyDown={(e) => { if (isEnterAction(e) || e.key === ' ') handleClick(it); }}
                 >
                   <CardIcon $color={color.dot}>
                     <TypeIcon type={it.type} />

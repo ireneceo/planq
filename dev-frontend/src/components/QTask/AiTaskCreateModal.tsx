@@ -13,6 +13,7 @@ import AiCandidateCard, { type AiCandidate } from './AiCandidateCard';
 import AiRegenerateBar from '../Common/AiRegenerateBar';
 import AiAreaBlock, { type AiArea } from './AiAreaBlock';
 import AiLoadSummary from './AiLoadSummary';
+import { isEnterAction } from '../../utils/imeKey';
 
 interface Member { user_id: number; name: string; }
 interface Project { id: number; name: string; }
@@ -236,7 +237,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
   };
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+    if ((e.metaKey || e.ctrlKey) && isEnterAction(e)) {
       e.preventDefault();
       generate();
     }

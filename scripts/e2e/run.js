@@ -6,6 +6,8 @@
 //   INSPECTION_PLAYBOOK.md 참조. 신규 스위트는 SUITES 에 등록.
 const SUITES = {
   mobile: () => require('./mobile-keyboard'),
+  // 타이핑 **중** 캐럿 가시성 — mobile 스위트는 focus 만 보고 타이핑을 안 해서 이 계열이 통째로 샜다
+  caret: () => require('./canary-caret-visible'),
   narrowtext: () => require('./narrow-text-audit'),   // 세로로 쌓인 텍스트 (제목 붕괴)
   crosscut: () => require('./canary-crawl'),   // 표시명(계정명) 누출 카나리 크롤
   l1: () => require('./canary-l1'),             // L1 개인자원 누출 카나리 (백엔드 API 크롤)

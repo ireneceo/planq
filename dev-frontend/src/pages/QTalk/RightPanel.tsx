@@ -20,6 +20,7 @@ import { useChromeLocation } from '../../hooks/useChromeNav';
 import ContextTaskList from '../../components/Workbench/ContextTaskList';
 import CueTaskBar from '../../components/QTask/CueTaskBar';
 import AiAssistButton from '../../components/Common/AiAssistButton';
+import { isEnterAction } from '../../utils/imeKey';
 
 interface Props {
   project: MockProject | null;
@@ -351,7 +352,7 @@ const RightPanel: React.FC<Props> = ({
                   onChange={(e) => setNewIssueText(e.target.value)}
                   onBlur={submitAddIssue}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') { e.preventDefault(); submitAddIssue(); }
+                    if (isEnterAction(e)) { e.preventDefault(); submitAddIssue(); }
                     if (e.key === 'Escape') { setShowAddIssue(false); setNewIssueText(''); }
                   }}
                   placeholder={t('right.issues.newPlaceholder', '새 이슈 내용 (Enter 저장)') as string}
@@ -366,7 +367,7 @@ const RightPanel: React.FC<Props> = ({
                       onChange={(e) => setEditIssueText(e.target.value)}
                       onBlur={submitEditIssue}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') { e.preventDefault(); submitEditIssue(); }
+                        if (isEnterAction(e)) { e.preventDefault(); submitEditIssue(); }
                         if (e.key === 'Escape') { setEditingIssueId(null); setEditIssueText(''); }
                       }}
                     />

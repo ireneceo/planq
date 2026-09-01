@@ -44,11 +44,34 @@ if (isNativeApp()) {
   //   밀려 있어서, CSS 가 safe-area 를 또 더하면 "헤더 위 여백만 두꺼워진다"(2026-08-25 실기기).
   //   화면 높이와 뷰포트 높이 차이가 크면 = 아직 인셋된 구버전 → safe-area 보정을 0 으로 끈다.
   //   새 빌드(contentInset:'never')에서는 둘이 같아져 보정이 정상 적용된다.
-  try {
-    const screenH = window.screen && window.screen.height ? window.screen.height : 0;
-    const inset = screenH - window.innerHeight;
-    if (screenH && inset > 20) document.documentElement.classList.add('pq-native-inset');
-  } catch { /* 접근 불가 브라우저 — 기본(보정 적용) 유지 */ }
+  //   ★ 2026-09-01 — **한 번만 재고, 켜지기만 하던 것을 고쳤다.** (Irene: "모바일 알림에서
+  //     메일보기 누르면 헤더가 올라간 상태로 열리고, 하단 푸터 아래 여백이 넓다")
+  //     옛 코드는 모듈 로드 시점에 딱 한 번 재고 `add` 만 했다. 그런데 이 측정이 가장
+  //     못 믿을 순간이 바로 **알림 탭으로 인한 콜드 스타트**다 — WKWebView 가 레이아웃을
+  //     마치기 전이면 innerHeight 가 실제보다 작게 나오고, 그러면 inset 이 커져
+  //     `pq-native-inset` 이 붙는다. 그 클래스는 `--pq-safe-top/bottom` 을 0 으로 만들어
+  //     **헤더가 상태바 자리를 양보하지 않게** 한다 = "헤더가 올라간 상태로 열린다".
+  //     한 번 붙으면 떼는 코드가 없어 그 세션 내내 그대로였다.
+  //     가로/세로 전환도 같은 사고를 냈다 — 가로에서는 screen.height 와 innerHeight 차이가
+  //     원래 크므로 무조건 붙었다.
+  //   조치: ①레이아웃이 자리잡은 뒤에 재고 ②orientationchange·resize 때 다시 재고
+  //        ③조건이 아니면 **뗀다**(자기 교정) ④키보드가 올라온 동안에는 판단하지 않는다
+  //        (innerHeight 가 줄어 있어 오판의 원인이 된다).
+  //   조건이 정상인 기기에서는 결과가 옛 코드와 같다 = 회귀 0.
+  const syncNativeInset = () => {
+    try {
+      if (document.body && document.body.getAttribute('data-keyboard-up') === '1') return;
+      const screenH = window.screen && window.screen.height ? window.screen.height : 0;
+      const innerH = window.innerHeight;
+      if (!screenH || !innerH) return;   // 아직 못 잴 때는 **판단을 미룬다** (기본=보정 적용)
+      const inset = screenH - innerH;
+      document.documentElement.classList.toggle('pq-native-inset', inset > 20);
+    } catch { /* 접근 불가 — 기본(보정 적용) 유지 */ }
+  };
+  syncNativeInset();
+  requestAnimationFrame(() => requestAnimationFrame(syncNativeInset));   // 첫 레이아웃 뒤 재측정
+  window.addEventListener('orientationchange', () => setTimeout(syncNativeInset, 300));
+  window.addEventListener('resize', () => setTimeout(syncNativeInset, 150));
   import('@capacitor/status-bar').then(({ StatusBar, Style }) => {
     // overlay=true — 상태바가 WebView 위에 겹친다. contentInset:'never' 와 한 쌍(edge-to-edge).
     //   이래야 헤더의 teal 이 상태바 뒤까지 이어지고 흰 띠가 사라진다.
@@ -173,7 +196,7 @@ if (typeof window !== 'undefined' && window.visualViewport) {
     }
     return null;
   };
-  const ensureFocusedVisible = () => {
+  const ensureFocusedVisible = (delay = 320) => {
     if (!mq.matches) return;
     if (composing) return;   // scrollIntoView·scrollTop 도 조합을 끊는다 — 조합이 끝난 뒤에 한다
     const el = document.activeElement as HTMLElement | null;
@@ -205,8 +228,47 @@ if (typeof window !== 'undefined' && window.visualViewport) {
         }
         // 이미 보이면 아무것도 안 함 (#111 자동 스크롤 방지).
       } catch { /* noop */ }
-    }, 320);
+    }, delay);
   };
+
+  // ★ 2026-09-01 — **타이핑하는 동안에도 캐럿을 따라간다.** (Irene: "모바일에서 메일 답변 쓸 때
+  //   커서 위치 작동이 안 되고 엉망")
+  //   여태 ensureFocusedVisible 은 focusin 과 visualViewport resize/scroll 에서만 불렸다.
+  //   즉 **입력란을 처음 누른 그 순간에만** 보정하고, 그 뒤로는 아무도 캐럿을 보지 않았다.
+  //   글을 몇 줄 쓰면 캐럿이 한 줄씩 내려가는데 그때는 focus 이벤트도, 뷰포트 변화도 없다 →
+  //   캐럿이 키보드 뒤로 들어가 **자기가 뭘 치는지 안 보이는** 상태가 된다.
+  //   이것이 "화면마다 한 곳씩 고쳐도 끝없이 나오던" 정체다 — 컨테이너를 --vvh 로 옳게 묶어도
+  //   (ChatPanel·StandardModal 처럼) 캐럿 추적이 없으면 타이핑 중엔 똑같이 가려진다.
+  //   그래서 개별 화면이 아니라 **여기 한 곳**에 붙인다.
+  //   지켜야 할 것:
+  //   · 조합(IME) 중엔 절대 스크롤하지 않는다 — 스크롤이 조합을 취소해 자모가 분리된다(위 #299 주석).
+  //   · 가려졌을 때만, 넘친 만큼만 (#111 "문서편집이 자꾸 내려감" 회귀 금지).
+  //   · rAF 로 합친다 — selectionchange 는 타이핑마다 쏟아진다.
+  //   · 캐럿 위치를 **정확히 알 수 있을 때만** 따라간다:
+  //       contentEditable → selection rect (정확)
+  //       input/textarea  → 캐럿 rect 를 못 읽으므로 요소 rect. 요소가 가시영역보다 크면
+  //                         캐럿이 어디인지 알 수 없어 **건드리지 않는다** (가운데 편집 중
+  //                         화면이 아래로 끌려가는 오작동 방지). 자동 확장 textarea 는
+  //                         캐럿이 사실상 끝에 있어 요소 rect 로 충분하다.
+  let caretRaf = 0;
+  const trackCaret = () => {
+    if (!mq.matches) return;
+    if (composing) return;
+    const el = document.activeElement as HTMLElement | null;
+    if (!el) return;
+    const tag = el.tagName;
+    if (!(tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable)) return;
+    if (!el.isContentEditable) {
+      // 캐럿을 못 읽는 필드 — 요소가 가시영역보다 크면 추측하지 않는다.
+      const r = el.getBoundingClientRect();
+      if (r.height > vv.height * 0.6) return;
+    }
+    if (caretRaf) return;
+    caretRaf = requestAnimationFrame(() => { caretRaf = 0; ensureFocusedVisible(0); });
+  };
+  document.addEventListener('selectionchange', trackCaret);
+  document.addEventListener('input', trackCaret, true);
+
   window.addEventListener('focusin', () => { requestAnimationFrame(update); ensureFocusedVisible(); });
   window.addEventListener('focusout', () => requestAnimationFrame(update));
 }

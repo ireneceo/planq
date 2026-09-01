@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import { openPreviewWindow } from '../../utils/openPreviewWindow';
+import { isEnterAction } from '../../utils/imeKey';
 
 interface Signer {
   id: number; signer_email: string; signer_name: string | null;
@@ -488,7 +489,7 @@ const TransactionsTab: React.FC<Props> = ({ projectId }) => {
                       value={draft}
                       onChange={e => setLabelDrafts({ ...labelDrafts, [s.id]: e.target.value })}
                       onBlur={() => { if (draft.trim() && draft !== s.label) saveLabel(s.id, draft); }}
-                      onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') { setLabelDrafts({ ...labelDrafts, [s.id]: s.label }); (e.target as HTMLInputElement).blur(); } }}
+                      onKeyDown={e => { if (isEnterAction(e)) (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') { setLabelDrafts({ ...labelDrafts, [s.id]: s.label }); (e.target as HTMLInputElement).blur(); } }}
                       maxLength={80}
                       disabled={savingId === s.id}
                     />
@@ -524,7 +525,7 @@ const TransactionsTab: React.FC<Props> = ({ projectId }) => {
                     value={newLabel}
                     onChange={e => setNewLabel(e.target.value)}
                     onBlur={() => addCustomStage()}
-                    onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') { setNewLabel(''); setAddingNew(false); } }}
+                    onKeyDown={e => { if (isEnterAction(e)) (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') { setNewLabel(''); setAddingNew(false); } }}
                     placeholder={t('tx.stageBoard.newStagePh', '예: 사후 점검, 포트폴리오 등록') as string}
                     maxLength={80}
                   />
@@ -662,7 +663,7 @@ const TransactionsTab: React.FC<Props> = ({ projectId }) => {
                   role="button"
                   tabIndex={0}
                   onClick={openDoc}
-                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') openDoc(); }}
+                  onKeyDown={e => { if (isEnterAction(e) || e.key === ' ') openDoc(); }}
                 >
                   <DocCat>{t(`tx.cat.${p.category}`, p.category)}</DocCat>
                   <DocTitle>{p.title}</DocTitle>
@@ -701,7 +702,7 @@ const TransactionsTab: React.FC<Props> = ({ projectId }) => {
                   role="button"
                   tabIndex={0}
                   onClick={() => navigate(`/bills?tab=invoices&invoice=${inv.id}`)}
-                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') navigate(`/bills?tab=invoices&invoice=${inv.id}`); }}
+                  onKeyDown={e => { if (isEnterAction(e) || e.key === ' ') navigate(`/bills?tab=invoices&invoice=${inv.id}`); }}
                 >
                   <InvNumber>{inv.invoice_number}</InvNumber>
                   <InvTitle>{inv.title}</InvTitle>

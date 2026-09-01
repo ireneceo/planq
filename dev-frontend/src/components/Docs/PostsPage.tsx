@@ -64,6 +64,7 @@ import FloatingPanelToggle from '../Common/FloatingPanelToggle';
 import PanelResizeHandle, { usePanelWidth } from '../Layout/PanelResizeHandle';
 import { usePostPresence } from '../../hooks/usePostPresence';
 import PostHistoryPanel from './PostHistoryPanel';
+import { isEnterAction } from '../../utils/imeKey';
 
 // 좌측 필터: 전체(기본) / 프로젝트 그룹 / 카테고리
 // '내 문서'·'기본' 섹션은 제거. 상단 통합검색이 프로젝트명·제목·본문·카테고리를 모두 커버.
@@ -1380,7 +1381,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                             if (filter.kind === 'category' && filter.name === c.name) setFilter({ kind: 'category', name: v });
                           } catch (e) { setError(mapApiError(e, tErr)); }
                         }}
-                        onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                        onKeyDown={e => { if (isEnterAction(e)) (e.target as HTMLInputElement).blur();
                           if (e.key === 'Escape') { setCatEditKey(null); setCatEditDraft(''); } }} />
                     ) : (
                       <AtName>#{c.name}</AtName>
@@ -1402,7 +1403,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 {newCatOpen ? (
                   <NewCatInput autoFocus value={newCatDraft} onChange={e => setNewCatDraft(e.target.value)}
                     onBlur={async () => { const v = newCatDraft.trim(); setNewCatOpen(false); setNewCatDraft(''); if (!v) return; try { await createCategory(scope.businessId, v, scopeProjectId ?? null); await loadMeta(); setFilter({ kind: 'category', name: v }); } catch { /* silent */ } }}
-                    onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') { setNewCatOpen(false); setNewCatDraft(''); } }}
+                    onKeyDown={e => { if (isEnterAction(e)) (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') { setNewCatOpen(false); setNewCatDraft(''); } }}
                     placeholder={t('filter.newCategoryPlaceholder', '카테고리 이름 (Enter)') as string} maxLength={40} />
                 ) : (
                   <AddCatBtn type="button" onClick={() => setNewCatOpen(true)} title={t('filter.addCategory', '카테고리 추가') as string}>
@@ -1561,7 +1562,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                       await loadMeta(); await load(); setFilter({ kind: 'category', name: v });
                     } catch (e) { setError(mapApiError(e, tErr)); }
                   }}
-                  onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                  onKeyDown={e => { if (isEnterAction(e)) (e.target as HTMLInputElement).blur();
                     if (e.key === 'Escape') { setCatEditKey(null); setCatEditDraft(''); } }} />
               );
             }
@@ -1593,7 +1594,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 } catch { /* silent */ }
               }}
               onKeyDown={e => {
-                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                if (isEnterAction(e)) (e.target as HTMLInputElement).blur();
                 if (e.key === 'Escape') { setNewCatOpen(false); setNewCatDraft(''); }
               }}
               placeholder={t('filter.newCategoryPlaceholder', '카테고리 이름 (Enter)') as string}

@@ -13,6 +13,7 @@ import ActionButton from '../../components/Common/ActionButton';
 import { formatDate } from '../../utils/dateFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { mapApiError } from '../../utils/apiError';
+import { isEnterAction } from '../../utils/imeKey';
 
 interface FeedbackItem {
   id: number;
@@ -264,7 +265,7 @@ const MyFeedbackPage = () => {
                       rows={3}
                       onKeyDown={e => {
                         if (e.nativeEvent.isComposing || (e.nativeEvent as KeyboardEvent).keyCode === 229) return;
-                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submitFollowup(); }
+                        if (isEnterAction(e) && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submitFollowup(); }
                       }}
                     />
                     <ComposerFooter>

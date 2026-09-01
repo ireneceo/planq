@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import { fetchStatus, type PlanStatus } from '../../services/plan';
 import { canPurchaseInApp, purchaseCopyKeys } from '../../utils/purchase';
+import { isEnterAction } from '../../utils/imeKey';
 
 type BannerKind = 'past_due' | 'grace' | 'demoted' | null;
 
@@ -88,7 +89,7 @@ export default function WorkspaceBillingBanner() {
         role={payEnabled ? 'button' : undefined}
         tabIndex={payEnabled ? 0 : undefined}
         $static={!payEnabled}
-        onKeyDown={payEnabled ? ((e) => { if (e.key === 'Enter') handleClick(); }) : undefined}>
+        onKeyDown={payEnabled ? ((e) => { if (isEnterAction(e)) handleClick(); }) : undefined}>
         <Icon $kind={kind}>
           {kind === 'demoted' ? (
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

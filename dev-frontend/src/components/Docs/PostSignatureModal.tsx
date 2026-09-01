@@ -15,6 +15,7 @@ import { listClientsForBilling, type ApiClientLite } from '../../services/invoic
 import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
+import { isEnterAction } from '../../utils/imeKey';
 
 interface Props {
   open: boolean;
@@ -152,7 +153,7 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent }) =>
 
   // 키보드: Enter → 새 행, Backspace 빈 이메일 → 행 삭제
   const handleKey = (e: React.KeyboardEvent<HTMLInputElement>, idx: number, field: 'email' | 'name') => {
-    if (e.key === 'Enter' && field === 'name') {
+    if (isEnterAction(e) && field === 'name') {
       e.preventDefault();
       addRow();
       setTimeout(() => {

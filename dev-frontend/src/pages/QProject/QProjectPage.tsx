@@ -12,6 +12,7 @@ import { colorForProject, lightenColor } from '../../utils/projectColors';
 import NewProjectModal, { type ProjectFormData } from '../QTalk/NewProjectModal';
 import SearchBox from '../../components/Common/SearchBox';
 import PlanQSelect from '../../components/Common/PlanQSelect';
+import { isEnterAction } from '../../utils/imeKey';
 
 // ─── Types ───
 type ViewMode = 'list' | 'timeline' | 'calendar';
@@ -452,7 +453,7 @@ const ListView: React.FC<{
 
   const renderCard = (p: ProjectWithStats) => (
       <ProjectCard key={p.id} onClick={() => onOpen(p.id)} role="button" tabIndex={0}
-        onKeyDown={(e) => { if (e.key === 'Enter') onOpen(p.id); }}
+        onKeyDown={(e) => { if (isEnterAction(e)) onOpen(p.id); }}
         style={{ borderLeft: `4px solid ${colorForProject(p)}` }}>
         <CardHead>
           <CardTitle>{p.name}</CardTitle>
@@ -712,7 +713,7 @@ const TimelineView: React.FC<{
                   </ExpandBtn>
                 ) : (<ExpandSpacer />)}
                 <ProjectNameBtn type="button" onClick={() => onOpen(p.id)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') onOpen(p.id); }}
+                  onKeyDown={(e) => { if (isEnterAction(e)) onOpen(p.id); }}
                   style={{ borderLeft: `3px solid ${color}` }}>
                   <strong>{p.name}</strong>
                   <small>{p.progressPercent}%</small>

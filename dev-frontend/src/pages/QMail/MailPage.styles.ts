@@ -198,14 +198,20 @@ export const ComposeOverlay = styled.div`
   background: rgba(15, 23, 42, 0.45);
   display: flex; align-items: center; justify-content: center;
   padding: 20px;
-  @media (max-width: 640px) { padding: 0; align-items: stretch; }
+  @media (max-width: 640px) {
+    height: var(--vvh, 100vh); bottom: auto; padding: 0; align-items: stretch;
+  }
 `;
 export const ComposeModal = styled.div`
   width: min(680px, 100%); max-height: 90vh;
   background: #FFFFFF; border-radius: 14px;
   box-shadow: 0 4px 12px rgba(15,23,42,0.06), 0 12px 40px rgba(15,23,42,0.18);
   display: flex; flex-direction: column; overflow: hidden;
-  @media (max-width: 640px) { border-radius: 0; max-height: 100vh; height: 100vh; }
+  /* 모바일: 키보드가 올라오면 visual viewport(--vvh)로 줄인다 — 레이아웃 뷰포트(100vh)는
+     키보드를 무시해서 그 아래를 키보드가 덮는다. StandardModal 과 같은 계약. */
+  @media (max-width: 640px) {
+    border-radius: 0; max-height: var(--vvh, 100vh); height: var(--vvh, 100vh);
+  }
 `;
 export const ComposeHead = styled.div`
   min-height: 60px; padding: 14px 20px;
@@ -766,7 +772,13 @@ export const ComposerActions = styled.div`
   /* 스크롤 컨테이너는 DetailFooter (padding 14px 24px) — 그 여백을 되밀어 끝까지 덮는다.
      안 덮으면 좌우 틈으로 본문이 비쳐 지저분하다. 아래도 -14px 로 바닥에 정확히 붙인다. */
   margin: 4px -24px -14px;
-  padding: 10px 24px calc(14px + env(safe-area-inset-bottom));
+  /* ★ 원시 env() 를 쓰면 안 된다 — 단일 원천은 --pq-safe-bottom 이고,
+     index.css 가 키보드 up 시 body[data-keyboard-up='1'] 로 그것을 0 으로 내린다.
+     env() 는 키보드가 홈 인디케이터를 덮은 뒤에도 34px 를 계속 보고하므로 그 override 를
+     통과해 버려, 키보드 위에 아무것도 없는 빈 띠가 남는다
+     (Irene 2026-08-28 "키보드 올라간 상태에서 넓게 잡혀서 이상한 여백" 과 같은 계열).
+     ※ 이 주석에 백틱을 쓰지 말 것 — styled 템플릿 리터럴이 그 자리에서 끊긴다. */
+  padding: 10px 24px calc(14px + var(--pq-safe-bottom, 0px));
 `;
 // #192 — AI 초안 수정 요청 입력. 초안이 있을 때만 노출. 지시를 넣고 "다시 생성" 하면 refine.
 export const AiInstructionRow = styled.div`

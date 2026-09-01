@@ -47,6 +47,7 @@ import { fetchWorkspaceFiles, uploadMyFile, formatBytes, type ProjectFile } from
 import { fetchPosts, type PostRow } from '../../services/posts';
 import VisibilityField, { serializeVisibility, parseVisibility, type VisibilityValue } from '../../components/Common/VisibilityField';
 import AiActionButton from '../../components/Common/AiActionButton';
+import { isEnterAction } from '../../utils/imeKey';
 
 // N+64 — 옛 ENUM 6 (i18n cat.{key} 라벨 보유, fallback 표시용). 자유 카테고리는 string 그대로.
 const CATEGORIES: KbCategory[] = [...LEGACY_KB_CATEGORIES];
@@ -1584,7 +1585,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                     placeholder={t('modal.newCatPh', '새 카테고리 이름') as string}
                     maxLength={40}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') { e.preventDefault(); (document.getElementById('kb-add-cat-btn') as HTMLButtonElement)?.click(); }
+                      if (isEnterAction(e)) { e.preventDefault(); (document.getElementById('kb-add-cat-btn') as HTMLButtonElement)?.click(); }
                     }}
                   />
                   <SecondaryBtn
@@ -1780,7 +1781,7 @@ const DrawerTitleEdit: React.FC<{
       onChange={e => setDraft(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => {
-        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+        if (isEnterAction(e)) (e.target as HTMLInputElement).blur();
         if (e.key === 'Escape') { setDraft(initialValue); setEditing(false); }
       }}
     />
@@ -1916,7 +1917,7 @@ const TagsEdit: React.FC<{
       onBlur={commit}
       onKeyDown={(e) => {
         if (e.key === 'Escape') { setDraft((initialValue || []).join(', ')); setEditing(false); }
-        if (e.key === 'Enter') { (e.target as HTMLInputElement).blur(); }
+        if (isEnterAction(e)) { (e.target as HTMLInputElement).blur(); }
       }}
       placeholder={t('tags.placeholder', { defaultValue: '태그1, 태그2, 태그3' })}
     />
@@ -2177,7 +2178,7 @@ const InlineCellEdit: React.FC<{
         onChange={(e) => { setDraft(e.target.value); if (saveErr) setSaveErr(false); }}
         onBlur={commit}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) (e.target as HTMLTextAreaElement).blur();
+          if (isEnterAction(e) && (e.metaKey || e.ctrlKey)) (e.target as HTMLTextAreaElement).blur();
           if (e.key === 'Escape') { setDraft(initialValue == null ? '' : String(initialValue)); setEditing(false); }
         }}
         onClick={(e) => e.stopPropagation()}
@@ -2195,7 +2196,7 @@ const InlineCellEdit: React.FC<{
       onChange={(e) => { setDraft(e.target.value); if (saveErr) setSaveErr(false); }}
       onBlur={commit}
       onKeyDown={(e) => {
-        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+        if (isEnterAction(e)) (e.target as HTMLInputElement).blur();
         if (e.key === 'Escape') { setDraft(initialValue == null ? '' : String(initialValue)); setEditing(false); }
       }}
       onClick={(e) => e.stopPropagation()}

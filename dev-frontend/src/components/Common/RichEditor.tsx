@@ -27,6 +27,7 @@ import { SlashCommand } from './SlashCommand';
 import SlashCommandList from './SlashCommandList';
 import { LightboxWrapper } from './ImageLightbox';
 import { plainTextToHtml } from '../../utils/sanitizeHtml';
+import { isEnterAction } from '../../utils/imeKey';
 
 // Image extension 확장 — width attribute 지원 (사이클 N+9, 사이즈 조정용).
 // HTML 출력: <img src="..." width="33%" /> 등.
@@ -318,7 +319,7 @@ export default function RichEditor({
             placeholder={t('editor.linkPh', { defaultValue: 'https://example.com (비우고 적용하면 링크 해제)' }) as string}
             onChange={(e) => setLinkValue(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') { e.preventDefault(); applyLink(); }
+              if (isEnterAction(e)) { e.preventDefault(); applyLink(); }
               if (e.key === 'Escape') { e.preventDefault(); setLinkOpen(false); }
             }}
           />

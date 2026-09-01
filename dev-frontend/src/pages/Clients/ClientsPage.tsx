@@ -24,6 +24,7 @@ import AutoSaveField from '../../components/Common/AutoSaveField';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import ClientSubscriptions from './ClientSubscriptions';
 import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
+import { isEnterAction } from '../../utils/imeKey';
 
 type ClientStatus = 'invited' | 'active' | 'archived';
 
@@ -438,7 +439,7 @@ export default function ClientsPage() {
                           onBlur={commitEdit}
                           onClick={(e) => e.stopPropagation()}
                           onMouseDown={(e) => e.stopPropagation()}
-                          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingCell(null); }} />
+                          onKeyDown={(e) => { if (isEnterAction(e)) (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingCell(null); }} />
                       ) : (
                         <NameWrap>
                           <NameCell role={isAdmin ? 'button' : undefined}
@@ -458,7 +459,7 @@ export default function ClientsPage() {
                           onBlur={commitEdit}
                           onClick={(e) => e.stopPropagation()}
                           onMouseDown={(e) => e.stopPropagation()}
-                          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingCell(null); }} />
+                          onKeyDown={(e) => { if (isEnterAction(e)) (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingCell(null); }} />
                       ) : (
                         <CompanyCell role={isAdmin ? 'button' : undefined}
                           onClick={(e) => { if (!isAdmin) return; e.stopPropagation(); setEditDraft(c.company_name || ''); setEditingCell({ id: c.id, field: 'company_name' }); }}>

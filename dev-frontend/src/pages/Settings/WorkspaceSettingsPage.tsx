@@ -41,6 +41,7 @@ import {
   type WorkspaceMember,
   type CueInfo,
 } from '../../services/workspace';
+import { isEnterAction } from '../../utils/imeKey';
 
 type TabKey = 'attendance' | 'brand' | 'legal' | 'language' | 'work-env' | 'storage' | 'plan' | 'permissions' | 'members' | 'cue' | 'billing' | 'email' | 'mail-accounts' | 'notifications' | 'work-flow' | 'data-export' | 'activity';   // activity — 팀원 활동 기록(owner 전용)
 
@@ -1352,7 +1353,7 @@ export default function WorkspaceSettingsPage() {
                     placeholder={t('members.invitePlaceholder', '초대할 이메일') as string}
                     value={inviteEmail}
                     onChange={(e) => setInviteEmail(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && inviteEmail.trim()) sendMemberInvite(); }}
+                    onKeyDown={(e) => { if (isEnterAction(e) && inviteEmail.trim()) sendMemberInvite(); }}
                   />
                   <InviteRoleInput
                     type="text"

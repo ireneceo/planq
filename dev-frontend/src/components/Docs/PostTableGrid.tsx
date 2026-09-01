@@ -19,6 +19,7 @@ import { fetchPosts, type PostRow } from '../../services/posts';
 import { apiFetch } from '../../contexts/AuthContext';
 import PostAiModal from './PostAiModal';
 import AiActionButton from '../Common/AiActionButton';
+import { isEnterAction } from '../../utils/imeKey';
 
 const TYPES: { value: QRecordColumnType; tk: string; ko: string }[] = [
   { value: 'text',         tk: 'colType.text',        ko: '텍스트' },
@@ -234,7 +235,7 @@ const PostTableGrid: React.FC<Props> = ({ recordId, businessId, readOnly = false
           autoFocus
           placeholder={t('empty.firstColumnPh', '첫 컬럼 이름 (Enter)') as string}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') {
+            if (isEnterAction(e)) {
               const v = (e.currentTarget.value || '').trim();
               if (v) addColumn(v);
               e.currentTarget.value = '';
@@ -263,7 +264,7 @@ const PostTableGrid: React.FC<Props> = ({ recordId, businessId, readOnly = false
                         onChange={e => setHeaderEditDraft(e.target.value)}
                         onBlur={() => renameColumn(c.id, headerEditDraft)}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') e.currentTarget.blur();
+                          if (isEnterAction(e)) e.currentTarget.blur();
                           if (e.key === 'Escape') setHeaderEditId(null);
                         }}
                       />
@@ -597,7 +598,7 @@ const ColumnSettingsPopover: React.FC<{
           <Field>
             <FieldLabel>{t('column.nameLabel', '컬럼 이름')}</FieldLabel>
             <FieldInput type="text" value={name} onChange={e => setName(e.target.value)} autoFocus
-              onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) commit(); }} />
+              onKeyDown={(e) => { if (isEnterAction(e) && (e.metaKey || e.ctrlKey)) commit(); }} />
           </Field>
           <Field>
             <FieldLabel>{t('column.typeLabel', '타입')}</FieldLabel>
@@ -1009,9 +1010,14 @@ const PopoverBackdrop = styled.div`
   position: fixed; inset: 0; background: rgba(15,23,42,0.4);
   display: flex; align-items: center; justify-content: center;
   z-index: 1100; padding: 20px;
+  /* 모바일: 오버레이도 visual viewport 에 묶는다 — 안쪽 다이얼로그만 --vvh 로 줄이면
+     레이아웃 뷰포트 기준으로 가운데 정렬돼 키보드 아래로 내려앉는다. */
+  @media (max-width: 640px) {
+    height: var(--vvh, 100vh); bottom: auto; align-items: stretch; padding: 0;
+  }
 `;
 const PopoverDialog = styled.div`
-  max-height: calc(100vh - 40px);
+  max-height: calc(var(--vvh, 100vh) - 40px);
   overflow-y: auto;
   background: #fff; border-radius: 12px; max-width: 420px; width: 100%;
   display: flex; flex-direction: column;
@@ -1021,7 +1027,11 @@ const AttachDialog = styled.div`
   background: #fff; border-radius: 12px; max-width: 520px; width: 100%; max-height: 88vh;
   display: flex; flex-direction: column;
   box-shadow: 0 20px 60px rgba(15,23,42,0.2);
-  @media (max-width: 640px) { max-height: 100vh; height: 100vh; border-radius: 0; }
+  /* 모바일: 키보드가 올라오면 visual viewport(--vvh)로 줄인다 — 레이아웃 뷰포트(100vh)는
+     키보드를 무시해서 그 아래를 키보드가 덮는다. StandardModal 과 같은 계약. */
+  @media (max-width: 640px) {
+    max-height: var(--vvh, 100vh); height: var(--vvh, 100vh); border-radius: 0;
+  }
 `;
 const PopoverHeader = styled.div`display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid #F1F5F9; flex-shrink: 0;`;
 const PopoverTitle = styled.h3`font-size: 0.875rem; font-weight: 700; color: #0F172A; margin: 0;`;

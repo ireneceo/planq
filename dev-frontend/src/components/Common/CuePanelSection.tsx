@@ -17,6 +17,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useCueChat, cueActionDeepLink, type CueTurn } from '../../hooks/useCueChat';
 import CueTurnList from './CueTurnList';
 import { tabStore } from '../../stores/tabStore';
+import { isEnterAction } from '../../utils/imeKey';
 
 // 대화방/스레드별 대화 캐시 — 언마운트를 견딘다. 세션 동안만 산다(새로고침하면 초기화).
 const turnCache = new Map<string, CueTurn[]>();
@@ -119,7 +120,7 @@ export default function CuePanelSection({ surface, subjectId, location, contextP
 
   const onKey = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // Enter 단독 전송 금지 — 오발송 방지(UI_DESIGN_GUIDE 1.8). Ctrl/Cmd+Enter 만.
-    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); chat.submit(); }
+    if ((e.metaKey || e.ctrlKey) && isEnterAction(e)) { e.preventDefault(); chat.submit(); }
   }, [chat]);
 
   return (
