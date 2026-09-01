@@ -18,6 +18,7 @@ const { successResponse, errorResponse, parsePagination, paginatedResponse } = r
 const { sendPostShareEmail } = require('../services/emailService');
 const { isValidLevel, blocksExternalShare } = require('../services/securityLevel');
 const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../services/displayName');
+const { broadcastFile } = require('../services/fileBroadcast');   // 파일 실시간 반영 단일 원천 (#378)
 
 const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
 
@@ -1141,6 +1142,13 @@ router.post('/editor-image', authenticateToken, (req, res, next) => {
         visibility: level,
         vlevel: level,
       });
+      // ★ 운영 #378 — 여기서 만든 파일도 **다른 업로드와 똑같이** 다뤄야 한다.
+      //   여태 이 경로만 아래 둘이 빠져 있어, 같은 앱인데 어느 에디터에서 넣었느냐에 따라
+      //   Drive 에 올라가기도 하고 안 올라가기도 했다(Irene: "파일 동기화랑 ... 통일해서 맞춰서").
+      //   ① 파일 목록 실시간 반영 (CLAUDE.md §16) — 없으면 새로고침 전엔 안 보인다.
+      broadcastFile(req, file, 'file:new');
+      //   ② GDrive 미러 — best-effort, 응답을 막지 않는다. L1 개인·security 제외는 미러가 자체 판단한다.
+      setImmediate(() => require('../services/gdriveMirror').mirrorOnUpload(file.id, businessId));
       successResponse(res, {
         url: finalUrl,
         file_id: file.id,

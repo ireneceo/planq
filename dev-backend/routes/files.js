@@ -92,13 +92,8 @@ async function _s3Redirect(file, res) {
 }
 
 // N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
-function broadcastFile(req, file, event = 'file:updated') {
-  const io = req.app.get('io');
-  if (!io) return;
-  const data = file.toJSON ? file.toJSON() : file;
-  if (file.business_id) io.to(`business:${file.business_id}`).emit(event, data);
-  if (file.project_id) io.to(`project:${file.project_id}`).emit(event, data);
-}
+// 파일 실시간 반영 — services/fileBroadcast.js 가 단일 원천 (다른 라우트도 같은 것을 쓴다, #378).
+const { broadcastFile } = require('../services/fileBroadcast');
 
 const uploadDir = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
