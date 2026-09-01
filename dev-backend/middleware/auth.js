@@ -27,6 +27,13 @@ const authenticateToken = async (req, res, next) => {
   let decoded;
   try {
     decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // ★ 2차 방어 — 용도가 박힌 토큰(kind)은 일반 인증에 쓸 수 없다.
+    //   1차 방어는 서명 열쇠 분리다(이미지 토큰은 파생 비밀로 서명해 여기서 애초에 검증이 안 된다).
+    //   그래도 여기 한 줄을 둔다 — 앞으로 누가 용도별 토큰을 JWT_SECRET 으로 만들면
+    //   그 순간 이 자리가 다시 뚫린다. 열쇠 분리를 잊어도 이 줄이 잡는다.
+    if (decoded && decoded.kind) {
+      return res.status(401).json({ success: false, message: 'Invalid token', code: 'wrong_token_kind' });
+    }
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({

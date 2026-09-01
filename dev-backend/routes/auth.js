@@ -14,6 +14,7 @@ const {
   hashRefreshToken, TTL_MS_BY_KIND, resolveClientKind, createRefreshTokenRow,
   generateAccessToken, generateRefreshToken, authWarn,
   SESSION_HINT, setSessionHint, setRefreshCookies, DELIVERY_EPOCH_MS,
+  setImageCookie, clearImageCookie,
 } = require('../services/authTokens');
 
 // ============================================
@@ -406,6 +407,9 @@ router.post('/register', async (req, res, next) => {
     if (remember) cookieOpts.maxAge = TTL_MS_BY_KIND[clientKind];
     res.cookie('refresh_token', refreshToken, cookieOpts);
     setSessionHint(res, { maxAge: cookieOpts.maxAge, secure });
+    // 보안 Stage 1 — <img> 는 인증 헤더를 못 실으므로 이미지 서빙용 신원을 쿠키로 준다.
+    //   ★ 발급 지점을 하나라도 빼면 그 로그인 방식 사용자 전원이 (Stage 2 게이트 후) 이미지를 잃는다.
+    setImageCookie(res, user);
 
     successResponse(res, {
       token: accessToken,
@@ -523,6 +527,9 @@ router.post('/login', async (req, res, next) => {
     if (remember) cookieOpts.maxAge = TTL_MS_BY_KIND[clientKind];
     res.cookie('refresh_token', refreshToken, cookieOpts);
     setSessionHint(res, { maxAge: cookieOpts.maxAge, secure });
+    // 보안 Stage 1 — <img> 는 인증 헤더를 못 실으므로 이미지 서빙용 신원을 쿠키로 준다.
+    //   ★ 발급 지점을 하나라도 빼면 그 로그인 방식 사용자 전원이 (Stage 2 게이트 후) 이미지를 잃는다.
+    setImageCookie(res, user);
 
     // Get user with business info
     const userData = await getUserWithBusiness(user.id);
@@ -829,6 +836,7 @@ router.post('/logout', async (req, res, next) => {
 
     // Clear cookie — path 정합성 (과거 path='/' 또는 다른 path 로 발급된 쿠키 잔존 방지)
     res.clearCookie('refresh_token', { path: '/api/auth' });
+    clearImageCookie(res);   // 로그아웃하면 이미지 신원도 같이 사라져야 한다
     res.clearCookie('refresh_token', { path: '/' });
     // 동반 힌트도 같이 — 안 지우면 정상 로그아웃이 "세션 증발"로 오탐 기록된다 (#244 D3).
     res.clearCookie(SESSION_HINT, { path: '/' });
@@ -1063,4 +1071,8 @@ module.exports.helpers = {
   //   "세션이 있어야 정상인데 refresh_token 만 사라졌다"는 판정이 성립한다.
   setSessionHint,
   SESSION_HINT,
+  // 보안 Stage 1 — OAuth 콜백도 이미지 쿠키를 같이 내려야 한다.
+  //   여기 빠뜨리면 `helpers.setImageCookie is not a function` 으로 **구글 로그인 자체가 깨진다.**
+  setImageCookie,
+  clearImageCookie,
 };

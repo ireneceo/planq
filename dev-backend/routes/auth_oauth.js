@@ -135,6 +135,8 @@ async function issueSessionCookie(req, res, user) {
     maxAge: TTL_MS_BY_KIND[clientKind],
   };
   res.cookie('refresh_token', refreshToken, cookieOpts);
+  // 보안 Stage 1 — 이 경로가 빠지면 **구글 로그인 사용자 전원**이 (Stage 2 후) 이미지를 잃는다.
+  helpers.setImageCookie(res, user);
   // #244 — 동반 세션 힌트도 같은 수명으로 (OAuth 로그인 누락 시 그 사용자만 진단 사각지대가 된다).
   setSessionHint(res, { maxAge: cookieOpts.maxAge, secure });
 }

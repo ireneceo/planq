@@ -131,6 +131,80 @@ function setRefreshCookies(res, rawToken, row, persist) {
   if (persist) opts.maxAge = Math.max(0, new Date(row.expires_at).getTime() - Date.now());
   res.cookie('refresh_token', rawToken, opts);
   setSessionHint(res, { maxAge: opts.maxAge, secure });
+  // 세션이 새로 서는 자리에서는 이미지 쿠키도 같이 준다 (heal · refresh 회전).
+  setImageCookie(res, { id: row.user_id });
+}
+
+// ============================================
+// 이미지 전용 쿠키 (보안 Stage 1 — 발급만, 게이트는 Stage 2)
+// ============================================
+//
+// ★ 왜 쿠키인가 — 이미지는 `<img src>` 가 부른다. 평범한 img 태그는 **Authorization 헤더를
+//   실을 수 없다.** 그래서 무인증 이미지 라우트 4곳은 신원을 알 방법이 없었고,
+//   "URL 을 아는 사람 = 볼 수 있는 사람" (capability URL) 으로만 굴러갔다.
+//   그것이 L1(개인 파일) 어휘와 어긋난다 — 운영 개인 이미지 154건이 링크만 알면 열린다.
+//   브라우저가 서브리소스 요청에 자동으로 실어 보내는 채널은 쿠키뿐이므로 쿠키를 쓴다.
+//
+// ★ 왜 refresh 쿠키를 재사용하지 않는가 — refresh 는 **장기 비밀**이다(pwa 365일).
+//   그것을 이미지 요청 수천 건에 실어 보내면 노출면이 그만큼 넓어진다. path 도 `/api/auth` 로
+//   좁혀 둔 것을 일부러 넓히는 셈이다. 짧은 수명의 별도 토큰을 만든다.
+//
+// ★ 왜 path 를 4번 나눠 다는가 — 쿠키는 path 를 하나만 가진다. 네 라우트에 공통 접두사가
+//   `/api` 뿐인데 거기에 달면 **모든 API 호출에 딸려 간다.** 같은 이름·값으로 네 경로에
+//   각각 달면 브라우저가 해당 경로 요청에만 보낸다.
+const IMAGE_COOKIE = 'pq_img';
+// 이미지 쿠키를 보낼 경로 — 무인증 이미지 서빙 라우트 전수.
+//   ★ 새 이미지 서빙 라우트를 만들면 여기에 더한다. 안 더하면 그 화면만 조용히 신원을 잃는다.
+const IMAGE_COOKIE_PATHS = [
+  '/api/files/public-image',
+  '/api/tasks/public/attach',
+  '/api/posts/editor-image',
+  '/api/message-attachments/public',
+];
+
+// 수명 — access token 과 같이 간다. 회수 지연이 access token 을 넘지 않게 하기 위함이다.
+//   다만 `<img>` 는 401 을 재시도하지 않으므로, refresh 주기 사이에 끊기면 그림만 사라진다.
+//   그래서 access(15분)보다 넉넉히 잡되 refresh 수명보다는 짧게 둔다.
+//   ★ 2시간. 처음엔 1일로 잡았는데 너무 길다 — 이 토큰은 **서버가 회수할 수 없다**(stateless).
+//     로그아웃해도 쿠키를 지울 뿐, 그 값을 손에 쥔 쪽은 만료까지 계속 쓴다.
+//     프론트가 14분마다 refresh 하면서 갱신하므로 짧아도 화면은 안 끊긴다.
+const IMAGE_COOKIE_TTL_MS = 2 * 60 * 60 * 1000;   // 2시간
+
+// ★★ 이미지 토큰은 **JWT_SECRET 으로 서명하지 않는다.**
+//   처음엔 JWT_SECRET + `kind:'img'` 로 만들고 "검증하는 쪽이 kind 를 본다" 고 적었는데,
+//   **그건 내 쪽 이야기였다.** 일반 인증 미들웨어(middleware/auth.js)·socket.io 핸드셰이크·
+//   점검모드·문의 라우트는 전부 `jwt.verify(…, JWT_SECRET)` 뒤 `decoded.userId` 만 본다.
+//   그래서 이 쿠키 값을 그대로 `Authorization: Bearer` 에 넣으면 **일반 API 가 통과했다**
+//   (Fable 실측: `GET /api/auth/me` → 200). 15분짜리 신원을 **2시간짜리 bearer 로 만들어
+//   쿠키 jar 에 심고 이미지 요청마다 흘려보내는** 꼴이었다.
+//
+//   나는 한 방향만 반증했다 — "일반 access token 을 pq_img 자리에 넣으면 거부되는가".
+//   반대 방향을 안 봤다. 검사로 막는 대신 **애초에 받아들여질 수 없는 서명**을 쓴다:
+//   파생 비밀로 서명하면 JWT_SECRET 을 쓰는 소비처는 어디서도 이 토큰을 검증하지 못한다.
+//   (검사는 빠뜨릴 수 있지만, 열쇠가 다르면 빠뜨릴 자리가 없다.)
+const IMAGE_TOKEN_SECRET = crypto.createHmac('sha256', String(process.env.JWT_SECRET || ''))
+  .update('pq_img/v1').digest();
+
+function generateImageToken(user) {
+  return jwt.sign(
+    { userId: user.id, kind: 'img' },
+    IMAGE_TOKEN_SECRET,
+    { expiresIn: Math.floor(IMAGE_COOKIE_TTL_MS / 1000) }
+  );
+}
+
+function setImageCookie(res, user) {
+  if (!user || !user.id) return;
+  const secure = process.env.NODE_ENV === 'production';
+  const token = generateImageToken(user);
+  for (const path of IMAGE_COOKIE_PATHS) {
+    // maxAge 를 항상 준다 — 세션 쿠키로 두면 PWA 재시작마다 그림이 사라진다.
+    res.cookie(IMAGE_COOKIE, token, { httpOnly: true, secure, sameSite: 'lax', path, maxAge: IMAGE_COOKIE_TTL_MS });
+  }
+}
+
+function clearImageCookie(res) {
+  for (const path of IMAGE_COOKIE_PATHS) res.clearCookie(IMAGE_COOKIE, { path });
 }
 module.exports = {
   hashRefreshToken,
@@ -140,5 +214,7 @@ module.exports = {
   generateAccessToken, generateRefreshToken,
   authWarn,
   SESSION_HINT, setSessionHint, setRefreshCookies,
+  IMAGE_COOKIE, IMAGE_COOKIE_PATHS, IMAGE_COOKIE_TTL_MS, IMAGE_TOKEN_SECRET,
+  setImageCookie, clearImageCookie,
   DELIVERY_EPOCH_MS,
 };

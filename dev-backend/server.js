@@ -50,6 +50,8 @@ io.use((socket, next) => {
   }
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // ★ 용도가 박힌 토큰(kind)은 소켓 인증에도 못 쓴다 — middleware/auth.js 와 같은 규칙.
+    if (decoded && decoded.kind) return next(new Error('Invalid token'));
     socket.userId = decoded.userId || decoded.id;
     next();
   } catch (err) {

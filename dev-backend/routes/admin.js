@@ -805,6 +805,12 @@ router.post('/users/:id/impersonate', async (req, res, next) => {
       target_type: 'User', target_id: target.id,
       new_value: { target_email: target.email, expires_in: '30m', impersonator_id: req.user.id },
     });
+    // ★ 대리 로그인에는 이미지 쿠키를 **주지 않는다.**
+    //   화면(AdminUsersPage)이 같은 브라우저의 새 탭으로 열기 때문이다. 여기서 대상자 신원으로
+    //   쿠키를 덮으면 **운영자 본인 탭의 이미지 신원까지 대상자 것으로 바뀐다.** 그리고 운영자
+    //   탭이 14분 뒤 refresh 하면 다시 운영자 것으로 덮인다 — 한 jar 에 두 신원이 번갈아 앉는다.
+    //   Stage 2 에서 대리 탭의 이미지를 어떻게 다룰지는 별도 설계가 필요하다(Fable 지적).
+    //   Stage 1 은 아무것도 막지 않으므로 안 줘도 대리 화면은 종전과 똑같이 보인다.
     return successResponse(res, { access_token: token, target: { id: target.id, email: target.email, name: target.name } }, 'impersonation_token_issued');
   } catch (err) { next(err); }
 });

@@ -1213,6 +1213,11 @@ router.get('/editor-image/:filename', async (req, res) => {
     // image/* 만 — HTML/JS 를 inline 으로 흘리면 XSS 가 된다 (public-image 와 같은 계약).
     const { isRenderableImage } = require('../services/filePreview');
     if (!isRenderableImage(file.mime_type)) return errorResponse(res, 'not_public_image', 403);
+    // 보안 Stage 1 — 막지 않고 계측만 (Stage 2 에서 게이트).
+    {
+      const { resolveImageViewerDetailed, auditWouldDeny } = require('../middleware/imageViewer');
+      auditWouldDeny(file, resolveImageViewerDetailed(req), 'posts/editor-image', req);
+    }
 
     if (!fs.existsSync(fp)) return errorResponse(res, 'not_found', 404);
     const mime = file.mime_type;   // 확장자 추측이 아니라 DB 가 아는 실제 타입

@@ -253,6 +253,11 @@ router.get('/public-image/:storedName', async (req, res, next) => {
     if (file.security_level && file.security_level !== 'general') {
       return errorResponse(res, 'not_found', 404);   // 존재 은닉
     }
+    // 보안 Stage 1 — **막지 않는다.** 게이트를 켰다면 막혔을 요청만 센다(Stage 2 전 계측).
+    {
+      const { resolveImageViewerDetailed, auditWouldDeny } = require('../middleware/imageViewer');
+      auditWouldDeny(file, resolveImageViewerDetailed(req), 'files/public-image', req);
+    }
 
     // 저장소 단일 원천 — 로컬이면 로컬, Drive 면 서버가 워크스페이스 토큰으로 받아서 흘려준다.
     const body = await require('../services/attachmentStorage').readAttachmentBody(file);
