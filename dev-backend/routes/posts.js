@@ -413,6 +413,17 @@ router.get('/by-record/:recordId', authenticateToken, async (req, res, next) => 
   try {
     const post = await Post.findOne({ where: { q_record_id: Number(req.params.recordId) } });
     if (!post) return errorResponse(res, 'not_found', 404);
+    // ★ 멤버십 검사 (Fable 구현 검증 게이트 2026-09-01 지적).
+    //   여태 authenticateToken 만 걸려 있어, **다른 워크스페이스**의 record id 를 넣어도
+    //   post_id 가 그대로 돌아왔다. 내용은 상세 라우트에서 403 이지만 **그 표가 존재한다는 사실**과
+    //   내부 id 가 새어 나간다(id 를 훑으면 남의 워크스페이스에 표가 몇 개 있는지도 알 수 있다).
+    //   이 라우트는 폐지된 옛 경로(/records/:id)를 post 로 보내는 리다이렉트 보조라
+    //   조회 권한을 따로 둘 이유가 없다 — 같은 워크스페이스 멤버만 통과시킨다.
+    //   ★ not_found 검사보다 **뒤에** 두지 않는다면 존재 여부가 응답 코드로 갈리므로,
+    //     비멤버에게는 404 와 구별되지 않게 403 을 준다(존재 자체를 알리지 않는다).
+    if (!(await assertMember(req.user.id, Number(post.business_id), req.user.platform_role === 'platform_admin'))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
     successResponse(res, { post_id: post.id });
   } catch (err) { next(err); }
 });
