@@ -391,9 +391,18 @@ const QProjectDetailPage: React.FC = () => {
     return () => document.removeEventListener('click', onClick);
   }, [convMenuFor]);
 
-  const load = useCallback(async () => {
+  // ★ 2026-09-01 (Irene: "프로젝트>문서에서 편집이 임시저장된 다음 닫혀버려")
+  //   이 load 는 소켓 broadcast·복귀 때도 불린다. 그런데 첫 줄에서 페이지 전체 `loading` 을 켜고
+  //   아래 렌더 가드가 화면을 통째로 "로드 중…" 으로 갈아치웠다 —
+  //   그 안에서 편집 중이던 PostsPage 가 **언마운트**돼 편집 내용·모드가 사라졌다.
+  //   기존 문서를 고치면 자동저장 PUT 이 `post:updated` 를 쏘고(routes/posts.js:903),
+  //   그 이벤트를 이 페이지가 받아 자기 자신을 리로드했다 — **내 저장이 내 편집창을 죽였다**.
+  //   (신규 draft 는 broadcast 를 안 해서 재현되지 않았다. "기존 문서만" 인 이유가 이것이다.)
+  //   → 배경 갱신은 silent: 화면을 바꾸지 않고 데이터만 새로 받는다.
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!projectId) return;
-    setLoading(true);
+    const silent = opts?.silent === true;
+    if (!silent) setLoading(true);
     try {
       // ★ 프로젝트 본체는 **응답 객체**로 받는다 — 여태 곧바로 .json() 해서 404·403·500 이
       //   전부 `if (pr.success)` 의 else 없음으로 사라졌다. 그 결과 없는/권한 없는 프로젝트를
@@ -405,11 +414,15 @@ const QProjectDetailPage: React.FC = () => {
         apiFetch(`/api/projects/${projectId}/issues`).then(r => r.json()).catch(() => ({ data: [] })),
         apiFetch(`/api/projects/${projectId}/notes`).then(r => r.json()).catch(() => ({ data: [] })),
       ]);
-      if (prRes.status === 404) { setDetailStatus('not_found'); setProject(null); return; }
-      if (prRes.status === 403) { setDetailStatus('forbidden'); setProject(null); return; }
-      if (!prRes.ok) { setDetailStatus('error'); setProject(null); return; }
+      // ★ 배경 갱신이 실패했다고 이미 그려진 화면을 지우지 않는다. 순단·429·토큰 회전 한 번에
+      //   프로젝트 화면이 "찾을 수 없습니다" 로 바뀌면 편집 중이던 글까지 함께 사라진다.
+      //   실패를 화면으로 알리는 것은 **처음 열 때**의 책임이다(그때는 보여줄 것이 없다).
+      const failed = (st: DetailStatus) => { if (!silent) { setDetailStatus(st); setProject(null); } };
+      if (prRes.status === 404) { failed('not_found'); return; }
+      if (prRes.status === 403) { failed('forbidden'); return; }
+      if (!prRes.ok) { failed('error'); return; }
       const pr = await prRes.json().catch(() => null);
-      if (!pr || pr.success === false) { setDetailStatus('error'); setProject(null); return; }
+      if (!pr || pr.success === false) { failed('error'); return; }
       if (pr.success) {
         setDetailStatus('ready');
         setProject(pr.data);
@@ -439,20 +452,20 @@ const QProjectDetailPage: React.FC = () => {
       if (tr.success) setTasks(tr.data || []);
       if (ir.success) setIssues(ir.data || []);
       if (nr.success) setNotes(nr.data || []);
-    } finally { setLoading(false); }
+    } finally { if (!silent) setLoading(false); }
   }, [projectId]);
 
   useEffect(() => { load(); }, [load]);
 
   // N+39-2 — 실시간 동기화 (CLAUDE.md 16번) + PWA visibility 안전망
   const projectBizId = project?.business_id;
-  useVisibilityRefresh(useCallback(() => { void load(); }, [load]));
+  useVisibilityRefresh(useCallback(() => { void load({ silent: true }); }, [load]));
   useEffect(() => {
     if (!projectBizId || !projectId) return;
     let pending: number | null = null;
     const debouncedReload = () => {
       if (pending) return;
-      pending = window.setTimeout(() => { pending = null; void load(); }, 250);
+      pending = window.setTimeout(() => { pending = null; void load({ silent: true }); }, 250);
     };
     // 운영 #48 — task 변경은 전체 reload(=리프레시·위치 점프) 대신 in-place merge (§16(c) 작은 list).
     //   project_id 가 이 프로젝트면 upsert, 다른 프로젝트로 이관됐으면 이 리스트에서 제거(#42 실시간 반영).
@@ -473,9 +486,11 @@ const QProjectDetailPage: React.FC = () => {
     const offTaskDel = onSocket('task:deleted', (meta: { id: number }) => setTasks((prev) => prev.filter((t) => t.id !== meta?.id)));
     const offNoteNew = onSocket('note:new', debouncedReload);
     const offIssueNew = onSocket('issue:new', debouncedReload);
-    const offPostNew = onSocket('post:new', debouncedReload);
-    const offPostUpd = onSocket('post:updated', debouncedReload);
-    const offPostDel = onSocket('post:deleted', debouncedReload);
+    // ★ post:* 는 듣지 않는다 (2026-09-01). 이 페이지는 **문서 데이터를 한 줄도 렌더하지 않는다** —
+    //   문서 목록·상세는 안에 얹힌 PostsPage 가 자기 소켓으로 직접 갱신한다(components/Docs/PostsPage.tsx).
+    //   그런데 여태 문서가 저장될 때마다 프로젝트·대화·업무·이슈·메모·멤버·고객을 **전부 다시 불렀다**.
+    //   실측(글 쓰는 60초): 분당 130건 중 80건이 이 재조회였고, 그것이 편집창을 죽인 그 반응이었다.
+    //   되살릴 일이 생긴다면 — 이 페이지가 문서에서 파생된 값을 그리게 됐을 때만이다.
     // 고객 초대 수락/변경 실시간 반영 (참여 고객 리스트 즉시 갱신)
     const offClientUpd = onSocket('client:updated', debouncedReload);
     const offProjClientUpd = onSocket('project_client:updated', debouncedReload);
@@ -485,7 +500,6 @@ const QProjectDetailPage: React.FC = () => {
       leaveRoom(`project:${Number(projectId)}`);
       offTaskNew(); offTaskUpd(); offTaskDel();
       offNoteNew(); offIssueNew();
-      offPostNew(); offPostUpd(); offPostDel();
       offClientUpd(); offProjClientUpd();
     };
   }, [projectBizId, projectId, load]);
@@ -623,7 +637,9 @@ const QProjectDetailPage: React.FC = () => {
   }, [tasks]);
 
   if (!projectId) return <PageShell title="Error"><Empty>{t('error.invalidUrl', '잘못된 주소')}</Empty></PageShell>;
-  if (loading) return <PageShell title={t('loading', '로드 중...')}><Empty>{t('loading', '로드 중...')}</Empty></PageShell>;
+  // ★ 보여줄 것이 아직 없을 때만 로딩 화면. 이미 그려진 페이지를 스피너로 덮으면
+  //   그 안의 편집기·스크롤·열어둔 패널이 언마운트로 전부 날아간다.
+  if (loading && !project) return <PageShell title={t('loading', '로드 중...')}><Empty>{t('loading', '로드 중...')}</Empty></PageShell>;
   // ★ 못 불러온 것 — 여태는 아무 말도 없이 빈 화면이었다 (2026-08-30).
   if (!project && (detailStatus === 'not_found' || detailStatus === 'forbidden' || detailStatus === 'error')) {
     return (
