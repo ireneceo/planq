@@ -134,7 +134,36 @@ router.post('/', authenticateToken, async (req, res, next) => {
       columns: cols, created_by: req.user.id,
     });
     await QRecordAudit.create({ q_record_id: r.id, user_id: req.user.id, action: 'record.create' });
-    successResponse(res, r.toJSON(), 'record created', 201);
+
+    // ★ 운영 #360 — 표를 만들면 **그것을 열 수 있는 자리도 같이 만든다.**
+    //   Q record 메뉴는 폐지됐고(App.tsx: /records → /docs) 표를 여는 유일한 통로는
+    //   post(kind='table') 다. 여기서 q_record 만 만들면 데이터는 살아 있는데 화면에서
+    //   아무도 못 연다 — 운영에서 실제로 그렇게 됐다(#12 "앱 스토어 개발자 계정", 행 15건).
+    //   가시성은 표의 것을 그대로 옮긴다 — 도달 가능하게 만드는 것이 더 넓게 보이게 하는 것이면 안 된다.
+    let linkedPostId = null;
+    try {
+      const { Post } = require('../models');
+      const post = await Post.create({
+        business_id: Number(business_id),
+        project_id: project_id || null,
+        title: String(name).trim().slice(0, 200),
+        content_json: null,
+        content_text: description ? String(description).slice(0, 500) : null,
+        category: category ? String(category).slice(0, 80) : null,
+        author_id: req.user.id,
+        status: 'published',
+        kind: 'table',
+        q_record_id: r.id,
+        vlevel: r.vlevel || (project_id ? 'L2' : 'L3'),
+        target_member_ids: r.target_member_ids || null,
+      });
+      linkedPostId = post.id;
+    } catch (e) {
+      // post 생성 실패가 표 생성을 되돌리지는 않는다(데이터 유실 방지). 다만 도달 불가 상태이므로
+      // 백필 스크립트가 주워 갈 수 있게 로그를 남긴다 — scripts/backfill-orphan-record-posts.js
+      console.warn('[records] 연결 post 생성 실패 — 표는 만들어졌으나 도달 불가:', r.id, e.message);
+    }
+    successResponse(res, { ...r.toJSON(), post_id: linkedPostId }, 'record created', 201);
   } catch (err) { next(err); }
 });
 

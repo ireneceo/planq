@@ -325,6 +325,13 @@ sync_database() {
   # task_candidates.conversation_id NULL 허용 — 운영만 NOT NULL 이라 **메일에서 업무가 나오면
   #   항상 500** 이었다(2026-08-29 운영 실측). sync-database 는 기존 컬럼의 NULL 허용을 안 바꾼다.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-candidate-nullable-conv.js 2>&1 | tail -5"
+
+  # 운영 #360 — 연결 post 가 없는 표(q_record)는 화면에서 열 길이 없다.
+  #   Q record 메뉴 폐지 후 표를 여는 통로는 post(kind=table) 뿐인데, POST /api/records 가
+  #   post 없이 표만 만들 수 있어 운영에 도달 불가 표가 생겼다(#12 "앱 스토어 개발자 계정", 행 15).
+  #   가시성(vlevel·target_member_ids)은 원본 표에서 그대로 옮기므로 더 넓게 보이지 않는다.
+  log "Backfilling orphan record posts (#360)..."
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/backfill-orphan-record-posts.js --apply 2>&1 | tail -8"
   success "마이그레이션 완료 (push native / invoice-payment / account-deletion / mail-notify / task-hold / mail-delivery / calendar-sync / calendar-split / calendar-reverse-sync / doc-confirm / file-trash / gdrive-origin / mail-followup / candidate-null)"
 
   # 백필 — 마이그레이션 후. 과거 paid invoice/회차에 payment 원장 생성(멱등). 매출 0 복구.
