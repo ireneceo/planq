@@ -228,7 +228,11 @@ router.get('/:businessId/email-threads',
         //   검색 블록이 길어지며 조건이 눈에서 멀어졌다(가드가 잡았다). 중복이지만 실제 제약이라 안전하다.
         where: { ...where, business_id: businessId },
         include: [
-          { model: EmailAccount, attributes: ['id', 'email', 'display_name'], required: false },
+          // ★ owner_user_id 를 같이 내린다 — 프론트가 **이 스레드가 개인메일인지** 목록 조회 없이
+          //   바로 알 수 있어야 한다. 목록에 의존하면 로딩 경합에서 "모름" 이 되고, 그때
+          //   개인메일 본문 이미지가 워크스페이스 등급으로 저장될 수 있다(#378 후속).
+          //   값 자체는 노출돼도 안전하다 — 이 스레드는 이미 본인만 볼 수 있는 것이다(위 필터).
+          { model: EmailAccount, attributes: ['id', 'email', 'display_name', 'owner_user_id'], required: false },
           { model: Client, attributes: ['id', 'display_name', 'company_name'], required: false },
           { model: Project, attributes: ['id', 'name', 'color'], required: false },
         ],
@@ -410,7 +414,11 @@ router.get('/:businessId/email-threads/:id',
       const thread = await EmailThread.findOne({
         where: { id, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } },
         include: [
-          { model: EmailAccount, attributes: ['id', 'email', 'display_name'], required: false },
+          // ★ owner_user_id 를 같이 내린다 — 프론트가 **이 스레드가 개인메일인지** 목록 조회 없이
+          //   바로 알 수 있어야 한다. 목록에 의존하면 로딩 경합에서 "모름" 이 되고, 그때
+          //   개인메일 본문 이미지가 워크스페이스 등급으로 저장될 수 있다(#378 후속).
+          //   값 자체는 노출돼도 안전하다 — 이 스레드는 이미 본인만 볼 수 있는 것이다(위 필터).
+          { model: EmailAccount, attributes: ['id', 'email', 'display_name', 'owner_user_id'], required: false },
           { model: Client, attributes: ['id', 'display_name', 'company_name', 'invite_email'], required: false },
           { model: Project, attributes: ['id', 'name', 'color'], required: false },
         ],

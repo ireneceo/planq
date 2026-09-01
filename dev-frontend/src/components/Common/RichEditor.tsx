@@ -45,6 +45,11 @@ type Props = {
   uploadUrl?: string;
   readOnly?: boolean;
   minHeight?: number;
+  /** 본문 인라인 이미지를 **개인 파일**로 저장한다(#378 후속).
+   *  기본은 그 글과 같은 노출 범위(워크스페이스/프로젝트)지만, **개인메일처럼 글 자체가
+   *  본인만 보는 자리**에서는 그림도 본인만 봐야 한다 — 안 그러면 메일은 안 보이는데
+   *  그 안의 그림만 Q File 목록에서 팀에게 새어 나간다. (Irene 확인 2026-09-01) */
+  privateInline?: boolean;
   /** 상단 고정 툴바 노출 (기본 false — 기존 사용처는 렌더 출력이 그대로다).
    *  메일 작성처럼 "다른 메일 서비스만큼은 돼야 하는" 화면에서 켠다. 슬래시 커맨드·버블 메뉴는
    *  그대로 남는다 — 아는 사람은 계속 쓰고, 모르는 사람은 버튼을 본다. */
@@ -60,6 +65,7 @@ export default function RichEditor({
   readOnly = false,
   minHeight = 180,
   toolbar = false,
+  privateInline = false,
 }: Props) {
   const { t } = useTranslation('common');
   const effectivePlaceholder = placeholder ?? t('editor.placeholder');
@@ -68,6 +74,9 @@ export default function RichEditor({
   const currentValueRef = useRef(value);
   const uploadUrlRef = useRef(uploadUrl);
   useEffect(() => { uploadUrlRef.current = uploadUrl; }, [uploadUrl]);
+  // 에디터는 한 번만 만들어지므로(useEditor) 클로저가 초기값을 붙잡는다 — ref 로 최신값을 본다.
+  const privateInlineRef = useRef(privateInline);
+  useEffect(() => { privateInlineRef.current = privateInline; }, [privateInline]);
 
   const editor = useEditor({
     extensions: [
@@ -180,7 +189,7 @@ export default function RichEditor({
       // ★ #378 후속 — **본문 인라인**임을 알린다. 그래야 서버가 그 글과 같은 노출 범위로 저장한다.
       //   안 보내면 개인(L1)로 저장돼, 글은 팀에 보이는데 그 안의 그림만 남들에게 깨진다.
       //   Q docs(PostEditor)는 전용 라우트라 이미 그렇게 저장한다 — 두 에디터를 맞춘다.
-      fd.append('inline', '1');
+      fd.append('inline', privateInlineRef.current ? 'private' : '1');
       const r = await apiFetch(url, { method: 'POST', body: fd });
       // ★ apiFetch 는 throw 하지 않는다 — res.ok 를 봐야 실패를 안다.
       // ★ 운영 #378 — 여기서 조용히 null 만 돌려주는 바람에, Q info 의 업로드 경로가

@@ -200,7 +200,9 @@ interface Thread {
   message_count: number;
   attachment_count?: number;      // #215-I — 열기 전 첨부 유무 인지 (0 = 없음)
   labels: string[];
-  account: { id: number; email: string; display_name?: string | null } | null;
+  //   owner_user_id: 이 스레드가 붙은 계정의 주인. null 이면 워크스페이스 공용, 값이 있으면 개인메일.
+  //   본문 인라인 이미지 등급을 계정 목록 조회 없이 정하기 위해 서버가 같이 내려준다(#378 후속).
+  account: { id: number; email: string; display_name?: string | null; owner_user_id?: number | null } | null;
   // 상대방(발신자) — 목록의 "보낸 사람" 자리. 내 메일함 이름(account.display_name)이 아니다.
   counterpart?: { name: string | null; email: string | null } | null;
   client: { id: number; display_name?: string; company_name?: string } | null;
@@ -1330,6 +1332,20 @@ const MailPage: React.FC = () => {
     }) as string;
   };
 
+  // 본문 인라인 이미지를 개인으로 저장할지. **모르면 개인이다.**
+  //   `!!accounts.find(...)?.is_personal` 은 "모름" 과 "회사계정" 을 같은 값으로 접는다 —
+  //   계정 목록이 아직 안 왔거나(작성창을 먼저 연 경우), 초안 복원이 목록보다 빨리 도착하거나,
+  //   워크스페이스를 막 바꿔 옛 목록이 남아 있으면 **개인메일인데 워크스페이스 등급**이 된다.
+  //   비대칭이라 기본값이 정해진다: 잘못 개인이면 **깨지는 화면이 0**(메일 이미지는 발송 시
+  //   CID 로 바뀌어 등급이 수신자와 무관하고, 앱 안 서빙도 아직 등급을 안 본다),
+  //   잘못 워크스페이스면 개인메일의 그림이 팀 파일 목록에 샌다. (Fable 판정 2026-09-01)
+  const inlineIsPrivate = (accountId: number | null, ownerUserId?: number | null): boolean => {
+    // 스레드 상세가 계정 주인을 직접 알려주면 목록에 의존하지 않는다.
+    if (ownerUserId !== undefined) return ownerUserId != null;
+    const acc = accounts.find((a) => a.id === accountId);
+    return acc ? !!acc.is_personal : true;   // 모르면 개인
+  };
+
   const sendReply = async () => {
     if (!detail || !businessId || sending) return;
     if (isEmptyHtml(replyHtml)) {
@@ -2203,7 +2219,8 @@ const MailPage: React.FC = () => {
                   onBody={setCBody}
                   onError={setCError}
                 />
-                <RichEditor value={cBody} onChange={(v: string) => { markComposeTouched(); setCBody(v); }} toolbar placeholder={t('compose.bodyPh', { defaultValue: '메일 내용을 입력하세요…' }) as string} uploadUrl={businessId ? `/api/files/${businessId}` : undefined} />
+                <RichEditor value={cBody} onChange={(v: string) => { markComposeTouched(); setCBody(v); }} toolbar placeholder={t('compose.bodyPh', { defaultValue: '메일 내용을 입력하세요…' }) as string} uploadUrl={businessId ? `/api/files/${businessId}` : undefined}
+                  privateInline={inlineIsPrivate(cAccountId)} />
                 {fwdFromMsgId && (
                   <FwdAttachHint>{t('forward.originalIncluded', { defaultValue: '원본 메일이 아래에 그대로 붙어 전달됩니다 — 위에 덧붙일 말만 쓰시면 돼요 (비워도 됩니다)' }) as string}</FwdAttachHint>
                 )}
@@ -2541,6 +2558,8 @@ const MailPage: React.FC = () => {
                       /* #378 — Q info·Q Task 와 **같은 주소**를 쓴다. 발송 직전 emailImageEmbed 가
                          CID 첨부로 바꾼다(URL 을 그대로 내보내면 영구 공개된다). */
                       uploadUrl={businessId ? `/api/files/${businessId}` : undefined}
+                      /* 개인메일이면 본문 이미지도 개인 — 메일은 안 보이는데 그림만 새면 안 된다 */
+                      privateInline={inlineIsPrivate(detail?.account?.id ?? null, detail?.account?.owner_user_id ?? undefined)}
                     />
                     <AttachmentField
                       businessId={businessId}

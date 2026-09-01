@@ -525,8 +525,14 @@ router.post('/:businessId', authenticateToken, ...perUserDaily('file-upload', { 
     //   지금은 서빙 라우트가 등급을 안 봐서 **우연히** 보이는 상태다 — 게이트가 붙으면 그날 깨진다.
     //   Irene 확인(2026-09-01): "Q docs 에 맞추기".
     //   ★ 한 곳에서 정하고 아래 저장 분기(로컬·gdrive·s3)가 모두 이 값을 쓴다. 식을 베껴 두면 갈라진다.
-    const isInline = String(req.body.inline || '') === '1';
-    const uploadLevel = projectId ? 'L2' : (isInline ? 'L3' : 'L1');
+    //   ★ `inline=private` — 글 자체가 본인만 보는 자리(개인메일)에서는 그림도 개인이다.
+    //     이걸 구분하지 않으면 **메일은 안 보이는데 그 안의 그림만 Q File 목록에서 팀에게 샌다**
+    //     (Irene 2026-09-01: "개인메일은 개인만 보는 거지?" — 실제로 새는 구조였다).
+    //     프로젝트 소속이어도 private 이면 개인이 이긴다 — 좁은 쪽으로 결정한다.
+    const inlineMode = String(req.body.inline || '');
+    const isInline = inlineMode === '1' || inlineMode === 'private';
+    const uploadLevel = inlineMode === 'private' ? 'L1'
+      : (projectId ? 'L2' : (isInline ? 'L3' : 'L1'));
     const folderId = req.body.folder_id ? Number(req.body.folder_id) : null;
     // 채팅/대화에서 올라온 첨부 — project_id 없어도 Drive 의 "Conversations" 폴더로 라우팅 가능
     const conversationId = req.body.conversation_id ? Number(req.body.conversation_id) : null;
