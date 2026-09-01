@@ -817,6 +817,21 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
       const effectiveRule = rrFromCandidate
         || ((!wantCompleted && dueOff !== null) ? rruleFromRecurrence(c.recurrence, addDaysStr(todayLocal, dueOff)) : null);
 
+      // #353 ⑤ — **명시 RRULE 인데 마감일이 없으면 규칙을 버리지 않고 첫 발생일을 앵커한다.**
+      //   여태는 조용히 버렸다. 그런데 "매일 논문 읽기" 같은 루틴은 **본래 마감일이 없고**,
+      //   프롬프트도 마감일을 강제하지 않는다(":190 no deadline → distribute realistically").
+      //   그래서 사용자가 대놓고 요청한 정기업무가 **일회성 업무로 태어났다** —
+      //   #353 이 말한 "AI 경로가 루틴을 원천적으로 만들 수 없다" 의 마지막 조각이다.
+      //   실측(2026-09-01): 평일만 규칙 + 마감일 없음 → recurrence_rule 저장값 null.
+      //
+      //   ★ 앵커는 **후보가 규칙을 직접 들고 온 경우에만** 건다(rrFromCandidate).
+      //     프리셋 폴백은 애초에 dueOff 가 있어야 계산되므로 이 분기에 오지 않는다.
+      //   ★ 탭 기본값(defaultDueDate)으로는 절대 앵커하지 않는다 — 날짜를 안 정한 후보가
+      //     규칙 없이 들어왔을 때 시키지도 않은 정기업무가 태어나는 것을 막는 기존 가드는 그대로다.
+      const startStr = startOff !== null ? addDaysStr(todayLocal, startOff) : null;
+      const recurrenceAnchor = (!dueStr && rrFromCandidate) ? (startStr || todayLocal) : null;
+      const effectiveDue = dueStr || recurrenceAnchor;
+
       // #353 ③ — 장문 실행 지침은 description(요약) 뒤에 이어 붙여 저장한다.
       //   후보 응답에서는 두 필드가 분리돼 있어야 미리보기가 요약만 보여줄 수 있다 — 병합은 저장 시점에.
       const descBase = c.description ? String(c.description).slice(0, 2000) : '';
@@ -835,9 +850,9 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
         //   영원히 죽은 코드가 된다. 미지정은 미지정으로 넘기고, 체인(기본담당자→PM→생성자)은
         //   createTask 가 판단한다 — 사람·AI·Cue 가 같은 규칙을 쓰게 하는 지점이다.
         assigneeId: c.assignee_user_id || null,
-        startDate: startOff !== null ? addDaysStr(todayLocal, startOff) : null,
+        startDate: startStr,
         //   ★ 기본값은 **후보가 날짜를 안 정했을 때만** 쓴다.
-        dueDate: dueStr || defaultDueDate,
+        dueDate: effectiveDue || defaultDueDate,
         //   주차 버킷 — "이번 주 나의 업무" 술어가 이 값으로 맞춰진다(브라우저가 계산한 월요일이
         //   아니라 화면이 서버에서 받은 주 시작이어야 tz 로 어긋나지 않는다).
         plannedWeekStart: defaultWeekStart,
@@ -845,7 +860,7 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
         // 정기 루틴 — 마감일이 첫 발생일이므로 없으면 반복 불가(task_actions 가 due 없는 반복을 거절한다).
         //   ★ 게이트는 **원래 dueStr** 로 본다. 탭 기본값으로 채워진 날짜에 반복을 걸면,
         //     날짜를 안 정한 후보가 규칙만 들고 왔을 때 사용자가 시키지도 않은 정기업무가 태어난다.
-        recurrenceRule: (dueStr && effectiveRule) ? effectiveRule : null,
+        recurrenceRule: (effectiveDue && effectiveRule) ? effectiveRule : null,
         // #353 ② — 업무그룹 배치. task_actions 가 프로젝트 소속인지 다시 검증한다(오배치·테넌트 차단).
         // #354 — 루틴 모드는 영역 인덱스로 **id 직결**한다. 이름 왕복 매칭은 방금 만든 영역을
         //   문자열로 다시 찾는 셈이라 정규화가 한 톨만 어긋나도 미배치가 된다.
