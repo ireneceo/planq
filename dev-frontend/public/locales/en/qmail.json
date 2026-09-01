@@ -568,5 +568,13 @@
     "replyNeededDesc": "Only mail classified as needing a reply. The quietest option.",
     "recommended": "Include review-suggested",
     "recommendedDesc": "Adds mail that needs a closer look, on top of reply-needed."
+  },
+  "sendError": {
+    "mail_image_security_level": "One of the images in the body is marked confidential or internal, so it cannot be emailed. Remove it, or change its security level to general.",
+    "mail_image_unavailable": "The original file for an image in the body could not be found. Please insert the image again.",
+    "mail_image_too_large": "The images in the body are too large (8MB total). Please send large images as attachments.",
+    "mail_image_not_image": "The body contains a non-image file placed as a picture, so it cannot be sent. Please send that file as an attachment.",
+    "mail_image_forbidden": "The body contains an image you do not have access to. Another person’s private file cannot be attached to an email.",
+    "mail_image_generic": "The images in the body could not be attached to this email."
   }
 }

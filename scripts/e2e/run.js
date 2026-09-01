@@ -29,6 +29,7 @@ const SUITES = {
   hlock: () => require('./canary-qtalk-hlock'), // #245 Q Talk 가로 잠금 — overflow-y:auto 만 두면 반대축이 auto 로 강제(grep 불가)
   fab: () => require('./canary-fab-reach'),
   mailfwd: () => require('./canary-mail-forward'),   // 전달 컴포저 — 원문 미리보기가 **실제 높이**를 갖는가
+  mailimage: () => require('./canary-mail-image'),   // #378 메일 본문 이미지 — 드래그가 무시되는지 눈으로 구별이 안 되는 계열
   dropdowns: () => require('./canary-dropdowns'),   // 알림↔새소식 규격 일치 + 새 탭으로 열기
   imgresize: () => require('./canary-image-resize'),
   mobileboot: () => require('./canary-mobile-boot'), // 콜드스타트 착지 · 재진입 즉시표시 · Cue 키보드 (저장소+뷰포트+키보드가 합쳐진 뒤에만 존재)

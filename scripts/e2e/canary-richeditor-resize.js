@@ -7,9 +7,9 @@
 //   이제 두 에디터가 같은 ResizableImage + 같은 CSS(resizableImageStyles)를 쓴다.
 //
 // ★ 왜 Q Task 로 재는가 — Q info(KnowledgePage)에는 data-testid 가 **하나도 없어** 하니스가
-//   편집기를 열 수가 없다(CLAUDE.md §17 위반). Q Mail 본문은 아직 uploadUrl 이 없어
-//   이미지를 아예 못 넣는다(그 자체가 미해결 항목 — docs/for-fable 참조).
-//   같은 RichEditor 를 쓰면서 uploadUrl 이 있는 Q Task 로 판정한다.
+//   편집기를 열 수가 없다(CLAUDE.md §17 위반). 같은 RichEditor 를 쓰면서 열 수 있는 Q Task 로 판정한다.
+//   (2026-09-01 정정: Q Mail 도 이제 본문에 이미지를 넣을 수 있다 — canary-mail-image 가 따로 잰다.
+//    옛 주석이 "Q Mail 은 못 넣는다" 로 남아 있었다. 동작을 바꾸면 문구가 거짓말이 된다.)
 // ★ canary-image-resize(Q docs)와 **파일을 나눈 이유**: 한 브라우저에서 드래그 조작을 한 뒤
 //   다른 화면으로 이동하면 프레임이 끊겼다("detached Frame" → "Connection closed"). 따로 띄운다.
 const b = require('./lib/browser');

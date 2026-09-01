@@ -970,9 +970,16 @@ router.post('/:businessId/email-threads/:id/messages',
           replyToAddresses: lastInboundTo,
           // #262 — 이 발송만 서명 끄기. 계정 설정(signature_enabled)은 건드리지 않는다.
           signature: req.body.signature !== false,
+          // #378 — 본문 이미지 권한 검사에 쓴다(타 멤버 개인 파일이 실려 나가지 않도록).
+          senderUserId: req.user.id,
         });
       } catch (e) {
         console.error('[qmail] reply send failed:', e.message);
+        // ★ #378 — 본문 이미지 문제는 **사용자가 고칠 수 있는** 오류다(보안등급·용량·바이트 없음).
+        //   502 로 뭉뚱그리면 "서버 탓" 으로 읽혀 무엇을 고쳐야 할지 알 수 없다.
+        if (e.code && String(e.code).startsWith('mail_image_')) {
+          return errorResponse(res, e.code, 400);
+        }
         return errorResponse(res, `send_failed: ${e.message}`, 502);
       }
 
@@ -1136,9 +1143,14 @@ router.post('/:businessId/email-compose',
       let sendResult;
       try {
         // 표 인라인 — 저장본과 발송본에 같은 값 (전달은 인용을 붙이지 않는다: 원문이 이미 본문에 있다)
-        sendResult = await sendMail(account, { to: toList, cc, bcc, subject: subj, html: bodyHtmlOut2, attachments: atts, fromAliasId: parseFromAliasId(req.body), signature: req.body.signature !== false });
+        sendResult = await sendMail(account, { to: toList, cc, bcc, subject: subj, html: bodyHtmlOut2, attachments: atts, fromAliasId: parseFromAliasId(req.body), signature: req.body.signature !== false, senderUserId: req.user.id });
       } catch (e) {
         console.error('[qmail] compose send failed:', e.message);
+        // ★ #378 — 본문 이미지 문제는 **사용자가 고칠 수 있는** 오류다(보안등급·용량·바이트 없음).
+        //   502 로 뭉뚱그리면 "서버 탓" 으로 읽혀 무엇을 고쳐야 할지 알 수 없다.
+        if (e.code && String(e.code).startsWith('mail_image_')) {
+          return errorResponse(res, e.code, 400);
+        }
         return errorResponse(res, `send_failed: ${e.message}`, 502);
       }
 
@@ -1265,9 +1277,14 @@ router.post('/:businessId/email-threads/:id/forward',
       let sendResult;
       try {
         // 표 인라인 — 저장본과 발송본에 같은 값 (전달은 인용을 붙이지 않는다: 원문이 이미 본문에 있다)
-        sendResult = await sendMail(account, { to: toList, cc, bcc, subject: subj, html: bodyHtmlOut2, attachments: atts, fromAliasId: parseFromAliasId(req.body), signature: req.body.signature !== false });
+        sendResult = await sendMail(account, { to: toList, cc, bcc, subject: subj, html: bodyHtmlOut2, attachments: atts, fromAliasId: parseFromAliasId(req.body), signature: req.body.signature !== false, senderUserId: req.user.id });
       } catch (e) {
         console.error('[qmail] forward send failed:', e.message);
+        // ★ #378 — 본문 이미지 문제는 **사용자가 고칠 수 있는** 오류다(보안등급·용량·바이트 없음).
+        //   502 로 뭉뚱그리면 "서버 탓" 으로 읽혀 무엇을 고쳐야 할지 알 수 없다.
+        if (e.code && String(e.code).startsWith('mail_image_')) {
+          return errorResponse(res, e.code, 400);
+        }
         return errorResponse(res, `send_failed: ${e.message}`, 502);
       }
 

@@ -194,7 +194,7 @@ async function resolveOutgoingIdentity(account, { fromAliasId = null, replyToAdd
   };
 }
 
-async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, references, attachments, fromAliasId = null, replyToAddresses = null, signature = true, quote = null }) {
+async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, references, attachments, fromAliasId = null, replyToAddresses = null, signature = true, quote = null, senderUserId = null }) {
   // 수신자 검증 — 가짜/예약TLD/형식불량 주소 차단 (바운스·평판 보호). emailService 게이트 재사용.
   const { emailBlockReason, MAIL_FONT_STACK } = require('./emailService');
   const blocked = emailBlockReason([].concat(to || [], cc || [], bcc || []));
@@ -270,7 +270,16 @@ async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, 
   //   래퍼일 뿐이라 **원문에 이미 박힌 서식은 그대로 이긴다**(CSS 상속). 전달 시 상대가 보낸
   //   원문 인용문의 글꼴을 우리가 갈아엎지 않는다 — 전달은 원문 보존이 맞다.
   const wireHtmlFont = `<div style="font-family:${MAIL_FONT_STACK};">${wireHtml}</div>`;
-  const wireHtmlOut = normalizeDataUris(wireHtmlFont);
+  // ★ #378 — 본문에 넣은 **우리 이미지**를 CID 첨부로 바꾼다(services/emailImageEmbed.js).
+  //   저장본은 URL 그대로 두고 **나가는 편지에서만** 바꾼다 — 보낸메일 화면은 그 URL 로 그리고,
+  //   초안 재발송도 언제나 URL 에서 다시 출발한다(멱등).
+  //   남의 원문 이미지(data: · 원격 https: · cid:)는 판정에 안 걸려 손대지 않는다.
+  const { embedOwnImages } = require('./emailImageEmbed');
+  //   ★ senderUserId 를 반드시 넘긴다 — 안 넘기면 아래 권한 검사가 그냥 통과해
+  //     타 멤버의 개인(L1) 파일이 메일로 나간다. 라우트 3곳이 req.user.id 를 준다.
+  const embedded = await embedOwnImages(wireHtmlFont, { businessId: account.business_id, userId: senderUserId });
+  const wireHtmlOut = normalizeDataUris(embedded.html);
+  const allAttachments = [...(attachments || []), ...embedded.attachments];
   const info = await transport.sendMail({
     attachDataUrls: true,
     from,
@@ -282,7 +291,7 @@ async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, 
     ...(wireText ? { text: wireText } : {}),
     ...(inReplyTo ? { inReplyTo } : {}),
     ...(references && references.length ? { references } : {}),
-    ...(attachments && attachments.length ? { attachments } : {}),
+    ...(allAttachments.length ? { attachments: allAttachments } : {}),
   });
 
   return {

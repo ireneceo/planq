@@ -1320,6 +1320,16 @@ const MailPage: React.FC = () => {
   const isEmptyHtml = (h: string) =>
     !h.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim();
 
+  // ★ #378 — 서버가 돌려주는 본문 이미지 오류 코드를 사용자가 읽을 말로 옮긴다.
+  //   코드가 그대로 뜨면 무엇을 고쳐야 할지 알 수 없다. 모르는 코드는 원문 그대로 둔다.
+  const mailErrorText = (msg: string): string => {
+    const code = String(msg || '').trim();
+    if (!code.startsWith('mail_image_')) return msg;
+    return t(`sendError.${code}`, {
+      defaultValue: t('sendError.mail_image_generic', { defaultValue: '본문 이미지를 메일에 실을 수 없습니다.' }) as string,
+    }) as string;
+  };
+
   const sendReply = async () => {
     if (!detail || !businessId || sending) return;
     if (isEmptyHtml(replyHtml)) {
@@ -1360,7 +1370,7 @@ const MailPage: React.FC = () => {
         body: JSON.stringify({ body_html: replyHtml, attachment_file_ids: fileIds, from_alias_id: fromAliasId === null ? undefined : fromAliasId, signature: replySignature }),
       });
       const j = await r.json();
-      if (!j.success) throw new Error(j.message || (t('reply.sendFailed', { defaultValue: '발송 실패' }) as string));
+      if (!j.success) throw new Error(mailErrorText(j.message) || (t('reply.sendFailed', { defaultValue: '발송 실패' }) as string));
       // 성공 — 임시 카드를 서버가 확정한 값으로 **치환**(추가하면 같은 메일이 두 장이 된다).
       //   응답은 평면 객체(id·delivery_status·sent_at…)라 임시 카드 위에 덮어쓴다.
       //   본문 정본(서명·표 인라인이 반영된 저장본)은 뒤따르는 loadDetail 이 가져온다.
@@ -1686,7 +1696,7 @@ const MailPage: React.FC = () => {
           body: JSON.stringify({ account_id: accId, to, subject: cSubject, body_html: cBody, attachment_file_ids: fileIds, from_alias_id: cFromAliasId, signature: cSignature }),
         });
       const j = await r.json();
-      if (!j.success) throw new Error(j.message || (t('compose.sendFailed', { defaultValue: '발송 실패' }) as string));
+      if (!j.success) throw new Error(mailErrorText(j.message) || (t('compose.sendFailed', { defaultValue: '발송 실패' }) as string));
       // 발송 성공 — 초안 삭제. 새 메일은 서버 초안, 전달은 이 브라우저의 로컬 초안이다.
       //   보낸 뒤에도 남아 있으면 다음에 전달 폼을 열 때 보낸 내용이 되살아난다.
       if (fwdFromMsgId) fwdDraft.clear();
@@ -2193,7 +2203,7 @@ const MailPage: React.FC = () => {
                   onBody={setCBody}
                   onError={setCError}
                 />
-                <RichEditor value={cBody} onChange={(v: string) => { markComposeTouched(); setCBody(v); }} toolbar placeholder={t('compose.bodyPh', { defaultValue: '메일 내용을 입력하세요…' }) as string} />
+                <RichEditor value={cBody} onChange={(v: string) => { markComposeTouched(); setCBody(v); }} toolbar placeholder={t('compose.bodyPh', { defaultValue: '메일 내용을 입력하세요…' }) as string} uploadUrl={businessId ? `/api/files/${businessId}` : undefined} />
                 {fwdFromMsgId && (
                   <FwdAttachHint>{t('forward.originalIncluded', { defaultValue: '원본 메일이 아래에 그대로 붙어 전달됩니다 — 위에 덧붙일 말만 쓰시면 돼요 (비워도 됩니다)' }) as string}</FwdAttachHint>
                 )}
@@ -2528,6 +2538,9 @@ const MailPage: React.FC = () => {
                       onChange={setReplyHtml}
                       toolbar
                       placeholder={t('reply.placeholder', { defaultValue: '답장 내용을 입력하세요…' }) as string}
+                      /* #378 — Q info·Q Task 와 **같은 주소**를 쓴다. 발송 직전 emailImageEmbed 가
+                         CID 첨부로 바꾼다(URL 을 그대로 내보내면 영구 공개된다). */
+                      uploadUrl={businessId ? `/api/files/${businessId}` : undefined}
                     />
                     <AttachmentField
                       businessId={businessId}
