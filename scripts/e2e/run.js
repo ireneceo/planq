@@ -10,6 +10,8 @@ const SUITES = {
   caret: () => require('./canary-caret-visible'),
   // 에디터 업로드 주소 — 프론트 문자열과 백엔드 라우트를 컴파일러가 안 이어준다(#378 실측 404)
   editorupload: () => require('./canary-editor-upload'),
+  // RichEditor(Q info·Q Task) 이미지 크기 조절 — Q docs 는 imgresize 가 따로 본다(#378 통일)
+  richresize: () => require('./canary-richeditor-resize'),
   narrowtext: () => require('./narrow-text-audit'),   // 세로로 쌓인 텍스트 (제목 붕괴)
   crosscut: () => require('./canary-crawl'),   // 표시명(계정명) 누출 카나리 크롤
   l1: () => require('./canary-l1'),             // L1 개인자원 누출 카나리 (백엔드 API 크롤)

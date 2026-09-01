@@ -12,6 +12,7 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Link from '@tiptap/extension-link';
 import { ResizableImage } from './ResizableImage';
+import { resizableImageCss } from './resizableImageStyles';
 import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
 import { TableCell } from '@tiptap/extension-table-cell';
@@ -680,34 +681,7 @@ const Body = styled.div<{ $editable?: boolean; $borderless?: boolean; $compact?:
     img.editor-image { max-width: 100%; height: auto; border-radius: 8px; margin: 12px 0; display: block; }
     /* 사이클 N+22: read-only 에서는 selectednode outline 노출 X — 외부 공유 페이지에서 이미지 클릭 시 teal outline 위/아래
        잔상이 "녹색선" 으로 보이던 회귀 차단. 편집 모드만 outline 표시. */
-    ${p => p.$editable
-      ? `img.editor-image.ProseMirror-selectednode { outline: 2px solid #14B8A6; outline-offset: 2px; }`
-      : `img.editor-image.ProseMirror-selectednode { outline: none; }`}
-    /* #378 끌어서 크기 조절 — nodeView 가 img 를 div 로 감싼다.
-       선택 표시는 이제 감싼 쪽에 붙으므로 같은 규칙을 여기에도 준다(옛 규칙은 그대로 둔다). */
-    /* ★ 감싼 요소가 전체 폭을 먹으면 손잡이가 **이미지 모서리가 아니라 본문 오른쪽 끝**에 붙는다
-       (실측: 200px 이미지인데 손잡이가 x=1409). 폭을 이미지에 맞춘다. */
-    .pq-img-wrap { position: relative; display: block; width: fit-content; max-width: 100%; margin: 12px 0; }
-    .pq-img-wrap > img.editor-image { margin: 0; }
-    ${p => p.$editable
-      ? `.pq-img-wrap.ProseMirror-selectednode > img.editor-image { outline: 2px solid #14B8A6; outline-offset: 2px; }`
-      : `.pq-img-wrap.ProseMirror-selectednode > img.editor-image { outline: none; }`}
-    /* 손잡이는 선택했을 때만 — 평소엔 본문이 조용해야 한다. 터치 타겟 확보를 위해 여백까지 준다. */
-    .pq-img-handle { display: none; }
-    ${p => p.$editable ? `
-    .pq-img-wrap:hover .pq-img-handle,
-    .pq-img-wrap.ProseMirror-selectednode .pq-img-handle {
-      /* ★ 정사각형은 aspect-ratio 로 — 잡히는 영역은 아래 ::after 가 40px 로 넓힌다(터치 기준 충족).
-         height 리터럴을 쓰면 '컨트롤 높이' 래칫에 잡히는데, 이건 컨트롤이 아니라 손잡이 장식이다. */
-      display: block; position: absolute; width: 14px; aspect-ratio: 1;
-      right: -7px; bottom: -7px; border-radius: 4px;
-      background: #14B8A6; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25);
-      cursor: nwse-resize; z-index: 2;
-    }
-    /* 손가락으로는 14px 를 못 잡는다 — 보이는 크기는 그대로 두고 잡히는 영역만 넓힌다. */
-    .pq-img-wrap .pq-img-handle::after {
-      content: ''; position: absolute; inset: -13px;
-    }` : ''}
+    ${p => resizableImageCss(!!p.$editable)}
     p.is-editor-empty:first-child::before {
       color: #94A3B8; content: attr(data-placeholder);
       float: left; height: 0; pointer-events: none;

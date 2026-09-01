@@ -6,7 +6,6 @@
 import { useEditor, EditorContent } from '@tiptap/react';
 import { BubbleMenu } from '@tiptap/react/menus';
 import StarterKit from '@tiptap/starter-kit';
-import Image from '@tiptap/extension-image';
 import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import TaskList from '@tiptap/extension-task-list';
@@ -28,21 +27,15 @@ import SlashCommandList from './SlashCommandList';
 import { LightboxWrapper } from './ImageLightbox';
 import { plainTextToHtml } from '../../utils/sanitizeHtml';
 import { isEnterAction } from '../../utils/imeKey';
+import { ResizableImage } from '../Docs/ResizableImage';
+import { resizableImageCss } from '../Docs/resizableImageStyles';
 
-// Image extension 확장 — width attribute 지원 (사이클 N+9, 사이즈 조정용).
-// HTML 출력: <img src="..." width="33%" /> 등.
-const ResizableImage = Image.extend({
-  addAttributes() {
-    return {
-      ...this.parent?.(),
-      width: {
-        default: null,
-        parseHTML: (el: HTMLElement) => el.getAttribute('width') || el.style.width || null,
-        renderHTML: (attrs: { width?: string | null }) => (attrs.width ? { width: attrs.width } : {}),
-      },
-    };
-  },
-});
+// 본문 이미지 — **Q docs 와 같은 확장을 쓴다.**
+//   운영 #378 (Irene): "그냥 드래그로 넣으면 사이즈 조정도 안되네... 통일해서 맞춰서
+//   일반적인 기능으로 해야 해." 여태 이 파일은 width **속성만** 더한 자체 확장을 써서
+//   끌어서 크기 조절이 없었다 — 같은 앱인데 Q docs 에서만 됐다.
+//   ResizableImage(nodeView)는 실기기 실측으로 함정 셋을 이미 통과한 물건이다
+//   (memory feedback_prosemirror_nodeview_traps). 새로 만들지 않고 그대로 가져온다.
 
 type Props = {
   value: string;
@@ -432,6 +425,8 @@ const EditorShell = styled.div<{ $mh: number }>`
   & .pq-editor-body pre code{background:transparent;color:inherit;padding:0;}
   & .pq-editor-body hr{border:none;border-top:1px solid #E2E8F0;margin:14px 0;}
   & .pq-editor-body img{max-width:100%;border-radius:8px;display:block;margin:4px 0;}
+  /* #378 — 끌어서 크기 조절 손잡이. Q docs 와 **같은 규칙**을 쓴다(단일 원천). */
+  & .pq-editor-body{ ${resizableImageCss(true)} }
   & .pq-editor-body a{color:#0D9488;text-decoration:underline;text-decoration-color:#99F6E4;text-underline-offset:3px;}
   /* 표 (#151) — 문서 에디터(PostEditor)와 같은 시각. 넓은 표는 가로 스크롤로 가둔다(페이지가 밀리지 않게) */
   & .pq-editor-body .tableWrapper{overflow-x:auto;}
