@@ -53,6 +53,39 @@ import { useDetailResource } from 'hooks/useDetailResource';
 
 ---
 
+## 0-C. 배경 갱신은 **화면을 바꾸지 않는다** (2026-09-01)
+
+소켓 broadcast·visibility 복귀로 도는 갱신은 **데이터만** 새로 받는다. 그 갱신이 화면을
+로딩으로 덮거나 지우면, 그 안에서 하던 일(편집·스크롤·열어둔 패널)이 **언마운트로 사라진다.**
+
+```tsx
+const load = useCallback(async (opts?: { silent?: boolean }) => {
+  const silent = opts?.silent === true;
+  if (!silent) setLoading(true);           // ① 배경 갱신은 loading 을 건드리지 않는다
+  ...
+  const failed = (st: DetailStatus) => { if (!silent) { setDetailStatus(st); setProject(null); } };
+  ...                                      // ② 배경 갱신 실패는 화면을 지우지 않는다
+} finally { if (!silent) setLoading(false); }
+}, [id]);
+
+useVisibilityRefresh(useCallback(() => { void load({ silent: true }); }, [load]));
+onSocket('x:updated', () => void load({ silent: true }));
+
+// ③ 로딩 화면은 보여줄 것이 없을 때만
+if (loading && !project) return <PageShell title="로드 중..."><Empty>로드 중...</Empty></PageShell>;
+```
+
+- **④ 안 쓰는 이벤트는 듣지 않는다.** 화면이 렌더하지 않는 자원의 이벤트로 전체를 재조회하면
+  낭비이자 사고다. 실측: 프로젝트 상세가 `post:*` 마다 전체를 다시 불러 글 쓰는 중 **130건/분**
+  (제거 후 30건/분), 그 재조회가 곧 **편집창을 죽인 반응**이었다.
+- 실사례 — Irene "프로젝트>문서에서 편집이 임시저장된 다음 닫혀버려": 기존 문서 자동저장 PUT →
+  `post:updated` 방송 → 부모(`QProjectDetailPage`)가 자기 재조회 → `if (loading) return <로드 중…>` →
+  `PostsPage` 언마운트. **내 저장이 내 편집창을 죽였다.** 신규 초안은 방송을 안 해
+  (`routes/posts.js:903`) "기존 문서만" 이라는 경계가 생겼고, 그 경계가 원인의 경계였다.
+- 판정은 **실브라우저로** — 정적 검사로는 안 잡힌다. 옛 코드 240 표본 중 231회 닫힘 → 0회.
+
+---
+
 ## 1. 필수 규칙
 
 ### 1.1 브라우저 alert() 절대 금지
