@@ -15,6 +15,8 @@ const { Message, User, Conversation, Project } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const rateLimit = require('express-rate-limit');
 const { resolveGuestToken } = require('../services/guest_link');
+// 카드 302 대상 주소를 만들 때 쓴다 — guest_admin 과 같은 원천.
+const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
 
 // 게스트 rate-limit — **토큰을 키로 쓴다.** 인증이 없어 req.user 가 없고, IP 는 NAT·모바일망에서
 //   여러 고객이 한 덩어리로 뭉친다(한 사람이 남을 잠근다).
@@ -51,11 +53,17 @@ const visibleToGuest = (m) => !m.is_deleted
   && !(m.is_ai && m.ai_mode_used === 'draft' && m.ai_draft_approved !== true);
 
 /** 메시지 화이트리스트 — 내부 필드가 자동으로 따라 나가지 않게. */
-const serializeMessage = (m, guestUserId) => ({
+const serializeMessage = (m, guestUserId, cardState) => ({
   id: m.id,
+  kind: m.kind || 'text',
   content: m.content,
   created_at: m.created_at,
   is_mine: m.sender_id === guestUserId,
+  // 카드(청구서·문서·업무…) — **주소는 넣지 않는다.** 누를 때 서버가 302 로만 준다.
+  //   meta.share_url 은 발급 당시 스냅샷이라 이미 죽어 있는 경우가 많다(운영 8건 중 5건).
+  card: m.kind === 'card' && cardState
+    ? require('../services/cardResolver').summarizeCard(m.meta, cardState)
+    : null,
   // 보내는 사람은 **표시명만**. 이메일·id 는 내보내지 않는다.
   //   게스트가 쓴 글은 그 행에 박제된 이름을 쓴다 — 그림자 User 이름은 "게스트" 로 고정이라
   //   이것을 안 보면 고객 화면에서 서로가 전부 "게스트" 로 보인다.
@@ -88,6 +96,8 @@ router.get('/:token', guestLimiter('guest-ctx', { windowMs: 60 * 1000, max: 60 }
     return successResponse(res, {
       guest_name: link.guest_name,
       can_write: !!link.can_write,
+      // 계정 요청을 이미 보냈는가 — 화면이 배너를 "요청 보냄" 상태로 바꾼다.
+      account_requested: !!link.account_requested_at,
       // 고객은 **선택**이다 (2026-09-02). 붙어 있으면 이름을 보여주고, 없으면 null —
       //   화면은 대화방 제목으로 떨어진다. 여기서 `client.display_name` 을 그냥 읽다가
       //   고객 없는 방에서 **500** 이 났다(읽는 곳 전수 확인을 빠뜨린 것).
@@ -109,11 +119,98 @@ router.get('/:token/messages', guestLimiter('guest-msgs', { windowMs: 60 * 1000,
       order: [['created_at', 'DESC']],
       limit: 200,
     });
-    const list = rows.map((m) => (m.toJSON ? m.toJSON() : m))
+    const visible = rows.map((m) => (m.toJSON ? m.toJSON() : m))
       .filter(visibleToGuest)
-      .reverse()
-      .map((m) => serializeMessage(m, guestUser.id));
+      .reverse();
+    // 카드 상태는 **행을 보고** 계산한다. 목록당 카드는 보통 한 자릿수라 N+1 부담이 없고,
+    //   무엇보다 화면이 "왜 못 여는지" 를 말하려면 서버가 지금 상태를 알아야 한다.
+    const { resolveCard } = require('../services/cardResolver');
+    const states = new Map();
+    for (const m of visible) {
+      if (m.kind !== 'card') continue;
+      const r = await resolveCard(m.meta, { businessId: conversation.business_id, appUrl: APP_URL });
+      states.set(m.id, r.state);
+    }
+    const list = visible.map((m) => serializeMessage(m, guestUser.id, states.get(m.id)));
     return successResponse(res, list);
+  } catch (err) { next(err); }
+});
+
+// ── POST /api/guest/:token/account-request ────────────────────────────────
+//   게스트가 "계정 요청하기" 를 누른다. **가입 화면으로 보내지 않는다** —
+//   초대 토큰 없이 가입하면 `routes/auth.js:216` 가 자기 워크스페이스를 새로 만들어
+//   고객이 빈 화면에 떨어지고 이 대화는 못 본다(Fable 설계 판정 2026-09-02).
+//   여기서는 **담당자에게 알림만** 보내고, 계정 생성은 멤버가 보내는 초대 메일 한 곳으로 몬다.
+router.post('/:token/account-request',
+  guestLimiter('guest-account-req', { windowMs: 60 * 60 * 1000, max: 5 }), attachGuest, async (req, res, next) => {
+  try {
+    const { link, conversation } = req.guest;
+    // 링크당 1회. 24시간 지나면 다시 보낼 수 있다 — 담당자가 놓쳤을 수 있으므로 영구 차단은 아니다.
+    const last = link.account_requested_at ? new Date(link.account_requested_at).getTime() : 0;
+    if (last && Date.now() - last < 24 * 60 * 60 * 1000) {
+      return successResponse(res, { account_requested: true }, 'already_requested');
+    }
+    // 이메일은 **선택**이고 힌트일 뿐이다 — 멤버가 초대할 때 바꿀 수 있다.
+    //   무인증 입력이라 형식만 보고 길이를 자른다.
+    let email = null;
+    const rawEmail = String(req.body?.email || '').trim().slice(0, 200);
+    if (rawEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)) email = rawEmail;
+
+    await link.update({ account_requested_at: new Date(), requested_email: email });
+
+    try {
+      const { notifyMany } = require('./notifications');
+      const { ConversationParticipant } = require('../models');
+      const parts = await ConversationParticipant.findAll({
+        where: { conversation_id: conversation.id }, attributes: ['user_id', 'role'],
+      });
+      const memberIds = parts.filter((p) => p.role !== 'client' && p.user_id !== req.guest.guestUser.id).map((p) => p.user_id);
+      if (memberIds.length) {
+        await notifyMany({
+          userIds: memberIds,
+          businessId: conversation.business_id,
+          eventKind: 'message',
+          title: '고객이 계정을 요청했습니다',
+          body: email
+            ? `${conversation.title || '대화방'} — ${email} 로 초대해 주세요`
+            : `${conversation.title || '대화방'} — 링크로 들어온 분이 계정을 요청했습니다`,
+          link: `/talk?conv=${conversation.id}`,
+          ctaLabel: '대화 열기',
+          entityType: 'Conversation',
+          entityId: conversation.id,
+          ioApp: req.app,
+        });
+      }
+    } catch (e) {
+      // 알림이 실패해도 요청 자체는 기록됐다 — 게스트에게 실패로 보이면 계속 다시 누른다.
+      console.error('[guest] account-request notify 실패:', e.message);
+    }
+    return successResponse(res, { account_requested: true }, 'requested');
+  } catch (err) { next(err); }
+});
+
+// ── GET /api/guest/:token/cards/:messageId/open ───────────────────────────
+//   카드를 **누를 때** 서버가 지금 주소를 해석해 302 로 보낸다.
+//   응답 JSON 에 토큰을 실어 보내지 않는 이유는 cardResolver 파일 주석 참조.
+//   실패는 전부 404 — 왜 실패했는지 게스트에게 알려 주면 그것이 곧 정찰 수단이 된다.
+router.get('/:token/cards/:messageId/open',
+  guestLimiter('guest-card-open', { windowMs: 60 * 1000, max: 60 }), attachGuest, async (req, res, next) => {
+  try {
+    const { link, conversation } = req.guest;
+    const msg = await Message.findOne({
+      where: { id: Number(req.params.messageId) || 0, conversation_id: conversation.id, is_deleted: false },
+    });
+    if (!msg || msg.kind !== 'card') return errorResponse(res, 'not_found', 404);
+    // 목록에서 거른 것과 **같은 술어**를 다시 태운다 — 링크로 직접 두드리는 경로를 막는다.
+    if (!visibleToGuest(msg.toJSON ? msg.toJSON() : msg)) return errorResponse(res, 'not_found', 404);
+
+    const { resolveCard } = require('../services/cardResolver');
+    const r = await resolveCard(msg.meta, { businessId: conversation.business_id, appUrl: APP_URL });
+    if (r.state !== 'ok' || !r.url) return errorResponse(res, 'not_found', 404);
+
+    // 사용 기록 — 열람도 사용이다(슬라이딩 만료가 뒤로 밀린다).
+    await link.update({ last_used_at: new Date() }).catch(() => null);
+    return res.redirect(302, r.url);
   } catch (err) { next(err); }
 });
 

@@ -138,6 +138,16 @@ async function hasTable(name) {
       console.log('[migration] clients.guest_user_id 이미 없음 — skip');
     }
 
+    // ── ⑤ 계정 요청 2컬럼 (2026-09-02 후속) ──────────────────────────────
+    for (const [name, ddl] of [
+      ['account_requested_at', '`account_requested_at` DATETIME NULL COMMENT \'#259 게스트가 계정 요청한 시각\''],
+      ['requested_email', '`requested_email` VARCHAR(200) NULL COMMENT \'#259 게스트가 적어 보낸 이메일(힌트)\''],
+    ]) {
+      if (await hasColumn('guest_links', name)) { console.log(`[migration] guest_links.${name} 이미 있음 — skip`); continue; }
+      await sequelize.query(`ALTER TABLE \`guest_links\` ADD COLUMN ${ddl}`);
+      console.log(`[migration] guest_links.${name} 추가 완료`);
+    }
+
     // ── 최종 확인 ────────────────────────────────────────────────────────
     const fin = {
       client_id: (await columnInfo('guest_links', 'client_id'))?.Null,

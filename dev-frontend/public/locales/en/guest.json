@@ -17,5 +17,27 @@
   "nameShown": "You appear as {{name}}",
   "nameChange": "Change",
   "nameFromNow": "A new name applies to later messages only",
-  "nameReserved": "That name is not available. Please choose another."
+  "nameReserved": "That name is not available. Please choose another.",
+  "sendHint": "Enter to send · Shift+Enter for a new line",
+  "card": {
+    "open": "Open",
+    "invoice": "Invoice",
+    "post": "Document",
+    "task": "Task",
+    "file": "File",
+    "kb": "Resource",
+    "event": "Event",
+    "other": "Attachment",
+    "whyRevoked": "Sharing was turned off. Please ask your contact to share it again.",
+    "whyBlocked": "This item cannot be shared outside the workspace.",
+    "whyUnsupported": "This cannot be opened from this link. Please contact your contact.",
+    "whyGone": "This cannot be opened right now. Please contact your contact."
+  },
+  "acct": {
+    "lead": "This link shows only this conversation. To see projects and files you need an account.",
+    "emailPh": "Email (optional)",
+    "request": "Request an account",
+    "close": "Close",
+    "sent": "Request sent. Your contact will email you an invitation to create an account."
+  }
 }

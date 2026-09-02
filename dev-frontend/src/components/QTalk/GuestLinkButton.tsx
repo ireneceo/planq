@@ -92,8 +92,15 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
   return (
     <>
       <TriggerBtn type="button" onClick={() => setOpen(true)}
+        data-testid="chat-guest-link-open"
+        aria-label={t('guestLink.title', { defaultValue: '고객 링크' }) as string}
         title={t('guestLink.title', { defaultValue: '고객 링크' }) as string}>
-        {t('guestLink.title', { defaultValue: '고객 링크' })}
+        {/* 링크(사슬) 아이콘 — 헤더 아이콘들과 같은 16px/stroke 2 규격 */}
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+        </svg>
       </TriggerBtn>
       {open && (
         <StandardModal open onClose={() => setOpen(false)} title={t('guestLink.title', { defaultValue: '고객 링크' }) as string} size="md">
@@ -155,10 +162,15 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
   );
 }
 
+// 아이콘 버튼 — 헤더에서 글자 폭을 먹지 않는다. 이름이 길면 제목이 밀려 헤더가 2줄이 됐다.
+//   의미는 title/aria-label 로 전달한다(스크린리더·hover 둘 다).
 const TriggerBtn = styled.button`
-  height:36px;padding:0 10px;border-radius:6px;border:1px solid #cbd5e1;background:#fff;
-  color:#475569;font-size:0.75rem;font-weight:600;cursor:pointer;white-space:nowrap;
+  width:36px;height:36px;flex-shrink:0;
+  display:inline-flex;align-items:center;justify-content:center;
+  border-radius:6px;border:1px solid #cbd5e1;background:#fff;
+  color:#475569;cursor:pointer;
   &:hover{border-color:#0D9488;color:#0D9488;}
+  &:focus-visible{outline:2px solid #0D9488;outline-offset:2px;}
 `;
 const Lead = styled.p`font-size:0.875rem;color:#475569;line-height:1.6;margin:0 0 16px;`;
 const FreshBox = styled.div`border:1px solid #99F6E4;background:#F0FDFA;border-radius:8px;padding:14px;`;

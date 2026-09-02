@@ -2285,7 +2285,11 @@ const ChatNameRow = styled.div`
   gap: 8px;
   min-width: 0;
   flex-shrink: 1;
-  flex-wrap: wrap;
+  /* ★ 줄바꿈 금지 (2026-09-02). wrap 이면 우측 패널을 열어 폭이 줄 때 뱃지·버튼이
+     아래로 떨어져 **헤더가 2줄**이 되고 좌우 패널 헤더의 border-bottom 이 어긋난다
+     (Irene: "헤더 2줄이 되어야 하나…. 정돈 안되어 보이는데").
+     줄을 늘리는 대신 **제목을 줄인다** — 제목은 아래에서 flex-basis:0 으로 먼저 양보한다. */
+  flex-wrap: nowrap;
   @media (max-width: 640px) {
     gap: 4px;
   }
@@ -2300,6 +2304,10 @@ const ChatName = styled.h2<{ $editable: boolean }>`
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* ★ basis 0 으로 먼저 줄어든다. content 폭을 기준으로 두면 긴 제목이 옆 요소를 밀어내
+     wrap 이 없을 때 뱃지가 잘려 나간다 (memory feedback_flex_wrap_basis_not_content). */
+  flex: 1 1 0;
+  min-width: 0;
   ${(p) => p.$editable && `
     cursor: text;
     padding: 2px 6px;
@@ -2333,6 +2341,8 @@ const CustomerLink = styled.button`
   padding: 2px 8px; border-radius: 999px; cursor: pointer;
   font-size: 0.6875rem; font-weight: 700;
   color: #0F766E; background: #F0FDFA; border: 1px solid #99F6E4;
+  /* 제목이 먼저 줄어든다 — 이 뱃지는 안 줄어들되, 고객명이 길면 자기 안에서 자른다. */
+  flex-shrink: 0; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   &:hover { background: #CCFBF1; }
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
   span { font-size: 0.8125rem; line-height: 1; }

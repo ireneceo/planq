@@ -36,7 +36,6 @@ import InstallPromptBanner from '../Common/InstallPromptBanner';
 import PushPromptBanner from '../Common/PushPromptBanner';
 import { isNativeApp } from '../../services/native';
 import i18n from '../../i18n';
-import { usePaneBack } from '../../hooks/usePaneBack';
 
 // ─────────────────────────────────────────────────────────────
 // localStorage
@@ -630,17 +629,6 @@ const HamburgerButton = styled.button`
   &:hover { background: rgba(255, 255, 255, 0.08); }
 `;
 
-/* 모바일 헤더 우측 액션 — 햄버거와 같은 44x44 터치 타겟(대칭이라 로고가 가운데로 온다) */
-const MobileBackBtn = styled.button`
-  width: 44px; height: 44px; flex-shrink: 0;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: transparent; border: none; border-radius: 8px; cursor: pointer;
-  color: #fff; padding: 0;
-  &:active:not(:disabled) { background: rgba(255,255,255,0.14); }
-  &:focus-visible { outline: 2px solid #fff; outline-offset: -2px; }
-  /* 자리는 항상 차지한다 — 나타났다 사라지면 옆 요소가 밀려 보기 불편하다 */
-  &:disabled { opacity: 0.3; cursor: default; }
-`;
 const MobileHeaderAction = styled(ChromeLink)`
   position: relative;
   background: none; border: none; padding: 8px;
@@ -789,7 +777,6 @@ type SecondarySection = 'reports' | 'settings' | 'account' | null;
 
 const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp }) => {
   // 모바일·앱 전용 뒤로 가기 (브라우저 뒤로가기가 없는 환경). 갈 곳이 있을 때만 버튼이 뜬다.
-  const { canGoBack, goBack } = usePaneBack();
   useAppShellLock();  // 모바일 뷰포트 고정 락 — 앱 셸에서만 (공개 페이지는 body 스크롤)
   const { t } = useTranslation('layout');
   const { user, logout, hasRole } = useAuth();
@@ -1005,19 +992,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
         <HamburgerButton onClick={() => setSidebarOpen(true)} aria-label={t('nav.expandSidebar')}>
           <IconHamburger />
         </HamburgerButton>
-        {/* ★ 뒤로 가기 — 모바일·앱에는 브라우저 뒤로가기가 없어서 잘못 들어가면 갇혔다
-            (Irene 2026-08-31 "잘못 누르면 다시 못 돌아가서 당혹스러워. 계속.").
-            갈 곳이 있을 때만 그린다 — 눌러도 아무 일 없는 버튼은 고장으로 읽힌다. */}
-        <MobileBackBtn type="button" onClick={goBack} disabled={!canGoBack}
-            data-testid="mobile-header-back"
-            aria-label={t('nav.back', { defaultValue: '뒤로' }) as string}
-            title={t('nav.back', { defaultValue: '뒤로' }) as string}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              {/* 셰브론이 아니라 화살표 — 접기 버튼과 구분 (탭 바와 같은 아이콘) */}
-              <line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" />
-            </svg>
-        </MobileBackBtn>
+        {/* ★ 뒤로 가기 버튼은 뺐다 (Irene 2026-09-02: "모바일에서는 헤더에 뒤로가기 화살표
+            없어도 돼. 어차피 뒤로가게 다 헤더에 나와." / "화살표 때문에 로고도 위치 바뀌고
+            가운데 정렬 안되잖아.").
+            실측: 좌측이 햄버거 44 + 화살표 44 = 88, 우측이 44 라 `space-between` 에서
+            로고가 22px 오른쪽으로 밀려 있었다. 빼면 좌우가 44:44 로 맞아 정확히 가운데다.
+            (2026-08-31 에 "갇힌다" 는 호소로 넣었던 것을 되돌린 것 — 그 사이 패널 헤더의
+            돌아가기가 자리를 잡았다는 Irene 판단.) */}
         <Logo src="/planQ_white_new.svg" alt="PlanQ" />
         {/* 우측 — Q talk 바로가기. 모바일은 메뉴를 열어야 대화로 갈 수 있어서 왕복이 길었다(Irene).
             사이드바 Q talk 항목과 **같은 가시성 규칙·같은 내비게이션 계약**(ChromeLink, 주 내비라 새 탭 X)

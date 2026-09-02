@@ -52,6 +52,13 @@ GuestLink.init({
   last_used_at: { type: DataTypes.DATE, allowNull: true },
   last_used_ip: { type: DataTypes.STRING(45), allowNull: true },
   created_by: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'users', key: 'id' } },
+  // 게스트가 "계정 요청하기" 를 누른 시각·적어 보낸 이메일 (#259, 2026-09-02).
+  //   ★ 게스트 화면에 가입 버튼을 붙이지 않는 이유: 초대 토큰 없이 가입하면
+  //     `routes/auth.js:216` 가 **자기 워크스페이스를 새로 만든다.** 고객은 빈 화면에 떨어지고
+  //     이 대화는 못 본다. 계정 생성 진입은 **멤버가 보내는 초대 메일** 한 곳뿐이다.
+  //   여기 기록은 "멤버에게 요청이 갔다" 는 사실과 중복 요청 가드(24h)용이다.
+  account_requested_at: { type: DataTypes.DATE, allowNull: true },
+  requested_email: { type: DataTypes.STRING(200), allowNull: true },
   revoked_at: { type: DataTypes.DATE, allowNull: true },
   revoked_by: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'users', key: 'id' } },
 }, {
