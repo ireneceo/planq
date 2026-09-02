@@ -642,16 +642,25 @@ import AutoSaveField, { AutoSaveHandle } from '../../components/Common/AutoSaveF
   </FormSelect>
 </AutoSaveField>
 
-// Toggle — ref로 수동 트리거
-const toggleRef = useRef<AutoSaveHandle>(null);
-
-<AutoSaveField ref={toggleRef} type="toggle" onSave={handleSave}>
-  <ToggleSwitch checked={enabled} onChange={(val) => {
-    setEnabled(val);
-    toggleRef.current?.triggerSave();
-  }} />
+// Toggle — 래퍼가 click 을 받는다. ref·triggerSave 불필요.
+<AutoSaveField type="toggle" onSave={handleSave}>
+  <Switch type="button" role="switch" aria-checked={enabled}
+    data-testid="myscreen-toggle-enabled"
+    onClick={() => setEnabled(!enabled)}>
+    <SwitchKnob $on={enabled} />
+  </Switch>
 </AutoSaveField>
 ```
+
+> ⚠️ **toggle 래퍼 안에는 저장 대상 컨트롤만 둔다.** 저장과 무관한 클릭 요소가 필요하면 래퍼 밖에.
+>
+> **옛 문서는 `ref` + `triggerSave()` 를 수동으로 부르라고 했는데, 실제 사용처 5곳이 전부
+> 그것을 빠뜨려 눌러도 저장이 안 됐다** — 운영 **점검 모드** 스위치 포함(2026-09-02).
+> 원인은 `AutoSaveField` 가 자식의 `onChange` 만 감쌌던 것이다. 토글은 전부 `<button onClick>`
+> 이거나 안쪽에 input 을 감싼 `<label>` 이라 직접 자식에 `onChange` 가 없다.
+> 지금은 `type="toggle"` 이면 **Wrapper 가 onClick 을 받는다** — click 이 버블링하므로
+> button·checkbox·안쪽 버튼 무엇이든 닿고, 키보드(Space/Enter)도 같다.
+> 회귀는 `node scripts/e2e/run.js --suite toggles` 가 **눌러서** 잡는다.
 
 ### 7.5 뱃지 위치
 

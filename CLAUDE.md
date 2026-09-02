@@ -577,6 +577,9 @@ import PanelHeader, { PanelTitle, PanelSubTitle, PanelMetaTitle } from 'componen
 - 성공 팝업/토스트 절대 금지
 - 예외: 청구서 작성처럼 복잡한 폼은 저장 버튼 사용 가능
 - 컴포넌트: `src/components/Common/AutoSaveField.tsx`
+- **토글은 `type="toggle"` 로 감싸기만 하면 된다** — Wrapper 가 click 을 받는다(ref·triggerSave 불필요).
+  래퍼 안에는 **저장 대상 컨트롤만** 둔다. 2026-09-02 이전엔 자식 `onChange` 만 감싸서
+  **토글 5곳이 눌러도 저장을 안 했다**(운영 점검 모드 포함). 회귀는 `--suite toggles` 가 눌러서 잡는다.
 - 상세: `dev-frontend/UI_DESIGN_GUIDE.md` 섹션 7
 
 ## 반응형 기본 원칙 (신규 코드 작성 시)
