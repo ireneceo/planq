@@ -123,6 +123,9 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
     const { User: _U } = require('../models');
     const _u = await _U.findByPk(userId, { attributes: ['is_guest'] });
     if (_u && _u.is_guest) return { inbox: false, email: false, push: false, skipped: 'guest_shadow_account' };
+    // (Fable 관찰) 바로 뒤 email 분기가 같은 행을 PK 로 또 읽는다 — fan-out 당 쿼리 1건.
+    //   지금은 7ms 라 미룬다. 합치려면 두 곳이 같은 attributes 를 쓰게 해야 하는데,
+    //   그 김에 email 분기의 조건이 바뀌면 여기와 갈라진다 — 별건으로 다룬다.
   } catch { /* 조회 실패로 알림 전체를 막지 않는다 */ }
   if (titleSpec && titleSpec.feature && titleSpec.action) {
     try {

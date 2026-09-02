@@ -32,8 +32,13 @@ async function resolveGuestToken(raw, { touch = false, ip = null } = {}) {
     if (new Date(link.expires_at).getTime() < Date.now()) return null;   // 만료
 
     // 킬스위치 2단 — 플랫폼 → 워크스페이스. 둘 중 하나만 꺼도 전부 닫힌다.
+    // ★ **fail-closed.** 행이 없으면 닫는다.
+    //   처음엔 `platform && ...=== false` 였는데, 그러면 `platform_settings` 행이 0개일 때
+    //   **열린다**(Fable 실증: 행을 지우니 200). 나는 바로 옆 모델에 "기본값은 닫힘,
+    //   켜는 것이 의식적 결정" 이라고 적어 놓고 조건식은 반대로 썼다.
+    //   설정을 못 읽었으면 "허용" 이 아니라 "모름" 이고, 모르면 닫는 쪽이다.
     const platform = await PlatformSetting.findOne({ attributes: ['guest_links_enabled'] });
-    if (platform && platform.guest_links_enabled === false) return null;
+    if (!platform || platform.guest_links_enabled !== true) return null;
     const business = await Business.findByPk(link.business_id, { attributes: ['id', 'guest_links_enabled', 'deleted_at'] });
     if (!business || business.deleted_at || business.guest_links_enabled === false) return null;
 
