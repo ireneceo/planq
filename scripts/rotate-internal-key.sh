@@ -41,12 +41,13 @@ if [ "$TARGET" = "dev" ]; then
   echo "== 검증 =="
   OLD_KEY_PROBE=$(curl -s -o /dev/null -w '%{http_code}' \
     -H "x-internal-api-key: planq-internal-dev-f76e0bffee43e39959f3dd7eb1cbb222" \
-    "http://localhost:3003/api/internal/qnote/can?business_id=5" || true)
+    "http://localhost:3003/api/internal/business-membership/5/5" || true)
   NEW_KEY_PROBE=$(curl -s -o /dev/null -w '%{http_code}' \
     -H "x-internal-api-key: ${NEW_KEY}" \
-    "http://localhost:3003/api/internal/qnote/can?business_id=5" || true)
+    "http://localhost:3003/api/internal/business-membership/5/5" || true)
   echo "  유출된 옛 키 → ${OLD_KEY_PROBE} (403 이어야 함)"
   echo "  새 키        → ${NEW_KEY_PROBE} (403 이 아니어야 함)"
+  [ "$OLD_KEY_PROBE" = "000" ] && { echo "  ✗ 서버에 닿지 못했다(포트/기동 확인) — 판정 불가"; exit 1; }
   [ "$OLD_KEY_PROBE" = "403" ] || { echo "  ✗ 옛 키가 아직 통한다 — 회전 실패"; exit 1; }
   [ "$NEW_KEY_PROBE" != "403" ] || { echo "  ✗ 새 키가 안 통한다 — 두 .env 가 어긋났다"; exit 1; }
   echo "✅ dev 회전 완료"
@@ -72,10 +73,14 @@ done
 pm2 restart planq-prod-backend >/dev/null
 pm2 restart planq-prod-qnote >/dev/null
 sleep 4
-OLD=\$(curl -s -o /dev/null -w '%{http_code}' -H "x-internal-api-key: planq-internal-dev-f76e0bffee43e39959f3dd7eb1cbb222" "http://localhost:3003/api/internal/qnote/can?business_id=5" || true)
-NEW=\$(curl -s -o /dev/null -w '%{http_code}' -H "x-internal-api-key: \${NEW_KEY}" "http://localhost:3003/api/internal/qnote/can?business_id=5" || true)
+# ★ 운영 백엔드는 **3004** 다(dev 만 3003). 포트를 틀리면 curl 이 000 을 내고
+# 스크립트는 그것을 "옛 키가 통한다" 로 읽는다 — 실제로 그렇게 거짓 실패했다(2026-09-02).
+PORT=3004
+OLD=\$(curl -s -o /dev/null -w '%{http_code}' -H "x-internal-api-key: planq-internal-dev-f76e0bffee43e39959f3dd7eb1cbb222" "http://127.0.0.1:\${PORT}/api/internal/business-membership/5/5" || true)
+NEW=\$(curl -s -o /dev/null -w '%{http_code}' -H "x-internal-api-key: \${NEW_KEY}" "http://127.0.0.1:\${PORT}/api/internal/business-membership/5/5" || true)
 echo "  유출된 옛 키 → \${OLD} (403 이어야 함)"
 echo "  새 키        → \${NEW} (403 이 아니어야 함)"
+[ "\$OLD" = "000" ] && { echo "  ✗ 서버에 닿지 못했다 — 판정 불가"; exit 1; }
 [ "\$OLD" = "403" ] || { echo "  ✗ 옛 키가 아직 통한다"; exit 1; }
 [ "\$NEW" != "403" ] || { echo "  ✗ 새 키가 안 통한다 — 두 .env 가 어긋났다"; exit 1; }
 echo "✅ prod 회전 완료"
