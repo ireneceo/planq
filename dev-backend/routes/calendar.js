@@ -1167,13 +1167,22 @@ router.get('/public/by-token/:token', async (req, res, next) => {
         { model: Project, attributes: ['id', 'name'], required: false },
         { model: Business, attributes: ['id', 'name', 'brand_name'], required: false },
       ],
+      // ★ share_token·deleted_at 을 빼면 `shareOpenReason` 이 **없는 값을 보고 닫는다**
+      //   (attributes 로 좁힌 컬럼은 undefined 로 온다 — 오류 없이 전부 404).
+      //   판정 함수가 보는 필드는 반드시 실어야 한다. memory feedback_column_reference_must_exist
       attributes: ['id', 'title', 'description', 'location', 'start_at', 'end_at',
-        'all_day', 'category', 'meeting_url', 'shared_at', 'share_expires_at',
+        'all_day', 'category', 'meeting_url', 'shared_at', 'share_expires_at', 'share_token',
         'share_password_hash', 'business_id', 'project_id', 'vlevel', 'visibility'],
     });
     if (!ev) return errorResponse(res, 'not_found', 404);
     // #104 — 방어심층: 개인(L1)·팀 비공개(L2)로 전환됐거나 레거시 토큰이 남은 제한 일정은 공개 미제공.
-    if (ev.vlevel === 'L1' || ev.vlevel === 'L2' || ev.visibility === 'personal') return errorResponse(res, 'not_found', 404);
+    //   ★ 판정은 `services/shareOpenable` 한 곳 — 채팅 카드가 부르는 것과 **같은 함수**다.
+    //     두 벌로 두면 카드가 "열어보기" 를 그려 놓고 여기서 404 가 나는 거짓말이 생긴다.
+    {
+      const { shareOpenReason } = require('../services/shareOpenable');
+      const why = shareOpenReason('calendar_event', ev);
+      if (why && why !== 'expired') return errorResponse(res, 'not_found', 404);
+    }
     const { verifySharePassword, checkShareExpiry } = require('../services/share_helper');
     if (checkShareExpiry(ev, res)) return;
     const v = await verifySharePassword(ev, req);

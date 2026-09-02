@@ -41,5 +41,7 @@
     "request": "Request an account",
     "close": "Close",
     "sent": "Request sent. Your contact will email you an invitation to create an account."
-  }
+  },
+  "loadFailed": "Could not load the conversation. Check your connection and try again.",
+  "retry": "Try again"
 }

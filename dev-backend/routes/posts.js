@@ -1548,13 +1548,19 @@ router.get('/:id/docx', authenticateToken, async (req, res, next) => {
 // ─── PDF 다운로드 (익명 — share_token) ───
 router.get('/public/:token/pdf', async (req, res, next) => {
   try {
+    // ★ 열림 판정은 `services/shareOpenable` — 본문·카드와 **같은 함수**(두 벌이면 갈린다).
     const post = await Post.findOne({
-      where: { share_token: req.params.token, status: 'published' },
+      where: { share_token: req.params.token },
       include: [{ model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] }],
     });
     if (!post) return errorResponse(res, 'not_found', 404);
-    if (post.share_expires_at && new Date(post.share_expires_at) < new Date()) {
-      return res.status(410).json({ success: false, code: 'share_expired', message: 'This share link has expired.' });
+    {
+      const { shareOpenReason } = require('../services/shareOpenable');
+      const why = shareOpenReason('post', post);
+      if (why === 'expired') {
+        return res.status(410).json({ success: false, code: 'share_expired', message: 'This share link has expired.' });
+      }
+      if (why) return errorResponse(res, 'not_found', 404);
     }
     const pdf = await buildPostPdf(post);
     res.setHeader('Content-Type', 'application/pdf');
@@ -1660,8 +1666,13 @@ router.get('/public/:token/attachments/:attId/download', async (req, res, next) 
       attributes: ['id', 'share_expires_at'],
     });
     if (!post) return errorResponse(res, 'not_found_or_expired', 404);
-    if (post.share_expires_at && new Date(post.share_expires_at) < new Date()) {
-      return res.status(410).json({ success: false, code: 'share_expired', message: 'This share link has expired.' });
+    {
+      const { shareOpenReason } = require('../services/shareOpenable');
+      const why = shareOpenReason('post', post);
+      if (why === 'expired') {
+        return res.status(410).json({ success: false, code: 'share_expired', message: 'This share link has expired.' });
+      }
+      if (why) return errorResponse(res, 'not_found_or_expired', 404);
     }
     const att = await PostAttachment.findOne({
       where: { id: req.params.attId, post_id: post.id },

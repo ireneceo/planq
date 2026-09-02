@@ -1242,6 +1242,10 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
   const [wsMembers, setWsMembers] = useState<Array<{ user_id: number; name: string; role?: string; is_ai?: boolean }>>([]);
   useEffect(() => {
     if (!businessId) return;
+    // ★ 고객(Client)은 워크스페이스 멤버 목록을 볼 수 없다 — 부르면 403 이고,
+    //   그 403 이 고객 화면 콘솔을 채운다(2026-09-02 재현: 한 화면에 2건).
+    //   멘션 후보는 멤버 기능이라 고객에게는 애초에 필요 없다. 아예 부르지 않는다.
+    if (user?.business_role === 'client') { setWsMembers([]); return; }
     let alive = true;
     (async () => {
       try {
@@ -1257,7 +1261,8 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
       } catch { /* 작업대 담당자 셀렉트는 부가 — 실패해도 채팅은 동작 */ }
     })();
     return () => { alive = false; };
-  }, [businessId]);
+  // user 를 deps 에 넣는다 — 역할이 바뀌면(워크스페이스 전환) 다시 판단해야 한다.
+  }, [businessId, user?.business_role]);
 
   // 청크 2: 메시지 전송 (사이클 O4 — existingFileIds 추가).
   // 사이클 N+15-E — Optimistic local insertion. 사용자 클릭 즉시 메시지 표시 (네트워크 RT 0ms 인상).

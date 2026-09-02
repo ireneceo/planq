@@ -16,12 +16,24 @@
 //     라는 다른 축이고, 공개 라우트는 토큰을 가진 사람에게 이미 열기로 한 것이다.
 //     카드 쪽만 그 축을 추가로 본다(cardResolver).
 
-/** 자원 종류별 "발행/유효" 규칙. 여기 없는 종류는 추가 조건이 없다는 뜻. */
+/**
+ * 자원 종류별 "발행/유효" 규칙.
+ *
+ * 여기 없는 종류(task·file·kb_document)는 **공개 라우트를 읽어 확인한 결과** 토큰·만료·비밀번호
+ * 외에 추가 조건이 없다 (2026-09-02 전수 확인: `tasks.js:2548` · `files.js:151`(deleted_at) ·
+ * `kb.js:1612`(paranoid)). 새 공개 라우트를 만들면 **여기부터 확인**할 것 —
+ * 조건을 라우트에만 두면 카드가 "열어보기" 를 그려 놓고 404 가 뜬다.
+ */
 const OPEN_RULES = {
   // 초안·비공개 글은 공개 라우트가 404 를 낸다 (`routes/posts.js` where status:'published')
   post: (e) => (e.status !== 'published' ? 'not_published' : null),
   // 발행 전(draft)·취소된 청구서는 공개 결제 페이지가 404 (`routes/invoices.js:132`)
   invoice: (e) => (e.status === 'draft' || e.status === 'canceled' ? 'not_issued' : null),
+  // #104 방어심층 — 개인(L1)·팀 비공개(L2)로 전환됐거나 레거시 토큰이 남은 일정은 공개 미제공.
+  //   이 규칙이 여기 없어서 카드가 L1 일정에 "열어보기" 를 그리고 누르면 404 였다
+  //   (Fable 실증 2026-09-02: vlevel=L1 → 카드 ok / 공개 404).
+  calendar_event: (e) => (e.vlevel === 'L1' || e.vlevel === 'L2' || e.visibility === 'personal'
+    ? 'not_published' : null),
 };
 
 /**

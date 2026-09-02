@@ -25,7 +25,12 @@ interface Props {
 const AttendanceWidget: React.FC<Props> = ({ variant = 'sidebar', isCollapsed, embedded }) => {
   const { t } = useTranslation('attendance');
   const { user } = useAuth();
-  const bizId = user?.business_id ? Number(user.business_id) : null;
+  // ★ 출퇴근은 **직원 기능**이다. 고객(Client)에게 "미출근 / 근무 시작" 이 뜨면 안 되고,
+  //   `/api/attendance/today` 는 고객에게 403 이라 화면에 쓸 값도 없다
+  //   (2026-09-02 고객 계정 재현: 사이드바에 위젯이 그대로 떠 있고 콘솔에 403).
+  //   bizId 를 null 로 넘겨 훅이 아예 호출하지 않게 한다 — 훅 개수는 그대로 유지.
+  const isClientUser = user?.business_role === 'client';
+  const bizId = (!isClientUser && user?.business_id) ? Number(user.business_id) : null;
   const a = useAttendance(bizId);
 
   // ★ 이 세 줄은 **early return 앞**이어야 한다 — 아래 `return null` 뒤에 훅을 두면

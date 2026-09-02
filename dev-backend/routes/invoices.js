@@ -605,9 +605,14 @@ router.get('/public/:token/pdf', async (req, res, next) => {
   try {
     const inv = await Invoice.findOne({ where: { share_token: req.params.token } });
     if (!inv) return errorResponse(res, 'not_found', 404);
-    if (inv.status === 'draft' || inv.status === 'canceled') return errorResponse(res, 'not_available', 404);
-    if (inv.share_expires_at && new Date(inv.share_expires_at) < new Date()) {
-      return res.status(410).json({ success: false, code: 'share_expired', message: 'This share link has expired.' });
+    {
+      const { shareOpenReason } = require('../services/shareOpenable');
+      const why = shareOpenReason('invoice', inv);
+      if (why === 'expired') {
+        return res.status(410).json({ success: false, code: 'share_expired', message: 'This share link has expired.' });
+      }
+      if (why === 'not_issued') return errorResponse(res, 'not_available', 404);
+      if (why) return errorResponse(res, 'not_found', 404);
     }
     const { pdf, invoice } = await buildInvoicePdf(inv.id);
     res.setHeader('Content-Type', 'application/pdf');

@@ -35,6 +35,8 @@ export default function GuestConversationPage() {
   const [ctx, setCtx] = useState<GuestCtx | null>(null);
   const [msgs, setMsgs] = useState<GuestMsg[]>([]);
   const [gone, setGone] = useState(false);
+  // 첫 로드가 실패했는가 — 끝나지 않는 스피너 대신 이유와 다시 시도를 보여준다.
+  const [loadErr, setLoadErr] = useState(false);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -63,27 +65,41 @@ export default function GuestConversationPage() {
 
   const load = useCallback(async (first = false) => {
     if (!token) return;
+    // ★ 첫 로드는 조용히 실패하면 안 된다 (2026-09-02, 운영 사고).
+    //   전에는 catch 를 통째로 삼켜서, 네트워크가 한 번만 흔들려도 `ctx` 가 null 로 남고
+    //   화면이 **영원히 "불러오는 중…"** 이었다. 고객에게는 "고장" 과 구별되지 않는다
+    //   (실제로 그렇게 보고됐다: "로딩이래. 이상해. 왜 안되지?").
+    //   폴링(첫 로드 아님)은 종전대로 조용히 넘어간다 — 다음 주기에 회복된다.
     try {
       if (first) {
         const r = await fetch(`/api/guest/${token}`);
         if (r.status === 404) { setGone(true); return; }
+        if (!r.ok) throw new Error(`ctx ${r.status}`);
         const j = await r.json();
-        if (j.success) setCtx(j.data);
+        if (!j.success || !j.data) throw new Error('ctx payload');
+        setCtx(j.data);
+        setLoadErr(false);
       }
       const m = await fetch(`/api/guest/${token}/messages`);
       if (m.status === 404) { setGone(true); return; }
+      if (!m.ok) throw new Error(`messages ${m.status}`);
       const mj = await m.json();
       if (mj.success) setMsgs(mj.data || []);
-    } catch { /* 폴링 실패는 조용히 — 다음 주기에 회복된다 */ }
+    } catch {
+      if (first) setLoadErr(true);
+      /* 폴링 실패는 조용히 — 다음 주기에 회복된다 */
+    }
   }, [token]);
 
   useEffect(() => { load(true); }, [load]);
   // 5초 폴링 — 소켓은 2단계다(게스트 소켓은 파생 비밀 + 룸 제한 설계가 따로 필요).
   useEffect(() => {
     if (gone) return;
-    const id = setInterval(() => load(false), 5000);
+    // ctx 를 아직 못 받았으면 폴링이 **첫 로드를 다시 시도**한다 — 사용자가 아무것도
+    //   안 해도 네트워크가 돌아오면 저절로 열린다.
+    const id = setInterval(() => load(!ctx), 5000);
     return () => clearInterval(id);
-  }, [load, gone]);
+  }, [load, gone, ctx]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ block: 'end' }); }, [msgs.length]);
 
   // 이름을 정하면 **그대로 보낸다.** 쓰던 글을 두고 버튼을 한 번 더 누르게 하지 않는다.
@@ -187,7 +203,23 @@ export default function GuestConversationPage() {
       </Center>
     );
   }
-  if (!ctx) return <Center><P>{t('loading', { defaultValue: '불러오는 중…' })}</P></Center>;
+  if (!ctx) {
+    // 스피너가 끝나지 않는 것은 사용자에게 고장이다 — 실패했으면 그렇게 말하고 손잡이를 준다.
+    if (loadErr) {
+      return (
+        <Center>
+          <Card>
+            <P>{t('loadFailed', { defaultValue: '대화를 불러오지 못했습니다. 연결을 확인하고 다시 시도해 주세요.' })}</P>
+            <RetryBtn type="button" data-testid="guest-retry"
+              onClick={() => { setLoadErr(false); void load(true); }}>
+              {t('retry', { defaultValue: '다시 시도' })}
+            </RetryBtn>
+          </Card>
+        </Center>
+      );
+    }
+    return <Center><P>{t('loading', { defaultValue: '불러오는 중…' })}</P></Center>;
+  }
 
   return (
     <Wrap>
@@ -406,6 +438,10 @@ const BannerClose = styled.button`
   /* 아이콘 버튼 최소 36×36 (UI 가이드) — 28 은 토큰 밖이고 손가락으로 못 누른다. */
   position:absolute;top:4px;right:4px;width:36px;height:36px;
   border:0;background:none;color:#0F766E;font-size:1.125rem;line-height:1;cursor:pointer;
+`;
+const RetryBtn = styled.button`
+  margin-top:14px;min-height:44px;padding:0 18px;border:0;border-radius:8px;
+  background:#0D9488;color:#fff;font-size:0.875rem;font-weight:700;cursor:pointer;
 `;
 const ReadOnly = styled.div`color:#64748b;font-size:0.8125rem;text-align:center;`;
 const ErrLine = styled.div`color:#F43F5E;font-size:0.8125rem;margin-bottom:6px;`;

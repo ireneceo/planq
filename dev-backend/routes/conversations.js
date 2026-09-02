@@ -4,7 +4,7 @@ const { Op } = require('sequelize');
 const { Conversation, ConversationParticipant, Message, User, Client, Business, Project, ProjectMember, BusinessMember } = require('../models');
 const { sequelize } = require('../config/database');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
-const { attachWorkspaceScope, conversationListWhere, canAccessConversation } = require('../middleware/access_scope');
+const { attachWorkspaceScope, conversationListWhere, canAccessConversation, isMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { serializeMessageAttachments } = require('../services/filePreview');
 const { createAuditLog } = require('../middleware/audit');
@@ -267,7 +267,11 @@ router.delete('/:businessId/:id/pin', authenticateToken, checkBusinessAccess, as
 //   참여자가 아니어도 워크스페이스 멤버 이상이면 자동으로 ConversationParticipant 생성
 //   (핀과 동일 — 핀 안 한 채팅도 읽으면 unread 카운터 0 으로 정확하게 유지)
 // ─────────────────────────────────────────────────────────
-router.put('/:businessId/:id/read', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+// ★ `checkBusinessAccess`(memberOnly) 를 쓰면 **고객은 자기 대화방도 읽음 처리를 못 한다** —
+//   `business_members` 행이 없기 때문이다. 그러면 숫자 뱃지가 영영 안 사라진다
+//   (2026-09-02 운영 재현: Client 계정이 대화를 열어도 `/read` 403).
+//   접근 판정은 `canAccessConversation` 이 한다 — 참여자면 통과, 아니면 403.
+router.put('/:businessId/:id/read', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
     const convId = Number(req.params.id);
@@ -512,15 +516,23 @@ router.delete('/:businessId/:id/participants/:userId', authenticateToken, checkB
 
 // 참여자 패널 데이터 — 현재 참여자 + 추가 후보(멤버/고객) + 미수락 초대고객(안내).
 // 채팅 설정 모달이 prop 의존(빈 목록 오표시) 대신 이걸 fetch. 프로젝트 대화면 고객도 후보·참여자로.
-router.get('/:businessId/:id/participants', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+// 참여자 목록도 같은 이유로 열어 준다 — 고객 화면이 "누가 이 대화에 있는지" 를 못 그렸다.
+//   내보내는 것은 이름·역할뿐이고, 접근 판정은 canAccessConversation 이 한다.
+router.get('/:businessId/:id/participants', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
     const conv = await Conversation.findOne({ where: { id: req.params.id, business_id: businessId } });
     if (!conv) return errorResponse(res, 'Conversation not found', 404);
-
+    // memberOnly 를 뗐으므로 **접근 판정을 여기서 명시적으로** 한다.
+    //   미들웨어가 막아 주던 것을 떼면서 검사를 안 옮기면 그 자리가 곧 구멍이다.
+    if (!(await canAccessConversation(req.user.id, conv, req.scope))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    // 고객에게는 이메일을 내보내지 않는다 — 이름·역할이면 화면이 그려진다.
+    const showEmail = isMemberOrAbove(req.scope);
     const parts = await ConversationParticipant.findAll({
       where: { conversation_id: conv.id },
-      include: [{ model: User, attributes: ['id', 'name', 'email', 'is_ai'] }],
+      include: [{ model: User, attributes: showEmail ? ['id', 'name', 'email', 'is_ai'] : ['id', 'name', 'is_ai'] }],
     });
     const partRows = parts.map(p => p.toJSON());
     await applyMemberDisplayName(partRows, businessId, ['User']);
@@ -531,20 +543,28 @@ router.get('/:businessId/:id/participants', authenticateToken, checkBusinessAcce
     const partUserIds = new Set(participants.map(p => p.user_id));
 
     // 멤버 후보 (AI·이미 참여자 제외)
-    const members = await BusinessMember.findAll({
-      where: { business_id: businessId, removed_at: null },
-      include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email'] }],
-    });
-    const memberRows = members.map(m => m.toJSON());
-    await applyMemberDisplayName(memberRows, businessId, ['user']);
-    const member_candidates = memberRows
-      .filter(m => m.role !== 'ai' && m.user && !partUserIds.has(m.user_id))
-      .map(m => ({ user_id: m.user_id, name: m.user.name, email: m.user.email }));
+    //   ★ 고객에게는 **아예 내보내지 않는다.** 이건 "이 대화에 누구를 더 넣을까" 목록이고
+    //     고객은 사람을 추가할 수 없다. 그런데 여기에 워크스페이스 **전 직원의 이메일**이
+    //     실려 나갔다 (2026-09-02 고객 계정 재현에서 발견 — 참여자 이메일은 막았는데
+    //     이 블록이 그대로였다). 한쪽만 막는 것은 막은 게 아니다.
+    let member_candidates = [];
+    if (showEmail) {
+      const members = await BusinessMember.findAll({
+        where: { business_id: businessId, removed_at: null },
+        include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email'] }],
+      });
+      const memberRows = members.map(m => m.toJSON());
+      await applyMemberDisplayName(memberRows, businessId, ['user']);
+      member_candidates = memberRows
+        .filter(m => m.role !== 'ai' && m.user && !partUserIds.has(m.user_id))
+        .map(m => ({ user_id: m.user_id, name: m.user.name, email: m.user.email }));
+    }
 
     // 고객 후보 — 프로젝트 대화만. 수락(contact_user_id 有)=추가 가능, 미수락=안내.
     const client_candidates = [];
     const pending_clients = [];
-    if (conv.project_id) {
+    // 고객 후보도 같은 이유로 고객에게는 안 보낸다 — 다른 고객의 이름·이메일이다.
+    if (showEmail && conv.project_id) {
       const { ProjectClient } = require('../models');
       const pcs = await ProjectClient.findAll({
         where: { project_id: conv.project_id },
