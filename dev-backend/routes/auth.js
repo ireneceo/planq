@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { User, Business, BusinessMember, Client, RefreshToken } = require('../models');
+const { USER_SENSITIVE_FIELDS } = require('../utils/userFields');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
 const { sequelize } = require('../config/database');
@@ -14,7 +15,7 @@ const {
   hashRefreshToken, TTL_MS_BY_KIND, resolveClientKind, createRefreshTokenRow,
   generateAccessToken, generateRefreshToken, authWarn,
   SESSION_HINT, setSessionHint, setRefreshCookies, DELIVERY_EPOCH_MS,
-  setImageCookie, clearImageCookie,
+  setImageCookie, clearImageCookie, cookieSecure,
 } = require('../services/authTokens');
 
 // ============================================
@@ -52,7 +53,7 @@ const generateSlug = (name) => {
 // ============================================
 const getUserWithBusiness = async (userId) => {
   const user = await User.findByPk(userId, {
-    attributes: { exclude: ['password_hash', 'refresh_token', 'reset_token', 'reset_token_expires'] }
+    attributes: { exclude: USER_SENSITIVE_FIELDS }   // utils/userFields — 목록은 한 곳에서만
   });
   if (!user) return null;
 
@@ -402,7 +403,7 @@ router.post('/register', async (req, res, next) => {
     await transaction.commit();
 
     // 6. Set refresh token as HttpOnly cookie
-    const secure = process.env.NODE_ENV === 'production';
+    const secure = cookieSecure(res);   // 실제 연결이 HTTPS 인가 (services/authTokens)
     const cookieOpts = { httpOnly: true, secure, sameSite: 'lax', path: '/api/auth' };
     if (remember) cookieOpts.maxAge = TTL_MS_BY_KIND[clientKind];
     res.cookie('refresh_token', refreshToken, cookieOpts);
@@ -524,7 +525,7 @@ router.post('/login', async (req, res, next) => {
     await user.update({ last_login_at: new Date() });
 
     // Set refresh token as HttpOnly cookie
-    const secure = process.env.NODE_ENV === 'production';
+    const secure = cookieSecure(res);   // 실제 연결이 HTTPS 인가 (services/authTokens)
     const cookieOpts = { httpOnly: true, secure, sameSite: 'lax', path: '/api/auth' };
     if (remember) cookieOpts.maxAge = TTL_MS_BY_KIND[clientKind];
     res.cookie('refresh_token', refreshToken, cookieOpts);

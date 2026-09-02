@@ -4,6 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const { requireInternalKey } = require('../utils/internalAuth');
 const { Op } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');
 const { File, FileFolder, User, Client, Project, Business, BusinessStorageUsage, BusinessCloudToken,
@@ -1428,12 +1429,10 @@ router.post('/:businessId/bulk-download', authenticateToken, checkBusinessAccess
 // ─── 내부 API (Python Q Note ↔ Node) — 사이클 O4 ───
 // Q Note 의 link-workspace-file 흐름에서 파일 메타·절대경로 조회.
 // 인증: INTERNAL_API_KEY 헤더만 (사용자 토큰 없음).
-router.get('/internal/:fileId', async (req, res, next) => {
+//   ★ 이 경로는 `/api/internal/*` **밖**이라 nginx 의 deny 가 덮지 않는다 — 관문(루프백+키)을
+//     미들웨어로 직접 건다. (2026-09-02 보안감사 C-2)
+router.get('/internal/:fileId', requireInternalKey, async (req, res, next) => {
   try {
-    const key = req.header('x-internal-api-key');
-    if (!process.env.INTERNAL_API_KEY || key !== process.env.INTERNAL_API_KEY) {
-      return errorResponse(res, 'forbidden', 403);
-    }
     const fileId = parseInt(req.params.fileId, 10);
     const businessId = req.query.business_id ? parseInt(req.query.business_id, 10) : null;
     if (!fileId || !businessId) return errorResponse(res, 'invalid_params', 400);

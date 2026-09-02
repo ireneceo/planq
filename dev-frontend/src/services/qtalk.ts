@@ -387,6 +387,21 @@ export async function listConversationMessages(conversationId: number): Promise<
   return handle<ApiMessage[]>(res);
 }
 
+// 첫 페이지 + **서버가 알려주는 has_more**.
+//   ★ 옛 화면은 "받은 개수가 50이면 더 있다" 로 짐작했다. 그 짐작은 고객 화면에서 틀린다 —
+//     서버가 안 보이는 것(삭제·내부 메모)을 걸러 주면 받은 개수가 페이지 크기와 달라진다.
+//     짐작 말고 서버가 센 값을 쓴다.
+export async function listConversationMessagesPaged(
+  conversationId: number,
+  limit = 50,
+): Promise<{ messages: ApiMessage[]; hasMore: boolean }> {
+  const res = await apiFetch(`/api/projects/conversations/${conversationId}/messages?limit=${limit}`);
+  let body: { success: boolean; data?: ApiMessage[]; has_more?: boolean; message?: string } | null = null;
+  try { body = await res.json(); } catch { throw new Error(`HTTP ${res.status}`); }
+  if (!res.ok || !body?.success) throw new Error(body?.message || `HTTP ${res.status}`);
+  return { messages: body.data || [], hasMore: !!body.has_more };
+}
+
 // 과거 메시지 무한 로드 — beforeId 보다 오래된 limit 개 (시간순 ASC). hasMore=더 있음.
 export async function loadOlderMessages(
   conversationId: number,

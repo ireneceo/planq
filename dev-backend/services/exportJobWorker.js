@@ -2,6 +2,7 @@
 // export_jobs 를 cron 으로 드레인: transfer(이동/복사) · export(다운로드 zip).
 // 본인 L1 파일 + 본인 문서 + (옵션) 본인 Q Note 세션(요약+전사 → 문서).
 const path = require('path');
+const { safeArchiveName } = require('../utils/archiveName');
 const fs = require('fs');
 const crypto = require('crypto');
 const { Op } = require('sequelize');
@@ -337,13 +338,13 @@ async function processExport(job) {
     const uniq = (m, n) => { let x = n, i = 1; while (m.has(x)) { x = n.replace(/(\.[^.]+)?$/, `_${i++}$1`); } m.set(x, 1); return x; };
     for (const f of files.slice(0, MAX_ITEMS)) {
       if (!f.file_path || !fs.existsSync(f.file_path)) continue;
-      const name = uniq(used, f.file_name || `file-${f.id}`);
+      const name = uniq(used, safeArchiveName(f.file_name, `file-${f.id}`));
       archive.file(f.file_path, { name: `files/${name}` });
       manifest.files.push({ name, size: Number(f.file_size) || 0 });
     }
     const usedDocs = new Map();
     for (const d of [...docs, ...qnoteDocs].slice(0, MAX_ITEMS)) {
-      const safe = String(d.title || 'untitled').replace(/[\/\\:*?"<>|\n\r]/g, '_').slice(0, 120) || 'untitled';
+      const safe = safeArchiveName(d.title, 'untitled');   // 파일 분기와 **같은 함수** (따로 쓰면 갈라진다)
       const name = uniq(usedDocs, `${safe}.html`);
       archive.append(exportRoutes.renderDocHtml(d), { name: `documents/${name}` });
       manifest.documents.push({ title: d.title });

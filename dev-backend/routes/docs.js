@@ -111,6 +111,16 @@ router.get('/templates/:id/context', authenticateToken, async (req, res, next) =
     if (businessId && !(await assertBusinessAccess(req.user.id, businessId, req.user.platform_role))) {
       return errorResponse(res, 'forbidden', 403);
     }
+    // ★ 위 가드는 `business_id` 를 **보냈을 때만** 돈다 — 안 보내면 검사 자체가 실행되지 않아
+    //   남의 워크스페이스 템플릿(name·schema·body_template·default_values·preview)이 그대로 나갔다
+    //   (2026-09-02 보안감사 실측: 형제 라우트 GET /templates/:id 는 403 인데 여기만 200).
+    //   템플릿 자체의 소유 워크스페이스로 검사한다 — 그 형제 라우트와 같은 술어.
+    const tplOwner = await DocumentTemplate.findByPk(req.params.id, { attributes: ['id', 'is_system', 'business_id'] });
+    if (!tplOwner) return errorResponse(res, 'not_found', 404);
+    if (!tplOwner.is_system && tplOwner.business_id
+        && !(await assertBusinessAccess(req.user.id, tplOwner.business_id, req.user.platform_role))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
     const result = await getTemplateContext({
       templateId: req.params.id,
       businessId,

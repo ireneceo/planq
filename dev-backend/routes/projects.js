@@ -18,6 +18,7 @@ const {
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { serializeMessageAttachments } = require('../services/filePreview');
 const { maskDeletedMessages } = require('../utils/deletedMessage');
+const { CLIENT_VISIBLE_MESSAGE_WHERE } = require('../utils/messageVisibility');
 const { authenticateToken } = require('../middleware/auth');
 const { createAuditLog } = require('../middleware/audit');
 const taskExtractor = require('../services/task_extractor');
@@ -1162,6 +1163,13 @@ router.get('/conversations/:id/messages', authenticateToken, async (req, res, ne
     //   본문·첨부는 아래에서 서버가 비운다. 두 경로가 다르게 굴면 새로고침 때 화면이 갈린다.
     const msgWhere = { conversation_id: conv.id };
     if (beforeId) msgWhere.id = { [Op.lt]: beforeId };
+    // 운영 #368 — Client 는 내부 메시지·미승인 Cue 초안·삭제 메시지를 보면 안 된다 (PERMISSION_MATRIX §7).
+    //   ★ **가져온 뒤 거르지 않고 쿼리에서 거른다.** post-filter 는 삭제·내부 메모가 페이지 slot 을
+    //     먹어 고객에게 빈 페이지를 주고, 그 위 히스토리를 영영 못 올리게 만들었다
+    //     (실측 limit=2 → client `[]` + has_more=true). 술어는 utils/messageVisibility 한 곳.
+    const { getUserScope } = require('../middleware/access_scope');
+    const viewer = await getUserScope(req.user.id, conv.business_id).catch(() => null);
+    if (viewer?.isClient) Object.assign(msgWhere, CLIENT_VISIBLE_MESSAGE_WHERE);
     const [msgsDesc, parts] = await Promise.all([
       Message.findAll({
         where: msgWhere,
@@ -1184,23 +1192,8 @@ router.get('/conversations/:id/messages', authenticateToken, async (req, res, ne
       }),
     ]);
     const hasMore = msgsDesc.length > limit;
-    let msgs = msgsDesc.slice(0, limit).reverse(); // 화면 표시용 시간순(ASC) 복원
-    // 운영 #368 — Client 는 내부 메시지·미승인 Cue 초안을 보면 안 된다 (PERMISSION_MATRIX §7).
-    //   같은 규칙이 routes/conversations.js:620 에는 있고 **여기에는 없었다** — 프로젝트 대화를
-    //   여는 고객에게는 그대로 노출됐다. 게이트 술어는 두 표면이 같아야 한다.
-    {
-      const { getUserScope } = require('../middleware/access_scope');
-      const viewer = await getUserScope(req.user.id, conv.business_id).catch(() => null);
-      if (viewer?.isClient) {
-        msgs = msgs.filter((m) =>
-          // 고객에게는 삭제된 메시지의 **자리도** 보이지 않는다 — 게스트와 같은 술어
-          //   (routes/guest.js `visibleToGuest`). conversations.js 상세와 한 규칙.
-          !m.is_deleted &&
-          !m.is_internal &&
-          !(m.is_ai && m.ai_mode_used === 'draft' && m.ai_draft_approved !== true)
-        );
-      }
-    }
+    const msgs = msgsDesc.slice(0, limit).reverse(); // 화면 표시용 시간순(ASC) 복원
+    //   (Client 필터는 위 msgWhere 로 이미 쿼리에서 적용됐다 — has_more 가 참말이 되도록)
     // 사이클 N+15-C — 메시지마다 read_by_count + other_count 부착.
     // read_by_count: sender 외 참여자 중 last_read_at >= m.created_at 인 수.
     // other_count: sender 외 참여자 총수 (1:1 ↔ 그룹 판별용).

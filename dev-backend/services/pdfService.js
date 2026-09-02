@@ -30,6 +30,11 @@ async function launch() {
       '--disable-gpu',
       '--single-process',
       '--no-zygote',
+      // ★ prefetch·preload·WebSocket 은 request 인터셉션을 지나친다(Fable 실측).
+      //   죽은 프록시로 **바깥을 통째로 끊는다** — 루프백도 프록시를 거치게 해서 예외를 없앤다.
+      //   문서에 필요한 것은 setContent 로 넣은 인라인 CSS 와 data: URI 뿐이라 잃는 것이 없다.
+      '--proxy-server=127.0.0.1:1',
+      '--proxy-bypass-list=<-loopback>',
     ],
   });
   activeBrowser = browser;
@@ -71,6 +76,28 @@ async function renderPdfFromHtml(html, opts = {}) {
     try {
       const browser = await getBrowser();
       page = await browser.newPage();
+      // ★ 렌더 대상 HTML 에는 **사용자가 쓴 본문**이 들어간다(문서·게시글·청구서 body_html).
+      //   그대로 두면 <img src="http://127.0.0.1:3003/…"> 한 줄로 **서버측 요청 위조**가 되고,
+      //   내부 응답이 PDF 지면에 그대로 찍힌다 — 게다가 이 렌더러를 부르는 경로 4개가 **무인증**이다
+      //   (2026-09-02 보안감사 H-2: 루프백 서버로 실증, 내부 본문이 PDF 에 전문 노출).
+      //   그래서 **바깥으로 나가는 모든 요청을 끊는다.** 문서에 필요한 것은 data: URI 와
+      //   setContent 로 넣은 인라인 CSS 뿐이라 잃는 것이 없다.
+      // ★ "메인 프레임 네비게이션이면 무조건 통과" 는 **구멍이었다.**
+      //   본문 한 줄 `<meta http-equiv=refresh url=http://127.0.0.1:3003/…>` · `location.href` ·
+      //   `form.submit()` 이 전부 메인 프레임 네비게이션이라, 내부 응답이 그대로 지면에 찍혔다
+      //   (Fable 실측 2026-09-02: 32벡터 중 meta refresh·location·form 등이 leak=true).
+      //   통과시키는 것은 **setContent 가 쓰는 about:blank 하나뿐**이다.
+      await page.setRequestInterception(true);
+      page.on('request', (req) => {
+        const url = req.url();
+        if (url === 'about:blank') return req.continue().catch(() => {});
+        if (url.startsWith('data:')) return req.continue().catch(() => {});
+        return req.abort().catch(() => {});
+      });
+      // 문서 렌더에 스크립트는 필요 없다 — 끄면 location.href·form.submit 계열이 아예 못 돈다.
+      await page.setJavaScriptEnabled(false);
+      // 인터셉션이 못 보는 창(window.open)은 열리는 즉시 닫는다.
+      page.on('popup', (p) => { p.close().catch(() => {}); });
       await page.setContent(html, { waitUntil: 'networkidle0', timeout: 15000 });
       const pdf = await page.pdf({
         format: opts.format || 'A4',

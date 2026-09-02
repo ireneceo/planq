@@ -2,6 +2,7 @@
 // Phase 1: 본인 L1 파일 + 본인 작성 문서 zip / 관리자 워크스페이스 자료 zip (L1 개인 제외).
 // archiver 스트리밍(메모리 안전) — routes/files.js bulk-download 패턴 재사용.
 const express = require('express');
+const { safeArchiveName } = require('../utils/archiveName');
 const router = express.Router();
 const path = require('path');
 const fs = require('fs');
@@ -73,14 +74,14 @@ async function streamExport(res, label, files, docs) {
   const usedFiles = new Map();
   for (const f of files) {
     if (!f.file_path || !fs.existsSync(f.file_path)) continue;
-    const name = uniqueName(usedFiles, f.file_name || `file-${f.id}`);
+    const name = uniqueName(usedFiles, safeArchiveName(f.file_name, `file-${f.id}`));
     archive.file(f.file_path, { name: `files/${name}` });
     manifest.files.push({ name, size: Number(f.file_size) || 0, security_level: f.security_level, visibility: f.visibility || f.vlevel });
   }
 
   const usedDocs = new Map();
   for (const d of docs) {
-    const safe = String(d.title || 'untitled').replace(/[\/\\:*?"<>|\n\r]/g, '_').slice(0, 120) || 'untitled';
+    const safe = safeArchiveName(d.title, 'untitled');   // 파일 분기와 **같은 함수** (따로 쓰면 갈라진다)
     const name = uniqueName(usedDocs, `${safe}.html`);
     archive.append(renderDocHtml(d), { name: `documents/${name}` });
     manifest.documents.push({ title: d.title, security_level: d.security_level });

@@ -6,6 +6,7 @@ const express = require('express');
 const { Op } = require('sequelize');
 const router = express.Router();
 const { EmailAccount, Business, EmailAccountAlias } = require('../models');
+const { assertOutboundHostAllowed } = require('../utils/netGuard');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { encrypt, decrypt } = require('../services/encryption');
@@ -146,12 +147,22 @@ router.post('/:businessId/email-accounts', authenticateToken, checkBusinessAcces
     // 중복 (워크스페이스 내 같은 email 1개만)
     const dup = await EmailAccount.findOne({ where: { business_id: businessId, email } });
     if (dup) return errorResponse(res, 'duplicate_email', 409);
+    // ★ 목적지 검사 먼저 — 사용자가 적은 호스트로 그냥 붙으면 서버가 **내부망 포트 스캐너**가 된다
+    //   (예외 메시지가 그대로 응답에 실려 오라클이 된다). utils/netGuard 단일 지점.
+    const hostOk = await assertOutboundHostAllowed(b.imap_host, Number(b.imap_port) || 993);
+    if (!hostOk.ok) return res.status(400).json({ success: false, message: hostOk.code });
+    if (b.smtp_host) {
+      const sOk = await assertOutboundHostAllowed(b.smtp_host, Number(b.smtp_port) || 587);
+      if (!sOk.ok) return res.status(400).json({ success: false, message: sOk.code });
+    }
     // 저장 전 실연결 검증 — 실패 시 등록 자체를 거부 + 원인별 안내 코드
     const verify = await verifyImapCredentials({
       host: b.imap_host, port: Number(b.imap_port) || 993, tls: b.imap_tls !== false,
       username: b.imap_username, password: imapPassword, folder: b.imap_folder || 'INBOX',
     });
-    if (!verify.ok) return res.status(400).json({ success: false, message: verify.code, detail: verify.detail });
+    //   ★ `detail`(연결 에러 원문)은 돌려주지 않는다 — ECONNREFUSED/timeout/TLS 실패의 차이가
+    //     그대로 **내부망 포트 오라클**이 된다(보안감사 H-5). 사용자에겐 code 로 충분하다.
+    if (!verify.ok) return res.status(400).json({ success: false, message: verify.code });
     // 첫 공용 계정이면 is_default 자동 (개인 계정은 공용 default 후보 아님)
     const teamCount = await EmailAccount.count({ where: { business_id: businessId, owner_user_id: null } });
     const acc = await EmailAccount.create({
@@ -207,6 +218,16 @@ router.put('/:businessId/email-accounts/:id', authenticateToken, checkBusinessAc
     // 서명 — 계정마다 등록한다. HTML 저장(발송 시 emailSend.appendSignature 가 붙인다).
     if (b.signature_html !== undefined) patch.signature_html = b.signature_html ? String(b.signature_html).slice(0, 20000) : null;
     if (b.signature_enabled !== undefined) patch.signature_enabled = !!b.signature_enabled;
+    // ★ 수정 경로도 같은 검사. 옛 코드는 imap 만 보고 **smtp_host 는 검증이 아예 없었다** —
+    //   저장된 뒤 발송 때마다 그 호스트로 붙고, OAuth 계정은 살아 있는 access token 을 함께 보낸다.
+    if (b.imap_host !== undefined || b.imap_port !== undefined) {
+      const r = await assertOutboundHostAllowed(b.imap_host ?? acc.imap_host, Number(b.imap_port ?? acc.imap_port) || 993);
+      if (!r.ok) return res.status(400).json({ success: false, message: r.code });
+    }
+    if ((b.smtp_host !== undefined && b.smtp_host) || (b.smtp_port !== undefined && b.smtp_port)) {
+      const r = await assertOutboundHostAllowed(b.smtp_host ?? acc.smtp_host, Number(b.smtp_port ?? acc.smtp_port) || 587);
+      if (!r.ok) return res.status(400).json({ success: false, message: r.code });
+    }
     if (b.imap_host !== undefined) patch.imap_host = b.imap_host;
     if (b.imap_port !== undefined) patch.imap_port = Number(b.imap_port) || 993;
     if (b.imap_username !== undefined) patch.imap_username = b.imap_username;
@@ -247,7 +268,7 @@ router.put('/:businessId/email-accounts/:id', authenticateToken, checkBusinessAc
         password,
         folder: b.imap_folder !== undefined ? (b.imap_folder || 'INBOX') : acc.imap_folder,
       });
-      if (!verify.ok) return res.status(400).json({ success: false, message: verify.code, detail: verify.detail });
+      if (!verify.ok) return res.status(400).json({ success: false, message: verify.code });
       // 검증 통과 → 실패 이력 리셋
       patch.last_sync_error = null;
       patch.fail_count = 0;

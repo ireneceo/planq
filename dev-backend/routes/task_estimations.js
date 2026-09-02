@@ -146,6 +146,13 @@ router.get('/:taskId/estimations', authenticateToken, async (req, res, next) => 
   try {
     const taskId = parseInt(req.params.taskId, 10);
     if (!taskId) return errorResponse(res, 'invalid_task', 400);
+    // ★ 소유권 검사가 아예 없었다 — 로그인만 하면 task id 를 1부터 훑어 **모든 워크스페이스의**
+    //   예측시간 원장(값·source·model·작성자 user id)을 읽을 수 있었다(2026-09-02 보안감사 실측:
+    //   business 5 계정으로 business 6·3 의 task 원장 200 응답).
+    //   바로 위 POST /estimate/ai 가 이미 같은 이유로 막고 있다 — 술어를 맞춘다.
+    const task = await Task.findByPk(taskId, { attributes: ['id', 'business_id'] });
+    if (!task) return errorResponse(res, 'not_found', 404);
+    if (!(await assertMembership(req.user.id, task.business_id))) return errorResponse(res, 'forbidden', 403);
     const list = await TaskEstimation.findAll({
       where: { task_id: taskId },
       order: [['created_at', 'DESC']],

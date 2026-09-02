@@ -258,7 +258,16 @@ router.get('/', authenticateToken, async (req, res, next) => {
         { category: { [Op.like]: like } },
       ];
       if (projIds.length > 0) orConds.push({ project_id: { [Op.in]: projIds } });
-      where[Op.or] = orConds;
+      // ★ `where[Op.or] = orConds` 로 **대입하면 baseWhere 의 가시등급 조건이 통째로 지워진다.**
+      //   baseWhere 는 `{business_id, [Op.or]: 가시성조건}` 이라, 검색어를 넣는 순간 남는 건
+      //   business_id 뿐이었다 — 실측(2026-09-02 보안감사): 평멤버가 `?q=` 를 붙이면
+      //   **타인의 L1(개인) 문서**와 **미참여 프로젝트의 L2 문서**가 본문 미리보기까지 떴다
+      //   (같은 문서의 상세 GET 은 403 인데 목록만 샜다).
+      //   위 draft 필터와 같은 방식으로 **Op.and 에 합친다** — 기존 조건을 지우지 않는다.
+      where[Op.and] = [
+        ...(Array.isArray(where[Op.and]) ? where[Op.and] : []),
+        { [Op.or]: orConds },
+      ];
     }
     // 사이클 N+50 — pagination. 기존 hardcoded limit 200 정형화. include 1:1 → distinct:true 안전
     const { limit, page, offset } = parsePagination(req, { defaultLimit: 200, maxLimit: 500 });

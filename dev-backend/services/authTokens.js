@@ -107,6 +107,15 @@ const authWarn = (msg, ...args) => console.warn('%s [auth] ' + msg, new Date().t
 //     둘 다 없음                          → jar 전체 삭제 또는 그냥 게스트 (정상일 수 있음)
 //   프론트도 이 값을 읽어 "세션이 있어야 정상인 상태"를 알 수 있다 (HttpOnly 가 아니므로 읽기 가능).
 //   값에 비밀이 없다 — 인증에 쓰이지 않는 순수 진단 마커다.
+// 쿠키 Secure 판정 — **실제 연결이 HTTPS 인가**로 본다.
+//   ★ 옛 코드는 `NODE_ENV === 'production'` 만 봤다. dev(그리고 NODE_ENV 가 production 이 아닌
+//     어떤 배포든)는 HTTPS 인데도 Secure 없이 쿠키가 나갔다 — 평문 경로가 하나라도 있으면
+//     세션 쿠키가 그대로 샌다 (2026-09-02 보안감사 L-5). `trust proxy: 1` 이라 res.req.secure 가
+//     nginx 의 X-Forwarded-Proto 를 정확히 반영한다. 기존 조건은 유지 — **약해지지 않는다.**
+function cookieSecure(res) {
+  return process.env.NODE_ENV === 'production' || res?.req?.secure === true;
+}
+
 const SESSION_HINT = 'has_session';
 function setSessionHint(res, { maxAge, secure }) {
   const opts = { httpOnly: false, secure, sameSite: 'lax', path: '/' };
@@ -126,7 +135,7 @@ function setSessionHint(res, { maxAge, secure }) {
 const DELIVERY_EPOCH_MS = Date.parse('2026-08-11T00:00:00Z');
 
 function setRefreshCookies(res, rawToken, row, persist) {
-  const secure = process.env.NODE_ENV === 'production';
+  const secure = cookieSecure(res);
   const opts = { httpOnly: true, secure, sameSite: 'lax', path: '/api/auth' };
   if (persist) opts.maxAge = Math.max(0, new Date(row.expires_at).getTime() - Date.now());
   res.cookie('refresh_token', rawToken, opts);
@@ -195,7 +204,7 @@ function generateImageToken(user) {
 
 function setImageCookie(res, user) {
   if (!user || !user.id) return;
-  const secure = process.env.NODE_ENV === 'production';
+  const secure = cookieSecure(res);
   const token = generateImageToken(user);
   for (const path of IMAGE_COOKIE_PATHS) {
     // maxAge 를 항상 준다 — 세션 쿠키로 두면 PWA 재시작마다 그림이 사라진다.
@@ -207,6 +216,7 @@ function clearImageCookie(res) {
   for (const path of IMAGE_COOKIE_PATHS) res.clearCookie(IMAGE_COOKIE, { path });
 }
 module.exports = {
+  cookieSecure,
   hashRefreshToken,
   TTL_MS_BY_KIND, LONG_KINDS, VALID_KINDS,
   resolveClientKind, jwtExpiresInForKind,

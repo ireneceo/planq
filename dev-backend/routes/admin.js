@@ -4,6 +4,7 @@ const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
 const { Business, BusinessMember, User, BusinessPlanHistory, PlatformSetting, Subscription, Payment } = require('../models');
+const { USER_SENSITIVE_FIELDS } = require('../utils/userFields');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const planEngine = require('../services/plan');
@@ -854,7 +855,7 @@ router.get('/users/:id/data-export', async (req, res, next) => {
   try {
     const { User, AuditLog, Business, BusinessMember, ContactInquiry, FeedbackItem } = require('../models');
     const target = await User.findByPk(req.params.id, {
-      attributes: { exclude: ['password_hash', 'password_reset_token', 'email_verify_token', 'secondary_email_otp_hash'] },
+      attributes: { exclude: USER_SENSITIVE_FIELDS },   // utils/userFields — 목록은 한 곳에서만
     });
     if (!target) return errorResponse(res, 'user_not_found', 404);
 

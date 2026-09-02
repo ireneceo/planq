@@ -119,6 +119,16 @@ async function canJoinBusiness(userId, businessId) {
 //    (1) 멤버 워크스페이스 → business room (워크스페이스 전체 unread 실시간, canJoinBusiness 와 동일 범위)
 //    (2) 비멤버(고객) 대화 → conv room 만 (남의 대화 노출 차단 — business room 에 넣지 않음)
 //        → 멤버 워크스페이스의 conv 는 이미 business room 으로 커버되므로 제외(중복 전달 방지)
+// ★ 소켓이 준 id 는 **정수로 못 박고 나서** 룸 이름에 쓴다.
+//   `join:conversation("321:staff")` 를 그대로 이어붙이면 `conv:321:staff` — **직원 전용 룸 이름을
+//   고객이 자기 손으로 만든다**. MySQL 이 '321:staff' 를 321 로 캐스팅해 참여자 검사까지 통과한다
+//   (Fable 실측 2026-09-02: 그 방법으로 내부 메모가 고객 소켓에 도착했다).
+//   문자열을 룸 이름에 붙이지 않는 것이 규칙이다.
+const roomId = (v) => {
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 ? n : null;
+};
+
 async function autoJoinUserBusinesses(socket) {
   if (!socket.userId) return;
   const { BusinessMember, ConversationParticipant, Conversation } = getModels();
@@ -224,7 +234,8 @@ io.on('connection', (socket) => {
   //   (신고: "고객이 Cue 답변을 받기 전에 뭔가 떠. 내가 보내기를 눌러야 하는 상황에서").
   //   → 같은 대화의 **직원 전용 하위 룸**을 만든다. 워크스페이스 멤버일 때만 들어간다.
   //     고객은 BusinessMember 가 아니므로 구조적으로 들어올 수 없다.
-  socket.on('join:conversation', async (conversationId) => {
+  socket.on('join:conversation', async (raw) => {
+    const conversationId = roomId(raw);
     if (!conversationId) return;
     try {
       if (await canJoinConversation(socket.userId, conversationId)) {
@@ -247,14 +258,16 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('leave:conversation', (conversationId) => {
+  socket.on('leave:conversation', (raw) => {
+    const conversationId = roomId(raw);
     if (conversationId) {
       socket.leave(`conv:${conversationId}`);
       socket.leave(`conv:${conversationId}:staff`);
     }
   });
 
-  socket.on('join:project', async (projectId) => {
+  socket.on('join:project', async (raw) => {
+    const projectId = roomId(raw);
     if (!projectId) return;
     try {
       if (await canJoinProject(socket.userId, projectId)) {
@@ -265,11 +278,13 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('leave:project', (projectId) => {
+  socket.on('leave:project', (raw) => {
+    const projectId = roomId(raw);
     if (projectId) socket.leave(`project:${projectId}`);
   });
 
-  socket.on('join:business', async (businessId) => {
+  socket.on('join:business', async (raw) => {
+    const businessId = roomId(raw);
     if (!businessId) return;
     try {
       if (await canJoinBusiness(socket.userId, businessId)) {
@@ -279,7 +294,8 @@ io.on('connection', (socket) => {
       console.warn('[socket] join:business check failed', e.message);
     }
   });
-  socket.on('leave:business', (businessId) => {
+  socket.on('leave:business', (raw) => {
+    const businessId = roomId(raw);
     if (businessId) socket.leave(`business:${businessId}`);
   });
 

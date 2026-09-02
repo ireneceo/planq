@@ -61,7 +61,10 @@ router.get('/email-accounts/oauth/gmail/callback', async (req, res) => {
   // open redirect 방어 — returnUrl 은 상대경로(/ 시작, // 아님)만 허용. 그 외 기본으로 강제.
   const safeReturn = (returnUrl) => {
     const u = String(returnUrl || '');
-    return (u.startsWith('/') && !u.startsWith('//')) ? u : '/business/settings/mail-accounts';
+    // ★ `//evil.com` 만 막으면 `/\evil.com` 이 통과한다 — 브라우저가 백슬래시를 슬래시로 읽는다
+    //   (2026-09-02 보안감사 L-9). 두 번째 문자가 슬래시 계열이면 전부 거부.
+    const ok = u.startsWith('/') && !/^\/[/\\]/.test(u);
+    return ok ? u : '/business/settings/mail-accounts';
   };
   // 기존 쿼리(?scope=personal 등) 보존해 append — 개인 뷰 복귀 (F-3). hash 만 제거.
   const appendQuery = (returnUrl, key, val) => {

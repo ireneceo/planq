@@ -49,7 +49,10 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // ─── Helpers ───
 function genToken() { return crypto.randomBytes(TOKEN_BYTES).toString('hex'); }
-function genOtp() { return String(Math.floor(100000 + Math.random() * 900000)); }
+// ★ Math.random() 금지 — V8 은 xorshift128+ 라 같은 프로세스에서 몇 개만 관측하면
+//   내부 상태가 복원되고 **이후 OTP 가 예측된다.** 이 OTP 는 "링크 소지자" 와 "메일 주소 소유자" 를
+//   묶는 유일한 결합자다(법적 효력 있는 서명·이메일 소유 증명). CSPRNG 로 뽑는다.
+function genOtp() { return String(crypto.randomInt(100000, 1000000)); }
 function sha256(text) { return crypto.createHash('sha256').update(String(text)).digest('hex'); }
 
 async function assertMember(userId, businessId, isPlatformAdmin) {

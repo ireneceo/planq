@@ -6,6 +6,7 @@ const { Op } = require('sequelize');
 const { BusinessCloudToken, User } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { requireInternalKey } = require('../utils/internalAuth');
 const gdrive = require('../services/gdrive');
 const gcal = require('../services/google_calendar');
 // googleScopes · oauthLog 는 콜백 전용이라 cloud_oauth.js 로 함께 옮겼다.
@@ -159,12 +160,9 @@ router.delete('/disconnect/:provider/:businessId', authenticateToken, checkBusin
 // ─── Q Note 회의자료 Drive 동기화 (내부 API) ───
 // Python Q Note 서비스에서 문서 업로드 완료 후 이 엔드포인트로 동기화 요청.
 // 인증: INTERNAL_API_KEY 헤더 (Python ↔ Node 내부 통신).
-router.post('/qnote/sync', async (req, res, next) => {
+//   ★ `/api/internal/*` 밖이라 nginx deny 가 덮지 않는다 — 관문을 직접 건다 (보안감사 C-2)
+router.post('/qnote/sync', requireInternalKey, async (req, res, next) => {
   try {
-    const key = req.header('x-internal-api-key');
-    if (!process.env.INTERNAL_API_KEY || key !== process.env.INTERNAL_API_KEY) {
-      return errorResponse(res, 'forbidden', 403);
-    }
     const { business_id, session_id, session_title, session_date, document_id, local_path, file_name, mime_type } = req.body || {};
     if (!business_id || !session_id || !local_path || !file_name) {
       return errorResponse(res, 'missing_required_fields', 400);

@@ -785,9 +785,12 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
     let retryTimer: number | null = null;
     const load = async (attempt: number) => {
       try {
-        const msgs = await qtalkApi.listConversationMessages(activeConversationId);
+        // ★ has_more 는 **서버가 센 값**을 쓴다. 옛 화면은 "50개 받았으면 더 있다" 로 짐작했는데,
+        //   고객 화면은 서버가 삭제·내부 메모를 걸러 주므로 그 짐작이 틀린다.
+        const { messages: msgs, hasMore } = await qtalkApi.listConversationMessagesPaged(activeConversationId);
         if (cancelled) return;
         const loaded = msgs.map(apiMessageToMock);
+        setOlderState((prev) => ({ ...prev, [activeConversationId]: { hasMore, loading: false } }));
         const loadedIds = new Set(loaded.map((m) => m.id));
         setMessages((prev) => {
           // server fresh(최신 페이지) + 쿼리~응답 사이 socket 으로 먼저 들어온 더 최신 메시지 머지(유실 방지)
@@ -844,7 +847,8 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
     }
   }, [messages]);
 
-  // 활성 대화 older 상태 — 초기값: 첫 로드가 50개 꽉 차면 더 있을 가능성(첫 onLoadOlder 가 정확히 확정).
+  // 활성 대화 older 상태 — 첫 로드가 서버의 has_more 를 그대로 심어 둔다(짐작 제거).
+  //   olderState 가 아직 없는 순간(캐시로 먼저 그려진 화면 등)에만 옛 짐작을 폴백으로 쓴다.
   const activeMsgCount = activeConversationId ? (messages[activeConversationId]?.length || 0) : 0;
   const activeOlder = activeConversationId ? olderState[activeConversationId] : undefined;
   const hasMoreOlder = activeOlder ? activeOlder.hasMore : activeMsgCount >= 50;

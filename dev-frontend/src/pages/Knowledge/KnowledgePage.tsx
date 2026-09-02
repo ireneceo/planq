@@ -7,6 +7,7 @@
 //   - 진짜 1줄 리스트 + 우측 DetailDrawer
 //   - 카운트 0 카테고리 자동 숨김
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { sanitizeRichText } from '../../utils/sanitizeHtml';
 import { downloadBlob } from '../../utils/download';
 import { useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
@@ -1845,7 +1846,9 @@ const DrawerBodyEdit: React.FC<{
     if (!v) return <BodyClickable onClick={() => setEditing(true)}>—</BodyClickable>;
     // 옛 plain text 안 깨지게 — HTML 형태 아니면 <p> wrap
     const isHtml = /<[a-z][\s\S]*>/i.test(v);
-    const html = isHtml ? v : `<p>${v.replace(/\n/g, '<br/>')}</p>`;
+    // ★ 공개 KB 페이지 2곳은 정화를 태우는데 **워크스페이스 내부 화면만 빠져 있었다**
+    //   (2026-09-02 보안감사). 같은 데이터를 그리면 같은 정화를 태운다.
+    const html = sanitizeRichText(isHtml ? v : `<p>${v.replace(/\n/g, '<br/>')}</p>`);
     return <><BodyClickable onClick={onBodyClick} dangerouslySetInnerHTML={{ __html: html }} />{lightbox}</>;
   }
   return (

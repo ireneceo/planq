@@ -12,6 +12,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { User, Business, BusinessMember, OauthConnection, sequelize } = require('../models');
+const { cookieSecure } = require('../services/authTokens');
 const googleOauthLogin = require('../services/google_oauth_login');
 // 옛 /login 의 refresh_token cookie 패턴 재사용 (다중 디바이스 + sliding renewal 정합)
 const { helpers } = require('./auth');
@@ -126,7 +127,7 @@ async function issueSessionCookie(req, res, user) {
   const refreshToken = generateRefreshToken(user, clientKind);
   await createRefreshTokenRow(user, refreshToken, req, null, { clientKind });
   await user.update({ last_login_at: new Date() });
-  const secure = process.env.NODE_ENV === 'production';
+  const secure = cookieSecure(res);   // 실제 연결이 HTTPS 인가 (services/authTokens)
   const cookieOpts = {
     httpOnly: true,
     secure,

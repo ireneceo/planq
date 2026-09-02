@@ -7,6 +7,7 @@
 // RFC 5322 스레딩: In-Reply-To / References 헤더로 받는 쪽 메일 클라이언트에서
 // 같은 스레드로 묶이게 한다. From 은 항상 연결된 계정 주소 (PlanQ noreply 아님).
 const nodemailer = require('nodemailer');
+const { assertOutboundHostAllowed } = require('../utils/netGuard');
 const { encrypt, decrypt } = require('./encryption');
 const gmailOauth = require('./gmail_oauth');
 const { normalizeDataUris } = require('./emailInlineData');
@@ -52,6 +53,12 @@ async function buildTransport(account) {
   const host = account.smtp_host || deriveSmtpHost(account.imap_host);
   if (!host) throw new Error('smtp_host_missing');
   const port = account.smtp_port || 587;
+  // ★ 발송 직전 재검사 — 등록 검사와 연결 사이에 DNS 가 바뀔 수 있고(리바인딩),
+  //   검증 없던 시절의 옛 계정도 여기로 온다. OAuth 계정은 **살아 있는 토큰**을 들고 나간다.
+  {
+    const r = await assertOutboundHostAllowed(host, port);
+    if (!r.ok) throw new Error('smtp_host_not_allowed:' + r.code);
+  }
   const user = account.smtp_username || account.imap_username;
   const pass = decrypt(account.smtp_password_encrypted || account.imap_password_encrypted);
   if (!pass) throw new Error('smtp_password_missing');

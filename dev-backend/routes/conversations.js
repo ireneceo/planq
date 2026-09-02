@@ -4,10 +4,11 @@ const { Op } = require('sequelize');
 const { Conversation, ConversationParticipant, Message, User, Client, Business, Project, ProjectMember, BusinessMember } = require('../models');
 const { sequelize } = require('../config/database');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
-const { attachWorkspaceScope, conversationListWhere, canAccessConversation, isMemberOrAbove } = require('../middleware/access_scope');
+const { attachWorkspaceScope, conversationListWhere, canAccessConversation, isMemberOrAbove, getUserScope } = require('../middleware/access_scope');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { serializeMessageAttachments } = require('../services/filePreview');
 const { maskDeletedMessages } = require('../utils/deletedMessage');
+const { CLIENT_VISIBLE_MESSAGE_WHERE, clientVisibleSql, isVisibleToClient } = require('../utils/messageVisibility');
 const { createAuditLog } = require('../middleware/audit');
 const cueOrchestrator = require('../services/cue_orchestrator');
 const kbService = require('../services/kb_service');
@@ -52,6 +53,12 @@ router.get('/me/unread-total-all', authenticateToken, async (req, res, next) => 
       // scope 인자 생략 → getUserScope() 자동 호출 (BusinessMember 자동 인식)
       const baseWhere = await conversationListWhere(uid, bizId);
       if (!baseWhere) continue;
+      // 고객에게 안 보이는 글(내부 메모·미승인 초안·삭제)은 **세지도 않는다** —
+      //   안 그러면 뱃지에 2가 뜨는데 열면 1건이라 "어디 있는지 모를 안읽음" 이 된다.
+      const viewerScope = await getUserScope(uid, bizId).catch(() => null);
+      const visSql = viewerScope?.isClient
+        ? `AND ${clientVisibleSql('m')}`
+        : 'AND (m.is_deleted IS NULL OR m.is_deleted = 0)';
       const convs = await Conversation.findAll({
         where: { ...baseWhere, status: 'active', archived_at: null },
         attributes: ['id'],
@@ -68,7 +75,7 @@ router.get('/me/unread-total-all', authenticateToken, async (req, res, next) => 
              ON cp.conversation_id = m.conversation_id AND cp.user_id = :uid
           WHERE m.conversation_id IN (:cids)
             AND m.sender_id != :uid
-            AND (m.is_deleted IS NULL OR m.is_deleted = 0)
+            ${visSql}
             AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)`,
         { replacements: { uid, cids: convIds } }
       );
@@ -117,6 +124,11 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
     // unread_count — 단일 SQL 로 일괄 집계 (N+1 방지).
     // 본인이 보낸 메시지는 제외, last_read_at 이후 메시지만, 삭제 메시지 제외.
     let unreadMap = new Map();
+    // 고객에게 안 보이는 글은 세지도, 미리 보여주지도 않는다 (utils/messageVisibility 한 술어).
+    //   실측 회귀: 고객 목록 미리보기에 **내부 메모 본문**이 그대로 나갔다.
+    const listVisSql = req.scope?.isClient
+      ? `AND ${clientVisibleSql('m')}`
+      : 'AND (m.is_deleted IS NULL OR m.is_deleted = 0)';
     const convIds = conversations.map(c => c.id);
     if (convIds.length > 0) {
       const [rows] = await sequelize.query(
@@ -126,7 +138,7 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
              ON cp.conversation_id = m.conversation_id AND cp.user_id = :uid
           WHERE m.conversation_id IN (:cids)
             AND m.sender_id != :uid
-            AND (m.is_deleted IS NULL OR m.is_deleted = 0)
+            ${listVisSql}
             AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)
           GROUP BY m.conversation_id`,
         { replacements: { uid: req.user.id, cids: convIds } }
@@ -137,6 +149,10 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
     // 사이클 N+15-D — WhatsApp 패턴 last_message preview.
     // 채팅 리스트에서 채팅방 이름 아래 한 줄로 마지막 대화 표시 → 사용자가 어떤 대화인지 즉시 인식.
     let lastMsgMap = new Map();
+    // 미리보기도 같은 술어 — 고객에게 '마지막 메시지' 는 **고객이 볼 수 있는 마지막 메시지**다.
+    const previewVisSql = req.scope?.isClient
+      ? `AND ${clientVisibleSql('msg')}`
+      : 'AND (msg.is_deleted IS NULL OR msg.is_deleted = 0)';
     if (convIds.length > 0) {
       // 워크스페이스 표시명 우선 — BusinessMember.name → users.name fallback.
       // 같은 conv 리스트는 단일 business_id 안이라 bm JOIN 1회로 충분.
@@ -164,10 +180,10 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
              --   방마다 여러 행이 돌아오고, 마지막에 순회된 행이 미리보기가 된다 —
              --   즉 최신이 아닌 글이 목록에 뜬다(실측). id 는 단조 증가라 동점이 없다.
              SELECT conversation_id, MAX(id) AS mid
-             FROM messages
-             WHERE conversation_id IN (:cids)
-               AND (is_deleted IS NULL OR is_deleted = 0)
-             GROUP BY conversation_id
+             FROM messages msg
+             WHERE msg.conversation_id IN (:cids)
+               ${previewVisSql}
+             GROUP BY msg.conversation_id
            ) latest ON m1.id = latest.mid
            LEFT JOIN users u ON u.id = m1.sender_id
            LEFT JOIN business_members bm ON bm.user_id = m1.sender_id AND bm.business_id = :bizId`,
@@ -329,6 +345,11 @@ router.get('/:businessId/unread-total', authenticateToken, attachWorkspaceScope(
     });
     const convIds = conversations.map(c => c.id);
     if (convIds.length === 0) return successResponse(res, { total: 0, by_conversation: {} });
+    // 고객에게 안 보이는 글(내부 메모·미승인 초안·삭제)은 **세지 않는다** — 목록·상세와 한 술어.
+    //   안 그러면 뱃지 2인데 열면 1건이라 "찾을 수 없는 안읽음" 이 남는다 (실측 회귀).
+    const totVisSql = req.scope?.isClient
+      ? `AND ${clientVisibleSql('m')}`
+      : 'AND (m.is_deleted IS NULL OR m.is_deleted = 0)';
     const [rows] = await sequelize.query(
       `SELECT m.conversation_id AS cid, COUNT(m.id) AS cnt
          FROM messages m
@@ -336,7 +357,7 @@ router.get('/:businessId/unread-total', authenticateToken, attachWorkspaceScope(
            ON cp.conversation_id = m.conversation_id AND cp.user_id = :uid
         WHERE m.conversation_id IN (:cids)
           AND m.sender_id != :uid
-          AND (m.is_deleted IS NULL OR m.is_deleted = 0)
+          ${totVisSql}
           AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)
         GROUP BY m.conversation_id`,
       { replacements: { uid: req.user.id, cids: convIds } }
@@ -619,6 +640,9 @@ router.get('/:businessId/archived', authenticateToken, checkBusinessAccess, asyn
 // ─────────────────────────────────────────────────────────
 router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
   try {
+    // 고객이면 **가져오기 전에** 거른다 — post-filter 는 limit 200 slot 을 삭제·내부 메모에
+    //   먹혀 고객 화면이 비는 원인이었다 (projects.js 목록과 같은 술어·같은 이유).
+    const msgWhereForViewer = req.scope?.isClient ? { ...CLIENT_VISIBLE_MESSAGE_WHERE } : undefined;
     const conversation = await Conversation.findOne({
       where: { id: req.params.id, business_id: req.params.businessId },
       include: [
@@ -635,6 +659,7 @@ router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async 
           //   지운 사람이 취소선을 보고 "지워졌구나" 를 확인할 수 있어야 한다.
           //   ★ 본문·첨부는 아래에서 **서버가 비운다** — 원문이 화면까지 갈 이유는 없다.
           //   게스트(`routes/guest.js`)는 계속 제외한다. 고객에게는 자리도 보이면 안 된다.
+          ...(msgWhereForViewer ? { where: msgWhereForViewer } : {}),
           required: false,
           include: [
             // is_guest — 화면이 "게스트" 뱃지를 그릴 근거. 그림자 User 의 name 은 고객 표시명이라
@@ -660,16 +685,8 @@ router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async 
 
     // Client 역할은 is_internal + 미승인 Draft 필터링 (PERMISSION_MATRIX §7)
     // DESC 로 가져온 최신 200개를 화면 표시용 시간순(ASC)으로 복원
-    let messages = (conversation.messages || []).slice().reverse();
-    if (req.scope?.isClient) {
-      messages = messages.filter(m =>
-        // 고객에게는 삭제된 메시지의 **자리도** 보이지 않는다 — 게스트와 같은 술어
-        //   (routes/guest.js `visibleToGuest`). 지운 것을 지웠다고 알리는 것은 우리 쪽 사정이다.
-        !m.is_deleted &&
-        !m.is_internal &&
-        !(m.is_ai && m.ai_mode_used === 'draft' && m.ai_draft_approved !== true)
-      );
-    }
+    //   (Client 필터는 위 include where 로 이미 쿼리에서 적용됐다)
+    const messages = (conversation.messages || []).slice().reverse();
 
     const result = conversation.toJSON();
     // toJSON 직후 — 워크스페이스 표시명을 sender · participants.User 양쪽에 일관 적용
@@ -768,7 +785,15 @@ router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope
     if (io && emitMsg) {
       // N+71 fix — conv room (활성 대화방 본 사람) + business room (Q Talk 안 다른 conv 보고 있는 사람)
       // 사용자 호소: "Q Talk 안에 있으면 리스트 unread 실시간 반영 안 됨"
-      io.to(`conv:${conversation.id}`).emit('message:new', emitMsg);
+      //
+      // ★ `conv:<id>` 에는 **고객이 같이 있다**. 목록·안읽음·상세를 전부 막아 놓고도
+      //   여기로 쏘면 **가장 먼저 도착하는 문이 열려 있는 것**이다 — 내부 메모 본문이
+      //   고객 브라우저까지 갔다(Fable 실측 2026-09-02: 고객 소켓이 is_internal 메시지 수신).
+      //   화면에서 거르는 것은 방어가 아니다. 페이로드를 보내지 않는다.
+      //   `business:<id>` 는 BusinessMember 만 auto-join 하므로(server.js:129-135) 직원 전용이고,
+      //   `conv:<id>:staff` 도 멤버일 때만 들어간다(server.js:242) — Cue 초안이 이미 쓰는 패턴.
+      const visible = isVisibleToClient(emitMsg);
+      io.to(visible ? `conv:${conversation.id}` : `conv:${conversation.id}:staff`).emit('message:new', emitMsg);
       io.to(`business:${conversation.business_id}`).emit('message:new', emitMsg);
     }
 
@@ -877,7 +902,11 @@ router.put('/:businessId/:id/messages/:msgId', authenticateToken, attachWorkspac
     await applyMemberDisplayNameOne(payload, Number(businessId), ['sender']);
     applyGuestDisplayName(payload);
     const io = req.app.get('io');
-    if (io) io.to(`conv:${conv.id}`).emit('message:updated', payload);
+    // 편집도 같은 규칙 — 내부 메모를 고치면 그 본문이 다시 나간다.
+    if (io) {
+      const room = isVisibleToClient(payload) ? `conv:${conv.id}` : `conv:${conv.id}:staff`;
+      io.to(room).emit('message:updated', payload);
+    }
     await createAuditLog({ userId: req.user.id, businessId, action: 'message.edit', targetType: 'Message', targetId: msg.id });
     return successResponse(res, payload);
   } catch (err) { next(err); }
@@ -934,7 +963,12 @@ router.post('/:businessId/:id/messages/:msgId/pin', authenticateToken, attachWor
     await msg.update({ pinned_at: new Date(), pinned_by_user_id: req.user.id });
 
     const io = req.app.get('io');
-    if (io) io.to(`conv:${conv.id}`).emit('message:pinned', { id: msg.id, conversation_id: conv.id, pinned_at: msg.pinned_at });
+    // 핀도 같은 분기 — 지금 payload 는 id·시각뿐이라 무해하지만, 필드가 늘면 그때 샌다.
+    //   "지금은 안전하다" 로 예외를 두면 다음 사람이 필드를 추가할 때 아무도 여기를 안 본다.
+    if (io) {
+      const room = isVisibleToClient(msg) ? `conv:${conv.id}` : `conv:${conv.id}:staff`;
+      io.to(room).emit('message:pinned', { id: msg.id, conversation_id: conv.id, pinned_at: msg.pinned_at });
+    }
     await createAuditLog({ userId: req.user.id, businessId, action: 'message.pin', targetType: 'Message', targetId: msg.id });
     return successResponse(res, { id: msg.id, pinned_at: msg.pinned_at });
   } catch (err) { next(err); }

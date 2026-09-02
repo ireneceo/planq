@@ -27,13 +27,7 @@ function _isTransientLockError(e) {
   return code === 'ER_LOCK_DEADLOCK' || code === 'ER_LOCK_WAIT_TIMEOUT';
 }
 
-function requireInternalKey(req, res, next) {
-  const key = req.header('x-internal-api-key');
-  if (!process.env.INTERNAL_API_KEY || key !== process.env.INTERNAL_API_KEY) {
-    return errorResponse(res, 'forbidden', 403);
-  }
-  next();
-}
+const { requireInternalKey } = require('../utils/internalAuth');   // 관문은 한 곳에서만
 
 router.use(requireInternalKey);
 

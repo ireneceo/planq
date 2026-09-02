@@ -11,6 +11,7 @@
 //   3. 에러 시 fail_count++ + last_sync_error
 //   4. fail_count ≥ 3 → platform_admin alert (notify)
 const cron = require('node-cron');
+const { assertOutboundHostAllowed } = require('../utils/netGuard');
 const imaps = require('imap-simple');
 const { simpleParser } = require('mailparser');
 const { Op } = require('sequelize');
@@ -169,14 +170,18 @@ async function isKnownContact(businessId, fromEmail) {
 
     // 우리가 전에 이 주소로 답장을 보낸 적 있는가 (= 이미 진행 중인 대화)
     //   to_emails 는 JSON 컬럼 — Sequelize fn('JSON_SEARCH', ...) 은 '$' 를 '$$' 로 이스케이프해
-    //   쿼리가 항상 실패한다(청구서 카드 실사고와 같은 함정) → literal 로 직접 작성. addr 은 이스케이프.
-    const safe = addr.replace(/'/g, "''");
+    //   쿼리가 항상 실패한다(청구서 카드 실사고와 같은 함정) → raw SQL 로 직접 작성.
+    //   ★ 값은 **반드시 바인딩(?)** 한다. 손으로 `'` 를 `''` 로 바꾸던 옛 코드는
+    //     **백슬래시를 못 막아 SQL 인젝션이었다** — `vic\' OR 1=1-- @x.com` 같은 From 주소를 가진
+    //     메일 한 통이면 인증도 계정도 없이 트리거된다(2026-09-02 보안감사: 실제 mailparser +
+    //     실제 sql_mode 로 재현, NO_BACKSLASH_ESCAPES 없음 확인).
+    //     같은 파일 matchClient() 가 이미 바인딩을 쓰고 있었다 — 술어를 맞춘다.
     const [rows] = await sequelize.query(
       `SELECT id FROM email_messages
-        WHERE business_id = :biz AND direction = 'outbound'
-          AND JSON_SEARCH(to_emails, 'one', '${safe}') IS NOT NULL
+        WHERE business_id = ? AND direction = 'outbound'
+          AND JSON_SEARCH(to_emails, 'one', ?) IS NOT NULL
         LIMIT 1`,
-      { replacements: { biz: businessId } }
+      { replacements: [businessId, addr] }
     );
     return rows.length > 0;
   } catch (e) {
@@ -311,6 +316,13 @@ async function saveAttachmentAsFile({ businessId, att, account, fallbackOwnerId 
 // IMAP 연결 설정 빌드 — syncOne(폴링) 과 IDLE 매니저(지속연결) 공용.
 //   OAuth 는 access_token 만료 시 refresh 후 DB 갱신. onIdle=true 면 node-imap keepalive 로 IDLE 유지.
 async function buildImapConfig(account, { onIdle = false } = {}) {
+  // ★ 등록 시점 검사만으로는 부족하다 — **검사 때와 연결 때의 DNS 가 다를 수 있고**(리바인딩),
+  //   검증이 없던 시절에 저장된 옛 계정은 검사를 아예 안 거쳤다. 연결 직전에 한 번 더 본다.
+  //   (2026-09-02 보안감사 H-5 후속 — Fable 이 TOCTOU 로 지적)
+  {
+    const r = await assertOutboundHostAllowed(account.imap_host, Number(account.imap_port) || 993);
+    if (!r.ok) throw new Error('imap_host_not_allowed:' + r.code);
+  }
   let imapConfig;
   if (account.auth_type === 'google_oauth') {
     const gmailOauth = require('./gmail_oauth');

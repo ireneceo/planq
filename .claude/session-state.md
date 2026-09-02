@@ -31,10 +31,45 @@
 
 ## ⚠️ 이번 세션에서 새로 관측된 환경 문제
 
-**빌드가 117초에서 매번 SIGTERM(143) 으로 죽는다.** 3회 연속 — `run_in_background`, `setsid nohup` 모두 무효.
-`dangerouslyDisableSandbox: true` 로 돌리자 **108초에 EXIT 0** 으로 완주했다.
-빌드 자체 문제가 아니라 **실행 환경의 2분 벽**이다. 다음 세션에서 빌드가 "Terminated" 로 죽으면
-같은 수단을 먼저 쓸 것. (로그가 npm 배너 두 줄 + `Terminated` 뿐이면 이 증상이다.)
+**빌드가 ~117초에서 SIGTERM(143) 으로 죽는다 — 원인은 Bash 도구의 기본 타임아웃 120초다.**
+`run_in_background: true` 로 돌려도 **타임아웃은 그대로 상속**된다(그래서 setsid·nohup 도 무효였다).
+빌드는 108~120초라 매번 아슬아슬하게 걸린다 — 한 번 통과한 것은 108초로 운이 좋았던 것이고,
+샌드박스 해제는 원인이 아니었다(해제 상태에서도 111초에 죽었다).
+**해법: 빌드·배포·e2e 는 `timeout: 600000` 을 명시**한다. 실제로 그렇게 하자 120초에 EXIT 0 완주.
+증상 식별: 로그가 npm 배너 두 줄 + `Terminated` 뿐이고 종료코드가 143.
+
+---
+
+## 🔐 보안 감사 (2026-09-02 후반) — 수정 완료, Fable 게이트 대기
+
+세 갈래 독립 감사(인증·권한·테넌트 / 공개표면·주입·비밀 / 변경 게이트)에서 **실측된 유출 13건**.
+반복 패턴은 **"목록은 막았는데 검색은 열려 있다"** — 같은 자원의 다른 문에서 술어가 갈라져 있었다.
+
+| 등급 | 건 | 상태 |
+|---|---|:---:|
+| Critical | 메일 한 통으로 트리거되는 **무인증 SQL 인젝션**(`''` 이스케이프가 백슬래시를 못 막음) | ✅ |
+| Critical | 유출된 내부 키로 **인터넷에서 크로스테넌트 파일 메타·서버 절대경로** (internal 라우트 2개가 nginx deny 밖) | ✅ |
+| High | `scope.role` **오타 한 줄**로 고객이 벤더 KB 전체·타 고객·미참여 프로젝트를 검색 | ✅ |
+| High | 표 셀 raw SQL 이 가시등급 우회 · **무인증 PDF 가 SSRF**(내부 응답이 지면에) · 공개 문서 **저장형 XSS** · IMAP/SMTP **임의 호스트 연결** | ✅ |
+| Medium/Low | `?q=` 로 타인 L1 문서 노출 · IDOR 2건 · OTP `Math.random()` · zip-slip · `/auth/me` 토큰 필드 · 쿠키 `Secure` 없음 · 열린 리다이렉트 | ✅ |
+
+**신규 공용 유틸(술어 단일화):** `utils/{messageVisibility,netGuard,internalAuth,userFields,archiveName}.js`
+
+**양방향 반증 6건** — 옛 코드로 되돌려 실패하는 것까지 확인(검색 KB 8건 노출 · 내부메모 미리보기 ·
+고객 히스토리 2/10 제자리걸음 · PDF 내부요청 2건 · 술어 진리표 36행 · 메일 호스트 6/6).
+
+**가드를 조작하지 않았다** — 래칫이 새 쿼리를 잡았을 때 베이스라인 대신 쿼리에 `business_id` 를 명시.
+
+### 남은 조치 (순서 지킬 것)
+1. Fable 판정 → 2. `INTERNAL_API_KEY` 회전(dev, `scripts/rotate-internal-key.sh dev`) →
+3. 커밋·푸시 → 4. 배포(+prod 회전) → 5. 히스토리 정리(`scripts/scrub-git-secrets.sh rewrite`→`push`)
+
+**Irene 손이 필요한 것 2개**
+- `GOOGLE_CLIENT_SECRET` 새 값 (Google Console 에서만 발급 — 값 주면 반영·검증은 내가)
+- nginx 보안 헤더 적용 (root) — `docs/ops/NGINX_SECURITY_HEADERS.md`
+
+**히스토리 정리 사실:** 비밀은 `.claude/session-state.md` 한 파일, **58개 커밋**에 남아 있다.
+재작성하면 2026-04-22 이후 **모든 SHA 가 바뀐다** → lua 는 **다시 clone**. 워크트리 5개 미커밋 0건 확인.
 
 ---
 

@@ -9,10 +9,7 @@ const { perUserDaily } = require('../middleware/costGuard');
 
 // 응답에서 절대 노출 금지인 민감 필드
 // password_hash · refresh_token · reset_token · reset_token_expires · email_change_otp_hash
-const USER_SENSITIVE_FIELDS = [
-  'password_hash', 'refresh_token', 'reset_token', 'reset_token_expires',
-  'email_change_otp_hash',
-];
+const { USER_SENSITIVE_FIELDS } = require('../utils/userFields');
 
 const USERNAME_RE = /^[a-z0-9_-]{3,30}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -25,7 +22,10 @@ const RESERVED_USERNAMES = new Set([
 ]);
 
 function sha256(text) { return crypto.createHash('sha256').update(String(text)).digest('hex'); }
-function genOtp() { return String(Math.floor(100000 + Math.random() * 900000)); }
+// ★ Math.random() 금지 — V8 은 xorshift128+ 라 같은 프로세스에서 몇 개만 관측하면
+//   내부 상태가 복원되고 **이후 OTP 가 예측된다.** 이 OTP 는 "링크 소지자" 와 "메일 주소 소유자" 를
+//   묶는 유일한 결합자다(법적 효력 있는 서명·이메일 소유 증명). CSPRNG 로 뽑는다.
+function genOtp() { return String(crypto.randomInt(100000, 1000000)); }
 
 // List users (platform admin)
 router.get('/', authenticateToken, requireRole('platform_admin'), async (req, res, next) => {

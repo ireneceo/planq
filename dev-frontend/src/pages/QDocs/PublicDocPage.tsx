@@ -2,6 +2,7 @@
 // 라우트: /public/docs/:token
 // 기능: 본문 표시 + 인쇄(PDF) + 동의/서명/거절
 import React, { useEffect, useState } from 'react';
+import { sanitizeRichText } from '../../utils/sanitizeHtml';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
@@ -103,7 +104,10 @@ const PublicDocPage: React.FC = () => {
 
       <DocFrame>
         <DocTitle>{doc.title}</DocTitle>
-        <DocBody dangerouslySetInnerHTML={{ __html: doc.body_html || '' }} />
+        {/* ★ 무인증 공개 페이지다 — 원문을 그대로 넣으면 저장형 XSS 가 로그인 없는 방문자에게 실행된다.
+            (2026-09-02 보안감사 실측: 주입한 onerror 가 verbatim 으로 응답에 실렸다.)
+            같은 계열 공개 페이지(PublicKbDocumentPage·PublicTaskPage)는 이미 이 함수를 태운다. */}
+        <DocBody dangerouslySetInnerHTML={{ __html: sanitizeRichText(doc.body_html) }} />
 
         {alreadySigned && (
           <SignBlock $accept={accepted}>

@@ -43,7 +43,12 @@ async function buildScopedWheres(userId, businessId, platformRole) {
   //   그래서 `if (!scope)` 가드는 영원히 발화하지 않는다. 접근권 판정은 assertWorkspaceAccess 가 한다.
   const scope = await assertWorkspaceAccess(userId, businessId, platformRole);
   if (!scope) return null;
-  const isClient = scope.role === 'client';
+  // ★ `scope.role` 은 **존재하지 않는 필드**였다 — getUserScope 가 채우는 것은 `isClient`/`businessRole` 이다.
+  //   그래서 이 값이 **영원히 false** 였고, 아래 4개 분기(KB·고객목록·프로젝트·KB 값검색)가 전부
+  //   member 쪽으로 떨어졌다. 실측(2026-09-02 보안감사): 고객 계정으로 검색하면
+  //   그 워크스페이스의 **지식베이스 전체·다른 고객 명단·참여하지 않은 프로젝트**가 나왔다.
+  //   같은 계정의 목록 라우트(`/kb/documents`)는 정상적으로 403 이다 — 검색만 새고 있었다.
+  const isClient = !!scope.isClient;
   return {
     scope, isClient,
     taskWhere: deny(await taskListWhere(userId, businessId, scope)),
@@ -153,13 +158,15 @@ router.get('/', authenticateToken, async (req, res, next) => {
     const kbWhere = isClient ? { id: -1 } : { business_id: businessId };
 
     // Client 목록 — client 자신은 본인만, member/owner 는 워크스페이스 전체
+    //   ★ 필드명 주의 — `clientId`(단수)도 존재하지 않는다. getUserScope 는 `clientIds` 배열을 준다.
     const clientWhere = isClient
-      ? { id: scope.clientId || -1 }
+      ? { business_id: businessId, id: { [Op.in]: scope.clientIds.length ? scope.clientIds : [-1] } }
       : { business_id: businessId };
 
     // Project — client 는 자기 프로젝트만
+    //   ★ `allowedProjectIds` 도 없는 필드다 — 고객이 닿는 프로젝트는 `projectClientProjectIds`.
     const projectWhere = isClient
-      ? { id: { [Op.in]: scope.allowedProjectIds || [] } }
+      ? { business_id: businessId, id: { [Op.in]: scope.projectClientProjectIds.length ? scope.projectClientProjectIds : [-1] } }
       : { business_id: businessId };
 
     // 병렬 검색 — 각 where 에 keyword 추가
@@ -189,10 +196,25 @@ router.get('/', authenticateToken, async (req, res, next) => {
         const tableMatches = await sequelize.query(tableSql,
           { replacements: { bid: businessId, like: `%${qEsc}%` }, type: sequelize.QueryTypes.SELECT }
         ).catch(err => { console.error('[search] table cell match err:', err.message); return []; });
+        // ★ raw SQL 은 `business_id` 만 걸고 **가시등급(postWhere)을 안 본다.**
+        //   실측(2026-09-02 보안감사): 이 분기로 고객·평멤버에게 **L3 워크스페이스 전용 문서**와
+        //   **참여하지 않은 프로젝트의 표**가 나왔다(셀 값 "아마존 계정" 등).
+        //   raw 결과는 후보일 뿐이다 — 같은 술어(postWhere)로 **다시 걸러** 통과한 것만 쓴다.
+        const tableIds = tableMatches.map((m) => m.id).filter((id) => !basicMatches.some((b) => b.id === id));
+        let allowedTable = [];
+        if (tableIds.length > 0) {
+          allowedTable = await Post.findAll({
+            // business_id 를 명시한다 — postWhere 에 이미 들어 있지만, **이 쿼리만 보고도**
+            //   워크스페이스 경계가 보여야 한다(가드도 사람도 그 표시로 읽는다).
+            where: { ...postWhere, business_id: businessId, [Op.and]: [{ id: { [Op.in]: tableIds } }] },
+            attributes: ['id', 'title', 'category', 'project_id', 'kind'],
+            order: [['updated_at', 'DESC']],
+          }).catch(() => []);
+        }
         // 합치기 (id 기준 dedup)
         const seen = new Set(basicMatches.map(m => m.id));
         const merged = [...basicMatches.map(m => m.toJSON ? m.toJSON() : m)];
-        for (const m of tableMatches) if (!seen.has(m.id)) { merged.push(m); seen.add(m.id); }
+        for (const m of allowedTable) if (!seen.has(m.id)) { merged.push(m.toJSON ? m.toJSON() : m); seen.add(m.id); }
         return merged.slice(0, limit);
       })().catch(() => []),
       // #359 — 폐지된 "Q record" 잔재. 검색에서 뺀다.
@@ -216,7 +238,8 @@ router.get('/', authenticateToken, async (req, res, next) => {
       // KbDocument (Q info) — title/body + custom_values JSON 매치
       (async () => {
         const baseHits = await KbDocument.findAll({
-          where: { ...kbWhere, [Op.and]: [{ [Op.or]: [...likeAny('title'), { body: like }] }] },
+          // business_id 명시 — kbWhere 에 이미 있지만 이 쿼리만 봐도 경계가 보여야 한다
+          where: { ...kbWhere, business_id: businessId, [Op.and]: [{ [Op.or]: [...likeAny('title'), { body: like }] }] },
           attributes: ['id', 'title', 'category', 'scope'],
           limit, order: [relevance('title'), ['updated_at', 'DESC']],
         }).catch(() => []);
