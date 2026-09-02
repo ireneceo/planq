@@ -382,6 +382,7 @@ const EventDrawer: React.FC<Props> = ({
                     <CheckboxLabel>
                       <input
                         type="checkbox"
+                        data-testid="event-toggle-all_day"
                         checked={event.all_day}
                         onChange={() => { /* AutoSaveField 가 onSave 호출 — saveSchedule 안에서 ENV 토글 */ }}
                       />

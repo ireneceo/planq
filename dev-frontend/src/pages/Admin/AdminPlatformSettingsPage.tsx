@@ -221,6 +221,7 @@ const AdminPlatformSettingsPage = () => {
           <ToggleRow>
             <AutoSaveField type="toggle" onSave={async () => save({ maintenance_mode: data.maintenance_mode })}>
               <Switch type="button" role="switch" aria-checked={data.maintenance_mode}
+                data-testid="platform-toggle-maintenance_mode"
                 $on={data.maintenance_mode} onClick={() => set('maintenance_mode', !data.maintenance_mode)}>
                 <SwitchKnob $on={data.maintenance_mode} />
               </Switch>
@@ -248,6 +249,7 @@ const AdminPlatformSettingsPage = () => {
             <AutoSaveField type="toggle" onSave={async () => save({ guest_links_enabled: data.guest_links_enabled })}>
               <Switch type="button" role="switch" aria-checked={data.guest_links_enabled}
                 aria-label={t('platform.guestLinksSection', '게스트 링크') as string}
+                data-testid="platform-toggle-guest_links_enabled"
                 $on={data.guest_links_enabled} onClick={() => set('guest_links_enabled', !data.guest_links_enabled)}>
                 <SwitchKnob $on={data.guest_links_enabled} />
               </Switch>
@@ -285,6 +287,7 @@ const AdminPlatformSettingsPage = () => {
               <SeverityRow>
                 {(['info','warn','critical'] as const).map(sev => (
                   <SeverityBtn key={sev} type="button" $active={data.announcement_severity === sev} $sev={sev}
+                    data-testid={`platform-severity-${sev}`}
                     onClick={() => set('announcement_severity', sev)}>
                     {sev === 'info' ? t('platform.sev.info', '안내') : sev === 'warn' ? t('platform.sev.warn', '주의') : t('platform.sev.critical', '긴급')}
                   </SeverityBtn>
@@ -296,6 +299,7 @@ const AdminPlatformSettingsPage = () => {
             <Label>{t('platform.dismissible', '사용자가 닫기 가능')}</Label>
             <AutoSaveField type="toggle" onSave={async () => save({ announcement_dismissible: data.announcement_dismissible })}>
               <Switch type="button" role="switch" aria-checked={data.announcement_dismissible}
+                data-testid="platform-toggle-announcement_dismissible"
                 $on={data.announcement_dismissible} onClick={() => set('announcement_dismissible', !data.announcement_dismissible)}>
                 <SwitchKnob $on={data.announcement_dismissible} />
               </Switch>
