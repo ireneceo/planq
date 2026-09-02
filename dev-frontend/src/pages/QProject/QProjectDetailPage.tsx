@@ -679,6 +679,11 @@ const QProjectDetailPage: React.FC = () => {
             {t('header.openMail', '프로젝트 메일')}
             {mailCount === 0 && <BtnNone>{t('header.none', '없음')}</BtnNone>}
           </HeaderBtn>
+          {/* 외부 공유 링크 진입점은 **설계 확정 후** 붙인다 (2026-09-02).
+              Irene: "프로젝트 안 탭들 보는 그대로 프로젝트 링크 물어본건데?" — 지금 게스트 링크는
+              대화방이 필수(`guest_links.conversation_id` NOT NULL)라 누르면 채팅 링크가 나온다.
+              그 상태로 버튼만 두면 "이 버튼 왜 있어?" 가 반복된다. 설계: docs/PROJECT_EXTERNAL_VIEW_DESIGN.md
+              (컴포넌트 ProjectShareLinkButton·서버 guest-channel 라우트는 그대로 두고 진입점만 뗀다.) */}
           <BackBtn type="button" onClick={() => navigate('/projects')}>← {t('backToList', '목록')}</BackBtn>
         </HeaderActions>
       }

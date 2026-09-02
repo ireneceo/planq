@@ -26,7 +26,14 @@ type GuestMsg = {
 type GuestCtx = {
   guest_name: string; can_write: boolean; client_name: string | null; account_requested?: boolean;
   conversation: { id: number; title: string | null };
-  project: { name: string; description: string | null; status: string | null; start_date: string | null; end_date: string | null } | null;
+  project: {
+    name: string; description: string | null; status: string | null;
+    start_date: string | null; end_date: string | null;
+    // 2026-09-02 — 프로젝트 공유 링크. 서버가 화이트리스트로 내려주는 것만 (숫자·라벨).
+    stages?: { kind: string; label: string; status: string }[];
+    task_summary?: { total: number; completed: number };
+    docs?: { title: string | null; category: string | null; updated_at: string | null; url: string }[];
+  } | null;
 };
 
 export default function GuestConversationPage() {
@@ -224,9 +231,65 @@ export default function GuestConversationPage() {
   return (
     <Wrap>
       <Head>
-        <Title>{ctx.conversation.title || t('defaultTitle', { defaultValue: '대화' })}</Title>
-        {ctx.project && <Sub>{ctx.project.name}</Sub>}
+        {/* ★ 프로젝트 링크로 들어왔으면 **프로젝트가 주인공**이다 (2026-09-02).
+            Irene: "프로젝트 전체를 볼 수 있는 링크 물어본건데 어디 있다는 거야?"
+            처음엔 채팅 화면 위에 띠만 얹었더니, 열면 그냥 채팅으로 보였다 —
+            사용자에게는 "왜 여기 있는 버튼인지" 알 수 없는 화면이었다. */}
+        <Title>{ctx.project ? ctx.project.name : (ctx.conversation.title || t('defaultTitle', { defaultValue: '대화' }))}</Title>
+        {ctx.project
+          ? <Sub>{[ctx.project.status, period(ctx.project.start_date, ctx.project.end_date)].filter(Boolean).join(' · ') || t('ov.projectSub', { defaultValue: '진행 상황과 문의' })}</Sub>
+          : null}
       </Head>
+      {/* ── 진행 상황 (2026-09-02) ────────────────────────────────────────────
+          Irene: "프로젝트마다도 링크 만들어서 공유할 수 있어? **볼 수 있게?**"
+          이름만 보이면 채팅 링크와 다를 게 없다. 서버가 내려준 것만 그린다 —
+          업무는 **숫자만**, 문서는 **이미 외부로 공유된 것만**(서버 화이트리스트). */}
+      {ctx.project && (
+        (
+          <Overview data-testid="guest-project-overview">
+            {ctx.project.description && <OvDesc>{ctx.project.description}</OvDesc>}
+            <OvSection>
+              <OvLabel>{t('ov.stages', { defaultValue: '진행 단계' })}</OvLabel>
+              {ctx.project.stages?.length ? (
+                <StageRow>
+                  {ctx.project.stages.map((st, i) => (
+                    <StageChip key={i} $state={st.status}>{st.label}</StageChip>
+                  ))}
+                </StageRow>
+              ) : <OvEmpty>{t('ov.stagesEmpty', { defaultValue: '아직 등록된 단계가 없어요.' })}</OvEmpty>}
+            </OvSection>
+            <OvSection>
+              <OvLabel>{t('ov.tasks', { defaultValue: '업무 진행' })}</OvLabel>
+              {(ctx.project.task_summary?.total ?? 0) > 0 ? (
+                <>
+                  <OvValue>
+                    {t('ov.taskCount', {
+                      defaultValue: '{{done}} / {{total}} 완료',
+                      done: ctx.project.task_summary?.completed ?? 0,
+                      total: ctx.project.task_summary?.total ?? 0,
+                    })}
+                  </OvValue>
+                  <Bar aria-hidden><BarFill style={{ width: `${Math.round(((ctx.project.task_summary?.completed ?? 0) / Math.max(1, ctx.project.task_summary?.total ?? 1)) * 100)}%` }} /></Bar>
+                </>
+              ) : <OvEmpty>{t('ov.tasksEmpty', { defaultValue: '아직 등록된 업무가 없어요.' })}</OvEmpty>}
+            </OvSection>
+            <OvSection>
+              <OvLabel>{t('ov.docs', { defaultValue: '공유된 문서' })}</OvLabel>
+              {ctx.project.docs?.length ? (
+                <DocList>
+                  {ctx.project.docs.map((d, i) => (
+                    <DocLink key={i} href={d.url} target="_blank" rel="noopener noreferrer">
+                      {d.title || t('ov.untitled', { defaultValue: '제목 없음' })}
+                    </DocLink>
+                  ))}
+                </DocList>
+              ) : <OvEmpty>{t('ov.docsEmpty', { defaultValue: '공유된 문서가 아직 없어요.' })}</OvEmpty>}
+            </OvSection>
+            {/* 대화는 프로젝트 화면의 **한 부분**이다 — 아래가 문의 자리라고 말해 준다. */}
+            <ChatHint>{t('ov.chatHint', { defaultValue: '아래에서 담당자에게 바로 문의할 수 있어요.' })}</ChatHint>
+          </Overview>
+        )
+      )}
       {/* 헤더 아래 1줄 — 고정하지 않는다(본문과 함께 밀려 올라감). */}
       {!bannerHidden && (
         <Banner data-testid="guest-account-banner">
@@ -235,7 +298,11 @@ export default function GuestConversationPage() {
           ) : (
             <>
               <BannerText>
-                {t('acct.lead', { defaultValue: '이 링크로는 이 대화만 볼 수 있어요. 프로젝트·자료까지 보려면 계정이 필요해요.' })}
+                {/* ★ 동작을 바꾸면 문구가 거짓말이 된다 — 프로젝트 링크는 이제 진행 상황도 보여준다.
+                    "이 대화만 볼 수 있어요" 를 그대로 두면 화면과 어긋난다(2026-09-02). */}
+                {ctx.project
+                  ? t('acct.leadProject', { defaultValue: '이 링크로는 진행 상황과 이 대화를 볼 수 있어요. 업무 상세·자료까지 보려면 계정이 필요해요.' })
+                  : t('acct.lead', { defaultValue: '이 링크로는 이 대화만 볼 수 있어요. 프로젝트·자료까지 보려면 계정이 필요해요.' })}
               </BannerText>
               <BannerRow>
                 <BannerInput value={reqEmail} onChange={(e) => setReqEmail(e.target.value)}
@@ -350,6 +417,42 @@ const Wrap = styled.div`display:flex;flex-direction:column;height:100dvh;backgro
 const Head = styled.div`min-height:60px;padding:14px 20px;background:#fff;border-bottom:1px solid #e2e8f0;`;
 const Title = styled.div`font-size:1.125rem;font-weight:700;letter-spacing:-0.2px;color:#0f172a;`;
 const Sub = styled.div`font-size:0.8125rem;color:#64748b;margin-top:2px;`;
+// 기간 한 줄 — 둘 다 없으면 빈 문자열(호출측이 filter 로 떨군다).
+function period(a?: string | null, b?: string | null): string {
+  const f = (d?: string | null) => (d ? String(d).slice(0, 10) : '');
+  if (!a && !b) return '';
+  return `${f(a)} ~ ${f(b)}`.trim();
+}
+
+const OvDesc = styled.p`margin:0 0 2px;font-size:0.8125rem;color:#475569;line-height:1.55;white-space:pre-wrap;`;
+const OvEmpty = styled.div`font-size:0.8125rem;color:#94a3b8;`;
+const Bar = styled.div`height:6px;border-radius:999px;background:#F1F5F9;overflow:hidden;`;
+const BarFill = styled.div`height:100%;background:#14B8A6;border-radius:999px;`;
+const ChatHint = styled.div`font-size:0.75rem;color:#94a3b8;padding-top:2px;border-top:1px dashed #E2E8F0;margin-top:2px;`;
+
+// ── 진행 상황 패널 (프로젝트 공유 링크) ────────────────────────────────────
+//   폰 우선. 고정 px 폭을 쓰지 않고, 글자는 rem(앱 전체가 rem 이다).
+const Overview = styled.section`
+  padding:12px 20px; background:#fff; border-bottom:1px solid #e2e8f0;
+  display:flex; flex-direction:column; gap:10px;
+`;
+const OvSection = styled.div`display:flex; flex-direction:column; gap:6px;`;
+const OvLabel = styled.div`font-size:0.6875rem; font-weight:600; color:#94a3b8; letter-spacing:-0.1px;`;
+const OvValue = styled.div`font-size:0.8125rem; color:#334155;`;
+const StageRow = styled.div`display:flex; flex-wrap:wrap; gap:6px;`;
+// 상태 색은 **칩 배경**에만. 버튼 3톤 규칙과 충돌하지 않는다(이건 상태 표시지 액션이 아니다).
+const StageChip = styled.span<{ $state: string }>`
+  font-size:0.75rem; padding:3px 9px; border-radius:999px; white-space:nowrap;
+  background:${(p) => (p.$state === 'completed' ? '#ECFDF5' : p.$state === 'active' ? '#EFF6FF' : '#F1F5F9')};
+  color:${(p) => (p.$state === 'completed' ? '#047857' : p.$state === 'active' ? '#1D4ED8' : '#64748b')};
+  border:1px solid ${(p) => (p.$state === 'completed' ? '#A7F3D0' : p.$state === 'active' ? '#BFDBFE' : '#E2E8F0')};
+`;
+const DocList = styled.div`display:flex; flex-direction:column; gap:4px;`;
+const DocLink = styled.a`
+  font-size:0.8125rem; color:#0F766E; text-decoration:none; word-break:break-all;
+  min-height:36px; display:flex; align-items:center;
+  &:hover { text-decoration:underline; }
+`;
 const Body = styled.div`flex:1;min-height:0;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:8px;`;
 const Row = styled.div<{ $mine: boolean }>`display:flex;justify-content:${p => (p.$mine ? 'flex-end' : 'flex-start')};`;
 const Bubble = styled.div<{ $mine: boolean }>`

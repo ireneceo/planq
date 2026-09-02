@@ -13,6 +13,7 @@ const express = require('express');
 const router = express.Router();
 const { Message, User, Conversation, Project } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { Op } = require('sequelize');
 const rateLimit = require('express-rate-limit');
 const { resolveGuestToken } = require('../services/guest_link');
 // 카드 302 대상 주소를 만들 때 쓴다 — guest_admin 과 같은 원천.
@@ -91,6 +92,55 @@ router.get('/:token', guestLimiter('guest-ctx', { windowMs: 60 * 1000, max: 60 }
           start_date: p.start_date || null,
           end_date: p.end_date || null,
         };
+
+        // ── 진행 상황 (2026-09-02) ────────────────────────────────────────
+        // Irene: "프로젝트마다도 링크 만들어서 공유할 수 있어? **볼 수 있게?**"
+        //   이름만 보이면 채팅 링크와 다를 게 없다. 다만 **숫자와 라벨만** 내보낸다 —
+        //   업무 제목·담당자·공수는 넣지 않는다(담당자·원가가 새는 문이다).
+        const { ProjectStage, Task, Post } = require('../models');
+
+        // 거래 단계 — 라벨·종류·상태만. linked_entity_id 같은 내부 키는 내보내지 않는다.
+        const stageRows = await ProjectStage.findAll({
+          where: { project_id: p.id },
+          attributes: ['order_index', 'kind', 'label', 'status'],
+          order: [['order_index', 'ASC']],
+          limit: 30,
+        });
+        project.stages = stageRows.map((s2) => ({
+          kind: s2.kind, label: s2.label, status: s2.status,
+        }));
+
+        // 업무 — **숫자만**. 제목·담당자는 없다.
+        const [taskTotal, taskDone] = await Promise.all([
+          Task.count({ where: { project_id: p.id, business_id: link.business_id } }),
+          Task.count({ where: { project_id: p.id, business_id: link.business_id, status: 'completed' } }),
+        ]);
+        project.task_summary = { total: taskTotal, completed: taskDone };
+
+        // 문서 — **이미 외부로 공유된 것만**. 여기서 새로 열지 않는다:
+        //   vlevel L4(외부) + security_level general + 살아 있는 share_token.
+        //   즉 이 목록은 "이미 링크가 나가 있는 문서를 한자리에 모아 보여주는" 것이다.
+        const now = new Date();
+        const docRows = await Post.findAll({
+          where: {
+            project_id: p.id,
+            business_id: link.business_id,
+            vlevel: 'L4',
+            security_level: 'general',
+            share_token: { [Op.ne]: null },
+            deleted_at: null,
+            [Op.or]: [{ share_expires_at: null }, { share_expires_at: { [Op.gt]: now } }],
+          },
+          attributes: ['title', 'share_token', 'category', 'updatedAt'],
+          order: [['updatedAt', 'DESC']],
+          limit: 20,
+        });
+        project.docs = docRows.map((d) => ({
+          title: d.title || null,
+          category: d.category || null,
+          updated_at: d.updatedAt || null,
+          url: `/public/posts/${d.share_token}`,
+        }));
       }
     }
     return successResponse(res, {

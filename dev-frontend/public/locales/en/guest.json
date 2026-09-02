@@ -40,8 +40,16 @@
     "emailPh": "Email (optional)",
     "request": "Request an account",
     "close": "Close",
-    "sent": "Request sent. Your contact will email you an invitation to create an account."
+    "sent": "Request sent. Your contact will email you an invitation to create an account.",
+    "leadProject": "This link shows the progress and this conversation. Sign in to see task details and files."
   },
   "loadFailed": "Could not load the conversation. Check your connection and try again.",
-  "retry": "Try again"
+  "retry": "Try again",
+  "ov": {
+    "stages": "Stages",
+    "tasks": "Tasks",
+    "taskCount": "{{done}} / {{total}} done",
+    "docs": "Shared documents",
+    "untitled": "Untitled"
+  }
 }

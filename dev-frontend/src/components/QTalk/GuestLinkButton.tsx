@@ -17,11 +17,15 @@ type Link = {
   expires_at: string; last_used_at: string | null; message_count: number; revoked_at: string | null;
 };
 
-export default function GuestLinkButton({ businessId, conversationId, clientName }: {
+export default function GuestLinkButton({ businessId, conversationId, clientName, autoOpen, onClosed }: {
   businessId: number; conversationId: number; clientName: string;
+  /** 프로젝트 헤더처럼 **다른 화면이 채널을 정해 준 뒤** 곧바로 열 때 (ProjectShareLinkButton). */
+  autoOpen?: boolean;
+  /** 모달이 닫힐 때 — 호출측이 자기 상태를 되돌린다. */
+  onClosed?: () => void;
 }) {
   const { t } = useTranslation('qtalk');
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!!autoOpen);
   const [links, setLinks] = useState<Link[]>([]);
   const [fresh, setFresh] = useState<string | null>(null);   // 방금 발급된 원문 URL
   const [busy, setBusy] = useState(false);
@@ -91,7 +95,7 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
 
   return (
     <>
-      <TriggerBtn type="button" onClick={() => setOpen(true)}
+      {!autoOpen && <TriggerBtn type="button" onClick={() => setOpen(true)}
         data-testid="chat-guest-link-open"
         aria-label={t('guestLink.title', { defaultValue: '고객 링크' }) as string}
         title={t('guestLink.title', { defaultValue: '고객 링크' }) as string}>
@@ -101,9 +105,9 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
           <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
           <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
         </svg>
-      </TriggerBtn>
+      </TriggerBtn>}
       {open && (
-        <StandardModal open onClose={() => setOpen(false)} title={t('guestLink.title', { defaultValue: '고객 링크' }) as string} size="md">
+        <StandardModal open onClose={() => { setOpen(false); onClosed?.(); }} title={t('guestLink.title', { defaultValue: '고객 링크' }) as string} size="md">
           <Lead>{t('guestLink.lead', {
             defaultValue: '{{name}} 님이 로그인 없이 이 대화를 보고 답할 수 있는 링크입니다. 카톡·메일로 보내세요.',
             name: clientName,

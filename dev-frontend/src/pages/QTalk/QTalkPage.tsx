@@ -261,6 +261,13 @@ interface QTalkPageProps {
   onEmbeddedContextChange?: (projectId: number | null, conversationId: number | null) => void;
 }
 
+// 끝나지 않는 요청은 **영원한 스피너**가 된다. 초기 로드와 프로젝트 로드가 **같은 상한**을 쓴다 —
+//   한쪽에만 걸어 두면 다른 쪽에서 같은 사고가 난다(2026-09-02 Irene: "프로젝트 채팅 누르면
+//   넘어가서 계속 로딩되고 있어"). 상한에 걸리면 실패로 떨어져 화면이 [다시 시도]를 준다.
+function withLoadTimeout<T>(pr: Promise<T>, ms = 15000): Promise<T> {
+  return Promise.race([pr, new Promise<T>((_, rj) => setTimeout(() => rj(new Error('timeout')), ms))]);
+}
+
 const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId = null, initialProjectId = null, pinSlot, onEmbeddedContextChange }) => {
   const { t } = useTranslation('qtalk');
   const { t: tErr } = useTranslation('errors');
@@ -893,9 +900,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         //   "좌측 메뉴랑 다 나오는데 콘텐츠만 안나오고 로딩중이야. 리스트랑 상세 안나와.").
         //   모바일에서 요청이 한 번 멈추면 finally 가 영영 안 돌아 loading 이 true 로 굳는다.
         //   시간 제한을 걸어 **실패로 떨어뜨린다** — 실패하면 화면이 이유와 다시 시도를 준다.
-        const withTimeout = <T,>(pr: Promise<T>, ms = 15000): Promise<T> =>
-          Promise.race([pr, new Promise<T>((_, rj) => setTimeout(() => rj(new Error('timeout')), ms))]);
-        const [projList, convList] = await withTimeout(Promise.all([
+        const [projList, convList] = await withLoadTimeout(Promise.all([
           qtalkApi.listProjects(businessId),
           qtalkApi.listBusinessConversations(businessId).catch(() => [] as qtalkApi.ApiConversation[]),
         ]));
@@ -953,13 +958,18 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
     let cancelled = false;
     (async () => {
       try {
-        const [convList, tasksList, notesList, issuesList, candidatesList] = await Promise.all([
+        // ★ 이 경로에는 시간 상한이 **없었다** — 초기 로드(위)에만 걸어 두고 여기를 빠뜨렸다.
+        //   `/talk?project=N` 으로 들어오면 이 effect 가 화면을 그리는데, 요청 하나가 안 끝나면
+        //   finally 가 영영 안 돌아 **스피너가 무한**이다 (Irene 2026-09-02:
+        //   "프로젝트 채팅 누르면 넘어가서 계속 로딩되고 있어").
+        //   같은 규칙을 같은 함수로 — 상한에 걸리면 실패로 떨어져 화면이 이유와 [다시 시도]를 준다.
+        const [convList, tasksList, notesList, issuesList, candidatesList] = await withLoadTimeout(Promise.all([
           qtalkApi.listProjectConversations(activeProjectId),
           qtalkApi.listProjectTasks(activeProjectId).catch(() => [] as qtalkApi.ApiTask[]),
           qtalkApi.listProjectNotes(activeProjectId).catch(() => [] as qtalkApi.ApiNote[]),
           qtalkApi.listProjectIssues(activeProjectId).catch(() => [] as qtalkApi.ApiIssue[]),
           qtalkApi.listProjectCandidates(activeProjectId, showHiddenCandidates).catch(() => [] as qtalkApi.ApiTaskCandidate[]),
-        ]);
+        ]));
         if (cancelled) return;
 
         const mappedConvs = convList.map(apiConversationToMock);

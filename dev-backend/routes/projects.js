@@ -686,6 +686,70 @@ router.put('/:id/members', authenticateToken, async (req, res, next) => {
 });
 
 // ============================================
+// POST /api/projects/:id/guest-channel — 게스트 링크를 걸 **고객 채널**을 찾거나 만든다
+//
+// Irene: "프로젝트마다도 링크 만들어서 공유할 수 있어? 볼 수 있게?"
+//   프로젝트에 별도 공유 토큰을 새로 만들지 않는다(Fable 판단). 이미 운영에 있는 게스트 링크가
+//   `project_id` 를 들고 개요를 화이트리스트로 내보내므로, **프로젝트 공유 = 그 프로젝트의
+//   고객 채널에 게스트 링크 발급**이다. 토큰 체계가 두 벌이 되면 `visibleToGuest` 술어도 두 벌이 된다.
+//
+// ★ "있으면 그 방, 없으면 만든다" 는 판단을 **서버에 둔다.** 프론트가 목록을 받아 스스로 고르면
+//   화면마다 고르는 규칙이 갈라진다(이 저장소가 반복해서 데인 지점).
+// ★ 고객(client)은 부를 수 없다 — 고객이 스스로 외부 링크의 문을 열면 안 된다.
+router.post('/:id/guest-channel', authenticateToken, async (req, res, next) => {
+  try {
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    if (role === 'client') return errorResponse(res, 'forbidden', 403);
+
+    // 목록 라우트와 **같은 정렬**로 고른다 — 화면에 보이는 첫 고객 채널과 같아야 한다.
+    const existing = await Conversation.findOne({
+      where: { project_id: project.id, channel_type: 'customer', archived_at: null },
+      order: [['id', 'ASC']],
+    });
+    if (existing) {
+      return successResponse(res, {
+        business_id: project.business_id, conversation_id: existing.id,
+        title: existing.title || null, created: false,
+      });
+    }
+
+    // 없으면 만든다 — 프로젝트 생성 시의 채널 생성과 **같은 기본값**(cue·자동추출 on).
+    const conv = await Conversation.create({
+      business_id: project.business_id,
+      project_id: project.id,
+      title: `${project.name} 고객`,
+      channel_type: 'customer',
+      cue_enabled: true,
+      auto_extract_enabled: true,
+    });
+    // 참가자 — 프로젝트 멤버 + 만든 사람. 없으면 아무도 그 방을 못 본다.
+    const members = await ProjectMember.findAll({ where: { project_id: project.id }, attributes: ['user_id'] });
+    const ids = new Set(members.map((m) => m.user_id));
+    ids.add(req.user.id);
+    for (const uid of ids) {
+      await ConversationParticipant.findOrCreate({
+        where: { conversation_id: conv.id, user_id: uid },
+        defaults: { conversation_id: conv.id, user_id: uid },
+      });
+    }
+    // ★ createAuditLog 는 내부에서 setImmediate 로 던지고 **아무것도 반환하지 않는다**
+    //   (services/auditService). `.catch()` 를 붙이면 undefined 에 접근해 500 이 난다 — 실제로 났다.
+    try {
+      createAuditLog({
+        user_id: req.user.id, business_id: project.business_id,
+        action: 'create', entity_type: 'conversation', entity_id: conv.id,
+        new_value: { project_id: project.id, channel_type: 'customer', reason: 'guest_channel' },
+      });
+    } catch { /* 감사 실패가 채널 생성을 막지 않는다 */ }
+    return successResponse(res, {
+      business_id: project.business_id, conversation_id: conv.id,
+      title: conv.title, created: true,
+    });
+  } catch (err) { next(err); }
+});
+
+// ============================================
 // GET /api/projects/:id/conversations — 프로젝트의 채널 목록
 // 고객은 customer 채널만, 멤버는 전체
 // ============================================

@@ -814,5 +814,11 @@
     "title": "Couldn't load your projects",
     "desc": "Please try again in a moment. If it keeps failing, check your network connection.",
     "retry": "Try again"
+  },
+  "share": {
+    "title": "External share link",
+    "preparing": "Preparing…",
+    "errForbidden": "You do not have permission to create a share link for this project.",
+    "errGeneric": "Could not prepare the client channel. Please try again shortly."
   }
 }
