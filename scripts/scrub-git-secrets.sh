@@ -71,15 +71,21 @@ case "$MODE" in
 
     echo "== 재작성 (index-filter — 체크아웃 없이 blob 만 교체) =="
     export FILTER_BRANCH_SQUELCH_WARNING=1
+    # ★ 필터 본문에 `exit` 를 쓰지 말 것 — filter-branch 는 필터를 **자기 셸에서 eval** 한다.
+    #   `|| exit 0` 한 줄 때문에 **첫 커밋(그 파일이 없는 루트)에서 filter-branch 자신이 조용히
+    #   종료했다** — 종료코드 0, 오류 메시지 없음, "Rewrite …(1/2195)" 한 줄만 남기고.
+    #   그래서 "재작성했다" 고 믿은 채 58개가 그대로 있었다(2026-09-02 실측). 분기만으로 쓴다.
     git filter-branch -f --index-filter '
-      blob=$(git rev-parse --quiet --verify :.claude/session-state.md 2>/dev/null) || exit 0
-      [ -n "$blob" ] || exit 0
-      new=$(git cat-file blob "$blob" \
-        | sed -e "s/GOCSPX-[A-Za-z0-9_-]\{10,\}/GOCSPX-<REDACTED>/g" \
-              -e "s/planq-internal-[a-z]*-[a-f0-9]\{32\}/planq-internal-<REDACTED>/g" \
-        | git hash-object -w --stdin)
-      if [ "$new" != "$blob" ]; then
-        git update-index --cacheinfo 100644 "$new" .claude/session-state.md
+      if blob=$(git rev-parse --quiet --verify :.claude/session-state.md 2>/dev/null); then
+        if [ -n "$blob" ]; then
+          new=$(git cat-file blob "$blob" \
+            | sed -e "s/GOCSPX-[A-Za-z0-9_-]\{10,\}/GOCSPX-<REDACTED>/g" \
+                  -e "s/planq-internal-[a-z]*-[a-f0-9]\{32\}/planq-internal-<REDACTED>/g" \
+            | git hash-object -w --stdin)
+          if [ "$new" != "$blob" ]; then
+            git update-index --cacheinfo 100644 "$new" .claude/session-state.md
+          fi
+        fi
       fi
     ' --tag-name-filter cat -- --all
 
