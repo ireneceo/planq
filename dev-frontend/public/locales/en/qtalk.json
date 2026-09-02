@@ -478,7 +478,8 @@
         "Draft approve/reject UI",
         "Customer view (simplified)"
       ]
-    }
+    },
+    "retry": "Try again"
   },
   "userInfo": {
     "owner": "Owner",

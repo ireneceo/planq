@@ -7,6 +7,7 @@ const { authenticateToken, checkBusinessAccess } = require('../middleware/auth')
 const { attachWorkspaceScope, conversationListWhere, canAccessConversation, isMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { serializeMessageAttachments } = require('../services/filePreview');
+const { maskDeletedMessages } = require('../utils/deletedMessage');
 const { createAuditLog } = require('../middleware/audit');
 const cueOrchestrator = require('../services/cue_orchestrator');
 const kbService = require('../services/kb_service');
@@ -626,7 +627,14 @@ router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async 
         {
           model: Message,
           as: 'messages',
-          where: { is_deleted: false },
+          // ★ 삭제 메시지도 **가져온다**. 운영 정책은 삭제 = 마스킹이고
+          //   (CLAUDE.md "메시지 삭제: 마스킹 … UI에서 '삭제된 메시지'"),
+          //   프론트도 그 자리를 그릴 준비가 돼 있다(ChatPanel `DeletedPlaceholder`).
+          //   그런데 여기서 걸러 버려서 **새로고침하면 통째로 사라졌다**
+          //   (Irene: "삭제해도 삭제된게 남잖아. 웹에서는 삭제하니 왜 다 날라가? 아예?").
+          //   지운 사람이 취소선을 보고 "지워졌구나" 를 확인할 수 있어야 한다.
+          //   ★ 본문·첨부는 아래에서 **서버가 비운다** — 원문이 화면까지 갈 이유는 없다.
+          //   게스트(`routes/guest.js`)는 계속 제외한다. 고객에게는 자리도 보이면 안 된다.
           required: false,
           include: [
             // is_guest — 화면이 "게스트" 뱃지를 그릴 근거. 그림자 User 의 name 은 고객 표시명이라
@@ -655,6 +663,9 @@ router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async 
     let messages = (conversation.messages || []).slice().reverse();
     if (req.scope?.isClient) {
       messages = messages.filter(m =>
+        // 고객에게는 삭제된 메시지의 **자리도** 보이지 않는다 — 게스트와 같은 술어
+        //   (routes/guest.js `visibleToGuest`). 지운 것을 지웠다고 알리는 것은 우리 쪽 사정이다.
+        !m.is_deleted &&
         !m.is_internal &&
         !(m.is_ai && m.ai_mode_used === 'draft' && m.ai_draft_approved !== true)
       );
@@ -671,6 +682,9 @@ router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async 
     applyGuestDisplayName(result.messages);
     // 첨부 미리보기 URL — 서버가 계산해 내려준다. 프론트가 `/:id/raw`(무인증 순차 id) 를 쓰던 것이
     //   타 워크스페이스 채팅 이미지 열람 경로였다. 규칙은 services/filePreview 단일 원천.
+    // 삭제된 메시지는 **자리만** 남긴다 — 화이트리스트 (utils/deletedMessage).
+    //   표시명을 다 적용한 뒤에 부른다: 게스트 이름이 meta 에서 오기 때문 (그 함수 주석 참조).
+    maskDeletedMessages(result.messages);
     serializeMessageAttachments(result.messages);
     if (Array.isArray(result.participants)) {
       // participants[i].User 로 nested 됨 → path 'User'

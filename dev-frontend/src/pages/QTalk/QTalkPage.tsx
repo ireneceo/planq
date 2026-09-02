@@ -372,6 +372,8 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
   // 풀스크린 spinner 게이트는 제거 (사이클 N+15-A): 위치 점프 0 + skeleton 으로 인지 즉시성 확보.
   const [loading, setLoading] = useState(!initialCache);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // 다시 시도 — 값을 바꿔 초기 로드 effect 를 다시 돌린다.
+  const [reloadKey, setReloadKey] = useState(0);
 
   const [leftCollapsed, setLeftCollapsed] = useState<boolean>(() => {
     try { return localStorage.getItem(STORAGE_LEFT) === '1'; } catch { return false; }
@@ -876,10 +878,16 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
       try {
         setLoadError(null);
         const bid = Number(businessId);
-        const [projList, convList] = await Promise.all([
+        // ★ 끝나지 않는 요청은 **영원한 스피너**가 된다 (2026-09-02 운영 신고:
+        //   "좌측 메뉴랑 다 나오는데 콘텐츠만 안나오고 로딩중이야. 리스트랑 상세 안나와.").
+        //   모바일에서 요청이 한 번 멈추면 finally 가 영영 안 돌아 loading 이 true 로 굳는다.
+        //   시간 제한을 걸어 **실패로 떨어뜨린다** — 실패하면 화면이 이유와 다시 시도를 준다.
+        const withTimeout = <T,>(pr: Promise<T>, ms = 15000): Promise<T> =>
+          Promise.race([pr, new Promise<T>((_, rj) => setTimeout(() => rj(new Error('timeout')), ms))]);
+        const [projList, convList] = await withTimeout(Promise.all([
           qtalkApi.listProjects(businessId),
           qtalkApi.listBusinessConversations(businessId).catch(() => [] as qtalkApi.ApiConversation[]),
-        ]);
+        ]));
         if (cancelled) return;
 
         const mappedProjects = projList.map(apiProjectToMock);
@@ -908,7 +916,8 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
       }
     })();
     return () => { cancelled = true; };
-  }, [businessId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [businessId, reloadKey]);
 
   // 워크스페이스 전환 시 캐시 재 hydrate — 옛 워크스페이스 state 가 잠시 보이는 회귀 차단
   useEffect(() => {
@@ -1593,7 +1602,20 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
       : [];
 
   if (!businessId) return <PanelLayout><CenteredHint>{t('page.noBusiness', '워크스페이스가 선택되지 않았습니다.')}</CenteredHint></PanelLayout>;
-  if (loadError) return <PanelLayout><CenteredHint>{t('page.loadFailed', { msg: loadError })}</CenteredHint></PanelLayout>;
+  if (loadError) return (
+    <PanelLayout>
+      <CenteredHint>
+        {t('page.loadFailed', { msg: loadError })}
+        {/* 스피너가 끝나지 않는 것과 마찬가지로, 손잡이 없는 오류 문구도 사용자에겐 고장이다. */}
+        <RetryRow>
+          <RetryButton type="button" data-testid="qtalk-retry"
+            onClick={() => { setLoadError(null); setLoading(true); setReloadKey((k) => k + 1); }}>
+            {t('page.retry', { defaultValue: '다시 시도' })}
+          </RetryButton>
+        </RetryRow>
+      </CenteredHint>
+    </PanelLayout>
+  );
   // 사이클 N+15-A: 풀스크린 spinner 게이트 제거. LeftPanel/ChatPanel 이 내부 skeleton 으로 처리.
   // 캐시(있으면) 즉시 표시 → 백그라운드 fresh → 사용자는 위치 점프/spinner 한 번도 안 봄.
 
@@ -1854,6 +1876,12 @@ export default QTalkPage;
 
 // 사이클 N+14 후속 — loading/no-business/error 상태에서 Layout wrapper 안 중앙 정렬.
 // Empty 대신 사용해 viewport 단위/56px 분기 차이로 spinner 점프 회귀 차단.
+const RetryRow = styled.div`margin-top: 14px;`;
+const RetryButton = styled.button`
+  min-height: 44px; padding: 0 18px; border: 0; border-radius: 8px;
+  background: #0D9488; color: #fff; font-size: 0.875rem; font-weight: 700; cursor: pointer;
+`;
+
 const CenteredHint = styled.div`
   flex: 1;
   display: flex;

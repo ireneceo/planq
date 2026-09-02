@@ -17,6 +17,7 @@ const {
 } = require('../models');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { serializeMessageAttachments } = require('../services/filePreview');
+const { maskDeletedMessages } = require('../utils/deletedMessage');
 const { authenticateToken } = require('../middleware/auth');
 const { createAuditLog } = require('../middleware/audit');
 const taskExtractor = require('../services/task_extractor');
@@ -1157,7 +1158,9 @@ router.get('/conversations/:id/messages', authenticateToken, async (req, res, ne
     //   ?limit=N (default 50, max 200) · ?before=<messageId> → 그 메시지보다 오래된 N개 (무한 스크롤 업).
     const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
     const beforeId = Number(req.query.before) || null;
-    const msgWhere = { conversation_id: conv.id, is_deleted: false };
+    // ★ 삭제 메시지도 가져온다 — 정책은 마스킹이다(conversations.js 상세와 같은 규칙).
+    //   본문·첨부는 아래에서 서버가 비운다. 두 경로가 다르게 굴면 새로고침 때 화면이 갈린다.
+    const msgWhere = { conversation_id: conv.id };
     if (beforeId) msgWhere.id = { [Op.lt]: beforeId };
     const [msgsDesc, parts] = await Promise.all([
       Message.findAll({
@@ -1190,6 +1193,9 @@ router.get('/conversations/:id/messages', authenticateToken, async (req, res, ne
       const viewer = await getUserScope(req.user.id, conv.business_id).catch(() => null);
       if (viewer?.isClient) {
         msgs = msgs.filter((m) =>
+          // 고객에게는 삭제된 메시지의 **자리도** 보이지 않는다 — 게스트와 같은 술어
+          //   (routes/guest.js `visibleToGuest`). conversations.js 상세와 한 규칙.
+          !m.is_deleted &&
           !m.is_internal &&
           !(m.is_ai && m.ai_mode_used === 'draft' && m.ai_draft_approved !== true)
         );
@@ -1215,6 +1221,11 @@ router.get('/conversations/:id/messages', authenticateToken, async (req, res, ne
     serializeMessageAttachments(result);
     await applyMemberDisplayName(result, conv.business_id, ['sender']);
     applyGuestDisplayName(result);
+    // 삭제된 메시지는 **자리만** 남긴다 — 화이트리스트 (utils/deletedMessage).
+    //   ★ 표시명을 적용한 **뒤**여야 한다. 게스트 이름은 meta.guest.name 에서 오는데
+    //     meta 를 먼저 지우면 그림자 User 이름(= 고객 표시명)으로 떨어져 제3자가
+    //     고객 본인처럼 보인다 (#259 회귀). 상세 경로와 같은 함수·같은 순서.
+    maskDeletedMessages(result);
     // data 는 기존과 동일하게 메시지 배열 (호출처 무변경). has_more 만 추가 (무한 스크롤 업 판별용).
     return res.json({ success: true, data: result, has_more: hasMore });
   } catch (err) { next(err); }
