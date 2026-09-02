@@ -3,7 +3,7 @@
 //   - granted-off: 자동 silent re-subscribe 시도 — 실패 시 명시 banner
 //   - dismiss 는 sessionStorage (탭 닫으면 다시 표시 — 적극 유도)
 //   - iOS Safari (PWA 아님) — push 자체 미지원이지만 사용자 안내 + "홈 화면에 추가" 유도
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import ChromeLink from '../Tab/ChromeLink';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -55,6 +55,24 @@ export default function PushPromptBanner() {
     else setErr(t('pushPrompt.errMsg', '알림 켜기 실패: {{r}}', { r: r.reason || '' }) as string);
   };
   const nativeDismiss = () => { try { sessionStorage.setItem(SESSION_DISMISS_KEY, '1'); } catch { /* */ } setDismissed(true); };
+
+  // ★ 네이티브 자가복구 — OS 권한이 granted 여도 **서버에 토큰이 없으면 알림은 안 온다.**
+  //   웹에는 아래 granted-off 복구가 있는데 네이티브에는 없었다: usePushStatus 는 웹 Push API 기준이라
+  //   Capacitor WebView 에서 'unsupported' 로 떨어지고, 네이티브 분기는 granted 면 배너를 숨기고 끝이었다.
+  //   실측 2026-09-02(운영): iOS 앱 로그인 사용자 2명 중 apns 구독 보유는 1명, 마지막 등록 8/25.
+  //   등록이 한 번 실패한 사용자는 영영 복구되지 않는다 — 앱을 만든 이유가 iOS 알림이었다.
+  //   registerNative 는 멱등(같은 토큰이면 갱신)이라 세션당 1회 조용히 재등록한다. 권한이 이미
+  //   granted 일 때만 부르므로 사용자에게 프롬프트가 다시 뜨지 않는다.
+  const nativeHealedRef = useRef(false);
+  useEffect(() => {
+    if (!native || nativeStatus !== 'granted' || nativeHealedRef.current) return;
+    nativeHealedRef.current = true;
+    (async () => {
+      const { subscribe } = await import('../../services/push');
+      const r = await subscribe().catch(() => ({ ok: false }));
+      if (r && r.ok) await refresh();
+    })();
+  }, [native, nativeStatus, refresh]);
 
   // N+72-6 — granted-off (OS 권한 OK + browser sub 없음) 자동 silent re-subscribe
   // 사용자가 명시 "지금 켜기" 누르지 않아도 자동 복구 (1회 시도)

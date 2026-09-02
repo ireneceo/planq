@@ -571,6 +571,12 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
       setMessages((prev) => {
         const arr = prev[data.conversation_id];
         if (!arr) return prev;
+        // ★ 고객에게는 **자리도 보이지 않는다** — 서버(utils/messageVisibility)와 같은 규칙이다.
+        //   여기서 is_deleted 만 세팅하면 고객 화면에 "삭제된 메시지" 가 남았다가 새로고침하면
+        //   사라져 REST 와 갈렸다. 같은 화면이 경로에 따라 다르면 그것이 곧 버그다.
+        if (userRef.current?.business_role === 'client') {
+          return { ...prev, [data.conversation_id]: arr.filter((m) => m.id !== data.id) };
+        }
         return { ...prev, [data.conversation_id]: arr.map((m) => m.id === data.id ? { ...m, is_deleted: true } : m) };
       });
     });
