@@ -8,6 +8,6 @@
   "sendFailed": "Could not send. Please try again in a moment.",
   "expired": {
     "title": "This link has expired",
-    "body": "The link closed after a long period without use. Your contact’s next email will include a fresh one."
+    "body": "The link closed after a long period without use. Please ask your contact for a new link."
   }
 }

@@ -790,9 +790,12 @@ router.get('/users', async (req, res, next) => {
 router.post('/users/:id/impersonate', async (req, res, next) => {
   try {
     const { User, AuditLog } = require('../models');
-    const target = await User.findByPk(req.params.id, { attributes: ['id','email','name','status'] });
+    const target = await User.findByPk(req.params.id, { attributes: ['id','email','name','status','is_guest','is_ai'] });
     if (!target) return errorResponse(res, 'user_not_found', 404);
     if (target.status !== 'active') return errorResponse(res, 'user_not_active', 400);
+    // 사람 계정만 대행한다. 게스트 그림자·Cue 는 "보는 화면" 이라는 게 없고,
+    // 대행 토큰은 authenticateToken 을 그대로 통과하므로 여기서 막지 않으면 우회로가 된다 (#259).
+    if (target.is_guest || target.is_ai) return errorResponse(res, 'target_not_impersonatable', 400);
     const jwt = require('jsonwebtoken');
     const token = jwt.sign(
       { userId: target.id, id: target.id, email: target.email, impersonator: req.user.id },

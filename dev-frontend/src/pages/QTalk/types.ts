@@ -117,7 +117,7 @@ export interface MockMessage {
   conversation_id: number;
   sender_id: number;
   sender_name: string;
-  sender_role: 'owner' | 'member' | 'client' | 'cue';
+  sender_role: 'owner' | 'member' | 'client' | 'cue' | 'guest';
   sender_color: string;
   body: string;
   created_at: string;

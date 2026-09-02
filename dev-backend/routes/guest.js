@@ -140,7 +140,7 @@ router.post('/:token/messages', guestLimiter('guest-send', { windowMs: 60 * 1000
 
     // 실시간 반영 — 멤버 Q Talk 이 즉시 본다 (CLAUDE.md 운영 안정성 §16).
     const full = await Message.findByPk(msg.id, {
-      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] }],
+      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized', 'is_guest'] }],
     });
     const io = req.app.get('io');
     if (io && full) {
@@ -165,7 +165,9 @@ router.post('/:token/messages', guestLimiter('guest-send', { windowMs: 60 * 1000
           businessId: conversation.business_id,
           eventKind: 'message',
           title: `${link.guest_name} (게스트)`,
-          body: raw.length > 140 ? raw.slice(0, 140) + '…' : raw,
+          // 정화 전 raw 가 아니라 태그를 걷어낸 cleaned 를 넣는다 — 알림은 메일·inbox·push 로
+          //   퍼지고 그중 하나만 HTML 로 렌더하면 무인증 입구가 그대로 통로가 된다 (#259).
+          body: cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned,
           link: `/talk?conv=${conversation.id}`,
           ctaLabel: '대화 열기',
           entityType: 'Conversation',

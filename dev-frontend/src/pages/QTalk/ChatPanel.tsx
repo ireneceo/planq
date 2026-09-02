@@ -1427,7 +1427,7 @@ const ChatPanel: React.FC<Props> = ({
             <MessageBody>
               {!continuation && (
                 <MessageHeader>
-                  {m.sender_role === 'cue' ? (
+                  {m.sender_role === 'cue' || m.sender_role === 'guest' ? (
                     // Cue 는 AI — 정보 popover 없음
                     <SenderName as="span" style={{ cursor: 'default' }}>{m.sender_name}</SenderName>
                   ) : (
@@ -1442,6 +1442,11 @@ const ChatPanel: React.FC<Props> = ({
                   <TimeStamp>{formatGroupTime(m.created_at)}</TimeStamp>
                   {m.is_edited && !m.is_deleted && <EditedMark>({t('chat.edited', '수정됨')})</EditedMark>}
                   {m.sender_role === 'cue' && <CueBadge>Cue</CueBadge>}
+                  {m.sender_role === 'guest' && (
+                    <GuestBadge title={t('chat.guestBadgeHint', '로그인 없이 초대 링크로 들어온 상대입니다') as string}>
+                      {t('chat.guestBadge', '게스트')}
+                    </GuestBadge>
+                  )}
                 </MessageHeader>
               )}
               {isDeleted ? (
@@ -3115,6 +3120,19 @@ const SenderName = styled.button`
 const TimeStamp = styled.span`
   font-size: 0.6875rem;
   color: #94A3B8;
+`;
+
+// 게스트 뱃지 — 링크로 들어온 상대. Cue(그라데이션)와 구별되게 중립 회색 외곽선으로,
+// "사람이긴 한데 우리가 신원을 보증하지 않는다" 를 보여준다 (#259).
+const GuestBadge = styled.span`
+  font-size: 0.625rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  background: #F1F5F9;
+  color: #475569;
+  border: 1px solid #CBD5E1;
+  border-radius: 10px;
+  letter-spacing: 0.3px;
 `;
 
 const CueBadge = styled.span`

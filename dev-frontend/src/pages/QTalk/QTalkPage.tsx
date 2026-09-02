@@ -149,7 +149,9 @@ function apiMessageToMock(m: qtalkApi.ApiMessage): MockMessage {
     conversation_id: m.conversation_id,
     sender_id: m.sender_id,
     sender_name: senderDisplay,
-    sender_role: m.is_ai ? 'cue' : 'member',
+    // 게스트를 먼저 본다 — 그림자 User 는 is_ai=false 라 그냥 두면 'member' 로 떨어져
+    //   **링크를 받은 제3자가 우리 직원처럼 보인다** (#259).
+    sender_role: m.is_ai ? 'cue' : ((m.sender as { is_guest?: boolean } | undefined)?.is_guest ? 'guest' : 'member'),
     sender_color: m.is_ai ? '#F43F5E' : '#64748B',
     body: isRejectedDraft ? '' : m.content,  // 거절된 draft는 빈 body
     created_at: m.created_at,

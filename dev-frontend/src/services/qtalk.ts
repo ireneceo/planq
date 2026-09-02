@@ -246,7 +246,9 @@ export interface ApiMessage {
   // 백엔드 toJSON override 가 createdAt → created_at (snake_case) 으로 통일.
   created_at: string;
   updated_at: string;
-  sender?: { id: number; name: string; email: string };
+  // is_guest — 무로그인 게스트 링크로 들어온 그림자 계정. 화면이 뱃지를 그리는 술어이고
+  //   서버(routes/conversations.js·projects.js·guest.js 소켓)와 같은 값을 쓴다 (#259).
+  sender?: { id: number; name: string; email: string; is_guest?: boolean };
   attachments?: ApiMessageAttachment[];
   meta?: ApiMessageMeta | null;
   translations?: Partial<Record<SupportedLang, string>> | null;

@@ -386,7 +386,9 @@
       "sat": "Sat"
     },
     "popout": "Open in new window",
-    "openClientTimeline": "Open {{name}}'s unified timeline"
+    "openClientTimeline": "Open {{name}}'s unified timeline",
+    "guestBadge": "Guest",
+    "guestBadgeHint": "Joined through an invite link, without signing in"
   },
   "page": {
     "title": "Q talk",

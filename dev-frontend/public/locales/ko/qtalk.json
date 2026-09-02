@@ -354,7 +354,9 @@
       "sat": "토"
     },
     "popout": "새 창으로 분리",
-    "openClientTimeline": "{{name}} 의 통합 타임라인 열기"
+    "openClientTimeline": "{{name}} 의 통합 타임라인 열기",
+    "guestBadge": "게스트",
+    "guestBadgeHint": "로그인 없이 초대 링크로 들어온 상대입니다"
   },
   "page": {
     "title": "Q talk",

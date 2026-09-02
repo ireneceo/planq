@@ -62,6 +62,18 @@ const authenticateToken = async (req, res, next) => {
       });
     }
 
+    // 게스트 그림자 User 는 일반 인증 표면에 들어올 수 없다 (#259).
+    // 정상 발급 경로(login·register·refresh·oauth)는 이미 막혀 있지만, JWT 가 어떤 경로로든
+    // 생기면 여기가 최종 방어선이다. **토큰이 유효한 것과 들어와도 되는 것은 다르다.**
+    // 게스트의 유일한 입구는 `/api/guest/:token` 이고 그 검증은 services/guest_link.js 가 한다.
+    if (user.is_guest) {
+      return res.status(403).json({
+        success: false,
+        message: 'Guest account cannot use this surface',
+        code: 'guest_not_allowed',
+      });
+    }
+
     if (user.status !== 'active') {
       // 신원은 확인됨 — refresh 해도 풀리지 않음 → 403 + 명시적 code
       return res.status(403).json({

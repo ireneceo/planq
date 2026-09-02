@@ -358,6 +358,35 @@ Irene 의 킥 포인트: "영업/상담까지 연결". 이 설계가 그 기반�
 4. 단건 회수
 - 전부 resolveGuestLink 단일 착지점에서 판정되므로 **우회 경로가 없다.** 롤백: 신규 테이블+신규 라우트라 코드 롤백만으로 표면이 사라진다 (스키마 롤백 불요 — 테이블 잔존 무해).
 
+#### 11.2.1 현재 조작 수단 — **SQL 런북** (2026-09-02 기준)
+
+> ⚠️ **1·2번 킬스위치에는 아직 화면 토글이 없다.** `routes/admin.js` 의 platform_settings PUT 은
+> `guest_links_enabled` 를 받지 않고, 프론트에도 두 토글이 없다 (Fable 개방 게이트 지적 3).
+> 화면 토글은 2단계. 그때까지 **사고 시 아래 SQL 이 유일한 수단**이므로 여기 박제한다.
+> 코드는 fail-closed 라(`services/guest_link.js:41`) 설정 행을 못 읽어도 닫히는 쪽으로 떨어진다.
+
+```sql
+-- ① 플랫폼 전체 즉시 차단 (모든 워크스페이스의 모든 게스트 링크가 그 자리에서 404)
+UPDATE platform_settings SET guest_links_enabled = 0;
+
+-- ② 워크스페이스 하나만 차단
+UPDATE businesses SET guest_links_enabled = 0 WHERE id = <business_id>;
+
+-- ③ 특정 워크스페이스의 발급된 링크 전부 회수 (되돌릴 수 없다 — 재발급해야 한다)
+UPDATE guest_links SET revoked_at = NOW() WHERE business_id = <business_id> AND revoked_at IS NULL;
+
+-- 되돌리기 (①②는 되돌릴 수 있다)
+UPDATE platform_settings SET guest_links_enabled = 1;
+UPDATE businesses SET guest_links_enabled = 1 WHERE id = <business_id>;
+
+-- 현재 상태 확인
+SELECT id, guest_links_enabled FROM platform_settings;
+SELECT id, name, guest_links_enabled FROM businesses WHERE guest_links_enabled = 0;
+```
+
+캐시가 없다(매 요청 조회) — **UPDATE 즉시 반영된다.** 배포·재시작 불요.
+운영 접속: `ssh irene@87.106.78.146` → `/opt/planq/backend`.
+
 ### 11.3 주요 리스크와 검증 계획 (구현 게이트에서 Fable 이 실측할 것)
 | 리스크 | 검증 |
 |---|---|

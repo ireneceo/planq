@@ -852,7 +852,7 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
 
     // 응답에 sender 포함
     const full = await Message.findByPk(msg.id, {
-      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] }],
+      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized', 'is_guest'] }],
     });
     const fullJson = full.toJSON();
     serializeMessageAttachments(fullJson);
@@ -944,7 +944,7 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
               io.to(`conv:${conv.id}`).emit('message:translated', payload);
               // fallback: 전체 메시지 객체로 message:updated 도 emit (기존 핸들러 활용)
               const updated = await Message.findByPk(msg.id, {
-                include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] }],
+                include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized', 'is_guest'] }],
               });
               if (updated) io.to(`conv:${conv.id}`).emit('message:updated', updated.toJSON());
               console.log(`[translation] emitted message:translated + message:updated to conv:${conv.id}`);
@@ -981,7 +981,7 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
           if (!cueResult.skipped && cueResult.message) {
             // Cue 응답 메시지에 sender 포함하여 브로드캐스트
             const cueMsg = await Message.findByPk(cueResult.message.id, {
-              include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] }],
+              include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized', 'is_guest'] }],
             });
             if (io && cueMsg) {
               const payload = cueMsg.toJSON();
@@ -1045,7 +1045,7 @@ router.post('/messages/:id/approve-draft', authenticateToken, async (req, res, n
     await msg.update(updates);
 
     const full = await Message.findByPk(msg.id, {
-      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] }],
+      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized', 'is_guest'] }],
     });
     const fullJson = full.toJSON();
     await applyMemberDisplayNameOne(fullJson, conv?.business_id, ['sender']);
@@ -1160,7 +1160,7 @@ router.get('/conversations/:id/messages', authenticateToken, async (req, res, ne
       Message.findAll({
         where: msgWhere,
         include: [
-          { model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] },
+          { model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized', 'is_guest'] },
           // 첨부 — 페이지 새로고침/재진입 시 채팅 이미지·파일이 사라지지 않도록 필수.
           // association alias 'attachments' (models/index.js:119)
           // file_path·storage_provider·external_id 는 미리보기 토큰 계산용 —
@@ -3186,7 +3186,7 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
           model: Message,
           where: { conversation_id: { [Op.in]: conversations.map(c => c.id) } },
           attributes: ['id', 'conversation_id', 'sender_id'],
-          include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'name_localized'] }]
+          include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'name_localized', 'is_guest'] }]
         }],
         order: [['created_at', 'DESC']],
         limit: MAX_PER_SOURCE,
@@ -3398,7 +3398,7 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
           model: Message,
           where: { conversation_id: { [Op.in]: conversations.map(c => c.id) } },
           attributes: ['id', 'conversation_id', 'sender_id'],
-          include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'name_localized'] }]
+          include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'name_localized', 'is_guest'] }]
         }],
         order: [['created_at', 'DESC']]
       });

@@ -594,7 +594,9 @@ router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async 
           where: { is_deleted: false },
           required: false,
           include: [
-            { model: User, as: 'sender', attributes: ['id', 'name', 'name_localized', 'avatar_url', 'is_ai'] },
+            // is_guest — 화면이 "게스트" 뱃지를 그릴 근거. 그림자 User 의 name 은 고객 표시명이라
+            //   이것이 없으면 **링크를 받은 제3자가 쓴 글이 고객 본인 글과 구별되지 않는다** (#259).
+            { model: User, as: 'sender', attributes: ['id', 'name', 'name_localized', 'avatar_url', 'is_ai', 'is_guest'] },
             { model: require('../models').MessageAttachment, as: 'attachments', required: false },
             // #138 — 리액션 동봉 (메시지당 별도 호출하면 N+1)
             { model: require('../models').MessageReaction, as: 'reactions', required: false, attributes: ['id', 'user_id', 'emoji'] },
