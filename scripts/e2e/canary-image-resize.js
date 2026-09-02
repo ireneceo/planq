@@ -7,6 +7,7 @@
 //   ★ 검사 대상이 0개면 통과가 아니라 **판정 불가로 실패**한다 — 에디터를 못 열었는데
 //     "이상 없음" 을 내는 것이 이 하니스가 여러 번 저지른 거짓말이다.
 const b = require('./lib/browser');
+const BIZ = Number(process.env.E2E_BUSINESS_ID || 5);
 
 // 1x1 PNG (base64) — 업로드가 실제로 서버를 타야 하므로 진짜 이미지여야 한다.
 // 200x120 단색 PNG — 1x1 은 화면에서 폭이 1px 이라 **클릭 좌표를 못 잡는다**(도구 탓 실패).
@@ -97,6 +98,7 @@ const imgWidth = async (page) => page.evaluate(() => {
 
 async function run() {
   const results = [];
+  const SINCE = Date.now();
   const { browser, page } = await b.launch();
   try {
     await page.setViewport({ width: 1440, height: 900 });
@@ -207,6 +209,10 @@ async function run() {
   } finally {
     await browser.close();
   }
+  // ★ 검사기가 올린 것은 검사기가 지운다 — 안 지우면 조용히 쌓인다.
+  //   (실측 2026-09-02: 이 카나리가 남긴 canary.png 가 dev 에 누적돼 있었다. 정리 코드가 없었다.)
+  const c = await require('./lib/cleanup').cleanupTestFiles(BIZ, ['canary.png'], SINCE);
+  results.push({ name: c.name, ok: !c.fail, msg: c.details[0] });
   return results;
 }
 
