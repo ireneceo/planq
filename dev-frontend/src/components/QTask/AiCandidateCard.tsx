@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import PlanQSelect from '../Common/PlanQSelect';
-import { CalendarIcon, ClockIcon } from '../Common/Icons';
+import { CalendarIcon, ClockIcon, AlertTriangleIcon } from '../Common/Icons';
 // 반복 규칙 라벨은 단일 원천에서만 온다 (운영 #347 — 3벌 하드코딩 제거).
 import { formatRRuleLabel } from '../../utils/recurrence';
 import type { TFunction } from 'i18next';
@@ -181,6 +181,7 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
             여태 이 값은 만들어지고도 저장 자리가 없어 매번 버려졌다(카드 타입에는 있었는데 렌더 0곳).
             사람이 고친 값이 우선이다 — confirm 이 이 값을 그대로 실어 보낸다. */}
         <MetaItem>
+          <MetaIcon><AlertTriangleIcon size={13} /></MetaIcon>
           <PlanQSelect size="sm" isClearable
             placeholder={t('importance.unset', '미지정') as string}
             value={c.priority ? { value: c.priority, label: t(`importance.${c.priority}`, c.priority) as string } : null}

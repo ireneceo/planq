@@ -188,7 +188,13 @@ Rules:
 - estimated_hours: realistic 1~80 per task. If a task estimates >40h, SPLIT it into sub-tasks.
 - duration_days: working days (exclude weekends in your reasoning). Sequential dependency = next task starts after previous ends.
 - start_offset_days / due_offset_days: integer days from today (today = 0). Respect user's deadline if given. If no deadline, distribute realistically.
-- priority: "low" | "normal" | "high" | "urgent". Critical-path tasks (런칭/배포 등) → "high".
+- priority: "low" | "normal" | "high" | "urgent". **Default is "normal". Most tasks are "normal".**
+  This field exists to make a FEW tasks stand out. If everything is "high", nothing is.
+  · "urgent"  — only when it blocks other people RIGHT NOW, or its deadline is within ~2 days.
+  · "high"    — at most **one or two per plan**, and only for the single critical-path item
+                whose slip moves the whole deadline. Being on the critical path is NOT enough by itself.
+  · "low"     — nice-to-have, safely droppable.
+  If you are unsure, answer "normal". Do not use importance to express enthusiasm.
 - recurrence_rule: an RFC-5545 RRULE string, ONLY when the task is an explicitly repeating routine
   (예: "매일 논문 읽기", "평일 아침 SNS", "매월 마지막 평일 결산", "분기 보고"). One-off work → null.
   FREQ MUST be one of DAILY / WEEKLY / MONTHLY / YEARLY. Never HOURLY or MINUTELY.

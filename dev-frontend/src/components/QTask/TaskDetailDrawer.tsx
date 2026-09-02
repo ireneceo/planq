@@ -575,7 +575,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   //   절반만 저장된다. 백엔드 PUT 은 원래 여러 필드를 한 번에 받는다.
   // 시리즈가 공유하는 내용 — 이 필드를 고치면 "어디까지 반영할지" 를 묻는다.
   //   회차마다 달라야 하는 값(status·진행률·마감일·결과물 body)은 목록에 없다 — 물을 이유가 없다.
-  const SERIES_FIELDS = ['title', 'description', 'category', 'assignee_id', 'estimated_hours'];
+  //   ★ #353 ⑤ 중요도도 시리즈가 공유한다. **백엔드에만 넣고 여기 빠뜨리면 도달할 수 없다** —
+  //     화면이 "어디까지 반영할지" 를 묻지 않고 항상 단건 저장해, 부모에서 긴급으로 바꿔도
+  //     회차는 전부 그대로다(Fable 실측). 두 목록은 반드시 같이 움직인다.
+  const SERIES_FIELDS = ['title', 'description', 'category', 'assignee_id', 'estimated_hours', 'priority_level'];
   const isSeries = !!(detailTask?.recurrence_rule || detailTask?.recurrence_parent_id);
   const [seriesAsk, setSeriesAsk] = useState<Record<string, unknown> | null>(null);
   // 무엇을 고치는 중인지에 따라 물어야 할 선택지가 다르다 (내용 3가지 / 반복 주기 2가지).
@@ -1099,7 +1102,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           // 단계를 마음대로 점프하면 컨펌·검토 우회됨 (운영 피드백 #10).
           const canDirectStatus = myWsRole === 'owner' || myWsRole === 'admin' || isPlatformAdmin;
           const tz = user?.workspace_timezone || 'Asia/Seoul';
-          const canEditTitle = iAmCreator || iAmAssignee || iAmWsOwner;
+          //   ★ admin 을 빼면 백엔드는 200 인데 화면만 "읽기 전용" 이 된다 — 같은 파일의
+  //     canEditTags/Dates/Project 는 이미 admin 을 포함하고 title 만 빠져 있던 옛 불일치다.
+  //     게이트 술어는 서버·프론트 양쪽이 같아야 한다(memory feedback_predicate_must_match_both_sides).
+  const canEditTitle = iAmCreator || iAmAssignee || iAmWsOwner || myWsRole === 'admin';
           // #250 — 태그는 "이 업무가 무엇에 관한 것인가" 라 title/category 축(의뢰자+수행자 둘 다).
           //   백엔드 routes/task_tags.js `PUT /:id/tags` 분기와 미러다.
           const canEditTags = iAmCreator || iAmAssignee || iAmWsOwner || myWsRole === 'admin';
