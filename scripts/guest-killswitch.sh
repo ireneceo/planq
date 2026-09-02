@@ -31,7 +31,7 @@ const m = require('./models');
 (async () => {
   const v = process.env.VALUE;
   if (v === '1' || v === '0') {
-    await m.sequelize.query('UPDATE platform_settings SET guest_links_enabled = ' + v);
+    await m.GuestLink.sequelize.query('UPDATE platform_settings SET guest_links_enabled = ' + v);
   }
   const rows = await m.PlatformSetting.findAll({ attributes: ['id', 'guest_links_enabled'] });
   const on = rows.length > 0 && rows[0].guest_links_enabled === true;
@@ -39,6 +39,24 @@ const m = require('./models');
   console.log('발급된 링크 :', await m.GuestLink.count(), '개');
   const off = await m.Business.count({ where: { guest_links_enabled: false } });
   if (off > 0) console.log('참고 : 워크스페이스 ' + off + '곳은 개별적으로 꺼져 있습니다');
+
+  // ── 워크스페이스별 토글을 만들 시점인가 (Fable 설계 판정 2026-09-02) ──────────
+  //   지금은 플랫폼 스위치 하나뿐이다. 사고 단위가 링크 하나라 단건 회수로 충분하고,
+  //   켜고 끌 사람이 곧 플랫폼 스위치를 쥔 사람이라 워크스페이스 토글은 사용자 0명이다.
+  //   그 전제가 깨지는 순간을 여기서 보이게 한다 — 관측 없는 트리거는 트리거가 아니다.
+  const [r1] = await m.GuestLink.sequelize.query(
+    'SELECT COUNT(*) AS n FROM guest_links gl JOIN businesses b ON b.id=gl.business_id JOIN users u ON u.id=b.owner_id WHERE u.platform_role<>?',
+    { replacements: ['platform_admin'] });
+  const [r2] = await m.GuestLink.sequelize.query(
+    'SELECT COUNT(DISTINCT business_id) AS n FROM guest_links WHERE revoked_at IS NULL AND expires_at>NOW()');
+  const n1 = Number(r1[0].n), n2 = Number(r2[0].n);
+  console.log('');
+  console.log('워크스페이스별 스위치 :', (n1 >= 1 || n2 >= 2) ? '지금 만들 때 — 아래 조건이 충족됐다' : '아직 필요 없다');
+  console.log('  · 플랫폼관리자가 아닌 사람의 워크스페이스 링크 :', n1, '건 (1건 이상이면 만든다)');
+  console.log('  · 살아있는 링크를 가진 워크스페이스 :', n2, '곳 (2곳 이상이면 만든다)');
   process.exit(0);
 })().catch(e => { console.error('실패:', e.message); process.exit(1); });
-\"" 2>/dev/null | grep -v "injected env\|MySQL connected"
+\"" 2>&1 | grep -v "injected env\|MySQL connected"
+# stderr 를 버리지 않는다 — 조용히 실패하면 "상태를 못 읽은 것" 이 "정상" 으로 보인다.
+# 파이프가 종료코드를 가리므로 ssh 쪽 코드를 그대로 넘긴다.
+exit "${PIPESTATUS[0]}"

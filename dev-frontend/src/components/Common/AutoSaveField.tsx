@@ -134,7 +134,17 @@ const AutoSaveField = forwardRef<AutoSaveHandle, AutoSaveFieldProps>(({
     : InputBadge;
 
   return (
-    <Wrapper $type={type} style={style}>
+    // ★ toggle 은 Wrapper 에서 click 을 받는다 (자식 복제 아님).
+    //   토글의 실제 마크업은 `<button onClick>` 이거나 안쪽에 input 을 감싼 `<label>` 이라
+    //   **자식에 onChange 가 없다** — 위 enhancedChildren 은 아무것도 감싸지 못하고 그대로 통과했다.
+    //   그래서 클릭하면 화면 문구만 바뀌고 서버로는 아무것도 안 갔다. 운영 점검 모드를 포함해
+    //   5곳이 그 상태였다(2026-09-02, Fable 실브라우저 실증 — PUT 0건).
+    //   click 은 React 트리를 버블링하므로 button·checkbox·안쪽 버튼 무엇이든 여기 닿는다.
+    //   키보드도 같다(button 의 Space/Enter, checkbox 의 Space 는 click 을 낸다).
+    //   자식 onClick(=set())이 먼저 끝나고 버블링되므로, debounce 가 터질 때 값은 **새 값**이다.
+    //   계약: **toggle 래퍼 안에는 저장 대상 컨트롤만 둔다.** 저장과 무관한 클릭 요소가 필요하면
+    //   래퍼 밖에 둔다. (헛저장이 나도 같은 값을 다시 보내는 멱등 PUT 이라 데이터는 안 깨진다)
+    <Wrapper $type={type} style={style} onClick={type === 'toggle' ? triggerSave : undefined}>
       {enhancedChildren}
       {status !== 'idle' && <Badge $fading={fading}>{icon}</Badge>}
     </Wrapper>
