@@ -592,6 +592,17 @@ npx cap add ios && npx cap add android
 **작업:** google-services.json + `fcm_sender.js`(HTTP v1, §5.2) + 알림 채널(importance high) + backButton 브리지(`App.addListener('backButton')` → history.back, 루트면 앱 종료) + 배터리 최적화 안내.
 **검증기준:** §5.5 를 Android 로 반복 + back 버튼 SPA 뒤로가기.
 
+> **★ CSP/보안 헤더는 Android WebView 에 도달하지 않는다 (2026-09-02 Fable 게이트 실측).**
+> `@capacitor/android` 의 `WebViewLocalServer.handleProxyRequest` 는 원격 HTML 에 인라인
+> `<script>` 브리지를 주입하고(`JSInjector.java`), 응답 헤더를 핸들러 로컬 맵
+> (`buildDefaultResponseHeaders()`)으로 **갈아끼운다** — nginx 가 붙인 6개 헤더가 버려진다.
+> 지금은 그 덕에 브리지가 `script-src 'self'` 에 안 걸려 산다. 뒤집어 말하면:
+> **Capacitor 가 원격 헤더를 전달하도록 바뀌는 순간 `script-src 'self'` 가 브리지를 죽인다.**
+> Android 업그레이드 시 에뮬레이터 실검 필수(빈 화면·브리지 미동작으로 나타난다).
+> iOS 는 `WKUserScript(.atDocumentStart)` 주입이라 CSP 와 무관 — 영향 없음.
+> 정책 원본: `scripts/apply-nginx-security-headers.sh` · `dev-backend/middleware/security.js`
+> (두 벌 드리프트는 가드 `node scripts/guard-invariants.js --category=csp` 가 막는다).
+
 ### Phase 6 — TestFlight → 스토어 (의존성: 전체)
 **작업:** 운영 config 빌드 + 운영 backend `.env` APNs(production) + 운영 DB ALTER(§5.1/§7.1 — Fable 검증 게이트 대상: 운영 마이그레이션+보안 경계) + TestFlight 내부 배포 → 팀 사용 피드백 → App Store 준비(4.2 대비 네이티브 기능 명세, 심사 전용 데모 워크스페이스 신설 — 기존 계정 재사용 금지, 계정 삭제 노출(기존 GDPR 흐름 연결), privacy URL).
 

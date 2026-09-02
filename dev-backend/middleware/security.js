@@ -91,7 +91,12 @@ const cookieOptions = {
 const securityHeaders = (req, res, next) => {
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
+  // ★ SAMEORIGIN — DENY 로 두면 앱이 **자기 화면**을 못 띄운다:
+  //   ① 핀 PiP 가 현재 경로를 iframe 으로 연다 (utils/pinHost.ts:538)
+  //   ② 공개 파일 공유 페이지가 `/api/files/public/by-token/:token/download?inline=1` 을
+  //      iframe 으로 띄워 PDF 를 미리 본다 (PublicFilePage.tsx:108) — DENY 면 고객 화면에서 빈칸
+  //   타 origin 클릭재킹 방어는 SAMEORIGIN + CSP frame-ancestors 'self' 로 그대로 유지된다.
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
 
@@ -114,19 +119,27 @@ const cspMiddleware = (req, res, next) => {
     return next();
   }
 
-  // script-src: 번들 JS 만 허용 (Vite 빌드는 인라인 스크립트 없음) → 'unsafe-inline' 제거로 XSS 방어 강화
-  // style-src: styled-components 런타임이 <style> 태그를 주입하므로 'unsafe-inline' 유지 불가피
+  // ★ 이 값은 nginx snippet(/etc/nginx/snippets/planq-security-headers.conf)과 **같은 값**이다.
+  //   화면(HTML)은 nginx 가 직접 서빙하므로 실제로 적용되는 것은 그쪽이고, 여기는 backend 가
+  //   HTML 을 직접 내는 경로(share bot OG SSR·공개 페이지 proxy)에 붙는다. 두 벌이 갈라지면
+  //   같은 화면이 경로에 따라 다른 정책을 받는다 — 바꿀 때는 scripts/apply-nginx-security-headers.sh 도 같이.
+  //   ★ frame-src 를 'none' 으로 두지 말 것 — PDF 미리보기가 blob: iframe(utils/download.ts),
+  //     메일 본문이 srcDoc iframe 이라 둘 다 죽는다(2026-09-02 실측).
+  //   ★ frame-ancestors 도 'none' 금지 — 핀 PiP 가 앱 자신을 iframe 으로 띄운다(pinHost.ts:538).
   const cspDirectives = [
     "default-src 'self'",
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' https://fonts.gstatic.com",
-    "img-src 'self' data: https: blob:",
-    "connect-src 'self' wss:",
-    "frame-src 'none'",
-    "object-src 'none'",
+    "font-src 'self' https://fonts.gstatic.com data:",
+    "img-src 'self' data: blob: https:",
+    "media-src 'self' data: blob:",
+    "connect-src 'self' blob: https: wss:",
+    "frame-src 'self' blob: data:",
+    "worker-src 'self' blob:",
+    "frame-ancestors 'self'",
     "base-uri 'self'",
-    "form-action 'self'"
+    "form-action 'self'",
+    "object-src 'none'"
   ];
 
   res.setHeader('Content-Security-Policy', cspDirectives.join('; '));

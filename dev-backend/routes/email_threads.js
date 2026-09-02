@@ -1115,10 +1115,10 @@ router.get('/:businessId/email-threads/:id/messages/:messageId/embedded/:index',
       if (!found) return errorResponse(res, 'image_not_found', 404);
       // 메일 본문은 불변이라 강하게 캐시해도 안전하다 — 같은 이미지를 두 번 받지 않는다.
       res.setHeader('Cache-Control', 'private, max-age=604800, immutable');
-      res.setHeader('Content-Type', found.mime);
+      // 본문 이미지도 업로드 바이트와 같은 규칙 — `/^image\//` 필터는 image/svg+xml 을 통과시킨다.
+      //   (Bearer 전용이라 주소창 이동은 불가하지만, 판정이 두 벌이면 반드시 갈라진다.)
+      require('../services/fileServing').applyFileResponseHeaders(res, { mime_type: found.mime, file_name: found.name || '' }, { inline: true });
       res.setHeader('Content-Length', String(found.buffer.length));
-      // 본문 이미지는 문서가 아니다 — 브라우저가 그대로 렌더하지 않도록 스니핑을 막는다.
-      res.setHeader('X-Content-Type-Options', 'nosniff');
       return res.end(found.buffer);
     } catch (err) { next(err); }
   });

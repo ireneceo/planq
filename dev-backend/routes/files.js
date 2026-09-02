@@ -211,10 +211,14 @@ router.get('/public/by-token/:token/download', async (req, res, next) => {
       return errorResponse(res, 'external_file_no_url', 400);
     }
     if (!fs.existsSync(file.file_path)) return errorResponse(res, 'file_missing_on_disk', 410);
+    // ★ inline 은 **안전한 형식에만**. 업로드에 확장자·MIME 화이트리스트가 없어서
+    //   `.html` 을 올려 공유하면 planq.kr origin 에서 렌더됐다 (2026-09-02 Fable 실증).
+    //   판정은 services/fileServing 한 곳 — 다른 문과 갈라지지 않게.
     const inline = String(req.query.inline || '') === '1';
-    res.setHeader('Content-Type', file.mime_type || 'application/octet-stream');
-    res.setHeader('Content-Disposition',
-      `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(file.file_name)}`);
+    require('../services/fileServing').applyFileResponseHeaders(res, file, {
+      inline,
+      disposition: `inline; filename*=UTF-8''${encodeURIComponent(file.file_name)}`,
+    });
     fs.createReadStream(file.file_path).pipe(res);
   } catch (err) { next(err); }
 });
@@ -267,9 +271,9 @@ router.get('/public-image/:storedName', async (req, res, next) => {
     // ?w= 리사이즈는 로컬 파일일 때만 (Drive 스트림은 원본 그대로) — task 첨부와 같은 규칙
     if (body.abs && await require('../services/imageResize').maybeServeResized(req, res, body.abs, file.mime_type)) return;
 
-    res.setHeader('Content-Type', file.mime_type);
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Content-Disposition', 'inline');
+    // ★ SVG 는 image/* 라 isRenderableImage 를 통과한다 — 하지만 스크립트를 담는 문서다.
+    //   sandbox CSP + attachment 로 떨어뜨린다 (services/fileServing 단일 판정).
+    require('../services/fileServing').applyFileResponseHeaders(res, file, { inline: true });
     res.setHeader('Cache-Control', 'private, max-age=3600');
     body.stream.on('error', (e) => {
       console.error('[files] public image stream error:', e.message);
@@ -388,9 +392,8 @@ router.get('/media/:businessId/:id',
       if (!(await canDownloadFile(scope, userId, file))) return errorResponse(res, 'forbidden', 403);
 
       if (!fs.existsSync(file.file_path)) return errorResponse(res, 'physical_file_missing', 410);
-      res.setHeader('Content-Type', file.mime_type);
-      res.setHeader('X-Content-Type-Options', 'nosniff');
-      res.setHeader('Content-Disposition', 'inline');
+      // 서명이 유효하고 video/audio 게이트도 통과했지만, 헤더 규칙은 다른 문과 **같은 함수**로.
+      require('../services/fileServing').applyFileResponseHeaders(res, file, { inline: true });
       res.setHeader('Cache-Control', 'private, max-age=3600');
       return res.sendFile(path.resolve(file.file_path));
     } catch (err) { next(err); }

@@ -1361,6 +1361,83 @@ function checkVlevelPair() {
   report('vlevelpair', `권위 컬럼 쌍 동시 기록 (File.create ${scanned}곳 검사)`, bad.length === 0, bad);
 }
 
+// ── CSP 두 벌 드리프트 ──────────────────────────────────────────────────────
+// 화면 CSP 는 nginx snippet 이 실제로 적용되고, backend cspMiddleware 는 backend 가 HTML 을
+// 직접 내는 경로(share bot OG SSR·공개 페이지 proxy)에 붙는다. **같은 화면이 경로에 따라 다른
+// 정책을 받으면** 한쪽에서만 죽는 기능이 생긴다. 주석으로 "같게 유지" 라고 쓰는 것은 검증이 아니다.
+function checkCsp() {
+  const shPath = `${ROOT}/scripts/apply-nginx-security-headers.sh`;
+  const secPath = `${ROOT}/dev-backend/middleware/security.js`;
+  const bad = [];
+  const sh = read(shPath);
+  const sec = read(secPath);
+  const m = sh.match(/add_header Content-Security-Policy "([^"]+)" always;/);
+  const arr = sec.match(/const cspDirectives = \[([\s\S]*?)\];/);
+  if (!m) bad.push(`${rel(shPath)}: nginx snippet 의 Content-Security-Policy 를 못 찾음 (검사 불가)`);
+  if (!arr) bad.push(`${rel(secPath)}: cspDirectives 배열을 못 찾음 (검사 불가)`);
+  let nginxCsp = null, backendCsp = null;
+  if (m && arr) {
+    nginxCsp = m[1];
+    backendCsp = [...arr[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]).join('; ');
+    if (nginxCsp !== backendCsp) {
+      bad.push('nginx snippet 과 backend cspMiddleware 의 CSP 가 다르다 — 한 벌로 맞출 것');
+      bad.push(`  nginx  : ${nginxCsp}`);
+      bad.push(`  backend: ${backendCsp}`);
+    }
+    // frame-src 'none' 은 PDF 미리보기(blob: iframe)와 메일 본문(srcDoc)을 죽인다 (2026-09-02 실측).
+    for (const [label, csp] of [['nginx', nginxCsp], ['backend', backendCsp]]) {
+      if (/frame-src\s+'none'/.test(csp)) bad.push(`${label} CSP 가 frame-src 'none' — PDF 미리보기·메일 본문이 죽는다`);
+      if (!/frame-ancestors/.test(csp)) bad.push(`${label} CSP 에 frame-ancestors 없음 — 클릭재킹이 열린다`);
+      // ★ frame-ancestors 'none' 은 **앱이 자기 자신을 못 띄우게** 한다 — 핀 PiP 가 현재 경로를
+      //   iframe 으로 연다(utils/pinHost.ts:538). 2026-09-02 Fable 게이트가 실브라우저로 재현.
+      if (/frame-ancestors\s+'none'/.test(csp)) bad.push(`${label} CSP 가 frame-ancestors 'none' — 핀 PiP(자기 프레이밍)가 죽는다`);
+    }
+    // X-Frame-Options 와 frame-ancestors 는 **짝**이다 — 한쪽만 바꾸면 브라우저마다 다르게 막힌다.
+    const xfoNginx = (sh.match(/add_header X-Frame-Options "([^"]+)"/) || [])[1];
+    const xfoBackend = (sec.match(/setHeader\('X-Frame-Options',\s*'([^']+)'\)/) || [])[1];
+    const fa = (nginxCsp.match(/frame-ancestors\s+([^;]+)/) || [])[1];
+    for (const [label, xfo] of [['nginx', xfoNginx], ['backend', xfoBackend]]) {
+      if (!xfo) { bad.push(`${label} 의 X-Frame-Options 를 못 찾음 (검사 불가)`); continue; }
+      if (xfo === 'DENY') bad.push(`${label} X-Frame-Options DENY — 핀 PiP·공개 파일 PDF 미리보기가 자기 화면을 못 띄운다`);
+      if (fa && fa.trim() === "'self'" && xfo !== 'SAMEORIGIN') bad.push(`${label} X-Frame-Options(${xfo}) 가 frame-ancestors('self') 와 어긋난다 — SAMEORIGIN 이어야 한다`);
+    }
+  }
+  report('csp', `CSP 두 벌 일치 + XFO 짝 (지시문 ${nginxCsp ? nginxCsp.split(';').length : 0}개)`, bad.length === 0, bad);
+}
+
+// ── 업로드 바이트 inline 서빙 ───────────────────────────────────────────────
+// DB/클라이언트가 준 MIME 을 그대로 Content-Type 에 싣고 inline 으로 내보내면, `.html`·SVG 를
+// 올려 공유하는 것만으로 planq.kr origin 에서 스크립트가 돈다(2026-09-02 Fable 실증).
+// 판정은 services/fileServing 한 곳. 새 문을 내면서 손으로 헤더를 쓰면 여기서 걸린다.
+function checkFileInline() {
+  const files = walk(`${ROOT}/dev-backend/routes`, ['.js']);
+  const bad = [];
+  let scanned = 0;
+  for (const f of files) {
+    const src = read(f);
+    const lines = src.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      // Content-Type 에 **변수 MIME** 을 싣는 자리만 본다 (고정 'application/pdf' 등은 대상 아님)
+      if (!/setHeader\(\s*['"]Content-Type['"]\s*,[^)]*mime/i.test(lines[i]) && !/res\.type\([^)]*mime/i.test(lines[i])) continue;
+      scanned += 1;
+      const window = lines.slice(Math.max(0, i - 2), i + 8).join('\n');
+      // ★ Disposition 을 **아예 안 쓰면** 브라우저 기본이 inline 이다 — 그것도 렌더다.
+      //   (2026-09-02 Fable 반증 F2: 옛 검사는 이 형태를 통과시켰다.)
+      const hasDisposition = /Content-Disposition/i.test(window);
+      const explicitAttachment = /Content-Disposition['"]\s*,\s*['"`]\s*attachment/i.test(window)
+        || /['"`]\s*attachment;\s*filename/i.test(window)
+        || /buildContentDisposition\(/.test(window);
+      const inlineHere = !hasDisposition || (!explicitAttachment && (
+        /Content-Disposition['"]\s*,\s*['"`]\s*inline/i.test(window) || /['"`]\s*inline;\s*filename/i.test(window)
+      ));
+      if (!inlineHere) continue;
+      if (/fileServing/.test(window) || /applyFileResponseHeaders/.test(window)) continue;
+      bad.push(`${rel(f)}:${i + 1}: 변수 MIME 을 inline 으로 서빙 — services/fileServing.applyFileResponseHeaders 를 쓸 것`);
+    }
+  }
+  report('fileinline', `업로드 바이트 inline 서빙 (변수 MIME 서빙 ${scanned}곳 검사)`, bad.length === 0, bad);
+}
+
 const CATEGORIES = {
   mock: checkMock,
   i18n: checkI18n,
@@ -1388,6 +1465,8 @@ const CATEGORIES = {
   routedrift: checkRouteDrift,
   uispec: checkUiSpec,
   vlevelpair: checkVlevelPair,
+  csp: checkCsp,
+  fileinline: checkFileInline,
 };
 
 try {

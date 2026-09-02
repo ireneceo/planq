@@ -94,8 +94,10 @@ router.get('/sign/:token/attachments/:fileId', async (req, res, next) => {
     } catch (e) { console.warn('[sign] 별첨 열람 기록 실패', e.message); }
 
     const asciiName = String(file.file_name || 'attachment').replace(/[^\w.-]/g, '_').slice(0, 80) || 'attachment';
-    res.setHeader('Content-Type', file.mime_type || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `inline; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(file.file_name || asciiName)}`);
+    require('../services/fileServing').applyFileResponseHeaders(res, file, {
+      inline: true,
+      disposition: `inline; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(file.file_name || asciiName)}`,
+    });
     return res.sendFile(require('path').resolve(file.file_path));
   } catch (err) { next(err); }
 });

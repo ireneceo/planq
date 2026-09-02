@@ -242,7 +242,7 @@ router.get('/image/:fileId', async (req, res, next) => {
     const file = await File.findOne({ where: { id: fid, deleted_at: null } });
     if (!file || !file.file_path || !fs.existsSync(file.file_path)) return res.status(404).end();
     res.set('Cache-Control', 'public, max-age=86400');
-    if (file.mime_type) res.type(file.mime_type);
+    require('../services/fileServing').applyFileResponseHeaders(res, file, { inline: true });
     return res.sendFile(path.resolve(file.file_path));
   } catch (err) { next(err); }
 });

@@ -303,9 +303,7 @@ router.get('/public/:storedName', async (req, res, next) => {
     // ?w= 리사이즈는 로컬 파일일 때만 (Drive 스트림은 원본 그대로)
     if (body.abs && await require('../services/imageResize').maybeServeResized(req, res, body.abs, att.mime_type)) return;
 
-    res.setHeader('Content-Type', att.mime_type);
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Content-Disposition', 'inline');
+    require('../services/fileServing').applyFileResponseHeaders(res, { mime_type: att.mime_type, file_name: att.file_name || att.original_name }, { inline: true });
     res.setHeader('Cache-Control', 'private, max-age=3600');
     body.stream.on('error', (e) => {
       console.error('[message_attachments] public image stream error:', e.message);

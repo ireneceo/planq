@@ -383,12 +383,13 @@ async function serveAttachment(req, res, next, asDownload) {
     if (!body.ok) return errorResponse(res, body.msg, body.code);
     if (body.redirect) return res.redirect(body.redirect);
 
-    if (asDownload) {
-      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(att.original_name)}`);
-    } else {
-      res.setHeader('Cache-Control', 'private, max-age=3600');
-    }
-    if (att.mime_type) res.setHeader('Content-Type', att.mime_type);
+    // ★ asDownload 가 false 면 옛 코드는 Disposition 을 **아예 안 세웠다** — 브라우저 기본은 inline 이고,
+    //   그 MIME 은 업로더가 준 값이다. 지금 호출처는 전부 download 지만 술어는 한 벌이어야 한다.
+    require('../services/fileServing').applyFileResponseHeaders(res, { mime_type: att.mime_type, file_name: att.original_name }, {
+      inline: !asDownload,
+      disposition: `attachment; filename*=UTF-8''${encodeURIComponent(att.original_name)}`,
+    });
+    if (!asDownload) res.setHeader('Cache-Control', 'private, max-age=3600');
     body.stream.on('error', (e) => {
       console.error('[task_attachments] stream error:', e.message);
       if (!res.headersSent) errorResponse(res, 'stream_failed', 502);
@@ -430,9 +431,7 @@ router.get('/public/attach/:storedName', async (req, res, next) => {
     // ?w= 리사이즈는 로컬 파일일 때만 (Drive 스트림은 원본 그대로)
     if (body.abs && await require('../services/imageResize').maybeServeResized(req, res, body.abs, att.mime_type)) return;
 
-    res.setHeader('Content-Type', att.mime_type);
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Content-Disposition', 'inline');
+    require('../services/fileServing').applyFileResponseHeaders(res, { mime_type: att.mime_type, file_name: att.file_name || att.original_name }, { inline: true });
     res.setHeader('Cache-Control', 'private, max-age=3600');
     body.stream.on('error', (e) => {
       console.error('[task_attachments] public image stream error:', e.message);

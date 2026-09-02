@@ -1231,9 +1231,7 @@ router.get('/editor-image/:filename', async (req, res) => {
     if (!fs.existsSync(fp)) return errorResponse(res, 'not_found', 404);
     const mime = file.mime_type;   // 확장자 추측이 아니라 DB 가 아는 실제 타입
     if (await require('../services/imageResize').maybeServeResized(req, res, fp, mime)) return; // #97 ?w= 리사이즈
-    res.setHeader('Content-Type', mime);
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Content-Disposition', 'inline');
+    require('../services/fileServing').applyFileResponseHeaders(res, { mime_type: mime, file_name: file.file_name }, { inline: true });
     res.sendFile(fp);
   } catch (e) {
     console.error('[posts] editor-image:', e.message);

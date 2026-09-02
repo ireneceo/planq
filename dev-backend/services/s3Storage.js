@@ -46,7 +46,14 @@ async function putObject(cfg, key, buffer, contentType) {
 // 단기 서명 GET URL (private 버킷 — 매 다운로드 요청 시 갱신)
 async function presignGet(cfg, key, ttlSec = 300) {
   const c = clientFromConfig(cfg);
-  return getSignedUrl(c, new GetObjectCommand({ Bucket: cfg.bucket, Key: key }), { expiresIn: ttlSec });
+  // ★ S3 는 우리 origin 이 아니라 헤더를 사후에 붙일 수 없다 — 서명에 미리 실어 보낸다.
+  //   붙이지 않으면 업로드된 HTML/SVG 가 **S3 origin 에서 렌더**된다(피싱 호스팅).
+  //   같은 판정을 우리 서버에서는 services/fileServing 이 한다.
+  return getSignedUrl(c, new GetObjectCommand({
+    Bucket: cfg.bucket,
+    Key: key,
+    ResponseContentDisposition: 'attachment',
+  }), { expiresIn: ttlSec });
 }
 
 async function deleteObject(cfg, key) {
