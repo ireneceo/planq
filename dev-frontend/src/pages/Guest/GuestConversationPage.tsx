@@ -35,6 +35,10 @@ export default function GuestConversationPage() {
     try { return localStorage.getItem(nameKey) || ''; } catch { return ''; }
   });
   const [askName, setAskName] = useState(false);   // 이름 줄을 펼칠지
+  // ★ "건너뛰었다" 를 기억한다. 안 그러면 건너뛰기 → 보내기 에서 이름줄이 **다시 열리고
+  //   글은 안 나간다** (Fable 실브라우저 실측 2026-09-02: DB 에 메시지 0건).
+  //   Irene 이 원한 "가볍게 소통" 에서 건너뛴 사람이 정확히 막혔다.
+  const [nameSkipped, setNameSkipped] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -63,24 +67,28 @@ export default function GuestConversationPage() {
   }, [load, gone]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ block: 'end' }); }, [msgs.length]);
 
-  const saveName = (v: string) => {
+  // 이름을 정하면 **그대로 보낸다.** 쓰던 글을 두고 버튼을 한 번 더 누르게 하지 않는다.
+  const saveName = (v: string, thenSend = false) => {
     const n = v.trim().slice(0, 30);
     setName(n);
+    if (!n) setNameSkipped(true);   // 빈 값으로 확인 = 건너뛴 것
     try { n ? localStorage.setItem(nameKey, n) : localStorage.removeItem(nameKey); } catch { /* 시크릿 창 */ }
     setAskName(false);
+    if (thenSend && draft.trim()) void sendWith(n);
   };
 
-  const send = async () => {
+  /**
+   * 실제 전송. 이름을 **인자로 받는다** — 이름줄에서 방금 정한 값은 state 에 아직 반영되지
+   *   않았으므로(같은 이벤트 안), `name` 을 읽으면 옛 값이 간다.
+   */
+  const sendWith = async (effectiveName: string) => {
     const body = draft.trim();
     if (!body || sending || !token) return;
-    // ★ 이름은 **첫 글을 쓰기 직전**에 한 번만 묻는다. 입장 때 막으면
-    //   "가볍게 들어와서 확인" 이 안 된다 — 읽기만 하러 온 사람에게 관문을 세우지 않는다.
-    if (!name && !askName) { setAskName(true); setNameDraft(''); return; }
     setSending(true); setErr(null);
     try {
       const r = await fetch(`/api/guest/${token}/messages`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: body, guest_name: name || undefined }),
+        body: JSON.stringify({ content: body, guest_name: effectiveName || undefined }),
       });
       if (r.status === 404) { setGone(true); return; }
       if (!r.ok) {
@@ -88,7 +96,7 @@ export default function GuestConversationPage() {
         if ((j as { message?: string })?.message === 'name_reserved') {
           // 우리 쪽 사람으로 보이는 이름은 서버가 거절한다. 그 사실을 숨기지 않는다.
           setErr(t('nameReserved', { defaultValue: '그 이름은 쓸 수 없습니다. 다른 이름으로 바꿔 주세요.' }) as string);
-          setAskName(true); setNameDraft(name);
+          setAskName(true); setNameDraft(effectiveName);
           return;
         }
         setErr(t('sendFailed', { defaultValue: '보내지 못했습니다. 잠시 후 다시 시도해 주세요.' }) as string);
@@ -99,6 +107,15 @@ export default function GuestConversationPage() {
     } catch {
       setErr(t('sendFailed', { defaultValue: '보내지 못했습니다. 잠시 후 다시 시도해 주세요.' }) as string);
     } finally { setSending(false); }
+  };
+
+  const send = async () => {
+    if (!draft.trim() || sending || !token) return;
+    // ★ 이름은 **첫 글을 쓰기 직전**에 한 번만 묻는다. 입장 때 막으면
+    //   "가볍게 들어와서 확인" 이 안 된다 — 읽기만 하러 온 사람에게 관문을 세우지 않는다.
+    //   이미 정했거나 건너뛴 사람에게는 다시 묻지 않는다.
+    if (!name && !askName && !nameSkipped) { setAskName(true); setNameDraft(''); return; }
+    await sendWith(name);
   };
 
   if (gone) {
@@ -138,14 +155,15 @@ export default function GuestConversationPage() {
             <NameRow>
               <NameLabel>{t('nameAsk', { defaultValue: '이름을 알려주시면 담당자가 알아보기 쉬워요' })}</NameLabel>
               <NameInput
+                data-testid="guest-name-input"
                 value={nameDraft} onChange={(e) => setNameDraft(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) saveName(nameDraft); }}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) saveName(nameDraft, true); }}
                 placeholder={t('namePh', { defaultValue: '이름 (선택)' }) as string}
                 maxLength={30} autoFocus />
-              <NameBtn type="button" onClick={() => saveName(nameDraft)}>
+              <NameBtn data-testid="guest-name-ok" type="button" onClick={() => saveName(nameDraft, true)}>
                 {t('nameOk', { defaultValue: '확인' })}
               </NameBtn>
-              <NameSkip type="button" onClick={() => { setAskName(false); }}>
+              <NameSkip data-testid="guest-name-skip" type="button" onClick={() => { setNameSkipped(true); setAskName(false); void sendWith(''); }}>
                 {t('nameSkip', { defaultValue: '건너뛰기' })}
               </NameSkip>
             </NameRow>
@@ -160,10 +178,10 @@ export default function GuestConversationPage() {
             </NameShown>
           ) : null}
           <InputRow>
-            <TArea value={draft} onChange={(e) => setDraft(e.target.value)}
+            <TArea data-testid="guest-input" value={draft} onChange={(e) => setDraft(e.target.value)}
               placeholder={t('placeholder', { defaultValue: '메시지를 입력하세요' }) as string}
               rows={2} disabled={sending} />
-            <SendBtn type="button" onClick={send} disabled={sending || !draft.trim()}>
+            <SendBtn data-testid="guest-send" type="button" onClick={send} disabled={sending || !draft.trim()}>
               {t('send', { defaultValue: '보내기' })}
             </SendBtn>
           </InputRow>

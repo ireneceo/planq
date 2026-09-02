@@ -142,17 +142,32 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
       const [lastRows] = await sequelize.query(
         `SELECT m1.conversation_id AS cid, m1.content, m1.sender_id, m1.kind, m1.is_ai,
                 m1.created_at,
-                COALESCE(NULLIF(bm.name, ''), u.name) AS sender_name,
-                COALESCE(bm.name_localized, u.name_localized) AS sender_name_localized,
+                -- 게스트는 **메시지에 박제된 이름**이 원천이다. 여기서 u.name 만 보면
+                --   방 안에서는 "홍길동", 좌측 목록에서는 "게스트" 로 **같은 사람이 두 이름**이 된다
+                --   (Fable 실측 2026-09-02). 서버 헬퍼(applyGuestDisplayName)와 같은 술어:
+                --   is_guest = 1 이고 meta.guest.name 이 있으면 그 값.
+                --   ★ 이 주석 안에 백틱을 쓰면 바깥 템플릿 문자열이 끊긴다 (memory feedback_styled_comment_backtick).
+                -- ★ JSON_TYPE 으로 본다. meta 에 name:null 이 들어 있으면
+                --   JSON_UNQUOTE(JSON_EXTRACT(...)) 가 **문자열 'null'** 을 돌려주고
+                --   IS NOT NULL 검사를 통과한다 → 미리보기에 "null" 이 이름으로 떴다(실측).
+                CASE WHEN u.is_guest = 1
+                       AND JSON_TYPE(JSON_EXTRACT(m1.meta, '$.guest.name')) = 'STRING'
+                     THEN JSON_UNQUOTE(JSON_EXTRACT(m1.meta, '$.guest.name'))
+                     ELSE COALESCE(NULLIF(bm.name, ''), u.name) END AS sender_name,
+                CASE WHEN u.is_guest = 1 THEN NULL
+                     ELSE COALESCE(bm.name_localized, u.name_localized) END AS sender_name_localized,
                 (SELECT COUNT(*) FROM message_attachments ma WHERE ma.message_id = m1.id) AS att_count
            FROM messages m1
            INNER JOIN (
-             SELECT conversation_id, MAX(created_at) AS mt
+             -- ★ MAX(id). created_at 으로 잡으면 **같은 초에 쓴 메시지가 여럿일 때 동점**이 나서
+             --   방마다 여러 행이 돌아오고, 마지막에 순회된 행이 미리보기가 된다 —
+             --   즉 최신이 아닌 글이 목록에 뜬다(실측). id 는 단조 증가라 동점이 없다.
+             SELECT conversation_id, MAX(id) AS mid
              FROM messages
              WHERE conversation_id IN (:cids)
                AND (is_deleted IS NULL OR is_deleted = 0)
              GROUP BY conversation_id
-           ) latest ON m1.conversation_id = latest.conversation_id AND m1.created_at = latest.mt
+           ) latest ON m1.id = latest.mid
            LEFT JOIN users u ON u.id = m1.sender_id
            LEFT JOIN business_members bm ON bm.user_id = m1.sender_id AND bm.business_id = :bizId`,
         { replacements: { cids: convIds, bizId: Number(req.params.businessId) } }
@@ -931,7 +946,9 @@ router.get('/:businessId/:id/pinned', authenticateToken, attachWorkspaceScope(),
     const list = await Message.findAll({
       where: { conversation_id: conv.id, pinned_at: { [Op.ne]: null }, is_deleted: false },
       include: [
-        { model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] },
+        // is_guest — 없으면 applyGuestDisplayName 이 **조용히 아무것도 안 한다**(no-op).
+        //   오류 없이 "게스트" 로 떨어지고 뱃지 근거도 사라진다 (Fable 실측 2026-09-02).
+        { model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized', 'is_guest'] },
         // file_path·storage_provider·external_id 는 미리보기 토큰 계산에 필요하다 —
         //   serializeMessageAttachments 가 응답에서 다시 제거한다(저장 경로를 내보내지 않는다).
         { model: MessageAttachment, as: 'attachments', attributes: ['id', 'file_name', 'file_size', 'mime_type', 'file_path', 'storage_provider', 'external_id'], required: false },

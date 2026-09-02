@@ -1,7 +1,7 @@
 // #259 마이그레이션 — 무로그인 게스트 링크. 멱등 (매 배포 실행 안전).
 //
 //   ① guest_links 테이블 (모델이 정본 — sync 가 만들지만 여기서 존재를 확인·보증한다)
-//   ② clients.guest_user_id  INT NULL FK users  — 그림자 User 를 **고객당 1개**로
+//   ② (폐지 2026-09-02) clients.guest_user_id — 그림자는 링크당 1개로 옮겼다. 아래 참조
 //   ③ users.is_guest         BOOL NOT NULL DEFAULT FALSE  — 로그인 차단 근거
 //   ④ businesses.guest_links_enabled       BOOL NOT NULL DEFAULT TRUE  — 워크스페이스 킬스위치
 //   ⑤ platform_settings.guest_links_enabled BOOL NOT NULL DEFAULT TRUE — 플랫폼 킬스위치
@@ -29,8 +29,10 @@ async function addColumn(table, name, ddl) {
 }
 
 async function run() {
-  await addColumn('clients', 'guest_user_id',
-    "`guest_user_id` INT NULL COMMENT '#259 무로그인 게스트의 그림자 User (고객당 1개)'");
+  // ★ 2026-09-02 폐지 — 그림자 User 는 **링크당 1개**(`guest_links.guest_user_id`)로 옮겼다.
+  //   이 줄을 남겨 두면 2차 마이그레이션이 DROP 한 컬럼을 여기가 다시 만들어
+  //   **매 배포마다 clients 에 ALTER 2회**가 왕복한다 (Fable 실측). 다시 만들지 않는다.
+  //   과거 배포에서 만들어진 컬럼은 migrate-guest-link-owner.js 가 백필 후 DROP 한다.
   await addColumn('users', 'is_guest',
     "`is_guest` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '#259 shadow guest account - login blocked'");
   await addColumn('businesses', 'guest_links_enabled',

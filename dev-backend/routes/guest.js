@@ -166,7 +166,9 @@ router.post('/:token/messages', guestLimiter('guest-send', { windowMs: 60 * 1000
       //   두면 **나중 사람이 이름을 정하는 순간 과거 메시지의 이름까지 소급해서 바뀐다.**
       //   신원(누가 썼나) = 링크의 그림자 User, 라벨(뭐라고 보이나) = 이 값. 둘을 갈라 둔다.
       //   link_id 는 §8 승격(이 링크 발 메시지만 이관)의 열쇠이기도 하다.
-      meta: { guest: { link_id: link.id, name: guestDisplayName } },
+      //   이름이 없으면 키 자체를 넣지 않는다 — JSON null 은 읽는 쪽에서 문자열 'null' 로
+      //   새어 나갈 자리를 만든다(실측: 목록 미리보기에 "null" 이 이름으로 떴다).
+      meta: { guest: guestDisplayName ? { link_id: link.id, name: guestDisplayName } : { link_id: link.id } },
     });
     await conversation.update({ last_message_at: new Date() });
     await link.increment('message_count');
