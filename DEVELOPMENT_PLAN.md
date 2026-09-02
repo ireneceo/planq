@@ -1,6 +1,42 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-09-01 (Opus 5, 1M) — **운영 배포 1회 · 커밋 1건** — 오늘의 주제는 **"닫은 범인이 그 방 안에 없었다"** 였다. Irene 의 "프로젝트>문서에서 편집이 임시저장된 다음 닫혀버려" 를 파고드니, 편집창을 죽인 것은 **문서 코드가 아니라 그것을 담고 있던 프로젝트 상세 페이지**였다. 기존 문서를 고치면 자동저장 PUT 이 `post:updated` 를 방송하고, **같은 화면의 부모가 그 방송을 듣고 자기 자신을 통째로 다시 불렀다.** 그 `load()` 첫 줄의 `setLoading(true)` 가 `if (loading) return <로드 중…>` 을 켜서 페이지 전체가 교체됐고, 그 안에 얹혀 있던 편집기가 **언마운트**됐다 — **내 저장이 내 편집창을 죽이고 있었다.** ②그런데 **처음 세 번의 재현이 전부 실패했다.** 코드가 아니라 내 전제가 틀렸다 — 내가 고른 dev 문서가 **draft** 라 방송 조건(`status !== 'draft'`)이 성립하지 않았다. Irene 이 "기존 문서 편집할 때" 라고 짚어준 그 경계가 곧 원인의 경계였는데, 나는 "재현 안 됨" 을 한동안 "다른 원인" 으로 읽었다. 문서를 published 로 바꾸자 **2.25초에 정확히 닫혔다.** ③배경 갱신이 실패하면 `setProject(null)` 로 "찾을 수 없습니다" 가 되며 쓰던 글까지 사라지는 **두 번째 문**도 열려 있었다(순단·429·토큰회전 한 번이면 충분). ④이 페이지는 **문서 데이터를 한 줄도 렌더하지 않는데** 문서 저장마다 프로젝트·대화·업무·이슈·메모·멤버·고객을 전부 다시 불렀다 — 글 쓰는 60초에 **130건/분**. ⑤`pkill -f` 가 또 자기 셸을 죽였고, 운영 반영 검증에서 **옛 index 번들에서 청크 이름을 주워** 08-25 짜리를 보고 "미반영" 이라 오판할 뻔했다.
+> **최종 업데이트:** 2026-09-02 (Opus 5, 1M) — **운영 배포 5회 · 커밋 9건 · Fable 게이트 8회** — 오늘의 주제는 **"고쳤다는 말이 어디서 거짓이 되는가"** 였다. ①#378 을 끝냈다 — 본문 이미지가 없는 주소를 부르고(404인데 조용했다), 크기 조절이 Q docs 에서만 되고, 어느 에디터에서 넣었느냐에 따라 Drive 에 가기도 안 가기도 했다. 메일 본문 이미지는 **주소가 아니라 그림을 실어 보낸다**(CID) — `/api/files/public-image` 가 무인증·무만료라 URL 을 박으면 영구 공개되기 때문이다. ②그 과정에서 **내가 만든 구멍이 다섯 번 나왔고 전부 Fable 이 잡았다.** dedup 경로의 Drive 중복 업로드, **게이트에서 실패할 수 없는 카나리**(러너 계약 불일치 — 단독 실행만 빨갛고 스위트는 영원히 초록), 주석엔 "드래그아웃과 같은 술어" 라 써놓고 **실제로는 갈라져 남의 개인 파일이 메일로 나갈 수 있던 것**, 이미지 전용 토큰이 **일반 인증에서도 통하던 것**(한 방향만 반증한 탓 — 열쇠를 갈라 고쳤다), 시리즈 중요도가 **화면에서 도달 불가**. ③**Irene 의 질문 한 마디가 구멍을 잡았다** — "개인메일은 개인만 보는 거지?" 그 직전 결정대로면 개인메일에 붙인 그림이 팀 파일 목록으로 샜다. ④보안 부채를 3단계로 쪼개 Stage 0·1 을 냈다 — `editor-image` 는 **DB 를 아예 안 보고** 있어 삭제·대외비·비이미지가 다 열렸고, 이미지 서빙이 일반 API 한도를 태워 429→로그아웃까지 갈 수 있었다. ⑤#259 게스트 링크 1단계를 **킬스위치를 끈 채로** 배포했다 — 인증 없는 공개 쓰기 표면이라 게이트 없이 열 수 없다. ⑥AI 가 매긴 중요도는 **여태 만들어지고 매번 버려지고 있었고**(저장 컬럼 부재), 살려 놓고 보니 **73%를 "높음"** 으로 내 칩이 소음이 될 뻔했다(프롬프트를 조여 13%).
+
+## ✅ 완료: #378 본문·메일 이미지 · 보안 Stage 0·1 · #353⑤ 중요도 · #259 게스트 링크 1단계 (2026-09-02)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| #378 본문 이미지 | Q info 업로드가 없는 주소를 부르던 것(404·무음) · 크기조절 4화면 통일 · Drive 동기화 통일 · dedup 중복 미러 차단 | ✅ 완료 |
+| #378 메일 이미지 | 메일 본문에 이미지 삽입 + 발송 시 **CID 첨부**로 변환(URL 영구공개 회피). 대외비·타인 개인파일·비이미지는 발송 거부 | ✅ 완료 |
+| 개인메일 프라이버시 | 개인메일에 붙인 그림이 팀 Q File 목록으로 새던 것. 모르면 개인으로(안전 기본값) | ✅ 완료 |
+| #402 | 답장한 메일이 확인권장으로 자리만 옮겨 앉던 것 | ✅ 완료 |
+| #358 AI 캔버스 | 근거 없으면 일반론을 지어내던 것 → 안 만들고 이유를 말함. 이미 채워졌으면 LLM 미호출 | ✅ 완료 |
+| #353⑤ 중요도 | `tasks.priority_level` 신설. AI·템플릿·정기회차·PUT 전 경로 연결, 5화면 노출. 프롬프트 조여 high 73%→13% | ✅ 완료 |
+| 보안 Stage 0 | 무인증 이미지 4경로 — `editor-image` 가 DB 미조회(삭제·대외비·비이미지 전부 열림) · rate-limit 버킷 교정(429→로그아웃 차단) | ✅ 완료 |
+| 보안 Stage 1 | 이미지 전용 쿠키(파생 비밀 서명) + would-deny 계측. **게이트는 Stage 2**(운영 7일 관측 후) | ✅ 완료 |
+| #259 게스트 링크 1단계 | 무로그인 고객 대화 열람·작성. **킬스위치 OFF 로 배포**(Fable 게이트 대기) | ✅ 배포(닫힘) |
+
+### 핵심 판단
+
+- **메일 이미지는 URL 이 아니라 CID** — `public-image` 는 무인증·무만료·무회수이고 보안등급도 안 본다. 메일은 전달·인용으로 퍼지는데 회수 수단이 없다. 수신측 "이미지 차단" 에 걸리는 쪽은 **원격 URL** 이고 CID 는 첨부라 기본 표시된다(내가 방향을 반대로 알고 있었다).
+- **본문 이미지는 그 글과 같은 노출 범위** — 단, **개인메일은 개인**이다. 모르면(계정 목록 미로드 등) 개인으로 떨어뜨린다: 잘못 개인이면 깨지는 화면 0, 잘못 워크스페이스면 유출.
+- **검사 대신 열쇠를 가른다** — 이미지 토큰을 `JWT_SECRET` 으로 서명했더니 일반 API 가 통과했다. 파생 비밀로 서명하면 빠뜨릴 자리가 없다.
+- **게스트 링크는 유출을 막지 않는다** — "링크를 아는 사람 = 그 고객" 보장이 없음을 인정하고, **유출 시 열리는 것의 상한**(대화방 하나·고객 노출 메시지·텍스트만)을 구조로 고정했다.
+
+### 수정된 파일 (73)
+
+`middleware/{auth,imageViewer,security}.js` · `models/{Business,Client,GuestLink,PlatformSetting,Task,User,index}.js` ·
+`routes/{admin,auth,auth_oauth,email_threads,files,guest,guest_admin,notifications,posts,projects,tasks}.js` ·
+`services/{actions/task_actions,aiTaskPlanner,authTokens,canvasDraft,emailImageEmbed,emailSend,emailService,fileBroadcast,guest_link,recurringTaskGenerator,templateApply}.js` ·
+`utils/taskClientView.js` · `server.js` · `scripts/migrate-{guest-links,task-priority-level}.js` ·
+`components/QTask/{ImportanceChip,AiCandidateCard,TaskDetailDrawer,TaskPopoutView}.tsx` · `components/QTalk/GuestLinkButton.tsx` ·
+`pages/Guest/GuestConversationPage.tsx` · `pages/QMail/MailPage.tsx` · `pages/QTask/QTaskPage.tsx` · `pages/QProject/{ProjectTaskList,canvas/ProjectCanvas}.tsx` ·
+`components/Common/RichEditor.tsx` · `App.tsx` · `i18n.ts` · `utils/publicSurface.ts` · locales ko/en 5종 ·
+`scripts/e2e/{canary-editor-upload,canary-mail-image,canary-richeditor-resize,run}.js` · `scripts/deploy-planq.sh` · `docs/GUEST_LINK_DESIGN.md`
+
+---
 
 ## ✅ 완료: 프로젝트>문서 편집이 저절로 닫히던 것 (2026-09-01)
 
