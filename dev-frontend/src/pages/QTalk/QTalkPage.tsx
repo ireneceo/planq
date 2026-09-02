@@ -10,6 +10,7 @@ import RightPanel from './RightPanel';
 import NewProjectModal, { type ProjectFormData } from './NewProjectModal';
 import NewChatModal, { type NewChatFormData } from './NewChatModal';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
+import DetailFallback from '../../components/Common/DetailFallback';
 import { PanelLayout } from '../../components/Layout/PanelLayout';
 import ChatSettingsModal from './ChatSettingsModal';
 import i18n from '../../i18n';
@@ -1602,18 +1603,15 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
       : [];
 
   if (!businessId) return <PanelLayout><CenteredHint>{t('page.noBusiness', '워크스페이스가 선택되지 않았습니다.')}</CenteredHint></PanelLayout>;
+  // 스피너가 끝나지 않는 것과 마찬가지로, **손잡이 없는 오류 문구도 사용자에겐 고장이다.**
+  //   전용 버튼을 새로 만들지 않는다 — 공용 DetailFallback 이 이미 그 일을 한다
+  //   (UI_DESIGN_GUIDE §0-B). 베껴 만들면 문구·버튼 톤·하니스 계약(data-testid)이 갈라진다.
   if (loadError) return (
     <PanelLayout>
-      <CenteredHint>
-        {t('page.loadFailed', { msg: loadError })}
-        {/* 스피너가 끝나지 않는 것과 마찬가지로, 손잡이 없는 오류 문구도 사용자에겐 고장이다. */}
-        <RetryRow>
-          <RetryButton type="button" data-testid="qtalk-retry"
-            onClick={() => { setLoadError(null); setLoading(true); setReloadKey((k) => k + 1); }}>
-            {t('page.retry', { defaultValue: '다시 시도' })}
-          </RetryButton>
-        </RetryRow>
-      </CenteredHint>
+      <DetailFallback
+        status="error"
+        onRetry={() => { setLoadError(null); setLoading(true); setReloadKey((k) => k + 1); }}
+      />
     </PanelLayout>
   );
   // 사이클 N+15-A: 풀스크린 spinner 게이트 제거. LeftPanel/ChatPanel 이 내부 skeleton 으로 처리.
@@ -1876,12 +1874,6 @@ export default QTalkPage;
 
 // 사이클 N+14 후속 — loading/no-business/error 상태에서 Layout wrapper 안 중앙 정렬.
 // Empty 대신 사용해 viewport 단위/56px 분기 차이로 spinner 점프 회귀 차단.
-const RetryRow = styled.div`margin-top: 14px;`;
-const RetryButton = styled.button`
-  min-height: 44px; padding: 0 18px; border: 0; border-radius: 8px;
-  background: #0D9488; color: #fff; font-size: 0.875rem; font-weight: 700; cursor: pointer;
-`;
-
 const CenteredHint = styled.div`
   flex: 1;
   display: flex;

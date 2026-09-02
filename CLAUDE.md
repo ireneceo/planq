@@ -309,6 +309,16 @@ router.get('/', authenticateToken, async (req, res, next) => {
 ## 운영 정책
 
 - 메시지 삭제: 마스킹 (is_deleted=true, 원본은 DB 유지, UI에서 "삭제된 메시지")
+  - **원문을 지우는 것은 서버 책임** — `utils/deletedMessage.js` `maskDeletedMessages()` 단일 지점.
+    조회 라우트는 이 함수를 부른다(직접 필드를 비우지 말 것). 2026-09-02 실사례:
+    `content` 만 비운 코드가 **`translations`(번역 캐시는 원문 언어 사본을 함께 갖는다)·`ai_sources` 로
+    본문을 그대로 내보냈다.** 화면에 안 보인다고 안 나간 것이 아니다.
+  - **지울 것을 열거하지 말고 남길 것만 남긴다(화이트리스트).** 열거 방식은 컬럼이 늘 때마다 조용히 샌다.
+  - **마스킹은 표시명(applyMemberDisplayName·applyGuestDisplayName)을 다 적용한 뒤에 부른다.**
+    게스트 이름은 `meta.guest.name` 에서 오므로 `meta` 를 먼저 지우면 그림자 User 이름
+    (= 고객 표시명)으로 떨어져 **링크 받은 제3자가 고객 본인처럼 보인다**(#259 회귀).
+  - **고객(Client)·게스트에게는 자리도 보이지 않는다** — `routes/guest.js` `visibleToGuest` 와 같은 술어.
+    지운 것을 지웠다고 알리는 것은 우리 쪽 사정이다.
 - 메시지 수정: 허용 (is_edited=true, edited_at 기록, UI에서 "(수정됨)")
 - 할일 마감 지연: 빨간 뱃지, 마감 연장은 담당자 이상
 - 감사 로그: 모든 CUD 작업 AuditLog에 기록 (old_value/new_value JSON)
