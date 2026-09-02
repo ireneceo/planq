@@ -695,6 +695,11 @@ router.get('/:id/conversations', authenticateToken, async (req, res, next) => {
     if (role === 'client') where.channel_type = 'customer';
     const convs = await Conversation.findAll({
       where,
+      // ★ #259 — Client 를 같이 싣는다. 없으면 프론트가 `activeConv.client` 를 못 봐
+      //   **프로젝트에 속한 고객 대화방에서 게스트 링크 버튼이 아예 안 뜬다**(Fable 실측).
+      //   운영의 주 시나리오가 정확히 이 형태라 그 상태로는 기능을 쓸 수 없다.
+      //   conversations.js 목록 라우트와 **같은 include** 를 쓴다(갈라지면 화면마다 달라진다).
+      include: [{ model: Client, attributes: ['id', 'display_name', 'company_name'], required: false }],
       order: [['channel_type', 'DESC'], ['id', 'ASC']], // customer 먼저
     });
     return successResponse(res, convs.map((c) => c.toJSON()));

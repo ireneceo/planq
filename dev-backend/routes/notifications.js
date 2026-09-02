@@ -115,6 +115,15 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
     } catch (e) { console.warn('[notify workspace check]', e.message); }
   }
   const results = { inbox: false, email: false, push: false };
+  // #259 — 게스트 그림자 계정에는 **어느 채널로도 보내지 않는다.**
+  //   메일만 막았더니 in-app Notification row 가 영영 미읽음으로 쌓이고,
+  //   미읽음 에스컬레이션 cron 이 그걸 집어 메일을 시도해 skipped 로그만 남았다(Fable 실측).
+  //   게스트에게 가는 알림은 별도 경로(대화 알림 메일 · Client.invite_email)가 담당한다.
+  try {
+    const { User: _U } = require('../models');
+    const _u = await _U.findByPk(userId, { attributes: ['is_guest'] });
+    if (_u && _u.is_guest) return { inbox: false, email: false, push: false, skipped: 'guest_shadow_account' };
+  } catch { /* 조회 실패로 알림 전체를 막지 않는다 */ }
   if (titleSpec && titleSpec.feature && titleSpec.action) {
     try {
       const { buildTitle, recipientLang, FEATURES, ACTIONS } = require('../services/notifyTitle');

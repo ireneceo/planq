@@ -724,7 +724,10 @@ router.post('/refresh', async (req, res, next) => {
 
     // 6. user 검증
     const user = await User.findByPk(tokenRow.user_id);
-    if (!user || user.status !== 'active' || user.is_ai) {
+    // #259 — 게스트 그림자 계정은 refresh 로도 세션을 살릴 수 없다.
+    //   정상 경로로 그 row 가 생길 방법은 지금 없지만, heal 2곳만 막고 본경로를 비워 두면
+    //   나중에 어떤 경로로든 row 가 생기는 날 그대로 뚫린다(설계에 명시된 항목).
+    if (!user || user.status !== 'active' || user.is_ai || user.is_guest) {
       return errorResponse(res, 'Invalid user', 401, 'invalid_user');
     }
 

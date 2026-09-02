@@ -40,8 +40,14 @@ async function attachGuest(req, res, next) {
   next();
 }
 
-/** 고객에게 보여도 되는 메시지만. `conversations.js:619-623` 과 **같은 술어**다. */
-const visibleToGuest = (m) => !m.is_internal
+/** 고객에게 보여도 되는 메시지만.
+ *  ★ **삭제된 메시지를 반드시 뺀다.** 처음에 이걸 빠뜨려서, 직원이 다른 고객 견적을 잘못 붙이고
+ *    지웠는데 **멤버 화면에서만 사라지고 게스트 화면에는 그대로 남았다**(Fable 실증).
+ *    PlanQ 의 삭제는 마스킹(soft delete)이라 행이 남는다 — 읽는 쪽이 걸러야 한다.
+ *  ★ 나머지는 `conversations.js` 의 client 필터와 같은 술어다.
+ */
+const visibleToGuest = (m) => !m.is_deleted
+  && !m.is_internal
   && !(m.is_ai && m.ai_mode_used === 'draft' && m.ai_draft_approved !== true);
 
 /** 메시지 화이트리스트 — 내부 필드가 자동으로 따라 나가지 않게. */
@@ -92,7 +98,8 @@ router.get('/:token/messages', guestLimiter('guest-msgs', { windowMs: 60 * 1000,
   try {
     const { conversation, guestUser } = req.guest;
     const rows = await Message.findAll({
-      where: { conversation_id: conversation.id },
+      // 쿼리에서 한 번, visibleToGuest 에서 또 한 번 — 둘 중 하나가 바뀌어도 안 샌다.
+      where: { conversation_id: conversation.id, is_deleted: false },
       include: [{ model: User, as: 'sender', attributes: ['id', 'name'] }],
       order: [['created_at', 'DESC']],
       limit: 200,

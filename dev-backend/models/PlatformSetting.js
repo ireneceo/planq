@@ -75,9 +75,13 @@ PlatformSetting.init({
   // maintenance_mode=true 면 platform_admin 외 모든 요청 503. message 가 사용자에게 표시.
   maintenance_mode: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   // #259 — 플랫폼 전체 킬스위치 (maintenance_mode 와 같은 자리).
+  //   ★ 기본값은 **닫힘**이다. 인증 없는 공개 쓰기 표면이라 "켜는 것" 이 의식적 결정이어야 한다.
+  //     처음엔 true 로 뒀다가 배포 때 실제로 4분간 열려 있었다 — sync-database 가 모델 선언대로
+  //     DEFAULT 1 로 컬럼을 만들었고, 그 뒤에야 손으로 껐다(링크 0건이라 실노출은 없었다).
+  //     기본값이 열림이면 **새 운영 DB·컬럼 재생성 때마다 같은 창이 열린다.**
   guest_links_enabled: {
-    type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true,
-    comment: '#259 platform kill switch',
+    type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false,
+    comment: '#259 platform kill switch (default CLOSED - opening is a deliberate decision)',
   },
   maintenance_message: { type: DataTypes.STRING(500), allowNull: true },
   // 사이드바 상단 공지 배너 — 운영자 일괄 안내 (점검 일정·신규 기능·약관 변경 등)

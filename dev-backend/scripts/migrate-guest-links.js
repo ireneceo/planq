@@ -36,8 +36,9 @@ async function run() {
   await addColumn('businesses', 'guest_links_enabled',
     "`guest_links_enabled` TINYINT(1) NOT NULL DEFAULT 1 COMMENT '#259 workspace kill switch'");
   if (await hasTable('platform_settings')) {
+    // ★ 기본값 0 = **닫힘**. 인증 없는 공개 쓰기 표면은 "켜는 것" 이 의식적 결정이어야 한다.
     await addColumn('platform_settings', 'guest_links_enabled',
-      "`guest_links_enabled` TINYINT(1) NOT NULL DEFAULT 1 COMMENT '#259 platform kill switch'");
+      "`guest_links_enabled` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '#259 platform kill switch (default CLOSED)'");
   } else {
     console.log('[migration] platform_settings 없음 — skip');
   }

@@ -201,6 +201,8 @@ function ShellApp() {
   // 로그인 상태로 방문해도 인앱 chrome(토스터·공지배너·Dock)을 안 띄운다.
   // 판정은 utils/publicSurface 단일 원천 — 새 공개 페이지는 거기만 갱신.
   const isPublicSurface = isPublicSurfacePath(_loc.pathname);
+  // 게스트 대화 표면 — 공개 표면 중에서도 **PlanQ 안내를 일절 띄우지 않는** 곳.
+  const isGuestSurface = _loc.pathname.startsWith('/g/');
   const hideAppChrome = isPopout || isPublicSurface;
   // 공개 표면의 Q helper 는 tabStore(useChromeNav) 가 아니라 RR navigate 로 이동해야 한다.
   // TabMirror 가 언마운트라 navigateDelegate 가 null → chrome nav 는 silent no-op (Fable 검증).
@@ -632,7 +634,11 @@ function ShellApp() {
           publicSurface 일 때는 게스트 프레젠테이션(Q위키+문의 2탭) + RR navigate 주입.
           나머지 chrome(TabMirror·MemoFab·RightDock·Toaster·AnnouncementBanner)은 숨김 유지.
         */}
-        {!isPopout && <CueHelpDrawer publicSurface={isPublicSurface} routerNavigate={rrNavigate} />}
+        {/* ★ #259 — 게스트 대화(`/g/`)에는 이것도 띄우지 않는다.
+            폰에서 FAB 이 "보내기" 버튼을 58% 덮어 **고객이 답을 못 보낸다**(Fable 실측 1672px²).
+            게다가 눌리면 "About PlanQ · Q Wiki · 문의" 가 대화를 덮는다 — 고객이 보는 것은
+            "우리 회사와의 대화" 지 PlanQ 제품 안내가 아니다. publicSurface 로는 부족하다. */}
+        {!isPopout && !isGuestSurface && <CueHelpDrawer publicSurface={isPublicSurface} routerNavigate={rrNavigate} />}
         {!hideAppChrome && <MemoFab />}
         {!hideAppChrome && <RightDock />}
         {/* 네이티브 앱에서는 OS 알림이 담당한다 — 인앱 토스터를 띄우면 폰에 데스크탑식 배너가 뜬다.
