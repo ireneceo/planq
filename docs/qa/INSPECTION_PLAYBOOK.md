@@ -31,6 +31,11 @@ docs/qa/FEEDBACK_REGRESSIONS.md   # 대장: ID | 원문요약 | 부류 | 스크�
 ```
 - 실행: `node scripts/e2e/run.js --suite mobile,crosscut,regressions` → **exit≠0 = /검증 실패** (health-check.js 동급 게이트).
 - **인터랙티브 요소에 `data-testid` 의무화** (selector 취약성 제거).
+- **상태를 바꾸는 스위트는 나열 맨 뒤에.** `run.js` 는 스위트를 나열 순서로 직렬 실행한다.
+  `toggles` 는 검사 도중 플랫폼 설정(점검 모드 포함)을 잠깐 뒤집었다 되돌린다 — 앞에 두면
+  그 창에서 뒤 스위트가 503 을 맞고 엉뚱한 곳이 빨개진다. `--suite tenant,toggles` 처럼 뒤에 둔다.
+  그런 스위트는 **끝에서 상태를 스냅샷과 대조해 오염 자체를 FAIL 로** 내야 한다
+  (2026-09-02: 원복이 UI 저장과 경합해 dev 가 점검 모드로 남은 채 EXIT 0 이 나던 구조를 그렇게 닫았다).
 
 ## 3. 모바일 키보드 검사 프로토콜
 **원리:** 진짜 OS 키보드는 자동화 불가하나, `main.tsx:46` 실측("iOS PWA는 키보드 up 시 innerHeight 자체 축소 793→417")에 근거 — **CDP `Emulation.setDeviceMetricsOverride`로 focus 후 viewport height 667→337 축소 = iOS 키보드 이벤트 체인(visualViewport resize → main.tsx update() → data-keyboard-up → ensureFocusedVisible) 그대로 발화.** 앱의 실제 방어코드를 실제로 통과시키는 테스트.

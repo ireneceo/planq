@@ -46,12 +46,20 @@ async function login(who = ADMIN) {
 
 // 원복은 화면이 아니라 API 로 한다 — 화면이 고장난 상태(=이 카나리가 잡으려는 상태)에서도
 //   원복은 반드시 성공해야 한다. 원복을 화면에 맡기면 실패한 회차가 dev 를 점검 모드로 남긴다.
+//   status 를 모아 둔다 — 중간 원복이 4xx/5xx 면 끝 상태 대조에서 잡히긴 하지만,
+//   그때는 "왜 오염됐는지" 가 안 보인다. 실패한 원복 자체를 말해야 원인이 짚인다.
+const restoreFailures = [];
 async function restore(token, patch) {
-  await fetch(`${BACKEND}${SETTINGS_URL}`, {
-    method: 'PUT',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(patch),
-  }).catch(() => null);
+  try {
+    const r = await fetch(`${BACKEND}${SETTINGS_URL}`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    });
+    if (!r.ok) restoreFailures.push(`status ${r.status}`);
+  } catch (e) {
+    restoreFailures.push(e.message);
+  }
 }
 
 async function getSettings(token) {
@@ -282,12 +290,17 @@ async function run() {
       : after[k] === true;
     return now !== snapshot[k];
   });
+  const details = [];
+  if (drift.length) {
+    details.push(`원복 실패 — dev 상태 오염: ${drift.map((k) => `${k} ${JSON.stringify(snapshot[k])}→${JSON.stringify(after[k])}`).join(' · ')}`);
+  }
+  if (restoreFailures.length) {
+    details.push(`원복 PUT 이 거절됨 ${restoreFailures.length}회: ${restoreFailures.join(', ')}`);
+  }
   results.push({
     name: 'toggles:검사 후 설정이 원래대로 돌아왔다',
-    fail: drift.length ? 1 : 0,
-    details: drift.length
-      ? [`원복 실패 — dev 상태 오염: ${drift.map((k) => `${k} ${JSON.stringify(snapshot[k])}→${JSON.stringify(after[k])}`).join(' · ')}`]
-      : [],
+    fail: (drift.length || restoreFailures.length) ? 1 : 0,
+    details,
   });
 
   return results;
