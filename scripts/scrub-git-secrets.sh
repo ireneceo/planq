@@ -36,7 +36,11 @@ PAT_INTERNAL='planq-internal-[a-z]*-[a-f0-9]\{32\}'
 #   전부 읽어 세는 방식으로 바꾼다. 느리지만 거짓말하지 않는다.
 scan() {
   local found=0 body
-  for ref in $(git rev-list --all 2>/dev/null); do
+  # ★ `--all` 은 refs/ 아래 **전부**다 — filter-branch 가 만든 되돌리기용 `refs/original/*`(옛 히스토리)
+  #   와 자동저장 dead-man `refs/autosave/*` 까지 센다. 그것들 때문에 "아직 남아 있다"가 떠서
+  #   재작성이 실패한 줄 알았다(2026-09-02: 실제 브랜치는 0이었다).
+  #   판정 대상은 **push 될 것** — 브랜치·원격추적·태그뿐이다.
+  for ref in $(git rev-list --exclude=refs/original/* --exclude=refs/autosave/* --all 2>/dev/null); do
     body=$(git show "$ref:.claude/session-state.md" 2>/dev/null || true)
     [ -n "$body" ] || continue
     case "$body" in
@@ -88,6 +92,13 @@ case "$MODE" in
         fi
       fi
     ' --tag-name-filter cat -- --all
+
+    # `-- --all` 은 refs/heads·refs/remotes·refs/tags 만 덮는다.
+    #   `refs/autosave/*`(자동저장 dead-man) 같은 비표준 ref 는 **빠진다** — 있으면 지운다.
+    #   (원격에 안 나가는 로컬 스냅샷이고, 위 번들 백업에 보존돼 있으며, cron 이 곧 새로 만든다)
+    for r in $(git for-each-ref --format='%(refname)' refs/autosave/ 2>/dev/null); do
+      git update-ref -d "$r" && echo "  ✓ 비표준 ref 삭제: $r (번들에 보존됨)"
+    done
 
     echo "== 검증 =="
     left=$(scan)
