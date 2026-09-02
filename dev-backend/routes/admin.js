@@ -713,6 +713,10 @@ router.put('/platform-settings', async (req, res, next) => {
       ...setStr('terms_version', 20),
       ...setStr('privacy_version', 20),
       ...(b.maintenance_mode !== undefined ? { maintenance_mode: !!b.maintenance_mode } : {}),
+      // 게스트 링크 플랫폼 킬스위치 (#259). 여태 이 PUT 이 안 받아서 **SQL 로만 껐다 켤 수 있었다** —
+      //   사고 시 유일한 수단이 터미널이면 그건 수단이 없는 것과 같다.
+      //   미전송(undefined)이면 기존 값 보존 — 다른 필드만 저장할 때 스위치가 딸려 꺼지지 않게.
+      ...(b.guest_links_enabled !== undefined ? { guest_links_enabled: !!b.guest_links_enabled } : {}),
       ...setStr('maintenance_message', 500),
       ...setStr('announcement_text', 500),
       ...setStr('announcement_text_en', 500),

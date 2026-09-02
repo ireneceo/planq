@@ -181,7 +181,11 @@
     "support_email": "Support email",
     "legal_entity": "Legal entity",
     "email_logo_url": "Email logo URL",
-    "email_logo_hint": "Leave blank for default logo (inline cid attachment)"
+    "email_logo_hint": "Leave blank for default logo (inline cid attachment)",
+    "guestLinksSection": "Guest links",
+    "guestLinksHint": "Lets customers open a conversation through an invite link without signing in. Turning this off closes every link already issued, immediately. Turning it back on restores them.",
+    "guestLinksOn": "On — customers can enter through a link",
+    "guestLinksOff": "Off — every guest link is closed"
   },
   "page": {
     "title": "Workspace Admin",

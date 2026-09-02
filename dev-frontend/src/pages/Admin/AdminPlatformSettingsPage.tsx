@@ -22,6 +22,8 @@ interface PlatformSettings {
   // 점검·공지
   maintenance_mode: boolean;
   maintenance_message: string | null;
+  // 게스트 링크 킬스위치 (#259) — 끄면 발급된 링크까지 전부 즉시 404
+  guest_links_enabled: boolean;
   announcement_text: string | null;
   announcement_text_en: string | null;
   announcement_dismissible: boolean;
@@ -39,6 +41,7 @@ const EMPTY: PlatformSettings = {
   brand: '', tagline: '', website: '', support_email: '', legal_entity: '', email_logo_url: '',
   terms_version: '1.0', privacy_version: '1.0',
   maintenance_mode: false, maintenance_message: '',
+  guest_links_enabled: false,
   announcement_text: '', announcement_text_en: '', announcement_dismissible: true, announcement_severity: 'info',
   seo_title: '', seo_description: '', seo_keywords: '', og_image_url: '',
   app_ios_url: '', app_android_url: '',
@@ -66,6 +69,9 @@ const AdminPlatformSettingsPage = () => {
           privacy_version: r.data.privacy_version || '1.0',
           maintenance_mode: !!r.data.maintenance_mode,
           maintenance_message: r.data.maintenance_message || '',
+          // === true 로 못 박는다 — 서버의 fail-closed 판정(services/guest_link.js:41)과 같은 술어.
+          //   `!!` 로 느슨하게 보면 화면과 서버가 갈릴 자리가 생긴다.
+          guest_links_enabled: r.data.guest_links_enabled === true,
           announcement_text: r.data.announcement_text || '',
           announcement_text_en: r.data.announcement_text_en || '',
           announcement_dismissible: r.data.announcement_dismissible !== false,
@@ -228,6 +234,30 @@ const AdminPlatformSettingsPage = () => {
             <Input value={data.maintenance_message || ''} onChange={(e) => set('maintenance_message', e.target.value)}
               placeholder={t('platform.maintenance_messagePh', '예: 시스템 점검 중 (~22:00 종료 예정)') as string} maxLength={500} />
           </AutoSaveField>
+        </Field>
+      </Card>
+
+      <Card>
+        {/* 운영 #259 — 게스트 링크 킬스위치. 여태 SQL 로만 조작됐다. */}
+        <SectionTitle id="guest-links">{t('platform.guestLinksSection', '게스트 링크')}</SectionTitle>
+        <SectionHint>
+          {t('platform.guestLinksHint', '고객이 로그인 없이 초대 링크로 대화방에 들어오는 기능입니다. 끄면 이미 발급된 링크까지 전부 즉시 닫힙니다. 다시 켜면 그대로 살아납니다.')}
+        </SectionHint>
+        <Field>
+          <ToggleRow>
+            <AutoSaveField type="toggle" onSave={async () => save({ guest_links_enabled: data.guest_links_enabled })}>
+              <Switch type="button" role="switch" aria-checked={data.guest_links_enabled}
+                aria-label={t('platform.guestLinksSection', '게스트 링크') as string}
+                $on={data.guest_links_enabled} onClick={() => set('guest_links_enabled', !data.guest_links_enabled)}>
+                <SwitchKnob $on={data.guest_links_enabled} />
+              </Switch>
+            </AutoSaveField>
+            <ToggleHint>
+              {data.guest_links_enabled
+                ? t('platform.guestLinksOn', '켜짐 — 고객이 링크로 들어올 수 있습니다')
+                : t('platform.guestLinksOff', '꺼짐 — 모든 게스트 링크가 닫혀 있습니다')}
+            </ToggleHint>
+          </ToggleRow>
         </Field>
       </Card>
 

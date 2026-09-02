@@ -181,7 +181,11 @@
     "support_email": "지원 메일",
     "legal_entity": "법인명",
     "email_logo_url": "메일 로고 URL",
-    "email_logo_hint": "비우면 기본 로고 사용 (cid 인라인 첨부)"
+    "email_logo_hint": "비우면 기본 로고 사용 (cid 인라인 첨부)",
+    "guestLinksSection": "게스트 링크",
+    "guestLinksHint": "고객이 로그인 없이 초대 링크로 대화방에 들어오는 기능입니다. 끄면 이미 발급된 링크까지 전부 즉시 닫힙니다. 다시 켜면 그대로 살아납니다.",
+    "guestLinksOn": "켜짐 — 고객이 링크로 들어올 수 있습니다",
+    "guestLinksOff": "꺼짐 — 모든 게스트 링크가 닫혀 있습니다"
   },
   "page": {
     "title": "워크스페이스 관리",
