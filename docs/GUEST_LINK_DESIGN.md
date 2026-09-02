@@ -87,13 +87,10 @@ CREATE TABLE guest_links (
   token_hint    CHAR(6) NOT NULL,          -- 원문 앞 6자 — 관리 UI 식별용 (원문 복원 불가)
   guest_name    VARCHAR(100) NOT NULL,     -- 화면 표시명 ("김고객 (게스트)")
   can_write     BOOLEAN NOT NULL DEFAULT TRUE,   -- FALSE = 열람 전용 링크
-  expires_at    DATETIME NOT NULL,         -- 기본 발급+30일, 최대 180일 [Irene 확인 §12-Q3]
-  max_uses      INT NULL,                  -- NULL = 무제한. "사용" = 신규 브라우저 세션 진입 (§6.3)
-  use_count     INT NOT NULL DEFAULT 0,
+  expires_at    DATETIME NOT NULL,         -- ★ 개정: **마지막 사용 후 90일 슬라이딩** (아래 참조)
   message_count INT NOT NULL DEFAULT 0,    -- 게스트가 쓴 메시지 수 (남용 가시화)
   last_used_at  DATETIME NULL,
   last_used_ip  VARCHAR(45) NULL,
-  shadow_user_id INT NULL,                 -- 첫 작성 시 lazy 생성되는 그림자 User. FK users
   created_by    INT NOT NULL,              -- 발급자. FK users
   revoked_at    DATETIME NULL,             -- 회수 (단건)
   revoked_by    INT NULL,
@@ -107,10 +104,42 @@ CREATE TABLE guest_links (
 
 Sequelize 모델 컨벤션은 SignatureRequest.js 와 동일 (class X extends Model, underscored: true).
 
+> ## ★ 2026-09-02 개정 (Fable 설계 판정) — 초안과 **다르게 정한 것 4가지**
+>
+> 이 문서 초안(2026-08-18)은 §12 에 "Irene 이 정해야 할 것 6건" 을 남기고 멈췄고, 그 미결이
+> 그대로 답글로 되돌아갔다. Irene: *"fable이 이대로 제대로 판단할 수 있을까?"*
+> 이번 판정은 그 6건을 **전부 결정**했다. 초안과 달라진 곳:
+>
+> **① 신원 단위 — 링크당(lazy) → 고객당(발급 시점)**
+>   초안은 링크마다 그림자 User 를 첫 **작성** 시 만들었다. 두 가지가 깨진다:
+>   · 회수 후 재발급하면 그림자가 둘 = **같은 고객이 두 사람으로 갈라진다.** 영업 히스토리
+>     축적(#381)을 정확히 막는 결정이다.
+>   · 이미지 보안 Stage 2 가 켜지면 이미지 접근 판정이 `canAccessConversation(viewer, conv)` 가
+>     된다(middleware/imageViewer.js). 게스트는 **열람만 해도** 신원이 있어야 그 문을 지난다.
+>   → `clients.guest_user_id` (고객당 1개), **발급 시점** 생성. `shadow_user_id` 컬럼 삭제.
+>
+> **② 만료 — 고정 30일 → 마지막 사용 후 90일 슬라이딩**
+>   고정 만료는 두 달 전 카톡 메시지의 링크를 누른 고객에게 "만료" 화면을 보여준다 = 불편 =
+>   Irene 이 말한 **영업 손상**. 무기한은 퍼진 뒤 회수할 계기가 없다.
+>   슬라이딩은 "쓰는 고객은 안 끊기고 떠난 고객의 링크는 죽는" 절충이다.
+>   죽은 링크를 눌러도 "담당자에게 요청" 이 아니라 **다음 알림 메일에 새 토큰이 자동으로 실린다**
+>   (메일 = 이미 검증된 채널로만 재발급).
+>
+> **③ 횟수 제한·기기 바인딩 — 삭제**
+>   폴링·다기기·"폰 카톡에서 열고 사무실 PC 에서 다시 열기" 에서 정확히 셀 수 없다.
+>   초안 §6.3 스스로 "우회 가능·가시화 장치" 라고 인정했다. 없는 편이 낫다.
+>   → `max_uses`·`use_count` 컬럼 삭제. 남용 가시화는 `message_count` + rate-limit 이 한다.
+>
+> **④ 이미지 — 게스트에게 이미지 쿠키를 발급한다**
+>   `services/authTokens.js setImageCookie()` 를 게스트 GET 에서 호출한다. `IMAGE_COOKIE_PATHS`
+>   에 `/api/message-attachments/public` 이 이미 있어 경로 변경은 없다.
+>   이걸 안 하면 Stage 2 를 켜는 날 게스트 화면의 이미지가 전부 깨진다.
+
 ### 4.2 기존 테이블 변경 (최소 3건)
 
 | 테이블 | 변경 | 이유 |
 |---|---|---|
+| `clients` | `guest_user_id INT NULL FK users` 추가 | ★개정 — 그림자 User 를 **고객당 1개**로. 회수·재발급해도 같은 사람 |
 | `users` | `is_guest BOOLEAN NOT NULL DEFAULT FALSE` 추가 | 그림자 계정 식별. 로그인/비번재설정/OAuth 매칭 전부 `is_guest` 차단 (is_ai 차단 auth.js:458 과 나란히). 화면 "게스트" 뱃지 근거 |
 | `businesses` | `guest_links_enabled BOOLEAN NOT NULL DEFAULT TRUE` 추가 | 워크스페이스 킬스위치 |
 | `platform_settings` | `guest_links_enabled BOOLEAN NOT NULL DEFAULT TRUE` 추가 | 플랫폼 전체 킬스위치 (maintenance_mode 와 같은 자리) |

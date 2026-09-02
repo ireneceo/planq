@@ -1,5 +1,5 @@
 {
-  "_generated": "2026-08-31",
+  "_generated": "2026-09-02",
   "_db": "planq_dev_db",
   "_note": "스키마 변경 후 `node scripts/dump-schema.js` 로 갱신할 것. guard-invariants schemacol 이 읽는다.",
   "tables": {
@@ -264,7 +264,8 @@
       "billing_exempt_until",
       "billing_exempt_note",
       "billing_exempt_set_by",
-      "billing_exempt_set_at"
+      "billing_exempt_set_at",
+      "guest_links_enabled"
     ],
     "calendar_event_attendees": [
       "id",
@@ -386,7 +387,8 @@
       "billing_contact_phone",
       "reinvite_count",
       "kind",
-      "email_aliases"
+      "email_aliases",
+      "guest_user_id"
     ],
     "contact_inquiries": [
       "id",
@@ -907,6 +909,26 @@
       "action",
       "reason",
       "detail",
+      "created_at",
+      "updated_at"
+    ],
+    "guest_links": [
+      "id",
+      "business_id",
+      "conversation_id",
+      "project_id",
+      "client_id",
+      "token_hash",
+      "token_hint",
+      "guest_name",
+      "can_write",
+      "expires_at",
+      "message_count",
+      "last_used_at",
+      "last_used_ip",
+      "created_by",
+      "revoked_at",
+      "revoked_by",
       "created_at",
       "updated_at"
     ],
@@ -1438,7 +1460,8 @@
       "stripe_publishable_key",
       "stripe_secret_enc",
       "stripe_webhook_secret_enc",
-      "announcement_text_en"
+      "announcement_text_en",
+      "guest_links_enabled"
     ],
     "post_attachments": [
       "id",
@@ -2197,7 +2220,8 @@
       "created_via",
       "hold_prev_status",
       "hold_reason",
-      "miss_policy"
+      "miss_policy",
+      "priority_level"
     ],
     "teams": [
       "id",
@@ -2269,7 +2293,8 @@
       "deletion_scheduled_at",
       "anonymized_at",
       "whats_new_seen_at",
-      "auto_clock_in_on_focus"
+      "auto_clock_in_on_focus",
+      "is_guest"
     ],
     "weekly_review_settings": [
       "user_id",

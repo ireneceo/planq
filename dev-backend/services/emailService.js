@@ -337,6 +337,11 @@ function emailBlockReason(to) {
     // (2026-07-07 실바운스: cue+4@system.planq.kr "Address not found") 발신평판·바운스 보호.
     if (domain === 'system.planq.kr' || domain.endsWith('.system.planq.kr')) return 'synthetic_internal';
     if (/^cue\+\d+@/.test(addr)) return 'synthetic_cue';
+    // #259 — 게스트 그림자 계정(guest+cN@guest.planq.kr)도 같은 성격이다. 메일박스가 없다.
+    //   notify() 가 이미 is_guest 로 막지만, 여기가 **마지막 방어선**이다 —
+    //   새 발송 경로가 생겨 그 검사를 안 거쳐도 여기서 걸린다.
+    if (domain === 'guest.planq.kr' || domain.endsWith('.guest.planq.kr')) return 'synthetic_guest';
+    if (/^guest\+c\d+@/.test(addr)) return 'synthetic_guest';
   }
   return any ? null : 'empty';
 }

@@ -198,8 +198,15 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
   if (!skip.has('email') && await isAllowed(userId, businessId, eventKind, 'email')) {
     try {
       const { User } = require('../models');
-      const user = await User.findByPk(userId, { attributes: ['email'] });
-      if (user?.email) {
+      const user = await User.findByPk(userId, { attributes: ['email', 'is_guest'] });
+      // ★ #259 — **게스트 그림자 계정에는 메일을 보내지 않는다.**
+      //   그림자 주소(guest+cN@guest.planq.kr)는 실재하지 않는다. 그리로 보내면 전부 반송되고
+      //   발신 평판이 깎인다. 게스트에게 가는 알림은 별도 경로(대화 알림 메일)가
+      //   Client.invite_email 로 **링크를 실어** 보낸다 — 여기서 흉내내면 링크 없는 메일이 나간다.
+      //   그리고 그 메일에 내부 메모 미리보기가 실리면 그게 곧 유출이다. 두 방향 다 막는다.
+      if (user?.is_guest) {
+        results.email = { skipped: 'guest_shadow_account' };
+      } else if (user?.email) {
         const { sendNotificationEmail } = require('../services/emailService');
         results.email = await sendNotificationEmail({
           to: user.email,

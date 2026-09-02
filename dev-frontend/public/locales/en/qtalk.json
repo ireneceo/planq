@@ -495,5 +495,20 @@
   "reaction": {
     "add": "Add reaction",
     "close": "Close"
+  },
+  "guestLink": {
+    "title": "Customer link",
+    "lead": "A link that lets {{name}} read and reply to this conversation without signing in. Send it by messenger or email.",
+    "issue": "Create link",
+    "freshLabel": "Link created — copy it now",
+    "share": "Send",
+    "copy": "Copy",
+    "copied": "Copied",
+    "onceNote": "This address is shown only now. Create a new one if you need it again — earlier links keep working.",
+    "active": "Active links",
+    "revoke": "Revoke",
+    "lastUsed": "Last used {{d}}",
+    "neverUsed": "Not used yet",
+    "msgs": "{{n}} sent"
   }
 }

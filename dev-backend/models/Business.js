@@ -248,6 +248,11 @@ Business.init({
   default_vat_rate: { type: DataTypes.DECIMAL(4, 3), defaultValue: 0.100 },
   // 청구서 기본 결제 기한 (발행일 + N일)
   default_due_days: { type: DataTypes.INTEGER, defaultValue: 14, comment: '청구서 기본 결제 기한 (일)' },
+  // #259 — 워크스페이스 킬스위치. 끄면 이 워크스페이스의 유효 게스트 링크가 전부 404.
+  guest_links_enabled: {
+    type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true,
+    comment: '#259 workspace kill switch',
+  },
   // R3 단위 보고서 통합 — 통합확정 단계 사용 여부 / 월간 미확정 자동확정 ON/OFF (설계 §5.1)
   report_integrated_confirm: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, comment: 'ON: 대표가 통합 확정 1회' },
   monthly_finalize_enabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, comment: '월간 마감 시 미확정 자동확정' },

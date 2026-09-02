@@ -17,7 +17,9 @@
 const EXACT = ['/', '/features', '/pricing', '/insights', '/blog', '/about', '/contact'];
 
 /** 하위 경로까지 포함하는 prefix */
-const PREFIX = ['/insights/', '/blog/', '/wiki/'];
+//   ★ '/g/' — #259 무로그인 게스트 링크. 고객이 카톡·메일로 받은 링크로 들어오는 자리라
+//     워크스페이스 chrome 이 하나라도 뜨면 "남의 회사 도구" 로 보인다.
+const PREFIX = ['/insights/', '/blog/', '/wiki/', '/g/'];
 
 export function isPublicSurfacePath(pathname: string): boolean {
   if (EXACT.includes(pathname)) return true;

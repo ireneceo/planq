@@ -28,6 +28,7 @@ import EmojiPickerButton from './EmojiPickerButton';   // #380 입력창 이모�
 import { PanelBackButton } from '../../components/Layout/PanelHeader';
 import { openPreviewWindow } from '../../utils/openPreviewWindow';
 import { isEnterAction } from '../../utils/imeKey';
+import GuestLinkButton from '../../components/QTalk/GuestLinkButton';
 
 // 운영 #367 — 작성 중 메시지 초안의 저장 키. **사용자별로 갈라야 한다** — 한 브라우저를 둘이
 //   나눠 쓰면(공용 PC·로그아웃 후 재로그인) 앞사람이 쓰다 만 글이 뒷사람 입력칸에 그대로 떴다.
@@ -1166,6 +1167,15 @@ const ChatPanel: React.FC<Props> = ({
                 </ChatName>
                 {/* '내부' 는 default 라 라벨 X — '고객' 만 강조 (B2B 시각 패턴).
                     고객이 연결돼 있으면 이름을 눌러 그 고객의 통합 타임라인(채팅·메일·업무·청구)으로 간다. */}
+                {/* #259 — 고객 대화방에만. 로그인 없이 이 대화를 보고 답할 수 있는 링크를 만든다.
+                    내부 대화방에는 붙이지 않는다 — 내부 대화를 밖으로 여는 버튼이 되면 안 된다. */}
+                {activeConv.channel_type === 'customer' && activeConv.client && !isClient && businessId && (
+                  <GuestLinkButton
+                    businessId={businessId}
+                    conversationId={activeConv.id}
+                    clientId={activeConv.client.id}
+                    clientName={activeConv.client.name} />
+                )}
                 {activeConv.channel_type === 'customer' && (
                   activeConv.client ? (
                     <CustomerLink

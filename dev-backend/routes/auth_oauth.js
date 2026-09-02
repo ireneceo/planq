@@ -200,6 +200,11 @@ router.get('/google/callback', async (req, res) => {
       // [분기 2] email 매칭 (primary or verified secondary) — 연결 확인 페이지로
       prospectUser = await User.findOne({
         where: {
+          // #259 — 시스템 계정(Cue·게스트 그림자)에는 절대 붙이지 않는다.
+          //   그림자 주소는 guest+cN@guest.planq.kr 라 구글 계정과 겹칠 일이 없지만,
+          //   매칭 술어에 명시해 둔다 — 나중에 주소 규칙이 바뀌어도 여기가 막는다.
+          is_ai: false,
+          is_guest: false,
           [Op.or]: [
             { email: profile.email },
             { secondary_email: profile.email, secondary_email_verified_at: { [Op.ne]: null } },

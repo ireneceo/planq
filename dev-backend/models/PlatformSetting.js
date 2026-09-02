@@ -74,6 +74,11 @@ PlatformSetting.init({
   // ─── 점검 모드 + 운영 공지 배너 (2026-05-05) ───
   // maintenance_mode=true 면 platform_admin 외 모든 요청 503. message 가 사용자에게 표시.
   maintenance_mode: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  // #259 — 플랫폼 전체 킬스위치 (maintenance_mode 와 같은 자리).
+  guest_links_enabled: {
+    type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true,
+    comment: '#259 platform kill switch',
+  },
   maintenance_message: { type: DataTypes.STRING(500), allowNull: true },
   // 사이드바 상단 공지 배너 — 운영자 일괄 안내 (점검 일정·신규 기능·약관 변경 등)
   announcement_text: { type: DataTypes.STRING(500), allowNull: true },

@@ -164,6 +164,15 @@ User.init({
     defaultValue: false,
     allowNull: false
   },
+  // #259 — 무로그인 게스트의 **그림자 계정**. 로그인·비밀번호 재설정·OAuth 매칭에서 전부 막힌다.
+  //   메시지 sender_id 가 NOT NULL 이라 게스트 발언에도 사람 행이 필요한데, 그 자리를 이것이 채운다.
+  //   (sender_id 를 nullable 로 푸는 것은 unread 집계·표시명·프론트 소비처 전체의 대수술이다.)
+  is_guest: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false,
+    comment: '#259 shadow guest account - login blocked',
+  },
   // 마지막으로 선택한 워크스페이스 — 로그인 후 자동 진입 + 워크스페이스 스위처 기본값
   // 멤버십이 끊기거나 삭제되면 SET NULL → 첫 가용 워크스페이스로 fallback
   active_business_id: {

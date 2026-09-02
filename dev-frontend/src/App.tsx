@@ -76,6 +76,8 @@ const ReceivedSignaturesPage = lazy(() => import('./pages/Signatures/ReceivedSig
 const PublicDocPage = lazy(() => import('./pages/QDocs/PublicDocPage'));
 const PublicPostPage = lazy(() => import('./pages/QDocs/PublicPostPage'));
 const PublicTaskPage = lazy(() => import('./pages/Public/PublicTaskPage'));
+// #259 무로그인 게스트 링크 — 고객이 카톡·메일로 받은 링크로 들어오는 자리.
+const GuestConversationPage = lazy(() => import('./pages/Guest/GuestConversationPage'));
 const PublicFilePage = lazy(() => import('./pages/Public/PublicFilePage'));
 const PublicKbDocumentPage = lazy(() => import('./pages/Public/PublicKbDocumentPage'));
 const PublicKbBundlePage = lazy(() => import('./pages/Public/PublicKbBundlePage'));
@@ -584,6 +586,8 @@ function ShellApp() {
         <Route path="/public/docs/:token" element={<PublicDocPage />} />
         <Route path="/public/posts/:token" element={<PublicPostPage />} />
         <Route path="/public/tasks/:token" element={<PublicTaskPage />} />
+        {/* #259 — 짧은 경로. 카톡·문자로 전달되는 링크라 길면 잘리고 미리보기가 지저분해진다. */}
+        <Route path="/g/:token" element={<GuestConversationPage />} />
         <Route path="/public/files/:token" element={<PublicFilePage />} />
         <Route path="/public/kb/:token" element={<PublicKbDocumentPage />} />
         <Route path="/public/kb-bundle/:token" element={<PublicKbBundlePage />} />

@@ -489,6 +489,11 @@ app.use('/api/messages', require('./routes/message_reactions'));   // #138 이�
 app.use('/api/tasks', require('./routes/tasks'));
 app.use('/api/tasks', require('./routes/task_workflow'));
 app.use('/api/tasks', require('./routes/task_attachments'));
+// #259 무로그인 게스트 링크 — **인증 없는 공개 라우트**. 공개 라우트끼리 모아 둔다
+//   (인증 라우트 사이에 흩어지면 다음 사람이 이게 공개인 줄 모른다).
+app.use('/api/guest', require('./routes/guest'));
+// 게스트 링크 **관리** (멤버용, 인증 필수) — 공개 표면과 파일을 나눠 둔다.
+app.use('/api/conversations', require('./routes/guest_admin'));
 // ★ 동기화 조치 라우트를 **먼저** 마운트한다 — calendar.js 에 `/:id/share` 같은 와일드카드 형태가
 //   있어 뒤에 붙이면 경로가 그쪽에 먹힐 위험이 있다(라우트 순서 함정).
 app.use('/api/calendar', require('./routes/calendar_sync'));

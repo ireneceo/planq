@@ -93,6 +93,7 @@ const DocumentRevision = require('./DocumentRevision');
 const PostRevision = require('./PostRevision');
 const DocumentShare = require('./DocumentShare');
 const SignatureRequest = require('./SignatureRequest');
+const GuestLink = require('./GuestLink');   // #259 무로그인 게스트 링크
 // ─── 표 (Q docs 문서 안의 동적 테이블 — Notion DB 패턴) ───
 //     ⚠️ Q info(kb_documents)와 다른 물건. models/QRecord.js 주석 참조.
 const QRecord = require('./QRecord');
@@ -623,6 +624,7 @@ module.exports = {
   PostRevision,
   DocumentShare,
   SignatureRequest,
+  GuestLink,
   // Q record
   QRecord,
   QRecordRow,

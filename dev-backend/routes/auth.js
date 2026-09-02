@@ -483,7 +483,9 @@ router.post('/login', async (req, res, next) => {
     }
 
     // AI 계정(Cue) 로그인 차단
-    if (user.is_ai) {
+    // #259 — 게스트 그림자 계정도 같이 막는다. 로그인용이 아니라 **메시지 작성자 자리**를 채우는
+    //   계정이다(messages.sender_id NOT NULL). 뚫리면 그 고객 명의로 워크스페이스에 들어온다.
+    if (user.is_ai || user.is_guest) {
       return errorResponse(res, 'Invalid email or password', 401);
     }
 
@@ -641,7 +643,7 @@ router.post('/refresh', async (req, res, next) => {
           && succCreatedMs >= DELIVERY_EPOCH_MS;
         if (succUnused) {
           const user = await User.findByPk(tokenRow.user_id);
-          if (user && user.status === 'active' && !user.is_ai) {
+          if (user && user.status === 'active' && !user.is_ai && !user.is_guest) {
             const persist = decoded.persist !== false;
             const inheritKind = tokenRow.client_kind || 'web';
             const accessTok = generateAccessToken(user);
@@ -669,7 +671,7 @@ router.post('/refresh', async (req, res, next) => {
         const successor = await RefreshToken.findByPk(tokenRow.replaced_by_id);
         if (successor && !successor.revoked_at) {
           const user = await User.findByPk(tokenRow.user_id);
-          if (user && user.status === 'active' && !user.is_ai) {
+          if (user && user.status === 'active' && !user.is_ai && !user.is_guest) {
             // ── #244 (D2) grace 창 쿠키 자가치유 ──────────────────────────────
             //
             //   왜: 여기 도달했다는 건 브라우저가 **이미 회전된 옛 쿠키**를 아직 들고 있다는 뜻이다
@@ -914,6 +916,11 @@ router.post('/forgot-password', async (req, res, next) => {
     if (!email || typeof email !== 'string') return errorResponse(res, 'email_required', 400);
     const cleanEmail = email.trim().toLowerCase();
     const user = await User.findOne({ where: { email: cleanEmail } });
+    // #259 — 게스트 그림자 계정은 비밀번호 재설정으로도 살아나면 안 된다.
+    //   (응답은 아래 기존 분기가 "메일 보냈다" 로 통일해 계정 존재를 노출하지 않는다.)
+    if (user && (user.is_ai || user.is_guest)) {
+      return successResponse(res, null, 'If the email exists, a reset link has been sent');
+    }
     // 이메일 존재 여부 누설 방지 — 무조건 200 + 동일 메시지
     if (user && user.status === 'active') {
       const crypto = require('crypto');
