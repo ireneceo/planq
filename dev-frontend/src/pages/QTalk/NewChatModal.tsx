@@ -21,6 +21,10 @@ export interface NewChatFormData {
   // null/undefined: 기존 또는 미연결. string: 새로 만들 프로젝트 이름.
   new_project_name?: string | null;
   client_id: number | null; // 고객 1명 직접 연결 가능 — 프로젝트와 독립
+  // #259 — 고객이 링크로 들어올 방인가. 이것이 true 면 고객을 안 골라도 고객 대화방으로 만든다.
+  //   여태 채널 유형은 "고객을 골랐는가" 로만 정해졌고, 그래서 **고객 없이 링크용 방을 만들 수가
+  //   없었다.** 링크는 사람이 아니라 방에 붙는다.
+  guest_link_room: boolean;
   participant_user_ids: number[];
   // 채팅 설정 (생성 시점에 같이 결정 — 만든 후 톱니에서 변경 가능)
   auto_extract_enabled: boolean;
@@ -57,6 +61,7 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
   const [newProjectName, setNewProjectName] = useState('');
   const [participantIds, setParticipantIds] = useState<number[]>([]);
   const [clientId, setClientId] = useState<number | null>(null);
+  const [guestLinkRoom, setGuestLinkRoom] = useState(false);
   const [members, setMembers] = useState<WorkspaceMemberRow[]>([]);
   const [clients, setClients] = useState<WorkspaceClientRow[]>([]);
   const [projects, setProjects] = useState<ApiProject[]>([]);
@@ -144,6 +149,7 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
         project_id: projectId === -1 ? null : projectId,
         new_project_name: projectId === -1 ? newProjectName.trim() : null,
         client_id: clientId,
+        guest_link_room: guestLinkRoom,
         participant_user_ids: participantIds,
         auto_extract_enabled: autoExtract,
         translation_enabled: translationOn,
@@ -215,6 +221,25 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
               }}
               options={clientOptions}
             />
+          </Field>
+
+          <Field>
+            {/* #259 — 고객을 고르지 않아도 "링크로 들어올 방" 을 만들 수 있어야 한다.
+                고객을 골랐으면 어차피 고객 대화방이므로 이 줄은 숨긴다(같은 말을 두 번 묻지 않는다). */}
+            {clientId == null && (
+              <>
+                <Label>{t('newChat.guestRoom', '고객이 링크로 들어올 방')}</Label>
+                <Hint>{t('newChat.guestRoomHint', '켜면 이 방에서 링크를 만들 수 있습니다. 고객은 로그인 없이 링크만으로 들어와 답할 수 있습니다.')}</Hint>
+                <ToggleLine>
+                  <ToggleSwitch>
+                    <input type="checkbox" role="switch" aria-checked={guestLinkRoom}
+                      data-testid="newchat-toggle-guest_link_room"
+                      checked={guestLinkRoom} onChange={(e) => setGuestLinkRoom(e.target.checked)} />
+                    <span />
+                  </ToggleSwitch>
+                </ToggleLine>
+              </>
+            )}
           </Field>
 
           <Field>

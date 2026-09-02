@@ -33,10 +33,18 @@ GuestLink.init({
   //     "incompatible" 로 실패하고 **테이블 자체가 안 만들어진다**(실측).
   project_id: { type: DataTypes.BIGINT, allowNull: true, references: { model: 'projects', key: 'id' } },
   // 게스트의 명함 = 기존 Client row. 신원(그림자 User)은 여기가 아니라 **Client 에** 있다.
-  client_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'clients', key: 'id' } },
+  // 고객은 **선택**이다 (2026-09-02). 링크는 사람이 아니라 **방**에 붙는다 —
+  //   한 링크를 카톡방에서 여럿이 나눠 가지는 것이 이 기능의 전제(설계 §2)라
+  //   Client(=명함)를 필수 부모로 두는 것 자체가 모델 오류였다.
+  //   대화방에 고객이 붙어 있으면 발급 시 자동 복사(타임라인 연속성), 없으면 NULL.
+  client_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'clients', key: 'id' } },
+  // 그림자 User — 링크당 1개. 신원(누가 썼나)의 원천.
+  //   화면에 뜨는 이름은 여기가 아니라 messages.meta.guest.name 이다.
+  guest_user_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'users', key: 'id' } },
   token_hash: { type: DataTypes.CHAR(64), allowNull: false, unique: true },
   token_hint: { type: DataTypes.CHAR(6), allowNull: false, comment: '원문 앞 6자 — 관리 UI 식별용(복원 불가)' },
-  guest_name: { type: DataTypes.STRING(100), allowNull: false },
+  // 멤버가 붙이는 메모용 이름(선택). **화면 표시명이 아니다.**
+  guest_name: { type: DataTypes.STRING(100), allowNull: true },
   can_write: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, comment: 'false = 열람 전용' },
   // 슬라이딩 — 쓸 때마다 뒤로 밀린다 (services/guest_link.js resolve 가 갱신).
   expires_at: { type: DataTypes.DATE, allowNull: false },

@@ -9,5 +9,13 @@
   "expired": {
     "title": "This link has expired",
     "body": "The link closed after a long period without use. Please ask your contact for a new link."
-  }
+  },
+  "nameAsk": "Tell us your name so your contact knows who you are",
+  "namePh": "Name (optional)",
+  "nameOk": "OK",
+  "nameSkip": "Skip",
+  "nameShown": "You appear as {{name}}",
+  "nameChange": "Change",
+  "nameFromNow": "A new name applies to later messages only",
+  "nameReserved": "That name is not available. Please choose another."
 }

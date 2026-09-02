@@ -177,7 +177,9 @@
     "me": "me",
     "addMemberPh": "+ Add teammate",
     "creating": "Creating...",
-    "create": "Create chat"
+    "create": "Create chat",
+    "guestRoom": "Room for customers joining by link",
+    "guestRoomHint": "Turn this on to create share links here. Customers can open the link and reply without signing in."
   },
   "common": {
     "cancel": "Cancel",
@@ -511,6 +513,10 @@
     "revoke": "Revoke",
     "lastUsed": "Last used {{d}}",
     "neverUsed": "Not used yet",
-    "msgs": "{{n}} sent"
+    "msgs": "{{n}} sent",
+    "errDisabled": "Guest links are turned off. Please contact your administrator.",
+    "errNotCustomer": "Links can only be created in customer conversations.",
+    "errArchived": "This conversation is archived — links cannot be created.",
+    "errGeneric": "Could not create the link. Please try again in a moment."
   }
 }

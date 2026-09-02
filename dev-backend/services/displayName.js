@@ -89,9 +89,41 @@ async function getMemberDisplayName(businessId, userId, fallbackName, fallbackLo
   };
 }
 
+/**
+ * 게스트 메시지의 표시명을 **메시지 행에 박제된 값**으로 바꾼다 (#259, 2026-09-02).
+ *
+ * 신원(누가 썼나)은 링크의 그림자 User 이고 그 이름은 "게스트" 로 고정돼 있다.
+ * 화면에 뜨는 이름은 그 메시지를 쓸 때 실려 온 `meta.guest.name` 이다.
+ * **이 둘을 갈라 두는 이유**: 한 링크를 카톡방에서 여럿이 나눠 갖는 것이 이 기능의 전제라
+ * (설계 §2), 이름을 사람(User)에 두면 나중 사람이 이름을 정하는 순간
+ * **이미 보낸 과거 메시지의 이름까지 소급해서 바뀐다.**
+ *
+ * 읽는 곳이 여럿이라 **여기 한 곳**에서만 바꾼다 — 경로마다 따로 쓰면 반드시 갈라진다.
+ * 이름이 없으면 건드리지 않는다(그림자 User 의 "게스트" 가 그대로 뜬다).
+ *
+ * @param {object|object[]} rows  toJSON 된 메시지(들)
+ * @param {string} senderPath     sender 가 들어 있는 키 (기본 'sender')
+ */
+function applyGuestDisplayName(rows, senderPath = 'sender') {
+  const list = Array.isArray(rows) ? rows : [rows];
+  for (const row of list) {
+    if (!row) continue;
+    const sender = row[senderPath];
+    if (!sender || sender.is_guest !== true) continue;
+    const name = row.meta && row.meta.guest && row.meta.guest.name;
+    if (name) {
+      sender.name = String(name);
+      // 다국어 이름은 게스트에게 없다 — 남아 있으면 프론트가 그쪽을 먼저 본다.
+      if ('name_localized' in sender) sender.name_localized = null;
+    }
+  }
+  return rows;
+}
+
 module.exports = {
   getMemberNameMap,
   applyMemberDisplayName,
   applyMemberDisplayNameOne,
   getMemberDisplayName,
+  applyGuestDisplayName,
 };

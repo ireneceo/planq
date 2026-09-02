@@ -27,14 +27,8 @@ Client.init({
     type: DataTypes.STRING(200),
     allowNull: true,
   },
-  // #259 — 이 고객의 무로그인 그림자 User. **고객당 1개**다(링크당이 아니라).
-  //   링크를 회수하고 다시 발급해도 같은 사람으로 남아야 상담 히스토리가 이어진다.
-  guest_user_id: {
-    type: DataTypes.INTEGER,
-    allowNull: true,
-    references: { model: 'users', key: 'id' },
-    comment: '#259 무로그인 게스트의 그림자 User (고객당 1개)',
-  },
+  // (#259 guest_user_id 는 2026-09-02 제거 — 그림자 User 는 이제 guest_links 에 링크당 1개.
+  //  운영 전부 NULL 이었다. 운영 ALTER: `ALTER TABLE clients DROP COLUMN guest_user_id;`)
   accepted_at: {
     type: DataTypes.DATE,
     allowNull: true,

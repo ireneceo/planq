@@ -266,6 +266,9 @@ sync_database() {
   # #259 게스트 링크 — clients.guest_user_id · users.is_guest · 킬스위치 2컬럼.
   #   ★ 순서: 이 ALTER 가 PM2 reload 보다 먼저. guest_links 테이블은 sync-database 가 만든다.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-guest-links.js 2>&1 | tail -10"
+  # #259 2차 — 게스트 링크에서 고객 의존을 뗀다 (client_id NULL 허용 · guest_links.guest_user_id 신설
+  #   · clients.guest_user_id DROP). ★ 반드시 1차 뒤에. 멱등이며 운영 링크 0건이라 백필 없음.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-guest-link-owner.js 2>&1 | tail -12"
   # Q Mail 발송 상태 — email_messages.delivery_status ENUM 에 'suppressed' append.
   #   ★ 순서: 이 ALTER 가 PM2 reload 보다 먼저 끝나야 한다(신 코드가 먼저 뜨면 Data truncated).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-email-delivery-status.js 2>&1 | tail -10"

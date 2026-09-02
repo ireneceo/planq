@@ -57,7 +57,9 @@ const serializeMessage = (m, guestUserId) => ({
   created_at: m.created_at,
   is_mine: m.sender_id === guestUserId,
   // 보내는 사람은 **표시명만**. 이메일·id 는 내보내지 않는다.
-  sender_name: m.sender?.name || null,
+  //   게스트가 쓴 글은 그 행에 박제된 이름을 쓴다 — 그림자 User 이름은 "게스트" 로 고정이라
+  //   이것을 안 보면 고객 화면에서 서로가 전부 "게스트" 로 보인다.
+  sender_name: (m.sender?.is_guest === true && m.meta?.guest?.name) || m.sender?.name || null,
 });
 
 // ── GET /api/guest/:token — 대화방 컨텍스트 ────────────────────────────────
@@ -86,7 +88,10 @@ router.get('/:token', guestLimiter('guest-ctx', { windowMs: 60 * 1000, max: 60 }
     return successResponse(res, {
       guest_name: link.guest_name,
       can_write: !!link.can_write,
-      client_name: client.display_name || client.company_name || null,
+      // 고객은 **선택**이다 (2026-09-02). 붙어 있으면 이름을 보여주고, 없으면 null —
+      //   화면은 대화방 제목으로 떨어진다. 여기서 `client.display_name` 을 그냥 읽다가
+      //   고객 없는 방에서 **500** 이 났다(읽는 곳 전수 확인을 빠뜨린 것).
+      client_name: client ? (client.display_name || client.company_name || null) : null,
       conversation: { id: conversation.id, title: conversation.title || null },
       project,
     });
@@ -100,7 +105,7 @@ router.get('/:token/messages', guestLimiter('guest-msgs', { windowMs: 60 * 1000,
     const rows = await Message.findAll({
       // 쿼리에서 한 번, visibleToGuest 에서 또 한 번 — 둘 중 하나가 바뀌어도 안 샌다.
       where: { conversation_id: conversation.id, is_deleted: false },
-      include: [{ model: User, as: 'sender', attributes: ['id', 'name'] }],
+      include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'is_guest'] }],
       order: [['created_at', 'DESC']],
       limit: 200,
     });
@@ -127,6 +132,28 @@ router.post('/:token/messages', guestLimiter('guest-send', { windowMs: 60 * 1000
     //   프론트 정화기를 믿고 원문을 넣으면, 그 정화기가 한 번 무너질 때 이 입구가 통로가 된다.
     const cleaned = raw.replace(/<[^>]*>/g, '').slice(0, 4000);
     if (!cleaned.trim()) return errorResponse(res, 'content_required', 400);
+
+    // ── 게스트가 스스로 정하는 표시명 (선택) ──────────────────────────────
+    //   무인증 입력이다. 프론트 정화기를 믿지 않는다 — 본문과 같은 원칙.
+    //   비어 있으면 null → 화면은 "게스트" 로 그린다.
+    let guestDisplayName = null;
+    const rawName = req.body?.guest_name;
+    if (rawName != null) {
+      const n = String(rawName)
+        .replace(/<[^>]*>/g, '')             // 태그
+        .replace(/[\u0000-\u001F\u007F]/g, '')  // 제어문자
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 30);                        // 30자 캡
+      if (n) {
+        // 사칭 차단 — 우리 쪽 사람으로 보이는 이름은 거절한다. 뱃지가 최종 방어지만
+        //   "PlanQ 관리자" 가 이름으로 통과하면 뱃지를 못 본 사람에게는 통한다.
+        const RESERVED = ['planq', 'cue', '관리자', 'admin', '운영자', '담당자'];
+        const low = n.toLowerCase();
+        if (RESERVED.some((w) => low.includes(w))) return errorResponse(res, 'name_reserved', 400);
+        guestDisplayName = n;
+      }
+    }
     const msg = await Message.create({
       conversation_id: conversation.id,
       sender_id: guestUser.id,   // 그림자 User — sender_id 는 NOT NULL 이다
@@ -134,6 +161,12 @@ router.post('/:token/messages', guestLimiter('guest-send', { windowMs: 60 * 1000
       kind: 'text',
       is_ai: false,
       is_internal: false,        // ★ 게스트는 내부 메모를 만들 수 없다. 하드코딩이다
+      // ★ 표시명은 **이 행에 박제**한다 (2026-09-02).
+      //   한 링크를 여럿이 나눠 갖는 것이 이 기능의 전제라(설계 §2), 이름을 링크나 그림자 User 에
+      //   두면 **나중 사람이 이름을 정하는 순간 과거 메시지의 이름까지 소급해서 바뀐다.**
+      //   신원(누가 썼나) = 링크의 그림자 User, 라벨(뭐라고 보이나) = 이 값. 둘을 갈라 둔다.
+      //   link_id 는 §8 승격(이 링크 발 메시지만 이관)의 열쇠이기도 하다.
+      meta: { guest: { link_id: link.id, name: guestDisplayName } },
     });
     await conversation.update({ last_message_at: new Date() });
     await link.increment('message_count');
@@ -145,7 +178,9 @@ router.post('/:token/messages', guestLimiter('guest-send', { windowMs: 60 * 1000
     const io = req.app.get('io');
     if (io && full) {
       const payload = full.toJSON();
-      payload.via_guest_link = true;   // 화면이 "게스트" 뱃지를 그릴 근거
+      // 표시명은 REST 와 **같은 헬퍼**로 바꾼다 — 경로마다 따로 쓰면 반드시 갈라진다.
+      require('../services/displayName').applyGuestDisplayName(payload);
+      payload.via_guest_link = true;   // (옛 필드 — 뱃지 근거는 sender.is_guest 다)
       io.to(`conv:${conversation.id}`).emit('message:new', payload);
       io.to(`business:${conversation.business_id}`).emit('message:new', payload);
     }
@@ -164,7 +199,8 @@ router.post('/:token/messages', guestLimiter('guest-send', { windowMs: 60 * 1000
           userIds: memberIds,
           businessId: conversation.business_id,
           eventKind: 'message',
-          title: `${link.guest_name} (게스트)`,
+          // link.guest_name 은 멤버 메모용이라 대개 비어 있다. 이 글을 쓴 사람의 이름을 쓴다.
+          title: `${guestDisplayName || link.guest_name || '게스트'} (게스트)`,
           // 정화 전 raw 가 아니라 태그를 걷어낸 cleaned 를 넣는다 — 알림은 메일·inbox·push 로
           //   퍼지고 그중 하나만 HTML 로 렌더하면 무인증 입구가 그대로 통로가 된다 (#259).
           body: cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned,

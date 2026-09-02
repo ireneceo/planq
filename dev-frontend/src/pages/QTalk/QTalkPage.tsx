@@ -1215,6 +1215,9 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         title: data.title,
         project_id: finalProjectId,
         client_id: data.client_id,
+        // 고객을 골랐거나 "링크로 들어올 방" 을 켰으면 고객 대화방이다.
+        //   서버(guest_admin)가 `channel_type === 'customer'` 만 링크를 내주므로 여기서 결정된다.
+        channel_type: (data.client_id != null || data.guest_link_room) ? 'customer' : undefined,
         participant_user_ids: data.participant_user_ids,
         auto_extract_enabled: data.auto_extract_enabled,
         translation_enabled: data.translation_enabled,

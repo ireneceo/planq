@@ -177,7 +177,9 @@
     "me": "나",
     "addMemberPh": "+ 팀원 추가",
     "creating": "생성 중...",
-    "create": "대화 만들기"
+    "create": "대화 만들기",
+    "guestRoom": "고객이 링크로 들어올 방",
+    "guestRoomHint": "켜면 이 방에서 링크를 만들 수 있습니다. 고객은 로그인 없이 링크만으로 들어와 답할 수 있습니다."
   },
   "common": {
     "close": "닫기",
@@ -511,6 +513,10 @@
     "revoke": "회수",
     "lastUsed": "마지막 사용 {{d}}",
     "neverUsed": "아직 사용 안 함",
-    "msgs": "{{n}}건 작성"
+    "msgs": "{{n}}건 작성",
+    "errDisabled": "게스트 링크 기능이 꺼져 있습니다. 관리자에게 문의해 주세요.",
+    "errNotCustomer": "고객 대화방에서만 만들 수 있습니다.",
+    "errArchived": "보관된 대화방에는 만들 수 없습니다.",
+    "errGeneric": "링크를 만들지 못했습니다. 잠시 후 다시 시도해 주세요."
   }
 }

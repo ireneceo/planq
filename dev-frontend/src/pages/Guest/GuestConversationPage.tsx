@@ -27,6 +27,15 @@ export default function GuestConversationPage() {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // 이름 — **고객이 직접 정한다.** 멤버는 발급할 때 아무것도 입력하지 않는다.
+  //   저장은 이 브라우저에만. 서버는 매 전송에 실려 온 값을 그 메시지에 박제할 뿐
+  //   세션 상태를 갖지 않는다 — 그래야 나중에 이름을 바꿔도 과거 글이 안 바뀐다.
+  const nameKey = `guest:name:${token || ''}`;
+  const [name, setName] = useState<string>(() => {
+    try { return localStorage.getItem(nameKey) || ''; } catch { return ''; }
+  });
+  const [askName, setAskName] = useState(false);   // 이름 줄을 펼칠지
+  const [nameDraft, setNameDraft] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async (first = false) => {
@@ -54,17 +63,37 @@ export default function GuestConversationPage() {
   }, [load, gone]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ block: 'end' }); }, [msgs.length]);
 
+  const saveName = (v: string) => {
+    const n = v.trim().slice(0, 30);
+    setName(n);
+    try { n ? localStorage.setItem(nameKey, n) : localStorage.removeItem(nameKey); } catch { /* 시크릿 창 */ }
+    setAskName(false);
+  };
+
   const send = async () => {
     const body = draft.trim();
     if (!body || sending || !token) return;
+    // ★ 이름은 **첫 글을 쓰기 직전**에 한 번만 묻는다. 입장 때 막으면
+    //   "가볍게 들어와서 확인" 이 안 된다 — 읽기만 하러 온 사람에게 관문을 세우지 않는다.
+    if (!name && !askName) { setAskName(true); setNameDraft(''); return; }
     setSending(true); setErr(null);
     try {
       const r = await fetch(`/api/guest/${token}/messages`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: body }),
+        body: JSON.stringify({ content: body, guest_name: name || undefined }),
       });
       if (r.status === 404) { setGone(true); return; }
-      if (!r.ok) { setErr(t('sendFailed', { defaultValue: '보내지 못했습니다. 잠시 후 다시 시도해 주세요.' }) as string); return; }
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({} as { message?: string }));
+        if ((j as { message?: string })?.message === 'name_reserved') {
+          // 우리 쪽 사람으로 보이는 이름은 서버가 거절한다. 그 사실을 숨기지 않는다.
+          setErr(t('nameReserved', { defaultValue: '그 이름은 쓸 수 없습니다. 다른 이름으로 바꿔 주세요.' }) as string);
+          setAskName(true); setNameDraft(name);
+          return;
+        }
+        setErr(t('sendFailed', { defaultValue: '보내지 못했습니다. 잠시 후 다시 시도해 주세요.' }) as string);
+        return;
+      }
       setDraft('');
       await load(false);
     } catch {
@@ -105,6 +134,31 @@ export default function GuestConversationPage() {
       {ctx.can_write ? (
         <Foot>
           {err && <ErrLine>{err}</ErrLine>}
+          {askName ? (
+            <NameRow>
+              <NameLabel>{t('nameAsk', { defaultValue: '이름을 알려주시면 담당자가 알아보기 쉬워요' })}</NameLabel>
+              <NameInput
+                value={nameDraft} onChange={(e) => setNameDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) saveName(nameDraft); }}
+                placeholder={t('namePh', { defaultValue: '이름 (선택)' }) as string}
+                maxLength={30} autoFocus />
+              <NameBtn type="button" onClick={() => saveName(nameDraft)}>
+                {t('nameOk', { defaultValue: '확인' })}
+              </NameBtn>
+              <NameSkip type="button" onClick={() => { setAskName(false); }}>
+                {t('nameSkip', { defaultValue: '건너뛰기' })}
+              </NameSkip>
+            </NameRow>
+          ) : name ? (
+            <NameShown>
+              {t('nameShown', { defaultValue: '{{name}} 으로 표시됩니다', name })}
+              <NameEdit type="button" onClick={() => { setAskName(true); setNameDraft(name); }}>
+                {t('nameChange', { defaultValue: '바꾸기' })}
+              </NameEdit>
+              {/* 규칙을 설명하지 않고 결과만 말한다 */}
+              <NameNote>{t('nameFromNow', { defaultValue: '바꾼 이름은 이후 메시지부터' })}</NameNote>
+            </NameShown>
+          ) : null}
           <InputRow>
             <TArea value={draft} onChange={(e) => setDraft(e.target.value)}
               placeholder={t('placeholder', { defaultValue: '메시지를 입력하세요' }) as string}
@@ -137,6 +191,28 @@ const Text = styled.div`font-size:0.875rem;line-height:1.55;white-space:pre-wrap
 const Empty = styled.div`margin:auto;color:#94a3b8;font-size:0.875rem;`;
 const Foot = styled.div`background:#fff;border-top:1px solid #e2e8f0;padding:10px 20px;padding-bottom:calc(10px + env(safe-area-inset-bottom));`;
 const InputRow = styled.div`display:flex;gap:8px;align-items:flex-end;`;
+const NameRow = styled.div`display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px;`;
+const NameLabel = styled.span`font-size:0.8125rem;color:#475569;flex:1 1 100%;`;
+const NameInput = styled.input`
+  flex:1 1 140px;min-width:0;padding:8px 10px;border:1px solid #CBD5E1;border-radius:8px;
+  font-size:0.875rem;min-height:44px;
+`;
+const NameBtn = styled.button`
+  min-height:44px;padding:0 14px;border:0;border-radius:8px;background:#0F172A;color:#fff;
+  font-size:0.8125rem;font-weight:600;cursor:pointer;
+`;
+const NameSkip = styled.button`
+  min-height:44px;padding:0 10px;border:0;background:none;color:#64748B;
+  font-size:0.8125rem;cursor:pointer;text-decoration:underline;
+`;
+const NameShown = styled.div`
+  display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px;
+  font-size:0.75rem;color:#64748B;
+`;
+const NameEdit = styled.button`
+  border:0;background:none;color:#0F172A;font-size:0.75rem;cursor:pointer;text-decoration:underline;padding:0;
+`;
+const NameNote = styled.span`color:#94A3B8;`;
 const TArea = styled.textarea`
   flex:1;min-height:44px;max-height:140px;resize:none;padding:9px 12px;
   border:1px solid #cbd5e1;border-radius:8px;font-size:0.875rem;font-family:inherit;line-height:1.5;

@@ -4,7 +4,7 @@
 //   다음 사람이 어느 라우트가 공개인지 못 본다. 여기는 전부 authenticateToken 이다.
 const express = require('express');
 const router = express.Router();
-const { GuestLink, Client, Conversation, User } = require('../models');
+const { GuestLink, Client, Conversation, User, PlatformSetting, Business } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { attachWorkspaceScope, assertMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
@@ -56,11 +56,38 @@ router.post('/:businessId/:id/guest-links', authenticateToken, attachWorkspaceSc
     const conv = await Conversation.findOne({ where: { id: conversationId, business_id: businessId } });
     if (!conv) return errorResponse(res, 'conversation_not_found', 404);
 
-    const clientId = Number(req.body?.client_id || 0);
-    if (!clientId) return errorResponse(res, 'client_id_required', 400);
-    // 테넌트 이중 검증 — 다른 워크스페이스 고객에게 우리 대화방을 열어 줄 수 없다.
-    const client = await Client.findOne({ where: { id: clientId, business_id: businessId } });
-    if (!client) return errorResponse(res, 'client_not_found', 404);
+    // ── fail-closed 3종 (S0) ─────────────────────────────────────────────
+    //   여태 이 라우트는 **화면이 숨기는 것에만 의존**했다. 서버는 아무것도 안 봤다.
+    //   화면 조건과 서버 술어가 갈리면, 갈린 쪽이 곧 우회로다.
+
+    // ① 내부 대화방에 링크를 내주면 **내부 대화가 통째로 밖으로 열린다.**
+    //    게스트 필터는 `is_internal`(메모 플래그)만 보므로 internal 방의 일반 대화는 다 보인다.
+    if (conv.channel_type !== 'customer') {
+      return errorResponse(res, 'not_customer_channel', 403);
+    }
+    // ② 보관된 방 — 끝난 대화를 다시 여는 링크는 만들 수 없다.
+    if (conv.status === 'archived') {
+      return errorResponse(res, 'conversation_archived', 409);
+    }
+    // ③ 킬스위치가 꺼져 있으면 **발급도 막는다.** 여태 발급은 201 이 났고 그 링크는
+    //    열리지 않았다 — 담당자가 죽은 주소를 고객에게 보내고 고객은 없는 페이지를 본다.
+    //    `resolveGuestToken` 과 같은 술어를 쓴다 (fail-closed: 못 읽으면 닫는다).
+    const platform = await PlatformSetting.findOne({ attributes: ['guest_links_enabled'] });
+    const bizRow = await Business.findByPk(businessId, { attributes: ['guest_links_enabled'] });
+    if (!platform || platform.guest_links_enabled !== true
+        || !bizRow || bizRow.guest_links_enabled === false) {
+      return errorResponse(res, 'guest_links_disabled', 403);
+    }
+
+    // 고객은 **선택**이다 (2026-09-02). 멤버가 링크를 만들 때 아무것도 입력하지 않는다 —
+    //   Irene: "왜 고객정보를 넣어야 해? 고객이 그냥 가볍게 들어와서 확인 및 소통".
+    //   대화방에 고객이 붙어 있으면 그것을 그대로 쓰고(타임라인 연속성), 없으면 NULL.
+    //   요청 body 의 client_id 는 **신뢰하지 않는다** — 대화방의 것을 쓴다(테넌트 우회 차단).
+    let client = null;
+    if (conv.client_id) {
+      client = await Client.findOne({ where: { id: conv.client_id, business_id: businessId } });
+      // 대화방이 가리키는 고객이 다른 워크스페이스면 데이터가 어긋난 것이다 — 붙이지 않고 넘어간다.
+    }
 
     const { link, token } = await issueGuestLink({
       businessId,
@@ -75,7 +102,7 @@ router.post('/:businessId/:id/guest-links', authenticateToken, attachWorkspaceSc
     createAuditLog({
       userId: req.user.id, businessId,
       action: 'guest_link.create', targetType: 'GuestLink', targetId: link.id,
-      newValue: { conversation_id: conversationId, client_id: clientId, can_write: link.can_write },
+      newValue: { conversation_id: conversationId, client_id: client ? client.id : null, can_write: link.can_write },
     });
 
     return successResponse(res, {

@@ -1168,13 +1168,17 @@ const ChatPanel: React.FC<Props> = ({
                 {/* '내부' 는 default 라 라벨 X — '고객' 만 강조 (B2B 시각 패턴).
                     고객이 연결돼 있으면 이름을 눌러 그 고객의 통합 타임라인(채팅·메일·업무·청구)으로 간다. */}
                 {/* #259 — 고객 대화방에만. 로그인 없이 이 대화를 보고 답할 수 있는 링크를 만든다.
-                    내부 대화방에는 붙이지 않는다 — 내부 대화를 밖으로 여는 버튼이 되면 안 된다. */}
-                {activeConv.channel_type === 'customer' && activeConv.client && !isClient && businessId && (
+                    내부 대화방에는 붙이지 않는다 — 내부 대화를 밖으로 여는 버튼이 되면 안 된다.
+                    ★ `activeConv.client` 조건은 뺐다 (2026-09-02). 고객이 연결 안 된 고객 대화방이
+                      운영에 절반이었고, 그 방에서는 버튼이 아예 안 보여 Irene 이 "어디에 고객 이름
+                      있는 줄이 있냐" 고 물었다. 링크는 **사람이 아니라 방**에 붙는다.
+                    ★ 서버(`routes/guest_admin.js`)가 같은 술어를 fail-closed 로 다시 본다 —
+                      화면 조건만으로 막으면 갈린 쪽이 곧 우회로다. */}
+                {activeConv.channel_type === 'customer' && !isClient && businessId && (
                   <GuestLinkButton
                     businessId={businessId}
                     conversationId={activeConv.id}
-                    clientId={activeConv.client.id}
-                    clientName={activeConv.client.name} />
+                    clientName={activeConv.client?.name || activeConv.name} />
                 )}
                 {activeConv.channel_type === 'customer' && (
                   activeConv.client ? (

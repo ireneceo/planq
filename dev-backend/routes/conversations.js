@@ -10,7 +10,7 @@ const { serializeMessageAttachments } = require('../services/filePreview');
 const { createAuditLog } = require('../middleware/audit');
 const cueOrchestrator = require('../services/cue_orchestrator');
 const kbService = require('../services/kb_service');
-const { applyMemberDisplayName, applyMemberDisplayNameOne, getMemberNameMap } = require('../services/displayName');
+const { applyMemberDisplayName, applyMemberDisplayNameOne, getMemberNameMap, applyGuestDisplayName } = require('../services/displayName');
 
 const isAdmin = (req) =>
   req.user?.platform_role === 'platform_admin' || req.businessRole === 'owner';
@@ -632,6 +632,8 @@ router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async 
       Number(req.params.businessId),
       ['sender']
     );
+    // 게스트 표시명 — 메시지마다 박제된 값으로 (services/displayName.applyGuestDisplayName).
+    applyGuestDisplayName(result.messages);
     // 첨부 미리보기 URL — 서버가 계산해 내려준다. 프론트가 `/:id/raw`(무인증 순차 id) 를 쓰던 것이
     //   타 워크스페이스 채팅 이미지 열람 경로였다. 규칙은 services/filePreview 단일 원천.
     serializeMessageAttachments(result.messages);
@@ -711,6 +713,7 @@ router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope
       emitMsg = fullMsg.toJSON();
       serializeMessageAttachments(emitMsg);
       await applyMemberDisplayNameOne(emitMsg, Number(req.params.businessId), ['sender']);
+      applyGuestDisplayName(emitMsg);
     }
     const io = req.app.get('io');
     if (io && emitMsg) {
@@ -823,6 +826,7 @@ router.put('/:businessId/:id/messages/:msgId', authenticateToken, attachWorkspac
     });
     const payload = fullMsg.toJSON();
     await applyMemberDisplayNameOne(payload, Number(businessId), ['sender']);
+    applyGuestDisplayName(payload);
     const io = req.app.get('io');
     if (io) io.to(`conv:${conv.id}`).emit('message:updated', payload);
     await createAuditLog({ userId: req.user.id, businessId, action: 'message.edit', targetType: 'Message', targetId: msg.id });
@@ -938,6 +942,7 @@ router.get('/:businessId/:id/pinned', authenticateToken, attachWorkspaceScope(),
     const payload = list.map(m => m.toJSON());
     serializeMessageAttachments(payload);
     await applyMemberDisplayName(payload, Number(businessId), ['sender']);
+    applyGuestDisplayName(payload);
     return successResponse(res, payload);
   } catch (err) { next(err); }
 });

@@ -17,8 +17,8 @@ type Link = {
   expires_at: string; last_used_at: string | null; message_count: number; revoked_at: string | null;
 };
 
-export default function GuestLinkButton({ businessId, conversationId, clientId, clientName }: {
-  businessId: number; conversationId: number; clientId: number; clientName: string;
+export default function GuestLinkButton({ businessId, conversationId, clientName }: {
+  businessId: number; conversationId: number; clientName: string;
 }) {
   const { t } = useTranslation('qtalk');
   const [open, setOpen] = useState(false);
@@ -26,6 +26,9 @@ export default function GuestLinkButton({ businessId, conversationId, clientId, 
   const [fresh, setFresh] = useState<string | null>(null);   // 방금 발급된 원문 URL
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  // 서버가 거절한 이유를 화면이 말해야 한다. 여태 `if (!r.ok) return;` 이라 **눌러도 아무 일이
+  //   안 일어났다** — 사용자에게는 "고장" 과 구별되지 않는다 (memory feedback_apifetch_no_throw_silent_save).
+  const [err, setErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const r = await apiFetch(`/api/conversations/${businessId}/${conversationId}/guest-links`);
@@ -34,18 +37,29 @@ export default function GuestLinkButton({ businessId, conversationId, clientId, 
     if (j.success) setLinks((j.data || []).filter((l: Link) => !l.revoked_at));
   }, [businessId, conversationId]);
 
-  useEffect(() => { if (open) { setFresh(null); setCopied(false); load(); } }, [open, load]);
+  useEffect(() => { if (open) { setFresh(null); setCopied(false); setErr(null); load(); } }, [open, load]);
 
   const issue = async () => {
     if (busy) return;
     setBusy(true);
     try {
       const r = await apiFetch(`/api/conversations/${businessId}/${conversationId}/guest-links`, {
+        // 아무것도 보내지 않는다 — 고객은 서버가 **대화방에서** 읽는다.
+        //   요청 body 의 client_id 를 서버가 믿으면 테넌트 우회 통로가 된다.
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ client_id: clientId }),
+        body: JSON.stringify({}),
       });
-      if (!r.ok) return;
-      const j = await r.json();
+      const j = await r.json().catch(() => ({} as { message?: string }));
+      if (!r.ok) {
+        const code = (j as { message?: string })?.message || '';
+        setErr(
+          code === 'guest_links_disabled' ? t('guestLink.errDisabled', { defaultValue: '게스트 링크 기능이 꺼져 있습니다. 관리자에게 문의해 주세요.' }) as string
+          : code === 'not_customer_channel' ? t('guestLink.errNotCustomer', { defaultValue: '고객 대화방에서만 만들 수 있습니다.' }) as string
+          : code === 'conversation_archived' ? t('guestLink.errArchived', { defaultValue: '보관된 대화방에는 만들 수 없습니다.' }) as string
+          : t('guestLink.errGeneric', { defaultValue: '링크를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.' }) as string,
+        );
+        return;
+      }
       if (j.success && j.data?.url) { setFresh(j.data.url); await load(); }
     } finally { setBusy(false); }
   };
@@ -106,9 +120,12 @@ export default function GuestLinkButton({ businessId, conversationId, clientId, 
               <Note>{t('guestLink.onceNote', { defaultValue: '이 주소는 지금만 보입니다. 나중에 다시 필요하면 새로 만들어 주세요 — 이전 링크도 계속 쓸 수 있습니다.' })}</Note>
             </FreshBox>
           ) : (
-            <ActionButton tone="primary" size="md" onClick={issue} loading={busy}>
-              {t('guestLink.issue', { defaultValue: '링크 만들기' })}
-            </ActionButton>
+            <>
+              {err && <ErrNote role="alert">{err}</ErrNote>}
+              <ActionButton tone="primary" size="md" onClick={issue} loading={busy}>
+                {t('guestLink.issue', { defaultValue: '링크 만들기' })}
+              </ActionButton>
+            </>
           )}
 
           {links.length > 0 && (
@@ -153,6 +170,18 @@ const UrlText = styled.input`
 `;
 const BtnRow = styled.div`display:flex;gap:8px;`;
 const Note = styled.div`font-size:0.75rem;color:#64748b;margin-top:10px;line-height:1.5;`;
+
+// 서버가 거절한 이유. 조용히 삼키면 사용자에게는 "눌러도 아무 일이 없는 것" 이 된다.
+const ErrNote = styled.div`
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-radius: 8px;
+  color: #991B1B;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+`;
 const ListBox = styled.div`margin-top:18px;border-top:1px solid #e2e8f0;padding-top:14px;`;
 const ListTitle = styled.div`font-size:0.75rem;font-weight:700;color:#64748b;margin-bottom:8px;`;
 const Row = styled.div`display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f1f5f9;&:last-child{border-bottom:none;}`;

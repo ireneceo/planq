@@ -6,6 +6,30 @@
 
 ---
 
+## 0. 개정 — 2026-09-02: 고객 의존을 뗀다 (Fable 설계 게이트 조건부 승인)
+
+**Irene:** *"왜 고객정보를 넣어야 해? 보안? 그럼 소용 없어. 고객이 그냥 가볍게 들어와서 확인 및 소통할 수 있나 해서 한건데"*
+
+1단계를 켠 직후, 운영 고객 대화방 4개 중 **버튼이 뜨는 방이 1개뿐**이었다. 나머지는
+`client_id` 가 없어 화면 조건(`activeConv.client`)에서 걸렸다. 즉 링크를 만들려면
+**고객 등록 → 고객 대화방 → 발급** 3단계를 사람이 이해해야 했다. 그것이 결함이다.
+
+| 무엇 | 옛 설계 | 지금 |
+|---|---|---|
+| 링크의 부모 | **Client**(명함) 필수 | **대화방**. 고객은 선택(방에 붙어 있으면 자동 복사) |
+| 그림자 User | 고객당 1개 (`clients.guest_user_id`) | **링크당 1개** (`guest_links.guest_user_id`) |
+| 표시명 | 발급 시 멤버가 입력 → 그림자 User 의 name | **게스트가 스스로**, 메시지마다 `messages.meta.guest.name` 에 박제 |
+| 멤버가 할 일 | 고객 고르고 이름 적고 발급 | **버튼 한 번** |
+
+**표시명을 메시지에 박제하는 이유**: 한 링크를 카톡방에서 여럿이 나눠 갖는 것이 이 기능의
+전제(§2)다. 이름을 사람(User)이나 링크에 두면 **나중 사람이 이름을 정하는 순간 이미 보낸
+과거 메시지의 이름까지 소급해서 바뀐다.** 신원(누가 썼나)=링크, 라벨(뭐라고 보이나)=메시지.
+
+아래 §4.1 · §7.1 · §8 · §9.2 는 이 개정을 반영해 고쳤다. 마이그레이션은
+`dev-backend/scripts/migrate-guest-link-owner.js` (멱등, 배포 체인 연결됨).
+
+---
+
 ## 1. 목적과 범위
 
 **Irene 확정 범위 (2026-08-18):**
@@ -82,10 +106,12 @@ CREATE TABLE guest_links (
   business_id   INT NOT NULL,              -- 멀티테넌트 격리 축. FK businesses
   conversation_id INT NOT NULL,            -- 열람·작성 범위 = 이 대화방 하나. FK conversations
   project_id    BIGINT NULL,               -- NULL = 개요 탭 없음. FK projects (같은 business 강제 검증)
-  client_id     INT NOT NULL,              -- 게스트의 명함 = 기존 Client row. FK clients
+  client_id     INT NULL,                  -- ★개정(2026-09-02) 선택. 방에 고객이 붙어 있으면 자동 복사
+  guest_user_id INT NOT NULL,              -- ★신설 그림자 User. **링크당 1개**. FK users
   token_hash    CHAR(64) NOT NULL UNIQUE,  -- sha256(원문). 원문은 발급 응답에 1회만 노출
   token_hint    CHAR(6) NOT NULL,          -- 원문 앞 6자 — 관리 UI 식별용 (원문 복원 불가)
-  guest_name    VARCHAR(100) NOT NULL,     -- 화면 표시명 ("김고객 (게스트)")
+  guest_name    VARCHAR(100) NULL,         -- ★개정 멤버 메모용(선택). **화면 표시명이 아니다**
+                                           --   표시명은 messages.meta.guest.name (메시지마다 박제)
   can_write     BOOLEAN NOT NULL DEFAULT TRUE,   -- FALSE = 열람 전용 링크
   expires_at    DATETIME NOT NULL,         -- ★ 개정: **마지막 사용 후 90일 슬라이딩** (아래 참조)
   message_count INT NOT NULL DEFAULT 0,    -- 게스트가 쓴 메시지 수 (남용 가시화)
@@ -239,7 +265,13 @@ services/guest_link.js :: resolveGuestLink(rawToken)
 
 ### 7.1 sender = 링크 전용 그림자 계정 (Cue 선례 복제)
 
-- **첫 작성 시점에 lazy 생성** (열람만 하는 링크는 users row 를 만들지 않는다):
+> ★ **개정 2026-09-02** — 그림자는 **링크당 1개**이고 **발급 시점에** 만든다(lazy 아님).
+>   이름은 **"게스트" 로 고정**한다. 화면에 뜨는 이름은 `messages.meta.guest.name` 이다.
+>   발급 시점에 만드는 이유는 이미지 보안 Stage 2 (열람만 해도 신원이 필요) 때문이고,
+>   링크당인 이유는 부모였던 Client 가 선택이 되면서 "고객당" 이 성립하지 않기 때문이다.
+>   아래 코드 스케치는 **옛 안**이다 — 실제 구현은 `services/guest_link.js` 를 볼 것.
+
+- ~~**첫 작성 시점에 lazy 생성**~~ (열람만 하는 링크는 users row 를 만들지 않는다):
   ```
   User.create({
     email: `guest+gl${link.id}@guest.planq.kr`,   // Cue 의 cue+{biz}@system.planq.kr 패턴 (auth.js:340-350)

@@ -23,7 +23,7 @@ const taskExtractor = require('../services/task_extractor');
 const cueOrchestrator = require('../services/cue_orchestrator');
 // 업무 생성 술어 재사용 — 기본담당자 미리보기가 실제 배정과 같은 코드를 쓰게 한다
 const taskActions = require('../services/actions/task_actions');
-const { applyMemberDisplayName, applyMemberDisplayNameOne, getMemberNameMap } = require('../services/displayName');
+const { applyMemberDisplayName, applyMemberDisplayNameOne, getMemberNameMap, applyGuestDisplayName } = require('../services/displayName');
 const { todayInTz, mondayOfDateStr, addDaysStr } = require('../utils/datetime');
 const { fetchProjectStats } = require('../services/weeklyReviewSnapshot');
 
@@ -857,6 +857,7 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
     const fullJson = full.toJSON();
     serializeMessageAttachments(fullJson);
     await applyMemberDisplayNameOne(fullJson, conv.business_id, ['sender']);
+    applyGuestDisplayName(fullJson);
 
     // Socket.IO broadcast — 메시지 즉시 발송 (번역 기다리지 않음)
     // N+71 fix — conv room + business room 둘 다 emit (Q Talk 리스트 실시간 갱신 회귀 fix)
@@ -987,6 +988,7 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
               const payload = cueMsg.toJSON();
               serializeMessageAttachments(payload);
               await applyMemberDisplayNameOne(payload, conv.business_id, ['sender']);
+              applyGuestDisplayName(payload);
               payload.ai_mode_used = cueResult.mode; // draft / auto
               // 운영 #368 — 승인 전 초안은 **고객에게 가면 안 된다**.
               //   `conv:<id>` 룸에는 고객이 같이 있어서, 여태 초안이 만들어지는 즉시 고객 화면에
@@ -1049,6 +1051,7 @@ router.post('/messages/:id/approve-draft', authenticateToken, async (req, res, n
     });
     const fullJson = full.toJSON();
     await applyMemberDisplayNameOne(fullJson, conv?.business_id, ['sender']);
+    applyGuestDisplayName(fullJson);
 
     const io = req.app.get('io');
     if (io) {
@@ -1211,6 +1214,7 @@ router.get('/conversations/:id/messages', authenticateToken, async (req, res, ne
     });
     serializeMessageAttachments(result);
     await applyMemberDisplayName(result, conv.business_id, ['sender']);
+    applyGuestDisplayName(result);
     // data 는 기존과 동일하게 메시지 배열 (호출처 무변경). has_more 만 추가 (무한 스크롤 업 판별용).
     return res.json({ success: true, data: result, has_more: hasMore });
   } catch (err) { next(err); }
