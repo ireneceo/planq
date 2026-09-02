@@ -260,6 +260,9 @@ sync_database() {
   # #206 Q Task 보류/외부컨펌 — tasks.status ENUM 에 on_hold/external_review append + hold 컬럼 2개.
   #   ★ 순서: 이 ALTER 가 PM2 reload 보다 먼저 끝나야 한다(신 코드가 먼저 뜨면 Data truncated).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-task-hold-status.js 2>&1 | tail -10"
+  # #353 ⑤ 업무 중요도 — tasks.priority_level ENUM 신설 (NULL default, 백필 없음).
+  #   ★ 순서: 이 ALTER 가 PM2 reload 보다 먼저 끝나야 한다(신 코드가 없는 컬럼에 쓰면 실패).
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-task-priority-level.js 2>&1 | tail -10"
   # Q Mail 발송 상태 — email_messages.delivery_status ENUM 에 'suppressed' append.
   #   ★ 순서: 이 ALTER 가 PM2 reload 보다 먼저 끝나야 한다(신 코드가 먼저 뜨면 Data truncated).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-email-delivery-status.js 2>&1 | tail -10"

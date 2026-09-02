@@ -868,6 +868,10 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
         workstreamId: (isRoutineConfirm && Number.isInteger(c.area_ref) && areaIdxToWsId.has(c.area_ref))
           ? areaIdxToWsId.get(c.area_ref)
           : matchWorkstream(c.workstream_hint),
+        // #353 ⑤ — **여기가 값이 죽던 지점이다.** LLM 은 low/normal/high/urgent 를 내고
+        //   후보 JSON 이 프론트까지 살아서 오는데, 확정할 때 이 한 줄이 없어서 매번 버려졌다.
+        //   사용자가 카드에서 고쳐 보낸 값이 있으면 그것이 우선이다(사람 > AI).
+        priorityLevel: c.priority || null,
       }, {
         // 이 경로의 고유 규칙 (통일 금지 — 프론트가 이 차이에 기대고 있다):
         keepEstimateForCue: true,          // 담당=Cue 면 요청 업무여도 예측시간을 남긴다
@@ -1140,7 +1144,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     const task = await Task.findOne({ where: { id: req.params.id, business_id: businessId } });
     if (!task) return errorResponse(res, 'task_not_found', 404);
 
-    const { title, description, body, assignee_id, status, due_date, start_date, estimated_hours, actual_hours, progress_percent, category, planned_week_start, project_id, recurrence_rule, workstream_id, is_milestone, hold_reason, miss_policy } = req.body;
+    const { title, description, body, assignee_id, status, due_date, start_date, estimated_hours, actual_hours, progress_percent, category, planned_week_start, project_id, recurrence_rule, workstream_id, is_milestone, hold_reason, miss_policy, priority_level } = req.body;
     const updates = {};
     if (is_milestone !== undefined) updates.is_milestone = !!is_milestone;
     if (title !== undefined) updates.title = title;
@@ -1158,6 +1162,19 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     if (progress_percent !== undefined) updates.progress_percent = progress_percent;
     if (category !== undefined) updates.category = category;
     if (planned_week_start !== undefined) updates.planned_week_start = planned_week_start;
+    // #353 ⑤ 중요도 — ENUM 밖 값은 **400 으로 돌려준다.** 조용히 떨구면 사용자는 저장된 줄 안다.
+    //   (miss_policy 는 조용히 무시하는 옛 방식인데, 그건 내부 정책 값이고 이건 사용자가 고르는 값이다.)
+    //   null·'' 은 "미지정으로 되돌리기" 다.
+    if (priority_level !== undefined) {
+      if (priority_level === null || priority_level === '') {
+        updates.priority_level = null;
+      } else if (['low', 'normal', 'high', 'urgent'].includes(priority_level)) {
+        updates.priority_level = priority_level;
+      } else {
+        return errorResponse(res, 'invalid_priority_level', 400);
+      }
+    }
+
     // #349 — 미수행 회차 정책. 시리즈 부모에만 의미가 있다(회차 인스턴스는 자기 정책을 갖지 않는다).
     //   값 검증은 여기서 한다 — ENUM 밖 값이 오면 DB 가 에러를 내고 그 에러는 사용자에게 안 보인다.
     if (miss_policy !== undefined && ['carry', 'auto_skip'].includes(miss_policy)) {
@@ -1321,6 +1338,9 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
       description: () => isCreator || isOwnerOrAdmin,                 // 담당자 빠짐 (의뢰자 영역)
       body: () => isAssignee || isPlatformAdmin || isWsAdmin,         // owner 빠짐, admin 백도어 (수행자 영역, §5.7)
       category: () => isCreator || isAssignee || isOwnerOrAdmin,
+      // #353 ⑤ 중요도 — "이 일이 얼마나 중요한가" 는 의뢰자·수행자 **둘 다** 말할 수 있다.
+      //   description(의뢰자 전용)·body(수행자 전용) 어느 배타축도 아니라 title/category 와 같은 집합.
+      priority_level: () => isCreator || isAssignee || isOwnerOrAdmin,
       status: () => isAssignee || isCreator || isOwnerOrAdmin,
       // #206 보류 사유 — 상태를 바꿀 수 있는 사람이 사유도 쓴다 (같은 집합)
       hold_reason: () => isAssignee || isCreator || isOwnerOrAdmin,
@@ -1393,7 +1413,9 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     const seriesScope = String(req.body.series_scope || 'single').toLowerCase();
     let seriesApplied = 0;
     if (seriesScope === 'future' || seriesScope === 'all') {
-      const SERIES_FIELDS = ['title', 'description', 'category', 'assignee_id', 'estimated_hours', 'workstream_id', 'is_milestone'];
+      //   #353 ⑤ — 중요도도 시리즈 전체에 전파한다. "이 정기업무가 중요하다" 는 회차가 아니라
+      //   시리즈의 성질이다(제목·담당자와 같은 축).
+      const SERIES_FIELDS = ['title', 'description', 'category', 'assignee_id', 'estimated_hours', 'workstream_id', 'is_milestone', 'priority_level'];
       const propagate = {};
       for (const f of SERIES_FIELDS) if (updates[f] !== undefined) propagate[f] = updates[f];
       if (Object.keys(propagate).length > 0) {

@@ -74,6 +74,7 @@ import PopoutViewChips, { type PopoutView } from './PopoutViewChips';
 import PopoutQuickAdd from './PopoutQuickAdd';
 import { bySortRule, buildQuickChoices, cmpNullLast } from './popoutSort';
 import { requestMainNavigate } from '../Common/PopoutBridge';
+import ImportanceChip from './ImportanceChip';
 
 interface PopoutTask {
   id: number;
@@ -94,6 +95,8 @@ interface PopoutTask {
   reviewer_count?: number | string | null;
   // 우선순위. DB 는 글로벌 단일 컬럼이라 갭(1,2,9)·중복(1,1,2)이 실재한다 — 표시는 항상 재인덱스한다.
   priority_order?: number | null;
+  /** #353 ⑤ 중요도 — 주간 랭킹 priority_order 와 다른 것. */
+  priority_level?: 'low' | 'normal' | 'high' | 'urgent' | null;
   // my-week 가 실어 보낸다. getRoles 가 reviewer 관점을 메인과 같은 근거로 판정하게 하는 용도.
   reviewers?: Array<{ id?: number; user_id: number; state?: string; is_client?: boolean }>;
   // #250 — my-week 가 배치 2차 쿼리로 실어 보낸다. **이름 사전순 정렬된 상태**라 [0] 이 대표 태그다.
@@ -694,6 +697,8 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
                       <RowTop>
                         <Badge $bg={color.bg} $fg={color.fg}>{getStatusLabel(tk, role, todayStr, t as never)}</Badge>
                         <RowTitle>{tk.title}</RowTitle>
+                        {/* #353 ⑤ 중요도 — 목록·프로젝트 목록과 **같은 칩**을 쓴다(베끼면 갈라진다). */}
+                        <ImportanceChip level={tk.priority_level} />
                       </RowTop>
                       <RowMeta>
                         {/* #250 — 팝아웃은 폭 520px 라 **대표 1칩 + `+k`** 만. 행이 한 줄을 넘기면 안 된다.

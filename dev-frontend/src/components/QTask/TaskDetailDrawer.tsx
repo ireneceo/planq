@@ -115,6 +115,8 @@ interface TaskDetail {
   status: string; priority_order: number | null;
   // #250 — 서버가 이름 사전순으로 실어 보낸다. 편집은 PUT /api/tasks/:id/tags 전용 경로.
   tags?: TaskTagLite[] | null;
+  /** #353 ⑤ 중요도. 주간 랭킹 priority_order 와 **다른 것** — 이름을 갈라 뒀다. */
+  priority_level?: 'low' | 'normal' | 'high' | 'urgent' | null;
   start_date: string | null; due_date: string | null;
   estimated_hours: number | null; actual_hours: number; progress_percent: number;
   // 시스템 자동 vs 사용자 입력 시그널 — 'ai'/'auto' 면 회색 italic, 'user' 면 검정 (사이클 N+6)
@@ -1440,6 +1442,27 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     disabled={!canEditTags || tagSaving}
                     onChange={(ids) => { if (canEditTags) saveTags(ids); }}
                     onDictAdd={(tag) => setTagDict(prev => (prev.some(p => p.id === tag.id) ? prev : [...prev, tag]))} />
+                </MetaCell>
+                {/* #353 ⑤ 중요도 — AI 가 판단하거나 사람이 고른다.
+                    ★ 왼쪽의 "우선순위 N"(주간 랭킹, priority_order)과 **다른 것**이라
+                      이름을 "중요도" 로 갈라 둔다. 값도 다른 컬럼(priority_level)이다.
+                    권한은 제목·분류와 같은 축 — 의뢰자·수행자 둘 다 말할 수 있는 성격. */}
+                <MetaCell>
+                  <MetaLabel>{t('importance.label', '중요도')}
+                    {!canEditTitle && <ReadOnlyHint>{t('detail.readOnly', '읽기 전용')}</ReadOnlyHint>}
+                  </MetaLabel>
+                  <PlanQSelect size="sm" isClearable
+                    isDisabled={!canEditTitle}
+                    placeholder={t('importance.unset', '미지정') as string}
+                    value={detailTask.priority_level
+                      ? { value: detailTask.priority_level, label: t(`importance.${detailTask.priority_level}`) as string }
+                      : null}
+                    onChange={(v) => {
+                      if (!canEditTitle) return;
+                      const val = (v as { value?: string })?.value || null;
+                      saveField('priority_level', val);
+                    }}
+                    options={['urgent', 'high', 'normal', 'low'].map((k) => ({ value: k, label: t(`importance.${k}`) as string }))} />
                 </MetaCell>
                 <MetaCell>
                   <MetaLabel>{t('detail.meta.assignee', '담당자')}</MetaLabel>

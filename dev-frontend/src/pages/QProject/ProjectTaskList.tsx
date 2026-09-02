@@ -77,12 +77,15 @@ import {
   type Workstream,
 } from '../../services/projectCanvas';
 import { isEnterAction } from '../../utils/imeKey';
+import ImportanceChip from '../../components/QTask/ImportanceChip';
 
 export interface TaskRow {
   id: number; project_id: number | null; business_id: number;
   title: string; description?: string | null;
   status: string; due_date: string | null; start_date: string | null;
   progress_percent: number; priority_order?: number | null;
+  /** #353 ⑤ 중요도 — 주간 랭킹 priority_order 와 다른 것. */
+  priority_level?: 'low' | 'normal' | 'high' | 'urgent' | null;
   workstream_id?: number | null;
   // #277 — 표시명 정본은 display_name*. 서버가 applyMemberDisplayName 으로 채워 보내고,
   //   낙관적 갱신도 같은 모양으로 만든다(둘이 다르면 spread 병합에서 계정명이 이긴다).
@@ -422,6 +425,8 @@ const ProjectTaskList: React.FC<Props> = ({
                 title={t('list.titleClickEdit', '클릭하여 업무명 수정') as string}>
                 {task.title}
               </TaskTitle>
+              {/* #353 ⑤ 중요도 — Q Task 목록과 같은 칩. */}
+              <ImportanceChip level={task.priority_level} />
               {(() => {
                 if (task.assignee_id === myId && (task.source === 'internal_request' || task.source === 'qtalk_extract') && task.requester?.name)
                   return <NameChip $type="from">{task.requester.name}</NameChip>;

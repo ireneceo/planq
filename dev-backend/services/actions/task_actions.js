@@ -34,6 +34,10 @@ const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../displa
 //   resolveSubject: Cue 는 위임자 권한으로만 · assertMenuWrite: qtask/qcalendar/qdocs='none' 봉합.
 const { resolveSubject, assertMenuWrite, fail, done } = require('./_subject');
 
+// #353 ⑤ 중요도 허용값 — models/Task.js 의 ENUM 과 **같은 순서·같은 값**이어야 한다.
+//   갈라지면 한쪽만 아는 값이 생기고, 그 값은 저장 시점에 조용히 떨어진다.
+const PRIORITY_LEVELS = ['low', 'normal', 'high', 'urgent'];
+
 // ─────────────────────────────────────────────
 // 권한 — 라우트가 아니라 **여기서** 검사한다. 사람과 Cue 가 같은 문을 지나게 하는 핵심.
 // ─────────────────────────────────────────────
@@ -369,10 +373,11 @@ async function createTask(actor, params = {}, opts = {}) {
       start_date: params.startDate || null,
       estimated_hours: effectiveEstimatedHours,
       category: params.category || null,
-      // ※ `priority` 는 tasks 에 **컬럼이 없다**(있는 건 주간 랭킹용 priority_order int).
-      //    Sequelize 는 모델에 없는 속성을 조용히 버리므로 여기에 쓰면 저장되는 척만 하는 죽은 코드다.
-      //    우선순위를 진짜로 저장하려면 컬럼 신설이 필요하고, priority_order 로 대신 쓰면
-      //    주간 랭킹 정렬 체계가 오염된다 — 그래서 '안 쓰는 것'이 확정된 선택이다.
+      // #353 ⑤ — 중요도. 위 주석은 "컬럼이 없어 저장되는 척만 한다" 였는데, 컬럼을 만들었다.
+      //   ★ priority_order(주간 랭킹)와 **다른 개념**이다. 정렬에 개입하지 않는다.
+      //   ★ 화이트리스트로만 받는다 — LLM 이 'medium' 같은 없는 값을 내면 조용히 NULL 로 떨군다.
+      //     ENUM 에 없는 값을 그대로 넘기면 MySQL strict 모드에서 **저장 전체가 실패**한다.
+      priority_level: PRIORITY_LEVELS.includes(params.priorityLevel) ? params.priorityLevel : null,
       source_message_id: params.sourceMessageId || null,
       conversation_id: params.conversationId || null,
       email_thread_id: params.emailThreadId || null,

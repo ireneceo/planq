@@ -59,6 +59,7 @@ import TagManageModal from '../../components/QTask/TagManageModal';
 import { usePanelStack } from '../../hooks/usePanelStack';
 import { askCue } from '../../utils/cueAsk';
 import { isEnterAction } from '../../utils/imeKey';
+import ImportanceChip from '../../components/QTask/ImportanceChip';
 
 // #249 — 우측 패널을 인라인으로 붙여둘 최소 뷰포트 폭.
 //   이보다 좁으면 overlay(기본 닫힘 + 떠 있는 토글 + ⌘/·Ctrl+\)로 전환해 리스트가 전폭을 쓴다.
@@ -81,6 +82,8 @@ interface TaskRow {
   hold_reason?: string | null;   // #206 — 보류 사유(리스트 title·칸반 카드 표시)
   has_unread?: boolean;
   priority_order: number | null; start_date: string | null; due_date: string | null;
+  /** #353 ⑤ 중요도 — 주간 랭킹 priority_order 와 다른 것. */
+  priority_level?: 'low' | 'normal' | 'high' | 'urgent' | null;
   estimated_hours: number | null; actual_hours: number; progress_percent: number;
   // 최신 estimation 출처 — 'ai' 면 시각 분기 (회색 + ✨), 'user' / null 은 일반
   latest_estimation_source?: 'ai' | 'user' | null;
@@ -2167,6 +2170,8 @@ const QTaskPage:React.FC=()=>{
                           title={t('list.titleClickEdit','클릭하여 업무명 수정') as string}>
                           {task.title}
                         </TaskTitle>
+                        {/* #353 ⑤ 중요도 — 높음·긴급만 그린다. 보통까지 그리면 배경 소음이 된다. */}
+                        <ImportanceChip level={task.priority_level} />
                         {/* #250 "리스트에도 태그들 볼 수 있게 하기로 하지 않았어?" — 메인은 3칩 + `+k`.
                             백엔드가 이름 사전순으로 실어 보내므로 여기서 다시 정렬하지 않는다.
                             #290 — 태그로 걸러 보는 중이면 그 태그는 모든 행이 반드시 갖고 있다(필터 술어가 보장).

@@ -1368,5 +1368,13 @@
   "attach": {
     "failed": "Couldn't upload the attachments. Please attach them again from the comments.",
     "partialFail": "The revision request was sent, but {{n}} attachment(s) didn't upload. Please attach them again from the comments."
+  },
+  "importance": {
+    "label": "Importance",
+    "unset": "Not set",
+    "low": "Low",
+    "normal": "Normal",
+    "high": "High",
+    "urgent": "Urgent"
   }
 }

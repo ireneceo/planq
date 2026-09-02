@@ -95,6 +95,9 @@ async function applyTemplate({ templateId, businessId, projectId = null, startDa
     const task = await Task.create({
       business_id: businessId,
       project_id: projectId,
+      // #353 ⑤ — 템플릿 항목의 중요도(task_template_items.priority ENUM)도 여태 버려지고 있었다.
+      //   같은 4값이라 그대로 옮긴다. 값이 없거나 모르는 값이면 미지정.
+      priority_level: ['low', 'normal', 'high', 'urgent'].includes(item.priority) ? item.priority : null,
       title: String(item.title).slice(0, 200),
       description: descParts.length > 0 ? descParts.join('\n\n').slice(0, 2000) : null,
       assignee_id: assigneeId,

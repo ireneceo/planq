@@ -177,6 +177,16 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
             onChange={e => onChange({ estimated_hours: Number(e.target.value) || 1 })} />
           <Unit>h</Unit>
         </MetaItem>
+        {/* #353 ⑤ 중요도 — AI 가 판단한 값을 **확정 전에 사람이 정정**하는 자리.
+            여태 이 값은 만들어지고도 저장 자리가 없어 매번 버려졌다(카드 타입에는 있었는데 렌더 0곳).
+            사람이 고친 값이 우선이다 — confirm 이 이 값을 그대로 실어 보낸다. */}
+        <MetaItem>
+          <PlanQSelect size="sm" isClearable
+            placeholder={t('importance.unset', '미지정') as string}
+            value={c.priority ? { value: c.priority, label: t(`importance.${c.priority}`, c.priority) as string } : null}
+            onChange={(v) => onChange({ priority: (v as { value?: string })?.value || '' })}
+            options={['urgent', 'high', 'normal', 'low'].map((k) => ({ value: k, label: t(`importance.${k}`) as string }))} />
+        </MetaItem>
         {/* 정기 루틴 — AI 가 "매일/매주/매월" 을 잡아내면 여기서 확인·수정한다.
             여태 후보에 반복 개념이 없어서 "매일 …" 이라고 써도 일회성으로만 생성됐다.
             ★ 완료로 추가일 때는 감춘다 — 완료된 일에 다음 회차는 없고(서버가 null 로 끊는다),

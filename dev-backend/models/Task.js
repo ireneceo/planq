@@ -157,10 +157,26 @@ Task.init({
     allowNull: true,
     comment: '담당자가 [요청 확인완료] 누른 시각',
   },
+  // ★ 아래 둘은 **이름이 비슷하지만 완전히 다른 개념**이다. 헷갈리면 사고가 난다.
+  //   · priority_order — 사용자가 **주간 목록에서 손으로 매기는 랭킹**(1=맨 위).
+  //     쓰기 경로가 routes/task_priority.js 하나뿐이고(다른 경로는 400 으로 막힘),
+  //     정렬 사슬 3곳(서버 taskPriority.js · QTaskPage · TaskPopoutView)이 문자 그대로 같아야 한다.
+  //   · priority_level — **이 일이 얼마나 중요한가**(#353 ⑤). AI 가 판단하거나 사람이 고른다.
+  //     정렬에 개입하지 않는다 — 개입하면 위 랭킹 체계가 오염된다.
   priority_order: {
     type: DataTypes.INTEGER,
     allowNull: true,
-    comment: 'User-defined sort order (1=highest)',
+    comment: 'User-defined sort order (1=highest) — 주간 랭킹. priority_level(중요도)과 다름',
+  },
+  // #353 ⑤ — LLM 은 여태 우선순위를 **만들고 있었는데 저장할 자리가 없어 매번 버려졌다**
+  //   (task_actions.js 옛 주석: "저장되는 척만 하는 죽은 코드").
+  //   NULL = 미지정. 기본값을 'normal' 로 두면 옛 업무 251건이 전부 "보통" 으로 표시돼
+  //   **시스템이 채운 값이 사용자 입력처럼 보인다**(memory feedback_system_filled_not_user_input).
+  priority_level: {
+    type: DataTypes.ENUM('low', 'normal', 'high', 'urgent'),
+    allowNull: true,
+    defaultValue: null,
+    comment: '#353 ⑤ 중요도(AI/사람). priority_order(주간 랭킹)와 다른 개념',
   },
   start_date: {
     type: DataTypes.DATEONLY,
