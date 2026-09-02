@@ -1570,8 +1570,10 @@ router.get('/public/:token/pdf', async (req, res, next) => {
 // GET /api/posts/public/:token
 router.get('/public/:token', async (req, res, next) => {
   try {
+    // ★ status 조건을 where 에서 뺐다 — 열림 판정은 `services/shareOpenable` 한 곳이 한다.
+    //   채팅 카드도 같은 함수를 불러 "열어보기" 를 그릴지 정한다. 두 벌이면 갈린다.
     const post = await Post.findOne({
-      where: { share_token: req.params.token, status: 'published' },
+      where: { share_token: req.params.token },
       include: [
         { model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] },
         { model: Project, attributes: ['id', 'name', 'color'], required: false },
@@ -1579,14 +1581,19 @@ router.get('/public/:token', async (req, res, next) => {
       ],
     });
     if (!post) return errorResponse(res, 'not_found', 404);
-    // N+43: 만료 검사. share_expires_at < NOW 이면 410 + 친절한 응답 (frontend 가 만료 페이지로 분기).
-    if (post.share_expires_at && new Date(post.share_expires_at) < new Date()) {
-      return res.status(410).json({
-        success: false,
-        code: 'share_expired',
-        message: 'This share link has expired.',
-        expired_at: post.share_expires_at,
-      });
+    // ★ 열림 판정은 `services/shareOpenable` 한 곳 — 채팅 카드가 부르는 것과 **같은 함수**다.
+    //   두 벌로 두면 카드가 "열어보기" 를 그려 놓고 여기서 410/404 가 나는 거짓말이 생긴다.
+    {
+      const { shareOpenReason } = require('../services/shareOpenable');
+      const why = shareOpenReason('post', post);
+      if (why === 'expired') {
+        // N+43: 만료는 410 + 친절한 응답 (frontend 가 만료 페이지로 분기).
+        return res.status(410).json({
+          success: false, code: 'share_expired',
+          message: 'This share link has expired.', expired_at: post.share_expires_at,
+        });
+      }
+      if (why) return errorResponse(res, 'not_found', 404);   // deleted·no_token·not_published
     }
     // ★ silent — 조회수 증가가 updated_at 을 건드리면 안 된다.
     //   (a) 문서를 **열기만 해도** updated_at 이 바뀌어 편집 낙관적 잠금(#252)이 즉시 거짓 409 를 낸다

@@ -31,7 +31,9 @@
     "whyRevoked": "Sharing was turned off. Please ask your contact to share it again.",
     "whyBlocked": "This item cannot be shared outside the workspace.",
     "whyUnsupported": "This cannot be opened from this link. Please contact your contact.",
-    "whyGone": "This cannot be opened right now. Please contact your contact."
+    "whyGone": "This cannot be opened right now. Please contact your contact.",
+    "whyExpired": "The sharing period has ended. Please ask your contact to share it again.",
+    "whySignature": "Please continue from the signing link you received by email."
   },
   "acct": {
     "lead": "This link shows only this conversation. To see projects and files you need an account.",

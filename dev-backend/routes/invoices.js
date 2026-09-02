@@ -131,8 +131,12 @@ router.get('/public/:token', optionalAuth, async (req, res, next) => {
       ],
     });
     if (!invoice) return errorResponse(res, 'not_found', 404);
-    if (invoice.status === 'draft' || invoice.status === 'canceled') {
-      return errorResponse(res, 'not_available', 404);
+    // ★ 열림 판정은 `services/shareOpenable` — 채팅 카드와 **같은 함수**.
+    {
+      const { shareOpenReason } = require('../services/shareOpenable');
+      const why = shareOpenReason('invoice', invoice);
+      if (why === 'not_issued') return errorResponse(res, 'not_available', 404);
+      if (why && why !== 'expired') return errorResponse(res, 'not_found', 404);
     }
     // N+43: 만료 검사
     if (invoice.share_expires_at && new Date(invoice.share_expires_at) < new Date()) {

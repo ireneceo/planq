@@ -14,6 +14,7 @@
 //     바꾸는 순간, 링크를 아는 사람이 우리 자원의 상태를 움직일 수 있게 된다.
 const { Task, File, KbDocument, CalendarEvent, Invoice, Post } = require('../models');
 const { blocksExternalShare } = require('./securityLevel');
+const { shareOpenReason } = require('./shareOpenable');
 
 // card_type → 어떤 행을 보고, 공개 경로가 무엇인가.
 //   `share.js` 의 ENTITY_CONFIG + invoices.js · posts.js 가 만드는 카드까지 한 표에 모은다.
@@ -31,7 +32,7 @@ const CARD_TARGETS = {
 /**
  * 카드의 현재 상태와 열 주소.
  *
- * @returns {Promise<{ state: 'ok'|'share_revoked'|'not_available'|'security_blocked'|'unsupported', url: string|null }>}
+ * @returns {Promise<{ state: 'ok'|'share_revoked'|'share_expired'|'not_available'|'security_blocked'|'unsupported', url: string|null }>}
  *   state 는 화면이 **왜 못 여는지**를 말하기 위한 값이다. 알 수 없는 값을 기본값으로
  *   조용히 떨어뜨리지 않는다 (CLAUDE.md "상태값 규약").
  */
@@ -47,17 +48,20 @@ async function resolveCard(meta, { businessId, appUrl }) {
   if (!entity) return { state: 'not_available', url: null };
   // 테넌트 이중 검증 — 카드가 다른 워크스페이스 자원을 가리키면 데이터가 어긋난 것이다.
   if (businessId != null && entity.business_id !== businessId) return { state: 'not_available', url: null };
-  if (entity.deleted_at) return { state: 'not_available', url: null };
 
   // 보안등급 — 채팅 공유 시점(`routes/share.js:139`)과 **같은 함수**로 다시 본다.
   //   공유한 뒤에 등급이 올라갔을 수 있고, 그때 옛 카드가 계속 열리면 안 된다.
   if (blocksExternalShare(entity)) return { state: 'security_blocked', url: null };
 
-  // 지금 살아 있는 토큰만 쓴다. 카드에 박제된 옛 토큰은 보지 않는다.
-  const token = entity.share_token;
-  if (!token) return { state: 'share_revoked', url: null };
+  // ★ "지금 열리는가" 는 **공개 라우트와 같은 함수**로 판정한다.
+  //   전에는 여기서 토큰 유무만 봐서, 만료됐거나 초안인 자료에 "열어보기" 를 그리고
+  //   누르면 410/404 가 떴다 (Fable 실증 2026-09-02).
+  const why = shareOpenReason(cardType, entity);
+  if (why === 'no_token') return { state: 'share_revoked', url: null };
+  if (why === 'expired') return { state: 'share_expired', url: null };
+  if (why) return { state: 'not_available', url: null };   // missing·deleted·not_published·not_issued
 
-  return { state: 'ok', url: `${appUrl}/public/${cfg.publicPath}/${token}` };
+  return { state: 'ok', url: `${appUrl}/public/${cfg.publicPath}/${entity.share_token}` };
 }
 
 /** 화면에 내보낼 카드 요약 — 토큰·주소는 넣지 않는다(누를 때 서버가 302 로만 준다). */

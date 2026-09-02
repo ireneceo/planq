@@ -210,7 +210,9 @@ router.get('/:token/cards/:messageId/open',
 
     // 사용 기록 — 열람도 사용이다(슬라이딩 만료가 뒤로 밀린다).
     await link.update({ last_used_at: new Date() }).catch(() => null);
-    return res.redirect(302, r.url);
+    // 헤더만 보낸다 — Express 기본 302 본문(`Found. Redirecting to <url>`)에 토큰이 한 번 더 실린다.
+    //   Location 과 같은 값이라 새 노출은 아니지만, 내보낼 이유도 없다.
+    return res.status(302).set('Location', r.url).end();
   } catch (err) { next(err); }
 });
 

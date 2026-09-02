@@ -17,7 +17,7 @@ type GuestCard = {
   title: string | null;
   note: string | null;
   // 왜 못 여는지까지 서버가 계산해 내려준다 — 화면이 조용히 기본값으로 떨어지지 않게.
-  state: 'ok' | 'share_revoked' | 'not_available' | 'security_blocked' | 'unsupported';
+  state: 'ok' | 'share_revoked' | 'share_expired' | 'not_available' | 'security_blocked' | 'unsupported';
 };
 type GuestMsg = {
   id: number; content: string; created_at: string; is_mine: boolean; sender_name: string | null;
@@ -115,9 +115,12 @@ export default function GuestConversationPage() {
       default: return t('card.other', { defaultValue: '첨부' });
     }
   };
-  const cardWhy = (state: GuestCard['state']) => {
+  const cardWhy = (state: GuestCard['state'], kind: string | null) => {
+    // 서명은 "담당자에게 문의" 가 **틀린 안내**다 — 서명자는 이미 메일로 OTP 링크를 받았다.
+    if (kind === 'signature_request') return t('card.whySignature', { defaultValue: '이메일로 받은 서명 링크에서 진행해 주세요.' });
     switch (state) {
       case 'share_revoked': return t('card.whyRevoked', { defaultValue: '공유가 해제되었습니다. 담당자에게 다시 요청해 주세요.' });
+      case 'share_expired': return t('card.whyExpired', { defaultValue: '공유 기간이 지났습니다. 담당자에게 다시 요청해 주세요.' });
       case 'security_blocked': return t('card.whyBlocked', { defaultValue: '외부 공유가 제한된 자료입니다.' });
       case 'unsupported': return t('card.whyUnsupported', { defaultValue: '이 링크에서는 열 수 없습니다. 담당자에게 문의해 주세요.' });
       default: return t('card.whyGone', { defaultValue: '지금은 열 수 없습니다. 담당자에게 문의해 주세요.' });
@@ -243,7 +246,7 @@ export default function GuestConversationPage() {
                     <CardKind>{cardKindLabel(m.card.card_type)}</CardKind>
                     <CardTitle>{m.card.title || m.content}</CardTitle>
                     {/* 왜 못 여는지 한 줄. "안 눌린다" 로 남겨 두지 않는다. */}
-                    <CardWhy>{cardWhy(m.card.state)}</CardWhy>
+                    <CardWhy>{cardWhy(m.card.state, m.card.card_type)}</CardWhy>
                   </CardDead>
                 )
               ) : (
