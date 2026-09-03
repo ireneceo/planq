@@ -3657,8 +3657,23 @@ const FinalizeBtn=styled.button`display:inline-flex;align-items:center;gap:6px;p
 const FinalizeIcon=styled.svg`width:16px;height:16px;flex-shrink:0;`;
 const FinalizeText=styled.span`@media(max-width:640px){display:none;}`;
 const TabBadge=styled.span<{$active?:boolean}>`display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 6px;border-radius:8px;background:${p=>p.$active?'#F43F5E':'#CBD5E1'};color:#FFF;font-size:0.6875rem;font-weight:700;line-height:1;`;
-const ListScroll=styled.div`flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;&::-webkit-scrollbar{width:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
-const TableHScroll=styled.div`overflow-x:auto;overflow-y:visible;overscroll-behavior-x:contain;&::-webkit-scrollbar{height:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
+/* 운영 신고 (Irene 2026-09-03): "서브헤더가 제대로 스티키 기능 안되고 헤더 아래로 들어가는 것도 있어"
+   실측: /tasks 를 끝까지 스크롤하면 컬럼 헤더(ColRow)가 **화면에서 아예 사라졌다**(스크린샷 확인).
+
+   원인은 아래 두 줄의 조합이었다.
+     ListScroll   : overflow-y:auto  ← 실제로 세로 스크롤이 일어나는 곳
+     TableHScroll : overflow-x:auto; overflow-y:visible  ← 그 안의 가로 스크롤 래퍼
+   CSS 규격상 **한 축이 visible 이고 다른 축이 그렇지 않으면 visible 은 auto 로 계산된다.**
+   그래서 TableHScroll 이 세로로도 스크롤 컨테이너가 되고, 그 안의 sticky 는 ListScroll 이 아니라
+   **TableHScroll 에 묶인다.** TableHScroll 은 세로로 스크롤하지 않으니 헤더는 붙을 자리가 없어
+   내용과 함께 위로 밀려 올라가 패널 밖으로 사라진다(실측 top 379 → 122, 패널 상단 280).
+   ※ overflow-y:clip / hidden 으로 바꿔도 안 된다 — 그 둘도 스크롤 컨테이너를 만든다(실브라우저 반증).
+
+   고침: **가로 스크롤을 세로 스크롤러로 올린다.** 그러면 sticky 가 진짜 스크롤러(ListScroll)에 묶여
+   목록 맨 위에 붙고, 가로 스크롤도 그대로 된다(실측: sticky top 280 == 패널 top 280, 가로 스크롤 유지).
+   TableHScroll 은 래퍼로만 남긴다 — JSX 를 건드리지 않기 위해서다(min-width 를 가진 자식들의 기준). */
+const ListScroll=styled.div`flex:1;overflow-y:auto;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;&::-webkit-scrollbar{width:6px;height:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
+const TableHScroll=styled.div`overflow:visible;`;
 const BottomAddLink=styled.button`margin:10px 14px 20px;padding:6px 0;background:transparent;color:#94A3B8;border:none;font-size:0.8125rem;font-weight:500;cursor:pointer;text-align:left;display:block;font-family:inherit;&:hover{color:#0F766E;}`;
 // #250 태그 관리 진입 — FilterBar 안의 보조 버튼. 기존 FinalizeBtn 톤을 그대로(bespoke 금지).
 const FilterBar=styled.div`display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid #F1F5F9;background:#FFF;flex-wrap:wrap;`;

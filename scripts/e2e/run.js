@@ -27,6 +27,10 @@ const SUITES = {
  // 탭 이름이 내용으로 유지되는가 — LRU 정지(alive:false)로 pane 이 언마운트돼도 되돌아가면 안 된다
          // ⑥ 멀티탭 트리 스왑(형제 라우터 무크래시·keep-alive·shell 무회귀)
   hlock: () => require('./canary-qtalk-hlock'), // #245 Q Talk 가로 잠금 — overflow-y:auto 만 두면 반대축이 auto 로 강제(grep 불가)
+  // 서브헤더가 스크롤 후 **실제로 붙어 있고 안 가려지는가** (2026-09-03 Irene: "스티키 기능 안되고 헤더 아래로 들어간다").
+  //   hlock 과 같은 계열의 반대쪽이다 — 저기는 가로가 세로를 잠그는 것을, 여기는 그 결과로 sticky 가
+  //   엉뚱한 스크롤러에 묶이는 것을 본다. 둘 다 CSS grep 으로는 안 잡힌다(선언은 정상으로 보인다).
+  sticky: () => require('./canary-sticky'),
   fab: () => require('./canary-fab-reach'),
   mailfwd: () => require('./canary-mail-forward'),   // 전달 컴포저 — 원문 미리보기가 **실제 높이**를 갖는가
   mailimage: () => require('./canary-mail-image'),   // #378 메일 본문 이미지 — 드래그가 무시되는지 눈으로 구별이 안 되는 계열
