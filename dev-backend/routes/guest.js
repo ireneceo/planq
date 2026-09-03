@@ -14,44 +14,17 @@ const router = express.Router();
 const { Message, User, Conversation, Project } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { Op } = require('sequelize');
-const rateLimit = require('express-rate-limit');
-const { resolveGuestToken } = require('../services/guest_link');
 // 카드 302 대상 주소를 만들 때 쓴다 — guest_admin 과 같은 원천.
 const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
 
-// 게스트 rate-limit — **토큰을 키로 쓴다.** 인증이 없어 req.user 가 없고, IP 는 NAT·모바일망에서
-//   여러 고객이 한 덩어리로 뭉친다(한 사람이 남을 잠근다).
-//   ★ costGuard 의 perUserLimiter 는 keyGenerator 를 **인자로 받지 않는다** — 넘겨도 조용히
-//     무시되고 IP 키로 떨어진다. 그래서 여기서 직접 만든다.
-const guestLimiter = (name, { windowMs, max }) => rateLimit({
-  windowMs,
-  max,
-  keyGenerator: (req) => `${name}-${String(req.params.token || '').slice(0, 32)}`,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { success: false, message: 'too_many_requests' },
-});
+const { guestLimiter, attachGuest } = require('./guest_common');
 
-/** 토큰을 풀어 req.guest 에 담는다. 실패하면 **무조건 404**. */
-async function attachGuest(req, res, next) {
-  const ctx = await resolveGuestToken(req.params.token, {
-    touch: true,
-    ip: req.headers['x-forwarded-for'] || req.ip,
-  });
-  if (!ctx) return errorResponse(res, 'not_found', 404);
-  req.guest = ctx;
-  next();
-}
-
-/** 고객에게 보여도 되는 메시지만.
- *  ★ **삭제된 메시지를 반드시 뺀다.** 처음에 이걸 빠뜨려서, 직원이 다른 고객 견적을 잘못 붙이고
- *    지웠는데 **멤버 화면에서만 사라지고 게스트 화면에는 그대로 남았다**(Fable 실증).
- *    PlanQ 의 삭제는 마스킹(soft delete)이라 행이 남는다 — 읽는 쪽이 걸러야 한다.
- *  ★ 나머지는 `conversations.js` 의 client 필터와 같은 술어다.
+/** 고객에게 보여도 되는 메시지만 — **정의는 services/guest_link.js 한 곳**이다.
+ *  ★ 여기 있던 술어를 서비스로 옮겼다. 답글 알림(services/guest_notify.js)이 같은 판단을
+ *    해야 하는데, 베껴 두면 반드시 갈라진다 — 갈라지는 순간 **지운 메시지·내부 메모로
+ *    알림 메일이 나간다.** 주석으로 "같은 술어" 라고 쓰는 것은 검증되지 않는다(실사례 있음).
  */
-const visibleToGuest = (m) => !m.is_deleted
-  && !m.is_internal
-  && !(m.is_ai && m.ai_mode_used === 'draft' && m.ai_draft_approved !== true);
+const { visibleToGuest } = require('../services/guest_link');
 
 /** 메시지 화이트리스트 — 내부 필드가 자동으로 따라 나가지 않게. */
 const serializeMessage = (m, guestUserId, cardState) => ({
@@ -70,6 +43,9 @@ const serializeMessage = (m, guestUserId, cardState) => ({
   //   이것을 안 보면 고객 화면에서 서로가 전부 "게스트" 로 보인다.
   sender_name: (m.sender?.is_guest === true && m.meta?.guest?.name) || m.sender?.name || null,
 });
+
+// 답글 알림 신청 (#259 A안) — 별도 파일. `/:token/notify/*` 만 가져간다.
+router.use(require('./guest_subscribe'));
 
 // ── GET /api/guest/:token — 대화방 컨텍스트 ────────────────────────────────
 router.get('/:token', guestLimiter('guest-ctx', { windowMs: 60 * 1000, max: 60 }), attachGuest, async (req, res, next) => {
@@ -238,6 +214,7 @@ router.post('/:token/account-request',
     return successResponse(res, { account_requested: true }, 'requested');
   } catch (err) { next(err); }
 });
+
 
 // ── GET /api/guest/:token/cards/:messageId/open ───────────────────────────
 //   카드를 **누를 때** 서버가 지금 주소를 해석해 302 로 보낸다.

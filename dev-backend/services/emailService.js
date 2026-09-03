@@ -578,6 +578,121 @@ async function sendSignatureOtpEmail({ to, docTitle, code }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// 4-B. 게스트 답글 알림 (#259 A안) — 무로그인 링크로 들어온 사람
+//   ★ 두 통의 성격이 다르다.
+//     ① 확인 코드: **주소 주인이 신청했는지 아직 모른다.** 남의 주소를 적었을 수 있으므로
+//        워크스페이스 이름·대화 제목까지도 넣지 않는다. 코드 한 개뿐이다.
+//     ② 답글 알림: 주소는 확인됐지만 **메일함은 남이 볼 수 있고 전달도 된다.**
+//        보낸 사람 이름도 본문도 싣지 않는다 — "새 답글이 있다" 와 여는 버튼뿐.
+// ═══════════════════════════════════════════════════════════════
+// ★ 게스트는 로그인 사용자가 아니라 **언어 설정이 없다.** 신청한 화면의 언어를 행에 적어 두고
+//   (guest_links.locale) 그 언어로 보낸다. 기존 템플릿은 전부 한국어 하드코딩이라
+//   여기서 처음으로 두 벌을 갖는다 — 링크는 카톡·메일로 국경을 넘어 다닌다.
+const GUEST_MAIL_TEXT = {
+  ko: {
+    otpSubject: (code) => `[${PLATFORM.brand}] 확인 코드 ${code}`,
+    otpTitle: `${PLATFORM.brand} 확인 코드`,
+    otpLead: '답글 알림 신청 확인 코드입니다.',
+    otpTtl: (m) => `코드는 <b>${m}분간</b> 유효합니다.`,
+    otpIgnore: '본인이 신청하지 않았다면 이 메일을 무시해 주세요. 무시하면 아무 알림도 가지 않습니다.',
+    otpPre: '답글 알림 신청 확인 코드',
+    replySubject: `[${PLATFORM.brand}] 새 답글이 도착했습니다`,
+    replyTitle: '새 답글',
+    replyLead: (who) => `${who} 에서 새 답글이 도착했습니다.`,
+    replyWhyNoBody: '내용은 보안을 위해 메일에 담지 않았습니다. 아래 버튼으로 대화를 열어 확인해 주세요.',
+    replyCta: '대화 열기',
+    replyUnsub: '알림 그만 받기',
+    replyPre: '새 답글이 도착했습니다',
+  },
+  en: {
+    otpSubject: (code) => `[${PLATFORM.brand}] Your code ${code}`,
+    otpTitle: `${PLATFORM.brand} verification code`,
+    otpLead: 'Here is your code to turn on reply alerts.',
+    otpTtl: (m) => `This code is valid for <b>${m} minutes</b>.`,
+    otpIgnore: "If you didn't request this, please ignore this email. Nothing will be sent to you.",
+    otpPre: 'Verification code for reply alerts',
+    replySubject: `[${PLATFORM.brand}] You have a new reply`,
+    replyTitle: 'New reply',
+    replyLead: (who) => `There's a new reply from ${who}.`,
+    replyWhyNoBody: 'For your privacy the message itself is not included. Open the conversation to read it.',
+    replyCta: 'Open conversation',
+    replyUnsub: 'Stop these emails',
+    replyPre: 'You have a new reply',
+  },
+};
+const guestText = (locale) => GUEST_MAIL_TEXT[String(locale || 'ko').slice(0, 2)] || GUEST_MAIL_TEXT.ko;
+
+function guestVerifyCodeEmailHtml({ code, ttlMinutes, locale }) {
+  const T = guestText(locale);
+  const body = `
+    <div style="font-size:14px;color:#334155;line-height:1.6;text-align:center;">
+      ${T.otpLead}
+    </div>
+    <div style="margin:24px 0 12px;text-align:center;">
+      <div style="display:inline-block;padding:18px 36px;background:#F0FDFA;border:1px solid #14B8A6;border-radius:12px;font-size:32px;font-weight:800;letter-spacing:8px;color:#0F766E;font-family:ui-monospace,monospace;">${escapeHtml(code)}</div>
+    </div>
+    <div style="margin-top:8px;font-size:12px;color:#64748B;line-height:1.6;text-align:center;">
+      ${T.otpTtl(Number(ttlMinutes))}<br>
+      ${T.otpIgnore}
+    </div>`;
+  // ★ preheader 도 고정 문구다 — 미리보기에 대화 정보가 실리면 여기서 막은 것이 그대로 샌다.
+  return emailWrap({ title: T.otpTitle, body, preheader: T.otpPre });
+}
+
+async function sendGuestVerifyCodeEmail({ to, code, ttlMinutes = 10, businessId, locale }) {
+  if (!to || !code) return false;
+  const T = guestText(locale);
+  return sendEmail({
+    to,
+    subject: T.otpSubject(code),
+    html: guestVerifyCodeEmailHtml({ code, ttlMinutes, locale }),
+    template: 'guest_verify_otp',
+    // ★ businessId 는 EmailLog 귀속용이다. 메일 본문에는 워크스페이스가 나오지 않는다.
+    businessId: businessId || null,
+  });
+}
+
+function guestReplyNotifyEmailHtml({ workspaceName, openUrl, unsubscribeUrl, locale }) {
+  const T = guestText(locale);
+  const who = workspaceName ? escapeHtml(workspaceName) : PLATFORM.brand;
+  const body = `
+    <div style="font-size:15px;color:#0F172A;line-height:1.6;font-weight:600;">
+      ${T.replyLead(who)}
+    </div>
+    <div style="margin-top:8px;font-size:13px;color:#64748B;line-height:1.6;">
+      ${T.replyWhyNoBody}
+    </div>
+    <div style="margin-top:20px;text-align:center;">
+      ${ctaButton(openUrl, T.replyCta)}
+    </div>
+    ${fallbackLink(openUrl)}
+    <div style="margin-top:18px;font-size:11px;color:#94A3B8;line-height:1.6;text-align:center;">
+      <a href="${unsubscribeUrl}" target="_blank" style="color:#94A3B8;">${escapeHtml(T.replyUnsub)}</a>
+    </div>`;
+  // ★ 수신거부 주소는 **화면으로 데려가는 링크**다. 메일 스캐너가 링크를 미리 여는 일이 있어
+  //   GET 한 번으로 알림이 꺼지면 안 된다 — 끄는 것은 그 화면의 버튼(POST)이 한다.
+  return emailWrap({
+    title: T.replyTitle, body,
+    preheader: T.replyPre,
+    footerOptions: { workspaceName },
+  });
+}
+
+async function sendGuestReplyNotifyEmail({ to, workspaceName, openUrl, unsubscribeUrl, businessId, conversationId, locale }) {
+  if (!to || !openUrl) return false;
+  const T = guestText(locale);
+  return sendEmail({
+    to,
+    subject: T.replySubject,
+    html: guestReplyNotifyEmailHtml({ workspaceName, openUrl, unsubscribeUrl, locale }),
+    template: 'guest_reply_notify',
+    businessId: businessId || null,
+    relatedEntityType: 'conversation',
+    relatedEntityId: conversationId || null,
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
 // 5. 청구서 발송 (외부 client)
 // ═══════════════════════════════════════════════════════════════
 function invoiceEmailHtml({ invoiceNumber, title, total, currency, dueDate, senderName, workspaceName, workspaceContact, message, shareUrl, payerCode, willIssueTax }) {
@@ -1055,6 +1170,7 @@ module.exports = {
   sendInviteEmail, sendPostShareEmail, sendEntityShareEmail, sendSignatureRequestEmail, sendSignatureOtpEmail,
   sendInvoiceEmail, sendPaymentReminderEmail, sendReceiptIssuedEmail, sendReceiptCorrectionEmail, sendVerificationCodeEmail,
   sendUnreadNotificationEmail,
+  sendGuestVerifyCodeEmail, sendGuestReplyNotifyEmail,
   sendBillingInstructionEmail,
   sendInquiryReceivedEmail,
   sendNotificationEmail,

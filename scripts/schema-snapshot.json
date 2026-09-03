@@ -848,7 +848,8 @@
       "updated_at",
       "parent_id",
       "client_env",
-      "is_popout"
+      "is_popout",
+      "error_context"
     ],
     "file_folders": [
       "id",
@@ -949,7 +950,22 @@
       "created_at",
       "updated_at",
       "account_requested_at",
-      "requested_email"
+      "requested_email",
+      "kind",
+      "parent_link_id",
+      "contact_name",
+      "contact_email",
+      "email_verified_at",
+      "otp_hash",
+      "otp_sent_at",
+      "otp_expires_at",
+      "otp_attempts",
+      "otp_locked_until",
+      "consent_at",
+      "consent_privacy_version",
+      "locale",
+      "unsubscribed_at",
+      "last_notified_at"
     ],
     "help_articles": [
       "id",

@@ -517,7 +517,11 @@
     "errDisabled": "Guest links are turned off. Please contact your administrator.",
     "errNotCustomer": "Links can only be created in customer conversations.",
     "errArchived": "This conversation is archived — links cannot be created.",
-    "errGeneric": "Could not create the link. Please try again in a moment."
+    "errGeneric": "Could not create the link. Please try again in a moment.",
+    "contacts": "People getting reply alerts",
+    "contactOn": "Alerts on",
+    "contactOff": "Alerts off",
+    "contactPending": "Not verified"
   },
   "workbench": {
     "loadFailed": "Could not load the workbench",

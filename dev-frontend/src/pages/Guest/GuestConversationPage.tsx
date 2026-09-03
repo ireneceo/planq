@@ -11,6 +11,7 @@ import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { isEnterAction } from '../../utils/imeKey';
 import styled from 'styled-components';
+import GuestNotifySection from './GuestNotifySection';
 
 type GuestCard = {
   card_type: string | null;
@@ -290,6 +291,8 @@ export default function GuestConversationPage() {
           </Overview>
         )
       )}
+      {/* 답글 알림 신청 (#259 A안) — 등록은 선택이고, 닫으면 이 브라우저에서 다시 안 뜬다. */}
+      <GuestNotifySection token={token || ''} onGone={() => setGone(true)} />
       {/* 헤더 아래 1줄 — 고정하지 않는다(본문과 함께 밀려 올라감). */}
       {!bannerHidden && (
         <Banner data-testid="guest-account-banner">

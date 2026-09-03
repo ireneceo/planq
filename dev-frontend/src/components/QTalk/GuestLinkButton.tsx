@@ -15,6 +15,15 @@ import ActionButton from '../Common/ActionButton';
 type Link = {
   id: number; guest_name: string; token_hint: string; can_write: boolean;
   expires_at: string; last_used_at: string | null; message_count: number; revoked_at: string | null;
+  /** 이 링크로 **답글 알림을 신청한 사람들** (#259 A안). 링크가 아니라 링크에 딸린 사람이다.
+   *  ★ 이 이름을 대화 메시지 옆에 쓰지 않는다 — 링크는 메일로 전달될 수 있고, 전달받은
+   *    제3자의 글이 확인된 사람의 글로 보인다(#259 에서 이미 난 사고와 같은 모양). */
+  contacts?: Contact[];
+};
+type Contact = {
+  id: number; name: string | null; email: string | null;
+  verified_at: string | null; unsubscribed_at: string | null;
+  last_used_at: string | null; last_notified_at: string | null; revoked_at: string | null;
 };
 
 export default function GuestLinkButton({ businessId, conversationId, clientName, autoOpen, onClosed }: {
@@ -158,6 +167,32 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
                   </RevokeBtn>
                 </Row>
               ))}
+              {links.some((l) => (l.contacts || []).some((c) => !c.revoked_at)) && (
+                <>
+                  <ListTitle>{t('guestLink.contacts', { defaultValue: '답글 알림을 신청한 사람' })}</ListTitle>
+                  {links.flatMap((l) => (l.contacts || [])
+                    .filter((c) => !c.revoked_at)
+                    .map((c) => (
+                      <Row key={`c${c.id}`}>
+                        <RowMain>
+                          <Hint>{c.name || '—'}</Hint>
+                          <Meta>
+                            {c.email || ''}
+                            {' · '}
+                            {c.verified_at
+                              ? (c.unsubscribed_at
+                                ? t('guestLink.contactOff', { defaultValue: '알림 꺼짐' })
+                                : t('guestLink.contactOn', { defaultValue: '알림 켜짐' }))
+                              : t('guestLink.contactPending', { defaultValue: '확인 안 됨' })}
+                          </Meta>
+                        </RowMain>
+                        <RevokeBtn type="button" onClick={() => revoke(c.id)} disabled={busy}>
+                          {t('guestLink.revoke', { defaultValue: '회수' })}
+                        </RevokeBtn>
+                      </Row>
+                    )))}
+                </>
+              )}
             </ListBox>
           )}
         </StandardModal>

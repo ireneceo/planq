@@ -13,7 +13,8 @@
         "Required: email address, password (hashed), name",
         "Optional: profile photo, phone number, organization name",
         "Automatically collected: IP address, cookies, access logs, browser/device info",
-        "Payment: card payments are handled directly by our payment processor (Stripe); the Company stores only the transaction ID and amount. For bank-transfer payments, the Company checks the depositor name and amount solely to confirm the deposit, and does not separately collect or store bank account details."
+        "Payment: card payments are handled directly by our payment processor (Stripe); the Company stores only the transaction ID and amount. For bank-transfer payments, the Company checks the depositor name and amount solely to confirm the deposit, and does not separately collect or store bank account details.",
+        "Guest (non-member) reply notifications: name and email address — used to send reply alerts and to let the assigned staff see who they are talking to. Collected only when the guest opts in, and shown to the staff on that conversation"
       ]
     },
     "s2": {
@@ -23,7 +24,8 @@
         "Customer support and inquiry handling",
         "Paid service billing, refunds, and tax invoice issuance",
         "Statistical analysis for service improvement (anonymized)",
-        "Fraud prevention and security"
+        "Fraud prevention and security",
+        "Sending reply notifications a guest has asked for, and letting staff see who they are talking to"
       ]
     },
     "s3": {
@@ -47,7 +49,8 @@
         "Trash files: retained 7 to 90 days by plan, then permanently deleted",
         "Audit logs: retained 30 days to 7 years by plan",
         "E-commerce records: up to 5 years per Korean e-commerce law",
-        "Complete deletion within 60 days of user request after contract termination (excluding legally required retention)"
+        "Complete deletion within 60 days of user request after contract termination (excluding legally required retention)",
+        "Guest notification data (name, email): deleted within 24 hours if the email is never verified; otherwise within 30 days after the chat link expires or is revoked (the recipient address in delivery logs is masked at the same time). The guest can delete it immediately from the page"
       ]
     },
     "s5": {

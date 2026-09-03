@@ -517,7 +517,11 @@
     "errDisabled": "게스트 링크 기능이 꺼져 있습니다. 관리자에게 문의해 주세요.",
     "errNotCustomer": "고객 대화방에서만 만들 수 있습니다.",
     "errArchived": "보관된 대화방에는 만들 수 없습니다.",
-    "errGeneric": "링크를 만들지 못했습니다. 잠시 후 다시 시도해 주세요."
+    "errGeneric": "링크를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.",
+    "contacts": "답글 알림을 신청한 사람",
+    "contactOn": "알림 켜짐",
+    "contactOff": "알림 꺼짐",
+    "contactPending": "확인 안 됨"
   },
   "workbench": {
     "loadFailed": "작업대 정보를 불러오지 못했습니다",

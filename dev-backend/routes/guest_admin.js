@@ -27,6 +27,24 @@ const serialize = (l) => ({
   created_at: l.created_at,
 });
 
+/** 답글 알림을 신청한 사람 — **개별 회수**가 되어야 한다.
+ *  ★ 이 이름을 대화 메시지 옆에 붙이지 말 것. 링크는 메일로 전달될 수 있고, 전달받은
+ *    제3자의 글이 **확인된 사람의 글로 보인다**(#259 에서 이미 난 사고와 같은 모양).
+ *    메시지 표시명의 원천은 언제나 messages.meta.guest.name 박제다.
+ */
+const serializeContact = (l) => ({
+  id: l.id,
+  name: l.contact_name,
+  email: l.contact_email,
+  verified_at: l.email_verified_at,
+  unsubscribed_at: l.unsubscribed_at,
+  last_used_at: l.last_used_at,
+  last_used_ip: l.last_used_ip,
+  last_notified_at: l.last_notified_at,
+  revoked_at: l.revoked_at,
+  created_at: l.created_at,
+});
+
 // GET — 이 대화방의 링크 목록
 router.get('/:businessId/:id/guest-links', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
   try {
@@ -34,12 +52,31 @@ router.get('/:businessId/:id/guest-links', authenticateToken, attachWorkspaceSco
     if (!(await assertMemberOrAbove(req.user.id, businessId, req.user.platform_role))) {
       return errorResponse(res, 'forbidden', 403);
     }
+    // ★ **shared 만 링크다.** 답글 알림을 신청한 사람마다 자식 행(kind='personal')이 생기는데,
+    //   그것까지 여기 섞이면 등록자 수만큼 "링크" 가 늘고 각각 회수 버튼이 달린다 —
+    //   등록자가 50명이면 정작 부모 링크가 목록에서 밀려난다.
     const rows = await GuestLink.findAll({
-      where: { business_id: businessId, conversation_id: Number(req.params.id) },
+      where: { business_id: businessId, conversation_id: Number(req.params.id), kind: 'shared' },
       order: [['id', 'DESC']],
       limit: 50,
     });
-    return successResponse(res, rows.map(serialize));
+    // 등록한 사람들 — 발급자는 **누가 이 링크를 쓰는지** 알아야 회수를 판단할 수 있다.
+    const children = rows.length
+      ? await GuestLink.findAll({
+        where: { parent_link_id: rows.map((r) => r.id), kind: 'personal' },
+        order: [['id', 'ASC']],
+        limit: 500,
+      })
+      : [];
+    const byParent = new Map();
+    for (const c of children) {
+      if (!byParent.has(c.parent_link_id)) byParent.set(c.parent_link_id, []);
+      byParent.get(c.parent_link_id).push(serializeContact(c));
+    }
+    return successResponse(res, rows.map((l) => ({
+      ...serialize(l),
+      contacts: byParent.get(l.id) || [],
+    })));
   } catch (err) { next(err); }
 });
 
@@ -126,6 +163,16 @@ router.delete('/:businessId/:id/guest-links/:linkId', authenticateToken, attachW
     if (!link) return errorResponse(res, 'not_found', 404);
     if (link.revoked_at) return successResponse(res, serialize(link), 'already_revoked');
     await link.update({ revoked_at: new Date(), revoked_by: req.user.id });
+    // ★ 부모를 회수하면 **자식(개인 링크)도 같이 닫는다.** 읽는 쪽(resolveGuestToken)이
+    //   부모를 보므로 이미 닫히지만, 행에 흔적을 남겨야 목록·30일 삭제 타이머가
+    //   "언제 닫혔는지" 를 안다. 상태를 파생으로만 두면 그 시각을 아무도 모른다.
+    if (link.kind === 'shared') {
+      await GuestLink.update(
+        { revoked_at: link.revoked_at, revoked_by: req.user.id },
+        { where: { parent_link_id: link.id, revoked_at: null } },
+      );
+    }
+    try { require('../services/guest_notify').invalidateGuestCache(link.conversation_id); } catch { /* 캐시일 뿐이다 */ }
     createAuditLog({
       userId: req.user.id, businessId,
       action: 'guest_link.revoke', targetType: 'GuestLink', targetId: link.id,

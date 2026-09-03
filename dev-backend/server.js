@@ -648,6 +648,11 @@ function scheduleNextMidnight() {
       console.log('[overdue]', r);
     } catch (e) { console.warn('[overdue] failed', e.message); }
     try {
+      // 게스트가 남긴 연락처 — 방침에 쓴 보관기간대로 지운다 (#259 A안)
+      const r = await require('./services/guestContactCleanup').runGuestContactCleanup();
+      if (r.unverified || r.expired) console.log('[guest-contact-cleanup]', r);
+    } catch (e) { console.warn('[guest-contact-cleanup] failed', e.message); }
+    try {
       const shareCleanup = require('./services/shareTokenCleanup');
       const r = await shareCleanup.runShareTokenCleanup();
       console.log('[share-token-cleanup]', r);

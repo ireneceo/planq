@@ -149,7 +149,26 @@ Message.init({
   sequelize,
   tableName: 'messages',
   timestamps: true,
-  underscored: true
+  underscored: true,
+  hooks: {
+    // ── 게스트 답글 알림 (#259 A안) ─────────────────────────────────────────
+    // ★ **여기가 유일한 트리거다.** 게스트에게 보이는 메시지를 만드는 곳은 대화 라우트 둘만이
+    //   아니다 — Cue 자동응답·청구서 발송·문서/공유/서명 카드까지 여덟 곳이 넘고, 새 기능마다
+    //   또 는다. 라우트마다 호출을 심는 방식은 새로 생긴 경로에서 **조용히 빠진다**(이미 겪었다).
+    //   "보이게 된 순간" 을 잡으면 경로를 세지 않아도 된다.
+    // ★ 훅은 트랜잭션 안이다. 실제 일은 커밋 뒤로 미룬다(services/guest_notify.js).
+    afterCreate: (instance, options) => {
+      try { require('../services/guest_notify').scheduleGuestNotify(instance, options); } catch { /* 알림 실패가 메시지 저장을 막지 않는다 */ }
+    },
+    // 초안 승인은 **생성이 아니라 update** 로 보이게 된다 — 그 전이도 답글이다.
+    afterUpdate: (instance, options) => {
+      try {
+        if (!instance.changed || !instance.changed('ai_draft_approved')) return;
+        if (instance.ai_draft_approved !== true && instance.ai_draft_approved !== 1) return;
+        require('../services/guest_notify').scheduleGuestNotify(instance, options);
+      } catch { /* 위와 같다 */ }
+    },
+  },
 });
 
 module.exports = Message;

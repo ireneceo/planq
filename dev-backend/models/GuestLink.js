@@ -61,6 +61,50 @@ GuestLink.init({
   requested_email: { type: DataTypes.STRING(200), allowNull: true },
   revoked_at: { type: DataTypes.DATE, allowNull: true },
   revoked_by: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'users', key: 'id' } },
+
+  // ─── 개인 링크 (#259 A안, 2026-09-03) ────────────────────────────────────
+  //
+  // Irene: "A로 하면 고객에게 이름이랑 이메일 등록하게 해야 하네. 그렇게 게스트가 되면
+  //   나중에 Q sale 메뉴에도 등록되면 되겠네."
+  //
+  // ★ 형태를 정한 것은 **원문 토큰을 저장하지 않는다**는 위 원칙이다(sha256 만 있다).
+  //   알림 메일에 열리는 링크를 실으려면 사람마다 자기 토큰이 있어야 한다. 그래서
+  //   "사람 = 자기 링크" 가 된다. (회전은 하지 않는다 — 회전시키면 지난 메일의 링크가
+  //   전부 죽어 사용자에게는 "만료" 로 보인다. 대신 개별 회수·삭제 수단을 둔다.)
+  //     shared   — 카톡방에 퍼지는 링크. 익명·여럿. 지금 그대로.
+  //     personal — 이메일을 OTP 로 확인한 사람마다 1개. 부모(shared) 아래 자식.
+  //   새 테이블을 만들지 않는 이유: 같은 것을 자식 행으로 표현할 수 있으면 두 번째
+  //   저장소는 해석기·박제 id·FK 를 두 벌로 만들 뿐이다.
+  kind: {
+    type: DataTypes.ENUM('shared', 'personal'), allowNull: false, defaultValue: 'shared',
+  },
+  parent_link_id: {
+    type: DataTypes.INTEGER, allowNull: true, references: { model: 'guest_links', key: 'id' },
+    comment: 'personal 링크의 부모(shared). 부모가 닫히면 자식도 닫힌다',
+  },
+  // ★ contact_name 은 **메시지 표시명의 원천이 아니다.** 표시명은 messages.meta.guest.name 박제다.
+  //   여기 이름을 렌더에 쓰면 나중에 이름을 바꿀 때 과거 메시지가 소급해서 바뀐다.
+  //   이 값은 멤버 화면·Q sale 프리필 전용.
+  contact_name: { type: DataTypes.STRING(30), allowNull: true },
+  contact_email: { type: DataTypes.STRING(200), allowNull: true, comment: '소문자 정규화' },
+  email_verified_at: { type: DataTypes.DATE, allowNull: true },
+
+  // OTP — 무인증 사용자가 **남의 주소**를 적을 수 있다. 확인 전에는 어떤 알림도 안 나간다.
+  otp_hash: { type: DataTypes.CHAR(64), allowNull: true },
+  otp_sent_at: { type: DataTypes.DATE, allowNull: true },
+  otp_expires_at: { type: DataTypes.DATE, allowNull: true },
+  otp_attempts: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+  otp_locked_until: { type: DataTypes.DATE, allowNull: true },
+
+  // 동의 — 회원가입이 명시 체크를 받으므로(routes/auth.js) 게스트만 예외를 두지 않는다.
+  //   방침 버전을 같이 남겨야 나중에 무엇에 동의했는지 소명된다.
+  consent_at: { type: DataTypes.DATE, allowNull: true },
+  consent_privacy_version: { type: DataTypes.STRING(20), allowNull: true },
+
+  locale: { type: DataTypes.STRING(5), allowNull: true, comment: '알림 메일 언어' },
+  // 수신거부 ≠ 링크 회수. 알림만 끄고 대화는 계속 쓴다.
+  unsubscribed_at: { type: DataTypes.DATE, allowNull: true },
+  last_notified_at: { type: DataTypes.DATE, allowNull: true },
 }, {
   sequelize,
   modelName: 'GuestLink',
@@ -72,6 +116,10 @@ GuestLink.init({
     { fields: ['conversation_id'] },
     { fields: ['client_id'] },
     { fields: ['expires_at'] },
+    // 개인 링크 조회(부모별) + 같은 부모에 같은 주소 중복 방지.
+    //   shared 행은 둘 다 NULL 이라 이 유니크에 걸리지 않는다(MySQL 은 NULL 을 중복으로 안 본다).
+    { fields: ['parent_link_id'] },
+    { unique: true, fields: ['parent_link_id', 'contact_email'], name: 'guest_links_parent_email' },
   ],
 });
 
